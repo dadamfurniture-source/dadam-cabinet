@@ -46,6 +46,7 @@
 //        캡처 바운즈(`plannerCaptureBoundsOf`)에서 빠진다. 씬의 자식이라 `paintScene`(moduleGroup 순회)
 //        에도, 화면 클릭 레이캐스트(moduleGroup.children)에도 걸리지 않는다.
 //     ② 빛 — 방위각·고도로 주광을 반구 위에 놓고, 그림자 카메라를 가구에 조인다.
+//     ③ 톤 — 노출(`toneMappingExposure`)과 색온도·틴트(조명 **색**).
 //
 //   ⚠ **G6 — 왜 저장·복원이 여기 있는가.** `planner-detail.js applyScene` 은 조명의 **세기만**
 //   적어 둔다 (`planner-detail.js:423` — 그 모드는 세기만 건드리니 그것으로 충분하다). 사진 모드는
@@ -72,6 +73,9 @@
 //       한다" (`constants.js:78`). 받개 평면이 사진 전체에 그림자를 드리워 합성이 통째로 죽는다.
 //     · radius 의 단위는 **텍셀**이다 (`shadowmap_pars_fragment.glsl.js:132`). 그래서 카메라를
 //       조이면 같은 radius 가 세계 단위로는 더 좁아진다 — 접지면이 또렷해지는 쪽이라 원하는 방향이다.
+//
+//   ⚠ **자동 제안은 제안이다.** 사진의 평균 밝기·따뜻함을 읽어 노출·색온도를 **적어 두기만** 하고,
+//   사용자가 「사진에 맞추기」를 눌러야 들어간다. 올리자마자 조용히 바꾸면 "내 설정이 사라졌다" 가 된다.
 //
 // ⚠ 클래식 스크립트 — 최상위 이름은 전부 plannerPhotoMode / PLANNER_PHOTO_MODE_ / PlannerPhotoMode 접두.
 //   three 는 전역 window.THREE. 없으면 모드는 상태만 바꾸고 조용히 아무것도 그리지 않는다 (jsdom).
@@ -106,6 +110,13 @@ const PLANNER_PHOTO_MODE_LIGHT_R_MIN_MM = 4000;
 const PLANNER_PHOTO_MODE_SHADOW_MAP = 2048;
 /** 그림자 카메라 여유 (가구 대각선의 배수) */
 const PLANNER_PHOTO_MODE_SHADOW_PAD = 1.15;
+/** 색온도·틴트가 조명 색을 밀 수 있는 최대 폭 (0~1) */
+const PLANNER_PHOTO_MODE_WARM_K = 0.18;
+const PLANNER_PHOTO_MODE_TINT_K = 0.12;
+/** 자동 제안이 가정하는 "노출 1 일 때 렌더의 평균 밝기" — 제안의 기준점 */
+const PLANNER_PHOTO_MODE_RENDER_LUMA = 0.45;
+/** 자동 제안이 사진을 읽을 때 줄이는 크기 (px). 평균만 필요하니 이 정도면 넉넉하다 */
+const PLANNER_PHOTO_MODE_SAMPLE_PX = 32;
 /** 슬라이더 한 칸. 값의 성질이 다르니 칸도 다르다 (각도는 1°, 세기는 0.05) */
 const PLANNER_PHOTO_MODE_LOOK_STEP = {
   shadowOpacity: 0.01, shadowSoftness: 0.5, azimuthDeg: 1, elevationDeg: 1,
@@ -142,6 +153,8 @@ const PLANNER_PHOTO_MODE_CSS = `
 .pb-meta{font-size:9.5px;color:var(--text-faint,#a89c84)}
 .pb-group{border-top:1px solid var(--line,#e5e0d4);padding-top:7px;margin-top:2px;display:flex;flex-direction:column;gap:6px}
 .pb-group>.pb-title{font-size:10.5px;font-weight:700;color:var(--brand-deep,#6a4b2a)}
+.pb-suggest{border:1px solid var(--brand-mid,#c8ab86);background:var(--brand-soft,#f6efe4);border-radius:6px;padding:6px 8px;line-height:1.5;font-size:10.5px;display:flex;flex-direction:column;gap:5px}
+.pb-suggest button{align-self:flex-start}
 `;
 
 /**
@@ -239,6 +252,100 @@ function plannerPhotoModeLightPos(azimuthDeg, elevationDeg, centre, radius) {
   ];
 }
 
+/**
+ * 색온도·틴트 → 조명 색 계수 {r, g, b} (0~1, 가장 큰 칸이 1).
+ *
+ * **왜 조명 색인가.** 색온도는 렌더러 설정이 아니다. 후처리 합성기(EffectComposer)를 들이지 않고
+ * 정직하게 할 수 있는 일은 **빛의 색을 바꾸는 것**이다 — 방의 화이트밸런스가 다르다는 말은 실제로
+ * 그 방의 빛 색이 다르다는 뜻이니 물리적으로도 맞는 자리다. 한계는 분명하다: 스스로 빛나는 재질
+ * (emissive·unlit)에는 안 먹는다. 그래서 문서에 적어 둔다.
+ *
+ * 가장 큰 칸을 1 로 맞춰 **밝기는 건드리지 않는다** — 밝기는 세기 슬라이더 하나만 맡는다.
+ *
+ * @param {number} temperature -100(차갑게) ~ +100(따뜻하게)
+ * @param {number} tint -100(초록) ~ +100(자홍)
+ */
+function plannerPhotoModeTintColor(temperature, tint) {
+  const t = Math.min(1, Math.max(-1, (Number(temperature) || 0) / 100));
+  const g = Math.min(1, Math.max(-1, (Number(tint) || 0) / 100));
+  let r = 1 + PLANNER_PHOTO_MODE_WARM_K * t;
+  let b = 1 - PLANNER_PHOTO_MODE_WARM_K * t;
+  let gr = 1;
+  r *= 1 + PLANNER_PHOTO_MODE_TINT_K * g * 0.5;
+  b *= 1 + PLANNER_PHOTO_MODE_TINT_K * g * 0.5;
+  gr *= 1 - PLANNER_PHOTO_MODE_TINT_K * g;
+  const m = Math.max(r, gr, b) || 1;
+  return { r: r / m, g: gr / m, b: b / m };
+}
+
+/**
+ * 사진 표본 → 노출·색온도·틴트 **제안**. 적용하지 않는다 (「사진에 맞추기」가 적용한다).
+ *
+ * · 노출 — 사진이 밝으면 렌더도 밝아야 한다. 기준은 "노출 1 일 때 렌더의 평균 밝기"
+ *   (`PLANNER_PHOTO_MODE_RENDER_LUMA`) 이고, 비율에 **제곱근**을 씌워 절반만 간다.
+ *   제안은 정답이 아니다 — 크게 밀어 놓고 되돌리게 하느니 덜 밀어 놓고 더 밀게 하는 편이 낫다.
+ * · 색온도 — (R−B)/(R+B). 노을 진 방은 +, 흐린 날 북향 방은 −.
+ * · 틴트 — 초록이 평균보다 높으면 형광등 쪽이라 자홍(−)으로 민다.
+ *
+ * @param {{luma:number, r:number, g:number, b:number}} sample 0~1
+ * @returns {{exposure:number, temperature:number, tint:number, luma:number, warm:number}|null}
+ */
+function plannerPhotoModeSuggestGrade(sample) {
+  if (!sample) return null;
+  const clamp01 = (v) => Math.min(1, Math.max(0, Number(v) || 0));
+  const r = clamp01(sample.r), g = clamp01(sample.g), b = clamp01(sample.b);
+  const luma = Number.isFinite(Number(sample.luma))
+    ? clamp01(sample.luma)
+    : clamp01(0.2126 * r + 0.7152 * g + 0.0722 * b);
+  const EX = (typeof PLANNER_PHOTO_BG_GRADE_LIMITS !== 'undefined')
+    ? PLANNER_PHOTO_BG_GRADE_LIMITS
+    : { exposure: { min: 0.2, max: 3 }, temperature: { min: -100, max: 100 }, tint: { min: -100, max: 100 } };
+  const ratio = Math.max(0.03, luma) / PLANNER_PHOTO_MODE_RENDER_LUMA;
+  const exposure = Math.min(EX.exposure.max, Math.max(EX.exposure.min, Math.round(Math.sqrt(ratio) * 20) / 20));
+  const warm = (r + b) > 1e-6 ? (r - b) / (r + b) : 0;
+  const temperature = Math.min(EX.temperature.max, Math.max(EX.temperature.min, Math.round(warm * 300)));
+  const greenDev = (g - (r + b) / 2) / Math.max(0.05, luma);
+  const tint = Math.min(EX.tint.max, Math.max(EX.tint.min, Math.round(-greenDev * 200)));
+  return { exposure, temperature, tint, luma: Math.round(luma * 1000) / 1000, warm: Math.round(warm * 1000) / 1000 };
+}
+
+/**
+ * 사진 `<img>` 를 작은 2D 캔버스에 줄여 그리고 평균 색을 읽는다.
+ *
+ * 사진은 blob: 객체 URL 이라 **같은 출처**다 — 캔버스가 더럽혀지지 않는다. 그래도 `SecurityError`
+ * 를 막아 둔다: 브라우저 설정·확장·미래의 다른 경로로 사진이 들어올 수 있고, 그때 던지면 패널
+ * 전체가 안 그려진다. 못 읽으면 조용히 null 이고 「사진에 맞추기」 버튼이 안 선다.
+ *
+ * @returns {{luma:number, r:number, g:number, b:number}|null}
+ */
+function plannerPhotoModeSamplePhoto(img, doc) {
+  const d = doc || (typeof document !== 'undefined' ? document : null);
+  if (!img || !d || typeof d.createElement !== 'function') return null;
+  const w = Number(img.naturalWidth || img.width) || 0;
+  const h = Number(img.naturalHeight || img.height) || 0;
+  if (!(w > 0) || !(h > 0)) return null;
+  const n = PLANNER_PHOTO_MODE_SAMPLE_PX;
+  try {
+    const c = d.createElement('canvas');
+    c.width = n; c.height = n;
+    const ctx = typeof c.getContext === 'function' ? c.getContext('2d') : null;
+    if (!ctx || typeof ctx.drawImage !== 'function' || typeof ctx.getImageData !== 'function') return null;
+    ctx.drawImage(img, 0, 0, n, n);
+    const data = ctx.getImageData(0, 0, n, n).data;
+    if (!data || !data.length) return null;
+    let R = 0, G = 0, B = 0, count = 0;
+    for (let i = 0; i + 3 < data.length; i += 4) {
+      if (data[i + 3] === 0) continue;                 // 투명 화소는 세지 않는다
+      R += data[i]; G += data[i + 1]; B += data[i + 2]; count++;
+    }
+    if (!count) return null;
+    const r = R / count / 255, g = G / count / 255, b = B / count / 255;
+    return { r, g, b, luma: 0.2126 * r + 0.7152 * g + 0.0722 * b };
+  } catch (e) {
+    return null;                                       // SecurityError(더럽혀진 캔버스) 포함
+  }
+}
+
 const PlannerPhotoMode = {
   active: false,
   /** 페이지가 넘긴 것 (mount) */
@@ -258,6 +365,8 @@ const PlannerPhotoMode = {
   _catcher: null,
   /** 받개·그림자 카메라를 다시 잰 시점의 모듈 수 — 바뀌면 다시 잰다 */
   _catcherAt: -1,
+  /** P2: 사진에서 읽은 톤 제안. **적용하지 않는다** — 「사진에 맞추기」를 눌러야 들어간다 */
+  proposal: null,
   /** 별도 카메라 (three). 화면 카메라는 건드리지 않는다 */
   _cam: null,
   /** 마지막으로 그린 레터박스 — 바뀔 때만 DOM 을 건드린다 */
@@ -431,6 +540,7 @@ const PlannerPhotoMode = {
     this.applyScene(true);
     this.solve();
     this.applyLook();
+    this.refreshProposal();     // 읽기만 한다 — 적용은 「사진에 맞추기」
     this.paint();
     return true;
   },
@@ -778,6 +888,7 @@ const PlannerPhotoMode = {
     if (!this.active || !t || !T || !BG || !this._savedLight) return false;
     const st = BG.state;
     const L = st.light || {};
+    const G = st.grade || {};
     const b = this._bounds(t, T);
     const spanX = b ? b.spanX : 3000;
     const spanZ = b ? b.spanZ : 2000;
@@ -809,12 +920,14 @@ const PlannerPhotoMode = {
     }
 
     // ── 빛 ──────────────────────────────────────────────
+    const tint = plannerPhotoModeTintColor(G.temperature, G.tint);
     const lights = this._lights(t);
     const key = lights.key;
     if (key) {
       const pos = plannerPhotoModeLightPos(L.azimuthDeg, L.elevationDeg, centre, radius);
       try { key.position.set(pos[0], pos[1], pos[2]); } catch (e) { /* 무해 */ }
       try { key.intensity = Number(L.intensity) || 0; } catch (e) { /* 무해 */ }
+      try { if (key.color && key.color.setRGB) key.color.setRGB(tint.r, tint.g, tint.b); } catch (e) { /* 무해 */ }
       key.castShadow = true;
       // 타깃은 가구 중심. **씬에 붙여야** 매 프레임 matrixWorld 가 갱신된다 (three 의 규약).
       if (key.target) {
@@ -831,14 +944,17 @@ const PlannerPhotoMode = {
       const pos = plannerPhotoModeLightPos(Number(L.azimuthDeg) + 180, 25, centre, radius);
       try { f.position.set(pos[0], pos[1], pos[2]); } catch (e) { /* 무해 */ }
       try { f.intensity = (Number(L.intensity) || 0) * 0.33; } catch (e) { /* 무해 */ }
+      try { if (f.color && f.color.setRGB) f.color.setRGB(tint.r, tint.g, tint.b); } catch (e) { /* 무해 */ }
     });
     lights.amb.forEach((a) => {
       try { a.intensity = Number(L.ambient) || 0; } catch (e) { /* 무해 */ }
+      try { if (a.color && a.color.setRGB) a.color.setRGB(tint.r, tint.g, tint.b); } catch (e) { /* 무해 */ }
     });
 
-    // ── 그림자 지도 ────────────────────────────────────
+    // ── 톤 ──────────────────────────────────────────────
     const r = t.renderer;
     if (r) {
+      try { r.toneMappingExposure = Number(G.exposure) || 1; } catch (e) { /* 무해 */ }
       try {
         if (r.shadowMap) {
           r.shadowMap.enabled = true;
@@ -875,6 +991,39 @@ const PlannerPhotoMode = {
       }
     } catch (e) { return false; }
     return true;
+  },
+
+  // ── P2: 자동 제안 ─────────────────────────────────────
+
+  /**
+   * 사진을 읽어 노출·색온도를 **제안만** 한다 (`this.proposal`). 적용은 `applyProposal`.
+   * 시험은 `_sample` 을 갈아 끼운다 — jsdom 캔버스에는 진짜 픽셀이 없다.
+   */
+  refreshProposal() {
+    this.proposal = null;
+    const BG = this.bg();
+    if (!BG || !BG.image) return null;
+    let sample = null;
+    if (typeof this._sample === 'function') {
+      try { sample = this._sample(BG.image); } catch (e) { sample = null; }
+    } else {
+      const img = (typeof document !== 'undefined') ? document.getElementById(PLANNER_PHOTO_MODE_IMG_ID) : null;
+      sample = plannerPhotoModeSamplePhoto(img);
+    }
+    if (!sample) return null;
+    this.proposal = plannerPhotoModeSuggestGrade(sample);
+    return this.proposal;
+  },
+
+  /** 「사진에 맞추기」 — 제안을 실제로 얹는다. 이 버튼을 누르기 전에는 아무것도 바뀌지 않는다. */
+  applyProposal() {
+    const BG = this.bg();
+    const p = this.proposal;
+    if (!BG || !p) return null;
+    BG.patchGrade({ exposure: p.exposure, temperature: p.temperature, tint: p.tint });
+    this.toast(`사진에 맞췄습니다 — 노출 ${p.exposure} · 색온도 ${p.temperature > 0 ? '+' : ''}${p.temperature}`);
+    this.renderPanel();
+    return BG.state.grade;
   },
 
   // ── 매 프레임 ─────────────────────────────────────────
@@ -1233,8 +1382,16 @@ const PlannerPhotoMode = {
     };
     ['shadowOpacity', 'shadowSoftness', 'azimuthDeg', 'elevationDeg', 'intensity', 'ambient']
       .forEach((k) => p.push(row('light', k)));
+    ['exposure', 'temperature', 'tint'].forEach((k) => p.push(row('grade', k)));
+    const prop = this.proposal;
+    if (prop) {
+      // **제안일 뿐이다** — 버튼을 눌러야 들어간다 (사진을 올렸다고 설정을 조용히 바꾸지 않는다)
+      p.push('<div class="pb-suggest"><div>사진의 평균 밝기와 색을 읽었습니다 — '
+        + `노출 ${prop.exposure} · 색온도 ${prop.temperature > 0 ? '+' : ''}${prop.temperature} 를 제안합니다.</div>`
+        + '<button type="button" data-photo="suggest">사진에 맞추기</button></div>');
+    }
     p.push('<div class="pb-row"><button type="button" data-photo="resetlook">빛 되돌리기</button>'
-      + '<span class="pb-meta">빛 방향을 사진의 그림자와 나란히 맞춰 보세요</span></div>');
+      + '<span class="pb-meta">색온도는 조명 색으로 얹습니다 — 스스로 빛나는 재질에는 안 먹습니다</span></div>');
     p.push('</div>');
     return p.join('');
   },
@@ -1298,8 +1455,9 @@ const PlannerPhotoMode = {
         onDone: (res) => {
           if (!res || !res.ok) { self.toast('⚠ ' + ((res && res.message) || '사진을 올리지 못했습니다')); return; }
           self.toast('🖼 사진을 올렸습니다 — 사각형을 가구가 설 바닥에 대충 맞춰 주세요');
+          // 톤 제안은 **읽기만** 한다 (`refreshProposal`). 올리자마자 설정을 바꾸지 않는다.
           if (!self.active) self.enter();
-          else { self.solve(); self.applyLook(); self.paint(); }
+          else { self.solve(); self.applyLook(); self.refreshProposal(); self.paint(); }
         },
       });
     }
@@ -1332,6 +1490,7 @@ const PlannerPhotoMode = {
         if (what === 'toggle') { self.toggle(); self.renderPanel(); }
         else if (what === 'autofov') self.autoFov();
         else if (what === 'reset') { BG.resetQuad(); self.toast('사각형을 처음 자리로 되돌렸습니다'); }
+        else if (what === 'suggest') self.applyProposal();
         else if (what === 'resetlook') { BG.resetLook(); self.renderPanel(); self.toast('빛과 톤을 기본값으로 되돌렸습니다'); }
       };
     });
@@ -1369,6 +1528,9 @@ if (typeof window !== 'undefined') {
   window.PlannerPhotoMode = PlannerPhotoMode;
   window.plannerPhotoModeBox = plannerPhotoModeBox;
   window.plannerPhotoModeLightPos = plannerPhotoModeLightPos;
+  window.plannerPhotoModeTintColor = plannerPhotoModeTintColor;
+  window.plannerPhotoModeSuggestGrade = plannerPhotoModeSuggestGrade;
+  window.plannerPhotoModeSamplePhoto = plannerPhotoModeSamplePhoto;
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -1381,8 +1543,12 @@ if (typeof module !== 'undefined' && module.exports) {
     PLANNER_PHOTO_MODE_HIDE_KINDS,
     PLANNER_PHOTO_MODE_CATCHER_KIND,
     PLANNER_PHOTO_MODE_SHADOW_MAP,
+    PLANNER_PHOTO_MODE_RENDER_LUMA,
     PLANNER_PHOTO_MODE_LOOK_STEP,
     plannerPhotoModeLightPos,
+    plannerPhotoModeTintColor,
+    plannerPhotoModeSuggestGrade,
+    plannerPhotoModeSamplePhoto,
     plannerPhotoModeBox,
     plannerPhotoModeViewport,
     plannerPhotoModeToBox,
