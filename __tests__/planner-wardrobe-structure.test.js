@@ -175,15 +175,29 @@ describe('프리셋 바꾸기', () => {
 });
 
 describe('외부 서랍 단수', () => {
-  test('어느 구조에서든 서랍을 더할 수 있다 — 입력이 항상 있다', () => {
+  test('어느 구조에서든 서랍을 더할 수 있고 0 도 된다', () => {
     const p = boot();
-    pick(p, 1);                                   // longDrawer — 기본 2단
-    expect(sel(p, '#inpWardrobeDrawers').value).toBe('2');
-    expect(sel(p, '#inpWardrobeDrawers').min).toBe('1');   // 긴옷은 최소 1단
+    pick(p, 1);                                   // longDrawer — 기본 1단
+    expect(sel(p, '#inpWardrobeDrawers').value).toBe('1');
+    expect(sel(p, '#inpWardrobeDrawers').min).toBe('0');
     pick(p, 0);                                   // short2 — 기본 없음, 그래도 더할 수 있다
     expect(sel(p, '#inpWardrobeDrawers')).not.toBeNull();
     expect(sel(p, '#inpWardrobeDrawers').value).toBe('0');
-    expect(sel(p, '#inpWardrobeDrawers').min).toBe('0');
+  });
+
+  test('서랍 종류는 서랍이 있을 때만 고른다 — 외부 · 내부', () => {
+    const p = boot();
+    pick(p, 0);                                   // 서랍 없음
+    expect(sel(p, '#selWardrobeDrawerMode')).toBeNull();
+    const { m } = pick(p, 1);                     // 서랍 1단
+    const mode = sel(p, '#selWardrobeDrawerMode');
+    expect(mode.value).toBe('external');
+    mode.value = 'internal';
+    mode.dispatchEvent(new p.window.Event('change', { bubbles: true }));
+    const L = p.g('wardrobeLayoutFor')(m, draft(p, m));
+    expect(L.external).toBe(false);
+    expect(L.carcasses.map((c) => c.kind)).toEqual(['cabinet']);   // 몸통을 따로 세우지 않는다
+    expect(L.carcasses[0].drawerZone.drawers).toBe(1);
   });
 
   test('짧은옷 2단에 서랍을 더하면 서랍 몸통이 생긴다', () => {
@@ -195,19 +209,20 @@ describe('외부 서랍 단수', () => {
     const L = p.g('wardrobeLayoutFor')(m, draft(p, m));
     expect(L.carcasses.map((c) => c.kind)).toEqual(['drawer', 'cabinet', 'cabinet']);
     expect(L.carcasses[0].h).toBe(2 * WR.WARDROBE_RULES.DRAWER_MOD_H);
+    expect(L.external).toBe(true);
   });
 
-  test('단수를 바꾸면 통 높이가 따라 줄어든다', () => {
+  test('외부 서랍 단수를 올리면 통 높이가 따라 줄어든다', () => {
     const p = boot();
     const { m, s } = pick(p, 1);
-    const before = p.g('wardrobeLayoutFor')(m, s).bodyH;
+    const L0 = p.g('wardrobeLayoutFor')(m, s);
     const el = sel(p, '#inpWardrobeDrawers');
-    el.value = '3';
+    el.value = String(L0.drawers + 2);
     el.dispatchEvent(new p.window.Event('change', { bubbles: true }));
     // 패널은 **초안**을 고친다 — 실제 구조는 적용 전까지 그대로다
     const after = p.g('wardrobeLayoutFor')(m, draft(p, m)).bodyH;
-    expect(after).toBe(before - WR.WARDROBE_RULES.DRAWER_MOD_H);
-    expect(p.g('wardrobeLayoutFor')(m, s).bodyH).toBe(before);
+    expect(after).toBe(L0.bodyH - 2 * WR.WARDROBE_RULES.DRAWER_MOD_H);
+    expect(p.g('wardrobeLayoutFor')(m, s).bodyH).toBe(L0.bodyH);
   });
 
   test('범위를 벗어난 값은 잘린다', () => {

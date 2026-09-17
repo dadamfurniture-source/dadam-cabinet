@@ -139,8 +139,9 @@
       label: '긴옷 + 하부 서랍',
       note: '기본형 2번 통 — 상단 선반 1 + 옷봉 1. 서랍은 몸통을 따로 만든다',
       moduleType: 'long',
-      drawers: 2,
-      minDrawers: 1,          // 긴옷에는 서랍이 최소 1단 들어간다 (2026-09-17 사장님 확정 · §4 long 기본 서랍 1)
+      // 2026-09-17 사장님 확정: 긴옷은 서랍 **1단이 기본값**이고 0 도 된다 (최소를 걸지 않는다).
+      //   §4 의 long 기본 서랍 1 과 같은 값이다.
+      drawers: 1,
       stack: [
         { key: 'body', label: '긴옷장', share: 1,
           cells: ({ Wi, Hi }) => [{ x0: 0, w: Wi, y0: 0, h: Hi, kind: 'rod', rods: 1, shelves: 1, label: '긴옷' }] },
@@ -229,6 +230,7 @@
       // null·undefined 는 **미지정**이다 — 0 으로 접으면 프리셋 기본 서랍 단수를 덮어쓴다
       // (Number(null) 이 0 이고 Number.isFinite(0) 이 true 라 그렇게 새던 자리다).
       drawers: b.drawers == null || b.drawers === '' ? null : drawers,
+      // 서랍 종류 — true 외부(별도 몸통) · false 내부(몸통 안). 미지정이면 규칙 기본값(외부).
       externalDrawer: b.externalDrawer == null ? null : !!b.externalDrawer,
     };
   }
@@ -327,11 +329,21 @@
     return out;
   }
 
-  /** 칸 안 옷봉 위치 (칸 바닥에서 봉 중심까지) — 칸 상단에서 75 아래 (§5). */
-  function rodPositions(cell) {
+  /**
+   * 칸 안 옷봉 위치 (칸 바닥에서 봉 중심까지).
+   *
+   * 2026-09-17 사장님 확정: **선반이 있으면 최상단 선반 바로 아래**다. 옛 화면도 그렇게 적어 뒀다
+   * ("옷봉 1개 자동 설치 (상단 고정선반 아래)"). 그때까지 칸 상단 기준으로 75 를 재서 옷봉이
+   * 첫 선반(상단에서 315) **위**에 걸렸다 — 옷이 걸릴 수 없는 자리였다.
+   * 선반이 없는 칸(짧은옷)은 칸 상단에서 75 그대로다 (§5 ROD_OFFSET).
+   *
+   * @param {number[]} [shelfYs] 그 칸의 선반 **밑면** y 목록 (shelfPositions 결과)
+   */
+  function rodPositions(cell, shelfYs) {
     const n = int0(cell.rods, 1);
     if (n <= 0) return [];
-    const y = cell.h - R.ROD_OFFSET;
+    const top = (Array.isArray(shelfYs) && shelfYs.length) ? Math.max(...shelfYs) : cell.h;
+    const y = top - R.ROD_OFFSET;
     return y > 0 ? [Math.round(y)] : [];
   }
 
@@ -370,20 +382,19 @@
     let drawers = opt.drawers == null || opt.drawers === ''
       ? int0(preset.drawers, R.MAX_DRAWER_COUNT)
       : int0(opt.drawers, R.MAX_DRAWER_COUNT);
-    const minDrawers = int0(preset.minDrawers, R.MAX_DRAWER_COUNT);
-    if (drawers < minDrawers) {
-      warnings.push(`${preset.label} 은 서랍이 최소 ${minDrawers}단 들어간다 — ${drawers} 를 ${minDrawers} 로 올렸다`);
-      drawers = minDrawers;
-    }
     const drawerModH = drawers * R.DRAWER_MOD_H;
+    // 2026-09-17 사장님 확정: 서랍은 **내부·외부 두 가지**다 (§7).
+    //   외부 = 통 아래에 몸통을 따로 세운다 → 캐비닛 높이가 그만큼 준다
+    //   내부 = 몸통 높이를 유지하고 **맨 아래 캐비닛 안**에 서랍모듈을 넣는다 → 그 칸이 그만큼 준다
+    const external = opt.externalDrawer == null ? true : !!opt.externalDrawer;
 
     const fullBodyH = bodyHeightOf(opt);
-    const cabinetH = fullBodyH - drawerModH;     // 서랍 몸통을 뺀 나머지를 캐비닛 몸통들이 나눈다
+    const cabinetH = external ? fullBodyH - drawerModH : fullBodyH;
 
     const empty = {
       preset: key, label: preset.label, moduleType: preset.moduleType,
       carcasses: [], cells: [], dividers: [], shelves: [], rods: [],
-      drawers, drawerModH, cabinetH, bodyH: cabinetH, fullBodyH, Wi, T, W,
+      drawers, drawerModH, external, cabinetH, bodyH: cabinetH, fullBodyH, Wi, T, W,
       shelfDepth: shelfDepthOf(opt), innerDepth: innerDepthOf(opt), warnings,
     };
     if (cabinetH <= 2 * T) {
@@ -399,7 +410,7 @@
 
     const carcasses = [];
     let y = 0;
-    if (drawers > 0) {
+    if (drawers > 0 && external) {
       // §7 외부 서랍 — 통 아래에 **별도 제작** 몸통으로 선다.
       carcasses.push({ key: 'drawer', label: '서랍모듈', kind: 'drawer', y0: 0, h: drawerModH, drawers,
         cells: [], dividers: [], shelves: [], rods: [] });
@@ -417,11 +428,15 @@
     const shelves = [];
     const rods = [];
 
+    const firstCabinet = carcasses.findIndex((c) => c.kind === 'cabinet');
     carcasses.forEach((car, carIdx) => {
       if (car.kind !== 'cabinet') return;
-      const Hi = car.h - 2 * T;
+      // §7 내부 서랍 — 몸통 높이는 그대로 두고 **맨 아래 캐비닛 안**에서 자리를 뺀다.
+      const zoneH = (!external && drawers > 0 && carIdx === firstCabinet) ? drawerModH : 0;
+      if (zoneH > 0) car.drawerZone = { y0: car.y0 + T, h: zoneH, drawers };
+      const Hi = car.h - 2 * T - zoneH;
       if (Hi <= 0) {
-        warnings.push(`${car.label} 높이 ${car.h} 가 판 두께(${2 * T})보다 작아 칸이 없다`);
+        warnings.push(`${car.label} 높이 ${car.h} 에서 판 두께(${2 * T})${zoneH ? ` · 내부 서랍(${zoneH})` : ''}을 빼면 칸이 남지 않는다`);
         return;
       }
       const st = plan[car.planIdx];
@@ -441,8 +456,8 @@
       }
       own.sort((x, z) => (x.y0 - z.y0) || (x.x0 - z.x0));
 
-      // 몸통 안 좌표 → 통 좌표. 그 몸통 지판 윗면이 y0 + T 다.
-      const base = car.y0 + T;
+      // 몸통 안 좌표 → 통 좌표. 그 몸통 지판 윗면이 y0 + T 이고, 내부 서랍이 있으면 그 위부터다.
+      const base = car.y0 + T + zoneH;
       const ownDividers = dividersOf(own, opt).map((d) => Object.assign({}, d, {
         carcass: carIdx,
         y0: d.axis === 'v' ? d.y0 + base : d.y0,
@@ -456,12 +471,14 @@
         const idx = cells.length;
         cells.push(cell);
         car.cells.push(cell);
-        shelfPositions(c, opt).forEach((sy) => {
+        const shelfYs = shelfPositions(c, opt);
+        shelfYs.forEach((sy) => {
           const row = { cell: idx, carcass: carIdx, x0: c.x0, y: sy + cell.y0,
             w: c.w, cutW: c.w, cutH: shelfDepthOf(opt), t: T, part: '선반' };
           shelves.push(row); car.shelves.push(row);
         });
-        rodPositions(c).forEach((ry) => {
+        // 옷봉은 최상단 선반 **아래**에 걸린다 — 선반 위치를 넘겨야 그 자리가 잡힌다.
+        rodPositions(c, shelfYs).forEach((ry) => {
           // clearW = 칸 내경 폭(그림에서 칸이 차지하는 폭), length = 실제 파이프 재단 길이
           const row = { cell: idx, carcass: carIdx, x0: c.x0, y: ry + cell.y0,
             clearW: c.w, length: rodLengthFor(c.w), sockets: R.ROD_SOCKETS_PER_ROD, part: '옷봉' };
