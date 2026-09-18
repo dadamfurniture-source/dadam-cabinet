@@ -567,7 +567,7 @@ export function buildInstallPrompt(c, opts = {}) {
       : c.tile.lightNeutral
         ? `\nWALL TILE: keep the existing light tiles exactly as they are.`
         : `\nWALL TILE: the existing wall tiles${c.tile.description ? ` (${c.tile.description})` : ''} are not light neutral. Replace them with light neutral tiles — matte off-white or light grey large-format ceramic with subtle grout — only where tiles already are (the wall area between the furniture pieces).`;
-  const fixes = (opts.fix || []).map((k) => QC_FIXES[k] || DESIGN_SPEC_QC_FIXES[k]).filter(Boolean);
+  const fixes = (opts.fix || []).map((k) => QC_FIXES[k] || DESIGN_SPEC_QC_FIXES[k] || REALIZE_QC_FIXES[k]).filter(Boolean);
   const fixBlock = fixes.length
     ? `\nFIX (the previous attempt failed these checks):\n- ${fixes.join('\n- ')}`
     : '';
@@ -584,6 +584,21 @@ export function buildInstallPrompt(c, opts = {}) {
     `FINISH: ${doorPhrase} flat-panel fronts, ${style} style, consistent on every panel.` +
     (bodyPhrase ? ` Carcass and visible side panels: ${bodyPhrase}.` : '') +
     (topPhrase ? ` Countertop and worktop surfaces: ${topPhrase}.` : '');
+  // 실사화 모드 (2026-09-19): 첫 사진에 플래너가 도면 입면을 이미 얹어 두었다 (벽 호모그래피 합성).
+  //   모델의 일은 그리는 것이 아니라 **그 자리에서 다시 그리는 것**이다 — 기하는 사진에 이미 있다.
+  //   문장은 도면 요약(FURNITURE)과 함께 간다: 그림이 기하를, 글이 개수·순서를 한 번 더 못박는다.
+  //   realize 가 아니면 아래 반환문은 예전과 한 글자도 다르지 않다 (install-prompt-snapshot.test.js).
+  if (c.realize) {
+    return `Edit the first photo: it already contains the customer's own cabinet design placed on the main wall as a flat mockup, at its exact position and size. Re-render that mockup as a real photograph of the installed built-in ${cat.label} (${key}).
+GEOMETRY IS FIXED: keep every outer edge, module boundary, door and drawer split, count and position exactly where the mockup has them. Do not move, resize, add or remove any module, door or drawer.
+MAKE IT REAL: real materials with grain and sheen, depth (visible side panels and countertop edge), contact shadows, reflections and lighting consistent with the room. Remove any old furniture the mockup covers or that remains beside it, cleanly, with no demolition marks.
+Keep the room exactly as photographed: camera angle, walls, ceiling, floor, windows, lighting and everything outside the furniture.${room}
+WALL: about ${c.wallW} x ${c.wallH} mm.
+${furniture}
+${finish}
+HANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.${site}${tile}${refs}${fixBlock}
+All doors and drawers closed. Photorealistic interior photograph with natural lighting and correct shadows. No text, labels or watermarks.`;
+  }
   return `Edit the first photo: install a built-in ${cat.label} (${key}) on the main wall.
 Keep the room exactly as photographed: camera angle, walls, ceiling, floor, windows, lighting and everything outside the furniture.${existing}${room}
 WALL: about ${c.wallW} x ${c.wallH} mm.
@@ -597,7 +612,21 @@ All doors and drawers closed. Photorealistic interior photograph with natural li
 /** 모든 실행이 받는 공통 코드. */
 export const QC_ISSUE_CODES = Object.keys(QC_FIXES);
 /** parseQc 가 받아 주는 전체 = 공통 + 도면 요약 전용. */
-export const ALL_QC_ISSUE_CODES = [...QC_ISSUE_CODES, ...Object.keys(DESIGN_SPEC_QC_FIXES)];
+/**
+ * 실사화(realize) 모드에서만 쓰는 검사 코드. 2026-09-19.
+ * 첫 사진에 도면 입면이 이미 얹혀 있을 때(플래너가 벽 호모그래피로 합성), 모델이 그것을
+ * 다시 그리지 않고 붙여 놓은 채로 두는 것이 이 모드의 전형적 실패다.
+ */
+export const REALIZE_QC_FIXES = {
+  flat_mockup:
+    'Parts of the furniture still look like a flat pasted mockup. Re-render every front as real material with grain and sheen, add depth (side panels, countertop edge), contact shadows and reflections — without moving any edge.',
+};
+
+export const ALL_QC_ISSUE_CODES = [
+  ...QC_ISSUE_CODES,
+  ...Object.keys(DESIGN_SPEC_QC_FIXES),
+  ...Object.keys(REALIZE_QC_FIXES),
+];
 
 /** 설치 결과 한 장을 보고 규칙 위반을 JSON 으로 판정한다. 관대하게 — 명백할 때만 실패. */
 export function buildQcPrompt(c) {
@@ -607,6 +636,10 @@ export function buildQcPrompt(c) {
   const layoutBlock = digest ? `\nLAYOUT the render must match, left to right — ${digest}` : '';
   const layoutCode = digest
     ? '\n- layout_mismatch: the fronts do not match LAYOUT — a different number of modules, a different left-to-right order, or doors where LAYOUT says a drawer stack (ignore width differences and any module hidden behind an appliance)'
+    : '';
+  // 실사화 모드에서만: 붙여 놓은 티가 남았는지 본다
+  const realizeCode = c.realize
+    ? '\n- flat_mockup: any part of the furniture still looks like a flat pasted picture — no depth, no contact shadow, cut-out edges, or a texture that ignores the room lighting'
     : '';
   return `You are checking an AI-rendered photo of a built-in ${CATEGORIES[key].label} (${key}) installed in a real room.${layoutBlock}
 Answer JSON only: {"ok":boolean,"issues":[string],"note":string}
@@ -624,7 +657,7 @@ Report an issue ONLY when it is clearly visible. Use these codes:
     KITCHEN_CATEGORIES.includes(key)
       ? '\n- faucet_missing: there is a sink but no faucet/tap behind it'
       : ''
-  }${layoutCode}
+  }${layoutCode}${realizeCode}
 ok is true when issues is empty. note is one short sentence.`;
 }
 
