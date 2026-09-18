@@ -39,11 +39,13 @@
  *   · 좌우 몰딩   각 **60** (15PB, 몸통 재질). 문을 열 때 경첩에 걸리지 않게 모듈을 그만큼 안으로 넣는다
  *   · 앞선        붙박이장 앞선에서 **70 안쪽** — 경첩 자리
  *   · 손잡이      목찬넬이 아니라 **도어를 30 낮춰** 빈 공간을 만든다.
- *                 그 빈 공간 수는 **일반 하부장 목찬넬 갯수 규칙과 같다** (1단 1 · 2단 2 · 3단 2 · 4단 3)
- *                 하나가 **위·아래 두 전면을 함께 연다** — 그래서 모든 전면이 빈 공간 하나에 닿아야 한다.
- *                 `assignChannels` 는 **위→아래** 순서로 돌려준다. 여기서는 아래→위로 쌓으니 뒤집는다.
- *                 뒤집지 않으면 3단에서 빈 공간이 위로 몰려 **맨 아래 서랍을 열 자리가 없다**
- *                 (2026-09-19 사장님 지적).
+ *                 빈 공간 하나가 **위·아래 두 전면을 함께 연다** — 그래서 모든 전면이 빈 공간
+ *                 하나에 닿아야 한다. 닿지 않는 전면은 열 수 없다.
+ *                 수는 그 조건을 채우는 **최소**다: 아래에서 위로 짝을 지어 경계마다 하나씩 놓고,
+ *                 짝이 없는 맨 위 전면만 상단을 쓴다 → **ceil(단수/2)** (1단 1 · 2단 1 · 3단 2 · 4단 2).
+ *                 상단 빈 공간은 **필수가 아니다** (2026-09-19 사장님 확정) — 하부장 목찬넬은
+ *                 연속 EP 때문에 상단이 늘 있지만, 여기는 목찬넬이 아니라 빈 공간이라 그럴 이유가 없다.
+ *                 그래서 갯수가 목찬넬 규칙과 갈린다 (2단·4단이 하나 적다).
  *
  * ── 내부 서랍장은 "따로 만드는 모듈" 이다 (2026-09-19 사장님 확정) ──
  * 붙박이장 통 안에 서랍을 넣는 것이 아니라, **작은 모듈을 하나 더 만들어** 통 안에 앉힌다.
@@ -52,6 +54,8 @@
  *   모듈 H(외경) = 서랍 단수 × 350       (구역 높이)
  *   모듈 D       = 통 깊이 − 70          (앞선에서 물러선 만큼)
  *   도어 W       = 모듈 W − 4
+ *   천판 깊이    = **붙박이장 선반 깊이** (`shelfDepthOf`) — 천판은 모듈의 상판 개념이다
+ *                  (2026-09-19 사장님 확정). 지판은 모듈 천저판 그대로 (모듈 D − 18).
  * 서랍 박스(전후판·측판·우라)는 이 모듈 치수를 **서랍 규칙**(drawerBoxDims)에 넣어서 낸다 —
  * 붙박이장에만 있는 박스 규칙을 따로 두지 않는다.
  *
@@ -438,18 +442,36 @@
   }
 
   /**
+   * 손잡이 빈 공간의 **최소 배치** (2026-09-19 사장님 확정).
+   *
+   * 빈 공간이 경계에 있으면 위·아래 두 전면을 함께 열고, 상단(맨 위 전면 위)에 있으면 한 장만 연다.
+   * 그래서 아래에서 위로 짝을 지어 경계마다 하나씩 놓고, 짝이 없는 맨 위 전면만 상단을 쓴다.
+   * 결과는 `ceil(n/2)` 로 최소이며, 단수가 **짝수면 상단 빈 공간이 없다**.
+   *
+   * @returns {{midBelow:boolean[], top:boolean, slots:number}} midBelow[i] = 전면 i·i+1 사이 (아래→위)
+   */
+  function innerSlotPlan(n) {
+    const midBelow = new Array(Math.max(0, n - 1)).fill(false);
+    let top = false;
+    for (let i = 0; i < n; i += 2) {
+      if (i + 1 < n) midBelow[i] = true;   // 이 경계 하나가 전면 i 와 i+1 을 함께 연다
+      else top = true;                     // 짝이 없는 맨 위 한 장 — 상단을 쓴다
+    }
+    return { midBelow, top, slots: midBelow.filter(Boolean).length + (top ? 1 : 0) };
+  }
+
+  /**
    * 내부 서랍 구역의 배치 — 좌우 몰딩 · 모듈 · 전면.
    *
-   * 전면 수는 서랍 단수와 같고, **빈 공간(30) 수는 서랍 규칙의 목찬넬 갯수와 같다**
-   * (`DadamDrawerRules.channelCountFor`: 1단 1 · 2단 2 · 3단 2 · 4단 3). 상단에 하나가 늘 있고,
-   * 나머지는 `assignChannels` 가 정한 서랍 경계에 놓인다 — 하나가 위·아래 두 전면을 연다.
+   * 전면 수는 서랍 단수와 같고, **빈 공간(30) 수는 최소**다 (`innerSlotPlan`: ceil(n/2)).
+   * 하나가 위·아래 두 전면을 열기 때문에 전면과 1:1 이 아니다.
    *
    *   모듈 내경 폭   = 통 내경 − 2 × 60
    *   모듈 내경 높이 = 구역 높이 − 2 × T        (모듈 상판·지판)
    *   전면 가로       = 모듈 내경 폭 − 4
    *   전면 높이 합    = (모듈 내경 높이 − 4) − 30 × 빈 공간 수
    *
-   * @param o { Wi, zoneH, drawers, T }
+   * @param o { Wi, zoneH, drawers, T, D, rail }
    * @returns null 이면 그릴 것이 없다 (서랍 0 또는 자리가 안 나온다)
    */
   function innerDrawerLayout(o) {
@@ -471,6 +493,8 @@
       setback: I.FRONT_SETBACK, moduleW, moduleH: zoneH, moduleHi, moduleD,
       // 천저판 깊이 — 사쿠리 반영. 플래너도 이 값을 그린다 (숫자를 두 군데 적지 않는다).
       panelD: Math.max(0, moduleD - R.TOP_BOTTOM_D_MINUS),
+      // 천판은 모듈의 **상판** 개념이라 깊이가 붙박이장 선반과 같다 (2026-09-19 사장님 확정).
+      topPanelD: Math.max(0, shelfDepthOf(opt)),
       frontT: T, fronts: [], boxes: [], slots: 0, warnings,
     };
     if (moduleW <= 0 || moduleHi <= 0) {
@@ -479,12 +503,9 @@
     }
 
     const DR = drawerRules();
-    // 2026-09-19: `assignChannels` 는 **위→아래** 순서다 (midsTD[k] = 위에서 k·k+1 번째 전면 사이).
-    //   여기서는 아래→위로 쌓으므로 뒤집는다. 뒤집지 않으면 3단에서 빈 공간이 위로 몰려
-    //   **맨 아래 서랍을 열 자리가 없다** — 사장님이 도면에서 잡아낸 결함이다.
-    const midsTD = DR && DR.assignChannels ? DR.assignChannels(n) : [];
-    const mids = midsTD.slice().reverse();
-    const slots = DR && DR.channelCountFor ? DR.channelCountFor(n) : 1;
+    const plan = innerSlotPlan(n);
+    const mids = plan.midBelow;
+    const slots = plan.slots;
 
     const frontW = moduleW - I.FRONT_TRIM;
     const area = (moduleHi - I.FRONT_TRIM) - slots * I.HANDLE_SLOT;
@@ -499,8 +520,8 @@
     let y = 0;
     for (let i = 0; i < n; i++) {
       const h = i === n - 1 ? area - each * (n - 1) : each;
-      // slotAbove: 이 전면 **위**에 빈 공간이 있는가 (맨 위는 상단 빈 공간이 늘 있다)
-      const slotAbove = i === n - 1 ? true : !!mids[i];
+      // slotAbove: 이 전면 **위**에 빈 공간이 있는가 (맨 위는 상단 빈 공간이 있을 때만)
+      const slotAbove = i === n - 1 ? plan.top : !!mids[i];
       fronts.push({ idx: i, y0: y, h, w: frontW, slotAbove, slotBelow: i > 0 && !!mids[i - 1] });
       y += h;
       if (i < n - 1 && mids[i]) y += I.HANDLE_SLOT;   // 그 경계의 빈 공간 (위·아래를 함께 연다)
@@ -521,7 +542,9 @@
       if (!b.fits) warnings.push(`내부 서랍 ${b.idx + 1}단: 전면 뒤 자리에 가장 작은 박스(${b.sideH})도 안 들어간다`);
     });
 
-    return Object.assign(base, { slots, frontW, fronts, boxes, topSlot: I.HANDLE_SLOT });
+    // topSlot: 맨 위 전면 위의 빈 공간 — 단수가 짝수면 없다 (짝이 다 맞아 경계로 해결된다)
+    return Object.assign(base, { slots, frontW, fronts, boxes,
+      topSlot: plan.top ? I.HANDLE_SLOT : 0, hasTopSlot: plan.top });
   }
 
   /** 전면 한 장 뒤의 서랍 박스 — 서랍 규칙(pickBox·drawerBoxDims)이 정한다. */
@@ -569,7 +592,8 @@
     const inner = W - 2 * T;
     const rows = [
       { part: '측판', material: 'PB', t: T, w: D, h: H, qty: 2, edge: '3면', note: 'sakuri(15→3mm)' },
-      { part: '천판', material: 'PB', t: T, w: inner, h: L.panelD, qty: 1, edge: '1면(전)' },
+      { part: '천판', material: 'PB', t: T, w: inner, h: L.topPanelD, qty: 1, edge: '1면(전)',
+        note: '상판 개념 — 붙박이장 선반과 같은 깊이' },
       { part: '지판', material: 'PB', t: T, w: inner, h: L.panelD, qty: 1, edge: '1면(전)' },
       { part: '뒷판', material: 'MDF', t: I.BACK_T, w: W - I.BACK_W_MINUS, h: H - I.BACK_H_MINUS, qty: 1, edge: '-' },
       { part: '밴드', material: 'PB', t: T, w: inner, h: I.BAND_H, qty: 2, edge: '2면(장)' },
@@ -809,7 +833,7 @@
     layoutWardrobeModule, normalizeBlock, dividersOf, shelfPositions, rodPositions,
     partsOf, rodHardwareOf, rodHardwareFor, rodLengthFor, bodyHeightOf, shelfDepthOf, innerDepthOf,
     cabinetsOf, splitStack, moldingPartFor, moldingFinishOn,
-    innerDrawerLayout, innerDrawerPartsOf, innerDrawerModulePartsOf,
+    innerDrawerLayout, innerDrawerPartsOf, innerDrawerModulePartsOf, innerSlotPlan,
     presetOf, presetKeyOf, presetLabel, moduleTypeOf, samplePresetFor,
   };
 });

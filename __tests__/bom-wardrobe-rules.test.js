@@ -304,26 +304,43 @@ describe('내부 서랍 (2026-09-19 확정)', () => {
     });
   });
 
-  test('빈 공간 수는 일반 하부장 목찬넬 갯수와 같다 — 1단 1 · 2단 2 · 3단 2 · 4단 3', () => {
+  test('빈 공간 수는 최소다 — ceil(단수/2): 1단 1 · 2단 1 · 3단 2 · 4단 2', () => {
+    // 2026-09-19 사장님 확정: 상단 빈 공간이 필수가 아니다. 하나가 위·아래 두 전면을 열므로
+    //   경계에 짝지어 놓으면 ceil(n/2) 로 끝난다.
+    expect([1, 2, 3, 4, 5].map((n) => inner(n).slots)).toEqual([1, 1, 2, 2, 3]);
+    [1, 2, 3, 4, 5].forEach((n) => expect(inner(n).slots).toBe(Math.ceil(n / 2)));
+    // 하부장 목찬넬 규칙과는 갈린다 — 그쪽은 연속 EP 때문에 상단이 늘 있다
     const DR = require('../js/detaildesign/bom-drawer-rules.js');
-    [1, 2, 3, 4].forEach((n) => {
-      expect(inner(n).slots).toBe(DR.channelCountFor(n));
-    });
-    expect([1, 2, 3, 4].map((n) => inner(n).slots)).toEqual([1, 2, 2, 3]);
+    expect(inner(2).slots).toBeLessThan(DR.channelCountFor(2));
+    expect(inner(4).slots).toBeLessThan(DR.channelCountFor(4));
+  });
+
+  test('단수가 짝수면 상단 빈 공간이 없다 — 꼭 맨 위에 있을 이유가 없다', () => {
+    expect(inner(2).hasTopSlot).toBe(false);
+    expect(inner(4).hasTopSlot).toBe(false);
+    expect(inner(1).hasTopSlot).toBe(true);   // 짝이 없는 한 장
+    expect(inner(3).hasTopSlot).toBe(true);
+    // 상단이 없으면 맨 위 전면이 모듈 천판에 붙는다 (구역 상단에 트림 4 만 남는다)
+    const L = inner(2);
+    const top = L.fronts[L.fronts.length - 1];
+    expect(L.moduleHi - (top.y0 + top.h)).toBe(I.FRONT_TRIM);
   });
 
   test('전면은 아래에서 위로 쌓이고 빈 공간이 사이에 들어간다 (나머지는 맨 위가 먹는다)', () => {
     const L = inner(4);
     let y = 0;
     L.fronts.forEach((f) => { expect(f.y0).toBeGreaterThanOrEqual(y); y = f.y0 + f.h; });
-    // 4단은 경계 빈 공간이 둘 (assignChannels [true,false,true]) + 상단 하나 = 3
-    expect(L.slots).toBe(3);
+    // 4단은 경계 빈 공간 둘로 끝난다 — 상단은 쓰지 않는다
+    expect(L.slots).toBe(2);
+    expect(L.hasTopSlot).toBe(false);
     const gaps = L.fronts.slice(1).map((f, i) => f.y0 - (L.fronts[i].y0 + L.fronts[i].h));
-    expect(gaps.filter((g) => g === I.HANDLE_SLOT)).toHaveLength(2);
+    expect(gaps).toEqual([I.HANDLE_SLOT, 0, I.HANDLE_SLOT]);
+    // 나머지는 맨 위가 먹는다
+    expect(L.fronts.map((f) => f.h)).toEqual([326, 326, 326, 328]);
   });
 
   test('자리가 안 나오면 전면을 내지 않고 경고한다', () => {
-    const tight = inner(4, 300);            // 4단인데 구역이 300 밖에 없다
+    const tight = inner(4, 240);            // 4단인데 구역이 240 밖에 없다
     expect(tight.fronts).toHaveLength(0);
     expect(tight.warnings.length).toBeGreaterThan(0);
     // 통이 너무 좁아 몰딩 둘이 안 들어가는 경우
@@ -341,7 +358,7 @@ describe('내부 서랍 (2026-09-19 확정)', () => {
     const front = rows.find((r) => r.part === '내부서랍 전면판');
     const mol = rows.find((r) => r.part === '내부서랍 좌우몰딩');
     expect(front).toMatchObject({ material: 'PB', t: 15, w: 746, qty: 2, edge: '4면' });
-    expect(front.note).toMatch(/빈 공간 30 × 2/);
+    expect(front.note).toMatch(/빈 공간 30 × 1/);   // 2단은 경계 하나로 끝난다
     expect(mol).toMatchObject({ material: 'PB', t: 15, w: 700, h: 60, qty: 2 });
     expect(mol.note).toMatch(/70 안쪽/);
     // 같은 높이 전면은 한 줄로 묶는다
@@ -555,7 +572,7 @@ describe('내부 서랍장은 따로 만드는 모듈이다 (2026-09-19 확정)'
   //   사장님이 3단 도면에서 잡아낸 결함이다 — `assignChannels` 는 위→아래 순서라서
   //   아래→위로 쌓는 이쪽에서 뒤집지 않으면 빈 공간이 위로 몰리고 맨 아래가 고립된다.
   test('모든 전면이 손잡이 빈 공간 하나에 닿는다 — 맨 아래 서랍도 열린다', () => {
-    [1, 2, 3, 4].forEach((n) => {
+    [1, 2, 3, 4, 5].forEach((n) => {
       const L = inner(n);
       L.fronts.forEach((f) => {
         expect(f.slotAbove || f.slotBelow).toBe(true);
@@ -577,11 +594,16 @@ describe('내부 서랍장은 따로 만드는 모듈이다 (2026-09-19 확정)'
     expect(gap12).toBe(0);
   });
 
-  test('빈 공간을 뒤집지 않으면 고립된 전면이 생긴다 — 경고로 잡는다', () => {
-    // 위→아래 순서를 그대로 쓰면 3단 맨 아래가 어디에도 닿지 않는다는 것을 규칙으로 못박는다.
-    const midsTD = DR.assignChannels(3);
-    expect(midsTD).toEqual([false, true]);          // 위→아래: 아래쪽 경계에 있다
-    expect(midsTD.slice().reverse()).toEqual([true, false]); // 아래→위: 위쪽 경계
+  test('빈 공간 배치는 아래에서 짝을 지어 최소로 잡는다', () => {
+    expect(WR.innerSlotPlan(1)).toMatchObject({ midBelow: [], top: true, slots: 1 });
+    expect(WR.innerSlotPlan(2)).toMatchObject({ midBelow: [true], top: false, slots: 1 });
+    expect(WR.innerSlotPlan(3)).toMatchObject({ midBelow: [true, false], top: true, slots: 2 });
+    expect(WR.innerSlotPlan(4)).toMatchObject({ midBelow: [true, false, true], top: false, slots: 2 });
+    // 더 적게는 안 된다 — 경계 하나가 최대 두 장을 열므로 ceil(n/2) 가 하한이다
+    [1, 2, 3, 4, 5, 6].forEach((n) => {
+      const plan = WR.innerSlotPlan(n);
+      expect(plan.slots).toBe(Math.ceil(n / 2));
+    });
   });
 
   // ── 2. 모듈 치수 ─────────────────────────────────────────────
@@ -610,8 +632,10 @@ describe('내부 서랍장은 따로 만드는 모듈이다 (2026-09-19 확정)'
 
     const side = by('측판')[0];
     expect([side.w, side.h, side.qty, side.t]).toEqual([550, 700, 2, 15]);  // 깊이 × 구역 높이
+    // 천판은 모듈의 상판 개념 — 깊이가 붙박이장 **선반**과 같다 (2026-09-19 확정)
     const top = by('천판')[0];
-    expect([top.w, top.h, top.qty]).toEqual([720, 532, 1]);                 // 모듈 내경 × (D − 18)
+    expect([top.w, top.h, top.qty]).toEqual([720, WR.shelfDepthOf({ D: 620 }), 1]);
+    expect(top.h).toBe(532);
     expect(by('지판')[0]).toMatchObject({ w: 720, h: 532, qty: 1 });
     expect(by('뒷판')[0]).toMatchObject({ material: 'MDF', t: 2.7, w: 730, h: 699, qty: 1 });
     expect(by('밴드')[0]).toMatchObject({ w: 720, h: 70, qty: 2 });
@@ -640,6 +664,8 @@ describe('내부 서랍장은 따로 만드는 모듈이다 (2026-09-19 확정)'
     const rows = WR.innerDrawerModulePartsOf(inner(2));
     const by = (name) => rows.find((r) => r.part === name);
     expect(by('서랍전후판')).toMatchObject({ w: 678, h: 180, qty: 4 });   // 2단 × 앞·뒤
+    expect(WR.innerDrawerModulePartsOf(inner(2)).find((r) => r.part === '천판').h)
+      .toBe(WR.shelfDepthOf({ D: 620 }));
     expect(by('서랍측판')).toMatchObject({ w: 490, h: 180, qty: 4 });
     expect(by('서랍밑판')).toMatchObject({ material: 'MDF', t: 2.7, w: 707, h: 489, qty: 2 });
     // 전후판 가로가 600 을 넘으면 하단보강 — 규칙 안에서 같이 나온다 (BOM 이 또 내면 두 번이다)
