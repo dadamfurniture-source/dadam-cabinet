@@ -4833,29 +4833,105 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (upperH <= 0) return [];
       // 냉장고 자리(바닥~fridgeH)와 상단 간격은 비워 둔다.
       // 상몰딩은 맨 위 단이 짊어진다 — 그래야 몰딩 mesh 가 그려진다.
+      // 2026-09-19: 보존을 건 단이 있으면 그것이 그대로 이 단이다 — 키큰장과 같은 규칙으로,
+      //   다시 세우면 같은 자리에 두 장이 겹쳐 선다.
+      const keepUp = fixedTiersOf(area)[0] || null;
+      if (keepUp) {
+        const ks = structures[keepUp.id] || {};
+        return [{ part: '상부장', H: Math.max(0, parseFloat(keepUp.H) || 0),
+                  baseY: fridgeH + MASTER_RULES.FRIDGE_TOP_GAP,
+                  pedestalH: parseFloat(ks.pedestalH) || 0, moldingH: parseFloat(ks.moldingH) || 0,
+                  keep: keepUp }];
+      }
       return [{ part: '상부장', H: upperH + molding, baseY: fridgeH + MASTER_RULES.FRIDGE_TOP_GAP,
                 pedestalH: 0, moldingH: molding }];
     }
 
-    if (area.section === 'tall') {
-      const upperH = MASTER_RULES.FRIDGE_UPPER_H_MAX;
-      const body = area.H - molding - upperH - pedestal;
-      if (body <= 0) return [];
-      const middleH = Math.floor(body * MASTER_RULES.MIDDLE_BODY_RATIO);
-      const lowerH = body - middleH;
-      // 좌대와 상몰딩은 **장 전체**의 것이다. 단마다 또 빼면 단 사이에
-      // 그만큼 빈 틈이 생겨 서로 떠 보인다 (실제로 120mm 씩 벌어져 있었다).
-      // 맨 아래 단이 좌대를, 맨 위 단이 상몰딩을 짊어지고 나머지는 0 이다.
-      return [
-        { part: '하부장', H: pedestal + lowerH, baseY: 0,
-          pedestalH: pedestal, moldingH: 0 },
-        { part: '중간장', H: middleH,           baseY: pedestal + lowerH,
-          pedestalH: 0, moldingH: 0 },
-        { part: '상부장', H: upperH + molding,  baseY: pedestal + lowerH + middleH,
-          pedestalH: 0, moldingH: molding },
-      ];
-    }
+    if (area.section === 'tall') return tallTiers(area, molding, pedestal);
     return null;   // 가로 분할로 간다
+  }
+
+  const TALL_TIERS = ['하부장', '중간장', '상부장'];
+
+  /**
+   * 2026-09-19: 스택 영역에서 **사람이 보존을 건 단**.
+   * 코너 멍장(isDerived)은 옆에 서는 파생 모듈이라 세로 단이 아니다 — 뺀다.
+   * 아래(baseY 작은) 것이 먼저다: 보존이 여럿이면 아랫 단이 우선이다.
+   */
+  function fixedTiersOf(area) {
+    if (!area) return [];
+    return modules
+      .filter((m) => m.isFixed && !m.isDerived && !isFinishingSection(m.section)
+        && areaIdOfModule(m) === area.id)
+      .sort((a, b) => (a.baseY || 0) - (b.baseY || 0));
+  }
+
+  /**
+   * 키큰장 단 나누기. **보존(isFixed) 단이 가장 높은 우선순위다.**
+   *
+   * 2026-09-19: 예전엔 보존을 건 단이 있어도 영역 높이 전체로 세 단을 다시
+   * 계산했다. 자동계산은 보존 모듈을 안 지우므로 그 자리에 똑같은 단이 하나 더
+   * 서서 겹쳤다 — 사용자에겐 "줄였는데 모듈이 하나 더 생겼다" 로 보였다.
+   * 이제 보존 단은 높이를 그대로 지키고, **비어 있는 단이 늘어나** 남은 높이를 먹는다.
+   *
+   *   보존이 없을 때  상부장 = 400 + 상몰딩 · 중간장 = floor(몸통 × 0.55) · 하부장 = 나머지
+   *                    (예전 숫자 그대로 — ui-fridge-el.js 가 정본)
+   *   보존이 있을 때  보존 단 H 는 그대로, 남은 높이를 중간장 → 하부장 → 상부장 순으로 흡수
+   *
+   * 단은 언제나 바닥부터 빈틈 없이 쌓는다 — 보존 단도 baseY 는 다시 잡는다.
+   * 그러지 않으면 줄인 단 위로 그만큼 틈이 남아 단들이 떠 보인다.
+   */
+  function tallTiers(area, molding, pedestal) {
+    const upperH = MASTER_RULES.FRIDGE_UPPER_H_MAX;
+    const fixed = fixedTiersOf(area);
+    // 보존이 없으면 예전 그대로 — 몸통이 안 나오면 아무것도 안 세운다.
+    if (!fixed.length && area.H - molding - upperH - pedestal <= 0) return [];
+    // 보존 단에 단 이름을 매긴다 — 저장된 part 를 믿고, 없거나 겹치면 아래부터 채운다.
+    const slot = {};
+    fixed.forEach((m) => {
+      const want = (TALL_TIERS.indexOf(m.part) >= 0 && !slot[m.part])
+        ? m.part : TALL_TIERS.find((t) => !slot[t]);
+      if (want) slot[want] = m;
+    });
+    const H = {};
+    let room = area.H;
+    TALL_TIERS.forEach((t) => {
+      if (!slot[t]) return;
+      H[t] = Math.max(0, parseFloat(slot[t].H) || 0);
+      room -= H[t];
+    });
+    if (room < 0) room = 0;            // 보존 단만으로 이미 다 찼다
+    // 상부장 몫(400 + 상몰딩)과 좌대를 먼저 뗀다 — 규칙이 정한 크기다.
+    if (!slot['상부장']) { H['상부장'] = Math.min(upperH + molding, room); room -= H['상부장']; }
+    if (!slot['하부장']) { H['하부장'] = Math.min(pedestal, room);        room -= H['하부장']; }
+    // 남은 몸통은 비어 있는 단이 먹는다.
+    if (!slot['중간장'] && !slot['하부장']) {
+      const mid = Math.floor(room * MASTER_RULES.MIDDLE_BODY_RATIO);
+      H['중간장'] = mid;
+      H['하부장'] += room - mid;
+    } else if (!slot['중간장']) H['중간장'] = room;
+    else if (!slot['하부장'])   H['하부장'] += room;
+    else if (!slot['상부장'])   H['상부장'] += room;
+    // 좌대와 상몰딩은 **장 전체**의 것이다. 단마다 또 빼면 단 사이에
+    // 그만큼 빈 틈이 생겨 서로 떠 보인다 (실제로 120mm 씩 벌어져 있었다).
+    // 맨 아래 단이 좌대를, 맨 위 단이 상몰딩을 짊어지고 나머지는 0 이다.
+    // 보존 단은 제 구조가 가진 값을 그대로 알린다 — 멍장도 같은 계획을 보기 때문이다.
+    let y = 0;
+    const out = [];
+    TALL_TIERS.forEach((t) => {
+      const keep = slot[t] || null;
+      const h = keep ? H[t] : (H[t] || 0);
+      if (!keep && h <= 0) return;     // 세울 자리가 없는 단은 만들지 않는다
+      const ks = keep ? (structures[keep.id] || {}) : null;
+      out.push({
+        part: t, H: h, baseY: y,
+        pedestalH: keep ? (parseFloat(ks.pedestalH) || 0) : (t === '하부장' ? Math.min(pedestal, h) : 0),
+        moldingH:  keep ? (parseFloat(ks.moldingH)  || 0) : (t === '상부장' ? Math.min(molding, h)  : 0),
+        keep,
+      });
+      y += h;
+    });
+    return out;
   }
 
   /** 세로 스택 영역(키큰장·냉장고장)을 채운다 */
@@ -4894,8 +4970,22 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       return blinds.length ? 1 : 0;
     }
     const edges = edgePlanOf(area, kept, blinds, adjCorner);
-    let made = 0;
+    // 2026-09-19: 보존 단의 합이 배치 높이를 넘으면 위 단이 밖으로 나간다.
+    //   낮은 단부터 채우고(아랫 단 우선) 그 사실을 알린다 — 보존은 건드리지 않는다.
+    const stackH = stack.reduce((sum, p) => sum + (p.H || 0), 0);
+    if (stackH > (area.H || 0) + 1) {
+      showToast(`⚠ 보존한 단 합계 ${Math.round(stackH)}mm 가 배치 높이 ${Math.round(area.H || 0)}mm 를 넘습니다 — 아래 단부터 채웠습니다`);
+    }
+    let made = 0, keptTiers = 0;
     stack.forEach((part) => {
+      // 보존 단 — 높이·구조는 그대로 두고 **자리만** 다시 잡는다.
+      //   여기서 또 세우면 줄였던 단 위에 같은 단이 하나 더 생긴다.
+      if (part.keep) {
+        part.keep.baseY = part.baseY;
+        if (!part.keep.part) part.keep.part = part.part;
+        keptTiers++;
+        return;
+      }
       const m = addModuleToArea(area.id, { section: area.section, W: tierW, x: edges.startX });
       if (!m) return;
       m.H = part.H;
@@ -4910,11 +5000,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       s.shelves = calcDefaultShelves(area.section, bodyHeightOf(m, s));
       made++;
     });
+    if (!made && keptTiers) showToast('보존한 단이 배치 높이를 다 씁니다 — 새로 세운 단은 없습니다');
     placeTail(edges.startX + tierW, edges);
     applyDefaultAreaFinish(area.id);   // W12-35 — 스택은 단들이 함께 폭을 내놓는다
     saveStructModules();
     persistPlannerState();
-    return made;
+    // 보존 단도 세어서 돌려준다 — 0 이면 부른 쪽이 화면을 다시 그리지 않는다.
+    return made + keptTiers;
   }
 
   /**
