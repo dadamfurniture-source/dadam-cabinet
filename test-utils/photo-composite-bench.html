@@ -1,0 +1,202 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>도면 입면 → 벽 호모그래피 합성 벤치</title>
+<!--
+  2026-09-19 연구용 하네스 (docs/01-plan/photo-composite-research.plan.md §4.6).
+  플래너 정면 입면(PlannerCapture front 뷰 PNG)을 방 사진 위 벽 사각형에 워프해 얹고,
+  사진의 음영과 색을 옮겨 "얼마나 붙어 보이는가" 를 눈으로 잰다. 서버·GPU·라이브러리 없음.
+
+  쓰는 법: 이 파일을 브라우저로 열고(정적 서버면 됨) 사진과 입면 PNG 를 고른다.
+    - 입면은 mockup-structure 에서 PlannerCapture.capture({kind:'front'}) 로 찍은 PNG. 8% 여백을 두고
+      도면 (0..W)×(0..H) mm 를 가운데 담는다 — 아래 MM 입력에 그 W·H 를 넣는다.
+    - 벽 사각형은 도면 네 귀퉁이(TL·TR·BR·BL)가 사진의 어디인지. 처음엔 격자를 켜고 읽어 넣는다.
+  결과: A 그냥 얹기 → B 사진 음영 이식(Y light map, Wayfair 특허 방식) → C Reinhard 색 정합 → D 접지 그림자.
+-->
+<style>
+  body{margin:0;padding:12px;background:#222;color:#ddd;font:12px/1.4 system-ui}
+  form{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+  form label{display:flex;gap:4px;align-items:center}
+  input[type=text]{width:260px;font:11px ui-monospace,monospace}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}
+  .cell{background:#111;padding:6px}
+  .cell h3{margin:0 0 4px;font-size:12px;font-weight:600;color:#fc6}
+  canvas{display:block}
+  #log{white-space:pre;font:11px/1.35 ui-monospace,monospace;color:#9f9;margin-top:8px}
+</style>
+<body>
+<form id="f" onsubmit="return false">
+  <label>사진 <input type="file" id="photo" accept="image/*"></label>
+  <label>입면 PNG <input type="file" id="elev" accept="image/png"></label>
+  <label>도면 mm W×H <input type="text" id="mm" value="2200x2300" size="10"></label>
+  <label>사각형 TL,TR,BR,BL <input type="text" id="quad" value="[[160,100],[492,100],[492,448],[160,448]]"></label>
+  <label><input type="checkbox" id="grid"> 격자</label>
+  <label>배율 <input type="number" id="scale" value="1" step="0.1" min="0.2" max="3" style="width:50px"></label>
+  <button id="run">그리기</button>
+</form>
+<div class="row" id="row"></div>
+<div id="log"></div>
+<script>
+const $ = (id) => document.getElementById(id);
+const log = (s) => { $('log').textContent += s + '\n'; };
+const cell = (title, w, h, scale) => {
+  const d = document.createElement('div'); d.className = 'cell';
+  const t = document.createElement('h3'); t.textContent = title; d.appendChild(t);
+  const c = document.createElement('canvas'); c.width = w; c.height = h; c.style.width = (w * scale) + 'px'; c.style.height = (h * scale) + 'px';
+  d.appendChild(c); $('row').appendChild(d); return c;
+};
+const loadFile = (input) => new Promise((res, rej) => {
+  const f = input.files && input.files[0]; if (!f) return rej(new Error('파일을 고르세요: ' + input.id));
+  const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(f);
+});
+
+// ── 4점 → 호모그래피 (js/planner/photo-solve.js 와 같은 8×8 부분 피벗 가우스 소거) ──
+function homography(src, dst) {
+  const A = [], b = [];
+  for (let i = 0; i < 4; i++) {
+    const [x, y] = src[i], [u, v] = dst[i];
+    A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); b.push(u);
+    A.push([0, 0, 0, x, y, 1, -v * x, -v * y]); b.push(v);
+  }
+  const n = 8, M = A.map((r, i) => r.concat([b[i]]));
+  for (let c = 0; c < n; c++) {
+    let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    [M[c], M[p]] = [M[p], M[c]];
+    for (let r = 0; r < n; r++) { if (r === c) continue; const f = M[r][c] / M[c][c]; for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k]; }
+  }
+  const h = M.map((r, i) => r[n] / r[i]);
+  return [h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7], 1];
+}
+function invert3(m) {
+  const [a,b,c,d,e,f,g,h,i] = m;
+  const A = e*i - f*h, B = -(d*i - f*g), C = d*h - e*g, det = a*A + b*B + c*C;
+  return [A/det, -(b*i - c*h)/det, (b*f - c*e)/det, B/det, (a*i - c*g)/det, -(a*f - c*d)/det, C/det, -(a*h - b*g)/det, (a*e - b*d)/det];
+}
+const apply = (m, x, y) => { const w = m[6]*x + m[7]*y + m[8]; return [(m[0]*x + m[1]*y + m[2]) / w, (m[3]*x + m[4]*y + m[5]) / w]; };
+
+// ── 색 공간 ──
+function rgb2lab(r, g, b) {
+  let [R, G, B] = [r, g, b].map(v => { v /= 255; return v > 0.04045 ? Math.pow((v + 0.055) / 1.055, 2.4) : v / 12.92; });
+  let X = (R*0.4124 + G*0.3576 + B*0.1805) / 0.95047, Y = (R*0.2126 + G*0.7152 + B*0.0722), Z = (R*0.0193 + G*0.1192 + B*0.9505) / 1.08883;
+  const f = t => t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
+  X = f(X); Y = f(Y); Z = f(Z);
+  return [116 * Y - 16, 500 * (X - Y), 200 * (Y - Z)];
+}
+function lab2rgb(L, a, b) {
+  let Y = (L + 16) / 116, X = a / 500 + Y, Z = Y - b / 200;
+  const g = t => t > 0.206893 ? t*t*t : (t - 16 / 116) / 7.787;
+  X = g(X) * 0.95047; Y = g(Y); Z = g(Z) * 1.08883;
+  let R = X*3.2406 + Y*-1.5372 + Z*-0.4986, G = X*-0.9689 + Y*1.8758 + Z*0.0415, B = X*0.0557 + Y*-0.2040 + Z*1.0570;
+  return [R, G, B].map(v => { v = v > 0.0031308 ? 1.055 * Math.pow(v, 1 / 2.4) - 0.055 : 12.92 * v; return Math.max(0, Math.min(255, Math.round(v * 255))); });
+}
+const lum = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+async function run() {
+  $('row').innerHTML = ''; $('log').textContent = '';
+  const scale = Number($('scale').value) || 1;
+  const [mmW, mmH] = $('mm').value.split(/[x×]/).map(Number);
+  const MM = { w: mmW, h: mmH, margin: 1.08 };        // PLANNER_CAPTURE_MARGIN
+  const quad = JSON.parse($('quad').value);
+  let photo, elev;
+  try { photo = await loadFile($('photo')); elev = await loadFile($('elev')); } catch (e) { log(e.message); return; }
+  const W = photo.naturalWidth, H = photo.naturalHeight;
+
+  const cPhoto = cell('사진', W, H, scale);
+  const gp = cPhoto.getContext('2d'); gp.drawImage(photo, 0, 0);
+  const photoData = gp.getImageData(0, 0, W, H);
+
+  const cQuad = cell(`벽 사각형 (도면 0..${MM.w} × 0..${MM.h})`, W, H, scale);
+  const gq = cQuad.getContext('2d'); gq.drawImage(cPhoto, 0, 0);
+  if ($('grid').checked) {
+    gq.strokeStyle = 'rgba(0,255,255,.35)'; gq.fillStyle = '#0ff'; gq.font = '9px monospace';
+    for (let x = 0; x < W; x += 50) { gq.beginPath(); gq.moveTo(x, 0); gq.lineTo(x, H); gq.stroke(); gq.fillText(x, x + 1, 8); }
+    for (let y = 0; y < H; y += 50) { gq.beginPath(); gq.moveTo(0, y); gq.lineTo(W, y); gq.stroke(); gq.fillText(y, 1, y - 1); }
+  }
+  gq.strokeStyle = '#f0f'; gq.lineWidth = 2; gq.beginPath(); gq.moveTo(...quad[0]); quad.slice(1).forEach(p => gq.lineTo(...p)); gq.closePath(); gq.stroke();
+
+  // 입면 픽셀 ↔ 도면. 캡처는 8% 여백을 두고 경계를 가운데에 담는다 (planner-capture.js PLANNER_CAPTURE_MARGIN)
+  const EW = elev.naturalWidth, EH = elev.naturalHeight;
+  const cw = EW / MM.margin, ch = EH / MM.margin, ox = (EW - cw) / 2, oy = (EH - ch) / 2;
+  const elevPx = (u, v) => [ox + u * cw, oy + v * ch];
+  const ce = document.createElement('canvas'); ce.width = EW; ce.height = EH;
+  const ge = ce.getContext('2d'); ge.drawImage(elev, 0, 0);
+  const E = ge.getImageData(0, 0, EW, EH).data;
+  // 배경을 투명으로 — 톤매핑 때문에 #f4efe7 그대로가 아니므로 귀퉁이 픽셀에서 읽는다
+  const BG = [E[(2 * EW + 2) * 4], E[(2 * EW + 2) * 4 + 1], E[(2 * EW + 2) * 4 + 2]];
+  const alphaOf = (r, g, b) => Math.max(0, Math.min(1, (Math.hypot(r - BG[0], g - BG[1], b - BG[2]) - 8) / 12));
+
+  const Hinv = invert3(homography([[0, 0], [1, 0], [1, 1], [0, 1]], quad));
+  const xs = quad.map(p => p[0]), ys = quad.map(p => p[1]);
+  const bx0 = Math.max(0, Math.floor(Math.min(...xs))), bx1 = Math.min(W - 1, Math.ceil(Math.max(...xs)));
+  const by0 = Math.max(0, Math.floor(Math.min(...ys))), by1 = Math.min(H - 1, Math.ceil(Math.max(...ys)));
+
+  // A. 역워프 + 쌍선형
+  const warped = new Float32Array(W * H * 4);
+  const at = (x, y) => { x = Math.max(0, Math.min(EW - 1, x)); y = Math.max(0, Math.min(EH - 1, y)); const i = (y * EW + x) * 4; return [E[i], E[i + 1], E[i + 2]]; };
+  const sample = (px, py) => {
+    const x0 = Math.floor(px), y0 = Math.floor(py), fx = px - x0, fy = py - y0;
+    const c00 = at(x0, y0), c10 = at(x0 + 1, y0), c01 = at(x0, y0 + 1), c11 = at(x0 + 1, y0 + 1);
+    return [0, 1, 2].map(k => (c00[k] * (1 - fx) + c10[k] * fx) * (1 - fy) + (c01[k] * (1 - fx) + c11[k] * fx) * fy);
+  };
+  let covered = 0;
+  for (let y = by0; y <= by1; y++) for (let x = bx0; x <= bx1; x++) {
+    const [u, v] = apply(Hinv, x + 0.5, y + 0.5);
+    if (u < 0 || u > 1 || v < 0 || v > 1) continue;
+    const c = sample(...elevPx(u, v)); const a = alphaOf(c[0], c[1], c[2]); if (a <= 0) continue;
+    const i = (y * W + x) * 4; warped[i] = c[0]; warped[i + 1] = c[1]; warped[i + 2] = c[2]; warped[i + 3] = a; covered++;
+  }
+  const compose = (title, fn) => {
+    const c = cell(title, W, H, scale); const g = c.getContext('2d');
+    const out = g.createImageData(W, H); out.data.set(photoData.data);
+    for (let i = 0; i < W * H; i++) {
+      const a = warped[i * 4 + 3]; if (a <= 0) continue;
+      const rgb = fn(i, [warped[i * 4], warped[i * 4 + 1], warped[i * 4 + 2]]);
+      for (let k = 0; k < 3; k++) out.data[i * 4 + k] = Math.round(out.data[i * 4 + k] * (1 - a) + rgb[k] * a);
+    }
+    g.putImageData(out, 0, 0); return c;
+  };
+  compose('A. 그냥 얹기', (i, c) => c);
+
+  // B. 사진 음영 이식 — 저주파 밝기(상자 블러 r=6)를 사각형 안 60% 분위 기준으로 정규화해 곱한다
+  const Lp = new Float32Array(W * H);
+  for (let i = 0; i < W * H; i++) Lp[i] = lum(photoData.data[i * 4], photoData.data[i * 4 + 1], photoData.data[i * 4 + 2]);
+  const blur = (src, r) => {
+    const tmp = new Float32Array(W * H), dst = new Float32Array(W * H);
+    for (let y = 0; y < H; y++) { let s = 0, n = 0; for (let x = 0; x <= r; x++) { s += src[y * W + x]; n++; }
+      for (let x = 0; x < W; x++) { tmp[y * W + x] = s / n; const xo = x - r, xi = x + r + 1; if (xo >= 0) { s -= src[y * W + xo]; n--; } if (xi < W) { s += src[y * W + xi]; n++; } } }
+    for (let x = 0; x < W; x++) { let s = 0, n = 0; for (let y = 0; y <= r; y++) { s += tmp[y * W + x]; n++; }
+      for (let y = 0; y < H; y++) { dst[y * W + x] = s / n; const yo = y - r, yi = y + r + 1; if (yo >= 0) { s -= tmp[yo * W + x]; n--; } if (yi < H) { s += tmp[yi * W + x]; n++; } } }
+    return dst;
+  };
+  const Lb = blur(Lp, 6);
+  const inside = []; for (let i = 0; i < W * H; i++) if (warped[i * 4 + 3] > 0) inside.push(Lb[i]);
+  inside.sort((a, b) => a - b); const Lref = inside[Math.floor(inside.length * 0.6)] || 128;
+  const shade = (i) => Math.max(0.35, Math.min(1.25, Math.pow(Lb[i] / Lref, 0.9)));
+  compose('B. + 사진 음영 옮기기', (i, c) => c.map(v => v * shade(i)));
+
+  // C. Reinhard (Lab) — L 은 절반, 색상은 40% 만 따라간다 (가구 색은 카탈로그 색이라 다 따라가면 안 된다)
+  const statsOf = (px) => { const n = px.length, m = [0, 0, 0], s = [0, 0, 0]; px.forEach(p => { for (let k = 0; k < 3; k++) m[k] += p[k]; }); for (let k = 0; k < 3; k++) m[k] /= n; px.forEach(p => { for (let k = 0; k < 3; k++) s[k] += (p[k] - m[k]) ** 2; }); for (let k = 0; k < 3; k++) s[k] = Math.sqrt(s[k] / n) || 1; return { m, s }; };
+  const srcLab = [], dstLab = [];
+  for (let i = 0; i < W * H; i++) if (warped[i * 4 + 3] > 0) {
+    srcLab.push(rgb2lab(...[warped[i * 4], warped[i * 4 + 1], warped[i * 4 + 2]].map(v => v * shade(i))));
+    dstLab.push(rgb2lab(photoData.data[i * 4], photoData.data[i * 4 + 1], photoData.data[i * 4 + 2]));
+  }
+  const S = statsOf(srcLab), D = statsOf(dstLab), K = [0.5, 0.4, 0.4];
+  const harmonize = (i, c) => {
+    const lab = rgb2lab(...c.map(v => v * shade(i)));
+    return lab2rgb(...lab.map((v, k) => v + (((v - S.m[k]) * (D.s[k] / S.s[k]) + D.m[k]) - v) * K[k]));
+  };
+  compose('C. + 색 맞추기 (Reinhard·Lab, 절반 강도)', harmonize);
+
+  // D. 접지 그림자 — 바닥선(BL→BR) 아래 18px 띠를 multiply
+  const cD = compose('D. + 접지 그림자', harmonize); const gd = cD.getContext('2d');
+  const p0 = quad[3], p1 = quad[2]; const dx = p1[0] - p0[0], dy = p1[1] - p0[1]; const nl = Math.hypot(-dy, dx) || 1; const ux = -dy / nl * 18, uy = dx / nl * 18;
+  const g = gd.createLinearGradient(p0[0], p0[1], p0[0] - ux, p0[1] - uy); g.addColorStop(0, 'rgba(0,0,0,.45)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  gd.globalCompositeOperation = 'multiply'; gd.fillStyle = g; gd.beginPath(); gd.moveTo(...p0); gd.lineTo(...p1); gd.lineTo(p1[0] - ux, p1[1] - uy); gd.lineTo(p0[0] - ux, p0[1] - uy); gd.closePath(); gd.fill();
+  gd.globalCompositeOperation = 'source-over';
+
+  log(`입면 ${EW}×${EH} 배경 ${BG.join(',')} · 사진 ${W}×${H} · 얹은 픽셀 ${covered} · 밝기 기준 ${Lref.toFixed(0)}`);
+  log(`Lab 평균 입면 ${S.m.map(v => v.toFixed(0))} → 사진 ${D.m.map(v => v.toFixed(0))}`);
+}
+$('run').addEventListener('click', run);
+</script>
+</body>
