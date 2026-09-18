@@ -3655,10 +3655,22 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       t.textContent = car.label;
       g.appendChild(t);
     });
-    // 서랍 — 외부는 몸통 하나, 내부는 캐비닛 안 구역. 단마다 한 칸씩 그린다.
+    // 서랍 — 외부는 몸통 하나, 내부는 캐비닛 안 구역.
     (L.carcasses || []).forEach((car) => {
       const zone = car.kind === 'drawer' ? { y0: car.y0, h: car.h, drawers: car.drawers } : car.drawerZone;
       if (!zone || !(zone.drawers > 0)) return;
+      // 2026-09-19: 내부 서랍은 규칙 배치 — 좌우 몰딩 60 과 손잡이 빈 공간(30)이 보인다
+      if (car.kind !== 'drawer' && zone.fronts && zone.fronts.length) {
+        const mw = zone.moldingW;
+        [0, 1].forEach((i) => {
+          const x = i === 0 ? leftX : leftX + (m.W - 2 * T) - mw;
+          rect(x, yOf(zone.y0 + zone.h), mw, zone.h, '#8d7f63', '#5a5040');
+        });
+        zone.fronts.forEach((f) => {
+          rect(leftX + mw + 2, yOf(zone.y0 + T + f.y0 + f.h), f.w, f.h, '#cbbfa6', '#7d6c48');
+        });
+        return;
+      }
       const stepH = zone.h / zone.drawers;
       for (let i = 0; i < zone.drawers; i++) {
         rect(leftX, yOf(zone.y0 + stepH * (i + 1)) + 2, m.W - 2 * T, stepH - 4, '#cbbfa6', '#7d6c48');
@@ -3774,6 +3786,20 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 분할·칸·서랍·선반·손잡이 입력 — 예전 우측 패널 코드 그대로, 다만 값은 **초안 s** 를 바꾸고
    * panelCommit 대신 draftChanged 를 부른다. 입력 id 는 예전과 같다 (시험·문서가 그 이름을 쓴다).
    */
+  /**
+   * 내부 서랍 수치 한 줄 — 전면 치수·좌우 몰딩·앞선 안쪽·손잡이 빈 공간.
+   * 2026-09-19: 사장님이 준 치수를 화면에서 바로 확인할 수 있어야 한다 (BOM 과 같은 값이다).
+   */
+  function innerZoneSummaryHtml(rules, L) {
+    if (!L || L.external) return '';
+    const z = (rules.cabinetsOf(L).find((c) => c.drawerZone) || {}).drawerZone;
+    if (!z || !z.fronts || !z.fronts.length) return '';
+    return `<div style="font-size:10px;color:#888;line-height:1.5">
+      전면 ${z.frontW}×${z.fronts.map((f) => f.h).join('·')} — 15PB 몸통 재질<br>
+      좌우 몰딩 ${z.moldingW} · 앞선에서 ${z.setback} 안쪽 · 손잡이 빈 공간 30 × ${z.slots}
+    </div>`;
+  }
+
   /** 붙박이장 구조 섹션 — 프리셋 고르기 + (외부 서랍이 있는 프리셋이면) 단수. */
   function renderWardrobeSection(m, s) {
     const host = document.getElementById('wardrobeBody');
@@ -3814,7 +3840,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         ${L.external
           ? '외부는 통 아래에 <b>몸통을 따로</b> 만들어 붙입니다 — 그만큼 옷장 높이가 줍니다.'
           : '내부는 <b>몸통 높이를 그대로</b> 두고 맨 아래 칸 안에 서랍모듈을 넣습니다.'}
-      </div>` : ''}
+      </div>
+      ${innerZoneSummaryHtml(rules, L)}` : ''}
       <label class="chk-row" style="margin-top:4px"><input type="checkbox" id="chkWardrobeMirror" ${s.hasMirror ? 'checked' : ''}>
         이 통에 거울</label>
       ${L && L.carcasses.length ? `
@@ -7074,10 +7101,31 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       top.position.set(0, legH + car.y0 + car.h - T / 2, T / 2);
       put(top, ud());
 
-      // 서랍 전면 — 단마다 한 장 (규칙 DRAWER_MOD_H). 통 앞면에 붙인다.
-      //   외부 서랍은 **몸통 전체**가 서랍모듈이고, 내부 서랍은 맨 아래 캐비닛 **안**의 구역(drawerZone)이다.
+      // 서랍 전면 — 외부는 **몸통 전체**가 서랍모듈이고, 내부는 맨 아래 캐비닛 **안**의 구역(drawerZone)이다.
       const zone = car.kind === 'drawer' ? { y0: car.y0, h: car.h, drawers: car.drawers } : car.drawerZone;
       if (!zone || !(zone.drawers > 0)) return;
+
+      // 2026-09-19: 내부 서랍은 규칙이 낸 배치를 그린다 — 좌우 몰딩 60, 앞선에서 70 안쪽,
+      //   전면은 손잡이 빈 공간(30)만큼 낮다. 외부 서랍은 예전처럼 단마다 균등한 전면.
+      if (car.kind !== 'drawer' && zone.fronts && zone.fronts.length) {
+        const mw = zone.moldingW;
+        const frontZ = D / 2 - zone.setback - T / 2;
+        // 좌우 몰딩 — 문이 경첩에 걸리지 않게 모듈을 안으로 넣는 판
+        [-1, 1].forEach((sgn) => {
+          const mol = makeBox(mw, zone.h, D - T - zone.setback, color);
+          mol.position.set(sgn * (inner / 2 - mw / 2), legH + zone.y0 + zone.h / 2,
+            T / 2 - zone.setback / 2);
+          put(mol, { entityKind: 'wardrobeInnerMolding', moduleId: m.id });
+        });
+        // 전면 — 아래에서 위로. 빈 공간은 전면 사이에 그대로 남는다 (그리지 않는다)
+        zone.fronts.forEach((f) => {
+          const face = makeBox(f.w, f.h, T, darken3(color, 0.06));
+          face.position.set(0, legH + zone.y0 + T + f.y0 + f.h / 2, frontZ);
+          put(face, { entityKind: 'wardrobeDrawerFront', moduleId: m.id, drawerIdx: f.idx, external: false });
+        });
+        return;
+      }
+
       const stepH = zone.h / zone.drawers;
       for (let i = 0; i < zone.drawers; i++) {
         const face = makeBox(inner - 4, stepH - 4, T, darken3(color, 0.06));
