@@ -40,6 +40,20 @@
  *   · 앞선        붙박이장 앞선에서 **70 안쪽** — 경첩 자리
  *   · 손잡이      목찬넬이 아니라 **도어를 30 낮춰** 빈 공간을 만든다.
  *                 그 빈 공간 수는 **일반 하부장 목찬넬 갯수 규칙과 같다** (1단 1 · 2단 2 · 3단 2 · 4단 3)
+ *                 하나가 **위·아래 두 전면을 함께 연다** — 그래서 모든 전면이 빈 공간 하나에 닿아야 한다.
+ *                 `assignChannels` 는 **위→아래** 순서로 돌려준다. 여기서는 아래→위로 쌓으니 뒤집는다.
+ *                 뒤집지 않으면 3단에서 빈 공간이 위로 몰려 **맨 아래 서랍을 열 자리가 없다**
+ *                 (2026-09-19 사장님 지적).
+ *
+ * ── 내부 서랍장은 "따로 만드는 모듈" 이다 (2026-09-19 사장님 확정) ──
+ * 붙박이장 통 안에 서랍을 넣는 것이 아니라, **작은 모듈을 하나 더 만들어** 통 안에 앉힌다.
+ * 만드는 방식은 일반 모듈과 같고 (측판·천판·지판·뒷판·밴드), 치수 기준만 다르다:
+ *   모듈 W(외경) = 붙박이장 내경 − 120  (경첩 몰딩 60 + 60)
+ *   모듈 H(외경) = 서랍 단수 × 350       (구역 높이)
+ *   모듈 D       = 통 깊이 − 70          (앞선에서 물러선 만큼)
+ *   도어 W       = 모듈 W − 4
+ * 서랍 박스(전후판·측판·우라)는 이 모듈 치수를 **서랍 규칙**(drawerBoxDims)에 넣어서 낸다 —
+ * 붙박이장에만 있는 박스 규칙을 따로 두지 않는다.
  *
  * ── 문서에 없어 규칙을 세운 것 ───────────────────────────────────
  * 옷봉은 지금까지 **도면에만** 있었다 (자재·철물 어디에도 없어 발주에서 빠졌다). 여기서 철물로 낸다.
@@ -98,6 +112,11 @@
       FRONT_TRIM: 4,        // 전면 가로·세로 각 −4
       HANDLE_SLOT: 30,      // 목찬넬 대신 전면을 30 낮춘다 — 그 빈 공간이 손잡이다
       MIN_FRONT_H: 50,      // 이보다 낮은 전면은 만들 수 없다 (서랍 규칙 MIN_FRONT_H 와 같은 값)
+      // 내부 서랍장 몸통 — 일반 모듈과 같은 방식으로 만든다
+      BAND_H: 70,           // 밴드 폭 (일반 모듈과 같다)
+      BACK_T: 2.7,          // 뒷판 MDF
+      BACK_W_MINUS: 20,     // 뒷판 가로 = 모듈 외경 − 20
+      BACK_H_MINUS: 1,      // 뒷판 세로 = 모듈 높이 − 1
     }),
   });
 
@@ -443,11 +462,16 @@
     if (n <= 0 || Wi <= 0 || zoneH <= 0) return null;
 
     const warnings = [];
+    // 서랍장은 **따로 만드는 모듈**이다 — W·H 는 그 모듈의 외경이다 (도어가 W 보다 4 작다).
     const moduleW = Wi - 2 * I.SIDE_MOLDING_W;
     const moduleHi = zoneH - 2 * T;
+    const moduleD = Math.max(0, depthOf(opt) - I.FRONT_SETBACK);
     const base = {
       drawers: n, moldingW: I.SIDE_MOLDING_W, moldingT: T, moldingH: zoneH,
-      setback: I.FRONT_SETBACK, moduleW, moduleHi, frontT: T, fronts: [], slots: 0, warnings,
+      setback: I.FRONT_SETBACK, moduleW, moduleH: zoneH, moduleHi, moduleD,
+      // 천저판 깊이 — 사쿠리 반영. 플래너도 이 값을 그린다 (숫자를 두 군데 적지 않는다).
+      panelD: Math.max(0, moduleD - R.TOP_BOTTOM_D_MINUS),
+      frontT: T, fronts: [], boxes: [], slots: 0, warnings,
     };
     if (moduleW <= 0 || moduleHi <= 0) {
       warnings.push(`내부 서랍 자리가 좁다 — 모듈 ${moduleW}×${moduleHi} (통 내경 ${Wi} · 구역 ${zoneH})`);
@@ -455,7 +479,11 @@
     }
 
     const DR = drawerRules();
-    const mids = DR && DR.assignChannels ? DR.assignChannels(n) : [];
+    // 2026-09-19: `assignChannels` 는 **위→아래** 순서다 (midsTD[k] = 위에서 k·k+1 번째 전면 사이).
+    //   여기서는 아래→위로 쌓으므로 뒤집는다. 뒤집지 않으면 3단에서 빈 공간이 위로 몰려
+    //   **맨 아래 서랍을 열 자리가 없다** — 사장님이 도면에서 잡아낸 결함이다.
+    const midsTD = DR && DR.assignChannels ? DR.assignChannels(n) : [];
+    const mids = midsTD.slice().reverse();
     const slots = DR && DR.channelCountFor ? DR.channelCountFor(n) : 1;
 
     const frontW = moduleW - I.FRONT_TRIM;
@@ -471,12 +499,41 @@
     let y = 0;
     for (let i = 0; i < n; i++) {
       const h = i === n - 1 ? area - each * (n - 1) : each;
-      fronts.push({ idx: i, y0: y, h, w: frontW });
+      // slotAbove: 이 전면 **위**에 빈 공간이 있는가 (맨 위는 상단 빈 공간이 늘 있다)
+      const slotAbove = i === n - 1 ? true : !!mids[i];
+      fronts.push({ idx: i, y0: y, h, w: frontW, slotAbove, slotBelow: i > 0 && !!mids[i - 1] });
       y += h;
       if (i < n - 1 && mids[i]) y += I.HANDLE_SLOT;   // 그 경계의 빈 공간 (위·아래를 함께 연다)
     }
-    // 상단 빈 공간은 언제나 있다 (서랍 규칙의 상단 목찬넬 자리)
-    return Object.assign(base, { slots, frontW, fronts, topSlot: I.HANDLE_SLOT });
+    // 빈 공간 하나가 위·아래 두 전면을 연다 — 어느 전면도 빠지면 안 된다.
+    const orphan = fronts.filter((f) => !f.slotAbove && !f.slotBelow);
+    if (orphan.length) {
+      warnings.push(`내부 서랍 ${orphan.map((f) => f.idx + 1).join('·')}단이 손잡이 빈 공간에 닿지 않는다 — 열 수 없다`);
+    }
+
+    // 서랍 박스 — 붙박이장용 규칙을 따로 두지 않고 **서랍 규칙**에 모듈 치수를 넣는다.
+    const boxes = fronts.map((f) => innerDrawerBoxOf(DR, {
+      W: moduleW, D: moduleD, T, zoneH: f.h, rail: opt.rail, idx: f.idx,
+    })).filter(Boolean);
+    boxes.forEach((b) => {
+      if (b.warnings) warnings.push(...b.warnings);
+      // 전면이 낮으면 그 뒤에 박스가 안 들어간다 — 조용히 가장 작은 박스를 내지 않는다.
+      if (!b.fits) warnings.push(`내부 서랍 ${b.idx + 1}단: 전면 뒤 자리에 가장 작은 박스(${b.sideH})도 안 들어간다`);
+    });
+
+    return Object.assign(base, { slots, frontW, fronts, boxes, topSlot: I.HANDLE_SLOT });
+  }
+
+  /** 전면 한 장 뒤의 서랍 박스 — 서랍 규칙(pickBox·drawerBoxDims)이 정한다. */
+  function innerDrawerBoxOf(DR, o) {
+    if (!DR || !DR.pickBox || !DR.drawerBoxDims) return null;
+    const box = DR.pickBox(o.zoneH, o.rail);
+    const dims = DR.drawerBoxDims({
+      W: o.W, D: o.D, bodyT: o.T, drawerT: o.T, rail: o.rail, boxH: box.h, sakuri: false,
+    });
+    const rail = DR.DRAWER_RULES.RAIL_CLEARANCE[dims.rail];
+    return Object.assign({ idx: o.idx, size: box.size, fits: box.fits,
+      label: DR.DRAWER_RULES.BOX_LABEL[box.size], railName: rail ? rail.name : dims.rail }, dims);
   }
 
   /** 내부 서랍에서 나오는 부재 — 전면과 좌우 몰딩. 둘 다 15PB 몸통 재질이다. */
@@ -494,6 +551,47 @@
     rows.push({
       part: '내부서랍 좌우몰딩', material: 'PB', t: L.moldingT, w: L.moldingH, h: L.moldingW, qty: 2,
       edge: '2면(장)', note: `앞선에서 ${L.setback} 안쪽 — 경첩 자리`,
+    });
+    return rows;
+  }
+
+  /**
+   * 내부 서랍장 **모듈**에서 나오는 부재 — 일반 모듈과 같은 구성(측판·천판·지판·뒷판·밴드)에
+   * 서랍 규칙이 낸 박스(전후판·측판·우라·하단보강)를 더한다. 통이 아니라 이 모듈 이름으로 붙는다.
+   */
+  function innerDrawerModulePartsOf(L) {
+    if (!L || !L.fronts || !L.fronts.length) return [];
+    const I = R.INNER_DRAWER;
+    const T = L.frontT;
+    const W = L.moduleW;
+    const H = L.moduleH;
+    const D = L.moduleD;
+    const inner = W - 2 * T;
+    const rows = [
+      { part: '측판', material: 'PB', t: T, w: D, h: H, qty: 2, edge: '3면', note: 'sakuri(15→3mm)' },
+      { part: '천판', material: 'PB', t: T, w: inner, h: L.panelD, qty: 1, edge: '1면(전)' },
+      { part: '지판', material: 'PB', t: T, w: inner, h: L.panelD, qty: 1, edge: '1면(전)' },
+      { part: '뒷판', material: 'MDF', t: I.BACK_T, w: W - I.BACK_W_MINUS, h: H - I.BACK_H_MINUS, qty: 1, edge: '-' },
+      { part: '밴드', material: 'PB', t: T, w: inner, h: I.BAND_H, qty: 2, edge: '2면(장)' },
+    ];
+
+    // 박스는 크기가 같은 것끼리 묶는다 (단수가 달라도 보통 한 종류다).
+    const byKey = new Map();
+    (L.boxes || []).forEach((b) => {
+      const k = `${b.size}|${b.fbW}|${b.fbH}|${b.sideL}|${b.sideH}`;
+      if (!byKey.has(k)) byKey.set(k, { b, n: 0 });
+      byKey.get(k).n += 1;
+    });
+    byKey.forEach(({ b, n }) => {
+      const note = `${b.railName} ${b.railLength} · 박스 ${b.label}`;
+      rows.push({ part: '서랍전후판', material: 'PB', t: T, w: b.fbW, h: b.fbH, qty: n * 2, edge: '1면(장)', note });
+      rows.push({ part: '서랍측판', material: 'PB', t: T, w: b.sideL, h: b.sideH, qty: n * 2, edge: '1면(장)', note });
+      rows.push({ part: '서랍밑판', material: 'MDF', t: I.BACK_T, w: b.bottomW, h: b.bottomD, qty: n, edge: '-', note });
+      if (b.brace) {
+        rows.push({ part: '서랍 하단보강', material: 'PB', t: T, w: b.sideL,
+          h: drawerRules() ? drawerRules().DRAWER_RULES.BOX_BRACE_H : 60, qty: n, edge: '2면(장)',
+          note: `전후판 가로 ${b.fbW} > 600` });
+      }
     });
     return rows;
   }
@@ -590,7 +688,7 @@
       const zoneH = (!external && drawers > 0 && carIdx === firstCabinet) ? drawerModH : 0;
       if (zoneH > 0) {
         // 내부 서랍 — 전면·몰딩 배치까지 같이 낸다 (플래너·BOM 이 같은 숫자를 쓴다).
-        const inner = innerDrawerLayout({ Wi, zoneH, drawers, T });
+        const inner = innerDrawerLayout({ Wi, zoneH, drawers, T, D: depthOf(opt), rail: opt.rail });
         car.drawerZone = Object.assign({ y0: car.y0 + T, h: zoneH, drawers }, inner || {});
         if (inner && inner.warnings.length) warnings.push(...inner.warnings);
       }
@@ -711,7 +809,7 @@
     layoutWardrobeModule, normalizeBlock, dividersOf, shelfPositions, rodPositions,
     partsOf, rodHardwareOf, rodHardwareFor, rodLengthFor, bodyHeightOf, shelfDepthOf, innerDepthOf,
     cabinetsOf, splitStack, moldingPartFor, moldingFinishOn,
-    innerDrawerLayout, innerDrawerPartsOf,
+    innerDrawerLayout, innerDrawerPartsOf, innerDrawerModulePartsOf,
     presetOf, presetKeyOf, presetLabel, moduleTypeOf, samplePresetFor,
   };
 });
