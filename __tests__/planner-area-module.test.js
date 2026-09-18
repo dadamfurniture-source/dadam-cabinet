@@ -719,6 +719,87 @@ describe('키큰장·냉장고장 자동계산 — 세로 스택', () => {
     expect(top).toBeLessThanOrEqual(2300 - molding);
   });
 
+  // 2026-09-19: 보존(isFixed) 단이 있을 때. 예전엔 보존 단을 두고도 영역 높이
+  //   전체로 세 단을 다시 세워, 줄였던 단 자리에 똑같은 단이 하나 더 생겼다.
+  /** 키큰장 영역의 단들을 baseY 순으로 */
+  function tiersOf(p, area) {
+    return p.g('modules').filter((m) => m.areaId === area.id && !m.isFinishing)
+      .slice().sort((a, b) => (a.baseY || 0) - (b.baseY || 0));
+  }
+
+  test('보존한 단은 다시 세우지 않는다 — 모듈이 하나 더 생기던 것', () => {
+    const p = bootL();
+    const area = p.g('areas').find((a) => a.section === 'tall');
+    p.g('autoCalcArea')(area.id);
+    const lower = tiersOf(p, area)[0];
+    lower.H = lower.H - 200;          // 사람이 하부장을 줄였다
+    lower.isFixed = true;             // '자동계산 시 이 모듈을 보존'
+    const n = p.g('autoCalcArea')(area.id);
+    const after = tiersOf(p, area);
+    expect(after).toHaveLength(3);
+    expect(n).toBe(3);
+    expect(after[0]).toBe(lower);                       // 그 모듈 그대로다
+    expect(after.map((m) => m.part)).toEqual(['하부장', '중간장', '상부장']);
+  });
+
+  test('줄인 만큼 위쪽 단이 늘어난다 — 합은 영역 높이', () => {
+    const p = bootL();
+    const area = p.g('areas').find((a) => a.section === 'tall');
+    p.g('autoCalcArea')(area.id);
+    const before = tiersOf(p, area).map((m) => m.H);
+    const lower = tiersOf(p, area)[0];
+    lower.H = lower.H - 200;
+    lower.isFixed = true;
+    p.g('autoCalcArea')(area.id);
+    const after = tiersOf(p, area);
+    expect(after[0].H).toBe(before[0] - 200);           // 보존한 단은 그대로
+    expect(after[1].H).toBe(before[1] + 200);           // 중간장이 다 먹는다
+    expect(after[2].H).toBe(before[2]);                 // 상부장은 규칙이 정한 크기
+    expect(after.reduce((s, m) => s + m.H, 0)).toBe(area.H);
+    for (let i = 1; i < after.length; i++) {
+      expect(after[i].baseY).toBe(after[i - 1].baseY + after[i - 1].H);
+    }
+  });
+
+  test('보존이 둘이면 둘 다 지키고 비어 있는 단이 채운다', () => {
+    const p = bootL();
+    const area = p.g('areas').find((a) => a.section === 'tall');
+    p.g('autoCalcArea')(area.id);
+    const t = tiersOf(p, area);
+    const upperBefore = t[2].H;
+    t[0].H -= 150; t[0].isFixed = true;
+    t[1].H -= 250; t[1].isFixed = true;
+    p.g('autoCalcArea')(area.id);
+    const after = tiersOf(p, area);
+    expect(after).toHaveLength(3);
+    expect(after[0].H).toBe(t[0].H);
+    expect(after[1].H).toBe(t[1].H);
+    expect(after[2].H).toBe(upperBefore + 400);         // 상부장만 비어 있으니 그것이 채운다
+    expect(after.reduce((s, m) => s + m.H, 0)).toBe(area.H);
+  });
+
+  test('보존 단이 높이를 다 쓰면 새로 세우지 않는다', () => {
+    const p = bootL();
+    const area = p.g('areas').find((a) => a.section === 'tall');
+    p.g('autoCalcArea')(area.id);
+    tiersOf(p, area).forEach((m) => { m.isFixed = true; });
+    expect(p.g('autoCalcArea')(area.id)).toBe(3);
+    expect(tiersOf(p, area)).toHaveLength(3);
+  });
+
+  test('냉장고장 상부장을 보존해도 두 장이 겹치지 않는다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    p.g('areas').push({ id:'area-fridge-keep', section:'fridge', W:900, H:2300, D:700, x:0, y:0, rotation:0 });
+    p.g('autoCalcArea')('area-fridge-keep');
+    const m = p.g('modules').find((x) => x.areaId === 'area-fridge-keep');
+    m.H -= 100;
+    m.isFixed = true;
+    p.g('autoCalcArea')('area-fridge-keep');
+    const after = p.g('modules').filter((x) => x.areaId === 'area-fridge-keep' && !x.isFinishing);
+    expect(after).toHaveLength(1);
+    expect(after[0]).toBe(m);
+  });
+
   test('하부장 영역은 여전히 가로로 나눈다', () => {
     // 스택은 키큰장·냉장고장만이다.
     const p = boot(seedFor(FIXTURES.straight, { modules: false }));
