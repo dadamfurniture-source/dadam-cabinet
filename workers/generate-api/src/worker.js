@@ -231,6 +231,7 @@ async function createGeneration(request, env, headers) {
     wall_width_override,
     fridge_options = {},
     design_spec,
+    realize,
     reference_images,
     parent_id,
     title,
@@ -255,6 +256,9 @@ async function createGeneration(request, env, headers) {
     // 플래너 도면 요약 — 없으면 null 이고, 그러면 프롬프트는 예전 그대로다.
     // 크레딧은 그대로 20 (2026-09-17 결정): 새 action 을 만들지 않는다.
     design_spec: resolveDesignSpec(design_spec, parent, category),
+    // 실사화 (2026-09-19): 첫 사진에 플래너가 도면 입면을 이미 얹어 둔 경우. 재생성이면 원본을 잇는다.
+    //   켰을 때만 키가 생긴다 — 안 켜면 options 는 예전과 같은 모양이다 (route 시험이 deepEqual 로 지킨다).
+    ...((realize != null ? !!realize : !!(parent && parent.options && parent.options.realize)) ? { realize: true } : {}),
   };
 
   // 크레딧 차감 — 사용자 토큰으로, 어떤 업로드보다 먼저. 뒤에서 실패하면 같은 토큰으로 되돌린다.

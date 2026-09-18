@@ -234,6 +234,8 @@ async function runPipeline(env, job, ck, save) {
       opts.fridge_options && opts.fridge_options.position === 'right' ? 'right' : 'left',
     // 플래너 도면 요약 (worker.js 가 이미 검증해 options 에 넣었다). null 이면 범용 문단.
     designSpec: opts.design_spec || null,
+    // 실사화 — 첫 사진에 도면 입면이 이미 얹혀 있다 (worker.js options.realize)
+    realize: !!opts.realize,
   };
   const imageSize = env.GEMINI_IMAGE_SIZE || '2K';
   const prefix = `${job.userId}/${job.id}`;
