@@ -314,8 +314,14 @@
         W12-2: 품목이 2개 이상일 때 전환 수단.
         플래너 모드에서는 .bookmark-tabs 가 CSS 로 숨겨지므로, 아이콘으로 품목을
         여러 개 만들 수 있게 된 이상 여기에 전환 수단이 있어야 한다.
+
+        2026-09-19: 드롭다운(구 #s2ItemSelect)을 **책갈피**로 바꿨다. 드롭다운은 열기 전에는
+        품목이 몇인지·무엇인지 보이지 않아, 품목을 만들어 놓고도 만든 줄 모르는 일이 있었다.
+        같은 줄에 펴 두면 개수가 한눈에 보이고 한 번 눌러 옮긴다 (2단계 .bookmark-tabs 와 같은 꼴).
+        채우는 쪽은 js/detaildesign/ui-step1.js 의 _renderStep2ItemTabs.
       -->
-      <select id="s2ItemSelect" style="display: none" onchange="switchStep2Item(this.value)"></select>
+      <div class="s2-tabs" id="s2ItemTabs" role="tablist" aria-label="품목 전환" hidden></div>
+      <span class="s2-spacer"></span>
       <!-- 플래너가 열려 있으면 그 상태를 먼저 가져와 반영한 뒤 산출한다 (W11-14) -->
       <button type="button" class="primary" onclick="proceedToBOMWithPlanner()">📋 BOM 산출 →</button>
     </div>

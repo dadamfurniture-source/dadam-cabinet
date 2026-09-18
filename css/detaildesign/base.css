@@ -135,11 +135,15 @@
       }
       #step2Toolbar .s2-title {
         font-weight: 600;
-        margin-right: auto;
+        margin-right: 10px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
       }
+      /* 2026-09-19: 책갈피가 제목 오른쪽에 붙고, 남는 자리는 이 빈 칸이 먹는다.
+         예전에는 제목의 margin-right:auto 가 그 일을 했는데, 그러면 책갈피가
+         BOM 버튼 쪽(우측 끝)으로 밀려 붙는다 — 책갈피는 왼쪽에서 시작해야 한다. */
+      #step2Toolbar .s2-spacer { flex: 1 1 auto; min-width: 8px; }
       #step2Toolbar button {
         border: 1px solid rgba(245, 240, 235, 0.35);
         background: transparent;
@@ -157,16 +161,55 @@
         font-weight: 700;
       }
       #step2Toolbar button.primary:hover { background: #43a047; }
-      /* W12-2: 품목 전환 셀렉트 — 품목이 2개 이상일 때만 노출된다 */
-      #step2Toolbar select {
-        border: 1px solid rgba(245, 240, 235, 0.35);
-        background: rgba(28, 26, 24, 0.92);
-        color: #f5f0eb;
-        padding: 6px 10px;
-        border-radius: 7px;
-        font-size: 13px;
+      /* 2026-09-19: 품목 전환 책갈피 (구 #s2ItemSelect 드롭다운).
+         툴바 위아래 padding(8px)을 음수 마진으로 먹어 **바닥 모서리에 물리게** 둔다 —
+         책갈피가 아래 작업 화면에서 솟아오른 것처럼 보여야 고른 것이 어디인지 읽힌다.
+         탭(32px)은 옆 버튼(33px)보다 낮아 툴바 높이를 늘리지 않는다 — overlay 가 툴바 자리를
+         하드코딩하므로(body.step2-fullscreen [id^="__planner-overlay-"]) 늘리면 그만큼 어긋난다. */
+      #step2Toolbar .s2-tabs {
+        display: flex;
+        align-items: flex-end;
+        align-self: stretch;
+        gap: 3px;
+        margin: -8px 0;
+        padding-top: 8px;
+        max-width: 52vw;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+      #step2Toolbar .s2-tabs::-webkit-scrollbar { display: none; }
+      /* 품목이 많아 가로로 넘칠 때만 (ui-step1.js 가 붙인다) 오른쪽 끝을 흐려 더 있다고 알린다 */
+      #step2Toolbar .s2-tabs.overflowing {
+        -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+        mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+      }
+      /* display:flex 가 hidden 속성을 이긴다 — 품목 0개일 때 숨기려면 이 줄이 필요하다 */
+      #step2Toolbar .s2-tabs[hidden] { display: none; }
+      #step2Toolbar .s2-tab {
+        flex: 0 0 auto;
+        max-width: 190px;
+        border: 1px solid rgba(245, 240, 235, 0.22);
+        border-bottom: none;
+        background: rgba(245, 240, 235, 0.08);
+        color: rgba(245, 240, 235, 0.72);
+        padding: 6px 13px;
+        border-radius: 9px 9px 0 0;
+        font-size: 12.5px;
+        font-weight: 600;
         cursor: pointer;
-        max-width: 240px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #step2Toolbar .s2-tab:hover {
+        background: rgba(245, 240, 235, 0.18);
+        color: #f5f0eb;
+      }
+      #step2Toolbar .s2-tab[aria-selected='true'] {
+        background: #f5f0eb;
+        border-color: #f5f0eb;
+        color: #1c1a18;
+        font-weight: 700;
       }
 
       /* 2026-09-12: 사이트 셸 헤더가 맨 위에 남는다 (높이 --v5-header, css/dadam-v5.css).

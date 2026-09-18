@@ -80,14 +80,30 @@ describe('Step 2 툴바 — 화면에서 빠져나갈 수 있어야 한다', () 
     expect(html).not.toMatch(/backToStep1/);
   });
 
-  test('W12-2: 품목이 여러 개일 때 전환할 수단이 툴바에 있다', () => {
+  test('W12-2: 품목이 여러 개일 때 전환할 수단이 툴바에 있다 — 책갈피', () => {
     // 플래너 모드에서는 .bookmark-tabs 가 CSS 로 숨겨진다.
     // 아이콘으로 품목을 여러 개 만들 수 있으므로 전환 수단이 반드시 필요하다.
+    // 2026-09-19: 드롭다운(구 #s2ItemSelect)에서 책갈피로 바꿨다 — 열어야 보이던 목록을 편다.
     document.documentElement.innerHTML = html;
-    const sel = document.querySelector('#step2Toolbar #s2ItemSelect');
-    expect(sel).not.toBeNull();
-    expect(sel.getAttribute('onchange')).toMatch(/switchStep2Item/);
+    const tabs = document.querySelector('#step2Toolbar #s2ItemTabs');
+    expect(tabs).not.toBeNull();
+    expect(document.querySelector('#step2Toolbar select')).toBeNull();  // 드롭다운은 돌아오지 않는다
+    expect(uiStep1).toMatch(/function\s+_renderStep2ItemTabs\s*\(/);
     expect(uiStep1).toMatch(/function\s+switchStep2Item\s*\(/);
+  });
+
+  test('책갈피는 툴바 바닥에 물리고, 고른 것만 밝다 (드롭다운 CSS 는 남지 않는다)', () => {
+    // 툴바 높이 44px 을 늘리면 planner overlay 가 그만큼 어긋난다 — 탭은 음수 마진으로 들어간다.
+    expect(css).toMatch(/#step2Toolbar \.s2-tabs \{[\s\S]*?margin: -8px 0;/);
+    expect(css).toMatch(/#step2Toolbar \.s2-tabs\[hidden\] \{ display: none; \}/);
+    expect(css).toMatch(/#step2Toolbar \.s2-tab\[aria-selected='true'\]/);
+    expect(css).not.toMatch(/#step2Toolbar select/);
+  });
+
+  test('품목이 늘고 줄 때마다 책갈피를 다시 그린다 (updateUI 가 유일한 길목)', () => {
+    // 마지막 품목을 지우면 _syncStep2Mount 는 곧바로 돌아가므로, 거기에만 걸면 책갈피가 남는다.
+    const body = uiStep1.slice(uiStep1.indexOf('function updateUI('));
+    expect(body.slice(0, body.indexOf('function updateItemValue'))).toMatch(/_renderStep2ItemTabs\(\)/);
   });
 
   test('BOM 버튼은 플래너 상태를 먼저 가져오는 쪽을 부른다', () => {
