@@ -151,7 +151,7 @@ describe('2번 통 — 긴옷 + 하부 서랍', () => {
     expect(L.drawerModH).toBe(700);
     expect(L.fullBodyH).toBe(2230);
     expect(L.cabinetH).toBe(2230);                  // 몸통 높이는 그대로
-    expect(L.carcasses[0].drawerZone).toEqual({ y0: R.PANEL_T, h: 700, drawers: 2 });
+    expect(L.carcasses[0].drawerZone).toMatchObject({ y0: R.PANEL_T, h: 700, drawers: 2 });
     expect(WR.cabinetsOf(L)).toHaveLength(1);
   });
 
@@ -213,7 +213,7 @@ describe('서랍 종류 — 외부 · 내부 (§7)', () => {
     expect(int.carcasses.map((c) => c.kind)).toEqual(['cabinet']);
     expect(int.cabinetH).toBe(2230);
     expect(int.carcasses[0].h).toBe(2230);
-    expect(int.carcasses[0].drawerZone).toEqual({ y0: R.PANEL_T, h: 700, drawers: 2 });
+    expect(int.carcasses[0].drawerZone).toMatchObject({ y0: R.PANEL_T, h: 700, drawers: 2 });
     // 칸은 서랍 구역 위에서 시작한다
     expect(int.cells[0].y0).toBe(R.PANEL_T + 700);
     expect(int.cells[0].h).toBe(2230 - 2 * R.PANEL_T - 700);
@@ -276,6 +276,84 @@ describe('상몰딩 부재 (§11 · 2026-09-17)', () => {
     expect(['ep60', '1', true, 1].map(WR.moldingFinishOn)).toEqual([true, true, true, true]);
     expect(['none', '0', 0, '', false, null, undefined].map(WR.moldingFinishOn))
       .toEqual([false, false, false, false, false, false, false]);
+  });
+});
+
+describe('내부 서랍 (2026-09-19 확정)', () => {
+  const I = R.INNER_DRAWER;
+  const inner = (n, zoneH) => WR.innerDrawerLayout({ Wi: 870, zoneH: zoneH || n * R.DRAWER_MOD_H, drawers: n, T: 15 });
+
+  test('좌우 몰딩 60 · 앞선에서 70 안쪽 — 문이 경첩에 걸리지 않게', () => {
+    const L = inner(2);
+    expect(L.moldingW).toBe(60);
+    expect(L.setback).toBe(70);
+    expect(L.moldingT).toBe(15);            // 15PB 몸통 재질
+    expect(L.moldingH).toBe(700);           // 구역 전체 높이를 타고 선다
+    // 모듈은 몰딩 사이에 든다
+    expect(L.moduleW).toBe(870 - 2 * 60);
+  });
+
+  test('전면 가로 = 모듈 내경 − 4, 높이 합 = 모듈 내경 높이 − 4 − 30 × 빈 공간', () => {
+    [1, 2, 3, 4].forEach((n) => {
+      const L = inner(n);
+      expect(L.frontW).toBe(L.moduleW - I.FRONT_TRIM);
+      expect(L.fronts).toHaveLength(n);
+      const sum = L.fronts.reduce((s, f) => s + f.h, 0);
+      expect(sum + L.slots * I.HANDLE_SLOT).toBe(L.moduleHi - I.FRONT_TRIM);
+      expect(L.warnings).toEqual([]);
+    });
+  });
+
+  test('빈 공간 수는 일반 하부장 목찬넬 갯수와 같다 — 1단 1 · 2단 2 · 3단 2 · 4단 3', () => {
+    const DR = require('../js/detaildesign/bom-drawer-rules.js');
+    [1, 2, 3, 4].forEach((n) => {
+      expect(inner(n).slots).toBe(DR.channelCountFor(n));
+    });
+    expect([1, 2, 3, 4].map((n) => inner(n).slots)).toEqual([1, 2, 2, 3]);
+  });
+
+  test('전면은 아래에서 위로 쌓이고 빈 공간이 사이에 들어간다 (나머지는 맨 위가 먹는다)', () => {
+    const L = inner(4);
+    let y = 0;
+    L.fronts.forEach((f) => { expect(f.y0).toBeGreaterThanOrEqual(y); y = f.y0 + f.h; });
+    // 4단은 경계 빈 공간이 둘 (assignChannels [true,false,true]) + 상단 하나 = 3
+    expect(L.slots).toBe(3);
+    const gaps = L.fronts.slice(1).map((f, i) => f.y0 - (L.fronts[i].y0 + L.fronts[i].h));
+    expect(gaps.filter((g) => g === I.HANDLE_SLOT)).toHaveLength(2);
+  });
+
+  test('자리가 안 나오면 전면을 내지 않고 경고한다', () => {
+    const tight = inner(4, 300);            // 4단인데 구역이 300 밖에 없다
+    expect(tight.fronts).toHaveLength(0);
+    expect(tight.warnings.length).toBeGreaterThan(0);
+    // 통이 너무 좁아 몰딩 둘이 안 들어가는 경우
+    const narrow = WR.innerDrawerLayout({ Wi: 100, zoneH: 700, drawers: 2, T: 15 });
+    expect(narrow.fronts).toHaveLength(0);
+    expect(narrow.warnings.join()).toMatch(/좁다/);
+  });
+
+  test('서랍이 0 이면 배치가 없다', () => {
+    expect(WR.innerDrawerLayout({ Wi: 870, zoneH: 700, drawers: 0, T: 15 })).toBeNull();
+  });
+
+  test('부재는 전면판과 좌우몰딩 — 둘 다 15PB 몸통 재질', () => {
+    const rows = WR.innerDrawerPartsOf(inner(2));
+    const front = rows.find((r) => r.part === '내부서랍 전면판');
+    const mol = rows.find((r) => r.part === '내부서랍 좌우몰딩');
+    expect(front).toMatchObject({ material: 'PB', t: 15, w: 746, qty: 2, edge: '4면' });
+    expect(front.note).toMatch(/빈 공간 30 × 2/);
+    expect(mol).toMatchObject({ material: 'PB', t: 15, w: 700, h: 60, qty: 2 });
+    expect(mol.note).toMatch(/70 안쪽/);
+    // 같은 높이 전면은 한 줄로 묶는다
+    expect(rows.filter((r) => r.part === '내부서랍 전면판')).toHaveLength(1);
+  });
+
+  test('통 배치에 실려 나온다 — 플래너·BOM 이 같은 숫자를 쓴다', () => {
+    const L = layout({ preset: 'longDrawer' });       // 긴옷 기본 = 내부 2단
+    const z = WR.cabinetsOf(L)[0].drawerZone;
+    expect(z.fronts).toHaveLength(2);
+    expect(z.frontW).toBe(L.Wi - 2 * I.SIDE_MOLDING_W - I.FRONT_TRIM);
+    expect(z.setback).toBe(70);
   });
 });
 
