@@ -32,6 +32,15 @@
  *   천지판 가로 = W − 2×T,       세로 = D − 18 → 수평 칸막이도 같다 (문서 §11 중간칸막이 행)
  *   선반   가로 = 칸 폭,         세로 = D − 18 − 70 (§6 선반 깊이)
  *
+ * ── 내부 서랍 (2026-09-19 사장님 확정) ───────────────────────────
+ * 서랍 자체(박스·레일)는 **서랍 규칙**(bom-drawer-rules.js)을 그대로 쓴다 — 규칙을 두 벌 만들지 않는다.
+ * 붙박이장에만 다른 것은 네 가지다:
+ *   · 전면(도어)  15PB, **몸통 재질과 같다**. 가로 = 모듈 내경 − 4, 세로 = 모듈 내경 높이 − 4
+ *   · 좌우 몰딩   각 **60** (15PB, 몸통 재질). 문을 열 때 경첩에 걸리지 않게 모듈을 그만큼 안으로 넣는다
+ *   · 앞선        붙박이장 앞선에서 **70 안쪽** — 경첩 자리
+ *   · 손잡이      목찬넬이 아니라 **도어를 30 낮춰** 빈 공간을 만든다.
+ *                 그 빈 공간 수는 **일반 하부장 목찬넬 갯수 규칙과 같다** (1단 1 · 2단 2 · 3단 2 · 4단 3)
+ *
  * ── 문서에 없어 규칙을 세운 것 ───────────────────────────────────
  * 옷봉은 지금까지 **도면에만** 있었다 (자재·철물 어디에도 없어 발주에서 빠졌다). 여기서 철물로 낸다.
  * 규격은 2026-09-17 사장님 확정 — **크롬 25파이 파이프 + 원형소켓 2EA**, 길이는 **칸 내경 폭 − 5**.
@@ -43,6 +52,19 @@
   root.DadamWardrobeRules = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
+
+  /**
+   * 서랍 규칙(bom-drawer-rules.js) — 내부 서랍의 손잡이 빈 공간 수가 그 파일의 목찬넬 갯수 규칙과 같다.
+   * 브라우저는 전역, Node 는 require. 없으면 null 이고 그때는 빈 공간을 1개로 본다 (상단 하나).
+   */
+  function drawerRules() {
+    if (typeof DadamDrawerRules !== 'undefined') return DadamDrawerRules;
+    if (typeof window !== 'undefined' && window.DadamDrawerRules) return window.DadamDrawerRules;
+    if (typeof require === 'function') {
+      try { return require('./bom-drawer-rules.js'); } catch (e) { return null; }
+    }
+    return null;
+  }
 
   const WARDROBE_RULES = Object.freeze({
     PANEL_T: 15,                  // 천판·지판·선반·칸막이 두께 (§5 PANEL_THICKNESS)
@@ -69,6 +91,14 @@
     ROD_DIAMETER: 25,
     ROD_SPEC: '크롬 25파이',
     ROD_SOCKET_NAME: '원형소켓',
+    // 내부 서랍 — 2026-09-19 사장님 확정. 전면·몰딩은 15PB 몸통 재질.
+    INNER_DRAWER: Object.freeze({
+      SIDE_MOLDING_W: 60,   // 좌우 각 60 — 문이 경첩에 걸리지 않게 모듈을 안으로 넣는다
+      FRONT_SETBACK: 70,    // 붙박이장 앞선에서 안쪽으로 (경첩 자리)
+      FRONT_TRIM: 4,        // 전면 가로·세로 각 −4
+      HANDLE_SLOT: 30,      // 목찬넬 대신 전면을 30 낮춘다 — 그 빈 공간이 손잡이다
+      MIN_FRONT_H: 50,      // 이보다 낮은 전면은 만들 수 없다 (서랍 규칙 MIN_FRONT_H 와 같은 값)
+    }),
   });
 
   const R = WARDROBE_RULES;
@@ -388,6 +418,86 @@
     return String(v) !== 'none';
   }
 
+  /**
+   * 내부 서랍 구역의 배치 — 좌우 몰딩 · 모듈 · 전면.
+   *
+   * 전면 수는 서랍 단수와 같고, **빈 공간(30) 수는 서랍 규칙의 목찬넬 갯수와 같다**
+   * (`DadamDrawerRules.channelCountFor`: 1단 1 · 2단 2 · 3단 2 · 4단 3). 상단에 하나가 늘 있고,
+   * 나머지는 `assignChannels` 가 정한 서랍 경계에 놓인다 — 하나가 위·아래 두 전면을 연다.
+   *
+   *   모듈 내경 폭   = 통 내경 − 2 × 60
+   *   모듈 내경 높이 = 구역 높이 − 2 × T        (모듈 상판·지판)
+   *   전면 가로       = 모듈 내경 폭 − 4
+   *   전면 높이 합    = (모듈 내경 높이 − 4) − 30 × 빈 공간 수
+   *
+   * @param o { Wi, zoneH, drawers, T }
+   * @returns null 이면 그릴 것이 없다 (서랍 0 또는 자리가 안 나온다)
+   */
+  function innerDrawerLayout(o) {
+    const opt = o || {};
+    const I = R.INNER_DRAWER;
+    const T = thicknessOf(opt);
+    const Wi = Number(opt.Wi) || 0;
+    const zoneH = Number(opt.zoneH) || 0;
+    const n = int0(opt.drawers, R.MAX_DRAWER_COUNT);
+    if (n <= 0 || Wi <= 0 || zoneH <= 0) return null;
+
+    const warnings = [];
+    const moduleW = Wi - 2 * I.SIDE_MOLDING_W;
+    const moduleHi = zoneH - 2 * T;
+    const base = {
+      drawers: n, moldingW: I.SIDE_MOLDING_W, moldingT: T, moldingH: zoneH,
+      setback: I.FRONT_SETBACK, moduleW, moduleHi, frontT: T, fronts: [], slots: 0, warnings,
+    };
+    if (moduleW <= 0 || moduleHi <= 0) {
+      warnings.push(`내부 서랍 자리가 좁다 — 모듈 ${moduleW}×${moduleHi} (통 내경 ${Wi} · 구역 ${zoneH})`);
+      return base;
+    }
+
+    const DR = drawerRules();
+    const mids = DR && DR.assignChannels ? DR.assignChannels(n) : [];
+    const slots = DR && DR.channelCountFor ? DR.channelCountFor(n) : 1;
+
+    const frontW = moduleW - I.FRONT_TRIM;
+    const area = (moduleHi - I.FRONT_TRIM) - slots * I.HANDLE_SLOT;
+    if (area < n * I.MIN_FRONT_H) {
+      warnings.push(`서랍 ${n}단에 전면 자리가 ${area} 밖에 없다 — 한 장이 최소 ${I.MIN_FRONT_H} 은 되어야 한다`);
+      return Object.assign(base, { slots, frontW });
+    }
+
+    // 아래에서 위로 쌓는다. 나머지는 **맨 위 전면**이 먹는다 (몸통 스택과 같은 규칙).
+    const each = Math.floor(area / n);
+    const fronts = [];
+    let y = 0;
+    for (let i = 0; i < n; i++) {
+      const h = i === n - 1 ? area - each * (n - 1) : each;
+      fronts.push({ idx: i, y0: y, h, w: frontW });
+      y += h;
+      if (i < n - 1 && mids[i]) y += I.HANDLE_SLOT;   // 그 경계의 빈 공간 (위·아래를 함께 연다)
+    }
+    // 상단 빈 공간은 언제나 있다 (서랍 규칙의 상단 목찬넬 자리)
+    return Object.assign(base, { slots, frontW, fronts, topSlot: I.HANDLE_SLOT });
+  }
+
+  /** 내부 서랍에서 나오는 부재 — 전면과 좌우 몰딩. 둘 다 15PB 몸통 재질이다. */
+  function innerDrawerPartsOf(L) {
+    if (!L || !L.fronts || !L.fronts.length) return [];
+    const rows = [];
+    const byH = new Map();
+    L.fronts.forEach((f) => byH.set(f.h, (byH.get(f.h) || 0) + 1));
+    [...byH.keys()].sort((a, b) => a - b).forEach((h) => {
+      rows.push({
+        part: '내부서랍 전면판', material: 'PB', t: L.frontT, w: L.frontW, h, qty: byH.get(h),
+        edge: '4면', note: `손잡이 빈 공간 ${R.INNER_DRAWER.HANDLE_SLOT} × ${L.slots}`,
+      });
+    });
+    rows.push({
+      part: '내부서랍 좌우몰딩', material: 'PB', t: L.moldingT, w: L.moldingH, h: L.moldingW, qty: 2,
+      edge: '2면(장)', note: `앞선에서 ${L.setback} 안쪽 — 경첩 자리`,
+    });
+    return rows;
+  }
+
   /** 옷봉 파이프 길이 — 칸 내경 폭보다 5 짧다 (양쪽 소켓 자리, 2026-09-17 확정). */
   function rodLengthFor(clearW) {
     return Math.max(0, Math.round(Number(clearW) || 0) - R.ROD_LENGTH_MINUS);
@@ -478,7 +588,12 @@
       if (car.kind !== 'cabinet') return;
       // §7 내부 서랍 — 몸통 높이는 그대로 두고 **맨 아래 캐비닛 안**에서 자리를 뺀다.
       const zoneH = (!external && drawers > 0 && carIdx === firstCabinet) ? drawerModH : 0;
-      if (zoneH > 0) car.drawerZone = { y0: car.y0 + T, h: zoneH, drawers };
+      if (zoneH > 0) {
+        // 내부 서랍 — 전면·몰딩 배치까지 같이 낸다 (플래너·BOM 이 같은 숫자를 쓴다).
+        const inner = innerDrawerLayout({ Wi, zoneH, drawers, T });
+        car.drawerZone = Object.assign({ y0: car.y0 + T, h: zoneH, drawers }, inner || {});
+        if (inner && inner.warnings.length) warnings.push(...inner.warnings);
+      }
       const Hi = car.h - 2 * T - zoneH;
       if (Hi <= 0) {
         warnings.push(`${car.label} 높이 ${car.h} 에서 판 두께(${2 * T})${zoneH ? ` · 내부 서랍(${zoneH})` : ''}을 빼면 칸이 남지 않는다`);
@@ -596,6 +711,7 @@
     layoutWardrobeModule, normalizeBlock, dividersOf, shelfPositions, rodPositions,
     partsOf, rodHardwareOf, rodHardwareFor, rodLengthFor, bodyHeightOf, shelfDepthOf, innerDepthOf,
     cabinetsOf, splitStack, moldingPartFor, moldingFinishOn,
+    innerDrawerLayout, innerDrawerPartsOf,
     presetOf, presetKeyOf, presetLabel, moduleTypeOf, samplePresetFor,
   };
 });
