@@ -3144,21 +3144,30 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return room + Math.max(0, dir > 0 ? R - edge : edge - L);
   }
 
-  /** dir 쪽에서 need 만큼 실제로 받아 온다 (빈 자리 먼저, 그다음 가까운 이웃부터). */
-  function lineConsume(cells, i, dir, need) {
-    let remain = need;
-    let edge = dir > 0 ? cells[i].pos + cells[i].size : cells[i].pos;
-    for (let k = i + dir; k >= 0 && k < cells.length && remain > 0; k += dir) {
+  /**
+   * dir 쪽에서 need 만큼 실제로 받아 온다. **밀어내며** 간다 —
+   * 모듈의 새 끝을 먼저 잡고, 그 선을 넘어오는 이웃만 자기 min 까지 줄인 뒤 그 선에 붙인다.
+   * 남은 밀림은 다음 이웃으로 이어진다.
+   *
+   * 2026-09-19: 예전 방식(이웃마다 제자리에서 폭만 깎기)은 **두 칸 건너부터 틈이 생겼다** —
+   *   가까운 이웃은 안 움직이는데 먼 이웃만 안쪽으로 당겨져서다. 밀어내며 가면 한 줄이
+   *   언제나 맞닿는다. `need` 는 lineCapacity 이하라 벽·보존 모듈까지 닿지 않는다.
+   */
+  function lineConsume(cells, i, dir, need, L, R) {
+    if (!(need > 0)) return 0;
+    let edge = dir > 0 ? cells[i].pos + cells[i].size + need : cells[i].pos - need;
+    for (let k = i + dir; k >= 0 && k < cells.length; k += dir) {
       const c = cells[k];
-      remain -= Math.min(Math.max(0, dir > 0 ? c.pos - edge : edge - (c.pos + c.size)), remain);
-      if (remain <= 0 || c.rigid) break;
-      const cut = Math.min(Math.max(0, c.size - c.min), remain);
-      c.size -= cut;
-      if (dir > 0) c.pos += cut;                      // 이웃의 가까운 끝이 밀린다
-      remain -= cut;
+      const near = dir > 0 ? c.pos : c.pos + c.size;
+      const over = dir > 0 ? edge - near : near - edge;
+      if (over <= 0 || c.rigid) break;          // 안 밀리거나, 보존 모듈이면 거기서 멈춘다
+      c.size -= Math.min(Math.max(0, c.size - c.min), over);
+      // 밀려난 자리에 붙인다. 벽은 마지막 방어선이다 — 겹친 채 저장된 옛 설계에서도
+      //   이웃이 배치 사각형 밖으로 나가지는 않는다.
+      c.pos = dir > 0 ? Math.min(edge, R - c.size) : Math.max(L, edge - c.size);
       edge = dir > 0 ? c.pos + c.size : c.pos;
     }
-    return need - remain;
+    return need;
   }
 
   /** dir 쪽 **바로 옆** 이웃이 비워진 자리를 채운다. 보존 모듈이면 빈 자리로 남는다. */
@@ -3189,8 +3198,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         dn = Math.min(delta - up, capDn);
         up = Math.min(capUp, delta - dn);              // 한쪽이 모자라면 다른 쪽이 더 낸다
       } else { up = Math.min(delta, capUp); dn = Math.min(delta - up, capDn); }
-      lineConsume(cells, i, +1, up);
-      lineConsume(cells, i, -1, dn);
+      lineConsume(cells, i, +1, up, L, R);
+      lineConsume(cells, i, -1, dn, L, R);
       c.size = size0 + up + dn;
       c.pos = pos0 - dn;
       return { size: c.size, clamped: up + dn < delta - 0.5 };
@@ -3214,10 +3223,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 천장을 놓지 않는다 — 그러지 않으면 하부장이 공중에 뜨고 상부장이 천장에서 내려온다.
    * 가운데 단(키큰장 중간장 등)만 설정을 따른다.
    */
-  function lineAnchorFor(cell, L, R, anchor) {
-    if (cell.pos <= L + 0.5) return 'start';
-    if (cell.pos + cell.size >= R - 0.5) return 'end';
-    return anchor;
+  function lineAnchorFor(cell, L, R, anchor, hung) {
+    const atFloor = cell.pos <= L + 0.5;
+    const atTop = cell.pos + cell.size >= R - 0.5;
+    // 매달린 단(상부장·후드)은 **천장만** 본다 — 배치 공간을 꽉 채우면 위아래가 다 닿아
+    //   있어 순서가 곧 규칙이 된다. 바닥을 먼저 보면 상부장이 천장에서 내려온다.
+    //   매달린 단의 아래는 허공이라 붙잡을 것이 없으므로 바닥 규칙을 두지 않는다.
+    if (hung) return atTop ? 'end' : anchor;
+    if (atFloor) return 'start';
+    return atTop ? 'end' : anchor;
   }
 
   /** 이웃을 자동으로 건드려도 되는가 — 보존·마감재·멍장은 사람이 정한 것이다. */
@@ -3264,6 +3278,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return { area, cells, i: cells.findIndex((c) => c.m.id === m.id), L, R: L + areaH };
   }
 
+  /** 이 줄에서 고른 항목이 가질 수 있는 최대 — 제 크기 + 양쪽이 내줄 수 있는 만큼. */
+  function lineRoomFor(line) {
+    if (!line || line.i < 0) return null;
+    const c = line.cells[line.i];
+    return c.size + lineCapacity(line.cells, line.i, +1, line.L, line.R)
+                  + lineCapacity(line.cells, line.i, -1, line.L, line.R);
+  }
+
   /** 폭을 바꾸고 **같은 줄을 맞물려 움직인다.** 영역을 못 찾는 옆 모듈은 예전처럼 자르기만 한다. */
   function resizeModuleWidth(m, s, raw, quiet) {
     const line = widthLineOf(m);
@@ -3293,7 +3315,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const line = heightLineOf(m, s);
     if (!line || line.i < 0) return fitModuleHeight(m, s, raw, quiet);
     const self = line.cells[line.i];
-    const anchor = lineAnchorFor(self, line.L, line.R, resizeAnchor.H);
+    // 천장 매달림인가 — 상부장·후드는 높이를 바꿔도 천장에 붙어 있어야 한다 (getBaseY).
+    const hung = getBaseY(m.section, 100) !== 0;
+    const anchor = lineAnchorFor(self, line.L, line.R, resizeAnchor.H, hung);
     const r = applyLineResize(line.cells, line.i, raw, anchor, line.L, line.R, self.min);
     line.cells.forEach((c) => {
       c.m.H = Math.round(c.size);
@@ -3547,13 +3571,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (!host) return;
     const lim = moduleLimitsOf(m);
     // 2026-09-19: 한계를 숫자로 보여 준다 — 막히고 나서야 아는 것보다 낫다.
+    //   실제 상한은 배치 공간이 아니라 **이웃이 내줄 수 있는 만큼**이다 (보존 모듈은 벽이다).
+    const cap = { W: lineRoomFor(widthLineOf(m)), H: lineRoomFor(heightLineOf(m, s)), D: lim && lim.maxD };
     const room = lim ? `
-        배치 공간 <b>W${Math.round(lim.area.W || 0)} × H${Math.round(lim.area.H || 0)} × D${Math.round(lim.area.D || 0)}</b> 안에서만 —
-        폭 ≤ ${Math.round(lim.maxW)} · 높이 ≤ ${Math.round(lim.maxH)} · 깊이 ≤ ${Math.round(lim.maxD)}.<br>
+        배치 공간 <b>W${Math.round(lim.area.W || 0)} × H${Math.round(lim.area.H || 0)} × D${Math.round(lim.area.D || 0)}</b> 안에서 —
+        지금 늘릴 수 있는 만큼은 폭 ≤ ${Math.round(cap.W != null ? cap.W : lim.maxW)} ·
+        높이 ≤ ${Math.round(cap.H != null ? cap.H : lim.maxH)} · 깊이 ≤ ${Math.round(lim.maxD)}
+        (옆·위아래 모듈이 내줄 수 있는 만큼까지).<br>
         기준 <b>가로 ${ANCHOR_LABEL.W[resizeAnchor.W]} · 높이 ${ANCHOR_LABEL.H[resizeAnchor.H]} · 깊이 ${ANCHOR_LABEL.D[resizeAnchor.D]}</b>
         (⚙ 설정) — 기준 쪽은 그대로 두고 반대쪽으로 늘어나며, 그만큼 옆 모듈이 내줍니다.<br>` : '';
     host.innerHTML = `
-      ${dimRowsHTML(m, lim && { W: lim.maxW, H: lim.maxH, D: lim.maxD })}
+      ${dimRowsHTML(m, lim && { W: cap.W != null ? cap.W : lim.maxW,
+                                H: cap.H != null ? cap.H : lim.maxH, D: lim.maxD })}
       <label class="chk-row"><input type="checkbox" id="chkFixed" ${m.isFixed ? 'checked' : ''}>
         자동계산 시 이 모듈을 보존</label>
       <div style="font-size:10px;color:#888;line-height:1.4;margin-top:6px">

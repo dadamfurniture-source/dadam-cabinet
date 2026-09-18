@@ -124,7 +124,9 @@ describe('플래너 높이 구성 패널', () => {
     // 팔레트에 문구까지 다른 두 벌이 있어, 한쪽만 고치면 다른 쪽으로는 통과했다.
     const fn = STRUCT.slice(STRUCT.indexOf('function applyHeightPart'),
                             STRUCT.indexOf('function panelCommit'));
-    expect(fn).toMatch(/bodyHeightOf\(m, s\) >= 50/);
+    // 2026-09-19: 50 은 상수 MIN_BODY_H 다 — 높이를 건드리는 모든 길이 같은 값을 본다.
+    expect(STRUCT).toMatch(/const MIN_BODY_H = 50;/);
+    expect(fn).toMatch(/bodyHeightOf\(m, s\) >= MIN_BODY_H/);
     // 되돌릴 때 delete 가 아니라 이전 값을 되놓는다 — 미지정과 0 은 다르다.
     expect(fn).toMatch(/if \(prev === undefined\) delete s\[key\]; else s\[key\] = prev;/);
     expect(fn).toContain('showToast');
