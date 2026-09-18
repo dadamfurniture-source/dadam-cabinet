@@ -74,10 +74,14 @@ describe('P1-1 키큰장 단은 하부장 규칙이 아니다 (sink.md §5)', ()
     expect(rowsOf(rows, 'planner-tall-2-0', '선반')).toHaveLength(0);
   });
 
-  test('처짐방지목 — 목찬넬 단만 −70, 푸쉬 단은 H−2T', () => {
-    expect(one(rows, 'planner-tall-0-0', '밴드(처짐방지)').h).toBe(801 - 30 - 70);
-    expect(one(rows, 'planner-tall-1-0', '밴드(처짐방지)').h).toBe(979 - 30);
-    expect(one(rows, 'planner-tall-2-0', '밴드(처짐방지)').h).toBe(400 - 30);
+  test('처짐방지목 — W ≥ 800 인 단에만 1장, 목찬넬 단만 −70', () => {
+    // 2026-09-19: 문턱(하부장·키큰장 단 800)은 장수가 아니라 **유무**다 — 600 짜리 단에는 부재가 없다.
+    TALL_STACK.forEach((t) => expect(rowsOf(rows, t.id, '밴드(처짐방지)')).toHaveLength(0));
+    // 같은 단을 900 으로 넓히면 단마다 1장씩, 높이는 목찬넬 단만 −70.
+    const wide = extract(sinkItem([...LOWERS, ...TALL_STACK.map((t) => Object.assign({}, t, { w: 900 }))]));
+    expect(one(wide, 'planner-tall-0-0', '밴드(처짐방지)')).toMatchObject({ h: 801 - 30 - 70, qty: 1 });
+    expect(one(wide, 'planner-tall-1-0', '밴드(처짐방지)')).toMatchObject({ h: 979 - 30, qty: 1 });
+    expect(one(wide, 'planner-tall-2-0', '밴드(처짐방지)')).toMatchObject({ h: 400 - 30, qty: 1 });
   });
 
   test('걸레받이·목찬넬 라인 폭 = 하부장 폭 합 — 키큰장 세 단(600×3)은 들어가지 않는다', () => {
@@ -141,7 +145,10 @@ describe('P1-1 키큰장 단은 하부장 규칙이 아니다 (sink.md §5)', ()
     const r = extract(sinkItem([...LOWERS, ...TALL_STACK], { specs: Object.assign({}, SPECS, { handle: '푸쉬' }) }));
     expect(one(r, 'planner-tall-0-0', '도어').h).toBe(797);
     expect(rowsOf(r, 'planner-tall-0-0').filter((x) => /목찬넬/.test(x.part))).toHaveLength(0);
-    expect(one(r, 'planner-tall-0-0', '밴드(처짐방지)').h).toBe(801 - 30);
+    // 처짐방지는 W ≥ 800 인 단에만 나오므로 900 으로 넓혀 본다 (600 짜리 TALL_STACK 엔 부재가 없다)
+    const rWide = extract(sinkItem([...LOWERS, ...TALL_STACK.map((t) => Object.assign({}, t, { w: 900 }))],
+      { specs: Object.assign({}, SPECS, { handle: '푸쉬' }) }));
+    expect(one(rWide, 'planner-tall-0-0', '밴드(처짐방지)').h).toBe(801 - 30);
   });
 });
 
