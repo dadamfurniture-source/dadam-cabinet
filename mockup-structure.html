@@ -1660,30 +1660,53 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           count++;
         }
       }
-      // (B) 모듈 W 변경 (기존 동작)
+      // (B) 모듈 W 변경
       if (moduleEntities.length) {
-        for (const e of moduleEntities) { e.m.W = newVal; e.m.isFixed = fixed; }
-        if (Math.abs(delta) > 0.5) {
-          const affected = new Set();
-          const processedRows = new Set();
-          let gapWarning = false;
-          for (const e of moduleEntities) {
-            const result = absorbAdjacentW(e.m, delta, affected, processedRows);
-            if (result === 'gap') gapWarning = true;
-          }
-          for (const id of affected) {
-            const idx = modules.findIndex(x => x.id === id);
-            if (idx >= 0 && modules[idx].W < 100) modules.splice(idx, 1);
-          }
-          if (gapWarning && typeof showToast === 'function') {
-            showToast('⚠ 고정 인접 모듈로 인해 일부 row 에 gap 발생 — 자동계산 권장');
-          }
+        // 2026-09-19: 크기 입력과 **같은 규칙**을 탄다 (fitModuleWidth) — 배치 사각형 밖으로 못 나가고,
+        //   오른쪽이 모자라면 왼쪽으로 물러선다. 그래서 오른쪽 끝이 얼마나 움직였는지는
+        //   모듈마다 다르다 — 인접 흡수에는 그 **실제 이동량**을 준다. 그룹 공통 delta 를 그대로
+        //   쓰면 폭이 잘린 모듈에서 엉뚱한 이웃을 집는다 (absorbAdjacentW 는 옛 우측 끝을 delta 로 되짚는다).
+        let clamped = false;
+        const moved = moduleEntities.map((e) => {
+          const beforeX = Number(e.m.x) || 0;
+          const beforeRight = beforeX + (Number(e.m.W) || 0);
+          e.m.W = fitModuleWidth(e.m, newVal, true);
+          e.m.isFixed = fixed;
+          if (Math.abs(e.m.W - newVal) > 0.5) clamped = true;
+          return { e, d: (Number(e.m.x) || 0) + e.m.W - beforeRight, dLeft: beforeX - (Number(e.m.x) || 0) };
+        });
+        const affected = new Set();
+        const processedRows = new Set();
+        let gapWarning = false;
+        for (const { e, d, dLeft } of moved) {
+          if (Math.abs(d) > 0.5 && absorbAdjacentW(e.m, d, affected, processedRows) === 'gap') gapWarning = true;
+          // 오른쪽이 배치 사각형 끝에 막혀 왼쪽으로 물러선 만큼은 왼쪽 이웃이 내놓는다.
+          if (dLeft > 0.5 && absorbAdjacentWLeft(e.m, dLeft, affected, processedRows) === 'gap') gapWarning = true;
+        }
+        for (const id of affected) {
+          const idx = modules.findIndex(x => x.id === id);
+          if (idx >= 0 && modules[idx].W < 100) modules.splice(idx, 1);
+        }
+        if (gapWarning && typeof showToast === 'function') {
+          showToast('⚠ 고정 인접 모듈로 인해 일부 row 에 gap 발생 — 자동계산 권장');
+        }
+        if (clamped && typeof showToast === 'function') {
+          showToast('⚠ 일부 모듈은 배치 공간 폭에 맞춰 줄였습니다');
         }
         count += moduleEntities.length;
       }
     } else {
-      // H: 모듈 단위
-      for (const m of group.modules) { m.H = newVal; m.isFixed = fixed; }
+      // H: 모듈 단위 — 배치 공간 높이를 넘지 않는다 (상판·받침을 뺀 몸통이 남아야 한다).
+      let clamped = false;
+      for (const m of group.modules) {
+        const h = fitModuleHeight(m, getStructure(m.id), newVal, true);
+        if (h == null || Math.abs(h - newVal) > 0.5) clamped = true;
+        if (h == null) continue;
+        m.H = h; m.isFixed = fixed;
+      }
+      if (clamped && typeof showToast === 'function') {
+        showToast('⚠ 일부 모듈은 배치 공간 높이에 맞췄습니다');
+      }
       count = group.modules.length;
     }
     // CD-3: 즉시 저장. 예전엔 여기서 바꾼 W/H 가 메모리에만 남아
@@ -1776,6 +1799,42 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       immediate.W += grow;
       return 'ok';
     }
+  }
+
+  /**
+   * 2026-09-19: 왼쪽 인접 모듈 흡수 — 모듈의 **왼쪽 끝**이 왼쪽으로 밀렸을 때.
+   *
+   * `absorbAdjacentW` 의 거울이다. 그쪽은 우측 끝이 움직인 만큼 오른쪽 이웃이 내놓고,
+   * 이쪽은 좌측 끝이 움직인 만큼 왼쪽 이웃이 내놓는다. 오른쪽이 배치 사각형 끝에 막혀
+   * **왼쪽으로 물러서며 커지는** 길(fitModuleWidth)이 생겨서 필요해졌다 — 안 그러면
+   * 늘어난 폭이 왼쪽 이웃 위에 겹쳐 앉는다.
+   *
+   * 왼쪽 이웃은 x 를 두고 W 만 줄인다 — 오른쪽 끝이 당겨지는 것이라 그 자리에
+   * 커진 모듈의 새 왼쪽 끝이 정확히 들어온다. 고정 모듈은 건너뛰고 gap 을 알린다.
+   */
+  function absorbAdjacentWLeft(changed, shift, affected, processedRows) {
+    if (!(shift > 0.5)) return 'ok';
+    const rowKey = `L${changed.section}@${Math.round(changed.y || 0)}`;
+    if (processedRows.has(rowKey)) return 'ok';
+    processedRows.add(rowKey);
+    const changedLeft = (changed.x || 0) + shift;   // 밀리기 전 좌측 끝
+    const leftSide = modules.filter(m =>
+      m.id !== changed.id &&
+      m.section === changed.section &&
+      Math.abs((m.y || 0) - (changed.y || 0)) < 1 &&
+      (m.x || 0) + (m.W || 0) <= changedLeft + 0.5
+    ).sort((a, b) => (b.x || 0) - (a.x || 0));   // 가까운 쪽부터
+    let remaining = shift;
+    let skipped = false;
+    for (const nb of leftSide) {
+      if (remaining <= 0) break;
+      if (nb.isFixed) { skipped = true; continue; }
+      const eat = Math.min(nb.W, remaining);
+      nb.W -= eat;
+      remaining -= eat;
+      if (nb.W < 100) affected.add(nb.id);
+    }
+    return (remaining > 0 || skipped) ? 'gap' : 'ok';
   }
 
   // ── 평면 좌표와 회전 ──────────────────────────────────────────
@@ -3023,15 +3082,153 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // 실제로 그랬다 — 몸통 50mm 가드가 문구까지 다르게 두 벌이었고, 치수 입력은
   // 팔레트에만 있어 areaWidths 를 비우지 않았다. 규칙은 여기 하나씩만 산다.
 
+  /** 몸통 최소 높이 — 이보다 얇으면 장이 아니다. 높이를 건드리는 모든 길이 이 값을 본다. */
+  const MIN_BODY_H = 50;
+
   /**
-   * 모듈 치수 한 값을 바꾼다.
+   * 2026-09-19: **배치 사각형이 모듈의 한계다.**
+   *
+   * 모듈은 자기가 속한 배치 공간 안에서만 크고 움직인다. 예전엔 크기 입력이 값을
+   * 그대로 대입해서, 폭을 키우면 모듈이 배치 오른쪽 벽을 뚫고 나갔고 높이는
+   * 배치 공간 높이를 넘어 위로 자랐다 (정면도에서 영역 밖에 떠 있는 장이 그것이다).
+   *
+   * ㄱ자(ㄷ자·ㅁ자)로 배치가 서로 붙은 경우가 사장님이 말한 예외인데, 그 자리는
+   * 배치 단계가 트리밍과 멍장으로 이미 갈라 놓았다 (cornerPairs). 그래서 여기서는
+   * **자기 배치 공간 하나만** 본다 — 옆 배치를 다시 보면 코너에서 잘못 막는다.
+   *
+   *   폭  — 배치 공간 폭 그대로 (x 는 [area.x, area.x + area.W] 안).
+   *   깊이 — 앞선에서 물끊기 + 도어 자리를 비운 나머지 (addModuleToArea·seatModuleDepth 와 같은 식).
+   *   높이 — 모듈 바닥에서 배치 공간 천장까지. 상부장·후드는 천장 매달림이라
+   *          바닥이 높이를 따라 내려오므로 배치 공간 높이가 그대로 상한이다.
+   *
+   * 영역을 못 찾는 옛 설계의 모듈은 null — 그때는 예전처럼 값만 바꾼다.
+   */
+  function moduleLimitsOf(m) {
+    const area = m ? areaById(areaIdOfModule(m)) : null;
+    if (!area) return null;
+    const x0 = Number(area.x) || 0;
+    const areaW = Number(area.W) || 0;
+    const areaH = Number(area.H) || 0;
+    const areaBase = getBaseY(area.section, areaH);
+    const hung = !Number.isFinite(parseFloat(m.baseY)) && (m.section === 'upper' || m.section === 'hood');
+    return {
+      area,
+      x0, x1: x0 + areaW,
+      maxW: Math.max(0, areaW),
+      maxD: Math.max(0, (Number(area.D) || 0) - MASTER_RULES.CORNER_DRIP - MASTER_RULES.DOOR_SEAT_D),
+      maxH: hung ? areaH : Math.max(0, areaBase + areaH - Math.max(areaBase, baseYOf(m))),
+    };
+  }
+
+  /**
+   * 폭을 배치 사각형 안으로 들인다. **좌·우 조건부**로 큰다 —
+   * 오른쪽에 남은 자리만큼 오른쪽으로 크고, 모자라는 만큼은 왼쪽으로 물러선다.
+   * 왼쪽 끝에 닿으면 거기가 끝이다(상한은 배치 공간 폭). 줄일 때는 왼쪽 끝을 두고
+   * 오른쪽만 당긴다 — 줄어든 자리는 늘 안쪽이라 밀 이유가 없다.
+   *
+   * `m.x` 를 여기서 함께 옮긴다. 부르는 쪽은 돌려받은 폭만 대입하면 된다.
+   */
+  function fitModuleWidth(m, raw, quiet) {
+    let v = Math.max(100, Math.round(parseFloat(raw) || 0));
+    const lim = moduleLimitsOf(m);
+    if (!lim) return v;
+    if (v > lim.maxW) {
+      v = Math.round(lim.maxW);
+      if (!quiet) showToast(`⚠ 배치 공간 폭 ${Math.round(lim.area.W || 0)}mm 를 넘을 수 없습니다 — ${v}mm 로 맞췄습니다`);
+    }
+    const x = Number.isFinite(Number(m.x)) ? Number(m.x) : lim.x0;
+    // min 이 먼저다 — 오른쪽이 모자라면 왼쪽으로 밀고, 그래도 넘치면 왼쪽 끝에 세운다.
+    m.x = Math.max(lim.x0, Math.min(x, lim.x1 - v));
+    return v;
+  }
+
+  /**
+   * 전체 높이를 배치 공간 안으로 들인다. 전체 = 받침(다리발·좌대) + 상판 + 몸통 (+ 상몰딩)
+   * 이므로 **상판과 다리발을 빼고도 몸통이 ${MIN_BODY_H}mm 는 남아야** 한다.
+   * 배치 공간이 그만큼도 안 되면 null — 그 높이는 만들 수 없다는 뜻이다.
+   */
+  function fitModuleHeight(m, s, raw, quiet) {
+    let v = Math.max(100, Math.round(parseFloat(raw) || 0));
+    const lim = moduleLimitsOf(m);
+    if (!lim) return v;
+    const parts = heightPartsOf(m, s);
+    const sum = parts.reduce((a, p) => a + p.value, 0);
+    const label = parts.map((p) => `${p.label} ${Math.round(p.value)}`).join(' + ');
+    if (lim.maxH < sum + MIN_BODY_H) {
+      if (!quiet) showToast(`⚠ 배치 공간 높이 ${Math.round(lim.maxH)}mm — ${label} 을 빼면 몸통 ${MIN_BODY_H}mm 가 남지 않습니다`);
+      return null;
+    }
+    if (v > lim.maxH) {
+      v = Math.round(lim.maxH);
+      if (!quiet) showToast(`⚠ 배치 공간 높이 ${Math.round(lim.maxH)}mm 까지 — ${label} + 몸통 ${Math.round(v - sum)}`);
+    }
+    if (v < sum + MIN_BODY_H) {
+      v = Math.round(sum + MIN_BODY_H);
+      if (!quiet) showToast(`⚠ ${label} 이라 전체 높이는 ${v}mm 이상이어야 합니다`);
+    }
+    return v;
+  }
+
+  /** 깊이를 배치 공간 안으로 — 앞선의 물끊기·도어 자리는 몸통이 쓸 수 없다. */
+  function fitModuleDepth(m, raw, quiet) {
+    let v = Math.max(100, Math.round(parseFloat(raw) || 0));
+    const lim = moduleLimitsOf(m);
+    if (!lim || v <= lim.maxD) return v;
+    v = Math.round(lim.maxD);
+    if (!quiet) showToast(`⚠ 배치 공간 깊이 ${Math.round(lim.area.D || 0)}mm 에서 물끊기·도어 자리를 빼면 몸통은 ${v}mm 까지입니다`);
+    return v;
+  }
+
+  /**
+   * 폭을 바꾸고 **옆자리를 정리한다**. 배치 사각형은 그대로이므로 커진 만큼은 누군가 내놓아야 한다 —
+   * 오른쪽으로 크면 오른쪽 이웃이, (오른쪽이 막혀) 왼쪽으로 물러서며 크면 왼쪽 이웃이 내놓는다.
+   * 눈금자 치수 편집이 예전부터 하던 일(absorbAdjacentW)과 같은 규칙이다.
+   *
+   * 줄일 때는 아무도 건드리지 않는다 — 줄어든 자리는 빈 자리로 남는다(예전 그대로).
+   */
+  function resizeModuleWidth(m, s, raw) {
+    const beforeX = Number(m.x) || 0;
+    const beforeW = Number(m.W) || 0;
+    const v = fitModuleWidth(m, raw);
+    m.W = v;
+    const affected = new Set();
+    const rows = new Set();
+    const wasW = new Map(modules.map((x) => [x.id, Number(x.W) || 0]));
+    let gap = false;
+    const dRight = (Number(m.x) || 0) + v - (beforeX + beforeW);
+    if (dRight > 0.5 && absorbAdjacentW(m, dRight, affected, rows) === 'gap') gap = true;
+    const dLeft = beforeX - (Number(m.x) || 0);
+    if (dLeft > 0.5 && absorbAdjacentWLeft(m, dLeft, affected, rows) === 'gap') gap = true;
+    // 폭이 바뀐 이웃의 칸 폭 배분은 근거가 사라진다 — 모듈 자신과 같은 이유로 비운다.
+    modules.forEach((x) => {
+      if (x.id === m.id || !structures[x.id]) return;
+      if (Math.abs((Number(x.W) || 0) - (wasW.get(x.id) || 0)) < 0.5) return;
+      structures[x.id].areaWidths = [];
+      structures[x.id].areaIs2D = [];
+    });
+    let removed = 0;
+    for (const id of affected) {
+      const i = modules.findIndex((x) => x.id === id);
+      if (i >= 0 && modules[i].W < 100) { delete structures[id]; modules.splice(i, 1); removed++; }
+    }
+    if (removed) showToast(`옆 모듈 ${removed}개가 폭을 다 내주어 지워졌습니다`);
+    if (gap) showToast('⚠ 고정 인접 모듈이 있어 빈 자리가 남았습니다 — 자동계산 권장');
+    return v;
+  }
+
+  /**
+   * 모듈 치수 한 값을 바꾼다. 세 축 모두 **배치 사각형 안으로** 들여 놓는다 (moduleLimitsOf).
    *
    * 폭을 바꾸면 `areaWidths` 를 비운다. 그 배열은 자동계산이 잡아 준 **파생값**이라
    * 폭이 달라지면 근거가 사라진다 — 안 비우면 낡은 셀 폭이 그대로 남아 정면도가
    * 모듈 밖으로 삐져나온다 (syncCellArrays 가 갯수를 바꿀 때 하는 것과 같은 이유).
    */
   function applyModuleDim(m, s, k, raw) {
-    const v = Math.max(100, parseInt(raw) || 0);
+    const v = k === 'W' ? resizeModuleWidth(m, s, raw)
+            : k === 'H' ? fitModuleHeight(m, s, raw)
+            : k === 'D' ? fitModuleDepth(m, raw)
+            : Math.max(100, parseInt(raw) || 0);
+    if (v == null) return Number(m[k]) || 0;   // 배치 공간이 부족하다 — 값을 그대로 둔다
     m[k] = v;
     if (k === 'H') s.shelves = (s.shelves || []).filter((sh) => sh < v);
     if (k === 'W') { s.areaWidths = []; s.areaIs2D = []; }
@@ -3047,9 +3244,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const label = (heightPartsOf(m, s).find((p) => p.key === key) || {}).label || key;
     const prev = s[key];
     s[key] = Math.max(0, parseFloat(raw) || 0);
-    if (bodyHeightOf(m, s) >= 50) return true;
+    if (bodyHeightOf(m, s) >= MIN_BODY_H) return true;
     if (prev === undefined) delete s[key]; else s[key] = prev;
-    showToast(`⚠ ${label}이 커서 몸통이 50mm 미만이 됩니다 — 전체 높이를 먼저 키우세요`);
+    showToast(`⚠ ${label}이 커서 몸통이 ${MIN_BODY_H}mm 미만이 됩니다 — 전체 높이를 먼저 키우세요`);
     return false;
   }
 
@@ -3142,9 +3339,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const bodyInp = document.getElementById('inpBodyH');
     if (bodyInp) {
       bodyInp.addEventListener('change', () => {
-        const nextBody = Math.max(50, parseFloat(bodyInp.value) || 0);
         const sum = heightPartsOf(m, s).reduce((a, p) => a + p.value, 0);
-        m.H = nextBody + sum;
+        // 2026-09-19: 몸통을 키우면 전체 높이가 따라 커진다 — 그 전체가 배치 공간을 넘을 수 없다.
+        //   상판·받침은 전체 안에 들어 있으므로 fitModuleHeight 가 함께 셈한다.
+        const total = fitModuleHeight(m, s, Math.max(MIN_BODY_H, parseFloat(bodyInp.value) || 0) + sum);
+        if (total == null) { renderHeightPanel(m, s); return; }
+        const nextBody = total - sum;
+        m.H = total;
         m.isFixed = true; // 사용자가 정한 높이는 자동계산이 건드리지 않는다
         persistPlannerState();
         renderHeightPanel(m, s);
@@ -3236,23 +3437,33 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   const DIM_ROWS = [['W', '폭 W', 6000], ['H', '높이 H', 3000], ['D', '깊이 D', 1200]];
-  const dimRowsHTML = (o, maxW) => DIM_ROWS.map(([k, lab, max]) => `
+  /** `caps` 는 축별 상한 {W,H,D} — 모듈은 배치 공간이, 영역은 자기 최대값이 상한이다. */
+  const dimRowsHTML = (o, caps) => DIM_ROWS.map(([k, lab, max]) => {
+    const cap = caps && Number.isFinite(caps[k]) ? Math.round(caps[k]) : max;
+    return `
       <div class="row">
         <label>${lab} (mm)</label>
-        <input type="number" min="100" max="${k === 'W' && maxW ? maxW : max}" step="10"
+        <input type="number" min="100" max="${cap}" step="10"
                data-dim="${k}" value="${Math.round(Number(o[k]) || 0)}">
-      </div>`).join('');
+      </div>`;
+  }).join('');
 
   /** 모듈 크기 + 고정. 팔레트의 '크기'·'고정' 이 있던 자리다. */
   function renderSizePanel(m, s) {
     const host = document.getElementById('sizeBody');
     if (!host) return;
+    const lim = moduleLimitsOf(m);
+    // 2026-09-19: 한계를 숫자로 보여 준다 — 막히고 나서야 아는 것보다 낫다.
+    const room = lim ? `
+        배치 공간 <b>W${Math.round(lim.area.W || 0)} × H${Math.round(lim.area.H || 0)} × D${Math.round(lim.area.D || 0)}</b> 안에서만 —
+        폭 ≤ ${Math.round(lim.maxW)} · 높이 ≤ ${Math.round(lim.maxH)} · 깊이 ≤ ${Math.round(lim.maxD)}.<br>
+        폭은 오른쪽에 자리가 없으면 왼쪽으로 물러서며 커집니다.<br>` : '';
     host.innerHTML = `
-      ${dimRowsHTML(m)}
+      ${dimRowsHTML(m, lim && { W: lim.maxW, H: lim.maxH, D: lim.maxD })}
       <label class="chk-row"><input type="checkbox" id="chkFixed" ${m.isFixed ? 'checked' : ''}>
         자동계산 시 이 모듈을 보존</label>
       <div style="font-size:10px;color:#888;line-height:1.4;margin-top:6px">
-        폭을 바꾸면 칸 폭 배분은 균등으로 되돌아갑니다.
+        ${room}폭을 바꾸면 칸 폭 배분은 균등으로 되돌아갑니다.
       </div>`;
     host.querySelectorAll('input[data-dim]').forEach((inp) => {
       inp.onchange = () => {
@@ -3310,7 +3521,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const size = document.getElementById('sizeBody');
     if (size) {
       size.innerHTML = `
-        ${dimRowsHTML(a, 8000)}
+        ${dimRowsHTML(a, { W: 8000 })}
         <div style="font-size:10px;color:#888;line-height:1.4;margin-top:6px">
           ${cfg.label || a.section} 배치 공간입니다 — 고치면 배치 단계에도 되쓰입니다.
         </div>
