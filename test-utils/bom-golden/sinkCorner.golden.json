@@ -127,7 +127,7 @@
       "thickness": 15,
       "w": 70,
       "h": 690,
-      "qty": 2,
+      "qty": 1,
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
@@ -583,7 +583,7 @@
       "thickness": 15,
       "w": 70,
       "h": 678,
-      "qty": 2,
+      "qty": 1,
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
@@ -1015,7 +1015,7 @@
       "thickness": 15,
       "w": 70,
       "h": 678,
-      "qty": 2,
+      "qty": 1,
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
@@ -1157,7 +1157,7 @@
     "PB_15": {
       "material": "PB",
       "thickness": 15,
-      "totalArea": 8388965,
+      "totalArea": 8245745,
       "panelCount": 3
     },
     "MDF_2.7": {
@@ -1181,7 +1181,7 @@
   },
   "edgeBanding": {
     "1": 14110,
-    "0.6": 68553
+    "0.6": 64461
   },
   "hardware": [
     {

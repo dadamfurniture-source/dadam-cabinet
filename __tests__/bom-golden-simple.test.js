@@ -121,7 +121,7 @@ describe('신발장 (shoerack) — 얕은 깊이 350 · 선반 분배 · 서랍 
     expect(rowOf(snap, '하부장-하부장', '지판').h).toBe(350);
     expect(rowOf(snap, '하부장-하부장', '선반').h).toBe(350 - 15);
     expect(rowOf(snap, '하부장-하부장', '밴드(처짐방지)').h).toBe(708 - 30 - 70);
-    expect(rowOf(snap, '하부장-하부장', '밴드(처짐방지)').qty).toBe(2); // W 900 ≥ 800
+    expect(rowOf(snap, '하부장-하부장', '밴드(처짐방지)').qty).toBe(1); // 2026-09-19 — 폭과 무관하게 모듈당 1
   });
 
   test('서랍 상자는 레일 350 으로 환산 — 측판 290 · 밑판 299, 전후판 428 ≤ 600 이라 하단보강 없음', () => {

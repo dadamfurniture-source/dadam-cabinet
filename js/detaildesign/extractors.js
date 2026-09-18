@@ -163,6 +163,20 @@
         return grounded && String((specs && specs.handle) || '').includes('목찬넬');
       }
 
+      /**
+       * 처짐방지목(밴드(처짐방지)) 장수 — **모듈 하나에 1장, 중앙**. 2026-09-19 사장님 확정.
+       *
+       * 그때까지는 폭 문턱이었다 — 상부장 W≥700 · 하부장·키큰장 단 W≥800 이면 2장, 아니면 1장.
+       * 그런데 도어 분배가 350~600 이라 그 문턱을 넘는 모듈은 **전부 양문**이다. 곧 "문턱을 넘으면 2장" 은
+       * 사실상 "양문이면 2장" 이었고, 3D 는 그 2장을 폭의 1/3·2/3 — 도어 한 장씩의 가운데 뒤 — 에 세웠다.
+       * 양문 캐비닛에서 세로 부재가 설 자리는 **도어 두 장이 맞닿는 가운데 한 곳**뿐이라 실물에 없는 그림이었다
+       * (원장 P2-6 이 자리를 `[확인 필요] 실제 조립 위치` 로 남겨 둔 곳이다 — scene-bom-ledger.md §4 항목 6).
+       *
+       * 문턱을 없애고 모듈당 1장으로 되돌린다. 폭은 더 이상 장수에 영향을 주지 않는다.
+       * 자리(중앙)는 BOM 이 정하지 않는다 — 3D·정면도가 같은 결정을 따른다.
+       */
+      const BOM_BRACE_QTY = 1;
+
       // 키큰장 단의 도어 높이 (sink.md §5.1) — 목찬넬 단만 H−30 (목찬넬 틈, 하부장과 같다), 나머지(푸쉬)는 H−4 (도어 간격 4).
       // 자재 행(addTallTierParts)과 경첩 수(HardwareExtractor.extractHinges)가 **같은 함수**를 쓴다 — 경첩이 하부장 가정
       // (H−30)으로 도어 높이를 따로 셈해 푸쉬 단 경첩 수가 어긋나던 결함(bom-protocol.md §4-1).
@@ -968,7 +982,7 @@
           this.add(materials, modLabel, '밴드', 'PB', T, 70, W - T * 2, 2, '2면(장)');
           this.add(materials, modLabel, '뒷판', 'MDF', 2.7, W - T * 2, H - T, 1, '-');
           const bandH = channelHere ? H - T * 2 - 70 : H - T * 2;
-          this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, bandH, W >= 800 ? 2 : 1, '2면(장)');
+          this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, bandH, BOM_BRACE_QTY, '2면(장)');
           // 선반 — 단이 가진 만큼 (하부장 규칙 "서랍·EL·오픈 아니면 1" 을 타지 않는다)
           const rawShelf = Number(mod.shelfCount);
           const shelfQty = Number.isFinite(rawShelf) ? Math.max(0, Math.round(rawShelf)) : 1;
@@ -1051,9 +1065,8 @@
             this.add(materials, modLabel, '뒷판', 'MDF', 2.7, W - 20, H - 1, 1, '-');
             // 밴드(보강목) 2개
             this.add(materials, modLabel, '밴드(보강목)', 'PB', T, W - T * 2, 70, 2, '2면(장)');
-            // 밴드(처짐방지목) - W>=700이면 2개
-            const bandQty = W >= 700 ? 2 : 1;
-            this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, H - T * 2, bandQty, '2면(장)');
+            // 밴드(처짐방지목) — 모듈당 1장, 중앙 (BOM_BRACE_QTY)
+            this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, H - T * 2, BOM_BRACE_QTY, '2면(장)');
             // 선반 2개 (사쿠리 반영 D-34). 2026-09-13: 멍장은 ㄱ자 목대 깊이 75 만큼 짧다 (corner.md §3.5)
             this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - 34 - this.blindShelfCut(mod, 'upper'), 2, '1면(전)');
             // 도어 (H + overlap)
@@ -1116,10 +1129,9 @@
             this.add(materials, modLabel, '밴드', 'PB', T, 70, W - T * 2, 2, '2면(장)');
             // 뒷판 (하부장: 사쿠리 없음)
             this.add(materials, modLabel, '뒷판', 'MDF', 2.7, W - T * 2, H - T, 1, '-');
-            // 밴드(처짐방지목) - 목찬넬이면 -70, W>=800이면 2개
+            // 밴드(처짐방지목) — 목찬넬이면 −70. 장수는 모듈당 1장, 중앙 (BOM_BRACE_QTY)
             const bandH = isWoodChannel ? H - T * 2 - 70 : H - T * 2;
-            const bandQty = W >= 800 ? 2 : 1;
-            this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, bandH, bandQty, '2면(장)');
+            this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, bandH, BOM_BRACE_QTY, '2면(장)');
             // 선반 (서랍/EL/오픈장 없으면 1개, 하부장: 사쿠리 없음)
             if (!isDrawer && !isEL && !isOpen && mod.type !== 'sink') {
               // 2026-09-13: 멍장은 ㄱ자 목대 깊이 75 만큼 짧다 (corner.md §3.5)
@@ -1712,7 +1724,7 @@
             this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
             this.add(materials, modLabel, '뒷판', 'MDF', 2.7, W - 20, H - 1, 1, '-');
             this.add(materials, modLabel, '밴드(보강목)', 'PB', T, W - T * 2, 70, 2, '2면(장)');
-            this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, H - T * 2, W >= 700 ? 2 : 1, '2면(장)');
+            this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, H - T * 2, BOM_BRACE_QTY, '2면(장)');
             const shelf = bomSimpleShelfQtyOf(mod, rules);
             if (shelf.qty > 0) {
               this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - 34, shelf.qty, '1면(전)', shelf.defaulted ? shelfNote : '');
@@ -1749,7 +1761,7 @@
             this.add(materials, modLabel, '밴드', 'PB', T, 70, W - T * 2, 2, '2면(장)');
             this.add(materials, modLabel, '뒷판', 'MDF', 2.7, W - T * 2, H - T, 1, '-');
             const bandH = isWoodChannel ? H - T * 2 - 70 : H - T * 2;
-            this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, bandH, W >= 800 ? 2 : 1, '2면(장)');
+            this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, bandH, BOM_BRACE_QTY, '2면(장)');
             const shelf = bomSimpleShelfQtyOf(mod, rules);
             if (shelf.qty > 0) {
               this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - T, shelf.qty, '1면(전)', shelf.defaulted ? shelfNote : '');

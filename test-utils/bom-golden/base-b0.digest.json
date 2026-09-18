@@ -1,5 +1,5 @@
 {
-  "note": "B0 골든(#633)에서 B1 새 키·edgeBanding·cncHead 를 뺀 모양의 sha256. 갱신: UPDATE_BASE_DIGEST=1 npx jest __tests__/bom-golden-addonly.test.js",
+  "note": "B0 골든(#633)에서 B1 새 키·edgeBanding·cncHead 를 뺀 모양의 sha256. 2026-09-19 재굳힘 — 처짐방지목 장수를 폭 문턱(상부 W≥700 · 하부·키큰장 W≥800 이면 2장)에서 **모듈당 1장**으로 되돌렸다 (사장님 확정). 바뀐 값은 밴드(처짐방지) 행의 qty 2→1 뿐이다. 갱신: UPDATE_BASE_DIGEST=1 npx jest __tests__/bom-golden-addonly.test.js",
   "baseRowKeys": [
     "module",
     "part",
@@ -22,9 +22,9 @@
     "edgeCode"
   ],
   "digests": {
-    "sink15": "2c48fb6d4f139c7f418fabe8b085d55d7468d13ce17ede5957386a04be51a00f",
-    "sink18": "713608b302df53e33ea48b9b7cc564e1323f70d96d5bb7cba53e7d451bd9cd29",
-    "sinkCorner": "b26c7ad5516b25e0fcbdbf3a2a6d29d5e45d18440a6f3399beb266fc59782f73",
+    "sink15": "7d18d6bd4330cd27561603949c9c49d2b1bdb599396828521141f51ddf57268a",
+    "sink18": "481587a653d292defd2571c2c14a6b55c36fad7ff239795e89bb78809c8cc69a",
+    "sinkCorner": "4edf21e9afd73adb0e5d826919139f3ea6e5221549eb153e582675d9fa7a493e",
     "wardrobe": "016299c5cea796cc6892fc763c147f4d2a02d7a5348f1653f617bf5b8d34078a",
     "fridge": "28eba9e95cd63cbcbf56632401357ba8a9841337f9bbc87578ca5b01832f1b6b"
   }
