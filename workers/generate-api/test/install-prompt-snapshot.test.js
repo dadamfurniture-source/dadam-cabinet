@@ -17,6 +17,7 @@ import {
   CATEGORIES,
   DESIGN_SPEC_QC_FIXES,
   QC_ISSUE_CODES,
+  REALIZE_QC_FIXES,
   buildInstallPrompt,
   buildQcPrompt,
   normalizeDesignSpec,
@@ -284,4 +285,70 @@ test('parseQc 는 layout_mismatch 를 알아듣는다', () => {
   });
   assert.ok(ALL_QC_ISSUE_CODES.includes('layout_mismatch'));
   assert.ok(!QC_ISSUE_CODES.includes('layout_mismatch'));
+});
+
+// ─────────────────────────────────────────────────────────────
+// 2026-09-19 실사화(realize): 첫 사진에 플래너가 도면 입면을 이미 얹어 두었을 때.
+//   모델은 그리는 게 아니라 그 자리에서 다시 그린다. 기하는 사진에 있고 글은 개수·순서를 못박는다.
+// ─────────────────────────────────────────────────────────────
+function realizeCtx(extra = {}) {
+  const designSpec = normalizeDesignSpec(
+    {
+      category: 'sink',
+      wallRunMm: 3600,
+      sections: {
+        lower: {
+          widthMm: 3600, heightMm: 870, depthMm: 650, fromLeftMm: 0,
+          modules: [
+            { widthMm: 600, kind: 'drawer', doorCount: 0, drawerCount: 3, label: '서랍' },
+            { widthMm: 800, kind: 'door', doorCount: 2, drawerCount: 0, label: '도어' },
+          ],
+        },
+      },
+      appliances: [],
+      finishes: {},
+    },
+    'sink'
+  );
+  return {
+    category: 'sink', wallW: 3600, wallH: 2400, style: 'modern-minimal',
+    doorColor: 'white', doorFinish: 'matte', refCount: 0, designSpec, realize: true, ...extra,
+  };
+}
+
+test('realize: 기하를 고정하고 그 자리에서 다시 그리라고 말한다 — 도면 요약도 같이 간다', () => {
+  const p = buildInstallPrompt(realizeCtx());
+  assert.match(p, /already contains the customer's own cabinet design/);
+  assert.match(p, /GEOMETRY IS FIXED/);
+  assert.match(p, /Do not move, resize, add or remove any module, door or drawer/);
+  assert.match(p, /MAKE IT REAL/);
+  // 글로도 한 번 더 못박는다 — 개수·순서
+  assert.match(p, /FURNITURE: this is the customer's own planner drawing/);
+  // 공통 규칙은 그대로
+  assert.match(p, /HANDLES: none/);
+  assert.match(p, /All doors and drawers closed/);
+  // "install a built-in" 은 맨땅에 그리라는 말이라 실사화에는 없다
+  assert.doesNotMatch(p, /^Edit the first photo: install a built-in/);
+});
+
+test('realize 가 아니면 실사화 문장이 한 줄도 없다', () => {
+  const p = buildInstallPrompt(realizeCtx({ realize: false }));
+  assert.doesNotMatch(p, /GEOMETRY IS FIXED|MAKE IT REAL|mockup/);
+  assert.match(p, /^Edit the first photo: install a built-in/);
+});
+
+test('realize QC 는 flat_mockup 을 내고, 아니면 안 낸다', () => {
+  assert.match(buildQcPrompt(realizeCtx()), /- flat_mockup:/);
+  assert.doesNotMatch(buildQcPrompt(realizeCtx({ realize: false })), /flat_mockup/);
+  // 요약이 있으므로 layout_mismatch 도 같이 간다
+  assert.match(buildQcPrompt(realizeCtx()), /- layout_mismatch:/);
+});
+
+test('parseQc 는 flat_mockup 을 알아듣고, FIX 문장이 있다', () => {
+  const qc = parseQc('{"ok":false,"issues":["flat_mockup","nonsense"],"note":"x"}');
+  assert.deepEqual(qc.issues, ['flat_mockup']);
+  assert.ok(ALL_QC_ISSUE_CODES.includes('flat_mockup'));
+  assert.ok(REALIZE_QC_FIXES.flat_mockup.length > 40);
+  const p = buildInstallPrompt(realizeCtx(), { fix: ['flat_mockup'] });
+  assert.ok(p.includes('FIX (the previous attempt failed these checks):\n- Parts of the furniture still look like a flat pasted mockup'));
 });
