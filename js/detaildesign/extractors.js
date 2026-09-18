@@ -538,19 +538,25 @@
             dlog(`[BOM-TRACE]   모듈 상세:`, mods.map(m => `${m.pos}/${m.type}/${m.name}(${m.w})`));
             const beforeLen = materials.length;
 
+            // 2026-09-19: 오픈장은 **카테고리 추출기 앞에서** 걷어낸다.
+            //   모듈 타입이라 싱크대에도 붙박이장에도 수납장에도 붙을 수 있는데, 규칙(18T MDF)은
+            //   어디 붙든 같다. 카테고리 추출기에 그대로 넘기면 그쪽 규칙(PB 몸통·도어·선반)으로
+            //   한 번 더 산출돼 한 상자가 두 벌 나간다.
+            const catItem = this.extractOpenCabinets(item, materials, prefix);
+
             switch (category) {
               case 'sink':
-                this.extractSink(item, materials, prefix);
+                this.extractSink(catItem, materials, prefix);
                 break;
               case 'wardrobe':
-                this.extractWardrobe(item, materials, prefix);
+                this.extractWardrobe(catItem, materials, prefix);
                 break;
               case 'fridge':
-                this.extractFridge(item, materials, prefix);
+                this.extractFridge(catItem, materials, prefix);
                 break;
               default:
                 // B3: 신발장·화장대·수납장·창고장 — 같은 상자 규칙, 카테고리 상수만 다르다 (BOM_SIMPLE_CATEGORY_RULES)
-                if (simpleRules) this.extractSimpleBox(item, materials, prefix, simpleRules);
+                if (simpleRules) this.extractSimpleBox(catItem, materials, prefix, simpleRules);
                 break;
             }
             // ★ 새로 추가된 자재에 품목 라벨 태깅
@@ -1039,6 +1045,43 @@
               this.add(materials, modLabel, '상몰딩', 'MDF', 18, moldingH, W, 1, W > 2000 ? '2면(장)' : '4면');
             }
           }
+        }
+
+        // ========================================
+        // 오픈장 자재 추출 (2026-09-19)
+        //
+        // 모듈 타입이다 — 카테고리를 가리지 않는다. 규칙은 js/detaildesign/bom-open-cabinet-rules.js
+        // 한 파일뿐이고 플래너(mockup-structure)도 같은 파일로 그린다.
+        //   측판 D×H 2 · 천지판 (W−36)×(D−20) 2 · 뒷판 (W−36)×H 1, 전부 18T MDF.
+        //
+        // 오픈장 모듈을 뺀 item 을 돌려준다 — 부르는 쪽이 그걸 카테고리 추출기에 넘겨
+        // 같은 상자가 두 벌 나가지 않게 한다. 오픈장이 없으면 받은 item 을 그대로 돌려준다.
+        // ========================================
+        extractOpenCabinets(item, materials, prefix = '') {
+          const R = (typeof DadamOpenCabinetRules !== 'undefined' && DadamOpenCabinetRules)
+            || (typeof window !== 'undefined' && window.DadamOpenCabinetRules)
+            || null;
+          const mods = (item && item.modules) || [];
+          if (!R || !mods.length) return item;
+          const open = mods.filter((m) => R.isOpenCabinet(m));
+          if (!open.length) return item;
+
+          open.forEach((mod, i) => {
+            const dims = { W: Number(mod.w) || 0, H: Number(mod.h) || 0, D: Number(mod.d) || 0 };
+            // 같은 품목에 오픈장이 여럿이면 자재표에서 구분되어야 한다 (#1·#2 는 품목 접두사라 여기선 못 쓴다).
+            const name = `${prefix}${R.RULES.LABEL}${open.length > 1 ? ` ${i + 1}` : ''}`;
+            const parts = R.partsOf(dims);
+            if (!parts.length) {
+              dlog(`[BOM] 오픈장 ${mod.id || name} 치수가 규칙을 못 채운다:`, dims, R.warningsOf(dims));
+              return;
+            }
+            parts.forEach((p) => {
+              this.add(materials, name, p.part, p.material, p.t, p.w, p.h, p.qty, p.edge, '', mod);
+            });
+          });
+
+          // 원본은 건드리지 않는다 — 호출자(extract)가 같은 item 을 다른 곳에서도 읽는다.
+          return Object.assign({}, item, { modules: mods.filter((m) => !R.isOpenCabinet(m)) });
         }
 
         // ========================================
