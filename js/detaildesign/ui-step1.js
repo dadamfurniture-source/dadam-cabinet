@@ -1053,6 +1053,12 @@
         return (typeof window !== 'undefined' && window.DadamWardrobeRules) || null;
       }
 
+      /** 2026-09-19: 오픈장 규칙 — 플래너(mockup-structure)와 BOM(extractors)이 읽는 그 파일. */
+      function _openCabinetRules() {
+        if (typeof DadamOpenCabinetRules !== 'undefined') return DadamOpenCabinetRules;
+        return (typeof window !== 'undefined' && window.DadamOpenCabinetRules) || null;
+      }
+
       /**
        * 붙박이장 통 하나를 **옛 모듈 필드**로 옮긴다 — extractWardrobe 가 읽는 이름들.
        *
@@ -1134,6 +1140,40 @@
             ? Math.min(4, rawDrawerCount)
             : 1;
           const shelfCount = s && Array.isArray(s.shelves) ? s.shelves.length : 0;
+
+          // 2026-09-19: 오픈장은 셀로 쪼개지 않는다 — 도어가 없어 나눌 것이 없다.
+          //   모듈 하나 = 상자 하나이고, 부재는 규칙 파일(bom-open-cabinet-rules.js)이 통째로 낸다.
+          //   여기서는 그 표시(moduleKind)와 치수만 넘긴다 — 규칙을 두 군데 적지 않는다.
+          //   멍장보다 **먼저** 본다: 오픈장으로 바꾼 모듈에 옛 blind 값이 남아 있어도 도어가 없다.
+          const OC = _openCabinetRules();
+          if (OC && OC.isOpenCabinet(s)) {
+            const w = Number(m.W) || 0;
+            const h = _carcassHeight(m.H, m.section, specs, s);
+            const d = Number(m.D) || 0;
+            (OC.warningsOf({ W: w, H: h, D: d }) || []).forEach((t) => warnings.push(`${m.id}: ${t}`));
+            out.push({
+              id: `planner-${m.id}-open`,
+              type: 'storage',            // 'hood' 처럼 BOM 에서 제외되는 type 이면 안 된다
+              moduleKind: OC.RULES.KIND,  // extractors 가 이 값 하나로 오픈장 규칙을 탄다
+              name: OC.RULES.LABEL,
+              pos,
+              w,
+              h,
+              totalH: Number(m.H) || 0,
+              heightParts: _heightPartsOf(m.section, specs, s),
+              d,
+              doorCount: 0,
+              is2door: false,
+              isDrawer: false,
+              drawerCount: 0,
+              isOpen: true,               // 옛 필드도 참으로 — 도어·선반 기본값 규칙이 이걸 본다
+              shelfCount: 0,
+              isEL: false,
+              isFixed: !!m.isFixed,
+              _x: Number(m.x) || 0,
+            });
+            return;
+          }
 
           // W12-53: 멍장은 셀로 쪼개지 않는다.
           //
