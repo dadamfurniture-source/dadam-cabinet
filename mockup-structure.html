@@ -410,6 +410,14 @@
         <svg id="mpPreviewSvg" viewBox="0 0 600 870"><g id="mpPreviewG"></g></svg>
         <div class="mp-hint">초안 미리보기 — 도어 칸을 누르면 열림 방향이 바뀝니다</div>
       </div>
+      <!-- 2026-09-19: 모듈 타입 — 모든 모듈이 가진다. 오픈장을 고르면 도어·서랍·손잡이가 없는
+           18T MDF 상자가 되고, 아래 섹션들이 통째로 닫힌다 (고를 것이 없다). -->
+      <div class="section" data-mp="kind">
+        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev">▼</span> <span class="sec-title">모듈 타입</span>
+        </div>
+        <div class="section-body" id="kindBody"></div>
+      </div>
       <div class="section" data-mp="wardrobe">
         <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
           <span class="chev">▼</span> <span class="sec-title">붙박이장 구조</span>
@@ -631,6 +639,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <script src="js/detaildesign/bom-drawer-rules.js?v=38.8"></script>
 <!-- 2026-09-17: 붙박이장 통 내부 구조 규칙 — BOM(extractors.js)과 같은 파일. 전역 DadamWardrobeRules -->
 <script src="js/detaildesign/bom-wardrobe-rules.js?v=38.8"></script>
+<!-- 2026-09-19: 오픈장 규칙 (18T MDF 상자) — BOM(extractors.js)과 같은 파일. 전역 DadamOpenCabinetRules -->
+<script src="js/detaildesign/bom-open-cabinet-rules.js?v=38.8"></script>
 <!-- D0: 디테일 모드. 카탈로그 정본(bom-finish-color.js, IIFE → window.DadamBomFinishColor)을 먼저 싣고,
      순수 모델(planner-finish.js) → 화면·상태(planner-detail.js) 순. 셋 다 인라인보다 앞.
      D2: 그 사이에 DB 카탈로그(planner-catalog.js — materials 표, PlannerStore 클라이언트 재사용)와
@@ -708,6 +718,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // 기본 구조 (모듈 첫 진입 시)
   function defaultStructure() {
     return {
+      // 2026-09-19: 모듈 타입. 'normal' = 지금까지의 장(도어·서랍·선반), 'open' = 오픈장(18T MDF 상자).
+      //   오픈장은 아래 칸·서랍·손잡이 값을 쓰지 않는다 — 그래도 지우지는 않는다.
+      //   타입을 되돌리면 고쳐 놓은 칸 구성이 그대로 돌아와야 하기 때문이다.
+      moduleKind: 'normal',
       verticalCount: 1,        // 좌우 분할 N
       horizontalLayout: 'doorOnly',  // 'doorOnly' | 'doorTopDrawerBottom'
       drawerHeight: 200,       // 하부 서랍 H (mm)
@@ -2235,6 +2249,67 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 섹션 색 반투명 사각형 + 점선 윤곽 + 이름만 그린다. 3D 의 buildMarkerMesh 와 짝이다.
    * 클릭은 다른 모듈과 같다 — 첫 클릭은 배치, 한 번 더 누르면 모듈 (pickAreaFirst).
    */
+  /**
+   * 2026-09-19: 오픈장 정면도 — 도어가 없으니 **판만** 보인다.
+   * 바깥 사각형(측판·천지판 두께 18)을 그리고 속은 비워 트인 것을 나타낸다.
+   * 치수·두께는 규칙 파일(DadamOpenCabinetRules)이 낸 값 그대로다 — BOM 과 같은 숫자.
+   */
+  function renderOpenCabinetFront(content, m, s, cfg, offsetX, offsetY, on) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const g = openCabinetGeom(m, s);
+    const T = g ? g.T : 18;
+    // 몸통 자리 — 다른 모듈과 같은 계산(bodyTopOff). 다리발·좌대 자리는 비운다.
+    const bodyH = g ? g.H : m.H;
+    const bodyTop = offsetY + Math.max(0, m.H - baseOffsetOf(m, s) - bodyH);
+    const frame = document.createElementNS(ns, 'rect');
+    frame.setAttribute('x', offsetX);
+    frame.setAttribute('y', bodyTop);
+    frame.setAttribute('width', m.W);
+    frame.setAttribute('height', bodyH);
+    frame.setAttribute('fill', cfg.fill);
+    frame.setAttribute('stroke', on ? PICK_COLOR_CSS : cfg.stroke);
+    frame.setAttribute('stroke-width', on ? 8 : 4);
+    frame.setAttribute('data-module-id', m.id);
+    frame.setAttribute('data-open-cabinet', '1');
+    frame.setAttribute('pointer-events', 'all');
+    frame.style.cursor = 'pointer';
+    frame.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (activeId !== m.id && pickAreaFirst(m.id)) return;   // 첫 클릭은 배치
+      setActiveModule(m.id);
+    });
+    content.appendChild(frame);
+
+    // 트인 속 — 측판·천지판 안쪽. 폭·높이가 두께보다 작으면 그리지 않는다 (음수 사각형 방지).
+    const innerW = m.W - 2 * T;
+    const innerH = bodyH - 2 * T;
+    if (innerW > 0 && innerH > 0) {
+      const hole = document.createElementNS(ns, 'rect');
+      hole.setAttribute('x', offsetX + T);
+      hole.setAttribute('y', bodyTop + T);
+      hole.setAttribute('width', innerW);
+      hole.setAttribute('height', innerH);
+      hole.setAttribute('fill', '#3c3228');       // 트인 속은 그늘이다 — 도어면과 확실히 다르게
+      hole.setAttribute('fill-opacity', 0.82);
+      hole.setAttribute('stroke', cfg.stroke);
+      hole.setAttribute('stroke-width', 2);
+      hole.setAttribute('pointer-events', 'none');
+      content.appendChild(hole);
+    }
+
+    const lab = document.createElementNS(ns, 'text');
+    lab.setAttribute('class', 'area-label');
+    lab.setAttribute('x', offsetX + m.W / 2);
+    lab.setAttribute('y', bodyTop + bodyH / 2);
+    lab.setAttribute('text-anchor', 'middle');
+    lab.setAttribute('dominant-baseline', 'central');
+    lab.setAttribute('font-size', Math.min(m.W * 0.16, bodyH * 0.16, 70));
+    lab.setAttribute('fill', '#e8ddcb');
+    lab.setAttribute('pointer-events', 'none');
+    lab.textContent = '오픈장';
+    content.appendChild(lab);
+  }
+
   function renderMarkerFront(content, m, cfg, offsetX, offsetY, on) {
     const ns = 'http://www.w3.org/2000/svg';
     const box = document.createElementNS(ns, 'rect');
@@ -2351,6 +2426,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
     // 2026-09-15: 가전 자리 표시(분배기·후드)는 장이 아니다 — 칸·도어·서랍을 그리지 않는다 (renderMarkerFront).
     if (isMarkerSection(m.section)) { renderMarkerFront(content, m, cfg, offsetX, offsetY, on); return; }
+
+    // 2026-09-19: 오픈장 — 도어가 없다. 18T MDF 상자의 **테두리(측판·천지판)** 와 트인 속을 그린다.
+    if (isOpenCabinet(s)) { renderOpenCabinetFront(content, m, s, cfg, offsetX, offsetY, on); return; }
 
     // 모듈 외곽 — 클릭 대상이자 옵션 팔레트의 앵커.
     // 예전엔 정면도에서 모듈을 고를 방법이 없어 좌측 목록이나 3D 를 거쳐야 했다.
@@ -2939,6 +3017,33 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   function isWardrobeModule(m) { return !!m && m.section === 'wardrobe'; }
+
+  /** 2026-09-19: 오픈장 규칙 (js/detaildesign/bom-open-cabinet-rules.js) — BOM 과 같은 파일. */
+  function openCabinetRules() {
+    if (typeof DadamOpenCabinetRules !== 'undefined') return DadamOpenCabinetRules;
+    return (typeof window !== 'undefined' && window.DadamOpenCabinetRules) || null;
+  }
+
+  /**
+   * 이 구조가 오픈장인가. 규칙 파일이 판별을 갖고 있으므로(같은 값을 BOM 도 본다) 그쪽에 묻는다.
+   * 규칙 파일이 없으면(옛 캐시) 오픈장이 아닌 것으로 본다 — 도어가 사라진 장을 그리는 것보다 낫다.
+   */
+  function isOpenCabinet(s) {
+    const R = openCabinetRules();
+    return !!R && R.isOpenCabinet(s);
+  }
+
+  /**
+   * 오픈장 부재 — 미리보기·3D·요약이 같은 함수를 쓴다 (규칙을 두 군데 적지 않는다).
+   *
+   * 높이는 **몸통(카카스) 높이**다. 다른 모든 모듈과 같다 — 플래너 H 는 전체 높이이고
+   * BOM 은 몸통 치수로 재단한다(브리지 _carcassHeight). 여기서 m.H 를 그대로 쓰면
+   * 화면은 450 을, 자재표는 288 을 말하게 된다. 다리발·상판이 0 이면 둘이 같아진다.
+   */
+  function openCabinetGeom(m, s) {
+    const R = openCabinetRules();
+    return R ? R.innerOf({ W: m.W, H: bodyHeightOf(m, s), D: m.D }) : null;
+  }
 
   /** 이 통이 영역 안에서 몇 번째인가 (0부터) — 기본형 프리셋 배정에 쓴다. */
   function wardrobeIndexOf(m) {
@@ -3711,13 +3816,17 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 2026-09-17: 붙박이장은 통 내부를 **구조 프리셋**이 정한다 — 선반 mm 목록·서랍 단수를 따로 만지면
     //   두 규칙이 같은 칸을 놓고 다투게 된다. 그 둘을 감추고 붙박이장 구조 섹션을 대신 보인다.
     const wardrobe = isWardrobeModule(m) && !!wardrobeRules();
+    // 2026-09-19: 오픈장은 규칙이 부재를 통째로 정한다 — 칸·서랍·선반·손잡이는 고를 것이 없다.
+    //   값을 지우지 않고 섹션만 닫는다 (타입을 되돌리면 고쳐 둔 칸 구성이 그대로 돌아온다).
+    const open = isOpenCabinet(s);
     const on = {
-      wardrobe,
-      split: true,
-      areas: true,
-      drawer: !wardrobe && has((t) => t === 'drawer'),
-      shelves: !wardrobe && has((t) => t === 'door' || t === 'open' || t === 'blind'),
-      handle: has((t) => t === 'door' || t === 'drawer'),
+      kind: true,
+      wardrobe: wardrobe && !open,
+      split: !open,
+      areas: !open,
+      drawer: !open && !wardrobe && has((t) => t === 'drawer'),
+      shelves: !open && !wardrobe && has((t) => t === 'door' || t === 'open' || t === 'blind'),
+      handle: !open && has((t) => t === 'door' || t === 'drawer'),
     };
     document.querySelectorAll('#modulePanel .section[data-mp]').forEach((sec) => {
       const k = sec.getAttribute('data-mp');
@@ -3877,7 +3986,53 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     };
   }
 
+  /**
+   * 2026-09-19: 모듈 타입 — 일반 / 오픈장. 모든 모듈에 있다.
+   * 오픈장을 고르면 부재가 규칙(18T MDF)으로 정해지므로, 그 치수를 그 자리에서 보여 준다.
+   * BOM 이 내는 것과 **같은 함수**가 낸 숫자다 — 화면과 자재표가 어긋날 수 없다.
+   */
+  function renderKindSection(m, s) {
+    const host = document.getElementById('kindBody');
+    if (!host) return;
+    const R = openCabinetRules();
+    if (!R) {                                   // 규칙 파일을 못 실었다 — 고를 수 없다고 적는다
+      host.innerHTML = '<div style="font-size:10px;color:#b4452e">오픈장 규칙 파일을 싣지 못했습니다 (새로고침)</div>';
+      return;
+    }
+    const open = isOpenCabinet(s);
+    // 몸통 높이 기준 — BOM 이 재단하는 그 치수다 (openCabinetGeom 주석)
+    const bodyH = bodyHeightOf(m, s);
+    const dims = { W: m.W, H: bodyH, D: m.D };
+    const parts = open ? R.partsOf(dims) : [];
+    const warns = open ? R.warningsOf(dims) : [];
+    host.innerHTML = `
+      <div class="row">
+        <label>타입</label>
+        <select id="selModuleKind">
+          <option value="normal" ${open ? '' : 'selected'}>일반 (도어·서랍)</option>
+          <option value="${R.RULES.KIND}" ${open ? 'selected' : ''}>${R.RULES.LABEL} (18T MDF)</option>
+        </select>
+      </div>
+      ${open ? `
+      <div style="font-size:10px;color:var(--text-dim);line-height:1.6;margin-top:4px">
+        도어·서랍·손잡이가 없는 <b>18T MDF 상자</b>입니다. 부재는 아래 셋뿐입니다.<br>
+        높이는 <b>몸통 ${bodyH}</b> 기준입니다${bodyH === m.H ? '' : ` (전체 ${m.H} − 다리발·상판)`} —
+        BOM 이 재단하는 치수와 같습니다.
+      </div>
+      ${warns.length
+        ? `<div style="font-size:10px;color:#b4452e;line-height:1.5;margin-top:4px">⚠ ${warns.join('<br>⚠ ')}</div>`
+        : `<div style="font-size:10px;color:#888;font-family:monospace;line-height:1.7;margin-top:4px">
+             ${parts.map((p) => `${p.part} ${p.w}×${p.h} · ${p.qty}장`).join('<br>')}
+           </div>`}
+      ` : ''}
+    `;
+    const sel = document.getElementById('selModuleKind');
+    if (sel) sel.onchange = (e) => { s.moduleKind = e.target.value; draftChanged('#selModuleKind'); };
+  }
+
   function renderModulePanelSections(m, s) {
+    // 2026-09-19: 모듈 타입 — 오픈장이면 아래 섹션들이 syncModulePanelSections 에서 닫힌다.
+    renderKindSection(m, s);
     // 2026-09-17: 붙박이장 통 구조 — 프리셋 하나로 통 안이 바뀐다 (미리보기가 바로 따라간다).
     renderWardrobeSection(m, s);
     // 분할
@@ -7922,6 +8077,47 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return g;
   }
 
+  /**
+   * 2026-09-19: 오픈장 3D — 18T MDF 판 다섯 장(측판 2 · 천지판 2 · 뒷판 1)만 세운다.
+   * 도어·서랍·선반·손잡이가 없다. 판 치수는 규칙 파일이 낸 값 그대로다 — BOM 과 같은 숫자.
+   *
+   * 좌표는 이 저장소 3D 관례를 따른다: 그룹 원점이 모듈 바닥 중앙, z 는 앞이 +.
+   * 천지판은 뒷판 자리(BACK_GAP)만큼 짧아 뒤가 비고, 그 자리에 뒷판이 선다.
+   */
+  function buildOpenCabinetMesh(g, m, s, cfg) {
+    const geo = openCabinetGeom(m, s);
+    if (!geo || !geo.innerW || !geo.innerD) return g;   // 치수가 안 잡힌 모듈 — 패널이 경고를 띄운다
+    const { W, H, D, T, innerW, innerD } = geo;         // H 는 몸통 높이다 (전체 높이가 아니다)
+    const color = darken3(cfg.fill, 0.05);
+    const ud = () => ({ entityKind: 'openCabinet', moduleId: m.id });
+    // 다른 모듈과 같이 다리발·좌대 위에 얹는다 — 안 그러면 오픈장만 바닥에 붙어 줄이 안 맞는다.
+    const legH = baseOffsetOf(m, s);
+
+    // 측판 — 깊이 전체 × 몸통 높이, 좌우 두 장
+    [-1, 1].forEach((sgn) => {
+      const side = makeBox(T, H, D, color);
+      side.position.set(sgn * (W / 2 - T / 2), legH + H / 2, 0);
+      g.add(side);
+      addEdgeOutline(side, g, cfg.stroke, 0.5);
+    });
+    // 천판·지판 — 측판 사이, 뒷판 자리만큼 짧다. z 는 앞면에 맞춘다.
+    const topBottomZ = D / 2 - innerD / 2;
+    [T / 2, H - T / 2].forEach((cy) => {
+      const panel = makeBox(innerW, T, innerD, color);
+      panel.position.set(0, legH + cy, topBottomZ);
+      g.add(panel);
+      addEdgeOutline(panel, g, cfg.stroke, 0.5);
+    });
+    // 뒷판 — 18T 통판. 측판 사이, 몸통 높이 전체.
+    const back = makeBox(innerW, H, T, color);
+    back.position.set(0, legH + H / 2, -D / 2 + T / 2);
+    g.add(back);
+    addEdgeOutline(back, g, cfg.stroke, 0.5);
+
+    g.traverse((o) => { if (o.isMesh && !o.userData.entityKind) o.userData = ud(); });
+    return g;
+  }
+
   // 단일 모듈 mesh 생성 (외곽 + 분할 + 선반) — renderModule3D 의 logic 재사용
   // W9-67: 상부장은 천정 매달림 (Y offset = ceiling - H)
   function createModuleMesh(m, s) {
@@ -7938,6 +8134,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (isMarkerSection(m.section)) {
       g.position.y = baseYOf(m);
       return buildMarkerMesh(g, m, cfg);
+    }
+    // 2026-09-19: 오픈장은 판 다섯 장이 전부다 — 도어·서랍·선반 경로를 타지 않는다.
+    if (isOpenCabinet(s)) {
+      g.position.y = baseYOf(m);
+      return buildOpenCabinetMesh(g, m, s, cfg);
     }
     const W = m.W, H = m.H, D = m.D, T = BODY_T;
     const carcassColor = darken3(cfg.fill, 0.05);
