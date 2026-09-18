@@ -69,10 +69,12 @@ const MASTER_RULES = {
   DOOR_W_MIN: 350,              // 도어 W 최소
   DOOR_W_MAX: 600,              // 도어 W 최대
   DOOR_W_TARGET: 450,           // 도어 W 목표
-  // 처짐방지목은 BOM 규칙(sink.md 부재표 · extractors.js `BOM_BRACE_QTY`)과 같은 값을 쓴다.
-  //   70 × (H − 2T) **한 장**을 모듈 중앙에 (2026-09-19 사장님 확정). 목찬넬이면 따내기 70 만큼 짧다.
-  //   폭 문턱(SINK_BAND_THRESHOLD_UPPER 700 · _LOWER 800 이면 2장)은 폐기됐다 — 그 문턱을 넘는 모듈은
-  //   도어 분배상 전부 양문이라 2장이 도어 한 장씩의 가운데 뒤에 서는, 실물에 없는 그림이었다.
+  // 처짐방지목은 BOM 규칙(sink.md 부재표 · extractors.js `bomBraceQtyOf`)과 같은 값을 쓴다.
+  //   폭 문턱을 넘는 모듈에만 70 × (H − 2T) **한 장**을 모듈 중앙에 (2026-09-19 사장님 확정).
+  //   목찬넬이면 따내기 70 만큼 짧다. 문턱 미만이면 부재가 아예 없다 — 문턱은 장수가 아니라
+  //   들어가느냐 마느냐의 조건이다 (예전엔 이상이면 2장·미만이면 1장이라 단문에도 한 장이 나갔다).
+  SINK_BAND_W_MIN_UPPER: 700,   // 상부장 W ≥ 700 → 처짐방지목 1장 (extractors.js BOM_BRACE_W_MIN_UPPER)
+  SINK_BAND_W_MIN_LOWER: 800,   // 하부장·키큰장 단 W ≥ 800 → 1장 (BOM_BRACE_W_MIN_LOWER)
   // W9-101 은 OBJ 측정 60 을 썼는데 마스터·BOM 은 70 이다 — 원장이 두 값을 나란히 놓자 60 이 3D 만의 값이었다.
   BAND_BRACE_W: 70,             // 처짐방지목 폭 (sink.md '밴드(처짐방지) 70 x bandH')
   BAND_BRACE_THICK: 15,         // 처짐방지목 두께 (15T PB 동일)

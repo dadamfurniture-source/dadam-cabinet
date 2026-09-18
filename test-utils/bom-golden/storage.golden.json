@@ -482,30 +482,6 @@
     },
     {
       "module": "키큰장(TL)",
-      "part": "밴드(처짐방지)",
-      "material": "PB",
-      "thickness": 15,
-      "w": 70,
-      "h": 2090,
-      "qty": 1,
-      "edge": "2면(장)",
-      "note": "",
-      "finishCode": "",
-      "partId": "0-t1-body:brace#0-0",
-      "slot": "body",
-      "edges": {
-        "L": true,
-        "R": true,
-        "T": false,
-        "B": false
-      },
-      "edgeLen": 4180,
-      "edgeT": 0.6,
-      "edgeCode": null,
-      "itemLabel": "수납장"
-    },
-    {
-      "module": "키큰장(TL)",
       "part": "선반",
       "material": "PB",
       "thickness": 15,
@@ -1301,7 +1277,7 @@
     "PB_15": {
       "material": "PB",
       "thickness": 15,
-      "totalArea": 9192690,
+      "totalArea": 9046390,
       "panelCount": 4
     },
     "MDF_2.7": {
@@ -1319,7 +1295,7 @@
   },
   "edgeBanding": {
     "1": 29556,
-    "0.6": 90330
+    "0.6": 86150
   },
   "hardware": [
     {
