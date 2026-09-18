@@ -152,6 +152,12 @@
         // W8-6: 카테고리 카운트 변경 시 플래너 품목 아이콘 배지 갱신
         _broadcastCategoryCounts();
 
+        // 2026-09-19: 툴바 책갈피도 여기서 다시 그린다 — 품목이 늘고 주는 길목은 여기뿐이다.
+        //   _syncStep2Mount 는 품목 0개면 곧바로 돌아가므로, 마지막 하나를 지웠을 때
+        //   지워진 품목의 책갈피가 그대로 남았다. normalizeItems 가 labelName(#1·#2)을
+        //   다시 매기므로 순서도 이 뒤라야 맞다.
+        if (typeof _renderStep2ItemTabs === 'function') _renderStep2ItemTabs();
+
         // W12-2: 첫 품목이 생기면 부트스트랩 플래너를 실제 품목 워크스페이스로 넘긴다.
         //        마지막 품목이 지워지면 다시 부트스트랩으로 돌아간다.
         if (typeof _syncStep2Mount === 'function') _syncStep2Mount();
@@ -298,7 +304,7 @@
         // W12-2: 품목 0개면 부트스트랩 플래너를 띄워 품목 아이콘을 쓸 수 있게 한다
         _syncStep2Mount();
         if (selectedItems.length > 0) renderBookmarks();
-        _renderStep2ItemSelect();
+        _renderStep2ItemTabs();
         _pbwSyncPlacement(); // 브리지 경고 배너 — 툴바 아래로
         // W9-1: fullscreen reflow 후 iframe overlay 위치 재계산 (designWorkspace 가 100vh)
         setTimeout(() => {
@@ -2459,7 +2465,7 @@
         const item = _currentStep2Item();
         if (!item) return;
         _applyStep2Chrome(item);
-        _renderStep2ItemSelect();
+        _renderStep2ItemTabs();
         // renderBookmarks() 는 부르지 않는다 — 그 함수는 항상 selectedItems[0] 로
         // currentItemId 를 되돌려서 품목을 추가할 때마다 선택이 튄다.
 
@@ -2475,27 +2481,47 @@
       }
 
       /**
-       * W12-2: 툴바 품목 전환 셀렉트.
+       * W12-2: 툴바 품목 전환.
        * 플래너 모드에서는 북마크 탭이 CSS 로 숨겨져 있어(base.css `.bookmark-tabs`)
        * 품목이 2개 이상일 때 전환 수단이 화면에 없었다. 아이콘으로 품목을 여러 개
        * 만들 수 있게 된 이상 전환 수단이 반드시 있어야 한다.
+       *
+       * 2026-09-19: 셀렉트(구 #s2ItemSelect)를 **책갈피**로 폈다. 드롭다운은 열기 전에는
+       * 품목이 몇인지·무엇인지 보이지 않아, 만들어 놓고도 만든 줄 모르는 일이 있었다.
+       * 그래서 1개일 때도 숨기지 않는다 — 품목을 만들었다는 사실 자체가 보여야 한다.
+       * (셀렉트는 2개 이상일 때만 떴다.)
        */
-      function _renderStep2ItemSelect() {
-        const sel = document.getElementById('s2ItemSelect');
-        if (!sel) return;
-        if (selectedItems.length <= 1) {
-          sel.style.display = 'none';
-          sel.innerHTML = '';
+      function _renderStep2ItemTabs() {
+        const host = document.getElementById('s2ItemTabs');
+        if (!host) return;
+        host.innerHTML = '';
+        if (!selectedItems.length) {
+          host.hidden = true;
           return;
         }
+        host.hidden = false;
         const cur = _currentStep2Item();
-        sel.style.display = '';
-        sel.innerHTML = selectedItems
-          .map((it) => {
-            const on = cur && String(it.uniqueId) === String(cur.uniqueId) ? ' selected' : '';
-            return `<option value="${it.uniqueId}"${on}>${it.labelName || it.name}</option>`;
-          })
-          .join('');
+        selectedItems.forEach((it) => {
+          const on = !!cur && String(it.uniqueId) === String(cur.uniqueId);
+          const tab = document.createElement('button');
+          tab.type = 'button';
+          tab.className = 's2-tab';
+          tab.id = 's2Tab-' + it.uniqueId;
+          tab.dataset.uid = String(it.uniqueId);
+          tab.setAttribute('role', 'tab');
+          tab.setAttribute('aria-selected', on ? 'true' : 'false');
+          tab.textContent = it.labelName || it.name || '품목';
+          tab.title = `${it.labelName || it.name || '품목'} — W ${it.w || '?'} × H ${it.h || '?'} × D ${it.d || '?'}`;
+          tab.addEventListener('click', () => switchStep2Item(it.uniqueId));
+          host.appendChild(tab);
+        });
+        // 책갈피가 많아 가로로 넘치면 고른 것이 밖에 있을 수 있다 — 안으로 끌어온다.
+        const active = host.querySelector('.s2-tab[aria-selected="true"]');
+        if (active && typeof active.scrollIntoView === 'function') {
+          active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }
+        // 넘칠 때만 오른쪽 끝을 흐린다 — 드롭다운과 달리 책갈피는 잘리면 있는 줄도 모른다.
+        host.classList.toggle('overflowing', host.scrollWidth > host.clientWidth + 1);
       }
 
       function switchStep2Item(uniqueId) {
@@ -2503,6 +2529,7 @@
         if (!item) return;
         currentItemId = item.uniqueId;
         _applyStep2Chrome(item);
+        _renderStep2ItemTabs();   // 고른 책갈피를 앞으로 (셀렉트는 스스로 했지만 탭은 다시 그려야 한다)
         if (typeof renderWorkspaceContent === 'function') renderWorkspaceContent(item);
         _pbwSync(_plannerScopeParams(item)); // 브리지 경고 배너 — 이 품목의 것으로
       }
