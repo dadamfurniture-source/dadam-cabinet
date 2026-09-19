@@ -38,8 +38,13 @@ import {
 import { buildQuote } from './quote.js';
 import { updateById, uploadObject, fetchObjectBase64, extOf } from './supabase.js';
 import { refundCreditService } from './credits.js';
+import { LAYOUT_CATEGORIES, LAYOUT_SCHEMA, buildLayoutPrompt, normalizeLayout } from './layout.js';
+import { callClaudeJson } from './claude.js';
+import { VERIFY_VERSION, compareLayoutToSpec } from './verify.js';
 
 const MAX_ATTEMPTS = 2;
+/** 역판독(Claude 비전) 이미지 한도 — Anthropic 5MB, base64 는 4/3 배 (worker.js MAX_IMAGE_B64 와 같은 값) */
+const VERIFY_MAX_B64 = Math.floor((5 * 1024 * 1024 * 4) / 3);
 const RETRY_DELAY_MS = 15_000;
 const JOB_TIMEOUT_MS = 10 * 60_000; // 환불 창(30분) 안에 끝나야 한다
 const VARIANT_COUNT = 3;
@@ -152,7 +157,8 @@ export function jobStub(env, generationId) {
 // ─── 파이프라인 ───
 
 function slotList(images) {
-  const order = ['base', 'v1', 'v2', 'v3'];
+  // 'mockup' = 실사화가 도면과 어긋났을 때 같이 돌려주는 올린 합성본 (R4c). 맨 뒤.
+  const order = ['base', 'v1', 'v2', 'v3', 'mockup'];
   return order.filter((s) => images[s]).map((s) => ({ slot: s, ...images[s] }));
 }
 
@@ -291,6 +297,40 @@ async function runPipeline(env, job, ck, save) {
     base = await fetchObjectBase64(env, ck.images.base.path);
   }
 
+  // ═══ 3-b. 역판독 대조 (R4c, 2026-09-19 · 계획서 §4.1) ═══
+  //   도면 요약이 있으면 기본안을 Claude 비전으로 읽어(layout.js) 우리가 보낸 도면과 순서·개수를 대조한다.
+  //   절대 잡을 깨지 않는다 — 실패하면 layout.verify.error 만 남긴다. 생성 결과가 도면과 어긋났고
+  //   실사화(realize)였다면, 올린 합성본(방 사진 자체)을 'mockup' 슬롯으로 같이 돌려준다 —
+  //   도면 그대로인 그림은 그것이다. status 는 CHECK 제약 때문에 안 바꾸고 step_label 만 바꾼다.
+  if (!ck.verify && opts.design_spec && LAYOUT_CATEGORIES.includes(category)) {
+    await updateById(env, 'generations', job.id, { step_label: '도면과 대조하는 중', progress: 65 });
+    let layout;
+    const t0 = Date.now();
+    try {
+      if (!env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY not configured');
+      if (base.base64.length > VERIFY_MAX_B64) throw new Error('image_too_large');
+      const lctx = { category, wallAnalysis: wall, options: opts };
+      const { json: raw, model } = await callClaudeJson(env, {
+        prompt: buildLayoutPrompt(lctx),
+        image: base,
+        schema: LAYOUT_SCHEMA,
+      });
+      layout = normalizeLayout(raw, { ...lctx, slot: 'base', model, now: new Date().toISOString() });
+      layout.verify = compareLayoutToSpec(layout, opts.design_spec, category);
+    } catch (e) {
+      console.warn(`[Job ${job.id}] verify failed:`, e.message);
+      layout = { version: 0, verify: { version: VERIFY_VERSION, ok: null, error: String(e.message || e).slice(0, 160) } };
+    }
+    layout.elapsed_ms = Date.now() - t0;
+    ck.verify = { ok: layout.verify.ok, score: layout.verify.score ?? null };
+    if (opts.realize && layout.verify.ok === false && inputs.room && inputs.room.path) {
+      ck.images.mockup = { label: '합성본 · 도면 그대로', path: inputs.room.path, url: inputs.room.url || null };
+    }
+    await save({ images: ck.images, verify: ck.verify });
+    await updateById(env, 'generations', job.id, { layout, images: slotList(ck.images) });
+    console.log(`[Job ${job.id}] verify: ok=${layout.verify.ok} score=${layout.verify.score ?? '-'} ${layout.elapsed_ms}ms`);
+  }
+
   // ═══ 4. 변형 3장 병렬 — 끝나는 대로 올리고 행을 갱신한다 ═══
   await setStep(env, job, ck, 'variants');
 
@@ -381,7 +421,7 @@ async function runPipeline(env, job, ck, save) {
   );
 
   // ═══ 5. 마무리 ═══
-  const variantCount = Object.keys(ck.images).length - 1;
+  const variantCount = Object.keys(ck.images).filter((k) => /^v\d$/.test(k)).length;
   const failedSlots = Object.keys(variantErrors);
   await updateById(env, 'generations', job.id, {
     status: 'done',
