@@ -214,15 +214,29 @@ describe('자재표 — 칸막이·선반·옷봉이 끝까지 간다', () => {
     expect(socket.qty).toBe(total * WR.WARDROBE_RULES.ROD_SOCKETS_PER_ROD);
   });
 
-  test('긴옷 기본은 내부 서랍 — 서랍모듈 몸통이 아니라 통 안 부재로 나온다 (§7)', () => {
+  test('긴옷 기본은 내부 서랍 — 서랍장을 모듈로 따로 낸다 (§7, 2026-09-19)', () => {
     const s = snap();
-    // 내부 서랍은 별도 몸통이 없다
+    // 통 아래에 세우는 외부 서랍모듈은 없다
     expect(s.materials.filter((m) => m.module === '2번-서랍모듈')).toHaveLength(0);
-    // 문서 §7 '내부 서랍' 표의 부재가 통 이름으로 나온다
+    // 대신 통 **안에** 앉히는 서랍장 모듈이 따로 나온다 — 만드는 방식은 일반 모듈과 같다
+    const modRows = s.materials.filter((m) => m.module === '2번-내부서랍모듈');
+    const modParts = modRows.map((m) => m.part);
+    ['측판', '천판', '지판', '뒷판', '밴드', '서랍전후판', '서랍측판', '서랍밑판']
+      .forEach((name) => expect(modParts).toContain(name));
+    // 모듈 W = 통 내경 − 120 (경첩 몰딩 60+60) → 천저판 = 모듈 내경 720
+    const top = modRows.find((m) => m.part === '천판');
+    expect(top.w).toBe(900 - 2 * 15 - 120 - 2 * 15);
+    // 측판 높이는 서랍 단수를 따라간다 (1단 고정치가 아니다)
+    expect(modRows.find((m) => m.part === '측판').h).toBe(2 * 350);
+    // 하단보강이 두 번 나오지 않는다
+    expect(modParts.filter((x) => x === '서랍 하단보강')).toHaveLength(1);
+    expect(parts(s, '2번')).not.toContain('서랍 하단보강');
+    // 도어(전면판)와 좌우몰딩은 통에 붙는다 — 몰딩은 통에 설치하는 판이다
     const p2 = parts(s, '2번');
-    ['내부서랍 상판', '내부서랍 측판', '내부서랍 지판', '내부서랍 밴드',
-      '내부서랍 좌우몰딩', '내부서랍 전면판', '서랍전후판', '서랍측판', '서랍밑판']
-      .forEach((name) => expect(p2).toContain(name));
+    ['내부서랍 좌우몰딩', '내부서랍 전면판'].forEach((name) => expect(p2).toContain(name));
+    // 옛 1단 고정치 부재는 더 나오지 않는다
+    ['내부서랍 상판', '내부서랍 측판', '내부서랍 지판', '내부서랍 밴드']
+      .forEach((name) => expect(p2).not.toContain(name));
   });
 
   test('외부로 바꾸면 서랍모듈 몸통이 따로 나온다 (§7)', () => {
