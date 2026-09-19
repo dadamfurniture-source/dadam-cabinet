@@ -127,7 +127,7 @@
       "thickness": 15,
       "w": 70,
       "h": 675,
-      "qty": 2,
+      "qty": 1,
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
@@ -314,30 +314,6 @@
     },
     {
       "module": "상부장-상부장",
-      "part": "밴드(처짐방지)",
-      "material": "PB",
-      "thickness": 15,
-      "w": 70,
-      "h": 675,
-      "qty": 1,
-      "edge": "2면(장)",
-      "note": "",
-      "finishCode": "",
-      "partId": "0-u2-body:brace#0-0",
-      "slot": "body",
-      "edges": {
-        "L": true,
-        "R": true,
-        "T": false,
-        "B": false
-      },
-      "edgeLen": 1350,
-      "edgeT": 0.6,
-      "edgeCode": null,
-      "itemLabel": "신발장"
-    },
-    {
-      "module": "상부장-상부장",
       "part": "선반",
       "material": "PB",
       "thickness": 15,
@@ -487,7 +463,7 @@
       "thickness": 15,
       "w": 70,
       "h": 608,
-      "qty": 2,
+      "qty": 1,
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
@@ -644,30 +620,6 @@
         "B": false
       },
       "edgeLen": 0,
-      "edgeT": 0.6,
-      "edgeCode": null,
-      "itemLabel": "신발장"
-    },
-    {
-      "module": "하부장-서랍장",
-      "part": "밴드(처짐방지)",
-      "material": "PB",
-      "thickness": 15,
-      "w": 70,
-      "h": 608,
-      "qty": 1,
-      "edge": "2면(장)",
-      "note": "",
-      "finishCode": "",
-      "partId": "0-l2-body:brace#0-0",
-      "slot": "body",
-      "edges": {
-        "L": true,
-        "R": true,
-        "T": false,
-        "B": false
-      },
-      "edgeLen": 1216,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "신발장"
@@ -914,30 +866,6 @@
     },
     {
       "module": "하부장-오픈선반",
-      "part": "밴드(처짐방지)",
-      "material": "PB",
-      "thickness": 15,
-      "w": 70,
-      "h": 608,
-      "qty": 1,
-      "edge": "2면(장)",
-      "note": "",
-      "finishCode": "",
-      "partId": "0-l3-body:brace#0-0",
-      "slot": "body",
-      "edges": {
-        "L": true,
-        "R": true,
-        "T": false,
-        "B": false
-      },
-      "edgeLen": 1216,
-      "edgeT": 0.6,
-      "edgeCode": null,
-      "itemLabel": "신발장"
-    },
-    {
-      "module": "하부장-오픈선반",
       "part": "선반",
       "material": "PB",
       "thickness": 15,
@@ -1109,7 +1037,7 @@
     "PB_15": {
       "material": "PB",
       "thickness": 15,
-      "totalArea": 6840110,
+      "totalArea": 6617930,
       "panelCount": 3
     },
     "MDF_2.7": {
@@ -1127,7 +1055,7 @@
   },
   "edgeBanding": {
     "1": 16084,
-    "0.6": 72704
+    "0.6": 66356
   },
   "hardware": [
     {
