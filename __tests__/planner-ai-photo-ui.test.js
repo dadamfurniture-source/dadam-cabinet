@@ -211,6 +211,35 @@ describe('생성 요청', () => {
     expect(body(p).querySelector('#aiPhotoRealize').checked).toBe(true);
   });
 
+  test('역판독 대조 결과를 보여 준다 — 일치 / 어긋남(합성본 안내) / 실패', async () => {
+    const done = (layout, images) => fakeFetch([
+      { status: 202, json: { success: true, id: 'gen-1' } },
+      { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images, layout } } },
+    ]);
+    const base = { slot: 'base', label: '기본안', url: 'https://x/base.png' };
+    let p = withPhoto(boot());
+    p.AP._fetch = done({ verify: { ok: true, score: 5, max: 5, issues: [] } }, [base]);
+    await p.AP.submit();
+    expect(body(p).textContent).toContain('역판독 대조: 도면의 순서·개수와 일치 (5/5)');
+
+    p = withPhoto(boot());
+    p.AP._fetch = done(
+      { verify: { ok: false, score: 2.5, max: 5, issues: ['order: expected lower>dishwasher, read dishwasher>lower'] } },
+      [base, { slot: 'mockup', label: '합성본 · 도면 그대로', url: 'https://x/room.jpg' }]
+    );
+    await p.AP.submit();
+    const t = body(p).textContent;
+    expect(t).toContain('역판독 대조: 도면과 어긋남 (2.5/5)');
+    expect(t).toContain('「합성본 · 도면 그대로」가 도면에 충실한 그림입니다');
+    expect(t).toContain('order: expected lower>dishwasher');
+    expect(body(p).querySelectorAll('.ap-thumb').length).toBe(2);
+
+    p = withPhoto(boot());
+    p.AP._fetch = done({ verify: { ok: null, error: 'ANTHROPIC_API_KEY not configured' } }, [base]);
+    await p.AP.submit();
+    expect(body(p).textContent).toContain('역판독 대조를 하지 못했습니다 — ANTHROPIC_API_KEY not configured');
+  });
+
   test('잡 id 를 스코프별로 기억한다', async () => {
     const p = withPhoto(boot());
     p.AP._fetch = fakeFetch([

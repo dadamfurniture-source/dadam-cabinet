@@ -806,6 +806,8 @@ const PLANNER_AI_PHOTO_CSS = `
 .ap-thumb .ap-cap{font-size:9.5px;color:var(--text-dim,#7a7062);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 a.ap-thumb:hover{border-color:var(--brand-mid,#b8956c)}
 .ap-note{font-size:9.5px;color:var(--text-faint,#a89c84);line-height:1.5}
+.ap-verify-ok{color:#2f6f3e}
+.ap-verify-bad{color:#a33}
 `;
 
 function plannerAiPhotoInjectCss() {
@@ -1022,6 +1024,22 @@ const PlannerAiPhoto = {
           : `<div class="ap-thumb"><span class="ap-cap">${esc(cap)}</span></div>`);
       });
       parts.push('</div>');
+      // 역판독 대조 (R4c, 2026-09-19): 워커가 기본안을 Claude 비전으로 읽어 도면과 순서·개수를 대조한 결과.
+      //   어긋났고 실사화였으면 올린 합성본이 'mockup' 슬롯으로 같이 온다 — 도면 그대로인 그림은 그것이다.
+      const v = this.gen && this.gen.layout && this.gen.layout.verify;
+      if (v && v.ok === true) {
+        parts.push(`<div class="ap-note ap-verify-ok">✓ 역판독 대조: 도면의 순서·개수와 일치 (${esc(String(v.score))}/${esc(String(v.max))})</div>`);
+      } else if (v && v.ok === false) {
+        const hasMockup = images.some((im) => im && im.slot === 'mockup');
+        parts.push(
+          `<div class="ap-note ap-verify-bad">⚠ 역판독 대조: 도면과 어긋남 (${esc(String(v.score))}/${esc(String(v.max))})`
+          + (hasMockup ? ' — 아래 「합성본 · 도면 그대로」가 도면에 충실한 그림입니다' : '')
+          + (Array.isArray(v.issues) && v.issues.length ? '<br>' + esc(v.issues.slice(0, 3).join(' · ')) : '')
+          + '</div>'
+        );
+      } else if (v) {
+        parts.push(`<div class="ap-note">역판독 대조를 하지 못했습니다${v.error ? ' — ' + esc(String(v.error)) : ''}</div>`);
+      }
       parts.push('<div class="ap-note">치수는 참고이고 구성(순서·개수)이 구속입니다 — 실제 제작 도면과 다를 수 있습니다.</div>');
     }
 
