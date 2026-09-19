@@ -316,7 +316,7 @@ Firefly `POST /v3/images/precise-composite` — 물체 + 배경 + 마스크를 �
 | **R4** | 브라우저 합성 (A안) = 벤치의 A~C 를 제품 코드로 + 전경 마스크 | L | `agent/planner-photo-composite` |
 | **R5** | three.js 그림자·AO 패스 (프러스텀 수정 포함) + 2.5D 옆면 | M | `agent/planner-composite-light` |
 | **R4b** | **실사화(realize) 모드** — 합성본을 바탕으로 "그 자리에서 다시 그리기" 프롬프트 + `flat_mockup` QC + 패널 체크박스 | M | ✅ 2026-09-19 `agent/imggen-realize` |
-| **R4c** | 실사화 결과를 layout.js 로 역판독해 순서·개수가 그대로인지 자동 대조, 어긋나면 합성본으로 물러난다 | M | `agent/imggen-realize-verify` |
+| **R4c** | **역판독 자동 대조** — 잡이 기본안을 layout.js 로 읽어 도면과 순서·개수를 대조(`src/verify.js`), 결과를 `layout.verify` 에 남기고 패널에 ✓/⚠ 로 보여 준다. 실사화가 어긋나면 올린 합성본을 `mockup` 슬롯으로 같이 돌려준다 | M | ✅ 2026-09-19 `agent/imggen-realize-verify` |
 | **R6** | "벽 비우기" — 완공 사진일 때만 기존 REMOVE FIRST 경로로 빈 벽을 먼저 만든다 | M | `agent/imggen-empty-wall` |
 
 **R1·R1b 로 방식은 확정됐다.** 다음은 R2 — 벽 네 점을 사진에서 얼마나 잘 잡느냐가 남은 최대 불확실성이고,
@@ -325,6 +325,13 @@ Firefly `POST /v3/images/precise-composite` — 물체 + 배경 + 마스크를 �
 ---
 
 ## 7. 어떻게 재는가
+
+**구현 (2026-09-19, `workers/generate-api/src/verify.js`)**: 도면 요약이 있는 모든 생성에서 잡이 기본안을
+layout.js 로 읽어 자동 대조한다 (Claude 비전 1회, 크레딧 변동 없음). 읽는 쪽이 같은 종류를 하나로 합쳐
+읽으므로(서랍장 3칸 → `lower` 하나에 doors 합산) 모듈 개수 대신 **종류 순서(편집거리)·도어/서랍 총수·
+상부장 도어 수·가전 순서·가전 위치(±10%p)** 를 잰다. 싱크·후드·쿡탑은 layout.js 가 조사값으로 덮어쓰는
+자리라 대조에서 뺀다. `ok` = 순서 일치 ∧ 개수 3/4 이상 ∧ 가전 순서 일치. 실패해도 잡은 안 깨진다 —
+`layout.verify.error` 만 남는다. 결과는 `generations.layout.verify` 에, 화면은 「사진으로 만들기」 패널에.
 
 기하는 이제 **구조적으로 맞으므로 채점 대상이 아니다.** 재야 할 것이 바뀐다.
 
