@@ -789,6 +789,8 @@ const PLANNER_AI_PHOTO_CSS = `
 .ap-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:74px;border:1px dashed var(--brand-mid,#c8ab86);border-radius:6px;background:#fff;cursor:pointer;padding:6px;text-align:center}
 .ap-drop:hover,.ap-drop.ap-over{border-color:var(--brand-deep,#6a4b2a);background:var(--brand-soft,#f6efe4)}
 .ap-drop .ap-drop-text{font-size:10.5px;color:var(--text-dim,#7a7062);line-height:1.5}
+.ap-opt{display:flex;gap:5px;align-items:flex-start;font-size:10.5px;color:var(--text-dim,#7a7062);line-height:1.4;cursor:pointer}
+.ap-opt input{margin:1px 0 0}
 .ap-drop img{display:block;max-width:100%;max-height:120px;border-radius:5px}
 .ap-drop .ap-file{font-size:9.5px;color:var(--text-faint,#a89c84);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .ap-go{border:1px solid var(--brand-deep,#6a4b2a);background:var(--brand-deep,#6a4b2a);color:#fff;border-radius:6px;padding:7px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit}
@@ -843,6 +845,7 @@ const PlannerAiPhoto = {
   /** 'idle' | 'sending' | 'running' | 'done' */
   phase: 'idle',
   img: null,
+  realize: false,   // 올린 사진에 도면이 이미 얹혀 있음 (실사화)
   gen: null,
   genId: null,
   message: '',
@@ -987,6 +990,13 @@ const PlannerAiPhoto = {
       );
     }
 
+    // 실사화 (2026-09-19): 올린 사진에 도면 입면이 이미 얹혀 있으면(벽 호모그래피 합성본) 모델은
+    //   그리는 게 아니라 그 자리에서 다시 그린다. 자동 합성(R4)이 붙기 전까지는 사람이 켠다.
+    parts.push(
+      `<label class="ap-opt"><input type="checkbox" id="aiPhotoRealize"${this.realize ? ' checked' : ''}> `
+      + '이 사진에 도면이 이미 얹혀 있음 — 그 자리에서 실사로 다시 그리기</label>'
+    );
+
     // 버튼
     const label = this.phase === 'done' ? '다시 만들기' : '사진으로 만들기';
     const off = busy || !spec || (this.phase !== 'done' && !this.img);
@@ -1025,6 +1035,8 @@ const PlannerAiPhoto = {
     const drop = host.querySelector('#aiPhotoDrop');
     const go = host.querySelector('#aiPhotoGo');
     if (go) go.onclick = () => { this.submit(); };
+    const rz = host.querySelector('#aiPhotoRealize');
+    if (rz) rz.onchange = () => { this.realize = !!rz.checked; };
     if (!drop) return;
     drop.onclick = () => this.pick();
     ['dragenter', 'dragover'].forEach((t) => {
@@ -1099,6 +1111,8 @@ const PlannerAiPhoto = {
           image_type: this.img.mime,
           category: spec.category,
           design_spec: spec,
+          // 켰을 때만 실린다 — 안 켜면 본문은 예전과 같다
+          ...(this.realize ? { realize: true } : {}),
         }),
       });
     } catch (e) {

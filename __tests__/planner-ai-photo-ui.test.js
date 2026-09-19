@@ -187,6 +187,30 @@ describe('생성 요청', () => {
     expect(call.body.floor_quad).toBeUndefined();
   });
 
+  test('실사화 체크박스 — 켜면 realize:true 가 실리고, 안 켜면 키 자체가 없다', async () => {
+    // 2026-09-19: 올린 사진에 도면 입면이 이미 얹혀 있으면(벽 호모그래피 합성본) 모델은 그 자리에서 다시 그린다.
+    //   자동 합성이 붙기 전까지 사람이 켠다. 안 켜면 본문은 예전과 같아야 한다.
+    const p = withPhoto(boot());
+    const steps = () => fakeFetch([
+      { status: 202, json: { success: true, id: 'gen-1' } },
+      { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images: [] } } },
+    ]);
+    p.AP._fetch = steps();
+    await p.AP.submit();
+    expect(p.AP._fetch.calls[0].body.realize).toBeUndefined();
+
+    const box = body(p).querySelector('#aiPhotoRealize');
+    expect(box).not.toBeNull();
+    box.checked = true;
+    box.dispatchEvent(new p.window.Event('change'));
+    expect(p.AP.realize).toBe(true);
+    p.AP._fetch = steps();
+    await p.AP.submit();
+    expect(p.AP._fetch.calls[0].body.realize).toBe(true);
+    // 다시 그려도 체크 상태가 남는다
+    expect(body(p).querySelector('#aiPhotoRealize').checked).toBe(true);
+  });
+
   test('잡 id 를 스코프별로 기억한다', async () => {
     const p = withPhoto(boot());
     p.AP._fetch = fakeFetch([

@@ -363,6 +363,14 @@
     <div class="pdm-menu" id="renderMenu" hidden></div>
     <button type="button" class="load-btn" id="autoSaveToggle" title="자동 저장 — 끄면 계정에 올리지 않습니다 (이 브라우저 저장은 계속됩니다)">자동저장</button>
   </div>
+  <!-- 2026-09-19: ⚙ 설정 — 치수를 바꿀 때 어느 쪽을 그대로 둘지(기준)를 정한다.
+       메뉴 스타일은 도면 메뉴(.pdm-*)를 그대로 쓴다 — 새 껍데기를 만들지 않는다. -->
+  <div class="pdm-wrap" id="settingsWrap">
+    <button type="button" class="pdm-btn" id="settingsBtn"
+            aria-haspopup="true" aria-expanded="false" aria-controls="settingsMenu"
+            title="설정 — 치수 변경 기준">⚙ 설정 <span class="pdm-caret">▾</span></button>
+    <div class="pdm-menu" id="settingsMenu" hidden style="width:290px"></div>
+  </div>
   <div class="panel-toggle">
     <button id="btnLeft" class="on" title="좌측 패널 (L)">⬛</button>
     <button id="btnRight" class="on" title="우측 패널 (R)">▦</button>
@@ -690,6 +698,37 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // 구조 단계가 소유하는 모듈 목록. 배치 JSON 에는 넣지 않는다 —
   // 그 형식은 브리지 계약(골든 3종)의 입력이라 건드리면 계약이 깨진다.
   const MODULES_KEY = scopedKey('dadam_struct_modules_v1');
+
+  // ── 치수 변경 기준 (⚙ 설정) ───────────────────────────────────
+  // 2026-09-19: 크기를 바꿀 때 **어느 쪽을 그대로 둘지**. 기준 쪽은 움직이지 않고
+  //   반대쪽으로 자란다. 설계 하나가 아니라 **사람의 버릇**이라 스코프를 붙이지 않는다.
+  //
+  //   가로 start=좌측 · end=우측 · center=중앙
+  //   높이 start=아래 · end=위   · center=중앙
+  //   깊이 start=앞선 · end=벽쪽 · center=중앙   (모듈을 배치 공간 깊이 안에 앉히는 기준)
+  //
+  // 물리가 정하는 두 가지는 설정보다 앞선다 — 바닥에 선 단은 바닥을, 천장에 매달린
+  // 단은 천장을 놓지 않는다 (lineAnchorFor).
+  const ANCHOR_KEY = 'dadam_planner_anchor_v1';
+  const ANCHOR_DEFAULT = { W: 'start', H: 'start', D: 'start' };
+  const ANCHOR_LABEL = {
+    W: { start: '좌측', center: '중앙', end: '우측' },
+    H: { start: '아래', center: '중앙', end: '위' },
+    D: { start: '앞선', center: '중앙', end: '벽쪽' },
+  };
+  const resizeAnchor = Object.assign({}, ANCHOR_DEFAULT);
+  (function loadAnchor() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(ANCHOR_KEY) || 'null');
+      if (!raw) return;
+      ['W', 'H', 'D'].forEach((k) => {
+        if (ANCHOR_LABEL[k][raw[k]]) resizeAnchor[k] = raw[k];
+      });
+    } catch (e) { /* 저장본이 깨졌으면 기본값으로 간다 */ }
+  })();
+  function saveAnchor() {
+    try { localStorage.setItem(ANCHOR_KEY, JSON.stringify(resizeAnchor)); } catch (e) {}
+  }
   let activeAreaId = null;
   // W12-31: 우측 패널이 **모듈**을 보여줄지 **영역**을 보여줄지.
   //   activeId·activeAreaId 로는 못 가른다 — 영역을 골라도 activeId 는 그대로 남고,
@@ -1104,9 +1143,14 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 도어 자재는 18T 라 20 자리 안에서 2mm 가 남는다 — 그만큼 물끊기가
     // 넉넉해질 뿐(실측 12) 규칙의 최소 10 은 언제나 지켜진다.
     const frontReserve = MASTER_RULES.CORNER_DRIP + MASTER_RULES.DOOR_SEAT_D;
-    const y = m.isFinishing
-      ? (area.y || 0)
-      : (area.y || 0) + Math.max(0, (area.D || 0) - frontReserve - (m.D || 0));
+    // 2026-09-19: 남는 깊이를 어디에 둘지는 ⚙ 설정의 **깊이 기준**이 정한다.
+    //   기본은 예전 그대로 앞선(start) — 상판 물끊기가 앞에 있어야 한다.
+    //   벽쪽(end)·중앙은 사람이 그렇게 고른 경우에만 간다.
+    const roomBack = Math.max(0, (area.D || 0) - frontReserve - (m.D || 0));
+    const back = resizeAnchor.D === 'end' ? 0
+               : resizeAnchor.D === 'center' ? Math.round(roomBack / 2)
+               : roomBack;
+    const y = m.isFinishing ? (area.y || 0) : (area.y || 0) + back;
     if (m.y === y) return false;
     m.y = y;
     return true;
@@ -1660,30 +1704,33 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           count++;
         }
       }
-      // (B) 모듈 W 변경 (기존 동작)
+      // (B) 모듈 W 변경
       if (moduleEntities.length) {
-        for (const e of moduleEntities) { e.m.W = newVal; e.m.isFixed = fixed; }
-        if (Math.abs(delta) > 0.5) {
-          const affected = new Set();
-          const processedRows = new Set();
-          let gapWarning = false;
-          for (const e of moduleEntities) {
-            const result = absorbAdjacentW(e.m, delta, affected, processedRows);
-            if (result === 'gap') gapWarning = true;
-          }
-          for (const id of affected) {
-            const idx = modules.findIndex(x => x.id === id);
-            if (idx >= 0 && modules[idx].W < 100) modules.splice(idx, 1);
-          }
-          if (gapWarning && typeof showToast === 'function') {
-            showToast('⚠ 고정 인접 모듈로 인해 일부 row 에 gap 발생 — 자동계산 권장');
-          }
+        // 2026-09-19: 크기 입력과 **같은 함수**를 탄다 — 기준(⚙ 설정)대로 늘고, 같은 줄이
+        //   맞물려 움직이며, 배치 사각형 밖으로는 나가지 않는다. 규칙은 한 군데 산다.
+        let clamped = false;
+        moduleEntities.forEach((e) => {
+          const w = resizeModuleWidth(e.m, getStructure(e.m.id), newVal, true);
+          e.m.isFixed = fixed;
+          if (Math.abs(w - newVal) > 0.5) clamped = true;
+        });
+        if (clamped && typeof showToast === 'function') {
+          showToast('⚠ 일부 모듈은 배치 공간·옆 모듈이 내줄 수 있는 만큼만 바꿨습니다');
         }
         count += moduleEntities.length;
       }
     } else {
-      // H: 모듈 단위
-      for (const m of group.modules) { m.H = newVal; m.isFixed = fixed; }
+      // H: 모듈 단위 — 크기 입력과 같은 함수다. 배치 공간 높이를 넘지 않고,
+      //   위아래 단이 맞물려 움직이며, 상판·받침을 뺀 몸통이 남는다.
+      let clamped = false;
+      for (const m of group.modules) {
+        const h = resizeModuleHeight(m, getStructure(m.id), newVal, true);
+        if (h == null || Math.abs(h - newVal) > 0.5) clamped = true;
+        m.isFixed = fixed;
+      }
+      if (clamped && typeof showToast === 'function') {
+        showToast('⚠ 일부 모듈은 배치 공간·위아래 단이 내줄 수 있는 만큼만 바꿨습니다');
+      }
       count = group.modules.length;
     }
     // CD-3: 즉시 저장. 예전엔 여기서 바꾼 W/H 가 메모리에만 남아
@@ -1725,56 +1772,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       } else if (cellIdx - 1 >= 0) {
         s.areaWidths[cellIdx - 1] += grow;
       }
-    }
-  }
-
-  // 변경된 모듈의 X 우측 인접 모듈을 delta 만큼 흡수/제거 (세트 너비 보존)
-  //   delta > 0 (커짐): 우측 비고정 모듈 W 차감, 0 미만이면 제거하고 잔여 delta 다음 비고정 모듈에 전파
-  //                     (고정 모듈은 skip — 그 너머 비고정으로 jump 시 모듈 겹침 방지 위해 차감만 함)
-  //   delta < 0 (작아짐): 변경 모듈 OLD 우측 끝에 정확히 붙어있는 IMMEDIATE 이웃만 좌측 확장
-  //                     (fixed 사이를 jump 하면 모듈 겹침 → 그 경우 gap 발생, 호출자에게 알림)
-  //   processedRows: 동일 row(section@y) 1회만 처리 (그룹 다중 target 의 row 중복 호출 방지)
-  //   반환: 'ok' | 'gap'
-  function absorbAdjacentW(changed, delta, affected, processedRows) {
-    const rowKey = `${changed.section}@${Math.round(changed.y || 0)}`;
-    if (processedRows.has(rowKey)) return 'ok';
-    processedRows.add(rowKey);
-    const sameRow = modules.filter(m =>
-      m.id !== changed.id &&
-      m.section === changed.section &&
-      Math.abs((m.y || 0) - (changed.y || 0)) < 1
-    ).sort((a, b) => (a.x || 0) - (b.x || 0));
-    const changedRight = (changed.x || 0) + changed.W - delta;   // 변경 전 우측 끝
-    const rightSide = sameRow.filter(m => (m.x || 0) >= changedRight - 0.5);
-    if (delta > 0) {
-      // 확대 — 우측 비고정 모듈이 순차 흡수, 고정은 skip (그 너머 jump 금지)
-      let remaining = delta;
-      let firstNeighborSkipped = false;
-      for (const neighbor of rightSide) {
-        if (remaining <= 0) break;
-        if (neighbor.isFixed) {
-          firstNeighborSkipped = true;
-          continue;
-        }
-        const eat = Math.min(neighbor.W, remaining);
-        neighbor.W -= eat;
-        neighbor.x = (neighbor.x || 0) + eat;
-        remaining -= eat;
-        if (neighbor.W < 100) affected.add(neighbor.id);
-      }
-      // 고정 모듈 너머로 잔여 흡수 못한 경우 gap (changed 가 fixed 안으로 침범하는 모양)
-      // → 실제로는 changed.W 만 갱신되었으므로 X 충돌 없음, 단 fixed 위로 표시될 수 있음
-      return (remaining > 0 || firstNeighborSkipped) ? 'gap' : 'ok';
-    } else {
-      // 축소 — IMMEDIATE 인접 모듈 (정확히 OLD 우측 끝에 붙음) 만 확장
-      const grow = -delta;
-      const immediate = rightSide.find(m => Math.abs((m.x || 0) - changedRight) < 1);
-      if (!immediate || immediate.isFixed) return 'gap';
-      // immediate.x 가 좌측으로 grow 만큼 이동, W 가 grow 만큼 증가
-      // → 좌측 끝이 changed 의 새 우측 끝(changed.x + newW)에 정확히 붙음
-      immediate.x = (immediate.x || 0) - grow;
-      immediate.W += grow;
-      return 'ok';
     }
   }
 
@@ -3023,15 +3020,332 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // 실제로 그랬다 — 몸통 50mm 가드가 문구까지 다르게 두 벌이었고, 치수 입력은
   // 팔레트에만 있어 areaWidths 를 비우지 않았다. 규칙은 여기 하나씩만 산다.
 
+  /** 몸통 최소 높이 — 이보다 얇으면 장이 아니다. 높이를 건드리는 모든 길이 이 값을 본다. */
+  const MIN_BODY_H = 50;
+
   /**
-   * 모듈 치수 한 값을 바꾼다.
+   * 2026-09-19: **배치 사각형이 모듈의 한계다.**
+   *
+   * 모듈은 자기가 속한 배치 공간 안에서만 크고 움직인다. 예전엔 크기 입력이 값을
+   * 그대로 대입해서, 폭을 키우면 모듈이 배치 오른쪽 벽을 뚫고 나갔고 높이는
+   * 배치 공간 높이를 넘어 위로 자랐다 (정면도에서 영역 밖에 떠 있는 장이 그것이다).
+   *
+   * ㄱ자(ㄷ자·ㅁ자)로 배치가 서로 붙은 경우가 사장님이 말한 예외인데, 그 자리는
+   * 배치 단계가 트리밍과 멍장으로 이미 갈라 놓았다 (cornerPairs). 그래서 여기서는
+   * **자기 배치 공간 하나만** 본다 — 옆 배치를 다시 보면 코너에서 잘못 막는다.
+   *
+   *   폭  — 배치 공간 폭 그대로 (x 는 [area.x, area.x + area.W] 안).
+   *   깊이 — 앞선에서 물끊기 + 도어 자리를 비운 나머지 (addModuleToArea·seatModuleDepth 와 같은 식).
+   *   높이 — 모듈 바닥에서 배치 공간 천장까지. 상부장·후드는 천장 매달림이라
+   *          바닥이 높이를 따라 내려오므로 배치 공간 높이가 그대로 상한이다.
+   *
+   * 영역을 못 찾는 옛 설계의 모듈은 null — 그때는 예전처럼 값만 바꾼다.
+   */
+  function moduleLimitsOf(m) {
+    const area = m ? areaById(areaIdOfModule(m)) : null;
+    if (!area) return null;
+    const x0 = Number(area.x) || 0;
+    const areaW = Number(area.W) || 0;
+    const areaH = Number(area.H) || 0;
+    const areaBase = getBaseY(area.section, areaH);
+    const hung = !Number.isFinite(parseFloat(m.baseY)) && (m.section === 'upper' || m.section === 'hood');
+    return {
+      area,
+      x0, x1: x0 + areaW,
+      maxW: Math.max(0, areaW),
+      maxD: Math.max(0, (Number(area.D) || 0) - MASTER_RULES.CORNER_DRIP - MASTER_RULES.DOOR_SEAT_D),
+      maxH: hung ? areaH : Math.max(0, areaBase + areaH - Math.max(areaBase, baseYOf(m))),
+    };
+  }
+
+  /**
+   * 폭을 배치 사각형 안으로 들인다. **좌·우 조건부**로 큰다 —
+   * 오른쪽에 남은 자리만큼 오른쪽으로 크고, 모자라는 만큼은 왼쪽으로 물러선다.
+   * 왼쪽 끝에 닿으면 거기가 끝이다(상한은 배치 공간 폭). 줄일 때는 왼쪽 끝을 두고
+   * 오른쪽만 당긴다 — 줄어든 자리는 늘 안쪽이라 밀 이유가 없다.
+   *
+   * `m.x` 를 여기서 함께 옮긴다. 부르는 쪽은 돌려받은 폭만 대입하면 된다.
+   */
+  function fitModuleWidth(m, raw, quiet) {
+    let v = Math.max(100, Math.round(parseFloat(raw) || 0));
+    const lim = moduleLimitsOf(m);
+    if (!lim) return v;
+    if (v > lim.maxW) {
+      v = Math.round(lim.maxW);
+      if (!quiet) showToast(`⚠ 배치 공간 폭 ${Math.round(lim.area.W || 0)}mm 를 넘을 수 없습니다 — ${v}mm 로 맞췄습니다`);
+    }
+    const x = Number.isFinite(Number(m.x)) ? Number(m.x) : lim.x0;
+    // min 이 먼저다 — 오른쪽이 모자라면 왼쪽으로 밀고, 그래도 넘치면 왼쪽 끝에 세운다.
+    m.x = Math.max(lim.x0, Math.min(x, lim.x1 - v));
+    return v;
+  }
+
+  /**
+   * 전체 높이를 배치 공간 안으로 들인다. 전체 = 받침(다리발·좌대) + 상판 + 몸통 (+ 상몰딩)
+   * 이므로 **상판과 다리발을 빼고도 몸통이 ${MIN_BODY_H}mm 는 남아야** 한다.
+   * 배치 공간이 그만큼도 안 되면 null — 그 높이는 만들 수 없다는 뜻이다.
+   */
+  function fitModuleHeight(m, s, raw, quiet) {
+    let v = Math.max(100, Math.round(parseFloat(raw) || 0));
+    const lim = moduleLimitsOf(m);
+    if (!lim) return v;
+    const parts = heightPartsOf(m, s);
+    const sum = parts.reduce((a, p) => a + p.value, 0);
+    const label = parts.map((p) => `${p.label} ${Math.round(p.value)}`).join(' + ');
+    if (lim.maxH < sum + MIN_BODY_H) {
+      if (!quiet) showToast(`⚠ 배치 공간 높이 ${Math.round(lim.maxH)}mm — ${label} 을 빼면 몸통 ${MIN_BODY_H}mm 가 남지 않습니다`);
+      return null;
+    }
+    if (v > lim.maxH) {
+      v = Math.round(lim.maxH);
+      if (!quiet) showToast(`⚠ 배치 공간 높이 ${Math.round(lim.maxH)}mm 까지 — ${label} + 몸통 ${Math.round(v - sum)}`);
+    }
+    if (v < sum + MIN_BODY_H) {
+      v = Math.round(sum + MIN_BODY_H);
+      if (!quiet) showToast(`⚠ ${label} 이라 전체 높이는 ${v}mm 이상이어야 합니다`);
+    }
+    return v;
+  }
+
+  /** 깊이를 배치 공간 안으로 — 앞선의 물끊기·도어 자리는 몸통이 쓸 수 없다. */
+  function fitModuleDepth(m, raw, quiet) {
+    let v = Math.max(100, Math.round(parseFloat(raw) || 0));
+    const lim = moduleLimitsOf(m);
+    if (!lim || v <= lim.maxD) return v;
+    v = Math.round(lim.maxD);
+    if (!quiet) showToast(`⚠ 배치 공간 깊이 ${Math.round(lim.area.D || 0)}mm 에서 물끊기·도어 자리를 빼면 몸통은 ${v}mm 까지입니다`);
+    return v;
+  }
+
+  // ── 줄(가로)·열(세로) 맞물림 ────────────────────────────
+  // 2026-09-19: 크기를 바꾸면 **이웃이 따라 움직인다.** 커진 만큼 그쪽 이웃이 내주고,
+  //   줄인 만큼 그쪽 이웃이 채운다. 배치 사각형 밖으로는 누구도 나가지 않는다.
+  //   어느 쪽이 그대로 있을지는 ⚙ 설정의 기준(좌/우·아래/위·중앙)이 정한다.
+  //
+  // 가로와 세로가 **같은 함수**를 쓴다 — 축만 다르고 규칙은 하나다. 두 벌로 두면
+  // 한쪽만 고쳐진다 (몸통 50mm 가드가 실제로 그랬다 — W12-31 주석).
+  //
+  // 항목(cell): { m, pos, size, min, rigid }
+  //   pos  축 위 시작점 (가로 x · 세로 baseY)
+  //   min  더 줄어들 수 없는 하한 (가로는 도어 최소폭, 세로는 받침·상판 + 몸통 50)
+  //   rigid 보존(isFixed)·마감재·멍장 — 자동으로는 건드리지 않는다
+
+  /** dir 쪽으로 이 항목이 더 차지할 수 있는 양 (빈 자리 + 이웃이 내줄 수 있는 폭). */
+  function lineCapacity(cells, i, dir, L, R) {
+    let room = 0;
+    let edge = dir > 0 ? cells[i].pos + cells[i].size : cells[i].pos;
+    for (let k = i + dir; k >= 0 && k < cells.length; k += dir) {
+      const c = cells[k];
+      room += Math.max(0, dir > 0 ? c.pos - edge : edge - (c.pos + c.size));
+      if (c.rigid) return room;                       // 보존 모듈은 벽이다 — 그 너머는 못 쓴다
+      room += Math.max(0, c.size - c.min);
+      edge = dir > 0 ? c.pos + c.size : c.pos;
+    }
+    return room + Math.max(0, dir > 0 ? R - edge : edge - L);
+  }
+
+  /**
+   * dir 쪽에서 need 만큼 실제로 받아 온다. **밀어내며** 간다 —
+   * 모듈의 새 끝을 먼저 잡고, 그 선을 넘어오는 이웃만 자기 min 까지 줄인 뒤 그 선에 붙인다.
+   * 남은 밀림은 다음 이웃으로 이어진다.
+   *
+   * 2026-09-19: 예전 방식(이웃마다 제자리에서 폭만 깎기)은 **두 칸 건너부터 틈이 생겼다** —
+   *   가까운 이웃은 안 움직이는데 먼 이웃만 안쪽으로 당겨져서다. 밀어내며 가면 한 줄이
+   *   언제나 맞닿는다. `need` 는 lineCapacity 이하라 벽·보존 모듈까지 닿지 않는다.
+   */
+  function lineConsume(cells, i, dir, need, L, R) {
+    if (!(need > 0)) return 0;
+    let edge = dir > 0 ? cells[i].pos + cells[i].size + need : cells[i].pos - need;
+    for (let k = i + dir; k >= 0 && k < cells.length; k += dir) {
+      const c = cells[k];
+      const near = dir > 0 ? c.pos : c.pos + c.size;
+      const over = dir > 0 ? edge - near : near - edge;
+      if (over <= 0 || c.rigid) break;          // 안 밀리거나, 보존 모듈이면 거기서 멈춘다
+      c.size -= Math.min(Math.max(0, c.size - c.min), over);
+      // 밀려난 자리에 붙인다. 벽은 마지막 방어선이다 — 겹친 채 저장된 옛 설계에서도
+      //   이웃이 배치 사각형 밖으로 나가지는 않는다.
+      c.pos = dir > 0 ? Math.min(edge, R - c.size) : Math.max(L, edge - c.size);
+      edge = dir > 0 ? c.pos + c.size : c.pos;
+    }
+    return need;
+  }
+
+  /** dir 쪽 **바로 옆** 이웃이 비워진 자리를 채운다. 보존 모듈이면 빈 자리로 남는다. */
+  function lineRelease(cells, i, dir, give) {
+    const c = cells[i + dir];
+    if (!c || c.rigid || give <= 0) return 0;
+    c.size += give;
+    if (dir > 0) c.pos -= give;
+    return give;
+  }
+
+  /**
+   * 한 줄에서 항목 하나의 크기를 바꾼다. 기준 쪽은 그대로 두고 반대쪽으로 자란다 —
+   * 그쪽이 다 막히면 남은 만큼만 반대쪽에서 가져온다(그래서 '조건부'다).
+   */
+  function applyLineResize(cells, i, want, anchor, L, R, selfMin) {
+    const c = cells[i];
+    const pos0 = c.pos, size0 = c.size;
+    const v = Math.max(selfMin, Math.round(parseFloat(want) || 0));
+    const delta = v - size0;
+    if (delta > 0) {
+      const capUp = lineCapacity(cells, i, +1, L, R);
+      const capDn = lineCapacity(cells, i, -1, L, R);
+      let up = 0, dn = 0;
+      if (anchor === 'end') { dn = Math.min(delta, capDn); up = Math.min(delta - dn, capUp); }
+      else if (anchor === 'center') {
+        up = Math.min(Math.ceil(delta / 2), capUp);
+        dn = Math.min(delta - up, capDn);
+        up = Math.min(capUp, delta - dn);              // 한쪽이 모자라면 다른 쪽이 더 낸다
+      } else { up = Math.min(delta, capUp); dn = Math.min(delta - up, capDn); }
+      lineConsume(cells, i, +1, up, L, R);
+      lineConsume(cells, i, -1, dn, L, R);
+      c.size = size0 + up + dn;
+      c.pos = pos0 - dn;
+      return { size: c.size, clamped: up + dn < delta - 0.5 };
+    }
+    if (delta < 0) {
+      const give = -delta;
+      let up = 0, dn = 0;
+      if (anchor === 'end') dn = give;
+      else if (anchor === 'center') { dn = Math.floor(give / 2); up = give - dn; }
+      else up = give;
+      c.size = v;
+      c.pos = pos0 + dn;
+      lineRelease(cells, i, +1, up);
+      lineRelease(cells, i, -1, dn);
+    }
+    return { size: c.size, clamped: false };
+  }
+
+  /**
+   * 세로에서는 **물리가 설정보다 앞선다.** 바닥에 선 단은 바닥을, 천장에 매달린 단은
+   * 천장을 놓지 않는다 — 그러지 않으면 하부장이 공중에 뜨고 상부장이 천장에서 내려온다.
+   * 가운데 단(키큰장 중간장 등)만 설정을 따른다.
+   */
+  function lineAnchorFor(cell, L, R, anchor, hung) {
+    const atFloor = cell.pos <= L + 0.5;
+    const atTop = cell.pos + cell.size >= R - 0.5;
+    // 매달린 단(상부장·후드)은 **천장만** 본다 — 배치 공간을 꽉 채우면 위아래가 다 닿아
+    //   있어 순서가 곧 규칙이 된다. 바닥을 먼저 보면 상부장이 천장에서 내려온다.
+    //   매달린 단의 아래는 허공이라 붙잡을 것이 없으므로 바닥 규칙을 두지 않는다.
+    if (hung) return atTop ? 'end' : anchor;
+    if (atFloor) return 'start';
+    return atTop ? 'end' : anchor;
+  }
+
+  /** 이웃을 자동으로 건드려도 되는가 — 보존·마감재·멍장은 사람이 정한 것이다. */
+  function lineRigid(x, selfId) {
+    return x.id !== selfId
+      && (!!x.isFixed || !!x.isFinishing || isFinishingSection(x.section) || !!x.blind);
+  }
+
+  /** 같은 **줄** — 배치 공간 안에서 세로로 겹치는 것들. 가로로 나란히 선다. */
+  function widthLineOf(m) {
+    const area = areaById(areaIdOfModule(m));
+    if (!area) return null;
+    const b0 = baseYOf(m), b1 = b0 + (Number(m.H) || 0);
+    const cells = modules
+      .filter((x) => areaIdOfModule(x) === area.id && (x.id === m.id
+        || Math.min(b1, baseYOf(x) + (Number(x.H) || 0)) - Math.max(b0, baseYOf(x)) > 1))
+      .sort((a, b) => (Number(a.x) || 0) - (Number(b.x) || 0))
+      .map((x) => ({
+        m: x, pos: Number(x.x) || 0, size: Number(x.W) || 0,
+        min: MASTER_RULES.DOOR_W_MIN, rigid: lineRigid(x, m.id),
+      }));
+    const L = Number(area.x) || 0;
+    return { area, cells, i: cells.findIndex((c) => c.m.id === m.id), L, R: L + (Number(area.W) || 0) };
+  }
+
+  /** 같은 **열** — 배치 공간 안에서 가로로 겹치는 것들. 세로로 쌓인다 (키큰장 단). */
+  function heightLineOf(m, s) {
+    const area = areaById(areaIdOfModule(m));
+    if (!area) return null;
+    const x0 = Number(m.x) || 0, x1 = x0 + (Number(m.W) || 0);
+    const cells = modules
+      .filter((x) => areaIdOfModule(x) === area.id && (x.id === m.id
+        || Math.min(x1, (Number(x.x) || 0) + (Number(x.W) || 0)) - Math.max(x0, Number(x.x) || 0) > 1))
+      .sort((a, b) => baseYOf(a) - baseYOf(b))
+      .map((x) => {
+        // 이웃 구조는 **읽기만** 한다 — getStructure 는 없는 항목을 만들어 저장까지 늘린다.
+        const xs = x.id === m.id ? s : (structures[x.id] || {});
+        const sum = heightPartsOf(x, xs).reduce((a, p) => a + p.value, 0);
+        return { m: x, pos: baseYOf(x), size: Number(x.H) || 0,
+                 min: sum + MIN_BODY_H, rigid: lineRigid(x, m.id) };
+      });
+    const areaH = Number(area.H) || 0;
+    const L = getBaseY(area.section, areaH);
+    return { area, cells, i: cells.findIndex((c) => c.m.id === m.id), L, R: L + areaH };
+  }
+
+  /** 이 줄에서 고른 항목이 가질 수 있는 최대 — 제 크기 + 양쪽이 내줄 수 있는 만큼. */
+  function lineRoomFor(line) {
+    if (!line || line.i < 0) return null;
+    const c = line.cells[line.i];
+    return c.size + lineCapacity(line.cells, line.i, +1, line.L, line.R)
+                  + lineCapacity(line.cells, line.i, -1, line.L, line.R);
+  }
+
+  /** 폭을 바꾸고 **같은 줄을 맞물려 움직인다.** 영역을 못 찾는 옆 모듈은 예전처럼 자르기만 한다. */
+  function resizeModuleWidth(m, s, raw, quiet) {
+    const line = widthLineOf(m);
+    if (!line || line.i < 0) { const v = fitModuleWidth(m, raw, quiet); m.W = v; return v; }
+    const was = new Map(line.cells.map((c) => [c.m.id, c.size]));
+    const r = applyLineResize(line.cells, line.i, raw, resizeAnchor.W, line.L, line.R, 100);
+    line.cells.forEach((c) => {
+      c.m.x = Math.round(c.pos);
+      c.m.W = Math.round(c.size);
+      // 폭이 바뀜 이웃의 칸 폭 배분은 근거가 사라진다 — 모듈 자신과 같은 이유로 비운다.
+      if (c.m.id !== m.id && Math.abs((was.get(c.m.id) || 0) - c.size) > 0.5 && structures[c.m.id]) {
+        structures[c.m.id].areaWidths = [];
+        structures[c.m.id].areaIs2D = [];
+      }
+    });
+    if (r.clamped && !quiet) {
+      showToast(`⚠ 배치 공간과 옆 모듈이 내줄 수 있는 만큼 — 폭 ${Math.round(r.size)}mm 로 맞쳬습니다`);
+    }
+    return Math.round(r.size);
+  }
+
+  /**
+   * 높이를 바꾸고 **같은 열을 맞물려 움직인다.** 상판·받침은 전체 높이 안에 들어 있으므로
+   * 이웃 단이 줄어들 수 있는 하한도 그만큼 높다 (받침 + 상판 + 몸통 50).
+   */
+  function resizeModuleHeight(m, s, raw, quiet) {
+    const line = heightLineOf(m, s);
+    if (!line || line.i < 0) return fitModuleHeight(m, s, raw, quiet);
+    const self = line.cells[line.i];
+    // 천장 매달림인가 — 상부장·후드는 높이를 바꿔도 천장에 붙어 있어야 한다 (getBaseY).
+    const hung = getBaseY(m.section, 100) !== 0;
+    const anchor = lineAnchorFor(self, line.L, line.R, resizeAnchor.H, hung);
+    const r = applyLineResize(line.cells, line.i, raw, anchor, line.L, line.R, self.min);
+    line.cells.forEach((c) => {
+      c.m.H = Math.round(c.size);
+      // baseY 는 **바뀐 것만** 명시한다 — 상부장은 천장에서 거꾸로 잡히는 파생값이라
+      //   그대로 두어야 천장 매달림이 유지된다 (baseYOf).
+      if (Math.abs(baseYOf(c.m) - c.pos) > 0.5) c.m.baseY = Math.round(c.pos);
+      const cs = structures[c.m.id];
+      if (cs && Array.isArray(cs.shelves)) cs.shelves = cs.shelves.filter((sh) => sh < c.m.H);
+    });
+    if (r.clamped && !quiet) {
+      showToast(`⚠ 배치 공간과 위아래 단이 내줄 수 있는 만큼 — 높이 ${Math.round(r.size)}mm 로 맞쳬습니다`);
+    }
+    return Math.round(r.size);
+  }
+
+  /**
+   * 모듈 치수 한 값을 바꾼다. 세 축 모두 **배치 사각형 안으로** 들여 놓는다 (moduleLimitsOf).
    *
    * 폭을 바꾸면 `areaWidths` 를 비운다. 그 배열은 자동계산이 잡아 준 **파생값**이라
    * 폭이 달라지면 근거가 사라진다 — 안 비우면 낡은 셀 폭이 그대로 남아 정면도가
    * 모듈 밖으로 삐져나온다 (syncCellArrays 가 갯수를 바꿀 때 하는 것과 같은 이유).
    */
   function applyModuleDim(m, s, k, raw) {
-    const v = Math.max(100, parseInt(raw) || 0);
+    const v = k === 'W' ? resizeModuleWidth(m, s, raw)
+            : k === 'H' ? resizeModuleHeight(m, s, raw)
+            : k === 'D' ? fitModuleDepth(m, raw)
+            : Math.max(100, parseInt(raw) || 0);
+    if (v == null) return Number(m[k]) || 0;   // 배치 공간이 부족하다 — 값을 그대로 둔다
     m[k] = v;
     if (k === 'H') s.shelves = (s.shelves || []).filter((sh) => sh < v);
     if (k === 'W') { s.areaWidths = []; s.areaIs2D = []; }
@@ -3047,9 +3361,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const label = (heightPartsOf(m, s).find((p) => p.key === key) || {}).label || key;
     const prev = s[key];
     s[key] = Math.max(0, parseFloat(raw) || 0);
-    if (bodyHeightOf(m, s) >= 50) return true;
+    if (bodyHeightOf(m, s) >= MIN_BODY_H) return true;
     if (prev === undefined) delete s[key]; else s[key] = prev;
-    showToast(`⚠ ${label}이 커서 몸통이 50mm 미만이 됩니다 — 전체 높이를 먼저 키우세요`);
+    showToast(`⚠ ${label}이 커서 몸통이 ${MIN_BODY_H}mm 미만이 됩니다 — 전체 높이를 먼저 키우세요`);
     return false;
   }
 
@@ -3142,9 +3456,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const bodyInp = document.getElementById('inpBodyH');
     if (bodyInp) {
       bodyInp.addEventListener('change', () => {
-        const nextBody = Math.max(50, parseFloat(bodyInp.value) || 0);
         const sum = heightPartsOf(m, s).reduce((a, p) => a + p.value, 0);
-        m.H = nextBody + sum;
+        // 2026-09-19: 몸통을 키우면 전체 높이가 따라 커진다 — 그 전체가 배치 공간을 넘을 수 없다.
+        //   상판·받침은 전체 안에 들어 있으므로 fitModuleHeight 가 함께 셈한다.
+        const total = fitModuleHeight(m, s, Math.max(MIN_BODY_H, parseFloat(bodyInp.value) || 0) + sum);
+        if (total == null) { renderHeightPanel(m, s); return; }
+        const nextBody = total - sum;
+        m.H = total;
         m.isFixed = true; // 사용자가 정한 높이는 자동계산이 건드리지 않는다
         persistPlannerState();
         renderHeightPanel(m, s);
@@ -3236,23 +3554,39 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   const DIM_ROWS = [['W', '폭 W', 6000], ['H', '높이 H', 3000], ['D', '깊이 D', 1200]];
-  const dimRowsHTML = (o, maxW) => DIM_ROWS.map(([k, lab, max]) => `
+  /** `caps` 는 축별 상한 {W,H,D} — 모듈은 배치 공간이, 영역은 자기 최대값이 상한이다. */
+  const dimRowsHTML = (o, caps) => DIM_ROWS.map(([k, lab, max]) => {
+    const cap = caps && Number.isFinite(caps[k]) ? Math.round(caps[k]) : max;
+    return `
       <div class="row">
         <label>${lab} (mm)</label>
-        <input type="number" min="100" max="${k === 'W' && maxW ? maxW : max}" step="10"
+        <input type="number" min="100" max="${cap}" step="10"
                data-dim="${k}" value="${Math.round(Number(o[k]) || 0)}">
-      </div>`).join('');
+      </div>`;
+  }).join('');
 
   /** 모듈 크기 + 고정. 팔레트의 '크기'·'고정' 이 있던 자리다. */
   function renderSizePanel(m, s) {
     const host = document.getElementById('sizeBody');
     if (!host) return;
+    const lim = moduleLimitsOf(m);
+    // 2026-09-19: 한계를 숫자로 보여 준다 — 막히고 나서야 아는 것보다 낫다.
+    //   실제 상한은 배치 공간이 아니라 **이웃이 내줄 수 있는 만큼**이다 (보존 모듈은 벽이다).
+    const cap = { W: lineRoomFor(widthLineOf(m)), H: lineRoomFor(heightLineOf(m, s)), D: lim && lim.maxD };
+    const room = lim ? `
+        배치 공간 <b>W${Math.round(lim.area.W || 0)} × H${Math.round(lim.area.H || 0)} × D${Math.round(lim.area.D || 0)}</b> 안에서 —
+        지금 늘릴 수 있는 만큼은 폭 ≤ ${Math.round(cap.W != null ? cap.W : lim.maxW)} ·
+        높이 ≤ ${Math.round(cap.H != null ? cap.H : lim.maxH)} · 깊이 ≤ ${Math.round(lim.maxD)}
+        (옆·위아래 모듈이 내줄 수 있는 만큼까지).<br>
+        기준 <b>가로 ${ANCHOR_LABEL.W[resizeAnchor.W]} · 높이 ${ANCHOR_LABEL.H[resizeAnchor.H]} · 깊이 ${ANCHOR_LABEL.D[resizeAnchor.D]}</b>
+        (⚙ 설정) — 기준 쪽은 그대로 두고 반대쪽으로 늘어나며, 그만큼 옆 모듈이 내줍니다.<br>` : '';
     host.innerHTML = `
-      ${dimRowsHTML(m)}
+      ${dimRowsHTML(m, lim && { W: cap.W != null ? cap.W : lim.maxW,
+                                H: cap.H != null ? cap.H : lim.maxH, D: lim.maxD })}
       <label class="chk-row"><input type="checkbox" id="chkFixed" ${m.isFixed ? 'checked' : ''}>
         자동계산 시 이 모듈을 보존</label>
       <div style="font-size:10px;color:#888;line-height:1.4;margin-top:6px">
-        폭을 바꾸면 칸 폭 배분은 균등으로 되돌아갑니다.
+        ${room}폭을 바꾸면 칸 폭 배분은 균등으로 되돌아갑니다.
       </div>`;
     host.querySelectorAll('input[data-dim]').forEach((inp) => {
       inp.onchange = () => {
@@ -3310,7 +3644,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const size = document.getElementById('sizeBody');
     if (size) {
       size.innerHTML = `
-        ${dimRowsHTML(a, 8000)}
+        ${dimRowsHTML(a, { W: 8000 })}
         <div style="font-size:10px;color:#888;line-height:1.4;margin-top:6px">
           ${cfg.label || a.section} 배치 공간입니다 — 고치면 배치 단계에도 되쓰입니다.
         </div>
@@ -3666,6 +4000,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           const x = i === 0 ? leftX : leftX + (m.W - 2 * T) - mw;
           rect(x, yOf(zone.y0 + zone.h), mw, zone.h, '#8d7f63', '#5a5040');
         });
+        // 서랍장 모듈 몸통 — 측판 두 장이 몰딩 안쪽에 선다 (모듈을 따로 만든다)
+        [0, 1].forEach((i) => {
+          const x = i === 0 ? leftX + mw : leftX + mw + zone.moduleW - T;
+          rect(x, yOf(zone.y0 + zone.h), T, zone.h, '#b3a483', '#6d6047');
+        });
         zone.fronts.forEach((f) => {
           rect(leftX + mw + 2, yOf(zone.y0 + T + f.y0 + f.h), f.w, f.h, '#cbbfa6', '#7d6c48');
         });
@@ -3794,9 +4133,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (!L || L.external) return '';
     const z = (rules.cabinetsOf(L).find((c) => c.drawerZone) || {}).drawerZone;
     if (!z || !z.fronts || !z.fronts.length) return '';
+    const box = (z.boxes || [])[0];
     return `<div style="font-size:10px;color:#888;line-height:1.5">
+      서랍장 모듈 ${z.moduleW}×${z.moduleH}×${z.moduleD} — 따로 만든다 (통 내경 − ${2 * z.moldingW})<br>
       전면 ${z.frontW}×${z.fronts.map((f) => f.h).join('·')} — 15PB 몸통 재질<br>
       좌우 몰딩 ${z.moldingW} · 앞선에서 ${z.setback} 안쪽 · 손잡이 빈 공간 30 × ${z.slots}
+      ${box ? `<br>박스 ${box.label} ${box.fbW}×${box.fbH} · ${box.railName} ${box.railLength}` : ''}
     </div>`;
   }
 
@@ -4833,29 +5175,105 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (upperH <= 0) return [];
       // 냉장고 자리(바닥~fridgeH)와 상단 간격은 비워 둔다.
       // 상몰딩은 맨 위 단이 짊어진다 — 그래야 몰딩 mesh 가 그려진다.
+      // 2026-09-19: 보존을 건 단이 있으면 그것이 그대로 이 단이다 — 키큰장과 같은 규칙으로,
+      //   다시 세우면 같은 자리에 두 장이 겹쳐 선다.
+      const keepUp = fixedTiersOf(area)[0] || null;
+      if (keepUp) {
+        const ks = structures[keepUp.id] || {};
+        return [{ part: '상부장', H: Math.max(0, parseFloat(keepUp.H) || 0),
+                  baseY: fridgeH + MASTER_RULES.FRIDGE_TOP_GAP,
+                  pedestalH: parseFloat(ks.pedestalH) || 0, moldingH: parseFloat(ks.moldingH) || 0,
+                  keep: keepUp }];
+      }
       return [{ part: '상부장', H: upperH + molding, baseY: fridgeH + MASTER_RULES.FRIDGE_TOP_GAP,
                 pedestalH: 0, moldingH: molding }];
     }
 
-    if (area.section === 'tall') {
-      const upperH = MASTER_RULES.FRIDGE_UPPER_H_MAX;
-      const body = area.H - molding - upperH - pedestal;
-      if (body <= 0) return [];
-      const middleH = Math.floor(body * MASTER_RULES.MIDDLE_BODY_RATIO);
-      const lowerH = body - middleH;
-      // 좌대와 상몰딩은 **장 전체**의 것이다. 단마다 또 빼면 단 사이에
-      // 그만큼 빈 틈이 생겨 서로 떠 보인다 (실제로 120mm 씩 벌어져 있었다).
-      // 맨 아래 단이 좌대를, 맨 위 단이 상몰딩을 짊어지고 나머지는 0 이다.
-      return [
-        { part: '하부장', H: pedestal + lowerH, baseY: 0,
-          pedestalH: pedestal, moldingH: 0 },
-        { part: '중간장', H: middleH,           baseY: pedestal + lowerH,
-          pedestalH: 0, moldingH: 0 },
-        { part: '상부장', H: upperH + molding,  baseY: pedestal + lowerH + middleH,
-          pedestalH: 0, moldingH: molding },
-      ];
-    }
+    if (area.section === 'tall') return tallTiers(area, molding, pedestal);
     return null;   // 가로 분할로 간다
+  }
+
+  const TALL_TIERS = ['하부장', '중간장', '상부장'];
+
+  /**
+   * 2026-09-19: 스택 영역에서 **사람이 보존을 건 단**.
+   * 코너 멍장(isDerived)은 옆에 서는 파생 모듈이라 세로 단이 아니다 — 뺀다.
+   * 아래(baseY 작은) 것이 먼저다: 보존이 여럿이면 아랫 단이 우선이다.
+   */
+  function fixedTiersOf(area) {
+    if (!area) return [];
+    return modules
+      .filter((m) => m.isFixed && !m.isDerived && !isFinishingSection(m.section)
+        && areaIdOfModule(m) === area.id)
+      .sort((a, b) => (a.baseY || 0) - (b.baseY || 0));
+  }
+
+  /**
+   * 키큰장 단 나누기. **보존(isFixed) 단이 가장 높은 우선순위다.**
+   *
+   * 2026-09-19: 예전엔 보존을 건 단이 있어도 영역 높이 전체로 세 단을 다시
+   * 계산했다. 자동계산은 보존 모듈을 안 지우므로 그 자리에 똑같은 단이 하나 더
+   * 서서 겹쳤다 — 사용자에겐 "줄였는데 모듈이 하나 더 생겼다" 로 보였다.
+   * 이제 보존 단은 높이를 그대로 지키고, **비어 있는 단이 늘어나** 남은 높이를 먹는다.
+   *
+   *   보존이 없을 때  상부장 = 400 + 상몰딩 · 중간장 = floor(몸통 × 0.55) · 하부장 = 나머지
+   *                    (예전 숫자 그대로 — ui-fridge-el.js 가 정본)
+   *   보존이 있을 때  보존 단 H 는 그대로, 남은 높이를 중간장 → 하부장 → 상부장 순으로 흡수
+   *
+   * 단은 언제나 바닥부터 빈틈 없이 쌓는다 — 보존 단도 baseY 는 다시 잡는다.
+   * 그러지 않으면 줄인 단 위로 그만큼 틈이 남아 단들이 떠 보인다.
+   */
+  function tallTiers(area, molding, pedestal) {
+    const upperH = MASTER_RULES.FRIDGE_UPPER_H_MAX;
+    const fixed = fixedTiersOf(area);
+    // 보존이 없으면 예전 그대로 — 몸통이 안 나오면 아무것도 안 세운다.
+    if (!fixed.length && area.H - molding - upperH - pedestal <= 0) return [];
+    // 보존 단에 단 이름을 매긴다 — 저장된 part 를 믿고, 없거나 겹치면 아래부터 채운다.
+    const slot = {};
+    fixed.forEach((m) => {
+      const want = (TALL_TIERS.indexOf(m.part) >= 0 && !slot[m.part])
+        ? m.part : TALL_TIERS.find((t) => !slot[t]);
+      if (want) slot[want] = m;
+    });
+    const H = {};
+    let room = area.H;
+    TALL_TIERS.forEach((t) => {
+      if (!slot[t]) return;
+      H[t] = Math.max(0, parseFloat(slot[t].H) || 0);
+      room -= H[t];
+    });
+    if (room < 0) room = 0;            // 보존 단만으로 이미 다 찼다
+    // 상부장 몫(400 + 상몰딩)과 좌대를 먼저 뗀다 — 규칙이 정한 크기다.
+    if (!slot['상부장']) { H['상부장'] = Math.min(upperH + molding, room); room -= H['상부장']; }
+    if (!slot['하부장']) { H['하부장'] = Math.min(pedestal, room);        room -= H['하부장']; }
+    // 남은 몸통은 비어 있는 단이 먹는다.
+    if (!slot['중간장'] && !slot['하부장']) {
+      const mid = Math.floor(room * MASTER_RULES.MIDDLE_BODY_RATIO);
+      H['중간장'] = mid;
+      H['하부장'] += room - mid;
+    } else if (!slot['중간장']) H['중간장'] = room;
+    else if (!slot['하부장'])   H['하부장'] += room;
+    else if (!slot['상부장'])   H['상부장'] += room;
+    // 좌대와 상몰딩은 **장 전체**의 것이다. 단마다 또 빼면 단 사이에
+    // 그만큼 빈 틈이 생겨 서로 떠 보인다 (실제로 120mm 씩 벌어져 있었다).
+    // 맨 아래 단이 좌대를, 맨 위 단이 상몰딩을 짊어지고 나머지는 0 이다.
+    // 보존 단은 제 구조가 가진 값을 그대로 알린다 — 멍장도 같은 계획을 보기 때문이다.
+    let y = 0;
+    const out = [];
+    TALL_TIERS.forEach((t) => {
+      const keep = slot[t] || null;
+      const h = keep ? H[t] : (H[t] || 0);
+      if (!keep && h <= 0) return;     // 세울 자리가 없는 단은 만들지 않는다
+      const ks = keep ? (structures[keep.id] || {}) : null;
+      out.push({
+        part: t, H: h, baseY: y,
+        pedestalH: keep ? (parseFloat(ks.pedestalH) || 0) : (t === '하부장' ? Math.min(pedestal, h) : 0),
+        moldingH:  keep ? (parseFloat(ks.moldingH)  || 0) : (t === '상부장' ? Math.min(molding, h)  : 0),
+        keep,
+      });
+      y += h;
+    });
+    return out;
   }
 
   /** 세로 스택 영역(키큰장·냉장고장)을 채운다 */
@@ -4894,8 +5312,22 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       return blinds.length ? 1 : 0;
     }
     const edges = edgePlanOf(area, kept, blinds, adjCorner);
-    let made = 0;
+    // 2026-09-19: 보존 단의 합이 배치 높이를 넘으면 위 단이 밖으로 나간다.
+    //   낮은 단부터 채우고(아랫 단 우선) 그 사실을 알린다 — 보존은 건드리지 않는다.
+    const stackH = stack.reduce((sum, p) => sum + (p.H || 0), 0);
+    if (stackH > (area.H || 0) + 1) {
+      showToast(`⚠ 보존한 단 합계 ${Math.round(stackH)}mm 가 배치 높이 ${Math.round(area.H || 0)}mm 를 넘습니다 — 아래 단부터 채웠습니다`);
+    }
+    let made = 0, keptTiers = 0;
     stack.forEach((part) => {
+      // 보존 단 — 높이·구조는 그대로 두고 **자리만** 다시 잡는다.
+      //   여기서 또 세우면 줄였던 단 위에 같은 단이 하나 더 생긴다.
+      if (part.keep) {
+        part.keep.baseY = part.baseY;
+        if (!part.keep.part) part.keep.part = part.part;
+        keptTiers++;
+        return;
+      }
       const m = addModuleToArea(area.id, { section: area.section, W: tierW, x: edges.startX });
       if (!m) return;
       m.H = part.H;
@@ -4910,11 +5342,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       s.shelves = calcDefaultShelves(area.section, bodyHeightOf(m, s));
       made++;
     });
+    if (!made && keptTiers) showToast('보존한 단이 배치 높이를 다 씁니다 — 새로 세운 단은 없습니다');
     placeTail(edges.startX + tierW, edges);
     applyDefaultAreaFinish(area.id);   // W12-35 — 스택은 단들이 함께 폭을 내놓는다
     saveStructModules();
     persistPlannerState();
-    return made;
+    // 보존 단도 세어서 돌려준다 — 0 이면 부른 쪽이 화면을 다시 그리지 않는다.
+    return made + keptTiers;
   }
 
   /**
@@ -5589,30 +6023,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // W12-73: 멍장·고정 모듈도 같은 라인에서 결합된다 — 조립 여유를 함께 낸다.
     const extraModules = blinds.length
       + kept.filter((m) => !isFinishingSection(m.section) && !m.blind).length;
-    const dist = blinds.length
-      ? distributeByDoorW(room, corner.plan.doorW, { extraModules })
-      : distributeModules(room);
-    if (!dist.modules.length) {
-      // W12-57: 멍장은 이미 섰다. 남은 자리가 도어 폭보다 좁아 수납이 못 들어갈
-      //   뿐인데 "찾지 못했다" 고 하면 아무것도 안 된 줄 안다.
-      showToast(blinds.length
-        ? `멍장 ${blinds.length}개를 세웠습니다 — 남은 폭 ${Math.round(room)}mm 는 도어 ${corner.plan.doorW}mm 보다 좁습니다`
-        : '⚠ 자동계산이 배치를 찾지 못했습니다');
-      return blinds.length;
-    }
-
-    // W12-73: 잔여는 **도어 단위**로 나눈다. 모듈 단위로 나누면 양문 모듈(도어 2장)의
-    //   도어가 단문 모듈보다 작아지고, 나머지를 마지막에 몰면 도어 하나만 커진다.
-    //   모듈 하나당 1mm 는 **조립 여유**로 그냥 둔다 — 결합하면 실제 길이가 그만큼
-    //   늘어나므로 자리는 채워지고, 도어는 라인 전체가 같은 폭으로 남는다.
-    const widths = dist.modules.map((d) => d.w);
-    const N = widths.length;
-    if (dist.gap > 0 && N > 0) {
-      const spread = spreadGapEqually(dist.gap,
-        dist.modules.map((d) => d.doors || (d.is2D ? 2 : 1)), extraModules);
-      for (let i = 0; i < N; i++) widths[i] += spread.add[i];
-    }
-
     // 비고정 모듈만 걷어낸다.
     // 배열을 **제자리에서** 고친다 — 재할당하면 이 배열을 이미 붙잡고 있는 쪽이
     // 옛 배열을 계속 보게 된다 (테스트 하네스가 그래서 빈 결과를 봤다).
@@ -5626,16 +6036,98 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     orphanHostFinishings(areaId);
 
     // W12-64: 끝 배치를 **한 곳에서** 정한다. 왼쪽→오른쪽:
-    //   [예약][좌 마감재][머리 멍장][그 외 고정][수납…][꼬리 멍장][우 마감재][예약]
+    //   [예약][좌 마감재][머리 멍장][보존 모듈·수납…][꼬리 멍장][우 마감재][예약]
     //   예약 = 코너 쪽이면 벽 여유 50, 인접 쪽이면 밀려나는 거리. 마감재는 예약 안쪽,
     //   멍장 바깥에 선다 — 여유 50 은 벽 이격이라 그대로 두고 마감재는 장에 붙는다.
     //   예전엔 마감재 폭을 어느 끝이든 시작점에서 뺐고 멍장 위치는 마감재를 몰라,
     //   코너 끝 마감재가 멍장 안에 겹쳐 서고 반대쪽 끝이 그만큼 비었다.
+    //
+    // 2026-09-19: 보존(isFixed) 모듈은 **자리까지** 지킨다. 예전엔 보존 모듈을 모두
+    //   시작점으로 몰아붙이고 그 뒤를 채웠다 — 오른쪽 끝에 두었던 장이 왼쪽으로
+    //   옮겨 앉았다. '보존' 이라는 말과 다르다. 이제 제자리에 두고, 그 **사이에
+    //   남는 구간마다** 같은 분배 규칙을 돌린다.
     const edges = edgePlanOf(area, kept, blinds, adjCorner);
-    let x = edges.startX;
-    edges.otherFixed.forEach((m) => { m.x = x; x += m.W || 0; });
+    const spanL = edges.startX;
+    const spanR = Math.max(spanL, Number.isFinite(edges.tailAnchor) ? edges.tailAnchor : spanL + room);
+    const holds = seatHoldsInSpan(edges.otherFixed, spanL, spanR);
+    const segs = freeSegmentsIn(holds, spanL, spanR);
+    let made = 0;
+    let leftover = 0;
+    segs.forEach((seg) => {
+      const n = fillSegment(area, seg, blinds.length ? corner.plan.doorW : 0, extraModules);
+      if (!n) leftover += seg.w;
+      made += n;
+    });
+    if (leftover >= 1) {
+      showToast(`보존 모듈 사이 자투리 ${Math.round(leftover)}mm 는 도어 최소 ${MASTER_RULES.DOOR_W_MIN}mm 보다 좁아 비워 두었습니다`);
+    }
+    placeTail(spanR, edges);
+    applyDefaultAreaFinish(areaId);   // W12-35
+    saveStructModules();
+    persistPlannerState();
+    return made;
+  }
+
+  /**
+   * 보존 모듈을 구간 [L, R] 안에 앉힌다. **제 x 를 그대로 쓴다** — 왼쪽부터 훑으며
+   * 앞 모듈과 겹치거나 구간 밖으로 나가는 것만 밀어 넣는다. 폭은 건드리지 않는다
+   * (보존이므로). 합이 구간보다 넓으면 마지막 것들이 겹치는데, 그건 사람이
+   * 보존 폭을 너무 크게 잡은 것이라 자동계산이 고칠 일이 아니다 — 알리기만 한다.
+   */
+  function seatHoldsInSpan(list, L, R) {
+    let cursor = L;
+    const out = [];
+    let over = false;
+    (list || []).slice().sort((a, b) => (Number(a.x) || 0) - (Number(b.x) || 0)).forEach((m) => {
+      const w = Math.max(0, Number(m.W) || 0);
+      let x = Number.isFinite(Number(m.x)) ? Number(m.x) : cursor;
+      if (x < cursor) x = cursor;
+      if (x + w > R) { x = Math.max(cursor, R - w); over = over || (x + w > R + 0.5); }
+      m.x = x;
+      cursor = x + w;
+      out.push({ m, x, w });
+    });
+    if (over) showToast('⚠ 보존한 모듈의 폭 합계가 배치 공간보다 넓습니다 — 겹친 채로 두었습니다');
+    return out;
+  }
+
+  /** 보존 모듈 사이에 남는 빈 구간들 (왼쪽→오른쪽). */
+  function freeSegmentsIn(holds, L, R) {
+    const segs = [];
+    let x = L;
+    holds.forEach((h) => {
+      if (h.x - x > 0.5) segs.push({ x, w: h.x - x });
+      x = Math.max(x, h.x + h.w);
+    });
+    if (R - x > 0.5) segs.push({ x, w: R - x });
+    return segs;
+  }
+
+  /**
+   * 빈 구간 하나를 규칙대로 채운다. 분배는 예전과 같은 함수다 —
+   * 멍장이 있는 라인은 도어 폭이 묶여 있어 `distributeByDoorW`, 아니면 `distributeModules`.
+   * 도어 최소폭보다 좁은 자투리는 아무것도 세우지 않고 0 을 돌려준다.
+   */
+  function fillSegment(area, seg, doorW, extraModules) {
+    if (seg.w < MASTER_RULES.DOOR_W_MIN) return 0;
+    const dist = doorW
+      ? distributeByDoorW(seg.w, doorW, { extraModules })
+      : distributeModules(seg.w);
+    if (!dist.modules.length) return 0;
+    // W12-73: 잔여는 **도어 단위**로 나눈다. 모듈 단위로 나누면 양문 모듈(도어 2장)의
+    //   도어가 단문 모듈보다 작아지고, 나머지를 마지막에 몰면 도어 하나만 커진다.
+    //   모듈 하나당 1mm 는 **조립 여유**로 그냥 둔다 — 결합하면 실제 길이가 그만큼
+    //   늘어나므로 자리는 채워지고, 도어는 라인 전체가 같은 폭으로 남는다.
+    const widths = dist.modules.map((d) => d.w);
+    if (dist.gap > 0 && widths.length) {
+      const spread = spreadGapEqually(dist.gap,
+        dist.modules.map((d) => d.doors || (d.is2D ? 2 : 1)), extraModules);
+      for (let i = 0; i < widths.length; i++) widths[i] += spread.add[i];
+    }
+    let x = seg.x;
+    let made = 0;
     dist.modules.forEach((d, i) => {
-      const m = addModuleToArea(areaId, { section: area.section, W: widths[i], x });
+      const m = addModuleToArea(area.id, { section: area.section, W: widths[i], x });
       if (!m) return;
       const s = getStructure(m.id);
       // 양문이면 한 칸에 도어 두 장 — 방향 대신 'both' (#471 규칙)
@@ -5643,12 +6135,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       s.areaDirections = [d.is2D ? 'both' : 'left'];
       s.areaWidths = [widths[i]];
       x += widths[i];
+      made++;
     });
-    placeTail(x, edges);
-    applyDefaultAreaFinish(areaId);   // W12-35
-    saveStructModules();
-    persistPlannerState();
-    return dist.modules.length;
+    return made;
   }
 
   /**
@@ -7115,6 +7604,23 @@ window.dispatchEvent(new CustomEvent('three-ready'));
             T / 2 - zone.setback / 2);
           put(mol, { entityKind: 'wardrobeInnerMolding', moduleId: m.id });
         });
+        // 2026-09-19: 내부 서랍장은 **따로 만드는 모듈**이다 — 그 몸통(측판·천저판)을 그린다.
+        //   모듈 W = 통 내경 − 120 · H = 구역 높이 · D = 통 깊이 − 70 (앞선에서 물러선 만큼).
+        const mW = zone.moduleW;
+        const mD = zone.moduleD;
+        const mZ = D / 2 - zone.setback - mD / 2;
+        if (mW > 0 && mD > 0) {
+          [-1, 1].forEach((sgn) => {
+            const side = makeBox(T, zone.h, mD, color);
+            side.position.set(sgn * (mW / 2 - T / 2), legH + zone.y0 + zone.h / 2, mZ);
+            put(side, { entityKind: 'wardrobeInnerModule', moduleId: m.id });
+          });
+          [T / 2, zone.h - T / 2].forEach((dy) => {
+            const pan = makeBox(mW - 2 * T, T, zone.panelD, color);
+            pan.position.set(0, legH + zone.y0 + dy, mZ);
+            put(pan, { entityKind: 'wardrobeInnerModule', moduleId: m.id });
+          });
+        }
         // 전면 — 아래에서 위로. 빈 공간은 전면 사이에 그대로 남는다 (그리지 않는다)
         zone.fronts.forEach((f) => {
           const face = makeBox(f.w, f.h, T, darken3(color, 0.06));
@@ -7578,6 +8084,61 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (typeof renderFrontView === 'function') renderFrontView();
   }
   document.getElementById('doorToggleBtn').onclick = () => setDoorVisible(!doorVisible);
+
+  // ── ⚙ 설정 — 치수 변경 기준 ──────────────────────────────────
+  // 2026-09-19: 폭·높이·깊이를 바꿀 때 **어느 쪽을 그대로 둘지**. 기준 쪽은 움직이지
+  //   않고 반대쪽으로 자란다. 기준 쪽이 다 막혀 있으면 남은 만큼만 반대쪽에서 가져온다.
+  const ANCHOR_ROWS = [
+    ['W', '가로 (폭)', '기준 쪽 끝이 제자리에 남습니다'],
+    ['H', '높이',     '바닥에 선 장은 바닥을, 천장에 매달린 장은 천장을 놓지 않습니다'],
+    ['D', '깊이',     '앞선 기준이 기본입니다 — 상판 물끊기가 앞에 있어야 합니다'],
+  ];
+  function renderSettingsMenu() {
+    const menu = document.getElementById('settingsMenu');
+    if (!menu) return;
+    menu.innerHTML = `
+      <div class="pdm-stage"><span>치수 변경 기준</span></div>
+      <div class="pdm-note" style="padding:2px 9px 8px">
+        크기를 바꾸면 <b>기준 쪽은 그대로</b> 두고 반대쪽으로 늘어납니다.
+        늘어난 만큼 그쪽 이웃이 내주고, 줄인 만큼 이웃이 채웁니다.
+        보존(고정)한 모듈과 마감재는 건드리지 않습니다.
+      </div>
+      ${ANCHOR_ROWS.map(([k, label, note]) => `
+        <div class="pdm-stage" style="font-weight:600"><span>${label}</span></div>
+        <div class="pdm-scope">
+          ${['start', 'center', 'end'].map((v) => `
+            <button type="button" data-anchor="${k}" data-val="${v}"
+              class="${resizeAnchor[k] === v ? 'on' : ''}">${ANCHOR_LABEL[k][v]}</button>`).join('')}
+        </div>
+        <div class="pdm-note" style="padding:0 9px 6px">${note}</div>`).join('<div class="pdm-sep"></div>')}
+    `;
+    menu.querySelectorAll('button[data-anchor]').forEach((b) => {
+      b.onclick = () => {
+        const k = b.getAttribute('data-anchor');
+        resizeAnchor[k] = b.getAttribute('data-val');
+        saveAnchor();
+        renderSettingsMenu();
+        // 깊이 기준은 이미 놓인 모듈을 다시 앉힌다 — 설정과 화면이 어긋나면 안 된다.
+        if (k === 'D') { persistPlannerState(); renderFrontView(); }
+        renderRightPanel();
+        showToast(`✓ ${ANCHOR_ROWS.find((r) => r[0] === k)[1]} 기준 ${ANCHOR_LABEL[k][resizeAnchor[k]]}`);
+      };
+    });
+  }
+  (function bindSettingsMenu() {
+    const btn = document.getElementById('settingsBtn');
+    const menu = document.getElementById('settingsMenu');
+    if (!btn || !menu) return;
+    const close = () => { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+    btn.onclick = (ev) => {
+      ev.stopPropagation();
+      if (menu.hidden) { renderSettingsMenu(); menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); }
+      else close();
+    };
+    menu.addEventListener('click', (ev) => ev.stopPropagation());
+    document.addEventListener('click', () => { if (!menu.hidden) close(); });
+    document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') close(); });
+  })();
 
   // W9-108/121: 정면도 시점 회전 (0/90/180/270 — 정면/우측/뒷면/좌측)
   //   W9-121: 단일 ↻ 버튼을 ◀ ▶ 좌우 뷰 이동으로 분리
