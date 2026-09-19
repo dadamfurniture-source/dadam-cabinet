@@ -133,12 +133,18 @@ describe('모듈 크기 — 팔레트에만 있던 항목', () => {
   });
 
   test('새로고침을 견딘다', () => {
-    const { p, m } = withModule();
-    change(dimInput(p, 'D'), '650');
+    // 2026-09-19: 깊이는 배치 공간 앞선의 **물끊기 + 도어 자리**를 뺀 만큼까지다.
+    //   모듈을 만들 때 쓰는 상한(addModuleToArea)과 같은 값이라, 배치 깊이를 그대로
+    //   넣으면 그만큼 얕게 앉는다 — 안 그러면 도어가 배치 사각형 앞으로 튀어나온다.
+    const R = require('../js/planner/planner-engine').MASTER_RULES;
+    const { p, m, area } = withModule();
+    const usableD = area.D - R.CORNER_DRIP - R.DOOR_SEAT_D;
+    change(dimInput(p, 'D'), String(area.D));
+    expect(Math.round(p.g('modules').find((x) => x.id === m.id).D)).toBe(usableD);
     change(p.document.getElementById('chkFixed'), true);
     const again = boot(Object.assign(p.storage._dump(), { _search: '?design=gold&item=1' }));
     const back = again.g('modules').find((x) => x.id === m.id);
-    expect(Math.round(back.D)).toBe(650);
+    expect(Math.round(back.D)).toBe(usableD);
     expect(back.isFixed).toBe(true);
   });
 });

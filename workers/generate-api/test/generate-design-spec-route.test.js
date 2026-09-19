@@ -230,3 +230,36 @@ test('재생성에서 품목을 바꾸면 원본 요약을 조용히 버린다 (
   assert.equal(res.status, 202);
   assert.equal(calls.inserted.options.design_spec, null);
 });
+
+// ─────────────────────────────────────────────────────────────
+// 2026-09-19 실사화(realize): 첫 사진에 도면 입면이 이미 얹혀 있음. options.realize 로 잡에 간다.
+// ─────────────────────────────────────────────────────────────
+test('realize:true 면 options.realize 가 true 이고 잡에도 같이 간다', async () => {
+  install();
+  const res = await post({ room_image: ROOM_IMAGE, category: 'sink', realize: true });
+  assert.equal(res.status, 202);
+  assert.equal(calls.inserted.options.realize, true);
+  assert.equal(calls.jobStart.options.realize, true);
+});
+
+test('realize 를 안 보내면 options 에 키 자체가 없다 (옛 모양 그대로)', async () => {
+  install();
+  await post({ room_image: ROOM_IMAGE, category: 'sink' });
+  assert.equal('realize' in calls.inserted.options, false);
+});
+
+test('재생성은 원본의 realize 를 잇고, 요청이 false 를 주면 끈다', async () => {
+  const parent = {
+    id: '33333333-3333-4333-8333-333333333333',
+    user_id: USER_ID,
+    category: 'sink',
+    inputs: { room: { path: 'p/room.jpg', url: 'u', mime: 'image/jpeg' }, refs: [] },
+    options: { design_spec: null, realize: true },
+  };
+  install({ parent });
+  await post({ parent_id: parent.id });
+  assert.equal(calls.inserted.options.realize, true);
+  install({ parent });
+  await post({ parent_id: parent.id, realize: false });
+  assert.equal('realize' in calls.inserted.options, false);
+});
