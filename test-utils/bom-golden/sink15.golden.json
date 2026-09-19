@@ -127,7 +127,7 @@
       "thickness": 15,
       "w": 70,
       "h": 690,
-      "qty": 2,
+      "qty": 1,
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
@@ -314,30 +314,6 @@
     },
     {
       "module": "상부장-상부장(1D)",
-      "part": "밴드(처짐방지)",
-      "material": "PB",
-      "thickness": 15,
-      "w": 70,
-      "h": 690,
-      "qty": 1,
-      "edge": "2면(장)",
-      "note": "",
-      "finishCode": "",
-      "partId": "0-u2-body:brace#0-0",
-      "slot": "body",
-      "edges": {
-        "L": true,
-        "R": true,
-        "T": false,
-        "B": false
-      },
-      "edgeLen": 1380,
-      "edgeT": 0.6,
-      "edgeCode": null,
-      "itemLabel": "싱크대"
-    },
-    {
-      "module": "상부장-상부장(1D)",
       "part": "선반",
       "material": "PB",
       "thickness": 15,
@@ -511,7 +487,7 @@
       "thickness": 15,
       "w": 70,
       "h": 690,
-      "qty": 2,
+      "qty": 1,
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
@@ -679,7 +655,7 @@
       "thickness": 15,
       "w": 70,
       "h": 608,
-      "qty": 2,
+      "qty": 1,
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
@@ -823,7 +799,7 @@
       "thickness": 15,
       "w": 70,
       "h": 608,
-      "qty": 2,
+      "qty": 1,
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
@@ -1183,7 +1159,7 @@
       "thickness": 15,
       "w": 70,
       "h": 608,
-      "qty": 2,
+      "qty": 1,
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
@@ -1346,30 +1322,6 @@
     },
     {
       "module": "하부장-EL장",
-      "part": "밴드(처짐방지)",
-      "material": "PB",
-      "thickness": 15,
-      "w": 70,
-      "h": 608,
-      "qty": 1,
-      "edge": "2면(장)",
-      "note": "",
-      "finishCode": "",
-      "partId": "0-l4-body:brace#0-0",
-      "slot": "body",
-      "edges": {
-        "L": true,
-        "R": true,
-        "T": false,
-        "B": false
-      },
-      "edgeLen": 1216,
-      "edgeT": 0.6,
-      "edgeCode": null,
-      "itemLabel": "싱크대"
-    },
-    {
-      "module": "하부장-EL장",
       "part": "도어",
       "material": "MDF",
       "thickness": 18,
@@ -1484,30 +1436,6 @@
         "B": false
       },
       "edgeLen": 0,
-      "edgeT": 0.6,
-      "edgeCode": null,
-      "itemLabel": "싱크대"
-    },
-    {
-      "module": "하부장-오픈장",
-      "part": "밴드(처짐방지)",
-      "material": "PB",
-      "thickness": 15,
-      "w": 70,
-      "h": 608,
-      "qty": 1,
-      "edge": "2면(장)",
-      "note": "",
-      "finishCode": "",
-      "partId": "0-l5-body:brace#0-0",
-      "slot": "body",
-      "edges": {
-        "L": true,
-        "R": true,
-        "T": false,
-        "B": false
-      },
-      "edgeLen": 1216,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "싱크대"
@@ -1661,8 +1589,8 @@
     "PB_15": {
       "material": "PB",
       "thickness": 15,
-      "totalArea": 12198370,
-      "panelCount": 5
+      "totalArea": 11840670,
+      "panelCount": 4
     },
     "MDF_2.7": {
       "material": "MDF",
@@ -1685,7 +1613,7 @@
   },
   "edgeBanding": {
     "1": 30114,
-    "0.6": 122240
+    "0.6": 112020
   },
   "hardware": [
     {

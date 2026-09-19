@@ -121,7 +121,7 @@ describe('신발장 (shoerack) — 얕은 깊이 350 · 선반 분배 · 서랍 
     expect(rowOf(snap, '하부장-하부장', '지판').h).toBe(350);
     expect(rowOf(snap, '하부장-하부장', '선반').h).toBe(350 - 15);
     expect(rowOf(snap, '하부장-하부장', '밴드(처짐방지)').h).toBe(708 - 30 - 70);
-    expect(rowOf(snap, '하부장-하부장', '밴드(처짐방지)').qty).toBe(2); // W 900 ≥ 800
+    expect(rowOf(snap, '하부장-하부장', '밴드(처짐방지)').qty).toBe(1); // W 900 ≥ 800 → 1장 (모듈 중앙)
   });
 
   test('서랍 상자는 레일 350 으로 환산 — 측판 290 · 밑판 299, 전후판 428 ≤ 600 이라 하단보강 없음', () => {
@@ -159,7 +159,9 @@ describe('화장대 (vanity) — 18T · 찬넬(목찬넬 아님) · 우측 None'
   });
 
   test('목찬넬이 아니면 처짐방지 −70 없음, EP 목찬넬 없음 (서랍장 목찬넬 120 은 서랍 규칙이라 남는다)', () => {
-    expect(rowOf(snap, '하부장-하부장', '밴드(처짐방지)').h).toBe(708 - 36);
+    // 서랍장(W 800 ≥ 800)에만 처짐방지가 있다 — 하부장(600)은 문턱 미만이라 부재가 없다 (2026-09-19)
+    expect(rowOf(snap, '하부장-서랍장', '밴드(처짐방지)').h).toBe(708 - 36);
+    expect(partsOf(snap, '하부장-하부장')).not.toContain('밴드(처짐방지)');
     expect(partsOf(snap, 'EP')).toEqual(['상몰딩', '걸레받이', '휠라(좌)']);
     expect(partsOf(snap, '하부장-서랍장')).toContain('목찬넬');
   });
@@ -187,7 +189,9 @@ describe('수납장 (storage) — 통짜 키큰장 · 깊이 400 · 서랍 1', (
 
   test('통짜 키큰장은 sink.md §5.1 단 부재표(좌대 상자·상몰딩·목찬넬 그 단에), 선반 4 명시, 도어 H−30 ×2', () => {
     const parts = partsOf(snap, '키큰장(TL)');
-    expect(parts).toEqual(expect.arrayContaining(['측판', '지판', '밴드', '뒷판', '밴드(처짐방지)', '선반', '도어', '목찬넬(전면)', '목찬넬(지면)', '상몰딩']));
+    expect(parts).toEqual(expect.arrayContaining(['측판', '지판', '밴드', '뒷판', '선반', '도어', '목찬넬(전면)', '목찬넬(지면)', '상몰딩']));
+    // 처짐방지는 W 600 < 800 이라 없다 — 키큰장 단도 하부장 문턱을 탄다 (2026-09-19)
+    expect(parts).not.toContain('밴드(처짐방지)');
     expect(rowOf(snap, '키큰장(TL)', '선반').qty).toBe(4);
     expect(rowOf(snap, '키큰장(TL)', '도어')).toMatchObject({ qty: 2, h: 2190 - 30, w: 296 });
     expect(partsOf(snap, '키큰장(TL)-좌대')).toEqual(['좌대 전후', '좌대 측', '좌대 걸레받이']);

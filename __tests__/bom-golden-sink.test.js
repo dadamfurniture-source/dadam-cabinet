@@ -31,10 +31,11 @@ describe('BOM 골든 — 싱크대 15T (sink15)', () => {
 
   test('픽스처가 의도한 가지를 실제로 건다 (골든이 빈 가지를 동결하지 않도록)', () => {
     const parts = (mod) => snap.materials.filter((m) => m.module === mod).map((m) => m.part);
-    // 상부: 후드는 몸통 없음, 1D(600) 는 처짐방지 1, 2D(900) 는 2
+    // 상부: 후드는 몸통 없음. 처짐방지는 W≥700 인 모듈에만 1장 — 1D(600) 는 없고 2D(900) 는 1장
+    //   (2026-09-19: 문턱은 장수가 아니라 유무다. 예전엔 1D 1장 · 2D 2장이었다)
     expect(snap.materials.some((m) => /후드/.test(m.module))).toBe(false);
-    expect(snap.materials.find((m) => m.module === '상부장-상부장(1D)' && m.part === '밴드(처짐방지)').qty).toBe(1);
-    expect(snap.materials.find((m) => m.module === '상부장-상부장(2D)' && m.part === '밴드(처짐방지)').qty).toBe(2);
+    expect(snap.materials.find((m) => m.module === '상부장-상부장(1D)' && m.part === '밴드(처짐방지)')).toBeUndefined();
+    expect(snap.materials.find((m) => m.module === '상부장-상부장(2D)' && m.part === '밴드(처짐방지)').qty).toBe(1);
     // 하부: 개수대·EL·오픈은 선반 없음, 2D 는 있음
     expect(parts('하부장-개수대')).not.toContain('선반');
     expect(parts('하부장-EL장')).not.toContain('선반');

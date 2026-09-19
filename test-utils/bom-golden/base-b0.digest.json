@@ -1,5 +1,5 @@
 {
-  "note": "B0 골든(#633)에서 B1 새 키·edgeBanding·cncHead 를 뺀 모양의 sha256. 갱신: UPDATE_BASE_DIGEST=1 npx jest __tests__/bom-golden-addonly.test.js",
+  "note": "B0 골든(#633)에서 B1 새 키·edgeBanding·cncHead 를 뺀 모양의 sha256. 2026-09-19 재굳힘 — 처짐방지목 규칙 확정(사장님): 폭 문턱은 **장수가 아니라 유무**다. 상부장 W≥700 · 하부장·키큰장 단 W≥800 인 모듈에만 1장(모듈 중앙), 미만이면 부재가 없다. 예전엔 문턱 이상 2장·미만 1장이었다. 바뀐 값은 밴드(처짐방지) 행의 qty 와 그 행의 유무뿐이다. 갱신: UPDATE_BASE_DIGEST=1 npx jest __tests__/bom-golden-addonly.test.js",
   "baseRowKeys": [
     "module",
     "part",
@@ -22,9 +22,9 @@
     "edgeCode"
   ],
   "digests": {
-    "sink15": "2c48fb6d4f139c7f418fabe8b085d55d7468d13ce17ede5957386a04be51a00f",
-    "sink18": "713608b302df53e33ea48b9b7cc564e1323f70d96d5bb7cba53e7d451bd9cd29",
-    "sinkCorner": "b26c7ad5516b25e0fcbdbf3a2a6d29d5e45d18440a6f3399beb266fc59782f73",
+    "sink15": "edd1004db8835d6a45a7790ceeef0055884df35cc27e1d6bb8cc8aa7656f2f60",
+    "sink18": "79a628d920c0d0a8ed15391d34f2b06136af38dafc27832c717ca048f4e942f6",
+    "sinkCorner": "fc9bf246207518420e42c6759f52909db172e666abcebb47938fbbe85938ec13",
     "wardrobe": "016299c5cea796cc6892fc763c147f4d2a02d7a5348f1653f617bf5b8d34078a",
     "fridge": "28eba9e95cd63cbcbf56632401357ba8a9841337f9bbc87578ca5b01832f1b6b"
   }
