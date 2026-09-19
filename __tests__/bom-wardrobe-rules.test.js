@@ -304,26 +304,43 @@ describe('내부 서랍 (2026-09-19 확정)', () => {
     });
   });
 
-  test('빈 공간 수는 일반 하부장 목찬넬 갯수와 같다 — 1단 1 · 2단 2 · 3단 2 · 4단 3', () => {
+  test('빈 공간 수는 최소다 — ceil(단수/2): 1단 1 · 2단 1 · 3단 2 · 4단 2', () => {
+    // 2026-09-19 사장님 확정: 상단 빈 공간이 필수가 아니다. 하나가 위·아래 두 전면을 열므로
+    //   경계에 짝지어 놓으면 ceil(n/2) 로 끝난다.
+    expect([1, 2, 3, 4, 5].map((n) => inner(n).slots)).toEqual([1, 1, 2, 2, 3]);
+    [1, 2, 3, 4, 5].forEach((n) => expect(inner(n).slots).toBe(Math.ceil(n / 2)));
+    // 하부장 목찬넬 규칙과는 갈린다 — 그쪽은 연속 EP 때문에 상단이 늘 있다
     const DR = require('../js/detaildesign/bom-drawer-rules.js');
-    [1, 2, 3, 4].forEach((n) => {
-      expect(inner(n).slots).toBe(DR.channelCountFor(n));
-    });
-    expect([1, 2, 3, 4].map((n) => inner(n).slots)).toEqual([1, 2, 2, 3]);
+    expect(inner(2).slots).toBeLessThan(DR.channelCountFor(2));
+    expect(inner(4).slots).toBeLessThan(DR.channelCountFor(4));
+  });
+
+  test('단수가 짝수면 상단 빈 공간이 없다 — 꼭 맨 위에 있을 이유가 없다', () => {
+    expect(inner(2).hasTopSlot).toBe(false);
+    expect(inner(4).hasTopSlot).toBe(false);
+    expect(inner(1).hasTopSlot).toBe(true);   // 짝이 없는 한 장
+    expect(inner(3).hasTopSlot).toBe(true);
+    // 상단이 없으면 맨 위 전면이 모듈 천판에 붙는다 (구역 상단에 트림 4 만 남는다)
+    const L = inner(2);
+    const top = L.fronts[L.fronts.length - 1];
+    expect(L.moduleHi - (top.y0 + top.h)).toBe(I.FRONT_TRIM);
   });
 
   test('전면은 아래에서 위로 쌓이고 빈 공간이 사이에 들어간다 (나머지는 맨 위가 먹는다)', () => {
     const L = inner(4);
     let y = 0;
     L.fronts.forEach((f) => { expect(f.y0).toBeGreaterThanOrEqual(y); y = f.y0 + f.h; });
-    // 4단은 경계 빈 공간이 둘 (assignChannels [true,false,true]) + 상단 하나 = 3
-    expect(L.slots).toBe(3);
+    // 4단은 경계 빈 공간 둘로 끝난다 — 상단은 쓰지 않는다
+    expect(L.slots).toBe(2);
+    expect(L.hasTopSlot).toBe(false);
     const gaps = L.fronts.slice(1).map((f, i) => f.y0 - (L.fronts[i].y0 + L.fronts[i].h));
-    expect(gaps.filter((g) => g === I.HANDLE_SLOT)).toHaveLength(2);
+    expect(gaps).toEqual([I.HANDLE_SLOT, 0, I.HANDLE_SLOT]);
+    // 나머지는 맨 위가 먹는다
+    expect(L.fronts.map((f) => f.h)).toEqual([326, 326, 326, 328]);
   });
 
   test('자리가 안 나오면 전면을 내지 않고 경고한다', () => {
-    const tight = inner(4, 300);            // 4단인데 구역이 300 밖에 없다
+    const tight = inner(4, 240);            // 4단인데 구역이 240 밖에 없다
     expect(tight.fronts).toHaveLength(0);
     expect(tight.warnings.length).toBeGreaterThan(0);
     // 통이 너무 좁아 몰딩 둘이 안 들어가는 경우
@@ -341,7 +358,7 @@ describe('내부 서랍 (2026-09-19 확정)', () => {
     const front = rows.find((r) => r.part === '내부서랍 전면판');
     const mol = rows.find((r) => r.part === '내부서랍 좌우몰딩');
     expect(front).toMatchObject({ material: 'PB', t: 15, w: 746, qty: 2, edge: '4면' });
-    expect(front.note).toMatch(/빈 공간 30 × 2/);
+    expect(front.note).toMatch(/빈 공간 30 × 1/);   // 2단은 경계 하나로 끝난다
     expect(mol).toMatchObject({ material: 'PB', t: 15, w: 700, h: 60, qty: 2 });
     expect(mol.note).toMatch(/70 안쪽/);
     // 같은 높이 전면은 한 줄로 묶는다
@@ -541,5 +558,131 @@ describe('브라우저·Node 양쪽에서 읽힌다', () => {
     expect(src).toContain('root.DadamWardrobeRules = api');
     expect(src).toContain('module.exports = api');
     expect(typeof WR.layoutWardrobeModule).toBe('function');
+  });
+});
+
+describe('내부 서랍장은 따로 만드는 모듈이다 (2026-09-19 확정)', () => {
+  const I = R.INNER_DRAWER;
+  const DR = require('../js/detaildesign/bom-drawer-rules.js');
+  const inner = (n, o) => WR.innerDrawerLayout(Object.assign(
+    { Wi: 870, zoneH: n * R.DRAWER_MOD_H, drawers: n, T: 15, D: 620 }, o));
+
+  // ── 1. 손잡이 빈 공간은 모든 전면에 닿아야 한다 ────────────────
+  //   빈 공간 하나가 위·아래 두 전면을 함께 연다. 어느 전면도 빠지면 그 서랍은 열 수 없다.
+  //   사장님이 3단 도면에서 잡아낸 결함이다 — `assignChannels` 는 위→아래 순서라서
+  //   아래→위로 쌓는 이쪽에서 뒤집지 않으면 빈 공간이 위로 몰리고 맨 아래가 고립된다.
+  test('모든 전면이 손잡이 빈 공간 하나에 닿는다 — 맨 아래 서랍도 열린다', () => {
+    [1, 2, 3, 4, 5].forEach((n) => {
+      const L = inner(n);
+      L.fronts.forEach((f) => {
+        expect(f.slotAbove || f.slotBelow).toBe(true);
+      });
+      expect(L.warnings).toEqual([]);
+    });
+  });
+
+  test('3단은 아래 두 전면이 빈 공간 하나를 나눠 쓴다 (위로 몰지 않는다)', () => {
+    const L = inner(3);                     // 아래에서 위로 f0 · f1 · f2
+    expect(L.slots).toBe(2);                // 상단 하나 + 경계 하나
+    expect(L.fronts[0].slotAbove).toBe(true);   // f0 위의 빈 공간이 f0·f1 을 함께 연다
+    expect(L.fronts[1].slotBelow).toBe(true);
+    expect(L.fronts[2].slotAbove).toBe(true);   // 맨 위는 상단 빈 공간
+    // 빈 공간은 f0·f1 사이에만 있다 — f1·f2 사이는 붙어 있다
+    const gap01 = L.fronts[1].y0 - (L.fronts[0].y0 + L.fronts[0].h);
+    const gap12 = L.fronts[2].y0 - (L.fronts[1].y0 + L.fronts[1].h);
+    expect(gap01).toBe(I.HANDLE_SLOT);
+    expect(gap12).toBe(0);
+  });
+
+  test('빈 공간 배치는 아래에서 짝을 지어 최소로 잡는다', () => {
+    expect(WR.innerSlotPlan(1)).toMatchObject({ midBelow: [], top: true, slots: 1 });
+    expect(WR.innerSlotPlan(2)).toMatchObject({ midBelow: [true], top: false, slots: 1 });
+    expect(WR.innerSlotPlan(3)).toMatchObject({ midBelow: [true, false], top: true, slots: 2 });
+    expect(WR.innerSlotPlan(4)).toMatchObject({ midBelow: [true, false, true], top: false, slots: 2 });
+    // 더 적게는 안 된다 — 경계 하나가 최대 두 장을 열므로 ceil(n/2) 가 하한이다
+    [1, 2, 3, 4, 5, 6].forEach((n) => {
+      const plan = WR.innerSlotPlan(n);
+      expect(plan.slots).toBe(Math.ceil(n / 2));
+    });
+  });
+
+  // ── 2. 모듈 치수 ─────────────────────────────────────────────
+  test('모듈 W = 통 내경 − 120 · H = 단수 × 350 · D = 통 깊이 − 70', () => {
+    [1, 2, 3, 4].forEach((n) => {
+      const L = inner(n);
+      expect(L.moduleW).toBe(870 - 2 * I.SIDE_MOLDING_W);   // 750 — 경첩 몰딩 60+60
+      expect(L.moduleH).toBe(n * R.DRAWER_MOD_H);
+      expect(L.moduleD).toBe(620 - I.FRONT_SETBACK);        // 550 — 앞선에서 물러선 만큼
+    });
+  });
+
+  test('도어 W = 서랍 모듈 W − 4', () => {
+    expect(inner(2).frontW).toBe(inner(2).moduleW - 4);
+    // 통이 커지면 모듈도 같이 커진다 (고정치가 아니다)
+    const wide = WR.innerDrawerLayout({ Wi: 1170, zoneH: 700, drawers: 2, T: 15, D: 620 });
+    expect(wide.moduleW).toBe(1050);
+    expect(wide.frontW).toBe(1046);
+  });
+
+  test('몸통은 일반 모듈과 같은 구성 — 측판·천판·지판·뒷판·밴드', () => {
+    const rows = WR.innerDrawerModulePartsOf(inner(2));
+    const by = (name) => rows.filter((r) => r.part === name);
+    expect(rows.map((r) => r.part)).toEqual(expect.arrayContaining(
+      ['측판', '천판', '지판', '뒷판', '밴드']));
+
+    const side = by('측판')[0];
+    expect([side.w, side.h, side.qty, side.t]).toEqual([550, 700, 2, 15]);  // 깊이 × 구역 높이
+    // 천판은 모듈의 상판 개념 — 깊이가 붙박이장 **선반**과 같다 (2026-09-19 확정)
+    const top = by('천판')[0];
+    expect([top.w, top.h, top.qty]).toEqual([720, WR.shelfDepthOf({ D: 620 }), 1]);
+    expect(top.h).toBe(532);
+    expect(by('지판')[0]).toMatchObject({ w: 720, h: 532, qty: 1 });
+    expect(by('뒷판')[0]).toMatchObject({ material: 'MDF', t: 2.7, w: 730, h: 699, qty: 1 });
+    expect(by('밴드')[0]).toMatchObject({ w: 720, h: 70, qty: 2 });
+  });
+
+  test('측판 높이·뒷판이 단수를 따라간다 — 1단 고정치가 아니다', () => {
+    const h = (n) => WR.innerDrawerModulePartsOf(inner(n)).find((r) => r.part === '측판').h;
+    expect([1, 2, 3, 4].map(h)).toEqual([350, 700, 1050, 1400]);
+  });
+
+  // ── 3. 박스는 서랍 규칙이 낸다 ────────────────────────────────
+  test('서랍 박스는 모듈 치수를 서랍 규칙에 넣어서 낸다', () => {
+    const L = inner(2);
+    const b = L.boxes[0];
+    const dims = DR.drawerBoxDims({ W: L.moduleW, D: L.moduleD, bodyT: 15, drawerT: 15,
+      rail: 'under', boxH: DR.pickBox(L.fronts[0].h, 'under').h, sakuri: false });
+    expect(b.fbW).toBe(dims.fbW);
+    expect(b.sideL).toBe(dims.sideL);
+    expect(b.railLength).toBe(DR.railLengthFor(L.moduleD));   // 550 → 500
+    // 규칙값: 앞뒷판 = 750 − 2×15 − 2×15 − 12 (언더레일). 옛 코드는 −120 을 빼먹어 708 이었다.
+    expect(b.fbW).toBe(678);
+    expect(b.sideL).toBe(490);
+  });
+
+  test('박스 부재가 모듈 부재에 같이 나온다 — 전후판·측판·우라·하단보강', () => {
+    const rows = WR.innerDrawerModulePartsOf(inner(2));
+    const by = (name) => rows.find((r) => r.part === name);
+    expect(by('서랍전후판')).toMatchObject({ w: 678, h: 180, qty: 4 });   // 2단 × 앞·뒤
+    expect(WR.innerDrawerModulePartsOf(inner(2)).find((r) => r.part === '천판').h)
+      .toBe(WR.shelfDepthOf({ D: 620 }));
+    expect(by('서랍측판')).toMatchObject({ w: 490, h: 180, qty: 4 });
+    expect(by('서랍밑판')).toMatchObject({ material: 'MDF', t: 2.7, w: 707, h: 489, qty: 2 });
+    // 전후판 가로가 600 을 넘으면 하단보강 — 규칙 안에서 같이 나온다 (BOM 이 또 내면 두 번이다)
+    expect(by('서랍 하단보강')).toMatchObject({ w: 490, h: 60, qty: 2 });
+  });
+
+  test('전면이 좁아 박스가 안 들어가면 경고한다', () => {
+    const L = WR.innerDrawerLayout({ Wi: 870, zoneH: 240, drawers: 2, T: 15, D: 620 });
+    expect(L.fronts).toHaveLength(2);
+    expect(L.warnings.join()).toMatch(/박스/);
+  });
+
+  test('배치가 모듈 치수를 같이 실어 보낸다 — 플래너·BOM 이 같은 숫자를 본다', () => {
+    const L = WR.layoutWardrobeModule({ W: 900, D: 620, preset: 'longDrawer' });
+    const zone = WR.cabinetsOf(L).map((c) => c.drawerZone).find(Boolean);
+    expect(zone).toMatchObject({ moduleW: 750, moduleD: 550, setback: 70, moldingW: 60 });
+    expect(zone.moduleH).toBe(L.drawers * R.DRAWER_MOD_H);
+    expect(zone.boxes.length).toBe(L.drawers);
   });
 });

@@ -1285,6 +1285,12 @@
             const innerRows = (innerZone && WardrobeRules)
               ? WardrobeRules.innerDrawerPartsOf(innerZone)
               : [];
+            // 2026-09-19 사장님 확정: 내부 서랍은 **모듈을 따로 만든다** — 만드는 방식은 일반 모듈과 같고
+            //   모듈 W = 통 내경 − 120 (경첩 몰딩 60+60) · H = 단수 × 350 · D = 통 깊이 − 70 이다.
+            //   몸통(측판·천판·지판·뒷판·밴드)과 박스(전후판·측판·우라)를 규칙 파일이 낸다.
+            const innerModRows = (innerZone && WardrobeRules && WardrobeRules.innerDrawerModulePartsOf)
+              ? WardrobeRules.innerDrawerModulePartsOf(innerZone)
+              : [];
             const isDivided = modType === 'short' || modType === 'shelf';
             const rawName = mod.name || `${idx + 1}번`;
             const name = `${prefix}${rawName}`;
@@ -1343,18 +1349,22 @@
                   this.add(materials, `${name}-서랍모듈`, '서랍전후판', 'PB', T, drawerFBW, 180, drawerCount * 2, '1면(장)');
                   this.add(materials, `${name}-서랍모듈`, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(장)');
                   this.add(materials, `${name}-서랍모듈`, '서랍밑판', 'MDF', 2.7, W - 30 - 13, 449, drawerCount, '-');
+                } else if (innerModRows.length) {
+                  // 내부 서랍장 — **따로 만드는 모듈**이다. 몸통·박스 모두 규칙 파일 치수다.
+                  //   옛 코드는 서랍 1단짜리 고정치(측판 350×500 · 박스 440×180)라 단수가 늘어도 그대로였다.
+                  innerModRows.forEach((row) => {
+                    this.add(materials, `${name}-내부서랍모듈`, row.part, row.material, row.t,
+                      row.w, row.h, row.qty, row.edge, row.note || '');
+                  });
                 } else {
-                  // 내부 서랍 자재 (전후판 -120 추가)
+                  // 옛 설계(규칙 블록 없음) — 1단 기준 고정치를 그대로 쓴다
                   this.add(materials, `${name}`, '서랍전후판', 'PB', T, drawerFBW, 180, drawerCount * 2, '1면(장)');
                   this.add(materials, `${name}`, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(장)');
                   this.add(materials, `${name}`, '서랍밑판', 'MDF', 2.7, W - 30 - 13, 449, drawerCount, '-');
-                  // 내부 서랍모듈 프레임 (모듈 기준 엣지)
                   this.add(materials, `${name}`, '내부서랍 상판', 'PB', T, W - 30, 520, 1, '1면(전)');
                   this.add(materials, `${name}`, '내부서랍 측판', 'PB', T, 350, 500, 2, '3면');
                   this.add(materials, `${name}`, '내부서랍 지판', 'PB', T, W - 30 - 120, 500, 1, '1면(전)');
                   this.add(materials, `${name}`, '내부서랍 밴드', 'PB', T, W - 30 - 120, 70, 2, '2면(장)');
-                  // 2026-09-19: 전면판·좌우몰딩은 규칙 파일이 정한다 (innerDrawerLayout).
-                  //   옛 값은 서랍 1단짜리 고정치(298 · 350×60)라 단수가 늘면 맞지 않았다.
                   if (!innerRows.length) {
                     this.add(materials, `${name}`, '내부서랍 좌우몰딩', 'PB', T, 350, 60, 2, '2면(장)');
                     this.add(materials, `${name}`, '내부서랍 전면판', 'PB', T, W - 30 - 120 - 6, 298, 1, '4면');
@@ -1362,7 +1372,8 @@
                 }
                 // 서랍 전후판 가로 600 초과 시 하단 보강재
                 const bogangModule = isExternalDrawer ? `${name}-서랍모듈` : `${name}`;
-                if (drawerFBW > 600) {
+                // 내부 서랍을 모듈로 낼 때는 하단보강도 그 안에 있다 — 여기서 또 내면 두 번 나온다.
+                if (drawerFBW > 600 && (isExternalDrawer || !innerModRows.length)) {
                   this.add(materials, bogangModule, '서랍 하단보강', 'PB', T, 440, 60, drawerCount, '2면(장)');
                 }
               }
@@ -1424,18 +1435,22 @@
                   this.add(materials, `${name}-서랍모듈`, '서랍전후판', 'PB', T, drawerFBW, 180, drawerCount * 2, '1면(장)');
                   this.add(materials, `${name}-서랍모듈`, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(장)');
                   this.add(materials, `${name}-서랍모듈`, '서랍밑판', 'MDF', 2.7, W - 30 - 13, 449, drawerCount, '-');
+                } else if (innerModRows.length) {
+                  // 내부 서랍장 — **따로 만드는 모듈**이다. 몸통·박스 모두 규칙 파일 치수다.
+                  //   옛 코드는 서랍 1단짜리 고정치(측판 350×500 · 박스 440×180)라 단수가 늘어도 그대로였다.
+                  innerModRows.forEach((row) => {
+                    this.add(materials, `${name}-내부서랍모듈`, row.part, row.material, row.t,
+                      row.w, row.h, row.qty, row.edge, row.note || '');
+                  });
                 } else {
-                  // 내부 서랍 자재 (전후판 -120 추가)
+                  // 옛 설계(규칙 블록 없음) — 1단 기준 고정치를 그대로 쓴다
                   this.add(materials, `${name}`, '서랍전후판', 'PB', T, drawerFBW, 180, drawerCount * 2, '1면(장)');
                   this.add(materials, `${name}`, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(장)');
                   this.add(materials, `${name}`, '서랍밑판', 'MDF', 2.7, W - 30 - 13, 449, drawerCount, '-');
-                  // 내부 서랍모듈 프레임 (모듈 기준 엣지)
                   this.add(materials, `${name}`, '내부서랍 상판', 'PB', T, W - 30, 520, 1, '1면(전)');
                   this.add(materials, `${name}`, '내부서랍 측판', 'PB', T, 350, 500, 2, '3면');
                   this.add(materials, `${name}`, '내부서랍 지판', 'PB', T, W - 30 - 120, 500, 1, '1면(전)');
                   this.add(materials, `${name}`, '내부서랍 밴드', 'PB', T, W - 30 - 120, 70, 2, '2면(장)');
-                  // 2026-09-19: 전면판·좌우몰딩은 규칙 파일이 정한다 (innerDrawerLayout).
-                  //   옛 값은 서랍 1단짜리 고정치(298 · 350×60)라 단수가 늘면 맞지 않았다.
                   if (!innerRows.length) {
                     this.add(materials, `${name}`, '내부서랍 좌우몰딩', 'PB', T, 350, 60, 2, '2면(장)');
                     this.add(materials, `${name}`, '내부서랍 전면판', 'PB', T, W - 30 - 120 - 6, 298, 1, '4면');
@@ -1443,7 +1458,8 @@
                 }
                 // 서랍 전후판 가로 600 초과 시 하단 보강재
                 const bogangModule = isExternalDrawer ? `${name}-서랍모듈` : `${name}`;
-                if (drawerFBW > 600) {
+                // 내부 서랍을 모듈로 낼 때는 하단보강도 그 안에 있다 — 여기서 또 내면 두 번 나온다.
+                if (drawerFBW > 600 && (isExternalDrawer || !innerModRows.length)) {
                   this.add(materials, bogangModule, '서랍 하단보강', 'PB', T, 440, 60, drawerCount, '2면(장)');
                 }
               }
