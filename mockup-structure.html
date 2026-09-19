@@ -2431,21 +2431,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (type === 'open') lab.setAttribute('fill', cfg.stroke);
       content.appendChild(lab);
 
-      // W9-101: 양문 (is2D) — 가운데 갭 4mm + 처짐방지목 표시
+      // W9-101: 양문 (is2D) — 가운데 갭 4mm
+      // 2026-09-19: 처짐방지목은 여기서 그리지 않는다 — 칸이 아니라 **모듈**의 부재라
+      //   아래 모듈 단위 블록이 그린다 (3D addBraces 와 같은 규칙).
       if (type === 'door' && is2D) {
-        const GAP = MASTER_RULES.DOOR_GAP;
-        const braceW = MASTER_RULES.BAND_BRACE_W;
-        // 가운데 처짐방지목 외곽 (얇은 회색 stroke)
-        const brace = document.createElementNS(ns, 'rect');
-        brace.setAttribute('x', x + colW/2 - braceW/2);
-        brace.setAttribute('y', topY + 4);
-        brace.setAttribute('width', braceW);
-        brace.setAttribute('height', topH - 8);
-        brace.setAttribute('fill', cfg.stroke);
-        brace.setAttribute('opacity', 0.15);
-        brace.setAttribute('stroke', '#000');
-        brace.setAttribute('stroke-width', 1);
-        content.appendChild(brace);
         // 가운데 갭 (4mm) — 두꺼운 검은 라인
         const gap = document.createElementNS(ns, 'line');
         gap.setAttribute('x1', x + colW/2); gap.setAttribute('y1', topY);
@@ -2630,6 +2619,34 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           arrow.textContent = '▶';
         }
         content.appendChild(arrow);
+      }
+    }
+
+    // 처짐방지목 — 3D `addBraces` 와 **같은 규칙**을 그린다 (2026-09-19 사장님 확정).
+    //   폭 문턱(상부 700 · 하부·키큰장 단 800) 이상인 모듈에만 한 장, **모듈 중앙**.
+    //   기준은 칸이 아니라 모듈이다 — 예전엔 양문 칸마다 칸 가운데에 그려서, 750 짜리 하부 칸처럼
+    //   양문이지만 문턱 미만인 모듈에 없는 부재가 보였고 여러 칸이면 칸 수만큼 그려졌다.
+    //   세로 범위도 도어 칸이 아니라 몸통이다 — 지판 위에서 천판 아래까지, 목찬넬이면 따내기 70 만큼 짧게.
+    if (['lower', 'upper', 'tall'].indexOf(m.section) >= 0) {
+      const braceWMin = m.section === 'upper'
+        ? MASTER_RULES.SINK_BAND_W_MIN_UPPER : MASTER_RULES.SINK_BAND_W_MIN_LOWER;
+      const braceBodyH = bodyHeightOf(m, s);
+      const braceCut = isWoodChannel(m, s) ? MASTER_RULES.CHANNEL_NOTCH_H : 0;
+      const braceH = braceBodyH - 2 * BODY_T - braceCut;
+      if ((m.W || 0) >= braceWMin && braceH > 0) {
+        const braceW = MASTER_RULES.BAND_BRACE_W;
+        const braceTop = offsetY + Math.max(0, m.H - baseOffsetOf(m, s) - braceBodyH) + BODY_T + braceCut;
+        const brace = document.createElementNS(ns, 'rect');
+        brace.setAttribute('x', offsetX + m.W / 2 - braceW / 2);
+        brace.setAttribute('y', braceTop);
+        brace.setAttribute('width', braceW);
+        brace.setAttribute('height', braceH);
+        brace.setAttribute('fill', cfg.stroke);
+        brace.setAttribute('opacity', 0.15);
+        brace.setAttribute('stroke', '#000');
+        brace.setAttribute('stroke-width', 1);
+        brace.setAttribute('pointer-events', 'none');
+        content.appendChild(brace);
       }
     }
 
