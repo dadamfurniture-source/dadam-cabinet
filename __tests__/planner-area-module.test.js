@@ -634,6 +634,84 @@ describe('영역 자동계산', () => {
   });
 });
 
+describe('자동계산은 보존 모듈의 자리를 지킨다', () => {
+  // 2026-09-19: 예전엔 보존 모듈을 전부 시작점으로 몰아붙이고 그 뒤를 채웠다 —
+  //   오른쪽 끝에 두었던 장이 왼쪽으로 옮겨 앉았다. '보존' 이라는 말과 다르다.
+  //   이제 제자리에 두고 그 **사이에 남는 구간마다** 같은 분배 규칙을 돌린다.
+  const engine = require('../js/planner/planner-engine');
+
+  function areaWith(p, id, W) {
+    const a = { id, section: 'lower', W, H: 870, D: 700, x: 0, y: 0, rotation: 0 };
+    p.g('areas').push(a);
+    return a;
+  }
+  function mods(p, areaId) {
+    return p.g('modules').filter((m) => m.areaId === areaId && !m.isFinishing)
+      .slice().sort((a, b) => (a.x || 0) - (b.x || 0));
+  }
+  /** 겹치지 않는가 — 자리를 지키는 것이 의미가 있으려면 이것이 같이 성립해야 한다. */
+  function noOverlap(list) {
+    for (let i = 1; i < list.length; i++) {
+      if ((list[i].x || 0) < (list[i - 1].x || 0) + list[i - 1].W - 0.5) return false;
+    }
+    return true;
+  }
+
+  test('오른쪽 끝에 둔 보존 모듈은 그 자리에 남는다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = areaWith(p, 'area-hold-right', 2400);
+    const keep = p.g('addModuleToArea')(area.id, { section: 'lower', W: 600, x: 1800 });
+    keep.isFixed = true;
+    p.g('autoCalcArea')(area.id);
+    const all = mods(p, area.id);
+    expect(keep.x).toBe(1800);
+    expect(all[all.length - 1]).toBe(keep);
+    expect(noOverlap(all)).toBe(true);
+    expect(all.reduce((s, m) => s + m.W, 0)).toBe(2400);   // 왼쪽 1800 을 빈틈없이 채운다
+  });
+
+  test('가운데 보존 모듈은 양옆이 각각 채워진다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = areaWith(p, 'area-hold-mid', 2400);
+    const keep = p.g('addModuleToArea')(area.id, { section: 'lower', W: 600, x: 900 });
+    keep.isFixed = true;
+    p.g('autoCalcArea')(area.id);
+    const all = mods(p, area.id);
+    expect(keep.x).toBe(900);
+    expect(noOverlap(all)).toBe(true);
+    expect(all.filter((m) => m.x < 900).reduce((s, m) => s + m.W, 0)).toBe(900);
+    expect(all.filter((m) => m.x >= 1500).reduce((s, m) => s + m.W, 0)).toBe(900);
+    expect(all.reduce((s, m) => s + m.W, 0)).toBe(2400);
+  });
+
+  test('도어 최소폭보다 좁은 자투리는 비워 둔다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = areaWith(p, 'area-hold-scrap', 1800);
+    const gap = engine.MASTER_RULES.DOOR_W_MIN - 100;    // 250 — 도어가 못 들어간다
+    const keep = p.g('addModuleToArea')(area.id, { section: 'lower', W: 600, x: gap });
+    keep.isFixed = true;
+    p.g('autoCalcArea')(area.id);
+    const all = mods(p, area.id);
+    expect(keep.x).toBe(gap);
+    expect(all.some((m) => m.x < gap)).toBe(false);       // 자투리에는 아무것도 안 선다
+    expect(noOverlap(all)).toBe(true);
+    expect(all.reduce((s, m) => s + m.W, 0)).toBe(1800 - gap);
+  });
+
+  test('다시 돌려도 보존 모듈은 그대로고 결과가 같다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = areaWith(p, 'area-hold-again', 2400);
+    const keep = p.g('addModuleToArea')(area.id, { section: 'lower', W: 600, x: 900 });
+    keep.isFixed = true;
+    const n1 = p.g('autoCalcArea')(area.id);
+    const shot = mods(p, area.id).map((m) => m.x + ':' + m.W);
+    const n2 = p.g('autoCalcArea')(area.id);
+    expect(n2).toBe(n1);
+    expect(mods(p, area.id).map((m) => m.x + ':' + m.W)).toEqual(shot);
+    expect(keep.x).toBe(900);
+  });
+});
+
 describe('키큰장·냉장고장 자동계산 — 세로 스택', () => {
   // 높이 계산은 js/detaildesign/ui-fridge-el.js 가 정본이고 그대로 따른다.
   //   상부장 = min(FRIDGE_UPPER_H_MAX, 전체 − 냉장고 − 상단간격 − 상몰딩)
