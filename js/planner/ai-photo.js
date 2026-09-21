@@ -710,10 +710,10 @@ function plannerAiPhotoReadImage(file, opt) {
           cv.width = size.width;
           cv.height = size.height;
           cv.getContext('2d').drawImage(img, 0, 0, size.width, size.height);
-          const url = cv.toDataURL('image/jpeg', 0.9);
+          const url = cv.toDataURL(o.mime || 'image/jpeg', 0.9);   // 구조 조건은 PNG 로 (선이 뭉개지면 안 된다)
           resolve({
             base64: String(url).split(',')[1] || '',
-            mime: 'image/jpeg',
+            mime: o.mime || 'image/jpeg',
             preview: url,
             name: file.name || 'room.jpg',
             width: size.width,
@@ -791,6 +791,7 @@ const PLANNER_AI_PHOTO_CSS = `
 .ap-drop .ap-drop-text{font-size:10.5px;color:var(--text-dim,#7a7062);line-height:1.5}
 .ap-opt{display:flex;gap:5px;align-items:flex-start;font-size:10.5px;color:var(--text-dim,#7a7062);line-height:1.4;cursor:pointer}
 .ap-opt input{margin:1px 0 0}
+.ap-drop.ap-ctrl{min-height:46px;border-style:dotted}
 .ap-drop img{display:block;max-width:100%;max-height:120px;border-radius:5px}
 .ap-drop .ap-file{font-size:9.5px;color:var(--text-faint,#a89c84);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .ap-go{border:1px solid var(--brand-deep,#6a4b2a);background:var(--brand-deep,#6a4b2a);color:#fff;border-radius:6px;padding:7px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit}
@@ -848,6 +849,7 @@ const PlannerAiPhoto = {
   phase: 'idle',
   img: null,
   realize: false,   // 올린 사진에 도면이 이미 얹혀 있음 (실사화)
+  control: null,    // 구조 조건 이미지 (윤곽선 PNG) — 있으면 ControlNet 경로(fal.ai)
   gen: null,
   genId: null,
   message: '',
@@ -999,6 +1001,17 @@ const PlannerAiPhoto = {
       + '이 사진에 도면이 이미 얹혀 있음 — 그 자리에서 실사로 다시 그리기</label>'
     );
 
+    // ControlNet 경로 (2026-09-22): 실사화에 구조 조건 이미지(도면 윤곽선 PNG, 사진과 같은 화소 크기)를 더 주면
+    //   Gemini 대신 조건을 네이티브로 받는 모델(fal.ai)이 그린다. 합성 벤치(E 패널)가 이 PNG 를 낸다.
+    if (this.realize) {
+      parts.push(this.control
+        ? `<div class="ap-drop ap-ctrl" id="aiPhotoControlDrop" title="다른 구조 조건 이미지로 바꾸기">`
+          + `<img src="${esc(this.control.preview)}" alt="구조 조건">`
+          + `<span class="ap-file">구조 조건 · ${esc(this.control.name)} · ${this.control.width}×${this.control.height}</span></div>`
+        : '<div class="ap-drop ap-ctrl" id="aiPhotoControlDrop">'
+          + '<span class="ap-drop-text">🧭 구조 조건 이미지 (선택) — 도면 윤곽선 PNG<br>넣으면 ControlNet 경로(fal.ai)로 그립니다</span></div>');
+    }
+
     // 버튼
     const label = this.phase === 'done' ? '다시 만들기' : '사진으로 만들기';
     const off = busy || !spec || (this.phase !== 'done' && !this.img);
@@ -1054,7 +1067,14 @@ const PlannerAiPhoto = {
     const go = host.querySelector('#aiPhotoGo');
     if (go) go.onclick = () => { this.submit(); };
     const rz = host.querySelector('#aiPhotoRealize');
-    if (rz) rz.onchange = () => { this.realize = !!rz.checked; };
+    if (rz) rz.onchange = () => { this.realize = !!rz.checked; this.render(); };
+    const cdrop = host.querySelector('#aiPhotoControlDrop');
+    if (cdrop) {
+      cdrop.onclick = () => this.pickControl();
+      ['dragenter', 'dragover'].forEach((t) => cdrop.addEventListener(t, (e) => { e.preventDefault(); cdrop.classList.add('ap-over'); }));
+      ['dragleave', 'drop'].forEach((t) => cdrop.addEventListener(t, (e) => { e.preventDefault(); cdrop.classList.remove('ap-over'); }));
+      cdrop.addEventListener('drop', (e) => { const files = (e.dataTransfer && e.dataTransfer.files) || []; if (files.length) this.setControl(files[0]); });
+    }
     if (!drop) return;
     drop.onclick = () => this.pick();
     ['dragenter', 'dragover'].forEach((t) => {
@@ -1078,6 +1098,32 @@ const PlannerAiPhoto = {
     inp.onchange = () => { if (inp.files && inp.files[0]) this.setFile(inp.files[0]); };
     inp.click();
     return true;
+  },
+
+  /** 구조 조건 이미지 고르기 창. */
+  pickControl() {
+    if (typeof document === 'undefined') return false;
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'image/png,image/jpeg';
+    inp.onchange = () => { if (inp.files && inp.files[0]) this.setControl(inp.files[0]); };
+    inp.click();
+    return true;
+  },
+
+  /** 구조 조건 이미지 — 사진과 같은 규칙으로 줄이되 PNG 로 둔다 (같은 원본 크기면 같은 화소 크기가 된다). */
+  async setControl(file) {
+    try {
+      this.control = await plannerAiPhotoReadImage(file, { mime: 'image/png' });
+      this.message = '';
+      this.bad = false;
+    } catch (e) {
+      this.control = null;
+      this.message = (e && e.message) || '구조 조건 이미지를 읽지 못했습니다';
+      this.bad = true;
+    }
+    this.render();
+    return !!this.control;
   },
 
   /** 사진 한 장을 받아 축소·인코딩해서 들고 있는다. */
@@ -1133,6 +1179,13 @@ const PlannerAiPhoto = {
           ...(this.realize ? { realize: true } : {}),
           // 2026-09-22: 디테일 단계는 도면 기반 한 장이 결과다 — 색만 바꾼 추천안 3장을 만들지 않는다
           variants: false,
+          // ControlNet 경로 — 실사화 + 구조 조건 이미지가 있을 때만
+          ...(this.realize && this.control ? {
+            engine: 'controlnet',
+            control_image: this.control.base64,
+            control_type: this.control.mime,
+            control_size: { width: this.img.width, height: this.img.height },
+          } : {}),
         }),
       });
     } catch (e) {
