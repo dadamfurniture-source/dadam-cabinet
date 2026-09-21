@@ -123,6 +123,19 @@
   .sect-rect g.close-btn:hover path{stroke:#c0392b}
   /* W9-14: resize handle 제거 — W/D 입력 popup 으로 대체 */
   .sect-rect .resize-handle{display:none !important}
+  /* 2026-09-22: 변 드래그 핸들 — 고른 사각형의 네 변. 우측 패널 W/D 입력은 그대로 둔다
+     (숫자를 아는 사람은 입력이 빠르고, 이웃에 맞출 때는 끌어다 붙이는 쪽이 빠르다).
+     `resize-handle` 을 함께 붙인 이유: 이 문서의 모든 선택자가 `rect:not(.resize-handle)`
+     로 "진짜 사각형" 을 고른다. 그 그물에 걸리지 않아야 핸들이 사각형 행세를 하지 않는다.
+     그래서 위 `display:none !important` 를 더 센 선택자 + !important 로 되돌린다. */
+  .sect-rect .resize-handle.edge-handle{display:block !important;mix-blend-mode:normal}
+  .sect-rect .edge-handle{fill:#1a0f00;fill-opacity:.32;stroke:none}
+  .sect-rect .edge-handle:hover{fill-opacity:.62}
+  .sect-rect .edge-handle.dragging{fill:#0d47a1;fill-opacity:.8}
+  .sect-rect .edge-handle[data-axis="x"]{cursor:ew-resize}
+  .sect-rect .edge-handle[data-axis="y"]{cursor:ns-resize}
+  /* 변을 끌어 이웃에 딱 붙은 순간 — 그 변을 잠깐 밝힌다 */
+  .sect-rect .edge-handle.snapped{fill:#c87f24;fill-opacity:.9}
   /* W9-14: W/D 입력 popup — 선택 사각형 위에 floating */
   /* W9-53: dimPopup 제거 → 우측 패널 "선택 사각형 설정" 섹션 */
   .sel-empty{padding:14px 4px;color:#a89c84;font-size:11px;text-align:center;line-height:1.5}
@@ -568,6 +581,8 @@
     if (typeof updateDimPopupPosition === 'function') updateDimPopupPosition();
     // W9-24: X 버튼 위치/크기 zoom 보정 (화면 22px 일정)
     if (typeof updateCloseButtons === 'function') updateCloseButtons();
+    // 2026-09-22: 변 핸들 두께도 화면 px 로 일정하게 (EDGE_HANDLE_PX)
+    if (typeof refreshEdgeHandles === 'function') refreshEdgeHandles();
   }
 
   // W9-24: X 버튼 — 사각형 우상단 corner 안쪽, 화면 일정 크기 (22px)
@@ -1044,6 +1059,8 @@
       selectedSet.forEach(sg => sg.classList.add('multi-selected'));
     }
     updateSelectionPanel();
+    // 2026-09-22: 변 핸들은 **하나만** 고른 사각형에 붙는다 (다중 선택은 이동만)
+    if (typeof refreshEdgeHandles === 'function') refreshEdgeHandles();
   }
 
   // W9-53: 우측 패널 '선택 사각형 설정' 섹션 갱신 (dimPopup 대체)
@@ -1294,6 +1311,8 @@
       }
       // W9-24: 드래그 중 X 버튼 위치도 갱신
       if (typeof updateCloseButtons === 'function') updateCloseButtons();
+      // 2026-09-22: 변 핸들은 사각형에서 파생된 것이라 움직일 때마다 다시 그린다
+      if (typeof refreshEdgeHandles === 'function') refreshEdgeHandles();
     });
     g.addEventListener('pointerup', () => { dragInfo = null; });
     g.addEventListener('pointercancel', () => { dragInfo = null; });
@@ -1399,6 +1418,271 @@
     return bestDist <= thresholdMm ? { x: newX + bestDx, y: newY + bestDy } : null;
   }
 
+  // ============================================================
+  // 2026-09-22: 변 드래그 — 사각형의 네 변을 끌어 크기를 바꾼다.
+  //
+  // 우측 패널의 W/D 입력은 그대로 둔다. 숫자를 아는 사람은 입력이 빠르고,
+  // **이웃에 맞출 때**는 끌어다 붙이는 쪽이 빠르다 — 그게 이 기능의 목적이다.
+  //
+  // 왜 화면(visual) 좌표로 계산하는가:
+  //   사각형은 rotate(각, 중심) 으로 돌아 있을 수 있다. 로컬 x/width 만 고치면
+  //   **회전 중심이 같이 움직여** 붙잡고 있어야 할 반대쪽 변까지 밀린다 (90·270 에서).
+  //   회전은 중심을 보존하므로, 화면 bbox 를 먼저 정하고 거기서 로컬 x·y 를 역산하면
+  //   네 각도 모두에서 반대쪽 변이 제자리에 남는다.
+  // ============================================================
+
+  const EDGE_HANDLE_PX = 14;   // 핸들 두께(화면 px) — 줌과 무관하게 같은 굵기로 잡힌다
+  const EDGE_MIN_SIDE = 50;    // 이보다 작게는 줄이지 않는다 (격자 한 칸)
+  /** 막음에서 빼는 사각형 — 겹침 검사(overlappingRectPairs)가 빼는 넷과 같다 */
+  const EDGE_CLAMP_SKIP = ['sink', 'hood', 'dishwasher', 'refrigerator'];
+
+  /**
+   * 로컬 변(n·e·s·w)이 **화면의 어느 변**으로 보이는가.
+   * SVG rotate(90) 은 (dx,dy) → (−dy,dx) 이므로 오른쪽 변(e)은 아래(maxY)로 간다.
+   */
+  const EDGE_VISUAL = {
+    0:   { e: 'maxX', w: 'minX', n: 'minY', s: 'maxY' },
+    90:  { e: 'maxY', w: 'minY', n: 'maxX', s: 'minX' },
+    180: { e: 'minX', w: 'maxX', n: 'maxY', s: 'minY' },
+    270: { e: 'minY', w: 'maxY', n: 'minX', s: 'maxX' },
+  };
+
+  /** 화면 변 이름 → 축(x·y) · 그 축의 큰 쪽인가 */
+  function visualSideInfo(side) {
+    return { axis: side === 'minX' || side === 'maxX' ? 'x' : 'y', isMax: side.startsWith('max') };
+  }
+
+  function edgeVisualSide(edge, angle) {
+    const a = ((Math.round(angle || 0) % 360) + 360) % 360;
+    return (EDGE_VISUAL[a] || EDGE_VISUAL[0])[edge];
+  }
+
+  /** 변 드래그 대상인가 — 부재(마감재)는 부모를 따라가는 종속물이라 제외한다. */
+  function canEdgeResize(g) {
+    return !!g && g.classList.contains('sect-rect') && !g.classList.contains('finishing');
+  }
+
+  /**
+   * 고른 사각형에 변 핸들 네 개를 붙인다 (나머지에서는 뗀다).
+   * 선택·이동·크기 변경·줌 뒤에 부른다 — 핸들은 사각형에서 파생된 것이라 늘 다시 그린다.
+   */
+  function refreshEdgeHandles() {
+    const content = getContent();
+    if (!content) return;
+    // 핸들을 지닐 자격이 있는 사각형은 최대 하나다 — 나머지에서는 전부 뗀다.
+    //   (자격을 잃은 경우도 포함한다: 마감재가 되거나 다중 선택에 들어가면 붙어 있으면 안 된다.)
+    const keep = (canEdgeResize(selectedG) && selectedSet.size <= 1) ? selectedG : null;
+    content.querySelectorAll('g.sect-rect > g.edge-handles').forEach((eh) => {
+      if (eh.parentElement !== keep) eh.remove();
+    });
+    if (!keep) return;
+    const r = selectedG.querySelector(':scope > rect:not(.resize-handle)');
+    if (!r) return;
+    const x = parseFloat(r.getAttribute('x'));
+    const y = parseFloat(r.getAttribute('y'));
+    const w = parseFloat(r.getAttribute('width'));
+    const h = parseFloat(r.getAttribute('height'));
+    const t = EDGE_HANDLE_PX / (view.zoom || 1);
+    let host = selectedG.querySelector(':scope > g.edge-handles');
+    if (!host) {
+      host = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      host.setAttribute('class', 'edge-handles');
+      selectedG.appendChild(host);
+      attachEdgeHandleHandlers(selectedG, host);
+    }
+    const angle = rotations.get(selectedG) || 0;
+    const geom = {
+      n: { x: x, y: y - t / 2, w: w, h: t },
+      s: { x: x, y: y + h - t / 2, w: w, h: t },
+      w: { x: x - t / 2, y: y, w: t, h: h },
+      e: { x: x + w - t / 2, y: y, w: t, h: h },
+    };
+    Object.keys(geom).forEach((edge) => {
+      let el = host.querySelector(`:scope > rect[data-edge="${edge}"]`);
+      if (!el) {
+        el = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        el.setAttribute('class', 'resize-handle edge-handle');
+        el.setAttribute('data-edge', edge);
+        host.appendChild(el);
+      }
+      const gm = geom[edge];
+      el.setAttribute('x', gm.x);
+      el.setAttribute('y', gm.y);
+      el.setAttribute('width', gm.w);
+      el.setAttribute('height', gm.h);
+      // 커서는 **화면에서 보이는** 방향을 따른다 — 90도 돌면 좌우 변이 위아래로 보인다
+      el.setAttribute('data-axis', visualSideInfo(edgeVisualSide(edge, angle)).axis);
+    });
+  }
+
+  /**
+   * 끌고 있는 변을 **다른 사각형의 변에 맞춘다.**
+   *
+   * 두 가지를 한다:
+   *   1) 맞춤(snap) — 임계 안이면 이웃의 변 선에 딱 붙인다 (마주 보는 변이든 같은 쪽 변이든).
+   *   2) 막음(clamp) — 이웃을 **파고들지 못하게** 그 변에서 멈춘다. 같은 층(tierOfRect)에서만 —
+   *      상부장과 하부장은 겹쳐도 겹침이 아니다 (겹침 검사와 같은 규칙).
+   * 둘 다 다른 축에서 실제로 마주 보고 있는 사각형만 상대한다.
+   *
+   * @returns {{coord:number, snapped:boolean}}
+   */
+  function snapEdgeCoord(g, side, rawCoord, origCoord, bbox) {
+    const info = visualSideInfo(side);
+    const content = getContent();
+    if (!content) return { coord: rawCoord, snapped: false };
+    const z = view.zoom || 1;
+    const threshold = MAGNET_THRESHOLD_PX / z;
+    const myTier = tierOfRect(g);
+    // 끌고 있는 변이 움직이는 축의 **반대 축** 범위 — 여기서 겹쳐야 마주 본 것이다
+    const perpMin = info.axis === 'x' ? bbox.minY : bbox.minX;
+    const perpMax = info.axis === 'x' ? bbox.maxY : bbox.maxX;
+
+    let best = null, bestDist = threshold + 1;
+    let limit = null;   // 파고들지 못하게 막는 선
+
+    content.querySelectorAll(':scope > g.sect-rect').forEach((other) => {
+      if (other === g || other.classList.contains('finishing')) return;
+      const ob = getVisualBBox(other);
+      if (!ob) return;
+      const oPerpMin = info.axis === 'x' ? ob.minY : ob.minX;
+      const oPerpMax = info.axis === 'x' ? ob.maxY : ob.maxX;
+      if (Math.min(perpMax, oPerpMax) - Math.max(perpMin, oPerpMin) <= 1) return;  // 마주 보지 않는다
+      const lines = info.axis === 'x' ? [ob.minX, ob.maxX] : [ob.minY, ob.maxY];
+      lines.forEach((line) => {
+        const d = Math.abs(line - rawCoord);
+        if (d < bestDist) { bestDist = d; best = line; }
+      });
+      // 막음 — 커지는 방향으로 이웃의 앞 변을 넘어서지 않는다.
+      //   가전(분배기·후드·식세기·냉장고)은 **런 안에 앉는 것이 정상**이라 막지 않는다 —
+      //   겹침 검사(overlappingRectPairs)가 그 넷을 빼는 것과 같은 이유다. 다만 맞춤 대상으로는 남긴다.
+      if (tierOfRect(other) !== myTier) return;
+      if (EDGE_CLAMP_SKIP.some((c) => other.classList.contains(c))) return;
+      const near = info.isMax ? (info.axis === 'x' ? ob.minX : ob.minY)
+                              : (info.axis === 'x' ? ob.maxX : ob.maxY);
+      if (info.isMax && rawCoord > near && near >= origCoord) {
+        limit = limit === null ? near : Math.min(limit, near);
+      } else if (!info.isMax && rawCoord < near && near <= origCoord) {
+        limit = limit === null ? near : Math.max(limit, near);
+      }
+    });
+
+    if (limit !== null) return { coord: limit, snapped: true };
+    if (best !== null && bestDist <= threshold) return { coord: best, snapped: true };
+    return { coord: rawCoord, snapped: false };
+  }
+
+  /** 사각형의 로컬 치수를 바꾸고 라벨·회전 pivot·X 버튼까지 맞춘다. */
+  function applyRectGeom(g, geom) {
+    const r = g.querySelector(':scope > rect:not(.resize-handle)');
+    if (!r) return;
+    r.setAttribute('x', geom.x);
+    r.setAttribute('y', geom.y);
+    r.setAttribute('width', geom.w);
+    r.setAttribute('height', geom.h);
+    const text = g.querySelector(':scope > text');
+    if (text) {
+      const name = text.getAttribute('data-name') || '';
+      applyLabel(text, geom.x + geom.w / 2, geom.y + geom.h / 2, geom.w, geom.h,
+        name, Math.round(geom.w) + '×' + Math.round(geom.h) + 'mm');
+    }
+    const cur = rotations.get(g) || 0;
+    if (cur) g.setAttribute('transform', `rotate(${cur} ${geom.x + geom.w / 2} ${geom.y + geom.h / 2})`);
+    if (typeof updateCloseButtons === 'function') updateCloseButtons();
+  }
+
+  function attachEdgeHandleHandlers(g, host) {
+    let info = null;
+    host.addEventListener('pointerdown', (e) => {
+      const handle = e.target.closest && e.target.closest('rect.edge-handle');
+      if (!handle) return;
+      e.stopPropagation();
+      e.preventDefault();
+      const r = g.querySelector(':scope > rect:not(.resize-handle)');
+      const bbox = getVisualBBox(g);
+      if (!r || !bbox) return;
+      const edge = handle.getAttribute('data-edge');
+      const side = edgeVisualSide(edge, rotations.get(g) || 0);
+      info = {
+        edge, side, handle, bbox,
+        sideInfo: visualSideInfo(side),
+        origCoord: bbox[side],
+        startX: e.clientX, startY: e.clientY,
+        before: {
+          x: parseFloat(r.getAttribute('x')), y: parseFloat(r.getAttribute('y')),
+          w: parseFloat(r.getAttribute('width')), h: parseFloat(r.getAttribute('height')),
+        },
+      };
+      handle.classList.add('dragging');
+      host.setPointerCapture(e.pointerId);
+    });
+    host.addEventListener('pointermove', (e) => {
+      if (!info) return;
+      const z = view.zoom || 1;
+      const move = info.sideInfo.axis === 'x'
+        ? (e.clientX - info.startX) / z
+        : (e.clientY - info.startY) / z;
+      let coord = info.origCoord + move;
+      let snapped = false;
+      if (!e.shiftKey) {
+        // 격자(50)를 먼저 물리고, 이웃 변 맞춤·막음이 그 위를 덮는다 — 이웃이 격자 위에 없을 수 있다
+        const GRID = 50;
+        coord = Math.round(coord / GRID) * GRID;
+        const res = snapEdgeCoord(g, info.side, info.origCoord + move, info.origCoord, info.bbox);
+        if (res.snapped) { coord = res.coord; snapped = true; }
+      }
+      // 화면 bbox 를 먼저 정하고 로컬 치수를 역산한다 (회전해도 반대쪽 변이 제자리)
+      const nb = { minX: info.bbox.minX, maxX: info.bbox.maxX, minY: info.bbox.minY, maxY: info.bbox.maxY };
+      nb[info.side] = coord;
+      let vw = nb.maxX - nb.minX;
+      let vh = nb.maxY - nb.minY;
+      // 최소 크기 — 끌고 있는 쪽만 밀어 되돌린다 (반대쪽 변은 붙잡고 있다)
+      if (info.sideInfo.axis === 'x' && vw < EDGE_MIN_SIDE) {
+        nb[info.side] = info.sideInfo.isMax ? nb.minX + EDGE_MIN_SIDE : nb.maxX - EDGE_MIN_SIDE;
+        vw = EDGE_MIN_SIDE;
+      } else if (info.sideInfo.axis === 'y' && vh < EDGE_MIN_SIDE) {
+        nb[info.side] = info.sideInfo.isMax ? nb.minY + EDGE_MIN_SIDE : nb.maxY - EDGE_MIN_SIDE;
+        vh = EDGE_MIN_SIDE;
+      }
+      const a = ((Math.round(rotations.get(g) || 0) % 360) + 360) % 360;
+      const swapped = a === 90 || a === 270;
+      const w = swapped ? vh : vw;
+      const h = swapped ? vw : vh;
+      // 회전은 중심을 보존한다 — 화면 bbox 의 중심이 곧 사각형의 중심이다
+      const cx = (nb.minX + nb.maxX) / 2;
+      const cy = (nb.minY + nb.maxY) / 2;
+      applyRectGeom(g, { x: cx - w / 2, y: cy - h / 2, w, h });
+      info.handle.classList.toggle('snapped', snapped);
+      refreshEdgeHandles();
+      if (typeof updateDimPopupPosition === 'function') updateDimPopupPosition();
+    });
+    const finish = () => {
+      if (!info) return;
+      const r = g.querySelector(':scope > rect:not(.resize-handle)');
+      info.handle.classList.remove('dragging');
+      info.handle.classList.remove('snapped');
+      if (r) {
+        const after = {
+          x: parseFloat(r.getAttribute('x')), y: parseFloat(r.getAttribute('y')),
+          w: parseFloat(r.getAttribute('width')), h: parseFloat(r.getAttribute('height')),
+        };
+        const b = info.before;
+        // 실제로 바뀐 때만 되돌리기에 쌓는다 (핸들을 톡 눌렀다 뗀 것은 기록하지 않는다)
+        if (after.x !== b.x || after.y !== b.y || after.w !== b.w || after.h !== b.h) {
+          pushUndo({ type: 'geom', g, before: b, after });
+        }
+      }
+      info = null;
+      refreshEdgeHandles();
+      if (typeof updateSelectionPanel === 'function') updateSelectionPanel();
+      // 겹침 표시를 바로 갱신한다 — 막음이 있어도 다른 층끼리는 겹칠 수 있다
+      if (typeof markOverlaps === 'function' && typeof overlappingRectPairs === 'function') {
+        markOverlaps(overlappingRectPairs());
+      }
+    };
+    host.addEventListener('pointerup', finish);
+    host.addEventListener('pointercancel', finish);
+  }
+
   // W9-53: dimPopup 제거 → 우측 패널의 W/D input 만 참조
   const dimW = document.getElementById('dimW');
   const dimD = document.getElementById('dimD');
@@ -1436,6 +1720,8 @@
     updateDimPopupPosition();
     // W9-24: 사각형 크기 변경 시 X 위치 갱신
     if (typeof updateCloseButtons === 'function') updateCloseButtons();
+    // 2026-09-22: 입력으로 크기를 바꿔도 변 핸들이 새 변에 붙어야 한다
+    if (typeof refreshEdgeHandles === 'function') refreshEdgeHandles();
   }
   dimW.addEventListener('input', applyDimToSelected);
   dimD.addEventListener('input', applyDimToSelected);
@@ -2016,6 +2302,10 @@
       // 제거 되돌리기 = 복원
       if (action.nextSibling) action.parent.insertBefore(action.g, action.nextSibling);
       else action.parent.appendChild(action.g);
+    } else if (action.type === 'geom') {
+      // 2026-09-22: 변 드래그 되돌리기 = 끌기 전 치수로
+      applyRectGeom(action.g, action.before);
+      if (typeof refreshEdgeHandles === 'function') refreshEdgeHandles();
     }
     redoStack.push(action);
     reorderRects();
@@ -2038,6 +2328,10 @@
       action.parent = parent;
       if (parent) parent.removeChild(action.g);
       if (selectedG === action.g) selectG(null);
+    } else if (action.type === 'geom') {
+      // 2026-09-22: 변 드래그 다시하기 = 끌고 난 치수로
+      applyRectGeom(action.g, action.after);
+      if (typeof refreshEdgeHandles === 'function') refreshEdgeHandles();
     }
     undoStack.push(action);
     reorderRects();
