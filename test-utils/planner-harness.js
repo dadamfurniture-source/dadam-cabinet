@@ -107,6 +107,20 @@ function polyfill(win) {
   if (!E.hasPointerCapture) E.hasPointerCapture = function () { return false; };
   if (!win.requestAnimationFrame) win.requestAnimationFrame = (fn) => setTimeout(() => fn(Date.now()), 0);
   if (!win.cancelAnimationFrame) win.cancelAnimationFrame = (id) => clearTimeout(id);
+  // jsdom 은 ResizeObserver 를 구현하지 않는다. 플래너가 캔버스 칸 크기를 감시하므로(2026-09-22)
+  //   관찰 대상과 콜백을 담아 두는 스텁을 놓는다 — 테스트가 직접 발화시켜 확인할 수 있다.
+  //   부팅마다 목록을 새로 만든다 (앞선 부팅의 관찰이 섞이지 않게).
+  win.__resizeObservers = [];
+  if (!win.ResizeObserver) {
+    win.ResizeObserver = class {
+      constructor(cb) { this.cb = cb; this.targets = []; win.__resizeObservers.push(this); }
+      observe(el) { this.targets.push(el); }
+      unobserve(el) { this.targets = this.targets.filter((t) => t !== el); }
+      disconnect() { this.targets = []; }
+      /** 테스트용 — 실제 브라우저에는 없다. */
+      __fire() { this.cb([], this); }
+    };
+  }
 }
 
 /**
