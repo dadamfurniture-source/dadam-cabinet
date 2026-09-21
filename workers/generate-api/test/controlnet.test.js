@@ -93,7 +93,7 @@ function fakeFal({ statuses = ['IN_QUEUE', 'IN_PROGRESS', 'COMPLETED'], images =
   const calls = [];
   let i = 0;
   const f = async (url, init = {}) => {
-    calls.push({ url, method: init.method || 'GET', headers: init.headers || {}, body: init.body ? JSON.parse(init.body) : null });
+    calls.push({ url, method: init.method || 'GET', headers: init.headers || {}, body: init.body ? JSON.parse(init.body) : null, signal: init.signal });
     if (url === `${FAL_QUEUE_BASE}/${DEFAULT_CONTROLNET_MODEL}` && init.method === 'POST') {
       return new Response(JSON.stringify({ request_id: 'req-1', status_url: 'https://q/status', response_url: 'https://q/result' }), { status: 200 });
     }
@@ -116,6 +116,8 @@ test('큐: 제출 → 폴링 → 결과 → 내려받기, Key 헤더, base64', a
   assert.equal(r.requestId, 'req-1');
   assert.equal(r.seed, 42);
   assert.equal(calls[0].headers.Authorization, 'Key k');
+  // 요청마다 시간 제한 — 안 돌아오는 fetch 가 잡을 무기한 붙들지 않는다
+  for (const c of calls) assert.ok(c.signal instanceof AbortSignal, 'signal on ' + c.url);
   assert.equal(calls[0].body.prompt, 'P');
   assert.equal(calls.filter((c) => c.url === 'https://q/status').length, 3);
   assert.equal(calls[calls.length - 1].url, 'https://v3.fal.media/files/x.jpg');

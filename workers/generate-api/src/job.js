@@ -47,6 +47,8 @@ const MAX_ATTEMPTS = 2;
 /** 역판독(Claude 비전) 이미지 한도 — Anthropic 5MB, base64 는 4/3 배 (worker.js MAX_IMAGE_B64 와 같은 값) */
 const VERIFY_MAX_B64 = Math.floor((5 * 1024 * 1024 * 4) / 3);
 const RETRY_DELAY_MS = 15_000;
+/** 검사(QC) 한 번의 상한 — 넘기면 통과로 보고 진행한다 */
+const QC_TIMEOUT_MS = 90_000;
 const JOB_TIMEOUT_MS = 10 * 60_000; // 환불 창(30분) 안에 끝나야 한다
 const VARIANT_COUNT = 3;
 const VARIANT_ATTEMPTS = 2; // 실패·빈 응답이면 한 번 더
@@ -104,9 +106,22 @@ export class GenerateJob {
     }
 
     try {
-      await runPipeline(this.env, job, ck, (patch) =>
-        this.state.storage.put('ckpt', { ...ck, ...patch })
-      );
+      // 2026-09-22: 파이프라인에 마감을 건다. 안 돌아오는 상류 호출이 있으면 이 await 가 영영 안 풀려
+      //   10분 제한(위)이 검사될 기회가 없었다 — 첫 실측에서 QC 단계가 9분 넘게 멈춘 이유다.
+      //   마감을 넘기면 던져서 재시도·실패(환불) 경로로 보낸다.
+      const remaining = JOB_TIMEOUT_MS - (Date.now() - (job.startedAt || Date.now()));
+      let deadlineTimer = null;
+      const deadline = new Promise((_, reject) => {
+        deadlineTimer = setTimeout(() => reject(new Error(`pipeline deadline (${Math.round(remaining / 1000)}s) at ${ck.step}`)), Math.max(1_000, remaining));
+      });
+      try {
+        await Promise.race([
+          runPipeline(this.env, job, ck, (patch) => this.state.storage.put('ckpt', { ...ck, ...patch })),
+          deadline,
+        ]);
+      } finally {
+        clearTimeout(deadlineTimer);
+      }
       await this.state.storage.deleteAll();
       await this.state.storage.deleteAlarm();
     } catch (e) {
@@ -276,7 +291,11 @@ async function runPipeline(env, job, ck, save) {
     await setStep(env, job, ck, 'qc');
     let qc = { ok: true, issues: [], note: null };
     try {
-      const q = await callGemini(env, { prompt: buildQcPrompt(ctx), images: [base], want: 'text' });
+      // 검사 한 번에 90초 이상 걸리면 통과로 본다 — 검사 때문에 생성을 막지 않는다
+      const q = await Promise.race([
+        callGemini(env, { prompt: buildQcPrompt(ctx), images: [base], want: 'text' }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('qc timeout')), QC_TIMEOUT_MS)),
+      ]);
       qc = parseQc(q.text);
     } catch (e) {
       console.warn(`[Job ${job.id}] qc skipped:`, e.message);
