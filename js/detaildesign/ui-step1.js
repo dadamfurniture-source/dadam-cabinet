@@ -788,10 +788,23 @@
       //   캐비닛 몸통은 그대로 제작 대상이다. type 으로 또 표시할 필요가 없다.
       // ============================================================
 
-      /** 플래너에서 캐비닛으로 취급하는 section. 나머지는 가전/마감재다. */
-      const PLANNER_CABINET_SECTIONS = ['lower', 'upper', 'tall', 'wardrobe'];
-      /** 캐비닛이 아니라 X 범위 판정에만 쓰는 가전 section. */
-      const PLANNER_APPLIANCE_SECTIONS = ['sink', 'hood', 'dishwasher', 'fridge', 'refrigerator'];
+      /**
+       * 플래너에서 캐비닛으로 취급하는 section. 나머지는 가전/마감재다.
+       *
+       * 2026-09-22: **냉장고장(fridge)을 더했다.** 플래너는 진작부터 냉장고장을 1급 섹션으로
+       * 그리고 있었다 — 배치 공간을 놓으면 자동계산이 냉장고 자리(바닥~1870)를 비우고 그 위에
+       * 상부장 한 단을 세운다 (mockup-structure stackForArea, fridge.md §2 의 높이 공식).
+       * 그런데 여기 목록에 없어서 브리지가 그 모듈을 **조용히 버렸다** — 화면에는 보이는데
+       * 자재표에는 한 줄도 없었다.
+       */
+      const PLANNER_CABINET_SECTIONS = ['lower', 'upper', 'tall', 'wardrobe', 'fridge'];
+      /**
+       * 캐비닛이 아니라 X 범위 판정에만 쓰는 **가전** section.
+       *
+       * 2026-09-22: `fridge` 를 뺐다. 냉장고장(fridge)과 냉장고(refrigerator)는 다른 섹션인데
+       * 한 줄에 묶여 있었다 — 냉장고는 가전이고, 냉장고장은 그 가전을 감싸는 **장**이다.
+       */
+      const PLANNER_APPLIANCE_SECTIONS = ['sink', 'hood', 'dishwasher', 'refrigerator'];
 
       function _xOverlaps(a, b) {
         const a0 = Number(a.x) || 0;
@@ -1130,7 +1143,11 @@
           const s = structures[m.id] || null;
           // 2026-09-17: 붙박이장은 pos 'wardrobe' 다 — extractWardrobe 가 그 pos 만 본다.
           //   'lower' 로 넘기면 싱크 하부장 규칙으로 산출돼 통째로 어긋난다.
-          const pos = m.section === 'upper' ? 'upper' : m.section === 'wardrobe' ? 'wardrobe' : 'lower';
+          // 2026-09-22: 냉장고장(fridge) 모듈은 **냉장고 위 상부장** 하나다 (stackForArea 가 그것만 세운다).
+          //   사장님 확정 — 전용 화면의 '냉장고상부장' 별도 규칙이 아니라 **일반 상부장 규칙**으로 낸다.
+          //   부재 구성이 거의 같고(PB 몸통 + MDF 도어), 규칙을 둘로 두면 갈라진다.
+          const pos = (m.section === 'upper' || m.section === 'fridge') ? 'upper'
+            : m.section === 'wardrobe' ? 'wardrobe' : 'lower';
           // 플래너 자동계산은 하부 모듈을 doorTopDrawerBottom(하부 서랍 1단)으로 만든다
           const drawerAtBottom = !!(s && s.horizontalLayout === 'doorTopDrawerBottom' && s.bottomType === 'drawer');
           // CD-2: 플래너 '분할' 패널에서 지정한 서랍 단수. 미지정이면 1단.
@@ -1237,7 +1254,9 @@
             // 단 하나가 모듈 폭 그대로 한 장(통짜)인 것이 **정상**이다. 여기서 경고하면
             // 자동계산을 돌려도 사라지지 않는 헛경고가 된다 (사용자 결정 2026-09-15).
             // 표시 section(sink·hood)은 PLANNER_CABINET_SECTIONS 에 없어 여기까지 오지 않는다.
-            if (m.section !== 'tall') {
+            // 2026-09-22: 냉장고장도 같다 — 자동계산(autoCalcForSet)이 fridge 모듈의 셀을
+            //   나누지 않으므로 냉장고 위 상부장 한 장이 통짜인 것이 정상이다.
+            if (m.section !== 'tall' && m.section !== 'fridge') {
               warnings.push(`${m.id}: 자동계산 전이라 ${cells[0].w}mm 통짜로 잡혔습니다`);
             }
           } else {
