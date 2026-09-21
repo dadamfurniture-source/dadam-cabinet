@@ -57,7 +57,8 @@
  *   도어 W       = 모듈 W − 4
  *   몸통 구성    = **하부장과 같다** — 천판이 없고 **밴드**가 상단 앞·뒤에 서고, 그 **위에 상판**이
  *                  올라간다 (2026-09-22 사장님 확정). 상판 깊이는 붙박이장 선반과 같다 (`shelfDepthOf`).
- *   모듈 외경 H  = 구역 높이 − 상판 두께   (상판이 구역 안에서 몸통 위에 앉는다)
+ *   모듈 외경 H  = 서랍 단수 × 350          (350 은 **모듈 전체 높이**다 — 2026-09-22 사장님 확정)
+ *   상판         = 그 **위에 얹힌다** — 모듈이 차지하는 높이는 350×단수 + 상판 15
  *   지판 깊이    = 모듈 D − 18 (사쿠리)
  * 서랍 박스(전후판·측판·우라)는 이 모듈 치수를 **서랍 규칙**(drawerBoxDims)에 넣어서 낸다 —
  * 붙박이장에만 있는 박스 규칙을 따로 두지 않는다.
@@ -488,16 +489,18 @@
 
     const warnings = [];
     // 서랍장은 **따로 만드는 모듈**이다 — W·H 는 그 모듈의 외경이고 도어가 그보다 4 작다.
-    //   2026-09-22: 몸통은 하부장과 같다 — 천판이 없고 밴드가 상단에 서며, 그 **위에 상판**이
-    //   구역 안에서 몸통 위에 앉는다. 그래서 몸통 외경 높이는 구역 높이에서 상판 두께를 뺀 값이다.
+    //   2026-09-22: 몸통은 하부장과 같다 — 천판이 없고 밴드가 상단에 선다. 그 **위에 상판**이
+    //   얹힌다. 350 은 **모듈 전체 높이**이므로 상판은 그 위에 더해진다 (사장님 확정) —
+    //   모듈이 차지하는 높이는 350×단수 + 상판 15 다.
     const moduleW = Wi - 2 * I.SIDE_MOLDING_W;
     const topT = T;                                        // 상판도 15PB 몸통 재질
-    const moduleH = Math.max(0, zoneH - topT);             // 몸통 외경 높이 — 도어 세로의 기준
+    const moduleH = zoneH;                                 // 몸통 외경 높이 = 350 × 단수 (도어 세로의 기준)
+    const totalH = moduleH + topT;                         // 모듈 + 상판이 차지하는 높이
     const moduleHi = Math.max(0, moduleH - T);             // 참고용 (지판만 빠진다 — 천판이 없다)
     const moduleD = Math.max(0, depthOf(opt) - I.FRONT_SETBACK);
     const base = {
       drawers: n, moldingW: I.SIDE_MOLDING_W, moldingT: T, moldingH: zoneH,
-      setback: I.FRONT_SETBACK, moduleW, moduleH, moduleHi, moduleD, zoneH, topT,
+      setback: I.FRONT_SETBACK, moduleW, moduleH, moduleHi, moduleD, zoneH, topT, totalH,
       // 지판 깊이 — 사쿠리 반영. 플래너도 이 값을 그린다 (숫자를 두 군데 적지 않는다).
       panelD: Math.max(0, moduleD - R.TOP_BOTTOM_D_MINUS),
       // 상판 — 모듈 위에 올라간다. 깊이는 붙박이장 선반과 같다 (2026-09-19 사장님 확정).
