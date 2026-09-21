@@ -325,6 +325,8 @@
         document.getElementById('step-dot-3')?.classList.add('active');
         // W12-2: BOM 화면에서는 플래너 오버레이가 위를 덮으면 안 된다
         _removeBootstrapPlanner();
+        // 2026-09-22: 부트스트랩만 지우면 **품목별 오버레이**가 남아 보고서를 덮을 수 있었다
+        _showOnlyPlannerOverlay(null);
         // W9-1: Step 3 진입 시 fullscreen 해제 (BOM 보고서는 외곽 필요)
         document.body.classList.remove('step2-fullscreen');
         document.body.classList.remove('step2-native');
@@ -339,6 +341,7 @@
         // W9-1: Step 2 복귀 시 fullscreen 재활성
         // W11-9: 카테고리에 맞는 모드로 복귀 (붙박이장/냉장고장은 네이티브)
         _applyStep2Chrome(_currentStep2Item());
+        _showOnlyPlannerOverlayFor(_currentStep2Item());   // 2026-09-22: 지금 품목 것만 켠다
         _pbwSyncPlacement(); // 브리지 경고 배너 — 툴바 아래로
       }
 
@@ -2343,11 +2346,39 @@
       }
 
       // ★ 3D 플래너 오버레이 — iframe을 body 레벨에 고정 (DOM 이동 없이 리로드 방지)
+      /**
+       * 2026-09-22: 플래너 오버레이는 **한 번에 하나만** 보인다.
+       *
+       * 품목마다 오버레이가 하나씩 생기는데(`__planner-overlay-{uniqueId}`), base.css 의
+       * `body.step2-fullscreen [id^="__planner-overlay-"] { display:block !important }` 가
+       * **전부** 켜 버렸다. 코드가 감추려 해도 !important 에 막혀 먹히지 않아, 품목을 바꿔도
+       * 이전 품목의 플래너가 DOM 순서대로 위에 남았다 — 화면이 깜빡이고 남의 배치가 보였다.
+       * BOM 화면(Step 3)으로 넘어가도 같은 이유로 오버레이가 보고서를 덮을 수 있었다.
+       *
+       * 이제 활성 표시가 붙은 하나만 보인다. **표시를 붙이는 곳은 이 함수 하나뿐이다** —
+       * 여러 곳에서 display 를 만지면 다시 갈라진다.
+       *
+       * @param overlayId 보일 오버레이 id. null 이면 **전부 감춘다** (Step 3 등).
+       */
+      const PLANNER_OVERLAY_ACTIVE = 'planner-overlay-active';
+      function _showOnlyPlannerOverlay(overlayId) {
+        document.querySelectorAll('[id^="__planner-overlay-"]').forEach((el) => {
+          el.classList.toggle(PLANNER_OVERLAY_ACTIVE, !!overlayId && el.id === overlayId);
+        });
+      }
+
+      /** 품목 id 로 부르는 편의 함수 — 품목이 없으면 전부 감춘다. */
+      function _showOnlyPlannerOverlayFor(item) {
+        _showOnlyPlannerOverlay(item && item.uniqueId ? '__planner-overlay-' + item.uniqueId : null);
+      }
+
       function _positionPlannerOverlay(overlayId, targetContainer) {
         const overlay = document.getElementById(overlayId);
         if (!overlay || !targetContainer) return;
         const rect = targetContainer.getBoundingClientRect();
         overlay.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;z-index:10;pointer-events:auto;display:block;border-radius:8px;overflow:hidden;`;
+        // 자리를 잡는다 = 이 오버레이가 지금 보여야 할 것이다
+        _showOnlyPlannerOverlay(overlayId);
       }
 
       function _createPlannerOverlay(overlayId, targetContainer, item) {
@@ -2360,6 +2391,7 @@
         document.body.appendChild(overlay);
         const rect = targetContainer.getBoundingClientRect();
         overlay.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;z-index:10;pointer-events:auto;border-radius:8px;overflow:hidden;`;
+        _showOnlyPlannerOverlay(overlayId);
         // iframe 생성
         _loadPlannerEmbed(overlay, item);
       }
@@ -2412,6 +2444,8 @@
         iframe.style.cssText = 'width:100%;height:100%;border:none;border-radius:8px;';
         iframe.allow = 'accelerometer; autoplay; fullscreen';
         overlay.appendChild(iframe);
+        // 2026-09-22: 부트스트랩도 같은 규칙을 탄다 — 활성 표시가 없으면 CSS 가 감춘다
+        _showOnlyPlannerOverlay(overlay.id);
       }
 
       function _removeBootstrapPlanner() {
@@ -2568,8 +2602,11 @@
         let plannerOverlay = document.getElementById(plannerOverlayId);
         const existingIframe = plannerOverlay?.querySelector('iframe[data-planner]');
         const savedIframe = existingIframe || null;
-        // 오버레이 숨김 (workspace 리빌드 중)
-        if (plannerOverlay) plannerOverlay.style.display = 'none';
+        // 2026-09-22: 예전엔 여기서 오버레이를 감췄다. 두 가지가 틀렸다 —
+        //   (1) base.css 의 `display:block !important` 에 막혀 **먹히지도 않았고**,
+        //   (2) 먹혔다면 아래 50ms 뒤 재배치까지 빈 화면이 남아 그게 곧 깜빡임이다.
+        //   오버레이는 body 직속 fixed 라 designWorkspace 를 다시 그려도 영향을 받지 않는다.
+        //   그대로 둔 채 아래에서 자리만 다시 잡으면 한 프레임 안에 바뀐다.
 
         // ★ 포커스 복원을 위한 정보 저장
         const activeEl = document.activeElement;
@@ -3250,11 +3287,16 @@
               } else {
                 _createPlannerOverlay(plannerOverlayId, container, item);
               }
-            } else if (retries > 0) {
-              setTimeout(() => tryInit3D(retries - 1), 100);
+              return true;
             }
+            if (retries > 0) setTimeout(() => tryInit3D(retries - 1), 100);
+            return false;
           };
-          setTimeout(() => tryInit3D(5), 50);
+          // 2026-09-22: **즉시 한 번** 해 본다. designWorkspace 는 방금 innerHTML 로 만들어졌고
+          //   getBoundingClientRect 가 레이아웃을 강제하므로 대개 여기서 끝난다.
+          //   예전엔 무조건 50ms 뒤였다 — 그 사이 이전 품목 플래너가 남아 **깜빡였다.**
+          //   자리가 아직 안 잡히는 경우(숨은 컨테이너 등)만 예전 재시도로 넘어간다.
+          if (!tryInit3D(0)) setTimeout(() => tryInit3D(5), 50);
         }
 
         } catch(err) {
@@ -3339,9 +3381,9 @@
         if (!item) return;
 
         // 3D → 다른 뷰로 전환 시 오버레이 숨김
+        //   2026-09-22: style.display 는 base.css 의 !important 에 막혔다 — 활성 표시로 끈다
         if (item.specs.viewMode === '3d' && mode !== '3d') {
-          const overlay = document.getElementById('__planner-overlay-' + itemUniqueId);
-          if (overlay) overlay.style.display = 'none';
+          _showOnlyPlannerOverlay(null);
         }
 
         item.specs.viewMode = mode;
