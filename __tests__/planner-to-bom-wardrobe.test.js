@@ -228,8 +228,8 @@ describe('자재표 — 칸막이·선반·옷봉이 끝까지 간다', () => {
     // 모듈 W = 통 내경 − 120 (경첩 몰딩 60+60) → 지판 = 모듈 내경 720, 상판은 외경 750
     expect(modRows.find((m) => m.part === '지판').w).toBe(900 - 2 * 15 - 120 - 2 * 15);
     expect(modRows.find((m) => m.part === '상판').w).toBe(900 - 2 * 15 - 120);
-    // 측판 높이는 서랍 단수를 따라간다 (1단 고정치가 아니다). 상판이 구역 안에 앉으므로 −15.
-    expect(modRows.find((m) => m.part === '측판').h).toBe(2 * 350 - 15);
+    // 측판 높이는 서랍 단수를 따라간다 — 350 이 모듈 전체 높이다 (상판은 그 위에 얹힌다)
+    expect(modRows.find((m) => m.part === '측판').h).toBe(2 * 350);
     // 하단보강이 두 번 나오지 않는다
     expect(modParts.filter((x) => x === '서랍 하단보강')).toHaveLength(1);
     expect(parts(s, '2번')).not.toContain('서랍 하단보강');
