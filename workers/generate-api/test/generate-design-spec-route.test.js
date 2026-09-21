@@ -263,3 +263,31 @@ test('재생성은 원본의 realize 를 잇고, 요청이 false 를 주면 끈�
   await post({ parent_id: parent.id, realize: false });
   assert.equal('realize' in calls.inserted.options, false);
 });
+
+// 2026-09-22 추천안 끄기 — 디테일 실사화는 한 장만
+test('variants:false 면 options.variants 가 false 이고, 없으면 키 자체가 없다', async () => {
+  install();
+  await post({ room_image: ROOM_IMAGE, category: 'sink', variants: false });
+  assert.equal(calls.inserted.options.variants, false);
+  assert.equal(calls.jobStart.options.variants, false);
+  install();
+  await post({ room_image: ROOM_IMAGE, category: 'sink' });
+  assert.equal('variants' in calls.inserted.options, false);
+  // true 를 보내도 키는 안 생긴다 — 기본이 켜짐이다
+  install();
+  await post({ room_image: ROOM_IMAGE, category: 'sink', variants: true });
+  assert.equal('variants' in calls.inserted.options, false);
+});
+
+test('재생성은 원본의 variants:false 를 잇는다', async () => {
+  const parent = {
+    id: '33333333-3333-4333-8333-333333333333',
+    user_id: USER_ID,
+    category: 'sink',
+    inputs: { room: { path: 'p/room.jpg', url: 'u', mime: 'image/jpeg' }, refs: [] },
+    options: { design_spec: null, variants: false },
+  };
+  install({ parent });
+  await post({ parent_id: parent.id });
+  assert.equal(calls.inserted.options.variants, false);
+});

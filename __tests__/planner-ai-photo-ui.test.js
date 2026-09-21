@@ -182,6 +182,8 @@ describe('생성 요청', () => {
     expect(call.body.design_spec.wallRunMm).toBe(3600);
     expect(call.body.design_spec.sections.lower.modules.length).toBeGreaterThan(0);
     expect(call.body.design_spec.appliances).toEqual([{ kind: 'sink', fromLeftMm: 1300, widthMm: 700 }]);
+    // 2026-09-22: 디테일 단계는 한 장만 — 추천안을 끈다
+    expect(call.body.variants).toBe(false);
     // #682 에서 지운 것들이 본문으로 돌아오지 않았다
     expect(call.body.camera).toBeUndefined();
     expect(call.body.floor_quad).toBeUndefined();
