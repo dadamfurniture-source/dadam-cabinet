@@ -137,10 +137,13 @@ export async function runFal(env, model, input, opt = {}) {
   const sleep = opt.sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
   const timeoutMs = num(opt.timeoutMs, 180_000);
   const pollMs = num(opt.pollMs, 2_000);
+  // 요청 하나의 시간 제한 — 전체 180초 제한은 폴링 루프 머리에서만 검사되므로, 안 돌아오는 fetch 는 스스로 끊는다
+  const requestMs = num(opt.requestTimeoutMs, 60_000);
+  const sig = () => AbortSignal.timeout(requestMs);
   const headers = { Authorization: `Key ${env.FAL_KEY}`, 'Content-Type': 'application/json' };
   const t0 = Date.now();
 
-  const sub = await f(`${FAL_QUEUE_BASE}/${model}`, { method: 'POST', headers, body: JSON.stringify(input) });
+  const sub = await f(`${FAL_QUEUE_BASE}/${model}`, { method: 'POST', headers, body: JSON.stringify(input), signal: sig() });
   const subText = await sub.text();
   if (!sub.ok) throw new Error(`fal submit ${sub.status}: ${subText.slice(0, 200)}`);
   const ticket = JSON.parse(subText);
@@ -152,7 +155,7 @@ export async function runFal(env, model, input, opt = {}) {
   while (status !== 'COMPLETED') {
     if (Date.now() - t0 > timeoutMs) throw new Error(`fal timeout after ${Math.round((Date.now() - t0) / 1000)}s (${status})`);
     await sleep(pollMs);
-    const st = await f(statusUrl, { headers: { Authorization: headers.Authorization } });
+    const st = await f(statusUrl, { headers: { Authorization: headers.Authorization }, signal: sig() });
     const stText = await st.text();
     if (!st.ok) throw new Error(`fal status ${st.status}: ${stText.slice(0, 200)}`);
     const j = JSON.parse(stText);
@@ -160,14 +163,14 @@ export async function runFal(env, model, input, opt = {}) {
     if (j.error || j.error_type) throw new Error(`fal failed: ${j.error_type || ''} ${typeof j.error === 'string' ? j.error : JSON.stringify(j.error)}`.trim());
   }
 
-  const res = await f(responseUrl, { headers: { Authorization: headers.Authorization } });
+  const res = await f(responseUrl, { headers: { Authorization: headers.Authorization }, signal: sig() });
   const resText = await res.text();
   if (!res.ok) throw new Error(`fal result ${res.status}: ${resText.slice(0, 200)}`);
   const out = JSON.parse(resText);
   const img = Array.isArray(out.images) && out.images[0];
   if (!img || !img.url) throw new Error('fal returned no image');
 
-  const dl = await f(img.url);
+  const dl = await f(img.url, { signal: AbortSignal.timeout(Math.max(requestMs, 120_000)) });
   if (!dl.ok) throw new Error(`fal image download ${dl.status}`);
   const bytes = new Uint8Array(await dl.arrayBuffer());
   const mimeType = img.content_type || dl.headers.get('content-type') || 'image/jpeg';
