@@ -363,6 +363,8 @@ async function runPipeline(env, job, ck, save) {
   //   도면을 바탕으로 한 **한 장**이 결과물이지 색을 바꾼 추천안이 아니다 — 4장 나올 이유가 없다.
   //   끄면 이미지 호출이 4회에서 1회로 준다. 기본안이 나오면 그대로 done.
   const wantVariants = opts.variants !== false;
+  // 마무리(5단계)가 읽으므로 추천안을 껐을 때도 있어야 한다 — 첫 실측에서 'variantErrors is not defined' 로 마무리가 실패했다
+  const variantErrors = {};
   if (wantVariants) {
   // ═══ 4. 변형 3장 병렬 — 끝나는 대로 올리고 행을 갱신한다 ═══
   await setStep(env, job, ck, 'variants');
@@ -409,7 +411,6 @@ async function runPipeline(env, job, ck, save) {
     specs.push({ key: f.key, label: `AI 추천 · ${f.tone}`, prompt: buildVariantPrompt(f) });
   }
 
-  const variantErrors = {};
   await Promise.all(
     specs.map(async (f, i) => {
       const slot = `v${i + 1}`;
