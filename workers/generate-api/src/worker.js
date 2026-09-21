@@ -232,6 +232,7 @@ async function createGeneration(request, env, headers) {
     fridge_options = {},
     design_spec,
     realize,
+    variants,
     reference_images,
     parent_id,
     title,
@@ -259,6 +260,8 @@ async function createGeneration(request, env, headers) {
     // 실사화 (2026-09-19): 첫 사진에 플래너가 도면 입면을 이미 얹어 둔 경우. 재생성이면 원본을 잇는다.
     //   켰을 때만 키가 생긴다 — 안 켜면 options 는 예전과 같은 모양이다 (route 시험이 deepEqual 로 지킨다).
     ...((realize != null ? !!realize : !!(parent && parent.options && parent.options.realize)) ? { realize: true } : {}),
+    // 추천안 끄기 (2026-09-22): variants:false 면 기본안 한 장만. 재생성이면 원본을 잇는다. 켰을 때만 키가 생긴다.
+    ...((variants != null ? variants === false : !!(parent && parent.options && parent.options.variants === false)) ? { variants: false } : {}),
   };
 
   // 크레딧 차감 — 사용자 토큰으로, 어떤 업로드보다 먼저. 뒤에서 실패하면 같은 토큰으로 되돌린다.

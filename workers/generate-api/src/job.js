@@ -331,6 +331,11 @@ async function runPipeline(env, job, ck, save) {
     console.log(`[Job ${job.id}] verify: ok=${layout.verify.ok} score=${layout.verify.score ?? '-'} ${layout.elapsed_ms}ms`);
   }
 
+  // 2026-09-22: 추천안을 끌 수 있다 (options.variants === false). 플래너 디테일의 실사화는
+  //   도면을 바탕으로 한 **한 장**이 결과물이지 색을 바꾼 추천안이 아니다 — 4장 나올 이유가 없다.
+  //   끄면 이미지 호출이 4회에서 1회로 준다. 기본안이 나오면 그대로 done.
+  const wantVariants = opts.variants !== false;
+  if (wantVariants) {
   // ═══ 4. 변형 3장 병렬 — 끝나는 대로 올리고 행을 갱신한다 ═══
   await setStep(env, job, ck, 'variants');
 
@@ -420,6 +425,8 @@ async function runPipeline(env, job, ck, save) {
     })
   );
 
+  }
+
   // ═══ 5. 마무리 ═══
   const variantCount = Object.keys(ck.images).filter((k) => /^v\d$/.test(k)).length;
   const failedSlots = Object.keys(variantErrors);
@@ -427,7 +434,7 @@ async function runPipeline(env, job, ck, save) {
     status: 'done',
     progress: 100,
     step_label:
-      variantCount === VARIANT_COUNT ? '완료' : `완료 (추천안 ${variantCount}/${VARIANT_COUNT})`,
+      !wantVariants || variantCount === VARIANT_COUNT ? '완료' : `완료 (추천안 ${variantCount}/${VARIANT_COUNT})`,
     // 빠진 추천안의 사유를 남긴다 — 없으면 왜 3/4 인지 알 길이 없다.
     error: failedSlots.length
       ? failedSlots.map((s) => `${s}: ${variantErrors[s]}`).join(' | ')

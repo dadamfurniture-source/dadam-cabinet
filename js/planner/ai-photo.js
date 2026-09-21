@@ -1131,6 +1131,8 @@ const PlannerAiPhoto = {
           design_spec: spec,
           // 켰을 때만 실린다 — 안 켜면 본문은 예전과 같다
           ...(this.realize ? { realize: true } : {}),
+          // 2026-09-22: 디테일 단계는 도면 기반 한 장이 결과다 — 색만 바꾼 추천안 3장을 만들지 않는다
+          variants: false,
         }),
       });
     } catch (e) {
