@@ -3402,7 +3402,23 @@
             }
             // 조건 완화: fullscreen 이면 container 만 있으면 OK (clientWidth 무관)
             if (container && (isFullscreen || container.clientWidth > 0)) {
-              if (savedIframe) {
+              const openStage = savedIframe ? _readPlannerStage(savedIframe) : null;
+              if (savedIframe && openStage !== null && openStage !== _plannerStage) {
+                // 2026-09-22: 이미 열어 둔 품목이 **다른 단계**에 있다.
+                //   단계는 품목의 성질이 아니라 "내가 지금 어디까지 왔는가" 다 — 품목을 오갈 때마다
+                //   화면이 구조였다 디테일이었다 하면 내가 어디 있는지 알 수 없다. 지금 단계로 맞춘다.
+                //
+                //   **그 iframe 의 주소만 바꾼다.** 오버레이를 통째로 다시 만들면(_loadPlannerEmbed)
+                //   같은 자리에 새 iframe 을 세우는 셈이라 움직이는 부분이 많고, 실제로 그렇게 했더니
+                //   바뀌지 않는 경우가 있었다. 주소에 실린 파라미터(스코프·치수)는 그대로 두고
+                //   단계만 갈아 끼우면 된다.
+                //   다시 여는 것이라 **적용하지 않은 초안**은 사라진다. 배치·구조는 바뀔 때마다
+                //   저장되므로 작업 자체는 남는다 (개별 모듈 패널의 미적용 초안만 해당).
+                _positionPlannerOverlay(plannerOverlayId, container);
+                try {
+                  savedIframe.src = _plannerUrlForStage(new URL(savedIframe.src, location.origin).searchParams);
+                } catch (e) { /* 주소를 못 읽으면 그냥 둔다 — 단계만 어긋날 뿐 작업은 멀쩡하다 */ }
+              } else if (savedIframe) {
                 _positionPlannerOverlay(plannerOverlayId, container);
                 _syncPlannerState(item);
                 _sendPlannerDetail(savedIframe, item);   // D1: 품목 전환·되쓰기 뒤 detail 이 달라졌으면 맞춘다

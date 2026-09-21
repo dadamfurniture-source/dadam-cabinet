@@ -74,6 +74,32 @@ describe('이 방식이 맞는 이유 — 구조↔디테일은 페이지를 다
   });
 });
 
+describe('이미 열어 둔 품목도 지금 단계로 끌어온다', () => {
+  // 단계는 품목의 성질이 아니라 "내가 지금 어디까지 왔는가" 다. 품목을 오갈 때마다 화면이
+  // 구조였다 디테일이었다 하면 내가 어디 있는지 알 수 없다.
+  const impl = sliceBalanced(UI, UI.indexOf('function _renderWorkspaceContentImpl'));
+
+  test('열려 있는 단계와 지금 단계가 다르면 주소를 갈아 끼운다', () => {
+    expect(impl).toContain('const openStage = savedIframe ? _readPlannerStage(savedIframe) : null;');
+    expect(impl).toMatch(/openStage !== null && openStage !== _plannerStage/);
+    expect(impl).toContain('savedIframe.src = _plannerUrlForStage(');
+  });
+
+  test('주소에 실린 파라미터(스코프·치수)는 그대로 두고 단계만 바꾼다', () => {
+    // 스코프를 잃으면 **다른 품목의 배치**를 연다 — 새로 만들지 않고 있던 주소에서 가져온다
+    expect(impl).toContain('new URL(savedIframe.src, location.origin).searchParams');
+  });
+
+  test('같은 단계면 건드리지 않는다 — 공연히 다시 열지 않는다', () => {
+    expect(impl).toMatch(/\} else if \(savedIframe\) \{/);
+  });
+
+  test('주소를 못 읽으면 그냥 둔다 — 단계만 어긋날 뿐 작업은 멀쩡하다', () => {
+    const idx = impl.indexOf('savedIframe.src = _plannerUrlForStage(');
+    expect(impl.slice(idx - 80, idx + 200)).toMatch(/try \{[\s\S]*catch/);
+  });
+});
+
 describe('바꾸기 전에 붙잡고, 다음 품목을 그 단계로 연다', () => {
   test('품목을 바꾸기 **전에** 단계를 붙잡는다', () => {
     const fn = sliceBalanced(UI, UI.indexOf('function switchStep2Item'));
