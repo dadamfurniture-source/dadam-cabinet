@@ -300,7 +300,7 @@ describe('내부 서랍 (2026-09-19 확정)', () => {
       expect(L.frontW).toBe(L.moduleW - I.FRONT_TRIM);
       expect(L.fronts).toHaveLength(n);
       const sum = L.fronts.reduce((s, f) => s + f.h, 0);
-      expect(sum + L.slots * I.HANDLE_SLOT).toBe(L.moduleH - I.FRONT_TRIM);
+      expect(sum + L.slots * I.HANDLE_SLOT + L.slack).toBe(L.moduleH - I.FRONT_TRIM);
       expect(L.warnings).toEqual([]);
     });
   });
@@ -321,10 +321,10 @@ describe('내부 서랍 (2026-09-19 확정)', () => {
     expect(inner(4).hasTopSlot).toBe(false);
     expect(inner(1).hasTopSlot).toBe(true);   // 짝이 없는 한 장
     expect(inner(3).hasTopSlot).toBe(true);
-    // 상단이 없으면 맨 위 전면이 몸통 윗선에 붙는다 (트림 4 만 남는다)
+    // 상단이 없으면 맨 위 전면이 몸통 윗선에 붙는다 (트림 4 + 남는 여유만 남는다)
     const L = inner(2);
     const top = L.fronts[L.fronts.length - 1];
-    expect(L.moduleH - (top.y0 + top.h)).toBe(I.FRONT_TRIM);
+    expect(L.moduleH - (top.y0 + top.h)).toBe(I.FRONT_TRIM + L.slack);
   });
 
   test('전면은 아래에서 위로 쌓이고 빈 공간이 사이에 들어간다 (나머지는 맨 위가 먹는다)', () => {
@@ -336,8 +336,9 @@ describe('내부 서랍 (2026-09-19 확정)', () => {
     expect(L.hasTopSlot).toBe(false);
     const gaps = L.fronts.slice(1).map((f, i) => f.y0 - (L.fronts[i].y0 + L.fronts[i].h));
     expect(gaps).toEqual([I.HANDLE_SLOT, 0, I.HANDLE_SLOT]);
-    // 나머지는 맨 위가 먹는다 (구역 1400 − 상판 15 = 몸통 1385, 1385 − 4 − 60 = 1321)
-    expect(L.fronts.map((f) => f.h)).toEqual([330, 330, 330, 331]);
+    // 전면은 모두 같은 높이 (구역 1400 − 상판 15 = 몸통 1385, 1385 − 4 − 60 = 1321)
+    expect(L.fronts.map((f) => f.h)).toEqual([330, 330, 330, 330]);
+    expect(L.slack).toBe(1);                   // 1321 − 330×4 = 1 → 맨 위 여유로 흘린다
   });
 
   test('자리가 안 나오면 전면을 내지 않고 경고한다', () => {
@@ -358,14 +359,14 @@ describe('내부 서랍 (2026-09-19 확정)', () => {
     const rows = WR.innerDrawerPartsOf(inner(2));
     const front = rows.find((r) => r.part === '내부서랍 전면판');
     const mol = rows.find((r) => r.part === '내부서랍 좌우몰딩');
-    expect(front).toMatchObject({ material: 'PB', t: 15, w: 746, edge: '4면' });
+    expect(front).toMatchObject({ material: 'PB', t: 15, w: 746, qty: 2, edge: '4면' });
     expect(front.note).toMatch(/빈 공간 30 × 1/);   // 2단은 경계 하나로 끝난다
     expect(mol).toMatchObject({ material: 'PB', t: 15, w: 700, h: 60, qty: 2 });
     expect(mol.note).toMatch(/70 안쪽/);
-    // 높이가 다르면 줄이 나뉜다 — 2단은 325·326 이라 두 줄이다 (나머지를 맨 위가 먹는다)
+    // 전면이 모두 같은 높이라 한 줄로 묶인다
     const fr = rows.filter((r) => r.part === '내부서랍 전면판');
-    expect(fr.map((r) => r.h).sort((a, b) => a - b)).toEqual([325, 326]);
-    expect(fr.reduce((n, r) => n + r.qty, 0)).toBe(2);
+    expect(fr).toHaveLength(1);
+    expect(fr[0]).toMatchObject({ h: 325, qty: 2 });
   });
 
   test('통 배치에 실려 나온다 — 플래너·BOM 이 같은 숫자를 쓴다', () => {
@@ -649,6 +650,25 @@ describe('내부 서랍장은 따로 만드는 모듈이다 (2026-09-19 확정)'
     expect(top.h).toBe(532);
   });
 
+  test('전면은 모두 같은 높이다 — 남는 1~2mm 는 맨 위 여유로 흘린다 (2026-09-22)', () => {
+    // 붙박이장 도어는 사람이 정면에서 보는 면이라 높이를 맞춘다.
+    //   예전에는 나머지를 맨 위 전면이 먹어 2단 325·326 처럼 1mm 씩 갈렸다.
+    [1, 2, 3, 4].forEach((n) => {
+      const L = inner(n);
+      expect(new Set(L.fronts.map((f) => f.h)).size).toBe(1);
+      expect(L.slack).toBeLessThan(n);          // 나머지는 언제나 단수보다 작다
+      expect(L.slack).toBeGreaterThanOrEqual(0);
+    });
+    expect(inner(2).fronts.map((f) => f.h)).toEqual([325, 325]);
+    expect(inner(3).fronts.map((f) => f.h)).toEqual([323, 323, 323]);
+    expect(inner(2).slack).toBe(1);
+    expect(inner(3).slack).toBe(2);
+    // 자재표 줄도 하나로 묶인다
+    const rows = WR.innerDrawerPartsOf(inner(2)).filter((r) => r.part === '내부서랍 전면판');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].qty).toBe(2);
+  });
+
   test('전면은 몸통 외경 면을 덮는다 — 아래·위에 트림 절반(2)씩 남는다', () => {
     // 그림이 옛 모델을 따라 지판 위(T)에서 전면을 시작하면 위아래가 어긋난다.
     //   도어가 외경 기준이 된 뒤로는 시작점이 **몸통 밑면 + 2** 다.
@@ -656,8 +676,8 @@ describe('내부 서랍장은 따로 만드는 모듈이다 (2026-09-19 확정)'
       const L = inner(n);
       expect(L.frontY0).toBe(I.FRONT_TRIM / 2);
       const top = L.fronts[L.fronts.length - 1];
-      // 맨 위 전면 위에는 상단 빈 공간(있을 때)과 트림 절반만 남는다
-      const above = L.hasTopSlot ? I.HANDLE_SLOT : 0;
+      // 맨 위 전면 위에는 상단 빈 공간(있을 때) + 남는 여유 + 트림 절반만 남는다
+      const above = (L.hasTopSlot ? I.HANDLE_SLOT : 0) + L.slack;
       expect(L.frontY0 + top.y0 + top.h + above).toBe(L.moduleH - I.FRONT_TRIM / 2);
     });
   });

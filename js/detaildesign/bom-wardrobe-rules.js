@@ -505,6 +505,7 @@
       // 전면은 몸통 **외경 면**을 덮는다 — 아래·위에 트림 절반(2)씩 남는다.
       //   그림 쪽이 이 값을 써야 한다 (예전에는 지판 위에서 시작하는 줄 알고 T 만큼 띄웠다).
       frontY0: I.FRONT_TRIM / 2,
+      slack: 0,
       topPanelD: Math.max(0, shelfDepthOf(opt)),
       frontT: T, fronts: [], boxes: [], slots: 0, warnings,
     };
@@ -526,12 +527,17 @@
       return Object.assign(base, { slots, frontW });
     }
 
-    // 아래에서 위로 쌓는다. 나머지는 **맨 위 전면**이 먹는다 (몸통 스택과 같은 규칙).
+    // 아래에서 위로 쌓는다. 전면은 **모두 같은 높이**고, 나누어떨어지지 않는 1~2mm 는
+    //   맨 위 여유로 흘린다 (2026-09-22 사장님 확정).
+    //   예전에는 나머지를 맨 위 전면이 먹어서 2단 325·326 처럼 1mm 씩 갈렸다 —
+    //   붙박이장 도어는 사람이 정면에서 보는 면이라 높이를 맞추는 쪽을 택했다.
+    //   (몸통 스택 `splitStack` 은 여전히 나머지를 맨 위가 먹는다 — 그쪽은 안 보이는 판이다.)
     const each = Math.floor(area / n);
+    const slack = area - each * n;
     const fronts = [];
     let y = 0;
     for (let i = 0; i < n; i++) {
-      const h = i === n - 1 ? area - each * (n - 1) : each;
+      const h = each;
       // slotAbove: 이 전면 **위**에 빈 공간이 있는가 (맨 위는 상단 빈 공간이 있을 때만)
       const slotAbove = i === n - 1 ? plan.top : !!mids[i];
       fronts.push({ idx: i, y0: y, h, w: frontW, slotAbove, slotBelow: i > 0 && !!mids[i - 1] });
@@ -555,7 +561,7 @@
     });
 
     // topSlot: 맨 위 전면 위의 빈 공간 — 단수가 짝수면 없다 (짝이 다 맞아 경계로 해결된다)
-    return Object.assign(base, { slots, frontW, fronts, boxes,
+    return Object.assign(base, { slots, frontW, fronts, boxes, slack,
       topSlot: plan.top ? I.HANDLE_SLOT : 0, hasTopSlot: plan.top });
   }
 
