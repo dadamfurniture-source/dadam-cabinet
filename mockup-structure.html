@@ -4028,13 +4028,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           const x = i === 0 ? leftX : leftX + (m.W - 2 * T) - mw;
           rect(x, yOf(zone.y0 + zone.h), mw, zone.h, '#8d7f63', '#5a5040');
         });
-        // 서랍장 모듈 몸통 — 측판 두 장이 몰딩 안쪽에 선다 (모듈을 따로 만든다)
+        // 서랍장 모듈 몸통 — 측판 두 장이 몰딩 안쪽에 선다 (모듈을 따로 만든다).
+        //   2026-09-22: 측판은 **몸통 외경 높이**까지고, 그 위에 상판이 한 줄 올라간다.
         [0, 1].forEach((i) => {
           const x = i === 0 ? leftX + mw : leftX + mw + zone.moduleW - T;
-          rect(x, yOf(zone.y0 + zone.h), T, zone.h, '#b3a483', '#6d6047');
+          rect(x, yOf(zone.y0 + zone.moduleH), T, zone.moduleH, '#b3a483', '#6d6047');
         });
+        rect(leftX + mw, yOf(zone.y0 + zone.moduleH + zone.topT), zone.topPanelW, zone.topT, '#a8946f', '#6d6047');
         zone.fronts.forEach((f) => {
-          rect(leftX + mw + 2, yOf(zone.y0 + T + f.y0 + f.h), f.w, f.h, '#cbbfa6', '#7d6c48');
+          rect(leftX + mw + 2, yOf(zone.y0 + zone.frontY0 + f.y0 + f.h), f.w, f.h, '#cbbfa6', '#7d6c48');
         });
         return;
       }
@@ -4164,6 +4166,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const box = (z.boxes || [])[0];
     return `<div style="font-size:10px;color:#888;line-height:1.5">
       서랍장 모듈 ${z.moduleW}×${z.moduleH}×${z.moduleD} — 따로 만든다 (통 내경 − ${2 * z.moldingW})<br>
+      천판 없음 · 밴드 ${z.moduleW - 2 * z.frontT}×70 ×2 · 위에 상판 ${z.topPanelW}×${z.topPanelD}<br>
       전면 ${z.frontW}×${z.fronts.map((f) => f.h).join('·')} — 15PB 몸통 재질<br>
       좌우 몰딩 ${z.moldingW} · 앞선에서 ${z.setback} 안쪽 · 손잡이 빈 공간 30 × ${z.slots}
       ${box ? `<br>박스 ${box.label} ${box.fbW}×${box.fbH} · ${box.railName} ${box.railLength}` : ''}
@@ -7677,22 +7680,35 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         const mW = zone.moduleW;
         const mD = zone.moduleD;
         const mZ = D / 2 - zone.setback - mD / 2;
-        if (mW > 0 && mD > 0) {
+        // 2026-09-22: 몸통은 하부장과 같다 — 천판이 없고 밴드가 상단 앞·뒤에 서고,
+        //   그 위에 상판이 올라간다. 몸통 외경 높이(mH)는 구역에서 상판 두께를 뺀 값이다.
+        const mH = zone.moduleH;
+        if (mW > 0 && mD > 0 && mH > 0) {
           [-1, 1].forEach((sgn) => {
-            const side = makeBox(T, zone.h, mD, color);
-            side.position.set(sgn * (mW / 2 - T / 2), legH + zone.y0 + zone.h / 2, mZ);
+            const side = makeBox(T, mH, mD, color);
+            side.position.set(sgn * (mW / 2 - T / 2), legH + zone.y0 + mH / 2, mZ);
             put(side, { entityKind: 'wardrobeInnerModule', moduleId: m.id });
           });
-          [T / 2, zone.h - T / 2].forEach((dy) => {
-            const pan = makeBox(mW - 2 * T, T, zone.panelD, color);
-            pan.position.set(0, legH + zone.y0 + dy, mZ);
-            put(pan, { entityKind: 'wardrobeInnerModule', moduleId: m.id });
+          // 지판
+          const bottom = makeBox(mW - 2 * T, T, zone.panelD, color);
+          bottom.position.set(0, legH + zone.y0 + T / 2, mZ);
+          put(bottom, { entityKind: 'wardrobeInnerModule', moduleId: m.id });
+          // 밴드 — 상단 앞·뒤 두 장 (천판 자리)
+          const bandH = 70;
+          [mZ + mD / 2 - T / 2, mZ - mD / 2 + T / 2].forEach((bz) => {
+            const band = makeBox(mW - 2 * T, bandH, T, color);
+            band.position.set(0, legH + zone.y0 + mH - bandH / 2, bz);
+            put(band, { entityKind: 'wardrobeInnerModule', moduleId: m.id });
           });
+          // 상판 — 몸통 위에 올라간다 (구역 안)
+          const top = makeBox(zone.topPanelW, zone.topT, zone.topPanelD, color);
+          top.position.set(0, legH + zone.y0 + mH + zone.topT / 2, mZ);
+          put(top, { entityKind: 'wardrobeInnerTop', moduleId: m.id });
         }
         // 전면 — 아래에서 위로. 빈 공간은 전면 사이에 그대로 남는다 (그리지 않는다)
         zone.fronts.forEach((f) => {
           const face = makeBox(f.w, f.h, T, darken3(color, 0.06));
-          face.position.set(0, legH + zone.y0 + T + f.y0 + f.h / 2, frontZ);
+          face.position.set(0, legH + zone.y0 + zone.frontY0 + f.y0 + f.h / 2, frontZ);
           put(face, { entityKind: 'wardrobeDrawerFront', moduleId: m.id, drawerIdx: f.idx, external: false });
         });
         return;
