@@ -41,6 +41,7 @@ import { refundCreditService } from './credits.js';
 import { LAYOUT_CATEGORIES, LAYOUT_SCHEMA, buildLayoutPrompt, normalizeLayout } from './layout.js';
 import { callClaudeJson } from './claude.js';
 import { VERIFY_VERSION, compareLayoutToSpec } from './verify.js';
+import { controlNetModel, runControlNet } from './controlnet.js';
 
 const MAX_ATTEMPTS = 2;
 /** 역판독(Claude 비전) 이미지 한도 — Anthropic 5MB, base64 는 4/3 배 (worker.js MAX_IMAGE_B64 와 같은 값) */
@@ -246,17 +247,31 @@ async function runPipeline(env, job, ck, save) {
   const imageSize = env.GEMINI_IMAGE_SIZE || '2K';
   const prefix = `${job.userId}/${job.id}`;
 
-  // ═══ 2. 설치 + 3. 검사 (1회 재시도) ═══
-  let base = null; // {base64, mimeType}
-  if (!ck.images.base) {
-    await setStep(env, job, ck, 'rendering');
-    let r = await callGemini(env, {
-      prompt: buildInstallPrompt(ctx),
+  // ControlNet 경로 (2026-09-22, 계획서 §5-C): 구조 조건 이미지(inputs.control)가 있고 engine 이 controlnet 이면
+  //   fal.ai 의 조건 모델이 그린다. 바탕(방 사진 또는 합성본)과 조건은 공개 URL 로 넘긴다. 검사(QC)는 그대로 Gemini.
+  const engine = opts.engine === 'controlnet' && inputs.control && inputs.control.url && inputs.room && inputs.room.url
+    ? 'controlnet' : 'gemini';
+  const install = async (fix) => {
+    if (engine === 'controlnet') {
+      const r = await runControlNet(env, { ctx, baseUrl: inputs.room.url, controlUrl: inputs.control.url, size: opts.control_size || null, fix });
+      ck.engineMeta = r.meta;
+      console.log(`[Job ${job.id}] controlnet ${r.meta.model} ${r.meta.requestId} ${r.meta.elapsedMs}ms`);
+      return { base64: r.base64, mimeType: r.mimeType };
+    }
+    const r = await callGemini(env, {
+      prompt: buildInstallPrompt(ctx, fix ? { fix } : {}),
       images: [room, ...refs],
       imageSize,
     });
     if (!r.image) throw new Error('install returned no image');
-    base = { base64: r.image, mimeType: r.imageMime || 'image/jpeg' };
+    return { base64: r.image, mimeType: r.imageMime || 'image/jpeg' };
+  };
+
+  // ═══ 2. 설치 + 3. 검사 (1회 재시도) ═══
+  let base = null; // {base64, mimeType}
+  if (!ck.images.base) {
+    await setStep(env, job, ck, 'rendering');
+    base = await install();
 
     await setStep(env, job, ck, 'qc');
     let qc = { ok: true, issues: [], note: null };
@@ -269,17 +284,11 @@ async function runPipeline(env, job, ck, save) {
     if (!qc.ok) {
       console.log(`[Job ${job.id}] qc issues: ${qc.issues.join(',')} — retrying install`);
       try {
-        const r2 = await callGemini(env, {
-          prompt: buildInstallPrompt(ctx, { fix: qc.issues }),
-          images: [room, ...refs],
-          imageSize,
-        });
-        if (r2.image) base = { base64: r2.image, mimeType: r2.imageMime || 'image/jpeg' };
+        base = await install(qc.issues);
       } catch (e) {
         console.warn(`[Job ${job.id}] fixed install failed, keeping first:`, e.message);
       }
     }
-    r = null;
 
     const up = await uploadObject(
       env,
@@ -441,7 +450,7 @@ async function runPipeline(env, job, ck, save) {
       : null,
     images: slotList(ck.images),
     quote: buildQuote(category, wall.wallW),
-    model: env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image',
+    model: engine === 'controlnet' ? controlNetModel(env) : env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image',
     elapsed_ms: Date.now() - startedAt,
     completed_at: new Date().toISOString(),
   });

@@ -37,6 +37,10 @@ curl https://dadam-generate-api.dadamfurniture.workers.dev/health
 
 ## 환경 변수 (Secret)
 
+> 2026-09-22 추가 — `FAL_KEY`: ControlNet 경로(`engine: 'controlnet'`, `src/controlnet.js`)가 fal.ai 를 부를 때 쓴다.
+> https://fal.ai/dashboard/keys 에서 발급 → `npx wrangler secret put FAL_KEY`. 없으면 그 경로의 잡만 실패하고 크레딧은 환불된다.
+> 모델·강도는 `wrangler.toml` 의 `CONTROLNET_MODEL` / `CONTROLNET_STRENGTH` / `CONTROLNET_CONTROL_STRENGTH`.
+
 `wrangler secret put` 으로 등록한다 (wrangler.toml 에 넣지 않음).
 
 | 이름 | 용도 |

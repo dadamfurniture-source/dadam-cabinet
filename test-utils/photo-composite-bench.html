@@ -194,6 +194,24 @@ async function run() {
   gd.globalCompositeOperation = 'multiply'; gd.fillStyle = g; gd.beginPath(); gd.moveTo(...p0); gd.lineTo(...p1); gd.lineTo(p1[0] - ux, p1[1] - uy); gd.lineTo(p0[0] - ux, p0[1] - uy); gd.closePath(); gd.fill();
   gd.globalCompositeOperation = 'source-over';
 
+  // E. 구조 조건 — 워프된 도면의 윤곽선(흰 선/검은 바탕). ControlNet 경로(canny 조건)에 넣는 PNG.
+  //    얹은 영역 안에서 소벨 크기 > 40, 그리고 얹은 영역의 경계. 사진과 같은 화소 크기다.
+  const cE = cell('E. 구조 조건 (윤곽선 PNG — ControlNet 입력)', W, H, scale); const gE = cE.getContext('2d');
+  const Lw = new Float32Array(W * H);
+  for (let i = 0; i < W * H; i++) Lw[i] = warped[i * 4 + 3] > 0 ? lum(warped[i * 4], warped[i * 4 + 1], warped[i * 4 + 2]) : -1;
+  const edge = gE.createImageData(W, H);
+  for (let i = 0; i < W * H; i++) edge.data[i * 4 + 3] = 255;
+  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+    const i = y * W + x; if (Lw[i] < 0) continue;
+    const g = (xx, yy) => { const v = Lw[yy * W + xx]; return v < 0 ? Lw[i] : v; };
+    const gx = -g(x-1,y-1) - 2*g(x-1,y) - g(x-1,y+1) + g(x+1,y-1) + 2*g(x+1,y) + g(x+1,y+1);
+    const gy = -g(x-1,y-1) - 2*g(x,y-1) - g(x+1,y-1) + g(x-1,y+1) + 2*g(x,y+1) + g(x+1,y+1);
+    const border = [Lw[i-1], Lw[i+1], Lw[i-W], Lw[i+W]].some((v) => v < 0);
+    if (border || Math.hypot(gx, gy) > 40) { edge.data[i * 4] = edge.data[i * 4 + 1] = edge.data[i * 4 + 2] = 255; }
+  }
+  gE.putImageData(edge, 0, 0);
+  window.__control = cE.toDataURL('image/png');
+
   log(`입면 ${EW}×${EH} 배경 ${BG.join(',')} · 사진 ${W}×${H} · 얹은 픽셀 ${covered} · 밝기 기준 ${Lref.toFixed(0)}`);
   log(`Lab 평균 입면 ${S.m.map(v => v.toFixed(0))} → 사진 ${D.m.map(v => v.toFixed(0))}`);
 }

@@ -233,6 +233,10 @@ async function createGeneration(request, env, headers) {
     design_spec,
     realize,
     variants,
+    engine,
+    control_image,
+    control_type = 'image/png',
+    control_size,
     reference_images,
     parent_id,
     title,
@@ -246,6 +250,11 @@ async function createGeneration(request, env, headers) {
       throw new NotFoundError('원본 생성 결과를 찾을 수 없습니다');
   }
   if (!parent && !room_image) throw new ValidationError('room_image is required');
+  // ControlNet 경로 (2026-09-22): 구조 조건 이미지가 있어야 한다. 크레딧 차감 전에 막는다.
+  const wantControlNet = engine === 'controlnet' || (engine == null && !!(parent && parent.options && parent.options.engine === 'controlnet'));
+  if (wantControlNet && !parent && !control_image) throw new ValidationError('control_image is required when engine is controlnet');
+  const sizeOf = (v) => (v && Number.isFinite(Number(v.width)) && Number.isFinite(Number(v.height)) && Number(v.width) > 0 && Number(v.height) > 0
+    ? { width: Math.round(Number(v.width)), height: Math.round(Number(v.height)) } : null);
 
   const category = resolveCategory(rawCategory || (parent && parent.category) || 'sink');
   const options = {
@@ -262,6 +271,8 @@ async function createGeneration(request, env, headers) {
     ...((realize != null ? !!realize : !!(parent && parent.options && parent.options.realize)) ? { realize: true } : {}),
     // 추천안 끄기 (2026-09-22): variants:false 면 기본안 한 장만. 재생성이면 원본을 잇는다. 켰을 때만 키가 생긴다.
     ...((variants != null ? variants === false : !!(parent && parent.options && parent.options.variants === false)) ? { variants: false } : {}),
+    // ControlNet 경로 — 켰을 때만 키가 생긴다. 크기는 조건 이미지와 바탕 사진의 화소 크기(같아야 한다).
+    ...(wantControlNet ? { engine: 'controlnet', control_size: sizeOf(control_size) || (parent && parent.options && parent.options.control_size) || null } : {}),
   };
 
   // 크레딧 차감 — 사용자 토큰으로, 어떤 업로드보다 먼저. 뒤에서 실패하면 같은 토큰으로 되돌린다.
@@ -325,7 +336,17 @@ async function createGeneration(request, env, headers) {
           console.warn('[Generate] ref upload skipped:', e.message);
         }
       }
-      inputs = { room: { path: room.path, url: room.url, mime: image_type }, refs };
+      // 구조 조건 이미지 (ControlNet) — 방 사진과 같은 화소 공간의 윤곽선/깊이 PNG
+      let control = null;
+      if (control_image) {
+        try {
+          const up = await uploadObject(env, `${prefix}/control.${extOf(control_type)}`, control_image, control_type);
+          control = { path: up.path, url: up.url, mime: control_type };
+        } catch (e) {
+          console.warn('[Generate] control upload failed:', e.message);
+        }
+      }
+      inputs = { room: { path: room.path, url: room.url, mime: image_type }, refs, ...(control ? { control } : {}) };
       await updateById(env, 'generations', row.id, { inputs });
     }
 
