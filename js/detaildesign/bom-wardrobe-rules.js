@@ -35,7 +35,8 @@
  * ── 내부 서랍 (2026-09-19 사장님 확정) ───────────────────────────
  * 서랍 자체(박스·레일)는 **서랍 규칙**(bom-drawer-rules.js)을 그대로 쓴다 — 규칙을 두 벌 만들지 않는다.
  * 붙박이장에만 다른 것은 네 가지다:
- *   · 전면(도어)  15PB, **몸통 재질과 같다**. 가로 = 모듈 내경 − 4, 세로 = 모듈 내경 높이 − 4
+ *   · 전면(도어)  15PB, **몸통 재질과 같다**. 가로·세로 모두 **모듈 외경 − 4**
+ *                 (2026-09-22 사장님 확정: 세로도 외경 기준. 예전에는 세로만 내경 기준이라 기준이 갈렸다)
  *   · 좌우 몰딩   각 **60** (15PB, 몸통 재질). 문을 열 때 경첩에 걸리지 않게 모듈을 그만큼 안으로 넣는다
  *   · 앞선        붙박이장 앞선에서 **70 안쪽** — 경첩 자리
  *   · 손잡이      목찬넬이 아니라 **도어를 30 낮춰** 빈 공간을 만든다.
@@ -54,8 +55,10 @@
  *   모듈 H(외경) = 서랍 단수 × 350       (구역 높이)
  *   모듈 D       = 통 깊이 − 70          (앞선에서 물러선 만큼)
  *   도어 W       = 모듈 W − 4
- *   천판 깊이    = **붙박이장 선반 깊이** (`shelfDepthOf`) — 천판은 모듈의 상판 개념이다
- *                  (2026-09-19 사장님 확정). 지판은 모듈 천저판 그대로 (모듈 D − 18).
+ *   몸통 구성    = **하부장과 같다** — 천판이 없고 **밴드**가 상단 앞·뒤에 서고, 그 **위에 상판**이
+ *                  올라간다 (2026-09-22 사장님 확정). 상판 깊이는 붙박이장 선반과 같다 (`shelfDepthOf`).
+ *   모듈 외경 H  = 구역 높이 − 상판 두께   (상판이 구역 안에서 몸통 위에 앉는다)
+ *   지판 깊이    = 모듈 D − 18 (사쿠리)
  * 서랍 박스(전후판·측판·우라)는 이 모듈 치수를 **서랍 규칙**(drawerBoxDims)에 넣어서 낸다 —
  * 붙박이장에만 있는 박스 규칙을 따로 두지 않는다.
  *
@@ -116,8 +119,8 @@
       FRONT_TRIM: 4,        // 전면 가로·세로 각 −4
       HANDLE_SLOT: 30,      // 목찬넬 대신 전면을 30 낮춘다 — 그 빈 공간이 손잡이다
       MIN_FRONT_H: 50,      // 이보다 낮은 전면은 만들 수 없다 (서랍 규칙 MIN_FRONT_H 와 같은 값)
-      // 내부 서랍장 몸통 — 일반 모듈과 같은 방식으로 만든다
-      BAND_H: 70,           // 밴드 폭 (일반 모듈과 같다)
+      // 내부 서랍장 몸통 — 하부장과 같은 방식으로 만든다 (천판 없음)
+      BAND_H: 70,           // 밴드 폭 — 천판 대신 상단 앞·뒤에 선다 (하부장과 같다)
       BACK_T: 2.7,          // 뒷판 MDF
       BACK_W_MINUS: 20,     // 뒷판 가로 = 모듈 외경 − 20
       BACK_H_MINUS: 1,      // 뒷판 세로 = 모듈 높이 − 1
@@ -484,21 +487,29 @@
     if (n <= 0 || Wi <= 0 || zoneH <= 0) return null;
 
     const warnings = [];
-    // 서랍장은 **따로 만드는 모듈**이다 — W·H 는 그 모듈의 외경이다 (도어가 W 보다 4 작다).
+    // 서랍장은 **따로 만드는 모듈**이다 — W·H 는 그 모듈의 외경이고 도어가 그보다 4 작다.
+    //   2026-09-22: 몸통은 하부장과 같다 — 천판이 없고 밴드가 상단에 서며, 그 **위에 상판**이
+    //   구역 안에서 몸통 위에 앉는다. 그래서 몸통 외경 높이는 구역 높이에서 상판 두께를 뺀 값이다.
     const moduleW = Wi - 2 * I.SIDE_MOLDING_W;
-    const moduleHi = zoneH - 2 * T;
+    const topT = T;                                        // 상판도 15PB 몸통 재질
+    const moduleH = Math.max(0, zoneH - topT);             // 몸통 외경 높이 — 도어 세로의 기준
+    const moduleHi = Math.max(0, moduleH - T);             // 참고용 (지판만 빠진다 — 천판이 없다)
     const moduleD = Math.max(0, depthOf(opt) - I.FRONT_SETBACK);
     const base = {
       drawers: n, moldingW: I.SIDE_MOLDING_W, moldingT: T, moldingH: zoneH,
-      setback: I.FRONT_SETBACK, moduleW, moduleH: zoneH, moduleHi, moduleD,
-      // 천저판 깊이 — 사쿠리 반영. 플래너도 이 값을 그린다 (숫자를 두 군데 적지 않는다).
+      setback: I.FRONT_SETBACK, moduleW, moduleH, moduleHi, moduleD, zoneH, topT,
+      // 지판 깊이 — 사쿠리 반영. 플래너도 이 값을 그린다 (숫자를 두 군데 적지 않는다).
       panelD: Math.max(0, moduleD - R.TOP_BOTTOM_D_MINUS),
-      // 천판은 모듈의 **상판** 개념이라 깊이가 붙박이장 선반과 같다 (2026-09-19 사장님 확정).
+      // 상판 — 모듈 위에 올라간다. 깊이는 붙박이장 선반과 같다 (2026-09-19 사장님 확정).
+      topPanelW: moduleW,
+      // 전면은 몸통 **외경 면**을 덮는다 — 아래·위에 트림 절반(2)씩 남는다.
+      //   그림 쪽이 이 값을 써야 한다 (예전에는 지판 위에서 시작하는 줄 알고 T 만큼 띄웠다).
+      frontY0: I.FRONT_TRIM / 2,
       topPanelD: Math.max(0, shelfDepthOf(opt)),
       frontT: T, fronts: [], boxes: [], slots: 0, warnings,
     };
-    if (moduleW <= 0 || moduleHi <= 0) {
-      warnings.push(`내부 서랍 자리가 좁다 — 모듈 ${moduleW}×${moduleHi} (통 내경 ${Wi} · 구역 ${zoneH})`);
+    if (moduleW <= 0 || moduleH <= 0) {
+      warnings.push(`내부 서랍 자리가 좁다 — 모듈 ${moduleW}×${moduleH} (통 내경 ${Wi} · 구역 ${zoneH})`);
       return base;
     }
 
@@ -507,8 +518,9 @@
     const mids = plan.midBelow;
     const slots = plan.slots;
 
+    // 가로·세로 모두 **외경 − 4** 다 (2026-09-22 사장님 확정).
     const frontW = moduleW - I.FRONT_TRIM;
-    const area = (moduleHi - I.FRONT_TRIM) - slots * I.HANDLE_SLOT;
+    const area = (moduleH - I.FRONT_TRIM) - slots * I.HANDLE_SLOT;
     if (area < n * I.MIN_FRONT_H) {
       warnings.push(`서랍 ${n}단에 전면 자리가 ${area} 밖에 없다 — 한 장이 최소 ${I.MIN_FRONT_H} 은 되어야 한다`);
       return Object.assign(base, { slots, frontW });
@@ -590,13 +602,16 @@
     const H = L.moduleH;
     const D = L.moduleD;
     const inner = W - 2 * T;
+    // 2026-09-22: 몸통은 **하부장과 같다** — 천판이 없다. 밴드가 상단 앞·뒤에 서고
+    //   그 위에 상판이 올라간다.
     const rows = [
       { part: '측판', material: 'PB', t: T, w: D, h: H, qty: 2, edge: '3면', note: 'sakuri(15→3mm)' },
-      { part: '천판', material: 'PB', t: T, w: inner, h: L.topPanelD, qty: 1, edge: '1면(전)',
-        note: '상판 개념 — 붙박이장 선반과 같은 깊이' },
       { part: '지판', material: 'PB', t: T, w: inner, h: L.panelD, qty: 1, edge: '1면(전)' },
+      { part: '밴드', material: 'PB', t: T, w: inner, h: I.BAND_H, qty: 2, edge: '2면(장)',
+        note: '천판 대신 상단 앞·뒤 (하부장과 같다)' },
       { part: '뒷판', material: 'MDF', t: I.BACK_T, w: W - I.BACK_W_MINUS, h: H - I.BACK_H_MINUS, qty: 1, edge: '-' },
-      { part: '밴드', material: 'PB', t: T, w: inner, h: I.BAND_H, qty: 2, edge: '2면(장)' },
+      { part: '상판', material: 'PB', t: L.topT, w: L.topPanelW, h: L.topPanelD, qty: 1, edge: '1면(전)',
+        note: '모듈 위에 올라간다 — 깊이는 붙박이장 선반과 같다' },
     ];
 
     // 박스는 크기가 같은 것끼리 묶는다 (단수가 달라도 보통 한 종류다).
