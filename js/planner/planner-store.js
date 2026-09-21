@@ -586,6 +586,28 @@ function plannerAutosave(stage, delayMs) {
   return true;
 }
 
+/**
+ * 2026-09-22: **지금 바로** 자동 저장하고 그 약속을 돌려준다.
+ *
+ * 단계를 넘어갈 때 쓴다. 예전에는 `plannerAutosave(stage, 0)` 로 0ms 타이머를 걸어 두고
+ * 호출부가 `setTimeout(…, 400)` 뒤에 페이지를 옮겼다. 두 가지가 문제였다:
+ *   · 저장이 20ms 에 끝나도 **400 을 꽉 채워 기다렸다** — 그동안 화면이 멈춰 있다.
+ *   · 기다리지 않고 바로 옮기는 길(디테일 버튼)은 0ms 타이머가 뜨기도 전에 페이지가 떠나
+ *     **계정 저장이 아예 일어나지 않았다.**
+ * 약속을 돌려주면 호출부가 "끝나는 대로" 옮길 수 있다.
+ *
+ * @returns {Promise|null} 자동 저장이 꺼져 있으면 null (올릴 것이 없다는 뜻)
+ */
+function plannerAutosaveNow(stage) {
+  clearTimeout(_plannerAutosaveTimers[stage]);   // 예약된 것이 있으면 이걸로 대신한다
+  if (!plannerAutosaveEnabled()) return null;
+  try {
+    return Promise.resolve(PlannerStore.save(stage, { autosave: true }));
+  } catch (e) {
+    return null;   // 저장이 막혀도 단계 이동을 막지는 않는다
+  }
+}
+
 // ────────────────────────────────────────────────────────────
 // 2026-09-13: 플래너에서 저장을 눌렀는데 설계가 아직 저장되지 않은 경우(no-scope).
 //   예전엔 "상세설계에서 설계를 저장하세요" 로 끝났다. 사용자는 왜 두 번 저장해야 하는지
@@ -730,6 +752,7 @@ if (typeof window !== 'undefined') {
   window.plannerListenDesignSaved = plannerListenDesignSaved;
   window.PlannerStore = PlannerStore;
   window.plannerAutosave = plannerAutosave;
+  window.plannerAutosaveNow = plannerAutosaveNow;
   window.plannerAutosaveEnabled = plannerAutosaveEnabled;
   window.setPlannerAutosave = setPlannerAutosave;
   window.migratePlannerLocalScope = migratePlannerLocalScope;
@@ -743,6 +766,7 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerScopeIds,
     plannerScopeIsRemote,
     plannerSnapshotPayload,
+    plannerAutosaveNow,
     applyPlannerSnapshot,
     plannerSnapshotSummary,
     plannerSnapshotWhen, plannerSnapshotOrigin,

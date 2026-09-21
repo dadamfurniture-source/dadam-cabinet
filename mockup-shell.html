@@ -18,6 +18,18 @@
   .shell{display:flex;flex-direction:column;height:100vh;width:100vw}
 
   /* W9-42: 냉장고 모델 선택 모달 */
+  /* 2026-09-22: 단계를 넘어가는 동안 덮는 막.
+     페이지를 통째로 다시 여는 길이라 브라우저가 옛 화면을 붙들고 있다가 새 화면으로 바꾼다 —
+     그 사이 아무 일도 안 일어나는 것처럼 보여 '멈췄다 깜빡였다' 로 읽힌다.
+     목적지(mockup-structure)의 첫 바탕색과 **같은 색**이라 페이지가 바뀌는 이음매가 묻힌다.
+     페이드는 넣지 않는다 — 막은 **지금** 덮어야 하는 것이고, 전환 애니메이션은 탭이 화면을
+     그리지 않는 동안 진행되지 않아 투명한 채로 남는 실패가 생긴다 (실제로 겪었다). */
+  #stageCurtain{position:fixed;inset:0;z-index:400;background:#fbfaf6;display:flex;
+    align-items:center;justify-content:center;gap:10px;color:#6a4b2a;font-size:14px;font-weight:600}
+  #stageCurtain[hidden]{display:none}
+  #stageCurtain .sc-dot{width:9px;height:9px;border-radius:50%;background:#b8956c;
+    animation:scPulse .9s ease-in-out infinite}
+  @keyframes scPulse{0%,100%{opacity:.25;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
   .modal-overlay{position:fixed;inset:0;background:rgba(40,30,15,0.45);z-index:200;display:none;align-items:center;justify-content:center}
   .modal-overlay.open{display:flex}
   .modal-content{background:#fff;border-radius:10px;width:min(480px,90vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(0,0,0,0.25);overflow:hidden}
@@ -3202,6 +3214,58 @@
     });
   }
 
+
+  // ============================================================
+  // 2026-09-22: 단계 이동 — 저장이 끝나는 대로 넘어간다.
+  //
+  // 예전엔 `plannerAutosave('layout', 0)` 로 0ms 타이머를 건 뒤 `setTimeout(…, 400)` 에
+  // 페이지를 옮겼다. 그 400 은 **계정 저장이 요청을 띄울 시간**이었는데, 저장이 20ms 에 끝나도
+  // 400 을 꽉 채워 기다렸다 — 그동안 화면이 멈춰 '넘어갈 때마다 깜빡인다' 로 읽혔다.
+  // 디테일 버튼은 반대로 **기다리지 않고** 바로 옮겨, 0ms 타이머가 뜨기도 전에 페이지가 떠나
+  // 계정 저장이 아예 일어나지 않았다.
+  //
+  // 이제 저장을 직접 걸고(plannerAutosaveNow) 그 약속이 끝나면 곧바로 넘어간다.
+  // 느리거나 실패해도 상한에서 넘어간다 — 저장 때문에 갇히지 않는다.
+  // 기다리는 동안은 목적지와 같은 바탕색의 막을 덮어, 멈춘 화면 대신 넘어가는 중으로 보이게 한다.
+  // ============================================================
+
+  /** 저장이 느려도 여기서는 넘어간다 (localStorage 저장은 이미 끝나 있어 작업은 잃지 않는다) */
+  const STAGE_NAV_MAX_WAIT = 700;
+
+  function showStageCurtain(text) {
+    const el = document.getElementById('stageCurtain');
+    if (!el) return;
+    const t = document.getElementById('stageCurtainText');
+    if (t && text) t.textContent = text;
+    el.hidden = false;   // 페이드 없이 곧바로 덮는다 (CSS 주석 참고)
+  }
+
+  /**
+   * 배치를 저장하고 다음 단계로 넘어간다.
+   * @param href  옮겨 갈 주소
+   * @param label 막에 적을 말
+   */
+  function goToStage(href, label) {
+    showStageCurtain(label);
+    let gone = false;
+    const go = () => { if (gone) return; gone = true; location.href = href; };
+    const p = (typeof plannerAutosaveNow === 'function') ? plannerAutosaveNow('layout') : null;
+    if (p && typeof p.then === 'function') {
+      p.then(go, go);                      // 실패해도 넘어간다 — localStorage 에는 이미 있다
+      setTimeout(go, STAGE_NAV_MAX_WAIT);  // 상한
+    } else {
+      go();                                // 올릴 것이 없다 (자동 저장 꺼짐 등) — 바로 간다
+    }
+  }
+
+  /** 지금 배치를 localStorage 에 쓴다 — 계정 저장과 달리 이건 즉시·동기다. */
+  function saveLayoutToLocal() {
+    const layout = serializeLayout();
+    if (!layout) return null;
+    try { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout)); } catch (e) {}
+    return layout;
+  }
+
   document.getElementById('nextStepBtn').onclick = () => {
     // W12-55: 겹친 배치 공간이 있으면 먼저 알린다.
     // W12-75: **넘어가지 않는다.** 예전엔 "그래도 넘어갈까요?" 로 물어, 확인을 누르면
@@ -3236,12 +3300,7 @@
     }
     markOverlaps([]);
     // W9-59: 자동 저장 후 mockup-structure.html (Step 2) 페이지로 이동
-    const layout = serializeLayout();
-    if (layout) {
-      try { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout)); } catch (e) {}
-      if (typeof plannerAutosave === 'function') plannerAutosave('layout', 0);   // W12-71
-      showFlash(`✓ 자동 저장 → 구조 단계 (모듈 ${layout.modules.length}개)`, 'rgba(13,71,161,0.92)');
-    }
+    const layout = saveLayoutToLocal();
     // step-pill 활성 변경 (시각 피드백)
     const pillBtns = document.querySelectorAll('.step-pill button');
     pillBtns.forEach(b => b.classList.remove('active'));
@@ -3250,7 +3309,10 @@
     // CD-3: 쿼리스트링을 함께 넘긴다. 안 넘기면 구조 단계가 스코프를 잃고
     //       전역 키를 읽어 **다른 품목의 배치**를 열게 된다.
     // D0: stage=detail 은 뗀다 — 디테일에서 배치로 돌아왔다가 구조를 누르면 구조여야 한다.
-    setTimeout(() => { location.href = 'mockup-structure' + searchWithStage(false); }, 400);
+    // 2026-09-22: 막을 덮고, 계정 저장이 끝나는 대로 넘어간다 (예전엔 무조건 400ms 를 기다렸다).
+    //   토스트는 띄우지 않는다 — 어차피 페이지가 떠나 보이지 않고, 막에 같은 말이 적힌다.
+    goToStage('mockup-structure' + searchWithStage(false),
+      layout ? `저장하고 구조 단계로… (모듈 ${layout.modules.length}개)` : '구조 단계로…');
   };
 
   /** D0: 쿼리스트링에 stage=detail 을 붙이거나 뗀 것. design·item 스코프는 그대로다. */
@@ -3264,12 +3326,10 @@
   // D0: 🎨 3.디테일 — 구조 페이지의 디테일 모드로 간다. 구조 버튼처럼 배치를 먼저 저장한다
   //   (겹침 검사는 구조 단계 진입 조건이라 여기서는 하지 않는다 — 디테일은 구조 위에 색을 얹을 뿐이다).
   document.getElementById('detailStageBtn').onclick = () => {
-    const layout = serializeLayout();
-    if (layout) {
-      try { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout)); } catch (e) {}
-      if (typeof plannerAutosave === 'function') plannerAutosave('layout', 0);
-    }
-    location.href = 'mockup-structure' + searchWithStage(true);
+    // 2026-09-22: 예전엔 0ms 자동 저장 타이머를 걸고 **곧바로** 페이지를 옮겨, 타이머가 뜨기도
+    //   전에 떠나 계정 저장이 일어나지 않았다. 이제 구조 버튼과 같은 길을 쓴다.
+    saveLayoutToLocal();
+    goToStage('mockup-structure' + searchWithStage(true), '디테일 단계로…');
   };
 
   // W9-39: TopBar Undo/Redo 버튼 이벤트
@@ -3285,5 +3345,7 @@
   // ============================================================
   plannerCategoryPickerMount();
 </script>
+<!-- 2026-09-22: 단계 이동 중 덮는 막 (showStageCurtain) -->
+<div id="stageCurtain" hidden><span class="sc-dot"></span><span id="stageCurtainText">넘어가는 중…</span></div>
 </body>
 </html>
