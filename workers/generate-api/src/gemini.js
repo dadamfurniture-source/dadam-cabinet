@@ -105,7 +105,18 @@ export async function callGemini(
   throw new Error('Gemini: no route');
 }
 
+/**
+ * 요청 하나의 시간 제한 (2026-09-22). 없으면 응답이 안 오는 호출이 잡 전체를 무기한 붙든다 —
+ * 잡의 10분 제한은 다음 알람에서나 검사되므로, 진행 중인 fetch 는 스스로 끊어야 한다.
+ * 첫 실측에서 QC 단계가 9분 넘게 멈춘 것이 계기다. env.GEMINI_TIMEOUT_MS 로 바꾼다.
+ */
+export function geminiTimeoutMs(env) {
+  const n = Number(env && env.GEMINI_TIMEOUT_MS);
+  return Number.isFinite(n) && n > 0 ? n : 150_000;
+}
+
 function send(env, route, path, body) {
+  const signal = AbortSignal.timeout(geminiTimeoutMs(env));
   if (route === 'proxy') {
     const stub = proxyStub(env);
     if (!stub) throw new Error('GEMINI_PROXY binding missing');
@@ -113,6 +124,7 @@ function send(env, route, path, body) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: DIRECT_BASE + path, body }),
+      signal,
     });
   }
   const base =
@@ -123,6 +135,7 @@ function send(env, route, path, body) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal,
   });
 }
 
