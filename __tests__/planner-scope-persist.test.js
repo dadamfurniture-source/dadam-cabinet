@@ -69,7 +69,10 @@ describe('저장 스코프 — 품목별 격리', () => {
   test('구조 단계로 넘어갈 때 쿼리스트링을 잃지 않는다', () => {
     // 잃으면 구조 단계가 전역 키를 읽어 다른 품목의 배치를 연다.
     // D0: stage=detail 만 떼고 design·item 은 그대로 넘긴다 (searchWithStage — URLSearchParams 기반).
-    expect(SHELL).toMatch(/location\.href = 'mockup-structure' \+ searchWithStage\(false\)/);
+    // 2026-09-22: 이동은 goToStage 한 곳을 지난다 (저장이 끝나는 대로 넘어간다 — planner-stage-nav.test.js).
+    //   보는 것은 그대로다: 넘겨 주는 주소에 searchWithStage 가 붙어 있는가.
+    expect(SHELL).toMatch(/goToStage\('mockup-structure' \+ searchWithStage\(false\)/);
+    expect(SHELL).toMatch(/goToStage\('mockup-structure' \+ searchWithStage\(true\)/);   // 디테일도 같다
     expect(SHELL).toMatch(/function searchWithStage\(on\) \{\s*const q = new URLSearchParams\(location\.search\);/);
   });
 
