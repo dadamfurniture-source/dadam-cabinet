@@ -242,6 +242,32 @@ describe('생성 요청', () => {
     expect(body(p).textContent).toContain('역판독 대조를 하지 못했습니다 — ANTHROPIC_API_KEY not configured');
   });
 
+  test('ControlNet — 실사화 + 구조 조건 이미지가 있을 때만 engine·control_* 이 실린다', async () => {
+    const steps = () => fakeFetch([
+      { status: 202, json: { success: true, id: 'gen-1' } },
+      { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images: [] } } },
+    ]);
+    const p = withPhoto(boot());
+    // 실사화를 안 켜면 조건 올릴 곳 자체가 없다
+    expect(body(p).querySelector('#aiPhotoControlDrop')).toBeNull();
+    p.AP.realize = true; p.AP.render();
+    expect(body(p).querySelector('#aiPhotoControlDrop')).not.toBeNull();
+    // 조건 이미지가 없으면 engine 도 없다
+    p.AP._fetch = steps(); await p.AP.submit();
+    expect(p.AP._fetch.calls[0].body.engine).toBeUndefined();
+    // 조건 이미지를 넣으면 engine·control_image·control_type·control_size 가 실린다
+    p.AP.control = { base64: 'Q1RS', mime: 'image/png', name: 'edges.png', width: 800, height: 600, preview: 'data:image/png;base64,Q1RS' };
+    p.AP._fetch = steps(); await p.AP.submit();
+    const b = p.AP._fetch.calls[0].body;
+    expect(b.engine).toBe('controlnet');
+    expect(b.control_image).toBe('Q1RS');
+    expect(b.control_type).toBe('image/png');
+    expect(b.control_size).toEqual({ width: p.AP.img.width, height: p.AP.img.height });
+    expect(b.realize).toBe(true);
+    expect(b.variants).toBe(false);
+    expect(body(p).textContent).toContain('구조 조건 · edges.png');
+  });
+
   test('잡 id 를 스코프별로 기억한다', async () => {
     const p = withPhoto(boot());
     p.AP._fetch = fakeFetch([

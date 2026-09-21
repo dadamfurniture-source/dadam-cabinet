@@ -296,6 +296,22 @@ Firefly `POST /v3/images/precise-composite` — 물체 + 배경 + 마스크를 �
 고쳐라" 로 마무리. 구조가 이미 맞는 이미지를 편집하는 것이라 맨땅 생성보다 훨씬 안전하다.
 **드리프트가 보이면 합성본을 그대로 쓰면 된다** — 잃을 게 없다.
 
+### 구현 (2026-09-22) — 사장님 지시 "ControlNet 경로를 활용해서 작업해보자"
+
+`workers/generate-api/src/controlnet.js`. 요청에 `engine: 'controlnet'` + `control_image`(도면 윤곽선 PNG, 사진과 같은
+화소 크기)가 오면 설치 단계를 Gemini 대신 **fal.ai 조건 모델**이 그린다. 바탕(합성본)과 조건은 Supabase 공개
+URL 로 넘긴다. 검사(QC)·역판독 대조는 그대로. 모델은 `CONTROLNET_MODEL` 로 고르고, 문서로 스키마를 확인한 것만 둔다:
+
+| 모델 | 조건 전달 | 값 |
+|---|---|---|
+| `fal-ai/flux-control-lora-canny/image-to-image` (기본) | `control_lora_image_url` + `strength` | $0.04/MP |
+| `fal-ai/flux-control-lora-depth/image-to-image` | 같음 (깊이) | $0.04/MP |
+| `fal-ai/qwen-image-edit-2509` / `2511` | `image_urls:[바탕, 조건]` + 프롬프트 지시 (HF 카드) | $0.03/MP |
+
+`flux-general/inpainting` 의 `controlnet_unions`(마스크 + 조건 동시)는 `path` 유효값이 문서에 없어 실측 뒤에 넣는다.
+플래너 패널은 실사화 체크 아래에 "구조 조건 이미지" 드롭존을 보이고, 벤치 E 패널이 그 PNG 를 만든다.
+**시크릿 `FAL_KEY` 가 있어야 돈다** (DEPLOY.md). 디테일 단계는 이제 추천안 없이 **한 장**만 만든다 (`variants:false`).
+
 ### 안 하는 것 [결정]
 
 - **Adobe 조달을 블로커로 두지 않는다.** 견적·리드타임 문의는 병행하되(§9), A 는 그와 무관하게 간다.
@@ -317,6 +333,7 @@ Firefly `POST /v3/images/precise-composite` — 물체 + 배경 + 마스크를 �
 | **R5** | three.js 그림자·AO 패스 (프러스텀 수정 포함) + 2.5D 옆면 | M | `agent/planner-composite-light` |
 | **R4b** | **실사화(realize) 모드** — 합성본을 바탕으로 "그 자리에서 다시 그리기" 프롬프트 + `flat_mockup` QC + 패널 체크박스 | M | ✅ 2026-09-19 `agent/imggen-realize` |
 | **R4c** | **역판독 자동 대조** — 잡이 기본안을 layout.js 로 읽어 도면과 순서·개수를 대조(`src/verify.js`), 결과를 `layout.verify` 에 남기고 패널에 ✓/⚠ 로 보여 준다. 실사화가 어긋나면 올린 합성본을 `mockup` 슬롯으로 같이 돌려준다 | M | ✅ 2026-09-19 `agent/imggen-realize-verify` |
+| **R5b** | **ControlNet 경로** — `engine:'controlnet'` + 구조 조건 PNG → fal.ai 조건 모델 (`src/controlnet.js`), 패널 드롭존, 벤치 E 패널, 한 장만(`variants:false`) | L | ✅ 2026-09-22 `agent/imggen-controlnet` |
 | **R6** | "벽 비우기" — 완공 사진일 때만 기존 REMOVE FIRST 경로로 빈 벽을 먼저 만든다 | M | `agent/imggen-empty-wall` |
 
 **R1·R1b 로 방식은 확정됐다.** 다음은 R2 — 벽 네 점을 사진에서 얼마나 잘 잡느냐가 남은 최대 불확실성이고,

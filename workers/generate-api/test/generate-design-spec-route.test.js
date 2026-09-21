@@ -291,3 +291,29 @@ test('재생성은 원본의 variants:false 를 잇는다', async () => {
   await post({ parent_id: parent.id });
   assert.equal(calls.inserted.options.variants, false);
 });
+
+// 2026-09-22 ControlNet 경로 — 구조 조건 이미지가 inputs.control 로 올라가고 options.engine 이 붙는다
+test('engine:controlnet + control_image → control 업로드, options.engine·control_size', async () => {
+  install();
+  const res = await post({ room_image: ROOM_IMAGE, category: 'sink', realize: true, engine: 'controlnet', control_image: ROOM_IMAGE, control_type: 'image/png', control_size: { width: 1600, height: 1200 } });
+  assert.equal(res.status, 202);
+  assert.equal(calls.inserted.options.engine, 'controlnet');
+  assert.deepEqual(calls.inserted.options.control_size, { width: 1600, height: 1200 });
+  assert.ok(calls.uploads.some((u) => /\/control\.png$/.test(String(u))), 'control.png 이 올라간다');
+  assert.equal(calls.jobStart.options.engine, 'controlnet');
+});
+
+test('engine:controlnet 인데 control_image 가 없으면 400 이고 크레딧을 안 건드린다', async () => {
+  install();
+  const res = await post({ room_image: ROOM_IMAGE, category: 'sink', engine: 'controlnet' });
+  assert.equal(res.status, 400);
+  assert.equal(calls.inserted, null);
+  assert.equal(calls.rpc.filter((c) => c.fn === 'consume_credit').length, 0);
+});
+
+test('engine 을 안 보내면 options 에 engine 키가 없다 (Gemini 경로 그대로)', async () => {
+  install();
+  await post({ room_image: ROOM_IMAGE, category: 'sink' });
+  assert.equal('engine' in calls.inserted.options, false);
+  assert.equal('control' in (calls.inserted.inputs || {}), false);
+});
