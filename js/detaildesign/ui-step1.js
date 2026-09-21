@@ -472,6 +472,62 @@
       // W9-6/W9-8: mockup HTML 전면 교체. Cloudflare Pages 가 .html 확장자 자동 제거 (308 redirect)
       // → '/mockup-shell' (확장자 없이) 로 직접 접근. iframe 의 308 redirect 실패 회피.
       const PLANNER_BASE_URL = '/mockup-shell';
+      const PLANNER_STRUCTURE_URL = '/mockup-structure';
+
+      // ============================================================
+      // 2026-09-22: 품목을 바꿔도 **하던 단계가 유지된다.**
+      //
+      // 품목마다 플래너 iframe 을 따로 만드는데(`__planner-overlay-{uniqueId}`), 그 주소가 늘
+      // 배치(/mockup-shell)였다. 그래서 구조·디테일에서 작업하다 다른 품목으로 넘어가면
+      // **배치로 떨어졌다** — 하던 단계가 사라진다. (돌아오면 살아 있었다. 그 iframe 은 그대로였으니까.
+      //  즉 품목마다 단계가 따로 논 게 아니라, **새로 여는 품목이 늘 배치로 열린** 것이다.)
+      //
+      // 플래너가 뜰 때 자기 단계를 알려 주고(PLANNER_READY.stage — planner-category-picker.js),
+      // 그 단계를 여기 기억해 두었다가 다음 iframe 을 같은 단계로 연다.
+      // ============================================================
+
+      /**
+       * 지금 화면에 떠 있는 플래너의 단계 — 'layout'(배치) · 'structure'(구조) · 'detail'(디테일).
+       *
+       * **iframe 의 주소를 직접 읽는다.** 플래너가 알려 주기를 기다리지 않는 이유:
+       *   구조 ↔ 디테일은 페이지를 다시 열지 않고 **화면 안에서** 바뀐다
+       *   (planner-detail.js 가 history.replaceState 로 `stage=detail` 만 붙였다 뗀다).
+       *   그래서 "뜰 때 알려 준다" 식으로는 그 전환을 영영 못 듣는다 — 실제로 그렇게 만들었다가
+       *   디테일에서 품목을 바꾸면 구조로 열리는 것을 보고 이 방식으로 바꿨다.
+       * 같은 출처(PLANNER_BASE_URL)라 읽을 수 있다. 못 읽으면 마지막으로 본 값을 쓴다.
+       */
+      let _plannerStage = 'layout';
+
+      function _readPlannerStage(frame) {
+        try {
+          const loc = frame && frame.contentWindow && frame.contentWindow.location;
+          if (!loc || !loc.pathname) return null;
+          if (String(loc.pathname).indexOf('mockup-structure') < 0) return 'layout';
+          return new URLSearchParams(loc.search || '').get('stage') === 'detail' ? 'detail' : 'structure';
+        } catch (e) {
+          return null;   // 다른 출처거나 아직 안 떴다
+        }
+      }
+
+      /** 보고 있던 단계를 기억해 둔다 — 품목을 바꾸기 **전에** 부른다. */
+      function _rememberVisiblePlannerStage() {
+        const cur = _currentStep2Item();
+        const st = _readPlannerStage(cur ? _plannerFrameOfItem(cur.uniqueId) : null);
+        if (st) _plannerStage = st;
+        return _plannerStage;
+      }
+
+      /** 지금 단계로 플래너를 여는 주소 — 스코프·치수 파라미터는 부르는 쪽이 만든 것을 그대로 쓴다. */
+      function _plannerUrlForStage(params) {
+        const q = new URLSearchParams(params);
+        if (_plannerStage === 'layout') {
+          q.delete('stage');
+          return PLANNER_BASE_URL + '?' + q.toString();
+        }
+        if (_plannerStage === 'detail') q.set('stage', 'detail'); else q.delete('stage');
+        return PLANNER_STRUCTURE_URL + '?' + q.toString();
+      }
+
       /**
        * ㄱ자/ㄷ자 secondary 모듈을 payload에 동적 추가 (공통 헬퍼)
        */
@@ -2396,7 +2452,8 @@
         });
         container.innerHTML = '';
         const iframe = document.createElement('iframe');
-        iframe.src = PLANNER_BASE_URL + '?' + params.toString();
+        // 2026-09-22: 늘 배치가 아니라 **지금 보고 있던 단계**로 연다 (_plannerUrlForStage)
+        iframe.src = _plannerUrlForStage(params);
         iframe.dataset.planner = 'true';
         iframe.style.cssText = 'width:100%;height:100%;border:none;border-radius:8px;';
         iframe.allow = 'accelerometer; autoplay; fullscreen';
@@ -2553,6 +2610,9 @@
           _ensureBootstrapPlanner();
           return;
         }
+        // 2026-09-22: 품목을 넣고 빼는 길에서도 보고 있던 단계를 붙잡아 둔다
+        //   (부트스트랩에서 첫 품목으로 넘어갈 때는 배치가 맞다 — 그쪽은 아래에서 배치로 남는다).
+        _rememberVisiblePlannerStage();
         const hadBootstrap = !!document.getElementById(BOOTSTRAP_PLANNER_ID);
         _removeBootstrapPlanner();
         const item = _currentStep2Item();
@@ -2620,6 +2680,9 @@
       function switchStep2Item(uniqueId) {
         const item = selectedItems.find((i) => String(i.uniqueId) === String(uniqueId));
         if (!item) return;
+        // 2026-09-22: **바꾸기 전에** 보고 있던 단계를 붙잡아 둔다. 옮겨 간 품목의 플래너를
+        //   아직 안 열었다면 이 단계로 연다 — 예전엔 늘 배치로 열려 하던 일이 사라졌다.
+        _rememberVisiblePlannerStage();
         currentItemId = item.uniqueId;
         _applyStep2Chrome(item);
         _renderStep2ItemTabs();   // 고른 책갈피를 앞으로 (셀렉트는 스스로 했지만 탭은 다시 그려야 한다)
