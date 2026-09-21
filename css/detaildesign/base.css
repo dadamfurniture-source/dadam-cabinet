@@ -85,10 +85,19 @@
       body.step2-fullscreen .design-workspace::before,
       body.step2-fullscreen .design-workspace::after { display: none !important; }
 
+      /* 2026-09-22: 플래너 오버레이는 **한 번에 하나만** 보인다.
+         품목마다 오버레이가 하나씩 생기는데(`__planner-overlay-{uniqueId}`), 아래 규칙이
+         `display:block !important` 로 **전부** 켜 버렸다. 코드가 `style.display='none'` 으로
+         감추려 해도 !important 에 막혀 먹히지 않았고, 결국 품목을 바꿔도 이전 품목의 플래너가
+         DOM 순서대로 위에 남아 **깜빡이거나 남의 배치가 보였다.**
+         이제 활성 표시(.planner-overlay-active)가 붙은 하나만 보인다 — 표시를 붙이는 쪽은
+         js/detaildesign/ui-step1.js 의 _showOnlyPlannerOverlay 하나뿐이다. */
+      [id^="__planner-overlay-"]:not(.planner-overlay-active) { display: none !important; }
+
       /* W9-9: iframe overlay (body 레벨, id^="__planner-overlay-") 강제 100vw × 100vh.
          _positionPlannerOverlay 는 three-canvas rect 기반인데 W9-7 로 three-canvas 가
          숨겨져 rect = 0 → iframe 0×0. CSS 로 강제 풀화면. */
-      body.step2-fullscreen [id^="__planner-overlay-"] {
+      body.step2-fullscreen [id^="__planner-overlay-"].planner-overlay-active {
         position: fixed !important;
         top: 0 !important;
         left: 0 !important;
