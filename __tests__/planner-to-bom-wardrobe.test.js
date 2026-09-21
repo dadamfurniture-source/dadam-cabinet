@@ -225,9 +225,13 @@ describe('자재표 — 칸막이·선반·옷봉이 끝까지 간다', () => {
     ['측판', '지판', '밴드', '뒷판', '상판', '서랍전후판', '서랍측판', '서랍밑판']
       .forEach((name) => expect(modParts).toContain(name));
     expect(modParts).not.toContain('천판');
-    // 모듈 W = 통 내경 − 120 (경첩 몰딩 60+60) → 지판 = 모듈 내경 720, 상판은 외경 750
+    // 모듈 W = 통 내경 − 120 (경첩 몰딩 60+60) → 지판 = 모듈 내경 720.
+    //   상판은 **몰딩까지 덮어** 통 내경 870 — 분할 없는 칸의 선반과 같은 판이다 (2026-09-22)
     expect(modRows.find((m) => m.part === '지판').w).toBe(900 - 2 * 15 - 120 - 2 * 15);
-    expect(modRows.find((m) => m.part === '상판').w).toBe(900 - 2 * 15 - 120);
+    const top = modRows.find((m) => m.part === '상판');
+    expect(top.w).toBe(900 - 2 * 15);
+    const shelf = s.materials.find((m) => m.module === '2번' && m.part === '선반');
+    expect([top.w, top.h]).toEqual([shelf.w, shelf.h]);
     // 측판 높이는 서랍 단수를 따라간다 — 350 이 모듈 전체 높이다 (상판은 그 위에 얹힌다)
     expect(modRows.find((m) => m.part === '측판').h).toBe(2 * 350);
     // 하단보강이 두 번 나오지 않는다

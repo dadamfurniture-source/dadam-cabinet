@@ -4034,7 +4034,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           const x = i === 0 ? leftX + mw : leftX + mw + zone.moduleW - T;
           rect(x, yOf(zone.y0 + zone.moduleH), T, zone.moduleH, '#b3a483', '#6d6047');
         });
-        rect(leftX + mw, yOf(zone.y0 + zone.moduleH + zone.topT), zone.topPanelW, zone.topT, '#a8946f', '#6d6047');
+        // 상판은 좌우 몰딩까지 덮는다 — 통 내경 전체를 지난다 (선반과 같은 판)
+        rect(leftX, yOf(zone.y0 + zone.moduleH + zone.topT), zone.topPanelW, zone.topT, '#a8946f', '#6d6047');
         zone.fronts.forEach((f) => {
           rect(leftX + mw + 2, yOf(zone.y0 + zone.frontY0 + f.y0 + f.h), f.w, f.h, '#cbbfa6', '#7d6c48');
         });

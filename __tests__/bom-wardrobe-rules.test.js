@@ -632,7 +632,8 @@ describe('내부 서랍장은 따로 만드는 모듈이다 (2026-09-19 확정)'
   });
 
   test('몸통은 하부장과 같다 — 천판이 없고 밴드가 서고 위에 상판이 올라간다 (2026-09-22)', () => {
-    const rows = WR.innerDrawerModulePartsOf(inner(2));
+    const L2 = inner(2);
+    const rows = WR.innerDrawerModulePartsOf(L2);
     const by = (name) => rows.filter((r) => r.part === name);
     expect(rows.map((r) => r.part)).toEqual(expect.arrayContaining(
       ['측판', '지판', '밴드', '뒷판', '상판']));
@@ -644,10 +645,12 @@ describe('내부 서랍장은 따로 만드는 모듈이다 (2026-09-19 확정)'
     expect(by('지판')[0]).toMatchObject({ w: 720, h: 532, qty: 1 });
     expect(by('밴드')[0]).toMatchObject({ w: 720, h: 70, qty: 2 });
     expect(by('뒷판')[0]).toMatchObject({ material: 'MDF', t: 2.7, w: 730, h: 699, qty: 1 });
-    // 상판은 몸통 **외경 폭** 전체를 덮고, 깊이는 붙박이장 선반과 같다
+    // 2026-09-22: 상판은 **좌우 몰딩까지 덮는다** → 가로가 통 내경이고, 깊이는 선반과 같다.
+    //   결국 분할 없는 칸의 **선반과 같은 판**이다.
     const top = by('상판')[0];
-    expect([top.w, top.h, top.qty, top.t]).toEqual([750, WR.shelfDepthOf({ D: 620 }), 1, 15]);
+    expect([top.w, top.h, top.qty, top.t]).toEqual([870, WR.shelfDepthOf({ D: 620 }), 1, 15]);
     expect(top.h).toBe(532);
+    expect(top.w).toBe(L2.moduleW + 2 * I.SIDE_MOLDING_W); // 모듈 외경 + 몰딩 둘
   });
 
   test('전면은 모두 같은 높이다 — 남는 1~2mm 는 맨 위 여유로 흘린다 (2026-09-22)', () => {
