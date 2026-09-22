@@ -58,8 +58,28 @@ describe('플래너 전체화면에서도 헤더가 남는다', () => {
     expect(headerZ).toBeGreaterThan(toolbarZ);
     expect(toolbarZ).toBeGreaterThan(overlayZ);
     expect(css).toMatch(/#step2Toolbar \{ top: var\(--v5-header, 88px\); \}/);
-    expect(css).toMatch(/top: calc\(var\(--v5-header, 88px\) \+ 44px\) !important/);
-    expect(css).toMatch(/height: calc\(100vh - var\(--v5-header, 88px\) - 44px\) !important/);
+    // 2026-09-23: 예전엔 여기서 "+ 44px" 를 글자 그대로 고정했다. 그런데 툴바는 실제로 49 라
+    //   플래너 윗부분 5px 가 툴바 밑에 들어갔다 — 시험이 틀린 숫자를 지키고 있었다.
+    //   지킬 것은 숫자가 아니라 **overlay 가 내려오는 만큼 = 툴바 높이** 라는 관계다.
+    expect(css).toMatch(/top: calc\(var\(--v5-header, 88px\) \+ var\(--s2-toolbar-h, 49px\)\) !important/);
+    expect(css).toMatch(/height: calc\(100vh - var\(--v5-header, 88px\) - var\(--s2-toolbar-h, 49px\)\) !important/);
+  });
+
+  test('툴바 높이는 하나의 변수로 고정되고, 아래로 내리는 곳은 전부 그 변수를 쓴다', () => {
+    // 정본
+    expect(css).toMatch(/--s2-toolbar-h:\s*49px;/);
+    // 툴바 상자가 그 높이에 고정된다 (내용이 커져도 상자가 커지지 않는다)
+    const bar = css.match(/body\.step2-fullscreen #step2Toolbar,\s*body\.step2-native #step2Toolbar \{[\s\S]*?\}/);
+    expect(bar).not.toBeNull();
+    expect(bar[0]).toMatch(/height:\s*var\(--s2-toolbar-h, 49px\)/);
+    expect(bar[0]).toMatch(/box-sizing:\s*border-box/);
+    // 44 는 어디에도 남지 않는다 (툴바 자리로 쓰던 값)
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, '');   // 주석은 뺀다 — 옛 경위를 적은 글이다
+    expect(code).not.toMatch(/\b44px\b/);
+    // 경고 배너(ui-step1.js 가 심는 CSS)도 같은 변수로 내려온다
+    const ui = fs.readFileSync(path.join(__dirname, '..', 'js/detaildesign/ui-step1.js'), 'utf8');
+    expect(ui).toMatch(/top: calc\(var\(--v5-header, 88px\) \+ var\(--s2-toolbar-h, 49px\)\)/);
+    expect(ui).not.toMatch(/var\(--v5-header, 88px\) \+ 44px/);
   });
 
   test('폴백 88px 는 css/dadam-v5.css 의 --v5-header 와 같다', () => {

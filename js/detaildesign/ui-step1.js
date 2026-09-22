@@ -1701,9 +1701,10 @@
         st.textContent = `
           #${PBW_ID} { display: none; box-sizing: border-box; font-size: 13px; line-height: 1.55; color: #3b2f1e;
             background: #fff7e6; border: 1px solid #f0c36d; }
-          /* Step 2: 툴바(44px) 바로 아래, 플래너 overlay(z-index:100) 위 */
+          /* Step 2: 툴바 바로 아래, 플래너 overlay(z-index:100) 위.
+             2026-09-23: 툴바 높이는 상세설계 기본 스타일시트의 --s2-toolbar-h 가 정본이다 (예전 44 는 실제 49 와 5 어긋났다). */
           body.step2-fullscreen #${PBW_ID}, body.step2-native #${PBW_ID} { display: block; position: fixed;
-            top: calc(var(--v5-header, 88px) + 44px); left: 0; right: 0; z-index: 101;
+            top: calc(var(--v5-header, 88px) + var(--s2-toolbar-h, 49px)); left: 0; right: 0; z-index: 101;
             border-width: 0 0 1px; padding: 8px 14px; box-shadow: 0 4px 14px rgba(0, 0, 0, .18); max-height: 40vh; overflow: auto; }
           /* Step 3: 보고서 위, 문서 흐름 안 */
           #step3-content #${PBW_ID} { display: block; position: static; border-radius: 10px; padding: 10px 14px; margin: 0 0 12px; }
