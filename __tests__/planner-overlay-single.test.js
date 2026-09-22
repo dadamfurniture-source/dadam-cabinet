@@ -34,10 +34,56 @@ describe('CSS — 활성 표시가 붙은 하나만 보인다', () => {
     expect(CSS).toMatch(/\[id\^="__planner-overlay-"\]:not\(\.planner-overlay-active\)\s*\{\s*display:\s*none\s*!important/);
   });
 
-  test('풀화면 강제 규칙은 **활성인 것에만** 걸린다 (예전엔 전부에 걸렸다)', () => {
+  test('보이기(display:block)는 **활성인 것에만** 걸린다 (예전엔 전부에 걸렸다)', () => {
     const rule = CSS.match(/body\.step2-fullscreen \[id\^="__planner-overlay-"\][^{]*\{[^}]*display:\s*block\s*!important[^}]*\}/);
     expect(rule).not.toBeNull();
     expect(rule[0]).toContain('.planner-overlay-active');
+  });
+
+  // 2026-09-23 회귀: 위 규칙에 위치(top:0·height:100vh)까지 같이 두었더니 선택자 우선순위가 올라가
+  //   "툴바 높이만큼 내린다" 규칙을 이겼다. 오버레이가 화면 0 부터 그려져 부모 헤더·툴바가
+  //   플래너 상단(단계 버튼·아이콘 줄)을 덮었다. 위치와 보이기는 **다른 규칙**이어야 한다.
+  describe('위치 규칙은 보이기와 따로다 — 툴바 아래로 내리는 규칙이 이겨야 한다', () => {
+    /**
+     * CSS 에서 선택자가 **정확히** sel 인 규칙 블록들 (위치 at · 본문 body).
+     * 정규식 대신 줄 단위로 찾는다 — 선택자에 [ ] ^ " 가 섞여 이스케이프가 까다롭다.
+     */
+    const blocks = (sel) => {
+      const out = [];
+      let from = 0;
+      for (;;) {
+        const at = CSS.indexOf(sel + ' {', from);
+        if (at < 0) break;
+        from = at + 1;
+        // 줄 첫머리(들여쓰기 뒤)에서 시작하는 선택자만 — 더 긴 선택자의 뒷부분에 걸리지 않게
+        const lineStart = CSS.lastIndexOf('\n', at) + 1;
+        if (CSS.slice(lineStart, at).trim() !== '') continue;
+        const open = CSS.indexOf('{', at);
+        const close = CSS.indexOf('}', open);
+        out.push({ at, body: CSS.slice(open + 1, close) });
+      }
+      return out;
+    };
+    const BASE = 'body.step2-fullscreen [id^="__planner-overlay-"]';
+    const ACTIVE = BASE + '.planner-overlay-active';
+
+    test('활성 규칙은 display 만 정한다 — top·height 를 들고 있으면 안 된다', () => {
+      const act = blocks(ACTIVE);
+      expect(act.length).toBeGreaterThan(0);
+      act.forEach((b) => {
+        expect(b.body).not.toMatch(/\btop\s*:/);
+        expect(b.body).not.toMatch(/\bheight\s*:/);
+      });
+    });
+
+    test('"툴바 높이만큼 내린다" 규칙이 풀화면 위치 규칙보다 **뒤에** 있다 (같은 우선순위면 뒤가 이긴다)', () => {
+      const base = blocks(BASE);
+      const full = base.find((b) => /top:\s*0\s*!important/.test(b.body));
+      const offset = base.find((b) => /top:\s*calc\(var\(--v5-header/.test(b.body));
+      expect(full).toBeDefined();
+      expect(offset).toBeDefined();
+      expect(offset.at).toBeGreaterThan(full.at);
+    });
   });
 });
 
