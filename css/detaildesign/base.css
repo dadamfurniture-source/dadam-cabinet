@@ -43,6 +43,13 @@
         --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
         --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.08);
         --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.15);
+
+        /* 2026-09-23: Step 2 상시 툴바의 높이 — **이 값 하나가 정본이다.**
+           예전엔 툴바는 제 내용으로 높이가 정해지고(여백 8+8 + BOM 버튼 33 = 49), 그 아래로 내리는
+           플래너·경고 배너·네이티브 여백은 따로 44 를 박아 두었다. 두 값이 5 어긋나 플래너 윗부분
+           5px 가 툴바 밑에 들어갔다. 이제 툴바 높이를 이 값에 **고정**하고, 아래로 내리는 곳은 전부
+           이 값을 쓴다 — 하나를 바꾸면 모두 따라온다. (ui-step1.js 의 경고 배너도 이 변수를 쓴다) */
+        --s2-toolbar-h: 49px;
       }
       * {
         box-sizing: border-box;
@@ -142,6 +149,9 @@
         left: 0;
         right: 0;
         z-index: 101;
+        /* 높이를 고정한다 — 아래로 내리는 곳들이 이 높이를 믿는다 (:root --s2-toolbar-h) */
+        height: var(--s2-toolbar-h, 49px);
+        box-sizing: border-box;
         align-items: center;
         gap: 8px;
         padding: 8px 14px;
@@ -181,8 +191,8 @@
       /* 2026-09-19: 품목 전환 책갈피 (구 #s2ItemSelect 드롭다운).
          툴바 위아래 padding(8px)을 음수 마진으로 먹어 **바닥 모서리에 물리게** 둔다 —
          책갈피가 아래 작업 화면에서 솟아오른 것처럼 보여야 고른 것이 어디인지 읽힌다.
-         탭(32px)은 옆 버튼(33px)보다 낮아 툴바 높이를 늘리지 않는다 — overlay 가 툴바 자리를
-         하드코딩하므로(body.step2-fullscreen [id^="__planner-overlay-"]) 늘리면 그만큼 어긋난다. */
+         탭(32px)은 옆 버튼(33px)보다 낮다. 툴바 높이는 이제 --s2-toolbar-h 로 고정되어
+         내용이 커져도 툴바 상자는 커지지 않는다 — overlay 도 같은 값만큼만 내려온다. */
       #step2Toolbar .s2-tabs {
         display: flex;
         align-items: flex-end;
@@ -231,7 +241,7 @@
 
       /* 2026-09-12: 사이트 셸 헤더가 맨 위에 남는다 (높이 --v5-header, css/dadam-v5.css).
          전체화면에서는 헤더를 fixed 로 띄우고, 툴바는 헤더 아래, overlay 는 그 아래에 둔다.
-         네이티브 모드는 헤더가 sticky 로 흐름에 남으므로 툴바 자리(44px)만 더 확보한다. */
+         네이티브 모드는 헤더가 sticky 로 흐름에 남으므로 툴바 자리(--s2-toolbar-h)만 더 확보한다. */
       body.step2-fullscreen .v5-header {
         position: fixed;
         top: 0;
@@ -241,16 +251,18 @@
       }
       body.step2-fullscreen #step2Toolbar,
       body.step2-native #step2Toolbar { top: var(--v5-header, 88px); }
-      /* 툴바 높이(44px)만큼 overlay 를 내려 툴바가 가려지지 않게 한다 */
+      /* 툴바 높이만큼 overlay 를 내려 툴바가 가려지지 않게 한다.
+         2026-09-23: 예전엔 44 를 박아 두었는데 툴바는 실제로 49 라 플래너 윗부분 5px 가 툴바 밑에 들어갔다.
+         이제 툴바 높이와 **같은 변수**를 쓴다 (:root --s2-toolbar-h). */
       body.step2-fullscreen [id^="__planner-overlay-"] {
-        top: calc(var(--v5-header, 88px) + 44px) !important;
-        height: calc(100vh - var(--v5-header, 88px) - 44px) !important;
+        top: calc(var(--v5-header, 88px) + var(--s2-toolbar-h, 49px)) !important;
+        height: calc(100vh - var(--v5-header, 88px) - var(--s2-toolbar-h, 49px)) !important;
       }
       /* 네이티브 편집 모드: fullscreen 숨김 규칙을 쓰지 않으므로 툴바 자리만 확보 */
-      body.step2-native .app-container { padding-top: 44px; }
+      body.step2-native .app-container { padding-top: var(--s2-toolbar-h, 49px); }
 
       body.step2-fullscreen .app-container {
-        padding: 44px 0 0; /* 상단은 툴바 자리 */
+        padding: var(--s2-toolbar-h, 49px) 0 0; /* 상단은 툴바 자리 */
         min-height: 100vh;
         height: 100vh;
       }
