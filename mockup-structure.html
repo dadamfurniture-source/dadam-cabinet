@@ -4274,12 +4274,19 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const z = (rules.cabinetsOf(L).find((c) => c.drawerZone) || {}).drawerZone;
     if (!z || !z.fronts || !z.fronts.length) return '';
     const box = (z.boxes || [])[0];
+    // 2026-09-23: 깊이 사슬과 레일을 그대로 보여 준다 — 통이 얕아지면 모듈·지판·상판이
+    //   같은 수치로 줄고, 레일은 여유 30 기준으로 내려간다. 내려가면 붉게 표시한다.
+    const railStd = rules.WARDROBE_RULES.INNER_DRAWER.RAIL_LENGTH;
+    const railDown = box && box.railLength < railStd;
     return `<div style="font-size:10px;color:#888;line-height:1.5">
       서랍장 모듈 ${z.moduleW}×${z.moduleH}×${z.moduleD} — 따로 만든다 (통 내경 − ${2 * z.moldingW})<br>
+      깊이: 통 ${z.bodyD} → 모듈 ${z.moduleD} · 지판 ${z.panelD} (사쿠리 없음) · 상판 ${z.topPanelD} (= 선반)<br>
       천판 없음 · 밴드 ${z.moduleW - 2 * z.frontT}×70 ×2 · 위에 상판 ${z.topPanelW}×${z.topPanelD}<br>
       전면 ${z.frontW}×${z.fronts.map((f) => f.h).join('·')} — 15PB 몸통 재질<br>
       좌우 몰딩 ${z.moldingW} · 앞선에서 ${z.setback} 안쪽 · 손잡이 빈 공간 30 × ${z.slots}
-      ${box ? `<br>박스 ${box.label} ${box.fbW}×${box.fbH} · ${box.railName} ${box.railLength}` : ''}
+      ${box ? `<br>박스 ${box.label} ${box.fbW}×${box.fbH} · ${box.railName}
+        <span style="${railDown ? 'color:#b4452e;font-weight:600' : ''}">${box.railLength}</span>${railDown
+          ? ` (기본 ${railStd} → 여유 30 기준으로 내림)` : ' (기본)'}` : ''}
     </div>`;
   }
 

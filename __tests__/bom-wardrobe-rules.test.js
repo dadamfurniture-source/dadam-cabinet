@@ -754,14 +754,32 @@ describe('내부 서랍장은 따로 만드는 모듈이다 (2026-09-19 확정)'
     expect(L.warnings.join()).toMatch(/박스/);
   });
 
-  test('기본 레일 450 이 안 들어갈 만큼 얕으면 규칙값으로 물러서고 한 번만 경고한다', () => {
-    // 통 550 → 모듈 440. 450 레일이 안 들어가므로 하부장 규칙(깊이 − 50 → 350)으로 내린다.
-    const L = inner(2, { D: 550 });
-    expect(L.moduleD).toBe(440);
-    L.boxes.forEach((b) => expect(b.railLength).toBe(DR.railLengthFor(440)));
-    expect(L.boxes[0].railLength).toBe(350);
+  test('레일은 여유 30 기준 — 모듈 깊이 − 30 이하 규격 중 가장 긴 것, 450 을 넘지 않는다', () => {
+    // 2026-09-23 사장님 확정. 하부장 규칙(깊이 − 50)보다 20 덜 보수적이다.
+    const rail = (d) => WR.innerRailLengthFor(d);
+    expect([530, 480, 470, 460, 440, 430, 420].map(rail))
+      .toEqual([450, 450, 400, 400, 400, 400, 350]);
+    // 더 깊어도 자재 기본값 450 을 넘기지 않는다 (530 − 30 = 500 이 들어가지만 450)
+    expect(rail(530)).toBe(I.RAIL_LENGTH);
+    // 하부장 규칙과 다르다
+    expect(DR.railLengthFor(480)).toBe(400);
+    expect(DR.railLengthFor(440)).toBe(350);
+  });
+
+  test('통이 얕아져 450 이 안 들어가면 여유 30 기준으로 내리고 한 번만 경고한다', () => {
+    // 통 570 → 모듈 460: 460 − 30 = 430 → 400
+    const a = inner(2, { D: 570 });
+    expect(a.moduleD).toBe(460);
+    a.boxes.forEach((b) => expect(b.railLength).toBe(400));
+    expect(a.boxes[0].sideL).toBe(390);           // 언더레일 측판 = 레일 − 10
+    expect(a.boxes[0].bottomD).toBe(389);
+    // 통 550 → 모듈 440: 여유 30 기준이면 400 (하부장 규칙이었다면 350)
+    const b = inner(2, { D: 550 });
+    expect(b.boxes[0].railLength).toBe(400);
+    expect(b.boxes[0].railLength).not.toBe(DR.railLengthFor(440));
     // 서랍이 두 단이어도 같은 경고는 한 번만 적는다
-    expect(L.warnings.filter((w) => /레일/.test(w))).toHaveLength(1);
+    expect(b.warnings.filter((w) => /레일/.test(w))).toHaveLength(1);
+    expect(b.warnings[0]).toMatch(/여유 30/);
     // 기본 깊이에서는 경고가 없다
     expect(inner(2).warnings).toEqual([]);
   });

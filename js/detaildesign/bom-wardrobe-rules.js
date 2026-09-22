@@ -55,16 +55,17 @@
  *   모듈 H(외경) = 서랍 단수 × 350       (구역 높이)
  *   모듈 D       = 통 깊이 − 110         (경첩 자리 70 + 여유 40 — 기본 통 590 에서 480)
  *                  통이 얕아지면 모듈도 **같은 수치로** 따라 줄어든다 (2026-09-23 사장님 확정)
- *   레일         = 자재 기본값 **언더레일 450 고정**. 하부장의 "레일 ≤ 깊이 − 50" 여유 규칙을
- *                  타지 않는다 — 480 깊이에 450 이 실제로 들어간다 (여유 30).
- *                  규칙대로면 400 이 뽑히는데 그건 과하게 보수적이다.
+ *   레일         = **여유 30 기준** (2026-09-23 사장님 확정): 모듈 깊이 − 30 이하의 규격 중
+ *                  가장 긴 것, 단 자재 기본값 **언더레일 450** 을 넘지 않는다.
+ *                  모듈 480 → 450 · 460 → 400 · 440 → 400 · 420 → 350.
+ *                  하부장의 "깊이 − 50" 규칙보다 20 덜 보수적이다 (480 에 450 이 실제로 들어간다).
  *   도어 W       = 모듈 W − 4
  *   몸통 구성    = **하부장과 같다** — 천판이 없고 **밴드**가 상단 앞·뒤에 서고, 그 **위에 상판**이
  *                  올라간다 (2026-09-22 사장님 확정). 상판 깊이는 붙박이장 선반과 같다 (`shelfDepthOf`).
  *   모듈 외경 H  = 서랍 단수 × 350          (350 은 **모듈 전체 높이**다 — 2026-09-22 사장님 확정)
  *   상판         = 그 **위에 얹힌다** — 모듈이 차지하는 높이는 350×단수 + 상판 15.
  *                  상판은 **좌우 몰딩까지 덮는다** (2026-09-22 사장님 확정) → 가로 = 통 내경.
- *                  깊이도 선반과 같으니 결국 **분할 없는 칸의 선반과 같은 판**이다 (870 × 532).
+ *                  깊이도 선반과 같으니 결국 **분할 없는 칸의 선반과 같은 판**이다 (기본 870 × 502).
  *   지판 깊이    = 모듈 D 그대로 — 측판에 **사쿠리가 없다** (2026-09-23 사장님 확정)
  * 서랍 박스(전후판·측판·우라)는 이 모듈 치수를 **서랍 규칙**(drawerBoxDims)에 넣어서 낸다 —
  * 붙박이장에만 있는 박스 규칙을 따로 두지 않는다.
@@ -127,10 +128,10 @@
       //   남는 40 은 여유다 (서랍장 도어 15 + 여유 5 를 포함한 총 여유).
       //   모듈 D = 통 깊이 − 70 − 40 이므로 통이 얕아지면 **같은 수치로** 따라 줄어든다.
       MODULE_BACK_GAP: 40,
-      // 레일은 자재 기본값 고정. 하부장은 `railLengthFor`(깊이 − 50)로 고르지만
-      //   붙박이장 내부 서랍은 480 깊이에 450 이 들어가므로(여유 30) 450 을 쓴다.
-      //   모듈이 더 얕아져 450 이 안 들어가면 규칙값으로 물러선다.
+      // 레일 — 여유 30 기준 (2026-09-23 사장님 확정). 모듈 깊이 − 30 이하 규격 중 가장 긴 것,
+      //   단 자재 기본값 450 을 넘지 않는다. 하부장은 `railLengthFor`(깊이 − 50)를 쓴다.
       RAIL_LENGTH: 450,
+      RAIL_MARGIN: 30,
       FRONT_TRIM: 4,        // 전면 가로·세로 각 −4
       HANDLE_SLOT: 30,      // 목찬넬 대신 전면을 30 낮춘다 — 그 빈 공간이 손잡이다
       MIN_FRONT_H: 50,      // 이보다 낮은 전면은 만들 수 없다 (서랍 규칙 MIN_FRONT_H 와 같은 값)
@@ -515,6 +516,7 @@
     const base = {
       drawers: n, moldingW: I.SIDE_MOLDING_W, moldingT: T, moldingH: zoneH,
       setback: I.FRONT_SETBACK, moduleW, moduleH, moduleHi, moduleD, zoneH, topT, totalH,
+      bodyD: depthOf(opt),
       // 지판 깊이 — 측판에 사쿠리가 없으므로 모듈 깊이를 그대로 쓴다 (2026-09-23 사장님 확정).
       panelD: moduleD,
       // 상판 — 모듈 위에 올라가고 **좌우 몰딩까지 덮는다** (2026-09-22 사장님 확정).
@@ -585,12 +587,19 @@
       topSlot: plan.top ? I.HANDLE_SLOT : 0, hasTopSlot: plan.top });
   }
 
+  /** 여유 30 기준 레일 길이 — 모듈 깊이 − 30 이하 규격 중 가장 긴 것 (450 을 넘지 않는다). 없으면 null. */
+  function innerRailLengthFor(DR, moduleD) {
+    const I = R.INNER_DRAWER;
+    const fit = DR.DRAWER_RULES.RAIL_LENGTHS.filter((len) => len <= moduleD - I.RAIL_MARGIN);
+    return fit.length ? Math.min(I.RAIL_LENGTH, fit[fit.length - 1]) : null;
+  }
+
   /**
    * 전면 한 장 뒤의 서랍 박스 — 서랍 규칙(pickBox·drawerBoxDims)이 정한다.
    *
    * 2026-09-23: 레일만 예외다. 하부장은 `railLengthFor`(깊이 − 50)로 고르는데 모듈 480 이면
-   * 400 이 뽑힌다. 450 레일이 480 에 실제로 들어가므로(여유 30) **자재 기본값 450 을 고정**한다.
-   * 모듈이 더 얕아져 450 이 안 들어가면 규칙값으로 물러선다.
+   * 400 이 뽑힌다. 붙박이장 내부 서랍은 **여유 30 기준**으로 고른다 → 480 이면 450.
+   * 모듈이 얕아져 450 이 안 들어가면 같은 여유 30 기준으로 한 단계 내리고 경고한다.
    */
   function innerDrawerBoxOf(DR, o) {
     if (!DR || !DR.pickBox || !DR.drawerBoxDims) return null;
@@ -601,12 +610,16 @@
     });
     const clear = DR.DRAWER_RULES.RAIL_CLEARANCE[dims.rail];
     const warnings = (dims.warnings || []).slice();
-    if (I.RAIL_LENGTH <= o.D) {
-      dims.railLength = I.RAIL_LENGTH;
-      dims.sideL = I.RAIL_LENGTH - (clear ? clear.sideMinus : 0);
+    const len = innerRailLengthFor(DR, o.D);
+    if (len != null) {
+      dims.railLength = len;
+      dims.sideL = len - (clear ? clear.sideMinus : 0);
       dims.bottomD = dims.sideL - DR.DRAWER_RULES.BOTTOM_TRIM;
+      if (len < I.RAIL_LENGTH) {
+        warnings.push(`서랍장 모듈 깊이 ${o.D} 에는 기본 레일 ${I.RAIL_LENGTH} 이 안 들어간다 (여유 ${I.RAIL_MARGIN}) — ${len} 으로 내린다`);
+      }
     } else {
-      warnings.push(`서랍장 모듈 깊이 ${o.D} 에는 기본 레일 ${I.RAIL_LENGTH} 이 안 들어간다 — 규칙값 ${dims.railLength} 로 내린다`);
+      warnings.push(`서랍장 모듈 깊이 ${o.D} 에는 가장 짧은 레일도 여유 ${I.RAIL_MARGIN} 으로 안 들어간다`);
     }
     return Object.assign({ idx: o.idx, size: box.size, fits: box.fits, warnings,
       label: DR.DRAWER_RULES.BOX_LABEL[box.size], railName: clear ? clear.name : dims.rail }, dims,
@@ -891,6 +904,7 @@
     partsOf, rodHardwareOf, rodHardwareFor, rodLengthFor, bodyHeightOf, shelfDepthOf, innerDepthOf,
     cabinetsOf, splitStack, moldingPartFor, moldingFinishOn,
     innerDrawerLayout, innerDrawerPartsOf, innerDrawerModulePartsOf, innerSlotPlan,
+    innerRailLengthFor: (moduleD) => innerRailLengthFor(drawerRules(), moduleD),
     presetOf, presetKeyOf, presetLabel, moduleTypeOf, samplePresetFor,
   };
 });
