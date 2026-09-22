@@ -71,6 +71,8 @@ function plannerDrawingExcuse(reason) {
   if (reason === 'no-session') return '로그인하면 계정에 저장하고 불러올 수 있습니다.';
   if (reason === 'no-sdk') return '이 화면에서는 계정 저장을 쓸 수 없습니다.';
   if (reason === 'stage-mismatch') return '다른 단계의 도면입니다. 배치·구조·디테일 도면은 저장한 단계에서만 불러올 수 있습니다.';
+  // 2026-09-23: 예전엔 문구가 없어 "⚠ 저장 실패: empty" 로 떴다 — 무슨 뜻인지 알 수 없었다.
+  if (reason === 'empty') return '아직 저장할 내용이 없습니다. 이 단계에서 무언가를 놓거나 정한 뒤 다시 저장해 주세요.';
   return '';
 }
 
@@ -173,8 +175,13 @@ function mountPlannerDrawingMenu(o) {
   }
 
   async function saveNamed() {
-    const name = prompt(`${label} 도면 이름:`, `${label} ${new Date().toLocaleString('ko-KR')}`);
-    if (!name) return null;
+    const defaultName = `${label} ${new Date().toLocaleString('ko-KR')}`;
+    const typed = prompt(`${label} 도면 이름:`, defaultName);
+    // 2026-09-23: **취소만** 저장을 멈춘다. 예전엔 이름 칸을 비우고 확인을 눌러도 조용히 끝나
+    //   "저장이 안 된다" 로 보였다. 비었으면 기본 이름으로 저장한다 — 이름은 나중에 알아보기 위한 것이지
+    //   저장의 조건이 아니다.
+    if (typed === null) return null;
+    const name = String(typed).trim() || defaultName;
     let r;
     try { r = await o.save(name); } catch (e) { r = { ok: false, reason: 'error', message: e && e.message }; }
     if (!r) return null;

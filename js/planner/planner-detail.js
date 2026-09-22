@@ -218,6 +218,13 @@ const PlannerDetail = {
   mount(o) {
     this._o = o || {};
     plannerDetailInjectCss();
+    // 2026-09-23: 저장소에 "지금 화면의 마감" 을 알려 준다. 마감은 무언가를 바꿀 때만 키에 쓰므로
+    //   기본 마감 그대로 「도면 저장」을 누르면 키가 비어 'empty' 로 거절됐다 (⚠ 저장 실패: empty).
+    //   저장소는 키가 비었을 때만 이것을 부른다 — 화면에 들어가자마자 키에 써 두지 않는 이유는,
+    //   부모가 보내 주는 마감(D1)과 순서가 꼬여 기본값이 진짜 마감을 덮을 수 있어서다.
+    if (typeof plannerRegisterStagePayload === 'function') {
+      plannerRegisterStagePayload('detail', () => (this.detail ? { detail: this.detail } : null));
+    }
     // 카탈로그: 캐시/로컬 정본으로 먼저 그리고, DB 를 읽어 오면 갈아 끼운다 (planner-catalog.js).
     this.catalog = this.catalogSync();
     this.loadCatalog();

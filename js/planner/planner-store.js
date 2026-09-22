@@ -90,6 +90,33 @@ function plannerScopeIsRemote(ids) {
  * @param {(key:string)=>(string|null)} read  스코프 붙은 키를 읽는 함수 (테스트 주입용)
  * @returns {object|null} 담을 것이 하나도 없으면 null
  */
+/**
+ * 2026-09-23: 단계별 **현재 상태 제공자**.
+ *
+ * 저장 키가 비었을 때 저장소가 물어보는 곳이다. 마감(디테일)은 사용자가 무언가를 바꿀 때만
+ * 키에 쓰기 때문에, 기본 마감 그대로 저장하면 키가 없어 'empty' 로 거절됐다.
+ * 그렇다고 화면에 들어가자마자 키에 써 두면 부모가 보내 주는 마감과 순서가 꼬일 수 있다 —
+ * 그래서 **저장하는 순간에만** 화면의 상태를 받아 쓴다.
+ *
+ * 제공자는 그 단계의 payload 모양({ detail: … })을 그대로 돌려줘야 한다 (PLANNER_STAGE_KEYS 필드명).
+ */
+const _plannerStagePayloadProviders = {};
+
+function plannerRegisterStagePayload(stage, provide) {
+  if (typeof provide === 'function') _plannerStagePayloadProviders[stage] = provide;
+}
+
+function plannerProvidedPayload(stage) {
+  const provide = _plannerStagePayloadProviders[stage];
+  if (!provide) return null;
+  try {
+    const p = provide();
+    return p && typeof p === 'object' && Object.keys(p).length ? p : null;
+  } catch (e) {
+    return null;   // 제공자가 터져도 저장을 죽이지 않는다 — 'empty' 로 돌려준다
+  }
+}
+
 function plannerSnapshotPayload(stage, read) {
   const map = PLANNER_STAGE_KEYS[stage];
   if (!map) return null;
@@ -289,14 +316,21 @@ const PlannerStore = {
         });
     // 키에 값이 하나도 없으면(예: 디테일 모드에 들어가기 전) 올릴 것이 없다.
     //   detaildesign 처럼 키를 갖지 않은 쪽은 opt.payload 를 직접 넘긴다.
-    if (!payload) return { ok: false, reason: 'empty' };
+    //
+    // 2026-09-23: 키가 비었어도 **화면에는 상태가 있을 수 있다.** 마감(디테일)은 사용자가 무언가를
+    //   바꿀 때만 키에 쓰므로, 기본 마감 그대로 「도면 저장」을 누르면 'empty' 로 거절됐다
+    //   ("⚠ 저장 실패: empty"). 그 단계가 자기 현재 상태를 제공자로 등록해 두었으면 그것을 쓴다
+    //   (plannerRegisterStagePayload). 저장소는 마감 모듈을 모른다 — 등록만 받는다.
+    const provided = payload ? null : plannerProvidedPayload(stage);
+    const body = payload || provided;
+    if (!body) return { ok: false, reason: 'empty' };
 
     const row = {
       design_id: r.ids.designId,
       item_unique_id: r.ids.itemId,
       stage,
       name: opt.autosave ? null : (opt.name || null),
-      payload,
+      payload: body,
       is_autosave: !!opt.autosave,
     };
     try {
@@ -315,7 +349,7 @@ const PlannerStore = {
           .maybeSingle();
         if (cur && cur.id) {
           const { error } = await r.client
-            .from('planner_snapshots').update({ payload }).eq('id', cur.id);
+            .from('planner_snapshots').update({ payload: body }).eq('id', cur.id);
           if (error) throw error;
           return { ok: true, id: cur.id, autosave: true };
         }
@@ -752,6 +786,7 @@ if (typeof window !== 'undefined') {
   window.plannerListenDesignSaved = plannerListenDesignSaved;
   window.PlannerStore = PlannerStore;
   window.plannerAutosave = plannerAutosave;
+  window.plannerRegisterStagePayload = plannerRegisterStagePayload;
   window.plannerAutosaveNow = plannerAutosaveNow;
   window.plannerAutosaveEnabled = plannerAutosaveEnabled;
   window.setPlannerAutosave = setPlannerAutosave;
@@ -766,6 +801,8 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerScopeIds,
     plannerScopeIsRemote,
     plannerSnapshotPayload,
+    plannerRegisterStagePayload,
+    plannerProvidedPayload,
     plannerAutosaveNow,
     applyPlannerSnapshot,
     plannerSnapshotSummary,
