@@ -97,7 +97,13 @@
       /* W9-9: iframe overlay (body 레벨, id^="__planner-overlay-") 강제 100vw × 100vh.
          _positionPlannerOverlay 는 three-canvas rect 기반인데 W9-7 로 three-canvas 가
          숨겨져 rect = 0 → iframe 0×0. CSS 로 강제 풀화면. */
-      body.step2-fullscreen [id^="__planner-overlay-"].planner-overlay-active {
+      /* 2026-09-23: **위치**와 **보이기**를 나눈다.
+         09-22 에 이 규칙에 `.planner-overlay-active` 를 붙여 보이기를 하나로 좁혔는데, 그러면서
+         선택자 우선순위가 올라가 아래 "툴바 높이만큼 내린다" 규칙(top: 헤더+44px)을 **이겨 버렸다.**
+         오버레이가 화면 0 부터 그려져, 부모의 헤더·툴바가 플래너 상단 132px 를 덮었다 —
+         단계 버튼(1.배치 · 2.구조 · 3.디테일)과 아이콘 줄이 통째로 사라졌다.
+         위치 규칙은 예전 선택자 그대로 두어 아래 규칙이 뒤에서 이기게 하고, 보이기만 활성 표시로 건다. */
+      body.step2-fullscreen [id^="__planner-overlay-"] {
         position: fixed !important;
         top: 0 !important;
         left: 0 !important;
@@ -107,6 +113,8 @@
         height: 100vh !important;
         z-index: 100 !important;
         border-radius: 0 !important;
+      }
+      body.step2-fullscreen [id^="__planner-overlay-"].planner-overlay-active {
         display: block !important;
       }
       body.step2-fullscreen [id^="__planner-overlay-"] iframe {
