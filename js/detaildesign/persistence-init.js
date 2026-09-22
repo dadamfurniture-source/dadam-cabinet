@@ -1046,15 +1046,20 @@
         try {
           // 설계 데이터 준비
           const designData = window.DadamAgent.exportDesign();
-          const designName = prompt(
-            '설계 이름을 입력하세요:',
-            currentDesignId ? '기존 설계' : `설계_${new Date().toLocaleDateString('ko-KR')}`
-          );
+          const defaultDesignName = currentDesignId ? '기존 설계' : `설계_${new Date().toLocaleDateString('ko-KR')}`;
+          const typedName = prompt('설계 이름을 입력하세요:', defaultDesignName);
 
-          if (!designName) {
-            updateSaveStatus('saved', '저장됨');
+          // 2026-09-23: **취소만** 저장을 멈춘다. 예전엔 이름 칸을 비우고 확인을 눌러도 조용히 끝났고,
+          //   그러면서 상태는 "저장됨" 으로 바꿔 **저장된 것처럼** 보였다. 이름은 알아보기 위한 것이지
+          //   저장의 조건이 아니다 — 비었으면 기본 이름으로 저장한다.
+          if (typedName === null) {
+            // 취소 — 저장 전 모습으로 되돌린다. 이미 저장된 설계면 "저장됨" 이 사실이고,
+            //   아직 한 번도 저장 안 된 설계면 표시를 감춘다 ("저장됨" 이라고 하면 거짓이다).
+            if (currentDesignId) updateSaveStatus('saved', '저장됨');
+            else document.getElementById('saveStatus')?.classList.add('hidden');
             return;
           }
+          const designName = String(typedName).trim() || defaultDesignName;
 
           // 신규 또는 업데이트
           if (currentDesignId) {
