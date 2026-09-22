@@ -568,8 +568,23 @@ describe('브라우저·Node 양쪽에서 읽힌다', () => {
 describe('내부 서랍장은 따로 만드는 모듈이다 (2026-09-19 확정)', () => {
   const I = R.INNER_DRAWER;
   const DR = require('../js/detaildesign/bom-drawer-rules.js');
+  // D 는 **통(몸통)** 깊이다. 여기서는 공식을 고정하려고 620 을 넣는다 —
+  //   **기본 배치**에서 실제로 나오는 값과는 다르다: 배치 620 → 통 590(− 물끊기 10 − 도어 자리 20)
+  //   → 모듈 520 → 판 502. 그 사슬은 docs/design-rules/wardrobe.md §7 "깊이 기준" 에 있다.
+  //   (전면 높이는 깊이와 무관하므로 어느 D 를 넣어도 같다.)
   const inner = (n, o) => WR.innerDrawerLayout(Object.assign(
     { Wi: 870, zoneH: n * R.DRAWER_MOD_H, drawers: n, T: 15, D: 620 }, o));
+
+  test('기본 배치(620)에서는 통 590 · 모듈 520 · 판 502 가 나온다', () => {
+    // 620 을 통 깊이로 오해하지 않게 사슬을 시험으로 못박는다.
+    const L = WR.innerDrawerLayout({ Wi: 870, zoneH: 700, drawers: 2, T: 15, D: 620 - 10 - 20 });
+    expect(L.moduleD).toBe(520);
+    expect(L.panelD).toBe(502);
+    expect(L.topPanelD).toBe(502);
+    expect(L.topPanelD).toBe(WR.shelfDepthOf({ D: 590 }));
+    // 전면 높이는 깊이와 무관하다 — D 를 바꿔도 같다
+    expect(L.fronts.map((f) => f.h)).toEqual(inner(2).fronts.map((f) => f.h));
+  });
 
   // ── 1. 손잡이 빈 공간은 모든 전면에 닿아야 한다 ────────────────
   //   빈 공간 하나가 위·아래 두 전면을 함께 연다. 어느 전면도 빠지면 그 서랍은 열 수 없다.
