@@ -139,3 +139,30 @@ describe('바꾸기 전에 붙잡고, 다음 품목을 그 단계로 연다', ()
     expect(fn).toContain('new URLSearchParams(params)');
   });
 });
+
+describe('배치로 끌어올 때 작업을 되살린다 (2026-09-23)', () => {
+  // 배치(mockup-shell)는 저장된 배치를 **1회용 토큰(sessionStorage.fromStructure)이 있을 때만**
+  // 복원한다 — "새로고침/첫 진입은 빈 상태". 구조 페이지의 배치 버튼도 이 토큰을 심는다.
+  // 토큰 없이 주소만 바꾸면 배치가 빈 채로 열리고, 그 화면에서 무엇이든 하면 저장본을
+  // **빈 것으로 덮어쓴다.** #721 이 머지된 직후 브라우저에서 이 현상을 잡았다.
+  const SHELL = fs.readFileSync(path.join(ROOT, 'mockup-shell.html'), 'utf8');
+  const impl = sliceBalanced(UI, UI.indexOf('function _renderWorkspaceContentImpl'));
+
+  test('배치는 정말로 토큰이 있어야만 복원한다 (이 시험의 전제)', () => {
+    const restore = SHELL.slice(SHELL.indexOf('(function autoRestore()'));
+    expect(restore.slice(0, 400)).toContain("sessionStorage.getItem('fromStructure')");
+    expect(restore.slice(0, 400)).toMatch(/if \(!fromStructure\) return;/);
+  });
+
+  test('배치로 옮기기 **전에** 토큰을 심는다', () => {
+    const token = impl.indexOf("sessionStorage.setItem('fromStructure', '1')");
+    const swap = impl.indexOf('savedIframe.src = _plannerUrlForStage(');
+    expect(token).toBeGreaterThan(-1);
+    expect(token).toBeLessThan(swap);     // 주소를 바꾼 뒤에 심으면 이미 늦다
+  });
+
+  test('배치일 때만 심는다 — 구조·디테일은 토큰 없이도 저장본을 읽는다', () => {
+    const token = impl.indexOf("sessionStorage.setItem('fromStructure', '1')");
+    expect(impl.slice(token - 200, token)).toContain("if (_plannerStage === 'layout')");
+  });
+});

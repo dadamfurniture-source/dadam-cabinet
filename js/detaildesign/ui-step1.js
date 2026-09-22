@@ -3415,6 +3415,15 @@
                 //   다시 여는 것이라 **적용하지 않은 초안**은 사라진다. 배치·구조는 바뀔 때마다
                 //   저장되므로 작업 자체는 남는다 (개별 모듈 패널의 미적용 초안만 해당).
                 _positionPlannerOverlay(plannerOverlayId, container);
+                // 2026-09-23: **배치로 옮길 때는 복원 토큰을 먼저 심는다.**
+                //   배치(mockup-shell)는 저장된 배치를 `sessionStorage.fromStructure` 1회용 토큰이 있을 때만
+                //   복원한다 (autoRestore — "새로고침/첫 진입은 빈 상태"). 구조 페이지의 배치 버튼도
+                //   이 토큰을 심고 넘어간다. 안 심으면 배치가 **빈 채로** 열리고, 그 빈 화면에서
+                //   사각형을 놓거나 구조를 누르는 순간 **저장본을 빈 것으로 덮어쓴다** — 실제 손실이다.
+                //   같은 출처의 iframe 은 부모와 sessionStorage 를 나눠 쓴다 (_migrateLocalScope 도 같은 방식).
+                if (_plannerStage === 'layout') {
+                  try { sessionStorage.setItem('fromStructure', '1'); } catch (e) { /* 막히면 빈 배치 — 저장본은 남는다 */ }
+                }
                 try {
                   savedIframe.src = _plannerUrlForStage(new URL(savedIframe.src, location.origin).searchParams);
                 } catch (e) { /* 주소를 못 읽으면 그냥 둔다 — 단계만 어긋날 뿐 작업은 멀쩡하다 */ }
