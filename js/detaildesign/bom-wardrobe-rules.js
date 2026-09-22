@@ -53,7 +53,11 @@
  * 만드는 방식은 일반 모듈과 같고 (측판·천판·지판·뒷판·밴드), 치수 기준만 다르다:
  *   모듈 W(외경) = 붙박이장 내경 − 120  (경첩 몰딩 60 + 60)
  *   모듈 H(외경) = 서랍 단수 × 350       (구역 높이)
- *   모듈 D       = 통 깊이 − 70          (앞선에서 물러선 만큼)
+ *   모듈 D       = 통 깊이 − 110         (경첩 자리 70 + 여유 40 — 기본 통 590 에서 480)
+ *                  통이 얕아지면 모듈도 **같은 수치로** 따라 줄어든다 (2026-09-23 사장님 확정)
+ *   레일         = 자재 기본값 **언더레일 450 고정**. 하부장의 "레일 ≤ 깊이 − 50" 여유 규칙을
+ *                  타지 않는다 — 480 깊이에 450 이 실제로 들어간다 (여유 30).
+ *                  규칙대로면 400 이 뽑히는데 그건 과하게 보수적이다.
  *   도어 W       = 모듈 W − 4
  *   몸통 구성    = **하부장과 같다** — 천판이 없고 **밴드**가 상단 앞·뒤에 서고, 그 **위에 상판**이
  *                  올라간다 (2026-09-22 사장님 확정). 상판 깊이는 붙박이장 선반과 같다 (`shelfDepthOf`).
@@ -61,7 +65,7 @@
  *   상판         = 그 **위에 얹힌다** — 모듈이 차지하는 높이는 350×단수 + 상판 15.
  *                  상판은 **좌우 몰딩까지 덮는다** (2026-09-22 사장님 확정) → 가로 = 통 내경.
  *                  깊이도 선반과 같으니 결국 **분할 없는 칸의 선반과 같은 판**이다 (870 × 532).
- *   지판 깊이    = 모듈 D − 18 (사쿠리)
+ *   지판 깊이    = 모듈 D 그대로 — 측판에 **사쿠리가 없다** (2026-09-23 사장님 확정)
  * 서랍 박스(전후판·측판·우라)는 이 모듈 치수를 **서랍 규칙**(drawerBoxDims)에 넣어서 낸다 —
  * 붙박이장에만 있는 박스 규칙을 따로 두지 않는다.
  *
@@ -119,6 +123,14 @@
     INNER_DRAWER: Object.freeze({
       SIDE_MOLDING_W: 60,   // 좌우 각 60 — 문이 경첩에 걸리지 않게 모듈을 안으로 넣는다
       FRONT_SETBACK: 70,    // 붙박이장 앞선에서 안쪽으로 (경첩 자리)
+      // 2026-09-23 사장님 확정: 경첩 자리 70 을 뺀 자리(기본 520) 중 실제로 쓰는 깊이는 480.
+      //   남는 40 은 여유다 (서랍장 도어 15 + 여유 5 를 포함한 총 여유).
+      //   모듈 D = 통 깊이 − 70 − 40 이므로 통이 얕아지면 **같은 수치로** 따라 줄어든다.
+      MODULE_BACK_GAP: 40,
+      // 레일은 자재 기본값 고정. 하부장은 `railLengthFor`(깊이 − 50)로 고르지만
+      //   붙박이장 내부 서랍은 480 깊이에 450 이 들어가므로(여유 30) 450 을 쓴다.
+      //   모듈이 더 얕아져 450 이 안 들어가면 규칙값으로 물러선다.
+      RAIL_LENGTH: 450,
       FRONT_TRIM: 4,        // 전면 가로·세로 각 −4
       HANDLE_SLOT: 30,      // 목찬넬 대신 전면을 30 낮춘다 — 그 빈 공간이 손잡이다
       MIN_FRONT_H: 50,      // 이보다 낮은 전면은 만들 수 없다 (서랍 규칙 MIN_FRONT_H 와 같은 값)
@@ -499,12 +511,12 @@
     const moduleH = zoneH;                                 // 몸통 외경 높이 = 350 × 단수 (도어 세로의 기준)
     const totalH = moduleH + topT;                         // 모듈 + 상판이 차지하는 높이
     const moduleHi = Math.max(0, moduleH - T);             // 참고용 (지판만 빠진다 — 천판이 없다)
-    const moduleD = Math.max(0, depthOf(opt) - I.FRONT_SETBACK);
+    const moduleD = Math.max(0, depthOf(opt) - I.FRONT_SETBACK - I.MODULE_BACK_GAP);
     const base = {
       drawers: n, moldingW: I.SIDE_MOLDING_W, moldingT: T, moldingH: zoneH,
       setback: I.FRONT_SETBACK, moduleW, moduleH, moduleHi, moduleD, zoneH, topT, totalH,
-      // 지판 깊이 — 사쿠리 반영. 플래너도 이 값을 그린다 (숫자를 두 군데 적지 않는다).
-      panelD: Math.max(0, moduleD - R.TOP_BOTTOM_D_MINUS),
+      // 지판 깊이 — 측판에 사쿠리가 없으므로 모듈 깊이를 그대로 쓴다 (2026-09-23 사장님 확정).
+      panelD: moduleD,
       // 상판 — 모듈 위에 올라가고 **좌우 몰딩까지 덮는다** (2026-09-22 사장님 확정).
       //   그래서 가로는 모듈 외경(750)이 아니라 **통 내경**이고, 깊이는 선반과 같다
       //   → 분할 없는 칸의 **선반과 같은 판**이 된다 (통 900 이면 870 × 532).
@@ -562,7 +574,8 @@
       W: moduleW, D: moduleD, T, zoneH: f.h, rail: opt.rail, idx: f.idx,
     })).filter(Boolean);
     boxes.forEach((b) => {
-      if (b.warnings) warnings.push(...b.warnings);
+      // 레일 경고는 단마다 똑같이 나온다 — 한 번만 적는다
+      (b.warnings || []).forEach((w) => { if (!warnings.includes(w)) warnings.push(w); });
       // 전면이 낮으면 그 뒤에 박스가 안 들어간다 — 조용히 가장 작은 박스를 내지 않는다.
       if (!b.fits) warnings.push(`내부 서랍 ${b.idx + 1}단: 전면 뒤 자리에 가장 작은 박스(${b.sideH})도 안 들어간다`);
     });
@@ -572,16 +585,32 @@
       topSlot: plan.top ? I.HANDLE_SLOT : 0, hasTopSlot: plan.top });
   }
 
-  /** 전면 한 장 뒤의 서랍 박스 — 서랍 규칙(pickBox·drawerBoxDims)이 정한다. */
+  /**
+   * 전면 한 장 뒤의 서랍 박스 — 서랍 규칙(pickBox·drawerBoxDims)이 정한다.
+   *
+   * 2026-09-23: 레일만 예외다. 하부장은 `railLengthFor`(깊이 − 50)로 고르는데 모듈 480 이면
+   * 400 이 뽑힌다. 450 레일이 480 에 실제로 들어가므로(여유 30) **자재 기본값 450 을 고정**한다.
+   * 모듈이 더 얕아져 450 이 안 들어가면 규칙값으로 물러선다.
+   */
   function innerDrawerBoxOf(DR, o) {
     if (!DR || !DR.pickBox || !DR.drawerBoxDims) return null;
+    const I = R.INNER_DRAWER;
     const box = DR.pickBox(o.zoneH, o.rail);
     const dims = DR.drawerBoxDims({
       W: o.W, D: o.D, bodyT: o.T, drawerT: o.T, rail: o.rail, boxH: box.h, sakuri: false,
     });
-    const rail = DR.DRAWER_RULES.RAIL_CLEARANCE[dims.rail];
-    return Object.assign({ idx: o.idx, size: box.size, fits: box.fits,
-      label: DR.DRAWER_RULES.BOX_LABEL[box.size], railName: rail ? rail.name : dims.rail }, dims);
+    const clear = DR.DRAWER_RULES.RAIL_CLEARANCE[dims.rail];
+    const warnings = (dims.warnings || []).slice();
+    if (I.RAIL_LENGTH <= o.D) {
+      dims.railLength = I.RAIL_LENGTH;
+      dims.sideL = I.RAIL_LENGTH - (clear ? clear.sideMinus : 0);
+      dims.bottomD = dims.sideL - DR.DRAWER_RULES.BOTTOM_TRIM;
+    } else {
+      warnings.push(`서랍장 모듈 깊이 ${o.D} 에는 기본 레일 ${I.RAIL_LENGTH} 이 안 들어간다 — 규칙값 ${dims.railLength} 로 내린다`);
+    }
+    return Object.assign({ idx: o.idx, size: box.size, fits: box.fits, warnings,
+      label: DR.DRAWER_RULES.BOX_LABEL[box.size], railName: clear ? clear.name : dims.rail }, dims,
+      { warnings });
   }
 
   /** 내부 서랍에서 나오는 부재 — 전면과 좌우 몰딩. 둘 다 15PB 몸통 재질이다. */
@@ -618,7 +647,7 @@
     // 2026-09-22: 몸통은 **하부장과 같다** — 천판이 없다. 밴드가 상단 앞·뒤에 서고
     //   그 위에 상판이 올라간다.
     const rows = [
-      { part: '측판', material: 'PB', t: T, w: D, h: H, qty: 2, edge: '3면', note: 'sakuri(15→3mm)' },
+      { part: '측판', material: 'PB', t: T, w: D, h: H, qty: 2, edge: '3면' },
       { part: '지판', material: 'PB', t: T, w: inner, h: L.panelD, qty: 1, edge: '1면(전)' },
       { part: '밴드', material: 'PB', t: T, w: inner, h: I.BAND_H, qty: 2, edge: '2면(장)',
         note: '천판 대신 상단 앞·뒤 (하부장과 같다)' },

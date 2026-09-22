@@ -7858,7 +7858,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           });
           // 상판 — 몸통 위에 올라간다 (구역 안)
           const top = makeBox(zone.topPanelW, zone.topT, zone.topPanelD, color);
-          top.position.set(0, legH + zone.y0 + mH + zone.topT / 2, mZ);
+          // 2026-09-23: 상판(502)이 모듈(480)보다 깊다 — 모듈 중심에 맞추면 앞으로 11 삐져나가
+          //   경첩 자리를 먹는다. **앞선을 모듈 앞선(경첩 자리 뒤)에 맞추고** 뒤로 더 뻗게 한다.
+          const topZ = D / 2 - zone.setback - zone.topPanelD / 2;
+          top.position.set(0, legH + zone.y0 + mH + zone.topT / 2, topZ);
           put(top, { entityKind: 'wardrobeInnerTop', moduleId: m.id });
         }
         // 전면 — 아래에서 위로. 빈 공간은 전면 사이에 그대로 남는다 (그리지 않는다)
