@@ -262,10 +262,10 @@ describe('validateSuggestions — Claude 추천 파일', () => {
     expect(v.items[0].source_page).toBeNull();
   });
 
-  test('길이를 자른다 — 제목 120 · 메모 500 · 작가 200', () => {
+  test('길이를 자른다 — 제목 120 · 설명 200 (생성 프롬프트에 그대로 간다) · 작가 200', () => {
     const v = R.validateSuggestions(file([item({ title: 't'.repeat(300), note: 'n'.repeat(900), author: 'a'.repeat(400) })]));
     expect(v.items[0].title).toHaveLength(120);
-    expect(v.items[0].note).toHaveLength(500);
+    expect(v.items[0].note).toHaveLength(200);
     expect(v.items[0].author).toHaveLength(200);
   });
 
@@ -325,6 +325,38 @@ describe('admin/reference-images.html — 관리자 화면', () => {
     const mod = read('js/reference-images.js');
     expect(mod).toMatch(/score >= 0\.18/);
   });
+
+  test('사용 중·검토 대기 카드에 「수정」 — 거절된 카드에는 없다', () => {
+    const fn = script.slice(script.indexOf('function cardHTML'), script.indexOf('function renderBulk'));
+    expect(fn.length).toBeGreaterThan(100);
+    expect(fn).toMatch(/const editBtn = '<button class="btn btn-light" data-act="edit"/);
+    const pending = fn.slice(fn.indexOf("if (r.status === 'pending')"), fn.indexOf("} else if (r.status === 'approved')"));
+    const approved = fn.slice(fn.indexOf("} else if (r.status === 'approved')"), fn.indexOf('} else {'));
+    const rejected = fn.slice(fn.indexOf('} else {'), fn.indexOf('return '));
+    expect(pending).toContain('editBtn');
+    expect(approved).toContain('editBtn');
+    expect(rejected).not.toContain('editBtn');
+    expect(script).toMatch(/else if \(t\.dataset\.act === 'edit'\) openEdit\(id\);/);
+  });
+
+  test('수정은 테마·이름·설명만 바꾼다 — 상태·파일은 건드리지 않는다, 설명은 200자', () => {
+    const fn = script.slice(script.indexOf('async function submitEdit'), script.indexOf('// ── 확정 · 거절'));
+    expect(fn.length).toBeGreaterThan(100);
+    const patch = fn.slice(fn.indexOf('const patch = {'), fn.indexOf('};', fn.indexOf('const patch = {')));
+    expect(patch).toMatch(/theme: theme\.trim\(\)/);
+    expect(patch).toMatch(/title: \$\('edTitle'\)\.value\.trim\(\)\.slice\(0, 120\) \|\| null/);
+    expect(patch).toMatch(/note: \$\('edNote'\)\.value\.trim\(\)\.slice\(0, 200\) \|\| null/);
+    expect(patch).not.toMatch(/status|storage_path|thumb_path|is_active/);
+    expect(fn).toMatch(/R\.isValidTheme\(theme\)/);
+    expect(fn).toMatch(/sb\.from\('theme_images'\)\.update\(patch\)\.eq\('id', editId\)/);
+    expect(PAGE).toMatch(/<textarea id="edNote" rows="4" maxlength="200"/);
+  });
+
+  test('업로드에도 설명 칸 — 행에 note 로 들어간다', () => {
+    expect(PAGE).toMatch(/<textarea id="upNote" rows="3" maxlength="200"/);
+    expect(script).toMatch(/const note = \$\('upNote'\)\.value\.trim\(\)\.slice\(0, 200\);/);
+    expect(script).toMatch(/note: note \|\| null,/);
+  });
 });
 
 describe('ai-design.html — 테마는 DB 먼저, 모자라면 위키미디어를 뒤에', () => {
@@ -367,7 +399,8 @@ describe('ai-design.html — 테마는 DB 먼저, 모자라면 위키미디어�
     );
     return { api, S, log };
   }
-  const rows = (n) => Array.from({ length: n }, (_, i) => ({ id: 'id' + i, theme: i % 2 ? 'flower' : '원목', thumb_path: 'id' + i + '/thumb.jpg' }));
+  const rows = (n) =>
+    Array.from({ length: n }, (_, i) => ({ id: 'id' + i, theme: i % 2 ? 'flower' : '원목', thumb_path: 'id' + i + '/thumb.jpg', note: i % 2 ? '오렌지 가죽' : null }));
 
   test('구간을 찾는다 (마커가 살아 있다)', () => {
     expect(SEG.length).toBeGreaterThan(200);
@@ -381,18 +414,24 @@ describe('ai-design.html — 테마는 DB 먼저, 모자라면 위키미디어�
     const list = await api.loadDbThemes();
     expect(sb.calls).toEqual([
       ['from', 'theme_images'],
-      ['select', 'id, theme, thumb_path'],
+      ['select', 'id, theme, thumb_path, note'],
       ['eq', 'status', 'approved'],
       ['eq', 'is_active', true],
       ['limit', 2000],
     ]);
     expect(list).toEqual([
-      { key: 'th-db-id0', src: 'https://cdn/theme-images/id0/thumb.jpg', label: '원목' },
-      { key: 'th-db-id1', src: 'https://cdn/theme-images/id1/thumb.jpg', label: '꽃' },
+      { key: 'th-db-id0', src: 'https://cdn/theme-images/id0/thumb.jpg', label: '원목', note: '' },
+      { key: 'th-db-id1', src: 'https://cdn/theme-images/id1/thumb.jpg', label: '꽃', note: '오렌지 가죽' },
     ]);
     // 생성 때 역할을 가르는 규칙 그대로
-    expect(STUDIO).toMatch(/role: \/\^th-\/\.test\(p\.key\) \? 'theme' : 'style'/);
+    expect(STUDIO).toMatch(/var theme = \/\^th-\/\.test\(p\.key\);/);
+    expect(STUDIO).toMatch(/role: theme \? 'theme' : 'style'/);
     list.forEach((r) => expect(/^th-/.test(r.key)).toBe(true));
+  });
+
+  test('테마 사진의 설명은 고를 때 같이 담기고, 생성 요청에 테마일 때만 실린다', () => {
+    expect(STUDIO).toMatch(/S\.picks\.push\(\{ key: src\.key, src: src\.src, label: src\.label, note: src\.note \|\| '' \}\)/);
+    expect(STUDIO).toMatch(/if \(theme && p\.note\) ref\.note = p\.note;/);
   });
 
   test('DB 가 충분하면(24장 이상) 위키미디어를 부르지 않는다 — 한 번 그리고 끝', async () => {

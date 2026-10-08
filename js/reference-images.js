@@ -131,7 +131,7 @@
       out.items.push({
         theme,
         title: String(it.title || '').trim().slice(0, 120) || null,
-        note: String(it.note || '').trim().slice(0, 500) || null,
+        note: String(it.note || '').trim().slice(0, 200) || null,
         origin_url: url,
         preview_url: httpsOrNull(it.preview_url),
         download_url: httpsOrNull(it.download_url),

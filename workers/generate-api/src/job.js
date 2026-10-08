@@ -252,10 +252,16 @@ async function runPipeline(env, job, ck, save) {
   //   theme (식물·명품·회화 등)  → 색감만 뽑아 추천안 한 장으로
   const refs = []; // style
   const themeRefs = [];
+  const themeNotes = []; // themeRefs 와 같은 순서 — 관리자가 적은 사진 설명 (없으면 null)
   for (const r of inputs.refs || []) {
     try {
       const img = await fetchObjectBase64(env, r.path);
-      (r.role === 'theme' ? themeRefs : refs).push(img);
+      if (r.role === 'theme') {
+        themeRefs.push(img);
+        themeNotes.push(r.note || null);
+      } else {
+        refs.push(img);
+      }
     } catch (e) {
       console.warn(`[Job ${job.id}] ref skipped: ${e.message}`);
     }
@@ -445,7 +451,7 @@ async function runPipeline(env, job, ck, save) {
     ck.themeFinish = null;
     try {
       const t = await callGemini(env, {
-        prompt: buildThemePalettePrompt(),
+        prompt: buildThemePalettePrompt(themeNotes.slice(0, 3)),
         images: themeRefs.slice(0, 3),
         want: 'text',
       });
