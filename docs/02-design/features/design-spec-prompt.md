@@ -243,6 +243,37 @@ All doors and drawers closed. Photorealistic interior photograph with natural li
 - `QC_ISSUE_CODES` — 모든 실행이 받는 공통 코드 (예전 그대로)
 - `ALL_QC_ISSUE_CODES` — 공통 + 요약 전용. `parseQc` 가 받아 주는 전체
 
+## 플래너 모드 (`mode:'planner'`, 2026-10-08)
+
+정본 계획: `docs/01-plan/planner-render-realize.plan.md` §4 · §6. 위의 설치 프롬프트와 **다른 빌더**
+(`buildPlannerPrompt`)를 쓴다 — `mode` 가 없으면 위 내용이 한 글자도 바뀌지 않는다.
+
+```
+POST /api/generate
+{
+  "mode": "planner",
+  "room_image": "<base64>", "image_type": "image/jpeg",
+  "category": "sink",
+  "design_spec": { ... },                                   ← 필수. 없으면 400 bad_design_spec (차감 전)
+  "renders": [
+    { "role": "elevation", "base64": "...", "mime": "image/png" },   ← 필수. 없으면 400 missing_render (차감 전)
+    { "role": "massing",   "base64": "...", "mimeType": "image/jpeg" } ← 선택
+  ],
+  "aspect": "16:9"                                          ← 선택. 16:9 · 4:3 · 3:4 · 1:1 · 9:16, 그 밖은 16:9
+}
+```
+
+| 항목 | 규칙 |
+|---|---|
+| 받지 않는 것 | `realize` · `engine` · `control_*` · `reference_images` (보내도 무시) |
+| 렌더 | 역할마다 한 장, 최대 2장, 다른 role 은 버림. 버킷 `{user}/{gen}/render-{role}.{ext}`, `inputs.renders[] = {role, path, url, mime}` |
+| options | `mode:'planner'`, `aspect`, `variants:false`(항상) |
+| 재생성 | `parent_id` 만 보내면 원본의 모드·요약·렌더·비율을 잇는다. 원본에 입면이 없으면 400 |
+| 설치 | `[방 사진, 입면, 3/4?]` + 프롬프트 v2, 온도 0.2, `aspectRatio` = `options.aspect` |
+| 검사 | 공통 + `layout_mismatch` + **`existing_left`**(남는 벽에 기존 가구) · **`pasted_reference`**(렌더를 붙임). **재시도 없음** — `images[base].qc` 에 기록만 |
+| 역판독 | 그대로 (`layout.verify`) |
+| 결과 | `base` 한 장. 추천안·`mockup` 슬롯 없음 |
+
 ## 바꿀 때
 
 1. 필드 이름을 바꾸면 **이 문서와 플래너를 같이** 고친다 (플래너가 이 문서를 따라 보낸다).
