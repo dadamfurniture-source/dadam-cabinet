@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>참고 이미지 관리 - 다담가구</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet" />
+    <script src="../js/config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="../js/admin-access.js"></script>
+    <script src="../js/reference-images.js"></script>
+    <!--
+      2026-10-08: 연출컷(ai-design.html) 「테마」 탭의 참고 이미지를 관리한다.
+      표·버킷·권한은 database/reference-images.sql, 공용 규칙은 js/reference-images.js.
+
+      사진이 들어오는 두 길:
+        ① 업로드        — 관리자가 직접 올린다 → 곧바로 「사용 중」
+        ② 추천 불러오기 — Claude 가 사진을 보고 고른 후보를 **파일**로 넘긴다 → 「검토 대기」
+                          → 확정하면 원본을 받아 우리 Storage 에 복사해 「사용 중」, 거절하면 「거절됨」
+      넣는 것은 늘 **관리자 로그인**이다 — 서비스 롤 키를 어디에도 두지 않는다.
+    -->
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: 'Noto Sans KR', sans-serif; background: #f5f5f5; min-height: 100vh; }
+
+      .sidebar { position: fixed; left: 0; top: 0; width: 250px; height: 100vh; background: #1a1a2e; color: white; padding: 20px 0; z-index: 1000; }
+      .sidebar-logo { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px; }
+      .sidebar-logo h1 { font-size: 1.3rem; font-weight: 700; }
+      .sidebar-logo span { font-size: 0.8rem; color: #888; }
+      .nav-menu { list-style: none; }
+      .nav-menu li a { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: #aaa; text-decoration: none; transition: all 0.3s; }
+      .nav-menu li a:hover, .nav-menu li a.active { background: rgba(255,255,255,0.1); color: white; }
+      .nav-menu li a.active { border-left: 3px solid #007bff; }
+      .nav-icon { width: 20px; text-align: center; }
+      .sidebar-footer { position: absolute; bottom: 20px; left: 0; right: 0; padding: 0 20px; }
+      .sidebar-footer a { display: block; padding: 10px; text-align: center; background: rgba(255,255,255,0.1); color: #aaa; text-decoration: none; border-radius: 5px; font-size: 0.9rem; }
+      .sidebar-footer a:hover { background: rgba(255,255,255,0.2); color: white; }
+
+      .main-content { margin-left: 250px; padding: 20px 30px; }
+      .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid #ddd; }
+      .header h2 { font-size: 1.5rem; color: #333; }
+      .header p { font-size: 13px; color: #888; margin-top: 4px; }
+      .access-denied { display: none; text-align: center; padding: 60px 20px; }
+      .access-denied h2 { color: #dc3545; margin-bottom: 10px; }
+
+      .tabs { display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 2px solid #e5e5e5; }
+      .tab { background: none; border: none; padding: 10px 16px; font-size: 14px; font-family: inherit; color: #777; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+      .tab[aria-selected="true"] { color: #007bff; border-bottom-color: #007bff; font-weight: 700; }
+      .tab .n { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 4px; border-radius: 10px; background: #eee; color: #555; font-size: 12px; }
+      .tab[aria-selected="true"] .n { background: #007bff; color: #fff; }
+      .tab.pending .n.has { background: #f59e0b; color: #fff; }
+
+      .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+      .toolbar select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; min-width: 140px; }
+      .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-family: inherit; font-weight: 500; transition: opacity 0.2s; }
+      .btn:hover { opacity: 0.85; }
+      .btn:disabled { opacity: 0.45; cursor: default; }
+      .btn-primary { background: #007bff; color: white; }
+      .btn-success { background: #16a34a; color: white; }
+      .btn-danger { background: #dc3545; color: white; }
+      .btn-light { background: #fff; color: #333; border: 1px solid #ddd; }
+
+      .bulk-bar { display: none; background: #1f2937; color: white; padding: 10px 16px; border-radius: 8px; margin-bottom: 14px; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .bulk-bar.active { display: flex; }
+      .bulk-bar .count { font-weight: 700; }
+
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+      .card { background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); position: relative; }
+      .card.selected { outline: 3px solid #007bff; }
+      .card.inactive img { opacity: 0.35; }
+      .card img { width: 100%; height: 170px; object-fit: cover; display: block; background: #eee; cursor: pointer; }
+      .card .check { position: absolute; top: 8px; left: 8px; width: 22px; height: 22px; accent-color: #007bff; z-index: 2; cursor: pointer; }
+      .card .info { padding: 10px 12px 12px; font-size: 12px; color: #555; }
+      .card .theme { font-weight: 700; color: #007bff; font-size: 12px; }
+      .card .title { font-size: 13px; color: #222; margin: 3px 0; word-break: break-all; }
+      .card .note { color: #666; line-height: 1.5; margin-top: 4px; max-height: 54px; overflow: auto; }
+      .card .meta { color: #999; margin-top: 6px; font-size: 11px; }
+      .card .meta a { color: #999; }
+      .card .badges { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; z-index: 2; }
+      .badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; background: rgba(255,255,255,0.92); color: #333; }
+      .badge.warn { background: #fef3c7; color: #92400e; }
+      .badge.off { background: #374151; color: #fff; }
+      .card .row { display: flex; gap: 6px; margin-top: 8px; }
+      .card .row .btn { padding: 5px 10px; font-size: 12px; flex: 1; }
+      .card select.theme-sel { width: 100%; margin-top: 6px; padding: 4px 6px; font-size: 12px; border: 1px solid #ddd; border-radius: 4px; }
+      .card .err { color: #dc2626; margin-top: 6px; }
+
+      .empty-state { text-align: center; padding: 60px; color: #888; line-height: 1.7; }
+      .loading { text-align: center; padding: 40px; color: #888; }
+
+      .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center; padding: 20px; }
+      .modal-overlay.active { display: flex; }
+      .modal { background: white; border-radius: 12px; width: 100%; max-width: 560px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.25); }
+      .modal-header { padding: 16px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+      .modal-header h3 { font-size: 16px; color: #333; }
+      .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #888; }
+      .modal-body { padding: 20px; overflow-y: auto; font-size: 14px; color: #444; line-height: 1.6; }
+      .modal-footer { padding: 12px 20px; border-top: 1px solid #eee; display: flex; gap: 8px; justify-content: flex-end; background: #fafafa; }
+      .form-field { margin-bottom: 14px; }
+      .form-field label { display: block; font-size: 13px; font-weight: 500; color: #444; margin-bottom: 6px; }
+      .form-field input[type="text"], .form-field select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; }
+      .form-field input[type="file"] { width: 100%; padding: 6px; }
+      .hint { font-size: 12px; color: #888; margin-top: 4px; }
+      .progress { margin-top: 10px; font-size: 13px; color: #007bff; white-space: pre-line; }
+      .progress .err, .err { color: #dc3545; }
+      .skip-list { margin-top: 8px; font-size: 12px; color: #92400e; max-height: 140px; overflow: auto; background: #fffbeb; border-radius: 6px; padding: 8px 10px; }
+
+      @media (max-width: 768px) {
+        .sidebar { display: none; }
+        .main-content { margin-left: 0; padding: 16px; }
+        .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+        .card img { height: 130px; }
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="sidebar">
+      <div class="sidebar-logo"><h1>다담가구</h1><span>관리자 패널</span></div>
+      <ul class="nav-menu">
+        <li><a href="index.html"><span class="nav-icon">📊</span>대시보드</a></li>
+        <li><a href="users.html"><span class="nav-icon">👥</span>회원 관리</a></li>
+        <li><a href="gallery.html"><span class="nav-icon">🖼️</span>시공사례 관리</a></li>
+        <li><a href="reference-images.html" class="active"><span class="nav-icon">🎨</span>참고 이미지</a></li>
+        <li><a href="dataset.html"><span class="nav-icon">🧠</span>학습 데이터셋</a></li>
+        <li><a href="expert-requests.html"><span class="nav-icon">⭐</span>Expert 승급 관리</a></li>
+        <li><a href="consultations.html"><span class="nav-icon">💬</span>상담 관리</a></li>
+        <li><a href="appliances.html"><span class="nav-icon">🧊</span>가전 모델 관리</a></li>
+        <li><a href="logs.html"><span class="nav-icon">📋</span>활동 로그</a></li>
+        <li><a href="settings.html"><span class="nav-icon">⚙️</span>설정</a></li>
+      </ul>
+      <div class="sidebar-footer"><a href="../index.html">← 메인 사이트로</a></div>
+    </nav>
+
+    <main class="main-content">
+      <div class="access-denied" id="accessDenied">
+        <h2>접근 권한이 없습니다</h2>
+        <p>관리자만 접근할 수 있는 페이지입니다.</p>
+        <a href="../index.html">메인 페이지로 돌아가기</a>
+      </div>
+
+      <div id="pageContent" style="display:none;">
+        <div class="header">
+          <div>
+            <h2>참고 이미지 관리</h2>
+            <p>연출컷 「테마」 탭에 보이는 색감 참고 사진입니다. 「사용 중」인 사진만 손님 화면에 나옵니다.</p>
+          </div>
+          <div id="adminInfo" style="font-size:13px;color:#888;"></div>
+        </div>
+
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" data-tab="approved" aria-selected="true">사용 중 <span class="n" id="nApproved">0</span></button>
+          <button class="tab pending" role="tab" data-tab="pending" aria-selected="false">검토 대기 <span class="n" id="nPending">0</span></button>
+          <button class="tab" role="tab" data-tab="rejected" aria-selected="false">거절됨 <span class="n" id="nRejected">0</span></button>
+        </div>
+
+        <div class="toolbar">
+          <button class="btn btn-primary" id="btnUpload">＋ 업로드</button>
+          <button class="btn btn-light" id="btnImport">📥 추천 불러오기</button>
+          <select id="filterTheme"><option value="">전체 테마</option></select>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+            <input type="checkbox" id="selectAll"> 목록 전체 선택
+          </label>
+        </div>
+
+        <div class="bulk-bar" id="bulkBar">
+          <span><span class="count" id="selCount">0</span>장 선택</span>
+          <span id="bulkActions"></span>
+          <button class="btn btn-light" id="btnClearSel">선택 해제</button>
+          <span id="bulkProgress" style="font-size:13px;"></span>
+        </div>
+
+        <div id="gridHost"><div class="loading">불러오는 중…</div></div>
+      </div>
+    </main>
+
+    <!-- 업로드 -->
+    <div class="modal-overlay" id="uploadModal">
+      <div class="modal">
+        <div class="modal-header"><h3>참고 이미지 업로드</h3><button class="modal-close" data-close="uploadModal">×</button></div>
+        <div class="modal-body">
+          <div class="form-field">
+            <label>사진 (여러 장 가능)</label>
+            <input type="file" id="upFiles" accept="image/*" multiple>
+            <div class="hint">올리면 곧바로 「사용 중」이 됩니다. 원본은 긴 변 1600, 썸네일은 가로 320 으로 줄여 저장합니다.</div>
+          </div>
+          <div class="form-field">
+            <label>테마</label>
+            <select id="upTheme"></select>
+            <input type="text" id="upThemeNew" placeholder="새 테마 이름 (예: 원목)" style="display:none;margin-top:6px;">
+          </div>
+          <div class="form-field">
+            <label>이름 (선택)</label>
+            <input type="text" id="upTitle" placeholder="비우면 파일 이름을 씁니다">
+          </div>
+          <div class="progress" id="upProgress"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-close="uploadModal">닫기</button>
+          <button class="btn btn-primary" id="upSubmit">업로드</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 추천 불러오기 -->
+    <div class="modal-overlay" id="importModal">
+      <div class="modal">
+        <div class="modal-header"><h3>추천 불러오기</h3><button class="modal-close" data-close="importModal">×</button></div>
+        <div class="modal-body">
+          <p>Claude 가 고른 추천 파일(<code>.json</code>)을 올리면 「검토 대기」로 들어갑니다.
+            이미 있는 사진(거절한 것 포함)과 상업 사용이 안 되는 라이선스는 자동으로 건너뜁니다.</p>
+          <div class="form-field" style="margin-top:12px;">
+            <input type="file" id="imFile" accept="application/json,.json">
+          </div>
+          <div id="imSummary"></div>
+          <div class="progress" id="imProgress"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-close="importModal">닫기</button>
+          <button class="btn btn-primary" id="imSubmit" disabled>검토 대기로 넣기</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      'use strict';
+      const R = window.DadamRefImages;
+      let sb = null;
+      let me = null;           // 로그인한 관리자 user
+      const S = {
+        tab: 'approved',
+        theme: '',
+        rows: [],
+        selected: new Set(),
+        busy: false,
+        importItems: [],
+      };
+
+      // ── 기본 ─────────────────────────────────────────
+      const $ = (id) => document.getElementById(id);
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
+      /** 화면에 넣는 주소는 https 만 — 파일에서 온 값이라 javascript: 같은 것을 막는다 */
+      function safeUrl(u) {
+        return /^https:\/\//.test(String(u || '')) ? String(u) : '';
+      }
+      function publicUrl(path) {
+        return path ? sb.storage.from(R.BUCKET).getPublicUrl(path).data.publicUrl : '';
+      }
+      function newId() {
+        if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+        });
+      }
+
+      // ── 권한 ─────────────────────────────────────────
+      async function initAdmin() {
+        if (!window.supabase || !window.DADAM_CONFIG?.supabase || !R) { showAccessDenied(); return; }
+        const { url, anonKey } = window.DADAM_CONFIG.supabase;
+        sb = window.supabase.createClient(url, anonKey);
+        const { data: { session } } = await sb.auth.getSession();
+        if (!session) { showAccessDenied(); return; }
+        const isAdmin = window.AdminAccess ? await window.AdminAccess.isAdmin(sb) : false;
+        if (!isAdmin) { showAccessDenied(); return; }
+        me = session.user;
+        $('adminInfo').textContent = me.user_metadata?.name || (me.email || '').split('@')[0];
+        $('pageContent').style.display = 'block';
+        wire();
+        await loadRows();
+      }
+      function showAccessDenied() {
+        $('accessDenied').style.display = 'block';
+        $('pageContent').style.display = 'none';
+      }
+
+      // ── 읽기 ─────────────────────────────────────────
+      async function loadRows() {
+        $('gridHost').innerHTML = '<div class="loading">불러오는 중…</div>';
+        const { data, error } = await sb
+          .from('theme_images')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(0, 4999);
+        if (error) {
+          $('gridHost').innerHTML = '<div class="empty-state err">불러오지 못했습니다: ' + esc(error.message)
+            + '<br><span style="color:#888">표가 아직 없다면 database/reference-images.sql 을 Supabase SQL Editor 에서 실행해 주세요.</span></div>';
+          return;
+        }
+        S.rows = data || [];
+        S.selected.clear();
+        render();
+      }
+
+      /** 테마 선택지 — 기본 여섯 + DB 에 있는 새 테마 */
+      function themeOptions() {
+        const keys = R.THEMES.map((t) => t.key);
+        S.rows.forEach((r) => { if (r.theme && keys.indexOf(r.theme) < 0) keys.push(r.theme); });
+        return keys;
+      }
+      function fillThemeSelects() {
+        const keys = themeOptions();
+        const f = $('filterTheme');
+        const keep = f.value;
+        f.innerHTML = '<option value="">전체 테마</option>' + keys.map((k) => '<option value="' + esc(k) + '">' + esc(R.themeLabel(k)) + '</option>').join('');
+        f.value = keys.indexOf(keep) >= 0 ? keep : '';
+        const u = $('upTheme');
+        const ukeep = u.value;
+        u.innerHTML = keys.map((k) => '<option value="' + esc(k) + '">' + esc(R.themeLabel(k)) + '</option>').join('')
+          + '<option value="__new">＋ 새 테마…</option>';
+        if (ukeep && (keys.indexOf(ukeep) >= 0 || ukeep === '__new')) u.value = ukeep;
+      }
+
+      function visibleRows() {
+        return S.rows.filter((r) => r.status === S.tab && (!S.theme || r.theme === S.theme));
+      }
+
+      // ── 그리기 ───────────────────────────────────────
+      function render() {
+        const n = { approved: 0, pending: 0, rejected: 0 };
+        S.rows.forEach((r) => { if (n[r.status] != null) n[r.status]++; });
+        $('nApproved').textContent = n.approved;
+        $('nPending').textContent = n.pending;
+        $('nPending').classList.toggle('has', n.pending > 0);
+        $('nRejected').textContent = n.rejected;
+        document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === S.tab)));
+        fillThemeSelects();
+
+        const list = visibleRows();
+        if (!list.length) {
+          const msg = S.tab === 'pending'
+            ? '검토할 추천이 없습니다.<br>Claude 에게 "테마 사진 추천해줘" 라고 하면 추천 파일을 만들어 드립니다 → 「📥 추천 불러오기」'
+            : S.tab === 'approved'
+              ? '아직 사용 중인 사진이 없습니다. 「＋ 업로드」 하거나 추천을 확정해 주세요.<br>(사용 중인 사진이 0장이면 연출컷 화면은 예전처럼 위키미디어에서 찾아 보여 줍니다)'
+              : '거절한 사진이 없습니다.';
+          $('gridHost').innerHTML = '<div class="empty-state">' + msg + '</div>';
+        } else {
+          $('gridHost').innerHTML = '<div class="grid">' + list.map(cardHTML).join('') + '</div>';
+        }
+        renderBulk();
+      }
+
+      function cardHTML(r) {
+        const sel = S.selected.has(r.id);
+        const img = r.status === 'approved' ? publicUrl(r.thumb_path) : safeUrl(r.preview_url || r.download_url || r.origin_url);
+        const badges = [];
+        if (r.status === 'approved' && !r.is_active) badges.push('<span class="badge off">숨김</span>');
+        if (r.colorfulness != null && r.colorfulness < 0.18) badges.push('<span class="badge warn" title="채도가 낮아 색감 참고로는 약할 수 있습니다">무채색</span>');
+        if (r.source === 'upload') badges.push('<span class="badge">업로드</span>');
+        const src = safeUrl(r.source_page);
+        const meta = [r.license, r.author].filter(Boolean).map(esc).join(' · ');
+        let actions = '';
+        if (r.status === 'pending') {
+          actions = '<div class="row"><button class="btn btn-success" data-act="approve" data-id="' + r.id + '">확정</button>'
+            + '<button class="btn btn-light" data-act="reject" data-id="' + r.id + '">거절</button></div>';
+        } else if (r.status === 'approved') {
+          actions = '<select class="theme-sel" data-act="theme" data-id="' + r.id + '">'
+            + themeOptions().map((k) => '<option value="' + esc(k) + '"' + (k === r.theme ? ' selected' : '') + '>' + esc(R.themeLabel(k)) + '</option>').join('')
+            + '</select>'
+            + '<div class="row"><button class="btn btn-light" data-act="toggle" data-id="' + r.id + '">' + (r.is_active ? '숨기기' : '보이기') + '</button></div>';
+        } else {
+          actions = '<div class="row"><button class="btn btn-light" data-act="restore" data-id="' + r.id + '">검토 대기로</button></div>';
+        }
+        return '<div class="card' + (sel ? ' selected' : '') + (r.status === 'approved' && !r.is_active ? ' inactive' : '') + '" data-id="' + r.id + '">'
+          + '<input type="checkbox" class="check" data-sel="' + r.id + '"' + (sel ? ' checked' : '') + '>'
+          + '<div class="badges">' + badges.join('') + '</div>'
+          + (img ? '<img src="' + esc(img) + '" alt="' + esc(r.title || '') + '" loading="lazy" data-sel-img="' + r.id + '">' : '<img alt="">')
+          + '<div class="info">'
+          + '<div class="theme">' + esc(R.themeLabel(r.theme)) + '</div>'
+          + (r.title ? '<div class="title">' + esc(r.title) + '</div>' : '')
+          + (r.note ? '<div class="note">' + esc(r.note) + '</div>' : '')
+          + (meta || src ? '<div class="meta">' + meta + (src ? (meta ? ' · ' : '') + '<a href="' + esc(src) + '" target="_blank" rel="noopener">출처</a>' : '') + '</div>' : '')
+          + '<div class="err" id="err-' + r.id + '"></div>'
+          + actions
+          + '</div></div>';
+      }
+
+      function renderBulk() {
+        const n = S.selected.size;
+        $('bulkBar').classList.toggle('active', n > 0);
+        $('selCount').textContent = n;
+        let html = '';
+        if (S.tab === 'pending') {
+          html = '<button class="btn btn-success" data-bulk="approve">선택 확정</button> <button class="btn btn-light" data-bulk="reject">선택 거절</button>';
+        } else if (S.tab === 'approved') {
+          html = '<button class="btn btn-light" data-bulk="hide">숨기기</button> <button class="btn btn-light" data-bulk="show">보이기</button> <button class="btn btn-danger" data-bulk="delete">삭제</button>';
+        } else {
+          html = '<button class="btn btn-light" data-bulk="restore">검토 대기로</button> <button class="btn btn-danger" data-bulk="delete">삭제</button>';
+        }
+        $('bulkActions').innerHTML = html;
+        const vis = visibleRows();
+        $('selectAll').checked = vis.length > 0 && vis.every((r) => S.selected.has(r.id));
+      }
+
+      // ── 그림 다루기 ──────────────────────────────────
+      function blobToImage(blob) {
+        return new Promise((resolve, reject) => {
+          const url = URL.createObjectURL(blob);
+          const img = new Image();
+          img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+          img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('그림을 읽지 못했습니다')); };
+          img.src = url;
+        });
+      }
+
+      /** 원본(긴 변 1600) + 썸네일(가로 320) JPEG 와 채도 */
+      async function makeFiles(img) {
+        const w = img.naturalWidth, h = img.naturalHeight;
+        if (!w || !h) throw new Error('그림 크기를 알 수 없습니다');
+        const fullSize = R.fitLongEdge(w, h, R.FULL_LONG_EDGE);
+        const thumbSize = R.fitWidth(fullSize.w, fullSize.h, R.THUMB_WIDTH);
+        const full = await R.makeJpeg(img, fullSize, 0.9);
+        const thumb = await R.makeJpeg(img, thumbSize, 0.85);
+        const color = R.colorfulnessOfImage(img);
+        return { full, thumb, width: fullSize.w, height: fullSize.h, colorfulness: color.score, colorful: color.colorful };
+      }
+
+      async function uploadPair(id, files) {
+        const p = R.pathsFor(id);
+        const opt = { contentType: 'image/jpeg', cacheControl: '31536000', upsert: true };
+        const a = await sb.storage.from(R.BUCKET).upload(p.full, files.full, opt);
+        if (a.error) throw new Error('원본 저장 실패: ' + a.error.message);
+        const b = await sb.storage.from(R.BUCKET).upload(p.thumb, files.thumb, opt);
+        if (b.error) throw new Error('썸네일 저장 실패: ' + b.error.message);
+        return p;
+      }
+      async function removePair(id) {
+        const p = R.pathsFor(id);
+        try { await sb.storage.from(R.BUCKET).remove([p.full, p.thumb]); } catch (e) { /* 파일이 없을 수도 있다 */ }
+      }
+
+      // ── 업로드 ───────────────────────────────────────
+      function chosenTheme(selId, newId) {
+        const v = $(selId).value;
+        if (v !== '__new') return v;
+        return $(newId).value.trim();
+      }
+
+      async function submitUpload() {
+        const files = Array.from($('upFiles').files || []);
+        const theme = chosenTheme('upTheme', 'upThemeNew');
+        const title = $('upTitle').value.trim();
+        const out = $('upProgress');
+        if (!files.length) { out.innerHTML = '<span class="err">사진을 고르세요</span>'; return; }
+        if (!R.isValidTheme(theme)) { out.innerHTML = '<span class="err">테마를 고르거나 새 테마 이름(1~32자)을 적어 주세요</span>'; return; }
+        $('upSubmit').disabled = true;
+        const lines = [];
+        let ok = 0;
+        for (let i = 0; i < files.length; i++) {
+          const f = files[i];
+          out.textContent = lines.concat(`(${i + 1}/${files.length}) ${f.name} 처리 중…`).join('\n');
+          const id = newId();
+          try {
+            const made = await makeFiles(await blobToImage(f));
+            const p = await uploadPair(id, made);
+            const row = {
+              id, theme, status: 'approved', source: 'upload',
+              title: title ? (files.length > 1 ? `${title} ${i + 1}` : title) : f.name.replace(/\.[^.]+$/, ''),
+              storage_path: p.full, thumb_path: p.thumb,
+              width: made.width, height: made.height, colorfulness: made.colorfulness,
+              reviewed_by: me.id, reviewed_at: new Date().toISOString(),
+            };
+            const { error } = await sb.from('theme_images').insert(row);
+            if (error) { await removePair(id); throw new Error(error.message); }
+            ok++;
+            lines.push(`✓ ${f.name}` + (made.colorful ? '' : ' — 채도가 낮아 색감 참고로는 약할 수 있습니다'));
+          } catch (e) {
+            lines.push(`✕ ${f.name} — ${e.message}`);
+          }
+        }
+        out.textContent = lines.concat(`완료: ${ok} / ${files.length}장`).join('\n');
+        $('upSubmit').disabled = false;
+        $('upFiles').value = '';
+        S.tab = 'approved';
+        await loadRows();
+      }
+
+      // ── 추천 불러오기 ────────────────────────────────
+      async function readImportFile() {
+        const f = ($('imFile').files || [])[0];
+        S.importItems = [];
+        $('imSubmit').disabled = true;
+        $('imProgress').textContent = '';
+        if (!f) { $('imSummary').innerHTML = ''; return; }
+        let json;
+        try { json = JSON.parse(await f.text()); } catch (e) {
+          $('imSummary').innerHTML = '<p class="err">JSON 으로 읽지 못했습니다: ' + esc(e.message) + '</p>';
+          return;
+        }
+        // 이미 있는 원본 — 거절한 것까지 (같은 사진을 다시 넣지 않는다). 화면에 불러온 행에 다 있다.
+        const known = new Set(S.rows.map((r) => r.origin_url).filter(Boolean));
+        const v = R.validateSuggestions(json, known);
+        if (!v.ok) { $('imSummary').innerHTML = '<p class="err">' + esc(v.error) + '</p>'; return; }
+        S.importItems = v.items;
+        const byTheme = {};
+        v.items.forEach((it) => { byTheme[it.theme] = (byTheme[it.theme] || 0) + 1; });
+        $('imSummary').innerHTML = '<p><b>' + v.items.length + '장</b>을 넣을 수 있습니다'
+          + (v.items.length ? ' — ' + Object.keys(byTheme).map((k) => esc(R.themeLabel(k)) + ' ' + byTheme[k]).join(' · ') : '') + '</p>'
+          + (v.skipped.length
+            ? '<div class="skip-list"><b>' + v.skipped.length + '장 건너뜀</b><br>' + v.skipped.map((s) => '#' + (s.index + 1) + ' ' + esc(s.reason)).join('<br>') + '</div>'
+            : '');
+        $('imSubmit').disabled = v.items.length === 0;
+      }
+
+      async function submitImport() {
+        if (!S.importItems.length) return;
+        $('imSubmit').disabled = true;
+        const rows = S.importItems.map((it) => Object.assign({ status: 'pending', source: 'claude' }, it));
+        const { error } = await sb.from('theme_images').insert(rows);
+        if (error) {
+          $('imProgress').innerHTML = '<span class="err">넣지 못했습니다: ' + esc(error.message) + '</span>';
+          $('imSubmit').disabled = false;
+          return;
+        }
+        $('imProgress').textContent = `✓ ${rows.length}장을 「검토 대기」에 넣었습니다`;
+        S.importItems = [];
+        $('imFile').value = '';
+        S.tab = 'pending';
+        await loadRows();
+      }
+
+      // ── 확정 · 거절 · 숨김 · 삭제 ────────────────────
+      /** 확정: 원본을 받아 우리 Storage 에 복사하고 사용 중으로 */
+      async function approveOne(r) {
+        const from = r.download_url || r.origin_url;
+        if (!safeUrl(from)) throw new Error('받을 주소가 없습니다');
+        const res = await fetch(from, { mode: 'cors' });
+        if (!res.ok) throw new Error('원본을 받지 못했습니다 (' + res.status + ')');
+        const made = await makeFiles(await blobToImage(await res.blob()));
+        const p = await uploadPair(r.id, made);
+        const { error } = await sb.from('theme_images').update({
+          status: 'approved', storage_path: p.full, thumb_path: p.thumb,
+          width: made.width, height: made.height, colorfulness: made.colorfulness,
+          reviewed_by: me.id, reviewed_at: new Date().toISOString(),
+        }).eq('id', r.id);
+        if (error) throw new Error(error.message);
+      }
+
+      async function setStatus(ids, status) {
+        const { error } = await sb.from('theme_images')
+          .update({ status, reviewed_by: me.id, reviewed_at: new Date().toISOString() })
+          .in('id', ids);
+        if (error) throw new Error(error.message);
+      }
+
+      async function setActive(ids, on) {
+        const { error } = await sb.from('theme_images').update({ is_active: on }).in('id', ids);
+        if (error) throw new Error(error.message);
+      }
+
+      async function deleteRows(ids) {
+        for (const id of ids) await removePair(id);
+        const { error } = await sb.from('theme_images').delete().in('id', ids);
+        if (error) throw new Error(error.message);
+      }
+
+      async function runApprove(ids) {
+        if (S.busy) return;
+        S.busy = true;
+        let ok = 0;
+        for (let i = 0; i < ids.length; i++) {
+          const r = S.rows.find((x) => x.id === ids[i]);
+          if (!r) continue;
+          $('bulkProgress').textContent = `확정 중 ${i + 1}/${ids.length}…`;
+          try {
+            await approveOne(r);
+            ok++;
+          } catch (e) {
+            const el = $('err-' + r.id);
+            if (el) el.textContent = '확정 실패: ' + e.message;
+          }
+        }
+        $('bulkProgress').textContent = ids.length > 1 ? `확정 ${ok}/${ids.length}` : '';
+        S.busy = false;
+        const failed = ok < ids.length;
+        await loadRows();
+        if (failed) $('bulkProgress').textContent = `확정 ${ok}/${ids.length} — 실패한 것은 「검토 대기」에 남아 있습니다`;
+      }
+
+      async function runSimple(fn, msgOnErr) {
+        if (S.busy) return;
+        S.busy = true;
+        try { await fn(); } catch (e) { alert(msgOnErr + ': ' + e.message); }
+        S.busy = false;
+        await loadRows();
+      }
+
+      // ── 배선 ─────────────────────────────────────────
+      function wire() {
+        document.querySelectorAll('.tab').forEach((t) => {
+          t.onclick = () => { S.tab = t.dataset.tab; S.selected.clear(); render(); };
+        });
+        $('filterTheme').onchange = (e) => { S.theme = e.target.value; S.selected.clear(); render(); };
+        $('selectAll').onchange = (e) => {
+          visibleRows().forEach((r) => (e.target.checked ? S.selected.add(r.id) : S.selected.delete(r.id)));
+          render();
+        };
+        $('btnClearSel').onclick = () => { S.selected.clear(); render(); };
+        $('btnUpload').onclick = () => { $('upProgress').textContent = ''; $('uploadModal').classList.add('active'); };
+        $('btnImport').onclick = () => { $('imSummary').innerHTML = ''; $('imProgress').textContent = ''; $('importModal').classList.add('active'); };
+        document.querySelectorAll('[data-close]').forEach((b) => { b.onclick = () => $(b.dataset.close).classList.remove('active'); });
+        $('upTheme').onchange = (e) => { $('upThemeNew').style.display = e.target.value === '__new' ? 'block' : 'none'; };
+        $('upSubmit').onclick = submitUpload;
+        $('imFile').onchange = readImportFile;
+        $('imSubmit').onclick = submitImport;
+
+        // 카드 — 위임
+        $('gridHost').addEventListener('change', (e) => {
+          const t = e.target;
+          if (t.dataset.sel) {
+            t.checked ? S.selected.add(t.dataset.sel) : S.selected.delete(t.dataset.sel);
+            render();
+          } else if (t.dataset.act === 'theme') {
+            runSimple(async () => {
+              const { error } = await sb.from('theme_images').update({ theme: t.value }).eq('id', t.dataset.id);
+              if (error) throw new Error(error.message);
+            }, '테마를 바꾸지 못했습니다');
+          }
+        });
+        $('gridHost').addEventListener('click', (e) => {
+          const t = e.target;
+          if (t.dataset.selImg) {
+            const id = t.dataset.selImg;
+            S.selected.has(id) ? S.selected.delete(id) : S.selected.add(id);
+            render();
+            return;
+          }
+          const id = t.dataset.id;
+          if (!id || !t.dataset.act) return;
+          if (t.dataset.act === 'approve') runApprove([id]);
+          else if (t.dataset.act === 'reject') runSimple(() => setStatus([id], 'rejected'), '거절하지 못했습니다');
+          else if (t.dataset.act === 'restore') runSimple(() => setStatus([id], 'pending'), '되돌리지 못했습니다');
+          else if (t.dataset.act === 'toggle') {
+            const r = S.rows.find((x) => x.id === id);
+            runSimple(() => setActive([id], !(r && r.is_active)), '바꾸지 못했습니다');
+          }
+        });
+        $('bulkActions').addEventListener('click', (e) => {
+          const act = e.target.dataset.bulk;
+          if (!act) return;
+          const ids = Array.from(S.selected);
+          if (!ids.length) return;
+          if (act === 'approve') runApprove(ids);
+          else if (act === 'reject') runSimple(() => setStatus(ids, 'rejected'), '거절하지 못했습니다');
+          else if (act === 'restore') runSimple(() => setStatus(ids, 'pending'), '되돌리지 못했습니다');
+          else if (act === 'hide') runSimple(() => setActive(ids, false), '숨기지 못했습니다');
+          else if (act === 'show') runSimple(() => setActive(ids, true), '보이지 못했습니다');
+          else if (act === 'delete') {
+            const note = S.tab === 'rejected' ? '\n\n거절한 기록을 지우면 같은 사진이 다시 추천될 수 있습니다.' : '';
+            if (!confirm(ids.length + '장을 삭제합니다. 파일도 지워지고 되돌릴 수 없습니다.' + note)) return;
+            runSimple(() => deleteRows(ids), '삭제하지 못했습니다');
+          }
+        });
+      }
+
+      initAdmin();
+    </script>
+  </body>
+</html>
