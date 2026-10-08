@@ -15,7 +15,7 @@
  *   - 기본안이 나왔으면 추천안이 0장이어도 done (환불 없음). 기본안 실패만 환불.
  */
 
-import { callGemini } from './gemini.js';
+import { aspectRatioOf, callGemini } from './gemini.js';
 import {
   CATEGORIES,
   DEFAULT_STYLE,
@@ -285,6 +285,8 @@ async function runPipeline(env, job, ck, save) {
     ...(planner ? { planner: true, massing: !!massing, aspect: opts.aspect } : {}),
   };
   const imageSize = env.GEMINI_IMAGE_SIZE || '2K';
+  // 결과 비율은 방 사진을 따른다 (플래너 모드는 고른 비율). 추천안도 같은 비율로 그린다.
+  const aspectRatio = planner ? ctx.aspect : aspectRatioOf(room);
   const prefix = `${job.userId}/${job.id}`;
 
   // ControlNet 경로 (2026-09-22, 계획서 §5-C): 구조 조건 이미지(inputs.control)가 있고 engine 이 controlnet 이면
@@ -313,6 +315,7 @@ async function runPipeline(env, job, ck, save) {
       prompt: buildInstallPrompt(ctx, fix ? { fix } : {}),
       images: [room, ...refs],
       imageSize,
+      aspectRatio,
     });
     if (!r.image) throw new Error('install returned no image');
     return { base64: r.image, mimeType: r.imageMime || 'image/jpeg' };
@@ -468,6 +471,7 @@ async function runPipeline(env, job, ck, save) {
             prompt: f.prompt,
             images: [base],
             imageSize,
+            aspectRatio,
           });
           if (!r.image) throw new Error('no image in response');
           const mime = r.imageMime || 'image/jpeg';

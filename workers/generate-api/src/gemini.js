@@ -30,6 +30,70 @@ export function geminiModel(env) {
   return imageModel(env);
 }
 
+/** 이미지 생성이 받는 비율. */
+export const ASPECT_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'];
+
+/** base64 JPEG/PNG 머리에서 가로·세로를 읽는다. 못 읽으면 null. */
+export function imageDimensions(base64) {
+  if (!base64) return null;
+  let bytes;
+  try {
+    // 머리만 본다 — JPEG SOF 는 EXIF 뒤에 오므로 넉넉히 64KB.
+    const bin = atob(base64.slice(0, 87384)); // 4의 배수로 잘라야 atob 가 받는다
+    bytes = Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
+  } catch {
+    return null;
+  }
+  // PNG: IHDR 의 width·height
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes.length >= 24) {
+    const v = new DataView(bytes.buffer);
+    return { width: v.getUint32(16), height: v.getUint32(20) };
+  }
+  // JPEG: SOFn 마커까지 세그먼트를 건너뛴다
+  if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
+  let i = 2;
+  while (i + 9 < bytes.length) {
+    if (bytes[i] !== 0xff) return null;
+    const marker = bytes[i + 1];
+    if (marker === 0xff) {
+      i++;
+      continue;
+    }
+    const len = (bytes[i + 2] << 8) | bytes[i + 3];
+    const isSof = marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker);
+    if (isSof) {
+      return {
+        height: (bytes[i + 5] << 8) | bytes[i + 6],
+        width: (bytes[i + 7] << 8) | bytes[i + 8],
+      };
+    }
+    i += 2 + len;
+  }
+  return null;
+}
+
+/**
+ * 사진과 가장 가까운 생성 비율. 못 읽으면 undefined (모델에 맡긴다).
+ * 비율을 비워 두면 참고 이미지가 섞일 때 캔버스가 사진과 달라져, 남는 칸을
+ * 다른 장면(특히 두 장짜리 참고 이미지)으로 채운 "한 장에 두 장" 결과가 나왔다.
+ */
+export function aspectRatioOf(img) {
+  const d = imageDimensions(img && img.base64);
+  if (!d || !d.width || !d.height) return undefined;
+  const r = Math.log(d.width / d.height);
+  let best;
+  let bestDiff = Infinity;
+  for (const a of ASPECT_RATIOS) {
+    const [w, h] = a.split(':').map(Number);
+    const diff = Math.abs(Math.log(w / h) - r);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = a;
+    }
+  }
+  return best;
+}
+
 function isGeoBlock(text) {
   return /location is not supported/i.test(text || '');
 }
