@@ -192,6 +192,18 @@ OUTPUT: one photorealistic photograph of the finished room, 16:9.
 정면 입면 Ⓑ 는 `front` 프리셋 그대로 (FOV 12°, 직교 근사). 크기: Ⓑ 긴 변 1536px PNG, Ⓒ 1024px JPEG.
 `capturePixels` 가 이미 화면을 건드리지 않는 오프스크린 경로다 [확인].
 
+**API (P1, 2026-10-08)** — `js/planner/planner-capture.js`
+- Ⓑ `PlannerCapture.capture({ kind: 'front', longEdge: 1536, clean: true })`
+- Ⓒ `PlannerCapture.capture({ kind: 'massing', longEdge: 1024, clean: true })` — 16:9, 세로 화각 23.14° (가로 40° 에서)
+- 반환: `{ ok, kind, width, height, camera, blob, fileName, toneMapped, clean }`. `camera.clean = true` 가 남는다.
+  blob 은 지금 PNG 뿐이다 — Ⓒ 의 JPEG 변환은 P5 가 한다.
+- 흰 배경은 배경색이 아니라 **알파 0 으로 지우고 흰색 위에 얹는다** (`plannerCaptureOverWhite`). 흰색을 배경색으로
+  넣으면 OutputPass 의 ACES 가 #e7e7e7 근처 회색으로 누른다.
+- 가전 대역은 마커가 있는 섹션만 — 지금 `sink`·`hood` 둘 (`PLANNER_MARKER_SECTIONS`). 냉장고·식세기는 장 경로로 그려져
+  마커가 없고, 쿡탑은 섹션이 없다. 대역 모양표(`plannerCaptureStandInSpec`)에는 다섯 다 있다.
+- 그림자: 그림자 카메라를 경계에 맞추고 바닥(y=0)에 그림자만 받는 판(ShadowMaterial 0.22)을 깐다. 지금 조명
+  `d1`(5000, 8000, 5000) 은 앞·오른쪽·위라 바닥 그림자는 대부분 가구 뒤로 떨어져 **옅다** [확인: 브라우저].
+
 **방 사진 16:9** (§11-③): 패널이 업로드 때 가운데를 16:9 로 자르고 미리보기에 자른 테두리를 보여 준다.
 세로 사진은 위아래가 많이 잘린다는 안내를 띄운다 [결정].
 
