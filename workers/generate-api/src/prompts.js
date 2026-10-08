@@ -39,6 +39,7 @@ export const DEFAULT_STYLE = 'modern-minimal';
 export const CATEGORIES = {
   sink: {
     label: '싱크대',
+    depth: 'Base cabinets 600 mm deep under a 650 mm deep countertop; upper cabinets 350 mm deep.',
     spec: (c) =>
       `Straight kitchen run along the wall. Upper cabinets flush to the ceiling. ` +
       `Lower cabinets in 600 mm modules under one continuous stone countertop. ` +
@@ -49,6 +50,7 @@ export const CATEGORIES = {
   },
   island: {
     label: '아일랜드',
+    depth: 'Base cabinets 600 mm deep under a 650 mm deep countertop; upper cabinets 350 mm deep; the island is 900 mm deep.',
     spec: (c) =>
       CATEGORIES.sink.spec(c) +
       ` In front of the run add a freestanding island in the same finish, with a matching countertop ` +
@@ -56,18 +58,21 @@ export const CATEGORIES = {
   },
   wardrobe: {
     label: '붙박이장',
+    depth: '620 mm deep.',
     spec: (c) =>
       `Floor-to-ceiling wardrobe covering the full wall width with ${wardrobeDoors(c.wallW)} equal ` +
       `full-height flat doors arranged in mirrored pairs. No gap to the ceiling or the side walls.`,
   },
   storage: {
     label: '수납장',
+    depth: '400 mm deep.',
     spec: () =>
       `Floor-to-ceiling storage cabinet covering the wall, divided into equal sections of ` +
       `full-height flat doors.`,
   },
   fridge: {
     label: '냉장고장',
+    depth: '700 mm deep, with the refrigerator recess the same depth so its front is flush.',
     spec: (c) =>
       `Refrigerator surround: a recess holding a ${c.fridgeBrand} french-door refrigerator on the ` +
       `${c.fridgePosition} side, tall pantry columns filling the rest of the width, and a bridge ` +
@@ -75,21 +80,41 @@ export const CATEGORIES = {
   },
   vanity: {
     label: '화장대',
+    depth: 'Counter and drawer bank 500 mm deep; the tall cabinet 500 mm deep.',
     spec: () =>
       `Dressing table: a wall-mounted counter with a bank of drawers, a large frameless mirror above ` +
       `with soft integrated lighting, and a tall cabinet at one end.`,
   },
   shoe: {
     label: '신발장',
+    depth: '350 mm deep.',
     spec: () =>
       `Entrance shoe cabinet: a tall unit and a floating lower unit with a lit gap beneath it, ` +
       `all in full-height flat doors.`,
   },
   office: {
     label: '사무실',
+    depth: 'Desk top 600 mm deep; drawer units 600 mm deep; wall cabinets 350 mm deep.',
     spec: () =>
       `Home office wall: a desk spanning the wall with drawer units below, wall cabinets above, ` +
       `and one section of open shelves.`,
+  },
+  study: {
+    label: '서재',
+    depth: 'Closed lower cabinets 400 mm deep; open bookshelves above 300 mm deep, set back so the lower top forms a ledge; desk top 600 mm deep.',
+    spec: () =>
+      `Study wall: a floor-to-ceiling built-in bookcase covering the wall, with closed low cabinets along ` +
+      `the bottom, open bookshelves with evenly spaced shelves above, and one built-in desk section with ` +
+      `a knee space and a slim drawer. No gap to the ceiling.`,
+  },
+  bedroom: {
+    label: '침실',
+    depth: 'Wardrobe columns 620 mm deep; bridge cabinets above the bed 350 mm deep; bedside drawer units 450 mm deep; headboard panel about 100 mm off the wall.',
+    spec: () =>
+      `Bedroom built-in wall around the bed: a full-height wardrobe column at each end, a row of bridge ` +
+      `cabinets above the bed spanning between them up to the ceiling, a flat-panel headboard on the wall ` +
+      `behind the bed, and a bedside drawer unit on each side. A neatly made double bed with plain bedding ` +
+      `stands centred against the headboard.`,
   },
 };
 
@@ -109,12 +134,13 @@ export function buildAnalysisPrompt() {
   return `Measure and describe this room photo for built-in furniture on the main wall facing the camera.
 Use known Korean apartment sizes for scale: door frame 900 x 2100 mm, outlet plate 70 x 120 mm, ceiling 2300-2400 mm.
 Return JSON only, no prose:
-{"wall_width_mm":number,"wall_height_mm":number,"water_supply_from_left_mm":number|null,"exhaust_from_left_mm":number|null,"confidence":"high"|"medium"|"low","room_brief":string,"existing_furniture":string|null,"site_condition":"finished"|"construction","site_notes":string|null,"wall_tile":{"present":boolean,"light_neutral":boolean,"description":string|null}}
+{"wall_width_mm":number,"wall_height_mm":number,"water_supply_from_left_mm":number|null,"exhaust_from_left_mm":number|null,"confidence":"high"|"medium"|"low","room_brief":string,"existing_furniture":string|null,"site_condition":"finished"|"construction","site_notes":string|null,"wall_tile":{"present":boolean,"light_neutral":boolean,"description":string|null},"camera_side":"left"|"center"|"right"}
 water_supply = position of an existing sink or faucet along that wall, exhaust = position of an existing cooker hood; null when there is none.
 room_brief = at most 60 words: floor material and colour, wall finish and colour, where the light comes from, camera height and angle, anything on the side walls that must stay.
 existing_furniture = what is currently on the main wall and must be removed before installing (e.g. "dark glossy kitchen cabinets with stainless hood"), or null if the wall is empty.
 site_condition = "construction" when the room is unfinished or mid-renovation: bare cement or plaster, exposed pipes or wiring, debris, tools, boxes, dust, protective film, missing flooring. Otherwise "finished". site_notes = what is unfinished, at most 25 words, or null.
-wall_tile = tiles on the target wall (backsplash or wall cladding). light_neutral is true only for white, ivory, light grey or light beige tiles with low saturation; dark, brown, black, glossy-coloured or patterned tiles are false. description = colour and finish, at most 12 words.`;
+wall_tile = tiles on the target wall (backsplash or wall cladding). light_neutral is true only for white, ivory, light grey or light beige tiles with low saturation; dark, brown, black, glossy-coloured or patterned tiles are false. description = colour and finish, at most 12 words.
+camera_side = where the camera stands relative to the centre of the main wall: "left" or "right" when the wall is seen at an angle, "center" when it is photographed head-on.`;
 }
 
 /** 분석 JSON → 워커가 쓰는 벽 데이터 + 브리프. 값이 없거나 이상하면 기본값. */
@@ -130,6 +156,7 @@ export function parseAnalysis(text) {
     site: 'finished', // 'finished' | 'construction'
     siteNotes: null,
     tile: null, // {present, lightNeutral, description} | null
+    cameraSide: null, // 'left' | 'center' | 'right' | null — 깊이 단서(어느 측면이 보이나)
   };
   const m = text && text.match(/\{[\s\S]*\}/);
   if (!m) return out;
@@ -153,6 +180,7 @@ export function parseAnalysis(text) {
   if (j.site_condition === 'construction') out.site = 'construction';
   if (typeof j.site_notes === 'string' && j.site_notes.trim())
     out.siteNotes = j.site_notes.trim().slice(0, 160);
+  if (['left', 'center', 'right'].includes(j.camera_side)) out.cameraSide = j.camera_side;
   if (j.wall_tile && typeof j.wall_tile === 'object') {
     out.tile = {
       present: j.wall_tile.present === true,
@@ -517,6 +545,8 @@ export const QC_FIXES = {
     'Finish the room completely: no debris, tools, boxes, dust, protective film or bare cement anywhere in the frame; hide every exposed pipe, valve and wire behind the furniture or inside the wall.',
   tile_not_neutral:
     'Replace every wall tile visible around the furniture with light neutral tiles: matte off-white or light grey, low saturation.',
+  no_depth:
+    'Build the furniture as a solid volume standing out from the wall at its real depth: visible end or side thickness, countertop and front-edge thickness, recessed plinths and soft contact shadows on the wall and floor. It must not look painted onto the wall.',
   faucet_missing:
     'Add a single-lever mixer faucet (matte black or brushed steel) on the countertop directly behind the sink basin.',
 };
@@ -536,6 +566,25 @@ export const DESIGN_SPEC_QC_FIXES = {
 
 /** 수전 검사가 뜻이 있는 품목 (싱크가 있는 것). */
 export const KITCHEN_CATEGORIES = ['sink', 'island'];
+
+/**
+ * 가구 깊이 (2026-10-08). 깊이 이야기가 없으면 빈 벽 사진에서 가구를 벽에 붙인 그림처럼 그렸다.
+ * 숫자만으로는 안 먹혀 사진에서 깊이가 보이는 단서를 같이 준다. 도면 요약이 구간 깊이를 주면
+ * 품목 기본 깊이는 빼고(충돌 방지) 단서만 남긴다. 카메라 위치(분석의 camera_side)로 어느 측면이 보일지 말한다.
+ */
+export function depthPhrase(c) {
+  const cat = CATEGORIES[resolveCategory(c.category)];
+  const sections = (c.designSpec && c.designSpec.sections) || {};
+  const specHasDepth = Object.values(sections).some((sec) => sec && sec.depthMm);
+  const size = specHasDepth ? '' : `${cat.depth} `;
+  const view =
+    c.cameraSide === 'left' || c.cameraSide === 'right'
+      ? ` The camera stands ${c.cameraSide} of the wall's centre, so the ${c.cameraSide} end of the furniture shows its depth in perspective: an exposed end panel, or where it meets a side wall, that wall covered for the full depth.`
+      : c.cameraSide === 'center'
+        ? ' The camera faces the wall head-on, so show the depth through top surfaces, front-edge thickness, recesses and shadows rather than side panels.'
+        : '';
+  return `DEPTH: ${size}The furniture is a solid volume standing out from the wall, never a flat picture on it. Its front face is closer to the camera than the wall, so it meets the floor nearer the camera than the wall's floor line and covers that strip of floor. Show front-edge thickness, recessed shadowed plinths where there are any, and soft shadows cast onto the wall and floor.${view}`;
+}
 
 /** 공사 현장이면 완공된 방으로 그린다. 방 형태·창·카메라는 그대로. 설치·플래너 프롬프트가 같이 쓴다. */
 function sitePhrase(c) {
@@ -613,6 +662,7 @@ MAKE IT REAL: real materials with grain and sheen, depth (visible side panels an
 Keep the room exactly as photographed: camera angle, walls, ceiling, floor, windows, lighting and everything outside the furniture.${room}
 WALL: about ${c.wallW} x ${c.wallH} mm.
 ${furniture}
+${depthPhrase(c)}
 ${finish}
 HANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.${site}${tile}${refs}${fixBlock}
 All doors and drawers closed. Photorealistic interior photograph with natural lighting and correct shadows. No text, labels or watermarks.`;
@@ -621,6 +671,7 @@ All doors and drawers closed. Photorealistic interior photograph with natural li
 Keep the room exactly as photographed: camera angle, walls, ceiling, floor, windows, lighting and everything outside the furniture.${existing}${room}
 WALL: about ${c.wallW} x ${c.wallH} mm.
 ${furniture}
+${depthPhrase(c)}
 ${finish}
 HANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.${site}${tile}${refs}${fixBlock}
 All doors and drawers closed. Photorealistic interior photograph with natural lighting and correct shadows. No text, labels or watermarks.`;
@@ -666,6 +717,8 @@ const PLANNER_SUBJECT = {
   vanity: 'built-in dressing table',
   shoe: 'built-in entrance shoe cabinet',
   office: 'built-in home office wall',
+  study: 'built-in study bookcase wall',
+  bedroom: 'built-in bedroom wall',
 };
 
 /** 가전이 어느 줄의 모듈에 붙는가 (앞쪽이 먼저). */
@@ -1095,7 +1148,8 @@ Report an issue ONLY when it is clearly visible. Use these codes:
 - wrong_category: the furniture is not a ${CATEGORIES[key].label}
 - low_detail: blurry, smeared or obviously synthetic surfaces
 - construction_leftover: debris, tools, boxes, protective film, exposed pipes or bare unfinished walls still visible
-- tile_not_neutral: wall tiles around the furniture are dark, brown, black or strongly coloured (light neutral tiles are fine)${
+- tile_not_neutral: wall tiles around the furniture are dark, brown, black or strongly coloured (light neutral tiles are fine)
+- no_depth: the furniture looks flat, like a picture painted on the wall — no visible depth, no side or edge thickness, no shadow where it meets the wall or floor${
     KITCHEN_CATEGORIES.includes(key)
       ? '\n- faucet_missing: there is a sink but no faucet/tap behind it'
       : ''
