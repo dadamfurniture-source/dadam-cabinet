@@ -11,7 +11,12 @@
 --                              「추천 불러오기」로 올린다 → pending → 관리자가 확정(approved)·거절(rejected)
 --      서비스 롤 키를 쓰지 않는다 — 넣는 것은 늘 관리자 로그인이다 (아래 RLS 가 is_admin() 만 허용).
 --
--- 파일: 버킷 `reference-images` (공개 읽기)
+-- 이름: 표 `theme_images` · 버킷 `theme-images`.
+--   `reference_images` 는 쓰지 않는다 — 벽 분석 few-shot 용 **다른 표**가 이미 그 이름으로 있다
+--   (category·visual_features·ground_truth, mcp-server/src/clients/supabase.client.ts 가 읽는다).
+--   처음 이 파일이 그 이름을 썼다가 CREATE TABLE IF NOT EXISTS 가 옛 표를 건너뛰고 인덱스에서 깨졌다.
+--
+-- 파일: 버킷 `theme-images` (공개 읽기)
 --   {id}/full.jpg   원본 (긴 변 1600 까지 줄임)
 --   {id}/thumb.jpg  격자용 썸네일 (가로 320) — 연출컷 생성 때 워커로 보내는 것도 이것이다 (예전과 같은 크기)
 --   pending(추천) 행은 아직 파일이 없다 — 원본 주소(origin_url)로 미리보기만 하고, 확정할 때 복사한다.
@@ -19,7 +24,7 @@
 -- 적용: Supabase 대시보드 → SQL Editor 에 이 파일을 통째로 붙여 실행. 여러 번 돌려도 안전하다.
 -- =============================================
 
-CREATE TABLE IF NOT EXISTS public.reference_images (
+CREATE TABLE IF NOT EXISTS public.theme_images (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
     -- 테마 — 기본 여섯은 키('animal' · 'flower' · 'nature' · 'product' · 'painting' · 'ai')이고
@@ -58,18 +63,29 @@ CREATE TABLE IF NOT EXISTS public.reference_images (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     -- 사용 중인 사진은 반드시 우리 Storage 에 파일이 있다 — 남의 서버 링크로 서비스하지 않는다
-    CONSTRAINT reference_images_approved_has_file
+    CONSTRAINT theme_images_approved_has_file
         CHECK (status <> 'approved' OR (storage_path IS NOT NULL AND thumb_path IS NOT NULL))
 );
 
+-- 같은 이름의 다른 표가 있으면 IF NOT EXISTS 가 조용히 건너뛴다 — 여기서 분명히 멈춘다
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'theme_images' AND column_name = 'origin_url'
+    ) THEN
+        RAISE EXCEPTION 'public.theme_images 가 이미 다른 모양으로 있습니다. 이름이 겹친 표인지 먼저 확인하세요.';
+    END IF;
+END $$;
+
 -- 같은 원본은 두 번 들어가지 않는다. 거절한 것도 남겨 두어 같은 사진을 다시 추천하지 않게 한다.
-CREATE UNIQUE INDEX IF NOT EXISTS reference_images_origin_url_key
-    ON public.reference_images (origin_url)
+CREATE UNIQUE INDEX IF NOT EXISTS theme_images_origin_url_key
+    ON public.theme_images (origin_url)
     WHERE origin_url IS NOT NULL;
 
 -- 연출컷 화면이 쓰는 질의: approved · 활성
-CREATE INDEX IF NOT EXISTS idx_reference_images_served
-    ON public.reference_images (status, is_active, theme);
+CREATE INDEX IF NOT EXISTS idx_theme_images_served
+    ON public.theme_images (status, is_active, theme);
 
 
 -- =============================================
@@ -77,15 +93,15 @@ CREATE INDEX IF NOT EXISTS idx_reference_images_served
 --   손님(누구나): 사용 중(approved)이면서 숨기지 않은 것만 읽는다
 --   관리자: 전부 (public.is_admin() — SECURITY DEFINER, js/admin-access.js 와 같은 판정)
 -- =============================================
-ALTER TABLE public.reference_images ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.theme_images ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "reference_images_public_read" ON public.reference_images;
-CREATE POLICY "reference_images_public_read" ON public.reference_images
+DROP POLICY IF EXISTS "theme_images_public_read" ON public.theme_images;
+CREATE POLICY "theme_images_public_read" ON public.theme_images
     FOR SELECT
     USING (status = 'approved' AND is_active);
 
-DROP POLICY IF EXISTS "reference_images_admin_all" ON public.reference_images;
-CREATE POLICY "reference_images_admin_all" ON public.reference_images
+DROP POLICY IF EXISTS "theme_images_admin_all" ON public.theme_images;
+CREATE POLICY "theme_images_admin_all" ON public.theme_images
     FOR ALL
     TO authenticated
     USING (public.is_admin())
@@ -93,34 +109,34 @@ CREATE POLICY "reference_images_admin_all" ON public.reference_images
 
 
 -- =============================================
--- Storage 버킷 `reference-images` — 공개 읽기, 쓰기는 관리자만
+-- Storage 버킷 `theme-images` — 공개 읽기, 쓰기는 관리자만
 -- =============================================
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('reference-images', 'reference-images', TRUE)
+VALUES ('theme-images', 'theme-images', TRUE)
 ON CONFLICT (id) DO UPDATE SET public = TRUE;
 
-DROP POLICY IF EXISTS "reference_images_obj_read" ON storage.objects;
-DROP POLICY IF EXISTS "reference_images_obj_insert" ON storage.objects;
-DROP POLICY IF EXISTS "reference_images_obj_update" ON storage.objects;
-DROP POLICY IF EXISTS "reference_images_obj_delete" ON storage.objects;
+DROP POLICY IF EXISTS "theme_images_obj_read" ON storage.objects;
+DROP POLICY IF EXISTS "theme_images_obj_insert" ON storage.objects;
+DROP POLICY IF EXISTS "theme_images_obj_update" ON storage.objects;
+DROP POLICY IF EXISTS "theme_images_obj_delete" ON storage.objects;
 
-CREATE POLICY "reference_images_obj_read" ON storage.objects
+CREATE POLICY "theme_images_obj_read" ON storage.objects
     FOR SELECT
-    USING (bucket_id = 'reference-images');
+    USING (bucket_id = 'theme-images');
 
-CREATE POLICY "reference_images_obj_insert" ON storage.objects
+CREATE POLICY "theme_images_obj_insert" ON storage.objects
     FOR INSERT
     TO authenticated
-    WITH CHECK (bucket_id = 'reference-images' AND public.is_admin());
+    WITH CHECK (bucket_id = 'theme-images' AND public.is_admin());
 
 -- 확정을 다시 눌렀을 때 같은 경로에 덮어쓰기(upsert) 한다
-CREATE POLICY "reference_images_obj_update" ON storage.objects
+CREATE POLICY "theme_images_obj_update" ON storage.objects
     FOR UPDATE
     TO authenticated
-    USING (bucket_id = 'reference-images' AND public.is_admin())
-    WITH CHECK (bucket_id = 'reference-images' AND public.is_admin());
+    USING (bucket_id = 'theme-images' AND public.is_admin())
+    WITH CHECK (bucket_id = 'theme-images' AND public.is_admin());
 
-CREATE POLICY "reference_images_obj_delete" ON storage.objects
+CREATE POLICY "theme_images_obj_delete" ON storage.objects
     FOR DELETE
     TO authenticated
-    USING (bucket_id = 'reference-images' AND public.is_admin());
+    USING (bucket_id = 'theme-images' AND public.is_admin());

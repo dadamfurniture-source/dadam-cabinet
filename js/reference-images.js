@@ -12,7 +12,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const BUCKET = 'reference-images';
+  const BUCKET = 'theme-images';
 
   /** 테마 — 연출컷 「테마」 탭의 갈래. 키는 DB 의 theme 값이다. */
   const THEMES = Object.freeze([
