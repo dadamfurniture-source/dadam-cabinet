@@ -789,3 +789,44 @@ describe('코너가 없으면 아무 일도 하지 않는다', () => {
     expect(boot(mixed).g('cornerPairs')().length).toBe(0);
   });
 });
+
+
+// 2026-10-08: 빈 자리 채우기(모듈 늘리기)도 멍장 줄의 도어 폭 묶임을 지켜야 한다.
+//   §3.4 는 줄 전체가 같은 도어 폭을 쓰게 못박는다 — 늘어난 모듈만 제 폭대로
+//   도어를 나누면 그 줄에서 도어가 어긋난다.
+describe('늘어난 모듈의 도어도 줄에 묶인다 (§3.4)', () => {
+  const doorsOf = (s) => (s.areaTypes || []).reduce((k, t, i) =>
+    k + (t === 'door' ? ((s.areaIs2D || [])[i] ? 2 : 1) : 0), 0);
+
+  test('줄의 도어 폭을 주면 그 폭으로, 안 주면 일반 규칙으로 가른다', () => {
+    const p = boot(lShapeLayout(true));
+    const free = {}, tied = {};
+    p.g('setDoorCells')(free, 1080);           // 일반 분배 — 1080 한 칸(양문) = 540 두 장
+    p.g('setDoorCells')(tied, 1080, 360);      // 멍장 줄 — 360 세 장
+    expect(doorsOf(free)).toBe(2);
+    expect(doorsOf(tied)).toBe(3);
+    // 칸 합은 늘 모듈 폭과 같다 — 어긋나면 정면도·BOM 이 틀어진다
+    expect(free.areaWidths.reduce((a, b) => a + b, 0)).toBe(1080);
+    expect(tied.areaWidths.reduce((a, b) => a + b, 0)).toBe(1080);
+  });
+
+  test('멍장 줄에서 늘려도 원장이 맞는다', () => {
+    const p = boot(lShapeLayout(true));
+    p.g('autoCalcAllAreas')();
+    const owner = p.g('cornerPairs')()[0].owner;
+    const mine = () => p.g('modules')
+      .filter((m) => m.areaId === owner.id && !m.isFinishing && !m.blind)
+      .sort((a, b) => a.x - b.x);
+    const before = mine();
+    if (before.length < 2) return;
+    const victim = before[before.length - 1];
+    delete p.g('structures')[victim.id];
+    p.g('modules').splice(p.g('modules').indexOf(victim), 1);
+    const grow = mine()[mine().length - 1];
+    expect(p.g('stretchModuleIntoGaps')(grow.id)).toBe(1);
+    expect(p.g('cornerLedger')(owner.id).withinSlack).toBe(true);
+    const s = p.g('structures')[grow.id];
+    expect(s.areaWidths.reduce((a, b) => a + b, 0)).toBe(grow.W);
+    expect(grow.W / doorsOf(s)).toBeLessThanOrEqual(p.g('MASTER_RULES').DOOR_W_MAX);
+  });
+});
