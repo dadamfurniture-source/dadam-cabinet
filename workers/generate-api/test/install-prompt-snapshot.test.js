@@ -67,7 +67,7 @@ const VARIANTS = {
 
 // ─── 1. design_spec 이 없을 때 = 옛 경로 불변 ───
 
-test('품목 8개의 설치 프롬프트가 옛 출력과 한 글자도 다르지 않다', () => {
+test('품목 전부의 설치 프롬프트가 옛 출력과 한 글자도 다르지 않다', () => {
   assert.deepEqual(Object.keys(baseline.install).sort(), Object.keys(CATEGORIES).sort());
   for (const category of Object.keys(baseline.install)) {
     assert.equal(
@@ -78,7 +78,7 @@ test('품목 8개의 설치 프롬프트가 옛 출력과 한 글자도 다르�
   }
 });
 
-test('품목 8개의 검사 프롬프트가 옛 출력과 한 글자도 다르지 않다', () => {
+test('품목 전부의 검사 프롬프트가 옛 출력과 한 글자도 다르지 않다', () => {
   for (const category of Object.keys(baseline.qc)) {
     assert.equal(buildQcPrompt({ ...BASE, category }), baseline.qc[category], `qc(${category})`);
   }
