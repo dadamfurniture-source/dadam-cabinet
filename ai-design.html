@@ -18,6 +18,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <script src="js/detaildesign-access.js"></script>
     <script src="js/admin-access.js"></script>
+    <script src="js/reference-images.js"></script>
 
     <style>
       /* 이 페이지에만 필요한 것. 공통은 css/dadam-v5.css 가 갖는다. */
@@ -451,9 +452,10 @@
           query: '',
           searchOpen: false,
           dbAll: [], // 시공사례 (collection_posts + CASE_STATIC)
-          themeAll: [], // 위키미디어에서 받은 테마 이미지
+          themeAll: [], // 테마 이미지 — DB(theme_images) 먼저, 모자라면 위키미디어를 뒤에
           dbCount: 6,
           themeCount: 6, // 2열이라 6장이면 세 줄
+          themeMore: false, // DB 사진 뒤에 위키미디어를 더 받는 중
           signedIn: false, // 생성 버튼을 누를 때만 필요하다
           cost: null, // 생성 1회 단가. credit_costs 에서 읽는다
           phase: 'idle', // idle | loading | done
@@ -644,7 +646,6 @@
           });
           renderDb();
           fillGrids();
-          loadThemes();
         }
 
         // 품목을 고르면 그 품목의 사례만 남긴다.
@@ -795,7 +796,60 @@
           });
         }
 
+        // 2026-10-08: 테마 사진은 우리 DB(theme_images)에서 먼저 읽는다 — 관리자 화면(admin/reference-images.html)에서
+        //   올리거나 확정한 것. 채도는 등록할 때 이미 쟀으니 여기선 재지 않는다.
+        //   위키미디어 실시간 검색은 ~45초 걸렸다 (검색 13개를 다 기다리고 300장 채도를 6장씩 차례로).
+        //   DB 사진이 THEME_DB_ENOUGH 장 미만이면 위키미디어를 **뒤에 덧붙인다** — DB 사진은 바로 뜨고
+        //   모자란 만큼만 예전 길로 채운다. 풀이 차면 위키미디어는 부르지 않는다.
+        var THEME_DB_ENOUGH = 24;
+
+        async function loadDbThemes() {
+          var R = window.DadamRefImages;
+          if (!sb || !R) return [];
+          try {
+            var res = await sb
+              .from('theme_images')
+              .select('id, theme, thumb_path')
+              .eq('status', 'approved')
+              .eq('is_active', true)
+              .limit(2000);
+            if (res.error) throw new Error(res.error.message);
+            return (res.data || [])
+              .filter(function (r) {
+                return r.thumb_path;
+              })
+              .map(function (r) {
+                return {
+                  key: 'th-db-' + r.id, // th- 로 시작해야 생성 때 role 'theme' 으로 간다
+                  src: sb.storage.from(R.BUCKET).getPublicUrl(r.thumb_path).data.publicUrl,
+                  label: R.themeLabel(r.theme),
+                };
+              });
+          } catch (e) {
+            // 표가 아직 없거나 막혀도 위키미디어로 화면은 채운다
+            console.warn('[studio] 테마 DB:', e.message);
+            return [];
+          }
+        }
+
         async function loadThemes() {
+          var fromDb = shuffle(await loadDbThemes());
+          if (fromDb.length) {
+            S.themeAll = fromDb;
+            renderTheme();
+            fillGrids();
+          }
+          if (fromDb.length >= THEME_DB_ENOUGH) return;
+          S.themeMore = true;
+          if (fromDb.length) renderTheme();
+          var more = await loadWikimediaThemes();
+          S.themeMore = false;
+          S.themeAll = fromDb.concat(more);
+          renderTheme();
+          fillGrids();
+        }
+
+        async function loadWikimediaThemes() {
           try {
             var packs = await Promise.all(
               THEMES.map(function (t) {
@@ -817,13 +871,11 @@
               }
               if (!any) break;
             }
-            S.themeAll = await keepColorful(shuffle(out));
+            return await keepColorful(shuffle(out));
           } catch (e) {
             console.warn('[studio] 테마:', e.message);
-            S.themeAll = [];
+            return [];
           }
-          renderTheme();
-          fillGrids();
         }
 
         function pickHTML(r) {
@@ -870,10 +922,14 @@
           var shown = list.slice(0, S.themeCount);
           $('themeGrid').innerHTML = shown.map(pickHTML).join('');
           $('themeHint').textContent = !list.length
-            ? '테마 이미지를 불러오지 못했습니다'
-            : shown.length >= list.length
-              ? '마지막입니다'
-              : '스크롤하면 더 불러옵니다';
+            ? S.themeMore
+              ? '불러오는 중…'
+              : '테마 이미지를 불러오지 못했습니다'
+            : shown.length < list.length
+              ? '스크롤하면 더 불러옵니다'
+              : S.themeMore
+                ? '더 불러오는 중…'
+                : '마지막입니다';
           syncPicked();
         }
 
@@ -1500,6 +1556,8 @@
           } catch (e) {
             console.warn('[studio] supabase init:', e);
           }
+          // 테마는 시공사례·세션을 기다리지 않고 바로 시작한다 (예전엔 시공사례를 다 받은 뒤에 불렀다)
+          loadThemes();
 
           // 화면 전체를 덮던 로그인 게이트는 걷어냈다.
           // 로그인은 '생성' 을 누르는 순간에만 필요하다 — 그 전까지는

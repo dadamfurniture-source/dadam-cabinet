@@ -47,6 +47,8 @@ const SOURCES = [
   'admin/reference-images.html',
   // 내 연출컷: 목록 쿼리(내부 확인용 거름)가 여기 산다.
   'my-designs.html',
+  // 연출컷: 테마 사진 읽기 (reference-images.test.js)
+  'ai-design.html',
 ];
 
 /** 여기 아래는 통째로 훑는다 — 파일이 늘어도 가드가 따라간다 */
