@@ -738,3 +738,430 @@ describe('최근 렌더 띠', () => {
     expect(HTML).not.toContain('preserveDrawingBuffer');
   });
 });
+
+// ── 2026-10-08: massing 프리셋 · clean 캡처 (계획서 planner-render-realize §5 · P1) ──────────
+
+describe('massing 프리셋 (순수)', () => {
+  const M = C.PLANNER_CAPTURE_MARGIN;
+  const P = C.PLANNER_CAPTURE_MASSING;
+
+  test('눈높이 1500 · 경계 중심을 향해 앞(+Z)에서 오른쪽으로 30° · 가로 화각 40° · 16:9', () => {
+    const f = C.plannerCaptureFrame('massing', B, 1.5);
+    expect(f.kind).toBe('massing');
+    expect(P).toEqual({ eyeY: 1500, yawDeg: 30, hfov: 40, aspect: 16 / 9 });
+    expect(f.position[1]).toBe(1500);
+    expect(f.target).toEqual([1800, 1150, 300]);
+    expect(f.up).toEqual([0, 1, 0]);
+    // 수평 방위각 30°
+    const yaw = Math.atan2(f.position[0] - 1800, f.position[2] - 300) * 180 / Math.PI;
+    expect(yaw).toBeCloseTo(30, 9);
+    // 종횡비는 넘긴 값과 무관하게 16:9, fov 는 세로 — 가로로 되돌리면 40°
+    expect(f.aspect).toBeCloseTo(16 / 9, 12);
+    const hfov = 2 * Math.atan(Math.tan((f.fov / 2) * Math.PI / 180) * f.aspect) * 180 / Math.PI;
+    expect(hfov).toBeCloseTo(40, 9);
+    expect(f.fov).toBeCloseTo(23.14, 2);
+    expect(C.PLANNER_CAPTURE_FOV.massing).toBe(f.fov);
+    expect(C.plannerCaptureFrame('massing', B, 0.5).position).toEqual(f.position);
+    expect(C.plannerCaptureAspectFor('massing', B, 1.2)).toBeCloseTo(16 / 9, 12);
+    expect(C.plannerCaptureParseKind('massing')).toEqual({ kind: 'massing', moduleId: null });
+    expect(C.plannerCaptureFileName('massing', null, new Date(2026, 9, 8, 9, 0, 0))).toBe('massing-20261008090000.png');
+  });
+
+  test('가구 전체가 여백 8% 안에 들어오는 가장 가까운 거리 — 3% 더 다가가면 넘친다', () => {
+    for (const bounds of [B, { min: { x: -1200, y: 0, z: -325 }, max: { x: 1200, y: 870, z: 325 } }, { min: { x: 0, y: 0, z: 0 }, max: { x: 600, y: 2300, z: 650 } }]) {
+      const f = C.plannerCaptureFrame('massing', bounds, 16 / 9);
+      const corners = C.plannerCaptureCorners(bounds);
+      expect(corners).toHaveLength(8);
+      expect(C.plannerCaptureFits(f.position, f.target, f.up, f.fov, f.aspect, corners, M, 10)).toBe(true);
+      const c = f.target, d = f.dist * 0.97, yaw = 30 * Math.PI / 180;
+      const closer = [c[0] + Math.sin(yaw) * d, 1500, c[2] + Math.cos(yaw) * d];
+      expect(C.plannerCaptureFits(closer, f.target, f.up, f.fov, f.aspect, corners, M, 10)).toBe(false);
+      expect(f.far).toBeGreaterThan(f.dist * 2);
+    }
+  });
+
+  test('plannerCaptureFits 는 three 카메라 투영과 같은 판정이다', () => {
+    const f = C.plannerCaptureFrame('massing', B, 16 / 9);
+    const cam = new THREE.PerspectiveCamera(f.fov, f.aspect, 10, f.far);
+    cam.position.set(...f.position);
+    cam.up.set(...f.up);
+    cam.lookAt(...f.target);
+    cam.updateMatrixWorld(true);
+    cam.updateProjectionMatrix();
+    C.plannerCaptureCorners(B).forEach((p) => {
+      const v = new THREE.Vector3(...p).project(cam);
+      expect(Math.abs(v.x)).toBeLessThanOrEqual(1 / C.PLANNER_CAPTURE_MARGIN + 1e-9);
+      expect(Math.abs(v.y)).toBeLessThanOrEqual(1 / C.PLANNER_CAPTURE_MARGIN + 1e-9);
+    });
+  });
+
+  test('camera JSON — fov 는 소수 둘째 자리, clean 이면 clean:true', () => {
+    const f = C.plannerCaptureFrame('massing', B, 16 / 9);
+    const j = C.plannerCaptureCameraJson(f, 1024, null, true);
+    expect(j).toMatchObject({ kind: 'massing', fov: 23.14, aspect: 1.778, position: [Math.round(f.position[0]), 1500, Math.round(f.position[2])], clean: true, longEdge: 1024 });
+    expect(C.plannerCaptureCameraJson(f, 1024, null)).not.toHaveProperty('clean');
+  });
+});
+
+describe('clean 캡처 — 순수 판정', () => {
+  test('그림자 프러스텀 — 조명 축에 투영한 꼭짓점(+ 바닥까지 민 점)이 다 들어온다 · three 그림자 카메라와 같은 축', () => {
+    const light = [5000, 8000, 5000], target = [0, 0, 0];
+    const fr = C.plannerCaptureShadowFrustum(light, target, B, 50, 0);
+    // 기본값(±5 · 0.5~500)과 비교도 안 되게 넓고, 깊이는 조명~가구 거리(약 7~12m)를 덮는다
+    expect(fr.right - fr.left).toBeGreaterThan(2000);
+    expect(fr.near).toBeGreaterThan(500);
+    expect(fr.far).toBeGreaterThan(fr.near);
+    // three 의 직교 카메라를 같은 자리에 세워 꼭짓점을 투영해 본다
+    const cam = new THREE.OrthographicCamera(fr.left, fr.right, fr.top, fr.bottom, fr.near, fr.far);
+    cam.position.set(...light);
+    cam.lookAt(...target);
+    cam.updateMatrixWorld(true);
+    cam.updateProjectionMatrix();
+    const dir = new THREE.Vector3(...target).sub(new THREE.Vector3(...light)).normalize();
+    C.plannerCaptureCorners(B).forEach((p) => {
+      const v = new THREE.Vector3(...p).project(cam);
+      [v.x, v.y, v.z].forEach((x) => { expect(x).toBeGreaterThanOrEqual(-1); expect(x).toBeLessThanOrEqual(1); });
+      // 바닥에 떨어지는 그림자 점도 깊이 안에 든다
+      const t = (0 - p[1]) / dir.y;
+      const q = new THREE.Vector3(...p).addScaledVector(dir, t).project(cam);
+      expect(q.z).toBeLessThanOrEqual(1);
+    });
+    // 여유는 pad 만큼만 — 너무 넓으면 흐려진다
+    const tight = C.plannerCaptureShadowFrustum(light, target, B, 0, 0);
+    expect(fr.left).toBeCloseTo(tight.left - 50, 6);
+    expect(fr.top).toBeCloseTo(tight.top + 50, 6);
+    expect(C.plannerCaptureShadowFrustum(light, target, null)).toBeNull();
+    // 바로 위에서 비추는 빛도 축을 만든다 (three lookAt 의 틀기 규칙)
+    const down = C.plannerCaptureShadowFrustum([1800, 9000, 300], [1800, 0, 300], B, 0, 0);
+    expect(down.right - down.left).toBeGreaterThan(0);
+    expect(down.near).toBeCloseTo(9000 - 2300, 0);   // 축을 0.0001 틀어서 0.03mm 어긋난다
+  });
+
+  test('cleanTargets — 그리드·바닥 판·배치 상자·그 윤곽선·선택 테두리·원점 마커·가전 마커는 숨김, 조명·부재·부재 테두리는 둔다', () => {
+    const s = cleanScene();
+    const sel = C.plannerCaptureCleanTargets(s.scene, s.mg);
+    const hidden = new Set(sel.hide);
+    [s.grid, s.ground, s.area, s.areaEdge, s.pick, s.origin, s.sinkBox, s.sinkEdge, s.hoodBox].forEach((o) => expect(hidden.has(o)).toBe(true));
+    [s.amb, s.d1, s.d2, s.mg, s.lower, s.body, s.counter, s.bodyEdge, s.upper, s.sink, s.hood].forEach((o) => expect(hidden.has(o)).toBe(false));
+    expect(sel.markers.map((m) => [m.section, m.moduleId, m.group])).toEqual([['sink', 'sink-0', s.sink], ['hood', 'hood-0', s.hood]]);
+    // 이미 숨은 것은 고르지 않는다 (되돌릴 때 켜 버리면 안 된다)
+    s.grid.visible = false;
+    expect(C.plannerCaptureCleanTargets(s.scene, s.mg).hide).not.toContain(s.grid);
+    expect(C.plannerCaptureCleanTargets(null, null)).toEqual({ hide: [], markers: [] });
+  });
+
+  test('가전 대역 — 싱크는 상판 위 볼·수전, 후드·냉장고·식세기는 자리 그대로 불투명 상자, 모르는 섹션은 없음', () => {
+    const sink = C.plannerCaptureStandInSpec('sink', { W: 700, H: 500, D: 400, baseY: 0 }, { top: 870, zMin: -225, zMax: 425 });
+    expect(sink.map((x) => x.part)).toEqual(['bowl', 'faucet', 'spout']);
+    const [bowl, faucet, spout] = sink;
+    expect(bowl.pos[1] - bowl.size[1] / 2).toBe(870);             // 상판 윗면에 앉는다
+    expect(bowl.pos[2]).toBe(100);                                 // 상판 앞뒤 가운데
+    expect(bowl.size[0]).toBe(620);
+    expect(bowl.pos[2] - bowl.size[2] / 2).toBeGreaterThan(-225);  // 상판 안
+    expect(bowl.pos[2] + bowl.size[2] / 2).toBeLessThan(425);
+    expect(faucet.pos[1] - faucet.size[1] / 2).toBe(870);
+    expect(faucet.pos[2]).toBeLessThan(bowl.pos[2] - bowl.size[2] / 2);   // 볼 뒤
+    expect(spout.pos[2]).toBeGreaterThan(faucet.pos[2]);                  // 앞으로 나온다
+    expect(bowl.color).toBe(C.PLANNER_CAPTURE_STANDIN_COLOR.bowl);
+    // 상판을 못 찾으면 870 − 마커 그룹 높이
+    expect(C.plannerCaptureStandInSpec('sink', { W: 700, H: 500, D: 400, baseY: 100 }, null)[0].pos[1]).toBe(870 - 100 + 3);
+    expect(C.plannerCaptureStandInSpec('hood', { W: 900, H: 300, D: 350 }, null)).toEqual([expect.objectContaining({ part: 'hood', size: [900, 300, 350], pos: [0, 150, 0] })]);
+    expect(C.plannerCaptureStandInSpec('refrigerator', { W: 720, H: 1870, D: 700 }, null)[0]).toMatchObject({ size: [720, 1870, 700], pos: [0, 935, 0] });
+    expect(C.plannerCaptureStandInSpec('dishwasher', { W: 600, H: 820, D: 650 }, null)[0]).toMatchObject({ part: 'dishwasher', size: [600, 820, 650] });
+    expect(C.plannerCaptureStandInSpec('cooktop', { W: 700, H: 10, D: 600 }, { top: 870, zMin: -300, zMax: 300 })[0]).toMatchObject({ part: 'cooktop', pos: [0, 874, 0] });
+    expect(C.plannerCaptureStandInSpec('lower', { W: 600, H: 870, D: 650 }, null)).toEqual([]);
+    expect(C.plannerCaptureStandInSpec('sink', null, null)).toEqual([]);
+  });
+
+  test('흰 배경 얹기 — 알파 0 은 흰색, 255 는 그대로, 중간은 rgb + (1−a)·255 · 끝나면 알파 255', () => {
+    const px = new Uint8ClampedArray([0, 0, 0, 0, 10, 20, 30, 255, 50, 50, 50, 128, 0, 0, 0, 56]);
+    C.plannerCaptureOverWhite(px);
+    expect(Array.from(px)).toEqual([255, 255, 255, 255, 10, 20, 30, 255, 177, 177, 177, 255, 199, 199, 199, 255]);
+    const raw = new Uint8Array([1, 1, 1, 7, 2, 2, 2, 9]);
+    expect(Array.from(C.plannerCaptureFlipRows(raw, 1, 2, true))).toEqual([2, 2, 2, 9, 1, 1, 1, 7]);
+  });
+});
+
+/**
+ * mockup-structure.html init3D · renderAll3D 가 만드는 모양을 줄인 것.
+ * 하부장(상판 윗면 870, 깊이 650) 위에 분배기 마커(바닥~500), 천장 아래 후드 마커, 상부장, 배치 상자·윤곽선·선택 테두리·원점 마커.
+ */
+function cleanScene() {
+  const box = (w, h, d, ud) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial()); m.userData = ud || {}; return m; };
+  const line = (geo, ud) => { const l = new THREE.LineSegments(geo, new THREE.LineBasicMaterial()); if (ud) l.userData = ud; return l; };
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xf4efe7);
+  const amb = new THREE.AmbientLight(0xffffff, 0.6);
+  const d1 = new THREE.DirectionalLight(0xffffff, 1.8);
+  d1.position.set(5000, 8000, 5000); d1.castShadow = true; d1.shadow.mapSize.set(1024, 1024);
+  const d2 = new THREE.DirectionalLight(0xffffff, 0.6);
+  d2.position.set(-3000, 4000, -3000);
+  scene.add(amb, d1, d2);
+  const grid = new THREE.GridHelper(6000, 30, 0xb8956c, 0xe5e0d4);
+  scene.add(grid);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000), new THREE.MeshStandardMaterial());
+  ground.rotation.x = -Math.PI / 2; ground.position.y = -0.5;
+  scene.add(ground);
+  const mg = new THREE.Group();
+  scene.add(mg);
+  const area = box(4000, 870, 650, { entityKind: 'area', areaId: 'a' });
+  area.position.set(600, 435, 0);
+  mg.add(area);
+  const areaEdge = line(new THREE.EdgesGeometry(area.geometry), { entityKind: 'edge' });
+  mg.add(areaEdge);
+  // 하부장 — x 0~1200, 상판 윗면 870
+  const lower = new THREE.Group();
+  lower.userData = { entityKind: 'module', moduleId: 'lower-0' };
+  lower.position.set(600, 0, 0);
+  mg.add(lower);
+  const body = box(1200, 858, 650, { entityKind: 'carcass', moduleId: 'lower-0' });
+  body.position.y = 429;
+  lower.add(body);
+  const counter = box(1200, 12, 650, { entityKind: 'top-panel', moduleId: 'lower-0' });
+  counter.position.y = 864;
+  lower.add(counter);
+  const bodyEdge = line(new THREE.EdgesGeometry(body.geometry), { entityKind: 'edge' });
+  bodyEdge.position.copy(body.position);
+  lower.add(bodyEdge);
+  // 상부장 — 1500~2220
+  const upper = new THREE.Group();
+  upper.userData = { entityKind: 'module', moduleId: 'upper-0' };
+  upper.position.set(600, 1500, -160);
+  mg.add(upper);
+  const ubody = box(1200, 720, 330, { entityKind: 'carcass', moduleId: 'upper-0' });
+  ubody.position.y = 360;
+  upper.add(ubody);
+  // 분배기(싱크) 마커 — buildMarkerMesh 처럼 그룹 로컬 (0, H/2, 0), 바닥부터 500
+  const sink = new THREE.Group();
+  sink.userData = { entityKind: 'module', moduleId: 'sink-0' };
+  sink.position.set(600, 0, -100);
+  mg.add(sink);
+  const sinkBox = box(700, 500, 400, { entityKind: 'marker', moduleId: 'sink-0', section: 'sink' });
+  sinkBox.material.transparent = true; sinkBox.material.opacity = 0.35;
+  sinkBox.position.y = 250;
+  sink.add(sinkBox);
+  const sinkEdge = line(new THREE.EdgesGeometry(sinkBox.geometry), { entityKind: 'edge' });
+  sinkEdge.position.copy(sinkBox.position);
+  sink.add(sinkEdge);
+  // 후드 마커 — 천장(2300) 아래 300
+  const hood = new THREE.Group();
+  hood.userData = { entityKind: 'module', moduleId: 'hood-0' };
+  hood.position.set(600, 2000, -150);
+  mg.add(hood);
+  const hoodBox = box(600, 300, 300, { entityKind: 'marker', moduleId: 'hood-0', section: 'hood' });
+  hoodBox.position.y = 150;
+  hood.add(hoodBox);
+  const pick = line(new THREE.EdgesGeometry(new THREE.BoxGeometry(1206, 876, 656)), { entityKind: 'pick', moduleId: 'lower-0' });
+  mg.add(pick);
+  const origin = line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-200, 0, 0), new THREE.Vector3(200, 0, 0)]));
+  mg.add(origin);
+  return { scene, mg, amb, d1, d2, grid, ground, area, areaEdge, lower, body, counter, bodyEdge, upper, sink, sinkBox, sinkEdge, hood, hoodBox, pick, origin };
+}
+
+/** fakeRenderer + 지우기 색·그림자 지도. 읽는 픽셀은 짝수 칸이 불투명 회색(100), 홀수 칸이 알파 0. */
+function cleanRenderer(opt = {}) {
+  const r = fakeRenderer(opt);
+  r._clear = new THREE.Color(0x123456);
+  r._clearAlpha = 0.5;
+  r.getClearColor = (c) => c.copy(r._clear);
+  r.getClearAlpha = () => r._clearAlpha;
+  r.setClearColor = (c, a) => { r._clear = new THREE.Color(c); if (a !== undefined) r._clearAlpha = a; };
+  r.shadowMap = { enabled: false, needsUpdate: false, type: THREE.PCFShadowMap };
+  r.readRenderTargetPixels = (rt, x, y, w, h, buf) => {
+    for (let i = 0; i < w * h; i++) {
+      const o = i * 4;
+      if (i % 2 === 0) { buf[o] = 100; buf[o + 1] = 100; buf[o + 2] = 100; buf[o + 3] = 255; } else { buf[o] = 0; buf[o + 1] = 0; buf[o + 2] = 0; buf[o + 3] = 0; }
+    }
+  };
+  return r;
+}
+
+/** 작업 화면 상태 — visible(uuid 별)·자식 수·배경·지우기 색·그림자 카메라·bias·shadowMap */
+function workState(s, r) {
+  const vis = [];
+  s.scene.traverse((o) => vis.push([o.uuid, o.visible]));
+  const c = s.d1.shadow.camera;
+  return {
+    vis,
+    bg: s.scene.background,
+    bgHex: s.scene.background ? s.scene.background.getHex() : null,
+    clear: [r._clear.getHex(), r._clearAlpha],
+    cam: [c.left, c.right, c.top, c.bottom, c.near, c.far],
+    proj: Array.from(c.projectionMatrix.elements),
+    bias: [s.d1.shadow.bias, s.d1.shadow.normalBias],
+    shadowMap: [r.shadowMap.enabled, r.shadowMap.needsUpdate],
+    mats: [s.sinkBox.material, s.body.material],
+  };
+}
+
+describe('clean 캡처 — 찍는 순간만 바뀌고, 끝나면(던져도) 작업 화면 그대로', () => {
+  const PC = C.PlannerCapture;
+  beforeEach(() => {
+    window.THREE = THREE;
+    PC._encode = (px, w, h) => ({ type: 'image/png', w, h, px });
+    PC._outputPass = null;
+    // 톤매핑 패스는 렌더타깃만 바꾼다 — 픽셀 값을 그대로 보게 (sRGB 폴백 곡선을 피한다)
+    window.OutputPass = class { render(renderer, write) { renderer.setRenderTarget(write); } };
+  });
+  afterEach(() => { window.THREE = undefined; PC._encode = null; PC._outputPass = null; delete window.OutputPass; PC.mount(null); jest.restoreAllMocks(); });
+
+  function mountClean(opt = {}) {
+    const s = cleanScene();
+    const seen = [];
+    const r = cleanRenderer({
+      onRender(scene, cam, rr) {
+        const standins = [];
+        scene.traverse((o) => { if (o.userData && o.userData.entityKind === 'standin' && o.isMesh) standins.push(o); });
+        const sc = s.d1.shadow.camera;
+        seen.push({
+          bg: scene.background, clearAlpha: rr._clearAlpha, shadowMap: rr.shadowMap.enabled,
+          visible: { grid: s.grid.visible, ground: s.ground.visible, area: s.area.visible, areaEdge: s.areaEdge.visible, pick: s.pick.visible, origin: s.origin.visible, sinkBox: s.sinkBox.visible, sinkEdge: s.sinkEdge.visible, hoodBox: s.hoodBox.visible, body: s.body.visible, bodyEdge: s.bodyEdge.visible, upper: s.upper.visible },
+          standins: standins.map((m) => { m.updateWorldMatrix(true, false); const b = new THREE.Box3().setFromObject(m); return { part: m.userData.part, min: b.min.clone(), max: b.max.clone(), opaque: !m.material.transparent, shadowMat: !!m.material.isShadowMaterial }; }),
+          shadowCam: [sc.left, sc.right, sc.top, sc.bottom, sc.near, sc.far],
+          d2Cast: s.d2.castShadow,
+          fov: cam.fov,
+        });
+        if (opt.onRender) opt.onRender(scene, cam, rr);
+      },
+    });
+    PC.mount({ three: () => ({ renderer: r, scene: s.scene, moduleGroup: s.mg }) });
+    return { s, r, seen };
+  }
+
+  test('massing + clean: 흰 배경 · 숨김 · 가전 대역 · 그림자 프러스텀, 돌아오면 visible·배경·지우기 색·그림자 전부 같다', () => {
+    const { s, r, seen } = mountClean();
+    const before = workState(s, r);
+    const shot = PC.capturePixels({ kind: 'massing', longEdge: 64, clean: true });
+    expect(shot.ok).toBe(true);
+    expect(shot.clean).toBe(true);
+    expect(shot.kind).toBe('massing');
+    expect([shot.width, shot.height]).toEqual([64, 36]);   // 16:9
+    expect(shot.camera).toMatchObject({ kind: 'massing', clean: true, fov: 23.14 });
+    expect(shot.camera.position[1]).toBe(1500);
+    // 찍는 순간
+    expect(seen).toHaveLength(1);
+    const w = seen[0];
+    expect(w.bg).toBeNull();
+    expect(w.clearAlpha).toBe(0);
+    expect(w.shadowMap).toBe(true);
+    expect(w.visible).toEqual({ grid: false, ground: false, area: false, areaEdge: false, pick: false, origin: false, sinkBox: false, sinkEdge: false, hoodBox: false, body: true, bodyEdge: true, upper: true });
+    const part = (p) => w.standins.find((x) => x.part === p);
+    expect(w.standins.map((x) => x.part).sort()).toEqual(['bowl', 'faucet', 'hood', 'shadow-catcher', 'spout']);
+    // 싱크 볼은 하부장 상판(870) 위, 상판 앞뒤 가운데 (세계 z 0) — 마커 상자(바닥~500)가 아니다
+    expect(part('bowl').min.y).toBeCloseTo(870, 6);
+    expect((part('bowl').min.z + part('bowl').max.z) / 2).toBeCloseTo(0, 6);
+    expect(part('faucet').max.y).toBeCloseTo(1170, 6);
+    // 후드는 마커 자리 그대로 (2000~2300), 불투명
+    expect([part('hood').min.y, part('hood').max.y]).toEqual([2000, 2300]);
+    expect(part('hood').opaque).toBe(true);
+    // 바닥 그림자 받이 — y 0, 그림자만 받는 재질
+    expect(part('shadow-catcher').shadowMat).toBe(true);
+    expect(part('shadow-catcher').min.y).toBeCloseTo(0, 6);
+    // 그림자 카메라가 mm 경계에 맞았다 (기본은 ±5 · 0.5~500)
+    expect(w.shadowCam[1] - w.shadowCam[0]).toBeGreaterThan(1000);
+    expect(w.shadowCam[5]).toBeGreaterThan(5000);
+    expect(w.d2Cast).toBe(false);   // 그림자 없는 보조광은 건드리지 않는다
+    // 픽셀 — 알파 0 칸은 흰색, 불투명 칸은 그대로, 알파는 전부 255
+    expect(Array.from(shot.pixels.slice(0, 8))).toEqual([100, 100, 100, 255, 255, 255, 255, 255]);
+    expect(shot.pixels.every((v, i) => i % 4 !== 3 || v === 255)).toBe(true);
+    // 돌아온 뒤 — 전부 원래 값
+    expect(workState(s, r)).toEqual(before);
+    expect(s.scene.background).toBe(before.bg);
+    expect(s.sink.children).toEqual([s.sinkBox, s.sinkEdge]);
+    expect(s.hood.children).toEqual([s.hoodBox]);
+    expect(s.scene.children.length).toBe(6);
+    expect(r._rt).toBeNull();
+  });
+
+  test('clean 이 아니면 아무것도 숨기지 않는다 — 배경·그리드·마커·그림자 카메라 그대로 찍는다 (기존 렌더 저장 불변)', () => {
+    const { s, r, seen } = mountClean();
+    const before = workState(s, r);
+    const shot = PC.capturePixels({ kind: 'iso', longEdge: 64 });
+    expect(shot.ok).toBe(true);
+    expect(shot.clean).toBe(false);
+    expect(shot.camera).not.toHaveProperty('clean');
+    expect(seen[0].bg).toBe(before.bg);
+    expect(seen[0].clearAlpha).toBe(0.5);
+    expect(Object.values(seen[0].visible).every(Boolean)).toBe(true);
+    expect(seen[0].standins).toEqual([]);
+    expect(seen[0].shadowCam).toEqual(before.cam);
+    expect(Array.from(shot.pixels.slice(0, 8))).toEqual([100, 100, 100, 255, 0, 0, 0, 255]);   // 알파만 255
+    expect(workState(s, r)).toEqual(before);
+  });
+
+  test('렌더가 던져도 · 그림자 맞춤이 던져도 · 경계가 비어도 되돌린다', () => {
+    const boom = mountClean({ onRender() { throw new Error('gl lost'); } });
+    const b1 = workState(boom.s, boom.r);
+    expect(PC.capturePixels({ kind: 'massing', longEdge: 64, clean: true })).toEqual({ ok: false, reason: 'error', message: 'gl lost' });
+    expect(boom.seen).toHaveLength(1);   // 바뀐 상태로 렌더까지 갔다
+    expect(workState(boom.s, boom.r)).toEqual(b1);
+    expect(boom.r._rt).toBeNull();
+
+    // 그림자 카메라의 투영 갱신이 던진다 — 값은 바꾼 뒤라 되돌려야 한다
+    const half = mountClean();
+    const b2 = workState(half.s, half.r);
+    let calls = 0;
+    const orig = half.s.d1.shadow.camera.updateProjectionMatrix.bind(half.s.d1.shadow.camera);
+    half.s.d1.shadow.camera.updateProjectionMatrix = () => { calls++; if (calls === 1) throw new Error('proj'); return orig(); };
+    expect(PC.capturePixels({ kind: 'front', longEdge: 64, clean: true })).toMatchObject({ ok: false, reason: 'error', message: 'proj' });
+    expect(half.seen).toHaveLength(0);
+    delete half.s.d1.shadow.camera.updateProjectionMatrix;
+    expect(workState(half.s, half.r)).toEqual(b2);
+
+    // 숨기고 나니 찍을 것이 없다 (마커뿐인 모듈) — empty 로 돌아오고 되돌린다
+    const only = mountClean();
+    const b3 = workState(only.s, only.r);
+    only.s.mg.remove(only.s.lower, only.s.upper, only.s.sink, only.s.hood);
+    const b3b = workState(only.s, only.r);
+    expect(PC.capturePixels({ kind: 'front', longEdge: 64, clean: true })).toMatchObject({ ok: false, reason: 'empty' });
+    expect(workState(only.s, only.r)).toEqual(b3b);
+    expect(b3.vis.length).toBeGreaterThan(b3b.vis.length);
+  });
+
+  test('capture({clean}) → PNG 결과에 clean · 모듈 하나(module:<id>)도 clean 으로 찍힌다', async () => {
+    const { s, r } = mountClean();
+    const before = workState(s, r);
+    const one = await PC.capture({ kind: 'massing', longEdge: 32, clean: true, date: new Date(2026, 9, 8, 9, 0, 0) });
+    expect(one).toMatchObject({ ok: true, kind: 'massing', clean: true, fileName: 'massing-20261008090000.png', width: 32, height: 18 });
+    expect(one.camera.clean).toBe(true);
+    const mod = PC.capturePixels({ kind: 'module:sink-0', longEdge: 32, clean: true });
+    expect(mod.ok).toBe(true);   // 마커 모듈 하나 — 대역으로 경계를 잰다
+    expect(mod.camera.target[1]).toBeGreaterThan(870);
+    expect(workState(s, r)).toEqual(before);
+  });
+});
+
+describe('clean 캡처 — 페이지 부팅(디테일 룩과 함께)', () => {
+  afterEach(() => { window.THREE = undefined; });
+
+  test('구조 모드에서 clean 으로 찍어도 룩·배경·그리드·조명·재질이 다 원래대로', () => {
+    const p = boot();
+    const f = fakeThree(p);
+    p.PD.detail.parts[f.moduleId] = { 'door#0': { code: 'PET-OAK-M' } };
+    f.scene.background = new THREE.Color(0xf4efe7);
+    const grid = new THREE.GridHelper(6000, 30);
+    f.scene.add(grid);
+    f.lights.d1.position.set(5000, 8000, 5000);
+    f.lights.d1.castShadow = true;
+    const cam0 = [f.lights.d1.shadow.camera.left, f.lights.d1.shadow.camera.far];
+    const before = { bg: f.scene.background, tone: f.renderer.toneMapping, env: f.scene.environment, amb: f.lights.amb.intensity, d1: f.lights.d1.intensity, doorMat: f.door.material };
+    const during = [];
+    f.renderer.render = function (scene) {
+      during.push({ bg: scene.background, grid: grid.visible, tone: this.toneMapping, doorMat: f.door.material.constructor.name, far: f.lights.d1.shadow.camera.far });
+    };
+    const shot = p.PC.capturePixels({ kind: 'massing', longEdge: 64, clean: true });
+    expect(shot.ok).toBe(true);
+    expect(during[0]).toMatchObject({ bg: null, grid: false, tone: THREE.ACESFilmicToneMapping, doorMat: 'MeshPhysicalMaterial' });
+    expect(during[0].far).toBeGreaterThan(5000);
+    expect(f.scene.background).toBe(before.bg);
+    expect(grid.visible).toBe(true);
+    expect(f.renderer.toneMapping).toBe(before.tone);
+    expect(f.scene.environment).toBe(before.env);
+    expect(f.lights.amb.intensity).toBe(before.amb);
+    expect(f.lights.d1.intensity).toBe(before.d1);
+    expect(f.door.material).toBe(before.doorMat);
+    expect([f.lights.d1.shadow.camera.left, f.lights.d1.shadow.camera.far]).toEqual(cam0);
+    expect(f.scene.children.filter((o) => o.userData && o.userData.entityKind === 'standin')).toEqual([]);
+    expect(p.PD._sceneSaved).toBeNull();
+  });
+});
