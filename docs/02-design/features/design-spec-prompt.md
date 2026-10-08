@@ -274,6 +274,21 @@ POST /api/generate
 | 역판독 | 그대로 (`layout.verify`) |
 | 결과 | `base` 한 장. 추천안·`mockup` 슬롯 없음 |
 
+### 내부 확인용 (`options.internal_only`, 계획서 §6.3 · §11-⑦)
+
+도면과 맞는다고 확인되지 않은 플래너 결과는 고객에게 나가지 않는다. 새 열 없이 `generations.options` 에 둔다.
+
+| 항목 | 규칙 |
+|---|---|
+| 언제 붙나 | `mode:'planner'` 잡이 done 으로 끝날 때 `layout.verify.ok !== true` — 불일치(`false`) · 대조 실패(`null`, `verify.error`) · 대조를 못 돈 경우 모두. ok 면 **키 자체가 없다** |
+| 어떻게 | done 패치와 **같은 PATCH** 로. 지금 행의 `options` 를 읽어 `internal_only: true` 만 더한다(덮어쓰지 않음). 기본안이 있어 `fail()` 이 done 으로 닫는 길도 같다 |
+| 크레딧 | 환불하지 않는다 — 이미지는 나왔다 |
+| 플래너가 아니면 | 아무것도 안 한다 — 마무리 패치가 바이트 그대로 |
+| 공유 발급 `POST /api/generate/:id/share` | **409** `{ success:false, error:'internal_only', code:'internal_only', message:'도면과 다른 결과는 공유할 수 없습니다' }`. 토큰을 만들지 않고 행도 건드리지 않는다 |
+| 공유 열람 `GET /api/share` | 이미 나간 링크라도 **410** `code:'internal_only'` ("공유할 수 없는 결과입니다") — 회수·만료와 같은 410 계열 (`checkShareAccessible`) |
+| 내 연출컷 (`my-designs.html`) | 목록 쿼리에서 거른다: `.or('options->>internal_only.is.null,options->>internal_only.neq.true')`. `.not(…, 'eq', 'true')` 는 키 없는 행(NULL)까지 빼므로 쓰지 않는다 |
+| 본인 조회 `GET /api/generate/:id` | 그대로 보인다 (`options.internal_only` 포함) — 디테일 패널이 "내부 확인용 — 고객 공유 불가" 를 그린다 (P5) |
+
 ## 바꿀 때
 
 1. 필드 이름을 바꾸면 **이 문서와 플래너를 같이** 고친다 (플래너가 이 문서를 따라 보낸다).

@@ -398,6 +398,10 @@ describe('공유 토큰', () => {
       409
     );
     expect(S.checkShareAccessible({ status: 'done', share_expires_at: future }).ok).toBe(true);
+    // 내부 확인용 (계획서 §6.3) — 이미 나간 링크도 닫는다
+    expect(
+      S.checkShareAccessible({ status: 'done', share_expires_at: future, options: { internal_only: true } })
+    ).toEqual({ ok: false, reason: 'internal_only', status: 410 });
   });
 
   test('만료일 기본 30일, 최대 365일', () => {
