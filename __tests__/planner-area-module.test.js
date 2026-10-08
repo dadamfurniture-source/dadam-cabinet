@@ -878,6 +878,97 @@ describe('키큰장·냉장고장 자동계산 — 세로 스택', () => {
     expect(after[0]).toBe(m);
   });
 
+  // 2026-10-08: 키큰장도 가로 분배 규칙을 탄다. 예전엔 배치 폭이 얼마든 단마다 한 통이라
+  //   1800 영역이면 도어 한 장이 1800 으로 나갔다 (도어 최대 600).
+  /** 영역의 단들을 통(같은 x)별로 묶는다 */
+  function colsOf(p, area) {
+    const cols = new Map();
+    p.g('modules').filter((m) => m.areaId === area.id && !m.isFinishing && !m.blind)
+      .forEach((m) => {
+        const k = Math.round(m.x);
+        if (!cols.has(k)) cols.set(k, []);
+        cols.get(k).push(m);
+      });
+    return [...cols.entries()].sort((a, b) => a[0] - b[0]).map(([x, mods]) => ({ x, mods }));
+  }
+
+  test('넓은 키큰장은 통으로 나뉘고 통마다 단이 셋이다', () => {
+    const p = bootL();
+    const area = p.g('areas').find((a) => a.section === 'tall');
+    area.W = 1800;
+    const n = p.g('autoCalcArea')(area.id);
+    const cols = colsOf(p, area);
+    // 1800 → 분배 규칙이 900(양문) 둘을 낸다 (planner-engine distributeModules)
+    expect(cols.length).toBe(2);
+    expect(n).toBe(6);
+    cols.forEach((c) => {
+      expect(new Set(c.mods.map((m) => m.part))).toEqual(new Set(['하부장', '중간장', '상부장']));
+      expect(new Set(c.mods.map((m) => Math.round(m.W))).size).toBe(1);   // 한 통은 폭이 하나
+    });
+    // 통 폭 합 = 배치 폭
+    const widths = cols.map((c) => Math.round(c.mods[0].W));
+    expect(widths.reduce((s, w) => s + w, 0)).toBe(1800);
+  });
+
+  test('통마다 도어가 규칙 안에 든다 — 1800 짜리 도어가 나오지 않는다', () => {
+    const p = bootL();
+    const area = p.g('areas').find((a) => a.section === 'tall');
+    area.W = 1800;
+    p.g('autoCalcArea')(area.id);
+    const R = require('../js/planner/planner-engine').MASTER_RULES;
+    colsOf(p, area).forEach((c) => c.mods.forEach((m) => {
+      const s = p.g('structures')[m.id];
+      // 브리지가 doorCount 를 이 칸에서 센다 (ui-step1.js) — 양문이면 2장
+      const doors = (s.areaTypes || []).reduce((n, t, i) =>
+        n + (t === 'door' ? ((s.areaIs2D || [])[i] ? 2 : 1) : 0), 0);
+      expect(doors).toBeGreaterThan(0);
+      expect(m.W / doors).toBeLessThanOrEqual(R.DOOR_W_MAX);
+      expect(m.W / doors).toBeGreaterThanOrEqual(R.DOOR_W_MIN);
+    }));
+  });
+
+  test('통마다 높이는 같다 — 단 높이는 배치 높이에서 나온다', () => {
+    const p = bootL();
+    const area = p.g('areas').find((a) => a.section === 'tall');
+    area.W = 1800;
+    p.g('autoCalcArea')(area.id);
+    const cols = colsOf(p, area);
+    const key = (c) => c.mods.slice().sort((a, b) => a.baseY - b.baseY).map((m) => m.H + '@' + m.baseY).join('|');
+    expect(key(cols[1])).toBe(key(cols[0]));
+    cols.forEach((c) => expect(c.mods.reduce((s, m) => s + m.H, 0)).toBe(area.H));
+  });
+
+  test('600 짜리 키큰장은 예전처럼 한 통이다', () => {
+    const p = bootL();
+    const area = p.g('areas').find((a) => a.section === 'tall');
+    expect(area.W).toBe(600);
+    expect(p.g('autoCalcArea')(area.id)).toBe(3);
+    expect(colsOf(p, area).length).toBe(1);
+  });
+
+  test('한 통을 보존하면 그 통만 지키고 나머지 통은 다시 나뉜다', () => {
+    const p = bootL();
+    const area = p.g('areas').find((a) => a.section === 'tall');
+    area.W = 1800;
+    p.g('autoCalcArea')(area.id);
+    const first = colsOf(p, area)[0];
+    const lower = first.mods.find((m) => m.part === '하부장');
+    lower.H -= 200;            // 사람이 이 통의 하부장만 줄이고
+    lower.isFixed = true;      // 그 단에만 보존을 건다
+    const n = p.g('autoCalcArea')(area.id);
+    const after = colsOf(p, area);
+    expect(after.length).toBe(2);
+    expect(n).toBe(6);
+    // 보존한 통 — 폭·자리 그대로, 줄인 단도 그대로, 그 통 안에서만 중간장이 늘었다
+    const keptCol = after.find((c) => c.x === first.x);
+    expect(keptCol.mods.find((m) => m.part === '하부장').H).toBe(lower.H);
+    expect(keptCol.mods.reduce((s, m) => s + m.H, 0)).toBe(area.H);
+    // 옆 통은 기본 높이 그대로다
+    const other = after.find((c) => c.x !== first.x);
+    expect(other.mods.find((m) => m.part === '하부장').H).not.toBe(lower.H);
+    expect(other.mods.reduce((s, m) => s + m.H, 0)).toBe(area.H);
+  });
+
   test('하부장 영역은 여전히 가로로 나눈다', () => {
     // 스택은 키큰장·냉장고장만이다.
     const p = boot(seedFor(FIXTURES.straight, { modules: false }));

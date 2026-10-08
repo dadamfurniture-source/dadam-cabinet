@@ -153,8 +153,18 @@ describe('서는 높이 — 몰딩과 같은 자리다', () => {
     expect(before.length).toBeGreaterThan(1);
     p.g('setAreaFinish')(a.id, 'left', 'gap', 180);
     expect(p.g('areaFinishOn')(a.id, 'left').W).toBe(180);
-    // 한 단만 줄면 나머지 단이 마감재를 뚫고 나온다 (W12-22)
-    tiers().forEach((m, i) => expect(m.W).toBe(before[i] - 180));
+    // 2026-10-08: 폭을 내놓는 것은 **끝 통**이다 (키큰장도 통으로 나뉘므로).
+    //   그 통 안에서는 한 단만 줄면 나머지 단이 마감재를 뚫고 나온다 (W12-22) —
+    //   단 셋이 함께 줄어야 한다. 가운데·반대쪽 통은 그대로다.
+    const edgeX = Math.min(...tiers().map((m) => Math.round(m.x)));
+    const edge = tiers().filter((m) => Math.round(m.x) === edgeX);
+    expect(edge.length).toBe(3);
+    expect(new Set(edge.map((m) => Math.round(m.W))).size).toBe(1);
+    const shrunk = before.filter((w) => w === edge[0].W + 180).length;
+    expect(shrunk).toBeGreaterThanOrEqual(3);
+    // 줄어든 폭은 딱 180 — 나머지 통은 그대로다 (잔여는 조립 여유라 영역 폭과 몇 mm 다를 수 있다)
+    const sumPerTier = (ms) => ms.reduce((s, w) => s + w, 0) / 3;
+    expect(sumPerTier(tiers().map((m) => m.W))).toBe(sumPerTier(before) - 180);
   });
 });
 
