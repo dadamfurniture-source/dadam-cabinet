@@ -359,9 +359,12 @@ describe('admin/reference-images.html — 관리자 화면', () => {
   });
 });
 
-describe('ai-design.html — 테마는 DB 먼저, 모자라면 위키미디어를 뒤에', () => {
+describe('ai-design.html — 테마는 DB(theme_images)만, 위키미디어 실시간 경로는 없다', () => {
   const STUDIO = read('ai-design.html');
-  const SEG = STUDIO.slice(STUDIO.indexOf('var THEME_DB_ENOUGH'), STUDIO.indexOf('async function loadWikimediaThemes'));
+  const SEG = STUDIO.slice(
+    STUDIO.indexOf('// 테마 사진은 우리 DB(theme_images)에서 읽는다'),
+    STUDIO.indexOf('function pickHTML(r)'),
+  );
 
   function fakeSb(rows, error) {
     const calls = [];
@@ -377,24 +380,20 @@ describe('ai-design.html — 테마는 DB 먼저, 모자라면 위키미디어�
     };
   }
 
-  /** 화면 코드 그대로 돌린다 — 그리기·위키미디어는 가짜로 받아 순서를 남긴다 */
-  function boot(sb, wiki) {
+  /** 화면 코드 그대로 돌린다 — 그리기는 가짜로 받아 순서를 남긴다 */
+  function boot(sb) {
     const log = [];
-    const S = { themeAll: [], themeMore: false };
+    const S = { themeAll: [], themeLoaded: false };
     const api = new Function(
-      'sb', 'window', 'S', 'shuffle', 'renderTheme', 'fillGrids', 'loadWikimediaThemes', 'console',
-      SEG + '\nreturn { loadDbThemes: loadDbThemes, loadThemes: loadThemes, THEME_DB_ENOUGH: THEME_DB_ENOUGH };',
+      'sb', 'window', 'S', 'shuffle', 'renderTheme', 'fillGrids', 'console',
+      SEG + '\nreturn { loadDbThemes: loadDbThemes, loadThemes: loadThemes };',
     )(
       sb,
       { DadamRefImages: R },
       S,
       (l) => l,
-      () => log.push(['render', S.themeAll.length, S.themeMore]),
+      () => log.push(['render', S.themeAll.length, S.themeLoaded]),
       () => {},
-      async () => {
-        log.push(['wiki']);
-        return wiki || [{ key: 'th-flower-0-0', src: 'https://upload.wikimedia.org/a.jpg', label: '꽃' }];
-      },
       { warn: () => log.push(['warn']) },
     );
     return { api, S, log };
@@ -434,37 +433,33 @@ describe('ai-design.html — 테마는 DB 먼저, 모자라면 위키미디어�
     expect(STUDIO).toMatch(/if \(theme && p\.note\) ref\.note = p\.note;/);
   });
 
-  test('DB 가 충분하면(24장 이상) 위키미디어를 부르지 않는다 — 한 번 그리고 끝', async () => {
-    const { api, S, log } = boot(fakeSb(rows(24)));
-    expect(api.THEME_DB_ENOUGH).toBe(24);
-    await api.loadThemes();
-    expect(log).toEqual([['render', 24, false]]);
-    expect(S.themeAll).toHaveLength(24);
+  test('DB 사진만 한 번 그린다 — 몇 장이든', async () => {
+    for (const n of [1, 30]) {
+      const { api, S, log } = boot(fakeSb(rows(n)));
+      await api.loadThemes();
+      expect(log).toEqual([['render', n, true]]);
+      expect(S.themeAll).toHaveLength(n);
+    }
   });
 
-  test('DB 가 모자라면 DB 사진을 먼저 그리고, 위키미디어를 뒤에 붙인다', async () => {
-    const { api, S, log } = boot(fakeSb(rows(1)));
-    await api.loadThemes();
-    expect(log).toEqual([
-      ['render', 1, false], // DB 사진 바로
-      ['render', 1, true], //  「더 불러오는 중…」
-      ['wiki'],
-      ['render', 2, false], // DB + 위키미디어
-    ]);
-    expect(S.themeAll.map((r) => r.key)).toEqual(['th-db-id0', 'th-flower-0-0']);
-  });
-
-  test('표가 없거나 막히면 예전처럼 위키미디어만 — 멈추지 않는다', async () => {
+  test('표가 없거나 막혀도 멈추지 않는다 — 테마만 비고 「아직 준비된 테마 이미지가 없습니다」', async () => {
     const { api, S, log } = boot(fakeSb(null, { message: 'relation "theme_images" does not exist' }));
     await api.loadThemes();
-    expect(log).toEqual([['warn'], ['wiki'], ['render', 1, false]]);
-    expect(S.themeAll.map((r) => r.key)).toEqual(['th-flower-0-0']);
+    expect(log).toEqual([['warn'], ['render', 0, true]]);
+    expect(S.themeAll).toEqual([]);
+    expect(STUDIO).toMatch(/\? S\.themeLoaded\s+\? '아직 준비된 테마 이미지가 없습니다'\s+: '불러오는 중…'/);
   });
 
-  test('Supabase 가 없어도(오프라인 등) 위키미디어로', async () => {
+  test('Supabase 가 없어도(오프라인 등) 멈추지 않는다', async () => {
     const { api, log } = boot(null);
     await api.loadThemes();
-    expect(log).toEqual([['wiki'], ['render', 1, false]]);
+    expect(log).toEqual([['render', 0, true]]);
+  });
+
+  test('위키미디어 실시간 경로는 걷어냈다 — 검색·채도 측정·덧붙이기 모두', () => {
+    expect(STUDIO).not.toMatch(/commons\.wikimedia\.org|wikimedia/i);
+    expect(STUDIO).not.toMatch(/loadWikimediaThemes|fetchThemeQuery|keepColorful|themeIsColorful|THEME_DB_ENOUGH|THEME_FREE|themeMore/);
+    expect(STUDIO).not.toMatch(/퍼블릭 도메인 · CC0 만 씁니다/);
   });
 
   test('테마는 시공사례를 기다리지 않는다 — 시작할 때 바로, loadGallery 안에서는 부르지 않는다', () => {
@@ -479,6 +474,193 @@ describe('ai-design.html — 테마는 DB 먼저, 모자라면 위키미디어�
 
   test('공용 모듈을 싣는다', () => {
     expect(STUDIO).toContain('<script src="js/reference-images.js"></script>');
+  });
+});
+
+describe('ai-design.html — FURNITURE 품목은 잘리지 않는다', () => {
+  const STUDIO = read('ai-design.html');
+  const STYLE = STUDIO.slice(STUDIO.indexOf('<style>'), STUDIO.indexOf('</style>'));
+  const rule = (sel) => {
+    const i = STYLE.indexOf(sel + ' {');
+    return i < 0 ? '' : STYLE.slice(i, STYLE.indexOf('}', i));
+  };
+
+  test('5열 · 높이 고정 해제 · 넘침 보이기 — 공용 .v5-foot-row 의 86px + overflow:hidden 이 셋째 줄을 잘랐다', () => {
+    const k = rule('#kinds');
+    expect(k).toMatch(/grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
+    expect(k).toMatch(/height: auto/);
+    expect(k).toMatch(/min-height: 86px/);
+    expect(k).toMatch(/overflow: visible/);
+  });
+
+  test('품목 수는 5열 두 줄(10칸)에 들어간다 — 더 늘리면 이 격자를 다시 정한다', () => {
+    const kinds = STUDIO.slice(STUDIO.indexOf('var KINDS = ['), STUDIO.indexOf('];', STUDIO.indexOf('var KINDS = [')));
+    const n = (kinds.match(/key: '/g) || []).length;
+    expect(n).toBeGreaterThanOrEqual(8);
+    expect(n).toBeLessThanOrEqual(10);
+  });
+
+  test('글자 20% 키우고 굵게 — 칩 11.5→13.8px · 라벨 11→13.2px, 500', () => {
+    const chip = rule('#kinds .v5-chip');
+    expect(chip).toMatch(/font-size: 13\.8px/);
+    expect(chip).toMatch(/font-weight: 500/);
+    expect(chip).toMatch(/min-height: 38px/); // 38 × 2 + 9 = 85 ≤ 86 — 오른쪽 카드 하단 바와 높이가 같다
+    const label = rule('.v5-slot-foot .v5-foot-label');
+    expect(label).toMatch(/font-size: 13\.2px/);
+    expect(label).toMatch(/font-weight: 500/);
+  });
+
+  test('공용 CSS 는 건드리지 않는다 (my-designs 도 .v5-chip 을 쓴다)', () => {
+    const css = read('css/dadam-v5.css');
+    expect(css).toMatch(/\.v5-chip \{[^}]*font-size: 11\.5px/);
+    expect(css).toMatch(/\.v5-foot-row \{[^}]*height: 86px;[^}]*overflow: hidden;/);
+  });
+});
+
+describe('ai-design.html — ③ 상세 요청 (AI 대화)', () => {
+  const STUDIO = read('ai-design.html');
+  const SEG = STUDIO.slice(STUDIO.indexOf('// ③ 상세 요청 — AI 와 대화하며'), STUDIO.indexOf('        function bind() {'));
+
+  /** 화면 코드 그대로 — DOM 은 필요한 칸만 가짜로 */
+  function boot({ signedIn = false, aiReply = null, store = {} } = {}) {
+    const el = () => ({
+      innerHTML: '', textContent: '', value: '', disabled: false, placeholder: '',
+      scrollTop: 0, scrollHeight: 100, classList: { toggle() {} }, focus() {}, addEventListener() {},
+    });
+    const els = { chatLog: el(), chatCount: el(), state3: el(), no3: el(), chatSend: el(), chatInput: el(), chatReset: el() };
+    const S = { kind: 'sink', chat: [], chatBusy: false, chatHinted: false, signedIn };
+    const fetches = [];
+    const ss = {
+      getItem: (k) => (k in store ? store[k] : null),
+      setItem: (k, v) => {
+        store[k] = String(v);
+      },
+    };
+    const api = new Function(
+      'S', '$', 'esc', 'KINDS', 'sb', 'fetch', 'API_BASE', 'authHeaders', 'sessionStorage',
+      SEG + '\nreturn { sendChat, customerRequest, renderChat, loadChat, bindChat, CHAT_MAX_TURNS, CHAT_LOCAL_QUESTIONS, CHAT_DONE };',
+    )(
+      S,
+      (id) => els[id],
+      (s) => String(s),
+      [{ key: 'sink', label: '싱크대' }],
+      {},
+      async (url, init) => {
+        fetches.push({ url, body: JSON.parse(init.body) });
+        return { ok: !!aiReply, json: async () => ({ success: true, reply: aiReply }) };
+      },
+      'https://gen.example',
+      async () => ({ Authorization: 'Bearer t' }),
+      ss,
+    );
+    return { api, S, els, fetches, store };
+  }
+  const say = async (b, text) => {
+    b.els.chatInput.value = text;
+    await b.api.sendChat();
+  };
+
+  test('구간을 찾는다', () => {
+    expect(SEG.length).toBeGreaterThan(500);
+    expect(SEG).toMatch(/async function sendChat/);
+  });
+
+  test('로그인 전: 준비된 질문으로 잇고, 로그인 안내는 한 번만 — 서버는 부르지 않는다', async () => {
+    const b = boot();
+    await say(b, '잘 부탁해요');
+    await say(b, '음');
+    expect(b.fetches).toHaveLength(0);
+    const Q = b.api.CHAT_LOCAL_QUESTIONS.map((x) => x.q);
+    const ai = b.S.chat.filter((m) => m.role === 'ai').map((m) => m.text);
+    expect(ai[0]).toContain(Q[0]);
+    expect(ai[0]).toContain('로그인하면');
+    expect(ai[1]).toBe('좋아요. ' + Q[1]);
+    expect(b.els.chatCount.textContent).toBe('2개');
+    expect(b.els.state3.textContent).toBe('반영됨');
+  });
+
+  test('준비된 질문은 손님이 이미 말한 주제를 건너뛰고, 다 채우면 생성 안내', async () => {
+    const b = boot();
+    const Q = b.api.CHAT_LOCAL_QUESTIONS.map((x) => x.q);
+    await say(b, '도어는 무광 화이트, 상판은 밝은 대리석'); // 도어·상판을 말했다 → 수납을 묻는다
+    expect(b.S.chat[1].text).toContain(Q[2]);
+    await say(b, '냉장고 옆 키큰장');
+    expect(b.S.chat[3].text).toBe('좋아요. ' + Q[3]);
+    await say(b, '따뜻한 느낌');
+    expect(b.S.chat[5].text).toBe(b.api.CHAT_DONE);
+    await say(b, '그 밖엔 없어요');
+    expect(b.S.chat[7].text).toBe(b.api.CHAT_DONE);
+  });
+
+  test('로그인 후: /api/chat 에 품목과 대화를 보내고 답을 붙인다. 실패하면 준비된 질문', async () => {
+    const b = boot({ signedIn: true, aiReply: '좋아요. 조명은 어떤가요?' });
+    await say(b, '오크 도어');
+    expect(b.fetches).toEqual([{ url: 'https://gen.example/api/chat', body: { category: 'sink', messages: [{ role: 'me', text: '오크 도어' }] } }]);
+    expect(b.S.chat[1]).toEqual({ role: 'ai', text: '좋아요. 조명은 어떤가요?' });
+
+    const c = boot({ signedIn: true, aiReply: null });
+    await say(c, '오크 도어');
+    expect(c.S.chat[1].text).toBe('좋아요. ' + c.api.CHAT_LOCAL_QUESTIONS[1].q); // 도어는 말했으니 다음 주제
+    expect(c.S.chat[1].text).not.toContain('로그인하면');
+  });
+
+  test('생성에 싣는 것은 손님 글뿐 — 쓴 순서대로, 1200자까지', async () => {
+    const b = boot();
+    await say(b, '도어는 무광 화이트');
+    await say(b, '상판은 대리석');
+    expect(b.api.customerRequest()).toBe('도어는 무광 화이트\n상판은 대리석');
+    expect(STUDIO).toMatch(/customer_request: customerRequest\(\) \|\| undefined,/);
+    const d = boot();
+    for (let i = 0; i < 4; i++) await say(d, String(i).repeat(500));
+    expect(d.api.customerRequest().length).toBe(1200);
+  });
+
+  test('빈 글·500자 넘는 글·12번째 넘는 글', async () => {
+    const b = boot();
+    await say(b, '   ');
+    expect(b.S.chat).toHaveLength(0);
+    await say(b, 'x'.repeat(800));
+    expect(b.S.chat[0].text).toHaveLength(500);
+    for (let i = 0; i < 20; i++) await say(b, 'm' + i);
+    expect(b.S.chat.filter((m) => m.role === 'me')).toHaveLength(b.api.CHAT_MAX_TURNS);
+    expect(b.els.chatSend.disabled).toBe(true);
+    expect(b.els.chatInput.disabled).toBe(true);
+  });
+
+  test('로그인하러 나갔다 와도 남는다 (sessionStorage) — 깨진 값은 버린다', async () => {
+    const store = {};
+    const b = boot({ store });
+    await say(b, '도어는 오크');
+    const c = boot({ store });
+    c.api.loadChat();
+    expect(c.api.customerRequest()).toBe('도어는 오크');
+    const d = boot({ store: { 'dadam.studio.chat.v1': '[{"role":"x","text":"a"},{"role":"me","text":""},{"role":"me","text":"ok"}' } });
+    d.api.loadChat();
+    expect(d.S.chat).toEqual([]);
+    const e = boot({ store: { 'dadam.studio.chat.v1': '[{"role":"x","text":"a"},{"role":"me","text":""},{"role":"me","text":"ok"}]' } });
+    e.api.loadChat();
+    expect(e.S.chat).toEqual([{ role: 'me', text: 'ok' }]);
+  });
+
+  test('첫 인사에 품목 이름 — 품목을 바꾸면 다시 그린다', () => {
+    const b = boot();
+    b.api.renderChat();
+    expect(b.els.chatLog.innerHTML).toContain('싱크대 연출컷');
+    expect(STUDIO).toMatch(/renderKinds\(\);\s+renderChat\(\); \/\/ 첫 인사에 품목 이름이 들어간다/);
+  });
+
+  test('한글 조합 중의 Enter 는 보내지 않는다 · Shift+Enter 는 줄바꿈', () => {
+    expect(SEG).toMatch(/e\.key === 'Enter' && !e\.shiftKey && !e\.isComposing && e\.keyCode !== 229/);
+  });
+
+  test('화면: 두 카드 아래, 생성 버튼 위에 넓게', () => {
+    const cols = STUDIO.indexOf('<div class="v5-cols">');
+    const chat = STUDIO.indexOf('id="chatSlot"');
+    const run = STUDIO.indexOf('<div class="v5-run">');
+    expect(cols).toBeGreaterThan(0);
+    expect(chat).toBeGreaterThan(cols);
+    expect(run).toBeGreaterThan(chat);
+    expect(STUDIO).toMatch(/<textarea\s+id="chatInput"\s+rows="2"\s+maxlength="500"/);
   });
 });
 
