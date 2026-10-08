@@ -6450,9 +6450,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 그래서 같은 분배 규칙으로 **칸을** 나눈다: 1900 → 950(양문) 두 칸 = 도어 475 네 장.
    * 칸 합은 모듈 폭과 꼭 같아야 한다(안 그러면 정면도·BOM 이 어긋난다) — 잔여는 마지막 칸이 먹는다.
    */
-  function setDoorCells(s, W) {
+  function setDoorCells(s, W, doorW) {
     if (!s) return;
-    const plan = columnPlanFor(W, 0, 0);
+    const plan = columnPlanFor(W, doorW || 0, 0);
     if (!plan.length) { setColumnCells(s, { w: W, is2D: W > MASTER_RULES.DOOR_W_MAX }); return; }
     const ws = plan.map((c) => c.w);
     ws[ws.length - 1] += W - ws.reduce((a, b) => a + b, 0);
@@ -6579,6 +6579,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const addL = (spans.find((s) => Math.abs(s.x + s.w - x0) < 1) || { w: 0 }).w;
     const addR = (spans.find((s) => Math.abs(s.x - x1) < 1) || { w: 0 }).w;
     if (addL + addR < 1) return 0;
+    // 멍장 줄은 도어 폭이 줄 전체에 묶여 있다 (corner.md §3.4) — 늘어난 모듈의 도어도
+    //   그 폭을 따라야 줄의 도어가 어긋나지 않는다.
+    const doorW = lineDoorWOf(areaId);
     // 스택은 통째로 — 같은 x 를 쓰는 단들이 한 통이다.
     const group = isStackedArea(area)
       ? modules.filter((n) => areaIdOfModule(n) === areaId && !n.isFinishing && !n.blind
@@ -6592,7 +6595,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       // 칸이 하나(자동계산이 낸 기본)면 새 폭으로 도어를 다시 가른다 — 넓어진 만큼
       //   도어가 커지면 최대 600 을 넘는다. 사람이 나눠 둔 칸은 비율로만 줄인다.
       if ((s.areaWidths || []).length > 1) rescaleCellWidths(s, oldW, n.W);
-      else setDoorCells(s, n.W);
+      else setDoorCells(s, n.W, doorW);
     });
     saveStructModules();
     persistPlannerState();
