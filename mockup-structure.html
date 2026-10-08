@@ -5408,6 +5408,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
   const TALL_TIERS = ['하부장', '중간장', '상부장'];
 
+  // 2026-10-08: 빈 자리 채우기로 모듈을 늘릴 때 **알리기만** 하는 문턱.
+  //   분배 규칙이 내는 가장 넓은 모듈 = 도어 최대 600 × 양문. 그 위는 규칙이 내지 않는
+  //   폭이라 판재·운반을 사람이 확인해야 한다. 막지는 않는다 — 사람이 누른 것이다.
+  const WIDE_CARCASS_WARN = MASTER_RULES.DOOR_W_MAX * 2;
+
   /**
    * 2026-09-19: 스택 영역에서 **사람이 보존을 건 단**.
    * 코너 멍장(isDerived)은 옆에 서는 파생 모듈이라 세로 단이 아니다 — 뺀다.
@@ -6523,6 +6528,31 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return out.filter((g) => g.w > slack);
   }
 
+  /**
+   * 한 **통**(같은 x 를 쓰는 모듈들) 안의 세로 빈 자리 (2026-10-08).
+   *
+   * 키큰장은 하부·중간·상부 단이 배치 높이를 꽉 채우는 것이 정상이다. 단 하나를
+   * 줄이고 보존을 걸면 그만큼 세로로 빈다 — 가로 빈 자리와 달리 x 로는 안 보인다.
+   * 가로 쪽 `areaFreeSpans` 와 같은 모양으로 `{ y, h }` 를 돌려준다.
+   * 조립 여유는 세로에 없다 — 단은 배치 높이에 딱 맞아야 한다 (1mm 만 눈감는다).
+   */
+  function columnFreeBands(areaId, x) {
+    const area = areaById(areaId);
+    if (!area) return [];
+    const col = modules.filter((m) => areaIdOfModule(m) === areaId && !m.isFinishing && !m.blind
+      && Math.round(Number(m.x) || 0) === Math.round(x))
+      .map((m) => [Number(m.baseY) || 0, (Number(m.baseY) || 0) + (Number(m.H) || 0)])
+      .sort((a, b) => a[0] - b[0]);
+    const out = [];
+    let y = 0;
+    col.forEach(([y0, y1]) => {
+      if (y0 - y > 1) out.push({ y, h: y0 - y });
+      y = Math.max(y, y1);
+    });
+    if ((area.H || 0) - y > 1) out.push({ y, h: (area.H || 0) - y });
+    return out;
+  }
+
   /** 이 배치 공간의 도어 폭이 줄 전체에 묶여 있는가 — 멍장 줄이면 그 폭 (corner.md §3.4) */
   function lineDoorWOf(areaId, pairs) {
     const ps = pairs || cornerPairs();
@@ -6578,7 +6608,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const spans = areaFreeSpans(areaId);
     const addL = (spans.find((s) => Math.abs(s.x + s.w - x0) < 1) || { w: 0 }).w;
     const addR = (spans.find((s) => Math.abs(s.x - x1) < 1) || { w: 0 }).w;
-    if (addL + addR < 1) return 0;
+    // 가로 자리가 없으면 **세로**를 본다 — 키큰장은 단이 줄면 높이가 빈다 (2026-10-08).
+    if (addL + addR < 1) return stretchModuleIntoBands(m);
     // 멍장 줄은 도어 폭이 줄 전체에 묶여 있다 (corner.md §3.4) — 늘어난 모듈의 도어도
     //   그 폭을 따라야 줄의 도어가 어긋나지 않는다.
     const doorW = lineDoorWOf(areaId);
@@ -6597,9 +6628,44 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if ((s.areaWidths || []).length > 1) rescaleCellWidths(s, oldW, n.W);
       else setDoorCells(s, n.W, doorW);
     });
+    // 몸통 폭은 **막지 않고 알린다** (2026-10-08 결정). 분배 규칙이 내는 가장 넓은 모듈은
+    //   도어 최대 600 × 양문 = 1200 이다 — 그 위는 규칙 밖이라 판재·운반을 사람이 봐야 한다.
+    if (group[0] && group[0].W > WIDE_CARCASS_WARN) {
+      showToast(`⚠ 몸통 폭 ${Math.round(group[0].W)}mm — 분배 규칙이 내는 최대 ${WIDE_CARCASS_WARN}mm 를 넘습니다. 판재·운반을 확인해 주세요`);
+    }
     saveStructModules();
     persistPlannerState();
     return group.length;
+  }
+
+  /**
+   * 고른 단을 **위·아래 붙어 있는 빈 높이**만큼 늘린다 (2026-10-08).
+   *
+   * 키큰장에서 단을 줄이고 보존을 걸면 그만큼 세로로 빈다. 가로와 같은 규칙이다 —
+   * 떨어진 자리는 먹지 않고, 붙어 있는 위·아래만 먹는다.
+   * 아래로 늘 때는 `baseY` 가 함께 내려간다. 좌대·상몰딩은 높이 모델이 품고 있어
+   * 몸통만 늘어난다 (heightPartsOf).
+   */
+  function stretchModuleIntoBands(m) {
+    const areaId = areaIdOfModule(m);
+    const bands = columnFreeBands(areaId, Number(m.x) || 0);
+    if (!bands.length) return 0;
+    const y0 = Number(m.baseY) || 0;
+    const y1 = y0 + (Number(m.H) || 0);
+    const below = (bands.find((b) => Math.abs(b.y + b.h - y0) < 1) || { h: 0 }).h;
+    const above = (bands.find((b) => Math.abs(b.y - y1) < 1) || { h: 0 }).h;
+    if (below + above < 1) return 0;
+    const s = getStructure(m.id);
+    const oldBody = bodyHeightOf(m, s);
+    const wasDefault = JSON.stringify(s.shelves || [])
+      === JSON.stringify(calcDefaultShelves(m.section, oldBody));
+    m.baseY = y0 - below;
+    m.H = (Number(m.H) || 0) + below + above;
+    // 선반은 사람이 고친 적이 없을 때만 새 몸통으로 다시 분배한다 — 고쳐 뒀으면 그대로 둔다.
+    if (wasDefault) s.shelves = calcDefaultShelves(m.section, bodyHeightOf(m, s));
+    saveStructModules();
+    persistPlannerState();
+    return 1;
   }
 
   /**
@@ -6782,6 +6848,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         done: () => `⚡ 모듈을 늘려 빈 자리를 채웠습니다`,
         empty: '붙어 있는 빈 자리가 없습니다 — 떨어진 자리는 먹지 않습니다',
       };
+    }
+    // 2026-10-08: 가로가 꽉 차 있어도 **세로**가 빌 수 있다 — 키큰장에서 단을 줄였을 때.
+    if (mine) {
+      const bandH = columnFreeBands(area.id, Number(sel.x) || 0).reduce((s, b) => s + b.h, 0);
+      if (bandH >= 1) {
+        return {
+          label: `⚡ 이 모듈로 빈 높이 ${Math.round(bandH)}mm 채우기`,
+          run: () => stretchModuleIntoGaps(sel.id),
+          done: () => '⚡ 모듈을 늘려 빈 높이를 채웠습니다',
+          empty: '붙어 있는 빈 높이가 없습니다 — 떨어진 자리는 먹지 않습니다',
+        };
+      }
     }
     if (room >= 1) {
       return {

@@ -1344,3 +1344,61 @@ describe('자동계산이 마감재를 지우지 않는다', () => {
     expect(tools().querySelector('.at-fintype').value).toBe('molding');
   });
 });
+
+// 2026-10-08: 세로 빈 자리 — 키큰장에서 단을 줄이고 보존을 걸면 높이가 빈다.
+//   가로 빈 자리가 없을 때 같은 버튼이 세로를 채운다 (규칙은 가로와 같다 — 붙어 있는 자리만).
+describe('빈 높이 채우기 — 키큰장 단', () => {
+  function tallWithHole() {
+    const p = boot(seedFor(FIXTURES.lShape, { modules: false }));
+    const area = p.g('areas').find((a) => a.section === 'tall');
+    p.g('autoCalcArea')(area.id);
+    const tiers = () => p.g('modules').filter((m) => m.areaId === area.id && !m.isFinishing)
+      .sort((a, b) => a.baseY - b.baseY);
+    tiers().forEach((m) => { m.isFixed = true; });      // 셋 다 보존 — 다시 깔기로는 안 채워진다
+    const mid = tiers().find((m) => m.part === '중간장');
+    mid.H -= 300;
+    // 위 단을 300 내려 붙여, 구멍이 맨 위에 생기게 한다
+    const up = tiers().find((m) => m.part === '상부장');
+    up.baseY -= 300;
+    return { p, area, mid, up, tiers };
+  }
+
+  test('세로 빈 자리를 밴드로 센다', () => {
+    const { p, area, up } = tallWithHole();
+    const bands = p.g('columnFreeBands')(area.id, up.x);
+    expect(bands.length).toBe(1);
+    expect(Math.round(bands[0].h)).toBe(300);
+    expect(Math.round(bands[0].y)).toBe(Math.round(up.baseY + up.H));
+    expect(p.g('areaFreeSpans')(area.id)).toEqual([]);   // 가로는 꽉 차 있다
+  });
+
+  test('맨 위 단을 고르면 위로 늘어난다', () => {
+    const { p, area, up, tiers } = tallWithHole();
+    const before = up.H;
+    p.g('setActiveArea')(area.id);
+    p.g('setActiveModule')(up.id);
+    expect(p.g('autoCalcTarget')(area).label).toContain('빈 높이 300mm');
+    expect(p.g('autoCalcTarget')(area).run()).toBe(1);
+    expect(up.H).toBe(before + 300);
+    expect(tiers().reduce((s, m) => s + m.H, 0)).toBe(area.H);
+    expect(p.g('columnFreeBands')(area.id, up.x)).toEqual([]);
+  });
+
+  test('줄인 단을 고르면 위 구멍이 아니라 붙어 있는 자리만 — 여기선 안 늘어난다', () => {
+    const { p, area, mid } = tallWithHole();
+    // 중간장 위에는 상부장이 붙어 있다 (구멍은 상부장 위) — 붙어 있는 빈 높이가 없다
+    expect(p.g('stretchModuleIntoGaps')(mid.id)).toBe(0);
+  });
+
+  test('아래로도 늘어난다 — baseY 가 함께 내려간다', () => {
+    const { p, area, tiers } = tallWithHole();
+    // 구멍을 맨 아래로 옮긴다: 모든 단을 300 올린다
+    tiers().forEach((m) => { m.baseY += 300; });
+    const low = tiers()[0];
+    const before = { H: low.H, baseY: low.baseY };
+    expect(p.g('stretchModuleIntoGaps')(low.id)).toBe(1);
+    expect(low.H).toBe(before.H + 300);
+    expect(low.baseY).toBe(before.baseY - 300);
+    expect(tiers().reduce((s, m) => s + m.H, 0)).toBe(area.H);
+  });
+});
