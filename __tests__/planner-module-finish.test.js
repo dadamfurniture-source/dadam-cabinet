@@ -600,6 +600,8 @@ describe('마감재가 셀 폭을 데려간다 (W12-44)', () => {
     const path3 = require('path');
     const SRC3 = fs3.readFileSync(path3.join(__dirname, '..', 'mockup-structure.html'), 'utf8')
       .split('\r\n').join('\n');
-    expect((SRC3.match(/rescaleCellWidths\(/g) || []).length).toBe(5);   // 정의 1 + 호출 4 (균등분배 포함)
+    // 정의 1 + 호출 5 — 균등분배 · 모듈 마감재 · 영역 마감재 · 스택 끝 마감재 ·
+    //   2026-10-08 빈 자리 채우기(stretchModuleIntoGaps: 늘어난 폭만큼 칸도 늘린다)
+    expect((SRC3.match(/rescaleCellWidths\(/g) || []).length).toBe(6);
   });
 });

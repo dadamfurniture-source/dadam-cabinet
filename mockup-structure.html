@@ -1326,6 +1326,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     renderModuleList();
     renderFrontView();
     renderRightPanel();
+    // 2026-10-08: 자동계산 버튼 글자가 고른 것에 따라 바뀐다 — 선택이 바뀌면 다시 적는다.
+    if (activeAreaId && typeof renderAreaTools === 'function') renderAreaTools();
     document.getElementById('curModuleName').textContent = (() => {
       const m = modules.find(x => x.id === id);
       if (!m) return '모듈을 선택하세요';
@@ -5550,36 +5552,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
     let made = 0, keptTiers = 0, over = false;
     cols.forEach((col) => {
-      // 단 높이는 **그 통의 보존 단만** 보고 정한다 — 옆 통에서 줄인 단이 이 통을 바꾸면 안 된다.
-      const plan = stackForArea(area, col.fixed) || [];
-      // 2026-09-19: 보존 단의 합이 배치 높이를 넘으면 위 단이 밖으로 나간다.
-      //   낮은 단부터 채우고(아랫 단 우선) 그 사실을 알린다 — 보존은 건드리지 않는다.
-      if (plan.reduce((sum, p) => sum + (p.H || 0), 0) > (area.H || 0) + 1) over = true;
-      plan.forEach((part) => {
-        // 보존 단 — 높이·구조는 그대로 두고 **자리만** 다시 잡는다.
-        //   여기서 또 세우면 줄였던 단 위에 같은 단이 하나 더 생긴다.
-        if (part.keep) {
-          part.keep.baseY = part.baseY;
-          if (!part.keep.part) part.keep.part = part.part;
-          keptTiers++;
-          return;
-        }
-        const m = addModuleToArea(area.id, { section: area.section, W: col.w, x: col.x });
-        if (!m) return;
-        m.H = part.H;
-        m.baseY = part.baseY;
-        m.part = part.part;
-        const s = getStructure(m.id);
-        s.legH = 0;                       // 스택 안에서는 다리발이 아니라 좌대가 받친다
-        // 좌대·상몰딩을 단마다 빼지 않게 명시한다. 안 하면 heightPartsOf 의
-        // 기본값(각 60)이 단마다 적용돼 단 사이가 벌어진다.
-        s.pedestalH = part.pedestalH;
-        s.moldingH = part.moldingH;
-        // 보존 통에는 분배가 낸 답이 없다 — 폭이 도어 최대를 넘으면 양문이다.
-        setColumnCells(s, col.cells || { w: col.w, is2D: col.w > MASTER_RULES.DOOR_W_MAX });
-        s.shelves = calcDefaultShelves(area.section, bodyHeightOf(m, s));
-        made++;
-      });
+      const r = buildStackColumn(area, col);
+      made += r.made; keptTiers += r.kept; over = over || r.over;
     });
     if (over) {
       showToast(`⚠ 보존한 단 합계가 배치 높이 ${Math.round(area.H || 0)}mm 를 넘습니다 — 아래 단부터 채웠습니다`);
@@ -6339,6 +6313,46 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   /**
+   * 통 하나에 하부·중간·상부 단을 쌓는다 (2026-10-08).
+   * `col` = `{ x, w, fixed, cells }` — `fixed` 는 **그 통의** 보존 단,
+   * `cells` 는 분배가 낸 도어 칸(없으면 폭으로 양문 여부를 정한다).
+   */
+  function buildStackColumn(area, col) {
+    // 단 높이는 **그 통의 보존 단만** 보고 정한다 — 옆 통에서 줄인 단이 이 통을 바꾸면 안 된다.
+    const plan = stackForArea(area, col.fixed || []) || [];
+    let made = 0, kept = 0;
+    // 2026-09-19: 보존 단의 합이 배치 높이를 넘으면 위 단이 밖으로 나간다.
+    //   낮은 단부터 채우고(아랫 단 우선) 그 사실을 부른 쪽이 알린다 — 보존은 건드리지 않는다.
+    const over = plan.reduce((sum, p) => sum + (p.H || 0), 0) > (area.H || 0) + 1;
+    plan.forEach((part) => {
+      // 보존 단 — 높이·구조는 그대로 두고 **자리만** 다시 잡는다.
+      //   여기서 또 세우면 줄였던 단 위에 같은 단이 하나 더 생긴다.
+      if (part.keep) {
+        part.keep.baseY = part.baseY;
+        if (!part.keep.part) part.keep.part = part.part;
+        kept++;
+        return;
+      }
+      const m = addModuleToArea(area.id, { section: area.section, W: col.w, x: col.x });
+      if (!m) return;
+      m.H = part.H;
+      m.baseY = part.baseY;
+      m.part = part.part;
+      const s = getStructure(m.id);
+      s.legH = 0;                       // 스택 안에서는 다리발이 아니라 좌대가 받친다
+      // 좌대·상몰딩을 단마다 빼지 않게 명시한다. 안 하면 heightPartsOf 의
+      // 기본값(각 60)이 단마다 적용돼 단 사이가 벌어진다.
+      s.pedestalH = part.pedestalH;
+      s.moldingH = part.moldingH;
+      // 보존 통에는 분배가 낸 답이 없다 — 폭이 도어 최대를 넘으면 양문이다.
+      setColumnCells(s, col.cells || { w: col.w, is2D: col.w > MASTER_RULES.DOOR_W_MAX });
+      s.shelves = calcDefaultShelves(area.section, bodyHeightOf(m, s));
+      made++;
+    });
+    return { made, kept, over };
+  }
+
+  /**
    * 스택의 보존 모듈을 **통(열) 단위로** 묶어 자리에 앉힌다 (2026-10-08).
    *
    * 가로의 `seatHoldsInSpan` 은 모듈 하나가 한 자리를 차지한다고 보지만, 스택은
@@ -6428,6 +6442,27 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return dist.modules.map((d, i) => ({ w: widths[i], is2D: !!d.is2D }));
   }
 
+  /**
+   * 모듈 하나의 정면을 **도어 규칙대로** 가른다 (2026-10-08).
+   *
+   * 통(모듈)은 분배가 폭을 정해 주므로 칸이 하나면 된다. 그런데 모듈을 빈 자리만큼
+   * 늘리면 폭이 규칙 밖으로 커진다 — 1900 을 한 칸(양문)으로 두면 도어가 950 이다.
+   * 그래서 같은 분배 규칙으로 **칸을** 나눈다: 1900 → 950(양문) 두 칸 = 도어 475 네 장.
+   * 칸 합은 모듈 폭과 꼭 같아야 한다(안 그러면 정면도·BOM 이 어긋난다) — 잔여는 마지막 칸이 먹는다.
+   */
+  function setDoorCells(s, W) {
+    if (!s) return;
+    const plan = columnPlanFor(W, 0, 0);
+    if (!plan.length) { setColumnCells(s, { w: W, is2D: W > MASTER_RULES.DOOR_W_MAX }); return; }
+    const ws = plan.map((c) => c.w);
+    ws[ws.length - 1] += W - ws.reduce((a, b) => a + b, 0);
+    s.verticalCount = ws.length;
+    s.areaTypes = ws.map(() => 'door');
+    s.areaWidths = ws;
+    s.areaIs2D = plan.map((c) => !!c.is2D);
+    s.areaDirections = plan.map((c) => (c.is2D ? 'both' : 'left'));
+  }
+
   /** 통 하나의 정면 칸 — 양문이면 한 칸에 도어 두 장 (방향 대신 'both', #471 규칙) */
   function setColumnCells(s, c) {
     if (!s || !c) return;
@@ -6436,6 +6471,132 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     s.areaIs2D = [!!c.is2D];
     s.areaDirections = [c.is2D ? 'both' : 'left'];
     s.areaWidths = [c.w];
+  }
+
+  // ── 빈 자리 채우기 (2026-10-08) ─────────────────────────────
+  //
+  // 자동계산 버튼은 **고른 것**에 따라 다르게 움직인다:
+  //   모듈을 고르고 누르면  그 모듈(스택이면 그 통)이 붙어 있는 빈 자리만큼 늘어난다
+  //   배치를 고르고 누르면  빈 자리마다 새 모듈이 규칙대로 선다 (있는 모듈은 그대로)
+  //
+  // 예전엔 어느 쪽이든 비고정 모듈을 **다 걷어내고** 다시 깔았다. 손으로 맞춰 둔
+  // 폭이 사라지니, 자리가 조금 남았을 때 사람이 자동계산을 누르지 못했다.
+  // 다시 깔기는 배치가 꽉 찼을 때(채울 자리가 없을 때)와 전체 자동계산에 남는다.
+
+  /**
+   * 배치 공간 안의 **빈 자리** — 모듈이 차지하지 않은 x 구간들.
+   *
+   * 고정이든 아니든, 마감재·멍장도 자리를 차지한다. 스택은 단들이 같은 구간에
+   * 겹쳐 서므로 구간을 합치면 통 하나 몫이 된다.
+   * 코너로 밀려난 자리와 멍장 옆 벽 여유 50 은 **채울 자리가 아니다** —
+   * 앞엣것은 옆 라인이 쓰고, 뒤엣것은 벽 이격이다 (corner.md §3.4).
+   */
+  function areaFreeSpans(areaId) {
+    const area = areaById(areaId);
+    if (!area) return [];
+    const adj = adjCornerOffsetOf(areaId);
+    const L = (area.x || 0) + (adj && adj.atStart ? Math.max(0, adj.offset) : 0);
+    const R = (area.x || 0) + (area.W || 0) - (adj && !adj.atStart ? Math.max(0, adj.offset) : 0);
+    const G = MASTER_RULES.CORNER_WALL_GAP;
+    const taken = [];
+    modules.filter((m) => areaIdOfModule(m) === areaId).forEach((m) => {
+      let x0 = Number(m.x) || 0;
+      let x1 = x0 + (Number(m.W) || 0);
+      if (m.blind) {                       // 멍장은 벽 여유까지 한 자리로 센다
+        if (x0 - L <= G + 1) x0 = Math.min(x0, L); else x1 = Math.max(x1, R);
+      }
+      if (x1 > L && x0 < R) taken.push([Math.max(L, x0), Math.min(R, x1)]);
+    });
+    taken.sort((a, b) => a[0] - b[0]);
+    const out = [];
+    let x = L;
+    taken.forEach(([x0, x1]) => {
+      if (x0 - x > 0.5) out.push({ x, w: x0 - x });
+      x = Math.max(x, x1);
+    });
+    if (R - x > 0.5) out.push({ x, w: R - x });
+    // W12-73: 모듈당 1mm 는 **조립 여유**다 — 결합하면 그만큼 늘어나 채워진다.
+    //   그 안의 틈은 구멍이 아니다. 자동계산이 낸 줄에도 늘 몇 mm 가 남으므로,
+    //   이것을 빈 자리로 치면 버튼이 "빈 자리 2mm" 를 띄우고 아무 일도 못 한다.
+    const slack = jointSlack(modules.filter((m) => areaIdOfModule(m) === areaId
+      && !isFinishingSection(m.section)).length);
+    return out.filter((g) => g.w > slack);
+  }
+
+  /** 이 배치 공간의 도어 폭이 줄 전체에 묶여 있는가 — 멍장 줄이면 그 폭 (corner.md §3.4) */
+  function lineDoorWOf(areaId, pairs) {
+    const ps = pairs || cornerPairs();
+    if (!ps.some((c) => c.owner.id === areaId)) return 0;
+    const plan = cornerPlansFor(areaId, ps);
+    return (plan && plan.plan && plan.plan.ok) ? plan.plan.doorW : 0;
+  }
+
+  /**
+   * 빈 자리에 **새 모듈**을 세운다. 있는 모듈은 건드리지 않는다.
+   * 도어 최소폭보다 좁은 자투리는 비워 둔다 — 거기 들어갈 장이 없다.
+   */
+  function fillAreaGaps(areaId) {
+    const area = areaById(areaId);
+    if (!area || area.isFinishing) return 0;
+    const spans = areaFreeSpans(areaId);
+    if (!spans.length) return 0;
+    const stacked = isStackedArea(area);
+    const doorW = lineDoorWOf(areaId);
+    const extra = modules.filter((m) => areaIdOfModule(m) === areaId && !isFinishingSection(m.section)).length;
+    let made = 0, leftover = 0;
+    spans.forEach((seg) => {
+      const plan = columnPlanFor(seg.w, doorW, extra);
+      if (!plan.length) { leftover += seg.w; return; }
+      if (!stacked) { made += fillSegment(area, seg, doorW, extra); return; }
+      let x = seg.x;
+      plan.forEach((c) => { made += buildStackColumn(area, { x, w: c.w, fixed: [], cells: c }).made; x += c.w; });
+    });
+    if (leftover >= 1 && !made) {
+      showToast(`⚠ 남은 자리 ${Math.round(leftover)}mm 는 도어 최소 ${MASTER_RULES.DOOR_W_MIN}mm 보다 좁습니다`);
+    } else if (leftover >= 1) {
+      showToast(`자투리 ${Math.round(leftover)}mm 는 도어 최소 ${MASTER_RULES.DOOR_W_MIN}mm 보다 좁아 비워 두었습니다`);
+    }
+    if (made) { saveStructModules(); persistPlannerState(); }
+    return made;
+  }
+
+  /**
+   * 고른 모듈을 **붙어 있는 빈 자리**만큼 늘린다.
+   *
+   * 떨어져 있는 자리는 먹지 않는다 — 그러려면 사이의 모듈을 밀어야 하고, 그건
+   * 사람이 둔 자리를 흔드는 일이다 (크기 편집의 맞물림이 하는 일이고 규칙이 다르다).
+   * 스택이면 **그 통의 단이 함께** 늘어난다 — 한 단만 넓히면 통이 들쭉날쭉해진다.
+   */
+  function stretchModuleIntoGaps(id) {
+    const m = moduleById(id);
+    if (!m || m.isFinishing || m.blind) return 0;
+    const areaId = areaIdOfModule(m);
+    const area = areaById(areaId);
+    if (!area) return 0;
+    const x0 = Number(m.x) || 0;
+    const x1 = x0 + (Number(m.W) || 0);
+    const spans = areaFreeSpans(areaId);
+    const addL = (spans.find((s) => Math.abs(s.x + s.w - x0) < 1) || { w: 0 }).w;
+    const addR = (spans.find((s) => Math.abs(s.x - x1) < 1) || { w: 0 }).w;
+    if (addL + addR < 1) return 0;
+    // 스택은 통째로 — 같은 x 를 쓰는 단들이 한 통이다.
+    const group = isStackedArea(area)
+      ? modules.filter((n) => areaIdOfModule(n) === areaId && !n.isFinishing && !n.blind
+          && Math.round(Number(n.x) || 0) === Math.round(x0))
+      : [m];
+    group.forEach((n) => {
+      const oldW = Number(n.W) || 0;
+      n.x = x0 - addL;
+      n.W = oldW + addL + addR;
+      const s = getStructure(n.id);
+      // 칸이 하나(자동계산이 낸 기본)면 새 폭으로 도어를 다시 가른다 — 넓어진 만큼
+      //   도어가 커지면 최대 600 을 넘는다. 사람이 나눠 둔 칸은 비율로만 줄인다.
+      if ((s.areaWidths || []).length > 1) rescaleCellWidths(s, oldW, n.W);
+      else setDoorCells(s, n.W);
+    });
+    saveStructModules();
+    persistPlannerState();
+    return group.length;
   }
 
   /**
@@ -6597,6 +6758,44 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     }
   }
 
+  /**
+   * 자동계산 버튼이 **지금** 할 일 (2026-10-08).
+   *
+   *   모듈을 고르고 빈 자리가 붙어 있으면   그 모듈(통)을 늘린다
+   *   배치를 고르고 빈 자리가 있으면        그 자리에 새 모듈을 세운다
+   *   빈 자리가 없으면                      예전처럼 다시 깐다 (비고정을 걷어내고 재분배)
+   *
+   * 라벨도 같이 바꾼다 — 누르기 전에 무엇이 일어날지 보여야 한다.
+   */
+  function autoCalcTarget(area) {
+    const free = areaFreeSpans(area.id);
+    const room = free.reduce((s, g) => s + g.w, 0);
+    const sel = panelTarget === 'module' ? moduleById(activeId) : null;
+    const mine = sel && !sel.isFinishing && !sel.blind && areaIdOfModule(sel) === area.id;
+    if (mine && room >= 1) {
+      return {
+        label: `⚡ 이 모듈로 빈 자리 ${Math.round(room)}mm 채우기`,
+        run: () => stretchModuleIntoGaps(sel.id),
+        done: () => `⚡ 모듈을 늘려 빈 자리를 채웠습니다`,
+        empty: '붙어 있는 빈 자리가 없습니다 — 떨어진 자리는 먹지 않습니다',
+      };
+    }
+    if (room >= 1) {
+      return {
+        label: `⚡ 빈 자리 ${Math.round(room)}mm 자동계산`,
+        run: () => fillAreaGaps(area.id),
+        done: (n) => `⚡ 빈 자리에 모듈 ${n}개`,
+        empty: '',
+      };
+    }
+    return {
+      label: '⚡ 이 영역 자동계산',
+      run: () => autoCalcArea(area.id),
+      done: (n) => `⚡ 자동계산 — 모듈 ${n}개`,
+      empty: '',
+    };
+  }
+
   function renderAreaTools() {
     document.querySelectorAll('.area-tools').forEach((n) => n.remove());
     const area = areaById(activeAreaId);
@@ -6624,7 +6823,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         <button class="at-add">＋ 모듈 추가</button>
         <button class="at-del">− 모듈 제거</button>
       </div>
-      <button class="at-auto">⚡ 이 영역 자동계산</button>
+      <button class="at-auto">${autoCalcTarget(area).label}</button>
       <div class="at-sec at-fin">
         <select class="at-fintype">
           ${FINISHING_SECTIONS.map((k) => `<option value="${k}" ${k === lastFinishing ? 'selected' : ''}>${(SECTION_CONFIG[k] || {}).label || k} ${finishingWidthOf(k)}mm</option>`).join('')}
@@ -6661,15 +6860,19 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       // 화면을 다시 맞추지 않는다 — 모듈은 지금 보고 있는 영역 안에 들어가므로
       // 맞출 이유가 없고, 맞추면 사용자가 잡아둔 줌·팬이 튄다.
     });
+    // 2026-10-08: 고른 것에 따라 다르게 움직인다 (autoCalcTarget 참고).
+    //   모듈을 골랐으면 그 모듈이 빈 자리를 먹고, 배치를 골랐으면 빈 자리에 새 모듈이 선다.
+    //   빈 자리가 없을 때만 예전처럼 다시 깐다.
     on('.at-auto', () => {
-      const n = autoCalcArea(area.id);
-      if (!n) { renderAreaTools(); return; }
+      const t = autoCalcTarget(area);
+      const n = t.run();
+      if (!n) { showToast(t.empty); renderAreaTools(); return; }
       renderAreaTools();
       renderFrontView();
       renderModuleList();
       renderRightPanel();
       if (typeof renderAll3D === 'function') { try { renderAll3D({ fit: false }); } catch (_) {} }
-      showToast(`⚡ 자동계산 — 모듈 ${n}개`);
+      showToast(t.done(n));
     });
     on('.at-del', () => {
       if (removeActiveModule()) { renderAreaTools(); renderFrontView(); renderRightPanel(); }
