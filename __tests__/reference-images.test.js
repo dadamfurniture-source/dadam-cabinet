@@ -327,6 +327,122 @@ describe('admin/reference-images.html — 관리자 화면', () => {
   });
 });
 
+describe('ai-design.html — 테마는 DB 먼저, 모자라면 위키미디어를 뒤에', () => {
+  const STUDIO = read('ai-design.html');
+  const SEG = STUDIO.slice(STUDIO.indexOf('var THEME_DB_ENOUGH'), STUDIO.indexOf('async function loadWikimediaThemes'));
+
+  function fakeSb(rows, error) {
+    const calls = [];
+    const chain = {
+      select: (c) => (calls.push(['select', c]), chain),
+      eq: (k, v) => (calls.push(['eq', k, v]), chain),
+      limit: (n) => (calls.push(['limit', n]), Promise.resolve({ data: error ? null : rows, error: error || null })),
+    };
+    return {
+      calls,
+      from: (t) => (calls.push(['from', t]), chain),
+      storage: { from: (b) => ({ getPublicUrl: (p) => ({ data: { publicUrl: 'https://cdn/' + b + '/' + p } }) }) },
+    };
+  }
+
+  /** 화면 코드 그대로 돌린다 — 그리기·위키미디어는 가짜로 받아 순서를 남긴다 */
+  function boot(sb, wiki) {
+    const log = [];
+    const S = { themeAll: [], themeMore: false };
+    const api = new Function(
+      'sb', 'window', 'S', 'shuffle', 'renderTheme', 'fillGrids', 'loadWikimediaThemes', 'console',
+      SEG + '\nreturn { loadDbThemes: loadDbThemes, loadThemes: loadThemes, THEME_DB_ENOUGH: THEME_DB_ENOUGH };',
+    )(
+      sb,
+      { DadamRefImages: R },
+      S,
+      (l) => l,
+      () => log.push(['render', S.themeAll.length, S.themeMore]),
+      () => {},
+      async () => {
+        log.push(['wiki']);
+        return wiki || [{ key: 'th-flower-0-0', src: 'https://upload.wikimedia.org/a.jpg', label: '꽃' }];
+      },
+      { warn: () => log.push(['warn']) },
+    );
+    return { api, S, log };
+  }
+  const rows = (n) => Array.from({ length: n }, (_, i) => ({ id: 'id' + i, theme: i % 2 ? 'flower' : '원목', thumb_path: 'id' + i + '/thumb.jpg' }));
+
+  test('구간을 찾는다 (마커가 살아 있다)', () => {
+    expect(SEG.length).toBeGreaterThan(200);
+    expect(SEG).toMatch(/async function loadDbThemes/);
+    expect(SEG).toMatch(/async function loadThemes/);
+  });
+
+  test('사용 중·보이는 것만, 썸네일을 공개 주소로 — 키는 th- 로 시작해 생성 때 theme 역할이 된다', async () => {
+    const sb = fakeSb(rows(2).concat([{ id: 'nofile', theme: 'animal', thumb_path: null }]));
+    const { api } = boot(sb);
+    const list = await api.loadDbThemes();
+    expect(sb.calls).toEqual([
+      ['from', 'theme_images'],
+      ['select', 'id, theme, thumb_path'],
+      ['eq', 'status', 'approved'],
+      ['eq', 'is_active', true],
+      ['limit', 2000],
+    ]);
+    expect(list).toEqual([
+      { key: 'th-db-id0', src: 'https://cdn/theme-images/id0/thumb.jpg', label: '원목' },
+      { key: 'th-db-id1', src: 'https://cdn/theme-images/id1/thumb.jpg', label: '꽃' },
+    ]);
+    // 생성 때 역할을 가르는 규칙 그대로
+    expect(STUDIO).toMatch(/role: \/\^th-\/\.test\(p\.key\) \? 'theme' : 'style'/);
+    list.forEach((r) => expect(/^th-/.test(r.key)).toBe(true));
+  });
+
+  test('DB 가 충분하면(24장 이상) 위키미디어를 부르지 않는다 — 한 번 그리고 끝', async () => {
+    const { api, S, log } = boot(fakeSb(rows(24)));
+    expect(api.THEME_DB_ENOUGH).toBe(24);
+    await api.loadThemes();
+    expect(log).toEqual([['render', 24, false]]);
+    expect(S.themeAll).toHaveLength(24);
+  });
+
+  test('DB 가 모자라면 DB 사진을 먼저 그리고, 위키미디어를 뒤에 붙인다', async () => {
+    const { api, S, log } = boot(fakeSb(rows(1)));
+    await api.loadThemes();
+    expect(log).toEqual([
+      ['render', 1, false], // DB 사진 바로
+      ['render', 1, true], //  「더 불러오는 중…」
+      ['wiki'],
+      ['render', 2, false], // DB + 위키미디어
+    ]);
+    expect(S.themeAll.map((r) => r.key)).toEqual(['th-db-id0', 'th-flower-0-0']);
+  });
+
+  test('표가 없거나 막히면 예전처럼 위키미디어만 — 멈추지 않는다', async () => {
+    const { api, S, log } = boot(fakeSb(null, { message: 'relation "theme_images" does not exist' }));
+    await api.loadThemes();
+    expect(log).toEqual([['warn'], ['wiki'], ['render', 1, false]]);
+    expect(S.themeAll.map((r) => r.key)).toEqual(['th-flower-0-0']);
+  });
+
+  test('Supabase 가 없어도(오프라인 등) 위키미디어로', async () => {
+    const { api, log } = boot(null);
+    await api.loadThemes();
+    expect(log).toEqual([['wiki'], ['render', 1, false]]);
+  });
+
+  test('테마는 시공사례를 기다리지 않는다 — 시작할 때 바로, loadGallery 안에서는 부르지 않는다', () => {
+    const gallery = STUDIO.slice(STUDIO.indexOf('async function loadGallery'), STUDIO.indexOf('function caseByKind'));
+    expect(gallery.length).toBeGreaterThan(100);
+    expect(gallery).not.toMatch(/loadThemes\(\)/);
+    const init = STUDIO.indexOf('// 테마는 시공사례·세션을 기다리지 않고 바로 시작한다');
+    expect(init).toBeGreaterThan(0);
+    expect(STUDIO.indexOf('loadThemes();', init)).toBeLessThan(STUDIO.indexOf('await sb.auth.getSession()', init));
+    expect(STUDIO.indexOf('loadThemes();', init)).toBeLessThan(STUDIO.indexOf('await loadGallery();', init));
+  });
+
+  test('공용 모듈을 싣는다', () => {
+    expect(STUDIO).toContain('<script src="js/reference-images.js"></script>');
+  });
+});
+
 describe('관리자 사이드바', () => {
   const pages = fs.readdirSync(path.join(ROOT, 'admin')).filter((f) => f.endsWith('.html'));
 
