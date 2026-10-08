@@ -279,7 +279,7 @@
       async function loadRows() {
         $('gridHost').innerHTML = '<div class="loading">불러오는 중…</div>';
         const { data, error } = await sb
-          .from('reference_images')
+          .from('theme_images')
           .select('*')
           .order('created_at', { ascending: false })
           .range(0, 4999);
@@ -461,7 +461,7 @@
               width: made.width, height: made.height, colorfulness: made.colorfulness,
               reviewed_by: me.id, reviewed_at: new Date().toISOString(),
             };
-            const { error } = await sb.from('reference_images').insert(row);
+            const { error } = await sb.from('theme_images').insert(row);
             if (error) { await removePair(id); throw new Error(error.message); }
             ok++;
             lines.push(`✓ ${f.name}` + (made.colorful ? '' : ' — 채도가 낮아 색감 참고로는 약할 수 있습니다'));
@@ -507,7 +507,7 @@
         if (!S.importItems.length) return;
         $('imSubmit').disabled = true;
         const rows = S.importItems.map((it) => Object.assign({ status: 'pending', source: 'claude' }, it));
-        const { error } = await sb.from('reference_images').insert(rows);
+        const { error } = await sb.from('theme_images').insert(rows);
         if (error) {
           $('imProgress').innerHTML = '<span class="err">넣지 못했습니다: ' + esc(error.message) + '</span>';
           $('imSubmit').disabled = false;
@@ -529,7 +529,7 @@
         if (!res.ok) throw new Error('원본을 받지 못했습니다 (' + res.status + ')');
         const made = await makeFiles(await blobToImage(await res.blob()));
         const p = await uploadPair(r.id, made);
-        const { error } = await sb.from('reference_images').update({
+        const { error } = await sb.from('theme_images').update({
           status: 'approved', storage_path: p.full, thumb_path: p.thumb,
           width: made.width, height: made.height, colorfulness: made.colorfulness,
           reviewed_by: me.id, reviewed_at: new Date().toISOString(),
@@ -538,20 +538,20 @@
       }
 
       async function setStatus(ids, status) {
-        const { error } = await sb.from('reference_images')
+        const { error } = await sb.from('theme_images')
           .update({ status, reviewed_by: me.id, reviewed_at: new Date().toISOString() })
           .in('id', ids);
         if (error) throw new Error(error.message);
       }
 
       async function setActive(ids, on) {
-        const { error } = await sb.from('reference_images').update({ is_active: on }).in('id', ids);
+        const { error } = await sb.from('theme_images').update({ is_active: on }).in('id', ids);
         if (error) throw new Error(error.message);
       }
 
       async function deleteRows(ids) {
         for (const id of ids) await removePair(id);
-        const { error } = await sb.from('reference_images').delete().in('id', ids);
+        const { error } = await sb.from('theme_images').delete().in('id', ids);
         if (error) throw new Error(error.message);
       }
 
@@ -613,7 +613,7 @@
             render();
           } else if (t.dataset.act === 'theme') {
             runSimple(async () => {
-              const { error } = await sb.from('reference_images').update({ theme: t.value }).eq('id', t.dataset.id);
+              const { error } = await sb.from('theme_images').update({ theme: t.value }).eq('id', t.dataset.id);
               if (error) throw new Error(error.message);
             }, '테마를 바꾸지 못했습니다');
           }

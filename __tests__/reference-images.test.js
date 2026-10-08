@@ -29,9 +29,9 @@ const PAGE = read('admin/reference-images.html');
 describe('reference-images.sql — 표', () => {
   const table = statements.find((s) => /^CREATE TABLE/i.test(s));
 
-  test('CREATE TABLE IF NOT EXISTS public.reference_images 하나', () => {
+  test('CREATE TABLE IF NOT EXISTS public.theme_images 하나', () => {
     expect(statements.filter((s) => /^CREATE TABLE/i.test(s))).toHaveLength(1);
-    expect(table).toMatch(/^CREATE TABLE IF NOT EXISTS public\.reference_images/);
+    expect(table).toMatch(/^CREATE TABLE IF NOT EXISTS public\.theme_images/);
   });
 
   test('상태 셋 · 출처 둘 — 기본은 검토 대기', () => {
@@ -57,42 +57,57 @@ describe('reference-images.sql — 표', () => {
 
   test('같은 원본은 한 번만 — 거절한 것도 남아 다시 추천되지 않는다', () => {
     const uniq = statements.find((s) => /^CREATE UNIQUE INDEX/i.test(s));
-    expect(uniq).toMatch(/IF NOT EXISTS reference_images_origin_url_key\s+ON public\.reference_images \(origin_url\)\s+WHERE origin_url IS NOT NULL/);
+    expect(uniq).toMatch(/IF NOT EXISTS theme_images_origin_url_key\s+ON public\.theme_images \(origin_url\)\s+WHERE origin_url IS NOT NULL/);
   });
 
   test('연출컷 질의용 인덱스 (status, is_active, theme)', () => {
     const idx = statements.find((s) => /^CREATE INDEX/i.test(s));
-    expect(idx).toMatch(/IF NOT EXISTS \w+\s+ON public\.reference_images \(status, is_active, theme\)/);
+    expect(idx).toMatch(/IF NOT EXISTS \w+\s+ON public\.theme_images \(status, is_active, theme\)/);
+  });
+
+  test('reference_images 는 벽 분석 few-shot 의 다른 표다 — 그 이름을 표로 쓰지 않는다', () => {
+    // 2026-10-08: 처음 이 이름을 썼다가 IF NOT EXISTS 가 옛 표를 건너뛰고 인덱스에서 깨졌다
+    expect(body).not.toMatch(/public\.reference_images|ON reference_images|'reference-images'/);
+    expect(PAGE).not.toMatch(/from\('reference_images'\)/);
+    expect(PAGE).toMatch(/from\('theme_images'\)/);
+    expect(R.BUCKET).toBe('theme-images');
+  });
+
+  test('같은 이름의 다른 표가 있으면 인덱스 전에 분명한 메시지로 멈춘다', () => {
+    const guard = body.indexOf('RAISE EXCEPTION');
+    expect(guard).toBeGreaterThan(body.indexOf('CREATE TABLE IF NOT EXISTS public.theme_images'));
+    expect(guard).toBeLessThan(body.indexOf('CREATE UNIQUE INDEX'));
+    expect(body).toMatch(/table_name = 'theme_images' AND column_name = 'origin_url'/);
   });
 });
 
 describe('reference-images.sql — 권한', () => {
   test('RLS 켬 · 손님은 사용 중이면서 숨기지 않은 것만 읽는다', () => {
-    expect(body).toMatch(/ALTER TABLE public\.reference_images ENABLE ROW LEVEL SECURITY/);
-    const p = statements.find((s) => /^CREATE POLICY "reference_images_public_read"/.test(s));
+    expect(body).toMatch(/ALTER TABLE public\.theme_images ENABLE ROW LEVEL SECURITY/);
+    const p = statements.find((s) => /^CREATE POLICY "theme_images_public_read"/.test(s));
     expect(p).toMatch(/FOR SELECT/);
     expect(p).toMatch(/USING \(status = 'approved' AND is_active\)/);
   });
 
   test('쓰기는 관리자(is_admin)만 — USING · WITH CHECK 둘 다', () => {
-    const p = statements.find((s) => /^CREATE POLICY "reference_images_admin_all"/.test(s));
+    const p = statements.find((s) => /^CREATE POLICY "theme_images_admin_all"/.test(s));
     expect(p).toMatch(/FOR ALL\s+TO authenticated/);
     expect(p).toMatch(/USING \(public\.is_admin\(\)\)\s+WITH CHECK \(public\.is_admin\(\)\)/);
     // 표에 다른 쓰기 정책은 없다
-    const tablePolicies = statements.filter((s) => /^CREATE POLICY [^\n]+ON public\.reference_images/.test(s));
+    const tablePolicies = statements.filter((s) => /^CREATE POLICY [^\n]+ON public\.theme_images/.test(s));
     expect(tablePolicies).toHaveLength(2);
   });
 
   test('버킷은 공개 읽기 · 올리기/덮어쓰기/지우기는 관리자만', () => {
-    expect(body).toMatch(/INSERT INTO storage\.buckets \(id, name, public\)\s+VALUES \('reference-images', 'reference-images', TRUE\)\s+ON CONFLICT \(id\) DO UPDATE SET public = TRUE/);
-    const obj = statements.filter((s) => /^CREATE POLICY "reference_images_obj_/.test(s));
+    expect(body).toMatch(/INSERT INTO storage\.buckets \(id, name, public\)\s+VALUES \('theme-images', 'theme-images', TRUE\)\s+ON CONFLICT \(id\) DO UPDATE SET public = TRUE/);
+    const obj = statements.filter((s) => /^CREATE POLICY "theme_images_obj_/.test(s));
     expect(obj).toHaveLength(4);
     const read = obj.find((s) => /_obj_read"/.test(s));
-    expect(read).toMatch(/FOR SELECT\s+USING \(bucket_id = 'reference-images'\)/);
+    expect(read).toMatch(/FOR SELECT\s+USING \(bucket_id = 'theme-images'\)/);
     for (const kind of ['insert', 'update', 'delete']) {
       const p = obj.find((s) => new RegExp('_obj_' + kind + '"').test(s));
       expect(p).toMatch(new RegExp('FOR ' + kind.toUpperCase() + '\\s+TO authenticated'));
-      expect(p).toMatch(/bucket_id = 'reference-images' AND public\.is_admin\(\)/);
+      expect(p).toMatch(/bucket_id = 'theme-images' AND public\.is_admin\(\)/);
     }
   });
 
