@@ -85,8 +85,8 @@ describe('화면 품목 ↔ 워커 카테고리', () => {
     (m) => m[1]
   );
 
-  test('ai-design.html 의 KINDS 8개가 전부 워커에 있다', () => {
-    expect(kinds.length).toBe(8);
+  test('ai-design.html 의 KINDS 10개가 전부 워커에 있다', () => {
+    expect(kinds.length).toBe(10);
     for (const k of kinds) expect(P.resolveCategory(k)).toBe(k);
   });
 
