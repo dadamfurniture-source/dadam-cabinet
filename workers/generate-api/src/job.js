@@ -22,6 +22,7 @@ import {
   STYLES,
   buildAnalysisPrompt,
   buildInstallPrompt,
+  buildPlannerPrompt,
   buildQcPrompt,
   buildThemePalettePrompt,
   buildTwoToneVariantPrompt,
@@ -195,8 +196,30 @@ async function runPipeline(env, job, ck, save) {
   const category = resolveCategory(job.category);
   const startedAt = job.startedAt || Date.now();
 
+  // 플래너 모드 (2026-10-08, 계획서 docs/01-plan/planner-render-realize.plan.md §6.2):
+  //   설치는 [방 사진, 입면, 3/4?] + 프롬프트 v2 · 온도 0.2 · 비율 고정. 검사는 기록만(재시도 없음).
+  //   역판독 대조는 그대로. 추천안·mockup 슬롯 없음. worker.js 가 realize·engine 을 받지 않는다.
+  const planner = opts.mode === 'planner';
+
   // 입력 이미지는 Storage 에서 읽는다 — DO storage 에 base64 를 두지 않는다.
   const room = await fetchObjectBase64(env, inputs.room.path);
+  // 플래너 렌더: 입면은 필수다 — 못 읽으면 던져서 재시도·실패(환불)로 간다. 3/4 뷰는 없어도 그린다.
+  let elevation = null;
+  let massing = null;
+  if (planner) {
+    const list = Array.isArray(inputs.renders) ? inputs.renders : [];
+    const el = list.find((r) => r && r.role === 'elevation');
+    if (!el || !el.path) throw new Error('planner: elevation render missing');
+    elevation = await fetchObjectBase64(env, el.path);
+    const ms = list.find((r) => r && r.role === 'massing');
+    if (ms && ms.path) {
+      try {
+        massing = await fetchObjectBase64(env, ms.path);
+      } catch (e) {
+        console.warn(`[Job ${job.id}] massing render skipped: ${e.message}`);
+      }
+    }
+  }
   // 참고 이미지는 역할이 둘이다.
   //   style (업로드·시공사례) → 설치 단계에 첨부, 마감·분위기 참고
   //   theme (식물·명품·회화 등)  → 색감만 뽑아 추천안 한 장으로
@@ -256,17 +279,30 @@ async function runPipeline(env, job, ck, save) {
       opts.fridge_options && opts.fridge_options.position === 'right' ? 'right' : 'left',
     // 플래너 도면 요약 (worker.js 가 이미 검증해 options 에 넣었다). null 이면 범용 문단.
     designSpec: opts.design_spec || null,
-    // 실사화 — 첫 사진에 도면 입면이 이미 얹혀 있다 (worker.js options.realize)
-    realize: !!opts.realize,
+    // 실사화 — 첫 사진에 도면 입면이 이미 얹혀 있다 (worker.js options.realize). 플래너 모드에는 없다.
+    realize: !planner && !!opts.realize,
+    // 플래너 모드 — 프롬프트 v2 와 검사 코드(existing_left·pasted_reference)를 켠다
+    ...(planner ? { planner: true, massing: !!massing, aspect: opts.aspect } : {}),
   };
   const imageSize = env.GEMINI_IMAGE_SIZE || '2K';
   const prefix = `${job.userId}/${job.id}`;
 
   // ControlNet 경로 (2026-09-22, 계획서 §5-C): 구조 조건 이미지(inputs.control)가 있고 engine 이 controlnet 이면
   //   fal.ai 의 조건 모델이 그린다. 바탕(방 사진 또는 합성본)과 조건은 공개 URL 로 넘긴다. 검사(QC)는 그대로 Gemini.
-  const engine = opts.engine === 'controlnet' && inputs.control && inputs.control.url && inputs.room && inputs.room.url
+  const engine = !planner && opts.engine === 'controlnet' && inputs.control && inputs.control.url && inputs.room && inputs.room.url
     ? 'controlnet' : 'gemini';
   const install = async (fix) => {
+    if (planner) {
+      const r = await callGemini(env, {
+        prompt: buildPlannerPrompt(ctx),
+        images: massing ? [room, elevation, massing] : [room, elevation],
+        imageSize,
+        temperature: 0.2,
+        aspectRatio: ctx.aspect,
+      });
+      if (!r.image) throw new Error('install returned no image');
+      return { base64: r.image, mimeType: r.imageMime || 'image/jpeg' };
+    }
     if (engine === 'controlnet') {
       const r = await runControlNet(env, { ctx, baseUrl: inputs.room.url, controlUrl: inputs.control.url, size: opts.control_size || null, fix });
       ck.engineMeta = r.meta;
@@ -290,17 +326,25 @@ async function runPipeline(env, job, ck, save) {
 
     await setStep(env, job, ck, 'qc');
     let qc = { ok: true, issues: [], note: null };
+    let qcTimer = null;
     try {
       // 검사 한 번에 90초 이상 걸리면 통과로 본다 — 검사 때문에 생성을 막지 않는다
       const q = await Promise.race([
         callGemini(env, { prompt: buildQcPrompt(ctx), images: [base], want: 'text' }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('qc timeout')), QC_TIMEOUT_MS)),
+        new Promise((_, reject) => {
+          qcTimer = setTimeout(() => reject(new Error('qc timeout')), QC_TIMEOUT_MS);
+        }),
       ]);
       qc = parseQc(q.text);
     } catch (e) {
       console.warn(`[Job ${job.id}] qc skipped:`, e.message);
+    } finally {
+      clearTimeout(qcTimer); // 검사가 먼저 끝나면 90초 타이머를 남기지 않는다
     }
-    if (!qc.ok) {
+    if (!qc.ok && planner) {
+      // 플래너 모드는 재시도하지 않는다 (계획서 §4.5 · §11-④) — 결과는 images[base].qc 에 기록만.
+      console.log(`[Job ${job.id}] qc issues (planner, recorded only): ${qc.issues.join(',')}`);
+    } else if (!qc.ok) {
       console.log(`[Job ${job.id}] qc issues: ${qc.issues.join(',')} — retrying install`);
       try {
         base = await install(qc.issues);
@@ -351,7 +395,7 @@ async function runPipeline(env, job, ck, save) {
     }
     layout.elapsed_ms = Date.now() - t0;
     ck.verify = { ok: layout.verify.ok, score: layout.verify.score ?? null };
-    if (opts.realize && layout.verify.ok === false && inputs.room && inputs.room.path) {
+    if (!planner && opts.realize && layout.verify.ok === false && inputs.room && inputs.room.path) {
       ck.images.mockup = { label: '합성본 · 도면 그대로', path: inputs.room.path, url: inputs.room.url || null };
     }
     await save({ images: ck.images, verify: ck.verify });
@@ -362,7 +406,7 @@ async function runPipeline(env, job, ck, save) {
   // 2026-09-22: 추천안을 끌 수 있다 (options.variants === false). 플래너 디테일의 실사화는
   //   도면을 바탕으로 한 **한 장**이 결과물이지 색을 바꾼 추천안이 아니다 — 4장 나올 이유가 없다.
   //   끄면 이미지 호출이 4회에서 1회로 준다. 기본안이 나오면 그대로 done.
-  const wantVariants = opts.variants !== false;
+  const wantVariants = !planner && opts.variants !== false; // 플래너 모드는 worker.js 가 이미 false 로 둔다 — 한 번 더 막는다
   // 마무리(5단계)가 읽으므로 추천안을 껐을 때도 있어야 한다 — 첫 실측에서 'variantErrors is not defined' 로 마무리가 실패했다
   const variantErrors = {};
   if (wantVariants) {
