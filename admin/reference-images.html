@@ -82,7 +82,6 @@
       .badge.off { background: #374151; color: #fff; }
       .card .row { display: flex; gap: 6px; margin-top: 8px; }
       .card .row .btn { padding: 5px 10px; font-size: 12px; flex: 1; }
-      .card select.theme-sel { width: 100%; margin-top: 6px; padding: 4px 6px; font-size: 12px; border: 1px solid #ddd; border-radius: 4px; }
       .card .err { color: #dc2626; margin-top: 6px; }
 
       .empty-state { text-align: center; padding: 60px; color: #888; line-height: 1.7; }
@@ -98,6 +97,7 @@
       .modal-footer { padding: 12px 20px; border-top: 1px solid #eee; display: flex; gap: 8px; justify-content: flex-end; background: #fafafa; }
       .form-field { margin-bottom: 14px; }
       .form-field label { display: block; font-size: 13px; font-weight: 500; color: #444; margin-bottom: 6px; }
+      .form-field textarea { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; resize: vertical; }
       .form-field input[type="text"], .form-field select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; }
       .form-field input[type="file"] { width: 100%; padding: 6px; }
       .hint { font-size: 12px; color: #888; margin-top: 4px; }
@@ -192,11 +192,45 @@
             <label>이름 (선택)</label>
             <input type="text" id="upTitle" placeholder="비우면 파일 이름을 씁니다">
           </div>
+          <div class="form-field">
+            <label>설명 (선택)</label>
+            <textarea id="upNote" rows="3" maxlength="200" placeholder="예: 에르메스 오렌지 가죽 스트랩과 티타늄 케이스"></textarea>
+            <div class="hint">연출컷을 만들 때 이 사진에서 색감을 뽑는 데 참고합니다. 살리고 싶은 색·재질을 짧게 적어 주세요. 여러 장을 올리면 모두 같은 설명이 붙습니다.</div>
+          </div>
           <div class="progress" id="upProgress"></div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-light" data-close="uploadModal">닫기</button>
           <button class="btn btn-primary" id="upSubmit">업로드</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 수정 -->
+    <div class="modal-overlay" id="editModal">
+      <div class="modal">
+        <div class="modal-header"><h3>참고 이미지 수정</h3><button class="modal-close" data-close="editModal">×</button></div>
+        <div class="modal-body">
+          <img id="edImg" alt="" style="width:100%;max-height:220px;object-fit:contain;background:#f3f3f3;border-radius:8px;margin-bottom:14px;">
+          <div class="form-field">
+            <label>테마</label>
+            <select id="edTheme"></select>
+            <input type="text" id="edThemeNew" placeholder="새 테마 이름 (예: 원목)" style="display:none;margin-top:6px;">
+          </div>
+          <div class="form-field">
+            <label>이름</label>
+            <input type="text" id="edTitle" maxlength="120">
+          </div>
+          <div class="form-field">
+            <label>설명</label>
+            <textarea id="edNote" rows="4" maxlength="200" placeholder="예: 에르메스 오렌지 가죽 스트랩과 티타늄 케이스"></textarea>
+            <div class="hint">연출컷을 만들 때 이 사진에서 색감을 뽑는 데 참고합니다. 살리고 싶은 색·재질을 짧게 적어 주세요. <span id="edNoteCount">0</span>/200</div>
+          </div>
+          <div class="progress" id="edProgress"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" data-close="editModal">닫기</button>
+          <button class="btn btn-primary" id="edSubmit">저장</button>
         </div>
       </div>
     </div>
@@ -351,14 +385,14 @@
         const src = safeUrl(r.source_page);
         const meta = [r.license, r.author].filter(Boolean).map(esc).join(' · ');
         let actions = '';
+        const editBtn = '<button class="btn btn-light" data-act="edit" data-id="' + r.id + '">수정</button>';
         if (r.status === 'pending') {
           actions = '<div class="row"><button class="btn btn-success" data-act="approve" data-id="' + r.id + '">확정</button>'
-            + '<button class="btn btn-light" data-act="reject" data-id="' + r.id + '">거절</button></div>';
+            + '<button class="btn btn-light" data-act="reject" data-id="' + r.id + '">거절</button></div>'
+            + '<div class="row">' + editBtn + '</div>';
         } else if (r.status === 'approved') {
-          actions = '<select class="theme-sel" data-act="theme" data-id="' + r.id + '">'
-            + themeOptions().map((k) => '<option value="' + esc(k) + '"' + (k === r.theme ? ' selected' : '') + '>' + esc(R.themeLabel(k)) + '</option>').join('')
-            + '</select>'
-            + '<div class="row"><button class="btn btn-light" data-act="toggle" data-id="' + r.id + '">' + (r.is_active ? '숨기기' : '보이기') + '</button></div>';
+          actions = '<div class="row">' + editBtn
+            + '<button class="btn btn-light" data-act="toggle" data-id="' + r.id + '">' + (r.is_active ? '숨기기' : '보이기') + '</button></div>';
         } else {
           actions = '<div class="row"><button class="btn btn-light" data-act="restore" data-id="' + r.id + '">검토 대기로</button></div>';
         }
@@ -369,7 +403,7 @@
           + '<div class="info">'
           + '<div class="theme">' + esc(R.themeLabel(r.theme)) + '</div>'
           + (r.title ? '<div class="title">' + esc(r.title) + '</div>' : '')
-          + (r.note ? '<div class="note">' + esc(r.note) + '</div>' : '')
+          + (r.note ? '<div class="note" title="설명 — 연출컷 색감 추출에 참고">' + esc(r.note) + '</div>' : '')
           + (meta || src ? '<div class="meta">' + meta + (src ? (meta ? ' · ' : '') + '<a href="' + esc(src) + '" target="_blank" rel="noopener">출처</a>' : '') + '</div>' : '')
           + '<div class="err" id="err-' + r.id + '"></div>'
           + actions
@@ -441,6 +475,7 @@
         const files = Array.from($('upFiles').files || []);
         const theme = chosenTheme('upTheme', 'upThemeNew');
         const title = $('upTitle').value.trim();
+        const note = $('upNote').value.trim().slice(0, 200);
         const out = $('upProgress');
         if (!files.length) { out.innerHTML = '<span class="err">사진을 고르세요</span>'; return; }
         if (!R.isValidTheme(theme)) { out.innerHTML = '<span class="err">테마를 고르거나 새 테마 이름(1~32자)을 적어 주세요</span>'; return; }
@@ -457,6 +492,7 @@
             const row = {
               id, theme, status: 'approved', source: 'upload',
               title: title ? (files.length > 1 ? `${title} ${i + 1}` : title) : f.name.replace(/\.[^.]+$/, ''),
+              note: note || null,
               storage_path: p.full, thumb_path: p.thumb,
               width: made.width, height: made.height, colorfulness: made.colorfulness,
               reviewed_by: me.id, reviewed_at: new Date().toISOString(),
@@ -472,6 +508,7 @@
         out.textContent = lines.concat(`완료: ${ok} / ${files.length}장`).join('\n');
         $('upSubmit').disabled = false;
         $('upFiles').value = '';
+        $('upNote').value = '';
         S.tab = 'approved';
         await loadRows();
       }
@@ -517,6 +554,44 @@
         S.importItems = [];
         $('imFile').value = '';
         S.tab = 'pending';
+        await loadRows();
+      }
+
+      // ── 수정 — 테마 · 이름 · 설명 ────────────────────
+      let editId = null;
+      function openEdit(id) {
+        const r = S.rows.find((x) => x.id === id);
+        if (!r) return;
+        editId = id;
+        const keys = themeOptions();
+        $('edTheme').innerHTML = keys.map((k) => '<option value="' + esc(k) + '">' + esc(R.themeLabel(k)) + '</option>').join('')
+          + '<option value="__new">＋ 새 테마…</option>';
+        $('edTheme').value = r.theme;
+        $('edThemeNew').style.display = 'none';
+        $('edThemeNew').value = '';
+        $('edTitle').value = r.title || '';
+        $('edNote').value = r.note || '';
+        $('edNoteCount').textContent = $('edNote').value.length;
+        $('edImg').src = r.status === 'approved' ? publicUrl(r.thumb_path) : safeUrl(r.preview_url || r.download_url || r.origin_url);
+        $('edProgress').textContent = '';
+        $('editModal').classList.add('active');
+      }
+
+      async function submitEdit() {
+        if (!editId) return;
+        const theme = chosenTheme('edTheme', 'edThemeNew');
+        if (!R.isValidTheme(theme)) { $('edProgress').innerHTML = '<span class="err">테마를 고르거나 새 테마 이름(1~32자)을 적어 주세요</span>'; return; }
+        const patch = {
+          theme: theme.trim(),
+          title: $('edTitle').value.trim().slice(0, 120) || null,
+          note: $('edNote').value.trim().slice(0, 200) || null,
+        };
+        $('edSubmit').disabled = true;
+        const { error } = await sb.from('theme_images').update(patch).eq('id', editId);
+        $('edSubmit').disabled = false;
+        if (error) { $('edProgress').innerHTML = '<span class="err">저장하지 못했습니다: ' + esc(error.message) + '</span>'; return; }
+        $('editModal').classList.remove('active');
+        editId = null;
         await loadRows();
       }
 
@@ -602,6 +677,9 @@
         document.querySelectorAll('[data-close]').forEach((b) => { b.onclick = () => $(b.dataset.close).classList.remove('active'); });
         $('upTheme').onchange = (e) => { $('upThemeNew').style.display = e.target.value === '__new' ? 'block' : 'none'; };
         $('upSubmit').onclick = submitUpload;
+        $('edTheme').onchange = (e) => { $('edThemeNew').style.display = e.target.value === '__new' ? 'block' : 'none'; };
+        $('edNote').oninput = () => { $('edNoteCount').textContent = $('edNote').value.length; };
+        $('edSubmit').onclick = submitEdit;
         $('imFile').onchange = readImportFile;
         $('imSubmit').onclick = submitImport;
 
@@ -611,11 +689,6 @@
           if (t.dataset.sel) {
             t.checked ? S.selected.add(t.dataset.sel) : S.selected.delete(t.dataset.sel);
             render();
-          } else if (t.dataset.act === 'theme') {
-            runSimple(async () => {
-              const { error } = await sb.from('theme_images').update({ theme: t.value }).eq('id', t.dataset.id);
-              if (error) throw new Error(error.message);
-            }, '테마를 바꾸지 못했습니다');
           }
         });
         $('gridHost').addEventListener('click', (e) => {
@@ -629,6 +702,7 @@
           const id = t.dataset.id;
           if (!id || !t.dataset.act) return;
           if (t.dataset.act === 'approve') runApprove([id]);
+          else if (t.dataset.act === 'edit') openEdit(id);
           else if (t.dataset.act === 'reject') runSimple(() => setStatus([id], 'rejected'), '거절하지 못했습니다');
           else if (t.dataset.act === 'restore') runSimple(() => setStatus([id], 'pending'), '되돌리지 못했습니다');
           else if (t.dataset.act === 'toggle') {

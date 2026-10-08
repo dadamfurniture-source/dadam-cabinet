@@ -809,7 +809,7 @@
           try {
             var res = await sb
               .from('theme_images')
-              .select('id, theme, thumb_path')
+              .select('id, theme, thumb_path, note')
               .eq('status', 'approved')
               .eq('is_active', true)
               .limit(2000);
@@ -823,6 +823,7 @@
                   key: 'th-db-' + r.id, // th- 로 시작해야 생성 때 role 'theme' 으로 간다
                   src: sb.storage.from(R.BUCKET).getPublicUrl(r.thumb_path).data.publicUrl,
                   label: R.themeLabel(r.theme),
+                  note: r.note || '', // 관리자가 적은 사진 설명 — 생성 때 색감 추출에 힌트로 간다
                 };
               });
           } catch (e) {
@@ -945,7 +946,7 @@
               return r.key === key;
             })[0];
             if (!src) return;
-            S.picks.push({ key: src.key, src: src.src, label: src.label });
+            S.picks.push({ key: src.key, src: src.src, label: src.label, note: src.note || '' });
           }
           // 그리드를 다시 그리지 않는다 — innerHTML 을 갈아끼우면 스크롤이 맨 위로
           // 튀어서, 아래쪽 사진을 고르는 순간 자리를 잃는다. 눌린 버튼만 바꾼다.
@@ -1186,7 +1187,12 @@
             await Promise.all(
               S.picks.map(async function (p) {
                 var r = await fetchAsBase64(p.src);
-                return r && { base64: r.base64, mimeType: r.mime, role: /^th-/.test(p.key) ? 'theme' : 'style' };
+                if (!r) return null;
+                var theme = /^th-/.test(p.key);
+                var ref = { base64: r.base64, mimeType: r.mime, role: theme ? 'theme' : 'style' };
+                // 테마 사진의 설명은 색감을 뽑을 때 힌트로 쓴다 (워커 buildThemePalettePrompt)
+                if (theme && p.note) ref.note = p.note;
+                return ref;
               })
             )
           ).filter(Boolean);
