@@ -15,6 +15,10 @@
  * design_spec 이 없으면 프롬프트는 예전과 한 글자도 다르지 않다 — test/install-prompt-snapshot.test.js
  * 가 옛 출력 전문을 붙들고 있다. 계약: docs/02-design/features/design-spec-prompt.md
  *
+ * 플래너 모드(mode:'planner', 2026-10-08): buildPlannerPrompt(ctx) 가 설치 프롬프트 v2 를 따로 만든다 —
+ * 방 사진 + 도면 렌더(입면·3/4) + 번호 매긴 구조 글. 옛 설치 프롬프트는 건드리지 않는다.
+ * 계획: docs/01-plan/planner-render-realize.plan.md §4
+ *
  * 이 파일은 import 가 없어야 한다 — __tests__/generate-prompts.test.js 가 export 만 떼어 평가한다.
  *
  * 손잡이 규칙(CLAUDE.md): 전 품목 매립형(handleless). 하부장 도어는 도어 뒤로 손을
@@ -529,6 +533,26 @@ export const DESIGN_SPEC_QC_FIXES = {
 /** 수전 검사가 뜻이 있는 품목 (싱크가 있는 것). */
 export const KITCHEN_CATEGORIES = ['sink', 'island'];
 
+/** 공사 현장이면 완공된 방으로 그린다. 방 형태·창·카메라는 그대로. 설치·플래너 프롬프트가 같이 쓴다. */
+function sitePhrase(c) {
+  return c.site === 'construction'
+    ? `\nSITE: the photo shows an unfinished construction site${c.siteNotes ? ` (${c.siteNotes})` : ''}. Render the room fully finished and clean: remove debris, tools, boxes, dust and protective film; finish bare walls and ceiling smoothly in a light neutral tone; complete the flooring to match what already exists; route every exposed pipe, valve and wire behind the new furniture or inside the wall so none stays visible. Keep the room geometry, window positions and camera unchanged.`
+    : '';
+}
+
+/** 벽 타일: 밝은 무채색이면 그대로, 아니면 밝은 무채색 타일로 바꾼다. 설치·플래너 프롬프트가 같이 쓴다. */
+function tilePhrase(c) {
+  return !c.tile || !c.tile.present
+    ? ''
+    : c.tile.lightNeutral
+      ? `\nWALL TILE: keep the existing light tiles exactly as they are.`
+      : `\nWALL TILE: the existing wall tiles${c.tile.description ? ` (${c.tile.description})` : ''} are not light neutral. Replace them with light neutral tiles — matte off-white or light grey large-format ceramic with subtle grout — only where tiles already are (the wall area between the furniture pieces).`;
+}
+
+/** 손잡이 규칙 (CLAUDE.md) — 설치·실사화·플래너 프롬프트가 같은 문장을 쓴다. */
+const HANDLES_LINE =
+  'HANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.';
+
 /**
  * @param {object} c
  * @param {string} c.category      CATEGORIES 의 key
@@ -555,18 +579,8 @@ export function buildInstallPrompt(c, opts = {}) {
     c.refCount > 0
       ? `\nThe additional ${c.refCount === 1 ? 'image is a' : 'images are'} style reference: match the door colour, material grain direction, sheen and overall mood of the reference fronts. Never copy the reference layout, room or camera.`
       : '';
-  // 공사 현장이면 완공된 방으로 그린다. 방 형태·창·카메라는 그대로.
-  const site =
-    c.site === 'construction'
-      ? `\nSITE: the photo shows an unfinished construction site${c.siteNotes ? ` (${c.siteNotes})` : ''}. Render the room fully finished and clean: remove debris, tools, boxes, dust and protective film; finish bare walls and ceiling smoothly in a light neutral tone; complete the flooring to match what already exists; route every exposed pipe, valve and wire behind the new furniture or inside the wall so none stays visible. Keep the room geometry, window positions and camera unchanged.`
-      : '';
-  // 벽 타일: 밝은 무채색이면 그대로, 아니면 밝은 무채색 타일로 바꾼다.
-  const tile =
-    !c.tile || !c.tile.present
-      ? ''
-      : c.tile.lightNeutral
-        ? `\nWALL TILE: keep the existing light tiles exactly as they are.`
-        : `\nWALL TILE: the existing wall tiles${c.tile.description ? ` (${c.tile.description})` : ''} are not light neutral. Replace them with light neutral tiles — matte off-white or light grey large-format ceramic with subtle grout — only where tiles already are (the wall area between the furniture pieces).`;
+  const site = sitePhrase(c);
+  const tile = tilePhrase(c);
   const fixes = (opts.fix || []).map((k) => QC_FIXES[k] || DESIGN_SPEC_QC_FIXES[k] || REALIZE_QC_FIXES[k]).filter(Boolean);
   const fixBlock = fixes.length
     ? `\nFIX (the previous attempt failed these checks):\n- ${fixes.join('\n- ')}`
@@ -608,6 +622,395 @@ HANDLES: none. Every door and drawer is a flat handleless front; lower doors ope
 All doors and drawers closed. Photorealistic interior photograph with natural lighting and correct shadows. No text, labels or watermarks.`;
 }
 
+// ─── 2-b. 플래너 모드 (mode:'planner', 2026-10-08) ───
+/**
+ * 플래너 구조 실사화 — 설치 프롬프트 v2. 정본 계획: docs/01-plan/planner-render-realize.plan.md §4.
+ *
+ * 모델은 세 장을 받는다: IMAGE A 방 사진(편집 대상) · IMAGE B 정면 입면 렌더(정확한 설계) ·
+ * IMAGE C 3/4 렌더(깊이 참고, 없을 수 있다). 렌더는 참고 그림이지 붙일 그림이 아니다.
+ * 그림이 형태를, 글이 개수를 말한다 — 모듈마다 번호(L1·U1·T1·W1), 폭 mm 와 런 대비 %, 줄 끝 합계,
+ * 그리고 COUNT CHECK 로 합계를 한 번 더. 값은 전부 design_spec 과 ① 분석 결과에서 자동으로 채운다.
+ *
+ * 첫 실측(잡 116a8dd2, 역판독 0.45/3)의 실패 셋을 이름으로 막는다 —
+ * 없는 가전 추가, 도어 수 변경, 남은 기존 장. 남는 벽은 지우고 빈 벽으로 둔다 (§11-①′).
+ *
+ * buildInstallPrompt 와 따로 둔다 — 옛 경로(연출컷·realize)는 한 글자도 바뀌지 않는다.
+ */
+export const PLANNER_ASPECTS = ['16:9', '4:3', '3:4', '1:1', '9:16'];
+export const PLANNER_DEFAULT_ASPECT = '16:9';
+
+/** 허용값이 아니면 기본 16:9 (§11-③). */
+export function resolvePlannerAspect(v) {
+  return PLANNER_ASPECTS.includes(v) ? v : PLANNER_DEFAULT_ASPECT;
+}
+
+/** 구간 → 줄 이름·번호 머리·단위 이름. 붙박이장은 구간을 합쳐 한 줄(W). */
+const PLANNER_ROWS = {
+  lower: { title: 'BASE ROW', prefix: 'L', unit: 'base unit', drawersAlways: true },
+  upper: { title: 'WALL ROW', prefix: 'U', unit: 'wall unit', drawersAlways: false },
+  tall: { title: 'TALL ROW', prefix: 'T', unit: 'tall unit', drawersAlways: true },
+};
+const PLANNER_WARDROBE_ROW = { title: 'WARDROBE ROW', prefix: 'W', unit: 'wardrobe unit', drawersAlways: true };
+
+/** TASK 문장의 주어 — 모델은 한국어 품목명을 못 읽는다. */
+const PLANNER_SUBJECT = {
+  sink: 'built-in kitchen',
+  island: 'built-in kitchen',
+  wardrobe: 'built-in wardrobe',
+  storage: 'built-in storage cabinet',
+  fridge: 'built-in refrigerator surround',
+  vanity: 'built-in dressing table',
+  shoe: 'built-in entrance shoe cabinet',
+  office: 'built-in home office wall',
+};
+
+/** 가전이 어느 줄의 모듈에 붙는가 (앞쪽이 먼저). */
+const PLANNER_APPLIANCE_ROWS = {
+  sink: ['lower'],
+  cooktop: ['lower'],
+  dishwasher: ['lower'],
+  hood: ['upper'],
+  fridge: ['tall', 'lower'],
+};
+
+/** 모듈 줄에 붙이는 가전 구절. */
+const PLANNER_APPLIANCE_ON_MODULE = {
+  sink: 'sink bowl with a single-lever mixer faucet (matte black or brushed steel) on the countertop — the faucet is mandatory',
+  cooktop: 'flush induction cooktop on the countertop',
+  hood: 'slim concealed hood under it',
+  fridge: 'built-in refrigerator, its front flush with the doors',
+  dishwasher: 'fully integrated dishwasher behind a matching front',
+};
+
+/** 어느 모듈에도 안 걸린 가전 (APPLIANCES 줄). */
+const PLANNER_APPLIANCE_LOOSE = {
+  sink: 'an undermount sink with a single-lever mixer faucet (matte black or brushed steel) — the faucet is mandatory',
+  cooktop: 'a flush induction cooktop',
+  hood: 'a slim concealed hood',
+  fridge: 'a built-in refrigerator, its front flush with the doors',
+  dishwasher: 'a fully integrated dishwasher behind a matching front',
+};
+
+/** DO NOT 목록의 "없는 가전" — 도면에 없는 것만 이름으로 막는다. oven 은 계약에 없으니 늘 막는다. */
+const PLANNER_FORBIDDEN_APPLIANCES = [
+  ['dishwasher', 'dishwasher'],
+  ['fridge', 'refrigerator'],
+  [null, 'oven'],
+  ['cooktop', 'cooktop'],
+  ['hood', 'hood'],
+];
+
+const plannerPlural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const plannerPct = (x, total) => Math.round((x / total) * 100);
+
+/** 모듈 한 칸의 유효 도어·서랍 수 — 문장(designModulePhrase)과 같은 규칙. */
+function plannerCounts(m) {
+  if (m.kind === 'open' || m.kind === 'appliance') return { doors: 0, drawers: 0 };
+  if (m.kind === 'drawer') return { doors: m.doorCount || 0, drawers: m.drawerCount || 1 };
+  return { doors: m.doorCount || 1, drawers: m.drawerCount || 0 };
+}
+
+/** 가전 모듈의 라벨(플래너가 '냉장고'·'식기세척기' 로 보낸다)로 종류를 고른다. verify.js 와 같은 규칙. */
+function plannerApplianceOfLabel(label) {
+  const s = String(label || '').toLowerCase();
+  if (/냉장|fridge|refrig/.test(s)) return 'fridge';
+  if (/식기|dish/.test(s)) return 'dishwasher';
+  return null;
+}
+
+/** 모듈 한 칸 → 영어 종류 구절. attached 는 이 모듈 자리에 걸린 가전 kind 목록. */
+function plannerModuleWhat(m, attached, wardrobe) {
+  if (m.kind === 'appliance') {
+    // 냉장고 자리: 요약에 냉장고가 있으면 "들어 있음", 없으면 "빈 자리" (계획서 §4.3)
+    const own = plannerApplianceOfLabel(m.label);
+    const fridge = 'opening with a built-in refrigerator, its front flush with the doors';
+    if (own === 'fridge') return attached.includes('fridge') ? fridge : 'empty opening for a refrigerator — leave it empty';
+    if (own === 'dishwasher' || attached.includes('dishwasher')) return PLANNER_APPLIANCE_ON_MODULE.dishwasher;
+    if (attached.includes('fridge')) return fridge;
+    if (attached.includes('sink')) return 'sink cabinet';
+    return 'appliance opening';
+  }
+  if (m.kind === 'open') return 'open shelving, no door';
+  const { doors, drawers } = plannerCounts(m);
+  const noun = wardrobe ? 'wardrobe unit' : 'cabinet';
+  const doorPart = doors > 1 ? `${doors}-door ${noun}` : doors === 1 ? `single-door ${noun}` : '';
+  const drawerPart = drawers > 1 ? `${drawers}-drawer stack` : drawers === 1 ? 'single drawer front' : '';
+  if (doorPart && drawerPart) return `${doorPart} over ${plannerPlural(drawers, 'drawer')}`;
+  return doorPart || drawerPart || `single-door ${noun}`;
+}
+
+/**
+ * design_spec → 번호 매긴 줄들. 모듈마다 런 왼쪽 끝 기준 [start, end) 를 매겨 가전을 붙인다.
+ * @returns {{rows:object[], loose:object[], runMm:number|null}}
+ */
+function plannerRows(spec, category) {
+  const sections = spec && spec.sections && typeof spec.sections === 'object' ? spec.sections : {};
+  const keys = DESIGN_SECTIONS.filter(
+    (k) => sections[k] && Array.isArray(sections[k].modules) && sections[k].modules.length
+  );
+  const widthOf = (sec) =>
+    sec.widthMm || sec.modules.reduce((n, m) => n + (m.widthMm || 0), 0) || null;
+
+  let runMm = spec && spec.wallRunMm ? spec.wallRunMm : null;
+  if (!runMm) {
+    const ends = keys.map((k) => (sections[k].fromLeftMm || 0) + (widthOf(sections[k]) || 0));
+    runMm = ends.length && Math.max(...ends) > 0 ? Math.max(...ends) : null;
+  }
+
+  const placed = (key, sec) => {
+    let x = sec.fromLeftMm || 0;
+    return sec.modules.map((m) => {
+      const start = x;
+      x += m.widthMm || 0;
+      return { m, section: key, start, end: x, attached: [] };
+    });
+  };
+
+  let rows;
+  if (category === 'wardrobe') {
+    // 붙박이장은 한 줄 — 구간을 왼쪽 끝 순서로 이어 붙인다.
+    const ordered = keys.slice().sort((a, b) => (sections[a].fromLeftMm || 0) - (sections[b].fromLeftMm || 0));
+    if (!ordered.length) rows = [];
+    else {
+      const heights = ordered.map((k) => sections[k].heightMm).filter(Boolean);
+      const x0 = Math.min(...ordered.map((k) => sections[k].fromLeftMm || 0));
+      const x1 = Math.max(...ordered.map((k) => (sections[k].fromLeftMm || 0) + (widthOf(sections[k]) || 0)));
+      rows = [
+        {
+          key: 'wardrobe',
+          def: PLANNER_WARDROBE_ROW,
+          heightMm: heights.length ? Math.max(...heights) : null,
+          widthMm: x1 - x0 || null,
+          fromLeftMm: ordered.some((k) => sections[k].fromLeftMm !== undefined) ? x0 : undefined,
+          items: ordered.flatMap((k) => placed(k, sections[k])),
+        },
+      ];
+    }
+  } else {
+    rows = keys.map((k) => ({
+      key: k,
+      def: PLANNER_ROWS[k],
+      heightMm: sections[k].heightMm || null,
+      widthMm: widthOf(sections[k]),
+      fromLeftMm: sections[k].fromLeftMm,
+      items: placed(k, sections[k]),
+    }));
+  }
+
+  // 가전 → 그 자리에 걸린 모듈. 못 찾으면 APPLIANCES 줄로.
+  const loose = [];
+  for (const a of Array.isArray(spec && spec.appliances) ? spec.appliances : []) {
+    if (!a || !PLANNER_APPLIANCE_ON_MODULE[a.kind]) continue;
+    const center = a.fromLeftMm !== undefined ? a.fromLeftMm + (a.widthMm || 0) / 2 : null;
+    let hit = null;
+    if (center !== null) {
+      for (const sk of PLANNER_APPLIANCE_ROWS[a.kind]) {
+        for (const row of rows) {
+          hit = row.items.find((it) => it.section === sk && it.end > it.start && center >= it.start && center < it.end);
+          if (hit) break;
+        }
+        if (hit) break;
+      }
+    }
+    if (hit) hit.attached.push(a.kind);
+    else loose.push({ kind: a.kind, center });
+  }
+  return { rows, loose, runMm };
+}
+
+/** 한 줄의 합계. 가전 칸(appliance)은 단위에서 빼고 따로 센다. */
+function plannerRowTotals(row) {
+  let units = 0, openings = 0, doors = 0, drawers = 0;
+  for (const { m } of row.items) {
+    if (m.kind === 'appliance') { openings++; continue; }
+    units++;
+    const c = plannerCounts(m);
+    doors += c.doors;
+    drawers += c.drawers;
+  }
+  return { units, openings, doors, drawers };
+}
+
+/**
+ * @param {object} c
+ * @param {string} c.category
+ * @param {object} c.designSpec   normalizeDesignSpec() 결과 (플래너 모드는 필수)
+ * @param {number} c.wallW / c.wallH
+ * @param {string|null} [c.confidence]  분석 신뢰도. null 이고 벽이 기본값(3000×2400)이면 분석 실패로 본다
+ * @param {string} [c.existing]   분석이 읽은 기존 가구
+ * @param {string} [c.site] / [c.siteNotes] / [c.tile]   분석 결과 (설치 프롬프트와 같은 문단)
+ * @param {string} [c.doorColor] / [c.doorFinish]  마감이 없을 때의 옛 값
+ * @param {boolean} [c.massing]   IMAGE C(3/4 렌더)가 함께 가는가
+ * @param {string} [c.aspect]     결과 비율 (PLANNER_ASPECTS)
+ */
+export function buildPlannerPrompt(c) {
+  const key = resolveCategory(c.category);
+  const kitchen = KITCHEN_CATEGORIES.includes(key);
+  const spec = c.designSpec && typeof c.designSpec === 'object' ? c.designSpec : {};
+  const aspect = resolvePlannerAspect(c.aspect);
+  const massing = !!c.massing;
+  // 분석이 실패하면 parseAnalysis 기본값(3000×2400, confidence null) 이 남는다 — 그 벽으로 % 를 말하지 않는다.
+  const wallW = Number(c.wallW) || 0;
+  const wallKnown =
+    wallW > 0 && !(c.confidence == null && c.wallW === 3000 && c.wallH === 2400);
+
+  // ── 세 장의 이름과 역할 ──
+  const images = [
+    `You receive ${massing ? 'three' : 'two'} images.`,
+    `IMAGE A — ROOM PHOTO: the customer's real room. Edit this photo. Keep its camera, walls, ceiling, floor, windows and lighting exactly as photographed.`,
+    `IMAGE B — FRONT ELEVATION from our planner: the exact cabinet design to build, seen straight on.`,
+  ];
+  if (massing) {
+    images.push(
+      `IMAGE C — 3/4 VIEW of the same design: shows depth, side panels${kitchen ? ' and the countertop edge' : ''}.`,
+      `IMAGE B and IMAGE C are design references. Do not paste them into the photo and do not copy their plain white background or flat look. Build the real cabinets they show, in the room of IMAGE A.`
+    );
+  } else {
+    images.push(
+      `IMAGE B is a design reference. Do not paste it into the photo and do not copy its plain white background or flat look. Build the real cabinets it shows, in the room of IMAGE A.`
+    );
+  }
+
+  const task = `TASK: install this ${PLANNER_SUBJECT[key] || 'built-in furniture'} on the main wall of IMAGE A as a real, finished installation.`;
+
+  // ── FIXED GEOMETRY — 줄마다 번호·폭·%·종류, 줄 끝 합계 ──
+  const { rows, loose, runMm } = plannerRows(spec, key);
+  const geo = [];
+  const checks = [];
+  if (rows.length) {
+    geo.push('FIXED GEOMETRY — left to right, exactly as IMAGE B shows:');
+    for (const row of rows) {
+      const head = [];
+      if (row.heightMm) head.push(`${row.heightMm} mm high`);
+      if (row.widthMm) {
+        head.push(
+          `${row.widthMm} mm long` +
+            (wallKnown ? ` — ${Math.min(100, plannerPct(row.widthMm, wallW))} % of the wall` : '')
+        );
+      }
+      if (row.fromLeftMm === 0) head.push('starts at the left corner');
+      else if (row.fromLeftMm > 0)
+        head.push(`starts ${row.fromLeftMm} mm from the left end of the run`);
+      geo.push(`  ${row.def.title}${head.length ? ` (${head.join(', ')})` : ''}:`);
+
+      const lines = row.items.map((it, i) => {
+        const id = `${row.def.prefix}${i + 1}`;
+        let size = '';
+        if (it.m.widthMm) {
+          size = `${String(it.m.widthMm).padStart(4)} mm`;
+          if (runMm) size += ` (${plannerPct(it.m.widthMm, runMm)} %${i === 0 ? ' of the run' : ''})`;
+        }
+        let what = plannerModuleWhat(it.m, it.attached, key === 'wardrobe');
+        // 가전 칸은 냉장고·식세기를 이미 제 이름으로 말했다 — 싱크·쿡탑·후드만 덧붙인다.
+        const extra = it.attached.filter(
+          (k) => !(it.m.kind === 'appliance' && (k === 'fridge' || k === 'dishwasher'))
+        );
+        what += extra.map((k) => `, ${PLANNER_APPLIANCE_ON_MODULE[k]}`).join('');
+        return { head: `${id.padEnd(3)} ${size}`.trimEnd(), what };
+      });
+      const pad = Math.max(...lines.map((l) => l.head.length)) + 2;
+      for (const l of lines) geo.push(`    ${l.head.padEnd(pad)}${l.what}`);
+
+      const t = plannerRowTotals(row);
+      const unitWord = plannerPlural(t.units, row.def.unit);
+      const openWord = plannerPlural(t.openings, 'appliance opening');
+      // 가전 칸만 있는 줄(냉장고 자리 하나)은 "0 tall units" 라고 말하지 않는다
+      const whatWord = t.units ? (t.openings ? `${unitWord} and ${openWord}` : unitWord) : t.openings ? openWord : unitWord;
+      const showDrawers = row.def.drawersAlways || t.drawers > 0;
+      geo.push(
+        `    → ${whatWord}, ${plannerPlural(t.doors, 'door')}${showDrawers ? `, ${plannerPlural(t.drawers, 'drawer')}` : ''}.`
+      );
+      const counts = [];
+      if (t.doors) counts.push(plannerPlural(t.doors, 'door'));
+      if (t.drawers) counts.push(plannerPlural(t.drawers, 'drawer'));
+      checks.push(
+        t.units || !t.openings
+          ? `${unitWord}${t.openings ? ` (plus ${openWord})` : ''}${counts.length ? ` with ${counts.join(' and ')}` : ''}`
+          : `${openWord} in the ${row.def.title.toLowerCase()}`
+      );
+    }
+  } else {
+    geo.push(
+      'FIXED GEOMETRY: build exactly the cabinets IMAGE B shows, left to right, with the same number of units, doors and drawers.'
+    );
+  }
+  if (loose.length) {
+    const bits = loose.map(
+      (a) =>
+        PLANNER_APPLIANCE_LOOSE[a.kind] +
+        (a.center !== null && runMm ? `, centred at about ${plannerPct(a.center, runMm)} % of the run` : '')
+    );
+    geo.push(`  APPLIANCES: ${bits.join('; ')}.`);
+  }
+  const listJoin = (a) =>
+    a.length <= 1 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`;
+  const countCheck = checks.length
+    ? `\nCOUNT CHECK: exactly ${listJoin(checks)} — the same numbers IMAGE B shows.`
+    : '';
+  // 사진이 방의 진실이다 — 순서·개수는 구속, mm·% 는 참고 (§4.1-4, design-spec-prompt.md 와 같은 규칙).
+  const authority =
+    '\nThe order and the counts are binding. The millimetres and percentages are guidance: if they disagree with the real wall in IMAGE A, keep the order and the counts and scale the widths to fit.';
+
+  // ── 남는 벽 — 기존 가구는 지우고 빈 벽 (§11-①′) ──
+  const existing = c.existing ? ` (${c.existing})` : '';
+  let rest;
+  if (!wallKnown) {
+    rest = `REST OF THE WALL: remove existing furniture that is not part of this design${existing}, with no demolition marks or ghost outlines.`;
+  } else if (runMm && runMm < wallW) {
+    rest = `REST OF THE WALL: the cabinets end at ${plannerPct(runMm, wallW)} % of the wall. Remove all existing furniture on the rest of the wall${existing} and leave it as a smooth finished empty wall, with no demolition marks or ghost outlines.`;
+  } else {
+    rest = `REST OF THE WALL: the cabinets fill the main wall. Remove all existing furniture on it${existing} that is not part of this design, with no demolition marks or ghost outlines.`;
+  }
+
+  // ── 마감 — 설치 프롬프트의 designFinishPhrase 를 그대로 ──
+  const fin = spec.finishes || null;
+  const door = designFinishPhrase(fin && fin.door) || `${c.doorColor || 'white'} ${c.doorFinish || 'matte'}`;
+  const body = designFinishPhrase(fin && fin.body);
+  const top = designFinishPhrase(fin && fin.top);
+  const materials =
+    `MATERIALS: fronts ${door}, the same on every door and drawer` +
+    (body ? `; carcass and visible sides ${body}` : '') +
+    (top ? `; countertop ${top}` : '') +
+    '.';
+
+  // ── 금지 — 첫 실측 실패를 이름으로 ──
+  const present = new Set(
+    (Array.isArray(spec.appliances) ? spec.appliances : []).map((a) => a && a.kind)
+  );
+  for (const row of rows) {
+    for (const { m } of row.items) {
+      if (m.kind === 'appliance') {
+        const k = plannerApplianceOfLabel(m.label);
+        if (k) present.add(k);
+      }
+    }
+  }
+  const absent = PLANNER_FORBIDDEN_APPLIANCES.filter(([k]) => !k || !present.has(k)).map(([, n]) => n);
+  const article = absent.length && /^[aeiou]/.test(absent[0]) ? 'an' : 'a';
+  const forbidAppliances =
+    kitchen || key === 'fridge'
+      ? absent.length
+        ? `add ${article} ${absent.length === 1 ? absent[0] : `${absent.slice(0, -1).join(', ')} or ${absent[absent.length - 1]}`} that is not listed`
+        : 'add any appliance that is not listed'
+      : 'add any appliance, sink or hood';
+  const doNot =
+    `DO NOT: add or remove any cabinet, door or drawer, or change how many doors any unit has; ${forbidAppliances}; ` +
+    `keep any existing cabinet or any part of the old furniture; add handles or knobs; open any door or drawer; change the camera; ` +
+    `paste IMAGE B${massing ? ' or IMAGE C' : ''} into the photo; add text, labels or watermarks.`;
+
+  const output = `OUTPUT: one photorealistic photograph of the finished room, ${aspect}.`;
+
+  return [
+    images.join('\n'),
+    task,
+    geo.join('\n') + countCheck + authority,
+    rest,
+    `${materials}\n${HANDLES_LINE}${sitePhrase(c)}${tilePhrase(c)}`,
+    doNot,
+    output,
+  ].join('\n\n');
+}
+
 // ─── 3. 검사 ───
 /** 모든 실행이 받는 공통 코드. */
 export const QC_ISSUE_CODES = Object.keys(QC_FIXES);
@@ -622,10 +1025,25 @@ export const REALIZE_QC_FIXES = {
     'Parts of the furniture still look like a flat pasted mockup. Re-render every front as real material with grain and sheen, add depth (side panels, countertop edge), contact shadows and reflections — without moving any edge.',
 };
 
+/**
+ * 플래너 모드(mode:'planner')에서만 쓰는 검사 코드. 2026-10-08, 계획서 §6.2 · §10.
+ * 플래너 모드는 재시도하지 않는다 (§4.5) — 이 코드는 images[base].qc 에 **기록만** 된다.
+ * 문장은 다른 코드와 같은 모양으로 둔다 (재시도를 다시 켤 때 FIX 로 그대로 쓴다).
+ *   existing_left    도면 밖 남는 벽에 기존 가구가 남았다 — 첫 실측 실패의 직접 원인
+ *   pasted_reference 렌더(IMAGE B·C)를 사진에 붙여 버렸다 — 옛 flat_mockup 의 새 이름
+ */
+export const PLANNER_QC_FIXES = {
+  existing_left:
+    'Remove every piece of old furniture that is not part of the new design from the main wall and leave that part of the wall as a smooth finished empty wall, with no demolition marks or ghost outlines.',
+  pasted_reference:
+    'Do not paste the design references into the photo. Build the cabinets as real furniture in the room: real materials, depth, contact shadows and the room\'s own perspective and lighting — no white background patches or flat render shading.',
+};
+
 export const ALL_QC_ISSUE_CODES = [
   ...QC_ISSUE_CODES,
   ...Object.keys(DESIGN_SPEC_QC_FIXES),
   ...Object.keys(REALIZE_QC_FIXES),
+  ...Object.keys(PLANNER_QC_FIXES),
 ];
 
 /** 설치 결과 한 장을 보고 규칙 위반을 JSON 으로 판정한다. 관대하게 — 명백할 때만 실패. */
@@ -640,6 +1058,11 @@ export function buildQcPrompt(c) {
   // 실사화 모드에서만: 붙여 놓은 티가 남았는지 본다
   const realizeCode = c.realize
     ? '\n- flat_mockup: any part of the furniture still looks like a flat pasted picture — no depth, no contact shadow, cut-out edges, or a texture that ignores the room lighting'
+    : '';
+  // 플래너 모드에서만: 남는 벽의 기존 가구, 붙인 렌더. 아니면 빈 문자열 — 옛 검사 프롬프트는 바이트 그대로.
+  const plannerCodes = c.planner
+    ? '\n- existing_left: old furniture that is not part of the new design (old cabinets, shelves, a hood or appliances) still stands on the main wall beside or around the new cabinets' +
+      '\n- pasted_reference: part of the image looks like a flat design render pasted onto the photo — a plain white background patch, flat grey shading, or furniture that ignores the room perspective and lighting'
     : '';
   return `You are checking an AI-rendered photo of a built-in ${CATEGORIES[key].label} (${key}) installed in a real room.${layoutBlock}
 Answer JSON only: {"ok":boolean,"issues":[string],"note":string}
@@ -657,7 +1080,7 @@ Report an issue ONLY when it is clearly visible. Use these codes:
     KITCHEN_CATEGORIES.includes(key)
       ? '\n- faucet_missing: there is a sink but no faucet/tap behind it'
       : ''
-  }${layoutCode}${realizeCode}
+  }${layoutCode}${realizeCode}${plannerCodes}
 ok is true when issues is empty. note is one short sentence.`;
 }
 

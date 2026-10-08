@@ -17,7 +17,13 @@
 
 import { geminiModel, probeRoutes } from './gemini.js';
 import { proxyStub } from './proxy.js';
-import { DEFAULT_STYLE, STYLES, normalizeDesignSpec, resolveCategory } from './prompts.js';
+import {
+  DEFAULT_STYLE,
+  STYLES,
+  normalizeDesignSpec,
+  resolveCategory,
+  resolvePlannerAspect,
+} from './prompts.js';
 import { verifyJwt, AuthError } from './auth.js';
 import { consumeCredit, refundCredit, InsufficientCredit } from './credits.js';
 import {
@@ -109,6 +115,22 @@ function normalizeRefs(list) {
     )
     .filter(Boolean)
     .slice(0, MAX_REFS);
+}
+
+/**
+ * 플래너 모드의 도면 렌더: [{role:'elevation'|'massing', base64, mimeType|mime}].
+ * 역할마다 한 장(앞의 것), 최대 2장. 다른 역할·빈 값은 버린다. 순서는 elevation → massing.
+ */
+const RENDER_ROLES = ['elevation', 'massing'];
+function normalizeRenders(list) {
+  if (!Array.isArray(list)) return [];
+  const byRole = {};
+  for (const r of list) {
+    if (!r || typeof r !== 'object' || !RENDER_ROLES.includes(r.role)) continue;
+    if (typeof r.base64 !== 'string' || !r.base64 || byRole[r.role]) continue;
+    byRole[r.role] = { role: r.role, base64: r.base64, mimeType: r.mimeType || r.mime || 'image/png' };
+  }
+  return RENDER_ROLES.filter((k) => byRole[k]).map((k) => byRole[k]);
 }
 
 function isStale(row) {
@@ -240,6 +262,9 @@ async function createGeneration(request, env, headers) {
     reference_images,
     parent_id,
     title,
+    mode,
+    renders,
+    aspect,
   } = body;
 
   // 재생성: 부모의 입력을 그대로 쓴다 (업로드 생략).
@@ -250,6 +275,18 @@ async function createGeneration(request, env, headers) {
       throw new NotFoundError('원본 생성 결과를 찾을 수 없습니다');
   }
   if (!parent && !room_image) throw new ValidationError('room_image is required');
+
+  // 플래너 모드 (2026-10-08, docs/01-plan/planner-render-realize.plan.md §6): 방 사진 + 도면 렌더 + 도면 요약.
+  //   realize·engine·control_*·reference_images 는 받지 않는다. 재생성이면 원본의 모드를 잇는다.
+  //   모드가 아니면 이 블록은 아무것도 하지 않는다 — 옛 경로는 바이트 그대로 (route 시험이 지킨다).
+  const planner = mode === 'planner' || (mode == null && !!(parent && parent.options && parent.options.mode === 'planner'));
+  if (planner) {
+    return await createPlannerGeneration(request, env, headers, {
+      user, parent, room_image, image_type, rawCategory, design_style, door_color, door_finish,
+      wall_width_override, fridge_options, design_spec, renders, aspect, title,
+    });
+  }
+
   // ControlNet 경로 (2026-09-22): 구조 조건 이미지가 있어야 한다. 크레딧 차감 전에 막는다.
   const wantControlNet = engine === 'controlnet' || (engine == null && !!(parent && parent.options && parent.options.engine === 'controlnet'));
   if (wantControlNet && !parent && !control_image) throw new ValidationError('control_image is required when engine is controlnet');
@@ -275,6 +312,119 @@ async function createGeneration(request, env, headers) {
     ...(wantControlNet ? { engine: 'controlnet', control_size: sizeOf(control_size) || (parent && parent.options && parent.options.control_size) || null } : {}),
   };
 
+  return await enqueueGeneration(request, env, headers, {
+    user,
+    parent,
+    category,
+    options,
+    title,
+    uploadInputs: async (prefix) => {
+      const room = await uploadObject(
+        env,
+        `${prefix}/room.${extOf(image_type)}`,
+        room_image,
+        image_type
+      );
+      const refs = [];
+      const list = normalizeRefs(reference_images);
+      for (let i = 0; i < list.length; i++) {
+        const r = list[i];
+        try {
+          const up = await uploadObject(
+            env,
+            `${prefix}/ref-${i + 1}.${extOf(r.mimeType)}`,
+            r.base64,
+            r.mimeType
+          );
+          refs.push({ path: up.path, url: up.url, mime: r.mimeType, role: r.role || 'style' });
+        } catch (e) {
+          console.warn('[Generate] ref upload skipped:', e.message);
+        }
+      }
+      // 구조 조건 이미지 (ControlNet) — 방 사진과 같은 화소 공간의 윤곽선/깊이 PNG
+      let control = null;
+      if (control_image) {
+        try {
+          const up = await uploadObject(env, `${prefix}/control.${extOf(control_type)}`, control_image, control_type);
+          control = { path: up.path, url: up.url, mime: control_type };
+        } catch (e) {
+          console.warn('[Generate] control upload failed:', e.message);
+        }
+      }
+      return { room: { path: room.path, url: room.url, mime: image_type }, refs, ...(control ? { control } : {}) };
+    },
+  });
+}
+
+/**
+ * 플래너 모드 접수 (mode:'planner', 2026-10-08 · 계획서 §6.1).
+ *   필수: room_image(재생성이면 원본 것), design_spec(원본 것을 이어도 된다), renders 의 elevation.
+ *   선택: renders 의 massing, aspect (허용값 밖이면 16:9).
+ *   받지 않음: realize · engine · control_* · reference_images.
+ * 검증은 전부 크레딧 차감 전에 한다 — 틀린 요청으로 20 크레딧이 날아가지 않는다.
+ * 추천안은 항상 끈다 (한 장이 결과물이다).
+ */
+async function createPlannerGeneration(request, env, headers, p) {
+  const { user, parent, room_image, image_type } = p;
+  const category = resolveCategory(p.rawCategory || (parent && parent.category) || 'sink');
+  const spec = resolveDesignSpec(p.design_spec, parent, category);
+  if (!spec) {
+    const e = new ValidationError('design_spec is required when mode is planner');
+    e.code = 'bad_design_spec';
+    throw e;
+  }
+  const renders = normalizeRenders(p.renders);
+  const parentRenders = parent && parent.inputs && Array.isArray(parent.inputs.renders) ? parent.inputs.renders : [];
+  const hasElevation = parent
+    ? parentRenders.some((r) => r && r.role === 'elevation')
+    : renders.some((r) => r.role === 'elevation');
+  if (!hasElevation) {
+    const e = new ValidationError('renders must include an elevation image when mode is planner');
+    e.code = 'missing_render';
+    throw e;
+  }
+  const parentAspect = parent && parent.options && parent.options.aspect;
+  const options = {
+    design_style: STYLES[p.design_style] ? p.design_style : DEFAULT_STYLE,
+    door_color: p.door_color,
+    door_finish: p.door_finish,
+    wall_width_override: Number(p.wall_width_override) || null,
+    fridge_options: category === 'fridge' ? p.fridge_options : null,
+    design_spec: spec,
+    mode: 'planner',
+    aspect: resolvePlannerAspect(p.aspect != null ? p.aspect : parentAspect),
+    variants: false,
+  };
+
+  return await enqueueGeneration(request, env, headers, {
+    user,
+    parent,
+    category,
+    options,
+    title: p.title,
+    uploadInputs: async (prefix) => {
+      const room = await uploadObject(env, `${prefix}/room.${extOf(image_type)}`, room_image, image_type);
+      const saved = [];
+      for (const r of renders) {
+        try {
+          const up = await uploadObject(env, `${prefix}/render-${r.role}.${extOf(r.mimeType)}`, r.base64, r.mimeType);
+          saved.push({ role: r.role, path: up.path, url: up.url, mime: r.mimeType });
+        } catch (e) {
+          // 입면은 설계 그 자체다 — 없으면 잡을 만들지 않는다 (차감은 되돌린다). 3/4 뷰는 없어도 간다.
+          if (r.role === 'elevation') throw e;
+          console.warn('[Generate] massing render upload skipped:', e.message);
+        }
+      }
+      return { room: { path: room.path, url: room.url, mime: image_type }, refs: [], renders: saved };
+    },
+  });
+}
+
+/**
+ * 접수 공통 꼬리: 크레딧 차감 → 행 생성 → 입력 업로드(재생성이면 원본 입력) → 잡 시작 → 202.
+ * 어디서든 실패하면 차감을 되돌리고 행을 지운다.
+ */
+async function enqueueGeneration(request, env, headers, { user, parent, category, options, title, uploadInputs }) {
   // 크레딧 차감 — 사용자 토큰으로, 어떤 업로드보다 먼저. 뒤에서 실패하면 같은 토큰으로 되돌린다.
   let credit;
   try {
@@ -313,40 +463,7 @@ async function createGeneration(request, env, headers) {
 
     let inputs = parent ? parent.inputs : null;
     if (!parent) {
-      const prefix = `${user.id}/${row.id}`;
-      const room = await uploadObject(
-        env,
-        `${prefix}/room.${extOf(image_type)}`,
-        room_image,
-        image_type
-      );
-      const refs = [];
-      const list = normalizeRefs(reference_images);
-      for (let i = 0; i < list.length; i++) {
-        const r = list[i];
-        try {
-          const up = await uploadObject(
-            env,
-            `${prefix}/ref-${i + 1}.${extOf(r.mimeType)}`,
-            r.base64,
-            r.mimeType
-          );
-          refs.push({ path: up.path, url: up.url, mime: r.mimeType, role: r.role || 'style' });
-        } catch (e) {
-          console.warn('[Generate] ref upload skipped:', e.message);
-        }
-      }
-      // 구조 조건 이미지 (ControlNet) — 방 사진과 같은 화소 공간의 윤곽선/깊이 PNG
-      let control = null;
-      if (control_image) {
-        try {
-          const up = await uploadObject(env, `${prefix}/control.${extOf(control_type)}`, control_image, control_type);
-          control = { path: up.path, url: up.url, mime: control_type };
-        } catch (e) {
-          console.warn('[Generate] control upload failed:', e.message);
-        }
-      }
-      inputs = { room: { path: room.path, url: room.url, mime: image_type }, refs, ...(control ? { control } : {}) };
+      inputs = await uploadInputs(`${user.id}/${row.id}`);
       await updateById(env, 'generations', row.id, { inputs });
     }
 
@@ -368,7 +485,7 @@ async function createGeneration(request, env, headers) {
     if (!started.ok) throw new Error(`job start ${started.status}`);
 
     console.log(
-      `[Generate] queued ${row.id} user=${user.id} category=${category} refs=${(inputs.refs || []).length} spec=${options.design_spec ? 'yes' : 'no'}`
+      `[Generate] queued ${row.id} user=${user.id} category=${category} refs=${(inputs.refs || []).length} spec=${options.design_spec ? 'yes' : 'no'}${options.mode ? ` mode=${options.mode} renders=${(inputs.renders || []).map((r) => r.role).join('+') || '-'}` : ''}`
     );
     return json(
       {
@@ -468,10 +585,11 @@ async function deleteGeneration(request, env, id) {
   const paths = [];
   if (row.inputs && row.inputs.room) paths.push(row.inputs.room.path);
   for (const r of (row.inputs && row.inputs.refs) || []) paths.push(r.path);
+  for (const r of (row.inputs && row.inputs.renders) || []) paths.push(r.path); // 플래너 모드 도면 렌더
   for (const im of row.images || []) paths.push(im.path);
   // 재생성 자식이 같은 입력을 가리키면 입력 파일은 남긴다.
   const child = await selectOne(env, 'generations', { parent_id: `eq.${id}`, select: 'id' });
-  const toRemove = child ? paths.filter((p) => !/\/(room|ref-\d+)\./.test(p)) : paths;
+  const toRemove = child ? paths.filter((p) => !/\/(room|ref-\d+|render-[a-z]+)\./.test(p)) : paths;
   await removeObjects(env, toRemove);
   await deleteById(env, 'generations', id);
   return { success: true };
