@@ -495,6 +495,10 @@ function designFinishPhrase(f) {
 }
 
 // ─── 2. 설치 ───
+/** 참고 이미지가 두 장을 이어 붙인 사진이어도 결과는 한 장이다. 설치 문장과 split_frame FIX 가 함께 쓴다. */
+const SINGLE_FRAME =
+  'A reference may itself be a collage, split screen or before/after pair — the result is still one single photo, never two panels side by side.';
+
 /** QC 가 낸 문제 코드 → 재시도 프롬프트에 붙일 FIX 문장. */
 export const QC_FIXES = {
   handles:
@@ -577,11 +581,11 @@ export function buildInstallPrompt(c, opts = {}) {
     : `\nIf furniture already exists on that wall, remove it and replace it cleanly with no demolition marks.`;
   const refs =
     c.refCount > 0
-      ? `\nThe additional ${c.refCount === 1 ? 'image is a' : 'images are'} style reference: match the door colour, material grain direction, sheen and overall mood of the reference fronts. Never copy the reference layout, room or camera.`
+      ? `\nThe additional ${c.refCount === 1 ? 'image is a' : 'images are'} style reference: match the door colour, material grain direction, sheen and overall mood of the reference fronts. Never copy the reference layout, room or camera. ${SINGLE_FRAME}`
       : '';
   const site = sitePhrase(c);
   const tile = tilePhrase(c);
-  const fixes = (opts.fix || []).map((k) => QC_FIXES[k] || DESIGN_SPEC_QC_FIXES[k] || REALIZE_QC_FIXES[k]).filter(Boolean);
+  const fixes = (opts.fix || []).map((k) => QC_FIXES[k] || DESIGN_SPEC_QC_FIXES[k] || REALIZE_QC_FIXES[k] || REFS_QC_FIXES[k]).filter(Boolean);
   const fixBlock = fixes.length
     ? `\nFIX (the previous attempt failed these checks):\n- ${fixes.join('\n- ')}`
     : '';
@@ -1039,11 +1043,21 @@ export const PLANNER_QC_FIXES = {
     'Do not paste the design references into the photo. Build the cabinets as real furniture in the room: real materials, depth, contact shadows and the room\'s own perspective and lighting — no white background patches or flat render shading.',
 };
 
+/**
+ * 참고 이미지가 있을 때만 쓰는 검사 코드. 2026-10-08.
+ * 참고 이미지 자체가 두 장을 이어 붙인 사진(전·후, 좌우 분할)이면 모델이 그 틀을 따라
+ * 결과도 두 장짜리로 그렸다. 참고가 없으면 검사 프롬프트는 예전 그대로다.
+ */
+export const REFS_QC_FIXES = {
+  split_frame: `Output one single continuous photograph of the room from the first photo's camera. ${SINGLE_FRAME}`,
+};
+
 export const ALL_QC_ISSUE_CODES = [
   ...QC_ISSUE_CODES,
   ...Object.keys(DESIGN_SPEC_QC_FIXES),
   ...Object.keys(REALIZE_QC_FIXES),
   ...Object.keys(PLANNER_QC_FIXES),
+  ...Object.keys(REFS_QC_FIXES),
 ];
 
 /** 설치 결과 한 장을 보고 규칙 위반을 JSON 으로 판정한다. 관대하게 — 명백할 때만 실패. */
@@ -1064,6 +1078,11 @@ export function buildQcPrompt(c) {
     ? '\n- existing_left: old furniture that is not part of the new design (old cabinets, shelves, a hood or appliances) still stands on the main wall beside or around the new cabinets' +
       '\n- pasted_reference: part of the image looks like a flat design render pasted onto the photo — a plain white background patch, flat grey shading, or furniture that ignores the room perspective and lighting'
     : '';
+  // 참고 이미지가 있을 때만: 두 장을 이어 붙인 결과인지 본다
+  const refsCode =
+    c.refCount > 0
+      ? '\n- split_frame: the image is two or more photos joined into one frame — a split screen, collage, side-by-side or before/after panels, or a seam dividing two different scenes'
+      : '';
   return `You are checking an AI-rendered photo of a built-in ${CATEGORIES[key].label} (${key}) installed in a real room.${layoutBlock}
 Answer JSON only: {"ok":boolean,"issues":[string],"note":string}
 Report an issue ONLY when it is clearly visible. Use these codes:
@@ -1080,7 +1099,7 @@ Report an issue ONLY when it is clearly visible. Use these codes:
     KITCHEN_CATEGORIES.includes(key)
       ? '\n- faucet_missing: there is a sink but no faucet/tap behind it'
       : ''
-  }${layoutCode}${realizeCode}${plannerCodes}
+  }${layoutCode}${realizeCode}${plannerCodes}${refsCode}
 ok is true when issues is empty. note is one short sentence.`;
 }
 
