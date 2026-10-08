@@ -45,6 +45,8 @@ const SOURCES = [
   'mypage.html',
   // 참고 이미지: 확정 흐름과 관리자 사이드바 (reference-images.test.js)
   'admin/reference-images.html',
+  // 내 연출컷: 목록 쿼리(내부 확인용 거름)가 여기 산다.
+  'my-designs.html',
 ];
 
 /** 여기 아래는 통째로 훑는다 — 파일이 늘어도 가드가 따라간다 */

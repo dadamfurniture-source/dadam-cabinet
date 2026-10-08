@@ -384,6 +384,9 @@
               'id,parent_id,status,progress,step_label,error,category,title,options,quote,images,is_favorite,consent_training,share_expires_at,share_revoked_at,created_at,completed_at'
             )
             .eq('user_id', user.id)
+            // 도면과 어긋난 플래너 결과(options.internal_only)는 내부 확인용 — 목록에 내지 않는다 (계획서 §6.3).
+            //   .not(…eq.true) 는 쓰지 않는다: 키가 없는 행(대부분)은 NULL 이라 NOT (NULL = 'true') 가 NULL → 전부 빠진다.
+            .or('options->>internal_only.is.null,options->>internal_only.neq.true')
             .order('created_at', { ascending: false })
             .limit(200);
           if (res.error) {

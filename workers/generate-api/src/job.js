@@ -13,6 +13,7 @@
  *   - alarm 안에서 던지지 않는다. 실패는 attempt 를 올리고 15초 뒤 재시도, 2회 넘으면 failed.
  *   - 종료 상태(done/failed)에서는 storage 를 비우고 alarm 을 지운다.
  *   - 기본안이 나왔으면 추천안이 0장이어도 done (환불 없음). 기본안 실패만 환불.
+ *   - 플래너 모드는 대조가 ok 가 아니면 done 과 함께 options.internal_only = true (계획서 §6.3).
  */
 
 import { callGemini } from './gemini.js';
@@ -37,7 +38,7 @@ import {
   resolveCategory,
 } from './prompts.js';
 import { buildQuote } from './quote.js';
-import { updateById, uploadObject, fetchObjectBase64, extOf } from './supabase.js';
+import { selectOne, updateById, uploadObject, fetchObjectBase64, extOf } from './supabase.js';
 import { refundCreditService } from './credits.js';
 import { LAYOUT_CATEGORIES, LAYOUT_SCHEMA, buildLayoutPrompt, normalizeLayout } from './layout.js';
 import { callClaudeJson } from './claude.js';
@@ -140,6 +141,8 @@ export class GenerateJob {
   async fail(job, ck, reason) {
     const hasBase = ck.images && ck.images.base;
     try {
+      // 기본안이 있어 done 으로 닫을 때도 내부 확인용 표시는 같은 패치에 싣는다 — 대조 전에 죽었으면 ok 가 아니다
+      const internal = hasBase ? await internalOnlyPatch(this.env, job, ck) : {};
       await updateById(this.env, 'generations', job.id, {
         status: hasBase ? 'done' : 'failed', // 기본안이 있으면 결과로 인정한다
         progress: hasBase ? 100 : ck.step === 'analyzing' ? 10 : 30,
@@ -147,6 +150,7 @@ export class GenerateJob {
         error: reason,
         completed_at: new Date().toISOString(),
         ...(hasBase ? { images: slotList(ck.images) } : {}),
+        ...internal,
       });
     } catch (e) {
       console.error(`[Job ${job.id}] fail-patch failed:`, e.message);
@@ -169,6 +173,29 @@ export function jobStub(env, generationId) {
   if (!env.GENERATE_JOB) return null;
   const id = env.GENERATE_JOB.idFromName(generationId);
   return env.GENERATE_JOB.get(id, { locationHint: 'enam' });
+}
+
+/**
+ * 내부 확인용 표시 (2026-10-08, 계획서 docs/01-plan/planner-render-realize.plan.md §6.3 · §11-⑦).
+ *   플래너 모드 결과가 도면과 맞는다고 확인되지 않았으면(대조 ok 가 아님 · 대조 실패 · 대조를 못 함)
+ *   고객에게 내보내지 않는다 — 공유 409, 내 연출컷에서 숨김. 새 열 없이 options 에 둔다.
+ *   PATCH 는 options 를 통째로 바꾸므로 지금 행의 options 를 읽어 키 하나만 더한다
+ *   (못 읽으면 잡이 받은 options 에 더한다 — 접수 때 행에 넣은 것과 같다).
+ *   ok 면 키를 넣지 않는다. 플래너가 아니면 아무것도 하지 않는다. 크레딧은 그대로다.
+ * @returns {Promise<{options?: object}>} 마무리 패치에 섞을 조각
+ */
+export async function internalOnlyPatch(env, job, ck) {
+  const opts = job.options || {};
+  if (opts.mode !== 'planner') return {};
+  if (ck.verify && ck.verify.ok === true) return {};
+  let current = opts;
+  try {
+    const row = await selectOne(env, 'generations', { id: `eq.${job.id}`, select: 'options' });
+    if (row && row.options && typeof row.options === 'object') current = row.options;
+  } catch (e) {
+    console.warn(`[Job ${job.id}] options read failed, using job options:`, e.message);
+  }
+  return { options: { ...current, internal_only: true } };
 }
 
 // ─── 파이프라인 ───
@@ -503,6 +530,8 @@ async function runPipeline(env, job, ck, save) {
   // ═══ 5. 마무리 ═══
   const variantCount = Object.keys(ck.images).filter((k) => /^v\d$/.test(k)).length;
   const failedSlots = Object.keys(variantErrors);
+  // 플래너 모드 — 대조가 ok 가 아니면 done 과 같은 패치에 internal_only 를 싣는다 (done 인데 표시가 없는 틈을 두지 않는다)
+  const internal = await internalOnlyPatch(env, job, ck);
   await updateById(env, 'generations', job.id, {
     status: 'done',
     progress: 100,
@@ -517,6 +546,7 @@ async function runPipeline(env, job, ck, save) {
     model: engine === 'controlnet' ? controlNetModel(env) : env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image',
     elapsed_ms: Date.now() - startedAt,
     completed_at: new Date().toISOString(),
+    ...internal,
   });
   console.log(
     `[Job ${job.id}] done: variants ${variantCount}/${VARIANT_COUNT}, ${Date.now() - startedAt}ms`

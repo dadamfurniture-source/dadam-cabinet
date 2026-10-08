@@ -63,9 +63,16 @@ export function shareExpiryIso(env, validDays) {
   return d.toISOString();
 }
 
+/** 도면과 어긋난 플래너 결과 — 내부 확인용 (계획서 §6.3). 발급도 열람도 막는다. */
+export function isInternalOnly(row) {
+  return !!(row && row.options && row.options.internal_only === true);
+}
+
 /** 열람 가능 여부. 사유와 상태코드를 함께 돌려준다. */
 export function checkShareAccessible(row, now = new Date()) {
   if (!row) return { ok: false, reason: 'not_found', status: 404 };
+  // 이미 나간 링크라도 내부 확인용이면 닫는다 — 회수·만료와 같은 410 (링크는 있었지만 더는 열 수 없다)
+  if (isInternalOnly(row)) return { ok: false, reason: 'internal_only', status: 410 };
   if (row.share_revoked_at) return { ok: false, reason: 'share_revoked', status: 410 };
   if (row.share_expires_at && new Date(row.share_expires_at) < now)
     return { ok: false, reason: 'share_expired', status: 410 };

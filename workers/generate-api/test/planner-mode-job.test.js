@@ -49,6 +49,8 @@ function install({ qcIssues = ['existing_left'] } = {}) {
       return new Response(Buffer.from(BYTES[name] || 'X'), { headers: { 'Content-Type': mime } });
     }
     if (u.includes('/rest/v1/generations')) {
+      // 내부 확인용 표시(§6.3)가 지금 행의 options 를 읽는다
+      if ((init.method || 'GET') === 'GET') return jsonRes([{ id: ROW_ID, options: PLANNER_OPTIONS }]);
       calls.patched.push(JSON.parse(init.body));
       return jsonRes([{ id: ROW_ID }]);
     }
@@ -158,6 +160,8 @@ test('planner: [방, 입면, 3/4] + 프롬프트 v2 + 온도 0.2 + 16:9, QC 에 
   const verifyPatch = calls.patched.find((p) => p.layout);
   assert.ok(verifyPatch, '대조 결과를 남긴다');
   assert.match(verifyPatch.layout.verify.error, /ANTHROPIC_API_KEY/);
+  // 대조가 ok 가 아니니 내부 확인용 (internal-only.test.js 가 자세히 본다)
+  assert.equal(last.options.internal_only, true);
   assert.equal(calls.uploads.filter((p) => /\/base\./.test(p)).length, 1);
 });
 
