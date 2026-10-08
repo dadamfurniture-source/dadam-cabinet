@@ -87,6 +87,113 @@
         font-weight: 400;
         color: var(--v5-ink);
       }
+
+      /* ── 카드 하단 바 (2026-10-08) ──
+         품목이 10개(사무실·서재·침실 추가)가 되자 공용 4열 격자가 세 줄이 되고, 공용 .v5-foot-row 의
+         높이 고정(86px) + overflow:hidden 에 셋째 줄이 잘렸다. 이 페이지에서만 5열 두 줄로 놓는다.
+         칩 38px × 2 + 간격 9px = 85px — 오른쪽 카드(SELECTED, 86px)와 하단 바 높이가 같아 두 카드가 어긋나지 않는다.
+         글자는 20% 키우고(11.5→13.8, 라벨 11→13.2) 굵게. 공용 CSS 는 my-designs 도 쓰므로 건드리지 않는다. */
+      .v5-slot-foot .v5-foot-label {
+        font-size: 13.2px;
+        font-weight: 500;
+        letter-spacing: 0.12em;
+        color: var(--v5-ink-62);
+      }
+      .v5-slot-foot .v5-foot-label .v5-foot-state {
+        color: var(--v5-ink);
+      }
+      #kinds {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        height: auto;
+        min-height: 86px;
+        overflow: visible;
+        align-content: center;
+      }
+      #kinds .v5-chip {
+        min-height: 38px;
+        padding: 8px 4px;
+        font-size: 13.8px;
+        font-weight: 500;
+        line-height: 1.2;
+        letter-spacing: 0.02em;
+        color: var(--v5-ink);
+        white-space: nowrap;
+      }
+      #kinds .v5-chip[aria-pressed='true'] {
+        color: var(--v5-invert);
+      }
+      @media (max-width: 560px) {
+        #kinds {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+
+      /* ── ③ 상세 요청 (AI 대화) — 두 카드 아래 한 줄을 다 쓴다 ── */
+      /* 페이지 격자의 섹션 간격(40) 대신 카드 사이 간격(28)으로 붙인다 — ①②③ 이 한 묶음으로 읽히게 */
+      .studio-chat {
+        margin-top: calc(var(--v5-gap) - var(--v5-section));
+        grid-template-rows: auto auto auto;
+      }
+      .studio-chat-log {
+        display: grid;
+        gap: 12px;
+        align-content: start;
+        max-height: 340px;
+        min-height: 120px;
+        overflow-y: auto;
+        padding: 4px 2px;
+      }
+      .studio-msg {
+        max-width: 78%;
+        padding: 12px 16px;
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 1.65;
+        white-space: pre-wrap;
+        word-break: keep-all;
+        overflow-wrap: anywhere;
+      }
+      .studio-msg--ai {
+        justify-self: start;
+        background: var(--v5-well);
+        color: var(--v5-ink);
+      }
+      .studio-msg--me {
+        justify-self: end;
+        background: var(--v5-ink);
+        color: var(--v5-invert);
+      }
+      .studio-msg--wait {
+        color: var(--v5-ink-45);
+      }
+      .studio-chat-input {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: stretch;
+      }
+      .studio-chat-input textarea {
+        min-height: 52px;
+        max-height: 160px;
+        resize: vertical;
+        padding: 14px 16px;
+        border: 1px solid var(--v5-line-18);
+        background: var(--v5-paper);
+        font: 400 14px/1.5 var(--v5-sans);
+        color: var(--v5-ink);
+      }
+      .studio-chat-input textarea:focus {
+        outline: 1px solid var(--v5-tan);
+        outline-offset: -1px;
+      }
+      .studio-chat-input .v5-btn {
+        min-width: 96px;
+      }
+      @media (max-width: 560px) {
+        .studio-msg {
+          max-width: 92%;
+        }
+      }
     </style>
   </head>
 
@@ -279,7 +386,7 @@
                 </div>
                 <p class="v5-hint" id="themeHint" style="margin-top: 12px"></p>
                 <p class="v5-note" style="margin-top: 10px">
-                  분위기 참고용 이미지입니다. 퍼블릭 도메인 · CC0 만 씁니다.
+                  분위기·색감 참고용 이미지입니다. 다담이 고른 사진만 씁니다.
                 </p>
               </div>
             </div>
@@ -293,6 +400,43 @@
             </div>
           </section>
         </div>
+
+        <!-- ───────── ③ 상세 요청 — AI 와 대화하며 디테일을 모은다. 손님이 쓴 말은 생성 때 그대로 반영된다 ───────── -->
+        <section class="v5-slot studio-chat" id="chatSlot">
+          <div class="v5-slot-head">
+            <div class="v5-slot-no" id="no3">③</div>
+            <div style="display: grid; gap: 6px; min-width: 0">
+              <div class="v5-slot-title">상세 요청</div>
+              <div class="v5-slot-sub">DETAILS · AI 와 대화하며 원하는 점을 적어 주세요</div>
+            </div>
+            <div class="v5-slot-state" id="state3">선택</div>
+          </div>
+          <div class="v5-slot-body">
+            <div class="studio-chat-log" id="chatLog" aria-live="polite"></div>
+            <div class="studio-chat-input">
+              <textarea
+                id="chatInput"
+                rows="2"
+                maxlength="500"
+                placeholder="예: 도어는 무광 화이트, 상판은 밝은 대리석 느낌이면 좋겠어요. 냉장고 옆에 키큰장도 넣어 주세요."
+                aria-label="상세 요청 입력"
+              ></textarea>
+              <button type="button" class="v5-btn v5-btn--tan" id="chatSend">보내기</button>
+            </div>
+          </div>
+          <div class="v5-slot-foot">
+            <div class="v5-foot-label">
+              <span>REQUEST · 연출컷에 반영할 내용</span>
+              <span class="v5-foot-state" id="chatCount">0개</span>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap">
+              <p class="v5-hint" style="margin: 0; flex: 1; min-width: 200px">
+                적어 주신 말은 생성할 때 그대로 반영됩니다. Enter 로 보내고, Shift+Enter 로 줄을 바꿉니다.
+              </p>
+              <button type="button" class="v5-btn" id="chatReset" style="padding: 8px 14px">대화 지우기</button>
+            </div>
+          </div>
+        </section>
 
         <!-- 생성 -->
         <div class="v5-run">
@@ -384,55 +528,8 @@
           { image_url: 'app/portfolio/funiture-n4-1.jpg', region: '서울 논현', category: 'builtin' },
         ];
 
-        // 테마 — 분위기 참고용.
-        // 저장소에도 DB 에도 이런 사진이 없어서 위키미디어 공용에서 가져온다.
-        // haslicense:unrestricted 로 검색하고 라이선스를 한 번 더 확인해
-        // **퍼블릭 도메인 · CC0 만** 남긴다(상업적 사용·재배포 가능).
-        // 낱말 검색(예: deer)은 지명·인명에 걸려 엉뚱한 게 나온다 — '동물' 에
-        // 도시 판화가 떴다. 큐레이션된 카테고리를 직접 짚는다.
-        // deepcategory 는 하위 카테고리까지 훑는다(incategory 는 안 훑는다).
-        // 각 질의는 실제로 돌려보고 상위 결과가 주제에 맞는 것만 남겼다.
-        // qs 가 배열인 이유: deepcategory 는 OR 로 못 묶는다 (묶으면 0건이 나온다).
-        // 한 테마에 갈래가 둘 이상이면 따로 부르고 합친다.
-        // 테마는 **색감** 참고다 (워커 buildThemePalettePrompt 가 캐비닛 색을 뽑는다). 그래서
-        //   · 색이 있는 주제만 — 조각·동상처럼 무채색이 대부분인 갈래는 뺐다
-        //   · 유명 제품·동물·회화·꽃 위주, AI 생성 이미지(PD-algorithm 으로 풀린 것)도 포함
-        //   · 매번 다른 사진 — gsrsort=random + 캐시 없음 + 섞기 (같은 사진만 계속 나오던 문제)
-        //   · 받은 뒤에도 채도를 재서 흑백·무채색 사진은 버린다 (themeIsColorful)
-        // 각 갈래는 2026-09-12 에 실제로 돌려 CC0/PD 결과가 20장 안팎 나오는 것만 남겼다.
-        var THEMES = [
-          { key: 'animal', label: '동물', qs: ['deepcategory:"Quality images of animals"'] },
-          { key: 'flower', label: '꽃', qs: ['deepcategory:"Quality images of flowers"'] },
-          { key: 'nature', label: '자연', qs: ['incategory:"Quality images of nature"'] },
-          {
-            key: 'product',
-            label: '제품',
-            // 제품만 나오는 갈래로 좁혔다. 'Wristwatches' 같은 상위 카테고리는 인물 사진이 딸려온다.
-            qs: [
-              'deepcategory:"Rolex watches"',
-              'deepcategory:"Bags in the Metropolitan Museum of Art"',
-              'deepcategory:"Ferrari automobiles"',
-              'deepcategory:"Vespa scooters"',
-              'deepcategory:"Coca-Cola bottles"',
-            ],
-          },
-          {
-            key: 'painting',
-            label: '회화',
-            qs: [
-              'incategory:"Oil paintings in the Metropolitan Museum of Art"',
-              'deepcategory:"Impressionist paintings"',
-              'deepcategory:"Paintings by Vincent van Gogh"',
-            ],
-          },
-          {
-            key: 'ai',
-            label: 'AI 디자인',
-            // 커먼즈의 AI 생성 이미지는 PD-algorithm(퍼블릭 도메인)으로 올라온다 — 상업 사용 가능
-            qs: ['deepcategory:"Images generated by Midjourney"', 'deepcategory:"Images generated by Stable Diffusion"'],
-          },
-        ];
-        var THEME_FREE = /^(CC0|Public domain|PDM|No restrictions)/i;
+        // 테마 — 분위기·색감 참고. 관리자가 고른 사진만 쓴다 (theme_images · admin/reference-images.html).
+        // 2026-10-08: 위키미디어 공용을 실시간으로 찾아 보여주던 길은 걷어냈다 (첫 장까지 ~45초).
 
         var MARQUEE = [
           'kitchen-n1-1.jpg',
@@ -454,10 +551,10 @@
           query: '',
           searchOpen: false,
           dbAll: [], // 시공사례 (collection_posts + CASE_STATIC)
-          themeAll: [], // 테마 이미지 — DB(theme_images) 먼저, 모자라면 위키미디어를 뒤에
+          themeAll: [], // 테마 이미지 — DB(theme_images)
           dbCount: 6,
           themeCount: 6, // 2열이라 6장이면 세 줄
-          themeMore: false, // DB 사진 뒤에 위키미디어를 더 받는 중
+          themeLoaded: false, // 테마 표를 한 번 읽었다 (그 전엔 '불러오는 중')
           signedIn: false, // 생성 버튼을 누를 때만 필요하다
           cost: null, // 생성 1회 단가. credit_costs 에서 읽는다
           phase: 'idle', // idle | loading | done
@@ -465,6 +562,9 @@
           quote: null,
           genId: null, // v2 잡 id. 공유·재생성·딥링크에 쓴다
           progressLabel: '', // 서버가 보내는 단계 안내문
+          chat: [], // ③ 상세 요청 [{role:'me'|'ai', text}]
+          chatBusy: false,
+          chatHinted: false, // 로그인 안내를 한 번만
         };
 
         var sb = null;
@@ -674,59 +774,6 @@
         }
 
         // ── 테마 ──
-        // 위키미디어 공용에서 주제별로 받아 퍼블릭 도메인/CC0 만 남긴다.
-        // 한 번 받으면 sessionStorage 에 넣어 탭을 오갈 때마다 다시 부르지 않는다.
-        async function fetchThemeQuery(t, q, tag) {
-          var url =
-            'https://commons.wikimedia.org/w/api.php?origin=*&action=query&format=json' +
-            '&generator=search&gsrnamespace=6&gsrlimit=24&gsrsort=random&gsrsearch=' +
-            encodeURIComponent('filetype:bitmap haslicense:unrestricted ' + q) +
-            '&prop=imageinfo&iiprop=url|extmetadata|mime&iiurlwidth=320';
-
-          var res = await fetch(url);
-          var json = await res.json();
-          var pages = json && json.query && json.query.pages ? Object.keys(json.query.pages) : [];
-          var out = [];
-          pages.forEach(function (k, i) {
-            var info = (json.query.pages[k].imageinfo || [])[0];
-            if (!info || !/^image\/(jpeg|png)$/.test(info.mime || '')) return;
-            var lic =
-              (info.extmetadata && info.extmetadata.LicenseShortName && info.extmetadata.LicenseShortName.value) || '';
-            if (!THEME_FREE.test(lic)) return; // 상업적 사용이 막힌 것은 버린다
-            out.push({
-              key: 'th-' + t.key + '-' + tag + '-' + i,
-              src: info.thumburl || info.url,
-              label: t.label,
-            });
-          });
-          return out;
-        }
-
-        async function fetchTheme(t) {
-          // 캐시하지 않는다 — 열 때마다 다른 사진이 나와야 한다 (gsrsort=random)
-          var packs = await Promise.all(
-            t.qs.map(function (q, i) {
-              return fetchThemeQuery(t, q, i).catch(function () {
-                return [];
-              });
-            })
-          );
-          // 갈래가 여럿이면 번갈아 섞는다 — 시계만 스무 장 이어지면 가방은
-          // 아래로 한참 내려야 나온다.
-          var out = [];
-          for (var i = 0; ; i++) {
-            var any = false;
-            for (var j = 0; j < packs.length; j++) {
-              if (packs[j][i]) {
-                out.push(packs[j][i]);
-                any = true;
-              }
-            }
-            if (!any) break;
-          }
-          return out;
-        }
-
         function shuffle(list) {
           for (var i = list.length - 1; i > 0; i--) {
             var j = Math.floor(Math.random() * (i + 1));
@@ -737,74 +784,8 @@
           return list;
         }
 
-        // 격자에 쓰는 썸네일(320px) 그대로 채도를 잰다 — 다른 폭을 따로 부르면 위키미디어
-        // 썸네일러가 한꺼번에 몰린 요청을 400 으로 거절한다. 같은 URL 은 브라우저가 캐시해
-        // 격자를 그릴 때 다시 받지 않는다. 흑백·무채색(동상·석고·회색 사진)은 색감 참고가 못 된다.
-        function themeIsColorful(r) {
-          return new Promise(function (resolve) {
-            var img = new Image();
-            img.crossOrigin = 'anonymous';
-            var done = false;
-            var finish = function (ok) {
-              if (!done) {
-                done = true;
-                resolve(ok);
-              }
-            };
-            setTimeout(function () {
-              finish(true); // 못 재면 버리지 않는다
-            }, 5000);
-            img.onerror = function () {
-              finish(true);
-            };
-            img.onload = function () {
-              try {
-                var N = 24;
-                var cv = document.createElement('canvas');
-                cv.width = N;
-                cv.height = N;
-                var ctx = cv.getContext('2d');
-                ctx.drawImage(img, 0, 0, N, N);
-                var d = ctx.getImageData(0, 0, N, N).data;
-                var sum = 0;
-                var vivid = 0;
-                var n = 0;
-                for (var i = 0; i < d.length; i += 4) {
-                  var mx = Math.max(d[i], d[i + 1], d[i + 2]);
-                  var mn = Math.min(d[i], d[i + 1], d[i + 2]);
-                  var sat = mx ? (mx - mn) / mx : 0;
-                  sum += sat;
-                  if (sat > 0.3 && mx > 50) vivid++;
-                  n++;
-                }
-                var mean = n ? sum / n : 0;
-                finish(mean >= 0.18 || vivid / n >= 0.25);
-              } catch (e) {
-                finish(true);
-              }
-            };
-            img.src = r.src;
-          });
-        }
-        // 여섯 장씩 잰다 — 백 장을 한꺼번에 열면 썸네일러가 거절한다.
-        async function keepColorful(list) {
-          var flags = [];
-          for (var i = 0; i < list.length; i += 6) {
-            var part = await Promise.all(list.slice(i, i + 6).map(themeIsColorful));
-            flags = flags.concat(part);
-          }
-          return list.filter(function (r, i) {
-            return flags[i];
-          });
-        }
-
-        // 2026-10-08: 테마 사진은 우리 DB(theme_images)에서 먼저 읽는다 — 관리자 화면(admin/reference-images.html)에서
-        //   올리거나 확정한 것. 채도는 등록할 때 이미 쟀으니 여기선 재지 않는다.
-        //   위키미디어 실시간 검색은 ~45초 걸렸다 (검색 13개를 다 기다리고 300장 채도를 6장씩 차례로).
-        //   DB 사진이 THEME_DB_ENOUGH 장 미만이면 위키미디어를 **뒤에 덧붙인다** — DB 사진은 바로 뜨고
-        //   모자란 만큼만 예전 길로 채운다. 풀이 차면 위키미디어는 부르지 않는다.
-        var THEME_DB_ENOUGH = 24;
-
+        // 테마 사진은 우리 DB(theme_images)에서 읽는다 — 관리자 화면에서 올리거나 확정한 것.
+        //   채도는 등록할 때 이미 쟀으니 여기선 재지 않는다. 섞어서 바로 그린다.
         async function loadDbThemes() {
           var R = window.DadamRefImages;
           if (!sb || !R) return [];
@@ -829,56 +810,17 @@
                 };
               });
           } catch (e) {
-            // 표가 아직 없거나 막혀도 위키미디어로 화면은 채운다
+            // 표가 아직 없거나 막혀도 화면은 멈추지 않는다 — 테마만 비어 보인다
             console.warn('[studio] 테마 DB:', e.message);
             return [];
           }
         }
 
         async function loadThemes() {
-          var fromDb = shuffle(await loadDbThemes());
-          if (fromDb.length) {
-            S.themeAll = fromDb;
-            renderTheme();
-            fillGrids();
-          }
-          if (fromDb.length >= THEME_DB_ENOUGH) return;
-          S.themeMore = true;
-          if (fromDb.length) renderTheme();
-          var more = await loadWikimediaThemes();
-          S.themeMore = false;
-          S.themeAll = fromDb.concat(more);
+          S.themeAll = shuffle(await loadDbThemes());
+          S.themeLoaded = true;
           renderTheme();
           fillGrids();
-        }
-
-        async function loadWikimediaThemes() {
-          try {
-            var packs = await Promise.all(
-              THEMES.map(function (t) {
-                return fetchTheme(t).catch(function () {
-                  return [];
-                });
-              })
-            );
-            // 주제별로 뭉치지 않게 번갈아 섞는다 — 한 주제만 스무 장 이어지면
-            // 아래로 내리기 전엔 다른 주제가 있는 줄 모른다.
-            var out = [];
-            for (var i = 0; ; i++) {
-              var any = false;
-              for (var j = 0; j < packs.length; j++) {
-                if (packs[j][i]) {
-                  out.push(packs[j][i]);
-                  any = true;
-                }
-              }
-              if (!any) break;
-            }
-            return await keepColorful(shuffle(out));
-          } catch (e) {
-            console.warn('[studio] 테마:', e.message);
-            return [];
-          }
         }
 
         function pickHTML(r) {
@@ -925,14 +867,12 @@
           var shown = list.slice(0, S.themeCount);
           $('themeGrid').innerHTML = shown.map(pickHTML).join('');
           $('themeHint').textContent = !list.length
-            ? S.themeMore
-              ? '불러오는 중…'
-              : '테마 이미지를 불러오지 못했습니다'
+            ? S.themeLoaded
+              ? '아직 준비된 테마 이미지가 없습니다'
+              : '불러오는 중…'
             : shown.length < list.length
               ? '스크롤하면 더 불러옵니다'
-              : S.themeMore
-                ? '더 불러오는 중…'
-                : '마지막입니다';
+              : '마지막입니다';
           syncPicked();
         }
 
@@ -1207,6 +1147,8 @@
             door_color: $('doorColor').value,
             reference_images: refs.length ? refs : undefined,
             wall_width_override: $('wallW').value || undefined,
+            // ③ 상세 요청 — 손님이 쓴 말 (워커가 다듬어 설치 프롬프트에 싣는다)
+            customer_request: customerRequest() || undefined,
           };
           if (S.kind === 'fridge') {
             body.fridge_options = { brand: $('fBrand').value, position: $('fPos').value };
@@ -1343,7 +1285,182 @@
         // ═══════════════════════════════════════════════
         // 시작
         // ═══════════════════════════════════════════════
+        // ═══════════════════════════════════════════════
+        // ③ 상세 요청 — AI 와 대화하며 디테일을 모은다 (2026-10-08)
+        // ═══════════════════════════════════════════════
+        // 생성에 반영되는 것은 **손님이 쓴 말**뿐이다 (customer_request). AI 의 말은 더 적도록 돕는 질문이다.
+        // 로그인 전이거나 AI 가 답하지 못하면 준비된 질문으로 잇는다 — 대화가 끊기지 않게.
+        // 생성을 누르면 로그인하러 나갔다 돌아오므로 sessionStorage 에 둔다.
+        var CHAT_KEY = 'dadam.studio.chat.v1';
+        var CHAT_MAX_TURNS = 12; // 손님 메시지 수
+        var CHAT_MAX_CHARS = 500; // 한 번에
+        var CHAT_SEND_MAX = 1200; // 생성 요청에 싣는 총 글자 (워커가 한 번 더 다듬는다)
+        // 준비된 질문 — 손님이 이미 말한 주제(re 에 걸리는 말)와 이미 물은 것은 건너뛴다
+        var CHAT_LOCAL_QUESTIONS = [
+          {
+            q: '도어 색이나 재질 중 원하는 것이 있나요? (예: 무광 화이트, 오크 원목, 그레이지)',
+            re: /도어|문짝|색|컬러|화이트|흰|블랙|그레이|베이지|오크|월넛|원목|우드|무광|유광/,
+          },
+          { q: '상판이나 벽 타일, 조명처럼 함께 바꾸고 싶은 부분이 있나요?', re: /상판|타일|조명|대리석|세라믹|스톤/ },
+          {
+            q: '수납은 어떻게 쓰실 예정인가요? 꼭 들어가야 할 가전이나 키큰장이 있으면 알려 주세요.',
+            re: /수납|가전|키큰장|냉장고|식세기|식기세척기|오븐|선반|서랍/,
+          },
+          { q: '전체 분위기는 어떤 느낌이면 좋을까요? (예: 따뜻한, 미니멀한, 고급스러운)', re: /분위기|느낌|따뜻|미니멀|모던|고급|내추럴|클래식/ },
+        ];
+        var CHAT_DONE = '충분히 적어 주셨어요. 더 없으면 아래 「연출컷 생성」을 눌러 주세요. 적어 주신 내용이 반영됩니다.';
+
+        function kindLabel() {
+          var k = KINDS.filter(function (x) {
+            return x.key === S.kind;
+          })[0];
+          return k ? k.label : '가구';
+        }
+
+        function chatGreeting() {
+          return (
+            '안녕하세요! ' +
+            kindLabel() +
+            ' 연출컷에 담고 싶은 점을 편하게 적어 주세요.\n예: 원하는 도어 색·재질, 상판, 꼭 넣고 싶은 수납이나 가전.'
+          );
+        }
+
+        function loadChat() {
+          try {
+            var v = JSON.parse(sessionStorage.getItem(CHAT_KEY) || '[]');
+            if (Array.isArray(v)) {
+              S.chat = v
+                .filter(function (m) {
+                  return m && (m.role === 'me' || m.role === 'ai') && typeof m.text === 'string' && m.text;
+                })
+                .slice(-40);
+            }
+          } catch (e) {}
+        }
+        function saveChat() {
+          try {
+            sessionStorage.setItem(CHAT_KEY, JSON.stringify(S.chat));
+          } catch (e) {}
+        }
+
+        function myMessages() {
+          return S.chat
+            .filter(function (m) {
+              return m.role === 'me';
+            })
+            .map(function (m) {
+              return m.text;
+            });
+        }
+
+        /** 생성 요청에 싣는 글 — 손님 메시지만, 쓴 순서대로 */
+        function customerRequest() {
+          var t = myMessages().join('\n').trim();
+          return t ? t.slice(0, CHAT_SEND_MAX) : '';
+        }
+
+        function renderChat() {
+          var log = $('chatLog');
+          if (!log) return;
+          log.innerHTML =
+            '<div class="studio-msg studio-msg--ai">' +
+            esc(chatGreeting()) +
+            '</div>' +
+            S.chat
+              .map(function (m) {
+                return '<div class="studio-msg studio-msg--' + (m.role === 'me' ? 'me' : 'ai') + '">' + esc(m.text) + '</div>';
+              })
+              .join('') +
+            (S.chatBusy ? '<div class="studio-msg studio-msg--ai studio-msg--wait">답을 쓰는 중…</div>' : '');
+          log.scrollTop = log.scrollHeight;
+          var n = myMessages().length;
+          var full = n >= CHAT_MAX_TURNS;
+          $('chatCount').textContent = n + '개';
+          $('state3').textContent = n ? '반영됨' : '선택';
+          $('no3').classList.toggle('v5-slot-no--on', n > 0);
+          $('chatSend').disabled = S.chatBusy || full;
+          $('chatInput').disabled = full;
+          if (full) $('chatInput').placeholder = '충분히 모였습니다. 아래 「연출컷 생성」을 눌러 주세요.';
+        }
+
+        function localQuestion() {
+          var said = myMessages().join(' ');
+          var asked = S.chat
+            .filter(function (m) {
+              return m.role === 'ai';
+            })
+            .map(function (m) {
+              return m.text;
+            })
+            .join('\n');
+          var next = CHAT_LOCAL_QUESTIONS.filter(function (x) {
+            return !x.re.test(said) && asked.indexOf(x.q) < 0;
+          })[0];
+          return next ? '좋아요. ' + next.q : CHAT_DONE;
+        }
+
+        /** 로그인했으면 워커 /api/chat 에 묻는다. 못 받으면 null — 준비된 질문으로 잇는다. */
+        async function askAi() {
+          if (!S.signedIn || !sb) return null;
+          try {
+            var res = await fetch(API_BASE + '/api/chat', {
+              method: 'POST',
+              headers: await authHeaders(),
+              body: JSON.stringify({ category: S.kind, messages: S.chat.slice(-20) }),
+            });
+            if (!res.ok) return null;
+            var d = await res.json();
+            return d && d.success && typeof d.reply === 'string' && d.reply.trim() ? d.reply.trim().slice(0, 400) : null;
+          } catch (e) {
+            return null;
+          }
+        }
+
+        async function sendChat() {
+          var t = $('chatInput').value.trim().slice(0, CHAT_MAX_CHARS);
+          if (!t || S.chatBusy || myMessages().length >= CHAT_MAX_TURNS) return;
+          S.chat.push({ role: 'me', text: t });
+          $('chatInput').value = '';
+          S.chatBusy = true;
+          saveChat();
+          renderChat();
+          var reply = await askAi();
+          if (!reply) {
+            reply = localQuestion();
+            if (!S.signedIn && !S.chatHinted) {
+              reply += '\n(로그인하면 AI 가 적어 주신 내용에 맞춰 더 자세히 물어봅니다)';
+              S.chatHinted = true;
+            }
+          }
+          S.chat.push({ role: 'ai', text: reply });
+          S.chatBusy = false;
+          saveChat();
+          renderChat();
+          $('chatInput').focus();
+        }
+
+        function bindChat() {
+          loadChat();
+          renderChat();
+          $('chatSend').onclick = sendChat;
+          $('chatInput').addEventListener('keydown', function (e) {
+            // 한글 조합 중의 Enter 는 글자를 확정하는 것이다 — 보내지 않는다
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
+              e.preventDefault();
+              sendChat();
+            }
+          });
+          $('chatReset').onclick = function () {
+            if (S.chatBusy) return;
+            S.chat = [];
+            S.chatHinted = false;
+            saveChat();
+            renderChat();
+          };
+        }
+
         function bind() {
+          bindChat();
           $('pick1').onclick = function () {
             $('input1').click();
           };
@@ -1368,6 +1485,7 @@
             if (!b) return;
             S.kind = b.getAttribute('data-kind');
             renderKinds();
+            renderChat(); // 첫 인사에 품목 이름이 들어간다
             // 품목이 바뀌면 시공사례도 다시 거른다. 처음부터 다시 세지 않으면
             // 앞 품목에서 늘려둔 장수가 그대로 남아 목록이 어긋난다.
             S.dbCount = 6;

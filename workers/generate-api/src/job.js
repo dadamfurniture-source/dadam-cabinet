@@ -26,6 +26,7 @@ import {
   buildPlannerPrompt,
   buildQcPrompt,
   buildThemePalettePrompt,
+  cleanCustomerRequest,
   buildTwoToneVariantPrompt,
   buildVariantPrompt,
   KITCHEN_CATEGORIES,
@@ -312,6 +313,8 @@ async function runPipeline(env, job, ck, save) {
       opts.fridge_options && opts.fridge_options.position === 'right' ? 'right' : 'left',
     // 플래너 도면 요약 (worker.js 가 이미 검증해 options 에 넣었다). null 이면 범용 문단.
     designSpec: opts.design_spec || null,
+    // 손님 요청 (연출컷 ③ 상세 요청). worker.js 가 다듬어 두었다 — 한 번 더 다듬는다. 없으면 null.
+    customerRequest: cleanCustomerRequest(opts.customer_request),
     // 실사화 — 첫 사진에 도면 입면이 이미 얹혀 있다 (worker.js options.realize). 플래너 모드에는 없다.
     realize: !planner && !!opts.realize,
     // 플래너 모드 — 프롬프트 v2 와 검사 코드(existing_left·pasted_reference)를 켠다
