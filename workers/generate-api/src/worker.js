@@ -15,12 +15,16 @@
  * 진행 상태의 정본은 generations 행이다 (폴링은 행만 읽는다).
  */
 
-import { geminiModel, probeRoutes } from './gemini.js';
+import { callGemini, geminiModel, probeRoutes } from './gemini.js';
 import { proxyStub } from './proxy.js';
 import {
   DEFAULT_STYLE,
   STYLES,
+  buildChatPrompt,
+  cleanChatReply,
+  cleanCustomerRequest,
   cleanThemeNote,
+  normalizeChat,
   normalizeDesignSpec,
   resolveCategory,
   resolvePlannerAspect,
@@ -192,6 +196,10 @@ export default {
       }
       if (url.pathname === '/diag') return json(await diag(request, env), 200, headers);
 
+      if (url.pathname === '/api/chat' && request.method === 'POST') {
+        return json(await chat(request, env), 200, headers);
+      }
+
       if (url.pathname === '/api/share' && request.method === 'GET') {
         return json(await getShared(request, env), 200, headers);
       }
@@ -221,6 +229,35 @@ export default {
 };
 
 // ─── 핸들러 ───
+
+/**
+ * POST /api/chat — 연출컷 ③ 상세 요청의 다음 한 마디 (2026-10-08).
+ * 로그인한 손님만 — 익명으로 모델 호출을 열어 두지 않는다. 크레딧은 쓰지 않는다 (짧은 텍스트 한 번).
+ * 본문: { category, messages:[{role:'me'|'ai', text}] } → { success, reply }
+ */
+const CHAT_MAX_BODY = 32 * 1024;
+async function chat(request, env) {
+  if (!env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not configured');
+  await verifyJwt(request, env);
+  const raw = await request.text();
+  if (raw.length > CHAT_MAX_BODY) throw new ValidationError('chat body too large');
+  let body;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    throw new ValidationError('chat body must be JSON');
+  }
+  const messages = normalizeChat(body && body.messages);
+  if (!messages.length) throw new ValidationError('messages must include a customer message');
+  const r = await callGemini(env, {
+    prompt: buildChatPrompt({ category: body.category, messages }),
+    want: 'text',
+    temperature: 0.6,
+  });
+  const reply = cleanChatReply(r.text);
+  if (!reply) throw new Error('chat: empty reply');
+  return { success: true, reply };
+}
 
 async function requireOwner(request, env, id) {
   const user = await verifyJwt(request, env);
@@ -269,6 +306,7 @@ async function createGeneration(request, env, headers) {
     mode,
     renders,
     aspect,
+    customer_request,
   } = body;
 
   // 재생성: 부모의 입력을 그대로 쓴다 (업로드 생략).
@@ -314,6 +352,12 @@ async function createGeneration(request, env, headers) {
     ...((variants != null ? variants === false : !!(parent && parent.options && parent.options.variants === false)) ? { variants: false } : {}),
     // ControlNet 경로 — 켰을 때만 키가 생긴다. 크기는 조건 이미지와 바탕 사진의 화소 크기(같아야 한다).
     ...(wantControlNet ? { engine: 'controlnet', control_size: sizeOf(control_size) || (parent && parent.options && parent.options.control_size) || null } : {}),
+    // 손님 요청 (연출컷 ③ 상세 요청, 2026-10-08) — 다듬어서 남긴다. 재생성이면 새 글이 없을 때 원본을 잇는다.
+    //   있을 때만 키가 생긴다 — 없으면 options 는 예전과 같은 모양이다.
+    ...(() => {
+      const r = cleanCustomerRequest(customer_request) || (parent && parent.options && parent.options.customer_request) || null;
+      return r ? { customer_request: r } : {};
+    })(),
   };
 
   return await enqueueGeneration(request, env, headers, {
