@@ -552,6 +552,112 @@ describe('클릭해도 화면이 초기화되지 않는다', () => {
   });
 });
 
+// 2026-10-08: 자동계산 버튼은 **고른 것**에 따라 다르게 움직인다.
+//   모듈을 고르면 그 모듈이 붙어 있는 빈 자리를 먹고, 배치를 고르면 빈 자리에 새 모듈이 선다.
+//   예전엔 어느 쪽이든 비고정 모듈을 다 걷어내고 다시 깔아, 손으로 맞춘 폭이 사라졌다.
+describe('빈 자리 채우기 — 고른 것에 따라', () => {
+  const engine = require('../js/planner/planner-engine');
+  const R = engine.MASTER_RULES;
+
+  /** 폭 1400 하부장 배치에 모듈 하나(W)만 왼쪽에 놓는다 — 나머지는 빈 자리 */
+  function oneModule(W) {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas').filter((a) => a.section === 'lower').find((a) => a.W === 1400);
+    const m = p.g('addModuleToArea')(area.id, { section: 'lower', W, x: area.x || 0 });
+    p.g('setActiveArea')(area.id);
+    return { p, area, m };
+  }
+  const mods = (p, area) => p.g('modules').filter((m) => m.areaId === area.id && !m.isFinishing);
+
+  test('빈 자리를 구간으로 센다', () => {
+    const { p, area } = oneModule(600);
+    const free = p.g('areaFreeSpans')(area.id);
+    expect(free.length).toBe(1);
+    expect(Math.round(free[0].w)).toBe(800);
+    expect(Math.round(free[0].x)).toBe((area.x || 0) + 600);
+  });
+
+  test('배치를 고르면 빈 자리에만 새 모듈이 선다 — 있던 모듈은 그대로', () => {
+    const { p, area, m } = oneModule(600);
+    const before = { id: m.id, W: m.W, x: m.x };
+    const n = p.g('fillAreaGaps')(area.id);
+    expect(n).toBeGreaterThan(0);
+    const after = mods(p, area);
+    expect(after.find((x) => x.id === before.id)).toMatchObject({ W: before.W, x: before.x });
+    // 빈 자리 800 을 규칙대로 채웠다 — 폭 합이 배치 폭과 맞는다 (조립 여유 안)
+    const sum = after.reduce((s, x) => s + x.W, 0);
+    expect(area.W - sum).toBeGreaterThanOrEqual(0);
+    expect(area.W - sum).toBeLessThanOrEqual(after.length);
+    after.forEach((x) => {
+      const s = p.g('structures')[x.id] || {};
+      const doors = (s.areaTypes || ['door']).reduce((k, t, i) =>
+        k + (t === 'door' ? ((s.areaIs2D || [])[i] ? 2 : 1) : 0), 0);
+      expect(x.W / doors).toBeLessThanOrEqual(R.DOOR_W_MAX);
+    });
+  });
+
+  test('모듈을 고르면 그 모듈이 늘어나 빈 자리를 채운다', () => {
+    const { p, area, m } = oneModule(600);
+    p.g('setActiveModule')(m.id);
+    expect(p.g('stretchModuleIntoGaps')(m.id)).toBe(1);
+    expect(mods(p, area).length).toBe(1);          // 새 모듈은 생기지 않는다
+    expect(Math.round(m.W)).toBe(1400);
+    expect(Math.round(m.x)).toBe(area.x || 0);
+    // 1400 한 통이면 도어가 최대를 넘는다 — 같은 분배 규칙으로 칸을 다시 가른다
+    const s = p.g('structures')[m.id];
+    const doors = (s.areaTypes || []).reduce((k, t, i) =>
+      k + (t === 'door' ? ((s.areaIs2D || [])[i] ? 2 : 1) : 0), 0);
+    expect(doors).toBeGreaterThanOrEqual(2);
+    expect(m.W / doors).toBeLessThanOrEqual(R.DOOR_W_MAX);
+    expect(s.areaWidths.reduce((a, b) => a + b, 0)).toBe(m.W);   // 칸 합 = 모듈 폭
+  });
+
+  test('떨어진 빈 자리는 먹지 않는다', () => {
+    const { p, area, m } = oneModule(600);
+    // 오른쪽 끝에 모듈을 하나 더 두어 가운데만 비운다
+    p.g('addModuleToArea')(area.id, { section: 'lower', W: 400, x: (area.x || 0) + 1000 });
+    // 왼쪽 모듈은 가운데 빈 자리(600..1000)에만 붙어 있다
+    expect(p.g('stretchModuleIntoGaps')(m.id)).toBe(1);
+    expect(Math.round(m.W)).toBe(1000);
+    expect(Math.round(m.x)).toBe(area.x || 0);
+  });
+
+  test('빈 자리가 없으면 0 — 부른 쪽이 예전처럼 다시 깐다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = p.g('areas').filter((a) => a.section === 'lower').find((a) => a.W === 1400);
+    p.g('autoCalcArea')(area.id);                 // 꽉 채운다
+    expect(p.g('areaFreeSpans')(area.id).reduce((s, g) => s + g.w, 0)).toBeLessThan(1);
+    expect(p.g('fillAreaGaps')(area.id)).toBe(0);
+  });
+
+  test('키큰장은 빈 자리에 통째로 선다 — 단 셋이 함께', () => {
+    const p = boot(seedFor(FIXTURES.lShape, { modules: false }));
+    const area = p.g('areas').find((a) => a.section === 'tall');
+    area.W = 1800;
+    // 왼쪽 900 에만 통을 하나 세워 둔다
+    p.g('autoCalcArea')(area.id);
+    const right = p.g('modules').filter((m) => m.areaId === area.id && !m.isFinishing)
+      .filter((m) => Math.round(m.x) === Math.round((area.x || 0) + 900));
+    right.forEach((m) => { delete p.g('structures')[m.id]; p.g('modules').splice(p.g('modules').indexOf(m), 1); });
+    expect(Math.round(p.g('areaFreeSpans')(area.id).reduce((s, g) => s + g.w, 0))).toBe(900);
+    const n = p.g('fillAreaGaps')(area.id);
+    expect(n).toBe(3);                            // 통 하나 = 단 셋
+    const back = p.g('modules').filter((m) => m.areaId === area.id && !m.isFinishing
+      && Math.round(m.x) === Math.round((area.x || 0) + 900));
+    expect(new Set(back.map((m) => m.part))).toEqual(new Set(['하부장', '중간장', '상부장']));
+    expect(back.reduce((s, m) => s + m.H, 0)).toBe(area.H);
+  });
+
+  test('고른 것에 따라 버튼 글자가 바뀐다', () => {
+    const { p, area, m } = oneModule(600);
+    expect(p.g('autoCalcTarget')(area).label).toContain('빈 자리');
+    p.g('setActiveModule')(m.id);
+    expect(p.g('autoCalcTarget')(area).label).toContain('이 모듈로');
+    p.g('setActiveArea')(area.id);
+    expect(p.g('autoCalcTarget')(area).label).not.toContain('이 모듈로');
+  });
+});
+
 describe('영역 자동계산', () => {
   // 규칙은 새로 만들지 않는다 — distributeModules 가 이미 도어 폭 350~600,
   // 목표 450, 잔여 ≤10 을 지키며 양문 페어링까지 한다 (autocalc-rules.md §2).
