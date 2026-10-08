@@ -20,6 +20,7 @@ import { proxyStub } from './proxy.js';
 import {
   DEFAULT_STYLE,
   STYLES,
+  cleanThemeNote,
   normalizeDesignSpec,
   resolveCategory,
   resolvePlannerAspect,
@@ -99,22 +100,23 @@ function errorResponse(e, headers) {
   return json({ success: false, error: e.message, code }, status, headers);
 }
 
-/** 참고 이미지: {base64, mimeType} 객체 배열. 문자열만 온 예전 형식도 JPEG 로 받아 준다. */
+/**
+ * 참고 이미지: {base64, mimeType, role?, note?} 객체 배열. 문자열만 온 예전 형식도 JPEG 로 받아 준다.
+ * note 는 테마 사진의 설명(관리자가 적은 것) — 테마일 때만 받아 색감 추출에 힌트로 쓴다.
+ */
 function normalizeRefs(list) {
   if (!Array.isArray(list)) return [];
   return list
-    .map((r) =>
-      typeof r === 'string'
-        ? { base64: r, mimeType: 'image/jpeg' }
-        : r && r.base64
-          ? {
-              base64: r.base64,
-              mimeType: r.mimeType || r.mime || 'image/jpeg',
-              // theme = 색감만 빌린다 (추천안 한 장), 그 외(upload·case) = 설치 참고
-              role: r.role === 'theme' ? 'theme' : 'style',
-            }
-          : null
-    )
+    .map((r) => {
+      if (typeof r === 'string') return { base64: r, mimeType: 'image/jpeg' };
+      if (!r || !r.base64) return null;
+      // theme = 색감만 빌린다 (추천안 한 장), 그 외(upload·case) = 설치 참고
+      const role = r.role === 'theme' ? 'theme' : 'style';
+      const out = { base64: r.base64, mimeType: r.mimeType || r.mime || 'image/jpeg', role };
+      const note = role === 'theme' ? cleanThemeNote(r.note) : null;
+      if (note) out.note = note;
+      return out;
+    })
     .filter(Boolean)
     .slice(0, MAX_REFS);
 }
@@ -338,7 +340,7 @@ async function createGeneration(request, env, headers) {
             r.base64,
             r.mimeType
           );
-          refs.push({ path: up.path, url: up.url, mime: r.mimeType, role: r.role || 'style' });
+          refs.push({ path: up.path, url: up.url, mime: r.mimeType, role: r.role || 'style', ...(r.note ? { note: r.note } : {}) });
         } catch (e) {
           console.warn('[Generate] ref upload skipped:', e.message);
         }
