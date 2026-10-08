@@ -49,6 +49,7 @@ import {
   buildShareUrl,
   shareExpiryIso,
   checkShareAccessible,
+  isInternalOnly,
 } from './share.js';
 
 // Durable Object 클래스는 워커 진입점에서 export 되어야 런타임이 찾는다.
@@ -94,6 +95,7 @@ function errorResponse(e, headers) {
   const status = e.statusCode || (e instanceof AuthError ? 401 : 500);
   const code = e.code || CODE_BY_STATUS[status] || 'internal';
   if (status >= 500) console.error('[Generate] error:', e.message);
+  if (e.body) return json(e.body, status, headers); // 계약으로 모양이 정해진 거절 (internal_only)
   return json({ success: false, error: e.message, code }, status, headers);
 }
 
@@ -597,6 +599,14 @@ async function deleteGeneration(request, env, id) {
 
 async function createShare(request, env, id) {
   const { row } = await requireOwner(request, env, id);
+  // 도면과 어긋난 플래너 결과는 내부 확인용 — 토큰을 만들지도, 행을 건드리지도 않는다 (계획서 §6.3)
+  if (isInternalOnly(row)) {
+    const message = '도면과 다른 결과는 공유할 수 없습니다';
+    const e = new ConflictError(message);
+    e.code = 'internal_only';
+    e.body = { success: false, error: 'internal_only', code: 'internal_only', message };
+    throw e;
+  }
   if (row.status !== 'done') throw new ConflictError('완료된 결과만 공유할 수 있습니다');
   let validDays = null;
   try {
@@ -626,6 +636,7 @@ const SHARE_MESSAGES = {
   share_expired: '공유 링크가 만료되었습니다',
   share_revoked: '공유가 중단된 링크입니다',
   not_ready: '아직 준비 중인 결과입니다',
+  internal_only: '공유할 수 없는 결과입니다',
 };
 
 async function getShared(request, env) {
