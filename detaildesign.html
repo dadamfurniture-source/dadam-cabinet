@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>다담 캐비넷 에이전트 - v33.0 (자재추출 시스템 개선)</title>
     <link rel="stylesheet" href="css/dadam-v5.css?v=38.6" />
-    <link rel="stylesheet" href="css/detaildesign/base.css?v=36.0" />
+    <link rel="stylesheet" href="css/detaildesign/base.css?v=36.1" />
     <link rel="stylesheet" href="css/detaildesign/components.css?v=36.0" />
     <link rel="stylesheet" href="css/detaildesign/chrome.css?v=36.0" />
     <script src="js/nav-transitions.js"></script>
@@ -189,6 +189,7 @@
         <div id="step-dot-1" class="step-dot active">1</div>
         <div id="step-dot-2" class="step-dot">2</div>
         <div id="step-dot-3" class="step-dot">3</div>
+        <div id="step-dot-4" class="step-dot" title="작업지시서">4</div>
       </div>
       <!--
         W12-2: 품목 선택 페이지(구 #step1-content) 제거.
@@ -278,27 +279,57 @@
               🔧 CNC 파일
             </button>
           </div>
-          <button
-            onclick="proceedToBOM()"
-            style="
-              background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-              color: white;
-              border: none;
-              padding: 10px 16px;
-              border-radius: 8px;
-              cursor: pointer;
-              font-weight: bold;
-              font-size: 13px;
-            "
-          >
-            🔄 재산출
-          </button>
+          <div style="display: flex; gap: 8px">
+            <button
+              onclick="proceedToBOM()"
+              style="
+                background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+                color: white;
+                border: none;
+                padding: 10px 16px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: bold;
+                font-size: 13px;
+              "
+            >
+              🔄 재산출
+            </button>
+            <!-- 2026-10-13: 4단계 작업지시서 (docs/01-plan/work-order-stage.plan.md §4.1) -->
+            <button
+              id="toStep4Btn"
+              onclick="goToStep4()"
+              style="
+                background: #1f2937;
+                color: white;
+                border: none;
+                padding: 10px 18px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: bold;
+                font-size: 13px;
+              "
+            >
+              작업지시서 →
+            </button>
+          </div>
         </div>
         <!--
           업무 루프 패널 (workflow-client.js).
           #step3-report-area 바깥에 둔다 — 그 안은 재산출 때마다 innerHTML 로 통째로 덮인다.
         -->
         <div id="workflowPanel"></div>
+      </div>
+      <!--
+        2026-10-13: Step 4 작업지시서 — 발행(저장 → 동결 → 발행) · 사람별 꾸러미 인쇄 · 현장 정보 · 발행 이력.
+        화면은 workflow-client.js 가 #workOrderPanel 에 그린다.
+      -->
+      <div id="step4-content">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px">
+          <div class="section-label" style="margin: 0">작업지시서</div>
+          <button class="btn-back" onclick="backToStep3()">← BOM 으로</button>
+        </div>
+        <div id="workOrderPanel"></div>
       </div>
     </div>
 
@@ -345,7 +376,7 @@
     <!-- 2026-09-19: 오픈장 규칙 (18T MDF 상자) — extractors.js 가 전역 DadamOpenCabinetRules 로 읽는다 -->
     <script src="js/detaildesign/bom-open-cabinet-rules.js?v=36.0"></script>
     <script src="js/detaildesign/extractors.js?v=36.0"></script>
-    <script src="js/detaildesign/ui-step1.js?v=36.0"></script>
+    <script src="js/detaildesign/ui-step1.js?v=36.1"></script>
     <script src="js/detaildesign/ui-workspace.js?v=36.0"></script>
     <script src="js/detaildesign/ui-fridge-el.js?v=36.0"></script>
     <!-- Three.js 레거시 제거됨 — R3F planner iframe으로 대체 -->
@@ -358,7 +389,7 @@
     <script src="js/detaildesign/detail-drawing.js?v=38.8"></script>
     <script src="js/detaildesign/persistence-init.js?v=36.0"></script>
     <!-- W11-5: 업무 루프 패널. persistence-init 뒤에 로드해야 currentDesignId 를 볼 수 있다 -->
-    <script src="js/detaildesign/workflow-client.js?v=36.0"></script>
+    <script src="js/detaildesign/workflow-client.js?v=36.1"></script>
 
     <!-- AI 채팅 토글 버튼 (제거됨) -->
 
