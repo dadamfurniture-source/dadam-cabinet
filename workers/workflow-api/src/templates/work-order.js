@@ -50,6 +50,7 @@ import {
 } from '../work-order-data.js';
 import { laborEstimate, fmtMinutes } from '../labor-standards.js';
 import { elevationSvg, elevationModel, moduleDrawingSvg } from './elevation.js';
+import { isCornerItem, isoSvg, runLengths } from './isometric.js';
 
 const CATEGORY_NAMES = {
   sink: '싱크대',
@@ -468,8 +469,15 @@ function elevationBlock(ctx) {
   if (ctx.items.length === 0) return '<div class="muted">품목 없음</div>';
   return ctx.items
     .map((item, i) => {
-      const svg = elevationSvg(item);
       const label = esc(itemLabel(item, i));
+      // 사장님 결정 Q4: 벽이 둘 이상인 코너 품목은 아이소메트릭 (isometric.js)
+      if (isCornerItem(item)) {
+        const runs = runLengths(item)
+          .map((r) => `${num(r.nos[0])}~${num(r.nos[r.nos.length - 1])}번 줄 ${num(r.length)}`)
+          .join(' · ');
+        return `<div class="elev-box">${isoSvg(item)}<div class="elev-cap">${label} · 아이소메트릭 (코너 · mm) · 번호 = 모듈 명세 번호${runs ? ` · <b>${esc(runs)}</b>` : ''}</div></div>`;
+      }
+      const svg = elevationSvg(item);
       if (!svg) return `<div class="elev-box"><div class="ph">모듈 없음</div><div>${label}</div></div>`;
       const infos = elevationModel(item).notes.filter((x) => x.level !== 'error');
       return `<div class="elev-box">${svg}<div class="elev-cap">${label} · 정면도 (mm)${infos.map((x) => ` · <span class="muted">${esc(x.text)}</span>`).join('')}</div></div>`;

@@ -58,3 +58,30 @@ export function fridge() {
     ],
   };
 }
+
+/**
+ * ㄱ자 싱크 — 브리지가 `_place` 를 실은 모양 (플래너 회전 규약: 0° 진행 +x · 앞 +y, 90° 진행 +y · 앞 −x).
+ *   뒷벽(0°): 하부 600 · 개수대 800 · 코너 멍장 1000 (x 0~2400, 깊이 600) + 상부 600 · 후드장 800
+ *   오른벽(90°): 하부 600 · 800 (y 600~2000, x 1800~2400) + 키큰장 600 (y 2000~2600)
+ */
+export function lShape() {
+  const back = (x, w) => ({ cx: x + w / 2, cy: 300, w, d: 600, run: [1, 0], front: [0, 1], z0: 0, h: 850, ceil: 2300 });
+  const right = (y, w, extra = {}) => ({ cx: 2100, cy: y + w / 2, w, d: 600, run: [0, 1], front: [-1, 0], z0: 0, h: 850, ceil: 2300, ...extra });
+  return {
+    uniqueId: 4, categoryId: 'sink', labelName: 'ㄱ자 싱크대', w: 2400, h: 2300, d: 600,
+    modules: [
+      { ...upper('u1', 0, 600), _place: { cx: 300, cy: 160, w: 600, d: 320, run: [1, 0], front: [0, 1], z0: 1520, h: 780, ceil: 2300 } },
+      { ...upper('u2', 600, 800, { name: '후드장' }), _place: { cx: 1000, cy: 160, w: 800, d: 320, run: [1, 0], front: [0, 1], z0: 1520, h: 780, ceil: 2300 } },
+      { ...lower('l1', 0, 600, { isDrawer: true, drawerCount: 3, doorCount: 0 }), _place: back(0, 600) },
+      { ...lower('l2', 600, 800, { name: '개수대' }), _place: back(600, 800) },
+      { ...lower('l3', 1400, 1000, { name: 'LT망장', doorCount: 1, blindZoneW: 400 }), _place: back(1400, 1000) },
+      { ...lower('l4', 2700, 600), _place: right(600, 600) },
+      { ...lower('l5', 3300, 800), _place: right(1200, 800) },
+      {
+        id: 'planner-t1', type: 'tall', name: '키큰장', pos: 'lower', w: 600, h: 2180, totalH: 2300,
+        heightParts: { moldingH: 60, pedestalH: 60 }, d: 600, doorCount: 1, isDrawer: false, isOpen: false, _x: 4100,
+        _place: right(2000, 600, { h: 2300 }),
+      },
+    ],
+  };
+}
