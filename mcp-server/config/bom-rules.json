@@ -34,8 +34,8 @@
     "_asOf": null,
     "hinge": {
       "count_by_door_h": null,
-      "width_condition": null,
-      "boring_positions": null,
+      "width_condition": {"extra_hinge_if_door_w_over": 600},
+      "boring_positions": {"edge": 110, "middle": "even (3:H/2, 4:H/3·2H/3)"},
       "door_h_basis": null,
       "default_type": { "item": "H052W-5 105도 저압 경첩", "manufacturer": "문주", "note": "슬라이드온 · 2026-10-13 거래명세서 확인" },
       "overlay_inset": { "overlay": "full", "model_by_body_t": { "15": "H052W-5", "18": "H052W-3" } },
@@ -50,8 +50,8 @@
       "qty_per_drawer": null,
       "box_clearance_by_rail": null,
       "drawer_width_clearance": null,
-      "box_depth": null,
-      "inner_drawer": null
+      "box_depth": {"rule": "bom-drawer-rules drawerBoxDims (sink · simple categories)"},
+      "inner_drawer": {"box": "PB", "rail": "문주 언더레일 450", "qty": "1 × 서랍수"}
     },
     "minifix_dowel": {
       "side_x_top": null,
@@ -74,15 +74,15 @@
     "shelf_pin": {
       "pins_per_shelf": null,
       "pin_spec": null,
-      "shelf_count_basis": null,
-      "wardrobe_fridge_shelves": null
+      "shelf_count_basis": {"pins_per_shelf": 4, "shelves": "material rows part=선반"},
+      "wardrobe_fridge_shelves": {"same_as": "shelf_count_basis"}
     },
     "kick_clip_leg": {
       "leg_count_by_w": null,
-      "leg_height": null,
+      "leg_height": {"sink": 150, "fridge_leg": 60, "adjust_range": null},
       "leg_scope": null,
       "adjuster_leg": { "same_as": "leg_count_by_w", "note": "조절다리는 다리발과 같은 품목 — 따로 세지 않는다" },
-      "kick_clip_count": null,
+      "kick_clip_count": {"item": "걸레받이카바(18T) 투명", "piece_len": 2400, "qty": "ceil(kick length / 2400)"},
       "kick_height": null
     },
     "handle_channel": {

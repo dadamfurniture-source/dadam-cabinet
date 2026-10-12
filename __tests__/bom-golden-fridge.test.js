@@ -44,8 +44,10 @@ describe('BOM 골든 — 냉장고장 (fridge)', () => {
     expect(snap.materials.some((m) => m.module === 'EP' || /좌대/.test(m.part))).toBe(false);
   });
 
-  test('철물: 경첩·손잡이만 — 레일(isDrawer 없음)·다리발(싱크 전용)·브라켓(pos 없음)은 안 나온다', () => {
-    expect(Object.keys(snap.hardwareSummary).sort()).toEqual(['경첩', '손잡이']);
+  test('철물: 경첩·손잡이·브라켓 — 레일(isDrawer 없음)·다리발(싱크 전용)은 안 나온다', () => {
+    expect(Object.keys(snap.hardwareSummary).sort()).toEqual(['경첩', '브라켓', '손잡이']);
+    // 2026-10-13: 선반 핀 = 자재 선반 수 × 4 — 키큰장 3 + 홈카페장 2 = 5장 → 20 (예전엔 pos 가 없어 빠졌다)
+    expect(snap.hardware.find((h) => h.category === '브라켓')).toMatchObject({ qty: 20, note: '선반 5개 × 4' });
     // 키큰장 도어 2290 > 1600 → 4구
     const tall = snap.hardware.find((h) => h.category === '경첩' && /키큰장/.test(h.note));
     expect(tall.spec).toBe('4구');

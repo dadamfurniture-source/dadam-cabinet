@@ -153,7 +153,7 @@
       "h": 261,
       "qty": 2,
       "edge": "1면(전)",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (shelfCount 미지정 → 상부 2 · 하부 1)",
+      "note": "선반 수 미지정 → 상부 2 · 그 밖 칸 간격 300~450 (플래너와 같다)",
       "finishCode": "",
       "partId": "0-u1-shelf#0-0",
       "slot": "body",
@@ -345,7 +345,7 @@
       "h": 261,
       "qty": 2,
       "edge": "1면(전)",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (shelfCount 미지정 → 상부 2 · 하부 1)",
+      "note": "선반 수 미지정 → 상부 2 · 그 밖 칸 간격 300~450 (플래너와 같다)",
       "finishCode": "",
       "partId": "0-u2-shelf#0-0",
       "slot": "body",
@@ -801,7 +801,7 @@
       "h": 385,
       "qty": 1,
       "edge": "1면(전)",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (shelfCount 미지정 → 상부 2 · 하부 1)",
+      "note": "선반 수 미지정 → 상부 2 · 그 밖 칸 간격 300~450 (플래너와 같다)",
       "finishCode": "",
       "partId": "0-l1-shelf#0-0",
       "slot": "body",
@@ -969,7 +969,7 @@
       "h": 180,
       "qty": 2,
       "edge": "1면(장)",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D400 → 레일 350: 측판 290 · 밑판 299)",
+      "note": "대 박스 · 댐핑 언더레일 350 (D400 − 50 이하)",
       "finishCode": "",
       "partId": "0-l2-drawerbox:fb-0",
       "slot": "body",
@@ -989,11 +989,11 @@
       "part": "서랍측판",
       "material": "PB",
       "thickness": 15,
-      "w": 290,
+      "w": 340,
       "h": 180,
       "qty": 2,
       "edge": "1면(장)",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D400 → 레일 350: 측판 290 · 밑판 299)",
+      "note": "대 박스 · 댐핑 언더레일 350 (D400 − 50 이하)",
       "finishCode": "",
       "partId": "0-l2-drawerbox:side-0",
       "slot": "body",
@@ -1003,7 +1003,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 290,
+      "edgeLen": 340,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "수납장"
@@ -1012,12 +1012,12 @@
       "module": "하부장-서랍장",
       "part": "서랍밑판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 857,
-      "h": 299,
+      "h": 339,
       "qty": 1,
       "edge": "-",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D400 → 레일 350: 측판 290 · 밑판 299)",
+      "note": "우라",
       "finishCode": "",
       "partId": "0-l2-drawerbox:bottom-0",
       "slot": "back",
@@ -1037,11 +1037,11 @@
       "part": "서랍 하단보강",
       "material": "PB",
       "thickness": 15,
-      "w": 290,
+      "w": 340,
       "h": 60,
       "qty": 1,
       "edge": "2면(장)",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D400 → 레일 350: 측판 290 · 밑판 299)",
+      "note": "",
       "finishCode": "",
       "partId": "0-l2-drawerbox:brace-0",
       "slot": "body",
@@ -1051,7 +1051,7 @@
         "T": true,
         "B": true
       },
-      "edgeLen": 580,
+      "edgeLen": 680,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "수납장"
@@ -1277,13 +1277,13 @@
     "PB_15": {
       "material": "PB",
       "thickness": 15,
-      "totalArea": 9002590,
+      "totalArea": 9023590,
       "panelCount": 4
     },
     "MDF_2.7": {
       "material": "MDF",
       "thickness": 2.7,
-      "totalArea": 3940853,
+      "totalArea": 3684610,
       "panelCount": 2
     },
     "MDF_18": {
@@ -1291,11 +1291,17 @@
       "thickness": 18,
       "totalArea": 4829512,
       "panelCount": 2
+    },
+    "MDF_3": {
+      "material": "MDF",
+      "thickness": 3,
+      "totalArea": 290523,
+      "panelCount": 1
     }
   },
   "edgeBanding": {
     "1": 29556,
-    "0.6": 85720
+    "0.6": 85920
   },
   "hardware": [
     {
@@ -1386,6 +1392,16 @@
       "unit": "EA",
       "note": "선반 9개 × 4",
       "itemLabel": "수납장"
+    },
+    {
+      "category": "걸레받이카바",
+      "item": "걸레받이카바(18T) 투명",
+      "manufacturer": "-",
+      "spec": "2400mm",
+      "qty": 1,
+      "unit": "EA",
+      "note": "걸레받이 2400mm ÷ 2400",
+      "itemLabel": "수납장"
     }
   ],
   "hardwareSummary": {
@@ -1393,7 +1409,8 @@
     "레일": 1,
     "손잡이": 10,
     "다리발": 12,
-    "브라켓": 36
+    "브라켓": 36,
+    "걸레받이카바": 1
   },
   "csvHead": [
     "모듈,부품,자재,두께,가로,세로,수량,엣지,비고",

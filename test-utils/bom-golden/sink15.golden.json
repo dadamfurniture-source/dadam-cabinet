@@ -964,7 +964,7 @@
       "module": "하부장-서랍장",
       "part": "서랍밑판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 757,
       "h": 489,
       "qty": 2,
@@ -1595,7 +1595,7 @@
     "MDF_2.7": {
       "material": "MDF",
       "thickness": 2.7,
-      "totalArea": 4960056,
+      "totalArea": 4219710,
       "panelCount": 2
     },
     "MDF_18": {
@@ -1603,6 +1603,12 @@
       "thickness": 18,
       "totalArea": 5174164,
       "panelCount": 2
+    },
+    "MDF_3": {
+      "material": "MDF",
+      "thickness": 3,
+      "totalArea": 740346,
+      "panelCount": 1
     },
     "인조대리석_12": {
       "material": "인조대리석",
@@ -1660,10 +1666,10 @@
       "category": "경첩",
       "item": "H052W-5 105도 저압 경첩",
       "manufacturer": "문주",
-      "spec": "2구",
-      "qty": 2,
+      "spec": "3구",
+      "qty": 3,
       "unit": "EA",
-      "note": "서랍장 (보링: 110, 568)",
+      "note": "서랍장 (보링: 110, 339, 568)",
       "itemLabel": "싱크대"
     },
     {
@@ -1720,18 +1726,29 @@
       "item": "선반 브라켓 (핀타입)",
       "manufacturer": "-",
       "spec": "Φ5mm",
-      "qty": 36,
+      "qty": 28,
       "unit": "EA",
-      "note": "선반 9개 × 4",
+      "note": "선반 7개 × 4",
+      "itemLabel": "싱크대"
+    },
+    {
+      "category": "걸레받이카바",
+      "item": "걸레받이카바(18T) 투명",
+      "manufacturer": "-",
+      "spec": "2400mm",
+      "qty": 2,
+      "unit": "EA",
+      "note": "걸레받이 3500mm ÷ 2400",
       "itemLabel": "싱크대"
     }
   ],
   "hardwareSummary": {
-    "경첩": 22,
+    "경첩": 23,
     "레일": 2,
     "손잡이": 11,
     "다리발": 32,
-    "브라켓": 36
+    "브라켓": 28,
+    "걸레받이카바": 2
   },
   "csvHead": [
     "모듈,부품,자재,두께,가로,세로,수량,엣지,비고",

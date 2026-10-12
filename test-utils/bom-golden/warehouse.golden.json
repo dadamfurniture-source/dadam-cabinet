@@ -969,7 +969,7 @@
       "h": 435,
       "qty": 1,
       "edge": "1면(전)",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (shelfCount 미지정 → 상부 2 · 하부 1)",
+      "note": "선반 수 미지정 → 상부 2 · 그 밖 칸 간격 300~450 (플래너와 같다)",
       "finishCode": "",
       "partId": "0-l1-shelf#0-0",
       "slot": "body",
@@ -1256,13 +1256,24 @@
       "unit": "EA",
       "note": "선반 5개 × 4",
       "itemLabel": "창고장"
+    },
+    {
+      "category": "걸레받이카바",
+      "item": "걸레받이카바(18T) 투명",
+      "manufacturer": "-",
+      "spec": "2400mm",
+      "qty": 1,
+      "unit": "EA",
+      "note": "걸레받이 2000mm ÷ 2400",
+      "itemLabel": "창고장"
     }
   ],
   "hardwareSummary": {
     "경첩": 20,
     "손잡이": 10,
     "다리발": 8,
-    "브라켓": 20
+    "브라켓": 20,
+    "걸레받이카바": 1
   },
   "csvHead": [
     "모듈,부품,자재,두께,가로,세로,수량,엣지,비고",
