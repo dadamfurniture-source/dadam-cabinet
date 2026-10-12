@@ -242,6 +242,27 @@
         return DrawerRules ? DrawerRules.DRAWER_RULES.RAIL_LENGTHS[0] : 250;
       }
 
+      /**
+       * 플랩 가스쇼바 — 2026-10-13 사장님 결정. 도어당 양쪽 1개씩, 규격은 도어 무게로 자동.
+       *   규격은 거래명세서에서 산 것만: 1kg 고정형(5182-17) · 5kg MJG180-50 · 7kg 180-70 · 9kg MJG250-90.
+       *   도어 무게 = 폭 × 높이 × 18T × MDF 밀도 750kg/m³. 쪽당 규격 ≥ 도어 무게 중 가장 약한 것.
+       */
+      const BOM_GAS_STRUT_PER_DOOR = 2;
+      const BOM_DOOR_MDF_T = 18;
+      const BOM_MDF_DENSITY = 750;   // kg/m³
+      const BOM_GAS_STRUTS = [
+        { kg: 1, model: '고정형 1kg' },
+        { kg: 5, model: 'MJG180-50' },
+        { kg: 7, model: '180-70' },
+        { kg: 9, model: 'MJG250-90' },
+      ];
+      function bomGasStrutFor(doorW, doorH) {
+        const weight = (Math.max(0, doorW) / 1000) * (Math.max(0, doorH) / 1000) * (BOM_DOOR_MDF_T / 1000) * BOM_MDF_DENSITY;
+        const pick = BOM_GAS_STRUTS.find((g) => g.kg >= weight);
+        const g = pick || BOM_GAS_STRUTS[BOM_GAS_STRUTS.length - 1];
+        return { kg: g.kg, model: g.model, weight, over: !pick };
+      }
+
       /** 하부 모듈 깊이 — mod.d → item.d → 카테고리 기본 깊이 (simple-categories.md §1). 상부는 upperD. */
       function bomSimpleDepthOf(mod, pos, item, rules) {
         const md = parseFloat(mod && mod.d);
@@ -2066,7 +2087,7 @@
          *   리프트업  가변철물 1 SET/도어 — 명세서의 가변철물 小(23KG) 는 도어 폭 450~600 용이라 그 밖이면 비고에 남긴다
          *   슬라이딩  SDR-2 상·하레일 2500 1조/모듈 + 상부속·하부속 도어당 2개씩 (명세서 #089 #110)
          * 냉장고장 모듈의 doorType 값 (data-constants.js EL_DOOR_TYPES 'liftup'·'sliding', fridge.md §7 의 옛 표기 'lift'·'slide').
-         * 플랩·포켓은 철물이 정해지지 않아 예전처럼 경첩으로 센다.
+         * 플랩은 flapHardwareOf (경첩 + 가스쇼바), 포켓은 철물이 정해지지 않아 예전처럼 경첩으로 센다.
          */
         nonSwingHardwareOf(mod, doorCount) {
           const type = mod.doorType;
@@ -2092,6 +2113,44 @@
             ];
           }
           return null;
+        }
+
+        /**
+         * 플랩(위로 여는 도어) 철물 — 2026-10-13 사장님 결정 (hardware.md §1 flap).
+         *   경첩   천판 쪽에 달린다 → 개수·보링을 도어 **폭** 변으로 센다 (≤900 → 2구 · 끝 110). 품번은 여닫이와 같다.
+         *          그래서 도어 최대폭 600 을 넘는 냉장고 자리 위장(615 → 도어 611)도 한 장이 된다.
+         *   쇼바   도어당 양쪽 1개씩 2개. 규격은 도어 무게로 자동 — MDF 18T × 밀도 750kg/m³,
+         *          쪽당 규격 ≥ 도어 무게인 것 중 가장 약한 것. 규격은 산 것만 (명세서 1·5·7·9kg).
+         *          9kg 으로도 모자라면 9kg 을 내고 비고에 [확인 필요].
+         * 도어 폭은 자재 행과 같은 식 — mod.doorW 가 있으면 그것, 없으면 floor(W / 도어 수) − 4.
+         */
+        flapHardwareOf(mod, doorCount, doorH, specs) {
+          const label = mod.name || mod.type;
+          const doorW = parseFloat(mod.doorW) || (Math.floor((parseFloat(mod.w) || 0) / Math.max(1, doorCount)) - 4);
+          const hinges = this.getHingeCount(doorW);
+          const boring = this.getBoringPositions(doorW);
+          const strut = bomGasStrutFor(doorW, doorH);
+          return [
+            {
+              category: '경첩',
+              item: `${this.hingeModelOf(specs)} 105도 저압 경첩`,
+              manufacturer: '문주',
+              spec: `${hinges}구`,
+              qty: hinges * doorCount,
+              unit: 'EA',
+              note: `${label} 플랩 — 천판 쪽, 도어 폭 ${doorW} 변 (보링: ${boring.join(', ')})`,
+            },
+            {
+              category: '가스쇼바',
+              item: `가스쇼바 ${strut.kg}kg`,
+              manufacturer: '',
+              spec: strut.model,
+              qty: BOM_GAS_STRUT_PER_DOOR * doorCount,
+              unit: 'EA',
+              note: `${label} 플랩 ${doorW}×${Math.round(doorH)} ≈ ${strut.weight.toFixed(1)}kg`
+                + (strut.over ? ` — ${strut.kg}kg 로도 모자람 [확인 필요]` : ''),
+            },
+          ];
         }
 
         // 경첩 수 계산 — bom-protocol.md §4-1 · ACTIVE_RULES.md §9.1: ≤900 → 2구, 901~1600 → 3구, 1601+ → 4구.
@@ -2144,6 +2203,12 @@
             else if (mod.pos === 'lower') doorH = (mod.h || (specs.lowerH || 870) - (parseFloat(specs.topThickness) || 12) - (parseFloat(specs.sinkLegHeight) || 150)) - 30;
             else doorH = mod.h || 700;
             if (simpleDoorH !== null) doorH = simpleDoorH; // B3 서랍장 여닫이 도어 — 자재 행의 hingeDoorH
+
+            // 2026-10-13: 위로 여는 도어(플랩) — 경첩이 천판 쪽에 달려 도어 **폭** 변을 따라 보링하고 가스쇼바 2 가 붙는다
+            if (mod.doorOpen === 'up' || mod.doorType === 'flap') {
+              this.flapHardwareOf(mod, doorCount, doorH, specs).forEach((row) => hardware.push(row));
+              return;
+            }
 
             const hingesPerDoor = this.getHingeCount(doorH);
             const boring = this.getBoringPositions(doorH);
@@ -2629,6 +2694,8 @@
           // B3 단순 카테고리 — 규칙표·선반/도어/깊이/레일 도우미 (bom-golden-simple.test.js)
           BOM_SIMPLE_CATEGORY_RULES, bomSimpleShelfQtyOf, bomSimpleDefaultShelfCount, bomSimpleDoorCountOf,
           bomSimpleHingeDoorsOf, bomSimpleDepthOf, bomSimpleRailLenOf,
+          // 2026-10-13 플랩 가스쇼바 — 규격표·자동 선택
+          BOM_GAS_STRUTS, bomGasStrutFor,
         };
       }
 
