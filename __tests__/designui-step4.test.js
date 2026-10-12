@@ -111,7 +111,7 @@ describe('[발행]', () => {
     await settle();
     const p4 = () => document.getElementById('workOrderPanel');
     expect(p4().innerHTML).toMatch(/작업지시서 없음/);
-    expect(p4().querySelectorAll('[data-wo-print][disabled]').length).toBe(6);
+    expect(p4().querySelectorAll('[data-wo-print][disabled]').length).toBe(7);
 
     p4().querySelector('#wo4Issue').click();
     await settle();
@@ -122,9 +122,9 @@ describe('[발행]', () => {
     expect(wo[0].body.instructions).toBe('고객 승인 전 발행 — 사유: 급한 현장');
     expect(posts(w, 'installation_order')).toHaveLength(0);
     expect(p4().querySelector('#wo4Status').textContent).toMatch(/DD-WO-r1 발행 완료/);
-    // 제작 꾸러미 5장이 켜지고, 설치 카드는 현장 정보가 없어 꺼진 채
+    // 제작 꾸러미 6장이 켜지고, 설치 카드는 현장 정보가 없어 꺼진 채
     const live = [...p4().querySelectorAll('[data-wo-print]')].filter((b) => !b.disabled);
-    expect(live.map((b) => b.getAttribute('data-wo-pack'))).toEqual(['cut', 'assembly', 'door', 'labels', 'all']);
+    expect(live.map((b) => b.getAttribute('data-wo-pack'))).toEqual(['cut', 'cut-vendor', 'assembly', 'door', 'labels', 'all']);
     expect(live.every((b) => b.getAttribute('data-wo-print') === 'WO1')).toBe(true);
   });
 
