@@ -22,6 +22,7 @@
       "edgeLen": 1310,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-upper",
       "itemLabel": "싱크대"
     },
     {
@@ -46,6 +47,7 @@
       "edgeLen": 760,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-upper",
       "itemLabel": "싱크대"
     },
     {
@@ -70,6 +72,7 @@
       "edgeLen": 760,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-upper",
       "itemLabel": "싱크대"
     },
     {
@@ -94,6 +97,7 @@
       "edgeLen": 0,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-upper",
       "itemLabel": "싱크대"
     },
     {
@@ -118,6 +122,7 @@
       "edgeLen": 1520,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-upper",
       "itemLabel": "싱크대"
     },
     {
@@ -142,6 +147,7 @@
       "edgeLen": 1380,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-upper",
       "itemLabel": "싱크대"
     },
     {
@@ -166,6 +172,7 @@
       "edgeLen": 760,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-upper",
       "itemLabel": "싱크대"
     },
     {
@@ -190,6 +197,7 @@
       "edgeLen": 2382,
       "edgeT": 1,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-upper",
       "itemLabel": "싱크대"
     },
     {
@@ -214,6 +222,7 @@
       "edgeLen": 0,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-upper",
       "itemLabel": "싱크대"
     },
     {
@@ -238,6 +247,7 @@
       "edgeLen": 0,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-upper",
       "itemLabel": "싱크대"
     },
     {
@@ -262,6 +272,7 @@
       "edgeLen": 0,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-upper",
       "itemLabel": "싱크대"
     },
     {
@@ -286,6 +297,7 @@
       "edgeLen": 1740,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-upper",
       "itemLabel": "싱크대"
     },
     {
@@ -310,6 +322,7 @@
       "edgeLen": 1310,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-uc1",
       "itemLabel": "싱크대"
     },
     {
@@ -334,6 +347,7 @@
       "edgeLen": 570,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-uc1",
       "itemLabel": "싱크대"
     },
     {
@@ -358,6 +372,7 @@
       "edgeLen": 570,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-uc1",
       "itemLabel": "싱크대"
     },
     {
@@ -382,6 +397,7 @@
       "edgeLen": 0,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-uc1",
       "itemLabel": "싱크대"
     },
     {
@@ -406,6 +422,7 @@
       "edgeLen": 1140,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-uc1",
       "itemLabel": "싱크대"
     },
     {
@@ -430,6 +447,7 @@
       "edgeLen": 570,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-uc1",
       "itemLabel": "싱크대"
     },
     {
@@ -454,6 +472,7 @@
       "edgeLen": 2662,
       "edgeT": 1,
       "edgeCode": null,
+      "moduleKey": "0-uc1",
       "itemLabel": "싱크대"
     },
     {
@@ -478,6 +497,7 @@
       "edgeLen": 2008,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-lower",
       "itemLabel": "싱크대"
     },
     {
@@ -502,6 +522,7 @@
       "edgeLen": 1046,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-lower",
       "itemLabel": "싱크대"
     },
     {
@@ -526,6 +547,7 @@
       "edgeLen": 2092,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-lower",
       "itemLabel": "싱크대"
     },
     {
@@ -550,6 +572,7 @@
       "edgeLen": 0,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-lower",
       "itemLabel": "싱크대"
     },
     {
@@ -574,6 +597,7 @@
       "edgeLen": 1356,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-lower",
       "itemLabel": "싱크대"
     },
     {
@@ -598,6 +622,7 @@
       "edgeLen": 1046,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-lower",
       "itemLabel": "싱크대"
     },
     {
@@ -622,6 +647,7 @@
       "edgeLen": 2200,
       "edgeT": 1,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-lower",
       "itemLabel": "싱크대"
     },
     {
@@ -646,6 +672,7 @@
       "edgeLen": 0,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-lower",
       "itemLabel": "싱크대"
     },
     {
@@ -670,6 +697,7 @@
       "edgeLen": 0,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-lower",
       "itemLabel": "싱크대"
     },
     {
@@ -694,6 +722,7 @@
       "edgeLen": 0,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-lower",
       "itemLabel": "싱크대"
     },
     {
@@ -718,6 +747,7 @@
       "edgeLen": 1716,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-corner-blind-lower",
       "itemLabel": "싱크대"
     },
     {
@@ -742,6 +772,7 @@
       "edgeLen": 2008,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-lc1",
       "itemLabel": "싱크대"
     },
     {
@@ -766,6 +797,7 @@
       "edgeLen": 650,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-lc1",
       "itemLabel": "싱크대"
     },
     {
@@ -790,6 +822,7 @@
       "edgeLen": 762,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-lc1",
       "itemLabel": "싱크대"
     },
     {
@@ -814,6 +847,7 @@
       "edgeLen": 0,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-lc1",
       "itemLabel": "싱크대"
     },
     {
@@ -838,6 +872,7 @@
       "edgeLen": 635,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-lc1",
       "itemLabel": "싱크대"
     },
     {
@@ -862,6 +897,7 @@
       "edgeLen": 2170,
       "edgeT": 1,
       "edgeCode": null,
+      "moduleKey": "0-lc1",
       "itemLabel": "싱크대"
     },
     {
@@ -886,6 +922,7 @@
       "edgeLen": 2008,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-lc2",
       "itemLabel": "싱크대"
     },
     {
@@ -910,6 +947,7 @@
       "edgeLen": 970,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-lc2",
       "itemLabel": "싱크대"
     },
     {
@@ -934,6 +972,7 @@
       "edgeLen": 1940,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-lc2",
       "itemLabel": "싱크대"
     },
     {
@@ -958,6 +997,7 @@
       "edgeLen": 0,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-lc2",
       "itemLabel": "싱크대"
     },
     {
@@ -982,6 +1022,7 @@
       "edgeLen": 1356,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-lc2",
       "itemLabel": "싱크대"
     },
     {
@@ -1006,6 +1047,7 @@
       "edgeLen": 2348,
       "edgeT": 1,
       "edgeCode": null,
+      "moduleKey": "0-lc2",
       "itemLabel": "싱크대"
     },
     {
@@ -1030,6 +1072,7 @@
       "edgeLen": 2900,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-ep",
       "itemLabel": "싱크대"
     },
     {
@@ -1054,6 +1097,7 @@
       "edgeLen": 4974,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-ep",
       "itemLabel": "싱크대"
     },
     {
@@ -1078,6 +1122,7 @@
       "edgeLen": 0,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-ep",
       "itemLabel": "싱크대"
     },
     {
@@ -1102,6 +1147,7 @@
       "edgeLen": 4440,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-ep",
       "itemLabel": "싱크대"
     }
   ],
@@ -1144,6 +1190,12 @@
       "qty": 2,
       "unit": "EA",
       "note": "LT망장 (보링: 110, 568)",
+      "module": "LT망장",
+      "moduleKey": "0-corner-blind-lower",
+      "boring": [
+        110,
+        568
+      ],
       "itemLabel": "싱크대"
     },
     {
@@ -1154,6 +1206,12 @@
       "qty": 2,
       "unit": "EA",
       "note": "수납장 (보링: 110, 568)",
+      "module": "수납장",
+      "moduleKey": "0-lc1",
+      "boring": [
+        110,
+        568
+      ],
       "itemLabel": "싱크대"
     },
     {
@@ -1164,6 +1222,12 @@
       "qty": 4,
       "unit": "EA",
       "note": "개수대 (보링: 110, 568)",
+      "module": "개수대",
+      "moduleKey": "0-lc2",
+      "boring": [
+        110,
+        568
+      ],
       "itemLabel": "싱크대"
     },
     {
@@ -1174,6 +1238,12 @@
       "qty": 2,
       "unit": "EA",
       "note": "LT망장 (보링: 110, 625)",
+      "module": "LT망장",
+      "moduleKey": "0-corner-blind-upper",
+      "boring": [
+        110,
+        625
+      ],
       "itemLabel": "싱크대"
     },
     {
@@ -1184,6 +1254,12 @@
       "qty": 2,
       "unit": "EA",
       "note": "상부장 (보링: 110, 625)",
+      "module": "상부장",
+      "moduleKey": "0-uc1",
+      "boring": [
+        110,
+        625
+      ],
       "itemLabel": "싱크대"
     },
     {
