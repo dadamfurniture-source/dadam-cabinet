@@ -250,6 +250,8 @@ POST /api/generate
 
 `generations.options.internal_only` 에 둔다 — 새 열 없이 [결정]. 크레딧은 환불하지 않는다 (이미지는 나왔다).
 
+구현: PR #736 — 잡은 done 패치에 함께 싣고(대조 못 돈 경우 포함), 이미 나간 공유 링크는 열람 410. 계약은 `design-spec-prompt.md` "내부 확인용".
+
 ### 6.4 비용 (1달러 1,400원) [확인: 공식 단가]
 
 | 항목 | 호출 | 원 |

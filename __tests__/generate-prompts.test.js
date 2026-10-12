@@ -85,8 +85,8 @@ describe('화면 품목 ↔ 워커 카테고리', () => {
     (m) => m[1]
   );
 
-  test('ai-design.html 의 KINDS 8개가 전부 워커에 있다', () => {
-    expect(kinds.length).toBe(8);
+  test('ai-design.html 의 KINDS 10개가 전부 워커에 있다', () => {
+    expect(kinds.length).toBe(10);
     for (const k of kinds) expect(P.resolveCategory(k)).toBe(k);
   });
 
@@ -398,6 +398,10 @@ describe('공유 토큰', () => {
       409
     );
     expect(S.checkShareAccessible({ status: 'done', share_expires_at: future }).ok).toBe(true);
+    // 내부 확인용 (계획서 §6.3) — 이미 나간 링크도 닫는다
+    expect(
+      S.checkShareAccessible({ status: 'done', share_expires_at: future, options: { internal_only: true } })
+    ).toEqual({ ok: false, reason: 'internal_only', status: 410 });
   });
 
   test('만료일 기본 30일, 최대 365일', () => {

@@ -31,6 +31,9 @@ const RATES = {
   office: { lines: [{ name: '사무실 붙박이', price: 220000 }] },
 };
 RATES.island = RATES.sink; // 아일랜드 단가는 별도 표준값이 없어 싱크대 표를 쓴다
+// 서재·침실도 표준값이 아직 없다 — 가장 가까운 품목의 표를 쓴다 (2026-10-08)
+RATES.study = RATES.office;
+RATES.bedroom = RATES.wardrobe;
 
 const INSTALL = 200000;
 const DEMOLITION_PER_1000 = 30000;
