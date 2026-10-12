@@ -108,9 +108,9 @@
     },
     "pedestal": {
       "height": null,
-      "box_parts": null,
+      "box_parts": { "front_back": "W", "front_back_qty": 2, "side": "D - 80", "side_qty": 2, "brace": "D - 80", "brace_qty": 1, "brace_w_min": 700, "height": "pedestalH" },
       "kick_board": null,
-      "sink_tall_pedestal": null,
+      "sink_tall_pedestal": { "same_as": "box_parts" },
       "fridge_pedestal": null,
       "fastening": null
     }

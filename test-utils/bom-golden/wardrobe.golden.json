@@ -1253,7 +1253,7 @@
       "part": "좌대 전후",
       "material": "PB",
       "thickness": 15,
-      "w": 870,
+      "w": 900,
       "h": 60,
       "qty": 2,
       "edge": "1면(전)",
@@ -1267,7 +1267,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 870,
+      "edgeLen": 900,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "붙박이장"
@@ -1277,7 +1277,7 @@
       "part": "좌대 측",
       "material": "PB",
       "thickness": 15,
-      "w": 565,
+      "w": 520,
       "h": 60,
       "qty": 2,
       "edge": "1면(전)",
@@ -1291,7 +1291,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 565,
+      "edgeLen": 520,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "붙박이장"
@@ -1301,7 +1301,7 @@
       "part": "좌대 중간보강",
       "material": "PB",
       "thickness": 15,
-      "w": 535,
+      "w": 520,
       "h": 60,
       "qty": 1,
       "edge": "1면(전)",
@@ -1315,7 +1315,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 535,
+      "edgeLen": 520,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "붙박이장"
@@ -1325,7 +1325,7 @@
       "part": "좌대 전후",
       "material": "PB",
       "thickness": 15,
-      "w": 870,
+      "w": 900,
       "h": 60,
       "qty": 2,
       "edge": "1면(전)",
@@ -1339,7 +1339,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 870,
+      "edgeLen": 900,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "붙박이장"
@@ -1349,7 +1349,7 @@
       "part": "좌대 측",
       "material": "PB",
       "thickness": 15,
-      "w": 565,
+      "w": 520,
       "h": 60,
       "qty": 2,
       "edge": "1면(전)",
@@ -1363,7 +1363,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 565,
+      "edgeLen": 520,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "붙박이장"
@@ -1373,7 +1373,7 @@
       "part": "좌대 중간보강",
       "material": "PB",
       "thickness": 15,
-      "w": 535,
+      "w": 520,
       "h": 60,
       "qty": 1,
       "edge": "1면(전)",
@@ -1387,7 +1387,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 535,
+      "edgeLen": 520,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "붙박이장"
@@ -1397,7 +1397,7 @@
       "part": "좌대 전후",
       "material": "PB",
       "thickness": 15,
-      "w": 870,
+      "w": 900,
       "h": 60,
       "qty": 2,
       "edge": "1면(전)",
@@ -1411,7 +1411,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 870,
+      "edgeLen": 900,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "붙박이장"
@@ -1421,7 +1421,7 @@
       "part": "좌대 측",
       "material": "PB",
       "thickness": 15,
-      "w": 565,
+      "w": 520,
       "h": 60,
       "qty": 2,
       "edge": "1면(전)",
@@ -1435,7 +1435,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 565,
+      "edgeLen": 520,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "붙박이장"
@@ -1445,7 +1445,7 @@
       "part": "좌대 중간보강",
       "material": "PB",
       "thickness": 15,
-      "w": 535,
+      "w": 520,
       "h": 60,
       "qty": 1,
       "edge": "1면(전)",
@@ -1459,7 +1459,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 535,
+      "edgeLen": 520,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "붙박이장"
@@ -1469,7 +1469,7 @@
     "PB_15": {
       "material": "PB",
       "thickness": 15,
-      "totalArea": 20896142,
+      "totalArea": 20888042,
       "panelCount": 8
     },
     "MDF_2.7": {
@@ -1487,7 +1487,7 @@
   },
   "edgeBanding": {
     "1": 35396,
-    "0.6": 109027
+    "0.6": 108892
   },
   "hardware": [
     {
