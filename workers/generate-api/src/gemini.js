@@ -119,11 +119,12 @@ let firstOpenRoute = 0; // isolate 수명 동안 기억한다
  * @param {string}   [p.model]        비우면 want 에 따라 imageModel/textModel
  * @param {string}   [p.imageSize]    '1K' | '2K' | '4K' (이미지일 때만)
  * @param {string}   [p.aspectRatio]  예: '4:3' (이미지일 때만)
+ * @param {number[]} [p.retryDelaysMs] 과부하 재시도 간격. 비우면 retryDelaysMs(env). 손님이 기다리는 호출은 짧게
  * @returns {Promise<{image?:string, imageMime?:string, text?:string}>}
  */
 export async function callGemini(
   env,
-  { prompt, images = [], want = 'image', temperature, model, imageSize, aspectRatio }
+  { prompt, images = [], want = 'image', temperature, model, imageSize, aspectRatio, retryDelaysMs: delaysOverride }
 ) {
   const parts = images
     .filter((i) => i && i.base64 && i.mimeType)
@@ -143,9 +144,54 @@ export async function callGemini(
   const useModel = model || (want === 'text' ? textModel(env) : imageModel(env));
   const path = `/models/${useModel}:generateContent?key=${env.GEMINI_API_KEY}`;
 
+  const delays = delaysOverride || retryDelaysMs(env);
+  for (let retry = 0; ; retry++) {
+    try {
+      return await callOnce(env, path, body, want);
+    } catch (e) {
+      // 과부하(429·500·503)만 기다렸다 다시 보낸다. 시간 초과·4xx 는 그대로 던진다 —
+      //   시간 초과를 여기서 또 기다리면 잡의 10분을 다 쓴다 (잡 단위 재시도가 따로 있다).
+      if (!e.retryable || retry >= delays.length) throw e;
+      const wait = e.retryAfterMs != null ? Math.min(e.retryAfterMs, RETRY_AFTER_CAP_MS) : delays[retry];
+      console.warn(`[Gemini] ${e.status} — retry ${retry + 1}/${delays.length} in ${Math.round(wait / 1000)}s`);
+      await new Promise((r) => setTimeout(r, wait));
+    }
+  }
+}
+
+/**
+ * 과부하 재시도 (2026-10-13). 10/12 밤 gemini-3-pro-image 가 "high demand" 503 을 내자
+ * 기본안은 그 자리에서 실패했고 추천안은 4초 뒤 한 번 더 시도하다 빠졌다 (보고서: 생성 기록 25건).
+ * 수요 폭주는 수십 초 이어지므로 간격을 벌려 기다린다. env.GEMINI_RETRY_DELAYS_MS="10000,30000,60000".
+ */
+export const RETRY_STATUSES = [429, 500, 503];
+const DEFAULT_RETRY_DELAYS_MS = [10_000, 30_000, 60_000];
+const RETRY_AFTER_CAP_MS = 60_000;
+
+export function retryDelaysMs(env) {
+  const raw = env && env.GEMINI_RETRY_DELAYS_MS;
+  if (raw == null || raw === '') return DEFAULT_RETRY_DELAYS_MS;
+  const list = String(raw)
+    .split(',')
+    .map((v) => Number(v.trim()))
+    .filter((n) => Number.isFinite(n) && n >= 0);
+  return list;
+}
+
+/** Retry-After 헤더(초 또는 HTTP 날짜) → ms. 없으면 null. */
+function retryAfterMs(res) {
+  const v = res.headers && res.headers.get && res.headers.get('retry-after');
+  if (!v) return null;
+  const sec = Number(v);
+  if (Number.isFinite(sec)) return Math.max(0, sec * 1000);
+  const at = Date.parse(v);
+  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : null;
+}
+
+async function callOnce(env, path, body, want) {
   const list = routes(env);
   for (let i = Math.min(firstOpenRoute, list.length - 1); i < list.length; i++) {
-    const res = await send(env, list[i], path, body);
+    const res = await send(env, list[i], path, body, want);
     const text = await res.text();
     if (!res.ok) {
       if (isGeoBlock(text) && i < list.length - 1) {
@@ -153,7 +199,11 @@ export async function callGemini(
         firstOpenRoute = i + 1;
         continue;
       }
-      throw new Error(`Gemini ${res.status}: ${text.slice(0, 200)}`);
+      const err = new Error(`Gemini ${res.status}: ${text.slice(0, 200)}`);
+      err.status = res.status;
+      err.retryable = RETRY_STATUSES.includes(res.status);
+      err.retryAfterMs = retryAfterMs(res);
+      throw err;
     }
     const data = JSON.parse(text);
     const out = {};
@@ -174,13 +224,17 @@ export async function callGemini(
  * 잡의 10분 제한은 다음 알람에서나 검사되므로, 진행 중인 fetch 는 스스로 끊어야 한다.
  * 첫 실측에서 QC 단계가 9분 넘게 멈춘 것이 계기다. env.GEMINI_TIMEOUT_MS 로 바꾼다.
  */
-export function geminiTimeoutMs(env) {
-  const n = Number(env && env.GEMINI_TIMEOUT_MS);
-  return Number.isFinite(n) && n > 0 ? n : 150_000;
+export function geminiTimeoutMs(env, want = 'text') {
+  // 2026-10-13: 이미지는 210초. 과부하 때 느리지만 살아 있는 2K 응답을 150초에서 끊었다 (10/12 붙박이장 실패).
+  //   텍스트(분석·검사)는 그대로 150초. env.GEMINI_IMAGE_TIMEOUT_MS / GEMINI_TIMEOUT_MS 로 바꾼다.
+  const key = want === 'image' ? 'GEMINI_IMAGE_TIMEOUT_MS' : 'GEMINI_TIMEOUT_MS';
+  const n = Number(env && env[key]);
+  if (Number.isFinite(n) && n > 0) return n;
+  return want === 'image' ? 210_000 : 150_000;
 }
 
-function send(env, route, path, body) {
-  const signal = AbortSignal.timeout(geminiTimeoutMs(env));
+function send(env, route, path, body, want = 'text') {
+  const signal = AbortSignal.timeout(geminiTimeoutMs(env, want));
   if (route === 'proxy') {
     const stub = proxyStub(env);
     if (!stub) throw new Error('GEMINI_PROXY binding missing');
