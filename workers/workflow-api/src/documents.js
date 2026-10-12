@@ -83,8 +83,21 @@ export async function issueDocument(env, { user, body }) {
   const customerName =
     typeof body.customer_name === 'string' ? body.customer_name.trim() : '';
 
+  // 확인서는 고객용(기본)과 거래처(인테리어 업체)용 두 가지 금액 중 하나로 낸다.
+  // 거래처용은 스냅샷에 함께 계산해 둔 partner 금액을 쓴다 — 옛 스냅샷(partner 없음)이면 거절한다.
+  const priceTier = body.price_tier === 'partner' ? 'partner' : 'customer';
+  const baseQuote = snapshot.quote_payload;
+  let quoteForDoc = baseQuote;
+  if (priceTier === 'partner') {
+    if (!baseQuote || !baseQuote.partner) {
+      throw new ValidationError('이 스냅샷에는 거래처 금액이 없습니다. 설계·BOM 을 다시 동결한 뒤 발행해 주세요');
+    }
+    quoteForDoc = { ...baseQuote.partner, method: baseQuote.method, range: null, skipped: baseQuote.skipped || [], tier: 'partner' };
+  }
+
   const renderPayload = {
-    quote: snapshot.quote_payload,
+    quote: quoteForDoc,
+    price_tier: priceTier,
     instructions: typeof body.instructions === 'string' ? body.instructions : '',
     issued_by: user.email || null,
   };
@@ -104,11 +117,13 @@ export async function issueDocument(env, { user, body }) {
     Object.assign(renderPayload, await gatherWorkOrderPayload(env, { designId, snapshot }));
   }
 
-  const totals = snapshot.quote_payload
+  const totals = quoteForDoc
     ? {
-        subtotal: snapshot.quote_payload.subtotal,
-        vat: snapshot.quote_payload.vat,
-        total: snapshot.quote_payload.total,
+        subtotal: quoteForDoc.subtotal,
+        vat: quoteForDoc.vat,
+        total: quoteForDoc.total,
+        // 거래처용일 때만 표시 — 고객용 totals 모양은 예전 그대로
+        ...(priceTier === 'partner' ? { price_tier: 'partner' } : {}),
       }
     : {};
   if (docType === 'work_order') {

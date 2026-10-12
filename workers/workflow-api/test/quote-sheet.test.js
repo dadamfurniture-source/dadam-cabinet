@@ -107,3 +107,21 @@ test('붙박이장 골든도 계산된다 (재단 배치 없이 면적으로 원
   assert.ok(q.items.find((i) => i.name.startsWith('시공')).quantity === '5.4m');
   assert.ok(q.total > 0);
 });
+
+test('거래처 금액 = 같은 원가 줄 × 1.1, 고객 금액 = × 1.2 · 간접비는 기본으로 품목 원가에서 뺀다', () => {
+  const q = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT });
+  assert.equal(q.margin_rate, 0.2);
+  assert.equal(q.partner.margin_rate, 0.1);
+  assert.deepEqual(q.partner.items.map((i) => i.name), q.items.map((i) => i.name));
+  assert.deepEqual(q.partner.items.map((i) => i.quantity), q.items.map((i) => i.quantity));
+  assert.ok(Math.abs(q.partner.subtotal - q.cost.total * 1.1) <= 100 * 20, `${q.partner.subtotal} vs ${q.cost.total * 1.1}`);
+  assert.ok(q.partner.total < q.total);
+  assert.equal(q.partner.total, q.partner.subtotal + q.partner.vat);
+  // 간접비 기본 0 — 몸통·뒷판·도어 원가에 간접비가 없다
+  assert.equal(q.cost.body.overhead, 0);
+  assert.equal(q.cost.door.overhead, 0);
+  // 설정으로 간접비를 다시 넣으면 원가가 오른다
+  const withOh = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT, settings: { quote: { overheadPerHour: 33000, partnerMarginRate: 0.15 } } });
+  assert.ok(withOh.cost.total > q.cost.total);
+  assert.equal(withOh.partner.margin_rate, 0.15);
+});

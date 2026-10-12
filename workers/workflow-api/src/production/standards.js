@@ -79,7 +79,9 @@ export const DEFAULT_QUOTE = Object.freeze({
   fastenerPerBox: 1800, // 미니픽스·피스
   cutterMonthly: 3500000, // 재단 기사 월급 (4대보험 포함)
   workDays: 22,
-  overheadPerHour: 33000, // 간접비 380만 ÷ 월 20건 기준 공장 작업 약 115시간
+  // 간접비(월세·전기·차량·광고 등)는 매출 전체에서 충당하고 품목 원가에는 넣지 않는다 (2026-10-13 대표).
+  // 품목에 배분하고 싶으면 공장 작업 1시간당 금액을 넣는다 (예: 월 380만 ÷ 월 20건 × 5.7h ≈ 33,000).
+  overheadPerHour: 0,
   installPerMeter: 40000, // 시공 외주, 시공 길이 m당
   // 상판·설비·철거도 원가 × (1 + 마진) — 견적 전체가 "최종 지출비용 × 1.2" 가 되게 (2026-10-13 대표)
   countertopPerMeter: 125000, // 인조대리석 상판 매입+시공, m당 [확인 필요 — 판매가 15만 역산]
@@ -87,5 +89,6 @@ export const DEFAULT_QUOTE = Object.freeze({
   faucet: 30000, // 수전 (거래명세서 KF-7)
   hood: 59000, // 후드 (거래명세서 하이드 IB60S)
   demolitionPerMeter: 25000, // 기존 철거, 상·하부 길이 m당 [확인 필요 — 판매가 3만 역산]
-  marginRate: 0.2,
+  marginRate: 0.2, // 고객 금액 = 최종 지출비용 × (1 + 이 값)
+  partnerMarginRate: 0.1, // 거래처(인테리어 업체) 금액 = 최종 지출비용 × (1 + 이 값) — 2026-10-13 대표 기본값
 });

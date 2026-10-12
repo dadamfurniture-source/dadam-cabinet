@@ -373,6 +373,33 @@ test('issueDocument(customer_confirmation) — v2 자료를 모으지 않는다'
   });
 });
 
+test('issueDocument(customer_confirmation, 거래처) — 스냅샷의 거래처 금액으로 발행, 없으면 거절', async () => {
+  const partner = { items: [{ name: '몸통 제작', quantity: '6장', unit_price: 100000, total: 600000 }], subtotal: 440000, vat: 44000, total: 484000, margin_rate: 0.1 };
+  const snap = { ...fx.snapshot(), quote_payload: { ...fx.snapshot().quote_payload, method: 'sheet', partner } };
+  await withFetch(issueRoute(snap), async (calls) => {
+    await issueDocument(ENV, { user: { id: 'U1', email: 'x' }, body: { doc_type: 'customer_confirmation', snapshot_id: 'S2', price_tier: 'partner' } });
+    const post = calls.find((c) => c.method === 'POST' && /\/design_documents$/.test(c.url.split('?')[0]));
+    assert.equal(post.body.render_payload.price_tier, 'partner');
+    assert.equal(post.body.render_payload.quote.tier, 'partner');
+    assert.equal(post.body.render_payload.quote.total, 484000);
+    assert.deepEqual(post.body.totals, { subtotal: 440000, vat: 44000, total: 484000, price_tier: 'partner' });
+  });
+  // 고객용(기본)은 예전 그대로
+  await withFetch(issueRoute(snap), async (calls) => {
+    await issueDocument(ENV, { user: { id: 'U1', email: 'x' }, body: { doc_type: 'customer_confirmation', snapshot_id: 'S2' } });
+    const post = calls.find((c) => c.method === 'POST' && /\/design_documents$/.test(c.url.split('?')[0]));
+    assert.equal(post.body.render_payload.price_tier, 'customer');
+    assert.equal(post.body.totals.total, 528000);
+  });
+  // 거래처 금액이 없는 옛 스냅샷이면 거절
+  await withFetch(issueRoute(fx.snapshot()), async () => {
+    await assert.rejects(
+      issueDocument(ENV, { user: { id: 'U1', email: 'x' }, body: { doc_type: 'customer_confirmation', snapshot_id: 'S2', price_tier: 'partner' } }),
+      /거래처 금액이 없습니다/,
+    );
+  });
+});
+
 // ── 서명 URL ─────────────────────────────────────────────────────
 
 test('createSignedUrls — sign 엔드포인트에 경로 묶음을 보내고 절대 URL 로 돌려준다', async () => {

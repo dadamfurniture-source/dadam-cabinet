@@ -354,6 +354,7 @@
             ? ' · 원판 ' + esc(snap.sheet_count) + '장'
             : '') +
           (quote ? ' · 견적 ' + krw(quote.total) : '') +
+          (quote && quote.partner ? ' · 거래처 ' + krw(quote.partner.total) : '') +
           (quote && quote.skipped && quote.skipped.length
             ? '<div style="color:#8a6d3b;margin-top:4px;">단가 미정 품목: ' +
               esc(
@@ -654,7 +655,22 @@
 
     const body = { doc_type: docType };
     if (docType === 'customer_confirmation') {
-      const name = window.prompt('고객 성함을 입력해 주세요 (문서에는 마스킹되어 표시됩니다)');
+      // 금액은 두 가지 — 고객(지출비용 × 1.2)과 거래처·인테리어 업체(× 1.1). 스냅샷에 둘 다 계산돼 있다.
+      const quote = state.snapshot.quote;
+      let partner = false;
+      if (quote && quote.partner) {
+        partner = window.confirm(
+          '거래처(인테리어 업체)에 보내는 확인서입니까?\n\n' +
+            '확인 = 거래처 금액 ' + krw(quote.partner.total) + '\n' +
+            '취소 = 고객 금액 ' + krw(quote.total)
+        );
+        if (partner) body.price_tier = 'partner';
+      }
+      const name = window.prompt(
+        partner
+          ? '거래처(업체) 이름을 입력해 주세요 (문서에는 마스킹되어 표시됩니다)'
+          : '고객 성함을 입력해 주세요 (문서에는 마스킹되어 표시됩니다)'
+      );
       if (name === null) return;
       body.customer_name = name;
       const pin = window.prompt(

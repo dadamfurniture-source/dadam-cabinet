@@ -15,6 +15,11 @@
  * 공장 기타 비용(차량·소모품·폐기물·광고·카드 수수료)은 간접비(공장 작업 시간당)로 캐비닛 원가에 들어 있다.
  *
  * 원가 내역(cost)은 대표용이다. 고객 문서(확인서)는 items·합계만 그린다.
+ *
+ * 가격은 두 벌을 같은 원가 줄에서 낸다 (2026-10-13 대표):
+ *   고객 금액   = 최종 지출비용 × (1 + marginRate, 기본 0.2)          → items · subtotal · vat · total
+ *   거래처 금액 = 최종 지출비용 × (1 + partnerMarginRate, 기본 0.1)  → partner.{items, subtotal, vat, total}
+ * 간접비는 매출 전체에서 충당하므로 기본은 품목 원가에 넣지 않는다 (overheadPerHour 0).
  */
 
 import { countWork, workloadFromCounts } from './production/workload.js';
@@ -122,7 +127,6 @@ export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extra
   const crew = { ...DEFAULT_CREW, ...(settings.crew || {}) };
   const costs = { ...DEFAULT_COSTS, ...(settings.costs || {}) };
   const Q = { ...DEFAULT_QUOTE, ...(settings.quote || {}) };
-  const margin = 1 + Q.marginRate;
 
   const c = countWork(bom, cutPlan);
   const w = workloadFromCounts(c, S);
@@ -165,34 +169,38 @@ export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extra
   const install = { outsourcing: installM * Q.installPerMeter };
   const sum = (o) => Object.values(o).reduce((s, v) => s + v, 0);
 
-  const items = [];
-  const line = (name, qty, unit, cost) => {
-    if (!(qty > 0) || !(cost > 0)) return null;
-    const unitPrice = r100((cost * margin) / qty);
-    const it = { name, quantity: `${Math.round(qty * 100) / 100}${unit}`, unit_price: unitPrice, total: Math.round(unitPrice * qty) };
-    items.push(it);
-    return it;
-  };
-  line('몸통 제작 (PB 15T · 재단·엣지·조립·철물 포함)', c.sheetsPB, '장', sum(body));
-  line('뒷판 (MDF 2.7T)', c.sheetsBack, '장', sum(back));
-  line('도어 (MDF 18T · 마감·달기 포함)', doors, '장', sum(door));
-  line('시공 (설치 길이 기준)', installM, 'm', sum(install));
+  // 원가 줄 — 이름·수량·단위·원가. 가격은 마진율을 바꿔 두 벌로 낸다.
+  const costLines = [];
+  const add = (name, qty, unit, cost, key) => { if (qty > 0 && cost > 0) costLines.push({ name, qty, unit, cost, key }); };
+  add('몸통 제작 (PB 15T · 재단·엣지·조립·철물 포함)', c.sheetsPB, '장', sum(body), 'body');
+  add('뒷판 (MDF 2.7T)', c.sheetsBack, '장', sum(back), 'back');
+  add('도어 (MDF 18T · 마감·달기 포함)', doors, '장', sum(door), 'door');
+  add('시공 (설치 길이 기준)', installM, 'm', sum(install), 'install');
   // 몸통 장수가 0 인데 몸통 원가가 있으면(PB 없이 철물만 등) 일식으로 남긴다 — 금액을 조용히 버리지 않는다
-  if (!(c.sheetsPB > 0) && sum(body) > 0) items.push({ name: '몸통 부자재·작업 (일식)', quantity: '1식', unit_price: r100(sum(body) * margin), total: r100(sum(body) * margin) });
-
-  // 상판·설비·철거 — 원가 × (1 + 마진)
+  if (!(c.sheetsPB > 0) && sum(body) > 0) add('몸통 부자재·작업 (일식)', 1, '식', sum(body), 'body');
+  // 상판·설비·철거
   const extraCost = {};
   for (const x of extraCostLines(design, Q)) {
-    if (line(x.name, x.qty, x.unit, x.cost)) extraCost[x.key] = (extraCost[x.key] || 0) + x.cost;
+    if (x.qty > 0 && x.cost > 0) { add(x.name, x.qty, x.unit, x.cost, x.key); extraCost[x.key] = (extraCost[x.key] || 0) + x.cost; }
   }
-  for (const x of extraItems) items.push(x);
 
-  const subtotal = items.reduce((s, i) => s + i.total, 0);
-  const vat = Math.round(subtotal * 0.1);
-  const total = subtotal + vat;
+  const priceWith = (rate) => {
+    const lines = costLines.map((l) => {
+      const unitPrice = r100((l.cost * (1 + rate)) / l.qty);
+      return { name: l.name, quantity: `${Math.round(l.qty * 100) / 100}${l.unit}`, unit_price: unitPrice, total: Math.round(unitPrice * l.qty) };
+    });
+    const all = lines.concat(extraItems);
+    const sub = all.reduce((t, i) => t + i.total, 0);
+    const v = Math.round(sub * 0.1);
+    return { items: all, priced: lines.reduce((t, i) => t + i.total, 0), subtotal: sub, vat: v, total: sub + v };
+  };
+  const customer = priceWith(Q.marginRate);
+  const partner = priceWith(Q.partnerMarginRate);
+  const items = customer.items;
+  const { subtotal, vat, total } = customer;
   const cabinetCost = sum(body) + sum(back) + sum(door) + sum(install);
   const costTotal = cabinetCost + sum(extraCost);
-  const pricedTotal = items.filter((i) => !extraItems.includes(i)).reduce((s, i) => s + i.total, 0);
+  const pricedTotal = customer.priced;
 
   return {
     method: 'sheet',
@@ -203,6 +211,14 @@ export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extra
     range: range && range.min && range.max ? { min: Math.round(total * range.min), max: Math.round(total * range.max) } : null,
     skipped: [],
     margin_rate: Q.marginRate,
+    // 거래처(인테리어 업체) 금액 — 같은 원가 줄에 거래처 마진율
+    partner: {
+      items: partner.items,
+      subtotal: partner.subtotal,
+      vat: partner.vat,
+      total: partner.total,
+      margin_rate: Q.partnerMarginRate,
+    },
     // ── 대표용 원가 내역 (고객 문서에는 그리지 않는다) ──
     cost: {
       // 최종 지출비용 = 캐비닛(자재·제작·간접비·시공) + 상판·설비·철거. 고객 공급가(정해진 줄 제외) = 이 × (1 + 마진)
@@ -211,6 +227,7 @@ export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extra
       extras: roundAll(extraCost),
       priced_total: pricedTotal,
       margin_amount: Math.round(pricedTotal - costTotal),
+      partner_margin_amount: Math.round(partner.priced - costTotal),
       body: roundAll(body),
       back: roundAll(back),
       door: roundAll(door),
