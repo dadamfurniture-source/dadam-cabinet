@@ -2363,6 +2363,22 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // W9-102: 단일 모듈 정면도 헬퍼 (offset 받음)
 
   /**
+   * 2026-10-13: 위로 여는 도어(플랩) — 칸 열림 방향 'up'. 천판 쪽 경첩 + 가스쇼바 2 (BOM extractors.js flapHardwareOf).
+   *   상부장에만 있다: 싱크 상부장(section upper)과 냉장고장의 상부장 단(냉장고 자리 위장 포함).
+   *   냉장고 자리 위장은 자동계산이 'up' 으로 둔다 (buildStackColumn).
+   */
+  function flapAllowed(m) {
+    if (!m) return false;
+    return m.section === 'upper' || (m.section === 'fridge' && (m.part === '상부장' || !!m.fridgeNiche));
+  }
+  /** 칸을 누를 때 다음 열림 방향 — 좌 → 우 → (상부장이면) 위 → 좌. */
+  function nextDoorDir(m, cur) {
+    if (cur === 'left') return 'right';
+    if (cur === 'right' && flapAllowed(m)) return 'up';
+    return 'left';
+  }
+
+  /**
    * W12-30: 정면도의 칸을 **도어 방향 컨트롤**로 만든다.
    *
    * 예전엔 팔레트 팝업 안의 작은 미리보기가 이 일을 했다. 정면도와 같은 그림을
@@ -2385,7 +2401,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (isModuleDraft(s)) {
         if (!canToggle) return;
         if (idx === 'bottom') s.bottomDirection = s.bottomDirection === 'left' ? 'right' : 'left';
-        else s.areaDirections[+idx] = s.areaDirections[+idx] === 'left' ? 'right' : 'left';
+        else s.areaDirections[+idx] = nextDoorDir(m, s.areaDirections[+idx]);
         draftChanged();
         return;
       }
@@ -2398,7 +2414,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         s.bottomDirection = s.bottomDirection === 'left' ? 'right' : 'left';
       } else {
         const i = +idx;
-        s.areaDirections[i] = s.areaDirections[i] === 'left' ? 'right' : 'left';
+        s.areaDirections[i] = nextDoorDir(m, s.areaDirections[i]);
       }
       panelCommit();
     });
@@ -2557,7 +2573,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         arrow.setAttribute('font-size', Math.min(colW * 0.15, 60));
         arrow.setAttribute('text-anchor', 'middle');
         arrow.setAttribute('dominant-baseline', 'central');
-        if (dir === 'left') {
+        if (dir === 'up') {
+          // 2026-10-13: 플랩 — 위로 연다 (천판 쪽 경첩)
+          arrow.setAttribute('x', x + colW / 2);
+          arrow.setAttribute('y', topY + topH * 0.12);
+          arrow.textContent = '▲';
+        } else if (dir === 'left') {
           arrow.setAttribute('x', x + colW * 0.15);
           arrow.setAttribute('y', topY + topH * 0.12);
           arrow.textContent = '◀';
@@ -4556,6 +4577,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           <select class="a-dir">
             <option value="left"  ${d==='left'?'selected':''}>좌 ◀</option>
             <option value="right" ${d==='right'?'selected':''}>우 ▶</option>
+            ${flapAllowed(m) ? `<option value="up" ${d==='up'?'selected':''}>위 ▲ 플랩</option>` : ''}
           </select>`}
         </div>
       `;
@@ -6410,6 +6432,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       s.moldingH = part.moldingH;
       // 보존 통에는 분배가 낸 답이 없다 — 폭이 도어 최대를 넘으면 양문이다.
       setColumnCells(s, col.cells || { w: col.w, is2D: col.w > MASTER_RULES.DOOR_W_MAX });
+      // 2026-10-13: 냉장고 자리 위장은 위로 연다 (플랩 — 천판 쪽 경첩 + 가스쇼바). 그래서 615 도 도어 한 장이다.
+      if (col.niche && (s.verticalCount || 1) === 1 && !(s.areaIs2D || [])[0]) s.areaDirections = ['up'];
       s.shelves = calcDefaultShelves(area.section, bodyHeightOf(m, s));
       made++;
     });
