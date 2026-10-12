@@ -211,7 +211,7 @@ test('mode 가 없으면 옛 경로 그대로 — 방 사진 한 장, 온도·�
     assert.deepEqual(call.images.map((i) => Buffer.from(i.data, 'base64').toString()), ['ROOM']);
     assert.equal(call.body.generationConfig.temperature, 0.4);
     assert.deepEqual(call.body.generationConfig.imageConfig, { imageSize: '2K' });
-    assert.match(call.prompt, /^Edit the first photo: install a built-in/);
+    assert.match(call.prompt, /^Edit the first photo: add a built-in .+ that occupies the space in front of the main wall/);
   }
   assert.ok(calls.image[1].prompt.includes('FIX (the previous attempt failed these checks)'));
   const qcPrompt = calls.text.find((t) => t.startsWith('You are checking'));

@@ -371,7 +371,8 @@ async function runPipeline(env, job, ck, save) {
     try {
       // 검사 한 번에 90초 이상 걸리면 통과로 본다 — 검사 때문에 생성을 막지 않는다
       const q = await Promise.race([
-        callGemini(env, { prompt: buildQcPrompt(ctx), images: [base], want: 'text' }),
+        // 원본 방 사진을 함께 본다 — 가구가 원래 벽선보다 앞으로 나왔는지 비교해야 깊이를 판정한다 (2026-10-14)
+        callGemini(env, { prompt: buildQcPrompt(ctx), images: [room, base], want: 'text' }),
         new Promise((_, reject) => {
           qcTimer = setTimeout(() => reject(new Error('qc timeout')), QC_TIMEOUT_MS);
         }),
