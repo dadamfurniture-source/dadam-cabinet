@@ -526,8 +526,9 @@ export function groupByItemModule(materials) {
     const itemKey = m.itemLabel || '';
     if (!items.has(itemKey)) items.set(itemKey, { itemLabel: itemKey, modules: new Map() });
     const modules = items.get(itemKey).modules;
-    const modKey = m.module || '';
-    if (!modules.has(modKey)) modules.set(modKey, { module: modKey, rows: [] });
+    // B4: moduleKey 가 있으면 그것으로 묶는다 — 이름이 같은 모듈(하부장 여러 칸)이 한 묶음으로 섞이지 않게
+    const modKey = m.moduleKey ? `key:${m.moduleKey}` : `name:${m.module || ''}`;
+    if (!modules.has(modKey)) modules.set(modKey, { module: m.module || '', moduleKey: m.moduleKey || null, rows: [] });
     modules.get(modKey).rows.push({ row: m, index });
   });
   return [...items.values()].map((it) => ({ itemLabel: it.itemLabel, modules: [...it.modules.values()] }));
@@ -586,8 +587,14 @@ function kittingSheets(ctx) {
       const blocks = g.modules.map((mod) => {
         const name = moduleNameOf(mod.module);
         const hw = itemHardware.filter((h) => {
-          const hn = hardwareModuleName(h);
-          if (hn === null || hn !== name || name === '') return false;
+          if (used.has(h)) return false;
+          // B4: 키가 양쪽에 있으면 키로만 — 같은 이름의 다른 모듈로 새지 않는다
+          if (h.moduleKey && mod.moduleKey) {
+            if (h.moduleKey !== mod.moduleKey) return false;
+          } else {
+            const hn = hardwareModuleName(h);
+            if (hn === null || hn !== name || name === '') return false;
+          }
           used.add(h);
           return true;
         });
@@ -939,6 +946,8 @@ export function boringRows(materials, hardware) {
       positions: parsed.positions,
       hingeQty: Number(h.qty) || null,
       spec: h.spec || '',
+      side: h.boringSide || null, // B4: 'top' = 플랩 — 도어 폭 변(천판 쪽)
+      warn: (String(h.note || '').match(/\[확인 필요\].*/) || [null])[0], // 짧은 도어 컵 간격 등 — 발주서에 그대로 보인다
     };
     if (doors.length === 0) {
       out.push({ ...base, partId: null, doorH, qty: null });
@@ -1153,7 +1162,7 @@ function doorOrderSheet(ctx) {
               `${num(m.w)} × ${num(m.h)} × ${num(m.thickness)}`,
               num(m.qty),
               `${edgeSvg(rowEdges(m))}${edgeText(m)}`,
-              b ? `${num(b.count)}구 · ${esc(b.positions.join(', '))}` : '',
+              b ? `${num(b.count)}구 · ${esc(b.positions.join(', '))}${b.side === 'top' ? ' <span class="muted">(플랩 — 천판 쪽 폭 변)</span>' : ''}${b.warn ? ` <span class="warn">${esc(b.warn)}</span>` : ''}` : '',
             ],
             ['', '', '', 'num', 'num', '', ''],
           );
