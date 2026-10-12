@@ -334,7 +334,7 @@ test('realize: 기하를 고정하고 그 자리에서 다시 그리라고 말�
 test('realize 가 아니면 실사화 문장이 한 줄도 없다', () => {
   const p = buildInstallPrompt(realizeCtx({ realize: false }));
   assert.doesNotMatch(p, /GEOMETRY IS FIXED|MAKE IT REAL|mockup/);
-  assert.match(p, /^Edit the first photo: install a built-in/);
+  assert.match(p, /^Edit the first photo: add a built-in .+ that occupies the space in front of the main wall/);
 });
 
 test('realize QC 는 flat_mockup 을 내고, 아니면 안 낸다', () => {

@@ -563,7 +563,7 @@ export const QC_FIXES = {
   tile_not_neutral:
     'Replace every wall tile visible around the furniture with light neutral tiles: matte off-white or light grey, low saturation.',
   no_depth:
-    'Build the furniture as a solid volume standing out from the wall at its real depth: visible end or side thickness, countertop and front-edge thickness, recessed plinths and soft contact shadows on the wall and floor. It must not look painted onto the wall.',
+    'Build the furniture as a solid volume standing forward of the original wall at its real depth: its base meets the floor closer to the camera than the original wall-floor line, with visible end or edge thickness, recessed plinths and soft contact shadows on the wall and floor.',
   faucet_missing:
     'Add a single-lever mixer faucet (matte black or brushed steel) on the countertop directly behind the sink basin.',
 };
@@ -594,26 +594,27 @@ export function depthPhrase(c) {
   const sections = (c.designSpec && c.designSpec.sections) || {};
   const specHasDepth = Object.values(sections).some((sec) => sec && sec.depthMm);
   const size = specHasDepth ? '' : `${cat.depth} `;
+  // 2026-10-14 (깊이 조사 보고서 1순위): 구글 권고대로 긍정형·결과 서술로. 부정문("never a flat picture")을 뺐다.
   const view =
     c.cameraSide === 'left' || c.cameraSide === 'right'
-      ? ` The camera stands ${c.cameraSide} of the wall's centre, so the ${c.cameraSide} end of the furniture shows its depth in perspective: an exposed end panel, or where it meets a side wall, that wall covered for the full depth.`
+      ? ` The camera stands ${c.cameraSide} of the wall's centre, so the ${c.cameraSide} end shows the full depth in perspective, as an end panel receding to the wall or as the side wall covered for that depth.`
       : c.cameraSide === 'center'
-        ? ' The camera faces the wall head-on, so show the depth through top surfaces, front-edge thickness, recesses and shadows rather than side panels.'
+        ? ' Seen head-on, the depth reads from the top surfaces, the front-edge thickness, the recessed plinth and the shadows.'
         : '';
   // 벽 전체를 채우는 장(붙박이장·수납장): 정면에서 윗면도 측판도 없다. 깊이는 방과 만나는 이음매로만 보인다.
   //   2026-10-13 사장님 "붙박이장 연출컷에 깊이가 없다" — 일반 단서(윗면·측판)는 이 장에 해당이 없었다.
   if (cat.wallToWallMm) {
     const d = cat.wallToWallMm;
     return (
-      `DEPTH: ${size}This is a wall-to-wall, floor-to-ceiling built-in, so no top or side panel shows; its depth must read from where it meets the room. ` +
-      `Its front plane stands ${d} mm in front of the original wall: the joint with each side wall is ${d} mm closer to the camera than the back corner, so a ${d} mm deep strip of each side wall, of the ceiling and of the floor is covered and the visible side walls look shorter in perspective than in the photo. ` +
-      `Add a slim recessed plinth (about 60 mm high, set back) along the floor with a dark shadow line, a slim filler at the ceiling joint with a crisp shadow, and narrow dark reveals between doors that show the door thickness. Never render it as doors painted flat onto the original wall.` +
+      `DEPTH: ${size}It fills the wall from side to side and floor to ceiling with its front plane ${d} mm in front of the original wall, ` +
+      `so it covers a ${d} mm strip of each side wall, of the ceiling and of the floor: its front meets the floor and the ceiling closer to the camera than the original wall did, and the visible side walls look shorter. ` +
+      `A slim recessed plinth casts a dark shadow line along the floor, a slim filler meets the ceiling with a crisp shadow, and narrow dark reveals between the doors show their thickness.` +
       (c.cameraSide === 'left' || c.cameraSide === 'right'
-        ? ` The camera stands ${c.cameraSide} of the wall's centre, so on the ${c.cameraSide} side the covered strip of side wall is clearly visible in perspective.`
+        ? ` The camera stands ${c.cameraSide} of the wall's centre, so the covered strip of the ${c.cameraSide} side wall is clearly visible.`
         : '')
     );
   }
-  return `DEPTH: ${size}The furniture is a solid volume standing out from the wall, never a flat picture on it. Its front face is closer to the camera than the wall, so it meets the floor nearer the camera than the wall's floor line and covers that strip of floor. Show front-edge thickness, recessed shadowed plinths where there are any, and soft shadows cast onto the wall and floor.${view}`;
+  return `DEPTH: ${size}The cabinets stand forward of the wall as a solid volume: they meet the floor closer to the camera than the original wall-floor line, covering that strip of floor, with front-edge thickness, recessed shadowed plinths where there are any and soft contact shadows on the wall and floor.${view}`;
 }
 
 /** 공사 현장이면 완공된 방으로 그린다. 방 형태·창·카메라는 그대로. 설치·플래너 프롬프트가 같이 쓴다. */
@@ -780,8 +781,8 @@ ${finish}${request}
 HANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.${site}${tile}${refs}${fixBlock}
 All doors and drawers closed. Photorealistic interior photograph with natural lighting and correct shadows. No text, labels or watermarks.`;
   }
-  return `Edit the first photo: install a built-in ${cat.label} (${key}) on the main wall.
-Keep the room exactly as photographed: camera angle, walls, ceiling, floor, windows, lighting and everything outside the furniture.${existing}${room}
+  return `Edit the first photo: add a built-in ${cat.label} (${key}) that occupies the space in front of the main wall, placed in the photo's own perspective.
+Keep these as photographed: camera position and lens, perspective, walls, ceiling, floor, windows, lighting and everything outside the new furniture.${existing}${room}
 WALL: about ${c.wallW} x ${c.wallH} mm.
 ${furniture}
 ${depthPhrase(c)}
@@ -1249,7 +1250,7 @@ export function buildQcPrompt(c) {
     c.refCount > 0
       ? '\n- split_frame: the image is two or more photos joined into one frame — a split screen, collage, side-by-side or before/after panels, or a seam dividing two different scenes'
       : '';
-  return `You are checking an AI-rendered photo of a built-in ${CATEGORIES[key].label} (${key}) installed in a real room.${layoutBlock}
+  return `You are checking an AI-rendered photo of a built-in ${CATEGORIES[key].label} (${key}) installed in a real room. The first image is the original room photo before editing; the second is the result to check.${layoutBlock}
 Answer JSON only: {"ok":boolean,"issues":[string],"note":string}
 Report an issue ONLY when it is clearly visible. Use these codes:
 - handles: any visible handle, knob, pull or metal bar on a door or drawer
@@ -1264,8 +1265,8 @@ Report an issue ONLY when it is clearly visible. Use these codes:
 - tile_not_neutral: wall tiles around the furniture are dark, brown, black or strongly coloured (light neutral tiles are fine)
 ${
     CATEGORIES[key].wallToWallMm
-      ? '- no_depth: the fronts look painted flat onto the wall — no plinth shadow line at the floor, no shadow at the ceiling joint and no visible reveals between doors (a wall-to-wall wardrobe shows no side panels; that alone is fine)'
-      : '- no_depth: the furniture looks flat, like a picture painted on the wall — no visible depth, no side or edge thickness, no shadow where it meets the wall or floor'
+      ? '- no_depth: compared with the original photo, the fronts sit on the original wall plane — they meet the floor, the ceiling and the side-wall corners where the original wall did, with no plinth shadow line (a wall-to-wall wardrobe shows no side panels; that alone is fine)'
+      : '- no_depth: compared with the original photo, the furniture does not stand forward of the wall — its base sits on the original wall-floor line with no floor strip covered, and it shows no side or edge thickness or contact shadow, as if painted on the wall'
   }${
     KITCHEN_CATEGORIES.includes(key)
       ? '\n- faucet_missing: there is a sink but no faucet/tap behind it'
