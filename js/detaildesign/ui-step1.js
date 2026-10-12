@@ -295,6 +295,7 @@
         // W12-2: Step1(품목 선택 페이지) 은 제거됐다. 남은 참조는 전부 옵셔널.
         const step1 = document.getElementById('step1-content');
         if (step1) step1.style.display = 'none';
+        _hideStep4();
         document.getElementById('step2-content').style.display = 'block';
         document.getElementById('step-dot-1')?.classList.remove('active');
         document.getElementById('step-dot-2')?.classList.add('active');
@@ -319,6 +320,7 @@
       }
 
       function goToStep3() {
+        _hideStep4();
         document.getElementById('step2-content').style.display = 'none';
         document.getElementById('step3-content').style.display = 'block';
         document.getElementById('step-dot-2')?.classList.remove('active');
@@ -333,7 +335,41 @@
         _pbwSyncPlacement(); // 브리지 경고 배너 — 보고서 위로
       }
 
+      /**
+       * 2026-10-13: Step 4 작업지시서 (docs/01-plan/work-order-stage.plan.md §4.1).
+       * BOM(Step 3) 다음 단계 — 화면은 workflow-client.js 가 #workOrderPanel 에 그린다.
+       * 다른 단계로 갈 때는 _hideStep4 로 끈다 (재산출 = goToStep3, 설계 수정 = goToStep2).
+       */
+      function _hideStep4() {
+        const step4 = document.getElementById('step4-content');
+        if (step4) step4.style.display = 'none';
+        document.getElementById('step-dot-4')?.classList.remove('active');
+      }
+
+      function goToStep4() {
+        if (!window._reportData) {
+          alert('BOM 산출 결과가 없습니다 — BOM 을 먼저 산출해 주세요.');
+          return;
+        }
+        document.getElementById('step3-content').style.display = 'none';
+        document.getElementById('step4-content').style.display = 'block';
+        document.getElementById('step-dot-3')?.classList.remove('active');
+        document.getElementById('step-dot-4')?.classList.add('active');
+        // 브리지 경고 배너는 Step 3 안에 남겨 둔다 (Step 3 가 숨으면 같이 숨는다)
+        window.scrollTo(0, 0);
+        if (window.DadamWorkflow && typeof window.DadamWorkflow.enterStep4 === 'function') {
+          window.DadamWorkflow.enterStep4();
+        }
+      }
+
+      function backToStep3() {
+        _hideStep4();
+        document.getElementById('step3-content').style.display = 'block';
+        document.getElementById('step-dot-3')?.classList.add('active');
+      }
+
       function backToStep2() {
+        _hideStep4();
         document.getElementById('step3-content').style.display = 'none';
         document.getElementById('step2-content').style.display = 'block';
         document.getElementById('step-dot-3').classList.remove('active');

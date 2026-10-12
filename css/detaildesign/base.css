@@ -543,6 +543,9 @@
       #step3-content {
         display: none;
       }
+      #step4-content {
+        display: none;
+      }
       .bookmark-tabs {
         display: flex;
         gap: 4px;

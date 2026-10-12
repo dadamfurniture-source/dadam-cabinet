@@ -54,9 +54,11 @@ describe('현장 정보 입력', () => {
 });
 
 describe('설치 작업지시서 발행', () => {
-  test('버튼이 있고 installation_order 로 발행한다', () => {
-    expect(WF).toMatch(/id="wfIssueIO"/);
-    expect(WF).toMatch(/issue\('installation_order'\)/);
+  test('4단계 [발행] 이 현장 정보가 있으면 installation_order 도 함께 발행한다', () => {
+    // 2026-10-13: 3단계 버튼(wfIssueIO)을 4단계 작업지시서 화면의 발행 연쇄로 옮겼다 (designui-step4.test.js)
+    const fn = WF.slice(WF.indexOf('async function issueWorkOrders'), WF.indexOf('function bindStep4'));
+    expect(fn).toMatch(/hasSiteInfo\(\) && !sameSnap\('installation_order'\)/);
+    expect(fn).toMatch(/doc_type: 'installation_order'/);
   });
 
   test('제작 지시서와 구분되는 이름이다', () => {
