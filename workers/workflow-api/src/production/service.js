@@ -14,7 +14,7 @@ import { postToWebhook } from '../slack.js';
 import { listOrders } from '../orders.js';
 import { workloadFromSnapshot } from './workload.js';
 import { planProduction } from './planner.js';
-import { buildProposalBlocks, buildInstructionBlocks, assignmentsFromSuggestions } from './notify.js';
+import { buildProposalBlocks, buildInstructionBlocks, buildDailyBlocks, assignmentsFromSuggestions, actionKey } from './notify.js';
 import { DEFAULT_STANDARDS, DEFAULT_CREW, DEFAULT_COSTS, DEFAULT_LEADS } from './standards.js';
 
 const ACTIVE = new Set(['confirmed', 'in_production']);
@@ -164,7 +164,7 @@ export async function proposePlan(env, { user, trigger = 'manual', orderId = nul
     user_id: user.id,
     trigger,
     trigger_order_id: orderId,
-    plan: { days: plan.days, jobs: plan.jobs, suggestions: plan.suggestions, summary: plan.summary, skipped: plan.skipped },
+    plan: { days: plan.days, jobs: plan.jobs, suggestions: plan.suggestions, summary: plan.summary, skipped: plan.skipped, triggerLabel },
     status: 'pending',
   });
   const payload = buildProposalBlocks({ plan, link: proposalLink(env, row.id), triggerLabel });
@@ -222,4 +222,61 @@ export async function listAssignments(env, { user, from }) {
   const q = { user_id: `eq.${user.id}`, select: '*', order: 'work_date.asc', limit: '500' };
   if (from) q.work_date = `gte.${String(from).slice(0, 10)}`;
   return (await selectMany(env, 'production_assignments', q)) || [];
+}
+
+// ── 매일 아침 요약 ──
+/** 진행 중 수주가 있는 계정 (설계 소유자). */
+async function activeOwners(env) {
+  const orders = (await selectMany(env, 'orders', { status: 'in.(confirmed,in_production)', select: 'design_id', limit: '1000' })) || [];
+  const ids = [...new Set(orders.map((o) => o.design_id))];
+  if (!ids.length) return [];
+  const designs = (await selectMany(env, 'designs', { id: `in.(${ids.join(',')})`, select: 'user_id', limit: '1000' })) || [];
+  return [...new Set(designs.map((d) => d.user_id).filter(Boolean))];
+}
+
+/**
+ * 한 계정의 아침 요약.
+ *   1) 오늘 근무일이 아니면 건너뛴다 (주말·공휴일)
+ *   2) 대표 채널: 오늘 부하·오늘 지시·도어 발주 마감(오늘·내일)
+ *   3) 작업자 채널: 오늘 지시만
+ *   4) 늦는 주문이 있고, 추천이 마지막 제안과 다르면 새 제안을 낸다 (같은 추천을 매일 다시 보내지 않는다)
+ */
+export async function dailyBrief(env, { userId, today }) {
+  const user = { id: userId };
+  const day = today || kstDate();
+  const plan = await computePlan(env, { user, today: day });
+  if (!plan.days.length || plan.days[0].date !== day) return { skipped: 'not a workday' };
+  if (!plan.jobs.length) return { skipped: 'no active jobs' };
+
+  const assignments = await listAssignments(env, { user, from: day });
+  const todays = assignments.filter((a) => a.work_date === day && a.status === 'instructed');
+  const owner = await postToWebhook(env, buildDailyBlocks({ plan, assignments: todays, today: day }));
+  let workers = null;
+  if (todays.length && env.SLACK_WEBHOOK_PRODUCTION) {
+    workers = await postToWebhook(env, buildInstructionBlocks({ assignments: todays }), env.SLACK_WEBHOOK_PRODUCTION);
+  }
+
+  let proposal = null;
+  if (plan.summary.lateBefore > 0) {
+    const last = (await selectMany(env, 'production_proposals', { user_id: `eq.${userId}`, select: 'plan,status', order: 'created_at.desc', limit: '1' })) || [];
+    const prev = last[0] && last[0].plan ? actionKey(last[0].plan.suggestions || []) : null;
+    if (prev !== actionKey(plan.suggestions)) {
+      proposal = (await proposePlan(env, { user, trigger: 'manual', triggerLabel: '아침 점검 — 늦어질 주문 발견' })).proposal.id;
+    }
+  }
+  return { owner: owner.ok, workers: workers ? workers.ok : null, proposal };
+}
+
+export async function runDailyBriefs(env, { today } = {}) {
+  const owners = await activeOwners(env);
+  const results = [];
+  for (const userId of owners) {
+    try {
+      results.push({ userId, ...(await dailyBrief(env, { userId, today })) });
+    } catch (e) {
+      console.error('daily brief failed for', userId, e && e.message);
+      results.push({ userId, error: e && e.message });
+    }
+  }
+  return results;
 }
