@@ -13,7 +13,16 @@ const config = {
   ],
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', { useESM: true }],
+    // three 0.186+ 는 ESM 전용이다 — CommonJS 입구(three.cjs)가 Node 의 require(esm) 으로 ESM 빌드를 다시
+    //   내보내는데 jest 모듈 로더는 그것을 못 한다. three 의 .js 만 CommonJS 로 트랜스파일해 싣는다.
+    '[\\\\/]node_modules[\\\\/]three[\\\\/].+\\.js$': ['ts-jest', {
+      tsconfig: { allowJs: true, module: 'commonjs', target: 'es2020', esModuleInterop: true },
+      isolatedModules: true,
+      diagnostics: false,
+    }],
   },
+  // node_modules 는 원래대로 변환하지 않는다 — three 만 예외
+  transformIgnorePatterns: ['[\\\\/]node_modules[\\\\/](?!three[\\\\/])'],
   collectCoverageFrom: [
     'js/**/*.js',
     'lib/**/*.ts',
