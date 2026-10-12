@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta name="referrer" content="no-referrer" />
+    <title>생산 계획 · 인력 추천 · 다담가구</title>
+    <link rel="stylesheet" href="css/nav.css?v=36.0" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="js/config.js?v=36.0"></script>
+    <style>
+      :root {
+        --bg: #eef0f3; --panel: #fff; --border: #d6dae0; --text: #1a1d21; --muted: #6b7280;
+        --accent: #147a3d; --danger: #a02020; --warn: #9a5b00;
+        --cut: #2a78d6; --edge: #1baf7a; --asm: #eb6834; --track: #eef1f4;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; font-size: 14px; }
+      .wrap { max-width: 1180px; margin: 0 auto; padding: 76px 16px 60px; }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      .sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+      .card h2 { font-size: 15px; margin: 0 0 10px; }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+      th { background: #f6f7f9; font-weight: 600; white-space: nowrap; }
+      td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+      .scroll { overflow-x: auto; }
+      button { padding: 7px 13px; border: 1px solid var(--border); background: #fff; border-radius: 6px; cursor: pointer; font-size: 13px; }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+      button:disabled { opacity: 0.5; cursor: default; }
+      input { padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      .kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+      .kpi div { background: #f6f7f9; border-radius: 8px; padding: 10px 12px; }
+      .kpi b { display: block; font-size: 18px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+      .muted { color: var(--muted); }
+      .late { color: var(--danger); font-weight: 600; }
+      .ok { color: var(--accent); }
+      .alert { padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; }
+      .alert-err { background: #fdecec; border: 1px solid #f2c2c2; color: #7a1a1a; }
+      .alert-ok { background: #e8f5ec; border: 1px solid #b7dcc3; color: #14562c; }
+      .status { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #eef1f4; font-size: 12px; }
+      .sugg { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--border); }
+      .sugg:last-child { border-bottom: 0; }
+      .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: #eef1f4; margin-right: 6px; }
+      .tag.asm_extra { background: #fdeee6; } .tag.edge_overtime, .tag.edge_outsource { background: #e6f6ef; }
+      .tag.reschedule { background: #fdecec; color: var(--danger); } .tag.door_order { background: #e9f1fc; }
+      .bars { display: grid; gap: 3px; min-width: 160px; }
+      .bar { position: relative; height: 10px; background: var(--track); border-radius: 3px; overflow: hidden; }
+      .bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; }
+      .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+      .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+      .settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 6px 16px; }
+      .settings label { display: grid; grid-template-columns: 1fr 100px; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+      .settings input { text-align: right; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>생산 계획 · 인력 추천</h1>
+      <div class="sub">주문이 들어오면 진행 중인 주문 전체를 다시 계획해, 설치일 하루 전까지 끝내려면 누구를 언제 더 불러야 하는지 제안합니다. 승인한 항목만 작업자 Slack 으로 지시가 나갑니다.</div>
+
+      <div id="alert" class="alert alert-err" hidden></div>
+
+      <div class="card">
+        <div class="row" style="justify-content: space-between">
+          <h2 style="margin:0">추천 <span class="status" id="propStatus">-</span></h2>
+          <div class="row">
+            <span class="muted" id="propMeta"></span>
+            <button type="button" id="btnRecompute">지금 다시 계산</button>
+          </div>
+        </div>
+        <div class="kpi" style="margin-top: 12px">
+          <div>진행 중 주문<b id="kJobs">-</b></div>
+          <div>기본 인력으로 늦는 건<b id="kLateBefore">-</b></div>
+          <div>추천대로 하면<b id="kLateAfter">-</b></div>
+          <div>추가 비용<b id="kCost">-</b></div>
+          <div>조립 기사 출근<b id="kAsmDays">-</b></div>
+        </div>
+        <div id="suggList" style="margin-top: 12px"></div>
+        <div class="row" style="margin-top: 12px; justify-content: flex-end">
+          <button type="button" id="btnDismiss">무시</button>
+          <button type="button" class="primary" id="btnApprove">선택한 항목 지시하기</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>주문별 일정</h2>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>주문</th><th>마감 (설치 하루 전)</th><th>공장 완료 예정</th><th>도어 발주 마감</th><th>도어 도착</th><th class="num">재단</th><th class="num">엣지</th><th class="num">조립</th><th></th></tr></thead>
+            <tbody id="jobRows"><tr><td colspan="9" class="muted">불러오는 중…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="muted" id="skipped" style="margin-top:8px"></div>
+      </div>
+
+      <div class="card">
+        <h2>날짜별 부하</h2>
+        <div class="legend"><span><i style="background:var(--cut)"></i>재단 기사</span><span><i style="background:var(--edge)"></i>엣지 (알바)</span><span><i style="background:var(--asm)"></i>조립 기사</span></div>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>날짜</th><th>부하 / 가능 시간</th><th class="num">재단</th><th class="num">엣지</th><th class="num">조립</th><th>조립 인원</th></tr></thead>
+            <tbody id="dayRows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>지시 내역 (오늘 이후)</h2>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>날짜</th><th>내용</th><th class="num">비용</th><th>상태</th></tr></thead>
+            <tbody id="assignRows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content: space-between">
+          <h2 style="margin:0">표준시간 · 인력 설정</h2>
+          <button type="button" id="btnSaveSettings">설정 저장</button>
+        </div>
+        <div class="muted" style="margin:6px 0 10px">시간은 초, 금액은 원(부가세 별도). 실제로 재 보고 바꾸면 추천이 정확해집니다. 저장 후 "지금 다시 계산"을 누르세요.</div>
+        <div class="settings" id="settingsForm"></div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+        var API = (window.DADAM_CONFIG && window.DADAM_CONFIG.workflowApi && window.DADAM_CONFIG.workflowApi.url) || '';
+        var sb = null;
+        var state = { proposal: null, settings: null };
+        var KIND = { asm_extra: '조립 인원 추가', edge_overtime: '알바 연장', edge_outsource: '재단+엣지 외주', reschedule: '설치일 조정', door_order: '도어 발주', asm_call: '조립 기사 출근' };
+        var STATUS = { pending: '승인 대기', approved: '승인됨', dismissed: '무시함', superseded: '지난 제안' };
+        var LABELS = {
+          standards: { cutPerSheet: '재단 원판 1장', cutPerJob: '현장당 자재 피킹', edgePerPbSheet: '엣지 PB 1장', asmPerBox: '통 조립 1통', asmPerDrawer: '서랍 1개', asmPerDoor: '도어 1짝 (검수+달기)', asmPerShelf: '선반 1장', asmPerLeg: '다리발 1개', asmPerRod: '옷봉 1개', packPerBox: '완성 검수·포장 1통' },
+          crew: { hoursPerDay: '하루 근무시간', util: '실작업 비율 (0~1)', cutters: '재단 기사 (명)', edgeMachines: '엣지밴더 (대)', edgeMaxOvertimeHours: '알바 연장 최대 (시간)', assemblers: '조립 기사 기본 (명)', assemblersMaxExtra: '조립 추가 최대 (명)' },
+          costs: { assemblerDay: '조립 일당', partTimeHourly: '알바 시급', outsourceCutEdgePerSheet: '재단+엣지 외주 (PB 1장)' },
+          leads: { doorLeadDays: '도어 외주 납기 (근무일)', outsourceLeadDays: '재단+엣지 외주 납기', defaultLeadDays: '설치일 없을 때 기본 (근무일)' },
+        };
+
+        function el(id) { return document.getElementById(id); }
+        function esc(v) { return v == null ? '' : String(v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+        function man(n) { return Math.round((Number(n) || 0) / 10000).toLocaleString('ko-KR') + '만원'; }
+        function hrs(s) { var h = (Number(s) || 0) / 3600; return h >= 1 ? h.toFixed(1) + 'h' : Math.round((Number(s) || 0) / 60) + '분'; }
+        function day(s) { if (!s) return '-'; var d = new Date(s + 'T00:00:00Z'); return (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + '(' + '일월화수목금토'[d.getUTCDay()] + ')'; }
+        function fail(m) { var a = el('alert'); a.textContent = m; a.className = 'alert alert-err'; a.hidden = false; }
+        function note(m) { var a = el('alert'); a.textContent = m; a.className = 'alert alert-ok'; a.hidden = false; }
+
+        async function token() {
+          if (!sb) { var c = window.DADAM_CONFIG && window.DADAM_CONFIG.supabase; if (!c || !window.supabase) return null; sb = window.supabase.createClient(c.url, c.anonKey); }
+          var r = await sb.auth.getSession();
+          return (r && r.data && r.data.session && r.data.session.access_token) || null;
+        }
+        async function api(path, opts) {
+          opts = opts || {};
+          var t = await token();
+          if (!t) throw new Error('로그인이 필요합니다.');
+          var h = { Authorization: 'Bearer ' + t };
+          if (opts.body) h['Content-Type'] = 'application/json';
+          var res = await fetch(API + path, { method: opts.method || 'GET', headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined });
+          var body = null; try { body = await res.json(); } catch (e) { body = null; }
+          if (!res.ok || !body || !body.success) throw new Error((body && body.message) || '요청 실패 (' + res.status + ')');
+          return body.data;
+        }
+
+        function renderProposal() {
+          var p = state.proposal;
+          if (!p) return;
+          var plan = p.plan || {}, s = plan.summary || {};
+          el('propStatus').textContent = STATUS[p.status] || p.status;
+          el('propMeta').textContent = (p.trigger === 'order_created' ? '새 수주로 계산' : '수동 계산') + ' · ' + new Date(p.created_at).toLocaleString('ko-KR');
+          el('kJobs').textContent = (s.jobs || 0) + '건';
+          el('kLateBefore').textContent = (s.lateBefore || 0) + '건';
+          el('kLateAfter').textContent = (s.lateAfter || 0) + '건' + (s.needsReschedule ? ' (+설치일 조정 ' + s.needsReschedule + ')' : '');
+          el('kCost').textContent = man(s.extraCost);
+          el('kAsmDays').textContent = (s.asmCallDays || 0) + '일';
+          var pending = p.status === 'pending';
+          var list = plan.suggestions || [];
+          // 손쓸 일(설치일 조정·인원 추가·연장·외주)을 위로, 도어 발주·출근은 아래로. 인덱스는 원래 순서를 쓴다.
+          var ORDER = ['reschedule', 'asm_extra', 'edge_overtime', 'edge_outsource', 'door_order', 'asm_call'];
+          var idx = list.map(function (_, i) { return i; }).sort(function (a, b) {
+            return ORDER.indexOf(list[a].type) - ORDER.indexOf(list[b].type) || String(list[a].date || '').localeCompare(String(list[b].date || ''));
+          });
+          el('suggList').innerHTML = list.length ? idx.map(function (i) {
+            var x = list[i];
+            return '<label class="sugg"><input type="checkbox" data-i="' + i + '" ' + (pending ? 'checked' : 'disabled') + '>' +
+              '<span><span class="tag ' + esc(x.type) + '">' + esc(KIND[x.type] || x.type) + '</span>' + esc(x.text) + '</span>' +
+              '<span class="muted">' + (x.cost ? man(x.cost) : '') + '</span></label>';
+          }).join('') : '<div class="muted">추천할 것이 없습니다.</div>';
+          el('btnApprove').disabled = !pending;
+          el('btnDismiss').disabled = !pending;
+
+          el('jobRows').innerHTML = (plan.jobs || []).map(function (j) {
+            var st = j.rescheduleTo ? '<span class="late">설치일 조정 필요 → ' + day(j.rescheduleTo) + ' 이후</span>' : j.late ? '<span class="late">늦음</span>' : '<span class="ok">제때</span>';
+            return '<tr><td>' + esc(j.label) + (j.outsourced ? ' <span class="tag edge_outsource">외주</span>' : '') + '</td><td>' + day(j.due) + (j.dueSource === 'default' ? ' <span class="muted">(설치일 미정)</span>' : '') +
+              '</td><td>' + day(j.finish) + '</td><td' + (j.doorOrderLate ? ' class="late"' : '') + '>' + day(j.doorOrderBy) + '</td><td>' + day(j.doorArrival) + '</td>' +
+              '<td class="num">' + hrs(j.work.cutter) + '</td><td class="num">' + hrs(j.work.edge) + '</td><td class="num">' + hrs(j.work.asm) + '</td><td>' + st + '</td></tr>';
+          }).join('') || '<tr><td colspan="9" class="muted">진행 중인 주문이 없습니다.</td></tr>';
+          el('skipped').textContent = (plan.skipped || []).length ? '계획에서 빠진 주문: ' + plan.skipped.map(function (x) { return x.label + ' (' + x.reason + ')'; }).join(', ') : '';
+
+          var days = (plan.days || []).filter(function (d) { return d.cut.load + d.edge.load + d.asm.load > 0; });
+          el('dayRows').innerHTML = days.map(function (d) {
+            function b(load, cap, c) { var u = cap > 0 ? Math.min(1, load / cap) : 0; return '<div class="bar" title="' + hrs(load) + ' / ' + hrs(cap) + '"><i style="width:' + (u * 100) + '%;background:' + c + '"></i></div>'; }
+            return '<tr><td>' + day(d.date) + '</td><td><div class="bars">' + b(d.cut.load, d.cut.cap, 'var(--cut)') + b(d.edge.load, d.edge.cap, 'var(--edge)') + b(d.asm.load, d.asm.cap, 'var(--asm)') + '</div></td>' +
+              '<td class="num">' + hrs(d.cut.load) + '</td><td class="num">' + hrs(d.edge.load) + (d.edge.overtimeHours ? ' <span class="muted">(+' + d.edge.overtimeHours + 'h 연장)</span>' : '') + '</td><td class="num">' + hrs(d.asm.load) + '</td>' +
+              '<td>' + (d.asm.people ? d.asm.people + '명' : '-') + (d.asm.extra ? ' <span class="tag asm_extra">+' + d.asm.extra + ' 추가</span>' : '') + '</td></tr>';
+          }).join('') || '<tr><td colspan="6" class="muted">작업이 없습니다.</td></tr>';
+        }
+
+        async function loadAssignments() {
+          var today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+          var data = await api('/production/assignments?from=' + today);
+          el('assignRows').innerHTML = (data.items || []).map(function (a) {
+            return '<tr><td>' + day(a.work_date) + '</td><td>' + esc(a.text) + '</td><td class="num">' + (a.cost ? man(a.cost) : '-') + '</td><td>' + esc(a.status) + '</td></tr>';
+          }).join('') || '<tr><td colspan="4" class="muted">지시가 없습니다.</td></tr>';
+        }
+
+        function renderSettings() {
+          var s = state.settings;
+          if (!s) return;
+          var html = '';
+          Object.keys(LABELS).forEach(function (g) {
+            Object.keys(LABELS[g]).forEach(function (k) {
+              html += '<label>' + esc(LABELS[g][k]) + '<input type="number" step="any" data-g="' + g + '" data-k="' + k + '" value="' + esc(s[g] && s[g][k]) + '"></label>';
+            });
+          });
+          el('settingsForm').innerHTML = html;
+        }
+
+        async function loadProposal() {
+          var id = new URLSearchParams(location.search).get('p') || 'latest';
+          try { state.proposal = await api('/production/proposals/' + encodeURIComponent(id)); renderProposal(); }
+          catch (e) { if (/없습니다/.test(e.message)) { await recompute(); } else throw e; }
+        }
+
+        async function recompute() {
+          el('btnRecompute').disabled = true;
+          try {
+            var data = await api('/production/proposals', { method: 'POST' });
+            state.proposal = data.proposal;
+            state.proposal.plan = { days: data.plan.days, jobs: data.plan.jobs, suggestions: data.plan.suggestions, summary: data.plan.summary, skipped: data.plan.skipped };
+            history.replaceState(null, '', '?p=' + encodeURIComponent(state.proposal.id));
+            renderProposal();
+            note('다시 계산했습니다. 대표 Slack 으로도 보냈습니다.');
+          } finally { el('btnRecompute').disabled = false; }
+        }
+
+        async function decide(decision) {
+          if (!state.proposal) return;
+          var selected = Array.prototype.slice.call(document.querySelectorAll('#suggList input:checked')).map(function (c) { return Number(c.getAttribute('data-i')); });
+          if (decision === 'approve' && !selected.length) { fail('지시할 항목을 하나 이상 고르세요.'); return; }
+          try {
+            var r = await api('/production/proposals/' + encodeURIComponent(state.proposal.id) + '/decision', { method: 'POST', body: { decision: decision, selected: selected } });
+            state.proposal.status = r.status;
+            renderProposal();
+            await loadAssignments();
+            note(decision === 'approve' ? '지시 ' + r.assignments.length + '건을 저장했습니다.' + (r.slack && r.slack.ok ? ' 작업자 Slack 으로 보냈습니다.' : ' (Slack 전송 실패: ' + ((r.slack && r.slack.error) || '설정 확인') + ')') : '이 제안을 무시했습니다.');
+          } catch (e) { fail(e.message); }
+        }
+
+        async function saveSettings() {
+          var body = { standards: {}, crew: {}, costs: {}, leads: {} };
+          document.querySelectorAll('#settingsForm input').forEach(function (i) { if (i.value !== '') body[i.getAttribute('data-g')][i.getAttribute('data-k')] = Number(i.value); });
+          try { var r = await api('/production/settings', { method: 'POST', body: body }); state.settings = r.settings; renderSettings(); note('설정을 저장했습니다. "지금 다시 계산"을 누르면 반영됩니다.'); }
+          catch (e) { fail(e.message); }
+        }
+
+        el('btnRecompute').addEventListener('click', function () { recompute().catch(function (e) { fail(e.message); }); });
+        el('btnApprove').addEventListener('click', function () { decide('approve'); });
+        el('btnDismiss').addEventListener('click', function () { decide('dismiss'); });
+        el('btnSaveSettings').addEventListener('click', saveSettings);
+
+        if (!API) { fail('업무 루프 서버(workflowApi.url)가 설정되지 않았습니다.'); return; }
+        Promise.all([
+          loadProposal(),
+          loadAssignments(),
+          api('/production/settings').then(function (d) { state.settings = d.settings; renderSettings(); }),
+        ]).catch(function (e) { fail(e.message); });
+      })();
+    </script>
+  </body>
+</html>

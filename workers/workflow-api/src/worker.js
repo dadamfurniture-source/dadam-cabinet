@@ -67,6 +67,15 @@ import {
   updateSchedule,
   resendBatch,
 } from './schedules.js';
+import {
+  computePlan,
+  proposePlan,
+  getProposal,
+  decideProposal,
+  listAssignments,
+  getSettings,
+  saveSettings,
+} from './production/service.js';
 
 const SERVICE = 'dadam-workflow-api';
 const VERSION = '0.1.0';
@@ -267,12 +276,61 @@ async function handleSaveSiteInfo(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data: saved });
 }
 
-async function handleCreateOrder(request, env, { params, user }) {
+async function handleCreateOrder(request, env, { params, user, ctx }) {
   const { order, reused } = await createOrderFromDocument(env, {
     documentId: params.documentId,
     user,
   });
+  // 새 수주면 생산 계획을 다시 돌려 대표에게 인력 추천을 보낸다. 응답을 막지 않고, 실패해도 수주는 그대로다.
+  if (!reused && ctx && typeof ctx.waitUntil === 'function') {
+    ctx.waitUntil(
+      proposePlan(env, {
+        user,
+        trigger: 'order_created',
+        orderId: order.id,
+        triggerLabel: `새 수주 ${order.customer_name ? order.customer_name + ' · ' : ''}${order.order_no}`,
+      }).catch((e) => console.error('production proposal failed:', e && e.message)),
+    );
+  }
   return jsonResponse(request, env, { success: true, data: { ...order, reused } }, reused ? 200 : 201);
+}
+
+// ── 생산 계획 · 인력 추천 ──
+async function handleGetProductionPlan(request, env, { user }) {
+  const url = new URL(request.url);
+  const data = await computePlan(env, { user, today: url.searchParams.get('today') || undefined });
+  return jsonResponse(request, env, { success: true, data });
+}
+
+async function handleCreateProposal(request, env, { user }) {
+  const data = await proposePlan(env, { user, trigger: 'manual', triggerLabel: '수동 재계산' });
+  return jsonResponse(request, env, { success: true, data }, 201);
+}
+
+async function handleGetProposal(request, env, { params, user }) {
+  const data = await getProposal(env, { user, proposalId: params.proposalId });
+  return jsonResponse(request, env, { success: true, data });
+}
+
+async function handleDecideProposal(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  const data = await decideProposal(env, { user, proposalId: params.proposalId, body });
+  return jsonResponse(request, env, { success: true, data });
+}
+
+async function handleListAssignments(request, env, { user }) {
+  const url = new URL(request.url);
+  const items = await listAssignments(env, { user, from: url.searchParams.get('from') });
+  return jsonResponse(request, env, { success: true, data: { items } });
+}
+
+async function handleGetProductionSettings(request, env, { user }) {
+  return jsonResponse(request, env, { success: true, data: await getSettings(env, { user }) });
+}
+
+async function handleSaveProductionSettings(request, env, { user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await saveSettings(env, { user, body }) });
 }
 
 async function handleListOrders(request, env, { user }) {
@@ -387,6 +445,15 @@ const router = createRouter([
   { method: 'PATCH',  path: '/orders/:orderId',             auth: 'jwt', handler: handleUpdateOrder },
   { method: 'POST',   path: '/orders/:orderId/costs',       auth: 'jwt', handler: handleAddCost },
   { method: 'DELETE', path: '/orders/:orderId/costs/:costId', auth: 'jwt', handler: handleDeleteCost },
+
+  // 생산 계획 · 인력 추천 (주문이 들어오면 자동 제안 → 대표 승인 → 작업자 지시)
+  { method: 'GET',  path: '/production/plan',                          auth: 'jwt', handler: handleGetProductionPlan },
+  { method: 'POST', path: '/production/proposals',                     auth: 'jwt', handler: handleCreateProposal },
+  { method: 'GET',  path: '/production/proposals/:proposalId',         auth: 'jwt', handler: handleGetProposal },
+  { method: 'POST', path: '/production/proposals/:proposalId/decision', auth: 'jwt', handler: handleDecideProposal },
+  { method: 'GET',  path: '/production/assignments',                   auth: 'jwt', handler: handleListAssignments },
+  { method: 'GET',  path: '/production/settings',                      auth: 'jwt', handler: handleGetProductionSettings },
+  { method: 'POST', path: '/production/settings',                      auth: 'jwt', handler: handleSaveProductionSettings },
 
   // 공개 — 고객 공유 링크 (JWT 없음, X-Share-Token 으로 인증)
   { method: 'GET', path: '/public/confirm', auth: 'none', handler: handlePublicConfirm },
