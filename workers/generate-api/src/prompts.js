@@ -1274,6 +1274,19 @@ ${
 ok is true when issues is empty. note is one short sentence.`;
 }
 
+/**
+ * 기록만 하고 다시 그리지 않는 검사 코드 (2026-10-13, 보고서 제안 4).
+ * 생성 기록 22건 중 18건(82%)이 검사에 걸려 기본안을 한 번 더 그렸다 — 한 번에 30~60초.
+ * 그중 10건은 아래 셋에만 걸린 것이었다. 셋은 과하게 잡히기 쉽고(천장 틈·글자) 결과를 못 쓸 정도의
+ * 결함이 아니다. 이 셋만 걸렸으면 qc 에 기록만 남기고 첫 그림을 쓴다. 다른 코드가 하나라도 있으면 다시 그린다.
+ */
+export const QC_RECORD_ONLY = ['gap_to_ceiling', 'text', 'appliances_visible'];
+
+/** 다시 그릴 만한 문제가 있는가 — 기록 전용 코드만 있으면 false. */
+export function qcNeedsRetry(qc) {
+  return !!qc && !qc.ok && (qc.issues || []).some((k) => !QC_RECORD_ONLY.includes(k));
+}
+
 /** @returns {{ok:boolean, issues:string[], note:string|null}} */
 export function parseQc(text) {
   const fallback = { ok: true, issues: [], note: null }; // 검사 실패는 통과로 — 검사 때문에 생성을 막지 않는다
