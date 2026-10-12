@@ -554,7 +554,7 @@
       "module": "긴옷-서랍모듈",
       "part": "서랍밑판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 857,
       "h": 449,
       "qty": 2,
@@ -954,7 +954,7 @@
       "module": "선반형",
       "part": "서랍밑판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 857,
       "h": 449,
       "qty": 1,
@@ -1536,7 +1536,7 @@
     "MDF_2.7": {
       "material": "MDF",
       "thickness": 2.7,
-      "totalArea": 7121159,
+      "totalArea": 5966780,
       "panelCount": 3
     },
     "MDF_18": {
@@ -1544,6 +1544,12 @@
       "thickness": 18,
       "totalArea": 7133280,
       "panelCount": 3
+    },
+    "MDF_3": {
+      "material": "MDF",
+      "thickness": 3,
+      "totalArea": 1154379,
+      "panelCount": 1
     }
   },
   "edgeBanding": {
@@ -1657,13 +1663,35 @@
       "qty": 4,
       "unit": "EA",
       "itemLabel": "붙박이장"
+    },
+    {
+      "category": "브라켓",
+      "item": "선반 브라켓 (핀타입)",
+      "manufacturer": "-",
+      "spec": "Φ5mm",
+      "qty": 24,
+      "unit": "EA",
+      "note": "선반 6개 × 4",
+      "itemLabel": "붙박이장"
+    },
+    {
+      "category": "걸레받이카바",
+      "item": "걸레받이카바(18T) 투명",
+      "manufacturer": "-",
+      "spec": "2400mm",
+      "qty": 3,
+      "unit": "EA",
+      "note": "걸레받이 4880mm ÷ 2400",
+      "itemLabel": "붙박이장"
     }
   ],
   "hardwareSummary": {
     "경첩": 24,
     "레일": 3,
     "옷봉": 9,
-    "손잡이": 4
+    "손잡이": 4,
+    "브라켓": 24,
+    "걸레받이카바": 3
   },
   "csvHead": [
     "모듈,부품,자재,두께,가로,세로,수량,엣지,비고",

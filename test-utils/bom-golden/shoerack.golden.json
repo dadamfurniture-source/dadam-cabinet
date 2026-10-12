@@ -159,7 +159,7 @@
       "h": 261,
       "qty": 2,
       "edge": "1면(전)",
-      "note": "[확인 필요] shelfCount 미지정 — 신발장 선반 분배 180~350 (planner-engine.js) 준용",
+      "note": "선반 수 미지정 → 상부 2 · 그 밖 칸 간격 150~300 (플래너와 같다)",
       "finishCode": "",
       "partId": "0-u1-shelf#0-0",
       "slot": "body",
@@ -184,7 +184,7 @@
       "h": 720,
       "qty": 2,
       "edge": "4면",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 붙박이장 규칙 준용 (doorCount 미지정 → round(W/450))",
+      "note": "도어 수 미지정 → 한 장 최대 600 (플래너와 같다)",
       "finishCode": "",
       "partId": "0-u1-door#0-0",
       "slot": "door",
@@ -507,9 +507,9 @@
       "thickness": 15,
       "w": 870,
       "h": 335,
-      "qty": 2,
+      "qty": 3,
       "edge": "1면(전)",
-      "note": "[확인 필요] shelfCount 미지정 — 신발장 선반 분배 180~350 (planner-engine.js) 준용",
+      "note": "선반 수 미지정 → 상부 2 · 그 밖 칸 간격 150~300 (플래너와 같다)",
       "finishCode": "",
       "partId": "0-l1-shelf#0-0",
       "slot": "body",
@@ -534,7 +534,7 @@
       "h": 678,
       "qty": 2,
       "edge": "4면",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 붙박이장 규칙 준용 (doorCount 미지정 → round(W/450))",
+      "note": "도어 수 미지정 → 한 장 최대 600 (플래너와 같다)",
       "finishCode": "",
       "partId": "0-l1-door#0-0",
       "slot": "door",
@@ -659,7 +659,7 @@
       "h": 180,
       "qty": 4,
       "edge": "1면(장)",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D350 → 레일 300: 측판 240 · 밑판 249)",
+      "note": "대 박스 · 댐핑 언더레일 300 (D350 − 50 이하)",
       "finishCode": "",
       "partId": "0-l2-drawerbox:fb-0",
       "slot": "body",
@@ -680,11 +680,11 @@
       "part": "서랍측판",
       "material": "PB",
       "thickness": 15,
-      "w": 240,
+      "w": 290,
       "h": 180,
       "qty": 4,
       "edge": "1면(장)",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D350 → 레일 300: 측판 240 · 밑판 249)",
+      "note": "대 박스 · 댐핑 언더레일 300 (D350 − 50 이하)",
       "finishCode": "",
       "partId": "0-l2-drawerbox:side-0",
       "slot": "body",
@@ -694,7 +694,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 240,
+      "edgeLen": 290,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-l2",
@@ -704,12 +704,12 @@
       "module": "하부장-서랍장",
       "part": "서랍밑판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 457,
-      "h": 249,
+      "h": 289,
       "qty": 2,
       "edge": "-",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D350 → 레일 300: 측판 240 · 밑판 249)",
+      "note": "우라",
       "finishCode": "",
       "partId": "0-l2-drawerbox:bottom-0",
       "slot": "back",
@@ -1080,13 +1080,13 @@
     "PB_15": {
       "material": "PB",
       "thickness": 15,
-      "totalArea": 6581930,
+      "totalArea": 6909380,
       "panelCount": 3
     },
     "MDF_2.7": {
       "material": "MDF",
       "thickness": 2.7,
-      "totalArea": 2440456,
+      "totalArea": 2212870,
       "panelCount": 1
     },
     "MDF_18": {
@@ -1094,11 +1094,17 @@
       "thickness": 18,
       "totalArea": 2838304,
       "panelCount": 1
+    },
+    "MDF_3": {
+      "material": "MDF",
+      "thickness": 3,
+      "totalArea": 264146,
+      "panelCount": 1
     }
   },
   "edgeBanding": {
     "1": 16084,
-    "0.6": 66156
+    "0.6": 67226
   },
   "hardware": [
     {
@@ -1201,9 +1207,19 @@
       "item": "선반 브라켓 (핀타입)",
       "manufacturer": "-",
       "spec": "Φ5mm",
-      "qty": 40,
+      "qty": 44,
       "unit": "EA",
-      "note": "선반 10개 × 4",
+      "note": "선반 11개 × 4",
+      "itemLabel": "신발장"
+    },
+    {
+      "category": "걸레받이카바",
+      "item": "걸레받이카바(18T) 투명",
+      "manufacturer": "-",
+      "spec": "2400mm",
+      "qty": 1,
+      "unit": "EA",
+      "note": "걸레받이 1800mm ÷ 2400",
       "itemLabel": "신발장"
     }
   ],
@@ -1212,7 +1228,8 @@
     "레일": 2,
     "손잡이": 6,
     "다리발": 14,
-    "브라켓": 40
+    "브라켓": 44,
+    "걸레받이카바": 1
   },
   "csvHead": [
     "모듈,부품,자재,두께,가로,세로,수량,엣지,비고",

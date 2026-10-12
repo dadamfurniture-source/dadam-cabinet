@@ -64,8 +64,8 @@ const MASTER_RULES = {
   MIDDLE_BODY_RATIO: 0.55,      // 중간장이 차지하는 몸통 비율 (ui-fridge-el.js: moduleBodyH * 0.55)
   SHELF_SPACE_MIN: 300,         // 선반 분배 공간 최소 (일반)
   SHELF_SPACE_MAX: 450,         // 선반 분배 공간 최대 (일반)
-  SHELF_SPACE_MIN_SHOE: 180,    // 선반 분배 공간 최소 (신발장)
-  SHELF_SPACE_MAX_SHOE: 350,    // 선반 분배 공간 최대 (신발장)
+  SHELF_SPACE_MIN_SHOE: 150,    // 선반 분배 공간 최소 (신발장) — 2026-10-13 사장님 150~300 (예전 180~350)
+  SHELF_SPACE_MAX_SHOE: 300,    // 선반 분배 공간 최대 (신발장) — BOM extractors.js BOM_SIMPLE_CATEGORY_RULES.shoerack 과 같다
   DOOR_W_MIN: 350,              // 도어 W 최소
   DOOR_W_MAX: 600,              // 도어 W 최대
   DOOR_W_TARGET: 450,           // 도어 W 목표
