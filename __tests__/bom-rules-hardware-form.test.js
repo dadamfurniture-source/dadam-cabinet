@@ -87,6 +87,8 @@ function assertAddOnly(after, before, trail = '') {
     expect(Object.prototype.hasOwnProperty.call(after, key)).toBe(true);
     const b = before[key];
     const a = after[key];
+    // 양식 빈칸(hardware.* 의 null)을 채우는 건 더하기다 — hardware.md 「적용 절차」1 값 확정 (2026-10-13 첫 채움)
+    if (b === null && here.startsWith('hardware.')) continue;
     if (b !== null && typeof b === 'object' && !Array.isArray(b)) {
       expect(a !== null && typeof a === 'object').toBe(true);
       assertAddOnly(a, b, `${here}.`);

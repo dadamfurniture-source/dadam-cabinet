@@ -124,12 +124,12 @@ describe('신발장 (shoerack) — 얕은 깊이 350 · 선반 분배 · 서랍 
     expect(rowOf(snap, '하부장-하부장', '밴드(처짐방지)').qty).toBe(1); // W 900 ≥ 800 → 1장 (모듈 중앙)
   });
 
-  test('서랍 상자는 레일 350 으로 환산 — 측판 290 · 밑판 299, 전후판 428 ≤ 600 이라 하단보강 없음', () => {
-    expect(rowOf(snap, '하부장-서랍장', '서랍측판').w).toBe(290);
-    expect(rowOf(snap, '하부장-서랍장', '서랍밑판').h).toBe(299);
+  test('서랍 상자는 레일 300 으로 환산 (D350 − 50) — 측판 240 · 밑판 249, 전후판 428 ≤ 600 이라 하단보강 없음', () => {
+    expect(rowOf(snap, '하부장-서랍장', '서랍측판').w).toBe(240);
+    expect(rowOf(snap, '하부장-서랍장', '서랍밑판').h).toBe(249);
     expect(rowOf(snap, '하부장-서랍장', '서랍전후판').w).toBe(500 - 72);
     expect(partsOf(snap, '하부장-서랍장')).not.toContain('서랍 하단보강');
-    expect(rowOf(snap, '하부장-서랍장', '서랍측판').note).toMatch(/D350 → 레일 350: 측판 290 · 밑판 299/);
+    expect(rowOf(snap, '하부장-서랍장', '서랍측판').note).toMatch(/D350 → 레일 300: 측판 240 · 밑판 249/);
     // 서랍 2 → 서랍도어 2장 (440−20)/2 = 210, 여닫이 도어 708−440−30 = 238 → 1장
     expect(rowOf(snap, '하부장-서랍장', '서랍도어')).toMatchObject({ qty: 2, h: 210, w: 496 });
     expect(rowOf(snap, '하부장-서랍장', '도어')).toMatchObject({ qty: 1, h: 238 });
@@ -166,13 +166,13 @@ describe('화장대 (vanity) — 18T · 찬넬(목찬넬 아님) · 우측 None'
     expect(partsOf(snap, '하부장-서랍장')).toContain('목찬넬');
   });
 
-  test('서랍 3(D500 → 레일 500: 440·449 싱크와 같다) — 하단보강 있음, 여닫이 도어 없음(18 ≤ 50)', () => {
-    expect(rowOf(snap, '하부장-서랍장', '서랍측판').w).toBe(440);
-    expect(rowOf(snap, '하부장-서랍장', '서랍밑판').h).toBe(449);
-    expect(rowOf(snap, '하부장-서랍장', '서랍 하단보강')).toMatchObject({ w: 440, h: 60, qty: 3 });
+  test('서랍 3(D500 → 레일 450: 390·399, 깊이 − 50) — 하단보강 있음, 여닫이 도어 없음(18 ≤ 50)', () => {
+    expect(rowOf(snap, '하부장-서랍장', '서랍측판').w).toBe(390);
+    expect(rowOf(snap, '하부장-서랍장', '서랍밑판').h).toBe(399);
+    expect(rowOf(snap, '하부장-서랍장', '서랍 하단보강')).toMatchObject({ w: 390, h: 60, qty: 3 });
     expect(rowOf(snap, '하부장-서랍장', '서랍도어')).toMatchObject({ qty: 3, h: Math.floor((660 - 20) / 3) });
     expect(partsOf(snap, '하부장-서랍장')).not.toContain('도어');
-    expect(snap.hardware.find((h) => h.category === '레일')).toMatchObject({ spec: '500mm', qty: 3 });
+    expect(snap.hardware.find((h) => h.category === '레일')).toMatchObject({ spec: '450mm', qty: 3 });
   });
 
   test('shelfCount 0 명시 → 선반 없음, 미지정 하부장 → 1 + [확인 필요](싱크 규칙)', () => {
@@ -204,13 +204,14 @@ describe('수납장 (storage) — 통짜 키큰장 · 깊이 400 · 서랍 1', (
     expect(snap.hardwareSummary['다리발']).toBe(12);
   });
 
-  test('서랍 1(D400 → 레일 450: 390·399) — 전판 250, 여닫이 도어 458 ×2, 하단보강(828 > 600)', () => {
-    expect(rowOf(snap, '하부장-서랍장', '서랍측판').w).toBe(390);
-    expect(rowOf(snap, '하부장-서랍장', '서랍밑판').h).toBe(399);
+  // 2026-10-13: 레일은 싱크와 같은 "깊이 − 50 이하 최대" — D400 → 350 (예전 450 은 몸통보다 긴 레일이었다)
+  test('서랍 1(D400 → 레일 350: 290·299) — 전판 250, 여닫이 도어 458 ×2, 하단보강(828 > 600)', () => {
+    expect(rowOf(snap, '하부장-서랍장', '서랍측판').w).toBe(290);
+    expect(rowOf(snap, '하부장-서랍장', '서랍밑판').h).toBe(299);
     expect(rowOf(snap, '하부장-서랍장', '서랍도어')).toMatchObject({ qty: 1, h: 250, w: 896 });
     expect(rowOf(snap, '하부장-서랍장', '도어')).toMatchObject({ qty: 2, h: 708 - 220 - 30, w: 446 });
-    expect(rowOf(snap, '하부장-서랍장', '서랍 하단보강')).toMatchObject({ w: 390, qty: 1 });
-    expect(snap.hardware.find((h) => h.category === '레일')).toMatchObject({ spec: '450mm', qty: 1 });
+    expect(rowOf(snap, '하부장-서랍장', '서랍 하단보강')).toMatchObject({ w: 290, qty: 1 });
+    expect(snap.hardware.find((h) => h.category === '레일')).toMatchObject({ spec: '350mm', qty: 1 });
   });
 });
 
@@ -297,10 +298,13 @@ describe('규칙표·도우미 (BOM_SIMPLE_CATEGORY_RULES)', () => {
   });
 
   test('레일 길이 문턱 (bom-protocol.md §4-2)', () => {
-    expect(X.bomSimpleRailLenOf(350)).toBe(350);
-    expect(X.bomSimpleRailLenOf(400)).toBe(450);
-    expect(X.bomSimpleRailLenOf(450)).toBe(450);
-    expect(X.bomSimpleRailLenOf(500)).toBe(500);
+    // 2026-10-13: 싱크와 같은 "깊이 − 50 이하 최대" (폐기된 구간표 ≤350→350 · ≤450→450 · 그 밖 500 을 버림)
+    expect(X.bomSimpleRailLenOf(350)).toBe(300);
+    expect(X.bomSimpleRailLenOf(400)).toBe(350);
+    expect(X.bomSimpleRailLenOf(450)).toBe(400);
+    expect(X.bomSimpleRailLenOf(500)).toBe(450);
+    expect(X.bomSimpleRailLenOf(550)).toBe(500);
+    expect(X.bomSimpleRailLenOf(620)).toBe(500);   // 550 레일은 사지 않는다
   });
 
   test('네 카테고리를 한 설계에 넣어도 itemIdx 가 partId 를 가른다', () => {

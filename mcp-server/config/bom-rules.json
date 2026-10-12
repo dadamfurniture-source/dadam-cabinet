@@ -37,15 +37,15 @@
       "width_condition": null,
       "boring_positions": null,
       "door_h_basis": null,
-      "default_type": null,
-      "overlay_inset": null,
+      "default_type": { "item": "H052W-5 105도 저압 경첩", "manufacturer": "문주", "note": "슬라이드온 · 2026-10-13 거래명세서 확인" },
+      "overlay_inset": { "overlay": "full", "model_by_body_t": { "15": "H052W-5", "18": "H052W-3" } },
       "damper": null,
-      "el_lift_up": null,
-      "sliding_door": null
+      "el_lift_up": { "item": "리프트업도어 가변철물 小(23KG)", "qty_per_door": 1, "unit": "SET", "door_w_min": 450, "door_w_max": 600 },
+      "sliding_door": { "rail": { "item": "SDR-2 상·하레일", "length": 2500, "qty_per_module": 1, "unit": "조" }, "fittings_per_door": { "SDR-2 상부속": 2, "SDR-2 하부속": 2 } }
     },
     "rail": {
       "type": null,
-      "length_by_depth": null,
+      "length_by_depth": { "lengths": [250, 300, 350, 400, 450, 500], "rule": "max length <= D - 50" },
       "qty_per_drawer": null,
       "box_clearance_by_rail": null,
       "drawer_width_clearance": null,
@@ -80,7 +80,7 @@
       "leg_count_by_w": null,
       "leg_height": null,
       "leg_scope": null,
-      "adjuster_leg": null,
+      "adjuster_leg": { "same_as": "leg_count_by_w", "note": "조절다리는 다리발과 같은 품목 — 따로 세지 않는다" },
       "kick_clip_count": null,
       "kick_height": null
     },
