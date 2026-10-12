@@ -136,13 +136,14 @@ export function buildAnalysisPrompt() {
   return `Measure and describe this room photo for built-in furniture on the main wall facing the camera.
 Use known Korean apartment sizes for scale: door frame 900 x 2100 mm, outlet plate 70 x 120 mm, ceiling 2300-2400 mm.
 Return JSON only, no prose:
-{"wall_width_mm":number,"wall_height_mm":number,"water_supply_from_left_mm":number|null,"exhaust_from_left_mm":number|null,"confidence":"high"|"medium"|"low","room_brief":string,"existing_furniture":string|null,"site_condition":"finished"|"construction","site_notes":string|null,"wall_tile":{"present":boolean,"light_neutral":boolean,"description":string|null},"camera_side":"left"|"center"|"right"}
+{"wall_width_mm":number,"wall_height_mm":number,"water_supply_from_left_mm":number|null,"exhaust_from_left_mm":number|null,"confidence":"high"|"medium"|"low","room_brief":string,"existing_furniture":string|null,"site_condition":"finished"|"construction","site_notes":string|null,"wall_tile":{"present":boolean,"light_neutral":boolean,"description":string|null},"camera_side":"left"|"center"|"right","side_return":{"side":"left"|"right"|"both","depth_mm":number}|null}
 water_supply = position of an existing sink or faucet along that wall, exhaust = position of an existing cooker hood; null when there is none.
 room_brief = at most 60 words: floor material and colour, wall finish and colour, where the light comes from, camera height and angle, anything on the side walls that must stay.
 existing_furniture = what is currently on the main wall and must be removed before installing (e.g. "dark glossy kitchen cabinets with stainless hood"), or null if the wall is empty.
 site_condition = "construction" when the room is unfinished or mid-renovation: bare cement or plaster, exposed pipes or wiring, debris, tools, boxes, dust, protective film, missing flooring. Otherwise "finished". site_notes = what is unfinished, at most 25 words, or null.
 wall_tile = tiles on the target wall (backsplash or wall cladding). light_neutral is true only for white, ivory, light grey or light beige tiles with low saturation; dark, brown, black, glossy-coloured or patterned tiles are false. description = colour and finish, at most 12 words.
-camera_side = where the camera stands relative to the centre of the main wall: "left" or "right" when the wall is seen at an angle, "center" when it is photographed head-on.`;
+camera_side = where the camera stands relative to the centre of the main wall: "left" or "right" when the wall is seen at an angle, "center" when it is photographed head-on.
+side_return = a wall section, partition or column at the left or right end of the main wall whose front face protrudes toward the camera, so the main wall sits in a recess. side = which end, depth_mm = how far that front face stands in front of the main wall. null when the main wall runs flat into the corners.`;
 }
 
 /** 분석 JSON → 워커가 쓰는 벽 데이터 + 브리프. 값이 없거나 이상하면 기본값. */
@@ -159,6 +160,7 @@ export function parseAnalysis(text) {
     siteNotes: null,
     tile: null, // {present, lightNeutral, description} | null
     cameraSide: null, // 'left' | 'center' | 'right' | null — 깊이 단서(어느 측면이 보이나)
+    sideReturn: null, // {side:'left'|'right'|'both', depthMm} | null — 정면 벽 끝에 튀어나온 벽·기둥 (붙박이장 앞면을 맞출 기준)
     // 아래 넷 중 무엇을 **실제로 읽었나**. waterPct 는 늘 숫자라(기본 30) 값만 봐서는
     //   "사진에서 30% 로 읽음" 과 "못 읽어서 30%" 를 가릴 수 없다. 그래서 따로 적는다.
     //   시공 전 사진 828장 실측(2026-10): 벽 치수는 100% 읽지만 주방 급수는 56%, 배기는 48% 만 읽는다.
@@ -198,6 +200,11 @@ export function parseAnalysis(text) {
   if (typeof j.site_notes === 'string' && j.site_notes.trim())
     out.siteNotes = j.site_notes.trim().slice(0, 160);
   if (['left', 'center', 'right'].includes(j.camera_side)) out.cameraSide = j.camera_side;
+  if (j.side_return && ['left', 'right', 'both'].includes(j.side_return.side)) {
+    const d = mm(Number(j.side_return.depth_mm) || 0);
+    // 300~1200 mm 밖이면 깊이는 믿지 않는다 — 어느 벽에 맞출지만 쓴다
+    out.sideReturn = { side: j.side_return.side, depthMm: d >= 300 && d <= 1200 ? d : null };
+  }
   if (j.wall_tile && typeof j.wall_tile === 'object') {
     out.tile = {
       present: j.wall_tile.present === true,
@@ -603,6 +610,21 @@ export function depthPhrase(c) {
         : '';
   // 벽 전체를 채우는 장(붙박이장·수납장): 정면에서 윗면도 측판도 없다. 깊이는 방과 만나는 이음매로만 보인다.
   //   2026-10-13 사장님 "붙박이장 연출컷에 깊이가 없다" — 일반 단서(윗면·측판)는 이 장에 해당이 없었다.
+  if (cat.wallToWallMm && c.sideReturn) {
+    // 2026-10-14 사장님 "우측 벽 튀어나온 깊이를 반영하고 싶다" — 사진 속 튀어나온 벽이 곧 자다.
+    //   mm 숫자보다 "저 벽 앞면에 맞춰라" 가 모델이 따르기 쉬운 기준이다.
+    const r = c.sideReturn;
+    const where = r.side === 'both' ? 'the protruding walls at both ends' : `the protruding ${r.side} wall`;
+    const about = r.depthMm ? ` (about ${r.depthMm} mm in front of the main wall)` : '';
+    const ends = r.side === 'both' ? 'Each end of the wardrobe meets' : `The ${r.side} end of the wardrobe meets`;
+    const other = r.side === 'left' ? 'right' : r.side === 'right' ? 'left' : null;
+    return (
+      `DEPTH: It fills the recess from side to side and floor to ceiling, its front flush with the front face of ${where}${about}. ` +
+      `${ends} that wall's front corner, so the return of that wall is hidden behind the wardrobe, and the wardrobe front, the protruding wall's face and their floor line form one continuous plane.` +
+      (other ? ` On the ${other} side it covers the same depth of the ${other} wall.` : '') +
+      ` Its front meets the floor and the ceiling closer to the camera than the original wall did. A slim recessed plinth casts a dark shadow line along the floor, a slim filler meets the ceiling with a crisp shadow, and narrow dark reveals between the doors show their thickness.`
+    );
+  }
   if (cat.wallToWallMm) {
     const d = cat.wallToWallMm;
     return (
@@ -1264,7 +1286,9 @@ Report an issue ONLY when it is clearly visible. Use these codes:
 - construction_leftover: debris, tools, boxes, protective film, exposed pipes or bare unfinished walls still visible
 - tile_not_neutral: wall tiles around the furniture are dark, brown, black or strongly coloured (light neutral tiles are fine)
 ${
-    CATEGORIES[key].wallToWallMm
+    CATEGORIES[key].wallToWallMm && c.sideReturn
+      ? `- no_depth: compared with the original photo, the wardrobe front is not flush with the front face of the protruding ${c.sideReturn.side === 'both' ? 'walls at both ends' : `${c.sideReturn.side} wall`} — part of that wall's return still shows in front of the wardrobe — or the fronts still sit on the original wall plane`
+      : CATEGORIES[key].wallToWallMm
       ? '- no_depth: compared with the original photo, the fronts sit on the original wall plane — they meet the floor, the ceiling and the side-wall corners where the original wall did, with no plinth shadow line (a wall-to-wall wardrobe shows no side panels; that alone is fine)'
       : '- no_depth: compared with the original photo, the furniture does not stand forward of the wall — its base sits on the original wall-floor line with no floor strip covered, and it shows no side or edge thickness or contact shadow, as if painted on the wall'
   }${
