@@ -60,3 +60,26 @@ export const DEFAULT_LEADS = Object.freeze({
   /** 설치일이 없을 때 주문일부터 공장 완료까지 잡는 근무일 */
   defaultLeadDays: 7,
 });
+
+/**
+ * 장당 견적 원가 기준 (원, 부가세 별도). 2026-10-13 대표 확정값 + 거래명세서 실적.
+ * 고객 견적 = BOM 수량으로 계산한 실제 원가 × (1 + marginRate).
+ */
+export const DEFAULT_QUOTE = Object.freeze({
+  pbSheet: 32000, // 몸통 PB 15T
+  backSheet: 19500, // 뒷판 MDF 2.7T PVC
+  edgeRoll: 16500, // 0.6T PVC 엣지 1롤
+  edgeRollMeters: 200,
+  doorSheet: 100000, // 도어 외주 원장 1장 (실적 평균 91,654)
+  hinge: 460,
+  rail: 8600,
+  leg: 600,
+  shelfPin: 20,
+  rod: 1700,
+  fastenerPerBox: 1800, // 미니픽스·피스
+  cutterMonthly: 3500000, // 재단 기사 월급 (4대보험 포함)
+  workDays: 22,
+  overheadPerHour: 33000, // 간접비 380만 ÷ 월 20건 기준 공장 작업 약 115시간
+  installPerMeter: 40000, // 시공 외주, 시공 길이 m당
+  marginRate: 0.2,
+});
