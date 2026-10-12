@@ -465,7 +465,7 @@
       "h": 180,
       "qty": 6,
       "edge": "1면(장)",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D500 → 레일 500: 측판 440 · 밑판 449)",
+      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D500 → 레일 450: 측판 390 · 밑판 399)",
       "finishCode": "",
       "partId": "0-l1-drawerbox:fb-0",
       "slot": "body",
@@ -485,11 +485,11 @@
       "part": "서랍측판",
       "material": "PB",
       "thickness": 18,
-      "w": 440,
+      "w": 390,
       "h": 180,
       "qty": 6,
       "edge": "1면(장)",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D500 → 레일 500: 측판 440 · 밑판 449)",
+      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D500 → 레일 450: 측판 390 · 밑판 399)",
       "finishCode": "",
       "partId": "0-l1-drawerbox:side-0",
       "slot": "body",
@@ -499,7 +499,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 440,
+      "edgeLen": 390,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "화장대"
@@ -510,10 +510,10 @@
       "material": "MDF",
       "thickness": 2.7,
       "w": 757,
-      "h": 449,
+      "h": 399,
       "qty": 3,
       "edge": "-",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D500 → 레일 500: 측판 440 · 밑판 449)",
+      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D500 → 레일 450: 측판 390 · 밑판 399)",
       "finishCode": "",
       "partId": "0-l1-drawerbox:bottom-0",
       "slot": "back",
@@ -533,11 +533,11 @@
       "part": "서랍 하단보강",
       "material": "PB",
       "thickness": 18,
-      "w": 440,
+      "w": 390,
       "h": 60,
       "qty": 3,
       "edge": "2면(장)",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D500 → 레일 500: 측판 440 · 밑판 449)",
+      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D500 → 레일 450: 측판 390 · 밑판 399)",
       "finishCode": "",
       "partId": "0-l1-drawerbox:brace-0",
       "slot": "body",
@@ -547,7 +547,7 @@
         "T": true,
         "B": true
       },
-      "edgeLen": 880,
+      "edgeLen": 780,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "화장대"
@@ -821,13 +821,13 @@
     "PB_18": {
       "material": "PB",
       "thickness": 18,
-      "totalArea": 6124618,
+      "totalArea": 6061618,
       "panelCount": 3
     },
     "MDF_2.7": {
       "material": "MDF",
       "thickness": 2.7,
-      "totalArea": 2893439,
+      "totalArea": 2779889,
       "panelCount": 1
     },
     "MDF_18": {
@@ -839,12 +839,12 @@
   },
   "edgeBanding": {
     "1": 15698,
-    "0.6": 52802
+    "0.6": 52202
   },
   "hardware": [
     {
       "category": "경첩",
-      "item": "문주 110도 약압 경첩",
+      "item": "H052W-3 105도 저압 경첩",
       "manufacturer": "문주",
       "spec": "2구",
       "qty": 4,
@@ -854,7 +854,7 @@
     },
     {
       "category": "경첩",
-      "item": "문주 110도 약압 경첩",
+      "item": "H052W-3 105도 저압 경첩",
       "manufacturer": "문주",
       "spec": "2구",
       "qty": 2,
@@ -864,7 +864,7 @@
     },
     {
       "category": "경첩",
-      "item": "문주 110도 약압 경첩",
+      "item": "H052W-3 105도 저압 경첩",
       "manufacturer": "문주",
       "spec": "2구",
       "qty": 2,
@@ -876,7 +876,7 @@
       "category": "레일",
       "item": "소프트클로즈 서랍레일",
       "manufacturer": "블룸",
-      "spec": "500mm",
+      "spec": "450mm",
       "qty": 3,
       "unit": "SET",
       "note": "서랍장",
@@ -931,7 +931,7 @@
   ],
   "hardwareCsvHead": [
     "분류,품목,제조사,스펙,수량,단위,비고",
-    "경첩,문주 110도 약압 경첩,문주,2구,4,EA,상부장 (보링: 110, 610)",
-    "경첩,문주 110도 약압 경첩,문주,2구,2,EA,상부장 (보링: 110, 610)"
+    "경첩,H052W-3 105도 저압 경첩,문주,2구,4,EA,상부장 (보링: 110, 610)",
+    "경첩,H052W-3 105도 저압 경첩,문주,2구,2,EA,상부장 (보링: 110, 610)"
   ]
 }
