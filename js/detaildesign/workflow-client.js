@@ -1,11 +1,13 @@
 /**
- * 업무 루프 패널 — 스냅샷 → 고객확인서/작업지시서 → 일정/Slack.
+ * 업무 루프 — 두 화면을 그린다.
+ *   Step 3 (#workflowPanel)  스냅샷 동결 · 고객확인서 · 수주 전환 · 일정/Slack
+ *   Step 4 (#workOrderPanel) 작업지시서 — [발행] 한 번에 저장 → 동결 → 제작(+설치) 발행,
+ *                            사람별 꾸러미 인쇄(/print?pack=), 현장 정보, 발행 이력
+ *                            (docs/01-plan/work-order-stage.plan.md §4.1 · §4.2)
  *
- * ★ 파일 소유권 규칙 준수: ui-step1.js / ui-workspace.js / ai-design-report.js 를
- *   수정하지 않는다. proceedToBOM() 이 세팅해 둔 window._reportData 를
- *   읽기만 하고, UI 는 detaildesign.html 의 #workflowPanel 안에만 그린다.
- *   (#step3-report-area 는 ui-step1.js:326 이 innerHTML 로 통째로 덮어쓰므로
- *    그 안에 무엇을 넣어도 재산출 시 사라진다.)
+ * proceedToBOM() 이 세팅해 둔 window._reportData 를 읽기만 한다.
+ * (#step3-report-area 는 재산출 때마다 innerHTML 로 통째로 덮이므로 그 안에는 그리지 않는다.)
+ * 단계 전환(goToStep4 · backToStep3)은 ui-step1.js 에 있다 — 여기서는 enterStep4 만 노출한다.
  *
  * 전역 스크립트다 — ESM 아님. detaildesign.html 이 순서대로 동기 로드한다.
  */
@@ -20,6 +22,21 @@
     '';
 
   const PANEL_ID = 'workflowPanel';
+  const STEP4_ID = 'workOrderPanel';
+
+  /** 작업지시서 꾸러미 — 워커 templates/work-order.js WORK_ORDER_PACKS 와 같은 키 */
+  const WO_PACKS = [
+    { pack: 'cut', title: '재단·엣지 지시서', who: '재단 기사', desc: '원판별 재단 배치 · 엣지 붙일 변 표시 · 엣지 합계 · 정면도' },
+    { pack: 'assembly', title: '조립 지시서', who: '조립 기사', desc: '모듈별 부재·철물 · 모듈 치수도 · 조립 체크 · 정면도' },
+    { pack: 'door', title: '도어재 발주서', who: '도어 외주처', desc: '도어·몰딩·마감 부재 · 발주 코드 · 경첩 컵 위치 (고객 정보·금액 없음)' },
+    { pack: 'labels', title: '부재 라벨', who: '재단 기사', desc: 'QR 라벨 A4 3×8 · 사내 부재 먼저, 도어재는 입고 시' },
+    { pack: 'all', title: '전체 작업지시서', who: '사무실 보관', desc: '위 전부 + 표지 · 이전 rev 와의 차이' },
+  ];
+
+  /** 대체·회수되지 않은 문서 */
+  function live(d) {
+    return Boolean(d) && d.status !== 'superseded' && d.status !== 'revoked' && !d.superseded_by;
+  }
 
   const SCHEDULE_TYPES = [
     { value: 'measurement', label: '실측' },
@@ -125,12 +142,13 @@
     node.style.color = kind === 'error' ? '#c62828' : kind === 'ok' ? '#2e7d32' : '#666';
   }
 
-  function documentsHtml() {
-    if (!state.documents.length) {
+  function documentsHtml(filter) {
+    const docs = state.documents.filter(filter || function () { return true; });
+    if (!docs.length) {
       return '<p style="color:#888;font-size:13px;margin:6px 0;">아직 발행한 문서가 없습니다.</p>';
     }
 
-    const rows = state.documents
+    const rows = docs
       .map(function (d) {
         const typeLabel =
           d.doc_type === 'work_order'
@@ -319,13 +337,9 @@
       '<button type="button" id="wfIssueCC" style="padding:9px 16px;cursor:pointer;"' +
       (snap ? '' : ' disabled') +
       '>2. 고객확인서 발행</button>' +
-      '<button type="button" id="wfIssueWO" style="padding:9px 16px;cursor:pointer;"' +
-      (snap ? '' : ' disabled') +
-      '>3. 제작 작업지시서</button>' +
-      '<button type="button" id="wfIssueIO" style="padding:9px 16px;cursor:pointer;"' +
-      (snap ? '' : ' disabled') +
-      '>4. 설치 작업지시서</button>' +
+      '<button type="button" id="wfGoStep4" style="padding:9px 16px;cursor:pointer;">작업지시서 →</button>' +
       '</div>' +
+      '<div style="margin-top:6px;font-size:12px;color:#888;">제작·설치 작업지시서는 다음 단계(4. 작업지시서)에서 발행·인쇄합니다.</div>' +
       (snap
         ? '<div style="margin-top:10px;font-size:13px;color:#333;">' +
           '스냅샷 rev ' +
@@ -351,16 +365,226 @@
             : '') +
           '</div>'
         : '') +
-      '<div style="margin-top:16px;font-weight:600;font-size:13px;">현장 정보 <span style="font-weight:400;color:#888;">— 설치 작업지시서에 실립니다</span></div>' +
-      siteInfoHtml() +
-      '<div style="margin-top:16px;font-weight:600;font-size:13px;">발행 문서</div>' +
-      documentsHtml() +
+      '<div style="margin-top:16px;font-weight:600;font-size:13px;">고객확인서</div>' +
+      documentsHtml(function (d) { return d.doc_type === 'customer_confirmation'; }) +
       '<div style="margin-top:16px;font-weight:600;font-size:13px;">일정</div>' +
       schedulesHtml() +
       scheduleFormHtml() +
       '</div>';
 
     bind();
+    renderStep4();
+  }
+
+  // ── Step 4 작업지시서 ───────────────────────────────────────────
+
+  /** 목록은 created_at 내림차순 — 살아 있는 첫 문서가 최신 */
+  function latestDoc(docType) {
+    return state.documents.find(function (d) { return d.doc_type === docType && live(d); }) || null;
+  }
+
+  function approvedCC() {
+    return state.documents.find(function (d) {
+      return d.doc_type === 'customer_confirmation' && d.decision === 'approved';
+    }) || null;
+  }
+
+  function hasSiteInfo() {
+    const s = state.site || {};
+    return Boolean(s.address || s.address_detail || s.floor || s.access_note || s.install_order);
+  }
+
+  /** 상태 칩 — ok: true(완료) · false(주의) · null(아직) */
+  function chip(ok, label, hint) {
+    const cls = ok === true ? 'ok' : ok === false ? 'warn' : 'todo';
+    const mark = ok === true ? '✓' : ok === false ? '!' : '·';
+    return '<div class="wo4-chip ' + cls + '"><b>' + mark + ' ' + esc(label) + '</b>' +
+      (hint ? '<span>' + esc(hint) + '</span>' : '') + '</div>';
+  }
+
+  function ensureStep4Style() {
+    if (document.getElementById('wo4-style')) return;
+    const st = document.createElement('style');
+    st.id = 'wo4-style';
+    st.textContent = [
+      '#workOrderPanel .wo4-box{padding:16px;border:1px solid #e0e0e0;border-radius:12px;background:#fff;margin-bottom:14px}',
+      '#workOrderPanel .wo4-h{font-weight:700;font-size:14px}',
+      '#workOrderPanel .wo4-h small{font-weight:400;font-size:12px;color:#888}',
+      '#workOrderPanel .wo4-chips{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-top:10px}',
+      '#workOrderPanel .wo4-chip{border-radius:8px;padding:8px 10px;font-size:13px;display:flex;flex-direction:column;gap:2px}',
+      '#workOrderPanel .wo4-chip span{font-size:12px;opacity:.85}',
+      '#workOrderPanel .wo4-chip.ok{background:#e8f5e9;color:#1b5e20}',
+      '#workOrderPanel .wo4-chip.warn{background:#fff3e0;color:#8a3b00}',
+      '#workOrderPanel .wo4-chip.todo{background:#f1f1f1;color:#555}',
+      '#workOrderPanel .wo4-issue{background:#1f2937;color:#fff;border:none;border-radius:8px;padding:11px 22px;font-size:14px;font-weight:700;cursor:pointer}',
+      '#workOrderPanel .wo4-issue[disabled]{opacity:.5;cursor:default}',
+      '#workOrderPanel .wo4-packs{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:10px}',
+      '#workOrderPanel .wo4-pack{border:1px solid #d6d6d6;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px}',
+      '#workOrderPanel .wo4-pack .who{font-size:12px;color:#666}',
+      '#workOrderPanel .wo4-pack .desc{font-size:12px;color:#444;flex:1}',
+      '#workOrderPanel .wo4-pack button{align-self:flex-start;padding:7px 14px;cursor:pointer;font-weight:600}',
+      '#workOrderPanel .wo4-pack.off{opacity:.55}',
+    ].join('');
+    document.head.appendChild(st);
+  }
+
+  function packCard(title, who, desc, docId, pack) {
+    return '<div class="wo4-pack' + (docId ? '' : ' off') + '">' +
+      '<div class="wo4-h">' + esc(title) + '</div>' +
+      '<div class="who">' + esc(who) + '</div>' +
+      '<div class="desc">' + esc(desc) + '</div>' +
+      '<button type="button" data-wo-print="' + esc(docId || '') + '" data-wo-pack="' + esc(pack || '') + '"' +
+      (docId ? '' : ' disabled') + '>인쇄</button></div>';
+  }
+
+  function renderStep4() {
+    const root = document.getElementById(STEP4_ID);
+    if (!root) return;
+    ensureStep4Style();
+
+    if (!API) {
+      root.innerHTML = '<div class="wo4-box">업무 루프 서버(workflowApi.url)가 설정되지 않았습니다.</div>';
+      return;
+    }
+
+    const id = designId();
+    const report = window._reportData;
+    const hasBom = Boolean(report && report.materials);
+    const wo = latestDoc('work_order');
+    const io = latestDoc('installation_order');
+    const cc = approvedCC();
+    const snap = state.snapshot;
+    const woFresh = Boolean(wo && !wo.stale && (!snap || wo.snapshot_id === snap.snapshot_id));
+    const site = hasSiteInfo();
+
+    const chips =
+      chip(Boolean(id), id ? '설계 저장됨' : '설계 저장 전', id ? '' : '발행할 때 이름을 묻고 저장합니다') +
+      chip(hasBom ? true : false, hasBom ? 'BOM 산출됨' : 'BOM 없음',
+        hasBom ? '부재 ' + ((report.materials.materials || []).length) + '종' : '3단계에서 산출해 주세요') +
+      (snap
+        ? chip(true, '동결 rev ' + snap.rev, snap.reused ? '변경 없음 — 기존 rev' : '')
+        : wo && wo.snapshot_rev
+          ? chip(woFresh, '동결 rev ' + wo.snapshot_rev, woFresh ? '최신 작업지시서 기준' : '그 뒤로 설계가 바뀌었습니다')
+          : chip(null, '동결 전', '발행할 때 동결합니다')) +
+      chip(cc ? true : false, cc ? '고객 승인됨' : '고객 승인 전', cc ? cc.doc_no || '' : '승인 전 발행은 사유를 남깁니다') +
+      chip(wo ? woFresh : null,
+        wo ? '작업지시서 r' + wo.rev + (woFresh ? '' : ' · 설계 변경됨') : '작업지시서 없음',
+        wo ? wo.doc_no : '');
+
+    const packs =
+      WO_PACKS.map(function (p) { return packCard(p.title, p.who, p.desc, wo && wo.id, p.pack); }).join('') +
+      packCard('설치 지시서', '시공 기사',
+        io ? '현장 주소 · 층 · 엘리베이터 · 반입 경로 · 시공 순서'
+          : site ? '[발행] 할 때 아래 현장 정보로 함께 만듭니다' : '아래 현장 정보를 저장하면 [발행] 할 때 함께 만듭니다',
+        io && io.id, '');
+
+    const issueLabel = woFresh ? '작업지시서 다시 확인' : wo ? '설계 변경 반영해 새로 발행' : '작업지시서 발행';
+
+    root.innerHTML =
+      '<div class="wo4-box">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">' +
+      '<div class="wo4-h">발행</div><div id="wo4Status" style="font-size:12px;color:#666;"></div></div>' +
+      '<div class="wo4-chips">' + chips + '</div>' +
+      '<div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">' +
+      '<button type="button" class="wo4-issue" id="wo4Issue"' + (hasBom ? '' : ' disabled') + '>' + esc(issueLabel) + '</button>' +
+      '<span style="font-size:12px;color:#666;">저장 → 설계·BOM 동결 → 제작' + (site ? '·설치' : '') +
+      ' 작업지시서 발행을 한 번에 합니다. 같은 설계면 새로 만들지 않습니다.</span>' +
+      '</div></div>' +
+      '<div class="wo4-box"><div class="wo4-h">꾸러미 인쇄 <small>— 사람마다 자기 종이만</small></div>' +
+      '<div class="wo4-packs">' + packs + '</div></div>' +
+      '<div class="wo4-box"><div class="wo4-h">현장 정보 <small>— 설치 지시서에 실립니다</small></div>' +
+      siteInfoHtml() + '</div>' +
+      '<div class="wo4-box"><div class="wo4-h">발행 이력</div>' +
+      documentsHtml(function (d) { return d.doc_type === 'work_order' || d.doc_type === 'installation_order'; }) +
+      '</div>';
+
+    bindStep4(root);
+  }
+
+  function setStep4Status(message, kind) {
+    const node = document.getElementById('wo4Status');
+    if (node) {
+      node.textContent = message || '';
+      node.style.color = kind === 'error' ? '#c62828' : kind === 'ok' ? '#2e7d32' : '#666';
+    }
+    setStatus(message, kind);
+  }
+
+  /**
+   * [발행] — 저장 → 동결 → 제작(+설치) 작업지시서. 같은 스냅샷에 살아 있는 문서가 있으면 새로 만들지 않는다.
+   * 고객 승인 전이면 사유를 받아 특기사항에 남긴다 (계획 §7 Q6 기본값: 확정은 승인 뒤, 사유 입력 시 예외).
+   */
+  async function issueWorkOrders() {
+    if (!designId()) {
+      if (typeof window.saveDesign !== 'function') throw new Error('설계를 먼저 저장해 주세요.');
+      setStep4Status('설계를 저장하는 중…');
+      await window.saveDesign();
+      if (!designId()) throw new Error('저장이 취소되어 발행하지 않았습니다.');
+    }
+
+    await createSnapshot();
+    const snap = state.snapshot;
+    const sameSnap = function (type) {
+      return state.documents.find(function (d) {
+        return d.doc_type === type && d.snapshot_id === snap.snapshot_id && live(d);
+      }) || null;
+    };
+
+    const made = [];
+    if (!sameSnap('work_order')) {
+      const body = { doc_type: 'work_order' };
+      if (!approvedCC()) {
+        const reason = window.prompt(
+          '고객 확인서 승인 전입니다. 그래도 작업지시서를 발행하려면 사유를 적어 주세요 (지시서 특기사항에 남습니다).'
+        );
+        if (reason === null || !String(reason).trim()) {
+          setStep4Status('발행하지 않았습니다 — 고객 승인 뒤에 다시 눌러 주세요.', 'error');
+          return;
+        }
+        body.instructions = '고객 승인 전 발행 — 사유: ' + String(reason).trim();
+      }
+      setStep4Status('제작 작업지시서를 발행하는 중…');
+      const data = await api('/snapshots/' + encodeURIComponent(snap.snapshot_id) + '/documents', {
+        method: 'POST',
+        body: body,
+      });
+      made.push(data.doc_no);
+    }
+    if (hasSiteInfo() && !sameSnap('installation_order')) {
+      setStep4Status('설치 작업지시서를 발행하는 중…');
+      const data = await api('/snapshots/' + encodeURIComponent(snap.snapshot_id) + '/documents', {
+        method: 'POST',
+        body: { doc_type: 'installation_order' },
+      });
+      made.push(data.doc_no);
+    }
+
+    await refresh();
+    setStep4Status(
+      made.length
+        ? made.join(' · ') + ' 발행 완료 — 아래 꾸러미에서 인쇄하세요.'
+        : '설계가 그대로라 기존 작업지시서를 씁니다.',
+      'ok'
+    );
+  }
+
+  function bindStep4(root) {
+    const btn = document.getElementById('wo4Issue');
+    if (btn) btn.addEventListener('click', function () { guard(issueWorkOrders); });
+    const save = root.querySelector('#wfSaveSite');
+    if (save) save.addEventListener('click', function () { guard(saveSite); });
+    root.querySelectorAll('[data-wo-print]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        guard(function () {
+          return openPrint(b.getAttribute('data-wo-print'), b.getAttribute('data-wo-pack') || null);
+        });
+      });
+    });
+    root.querySelectorAll('[data-wf-print]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        guard(function () { return openPrint(b.dataset.wfPrint); });
+      });
+    });
   }
 
   // ── 동작 ────────────────────────────────────────────────────────
@@ -557,20 +781,32 @@
     await refresh();
   }
 
-  async function openPrint(documentId) {
+  /** pack: 작업지시서 꾸러미 키 (cut · assembly · door · labels · all). 없으면 문서 전체. */
+  async function openPrint(documentId, pack) {
+    if (!documentId) throw new Error('먼저 작업지시서를 발행해 주세요.');
+    // 창은 클릭 직후에 연다 — await 뒤에 열면 팝업 차단에 걸린다
+    const win = window.open('', '_blank');
+    if (!win) throw new Error('팝업이 차단되었습니다. 팝업을 허용해 주세요.');
+    win.document.write('<p style="font:14px sans-serif;padding:24px">인쇄 화면을 불러오는 중…</p>');
+
     const t = await token();
-    if (!t) throw new Error('로그인이 필요합니다.');
+    if (!t) {
+      win.close();
+      throw new Error('로그인이 필요합니다.');
+    }
 
     // 인쇄 화면은 JWT 가 필요해 새 탭 주소로 바로 열 수 없다.
     // 본문을 받아 새 창에 써 넣는다.
-    const res = await fetch(API + '/documents/' + encodeURIComponent(documentId) + '/print', {
+    const query = pack ? '?pack=' + encodeURIComponent(pack) : '';
+    const res = await fetch(API + '/documents/' + encodeURIComponent(documentId) + '/print' + query, {
       headers: { Authorization: 'Bearer ' + t },
     });
-    if (!res.ok) throw new Error('인쇄 화면을 불러오지 못했습니다 (' + res.status + ')');
+    if (!res.ok) {
+      win.close();
+      throw new Error('인쇄 화면을 불러오지 못했습니다 (' + res.status + ')');
+    }
 
     const html = await res.text();
-    const win = window.open('', '_blank');
-    if (!win) throw new Error('팝업이 차단되었습니다. 팝업을 허용해 주세요.');
     win.document.open();
     win.document.write(html);
     win.document.close();
@@ -626,14 +862,13 @@
     on('wfIssueCC', function () {
       return issue('customer_confirmation');
     });
-    on('wfIssueWO', function () {
-      return issue('work_order');
-    });
-    on('wfIssueIO', function () {
-      return issue('installation_order');
-    });
-    on('wfSaveSite', saveSite);
     on('wfAddSched', addSchedule);
+    const go4 = document.getElementById('wfGoStep4');
+    if (go4) {
+      go4.addEventListener('click', function () {
+        if (typeof window.goToStep4 === 'function') window.goToStep4();
+      });
+    }
 
     root.querySelectorAll('[data-wf-order]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -662,7 +897,7 @@
   // ── 초기화 ──────────────────────────────────────────────────────
 
   function init() {
-    if (!panel()) return;
+    if (!panel() && !document.getElementById(STEP4_ID)) return;
     render();
     if (designId()) guard(refresh);
   }
@@ -679,5 +914,11 @@
       return guard(refresh);
     },
     render: render,
+    /** goToStep4 (ui-step1.js) 가 부른다 — 바로 그리고, 서버 목록을 받아 다시 그린다 */
+    enterStep4: function () {
+      renderStep4();
+      if (designId()) return guard(refresh);
+      return Promise.resolve();
+    },
   };
 })();
