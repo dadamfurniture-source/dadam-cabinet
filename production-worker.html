@@ -124,8 +124,22 @@
         function renderJobs() {
           document.querySelectorAll('#tabs button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-r') === role); });
           var list = (data && data.work && data.work[role]) || [];
-          if (!list.length) { el('jobs').innerHTML = '<div class="card empty">오늘 ' + ROLE[role] + ' 할 주문이 없습니다.</div>'; return; }
+          if (!list.length) {
+            // 왜 비었는지 말해 준다 — 수주가 없는지, BOM 이 없어 빠졌는지
+            var skipped = (data && data.skipped) || [];
+            var why = !data || !data.activeJobs
+              ? '진행 중인 수주가 없습니다. 고객 확인서를 수주로 전환해야(수주 · 원가 화면) 작업이 나옵니다.'
+              : '진행 중인 주문에 ' + ROLE[role] + ' 작업이 없습니다.';
+            if (skipped.length) why += '<br>계획에서 빠진 주문: ' + skipped.map(function (s) { return esc(s.label) + ' (' + esc(s.reason) + ')'; }).join(', ');
+            el('jobs').innerHTML = '<div class="card empty">' + why + '<br><br>아래 「다른 작업 기록」으로는 언제든 기록할 수 있습니다.</div>';
+            return;
+          }
+          var firstLater = -1;
+          list.forEach(function (j, i) { if (firstLater < 0 && !j.today) firstLater = i; });
           el('jobs').innerHTML = list.map(function (j, i) {
+            var head = '';
+            if (i === 0 && j.today) head = '<div class="muted" style="margin:4px 2px 6px">오늘 예정</div>';
+            if (i === firstLater) head = '<div class="muted" style="margin:12px 2px 6px">' + (i === 0 ? '오늘 예정은 없습니다 · ' : '') + '다른 진행 중 주문 (먼저 해도 됩니다)</div>';
             var start = load(timerKey(role, j.orderId));
             var form = start
               ? '<div class="running" data-since="' + start + '">진행 중 · ' + elapsedMin(start) + '분째</div>' +
@@ -133,7 +147,8 @@
                 '<label>걸린 시간 (분) <input type="number" inputmode="decimal" id="m' + i + '" value="' + elapsedMin(start) + '"></label></div>' +
                 '<div class="btns" style="margin-top:10px"><button type="button" class="big" data-cancel="' + i + '">취소</button><button type="button" class="big stop" data-done="' + i + '">완료 기록</button></div>'
               : '<div class="btns"><button type="button" class="big go" data-start="' + i + '">시작</button></div>';
-            return '<div class="card job"><div class="t">' + esc(j.label) + '</div><div class="d">' + esc(j.detail) + ' · 마감 ' + day(j.due) +
+            return head + '<div class="card job"><div class="t">' + esc(j.label) + '</div><div class="d">' + esc(j.detail) + ' · 마감 ' + day(j.due) +
+              (!j.today && j.plannedStart ? ' · 계획 ' + day(j.plannedStart) : '') +
               (role === 'asm' && j.doorArrival ? ' · 도어 도착 ' + day(j.doorArrival) : '') + '</div>' + form + '</div>';
           }).join('');
           el('jobs').querySelectorAll('[data-start]').forEach(function (b) { b.addEventListener('click', function () { var j = list[+b.getAttribute('data-start')]; store(timerKey(role, j.orderId), String(Date.now())); renderJobs(); }); });
