@@ -73,14 +73,35 @@ export async function resolveWorker(env, token) {
 }
 
 /** 계획에서 오늘 각 공정에 걸린 주문과 수량 (순수). */
+/**
+ * 공정별 작업 목록 (순수). 진행 중인 주문을 **모두** 담고, 계획상 오늘 그 공정인 것에 today=true 를 단다.
+ * 오늘 예정만 보여 주면 계획과 실제 순서가 조금만 어긋나도 작업자 화면이 비어 기록을 못 남긴다.
+ * 계획상 그 공정이 이미 끝났어야 하는 주문(stage 끝 < 오늘)은 뒤로, 외주로 돌린 엣지는 뺀다.
+ */
 export function todaysWork(plan, today) {
-  const inRange = (r) => r && r[0] && r[0] <= today && (r[1] === null || r[1] >= today);
+  const ROLE_ITEM = {
+    cutter: (j, c) => ({ units: (c.sheetsPB || 0) + (c.sheetsBack || 0), unit: '장', detail: `PB ${c.sheetsPB || 0} · 뒷판 ${c.sheetsBack || 0}` }),
+    edge: (j, c) => ({ units: c.sheetsPB || 0, unit: '장', detail: `PB ${c.sheetsPB || 0}장` }),
+    asm: (j, c) => ({ units: (c.boxes || 0) + (c.drawers || 0), unit: '개', detail: `통 ${c.boxes || 0} · 서랍 ${c.drawers || 0} · 도어 ${c.doors || 0}짝`, doorArrival: j.doorArrival }),
+  };
   const out = { cutter: [], edge: [], asm: [] };
   for (const j of plan.jobs || []) {
     const c = j.counts || {};
-    if (j.stages && inRange(j.stages.cutter)) out.cutter.push({ orderId: j.id, label: j.label, units: (c.sheetsPB || 0) + (c.sheetsBack || 0), unit: '장', detail: `PB ${c.sheetsPB || 0} · 뒷판 ${c.sheetsBack || 0}`, due: j.due });
-    if (j.stages && inRange(j.stages.edge)) out.edge.push({ orderId: j.id, label: j.label, units: c.sheetsPB || 0, unit: '장', detail: `PB ${c.sheetsPB || 0}장`, due: j.due });
-    if (j.stages && inRange(j.stages.asm)) out.asm.push({ orderId: j.id, label: j.label, units: (c.boxes || 0) + (c.drawers || 0), unit: '개', detail: `통 ${c.boxes || 0} · 서랍 ${c.drawers || 0} · 도어 ${c.doors || 0}짝`, due: j.due, doorArrival: j.doorArrival });
+    for (const role of Object.keys(out)) {
+      const st = j.stages ? j.stages[role] : null;
+      if (role === 'edge' && (!st || j.outsourced)) continue; // 외주로 돌렸거나 엣지 없음
+      const item = ROLE_ITEM[role](j, c);
+      if (!(item.units > 0)) continue;
+      const start = st ? st[0] : null;
+      const end = st ? st[1] : null;
+      const isToday = !!(start && start <= today && (end === null || end >= today));
+      const order = isToday ? 0 : start && start > today ? 1 : 2; // 오늘 → 다음 예정 → 계획상 지난 것
+      out[role].push({ orderId: j.id, label: j.label, due: j.due, plannedStart: start, today: isToday, _o: order, ...item });
+    }
+  }
+  for (const role of Object.keys(out)) {
+    out[role].sort((a, b) => a._o - b._o || String(a.plannedStart || '').localeCompare(String(b.plannedStart || '')) || String(a.due || '').localeCompare(String(b.due || '')));
+    out[role].forEach((x) => { delete x._o; });
   }
   return out;
 }
@@ -104,7 +125,16 @@ export async function workerToday(env, { link }) {
     limit: '100',
   })) || [];
   await updateById(env, 'production_worker_links', link.id, { last_used_at: new Date().toISOString() });
-  return { worker: link.label, today, work: todaysWork(plan, today), assignments, logs };
+  // 비어 있을 때 작업자 화면이 이유를 말할 수 있게 진행 중 주문 수와 빠진 주문(사유만)을 함께 준다
+  return {
+    worker: link.label,
+    today,
+    work: todaysWork(plan, today),
+    activeJobs: plan.jobs.length,
+    skipped: (plan.skipped || []).map((x) => ({ label: x.label, reason: x.reason })),
+    assignments,
+    logs,
+  };
 }
 
 export function validateWorklog(body) {
