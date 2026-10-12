@@ -294,6 +294,7 @@ async function runPipeline(env, job, ck, save) {
     if (manualW >= 1000 && manualW <= 6000) {
       wall.wallW = clampWall(manualW);
       wall.confidence = 'user';
+      if (wall.read) wall.read.width = true;   // 사람이 넣은 값이다 — 추측이 아니다
     }
     ck.wall = wall;
     await save({ wall });
