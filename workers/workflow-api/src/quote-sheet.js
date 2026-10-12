@@ -10,12 +10,15 @@
  *   뒷판 (MDF 2.7T)          n장 × 장당 단가   ← 뒷판 원판·재단·간접비
  *   도어 (MDF 18T 외주 마감)  n장 × 장당 단가   ← 도어 외주·도어 검수·달기·간접비
  *   시공 (설치 길이 기준)     n m × m당 단가    ← 시공 외주 (싱크 하부+상부, 키큰·붙박이 1m = 2m)
- * 상판·설비·철거는 지금 단가표(m당·개당)를 그대로 쓴다 — BOM 원판과 무관한 항목이다.
+ * 상판·설비(싱크볼·수전·후드)·철거도 매입·시공 원가 × (1 + 마진율) 로 낸다 —
+ * 원가·제작·설치·기타 비용을 다 넣은 최종 지출비용에 마진 20% (2026-10-13 대표).
+ * 공장 기타 비용(차량·소모품·폐기물·광고·카드 수수료)은 간접비(공장 작업 시간당)로 캐비닛 원가에 들어 있다.
  *
  * 원가 내역(cost)은 대표용이다. 고객 문서(확인서)는 items·합계만 그린다.
  */
 
 import { countWork, workloadFromCounts } from './production/workload.js';
+import { buildQuoteInputs } from './adapters.js';
 import { DEFAULT_STANDARDS, DEFAULT_CREW, DEFAULT_COSTS, DEFAULT_QUOTE } from './production/standards.js';
 
 const SHEET_AREA_M2 = 1.22 * 2.44;
@@ -82,12 +85,36 @@ export function installMeters(design) {
 }
 
 /**
+ * 상판·설비·철거 원가 줄 — 설계 품목마다 (adapters.buildQuoteInputs 의 분석을 그대로 쓴다).
+ * 철거는 단가표 견적과 같이 상·하부 길이 합으로 견적당 한 줄.
+ */
+export function extraCostLines(design, Q) {
+  const lines = [];
+  let demolitionMm = 0;
+  for (const input of buildQuoteInputs(design)) {
+    const a = input.analysis;
+    const label = input.label;
+    demolitionMm += a.lower_cabinets.reduce((s, c) => s + c.width_mm, 0) + a.upper_cabinets.reduce((s, c) => s + c.width_mm, 0);
+    const ct = num(a.countertop_length_mm) / 1000;
+    if (ct > 0) lines.push({ name: `${label} 상판 (인조대리석)`, qty: Math.round(ct * 100) / 100, unit: 'm', cost: ct * Q.countertopPerMeter, key: 'countertop' });
+    if (a.has_sink) {
+      lines.push({ name: `${label} 싱크볼`, qty: 1, unit: '개', cost: Q.sinkBowl, key: 'sinkBowl' });
+      lines.push({ name: `${label} 수전`, qty: 1, unit: '개', cost: Q.faucet, key: 'faucet' });
+    }
+    if (a.has_hood) lines.push({ name: `${label} 후드`, qty: 1, unit: '개', cost: Q.hood, key: 'hood' });
+  }
+  const dm = demolitionMm / 1000;
+  if (dm > 0 && Q.demolitionPerMeter > 0) lines.push({ name: '기존 철거', qty: Math.round(dm * 100) / 100, unit: 'm', cost: dm * Q.demolitionPerMeter, key: 'demolition' });
+  return lines;
+}
+
+/**
  * @param {Object} input
  * @param {Object} input.design   스냅샷 design_payload
  * @param {Object} input.bom      스냅샷 bom_payload ({materials, hardware})
  * @param {Object|null} input.cutPlan  재단 배치 (없으면 면적으로 원판 추정)
  * @param {Object} [input.settings]  production settings ({standards, crew, costs, quote})
- * @param {Array}  [input.extraItems]  단가표에서 그대로 가져올 줄 (상판·설비·철거)
+ * @param {Array}  [input.extraItems]  금액이 이미 정해진 줄 (마진을 다시 붙이지 않는다). 기본은 없음
  * @param {Object} [input.range]  {min,max} 배수 — 확인서의 "최종 금액 범위" 문구
  */
 export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extraItems = [], range = null }) {
@@ -153,13 +180,19 @@ export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extra
   // 몸통 장수가 0 인데 몸통 원가가 있으면(PB 없이 철물만 등) 일식으로 남긴다 — 금액을 조용히 버리지 않는다
   if (!(c.sheetsPB > 0) && sum(body) > 0) items.push({ name: '몸통 부자재·작업 (일식)', quantity: '1식', unit_price: r100(sum(body) * margin), total: r100(sum(body) * margin) });
 
+  // 상판·설비·철거 — 원가 × (1 + 마진)
+  const extraCost = {};
+  for (const x of extraCostLines(design, Q)) {
+    if (line(x.name, x.qty, x.unit, x.cost)) extraCost[x.key] = (extraCost[x.key] || 0) + x.cost;
+  }
   for (const x of extraItems) items.push(x);
 
   const subtotal = items.reduce((s, i) => s + i.total, 0);
   const vat = Math.round(subtotal * 0.1);
   const total = subtotal + vat;
-  const costTotal = sum(body) + sum(back) + sum(door) + sum(install);
-  const cabinetPrice = items.filter((i) => !extraItems.includes(i)).reduce((s, i) => s + i.total, 0);
+  const cabinetCost = sum(body) + sum(back) + sum(door) + sum(install);
+  const costTotal = cabinetCost + sum(extraCost);
+  const pricedTotal = items.filter((i) => !extraItems.includes(i)).reduce((s, i) => s + i.total, 0);
 
   return {
     method: 'sheet',
@@ -172,9 +205,12 @@ export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extra
     margin_rate: Q.marginRate,
     // ── 대표용 원가 내역 (고객 문서에는 그리지 않는다) ──
     cost: {
+      // 최종 지출비용 = 캐비닛(자재·제작·간접비·시공) + 상판·설비·철거. 고객 공급가(정해진 줄 제외) = 이 × (1 + 마진)
       total: Math.round(costTotal),
-      cabinet_price: cabinetPrice,
-      margin_amount: Math.round(cabinetPrice - costTotal),
+      cabinet: Math.round(cabinetCost),
+      extras: roundAll(extraCost),
+      priced_total: pricedTotal,
+      margin_amount: Math.round(pricedTotal - costTotal),
       body: roundAll(body),
       back: roundAll(back),
       door: roundAll(door),
