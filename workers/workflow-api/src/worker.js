@@ -13,7 +13,7 @@
  *   POST /snapshots/:snapshotId/documents  — 문서 발행 (평문 토큰은 여기서만 반환)
  *   GET  /designs/:designId/documents      — 목록 (stale 배지 포함)
  *   GET  /documents/:documentId            — 단건
- *   GET  /documents/:documentId/print      — A4 인쇄 HTML (내부용)
+ *   GET  /documents/:documentId/print      — A4 인쇄 HTML (내부용). 작업지시서는 ?pack= 으로 꾸러미
  *   POST /documents/:documentId/revoke     — 공유 링크 회수
  *
  *   POST /designs/:designId/schedules      — 일정 등록 + Slack 알림
@@ -30,6 +30,7 @@
 
 import { handleOptions, jsonResponse, htmlResponse, isAllowedOrigin } from './cors.js';
 import { createRouter } from './router.js';
+import { normalizePack, WORK_ORDER_PACKS } from './templates/work-order.js';
 import {
   AuthError,
   ForbiddenError,
@@ -225,9 +226,14 @@ async function handlePrintDocument(request, env, { params, user }) {
     documentId: params.documentId,
     user,
   });
+  // 꾸러미 (work-order-stage.plan.md §4.3): ?pack=cut|assembly|door|labels|all — 같은 동결 문서에서 섹션만 고른다
+  const pack = normalizePack(new URL(request.url).searchParams.get('pack'));
+  if (!pack) {
+    throw new ValidationError(`pack 은 ${Object.keys(WORK_ORDER_PACKS).join(', ')} 중 하나여야 합니다`);
+  }
   // B5: 작업지시서 표지의 정면 렌더는 인쇄 시점에 서명 URL(1시간)을 만든다
   const assets = await resolvePrintAssets(env, doc);
-  return htmlResponse(request, env, renderDocument(doc, snapshot, { toolbar: true, ...assets }));
+  return htmlResponse(request, env, renderDocument(doc, snapshot, { toolbar: true, pack, ...assets }));
 }
 
 async function handleRevokeDocument(request, env, { params, user }) {
