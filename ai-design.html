@@ -607,7 +607,7 @@
                 cv.height = ch;
                 cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
                 var url = cv.toDataURL('image/jpeg', 0.9);
-                resolve({ base64: url.split(',')[1], mime: 'image/jpeg', preview: url, name: file.name });
+                resolve({ base64: url.split(',')[1], mime: 'image/jpeg', preview: url, name: file.name, width: cw, height: ch });
               };
               img.src = String(fr.result);
             };
@@ -649,6 +649,9 @@
             return;
           }
           $('fill1').style.backgroundImage = 'url(' + S.img1.preview + ')';
+          // 칸을 사진 비율에 맞춘다 — 고정 높이에 cover 로 채우면 세로 사진의 위아래가 잘려 보였다
+          $('drop1').style.aspectRatio = S.img1.width && S.img1.height ? S.img1.width + ' / ' + S.img1.height : '';
+          $('drop1').classList.add('v5-drop--photo');
           $('fill1').hidden = false;
           $('empty1').hidden = true;
           $('clear1').hidden = false;
@@ -660,6 +663,8 @@
 
         function clearImage1() {
           S.img1 = null;
+          $('drop1').style.aspectRatio = '';
+          $('drop1').classList.remove('v5-drop--photo');
           $('fill1').hidden = true;
           $('empty1').hidden = false;
           $('clear1').hidden = true;
