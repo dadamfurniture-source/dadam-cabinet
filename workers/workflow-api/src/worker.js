@@ -70,6 +70,7 @@ import {
 import {
   computePlan,
   proposePlan,
+  runDailyBriefs,
   getProposal,
   decideProposal,
   listAssignments,
@@ -296,6 +297,18 @@ async function handleCreateOrder(request, env, { params, user, ctx }) {
 }
 
 // ── 생산 계획 · 인력 추천 ──
+/**
+ * 계획에 영향을 주는 변경(설치 일정 등록·변경, 수주 취소) 뒤에 응답을 막지 않고 다시 계획한다.
+ * 실패는 로그만 남긴다 — 원래 요청(일정·수주 저장)은 이미 끝났다.
+ */
+function replanLater(env, ctx, user, triggerLabel) {
+  if (!ctx || typeof ctx.waitUntil !== 'function') return;
+  ctx.waitUntil(
+    proposePlan(env, { user, trigger: 'manual', triggerLabel })
+      .catch((e) => console.error('production replan failed:', e && e.message)),
+  );
+}
+
 async function handleGetProductionPlan(request, env, { user }) {
   const url = new URL(request.url);
   const data = await computePlan(env, { user, today: url.searchParams.get('today') || undefined });
@@ -344,9 +357,11 @@ async function handleGetOrder(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data });
 }
 
-async function handleUpdateOrder(request, env, { params, user }) {
+async function handleUpdateOrder(request, env, { params, user, ctx }) {
   const patch = (await readJson(request)) || {};
   const order = await updateOrder(env, { orderId: params.orderId, user, patch });
+  // 취소되면 그 주문이 차지하던 공장 시간이 풀린다
+  if (patch.status === 'cancelled') replanLater(env, ctx, user, `수주 취소 ${order && order.order_no ? order.order_no : ''}`.trim());
   return jsonResponse(request, env, { success: true, data: order });
 }
 
@@ -394,6 +409,10 @@ async function handleCreateSchedules(request, env, { params, user, ctx }) {
     body,
   });
   // Slack 전송은 응답 후에 일어난다. 실패해도 일정은 이미 저장돼 있다.
+  // 설치 일정이 들어오면 생산 마감이 바뀌므로 계획을 다시 돌린다.
+  if (Array.isArray(body.items) && body.items.some((it) => it && it.type === 'installation')) {
+    replanLater(env, ctx, user, '설치 일정 등록');
+  }
   return jsonResponse(request, env, { success: true, data }, 201);
 }
 
@@ -402,9 +421,13 @@ async function handleListSchedules(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data: { items } });
 }
 
-async function handleUpdateSchedule(request, env, { params, user }) {
+async function handleUpdateSchedule(request, env, { params, user, ctx }) {
   const patch = (await readJson(request)) || {};
   const row = await updateSchedule(env, { scheduleId: params.scheduleId, user, patch });
+  // 설치 날짜가 옮겨지거나 취소되면 마감이 바뀐다
+  if (row && row.type === 'installation' && (patch.scheduled_at !== undefined || patch.status !== undefined)) {
+    replanLater(env, ctx, user, '설치 일정 변경');
+  }
   return jsonResponse(request, env, { success: true, data: row });
 }
 
@@ -498,5 +521,12 @@ export default {
     } catch (err) {
       return errorResponse(request, env, err);
     }
+  },
+
+  /** 평일 아침 7시(KST) 생산 요약 — wrangler.toml [triggers] crons */
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(
+      runDailyBriefs(env).catch((e) => console.error('daily production brief failed:', e && e.message)),
+    );
   },
 };

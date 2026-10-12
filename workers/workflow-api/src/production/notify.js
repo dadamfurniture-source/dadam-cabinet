@@ -85,3 +85,38 @@ export function assignmentsFromSuggestions(suggestions, { userId, proposalId, jo
   }
   return rows;
 }
+
+/**
+ * 손써야 하는 추천만 뽑은 비교 키 — 아침 점검에서 "어제와 같은 추천" 이면 다시 보내지 않는다.
+ * 출근일·도어 발주는 날마다 자연히 바뀌므로 빼고, 비용·문구가 아닌 종류·날짜·대상만 본다.
+ */
+export function actionKey(suggestions) {
+  return JSON.stringify((suggestions || [])
+    .filter((s) => ['asm_extra', 'edge_overtime', 'edge_outsource', 'reschedule'].includes(s.type))
+    .map((s) => [s.type, s.date || s.to || '', s.jobId || ''])
+    .sort());
+}
+
+/** 평일 아침 대표 채널 요약: 오늘 부하 · 오늘 지시 · 도어 발주 마감(오늘·내일). */
+export function buildDailyBlocks({ plan, assignments, today }) {
+  const d0 = plan.days[0];
+  const d1 = plan.days[1];
+  const h = (s) => `${(s / 3600).toFixed(1)}h`;
+  const pct = (load, cap) => (cap > 0 ? Math.round((load / cap) * 100) : 0);
+  const loadLine = d0
+    ? `재단 ${h(d0.cut.load)} (${pct(d0.cut.load, d0.cut.cap)}%) · 엣지 ${h(d0.edge.load)} (${pct(d0.edge.load, d0.edge.cap)}%) · 조립 ${h(d0.asm.load)} — ${d0.asm.people ? d0.asm.people + '명 필요' : '조립 없음'}`
+    : '오늘 공장 작업 없음';
+  const due = plan.jobs
+    .filter((j) => j.doorOrderBy && d1 && j.doorOrderBy <= d1.date)
+    .map((j) => `• ${j.label}: 도어 발주 ${j.doorOrderBy === today ? '*오늘*' : '내일'}까지${j.doorOrderLate ? ' (이미 늦음)' : ''}`);
+  const late = plan.jobs.filter((j) => j.late || j.rescheduleTo).map((j) => `• ${j.label}: 마감 ${j.due ? dayLabel(j.due) : '?'} · 완료 예정 ${j.finish ? dayLabel(j.finish) : '범위 밖'}`);
+  const blocks = [
+    { type: 'header', text: { type: 'plain_text', text: `☀️ 오늘 생산 — ${dayLabel(today)}`, emoji: true } },
+    { type: 'section', text: { type: 'mrkdwn', text: `*부하* ${loadLine}\n진행 중 주문 ${plan.summary.jobs}건` } },
+  ];
+  const section = (title, lines) => ({ type: 'section', text: { type: 'mrkdwn', text: `*${title}*\n${lines.join('\n')}`.slice(0, 2900) } });
+  if (assignments.length) blocks.push(section('오늘 지시', assignments.map((a) => `• ${a.text}`)));
+  if (due.length) blocks.push(section('도어 발주 마감', due));
+  if (late.length) blocks.push(section('늦어질 주문', late));
+  return { text: `오늘 생산 — ${loadLine}`, blocks };
+}
