@@ -43,6 +43,12 @@ const SOURCES = [
   'js/detaildesign-access.js',
   // 학습 데이터셋: 동의 체크박스와 저장 호출이 여기 산다.
   'mypage.html',
+  // 참고 이미지: 확정 흐름과 관리자 사이드바 (reference-images.test.js)
+  'admin/reference-images.html',
+  // 내 연출컷: 목록 쿼리(내부 확인용 거름)가 여기 산다.
+  'my-designs.html',
+  // 연출컷: 테마 사진 읽기 (reference-images.test.js)
+  'ai-design.html',
 ];
 
 /** 여기 아래는 통째로 훑는다 — 파일이 늘어도 가드가 따라간다 */

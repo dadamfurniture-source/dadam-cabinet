@@ -15,11 +15,16 @@
  * 진행 상태의 정본은 generations 행이다 (폴링은 행만 읽는다).
  */
 
-import { geminiModel, probeRoutes } from './gemini.js';
+import { callGemini, geminiModel, probeRoutes } from './gemini.js';
 import { proxyStub } from './proxy.js';
 import {
   DEFAULT_STYLE,
   STYLES,
+  buildChatPrompt,
+  cleanChatReply,
+  cleanCustomerRequest,
+  cleanThemeNote,
+  normalizeChat,
   normalizeDesignSpec,
   resolveCategory,
   resolvePlannerAspect,
@@ -49,6 +54,7 @@ import {
   buildShareUrl,
   shareExpiryIso,
   checkShareAccessible,
+  isInternalOnly,
 } from './share.js';
 
 // Durable Object 클래스는 워커 진입점에서 export 되어야 런타임이 찾는다.
@@ -94,25 +100,27 @@ function errorResponse(e, headers) {
   const status = e.statusCode || (e instanceof AuthError ? 401 : 500);
   const code = e.code || CODE_BY_STATUS[status] || 'internal';
   if (status >= 500) console.error('[Generate] error:', e.message);
+  if (e.body) return json(e.body, status, headers); // 계약으로 모양이 정해진 거절 (internal_only)
   return json({ success: false, error: e.message, code }, status, headers);
 }
 
-/** 참고 이미지: {base64, mimeType} 객체 배열. 문자열만 온 예전 형식도 JPEG 로 받아 준다. */
+/**
+ * 참고 이미지: {base64, mimeType, role?, note?} 객체 배열. 문자열만 온 예전 형식도 JPEG 로 받아 준다.
+ * note 는 테마 사진의 설명(관리자가 적은 것) — 테마일 때만 받아 색감 추출에 힌트로 쓴다.
+ */
 function normalizeRefs(list) {
   if (!Array.isArray(list)) return [];
   return list
-    .map((r) =>
-      typeof r === 'string'
-        ? { base64: r, mimeType: 'image/jpeg' }
-        : r && r.base64
-          ? {
-              base64: r.base64,
-              mimeType: r.mimeType || r.mime || 'image/jpeg',
-              // theme = 색감만 빌린다 (추천안 한 장), 그 외(upload·case) = 설치 참고
-              role: r.role === 'theme' ? 'theme' : 'style',
-            }
-          : null
-    )
+    .map((r) => {
+      if (typeof r === 'string') return { base64: r, mimeType: 'image/jpeg' };
+      if (!r || !r.base64) return null;
+      // theme = 색감만 빌린다 (추천안 한 장), 그 외(upload·case) = 설치 참고
+      const role = r.role === 'theme' ? 'theme' : 'style';
+      const out = { base64: r.base64, mimeType: r.mimeType || r.mime || 'image/jpeg', role };
+      const note = role === 'theme' ? cleanThemeNote(r.note) : null;
+      if (note) out.note = note;
+      return out;
+    })
     .filter(Boolean)
     .slice(0, MAX_REFS);
 }
@@ -188,6 +196,10 @@ export default {
       }
       if (url.pathname === '/diag') return json(await diag(request, env), 200, headers);
 
+      if (url.pathname === '/api/chat' && request.method === 'POST') {
+        return json(await chat(request, env), 200, headers);
+      }
+
       if (url.pathname === '/api/share' && request.method === 'GET') {
         return json(await getShared(request, env), 200, headers);
       }
@@ -217,6 +229,35 @@ export default {
 };
 
 // ─── 핸들러 ───
+
+/**
+ * POST /api/chat — 연출컷 ③ 상세 요청의 다음 한 마디 (2026-10-08).
+ * 로그인한 손님만 — 익명으로 모델 호출을 열어 두지 않는다. 크레딧은 쓰지 않는다 (짧은 텍스트 한 번).
+ * 본문: { category, messages:[{role:'me'|'ai', text}] } → { success, reply }
+ */
+const CHAT_MAX_BODY = 32 * 1024;
+async function chat(request, env) {
+  if (!env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not configured');
+  await verifyJwt(request, env);
+  const raw = await request.text();
+  if (raw.length > CHAT_MAX_BODY) throw new ValidationError('chat body too large');
+  let body;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    throw new ValidationError('chat body must be JSON');
+  }
+  const messages = normalizeChat(body && body.messages);
+  if (!messages.length) throw new ValidationError('messages must include a customer message');
+  const r = await callGemini(env, {
+    prompt: buildChatPrompt({ category: body.category, messages }),
+    want: 'text',
+    temperature: 0.6,
+  });
+  const reply = cleanChatReply(r.text);
+  if (!reply) throw new Error('chat: empty reply');
+  return { success: true, reply };
+}
 
 async function requireOwner(request, env, id) {
   const user = await verifyJwt(request, env);
@@ -265,6 +306,7 @@ async function createGeneration(request, env, headers) {
     mode,
     renders,
     aspect,
+    customer_request,
   } = body;
 
   // 재생성: 부모의 입력을 그대로 쓴다 (업로드 생략).
@@ -310,6 +352,12 @@ async function createGeneration(request, env, headers) {
     ...((variants != null ? variants === false : !!(parent && parent.options && parent.options.variants === false)) ? { variants: false } : {}),
     // ControlNet 경로 — 켰을 때만 키가 생긴다. 크기는 조건 이미지와 바탕 사진의 화소 크기(같아야 한다).
     ...(wantControlNet ? { engine: 'controlnet', control_size: sizeOf(control_size) || (parent && parent.options && parent.options.control_size) || null } : {}),
+    // 손님 요청 (연출컷 ③ 상세 요청, 2026-10-08) — 다듬어서 남긴다. 재생성이면 새 글이 없을 때 원본을 잇는다.
+    //   있을 때만 키가 생긴다 — 없으면 options 는 예전과 같은 모양이다.
+    ...(() => {
+      const r = cleanCustomerRequest(customer_request) || (parent && parent.options && parent.options.customer_request) || null;
+      return r ? { customer_request: r } : {};
+    })(),
   };
 
   return await enqueueGeneration(request, env, headers, {
@@ -336,7 +384,7 @@ async function createGeneration(request, env, headers) {
             r.base64,
             r.mimeType
           );
-          refs.push({ path: up.path, url: up.url, mime: r.mimeType, role: r.role || 'style' });
+          refs.push({ path: up.path, url: up.url, mime: r.mimeType, role: r.role || 'style', ...(r.note ? { note: r.note } : {}) });
         } catch (e) {
           console.warn('[Generate] ref upload skipped:', e.message);
         }
@@ -597,6 +645,14 @@ async function deleteGeneration(request, env, id) {
 
 async function createShare(request, env, id) {
   const { row } = await requireOwner(request, env, id);
+  // 도면과 어긋난 플래너 결과는 내부 확인용 — 토큰을 만들지도, 행을 건드리지도 않는다 (계획서 §6.3)
+  if (isInternalOnly(row)) {
+    const message = '도면과 다른 결과는 공유할 수 없습니다';
+    const e = new ConflictError(message);
+    e.code = 'internal_only';
+    e.body = { success: false, error: 'internal_only', code: 'internal_only', message };
+    throw e;
+  }
   if (row.status !== 'done') throw new ConflictError('완료된 결과만 공유할 수 있습니다');
   let validDays = null;
   try {
@@ -626,6 +682,7 @@ const SHARE_MESSAGES = {
   share_expired: '공유 링크가 만료되었습니다',
   share_revoked: '공유가 중단된 링크입니다',
   not_ready: '아직 준비 중인 결과입니다',
+  internal_only: '공유할 수 없는 결과입니다',
 };
 
 async function getShared(request, env) {
