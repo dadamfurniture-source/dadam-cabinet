@@ -230,11 +230,15 @@ export function doorRowsForHinge(materials, hingeRow) {
   const parsed = parseBoringNote(hingeRow);
   if (!parsed) return [];
   const name = parsed.moduleName;
-  return (materials || [])
-    .map((m, i) => ({ row: m, index: i }))
+  const rows = (materials || []).map((m, i) => ({ row: m, index: i }));
+  const isDoor = (row) => row.slot === 'door' || row.part === '도어';
+  // B4: 경첩 행과 자재 행 모두 moduleKey 가 있으면 키로 맞춘다 — 이름("하부장")이 겹치는 모듈끼리 섞이지 않는다
+  if (hingeRow.moduleKey && rows.some(({ row }) => row.moduleKey)) {
+    return rows.filter(({ row }) => isDoor(row) && row.moduleKey === hingeRow.moduleKey);
+  }
+  return rows
     .filter(({ row }) => {
-      const isDoor = row.slot === 'door' || row.part === '도어';
-      if (!isDoor) return false;
+      if (!isDoor(row)) return false;
       if (hingeRow.itemLabel && row.itemLabel && hingeRow.itemLabel !== row.itemLabel) return false;
       return name !== '' && moduleNameOf(row.module) === name;
     });

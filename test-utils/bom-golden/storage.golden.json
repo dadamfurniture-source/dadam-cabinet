@@ -22,6 +22,7 @@
       "edgeLen": 1295,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-u1",
       "itemLabel": "수납장"
     },
     {
@@ -46,6 +47,7 @@
       "edgeLen": 870,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-u1",
       "itemLabel": "수납장"
     },
     {
@@ -70,6 +72,7 @@
       "edgeLen": 870,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-u1",
       "itemLabel": "수납장"
     },
     {
@@ -94,6 +97,7 @@
       "edgeLen": 0,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-u1",
       "itemLabel": "수납장"
     },
     {
@@ -118,6 +122,7 @@
       "edgeLen": 1740,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-u1",
       "itemLabel": "수납장"
     },
     {
@@ -142,6 +147,7 @@
       "edgeLen": 1350,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-u1",
       "itemLabel": "수납장"
     },
     {
@@ -166,6 +172,7 @@
       "edgeLen": 870,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-u1",
       "itemLabel": "수납장"
     },
     {
@@ -190,6 +197,7 @@
       "edgeLen": 2332,
       "edgeT": 1,
       "edgeCode": null,
+      "moduleKey": "0-u1",
       "itemLabel": "수납장"
     },
     {
@@ -214,6 +222,7 @@
       "edgeLen": 1295,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-u2",
       "itemLabel": "수납장"
     },
     {
@@ -238,6 +247,7 @@
       "edgeLen": 870,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-u2",
       "itemLabel": "수납장"
     },
     {
@@ -262,6 +272,7 @@
       "edgeLen": 870,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-u2",
       "itemLabel": "수납장"
     },
     {
@@ -286,6 +297,7 @@
       "edgeLen": 0,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-u2",
       "itemLabel": "수납장"
     },
     {
@@ -310,6 +322,7 @@
       "edgeLen": 1740,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-u2",
       "itemLabel": "수납장"
     },
     {
@@ -334,6 +347,7 @@
       "edgeLen": 1350,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-u2",
       "itemLabel": "수납장"
     },
     {
@@ -358,6 +372,7 @@
       "edgeLen": 870,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-u2",
       "itemLabel": "수납장"
     },
     {
@@ -382,6 +397,7 @@
       "edgeLen": 2332,
       "edgeT": 1,
       "edgeCode": null,
+      "moduleKey": "0-u2",
       "itemLabel": "수납장"
     },
     {
@@ -406,6 +422,7 @@
       "edgeLen": 2990,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-t1",
       "itemLabel": "수납장"
     },
     {
@@ -430,6 +447,7 @@
       "edgeLen": 570,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-t1",
       "itemLabel": "수납장"
     },
     {
@@ -454,6 +472,7 @@
       "edgeLen": 1140,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-t1",
       "itemLabel": "수납장"
     },
     {
@@ -478,6 +497,7 @@
       "edgeLen": 0,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-t1",
       "itemLabel": "수납장"
     },
     {
@@ -502,6 +522,7 @@
       "edgeLen": 570,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-t1",
       "itemLabel": "수납장"
     },
     {
@@ -526,6 +547,7 @@
       "edgeLen": 4912,
       "edgeT": 1,
       "edgeCode": null,
+      "moduleKey": "0-t1",
       "itemLabel": "수납장"
     },
     {
@@ -550,6 +572,7 @@
       "edgeLen": 1200,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-t1",
       "itemLabel": "수납장"
     },
     {
@@ -574,6 +597,7 @@
       "edgeLen": 1200,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-t1",
       "itemLabel": "수납장"
     },
     {
@@ -598,6 +622,7 @@
       "edgeLen": 600,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-t1",
       "itemLabel": "수납장"
     },
     {
@@ -622,6 +647,7 @@
       "edgeLen": 320,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-t1",
       "itemLabel": "수납장"
     },
     {
@@ -646,6 +672,7 @@
       "edgeLen": 1200,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-t1",
       "itemLabel": "수납장"
     },
     {
@@ -670,6 +697,7 @@
       "edgeLen": 1320,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-t1",
       "itemLabel": "수납장"
     },
     {
@@ -694,6 +722,7 @@
       "edgeLen": 1508,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-l1",
       "itemLabel": "수납장"
     },
     {
@@ -718,6 +747,7 @@
       "edgeLen": 870,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-l1",
       "itemLabel": "수납장"
     },
     {
@@ -742,6 +772,7 @@
       "edgeLen": 1740,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-l1",
       "itemLabel": "수납장"
     },
     {
@@ -766,6 +797,7 @@
       "edgeLen": 0,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-l1",
       "itemLabel": "수납장"
     },
     {
@@ -790,6 +822,7 @@
       "edgeLen": 1216,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-l1",
       "itemLabel": "수납장"
     },
     {
@@ -814,6 +847,7 @@
       "edgeLen": 870,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-l1",
       "itemLabel": "수납장"
     },
     {
@@ -838,6 +872,7 @@
       "edgeLen": 2248,
       "edgeT": 1,
       "edgeCode": null,
+      "moduleKey": "0-l1",
       "itemLabel": "수납장"
     },
     {
@@ -862,6 +897,7 @@
       "edgeLen": 1508,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-l2",
       "itemLabel": "수납장"
     },
     {
@@ -886,6 +922,7 @@
       "edgeLen": 870,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-l2",
       "itemLabel": "수납장"
     },
     {
@@ -910,6 +947,7 @@
       "edgeLen": 1740,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-l2",
       "itemLabel": "수납장"
     },
     {
@@ -934,6 +972,7 @@
       "edgeLen": 0,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-l2",
       "itemLabel": "수납장"
     },
     {
@@ -958,6 +997,7 @@
       "edgeLen": 1216,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-l2",
       "itemLabel": "수납장"
     },
     {
@@ -982,6 +1022,7 @@
       "edgeLen": 828,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-l2",
       "itemLabel": "수납장"
     },
     {
@@ -1006,6 +1047,7 @@
       "edgeLen": 290,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-l2",
       "itemLabel": "수납장"
     },
     {
@@ -1030,6 +1072,7 @@
       "edgeLen": 0,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-l2",
       "itemLabel": "수납장"
     },
     {
@@ -1054,6 +1097,7 @@
       "edgeLen": 580,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-l2",
       "itemLabel": "수납장"
     },
     {
@@ -1078,6 +1122,7 @@
       "edgeLen": 2292,
       "edgeT": 1,
       "edgeCode": null,
+      "moduleKey": "0-l2",
       "itemLabel": "수납장"
     },
     {
@@ -1102,6 +1147,7 @@
       "edgeLen": 1808,
       "edgeT": 1,
       "edgeCode": null,
+      "moduleKey": "0-l2",
       "itemLabel": "수납장"
     },
     {
@@ -1126,6 +1172,7 @@
       "edgeLen": 1800,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-l2",
       "itemLabel": "수납장"
     },
     {
@@ -1150,6 +1197,7 @@
       "edgeLen": 3720,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-ep",
       "itemLabel": "수납장"
     },
     {
@@ -1174,6 +1222,7 @@
       "edgeLen": 3600,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-ep",
       "itemLabel": "수납장"
     },
     {
@@ -1198,6 +1247,7 @@
       "edgeLen": 3600,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-ep",
       "itemLabel": "수납장"
     },
     {
@@ -1222,6 +1272,7 @@
       "edgeLen": 3600,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-ep",
       "itemLabel": "수납장"
     },
     {
@@ -1246,6 +1297,7 @@
       "edgeLen": 4440,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-ep",
       "itemLabel": "수납장"
     },
     {
@@ -1270,6 +1322,7 @@
       "edgeLen": 4440,
       "edgeT": 0.6,
       "edgeCode": null,
+      "moduleKey": "0-ep",
       "itemLabel": "수납장"
     }
   ],
@@ -1306,6 +1359,14 @@
       "qty": 8,
       "unit": "EA",
       "note": "키큰장(TL) (보링: 110, 720, 1440, 2050)",
+      "module": "키큰장(TL)",
+      "moduleKey": "0-t1",
+      "boring": [
+        110,
+        720,
+        1440,
+        2050
+      ],
       "itemLabel": "수납장"
     },
     {
@@ -1316,6 +1377,12 @@
       "qty": 4,
       "unit": "EA",
       "note": "하부장 (보링: 110, 568)",
+      "module": "하부장",
+      "moduleKey": "0-l1",
+      "boring": [
+        110,
+        568
+      ],
       "itemLabel": "수납장"
     },
     {
@@ -1326,6 +1393,12 @@
       "qty": 4,
       "unit": "EA",
       "note": "서랍장 (보링: 110, 348)",
+      "module": "서랍장",
+      "moduleKey": "0-l2",
+      "boring": [
+        110,
+        348
+      ],
       "itemLabel": "수납장"
     },
     {
@@ -1336,6 +1409,12 @@
       "qty": 4,
       "unit": "EA",
       "note": "상부장 (보링: 110, 610)",
+      "module": "상부장",
+      "moduleKey": "0-u1",
+      "boring": [
+        110,
+        610
+      ],
       "itemLabel": "수납장"
     },
     {
@@ -1346,6 +1425,12 @@
       "qty": 4,
       "unit": "EA",
       "note": "상부장 (보링: 110, 610)",
+      "module": "상부장",
+      "moduleKey": "0-u2",
+      "boring": [
+        110,
+        610
+      ],
       "itemLabel": "수납장"
     },
     {
@@ -1356,6 +1441,8 @@
       "qty": 1,
       "unit": "SET",
       "note": "서랍장",
+      "module": "서랍장",
+      "moduleKey": "0-l2",
       "itemLabel": "수납장"
     },
     {
