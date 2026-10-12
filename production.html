@@ -173,7 +173,7 @@
           if (!p) return;
           var plan = p.plan || {}, s = plan.summary || {};
           el('propStatus').textContent = STATUS[p.status] || p.status;
-          el('propMeta').textContent = (p.trigger === 'order_created' ? '새 수주로 계산' : '수동 계산') + ' · ' + new Date(p.created_at).toLocaleString('ko-KR');
+          el('propMeta').textContent = (plan.triggerLabel || (p.trigger === 'order_created' ? '새 수주로 계산' : '수동 계산')) + ' · ' + new Date(p.created_at).toLocaleString('ko-KR');
           el('kJobs').textContent = (s.jobs || 0) + '건';
           el('kLateBefore').textContent = (s.lateBefore || 0) + '건';
           el('kLateAfter').textContent = (s.lateAfter || 0) + '건' + (s.needsReschedule ? ' (+설치일 조정 ' + s.needsReschedule + ')' : '');

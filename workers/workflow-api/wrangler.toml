@@ -3,6 +3,10 @@ main = "src/worker.js"
 compatibility_date = "2025-01-01"
 account_id = "8bd8e054dfc7bcdc577f9bb79edd3284"
 
+# 평일 아침 7시(KST) 생산 요약 — UTC 22:00 일~목 = KST 07:00 월~금
+[triggers]
+crons = ["0 22 * * SUN-THU"]
+
 [vars]
 # CORS 허용 오리진 (콤마 구분)
 # ⚠️ 목록에 없는 Origin 에는 allow[0] 이 반환되어 브라우저만 차단하고 서버는 200 을 준다.
