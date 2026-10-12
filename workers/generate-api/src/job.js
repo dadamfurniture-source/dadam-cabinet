@@ -33,6 +33,7 @@ import {
   clampWall,
   parseAnalysis,
   parseQc,
+  qcNeedsRetry,
   parseThemePalette,
   pickFinishes,
   pickTwoTone,
@@ -384,13 +385,18 @@ async function runPipeline(env, job, ck, save) {
     if (!qc.ok && planner) {
       // 플래너 모드는 재시도하지 않는다 (계획서 §4.5 · §11-④) — 결과는 images[base].qc 에 기록만.
       console.log(`[Job ${job.id}] qc issues (planner, recorded only): ${qc.issues.join(',')}`);
-    } else if (!qc.ok) {
+    } else if (qcNeedsRetry(qc)) {
       console.log(`[Job ${job.id}] qc issues: ${qc.issues.join(',')} — retrying install`);
+      qc.retried = true;
       try {
         base = await install(qc.issues);
       } catch (e) {
         console.warn(`[Job ${job.id}] fixed install failed, keeping first:`, e.message);
       }
+    } else if (!qc.ok) {
+      // 천장 틈·글자·가전만 걸렸다 — 기록만 (QC_RECORD_ONLY)
+      console.log(`[Job ${job.id}] qc issues (record only): ${qc.issues.join(',')}`);
+      qc.retried = false;
     }
 
     const up = await uploadObject(
