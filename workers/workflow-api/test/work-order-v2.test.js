@@ -468,9 +468,11 @@ test('엣지 도식 — 밴딩 변은 굵게, 옛 문자열 edge 는 §7-2 규�
   assert.deepEqual(edgesFromLegacy('-', 1, 1), { L: false, R: false, T: false, B: false });
 });
 
-test('③ 시트별 재단표 — 시트 머리·SVG 축소판(트림 음영·조각·partId)·부재 표·잔재', () => {
+test('③ 재단·엣지 지시서 — 사내 시트만, 시트 머리·SVG 축소판(트림 음영·조각·partId)·부재 표·잔재', () => {
   const html = renderWorkOrder(fx.doc(), fx.snapshot());
-  assert.ok(html.includes('③ 시트별 재단표'));
+  assert.ok(html.includes('③ 재단·엣지 지시서'));
+  assert.ok(!html.includes('<b>시트 #2</b>'), '도어재 시트는 사내 재단표에 없다');
+  assert.ok(html.includes('원장 1장) 은 외주'));
   assert.ok(html.includes('<b>시트 #1</b> PB 15T · 본체'));
   assert.ok(html.includes('수율 44.5%'));
   assert.ok(html.includes('<svg viewBox="0 0 1220 2440"'));
@@ -492,7 +494,7 @@ test('sheetSvg — 회전 조각은 발자국이 h×w 이고, 자리가 좁으�
   assert.equal(sheetSvg({ size: { w: 0, h: 0 } }), '');
 });
 
-test('③ 배치가 없으면 안내 + 자재 목록 폴백', () => {
+test('③ 배치가 없으면 안내 + 사내 자재 목록 폴백', () => {
   const doc = fx.doc({ render_payload: { ...fx.doc().render_payload, cut_plan: null } });
   const html = renderWorkOrder(doc, fx.snapshot());
   assert.ok(html.includes('재단 배치 없음 (스냅샷 재발행 필요)'));
@@ -508,7 +510,7 @@ test('④ 철물 — 분류별 묶음과 합계', () => {
   assert.ok(html.includes('레일 <span class="muted">1건 · 1</span>'));
 });
 
-test('⑤ 보링 — 경첩 비고 → 도어 partId·도어 H·구 수·위치, 도어 행이 없으면 미확인', () => {
+test('보링 행 — 경첩 비고 → 도어 partId·도어 H·구 수·위치, 도어 행이 없으면 미확인', () => {
   const rows = boringRows(fx.materials(), fx.hardware());
   assert.equal(rows.length, 2);
   assert.equal(rows[0].partId, '0-l1-door#0-0');
@@ -523,19 +525,25 @@ test('⑤ 보링 — 경첩 비고 → 도어 partId·도어 H·구 수·위치,
   assert.equal(orphan[0].doorH, 716, '자재 행이 없어도 보링에서 H 를 되돌린다');
 
   const html = renderWorkOrder(fx.doc(), fx.snapshot());
-  assert.ok(html.includes('⑤ 보링 좌표표'));
-  assert.ok(html.includes('110, 358, 606'));
-  const noHinge = renderWorkOrder(fx.doc(), fx.snapshot({ hardware_payload: { hardware: [] } }));
-  assert.ok(noHinge.includes('경첩 보링 정보 없음'));
+  assert.ok(!html.includes('⑤ 보링 좌표표'), '보링 공정이 없다 — 컵 위치는 ⑩ 도어재 발주서로');
+  assert.ok(html.includes('3구 · 110, 358, 606'));
 });
 
-test('⑥ 조립 순서 체크 — 모듈마다 체크 5칸 + 완료일·서명', () => {
+test('⑥ 조립 순서 체크 — 공장 단계(재단·엣지·조립·도어 달기·서랍·검수·포장), 해당 없는 칸은 빗금', () => {
   const html = renderWorkOrder(fx.doc(), fx.snapshot());
   assert.ok(html.includes('⑥ 조립 순서 체크'));
-  const rows = html.split('<td class="box">☐</td>').length - 1;
-  assert.equal(rows, 2 * 5);
+  assert.ok(html.includes('<th>재단</th><th>엣지</th><th>조립</th><th>도어 달기</th><th>서랍</th><th>검수·포장</th><th>완료일</th><th>서명</th>'));
+  assert.ok(!html.includes('<th>보링</th>'));
+  // 두 모듈 모두 도어 있음·서랍 없음 → 모듈당 5칸 + 서랍 빗금 1칸
+  assert.equal(html.split('<td class="box">☐</td>').length - 1, 2 * 5);
+  assert.equal(html.split('<td class="na">—</td>').length - 1, 2);
   assert.ok(html.includes('하부 개수대'));
-  assert.ok(html.includes('<th>완료일</th><th>서명</th>'));
+
+  const d = fx.design();
+  d.items[0].modules.push({ id: 'l2', pos: 'lower', type: 'drawer', name: '서랍장', w: 600, h: 870, d: 600, doorCount: 0, isDrawer: true });
+  const withDrawer = renderWorkOrder(fx.doc(), fx.snapshot({ design_payload: d }));
+  assert.equal(withDrawer.split('<td class="box">☐</td>').length - 1, 2 * 5 + 5);
+  assert.equal(withDrawer.split('<td class="na">—</td>').length - 1, 2 + 1);
 });
 
 test('⑦ rev 차이 — 추가/삭제/변경 표, 첫 발행, v1 문서 안내', () => {
@@ -564,23 +572,29 @@ test('⑧ 라벨 — 부재 낱개마다 QR + partId#k + 품목/모듈/부품 + 
   const html = renderWorkOrder(fx.doc(), fx.snapshot());
   assert.equal(html.split('<div class="label">').length - 1, 8);
   assert.equal(html.split('<svg class="qr"').length - 1, 8);
-  assert.ok(html.includes('<div class="pid">0-l1-door#0-0#1</div>'));
+  assert.ok(html.includes('<div class="pid"><b>6</b> · 0-l1-door#0-0#1</div>'), '사내 4장(1–4) 뒤에 도어재 — 개수대 도어 둘째 장은 6번');
   assert.ok(html.includes('<div class="dim">496 × 716 × 18</div>'));
-  assert.ok(html.includes('1–8 / 8'));
+  assert.ok(html.includes('⑧ 부재 라벨 — 사내 재단 (재단 직후 부착) <span class="muted">1–4 / 8'));
+  assert.ok(html.includes('⑧ 부재 라벨 — 도어재 (입고 시 부착) <span class="muted">5–8 / 8'));
+  assert.ok(html.includes('0.6 · 720×1 · 550×2'), '라벨에 붙일 변');
 
   const many = fx.materials().map((m) => ({ ...m, qty: 6 })); // 30 장
   const big = renderWorkOrder(fx.doc(), fx.snapshot({ bom_payload: { materials: many } }));
-  assert.equal(big.split('<div class="label-grid">').length - 1, Math.ceil(30 / LABELS_PER_SHEET));
-  assert.ok(big.includes('25–30 / 30'));
+  // 사내 18장(3행×6) → 1쪽, 도어재 12장 → 1쪽
+  assert.equal(big.split('<div class="label-grid">').length - 1, Math.ceil(18 / LABELS_PER_SHEET) + Math.ceil(12 / LABELS_PER_SHEET));
+  assert.ok(big.includes('19–30 / 30'));
+  const many2 = fx.materials().map((m) => ({ ...m, qty: 10 })); // 사내 30 → 2쪽
+  const big2 = renderWorkOrder(fx.doc(), fx.snapshot({ bom_payload: { materials: many2 } }));
+  assert.ok(big2.includes('25–30 / 50'));
 });
 
 test('구 문서(v1 payload + v1 스냅샷) 도 전 섹션이 렌더된다 — 렌더 없음·코드만 범례·row-N 라벨·문자열 엣지', () => {
   const html = renderWorkOrder(fx.docV1(), fx.snapshotV1());
-  for (const s of ['정면 렌더 없음', '② 모듈별 키팅', '③ 시트별 재단표', '재단 배치 없음', '④ 철물·체결구', '⑤ 보링 좌표표', '⑥ 조립 순서 체크', '⑦ 이전 rev 와의 차이', '⑧ 부재 라벨']) {
+  for (const s of ['정면 렌더 없음', '② 모듈별 키팅', '③ 재단·엣지 지시서', '재단 배치 없음', '④ 철물·체결구', '⑥ 조립 순서 체크', '⑦ 이전 rev 와의 차이', '⑩ 도어재 발주서', '⑧ 부재 라벨']) {
     assert.ok(html.includes(s), s);
   }
   assert.ok(html.includes('<span class="chip none"></span><span class="mono">PET-OAK-M</span>'), '카탈로그 조회가 없던 문서는 코드만');
-  assert.ok(html.includes('<div class="pid">row-0#0</div>'));
+  assert.ok(html.includes('· row-0#0</div>'));
   assert.ok(html.includes('재단 시트</dt><dd>배치 없음'));
   assert.ok(html.includes('class="edge-svg"'), '옛 행도 문자열 edge 로 도식을 그린다');
   assert.ok(!html.includes('528,000'));

@@ -12,12 +12,14 @@
  *   cut_plan     snapshot.cut_plan_payload 그대로 (없으면 null)
  *   parts_digest 자재 행의 식별·치수·수량·마감만 — 다음 rev 가 이 문서와 비교할 때 읽는다
  *   prev_rev     같은 설계의 직전 work_order 와의 차이 (partId 기준 added/removed/changed). 첫 발행이면 null
+ *   labor        공장 표준시간 (labor-standards.js) — 꾸러미 머리의 예상 시간. 상수를 고쳐도 이 문서는 그대로
  *
  * 표·컬럼이 아직 없는 DB(design_renders 미적용, materials.series 미적용)에서도 발행이 멈추면 안 된다 —
  * 그 부분만 비우고 경고 로그를 남긴다.
  */
 
 import { DbError, selectMany, selectOne } from './supabase.js';
+import { LABOR_STANDARDS } from './labor-standards.js';
 
 export const WORK_ORDER_VERSION = 2;
 
@@ -85,6 +87,32 @@ function numOrNull(v) {
   if (v === null || v === undefined || v === '') return null;
   const n = typeof v === 'number' ? v : parseFloat(v);
   return Number.isFinite(n) ? n : null;
+}
+
+// ── 사내 재단 / 도어재 외주 구분 (꾸러미) ────────────────────────
+
+/**
+ * 원판 그룹을 가르는 부재 구분 — `js/detaildesign/nesting-engine.js` partClassOf 와 같은 규칙이어야 한다
+ * (시험이 두 함수를 대조한다). '도어' 그룹(도어·몰딩·걸레받이·목찬넬·마감)은 도어 외주로 가고,
+ * '본체'·'뒷판' 은 사내 재단이다.
+ */
+export function partClassOf(partName) {
+  const s = String(partName || '');
+  if (/도어/.test(s)) return '도어';
+  if (/뒷판|서랍밑판/.test(s)) return '뒷판';
+  if (/몰딩|걸레받이|목찬넬|마감/.test(s)) return '도어';
+  return '본체';
+}
+
+export function isDoorClass(row) {
+  return partClassOf(row && row.part) === '도어';
+}
+
+/** 재단 조각 id `partId#k` → 자재 행 partId (partId 자체에 '#' 이 있을 수 있어 마지막 '#' 을 뗀다). */
+export function pieceBaseId(pieceId) {
+  const s = String(pieceId || '');
+  const i = s.lastIndexOf('#');
+  return i > 0 ? s.slice(0, i) : s;
 }
 
 // ── rev 차이 ─────────────────────────────────────────────────────
@@ -363,6 +391,7 @@ export async function gatherWorkOrderPayload(env, { designId, snapshot }) {
     cut_plan: cutPlan,
     parts_digest: digest,
     prev_rev: prevRev,
+    labor: { ...LABOR_STANDARDS },
   };
 }
 
