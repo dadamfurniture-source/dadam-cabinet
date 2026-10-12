@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta name="referrer" content="no-referrer" />
+    <title>오늘 작업 · 다담가구</title>
+    <script src="js/config.js?v=36.0"></script>
+    <style>
+      :root { --bg: #f3f4f6; --panel: #fff; --border: #d6dae0; --text: #111827; --muted: #6b7280; --accent: #147a3d; --cut: #2a78d6; --edge: #1baf7a; --asm: #eb6834; --danger: #a02020; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; font-size: 16px; }
+      .wrap { max-width: 560px; margin: 0 auto; padding: 16px 14px 60px; }
+      h1 { font-size: 20px; margin: 4px 0 2px; }
+      .muted { color: var(--muted); font-size: 14px; }
+      .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 14px 0; }
+      .tabs button { padding: 12px 0; font-size: 16px; font-weight: 700; border-radius: 10px; border: 2px solid var(--border); background: #fff; color: var(--text); }
+      .tabs button.on[data-r="cutter"] { border-color: var(--cut); background: var(--cut); color: #fff; }
+      .tabs button.on[data-r="edge"] { border-color: var(--edge); background: var(--edge); color: #fff; }
+      .tabs button.on[data-r="asm"] { border-color: var(--asm); background: var(--asm); color: #fff; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+      .card h2 { font-size: 15px; margin: 0 0 8px; }
+      .job .t { font-weight: 700; font-size: 16px; }
+      .job .d { color: var(--muted); font-size: 14px; margin: 2px 0 10px; }
+      .btns { display: flex; gap: 8px; }
+      button.big { flex: 1; padding: 13px 0; font-size: 16px; font-weight: 700; border-radius: 10px; border: 1px solid var(--border); background: #fff; color: var(--text); }
+      button.go { background: var(--accent); border-color: var(--accent); color: #fff; }
+      button.stop { background: var(--danger); border-color: var(--danger); color: #fff; }
+      .running { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--danger); margin-bottom: 8px; }
+      .form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+      .form label { font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+      .form input { padding: 11px 10px; font-size: 17px; border: 1px solid var(--border); border-radius: 8px; width: 100%; }
+      .form .full { grid-column: 1 / -1; }
+      .chk { display: grid; grid-template-columns: 28px 1fr; gap: 8px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 15px; }
+      .chk:last-child { border-bottom: 0; }
+      .chk input { width: 22px; height: 22px; }
+      .chk.done span { color: var(--muted); text-decoration: line-through; }
+      .log { display: flex; justify-content: space-between; font-size: 14px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+      .alert { padding: 12px; border-radius: 10px; margin: 10px 0; font-size: 15px; }
+      .err { background: #fdecec; color: #7a1a1a; }
+      .ok { background: #e8f5ec; color: #14562c; }
+      .empty { color: var(--muted); font-size: 15px; padding: 6px 0; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1 id="title">오늘 작업</h1>
+      <div class="muted" id="sub">불러오는 중…</div>
+      <div id="alert" class="alert" hidden></div>
+
+      <div class="card" id="assignCard" hidden>
+        <h2>오늘 지시</h2>
+        <div id="assignList"></div>
+      </div>
+
+      <div class="tabs" id="tabs">
+        <button type="button" data-r="cutter">재단</button>
+        <button type="button" data-r="edge">엣지</button>
+        <button type="button" data-r="asm">조립</button>
+      </div>
+      <div id="jobs"></div>
+
+      <div class="card">
+        <h2>다른 작업 기록</h2>
+        <div class="muted">목록에 없는 작업도 수량과 걸린 시간을 남겨 주세요.</div>
+        <div class="form">
+          <label class="full">무엇을 <input id="freeLabel" placeholder="예: 김OO 싱크대 추가 재단" /></label>
+          <label>수량 <input id="freeUnits" type="number" inputmode="decimal" min="0" step="1" /></label>
+          <label>걸린 시간 (분) <input id="freeMinutes" type="number" inputmode="decimal" min="0" step="1" /></label>
+        </div>
+        <div class="btns" style="margin-top:10px"><button type="button" class="big go" id="freeSave">기록하기</button></div>
+      </div>
+
+      <div class="card">
+        <h2>오늘 내 기록</h2>
+        <div id="logs"></div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+        var API = (window.DADAM_CONFIG && window.DADAM_CONFIG.workflowApi && window.DADAM_CONFIG.workflowApi.url) || '';
+        var ROLE = { cutter: '재단', edge: '엣지', asm: '조립' };
+        var UNIT_HINT = { cutter: '원판 장', edge: 'PB 장', asm: '통·서랍 개' };
+        var token = '';
+        var data = null;
+        var role = 'cutter';
+
+        // 토큰은 주소 # 뒤에 온다. 한 번 열면 이 기기에 기억해 두고 주소창에서는 지운다.
+        try {
+          var m = /[#&]t=([A-Za-z0-9_-]+)/.exec(location.hash);
+          if (m) { token = m[1]; localStorage.setItem('dadamWorkerToken', token); history.replaceState(null, '', location.pathname); }
+          else { token = localStorage.getItem('dadamWorkerToken') || ''; }
+          role = localStorage.getItem('dadamWorkerRole') || 'cutter';
+        } catch (e) { /* 저장소를 못 쓰면 이번 접속만 */ }
+
+        function el(id) { return document.getElementById(id); }
+        function esc(v) { return v == null ? '' : String(v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+        function day(s) { if (!s) return '-'; var d = new Date(s + 'T00:00:00Z'); return (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + '(' + '일월화수목금토'[d.getUTCDay()] + ')'; }
+        function say(msg, ok) { var a = el('alert'); a.textContent = msg; a.className = 'alert ' + (ok ? 'ok' : 'err'); a.hidden = false; if (ok) setTimeout(function () { a.hidden = true; }, 3000); }
+        // 브라우저 저장소를 못 쓰는 경우(사생활 보호 모드 등)엔 이번 접속 동안만 메모리에 둔다
+        var mem = {};
+        function store(k, v) {
+          if (v === null) delete mem[k]; else mem[k] = v;
+          try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { /* 메모리만 */ }
+        }
+        function load(k) { try { var v = localStorage.getItem(k); if (v !== null) return v; } catch (e) { /* 메모리만 */ } return k in mem ? mem[k] : null; }
+
+        async function api(path, opts) {
+          opts = opts || {};
+          var h = { 'X-Worker-Token': token };
+          if (opts.body) h['Content-Type'] = 'application/json';
+          var res = await fetch(API + path, { method: opts.method || 'GET', headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined });
+          var body = null; try { body = await res.json(); } catch (e) { body = null; }
+          if (!res.ok || !body || !body.success) throw new Error((body && body.message) || '요청 실패 (' + res.status + ')');
+          return body.data;
+        }
+
+        function timerKey(r, id) { return 'dadamTimer:' + r + ':' + id; }
+        function elapsedMin(start) { return Math.max(1, Math.round((Date.now() - Number(start)) / 60000)); }
+
+        function renderJobs() {
+          document.querySelectorAll('#tabs button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-r') === role); });
+          var list = (data && data.work && data.work[role]) || [];
+          if (!list.length) { el('jobs').innerHTML = '<div class="card empty">오늘 ' + ROLE[role] + ' 할 주문이 없습니다.</div>'; return; }
+          el('jobs').innerHTML = list.map(function (j, i) {
+            var start = load(timerKey(role, j.orderId));
+            var form = start
+              ? '<div class="running" data-since="' + start + '">진행 중 · ' + elapsedMin(start) + '분째</div>' +
+                '<div class="form"><label>' + UNIT_HINT[role] + ' <input type="number" inputmode="decimal" id="u' + i + '" value="' + j.units + '"></label>' +
+                '<label>걸린 시간 (분) <input type="number" inputmode="decimal" id="m' + i + '" value="' + elapsedMin(start) + '"></label></div>' +
+                '<div class="btns" style="margin-top:10px"><button type="button" class="big" data-cancel="' + i + '">취소</button><button type="button" class="big stop" data-done="' + i + '">완료 기록</button></div>'
+              : '<div class="btns"><button type="button" class="big go" data-start="' + i + '">시작</button></div>';
+            return '<div class="card job"><div class="t">' + esc(j.label) + '</div><div class="d">' + esc(j.detail) + ' · 마감 ' + day(j.due) +
+              (role === 'asm' && j.doorArrival ? ' · 도어 도착 ' + day(j.doorArrival) : '') + '</div>' + form + '</div>';
+          }).join('');
+          el('jobs').querySelectorAll('[data-start]').forEach(function (b) { b.addEventListener('click', function () { var j = list[+b.getAttribute('data-start')]; store(timerKey(role, j.orderId), String(Date.now())); renderJobs(); }); });
+          el('jobs').querySelectorAll('[data-cancel]').forEach(function (b) { b.addEventListener('click', function () { var j = list[+b.getAttribute('data-cancel')]; store(timerKey(role, j.orderId), null); renderJobs(); }); });
+          el('jobs').querySelectorAll('[data-done]').forEach(function (b) {
+            b.addEventListener('click', async function () {
+              var i = +b.getAttribute('data-done'); var j = list[i];
+              b.disabled = true;
+              try {
+                await api('/public/production/worklogs', { method: 'POST', body: { role: role, order_id: j.orderId, order_label: j.label, units: Number(el('u' + i).value), minutes: Number(el('m' + i).value) } });
+                store(timerKey(role, j.orderId), null);
+                say(ROLE[role] + ' 기록했습니다.', true);
+                await refresh();
+              } catch (e) { say(e.message); b.disabled = false; }
+            });
+          });
+        }
+
+        function renderAssignments() {
+          var list = (data && data.assignments) || [];
+          el('assignCard').hidden = !list.length;
+          el('assignList').innerHTML = list.map(function (a) {
+            var done = a.status === 'done';
+            return '<label class="chk' + (done ? ' done' : '') + '"><input type="checkbox" data-a="' + esc(a.id) + '"' + (done ? ' checked' : '') + '><span>' + esc(a.text) + '</span></label>';
+          }).join('');
+          el('assignList').querySelectorAll('input[data-a]').forEach(function (c) {
+            c.addEventListener('change', async function () {
+              try { await api('/public/production/assignments/' + encodeURIComponent(c.getAttribute('data-a')) + '/done', { method: 'POST', body: { done: c.checked } }); await refresh(); }
+              catch (e) { say(e.message); c.checked = !c.checked; }
+            });
+          });
+        }
+
+        function renderLogs() {
+          var list = (data && data.logs) || [];
+          el('logs').innerHTML = list.length ? list.map(function (l) {
+            return '<div class="log"><span>' + ROLE[l.role] + ' · ' + esc(l.order_label || '-') + '</span><span>' + Number(l.units) + ' · ' + Number(l.minutes) + '분</span></div>';
+          }).join('') : '<div class="empty">아직 없습니다.</div>';
+        }
+
+        async function refresh() {
+          data = await api('/public/production/today');
+          el('title').textContent = data.worker + '님 오늘 작업';
+          el('sub').textContent = day(data.today) + ' · 시작을 누르고, 끝나면 완료 기록을 눌러 주세요.';
+          renderAssignments(); renderJobs(); renderLogs();
+        }
+
+        el('tabs').addEventListener('click', function (e) { var r = e.target && e.target.getAttribute && e.target.getAttribute('data-r'); if (!r) return; role = r; store('dadamWorkerRole', r); renderJobs(); });
+        el('freeSave').addEventListener('click', async function () {
+          try {
+            await api('/public/production/worklogs', { method: 'POST', body: { role: role, order_label: el('freeLabel').value || null, units: Number(el('freeUnits').value), minutes: Number(el('freeMinutes').value) } });
+            el('freeLabel').value = ''; el('freeUnits').value = ''; el('freeMinutes').value = '';
+            say(ROLE[role] + ' 기록했습니다.', true);
+            await refresh();
+          } catch (e) { say(e.message); }
+        });
+
+        if (!API) { say('서버 주소가 설정되지 않았습니다.'); return; }
+        if (!token) { el('sub').textContent = ''; say('대표에게 받은 작업자 링크로 열어 주세요.'); return; }
+        refresh().catch(function (e) { el('sub').textContent = ''; say(e.message); });
+        // 진행 시간 글자만 갱신한다 — 다시 그리면 입력 중인 수량·시간이 지워진다
+        setInterval(function () { document.querySelectorAll('.running').forEach(function (d) { d.textContent = '진행 중 · ' + elapsedMin(d.getAttribute('data-since')) + '분째'; }); }, 30000);
+      })();
+    </script>
+  </body>
+</html>
