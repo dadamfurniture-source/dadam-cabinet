@@ -131,8 +131,9 @@ function sleep(ms) {
  *
  * @returns {{ok:boolean, attempts:number, error?:string}}
  */
-export async function postToWebhook(env, payload) {
-  const url = env.SLACK_WEBHOOK_URL;
+export async function postToWebhook(env, payload, webhookUrl) {
+  // 기본은 대표 채널. 생산 지시처럼 다른 채널로 보낼 때만 webhookUrl 을 준다.
+  const url = webhookUrl || env.SLACK_WEBHOOK_URL;
   if (!url) {
     // secret 미설정은 설정 실수이지 일정 등록의 실패가 아니다.
     // 호출부가 201 을 유지하고 이 사유를 기록한다.

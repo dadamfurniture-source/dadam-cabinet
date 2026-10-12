@@ -28,6 +28,7 @@ PRICING_CACHE_TTL_SEC = "300"
 #   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 #   wrangler secret put SUPABASE_ANON_KEY        (사용자 JWT 검증용)
 #   wrangler secret put SLACK_WEBHOOK_URL        (W11-6)
+#   wrangler secret put SLACK_WEBHOOK_PRODUCTION (생산 지시 → 작업자 채널. 없으면 SLACK_WEBHOOK_URL 로 보낸다)
 #   wrangler secret put SHARE_TOKEN_PEPPER       (공유 토큰 해시용)
 #   wrangler secret put IP_HASH_SALT             (접근 로그 IP 해시용)
 # ─────────────────────────────────────────────────────────────
