@@ -48,6 +48,7 @@ import {
   pieceBaseId,
 } from '../work-order-data.js';
 import { laborEstimate, fmtMinutes } from '../labor-standards.js';
+import { elevationSvg, elevationModel, moduleDrawingSvg } from './elevation.js';
 
 const CATEGORY_NAMES = {
   sink: '싱크대',
@@ -62,7 +63,7 @@ const CATEGORY_NAMES = {
   custom: '비규격장',
 };
 
-const MODULE_POS = { upper: '상부', lower: '하부' };
+const MODULE_POS = { upper: '상부', lower: '하부', wardrobe: '붙박이' };
 
 export const LABELS_PER_SHEET = 24; // 3 × 8
 
@@ -381,7 +382,10 @@ function coverSheet(ctx) {
     <dt>설계 해시</dt><dd class="doc-no">${esc(String(snapshot.content_hash).slice(0, 12))}</dd>
   </dl>
 
-  <div class="section-title">정면 렌더</div>
+  <div class="section-title">정면도</div>
+  ${elevationBlock(ctx)}
+
+  <div class="section-title">정면 렌더 <span class="muted">참고</span></div>
   ${renderBoxes(ctx)}
 
   <div class="section-title">색 스와치 범례</div>
@@ -415,10 +419,11 @@ function moduleSheets(ctx) {
     .flatMap((item, i) => {
       const label = itemLabel(item, i);
       const modules = Array.isArray(item.modules) ? item.modules : [];
-      return modules.map((m) =>
+      return modules.map((m, mi) =>
         tr(
           [
             esc(label),
+            `<b>${num(mi + 1)}</b>`,
             esc(MODULE_POS[m.pos] || m.pos || '-'),
             esc(m.name || m.type || '-'),
             dims3(m.w, m.h, m.d),
@@ -437,7 +442,7 @@ function moduleSheets(ctx) {
                 .join(' · '),
             ),
           ],
-          ['', '', '', 'num', 'num', ''],
+          ['', 'num', '', '', 'num', 'num', ''],
         ),
       );
     })
@@ -445,11 +450,59 @@ function moduleSheets(ctx) {
 
   return `
 <div class="sheet">
-  <div class="section-title">모듈 명세</div>
+  <div class="section-title">모듈 명세 <span class="muted">번호 = 정면도 동그라미 번호</span></div>
   <table>
-    ${thead(['품목', '위치', '모듈', 'W × H × D (mm)', '도어', '비고'], ['', '', '', 'num', 'num', ''])}
+    ${thead(['품목', '번호', '위치', '모듈', 'W × H × D (mm)', '도어', '비고'], ['', 'num', '', '', 'num', 'num', ''])}
     <tbody>${rows}</tbody>
   </table>
+</div>`;
+}
+
+// ── 정면도 · ⑪ 모듈 치수도 (elevation.js) ─────────────────────────
+
+/** 품목마다 치수 정면도 + 안내(위치 정보 없음 등). 빨간 검증 경고는 그림 안에 있다. */
+function elevationBlock(ctx) {
+  if (ctx.items.length === 0) return '<div class="muted">품목 없음</div>';
+  return ctx.items
+    .map((item, i) => {
+      const svg = elevationSvg(item);
+      const label = esc(itemLabel(item, i));
+      if (!svg) return `<div class="elev-box"><div class="ph">모듈 없음</div><div>${label}</div></div>`;
+      const infos = elevationModel(item).notes.filter((x) => x.level !== 'error');
+      return `<div class="elev-box">${svg}<div class="elev-cap">${label} · 정면도 (mm)${infos.map((x) => ` · <span class="muted">${esc(x.text)}</span>`).join('')}</div></div>`;
+    })
+    .join('');
+}
+
+/** ⑪ 모듈 치수도 — 모듈마다 정면(W × 몸통 H) + 측면(D). 번호는 정면도·⑥ 과 같다. */
+function moduleDrawingsSheet(ctx) {
+  const cards = ctx.items.flatMap((item, i) => {
+    const label = itemLabel(item, i);
+    const modules = Array.isArray(item.modules) ? item.modules : [];
+    const frame = {
+      w: Math.max(0, ...modules.map((m) => (Number(m.w) || 0) + (Number(m.d) || 0))),
+      h: Math.max(0, ...modules.map((m) => Number(m.h) || 0)),
+    };
+    return modules.map((m, mi) => {
+      const svg = moduleDrawingSvg(m, frame);
+      const bits = [
+        m.isOpen ? '오픈' : Number(m.doorCount) > 0 ? `도어 ${num(m.doorCount)}` : '',
+        m.isDrawer ? `서랍 ${num(Number(m.drawerCount) || 1)}단` : '',
+        Number(m.shelfCount) > 0 ? `선반 ${num(m.shelfCount)}` : '',
+      ].filter(Boolean);
+      return `
+    <div class="module-card">
+      <div class="mc-head"><b>${num(mi + 1)}</b> ${esc(label)} · ${esc(MODULE_POS[m.pos] || m.pos || '-')} ${esc(m.name || m.type || '-')}</div>
+      ${svg || '<div class="ph">치수 없음</div>'}
+      <div class="mc-foot">몸통 ${dims3(m.w, m.h, m.d)}${bits.length ? ` · ${esc(bits.join(' · '))}` : ''}</div>
+    </div>`;
+    });
+  });
+  if (cards.length === 0) return '';
+  return `
+<div class="sheet">
+  <div class="section-title">⑪ 모듈 치수도 <span class="muted">몸통 기준 mm — 다리·상판·몰딩은 정면도</span></div>
+  <div class="module-grid">${cards.join('')}</div>
 </div>`;
 }
 
@@ -897,13 +950,13 @@ function assemblySheet(ctx) {
   const rows = ctx.items.flatMap((item, i) => {
     const label = itemLabel(item, i);
     const modules = Array.isArray(item.modules) ? item.modules : [];
-    return modules.map((m) => {
+    return modules.map((m, mi) => {
       const hasDoor = Number(m.doorCount) > 0;
       const hasDrawer = Boolean(m.isDrawer);
       return tr(
         [
           esc(label),
-          `${esc(MODULE_POS[m.pos] || m.pos || '-')} ${esc(m.name || m.type || '-')} <span class="muted">${num(m.w)}×${num(m.h)}</span>`,
+          `<b>${num(mi + 1)}</b> ${esc(MODULE_POS[m.pos] || m.pos || '-')} ${esc(m.name || m.type || '-')} <span class="muted">${num(m.w)}×${num(m.h)}</span>`,
           box, box, box,
           hasDoor ? box : na,
           hasDrawer ? box : na,
@@ -1143,7 +1196,7 @@ function packHeader(ctx, pack) {
     const g = labelGroups(ctx.materials);
     facts.push(['라벨', `사내 ${num(g.inHouse.length)} · 도어재 ${num(g.door.length)} (A4 ${num(Math.ceil(g.inHouse.length / LABELS_PER_SHEET) + Math.ceil(g.door.length / LABELS_PER_SHEET))}쪽)`]);
   }
-  const showRenders = pack === 'assembly'; // 재단은 치수 정면도(PR 2)가 들어오면 그것을 싣는다
+  const showRenders = pack === 'assembly'; // 재단은 치수 정면도만 — 3D 렌더는 조립 참고용
   return `
 <div class="pack-head">
   <div class="doc-header">
@@ -1161,7 +1214,8 @@ function packHeader(ctx, pack) {
     <dt>설계</dt><dd>${esc(doc.title)} · 설계 rev ${esc(ctx.snapshot.rev)}</dd>
     ${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}
   </dl>
-  ${showRenders ? `<div class="section-title">정면 렌더</div>${renderBoxes(ctx)}` : ''}
+  ${pack === 'cut' || pack === 'assembly' ? `<div class="section-title">정면도</div>${elevationBlock(ctx)}` : ''}
+  ${showRenders ? `<div class="section-title">정면 렌더 <span class="muted">참고</span></div>${renderBoxes(ctx)}` : ''}
   ${doc.render_payload?.instructions ? `<div class="section-title">특기사항</div><div class="note">${esc(doc.render_payload.instructions)}</div>` : ''}
 </div>`;
 }
@@ -1169,9 +1223,9 @@ function packHeader(ctx, pack) {
 // ── 조립 ─────────────────────────────────────────────────────────
 
 const PACK_SECTIONS = {
-  all: [coverSheet, moduleSheets, kittingSheets, cutSheets, hardwareSheet, assemblySheet, diffSheet, doorOrderSheet, labelSheets],
+  all: [coverSheet, moduleSheets, moduleDrawingsSheet, kittingSheets, cutSheets, hardwareSheet, assemblySheet, diffSheet, doorOrderSheet, labelSheets],
   cut: [(ctx) => packHeader(ctx, 'cut'), cutSheets],
-  assembly: [(ctx) => packHeader(ctx, 'assembly'), moduleSheets, kittingSheets, hardwareSheet, assemblySheet, diffSheet],
+  assembly: [(ctx) => packHeader(ctx, 'assembly'), moduleSheets, moduleDrawingsSheet, kittingSheets, hardwareSheet, assemblySheet, diffSheet],
   door: [doorOrderSheet], // 외주처 종이 — 고객 정보가 든 머리를 붙이지 않는다
   labels: [(ctx) => packHeader(ctx, 'labels'), labelSheets],
 };
