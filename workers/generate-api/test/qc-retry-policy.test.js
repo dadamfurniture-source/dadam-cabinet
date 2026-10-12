@@ -31,7 +31,7 @@ afterEach(() => {
 });
 
 function install(qcIssues) {
-  calls = { image: [], patched: [] };
+  calls = { image: [], patched: [], qcImages: [] };
   globalThis.fetch = async (url, init = {}) => {
     const u = String(url);
     if (u.includes('/storage/v1/object/')) {
@@ -48,6 +48,9 @@ function install(qcIssues) {
       const parts = body.contents[0].parts;
       const prompt = parts[parts.length - 1].text;
       if (body.generationConfig.responseModalities.length === 1) {
+        if (prompt.startsWith('You are checking')) {
+          calls.qcImages.push(parts.filter((x) => x.inlineData).map((x) => Buffer.from(x.inlineData.data, 'base64').toString()));
+        }
         const text = prompt.startsWith('Measure and describe')
           ? JSON.stringify({ wall_width_mm: 3000, wall_height_mm: 2400, confidence: 'medium', site_condition: 'finished' })
           : JSON.stringify({ ok: qcIssues.length === 0, issues: qcIssues, note: 'n' });
@@ -123,4 +126,10 @@ test('잡: 검사 통과면 설치 한 번, retried 키 없음', async () => {
   const last = await run();
   assert.equal(calls.image.length, 1);
   assert.deepEqual(last.images[0].qc, { ok: true, issues: [], note: 'n' });
+});
+
+test('잡: 검사에는 원본 방 사진과 결과를 그 순서로 보낸다 (깊이 비교)', async () => {
+  install([]);
+  await run();
+  assert.deepEqual(calls.qcImages, [['ROOM', 'OUT']]);
 });
