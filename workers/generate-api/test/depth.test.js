@@ -35,7 +35,7 @@ test('모든 품목이 mm 깊이를 갖고, 설치 프롬프트에 DEPTH 줄로 
     assert.match(cat.depth, /\d{3} mm deep/, key);
     const p = buildInstallPrompt({ ...CTX, category: key });
     assert.ok(p.includes(`DEPTH: ${cat.depth} `), key);
-    assert.match(p, /never a flat picture on it/);
+    assert.match(p, cat.wallToWallMm ? /Never render it as doors painted flat/ : /never a flat picture on it/);
   }
   // 사장님 지시값 (data-constants.js 와 같은 수)
   assert.match(CATEGORIES.wardrobe.depth, /620 mm/);
@@ -76,4 +76,24 @@ test('검사에 no_depth 가 있고 FIX 로 돌아온다', () => {
   assert.match(buildQcPrompt({ ...CTX, category: 'wardrobe' }), /- no_depth:/);
   const retry = buildInstallPrompt({ ...CTX, category: 'wardrobe' }, { fix: ['no_depth'] });
   assert.ok(retry.includes(QC_FIXES.no_depth));
+});
+
+// 2026-10-13: 붙박이장 연출컷에 깊이가 없었다 — 벽 끝에서 끝·바닥에서 천장인 장은 윗면·측판이 안 보인다.
+test('벽 전체 장(붙박이장·수납장)은 방과 만나는 이음매로 깊이를 말한다', () => {
+  for (const key of ['wardrobe', 'storage']) {
+    const mm = CATEGORIES[key].wallToWallMm;
+    const p = depthPhrase({ ...CTX, category: key });
+    assert.ok(p.includes(`${mm} mm in front of the original wall`), key);
+    assert.match(p, /side wall, of the ceiling and of the floor is covered/);
+    assert.match(p, /recessed plinth/);
+    assert.doesNotMatch(p, /top surfaces|exposed end panel/); // 이 장에 없는 단서는 말하지 않는다
+  }
+  assert.match(depthPhrase({ ...CTX, category: 'wardrobe', cameraSide: 'right' }), /on the right side the covered strip/);
+});
+
+test('벽 전체 장의 no_depth 검사는 측판이 없다는 이유로 실패시키지 않는다', () => {
+  const q = buildQcPrompt({ ...CTX, category: 'wardrobe' });
+  assert.match(q, /- no_depth: the fronts look painted flat onto the wall/);
+  assert.match(q, /shows no side panels; that alone is fine/);
+  assert.match(buildQcPrompt({ ...CTX, category: 'sink' }), /no side or edge thickness/);
 });
