@@ -99,12 +99,25 @@ describe('키큰장끼리 코너 — 트리밍된 ㄱ자', () => {
     });
   });
 
-  test('수납 단도 셋이고 멍장과 같은 자리에 겹치지 않는다', () => {
+  // 2026-10-08: 키큰장도 가로 분배를 타므로 수납은 **통마다** 셋이다.
+  //   예전엔 폭이 얼마든 한 통이라 3600 영역에서 도어 한 장이 3600 으로 나갔다.
+  test('수납은 통마다 단이 셋이고 멍장과 같은 자리에 겹치지 않는다', () => {
     const p = boot(mods()); p.g('autoCalcAllAreas')();
     const c = p.g('cornerPairs')()[0];
     const own = p.g('modules').filter((m) => m.areaId === c.owner.id && !m.isFinishing);
     const tiers = own.filter((m) => !m.blind);
-    expect(tiers.length).toBe(3);
+    const cols = new Map();
+    tiers.forEach((t) => {
+      const k = Math.round(t.x);
+      if (!cols.has(k)) cols.set(k, []);
+      cols.get(k).push(t);
+    });
+    expect(cols.size).toBeGreaterThan(0);
+    cols.forEach((col) => {
+      expect(col.length).toBe(3);
+      expect(new Set(col.map((t) => t.part))).toEqual(new Set(['하부장', '중간장', '상부장']));
+      expect(new Set(col.map((t) => Math.round(t.W))).size).toBe(1);   // 한 통은 폭이 하나다
+    });
     const b = own.find((m) => m.blind);
     tiers.forEach((t) => {
       const sep = t.x + t.W <= b.x + 1 || b.x + b.W <= t.x + 1;
