@@ -413,11 +413,11 @@
       "part": "좌대 전후",
       "material": "PB",
       "thickness": 15,
-      "w": 770,
+      "w": 800,
       "h": 60,
       "qty": 2,
       "edge": "1면(전)",
-      "note": "[확인 필요] 키큰장 좌대 상자 — wardrobe.md 좌대 규칙을 빌림 (sink.md §5 는 높이 60 만)",
+      "note": "키큰장 좌대 — 앞뒤 W · 측·보강 D−80 (2026-10-13 사장님 확정, 붙박이장과 같다)",
       "finishCode": "",
       "partId": "0-planner-x-0-pedestal:fb-0",
       "slot": "kick",
@@ -427,7 +427,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 770,
+      "edgeLen": 800,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "창고장"
@@ -437,11 +437,11 @@
       "part": "좌대 측",
       "material": "PB",
       "thickness": 15,
-      "w": 445,
+      "w": 370,
       "h": 60,
       "qty": 2,
       "edge": "1면(전)",
-      "note": "[확인 필요] 키큰장 좌대 상자 — wardrobe.md 좌대 규칙을 빌림 (sink.md §5 는 높이 60 만)",
+      "note": "키큰장 좌대 — 앞뒤 W · 측·보강 D−80 (2026-10-13 사장님 확정, 붙박이장과 같다)",
       "finishCode": "",
       "partId": "0-planner-x-0-pedestal:side-0",
       "slot": "kick",
@@ -451,7 +451,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 445,
+      "edgeLen": 370,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "창고장"
@@ -461,11 +461,11 @@
       "part": "좌대 중간보강",
       "material": "PB",
       "thickness": 15,
-      "w": 385,
+      "w": 370,
       "h": 60,
       "qty": 1,
       "edge": "1면(전)",
-      "note": "[확인 필요] 키큰장 좌대 상자 — wardrobe.md 좌대 규칙을 빌림 (sink.md §5 는 높이 60 만)",
+      "note": "키큰장 좌대 — 앞뒤 W · 측·보강 D−80 (2026-10-13 사장님 확정, 붙박이장과 같다)",
       "finishCode": "",
       "partId": "0-planner-x-0-pedestal:brace-0",
       "slot": "kick",
@@ -475,7 +475,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 385,
+      "edgeLen": 370,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "창고장"
@@ -489,7 +489,7 @@
       "h": 800,
       "qty": 1,
       "edge": "2면(장)",
-      "note": "[확인 필요] 키큰장 좌대 상자 — wardrobe.md 좌대 규칙을 빌림 (sink.md §5 는 높이 60 만)",
+      "note": "키큰장 좌대 — 앞뒤 W · 측·보강 D−80 (2026-10-13 사장님 확정, 붙박이장과 같다)",
       "finishCode": "",
       "partId": "0-planner-x-0-kick-0",
       "slot": "kick",
@@ -1157,7 +1157,7 @@
     "PB_15": {
       "material": "PB",
       "thickness": 15,
-      "totalArea": 8051110,
+      "totalArea": 8044810,
       "panelCount": 3
     },
     "MDF_2.7": {
@@ -1175,7 +1175,7 @@
   },
   "edgeBanding": {
     "1": 23480,
-    "0.6": 78897
+    "0.6": 78792
   },
   "hardware": [
     {
