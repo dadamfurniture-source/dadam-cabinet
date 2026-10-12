@@ -81,5 +81,11 @@ export const DEFAULT_QUOTE = Object.freeze({
   workDays: 22,
   overheadPerHour: 33000, // 간접비 380만 ÷ 월 20건 기준 공장 작업 약 115시간
   installPerMeter: 40000, // 시공 외주, 시공 길이 m당
+  // 상판·설비·철거도 원가 × (1 + 마진) — 견적 전체가 "최종 지출비용 × 1.2" 가 되게 (2026-10-13 대표)
+  countertopPerMeter: 125000, // 인조대리석 상판 매입+시공, m당 [확인 필요 — 판매가 15만 역산]
+  sinkBowl: 55000, // 싱크볼 (거래명세서 DS850)
+  faucet: 30000, // 수전 (거래명세서 KF-7)
+  hood: 59000, // 후드 (거래명세서 하이드 IB60S)
+  demolitionPerMeter: 25000, // 기존 철거, 상·하부 길이 m당 [확인 필요 — 판매가 3만 역산]
   marginRate: 0.2,
 });
