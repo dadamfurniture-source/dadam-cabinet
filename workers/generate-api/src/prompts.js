@@ -59,6 +59,7 @@ export const CATEGORIES = {
   wardrobe: {
     label: '붙박이장',
     depth: '620 mm deep.',
+    wallToWallMm: 620, // 벽 끝에서 끝·바닥에서 천장 — 윗면·측판이 안 보여 일반 깊이 단서가 안 먹는다
     spec: (c) =>
       `Floor-to-ceiling wardrobe covering the full wall width with ${wardrobeDoors(c.wallW)} equal ` +
       `full-height flat doors arranged in mirrored pairs. No gap to the ceiling or the side walls.`,
@@ -66,6 +67,7 @@ export const CATEGORIES = {
   storage: {
     label: '수납장',
     depth: '400 mm deep.',
+    wallToWallMm: 400,
     spec: () =>
       `Floor-to-ceiling storage cabinet covering the wall, divided into equal sections of ` +
       `full-height flat doors.`,
@@ -598,6 +600,19 @@ export function depthPhrase(c) {
       : c.cameraSide === 'center'
         ? ' The camera faces the wall head-on, so show the depth through top surfaces, front-edge thickness, recesses and shadows rather than side panels.'
         : '';
+  // 벽 전체를 채우는 장(붙박이장·수납장): 정면에서 윗면도 측판도 없다. 깊이는 방과 만나는 이음매로만 보인다.
+  //   2026-10-13 사장님 "붙박이장 연출컷에 깊이가 없다" — 일반 단서(윗면·측판)는 이 장에 해당이 없었다.
+  if (cat.wallToWallMm) {
+    const d = cat.wallToWallMm;
+    return (
+      `DEPTH: ${size}This is a wall-to-wall, floor-to-ceiling built-in, so no top or side panel shows; its depth must read from where it meets the room. ` +
+      `Its front plane stands ${d} mm in front of the original wall: the joint with each side wall is ${d} mm closer to the camera than the back corner, so a ${d} mm deep strip of each side wall, of the ceiling and of the floor is covered and the visible side walls look shorter in perspective than in the photo. ` +
+      `Add a slim recessed plinth (about 60 mm high, set back) along the floor with a dark shadow line, a slim filler at the ceiling joint with a crisp shadow, and narrow dark reveals between doors that show the door thickness. Never render it as doors painted flat onto the original wall.` +
+      (c.cameraSide === 'left' || c.cameraSide === 'right'
+        ? ` The camera stands ${c.cameraSide} of the wall's centre, so on the ${c.cameraSide} side the covered strip of side wall is clearly visible in perspective.`
+        : '')
+    );
+  }
   return `DEPTH: ${size}The furniture is a solid volume standing out from the wall, never a flat picture on it. Its front face is closer to the camera than the wall, so it meets the floor nearer the camera than the wall's floor line and covers that strip of floor. Show front-edge thickness, recessed shadowed plinths where there are any, and soft shadows cast onto the wall and floor.${view}`;
 }
 
@@ -1247,7 +1262,11 @@ Report an issue ONLY when it is clearly visible. Use these codes:
 - low_detail: blurry, smeared or obviously synthetic surfaces
 - construction_leftover: debris, tools, boxes, protective film, exposed pipes or bare unfinished walls still visible
 - tile_not_neutral: wall tiles around the furniture are dark, brown, black or strongly coloured (light neutral tiles are fine)
-- no_depth: the furniture looks flat, like a picture painted on the wall — no visible depth, no side or edge thickness, no shadow where it meets the wall or floor${
+${
+    CATEGORIES[key].wallToWallMm
+      ? '- no_depth: the fronts look painted flat onto the wall — no plinth shadow line at the floor, no shadow at the ceiling joint and no visible reveals between doors (a wall-to-wall wardrobe shows no side panels; that alone is fine)'
+      : '- no_depth: the furniture looks flat, like a picture painted on the wall — no visible depth, no side or edge thickness, no shadow where it meets the wall or floor'
+  }${
     KITCHEN_CATEGORIES.includes(key)
       ? '\n- faucet_missing: there is a sink but no faucet/tap behind it'
       : ''
