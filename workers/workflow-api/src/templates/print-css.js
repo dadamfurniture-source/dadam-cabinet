@@ -98,10 +98,13 @@ table.compact th, table.compact td { padding: 2pt 3pt; font-size: 8.5pt; }
 .cut-sheet .cut-parts { flex: 1 1 auto; min-width: 0; }
 .cut-head { font-size: 9pt; margin: 6pt 0 2pt; }
 .cut-head b { margin-right: 6pt; }
+.pack-head { margin-bottom: 8pt; padding-bottom: 4pt; border-bottom: 0.8pt solid #000; }
+.cut-head .checks { float: right; font-size: 10pt; letter-spacing: .5pt; }
 
 /* 조립 순서 체크 */
 table.check td.box { text-align: center; font-size: 12pt; width: 8%; }
 table.check td.blank { width: 12%; }
+table.check td.na { text-align: center; color: #666; background: repeating-linear-gradient(45deg, #fff 0 2pt, #ddd 2pt 3pt); }
 
 /* 부재 라벨 부록 — A4 3×8 = 24장 (라벨 63×32mm) */
 .label-grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 32mm; gap: 1mm; }
@@ -113,6 +116,7 @@ table.check td.blank { width: 12%; }
 .label .lt { font-size: 7.5pt; line-height: 1.3; min-width: 0; }
 .label .lt .pid { font-family: 'Consolas', monospace; font-size: 7pt; word-break: break-all; }
 .label .lt .dim { font-size: 10pt; font-weight: 700; }
+.label .lt .edge-line .edge-svg { width: 14pt; height: 9pt; }
 
 /* 화면에서는 A4 용지처럼 보이게 */
 @media screen {
