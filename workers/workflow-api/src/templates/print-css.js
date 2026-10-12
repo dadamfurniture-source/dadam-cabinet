@@ -101,6 +101,16 @@ table.compact th, table.compact td { padding: 2pt 3pt; font-size: 8.5pt; }
 .pack-head { margin-bottom: 8pt; padding-bottom: 4pt; border-bottom: 0.8pt solid #000; }
 .cut-head .checks { float: right; font-size: 10pt; letter-spacing: .5pt; }
 
+/* 치수 정면도 · 모듈 치수도 카드 (elevation.js) */
+.elev-box { border: 0.4pt solid #000; padding: 3pt; margin: 2pt 0 6pt; break-inside: avoid; page-break-inside: avoid; font-size: 8.5pt; }
+.elev-box svg.elevation { display: block; width: 100%; height: auto; max-height: 120mm; }
+.elev-box .ph { height: 20mm; display: flex; align-items: center; justify-content: center; color: #888; }
+.elev-cap { margin-top: 2pt; }
+.module-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2mm; }
+.module-card { border: 0.4pt solid #000; padding: 2mm; font-size: 8pt; break-inside: avoid; page-break-inside: avoid; }
+.module-card svg.module-drawing { display: block; width: 100%; height: auto; max-height: 55mm; }
+.module-card .mc-head, .module-card .mc-foot { margin: 1pt 0; }
+
 /* 조립 순서 체크 */
 table.check td.box { text-align: center; font-size: 12pt; width: 8%; }
 table.check td.blank { width: 12%; }
