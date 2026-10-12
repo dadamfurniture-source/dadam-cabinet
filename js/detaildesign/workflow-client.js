@@ -27,6 +27,8 @@
   /** 작업지시서 꾸러미 — 워커 templates/work-order.js WORK_ORDER_PACKS 와 같은 키 */
   const WO_PACKS = [
     { pack: 'cut', title: '재단·엣지 지시서', who: '재단 기사', desc: '원판별 재단 배치 · 엣지 붙일 변 표시 · 엣지 합계 · 정면도' },
+    // 2026-10-13 사장님 Q2: 재단·엣지를 가끔 외주(일성합판)로 — 같은 내용, 고객 정보·특기사항·시간 없음
+    { pack: 'cut-vendor', title: '재단·엣지 의뢰서', who: '재단·엣지 외주처', desc: '재단 배치 · 엣지 변 표시 · 엣지 합계 (고객 정보·금액 없음)' },
     { pack: 'assembly', title: '조립 지시서', who: '조립 기사', desc: '모듈별 부재·철물 · 모듈 치수도 · 조립 체크 · 정면도' },
     { pack: 'door', title: '도어재 발주서', who: '도어 외주처', desc: '도어·몰딩·마감 부재 · 발주 코드 · 경첩 컵 위치 (고객 정보·금액 없음)' },
     { pack: 'labels', title: '부재 라벨', who: '재단 기사', desc: 'QR 라벨 A4 3×8 · 사내 부재 먼저, 도어재는 입고 시' },

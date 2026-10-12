@@ -31,7 +31,7 @@ const require = createRequire(import.meta.url);
 const NestingEngine = require('../../../js/detaildesign/nesting-engine.js');
 
 const partIdOfRow = (m) => m.row.partId;
-const PACKS = ['all', 'cut', 'assembly', 'door', 'labels'];
+const PACKS = ['all', 'cut', 'cut-vendor', 'assembly', 'door', 'labels'];
 const docWithLabor = (overrides = {}) =>
   fx.doc({ render_payload: { ...fx.doc().render_payload, labor: { ...LABOR_STANDARDS } }, ...overrides });
 const render = (pack, doc = docWithLabor(), snap = fx.snapshot()) => renderWorkOrder(doc, snap, { toolbar: false, pack });
@@ -59,6 +59,7 @@ test('normalizePack — 비면 all, 대소문자 무시, 모르는 값은 null',
   assert.equal(normalizePack('CUT'), 'cut');
   assert.equal(normalizePack(' door '), 'door');
   assert.equal(normalizePack('edge'), null, '엣지는 재단 꾸러미에 합쳤다');
+  assert.equal(normalizePack('CUT-VENDOR'), 'cut-vendor');
   assert.deepEqual(Object.keys(WORK_ORDER_PACKS), PACKS);
 });
 
@@ -159,6 +160,28 @@ test('cut — 배치에 없는 사내 부재는 빠뜨리지 않고 따로 싣�
   p3.unallocated = [{ partClass: '뒷판', partIds: ['0-l1-back-0#0'], parts: ['뒷판'], qty: 1 }];
   assert.deepEqual(uncoveredInHouse(fx.materials(), p3), []);
   assert.deepEqual(uncoveredInHouse(fx.materials(), null), [], '배치가 없으면 폴백 목록이 전부를 싣는다');
+});
+
+test('cut-vendor — 외주처용 재단·엣지: 부재·배치·엣지는 같고 고객 이름·설계 제목·특기사항·정면도·시간·사내 안내는 없다', () => {
+  const doc = docWithLabor({ render_payload: { ...docWithLabor().render_payload, instructions: '고객 승인 전 발행 — 사유: 급함' } });
+  const snap = fx.snapshot();
+  const html = renderWorkOrder(doc, snap, { toolbar: false, pack: 'cut-vendor' });
+  const inHouse = renderWorkOrder(doc, snap, { toolbar: false, pack: 'cut' });
+  assert.ok(html.includes('<h1>재단·엣지 의뢰서</h1>'));
+  assert.ok(html.includes('<title>재단·엣지 의뢰서 DD-20260916-D1D1-WO-r2</title>'));
+  assert.ok(html.includes('DD-20260916-D1D1-WO-r2'), '문서번호는 있다 — 돌아온 부재를 맞춰 볼 근거');
+  for (const s of ['홍길동', '홍*동', '김OO', '특기사항', '급함', '예상 시간', '알바', '<div class="section-title">정면도</div>', '<svg class="elevation"', '⑩ 도어재 발주서', '528,000', '₩']) {
+    assert.ok(!html.includes(s), `cut-vendor 에 ${s} 없음`);
+  }
+  assert.ok(inHouse.includes('김OO') && inHouse.includes('특기사항'), '사내 판에는 있다');
+  // 부재·배치·엣지는 사내 판과 같다
+  assert.ok(html.includes('재단·엣지 목록'));
+  assert.equal(html.split('class="edge-mark"').length - 1, inHouse.split('class="edge-mark"').length - 1);
+  assert.ok(html.includes('<span class="checks">재단 ☐ 엣지 표시 ☐</span>'));
+  assert.ok(html.includes('원판</dt><dd>1장 (본체 1)'));
+  assert.ok(html.includes('<td class="num">3</td><td class="num">4.6 m</td>'));
+  for (const id of IN_HOUSE_IDS) assert.ok(html.includes(id), id);
+  for (const id of DOOR_IDS) assert.ok(!html.includes(`>${id}`), `도어재 ${id} 없음`);
 });
 
 test('cut — 재단 배치가 없으면 사내 자재 목록 + 엣지 합계', () => {
