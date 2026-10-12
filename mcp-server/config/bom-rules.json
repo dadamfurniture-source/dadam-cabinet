@@ -41,7 +41,8 @@
       "overlay_inset": { "overlay": "full", "model_by_body_t": { "15": "H052W-5", "18": "H052W-3" } },
       "damper": null,
       "el_lift_up": { "item": "리프트업도어 가변철물 小(23KG)", "qty_per_door": 1, "unit": "SET", "door_w_min": 450, "door_w_max": 600 },
-      "sliding_door": { "rail": { "item": "SDR-2 상·하레일", "length": 2500, "qty_per_module": 1, "unit": "조" }, "fittings_per_door": { "SDR-2 상부속": 2, "SDR-2 하부속": 2 } }
+      "sliding_door": { "rail": { "item": "SDR-2 상·하레일", "length": 2500, "qty_per_module": 1, "unit": "조" }, "fittings_per_door": { "SDR-2 상부속": 2, "SDR-2 하부속": 2 } },
+      "flap": { "hinge_basis": "door_w", "gas_struts_per_door": 2, "strut_kg": [1, 5, 7, 9], "door_mdf_t": 18, "mdf_density_kg_m3": 750, "pick": "smallest kg >= door weight" }
     },
     "rail": {
       "type": null,
