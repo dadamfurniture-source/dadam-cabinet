@@ -60,7 +60,7 @@ export function sanitizeSettings(body) {
       const n = Number(v);
       const [lo, hi] = NUMERIC_LIMITS[group];
       // util 은 비율(0~1)
-      const max = (group === 'crew' && k === 'util') || (group === 'quote' && k === 'marginRate') ? 1 : hi;
+      const max = (group === 'crew' && k === 'util') || (group === 'quote' && (k === 'marginRate' || k === 'partnerMarginRate')) ? 1 : hi;
       if (!Number.isFinite(n) || n < lo || n > max) throw new ValidationError(`${group}.${k} 값이 범위를 벗어났습니다`);
       out[group][k] = n;
     }

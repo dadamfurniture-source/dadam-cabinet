@@ -83,7 +83,7 @@ function quoteSheet(quote) {
     : '';
 
   return `
-  <div class="section-title">견적</div>
+  <div class="section-title">견적${quote.tier === 'partner' ? ' (거래처 공급가)' : ''}</div>
   <table>
     ${thead(['항목', '수량', '단가', '금액'], ['', 'num', 'num', 'num'])}
     <tbody>${rows}</tbody>
