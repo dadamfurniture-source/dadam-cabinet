@@ -21,6 +21,7 @@
  * 꾸러미 (계획 work-order-stage.plan.md §4.3) — 같은 동결 문서를 사람별로 골라 찍는다 (`?pack=`):
  *   cut       재단·엣지 지시서 — ③ 에 엣지 변 표시·엣지 합계를 합쳤다. 사내 재단(본체·뒷판)만.
  *             엣지 붙일 변 표시는 재단 기사가 자르면서 한다 (2026-10-13 사장님).
+ *   cut-vendor 같은 재단·엣지를 외주처(일성합판)로 보낼 때 — 고객 이름·설계 제목·특기사항·정면도·시간 없음
  *   assembly  조립 지시서 — 모듈 명세 · ② 키팅 · ④ 철물 · ⑥ 조립 체크 · ⑦ 차이
  *   door      ⑩ 도어재 발주서 — 도어 그룹(도어·몰딩·걸레받이·목찬넬·마감) 부재 + 경첩 컵 위치. 고객 이름 없음
  *   labels    ⑧ 라벨 — 사내 부재 먼저, 도어재는 뒤 (입고 시 부착)
@@ -119,6 +120,8 @@ function buildContext(doc, snapshot, renderUrls) {
 export const WORK_ORDER_PACKS = {
   all: { title: '작업지시서', who: '사무실 보관 — 전체' },
   cut: { title: '재단·엣지 지시서', who: '재단 기사 — 자르면서 엣지 붙일 변 표시' },
+  // 2026-10-13 사장님 Q2: 재단·엣지를 가끔 외주(일성합판)로 보낸다 — 같은 내용, 고객 이름·설계 제목·특기사항·시간 없음
+  'cut-vendor': { title: '재단·엣지 의뢰서', who: '재단·엣지 외주처' },
   assembly: { title: '조립 지시서', who: '조립 기사 — 통 조립 · 도어 달기 · 서랍 · 검수·포장' },
   door: { title: '도어재 발주서', who: '도어 외주처' },
   labels: { title: '부재 라벨', who: '재단 기사 — 재단 직후 부착 (도어재는 입고 시)' },
@@ -805,17 +808,18 @@ function edgeTotalsTable(rows) {
   return `<table class="compact">${thead(['두께', '엣지 코드', '부재 수', '길이'], ['num', '', 'num', 'num'])}<tbody>${body}</tbody></table>`;
 }
 
-function cutSheets(ctx) {
+/** vendor: 외주처용 판 — 사내 안내(도어재 행방·알바 메모)를 빼고 제목을 바꾼다. 부재·배치·엣지는 같다. */
+function cutSheets(ctx, { vendor = false } = {}) {
   const counts = workCounts(ctx);
   const labelNo = labelNumbers(ctx.materials);
   const inHouse = ctx.materials
     .map((row, index) => ({ row, index }))
     .filter(({ row }) => !isDoorClass(row));
-  const doorNote = counts.doorRows.length
+  const doorNote = !vendor && counts.doorRows.length
     ? `<div class="muted">도어재 ${num(counts.doorRows.reduce((s, m) => s + qtyOf(m), 0))}장${counts.doorSheets ? ` (원장 ${num(counts.doorSheets.length)}장)` : ''} 은 외주 — ⑩ 도어재 발주서.</div>`
     : '';
-  const totalsBlock = `<div class="sub-title">엣지 합계 <span class="muted">사내 재단 부재 — 알바가 롤을 미리 챙긴다</span></div>${edgeTotalsTable(counts.inHouseRows)}`;
-  const title = '③ 재단·엣지 지시서';
+  const totalsBlock = `<div class="sub-title">엣지 합계 <span class="muted">${vendor ? '두께 · 엣지 코드별' : '사내 재단 부재 — 알바가 롤을 미리 챙긴다'}</span></div>${edgeTotalsTable(counts.inHouseRows)}`;
+  const title = vendor ? '재단·엣지 목록' : '③ 재단·엣지 지시서';
 
   const plan = ctx.cutPlan;
   if (!plan) {
@@ -1182,13 +1186,14 @@ function packHeader(ctx, pack) {
   const counts = workCounts(ctx);
   const labor = laborOf(ctx, counts);
   const facts = [];
-  if (pack === 'cut') {
+  const vendor = pack === 'cut-vendor';
+  if (pack === 'cut' || vendor) {
     const totals = edgeTotals(counts.inHouseRows);
     const thin = totals.filter((g) => g.edgeT < 1).reduce((s, g) => s + g.mm, 0);
     const thick = totals.filter((g) => g.edgeT >= 1).reduce((s, g) => s + g.mm, 0);
-    facts.push(['사내 원판', counts.inHouseSheets ? `${num(counts.inHouseSheets.length)}장 (본체 ${num(counts.bodySheets)})` : '배치 없음']);
+    facts.push([vendor ? '원판' : '사내 원판', counts.inHouseSheets ? `${num(counts.inHouseSheets.length)}장 (본체 ${num(counts.bodySheets)})` : '배치 없음']);
     facts.push(['엣지', `0.6 ${fmtMeters(thin)} · 1.0 ${fmtMeters(thick)}`]);
-    if (labor) facts.push(['예상 시간', `재단 ${fmtMinutes(labor.cutMin)} · 엣지 ${fmtMinutes(labor.edgeMin)} (알바)`]);
+    if (labor && !vendor) facts.push(['예상 시간', `재단 ${fmtMinutes(labor.cutMin)} · 엣지 ${fmtMinutes(labor.edgeMin)} (알바)`]);
   } else if (pack === 'assembly') {
     facts.push(['통 · 서랍 · 도어', `${num(counts.cabinets)}통 · 서랍 ${num(counts.drawers)} · 도어 ${num(counts.doors)}짝`]);
     if (labor) facts.push(['예상 시간', `조립 ${fmtMinutes(labor.assemblyMin)}`]);
@@ -1211,20 +1216,22 @@ function packHeader(ctx, pack) {
     </div>
   </div>
   <dl class="kv">
-    <dt>설계</dt><dd>${esc(doc.title)} · 설계 rev ${esc(ctx.snapshot.rev)}</dd>
+    ${vendor ? '' : `<dt>설계</dt><dd>${esc(doc.title)} · 설계 rev ${esc(ctx.snapshot.rev)}</dd>`}
     ${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}
   </dl>
   ${pack === 'cut' || pack === 'assembly' ? `<div class="section-title">정면도</div>${elevationBlock(ctx)}` : ''}
   ${showRenders ? `<div class="section-title">정면 렌더 <span class="muted">참고</span></div>${renderBoxes(ctx)}` : ''}
-  ${doc.render_payload?.instructions ? `<div class="section-title">특기사항</div><div class="note">${esc(doc.render_payload.instructions)}</div>` : ''}
+  ${!vendor && doc.render_payload?.instructions ? `<div class="section-title">특기사항</div><div class="note">${esc(doc.render_payload.instructions)}</div>` : ''}
 </div>`;
 }
 
 // ── 조립 ─────────────────────────────────────────────────────────
 
 const PACK_SECTIONS = {
-  all: [coverSheet, moduleSheets, moduleDrawingsSheet, kittingSheets, cutSheets, hardwareSheet, assemblySheet, diffSheet, doorOrderSheet, labelSheets],
-  cut: [(ctx) => packHeader(ctx, 'cut'), cutSheets],
+  all: [coverSheet, moduleSheets, moduleDrawingsSheet, kittingSheets, (ctx) => cutSheets(ctx), hardwareSheet, assemblySheet, diffSheet, doorOrderSheet, labelSheets],
+  cut: [(ctx) => packHeader(ctx, 'cut'), (ctx) => cutSheets(ctx)],
+  // 외주처 종이 — 고객 이름·설계 제목·특기사항·정면도·시간 없음 (door 와 같은 원칙)
+  'cut-vendor': [(ctx) => packHeader(ctx, 'cut-vendor'), (ctx) => cutSheets(ctx, { vendor: true })],
   assembly: [(ctx) => packHeader(ctx, 'assembly'), moduleSheets, moduleDrawingsSheet, kittingSheets, hardwareSheet, assemblySheet, diffSheet],
   door: [doorOrderSheet], // 외주처 종이 — 고객 정보가 든 머리를 붙이지 않는다
   labels: [(ctx) => packHeader(ctx, 'labels'), labelSheets],
