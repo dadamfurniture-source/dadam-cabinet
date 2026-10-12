@@ -55,7 +55,7 @@ const QC_TIMEOUT_MS = 90_000;
 const JOB_TIMEOUT_MS = 10 * 60_000; // 환불 창(30분) 안에 끝나야 한다
 const VARIANT_COUNT = 3;
 const VARIANT_ATTEMPTS = 2; // 실패·빈 응답이면 한 번 더
-const VARIANT_RETRY_MS = 4_000;
+const VARIANT_RETRY_MS = 15_000; // 2026-10-13: 4초 → 15초. 503 은 callGemini 가 따로 기다린다 — 이 간격은 빈 응답 등 나머지용
 const VARIANT_STAGGER_MS = 1_500;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
