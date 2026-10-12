@@ -93,6 +93,9 @@
     background:var(--brand-deep);color:#fff;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap}
   .topbar .auto-all:hover{background:#553b22}
   .topbar .auto-all:disabled{opacity:.45;cursor:default}
+  /* 2026-10-12: 다시 깔기는 지우는 일이라 한 단 낮춘다 — 빈 바탕, 테두리만 */
+  .topbar .auto-all.rebuild{background:transparent;color:var(--brand-deep);margin-left:4px}
+  .topbar .auto-all.rebuild:hover{background:#f3ece4}
   .panel-toggle{display:flex;gap:3px}
   .panel-toggle button{width:28px;height:26px;border:1px solid var(--line);background:#fff;border-radius:5px;cursor:pointer;font-size:13px;color:var(--text)}
   .panel-toggle button.on{background:var(--brand-deep);color:#fff;border-color:var(--brand-deep)}
@@ -336,8 +339,11 @@
   <div class="spacer"></div>
   <!-- W12-46: 모든 배치 공간을 한 번에 자동계산. 영역마다 도구를 열어
        '이 영역 자동계산' 을 누르던 것을 한 자리로 모은다. -->
+  <!-- 2026-10-12: 전체 자동계산 = 모든 배치의 빈 자리만 채우기. 다시 깔기는 따로, 확인을 거친다. -->
   <button class="auto-all" id="autoCalcAllBtn"
-          title="모든 배치 공간을 자동계산합니다 (고정 모듈·마감재는 보존)">⚡ 전체 자동계산</button>
+          title="모든 배치의 빈 자리를 채웁니다 — 있는 모듈은 그대로 (모듈이 없는 배치는 처음부터 계산)">⚡ 전체 자동계산</button>
+  <button class="auto-all rebuild" id="rebuildAllBtn"
+          title="비고정 모듈을 모두 걷어내고 처음부터 다시 깝니다 (보존 모듈·마감재만 남는다)">↺ 전부 다시 깔기</button>
   <!-- W9-64: View toggle (3D / 정면도) -->
   <div class="view-toggle">
     <button id="view3dBtn" class="active" data-view="3d" title="3D 뷰">🧊 3D</button>
@@ -6668,6 +6674,40 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return 1;
   }
 
+  /** 수납 모듈이 하나도 없는 배치인가 — 마감재만 있어도 빈 배치다 */
+  function isEmptyArea(areaId) {
+    return !modules.some((m) => areaIdOfModule(m) === areaId && !isFinishingSection(m.section));
+  }
+
+  /**
+   * 2026-10-12: 상단바 「⚡ 전체 자동계산」 — 모든 배치의 **빈 자리만** 채운다 (사장님 결정).
+   *
+   * 영역의 ⚡ 가 빈 자리만 채우게 된 뒤(#742)에도 이 버튼은 모든 배치의 비고정 모듈을
+   * 걷어내고 다시 깔았다. 같은 ⚡ 인데 하나는 지키고 하나는 지워, 손으로 맞춘 폭이 클릭
+   * 한 번에 사라질 수 있었다. 이제 둘이 같은 일을 한다.
+   *
+   * 모듈이 하나도 없는 배치만 **처음 계산**(autoCalcArea)을 한다 — 코너면 멍장부터 세운다.
+   * 빈 배치를 먼저 돌린다: 코너 주인이 멍장을 세워야 옆 배치의 자리가 맞는다.
+   * 전부 걷어내고 다시 까는 것은 「↺ 전부 다시 깔기」(autoCalcAllAreas)로 따로 뒀다.
+   */
+  function fillAllAreaGaps() {
+    const targets = areas.filter((a) => !a.isFinishing);
+    if (!targets.length) { showToast('⚠ 배치 공간이 없습니다'); return 0; }
+    const empty = targets.filter((a) => isEmptyArea(a.id));
+    const filled = targets.filter((a) => !isEmptyArea(a.id));
+    let made = 0, done = 0;
+    empty.forEach((a) => { const n = autoCalcArea(a.id); if (n) { made += n; done++; } });
+    filled.forEach((a) => { const n = fillAreaGaps(a.id); if (n) { made += n; done++; } });
+    renderAreaTools();
+    renderModuleList();
+    renderFrontView();
+    renderRightPanel();
+    if (typeof renderAll3D === 'function') { try { renderAll3D({ fit: false }); } catch (_) {} }
+    if (!made) showToast('채울 빈 자리가 없습니다 — 전부 새로 깔려면 「↺ 전부 다시 깔기」');
+    else showToast(`⚡ 전체 자동계산 — 빈 자리 ${done}곳 · 모듈 ${made}개 (있던 모듈은 그대로)`);
+    return made;
+  }
+
   /**
    * W12-46: **모든 배치 공간**을 자동계산한다.
    *
@@ -6837,6 +6877,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 라벨도 같이 바꾼다 — 누르기 전에 무엇이 일어날지 보여야 한다.
    */
   function autoCalcTarget(area) {
+    // 2026-10-12: 모듈이 하나도 없는 배치는 **처음 계산**이다 — 빈 자리 채우기는 코너 멍장을
+    //   모르므로, 비어 있는 코너 배치에서 누르면 멍장 없이 수납만 깔렸다 (#742 의 빈틈).
+    if (isEmptyArea(area.id)) {
+      return {
+        label: '⚡ 이 영역 자동계산',
+        run: () => autoCalcArea(area.id),
+        done: (n) => `⚡ 자동계산 — 모듈 ${n}개`,
+        empty: '',
+      };
+    }
     const free = areaFreeSpans(area.id);
     const room = free.reduce((s, g) => s + g.w, 0);
     const sel = panelTarget === 'module' ? moduleById(activeId) : null;
@@ -7193,8 +7243,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // ─────────────────────────────────────────────────────────────
   // W12-46: 상단바 — 모든 배치 공간 자동계산
   {
+    // 2026-10-12: 「전체 자동계산」은 빈 자리만 채운다 (fillAllAreaGaps).
     const btn = document.getElementById('autoCalcAllBtn');
-    if (btn) btn.onclick = () => autoCalcAllAreas();
+    if (btn) btn.onclick = () => fillAllAreaGaps();
+    // 「전부 다시 깔기」는 손으로 맞춘 것을 지운다 — 누르기 전에 한 번 묻는다 (초기화 버튼과 같은 방식).
+    const rb = document.getElementById('rebuildAllBtn');
+    if (rb) rb.onclick = () => {
+      if (!confirm('↺ 전부 다시 깔기\n\n· 모든 배치의 비고정 모듈을 걷어내고 처음부터 다시 깝니다\n· 손으로 맞춘 폭·칸·선반은 사라집니다\n· 「자동계산 시 이 모듈을 보존」 모듈과 마감재만 남습니다\n\n계속하시겠습니까?')) return;
+      autoCalcAllAreas();
+    };
   }
 
   document.getElementById('reloadBtn').onclick = () => {

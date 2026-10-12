@@ -134,7 +134,9 @@ describe('소스 규약', () => {
   });
 
   test('버튼이 배선돼 있다', () => {
+    // 2026-10-12: 「전체 자동계산」은 빈 자리만 채운다 (fillAllAreaGaps). 다시 깔기(autoCalcAllAreas)는
+    //   「↺ 전부 다시 깔기」가 확인을 거쳐 부른다 — planner-fill-all.test.js 가 그쪽을 본다.
     expect(SRC).toContain("const btn = document.getElementById('autoCalcAllBtn');");
-    expect(SRC).toContain('btn.onclick = () => autoCalcAllAreas();');
+    expect(SRC).toContain('btn.onclick = () => fillAllAreaGaps();');
   });
 });
