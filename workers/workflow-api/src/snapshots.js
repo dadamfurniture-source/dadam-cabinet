@@ -29,6 +29,41 @@ import { snapshotHash } from './util/hash.js';
 import { getActivePricebook, getPricebookById } from './pricing.js';
 import { buildQuoteInputs } from './adapters.js';
 import { calculateQuote, VALID_GRADES } from './quote.js';
+import { calculateSheetQuote, nonCabinetItems } from './quote-sheet.js';
+import { getSettings } from './production/service.js';
+
+/**
+ * 고객 견적 = 장당 견적 (2026-10-13 대표 결정).
+ * 캐비닛은 BOM 원판 장수 × 실제 원가 × (1 + 마진율), 상판·설비·철거는 단가표 그대로.
+ * 단가표 견적(m당)은 legacy 로 남겨 비교만 한다.
+ * 생산 설정(원가 기준)을 못 읽으면 기본값으로 계산한다 — 스냅샷 저장을 막지 않는다.
+ */
+async function buildCustomerQuote(env, { user, designPayload, bom, cutPlan, pricebook, grade }) {
+  const legacy = calculateQuote(buildQuoteInputs(designPayload), pricebook, bom, grade);
+  let settings = {};
+  try {
+    settings = (await getSettings(env, { user })).settings;
+  } catch (e) {
+    console.error('production settings unavailable, using defaults:', e && e.message);
+  }
+  const minMult = pricebook.rangeMin();
+  const maxMult = pricebook.rangeMax();
+  const sheet = calculateSheetQuote({
+    design: designPayload,
+    bom,
+    cutPlan,
+    settings,
+    extraItems: nonCabinetItems(legacy),
+    range: minMult !== null && maxMult !== null ? { min: minMult, max: maxMult } : null,
+  });
+  return {
+    ...sheet,
+    grade: legacy.grade,
+    pricing_version: legacy.pricing_version,
+    pricing_rule_set_id: legacy.pricing_rule_set_id,
+    legacy: { method: 'per_meter', subtotal: legacy.subtotal, vat: legacy.vat, total: legacy.total },
+  };
+}
 
 const MAX_REV_RETRY = 3;
 
@@ -344,12 +379,14 @@ export async function createSnapshot(env, { designId, user, body }) {
 
   // 금액은 클라이언트가 보낸 값을 쓰지 않는다. 서버가 활성 단가로 계산한다.
   const pricebook = await getActivePricebook(env);
-  const quote = calculateQuote(
-    buildQuoteInputs(designPayload),
-    pricebook,
+  const quote = await buildCustomerQuote(env, {
+    user,
+    designPayload,
     bom,
-    resolveGrade(env, body.grade),
-  );
+    cutPlan: cut ? cut.cutPlan : null,
+    pricebook,
+    grade: resolveGrade(env, body.grade),
+  });
 
   const row = {
     design_id: designId,
@@ -444,12 +481,14 @@ export async function previewQuote(env, { snapshotId, user, grade, useActiveRule
       ? await getActivePricebook(env)
       : await getPricebookById(env, snapshot.pricing_rule_set_id);
 
-  const quote = calculateQuote(
-    buildQuoteInputs(snapshot.design_payload),
+  const quote = await buildCustomerQuote(env, {
+    user,
+    designPayload: snapshot.design_payload,
+    bom: snapshot.bom_payload,
+    cutPlan: snapshot.cut_plan_payload || null,
     pricebook,
-    snapshot.bom_payload,
-    resolveGrade(env, grade),
-  );
+    grade: resolveGrade(env, grade),
+  });
 
   return {
     snapshot_id: snapshot.id,
