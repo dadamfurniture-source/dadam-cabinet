@@ -34,6 +34,10 @@ updates:
     groups:
       all-minor-patch:
         update-types: ["minor", "patch"]
+    # TypeScript 7 은 MCP 서버 빌드를 깨뜨린다 — 5.x 에 머문다 (2026-10-13 결정, #602 닫음).
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   # /planner-vite 는 받지 않는다 — 레거시로 정지된 영역이다 (CLAUDE.md: 3D Planner 레거시 — 수정 금지, 참고용).
   #   갱신 PR 이 와도 머지할 수 없어 쌓이기만 했다 (2026-10-12 #730 · #608 · #607 닫음).
