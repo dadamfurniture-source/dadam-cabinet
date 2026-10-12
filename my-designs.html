@@ -230,6 +230,27 @@
         color: var(--v5-ink-55);
         padding: 8px 2px 0;
       }
+      /* 벽면 분석 — 사진에서 읽은 값과 추측한 값을 구분해 알린다 */
+      .mg-wall {
+        margin-top: 20px;
+        border-top: 1px solid var(--v5-line-12);
+        padding-top: 12px;
+        font-size: 13px;
+        color: var(--v5-ink-62);
+        line-height: 1.8;
+      }
+      .mg-wall b {
+        font-weight: 500;
+        color: var(--v5-ink);
+      }
+      .mg-wall .mg-guess {
+        display: block;
+        margin-top: 6px;
+        padding: 8px 12px;
+        background: rgba(168, 118, 47, 0.1);
+        border-left: 2px solid rgba(168, 118, 47, 0.55);
+        color: var(--v5-ink);
+      }
       .mg-quote {
         margin-top: 22px;
         border-top: 1px solid var(--v5-line-12);
@@ -299,6 +320,7 @@
           <button type="button" class="mg-modal-close" id="modalClose" aria-label="닫기">&times;</button>
         </div>
         <div class="mg-modal-shots" id="modalShots"></div>
+        <div class="mg-wall" id="modalWall" hidden></div>
         <div class="mg-quote" id="modalQuote"></div>
         <div class="mg-modal-acts">
           <button type="button" class="v5-btn" id="modalOpen">스튜디오에서 열기</button>
@@ -383,7 +405,7 @@
           var res = await sb
             .from('generations')
             .select(
-              'id,parent_id,status,progress,step_label,error,category,title,options,quote,images,is_favorite,consent_training,share_expires_at,share_revoked_at,created_at,completed_at'
+              'id,parent_id,status,progress,step_label,error,category,title,options,quote,images,wall_analysis,is_favorite,consent_training,share_expires_at,share_revoked_at,created_at,completed_at'
             )
             .eq('user_id', user.id)
             // 도면과 어긋난 플래너 결과(options.internal_only)는 내부 확인용 — 목록에 내지 않는다 (계획서 §6.3).
@@ -595,6 +617,7 @@
                 );
               })
               .join('') || '<p class="mg-empty">' + esc(r.error || r.step_label || '이미지가 없습니다') + '</p>';
+          renderWall(r);
           var q = r.quote;
           $('modalQuote').innerHTML = q
             ? (q.items || [])
@@ -635,6 +658,59 @@
           };
           $('modal').dataset.open = 'true';
         }
+        /**
+         * 벽면 분석 결과를 알린다.
+         *
+         * 왜 띄우나: 사진에서 벽 치수를 못 읽으면 기본값(3000 x 2400)이 쓰이고, 주방이면
+         * 싱크 30% / 쿡탑 70% 지점에 **추측으로** 배치된다. 지금까지는 그 사실이 어디에도
+         * 드러나지 않아 고객이 추측값을 실측으로 오해할 수 있었다.
+         * 시공 전 사진 828장 실측(2026-10): 주방 급수는 56%, 배기는 48% 만 읽힌다.
+         */
+        function renderWall(r) {
+          var el = $('modalWall');
+          var w = r.wall_analysis;
+          if (!w || !w.wallW) {
+            el.hidden = true;
+            return;
+          }
+          var read = w.read || {};
+          var conf =
+            w.confidence === 'user'
+              ? '직접 입력하신 값'
+              : w.confidence === 'high'
+                ? '사진에서 읽음'
+                : w.confidence === 'low'
+                  ? '사진에서 읽었으나 불확실'
+                  : '사진에서 읽음';
+          var lines = [
+            '<b>벽면</b> ' +
+              w.wallW.toLocaleString() +
+              ' × ' +
+              w.wallH.toLocaleString() +
+              ' mm · ' +
+              conf +
+              (read.width === false ? ' <b>(기본값)</b>' : ''),
+          ];
+
+          // 주방 품목에서만 배관을 말한다 — 침실 붙박이장에 급수 이야기를 띄울 이유가 없다
+          var kitchen = ['sink', 'island', 'fridge'].indexOf(r.category) >= 0;
+          var guessed = [];
+          if (kitchen && read.water === false) guessed.push('싱크');
+          if (kitchen && read.exhaust === false) guessed.push('쿡탑·후드');
+          if (guessed.length) {
+            lines.push(
+              '<span class="mg-guess">' +
+                guessed.join('과 ') +
+                ' 위치를 사진에서 확인하지 못해 <b>기본 위치로 그렸습니다.</b> ' +
+                '실제 배관이 다르면 시공 전에 조정이 필요합니다.</span>'
+            );
+          } else if (w.confidence === 'low') {
+            lines.push('<span class="mg-guess">치수가 부정확할 수 있습니다. 실측값과 맞춰 보세요.</span>');
+          }
+          el.innerHTML = lines.join('');
+          el.hidden = false;
+        }
+
         function closeDetail() {
           $('modal').dataset.open = 'false';
         }

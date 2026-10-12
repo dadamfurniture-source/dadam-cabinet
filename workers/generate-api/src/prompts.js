@@ -157,6 +157,10 @@ export function parseAnalysis(text) {
     siteNotes: null,
     tile: null, // {present, lightNeutral, description} | null
     cameraSide: null, // 'left' | 'center' | 'right' | null — 깊이 단서(어느 측면이 보이나)
+    // 아래 넷 중 무엇을 **실제로 읽었나**. waterPct 는 늘 숫자라(기본 30) 값만 봐서는
+    //   "사진에서 30% 로 읽음" 과 "못 읽어서 30%" 를 가릴 수 없다. 그래서 따로 적는다.
+    //   시공 전 사진 828장 실측(2026-10): 벽 치수는 100% 읽지만 주방 급수는 56%, 배기는 48% 만 읽는다.
+    read: { width: false, height: false, water: false, exhaust: false },
   };
   const m = text && text.match(/\{[\s\S]*\}/);
   if (!m) return out;
@@ -167,11 +171,22 @@ export function parseAnalysis(text) {
     return out;
   }
   const mm = (v) => (v > 0 && v < 100 ? Math.round(v * 1000) : Math.round(v)); // m → mm 보호
-  if (j.wall_width_mm > 0) out.wallW = clampWall(mm(j.wall_width_mm));
-  if (j.wall_height_mm > 0) out.wallH = Math.max(2000, Math.min(3000, mm(j.wall_height_mm)));
-  if (j.water_supply_from_left_mm > 0)
+  if (j.wall_width_mm > 0) {
+    out.wallW = clampWall(mm(j.wall_width_mm));
+    out.read.width = true;
+  }
+  if (j.wall_height_mm > 0) {
+    out.wallH = Math.max(2000, Math.min(3000, mm(j.wall_height_mm)));
+    out.read.height = true;
+  }
+  if (j.water_supply_from_left_mm > 0) {
     out.waterPct = pct(mm(j.water_supply_from_left_mm), out.wallW);
-  if (j.exhaust_from_left_mm > 0) out.exhaustPct = pct(mm(j.exhaust_from_left_mm), out.wallW);
+    out.read.water = true;
+  }
+  if (j.exhaust_from_left_mm > 0) {
+    out.exhaustPct = pct(mm(j.exhaust_from_left_mm), out.wallW);
+    out.read.exhaust = true;
+  }
   out.confidence = j.confidence || null;
   if (typeof j.room_brief === 'string' && j.room_brief.trim())
     out.brief = j.room_brief.trim().slice(0, 500);
