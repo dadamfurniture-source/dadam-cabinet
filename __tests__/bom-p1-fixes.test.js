@@ -99,7 +99,9 @@ describe('P1-1 키큰장 단은 하부장 규칙이 아니다 (sink.md §5)', ()
 
   test('좌대는 스택에 한 벌, 바닥 단에 (sink.md §5 좌대 60 · 상자 구성은 wardrobe.md) — 걸레받이는 없다', () => {
     expect(one(rows, 'planner-tall-0-0', '좌대 전후')).toMatchObject({ material: 'PB', thickness: 15, w: 570, h: 60, qty: 2, slot: 'kick' });
-    expect(one(rows, 'planner-tall-0-0', '좌대 측')).toMatchObject({ w: 585, h: 60, qty: 2 });
+    // 2026-10-12: 앞뒤판이 측판 사이에 낀다 — 측판은 감싸는 쪽이라 D − 5 (620 − 5 = 615).
+    //   예전 585 는 D − 2T − 5 로 측판도 끼운다고 본 값이었다.
+    expect(one(rows, 'planner-tall-0-0', '좌대 측')).toMatchObject({ w: 615, h: 60, qty: 2 });
     expect(rowsOf(rows, 'planner-tall-0-0', '좌대 중간보강')).toHaveLength(0);   // W 600 < 700
     expect(one(rows, 'planner-tall-0-0', '좌대 걸레받이')).toMatchObject({ material: 'MDF', thickness: 18, w: 60, h: 600, qty: 1 });
     ['planner-tall-1-0', 'planner-tall-2-0'].forEach((id) => {

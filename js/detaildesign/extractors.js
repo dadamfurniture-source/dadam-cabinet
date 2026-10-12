@@ -1031,7 +1031,9 @@
               const pedNote = '[확인 필요] 키큰장 좌대 상자 — wardrobe.md 좌대 규칙을 빌림 (sink.md §5 는 높이 60 만)';
               const pedLabel = `${modLabel}-좌대`;
               this.add(materials, pedLabel, '좌대 전후', 'PB', T, W - T * 2, pedestalH, 2, '1면(전)', pedNote);
-              this.add(materials, pedLabel, '좌대 측', 'PB', T, modD - T * 2 - 5, pedestalH, 2, '1면(전)', pedNote);
+              // 2026-10-12 사장님: 앞뒤판이 **측판 사이에** 낀다. 측판은 감싸는 쪽이라 2T 를 빼지 않는다 —
+              //   예전 식(D − 2T − 5)은 측판도 끼운다고 보고 뺀 것이라, 앞뒤판 W − 2T 와 동시에 성립하지 않았다.
+              this.add(materials, pedLabel, '좌대 측', 'PB', T, modD - 5, pedestalH, 2, '1면(전)', pedNote);
               if (W >= 700) {
                 this.add(materials, pedLabel, '좌대 중간보강', 'PB', T, modD - T * 2 - 5 - 30, pedestalH, 1, '1면(전)', pedNote);
               }
