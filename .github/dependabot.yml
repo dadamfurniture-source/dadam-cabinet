@@ -35,20 +35,8 @@ updates:
       all-minor-patch:
         update-types: ["minor", "patch"]
 
-  - package-ecosystem: npm
-    directory: "/planner-vite"
-    schedule:
-      interval: weekly
-      day: monday
-      time: "09:00"
-      timezone: Asia/Seoul
-    open-pull-requests-limit: 3
-    labels: ["dependencies", "planner"]
-    commit-message:
-      prefix: "chore(deps)"
-    groups:
-      all-minor-patch:
-        update-types: ["minor", "patch"]
+  # /planner-vite 는 받지 않는다 — 레거시로 정지된 영역이다 (CLAUDE.md: 3D Planner 레거시 — 수정 금지, 참고용).
+  #   갱신 PR 이 와도 머지할 수 없어 쌓이기만 했다 (2026-10-12 #730 · #608 · #607 닫음).
 
   - package-ecosystem: npm
     directory: "/workers/payments-api"
