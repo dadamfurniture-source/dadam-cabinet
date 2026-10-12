@@ -25,6 +25,37 @@ export function textModel(env) {
   return env.GEMINI_TEXT_MODEL || 'gemini-3.8-flash';
 }
 
+/**
+ * 과부하 때 추천안을 그릴 가벼운 모델 (2026-10-13, 연출컷 점검 보고서 제안 3).
+ * 추천안은 기본안의 색만 바꾸는 일이라 가벼운 모델로도 된다. 기본안은 쓰지 않는다.
+ * env.GEMINI_FALLBACK_IMAGE_MODEL 로 바꾸고, 'none' 이면 끈다.
+ */
+export function fallbackImageModel(env) {
+  const v = env && env.GEMINI_FALLBACK_IMAGE_MODEL;
+  if (v === 'none' || v === 'off') return null;
+  return v || 'gemini-3.1-flash-image-preview';
+}
+
+/**
+ * 이미지 한 장 — 기본 모델이 재시도 뒤에도 과부하(429·500·503)면 가벼운 모델로 한 번 더.
+ * 기본 모델은 첫 간격(기본 10초) 한 번만 기다린다: 대신할 모델이 있으니 60초까지 버틸 까닭이 없다.
+ * @returns {Promise<{image?:string, imageMime?:string, text?:string, model:string, fallback?:boolean}>}
+ */
+export async function callImageWithFallback(env, p) {
+  const primary = p.model || imageModel(env);
+  const fb = fallbackImageModel(env);
+  const canFall = !!fb && fb !== primary;
+  try {
+    const r = await callGemini(env, { ...p, model: primary, ...(canFall ? { retryDelaysMs: retryDelaysMs(env).slice(0, 1) } : {}) });
+    return { ...r, model: primary };
+  } catch (e) {
+    if (!canFall || !e.retryable) throw e;
+    console.warn(`[Gemini] ${primary} overloaded (${e.status}) — falling back to ${fb}`);
+    const r = await callGemini(env, { ...p, model: fb });
+    return { ...r, model: fb, fallback: true };
+  }
+}
+
 /** /health 가 보여주는 대표 모델. */
 export function geminiModel(env) {
   return imageModel(env);
