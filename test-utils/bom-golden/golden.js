@@ -102,12 +102,19 @@ function expectGolden(name, actual) {
 const MATERIAL_ROW_KEYS_B0 = ['module', 'part', 'material', 'thickness', 'w', 'h', 'qty', 'edge', 'note', 'finishCode', 'itemLabel'];
 /** B1 이 더한 키 (bom-protocol.md §7-1·§7-2). 새 단계가 키를 더하면 여기에 잇는다. */
 const NEW_ROW_KEYS_B1 = ['partId', 'slot', 'edges', 'edgeLen', 'edgeT', 'edgeCode'];
+/** B4 (2026-10-13, 작업지시서 PR 4) 가 더한 자재 행 키 — 모듈 키 `${itemIdx}-${moduleId}`. */
+const NEW_ROW_KEYS_B4 = ['moduleKey'];
+/** 기준 비교에서 깎는 자재 행 키 = 단계마다 더한 키 전부. */
+const STRIPPED_ROW_KEYS = [...NEW_ROW_KEYS_B1, ...NEW_ROW_KEYS_B4];
 const MATERIAL_ROW_KEYS = [
   'module', 'part', 'material', 'thickness', 'w', 'h', 'qty', 'edge', 'note', 'finishCode',
   ...NEW_ROW_KEYS_B1,
+  ...NEW_ROW_KEYS_B4,
   'itemLabel',
 ];
-const HARDWARE_ROW_KEYS = ['category', 'item', 'manufacturer', 'spec', 'qty', 'unit', 'note', 'itemLabel'];
+/** B4 가 더한 철물 행 키 — 모듈 이름·키, 경첩 보링(도어 상단 기준 mm), 플랩 보링 변. 행마다 있는 것만 싣는다. */
+const NEW_HARDWARE_KEYS_B4 = ['module', 'moduleKey', 'boring', 'boringSide'];
+const HARDWARE_ROW_KEYS = ['category', 'item', 'manufacturer', 'spec', 'qty', 'unit', 'note', ...NEW_HARDWARE_KEYS_B4, 'itemLabel'];
 
 /** 키를 정렬한 결정적 JSON — 다이제스트용. 키 순서가 달라도 같은 값이면 같은 다이제스트다. */
 function canonical(v) {
@@ -127,7 +134,12 @@ function stripToBase(snapshot) {
   const out = JSON.parse(JSON.stringify(snapshot));
   out.materials = (out.materials || []).map((row) => {
     const r = {};
-    Object.keys(row).forEach((k) => { if (NEW_ROW_KEYS_B1.indexOf(k) < 0) r[k] = row[k]; });
+    Object.keys(row).forEach((k) => { if (STRIPPED_ROW_KEYS.indexOf(k) < 0) r[k] = row[k]; });
+    return r;
+  });
+  out.hardware = (out.hardware || []).map((row) => {
+    const r = {};
+    Object.keys(row).forEach((k) => { if (NEW_HARDWARE_KEYS_B4.indexOf(k) < 0) r[k] = row[k]; });
     return r;
   });
   delete out.edgeBanding;
@@ -154,7 +166,8 @@ function writeBaseDigest(names, note) {
   const doc = {
     note: note || 'B0 골든(#633)에서 B1 새 키·edgeBanding·cncHead 를 뺀 모양의 sha256. 갱신: UPDATE_BASE_DIGEST=1 npx jest __tests__/bom-golden-addonly.test.js',
     baseRowKeys: MATERIAL_ROW_KEYS_B0,
-    strippedKeys: NEW_ROW_KEYS_B1,
+    strippedKeys: STRIPPED_ROW_KEYS,
+    strippedHardwareKeys: NEW_HARDWARE_KEYS_B4,
     digests,
   };
   fs.writeFileSync(BASE_DIGEST_PATH, `${JSON.stringify(doc, null, 2)}\n`, 'utf8');
@@ -170,6 +183,9 @@ module.exports = {
   MATERIAL_ROW_KEYS,
   MATERIAL_ROW_KEYS_B0,
   NEW_ROW_KEYS_B1,
+  NEW_ROW_KEYS_B4,
+  STRIPPED_ROW_KEYS,
+  NEW_HARDWARE_KEYS_B4,
   HARDWARE_ROW_KEYS,
   BASE_DIGEST_PATH,
   canonical,
