@@ -44,7 +44,7 @@
 | 값 | 크기 | 의미 |
 |---|---|---|
 | `SHELF_SPACE_MIN` / `MAX` | 300 / 450 | 일반 칸 선반 간격 |
-| `SHELF_SPACE_MIN_SHOE` / `MAX_SHOE` | 180 / 350 | 신발장 선반 간격 |
+| `SHELF_SPACE_MIN_SHOE` / `MAX_SHOE` | 150 / 300 | 신발장 선반 간격 (2026-10-13, 예전 180 / 350) |
 
 ### 높이·마감
 

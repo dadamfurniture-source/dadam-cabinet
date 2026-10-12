@@ -101,13 +101,13 @@ describe.each(NAMES)('BOM 골든 — %s', (name) => {
 describe('신발장 (shoerack) — 얕은 깊이 350 · 선반 분배 · 서랍 상자 환산', () => {
   const snap = snaps.shoerack;
 
-  test('doorCount·shelfCount 미지정 모듈은 폴백값과 [확인 필요] 비고, 명시 모듈은 비고 없음', () => {
+  test('doorCount·shelfCount 미지정 모듈은 플래너와 같은 기본값과 비고, 명시 모듈은 비고 없음', () => {
     const u1door = rowOf(snap, '상부장-상부장', '도어');
-    expect(u1door.qty).toBe(2);                      // round(900/450)
-    expect(u1door.note).toMatch(/^\[확인 필요\] simple-categories\.md 에 없음 — 붙박이장 규칙 준용/);
+    expect(u1door.qty).toBe(2);                      // ceil(900/600) — 한 장 최대 600 (2026-10-13)
+    expect(u1door.note).toMatch(/^도어 수 미지정 → 한 장 최대 600/);
     const u1shelf = rowOf(snap, '상부장-상부장', '선반');
-    expect(u1shelf.qty).toBe(2);                     // 705: floor(705/180)−1 = 2, 235 ≤ 350
-    expect(u1shelf.note).toMatch(/신발장 선반 분배 180~350/);
+    expect(u1shelf.qty).toBe(2);                     // 상부장은 2 (플래너 calcDefaultShelves)
+    expect(u1shelf.note).toMatch(/칸 간격 150~300/);
     // u2 는 같은 라벨(상부장-상부장)이라 partId 로 가른다 — doorCount 1 · shelfCount 3 명시
     const u2 = snap.materials.filter((m) => m.partId.startsWith('0-u2-'));
     expect(u2.find((m) => m.part === '도어').qty).toBe(1);
@@ -124,12 +124,13 @@ describe('신발장 (shoerack) — 얕은 깊이 350 · 선반 분배 · 서랍 
     expect(rowOf(snap, '하부장-하부장', '밴드(처짐방지)').qty).toBe(1); // W 900 ≥ 800 → 1장 (모듈 중앙)
   });
 
-  test('서랍 상자는 레일 300 으로 환산 (D350 − 50) — 측판 240 · 밑판 249, 전후판 428 ≤ 600 이라 하단보강 없음', () => {
-    expect(rowOf(snap, '하부장-서랍장', '서랍측판').w).toBe(240);
-    expect(rowOf(snap, '하부장-서랍장', '서랍밑판').h).toBe(249);
-    expect(rowOf(snap, '하부장-서랍장', '서랍전후판').w).toBe(500 - 72);
+  // 2026-10-13: 박스는 싱크와 같은 서랍 규칙(drawerBoxDims) — 언더레일 300, 측판 = 레일 − 10, 앞뒷판 = W − 2T − 12 − 2T, 밑판 우라 3T
+  test('서랍 박스는 싱크 규칙 — 레일 300(D350 − 50) · 측판 290 · 앞뒷판 428, 하단보강 없음', () => {
+    expect(rowOf(snap, '하부장-서랍장', '서랍측판').w).toBe(290);
+    expect(rowOf(snap, '하부장-서랍장', '서랍밑판')).toMatchObject({ thickness: 3, h: 289 });
+    expect(rowOf(snap, '하부장-서랍장', '서랍전후판').w).toBe(500 - 30 - 12 - 30);
     expect(partsOf(snap, '하부장-서랍장')).not.toContain('서랍 하단보강');
-    expect(rowOf(snap, '하부장-서랍장', '서랍측판').note).toMatch(/D350 → 레일 300: 측판 240 · 밑판 249/);
+    expect(rowOf(snap, '하부장-서랍장', '서랍측판').note).toMatch(/댐핑 언더레일 300 \(D350 − 50 이하\)/);
     // 서랍 2 → 서랍도어 2장 (440−20)/2 = 210, 여닫이 도어 708−440−30 = 238 → 1장
     expect(rowOf(snap, '하부장-서랍장', '서랍도어')).toMatchObject({ qty: 2, h: 210, w: 496 });
     expect(rowOf(snap, '하부장-서랍장', '도어')).toMatchObject({ qty: 1, h: 238 });
@@ -166,21 +167,21 @@ describe('화장대 (vanity) — 18T · 찬넬(목찬넬 아님) · 우측 None'
     expect(partsOf(snap, '하부장-서랍장')).toContain('목찬넬');
   });
 
-  test('서랍 3(D500 → 레일 450: 390·399, 깊이 − 50) — 하단보강 있음, 여닫이 도어 없음(18 ≤ 50)', () => {
-    expect(rowOf(snap, '하부장-서랍장', '서랍측판').w).toBe(390);
-    expect(rowOf(snap, '하부장-서랍장', '서랍밑판').h).toBe(399);
-    expect(rowOf(snap, '하부장-서랍장', '서랍 하단보강')).toMatchObject({ w: 390, h: 60, qty: 3 });
+  test('서랍 3(D500 → 레일 450, 측판 440 · 밑판 439) — 하단보강 있음, 여닫이 도어 없음(18 ≤ 50)', () => {
+    expect(rowOf(snap, '하부장-서랍장', '서랍측판').w).toBe(440);
+    expect(rowOf(snap, '하부장-서랍장', '서랍밑판')).toMatchObject({ thickness: 3, h: 439 });
+    expect(rowOf(snap, '하부장-서랍장', '서랍 하단보강')).toMatchObject({ w: 440, h: 60, qty: 3 });
     expect(rowOf(snap, '하부장-서랍장', '서랍도어')).toMatchObject({ qty: 3, h: Math.floor((660 - 20) / 3) });
     expect(partsOf(snap, '하부장-서랍장')).not.toContain('도어');
     expect(snap.hardware.find((h) => h.category === '레일')).toMatchObject({ spec: '450mm', qty: 3 });
   });
 
-  test('shelfCount 0 명시 → 선반 없음, 미지정 하부장 → 1 + [확인 필요](싱크 규칙)', () => {
+  test('shelfCount 0 명시 → 선반 없음, 미지정 하부장 → 칸 간격 300~450 으로 1', () => {
     const u2 = snap.materials.filter((m) => m.partId.startsWith('0-u2-'));
     expect(u2.map((m) => m.part)).not.toContain('선반');
     const l2shelf = rowOf(snap, '하부장-하부장', '선반');
     expect(l2shelf.qty).toBe(1);
-    expect(l2shelf.note).toMatch(/싱크대 규칙 준용 \(shelfCount 미지정 → 상부 2 · 하부 1\)/);
+    expect(l2shelf.note).toMatch(/칸 간격 300~450 \(플래너와 같다\)/);
   });
 });
 
@@ -205,12 +206,12 @@ describe('수납장 (storage) — 통짜 키큰장 · 깊이 400 · 서랍 1', (
   });
 
   // 2026-10-13: 레일은 싱크와 같은 "깊이 − 50 이하 최대" — D400 → 350 (예전 450 은 몸통보다 긴 레일이었다)
-  test('서랍 1(D400 → 레일 350: 290·299) — 전판 250, 여닫이 도어 458 ×2, 하단보강(828 > 600)', () => {
-    expect(rowOf(snap, '하부장-서랍장', '서랍측판').w).toBe(290);
-    expect(rowOf(snap, '하부장-서랍장', '서랍밑판').h).toBe(299);
+  test('서랍 1(D400 → 레일 350, 측판 340 · 밑판 339) — 전판 250, 여닫이 도어 458 ×2, 하단보강(828 > 600)', () => {
+    expect(rowOf(snap, '하부장-서랍장', '서랍측판').w).toBe(340);
+    expect(rowOf(snap, '하부장-서랍장', '서랍밑판')).toMatchObject({ thickness: 3, h: 339 });
     expect(rowOf(snap, '하부장-서랍장', '서랍도어')).toMatchObject({ qty: 1, h: 250, w: 896 });
     expect(rowOf(snap, '하부장-서랍장', '도어')).toMatchObject({ qty: 2, h: 708 - 220 - 30, w: 446 });
-    expect(rowOf(snap, '하부장-서랍장', '서랍 하단보강')).toMatchObject({ w: 290, qty: 1 });
+    expect(rowOf(snap, '하부장-서랍장', '서랍 하단보강')).toMatchObject({ w: 340, qty: 1 });
     expect(snap.hardware.find((h) => h.category === '레일')).toMatchObject({ spec: '350mm', qty: 1 });
   });
 });
@@ -233,10 +234,10 @@ describe('창고장 (warehouse) — 플래너 3단 스택 · 몰딩(좌)·EP(우
     expect(tier('키큰장(하부단)').every((m) => m.partId.startsWith('0-planner-x-0-'))).toBe(true);
   });
 
-  test('mod.d 없는 하부장은 품목 깊이 450 (카테고리 기본 450 과 같다), 선반 1 [확인 필요]', () => {
+  test('mod.d 없는 하부장은 품목 깊이 450 (카테고리 기본 450 과 같다), 선반 1 (칸 간격 기본값)', () => {
     expect(rowOf(snap, '하부장-하부장', '측판').w).toBe(450);
     expect(rowOf(snap, '하부장-하부장', '선반')).toMatchObject({ qty: 1, h: 450 - 15 });
-    expect(rowOf(snap, '하부장-하부장', '선반').note).toMatch(/^\[확인 필요\]/);
+    expect(rowOf(snap, '하부장-하부장', '선반').note).toMatch(/^선반 수 미지정/);
   });
 
   test('EP: 몰딩(좌) 60 · EP(우) 20 · 걸레받이 1200(스택 800 제외) · 상몰딩 1200', () => {
@@ -256,18 +257,18 @@ describe('규칙표·도우미 (BOM_SIMPLE_CATEGORY_RULES)', () => {
     expect(X.BOM_SIMPLE_CATEGORY_RULES.shoe).toBeUndefined();
   });
 
-  test('신발장 선반 기본 개수 = planner-engine.js calcDefaultShelves(180~350) 와 같은 식', () => {
+  // 2026-10-13: 플래너 calcDefaultShelves 와 같다 — 상부장 2, 그 밖은 칸 간격 (신발장 150~300 · 일반 300~450)
+  test('선반 기본 개수 = planner-engine.js calcDefaultShelves 와 같은 식', () => {
     const shoe = X.BOM_SIMPLE_CATEGORY_RULES.shoerack;
-    expect(X.bomSimpleDefaultShelfCount(705, 'upper', shoe)).toBe(2);   // 235
-    expect(X.bomSimpleDefaultShelfCount(708, 'lower', shoe)).toBe(2);
-    expect(X.bomSimpleDefaultShelfCount(2190, 'tall', shoe)).toBe(11);  // 182.5
-    expect(X.bomSimpleDefaultShelfCount(300, 'lower', shoe)).toBe(0);   // floor(300/180)−1 = 0
+    expect(X.bomSimpleDefaultShelfCount(705, 'upper', shoe)).toBe(2);   // 상부장은 2
+    expect(X.bomSimpleDefaultShelfCount(708, 'lower', shoe)).toBe(3);   // floor(708/150)−1 = 3 → 177
+    expect(X.bomSimpleDefaultShelfCount(2190, 'tall', shoe)).toBe(13);  // floor(2190/150)−1 = 13 → 156
+    expect(X.bomSimpleDefaultShelfCount(300, 'lower', shoe)).toBe(1);   // floor(300/150)−1 = 1 → 150
     expect(X.bomSimpleDefaultShelfCount(400, 'lower', shoe)).toBe(1);   // 1 → 200
-    // 그 밖은 싱크 규칙
     const gen = X.BOM_SIMPLE_CATEGORY_RULES.storage;
     expect(X.bomSimpleDefaultShelfCount(705, 'upper', gen)).toBe(2);
-    expect(X.bomSimpleDefaultShelfCount(708, 'lower', gen)).toBe(1);
-    expect(X.bomSimpleDefaultShelfCount(2190, 'tall', gen)).toBe(1);
+    expect(X.bomSimpleDefaultShelfCount(708, 'lower', gen)).toBe(1);    // floor(708/300)−1 = 1 → 354
+    expect(X.bomSimpleDefaultShelfCount(2190, 'tall', gen)).toBe(6);    // floor(2190/300)−1 = 6 → 313
   });
 
   test('선반 수: shelfCount 숫자면 그대로(오픈이라도), 아니면 서랍·EL·오픈은 0, 그 밖은 기본', () => {
@@ -278,15 +279,18 @@ describe('규칙표·도우미 (BOM_SIMPLE_CATEGORY_RULES)', () => {
     expect(X.bomSimpleShelfQtyOf({ pos: 'lower', h: 708, doorCount: 0 }, gen)).toEqual({ qty: 0, defaulted: false });
     expect(X.bomSimpleShelfQtyOf({ pos: 'lower', h: 708 }, gen)).toEqual({ qty: 1, defaulted: true });
     expect(X.bomSimpleShelfQtyOf({ pos: 'upper', h: 705 }, gen)).toEqual({ qty: 2, defaulted: true });
-    expect(X.bomSimpleShelfQtyOf({ pos: 'lower', type: 'tall', h: 2190 }, gen)).toEqual({ qty: 1, defaulted: true });
+    expect(X.bomSimpleShelfQtyOf({ pos: 'lower', type: 'tall', h: 2190 }, gen)).toEqual({ qty: 6, defaulted: true });
   });
 
-  test('도어 수: 숫자면 그대로(0 존중), isOpen 은 0, 아니면 round(W/450) 폴백', () => {
+  test('도어 수: 숫자면 그대로(0 존중), isOpen 은 0, 아니면 한 장 최대 600 (플래너와 같다)', () => {
     expect(X.bomSimpleDoorCountOf({ doorCount: 0 }, 900)).toEqual({ count: 0, defaulted: false });
     expect(X.bomSimpleDoorCountOf({ doorCount: 1 }, 900)).toEqual({ count: 1, defaulted: false });
     expect(X.bomSimpleDoorCountOf({ isOpen: true }, 900)).toEqual({ count: 0, defaulted: false });
     expect(X.bomSimpleDoorCountOf({}, 900)).toEqual({ count: 2, defaulted: true });
     expect(X.bomSimpleDoorCountOf({}, 300)).toEqual({ count: 1, defaulted: true });
+    expect(X.bomSimpleDoorCountOf({}, 600)).toEqual({ count: 1, defaulted: true });
+    expect(X.bomSimpleDoorCountOf({}, 700)).toEqual({ count: 2, defaulted: true });   // 예전 round(700/450) = 2
+    expect(X.bomSimpleDoorCountOf({}, 1300)).toEqual({ count: 3, defaulted: true });
   });
 
   test('깊이 폴백: mod.d → item.d → 카테고리 기본, 상부는 295', () => {

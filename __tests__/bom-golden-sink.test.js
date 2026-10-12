@@ -54,7 +54,7 @@ describe('BOM 골든 — 싱크대 15T (sink15)', () => {
     expect(parts('EP')).toEqual(['상몰딩', '걸레받이', '목찬넬(전면)', '목찬넬(지면)', '휠라(좌)']);
     expect(snap.materials.find((m) => m.part === '상몰딩').edge).toBe('2면(장)');
     // 철물 분류 다섯 가지가 다 나온다
-    expect(Object.keys(snap.hardwareSummary).sort()).toEqual(['경첩', '다리발', '레일', '브라켓', '손잡이'].sort());
+    expect(Object.keys(snap.hardwareSummary).sort()).toEqual(['경첩', '다리발', '레일', '브라켓', '손잡이', '걸레받이카바'].sort());
   });
 
   test('내보내기 머리글은 bom-protocol.md §7 과 같다', () => {

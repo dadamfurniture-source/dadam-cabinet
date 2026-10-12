@@ -441,7 +441,7 @@ partId = `${itemIdx}-${moduleId}-${partKey}-${n}`     예: 0-l2-drawer#0-0, 1-w1
 | `door` | `door#k` | 도어 |
 | `drawerFront` | `drawer#k` | 서랍도어 |
 | `body` | `body:side` `body:top` `body:bottom` `shelf#k` `body:band#k` `body:brace#k` `body:batten-front/side` `drawerbox:fb/side/brace` `innerdrawer:*` | 측판(좌·우 한 행) · 천판 · 지판 · 선반 · 밴드 · 처짐방지 · 경첩목대 · 서랍 상자 · 내부서랍 |
-| `back` | `back` `drawerbox:bottom` | 뒷판 · 서랍밑판 (2.7T — 칠하지 않는다) |
+| `back` | `back` `drawerbox:bottom` | 뒷판(2.7T) · 서랍밑판(우라 3T, 2026-10-13) — 칠하지 않는다 |
 | `handle` | `channel:front` `channel:back` | 목찬넬(전면·지면) |
 | `finishing` | `molding` `molding:left/right[-pad]` `molding:corner1/2` `filler:left/right/corner1/2` `ep:left/right` `blind#k` `blindfin#k` | 상몰딩 · 좌우 몰딩·덧대 · 휠라 · EP · 멍가림판/멍판 EP · 멍판 마감재 |
 | `kick` | `kick` `pedestal:fb/side/brace` | 걸레받이 · 좌대 |
