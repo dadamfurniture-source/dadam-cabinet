@@ -5608,7 +5608,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     });
     cols.sort((a, b) => a.x - b.x);
     if (leftover >= 1) {
-      showToast(`보존 통 사이 자투리 ${Math.round(leftover)}mm 는 도어 최소 ${MASTER_RULES.DOOR_W_MIN}mm 보다 좁아 비워 두었습니다`);
+      showToast(`자투리 ${Math.round(leftover)}mm 는 도어 최소 ${MASTER_RULES.DOOR_W_MIN}mm 보다 좁아 비워 두었습니다`);
     }
 
     let made = 0, keptTiers = 0, over = false;
@@ -7005,9 +7005,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         };
       }
     }
-    if (room >= 1) {
+    // 2026-10-12: 새 모듈은 도어 최소폭(350) 이상인 자리에만 선다 — 그보다 좁은 틈만 남았으면
+    //   「빈 자리 70mm 자동계산」을 띄워 봐야 눌러도 아무 일도 못 한다 (냉장고 자리 앞 틈 같은 것).
+    const fillable = free.filter((g) => g.w >= MASTER_RULES.DOOR_W_MIN).reduce((s, g) => s + g.w, 0);
+    if (fillable >= 1) {
       return {
-        label: `⚡ 빈 자리 ${Math.round(room)}mm 자동계산`,
+        label: `⚡ 빈 자리 ${Math.round(fillable)}mm 자동계산`,
         run: () => fillAreaGaps(area.id),
         done: (n) => `⚡ 빈 자리에 모듈 ${n}개`,
         empty: '',
