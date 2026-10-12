@@ -2,6 +2,7 @@
 
 exports[`골든 — 135° 사선 (P9 목표) 현재 구조가 사선을 어떻게 다루는지 고정해둔다 1`] = `
 "{
+  "ceilingHeight": 2300,
   "hasStructures": false,
   "modules": [
     {
@@ -9,9 +10,18 @@ exports[`골든 — 135° 사선 (P9 목표) 현재 구조가 사선을 어떻�
       "H": 870,
       "W": 1800,
       "areaH": 870,
+      "baseY": 0,
       "finishings": [],
       "id": "lower-0",
       "isFixed": false,
+      "plane": {
+        "cx": 900,
+        "cy": 325,
+        "d": 650,
+        "w": 1800,
+        "x": 0,
+        "y": 0
+      },
       "rotation": 0,
       "section": "lower",
       "x": 0,
@@ -22,9 +32,18 @@ exports[`골든 — 135° 사선 (P9 목표) 현재 구조가 사선을 어떻�
       "H": 870,
       "W": 1200,
       "areaH": 870,
+      "baseY": 0,
       "finishings": [],
       "id": "lower-1",
       "isFixed": false,
+      "plane": {
+        "cx": 2400,
+        "cy": 625,
+        "d": 650,
+        "w": 1200,
+        "x": 1800,
+        "y": 300
+      },
       "rotation": 135,
       "section": "lower",
       "x": 1800,
@@ -35,9 +54,18 @@ exports[`골든 — 135° 사선 (P9 목표) 현재 구조가 사선을 어떻�
       "H": 780,
       "W": 1800,
       "areaH": 870,
+      "baseY": 1520,
       "finishings": [],
       "id": "upper-2",
       "isFixed": false,
+      "plane": {
+        "cx": 900,
+        "cy": 460,
+        "d": 320,
+        "w": 1800,
+        "x": 0,
+        "y": 300
+      },
       "rotation": 0,
       "section": "upper",
       "x": 0,
@@ -52,6 +80,7 @@ exports[`골든 — 135° 사선 (P9 목표) 현재 구조가 사선을 어떻�
 
 exports[`골든 — ㄱ자 (회전 0·90 혼재) payload 스냅샷 1`] = `
 "{
+  "ceilingHeight": 2300,
   "hasStructures": false,
   "modules": [
     {
@@ -59,9 +88,18 @@ exports[`골든 — ㄱ자 (회전 0·90 혼재) payload 스냅샷 1`] = `
       "H": 870,
       "W": 1800,
       "areaH": 870,
+      "baseY": 0,
       "finishings": [],
       "id": "lower-0",
       "isFixed": false,
+      "plane": {
+        "cx": 900,
+        "cy": 325,
+        "d": 650,
+        "w": 1800,
+        "x": 0,
+        "y": 0
+      },
       "rotation": 0,
       "section": "lower",
       "x": 0,
@@ -72,9 +110,18 @@ exports[`골든 — ㄱ자 (회전 0·90 혼재) payload 스냅샷 1`] = `
       "H": 870,
       "W": 900,
       "areaH": 870,
+      "baseY": 0,
       "finishings": [],
       "id": "lower-1",
       "isFixed": false,
+      "plane": {
+        "cx": 2250,
+        "cy": 325,
+        "d": 650,
+        "w": 900,
+        "x": 1800,
+        "y": 0
+      },
       "rotation": 0,
       "section": "lower",
       "x": 1800,
@@ -85,9 +132,18 @@ exports[`골든 — ㄱ자 (회전 0·90 혼재) payload 스냅샷 1`] = `
       "H": 870,
       "W": 1500,
       "areaH": 870,
+      "baseY": 0,
       "finishings": [],
       "id": "lower-2",
       "isFixed": false,
+      "plane": {
+        "cx": 3450,
+        "cy": 975,
+        "d": 1500,
+        "w": 650,
+        "x": 3125,
+        "y": 225
+      },
       "rotation": 90,
       "section": "lower",
       "x": 2700,
@@ -98,9 +154,18 @@ exports[`골든 — ㄱ자 (회전 0·90 혼재) payload 스냅샷 1`] = `
       "H": 780,
       "W": 1800,
       "areaH": 870,
+      "baseY": 1520,
       "finishings": [],
       "id": "upper-3",
       "isFixed": false,
+      "plane": {
+        "cx": 900,
+        "cy": 460,
+        "d": 320,
+        "w": 1800,
+        "x": 0,
+        "y": 300
+      },
       "rotation": 0,
       "section": "upper",
       "x": 0,
@@ -111,9 +176,18 @@ exports[`골든 — ㄱ자 (회전 0·90 혼재) payload 스냅샷 1`] = `
       "H": 2300,
       "W": 600,
       "areaH": 870,
+      "baseY": 0,
       "finishings": [],
       "id": "tall-4",
       "isFixed": false,
+      "plane": {
+        "cx": 3450,
+        "cy": 525,
+        "d": 600,
+        "w": 650,
+        "x": 3125,
+        "y": 225
+      },
       "rotation": 90,
       "section": "tall",
       "x": 2700,
@@ -124,9 +198,18 @@ exports[`골든 — ㄱ자 (회전 0·90 혼재) payload 스냅샷 1`] = `
       "H": 500,
       "W": 700,
       "areaH": 870,
+      "baseY": 0,
       "finishings": [],
       "id": "sink-5",
       "isFixed": false,
+      "plane": {
+        "cx": 950,
+        "cy": 420,
+        "d": 400,
+        "w": 700,
+        "x": 600,
+        "y": 220
+      },
       "rotation": 0,
       "section": "sink",
       "x": 600,
@@ -141,6 +224,7 @@ exports[`골든 — ㄱ자 (회전 0·90 혼재) payload 스냅샷 1`] = `
 
 exports[`골든 — 직선 싱크대 payload 스냅샷 1`] = `
 "{
+  "ceilingHeight": 2300,
   "hasStructures": false,
   "modules": [
     {
@@ -148,9 +232,18 @@ exports[`골든 — 직선 싱크대 payload 스냅샷 1`] = `
       "H": 870,
       "W": 1200,
       "areaH": 870,
+      "baseY": 0,
       "finishings": [],
       "id": "lower-0",
       "isFixed": false,
+      "plane": {
+        "cx": 600,
+        "cy": 325,
+        "d": 650,
+        "w": 1200,
+        "x": 0,
+        "y": 0
+      },
       "rotation": 0,
       "section": "lower",
       "x": 0,
@@ -161,9 +254,18 @@ exports[`골든 — 직선 싱크대 payload 스냅샷 1`] = `
       "H": 870,
       "W": 1000,
       "areaH": 870,
+      "baseY": 0,
       "finishings": [],
       "id": "lower-1",
       "isFixed": false,
+      "plane": {
+        "cx": 1700,
+        "cy": 325,
+        "d": 650,
+        "w": 1000,
+        "x": 1200,
+        "y": 0
+      },
       "rotation": 0,
       "section": "lower",
       "x": 1200,
@@ -174,9 +276,18 @@ exports[`골든 — 직선 싱크대 payload 스냅샷 1`] = `
       "H": 870,
       "W": 1400,
       "areaH": 870,
+      "baseY": 0,
       "finishings": [],
       "id": "lower-2",
       "isFixed": false,
+      "plane": {
+        "cx": 2900,
+        "cy": 325,
+        "d": 650,
+        "w": 1400,
+        "x": 2200,
+        "y": 0
+      },
       "rotation": 0,
       "section": "lower",
       "x": 2200,
@@ -187,9 +298,18 @@ exports[`골든 — 직선 싱크대 payload 스냅샷 1`] = `
       "H": 780,
       "W": 1800,
       "areaH": 870,
+      "baseY": 1520,
       "finishings": [],
       "id": "upper-3",
       "isFixed": false,
+      "plane": {
+        "cx": 900,
+        "cy": 460,
+        "d": 320,
+        "w": 1800,
+        "x": 0,
+        "y": 300
+      },
       "rotation": 0,
       "section": "upper",
       "x": 0,
@@ -200,9 +320,18 @@ exports[`골든 — 직선 싱크대 payload 스냅샷 1`] = `
       "H": 780,
       "W": 1200,
       "areaH": 870,
+      "baseY": 1520,
       "finishings": [],
       "id": "upper-4",
       "isFixed": false,
+      "plane": {
+        "cx": 3000,
+        "cy": 460,
+        "d": 320,
+        "w": 1200,
+        "x": 2400,
+        "y": 300
+      },
       "rotation": 0,
       "section": "upper",
       "x": 2400,
@@ -213,9 +342,18 @@ exports[`골든 — 직선 싱크대 payload 스냅샷 1`] = `
       "H": 500,
       "W": 700,
       "areaH": 870,
+      "baseY": 0,
       "finishings": [],
       "id": "sink-5",
       "isFixed": false,
+      "plane": {
+        "cx": 1650,
+        "cy": 420,
+        "d": 400,
+        "w": 700,
+        "x": 1300,
+        "y": 220
+      },
       "rotation": 0,
       "section": "sink",
       "x": 1300,
@@ -226,9 +364,18 @@ exports[`골든 — 직선 싱크대 payload 스냅샷 1`] = `
       "H": 300,
       "W": 300,
       "areaH": 870,
+      "baseY": 2000,
       "finishings": [],
       "id": "hood-6",
       "isFixed": false,
+      "plane": {
+        "cx": 2750,
+        "cy": 470,
+        "d": 300,
+        "w": 300,
+        "x": 2600,
+        "y": 320
+      },
       "rotation": 0,
       "section": "hood",
       "x": 2600,
