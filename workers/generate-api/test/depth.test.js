@@ -112,3 +112,29 @@ test('검사는 원본 사진과 비교해 깊이를 판정한다', () => {
   assert.match(q, /The first image is the original room photo before editing; the second is the result to check\./);
   assert.match(q, /- no_depth: compared with the original photo, the furniture does not stand forward of the wall/);
 });
+
+// 2026-10-14: "우측 벽 튀어나온 깊이를 반영하고 싶다" — 정면 벽 끝에 튀어나온 벽이 있으면 그 앞면에 맞춘다
+test('분석의 side_return 을 읽는다 — 깊이가 이상하면 어느 쪽인지만 남긴다', () => {
+  assert.deepEqual(parseAnalysis('{"side_return":{"side":"right","depth_mm":650}}').sideReturn, { side: 'right', depthMm: 650 });
+  assert.deepEqual(parseAnalysis('{"side_return":{"side":"both","depth_mm":40}}').sideReturn, { side: 'both', depthMm: null });
+  assert.equal(parseAnalysis('{"side_return":{"side":"up","depth_mm":600}}').sideReturn, null);
+  assert.equal(parseAnalysis('{"side_return":null}').sideReturn, null);
+});
+
+test('튀어나온 벽이 있으면 붙박이장 앞면을 그 벽 앞면과 한 면으로 맞춘다', () => {
+  const p = depthPhrase({ ...CTX, category: 'wardrobe', sideReturn: { side: 'right', depthMm: 650 } });
+  assert.match(p, /front flush with the front face of the protruding right wall \(about 650 mm in front of the main wall\)/);
+  assert.match(p, /The right end of the wardrobe meets that wall's front corner/);
+  assert.match(p, /On the left side it covers the same depth of the left wall/);
+  assert.doesNotMatch(p, /620 mm/); // 품목 기본 깊이보다 사진 속 벽이 기준
+  const both = depthPhrase({ ...CTX, category: 'storage', sideReturn: { side: 'both', depthMm: null } });
+  assert.match(both, /the protruding walls at both ends\./);
+  assert.match(both, /Each end of the wardrobe meets/);
+  // 벽 전체 장이 아니면 쓰지 않는다
+  assert.doesNotMatch(depthPhrase({ ...CTX, category: 'sink', sideReturn: { side: 'right', depthMm: 650 } }), /protruding/);
+});
+
+test('튀어나온 벽이 있으면 검사는 앞면이 그 벽과 맞았는지 본다', () => {
+  const q = buildQcPrompt({ ...CTX, category: 'wardrobe', sideReturn: { side: 'right', depthMm: 650 } });
+  assert.match(q, /- no_depth: compared with the original photo, the wardrobe front is not flush with the front face of the protruding right wall/);
+});
