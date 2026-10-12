@@ -57,10 +57,15 @@ export function sanitizeSettings(body) {
     out[group] = {};
     for (const [k, v] of Object.entries(body[group])) {
       if (!(k in def)) throw new ValidationError(`알 수 없는 설정: ${group}.${k}`);
+      if (group === 'quote' && k === 'sheetBasis') {
+        if (v !== 'area' && v !== 'nested') throw new ValidationError("quote.sheetBasis 는 'area' 또는 'nested' 여야 합니다");
+        out[group][k] = v;
+        continue;
+      }
       const n = Number(v);
       const [lo, hi] = NUMERIC_LIMITS[group];
       // util 은 비율(0~1)
-      const max = (group === 'crew' && k === 'util') || (group === 'quote' && (k === 'marginRate' || k === 'partnerMarginRate')) ? 1 : hi;
+      const max = (group === 'crew' && k === 'util') || (group === 'quote' && ['marginRate', 'partnerMarginRate', 'pbYield', 'doorYield'].includes(k)) ? 1 : hi;
       if (!Number.isFinite(n) || n < lo || n > max) throw new ValidationError(`${group}.${k} 값이 범위를 벗어났습니다`);
       out[group][k] = n;
     }
@@ -281,4 +286,68 @@ export async function runDailyBriefs(env, { today } = {}) {
     }
   }
   return results;
+}
+
+// ── 월 손익 요약 ──
+/**
+ * 그 달(KST) 수주의 매출 · 지출비용 · 남는 돈, 그리고 간접비를 뺀 최종 손익 (순수).
+ * 간접비는 품목 원가에 넣지 않으므로(2026-10-13 대표) 여기서 매출 전체로 덮는지 본다.
+ *   매출  = 계약금액(부가세 포함) ÷ 1.1
+ *   지출  = 계약 스냅샷 견적의 cost.total (장당 견적 이전 스냅샷이면 모름)
+ */
+export function summarizeMonth(orders, snapshotsById, { month, overheadMonthly }) {
+  const rows = [];
+  for (const o of orders) {
+    if (o.status === 'cancelled') continue;
+    if (kstDate(o.ordered_at).slice(0, 7) !== month) continue;
+    const q = (snapshotsById.get(o.snapshot_id) || {}).quote_payload || null;
+    const revenue = Math.round(Number(o.contract_amount || 0) / 1.1);
+    const cost = q && q.cost && Number.isFinite(Number(q.cost.total)) ? Number(q.cost.total) : null;
+    const tier = q && q.partner && Math.abs(Number(o.contract_amount) - Number(q.partner.total)) < 1000 ? 'partner' : 'customer';
+    rows.push({
+      id: o.id,
+      order_no: o.order_no,
+      label: o.customer_name ? `${o.customer_name} (${o.order_no})` : o.order_no,
+      status: o.status,
+      tier,
+      revenue,
+      cost,
+      gross: cost === null ? null : revenue - cost,
+    });
+  }
+  const known = rows.filter((r) => r.cost !== null);
+  const revenue = rows.reduce((t, r) => t + r.revenue, 0);
+  const revenueKnown = known.reduce((t, r) => t + r.revenue, 0);
+  const cost = known.reduce((t, r) => t + r.cost, 0);
+  const gross = revenueKnown - cost;
+  const overhead = Math.round(Number(overheadMonthly) || 0);
+  return {
+    month,
+    rows,
+    totals: {
+      orders: rows.length,
+      unknownCost: rows.length - known.length,
+      revenue,
+      cost,
+      gross,
+      grossRate: revenueKnown > 0 ? Math.round((gross / revenueKnown) * 1000) / 10 : null,
+      overhead,
+      net: gross - overhead,
+      // 간접비까지 덮으려면 남는 돈이 얼마나 더 필요한가
+      shortfall: Math.max(0, overhead - gross),
+    },
+  };
+}
+
+export async function getMonthlySummary(env, { user, month }) {
+  const m = /^\d{4}-\d{2}$/.test(String(month || '')) ? month : kstDate().slice(0, 7);
+  const { settings } = await getSettings(env, { user });
+  const orders = await listOrders(env, { user });
+  const inMonth = orders.filter((o) => o.status !== 'cancelled' && kstDate(o.ordered_at).slice(0, 7) === m);
+  let snaps = [];
+  if (inMonth.length) {
+    const ids = [...new Set(inMonth.map((o) => o.snapshot_id))].join(',');
+    snaps = (await selectMany(env, 'design_snapshots', { id: `in.(${ids})`, select: 'id,quote_payload', limit: '500' })) || [];
+  }
+  return summarizeMonth(inMonth, new Map(snaps.map((s) => [s.id, s])), { month: m, overheadMonthly: settings.quote.overheadMonthly });
 }
