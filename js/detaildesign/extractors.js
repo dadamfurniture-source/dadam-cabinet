@@ -230,12 +230,16 @@
       /** 문서에 없어 싱크대 규칙을 빌린 행의 비고. */
       const BOM_SIMPLE_NOTE_SINK = '[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용';
 
-      /** 서랍레일 길이 — 캐비닛 깊이별 (bom-protocol.md §4-2 · HardwareExtractor.extractRails 와 같은 문턱). */
+      /**
+       * 서랍레일 길이 — bom-protocol.md §4-2 "모듈 깊이 − 50 이하의 최대 규격" (bom-drawer-rules.js railLengthFor).
+       * 2026-10-13: 간단 카테고리만 폐기된 깊이 구간표(≤350→350, ≤450→450, 그 밖 500)를 쓰고 있어 깊이 400 장에
+       *   450 레일(몸통보다 긴 레일)이 나갔다. 싱크·냉장고장과 같은 규칙으로 맞춘다. 거래명세서에도 550 레일은 없다 — 500 이 끝.
+       */
       function bomSimpleRailLenOf(depth) {
         const d = parseFloat(depth) || 550;
-        if (d <= 350) return 350;
-        if (d <= 450) return 450;
-        return 500;
+        const len = DrawerRules ? DrawerRules.railLengthFor(d) : null;
+        if (len !== null) return len;
+        return DrawerRules ? DrawerRules.DRAWER_RULES.RAIL_LENGTHS[0] : 250;
       }
 
       /** 하부 모듈 깊이 — mod.d → item.d → 카테고리 기본 깊이 (simple-categories.md §1). 상부는 upperD. */
@@ -2047,6 +2051,49 @@
           };
         }
 
+        /**
+         * 경첩 품번 — 2026-10-13 거래명세서 확인 (hardware.md §1 default_type · overlay_inset).
+         *   실제로 사는 경첩은 H052W 105° 저압(슬라이드온) 하나뿐이고, 품번은 **몸통 두께**로 갈린다:
+         *   15T 몸통 → H052W-5 (200개 단위로 다섯 번), 18T 몸통 → H052W-3. 인셋·반덮방 경첩은 산 적이 없다.
+         */
+        hingeModelOf(specs) {
+          const t = parseFloat((specs || {}).bodyThickness);
+          return Number.isFinite(t) && t >= 18 ? 'H052W-3' : 'H052W-5';
+        }
+
+        /**
+         * 여닫이가 아닌 도어 — 경첩 대신 제 철물을 낸다 (hardware.md §1 el_lift_up · sliding_door, 2026-10-13 확정).
+         *   리프트업  가변철물 1 SET/도어 — 명세서의 가변철물 小(23KG) 는 도어 폭 450~600 용이라 그 밖이면 비고에 남긴다
+         *   슬라이딩  SDR-2 상·하레일 2500 1조/모듈 + 상부속·하부속 도어당 2개씩 (명세서 #089 #110)
+         * 냉장고장 모듈의 doorType 값 (data-constants.js EL_DOOR_TYPES 'liftup'·'sliding', fridge.md §7 의 옛 표기 'lift'·'slide').
+         * 플랩·포켓은 철물이 정해지지 않아 예전처럼 경첩으로 센다.
+         */
+        nonSwingHardwareOf(mod, doorCount) {
+          const type = mod.doorType;
+          const label = mod.name || mod.type;
+          const doorW = (parseFloat(mod.w) || 0) / Math.max(1, doorCount);
+          if (type === 'liftup' || type === 'lift') {
+            const fits = doorW >= 450 && doorW <= 600;
+            return [{
+              category: '리프트업',
+              item: '리프트업도어 가변철물 小(23KG)',
+              manufacturer: '',
+              spec: '폭 450~600',
+              qty: doorCount,
+              unit: 'SET',
+              note: fits ? label : `${label} · 도어 폭 ${Math.round(doorW)} — 450~600 밖 [확인 필요]`,
+            }];
+          }
+          if (type === 'sliding' || type === 'slide') {
+            return [
+              { category: '슬라이딩', item: 'SDR-2 상·하레일', manufacturer: '', spec: '2500mm', qty: 1, unit: '조', note: label },
+              { category: '슬라이딩', item: 'SDR-2 상부속', manufacturer: '', spec: '-', qty: doorCount * 2, unit: 'EA', note: label },
+              { category: '슬라이딩', item: 'SDR-2 하부속', manufacturer: '', spec: '-', qty: doorCount * 2, unit: 'EA', note: label },
+            ];
+          }
+          return null;
+        }
+
         // 경첩 수 계산 — bom-protocol.md §4-1 · ACTIVE_RULES.md §9.1: ≤900 → 2구, 901~1600 → 3구, 1601+ → 4구.
         //   문턱은 **재단 도어 높이**(자재 행의 h) 기준이다 — 몸통 H 가 아니다.
         getHingeCount(doorH) {
@@ -2079,6 +2126,9 @@
             }
             if (doorCount === 0) return;
 
+            const special = this.nonSwingHardwareOf(mod, doorCount);
+            if (special) { special.forEach((row) => hardware.push(row)); return; }
+
             // 도어 높이 = 자재 행이 낸 재단 도어 높이와 같아야 한다 (bom-protocol.md §4-1).
             //   상부   H + 내림(overlap)
             //   하부   H − 30 (목찬넬 틈)
@@ -2100,7 +2150,7 @@
 
             hardware.push({
               category: '경첩',
-              item: '문주 110도 약압 경첩',
+              item: `${this.hingeModelOf(specs)} 105도 저압 경첩`,
               manufacturer: '문주',
               spec: `${hingesPerDoor}구`,
               qty: hingesPerDoor * doorCount,
