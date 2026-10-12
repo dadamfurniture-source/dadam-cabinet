@@ -437,7 +437,7 @@
       "part": "좌대 측",
       "material": "PB",
       "thickness": 15,
-      "w": 415,
+      "w": 445,
       "h": 60,
       "qty": 2,
       "edge": "1면(전)",
@@ -451,7 +451,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 415,
+      "edgeLen": 445,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "창고장"
@@ -1157,7 +1157,7 @@
     "PB_15": {
       "material": "PB",
       "thickness": 15,
-      "totalArea": 8047510,
+      "totalArea": 8051110,
       "panelCount": 3
     },
     "MDF_2.7": {
@@ -1175,7 +1175,7 @@
   },
   "edgeBanding": {
     "1": 23480,
-    "0.6": 78837
+    "0.6": 78897
   },
   "hardware": [
     {
