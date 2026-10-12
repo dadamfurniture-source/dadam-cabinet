@@ -248,3 +248,30 @@ test('실측 기록 검증: 공정·수량·분 범위', () => {
   assert.throws(() => validateWorklog({ role: 'asm', units: 0, minutes: 1 }), /수량/);
   assert.throws(() => validateWorklog({ role: 'asm', units: 1, minutes: 2000 }), /시간/);
 });
+
+// ── 월 손익 요약 ──
+import { summarizeMonth } from '../src/production/service.js';
+
+test('월 손익: 그 달(KST) 수주만, 매출 = 계약 ÷ 1.1, 지출 = 스냅샷 원가, 간접비를 빼 최종 손익', () => {
+  const orders = [
+    { id: 'a', order_no: 'SO-1', customer_name: '김', snapshot_id: 's1', status: 'confirmed', contract_amount: 2200000, ordered_at: '2026-09-30T16:00:00Z' }, // KST 10/1
+    { id: 'b', order_no: 'SO-2', snapshot_id: 's2', status: 'completed', contract_amount: 1210000, ordered_at: '2026-10-15T01:00:00Z' },
+    { id: 'c', order_no: 'SO-3', snapshot_id: 's3', status: 'confirmed', contract_amount: 1100000, ordered_at: '2026-10-20T01:00:00Z' }, // 옛 스냅샷(원가 없음)
+    { id: 'd', order_no: 'SO-4', snapshot_id: 's1', status: 'cancelled', contract_amount: 9999999, ordered_at: '2026-10-21T01:00:00Z' },
+    { id: 'e', order_no: 'SO-5', snapshot_id: 's1', status: 'confirmed', contract_amount: 5000000, ordered_at: '2026-09-30T14:00:00Z' }, // KST 9/30
+  ];
+  const snaps = new Map([
+    ['s1', { quote_payload: { total: 2200000, cost: { total: 1500000 }, partner: { total: 2000000 } } }],
+    ['s2', { quote_payload: { total: 1320000, cost: { total: 1000000 }, partner: { total: 1210000 } } }],
+    ['s3', { quote_payload: { total: 1100000 } }],
+  ]);
+  const m = summarizeMonth(orders, snaps, { month: '2026-10', overheadMonthly: 3800000 });
+  assert.deepEqual(m.rows.map((r) => r.order_no), ['SO-1', 'SO-2', 'SO-3']);
+  assert.deepEqual(m.rows.map((r) => r.tier), ['customer', 'partner', 'customer']);
+  assert.equal(m.totals.revenue, 2000000 + 1100000 + 1000000);
+  assert.equal(m.totals.unknownCost, 1);
+  assert.equal(m.totals.cost, 2500000);
+  assert.equal(m.totals.gross, 3100000 - 2500000); // 원가를 아는 건만
+  assert.equal(m.totals.net, 600000 - 3800000);
+  assert.equal(m.totals.shortfall, 3200000);
+});

@@ -19,13 +19,20 @@
     "edges",
     "edgeLen",
     "edgeT",
-    "edgeCode"
+    "edgeCode",
+    "moduleKey"
+  ],
+  "strippedHardwareKeys": [
+    "module",
+    "moduleKey",
+    "boring",
+    "boringSide"
   ],
   "digests": {
-    "sink15": "a3b81e15681993a7e6779f435b8621ba38acdaced90f0eb0d06f58d335816ec9",
-    "sink18": "32d8aa895f044fd29e0fd9fcbc01847e98ee6148f66df302e413f0e522dd560c",
+    "sink15": "4b372bba861d7d70e4033147080af5e63aea52398dafb18086df53c6285146fb",
+    "sink18": "7a9a2b14a376dbe1fc09cd08118092a8b81880191dbcd61b258918dd0cdb3801",
     "sinkCorner": "a3c7d8370270022e6ab675a2ae65b1615ae0fe588287bf21ea5f082e99f87aba",
-    "wardrobe": "13fb7f6dff34df5aaacfbd72428f2dc49eae02a01ebd51b2b5d8dba9fb0bff79",
-    "fridge": "c3e381a3d59e4922a1c9854f82c35b9783b3169fc9427e3a6e02501814d0b8a8"
+    "wardrobe": "e4380fdfd811bcfe004983d4d7f1ef4ead84e48f5f7bb09994339ccf24c962a1",
+    "fridge": "9011649df2f4e42e2b4a1f0d2cc0c2d8ed0423c55f9627026d473305a8ea31c6"
   }
 }

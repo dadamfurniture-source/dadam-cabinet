@@ -15,7 +15,7 @@
 const fs = require('fs');
 const {
   goldenPath, stripToBase, digestOf, readBaseDigest, writeBaseDigest,
-  MATERIAL_ROW_KEYS_B0, NEW_ROW_KEYS_B1,
+  MATERIAL_ROW_KEYS_B0, NEW_ROW_KEYS_B1, NEW_ROW_KEYS_B4, STRIPPED_ROW_KEYS, NEW_HARDWARE_KEYS_B4,
 } = require('../test-utils/bom-golden/golden');
 
 const NAMES = ['sink15', 'sink18', 'sinkCorner', 'wardrobe', 'fridge'];
@@ -31,7 +31,8 @@ describe('BOM 골든 — B0 대비 필드 추가만 (add-only)', () => {
     expect(base).not.toBeNull();
     expect(Object.keys(base.digests).sort()).toEqual([...NAMES].sort());
     expect(base.baseRowKeys).toEqual(MATERIAL_ROW_KEYS_B0);
-    expect(base.strippedKeys).toEqual(NEW_ROW_KEYS_B1);
+    expect(base.strippedKeys).toEqual(STRIPPED_ROW_KEYS);
+    expect(base.strippedHardwareKeys).toEqual(NEW_HARDWARE_KEYS_B4);
   });
 
   test.each(NAMES)('%s: 새 키·edgeBanding·cncHead 를 빼면 B0 골든과 바이트 단위로 같다', (name) => {
@@ -41,7 +42,7 @@ describe('BOM 골든 — B0 대비 필드 추가만 (add-only)', () => {
 
   test.each(NAMES)('%s: 자재 행 키 = B0 키 ∪ B1 키, 새 키는 모든 행에', (name) => {
     const golden = JSON.parse(fs.readFileSync(goldenPath(name), 'utf8'));
-    const want = [...MATERIAL_ROW_KEYS_B0, ...NEW_ROW_KEYS_B1].sort();
+    const want = [...MATERIAL_ROW_KEYS_B0, ...NEW_ROW_KEYS_B1, ...NEW_ROW_KEYS_B4].sort();
     expect(golden.materials.length).toBeGreaterThan(0);
     golden.materials.forEach((row) => {
       expect(Object.keys(row).sort()).toEqual(want);
