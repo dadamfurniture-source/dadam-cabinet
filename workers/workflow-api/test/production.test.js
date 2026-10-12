@@ -163,3 +163,29 @@ test('알림: 제안 메시지에 승인 링크·추가 비용, 지시는 날짜
   assert.equal(inst.blocks[0].type, 'header');
   assert.ok(inst.blocks.length <= 50);
 });
+
+// ── 재계산 · 아침 요약 ──
+import { buildDailyBlocks, actionKey } from '../src/production/notify.js';
+
+test('아침 요약: 오늘 부하·오늘 지시·오늘/내일 도어 발주 마감·늦어질 주문을 담는다', () => {
+  const jobs = [
+    { id: 'a', label: '여유 고객', orderedAt: '2026-10-13', installDate: '2026-10-27', work: workloadFromCounts(SINK_3M) },
+    { id: 'b', label: '급한 고객', orderedAt: '2026-10-13', installDate: '2026-10-20', work: workloadFromCounts(SINK_3M) },
+  ];
+  const plan = planProduction({ today: '2026-10-14', jobs });
+  const msg = buildDailyBlocks({ plan, assignments: [{ text: '조립 기사 출근 (10/14(수))' }], today: '2026-10-14' });
+  const json = JSON.stringify(msg);
+  assert.ok(json.includes('10/14(수)'));
+  assert.ok(json.includes('오늘 지시'));
+  assert.ok(json.includes('급한 고객: 도어 발주'), json); // 마감 10/19 − 3근무일 = 10/14 → 오늘
+  assert.ok(!json.includes('여유 고객: 도어 발주'));
+  for (const b of msg.blocks) if (b.text && b.text.text) assert.ok(b.text.text.length <= 2900);
+});
+
+test('비교 키: 출근일·도어 발주가 바뀌어도 손쓸 추천이 같으면 같은 키 (매일 같은 제안을 다시 보내지 않는다)', () => {
+  const a = [{ type: 'asm_call', dates: ['2026-10-14'] }, { type: 'asm_extra', date: '2026-10-15', jobId: 'x' }, { type: 'door_order', date: '2026-10-14', jobId: 'x' }];
+  const b = [{ type: 'door_order', date: '2026-10-15', jobId: 'x' }, { type: 'asm_extra', date: '2026-10-15', jobId: 'x', cost: 1 }, { type: 'asm_call', dates: ['2026-10-15'] }];
+  assert.equal(actionKey(a), actionKey(b));
+  assert.notEqual(actionKey(a), actionKey([{ type: 'asm_extra', date: '2026-10-16', jobId: 'x' }]));
+  assert.equal(actionKey([]), actionKey(null));
+});
