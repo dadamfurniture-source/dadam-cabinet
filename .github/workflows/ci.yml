@@ -2,11 +2,15 @@ name: CI/CD Pipeline
 
 # PR 검증용. main 배포는 별도 workflow (pages-build-deployment)가 담당한다.
 #
-# 하드 게이트(실패 시 PR 차단): typecheck, build
-# 리포트 전용(continue-on-error): lint, format:check, test, html-validate,
+# 하드 게이트(실패 시 PR 차단): typecheck, build, test
+# 리포트 전용(continue-on-error): lint, format:check, html-validate,
 #   링크 체크, 시크릿 스캔, lighthouse
 #   — 위 항목들은 현재 저장소가 통과하지 못하는 상태라 우선 로그만 남긴다.
 #     수정이 끝나는 대로 continue-on-error를 제거해 게이트로 승격할 것.
+#
+# 2026-10-12: test 를 게이트로 올렸다. 그 전엔 시험이 실패해도 「Run Tests ✓」로 떠서,
+#   CI 통과하면 바로 머지하는 운영(사장님 지시 2026-10-08)과 겹쳐 깨진 시험이 그대로
+#   main 에 들어갈 수 있었다. 올리기 직전 CI 결과: 124 스위트 · 2643 통과 · 실패 0.
 on:
   pull_request:
     branches: [main]
@@ -98,7 +102,6 @@ jobs:
 
       - name: Run tests
         run: npm test
-        continue-on-error: true
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
