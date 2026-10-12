@@ -250,6 +250,13 @@ function summarize({ jobs, days, crew, costs, leads, base, cur, fixes, sec }) {
       doorOrderLate: j.doorArrivalIdx > j.dueIdx,
       rescheduleTo: fixes.reschedule[j.id] !== undefined ? at(Math.min(days.length - 1, fixes.reschedule[j.id] + 1)) : null,
       work: { cutter: j.work.cutter, edge: j.work.edge, asm: j.work.asmMain + j.work.doorPart },
+      // 공정별 계획 기간 [시작일, 끝일] — 작업자 화면이 "오늘 내 공정에 걸린 주문" 을 고를 때 쓴다
+      stages: {
+        cutter: r.cut ? [at(r.cut.start), at(r.cut.finish)] : null,
+        edge: r.edge && j.work.edge > 0 ? [at(r.edge.start), at(r.edge.finish)] : null,
+        asm: [at(Math.min(r.main.start, r.door.start)), at(r.finish)],
+      },
+      counts: j.work.counts || null,
     };
   });
 

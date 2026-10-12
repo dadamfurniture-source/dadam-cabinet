@@ -77,6 +77,18 @@ import {
   getSettings,
   saveSettings,
 } from './production/service.js';
+import {
+  createWorkerLink,
+  listWorkerLinks,
+  revokeWorkerLink,
+  resolveWorker,
+  workerToday,
+  addWorklog,
+  markAssignmentDone,
+  listWorklogs,
+  getCalibration,
+  applyCalibration,
+} from './production/worker-access.js';
 
 const SERVICE = 'dadam-workflow-api';
 const VERSION = '0.1.0';
@@ -341,6 +353,59 @@ async function handleGetProductionSettings(request, env, { user }) {
   return jsonResponse(request, env, { success: true, data: await getSettings(env, { user }) });
 }
 
+// ── 작업자 링크 · 실측 기록 · 보정 ──
+async function handleCreateWorkerLink(request, env, { user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await createWorkerLink(env, { user, body }) }, 201);
+}
+
+async function handleListWorkerLinks(request, env, { user }) {
+  return jsonResponse(request, env, { success: true, data: { items: await listWorkerLinks(env, { user }) } });
+}
+
+async function handleRevokeWorkerLink(request, env, { params, user }) {
+  return jsonResponse(request, env, { success: true, data: await revokeWorkerLink(env, { user, linkId: params.linkId }) });
+}
+
+async function handleListWorklogs(request, env, { user }) {
+  const url = new URL(request.url);
+  return jsonResponse(request, env, { success: true, data: { items: await listWorklogs(env, { user, from: url.searchParams.get('from') }) } });
+}
+
+async function handleGetCalibration(request, env, { user }) {
+  const url = new URL(request.url);
+  const days = Math.min(365, Math.max(1, parseInt(url.searchParams.get('days') || '30', 10) || 30));
+  return jsonResponse(request, env, { success: true, data: await getCalibration(env, { user, days }) });
+}
+
+async function handleApplyCalibration(request, env, { user }) {
+  const body = (await readJson(request)) || {};
+  const roles = Array.isArray(body.roles) ? body.roles : null;
+  return jsonResponse(request, env, { success: true, data: await applyCalibration(env, { user, roles }) });
+}
+
+/** 작업자 화면 — 계정 없이 X-Worker-Token 으로. */
+async function workerFrom(request, env) {
+  return resolveWorker(env, request.headers.get('X-Worker-Token') || '');
+}
+
+async function handleWorkerToday(request, env) {
+  const link = await workerFrom(request, env);
+  return jsonResponse(request, env, { success: true, data: await workerToday(env, { link }) });
+}
+
+async function handleWorkerLog(request, env) {
+  const link = await workerFrom(request, env);
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await addWorklog(env, { link, body }) }, 201);
+}
+
+async function handleWorkerAssignmentDone(request, env, { params }) {
+  const link = await workerFrom(request, env);
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await markAssignmentDone(env, { link, assignmentId: params.assignmentId, done: body.done !== false }) });
+}
+
 async function handleSaveProductionSettings(request, env, { user }) {
   const body = (await readJson(request)) || {};
   return jsonResponse(request, env, { success: true, data: await saveSettings(env, { user, body }) });
@@ -477,6 +542,17 @@ const router = createRouter([
   { method: 'GET',  path: '/production/assignments',                   auth: 'jwt', handler: handleListAssignments },
   { method: 'GET',  path: '/production/settings',                      auth: 'jwt', handler: handleGetProductionSettings },
   { method: 'POST', path: '/production/settings',                      auth: 'jwt', handler: handleSaveProductionSettings },
+  { method: 'POST', path: '/production/worker-links',                  auth: 'jwt', handler: handleCreateWorkerLink },
+  { method: 'GET',  path: '/production/worker-links',                  auth: 'jwt', handler: handleListWorkerLinks },
+  { method: 'POST', path: '/production/worker-links/:linkId/revoke',   auth: 'jwt', handler: handleRevokeWorkerLink },
+  { method: 'GET',  path: '/production/worklogs',                      auth: 'jwt', handler: handleListWorklogs },
+  { method: 'GET',  path: '/production/calibration',                   auth: 'jwt', handler: handleGetCalibration },
+  { method: 'POST', path: '/production/calibration/apply',             auth: 'jwt', handler: handleApplyCalibration },
+
+  // 공개 — 작업자 링크 (JWT 없음, X-Worker-Token 으로 인증)
+  { method: 'GET',  path: '/public/production/today',                          auth: 'none', handler: handleWorkerToday },
+  { method: 'POST', path: '/public/production/worklogs',                       auth: 'none', handler: handleWorkerLog },
+  { method: 'POST', path: '/public/production/assignments/:assignmentId/done', auth: 'none', handler: handleWorkerAssignmentDone },
 
   // 공개 — 고객 공유 링크 (JWT 없음, X-Share-Token 으로 인증)
   { method: 'GET', path: '/public/confirm', auth: 'none', handler: handlePublicConfirm },
