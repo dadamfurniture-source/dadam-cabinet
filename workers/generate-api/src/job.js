@@ -16,7 +16,7 @@
  *   - 플래너 모드는 대조가 ok 가 아니면 done 과 함께 options.internal_only = true (계획서 §6.3).
  */
 
-import { aspectRatioOf, callGemini } from './gemini.js';
+import { aspectRatioOf, callGemini, callImageWithFallback } from './gemini.js';
 import {
   CATEGORIES,
   DEFAULT_STYLE,
@@ -510,7 +510,8 @@ async function runPipeline(env, job, ck, save) {
       let lastErr = null;
       for (let attempt = 1; attempt <= VARIANT_ATTEMPTS; attempt++) {
         try {
-          const r = await callGemini(env, {
+          // 기본 모델이 과부하면 가벼운 모델로 (제안 3). 어느 모델이 그렸는지 칸에 남긴다.
+          const r = await callImageWithFallback(env, {
             prompt: f.prompt,
             images: [base],
             imageSize,
@@ -525,6 +526,7 @@ async function runPipeline(env, job, ck, save) {
             finish: f.finish,
             path: up.path,
             url: up.url,
+            ...(r.fallback ? { model: r.model, fallback: true } : {}),
           };
           await save({ images: ck.images });
           await updateById(env, 'generations', job.id, {
