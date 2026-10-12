@@ -974,6 +974,9 @@
     const g = document.createElementNS(ns, 'g');
     g.setAttribute('class', 'sect-rect ' + section);
     g.setAttribute('data-module-h', useModuleH);
+    // 2026-10-12: 냉장고 설치 여유 — 구조 단계가 위장 폭을 「냉장고 폭 + 양옆 여유」로 가른다.
+    if (Number.isFinite(Number(override.sideGap))) g.setAttribute('data-side-gap', Number(override.sideGap));
+    if (Number.isFinite(Number(override.topGap))) g.setAttribute('data-top-gap', Number(override.topGap));
     g.style.cursor = 'move';
     const r = document.createElementNS(ns, 'rect');
     r.setAttribute('x', offsetX);
@@ -2470,6 +2473,35 @@
     { brand: 'LG',   name: 'DIOS 빌트인 양문형 S715SI24B (홈바)',           w: 910, d: 738, h: 1790, verified: false },
   ];
 
+  /**
+   * 2026-10-12: 냉장고 **설치 여유** — 위장 폭 = 냉장고 폭 + 양옆 여유 × 2 (사장님 결정).
+   *   예) 10 + 595 + 10 = 615 위장.
+   * 값은 모델 표(appliance_models side_gap_mm · top_gap_mm)가 정본이고, 비어 있으면 브랜드 라인
+   * 기본값을 쓴다 — js/detaildesign/data-constants.js FRIDGE_RULES.DEFAULT_GAPS 와 같은 수다
+   * (플래너는 그 파일을 읽지 않아 옮겨 적었다 — 바뀌면 같이 고친다). 위 간격은 FRIDGE_RULES.TOP_GAP 15.
+   * 설치 가이드를 확인하는 대로 모델 표의 값을 고쳐 나간다.
+   */
+  const FRIDGE_DEFAULT_GAPS = {
+    LG_BUILTIN:   { side: 4,  between: 8 },
+    SS_BESPOKE:   { side: 12, between: 10 },
+    SS_INFINITE:  { side: 5,  between: 10 },
+    FREESTANDING: { side: 50, between: 0 },
+  };
+  const FRIDGE_TOP_GAP_DEFAULT = 15;
+  /** 모델 이름으로 라인을 고른다 — 표에 값이 없을 때만 쓴다 */
+  function fridgeLineOf(m) {
+    const s = `${(m && m.brand) || ''} ${(m && m.name) || ''}`;
+    if (s.indexOf('키친핏') >= 0 || /kitchen ?fit/i.test(s)) return 'SS_BESPOKE';
+    if (s.indexOf('인피니트') >= 0 || /infinite/i.test(s)) return 'SS_INFINITE';
+    if (s.indexOf('빌트인') >= 0 || /built-?in|fit ?& ?max/i.test(s)) return 'LG_BUILTIN';
+    return 'FREESTANDING';
+  }
+  function fridgeGapsOf(m) {
+    const d = FRIDGE_DEFAULT_GAPS[fridgeLineOf(m)];
+    const num = (v, def) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Number(v) : def);
+    return { side: num(m && m.sideGap, d.side), top: num(m && m.topGap, FRIDGE_TOP_GAP_DEFAULT) };
+  }
+
   // W9-44: Supabase 에서 가전 모델 fetch — 실패 시 hard-coded fallback 유지
   async function fetchApplianceModels(category) {
     const cfg = window.parent && window.parent.DADAM_CONFIG && window.parent.DADAM_CONFIG.supabase
@@ -2477,13 +2509,13 @@
       : (window.DADAM_CONFIG && window.DADAM_CONFIG.supabase);
     if (!cfg || !cfg.url || !cfg.anonKey) return null;
     try {
-      const url = `${cfg.url}/rest/v1/appliance_models?category=eq.${category}&select=brand,model_name,model_code,width_mm,depth_mm,height_mm,verified,notes`;
-      const res = await fetch(url, {
-        headers: {
-          apikey: cfg.anonKey,
-          Authorization: `Bearer ${cfg.anonKey}`,
-        },
-      });
+      const base = `${cfg.url}/rest/v1/appliance_models?category=eq.${category}&select=brand,model_name,model_code,width_mm,depth_mm,height_mm,verified,notes`;
+      const headers = { apikey: cfg.anonKey, Authorization: `Bearer ${cfg.anonKey}` };
+      // 2026-10-12: 설치 여유 칸(side_gap_mm·top_gap_mm)을 함께 읽는다. DB 에 칸이 아직 없으면
+      //   (database/appliance-models-install-gaps.sql 적용 전) 400 이 오므로 예전 칸만 다시 읽는다 —
+      //   그때는 fridgeGapsOf 가 브랜드 라인 기본값을 쓴다.
+      let res = await fetch(`${base},side_gap_mm,top_gap_mm`, { headers });
+      if (!res.ok) res = await fetch(base, { headers });
       if (!res.ok) return null;
       const rows = await res.json();
       if (!Array.isArray(rows) || !rows.length) return null;
@@ -2495,6 +2527,8 @@
         h:        r.height_mm,
         verified: !!r.verified,
         notes:    r.notes,
+        sideGap:  r.side_gap_mm,   // 2026-10-12 — 비어 있으면 fridgeGapsOf 가 기본값
+        topGap:   r.top_gap_mm,
       }));
     } catch (e) {
       console.warn('[appliance_models] fetch 실패, fallback 사용:', e);
@@ -2558,7 +2592,9 @@
     const m = REFRIGERATOR_MODELS[idx];
     if (!m) return;
     // W, D 는 도면 평면도. H 는 moduleH (3D 정보).
-    addSectionRect('refrigerator', { w: m.w, h: m.d, moduleH: m.h });
+    // 2026-10-12: 설치 여유도 함께 싣는다 — 구조 단계가 위장 폭 = 폭 + 양옆 여유로 가른다.
+    const gaps = fridgeGapsOf(m);
+    addSectionRect('refrigerator', { w: m.w, h: m.d, moduleH: m.h, sideGap: gaps.side, topGap: gaps.top });
     closeModelModal();
   });
 
@@ -2624,6 +2660,9 @@
         moduleH: parseFloat(g.getAttribute('data-module-h')) || 860,
         rotation: rotations.get(g) || 0,
         finishings,
+        // 2026-10-12: 냉장고 설치 여유 (모델에서 온 값) — 없으면 칸을 만들지 않는다
+        ...(g.hasAttribute('data-side-gap') ? { sideGap: parseFloat(g.getAttribute('data-side-gap')) } : {}),
+        ...(g.hasAttribute('data-top-gap') ? { topGap: parseFloat(g.getAttribute('data-top-gap')) } : {}),
       });
     });
     const personPos = getPersonPos();
@@ -2776,6 +2815,7 @@
         addSectionRect(m.section, {
           w: m.w, h: m.h, x: m.x, y: m.y,
           moduleH: m.moduleH,
+          sideGap: m.sideGap, topGap: m.topGap,   // 2026-10-12 냉장고 설치 여유
           forceRotation: m.rotation || 0,
           rotCenter: { cx, cy },
           suppressSelect: true,

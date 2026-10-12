@@ -847,6 +847,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
             pedestalH: a.pedestalH, moldingH: a.moldingH,
             topT: a.topT, baseKind: a.baseKind,   // W12-38
             blindOwner: !!a.blindOwner,           // W12-65 — 겹친 코너에서 멍장을 갖는 쪽
+            // 2026-10-12: 냉장고 설치 여유 (배치에서 모델을 고를 때 실린다) — fridgeNichesOf
+            sideGap: a.sideGap, topGap: a.topGap,
           }));
       }
     } catch (e) { console.warn('[STRUCT] 영역 로드 실패', e); }
@@ -4920,11 +4922,32 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 예전엔 영역의 모든 단이 내놓아 통이 여럿이면 가운데 통까지 같이 줄었고,
    * 그만큼 통 사이가 벌어졌다 (가로 영역은 처음부터 끝 모듈만 내놓는다).
    */
+  /**
+   * 2026-10-12: 끝 통이 **냉장고 자리**면 마감재가 설 자리 — 그 통은 폭을 내놓지 않는다
+   * (폭이 냉장고 + 설치 여유로 정해져 있다). 마감재는 배치 끝의 빈 자리에 선다.
+   *   null  냉장고 자리가 아니다 — 예전처럼 끝 통에서 폭을 뗀다
+   *   false 냉장고 자리가 배치 끝에 붙어 빈 자리가 없다 — 세우지 않는다
+   *   {x}   그 자리에 세운다
+   */
+  function fridgeNicheFinishSeat(area, side, ps, W, section) {
+    if (!ps.some((m) => m.fridgeNiche)) return null;
+    const L = area.x || 0, R = L + (area.W || 0);
+    const room = side === 'left' ? ps[0].x - L : R - (ps[0].x + ps[0].W);
+    if (room < W) {
+      showToast(`${(SECTION_CONFIG[section] || {}).label} ${W}mm 자리가 없습니다 — 냉장고 자리(폭 + 설치 여유)가 배치 끝에 붙어 있습니다`);
+      return false;
+    }
+    return { x: side === 'left' ? L : R - W };
+  }
+
   function setStackAreaFinish(area, side, section, wantW) {
     // 기존 것을 떼고 끝 통에 폭을 돌려준다
     const prev = stackFinishOn(area.id, side);
     if (prev) {
-      stackEdgeColumn(area.id, side).forEach((m) => { m.W += prev.W; if (side === 'left') m.x -= prev.W; });
+      // 냉장고 자리 앞에 선 마감재는 폭을 가져가지 않았다 — 돌려줄 것도 없다 (atAreaEnd).
+      if (!prev.atAreaEnd) {
+        stackEdgeColumn(area.id, side).forEach((m) => { m.W += prev.W; if (side === 'left') m.x -= prev.W; });
+      }
       delete structures[prev.id];
       modules.splice(modules.indexOf(prev), 1);
     }
@@ -4936,16 +4959,25 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (!ps.length) { showToast('⚠ 이 영역에 모듈이 없습니다'); return null; }
     const W = finishSpaceFor(section, wantW);
     const MIN_W = MASTER_RULES.DOOR_W_MIN;
-    const tooNarrow = ps.find((m) => m.W - W < MIN_W);
-    if (tooNarrow) {
-      showToast(`⚠ ${(SECTION_CONFIG[section] || {}).label} ${W}mm 를 빼면 끝 통이 도어 최소 ${MIN_W}mm 보다 좁아집니다`);
-      return null;
+    let x;
+    const nicheSeat = fridgeNicheFinishSeat(area, side, ps, W, section);   // 2026-10-12
+    if (nicheSeat === false) return null;
+    const atAreaEnd = !!nicheSeat;
+    if (nicheSeat) {
+      x = nicheSeat.x;
+    } else {
+      const tooNarrow = ps.find((m) => m.W - W < MIN_W);
+      if (tooNarrow) {
+        showToast(`⚠ ${(SECTION_CONFIG[section] || {}).label} ${W}mm 를 빼면 끝 통이 도어 최소 ${MIN_W}mm 보다 좁아집니다`);
+        return null;
+      }
+      x = side === 'left' ? ps[0].x : ps[0].x + ps[0].W - W;
+      // W12-44: 셀 폭도 같이 줄인다 — 안 줄이면 도어가 옛 폭으로 그려져 넘친다.
+      ps.forEach((m) => { const oldW = m.W; m.W -= W; if (side === 'left') m.x += W;
+        rescaleCellWidths(getStructure(m.id), oldW, m.W); });
     }
-    const x = side === 'left' ? ps[0].x : ps[0].x + ps[0].W - W;
-    // W12-44: 셀 폭도 같이 줄인다 — 안 줄이면 도어가 옛 폭으로 그려져 넘친다.
-    ps.forEach((m) => { const oldW = m.W; m.W -= W; if (side === 'left') m.x += W;
-      rescaleCellWidths(getStructure(m.id), oldW, m.W); });
     const f = {
+      ...(atAreaEnd ? { atAreaEnd: true } : {}),
       id: nextModuleId(section), areaId: area.id, section,
       W, D: area.D,
       // W12-42: 스택은 단이 셋이라 "인접 도어" 가 하나로 정해지지 않는다 — 전체 높이.
@@ -5375,7 +5407,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 섹션은 영역 그대로 둔다 — 브리지가 section 으로 BOM 을 잡기 때문에
    * 표시용으로만 part 를 붙인다.
    */
-  function stackForArea(area, fixedList) {
+  function stackForArea(area, fixedList, fridgeAt) {
     const probe = { section: area.section, H: area.H };
     // W12-16: 영역이 직접 정한 좌대·상몰딩이 있으면 그것을 쓴다 (없으면 마스터 기본값).
     const own = { pedestalH: area.pedestalH, moldingH: area.moldingH };
@@ -5386,10 +5418,17 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const fixed = fixedList || fixedTiersOf(area);
 
     if (area.section === 'fridge') {
-      const fridgeH = (SECTION_CONFIG.refrigerator || {}).moduleH || 1850;
+      // 2026-10-12: 배치에 냉장고가 놓여 있으면 **그 냉장고의 높이·위 간격**을 쓴다(fridgeAt —
+      //   fridgeNichesOf 가 통마다 넘긴다). 예전엔 늘 기본 모델 높이 1870 이라, 1780 짜리 냉장고 위에도
+      //   90 떠서 위장이 섰다. 냉장고가 없으면 예전 그대로.
+      const fridgeH = (fridgeAt && Number(fridgeAt.fridgeH) > 0)
+        ? Number(fridgeAt.fridgeH)
+        : ((SECTION_CONFIG.refrigerator || {}).moduleH || 1850);
+      const topGap = (fridgeAt && Number.isFinite(Number(fridgeAt.topGap)))
+        ? Number(fridgeAt.topGap) : MASTER_RULES.FRIDGE_TOP_GAP;
       const upperH = Math.max(0, Math.min(
         MASTER_RULES.FRIDGE_UPPER_H_MAX,
-        area.H - fridgeH - MASTER_RULES.FRIDGE_TOP_GAP - molding
+        area.H - fridgeH - topGap - molding
       ));
       if (upperH <= 0) return [];
       // 냉장고 자리(바닥~fridgeH)와 상단 간격은 비워 둔다.
@@ -5400,11 +5439,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (keepUp) {
         const ks = structures[keepUp.id] || {};
         return [{ part: '상부장', H: Math.max(0, parseFloat(keepUp.H) || 0),
-                  baseY: fridgeH + MASTER_RULES.FRIDGE_TOP_GAP,
+                  baseY: fridgeH + topGap,
                   pedestalH: parseFloat(ks.pedestalH) || 0, moldingH: parseFloat(ks.moldingH) || 0,
                   keep: keepUp }];
       }
-      return [{ part: '상부장', H: upperH + molding, baseY: fridgeH + MASTER_RULES.FRIDGE_TOP_GAP,
+      return [{ part: '상부장', H: upperH + molding, baseY: fridgeH + topGap,
                 pedestalH: 0, moldingH: molding }];
     }
 
@@ -5547,14 +5586,25 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const holds = stackHoldColumns(kept.filter((m) => !isFinishingSection(m.section) && !m.blind),
       spanL, spanR);
     const cols = holds.map((h) => ({ x: h.x, w: h.w, fixed: h.mods, cells: null }));
+    // 2026-10-12: 냉장고장은 **냉장고 자리**를 먼저 한 통으로 세운다 — 폭 = 냉장고 + 양옆 여유.
+    //   보존 통과 겹치는 자리는 보존이 이긴다 (보존 최우선). 자리 위장은 도어를 700 미만이면 한 장으로:
+    //   600~700 은 분배 규칙이 350 미만 두 칸을 내는 빈 구간이라(615 → 307 + 307), 한 장(611)이 덜 어긋난다.
+    const niches = area.section === 'fridge'
+      ? fridgeNichesOf(area, spanL, spanR).filter((n) => !holds.some((h) => n.x < h.x + h.w && h.x < n.x + n.w))
+      : [];
+    niches.forEach((n) => cols.push({ x: n.x, w: n.w, fixed: [], fridgeAt: n.fridgeAt, niche: true,
+      cells: { w: n.w, is2D: n.w >= MASTER_RULES.DOOR_W_MIN * 2 } }));
+    // 자리 밖 통의 위장은 첫 냉장고 높이를 따른다 — 위장 아랫선이 한 줄로 맞는다.
+    const sideFridge = niches.length ? niches[0].fridgeAt : null;
     // 멍장이 있는 줄은 도어 폭이 줄 전체에 묶여 있다 (corner.md §3.4).
     const doorW = blinds.length && corner ? corner.plan.doorW : 0;
     let leftover = 0;
-    freeSegmentsIn(holds, spanL, spanR).forEach((seg) => {
-      const plan = columnPlanFor(seg.w, doorW, blinds.length + holds.length);
+    const taken = holds.concat(niches).slice().sort((a, b) => a.x - b.x);
+    freeSegmentsIn(taken, spanL, spanR).forEach((seg) => {
+      const plan = columnPlanFor(seg.w, doorW, blinds.length + holds.length + niches.length);
       if (!plan.length) { leftover += seg.w; return; }
       let x = seg.x;
-      plan.forEach((c) => { cols.push({ x, w: c.w, fixed: [], cells: c }); x += c.w; });
+      plan.forEach((c) => { cols.push({ x, w: c.w, fixed: [], cells: c, fridgeAt: sideFridge }); x += c.w; });
     });
     cols.sort((a, b) => a.x - b.x);
     if (leftover >= 1) {
@@ -6330,7 +6380,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    */
   function buildStackColumn(area, col) {
     // 단 높이는 **그 통의 보존 단만** 보고 정한다 — 옆 통에서 줄인 단이 이 통을 바꾸면 안 된다.
-    const plan = stackForArea(area, col.fixed || []) || [];
+    // 2026-10-12: 냉장고장이면 그 통 아래 냉장고의 높이·위 간격을 넘긴다 (col.fridgeAt)
+    const plan = stackForArea(area, col.fixed || [], col.fridgeAt) || [];
     let made = 0, kept = 0;
     // 2026-09-19: 보존 단의 합이 배치 높이를 넘으면 위 단이 밖으로 나간다.
     //   낮은 단부터 채우고(아랫 단 우선) 그 사실을 부른 쪽이 알린다 — 보존은 건드리지 않는다.
@@ -6349,6 +6400,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       m.H = part.H;
       m.baseY = part.baseY;
       m.part = part.part;
+      // 2026-10-12: 냉장고 자리 통 — 끝 마감재가 폭을 떼어 가지 않는다 (setStackAreaFinish)
+      if (col.niche) m.fridgeNiche = true;
       const s = getStructure(m.id);
       s.legH = 0;                       // 스택 안에서는 다리발이 아니라 좌대가 받친다
       // 좌대·상몰딩을 단마다 빼지 않게 명시한다. 안 하면 heightPartsOf 의
@@ -6371,6 +6424,47 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    * 세 통 자리를 먹어 나머지 통이 밀려난다. 그래서 같은 x·W 를 쓰는 단을 한 통으로 묶는다.
    * 폭은 건드리지 않는다 — 보존이므로. 통끼리 겹치면 왼쪽부터 밀어 넣는다.
    */
+  /**
+   * 배치 공간의 **세로축(로컬 x)** 위에서, 평면 상자 하나가 차지하는 구간 (2026-10-12).
+   * 회전 규약을 따로 외우지 않고, 배치 공간 양 끝의 1mm 조각(areaSlicePlane)으로 축을 잡아 투영한다.
+   * 다른 사각형(예: 냉장고)은 회전 중심이 달라 raw x 를 견주면 회전된 배치에서 틀린다.
+   */
+  function localSpanOnArea(area, box) {
+    const a0 = areaSlicePlane(area, area.x || 0);
+    const a1 = areaSlicePlane(area, (area.x || 0) + (area.W || 0) - 1);
+    const dx = a1.cx - a0.cx, dy = a1.cy - a0.cy;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len, uy = dy / len;
+    const ts = [[box.x, box.y], [box.x + box.w, box.y], [box.x, box.y + box.d], [box.x + box.w, box.y + box.d]]
+      .map(([px, py]) => (px - a0.cx) * ux + (py - a0.cy) * uy);
+    const o = (area.x || 0) + 0.5;                 // 조각 a0 의 가운데가 로컬 x + 0.5
+    return [o + Math.min(...ts), o + Math.max(...ts)];
+  }
+
+  /**
+   * 냉장고장 안의 **냉장고 자리** (2026-10-12 사장님 결정).
+   *
+   * 위장 폭 = 냉장고 폭 + 양옆 설치 여유 × 2 — 예) 10 + 595 + 10 = 615. 여유는 배치에서 모델을 고를 때
+   * 냉장고에 실린다(sideGap · 모델 표 appliance_models side_gap_mm, 비면 브랜드 라인 기본값).
+   * 여유가 없는 옛 배치는 0 으로 — 냉장고 폭에 딱 맞춘다.
+   * 같은 회전·평면이 겹치는 냉장고만 본다. 자리는 [L, R] 안으로 자른다.
+   */
+  function fridgeNichesOf(area, L, R) {
+    const ab = planeBoxOf(area);
+    return areas
+      .filter((a) => a.section === 'refrigerator' && !a.isFinishing && rot4(a) === rot4(area)
+        && boxOverlapArea(planeBoxOf(a), ab) > 0)
+      .map((a) => {
+        const side = Number.isFinite(Number(a.sideGap)) ? Math.max(0, Number(a.sideGap)) : 0;
+        const [s0, s1] = localSpanOnArea(area, planeBoxOf(a));
+        const x0 = Math.max(L, Math.round(s0 - side));
+        const x1 = Math.min(R, Math.round(s1 + side));
+        return { x: x0, w: x1 - x0, fridgeAt: { fridgeH: a.H, topGap: a.topGap }, fridgeId: a.id };
+      })
+      .filter((n) => n.w >= 1)
+      .sort((p, q) => p.x - q.x);
+  }
+
   function stackHoldColumns(mods, L, R) {
     const groups = new Map();
     (mods || []).forEach((m) => {
