@@ -602,6 +602,15 @@
   background-size: cover;
   background-position: center;
 }
+/* 사진이 올라간 칸: 칸이 사진 비율을 따르고, 너무 길면 높이를 막되 사진 전체가 보인다 */
+.v5-drop--photo {
+  min-height: 0;
+  max-height: 70vh;
+}
+.v5-drop--photo .v5-drop-fill {
+  background-size: contain;
+  background-repeat: no-repeat;
+}
 
 /* 버튼 */
 .v5-btn {
