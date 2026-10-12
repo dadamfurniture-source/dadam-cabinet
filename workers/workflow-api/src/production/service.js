@@ -15,7 +15,7 @@ import { listOrders } from '../orders.js';
 import { workloadFromSnapshot } from './workload.js';
 import { planProduction } from './planner.js';
 import { buildProposalBlocks, buildInstructionBlocks, buildDailyBlocks, assignmentsFromSuggestions, actionKey } from './notify.js';
-import { DEFAULT_STANDARDS, DEFAULT_CREW, DEFAULT_COSTS, DEFAULT_LEADS } from './standards.js';
+import { DEFAULT_STANDARDS, DEFAULT_CREW, DEFAULT_COSTS, DEFAULT_LEADS, DEFAULT_QUOTE } from './standards.js';
 
 const ACTIVE = new Set(['confirmed', 'in_production']);
 const KST_MS = 9 * 3600 * 1000;
@@ -32,6 +32,7 @@ const NUMERIC_LIMITS = {
   crew: [0, 24],
   costs: [0, 10000000],
   leads: [0, 60],
+  quote: [0, 100000000],
 };
 
 export function mergeSettings(saved) {
@@ -41,6 +42,7 @@ export function mergeSettings(saved) {
     crew: { ...DEFAULT_CREW, ...(s.crew || {}) },
     costs: { ...DEFAULT_COSTS, ...(s.costs || {}) },
     leads: { ...DEFAULT_LEADS, ...(s.leads || {}) },
+    quote: { ...DEFAULT_QUOTE, ...(s.quote || {}) },
     holidays: Array.isArray(s.holidays) ? s.holidays : [],
   };
 }
@@ -48,7 +50,7 @@ export function mergeSettings(saved) {
 /** 저장 전 검증 — 아는 키만, 숫자만, 범위 안만. */
 export function sanitizeSettings(body) {
   const out = {};
-  const defaults = { standards: DEFAULT_STANDARDS, crew: DEFAULT_CREW, costs: DEFAULT_COSTS, leads: DEFAULT_LEADS };
+  const defaults = { standards: DEFAULT_STANDARDS, crew: DEFAULT_CREW, costs: DEFAULT_COSTS, leads: DEFAULT_LEADS, quote: DEFAULT_QUOTE };
   for (const [group, def] of Object.entries(defaults)) {
     if (!body || body[group] === undefined) continue;
     if (typeof body[group] !== 'object' || body[group] === null) throw new ValidationError(`${group} 는 객체여야 합니다`);
@@ -58,7 +60,7 @@ export function sanitizeSettings(body) {
       const n = Number(v);
       const [lo, hi] = NUMERIC_LIMITS[group];
       // util 은 비율(0~1)
-      const max = group === 'crew' && k === 'util' ? 1 : hi;
+      const max = (group === 'crew' && k === 'util') || (group === 'quote' && k === 'marginRate') ? 1 : hi;
       if (!Number.isFinite(n) || n < lo || n > max) throw new ValidationError(`${group}.${k} 값이 범위를 벗어났습니다`);
       out[group][k] = n;
     }
