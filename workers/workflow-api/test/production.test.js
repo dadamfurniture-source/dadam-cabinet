@@ -217,7 +217,7 @@ test('보정: 공정별 1단위 실측 초를 내고, 표본이 10단위 미만�
   assert.deepEqual(calibrationPatch(r, ['asm']), { standards: { asmPerBox: 600, asmPerDrawer: 600 } });
 });
 
-test('작업자 오늘 할 일: 계획 기간이 오늘에 걸린 주문만, 공정별 수량과 함께', () => {
+test('작업자 할 일: 진행 중 주문을 모두 담고 오늘 예정을 앞에 — 오늘 예정이 없어도 화면이 비지 않는다', () => {
   const plan = planProduction({
     today: '2026-10-13',
     jobs: [
@@ -229,12 +229,17 @@ test('작업자 오늘 할 일: 계획 기간이 오늘에 걸린 주문만, 공
   assert.equal(a.stages.cutter[0], '2026-10-13');
   assert.equal(a.counts.boxes, 8);
   const w = todaysWork(plan, '2026-10-13');
-  assert.deepEqual(w.cutter.map((x) => [x.label, x.units]), [['싱크대 A', 7]]);
-  assert.deepEqual(w.edge.map((x) => [x.label, x.units]), [['싱크대 A', 5]]);
-  assert.ok(!JSON.stringify(w).includes('나중 주문'));
+  assert.deepEqual(w.cutter.map((x) => [x.label, x.units, x.today]), [['싱크대 A', 7, true], ['나중 주문', 7, false]]);
+  assert.equal(w.cutter[1].plannedStart, '2026-10-20');
+  assert.deepEqual(w.edge.map((x) => [x.label, x.units, x.today]), [['싱크대 A', 5, true], ['나중 주문', 5, false]]);
   // 도어 도착(10/16) 뒤까지 조립 기간이 이어진다
   const w16 = todaysWork(plan, '2026-10-16');
-  assert.deepEqual(w16.asm.map((x) => [x.label, x.units]), [['싱크대 A', 10]]); // 통 8 + 서랍 2
+  assert.deepEqual(w16.asm.filter((x) => x.today).map((x) => [x.label, x.units]), [['싱크대 A', 10]]); // 통 8 + 서랍 2
+  assert.equal(w16.asm.length, 2);
+  // 외주로 돌린 엣지는 엣지 목록에서 뺀다
+  const out = todaysWork({ jobs: [{ ...a, outsourced: true }] }, '2026-10-13');
+  assert.equal(out.edge.length, 0);
+  assert.equal(out.asm.length, 1);
 });
 
 test('실측 기록 검증: 공정·수량·분 범위', () => {
