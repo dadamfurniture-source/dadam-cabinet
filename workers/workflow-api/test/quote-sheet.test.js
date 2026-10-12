@@ -10,7 +10,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { calculateSheetQuote, installMeters, doorSheets, edgeMeters, hardwareCounts, nonCabinetItems } from '../src/quote-sheet.js';
+import { calculateSheetQuote, installMeters, doorSheets, edgeMeters, hardwareCounts, extraCostLines } from '../src/quote-sheet.js';
+import { DEFAULT_QUOTE } from '../src/production/standards.js';
 
 const require = createRequire(import.meta.url);
 const { FIXTURES, designOf } = require('../../../test-utils/bom-golden/fixtures.js');
@@ -39,16 +40,18 @@ test('수량은 BOM 에서: 도어 원장(재단 배치 MDF 18T, 없으면 면�
   assert.equal(hw.leg, SINK.hardwareSummary['다리발']);
 });
 
-test('견적 줄: 단가 × 수량 = 금액, 캐비닛 금액 ≈ 원가 × 1.2, 합계 = 공급가 + 부가세 10%', () => {
+test('견적 줄: 단가 × 수량 = 금액, 공급가 ≈ 최종 지출비용 × 1.2, 합계 = 공급가 + 부가세 10%', () => {
   const q = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT });
   assert.equal(q.method, 'sheet');
   assert.equal(q.margin_rate, 0.2);
   const names = q.items.map((i) => i.name);
   assert.ok(names[0].startsWith('몸통 제작'));
-  assert.deepEqual(q.items.map((i) => i.quantity), ['6장', '3장', '2장', '7.6m']);
+  assert.deepEqual(q.items.slice(0, 4).map((i) => i.quantity), ['6장', '3장', '2장', '7.6m']);
   for (const i of q.items) assert.equal(i.total, Math.round(i.unit_price * parseFloat(i.quantity)));
-  // 단가를 100원 단위로 반올림해서 생기는 차이만 허용
-  assert.ok(Math.abs(q.cost.cabinet_price - q.cost.total * 1.2) <= 100 * 7.6 + 300, `${q.cost.cabinet_price} vs ${q.cost.total * 1.2}`);
+  // 최종 지출비용(캐비닛 + 상판·설비·철거) × 1.2 — 단가를 100원 단위로 반올림한 차이만 허용
+  assert.equal(q.cost.total, q.cost.cabinet + Object.values(q.cost.extras).reduce((s, v) => s + v, 0));
+  assert.equal(q.cost.priced_total, q.subtotal);
+  assert.ok(Math.abs(q.subtotal - q.cost.total * 1.2) <= 100 * 20, `${q.subtotal} vs ${q.cost.total * 1.2}`);
   assert.equal(q.subtotal, q.items.reduce((s, i) => s + i.total, 0));
   assert.equal(q.vat, Math.round(q.subtotal * 0.1));
   assert.equal(q.total, q.subtotal + q.vat);
@@ -70,20 +73,30 @@ test('마진율·원가 기준은 설정으로 바꾼다', () => {
   assert.equal(cheapDoor.cost.door.outsourcing, 174000);
 });
 
-test('상판·설비·철거는 단가표 줄을 그대로 붙이고, 캐비닛·도어 업차지 줄은 장당 견적이 대신한다', () => {
-  const legacy = { items: [
-    { name: '싱크대 하부장 캐비닛', total: 1 },
-    { name: '싱크대 상판 (인조대리석)', quantity: '4100mm', unit_price: 150000, total: 615000 },
-    { name: '싱크대 수전', quantity: '1개', unit_price: 40000, total: 40000 },
-    { name: '도어 마감 업그레이드', total: 5 },
-    { name: '기존 철거', quantity: '7600mm', unit_price: 30000, total: 228000 },
-  ] };
-  const extra = nonCabinetItems(legacy);
-  assert.deepEqual(extra.map((i) => i.name), ['싱크대 상판 (인조대리석)', '싱크대 수전', '기존 철거']);
-  const q = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT, extraItems: extra, range: { min: 0.95, max: 1.3 } });
-  assert.deepEqual(q.items.slice(-3).map((i) => i.total), [615000, 40000, 228000]);
-  assert.equal(q.cost.cabinet_price, q.items.slice(0, 4).reduce((s, i) => s + i.total, 0));
+test('상판·설비·철거도 원가 × 1.2 — 단가표 판매가를 그대로 붙이지 않는다', () => {
+  const design = designOf(FIXTURES.sink15);
+  const lines = extraCostLines(design, DEFAULT_QUOTE);
+  const by = Object.fromEntries(lines.map((l) => [l.key, l]));
+  // 싱크대 골든: 상판 = 하부 길이 4.1m, 개수대·후드 있음, 철거 = 상·하부 7.6m
+  assert.equal(by.countertop.qty, 4.1);
+  assert.equal(by.countertop.cost, 4.1 * 125000);
+  assert.equal(by.sinkBowl.cost, 55000);
+  assert.equal(by.faucet.cost, 30000);
+  assert.equal(by.hood.cost, 59000);
+  assert.equal(by.demolition.qty, 7.6);
+  const q = calculateSheetQuote({ design, bom: SINK_BOM, cutPlan: SINK_CUT, range: { min: 0.95, max: 1.3 } });
+  const row = (re) => q.items.find((i) => re.test(i.name));
+  assert.equal(row(/상판/).unit_price, 150000); // 12.5만 × 1.2
+  assert.equal(row(/싱크볼/).unit_price, 66000); // 5.5만 × 1.2
+  assert.equal(row(/수전/).unit_price, 36000);
+  assert.equal(row(/후드/).unit_price, 70800);
+  assert.equal(row(/철거/).unit_price, 30000);
   assert.equal(q.range.min, Math.round(q.total * 0.95));
+  // 원가를 바꾸면 그대로 따라온다
+  const q2 = calculateSheetQuote({ design, bom: SINK_BOM, cutPlan: SINK_CUT, settings: { quote: { sinkBowl: 400000 } } });
+  assert.equal(q2.items.find((i) => /싱크볼/.test(i.name)).unit_price, 480000);
+  // 붙박이장엔 상판·설비가 없고, 철거 길이도 상·하부장만 센다 (단가표 견적과 같은 기준)
+  assert.deepEqual(extraCostLines(designOf(FIXTURES.wardrobe), DEFAULT_QUOTE), []);
 });
 
 test('붙박이장 골든도 계산된다 (재단 배치 없이 면적으로 원판 추정)', () => {
