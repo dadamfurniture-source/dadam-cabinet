@@ -98,10 +98,9 @@ describe('P1-1 키큰장 단은 하부장 규칙이 아니다 (sink.md §5)', ()
   });
 
   test('좌대는 스택에 한 벌, 바닥 단에 (sink.md §5 좌대 60 · 상자 구성은 wardrobe.md) — 걸레받이는 없다', () => {
-    expect(one(rows, 'planner-tall-0-0', '좌대 전후')).toMatchObject({ material: 'PB', thickness: 15, w: 570, h: 60, qty: 2, slot: 'kick' });
-    // 2026-10-12: 앞뒤판이 측판 사이에 낀다 — 측판은 감싸는 쪽이라 D − 5 (620 − 5 = 615).
-    //   예전 585 는 D − 2T − 5 로 측판도 끼운다고 본 값이었다.
-    expect(one(rows, 'planner-tall-0-0', '좌대 측')).toMatchObject({ w: 615, h: 60, qty: 2 });
+    // 2026-10-13 사장님: 앞뒤판 = 모듈 W, 측판 = D − 80 (620 − 80 = 540). 예전 570(W−2T) · 615(D−5).
+    expect(one(rows, 'planner-tall-0-0', '좌대 전후')).toMatchObject({ material: 'PB', thickness: 15, w: 600, h: 60, qty: 2, slot: 'kick' });
+    expect(one(rows, 'planner-tall-0-0', '좌대 측')).toMatchObject({ w: 540, h: 60, qty: 2 });
     expect(rowsOf(rows, 'planner-tall-0-0', '좌대 중간보강')).toHaveLength(0);   // W 600 < 700
     expect(one(rows, 'planner-tall-0-0', '좌대 걸레받이')).toMatchObject({ material: 'MDF', thickness: 18, w: 60, h: 600, qty: 1 });
     ['planner-tall-1-0', 'planner-tall-2-0'].forEach((id) => {
@@ -129,7 +128,8 @@ describe('P1-1 키큰장 단은 하부장 규칙이 아니다 (sink.md §5)', ()
     const r = extract(sinkItem([...LOWERS, single]));
     expect(one(r, 'tl-1', '도어')).toMatchObject({ w: 596, h: 2160 });
     expect(one(r, 'tl-1', '선반').qty).toBe(1);
-    expect(one(r, 'tl-1', '좌대 전후')).toMatchObject({ w: 570, h: 60, qty: 2 });
+    expect(one(r, 'tl-1', '좌대 전후')).toMatchObject({ w: 600, h: 60, qty: 2 });
+    expect(one(r, 'tl-1', '좌대 측')).toMatchObject({ w: 550 - 80, h: 60, qty: 2 });
     expect(one(r, 'tl-1', '상몰딩')).toMatchObject({ w: 60, h: 600 });
     expect(one(r, 'tl-1', '목찬넬(전면)')).toMatchObject({ w: 52, h: 600 });
     expect(one(r, 'ep', '걸레받이').w).toBe(1900);
@@ -223,9 +223,10 @@ describe('P1-3 상판·좌대 산출', () => {
   test('붙박이장 좌대 — 모듈마다 상자(전후·측·중간보강) + 품목 좌대 걸레받이 (wardrobe.md, 이미 산출 — 여기서 잠근다)', () => {
     const rows = extract(wardrobe);
     ['w1', 'w2', 'w3'].forEach((id) => {
-      expect(one(rows, id, '좌대 전후')).toMatchObject({ material: 'PB', w: 870, h: 60, qty: 2, slot: 'kick' });
-      expect(one(rows, id, '좌대 측')).toMatchObject({ w: 565, h: 60, qty: 2 });
-      expect(one(rows, id, '좌대 중간보강')).toMatchObject({ qty: 1 });
+      // 2026-10-13: 키큰장 단 좌대와 같은 규칙 — 앞뒤 W(900) · 측·보강 D − 80 (600 − 80 = 520). 예전 870 · 565 · 535.
+      expect(one(rows, id, '좌대 전후')).toMatchObject({ material: 'PB', w: 900, h: 60, qty: 2, slot: 'kick' });
+      expect(one(rows, id, '좌대 측')).toMatchObject({ w: 520, h: 60, qty: 2 });
+      expect(one(rows, id, '좌대 중간보강')).toMatchObject({ w: 520, qty: 1 });
     });
     expect(one(rows, 'ep', '좌대 걸레받이')).toMatchObject({ material: 'MDF', thickness: 18, w: 60, slot: 'kick' });
     // 붙박이장에는 상판이 없다 — 천판이 몸통에 있다

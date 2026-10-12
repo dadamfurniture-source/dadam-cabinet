@@ -263,6 +263,15 @@
         return { kg: g.kg, model: g.model, weight, over: !pick };
       }
 
+      /**
+       * 좌대 상자 — 2026-10-13 사장님 확정. 키큰장 단(싱크대·간단 카테고리 하부 라인)과 붙박이장이 같은 규칙을 쓴다.
+       *   좌대 전후  W (모듈 W) × 좌대 H × 2
+       *   좌대 측    (D − 80) × 좌대 H × 2
+       *   중간보강   (D − 80) × 좌대 H × 1 — W ≥ 700 일 때만
+       */
+      const BOM_PEDESTAL_D_SETBACK = 80;
+      const BOM_PEDESTAL_BRACE_W_MIN = 700;
+
       /** 하부 모듈 깊이 — mod.d → item.d → 카테고리 기본 깊이 (simple-categories.md §1). 상부는 upperD. */
       function bomSimpleDepthOf(mod, pos, item, rules) {
         const md = parseFloat(mod && mod.d);
@@ -1053,14 +1062,14 @@
           if (grounded) {
             const pedestalH = n(hp.pedestalH, n(specs.wardrobePedestal, 60));
             if (pedestalH > 0) {
-              const pedNote = '[확인 필요] 키큰장 좌대 상자 — wardrobe.md 좌대 규칙을 빌림 (sink.md §5 는 높이 60 만)';
+              const pedNote = '키큰장 좌대 — 앞뒤 W · 측·보강 D−80 (2026-10-13 사장님 확정, 붙박이장과 같다)';
               const pedLabel = `${modLabel}-좌대`;
-              this.add(materials, pedLabel, '좌대 전후', 'PB', T, W - T * 2, pedestalH, 2, '1면(전)', pedNote);
-              // 2026-10-12 사장님: 앞뒤판이 **측판 사이에** 낀다. 측판은 감싸는 쪽이라 2T 를 빼지 않는다 —
-              //   예전 식(D − 2T − 5)은 측판도 끼운다고 보고 뺀 것이라, 앞뒤판 W − 2T 와 동시에 성립하지 않았다.
-              this.add(materials, pedLabel, '좌대 측', 'PB', T, modD - 5, pedestalH, 2, '1면(전)', pedNote);
-              if (W >= 700) {
-                this.add(materials, pedLabel, '좌대 중간보강', 'PB', T, modD - T * 2 - 5 - 30, pedestalH, 1, '1면(전)', pedNote);
+              // 2026-10-13 사장님: 좌대 앞뒤판 W = 모듈 W, 측판 = 모듈 D − 80, 중간보강도 측판과 같다 (BOM_PEDESTAL_*).
+              //   (2026-10-12 의 "앞뒤 W − 2T · 측 D − 5 · 보강 D − 2T − 35" 를 바꾼다)
+              this.add(materials, pedLabel, '좌대 전후', 'PB', T, W, pedestalH, 2, '1면(전)', pedNote);
+              this.add(materials, pedLabel, '좌대 측', 'PB', T, modD - BOM_PEDESTAL_D_SETBACK, pedestalH, 2, '1면(전)', pedNote);
+              if (W >= BOM_PEDESTAL_BRACE_W_MIN) {
+                this.add(materials, pedLabel, '좌대 중간보강', 'PB', T, modD - BOM_PEDESTAL_D_SETBACK, pedestalH, 1, '1면(전)', pedNote);
               }
               this.add(materials, pedLabel, '좌대 걸레받이', 'MDF', 18, pedestalH, W, 1, '2면(장)', pedNote);
             }
@@ -1683,10 +1692,11 @@
               const modW = parseFloat(mod.w) || 900;
               const modD = parseFloat(mod.d) || D;
               const pName = `${prefix}${mod.name || `${idx + 1}번`}`;
-              this.add(materials, `${pName}-좌대`, '좌대 전후', 'PB', T, modW - 30, pedestalH, 2, '1면(전)');
-              this.add(materials, `${pName}-좌대`, '좌대 측', 'PB', T, modD - 35, pedestalH, 2, '1면(전)');
-              if (modW >= 700) {
-                this.add(materials, `${pName}-좌대`, '좌대 중간보강', 'PB', T, modD - 35 - 30, pedestalH, 1, '1면(전)');
+              // 2026-10-13 사장님: 키큰장 단 좌대와 같은 규칙 — 앞뒤 W · 측·중간보강 D − 80 (예전 W − 30 · D − 35 · D − 65)
+              this.add(materials, `${pName}-좌대`, '좌대 전후', 'PB', T, modW, pedestalH, 2, '1면(전)');
+              this.add(materials, `${pName}-좌대`, '좌대 측', 'PB', T, modD - BOM_PEDESTAL_D_SETBACK, pedestalH, 2, '1면(전)');
+              if (modW >= BOM_PEDESTAL_BRACE_W_MIN) {
+                this.add(materials, `${pName}-좌대`, '좌대 중간보강', 'PB', T, modD - BOM_PEDESTAL_D_SETBACK, pedestalH, 1, '1면(전)');
               }
             });
           }
