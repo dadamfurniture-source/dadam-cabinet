@@ -119,6 +119,40 @@
       </div>
 
       <div class="card">
+        <h2>작업자 링크</h2>
+        <div class="muted" style="margin-bottom:10px">작업자는 계정 없이 이 링크로 휴대폰에서 오늘 할 일을 보고, 시작·완료로 실제 걸린 시간을 남깁니다. 링크는 만든 직후 한 번만 보이니 바로 복사해 카톡으로 보내 주세요.</div>
+        <div class="row">
+          <input id="linkLabel" placeholder="작업자 이름 (예: 재단 김OO)" style="min-width: 200px" />
+          <label class="muted">유효 <input id="linkDays" type="number" min="1" max="365" value="90" style="width: 70px" /> 일</label>
+          <button type="button" class="primary" id="btnCreateLink">링크 만들기</button>
+        </div>
+        <div id="newLink" class="alert alert-ok" style="margin-top:10px" hidden></div>
+        <div class="scroll" style="margin-top: 10px">
+          <table>
+            <thead><tr><th>작업자</th><th>만료</th><th>마지막 사용</th><th>상태</th><th></th></tr></thead>
+            <tbody id="linkRows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content: space-between">
+          <h2 style="margin:0">실측 기록 · 표준시간 보정 (최근 30일)</h2>
+          <button type="button" id="btnApplyAll">보정 모두 적용</button>
+        </div>
+        <div class="muted" style="margin:6px 0 10px">작업자가 남긴 기록으로 1단위에 실제 걸린 시간을 냅니다. 10단위 이상 쌓인 공정만 제안합니다.</div>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>공정</th><th class="num">기록</th><th class="num">수량</th><th class="num">현재 표준</th><th class="num">실측</th><th class="num">차이</th><th></th></tr></thead>
+            <tbody id="calibRows"></tbody>
+          </table>
+        </div>
+        <details style="margin-top:10px"><summary class="muted">최근 기록 보기</summary>
+          <div class="scroll"><table><thead><tr><th>날짜</th><th>작업자</th><th>공정</th><th>주문</th><th class="num">수량</th><th class="num">분</th></tr></thead><tbody id="logRows"></tbody></table></div>
+        </details>
+      </div>
+
+      <div class="card">
         <div class="row" style="justify-content: space-between">
           <h2 style="margin:0">표준시간 · 인력 설정</h2>
           <button type="button" id="btnSaveSettings">설정 저장</button>
@@ -270,6 +304,76 @@
           catch (e) { fail(e.message); }
         }
 
+        var ROLE_KO = { cutter: '재단', edge: '엣지', asm: '조립' };
+        function mins(s) { return s == null ? '-' : (s / 60).toFixed(1) + '분'; }
+
+        async function loadLinks() {
+          var d = await api('/production/worker-links');
+          var now = new Date();
+          el('linkRows').innerHTML = (d.items || []).map(function (l) {
+            var st = l.revoked_at ? '끊음' : new Date(l.expires_at) < now ? '만료' : '사용 중';
+            return '<tr><td>' + esc(l.label) + '</td><td>' + new Date(l.expires_at).toLocaleDateString('ko-KR') + '</td><td>' + (l.last_used_at ? new Date(l.last_used_at).toLocaleString('ko-KR') : '-') + '</td><td>' + st + '</td><td>' +
+              (st === '사용 중' ? '<button type="button" data-revoke="' + esc(l.id) + '">끊기</button>' : '') + '</td></tr>';
+          }).join('') || '<tr><td colspan="5" class="muted">아직 없습니다.</td></tr>';
+          el('linkRows').querySelectorAll('[data-revoke]').forEach(function (b) {
+            b.addEventListener('click', async function () {
+              if (!confirm('이 링크를 끊을까요? 작업자는 더 이상 열 수 없습니다.')) return;
+              try { await api('/production/worker-links/' + encodeURIComponent(b.getAttribute('data-revoke')) + '/revoke', { method: 'POST' }); await loadLinks(); } catch (e) { fail(e.message); }
+            });
+          });
+        }
+
+        async function createLink() {
+          var label = el('linkLabel').value.trim();
+          if (!label) { fail('작업자 이름을 입력해 주세요.'); return; }
+          try {
+            var d = await api('/production/worker-links', { method: 'POST', body: { label: label, days: Number(el('linkDays').value) || 90 } });
+            var box = el('newLink');
+            box.hidden = false;
+            box.innerHTML = '<b>' + esc(d.label) + '</b> 링크 (지금만 보입니다): <input readonly style="width:100%;margin-top:6px" value="' + esc(d.url) + '"><div class="row" style="margin-top:6px"><button type="button" id="btnCopyLink">복사</button></div>';
+            el('btnCopyLink').addEventListener('click', function () {
+              var i = box.querySelector('input');
+              i.select();
+              if (navigator.clipboard) navigator.clipboard.writeText(i.value).then(function () { note('복사했습니다.'); });
+              else document.execCommand('copy');
+            });
+            el('linkLabel').value = '';
+            await loadLinks();
+          } catch (e) { fail(e.message); }
+        }
+
+        async function loadCalibration() {
+          var d = await api('/production/calibration');
+          el('calibRows').innerHTML = (d.result || []).map(function (r) {
+            var diff = r.diffPct == null ? '-' : (r.diffPct > 0 ? '+' : '') + r.diffPct + '%';
+            var act = r.suggested != null && r.suggested !== r.current
+              ? '<button type="button" data-apply="' + r.role + '">' + mins(r.suggested) + '로 적용</button>'
+              : r.suggested != null
+                ? '<span class="ok">반영됨</span>'
+                : '<span class="muted">' + (r.units ? '기록 ' + r.units + '/' + r.minUnits + '단위 (부족)' : '기록 없음') + '</span>';
+            return '<tr><td>' + esc(r.label) + '</td><td class="num">' + r.records + '</td><td class="num">' + r.units + '</td><td class="num">' + mins(r.current) + '</td><td class="num">' + mins(r.measured) + '</td><td class="num">' + diff + '</td><td>' + act + '</td></tr>';
+          }).join('');
+          el('calibRows').querySelectorAll('[data-apply]').forEach(function (b) { b.addEventListener('click', function () { applyCalib([b.getAttribute('data-apply')]); }); });
+          el('btnApplyAll').disabled = !(d.result || []).some(function (r) { return r.suggested != null && r.suggested !== r.current; });
+          var logs = await api('/production/worklogs?from=' + d.from);
+          el('logRows').innerHTML = (logs.items || []).slice(0, 100).map(function (l) {
+            return '<tr><td>' + day(l.work_date) + '</td><td>' + esc(l.worker_label || '-') + '</td><td>' + (ROLE_KO[l.role] || l.role) + '</td><td>' + esc(l.order_label || '-') + '</td><td class="num">' + Number(l.units) + '</td><td class="num">' + Number(l.minutes) + '</td></tr>';
+          }).join('') || '<tr><td colspan="6" class="muted">아직 없습니다.</td></tr>';
+        }
+
+        async function applyCalib(roles) {
+          try {
+            var r = await api('/production/calibration/apply', { method: 'POST', body: { roles: roles } });
+            state.settings = r.settings;
+            renderSettings();
+            await loadCalibration();
+            note('표준시간을 실측값으로 바꿨습니다. "지금 다시 계산"을 누르면 추천에 반영됩니다.');
+          } catch (e) { fail(e.message); }
+        }
+
+        el('btnCreateLink').addEventListener('click', createLink);
+        el('btnApplyAll').addEventListener('click', function () { applyCalib(null); });
+
         el('btnRecompute').addEventListener('click', function () { recompute().catch(function (e) { fail(e.message); }); });
         el('btnApprove').addEventListener('click', function () { decide('approve'); });
         el('btnDismiss').addEventListener('click', function () { decide('dismiss'); });
@@ -280,6 +384,8 @@
           loadProposal(),
           loadAssignments(),
           api('/production/settings').then(function (d) { state.settings = d.settings; renderSettings(); }),
+          loadLinks(),
+          loadCalibration(),
         ]).catch(function (e) { fail(e.message); });
       })();
     </script>

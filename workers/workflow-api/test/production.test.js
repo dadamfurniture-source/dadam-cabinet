@@ -189,3 +189,57 @@ test('비교 키: 출근일·도어 발주가 바뀌어도 손쓸 추천이 같�
   assert.notEqual(actionKey(a), actionKey([{ type: 'asm_extra', date: '2026-10-16', jobId: 'x' }]));
   assert.equal(actionKey([]), actionKey(null));
 });
+
+// ── 작업자 화면 · 실측 · 보정 ──
+import { calibrate, calibrationPatch } from '../src/production/calibration.js';
+import { todaysWork, validateWorklog } from '../src/production/worker-access.js';
+import { DEFAULT_STANDARDS } from '../src/production/standards.js';
+
+test('보정: 공정별 1단위 실측 초를 내고, 표본이 10단위 미만이면 제안하지 않는다', () => {
+  const logs = [
+    { role: 'cutter', units: 7, minutes: 56 }, // 8분/장
+    { role: 'cutter', units: 8, minutes: 64 },
+    { role: 'edge', units: 4, minutes: 70 }, // 표본 부족
+    { role: 'asm', units: 10, minutes: 100 }, // 10분/통
+    { role: 'asm', units: 0, minutes: 5 }, // 무시
+  ];
+  const r = calibrate(logs, DEFAULT_STANDARDS);
+  const by = Object.fromEntries(r.map((x) => [x.role, x]));
+  assert.equal(by.cutter.measured, 480);
+  assert.equal(by.cutter.suggested, 480);
+  assert.equal(by.cutter.diffPct, 14); // 420 → 480
+  assert.equal(by.edge.enough, false);
+  assert.equal(by.edge.suggested, null);
+  assert.equal(by.asm.suggested, 600);
+  assert.equal(by.asm.records, 1);
+  // 조립 보정은 통·서랍 둘 다에 들어간다, 엣지는 표본 부족이라 빠진다
+  assert.deepEqual(calibrationPatch(r), { standards: { cutPerSheet: 480, asmPerBox: 600, asmPerDrawer: 600 } });
+  assert.deepEqual(calibrationPatch(r, ['asm']), { standards: { asmPerBox: 600, asmPerDrawer: 600 } });
+});
+
+test('작업자 오늘 할 일: 계획 기간이 오늘에 걸린 주문만, 공정별 수량과 함께', () => {
+  const plan = planProduction({
+    today: '2026-10-13',
+    jobs: [
+      { id: 'a', label: '싱크대 A', orderedAt: '2026-10-13', installDate: '2026-10-22', work: workloadFromCounts(SINK_3M) },
+      { id: 'b', label: '나중 주문', orderedAt: '2026-10-20', installDate: '2026-10-28', work: workloadFromCounts(SINK_3M) },
+    ],
+  });
+  const a = plan.jobs.find((j) => j.id === 'a');
+  assert.equal(a.stages.cutter[0], '2026-10-13');
+  assert.equal(a.counts.boxes, 8);
+  const w = todaysWork(plan, '2026-10-13');
+  assert.deepEqual(w.cutter.map((x) => [x.label, x.units]), [['싱크대 A', 7]]);
+  assert.deepEqual(w.edge.map((x) => [x.label, x.units]), [['싱크대 A', 5]]);
+  assert.ok(!JSON.stringify(w).includes('나중 주문'));
+  // 도어 도착(10/16) 뒤까지 조립 기간이 이어진다
+  const w16 = todaysWork(plan, '2026-10-16');
+  assert.deepEqual(w16.asm.map((x) => [x.label, x.units]), [['싱크대 A', 10]]); // 통 8 + 서랍 2
+});
+
+test('실측 기록 검증: 공정·수량·분 범위', () => {
+  assert.deepEqual(validateWorklog({ role: 'edge', units: '5', minutes: 76.456, order_label: 'x' }), { role: 'edge', units: 5, minutes: 76.46, order_id: null, order_label: 'x', note: null });
+  assert.throws(() => validateWorklog({ role: 'paint', units: 1, minutes: 1 }), /role/);
+  assert.throws(() => validateWorklog({ role: 'asm', units: 0, minutes: 1 }), /수량/);
+  assert.throws(() => validateWorklog({ role: 'asm', units: 1, minutes: 2000 }), /시간/);
+});
