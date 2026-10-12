@@ -533,6 +533,45 @@
 
       const BOM_EDGE_CODE_SLOTS = ['door', 'drawerFront', 'finishing'];
 
+      /**
+       * 붙박이장 통의 여닫이 도어 — 수와 재단 높이. extractWardrobe 의 도어 행과 **같은 식**이다 (두 갈래 모두):
+       *   수   mod.doorCount, 없으면 max(1, round(W/450))
+       *   높이 좌대 + 몸통(item.h − 좌대 − 상몰딩) − 20, 외부 서랍이 있으면 − 단수 × 350
+       * 2026-10-13 (B4): 경첩이 이 값을 쓴다. 예전엔 mod.h(2280) 로 세서 외부 서랍 위 1620 도어에 2170 보링이 나갔고,
+       *   doorCount 가 없는 통(짧은옷 기본형)은 도어 2장이 자재에 있는데 경첩이 0 이었다.
+       * 붙박이장 통이 아니면 null.
+       */
+      function bomWardrobeDoorOf(item, mod) {
+        const category = item && (item.categoryId || item.category);
+        if (category !== 'wardrobe' || !mod || (mod.pos !== 'wardrobe' && mod.pos !== 'tall')) return null;
+        const specs = item.specs || {};
+        const pedestalH = parseFloat(specs.wardrobePedestal) || WR_DEFAULTS.PEDESTAL_H;
+        const moldingH = parseFloat(specs.wardrobeMoldingH) || WR_DEFAULTS.MOLDING_H;
+        const totalH = parseFloat(item.h) || WR_DEFAULTS.DEFAULT_H;
+        const bodyH = totalH - pedestalH - moldingH;
+        const W = parseFloat(mod.w) || 900;
+        const drawerCount = mod.drawerCount || 0;
+        const external = mod.isExternalDrawer && drawerCount > 0 ? drawerCount * 350 : 0;
+        return { count: mod.doorCount || Math.max(1, Math.round(W / 450)), h: pedestalH + bodyH - 20 - external };
+      }
+
+      /**
+       * 냉장고장 모듈의 여닫이 도어 — extractFridge 도어 행과 같은 식. 키큰장·홈카페장·상부장 H + 20, 하부장 H − 30,
+       * 수는 mod.doorCount 없으면 1. 그 밖 타입(EL장·냉장고 자리)은 null — 경첩은 예전 경로(리프트업 등 제 철물)를 탄다.
+       * 2026-10-13 (B4): 예전엔 mod.h 그대로 세서 보링이 도어보다 20 짧은 높이 기준이었다.
+       */
+      function bomFridgeDoorOf(item, mod) {
+        const category = item && (item.categoryId || item.category);
+        if (category !== 'fridge' || !mod) return null;
+        const t = mod.type || '';
+        if (t !== 'tall' && t !== 'homecafe' && t !== 'upper' && t !== 'lower') return null;
+        const H = parseFloat(mod.h) || 2000;
+        return { count: mod.doorCount || 1, h: t === 'lower' ? H - 30 : H + 20 };
+      }
+
+      /** 경첩 컵 사이 최소 간격(mm) — 이보다 가까우면 비고에 [확인 필요] (끝 110 규칙이 짧은 도어에서 무너진다). */
+      const BOM_HINGE_MIN_GAP = 100;
+
       class MaterialExtractor {
         // W12-1: 제조 표준은 data-constants.js 가 정본.
         // Jest/Node 에서는 그 파일이 로드되지 않으므로 같은 값을 폴백으로 둔다
@@ -781,6 +820,9 @@
             edgeLen: bomEdgeLenOf(edges, W, H),
             edgeT: bomEdgeThicknessOf(slot),
             edgeCode: (BOM_EDGE_CODE_SLOTS.indexOf(slot) >= 0 && finishCode) ? finishCode : null,
+            // B4 (2026-10-13): 모듈 키 = partId 의 `${itemIdx}-${moduleId}` 부분. partId 는 쪼개 읽지 않으므로 따로 싣는다 —
+            //   철물 행(경첩·레일)의 moduleKey 와 같으면 같은 모듈이다 (작업지시서 키팅·도어재 발주서의 경첩 컵 위치).
+            moduleKey: `${ctx.itemIdx}-${ctx.moduleId}`,
           });
         }
 
@@ -2075,7 +2117,7 @@
             categoryTotals[cat] = (categoryTotals[cat] || 0) + 1;
           });
 
-          items.forEach((item) => {
+          items.forEach((item, itemIdx) => {
             const category = item.categoryId || item.category;
             categoryCounts[category] = (categoryCounts[category] || 0) + 1;
             const prefix = categoryTotals[category] > 1 ? `#${categoryCounts[category]} ` : '';
@@ -2083,6 +2125,7 @@
             const catName = catNames[category] || (simpleRules && simpleRules.label) || category;
             const itemLabel = item.labelName || `${prefix}${catName}`;
             const beforeLen = hardware.length;
+            this._itemIdx = itemIdx; // B4: 철물 행 moduleKey — 자재 행 partId 와 같은 품목 순번
 
             this.extractHinges(item, hardware);
             this.extractRails(item, hardware);
@@ -2136,13 +2179,15 @@
               qty: doorCount,
               unit: 'SET',
               note: fits ? label : `${label} · 도어 폭 ${Math.round(doorW)} — 450~600 밖 [확인 필요]`,
+              ...this.moduleTagOf(mod),
             }];
           }
           if (type === 'sliding' || type === 'slide') {
+            const tag = this.moduleTagOf(mod);
             return [
-              { category: '슬라이딩', item: 'SDR-2 상·하레일', manufacturer: '', spec: '2500mm', qty: 1, unit: '조', note: label },
-              { category: '슬라이딩', item: 'SDR-2 상부속', manufacturer: '', spec: '-', qty: doorCount * 2, unit: 'EA', note: label },
-              { category: '슬라이딩', item: 'SDR-2 하부속', manufacturer: '', spec: '-', qty: doorCount * 2, unit: 'EA', note: label },
+              { category: '슬라이딩', item: 'SDR-2 상·하레일', manufacturer: '', spec: '2500mm', qty: 1, unit: '조', note: label, ...tag },
+              { category: '슬라이딩', item: 'SDR-2 상부속', manufacturer: '', spec: '-', qty: doorCount * 2, unit: 'EA', note: label, ...tag },
+              { category: '슬라이딩', item: 'SDR-2 하부속', manufacturer: '', spec: '-', qty: doorCount * 2, unit: 'EA', note: label, ...tag },
             ];
           }
           return null;
@@ -2172,6 +2217,9 @@
               qty: hinges * doorCount,
               unit: 'EA',
               note: `${label} 플랩 — 천판 쪽, 도어 폭 ${doorW} 변 (보링: ${boring.join(', ')})`,
+              ...this.moduleTagOf(mod),
+              boring: boring.slice(),
+              boringSide: 'top', // 플랩 — 보링이 도어 **폭** 변(천판 쪽)을 따라간다
             },
             {
               category: '가스쇼바',
@@ -2182,8 +2230,41 @@
               unit: 'EA',
               note: `${label} 플랩 ${doorW}×${Math.round(doorH)} ≈ ${strut.weight.toFixed(1)}kg`
                 + (strut.over ? ` — ${strut.kg}kg 로도 모자람 [확인 필요]` : ''),
+              ...this.moduleTagOf(mod),
             },
           ];
+        }
+
+        /**
+         * 싱크 하부 서랍장의 여닫이 도어 높이 — MaterialExtractor.drawerLayoutOf 의 도어 칸 그대로.
+         *   null = 해당 없음(서랍장이 아니거나 다른 경로), 0 = 도어 칸이 최소 전면 높이 미만(자재 행에 도어 없음).
+         */
+        sinkDrawerDoorHOf(item, mod, specs, tallTier, simpleDoorH) {
+          const category = item.categoryId || item.category;
+          if (category !== 'sink' || mod.pos !== 'lower' || !mod.isDrawer) return null;
+          if (tallTier || simpleDoorH !== null || isBlindModule(mod, 'lower') || !DrawerRules) return null;
+          const me = this._materialExtractor || (this._materialExtractor = new MaterialExtractor());
+          const T = me.thicknessFor(specs);
+          const topT = parseFloat(specs.topThickness) || 12;
+          const legH = specs.sinkLegHeight || 150;
+          const H = parseFloat(mod.h) || (specs.lowerH || 870) - topT - legH; // extractSink 하부장과 같은 식
+          const L = me.drawerLayoutOf(mod, H, T);
+          const door = (L.fronts || []).find((f) => f.kind === 'door');
+          if (!door || door.h < DrawerRules.DRAWER_RULES.MIN_FRONT_H) return 0;
+          return door.h;
+        }
+
+        /**
+         * B4 (2026-10-13): 철물 행의 모듈 표시 — 이름(`module`)과 키(`moduleKey`).
+         *   moduleKey 는 자재 행의 moduleKey(= partId 의 `${itemIdx}-${moduleId}`)와 같은 규칙이다. 모듈 id 가 없으면
+         *   자재 쪽 폴백(`${pos}-${idx}`)을 여기서 똑같이 만들 수 없어 키를 싣지 않는다 — 작업지시서는 이름으로 맞춘다.
+         */
+        moduleTagOf(mod) {
+          const tag = { module: (mod && (mod.name || mod.type)) || '' };
+          if (mod && mod.id !== undefined && mod.id !== null && String(mod.id) !== '') {
+            tag.moduleKey = `${this._itemIdx | 0}-${mod.id}`;
+          }
+          return tag;
         }
 
         // 경첩 수 계산 — bom-protocol.md §4-1 · ACTIVE_RULES.md §9.1: ≤900 → 2구, 901~1600 → 3구, 1601+ → 4구.
@@ -2221,6 +2302,9 @@
           (item.modules || []).forEach((mod) => {
             let doorCount = mod.doorCount || 0;
             let simpleDoorH = null;
+            // B4: 붙박이장 통 · 냉장고장 모듈은 자재 도어 행과 같은 수·높이
+            const wardrobeDoor = bomWardrobeDoorOf(item, mod) || bomFridgeDoorOf(item, mod);
+            if (wardrobeDoor) doorCount = wardrobeDoor.count;
             if (simpleRules && (mod.pos === 'upper' || mod.pos === 'lower')) {
               const d = bomSimpleHingeDoorsOf(mod, specs);
               doorCount = d.count;
@@ -2246,6 +2330,14 @@
             else if (mod.pos === 'lower') doorH = (mod.h || (specs.lowerH || 870) - (parseFloat(specs.topThickness) || 12) - (parseFloat(specs.sinkLegHeight) || 150)) - 30;
             else doorH = mod.h || 700;
             if (simpleDoorH !== null) doorH = simpleDoorH; // B3 서랍장 여닫이 도어 — 자재 행의 hingeDoorH
+            // 2026-10-13 (B4): 싱크 서랍장의 여닫이 도어 — 자재 행(addDrawerModuleParts)과 **같은 서랍 배치**에서 높이를 읽는다.
+            //   예전엔 서랍장도 일반 하부장처럼 H − 30 으로 셌다. 서랍 2단 위 도어가 244 인데 보링은 [110, 568] —
+            //   568 은 도어 밖이라 그대로 발주서에 실리면 외주처가 엉뚱한 자리를 뚫는다 (작업지시서 PR 4 시험에서 발견).
+            //   배치가 도어 칸을 최소 전면 높이 미만으로 내면 자재 행에 도어가 없다 → 경첩도 내지 않는다.
+            const sinkDrawerDoorH = this.sinkDrawerDoorHOf(item, mod, specs, tallTier, simpleDoorH);
+            if (sinkDrawerDoorH === 0) return;
+            if (sinkDrawerDoorH !== null) doorH = sinkDrawerDoorH;
+            if (wardrobeDoor) doorH = wardrobeDoor.h;
 
             // 2026-10-13: 위로 여는 도어(플랩) — 경첩이 천판 쪽에 달려 도어 **폭** 변을 따라 보링하고 가스쇼바 2 가 붙는다
             if (mod.doorOpen === 'up' || mod.doorType === 'flap') {
@@ -2257,6 +2349,9 @@
             const swingDoorW = parseFloat(mod.doorW) || (Math.floor((parseFloat(mod.w) || 0) / Math.max(1, doorCount)) - 4);
             const hingesPerDoor = this.getHingeCount(doorH) + (swingDoorW > BOM_HINGE_WIDE_DOOR_W ? 1 : 0);
             const boring = this.boringFor(doorH, hingesPerDoor);
+            // 끝 110 규칙은 짧은 도어에서 컵 간격이 무너진다 (서랍 위 244 도어 → 110 · 134). 값은 규칙대로 두고 알린다.
+            const gap = boring.length >= 2 ? Math.min(...boring.slice(1).map((v, i) => v - boring[i])) : Infinity;
+            const shortNote = gap < BOM_HINGE_MIN_GAP ? ` [확인 필요] 도어 H ${Math.round(doorH)} — 컵 간격 ${gap}` : '';
 
             hardware.push({
               category: '경첩',
@@ -2265,7 +2360,10 @@
               spec: `${hingesPerDoor}구`,
               qty: hingesPerDoor * doorCount,
               unit: 'EA',
-              note: `${mod.name || mod.type} (보링: ${boring.join(', ')})`,
+              note: `${mod.name || mod.type} (보링: ${boring.join(', ')})${shortNote}`,
+              // B4: 구조화 — 작업지시서가 비고 글자를 파싱하지 않아도 된다 (도어 상단 기준 mm)
+              ...this.moduleTagOf(mod),
+              boring: boring.slice(),
             });
           });
         }
@@ -2338,6 +2436,7 @@
                 qty: drawerCount,
                 unit: 'SET',
                 note: mod.name || mod.type,
+                ...this.moduleTagOf(mod),
               });
             });
             return;
@@ -2358,6 +2457,7 @@
                 qty: mod.drawerCount || 1,
                 unit: 'SET',
                 note: mod.name || mod.type,
+                ...this.moduleTagOf(mod),
               });
             });
             return;
@@ -2384,6 +2484,7 @@
               qty,
               unit: 'SET',
               note: `${mod.name || mod.type}${railKey === 'ball' && R ? ` · 두께 ${R.RAIL_CLEARANCE.ball.thickness}` : ''}`,
+              ...this.moduleTagOf(mod),
             });
           });
         }

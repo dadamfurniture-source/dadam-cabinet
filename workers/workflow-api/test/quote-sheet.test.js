@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { calculateSheetQuote, installMeters, doorSheets, edgeMeters, hardwareCounts, extraCostLines } from '../src/quote-sheet.js';
+import { calculateSheetQuote, installMeters, doorSheets, edgeMeters, hardwareCounts, extraCostLines, areaSheets } from '../src/quote-sheet.js';
 import { DEFAULT_QUOTE } from '../src/production/standards.js';
 
 const require = createRequire(import.meta.url);
@@ -20,6 +20,8 @@ const golden = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(`../../..
 const SINK = golden('sink15');
 const SINK_BOM = { materials: SINK.materials, hardware: SINK.hardware };
 const SINK_CUT = { summary: { sheetsByMaterial: { PB_15: 6, 'MDF_2.7': 3, MDF_18: 2 } } };
+/** 예전 방식 — 재단 배치의 정수 장수 */
+const NESTED = { quote: { sheetBasis: 'nested' } };
 
 test('시공 길이: 싱크대는 상·하부 폭 합, 붙박이장·키큰장(높이 1500 이상)은 2배, 냉장고 자리는 뺀다', () => {
   // 싱크대 골든: 상부 900+600+800(후드)+1200 = 3.5m, 하부 1000+800+900+400+400+600 = 4.1m
@@ -41,7 +43,7 @@ test('수량은 BOM 에서: 도어 원장(재단 배치 MDF 18T, 없으면 면�
 });
 
 test('견적 줄: 단가 × 수량 = 금액, 공급가 ≈ 최종 지출비용 × 1.2, 합계 = 공급가 + 부가세 10%', () => {
-  const q = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT });
+  const q = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT, settings: NESTED });
   assert.equal(q.method, 'sheet');
   assert.equal(q.margin_rate, 0.2);
   const names = q.items.map((i) => i.name);
@@ -69,7 +71,7 @@ test('마진율·원가 기준은 설정으로 바꾼다', () => {
   const m30 = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT, settings: { quote: { marginRate: 0.3 } } });
   assert.ok(m30.subtotal > base.subtotal);
   assert.equal(m30.cost.total, base.cost.total); // 원가는 그대로, 마진만 바뀐다
-  const cheapDoor = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT, settings: { quote: { doorSheet: 87000 } } });
+  const cheapDoor = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT, settings: { quote: { doorSheet: 87000, sheetBasis: 'nested' } } });
   assert.equal(cheapDoor.cost.door.outsourcing, 174000);
 });
 
@@ -124,4 +126,26 @@ test('거래처 금액 = 같은 원가 줄 × 1.1, 고객 금액 = × 1.2 · 간
   const withOh = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT, settings: { quote: { overheadPerHour: 33000, partnerMarginRate: 0.15 } } });
   assert.ok(withOh.cost.total > q.cost.total);
   assert.equal(withOh.partner.margin_rate, 0.15);
+});
+
+test('원판 장수 기본은 면적 기준 — PB·뒷판 0.1장, 도어 0.5장 단위 올림 (자투리 재사용 · 도어 반 장 청구)', () => {
+  const a = areaSheets(SINK_BOM, DEFAULT_QUOTE);
+  const SA = 1.22 * 2.44;
+  assert.ok(a.areaM2.pb > 0 && a.areaM2.door > 0);
+  assert.ok(Math.abs(a.pb - Math.ceil((a.areaM2.pb / (SA * 0.8)) * 10 - 1e-6) / 10) < 0.11);
+  assert.equal(a.door * 2, Math.round(a.door * 2)); // 0.5 단위
+  assert.ok(a.door >= a.areaM2.door / SA / 0.8 - 1e-9);
+  const q = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT });
+  const nested = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT, settings: NESTED });
+  assert.equal(q.cost.sheet_source, 'area');
+  assert.equal(q.cost.quantities.sheetsPB, a.pb);
+  assert.equal(q.cost.quantities.doorSheets, a.door);
+  assert.ok(q.cost.total < nested.cost.total, '면적 기준이 정수 장수보다 가볍다');
+  // 붙박이장: 정수 장수일 때보다 몸통 원판이 줄어든다
+  const w = golden('wardrobe');
+  const wq = calculateSheetQuote({ design: designOf(FIXTURES.wardrobe), bom: { materials: w.materials, hardware: w.hardware }, cutPlan: { summary: { sheetsByMaterial: { PB_15: 10, 'MDF_2.7': 4, MDF_18: 3 } } } });
+  assert.ok(wq.cost.quantities.sheetsPB < 10, String(wq.cost.quantities.sheetsPB));
+  // 수율을 설정으로 바꾸면 장수가 따라온다
+  const lowYield = areaSheets(SINK_BOM, { ...DEFAULT_QUOTE, pbYield: 0.6 });
+  assert.ok(lowYield.pb > a.pb);
 });

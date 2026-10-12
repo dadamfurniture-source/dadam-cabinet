@@ -89,6 +89,15 @@ export const DEFAULT_QUOTE = Object.freeze({
   faucet: 30000, // 수전 (거래명세서 KF-7)
   hood: 59000, // 후드 (거래명세서 하이드 IB60S)
   demolitionPerMeter: 25000, // 기존 철거, 상·하부 길이 m당 [확인 필요 — 판매가 3만 역산]
+  // 원판 장수 계산 (2026-10-13 대표): 자투리를 재사용하므로 현장마다 정수 장수가 아니라 면적 기준.
+  //   PB·뒷판 = 부재 면적 ÷ (원판 면적 × pbYield), 0.1장 단위 올림
+  //   도어    = 부재 면적 ÷ (원판 면적 × doorYield), 0.5장 단위 올림 (상일이 반 장 단위로 청구)
+  // sheetBasis 를 'nested' 로 두면 예전처럼 재단 배치의 정수 장수를 쓴다.
+  sheetBasis: 'area',
+  pbYield: 0.8,
+  doorYield: 0.8,
+  // 월 간접비 (월세 130만 + 그 외 250만) — 품목 원가에는 넣지 않고 월 손익 요약에서만 뺀다
+  overheadMonthly: 3800000,
   marginRate: 0.2, // 고객 금액 = 최종 지출비용 × (1 + 이 값)
   partnerMarginRate: 0.1, // 거래처(인테리어 업체) 금액 = 최종 지출비용 × (1 + 이 값) — 2026-10-13 대표 기본값
 });

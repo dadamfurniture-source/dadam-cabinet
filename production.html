@@ -87,6 +87,26 @@
       </div>
 
       <div class="card">
+        <div class="row" style="justify-content: space-between">
+          <h2 style="margin:0">월 손익 요약</h2>
+          <label class="muted">월 <input type="month" id="plMonth" /></label>
+        </div>
+        <div class="muted" style="margin:6px 0 10px">그 달에 확정된 수주의 매출(부가세 별도)에서 지출비용을 빼고, 간접비(매출 전체에서 충당)까지 뺀 금액입니다. 지출비용은 계약 스냅샷의 장당 견적 원가입니다.</div>
+        <div class="kpi">
+          <div>수주<b id="plOrders">-</b></div>
+          <div>매출 (부가세 별도)<b id="plRevenue">-</b></div>
+          <div>지출비용<b id="plCost">-</b></div>
+          <div>남는 돈 (매출 − 지출)<b id="plGross">-</b></div>
+          <div>간접비<b id="plOverhead">-</b></div>
+          <div>최종 손익<b id="plNet">-</b></div>
+        </div>
+        <div class="muted" id="plNote" style="margin-top:8px"></div>
+        <details style="margin-top:8px"><summary class="muted">수주별 보기</summary>
+          <div class="scroll"><table><thead><tr><th>수주</th><th>구분</th><th class="num">매출</th><th class="num">지출비용</th><th class="num">남는 돈</th></tr></thead><tbody id="plRows"></tbody></table></div>
+        </details>
+      </div>
+
+      <div class="card">
         <h2>주문별 일정</h2>
         <div class="scroll">
           <table>
@@ -175,7 +195,7 @@
           crew: { hoursPerDay: '하루 근무시간', util: '실작업 비율 (0~1)', cutters: '재단 기사 (명)', edgeMachines: '엣지밴더 (대)', edgeMaxOvertimeHours: '알바 연장 최대 (시간)', assemblers: '조립 기사 기본 (명)', assemblersMaxExtra: '조립 추가 최대 (명)' },
           costs: { assemblerDay: '조립 일당', partTimeHourly: '알바 시급', outsourceCutEdgePerSheet: '재단+엣지 외주 (PB 1장)' },
           leads: { doorLeadDays: '도어 외주 납기 (근무일)', outsourceLeadDays: '재단+엣지 외주 납기', defaultLeadDays: '설치일 없을 때 기본 (근무일)' },
-          quote: { marginRate: '고객 마진율 (0.2 = 20%)', partnerMarginRate: '거래처 마진율 (0.1 = 10%)', pbSheet: '몸통 PB 15T 원판', backSheet: '뒷판 MDF 2.7T 원판', edgeRoll: '0.6T 엣지 1롤', edgeRollMeters: '엣지 1롤 길이 (m)', doorSheet: '도어 외주 원장 1장', hinge: '경첩 1개', rail: '서랍 레일 1조', leg: '다리발 1개', shelfPin: '선반 다보 1개', rod: '옷봉 1개', fastenerPerBox: '체결 부속 (통당)', cutterMonthly: '재단 기사 월급', workDays: '월 근무일', overheadPerHour: '간접비 배분 (공장 1시간당, 0 = 매출 전체에서 충당)', installPerMeter: '시공 외주 (시공 m당)', countertopPerMeter: '인조대리석 상판 원가 (m당)', sinkBowl: '싱크볼 원가', faucet: '수전 원가', hood: '후드 원가', demolitionPerMeter: '철거 원가 (m당)' },
+          quote: { marginRate: '고객 마진율 (0.2 = 20%)', partnerMarginRate: '거래처 마진율 (0.1 = 10%)', pbSheet: '몸통 PB 15T 원판', backSheet: '뒷판 MDF 2.7T 원판', edgeRoll: '0.6T 엣지 1롤', edgeRollMeters: '엣지 1롤 길이 (m)', doorSheet: '도어 외주 원장 1장', hinge: '경첩 1개', rail: '서랍 레일 1조', leg: '다리발 1개', shelfPin: '선반 다보 1개', rod: '옷봉 1개', fastenerPerBox: '체결 부속 (통당)', cutterMonthly: '재단 기사 월급', workDays: '월 근무일', overheadPerHour: '간접비 배분 (공장 1시간당, 0 = 매출 전체에서 충당)', installPerMeter: '시공 외주 (시공 m당)', countertopPerMeter: '인조대리석 상판 원가 (m당)', pbYield: '원판 수율 PB·뒷판 (0.8 = 80%)', doorYield: '도어 원판 수율 (0.5장 단위 청구)', overheadMonthly: '월 간접비 (손익 요약에서만 뺌)', sinkBowl: '싱크볼 원가', faucet: '수전 원가', hood: '후드 원가', demolitionPerMeter: '철거 원가 (m당)' },
         };
 
         function el(id) { return document.getElementById(id); }
@@ -372,6 +392,26 @@
           } catch (e) { fail(e.message); }
         }
 
+        function wonFull(n) { return n == null ? '-' : Math.round(n).toLocaleString('ko-KR') + '원'; }
+        async function loadMonthly() {
+          var m = el('plMonth').value;
+          var d = await api('/production/monthly' + (m ? '?month=' + encodeURIComponent(m) : ''));
+          if (!m) el('plMonth').value = d.month;
+          var t = d.totals;
+          el('plOrders').textContent = t.orders + '건';
+          el('plRevenue').textContent = man(t.revenue);
+          el('plCost').textContent = man(t.cost);
+          el('plGross').textContent = man(t.gross) + (t.grossRate != null ? ' (' + t.grossRate + '%)' : '');
+          el('plOverhead').textContent = man(t.overhead);
+          el('plNet').innerHTML = '<span class="' + (t.net >= 0 ? 'ok' : 'late') + '">' + man(t.net) + '</span>';
+          el('plNote').textContent = (t.unknownCost ? '원가를 모르는 수주 ' + t.unknownCost + '건(장당 견적 이전 스냅샷)은 지출·남는 돈에서 빠졌습니다. ' : '') +
+            (t.shortfall > 0 ? '간접비를 덮으려면 이번 달 남는 돈이 ' + wonFull(t.shortfall) + ' 더 필요합니다.' : '이번 달 매출로 간접비를 덮었습니다.');
+          el('plRows').innerHTML = (d.rows || []).map(function (r) {
+            return '<tr><td>' + esc(r.label) + '</td><td>' + (r.tier === 'partner' ? '거래처' : '고객') + '</td><td class="num">' + wonFull(r.revenue) + '</td><td class="num">' + wonFull(r.cost) + '</td><td class="num">' + wonFull(r.gross) + '</td></tr>';
+          }).join('') || '<tr><td colspan="5" class="muted">이 달 수주가 없습니다.</td></tr>';
+        }
+        el('plMonth').addEventListener('change', function () { loadMonthly().catch(function (e) { fail(e.message); }); });
+
         el('btnCreateLink').addEventListener('click', createLink);
         el('btnApplyAll').addEventListener('click', function () { applyCalib(null); });
 
@@ -387,6 +427,7 @@
           api('/production/settings').then(function (d) { state.settings = d.settings; renderSettings(); }),
           loadLinks(),
           loadCalibration(),
+          loadMonthly(),
         ]).catch(function (e) { fail(e.message); });
       })();
     </script>

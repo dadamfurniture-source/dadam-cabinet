@@ -136,14 +136,16 @@ describe('키큰장 단별 경첩 수 — 경첩은 자재 행이 낸 도어 높
     expectHingeMatchesDoor(up, 2);
   });
 
-  test('붙박이·냉장고장 모듈(pos 없음)은 tall 가지를 타지 않는다 — 냉장고장 키큰장 2290 → 4구 그대로', () => {
+  // 2026-10-13 (B4): 냉장고장 키큰장 경첩은 자재 도어 행 높이(H + 20 = 2310, bomFridgeDoorOf)로 보링한다 — 예전 2290 은 도어보다 20 짧았다.
+  test('붙박이·냉장고장 모듈(pos 없음)은 tall 가지를 타지 않는다 — 냉장고장 키큰장 도어 2310 → 4구', () => {
     const { HardwareExtractor } = loadExtractors();
     const fridge = { categoryId: 'fridge', w: 1800, h: 2350, d: 700, specs: {},
       modules: [{ id: 'r2', type: 'tall', name: '키큰장', w: 600, h: 2290, d: 700, doorCount: 1 }] };
     const hw = new HardwareExtractor().extract({ appVersion: 't', items: [fridge] }).hardware;
     const hinge = hw.find((h) => h.category === '경첩');
     expect(hinge.spec).toBe('4구');
-    expect(hinge.note).toBe('키큰장 (보링: 110, 763, 1527, 2180)');
+    expect(hinge.note).toBe('키큰장 (보링: 110, 770, 1540, 2200)');
+    expect(hinge.boring).toEqual([110, 770, 1540, 2200]);
   });
 
   test('경첩 수 문턱 — ≤900 2구 · 901~1600 3구 · 1601+ 4구 (bom-protocol.md §4-1)', () => {
