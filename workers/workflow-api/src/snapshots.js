@@ -29,13 +29,13 @@ import { snapshotHash } from './util/hash.js';
 import { getActivePricebook, getPricebookById } from './pricing.js';
 import { buildQuoteInputs } from './adapters.js';
 import { calculateQuote, VALID_GRADES } from './quote.js';
-import { calculateSheetQuote, nonCabinetItems } from './quote-sheet.js';
+import { calculateSheetQuote } from './quote-sheet.js';
 import { getSettings } from './production/service.js';
 
 /**
  * 고객 견적 = 장당 견적 (2026-10-13 대표 결정).
- * 캐비닛은 BOM 원판 장수 × 실제 원가 × (1 + 마진율), 상판·설비·철거는 단가표 그대로.
- * 단가표 견적(m당)은 legacy 로 남겨 비교만 한다.
+ * 캐비닛은 BOM 원판 장수, 상판·설비·철거는 설계 품목으로 세고, 전부 실제 원가 × (1 + 마진율).
+ * 단가표 견적(m당)은 legacy 로 남겨 비교만 한다 (범위 배수만 단가표에서 가져온다).
  * 생산 설정(원가 기준)을 못 읽으면 기본값으로 계산한다 — 스냅샷 저장을 막지 않는다.
  */
 async function buildCustomerQuote(env, { user, designPayload, bom, cutPlan, pricebook, grade }) {
@@ -53,7 +53,6 @@ async function buildCustomerQuote(env, { user, designPayload, bom, cutPlan, pric
     bom,
     cutPlan,
     settings,
-    extraItems: nonCabinetItems(legacy),
     range: minMult !== null && maxMult !== null ? { min: minMult, max: maxMult } : null,
   });
   return {
