@@ -253,6 +253,7 @@ async function chat(request, env) {
     prompt: buildChatPrompt({ category: body.category, messages }),
     want: 'text',
     temperature: 0.6,
+    retryDelaysMs: [3_000], // 손님이 채팅창에서 기다린다 — 과부하면 3초 뒤 한 번만
   });
   const reply = cleanChatReply(r.text);
   if (!reply) throw new Error('chat: empty reply');
