@@ -72,6 +72,7 @@ import {
   computePlan,
   proposePlan,
   runDailyBriefs,
+  getMonthlySummary,
   getProposal,
   decideProposal,
   listAssignments,
@@ -412,6 +413,11 @@ async function handleWorkerAssignmentDone(request, env, { params }) {
   return jsonResponse(request, env, { success: true, data: await markAssignmentDone(env, { link, assignmentId: params.assignmentId, done: body.done !== false }) });
 }
 
+async function handleMonthlySummary(request, env, { user }) {
+  const url = new URL(request.url);
+  return jsonResponse(request, env, { success: true, data: await getMonthlySummary(env, { user, month: url.searchParams.get('month') }) });
+}
+
 async function handleSaveProductionSettings(request, env, { user }) {
   const body = (await readJson(request)) || {};
   return jsonResponse(request, env, { success: true, data: await saveSettings(env, { user, body }) });
@@ -551,6 +557,7 @@ const router = createRouter([
   { method: 'POST', path: '/production/worker-links',                  auth: 'jwt', handler: handleCreateWorkerLink },
   { method: 'GET',  path: '/production/worker-links',                  auth: 'jwt', handler: handleListWorkerLinks },
   { method: 'POST', path: '/production/worker-links/:linkId/revoke',   auth: 'jwt', handler: handleRevokeWorkerLink },
+  { method: 'GET',  path: '/production/monthly',                       auth: 'jwt', handler: handleMonthlySummary },
   { method: 'GET',  path: '/production/worklogs',                      auth: 'jwt', handler: handleListWorklogs },
   { method: 'GET',  path: '/production/calibration',                   auth: 'jwt', handler: handleGetCalibration },
   { method: 'POST', path: '/production/calibration/apply',             auth: 'jwt', handler: handleApplyCalibration },

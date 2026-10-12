@@ -54,6 +54,29 @@ export function doorSheets(bom, cutPlan) {
   return area > 0 ? Math.ceil(area / (SHEET_AREA_M2 * FALLBACK_YIELD)) : 0;
 }
 
+/** 올림 (step 단위). 부동소수 오차로 1.0000001 이 1.1 이 되지 않게 살짝 깎는다. */
+const ceilTo = (x, step) => (x > 0 ? Math.ceil(x / step - 1e-9) * step : 0);
+
+/**
+ * 면적 기준 원판 장수 (자투리 재사용 · 도어 반 장 청구, 2026-10-13 대표).
+ *   PB·뒷판 = 면적 ÷ (원판 × pbYield), 0.1장 올림 · 도어 = 면적 ÷ (원판 × doorYield), 0.5장 올림
+ */
+export function areaSheets(bom, Q) {
+  const mats = (bom && bom.materials) || [];
+  const area = (pred) => mats.filter(pred).reduce((t, m) => t + (num(m.w) * num(m.h) * num(m.qty)) / 1e6, 0);
+  const mat = (m) => String(m.material || '').toUpperCase();
+  const pbA = area((m) => mat(m).startsWith('PB'));
+  const backA = area((m) => mat(m) === 'MDF' && num(m.thickness) > 0 && num(m.thickness) < 5);
+  const doorA = area((m) => mat(m) === 'MDF' && num(m.thickness) >= 15);
+  const r1 = (x) => Math.round(x * 10) / 10;
+  return {
+    pb: r1(ceilTo(pbA / (SHEET_AREA_M2 * Q.pbYield), 0.1)),
+    back: r1(ceilTo(backA / (SHEET_AREA_M2 * Q.pbYield), 0.1)),
+    door: ceilTo(doorA / (SHEET_AREA_M2 * Q.doorYield), 0.5),
+    areaM2: { pb: Math.round(pbA * 100) / 100, back: Math.round(backA * 100) / 100, door: Math.round(doorA * 100) / 100 },
+  };
+}
+
 /** 몸통 엣지 길이 (m) — PB 행의 edgeLen × 수량. */
 export function edgeMeters(bom) {
   return ((bom && bom.materials) || [])
@@ -129,8 +152,17 @@ export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extra
   const Q = { ...DEFAULT_QUOTE, ...(settings.quote || {}) };
 
   const c = countWork(bom, cutPlan);
+  let doors = doorSheets(bom, cutPlan);
+  let areaInfo = null;
+  if (Q.sheetBasis !== 'nested') {
+    // 면적 기준 — 재료비와 재단·엣지 시간 모두 이 장수로 (자투리를 다음 현장에 쓰므로)
+    areaInfo = areaSheets(bom, Q);
+    c.sheetsPB = areaInfo.pb;
+    c.sheetsBack = areaInfo.back;
+    c.sheetSource = 'area';
+    doors = areaInfo.door;
+  }
   const w = workloadFromCounts(c, S);
-  const doors = doorSheets(bom, cutPlan);
   const edgeM = edgeMeters(bom);
   const hw = hardwareCounts(bom);
   const installM = installMeters(design);
@@ -235,6 +267,7 @@ export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extra
       quantities: { sheetsPB: c.sheetsPB, sheetsBack: c.sheetsBack, doorSheets: doors, edgeMeters: Math.round(edgeM * 10) / 10, installMeters: installM, boxes: c.boxes, drawers: c.drawers, doors: c.doors, ...hw },
       seconds: { cutter: Math.round(w.cutter), edge: Math.round(w.edge), asm: Math.round(w.asm) },
       sheet_source: c.sheetSource,
+      area_m2: areaInfo ? areaInfo.areaM2 : null,
     },
   };
 }
