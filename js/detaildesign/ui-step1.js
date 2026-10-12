@@ -1209,6 +1209,40 @@
         return out;
       }
 
+      /**
+       * 2026-10-13: 작업지시서 아이소메트릭(코너 품목)용 자리 — 칸 하나의 평면 중심 · 진행 방향 · 앞면 방향 · 높이.
+       *   플래너 payload 의 `plane`(영역 회전 반영 평면 상자) · `rotation` · `baseY` 에서 푼다.
+       *   회전은 3D 와 같은 규약: 0° 진행 +x · 앞 +y, 90° 진행 +y · 앞 −x, 180° 진행 −x · 앞 −y, 270° 진행 −y · 앞 +x.
+       *   `plane` 이 없는 옛 payload 는 null — 모듈에 `_place` 를 싣지 않아 예전과 같다.
+       * @param {object} m       플래너 모듈 (plane · rotation · W · D · H · baseY)
+       * @param {number} offset  모듈 왼쪽 끝에서 칸 왼쪽 끝까지 (회전 전 x)
+       * @param {number} width   칸 폭
+       * @param {number} ceil    천장 높이 (payload.ceilingHeight)
+       */
+      function _plannerPlaceOf(m, offset, width, ceil) {
+        const p = m && m.plane;
+        if (!p || !Number.isFinite(Number(p.cx)) || !Number.isFinite(Number(p.cy))) return null;
+        const rot = (((Number(m.rotation) || 0) % 360) + 360) % 360;
+        const DIRS = { 0: [1, 0, 0, 1], 90: [0, 1, -1, 0], 180: [-1, 0, 0, -1], 270: [0, -1, 1, 0] };
+        const R = DIRS[rot];
+        if (!R) return null;
+        const r1 = (v) => Math.round(v * 10) / 10;
+        const W = Number(m.W) || 0;
+        const along = (Number(offset) || 0) + (Number(width) || 0) / 2 - W / 2;
+        const place = {
+          cx: r1(Number(p.cx) + R[0] * along),
+          cy: r1(Number(p.cy) + R[1] * along),
+          w: r1(Number(width) || 0),
+          d: r1(Number(m.D) || 0),
+          run: [R[0], R[1]],
+          front: [R[2], R[3]],
+          z0: r1(Number(m.baseY) || 0),
+          h: r1(Number(m.H) || 0),
+        };
+        if (Number(ceil) > 0) place.ceil = Number(ceil);
+        return place;
+      }
+
       function _convertPlannerModules(payload, specs) {
         const src = Array.isArray(payload.modules) ? payload.modules : [];
         const structures = payload.structures || {};
@@ -1219,6 +1253,12 @@
         const out = [];
         const warnings = [];
         let blankDropped = 0;
+        const ceil = Number(payload.ceilingHeight) || 0;
+        /** 마지막으로 넣은 모듈에 아이소메트릭 자리를 단다 (plane 이 없으면 아무것도 안 한다) */
+        const placeLast = (m, offset, width) => {
+          const pl = _plannerPlaceOf(m, offset, width, ceil);
+          if (pl) out[out.length - 1]._place = pl;
+        };
         // 2026-09-17: 붙박이장 통 번호 — 구조를 고르지 않은 통은 **번호로** 기본형 프리셋이 정해진다
         //   (플래너 wardrobeIndexOf 와 같은 규칙: x 순서).
         const wardrobeOrder = src
@@ -1281,6 +1321,7 @@
               isFixed: !!m.isFixed,
               _x: Number(m.x) || 0,
             });
+            placeLast(m, 0, w);
             return;
           }
 
@@ -1337,6 +1378,7 @@
               isFixed: !!m.isFixed,
               _x: Number(m.x) || 0,
             });
+            placeLast(m, 0, Number(m.W) || 0);
             return;
           }
 
@@ -1430,6 +1472,7 @@
               isFixed: false,
               _x: c.x,
             });
+            placeLast(m, (Number(c.x) || 0) - (Number(m.x) || 0), c.w);
             // 2026-09-15: 서랍 규칙(레일·사쿠리·서랍 자재 두께·전면 등급)은 서랍이 있는 셀에만 — 없는 모듈의 payload 는 예전과 같다.
             if (!isOpen && drawerAtBottom) out[out.length - 1].drawer = _drawerRulesOf(s);
             // 2026-10-13: 위로 여는 도어(플랩) — 칸 열림 방향 'up'. 상부장 단문 칸에만 뜻이 있다.

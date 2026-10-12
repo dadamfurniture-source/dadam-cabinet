@@ -7451,8 +7451,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           if (ownArea && Number(ownArea.curtainBoxH) > 0) out.curtainBoxH = Number(ownArea.curtainBoxH);
         }
         if (m.blind) out.blind = m.blind;
+        // 2026-10-13: 작업지시서 아이소메트릭(코너 품목) — 평면 자리(영역 회전 반영)와 바닥에서의 높이.
+        //   x·y·rotation 만으로는 부모가 회전축(영역 중심)을 몰라 자리를 되살릴 수 없다.
+        //   브리지가 칸마다 중심·진행 방향·앞면 방향으로 풀어 `_place` 로 싣는다.
+        const pb = modulePlaneBox(m);
+        out.plane = { x: pb.x, y: pb.y, w: pb.w, d: pb.d, cx: pb.cx, cy: pb.cy };
+        out.baseY = getBaseY(m.section, Number(m.H) || 0);
         return out;
       }),
+      // 상부장은 천장에 매달린다 (getBaseY) — 아이소메트릭의 천장 높이
+      ceilingHeight: ceilingHeight,
       structures: structures,
       // 자동계산을 한 번이라도 돌렸는지 — 부모가 안내에 쓴다
       hasStructures: Object.keys(structures || {}).length > 0,
