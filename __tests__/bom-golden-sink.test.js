@@ -94,8 +94,10 @@ describe('BOM 골든 — 싱크대 18T (sink18)', () => {
     const top18 = snap18.materials.find((m) => m.module === '상부장-상부장(1D)' && m.part === '천판');
     expect(top15.w).toBe(600 - 30);
     expect(top18.w).toBe(600 - 36);
-    // 철물은 두께와 무관
-    expect(snap18.hardware).toEqual(snap15.hardware);
+    // 철물 수량은 두께와 무관 — 경첩 품번만 갈린다 (2026-10-13: 15T H052W-5 · 18T H052W-3)
+    const noModel = (s) => s.hardware.map((h) => (h.category === '경첩' ? { ...h, item: '경첩' } : h));
+    expect(noModel(snap18)).toEqual(noModel(snap15));
+    expect(snap18.hardware.filter((h) => h.category === '경첩').every((h) => h.item.startsWith('H052W-3'))).toBe(true);
   });
 });
 

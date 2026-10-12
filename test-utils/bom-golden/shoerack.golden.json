@@ -633,7 +633,7 @@
       "h": 180,
       "qty": 4,
       "edge": "1면(장)",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D350 → 레일 350: 측판 290 · 밑판 299)",
+      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D350 → 레일 300: 측판 240 · 밑판 249)",
       "finishCode": "",
       "partId": "0-l2-drawerbox:fb-0",
       "slot": "body",
@@ -653,11 +653,11 @@
       "part": "서랍측판",
       "material": "PB",
       "thickness": 15,
-      "w": 290,
+      "w": 240,
       "h": 180,
       "qty": 4,
       "edge": "1면(장)",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D350 → 레일 350: 측판 290 · 밑판 299)",
+      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D350 → 레일 300: 측판 240 · 밑판 249)",
       "finishCode": "",
       "partId": "0-l2-drawerbox:side-0",
       "slot": "body",
@@ -667,7 +667,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 290,
+      "edgeLen": 240,
       "edgeT": 0.6,
       "edgeCode": null,
       "itemLabel": "신발장"
@@ -678,10 +678,10 @@
       "material": "MDF",
       "thickness": 2.7,
       "w": 457,
-      "h": 299,
+      "h": 249,
       "qty": 2,
       "edge": "-",
-      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D350 → 레일 350: 측판 290 · 밑판 299)",
+      "note": "[확인 필요] simple-categories.md 에 없음 — 싱크대 규칙 준용 (D350 → 레일 300: 측판 240 · 밑판 249)",
       "finishCode": "",
       "partId": "0-l2-drawerbox:bottom-0",
       "slot": "back",
@@ -1037,13 +1037,13 @@
     "PB_15": {
       "material": "PB",
       "thickness": 15,
-      "totalArea": 6617930,
+      "totalArea": 6581930,
       "panelCount": 3
     },
     "MDF_2.7": {
       "material": "MDF",
       "thickness": 2.7,
-      "totalArea": 2486156,
+      "totalArea": 2440456,
       "panelCount": 1
     },
     "MDF_18": {
@@ -1055,12 +1055,12 @@
   },
   "edgeBanding": {
     "1": 16084,
-    "0.6": 66356
+    "0.6": 66156
   },
   "hardware": [
     {
       "category": "경첩",
-      "item": "문주 110도 약압 경첩",
+      "item": "H052W-5 105도 저압 경첩",
       "manufacturer": "문주",
       "spec": "2구",
       "qty": 4,
@@ -1070,7 +1070,7 @@
     },
     {
       "category": "경첩",
-      "item": "문주 110도 약압 경첩",
+      "item": "H052W-5 105도 저압 경첩",
       "manufacturer": "문주",
       "spec": "2구",
       "qty": 2,
@@ -1080,7 +1080,7 @@
     },
     {
       "category": "경첩",
-      "item": "문주 110도 약압 경첩",
+      "item": "H052W-5 105도 저압 경첩",
       "manufacturer": "문주",
       "spec": "2구",
       "qty": 4,
@@ -1090,7 +1090,7 @@
     },
     {
       "category": "경첩",
-      "item": "문주 110도 약압 경첩",
+      "item": "H052W-5 105도 저압 경첩",
       "manufacturer": "문주",
       "spec": "2구",
       "qty": 2,
@@ -1102,7 +1102,7 @@
       "category": "레일",
       "item": "소프트클로즈 서랍레일",
       "manufacturer": "블룸",
-      "spec": "350mm",
+      "spec": "300mm",
       "qty": 2,
       "unit": "SET",
       "note": "서랍장",
@@ -1157,7 +1157,7 @@
   ],
   "hardwareCsvHead": [
     "분류,품목,제조사,스펙,수량,단위,비고",
-    "경첩,문주 110도 약압 경첩,문주,2구,4,EA,상부장 (보링: 110, 610)",
-    "경첩,문주 110도 약압 경첩,문주,2구,2,EA,상부장 (보링: 110, 610)"
+    "경첩,H052W-5 105도 저압 경첩,문주,2구,4,EA,상부장 (보링: 110, 610)",
+    "경첩,H052W-5 105도 저압 경첩,문주,2구,2,EA,상부장 (보링: 110, 610)"
   ]
 }

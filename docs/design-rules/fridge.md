@@ -97,7 +97,8 @@
 ### 속성
 - `isEL`: true면 EL장(전동수납), false면 기본모듈
 - `isFixed`: 자동계산 시 높이 고정 여부
-- `doorType`: swing(여닫이) / slide(슬라이딩) / lift(리프트업) — 오픈장은 null
+- `doorType`: swing(여닫이) / sliding(슬라이딩) / liftup(리프트업) / flap(플랩) / pocket(포켓) — `data-constants.js` EL_DOOR_TYPES. 오픈장은 null.
+  BOM 철물: 리프트업은 가변철물, 슬라이딩은 SDR-2 레일·부속, 나머지는 경첩 (`hardware.md` §1). 옛 표기 slide·lift 도 같게 읽는다.
 
 ### EL 자동계산 (autoCalculateELModules)
 1. 고정 모듈의 높이 합계 계산
