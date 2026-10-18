@@ -165,6 +165,15 @@ test('설정: 아는 키·숫자·범위만 받는다, 빠진 키는 기본값',
   assert.equal(kstDate('2026-10-12T15:00:00Z'), '2026-10-13');
 });
 
+test('설정: 예전 기본 상판 125,000 이 저장돼 있으면 확정값 133,333 으로 읽는다 — 직접 바꾼 값은 그대로', () => {
+  // 설정 화면은 모든 칸을 함께 저장하므로 옛 기본값이 박혀 있다 (2026-10-19 대표: 고객가 m당 16만)
+  assert.equal(mergeSettings({ quote: { countertopPerMeter: 125000, sinkBowl: 60000 } }).quote.countertopPerMeter, 133333);
+  assert.equal(mergeSettings({ quote: { countertopPerMeter: 125000, sinkBowl: 60000 } }).quote.sinkBowl, 60000);
+  assert.equal(mergeSettings({ quote: { countertopPerMeter: 140000 } }).quote.countertopPerMeter, 140000);
+  assert.equal(mergeSettings(null).quote.countertopPerMeter, 133333);
+  assert.equal(mergeSettings(null).quote.demolitionPerMeter, 25000);
+});
+
 test('알림: 제안 메시지에 승인 링크·추가 비용, 지시는 날짜별로 묶는다', () => {
   const jobs = [];
   for (let i = 0; i < 12; i++) jobs.push({ id: `s${i}`, label: `싱크대 ${i + 1}`, orderedAt: '2026-10-13', installDate: '2026-10-20', work: workloadFromCounts(SINK_3M) });

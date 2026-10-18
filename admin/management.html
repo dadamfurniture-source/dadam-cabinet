@@ -108,6 +108,7 @@
       .load .fill.full { background: #c62828; }
       .load .v { text-align: right; font-variant-numeric: tabular-nums; }
       .load small { display: block; font-size: 11px; color: #888; text-align: right; }
+      .load small.measured { color: #007bff; }
       .tag { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 99px; background: #fff3e0; color: #f57c00; margin-left: 4px; }
       /* 만약에 판 */
       .whatif { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(0, 1.4fr); gap: 18px; align-items: start; }
@@ -497,8 +498,13 @@
             const w = Math.max(0, Math.min(100, Number(r.load) || 0));
             const cls = r.load >= 100 ? 'full' : r.load >= 85 ? 'warn' : '';
             const tag = l.bottleneck === r.role ? '<span class="tag">병목</span>' : '';
+            // 능력의 근거 — 실측이 쌓인 공정은 실측 속도, 아니면 생산 설정 (옛 워커면 줄을 뺀다)
+            const basis = !r.basis ? ''
+              : r.basis === 'measured'
+                ? `<small class="basis measured">실측 속도 ×${esc(r.pace)} · ${esc(r.paceDays)}일</small>`
+                : `<small class="basis">설정 기준 · 실측 ${esc(r.paceDays)}/${esc(l.paceMinDays || 20)}일</small>`;
             return `<div class="load" data-role="${esc(r.role)}"><span>${esc(r.label)}${tag}</span><span class="track"><span class="fill ${cls}" style="width:${w}%"></span></span>
-              <span class="v">${esc(pct(r.load))}<small>받은 ${esc(hrs(r.receivedHours))} / ${esc(hrs(r.capacityHours))}</small><small>한 일 ${esc(hrs(r.doneHours))}</small></span></div>`;
+              <span class="v">${esc(pct(r.load))}<small>받은 ${esc(hrs(r.receivedHours))} / ${esc(hrs(r.capacityHours))}</small><small>한 일 ${esc(hrs(r.doneHours))}</small>${basis}</span></div>`;
           }).join('');
           const tpRows = (tp.rows || []).map((r) => `<tr><td>${esc(r.label)}</td><td class="num">${esc(man(r.throughput))}</td><td class="num">${esc(mins(r.minutes))}</td><td class="num">${esc(won(r.perMin))}</td></tr>`).join('');
           const tpTable = tpRows
@@ -506,7 +512,7 @@
             : '<div class="empty-state">견적 작업 시간이 있는 수주가 없습니다.</div>';
           $('bottleneckBody').innerHTML = `
             ${bars}
-            <div class="muted">이달 받은 일(이달 수주의 견적 작업 시간) ÷ 한 달 능력 — 근무일 ${esc(l.workdays)}일 · 생산 설정의 하루 시간 · 가동률 · 인원 기준</div>
+            <div class="muted">이달 받은 일(이달 수주의 견적 작업 시간) ÷ 한 달 능력 — 근무일 ${esc(l.workdays)}일 · 생산 설정의 하루 시간 · 가동률 · 인원 기준. 작업자 실측을 ${esc(l.paceMinDays || 20)}일 넘게 남긴 공정은 실측 속도로 능력을 고칩니다 (×1.2 = 표준보다 20% 느려 능력이 그만큼 준다)</div>
             <div class="sub-h">${esc(tp.label || '재단')} 1분당 처리량 — 평균 <b class="num">${esc(won(tp.avgPerMin))}</b></div>
             ${tpTable}
             <div class="muted" style="margin-top:8px">처리량 = 매출 − 자재 · 철물 · 외주. 병목이 꽉 찬 달에는 1분당 처리량이 큰 일부터 받는 것이 이익을 가장 크게 합니다.</div>`;

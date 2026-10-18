@@ -241,8 +241,8 @@ test('경영 요약에 퍼널과 플랫폼(이달 · 지난 달)이 실린다', 
 });
 
 // ── PR-3: 공정 줄 — 견적 대비 실적 · 부하 · 처리량 ──
-import { estimateByCategory, costVariance, timeVariance, workdaysInMonth, loadOf, throughputOf, processOf } from '../src/management/summary.js';
-import { mergeLogs } from '../src/management/service.js';
+import { estimateByCategory, costVariance, timeVariance, workdaysInMonth, loadOf, throughputOf, processOf, paceOf } from '../src/management/summary.js';
+import { mergeLogs, windowStart } from '../src/management/service.js';
 
 const P_ORDERS = [
   { id: 'P1', order_no: 'SO-11', customer_name: 'P고객', snapshot_id: 'sp1', status: 'confirmed', contract_amount: 3300000, ordered_at: '2026-10-06T01:00:00Z' },
@@ -326,10 +326,66 @@ test('공정 부하: 능력 = 21일 × 8시간 × 0.85 = 142.8시간/인, 받은
   assert.equal(l.workdays, 21);
   assert.equal(l.bottleneck, 'asm');
   assert.deepEqual(l.roles, [
-    { role: 'cutter', label: '재단', people: 1, capacityHours: 142.8, receivedHours: 1.8, doneHours: 1.3, load: 1.3, doneLoad: 0.9 },
-    { role: 'edge', label: '엣지', people: 1, capacityHours: 142.8, receivedHours: 0.8, doneHours: 1.3, load: 0.5, doneLoad: 0.9 },
-    { role: 'asm', label: '조립', people: 1, capacityHours: 142.8, receivedHours: 2.5, doneHours: 1.5, load: 1.8, doneLoad: 1.1 },
+    { role: 'cutter', label: '재단', people: 1, capacityHours: 142.8, receivedHours: 1.8, doneHours: 1.3, load: 1.3, doneLoad: 0.9, basis: 'settings', pace: null, paceDays: 0 },
+    { role: 'edge', label: '엣지', people: 1, capacityHours: 142.8, receivedHours: 0.8, doneHours: 1.3, load: 0.5, doneLoad: 0.9, basis: 'settings', pace: null, paceDays: 0 },
+    { role: 'asm', label: '조립', people: 1, capacityHours: 142.8, receivedHours: 2.5, doneHours: 1.5, load: 1.8, doneLoad: 1.1, basis: 'settings', pace: null, paceDays: 0 },
   ]);
+  assert.equal(l.paceMinDays, 20);
+});
+
+// ── 처리능력 실측 (2026-10-19 대표: "실측이 쌓이면 실측으로") ──
+const STD = { cutPerSheet: 300, edgePerFace: 60, asmPerBox: 600, asmPerDrawer: 600 };
+const day = (base, i) => new Date(Date.parse(`${base}T00:00:00Z`) + i * 86400000).toISOString().slice(0, 10);
+const logsFor = (role, base, days, units, minutes) => Array.from({ length: days }, (_, i) => ({ role, units, minutes, work_date: day(base, i) }));
+
+test('실측 속도: 기록한 날 20일 이상이면 실측 초 ÷ 표준 초, 모자라면 아직 설정 기준', () => {
+  const logs = [
+    ...logsFor('cutter', '2026-09-01', 20, 1, 6), // 원판 1장에 6분 = 360초 → 표준 300초의 1.2배
+    ...logsFor('asm', '2026-09-01', 19, 1, 12), // 하루 모자란다
+  ];
+  const p = paceOf(logs, STD);
+  assert.deepEqual(p.cutter, { days: 20, ratio: 1.2 });
+  assert.deepEqual(p.asm, { days: 19, ratio: null });
+  assert.deepEqual(p.edge, { days: 0, ratio: null });
+});
+
+test('실측 속도: 엣지는 단위가 면으로 바뀐 날(2026-10-18) 전 기록을 세지 않는다 · 같은 날 여러 줄은 하루', () => {
+  const old = logsFor('edge', '2026-09-01', 25, 10, 10);
+  assert.deepEqual(paceOf(old, STD).edge, { days: 0, ratio: null });
+  const twice = [...logsFor('cutter', '2026-09-01', 20, 1, 5), ...logsFor('cutter', '2026-09-01', 20, 1, 5)];
+  assert.deepEqual(paceOf(twice, STD).cutter, { days: 20, ratio: 1 });
+});
+
+test('실측 속도: 날은 넉넉해도 보정 표본(10단위)이 모자라면 쓰지 않는다', () => {
+  const thin = logsFor('cutter', '2026-09-01', 20, 0.25, 2); // 합계 5장
+  assert.deepEqual(paceOf(thin, STD).cutter, { days: 20, ratio: null });
+});
+
+test('공정 부하: 실측이 느린 공정은 능력이 줄어 병목이 바뀐다 — 재단 1.5배면 142.8 → 95.2시간', () => {
+  const l = loadOf(P_ORDERS, P_SNAPS, P_LOGS, P_SETTINGS, '2026-10', { cutter: { days: 23, ratio: 1.5 }, asm: { days: 4, ratio: null } });
+  const cut = l.roles[0];
+  assert.equal(cut.basis, 'measured');
+  assert.equal(cut.pace, 1.5);
+  assert.equal(cut.paceDays, 23);
+  assert.equal(cut.capacityHours, 95.2); // 514,080초 ÷ 1.5
+  assert.equal(cut.load, 1.9); // 6,600초 ÷ 342,720초
+  assert.equal(cut.doneLoad, 0.9); // 한 일은 실제 분이라 날 능력에 댄다 — 그대로
+  assert.equal(l.roles[2].basis, 'settings');
+  assert.equal(l.roles[2].paceDays, 4);
+  assert.equal(l.bottleneck, 'cutter'); // 1.9% > 조립 1.8%
+});
+
+test('공정 줄 한 벌은 실측 창 기록(paceLogs)으로 속도를 낸다', () => {
+  const settings = { ...P_SETTINGS, standards: STD };
+  const pr = processOf({ orders: P_ORDERS, snapshotsById: P_SNAPS, costs: P_COSTS, worklogs: P_LOGS, paceLogs: logsFor('cutter', '2026-08-15', 22, 1, 7.5), settings }, '2026-10');
+  assert.equal(pr.load.roles[0].pace, 1.5);
+  assert.equal(pr.load.bottleneck, 'cutter');
+  assert.equal(pr.throughput.role, 'cutter');
+});
+
+test('실측 창: 그 달 마지막 날에서 거꾸로 90일', () => {
+  assert.equal(windowStart('2026-10', 90), '2026-08-03');
+  assert.equal(windowStart('2026-02', 1), '2026-02-28');
 });
 
 test('처리량: 매출 − 자재 · 철물 · 외주, 병목(조립) 1분당 — P1 14,850원 > P2 8,600원', () => {

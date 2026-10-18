@@ -535,3 +535,29 @@ describe('만약에 판 (PR-4)', () => {
     expect(row('net')[3]).toBe('0');
   });
 });
+
+describe('처리능력 근거 (실측이 쌓이면 실측으로)', () => {
+  test('실측이 20일 쌓인 공정은 실측 속도, 나머지는 설정 기준과 남은 날', async () => {
+    const roles = SUMMARY.process.load.roles.map((r, i) => ({
+      ...r,
+      basis: i === 0 ? 'measured' : 'settings',
+      pace: i === 0 ? 1.2 : null,
+      paceDays: [23, 0, 7][i],
+    }));
+    const load = { ...SUMMARY.process.load, roles, paceMinDays: 20 };
+    boot(fakeApi({ data: { ...SUMMARY, process: { ...SUMMARY.process, load } } }));
+    await window.Management.init();
+    await settle();
+    const tags = [...document.querySelectorAll('#bottleneckBody .load small.basis')];
+    expect(tags.map((t) => t.textContent)).toEqual(['실측 속도 ×1.2 · 23일', '설정 기준 · 실측 0/20일', '설정 기준 · 실측 7/20일']);
+    expect(tags[0].classList.contains('measured')).toBe(true);
+    expect(text('bottleneckBody')).toMatch(/실측을 20일 넘게 남긴 공정은 실측 속도로 능력을 고칩니다/);
+  });
+
+  test('옛 워커(근거 없음)면 근거 줄을 그리지 않는다', async () => {
+    boot(fakeApi());
+    await window.Management.init();
+    await settle();
+    expect(document.querySelectorAll('#bottleneckBody .load small.basis')).toHaveLength(0);
+  });
+});
