@@ -671,7 +671,7 @@ describe('내부 서랍장은 따로 만드는 모듈이다 (2026-09-19 확정)'
     expect(side.note || '').not.toMatch(/sakuri|사쿠리/);  // 2026-09-23: 측판에 사쿠리가 없다
     expect(by('지판')[0]).toMatchObject({ w: 720, h: 480, qty: 1 });        // 모듈 깊이 그대로
     expect(by('밴드')[0]).toMatchObject({ w: 720, h: 70, qty: 2 });
-    expect(by('뒷판')[0]).toMatchObject({ material: 'MDF', t: 3, w: 730, h: 699, qty: 1 });   // 우라 3T (2026-10-18)
+    expect(by('뒷판')[0]).toMatchObject({ material: 'MDF', t: 3, w: 749, h: 699, qty: 1 });   // 우라 3T · 측판 사쿠리 없음 → 뒤 덮음 W−1 (2026-10-19)
     // 2026-09-22: 상판은 **좌우 몰딩까지 덮는다** → 가로가 통 내경이고, 깊이는 선반과 같다.
     //   결국 분할 없는 칸의 **선반과 같은 판**이다.
     const top = by('상판')[0];

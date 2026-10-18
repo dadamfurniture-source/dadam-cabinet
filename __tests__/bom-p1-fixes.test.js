@@ -120,7 +120,7 @@ describe('P1-1 키큰장 단은 하부장 규칙이 아니다 (sink.md §5)', ()
     expect(one(rows, 'planner-tall-1-0', '측판')).toMatchObject({ w: 620, h: 979, qty: 2 });
     expect(one(rows, 'planner-tall-1-0', '지판')).toMatchObject({ w: 570, h: 620 });
     expect(one(rows, 'planner-tall-1-0', '밴드')).toMatchObject({ w: 70, h: 570, qty: 2 });
-    expect(one(rows, 'planner-tall-1-0', '뒷판')).toMatchObject({ thickness: 3, w: 570, h: 964 });   // 뒷판 우라 3T (2026-10-18)
+    expect(one(rows, 'planner-tall-1-0', '뒷판')).toMatchObject({ thickness: 3, w: 599, h: 978 });   // 뒷판 우라 3T · 사쿠리 없음 → 측판 뒤 덮음 (W−1)×(H−1) (2026-10-19)
   });
 
   test('단 정보가 없는 통짜 키큰장(상세설계 addTallModule) — 좌대·상몰딩 모두, 도어는 목찬넬 H−30', () => {
