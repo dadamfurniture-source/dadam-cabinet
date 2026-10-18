@@ -926,11 +926,13 @@
           name: currentUser.user_metadata?.name || currentUser.email.split('@')[0],
         });
 
+        let profileFromDb = false;   // 접근 판정은 DB 에서 읽은 프로필만 믿는다
         try {
           const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', currentUser.id).single();
 
           if (!error && data) {
             userProfile = data;
+            profileFromDb = true;
           } else {
             console.warn('[Auth] profiles 조회 실패, metadata 폴백:', error?.message);
             userProfile = fallbackProfile();
@@ -940,14 +942,19 @@
           userProfile = fallbackProfile();
         }
 
-        // 본사 승인 가드: profiles.detaildesign_approved = true 여야 상세설계 진입 가능 (MVP 배포 정책).
-        // 관리자(admin_roles 등록 사용자) 는 무조건 통과 — 검증/지원 목적.
+        // D6 접근 가드: 관리자 | 구독 플랜(POLICY.minTier 이상) | 본사 승인.
+        // 판정은 js/detaildesign-access.js 의 decide() 한 곳에서 한다.
+        // 등급·승인은 profiles(DB) 값만 믿는다 — metadata 폴백 프로필의 tier 는 사용자가 쓸 수 있는 값이다.
         let isAdminBypass = false;
         if (window.AdminAccess) {
           try { isAdminBypass = await window.AdminAccess.isAdmin(supabaseClient); }
           catch (e) { isAdminBypass = false; }
         }
-        const approved = Boolean(userProfile?.detaildesign_approved) || isAdminBypass;
+        const { allowed: approved } = window.DetailDesignAccess.decide({
+          isAdmin: isAdminBypass,
+          tier: profileFromDb ? userProfile.tier : null,
+          approved: profileFromDb && Boolean(userProfile.detaildesign_approved),
+        });
         if (isAdminBypass) {
           // 상단 IIFE 가드가 ddApprovalBlocked 를 1로 표시했더라도 관리자는 해제
           document.body.dataset.ddApprovalBlocked = '0';
@@ -955,7 +962,14 @@
         }
         if (!approved || document.body.dataset.ddApprovalBlocked === '1') {
           document.getElementById('authOverlay')?.classList.add('hidden');
-          document.getElementById('approvalOverlay')?.classList.remove('hidden');
+          if (typeof showDetailDesignBlocked === 'function') {
+            showDetailDesignBlocked({
+              tier: profileFromDb ? userProfile.tier : null,
+              requestedAt: profileFromDb ? userProfile.detaildesign_requested_at || null : null,
+            });
+          } else {
+            document.getElementById('approvalOverlay')?.classList.remove('hidden');
+          }
           document.getElementById('topToolbar')?.classList.add('hidden');
           document.body.dataset.ddApprovalBlocked = '1';
           return;

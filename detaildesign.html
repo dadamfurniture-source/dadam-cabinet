@@ -21,7 +21,7 @@
     <script src="js/planner/planner-drawing-menu.js?v=38.8"></script>
     <!-- P11 gen-to-planner: 연출컷 가져오기가 배치 영역의 깊이·높이·가전 폭을 이 정본에서 읽는다 (읽기 전용 상수) -->
     <script src="js/planner/planner-sections.js?v=38.5"></script>
-    <script src="js/detaildesign-access.js?v=36.0"></script>
+    <script src="js/detaildesign-access.js?v=36.1"></script>
     <script src="js/admin-access.js?v=36.1"></script>
   </head>
   <body class="has-toolbar">
@@ -39,16 +39,15 @@
       </div>
     </div>
 
-    <!-- 승인 대기 오버레이 (로그인 됨, 본사 승인 필요) -->
+    <!-- 차단 오버레이 (로그인 됨, 구독 플랜 또는 본사 승인 필요 — showDetailDesignBlocked 가 문구를 채운다) -->
     <div class="auth-overlay hidden" id="approvalOverlay">
       <div class="auth-modal" style="max-width: 460px">
-        <h2 id="approvalTitle">🔒 본사 승인이 필요합니다</h2>
+        <h2 id="approvalTitle">🔒 구독 플랜이 필요합니다</h2>
         <p id="approvalMessage" style="line-height: 1.7">
-          상세설계(CAD/BOM) 기능은 본사(홍회장)의 승인을 받아
-          <b>Standard → Expert 등급</b>으로 승급된 계정에서만 사용할 수 있습니다.<br /><br />
-          아래 <b>승인 요청</b> 버튼을 누르시거나, 마이페이지 배너에서도 동일하게 신청하실 수 있습니다.
+          상세설계(CAD/BOM)는 구독 플랜 고객에게 제공됩니다.
         </p>
         <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 16px">
+          <button class="btn-login" onclick="location.href = 'pricing.html'">요금제 보기</button>
           <button class="btn-login" id="approvalRequestBtn" onclick="requestDetailDesignAccess()">✉️ 승인 요청</button>
           <button class="btn-login" style="background: #6b7280" onclick="location.href = 'consultation.html'">
             상담 신청
@@ -61,7 +60,7 @@
     </div>
 
     <script>
-      // 상세설계 페이지 접근 가드: 로그인 + 본사 승인 둘 다 필요
+      // 상세설계 페이지 접근 가드: 로그인 + (관리자 | 구독 플랜 | 본사 승인)
       // persistence-init.js 가 initAuth() 에서 같은 검사를 하지만, 가능한 빨리 오버레이를
       // 띄우기 위해 페이지 상단에서 독립적으로도 체크.
       (async function enforceDetailDesignAccess() {
@@ -92,41 +91,46 @@
             // 관리자는 detaildesign 도 무조건 통과 (검증 목적)
             if (isAdmin) return;
           }
-          // 상세설계는 로그인한 사용자 모두에게 연다.
-          //
-          // 전에는 '본사 승인'(profiles.detaildesign_approved)을 받아야 들어올 수
-          // 있었다(MVP 정책). 헤더에 DETAIL DESIGN 을 상시 노출하기로 하면서
-          // 그 게이트를 두면 누르는 사람 대부분이 승인 안내만 보게 된다.
-          //
-          // 승인 컬럼과 관리자 승인 화면은 그대로 둔다 — 다시 잠그려면
-          // 아래 return 한 줄만 지우면 원래 동작으로 돌아온다.
-          return;
+          // D6 (2026-10-18): 상세설계는 구독 플랜 기준으로 연다.
+          // 판정은 js/detaildesign-access.js 의 POLICY 한 곳에서 한다 — 관리자 · 플랜 · 본사 승인.
+          // persistence-init.js 의 loadUserProfile 이 같은 decide() 로 한 번 더 막는다.
+          const status = await window.DetailDesignAccess.fetchStatus(client, user.id);
 
-          // eslint-disable-next-line no-unreachable
-          const { approved, requestedAt } = await window.DetailDesignAccess.fetchStatus(client, user.id);
-
-          if (!approved) {
-            const overlay = document.getElementById('approvalOverlay');
-            const title = document.getElementById('approvalTitle');
-            const msg = document.getElementById('approvalMessage');
-            const reqBtn = document.getElementById('approvalRequestBtn');
-            if (requestedAt) {
-              title.textContent = '⏳ 본사 승인 검토 중';
-              msg.innerHTML =
-                '권한 신청이 접수되었습니다. 본사(홍회장) 확인 후 상세설계 기능이 활성화됩니다.<br />' +
-                '신청일: <b>' +
-                new Date(requestedAt).toLocaleDateString('ko-KR') +
-                '</b>';
-              if (reqBtn) reqBtn.style.display = 'none';
-            }
-            overlay?.classList.remove('hidden');
-            // persistence-init.js 에 승인 블록 상태를 알림
+          if (!status.approved) {
+            showDetailDesignBlocked(status);
+            // persistence-init.js 에 차단 상태를 알림
             document.body.dataset.ddApprovalBlocked = '1';
           }
         } catch (e) {
           console.warn('[detaildesign] 접근 가드 예외:', e?.message);
         }
       })();
+
+      // 차단 안내. 문구의 등급 이름은 POLICY.minTier 에서 만든다 (정책을 바꾸면 문구도 따라간다).
+      function showDetailDesignBlocked(status) {
+        const overlay = document.getElementById('approvalOverlay');
+        const title = document.getElementById('approvalTitle');
+        const msg = document.getElementById('approvalMessage');
+        const reqBtn = document.getElementById('approvalRequestBtn');
+        const tierName = (t) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : '');
+        const minTier = tierName(window.DetailDesignAccess?.POLICY?.minTier);
+        if (title) title.textContent = '🔒 ' + minTier + ' 이상 구독이 필요합니다';
+        if (msg) {
+          msg.innerHTML =
+            '상세설계(CAD/BOM)는 <b>' + minTier + ' 이상 구독 플랜</b> 고객에게 제공됩니다.' +
+            (status && status.tier ? '<br />지금 플랜: <b>' + tierName(status.tier) + '</b>' : '') +
+            '<br /><br />파트너 업체는 아래 <b>승인 요청</b>으로 본사 승인을 받으면 플랜과 상관없이 쓸 수 있습니다.';
+        }
+        if (status && status.requestedAt) {
+          if (title) title.textContent = '⏳ 본사 승인 검토 중';
+          if (msg) {
+            msg.innerHTML +=
+              '<br /><br />승인 요청 접수일: <b>' + new Date(status.requestedAt).toLocaleDateString('ko-KR') + '</b>';
+          }
+          if (reqBtn) reqBtn.style.display = 'none';
+        }
+        overlay?.classList.remove('hidden');
+      }
 
       async function requestDetailDesignAccess() {
         if (!window.DetailDesignAccess || !window.DADAM_CONFIG?.supabase) return;
@@ -389,7 +393,7 @@
     <script src="js/detaildesign/gen-import.js?v=38.5"></script>
     <!-- 2026-09-13: 디테일 단계 도면 저장/불러오기 (공통 메뉴에 디테일 저장·되쓰기를 꽂는다) -->
     <script src="js/detaildesign/detail-drawing.js?v=38.8"></script>
-    <script src="js/detaildesign/persistence-init.js?v=36.0"></script>
+    <script src="js/detaildesign/persistence-init.js?v=36.1"></script>
     <!-- W11-5: 업무 루프 패널. persistence-init 뒤에 로드해야 currentDesignId 를 볼 수 있다 -->
     <script src="js/detaildesign/workflow-client.js?v=36.5"></script>
 
