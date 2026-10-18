@@ -352,6 +352,7 @@
   <!-- W9-86: 도어 표시 on/off -->
   <div class="view-toggle">
     <button id="doorToggleBtn" class="active" title="도어 표시 on/off">🚪 도어</button>
+    <button type="button" id="measureToggleBtn" title="칸 내경 측정 — 켜고 칸 안쪽에 마우스를 올리면 안쪽 가로 × 세로가 나옵니다">📏 내경</button>
   </div>
   <!-- W9-108/121: 정면도 시점 회전 — 좌우 뷰 이동 (정면/우측/뒷면/좌측) -->
   <div class="view-toggle" id="viewRotateBar" style="display:none">
@@ -679,6 +680,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <script src="js/planner/ai-photo.js?v=41.0"></script>
 <!-- 2026-10-18 사전 오류 검사 표시 — 상세설계가 보낸 DADAM_PREFLIGHT_MARKS 로 문제 모듈에 테두리 (검사 정본 js/detaildesign/bom-preflight.js) -->
 <script src="js/planner/planner-preflight.js?v=41.0"></script>
+<script src="js/planner/planner-measure.js?v=41.0"></script>
 
 <script>
   // ─────────────────────────────────────────────────────────────
@@ -9765,6 +9767,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     toast: showToast,
     moduleLabel: (id) => { const m = modules.find((x) => String(x.id) === String(id)); return m ? ((SECTION_CONFIG[m.section] && SECTION_CONFIG[m.section].label) || m.section) + ' ' + moduleTag(m) : String(id); },
     selectModule: (id) => { const m = modules.find((x) => String(x.id) === String(id)); if (m) setActiveModule(m.id); },
+  });
+  // 2026-10-18: 칸 내경 측정 (js/planner/planner-measure.js) — 📏 버튼을 켜고 칸 안쪽에 마우스를 올린다.
+  PlannerMeasure.mount({
+    three: () => three,
+    canvas: document.getElementById('canvas3d'),
+    button: document.getElementById('measureToggleBtn'),
+    toast: showToast,
   });
   // D3: 📷 렌더 저장 (js/planner/planner-capture.js) — 오프스크린 렌더타깃에 정면·3/4·평면을 찍어 계정에 올린다.
   //   구조 모드에서 눌러도 디테일 룩으로 찍고 되돌린다 (PlannerDetail.pushLook/popLook). 버튼은 디테일 모드에서만 보인다.
