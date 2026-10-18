@@ -5161,6 +5161,33 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return modules.filter((m) => m.areaId === areaId).reduce((sum, m) => sum + (m.W || 0), 0);
   }
 
+  /**
+   * 배치 공간 안에서 **비어 있는 구간**들 (왼쪽→오른쪽).
+   *
+   * 2026-10-18: 모듈을 지우면 그 자리는 빈 채로 남는다 — 사람이 일부러 비운 자리일 수
+   *   있어 `removeActiveModule` 은 이웃을 당기지 않는다. 그런데 새 모듈은 **폭 합계 뒤**에
+   *   놓고 있었다. 그래서 가운데를 비운 뒤 모듈을 추가하면 뒤 모듈 위에 올라탔다
+   *   (실측: 2400 영역 [960][960][480] 에서 가운데를 지우고 추가 → 1440..2040 이
+   *   1920..2400 과 120mm 겹쳤다). 끝에서 지우고 끝에 추가할 때만 멀쩡했다.
+   *
+   *   이제 **빈 구간을 찾아 거기** 놓는다. 자동계산이 보존 모듈 사이를 채울 때 쓰는
+   *   `freeSegmentsIn` 을 그대로 쓴다 — 빈 자리를 세는 규칙은 하나여야 한다.
+   *
+   * 마감재(EP·몰딩·휠라)와 멍장도 자리를 차지하므로 함께 센다.
+   * 멤버십은 정본 규칙 `areaIdOfModule` 로 — `m.areaId` 를 직접 보면 옛 설계의 모듈이
+   * 빠져 그 자리가 비어 있는 것처럼 보인다 (#669 와 같은 함정).
+   */
+  function freeSlotsOf(area) {
+    if (!area) return [];
+    const L = Number(area.x) || 0;
+    const R = L + (Number(area.W) || 0);
+    const holds = modules
+      .filter((m) => areaIdOfModule(m) === area.id)
+      .map((m) => ({ x: Number(m.x) || 0, w: Math.max(0, Number(m.W) || 0) }))
+      .sort((a, b) => a.x - b.x);
+    return freeSegmentsIn(holds, L, R);
+  }
+
   // ── 모듈 마감재 (W12-11) ──────────────────────────────────────
   // 모듈 좌/우에 EP·몰딩·휠라를 붙인다. **영역 폭은 그대로 두고 모듈이 줄어든다** —
   // 마감재가 차지한 만큼 모듈에서 빼야 영역을 넘지 않는다. 영역 폭을 늘리면
@@ -5356,18 +5383,27 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const roomD = (area.D || 0) - MASTER_RULES.CORNER_DRIP - MASTER_RULES.DOOR_SEAT_D;
     if (roomD > 0) base.D = Math.min(base.D, roomD);
 
-    const used = usedWidthOf(areaId);
-    const room = area.W - used;
     const MIN_W = MASTER_RULES.DOOR_W_MIN;
     // opts.W / opts.x 는 자동계산이 폭과 자리를 직접 정할 때 쓴다.
-    // 손으로 넣을 때(opts 없음)는 기본 폭을 쓰되 남은 폭에 맞춘다.
+    // 손으로 넣을 때(opts 없음)는 기본 폭을 쓰되 **빈 자리**에 맞춘다.
     const fixedW = opts && Number.isFinite(opts.W) ? opts.W : null;
+    const atX = opts && Number.isFinite(opts.x) ? opts.x : null;
+    // 2026-10-18: 자리를 직접 정해 준 경우가 아니면 빈 구간을 찾는다 (freeSlotsOf).
+    //   기본 폭이 들어가는 **첫 빈 자리**부터 쓰고, 그만한 자리가 없으면 **가장 넓은**
+    //   빈 자리에 맞춰 넣는다. 왼쪽부터 채우는 예전 느낌을 지키면서 구멍을 먼저 메운다.
+    const slots = atX == null ? freeSlotsOf(area) : [];
+    const want = fixedW != null ? fixedW : base.W;
+    const slot = atX != null ? null
+      : (slots.find((s) => s.w >= want)
+         || slots.filter((s) => s.w >= MIN_W).sort((a, b) => b.w - a.w)[0]
+         || null);
+    const room = atX != null ? area.W - usedWidthOf(areaId) : (slot ? slot.w : 0);
     if (!fixedW && room < MIN_W) {
-      showToast(`⚠ 남은 폭 ${Math.max(0, Math.round(room))}mm — 도어 최소 ${MIN_W}mm 보다 좁아 넣을 수 없습니다`);
+      showToast(`⚠ 빈 자리 ${Math.max(0, Math.round(room))}mm — 도어 최소 ${MIN_W}mm 보다 좁아 넣을 수 없습니다`);
       return null;
     }
     const W = fixedW != null ? fixedW : Math.min(base.W, room);
-    if (!fixedW && W < base.W) showToast(`남은 폭에 맞춰 ${Math.round(W)}mm 로 넣었습니다`);
+    if (!fixedW && W < base.W) showToast(`빈 자리에 맞춰 ${Math.round(W)}mm 로 넣었습니다`);
 
     // W12-49: 파생 모듈(멍장)은 결정적 id 를 쓴다 — 재계산해도 같은 모듈이어야
     // 사람이 손댄 값과 구조가 따라붙는다.
@@ -5375,7 +5411,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const m = {
       id, areaId, section,
       W, H: base.H, D: base.D,
-      x: (opts && Number.isFinite(opts.x)) ? opts.x : (area.x || 0) + used,
+      x: atX != null ? atX
+         : slot ? slot.x
+         : (area.x || 0) + usedWidthOf(areaId),
       y: area.y || 0, rotation: area.rotation || 0,
       finishings: [],
     };
