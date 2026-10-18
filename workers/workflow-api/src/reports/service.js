@@ -31,6 +31,8 @@ import {
 const TABLE = 'work_reports';
 const LIST_COLUMNS = 'id,owner_id,kind,title,period_start,period_end,status,source_table,source_id,order_ids,design_ids,metrics,note,pinned,archived_at,created_by,created_at,updated_at';
 const PAGE_SIZE = 30;
+const ORDER_KINDS = new Set(['outsource_order', 'countertop_order']);
+const ORDER_STATUS = new Set(['ordered', 'received', 'cancelled']);
 
 // ── 기록 ─────────────────────────────────────────────────────────
 
@@ -152,7 +154,13 @@ export async function updateReportMeta(env, { user, id, body = {} }) {
   if (typeof body.note === 'string') patch.note = body.note.slice(0, 4000);
   if (typeof body.pinned === 'boolean') patch.pinned = body.pinned;
   if (typeof body.archived === 'boolean') patch.archived_at = body.archived ? new Date().toISOString() : null;
-  if (!Object.keys(patch).length) throw new ValidationError('바꿀 수 있는 것은 note · pinned · archived 뿐입니다');
+  if (body.status !== undefined) {
+    // 외주 발주만 사람이 상태를 바꾼다: 발주 → 입고 / 취소 (보관함 §2.1). 다른 종류의 상태는 원본 흐름이 정한다.
+    if (!ORDER_KINDS.has(row.kind)) throw new ValidationError('상태는 외주 · 상판 발주만 바꿀 수 있습니다');
+    if (!ORDER_STATUS.has(body.status)) throw new ValidationError('상태는 ordered · received · cancelled 중 하나입니다');
+    patch.status = body.status;
+  }
+  if (!Object.keys(patch).length) throw new ValidationError('바꿀 수 있는 것은 note · pinned · archived · (발주) status 뿐입니다');
   patch.updated_at = new Date().toISOString();
   return updateById(env, TABLE, row.id, patch);
 }

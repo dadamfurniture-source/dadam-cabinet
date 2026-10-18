@@ -167,6 +167,23 @@ export function workCounts(ctx) {
   };
 }
 
+/**
+ * 외주 발주 내역의 수량 요약 (work-reports-archive.plan.md §2.1) — 종이에 찍힌 숫자와 같은 출처.
+ * door: 도어재 부재 장 · 원장 · 도어 짝 / cut-vendor: 사내 원판 · 엣지 m · 부재 장
+ */
+export function outsourceCounts(doc, snapshot, pack) {
+  const c = workCounts(buildContext(doc, snapshot, new Map()));
+  const parts = (rows) => rows.reduce((s, m) => s + qtyOf(m), 0);
+  if (pack === 'door') {
+    return { doorParts: parts(c.doorRows), doorSheets: c.doorSheets ? c.doorSheets.length : null, doors: c.doors, drawers: c.drawers };
+  }
+  if (pack === 'cut-vendor') {
+    const mm = edgeTotals(c.inHouseRows).reduce((s, g) => s + g.mm, 0);
+    return { sheets: c.inHouseSheets ? c.inHouseSheets.length : null, edgeM: Math.round(mm / 100) / 10, parts: parts(c.inHouseRows) };
+  }
+  return {};
+}
+
 function laborOf(ctx, counts) {
   return laborEstimate(ctx.labor, {
     cutSheets: counts.inHouseSheets ? counts.inHouseSheets.length : 0,

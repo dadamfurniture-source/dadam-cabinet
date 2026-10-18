@@ -107,7 +107,7 @@ export function buildDailyBlocks({ plan, assignments, today }) {
     ? `재단 ${h(d0.cut.load)} (${pct(d0.cut.load, d0.cut.cap)}%) · 엣지 ${h(d0.edge.load)} (${pct(d0.edge.load, d0.edge.cap)}%) · 조립 ${h(d0.asm.load)} — ${d0.asm.people ? d0.asm.people + '명 필요' : '조립 없음'}`
     : '오늘 공장 작업 없음';
   const due = plan.jobs
-    .filter((j) => j.doorOrderBy && d1 && j.doorOrderBy <= d1.date)
+    .filter((j) => j.doorOrderBy && !j.doorOrdered && d1 && j.doorOrderBy <= d1.date)
     .map((j) => `• ${j.label}: 도어 발주 ${j.doorOrderBy === today ? '*오늘*' : '내일'}까지${j.doorOrderLate ? ' (이미 늦음)' : ''}`);
   const late = plan.jobs.filter((j) => j.late || j.rescheduleTo).map((j) => `• ${j.label}: 마감 ${j.due ? dayLabel(j.due) : '?'} · 완료 예정 ${j.finish ? dayLabel(j.finish) : '범위 밖'}`);
   const blocks = [
