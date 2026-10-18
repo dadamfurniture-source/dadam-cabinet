@@ -612,7 +612,8 @@
 <div class="bottombar">
   <div class="actions">
     <button id="reloadBtn" title="배치 단계 데이터 다시 로드">📥 배치 로드</button>
-    <button class="next" id="nextBtn" title="디테일 단계로">디테일 단계 →</button>
+    <!-- 2026-10-18: 누르면 BOM 산출로 간다(PLANNER_DONE) — 라벨이 "디테일 단계 →" 라 동작과 어긋났다 -->
+    <button class="next" id="nextBtn" title="구조를 저장하고 BOM 산출로">BOM 산출 →</button>
   </div>
   <div>ⓘ 줌 <span id="zoomInd">100%</span> · 휠=줌 · 빈공간 드래그=팬 · F=Fit · 0=Reset</div>
 </div>
@@ -7383,7 +7384,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     showToast(`📥 배치 로드 (모듈 ${modules.length}개)`);
   };
   // 2026-09-13: 바닥바의 '💾 구조 저장' 은 뺐다 — 저장은 상단 우측 '💾 도면 저장'(공통 메뉴) 하나로 간다.
-  //   '디테일 단계 →' 는 여전히 persistPlannerState() 를 거쳐 넘어가므로 저장 없이 넘어가는 일은 없다.
+  //   'BOM 산출 →'(#nextBtn) 는 여전히 persistPlannerState() 를 거쳐 넘어가므로 저장 없이 넘어가는 일은 없다.
   // W11-9: 여기가 업무 루프의 끊긴 지점이었다.
   // 이 페이지는 detaildesign.html 의 Step 2 안에서 iframe 으로 도는데,
   // "다음" 이 alert 만 띄우고 끝나 BOM(Step 3) 으로 갈 방법이 없었다.
