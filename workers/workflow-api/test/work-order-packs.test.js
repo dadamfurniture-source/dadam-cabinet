@@ -31,7 +31,7 @@ const require = createRequire(import.meta.url);
 const NestingEngine = require('../../../js/detaildesign/nesting-engine.js');
 
 const partIdOfRow = (m) => m.row.partId;
-const PACKS = ['all', 'cut', 'cut-vendor', 'assembly', 'door', 'labels'];
+const PACKS = ['all', 'cut', 'cut-vendor', 'assembly', 'door', 'top', 'labels'];
 const docWithLabor = (overrides = {}) =>
   fx.doc({ render_payload: { ...fx.doc().render_payload, labor: { ...LABOR_STANDARDS } }, ...overrides });
 const render = (pack, doc = docWithLabor(), snap = fx.snapshot()) => renderWorkOrder(doc, snap, { toolbar: false, pack });

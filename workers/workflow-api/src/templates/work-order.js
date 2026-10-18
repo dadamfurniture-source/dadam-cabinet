@@ -32,6 +32,8 @@
  */
 
 import { esc, num, ymd, tr, thead, documentShell } from './html.js';
+import { countertopSheets } from './countertop-order.js';
+import { hasCountertop } from '../countertop.js';
 import { PRINT_CSS, PRINT_TOOLBAR } from './print-css.js';
 import { qrSvg } from '../util/qr.js';
 import {
@@ -125,6 +127,8 @@ export const WORK_ORDER_PACKS = {
   'cut-vendor': { title: '재단·엣지 의뢰서', who: '재단·엣지 외주처' },
   assembly: { title: '조립 지시서', who: '조립 기사 — 통 조립 · 도어 달기 · 서랍 · 검수·포장' },
   door: { title: '도어재 발주서', who: '도어 외주처' },
+  // 2026-10-18 사장님: 인조대리석 · 엔지니어드 스톤 · 세라믹 상판 발주 요청서 — 고객 이름·금액 없음 (보관함 §2.2)
+  top: { title: '상판 발주 요청서', who: '상판 업체' },
   labels: { title: '부재 라벨', who: '재단 기사 — 재단 직후 부착 (도어재는 입고 시)' },
 };
 
@@ -1279,18 +1283,20 @@ function packHeader(ctx, pack) {
 // ── 조립 ─────────────────────────────────────────────────────────
 
 const PACK_SECTIONS = {
-  all: [coverSheet, moduleSheets, moduleDrawingsSheet, kittingSheets, (ctx) => cutSheets(ctx), hardwareSheet, assemblySheet, diffSheet, doorOrderSheet, labelSheets],
+  all: [coverSheet, moduleSheets, moduleDrawingsSheet, kittingSheets, (ctx) => cutSheets(ctx), hardwareSheet, assemblySheet, diffSheet, doorOrderSheet, labelSheets, (ctx) => (hasCountertop(ctx.snapshot && ctx.snapshot.bom_payload) ? countertopSheets(ctx) : '')],
   cut: [(ctx) => packHeader(ctx, 'cut'), (ctx) => cutSheets(ctx)],
   // 외주처 종이 — 고객 이름·설계 제목·특기사항·정면도·시간 없음 (door 와 같은 원칙)
   'cut-vendor': [(ctx) => packHeader(ctx, 'cut-vendor'), (ctx) => cutSheets(ctx, { vendor: true })],
   assembly: [(ctx) => packHeader(ctx, 'assembly'), moduleSheets, moduleDrawingsSheet, kittingSheets, hardwareSheet, assemblySheet, diffSheet],
   door: [doorOrderSheet], // 외주처 종이 — 고객 정보가 든 머리를 붙이지 않는다
+  top: [countertopSheets], // 상판 업체 종이 — 도어재 발주서와 같은 원칙
   labels: [(ctx) => packHeader(ctx, 'labels'), labelSheets],
 };
 
-export function renderWorkOrder(doc, snapshot, { toolbar = true, renderUrls = new Map(), pack = 'all' } = {}) {
+export function renderWorkOrder(doc, snapshot, { toolbar = true, renderUrls = new Map(), pack = 'all', top = null } = {}) {
   const key = normalizePack(pack) || 'all';
   const ctx = buildContext(doc, snapshot, renderUrls);
+  ctx.top = top; // 상판 요청서 — 발주 마감 · 업체 · 가전 모델 (인쇄 시점, worker.js)
   const parts = PACK_SECTIONS[key].map((fn) => fn(ctx));
   // 꾸러미 머리는 따로 한 쪽을 쓰지 않는다 — 첫 섹션 쪽의 맨 위에 넣는다 (종이 한 장 아끼기)
   if (parts.length > 1 && parts[0].includes('class="pack-head"')) {

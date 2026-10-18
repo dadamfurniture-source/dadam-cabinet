@@ -152,7 +152,7 @@ describe('작업 지시 보고 화면', () => {
     expect(document.getElementById('btnArchive').disabled).toBe(true);
     expect(document.getElementById('btnPrint').style.display).toBe('none');
     const packs = [...document.querySelectorAll('[data-doc-print]')].map((b) => b.getAttribute('data-pack'));
-    expect(packs).toEqual(['cut', 'cut-vendor', 'assembly', 'door', 'labels', 'all']);
+    expect(packs).toEqual(['cut', 'cut-vendor', 'assembly', 'door', 'top', 'labels', 'all']);
     document.querySelector('[data-pack="door"]').click();
     await settle();
     expect(api.calls.some((c) => c.u === '/documents/doc-1/print?pack=door')).toBe(true);

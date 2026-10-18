@@ -14,6 +14,7 @@
  */
 
 import { DEFAULT_CREW, DEFAULT_COSTS, DEFAULT_LEADS } from './standards.js';
+import { workdaysBefore } from '../countertop.js';
 
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
 const MAX_ROUNDS = 60;
@@ -157,7 +158,9 @@ export function planProduction(input) {
     }
     const doorBase = j.doorOrderedAt ? indexOn(days, j.doorOrderedAt) : releaseIdx;
     const doorArrivalIdx = doorBase + leads.doorLeadDays;
-    return { ...j, releaseIdx, dueIdx, dueSource, doorArrivalIdx };
+    // 상판 주문 마감 = 설치일 − topLeadDays 근무일 (상판은 설치 당일·다음 날 현장 시공, 주문은 최소 4근무일 전)
+    const topOrderBy = j.hasTop && j.installDate ? workdaysBefore(j.installDate, leads.topLeadDays, input.holidays || []) : null;
+    return { ...j, releaseIdx, dueIdx, dueSource, doorArrivalIdx, topOrderBy };
   });
 
   const fixes = { asmExtra: {}, edgeOvertime: {}, outsource: new Set(), reschedule: {} };
@@ -249,6 +252,9 @@ function summarize({ jobs, days, crew, costs, leads, base, cur, fixes, sec }) {
       doorOrderBy: doorOrderByIdx >= 0 ? days[doorOrderByIdx] : null,
       doorOrderLate: j.doorArrivalIdx > j.dueIdx,
       doorOrdered: Boolean(j.doorOrdered),
+      topOrderBy: j.topOrderBy || null,
+      topOrdered: Boolean(j.topOrdered),
+      topOrderLate: Boolean(j.topOrderBy && days[0] && j.topOrderBy < days[0]),
       rescheduleTo: fixes.reschedule[j.id] !== undefined ? at(Math.min(days.length - 1, fixes.reschedule[j.id] + 1)) : null,
       work: { cutter: j.work.cutter, edge: j.work.edge, asm: j.work.asmMain + j.work.doorPart },
       // 공정별 계획 기간 [시작일, 끝일] — 작업자 화면이 "오늘 내 공정에 걸린 주문" 을 고를 때 쓴다
@@ -299,6 +305,9 @@ function summarize({ jobs, days, crew, costs, leads, base, cur, fixes, sec }) {
     }
     if (j.rescheduleTo) {
       suggestions.push({ type: 'reschedule', jobId: j.id, to: j.rescheduleTo, cost: 0, text: `${j.label}: 공장 완료가 ${j.finish ? dayLabel(j.finish) : '계획 범위 밖'} — 설치일을 ${dayLabel(j.rescheduleTo)} 이후로 조정 필요` });
+    }
+    if (j.topOrderBy && !j.topOrdered) {
+      suggestions.push({ type: 'top_order', jobId: j.id, date: j.topOrderBy, cost: 0, text: `${j.label}: 상판 발주 ${dayLabel(j.topOrderBy)}까지 (설치 ${leads.topLeadDays}근무일 전)${j.topOrderLate ? ' — 이미 늦음' : ''}` });
     }
     if (j.doorOrderBy && !j.doorOrdered) {
       suggestions.push({ type: 'door_order', jobId: j.id, date: j.doorOrderBy, cost: 0, text: `${j.label}: 도어 외주 발주 ${dayLabel(j.doorOrderBy)}까지${j.doorOrderLate ? ' (이미 늦음 — 도어 도착 ' + (j.doorArrival ? dayLabel(j.doorArrival) : '?') + ')' : ''}` });

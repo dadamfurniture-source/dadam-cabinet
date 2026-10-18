@@ -15,7 +15,8 @@ import { listOrders } from '../orders.js';
 import { workloadFromSnapshot } from './workload.js';
 import { planProduction } from './planner.js';
 import { buildProposalBlocks, buildInstructionBlocks, buildDailyBlocks, assignmentsFromSuggestions, actionKey } from './notify.js';
-import { DEFAULT_STANDARDS, DEFAULT_CREW, DEFAULT_COSTS, DEFAULT_LEADS, DEFAULT_QUOTE, DEFAULT_VENDORS } from './standards.js';
+import { DEFAULT_STANDARDS, DEFAULT_CREW, DEFAULT_COSTS, DEFAULT_LEADS, DEFAULT_QUOTE, DEFAULT_VENDORS, DEFAULT_COUNTERTOP } from './standards.js';
+import { hasCountertop } from '../countertop.js';
 import { safeRecord, safeSyncStatus } from '../reports/service.js';
 import { reportFromProposal, reportFromDecision, reportFromDailyBrief, reportFromMonth, monthEnd } from '../reports/record.js';
 
@@ -35,6 +36,7 @@ const NUMERIC_LIMITS = {
   costs: [0, 10000000],
   leads: [0, 60],
   quote: [0, 100000000],
+  countertop: [0, 200],
 };
 
 /** 저장값 중 지금 아는 키만 — 없어진 키(예: 엣지 PB 장당 edgePerPbSheet)가 남아 설정 저장을 막지 않게. */
@@ -53,6 +55,7 @@ export function mergeSettings(saved) {
     leads: known(DEFAULT_LEADS, s.leads),
     quote: known(DEFAULT_QUOTE, s.quote),
     vendors: known(DEFAULT_VENDORS, s.vendors),
+    countertop: known(DEFAULT_COUNTERTOP, s.countertop),
     holidays: Array.isArray(s.holidays) ? s.holidays : [],
   };
 }
@@ -60,7 +63,7 @@ export function mergeSettings(saved) {
 /** 저장 전 검증 — 아는 키만, 숫자만, 범위 안만. */
 export function sanitizeSettings(body) {
   const out = {};
-  const defaults = { standards: DEFAULT_STANDARDS, crew: DEFAULT_CREW, costs: DEFAULT_COSTS, leads: DEFAULT_LEADS, quote: DEFAULT_QUOTE };
+  const defaults = { standards: DEFAULT_STANDARDS, crew: DEFAULT_CREW, costs: DEFAULT_COSTS, leads: DEFAULT_LEADS, quote: DEFAULT_QUOTE, countertop: DEFAULT_COUNTERTOP };
   for (const [group, def] of Object.entries(defaults)) {
     if (!body || body[group] === undefined) continue;
     if (typeof body[group] !== 'object' || body[group] === null) throw new ValidationError(`${group} 는 객체여야 합니다`);
@@ -75,7 +78,8 @@ export function sanitizeSettings(body) {
       const n = Number(v);
       const [lo, hi] = NUMERIC_LIMITS[group];
       // util 은 비율(0~1)
-      const max = (group === 'crew' && k === 'util') || (group === 'quote' && ['marginRate', 'partnerMarginRate', 'pbYield', 'doorYield'].includes(k)) ? 1 : hi;
+      const max = (group === 'crew' && k === 'util') || (group === 'quote' && ['marginRate', 'partnerMarginRate', 'pbYield', 'doorYield'].includes(k))
+        || (group === 'countertop' && ['backsplash', 'frontLip', 'drip'].includes(k)) ? 1 : hi;
       if (!Number.isFinite(n) || n < lo || n > max) throw new ValidationError(`${group}.${k} 값이 범위를 벗어났습니다`);
       out[group][k] = n;
     }
@@ -86,7 +90,8 @@ export function sanitizeSettings(body) {
     for (const [k, v] of Object.entries(body.vendors)) {
       if (!(k in DEFAULT_VENDORS)) throw new ValidationError(`알 수 없는 설정: vendors.${k}`);
       const name = String(v == null ? '' : v).trim();
-      if (!name || name.length > 40) throw new ValidationError(`vendors.${k} 는 1~40자 업체 이름이어야 합니다`);
+      // 상판 업체(top*)는 비워 둘 수 있다 — 요청서에 [확인 필요]
+      if ((!name && !k.startsWith('top')) || name.length > 40) throw new ValidationError(`vendors.${k} 는 1~40자 업체 이름이어야 합니다`);
       out.vendors[k] = name;
     }
   }
@@ -117,7 +122,7 @@ export async function saveSettings(env, { user, body }) {
  * 수주 · 스냅샷 · 설치 일정 → planner jobs (순수).
  * 설치 일정은 설계당 가장 이른, 취소되지 않은 것.
  */
-export function buildJobs(orders, snapshotsById, schedules, standards, doorOrdered = new Set()) {
+export function buildJobs(orders, snapshotsById, schedules, standards, doorOrdered = new Set(), topOrdered = new Set()) {
   const installByDesign = new Map();
   for (const s of schedules || []) {
     if (s.type !== 'installation' || s.status === 'cancelled') continue;
@@ -140,6 +145,8 @@ export function buildJobs(orders, snapshotsById, schedules, standards, doorOrder
       installDate: installByDesign.get(o.design_id) || null,
       work,
       doorOrdered: doorOrdered.has(o.id),
+      hasTop: hasCountertop(snap.bom_payload),
+      topOrdered: topOrdered.has(o.id),
     });
   }
   return { jobs, skipped };
@@ -157,7 +164,25 @@ async function loadInputs(env, user) {
     select: 'design_id,type,status,scheduled_at',
     limit: '500',
   })) || [];
-  return { orders, snapshotsById: new Map(snaps.map((s) => [s.id, s])), schedules, doorOrdered: await doorOrderedIds(env, user.id) };
+  const [doorOrdered, topOrdered] = await Promise.all([doorOrderedIds(env, user.id), topOrderedIds(env, user.id)]);
+  return { orders, snapshotsById: new Map(snaps.map((s) => [s.id, s])), schedules, doorOrdered, topOrdered };
+}
+
+/** 상판 [발주 처리] 가 된 주문 — 계획의 '상판 발주 마감' 에서 뺀다. */
+export async function topOrderedIds(env, userId) {
+  try {
+    const rows = (await selectMany(env, 'work_reports', {
+      owner_id: `eq.${userId}`,
+      kind: 'eq.countertop_order',
+      status: 'in.(ordered,received)',
+      select: 'order_ids',
+      limit: '1000',
+    })) || [];
+    return new Set(rows.flatMap((r) => r.order_ids || []));
+  } catch (e) {
+    console.warn('top ordered lookup failed:', e && e.message);
+    return new Set();
+  }
 }
 
 /** 도어재 [발주 처리] 가 된 주문 — 계획의 '도어 발주 마감' 추천 · 아침 경고에서 뺀다 (보관함 §2.1). 표가 없으면 빈 집합. */
@@ -180,8 +205,8 @@ export async function doorOrderedIds(env, userId) {
 
 export async function computePlan(env, { user, today }) {
   const { settings } = await getSettings(env, { user });
-  const { orders, snapshotsById, schedules, doorOrdered } = await loadInputs(env, user);
-  const { jobs, skipped } = buildJobs(orders, snapshotsById, schedules, settings.standards, doorOrdered);
+  const { orders, snapshotsById, schedules, doorOrdered, topOrdered } = await loadInputs(env, user);
+  const { jobs, skipped } = buildJobs(orders, snapshotsById, schedules, settings.standards, doorOrdered, topOrdered);
   const plan = planProduction({
     today: today || kstDate(),
     jobs,
