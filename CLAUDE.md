@@ -23,6 +23,12 @@
 2. 충돌 확인 후 커밋
 3. 푸시 실패 시 `git pull --rebase` 후 재시도
 
+## 설계 규칙 임의 생성 금지
+- 코드·문서에 정의되지 않은 규칙을 지어내 넣지 않는다. 먼저 정본을 확인한다: `js/detaildesign/data-constants.js`, `js/detaildesign/bom-*-rules.js`, `docs/design-rules/*.md`
+- fallback 로직이나 "안전장치"도 임의로 만들지 않는다
+- 정본에 없거나 불확실하면 사용자에게 먼저 묻는다
+- 이유: 150~349mm 서랍 모듈 규칙을 지어내 넣었다가 사용자가 발견해 삭제를 요청했다. 없는 규칙이 섞이면 동작을 예측할 수 없고 디버깅이 어려워진다
+
 ## 프로젝트 구조
 
 - `*.html` — 정적 HTML 페이지 (GitHub Pages 배포)
