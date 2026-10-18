@@ -7,7 +7,7 @@
 import { selectMany, selectOne, ForbiddenError } from '../supabase.js';
 import { isAdmin } from '../reports/admin.js';
 import { mergeSettings, kstDate } from '../production/service.js';
-import { buildManagementSummary, prevMonthOf } from './summary.js';
+import { buildManagementSummary, prevMonthOf, QUALITY_WINDOW_DAYS } from './summary.js';
 import { selectOrders } from '../orders.js';
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
@@ -104,6 +104,18 @@ export async function getManagementSummary(env, { user, month }) {
     and: `(work_date.gte.${windowStart(m, PACE_WINDOW_DAYS)},work_date.lte.${monthLastDay(m)})`,
     limit: '10000',
   }).catch(() => [])) || [];
+  // 재작업 · A/S (반년 창) — 표가 아직 없으면(2단계 SQL 전) null
+  const reworks = await selectMany(env, 'rework_logs', {
+    select: 'order_id,kind,cause,occurred_on,minutes,cost',
+    and: `(occurred_on.gte.${windowStart(m, QUALITY_WINDOW_DAYS + 31)},occurred_on.lte.${monthLastDay(m)})`,
+    limit: '5000',
+  }).catch(() => null);
+  const installed = (await selectMany(env, 'orders', {
+    select: 'id,status,delivered_at,completed_at',
+    status: 'in.(delivered,completed)',
+    order: 'ordered_at.desc',
+    limit: '2000',
+  }).catch(() => [])) || [];
   return buildManagementSummary({
     orders: list,
     snapshotsById: new Map(snaps.map((s) => [s.id, s])),
@@ -114,6 +126,9 @@ export async function getManagementSummary(env, { user, month }) {
     costs: costs || [],
     worklogs: mergeLogs(worklogs || [], monthLogs),
     paceLogs,
+    reworks,
+    installed,
+    today: kstDate(),
     settings,
     month: m,
   });

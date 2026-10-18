@@ -94,10 +94,10 @@
       .stage .fill { display: block; height: 100%; background: #007bff; border-radius: 4px; }
       .stage .n { text-align: right; font-variant-numeric: tabular-nums; }
       .stage .r { text-align: right; color: #888; font-size: 12px; font-variant-numeric: tabular-nums; }
-      .reason { display: grid; grid-template-columns: 76px 1fr 40px; gap: 8px; align-items: center; font-size: 12.5px; margin: 5px 0; }
+      .reason { display: grid; grid-template-columns: 76px minmax(0, 1fr) 72px; gap: 8px; align-items: center; font-size: 12.5px; margin: 5px 0; }
       .reason .track { display: block; height: 10px; background: #eef1f5; border-radius: 4px; overflow: hidden; }
       .reason .fill { display: block; height: 100%; background: #f57c00; border-radius: 4px; }
-      .reason .n { text-align: right; font-variant-numeric: tabular-nums; }
+      .reason .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
       .facts { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: #666; margin-top: 10px; }
       .facts b { color: #333; font-weight: 600; }
       .lead-line { font-size: 13px; margin-bottom: 8px; }
@@ -217,6 +217,11 @@
               <h3>견적 대비 실적</h3>
               <div class="q">견적이 어디서 빗나가나 — 자재값인가, 외주인가, 작업 시간인가</div>
               <div id="varianceBody"></div>
+            </article>
+            <article class="card" id="cardQuality" hidden>
+              <h3>재작업 · A/S</h3>
+              <div class="q">어디서 다시 일하나 · 설치한 집 중 몇 집에 다시 가나</div>
+              <div id="qualityBody"></div>
             </article>
             <article class="card" id="cardBottleneck">
               <h3>병목 · 처리량</h3>
@@ -532,6 +537,28 @@
             <div class="muted" style="margin-top:8px">처리량 = 매출 − 자재 · 철물 · 외주. 병목이 꽉 찬 달에는 1분당 처리량이 큰 일부터 받는 것이 이익을 가장 크게 합니다.</div>`;
         }
 
+        // ── 품질: 재작업 · A/S ──
+        function renderQuality(d) {
+          const q = d.quality;
+          if (!q) {
+            $('qualityBody').innerHTML = '<div class="empty-state">재작업 · A/S 기록 칸이 아직 없습니다.<br>database/management-phase2.sql 을 실행하면 <a href="../erp.html">수주 · 원가 · 마진</a> 상세에서 적을 수 있습니다.</div>';
+            return;
+          }
+          const m = q.month;
+          const w = q.window;
+          const max = Math.max(1, ...m.causes.map((c) => c.won));
+          const bars = m.causes.map((c) => `<div class="reason" data-cause="${esc(c.cause)}"><span>${esc(c.label)}</span><span class="track"><span class="fill" style="width:${Math.round((c.won / max) * 100)}%"></span></span><span class="n">${esc(won(c.won))}</span></div>`).join('');
+          const asLine = w.installed > 0
+            ? `최근 ${esc(w.days)}일 설치 <b class="num">${esc(cnt(w.installed))}</b> 중 A/S 간 집 <b class="num">${esc(cnt(w.withAs))}</b> (${esc(pct(w.asRate))})`
+            : `최근 ${esc(w.days)}일 설치한 수주가 없어 A/S 율을 낼 수 없습니다`;
+          $('qualityBody').innerHTML = `
+            <div class="lead-line">이달 재작업 <b class="num">${esc(cnt(m.rework))}</b> · A/S <b class="num">${esc(cnt(m.as))}</b> · 품질비용 <b class="num">${esc(won(m.total))}</b></div>
+            ${m.causes.length ? `<div class="sub-h">원인별 품질비용</div><div id="qualityBars">${bars}</div>` : '<div class="empty-state">이달 적은 재작업 · A/S 가 없습니다.</div>'}
+            <div class="facts"><span>부재 · 외주 비용 <b class="num">${esc(won(m.cost))}</b></span><span>다시 한 시간 <b class="num">${esc(mins(m.minutes))}</b> = ${esc(won(m.laborWon))}</span></div>
+            <div class="lead-line" style="margin-top:8px">${asLine}</div>
+            <div class="muted" style="margin-top:8px">다시 한 시간은 조립 일당 기준 시간당 ${esc(won(q.hourly))}으로 셉니다. 기록은 <a href="../erp.html">수주 · 원가 · 마진</a> 상세의 '재작업 · A/S' 에서 적습니다.</div>`;
+        }
+
         // ── 만약에 판 ──
         const n0 = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
         /**
@@ -650,6 +677,9 @@
           if (d.funnel) { renderFunnel(d); renderPlatform(d); }
           $('rowProcess').hidden = !d.process;
           if (d.process) { renderVariance(d); renderBottleneck(d); }
+          // 품질 — 옛 워커(칸 없음)면 카드를 숨기고, 기록 표가 아직 없으면(null) 안내를 띄운다
+          $('cardQuality').hidden = d.quality === undefined;
+          if (d.quality !== undefined) renderQuality(d);
           $('rowWhatIf').hidden = !d.scenario;
           if (d.scenario) { bindLevers(); renderWhatIf(d); }
           renderBasis(d);

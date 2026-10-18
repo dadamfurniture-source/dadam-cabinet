@@ -90,6 +90,15 @@ const SUMMARY = {
       avgPerMin: 12767,
     },
   },
+  // 워커 시험(rework.test.js 2단계 PR-6) 의 손계산 결과 그대로
+  quality: {
+    month: {
+      rework: 2, as: 1, minutes: 210, cost: 30000, laborWon: 87500, total: 117500,
+      causes: [{ cause: 'cutting', label: '재단', count: 2, won: 67500 }, { cause: 'install', label: '설치', count: 1, won: 50000 }],
+    },
+    window: { days: 180, start: '2026-05-05', end: '2026-10-31', installed: 3, withAs: 2, asRate: 66.7 },
+    hourly: 25000,
+  },
   // 워커 시험(management.test.js PR-4) 의 바탕 — 알바 시급 12,000 × 8시간 × 22일
   scenario: {
     orders: 3,
@@ -589,5 +598,45 @@ describe('수정 요청 사유 (2단계 PR-5)', () => {
   test('사유 막대도 블록이어야 그려진다', () => {
     expect(HTML).toMatch(/\.reason \.track \{ display: block;/);
     expect(HTML).toMatch(/\.reason \.fill \{ display: block;/);
+  });
+});
+
+describe('재작업 · A/S (2단계 PR-6)', () => {
+  test('이달 건수 · 품질비용, 원인별 막대(돈 순), 반년 A/S 율', async () => {
+    boot(fakeApi());
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('cardQuality').hidden).toBe(false);
+    expect(text('qualityBody')).toMatch(/이달 재작업 2건 · A\/S 1건 · 품질비용 117,500원/);
+    const rows = [...document.querySelectorAll('#qualityBars .reason')];
+    expect(rows.map((r) => r.dataset.cause)).toEqual(['cutting', 'install']);
+    expect(rows.map((r) => r.querySelector('.fill').style.width)).toEqual(['100%', '74%']);
+    expect(text('qualityBody')).toMatch(/다시 한 시간 210분 = 87,500원/);
+    expect(text('qualityBody')).toMatch(/최근 180일 설치 3건 중 A\/S 간 집 2건 \(66.7%\)/);
+    expect(text('qualityBody')).toMatch(/시간당 25,000원/);
+  });
+
+  test('기록 표가 아직 없으면(null) SQL 안내, 옛 워커(칸 없음)면 카드를 숨긴다', async () => {
+    boot(fakeApi({ data: { ...SUMMARY, quality: null } }));
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('cardQuality').hidden).toBe(false);
+    expect(text('qualityBody')).toMatch(/management-phase2\.sql 을 실행하면/);
+
+    const data = { ...SUMMARY };
+    delete data.quality;
+    boot(fakeApi({ data }));
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('cardQuality').hidden).toBe(true);
+  });
+
+  test('이달 기록이 없으면 막대 대신 빈 칸 안내', async () => {
+    const quality = { ...SUMMARY.quality, month: { rework: 0, as: 0, minutes: 0, cost: 0, laborWon: 0, total: 0, causes: [] } };
+    boot(fakeApi({ data: { ...SUMMARY, quality } }));
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('qualityBars')).toBeNull();
+    expect(text('qualityBody')).toMatch(/이달 적은 재작업 · A\/S 가 없습니다/);
   });
 });
