@@ -116,6 +116,13 @@ export async function getManagementSummary(env, { user, month }) {
     order: 'ordered_at.desc',
     limit: '2000',
   }).catch(() => [])) || [];
+  // 설치 후 한 문항 (반년 창, 링크를 만든 날 또는 답한 날 기준) — 점수 · 날짜만 읽는다, 한 줄 메모는 읽지 않는다
+  const fbFrom = windowStart(m, QUALITY_WINDOW_DAYS + 31);
+  const feedback = await selectMany(env, 'install_feedback', {
+    select: 'score,created_at,answered_at',
+    or: `(created_at.gte.${fbFrom},answered_at.gte.${fbFrom})`,
+    limit: '5000',
+  }).catch(() => null);
   return buildManagementSummary({
     orders: list,
     snapshotsById: new Map(snaps.map((s) => [s.id, s])),
@@ -128,6 +135,7 @@ export async function getManagementSummary(env, { user, month }) {
     paceLogs,
     reworks,
     installed,
+    feedback,
     today: kstDate(),
     settings,
     month: m,

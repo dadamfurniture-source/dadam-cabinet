@@ -184,3 +184,31 @@ describe('재작업 · A/S 기록 (경영 대시보드 2단계 PR-6)', () => {
     expect(PHASE2).toMatch(/CREATE POLICY "Admin read rework logs" ON rework_logs FOR SELECT TO authenticated USING \(public\.is_admin\(\)\)/);
   });
 });
+
+describe('설치 후 한 문항 링크 (경영 대시보드 2단계 PR-7)', () => {
+  const render = ERP.slice(ERP.indexOf('function renderFeedback'), ERP.indexOf('async function createFeedbackLink'));
+  const create = ERP.slice(ERP.indexOf('async function createFeedbackLink'), ERP.indexOf('async function copyFeedbackLink'));
+  const copy = ERP.slice(ERP.indexOf('async function copyFeedbackLink'), ERP.indexOf('async function addRework'));
+
+  test('링크 만들기 → 링크 칸 · 복사 버튼', () => {
+    for (const id of ['feedbackBox', 'btnFeedbackLink', 'feedbackLinkRow', 'inpFeedbackUrl', 'btnCopyFeedback']) {
+      expect(ERP).toMatch(new RegExp(`id="${id}"`));
+    }
+    expect(create).toMatch(/'\/feedback-link', \{ method: 'POST' \}/);
+  });
+
+  test('평문 링크는 만든 응답에서만 보인다 — 다시 그린 뒤에 링크 칸을 연다', () => {
+    expect(create.indexOf('await open(state.current)')).toBeLessThan(create.indexOf("el('feedbackLinkRow').hidden = false"));
+  });
+
+  test('답을 받았으면 점수 · 한 줄을 보이고 버튼을 숨긴다, 표가 없으면 SQL 안내', () => {
+    expect(render).toMatch(/if \(f\.answered\)/);
+    expect(render).toMatch(/'받은 답: ' \+ f\.score \+ '점'/);
+    expect(render).toMatch(/management-phase2\.sql/);
+  });
+
+  test('복사는 클립보드, 막히면 선택해 두고 알린다', () => {
+    expect(copy).toMatch(/navigator\.clipboard\.writeText/);
+    expect(copy).toMatch(/input\.select\(\)/);
+  });
+});

@@ -583,6 +583,41 @@ export function qualityOf({ reworks, installed, settings }, month, today = null)
   };
 }
 
+// ── 소개 의향 (2단계 PR-7) ───────────────────────────────────
+
+/**
+ * 설치 후 한 문항 — 12 만족도 · 소개율. 반년 창(QUALITY_WINDOW_DAYS)으로 본다 — 한 달 응답은 몇 건뿐이다.
+ *   응답률   창 안에서 만든 링크 중 답이 온 것
+ *   NPS      답한 사람 중 9~10(소개함) % − 0~6(안 함) %. 7~8 은 중립
+ * 표가 아직 없으면 null.
+ */
+export function referralOf(feedback, month, today = null) {
+  if (!Array.isArray(feedback)) return null;
+  const end = today && today.slice(0, 7) === month ? today : monthEndOf(month);
+  const start = new Date(Date.parse(`${end}T00:00:00Z`) - (QUALITY_WINDOW_DAYS - 1) * 86400000).toISOString().slice(0, 10);
+  const within = (t) => { if (!t) return false; const d = kstDate(t); return d >= start && d <= end; };
+  const sent = feedback.filter((f) => within(f.created_at));
+  const answeredOfSent = sent.filter((f) => f.answered_at).length;
+  const answers = feedback.filter((f) => within(f.answered_at) && Number.isInteger(Number(f.score)));
+  const scores = answers.map((f) => Number(f.score));
+  const promoters = scores.filter((s) => s >= 9).length;
+  const detractors = scores.filter((s) => s <= 6).length;
+  const dist = Array.from({ length: 11 }, (_, s) => scores.filter((x) => x === s).length);
+  return {
+    window: { days: QUALITY_WINDOW_DAYS, start, end },
+    sent: sent.length,
+    answered: answers.length,
+    responseRate: pct(answeredOfSent, sent.length),
+    promoters,
+    passives: answers.length - promoters - detractors,
+    detractors,
+    nps: answers.length ? Math.round(((promoters - detractors) / answers.length) * 100) : null,
+    avg: answers.length ? Math.round((scores.reduce((a, b) => a + b, 0) / answers.length) * 10) / 10 : null,
+    thisMonth: feedback.filter((f) => f.answered_at && kstDate(f.answered_at).slice(0, 7) === month).length,
+    dist,
+  };
+}
+
 function monthEndOf(month) {
   const [y, m] = String(month).split('-').map(Number);
   return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
@@ -604,11 +639,12 @@ const pair = (value, prev) => ({ value, prev });
  * @param {Array}  p.paceLogs       처리능력 실측용 — 그 달 끝에서 거꾸로 PACE_WINDOW_DAYS 동안의 기록 (role · units · minutes · work_date)
  * @param {Array|null} p.reworks    재작업 · A/S (반년 창). 표가 없으면 null
  * @param {Array}  p.installed      납품 · 완료된 수주 (id · status · delivered_at · completed_at)
+ * @param {Array|null} p.feedback   설치 후 한 문항 (score · created_at · answered_at). 표가 없으면 null
  * @param {string} [p.today]        오늘 (KST, YYYY-MM-DD) — 이번 달의 반년 창 끝
  * @param {Object} p.settings       mergeSettings 결과 (+ source)
  * @param {string} p.month          'YYYY-MM'
  */
-export function buildManagementSummary({ orders, snapshotsById, documents, consultations, generations = null, designs = [], costs = [], worklogs = [], paceLogs = [], reworks = null, installed = [], settings, month, today = null }) {
+export function buildManagementSummary({ orders, snapshotsById, documents, consultations, generations = null, designs = [], costs = [], worklogs = [], paceLogs = [], reworks = null, installed = [], feedback = null, settings, month, today = null }) {
   const prev = prevMonthOf(month);
   const overheadMonthly = num(settings && settings.quote && settings.quote.overheadMonthly);
   const cur = financeOf(orders, snapshotsById, { month, overheadMonthly });
@@ -643,6 +679,7 @@ export function buildManagementSummary({ orders, snapshotsById, documents, consu
     process: processOf({ orders, snapshotsById, costs, worklogs, paceLogs, settings }, month),
     scenario: scenarioBase(orders, snapshotsById, settings, month),
     quality: qualityOf({ reworks, installed, settings }, month, today),
+    referral: referralOf(feedback, month, today),
     basis: {
       revenue: 'VAT 제외 계약금',
       cost: '확인서 견적 원가 (고정비 회수분 제외)',
