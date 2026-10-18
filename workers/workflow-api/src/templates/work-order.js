@@ -1119,6 +1119,20 @@ function labelSheets(ctx) {
 // ── ⑩ 도어재 발주서 ──────────────────────────────────────────────
 
 /**
+ * 서랍장 전면 = "마이다" — 보링하지 않는다 (2026-10-18 사장님, 맨 위 칸 전면까지 전부).
+ * 서랍도어 행이거나, 같은 모듈(moduleKey **와** 모듈 라벨)에 서랍도어가 있는 도어 행 — 싱크·단순 카테고리 서랍장.
+ * 붙박이장 외부 서랍은 서랍도어 라벨이 `…-서랍모듈` 로 따로라, 그 위 긴 여닫이 도어는 마이다가 아니다 (경첩 있음).
+ * BOM 도 서랍장 모듈에는 경첩을 내지 않는다 (extractors.js bomIsMaidaModule). (순수, 시험용으로 노출)
+ */
+export function isMaidaRow(materials, row) {
+  if (!row) return false;
+  if (row.slot === 'drawerFront' || row.part === '서랍도어') return true;
+  if (!(row.slot === 'door' || row.part === '도어') || !row.moduleKey) return false;
+  return (materials || []).some((m) => m && m.moduleKey === row.moduleKey && m.module === row.module
+    && (m.slot === 'drawerFront' || m.part === '서랍도어'));
+}
+
+/**
  * 도어 외주처로 가는 종이. 도어 그룹(도어·몰딩·걸레받이·목찬넬·마감) 부재를 마감별로 묶고,
  * 도어 행에는 경첩 컵 위치(경첩 비고의 보링, 도어 상단 기준 mm)를 붙인다.
  * 금액도 고객 이름도 싣지 않는다 — 문서번호만.
@@ -1162,7 +1176,8 @@ function doorOrderSheet(ctx) {
               `${num(m.w)} × ${num(m.h)} × ${num(m.thickness)}`,
               num(m.qty),
               `${edgeSvg(rowEdges(m))}${edgeText(m)}`,
-              b ? `${num(b.count)}구 · ${esc(b.positions.join(', '))}${b.side === 'top' ? ' <span class="muted">(플랩 — 천판 쪽 폭 변)</span>' : ''}${b.warn ? ` <span class="warn">${esc(b.warn)}</span>` : ''}` : '',
+              b ? `${num(b.count)}구 · ${esc(b.positions.join(', '))}${b.side === 'top' ? ' <span class="muted">(플랩 — 천판 쪽 폭 변)</span>' : ''}${b.warn ? ` <span class="warn">${esc(b.warn)}</span>` : ''}`
+                : isMaidaRow(ctx.materials, m) ? '<span class="muted">마이다 — 보링 없음</span>' : '',
             ],
             ['', '', '', 'num', 'num', '', ''],
           );
