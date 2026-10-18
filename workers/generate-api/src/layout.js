@@ -488,6 +488,13 @@ function plannerReadApplianceSeen(m) {
   return 'open';
 }
 
+/** 2026-10-19: 꺾인 벽 목록 (design_spec.walls[] — prompts.js plannerWalls 와 같은 거르기). */
+function plannerReadWalls(s) {
+  return s && Array.isArray(s.walls)
+    ? s.walls.filter((w) => w && w.sections && typeof w.sections === 'object' && (w.side === 'left' || w.side === 'right'))
+    : [];
+}
+
 /** 2026-10-19: 후드 칸인가 — prompts.js isHoodCell 과 같은 규칙 (가전 칸 · 쌓인 단 없음 · 라벨 후드/hood). */
 function plannerReadIsHoodCell(m) {
   return !!m && m.kind === 'appliance' && !(Array.isArray(m.tiers) && m.tiers.length) && /후드|hood/.test(String(m.label || '').toLowerCase());
@@ -529,6 +536,20 @@ export function plannerReadPlan(spec, category) {
     rows = keys.map((k) =>
       Object.assign({ section: k }, PLANNER_READ_SECTION[k], { items: placed(k, sections[k]) })
     );
+    // 2026-10-19: 꺾인 벽 (design_spec.walls[], ㄱ자·ㄷ자) — 주벽 줄 뒤에, 자리는 모서리에서 잰 fromCornerMm (prompts.js plannerRows 와 같다)
+    plannerReadWalls(s).forEach((w) => {
+      ['lower', 'upper', 'tall']
+        .filter((k) => w.sections[k] && Array.isArray(w.sections[k].modules) && w.sections[k].modules.length)
+        .forEach((k) => {
+          const sec = w.sections[k];
+          rows.push(
+            Object.assign({ section: k, wall: w.side }, PLANNER_READ_SECTION[k], {
+              title: `${PLANNER_READ_SECTION[k].title} — ${w.side.toUpperCase()} WALL, the return (from the corner outward)`,
+              items: placed(k, Object.assign({}, sec, { fromLeftMm: sec.fromCornerMm })),
+            })
+          );
+        });
+    });
   }
   let runMm = Number(s.wallRunMm) > 0 ? Number(s.wallRunMm) : null;
   if (!runMm) {
@@ -536,10 +557,11 @@ export function plannerReadPlan(spec, category) {
     runMm = ends.length && Math.max(...ends) > 0 ? Math.max(...ends) : null;
   }
   // 2026-10-19: 번호 — 후드 칸은 줄 머리 대신 H1·H2 (줄 순서대로 이어서). prompts.js plannerRows 와 같다.
+  //   꺾인 벽의 줄은 같은 머리 글자로 주벽에 이어서 센다 (L1–L4 → L5 …).
   let hoods = 0;
+  const counters = {};
   const out = rows.map((r) => {
-    let n = 0;
-    return {
+    return Object.assign({
     row: r.row,
     section: r.section,
     title: r.title,
@@ -548,7 +570,7 @@ export function plannerReadPlan(spec, category) {
       const c = plannerReadCounts(it.m);
       const seen = it.m.kind === 'appliance' ? plannerReadApplianceSeen(it.m) : it.m.kind === 'open' ? 'open' : 'cabinet';
       const unit = {
-        id: plannerReadIsHoodCell(it.m) ? `H${++hoods}` : `${r.prefix}${++n}`,
+        id: plannerReadIsHoodCell(it.m) ? `H${++hoods}` : `${r.prefix}${(counters[r.prefix] = (counters[r.prefix] || 0) + 1)}`,
         section: it.section,
         widthMm: Number(it.m.widthMm) || null,
         startMm: it.startMm,
@@ -570,16 +592,18 @@ export function plannerReadPlan(spec, category) {
       }
       return unit;
     }),
-    };
+    }, r.wall ? { wall: r.wall } : {});
   });
   // 가전 → 그 자리에 걸린 모듈 (중심이 모듈 [start,end) 안)
-  (Array.isArray(s.appliances) ? s.appliances : []).forEach((a) => {
+  // 2026-10-19: 최상위 appliances[] 는 주벽 줄, 꺾인 벽의 appliances[](fromCornerMm)는 그 벽 줄에만
+  const attach = (a, wall, pos) => {
     const kind = a && String(a.kind || '').toLowerCase();
     const where = PLANNER_READ_APPLIANCE_ROWS[kind];
-    if (!where || a.fromLeftMm === undefined) return;
-    const center = Number(a.fromLeftMm) + (Number(a.widthMm) || 0) / 2;
+    if (!where || a[pos] === undefined) return;
+    const center = Number(a[pos]) + (Number(a.widthMm) || 0) / 2;
     for (const sec of where) {
       for (const row of out) {
+        if ((row.wall || null) !== wall) continue;
         const hit = row.units.find(
           (u) => u.section === sec && u.endMm > u.startMm && center >= u.startMm && center < u.endMm
         );
@@ -590,15 +614,19 @@ export function plannerReadPlan(spec, category) {
         }
       }
     }
-  });
+  };
+  (Array.isArray(s.appliances) ? s.appliances : []).forEach((a) => attach(a, null, 'fromLeftMm'));
+  if (category !== 'wardrobe') {
+    plannerReadWalls(s).forEach((w) => (Array.isArray(w.appliances) ? w.appliances : []).forEach((a) => attach(a, w.side, 'fromCornerMm')));
+  }
   // 2026-10-19: 후드 칸 밑 쿡탑 — 도면에 cooktop 이 없을 때 생성 프롬프트가 후드 칸 아래 하부장에 둔다 (prompts.js plannerImpliedCooktops)
   if (!(Array.isArray(s.appliances) && s.appliances.some((a) => a && String(a.kind || '').toLowerCase() === 'cooktop'))) {
-    const bases = out.filter((r) => r.section === 'lower').flatMap((r) => r.units);
     const used = new Set();
     out.forEach((r) =>
       r.units
         .filter((u) => u.seen === 'hood')
         .forEach((h) => {
+          const bases = out.filter((x) => x.section === 'lower' && (x.wall || null) === (r.wall || null)).flatMap((x) => x.units);
           const center = (h.startMm + h.endMm) / 2;
           const b = bases.find((u) => u.endMm > u.startMm && center >= u.startMm && center < u.endMm);
           if (!b || (b.seen !== 'cabinet' && b.seen !== 'open') || used.has(b) || b.attached.includes('sink') || b.attached.includes('cooktop')) return;
@@ -673,6 +701,14 @@ export function buildPlannerReadPrompt(c) {
       'IMAGE 2 — FRONT ELEVATION of the plan the photo was generated from, seen straight on. It has no labels: the IDs below run left to right inside each row. Use it only to tell which unit is which.'
     );
   }
+  // 2026-10-19: 꺾인 벽 입면 (ㄱ자·ㄷ자) — 함께 보일 때만. 주벽 입면 뒤 번호로.
+  const wallSides = plannerReadWalls(c.designSpec).map((w) => w.side);
+  const rets = (Array.isArray(c.returnElevations) ? c.returnElevations : []).filter((r) => r && wallSides.includes(r.side));
+  rets.forEach((r, i) => {
+    images.push(
+      `IMAGE ${images.length + 1} — FRONT ELEVATION of the ${r.side.toUpperCase()} wall return of the same plan, seen straight on${r.labeled ? ', with its unit IDs' : ''}. Use it only to tell which unit is which.`
+    );
+  });
   // 2026-10-19: 후드 칸이 있을 때만 seen 에 hood 를 말한다 — 없으면 예전 문장 그대로
   const hasHood = plan.rows.some((r) => r.units.some((u) => u.seen === 'hood'));
   const list = [];
@@ -680,8 +716,10 @@ export function buildPlannerReadPrompt(c) {
     list.push(`  ${r.title} (row "${r.row}"):`);
     r.units.forEach((u) => list.push(`    ${plannerReadLine(u)}`));
   });
-  const shape =
-    plan.shape === 'straight'
+  const shape = wallSides.length
+    // 2026-10-19: 꺾인 벽이 있으면 실제 방향으로 (목록이 벽마다 따로 있다)
+    ? `PLAN LAYOUT: one ${wallSides.length >= 2 ? 'U' : 'L'}-shaped run — the back wall run plus a return on the ${wallSides.map((s) => s.toUpperCase()).join(' and ')} wall${wallSides.length > 1 ? 's' : ''}, listed as its own rows above (IDs continue from the back wall). No wall units on a return unless it is listed.`
+    : plan.shape === 'straight'
       ? 'PLAN LAYOUT: one straight run on one wall.'
       : plan.shape === 'corner'
         ? 'PLAN LAYOUT: one L-shaped run on two walls (the elevation shows it unfolded flat).'
@@ -752,6 +790,8 @@ export function normalizePlannerRead(raw, ctx) {
         seen: g ? g.seen : 'unread',
         doors: g ? (g.seen === 'cabinet' || g.seen === 'open' ? g.doors : 0) : 0,
         drawers: g ? (g.seen === 'cabinet' || g.seen === 'open' ? g.drawers : 0) : 0,
+        // 2026-10-19: 꺾인 벽 유닛만 — 자리(startMm·endMm)는 모서리에서 잰 값이다
+        ...(row.wall ? { wall: row.wall } : {}),
       });
     });
   });
@@ -786,10 +826,11 @@ export function normalizePlannerRead(raw, ctx) {
   } else {
     const secs = plan.rows
       .filter((row) => row.section === 'lower' || row.section === 'tall')
-      .sort((a, b) => (a.units[0] ? a.units[0].startMm : 0) - (b.units[0] ? b.units[0].startMm : 0));
+      // 2026-10-19: 꺾인 벽 줄은 주벽 뒤 (verify.js expectedFromSpec 과 같은 순서). 벽 안에서는 시작 자리 순.
+      .sort((a, b) => (a.wall ? 1 : 0) - (b.wall ? 1 : 0) || (a.units[0] ? a.units[0].startMm : 0) - (b.units[0] ? b.units[0].startMm : 0));
     segments = secs.flatMap((row) =>
       units
-        .filter((u) => u.row === row.row && present(u))
+        .filter((u) => u.row === row.row && (u.wall || null) === (row.wall || null) && present(u))
         .map((u) =>
           Object.assign(
             {
