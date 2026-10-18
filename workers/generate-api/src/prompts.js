@@ -2059,53 +2059,59 @@ Photorealistic. No text, labels or watermarks.`;
 }
 
 /**
- * 붙박이장 내부 보기 (2026-10-19 사장님 "4장 중 2장은 내부 사진"). 기본안에서 문을 열어 속을 보여 준다.
- * 두 장이 같은 장이어야 하므로 칸 구성은 한 번 정하고(도어 한 쌍 = 한 칸), 첫 장은 왼쪽 절반, 둘째 장은 오른쪽 절반을 연다.
+ * 붙박이장 내부 보기 (2026-10-19 사장님 "4장 중 2장은 내부 사진", 같은 날 "문이 전체 다 열린 이미지로").
+ * 기본안에서 **모든 문을 열어** 속을 보여 준다. 두 장은 내부가 같고 문짝 색만 다르다 — 첫 장은 기본안 색,
+ * 둘째 장은 색 추천안 색.
+ *
+ * 칸 구성은 정본 기본형을 따른다: js/detaildesign/bom-wardrobe-rules.js 의 SAMPLE_PRESETS ·
+ * samplePresetFor (docs/design-rules/wardrobe.md §1.1). 도어 한 쌍 = 한 통. 워커는 그 파일을 번들하지 않으므로
+ * 여기 옮겨 적고, 시험(wardrobe-interior.test.js)이 정본과 키·순서·이름이 같은지 본다.
  */
 const INTERIOR_SECTIONS = {
-  long: {
-    ko: '긴 옷',
-    en: 'long hanging: one clothes rail high up with a shelf above it, coats and dresses hanging full length below',
+  short2: {
+    ko: '짧은옷 2단',
+    en: 'two short-hanging tiers: one clothes rail in the upper half and one in the lower half, for shirts and jackets',
   },
-  double: {
-    ko: '2단 옷걸이',
-    en: 'double hanging: two clothes rails one above the other with shirts and jackets, a shelf at the top',
+  longDrawer: {
+    ko: '긴옷 + 하부 서랍',
+    en: 'long hanging: a shelf at the top and one clothes rail for coats and dresses, with two internal drawers at the bottom',
   },
-  shelves: {
-    ko: '선반·서랍',
-    en: 'shelves and drawers: two internal drawers at waist height with fixed shelves above and below holding folded knitwear and a few storage boxes',
+  halfSplit: {
+    ko: '반 분할 (중간 칸막이)',
+    en: 'split into left and right halves by a vertical divider; each half has a shelf at the top and one clothes rail',
+  },
+  rodTopSplitBottom: {
+    ko: '상단 옷봉 + 하부 옆 분할',
+    en: 'one clothes rail across the full width in the upper half; the lower half split side by side into three shelves and a short clothes rail',
   },
 };
+export const INTERIOR_SAMPLE_PRESETS = ['short2', 'longDrawer', 'halfSplit', 'rodTopSplitBottom'];
 
-/** 칸 구성 (왼쪽부터). 2칸 긴옷·선반, 3칸 + 2단, 4칸 이상은 2단·선반을 번갈아. */
+/** 통 구성 (왼쪽부터) — 정본 samplePresetFor 와 같다: 앞에서부터 쓰고, 통이 더 많으면 마지막을 되쓴다. */
 export function wardrobeInteriorPlan(wallW) {
   const n = wardrobeDoors(wallW) / 2;
-  const plan = ['long'];
-  const rest = n === 2 ? ['shelves'] : ['double', 'shelves'];
-  while (plan.length < n) plan.push(rest[(plan.length - 1) % rest.length]);
-  return plan;
+  const S = INTERIOR_SAMPLE_PRESETS;
+  return Array.from({ length: n }, (_, i) => S[Math.min(i, n <= S.length ? n - 1 : S.length - 1)]);
 }
 
 /**
- * @param {number} wallW 벽 폭 (mm) — 도어 수·칸 구성
- * @param {'left'|'right'} part 여는 쪽 절반
+ * @param {number} wallW 벽 폭 (mm) — 도어 수·통 구성
+ * @param {{body?:string}} [recolour] 주면 문짝·끝 측판·걸레받이를 그 색으로 (색 추천안과 같은 색)
  * @returns {{prompt:string, label:string}}
  */
-export function buildWardrobeInteriorPrompt(wallW, part) {
+export function buildWardrobeInteriorPrompt(wallW, recolour = null) {
   const plan = wardrobeInteriorPlan(wallW);
-  const half = Math.ceil(plan.length / 2);
-  const open = part === 'left' ? plan.map((_, i) => i).slice(0, half) : plan.map((_, i) => i).slice(half);
-  const nums = open.map((i) => i + 1);
-  const which = nums.length === 1 ? `pair ${nums[0]}` : `pairs ${nums.slice(0, -1).join(', ')} and ${nums.at(-1)}`;
-  const prompt = `Open some doors of the built-in wardrobe in this photo to show its interior.
+  const colour = recolour && recolour.body
+    ? `Also change the colour of every door, both faces, together with the wardrobe's own end panels, fillers, plinth and trim, to ${recolour.body}, one continuous colour.\n${RECOLOUR_SCOPE}\n`
+    : '';
+  const prompt = `Open every door of the built-in wardrobe in this photo to show its whole interior.
 The wardrobe has ${plan.length} pairs of doors. Behind each pair is one section; from left to right:
 ${plan.map((k, i) => `${i + 1}. ${INTERIOR_SECTIONS[k].en}`).join('\n')}
-Open both doors of ${which} (the ${part} side): each door swings fully open on its side hinges, about 90 degrees towards the camera, showing its inner face in the same finish as its outside. The doors of every other pair stay closed.
-Inside: carcass, dividers and shelves in warm white melamine, slim aluminium clothes rails, wooden hangers. Tidy and lightly styled in neutral colours, not packed full. Soft, even light inside the open sections.
-Keep everything else identical: camera, room, the wardrobe's outer size and position, its door colour and door lines, the walls, ceiling, floor and lighting. Handleless doors stay handleless.
+Every door swings fully open on its side hinges, about 90 degrees towards the camera, so all sections are visible at once. Each open door shows its inner face in the same finish as its outside.
+${colour}Inside: carcass, dividers and shelves in white, slim aluminium clothes rails, wooden hangers. Tidy and lightly styled in neutral colours, not packed full. Soft, even light inside.
+Keep everything else identical: camera, room, the wardrobe's outer size and position${colour ? '' : ', its door colour'}, the walls, ceiling, floor and lighting. Handleless doors stay handleless.
 Photorealistic. No text, labels or watermarks.`;
-  const label = `내부 보기 · ${[...new Set(open.map((i) => INTERIOR_SECTIONS[plan[i]].ko))].join('·')}`;
-  return { prompt, label };
+  return { prompt, label: recolour && recolour.tone ? `내부 보기 · ${recolour.tone}` : '내부 보기' };
 }
 
 /**

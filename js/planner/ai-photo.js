@@ -700,6 +700,46 @@ function plannerAiPhotoColumnModule(col, structureOf, wardrobeFrontOf, baseOf) {
 }
 
 /**
+ * 2026-10-19: 계약 모듈이 후드 칸인가 — 워커 prompts.js isHoodCell 과 같은 규칙 (가전 칸 · 쌓인 단 없음 · 라벨 후드/hood).
+ */
+function plannerAiPhotoIsHoodCell(m) {
+  return !!m && m.kind === 'appliance' && !(Array.isArray(m.tiers) && m.tiers.length)
+    && /후드|hood/.test(String(m.label || '').toLowerCase());
+}
+
+/** 2026-10-19: 후드와 상부장이 "겹친다" 고 볼 최소 폭 (mm) — 맞닿기만 한 것은 겹침이 아니다. */
+const PLANNER_AI_PHOTO_HOOD_OVERLAP = 5;
+
+/**
+ * 2026-10-19: 상부장 사이에 **노출된** 후드 → 상부 줄의 후드 칸. 순수 (design-spec-prompt.md "후드 칸").
+ *   후드 마커(section 'hood')가 어느 상부장과도 x 가 겹치지 않으면 노출형 — 칸 하나로 줄에 넣는다.
+ *   칸 폭은 이웃 상부장 사이 틈 전체 (워커는 줄을 빈틈 없이 이어 놓는다 — 틈을 남기면 뒤의 장이 당겨진다).
+ *   한쪽에 이웃이 없으면(줄 끝) 그쪽은 후드 가장자리까지. 겹치면(상부장 밑 내장형) 칸을 만들지 않는다 — 예전처럼 가전 목록만.
+ *   상부장이 하나도 없으면 칸도 없다.
+ * @param {{m:object, b:{x:number,w:number}}[]} boxes 전체 (boxOf 반영)
+ * @param {{m:object, b:{x:number,w:number}}[]|undefined} uppers 상부 줄 모듈
+ * @returns {{m:object, b:{x:number,w:number}, hoodCell:true}[]}
+ */
+function plannerAiPhotoHoodCells(boxes, uppers) {
+  const ups = (uppers || []).filter((x) => !x.hoodCell);
+  if (!ups.length) return [];
+  const T = PLANNER_AI_PHOTO_HOOD_OVERLAP;
+  const out = [];
+  (boxes || []).forEach((x) => {
+    if (!x || !x.m || x.m.section !== 'hood' || !(x.b.w > 0)) return;
+    const h0 = x.b.x, h1 = x.b.x + x.b.w;
+    if (ups.some((u) => Math.min(h1, u.b.x + u.b.w) - Math.max(h0, u.b.x) > T)) return;   // 내장형
+    const lefts = ups.filter((u) => u.b.x + u.b.w <= h0 + T).map((u) => u.b.x + u.b.w);
+    const rights = ups.filter((u) => u.b.x >= h1 - T).map((u) => u.b.x);
+    const x0 = lefts.length ? Math.max.apply(null, lefts) : h0;
+    const x1 = rights.length ? Math.min.apply(null, rights) : h1;
+    if (!(x1 - x0 > T)) return;
+    out.push({ m: x.m, b: { x: x0, w: x1 - x0 }, hoodCell: true });
+  });
+  return out;
+}
+
+/**
  * 2026-10-19: 도면 요약 + **번호 자취**. 순수. plannerAiPhotoBuildSpec 은 이것의 spec 만 돌려준다.
  *   trace[slot][i] = spec.sections[slot].modules[i] 가 어느 플래너 모듈의 어느 몫인지 — { moduleId, from, to }
  *   (2026-10-19: 쌓인 단 한 통이면 moduleIds 도 — 그 통의 단들, 냉장고 본체가 있으면 맨 앞. moduleId 는 그 첫째)
@@ -743,6 +783,8 @@ function plannerAiPhotoSpecTrace(input) {
     if (!slot) return;                                                  // 분배기·후드는 자리 표시뿐
     (bySlot[slot] || (bySlot[slot] = [])).push(x);
   });
+  // 2026-10-19: 상부장 사이의 노출 후드 → 상부 줄 안의 후드 칸 (design-spec-prompt.md "후드 칸")
+  plannerAiPhotoHoodCells(boxes, bySlot.upper).forEach((h) => bySlot.upper.push(h));
 
   // 2026-10-19: 아랫면 바닥 높이 — 쌓인 단의 순서·냉장고 자리 높이에 쓴다. 페이지의 baseYOf(3D 와 같은 값)가 먼저,
   //   없으면 모듈의 baseY, 그것도 없으면 0 (바닥).
@@ -777,6 +819,12 @@ function plannerAiPhotoSpecTrace(input) {
       }
       const m = x.m;
       const s = structureOf(m.id);
+      if (x.hoodCell) {
+        // 2026-10-19: 후드 칸 — 장이 아니라 후드가 걸리는 틈. 워커는 라벨 '후드' 로 알고 번호를 H1 … 로 매긴다
+        mods.push({ widthMm: plannerAiPhotoMm(x.b.w), kind: 'appliance', doorCount: 0, drawerCount: 0, label: '후드' });
+        tr.push({ moduleId: String(m.id), from: 0, to: 1 });
+        return;
+      }
       if (PLANNER_AI_PHOTO_APPLIANCE[m.section]) {
         // 가전 본체(냉장고·식기세척기)는 장이 아니라 **구멍**이다.
         mods.push({
@@ -813,7 +861,8 @@ function plannerAiPhotoSpecTrace(input) {
       heightMm: plannerAiPhotoMm(Math.max.apply(null, entries.map((x) => (x.col
         ? Math.max.apply(null, x.mods.map((m) => baseOf(m) + plannerAiPhotoNum(m.H))) - (x.niche ? 0 : baseOf(x.mods[0]))
         : plannerAiPhotoNum(x.m.H))))),
-      depthMm: plannerAiPhotoMm(Math.max.apply(null, list.map((x) => plannerAiPhotoNum(x.m.D)))),
+      // 2026-10-19: 후드 칸의 깊이(후드 마커 450)는 줄 깊이가 아니다
+      depthMm: plannerAiPhotoMm(Math.max.apply(null, list.map((x) => (x.hoodCell ? 0 : plannerAiPhotoNum(x.m.D))))),
       fromLeftMm: plannerAiPhotoMm(x0 - left),
       modules: mods.slice(0, PLANNER_AI_PHOTO_MAX_MODULES),
     };
@@ -925,16 +974,21 @@ function plannerAiPhotoElevationLabels(spec, trace) {
   const widthOf = (sec) => sec.widthMm || sec.modules.reduce((n, m) => n + (m.widthMm || 0), 0) || null;
   const itemsOf = (k) => secs[k].modules.map((m, i) => {
     const t = (tr[k] || [])[i] || {};
-    return { moduleId: t.moduleId, moduleIds: t.moduleIds, from: t.from, to: t.to, widthMm: m.widthMm };
+    return { moduleId: t.moduleId, moduleIds: t.moduleIds, from: t.from, to: t.to, widthMm: m.widthMm, hood: plannerAiPhotoIsHoodCell(m) };
   });
+  // 2026-10-19: 후드 칸은 줄 머리 대신 H1·H2 — 줄 순서(lower→upper→tall)대로 이어서 (워커 plannerRows 와 같다)
+  let hoods = 0;
   // 2026-10-19: 쌓인 단 한 통은 번호 하나 — moduleIds(단들 + 냉장고 본체)를 함께 넘겨 라벨이 통 전체 상자 가운데에 선다
-  const number = (prefix, list) => list
-    .map((it, i) => {
-      const out = { id: prefix + (i + 1), moduleId: it.moduleId, from: it.from, to: it.to, widthMm: it.widthMm };
+  const number = (prefix, list) => {
+    let n = 0;
+    return list.map((it) => {
+      const id = it.hood ? 'H' + (++hoods) : prefix + (++n);
+      const out = { id, moduleId: it.moduleId, from: it.from, to: it.to, widthMm: it.widthMm };
       if (Array.isArray(it.moduleIds) && it.moduleIds.length) out.moduleIds = it.moduleIds.slice();
       return out;
     })
-    .filter((it) => it.moduleId != null);
+      .filter((it) => it.moduleId != null);
+  };
   let rows;
   if (spec.category === 'wardrobe') {
     const ordered = keys.slice().sort((a, b) => (secs[a].fromLeftMm || 0) - (secs[b].fromLeftMm || 0));
@@ -2027,6 +2081,8 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerAiPhotoStackColumns,
     plannerAiPhotoColumnModule,
     PLANNER_AI_PHOTO_NICHE_MIN,
+    plannerAiPhotoIsHoodCell,
+    plannerAiPhotoHoodCells,
     plannerAiPhotoLayoutOf,
     plannerAiPhotoElevationLabels,
     PLANNER_AI_PHOTO_CEILING_RANGE,
