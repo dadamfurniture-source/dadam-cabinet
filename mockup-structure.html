@@ -8217,11 +8217,19 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const sidePanel = () => (notches.length
       ? makeNotchedPanel(o.T, o.carcassH, o.D, notches, o.color)
       : makeBox(o.T, o.carcassH, o.D, o.color));
-    // W12-25: 뒤판은 **측판 사이**에 들어간다. 전폭으로 두면 측판과 두께만큼
-    //   겹친다 (실측 18×700×18 두 곳). 부재는 서로 겹칠 수 없다.
-    const back = makeBox(o.W - 2 * o.T, o.carcassH, o.T, o.color);
-    back.position.set(0, cyMid, -o.D / 2 + o.T / 2);
+    // 2026-10-19 사장님: 뒷판(우라 MDF 3T) 크기·자리는 **측판 사쿠리**가 정한다 — BOM bomBackPanelSize 와 같은 규칙.
+    //   사쿠리 있음(상부장)  측판 홈에 끼운다 (W − 20) × (H − 1) — 뒤끝에서 15 들어간 홈, 천지판은 D − 18
+    //   사쿠리 없음(하부장·키큰장 단)  측판 뒤끝에 덮어 붙인다 (W − 1) × (H − 1) — 측판 깊이를 먹지 않는다
+    //   예전엔 15T 판을 측판 사이 뒤끝에 세웠다 (W12-25) — 실제와 두께·자리가 모두 달랐다.
+    const sakuri = !!o.sakuri;
+    const backW = o.W - (sakuri ? MASTER_RULES.BACK_SAKURI_W_MINUS : MASTER_RULES.BACK_FLAT_W_MINUS);
+    const back = makeBox(backW, o.carcassH - MASTER_RULES.BACK_H_MINUS, MASTER_RULES.BACK_PANEL_T, o.color);
+    back.position.set(0, cyMid, sakuri
+      ? -o.D / 2 + MASTER_RULES.SAKURI_GROOVE_FROM_BACK + MASTER_RULES.BACK_PANEL_T / 2
+      : -o.D / 2 - MASTER_RULES.BACK_PANEL_T / 2);
     put(back, 'back');
+    // 천지판 깊이 — 사쿠리면 D − 18 (홈 앞까지), 아니면 측판 깊이 그대로 (BOM 하부 지판 (W−2T)×D)
+    const panelD = sakuri ? o.D - MASTER_RULES.SAKURI_GROOVE_FROM_BACK - MASTER_RULES.BACK_PANEL_T : o.D;
     // 좌·우 측판 — 모듈 바깥 끝에만
     const left = sidePanel();
     left.position.set(-o.W / 2 + o.T / 2, cyMid, 0);
@@ -8231,18 +8239,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     put(right, 'right');
     // 지판 · 천판 — 측판 사이 전폭
     const inner = o.W - 2 * o.T;
-    const bottom = makeBox(inner, o.T, o.D - o.T, o.color);
-    bottom.position.set(0, o.legH + o.T / 2, o.T / 2);
+    const bottom = makeBox(inner, o.T, panelD, o.color);
+    bottom.position.set(0, o.legH + o.T / 2, o.D / 2 - panelD / 2);
     put(bottom, 'bottom');
     // 천판은 목찬넬 자리를 비켜 뒤로 물러난다 — 안 그러면 전면판과 같은 칸을 차지한다.
     // W12-40: 높이는 **몸통 상단**(legH + carcassH)이다. 예전엔 `o.H - moldingH`
     //   로 잡아 상판 두께만큼 위로 떠 있었다 — 측판은 몸통 상단에서 끝나는데
     //   천판만 12mm 더 올라가 상판과 겹쳤다 (실측 12mm). 목찬넬 자리를 잡는
     //   addWoodChannel 은 처음부터 legH + carcassH 를 쓰고 있었다.
-    const topD = o.D - o.T - (notch ? MASTER_RULES.CHANNEL_NOTCH_D : 0);
+    const topD = panelD - (notch ? MASTER_RULES.CHANNEL_NOTCH_D : 0);
     const top = makeBox(inner, o.T, topD, o.color);
     top.position.set(0, o.legH + o.carcassH - o.T / 2,
-      o.T / 2 - (notch ? MASTER_RULES.CHANNEL_NOTCH_D / 2 : 0));
+      o.D / 2 - (notch ? MASTER_RULES.CHANNEL_NOTCH_D : 0) - topD / 2);
     put(top, 'top');
     if (notch) addWoodChannel(parent, o);
     // 2026-09-15: 서랍장 — 중간 목찬넬(ㄴ자 두 장)과 서랍 박스
@@ -8277,7 +8285,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const bandH = o.carcassH - 2 * o.T - cut;
     if (!(bandH > 0)) return;
     const cy = o.legH + o.T + bandH / 2;                 // 지판 위에서 시작
-    const z = o.D / 2 - braceT / 2 - 2;                  // 도어 뒤쪽 (모듈 안)
+    const z = o.D / 2 - braceT / 2;                      // 도어 바로 뒤 — 측판 앞선에 맞댄다 (2026-10-19 사장님)
     const brace = makeBox(braceW, bandH, braceT, darken3(o.color, 0.05), { roughness: 0.7 });
     brace.position.set(0, cy, z);                        // 모듈 중앙
     brace.userData = { entityKind: 'brace', moduleId: m.id, braceIdx: 0 };
@@ -9438,6 +9446,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       addWardrobeCarcasses(g, m, wardrobeLayout, { W, D, T, legH, color: carcassColor, ud: carcassUd });
     } else {
       addCarcassShell(g, { W, D, T, legH, carcassH, H, moldingH, color: carcassColor, ud: carcassUd, woodChannel, drawerLayout,
+        sakuri: m.section === 'upper',   // 상부장만 측판 사쿠리 — 하부장·키큰장 단은 뒷판을 측판 뒤에 덮는다 (BOM 과 같다)
         drawerT: drawerRules.boxT || T, drawerSakuri: drawerRules.sakuri });
       addCellDividers(g, { cellWidths, W, D, T, legH, carcassH, color: carcassColor, ud: carcassUd, woodChannel, drawerLayout,
         types: s.areaTypes, section: m.section });
