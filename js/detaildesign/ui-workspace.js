@@ -1766,7 +1766,8 @@
             <div class="spec-row"><div class="spec-field"><label>앞턱(등뜨기)</label><select onchange="updateSpec(${uid},'topFrontLip',this.value)">${topToggleOptionsHtml(item.specs.topFrontLip, '12T 있음')}</select></div><div class="spec-field"><label>앞턱 높이(mm)</label><input type="number" placeholder="기본 ${TOP_FINISH_DEFAULT_LABEL.frontLipH}" value="${item.specs.topFrontLipH ?? ''}" onchange="updateSpecValue(${uid},'topFrontLipH',this.value)"></div></div>
             <div class="spec-row"><div class="spec-field"><label>물끊기</label><select onchange="updateSpec(${uid},'topDrip',this.value)">${topToggleOptionsHtml(item.specs.topDrip, '있음')}</select></div></div>
             <div class="spec-row"><div class="spec-field"><label>좌측 옆면</label><select onchange="updateSpec(${uid},'topSideLeft',this.value)">${topSideOptionsHtml(item.specs.topSideLeft)}</select></div><div class="spec-field"><label>우측 옆면</label><select onchange="updateSpec(${uid},'topSideRight',this.value)">${topSideOptionsHtml(item.specs.topSideRight)}</select></div></div>
-            <div class="spec-row"><div class="spec-field"><label>상판 크기 (${shapes[item.specs.layoutShape || item.specs.lowerLayoutShape || 'I']})</label>${topSizeInputs}</div></div>`,
+            <div class="spec-row"><div class="spec-field"><label>상판 크기 (${shapes[item.specs.layoutShape || item.specs.lowerLayoutShape || 'I']})</label>${topSizeInputs}</div></div>
+            <div class="spec-row" data-top-model-uid="${uid}"><div class="spec-field"><label>싱크볼 모델 (타공 · 수전)</label><select onchange="updateSpec(${uid},'sinkModelId',this.value)">${cutoutModelOptionsHtml('sink', item.specs.sinkModelId, uid)}</select></div><div class="spec-field"><label>쿡탑 모델 (타공)</label><select onchange="updateSpec(${uid},'cooktopModelId',this.value)">${cutoutModelOptionsHtml('cooktop', item.specs.cooktopModelId, uid)}</select></div></div>`,
           finish: `
             <div class="spec-row"><div class="spec-field"><label>상몰딩 높이</label><input type="number" value="${item.specs.moldingH}" onchange="updateSpecValue(${uid},'moldingH',this.value)"></div></div>
             <div class="spec-row"><div class="spec-field"><label>좌측 마감</label><select onchange="updateFinishType(${uid},'Left',this.value)"><option value="Molding" ${item.specs.finishLeftType==='Molding'?'selected':''}>몰딩</option><option value="Filler" ${item.specs.finishLeftType==='Filler'?'selected':''}>휠라</option><option value="EP" ${item.specs.finishLeftType==='EP'?'selected':''}>EP</option><option value="None" ${item.specs.finishLeftType==='None'?'selected':''}>없음</option></select></div><div class="spec-field"><label>길이(mm)</label><input type="number" value="${item.specs.finishLeftWidth}" onchange="updateSpecValue(${uid},'finishLeftWidth',this.value)"></div></div>
@@ -2578,6 +2579,45 @@
           // 3D 플래너에도 반영
           if (typeof _syncPlannerState === 'function') _syncPlannerState(item);
         }
+      }
+
+      /**
+       * 상판 발주 요청서 타공 — 싱크볼 · 쿡탑 가전 모델 (appliance_models, 관리자 「가전 모델 관리」에서 타공 칸 입력).
+       * 고른 id 가 사양(sinkModelId · cooktopModelId)에 남고, 워커가 인쇄할 때 타공 W×D·R · 수전 지름을 읽는다.
+       * 처음 그릴 때 한 번 불러오고, 다 불러오면 그 품목의 상판 탭이 아직 떠 있을 때만 다시 그린다.
+       */
+      const CutoutModels = { rows: null, loading: null };
+      function loadCutoutModels(uid) {
+        if (CutoutModels.rows || CutoutModels.loading) return CutoutModels.loading;
+        const client = typeof SupabaseUtils !== 'undefined' && SupabaseUtils.client;
+        if (!client) { CutoutModels.rows = []; return null; }
+        const q = (cols) => client.from('appliance_models').select(cols).in('category', ['sink', 'cooktop']).order('brand').order('model_name');
+        CutoutModels.loading = q('id,category,brand,model_name,model_code,cutout_w_mm,cutout_d_mm,cutout_r_mm,faucet_hole_mm')
+          .then(({ data, error }) => {
+            if (error) throw error;
+            return data || [];
+          })
+          // 타공 칼럼이 아직 없으면(database/work-reports.sql 미실행) 모델 이름만
+          .catch(() => q('id,category,brand,model_name,model_code').then(({ data }) => data || []))
+          .catch(() => [])
+          .then((rows) => {
+            CutoutModels.rows = rows;
+            CutoutModels.loading = null;
+            const item = selectedItems.find((i) => i.uniqueId === uid);
+            if (item && document.querySelector(`[data-top-model-uid="${uid}"]`)) renderWorkspaceContent(item);
+          });
+        return CutoutModels.loading;
+      }
+
+      function cutoutModelOptionsHtml(category, cur, uid) {
+        if (!CutoutModels.rows) loadCutoutModels(uid);
+        const rows = (CutoutModels.rows || []).filter((r) => r.category === category);
+        const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const label = (r) => `${r.brand || ''} ${r.model_name || ''}`.trim() + (r.cutout_w_mm && r.cutout_d_mm ? ` · 타공 ${r.cutout_w_mm}×${r.cutout_d_mm}` : ' · 타공 미입력');
+        const opts = [`<option value="" ${cur ? '' : 'selected'}>${CutoutModels.rows ? '미지정 — 요청서에 [확인 필요]' : '모델 불러오는 중…'}</option>`]
+          .concat(rows.map((r) => `<option value="${esc(r.id)}" ${r.id === cur ? 'selected' : ''}>${esc(label(r))}</option>`));
+        if (cur && !rows.some((r) => r.id === cur)) opts.push(`<option value="${esc(cur)}" selected>${CutoutModels.rows ? '(지워진 모델)' : '고른 모델'}</option>`);
+        return opts.join('');
       }
 
       /** 상판 재질 — 두께가 새 재질 목록에 없으면 그 재질의 첫 두께로 (세라믹 12T 등). 높이 동기화는 두께와 같이. */
