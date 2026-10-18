@@ -160,6 +160,28 @@ FINAL SELF-CHECK …; tall row 1 unit + 1 appliance opening, 5 doors, 0 drawers;
   `3 doors (one column of 3 stacked sections)`, 냉장고장은 냉장고 자리(냉장고가 있든 비어 있든 refrigerator 로 보고)
   + "위 2도어 장은 이 번호의 것 — 덤 유닛이 아니다". 기대 도어는 키큰장 단의 합, 냉장고장 0 (가전 칸 규칙).
 
+### 후드 칸 — 상부장 사이의 노출 후드 (2026-10-19)
+
+`modules[]` 는 줄 안에서 왼→오로 **빈틈 없이** 이어 놓인다(워커가 `fromLeftMm` 부터 폭을 더해 자리를 매긴다).
+그래서 상부 `U1 800(x0) | 후드 600(x800) | U2 800(x1400)` 을 `[800, 800]` 으로만 보내면 U2 가 x800 에 놓이고,
+후드(가운데 1100)가 U2 에 붙어 "U2 밑의 슬림 후드" 가 된다 — 실측(2026-10-19 GPT)에서 상부장을 이어 붙이고 후드를 오른쪽 장 밑에 넣었다.
+그래서 **장과 x 가 겹치지 않는 후드**는 그 줄 안의 칸 하나로 보낸다.
+
+| 경우 | 플래너가 보내는 것 | 프롬프트 |
+|---|---|---|
+| 노출형 — 후드가 어느 상부장과도 x 가 겹치지 않는다 | 상부 `modules[]` 에 `{ "widthMm": 틈 폭, "kind": "appliance", "doorCount": 0, "drawerCount": 0, "label": "후드" }` 한 칸 (이웃 상부장 사이 틈 전체. 한쪽이 줄 끝이면 후드 폭까지) + `appliances[]` 의 `hood` | `H1 600 mm range hood — not a cabinet: … slim stainless-steel chimney (or canopy) hood …` |
+| 내장형 — 후드가 상부장과 x 가 겹친다 | 칸 없음, `appliances[]` 의 `hood` 만 (예전 그대로) | 그 장에 `…, slim concealed hood under it` (예전 그대로) |
+
+- 번호: 후드 칸은 줄 번호를 받지 않고 `H1`·`H2`… (줄 순서 lower→upper→tall, 줄 안 왼→오). `U1 | H1 | U2`. 정면 입면 라벨·판독도 같은 규칙.
+- 줄 안 위치·폭 비율·기준 줄 대비 시작/끝은 후드 칸을 포함한다 (`U1 : H1 : U2 = 1.5 : 1 : 1.5`). 후드 칸 자리는 빈 구역(EMPTY ZONES)이 아니다.
+- CLOSED LIST 범위에서 빠지고 `H1 is a range hood, not a cabinet.` 를 덧붙인다. 자체 점검 `wall row 2 units + range hood H1 with no cabinet in its gap, 4 doors`.
+- **쿡탑**: 플래너에는 쿡탑 섹션이 없다. 후드 칸이 있고 `appliances[]` 에 `cooktop` 이 없으면 후드 칸 가운데가 걸린 하부장 상판에
+  `flush induction cooktop on the countertop, directly under the hood H1` 을 붙이고 DO NOT 의 "없는 가전" 에서 `cooktop` 을 뺀다.
+  그 하부장이 가전 칸이거나 싱크가 걸렸으면 두지 않는다. 후드 칸이 없는 도면(내장형·후드 없음)은 예전 그대로 — 도면에 없는 쿡탑·후드는 계속 막는다.
+- 검사 LAYOUT 요약·설치 프롬프트: `600 mm range hood gap (no cabinet)`.
+- 플래너 판독: H1 은 `seen: 'hood'`(새 값) · 도어 0. 후드 칸에 장을 지었으면(`cabinet`) 대조의 `parts.hood` 가 0 이고 **ok 가 아니다**(내부 확인용).
+  후드가 안 보여도 장이 없으면(`open`·`missing`) 지킨 것으로 본다(이슈만). 후드로 보인 칸은 `uppers` 에 넣지 않는다(gen-import 가 상부 영역으로 만들지 않게).
+
 `kind` 별 영어 문장:
 
 | kind | 프롬프트 문구 |
