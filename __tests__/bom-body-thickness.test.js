@@ -89,10 +89,10 @@ describe('도어는 몸통 두께를 따라가지 않는다', () => {
     expect(d18.h).toBe(d15.h);
   });
 
-  test('뒷판 MDF 2.7T 도 몸통 두께와 무관', () => {
+  test('뒷판 우라 MDF 3T 도 몸통 두께와 무관 (2026-10-18, 예전 2.7T)', () => {
     const back = find(extract(sinkItem({ bodyThickness: 18 })), '상부장', '뒷판');
     expect(back.material).toBe('MDF');
-    expect(back.thickness).toBe(2.7);
+    expect(back.thickness).toBe(3);
   });
 });
 

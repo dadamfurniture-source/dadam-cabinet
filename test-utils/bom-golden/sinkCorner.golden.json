@@ -79,7 +79,7 @@
       "module": "상부장-LT망장",
       "part": "뒷판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 770,
       "h": 719,
       "qty": 1,
@@ -379,7 +379,7 @@
       "module": "상부장-상부장",
       "part": "뒷판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 580,
       "h": 719,
       "qty": 1,
@@ -554,7 +554,7 @@
       "module": "하부장-LT망장",
       "part": "뒷판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 1046,
       "h": 693,
       "qty": 1,
@@ -829,7 +829,7 @@
       "module": "하부장-수납장",
       "part": "뒷판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 381,
       "h": 693,
       "qty": 1,
@@ -979,7 +979,7 @@
       "module": "하부장-개수대",
       "part": "뒷판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 970,
       "h": 693,
       "qty": 1,
@@ -1109,7 +1109,7 @@
       "h": 650,
       "qty": 1,
       "edge": "-",
-      "note": "[확인 필요] 오버행·타공 규칙 없음 — 하부 라인 한 장(좌·우 마감 폭 포함)",
+      "note": "하부 라인 한 장(좌·우 마감 폭 포함) · 깊이 = 도면 · 이음은 상판 업체 판단",
       "finishCode": "",
       "partId": "0-ep-top-0",
       "slot": "top",
@@ -1158,16 +1158,22 @@
       "totalArea": 8149985,
       "panelCount": 3
     },
-    "MDF_2.7": {
+    "MDF_3": {
       "material": "MDF",
-      "thickness": 2.7,
-      "totalArea": 3329571,
-      "panelCount": 2
+      "thickness": 3,
+      "totalArea": 2631771,
+      "panelCount": 1
     },
     "MDF_18": {
       "material": "MDF",
       "thickness": 18,
       "totalArea": 2795673,
+      "panelCount": 1
+    },
+    "MDF_2.7": {
+      "material": "MDF",
+      "thickness": 2.7,
+      "totalArea": 697800,
       "panelCount": 1
     },
     "인조대리석_12": {

@@ -79,7 +79,7 @@
       "module": "상부장-상부장",
       "part": "뒷판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 780,
       "h": 704,
       "qty": 1,
@@ -279,7 +279,7 @@
       "module": "상부장-상부장",
       "part": "뒷판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 580,
       "h": 704,
       "qty": 1,
@@ -429,7 +429,7 @@
       "module": "하부장-서랍장",
       "part": "뒷판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 764,
       "h": 690,
       "qty": 1,
@@ -704,7 +704,7 @@
       "module": "하부장-하부장",
       "part": "뒷판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 564,
       "h": 690,
       "qty": 1,
@@ -858,22 +858,16 @@
       "totalArea": 6111658,
       "panelCount": 3
     },
-    "MDF_2.7": {
+    "MDF_3": {
       "material": "MDF",
-      "thickness": 2.7,
-      "totalArea": 1873760,
+      "thickness": 3,
+      "totalArea": 2862827,
       "panelCount": 1
     },
     "MDF_18": {
       "material": "MDF",
       "thickness": 18,
       "totalArea": 2424692,
-      "panelCount": 1
-    },
-    "MDF_3": {
-      "material": "MDF",
-      "thickness": 3,
-      "totalArea": 989067,
       "panelCount": 1
     }
   },

@@ -39,10 +39,10 @@
       "moduleId": "corner-blind-area-lower-1--area-lower-0",
       "family": "back",
       "scene": "1053×708×15 ×1",
-      "bom": "1053×693×2.7 ×1",
+      "bom": "1053×693×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "cornerL|corner-blind-area-lower-1--area-lower-0|body:band|onlyBom",
@@ -66,7 +66,7 @@
       "bom": "1053×550×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "cornerL|corner-blind-area-lower-1--area-lower-0|body:top|only3d",
@@ -219,10 +219,10 @@
       "moduleId": "lower-0",
       "family": "back",
       "scene": "812×708×15 ×1",
-      "bom": "812×693×2.7 ×1",
+      "bom": "812×693×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "cornerL|lower-0|body:band|onlyBom",
@@ -246,7 +246,7 @@
       "bom": "812×550×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "cornerL|lower-0|body:top|only3d",
@@ -327,10 +327,10 @@
       "moduleId": "lower-1",
       "family": "back",
       "scene": "812×708×15 ×1",
-      "bom": "812×693×2.7 ×1",
+      "bom": "812×693×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "cornerL|lower-1|body:band|onlyBom",
@@ -354,7 +354,7 @@
       "bom": "812×550×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "cornerL|lower-1|body:top|only3d",
@@ -411,10 +411,10 @@
       "moduleId": "lower-2",
       "family": "back",
       "scene": "812×708×15 ×1",
-      "bom": "812×693×2.7 ×1",
+      "bom": "812×693×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "cornerL|lower-2|body:band|onlyBom",
@@ -438,7 +438,7 @@
       "bom": "812×550×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "cornerL|lower-2|body:top|only3d",
@@ -495,10 +495,10 @@
       "moduleId": "lower-3",
       "family": "back",
       "scene": "708×391×15 ×1",
-      "bom": "693×391×2.7 ×1",
+      "bom": "693×391×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "cornerL|lower-3|body:band|onlyBom",
@@ -522,7 +522,7 @@
       "bom": "550×391×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "cornerL|lower-3|body:top|only3d",
@@ -579,10 +579,10 @@
       "moduleId": "lower-4",
       "family": "back",
       "scene": "806×708×15 ×1",
-      "bom": "806×693×2.7 ×1",
+      "bom": "806×693×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "cornerL|lower-4|body:band|onlyBom",
@@ -606,7 +606,7 @@
       "bom": "806×550×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "cornerL|lower-4|body:top|only3d",
@@ -747,10 +747,10 @@
       "moduleId": "lower-0",
       "family": "back",
       "scene": "870×708×15 ×1",
-      "bom": "870×693×2.7 ×1",
+      "bom": "870×693×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "lShape|lower-0|body:band|onlyBom",
@@ -774,7 +774,7 @@
       "bom": "870×550×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "lShape|lower-0|body:top|only3d",
@@ -855,10 +855,10 @@
       "moduleId": "lower-1",
       "family": "back",
       "scene": "870×708×15 ×1",
-      "bom": "870×693×2.7 ×1",
+      "bom": "870×693×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "lShape|lower-1|body:band|onlyBom",
@@ -882,7 +882,7 @@
       "bom": "870×550×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "lShape|lower-1|body:top|only3d",
@@ -939,10 +939,10 @@
       "moduleId": "lower-2",
       "family": "back",
       "scene": "870×708×15 ×1",
-      "bom": "870×693×2.7 ×1",
+      "bom": "870×693×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "lShape|lower-2|body:band|onlyBom",
@@ -966,7 +966,7 @@
       "bom": "870×550×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "lShape|lower-2|body:top|only3d",
@@ -1047,10 +1047,10 @@
       "moduleId": "lower-3",
       "family": "back",
       "scene": "970×708×15 ×1",
-      "bom": "970×693×2.7 ×1",
+      "bom": "970×693×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "lShape|lower-3|body:band|onlyBom",
@@ -1074,7 +1074,7 @@
       "bom": "970×550×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "lShape|lower-3|body:top|only3d",
@@ -1155,10 +1155,10 @@
       "moduleId": "lower-4",
       "family": "back",
       "scene": "708×470×15 ×1",
-      "bom": "693×470×2.7 ×1",
+      "bom": "693×470×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "lShape|lower-4|body:band|onlyBom",
@@ -1182,7 +1182,7 @@
       "bom": "550×470×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "lShape|lower-4|body:top|only3d",
@@ -1239,10 +1239,10 @@
       "moduleId": "tall-0",
       "family": "back",
       "scene": "801×570×15 ×1",
-      "bom": "786×570×2.7 ×1",
+      "bom": "786×570×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "lShape|tall-0|body:band|onlyBom",
@@ -1266,7 +1266,7 @@
       "bom": "620×570×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "lShape|tall-0|body:top|only3d",
@@ -1347,10 +1347,10 @@
       "moduleId": "tall-1",
       "family": "back",
       "scene": "979×570×15 ×1",
-      "bom": "964×570×2.7 ×1",
+      "bom": "964×570×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "lShape|tall-1|body:band|onlyBom",
@@ -1374,7 +1374,7 @@
       "bom": "620×570×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "lShape|tall-1|body:top|only3d",
@@ -1407,10 +1407,10 @@
       "moduleId": "tall-2",
       "family": "back",
       "scene": "570×400×15 ×1",
-      "bom": "570×385×2.7 ×1",
+      "bom": "570×385×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "lShape|tall-2|body:band|onlyBom",
@@ -1434,7 +1434,7 @@
       "bom": "620×570×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "lShape|tall-2|body:top|only3d",
@@ -1467,10 +1467,10 @@
       "moduleId": "upper-0",
       "family": "back",
       "scene": "870×720×15 ×1",
-      "bom": "880×719×2.7 ×1",
+      "bom": "880×719×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 2.7T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 우라 3T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
     },
     {
       "id": "lShape|upper-0|body:band|onlyBom",
@@ -1539,10 +1539,10 @@
       "moduleId": "upper-1",
       "family": "back",
       "scene": "870×720×15 ×1",
-      "bom": "880×719×2.7 ×1",
+      "bom": "880×719×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 2.7T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 우라 3T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
     },
     {
       "id": "lShape|upper-1|body:band|onlyBom",
@@ -1695,10 +1695,10 @@
       "moduleId": "lower-0",
       "family": "back",
       "scene": "870×708×15 ×1",
-      "bom": "870×693×2.7 ×1",
+      "bom": "870×693×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "oblique|lower-0|body:band|onlyBom",
@@ -1722,7 +1722,7 @@
       "bom": "870×550×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "oblique|lower-0|body:top|only3d",
@@ -1803,10 +1803,10 @@
       "moduleId": "lower-1",
       "family": "back",
       "scene": "870×708×15 ×1",
-      "bom": "870×693×2.7 ×1",
+      "bom": "870×693×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "oblique|lower-1|body:band|onlyBom",
@@ -1830,7 +1830,7 @@
       "bom": "870×550×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "oblique|lower-1|body:top|only3d",
@@ -1887,10 +1887,10 @@
       "moduleId": "lower-2",
       "family": "back",
       "scene": "770×708×15 ×1",
-      "bom": "770×693×2.7 ×1",
+      "bom": "770×693×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "oblique|lower-2|body:band|onlyBom",
@@ -1914,7 +1914,7 @@
       "bom": "770×550×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "oblique|lower-2|body:top|only3d",
@@ -1995,10 +1995,10 @@
       "moduleId": "lower-3",
       "family": "back",
       "scene": "708×370×15 ×1",
-      "bom": "693×370×2.7 ×1",
+      "bom": "693×370×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "oblique|lower-3|body:band|onlyBom",
@@ -2022,7 +2022,7 @@
       "bom": "550×370×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "oblique|lower-3|body:top|only3d",
@@ -2079,10 +2079,10 @@
       "moduleId": "upper-0",
       "family": "back",
       "scene": "870×720×15 ×1",
-      "bom": "880×719×2.7 ×1",
+      "bom": "880×719×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 2.7T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 우라 3T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
     },
     {
       "id": "oblique|upper-0|body:band|onlyBom",
@@ -2151,10 +2151,10 @@
       "moduleId": "upper-1",
       "family": "back",
       "scene": "870×720×15 ×1",
-      "bom": "880×719×2.7 ×1",
+      "bom": "880×719×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 2.7T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 우라 3T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
     },
     {
       "id": "oblique|upper-1|body:band|onlyBom",
@@ -2307,10 +2307,10 @@
       "moduleId": "lower-0",
       "family": "back",
       "scene": "770×708×15 ×1",
-      "bom": "770×693×2.7 ×1",
+      "bom": "770×693×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "straight|lower-0|body:band|onlyBom",
@@ -2334,7 +2334,7 @@
       "bom": "770×550×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "straight|lower-0|body:top|only3d",
@@ -2415,10 +2415,10 @@
       "moduleId": "lower-1",
       "family": "back",
       "scene": "708×370×15 ×1",
-      "bom": "693×370×2.7 ×1",
+      "bom": "693×370×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "straight|lower-1|body:band|onlyBom",
@@ -2442,7 +2442,7 @@
       "bom": "550×370×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "straight|lower-1|body:top|only3d",
@@ -2499,10 +2499,10 @@
       "moduleId": "lower-2",
       "family": "back",
       "scene": "970×708×15 ×1",
-      "bom": "970×693×2.7 ×1",
+      "bom": "970×693×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "straight|lower-2|body:band|onlyBom",
@@ -2526,7 +2526,7 @@
       "bom": "970×550×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "straight|lower-2|body:top|only3d",
@@ -2607,10 +2607,10 @@
       "moduleId": "lower-3",
       "family": "back",
       "scene": "902×708×15 ×1",
-      "bom": "902×693×2.7 ×1",
+      "bom": "902×693×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "straight|lower-3|body:band|onlyBom",
@@ -2634,7 +2634,7 @@
       "bom": "902×550×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "straight|lower-3|body:top|only3d",
@@ -2715,10 +2715,10 @@
       "moduleId": "lower-4",
       "family": "back",
       "scene": "708×436×15 ×1",
-      "bom": "693×436×2.7 ×1",
+      "bom": "693×436×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 2.7T MDF 를 뒤에 덧댐(W−2T × H−T)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
     },
     {
       "id": "straight|lower-4|body:band|onlyBom",
@@ -2742,7 +2742,7 @@
       "bom": "550×436×15 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 2.7T 는 뒤에 덧대므로) — 15mm"
+      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
     },
     {
       "id": "straight|lower-4|body:top|only3d",
@@ -2799,10 +2799,10 @@
       "moduleId": "upper-0",
       "family": "back",
       "scene": "870×720×15 ×1",
-      "bom": "880×719×2.7 ×1",
+      "bom": "880×719×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 2.7T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 우라 3T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
     },
     {
       "id": "straight|upper-0|body:band|onlyBom",
@@ -2871,10 +2871,10 @@
       "moduleId": "upper-1",
       "family": "back",
       "scene": "870×720×15 ×1",
-      "bom": "880×719×2.7 ×1",
+      "bom": "880×719×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 2.7T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 우라 3T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
     },
     {
       "id": "straight|upper-1|body:band|onlyBom",
@@ -2943,10 +2943,10 @@
       "moduleId": "upper-2",
       "family": "back",
       "scene": "770×720×15 ×1",
-      "bom": "780×719×2.7 ×1",
+      "bom": "780×719×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 2.7T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 우라 3T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
     },
     {
       "id": "straight|upper-2|body:band|onlyBom",
@@ -3015,10 +3015,10 @@
       "moduleId": "upper-3",
       "family": "back",
       "scene": "720×370×15 ×1",
-      "bom": "719×380×2.7 ×1",
+      "bom": "719×380×3 ×1",
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 2.7T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
+      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 우라 3T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
     },
     {
       "id": "straight|upper-3|body:band|onlyBom",
