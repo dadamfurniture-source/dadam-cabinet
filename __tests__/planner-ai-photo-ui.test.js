@@ -356,6 +356,116 @@ describe('평가 스위치 (eval=1)', () => {
   });
 });
 
+// 2026-10-18: 이미지 모델 고르기 — 같은 사진·도면을 GPT 로도 돌려 비교 (워커 #803 의 image_provider)
+describe('이미지 모델 고르기 (eval=1)', () => {
+  const PROVIDER_KEY = 'dadam_aiphoto_provider_v1';
+  const okFetch = (generation = { id: 'gen-1', status: 'done', progress: 100, images: [] }) => fakeFetch([
+    { status: 202, json: { success: true, id: 'gen-1' } },
+    { json: { success: true, generation } },
+  ]);
+  const radios = (p) => [...body(p).querySelectorAll('input[name="aiPhotoProvider"]')];
+  const choose = (p, v) => {
+    const r = radios(p).find((x) => x.value === v);
+    r.checked = true;
+    r.dispatchEvent(new p.window.Event('change'));
+  };
+
+  test('eval=1 이 없으면 토글이 없고, 저장된 값이 GPT 여도 본문은 그대로', async () => {
+    const p = withPhoto(boot({ storage: { [PROVIDER_KEY]: 'openai' } }));
+    expect(body(p).querySelector('#aiPhotoProvider')).toBeNull();
+    expect(radios(p)).toHaveLength(0);
+    p.AP.imageProvider = 'openai';  // 상태가 남아 있어도 주소가 아니면 무시한다
+    p.AP._fetch = okFetch();
+    await p.AP.submit();
+    const b = p.AP._fetch.calls[0].body;
+    expect(b).not.toHaveProperty('image_provider');
+    expect(Object.keys(b).sort()).toEqual(
+      ['aspect', 'category', 'design_spec', 'image_type', 'mode', 'renders', 'room_image']);
+  });
+
+  test('eval=1 이면 Gemini/GPT 두 개, 기본은 Gemini 이고 본문에 키가 없다', async () => {
+    const p = withPhoto(boot({ search: '&eval=1' }));
+    const rs = radios(p);
+    expect(rs.map((r) => r.value)).toEqual(['gemini', 'openai']);
+    expect(rs.map((r) => r.parentNode.textContent.trim())).toEqual(['Gemini', 'GPT']);
+    expect(rs.find((r) => r.checked).value).toBe('gemini');
+    // 평가 스위치 옆에 있다
+    expect(body(p).querySelector('#aiPhotoNoMassing')).not.toBeNull();
+    p.AP._fetch = okFetch();
+    await p.AP.submit();
+    expect(p.AP._fetch.calls[0].body).not.toHaveProperty('image_provider');
+  });
+
+  test('GPT 를 고르면 본문에 image_provider:openai, 고른 값을 기억한다', async () => {
+    const p = withPhoto(boot({ search: '&eval=1' }));
+    choose(p, 'openai');
+    expect(p.storage.getItem(PROVIDER_KEY)).toBe('openai');
+    p.AP._fetch = okFetch();
+    await p.AP.submit();
+    const b = p.AP._fetch.calls[0].body;
+    expect(b.image_provider).toBe('openai');
+    expect(b.mode).toBe('planner');
+    // 다시 그려도 GPT 가 골라져 있다
+    expect(radios(p).find((r) => r.checked).value).toBe('openai');
+    // Gemini 로 돌리면 키가 빠진다
+    choose(p, 'gemini');
+    expect(p.storage.getItem(PROVIDER_KEY)).toBe('gemini');
+    p.AP._fetch = okFetch();
+    await p.AP.submit();
+    expect(p.AP._fetch.calls[0].body).not.toHaveProperty('image_provider');
+  });
+
+  test('새로 열어도 기억한 GPT 가 골라져 있다', () => {
+    const p = withPhoto(boot({ search: '&eval=1', storage: { [PROVIDER_KEY]: 'openai' } }));
+    expect(radios(p).find((r) => r.checked).value).toBe('openai');
+    expect(p.AP.provider()).toBe('openai');
+  });
+
+  test('저장소가 막혀도 고를 수 있다 (try/catch)', () => {
+    const p = withPhoto(boot({ search: '&eval=1' }));
+    // 하네스의 localStorage 는 p.storage 그 자체다
+    const spy = jest.spyOn(p.storage, 'setItem').mockImplementation(() => { throw new Error('quota'); });
+    const spyGet = jest.spyOn(p.storage, 'getItem').mockImplementation(() => { throw new Error('blocked'); });
+    try {
+      expect(p.AP.pickedProvider()).toBe('gemini');
+      expect(p.AP.setProvider('openai')).toBe('openai');
+      expect(p.AP.provider()).toBe('openai');
+    } finally { spy.mockRestore(); spyGet.mockRestore(); }
+  });
+
+  const base = { slot: 'base', label: '기본안', url: 'https://x/base.png' };
+  const gen = (img, extra = {}) => ({ id: 'gen-1', status: 'done', progress: 100, images: [{ ...base, ...img }], options: { mode: 'planner' }, layout: { verify: { ok: true, score: 5, max: 5 } }, ...extra });
+
+  test('결과 줄 — GPT 가 그렸으면 모델 이름', async () => {
+    const p = withPhoto(boot({ search: '&eval=1' }));
+    choose(p, 'openai');
+    p.AP._fetch = okFetch(gen({ provider: 'openai', model: 'gpt-image-2.5-sunburst' }, { model: 'gpt-image-2.5-sunburst' }));
+    await p.AP.submit();
+    expect(body(p).querySelector('#aiPhotoDrawnBy').textContent).toBe('그린 모델: GPT (gpt-image-2.5-sunburst)');
+  });
+
+  test('결과 줄 — GPT 실패 → Gemini 대신 (사유 포함), eval 이 없어도 보인다', async () => {
+    const p = withPhoto(boot());
+    p.AP._fetch = okFetch(gen({ provider: 'gemini', model: 'gemini-3-pro-image', fallback: true, fallback_reason: 'OpenAI 404: model not found' }));
+    await p.AP.submit();
+    const line = body(p).querySelector('#aiPhotoDrawnBy');
+    expect(line.textContent).toBe('GPT 실패 → Gemini 대신 (gemini-3-pro-image) — OpenAI 404: model not found');
+    expect(line.classList.contains('ap-verify-bad')).toBe(true);
+  });
+
+  test('결과 줄 — Gemini 정상은 eval=1 일 때만 (평소 화면은 그대로)', async () => {
+    const p = withPhoto(boot({ search: '&eval=1' }));
+    p.AP._fetch = okFetch(gen({}, { model: 'gemini-3-pro-image' }));
+    await p.AP.submit();
+    expect(body(p).querySelector('#aiPhotoDrawnBy').textContent).toBe('그린 모델: Gemini (gemini-3-pro-image)');
+
+    const q = withPhoto(boot());
+    q.AP._fetch = okFetch(gen({}, { model: 'gemini-3-pro-image' }));
+    await q.AP.submit();
+    expect(body(q).querySelector('#aiPhotoDrawnBy')).toBeNull();
+  });
+});
+
 describe('결과 — 대조 ok / 불일치 / internal_only (계획 §6.3)', () => {
   const base = { slot: 'base', label: '기본안', url: 'https://x/base.png' };
   const done = (gen) => fakeFetch([
