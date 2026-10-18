@@ -71,12 +71,14 @@
 |--------|-------------------|--------------|
 | 3D Planner (레거시, 정지) | `lib/planner.ts`, `components/planner/*`, `planner-vite/**` | 수정 금지 (참고용) |
 | Image Gen | `ai-design.html`, `js/detaildesign/ai-design-report.js` | `agent/imggen-*` |
-| BOM/Materials | `calc-engine.js`, `extractors.js`, `bom.service.ts`, `bom.tool.ts`, `bom-rules.*` | `agent/bom-*` |
+| BOM/Materials | `calc-engine.js`, `extractors.js`, `bom.service.ts`, `bom.tool.ts`, `bom-rules.*`, `assembly-rules.js`, `bom-assembly.js`, `assembly-check.js`, `tools/cad/**`, `.github/workflows/cad-oracle.yml` | `agent/bom-*` |
 | Design UI | `ui-step1.js`, `ui-workspace.js`, `ui-fridge-el.js` | `agent/designui-*` |
 | Collection | `collection.html`, `database/collection-schema.sql` | `agent/collection-*` |
 | MCP Server | `mcp-server/src/**` (BOM 파일 제외) | `agent/mcp-*` |
-| Planner (활성) | `mockup-shell.html`, `mockup-structure.html`, `js/planner/*` | `agent/planner-*` |
-| Workflow Worker | `workers/workflow-api/**` (작업지시서·스냅샷·견적) | `agent/workflow-*` |
+| Planner (활성) | `mockup-shell.html`, `mockup-structure.html`, `js/planner/*` (`planner-assembly-mesh.js`, `planner-export.js` 포함) | `agent/planner-*` |
+| Workflow Worker | `workers/workflow-api/**` (작업지시서·스냅샷·견적, `part-drawing.js`·`module-section.js`·`dxf-writer.js` 포함), `js/detaildesign/workflow-client.js` | `agent/workflow-*` |
+
+CAD 베타 파일 소유는 결정 D11 (2026-10-18 승인, `docs/01-plan/planner-cad.plan.md`).
 
 ### 역할별 실행 순서
 1. **Engineer** → 코드 수정 + PR 생성
