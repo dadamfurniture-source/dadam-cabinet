@@ -1845,6 +1845,56 @@ Photorealistic. No text, labels or watermarks.`;
 }
 
 /**
+ * 붙박이장 내부 보기 (2026-10-19 사장님 "4장 중 2장은 내부 사진"). 기본안에서 문을 열어 속을 보여 준다.
+ * 두 장이 같은 장이어야 하므로 칸 구성은 한 번 정하고(도어 한 쌍 = 한 칸), 첫 장은 왼쪽 절반, 둘째 장은 오른쪽 절반을 연다.
+ */
+const INTERIOR_SECTIONS = {
+  long: {
+    ko: '긴 옷',
+    en: 'long hanging: one clothes rail high up with a shelf above it, coats and dresses hanging full length below',
+  },
+  double: {
+    ko: '2단 옷걸이',
+    en: 'double hanging: two clothes rails one above the other with shirts and jackets, a shelf at the top',
+  },
+  shelves: {
+    ko: '선반·서랍',
+    en: 'shelves and drawers: two internal drawers at waist height with fixed shelves above and below holding folded knitwear and a few storage boxes',
+  },
+};
+
+/** 칸 구성 (왼쪽부터). 2칸 긴옷·선반, 3칸 + 2단, 4칸 이상은 2단·선반을 번갈아. */
+export function wardrobeInteriorPlan(wallW) {
+  const n = wardrobeDoors(wallW) / 2;
+  const plan = ['long'];
+  const rest = n === 2 ? ['shelves'] : ['double', 'shelves'];
+  while (plan.length < n) plan.push(rest[(plan.length - 1) % rest.length]);
+  return plan;
+}
+
+/**
+ * @param {number} wallW 벽 폭 (mm) — 도어 수·칸 구성
+ * @param {'left'|'right'} part 여는 쪽 절반
+ * @returns {{prompt:string, label:string}}
+ */
+export function buildWardrobeInteriorPrompt(wallW, part) {
+  const plan = wardrobeInteriorPlan(wallW);
+  const half = Math.ceil(plan.length / 2);
+  const open = part === 'left' ? plan.map((_, i) => i).slice(0, half) : plan.map((_, i) => i).slice(half);
+  const nums = open.map((i) => i + 1);
+  const which = nums.length === 1 ? `pair ${nums[0]}` : `pairs ${nums.slice(0, -1).join(', ')} and ${nums.at(-1)}`;
+  const prompt = `Open some doors of the built-in wardrobe in this photo to show its interior.
+The wardrobe has ${plan.length} pairs of doors. Behind each pair is one section; from left to right:
+${plan.map((k, i) => `${i + 1}. ${INTERIOR_SECTIONS[k].en}`).join('\n')}
+Open both doors of ${which} (the ${part} side): each door swings fully open on its side hinges, about 90 degrees towards the camera, showing its inner face in the same finish as its outside. The doors of every other pair stay closed.
+Inside: carcass, dividers and shelves in warm white melamine, slim aluminium clothes rails, wooden hangers. Tidy and lightly styled in neutral colours, not packed full. Soft, even light inside the open sections.
+Keep everything else identical: camera, room, the wardrobe's outer size and position, its door colour and door lines, the walls, ceiling, floor and lighting. Handleless doors stay handleless.
+Photorealistic. No text, labels or watermarks.`;
+  const label = `내부 보기 · ${[...new Set(open.map((i) => INTERIOR_SECTIONS[plan[i]].ko))].join('·')}`;
+  return { prompt, label };
+}
+
+/**
  * 2026-10-19 사장님 "문짝과 같은 색으로": 보조색이 붙박이장 끝 측판(필러)·걸레받이에 칠해져
  * 오른쪽 끝에 오크·살구색 세로 띠가 생겼다. 끝 측판·필러·걸레받이·몰딩은 문짝 색, 보조색은 오픈 선반에만.
  */
