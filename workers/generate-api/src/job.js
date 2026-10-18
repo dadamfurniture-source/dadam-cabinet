@@ -50,6 +50,7 @@ import { LAYOUT_CATEGORIES, LAYOUT_SCHEMA, buildLayoutPrompt, normalizeLayout } 
 import { callClaudeJson } from './claude.js';
 import { VERIFY_VERSION, compareLayoutToSpec } from './verify.js';
 import { controlNetModel, runControlNet } from './controlnet.js';
+import { FURNITURE_MASK_SCHEMA, buildFurnitureMaskPrompt, parseFurnitureMask } from './furniture-mask.js';
 import { GUIDE_POINTS_SCHEMA, buildGuidePointsPrompt, drawGuide, parseGuidePoints, pasteVariantInPolys, pasteVariantInside, prepareGuideCanvas, renderMassingImage } from './guide.js';
 import { KITCHEN_POINTS_SCHEMA, buildKitchenPointsPrompt, parseKitchenPoints, renderKitchenMassing } from './kitchen.js';
 
@@ -679,6 +680,33 @@ async function runPipeline(env, job, ck, save) {
   // ═══ 4. 변형 3장 병렬 — 끝나는 대로 올리고 행을 갱신한다 ═══
   await setStep(env, job, ck, 'variants');
 
+  // 되붙이기 자리는 다 그려진 기본안에서 다시 찾는다 (2026-10-19). GPT 가 기본안을 그리며 장을 덩어리보다
+  //   위·옆으로 옮기면 덩어리 자리로는 문짝이 두 색으로 잘렸다. Haiku 가 기본안의 가구 윤곽을 준다. 실패하면 덩어리 자리.
+  if (ck.guide && ck.guide.massing && ck.guide.baseMask === undefined) {
+    ck.guide.baseMask = null;
+    const t0 = Date.now();
+    try {
+      const canvas = await prepareGuideCanvas(base);
+      if (canvas) {
+        const size = { width: canvas.width, height: canvas.height };
+        const { json } = await callClaudeJson(env, {
+          prompt: buildFurnitureMaskPrompt(ck.guide.kind === 'kitchen' ? 'kitchen' : 'wardrobe', size),
+          image: canvas.png,
+          schema: FURNITURE_MASK_SCHEMA,
+          model: env.GUIDE_MODEL || 'claude-haiku-5-5',
+          fallbacks: false,
+          maxTokens: 4000,
+        });
+        ck.guide.baseMask = parseFurnitureMask(json, size);
+      }
+    } catch (e) {
+      console.warn(`[Job ${job.id}] base mask failed:`, e.message);
+    }
+    console.log(`[Job ${job.id}] base mask: ${ck.guide.baseMask ? `${ck.guide.baseMask.length} blocks` : 'none'} ${Date.now() - t0}ms`);
+    await save({ guide: ck.guide });
+    await updateById(env, 'generations', job.id, { wall_analysis: { ...wall, guide: ck.guide } });
+  }
+
   // 테마 참고가 있으면 첫 추천안은 그 색감이다. 한 번 뽑아 체크포인트에 둔다.
   if (themeRefs.length && ck.themeFinish === undefined) {
     ck.themeFinish = null;
@@ -739,8 +767,11 @@ async function runPipeline(env, job, ck, save) {
           // 덩어리 합성을 쓴 건: 장 영역만 추천안, 나머지는 기본안 (옆 세면대·벽이 같이 칠해지던 것)
           if (ck.guide && ck.guide.massing && (ck.guide.points || ck.guide.mask)) {
             try {
-              // 싱크대는 칠한 면 다각형(mask), 붙박이장은 앞면 점(points)
-              const p = ck.guide.mask
+              // 기본안에서 찾은 윤곽(baseMask)이 먼저 — 윤곽 오차를 덮게 조금 넓게.
+              //   없으면 싱크대는 칠한 면 다각형(mask), 붙박이장은 앞면 점(points)
+              const p = ck.guide.baseMask
+                ? await pasteVariantInPolys(base, { base64: out, mimeType: mime }, ck.guide.baseMask, { grow: 0.012, feather: 0.006 })
+                : ck.guide.mask
                 ? await pasteVariantInPolys(base, { base64: out, mimeType: mime }, ck.guide.mask)
                 : await pasteVariantInside(base, { base64: out, mimeType: mime }, ck.guide.points);
               if (p) {
