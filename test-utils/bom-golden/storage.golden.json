@@ -1398,22 +1398,6 @@
       "spec": "2구",
       "qty": 4,
       "unit": "EA",
-      "note": "서랍장 (보링: 110, 348)",
-      "module": "서랍장",
-      "moduleKey": "0-l2",
-      "boring": [
-        110,
-        348
-      ],
-      "itemLabel": "수납장"
-    },
-    {
-      "category": "경첩",
-      "item": "H052W-5 105도 저압 경첩",
-      "manufacturer": "문주",
-      "spec": "2구",
-      "qty": 4,
-      "unit": "EA",
       "note": "상부장 (보링: 110, 610)",
       "module": "상부장",
       "moduleKey": "0-u1",
@@ -1492,7 +1476,7 @@
     }
   ],
   "hardwareSummary": {
-    "경첩": 24,
+    "경첩": 20,
     "레일": 1,
     "손잡이": 10,
     "다리발": 12,
