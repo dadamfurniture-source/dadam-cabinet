@@ -20,6 +20,7 @@ import { aspectRatioOf, callGemini, textModel } from './gemini.js';
 import { renderImage, renderPlannerImage } from './images.js';
 import {
   CATEGORIES,
+  wardrobeDoors,
   DEFAULT_STYLE,
   STYLES,
   buildAnalysisPrompt,
@@ -49,7 +50,7 @@ import { LAYOUT_CATEGORIES, LAYOUT_SCHEMA, buildLayoutPrompt, normalizeLayout } 
 import { callClaudeJson } from './claude.js';
 import { VERIFY_VERSION, compareLayoutToSpec } from './verify.js';
 import { controlNetModel, runControlNet } from './controlnet.js';
-import { GUIDE_POINTS_SCHEMA, buildGuidePointsPrompt, drawGuide, parseGuidePoints, prepareGuideCanvas } from './guide.js';
+import { GUIDE_POINTS_SCHEMA, buildGuidePointsPrompt, drawGuide, parseGuidePoints, prepareGuideCanvas, renderMassingImage } from './guide.js';
 
 const MAX_ATTEMPTS = 2;
 /** 역판독(Claude 비전) 이미지 한도 — Anthropic 5MB, base64 는 4/3 배 (worker.js MAX_IMAGE_B64 와 같은 값) */
@@ -409,6 +410,7 @@ async function runPipeline(env, job, ck, save) {
   //   텍스트 모델이 보이는 선·모서리만 찾고, 앞면 선은 guide.js 가 소실점으로 계산해 사진 사본에 그린다.
   //   어느 단계든 실패하면 가이드 없이 글 지시만으로 그린다. GUIDE_LINES='off' 로 끈다.
   let guideImg = null;
+  let massingImg = null; // 덩어리 합성본 — 있으면 방 사진 대신 편집 대상
   const wantGuide =
     !planner && engine !== 'controlnet' && !ctx.realize && env.GUIDE_LINES !== 'off' &&
     !!(CATEGORIES[category] && CATEGORIES[category].wallToWallMm) && !!wall.sideReturn;
@@ -449,6 +451,16 @@ async function runPipeline(env, job, ck, save) {
         const up = await uploadObject(env, `${prefix}/guide.png`, g.base64, g.mimeType);
         ck.guide = { path: up.path, url: up.url, by };
         guideImg = { base64: g.base64, mimeType: g.mimeType };
+        // 2026-10-19: 윤곽선만으로는 GPT 가 장을 뒷벽으로 되돌렸다 → 기본은 덩어리 합성(편집 대상 자체를 바꾼다).
+        //   GUIDE_MODE='outline' 이면 예전처럼 윤곽선만 마지막 이미지로.
+        if (env.GUIDE_MODE !== 'outline') {
+          const m = await renderMassingImage(room, points, { doors: wardrobeDoors(wall.wallW) });
+          if (m) {
+            const upM = await uploadObject(env, `${prefix}/massing.png`, m.base64, m.mimeType);
+            ck.guide.massing = { path: upM.path, url: upM.url };
+            massingImg = { base64: m.base64, mimeType: m.mimeType };
+          }
+        }
       }
       console.log(`[Job ${job.id}] guide: ${ck.guide ? `drawn by ${by}` : points ? 'geometry rejected' : 'points missing'} ${Date.now() - t0}ms`);
     } catch (e) {
@@ -458,8 +470,10 @@ async function runPipeline(env, job, ck, save) {
     if (ck.guide) await updateById(env, 'generations', job.id, { wall_analysis: { ...wall, guide: ck.guide } });
   } else if (wantGuide && ck.guide) {
     guideImg = await fetchObjectBase64(env, ck.guide.path); // 재실행 — 그려 둔 것을 쓴다
+    if (ck.guide.massing) massingImg = await fetchObjectBase64(env, ck.guide.massing.path);
   }
-  if (guideImg) ctx.guide = true;
+  if (massingImg) ctx.mockVolume = true;
+  else if (guideImg) ctx.guide = true;
 
   const install = async (fix) => {
     if (planner) {
@@ -489,7 +503,7 @@ async function runPipeline(env, job, ck, save) {
     // 연출컷 기본안 — 공급자는 images.js 가 고른다 (IMAGE_PROVIDER, GPT 실패 시 Gemini)
     const r = await renderImage(
       env,
-      { prompt: buildInstallPrompt(ctx, fix ? { fix } : {}), images: [room, ...refs, ...(guideImg ? [guideImg] : [])], imageSize, aspectRatio },
+      { prompt: buildInstallPrompt(ctx, fix ? { fix } : {}), images: massingImg ? [massingImg, ...refs] : [room, ...refs, ...(guideImg ? [guideImg] : [])], imageSize, aspectRatio },
       'base'
     );
     if (!r.image) throw new Error('install returned no image');
