@@ -86,6 +86,7 @@ Authorization: Bearer <supabase jwt>
 정면 입면(IMAGE B)의 번호·치수선: 2026-10-19 부터 플래너는 입면 위에 모듈 번호(`L1`·`U1`·`T1`·`W1`)와
 치수선(칸 폭·줄 전체 mm, 줄 높이 mm)을 얇은 회색으로 얹어 보낸다. 번호는 이 문서의 `sections.*.modules[]` 를
 워커 `plannerRows` 와 **같은 규칙**(구간 `lower`→`upper`→`tall`, 줄 안 왼→오 1부터, 붙박이장은 한 줄 `W`)으로 매긴 것이다.
+쌓인 단(`tiers`, 2026-10-19)은 통 하나에 번호 하나 — 라벨은 그 통의 단들을 합친 상자 가운데에 선다.
 라벨·치수선은 **주석**이다 — 그려야 할 가구의 일부가 아니다.
 
 ### `sections.*.modules[]`
@@ -97,6 +98,67 @@ Authorization: Bearer <supabase jwt>
 | `doorCount` | number | 0–12. `kind:'door'` 에서 생략하면 1로 본다 |
 | `drawerCount` | number | 0–12 |
 | `label` | string | 플래너의 한국어 이름(예: `서랍 3단`). 40자로 자름. 프롬프트에 `[…]` 로 붙는다 |
+| `tiers` | array | 선택 (2026-10-19). 이 모듈(한 통)에 **세로로 쌓인 단**, 아래부터. 최대 8개. 아래 "쌓인 단" |
+
+### `sections.*.modules[].tiers` — 쌓인 단 (2026-10-19)
+
+`modules[]` 는 왼→오 한 줄이라 세로 축이 없다. 키큰장은 통마다 하부·중간·상부 단을 쌓고(#738),
+냉장고장은 냉장고 자리를 비우고 그 위에 박스만 단다. 이것을 모듈 여럿으로 보내면 **가로로 나란한 유닛**으로 읽힌다
+(실측 2026-10-19: 키큰장 한 통이 "T1 600, T2 600, T3 600 left to right" 가 되었다). 그래서 **한 통 = 모듈 하나**,
+단은 그 안의 `tiers` 로 보낸다.
+
+| 필드 | 형 | 규칙 |
+|---|---|---|
+| `kind` | string | `door` · `drawer` · `open` · `appliance`. 모르는 값은 `door` |
+| `heightMm` | number | 50–3600 으로 자름. 맨 아래 단이 `appliance` 면 **바닥에서 위 박스 아랫면까지** (냉장고 + 위 간격) |
+| `doorCount` | number | 0–12. `kind:'door'` 에서 생략하면 1 |
+| `drawerCount` | number | 0–12 |
+| `label` | string | 40자. 가전 자리는 `냉장고`(또는 `식기세척기`) — 워커가 이것으로 가전 종류를 안다 |
+
+모듈(통) 쪽 규칙:
+
+- `widthMm` = 통 폭, `doorCount` · `drawerCount` = **단의 합** (옛 워커·요약이 그대로 읽어도 숫자가 맞게).
+- `kind` — 맨 아래 단이 가전 자리면 `appliance`(냉장고장), 아니면 옛 규칙대로 서랍이 있으면 `drawer`, 도어가 있으면 `door`.
+- `label` — 키큰장 `키큰장 3단`, 냉장고장 `냉장고장` (`냉장` 이 들어 있어 옛 워커도 냉장고 자리로 읽는다).
+- 냉장고장의 냉장고 자리는 `appliances[]` 에도 `fridge` 로 오른다 (통의 왼쪽 끝·폭). 플래너에 냉장고 본체가 놓여 있으면 그 본체가 그 자리다 — 두 번 넣지 않는다.
+- `tiers` 가 없으면 예전과 같다 (프롬프트·검사·역판독 바이트 그대로).
+
+```json
+"tall": {
+  "widthMm": 1300, "heightMm": 2300, "depthMm": 700, "fromLeftMm": 1800,
+  "modules": [
+    { "widthMm": 600, "kind": "door", "doorCount": 3, "drawerCount": 0, "label": "키큰장 3단",
+      "tiers": [
+        { "heightMm": 861, "kind": "door", "doorCount": 1, "drawerCount": 0, "label": "하부장" },
+        { "heightMm": 979, "kind": "door", "doorCount": 1, "drawerCount": 0, "label": "중간장" },
+        { "heightMm": 460, "kind": "door", "doorCount": 1, "drawerCount": 0, "label": "상부장" }
+      ] },
+    { "widthMm": 680, "kind": "appliance", "doorCount": 2, "drawerCount": 0, "label": "냉장고장",
+      "tiers": [
+        { "heightMm": 1885, "kind": "appliance", "doorCount": 0, "drawerCount": 0, "label": "냉장고" },
+        { "heightMm": 415, "kind": "door", "doorCount": 2, "drawerCount": 0, "label": "상부장" }
+      ] }
+  ]
+}
+```
+
+플래너 모드 프롬프트(`buildPlannerPrompt`)가 말하는 것 — 통 하나에 번호 하나:
+
+```
+    T1   600 mm  tall column — 3 stacked doors (bottom 861 mm, middle 979 mm, top 460 mm)
+    T2   680 mm  refrigerator opening (keep it open from the floor up to 1885 mm, with no cabinet, shelf or panel inside; a free-standing refrigerator may stand there — keep the one IMAGE A shows, do not invent a built-in one) with a 2-door cabinet above (415 mm high)
+FINAL SELF-CHECK …; tall row 1 unit + 1 appliance opening, 5 doors, 0 drawers; …
+```
+
+- 냉장고 자리: **비워 두되** 사진 속 냉장고를 지우지도 새 붙박이 냉장고를 지어내지도 않는다 — 독립형 냉장고는 그 자리에 서 있어도 된다 (KEEP 의 움직이는 물건과 같은 편).
+  도면에 냉장고 자리가 있으면 DO NOT 의 "없는 가전" 에서 `refrigerator` 를 뺀다 (모듈·단 라벨로 안다).
+- 자체 점검: 가전 자리가 있는 통은 `appliance opening`, 없는 통은 `unit` 하나. 도어·서랍은 단의 합.
+- 검사 LAYOUT 요약·설치 프롬프트: `600 mm column of 3 stacked doors` · `680 mm refrigerator opening with a 2-door cabinet above`.
+- 역판독 기대값(`verify.js expectedFromSpec`): 통 하나 = 바닥 세그먼트 하나. 키큰장은 `tall` + 단의 도어·서랍 합.
+  냉장고장은 `refrigerator`(예전 가전 칸과 같은 이름 — 플래너 판독이 그렇게 읽는다). 위 박스 도어는 가전 칸처럼 세지 않는다.
+- 플래너 판독(`layout.js plannerReadPlan` · `buildPlannerReadPrompt`): 통 하나에 번호 하나. 키큰장은
+  `3 doors (one column of 3 stacked sections)`, 냉장고장은 냉장고 자리(냉장고가 있든 비어 있든 refrigerator 로 보고)
+  + "위 2도어 장은 이 번호의 것 — 덤 유닛이 아니다". 기대 도어는 키큰장 단의 합, 냉장고장 0 (가전 칸 규칙).
 
 `kind` 별 영어 문장:
 

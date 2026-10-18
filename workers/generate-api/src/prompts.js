@@ -306,6 +306,8 @@ export const DESIGN_FINISH_TONES = ['matte', 'gloss', 'satin', 'woodgrain', 'tex
 
 const DESIGN_MAX_MODULES = 40;
 const DESIGN_MAX_APPLIANCES = 12;
+/** 2026-10-19: 모듈 하나(한 통)에 세로로 쌓인 단 — 아래부터. 넘으면 앞(아래)에서부터 잘라 쓴다. */
+const DESIGN_MAX_TIERS = 8;
 const DESIGN_MAX_JSON = 20000;
 /** [최소, 최대] mm. 벗어나면 자른다 — 플래너 버그 하나가 프롬프트를 망치지 않게. */
 const DESIGN_RANGE = {
@@ -321,6 +323,8 @@ const DESIGN_RANGE = {
   fromFloorMm: [0, 3600],
   ceilingMm: [1500, 4000],
   layoutWalls: [1, 4],
+  // 2026-10-19: 쌓인 단 하나의 높이 (modules[].tiers[].heightMm)
+  tierHeightMm: [50, 3600],
 };
 /** 2026-10-19: design_spec.layout.shape — 일자 · ㄱ자 · ㄷ자. 그 밖은 조용히 버린다. */
 export const DESIGN_LAYOUT_SHAPES = ['straight', 'corner', 'u'];
@@ -377,8 +381,41 @@ function normalizeDesignModule(raw, section) {
   if (drawerCount !== null) out.drawerCount = drawerCount;
   const label = designText(raw.label, 40);
   if (label) out.label = label;
+  // 2026-10-19: 세로로 쌓인 단 — 키큰장 한 통(하부·중간·상부 단), 냉장고장(냉장고 자리 + 위 박스). 아래부터.
+  //   없거나 쓸 단이 없으면 키도 없다 — 옛 모양은 바이트 그대로.
+  if (Array.isArray(raw.tiers)) {
+    const tiers = raw.tiers
+      .slice(0, DESIGN_MAX_TIERS)
+      .map((t) => normalizeDesignTier(t, `${where}.tiers[]`))
+      .filter(Boolean);
+    if (tiers.length) out.tiers = tiers;
+  }
   return out;
 }
+
+/** 2026-10-19: 쌓인 단 하나 — { kind, heightMm?, doorCount?, drawerCount?, label? }. 모르는 kind 는 door. */
+function normalizeDesignTier(raw, where) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const out = { kind: DESIGN_MODULE_KINDS.includes(raw.kind) ? raw.kind : 'door' };
+  const heightMm = designMm(raw.heightMm, `${where}.heightMm`, DESIGN_RANGE.tierHeightMm);
+  if (heightMm !== null) out.heightMm = heightMm;
+  const doorCount = designMm(raw.doorCount, `${where}.doorCount`, DESIGN_RANGE.count);
+  if (doorCount !== null) out.doorCount = doorCount;
+  const drawerCount = designMm(raw.drawerCount, `${where}.drawerCount`, DESIGN_RANGE.count);
+  if (drawerCount !== null) out.drawerCount = drawerCount;
+  const label = designText(raw.label, 40);
+  if (label) out.label = label;
+  return out;
+}
+
+/** 2026-10-19: 모듈이 쌓인 단을 가졌는가 (tiers 가 있는 한 통). */
+const hasTiers = (m) => !!m && Array.isArray(m.tiers) && m.tiers.length > 0;
+
+/** 2026-10-19: 맨 아래 단이 가전 자리(냉장고 자리 등)면 그 단, 아니면 null. */
+const tierOpening = (m) => (hasTiers(m) && m.tiers[0].kind === 'appliance' ? m.tiers[0] : null);
+
+/** 2026-10-19: 단 라벨(없으면 모듈 라벨)이 냉장고인가 — plannerApplianceOfLabel · verify.js 와 같은 규칙. */
+const isFridgeLabel = (label) => /냉장|fridge|refrig/.test(String(label || '').toLowerCase());
 
 function normalizeDesignSection(raw, section) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
@@ -527,7 +564,10 @@ const DESIGN_APPLIANCE_PHRASE = {
 function designModulePhrase(m, withLabel = true) {
   const width = m.widthMm ? `${m.widthMm} mm ` : '';
   let what;
-  if (m.kind === 'drawer') {
+  if (hasTiers(m)) {
+    // 2026-10-19: 쌓인 단 — 한 통. 옛 모양(tiers 없음)은 아래 그대로.
+    what = designColumnPhrase(m);
+  } else if (m.kind === 'drawer') {
     const n = m.drawerCount || 0;
     what = n > 1 ? `${n}-drawer stack` : 'single drawer front';
   } else if (m.kind === 'open') {
@@ -539,6 +579,37 @@ function designModulePhrase(m, withLabel = true) {
     what = n > 1 ? `${n}-door cabinet` : 'single-door cabinet';
   }
   return `${width}${what}${withLabel && m.label ? ` [${m.label}]` : ''}`;
+}
+
+/** 2026-10-19: 단 하나의 짧은 이름 (설치 프롬프트·검사 요약용). */
+function designTierWhat(t) {
+  if (t.kind === 'appliance') return 'appliance opening';
+  if (t.kind === 'open') return 'open shelf';
+  if (t.kind === 'drawer') {
+    const n = t.drawerCount || 1;
+    return n > 1 ? `${n}-drawer stack` : 'single drawer';
+  }
+  const n = t.doorCount || 1;
+  return n > 1 ? `${n}-door cabinet` : 'single-door cabinet';
+}
+
+/**
+ * 2026-10-19: 쌓인 단 한 통 → 짧은 구절 (설치 프롬프트 FURNITURE · 검사 LAYOUT 요약).
+ *   "refrigerator opening with a 2-door cabinet above" · "column of 3 stacked doors" · "column of 3 stacked sections".
+ */
+function designColumnPhrase(m) {
+  const opening = tierOpening(m);
+  if (opening) {
+    const name = isFridgeLabel(opening.label || m.label) ? 'refrigerator opening' : 'appliance opening';
+    const above = m.tiers.slice(1);
+    if (!above.length) return name;
+    return above.length === 1
+      ? `${name} with a ${designTierWhat(above[0])} above`
+      : `${name} with ${above.length} stacked sections above`;
+  }
+  const n = m.tiers.length;
+  const doors = m.tiers.every((t) => t.kind === 'door' && (t.doorCount || 1) === 1);
+  return `column of ${n} stacked ${doors ? (n === 1 ? 'door' : 'doors') : n === 1 ? 'section' : 'sections'}`;
 }
 
 function designSectionLine(key, sec) {
@@ -1002,6 +1073,13 @@ const plannerPct = (x, total) => Math.round((x / total) * 100);
 
 /** 모듈 한 칸의 유효 도어·서랍 수 — 문장(designModulePhrase)과 같은 규칙. */
 function plannerCounts(m) {
+  // 2026-10-19: 쌓인 단 — 통의 수는 단의 합 (가전 자리 단은 0)
+  if (hasTiers(m)) {
+    return m.tiers.reduce((acc, t) => {
+      const c = plannerCounts(t);
+      return { doors: acc.doors + c.doors, drawers: acc.drawers + c.drawers };
+    }, { doors: 0, drawers: 0 });
+  }
   if (m.kind === 'open' || m.kind === 'appliance') return { doors: 0, drawers: 0 };
   if (m.kind === 'drawer') return { doors: m.doorCount || 0, drawers: m.drawerCount || 1 };
   return { doors: m.doorCount || 1, drawers: m.drawerCount || 0 };
@@ -1034,6 +1112,49 @@ function plannerModuleWhat(m, attached, wardrobe) {
   const drawerPart = drawers > 1 ? `${drawers}-drawer stack` : drawers === 1 ? 'single drawer front' : '';
   if (doorPart && drawerPart) return `${doorPart} over ${plannerPlural(drawers, 'drawer')}`;
   return doorPart || drawerPart || `single-door ${noun}`;
+}
+
+/** 2026-10-19: 쌓인 단 높이 이름 — 2단 bottom·top, 3단 bottom·middle·top, 그 밖은 아래부터 나열. 높이를 다 알 때만. */
+function plannerTierHeights(tiers) {
+  if (!tiers.every((t) => t.heightMm)) return null;
+  const h = tiers.map((t) => `${t.heightMm} mm`);
+  if (tiers.length === 2) return `bottom ${h[0]}, top ${h[1]}`;
+  if (tiers.length === 3) return `bottom ${h[0]}, middle ${h[1]}, top ${h[2]}`;
+  return `bottom to top: ${h.join(', ')}`;
+}
+
+/**
+ * 2026-10-19: 쌓인 단 한 통 (design_spec modules[].tiers) → FIXED GEOMETRY 의 종류 구절.
+ *   키큰장 한 통  "tall column — 3 stacked doors (bottom 861 mm, middle 979 mm, top 460 mm)"
+ *   냉장고장      "refrigerator opening (keep it open from the floor up to 1880 mm …) with a 2-door cabinet above (420 mm high)"
+ * 냉장고 자리는 **비워 두되** 사진 속 냉장고를 지우지도, 새 붙박이 냉장고를 지어내지도 않게 말한다 —
+ *   방에 놓인 독립형 냉장고는 그 자리에 서 있어도 된다 (KEEP 의 "movable object" 와 같은 편).
+ */
+function plannerColumnWhat(m, rowKey) {
+  const opening = tierOpening(m);
+  const stackWhat = (tiers) => {
+    const allSingle = tiers.every((t) => t.kind === 'door' && (t.doorCount || 1) === 1);
+    const heights = plannerTierHeights(tiers);
+    if (allSingle) return `${plannerPlural(tiers.length, 'stacked door')}${heights ? ` (${heights})` : ''}`;
+    const parts = tiers.map((t) => `${plannerModuleWhat(t, [], false)}${t.heightMm ? ` ${t.heightMm} mm` : ''}`);
+    return `${plannerPlural(tiers.length, 'stacked section')}, bottom to top: ${parts.join(', ')}`;
+  };
+  if (opening) {
+    const h = opening.heightMm;
+    const fridge = isFridgeLabel(opening.label || m.label);
+    const head = fridge
+      ? `refrigerator opening (keep it open from the floor${h ? ` up to ${h} mm` : ''}, with no cabinet, shelf or panel inside; ` +
+        `a free-standing refrigerator may stand there — keep the one IMAGE A shows, do not invent a built-in one)`
+      : `appliance opening (open from the floor${h ? ` up to ${h} mm` : ''})`;
+    const above = m.tiers.slice(1);
+    if (!above.length) return head;
+    if (above.length === 1) {
+      const t = above[0];
+      return `${head} with a ${plannerModuleWhat(t, [], false)} above${t.heightMm ? ` (${t.heightMm} mm high)` : ''}`;
+    }
+    return `${head} with ${stackWhat(above)} above`;
+  }
+  return `${rowKey === 'tall' || rowKey === 'wardrobe' ? 'tall column' : 'column'} — ${stackWhat(m.tiers)}`;
 }
 
 /**
@@ -1124,6 +1245,15 @@ function plannerRows(spec, category) {
 function plannerRowTotals(row) {
   let units = 0, openings = 0, doors = 0, drawers = 0;
   for (const { m } of row.items) {
+    // 2026-10-19: 쌓인 단 한 통 — 가전 자리가 있으면(냉장고장) 가전 칸, 없으면 유닛 하나. 도어·서랍은 단의 합.
+    if (hasTiers(m)) {
+      const c = plannerCounts(m);
+      if (tierOpening(m)) openings++;
+      else units++;
+      doors += c.doors;
+      drawers += c.drawers;
+      continue;
+    }
     if (m.kind === 'appliance') { openings++; continue; }
     units++;
     const c = plannerCounts(m);
@@ -1380,11 +1510,13 @@ export function buildPlannerPrompt(c) {
 
       const lines = row.items.map((it) => {
         const size = it.m.widthMm ? `${String(it.m.widthMm).padStart(4)} mm` : '';
-        let what = plannerModuleWhat(it.m, it.attached, key === 'wardrobe');
+        // 2026-10-19: 쌓인 단(tiers)이 있으면 한 통으로 — 옛 모양은 예전 그대로
+        let what = hasTiers(it.m)
+          ? plannerColumnWhat(it.m, row.key)
+          : plannerModuleWhat(it.m, it.attached, key === 'wardrobe');
         // 가전 칸은 냉장고·식세기를 이미 제 이름으로 말했다 — 싱크·쿡탑·후드만 덧붙인다.
-        const extra = it.attached.filter(
-          (k) => !(it.m.kind === 'appliance' && (k === 'fridge' || k === 'dishwasher'))
-        );
+        const opening = it.m.kind === 'appliance' || !!tierOpening(it.m);
+        const extra = it.attached.filter((k) => !(opening && (k === 'fridge' || k === 'dishwasher')));
         what += extra.map((k) => `, ${PLANNER_APPLIANCE_ON_MODULE[k]}`).join('');
         return { head: `${it.id.padEnd(3)} ${size}`.trimEnd(), what };
       });
@@ -1484,6 +1616,13 @@ export function buildPlannerPrompt(c) {
       if (m.kind === 'appliance') {
         const k = plannerApplianceOfLabel(m.label);
         if (k) present.add(k);
+      }
+      // 2026-10-19: 쌓인 단 안의 가전 자리 (냉장고장의 냉장고 자리)
+      if (hasTiers(m)) {
+        for (const t of m.tiers) {
+          const k = t.kind === 'appliance' ? plannerApplianceOfLabel(t.label || m.label) : null;
+          if (k) present.add(k);
+        }
       }
     }
   }
