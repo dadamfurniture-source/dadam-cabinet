@@ -50,7 +50,7 @@ import { LAYOUT_CATEGORIES, LAYOUT_SCHEMA, buildLayoutPrompt, normalizeLayout } 
 import { callClaudeJson } from './claude.js';
 import { VERIFY_VERSION, compareLayoutToSpec } from './verify.js';
 import { controlNetModel, runControlNet } from './controlnet.js';
-import { GUIDE_POINTS_SCHEMA, buildGuidePointsPrompt, drawGuide, parseGuidePoints, prepareGuideCanvas, renderMassingImage } from './guide.js';
+import { GUIDE_POINTS_SCHEMA, buildGuidePointsPrompt, drawGuide, parseGuidePoints, pasteVariantInside, prepareGuideCanvas, renderMassingImage } from './guide.js';
 
 const MAX_ATTEMPTS = 2;
 /** 역판독(Claude 비전) 이미지 한도 — Anthropic 5MB, base64 는 4/3 배 (worker.js MAX_IMAGE_B64 와 같은 값) */
@@ -460,7 +460,7 @@ async function runPipeline(env, job, ck, save) {
       const g = points && (await drawGuide(canvas, points));
       if (g) {
         const up = await uploadObject(env, `${prefix}/guide.png`, g.base64, g.mimeType);
-        ck.guide = { path: up.path, url: up.url, by };
+        ck.guide = { path: up.path, url: up.url, by, points }; // points: 추천안 되붙이기가 다시 쓴다 (0~1)
         guideImg = { base64: g.base64, mimeType: g.mimeType };
         // 2026-10-19: 윤곽선만으로는 GPT 가 장을 뒷벽으로 되돌렸다 → 기본은 덩어리 합성(편집 대상 자체를 바꾼다).
         //   GUIDE_MODE='outline' 이면 예전처럼 윤곽선만 마지막 이미지로.
@@ -680,8 +680,23 @@ async function runPipeline(env, job, ck, save) {
           // 공급자는 images.js 가 고른다. 어느 모델이 그렸는지 칸에 남긴다.
           const r = await renderImage(env, { prompt: f.prompt, images: [base], imageSize, aspectRatio }, 'variant');
           if (!r.image) throw new Error('no image in response');
-          const mime = r.imageMime || 'image/jpeg';
-          const up = await uploadObject(env, `${prefix}/${slot}.${extOf(mime)}`, r.image, mime);
+          let mime = r.imageMime || 'image/jpeg';
+          let out = r.image;
+          let pasted = false;
+          // 덩어리 합성을 쓴 건: 장 영역만 추천안, 나머지는 기본안 (옆 세면대·벽이 같이 칠해지던 것)
+          if (ck.guide && ck.guide.massing && ck.guide.points) {
+            try {
+              const p = await pasteVariantInside(base, { base64: out, mimeType: mime }, ck.guide.points);
+              if (p) {
+                out = p.base64;
+                mime = p.mimeType;
+                pasted = true;
+              }
+            } catch (e) {
+              console.warn(`[Job ${job.id}] variant ${slot} paste-back skipped:`, e.message);
+            }
+          }
+          const up = await uploadObject(env, `${prefix}/${slot}.${extOf(mime)}`, out, mime);
           ck.images[slot] = {
             label: f.label,
             finish_key: f.key,
@@ -689,6 +704,7 @@ async function runPipeline(env, job, ck, save) {
             path: up.path,
             url: up.url,
             ...drawnBy(r),
+            ...(pasted ? { pasted: true } : {}),
           };
           await save({ images: ck.images });
           await updateById(env, 'generations', job.id, {

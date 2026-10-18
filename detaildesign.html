@@ -381,6 +381,8 @@
     <script src="js/detaildesign/ui-fridge-el.js?v=36.0"></script>
     <!-- Three.js 레거시 제거됨 — R3F planner iframe으로 대체 -->
     <script src="js/detaildesign/nesting-engine.js?v=36.0"></script>
+    <!-- 2026-10-18 사전 오류 검사 — 동결 전 부재 누락·보링·원판 초과 (workflow-client.js 가 window.BomPreflight 로 부른다) -->
+    <script src="js/detaildesign/bom-preflight.js?v=1.0"></script>
     <script src="js/detaildesign/multiagent-client.js?v=36.0"></script>
     <script src="js/detaildesign/ai-design-report.js?v=36.0"></script>
     <!-- P11 gen-to-planner: ?gen=<id> — 연출컷 구성을 품목·배치로. persistence-init 이 로그인 뒤 부른다 -->
@@ -389,7 +391,7 @@
     <script src="js/detaildesign/detail-drawing.js?v=38.8"></script>
     <script src="js/detaildesign/persistence-init.js?v=36.0"></script>
     <!-- W11-5: 업무 루프 패널. persistence-init 뒤에 로드해야 currentDesignId 를 볼 수 있다 -->
-    <script src="js/detaildesign/workflow-client.js?v=36.4"></script>
+    <script src="js/detaildesign/workflow-client.js?v=36.5"></script>
 
     <!-- AI 채팅 토글 버튼 (제거됨) -->
 

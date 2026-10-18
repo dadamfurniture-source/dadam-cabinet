@@ -695,6 +695,35 @@
       }
     }
 
+    // 2026-10-18 사전 오류 검사 (bom-preflight.js) — 공장에 넘기기 전에 부재 누락·불가능 보링·원판 초과를 알린다.
+    //   오류가 있으면 확인을 받고, 경고는 동결 후 상태줄에 남긴다. 검사기가 없으면(옛 캐시) 그냥 동결한다.
+    let preflight = null;
+    if (window.BomPreflight && Array.isArray(materials)) {
+      try {
+        preflight = window.BomPreflight.check(materials, report.hardware || [], { cutPlan: cutPlan });
+      } catch (e) {
+        console.warn('[Workflow] 사전 검사 실패 — 검사 없이 진행합니다:', e);
+      }
+    }
+    if (preflight) {
+      preflight.issues.forEach(function (x) {
+        if (x.level !== 'info') console.warn('[Preflight]', x.level, x.code, x.message);
+      });
+      if (!preflight.ok) {
+        const errs = preflight.issues.filter(function (x) { return x.level === 'error'; });
+        const lines = errs.slice(0, 8).map(function (x) { return '· ' + x.message; });
+        if (errs.length > 8) lines.push('· … 외 ' + (errs.length - 8) + '건');
+        const go = window.confirm(
+          window.BomPreflight.summaryOf(preflight) + '\n\n' + lines.join('\n') +
+            '\n\n그래도 동결하시겠습니까? (취소 = 고친 뒤 다시 동결)'
+        );
+        if (!go) {
+          setStatus(window.BomPreflight.summaryOf(preflight) + ' — 동결을 취소했습니다', 'error');
+          return;
+        }
+      }
+    }
+
     setStatus('설계와 BOM 을 동결하는 중…');
     const body = {
       design: report.design,
@@ -708,10 +737,13 @@
     });
 
     state.snapshot = data;
+    const checked = preflight && (preflight.counts.error || preflight.counts.warning)
+      ? ' · ' + window.BomPreflight.summaryOf(preflight) + ' (콘솔에 목록)'
+      : '';
     setStatus(
-      data.reused
+      (data.reused
         ? '변경 사항이 없어 기존 rev ' + data.rev + ' 를 사용합니다.'
-        : 'rev ' + data.rev + ' 생성 완료',
+        : 'rev ' + data.rev + ' 생성 완료') + checked,
       'ok'
     );
     await refresh();
