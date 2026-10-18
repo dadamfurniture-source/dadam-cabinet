@@ -95,6 +95,13 @@ docs/
 .claude/plans/
 .claude/scheduled_tasks.lock
 
+# Claude Code 머신별 설정·메모리 (공개 저장소에 올리지 않는다)
+#   settings.local.json 은 PC 마다 다른 허용 규칙·경로·MCP 승인이 쌓이는 파일이다.
+#   예전 PC 의 것이 추적되던 걸 뺐다. 팀 공용 설정은 .claude/settings.json 에 둔다.
+#   .claude/projects/ 는 ~/.claude/projects 의 메모리가 복사돼 들어온 흔적이다.
+.claude/settings.local.json
+.claude/projects/
+
 # QA/Debug screenshots
 screenshot/
 
