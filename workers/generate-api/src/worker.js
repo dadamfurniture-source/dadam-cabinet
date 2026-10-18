@@ -134,7 +134,12 @@ function normalizeRefs(list) {
  *   2026-10-19: elevation_labeled = 번호·치수선을 얹은 정면 입면 (선택). GPT 에만 간다 — Gemini 는 번호를 그려 넣는다.
  *   번호 없는 elevation 은 여전히 필수다 (Gemini 가 그릴 때·GPT 실패 대체 때 쓴다).
  */
-const RENDER_ROLES = ['elevation', 'elevation_labeled', 'massing'];
+//   2026-10-19: ㄱ자·ㄷ자 꺾인 벽의 정면 입면 elevation_left · elevation_right (+ _labeled) — 선택, 최대 7장.
+//   design_spec.walls[] 에 그 벽이 있을 때만 프롬프트가 쓴다. 번호 붙은 것은 GPT 에만 (주벽 입면과 같은 규칙).
+const RENDER_ROLES = [
+  'elevation', 'elevation_labeled', 'massing',
+  'elevation_left', 'elevation_left_labeled', 'elevation_right', 'elevation_right_labeled',
+];
 function normalizeRenders(list) {
   if (!Array.isArray(list)) return [];
   const byRole = {};
@@ -671,7 +676,8 @@ async function deleteGeneration(request, env, id) {
   for (const im of row.images || []) paths.push(im.path);
   // 재생성 자식이 같은 입력을 가리키면 입력 파일은 남긴다.
   const child = await selectOne(env, 'generations', { parent_id: `eq.${id}`, select: 'id' });
-  const toRemove = child ? paths.filter((p) => !/\/(room|ref-\d+|render-[a-z]+)\./.test(p)) : paths;
+  // 2026-10-19: render-elevation_labeled · render-elevation_left … 도 입력이다 (역할 이름에 밑줄)
+  const toRemove = child ? paths.filter((p) => !/\/(room|ref-\d+|render-[a-z_]+)\./.test(p)) : paths;
   await removeObjects(env, toRemove);
   await deleteById(env, 'generations', id);
   return { success: true };
