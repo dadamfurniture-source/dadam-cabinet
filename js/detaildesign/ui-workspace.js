@@ -1761,7 +1761,7 @@
             <div class="spec-row"><div class="spec-field"><label>상부장 도어</label>${FurnitureOptionCatalog.buildDoorMaterialFieldHtml(uid, 'upper', item.specs, 'sink', 'font-size:12px;')}</div></div>
             <div class="spec-row"><div class="spec-field"><label>하부장 도어</label>${FurnitureOptionCatalog.buildDoorMaterialFieldHtml(uid, 'lower', item.specs, 'sink', 'font-size:12px;')}</div></div>`,
           countertop: `
-            <div class="spec-row"><div class="spec-field"><label>상판 색상</label><select onchange="updateSpec(${uid},'topColor',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('countertop',item.specs.topColor)}</select></div><div class="spec-field"><label>상판 두께(T)</label><input type="number" value="${item.specs.topThickness}" onchange="updateSpecValue(${uid},'topThickness',this.value)"></div></div>
+            <div class="spec-row"><div class="spec-field"><label>상판 색상</label><select onchange="updateSpec(${uid},'topColor',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('countertop',item.specs.topColor)}</select></div><div class="spec-field"><label>상판 두께(T)</label><select onchange="updateSpecValue(${uid},'topThickness',this.value)">${topThicknessOptionsHtml(item.specs.topThickness)}</select></div></div>
             <div class="spec-row"><div class="spec-field"><label>상판 크기 (${shapes[item.specs.layoutShape || item.specs.lowerLayoutShape || 'I']})</label>${topSizeInputs}</div></div>`,
           finish: `
             <div class="spec-row"><div class="spec-field"><label>상몰딩 높이</label><input type="number" value="${item.specs.moldingH}" onchange="updateSpecValue(${uid},'moldingH',this.value)"></div></div>

@@ -95,15 +95,15 @@
       "drawer_front_max": null
     },
     "countertop": {
-      "thickness": null,
-      "material_by_thickness": null,
+      "thickness": {"options": [12, 50]},
+      "material_by_thickness": {"12": "인조대리석", "50": "인조대리석"},
       "width": null,
-      "depth": null,
-      "overhang": null,
+      "depth": {"rule": "item depth (drawing)", "overhang": 0},
+      "overhang": 0,
       "drip_edge": null,
       "sink_cutout": null,
       "cooktop_cutout": null,
-      "joint": null,
+      "joint": {"rule": "vendor decides", "bom": "one piece per item"},
       "backsplash": null
     },
     "pedestal": {

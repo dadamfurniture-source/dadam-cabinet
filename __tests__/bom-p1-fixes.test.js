@@ -120,7 +120,7 @@ describe('P1-1 키큰장 단은 하부장 규칙이 아니다 (sink.md §5)', ()
     expect(one(rows, 'planner-tall-1-0', '측판')).toMatchObject({ w: 620, h: 979, qty: 2 });
     expect(one(rows, 'planner-tall-1-0', '지판')).toMatchObject({ w: 570, h: 620 });
     expect(one(rows, 'planner-tall-1-0', '밴드')).toMatchObject({ w: 70, h: 570, qty: 2 });
-    expect(one(rows, 'planner-tall-1-0', '뒷판')).toMatchObject({ thickness: 2.7, w: 570, h: 964 });
+    expect(one(rows, 'planner-tall-1-0', '뒷판')).toMatchObject({ thickness: 3, w: 570, h: 964 });   // 뒷판 우라 3T (2026-10-18)
   });
 
   test('단 정보가 없는 통짜 키큰장(상세설계 addTallModule) — 좌대·상몰딩 모두, 도어는 목찬넬 H−30', () => {
@@ -181,13 +181,18 @@ describe('P1-3 상판·좌대 산출', () => {
       material: '인조대리석', thickness: 12, w: 1900 + 60 + 60, h: 650, qty: 1,
       slot: 'top', partId: '0-ep-top-0', finishCode: 'TOP-SNW', edgeCode: null,
     });
-    expect(top.note).toContain('[확인 필요]');
+    // 2026-10-18 사장님: 깊이 = 도면 그대로, 이음은 상판 업체 판단 — 12T 는 목록 안이라 [확인 필요] 가 없다
+    expect(top.note).toBe('하부 라인 한 장(좌·우 마감 폭 포함) · 깊이 = 도면 · 이음은 상판 업체 판단');
     expect(top.edgeLen).toBe(0);
   });
 
-  test('상판 두께 18 → 도어자재(MDF) 상판, 전면 엣지 (bom-protocol.md §2)', () => {
+  // 2026-10-18 사장님: 상판 두께는 12 · 50T 두 가지 (인조대리석). 예전 선택지의 18 도어자재 상판은 없다 —
+  //   옛 저장 설계의 18 은 지우지 않고 인조대리석 18 로 내되 비고로 알린다.
+  test('상판 두께가 12 · 50 밖(옛 값 18)이면 인조대리석 그대로 + [확인 필요] 비고', () => {
     const rows = extract(sinkItem([...LOWERS], { specs: Object.assign({}, SPECS, { topThickness: 18 }) }));
-    expect(one(rows, 'ep', '상판')).toMatchObject({ material: 'MDF', thickness: 18, edge: '1면(전)' });
+    const top = one(rows, 'ep', '상판');
+    expect(top).toMatchObject({ material: '인조대리석', thickness: 18, edge: '-' });
+    expect(top.note).toMatch(/\[확인 필요\] 상판 두께는 12 · 50T — 지정 값 18/);
   });
 
   test('상판 두께 50 · 마감 없음 → 인조대리석 50, 폭 = 하부 폭 합만', () => {

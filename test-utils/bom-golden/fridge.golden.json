@@ -79,7 +79,7 @@
       "module": "키큰장",
       "part": "뒷판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 580,
       "h": 2289,
       "qty": 1,
@@ -379,7 +379,7 @@
       "module": "냉장고상부장",
       "part": "뒷판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 680,
       "h": 399,
       "qty": 1,
@@ -504,7 +504,7 @@
       "module": "냉장고하부장",
       "part": "뒷판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 470,
       "h": 782,
       "qty": 1,
@@ -629,7 +629,7 @@
       "module": "EL장",
       "part": "뒷판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 580,
       "h": 972,
       "qty": 1,
@@ -658,9 +658,9 @@
       "totalArea": 10509700,
       "panelCount": 4
     },
-    "MDF_2.7": {
+    "MDF_3": {
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "totalArea": 2530240,
       "panelCount": 1
     },

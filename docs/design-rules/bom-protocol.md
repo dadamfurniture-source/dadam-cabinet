@@ -28,11 +28,10 @@
 | 멍장 도어 재단 폭 | **doorW + 11** = 도어 자리(doorW + 목대 15) − 갭 4. 도어가 경첩목대를 **덮는다** (2026-09-15 결정, `corner.md` §3.5.1). doorW 는 라인 균등 분배 폭(§3.4), 카카스 W 가 아니다. `corner-engine.js blindDoorPartW` · `extractors.js blindDoorPartW` |
 | 본체 자재 | **PB `T`** — 설계별 선택값. 기본 15T, 18T 선택 가능 |
 | 도어 자재 | **MDF 18T** (본체 두께와 무관한 별개 값) |
-| 뒷판 자재 | **MDF 2.7T** |
+| 뒷판 자재 | **우라 MDF 3T** (2026-10-18 사장님, 예전 2.7T) |
 | 도어 엣지밴딩 | 1mm |
 | 본체 엣지밴딩 | 0.6mm |
-| 도어자재 상판(countertop) | 18mm |
-| 인조대리석 자재 상판(countertop) | 12mm, 50mm |
+| 인조대리석 상판(countertop) | **12mm, 50mm** — 2026-10-18 사장님 (도어자재 18mm 상판은 없앴다) |
 | 원판 소요 추정 | `(총면적 × 1.15) / (1220 × 2440)` — 15% 로스율 |
 
 ### 2-1. 마감 코드 정본 = `materials.code` (`database/materials-catalog-v2.sql`)
@@ -75,7 +74,7 @@
 | 측판 | PB | T | D(295) × H | 2 | 3면 | sakuri(15→3mm) |
 | 천판 | PB | T | (W-2T) × (D-18) | 1 | 1면(전) | sakuri 감소 |
 | 지판 | PB | T | (W-2T) × (D-18) | 1 | 1면(전) | sakuri 감소 |
-| 뒷판 | MDF | 2.7T | (W-20) × (H-1) | 1 | - | 사쿠리홈 끼움 |
+| 뒷판 | MDF | 3T | (W-20) × (H-1) | 1 | - | 사쿠리홈 끼움 |
 | 밴드(보강목) | PB | T | (W-2T) × 70 | 2 | 2면(장) | |
 | 밴드(처짐방지) | PB | T | 70 × (H-2T) | **W≥700: 1 (모듈 중앙) / 없음** | 2면(장) | 2026-09-19 — 문턱은 장수가 아니라 유무 |
 | 선반 | PB | T | (W-2T) × (D-34) | 2 | 1면(전) | |
@@ -88,7 +87,7 @@
 | 측판 | PB | T | D × H | 2 | 3면 | 하부장은 사쿠리 없음 |
 | 지판 | PB | T | (W-2T) × D | 1 | 1면(전) | D 그대로 |
 | 밴드 | PB | T | 70 × (W-2T) | 2 | 2면(장) | |
-| 뒷판 | MDF | 2.7T | (W-2T) × (H-T) | 1 | - | |
+| 뒷판 | MDF | 3T | (W-2T) × (H-T) | 1 | - | |
 | 밴드(처짐방지) | PB | T | 70 × bandH | **W≥800: 1 (모듈 중앙) / 없음** | 2면(장) | 목찬넬시 bandH=H-2T-70 · 2026-09-19 — 문턱은 장수가 아니라 유무 |
 | 선반 | PB | T | (W-2T) × (D-T) | 1 | 1면(전) | **서랍/EL/오픈/싱크 제외** |
 | 도어 | MDF | 18T | (W/doorCount-4) × (H-30) | doorCount | 4면 | |
@@ -109,7 +108,7 @@
 | 목찬넬(지면) | MDF | 18T | 40 × effectiveW |
 | 휠라(좌) | MDF | 18T | finishLeftWidth × lowerH |
 | 휠라(우) | MDF | 18T | finishRightWidth × lowerH |
-| 상판 | 18 → MDF(도어자재) / 12·50 → 인조대리석 | `specs.topThickness` | (하부 폭 합 + 좌·우 마감 폭) × 품목 D · **품목당 1장** · 코드 `TOP-*` (§2-1) — P1-3, `sink.md` §9 상판. 품목당 한 장은 사용자 결정(2026-09-15)이다 — ㄱ·ㄷ자도 폭 합 한 장, 런(배치 공간)마다 나누지 않는다. 3D 가 런마다 한 장 그리는 것은 표시용 단순화 |
+| 상판 | 인조대리석 12 · 50T (2026-10-18) | `specs.topThickness` | (하부 폭 합 + 좌·우 마감 폭) × 품목 D(도면 그대로) · 이음은 상판 업체 판단 · **품목당 1장** · 코드 `TOP-*` (§2-1) — P1-3, `sink.md` §9 상판. 품목당 한 장은 사용자 결정(2026-09-15)이다 — ㄱ·ㄷ자도 폭 합 한 장, 런(배치 공간)마다 나누지 않는다. 3D 가 런마다 한 장 그리는 것은 표시용 단순화 |
 
 > `effectiveW` = 하부장 모듈 폭 합. **키큰장 단(`type:'tall'`)과 쿡탑장은 뺀다** (P1-1). 키큰장은 하부장 규칙이 아니라
 > `sink.md` §5.1 단별 부재표(단별 도어 H · shelfCount · 좌대 상자 · 상몰딩 · 목찬넬)를 탄다 — `extractors.js addTallTierParts`.
@@ -142,7 +141,7 @@ doorCount = mod.doorCount || max(1, round(W / 450))  // SVG 프론트뷰와 동�
 | 측판 | PB | 15T | D × upperH | 2 | 4면 | sakuri(15→3mm) |
 | 천판 | PB | 15T | (W-30) × (D-18) | 1 | 1면(전) | |
 | 지판 | PB | 15T | (W-30) × (D-18) | 1 | 1면(전) | |
-| 뒷판 | MDF | 2.7T | (W-20) × (upperH-1) | 1 | - | |
+| 뒷판 | MDF | 3T | (W-20) × (upperH-1) | 1 | - | |
 | 선반 | PB | 15T | (W-30) × (D-34) | shelfCountUpper | 1면(전) | short 기본 0, shelf 기본 2 |
 
 **하부장** — 높이 = `mod.lowerH`
@@ -152,7 +151,7 @@ doorCount = mod.doorCount || max(1, round(W / 450))  // SVG 프론트뷰와 동�
 | 측판 | PB | 15T | D × lowerH | 2 | 4면 | sakuri(15→3mm) |
 | 천판 | PB | 15T | (W-30) × (D-18) | 1 | 1면(전) | |
 | 지판 | PB | 15T | (W-30) × (D-18) | 1 | 1면(전) | |
-| 뒷판 | MDF | 2.7T | (W-20) × (lowerH-1) | 1 | - | |
+| 뒷판 | MDF | 3T | (W-20) × (lowerH-1) | 1 | - | |
 | 선반 | PB | 15T | (W-30) × (D-34) | shelfCountLower | 1면(전) | short 기본 0, shelf 기본 2 |
 | 서랍측판 | PB | 15T | (D-30) × 300 | drawerCount×2 | 1면(전) | 외부서랍일 때만 |
 | 서랍전판 | MDF | 18T | (W-4) × 300 | drawerCount | 4면 | 외부서랍일 때만 |
@@ -175,7 +174,7 @@ doorCount = mod.doorCount || max(1, round(W / 450))  // SVG 프론트뷰와 동�
 | 측판 | PB | 15T | D × H | 2 | 4면 | sakuri(15→3mm) |
 | 천판 | PB | 15T | (W-30) × (D-18) | 1 | 1면(전) | |
 | 지판 | PB | 15T | (W-30) × (D-18) | 1 | 1면(전) | |
-| 뒷판 | MDF | 2.7T | (W-20) × (H-1) | 1 | - | |
+| 뒷판 | MDF | 3T | (W-20) × (H-1) | 1 | - | |
 | 선반 | PB | 15T | (W-30) × (D-34) | shelfCount (기본 1) | 1면(전) | |
 | 서랍측판 | PB | 15T | (D-30) × 300 | drawerCount×2 | 1면(전) | 서랍 높이 300mm 고정 |
 | 서랍전판 | MDF | 18T | (W-4) × 300 | drawerCount | 4면 | |
@@ -199,7 +198,7 @@ doorCount = mod.doorCount || max(1, round(W / 450))  // SVG 프론트뷰와 동�
 | 측판 | PB | 15T | D × H | 2 | 4면 | sakuri(15→3mm) |
 | 천판 | PB | 15T | (W-30) × (D-18) | 1 | 1면(전) | sakuri 감소 |
 | 지판 | PB | 15T | (W-30) × (D-18) | 1 | 1면(전) | sakuri 감소 |
-| 뒷판 | MDF | 2.7T | (W-20) × (H-1) | 1 | - | |
+| 뒷판 | MDF | 3T | (W-20) × (H-1) | 1 | - | |
 | 도어 | MDF | 18T | (W-4) × (H+20) | 1 | 4면 | 도어 1장 (분할 없음) |
 
 **상부장 높이 자동계산:**
@@ -214,7 +213,7 @@ doorCount = mod.doorCount || max(1, round(W / 450))  // SVG 프론트뷰와 동�
 | 측판 | PB | 15T | D × H | 2 | 4면 | sakuri(15→3mm) |
 | 천판 | PB | 15T | (W-30) × (D-18) | 1 | 1면(전) | sakuri 감소 |
 | 지판 | PB | 15T | (W-30) × (D-18) | 1 | 1면(전) | sakuri 감소 |
-| 뒷판 | MDF | 2.7T | (W-20) × (H-1) | 1 | - | |
+| 뒷판 | MDF | 3T | (W-20) × (H-1) | 1 | - | |
 | 선반 | PB | 15T | (W-30) × (D-34) | 3 | 1면(전) | |
 | 도어 | MDF | 18T | (W/doorCount-4) × (H+20) | doorCount | 4면 | |
 
@@ -225,7 +224,7 @@ doorCount = mod.doorCount || max(1, round(W / 450))  // SVG 프론트뷰와 동�
 | 측판 | PB | 15T | D × H | 2 | 4면 | sakuri(15→3mm) |
 | 천판 | PB | 15T | (W-30) × (D-18) | 1 | 1면(전) | sakuri 감소 |
 | 지판 | PB | 15T | (W-30) × (D-18) | 1 | 1면(전) | sakuri 감소 |
-| 뒷판 | MDF | 2.7T | (W-20) × (H-1) | 1 | - | |
+| 뒷판 | MDF | 3T | (W-20) × (H-1) | 1 | - | |
 | 도어 | MDF | 18T | (W/doorCount-4) × (H-30) | doorCount | 4면 | |
 
 #### EL장 (el) — 간소 구조 (뒷판만)
@@ -235,7 +234,7 @@ doorCount = mod.doorCount || max(1, round(W / 450))  // SVG 프론트뷰와 동�
 | 측판 | PB | 15T | D × H | 2 | 4면 | sakuri(15→3mm) |
 | 천판 | PB | 15T | (W-30) × (D-18) | 1 | 1면(전) | sakuri 감소 |
 | 지판 | PB | 15T | (W-30) × (D-18) | 1 | 1면(전) | sakuri 감소 |
-| 뒷판 | MDF | 2.7T | (W-20) × (H-1) | 1 | - | |
+| 뒷판 | MDF | 3T | (W-20) × (H-1) | 1 | - | |
 
 > EL장은 도어/선반 없음 (전동수납 전용 공간)
 
@@ -246,7 +245,7 @@ doorCount = mod.doorCount || max(1, round(W / 450))  // SVG 프론트뷰와 동�
 | 측판 | **MDF** | 18T | **(D+20)** × H | 2 | 4면 | PB→MDF, 깊이+20 |
 | 천판 | **MDF** | 18T | (W-36) × D | 1 | **2면(가로)** | 1면→2면 |
 | 지판 | **MDF** | 18T | (W-36) × D | 1 | **2면(가로)** | 1면→2면 |
-| 뒷판 | **MDF** | **18T** | (W-36) × H | 1 | **2면(가로)** | **2.7T→18T!** |
+| 뒷판 | **MDF** | **18T** | (W-36) × H | 1 | **2면(가로)** | **3T→18T!** |
 | 선반 | **MDF** | 18T | (W-36) × (D-15) | 2 | 1면(전) | 3→2개 |
 | 도어 | MDF | 18T | (W/doorCount-4) × (H+20) | doorCount | 4면 | |
 
@@ -441,7 +440,7 @@ partId = `${itemIdx}-${moduleId}-${partKey}-${n}`     예: 0-l2-drawer#0-0, 1-w1
 | `door` | `door#k` | 도어 |
 | `drawerFront` | `drawer#k` | 서랍도어 |
 | `body` | `body:side` `body:top` `body:bottom` `shelf#k` `body:band#k` `body:brace#k` `body:batten-front/side` `drawerbox:fb/side/brace` `innerdrawer:*` | 측판(좌·우 한 행) · 천판 · 지판 · 선반 · 밴드 · 처짐방지 · 경첩목대 · 서랍 상자 · 내부서랍 |
-| `back` | `back` `drawerbox:bottom` | 뒷판(2.7T) · 서랍밑판(우라 3T, 2026-10-13) — 칠하지 않는다 |
+| `back` | `back` `drawerbox:bottom` | 뒷판(우라 3T, 2026-10-18) · 서랍밑판(우라 3T, 2026-10-13) — 칠하지 않는다 |
 | `handle` | `channel:front` `channel:back` | 목찬넬(전면·지면) |
 | `finishing` | `molding` `molding:left/right[-pad]` `molding:corner1/2` `filler:left/right/corner1/2` `ep:left/right` `blind#k` `blindfin#k` | 상몰딩 · 좌우 몰딩·덧대 · 휠라 · EP · 멍가림판/멍판 EP · 멍판 마감재 |
 | `kick` | `kick` `pedestal:fb/side/brace` | 걸레받이 · 좌대 |
@@ -563,7 +562,7 @@ bodyH (붙박이) = 전체H - 좌대H - 상몰딩H
     "sheet_size": [1220, 2440],
     "body": "15T PB",
     "door": "18T MDF",
-    "back_panel": "2.7T MDF",
+    "back_panel": "3T MDF (우라)",
     "edge_band_door": "1mm",
     "edge_band_body": "0.6mm",
     "countertop_door": "18mm",

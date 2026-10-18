@@ -59,7 +59,7 @@
 | `side_x_shelf_fixed` 측판 × 고정 선반 | 고정 선반 1장 | 없음 |  | EA/접합 (미니픽스 · 목다보) | 가동 선반은 §5 선반핀 |
 | `side_x_divider` 측판·천판·지판 × 칸막이 | 칸막이 1장 | 없음 |  | EA/접합 (미니픽스 · 목다보) | |
 | `band_x_side` 밴드(보강목) × 측판 | 밴드 1장 (상하 2장) | 없음 |  | EA/접합 | 처짐방지 70 밴드도 같은가 |
-| `back_panel_fix` 뒷판 고정 | 2.7T 뒷판 / 18T 뒷판(홈카페장 `fridge.md` §11) | 없음 |  | 방식 (홈 / 타카 / 스크류) | 타카면 §4 에 개수 |
+| `back_panel_fix` 뒷판 고정 | 3T 뒷판 / 18T 뒷판(홈카페장 `fridge.md` §11) | 없음 |  | 방식 (홈 / 타카 / 스크류) | 타카면 §4 에 개수 |
 | `dowel_spec` 목다보 규격 | 15T 몸통 / 18T 몸통 | 없음 |  | Φ × 길이 mm | 몸통 두께(`bodyThickness` 15/18)별 |
 
 ## 4. 스크류·타카핀·본드 (`screw_nail_glue`)
@@ -110,15 +110,15 @@
 
 | 항목 | 조건 | 현재 코드 값 | 공장 값 | 단위 | 비고 |
 |------|------|------|------|------|------|
-| `thickness` 두께 | 선택지 | `specs.topThickness` 기본 12 (`extractors.js:939`) — 문서 선택지 12 / 18 / 50 (`bom-protocol.md` §2) · MCP `materials.countertop.thickness` 30 은 프로토타입 |  | mm | 실제 취급 두께 목록 `[확인 필요]` |
-| `material_by_thickness` 두께별 재질 | 12·50 / 18 | 인조대리석 / MDF(도어자재) (`extractors.js:943`) |  | 재질 | PT(포스트폼)·석영석 등 다른 재질이 있는가 |
+| `thickness` 두께 | 선택지 | `specs.topThickness` 기본 12 — 화면 셀렉트 12 / 50 (`data-constants.js TOP_THICKNESS_OPTIONS`) · 목록 밖 옛 값은 비고 `[확인 필요]` | **12 · 50T** — 2026-10-18 | mm | MCP `materials.countertop.thickness` 30 은 프로토타입 |
+| `material_by_thickness` 두께별 재질 | 12 · 50 | 인조대리석 하나 (`BOM_TOP_THICKNESS_OPTIONS`) | **인조대리석** — 2026-10-18 | 재질 | 도어자재(MDF 18T) 상판은 없앴다 |
 | `width` 폭 | 하부 라인 | 하부 모듈 폭 합(쿡탑장 포함, 키큰장 단 제외) + 좌·우 마감 폭 (`extractors.js:933-942`) |  | mm | |
-| `depth` 깊이 | 품목 | `item.d` 기본 650 (`extractors.js:940`) |  | mm | 몸통 D 550 + 앞 오버행 + 뒤 여유 로 셈하는 규칙 `[확인 필요]` |
-| `overhang` 앞 오버행 | 도어 위 | 없음 (`extractors.js:930`) |  | mm | |
+| `depth` 깊이 | 품목 | `item.d` (배치·도면 깊이), 없으면 650 | **도면 그대로** — 2026-10-18 | mm | 오버행·뒤 여유를 더하지 않는다 |
+| `overhang` 앞 오버행 | 도어 위 | 없음 | **없음 (깊이 = 도면)** — 2026-10-18 | mm | |
 | `drip_edge` 물끊기 | 상판 앞·옆 | 없음 — `corner.md` §3.3 의 10 은 **배치 깊이** 규칙이지 상판 가공 규칙이 아니다 |  | mm · 방식 | 홈 가공인지 별도 몰딩인지 |
 | `sink_cutout` 개수대 타공 | 싱크볼 종류·폭 (`bom-protocol.md` §5) | 없음 |  | mm (W × D, 모서리 R) | 볼 모델별 표가 있으면 첨부 |
 | `cooktop_cutout` 쿡탑 타공 | 쿡탑 폭 (`bom-protocol.md` §5, D 520) | 없음 |  | mm (W × D) | |
-| `joint` 이음 | ㄱ·ㄷ자, 장폭 | 품목당 **한 장** — 사용자 결정 2026-09-15 (`extractors.js:931-932`, `sink.md` §9) |  | 최대 길이 mm · 이음 위치 | 원판 길이를 넘을 때 이음 위치 규칙 `[확인 필요]` |
+| `joint` 이음 | ㄱ·ㄷ자, 장폭 | 품목당 **한 장**으로 낸다 | **상판 업체 판단** — 2026-10-18 | 최대 길이 mm · 이음 위치 | BOM 은 한 장 — 이음 자리는 업체가 정한다 |
 | `backsplash` 백스플래시 | 벽 쪽 | 없음 |  | 높이 mm · 재질 | |
 
 ## 9. 좌대 (`pedestal`)

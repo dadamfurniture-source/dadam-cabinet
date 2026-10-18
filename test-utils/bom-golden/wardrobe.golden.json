@@ -79,7 +79,7 @@
       "module": "짧은옷(2단)-상부장",
       "part": "뒷판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 880,
       "h": 1139,
       "qty": 1,
@@ -179,7 +179,7 @@
       "module": "짧은옷(2단)-하부장",
       "part": "뒷판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 870,
       "h": 1125,
       "qty": 1,
@@ -329,7 +329,7 @@
       "module": "긴옷",
       "part": "뒷판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 880,
       "h": 1579,
       "qty": 1,
@@ -454,7 +454,7 @@
       "module": "긴옷-서랍모듈",
       "part": "뒷판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 880,
       "h": 699,
       "qty": 1,
@@ -729,7 +729,7 @@
       "module": "선반형-상부장",
       "part": "뒷판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 880,
       "h": 1139,
       "qty": 1,
@@ -854,7 +854,7 @@
       "module": "선반형-하부장",
       "part": "뒷판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 870,
       "h": 1125,
       "qty": 1,
@@ -1533,10 +1533,10 @@
       "totalArea": 20888042,
       "panelCount": 8
     },
-    "MDF_2.7": {
+    "MDF_3": {
       "material": "MDF",
-      "thickness": 2.7,
-      "totalArea": 5966780,
+      "thickness": 3,
+      "totalArea": 7121159,
       "panelCount": 3
     },
     "MDF_18": {
@@ -1544,12 +1544,6 @@
       "thickness": 18,
       "totalArea": 7133280,
       "panelCount": 3
-    },
-    "MDF_3": {
-      "material": "MDF",
-      "thickness": 3,
-      "totalArea": 1154379,
-      "panelCount": 1
     }
   },
   "edgeBanding": {
