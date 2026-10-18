@@ -48,6 +48,46 @@ const SUMMARY = {
     value: { generations: 3, failed: 1, failRate: 25, people: 2, consultedPeople: 1, designs: 2, confirmed: 1, ordered: 1 },
     prev: { generations: 1, failed: 0, failRate: 0, people: 1, consultedPeople: 0, designs: 1, confirmed: 1, ordered: 1 },
   },
+  // 워커 시험(management.test.js PR-3) 의 손계산 결과 그대로
+  process: {
+    variance: {
+      orders: 2,
+      recorded: 2,
+      categories: [
+        { category: 'material', label: '자재', orders: 1, estimate: 515000, actual: 560000, diff: 45000, diffRate: 8.7 },
+        { category: 'hardware', label: '부자재', orders: 1, estimate: 40000, actual: 30000, diff: -10000, diffRate: -25 },
+        { category: 'outsourcing', label: '외주', orders: 1, estimate: 920000, actual: 950000, diff: 30000, diffRate: 3.3 },
+      ],
+      totals: { estimate: 1475000, actual: 1540000, diff: 65000, diffRate: 4.4 },
+      top: [
+        { id: 'P1', label: 'P고객 (SO-11)', estimate: 1435000, actual: 1510000, diff: 75000, diffRate: 5.2, worst: { category: 'material', label: '자재', diff: 45000 } },
+        { id: 'P2', label: 'SO-12', estimate: 40000, actual: 30000, diff: -10000, diffRate: -25, worst: { category: 'hardware', label: '부자재', diff: -10000 } },
+      ],
+    },
+    time: [
+      { role: 'cutter', label: '재단', orders: 1, estimateMin: 70, actualMin: 80, diffRate: 14.3 },
+      { role: 'edge', label: '엣지', orders: 1, estimateMin: 15, actualMin: 20, diffRate: 33.3 },
+      { role: 'asm', label: '조립', orders: 1, estimateMin: 100, actualMin: 90, diffRate: -10 },
+    ],
+    load: {
+      workdays: 21,
+      bottleneck: 'asm',
+      roles: [
+        { role: 'cutter', label: '재단', people: 1, capacityHours: 142.8, receivedHours: 1.8, doneHours: 1.3, load: 1.3, doneLoad: 0.9 },
+        { role: 'edge', label: '엣지', people: 1, capacityHours: 142.8, receivedHours: 0.8, doneHours: 1.3, load: 0.5, doneLoad: 0.9 },
+        { role: 'asm', label: '조립', people: 1, capacityHours: 142.8, receivedHours: 2.5, doneHours: 1.5, load: 1.8, doneLoad: 1.1 },
+      ],
+    },
+    throughput: {
+      role: 'asm',
+      label: '조립',
+      rows: [
+        { id: 'P1', label: 'P고객 (SO-11)', throughput: 1485000, minutes: 100, perMin: 14850 },
+        { id: 'P2', label: 'SO-12', throughput: 430000, minutes: 50, perMin: 8600 },
+      ],
+      avgPerMin: 12767,
+    },
+  },
 };
 
 function fakeApi({ admin = true, data = SUMMARY, status = 200 } = {}) {
@@ -267,5 +307,98 @@ describe('고객 줄 (PR-2)', () => {
     await settle();
     expect(document.getElementById('rowCustomer').hidden).toBe(true);
     expect(text('tree')).toMatch(/이익 식/); // 나머지는 그대로 그린다
+  });
+});
+
+describe('공정 줄 (PR-3)', () => {
+  const rows = (id) => [...document.querySelectorAll(`#${id} tbody tr`)].map((r) => [...r.cells].map((c) => c.textContent.trim()));
+
+  test('견적 대비 실적(돈): 범주별 견적 · 실적 · 차이, 더 나가면 빨강 · 덜 나가면 초록', async () => {
+    boot(fakeApi());
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('rowProcess').hidden).toBe(false);
+    expect(rows('tblVarianceCat')).toEqual([
+      ['자재', '1건', '52만', '56만', '+5만 (+8.7%)'],
+      ['부자재', '1건', '4만', '3만', '-1만 (-25%)'],
+      ['외주', '1건', '92만', '95만', '+3만 (+3.3%)'],
+    ]);
+    const cells = document.querySelectorAll('#tblVarianceCat tbody tr td:last-child span');
+    expect(cells[0].className).toBe('up');
+    expect(cells[1].className).toBe('down');
+    expect(text('varianceBody')).toMatch(/실적을 넣은 수주 2건 \/ 2건 · 견적 148만 → 실적 154만 \+7만 \(\+4.4%\)/);
+    expect(rows('tblVarianceTop')).toEqual([
+      ['P고객 (SO-11)', '+8만 (+5.2%)', '자재'],
+      ['SO-12', '-1만 (-25%)', '부자재'],
+    ]);
+  });
+
+  test('견적 대비 실적(시간): 공정별 예상 분 대 실측 분', async () => {
+    boot(fakeApi());
+    await window.Management.init();
+    await settle();
+    expect(rows('tblVarianceTime')).toEqual([
+      ['재단', '1건', '70분', '80분', '+14.3%'],
+      ['엣지', '1건', '15분', '20분', '+33.3%'],
+      ['조립', '1건', '100분', '90분', '-10%'],
+    ]);
+  });
+
+  test('실적도 실측도 없으면 어디서 넣는지 알려 준다', async () => {
+    const process = { ...SUMMARY.process, variance: { orders: 3, recorded: 0, categories: [], totals: { estimate: 0, actual: 0, diff: 0, diffRate: null }, top: [] }, time: SUMMARY.process.time.map((x) => ({ ...x, orders: 0 })) };
+    boot(fakeApi({ data: { ...SUMMARY, process } }));
+    await window.Management.init();
+    await settle();
+    expect(text('varianceBody')).toMatch(/이달 수주 3건 중 실적 원가도 작업 실측도 없습니다/);
+    expect(document.querySelector('#varianceBody a').getAttribute('href')).toBe('../erp.html');
+  });
+
+  test('병목: 받은 일 비율이 가장 높은 공정에 꼬리표, 막대는 능력 대비', async () => {
+    boot(fakeApi());
+    await window.Management.init();
+    await settle();
+    const loads = [...document.querySelectorAll('#bottleneckBody .load')];
+    expect(loads.map((l) => l.dataset.role)).toEqual(['cutter', 'edge', 'asm']);
+    expect(loads.map((l) => l.querySelector('.fill').style.width)).toEqual(['1.3%', '0.5%', '1.8%']);
+    expect(loads[2].querySelector('.tag').textContent).toBe('병목');
+    expect(loads[0].querySelector('.tag')).toBeNull();
+    expect(loads[2].querySelector('.v').textContent.replace(/\s+/g, ' ')).toMatch(/1.8%받은 2.5시간 \/ 142.8시간한 일 1.5시간/);
+    expect(text('bottleneckBody')).toMatch(/근무일 21일/);
+  });
+
+  test('부하가 85% 를 넘으면 주황, 100% 를 넘으면 빨강', async () => {
+    const roles = SUMMARY.process.load.roles.map((r, i) => ({ ...r, load: [86, 104, 40][i] }));
+    boot(fakeApi({ data: { ...SUMMARY, process: { ...SUMMARY.process, load: { ...SUMMARY.process.load, roles, bottleneck: 'edge' } } } }));
+    await window.Management.init();
+    await settle();
+    const fills = [...document.querySelectorAll('#bottleneckBody .load .fill')];
+    expect(fills.map((f) => f.className.trim())).toEqual(['fill warn', 'fill full', 'fill']);
+    expect(fills[1].style.width).toBe('100%'); // 막대는 100% 에서 멈춘다 — 숫자는 104%
+  });
+
+  test('처리량: 병목(조립) 1분당 — 평균과 큰 순 다섯', async () => {
+    boot(fakeApi());
+    await window.Management.init();
+    await settle();
+    expect(text('bottleneckBody')).toMatch(/조립 1분당 처리량 — 평균 12,767원/);
+    expect(rows('tblThroughput')).toEqual([
+      ['P고객 (SO-11)', '149만', '100분', '14,850원'],
+      ['SO-12', '43만', '50분', '8,600원'],
+    ]);
+  });
+
+  test('부하 막대도 블록이어야 그려진다', () => {
+    expect(HTML).toMatch(/\.load \.track \{ display: block;/);
+    expect(HTML).toMatch(/\.load \.fill \{ display: block;/);
+  });
+
+  test('워커가 아직 옛 판이면(공정이 없으면) 공정 줄을 숨긴다', async () => {
+    const data = { ...SUMMARY };
+    delete data.process;
+    boot(fakeApi({ data }));
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('rowProcess').hidden).toBe(true);
+    expect(document.getElementById('rowCustomer').hidden).toBe(false);
   });
 });
