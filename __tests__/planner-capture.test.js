@@ -1691,3 +1691,239 @@ describe('clean 캡처 — 페이지 부팅(디테일 룩과 함께)', () => {
     [back, left, kick, top].forEach((o) => expect(o.userData._origMaterial).toBeUndefined());
   });
 });
+
+// ── 2026-10-19: 도어 테두리·갭 뒷판·목찬넬 판 — 갈색 테두리 걷어내기 ─────────────────
+//   잡 e4dc4435 의 front 렌더에 남은 갈색의 출처: doorEdge(작업 화면 줌에 맞춰 15.5mm 로 굵어진 갈색 막대)·
+//   목찬넬 판(자리표시 #7a6a45)·갭 뒷판 reveal(갈색·상부는 초록). clean 동안에만 테두리는 실제 갭 기준 두께 +
+//   최소 픽셀, 색은 무채색 틈 그림자 — 끝나면 작업 화면 그대로.
+
+describe('clean 캡처 — 도어 테두리·갭 뒷판·목찬넬 판 규칙 (순수, 2026-10-19)', () => {
+  test('무채색 갈래 — doorEdge·reveal 은 gap, 목찬넬 판(channelBase·Face)은 channel, 사람이 칠한 것·그 밖은 null', () => {
+    const K = C.plannerCaptureNeutralKind;
+    expect(K({ entityKind: 'doorEdge', axis: 'left' })).toBe('gap');
+    expect(K({ entityKind: 'reveal', moduleId: 'lower-0' })).toBe('gap');
+    expect(K({ entityKind: 'carcass', side: 'channelBase', moduleId: 'lower-0' })).toBe('channel');
+    expect(K({ entityKind: 'carcass', side: 'channelFace', moduleId: 'lower-0' })).toBe('channel');
+    // 사람이 칠한 목찬넬(손잡이 슬롯) — 그대로
+    expect(K({ entityKind: 'carcass', side: 'channelFace', _origMaterial: {} })).toBeNull();
+    [
+      { entityKind: 'carcass', side: 'front', areaType: 'door' },
+      { entityKind: 'carcass', side: 'left' },
+      { entityKind: 'handle' },
+      { entityKind: 'leg' },
+      { entityKind: 'top-panel' },
+      { entityKind: 'toe-kick' },
+      { entityKind: 'molding' },
+      { entityKind: 'edge' },
+      null,
+    ].forEach((ud) => expect(K(ud)).toBeNull());
+  });
+
+  test('색 — 틈은 짙은 회색, 목찬넬은 중간 회색. 둘 다 무채색(r=g=b)', () => {
+    const gray = (hex) => [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255];
+    const g = gray(C.PLANNER_CAPTURE_NEUTRAL.gap.color);
+    const c = gray(C.PLANNER_CAPTURE_NEUTRAL.channel.color);
+    expect(g[0]).toBe(g[1]); expect(g[1]).toBe(g[2]);
+    expect(c[0]).toBe(c[1]); expect(c[1]).toBe(c[2]);
+    expect(g[0]).toBeLessThan(64);                    // 그림자 틈
+    expect(c[0]).toBeGreaterThan(100); expect(c[0]).toBeLessThan(180);   // 알루미늄 중간 회색
+  });
+
+  test('mm/px — 시선 깊이·세로 화각·출력 높이로 잰다', () => {
+    expect(C.plannerCaptureMmPerPixel(10000, 12, 1536)).toBeCloseTo(2 * 10000 * Math.tan(6 * Math.PI / 180) / 1536, 9);
+    expect(C.plannerCaptureMmPerPixel(0, 12, 1536)).toBeNull();
+    expect(C.plannerCaptureMmPerPixel(10000, 12, 0)).toBeNull();
+  });
+
+  test('두께 — 갭의 반(도어마다 반씩), 출력에서 최소 픽셀보다 가늘면 최소 픽셀 · 화면 줌과 무관', () => {
+    const T = C.plannerCaptureDoorEdgeThickness;
+    expect(C.PLANNER_CAPTURE_DOOR_GAP).toBe(4);
+    expect(T(0.5, 4)).toBe(2);                                         // 고해상 — 실제 갭 기준 2mm
+    expect(T(3, 4)).toBeCloseTo(3 * C.PLANNER_CAPTURE_DOOR_EDGE_MIN_PX, 9);  // 저해상 — 최소 픽셀
+    expect(C.PLANNER_CAPTURE_DOOR_EDGE_MIN_PX).toBeGreaterThanOrEqual(1);
+    expect(C.PLANNER_CAPTURE_DOOR_EDGE_MIN_PX).toBeLessThanOrEqual(1.5);
+    expect(T(null, 4)).toBe(2);                                        // mm/px 를 모르면 갭 기준
+    expect(T(NaN, 4)).toBe(2);
+  });
+
+  test('막대 배치 — keepDoorEdgesVisible 과 같은 식: 바깥선은 도어 윤곽, 두께만큼 안쪽', () => {
+    const ud = (axis) => ({ entityKind: 'doorEdge', axis, baseW: 600, baseH: 700, cx: 10, cy: 400, z: 344 });
+    expect(C.plannerCaptureDoorEdgeLayout(ud('left'), 2)).toEqual({ scale: [2, 700, 1], position: [10 - 299, 400, 344] });
+    expect(C.plannerCaptureDoorEdgeLayout(ud('right'), 2)).toEqual({ scale: [2, 700, 1], position: [10 + 299, 400, 344] });
+    expect(C.plannerCaptureDoorEdgeLayout(ud('top'), 3)).toEqual({ scale: [600, 3, 1], position: [10, 400 + 348.5, 344] });
+    expect(C.plannerCaptureDoorEdgeLayout(ud('bottom'), 3)).toEqual({ scale: [600, 3, 1], position: [10, 400 - 348.5, 344] });
+    expect(C.plannerCaptureDoorEdgeLayout({ entityKind: 'doorEdge', axis: 'left' }, 2)).toBeNull();
+    expect(C.plannerCaptureDoorEdgeLayout(ud('left'), 0)).toBeNull();
+    // 페이지의 막대 userData 모양이 이 식의 입력과 같다
+    expect(HTML).toContain("bar.userData = { entityKind: 'doorEdge', axis, baseW: w, baseH: h, cx, cy, z };");
+    expect(HTML).toMatch(/o\.position\.set\(cx \+ \(axis === 'left' \? -1 : 1\) \* \(baseW \/ 2 - t \/ 2\), cy, z\)/);
+  });
+});
+
+describe('clean 캡처 — 도어 테두리·갭 뒷판·목찬넬 판 바꾸기·되돌리기 (2026-10-19)', () => {
+  const PC = C.PlannerCapture;
+  beforeEach(() => {
+    window.THREE = THREE;
+    PC._outputPass = null;
+    window.OutputPass = class { render(renderer, write) { renderer.setRenderTarget(write); } };
+  });
+  afterEach(() => { window.THREE = undefined; PC._outputPass = null; delete window.OutputPass; PC.mount(null); });
+
+  // 작업 화면의 keepDoorEdgesVisible 과 같은 배치 (시험 쪽에서 따로 적는다)
+  const screenLayout = (bar, t) => {
+    const { axis, baseW, baseH, cx, cy, z } = bar.userData;
+    if (axis === 'left' || axis === 'right') {
+      bar.scale.set(t, baseH, 1);
+      bar.position.set(cx + (axis === 'left' ? -1 : 1) * (baseW / 2 - t / 2), cy, z);
+    } else {
+      bar.scale.set(baseW, t, 1);
+      bar.position.set(cx, cy + (axis === 'top' ? 1 : -1) * (baseH / 2 - t / 2), z);
+    }
+  };
+
+  // cleanScene 의 하부장(lower-0, 그룹 x 600)에 도어 + 갭 뒷판 + 테두리 4줄 + 목찬넬 두 장, 칠한 목찬넬 한 장
+  function sceneWithEdges(screenT) {
+    const s = cleanScene();
+    const mk = (w, h, d, ud, color, opts) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial(Object.assign({ color }, opts || {})));
+      m.userData = ud;
+      s.lower.add(m);
+      return m;
+    };
+    const cx = 0, cy = 450, w = 1196, h = 716, frontZ = 325;
+    const door = mk(w, h, 18, { entityKind: 'carcass', side: 'front', areaType: 'door', moduleId: 'lower-0', areaIdx: 0 }, 0xb8956c);
+    door.position.set(cx, cy, frontZ + 9);
+    const reveal = mk(w + 4, h + 4, 2, { entityKind: 'reveal', moduleId: 'lower-0' }, 0x3e3021);
+    reveal.position.set(cx, cy, frontZ - 1);
+    const bars = ['left', 'right', 'top', 'bottom'].map((axis) => {
+      const bar = mk(1, 1, 1, { entityKind: 'doorEdge', axis, baseW: w, baseH: h, cx, cy, z: frontZ + 19 }, 0x3e3021, { roughness: 0.9 });
+      screenLayout(bar, screenT);
+      return bar;
+    });
+    const chBase = mk(1200, 18, 40, { side: 'channelBase', entityKind: 'carcass', moduleId: 'lower-0' }, 0x7a6a45);
+    chBase.position.set(0, 858 - 70 + 9, frontZ - 20);
+    const chFace = mk(1200, 52, 18, { side: 'channelFace', entityKind: 'carcass', moduleId: 'lower-0' }, 0x7a6a45);
+    chFace.position.set(0, 858 - 26, frontZ - 40 + 9);
+    // 사람이 칠한 목찬넬 — 디테일 룩이 바꿔 끼운 재질 (원래 것은 _origMaterial)
+    const paintedCh = mk(1200, 52, 18, { side: 'channelFace', entityKind: 'carcass', moduleId: 'lower-0', _origMaterial: new THREE.MeshStandardMaterial({ color: 0x7a6a45 }) }, 0xeeeeee);
+    paintedCh.position.set(0, 858 - 26 - 100, frontZ - 40 + 9);
+    return { s, door, reveal, bars, chBase, chFace, paintedCh };
+  }
+  const snap = (m) => ({
+    bars: m.bars.map((b) => ({ scale: b.scale.toArray(), position: b.position.toArray(), material: b.material, visible: b.visible, geometry: b.geometry })),
+    reveal: m.reveal.material, chBase: m.chBase.material, chFace: m.chFace.material, paintedCh: m.paintedCh.material, door: m.door.material,
+  });
+  const hex = (mat) => mat.color.getHex();
+  // 찍은 프레임에서 막대 자리(세계)의 mm/px 를 따로 잰다 — 정면이라 깊이 = 카메라 z − 막대 z
+  const expectedT = (shot, bar) => {
+    const f = shot.frame;
+    const fwd = new THREE.Vector3(...f.target).sub(new THREE.Vector3(...f.position)).normalize();
+    const p = new THREE.Vector3(bar.userData.cx + 600, bar.userData.cy, bar.userData.z);   // lower 그룹 x 600
+    const depth = p.sub(new THREE.Vector3(...f.position)).dot(fwd);
+    const mmpp = 2 * depth * Math.tan((f.fov / 2) * Math.PI / 180) / shot.height;
+    return Math.max(2, C.PLANNER_CAPTURE_DOOR_EDGE_MIN_PX * mmpp);
+  };
+
+  test('clean front: 테두리는 화면 줌(15.5mm·40mm)과 무관하게 갭 기준·최소 픽셀 두께, 색은 무채색 — 끝나면 작업 화면 그대로', () => {
+    const thick = [];
+    for (const screenT of [15.5, 40]) {
+      const m = sceneWithEdges(screenT);
+      const before = snap(m);
+      const during = [];
+      const r = cleanRenderer({
+        onRender() {
+          during.push({
+            bars: m.bars.map((b) => ({ axis: b.userData.axis, scale: b.scale.toArray(), position: b.position.toArray(), hex: hex(b.material) })),
+            reveal: hex(m.reveal.material), chBase: hex(m.chBase.material), chFace: hex(m.chFace.material), chBaseMat: m.chBase.material,
+            paintedCh: m.paintedCh.material, door: m.door.material,
+          });
+        },
+      });
+      PC.mount({ three: () => ({ renderer: r, scene: m.s.scene, moduleGroup: m.s.mg }) });
+      const shot = PC.capturePixels({ kind: 'front', longEdge: 1536, clean: true });
+      expect(shot.ok).toBe(true);
+      expect(during).toHaveLength(1);
+      const d = during[0];
+      const t = expectedT(shot, m.bars[0]);
+      expect(t).toBeGreaterThanOrEqual(2);
+      expect(t).toBeLessThan(5);
+      d.bars.forEach((b) => {
+        const side = b.axis === 'left' || b.axis === 'right';
+        expect(side ? b.scale[0] : b.scale[1]).toBeCloseTo(t, 6);
+        expect(side ? b.scale[1] : b.scale[0]).toBe(side ? 716 : 1196);
+        expect(b.hex).toBe(C.PLANNER_CAPTURE_NEUTRAL.gap.color);
+      });
+      expect(d.bars.find((b) => b.axis === 'left').position[0]).toBeCloseTo(-(1196 / 2 - t / 2), 6);
+      thick.push(d.bars[0].scale[0]);
+      expect(d.reveal).toBe(C.PLANNER_CAPTURE_NEUTRAL.gap.color);
+      expect(d.chBase).toBe(C.PLANNER_CAPTURE_NEUTRAL.channel.color);
+      expect(d.chFace).toBe(C.PLANNER_CAPTURE_NEUTRAL.channel.color);
+      expect(d.paintedCh).toBe(before.paintedCh);        // 사람이 칠한 목찬넬 — 그대로
+      expect(d.door).toBe(before.door);
+      // 끝나면 — 막대 scale·position·재질·visible·geometry, 뒷판·목찬넬 재질 참조 전부 원래대로
+      expect(snap(m)).toEqual(before);
+      m.bars.forEach((b, i) => { expect(b.material).toBe(before.bars[i].material); expect(b.geometry).toBe(before.bars[i].geometry); });
+      expect(m.reveal.material).toBe(before.reveal);
+      expect(m.chBase.material).toBe(before.chBase);
+      expect(hex(m.bars[0].material)).toBe(0x3e3021);
+      expect(m.bars[0].scale.x).toBe(screenT);
+    }
+    expect(thick[0]).toBeCloseTo(thick[1], 9);          // 줌 의존 없음
+  });
+
+  test('저해상(longEdge 256)이면 최소 픽셀이 이긴다 — 2mm 보다 굵다', () => {
+    const m = sceneWithEdges(15.5);
+    let seen = null;
+    const r = cleanRenderer({ onRender() { seen = m.bars[0].scale.x; } });
+    PC.mount({ three: () => ({ renderer: r, scene: m.s.scene, moduleGroup: m.s.mg }) });
+    const shot = PC.capturePixels({ kind: 'front', longEdge: 256, clean: true });
+    expect(shot.ok).toBe(true);
+    expect(seen).toBeGreaterThan(2);
+    expect(seen).toBeCloseTo(expectedT(shot, m.bars[0]), 6);
+    expect(m.bars[0].scale.x).toBe(15.5);
+  });
+
+  test('massing 도 같은 규칙 — 막대마다 제 깊이로 잰다, 끝나면 그대로', () => {
+    const m = sceneWithEdges(15.5);
+    const before = snap(m);
+    let seen = null;
+    const r = cleanRenderer({ onRender() { seen = m.bars.map((b) => [b.scale.toArray(), hex(b.material)]); } });
+    PC.mount({ three: () => ({ renderer: r, scene: m.s.scene, moduleGroup: m.s.mg }) });
+    expect(PC.capturePixels({ kind: 'massing', longEdge: 1536, clean: true }).ok).toBe(true);
+    seen.forEach(([s, h]) => {
+      expect(Math.min(s[0], s[1])).toBeGreaterThanOrEqual(2);
+      expect(Math.min(s[0], s[1])).toBeLessThan(15.5);
+      expect(h).toBe(C.PLANNER_CAPTURE_NEUTRAL.gap.color);
+    });
+    expect(snap(m)).toEqual(before);
+  });
+
+  test('렌더가 던져도 테두리·뒷판·목찬넬을 되돌린다 — 원래 재질은 버리지 않고, 잠깐 만든 재질만 버린다', () => {
+    const m = sceneWithEdges(15.5);
+    const before = snap(m);
+    const disposed = [];
+    [before.reveal, before.chBase, before.chFace, before.paintedCh, before.door, ...before.bars.map((b) => b.material)]
+      .forEach((mat) => mat.addEventListener('dispose', () => disposed.push(mat)));
+    // 잠깐 만든 재질은 렌더 전에 생긴다 — onRender 에서 잡아 dispose 를 본다
+    let temp = null, tempDisposed = false;
+    const r = cleanRenderer({ onRender() { temp = m.reveal.material; temp.addEventListener('dispose', () => { tempDisposed = true; }); throw new Error('gl lost'); } });
+    PC.mount({ three: () => ({ renderer: r, scene: m.s.scene, moduleGroup: m.s.mg }) });
+    expect(PC.capturePixels({ kind: 'front', longEdge: 64, clean: true })).toMatchObject({ ok: false, message: 'gl lost' });
+    expect(snap(m)).toEqual(before);
+    expect(disposed).toEqual([]);
+    expect(temp).not.toBe(before.reveal);
+    expect(tempDisposed).toBe(true);
+  });
+
+  test('clean 이 아니면 테두리 두께·색, 뒷판·목찬넬 재질을 건드리지 않는다', () => {
+    const m = sceneWithEdges(15.5);
+    const before = snap(m);
+    let seen = null;
+    const r = cleanRenderer({ onRender() { seen = snap(m); } });
+    PC.mount({ three: () => ({ renderer: r, scene: m.s.scene, moduleGroup: m.s.mg }) });
+    expect(PC.capturePixels({ kind: 'front', longEdge: 256 }).ok).toBe(true);
+    expect(seen).toEqual(before);
+    expect(seen.reveal).toBe(before.reveal);
+    seen.bars.forEach((b, i) => expect(b.material).toBe(before.bars[i].material));
+  });
+});
