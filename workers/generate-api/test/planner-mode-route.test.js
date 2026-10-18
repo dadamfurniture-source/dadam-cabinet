@@ -373,3 +373,65 @@ test('재생성 원본에 입면 렌더가 없으면 planner 로 다시 그릴 �
   assert.equal(res.status, 400);
   assert.equal(calls.rpc.length, 0);
 });
+
+// ─── 5. 이미지 공급자 (2026-10-18, image_provider) ───
+
+test('image_provider openai 면 options.image_provider 가 생기고 잡에도 같은 값', async () => {
+  install();
+  const res = await post(plannerBody({ image_provider: 'openai' }));
+  assert.equal(res.status, 202);
+  assert.equal(calls.inserted.options.image_provider, 'openai');
+  assert.deepEqual(calls.jobStart.options, calls.inserted.options);
+});
+
+test('image_provider 가 없거나 gemini·모르는 값이면 키 자체가 없다 — options 모양 그대로', async () => {
+  const shapes = [];
+  for (const given of [undefined, 'gemini', 'GPT', 'OpenAI', '', null, 1]) {
+    install();
+    const res = await post(plannerBody(given === undefined ? {} : { image_provider: given }));
+    assert.equal(res.status, 202, String(given));
+    assert.equal('image_provider' in calls.inserted.options, false, String(given));
+    shapes.push(Object.keys(calls.inserted.options).join(','));
+  }
+  assert.equal(new Set(shapes).size, 1);
+  assert.equal(
+    shapes[0],
+    'design_style,door_color,door_finish,wall_width_override,water_from_left_override,exhaust_from_left_override,fridge_options,design_spec,mode,aspect,variants'
+  );
+});
+
+test('mode 가 없으면 image_provider 를 보내도 무시한다 (연출컷 경로는 IMAGE_PROVIDER 가 고른다)', async () => {
+  install();
+  await post({ room_image: PNG, category: 'sink', image_provider: 'openai' });
+  assert.equal('image_provider' in calls.inserted.options, false);
+});
+
+test('재생성은 원본의 image_provider 를 잇고, 새로 보낸 값이 이긴다', async () => {
+  const parent = {
+    id: '33333333-3333-4333-8333-333333333333',
+    user_id: USER_ID,
+    category: 'sink',
+    inputs: {
+      room: { path: 'p/room.jpg', url: 'u', mime: 'image/jpeg' },
+      refs: [],
+      renders: [{ role: 'elevation', path: 'p/render-elevation.png', url: 'u2', mime: 'image/png' }],
+    },
+    options: {
+      design_spec: { version: 1, category: 'sink', wallRunMm: 2200 },
+      mode: 'planner', aspect: '16:9', variants: false, image_provider: 'openai',
+    },
+  };
+  install({ parent });
+  await post({ parent_id: parent.id });
+  assert.equal(calls.inserted.options.image_provider, 'openai', '원본을 잇는다');
+
+  install({ parent });
+  await post({ parent_id: parent.id, image_provider: 'gemini' });
+  assert.equal('image_provider' in calls.inserted.options, false, '새 값 gemini 가 이긴다');
+
+  const geminiParent = { ...parent, options: { ...parent.options } };
+  delete geminiParent.options.image_provider;
+  install({ parent: geminiParent });
+  await post({ parent_id: parent.id, image_provider: 'openai' });
+  assert.equal(calls.inserted.options.image_provider, 'openai', 'Gemini 원본도 GPT 로 다시 그릴 수 있다');
+});

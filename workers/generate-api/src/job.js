@@ -17,7 +17,7 @@
  */
 
 import { aspectRatioOf, callGemini } from './gemini.js';
-import { renderImage } from './images.js';
+import { renderImage, renderPlannerImage } from './images.js';
 import {
   CATEGORIES,
   DEFAULT_STYLE,
@@ -404,15 +404,22 @@ async function runPipeline(env, job, ck, save) {
     ? 'controlnet' : 'gemini';
   const install = async (fix) => {
     if (planner) {
-      const r = await callGemini(env, {
-        prompt: buildPlannerPrompt(ctx),
-        images: massing ? [room, elevation, massing] : [room, elevation],
-        imageSize,
-        temperature: 0.2,
-        aspectRatio: ctx.aspect,
-      });
+      // 2026-10-18: 공급자는 요청이 고른다 (options.image_provider, 없으면 Gemini — 지금 그대로).
+      //   GPT 면 같은 프롬프트·같은 이미지 순서로 편집 호출, 키가 없거나 실패하면 Gemini 가 대신 (images.js).
+      //   누가 그렸는지는 칸(drawnBy)과 generations.model 에 남는다. Gemini 가 정상으로 그리면 칸 표시 없음.
+      const r = await renderPlannerImage(
+        env,
+        {
+          prompt: buildPlannerPrompt(ctx),
+          images: massing ? [room, elevation, massing] : [room, elevation],
+          imageSize,
+          temperature: 0.2,
+          aspectRatio: ctx.aspect,
+        },
+        opts.image_provider
+      );
       if (!r.image) throw new Error('install returned no image');
-      return { base64: r.image, mimeType: r.imageMime || 'image/jpeg' };
+      return { base64: r.image, mimeType: r.imageMime || 'image/jpeg', meta: drawnBy(r) };
     }
     if (engine === 'controlnet') {
       const r = await runControlNet(env, { ctx, baseUrl: inputs.room.url, controlUrl: inputs.control.url, size: opts.control_size || null, fix });

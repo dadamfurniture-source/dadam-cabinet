@@ -35,10 +35,24 @@ function jsonRes(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-function install({ qcIssues = ['existing_left'] } = {}) {
-  calls = { image: [], text: [], patched: [], uploads: [] };
+function install({ qcIssues = ['existing_left'], openai = null } = {}) {
+  calls = { image: [], text: [], patched: [], uploads: [], openai: [] };
   globalThis.fetch = async (url, init = {}) => {
     const u = String(url);
+    if (u.startsWith('https://api.openai.com/')) {
+      // GPT 편집 호출 (2026-10-18) — multipart 그대로 읽는다: 이미지 순서·크기·온도가 없는지
+      const f = init.body;
+      calls.openai.push({
+        url: u,
+        keys: [...new Set([...f.keys()])],
+        model: f.get('model'),
+        size: f.get('size'),
+        prompt: f.get('prompt'),
+        images: await Promise.all(f.getAll('image[]').map(async (b) => Buffer.from(await b.arrayBuffer()).toString())),
+        types: f.getAll('image[]').map((b) => b.type),
+      });
+      return openai ? openai(calls.openai.length) : jsonRes({ data: [{ b64_json: b64('GPT') }], usage: { input_tokens: 9000, output_tokens: 6000 } });
+    }
     if (u.includes('/storage/v1/object/')) {
       if ((init.method || 'GET') === 'POST') {
         calls.uploads.push(u.split('/generations/')[1]);
@@ -104,8 +118,8 @@ const SPEC = {
   },
 };
 
-async function run(options, inputs) {
-  const job = new GenerateJob(fakeState(), { ...ENV });
+async function run(options, inputs, envExtra = {}) {
+  const job = new GenerateJob(fakeState(), { ...ENV, ...envExtra });
   await job.fetch(
     new Request('https://generate-job/start', {
       method: 'POST',
@@ -217,4 +231,92 @@ test('mode 가 없으면 옛 경로 그대로 — 방 사진 한 장, 온도·�
   const qcPrompt = calls.text.find((t) => t.startsWith('You are checking'));
   assert.doesNotMatch(qcPrompt, /existing_left|pasted_reference/);
   assert.equal(last.status, 'done');
+});
+
+// ─── 이미지 공급자 (2026-10-18, options.image_provider) ───
+
+const GPT = 'gpt-image-2.5-sunburst';
+const OPENAI_ENV = { OPENAI_API_KEY: 'sk-test', OPENAI_IMAGE_MODEL: GPT, GEMINI_RETRY_DELAYS_MS: '0,0,0' };
+
+test('planner + image_provider openai: GPT 편집 한 번 — 이미지 3장 순서 그대로, 크기는 비율에서, 온도 없음', async () => {
+  install({ qcIssues: [] });
+  const last = await run({ ...PLANNER_OPTIONS, image_provider: 'openai' }, PLANNER_INPUTS, OPENAI_ENV);
+
+  assert.equal(calls.image.length, 0, 'Gemini 이미지는 부르지 않는다');
+  assert.equal(calls.openai.length, 1, '재시도·추천안 없음');
+  const c = calls.openai[0];
+  assert.equal(c.url, 'https://api.openai.com/v1/images/edits');
+  assert.equal(c.model, GPT);
+  assert.deepEqual(c.images, ['ROOM', 'ELEV', 'MASS'], '방 사진이 첫 장(편집 대상), 입면·3/4 는 뒤');
+  assert.deepEqual(c.types, ['image/jpeg', 'image/png', 'image/jpeg']);
+  assert.equal(c.size, '2048x1152', '16:9');
+  assert.ok(!c.keys.includes('temperature') && !c.keys.includes('input_fidelity'), c.keys.join(','));
+  // 프롬프트는 Gemini 와 같은 빌더 그대로
+  assert.match(c.prompt, /^You receive three images\./);
+  assert.match(c.prompt, /COUNT CHECK: exactly 3 base units with 5 doors/);
+
+  // 분석·검사는 Gemini 텍스트 그대로
+  assert.ok(calls.text.some((t) => t.startsWith('Measure and describe')));
+  assert.ok(calls.text.some((t) => t.startsWith('You are checking')));
+
+  assert.equal(last.status, 'done');
+  assert.equal(last.model, GPT, 'generations.model 에 GPT');
+  const base = last.images[0];
+  assert.equal(base.slot, 'base');
+  assert.equal(base.provider, 'openai');
+  assert.equal(base.model, GPT);
+  assert.equal(base.fallback, undefined);
+  assert.deepEqual(base.usage, { input_tokens: 9000, output_tokens: 6000 });
+  // 대조·internal_only 는 그대로 (Claude 키가 없어 대조 실패 → 내부 확인용)
+  assert.match(calls.patched.find((p) => p.layout).layout.verify.error, /ANTHROPIC_API_KEY/);
+  assert.equal(last.options.internal_only, true);
+});
+
+test('planner + openai: 세로 비율이면 세로 크기, 3/4 가 없으면 두 장', async () => {
+  for (const [aspect, size] of [['3:4', '1536x2048'], ['9:16', '1152x2048'], ['4:3', '2048x1536'], ['1:1', '1760x1760']]) {
+    install({ qcIssues: [] });
+    await run({ ...PLANNER_OPTIONS, aspect, image_provider: 'openai' }, { ...PLANNER_INPUTS, renders: PLANNER_INPUTS.renders.slice(0, 1) }, OPENAI_ENV);
+    assert.equal(calls.openai[0].size, size, aspect);
+    assert.deepEqual(calls.openai[0].images, ['ROOM', 'ELEV']);
+    assert.match(calls.openai[0].prompt, /^You receive two images\./);
+  }
+});
+
+test('planner + openai: GPT 가 실패하면 Gemini 가 같은 인자로 대신 그리고 칸에 fallback·사유', async () => {
+  install({ qcIssues: [], openai: () => jsonRes({ error: { message: 'model not found' } }, 404) });
+  const last = await run({ ...PLANNER_OPTIONS, image_provider: 'openai' }, PLANNER_INPUTS, OPENAI_ENV);
+  assert.equal(calls.openai.length, 1);
+  assert.equal(calls.image.length, 1, 'Gemini 가 한 번 대신');
+  const g = calls.image[0];
+  assert.deepEqual(g.images.map((i) => Buffer.from(i.data, 'base64').toString()), ['ROOM', 'ELEV', 'MASS']);
+  assert.equal(g.body.generationConfig.temperature, 0.2);
+  assert.deepEqual(g.body.generationConfig.imageConfig, { imageSize: '2K', aspectRatio: '16:9' });
+  assert.equal(last.status, 'done');
+  assert.equal(last.model, 'gemini-3-pro-image');
+  const base = last.images[0];
+  assert.equal(base.provider, 'gemini');
+  assert.equal(base.model, 'gemini-3-pro-image');
+  assert.equal(base.fallback, true);
+  assert.match(base.fallback_reason, /OpenAI 404/);
+});
+
+test('planner + openai 인데 키가 없으면 Gemini 가 그리고 사유에 키 없음', async () => {
+  install({ qcIssues: [] });
+  const last = await run({ ...PLANNER_OPTIONS, image_provider: 'openai' }, PLANNER_INPUTS);
+  assert.equal(calls.openai.length, 0);
+  assert.equal(calls.image.length, 1);
+  const base = last.images[0];
+  assert.equal(base.provider, 'gemini');
+  assert.equal(base.fallback, true);
+  assert.match(base.fallback_reason, /OPENAI_API_KEY not configured/);
+});
+
+test('planner 기본(공급자 없음)은 키가 있어도 Gemini — 칸 표시 없이 예전 모양 그대로', async () => {
+  install({ qcIssues: [] });
+  const last = await run(PLANNER_OPTIONS, PLANNER_INPUTS, { ...OPENAI_ENV, IMAGE_PROVIDER: 'openai' });
+  assert.equal(calls.openai.length, 0, '전역 IMAGE_PROVIDER 는 플래너 모드에 닿지 않는다');
+  assert.equal(calls.image.length, 1);
+  const base = last.images[0];
+  for (const k of ['provider', 'model', 'fallback', 'fallback_reason', 'usage']) assert.equal(k in base, false, k);
+  assert.equal(last.model, 'gemini-3-pro-image');
 });
