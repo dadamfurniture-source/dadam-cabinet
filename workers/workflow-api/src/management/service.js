@@ -7,7 +7,7 @@
 import { selectMany, selectOne, ForbiddenError } from '../supabase.js';
 import { isAdmin } from '../reports/admin.js';
 import { mergeSettings, kstDate } from '../production/service.js';
-import { buildManagementSummary, prevMonthOf, QUALITY_WINDOW_DAYS } from './summary.js';
+import { buildManagementSummary, prevMonthOf, QUALITY_WINDOW_DAYS, PARTNER_WINDOW_DAYS } from './summary.js';
 import { selectOrders } from '../orders.js';
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
@@ -123,6 +123,38 @@ export async function getManagementSummary(env, { user, month }) {
     or: `(created_at.gte.${fbFrom},answered_at.gte.${fbFrom})`,
     limit: '5000',
   }).catch(() => null);
+  // 거래처 · 공급처 (한 해 창) — 표 · 칸이 아직 없으면 null
+  const yearFrom = windowStart(m, PARTNER_WINDOW_DAYS + 31);
+  const counterparties = await selectMany(env, 'counterparties', { select: 'id,kind,name,category,active', limit: '2000' }).catch(() => null);
+  let partnerOrders = null, supplierCosts = [], outsource = [];
+  if (counterparties) {
+    [partnerOrders, supplierCosts, outsource] = await Promise.all([
+      selectMany(env, 'orders', {
+        select: 'id,partner_id,price_tier,contract_amount,snapshot_id,status,ordered_at',
+        or: '(partner_id.not.is.null,price_tier.eq.partner)',
+        ordered_at: `gte.${yearFrom}T00:00:00+09:00`,
+        limit: '5000',
+      }).catch(() => null),
+      selectMany(env, 'order_costs', {
+        select: 'counterparty_id,amount,spent_on,created_at',
+        counterparty_id: 'not.is.null',
+        created_at: `gte.${windowStart(m, PARTNER_WINDOW_DAYS + 400)}T00:00:00+09:00`,
+        limit: '10000',
+      }).catch(() => []),
+      selectMany(env, 'work_reports', {
+        select: 'status,period_start,period_end,metrics',
+        kind: 'in.(outsource_order,countertop_order)',
+        period_start: `gte.${yearFrom}`,
+        limit: '5000',
+      }).catch(() => []),
+    ]);
+    // 거래처 수주 중 이달 묶음에 없던 스냅샷도 읽는다 (공헌이익)
+    const need = [...new Set((partnerOrders || []).map((o) => o.snapshot_id).filter((id) => id && !snaps.some((s) => s.id === id)))];
+    if (need.length) {
+      const more = (await selectMany(env, 'design_snapshots', { id: `in.(${need.join(',')})`, select: 'id,quote_payload', limit: '5000' }).catch(() => [])) || [];
+      snaps = snaps.concat(more);
+    }
+  }
   return buildManagementSummary({
     orders: list,
     snapshotsById: new Map(snaps.map((s) => [s.id, s])),
@@ -136,6 +168,10 @@ export async function getManagementSummary(env, { user, month }) {
     reworks,
     installed,
     feedback,
+    counterparties,
+    partnerOrders,
+    supplierCosts: supplierCosts || [],
+    outsource: outsource || [],
     today: kstDate(),
     settings,
     month: m,

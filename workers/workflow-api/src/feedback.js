@@ -80,7 +80,14 @@ export async function createFeedbackLink(env, { orderId, user }) {
 
 async function openRow(env, token) {
   if (!token) throw new ValidationError('링크가 올바르지 않습니다');
-  const row = await selectOne(env, 'install_feedback', { token_hash: `eq.${await hashFeedbackToken(env, token)}`, select: 'id,score,answered_at,expires_at' });
+  let row;
+  try {
+    row = await selectOne(env, 'install_feedback', { token_hash: `eq.${await hashFeedbackToken(env, token)}`, select: 'id,score,answered_at,expires_at' });
+  } catch (e) {
+    // 표가 아직 없으면 살아 있는 링크도 없다 — 고객에게 DB 오류 대신 링크 안내
+    if (isMissingRelation(e)) throw new NotFoundError('더 이상 쓸 수 없는 링크입니다');
+    throw e;
+  }
   if (!row) throw new NotFoundError('더 이상 쓸 수 없는 링크입니다');
   return row;
 }

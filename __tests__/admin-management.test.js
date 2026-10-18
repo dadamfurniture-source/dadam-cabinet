@@ -90,6 +90,26 @@ const SUMMARY = {
       avgPerMin: 12767,
     },
   },
+  // 워커 시험(counterparties.test.js 2단계 PR-8) 의 손계산 결과 그대로
+  partners: {
+    window: { days: 365, start: '2025-11-01', end: '2026-10-31' },
+    partners: 2,
+    revenue: 7000000,
+    rows: [
+      { id: 'pA', name: '한빛인테리어', orders: 2, revenue: 6000000, contribution: 1000000, cmRate: 25, share: 85.7, cumShare: 85.7 },
+      { id: 'pB', name: '다온디자인', orders: 1, revenue: 1000000, contribution: 100000, cmRate: 10, share: 14.3, cumShare: 100 },
+    ],
+    top20: { count: 1, share: 85.7 },
+    unassigned: 1,
+  },
+  suppliers: {
+    window: { days: 365, start: '2025-10-20', end: '2026-10-19' },
+    suppliers: 2,
+    rows: [
+      { id: 'sDoor', name: '상일', category: 'door', spend: 1380000, costRows: 2, orders: 4, onTimeRate: 50, dated: 2, avgLateDays: 3, overdue: 1 },
+      { id: null, name: '일성합판', category: null, spend: 0, costRows: 0, orders: 1, onTimeRate: null, dated: 0, avgLateDays: null, overdue: 0 },
+    ],
+  },
   // 워커 시험(feedback.test.js 2단계 PR-7) 의 손계산 결과 그대로
   referral: {
     window: { days: 180, start: '2026-05-05', end: '2026-10-31' },
@@ -691,5 +711,56 @@ describe('설치 후 소개 의향 (2단계 PR-7)', () => {
 
   test('막대 조각도 블록이어야 그려진다', () => {
     expect(HTML).toMatch(/\.segbar \.seg \{ display: block;/);
+  });
+});
+
+describe('거래처 줄 (2단계 PR-8)', () => {
+  const rows = (id) => [...document.querySelectorAll(`#${id} tbody tr`)].map((r) => [...r.cells].map((c) => c.textContent.replace(/\s+/g, ' ').trim()));
+
+  test('파레토: 큰 순 · 누적 비중 막대 · 상위 20% 한 줄 · 업체 안 붙인 수주', async () => {
+    boot(fakeApi());
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('rowPartners').hidden).toBe(false);
+    expect(text('partnersBody')).toMatch(/거래처 2곳 · 매출 700만 · 상위 1곳\(20%\)이 매출의 85.7%/);
+    expect(rows('tblPartners')).toEqual([
+      ['한빛인테리어', '2건', '600만', '25%', '85.7%'],
+      ['다온디자인', '1건', '100만', '10%', '100%'],
+    ]);
+    expect([...document.querySelectorAll('#tblPartners .cum .fill')].map((f) => f.style.width)).toEqual(['85.7%', '100%']);
+    expect(text('partnersBody')).toMatch(/업체를 안 붙인 수주 1건/);
+  });
+
+  test('성적표: 지출 · 발주 · 약속일 지킴(날짜 있는 건수) · 늦은 날 · 밀림은 빨강', async () => {
+    boot(fakeApi());
+    await window.Management.init();
+    await settle();
+    expect(rows('tblSuppliers')).toEqual([
+      ['상일', '1,380,000원', '4건', '50% (2건)', '3일', '1건'],
+      ['일성합판', '0원', '1건', '-', '-', '0'],
+    ]);
+    expect(document.querySelector('#tblSuppliers tbody tr td:last-child span').className).toBe('up');
+  });
+
+  test('표가 없으면 SQL 안내 · 옛 워커면 줄을 숨긴다', async () => {
+    boot(fakeApi({ data: { ...SUMMARY, partners: null, suppliers: null } }));
+    await window.Management.init();
+    await settle();
+    expect(text('partnersBody')).toMatch(/management-phase2\.sql/);
+    expect(text('suppliersBody')).toMatch(/management-phase2\.sql/);
+
+    const data = { ...SUMMARY };
+    delete data.partners;
+    delete data.suppliers;
+    boot(fakeApi({ data }));
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('rowPartners').hidden).toBe(true);
+  });
+
+  test('누적 막대는 셀 안의 div 에 — td 를 grid 로 바꾸면 표가 깨진다', () => {
+    expect(HTML).not.toMatch(/td\.cum \{ display: grid/);
+    expect(HTML).toMatch(/\.tbl \.cum \{ display: grid;/);
+    expect(HTML).toMatch(/\.tbl \.cum \.track \{ display: block;/);
   });
 });

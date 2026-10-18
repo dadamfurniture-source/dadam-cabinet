@@ -159,6 +159,13 @@ export async function updateReportMeta(env, { user, id, body = {} }) {
     if (!ORDER_KINDS.has(row.kind)) throw new ValidationError('상태는 외주 · 상판 발주만 바꿀 수 있습니다');
     if (!ORDER_STATUS.has(body.status)) throw new ValidationError('상태는 ordered · received · cancelled 중 하나입니다');
     patch.status = body.status;
+    // 입고한 날을 남긴다 — 외주 성적표가 약속일(period_end)과 견준다 (updated_at 은 메모만 고쳐도 바뀐다)
+    if (body.status !== row.status) {
+      const metrics = { ...(row.metrics || {}) };
+      if (body.status === 'received') metrics.received_on = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+      else delete metrics.received_on;
+      patch.metrics = metrics;
+    }
   }
   if (!Object.keys(patch).length) throw new ValidationError('바꿀 수 있는 것은 note · pinned · archived · (발주) status 뿐입니다');
   patch.updated_at = new Date().toISOString();
