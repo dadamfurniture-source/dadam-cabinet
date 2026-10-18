@@ -174,3 +174,50 @@ describe('작업 지시 보고 화면', () => {
     expect(api.calls.find((c) => c.method === 'POST').body).toEqual({ title: '10월 외주 단가 협의', note: '일성합판 장당 12,000' });
   });
 });
+
+describe('?order= — ERP 수주 상세에서 넘어온 경우', () => {
+  const O1 = '44444444-4444-4444-8444-444444444444';
+  afterEach(() => window.history.replaceState(null, '', '/'));
+
+  test('그 주문의 보고만, 기간 제한 없이 · ✕ 로 해제하면 기본 30일로', async () => {
+    window.history.replaceState(null, '', `/admin/work-reports.html?order=${O1}`);
+    const api = fakeApi();
+    boot(api);
+    await window.WorkReports.init();
+    await settle();
+    const first = api.calls.find((c) => c.u.startsWith('/reports?')).u;
+    expect(first).toContain(`order=${O1}`);
+    expect(first).not.toContain('from=');
+    expect(document.getElementById('orderChip').hidden).toBe(false);
+
+    document.getElementById('btnClearOrder').click();
+    await settle();
+    const last = api.calls.filter((c) => c.u.startsWith('/reports?')).pop().u;
+    expect(last).not.toContain('order=');
+    expect(last).toContain('from=');
+    expect(document.getElementById('orderChip').hidden).toBe(true);
+  });
+
+  test('uuid 가 아니면 무시', async () => {
+    window.history.replaceState(null, '', '/admin/work-reports.html?order=1;drop');
+    const api = fakeApi();
+    boot(api);
+    await window.WorkReports.init();
+    await settle();
+    expect(api.calls.find((c) => c.u.startsWith('/reports?')).u).not.toContain('order=');
+  });
+});
+
+describe('ERP · 생산 계획 화면 → 보관함 연결', () => {
+  test('erp.html 수주 상세에 ?order= 링크', () => {
+    const html = fs.readFileSync(path.join(ROOT, 'erp.html'), 'utf8');
+    expect(html).toContain('id="lnkReports"');
+    expect(html).toContain("'admin/work-reports.html?order=' + encodeURIComponent(d.order.id)");
+  });
+  test('production.html 지난 제안 카드 + 보관함 링크', () => {
+    const html = fs.readFileSync(path.join(ROOT, 'production.html'), 'utf8');
+    expect(html).toContain('id="histRows"');
+    expect(html).toContain("'/production/proposals?from='");
+    expect(html.split('href="admin/work-reports.html"').length - 1).toBeGreaterThanOrEqual(2);
+  });
+});

@@ -60,9 +60,12 @@ export class ClaudeRefusal extends Error {
  * @param {{base64:string, mimeType:string}} p.image
  * @param {object} p.schema         JSON Schema (output_config.format)
  * @param {number} [p.maxTokens]
+ * @param {string} [p.model]       비우면 claudeModel(env). 가이드 선 찾기는 claude-haiku-5-5 (2026-10-18)
+ * @param {string} [p.effort]      기본 medium
+ * @param {boolean} [p.fallbacks]  거절 시 서버 대체 모델. Haiku 5.5 는 지원하지 않아 false 로 부른다
  * @returns {Promise<{json:object, model:string, usage:object}>}
  */
-export async function callClaudeJson(env, { prompt, image, schema, maxTokens = 8000 }) {
+export async function callClaudeJson(env, { prompt, image, schema, maxTokens = 8000, model, effort = 'medium', fallbacks = true }) {
   if (!env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY not configured');
   const client = new Anthropic({
     apiKey: env.ANTHROPIC_API_KEY,
@@ -71,11 +74,10 @@ export async function callClaudeJson(env, { prompt, image, schema, maxTokens = 8
     fetch: proxiedFetch(env),
   });
   const res = await client.beta.messages.create({
-    model: claudeModel(env),
+    model: model || claudeModel(env),
     max_tokens: maxTokens,
-    betas: ['server-side-fallback-2026-07-01'],
-    fallbacks: 'default',
-    output_config: { format: { type: 'json_schema', schema }, effort: 'medium' },
+    ...(fallbacks ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' } : {}),
+    output_config: { format: { type: 'json_schema', schema }, effort },
     messages: [
       {
         role: 'user',

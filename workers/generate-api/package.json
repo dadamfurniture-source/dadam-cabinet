@@ -10,7 +10,8 @@
     "test": "node --test \"test/*.test.js\""
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.132.1"
+    "@anthropic-ai/sdk": "^0.132.1",
+    "jpeg-js": "^0.4.4"
   },
   "devDependencies": {
     "wrangler": "^4.149.0"
