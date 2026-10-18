@@ -65,6 +65,7 @@
       .alert-err { background: #fdecec; border: 1px solid #f2c2c2; color: #7a1a1a; }
       .alert-ok { background: #e8f5ec; border: 1px solid #b7dcc3; color: #14562c; }
       .status { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #eef1f4; font-size: 12px; }
+      .status.tier { background: #fff3e0; color: #e65100; }
     </style>
   </head>
   <body>
@@ -125,6 +126,9 @@
           <label>수금액
             <input id="inpReceived" type="number" min="0" step="1000" style="width: 140px" />
           </label>
+          <label id="lblTier" hidden>구분
+            <select id="selTier"></select>
+          </label>
           <button type="button" id="btnSaveOrder">저장</button>
         </div>
 
@@ -167,6 +171,8 @@
           material: '자재', hardware: '부자재', labor: '노무',
           outsourcing: '외주', logistics: '물류', other: '기타',
         };
+        // 수주 구분 — 같은 원가라도 거래처(인테리어 업체)에는 × 1.1, 고객에게는 × 1.2 (2026-10-19 대표)
+        var TIER_LABELS = { customer: '고객', partner: '거래처' };
 
         function el(id) { return document.getElementById(id); }
         function esc(v) {
@@ -238,7 +244,8 @@
               return (
                 '<tr>' +
                 '<td>' + esc(o.order_no) + '</td>' +
-                '<td>' + esc(o.customer_name || '-') + '</td>' +
+                '<td>' + esc(o.customer_name || '-') +
+                (o.price_tier === 'partner' ? ' <span class="status tier">거래처</span>' : '') + '</td>' +
                 '<td><span class="status">' + esc(STATUS_LABELS[o.status] || o.status) + '</span></td>' +
                 '<td class="num">' + krw(o.contract_amount) + '</td>' +
                 '<td class="num">' + krw(o.received_amount) + '</td>' +
@@ -279,6 +286,21 @@
             })
             .join('');
           el('inpReceived').value = d.order.received_amount;
+
+          // 구분 — 고객 · 거래처. 칸이 아직 DB 에 없으면(orders-price-tier.sql 실행 전) 고칠 곳을 숨긴다.
+          // 비어 있는 옛 수주는 '모름'으로 두고, 경영 대시보드는 그때만 계약금으로 짐작한다
+          var hasTier = Object.prototype.hasOwnProperty.call(d.order, 'price_tier');
+          el('lblTier').hidden = !hasTier;
+          if (hasTier) {
+            var tiers = Object.keys(TIER_LABELS);
+            if (!d.order.price_tier) tiers.unshift('');
+            el('selTier').innerHTML = tiers
+              .map(function (k) {
+                return '<option value="' + k + '"' + ((d.order.price_tier || '') === k ? ' selected' : '') + '>' +
+                  (k ? TIER_LABELS[k] : '모름 (계약금으로 짐작)') + '</option>';
+              })
+              .join('');
+          }
 
           el('selCategory').innerHTML = Object.keys(COST_LABELS)
             .map(function (k) { return '<option value="' + k + '">' + COST_LABELS[k] + '</option>'; })
@@ -335,10 +357,9 @@
         async function saveOrder() {
           if (!state.current) return;
           try {
-            await api('/orders/' + encodeURIComponent(state.current), {
-              method: 'PATCH',
-              body: { status: el('selStatus').value, received_amount: Number(el('inpReceived').value) || 0 },
-            });
+            var patch = { status: el('selStatus').value, received_amount: Number(el('inpReceived').value) || 0 };
+            if (!el('lblTier').hidden) patch.price_tier = el('selTier').value || null;
+            await api('/orders/' + encodeURIComponent(state.current), { method: 'PATCH', body: patch });
             note('수주 정보를 저장했습니다.');
             await load();
             await open(state.current);

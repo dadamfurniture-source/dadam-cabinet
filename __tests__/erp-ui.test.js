@@ -109,3 +109,39 @@ describe('마이그레이션', () => {
     expect(SQL).toMatch(/REVOKE ALL ON order_costs FROM anon/);
   });
 });
+
+describe('수주 구분 — 고객 · 거래처 (2026-10-19 대표: 수주에 거래처 칸)', () => {
+  const TIER_SQL = fs.readFileSync(path.join(ROOT, 'database/orders-price-tier.sql'), 'utf8');
+  const detail = ERP.slice(ERP.indexOf('function renderDetail'), ERP.indexOf('async function load'));
+  const save = ERP.slice(ERP.indexOf('async function saveOrder'), ERP.indexOf('async function addCost'));
+
+  test('상세에서 구분을 고르고 저장한다', () => {
+    expect(ERP).toMatch(/id="lblTier" hidden/);
+    expect(ERP).toMatch(/id="selTier"/);
+    expect(ERP).toMatch(/TIER_LABELS = \{ customer: '고객', partner: '거래처' \}/);
+    expect(save).toMatch(/patch\.price_tier = el\('selTier'\)\.value \|\| null/);
+  });
+
+  test('칸이 아직 DB 에 없으면(SQL 전) 고칠 곳을 숨기고 저장에도 싣지 않는다', () => {
+    expect(detail).toMatch(/hasOwnProperty\.call\(d\.order, 'price_tier'\)/);
+    expect(detail).toMatch(/el\('lblTier'\)\.hidden = !hasTier/);
+    expect(save).toMatch(/if \(!el\('lblTier'\)\.hidden\)/);
+  });
+
+  test('비어 있는 옛 수주는 고객으로 단정하지 않고 모름으로 둔다', () => {
+    expect(detail).toMatch(/if \(!d\.order\.price_tier\) tiers\.unshift\(''\)/);
+    expect(detail).toMatch(/모름 \(계약금으로 짐작\)/);
+  });
+
+  test('목록에서 거래처 주문이 보인다', () => {
+    expect(ERP).toMatch(/o\.price_tier === 'partner' \? ' <span class="status tier">거래처<\/span>'/);
+  });
+
+  test('SQL: 두 값만 받고, 여러 번 실행해도 안전하고, 옛 수주는 확인서 금액 종류로 채운다', () => {
+    expect(TIER_SQL).toMatch(/ADD COLUMN IF NOT EXISTS price_tier TEXT/);
+    expect(TIER_SQL).toMatch(/DROP CONSTRAINT IF EXISTS orders_price_tier_chk/);
+    expect(TIER_SQL).toMatch(/price_tier IN \('customer', 'partner'\)/);
+    expect(TIER_SQL).toMatch(/d\.totals->>'price_tier' = 'partner'/);
+    expect(TIER_SQL).toMatch(/AND o\.price_tier IS NULL/);
+  });
+});

@@ -11,7 +11,7 @@
 
 import { selectOne, selectMany, insertOne, insertMany, updateById, updateBy, upsertOne, ValidationError, NotFoundError, ConflictError } from '../supabase.js';
 import { postToWebhook } from '../slack.js';
-import { listOrders } from '../orders.js';
+import { listOrders, tierOf } from '../orders.js';
 import { workloadFromSnapshot } from './workload.js';
 import { planProduction } from './planner.js';
 import { buildProposalBlocks, buildInstructionBlocks, buildDailyBlocks, assignmentsFromSuggestions, actionKey } from './notify.js';
@@ -408,7 +408,7 @@ export function summarizeMonth(orders, snapshotsById, { month, overheadMonthly }
     const revenue = Math.round(Number(o.contract_amount || 0) / 1.1);
     // 고정비 회수분(몸통 장당)은 지출이 아니다 — 월 고정비(overheadMonthly)와 두 번 빼지 않게 덜어낸다
     const cost = q && q.cost && Number.isFinite(Number(q.cost.total)) ? Number(q.cost.total) - (Number(q.cost.fixed_recovery) || 0) : null;
-    const tier = q && q.partner && Math.abs(Number(o.contract_amount) - Number(q.partner.total)) < 1000 ? 'partner' : 'customer';
+    const tier = tierOf(o, q);
     rows.push({
       id: o.id,
       order_no: o.order_no,
