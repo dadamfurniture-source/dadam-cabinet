@@ -41,7 +41,18 @@ import {
   DbError,
   verifyJwt,
   assertDesignOwner,
+  selectOne,
 } from './supabase.js';
+import {
+  listReports,
+  getReport,
+  updateReportMeta,
+  createNote,
+  reportSummary,
+  backfillReports,
+} from './reports/service.js';
+import { isAdmin } from './reports/admin.js';
+import { renderReportPrint } from './templates/report-print.js';
 import { createSnapshot, listSnapshots, getSnapshot, previewQuote } from './snapshots.js';
 import {
   issueDocument,
@@ -74,6 +85,7 @@ import {
   runDailyBriefs,
   getMonthlySummary,
   getProposal,
+  listProposals,
   decideProposal,
   listAssignments,
   getSettings,
@@ -234,8 +246,23 @@ async function handleGetDocument(request, env, { params, user }) {
 }
 
 /** 내부용 인쇄 화면. 작업지시서는 여기서 연다. */
+/**
+ * 인쇄용 문서 — 설계 주인 것, 또는 관리자(보관함에서 남의 작업지시서를 연다 — work-reports-archive.plan.md §5).
+ */
+async function getDocumentForPrint(env, { documentId, user }) {
+  try {
+    return await getDocumentForOwner(env, { documentId, user });
+  } catch (err) {
+    if (!(err instanceof ForbiddenError) || !(await isAdmin(env, user))) throw err;
+    const doc = await selectOne(env, 'design_documents', { id: `eq.${documentId}`, select: '*' });
+    const snapshot = doc ? await selectOne(env, 'design_snapshots', { id: `eq.${doc.snapshot_id}`, select: '*' }) : null;
+    if (!doc || !snapshot) throw new NotFoundError('문서를 찾을 수 없습니다');
+    return { doc, snapshot };
+  }
+}
+
 async function handlePrintDocument(request, env, { params, user }) {
-  const { doc, snapshot } = await getDocumentForOwner(env, {
+  const { doc, snapshot } = await getDocumentForPrint(env, {
     documentId: params.documentId,
     user,
   });
@@ -337,6 +364,48 @@ async function handleGetProductionPlan(request, env, { user }) {
 async function handleCreateProposal(request, env, { user }) {
   const data = await proposePlan(env, { user, trigger: 'manual', triggerLabel: '수동 재계산' });
   return jsonResponse(request, env, { success: true, data }, 201);
+}
+
+async function handleListProposals(request, env, { user }) {
+  const url = new URL(request.url);
+  const items = await listProposals(env, { user, status: url.searchParams.get('status'), from: url.searchParams.get('from') });
+  return jsonResponse(request, env, { success: true, data: { items } });
+}
+
+// ── 작업 지시 보고 보관함 (work-reports-archive.plan.md §4) ──
+function queryOf(request) {
+  return Object.fromEntries(new URL(request.url).searchParams.entries());
+}
+
+async function handleListReports(request, env, { user }) {
+  return jsonResponse(request, env, { success: true, data: await listReports(env, { user, query: queryOf(request) }) });
+}
+
+async function handleReportSummary(request, env, { user }) {
+  return jsonResponse(request, env, { success: true, data: await reportSummary(env, { user, query: queryOf(request) }) });
+}
+
+async function handleGetReport(request, env, { params, user }) {
+  return jsonResponse(request, env, { success: true, data: await getReport(env, { user, id: params.reportId }) });
+}
+
+async function handlePrintReport(request, env, { params, user }) {
+  const report = await getReport(env, { user, id: params.reportId });
+  return htmlResponse(request, env, renderReportPrint(report, { live: report.live }));
+}
+
+async function handleUpdateReport(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await updateReportMeta(env, { user, id: params.reportId, body }) });
+}
+
+async function handleCreateNote(request, env, { user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await createNote(env, { user, body }) }, 201);
+}
+
+async function handleBackfillReports(request, env, { user }) {
+  return jsonResponse(request, env, { success: true, data: await backfillReports(env, { user }) });
 }
 
 async function handleGetProposal(request, env, { params, user }) {
@@ -549,6 +618,7 @@ const router = createRouter([
   // 생산 계획 · 인력 추천 (주문이 들어오면 자동 제안 → 대표 승인 → 작업자 지시)
   { method: 'GET',  path: '/production/plan',                          auth: 'jwt', handler: handleGetProductionPlan },
   { method: 'POST', path: '/production/proposals',                     auth: 'jwt', handler: handleCreateProposal },
+  { method: 'GET',  path: '/production/proposals',                     auth: 'jwt', handler: handleListProposals },
   { method: 'GET',  path: '/production/proposals/:proposalId',         auth: 'jwt', handler: handleGetProposal },
   { method: 'POST', path: '/production/proposals/:proposalId/decision', auth: 'jwt', handler: handleDecideProposal },
   { method: 'GET',  path: '/production/assignments',                   auth: 'jwt', handler: handleListAssignments },
@@ -563,6 +633,15 @@ const router = createRouter([
   { method: 'POST', path: '/production/calibration/apply',             auth: 'jwt', handler: handleApplyCalibration },
 
   // 공개 — 작업자 링크 (JWT 없음, X-Worker-Token 으로 인증)
+  // 작업 지시 보고 보관함 — 관리자 전원 읽기, 메모·고정·보관은 주인 또는 admin 이상
+  { method: 'GET',   path: '/reports',                   auth: 'jwt', handler: handleListReports },
+  { method: 'POST',  path: '/reports',                   auth: 'jwt', handler: handleCreateNote },
+  { method: 'GET',   path: '/reports/summary',           auth: 'jwt', handler: handleReportSummary },
+  { method: 'GET',   path: '/reports/:reportId',         auth: 'jwt', handler: handleGetReport },
+  { method: 'PATCH', path: '/reports/:reportId',         auth: 'jwt', handler: handleUpdateReport },
+  { method: 'GET',   path: '/reports/:reportId/print',   auth: 'jwt', handler: handlePrintReport },
+  { method: 'POST',  path: '/admin/reports/backfill',    auth: 'jwt', handler: handleBackfillReports },
+
   { method: 'GET',  path: '/public/production/today',                          auth: 'none', handler: handleWorkerToday },
   { method: 'POST', path: '/public/production/worklogs',                       auth: 'none', handler: handleWorkerLog },
   { method: 'POST', path: '/public/production/assignments/:assignmentId/done', auth: 'none', handler: handleWorkerAssignmentDone },
