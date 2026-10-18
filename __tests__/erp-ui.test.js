@@ -145,3 +145,42 @@ describe('수주 구분 — 고객 · 거래처 (2026-10-19 대표: 수주에 �
     expect(TIER_SQL).toMatch(/AND o\.price_tier IS NULL/);
   });
 });
+
+describe('재작업 · A/S 기록 (경영 대시보드 2단계 PR-6)', () => {
+  const PHASE2 = fs.readFileSync(path.join(ROOT, 'database/management-phase2.sql'), 'utf8');
+  const render = ERP.slice(ERP.indexOf('function renderReworks'), ERP.indexOf('async function addRework'));
+  const add = ERP.slice(ERP.indexOf('async function addRework'), ERP.indexOf('async function removeRework'));
+
+  test('상세에 종류 · 원인 · 날짜 · 분 · 비용 · 부재 · 메모 입력과 목록이 있다', () => {
+    for (const id of ['selReworkKind', 'selReworkCause', 'inpReworkDate', 'inpReworkMin', 'inpReworkCost', 'inpReworkParts', 'inpReworkMemo', 'btnAddRework', 'reworkRows']) {
+      expect(ERP).toMatch(new RegExp(`id="${id}"`));
+    }
+  });
+
+  test('워커와 같은 원인 열 가지를 우리말로 보인다', () => {
+    for (const label of ['실측', '설계', '재단', '엣지', '조립', '설치', '자재 불량', '외주 불량', '고객 변경', '기타']) {
+      expect(ERP).toContain(`'${label}'`);
+    }
+  });
+
+  test('표가 아직 없으면(워커가 null) 입력칸 대신 SQL 안내', () => {
+    expect(render).toMatch(/d\.reworks === null/);
+    expect(render).toMatch(/el\('reworkForm'\)\.hidden = missing/);
+    expect(ERP).toMatch(/id="reworkNeedSql"[^>]*hidden/);
+  });
+
+  test('빈 분 · 비용은 0 이 아니라 비운 채로 보낸다', () => {
+    expect(add).toMatch(/inpReworkMin'\)\.value === '' \? null/);
+    expect(add).toMatch(/inpReworkCost'\)\.value === '' \? null/);
+  });
+
+  test('상세를 열 때마다 기록도 다시 그린다 (원가가 비어도)', () => {
+    expect(ERP).toMatch(/renderDetail\(\);\s*renderReworks\(\);/);
+  });
+
+  test('SQL: 원인 · 종류는 정해진 것만, 분 · 비용은 음수 불가, 관리자만 읽는다', () => {
+    expect(PHASE2).toMatch(/kind\s+TEXT NOT NULL CHECK \(kind IN \('rework', 'as'\)\)/);
+    expect(PHASE2).toMatch(/minutes\s+INT CHECK \(minutes IS NULL OR minutes >= 0\)/);
+    expect(PHASE2).toMatch(/CREATE POLICY "Admin read rework logs" ON rework_logs FOR SELECT TO authenticated USING \(public\.is_admin\(\)\)/);
+  });
+});
