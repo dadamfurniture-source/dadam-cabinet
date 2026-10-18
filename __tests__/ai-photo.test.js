@@ -448,6 +448,16 @@ describe('품목 판정 — 플래너 URL 에는 품목 종류가 없다', () =>
     [[{ section: 'lower' }, { section: 'upper' }], 'sink'],
     [[{ section: 'tall' }], 'storage'],
     [[], 'storage'],
+    // 2026-10-19 (C-1): 주방 구성이 있으면 냉장고장이 있어도 주방 — 싱크대 + 키큰장 + 냉장고장 도면이 fridge 로 갔다
+    [[{ section: 'lower' }, { section: 'upper' }, { section: 'sink' }, { section: 'tall' }, { section: 'fridge' }], 'sink'],
+    [[{ section: 'fridge' }, { section: 'sink' }], 'sink'],
+    [[{ section: 'fridge' }, { section: 'lower' }, { section: 'upper' }], 'sink'],
+    [[{ section: 'fridge' }, { section: 'hood' }], 'sink'],
+    [[{ section: 'fridge' }, { section: 'tall' }], 'fridge'],
+    [[{ section: 'fridge' }, { section: 'refrigerator' }], 'fridge'],
+    [[{ section: 'fridge' }, { section: 'lower' }], 'fridge'],
+    [[{ section: 'dishwasher' }], 'sink'],
+    [[{ section: 'upper' }], 'sink'],
   ])('%j → %s', (mods, want) => {
     expect(plannerAiPhotoCategoryOf(mods)).toBe(want);
   });
