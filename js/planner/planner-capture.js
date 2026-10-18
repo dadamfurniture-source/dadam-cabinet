@@ -836,13 +836,18 @@ const PLANNER_CAPTURE_COUNTER_TOP = 870;
 const PLANNER_CAPTURE_LOWER_MAX_Y = 1200;
 /** 가전 대역 색 — 불투명, 무채색. 모델이 "가전 자리" 로 읽되 가구 마감과 헷갈리지 않게. */
 const PLANNER_CAPTURE_STANDIN_COLOR = {
-  bowl: 0x2e3134, faucet: 0xa3a9ae, cooktop: 0x141516, hood: 0x9aa0a6, refrigerator: 0xd8dcdf, dishwasher: 0x8e959b,
+  bowl: 0x2e3134, faucet: 0xa3a9ae, cooktop: 0x141516, hood: 0x8d949a, refrigerator: 0xd8dcdf, dishwasher: 0x8e959b,
 };
+/**
+ * 2026-10-19: 후드 대역 모양 — 슬림 캐노피 + 덕트 커버 (스테인리스 톤).
+ *   canopyH 캐노피 두께 mm · ductW/ductD 덕트 커버 폭·깊이 비율(후드 폭·깊이 대비) · ductMinW/ductMinD 최소 mm
+ */
+const PLANNER_CAPTURE_HOOD = { canopyH: 90, ductW: 0.45, ductD: 0.55, ductMinW: 200, ductMinD: 180, metalness: 0.45, roughness: 0.38 };
 
 /**
  * 가전 대역의 상자 목록. 순수. 좌표는 **마커 그룹의 로컬** — 원점이 마커 바닥 가운데, +Z 앞, mm.
  *   sink         상판 위 어두운 사각 볼(얇은 판) + 뒤쪽 수전 기둥 + 앞으로 나온 토수구
- *   hood         마커 자리 그대로 회색 상자 (천장 아래)
+ *   hood         스테인리스 슬림 캐노피(마커 바닥) + 뒤쪽 가운데 좁은 덕트 커버(마커 윗면 = 천장까지) — 2026-10-19 (PLANNER_CAPTURE_HOOD)
  *   refrigerator 마커 자리 그대로 연회색 몸체
  *   dishwasher   마커 자리 그대로 회색 몸체 (앞면이 회색 판으로 읽힌다)
  *   cooktop      상판 위 검은 얇은 판 — 지금은 쿡탑 섹션이 없어 만들어지지 않는다 (마커가 있는 가전만 만든다)
@@ -874,7 +879,19 @@ function plannerCaptureStandInSpec(section, dims, support) {
   if (section === 'cooktop') {
     return [box('cooktop', [Math.min(600, Math.max(300, W - 40)), 8, Math.min(520, Math.max(300, depth * 0.8))], [0, top + 4, zc], C.cooktop, 0, 0.3)];
   }
-  if (section === 'hood') return [box('hood', [W, H, D], [0, H / 2, 0], C.hood, 0.2, 0.45)];
+  if (section === 'hood') {
+    // 2026-10-19: 회색 상자 한 덩이는 정면 입면에서 상부장처럼 읽혔다(실측 GPT — 상부장을 빈칸 없이 이어 붙임).
+    //   스테인리스 슬림 캐노피(마커 바닥) + 뒤쪽 가운데로 좁은 덕트 커버(마커 윗면 = 천장까지) — 양옆으로 벽이 보이게.
+    const canopyH = Math.min(H, PLANNER_CAPTURE_HOOD.canopyH);
+    const out = [box('hood', [W, canopyH, D], [0, canopyH / 2, 0], C.hood, PLANNER_CAPTURE_HOOD.metalness, PLANNER_CAPTURE_HOOD.roughness)];
+    const ductH = H - canopyH;
+    if (ductH > 1) {
+      const dw = Math.min(W, Math.max(PLANNER_CAPTURE_HOOD.ductMinW, Math.round(W * PLANNER_CAPTURE_HOOD.ductW)));
+      const dd = Math.min(D, Math.max(PLANNER_CAPTURE_HOOD.ductMinD, Math.round(D * PLANNER_CAPTURE_HOOD.ductD)));
+      out.push(box('hood-duct', [dw, ductH, dd], [0, canopyH + ductH / 2, -D / 2 + dd / 2], C.hood, PLANNER_CAPTURE_HOOD.metalness, PLANNER_CAPTURE_HOOD.roughness));
+    }
+    return out;
+  }
   if (section === 'refrigerator') return [box('refrigerator', [W, H, D], [0, H / 2, 0], C.refrigerator, 0, 0.5)];
   if (section === 'dishwasher') return [box('dishwasher', [W, H, D], [0, H / 2, 0], C.dishwasher, 0.1, 0.5)];
   return [];
