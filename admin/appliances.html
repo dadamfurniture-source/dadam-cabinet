@@ -114,14 +114,15 @@
     <div class="main-content" id="mainContent">
       <div class="header">
         <h1>가전 모델 관리</h1>
-        <div style="font-size: 13px; color: #666">refrigerator · hood · dishwasher · sink</div>
+        <div style="font-size: 13px; color: #666">refrigerator · hood · dishwasher · sink · cooktop</div>
       </div>
 
       <div class="tabs">
         <button data-cat="refrigerator" class="active">🧊 냉장고</button>
         <button data-cat="hood">💨 후드</button>
         <button data-cat="dishwasher">🍽️ 식기세척기</button>
-        <button data-cat="sink">🚰 분배기</button>
+        <button data-cat="sink">🚰 싱크볼</button>
+        <button type="button" data-cat="cooktop">🔥 쿡탑</button>
       </div>
 
       <div class="toolbar">
@@ -173,7 +174,7 @@
               <option value="refrigerator">🧊 냉장고</option>
               <option value="hood">💨 후드</option>
               <option value="dishwasher">🍽️ 식기세척기</option>
-              <option value="sink">🚰 분배기</option>
+              <option value="sink">🚰 싱크볼</option>
               <option value="oven">🔥 오븐</option>
               <option value="cooktop">🔥 쿡탑</option>
               <option value="washing_machine">🧺 세탁기</option>
@@ -218,6 +219,23 @@
             <label>출처 URL</label>
             <input type="text" id="f-source" placeholder="https://..." />
           </div>
+          <!-- 상판 발주 요청서 타공 (work-reports-archive.plan.md §8.1 Q10) — 싱크볼 · 쿡탑만. 표는 database/work-reports.sql -->
+          <div class="field cutout-field">
+            <label for="f-cw">타공 W (mm)</label>
+            <input type="number" id="f-cw" min="1" />
+          </div>
+          <div class="field cutout-field">
+            <label for="f-cd">타공 D (mm)</label>
+            <input type="number" id="f-cd" min="1" />
+          </div>
+          <div class="field cutout-field">
+            <label for="f-cr">타공 모서리 R (mm)</label>
+            <input type="number" id="f-cr" min="0" />
+          </div>
+          <div class="field cutout-field faucet-field">
+            <label for="f-fh">수전 타공 지름 (mm)</label>
+            <input type="number" id="f-fh" min="1" />
+          </div>
           <div class="field full">
             <label>비고</label>
             <textarea id="f-notes" placeholder="추가 메모"></textarea>
@@ -234,6 +252,14 @@
       let supabaseClient = null;
       let currentCategory = 'refrigerator';
       let currentRows = [];
+      const CUTOUT_CATS = ['sink', 'cooktop'];
+
+      /** 타공 칸은 싱크볼 · 쿡탑일 때만, 수전 지름은 싱크볼만 */
+      function toggleCutoutFields() {
+        const cat = document.getElementById('f-category').value;
+        document.querySelectorAll('.cutout-field').forEach((el) => { el.style.display = CUTOUT_CATS.includes(cat) ? '' : 'none'; });
+        document.querySelectorAll('.faucet-field').forEach((el) => { el.style.display = cat === 'sink' ? '' : 'none'; });
+      }
 
       // ── 초기화 ─────────────────────────────────────────────
       async function init() {
@@ -331,6 +357,11 @@
         document.getElementById('f-verified').value   = row?.verified ? 'true' : 'false';
         document.getElementById('f-source').value     = row?.source_url || '';
         document.getElementById('f-notes').value      = row?.notes || '';
+        document.getElementById('f-cw').value         = row?.cutout_w_mm ?? '';
+        document.getElementById('f-cd').value         = row?.cutout_d_mm ?? '';
+        document.getElementById('f-cr').value         = row?.cutout_r_mm ?? '';
+        document.getElementById('f-fh').value         = row?.faucet_hole_mm ?? '';
+        toggleCutoutFields();
         modal.classList.add('open');
       }
       function closeModal() { modal.classList.remove('open'); }
@@ -355,6 +386,14 @@
           source_url: document.getElementById('f-source').value.trim() || null,
           notes:      document.getElementById('f-notes').value.trim() || null,
         };
+        // 타공 칸은 싱크볼 · 쿡탑만 보낸다 — 다른 가전은 칼럼(work-reports.sql) 유무와 상관없이 저장되게
+        if (CUTOUT_CATS.includes(payload.category)) {
+          const int = (id) => { const v = document.getElementById(id).value; return v === '' ? null : parseInt(v, 10); };
+          payload.cutout_w_mm = int('f-cw');
+          payload.cutout_d_mm = int('f-cd');
+          payload.cutout_r_mm = int('f-cr');
+          payload.faucet_hole_mm = payload.category === 'sink' ? int('f-fh') : null;
+        }
         if (!payload.brand || !payload.model_name || !payload.width_mm || !payload.depth_mm || !payload.height_mm) {
           alert('필수값: 브랜드 / 모델명 / W / D / H');
           return;
@@ -363,7 +402,11 @@
         if (id) q = supabaseClient.from('appliance_models').update(payload).eq('id', id);
         else    q = supabaseClient.from('appliance_models').insert(payload);
         const { error } = await q;
-        if (error) { alert('저장 실패: ' + error.message); return; }
+        if (error) {
+          // 타공 칼럼이 없으면 database/work-reports.sql 을 아직 실행하지 않은 것
+          alert('저장 실패: ' + error.message + (/cutout|faucet/.test(error.message) ? '\n\n타공 칸은 database/work-reports.sql 을 Supabase 에서 실행해야 저장됩니다.' : ''));
+          return;
+        }
         closeModal();
         await loadCategory(payload.category);
       };
@@ -384,6 +427,8 @@
           await loadCategory(currentCategory);
         }
       });
+
+      document.getElementById('f-category').addEventListener('change', toggleCutoutFields);
 
       init();
     </script>
