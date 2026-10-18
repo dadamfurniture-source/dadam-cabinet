@@ -57,6 +57,12 @@
 //      걸레받이는 베이지 나무색 자리표시다. clean 동안에만 디테일 룩이 칠하지 않은(_origMaterial 없음) 몸통·선반·
 //      처짐방지목·걸레받이·좌대에 같은 모듈 도어 → 같은 섹션 도어 재질을 입힌다. 상판은 그대로. finally 에서 원래 재질로.
 //
+// 2026-10-19: ⑨ 도어 테두리·갭 뒷판·목찬넬 (plannerCaptureNeutralKind · plannerCaptureDoorEdgeThickness) — ⑧ 뒤에도
+//      front 렌더에 갈색이 남았다: 도어 테두리 막대(doorEdge, 작업 화면 줌에 맞춰 15.5mm 로 굵어진 갈색)·목찬넬 판·
+//      갭 뒷판(reveal, 상부는 초록). clean 동안에만 막대 두께를 찍는 카메라·출력 높이로 다시 잡고
+//      (max(갭/2, 1.25px)) 막대·뒷판은 짙은 회색 틈 그림자, 칠 안 한 목찬넬은 중간 회색으로. 사람이 칠한 부재는 그대로.
+//      finally 에서 scale·position·재질 원래대로, 잠깐 만든 재질은 버린다.
+//
 // 저장 (PlannerStore.saveRender, planner-store.js): 버킷 renders 의 {design}/{item}/{kind}-{yyyymmddHHMMss}.png
 //   + design_renders 행 (kind · path · width/height · camera · detail_hash). 스코프가 없으면(design=local ·
 //   로그인 전) <a download> 로 이 브라우저에 내려받는다 — 이 페이지는 앱 페이지라 다운로드가 된다.
@@ -697,6 +703,102 @@ function plannerCaptureBorrowMaterial(mesh, meshes, sectionOf) {
   return body ? body.material : null;
 }
 
+/**
+ * 2026-10-19: 도어 사이 갭 (mm). 정본은 planner-engine.js MASTER_RULES.DOOR_GAP (도어 W = 칸 W − 4) —
+ * 그 전역이 있으면 그 값을 쓴다 (plannerCaptureDoorGap). 이 상수는 전역이 없을 때(단위 시험)만.
+ */
+const PLANNER_CAPTURE_DOOR_GAP = 4;
+/**
+ * 2026-10-19: clean 캡처에서 도어 테두리 막대(doorEdge)가 출력 그림에서 지킬 최소 폭 (px).
+ * 그보다 가늘면 안티에일리어싱에 묻혀 도어 경계가 사라지고, 도어 개수가 읽히지 않는다 (이 렌더의 핵심 목적).
+ */
+const PLANNER_CAPTURE_DOOR_EDGE_MIN_PX = 1.25;
+/**
+ * 2026-10-19: clean 캡처에서 칠하지 않은 틈·손잡이 부재가 입는 무채색 재질.
+ *   gap      도어 테두리 막대(doorEdge)·갭 뒷판(reveal) — 도어 사이 그림자 틈. 짙은 회색.
+ *   channel  목찬넬 판(channelBase·channelFace) — 손 넣는 홈. 알루미늄 J찬넬 같은 중간 회색.
+ */
+const PLANNER_CAPTURE_NEUTRAL = {
+  gap: { color: 0x2a2a2a, roughness: 0.9, metalness: 0 },
+  channel: { color: 0x8c8c8c, roughness: 0.45, metalness: 0.3 },
+};
+
+/** 2026-10-19: 도어 갭 — MASTER_RULES.DOOR_GAP 이 있으면 그 값, 없으면 4. */
+function plannerCaptureDoorGap() {
+  const R = (typeof MASTER_RULES !== 'undefined' && MASTER_RULES) ? MASTER_RULES : null;
+  const g = R ? Number(R.DOOR_GAP) : NaN;
+  return g > 0 ? g : PLANNER_CAPTURE_DOOR_GAP;
+}
+
+/**
+ * 2026-10-19: clean 캡처에서 무채색으로 바꿀 부재의 갈래. 순수.
+ *   2026-10-18 잡 e4dc4435 의 front 렌더(도어만 칠함)에 남은 갈색 약 10만 픽셀 가운데 도어 테두리 막대 약 6.2만,
+ *   목찬넬 판 약 2.5만, 갭 뒷판·다리발 약 1.2천, 상부 갭 뒷판 초록 약 2.4천. 모델이 모든 장에 갈색 테두리를 그렸다.
+ *   'gap'     entityKind 'doorEdge'·'reveal' — 섹션 자리표시 색을 어둡게 한 막대·뒷판(하부 #3e3021, 상부는 초록 기운).
+ *             PLANNER_FINISH_PAINT_SKIP 이라 디테일 룩이 칠하지 않는다. 실물은 도어 사이 그림자 틈이라 무채색이 맞다.
+ *   'channel' carcass side 'channelBase'·'channelFace' — 목찬넬 지면판·전면판. 자리표시 #7a6a45 (진한 우드 톤).
+ *             손잡이 슬롯이라 사람이 칠할 수 있다 — 칠했으면(_origMaterial) 그 마감 그대로 (null).
+ *             칠하지 않았을 때 도어 재질을 빌리지 않는 까닭: 목찬넬은 도어 위 30mm 틈 안쪽으로 물러난 홈이다.
+ *             도어색이면 도어가 위로 30mm 늘어난 것처럼 읽히고, 갈색이면 다시 갈색 띠가 된다. 무채색 중간 회색은
+ *             "손잡이 홈(알루미늄 J찬넬 톤)" 으로 읽히고 없는 나무 마감을 지어내지 않는다.
+ *   그 밖(도어·몸통·상판·다리발·손잡이 막대 등)은 null. 다리발은 걸레받이 뒤라 거의 안 보인다 — 손대지 않는다.
+ * @param {object} ud mesh.userData
+ * @returns {'gap'|'channel'|null}
+ */
+function plannerCaptureNeutralKind(ud) {
+  if (!ud || ud._origMaterial) return null;
+  if (ud.entityKind === 'doorEdge' || ud.entityKind === 'reveal') return 'gap';
+  if (ud.entityKind === 'carcass' && (ud.side === 'channelBase' || ud.side === 'channelFace')) return 'channel';
+  return null;
+}
+
+/**
+ * 2026-10-19: 원근 카메라에서 시선 깊이 depth(mm)의 한 픽셀이 몇 mm 인가. 순수.
+ * 세로 화각 fovDeg · 출력 높이 heightPx 기준. 값이 맞지 않으면 null.
+ */
+function plannerCaptureMmPerPixel(depth, fovDeg, heightPx) {
+  if (!(depth > 0) || !(fovDeg > 0) || !(heightPx > 0)) return null;
+  return 2 * depth * Math.tan((fovDeg / 2) * Math.PI / 180) / heightPx;
+}
+
+/**
+ * 2026-10-19: clean 캡처의 도어 테두리 막대 두께 (mm). 순수.
+ *   작업 화면의 keepDoorEdgesVisible 은 max(갭/2, 1.6px × 화면 mm/px) 로 **작업 화면 줌**에 맞춰 키운다 —
+ *   멀리서 보던 화면 그대로 찍으면 15mm 넘는 갈색 띠가 된다. 캡처에서는 같은 규칙을 **찍는 카메라·출력 해상도**로
+ *   다시 잰다: max(갭/2, PLANNER_CAPTURE_DOOR_EDGE_MIN_PX × 출력 mm/px). 갭/2 = 도어마다 갭의 반쪽 —
+ *   맞닿은 두 도어의 막대와 그 사이 갭(뒷판)이 함께 한 줄의 그림자 틈이 된다. 화면 줌과 무관하다.
+ * @param {number|null} mmPerPx 출력 그림의 mm/px. 모르면 갭 기준
+ * @param {number} [gap] 도어 갭 (기본 plannerCaptureDoorGap())
+ * @param {number} [minPx] 최소 폭 px (기본 PLANNER_CAPTURE_DOOR_EDGE_MIN_PX)
+ */
+function plannerCaptureDoorEdgeThickness(mmPerPx, gap, minPx) {
+  const g = gap > 0 ? gap : plannerCaptureDoorGap();
+  const px = minPx > 0 ? minPx : PLANNER_CAPTURE_DOOR_EDGE_MIN_PX;
+  const base = g / 2;
+  if (!(mmPerPx > 0) || !Number.isFinite(mmPerPx)) return base;
+  return Math.max(base, px * mmPerPx);
+}
+
+/**
+ * 2026-10-19: 테두리 막대 하나의 scale·position (부모 로컬). mockup-structure.html keepDoorEdgesVisible 과 같은 식 —
+ * 막대 바깥선은 도어 윤곽에 붙고 두께 t 만큼 안쪽으로 든다. 막대는 1×1×1 상자를 scale 로 늘린 것이다. 순수.
+ * @param {object} ud doorEdge userData {axis, baseW, baseH, cx, cy, z}
+ * @param {number} t 두께 mm
+ * @returns {{scale:number[], position:number[]}|null}
+ */
+function plannerCaptureDoorEdgeLayout(ud, t) {
+  if (!ud || !(t > 0)) return null;
+  const { axis, baseW, baseH, cx, cy, z } = ud;
+  if (!(baseW > 0) || !(baseH > 0) || ![cx, cy, z].every(Number.isFinite)) return null;
+  if (axis === 'left' || axis === 'right') {
+    return { scale: [t, baseH, 1], position: [cx + (axis === 'left' ? -1 : 1) * (baseW / 2 - t / 2), cy, z] };
+  }
+  if (axis === 'top' || axis === 'bottom') {
+    return { scale: [baseW, t, 1], position: [cx, cy + (axis === 'top' ? 1 : -1) * (baseH / 2 - t / 2), z] };
+  }
+  return null;
+}
+
 /** 대역이 상판 높이를 못 찾을 때 — 하부장 기본 높이 (PLANNER_SECTIONS.lower.moduleH) */
 const PLANNER_CAPTURE_COUNTER_TOP = 870;
 /** 상판을 찾을 때 이보다 높이 올라가는 부재는 하부가 아니다 (상부장·키큰장) */
@@ -992,7 +1094,7 @@ const PlannerCapture = {
   // 상태 주머니(st)를 먼저 만들고 바꿀 때마다 거기 적는다 — 중간에 던져도 end 가 바꾼 만큼만 되돌린다.
 
   _cleanState() {
-    return { hidden: [], added: [], mats: [], bg: null, clear: null, lights: [], shadowMap: null };
+    return { hidden: [], added: [], mats: [], own: [], edges: [], bg: null, clear: null, lights: [], shadowMap: null };
   },
 
   /** 모듈 id → 섹션. mount 의 sectionOf → PlannerDetail.moduleOf → 모르면 null. */
@@ -1028,11 +1130,78 @@ const PlannerCapture = {
     });
   },
 
-  /** 숨김 · 가전 대역 · 흰 배경(알파 0 으로 지우기) · 상몰딩·칠 안 한 몸통·걸레받이 재질. 바꾼 것은 전부 st 에 적는다. */
+  /**
+   * 2026-10-19: 칠하지 않은 도어 테두리 막대·갭 뒷판·목찬넬 판에 무채색 재질을 잠깐 입힌다 (plannerCaptureNeutralKind).
+   * 재질은 갈래마다 한 벌 새로 만들어 st.own 에 적는다 — _cleanEnd 가 원래 재질을 끼운 뒤 버린다(dispose).
+   * makeBox 재질의 polygonOffset(테두리 선과 z-fighting 막기)·side 는 첫 mesh 에서 옮겨 받는다.
+   */
+  _cleanNeutral(t, T, st) {
+    const g = t.moduleGroup;
+    if (!g || typeof g.traverse !== 'function' || !T || !T.MeshStandardMaterial) return;
+    const meshes = [];
+    g.traverse((o) => { if (o && o.isMesh && o.material) meshes.push(o); });
+    const made = {};
+    meshes.forEach((o) => {
+      const kind = plannerCaptureNeutralKind(o.userData);
+      if (!kind) return;
+      let mat = made[kind];
+      if (!mat) {
+        const spec = PLANNER_CAPTURE_NEUTRAL[kind];
+        mat = new T.MeshStandardMaterial({ color: spec.color, roughness: spec.roughness, metalness: spec.metalness });
+        const base = o.material;
+        ['polygonOffset', 'polygonOffsetFactor', 'polygonOffsetUnits', 'side'].forEach((k) => {
+          if (base && base[k] !== undefined) mat[k] = base[k];
+        });
+        made[kind] = mat;
+        st.own.push(mat);
+      }
+      st.mats.push({ mesh: o, material: o.material });
+      o.material = mat;
+    });
+  },
+
+  /**
+   * 2026-10-19: 도어 테두리 막대 두께를 **찍는 카메라·출력 높이** 기준으로 다시 잡는다 (plannerCaptureDoorEdgeThickness).
+   * 작업 화면 keepDoorEdgesVisible 이 화면 줌에 맞춰 키운 두께(멀리서 보면 15mm 넘게)를 그대로 찍지 않는다.
+   * 막대마다 제 자리의 시선 깊이로 mm/px 를 잰다 (massing 은 앞뒤 깊이가 다르다). 바꾸기 전에 scale·position·
+   * visible·geometry 를 st.edges 에 적는다 — _cleanEnd 가 되돌린다. keepDoorEdgesVisible 은 animate 루프(rAF)에서만
+   * 불리고 캡처는 동기라 그 사이에 끼어들지 못한다. 다음 프레임에서 그것이 다시 잡아도 작업 화면 값과 같다.
+   */
+  _cleanDoorEdges(t, T, cam, heightPx, st) {
+    const g = t.moduleGroup;
+    if (!g || typeof g.traverse !== 'function' || !cam || !T || !T.Vector3) return;
+    const gap = plannerCaptureDoorGap();
+    const eye = cam.position.clone();
+    const fwd = new T.Vector3();
+    cam.getWorldDirection(fwd);
+    const p = new T.Vector3();
+    const bars = [];
+    g.traverse((o) => { if (o && o.isMesh && o.userData && o.userData.entityKind === 'doorEdge' && o.parent) bars.push(o); });
+    bars.forEach((o) => {
+      const ud = o.userData;
+      try { o.parent.updateWorldMatrix(true, false); } catch (e) { /* 무해 */ }
+      p.set(ud.cx, ud.cy, ud.z);
+      o.parent.localToWorld(p);
+      const depth = p.sub(eye).dot(fwd);
+      const tmm = plannerCaptureDoorEdgeThickness(plannerCaptureMmPerPixel(depth, cam.fov, heightPx), gap);
+      const lay = plannerCaptureDoorEdgeLayout(ud, tmm);
+      if (!lay) return;
+      st.edges.push({ mesh: o, scale: o.scale.toArray(), position: o.position.toArray(), visible: o.visible, geometry: o.geometry });
+      o.scale.set(lay.scale[0], lay.scale[1], lay.scale[2]);
+      o.position.set(lay.position[0], lay.position[1], lay.position[2]);
+    });
+  },
+
+  /**
+   * 숨김 · 가전 대역 · 흰 배경(알파 0 으로 지우기) · 상몰딩·칠 안 한 몸통·걸레받이 재질 ·
+   * 칠 안 한 테두리 막대·갭 뒷판·목찬넬 무채색. 바꾼 것은 전부 st 에 적는다.
+   * (테두리 막대 두께는 카메라가 정해진 뒤 capturePixels 가 _cleanDoorEdges 로 따로 잡는다.)
+   */
   _cleanBegin(t, T, st) {
     const sel = plannerCaptureCleanTargets(t.scene, t.moduleGroup);
     sel.hide.forEach((o) => { st.hidden.push(o); o.visible = false; });
     this._cleanMoldings(t, st);
+    this._cleanNeutral(t, T, st);
     sel.markers.forEach((mk) => {
       // buildMarkerMesh 는 마커 상자를 그룹 로컬 (0, H/2, 0) 에 W×H×D 로 둔다
       const geo = mk.marker.geometry;
@@ -1147,6 +1316,16 @@ const PlannerCapture = {
     });
     st.hidden.splice(0).forEach((o) => { try { o.visible = true; } catch (e) { /* 무해 */ } });
     st.mats.splice(0).reverse().forEach((s) => { try { s.mesh.material = s.material; } catch (e) { /* 무해 */ } });
+    // 2026-10-19: 잠깐 만든 무채색 재질 — 원래 재질을 다 끼운 뒤에 버린다
+    st.own.splice(0).forEach((m) => { try { m.dispose(); } catch (e) { /* 무해 */ } });
+    st.edges.splice(0).reverse().forEach((s) => {
+      try {
+        s.mesh.scale.set(s.scale[0], s.scale[1], s.scale[2]);
+        s.mesh.position.set(s.position[0], s.position[1], s.position[2]);
+        s.mesh.visible = s.visible;
+        if (s.mesh.geometry !== s.geometry) s.mesh.geometry = s.geometry;
+      } catch (e) { /* 무해 */ }
+    });
     if (st.bg) { try { t.scene.background = st.bg.value; } catch (e) { /* 무해 */ } st.bg = null; }
     if (st.clear) { try { t.renderer.setClearColor(st.clear.color, st.clear.alpha); } catch (e) { /* 무해 */ } st.clear = null; }
     st.lights.splice(0).forEach((s) => {
@@ -1220,6 +1399,8 @@ const PlannerCapture = {
       cam.lookAt(frame.target[0], frame.target[1], frame.target[2]);
       cam.updateProjectionMatrix();
       cam.updateMatrixWorld(true);
+      // 2026-10-19: 도어 테두리 막대 — 이 카메라·출력 높이 기준 두께 (작업 화면 줌과 무관)
+      if (clean) this._cleanDoorEdges(t, T, cam, height, cleanSt);
 
       const out = this.outputPass();
       rtA = new T.WebGLRenderTarget(width, height, {
@@ -1588,6 +1769,14 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerCaptureMoldingMaterial,
     plannerCaptureBorrowKind,
     plannerCaptureBorrowMaterial,
+    PLANNER_CAPTURE_DOOR_GAP,
+    PLANNER_CAPTURE_DOOR_EDGE_MIN_PX,
+    PLANNER_CAPTURE_NEUTRAL,
+    plannerCaptureDoorGap,
+    plannerCaptureNeutralKind,
+    plannerCaptureMmPerPixel,
+    plannerCaptureDoorEdgeThickness,
+    plannerCaptureDoorEdgeLayout,
     plannerCaptureStandInSpec,
     plannerCaptureSupportOf,
     plannerCaptureOverWhite,
