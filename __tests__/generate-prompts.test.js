@@ -251,7 +251,10 @@ describe('변형 프롬프트', () => {
       expect(p).toMatch(/every other piece of furniture or fixture in the room/);
     }
     const v = P.buildVariantPrompt(P.FINISHES[0]);
-    expect(v).toContain("The furniture's own exposed end panels, open shelves and trim: " + P.FINISHES[0].accent);
+    // 2026-10-19: 끝 측판·필러·걸레받이는 문짝 색, 보조색은 오픈 선반에만
+    expect(v).toContain("Door and drawer fronts, together with the furniture's own end panels, fillers, plinth and trim: " + P.FINISHES[0].body + ', one continuous colour');
+    expect(v).toContain('Open shelves, only if the furniture has any: ' + P.FINISHES[0].accent);
+    expect(P.buildTwoToneVariantPrompt(P.TWO_TONES[0])).toMatch(/Each run's own end panels, fillers, plinth and trim take that run's colour\./);
     expect(v).not.toMatch(/^- Side panels/m);
   });
 
