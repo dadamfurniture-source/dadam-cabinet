@@ -53,6 +53,10 @@
       tr:hover { background: #f8f9fa; }
       td.right { text-align: right; }
       td.center { text-align: center; }
+      td.gap { white-space: nowrap; }
+      td.gap small { display: block; color: #888; font-size: 11px; }
+      td.gap .none { color: #bbb; }
+      .field .hint { font-size: 11px; color: #888; margin-top: 3px; }
       .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
       .badge.verified { background: #e3f5e1; color: #2c6a26; }
       .badge.unverified { background: #fef3d6; color: #8a6620; }
@@ -132,12 +136,13 @@
               <th class="right">D (mm)</th>
               <th class="right">H (mm)</th>
               <th class="right">용량 (L)</th>
+              <th scope="col" class="right" title="설치할 때 가전 둘레에 비워 둘 공간 — 좌우는 한쪽 기준">여유 공간 (mm)</th>
               <th class="center">검증</th>
               <th class="right">작업</th>
             </tr>
           </thead>
           <tbody id="tbody">
-            <tr><td colspan="9" class="empty">로딩 중...</td></tr>
+            <tr><td colspan="10" class="empty">로딩 중...</td></tr>
           </tbody>
         </table>
       </div>
@@ -198,6 +203,17 @@
           <div class="field">
             <label>용량 (L)</label>
             <input type="number" id="f-cap" min="0" />
+          </div>
+          <!-- 설치 여유 — 플래너가 냉장고 위장 폭·높이를 이 값으로 잡는다 (mockup-shell.html fridgeGapsOf) -->
+          <div class="field">
+            <label for="f-sg">옆 여유 — 한쪽 (mm)</label>
+            <input type="number" id="f-sg" min="0" />
+            <div class="hint">자리 폭 = W + 2 × 옆 여유</div>
+          </div>
+          <div class="field">
+            <label for="f-tg">위 여유 (mm)</label>
+            <input type="number" id="f-tg" min="0" />
+            <div class="hint">자리 높이 = H + 위 여유</div>
           </div>
           <div class="field">
             <label>검증</label>
@@ -292,17 +308,35 @@
           b.classList.toggle('active', b.dataset.cat === cat);
         });
         const tbody = document.getElementById('tbody');
-        tbody.innerHTML = '<tr><td colspan="9" class="empty">로딩 중...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="empty">로딩 중...</td></tr>';
         const { data, error } = await supabaseClient
           .from('appliance_models').select('*')
           .eq('category', cat).order('brand').order('model_name');
         if (error) {
-          tbody.innerHTML = `<tr><td colspan="9" class="empty">에러: ${error.message}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="10" class="empty">에러: ${error.message}</td></tr>`;
           return;
         }
         currentRows = data || [];
         renderTable(currentRows);
       }
+      /**
+       * 여유 공간 칸 — 좌우(한쪽) · 위, 그리고 그 여유를 둔 자리 크기.
+       *   자리 폭 = W + 2 × 좌우 여유, 자리 높이 = H + 위 여유 (플래너 냉장고 위장 계산과 같은 식)
+       * 값은 side_gap_mm · top_gap_mm (database/appliance-models-install-gaps.sql). 비면 '미입력'.
+       */
+      function gapCell(r) {
+        const side = r.side_gap_mm;
+        const top = r.top_gap_mm;
+        if (side == null && top == null) return '<span class="none">미입력</span>';
+        const parts = [];
+        if (side != null) parts.push(`좌우 ${side}`);
+        if (top != null) parts.push(`위 ${top}`);
+        const w = side != null && r.width_mm ? r.width_mm + 2 * side : null;
+        const h = top != null && r.height_mm ? r.height_mm + top : null;
+        const room = w || h ? `<small>자리 ${w ?? r.width_mm} × ${h ?? r.height_mm}</small>` : '';
+        return parts.join(' · ') + room;
+      }
+
       function renderTable(rows) {
         const q = document.getElementById('searchInput').value.trim().toLowerCase();
         const filtered = q ? rows.filter(r =>
@@ -311,7 +345,7 @@
           (r.model_code || '').toLowerCase().includes(q)) : rows;
         const tbody = document.getElementById('tbody');
         if (!filtered.length) {
-          tbody.innerHTML = '<tr><td colspan="9" class="empty">데이터 없음</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="10" class="empty">데이터 없음</td></tr>';
           return;
         }
         tbody.innerHTML = filtered.map(r => `
@@ -323,6 +357,7 @@
             <td class="right">${r.depth_mm}</td>
             <td class="right">${r.height_mm}</td>
             <td class="right">${r.capacity_l ?? ''}</td>
+            <td class="right gap">${gapCell(r)}</td>
             <td class="center"><span class="badge ${r.verified ? 'verified' : 'unverified'}">${r.verified ? '✓ 검증' : '⚠ 표준'}</span></td>
             <td class="right row-actions">${canEdit ? `
               <button class="edit"   data-id="${r.id}">수정</button>
@@ -353,6 +388,8 @@
         document.getElementById('f-d').value          = row?.depth_mm || '';
         document.getElementById('f-h').value          = row?.height_mm || '';
         document.getElementById('f-cap').value        = row?.capacity_l ?? '';
+        document.getElementById('f-sg').value         = row?.side_gap_mm ?? '';
+        document.getElementById('f-tg').value         = row?.top_gap_mm ?? '';
         document.getElementById('f-verified').value   = row?.verified ? 'true' : 'false';
         document.getElementById('f-source').value     = row?.source_url || '';
         document.getElementById('f-notes').value      = row?.notes || '';
@@ -381,6 +418,8 @@
           depth_mm:   parseInt(document.getElementById('f-d').value, 10),
           height_mm:  parseInt(document.getElementById('f-h').value, 10),
           capacity_l: document.getElementById('f-cap').value ? parseInt(document.getElementById('f-cap').value, 10) : null,
+          side_gap_mm: document.getElementById('f-sg').value === '' ? null : parseInt(document.getElementById('f-sg').value, 10),
+          top_gap_mm:  document.getElementById('f-tg').value === '' ? null : parseInt(document.getElementById('f-tg').value, 10),
           verified:   document.getElementById('f-verified').value === 'true',
           source_url: document.getElementById('f-source').value.trim() || null,
           notes:      document.getElementById('f-notes').value.trim() || null,
