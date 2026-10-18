@@ -345,6 +345,107 @@ export async function drawGuide(canvas, points) {
   return { base64: bytesToB64(png), mimeType: 'image/png', width: img.width, height: img.height, guide };
 }
 
+// ─── 4. 덩어리 합성 (2026-10-19) ───
+// 윤곽선만 보냈더니 GPT 가 선은 지우고 장은 원래 벽면에 그렸다 (10/18 두 건: 가이드 앞면 79, 결과 73·74).
+// 그래서 계산한 앞면 사각형을 무광 흰 판으로 **채워** 사진에 먼저 합성하고, 모델에게는 다듬기만 시킨다.
+// 뒷벽이 덩어리에 가려져 있으니 장을 뒷벽으로 되돌릴 여지가 없다.
+
+/** 단위 정사각형 (u,v) → 사각형. 꼭짓점 순서: 왼위(0,0) 오위(1,0) 오아래(1,1) 왼아래(0,1). Heckbert */
+export function squareToQuad([p0, p1, p2, p3]) {
+  const sx = p0.x - p1.x + p2.x - p3.x;
+  const sy = p0.y - p1.y + p2.y - p3.y;
+  let a, b, c, d, e, f, g, hh;
+  if (Math.abs(sx) < 1e-9 && Math.abs(sy) < 1e-9) {
+    a = p1.x - p0.x; b = p2.x - p1.x; c = p0.x;
+    d = p1.y - p0.y; e = p2.y - p1.y; f = p0.y;
+    g = 0; hh = 0;
+  } else {
+    const dx1 = p1.x - p2.x, dx2 = p3.x - p2.x, dy1 = p1.y - p2.y, dy2 = p3.y - p2.y;
+    const den = dx1 * dy2 - dx2 * dy1;
+    g = (sx * dy2 - dx2 * sy) / den;
+    hh = (dx1 * sy - sx * dy1) / den;
+    a = p1.x - p0.x + g * p1.x; b = p3.x - p0.x + hh * p3.x; c = p0.x;
+    d = p1.y - p0.y + g * p1.y; e = p3.y - p0.y + hh * p3.y; f = p0.y;
+  }
+  const M = [a, b, c, d, e, f, g, hh, 1];
+  const fwd = (u, v) => {
+    const w = M[6] * u + M[7] * v + 1;
+    return { x: (M[0] * u + M[1] * v + M[2]) / w, y: (M[3] * u + M[4] * v + M[5]) / w };
+  };
+  // 3×3 역행렬
+  const [m0, m1, m2, m3, m4, m5, m6, m7, m8] = M;
+  const A = m4 * m8 - m5 * m7, B = m5 * m6 - m3 * m8, C = m3 * m7 - m4 * m6;
+  const det = m0 * A + m1 * B + m2 * C;
+  const I = [
+    A / det, (m2 * m7 - m1 * m8) / det, (m1 * m5 - m2 * m4) / det,
+    B / det, (m0 * m8 - m2 * m6) / det, (m2 * m3 - m0 * m5) / det,
+    C / det, (m1 * m6 - m0 * m7) / det, (m0 * m4 - m1 * m3) / det,
+  ];
+  const inv = (x, y) => {
+    const w = I[6] * x + I[7] * y + I[8];
+    return { u: (I[0] * x + I[1] * y + I[2]) / w, v: (I[3] * x + I[4] * y + I[5]) / w };
+  };
+  return { fwd, inv };
+}
+
+const PANEL = [236, 234, 229]; // 무광 오프화이트 — 마감색은 모델이 FINISH 대로 입힌다
+
+/**
+ * 앞면 사각형을 채운 덩어리를 img(RGB) 위에 직접 그린다.
+ * @param {object} img {width, height, rgb}
+ * @param {object} front computeGuide().front — ob/ot(반대쪽), rb/rt(튀어나온 벽 쪽)
+ * @param {{doors?:number, plinth?:number}} [o] 문짝 수, 걸레받이 높이(앞면 높이 대비 비율)
+ */
+export function paintMassing(img, front, o = {}) {
+  const doors = Math.max(1, o.doors || 1);
+  const plinth = o.plinth ?? 0.026; // 60mm / 2300mm 쯤
+  const left = front.ob.x <= front.rb.x;
+  const [tl, tr, br, bl] = left ? [front.ot, front.rt, front.rb, front.ob] : [front.rt, front.ot, front.ob, front.rb];
+  const H = squareToQuad([tl, tr, br, bl]);
+  const { width: W, height: Ht, rgb } = img;
+  const xs = [tl.x, tr.x, br.x, bl.x];
+  const ys = [tl.y, tr.y, br.y, bl.y];
+  const x0 = Math.max(0, Math.floor(Math.min(...xs)));
+  const x1 = Math.min(W - 1, Math.ceil(Math.max(...xs)));
+  const y0 = Math.max(0, Math.floor(Math.min(...ys)));
+  const y1 = Math.min(Ht - 1, Math.ceil(Math.max(...ys)));
+  const frontW = Math.max(1, Math.hypot(br.x - bl.x, br.y - bl.y));
+  const frontH = Math.max(1, Math.hypot(bl.x - tl.x, bl.y - tl.y));
+  const gapU = 1.3 / frontW; // 문짝 틈 반폭 ≈ 1.3px
+  const edgeV = 1.5 / frontH;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const { u, v } = H.inv(x + 0.5, y + 0.5);
+      if (!(u >= 0 && u <= 1 && v >= 0 && v <= 1)) continue;
+      let k = 1.02 - 0.06 * v; // 위가 살짝 밝다 (천장 조명)
+      const du = (u * doors) % 1;
+      if (Math.min(du, 1 - du) * (1 / doors) < gapU && u > gapU && u < 1 - gapU) k *= 0.55; // 문짝 틈
+      if (v > 1 - plinth) k *= 0.72; // 걸레받이 (안으로 들어간 띠)
+      else if (v > 1 - plinth - 2 * edgeV) k *= 0.55; // 문짝 아래 그림자선
+      if (v < 2 * edgeV) k *= 0.8; // 천장 이음 그림자
+      const o3 = (y * W + x) * 3;
+      rgb[o3] = Math.min(255, PANEL[0] * k);
+      rgb[o3 + 1] = Math.min(255, PANEL[1] * k);
+      rgb[o3 + 2] = Math.min(255, PANEL[2] * k);
+    }
+  }
+}
+
+/**
+ * 방 사진(JPEG) 원본 해상도에 덩어리를 합성한 PNG — 편집 대상(첫 사진)으로 쓴다. 계산이 안 되면 null.
+ * jpeg-js 의 인코더는 워커에서 Buffer 를 찾아 쓸 수 없어 PNG 로 쓴다.
+ */
+export async function renderMassingImage(room, points, o = {}) {
+  if (!room || room.mimeType !== 'image/jpeg' || !points) return null;
+  const decoded = decodeJpeg(b64ToBytes(room.base64), { useTArray: true, formatAsRGBA: true });
+  const img = downscale(decoded, Infinity); // 같은 크기 RGB
+  const guide = computeGuide(points, img.width, img.height);
+  if (!guide) return null;
+  paintMassing(img, guide.front, o);
+  const png = await encodePng(img);
+  return { base64: bytesToB64(png), mimeType: 'image/png', width: img.width, height: img.height, guide };
+}
+
 /** 한 번에 (시험·도구용): 방 사진 사본에 윤곽을 그린 PNG. JPEG 가 아니거나 계산이 안 되면 null. */
 export async function renderGuideImage(room, points) {
   const canvas = await prepareGuideCanvas(room);

@@ -43,6 +43,8 @@ const SOURCES = [
   'js/detaildesign-access.js',
   // 관리자 사이드바 메뉴 정본 (PR7 — reference-images.test.js 가 메뉴 순서를 본다)
   'js/admin-shell.js',
+  // 가전 모델 관리: 여유 공간 칸 gapCell (countertop-models.test.js 가 잘라 실행)
+  'admin/appliances.html',
   // 학습 데이터셋: 동의 체크박스와 저장 호출이 여기 산다.
   'mypage.html',
   // 참고 이미지: 확정 흐름과 관리자 사이드바 (reference-images.test.js)
