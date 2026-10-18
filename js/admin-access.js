@@ -35,11 +35,16 @@
     }
   }
 
-  function writeCache(isAdmin, role) {
+  /**
+   * roleChecked — admin_roles 에서 역할을 실제로 읽었을 때만 true.
+   * 예전엔 isAdmin() 이 역할을 모른 채 role: null 을 써 두었고, getRole() 이 그 null 을 믿어
+   * 대시보드를 거쳐 들어온 관리자가 가전 모델 관리에서 막혔다 (2026-10-19).
+   */
+  function writeCache(isAdmin, role, roleChecked) {
     try {
       sessionStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ isAdmin, role, ts: Date.now() })
+        JSON.stringify({ isAdmin, role: roleChecked ? role : null, roleChecked: Boolean(roleChecked), ts: Date.now() })
       );
     } catch (e) {
       /* noop */
@@ -76,7 +81,7 @@
         return false;   // 캐시하지 않는다 — 다음 호출에서 다시 묻는다
       }
       const result = Boolean(data);
-      if (result) writeCache(true, cached ? cached.role : null);
+      if (result) writeCache(true, cached ? cached.role : null, Boolean(cached && cached.roleChecked));
       return result;
     } catch (e) {
       console.warn('[AdminAccess] is_admin 예외:', e?.message);
@@ -92,7 +97,7 @@
     if (!supabaseClient || !userId) return null;
 
     const cached = readCache();
-    if (cached && cached.role !== undefined) {
+    if (cached && cached.roleChecked === true) {
       return cached.role;
     }
 
@@ -107,7 +112,7 @@
         return null;
       }
       const role = data ? data.role : null;
-      writeCache(cached ? cached.isAdmin : Boolean(role), role);
+      writeCache(cached ? cached.isAdmin : Boolean(role), role, true);
       return role;
     } catch (e) {
       console.warn('[AdminAccess] getRole 예외:', e?.message);

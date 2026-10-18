@@ -62,7 +62,7 @@ describe('각 관리자 페이지', () => {
     expect(html).not.toMatch(/const ADMIN_EMAILS/);
     expect(html).not.toMatch(/\.includes\((session\.user|currentUser)\.email\)/);
     expect(html).not.toMatch(/기본 관리자 \(하드코딩\)/);
-    expect(html).toMatch(/<script src="\.\.\/js\/admin-access\.js"><\/script>/);
+    expect(html).toMatch(/<script src="\.\.\/js\/admin-access\.js(\?v=[\d.]+)?"><\/script>/);
     expect(html).toMatch(/AdminAccess\.(isAdmin|getRole)\(/);
   });
 
