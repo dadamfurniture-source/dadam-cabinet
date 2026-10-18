@@ -117,9 +117,12 @@ describe('계약 — 문서의 필드 이름만 보낸다', () => {
 
   test('문서가 정한 최상위 이름 — 이름이 바뀌면 문서와 이 줄을 같이 고친다', () => {
     // design-spec-prompt.md "## 필드" 표: category · wallRunMm · sections · appliances · finishes · notes
+    //   2026-10-19: + layout (직선이라 회전 한 가지 → 안다). ceilingMm·fromFloorMm 은 입력이 줄 때만.
     const spec = straightSpec();
     expect(Object.keys(spec).sort())
-      .toEqual(['appliances', 'category', 'finishes', 'sections', 'wallRunMm'].sort());
+      .toEqual(['appliances', 'category', 'finishes', 'sections', 'wallRunMm', 'layout'].sort());
+    // 기존 필드 순서는 그대로, 새 키는 뒤에
+    expect(Object.keys(spec)).toEqual(['category', 'wallRunMm', 'sections', 'appliances', 'finishes', 'layout']);
     // sections 는 lower · upper · tall 세 칸뿐이다
     expect(Object.keys(spec.sections).every((k) => ['lower', 'upper', 'tall'].includes(k))).toBe(true);
     // 모듈 한 칸의 이름

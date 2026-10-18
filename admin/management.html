@@ -22,6 +22,7 @@
     -->
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
+      [hidden] { display: none !important; }
       body { font-family: 'Noto Sans KR', sans-serif; background: #f5f5f5; color: #333; }
       .sidebar { position: fixed; left: 0; top: 0; width: 250px; height: 100vh; background: #1a1a2e; color: white; padding: 20px 0; overflow-y: auto; }
       .sidebar-logo { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px; }
@@ -86,6 +87,16 @@
       table.tbl th { color: #888; font-weight: 500; font-size: 12px; }
       .tbl-wrap { overflow-x: auto; }
       .hbar { display: inline-block; height: 8px; background: #007bff; border-radius: 4px; vertical-align: middle; margin-left: 6px; }
+      /* 퍼널 · 사슬 — 첫 단계 대비 막대 */
+      .stage { display: grid; grid-template-columns: 52px 1fr 52px 46px; gap: 8px; align-items: center; font-size: 13px; margin: 7px 0; }
+      .stage .track { display: block; height: 14px; background: #eef1f5; border-radius: 4px; overflow: hidden; }
+      /* span 이라 display:block 이 없으면 너비 · 높이가 먹지 않는다 — 막대가 비어 보였다 */
+      .stage .fill { display: block; height: 100%; background: #007bff; border-radius: 4px; }
+      .stage .n { text-align: right; font-variant-numeric: tabular-nums; }
+      .stage .r { text-align: right; color: #888; font-size: 12px; font-variant-numeric: tabular-nums; }
+      .facts { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: #666; margin-top: 10px; }
+      .facts b { color: #333; font-weight: 600; }
+      .lead-line { font-size: 13px; margin-bottom: 8px; }
       .basis { font-size: 12px; color: #888; line-height: 1.7; margin-top: 4px; }
       .basis a { color: #007bff; }
       .empty-state { padding: 30px 10px; text-align: center; color: #888; font-size: 14px; line-height: 1.7; }
@@ -150,6 +161,22 @@
               <h3>채널 공헌이익 — 직판 대 거래처</h3>
               <div class="q">어느 쪽 일이 고정비를 더 덮나 · 공장 1시간당으로 보면</div>
               <div id="channelBody"></div>
+            </article>
+          </div>
+        </div>
+
+        <div class="row" id="rowCustomer">
+          <div class="row-lens">고객</div>
+          <div class="cards">
+            <article class="card" id="cardFunnel">
+              <h3>영업 퍼널</h3>
+              <div class="q">확인서를 열 번 보내면 몇 번 계약되나 · 어디서 떨어지나</div>
+              <div id="funnelBody"></div>
+            </article>
+            <article class="card" id="cardPlatform">
+              <h3>AI 플랫폼 → 수주</h3>
+              <div class="q">연출컷이 공장 일감을 끌어오나</div>
+              <div id="platformBody"></div>
             </article>
           </div>
         </div>
@@ -296,6 +323,56 @@
             <div class="muted" style="margin-top:8px">공장 시간 = 견적이 잡은 재단 · 엣지 · 조립 시간. 거래처는 계약금이 거래처 견적과 1,000원 안인 수주입니다.</div>`;
         }
 
+        /** 단계 막대 — 첫 단계 대비 너비와 비율 */
+        function stagesHtml(list, base) {
+          return list.map(([label, n]) => {
+            const ratio = isNum(n) && base > 0 ? n / base : 0;
+            const r = isNum(n) && base > 0 ? `${Math.round(ratio * 1000) / 10}%` : '-';
+            return `<div class="stage"><span>${esc(label)}</span><span class="track"><span class="fill" style="width:${Math.round(ratio * 1000) / 10}%"></span></span><span class="n">${esc(cnt(n))}</span><span class="r">${esc(r)}</span></div>`;
+          }).join('');
+        }
+
+        // ── 고객: 영업 퍼널 ──
+        function renderFunnel(d) {
+          const f = d.funnel;
+          const leads = isNum(f.leads) ? `이달 상담 신청 <b class="num">${esc(cnt(f.leads))}</b>` : '상담 기록을 읽지 못했습니다';
+          if (!(f.issued > 0)) {
+            $('funnelBody').innerHTML = `<div class="lead-line">${leads}</div><div class="empty-state">이달 처음 나간 확인서가 없습니다.</div>`;
+            return;
+          }
+          const facts = [
+            `확인서 평균 수정 <b class="num">${esc(isNum(f.avgRevisions) ? `${f.avgRevisions}회` : '-')}</b>`,
+            `첫 열람까지 중간 <b class="num">${esc(isNum(f.medianHoursToView) ? `${f.medianHoursToView}시간` : '-')}</b>`,
+            `결정까지 중간 <b class="num">${esc(isNum(f.medianDaysToDecide) ? `${f.medianDaysToDecide}일` : '-')}</b>`,
+            `결정 대기 <b class="num">${esc(cnt(f.pending))}</b> · 거절 <b class="num">${esc(cnt(f.rejected))}</b>`,
+          ];
+          $('funnelBody').innerHTML = `
+            <div class="lead-line">${leads}</div>
+            ${stagesHtml([['발행', f.issued], ['열람', f.viewed], ['승인', f.approved], ['수주', f.ordered]], f.issued)}
+            <div class="facts">${facts.map((x) => `<span>${x}</span>`).join('')}</div>
+            <div class="muted" style="margin-top:8px">이달 처음 확인서가 나간 설계 기준 — 고쳐 낸 확인서는 한 건으로 셉니다. 최근 달은 아직 결정이 남아 있습니다.</div>`;
+        }
+
+        // ── 고객: AI 플랫폼 → 수주 ──
+        function renderPlatform(d) {
+          const p = d.platform && d.platform.value;
+          if (!p) {
+            $('platformBody').innerHTML = '<div class="empty-state">연출컷 기록을 읽지 못했습니다.</div>';
+            return;
+          }
+          const prev = d.platform.prev;
+          const people = `연출컷 만든 사람 <b class="num">${esc(isNum(p.people) ? `${p.people}명` : '-')}</b> · 그중 상담 신청 <b class="num">${esc(isNum(p.consultedPeople) ? `${p.consultedPeople}명` : '-')}</b>`;
+          const facts = [
+            `만들다 실패 <b class="num">${esc(cnt(p.failed))}</b> (${esc(pct(p.failRate))})`,
+            prev ? `지난 달 연출컷 <b class="num">${esc(cnt(prev.generations))}</b> → 수주 <b class="num">${esc(cnt(prev.ordered))}</b>` : '',
+          ].filter(Boolean);
+          $('platformBody').innerHTML = `
+            <div class="lead-line">${people}</div>
+            ${p.generations > 0 ? stagesHtml([['연출컷', p.generations], ['설계', p.designs], ['확인서', p.confirmed], ['수주', p.ordered]], p.generations) : '<div class="empty-state">이달 완성된 연출컷이 없습니다.</div>'}
+            <div class="facts">${facts.map((x) => `<span>${x}</span>`).join('')}</div>
+            <div class="muted" style="margin-top:8px">연출컷에서 시작한 설계(generation_id)로 잇습니다. 이달 만든 연출컷이 나중에 수주가 되면 이 숫자가 자랍니다.</div>`;
+        }
+
         const SOURCE_LABEL = { mine: '내 생산 설정', latest: '가장 최근에 저장된 생산 설정', default: '기본값' };
         function renderBasis(d) {
           const b = d.basis || {};
@@ -308,6 +385,9 @@
           renderTree(d);
           renderBreakEven(d);
           renderChannels(d);
+          // 고객 줄 — 워커가 아직 옛 판이면(배포 사이) 줄을 숨긴다
+          $('rowCustomer').hidden = !d.funnel;
+          if (d.funnel) { renderFunnel(d); renderPlatform(d); }
           renderBasis(d);
         }
 

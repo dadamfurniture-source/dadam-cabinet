@@ -117,24 +117,120 @@ export function channelsOf(rows, orders, snapshotsById) {
  * 묶고(코호트), 그 뒤 언제든 승인되면 승인으로 센다. 그래서 최근 달은 아직 '대기'가 남는다.
  */
 export function leadsAndConversion({ documents, consultations }, month) {
-  const leads = Array.isArray(consultations) ? consultations.filter((c) => inMonth(c.created_at, month)).length : null;
+  const f = funnelOf({ documents, consultations, orders: [] }, month);
+  return { leads: f.leads, issued: f.issued, approved: f.approved, rejected: f.rejected, pending: f.pending, conversion: f.conversion };
+}
+
+/** 고객 확인서만, 설계별로 묶어 발행 순으로 */
+function confirmationsByDesign(documents) {
   const byDesign = new Map();
   for (const d of documents || []) {
     if (d.doc_type && d.doc_type !== 'customer_confirmation') continue;
     if (!byDesign.has(d.design_id)) byDesign.set(d.design_id, []);
     byDesign.get(d.design_id).push(d);
   }
-  let issued = 0, approved = 0, rejected = 0, pending = 0;
-  for (const docs of byDesign.values()) {
-    const sorted = docs.slice().sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
-    if (!inMonth(sorted[0].created_at, month)) continue;
+  for (const docs of byDesign.values()) docs.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+  return byDesign;
+}
+
+function median(xs) {
+  if (!xs.length) return null;
+  const s = xs.slice().sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s.at(m) : (s.at(m - 1) + s.at(m)) / 2;
+}
+const hoursBetween = (a, b) => (Date.parse(b) - Date.parse(a)) / 3600000;
+const oneDecimal = (v) => (v === null ? null : Math.round(v * 10) / 10);
+
+/**
+ * 영업 퍼널 — 확인서 코호트: 발행 → 열람 → 승인 → 수주.
+ *
+ * 코호트는 leadsAndConversion 과 같다(설계 하나 = 한 건, 처음 나간 달). 상담은 확인서와
+ * 같은 사람으로 이어지지 않으므로(상담은 고객이, 설계는 공장이 만든다) 같은 막대에
+ * 잇지 않고 그 달 신청 건수로 따로 둔다.
+ *
+ * 수주는 취소되지 않은 수주가 그 설계에 있으면 센다. 확인서 승인에서만 수주가
+ * 만들어지므로(orders.document_id) 수주 ⊆ 승인이다.
+ */
+export function funnelOf({ documents, consultations, orders }, month) {
+  const leads = Array.isArray(consultations) ? consultations.filter((c) => inMonth(c.created_at, month)).length : null;
+  const ordered = new Set((orders || []).filter((o) => o.status !== 'cancelled').map((o) => o.design_id));
+  let issued = 0, viewed = 0, approved = 0, orderedN = 0, rejected = 0, pending = 0;
+  const revs = [], toView = [], toDecide = [];
+  for (const [designId, docs] of confirmationsByDesign(documents)) {
+    const first = docs.at(0);
+    if (!inMonth(first.created_at, month)) continue;
     issued += 1;
-    if (sorted.some((d) => d.decision === 'approved')) { approved += 1; continue; }
-    const last = sorted[sorted.length - 1];
-    if (last.decision === 'rejected' || last.status === 'rejected') rejected += 1;
-    else if (last.status !== 'revoked') pending += 1;
+    revs.push(docs.length);
+    const views = docs.map((d) => d.first_viewed_at).filter(Boolean).sort();
+    if (views.length) { viewed += 1; toView.push(hoursBetween(first.created_at, views.at(0))); }
+    const ok = docs.find((d) => d.decision === 'approved');
+    if (ok) {
+      approved += 1;
+      if (ok.decided_at) toDecide.push(hoursBetween(first.created_at, ok.decided_at) / 24);
+      if (ordered.has(designId)) orderedN += 1;
+      continue;
+    }
+    const last = docs.at(-1);
+    if (last.decision === 'rejected' || last.status === 'rejected') {
+      rejected += 1;
+      if (last.decided_at) toDecide.push(hoursBetween(first.created_at, last.decided_at) / 24);
+    } else if (last.status !== 'revoked') pending += 1;
   }
-  return { leads, issued, approved, rejected, pending, conversion: pct(approved, issued) };
+  return {
+    leads,
+    issued,
+    viewed,
+    approved,
+    ordered: orderedN,
+    rejected,
+    pending,
+    conversion: pct(approved, issued),
+    viewRate: pct(viewed, issued),
+    orderRate: pct(orderedN, approved),
+    // 설계 한 건에 확인서를 평균 몇 번 냈나 (1 = 고치지 않고 한 번에)
+    avgRevisions: revs.length ? oneDecimal(revs.reduce((s, v) => s + v, 0) / revs.length) : null,
+    medianHoursToView: oneDecimal(median(toView)),
+    medianDaysToDecide: oneDecimal(median(toDecide)),
+  };
+}
+
+/**
+ * AI 플랫폼 → 수주. 두 갈래로 잇는다 — 이을 수 있는 만큼만.
+ *
+ *   연출컷 기준  연출컷 → 설계 → 확인서 → 수주   (designs.generation_id 로 정확히 이어진다)
+ *   사람 기준    연출컷 만든 사람 → 그중 상담 신청한 사람   (user_id)
+ *
+ * 설계는 공장이 만들고 연출컷은 고객이 만드니 사람(user_id)으로는 수주까지 못 잇는다.
+ * 그 대신 연출컷에서 시작한 설계에는 generation_id 가 붙는다 (persistence-init.js).
+ * 그 달 만들어진 연출컷이 코호트다 — 그래서 최근 달은 숫자가 아직 자란다.
+ * 연출컷을 못 읽었으면 null.
+ */
+export function platformOf({ generations, designs, documents, orders, consultations }, month) {
+  if (!Array.isArray(generations)) return null;
+  const gens = generations.filter((g) => inMonth(g.created_at, month));
+  const done = gens.filter((g) => g.status === 'done');
+  const failed = gens.filter((g) => g.status === 'failed').length;
+  const people = new Set(done.map((g) => g.user_id).filter(Boolean));
+  const consulted = Array.isArray(consultations)
+    ? new Set(consultations.filter((c) => c.user_id && people.has(c.user_id)).map((c) => c.user_id))
+    : null;
+  const genIds = new Set(done.map((g) => g.id));
+  const designIds = new Set((designs || []).filter((d) => d.generation_id && genIds.has(d.generation_id)).map((d) => d.id));
+  const confirmed = new Set((documents || [])
+    .filter((d) => (!d.doc_type || d.doc_type === 'customer_confirmation') && designIds.has(d.design_id))
+    .map((d) => d.design_id));
+  const ordered = new Set((orders || []).filter((o) => o.status !== 'cancelled' && designIds.has(o.design_id)).map((o) => o.design_id));
+  return {
+    generations: done.length,
+    failed,
+    failRate: pct(failed, gens.length),
+    people: people.size,
+    consultedPeople: consulted ? consulted.size : null,
+    designs: designIds.size,
+    confirmed: confirmed.size,
+    ordered: ordered.size,
+  };
 }
 
 const pair = (value, prev) => ({ value, prev });
@@ -145,11 +241,13 @@ const pair = (value, prev) => ({ value, prev });
  * @param {Array}  p.orders         회사 전체 수주 (취소 포함 — 걸러 내는 것은 summarizeMonth)
  * @param {Map}    p.snapshotsById  snapshot_id → { quote_payload }
  * @param {Array}  p.documents      고객 확인서 (design_id · doc_type · status · decision · created_at)
- * @param {Array|null} p.consultations 상담 (created_at). 못 읽었으면 null
+ * @param {Array|null} p.consultations 상담 (created_at · user_id). 못 읽었으면 null
+ * @param {Array|null} p.generations   AI 연출컷 (id · user_id · status · created_at). 못 읽었으면 null
+ * @param {Array}  p.designs        연출컷에서 시작한 설계 (id · generation_id)
  * @param {Object} p.settings       mergeSettings 결과 (+ source)
  * @param {string} p.month          'YYYY-MM'
  */
-export function buildManagementSummary({ orders, snapshotsById, documents, consultations, settings, month }) {
+export function buildManagementSummary({ orders, snapshotsById, documents, consultations, generations = null, designs = [], settings, month }) {
   const prev = prevMonthOf(month);
   const overheadMonthly = num(settings && settings.quote && settings.quote.overheadMonthly);
   const cur = financeOf(orders, snapshotsById, { month, overheadMonthly });
@@ -176,6 +274,11 @@ export function buildManagementSummary({ orders, snapshotsById, documents, consu
     },
     breakEven: breakEven({ overhead: cur.overhead, revenue: cur.revenue, rate: cur.cmExact }),
     channels: channelsOf(cur.rows, orders, snapshotsById),
+    funnel: funnelOf({ documents, consultations, orders }, month),
+    platform: {
+      value: platformOf({ generations, designs, documents, orders, consultations }, month),
+      prev: platformOf({ generations, designs, documents, orders, consultations }, prev),
+    },
     basis: {
       revenue: 'VAT 제외 계약금',
       cost: '확인서 견적 원가 (고정비 회수분 제외)',
