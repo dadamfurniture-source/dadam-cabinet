@@ -312,3 +312,35 @@ test('덩어리: 앞면 사각형 안은 오프화이트로 칠하고, 밖(뒷�
   // 천장 위쪽(덩어리 밖)은 원래 회색
   assert.ok(px(150, 20).every((v) => Math.abs(v - 128) < 6));
 });
+
+// 2026-10-19: 추천안이 옆 세면대 서랍까지 칠했다 → 장 영역만 추천안, 나머지는 기본안
+test('되붙이기: 장 앞면 영역 안은 추천안, 멀리 밖은 기본안 — 크기가 다르면 하지 않는다', async () => {
+  const { pasteVariantInside } = await import('../src/guide.js');
+  const solid = (w, hgt, rgb) => {
+    const data = new Uint8Array(w * hgt * 4);
+    for (let i = 0; i < data.length; i += 4) { data[i] = rgb[0]; data[i + 1] = rgb[1]; data[i + 2] = rgb[2]; data[i + 3] = 255; }
+    return { base64: Buffer.from(encodeJpeg({ data, width: w, height: hgt }, 95).data).toString('base64'), mimeType: 'image/jpeg' };
+  };
+  const base = solid(300, 400, [128, 128, 128]);
+  const variant = solid(300, 400, [40, 160, 60]);
+  const pts = parseGuidePoints(JSON.stringify(REAL), 'right');
+  const r = await pasteVariantInside(base, variant, pts);
+  const png = Buffer.from(r.base64, 'base64');
+  const chunks = [];
+  for (let o = 8; o < png.length; ) {
+    const len = png.readUInt32BE(o);
+    if (png.toString('ascii', o + 4, o + 8) === 'IDAT') chunks.push(png.subarray(o + 8, o + 8 + len));
+    o += 12 + len;
+  }
+  const raw = inflateSync(Buffer.concat(chunks));
+  const px = (x, y) => { const o = y * (300 * 3 + 1) + 1 + x * 3; return [raw[o], raw[o + 1], raw[o + 2]]; };
+  const g = computeGuide(pts, 300, 400).front;
+  const inside = px(Math.round((g.ob.x + g.rb.x) / 2), Math.round((g.ot.y + g.ob.y) / 2));
+  assert.ok(inside[1] > 140 && inside[0] < 70, `안 ${inside}`);
+  // 튀어나온 벽 너머 오른쪽(세면대 자리)과 천장은 기본안 회색
+  for (const [x, y] of [[295, 250], [150, 30]]) {
+    assert.ok(px(x, y).every((v) => Math.abs(v - 128) < 8), `밖 ${x},${y} ${px(x, y)}`);
+  }
+  assert.equal(await pasteVariantInside(base, solid(200, 400, [0, 0, 0]), pts), null);
+  assert.equal(await pasteVariantInside({ ...base, mimeType: 'image/png' }, variant, pts), null);
+});
