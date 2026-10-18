@@ -58,11 +58,13 @@ describe.each(NAMES)('BOM 골든 — %s', (name) => {
     expect(snap.materials.some((m) => /개수대|가스대|후드/.test(m.module))).toBe(false);
   });
 
-  test('경첩 = 자재 도어 행과 같은 수·같은 높이 (bom-protocol.md §4-1)', () => {
+  test('경첩 = 자재 도어 행과 같은 수·같은 높이, 서랍장(마이다) 도어는 빼고 (bom-protocol.md §4-1)', () => {
     const { HardwareExtractor } = loadExtractors();
     const he = new HardwareExtractor();
+    // 2026-10-18 사장님: 서랍장 전면은 전부 마이다 — 보링하지 않는다 (서랍도어와 같은 모듈의 도어 행)
+    const maida = new Set(snap.materials.filter((m) => m.part === '서랍도어').map((m) => `${m.moduleKey}|${m.module}`));
     const want = snap.materials
-      .filter((m) => m.part === '도어')
+      .filter((m) => m.part === '도어' && !maida.has(`${m.moduleKey}|${m.module}`))
       .reduce((sum, m) => sum + he.getHingeCount(m.h) * m.qty, 0);
     expect(snap.hardwareSummary['경첩']).toBe(want);
   });
