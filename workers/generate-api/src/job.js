@@ -32,6 +32,7 @@ import {
   cleanCustomerRequest,
   buildTwoToneVariantPrompt,
   buildVariantPrompt,
+  buildWardrobeInteriorPrompt,
   KITCHEN_CATEGORIES,
   clampWall,
   parseAnalysis,
@@ -793,8 +794,15 @@ async function runPipeline(env, job, ck, save) {
       prompt: buildTwoToneVariantPrompt(pair),
     });
   }
-  for (const f of pickFinishes(VARIANT_COUNT - specs.length, seed)) {
+  // 붙박이장은 4장 중 2장이 내부 보기 (2026-10-19 사장님) — 색 추천안은 한 장 (테마가 있으면 테마 색감)
+  const interiorShots = category === 'wardrobe' ? ['left', 'right'] : [];
+  for (const f of pickFinishes(Math.max(0, VARIANT_COUNT - interiorShots.length - specs.length), seed)) {
     specs.push({ key: f.key, label: `AI 추천 · ${f.tone}`, prompt: buildVariantPrompt(f) });
+  }
+  specs.splice(VARIANT_COUNT - interiorShots.length);
+  for (const part of interiorShots) {
+    const { prompt, label } = buildWardrobeInteriorPrompt(wall.wallW, part);
+    specs.push({ key: `interior:${part}`, label, prompt, interior: true });
   }
 
   await Promise.all(
@@ -813,7 +821,8 @@ async function runPipeline(env, job, ck, save) {
           let out = r.image;
           let pasted = false;
           // 덩어리 합성을 쓴 건: 장 영역만 추천안, 나머지는 기본안 (옆 세면대·벽이 같이 칠해지던 것)
-          if (ck.guide && ck.guide.massing && (ck.guide.points || ck.guide.mask)) {
+          //   내부 보기는 열린 문짝이 장 윤곽 밖으로 나오므로 되붙이지 않는다
+          if (!f.interior && ck.guide && ck.guide.massing && (ck.guide.points || ck.guide.mask)) {
             try {
               // 기본안에서 찾은 윤곽(baseMask)이 먼저 — 윤곽 오차를 덮게 조금 넓게.
               //   없으면 싱크대는 칠한 면 다각형(mask), 붙박이장은 앞면 점(points)
