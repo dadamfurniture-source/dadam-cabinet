@@ -179,6 +179,138 @@ function collectSceneParts(p) {
   return order;
 }
 
+/**
+ * T1 (PR1): makeNotchedPanel 이 기하에 건 변환 — translate(0, 0, −T/2) 뒤 rotateY(−90°).
+ * 운영 코드는 그대로 두고, 여기서 같은 변환을 다시 걸어 **실제 꼭짓점과 같은지** 확인한 뒤에만 쓴다.
+ * 다르면 makeNotchedPanel 이 바뀐 것이다 — 조용히 틀린 윤곽을 쓰지 않고 멈춘다.
+ */
+function notchedPanelFrame(THREE, geometry) {
+  const prm = geometry.parameters || {};
+  const shapes = Array.isArray(prm.shapes) ? prm.shapes : [prm.shapes];
+  const T = prm.options && prm.options.depth;
+  if (shapes.length !== 1 || !shapes[0] || !Number.isFinite(T)) return null;
+  const M = new THREE.Matrix4().makeRotationY(-Math.PI / 2)
+    .multiply(new THREE.Matrix4().makeTranslation(0, 0, -T / 2));
+  const fresh = new THREE.ExtrudeGeometry(shapes[0], prm.options);
+  fresh.applyMatrix4(M);
+  const a = fresh.attributes.position.array, b = geometry.attributes.position.array;
+  let same = a.length === b.length;
+  for (let i = 0; same && i < a.length; i++) same = Math.abs(a[i] - b[i]) < 1e-6;
+  fresh.dispose();
+  if (!same) return null;
+  return { M, T, outline: shapes[0].getPoints().map((v) => [v.x, v.y]) };
+}
+
+/** 메시가 실제로 보이는가 — 자신과 조상 중 하나라도 visible=false 면 그려지지 않는다. */
+function isShown(o) {
+  for (let n = o; n; n = n.parent) if (n.visible === false) return false;
+  return true;
+}
+
+/** partKey 가 없는 부재(서랍 박스·붙박이장 내부 등)의 이름 — entityKind 와 userData 의 순번. */
+function pieceKeyOf(ud, partKey) {
+  if (partKey) return partKey;
+  const bits = ['carcassIdx', 'cellIdx', 'drawerIdx', 'dividerIdx', 'shelfIdx', 'rodIdx', 'areaIdx']
+    .filter((k) => ud[k] != null).map((k) => `${k.replace(/Idx$/, '')}${ud[k]}`);
+  return [ud.entityKind].concat(bits).join('#');
+}
+
+/**
+ * T1 (PR1): 겹침 검사용 부재 목록 — `collectSceneParts` 와 달리 **합치지 않고** 메시 하나가 한 행이다.
+ *
+ * 행 { id, moduleId, section, entityKind, partKey, family, side, ud, matrixWorld, moduleAabb, solids, outline }
+ *   matrixWorld  메시 로컬 → 월드 (three Matrix4.elements, 열 우선)
+ *   solids       box-overlap.js 의 상자 목록 — 상자는 그 자체로 하나, 따낸 판은 단면을 직사각형으로 쪼갠 여럿
+ *   moduleAabb   모듈 그룹 로컬 축의 바운딩 박스 {min, max} (mm) — 보고·명세 AABB 대조(개정 #7)용
+ *   outline      따낸 판 단면 고리 [[x, y]…] (makeNotchedPanel 의 Shape, 기하 변환 전 좌표). 상자면 null
+ *
+ * 빼는 것: 화면용 메시(PLANNER_FINISH_PAINT_SKIP — 테두리·그림자판·선택 상자·배치 상자·다리발·표시)와
+ *   와이어프레임(open 칸 틀), 숨긴 메시. partKey 가 없는 부재(drawerBox · 붙박이장 내부)는 **넣는다** —
+ *   원장(collectSceneParts)은 BOM 행이 없어 빼지만, 겹침은 그것들이 가장 궁금한 곳이다.
+ */
+function collectScenePieces(p) {
+  const three = p.three || p.g('three');
+  const THREE = threeShim();
+  const { rectilinearRects } = require('./box-overlap');
+  const win = global.window;
+  const partKeyOf = win.plannerFinishPartKeyOf || finish.plannerFinishPartKeyOf;
+  const SKIP = finish.PLANNER_FINISH_PAINT_SKIP;
+  const sectionOf = {};
+  (p.g('modules') || []).forEach((m) => { sectionOf[m.id] = m.section; });
+  three.moduleGroup.updateMatrixWorld(true);
+
+  const out = [];
+  const seen = {};
+  three.moduleGroup.traverse((o) => {
+    if (!o.isMesh || !o.geometry) return;
+    const ud = o.userData || {};
+    if (!ud.entityKind || SKIP.indexOf(ud.entityKind) >= 0) return;
+    if (!isShown(o)) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    if (mats.every((mt) => mt && mt.wireframe)) return;          // open 칸 틀 — 선이지 판이 아니다
+    if (ud.entityKind === 'carcass' && ud.side === 'front' && ud.areaType === 'open') return;
+
+    // 모듈 그룹 — 모듈 로컬 AABB 의 기준
+    let group = o.parent;
+    while (group && !(group.userData && group.userData.entityKind === 'module')) group = group.parent;
+    const toModule = new THREE.Matrix4();
+    if (group) toModule.copy(group.matrixWorld).invert();
+    toModule.multiply(o.matrixWorld);
+
+    const geo = o.geometry;
+    let solids, outline = null;
+    const frame = geo.type === 'ExtrudeGeometry' ? notchedPanelFrame(THREE, geo) : null;
+    if (geo.type === 'ExtrudeGeometry' && !frame) {
+      throw new Error(`${ud.moduleId} ${ud.entityKind}/${ud.side}: makeNotchedPanel 과 다른 ExtrudeGeometry — 윤곽을 읽는 법을 scene-parts.js 에 더하세요`);
+    }
+    if (frame) {
+      outline = frame.outline;
+      const m = new THREE.Matrix4().multiplyMatrices(o.matrixWorld, frame.M).elements.slice();
+      solids = rectilinearRects(outline).map((r) => ({ min: [r.x0, r.y0, 0], max: [r.x1, r.y1, frame.T], m }));
+    } else {
+      if (!geo.boundingBox) geo.computeBoundingBox();
+      const bb = geo.boundingBox;
+      solids = [{ min: bb.min.toArray(), max: bb.max.toArray(), m: o.matrixWorld.elements.slice() }];
+    }
+    // 모듈 로컬 AABB — 상자마다 꼭짓점을 옮겨 모은다
+    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+    const local = frame ? new THREE.Matrix4().multiplyMatrices(toModule, frame.M) : toModule;
+    const v = new THREE.Vector3();
+    solids.forEach((s) => {
+      for (let i = 0; i < 8; i++) {
+        v.set(i & 1 ? s.max[0] : s.min[0], i & 2 ? s.max[1] : s.min[1], i & 4 ? s.max[2] : s.min[2]).applyMatrix4(local);
+        const a = v.toArray();
+        for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], a[k]); hi[k] = Math.max(hi[k], a[k]); }
+      }
+    });
+    const round = (a) => a.map((x) => Math.round(x * 10) / 10);
+
+    const partKey = partKeyOf(ud);
+    const key = pieceKeyOf(ud, partKey);
+    const moduleId = ud.moduleId == null ? '?' : String(ud.moduleId);
+    const base = `${moduleId}|${key}`;
+    seen[base] = (seen[base] || 0) + 1;
+    out.push({
+      id: seen[base] > 1 ? `${base}~${seen[base]}` : base,
+      moduleId,
+      section: sectionOf[moduleId] || null,
+      entityKind: ud.entityKind,
+      partKey: partKey || null,
+      key,
+      family: partKey ? familyOfPartKey(partKey) : ud.entityKind,
+      side: ud.side || null,
+      ud,
+      matrixWorld: o.matrixWorld.elements.slice(),
+      moduleAabb: { min: round(lo), max: round(hi) },
+      solids,
+      outline,
+    });
+  });
+  // 같은 이름이 둘 이상이면 첫째에도 ~1 을 붙인다 — 어느 것이 어느 것인지 보고에서 헷갈리지 않게
+  out.forEach((r) => { if (seen[r.id] > 1) r.id = `${r.id}~1`; });
+  return out;
+}
+
 /** 부팅 + 순회 한 번에. */
 function scenePartsOf(layout, opts) {
   const p = bootPlanner3D(layout, opts);
@@ -188,6 +320,7 @@ function scenePartsOf(layout, opts) {
 module.exports = {
   bootPlanner3D,
   collectSceneParts,
+  collectScenePieces,
   scenePartsOf,
   familyOfPartKey,
   normalizeDims,
