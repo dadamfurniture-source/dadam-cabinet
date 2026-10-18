@@ -56,6 +56,23 @@ export const DEFAULT_COSTS = Object.freeze({
 export const DEFAULT_VENDORS = Object.freeze({
   door: '상일',
   cutEdge: '일성합판',
+  // 상판은 재질마다 업체가 다르다 (2026-10-18 사장님 Q7) — 이름은 설정에서 넣는다. 비면 요청서에 [확인 필요]
+  topMarble: '',
+  topStone: '',
+  topCeramic: '',
+});
+
+/**
+ * 상판 발주 요청서 기본값 (2026-10-18 사장님 — 조사해 정하고 바꿀 수 있게).
+ * 업계 공식 표준치는 없다 — 국내 시공에서 흔한 값: 뒷턱(백가드) 50 · 앞턱(등뜨기) 40 (12T 를 앞에서 40 으로 보이게, 50T 는 해당 없음).
+ * 있음/없음은 1/0. 품목 사양(topBacksplash · topFrontLip · topDrip, 'on'/'off')이 덮어쓴다.
+ */
+export const DEFAULT_COUNTERTOP = Object.freeze({
+  backsplash: 1,
+  backsplashH: 50,
+  frontLip: 1,
+  frontLipH: 40,
+  drip: 1,
 });
 
 export const DEFAULT_LEADS = Object.freeze({
@@ -63,6 +80,8 @@ export const DEFAULT_LEADS = Object.freeze({
   doorLeadDays: 3,
   /** 재단+엣지 외주 납기, 근무일 */
   outsourceLeadDays: 2,
+  /** 상판 주문 마감 — 설치일 몇 근무일 전까지 (2026-10-18 사장님: 최소 4일 전, 근무일 기준) */
+  topLeadDays: 4,
   /** 설치일이 없을 때 주문일부터 공장 완료까지 잡는 근무일 */
   defaultLeadDays: 7,
 });

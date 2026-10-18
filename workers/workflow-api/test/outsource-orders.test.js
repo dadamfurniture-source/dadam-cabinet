@@ -121,7 +121,7 @@ test('[발주 처리] — 이미 살아 있는 같은 꾸러미 발주면 409, f
 test('[발주 처리] — 잘못된 꾸러미 · 지난 날짜 · 작업지시서 아님 · 남의 설계', async () => {
   const user = { id: U1 };
   await withFetch(docRoutes(), async () => {
-    await assert.rejects(createOutsourceOrder(ENV, { user, documentId: DOC, body: { pack: 'cut' } }), /door 또는 cut-vendor/);
+    await assert.rejects(createOutsourceOrder(ENV, { user, documentId: DOC, body: { pack: 'cut' } }), /door · cut-vendor · top/);
     await assert.rejects(createOutsourceOrder(ENV, { user, documentId: DOC, body: { pack: 'door', expected_on: '2001-01-01' } }), /오늘 이후/);
   });
   await withFetch((u, m) => (u.includes('/design_documents?') ? json([{ ...theDoc(), doc_type: 'installation_order' }]) : docRoutes()(u, m)), async () => {
@@ -162,7 +162,7 @@ test('보관함 상태 — 외주 발주만 ordered/received/cancelled, 다른 �
 });
 
 test('설정 — 업체 이름 기본값 · 저장 검증', () => {
-  assert.deepEqual(mergeSettings(null).vendors, { door: '상일', cutEdge: '일성합판' });
+  assert.deepEqual(mergeSettings(null).vendors, { door: '상일', cutEdge: '일성합판', topMarble: '', topStone: '', topCeramic: '' });
   assert.equal(mergeSettings({ vendors: { door: '우드원', gone: 'x' } }).vendors.door, '우드원');
   assert.deepEqual(sanitizeSettings({ vendors: { door: ' 우드원 ' } }), { vendors: { door: '우드원' } });
   assert.throws(() => sanitizeSettings({ vendors: { door: '' } }), /1~40자/);

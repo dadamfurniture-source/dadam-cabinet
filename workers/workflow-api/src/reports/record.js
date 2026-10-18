@@ -237,6 +237,8 @@ export function reportFromMonth({ ownerId, summary, assignments = [] }) {
 export const OUTSOURCE_PACKS = Object.freeze({
   door: { label: '도어재', vendorKey: 'door' },
   'cut-vendor': { label: '재단·엣지', vendorKey: 'cutEdge' },
+  // 상판은 재질마다 업체가 다르다 — 업체 키는 재질에서 (countertop.js TOP_VENDOR_KEY). 보고 종류도 따로 (상판 발주 요청서)
+  top: { label: '상판', vendorKey: null, kind: 'countertop_order' },
 });
 
 /** 외주 수량 한 줄 — 목록 · 인쇄 · Step 4 가 같이 쓴다. */
@@ -246,6 +248,9 @@ export function outsourceQtyText(pack, q = {}) {
   }
   if (pack === 'cut-vendor') {
     return [q.sheets != null ? `원판 ${q.sheets}장` : null, q.edgeM ? `엣지 ${q.edgeM}m` : null, q.parts ? `부재 ${q.parts}장` : null].filter(Boolean).join(' · ');
+  }
+  if (pack === 'top') {
+    return [q.material ? `${q.material} ${q.thickness}T` : null, q.pieces ? `${q.pieces}장` : null, q.lengthMm ? `길이 ${q.lengthMm}` : null, q.cutouts ? `타공 ${q.cutouts}` : null].filter(Boolean).join(' · ');
   }
   return '';
 }
@@ -259,8 +264,8 @@ export function reportFromOutsource({ ownerId, doc, pack, vendor, orderedOn, exp
   const qty = outsourceQtyText(pack, quantities);
   return {
     owner_id: ownerId,
-    kind: 'outsource_order',
-    title: clip(`외주 발주 — ${p ? p.label : pack} · ${vendor} · ${doc.doc_no}`),
+    kind: (p && p.kind) || 'outsource_order',
+    title: clip(`${pack === 'top' ? '상판 발주' : '외주 발주'} — ${p ? p.label : pack} · ${vendor} · ${doc.doc_no}`),
     period_start: orderedOn,
     period_end: expectedOn || orderedOn,
     status: 'ordered',
