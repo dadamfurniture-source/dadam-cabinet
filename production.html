@@ -60,7 +60,7 @@
   <body>
     <div class="wrap">
       <h1>생산 계획 · 인력 추천</h1>
-      <div class="sub">주문이 들어오면 진행 중인 주문 전체를 다시 계획해, 설치일 하루 전까지 끝내려면 누구를 언제 더 불러야 하는지 제안합니다. 승인한 항목만 작업자 Slack 으로 지시가 나갑니다.</div>
+      <div class="sub">주문이 들어오면 진행 중인 주문 전체를 다시 계획해, 설치일 하루 전까지 끝내려면 누구를 언제 더 불러야 하는지 제안합니다. 승인한 항목만 작업자 Slack 으로 지시가 나갑니다. 지난 계획·승인·아침 요약·월 마감은 <a href="admin/work-reports.html">작업 지시 보고 보관함</a>에 쌓입니다.</div>
 
       <div id="alert" class="alert alert-err" hidden></div>
 
@@ -84,6 +84,17 @@
           <button type="button" id="btnDismiss">무시</button>
           <button type="button" class="primary" id="btnApprove">선택한 항목 지시하기</button>
         </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content: space-between">
+          <h2 style="margin:0">지난 제안 (최근 30일)</h2>
+          <a href="admin/work-reports.html" class="muted">보관함 전체 →</a>
+        </div>
+        <table style="margin-top: 8px">
+          <thead><tr><th scope="col">만든 때</th><th scope="col">계기</th><th scope="col">상태</th><th scope="col" class="num">지연 전→후</th><th scope="col" class="num">추가 비용</th></tr></thead>
+          <tbody id="histRows"><tr><td colspan="5" class="muted">불러오는 중…</td></tr></tbody>
+        </table>
       </div>
 
       <div class="card">
@@ -410,6 +421,22 @@
             return '<tr><td>' + esc(r.label) + '</td><td>' + (r.tier === 'partner' ? '거래처' : '고객') + '</td><td class="num">' + wonFull(r.revenue) + '</td><td class="num">' + wonFull(r.cost) + '</td><td class="num">' + wonFull(r.gross) + '</td></tr>';
           }).join('') || '<tr><td colspan="5" class="muted">이 달 수주가 없습니다.</td></tr>';
         }
+        /** 지난 제안 — 줄을 누르면 그 제안을 위 추천 카드에 띄운다 (?p=<id>). */
+        async function loadHistory() {
+          var from = new Date(Date.now() + 9 * 3600000 - 30 * 86400000).toISOString().slice(0, 10);
+          var rows = (await api('/production/proposals?from=' + from)).items;
+          var cur = new URLSearchParams(location.search).get('p');
+          el('histRows').innerHTML = (rows || []).map(function (r) {
+            var s = r.summary || {};
+            var at = new Date(new Date(r.created_at).getTime() + 9 * 3600000).toISOString();
+            var when = at.slice(5, 10).replace('-', '/') + ' ' + at.slice(11, 16);
+            var label = r.triggerLabel || (r.trigger === 'order_created' ? '새 수주' : '다시 계산');
+            return '<tr' + (cur === r.id ? ' style="background:#f3f7ff"' : '') + '><td><a href="?p=' + encodeURIComponent(r.id) + '">' + esc(when) + '</a></td><td>' + esc(label) +
+              '</td><td><span class="status">' + esc(STATUS[r.status] || r.status) + '</span></td><td class="num">' + (s.lateBefore != null ? s.lateBefore + '→' + s.lateAfter : '-') +
+              '</td><td class="num">' + (s.extraCost ? man(s.extraCost) : '-') + '</td></tr>';
+          }).join('') || '<tr><td colspan="5" class="muted">최근 30일 제안이 없습니다.</td></tr>';
+        }
+
         el('plMonth').addEventListener('change', function () { loadMonthly().catch(function (e) { fail(e.message); }); });
 
         el('btnCreateLink').addEventListener('click', createLink);
@@ -428,6 +455,7 @@
           loadLinks(),
           loadCalibration(),
           loadMonthly(),
+          loadHistory(),
         ]).catch(function (e) { fail(e.message); });
       })();
     </script>
