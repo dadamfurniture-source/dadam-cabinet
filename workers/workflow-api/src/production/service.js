@@ -46,6 +46,19 @@ function known(def, saved) {
   return out;
 }
 
+/**
+ * 예전 기본값이 그대로 저장된 칸 — 설정 화면은 모든 칸을 함께 저장하므로, 한 번이라도 저장한 설정에는
+ * 그때의 기본값이 박혀 있다. 대표가 나중에 값을 확정하면 그 옛 기본값은 새 기본값으로 읽는다.
+ *   상판 125,000 → 133,333 (고객가 m당 16만, 2026-10-19 대표 확정)
+ */
+const STALE_QUOTE_DEFAULTS = Object.freeze({ countertopPerMeter: [125000] });
+
+function freshQuote(saved) {
+  const q = { ...(saved || {}) };
+  for (const [k, olds] of Object.entries(STALE_QUOTE_DEFAULTS)) if (olds.includes(Number(q[k]))) delete q[k];
+  return q;
+}
+
 export function mergeSettings(saved) {
   const s = saved || {};
   return {
@@ -53,7 +66,7 @@ export function mergeSettings(saved) {
     crew: known(DEFAULT_CREW, s.crew),
     costs: known(DEFAULT_COSTS, s.costs),
     leads: known(DEFAULT_LEADS, s.leads),
-    quote: known(DEFAULT_QUOTE, s.quote),
+    quote: known(DEFAULT_QUOTE, freshQuote(s.quote)),
     vendors: known(DEFAULT_VENDORS, s.vendors),
     countertop: known(DEFAULT_COUNTERTOP, s.countertop),
     holidays: Array.isArray(s.holidays) ? s.holidays : [],

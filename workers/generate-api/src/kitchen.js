@@ -126,7 +126,9 @@ export function solveKitchenCamera(g, W, H, o = {}) {
     const ax = vx[0] / vx[2] - cx, ay = vx[1] / vx[2] - cy;
     const bx = vz[0] / vz[2] - cx, by = vz[1] / vz[2] - cy;
     const f2 = -(ax * bx + ay * by);
-    if (f2 > 0) {
+    // 거의 정면인 사진은 벽 방향 소실점이 사진 밖 아주 멀리 있다 — 선이 한두 픽셀만 틀어져도 f 가 크게 흔들린다
+    //   (10/19 공사 현장 싱크대: f 798px 로 벽 거리 7.1m, 시멘트 띠로 검산하면 3m 남짓). 대각선 2.5배 밖이면 쓰지 않는다.
+    if (f2 > 0 && Math.hypot(ax, ay) < 2.5 * Math.hypot(W, H)) {
       const fv = Math.sqrt(f2);
       if (fv > 0.5 * fDefault && fv < 2.2 * fDefault) f = fv; // 두 소실점이 그럴듯할 때만 믿는다
     }
