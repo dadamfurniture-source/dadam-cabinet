@@ -155,7 +155,10 @@ FINAL SELF-CHECK …; tall row 1 unit + 1 appliance opening, 5 doors, 0 drawers;
 - 자체 점검: 가전 자리가 있는 통은 `appliance opening`, 없는 통은 `unit` 하나. 도어·서랍은 단의 합.
 - 검사 LAYOUT 요약·설치 프롬프트: `600 mm column of 3 stacked doors` · `680 mm refrigerator opening with a 2-door cabinet above`.
 - 역판독 기대값(`verify.js expectedFromSpec`): 통 하나 = 바닥 세그먼트 하나. 키큰장은 `tall` + 단의 도어·서랍 합.
-  냉장고장은 냉장고장 품목이면 `fridge`(읽는 쪽 `layout.js FLOOR_KINDS.fridge` 의 이름), 그 밖은 `refrigerator`. 위 박스 도어는 가전 칸처럼 세지 않는다.
+  냉장고장은 `refrigerator`(예전 가전 칸과 같은 이름 — 플래너 판독이 그렇게 읽는다). 위 박스 도어는 가전 칸처럼 세지 않는다.
+- 플래너 판독(`layout.js plannerReadPlan` · `buildPlannerReadPrompt`): 통 하나에 번호 하나. 키큰장은
+  `3 doors (one column of 3 stacked sections)`, 냉장고장은 냉장고 자리(냉장고가 있든 비어 있든 refrigerator 로 보고)
+  + "위 2도어 장은 이 번호의 것 — 덤 유닛이 아니다". 기대 도어는 키큰장 단의 합, 냉장고장 0 (가전 칸 규칙).
 
 `kind` 별 영어 문장:
 
