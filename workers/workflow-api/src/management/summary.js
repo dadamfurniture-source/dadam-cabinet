@@ -14,6 +14,7 @@
 import { summarizeMonth, kstDate } from '../production/service.js';
 import { COST_LABELS, tierOf } from '../orders.js';
 import { calibrate, EDGE_FACE_SINCE } from '../production/calibration.js';
+import { REWORK_CAUSE_LABEL } from '../rework.js';
 
 const TIER_LABEL = Object.freeze({ customer: '직판', partner: '거래처' });
 
@@ -531,6 +532,62 @@ export function processOf({ orders, snapshotsById, costs, worklogs, paceLogs = [
   };
 }
 
+// ── 품질 (2단계 PR-6) ─────────────────────────────────────────
+
+/** A/S 율을 보는 창 — 설치한 지 반년 안의 집 */
+export const QUALITY_WINDOW_DAYS = 180;
+
+/**
+ * 재작업 · A/S — 14 품질비용 · A/S 율.
+ *   이달   재작업 · A/S 건수, 품질비용 = 적은 비용(부재 · 외주) + 다시 한 분 × 공장 분당 노무
+ *          공장 노무는 조립 일당 ÷ 하루 시간 (기본 200,000 ÷ 8 = 시간당 25,000)
+ *   반년   그 기간에 설치(납품 · 완료)한 수주 중 A/S 를 한 번이라도 간 비율
+ * 기록 표가 아직 없으면(2단계 SQL 전) null.
+ */
+export function qualityOf({ reworks, installed, settings }, month, today = null) {
+  if (!Array.isArray(reworks)) return null;
+  const costs = (settings && settings.costs) || {};
+  const crew = (settings && settings.crew) || {};
+  const hourly = num(crew.hoursPerDay) > 0 ? num(costs.assemblerDay) / num(crew.hoursPerDay) : 0;
+  const inM = reworks.filter((r) => String(r.occurred_on || '').slice(0, 7) === month);
+  const causes = new Map();
+  let minutes = 0, cost = 0;
+  for (const r of inM) {
+    const won = num(r.cost) + (num(r.minutes) * hourly) / 60;
+    minutes += num(r.minutes); cost += num(r.cost);
+    if (!causes.has(r.cause)) causes.set(r.cause, { count: 0, won: 0 });
+    const c = causes.get(r.cause); c.count += 1; c.won += won;
+  }
+  const laborWon = Math.round((minutes * hourly) / 60);
+  // 반년 창 — 그 달 끝(이번 달이면 오늘)에서 거꾸로
+  const end = today && today.slice(0, 7) === month ? today : monthEndOf(month);
+  const start = new Date(Date.parse(`${end}T00:00:00Z`) - (QUALITY_WINDOW_DAYS - 1) * 86400000).toISOString().slice(0, 10);
+  const doneOn = (o) => { const t = o.completed_at || o.delivered_at; return t ? kstDate(t) : null; };
+  const inWindow = (installed || []).filter((o) => { const d = doneOn(o); return d && d >= start && d <= end; });
+  const asOrders = new Set(reworks.filter((r) => r.kind === 'as').map((r) => r.order_id));
+  const withAs = inWindow.filter((o) => asOrders.has(o.id)).length;
+  return {
+    month: {
+      rework: inM.filter((r) => r.kind === 'rework').length,
+      as: inM.filter((r) => r.kind === 'as').length,
+      minutes,
+      cost,
+      laborWon,
+      total: cost + laborWon,
+      causes: [...causes.entries()]
+        .map(([cause, c]) => ({ cause, label: REWORK_CAUSE_LABEL[cause] || cause, count: c.count, won: Math.round(c.won) }))
+        .sort((a, b) => b.won - a.won || b.count - a.count),
+    },
+    window: { days: QUALITY_WINDOW_DAYS, start, end, installed: inWindow.length, withAs, asRate: pct(withAs, inWindow.length) },
+    hourly: Math.round(hourly),
+  };
+}
+
+function monthEndOf(month) {
+  const [y, m] = String(month).split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+}
+
 const pair = (value, prev) => ({ value, prev });
 
 /**
@@ -545,10 +602,13 @@ const pair = (value, prev) => ({ value, prev });
  * @param {Array}  p.costs          실적 원가 (order_id · category · amount)
  * @param {Array}  p.worklogs       작업 실측 (order_id · role · minutes · work_date)
  * @param {Array}  p.paceLogs       처리능력 실측용 — 그 달 끝에서 거꾸로 PACE_WINDOW_DAYS 동안의 기록 (role · units · minutes · work_date)
+ * @param {Array|null} p.reworks    재작업 · A/S (반년 창). 표가 없으면 null
+ * @param {Array}  p.installed      납품 · 완료된 수주 (id · status · delivered_at · completed_at)
+ * @param {string} [p.today]        오늘 (KST, YYYY-MM-DD) — 이번 달의 반년 창 끝
  * @param {Object} p.settings       mergeSettings 결과 (+ source)
  * @param {string} p.month          'YYYY-MM'
  */
-export function buildManagementSummary({ orders, snapshotsById, documents, consultations, generations = null, designs = [], costs = [], worklogs = [], paceLogs = [], settings, month }) {
+export function buildManagementSummary({ orders, snapshotsById, documents, consultations, generations = null, designs = [], costs = [], worklogs = [], paceLogs = [], reworks = null, installed = [], settings, month, today = null }) {
   const prev = prevMonthOf(month);
   const overheadMonthly = num(settings && settings.quote && settings.quote.overheadMonthly);
   const cur = financeOf(orders, snapshotsById, { month, overheadMonthly });
@@ -582,6 +642,7 @@ export function buildManagementSummary({ orders, snapshotsById, documents, consu
     },
     process: processOf({ orders, snapshotsById, costs, worklogs, paceLogs, settings }, month),
     scenario: scenarioBase(orders, snapshotsById, settings, month),
+    quality: qualityOf({ reworks, installed, settings }, month, today),
     basis: {
       revenue: 'VAT 제외 계약금',
       cost: '확인서 견적 원가 (고정비 회수분 제외)',
