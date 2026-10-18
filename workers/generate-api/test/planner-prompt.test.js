@@ -160,14 +160,30 @@ test('세 장에 이름과 역할, IMAGE A 는 EDIT ZONE 안만 고친다', () =
   assert.ok(p.includes('TASK: install this built-in kitchen on the main wall of IMAGE A as a real, finished installation.'));
 });
 
-test('7) IMAGE B 의 번호·치수선은 주석 — 그리지 말라', () => {
-  const p = buildPlannerPrompt(d1Ctx());
+test('7) 번호 입면(labeledElevation)이면 IMAGE B 의 번호·치수선은 주석 — 그리지 말라', () => {
+  const p = buildPlannerPrompt(d1Ctx({ labeledElevation: true }));
   assert.ok(
     p.includes(
       'IMAGE B — FRONT ELEVATION from our planner: the exact cabinet design to build, seen straight on. ' +
-        'IMAGE B may carry ID labels (L1, U1 …) and dimension lines; they are annotations that match the list below — never draw any text, numbers or lines from them.'
+        'IMAGE B may carry ID labels (L1, U1 …) and dimension lines; they are annotations that match the list below — never draw any text, numbers or lines from them.\n'
     )
   );
+});
+
+// 2026-10-19: Gemini 는 번호 라벨을 도어 위에 글자로 그려 넣었다 — 번호 없는 입면을 보낼 때는 번호를 말하지 않는다
+test('7) 번호 없는 입면(기본)이면 번호·치수선 문장이 없고, 그 문장 하나만 다르다', () => {
+  const plain = buildPlannerPrompt(d1Ctx());
+  const labeled = buildPlannerPrompt(d1Ctx({ labeledElevation: true }));
+  assert.ok(plain.includes('IMAGE B — FRONT ELEVATION from our planner: the exact cabinet design to build, seen straight on.\n'));
+  assert.doesNotMatch(plain, /ID labels|dimension lines|annotations/);
+  assert.equal(
+    plain,
+    labeled.replace(
+      ' IMAGE B may carry ID labels (L1, U1 …) and dimension lines; they are annotations that match the list below — never draw any text, numbers or lines from them.',
+      ''
+    )
+  );
+  assert.equal(buildPlannerPrompt(d1Ctx({ labeledElevation: false })), plain);
 });
 
 test('IMAGE C 가 없으면 C 문장이 하나도 없다', () => {
