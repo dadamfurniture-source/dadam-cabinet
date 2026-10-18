@@ -208,6 +208,10 @@ OUTPUT: one photorealistic photograph of the finished room, 16:9.
 - 2026-10-19: 도어만 칠한 도면은 몸통 앞면 갈색·측판 세이지 그린·걸레받이 베이지 자리표시가 찍혀 모델이 갈색 테두리를 그렸다
   (잡 e4dc4435) → clean 동안에만 디테일 룩이 칠하지 않은(`_origMaterial` 없음) 몸통·선반·처짐방지목·걸레받이·좌대에 같은 모듈 도어 →
   같은 섹션 도어 재질을 입히고 finally 에서 되돌린다. 상판·사람이 칠한 부재는 그대로 (`plannerCaptureBorrowMaterial`).
+- 2026-10-19: 그 뒤에도 front 에 남은 갈색(약 10만 px)은 도어 테두리 막대 `doorEdge`(작업 화면 줌에 맞춰 15.5mm)·목찬넬 판·갭 뒷판 →
+  clean 동안에만 막대 두께를 찍는 카메라·출력 높이로 다시 잡고(max(갭/2 = 2mm, 1.25px)) 막대·뒷판은 짙은 회색 #2a2a2a,
+  칠 안 한 목찬넬은 중간 회색 #8c8c8c. finally 에서 되돌린다. front 1469×1536 갈색 100,006 → 12,123(상판·다리발), 초록 2,427 → 0,
+  작업 화면 줌을 바꿔도 같은 픽셀 [확인: 브라우저] (`plannerCaptureNeutralKind` · `plannerCaptureDoorEdgeThickness`).
 
 **방 사진 16:9** (§11-③): 패널이 업로드 때 가운데를 16:9 로 자르고 미리보기에 자른 테두리를 보여 준다.
 세로 사진은 위아래가 많이 잘린다는 안내를 띄운다 [결정].
