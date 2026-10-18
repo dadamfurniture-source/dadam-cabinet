@@ -189,6 +189,51 @@ export function reportFromDocument(doc, { ownerId, orderIds = [] } = {}) {
   };
 }
 
+/** 'YYYY-MM' → 그 달 마지막 날 'YYYY-MM-DD' */
+export function monthEnd(month) {
+  const [y, m] = String(month).split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+}
+
+/**
+ * 월 생산 마감 → monthly_close 보고 (매월 첫 근무일 아침, 사장님 결정 Q4).
+ * @param {Object} summary      production/service.js summarizeMonth 결과 { month, rows, totals }
+ * @param {Array}  assignments  그 달 work_date 의 지시 (status instructed/done/cancelled)
+ */
+export function reportFromMonth({ ownerId, summary, assignments = [] }) {
+  const month = summary.month;
+  const [y, m] = month.split('-').map(Number);
+  const t = summary.totals || {};
+  const live = assignments.filter((a) => a.status !== 'cancelled');
+  const done = live.filter((a) => a.status === 'done').length;
+  const completion = live.length ? Math.round((done / live.length) * 1000) / 10 : null;
+  return {
+    owner_id: ownerId,
+    kind: 'monthly_close',
+    title: clip(`월 생산 마감 — ${y}년 ${m}월`),
+    period_start: `${month}-01`,
+    period_end: monthEnd(month),
+    status: null,
+    source_table: null,
+    source_id: null,
+    order_ids: uniq((summary.rows || []).map((r) => r.id)).filter(isUuid),
+    design_ids: [],
+    metrics: {
+      orders: t.orders ?? 0,
+      revenue: t.revenue ?? 0,
+      cost: t.cost ?? 0,
+      gross: t.gross ?? 0,
+      overhead: t.overhead ?? 0,
+      net: t.net ?? 0,
+      unknownCost: t.unknownCost ?? 0,
+      assignments: live.length,
+      completion,
+      extraCost: live.reduce((s, a) => s + (Number(a.cost) || 0), 0),
+    },
+    body: { summary, completion: { total: live.length, done, rate: completion } },
+  };
+}
+
 /** 관리자 메모 보고. */
 export function reportNote({ ownerId, title, note, createdBy }) {
   const day = kstDay();

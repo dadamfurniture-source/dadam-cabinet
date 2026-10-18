@@ -83,6 +83,7 @@ import {
   computePlan,
   proposePlan,
   runDailyBriefs,
+  runMonthlyCloses,
   getMonthlySummary,
   getProposal,
   listProposals,
@@ -695,6 +696,10 @@ export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(
       runDailyBriefs(env).catch((e) => console.error('daily production brief failed:', e && e.message)),
+    );
+    // 매월 첫 근무일 — 전월 생산 마감 보고 (보관함, 이미 있으면 건너뜀)
+    ctx.waitUntil(
+      runMonthlyCloses(env).catch((e) => console.error('monthly close failed:', e && e.message)),
     );
   },
 };
