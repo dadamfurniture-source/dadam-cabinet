@@ -356,3 +356,65 @@ test('실측을 두 번 읽어도(주문 기준 · 달 기준) 한 번만 센다
   const merged = mergeLogs(P_LOGS.slice(0, 3), P_LOGS);
   assert.equal(merged.length, P_LOGS.length);
 });
+
+// ── PR-4: 만약에 판의 바탕 ──
+import { scenarioBase } from '../src/management/summary.js';
+
+const W_ORDERS = [
+  { id: 'W1', order_no: 'SO-21', snapshot_id: 'sw1', status: 'confirmed', contract_amount: 3300000, ordered_at: '2026-10-06T01:00:00Z' },
+  { id: 'W2', order_no: 'SO-22', snapshot_id: 'sw2', status: 'confirmed', contract_amount: 1100000, ordered_at: '2026-10-07T01:00:00Z' },
+  { id: 'W3', order_no: 'SO-23', snapshot_id: 'sw3', status: 'confirmed', contract_amount: 1100000, ordered_at: '2026-10-08T01:00:00Z' },
+  { id: 'W4', order_no: 'SO-24', snapshot_id: 'sw1', status: 'cancelled', contract_amount: 3300000, ordered_at: '2026-10-09T01:00:00Z' },
+];
+const W_SNAPS = new Map([
+  ['sw1', { quote_payload: { partner: { total: 3000000 }, cost: {
+    total: 1780000, fixed_recovery: 100000,
+    body: { material: 400000, edge: 20000, hardware: 80000, labor: 150000, overhead: 0, fixed: 100000 },
+    back: { material: 40000, labor: 10000, overhead: 0 },
+    door: { outsourcing: 500000, labor: 5000, overhead: 0 },
+    install: { outsourcing: 120000 },
+    extras: { countertop: 300000, sinkBowl: 55000 },
+    quantities: { doorSheets: 5 },
+  } } }],
+  ['sw2', { quote_payload: { partner: { total: 1100000 }, cost: {
+    total: 650000, fixed_recovery: 30000,
+    body: { material: 200000, edge: 10000, hardware: 40000, labor: 50000, fixed: 30000 },
+    back: { material: 20000 },
+    door: { outsourcing: 300000 },
+    install: { outsourcing: 0 },
+    extras: {},
+    quantities: { doorSheets: 3 },
+  } } }],
+  ['sw3', { quote_payload: { total: 1100000 } }],
+]);
+const W_SETTINGS = { quote: { overheadMonthly: 6190000, marginRate: 0.2, partnerMarginRate: 0.1 } };
+
+test('만약에 판의 바탕: 갈래별 합 — 직판 300만 · 거래처 100만 · 원가 모르는 100만', () => {
+  assert.deepEqual(scenarioBase(W_ORDERS, W_SNAPS, W_SETTINGS, '2026-10'), {
+    orders: 3,
+    revenueCustomer: 3000000,
+    revenuePartner: 1000000,
+    revenueUnknown: 1000000,
+    material: 515000 + 230000,   // 몸통 · 엣지 · 뒷판 + 싱크볼
+    hardware: 80000 + 40000,
+    door: 500000 + 300000,
+    doorSheets: 8,
+    outsourcing: 120000 + 300000, // 시공 + 상판
+    labor: 165000 + 50000,
+    overheadAlloc: 0,
+    overheadMonthly: 6190000,
+    marginRate: 0.2,
+    partnerMarginRate: 0.1,
+    partTimeMonthly: 0,           // 생산 설정에 시급 · 근무 시간이 없으면 0
+  });
+  const withCrew = { quote: { ...W_SETTINGS.quote, workDays: 22 }, crew: { hoursPerDay: 8 }, costs: { partTimeHourly: 12000 } };
+  assert.equal(scenarioBase(W_ORDERS, W_SNAPS, withCrew, '2026-10').partTimeMonthly, 12000 * 8 * 22);
+});
+
+test('만약에 판을 그대로 두면 맨 위 이익 식과 한 원도 다르지 않다 — 갈래의 합 = 변동원가', () => {
+  const b = scenarioBase(W_ORDERS, W_SNAPS, W_SETTINGS, '2026-10');
+  const f = financeOf(W_ORDERS, W_SNAPS, { month: '2026-10', overheadMonthly: 6190000 });
+  const variable = b.material + b.hardware + b.door + b.outsourcing + b.labor + b.overheadAlloc;
+  assert.equal(b.revenueCustomer + b.revenuePartner - variable, f.contribution);
+  assert.equal(b.revenueCustomer + b.revenuePartner + b.revenueUnknown, f.revenue);
+});

@@ -88,6 +88,24 @@ const SUMMARY = {
       avgPerMin: 12767,
     },
   },
+  // 워커 시험(management.test.js PR-4) 의 바탕 — 알바 시급 12,000 × 8시간 × 22일
+  scenario: {
+    orders: 3,
+    revenueCustomer: 3000000,
+    revenuePartner: 1000000,
+    revenueUnknown: 1000000,
+    material: 745000,
+    hardware: 120000,
+    door: 800000,
+    doorSheets: 8,
+    outsourcing: 420000,
+    labor: 215000,
+    overheadAlloc: 0,
+    overheadMonthly: 6190000,
+    marginRate: 0.2,
+    partnerMarginRate: 0.1,
+    partTimeMonthly: 2112000,
+  },
 };
 
 function fakeApi({ admin = true, data = SUMMARY, status = 200 } = {}) {
@@ -400,5 +418,120 @@ describe('공정 줄 (PR-3)', () => {
     await settle();
     expect(document.getElementById('rowProcess').hidden).toBe(true);
     expect(document.getElementById('rowCustomer').hidden).toBe(false);
+  });
+});
+
+describe('만약에 판 (PR-4)', () => {
+  const row = (k) => [...document.querySelector(`#tblWhatIf tr[data-k="${k}"]`).cells].map((c) => c.textContent.trim());
+  const setLever = (id, v) => {
+    const el = document.getElementById(id);
+    el.value = String(v);
+    el.dispatchEvent(new window.Event('input'));
+  };
+  const open = async (data) => {
+    boot(fakeApi(data ? { data } : undefined));
+    await window.Management.init();
+    await settle();
+  };
+
+  test('레버를 그대로 두면 맨 위 이익 식과 같다 — 공헌이익 170만 · 순이익 -449만', async () => {
+    await open();
+    expect(document.getElementById('rowWhatIf').hidden).toBe(false);
+    expect(row('revenue')).toEqual(['매출 (VAT 제외)', '500만', '500만', '0']);
+    expect(row('contribution')).toEqual(['공헌이익', '170만', '170만', '0']);
+    expect(row('cmRate')).toEqual(['공헌이익률', '42.5%', '42.5%', '0']);
+    expect(row('net')).toEqual(['월 순이익', '-449만', '-449만', '0']);
+    expect(row('breakEven')).toEqual(['손익분기 매출', '1,456만', '1,456만', '0']);
+    // 마진율 칸은 지금 설정값으로 시작한다
+    expect(document.getElementById('lvMargin').value).toBe('20');
+    expect(document.getElementById('lvPartner').value).toBe('10');
+  });
+
+  test('원판 +10% — 자재 74.5만의 10% 만큼 순이익이 준다 (값을 바꾸는 즉시)', async () => {
+    await open();
+    setLever('lvMaterial', 10);
+    expect(row('variable')).toEqual(['변동원가', '230만', '237만', '+74,500원']);
+    expect(row('net')).toEqual(['월 순이익', '-449만', '-456만', '-74,500원']);
+    expect(row('cmRate')[3]).toBe('-1.9%p');
+    // 원가가 늘면 빨강, 이익이 줄면 빨강
+    expect(document.querySelector('#tblWhatIf tr[data-k="variable"] span').className).toBe('up');
+    expect(document.querySelector('#tblWhatIf tr[data-k="net"] span').className).toBe('up');
+  });
+
+  test('자주 묻는 네 가지는 버튼 하나로', async () => {
+    await open();
+    const buttons = [...document.querySelectorAll('#whatIfPresets button')];
+    expect(buttons.map((b) => b.textContent)).toEqual(['원판 +10%', '도어 장당 +5천 원', '알바 한 명 더 (+211만)', '고객 마진 15%']);
+    buttons[1].click(); // 도어 8장 × 5,000
+    expect(row('net')[3]).toBe('-40,000원');
+    document.getElementById('btnWhatIfReset').click();
+    buttons[2].click(); // 고정비 +2,112,000
+    expect(row('fixed')).toEqual(['월 고정비', '619만', '830만', '+211만']);
+    expect(row('net')[2]).toBe('-660만');
+    document.getElementById('btnWhatIfReset').click();
+    buttons[3].click(); // 고객 매출 300만 × 1.15/1.2
+    expect(row('revenue')[3]).toBe('-125,000원');
+    expect(row('net')[3]).toBe('-125,000원');
+  });
+
+  test('수주량 +50% 는 매출과 변동원가를 같이 늘린다 — 고정비는 그대로', async () => {
+    await open();
+    setLever('lvVolume', 50);
+    expect(row('revenue')[2]).toBe('750만');
+    expect(row('contribution')).toEqual(['공헌이익', '170만', '255만', '+850,000원']);
+    expect(row('fixed')[3]).toBe('0');
+    expect(row('net')[2]).toBe('-364만');
+  });
+
+  test('처음 값으로 — 모든 레버가 돌아오고 차이가 0', async () => {
+    await open();
+    setLever('lvMaterial', 10);
+    setLever('lvMargin', 30);
+    document.getElementById('btnWhatIfReset').click();
+    expect(document.getElementById('lvMaterial').value).toBe('0');
+    expect(document.getElementById('lvMargin').value).toBe('20');
+    expect(row('net')[3]).toBe('0');
+  });
+
+  test('계산식 — 원 단위로 손계산과 같다', async () => {
+    await open();
+    const b = SUMMARY.scenario;
+    const { applyScenario } = window.Management;
+    expect(applyScenario(b, {})).toEqual({ revenue: 5000000, variable: 2300000, contribution: 1700000, cmRate: 42.5, fixed: 6190000, net: -4490000, breakEven: 14564706 });
+    expect(applyScenario(b, { materialPct: 10 }).net).toBe(-4564500);
+    expect(applyScenario(b, { doorWon: 5000 }).net).toBe(-4530000);
+    expect(applyScenario(b, { marginRate: 0.15 }).net).toBe(-4615000);
+    expect(applyScenario(b, { partnerMarginRate: 0.2 }).net).toBe(-4490000 + Math.round(1000000 * (1.2 / 1.1 - 1)));
+    expect(applyScenario(b, { volumePct: 50 }).net).toBe(-3640000);
+    expect(applyScenario(b, { fixedWon: 2112000 }).net).toBe(-6602000);
+    expect(applyScenario(b, { laborPct: 20, hardwarePct: 50 }).net).toBe(-4490000 - 43000 - 60000);
+  });
+
+  test('공헌이익이 0 이하면 손익분기는 셀 수 없다', async () => {
+    await open();
+    const r = window.Management.applyScenario(SUMMARY.scenario, { materialPct: 300 });
+    expect(r.contribution).toBeLessThan(0);
+    expect(r.breakEven).toBeNull();
+  });
+
+  test('알바 시급이 없으면 알바 버튼은 빠진다', async () => {
+    await open({ ...SUMMARY, scenario: { ...SUMMARY.scenario, partTimeMonthly: 0 } });
+    expect([...document.querySelectorAll('#whatIfPresets button')].map((b) => b.textContent)).toEqual(['원판 +10%', '도어 장당 +5천 원', '고객 마진 15%']);
+  });
+
+  test('워커가 아직 옛 판이면(바탕이 없으면) 만약에 줄을 숨긴다', async () => {
+    const data = { ...SUMMARY };
+    delete data.scenario;
+    await open(data);
+    expect(document.getElementById('rowWhatIf').hidden).toBe(true);
+    expect(document.getElementById('rowProcess').hidden).toBe(false);
+  });
+
+  test('달을 다시 불러도 입력 이벤트가 두 번 붙지 않는다 (레버는 바탕값으로 돌아온다)', async () => {
+    await open();
+    setLever('lvMaterial', 10);
+    window.Management.render(SUMMARY);
+    expect(document.getElementById('lvMaterial').value).toBe('0');
+    expect(row('net')[3]).toBe('0');
   });
 });
