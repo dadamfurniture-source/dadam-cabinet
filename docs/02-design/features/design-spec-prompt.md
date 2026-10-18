@@ -276,22 +276,24 @@ POST /api/generate
   "category": "sink",
   "design_spec": { ... },                                   ← 필수. 없으면 400 bad_design_spec (차감 전)
   "renders": [
-    { "role": "elevation", "base64": "...", "mime": "image/png" },   ← 필수. 없으면 400 missing_render (차감 전)
+    { "role": "elevation", "base64": "...", "mime": "image/png" },   ← 필수. 번호 없는 입면. 없으면 400 missing_render (차감 전)
+    { "role": "elevation_labeled", "base64": "...", "mime": "image/png" }, ← 선택 (2026-10-19). 번호·치수선 붙은 입면 — GPT 에만 간다
     { "role": "massing",   "base64": "...", "mimeType": "image/jpeg" } ← 선택
   ],
   "aspect": "16:9",                                         ← 선택. 16:9 · 4:3 · 3:4 · 1:1 · 9:16, 그 밖은 16:9
-  "image_provider": "openai"                                ← 선택 (2026-10-18). 'openai' 만 알아듣고 없거나 다른 값이면 Gemini
+  "image_provider": "gemini"                                ← 선택. 'gemini' | 'openai'. 없거나 모르는 값이면 재생성 원본 값 → PLANNER_IMAGE_PROVIDER (2026-10-19 기본 'openai')
 }
 ```
 
 | 항목 | 규칙 |
 |---|---|
 | 받지 않는 것 | `realize` · `engine` · `control_*` · `reference_images` (보내도 무시) |
-| 렌더 | 역할마다 한 장, 최대 2장, 다른 role 은 버림. 버킷 `{user}/{gen}/render-{role}.{ext}`, `inputs.renders[] = {role, path, url, mime}` |
+| 렌더 | 역할마다 한 장, 최대 3장(`elevation` → `elevation_labeled` → `massing`), 다른 role 은 버림. 버킷 `{user}/{gen}/render-{role}.{ext}`, `inputs.renders[] = {role, path, url, mime}`. 번호 입면·3/4 는 업로드가 실패해도 잡은 간다 |
 | options | `mode:'planner'`, `aspect`, `variants:false`(항상) |
 | 재생성 | `parent_id` 만 보내면 원본의 모드·요약·렌더·비율을 잇는다. 원본에 입면이 없으면 400 |
 | 설치 | `[방 사진, 입면, 3/4?]` + 프롬프트 v3(2026-10-19), 온도 0.2, `aspectRatio` = `options.aspect` |
-| 이미지 공급자 (2026-10-18) | 기본 Gemini(위 줄 그대로, 칸 표시 없음). `image_provider:'openai'` 면 `options.image_provider:'openai'` (gemini 면 **키 없음**), 재생성은 원본을 잇고 새 값이 이긴다. 잡은 같은 프롬프트·같은 이미지 순서로 GPT 편집(`/v1/images/edits`, `image[]` 첫 장 = 방 사진)을 부르고 온도는 보내지 않는다. 크기는 비율에서: 16:9 → 2048x1152 · 4:3 → 2048x1536 · 1:1 → 1760x1760 · 3:4 → 1536x2048 · 9:16 → 1152x2048. 키가 없거나 GPT 가 실패하면 Gemini 가 같은 인자로 대신 그린다. 누가 그렸는지: `images[base].provider·model`(GPT 면 `usage` 도), 대신 그렸으면 `fallback:true · fallback_reason`, 행의 `model`. 전역 `IMAGE_PROVIDER` 는 플래너 모드에 닿지 않는다 |
+| 이미지 공급자 (2026-10-18 · 2026-10-19 기본 GPT) | 요청 `image_provider`('gemini'\|'openai') → 재생성 원본의 `options.image_provider` → `PLANNER_IMAGE_PROVIDER`(wrangler.toml, `'openai'` 만 GPT · 없거나 다른 값이면 Gemini). 결정된 값은 `options.image_provider` 에 **늘** 기록된다(일반 경로 options 모양은 그대로). 잡은 이 값만 읽는다 — 기록 없는 옛 행은 Gemini. GPT 편집은 `/v1/images/edits`(`image[]` 첫 장 = 방 사진), 온도 없음. 크기는 비율에서: 16:9 → 2048x1152 · 4:3 → 2048x1536 · 1:1 → 1760x1760 · 3:4 → 1536x2048 · 9:16 → 1152x2048. 키가 없거나 GPT 가 실패하면 Gemini 가 대신 그린다. 누가 그렸는지: `images[base].provider·model`(GPT 면 `usage` 도), 대신 그렸으면 `fallback:true · fallback_reason`, 행의 `model`. 전역 `IMAGE_PROVIDER` 는 플래너 모드에 닿지 않는다. 지금 기본값은 `/health` 의 `planner_image_provider` |
+| IMAGE B (2026-10-19) | GPT 로 그리면 `elevation_labeled` 가 있으면 그것, 없으면 `elevation`. **Gemini 로 그리면(기본이든 GPT 실패 대체든) 늘 `elevation`(번호 없음)** — Gemini 는 번호 라벨을 도어 위에 글자로 그려 넣었다. 프롬프트의 "IMAGE B may carry ID labels…" 문장은 번호 입면을 실제로 보낼 때만(`buildPlannerPrompt({labeledElevation:true})`). 대체 때는 번호 없는 입면 + 문장 없는 프롬프트로 다시 만든다 |
 | 검사 | 공통 + `layout_mismatch` + **`existing_left`**(남는 벽에 기존 가구) · **`pasted_reference`**(렌더를 붙임). **재시도 없음** — `images[base].qc` 에 기록만 |
 | 역판독 | 그대로 (`layout.verify`) |
 | 결과 | `base` 한 장. 추천안·`mockup` 슬롯 없음 |
@@ -304,7 +306,7 @@ POST /api/generate
 
 | 문단 | 무엇을 계산하나 |
 |---|---|
-| IMAGE B | 입면의 번호(L·U·T·W, 줄 안 왼쪽부터 1)·치수선은 주석 — 그리지 말 것 |
+| IMAGE B | 번호 입면을 보낼 때만(GPT): 입면의 번호(L·U·T·W, 줄 안 왼쪽부터 1)·치수선은 주석 — 그리지 말 것. 번호 없는 입면이면 문장 없음 (2026-10-19) |
 | `LAYOUT` | `layout` → 없으면 `notes` 의 `ㄱ자`·`ㄷ자` → 그래도 모르면 **문단 없음** (일자로 단정하지 않는다). ㄱ자·ㄷ자면 벽 대비 % 와 남는 벽 구역을 말하지 않는다 |
 | `FIXED GEOMETRY` | 줄마다 번호·폭·종류, `→ widths L1 : L2 : L3 = 2 : 1 : 2.5` (가장 좁은 모듈 = 1, 0.5 단위). 둘째 줄부터는 기준 줄(하부, 없으면 가장 긴 줄)의 모듈 경계로 시작·끝: `U1–U2 start above the left end of L1 and end above L3, 400 mm before the right end of the base row` |
 | 높이 | `fromFloorMm`·`ceilingMm` 중 하나라도 오면 줄마다 `bottom at X mm, top at Y mm from the floor` (`fromFloorMm` 없는 하부·키큰장·붙박이장은 0). 아무것도 없으면 예전처럼 `870 mm high` |
