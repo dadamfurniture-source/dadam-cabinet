@@ -52,6 +52,11 @@
 //      (세이지 그린)으로 찍혔다. clean 동안에만 같은 모듈 도어 → 같은 섹션 도어 → 같은 모듈 몸통 재질을 빌려 입힌다.
 //      finally 에서 원래 재질로. 디테일이 이미 칠한 몰딩은 건드리지 않는다.
 //
+// 2026-10-19: ⑧ 칠하지 않은 몸통·걸레받이 (plannerCaptureBorrowMaterial) — 도어만 칠한 도면을 찍으면 몸통 앞면이
+//      갈색 자리표시로 도어 둘레에 보였고 모델이 모든 장에 갈색 테두리를 그렸다 (잡 e4dc4435). 측판은 세이지 그린,
+//      걸레받이는 베이지 나무색 자리표시다. clean 동안에만 디테일 룩이 칠하지 않은(_origMaterial 없음) 몸통·선반·
+//      처짐방지목·걸레받이·좌대에 같은 모듈 도어 → 같은 섹션 도어 재질을 입힌다. 상판은 그대로. finally 에서 원래 재질로.
+//
 // 저장 (PlannerStore.saveRender, planner-store.js): 버킷 renders 의 {design}/{item}/{kind}-{yyyymmddHHMMss}.png
 //   + design_renders 행 (kind · path · width/height · camera · detail_hash). 스코프가 없으면(design=local ·
 //   로그인 전) <a download> 로 이 브라우저에 내려받는다 — 이 페이지는 앱 페이지라 다운로드가 된다.
@@ -624,15 +629,62 @@ function plannerCaptureSectionGroup(section) {
  */
 function plannerCaptureMoldingMaterial(molding, meshes, sectionOf) {
   const ud = molding && molding.userData;
-  if (!ud || ud.entityKind !== 'molding' || ud._origMaterial) return null;
-  const mid = plannerCaptureMeshModuleId(molding);
+  if (!ud || ud.entityKind !== 'molding') return null;
+  return plannerCaptureBorrowMaterial(molding, meshes, sectionOf);
+}
+
+/**
+ * 2026-10-19: clean 캡처에서 도어 재질을 빌려 입는 부재의 갈래. 순수.
+ *   'molding' 상몰딩 (⑦)
+ *   'body'    몸통 — carcass 중 도어·서랍 앞판(side 'front')·마감판(finish)·목찬넬 판이 아닌 것(측판·뒤판·지판·천판·
+ *             칸막이·ㄱ자 목대) + 선반(shelf)·처짐방지목(brace). planner-finish.js 슬롯 'body' 와 같은 묶음이다.
+ *   'kick'    걸레받이(toe-kick)·좌대(pedestal) — planner-finish.js 슬롯 'kick'.
+ *   그 밖(도어·서랍 앞판·먹장·상판·손잡이·마감재·다리발·표시용)은 null — 빌리지 않는다.
+ * @param {object} ud mesh.userData
+ * @returns {'molding'|'body'|'kick'|null}
+ */
+function plannerCaptureBorrowKind(ud) {
+  if (!ud) return null;
+  if (ud.entityKind === 'molding') return 'molding';
+  if (ud.entityKind === 'toe-kick' || ud.entityKind === 'pedestal') return 'kick';
+  if (ud.entityKind === 'shelf' || ud.entityKind === 'brace') return 'body';
+  return plannerCaptureIsBody(ud) ? 'body' : null;
+}
+
+/**
+ * 2026-10-19: clean 캡처에서 **칠하지 않은** 상몰딩·몸통·걸레받이(좌대)가 빌려 입을 재질. 순수 — 고르기만 한다.
+ *   2026-10-18 실제 생성(잡 e4dc4435)에서 도어만 칠하고 몸통을 안 칠한 도면을 보냈더니, 정면 렌더에 도어 둘레로
+ *   몸통 앞면의 갈색 자리표시 색이 보였고 모델이 모든 장에 갈색 테두리를 그렸다. 측판은 세이지 그린, 걸레받이는
+ *   베이지 나무색 자리표시로 찍힌다. 실무에서 몸통이 보이는 면은 도어와 같은 마감이라 그 자리표시를 도어 마감으로 덮는다.
+ *   "칠하지 않음" = userData._origMaterial 이 없다 — 디테일 룩(PlannerDetail.paintScene)은 칠한 mesh 에만 원래 재질을
+ *   그 이름으로 적는다. 있으면 사람이 마감을 정한 것이라 null (그대로).
+ *   고르는 순서 (도어는 칠한 것 먼저):
+ *     ① 같은 모듈의 도어 재질
+ *     ② 같은 섹션 묶음(상부·후드 / 그 밖)의 아무 도어 재질 — sectionOf 가 섹션을 알려 줄 때만
+ *     ③ 상몰딩만 — 같은 모듈의 몸통 재질 (몸통·걸레받이는 여기서 null)
+ *     ④ 없으면 null — 그대로 둔다
+ *   상판(top-panel)은 갈래가 없어 늘 null — 상판은 도어와 자재가 다르다(인조대리석 등). 도어색으로 덮으면 없는 마감을
+ *   지어낸다. 먹장(blank)·서랍 앞판은 도어로 보지 않는다. 안 보이는(visible false) mesh 는 빌리지 않는다.
+ * @param {object} mesh      바꿀 후보 mesh
+ * @param {object[]} meshes  빌려 올 후보 mesh 목록 (moduleGroup 을 훑은 것)
+ * @param {(moduleId:string)=>string|null} [sectionOf]  모듈 id → 섹션 ('upper' 등). 모르면 null
+ * @returns {object|null} material
+ */
+function plannerCaptureBorrowMaterial(mesh, meshes, sectionOf) {
+  const ud = mesh && mesh.userData;
+  if (!ud || ud._origMaterial) return null;
+  const kind = plannerCaptureBorrowKind(ud);
+  if (!kind) return null;
+  const mid = plannerCaptureMeshModuleId(mesh);
   if (mid == null) return null;
   const secOf = (id) => {
     if (typeof sectionOf !== 'function' || id == null) return null;
     try { return plannerCaptureSectionGroup(sectionOf(id)); } catch (e) { return null; }
   };
-  const list = (meshes || []).filter((o) => o && o !== molding && o.isMesh && o.material && o.visible !== false && o.userData);
-  const doors = list.filter((o) => plannerCaptureIsDoor(o.userData));
+  const list = (meshes || []).filter((o) => o && o !== mesh && o.isMesh && o.material && o.visible !== false && o.userData);
+  const doorsAll = list.filter((o) => plannerCaptureIsDoor(o.userData));
+  // 칠한 도어 먼저 — 같은 단계에 칠 안 한 도어(자리표시 색)도 있으면 사람이 고른 마감을 빌린다
+  const doors = doorsAll.filter((o) => o.userData._origMaterial).concat(doorsAll.filter((o) => !o.userData._origMaterial));
   const same = doors.find((o) => plannerCaptureMeshModuleId(o) === mid);
   if (same) return same.material;
   const g = secOf(mid);
@@ -640,6 +692,7 @@ function plannerCaptureMoldingMaterial(molding, meshes, sectionOf) {
     const near = doors.find((o) => secOf(plannerCaptureMeshModuleId(o)) === g);
     if (near) return near.material;
   }
+  if (kind !== 'molding') return null;
   const body = list.find((o) => plannerCaptureIsBody(o.userData) && plannerCaptureMeshModuleId(o) === mid);
   return body ? body.material : null;
 }
@@ -953,6 +1006,8 @@ const PlannerCapture = {
   /**
    * 2026-10-18: 상몰딩에 도어 재질을 잠깐 입힌다 (plannerCaptureMoldingMaterial). 바꾸기 전에 st.mats 에 적는다 —
    * _cleanEnd 가 거꾸로 원래 재질을 끼운다. 빌린 재질은 도어의 것이라 버리지(dispose) 않는다.
+   * 2026-10-19: 칠하지 않은 몸통·걸레받이(좌대)까지 (plannerCaptureBorrowMaterial). 고르기를 먼저 다 끝내고 바꾼다 —
+   * 바꾸는 도중의 재질을 다른 부재가 다시 빌리지 않게.
    */
   _cleanMoldings(t, st) {
     const g = t.moduleGroup;
@@ -960,16 +1015,20 @@ const PlannerCapture = {
     const meshes = [];
     g.traverse((o) => { if (o && o.isMesh) meshes.push(o); });
     const sectionOf = (id) => this.sectionOf(id);
+    const swaps = [];
     meshes.forEach((o) => {
-      if (!o.userData || o.userData.entityKind !== 'molding') return;
-      const mat = plannerCaptureMoldingMaterial(o, meshes, sectionOf);
+      if (!o.userData || !plannerCaptureBorrowKind(o.userData)) return;
+      const mat = plannerCaptureBorrowMaterial(o, meshes, sectionOf);
       if (!mat || mat === o.material) return;
+      swaps.push([o, mat]);
+    });
+    swaps.forEach(([o, mat]) => {
       st.mats.push({ mesh: o, material: o.material });
       o.material = mat;
     });
   },
 
-  /** 숨김 · 가전 대역 · 흰 배경(알파 0 으로 지우기) · 상몰딩 재질. 바꾼 것은 전부 st 에 적는다. */
+  /** 숨김 · 가전 대역 · 흰 배경(알파 0 으로 지우기) · 상몰딩·칠 안 한 몸통·걸레받이 재질. 바꾼 것은 전부 st 에 적는다. */
   _cleanBegin(t, T, st) {
     const sel = plannerCaptureCleanTargets(t.scene, t.moduleGroup);
     sel.hide.forEach((o) => { st.hidden.push(o); o.visible = false; });
@@ -1527,6 +1586,8 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerCaptureShadowFrustum,
     plannerCaptureCleanTargets,
     plannerCaptureMoldingMaterial,
+    plannerCaptureBorrowKind,
+    plannerCaptureBorrowMaterial,
     plannerCaptureStandInSpec,
     plannerCaptureSupportOf,
     plannerCaptureOverWhite,
