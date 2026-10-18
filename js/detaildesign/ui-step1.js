@@ -421,6 +421,11 @@
           csvHardware: hardwareExtractor.toCSV(hwResult.hardware)
         };
 
+        // 2026-10-18: 사전 오류 검사 결과를 품목별 플래너로 보낸다 — Step 2 로 돌아가면 문제 모듈에 테두리 (bom-preflight.js)
+        if (window.BomPreflight && typeof window.BomPreflight.publishToPlanners === 'function') {
+          try { window.BomPreflight.publishToPlanners(window._reportData); } catch (e) { console.warn('[Preflight] 플래너 표시 실패:', e); }
+        }
+
         // 6. 탭 콘텐츠 생성 후 Step 3 영역에 렌더링
         const tabContent = generateReportTabs(matResult, hwResult, design);
         document.getElementById('step3-report-area').innerHTML = tabContent;
