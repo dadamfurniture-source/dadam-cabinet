@@ -48,6 +48,10 @@
 //   ⑥ 그림자 빛 (plannerCaptureCleanLight) — castShadow 방향광을 앞·왼쪽 위(방위 −35° · 고도 50°)로 옮겨
 //      바닥 그림자가 가구 오른쪽 옆으로 보이게 한다. 받는 판은 옅게 (PLANNER_CAPTURE_SHADOW_OPACITY). finally 에서 원위치.
 //
+// 2026-10-18: ⑦ 상몰딩 재질 (plannerCaptureMoldingMaterial) — 상몰딩은 디테일 팔레트에 슬롯이 없어 자리표시 색
+//      (세이지 그린)으로 찍혔다. clean 동안에만 같은 모듈 도어 → 같은 섹션 도어 → 같은 모듈 몸통 재질을 빌려 입힌다.
+//      finally 에서 원래 재질로. 디테일이 이미 칠한 몰딩은 건드리지 않는다.
+//
 // 저장 (PlannerStore.saveRender, planner-store.js): 버킷 renders 의 {design}/{item}/{kind}-{yyyymmddHHMMss}.png
 //   + design_renders 행 (kind · path · width/height · camera · detail_hash). 스코프가 없으면(design=local ·
 //   로그인 전) <a download> 로 이 브라우저에 내려받는다 — 이 페이지는 앱 페이지라 다운로드가 된다.
@@ -60,6 +64,7 @@
 //   activeModuleId() 선택 — "이 모듈" 메뉴가 찍을 모듈
 //   moduleLabel(id)  선택 — 토스트·파일명용 모듈 이름
 //   detail()         선택 — 해시할 마감 모델. 기본 PlannerDetail.detail
+//   sectionOf(id)    선택 — 모듈 id → 섹션 (clean 상몰딩 재질용). 기본 PlannerDetail.moduleOf(id).section
 //
 // ⚠ 클래식 스크립트 — 최상위 이름은 전부 PLANNER_CAPTURE_ / plannerCapture / PlannerCapture 접두.
 //   three 는 전역 window.THREE. 없으면 capture 가 { ok:false, reason:'no-three' } 를 돌려준다.
@@ -574,6 +579,71 @@ function plannerCaptureCleanTargets(scene, moduleGroup) {
   return { hide, markers };
 }
 
+/** 2026-10-18: 도어 mesh 인가 — renderAll3D 의 도어 판은 carcass · side 'front' · areaType 'door' (planner-finish.js 슬롯 'door'). */
+function plannerCaptureIsDoor(ud) {
+  if (!ud) return false;
+  if (ud.entityKind === 'door') return true;
+  return ud.entityKind === 'carcass' && ud.side === 'front' && ud.areaType === 'door';
+}
+
+/** 2026-10-18: 몸통 판인가 — carcass 중 앞판(front)·마감판(finish)·목찬넬 판이 아닌 것 (planner-finish.js 슬롯 'body'). */
+function plannerCaptureIsBody(ud) {
+  if (!ud || ud.entityKind !== 'carcass') return false;
+  return ['front', 'finish', 'channelBase', 'channelFace'].indexOf(ud.side) < 0;
+}
+
+/** mesh 의 모듈 id — 자신에 없으면 부모 쪽 모듈 그룹에서 (renderAll3D 는 부재마다 moduleId 를 붙이지만 만일을 위해). */
+function plannerCaptureMeshModuleId(o) {
+  for (let cur = o; cur; cur = cur.parent) {
+    if (cur.userData && cur.userData.moduleId != null) return String(cur.userData.moduleId);
+  }
+  return null;
+}
+
+/** 섹션 → 마감 섹션 묶음. planner-finish.js plannerFinishSectionGroup 과 같은 규칙 (상부·후드 → upper, 나머지 → lower). */
+function plannerCaptureSectionGroup(section) {
+  if (!section) return null;
+  return (section === 'upper' || section === 'hood') ? 'upper' : 'lower';
+}
+
+/**
+ * 2026-10-18: clean 캡처에서 상몰딩이 빌려 입을 재질. 순수 — 고르기만 하고 바꾸지 않는다.
+ *   상몰딩(entityKind 'molding')은 디테일 마감 팔레트에 슬롯이 없어 칠해지지 않고 구조 단계의 자리표시 색
+ *   (세이지 그린 #708d81)으로 찍힌다. 그 그림이 이미지 모델에 가면 초록 몰딩으로 그려질 수 있다.
+ *   실무에서 상부 몰딩은 도어와 같은 마감이다. 고르는 순서:
+ *     ① 같은 모듈의 도어 재질
+ *     ② 같은 섹션 묶음(상부·후드 / 하부)의 아무 도어 재질 — sectionOf 가 섹션을 알려 줄 때만
+ *     ③ 같은 모듈의 몸통 재질
+ *     ④ 없으면 null — 그대로 둔다
+ *   디테일 룩이 이미 칠한 몰딩(userData._origMaterial 있음 — 사람이 마감을 정했다)은 null — 그 마감을 존중한다.
+ *   먹장(blank)·서랍 앞판은 도어로 보지 않는다. 안 보이는(visible false) mesh 는 빌리지 않는다.
+ * @param {object} molding   몰딩 mesh
+ * @param {object[]} meshes  후보 mesh 목록 (moduleGroup 을 훑은 것)
+ * @param {(moduleId:string)=>string|null} [sectionOf]  모듈 id → 섹션 ('upper' 등). 모르면 null
+ * @returns {object|null} material
+ */
+function plannerCaptureMoldingMaterial(molding, meshes, sectionOf) {
+  const ud = molding && molding.userData;
+  if (!ud || ud.entityKind !== 'molding' || ud._origMaterial) return null;
+  const mid = plannerCaptureMeshModuleId(molding);
+  if (mid == null) return null;
+  const secOf = (id) => {
+    if (typeof sectionOf !== 'function' || id == null) return null;
+    try { return plannerCaptureSectionGroup(sectionOf(id)); } catch (e) { return null; }
+  };
+  const list = (meshes || []).filter((o) => o && o !== molding && o.isMesh && o.material && o.visible !== false && o.userData);
+  const doors = list.filter((o) => plannerCaptureIsDoor(o.userData));
+  const same = doors.find((o) => plannerCaptureMeshModuleId(o) === mid);
+  if (same) return same.material;
+  const g = secOf(mid);
+  if (g) {
+    const near = doors.find((o) => secOf(plannerCaptureMeshModuleId(o)) === g);
+    if (near) return near.material;
+  }
+  const body = list.find((o) => plannerCaptureIsBody(o.userData) && plannerCaptureMeshModuleId(o) === mid);
+  return body ? body.material : null;
+}
+
 /** 대역이 상판 높이를 못 찾을 때 — 하부장 기본 높이 (PLANNER_SECTIONS.lower.moduleH) */
 const PLANNER_CAPTURE_COUNTER_TOP = 870;
 /** 상판을 찾을 때 이보다 높이 올라가는 부재는 하부가 아니다 (상부장·키큰장) */
@@ -869,13 +939,41 @@ const PlannerCapture = {
   // 상태 주머니(st)를 먼저 만들고 바꿀 때마다 거기 적는다 — 중간에 던져도 end 가 바꾼 만큼만 되돌린다.
 
   _cleanState() {
-    return { hidden: [], added: [], bg: null, clear: null, lights: [], shadowMap: null };
+    return { hidden: [], added: [], mats: [], bg: null, clear: null, lights: [], shadowMap: null };
   },
 
-  /** 숨김 · 가전 대역 · 흰 배경(알파 0 으로 지우기). 바꾼 것은 전부 st 에 적는다. */
+  /** 모듈 id → 섹션. mount 의 sectionOf → PlannerDetail.moduleOf → 모르면 null. */
+  sectionOf(moduleId) {
+    if (this._o && typeof this._o.sectionOf === 'function') { try { return this._o.sectionOf(moduleId) || null; } catch (e) { return null; } }
+    const PD = (typeof PlannerDetail !== 'undefined' && PlannerDetail && typeof PlannerDetail.moduleOf === 'function') ? PlannerDetail : null;
+    if (!PD) return null;
+    try { const m = PD.moduleOf(moduleId); return (m && m.section) || null; } catch (e) { return null; }
+  },
+
+  /**
+   * 2026-10-18: 상몰딩에 도어 재질을 잠깐 입힌다 (plannerCaptureMoldingMaterial). 바꾸기 전에 st.mats 에 적는다 —
+   * _cleanEnd 가 거꾸로 원래 재질을 끼운다. 빌린 재질은 도어의 것이라 버리지(dispose) 않는다.
+   */
+  _cleanMoldings(t, st) {
+    const g = t.moduleGroup;
+    if (!g || typeof g.traverse !== 'function') return;
+    const meshes = [];
+    g.traverse((o) => { if (o && o.isMesh) meshes.push(o); });
+    const sectionOf = (id) => this.sectionOf(id);
+    meshes.forEach((o) => {
+      if (!o.userData || o.userData.entityKind !== 'molding') return;
+      const mat = plannerCaptureMoldingMaterial(o, meshes, sectionOf);
+      if (!mat || mat === o.material) return;
+      st.mats.push({ mesh: o, material: o.material });
+      o.material = mat;
+    });
+  },
+
+  /** 숨김 · 가전 대역 · 흰 배경(알파 0 으로 지우기) · 상몰딩 재질. 바꾼 것은 전부 st 에 적는다. */
   _cleanBegin(t, T, st) {
     const sel = plannerCaptureCleanTargets(t.scene, t.moduleGroup);
     sel.hide.forEach((o) => { st.hidden.push(o); o.visible = false; });
+    this._cleanMoldings(t, st);
     sel.markers.forEach((mk) => {
       // buildMarkerMesh 는 마커 상자를 그룹 로컬 (0, H/2, 0) 에 W×H×D 로 둔다
       const geo = mk.marker.geometry;
@@ -989,6 +1087,7 @@ const PlannerCapture = {
       } catch (e) { /* 무해 */ }
     });
     st.hidden.splice(0).forEach((o) => { try { o.visible = true; } catch (e) { /* 무해 */ } });
+    st.mats.splice(0).reverse().forEach((s) => { try { s.mesh.material = s.material; } catch (e) { /* 무해 */ } });
     if (st.bg) { try { t.scene.background = st.bg.value; } catch (e) { /* 무해 */ } st.bg = null; }
     if (st.clear) { try { t.renderer.setClearColor(st.clear.color, st.clear.alpha); } catch (e) { /* 무해 */ } st.clear = null; }
     st.lights.splice(0).forEach((s) => {
@@ -1427,6 +1526,7 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerCapturePointsOf,
     plannerCaptureShadowFrustum,
     plannerCaptureCleanTargets,
+    plannerCaptureMoldingMaterial,
     plannerCaptureStandInSpec,
     plannerCaptureSupportOf,
     plannerCaptureOverWhite,

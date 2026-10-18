@@ -1175,6 +1175,122 @@ describe('clean 캡처 — 찍는 순간만 바뀌고, 끝나면(던져도) 작�
   });
 });
 
+// 2026-10-18: 상몰딩은 디테일 팔레트에 슬롯이 없어 자리표시 색(세이지 그린)으로 찍혔다 — clean 동안 도어 마감을 입힌다
+describe('clean 캡처 — 상몰딩은 도어 재질로 (순수 규칙, 2026-10-18)', () => {
+  const pick = C.plannerCaptureMoldingMaterial;
+  const mesh = (ud, name) => ({ isMesh: true, userData: ud, material: { name } });
+  const mold = mesh({ entityKind: 'molding', moduleId: 'upper-3' }, 'sage');
+  const sec = (id) => String(id).split('-')[0];   // 시험용 — 'upper-3' → 'upper'
+
+  test('같은 모듈 도어가 있으면 그 도어 재질 (다른 모듈 도어·몸통보다 먼저)', () => {
+    const list = [
+      mesh({ entityKind: 'carcass', moduleId: 'upper-3' }, 'body3'),
+      mesh({ entityKind: 'carcass', side: 'front', areaType: 'door', moduleId: 'upper-4', doorIdx: 0 }, 'door4'),
+      mesh({ entityKind: 'carcass', side: 'front', areaType: 'door', moduleId: 'upper-3', doorIdx: 0 }, 'door3'),
+      mold,
+    ];
+    expect(pick(mold, list, sec).name).toBe('door3');
+  });
+
+  test('같은 모듈 도어가 없으면 같은 섹션(상부·후드) 아무 도어 — 하부 도어·서랍 앞판·먹장은 안 고른다', () => {
+    const list = [
+      mesh({ entityKind: 'carcass', side: 'front', areaType: 'door', moduleId: 'lower-0' }, 'doorL'),
+      mesh({ entityKind: 'carcass', side: 'front', areaType: 'drawer', moduleId: 'upper-3' }, 'drawer3'),
+      mesh({ entityKind: 'blank', moduleId: 'upper-3', areaIdx: 0 }, 'blank3'),
+      mesh({ entityKind: 'carcass', moduleId: 'upper-3', side: 'left' }, 'body3'),
+      mesh({ entityKind: 'carcass', side: 'front', areaType: 'door', moduleId: 'hood-9' }, 'doorHood'),
+      mold,
+    ];
+    expect(pick(mold, list, sec).name).toBe('doorHood');
+    // 섹션을 모르면 섹션 단계는 건너뛰고 몸통으로
+    expect(pick(mold, list, () => null).name).toBe('body3');
+  });
+
+  test('도어가 하나도 없으면 같은 모듈 몸통 — 앞판·마감판·목찬넬 판은 몸통이 아니다', () => {
+    const list = [
+      mesh({ entityKind: 'carcass', moduleId: 'upper-3', side: 'finish' }, 'finish3'),
+      mesh({ entityKind: 'carcass', moduleId: 'upper-3', side: 'channelFace' }, 'channel3'),
+      mesh({ entityKind: 'carcass', moduleId: 'upper-4', side: 'back' }, 'body4'),
+      mesh({ entityKind: 'carcass', moduleId: 'upper-3', side: 'back' }, 'body3'),
+      mold,
+    ];
+    expect(pick(mold, list, sec).name).toBe('body3');
+  });
+
+  test('도어·몸통 모두 없으면 null (그대로 둔다) · 디테일이 이미 칠한 몰딩도 null · 몰딩이 아니면 null', () => {
+    expect(pick(mold, [mold, mesh({ entityKind: 'top-panel', moduleId: 'upper-3' }, 'top')], sec)).toBeNull();
+    expect(pick(mold, [], sec)).toBeNull();
+    const painted = mesh({ entityKind: 'molding', moduleId: 'upper-3', _origMaterial: { name: 'sage' } }, 'pbr');
+    expect(pick(painted, [mesh({ entityKind: 'carcass', side: 'front', areaType: 'door', moduleId: 'upper-3' }, 'door3')], sec)).toBeNull();
+    expect(pick(mesh({ entityKind: 'carcass', moduleId: 'upper-3' }, 'x'), [], sec)).toBeNull();
+    expect(pick(null, [], sec)).toBeNull();
+  });
+});
+
+describe('clean 캡처 — 상몰딩 재질 바꿔 끼우기·되돌리기 (2026-10-18)', () => {
+  const PC = C.PlannerCapture;
+  beforeEach(() => {
+    window.THREE = THREE;
+    PC._outputPass = null;
+    window.OutputPass = class { render(renderer, write) { renderer.setRenderTarget(write); } };
+  });
+  afterEach(() => { window.THREE = undefined; PC._outputPass = null; delete window.OutputPass; PC.mount(null); });
+
+  function sceneWithMolding() {
+    const s = cleanScene();
+    const mk = (w, h, d, ud, color) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color })); m.userData = ud; return m; };
+    // upper-0 — 도어 + 몰딩 / upper-1 — 도어 없음(몸통·몰딩만)
+    const door = mk(1196, 716, 18, { entityKind: 'carcass', side: 'front', areaType: 'door', moduleId: 'upper-0', areaIdx: 0 }, 0xd9d4c7);
+    door.position.set(0, 360, 174);
+    s.upper.add(door);
+    const mold = mk(1200, 60, 348, { entityKind: 'molding', moduleId: 'upper-0' }, 0x708d81);
+    mold.position.set(0, 750, 9);
+    s.upper.add(mold);
+    const upper1 = new THREE.Group();
+    upper1.userData = { entityKind: 'module', moduleId: 'upper-1' };
+    upper1.position.set(1800, 1500, -160);
+    s.mg.add(upper1);
+    const mold1 = mk(600, 60, 348, { entityKind: 'molding', moduleId: 'upper-1' }, 0x708d81);
+    mold1.position.set(0, 750, 9);
+    upper1.add(mold1);
+    return { s, door, mold, mold1, sage: mold.material, sage1: mold1.material };
+  }
+
+  test('clean: 찍는 순간 몰딩 = 같은 모듈 도어 재질, 도어 없는 모듈은 같은 섹션 도어 재질 — 끝나면 원래 재질 참조 그대로', () => {
+    const m = sceneWithMolding();
+    const during = [];
+    const r = cleanRenderer({ onRender() { during.push({ mold: m.mold.material, mold1: m.mold1.material }); } });
+    PC.mount({ three: () => ({ renderer: r, scene: m.s.scene, moduleGroup: m.s.mg }), sectionOf: (id) => String(id).split('-')[0] });
+    const shot = PC.capturePixels({ kind: 'massing', longEdge: 64, clean: true });
+    expect(shot.ok).toBe(true);
+    expect(during).toHaveLength(1);
+    expect(during[0].mold).toBe(m.door.material);
+    expect(during[0].mold1).toBe(m.door.material);
+    expect(m.mold.material).toBe(m.sage);
+    expect(m.mold1.material).toBe(m.sage1);
+    expect(m.door.material.color.getHex()).toBe(0xd9d4c7);   // 도어 재질은 빌려 쓸 뿐 — 버리지도 바꾸지도 않는다
+  });
+
+  test('렌더가 던져도 몰딩 재질은 되돌린다', () => {
+    const m = sceneWithMolding();
+    const r = cleanRenderer({ onRender() { throw new Error('gl lost'); } });
+    PC.mount({ three: () => ({ renderer: r, scene: m.s.scene, moduleGroup: m.s.mg }) });
+    expect(PC.capturePixels({ kind: 'front', longEdge: 64, clean: true })).toMatchObject({ ok: false, message: 'gl lost' });
+    expect(m.mold.material).toBe(m.sage);
+    expect(m.mold1.material).toBe(m.sage1);
+  });
+
+  test('clean 이 아니면 몰딩 재질을 건드리지 않는다', () => {
+    const m = sceneWithMolding();
+    const during = [];
+    const r = cleanRenderer({ onRender() { during.push(m.mold.material); } });
+    PC.mount({ three: () => ({ renderer: r, scene: m.s.scene, moduleGroup: m.s.mg }), sectionOf: (id) => String(id).split('-')[0] });
+    expect(PC.capturePixels({ kind: 'massing', longEdge: 64 }).ok).toBe(true);
+    expect(during).toEqual([m.sage]);
+    expect(m.mold.material).toBe(m.sage);
+  });
+});
+
 describe('clean 프레이밍·그림자 빛 (순수, 2026-10-18)', () => {
   // 실제 D1 (하부 800·400·1000 + 상판 2400, 상부 900·900, 싱크) 의 보이는 부재 경계 — 브라우저에서 잰 값
   const box = (x0, y0, z0, x1, y1, z1) => C.plannerCaptureCorners({ min: { x: x0, y: y0, z: z0 }, max: { x: x1, y: y1, z: z1 } });
@@ -1349,5 +1465,25 @@ describe('clean 캡처 — 페이지 부팅(디테일 룩과 함께)', () => {
     expect([f.lights.d1.shadow.camera.left, f.lights.d1.shadow.camera.far]).toEqual(cam0);
     expect(f.scene.children.filter((o) => o.userData && o.userData.entityKind === 'standin')).toEqual([]);
     expect(p.PD._sceneSaved).toBeNull();
+  });
+
+  // 2026-10-18: 몰딩은 디테일 룩이 칠하지 않는다(슬롯 없음) — clean 동안 룩이 칠한 도어 PBR 재질을 빌린다
+  test('구조 모드 clean: 몰딩이 디테일 룩이 칠한 도어 재질로 찍히고, 끝나면 몰딩·도어 재질 둘 다 원래 참조', () => {
+    const p = boot();
+    const f = fakeThree(p);
+    p.PD.detail.parts[f.moduleId] = { 'door#0': { code: 'PET-OAK-M' } };
+    const mold = new THREE.Mesh(new THREE.BoxGeometry(600, 60, 348), new THREE.MeshStandardMaterial({ color: 0x708d81 }));
+    mold.userData = { entityKind: 'molding', moduleId: f.moduleId };
+    mold.position.set(300, 750, 270);
+    f.door.parent.add(mold);
+    const before = { mold: mold.material, door: f.door.material };
+    const during = [];
+    f.renderer.render = function () { during.push({ mold: mold.material, door: f.door.material }); };
+    expect(p.PC.capturePixels({ kind: 'massing', longEdge: 64, clean: true }).ok).toBe(true);
+    expect(during[0].door.constructor.name).toBe('MeshPhysicalMaterial');
+    expect(during[0].mold).toBe(during[0].door);
+    expect(mold.material).toBe(before.mold);
+    expect(f.door.material).toBe(before.door);
+    expect(mold.userData._origMaterial).toBeUndefined();
   });
 });
