@@ -16,6 +16,8 @@ import { workloadFromSnapshot } from './workload.js';
 import { planProduction } from './planner.js';
 import { buildProposalBlocks, buildInstructionBlocks, buildDailyBlocks, assignmentsFromSuggestions, actionKey } from './notify.js';
 import { DEFAULT_STANDARDS, DEFAULT_CREW, DEFAULT_COSTS, DEFAULT_LEADS, DEFAULT_QUOTE } from './standards.js';
+import { safeRecord, safeSyncStatus } from '../reports/service.js';
+import { reportFromProposal, reportFromDecision, reportFromDailyBrief } from '../reports/record.js';
 
 const ACTIVE = new Set(['confirmed', 'in_production']);
 const KST_MS = 9 * 3600 * 1000;
@@ -174,6 +176,8 @@ function proposalLink(env, id) {
 export async function proposePlan(env, { user, trigger = 'manual', orderId = null, triggerLabel = null }) {
   const plan = await computePlan(env, { user });
   await updateBy(env, 'production_proposals', { user_id: `eq.${user.id}`, status: 'eq.pending' }, { status: 'superseded' });
+  // 보관함: 이전 결정 전 제안 보고도 '대체됨' 으로 (실패해도 계속)
+  await safeSyncStatus(env, { kind: 'eq.production_plan', owner_id: `eq.${user.id}`, status: 'eq.pending' }, 'superseded');
   const row = await insertOne(env, 'production_proposals', {
     user_id: user.id,
     trigger,
@@ -183,7 +187,10 @@ export async function proposePlan(env, { user, trigger = 'manual', orderId = nul
   });
   const payload = buildProposalBlocks({ plan, link: proposalLink(env, row.id), triggerLabel });
   const sent = await postToWebhook(env, payload);
-  await updateById(env, 'production_proposals', row.id, { slack_status: sent.ok ? 'sent' : `failed: ${sent.error || ''}`.slice(0, 300) });
+  const slackStatus = sent.ok ? 'sent' : `failed: ${sent.error || ''}`.slice(0, 300);
+  await updateById(env, 'production_proposals', row.id, { slack_status: slackStatus });
+  // 보관함: 생산 계획 보고 (그때의 계획을 동결)
+  await safeRecord(env, reportFromProposal({ ...row, slack_status: slackStatus }));
   return { proposal: { ...row, slack_status: sent.ok ? 'sent' : 'failed' }, plan };
 }
 
@@ -191,6 +198,14 @@ async function loadOwnedProposal(env, user, id) {
   const row = await selectOne(env, 'production_proposals', { id: `eq.${id}`, select: '*' });
   if (!row || row.user_id !== user.id) throw new NotFoundError('생산 계획 제안을 찾을 수 없습니다');
   return row;
+}
+
+/** 지난 제안 목록 (본문 없이 요약만) — production.html 의 '지난 제안'. */
+export async function listProposals(env, { user, status, from }) {
+  const q = { user_id: `eq.${user.id}`, select: 'id,trigger,status,decided_at,slack_status,created_at,plan->summary,plan->triggerLabel', order: 'created_at.desc', limit: '100' };
+  if (status && /^(pending|approved|dismissed|superseded)$/.test(status)) q.status = `eq.${status}`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(from || ''))) q.created_at = `gte.${from}T00:00:00+09:00`;
+  return (await selectMany(env, 'production_proposals', q)) || [];
 }
 
 export async function getProposal(env, { user, proposalId }) {
@@ -211,19 +226,28 @@ export async function decideProposal(env, { user, proposalId, body }) {
   const decision = body && body.decision;
   if (decision !== 'approve' && decision !== 'dismiss') throw new ValidationError("decision 은 'approve' 또는 'dismiss' 여야 합니다");
   if (decision === 'dismiss') {
-    await updateById(env, 'production_proposals', row.id, { status: 'dismissed', decided_at: new Date().toISOString() });
+    const decidedAt = new Date().toISOString();
+    await updateById(env, 'production_proposals', row.id, { status: 'dismissed', decided_at: decidedAt });
+    await safeSyncStatus(env, { kind: 'eq.production_plan', source_id: `eq.${row.id}` }, 'dismissed');
+    await safeRecord(env, reportFromDecision(row, { decision, selected: null, chosen: [], assignments: [], deciderId: user.id, decidedAt }));
     return { status: 'dismissed', assignments: [] };
   }
   const all = (row.plan && row.plan.suggestions) || [];
   let chosen = all;
+  let selected = null;
   if (Array.isArray(body.selected)) {
     const idx = new Set(body.selected.map(Number).filter((i) => Number.isInteger(i) && i >= 0 && i < all.length));
     chosen = all.filter((_, i) => idx.has(i));
+    selected = [...idx].sort((a, b) => a - b);
   }
   const jobLabels = Object.fromEntries(((row.plan && row.plan.jobs) || []).map((j) => [j.id, j.label]));
   const rows = assignmentsFromSuggestions(chosen, { userId: user.id, proposalId: row.id, jobLabels });
   const saved = rows.length ? (await insertMany(env, 'production_assignments', rows)) || [] : [];
-  await updateById(env, 'production_proposals', row.id, { status: 'approved', decided_at: new Date().toISOString() });
+  const decidedAt = new Date().toISOString();
+  await updateById(env, 'production_proposals', row.id, { status: 'approved', decided_at: decidedAt });
+  // 보관함: 계획 보고 상태 + 인력 승인 보고 (고른 추천 · 승인자 — 예전엔 남지 않았다)
+  await safeSyncStatus(env, { kind: 'eq.production_plan', source_id: `eq.${row.id}` }, 'approved');
+  await safeRecord(env, reportFromDecision(row, { decision, selected, chosen, assignments: saved, deciderId: user.id, decidedAt }));
   let slack = { ok: false, error: 'no assignments' };
   if (saved.length) {
     const url = env.SLACK_WEBHOOK_PRODUCTION || env.SLACK_WEBHOOK_URL;
@@ -264,11 +288,16 @@ export async function dailyBrief(env, { userId, today }) {
 
   const assignments = await listAssignments(env, { user, from: day });
   const todays = assignments.filter((a) => a.work_date === day && a.status === 'instructed');
-  const owner = await postToWebhook(env, buildDailyBlocks({ plan, assignments: todays, today: day }));
+  const blocks = buildDailyBlocks({ plan, assignments: todays, today: day });
+  const owner = await postToWebhook(env, blocks);
   let workers = null;
   if (todays.length && env.SLACK_WEBHOOK_PRODUCTION) {
     workers = await postToWebhook(env, buildInstructionBlocks({ assignments: todays }), env.SLACK_WEBHOOK_PRODUCTION);
   }
+  // 보관함: 아침 요약 매일 저장 (사장님 결정 Q3) — Slack 으로 나간 그대로
+  await safeRecord(env, reportFromDailyBrief({
+    ownerId: userId, day, plan, todays, blocks: blocks.blocks, sent: owner.ok, workersSent: workers ? workers.ok : undefined,
+  }));
 
   let proposal = null;
   if (plan.summary.lateBefore > 0) {

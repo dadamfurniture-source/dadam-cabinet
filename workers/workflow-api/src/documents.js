@@ -38,6 +38,7 @@ import { renderInstallationOrder } from './templates/installation-order.js';
 import { getSiteInfo, listSchedulesForDoc } from './site-info.js';
 import { gatherWorkOrderPayload, workOrderTotals } from './work-order-data.js';
 import { createSignedUrls, RENDERS_BUCKET, SIGNED_URL_TTL_SEC } from './storage.js';
+import { recordDocumentIssued } from './reports/service.js';
 
 // CD-4: 설치 작업지시서 추가. 여기만 고치면 안 된다 —
 // DB 의 design_documents_doc_type_check 와 renderDocument 분기(아래)가 함께 맞아야 한다.
@@ -186,6 +187,9 @@ export async function issueDocument(env, { user, body }) {
   if (body.supersedes) {
     await supersedeDocument(env, { user, documentId: body.supersedes, replacementId: created.id });
   }
+
+  // 보관함: 작업지시서 · 설치 지시서 색인 (실패해도 발행은 그대로)
+  await recordDocumentIssued(env, { user, doc: finalDoc });
 
   return {
     document: finalDoc,
