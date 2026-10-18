@@ -15,7 +15,7 @@
  * 진행 상태의 정본은 generations 행이다 (폴링은 행만 읽는다).
  */
 
-import { callGemini, geminiModel, probeRoutes } from './gemini.js';
+import { callGemini, geminiModel, probeRoutes, textModel } from './gemini.js';
 import { proxyStub } from './proxy.js';
 import { imageProvider, plannerProvider } from './images.js';
 import { openaiImageModel } from './openai.js';
@@ -194,6 +194,8 @@ export default {
             // 연출컷 이미지를 지금 누가 그리나 — 키 값은 싣지 않고 공급자·모델만 (2026-10-18)
             image_provider: imageProvider(env),
             image_model: imageProvider(env) === 'openai' ? openaiImageModel(env) : geminiModel(env),
+            // 가이드 선(붙박이장 앞면) 을 찾는 모델 — Claude 키가 있으면 Haiku 5.5, 없으면 Gemini 텍스트 모델
+            guide_points_model: env.ANTHROPIC_API_KEY ? env.GUIDE_MODEL || 'claude-haiku-5-5' : textModel(env),
             colo: (request.cf && request.cf.colo) || null,
           },
           200,

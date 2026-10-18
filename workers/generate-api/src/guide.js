@@ -18,14 +18,22 @@ import decodeJpeg from 'jpeg-js/lib/decoder.js';
 
 // ─── 1. 선·모서리 찾기 (텍스트 모델) ───
 
-/** @param {'left'|'right'|'both'} side 튀어나온 벽이 있는 쪽 (분석의 side_return) */
-export function buildGuidePointsPrompt(side) {
+/**
+ * @param {'left'|'right'|'both'} side 튀어나온 벽이 있는 쪽 (분석의 side_return)
+ * @param {{width:number, height:number}} [size] 주면 그 크기의 픽셀 [x, y] (Claude — 2026-10-18 사장님 "선 찾기는 Haiku 5.5"),
+ *   안 주면 Gemini 관례인 0~1000 정규화 [y, x]
+ */
+export function buildGuidePointsPrompt(side, size) {
   const anchor = side === 'left' ? 'left' : 'right';
   const far = anchor === 'left' ? 'right' : 'left';
+  const coords = size
+    ? `The image is ${size.width} x ${size.height} pixels. Every point is [x, y] in those pixels, with [0, 0] at the top-left corner.`
+    : 'Coordinates are [y, x] normalized to 0-1000, with [0, 0] at the top-left of the image.';
+  const p = size ? '[x,y]' : '[y,x]';
   return `Find lines and corners in this room photo. Return JSON only, no prose.
-Coordinates are [y, x] normalized to 0-1000, with [0, 0] at the top-left of the image.
+${coords}
 The main wall faces the camera; a built-in wardrobe will fill it. At its ${anchor} end a wall section protrudes toward the camera.
-{"back_floor":[[y,x],[y,x]],"back_ceiling":[[y,x],[y,x]],"return_front":{"top":[y,x],"bottom":[y,x]},"return_back":{"top":[y,x],"bottom":[y,x]},"far_floor":[[y,x],[y,x]]|null,"far_ceiling":[[y,x],[y,x]]|null}
+{"back_floor":[${p},${p}],"back_ceiling":[${p},${p}],"return_front":{"top":${p},"bottom":${p}},"return_back":{"top":${p},"bottom":${p}},"far_floor":[${p},${p}]|null,"far_ceiling":[${p},${p}]|null}
 back_floor = two points far apart on the line where the main wall meets the floor.
 back_ceiling = two points far apart on the line where the main wall meets the ceiling.
 return_front = the front vertical edge of the protruding ${anchor} wall: its top where it meets the ceiling and its bottom where it meets the floor.
@@ -33,43 +41,77 @@ return_back = the inner corner where the protruding ${anchor} wall meets the mai
 far_floor / far_ceiling = two points far apart on the line where the ${far} side wall (or a protruding ${far} wall's inner face) meets the floor / the ceiling; null if not visible.`;
 }
 
-function pt(v) {
+/** Claude 구조화 출력용 — buildGuidePointsPrompt(side, size) 의 픽셀 [x, y] 모양 */
+const XY = { type: 'array', items: { type: 'number' } };
+const XY_PAIR = { type: 'array', items: XY };
+const CORNER = {
+  type: 'object',
+  properties: { top: XY, bottom: XY },
+  required: ['top', 'bottom'],
+  additionalProperties: false,
+};
+export const GUIDE_POINTS_SCHEMA = {
+  type: 'object',
+  properties: {
+    back_floor: XY_PAIR,
+    back_ceiling: XY_PAIR,
+    return_front: CORNER,
+    return_back: { anyOf: [CORNER, { type: 'null' }] },
+    far_floor: { anyOf: [XY_PAIR, { type: 'null' }] },
+    far_ceiling: { anyOf: [XY_PAIR, { type: 'null' }] },
+  },
+  required: ['back_floor', 'back_ceiling', 'return_front', 'return_back', 'far_floor', 'far_ceiling'],
+  additionalProperties: false,
+};
+
+/** 점 하나 → 0~1. size 가 있으면 픽셀 [x, y], 없으면 0~1000 [y, x] */
+function pt(v, size) {
   if (!Array.isArray(v) || v.length !== 2) return null;
-  const [y, x] = v.map(Number);
-  if (!Number.isFinite(x) || !Number.isFinite(y) || x < -50 || x > 1050 || y < -50 || y > 1050) return null;
-  return { x: x / 1000, y: y / 1000 }; // 0~1
+  const a = Number(v[0]);
+  const b = Number(v[1]);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  const x = size ? a / size.width : b / 1000;
+  const y = size ? b / size.height : a / 1000;
+  if (x < -0.05 || x > 1.05 || y < -0.05 || y > 1.05) return null;
+  return { x, y }; // 0~1
 }
-function pair(v) {
+function pair(v, size) {
   if (!Array.isArray(v) || v.length !== 2) return null;
-  const a = pt(v[0]);
-  const b = pt(v[1]);
+  const a = pt(v[0], size);
+  const b = pt(v[1], size);
   return a && b ? [a, b] : null;
 }
-function corner(v) {
+function corner(v, size) {
   if (!v || typeof v !== 'object') return null;
-  const top = pt(v.top);
-  const bottom = pt(v.bottom);
+  const top = pt(v.top, size);
+  const bottom = pt(v.bottom, size);
   return top && bottom ? { top, bottom } : null;
 }
 
-/** 모델 응답 → 0~1 좌표. 필수(뒷벽 바닥선·천장선·튀어나온 벽 앞 모서리) 가 없으면 null. */
-export function parseGuidePoints(text, side) {
-  const m = text && text.match(/\{[\s\S]*\}/);
-  if (!m) return null;
-  let j;
-  try {
-    j = JSON.parse(m[0]);
-  } catch {
-    return null;
+/**
+ * 모델 응답(문자열 또는 이미 풀린 객체) → 0~1 좌표.
+ * 필수(뒷벽 바닥선·천장선·튀어나온 벽 앞 모서리)가 없으면 null.
+ * @param {{width:number, height:number}} [size] 픽셀 [x, y] 로 받았을 때 그 이미지 크기
+ */
+export function parseGuidePoints(input, side, size) {
+  let j = input && typeof input === 'object' ? input : null;
+  if (!j) {
+    const m = typeof input === 'string' && input.match(/\{[\s\S]*\}/);
+    if (!m) return null;
+    try {
+      j = JSON.parse(m[0]);
+    } catch {
+      return null;
+    }
   }
   const out = {
     side: side === 'left' ? 'left' : 'right',
-    backFloor: pair(j.back_floor),
-    backCeiling: pair(j.back_ceiling),
-    returnFront: corner(j.return_front),
-    returnBack: corner(j.return_back),
-    farFloor: pair(j.far_floor),
-    farCeiling: pair(j.far_ceiling),
+    backFloor: pair(j.back_floor, size),
+    backCeiling: pair(j.back_ceiling, size),
+    returnFront: corner(j.return_front, size),
+    returnBack: corner(j.return_back, size),
+    farFloor: pair(j.far_floor, size),
+    farCeiling: pair(j.far_ceiling, size),
   };
   return out.backFloor && out.backCeiling && out.returnFront ? out : null;
 }
@@ -275,17 +317,36 @@ export async function encodePng({ width: W, height: H, rgb }) {
 }
 
 /**
- * 방 사진(JPEG base64) 사본에 장 윤곽을 그린 PNG. JPEG 가 아니거나 계산이 안 되면 null.
- * @returns {Promise<{base64:string, mimeType:'image/png', width:number, height:number, guide:object}|null>}
+ * 방 사진(JPEG) → 가이드용 바탕: 긴 변 1024 로 줄인 RGB 와 그 깨끗한 PNG.
+ * 선 찾는 모델에 이 PNG 를 그대로 보내고 그 픽셀 좌표로 받는다 — 받은 좌표를 같은 그림에 그리니 어긋나지 않는다.
+ * JPEG 가 아니면 null.
+ * @returns {Promise<{img:object, width:number, height:number, png:{base64:string, mimeType:'image/png'}}|null>}
  */
-export async function renderGuideImage(room, points) {
-  if (!room || room.mimeType !== 'image/jpeg' || !points) return null;
+export async function prepareGuideCanvas(room) {
+  if (!room || room.mimeType !== 'image/jpeg') return null;
   const decoded = decodeJpeg(b64ToBytes(room.base64), { useTArray: true, formatAsRGBA: true });
   const img = downscale(decoded, MAX_EDGE);
-  const guide = computeGuide(points, img.width, img.height);
+  const png = await encodePng(img);
+  return { img, width: img.width, height: img.height, png: { base64: bytesToB64(png), mimeType: 'image/png' } };
+}
+
+/**
+ * 바탕 사본에 장 윤곽을 그린 PNG. 계산이 안 되면 null. 바탕(canvas.img)은 건드리지 않는다.
+ * @returns {Promise<{base64:string, mimeType:'image/png', width:number, height:number, guide:object}|null>}
+ */
+export async function drawGuide(canvas, points) {
+  if (!canvas || !points) return null;
+  const guide = computeGuide(points, canvas.width, canvas.height);
   if (!guide) return null;
+  const img = { width: canvas.width, height: canvas.height, rgb: canvas.img.rgb.slice() };
   const thick = Math.max(3, Math.round(Math.max(img.width, img.height) / 220));
   for (const [a, b] of guide.segments) drawSegment(img, a, b, thick);
   const png = await encodePng(img);
   return { base64: bytesToB64(png), mimeType: 'image/png', width: img.width, height: img.height, guide };
+}
+
+/** 한 번에 (시험·도구용): 방 사진 사본에 윤곽을 그린 PNG. JPEG 가 아니거나 계산이 안 되면 null. */
+export async function renderGuideImage(room, points) {
+  const canvas = await prepareGuideCanvas(room);
+  return canvas ? drawGuide(canvas, points) : null;
 }
