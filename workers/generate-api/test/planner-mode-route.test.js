@@ -317,6 +317,9 @@ test('mode 가 없으면 options·inputs 는 옛 모양 그대로 — renders �
     door_color: 'oak',
     door_finish: 'matte',
     wall_width_override: null,
+    // 급수·배기는 주방 품목에서만 싣는다 — 붙박이장이라 null 이다
+    water_from_left_override: null,
+    exhaust_from_left_override: null,
     fridge_options: null,
     design_spec: null,
   });
