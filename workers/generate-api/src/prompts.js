@@ -146,12 +146,68 @@ camera_side = where the camera stands relative to the centre of the main wall: "
 side_return = a wall section, partition or column at the left or right end of the main wall whose front face protrudes toward the camera, so the main wall sits in a recess. side = which end, depth_mm = how far that front face stands in front of the main wall. null when the main wall runs flat into the corners.`;
 }
 
+/**
+ * 2차 질문 — 싱크와 후드만 묻는다.
+ *
+ * 1차 분석은 한 번에 11가지를 묻느라 배관이 곁다리로 밀린다. 사진에 수전이 멀쩡히
+ * 보이는데도 null 로 오는 일이 잦다 (주방 121장 실측: 급수 56% · 배기 48% 만 읽음).
+ * 물음을 둘로 좁혀 다시 물으면 놓친 것의 절반을 더 읽는다 (53장 중 싱크 27 · 후드 30).
+ *
+ * 증거(evidence)를 같이 받는 이유: 지어낸 답을 가려내려는 것이다. 실측에서 찾아낸 27장은
+ * 전부 'gooseneck faucet on back counter' 처럼 실제 사물을 지목했다.
+ *
+ * @param {number} wallW 1차에서 읽은 벽 폭 (mm) — 비율의 기준을 알려 준다
+ */
+export function buildPlumbingPrompt(wallW) {
+  return `This is a Korean apartment kitchen photographed before renovation.
+The main wall facing the camera is about ${wallW} mm wide.
+
+Find two things on that wall and answer with their horizontal centre, as a percentage from the LEFT edge of that wall:
+1. sink = the sink bowl or the faucet (the water supply point)
+2. hood = the cooker hood or range hood above the cooktop (the exhaust point)
+
+Look carefully at the whole wall, including parts in shadow, behind obstacles, or at the edge of frame.
+A faucet alone is enough to locate the sink. A cooktop alone is enough to locate the hood.
+Answer null ONLY when that item is truly not visible anywhere in this photo.
+
+Return JSON only:
+{"sink_pct":number|null,"hood_pct":number|null,"sink_evidence":string|null,"hood_evidence":string|null}
+Each evidence string: at most 8 words naming what you actually saw.`;
+}
+
+/**
+ * 2차 응답 → {water, exhaust, waterWhy, exhaustWhy}. 못 읽었으면 null 이다.
+ * 5~95 로 자른다 — 벽 끝에 붙은 싱크는 없다 (pct 와 같은 규칙).
+ */
+export function parsePlumbing(text) {
+  const out = { water: null, exhaust: null, waterWhy: null, exhaustWhy: null };
+  const m = text && text.match(/\{[\s\S]*\}/);
+  if (!m) return out;
+  let j;
+  try {
+    j = JSON.parse(m[0]);
+  } catch {
+    return out;
+  }
+  const take = (v) =>
+    typeof v === 'number' && v >= 0 && v <= 100 ? Math.max(5, Math.min(95, Math.round(v))) : null;
+  const why = (v) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 60) : null);
+  out.water = take(j.sink_pct);
+  out.exhaust = take(j.hood_pct);
+  out.waterWhy = out.water == null ? null : why(j.sink_evidence);
+  out.exhaustWhy = out.exhaust == null ? null : why(j.hood_evidence);
+  return out;
+}
+
 /** 분석 JSON → 워커가 쓰는 벽 데이터 + 브리프. 값이 없거나 이상하면 기본값. */
 export function parseAnalysis(text) {
   const out = {
     wallW: 3000,
     wallH: 2400,
-    waterPct: 30,
+    // 급수 48%: 시공 전 주방 사진 68장에서 읽어낸 실제 위치의 중앙값이다 (2026-10 실측).
+    //   옛 기본값 30% 는 근거 없이 정해진 값이었고 평균 19.3p 틀렸다 — 48% 는 11.1p.
+    //   배기는 실제 분포가 벽 전체에 흩어져(7~90%) 어떤 상수를 써도 23p 쯤 틀린다. 70 을 둔다.
+    waterPct: 48,
     exhaustPct: 70,
     confidence: null,
     brief: null,

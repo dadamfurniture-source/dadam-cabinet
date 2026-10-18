@@ -31,7 +31,7 @@ const MY = fs.readFileSync(path.join(__dirname, '..', 'my-designs.html'), 'utf8'
 
 const fresh = () => ({
   wallW: 3000,
-  waterPct: 30,
+  waterPct: 48,   // prompts.js 기본값 (실측 중앙값)
   exhaustPct: 70,
   confidence: 'medium',
   read: { width: true, height: true, water: false, exhaust: false },
@@ -81,7 +81,7 @@ describe('잘못된 값은 무시한다', () => {
     const w = fresh();
     const r = J.applyManualPlumbing(w, opts);
     expect(r.water).toBe(false);
-    expect(w.waterPct).toBe(30);
+    expect(w.waterPct).toBe(48);
     expect(w.read.water).toBe(false);
     expect(w.confidence).toBe('medium');   // 사람이 안 넣었으면 신뢰도도 그대로
   });
