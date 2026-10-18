@@ -117,7 +117,7 @@ export function renderReportPrint(report, { live = null, toolbar = true } = {}) 
   else if (r.kind === 'staffing_decision') body = decisionBody(r, live);
   else if (r.kind === 'daily_brief') body = dailyBody(r);
   else if (r.kind === 'monthly_close') body = monthBody(r);
-  else if (r.kind === 'outsource_order') body = outsourceBody(r);
+  else if (r.kind === 'outsource_order' || r.kind === 'countertop_order') body = outsourceBody(r);
   else body = '<div class="muted">이 보고는 원본 문서에서 인쇄합니다.</div>';
   const period = r.period_start
     ? (r.period_end && r.period_end !== r.period_start ? `${ymd(`${r.period_start}T00:00:00+09:00`)} ~ ${ymd(`${r.period_end}T00:00:00+09:00`)}` : ymd(`${r.period_start}T00:00:00+09:00`))

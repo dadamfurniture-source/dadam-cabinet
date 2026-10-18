@@ -261,7 +261,7 @@
           asm_extra: '조립 인원 추가', edge_overtime: '알바(엣지) 연장', edge_outsource: '재단+엣지 외주',
           reschedule: '설치일 조정', door_order: '도어 발주', asm_call: '조립 기사 출근', top_order: '상판 발주',
         };
-        const PACKS = [['cut', '재단·엣지'], ['cut-vendor', '재단·엣지 의뢰서'], ['assembly', '조립'], ['door', '도어재 발주'], ['labels', '라벨'], ['all', '전체']];
+        const PACKS = [['cut', '재단·엣지'], ['cut-vendor', '재단·엣지 의뢰서'], ['assembly', '조립'], ['door', '도어재 발주'], ['top', '상판 발주 요청서'], ['labels', '라벨'], ['all', '전체']];
         const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
 
         const state = { kind: '', order: '', page: 1, hasMore: false, current: null, sb: null, session: null };
@@ -354,6 +354,7 @@
             case 'work_order': return `rev ${num(m.rev)} · 원판 ${num(m.sheets)} · 라벨 ${num(m.labels)}`;
             case 'installation_order': return `rev ${num(m.rev)}`;
             case 'monthly_close': return `매출 ${won(m.revenue)} · 손익 ${won(m.net)}`;
+            case 'countertop_order':
             case 'outsource_order': return `${m.vendor || ''} · ${m.qty || ''}${m.expected ? ` · 입고 예정 ${dayLabel(m.expected)}` : ''}`;
             default: return r.note ? String(r.note).slice(0, 60) : '';
           }
@@ -460,7 +461,8 @@
           return `<div class="mini-kpis"><div>주문<b>${esc(num(t.orders))}</b></div><div>매출<b>${esc(won(t.revenue))}</b></div><div>지출<b>${esc(won(t.cost))}</b></div><div>손익<b>${esc(won(t.net))}</b></div></div>`;
         }
 
-        const OUTSOURCE_PACK = { door: '도어재', 'cut-vendor': '재단·엣지' };
+        const OUTSOURCE_PACK = { door: '도어재', 'cut-vendor': '재단·엣지', top: '상판' };
+        const IS_ORDER = (k) => k === 'outsource_order' || k === 'countertop_order';
 
         /** 외주 발주 — 업체 · 수량 · 입고 예정 + 원본 종이 다시 인쇄 (보관함 §2.1) */
         function outsourceHtml(r) {
@@ -485,7 +487,7 @@
           else if (r.kind === 'daily_brief') html = dailyHtml(r);
           else if (IS_DOC(r.kind)) html = documentHtml(r);
           else if (r.kind === 'monthly_close') html = monthHtml(r);
-          else if (r.kind === 'outsource_order') html = outsourceHtml(r);
+          else if (IS_ORDER(r.kind)) html = outsourceHtml(r);
           else html = '';
           $('detailBody').innerHTML = html || '<div class="muted">본문 없음</div>';
           $('detailNote').value = r.note || '';
@@ -508,7 +510,7 @@
         /** 발주(ordered) 상태의 외주 발주만 [입고 처리] · [발주 취소] */
         function showOrderButtons() {
           const r = state.current;
-          const on = Boolean(r && r.kind === 'outsource_order' && r.status === 'ordered' && r.can_edit);
+          const on = Boolean(r && IS_ORDER(r.kind) && r.status === 'ordered' && r.can_edit);
           $('btnReceived').style.display = on ? '' : 'none';
           $('btnCancelOrder').style.display = on ? '' : 'none';
         }
