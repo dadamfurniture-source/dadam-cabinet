@@ -189,6 +189,21 @@ test('planner: 3/4 렌더가 없으면 두 장 + C 문장 없음, 비율은 opti
   assert.equal(call.body.generationConfig.imageConfig.aspectRatio, '4:3');
 });
 
+test('planner: 급수·배기 수동값은 wall_analysis 에 들어가고, 프롬프트는 도면을 따르므로 그대로다', async () => {
+  install({ qcIssues: [] });
+  await run(PLANNER_OPTIONS, PLANNER_INPUTS);
+  const plain = calls.image[0].prompt;
+
+  install({ qcIssues: [] });
+  await run({ ...PLANNER_OPTIONS, water_from_left_override: 1800, exhaust_from_left_override: 900 }, PLANNER_INPUTS);
+  const wall = calls.patched.find((p) => p.wall_analysis).wall_analysis;
+  assert.equal(wall.wallW, 3600);
+  assert.equal(wall.waterPct, 50);   // 1800 / 3600
+  assert.equal(wall.exhaustPct, 25); // 900 / 3600
+  assert.equal(wall.confidence, 'user');
+  assert.equal(calls.image[0].prompt, plain);
+});
+
 test('planner: 입면 렌더가 없으면 설치 전에 실패하고 환불한다', async () => {
   install();
   const refunds = [];
