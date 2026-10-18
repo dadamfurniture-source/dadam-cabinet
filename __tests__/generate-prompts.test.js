@@ -243,6 +243,18 @@ describe('변형 프롬프트', () => {
     expect(p).toMatch(/Handleless fronts stay handleless/);
   });
 
+  // 2026-10-19: 테마 추천안이 튀어나온 벽(오크)·옆 세면대 서랍(노랑)까지 칠했다 — 새 붙박이 가구만 바꾼다
+  test('추천안은 새 붙박이 가구만 칠하고 벽·기둥·다른 가구는 그대로', () => {
+    for (const p of [P.buildVariantPrompt(P.FINISHES[0]), P.buildTwoToneVariantPrompt(P.TWO_TONES[0])]) {
+      expect(p).toMatch(/Only the new built-in furniture changes colour\./);
+      expect(p).toMatch(/wall sections and columns beside it/);
+      expect(p).toMatch(/every other piece of furniture or fixture in the room/);
+    }
+    const v = P.buildVariantPrompt(P.FINISHES[0]);
+    expect(v).toContain("The furniture's own exposed end panels, open shelves and trim: " + P.FINISHES[0].accent);
+    expect(v).not.toMatch(/^- Side panels/m);
+  });
+
   test('한 요청 안의 마감 3개는 서로 다르고 결정적이다', () => {
     const a = P.pickFinishes(3, 12345).map((f) => f.key);
     const b = P.pickFinishes(3, 12345).map((f) => f.key);
