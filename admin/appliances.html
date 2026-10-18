@@ -92,19 +92,8 @@
         <h1>🛠 다담가구 관리자</h1>
         <span>Admin Panel</span>
       </div>
-      <ul class="nav-menu">
-        <li><a href="index.html"><span class="nav-icon">📊</span>대시보드</a></li>
-        <li><a href="users.html"><span class="nav-icon">👥</span>회원 관리</a></li>
-        <li><a href="gallery.html"><span class="nav-icon">🖼️</span>시공사례 관리</a></li>
-        <li><a href="reference-images.html"><span class="nav-icon">🎨</span>참고 이미지</a></li>
-        <li><a href="dataset.html"><span class="nav-icon">🧠</span>학습 데이터셋</a></li>
-        <li><a href="expert-requests.html"><span class="nav-icon">⭐</span>Expert 승급 관리</a></li>
-        <li><a href="consultations.html"><span class="nav-icon">💬</span>상담 관리</a></li>
-        <li><a href="appliances.html" class="active"><span class="nav-icon">🧊</span>가전 모델 관리</a></li>
-        <li><a href="work-reports.html"><span class="nav-icon">📑</span>작업 지시 보고</a></li>
-        <li><a href="logs.html"><span class="nav-icon">📋</span>활동 로그</a></li>
-        <li><a href="settings.html"><span class="nav-icon">⚙️</span>설정</a></li>
-      </ul>
+      <ul class="nav-menu" id="adminNav"></ul>
+      <script src="../js/admin-shell.js"></script>
       <div class="sidebar-footer">
         <a href="../index.html">← 메인 사이트로</a>
       </div>
@@ -271,11 +260,10 @@
         supabaseClient = window.supabase.createClient(url, anonKey);
         const { data: { user } } = await supabaseClient.auth.getUser();
         if (!user) { showAccessDenied(); return; }
-        // admin 권한 체크 (admin_roles 테이블)
-        const { data: role } = await supabaseClient
-          .from('admin_roles').select('role')
-          .eq('user_id', user.id).maybeSingle();
-        if (!role || !['admin', 'superadmin'].includes(role.role)) {
+        // 가전 모델을 바꾸는 권한 = admin · super_admin (예전 'superadmin' 오타로 super_admin 이 막혔다 — PR7).
+        //   DB 쪽 같은 오타는 database/fix-appliance-models-rls.sql
+        const role = window.AdminAccess ? await window.AdminAccess.getRole(supabaseClient, user.id) : null;
+        if (!['admin', 'super_admin'].includes(role)) {
           showAccessDenied();
           return;
         }
