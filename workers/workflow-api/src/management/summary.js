@@ -142,6 +142,27 @@ function median(xs) {
   return s.length % 2 ? s.at(m) : (s.at(m - 1) + s.at(m)) / 2;
 }
 const hoursBetween = (a, b) => (Date.parse(b) - Date.parse(a)) / 3600000;
+
+/** 확인서 수정 요청 사유 — documents.js DECISION_REASON_CODES 와 같은 축 (고객이 confirm.html 에서 고른다) */
+export const REASON_LABEL = Object.freeze({ dimension: '치수', layout: '배치 · 구성', color: '색상 · 마감', price: '금액', schedule: '일정 · 납기', other: '기타' });
+
+/**
+ * 수정 요청(거절) 사유 분포. 코호트 설계의 **모든** 거절 확인서를 센다 — 고쳐 낸 뒤 또 거절되면
+ * 그것도 한 번의 요청이다. 사유는 여러 개 고를 수 있어 합이 요청 수보다 클 수 있다.
+ */
+function reasonsOf(rejectedDocs) {
+  const counts = new Map();
+  let none = 0;
+  for (const d of rejectedDocs) {
+    const codes = Array.isArray(d.reasons) ? [...new Set(d.reasons.filter((c) => c in REASON_LABEL))] : [];
+    if (!codes.length) none += 1;
+    for (const c of codes) counts.set(c, (counts.get(c) || 0) + 1);
+  }
+  const codes = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || Object.keys(REASON_LABEL).indexOf(a[0]) - Object.keys(REASON_LABEL).indexOf(b[0]))
+    .map(([code, count]) => ({ code, label: REASON_LABEL[code], count, share: pct(count, rejectedDocs.length) }));
+  return { requests: rejectedDocs.length, noReason: none, codes };
+}
 const oneDecimal = (v) => (v === null ? null : Math.round(v * 10) / 10);
 
 /**
@@ -158,12 +179,13 @@ export function funnelOf({ documents, consultations, orders }, month) {
   const leads = Array.isArray(consultations) ? consultations.filter((c) => inMonth(c.created_at, month)).length : null;
   const ordered = new Set((orders || []).filter((o) => o.status !== 'cancelled').map((o) => o.design_id));
   let issued = 0, viewed = 0, approved = 0, orderedN = 0, rejected = 0, pending = 0;
-  const revs = [], toView = [], toDecide = [];
+  const revs = [], toView = [], toDecide = [], rejectedDocs = [];
   for (const [designId, docs] of confirmationsByDesign(documents)) {
     const first = docs.at(0);
     if (!inMonth(first.created_at, month)) continue;
     issued += 1;
     revs.push(docs.length);
+    for (const d of docs) if (d.decision === 'rejected') rejectedDocs.push(d);
     const views = docs.map((d) => d.first_viewed_at).filter(Boolean).sort();
     if (views.length) { viewed += 1; toView.push(hoursBetween(first.created_at, views.at(0))); }
     const ok = docs.find((d) => d.decision === 'approved');
@@ -194,6 +216,7 @@ export function funnelOf({ documents, consultations, orders }, month) {
     avgRevisions: revs.length ? oneDecimal(revs.reduce((s, v) => s + v, 0) / revs.length) : null,
     medianHoursToView: oneDecimal(median(toView)),
     medianDaysToDecide: oneDecimal(median(toDecide)),
+    reasons: reasonsOf(rejectedDocs),
   };
 }
 

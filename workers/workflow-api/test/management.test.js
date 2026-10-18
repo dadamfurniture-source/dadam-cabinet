@@ -172,6 +172,7 @@ test('영업 퍼널: 발행 4 → 열람 3 → 승인 1 → 수주 1, 수정 평
     avgRevisions: 1.3,    // (2 + 1 + 1 + 1) ÷ 4 = 1.25
     medianHoursToView: 6, // [6, 2, 12] — 첫 확인서 발행부터 그 설계의 첫 열람까지
     medianDaysToDecide: 3.5, // D1 승인 5일 · D3 거절 2일
+    reasons: { requests: 1, noReason: 1, codes: [] }, // D3 는 사유 없이 돌려보냈다
   });
 });
 
@@ -473,4 +474,36 @@ test('만약에 판을 그대로 두면 맨 위 이익 식과 한 원도 다르�
   const variable = b.material + b.hardware + b.door + b.outsourcing + b.labor + b.overheadAlloc;
   assert.equal(b.revenueCustomer + b.revenuePartner - variable, f.contribution);
   assert.equal(b.revenueCustomer + b.revenuePartner + b.revenueUnknown, f.revenue);
+});
+
+// ── 2단계 PR-5: 수정 요청 사유 ──
+import { REASON_LABEL } from '../src/management/summary.js';
+import { DECISION_REASON_CODES } from '../src/documents.js';
+
+test('수정 요청 사유: 고객 화면의 사유 코드와 대시보드 라벨이 같은 축이다', () => {
+  assert.deepEqual(Object.keys(REASON_LABEL), DECISION_REASON_CODES);
+});
+
+test('수정 요청 사유: 코호트의 모든 거절을 센다 — 고쳐 낸 뒤 또 거절돼도 한 번의 요청, 사유는 여럿', () => {
+  const docs = [
+    // D6: 금액 · 배치로 돌려보냄 → 고쳐서 또 금액 → 세 번째에 승인
+    { design_id: 'D6', doc_type: 'customer_confirmation', status: 'superseded', decision: 'rejected', reasons: ['price', 'layout'], created_at: '2026-10-02T01:00:00Z' },
+    { design_id: 'D6', doc_type: 'customer_confirmation', status: 'superseded', decision: 'rejected', reasons: ['price'], created_at: '2026-10-04T01:00:00Z' },
+    { design_id: 'D6', doc_type: 'customer_confirmation', status: 'approved', decision: 'approved', reasons: [], created_at: '2026-10-06T01:00:00Z', decided_at: '2026-10-07T01:00:00Z' },
+    // D7: 같은 사유 두 번 · 모르는 코드 — 한 번씩만, 모르는 건 버린다
+    { design_id: 'D7', doc_type: 'customer_confirmation', status: 'rejected', decision: 'rejected', reasons: ['dimension', 'price', 'price', 'bogus'], created_at: '2026-10-08T01:00:00Z' },
+    // D8: 사유 없이
+    { design_id: 'D8', doc_type: 'customer_confirmation', status: 'rejected', decision: 'rejected', reasons: null, created_at: '2026-10-09T01:00:00Z' },
+    // D9: 9월 코호트 — 10월에 거절돼도 세지 않는다
+    { design_id: 'D9', doc_type: 'customer_confirmation', status: 'superseded', decision: null, created_at: '2026-09-28T01:00:00Z' },
+    { design_id: 'D9', doc_type: 'customer_confirmation', status: 'rejected', decision: 'rejected', reasons: ['color'], created_at: '2026-10-03T01:00:00Z' },
+  ];
+  const r = funnelOf({ documents: docs, consultations: [], orders: [] }, '2026-10').reasons;
+  assert.equal(r.requests, 4);
+  assert.equal(r.noReason, 1);
+  assert.deepEqual(r.codes, [
+    { code: 'price', label: '금액', count: 3, share: 75 },
+    { code: 'dimension', label: '치수', count: 1, share: 25 }, // 같은 수면 고객 화면 순서
+    { code: 'layout', label: '배치 · 구성', count: 1, share: 25 },
+  ]);
 });
