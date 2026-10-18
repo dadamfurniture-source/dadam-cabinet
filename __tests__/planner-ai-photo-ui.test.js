@@ -5,6 +5,7 @@
  *   1) 섹션이 **디테일 모드에서만** 선다 (구조 단계 화면은 바이트 하나 달라지지 않는다)
  *   2) 크레딧 20 이 **누르기 전에** 보인다
  *   3) 버튼을 누르면 약속한 본문(room_image·category·design_spec)이 나간다
+ *      2026-10-18 (P5): + mode:'planner' · renders(입면 PNG · 3/4 JPEG) · aspect. 옛 키는 없다
  *   4) 폴링이 잡의 한국어 라벨을 따라 올라가고, done 이면 썸네일이 선다
  *   5) 새로고침해도 돌던 잡에 다시 붙는다
  *   6) 실패마다 한국어 한 줄
@@ -30,9 +31,28 @@ const MODULES = [
   { id: 'sink-5', section: 'sink', W: 700, H: 500, D: 400, x: 1300, y: 0, rotation: 0, areaId: 'area-lower-1', finishings: [] },
 ];
 
+/**
+ * 가짜 PlannerCapture — 공개 API capture({kind, longEdge, clean}) 만 흉내 낸다.
+ * fail: { front?: 메시지, massing?: 메시지 } 이면 그 kind 는 {ok:false} 를 낸다.
+ */
+function fakeCapture(win, fail = {}) {
+  const calls = [];
+  return {
+    calls,
+    async capture(o) {
+      calls.push(o);
+      if (fail[o.kind]) return { ok: false, reason: 'error', message: fail[o.kind] };
+      const w = o.kind === 'front' ? 1536 : 1024;
+      const h = o.kind === 'front' ? 640 : 576;
+      return { ok: true, kind: o.kind, width: w, height: h, clean: !!o.clean, blob: new win.Blob(['PNG-' + o.kind], { type: 'image/png' }) };
+    },
+  };
+}
+const b64 = (s) => Buffer.from(s).toString('base64');
+
 function boot(opt = {}) {
   const seed = seedFor(FIXTURES.straight);
-  const search = seed._search + (opt.structure ? '' : '&stage=detail');
+  const search = seed._search + (opt.structure ? '' : '&stage=detail') + (opt.search || '');
   delete seed._search;
   seed['dadam_struct_modules_v1' + SCOPE] = JSON.stringify(MODULES);
   Object.assign(seed, opt.storage || {});
@@ -44,6 +64,11 @@ function boot(opt = {}) {
   p.AP.ready = async () => ({ ok: true, ids: { designId: 'gold', itemId: 1 } });
   p.AP.token = async () => 'jwt-token';
   p.AP.POLL_MS = 1;
+  // jsdom 에는 WebGL·canvas 가 없다 — 캡처와 JPEG 변환은 갈아 끼운다 (2026-10-18 P5)
+  p.cap = fakeCapture(p.window, opt.captureFail);
+  p.AP._capture = p.cap;
+  p.jpegCalls = [];
+  p.AP._toJpeg = async (blob, o) => { p.jpegCalls.push(o); return { base64: 'SlBH', mime: 'image/jpeg' }; };
   // 하네스는 부팅 뒤에 loadModules 를 한 번 더 부른다 (다른 플래너 시험과 같은 방식) —
   // 모드 진입 때 그렸던 화면이 그 사이 비어 있었으므로 여기서 한 번 다시 그린다.
   if (p.window.PlannerDetail.isActive()) p.AP.render();
@@ -77,7 +102,6 @@ function fakeFetch(steps) {
 
 const body = (p) => p.document.getElementById('aiPhotoBody');
 const text = (p) => body(p).textContent;
-const tick = async (n = 6) => { for (let i = 0; i < n; i++) await Promise.resolve(); };
 /** 폴링 한 바퀴(POLL_MS=1) 를 기다린다 */
 const wait = (ms = 12) => new Promise((r) => setTimeout(r, ms));
 
@@ -182,91 +206,224 @@ describe('생성 요청', () => {
     expect(call.body.design_spec.wallRunMm).toBe(3600);
     expect(call.body.design_spec.sections.lower.modules.length).toBeGreaterThan(0);
     expect(call.body.design_spec.appliances).toEqual([{ kind: 'sink', fromLeftMm: 1300, widthMm: 700 }]);
-    // 2026-09-22: 디테일 단계는 한 장만 — 추천안을 끈다
-    expect(call.body.variants).toBe(false);
     // #682 에서 지운 것들이 본문으로 돌아오지 않았다
     expect(call.body.camera).toBeUndefined();
     expect(call.body.floor_quad).toBeUndefined();
   });
 
-  test('실사화 체크박스 — 켜면 realize:true 가 실리고, 안 켜면 키 자체가 없다', async () => {
-    // 2026-09-19: 올린 사진에 도면 입면이 이미 얹혀 있으면(벽 호모그래피 합성본) 모델은 그 자리에서 다시 그린다.
-    //   자동 합성이 붙기 전까지 사람이 켠다. 안 켜면 본문은 예전과 같아야 한다.
+  // 2026-10-18 (P5): 플래너 모드 — design-spec-prompt.md "플래너 모드" 계약
+  test('플래너 모드 본문 — mode · renders(입면 PNG · 3/4 JPEG) · aspect, 옛 키 없음', async () => {
     const p = withPhoto(boot());
-    const steps = () => fakeFetch([
+    p.AP._fetch = fakeFetch([
       { status: 202, json: { success: true, id: 'gen-1' } },
       { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images: [] } } },
     ]);
-    p.AP._fetch = steps();
     await p.AP.submit();
-    expect(p.AP._fetch.calls[0].body.realize).toBeUndefined();
+    // 캡처 — 공개 API 만, clean 으로, 계획 §5 크기
+    expect(p.cap.calls).toEqual([
+      { kind: 'front', longEdge: 1536, clean: true },
+      { kind: 'massing', longEdge: 1024, clean: true },
+    ]);
+    expect(p.jpegCalls).toEqual([{ quality: 0.9 }]);
+    const b = p.AP._fetch.calls[0].body;
+    expect(b.mode).toBe('planner');
+    expect(b.renders).toEqual([
+      { role: 'elevation', base64: b64('PNG-front'), mime: 'image/png' },
+      { role: 'massing', base64: 'SlBH', mime: 'image/jpeg' },
+    ]);
+    expect(b.aspect).toBe('4:3');                  // 1600×1200
+    expect(b.room_image).toBe('QUJD');
+    expect(b.design_spec.category).toBe(b.category);
+    // 옛 경로의 키는 하나도 없다 (워커가 variants 를 false 로 강제한다)
+    ['realize', 'engine', 'control_image', 'control_type', 'control_size', 'variants', 'reference_images']
+      .forEach((k) => expect(b).not.toHaveProperty(k));
+    expect(Object.keys(b).sort()).toEqual(
+      ['aspect', 'category', 'design_spec', 'image_type', 'mode', 'renders', 'room_image']);
+  });
 
-    const box = body(p).querySelector('#aiPhotoRealize');
+  test('세로 사진이면 aspect 도 세로 — 583×781 → 3:4', async () => {
+    const p = boot();
+    p.AP.img = { base64: 'QUJD', mime: 'image/jpeg', preview: 'data:image/jpeg;base64,QUJD', name: '세로.jpg', width: 583, height: 781 };
+    p.AP.render();
+    expect(body(p).querySelector('#aiPhotoRatio').textContent).toContain('세로 사진 · 3:4');
+    p.AP._fetch = fakeFetch([
+      { status: 202, json: { success: true, id: 'gen-1' } },
+      { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images: [] } } },
+    ]);
+    await p.AP.submit();
+    expect(p.AP._fetch.calls[0].body.aspect).toBe('3:4');
+  });
+
+  test('3/4 뷰를 못 찍으면 입면만 보낸다', async () => {
+    const p = withPhoto(boot({ captureFail: { massing: '3D 에 찍을 모듈이 없습니다' } }));
+    p.AP._fetch = fakeFetch([
+      { status: 202, json: { success: true, id: 'gen-1' } },
+      { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images: [] } } },
+    ]);
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try { await p.AP.submit(); } finally { warn.mockRestore(); }
+    const b = p.AP._fetch.calls[0].body;
+    expect(b.renders.map((r) => r.role)).toEqual(['elevation']);
+    expect(p.jpegCalls).toHaveLength(0);
+  });
+
+  test('3/4 뷰를 JPEG 로 못 바꿔도 입면만 보낸다', async () => {
+    const p = withPhoto(boot());
+    p.AP._toJpeg = async () => { throw new Error('JPEG 로 바꾸지 못했습니다'); };
+    p.AP._fetch = fakeFetch([
+      { status: 202, json: { success: true, id: 'gen-1' } },
+      { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images: [] } } },
+    ]);
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try { await p.AP.submit(); } finally { warn.mockRestore(); }
+    expect(p.AP._fetch.calls[0].body.renders.map((r) => r.role)).toEqual(['elevation']);
+  });
+
+  test('입면을 못 찍으면 요청하지 않는다 (크레딧을 안 쓴다)', async () => {
+    const p = withPhoto(boot({ captureFail: { front: '3D 가 아직 준비되지 않았습니다' } }));
+    p.AP._fetch = fakeFetch([{ json: {} }]);
+    const r = await p.AP.submit();
+    expect(r.ok).toBe(false);
+    expect(p.AP._fetch.calls).toHaveLength(0);
+    expect(r.message).toContain('도면 입면을 찍지 못했습니다');
+    expect(r.message).toContain('크레딧은 쓰지 않았습니다');
+    expect(body(p).querySelector('.ap-msg').classList.contains('ap-bad')).toBe(true);
+    expect(body(p).querySelector('#aiPhotoGo').disabled).toBe(false);
+  });
+
+  test('PlannerCapture 가 없으면 요청하지 않는다', async () => {
+    const p = withPhoto(boot());
+    p.AP._capture = { };
+    p.AP._fetch = fakeFetch([{ json: {} }]);
+    const r = await p.AP.submit();
+    expect(r.ok).toBe(false);
+    expect(p.AP._fetch.calls).toHaveLength(0);
+  });
+
+  test('화면 — 실사화 체크박스·구조 조건 드롭존이 없다, 비율·크레딧·버튼은 있다', () => {
+    const p = withPhoto(boot());
+    p.AP.realize = true;          // 예전 상태가 남아 있어도 그리지 않는다
+    p.AP.render();
+    const host = body(p);
+    expect(host.querySelector('#aiPhotoRealize')).toBeNull();
+    expect(host.querySelector('#aiPhotoControlDrop')).toBeNull();
+    expect(host.querySelector('#aiPhotoRatio').textContent).toContain('가로 사진 · 4:3');
+    expect(host.querySelector('.ap-cost').textContent).toContain('20 크레딧');
+    expect(host.querySelectorAll('button')).toHaveLength(1);
+  });
+});
+
+describe('평가 스위치 (eval=1)', () => {
+  test('주소에 eval=1 이 없으면 안 보이고, 본문은 3/4 를 싣는다', async () => {
+    const p = withPhoto(boot());
+    expect(body(p).querySelector('#aiPhotoNoMassing')).toBeNull();
+    p.AP.noMassing = true;        // 주소가 아니면 상태가 남아 있어도 무시한다
+    p.AP._fetch = fakeFetch([
+      { status: 202, json: { success: true, id: 'gen-1' } },
+      { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images: [] } } },
+    ]);
+    await p.AP.submit();
+    expect(p.AP._fetch.calls[0].body.renders.map((r) => r.role)).toEqual(['elevation', 'massing']);
+  });
+
+  test('eval=1 이면 보이고, 켜면 입면만 보낸다', async () => {
+    const p = withPhoto(boot({ search: '&eval=1' }));
+    const box = body(p).querySelector('#aiPhotoNoMassing');
     expect(box).not.toBeNull();
+    expect(box.checked).toBe(false);
     box.checked = true;
     box.dispatchEvent(new p.window.Event('change'));
-    expect(p.AP.realize).toBe(true);
-    p.AP._fetch = steps();
-    await p.AP.submit();
-    expect(p.AP._fetch.calls[0].body.realize).toBe(true);
-    // 다시 그려도 체크 상태가 남는다
-    expect(body(p).querySelector('#aiPhotoRealize').checked).toBe(true);
-  });
-
-  test('역판독 대조 결과를 보여 준다 — 일치 / 어긋남(합성본 안내) / 실패', async () => {
-    const done = (layout, images) => fakeFetch([
-      { status: 202, json: { success: true, id: 'gen-1' } },
-      { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images, layout } } },
-    ]);
-    const base = { slot: 'base', label: '기본안', url: 'https://x/base.png' };
-    let p = withPhoto(boot());
-    p.AP._fetch = done({ verify: { ok: true, score: 5, max: 5, issues: [] } }, [base]);
-    await p.AP.submit();
-    expect(body(p).textContent).toContain('역판독 대조: 도면의 순서·개수와 일치 (5/5)');
-
-    p = withPhoto(boot());
-    p.AP._fetch = done(
-      { verify: { ok: false, score: 2.5, max: 5, issues: ['order: expected lower>dishwasher, read dishwasher>lower'] } },
-      [base, { slot: 'mockup', label: '합성본 · 도면 그대로', url: 'https://x/room.jpg' }]
-    );
-    await p.AP.submit();
-    const t = body(p).textContent;
-    expect(t).toContain('역판독 대조: 도면과 어긋남 (2.5/5)');
-    expect(t).toContain('「합성본 · 도면 그대로」가 도면에 충실한 그림입니다');
-    expect(t).toContain('order: expected lower>dishwasher');
-    expect(body(p).querySelectorAll('.ap-thumb').length).toBe(2);
-
-    p = withPhoto(boot());
-    p.AP._fetch = done({ verify: { ok: null, error: 'ANTHROPIC_API_KEY not configured' } }, [base]);
-    await p.AP.submit();
-    expect(body(p).textContent).toContain('역판독 대조를 하지 못했습니다 — ANTHROPIC_API_KEY not configured');
-  });
-
-  test('ControlNet — 실사화 + 구조 조건 이미지가 있을 때만 engine·control_* 이 실린다', async () => {
-    const steps = () => fakeFetch([
+    expect(p.AP.noMassing).toBe(true);
+    p.AP._fetch = fakeFetch([
       { status: 202, json: { success: true, id: 'gen-1' } },
       { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images: [] } } },
     ]);
-    const p = withPhoto(boot());
-    // 실사화를 안 켜면 조건 올릴 곳 자체가 없다
-    expect(body(p).querySelector('#aiPhotoControlDrop')).toBeNull();
-    p.AP.realize = true; p.AP.render();
-    expect(body(p).querySelector('#aiPhotoControlDrop')).not.toBeNull();
-    // 조건 이미지가 없으면 engine 도 없다
-    p.AP._fetch = steps(); await p.AP.submit();
-    expect(p.AP._fetch.calls[0].body.engine).toBeUndefined();
-    // 조건 이미지를 넣으면 engine·control_image·control_type·control_size 가 실린다
-    p.AP.control = { base64: 'Q1RS', mime: 'image/png', name: 'edges.png', width: 800, height: 600, preview: 'data:image/png;base64,Q1RS' };
-    p.AP._fetch = steps(); await p.AP.submit();
-    const b = p.AP._fetch.calls[0].body;
-    expect(b.engine).toBe('controlnet');
-    expect(b.control_image).toBe('Q1RS');
-    expect(b.control_type).toBe('image/png');
-    expect(b.control_size).toEqual({ width: p.AP.img.width, height: p.AP.img.height });
-    expect(b.realize).toBe(true);
-    expect(b.variants).toBe(false);
-    expect(body(p).textContent).toContain('구조 조건 · edges.png');
+    await p.AP.submit();
+    expect(p.AP._fetch.calls[0].body.renders.map((r) => r.role)).toEqual(['elevation']);
+    expect(p.cap.calls.map((c) => c.kind)).toEqual(['front']);
+    // 다시 그려도 체크가 남는다
+    expect(body(p).querySelector('#aiPhotoNoMassing').checked).toBe(true);
   });
+
+  test('eval=1 이어도 끄면 그대로 3/4 를 싣는다', async () => {
+    const p = withPhoto(boot({ search: '&eval=1' }));
+    p.AP._fetch = fakeFetch([
+      { status: 202, json: { success: true, id: 'gen-1' } },
+      { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images: [] } } },
+    ]);
+    await p.AP.submit();
+    expect(p.AP._fetch.calls[0].body.renders.map((r) => r.role)).toEqual(['elevation', 'massing']);
+  });
+});
+
+describe('결과 — 대조 ok / 불일치 / internal_only (계획 §6.3)', () => {
+  const base = { slot: 'base', label: '기본안', url: 'https://x/base.png' };
+  const done = (gen) => fakeFetch([
+    { status: 202, json: { success: true, id: 'gen-1' } },
+    { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images: [base], ...gen } } },
+  ]);
+
+  test('대조 ok → ✓ 와 점수, 내부 확인용 표시·입면 없음', async () => {
+    const p = withPhoto(boot());
+    p.AP._fetch = done({ options: { mode: 'planner', aspect: '4:3' }, layout: { verify: { ok: true, score: 4.8, max: 5, issues: [] } } });
+    await p.AP.submit();
+    const host = body(p);
+    expect(host.textContent).toContain('✓ 역판독 대조: 도면의 순서·개수와 일치 (4.8/5)');
+    expect(host.textContent).not.toContain('내부 확인용');
+    expect(host.querySelector('.ap-elev')).toBeNull();
+    expect(host.querySelectorAll('.ap-thumb')).toHaveLength(1);
+  });
+
+  test('불일치 → ⚠ 사유 + 내부 확인용 + 입면을 결과 옆에', async () => {
+    const p = withPhoto(boot());
+    p.AP._fetch = done({
+      options: { mode: 'planner', aspect: '4:3', internal_only: true },
+      layout: { verify: { ok: false, score: 2.5, max: 5, issues: ['counts: expected 5 doors + 0 drawers, read 7 + 0'] } },
+    });
+    await p.AP.submit();
+    const host = body(p);
+    const box = host.querySelector('#aiPhotoInternal');
+    expect(box.textContent).toContain('⚠ 내부 확인용 — 고객 공유 불가');
+    expect(box.textContent).toContain('도면과 어긋남 (2.5/5)');
+    expect(box.textContent).toContain('counts: expected 5 doors');
+    expect(host.textContent).not.toContain('✓');
+    const thumbs = host.querySelectorAll('.ap-thumbs.ap-pair .ap-thumb');
+    expect(thumbs).toHaveLength(2);
+    expect(thumbs[0].querySelector('img').getAttribute('src')).toBe('https://x/base.png');
+    const elev = host.querySelector('.ap-elev img');
+    expect(elev.getAttribute('src')).toBe('data:image/png;base64,' + b64('PNG-front'));
+    expect(host.querySelector('.ap-elev').textContent).toContain('도면 입면');
+    // 공유 버튼은 패널에 없다
+    expect(host.textContent).not.toContain('공유하기');
+  });
+
+  test('internal_only (대조 실패) → ⚠ 사유 + 내부 확인용', async () => {
+    const p = withPhoto(boot());
+    p.AP._fetch = done({
+      options: { mode: 'planner', internal_only: true },
+      layout: { verify: { ok: null, error: 'image_too_large' } },
+    });
+    await p.AP.submit();
+    const box = body(p).querySelector('#aiPhotoInternal');
+    expect(box.textContent).toContain('내부 확인용 — 고객 공유 불가');
+    expect(box.textContent).toContain('도면과 대조하지 못했습니다 — image_too_large');
+    expect(body(p).querySelector('.ap-elev')).not.toBeNull();
+  });
+
+  test('새로고침 뒤 다시 붙은 내부 확인용 결과 — 입면이 없다고 말한다', async () => {
+    const p = boot({ storage: { ['dadam_aiphoto_job_v1' + SCOPE]: JSON.stringify({ id: 'gen-x' }) } });
+    p.AP._fetch = fakeFetch([
+      { json: { success: true, generation: { id: 'gen-x', status: 'done', progress: 100, images: [base], options: { mode: 'planner', internal_only: true } } } },
+    ]);
+    await p.AP.reattach();
+    const box = body(p).querySelector('#aiPhotoInternal');
+    expect(box.textContent).toContain('도면과 대조한 기록이 없습니다');
+    expect(box.textContent).toContain('이 탭에서 만든 결과일 때만');
+    expect(body(p).querySelector('.ap-elev')).toBeNull();
+  });
+});
+
+describe('생성 요청 (이어서)', () => {
 
   test('잡 id 를 스코프별로 기억한다', async () => {
     const p = withPhoto(boot());
@@ -300,10 +457,13 @@ describe('진행 · 결과', () => {
         },
       },
     ]);
+    // 2026-10-18: 요청 전에 도면을 찍고 읽는다(FileReader 는 매크로태스크) — 몇 틱이 아니라 화면을 기다린다
+    p.AP.POLL_MS = 40;
+    const until = async (s) => { for (let i = 0; i < 200 && !text(p).includes(s); i++) await wait(1); };
     const run = p.AP.submit();
-    await tick();
+    await until('대기 중');
     expect(text(p)).toContain('대기 중');
-    await wait(5);
+    await until('기본안을 그리는 중');
     expect(text(p)).toContain('기본안을 그리는 중');
     await run;
 
@@ -377,6 +537,7 @@ describe('실패마다 한국어 한 줄', () => {
     [402, { success: false, code: 'insufficient_credit', error: '이번 달 생성 횟수를 모두 사용했습니다.' }, '크레딧이 부족'],
     [409, { success: false, code: 'conflict', error: '이미 생성 중인 작업이 있습니다.' }, '이미 생성 중인 작업'],
     [400, { success: false, code: 'bad_design_spec', error: 'design_spec.wallRunMm is not a number' }, '차감되지 않았습니다'],
+    [400, { success: false, code: 'missing_render', error: 'renders must include an elevation image when mode is planner' }, '도면 입면 그림을 서버가 받지 못했습니다'],
     [401, { success: false, code: 'auth', error: 'Unauthorized' }, '로그인'],
     [500, { success: false, error: 'boom' }, '생성 서버가 응답하지 않습니다'],
   ];

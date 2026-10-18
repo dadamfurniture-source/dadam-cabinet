@@ -26,6 +26,11 @@ const {
   PLANNER_AI_PHOTO_MAX_EDGE,
   PLANNER_AI_PHOTO_CREDIT,
   PLANNER_AI_PHOTO_STEP,
+  plannerAiPhotoAspectOf,
+  plannerAiPhotoAspectLabel,
+  plannerAiPhotoBlobToBase64,
+  plannerAiPhotoBlobToJpeg,
+  plannerAiPhotoVerdict,
 } = require('../js/planner/ai-photo');
 const { plannerFinishResolve, plannerFinishNormalize } = require('../js/planner/planner-finish');
 const { FIXTURES, modulesFromFixture } = require('../test-utils/planner-golden');
@@ -574,5 +579,134 @@ describe('진행 라벨', () => {
   test('표가 워커의 상태 이름과 같다 (generations.status CHECK 과 같은 목록)', () => {
     expect(Object.keys(PLANNER_AI_PHOTO_STEP).sort())
       .toEqual(['analyzing', 'done', 'failed', 'qc', 'queued', 'rendering', 'variants'].sort());
+  });
+});
+
+// 2026-10-18 (P5): 결과 비율은 방 사진에 가장 가까운 허용 비율 (사장님 결정 — 세로 사진은 사진 비율을 따른다)
+describe('결과 비율 — plannerAiPhotoAspectOf', () => {
+  test.each([
+    [583, 781, '3:4'],
+    [1440, 1920, '3:4'],
+    [1200, 1600, '3:4'],
+    [2000, 1500, '4:3'],
+    [1600, 1200, '4:3'],
+    [1920, 1080, '16:9'],
+    [1600, 900, '16:9'],
+    [1000, 1000, '1:1'],
+    [1080, 1920, '9:16'],
+    [900, 1600, '9:16'],
+    [1500, 1000, '4:3'],      // 3:2 가로는 4:3 이 더 가깝다
+    [2400, 1000, '16:9'],     // 아주 넓으면 가장 넓은 것
+    [700, 2000, '9:16'],      // 아주 길면 가장 긴 것
+  ])('%i×%i → %s', (w, h, want) => {
+    expect(plannerAiPhotoAspectOf(w, h)).toBe(want);
+  });
+
+  test('워커가 받는 값만 낸다 (prompts.js PLANNER_ASPECTS)', () => {
+    const ok = ['16:9', '4:3', '3:4', '1:1', '9:16'];
+    for (let w = 100; w <= 3000; w += 173) {
+      for (let h = 100; h <= 3000; h += 211) expect(ok).toContain(plannerAiPhotoAspectOf(w, h));
+    }
+  });
+
+  test('크기를 모르면 16:9 (워커 기본값)', () => {
+    expect(plannerAiPhotoAspectOf(0, 0)).toBe('16:9');
+    expect(plannerAiPhotoAspectOf(undefined, 800)).toBe('16:9');
+    expect(plannerAiPhotoAspectOf('x', 'y')).toBe('16:9');
+  });
+
+  test('화면 문구 — 세로 사진 · 3:4 / 가로 사진 · 16:9 / 정사각 사진 · 1:1', () => {
+    expect(plannerAiPhotoAspectLabel(583, 781)).toBe('세로 사진 · 3:4');
+    expect(plannerAiPhotoAspectLabel(1920, 1080)).toBe('가로 사진 · 16:9');
+    expect(plannerAiPhotoAspectLabel(1010, 1000)).toBe('정사각 사진 · 1:1');
+  });
+});
+
+describe('대조 판정 — plannerAiPhotoVerdict (계획 §6.3)', () => {
+  const planner = { mode: 'planner', aspect: '16:9' };
+  test('ok → ✓ 점수', () => {
+    expect(plannerAiPhotoVerdict({ options: planner, layout: { verify: { ok: true, score: 5, max: 5 } } }))
+      .toEqual({ state: 'ok', score: 5, max: 5, reasons: [] });
+  });
+  test('불일치 → internal, 사유는 점수와 issues 앞 셋', () => {
+    const v = plannerAiPhotoVerdict({
+      options: { ...planner, internal_only: true },
+      layout: { verify: { ok: false, score: 2, max: 5, issues: ['a', 'b', 'c', 'd'] } },
+    });
+    expect(v.state).toBe('internal');
+    expect(v.reasons).toEqual(['도면과 어긋남 (2/5)', 'a', 'b', 'c']);
+  });
+  test('대조 실패 → internal, 오류를 적는다', () => {
+    const v = plannerAiPhotoVerdict({ options: planner, layout: { verify: { ok: null, error: 'boom' } } });
+    expect(v.state).toBe('internal');
+    expect(v.reasons[0]).toBe('도면과 대조하지 못했습니다 — boom');
+  });
+  test('internal_only 면 verify 가 ok 여도 ✓ 를 주지 않는다', () => {
+    const v = plannerAiPhotoVerdict({ options: { ...planner, internal_only: true }, layout: { verify: { ok: true, score: 5, max: 5 } } });
+    expect(v.state).toBe('internal');
+  });
+  test('플래너 결과인데 대조가 없으면 internal', () => {
+    expect(plannerAiPhotoVerdict({ options: planner }).state).toBe('internal');
+    expect(plannerAiPhotoVerdict({ options: planner }).reasons).toEqual(['도면과 대조한 기록이 없습니다']);
+  });
+  test('예전(플래너 모드가 아닌) 결과는 표시하지 않는다', () => {
+    expect(plannerAiPhotoVerdict({ options: { variants: false } }).state).toBe('none');
+    expect(plannerAiPhotoVerdict(null).state).toBe('none');
+  });
+});
+
+describe('렌더 인코딩', () => {
+  test('Blob → base64 (머리 없이)', async () => {
+    const blob = new Blob(['PNG-front'], { type: 'image/png' });
+    expect(await plannerAiPhotoBlobToBase64(blob)).toBe(Buffer.from('PNG-front').toString('base64'));
+  });
+
+  test('PNG → JPEG 0.9 — 흰 바탕에 얹고 image/jpeg 로 낸다', async () => {
+    const ops = [];
+    const canvas = {
+      getContext: () => ({
+        set fillStyle(v) { ops.push(['fill', v]); },
+        fillRect: (...a) => ops.push(['rect', ...a]),
+        drawImage: (src, ...a) => ops.push(['draw', ...a]),
+      }),
+      toDataURL: (mime, q) => { ops.push(['url', mime, q]); return 'data:image/jpeg;base64,SlBH'; },
+    };
+    const prev = global.createImageBitmap;
+    let closed = false;
+    global.createImageBitmap = async () => ({ width: 1024, height: 576, close: () => { closed = true; } });
+    try {
+      const out = await plannerAiPhotoBlobToJpeg(new Blob(['x']), { canvas });
+      expect(out).toEqual({ base64: 'SlBH', mime: 'image/jpeg', width: 1024, height: 576 });
+      expect(canvas.width).toBe(1024);
+      expect(canvas.height).toBe(576);
+      expect(ops).toEqual([
+        ['fill', '#ffffff'], ['rect', 0, 0, 1024, 576], ['draw', 0, 0, 1024, 576], ['url', 'image/jpeg', 0.9],
+      ]);
+      expect(closed).toBe(true);
+    } finally {
+      global.createImageBitmap = prev;
+    }
+  });
+
+  test('브라우저가 JPEG 를 못 만들면(PNG 로 떨어지면) 실패다 — 패널은 입면만 보낸다', async () => {
+    const canvas = {
+      getContext: () => ({ fillRect() {}, drawImage() {} }),
+      toDataURL: () => 'data:image/png;base64,UE5H',
+    };
+    const prev = global.createImageBitmap;
+    global.createImageBitmap = async () => ({ width: 10, height: 10 });
+    try {
+      await expect(plannerAiPhotoBlobToJpeg(new Blob(['x']), { canvas })).rejects.toThrow('JPEG');
+    } finally {
+      global.createImageBitmap = prev;
+    }
+  });
+});
+
+describe('missing_render 오류 문구', () => {
+  test('입면이 없다고 400 이면 — 차감 전이라고 말한다', () => {
+    const m = plannerAiPhotoErrorMessage(400, { code: 'missing_render', error: 'renders must include an elevation image when mode is planner' });
+    expect(m).toContain('도면 입면');
+    expect(m).toContain('차감되지 않았습니다');
   });
 });
