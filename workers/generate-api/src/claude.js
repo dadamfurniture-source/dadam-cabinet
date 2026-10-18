@@ -57,7 +57,9 @@ export class ClaudeRefusal extends Error {
  * @param {object} env
  * @param {object} p
  * @param {string} p.prompt
- * @param {{base64:string, mimeType:string}} p.image
+ * @param {{base64:string, mimeType:string}} [p.image]
+ * @param {{base64:string, mimeType:string}[]} [p.images]  여러 장이면 이 순서대로 싣고 글은 맨 뒤 (2026-10-19, 플래너 판독:
+ *                                  [결과 사진, 정면 입면]). image 와 함께 주면 image 가 맨 앞이다.
  * @param {object} p.schema         JSON Schema (output_config.format)
  * @param {number} [p.maxTokens]
  * @param {string} [p.model]       비우면 claudeModel(env). 가이드 선 찾기는 claude-haiku-5-5 (2026-10-18)
@@ -65,8 +67,9 @@ export class ClaudeRefusal extends Error {
  * @param {boolean} [p.fallbacks]  거절 시 서버 대체 모델. Haiku 5.5 는 지원하지 않아 false 로 부른다
  * @returns {Promise<{json:object, model:string, usage:object}>}
  */
-export async function callClaudeJson(env, { prompt, image, schema, maxTokens = 8000, model, effort = 'medium', fallbacks = true }) {
+export async function callClaudeJson(env, { prompt, image, images, schema, maxTokens = 8000, model, effort = 'medium', fallbacks = true }) {
   if (!env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY not configured');
+  const pics = (image ? [image] : []).concat(Array.isArray(images) ? images.filter(Boolean) : []);
   const client = new Anthropic({
     apiKey: env.ANTHROPIC_API_KEY,
     timeout: 90_000,
@@ -82,10 +85,10 @@ export async function callClaudeJson(env, { prompt, image, schema, maxTokens = 8
       {
         role: 'user',
         content: [
-          {
+          ...pics.map((im) => ({
             type: 'image',
-            source: { type: 'base64', media_type: mediaType(image.mimeType), data: image.base64 },
-          },
+            source: { type: 'base64', media_type: mediaType(im.mimeType), data: im.base64 },
+          })),
           { type: 'text', text: prompt },
         ],
       },
