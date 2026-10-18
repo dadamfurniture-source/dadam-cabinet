@@ -29,6 +29,15 @@
 //   · drawerFront  마감 슬롯이 door/body/top 셋뿐이다. 서랍 앞판 마감은 싣지 못한다.
 //   · 회전         ㄱ자 배치의 90° 구간은 x 축에 눌러 펴서 보낸다 — AI 가 받는 벽은 하나다.
 //
+// ── 2026-10-18: 플래너 모드로 교체 (계획 planner-render-realize.plan.md §9 P5) ──
+//   버튼 하나 → 도면을 스스로 찍는다 (PlannerCapture.capture, clean) → mode:'planner' 로 보낸다.
+//     입면(front) 긴 변 1536 PNG — 필수. 못 찍으면 요청하지 않는다(크레딧 안 씀).
+//     3/4(massing) 긴 변 1024 → JPEG 0.9 — 선택. 못 찍거나 못 바꾸면 입면만 보낸다.
+//   결과 비율(aspect)은 방 사진에 가장 가까운 허용 비율이다 (사장님 결정 2026-10-18 —
+//   세로 사진은 사진 비율을 따른다). 계획서의 "16:9 로 자르기" 는 이 결정으로 대신한다.
+//   실사화 체크박스·구조 조건 드롭존은 화면에서 뺐다. 코드 삭제는 P6 (계획 §8).
+//   결과는 대조가 ok 일 때만 ✓. 그 밖은 "내부 확인용 — 고객 공유 불가" + 입면을 옆에 (§6.3).
+//
 // ⚠ 클래식 스크립트 — 최상위 이름은 전부 PLANNER_AI_PHOTO_ / plannerAiPhoto / PlannerAiPhoto 접두.
 // 브라우저: window.PlannerAiPhoto (+ 개별 함수) / Jest: module.exports
 // ============================================================
@@ -65,6 +74,27 @@ const PLANNER_AI_PHOTO_STEP = {
   done: { progress: 100, label: '완료' },
   failed: { progress: 100, label: '실패' },
 };
+
+/**
+ * 결과 비율 — 워커가 받는 값 (prompts.js PLANNER_ASPECTS, 그 밖은 16:9 로 떨어진다).
+ * 2026-10-18: 방 사진에 가장 가까운 것을 고른다. 가로·세로 사진 모두 사진 비율을 따른다.
+ */
+const PLANNER_AI_PHOTO_ASPECTS = [
+  { key: '16:9', r: 16 / 9 },
+  { key: '4:3', r: 4 / 3 },
+  { key: '1:1', r: 1 },
+  { key: '3:4', r: 3 / 4 },
+  { key: '9:16', r: 9 / 16 },
+];
+
+/** 도면 렌더 캡처 (계획 §5) — 입면은 PNG 그대로, 3/4 는 JPEG 로 바꿔 보낸다. */
+const PLANNER_AI_PHOTO_RENDER = {
+  elevation: { kind: 'front', longEdge: 1536 },
+  massing: { kind: 'massing', longEdge: 1024, quality: 0.9 },
+};
+
+/** 결과 옆 문구 — 도면과 맞는다고 확인되지 않은 결과 (계획 §6.3, design-spec-prompt.md "내부 확인용"). */
+const PLANNER_AI_PHOTO_INTERNAL_LABEL = '내부 확인용 — 고객 공유 불가';
 
 /** 아직 도는 상태 — 이 동안 폴링한다 (worker.js ACTIVE_STATUSES 와 같은 목록). */
 const PLANNER_AI_PHOTO_ACTIVE = ['queued', 'analyzing', 'rendering', 'qc', 'variants'];
@@ -729,6 +759,139 @@ function plannerAiPhotoReadImage(file, opt) {
   });
 }
 
+/**
+ * 방 사진 크기 → 결과 비율 (워커의 `aspect`).
+ * 2026-10-18 사장님 결정: 세로 사진은 사진 비율을 따른다. 가로는 보통 16:9 · 4:3 으로 떨어진다.
+ * 비율은 **로그 거리**로 잰다 — 가로·세로가 대칭이다 (4:3 과 3:4 가 1:1 에서 같은 거리).
+ * 크기를 모르면 16:9 (워커 기본값과 같다).
+ */
+function plannerAiPhotoAspectOf(w, h) {
+  const W = plannerAiPhotoNum(w);
+  const H = plannerAiPhotoNum(h);
+  if (!(W > 0) || !(H > 0)) return '16:9';
+  const lr = Math.log(W / H);
+  let best = PLANNER_AI_PHOTO_ASPECTS[0];
+  let bestD = Infinity;
+  PLANNER_AI_PHOTO_ASPECTS.forEach((a) => {
+    const d = Math.abs(lr - Math.log(a.r));
+    if (d < bestD - 1e-9) { best = a; bestD = d; }
+  });
+  return best.key;
+}
+
+/** 화면 한 줄 — "세로 사진 · 3:4". */
+function plannerAiPhotoAspectLabel(w, h) {
+  const key = plannerAiPhotoAspectOf(w, h);
+  const W = plannerAiPhotoNum(w);
+  const H = plannerAiPhotoNum(h);
+  const kind = key === '1:1' ? '정사각 사진' : (H > W ? '세로 사진' : '가로 사진');
+  return `${kind} · ${key}`;
+}
+
+/** Blob → base64 (머리 없이). FileReader 가 없으면 arrayBuffer 로. */
+function plannerAiPhotoBlobToBase64(blob, opt) {
+  const o = opt || {};
+  return new Promise((resolve, reject) => {
+    if (!blob) return reject(new Error('그림이 비어 있습니다'));
+    const Reader = o.FileReader || (typeof FileReader !== 'undefined' ? FileReader : null);
+    if (Reader) {
+      const fr = new Reader();
+      fr.onerror = () => reject(new Error('그림을 읽지 못했습니다'));
+      fr.onload = () => resolve(String(fr.result || '').split(',')[1] || '');
+      fr.readAsDataURL(blob);
+      return;
+    }
+    if (typeof blob.arrayBuffer !== 'function' || typeof btoa !== 'function') {
+      return reject(new Error('이 화면에서는 그림을 읽을 수 없습니다'));
+    }
+    blob.arrayBuffer().then((buf) => {
+      const bytes = new Uint8Array(buf);
+      let s = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) {
+        s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+      }
+      resolve(btoa(s));
+    }, reject);
+  });
+}
+
+/**
+ * PNG Blob → JPEG base64 (계획 §5 — 3/4 뷰는 JPEG). 흰 바탕 위에 얹는다(알파가 남아도 검게 안 된다).
+ * 브라우저가 JPEG 를 못 만들면(toDataURL 이 PNG 로 떨어지면) 실패로 돌려준다.
+ */
+async function plannerAiPhotoBlobToJpeg(blob, opt) {
+  const o = opt || {};
+  const quality = o.quality != null ? o.quality : PLANNER_AI_PHOTO_RENDER.massing.quality;
+  if (!blob) throw new Error('그림이 비어 있습니다');
+  let src = null;
+  let revoke = null;
+  if (typeof createImageBitmap === 'function') {
+    src = await createImageBitmap(blob);
+  } else {
+    if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+      throw new Error('이 화면에서는 그림을 바꿀 수 없습니다');
+    }
+    const url = URL.createObjectURL(blob);
+    revoke = () => URL.revokeObjectURL(url);
+    src = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('그림을 열지 못했습니다'));
+      img.src = url;
+    });
+  }
+  try {
+    const w = src.naturalWidth || src.width;
+    const h = src.naturalHeight || src.height;
+    const cv = o.canvas || document.createElement('canvas');
+    cv.width = w;
+    cv.height = h;
+    const ctx = cv.getContext('2d');
+    if (!ctx) throw new Error('canvas 2D 를 만들 수 없습니다');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(src, 0, 0, w, h);
+    const url = String(cv.toDataURL('image/jpeg', quality));
+    if (url.indexOf('data:image/jpeg') !== 0) throw new Error('JPEG 로 바꾸지 못했습니다');
+    return { base64: url.split(',')[1] || '', mime: 'image/jpeg', width: w, height: h };
+  } finally {
+    if (src && typeof src.close === 'function') { try { src.close(); } catch (e) { /* 무해 */ } }
+    if (revoke) { try { revoke(); } catch (e) { /* 무해 */ } }
+  }
+}
+
+/**
+ * 끝난 결과 → 대조 판정 (계획 §6.3).
+ *   ok       — 대조 ok 이고 internal_only 가 아니다. ✓ 와 점수.
+ *   internal — internal_only · 불일치 · 대조 실패 · 플래너 결과인데 대조가 없음. ⚠ 사유 + 공유 불가.
+ *   none     — 플래너 모드가 아닌 예전 결과 (대조도 표시도 없다).
+ * 워커 필드: generation.layout.verify {ok, score, max, issues, error} · generation.options.internal_only.
+ * @returns {{state:'ok'|'internal'|'none', score?:number, max?:number, reasons:string[]}}
+ */
+function plannerAiPhotoVerdict(gen) {
+  const g = gen || {};
+  const opts = (g.options && typeof g.options === 'object') ? g.options : {};
+  const v = (g.layout && g.layout.verify) || null;
+  const score = v && v.score != null ? v.score : undefined;
+  const max = v && v.max != null ? v.max : undefined;
+  const pts = score != null && max != null ? ` (${score}/${max})` : '';
+  if (v && v.ok === true && opts.internal_only !== true) return { state: 'ok', score, max, reasons: [] };
+  const planner = opts.mode === 'planner' || opts.internal_only === true;
+  if (!v && !planner) return { state: 'none', reasons: [] };
+  const reasons = [];
+  if (v && v.ok === false) {
+    reasons.push('도면과 어긋남' + pts);
+    (Array.isArray(v.issues) ? v.issues : []).slice(0, 3).forEach((s) => reasons.push(String(s)));
+  } else if (v && v.ok === true) {
+    reasons.push('대조는 맞았지만 서버가 내부 확인용으로 표시했습니다' + pts);
+  } else if (v) {
+    reasons.push('도면과 대조하지 못했습니다' + (v.error ? ' — ' + String(v.error) : ''));
+  } else {
+    reasons.push('도면과 대조한 기록이 없습니다');
+  }
+  return { state: 'internal', score, max, reasons };
+}
+
 // ────────────────────────────────────────────────────────────
 // 순수 — 오류 문구
 // ────────────────────────────────────────────────────────────
@@ -747,6 +910,9 @@ function plannerAiPhotoErrorMessage(status, data) {
   if (status === 409) return '이미 생성 중인 작업이 있습니다 — 끝난 뒤 다시 눌러 주세요';
   if (code === 'bad_design_spec') {
     return '도면 요약을 서버가 받지 못했습니다 — 크레딧은 차감되지 않았습니다' + (server ? ` (${server})` : '');
+  }
+  if (code === 'missing_render') {
+    return '도면 입면 그림을 서버가 받지 못했습니다 — 크레딧은 차감되지 않았습니다';
   }
   if (status === 404) return '생성 결과를 찾을 수 없습니다';
   if (status === 400) return '요청이 올바르지 않습니다' + (server ? ` — ${server}` : '');
@@ -809,6 +975,12 @@ a.ap-thumb:hover{border-color:var(--brand-mid,#b8956c)}
 .ap-note{font-size:9.5px;color:var(--text-faint,#a89c84);line-height:1.5}
 .ap-verify-ok{color:#2f6f3e}
 .ap-verify-bad{color:#a33}
+.ap-ratio{font-size:10px;color:var(--text-dim,#7a7062);text-align:center}
+.ap-internal{border:1px solid #d9a99a;background:#fbf0ec;border-radius:6px;padding:5px 7px;font-size:10px;line-height:1.5;color:#a3402a}
+.ap-internal b{display:block;font-size:10.5px}
+.ap-pair .ap-thumb img{aspect-ratio:auto;object-fit:contain;max-height:160px}
+.ap-eval{font-size:9.5px;color:var(--text-faint,#a89c84);display:flex;gap:4px;align-items:center;cursor:pointer}
+.ap-eval input{margin:0}
 `;
 
 function plannerAiPhotoInjectCss() {
@@ -848,8 +1020,13 @@ const PlannerAiPhoto = {
   /** 'idle' | 'sending' | 'running' | 'done' */
   phase: 'idle',
   img: null,
-  realize: false,   // 올린 사진에 도면이 이미 얹혀 있음 (실사화)
-  control: null,    // 구조 조건 이미지 (윤곽선 PNG) — 있으면 ControlNet 경로(fal.ai)
+  // 2026-10-18: 화면에서 뺐다(P5). 본문에도 안 싣는다. 필드·setControl 은 P6 가 지운다 (계획 §8).
+  realize: false,
+  control: null,
+  /** 방금 보낸 입면 — 결과가 내부 확인용일 때 옆에 놓는 비교 그림 {url, width, height}. 이 탭에서만 산다. */
+  elevation: null,
+  /** 평가 스위치 (주소에 eval=1 일 때만 보인다) — 켜면 3/4 뷰를 안 보낸다. */
+  noMassing: false,
   gen: null,
   genId: null,
   message: '',
@@ -857,6 +1034,10 @@ const PlannerAiPhoto = {
   _seq: 0,
   /** 시험이 갈아 끼운다. 기본은 전역 fetch. */
   _fetch: null,
+  /** 시험이 갈아 끼운다. 기본은 전역 PlannerCapture. */
+  _capture: null,
+  /** 시험이 갈아 끼운다 — PNG Blob → {base64, mime}. 기본은 plannerAiPhotoBlobToJpeg. */
+  _toJpeg: null,
 
   mount(o) {
     this._o = o || {};
@@ -935,6 +1116,86 @@ const PlannerAiPhoto = {
     return (typeof fetch === 'function') ? fetch.bind(null) : null;
   },
 
+  /** 도면 렌더를 찍는 것 — PlannerCapture 의 공개 API capture() 만 쓴다. */
+  capturer() {
+    if (this._capture) return this._capture;
+    if (this._o && this._o.capturer) return this._o.capturer;
+    return (typeof PlannerCapture !== 'undefined' && PlannerCapture) ? PlannerCapture : null;
+  },
+
+  /** 평가용 주소인가 (`?eval=1`). 평소에는 스위치가 안 보이고 본문도 그대로다. */
+  evalMode() {
+    let search = '';
+    if (this._o && typeof this._o.search === 'string') search = this._o.search;
+    else if (typeof location !== 'undefined' && location) search = location.search || '';
+    try { return new URLSearchParams(search).get('eval') === '1'; } catch (e) { return false; }
+  },
+
+  /** 이 탭에서 만든 blob URL 을 놓는다. */
+  _dropElevation() {
+    const el = this.elevation;
+    this.elevation = null;
+    if (el && el.revoke && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+      try { URL.revokeObjectURL(el.url); } catch (e) { /* 무해 */ }
+    }
+  },
+
+  /**
+   * 도면 렌더 두 장 (계획 §5 · §6.1).
+   *   입면 — 필수. 못 찍으면 {ok:false, message} 로 멈춘다 (요청 전이라 크레딧을 안 쓴다).
+   *   3/4  — 선택. 못 찍거나 JPEG 로 못 바꾸면 빼고 입면만 보낸다. 평가 스위치를 켜도 뺀다.
+   * @returns {Promise<{ok:true, renders:Array, elevation:object, massing:boolean, massingError?:string}|{ok:false, message:string}>}
+   */
+  async renders() {
+    const cap = this.capturer();
+    if (!cap || typeof cap.capture !== 'function') {
+      return { ok: false, message: '도면을 찍을 수 없습니다 — 3D 화면이 아직 준비되지 않았습니다 · 크레딧은 쓰지 않았습니다' };
+    }
+    const E = PLANNER_AI_PHOTO_RENDER.elevation;
+    let front;
+    try { front = await cap.capture({ kind: E.kind, longEdge: E.longEdge, clean: true }); }
+    catch (e) { front = { ok: false, message: (e && e.message) || String(e) }; }
+    if (!front || !front.ok || !front.blob) {
+      const why = (front && front.message) || '알 수 없는 이유';
+      return { ok: false, message: `도면 입면을 찍지 못했습니다 (${why}) — 크레딧은 쓰지 않았습니다` };
+    }
+    let frontB64;
+    try { frontB64 = await plannerAiPhotoBlobToBase64(front.blob); }
+    catch (e) { return { ok: false, message: '도면 입면을 읽지 못했습니다 — 크레딧은 쓰지 않았습니다' }; }
+    if (!frontB64) return { ok: false, message: '도면 입면이 비어 있습니다 — 크레딧은 쓰지 않았습니다' };
+
+    const renders = [{ role: 'elevation', base64: frontB64, mime: 'image/png' }];
+    // 비교용 그림 — blob URL 이 되면 그것을, 아니면 data URL (jsdom 은 createObjectURL 이 없다)
+    let elevation;
+    if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+      try { elevation = { url: URL.createObjectURL(front.blob), revoke: true }; } catch (e) { elevation = null; }
+    }
+    if (!elevation) elevation = { url: 'data:image/png;base64,' + frontB64, revoke: false };
+    elevation.width = front.width;
+    elevation.height = front.height;
+
+    if (this.evalMode() && this.noMassing) return { ok: true, renders, elevation, massing: false, massingError: 'eval' };
+
+    const M = PLANNER_AI_PHOTO_RENDER.massing;
+    let massingError = null;
+    try {
+      const shot = await cap.capture({ kind: M.kind, longEdge: M.longEdge, clean: true });
+      if (!shot || !shot.ok || !shot.blob) {
+        massingError = (shot && shot.message) || '3/4 뷰를 찍지 못했습니다';
+      } else {
+        const toJpeg = this._toJpeg || plannerAiPhotoBlobToJpeg;
+        const jpg = await toJpeg(shot.blob, { quality: M.quality });
+        if (jpg && jpg.base64) renders.push({ role: 'massing', base64: jpg.base64, mime: 'image/jpeg' });
+        else massingError = '3/4 뷰를 JPEG 로 바꾸지 못했습니다';
+      }
+    } catch (e) {
+      massingError = (e && e.message) || String(e);
+    }
+    return massingError
+      ? { ok: true, renders, elevation, massing: false, massingError }
+      : { ok: true, renders, elevation, massing: true };
+  },
+
   /** 로그인 토큰. PlannerStore 와 같은 클라이언트를 본다 (부모 세션 그대로). */
   async token() {
     if (this._o && typeof this._o.token === 'function') return await this._o.token();
@@ -994,22 +1255,18 @@ const PlannerAiPhoto = {
       );
     }
 
-    // 실사화 (2026-09-19): 올린 사진에 도면 입면이 이미 얹혀 있으면(벽 호모그래피 합성본) 모델은
-    //   그리는 게 아니라 그 자리에서 다시 그린다. 자동 합성(R4)이 붙기 전까지는 사람이 켠다.
-    parts.push(
-      `<label class="ap-opt"><input type="checkbox" id="aiPhotoRealize"${this.realize ? ' checked' : ''}> `
-      + '이 사진에 도면이 이미 얹혀 있음 — 그 자리에서 실사로 다시 그리기</label>'
-    );
+    // 2026-10-18 (P5): 실사화 체크박스·구조 조건 드롭존은 그리지 않는다 — 도면은 플래너가 스스로 찍는다.
+    //   결과 비율은 사진을 따른다 (사장님 결정 2026-10-18). 누르기 전에 보여 준다.
+    if (this.img) {
+      parts.push(`<div class="ap-ratio" id="aiPhotoRatio">결과 비율: ${esc(plannerAiPhotoAspectLabel(this.img.width, this.img.height))}</div>`);
+    }
 
-    // ControlNet 경로 (2026-09-22): 실사화에 구조 조건 이미지(도면 윤곽선 PNG, 사진과 같은 화소 크기)를 더 주면
-    //   Gemini 대신 조건을 네이티브로 받는 모델(fal.ai)이 그린다. 합성 벤치(E 패널)가 이 PNG 를 낸다.
-    if (this.realize) {
-      parts.push(this.control
-        ? `<div class="ap-drop ap-ctrl" id="aiPhotoControlDrop" title="다른 구조 조건 이미지로 바꾸기">`
-          + `<img src="${esc(this.control.preview)}" alt="구조 조건">`
-          + `<span class="ap-file">구조 조건 · ${esc(this.control.name)} · ${this.control.width}×${this.control.height}</span></div>`
-        : '<div class="ap-drop ap-ctrl" id="aiPhotoControlDrop">'
-          + '<span class="ap-drop-text">🧭 구조 조건 이미지 (선택) — 도면 윤곽선 PNG<br>넣으면 ControlNet 경로(fal.ai)로 그립니다</span></div>');
+    // 평가 스위치 — 주소에 eval=1 일 때만 (계획 §7.2 R1 팔). 평소에는 없다.
+    if (this.evalMode()) {
+      parts.push(
+        `<label class="ap-eval"><input type="checkbox" id="aiPhotoNoMassing"${this.noMassing ? ' checked' : ''}> `
+        + '평가: 3/4 뷰 빼기(입면만)</label>'
+      );
     }
 
     // 버튼
@@ -1028,30 +1285,29 @@ const PlannerAiPhoto = {
     // 결과
     const images = (this.gen && Array.isArray(this.gen.images)) ? this.gen.images : [];
     if (this.phase === 'done' && images.length) {
-      parts.push('<div class="ap-thumbs">');
-      images.forEach((im) => {
-        const cap = im.label || im.slot || '';
-        parts.push(im.url
-          ? `<a class="ap-thumb" href="${esc(im.url)}" target="_blank" rel="noopener" title="${esc(cap)}">`
-            + `<img src="${esc(im.url)}" alt="${esc(cap)}" loading="lazy"><span class="ap-cap">${esc(cap)}</span></a>`
-          : `<div class="ap-thumb"><span class="ap-cap">${esc(cap)}</span></div>`);
-      });
+      // 역판독 대조 (계획 §6.3): ok 면 ✓ 와 점수. 아니면 ⚠ 사유 + 내부 확인용 + 방금 찍은 입면을 옆에.
+      //   워커 필드 — generation.layout.verify · generation.options.internal_only (design-spec-prompt.md).
+      const verdict = plannerAiPhotoVerdict(this.gen);
+      const thumb = (url, cap, extra) => (url
+        ? `<a class="ap-thumb${extra || ''}" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(cap)}">`
+          + `<img src="${esc(url)}" alt="${esc(cap)}" loading="lazy"><span class="ap-cap">${esc(cap)}</span></a>`
+        : `<div class="ap-thumb${extra || ''}"><span class="ap-cap">${esc(cap)}</span></div>`);
+      const internal = verdict.state === 'internal';
+      parts.push(`<div class="ap-thumbs${internal ? ' ap-pair' : ''}">`);
+      images.forEach((im) => { parts.push(thumb(im.url, im.label || im.slot || '')); });
+      if (internal && this.elevation && this.elevation.url) {
+        parts.push(thumb(this.elevation.url, '도면 입면 (비교용)', ' ap-elev'));
+      }
       parts.push('</div>');
-      // 역판독 대조 (R4c, 2026-09-19): 워커가 기본안을 Claude 비전으로 읽어 도면과 순서·개수를 대조한 결과.
-      //   어긋났고 실사화였으면 올린 합성본이 'mockup' 슬롯으로 같이 온다 — 도면 그대로인 그림은 그것이다.
-      const v = this.gen && this.gen.layout && this.gen.layout.verify;
-      if (v && v.ok === true) {
-        parts.push(`<div class="ap-note ap-verify-ok">✓ 역판독 대조: 도면의 순서·개수와 일치 (${esc(String(v.score))}/${esc(String(v.max))})</div>`);
-      } else if (v && v.ok === false) {
-        const hasMockup = images.some((im) => im && im.slot === 'mockup');
+      if (verdict.state === 'ok') {
+        parts.push(`<div class="ap-note ap-verify-ok">✓ 역판독 대조: 도면의 순서·개수와 일치 (${esc(String(verdict.score))}/${esc(String(verdict.max))})</div>`);
+      } else if (internal) {
         parts.push(
-          `<div class="ap-note ap-verify-bad">⚠ 역판독 대조: 도면과 어긋남 (${esc(String(v.score))}/${esc(String(v.max))})`
-          + (hasMockup ? ' — 아래 「합성본 · 도면 그대로」가 도면에 충실한 그림입니다' : '')
-          + (Array.isArray(v.issues) && v.issues.length ? '<br>' + esc(v.issues.slice(0, 3).join(' · ')) : '')
+          `<div class="ap-internal" id="aiPhotoInternal"><b>⚠ ${esc(PLANNER_AI_PHOTO_INTERNAL_LABEL)}</b>`
+          + verdict.reasons.map((r) => esc(r)).join('<br>')
+          + (this.elevation ? '' : '<br>도면 입면은 이 탭에서 만든 결과일 때만 옆에 놓입니다')
           + '</div>'
         );
-      } else if (v) {
-        parts.push(`<div class="ap-note">역판독 대조를 하지 못했습니다${v.error ? ' — ' + esc(String(v.error)) : ''}</div>`);
       }
       parts.push('<div class="ap-note">치수는 참고이고 구성(순서·개수)이 구속입니다 — 실제 제작 도면과 다를 수 있습니다.</div>');
     }
@@ -1066,6 +1322,9 @@ const PlannerAiPhoto = {
     const drop = host.querySelector('#aiPhotoDrop');
     const go = host.querySelector('#aiPhotoGo');
     if (go) go.onclick = () => { this.submit(); };
+    const nm = host.querySelector('#aiPhotoNoMassing');
+    if (nm) nm.onchange = () => { this.noMassing = !!nm.checked; };
+    // 아래 둘은 2026-10-18 부터 그리지 않아 걸리지 않는다 — P6 가 지운다.
     const rz = host.querySelector('#aiPhotoRealize');
     if (rz) rz.onchange = () => { this.realize = !!rz.checked; this.render(); };
     const cdrop = host.querySelector('#aiPhotoControlDrop');
@@ -1132,7 +1391,7 @@ const PlannerAiPhoto = {
       this.img = await plannerAiPhotoReadImage(file);
       this.message = '';
       this.bad = false;
-      if (this.phase === 'done') { this.phase = 'idle'; this.gen = null; }
+      if (this.phase === 'done') { this.phase = 'idle'; this.gen = null; this._dropElevation(); }
     } catch (e) {
       this.img = null;
       this.message = e.message;
@@ -1162,30 +1421,35 @@ const PlannerAiPhoto = {
     this.phase = 'sending';
     this.gen = null;
     this.bad = false;
+    this._dropElevation();
+    this.message = '도면을 찍는 중…';
+    this.render();
+
+    // 2026-10-18 (P5): 도면 렌더를 스스로 찍는다. 입면을 못 찍으면 여기서 멈춘다 — 요청 전이라 크레딧을 안 쓴다.
+    const shots = await this.renders();
+    if (!shots.ok) return this._fail(shots.message);
+    this.elevation = shots.elevation;
+    if (shots.massingError && shots.massingError !== 'eval' && typeof console !== 'undefined') {
+      console.warn('[사진으로 만들기] 3/4 뷰 없이 입면만 보냅니다:', shots.massingError);
+    }
     this.message = '생성을 요청하는 중…';
     this.render();
 
     let res;
     try {
+      // 계약: design-spec-prompt.md "플래너 모드". realize·engine·control_*·variants 는 싣지 않는다
+      //   (워커가 variants 를 false 로 강제한다).
       res = await f(this.api(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
         body: JSON.stringify({
+          mode: 'planner',
           room_image: this.img.base64,
           image_type: this.img.mime,
           category: spec.category,
           design_spec: spec,
-          // 켰을 때만 실린다 — 안 켜면 본문은 예전과 같다
-          ...(this.realize ? { realize: true } : {}),
-          // 2026-09-22: 디테일 단계는 도면 기반 한 장이 결과다 — 색만 바꾼 추천안 3장을 만들지 않는다
-          variants: false,
-          // ControlNet 경로 — 실사화 + 구조 조건 이미지가 있을 때만
-          ...(this.realize && this.control ? {
-            engine: 'controlnet',
-            control_image: this.control.base64,
-            control_type: this.control.mime,
-            control_size: { width: this.img.width, height: this.img.height },
-          } : {}),
+          renders: shots.renders,
+          aspect: plannerAiPhotoAspectOf(this.img.width, this.img.height),
         }),
       });
     } catch (e) {
@@ -1304,6 +1568,8 @@ if (typeof window !== 'undefined') {
   window.plannerAiPhotoReadImage = plannerAiPhotoReadImage;
   window.plannerAiPhotoErrorMessage = plannerAiPhotoErrorMessage;
   window.plannerAiPhotoFitSize = plannerAiPhotoFitSize;
+  window.plannerAiPhotoAspectOf = plannerAiPhotoAspectOf;
+  window.plannerAiPhotoVerdict = plannerAiPhotoVerdict;
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -1340,6 +1606,14 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerAiPhotoScopeMessage,
     plannerAiPhotoStepLabel,
     plannerAiPhotoIsActive,
+    PLANNER_AI_PHOTO_ASPECTS,
+    PLANNER_AI_PHOTO_RENDER,
+    PLANNER_AI_PHOTO_INTERNAL_LABEL,
+    plannerAiPhotoAspectOf,
+    plannerAiPhotoAspectLabel,
+    plannerAiPhotoBlobToBase64,
+    plannerAiPhotoBlobToJpeg,
+    plannerAiPhotoVerdict,
     PlannerAiPhoto,
   };
 }
