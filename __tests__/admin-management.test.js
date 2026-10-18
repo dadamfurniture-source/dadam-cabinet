@@ -90,6 +90,12 @@ const SUMMARY = {
       avgPerMin: 12767,
     },
   },
+  // 워커 시험(feedback.test.js 2단계 PR-7) 의 손계산 결과 그대로
+  referral: {
+    window: { days: 180, start: '2026-05-05', end: '2026-10-31' },
+    sent: 5, answered: 4, responseRate: 80, promoters: 2, passives: 1, detractors: 1, nps: 25, avg: 8.3, thisMonth: 3,
+    dist: [0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1],
+  },
   // 워커 시험(rework.test.js 2단계 PR-6) 의 손계산 결과 그대로
   quality: {
     month: {
@@ -638,5 +644,52 @@ describe('재작업 · A/S (2단계 PR-6)', () => {
     await settle();
     expect(document.getElementById('qualityBars')).toBeNull();
     expect(text('qualityBody')).toMatch(/이달 적은 재작업 · A\/S 가 없습니다/);
+  });
+});
+
+describe('설치 후 소개 의향 (2단계 PR-7)', () => {
+  test('NPS · 평균 · 답 수, 소개함/중립/안 함 막대가 사람 수 비율로, 응답률 · 이달', async () => {
+    boot(fakeApi());
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('cardReferral').hidden).toBe(false);
+    expect(document.querySelector('#referralBody .nps b').textContent).toBe('+25');
+    expect(text('referralBody')).toMatch(/NPS · 평균 8.3점 · 답 4건/);
+    const segs = [...document.querySelectorAll('#npsBar .seg')];
+    expect(segs.map((s) => s.className)).toEqual(['seg pro', 'seg mid', 'seg det']);
+    expect(segs.map((s) => s.style.flex.split(' ')[0])).toEqual(['2', '1', '1']);
+    expect(text('referralBody')).toMatch(/응답률 80% \(보낸 링크 5건\)/);
+    expect(text('referralBody')).toMatch(/이달 받은 답 3건/);
+  });
+
+  test('답이 없으면 링크를 보내라는 안내, 표가 없으면 SQL 안내, 옛 워커면 숨김', async () => {
+    const none = { ...SUMMARY.referral, answered: 0, promoters: 0, passives: 0, detractors: 0, nps: null, avg: null, sent: 2 };
+    boot(fakeApi({ data: { ...SUMMARY, referral: none } }));
+    await window.Management.init();
+    await settle();
+    expect(text('referralBody')).toMatch(/최근 180일 받은 답이 없습니다 \(보낸 링크 2건\)/);
+
+    boot(fakeApi({ data: { ...SUMMARY, referral: null } }));
+    await window.Management.init();
+    await settle();
+    expect(text('referralBody')).toMatch(/management-phase2\.sql/);
+
+    const data = { ...SUMMARY };
+    delete data.referral;
+    boot(fakeApi({ data }));
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('cardReferral').hidden).toBe(true);
+  });
+
+  test('NPS 가 음수면 부호 그대로', async () => {
+    boot(fakeApi({ data: { ...SUMMARY, referral: { ...SUMMARY.referral, nps: -20 } } }));
+    await window.Management.init();
+    await settle();
+    expect(document.querySelector('#referralBody .nps b').textContent).toBe('-20');
+  });
+
+  test('막대 조각도 블록이어야 그려진다', () => {
+    expect(HTML).toMatch(/\.segbar \.seg \{ display: block;/);
   });
 });
