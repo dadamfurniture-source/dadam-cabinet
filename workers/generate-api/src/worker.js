@@ -17,7 +17,7 @@
 
 import { callGemini, geminiModel, probeRoutes, textModel } from './gemini.js';
 import { proxyStub } from './proxy.js';
-import { imageProvider, plannerProvider } from './images.js';
+import { imageProvider, plannerDefaultProvider, resolvePlannerProvider } from './images.js';
 import { openaiImageModel } from './openai.js';
 import {
   DEFAULT_STYLE,
@@ -129,10 +129,12 @@ function normalizeRefs(list) {
 }
 
 /**
- * 플래너 모드의 도면 렌더: [{role:'elevation'|'massing', base64, mimeType|mime}].
- * 역할마다 한 장(앞의 것), 최대 2장. 다른 역할·빈 값은 버린다. 순서는 elevation → massing.
+ * 플래너 모드의 도면 렌더: [{role:'elevation'|'elevation_labeled'|'massing', base64, mimeType|mime}].
+ * 역할마다 한 장(앞의 것), 최대 3장. 다른 역할·빈 값은 버린다. 순서는 elevation → elevation_labeled → massing.
+ *   2026-10-19: elevation_labeled = 번호·치수선을 얹은 정면 입면 (선택). GPT 에만 간다 — Gemini 는 번호를 그려 넣는다.
+ *   번호 없는 elevation 은 여전히 필수다 (Gemini 가 그릴 때·GPT 실패 대체 때 쓴다).
  */
-const RENDER_ROLES = ['elevation', 'massing'];
+const RENDER_ROLES = ['elevation', 'elevation_labeled', 'massing'];
 function normalizeRenders(list) {
   if (!Array.isArray(list)) return [];
   const byRole = {};
@@ -194,6 +196,8 @@ export default {
             // 연출컷 이미지를 지금 누가 그리나 — 키 값은 싣지 않고 공급자·모델만 (2026-10-18)
             image_provider: imageProvider(env),
             image_model: imageProvider(env) === 'openai' ? openaiImageModel(env) : geminiModel(env),
+            // 플래너 모드 기본 공급자 (2026-10-19, PLANNER_IMAGE_PROVIDER) — 요청이 image_provider 를 안 보낼 때
+            planner_image_provider: plannerDefaultProvider(env),
             // 가이드 선(붙박이장 앞면) 을 찾는 모델 — Claude 키가 있으면 Haiku 5.5, 없으면 Gemini 텍스트 모델
             guide_points_model: env.ANTHROPIC_API_KEY ? env.GUIDE_MODEL || 'claude-haiku-5-5' : textModel(env),
             colo: (request.cf && request.cf.colo) || null,
@@ -425,7 +429,9 @@ async function createGeneration(request, env, headers) {
  *   필수: room_image(재생성이면 원본 것), design_spec(원본 것을 이어도 된다), renders 의 elevation.
  *   선택: renders 의 massing, aspect (허용값 밖이면 16:9),
  *         wall_width_override · water_from_left_override · exhaust_from_left_override (일반 경로와 같은 정규화),
- *         image_provider ('openai' 면 GPT 가 그린다 · 없거나 모르는 값이면 Gemini, 2026-10-18).
+ *         image_provider ('openai' | 'gemini', 2026-10-18). 없거나 모르는 값이면 재생성 원본 값,
+ *           그것도 없으면 PLANNER_IMAGE_PROVIDER (2026-10-19 기본 'openai' = GPT).
+ *         renders 의 elevation_labeled (번호 붙은 입면, 2026-10-19) — GPT 가 그릴 때만 IMAGE B 로 쓴다.
  *   받지 않음: realize · engine · control_* · reference_images.
  * 검증은 전부 크레딧 차감 전에 한다 — 틀린 요청으로 20 크레딧이 날아가지 않는다.
  * 추천안은 항상 끈다 (한 장이 결과물이다).
@@ -464,11 +470,9 @@ async function createPlannerGeneration(request, env, headers, p) {
     mode: 'planner',
     aspect: resolvePlannerAspect(p.aspect != null ? p.aspect : parentAspect),
     variants: false,
-    // 이미지 공급자 (2026-10-18, 사장님 비교용) — 'openai' 일 때만 키가 생긴다. Gemini 면 options 는 예전 모양 그대로
-    //   (route 시험이 지킨다). 재생성이면 새 값이 없을 때 원본을 잇는다.
-    ...(plannerProvider(p.image_provider != null ? p.image_provider : parent && parent.options && parent.options.image_provider) === 'openai'
-      ? { image_provider: 'openai' }
-      : {}),
+    // 이미지 공급자 (2026-10-18 → 2026-10-19 기본 GPT) — 플래너 모드는 결정된 값을 **항상** 기록한다.
+    //   요청 값 → 재생성 원본 값 → PLANNER_IMAGE_PROVIDER. 잡은 이 값만 읽는다 (없는 옛 행은 Gemini).
+    image_provider: resolvePlannerProvider(env, p.image_provider, parent && parent.options && parent.options.image_provider),
   };
 
   return await enqueueGeneration(request, env, headers, {
@@ -485,9 +489,9 @@ async function createPlannerGeneration(request, env, headers, p) {
           const up = await uploadObject(env, `${prefix}/render-${r.role}.${extOf(r.mimeType)}`, r.base64, r.mimeType);
           saved.push({ role: r.role, path: up.path, url: up.url, mime: r.mimeType });
         } catch (e) {
-          // 입면은 설계 그 자체다 — 없으면 잡을 만들지 않는다 (차감은 되돌린다). 3/4 뷰는 없어도 간다.
+          // 입면은 설계 그 자체다 — 없으면 잡을 만들지 않는다 (차감은 되돌린다). 번호 입면·3/4 뷰는 없어도 간다.
           if (r.role === 'elevation') throw e;
-          console.warn('[Generate] massing render upload skipped:', e.message);
+          console.warn(`[Generate] ${r.role} render upload skipped:`, e.message);
         }
       }
       return { room: { path: room.path, url: room.url, mime: image_type }, refs: [], renders: saved };

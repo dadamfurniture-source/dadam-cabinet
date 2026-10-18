@@ -44,6 +44,10 @@ curl https://dadam-generate-api.dadamfurniture.workers.dev/health
 > 2026-10-18 추가 — `OPENAI_API_KEY`: 연출컷 기본안·추천안을 GPT(`gpt-image-2.5-sunburst`)로 그린다 (`src/openai.js`, `src/images.js`).
 > https://platform.openai.com/api-keys 에서 발급, 조직 인증(Organization Verification)과 선불 크레딧이 필요할 수 있다 → `npx wrangler secret put OPENAI_API_KEY`.
 > 키가 없으면 Gemini 로 그리고, GPT 가 실패한 칸은 Gemini 가 대신 그린다(칸에 `provider`·`fallback_reason`). 되돌리기는 `wrangler.toml` 의 `IMAGE_PROVIDER = "gemini"`.
+>
+> 2026-10-19 추가 — 플래너 모드(사진으로 만들기) 기본 공급자는 `PLANNER_IMAGE_PROVIDER = "openai"` (GPT). 요청에 `image_provider` 가 없을 때 쓰고,
+> 결정된 값은 `options.image_provider` 에 늘 남는다. GPT 에는 번호 입면(`elevation_labeled`)을, Gemini(기본이든 대체든)에는 번호 없는 입면을 보낸다.
+> 되돌리기는 `PLANNER_IMAGE_PROVIDER = "gemini"`. 지금 값은 `/health` 의 `planner_image_provider`.
 
 `wrangler secret put` 으로 등록한다 (wrangler.toml 에 넣지 않음).
 

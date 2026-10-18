@@ -17,7 +17,7 @@
  */
 
 import { aspectRatioOf, callGemini, textModel } from './gemini.js';
-import { renderImage, renderPlannerImage } from './images.js';
+import { plannerProvider, renderImage, renderPlannerImage } from './images.js';
 import {
   CATEGORIES,
   wardrobeDoors,
@@ -297,12 +297,23 @@ async function runPipeline(env, job, ck, save) {
   const room = await fetchObjectBase64(env, inputs.room.path);
   // 플래너 렌더: 입면은 필수다 — 못 읽으면 던져서 재시도·실패(환불)로 간다. 3/4 뷰는 없어도 그린다.
   let elevation = null;
+  let elevationLabeled = null;
   let massing = null;
   if (planner) {
     const list = Array.isArray(inputs.renders) ? inputs.renders : [];
     const el = list.find((r) => r && r.role === 'elevation');
     if (!el || !el.path) throw new Error('planner: elevation render missing');
     elevation = await fetchObjectBase64(env, el.path);
+    // 2026-10-19: 번호 붙은 입면은 GPT 가 그릴 때만 쓴다 — Gemini 는 번호를 도어 위에 글자로 옮겨 그렸다.
+    //   GPT 행이 아니면 읽지도 않는다. 못 읽으면 번호 없는 입면으로 그린다.
+    const lb = plannerProvider(opts.image_provider) === 'openai' ? list.find((r) => r && r.role === 'elevation_labeled') : null;
+    if (lb && lb.path) {
+      try {
+        elevationLabeled = await fetchObjectBase64(env, lb.path);
+      } catch (e) {
+        console.warn(`[Job ${job.id}] labeled elevation skipped: ${e.message}`);
+      }
+    }
     const ms = list.find((r) => r && r.role === 'massing');
     if (ms && ms.path) {
       try {
@@ -477,20 +488,24 @@ async function runPipeline(env, job, ck, save) {
 
   const install = async (fix) => {
     if (planner) {
-      // 2026-10-18: 공급자는 요청이 고른다 (options.image_provider, 없으면 Gemini — 지금 그대로).
-      //   GPT 면 같은 프롬프트·같은 이미지 순서로 편집 호출, 키가 없거나 실패하면 Gemini 가 대신 (images.js).
+      // 2026-10-18: 공급자는 행에 기록된 값 (options.image_provider — worker.js 가 늘 기록, 없는 옛 행은 Gemini).
+      //   GPT 면 편집 호출, 키가 없거나 실패하면 Gemini 가 대신 (images.js).
       //   누가 그렸는지는 칸(drawnBy)과 generations.model 에 남는다. Gemini 가 정상으로 그리면 칸 표시 없음.
-      const r = await renderPlannerImage(
-        env,
-        {
-          prompt: buildPlannerPrompt(ctx),
-          images: massing ? [room, elevation, massing] : [room, elevation],
+      // 2026-10-19: IMAGE B 는 공급자마다 — GPT 는 번호 입면(있으면), Gemini 는 늘 번호 없는 입면.
+      //   번호 입면을 보낼 때만 프롬프트에 "번호·치수선은 주석" 문장이 들어간다. GPT 실패 대체로 Gemini 가
+      //   그릴 때는 번호 없는 입면 + 그 문장 없는 프롬프트로 다시 만든다.
+      const payload = (who) => {
+        const labeled = who === 'openai' && !!elevationLabeled;
+        const b = labeled ? elevationLabeled : elevation;
+        return {
+          prompt: buildPlannerPrompt({ ...ctx, labeledElevation: labeled }),
+          images: massing ? [room, b, massing] : [room, b],
           imageSize,
           temperature: 0.2,
           aspectRatio: ctx.aspect,
-        },
-        opts.image_provider
-      );
+        };
+      };
+      const r = await renderPlannerImage(env, payload, opts.image_provider);
       if (!r.image) throw new Error('install returned no image');
       return { base64: r.image, mimeType: r.imageMime || 'image/jpeg', meta: drawnBy(r) };
     }
