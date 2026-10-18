@@ -94,6 +94,10 @@
       .stage .fill { display: block; height: 100%; background: #007bff; border-radius: 4px; }
       .stage .n { text-align: right; font-variant-numeric: tabular-nums; }
       .stage .r { text-align: right; color: #888; font-size: 12px; font-variant-numeric: tabular-nums; }
+      .reason { display: grid; grid-template-columns: 76px 1fr 40px; gap: 8px; align-items: center; font-size: 12.5px; margin: 5px 0; }
+      .reason .track { display: block; height: 10px; background: #eef1f5; border-radius: 4px; overflow: hidden; }
+      .reason .fill { display: block; height: 100%; background: #f57c00; border-radius: 4px; }
+      .reason .n { text-align: right; font-variant-numeric: tabular-nums; }
       .facts { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: #666; margin-top: 10px; }
       .facts b { color: #333; font-weight: 600; }
       .lead-line { font-size: 13px; margin-bottom: 8px; }
@@ -420,7 +424,17 @@
             <div class="lead-line">${leads}</div>
             ${stagesHtml([['발행', f.issued], ['열람', f.viewed], ['승인', f.approved], ['수주', f.ordered]], f.issued)}
             <div class="facts">${facts.map((x) => `<span>${x}</span>`).join('')}</div>
+            ${reasonsHtml(f.reasons)}
             <div class="muted" style="margin-top:8px">이달 처음 확인서가 나간 설계 기준 — 고쳐 낸 확인서는 한 건으로 셉니다. 최근 달은 아직 결정이 남아 있습니다.</div>`;
+        }
+
+        /** 수정 요청 사유 — 고객이 확인서를 돌려보낼 때 고른 것. 여러 개 고를 수 있어 합이 요청 수보다 클 수 있다 */
+        function reasonsHtml(r) {
+          if (!r || !(r.requests > 0)) return '';
+          const max = Math.max(1, ...r.codes.map((c) => c.count));
+          const rows = r.codes.map((c) => `<div class="reason" data-code="${esc(c.code)}"><span>${esc(c.label)}</span><span class="track"><span class="fill" style="width:${Math.round((c.count / max) * 100)}%"></span></span><span class="n">${esc(cnt(c.count))}</span></div>`).join('');
+          const none = r.noReason > 0 ? `<div class="muted">사유 없이 돌려보낸 것 ${esc(cnt(r.noReason))}</div>` : '';
+          return `<div class="sub-h">수정 요청 사유 — 요청 <b class="num">${esc(cnt(r.requests))}</b></div><div id="reasonBars">${rows}</div>${none}`;
         }
 
         // ── 고객: AI 플랫폼 → 수주 ──

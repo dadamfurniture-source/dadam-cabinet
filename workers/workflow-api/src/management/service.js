@@ -65,7 +65,8 @@ export async function getManagementSummary(env, { user, month }) {
     }),
     // 코호트는 설계에 확인서가 '처음' 나간 달로 묶는다 — 그래서 기간을 자르지 않고 읽는다
     selectMany(env, 'design_documents', {
-      select: 'design_id,doc_type,status,decision,created_at,first_viewed_at,decided_at',
+      // 수정 요청 사유 코드만 꺼낸다 (메모 · 서명은 읽지 않는다)
+      select: 'design_id,doc_type,status,decision,created_at,first_viewed_at,decided_at,reasons:render_payload->decision_reasons',
       doc_type: 'eq.customer_confirmation',
       order: 'created_at.asc',
       limit: '5000',

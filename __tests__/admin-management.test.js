@@ -43,6 +43,8 @@ const SUMMARY = {
   funnel: {
     leads: 3, issued: 4, viewed: 3, approved: 1, ordered: 1, rejected: 1, pending: 1,
     conversion: 25, viewRate: 75, orderRate: 100, avgRevisions: 1.3, medianHoursToView: 6, medianDaysToDecide: 3.5,
+    // 워커 시험(management.test.js 2단계 PR-5) 의 손계산 결과 그대로
+    reasons: { requests: 4, noReason: 1, codes: [{ code: 'price', label: '금액', count: 3, share: 75 }, { code: 'dimension', label: '치수', count: 1, share: 25 }, { code: 'layout', label: '배치 · 구성', count: 1, share: 25 }] },
   },
   platform: {
     value: { generations: 3, failed: 1, failRate: 25, people: 2, consultedPeople: 1, designs: 2, confirmed: 1, ordered: 1 },
@@ -559,5 +561,33 @@ describe('처리능력 근거 (실측이 쌓이면 실측으로)', () => {
     await window.Management.init();
     await settle();
     expect(document.querySelectorAll('#bottleneckBody .load small.basis')).toHaveLength(0);
+  });
+});
+
+describe('수정 요청 사유 (2단계 PR-5)', () => {
+  test('퍼널 아래에 사유 막대 — 가장 많은 사유가 꽉 찬 막대, 사유 없이 돌려보낸 수', async () => {
+    boot(fakeApi());
+    await window.Management.init();
+    await settle();
+    const rows = [...document.querySelectorAll('#reasonBars .reason')];
+    expect(rows.map((r) => r.dataset.code)).toEqual(['price', 'dimension', 'layout']);
+    expect(rows.map((r) => r.querySelector('.fill').style.width)).toEqual(['100%', '33%', '33%']);
+    expect(rows.map((r) => r.querySelector('.n').textContent)).toEqual(['3건', '1건', '1건']);
+    expect(text('funnelBody')).toMatch(/수정 요청 사유 — 요청 4건/);
+    expect(text('funnelBody')).toMatch(/사유 없이 돌려보낸 것 1건/);
+  });
+
+  test('요청이 없거나 옛 워커면 사유 칸을 그리지 않는다', async () => {
+    const data = { ...SUMMARY, funnel: { ...SUMMARY.funnel } };
+    delete data.funnel.reasons;
+    boot(fakeApi({ data }));
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('reasonBars')).toBeNull();
+  });
+
+  test('사유 막대도 블록이어야 그려진다', () => {
+    expect(HTML).toMatch(/\.reason \.track \{ display: block;/);
+    expect(HTML).toMatch(/\.reason \.fill \{ display: block;/);
   });
 });
