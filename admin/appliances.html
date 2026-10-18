@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet" />
     <script src="../js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js"></script>
+    <script src="../js/admin-access.js?v=36.1"></script>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       body { font-family: 'Noto Sans KR', sans-serif; background: #f5f5f5; min-height: 100vh; }
@@ -117,6 +117,8 @@
       <div class="toolbar">
         <input id="searchInput" type="text" placeholder="브랜드/모델명/코드 검색..." />
         <button class="btn-primary" id="addBtn">+ 새 모델</button>
+      </div>
+      <div id="readOnlyNote" style="display: none; margin-bottom: 12px; padding: 10px 12px; background: #fff3e0; color: #8a4b00; border-radius: 6px; font-size: 13px">
       </div>
 
       <div class="data-card">
@@ -241,6 +243,7 @@
       let supabaseClient = null;
       let currentCategory = 'refrigerator';
       let currentRows = [];
+      let canEdit = false; // admin · super_admin 만 추가·수정·삭제 (init 에서 정한다)
       const CUTOUT_CATS = ['sink', 'cooktop'];
 
       /** 타공 칸은 싱크볼 · 쿡탑일 때만, 수전 지름은 싱크볼만 */
@@ -260,12 +263,20 @@
         supabaseClient = window.supabase.createClient(url, anonKey);
         const { data: { user } } = await supabaseClient.auth.getUser();
         if (!user) { showAccessDenied(); return; }
-        // 가전 모델을 바꾸는 권한 = admin · super_admin (예전 'superadmin' 오타로 super_admin 이 막혔다 — PR7).
-        //   DB 쪽 같은 오타는 database/fix-appliance-models-rls.sql
-        const role = window.AdminAccess ? await window.AdminAccess.getRole(supabaseClient, user.id) : null;
-        if (!['admin', 'super_admin'].includes(role)) {
+        // 들어오기 = 관리자 전원 (다른 관리자 페이지와 같은 is_admin 판정).
+        // 바꾸기 = admin · super_admin — DB 쓰기 정책(database/fix-appliance-models-rls.sql)과 같은 기준.
+        const isAdmin = window.AdminAccess ? await window.AdminAccess.isAdmin(supabaseClient) : false;
+        if (!isAdmin) {
           showAccessDenied();
           return;
+        }
+        const role = await window.AdminAccess.getRole(supabaseClient, user.id);
+        canEdit = ['admin', 'super_admin'].includes(role);
+        if (!canEdit) {
+          document.getElementById('addBtn').style.display = 'none';
+          const note = document.getElementById('readOnlyNote');
+          note.textContent = `읽기 전용입니다 — 가전 모델은 admin · super_admin 만 바꿀 수 있습니다 (지금 역할: ${role || '확인 안 됨'}).`;
+          note.style.display = 'block';
         }
         await loadCategory(currentCategory);
       }
@@ -313,9 +324,9 @@
             <td class="right">${r.height_mm}</td>
             <td class="right">${r.capacity_l ?? ''}</td>
             <td class="center"><span class="badge ${r.verified ? 'verified' : 'unverified'}">${r.verified ? '✓ 검증' : '⚠ 표준'}</span></td>
-            <td class="right row-actions">
+            <td class="right row-actions">${canEdit ? `
               <button class="edit"   data-id="${r.id}">수정</button>
-              <button class="delete" data-id="${r.id}">삭제</button>
+              <button class="delete" data-id="${r.id}">삭제</button>` : ''}
             </td>
           </tr>
         `).join('');

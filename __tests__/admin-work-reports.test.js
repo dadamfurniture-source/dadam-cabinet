@@ -71,7 +71,7 @@ describe('관리자 사이드바', () => {
   // 메뉴 자체는 js/admin-shell.js 한 곳 — __tests__/admin-shell.test.js
 
   test('새 페이지는 정본 게이트(AdminAccess)를 쓴다 — 하드코딩 이메일 없음', () => {
-    expect(HTML).toMatch(/<script src="\.\.\/js\/admin-access\.js"><\/script>/);
+    expect(HTML).toMatch(/<script src="\.\.\/js\/admin-access\.js(\?v=[\d.]+)?"><\/script>/);
     expect(HTML).toMatch(/window\.AdminAccess\.isAdmin\(state\.sb\)/);
     expect(HTML).not.toMatch(/ADMIN_EMAILS/);
   });
