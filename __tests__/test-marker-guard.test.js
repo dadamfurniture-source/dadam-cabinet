@@ -41,6 +41,8 @@ const SOURCES = [
   // W12-23: 접근 게이트 — 관리자 판정과 상세설계 승인 조회가 여기 산다.
   'js/admin-access.js',
   'js/detaildesign-access.js',
+  // 관리자 사이드바 메뉴 정본 (PR7 — reference-images.test.js 가 메뉴 순서를 본다)
+  'js/admin-shell.js',
   // 학습 데이터셋: 동의 체크박스와 저장 호출이 여기 산다.
   'mypage.html',
   // 참고 이미지: 확정 흐름과 관리자 사이드바 (reference-images.test.js)

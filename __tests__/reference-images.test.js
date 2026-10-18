@@ -665,13 +665,11 @@ describe('ai-design.html — ③ 상세 요청 (AI 대화)', () => {
 });
 
 describe('관리자 사이드바', () => {
-  const pages = fs.readdirSync(path.join(ROOT, 'admin')).filter((f) => f.endsWith('.html'));
-
-  test.each(pages)('%s — 「참고 이미지」 링크가 학습 데이터셋 앞에 하나', (f) => {
-    const src = read('admin/' + f);
-    const nav = src.slice(src.indexOf('<ul class="nav-menu">'), src.indexOf('</ul>', src.indexOf('<ul class="nav-menu">')));
-    const links = nav.match(/href="reference-images\.html"/g) || [];
-    expect(links).toHaveLength(1);
-    expect(nav.indexOf('href="reference-images.html"')).toBeLessThan(nav.indexOf('href="dataset.html"'));
+  // 메뉴 정본은 js/admin-shell.js 한 곳 (PR7) — 각 페이지는 빈 #adminNav
+  test('「참고 이미지」 링크가 학습 데이터셋 바로 앞에 하나', () => {
+    const shell = read('js/admin-shell.js');
+    const refs = shell.match(/href: 'reference-images\.html'/g) || [];
+    expect(refs).toHaveLength(1);
+    expect(shell.indexOf("href: 'reference-images.html'")).toBeLessThan(shell.indexOf("href: 'dataset.html'"));
   });
 });
