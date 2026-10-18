@@ -81,18 +81,18 @@ test('상판·설비·철거도 원가 × 1.2 — 단가표 판매가를 그대�
   const by = Object.fromEntries(lines.map((l) => [l.key, l]));
   // 싱크대 골든: 상판 = 하부 길이 4.1m, 개수대·후드 있음, 철거 = 상·하부 7.6m
   assert.equal(by.countertop.qty, 4.1);
-  assert.equal(by.countertop.cost, 4.1 * 125000);
+  assert.equal(by.countertop.cost, 4.1 * 133333); // 고객가 m당 16만 ÷ 1.2 (2026-10-19 대표 확정)
   assert.equal(by.sinkBowl.cost, 55000);
   assert.equal(by.faucet.cost, 30000);
   assert.equal(by.hood.cost, 59000);
   assert.equal(by.demolition.qty, 7.6);
   const q = calculateSheetQuote({ design, bom: SINK_BOM, cutPlan: SINK_CUT, range: { min: 0.95, max: 1.3 } });
   const row = (re) => q.items.find((i) => re.test(i.name));
-  assert.equal(row(/상판/).unit_price, 150000); // 12.5만 × 1.2
+  assert.equal(row(/상판/).unit_price, 160000); // 133,333 × 1.2 → 100원 단위
   assert.equal(row(/싱크볼/).unit_price, 66000); // 5.5만 × 1.2
   assert.equal(row(/수전/).unit_price, 36000);
   assert.equal(row(/후드/).unit_price, 70800);
-  assert.equal(row(/철거/).unit_price, 30000);
+  assert.equal(row(/철거/).unit_price, 30000); // 고객가 m당 3만 (2026-10-19 대표 확정)
   assert.equal(q.range.min, Math.round(q.total * 0.95));
   // 원가를 바꾸면 그대로 따라온다
   const q2 = calculateSheetQuote({ design, bom: SINK_BOM, cutPlan: SINK_CUT, settings: { quote: { sinkBowl: 400000 } } });
