@@ -94,6 +94,25 @@ export function expectedFromSpec(spec, category) {
     .sort((a, b) => num(a[1].fromLeftMm) - num(b[1].fromLeftMm));
   for (const [slot, sec] of floorSecs) {
     for (const m of sec.modules) {
+      // 2026-10-19: 쌓인 단(tiers) = 한 통. 맨 아래가 가전 자리면(냉장고장) 그 가전 — 냉장고장 품목은 읽는 쪽이
+      //   'fridge' 로만 읽으므로(layout.js FLOOR_KINDS.fridge) 'fridge'. 위 박스 도어는 가전 칸과 같이 세지 않는다.
+      //   가전 자리가 없으면(키큰장 한 통) 세그먼트 하나에 도어·서랍은 단의 합. tiers 가 없으면 아래 예전 그대로.
+      if (Array.isArray(m.tiers) && m.tiers.length) {
+        const bottom = m.tiers[0] || {};
+        if (bottom.kind === 'appliance') {
+          const k = applianceKindOfModule(bottom.label ? bottom : m);
+          floorKinds.push(k === 'refrigerator' && category === 'fridge' ? 'fridge' : k);
+          continue;
+        }
+        floorKinds.push(slot === 'tall' ? 'tall' : 'lower');
+        for (const t of m.tiers) {
+          if (!t || t.kind === 'appliance' || t.kind === 'open') continue;
+          // 계약: kind 'door' 에서 doorCount 를 생략하면 1
+          floorDoors += t.kind === 'door' && t.doorCount == null ? 1 : num(t.doorCount);
+          floorDrawers += num(t.drawerCount);
+        }
+        continue;
+      }
       if (m.kind === 'appliance') { floorKinds.push(applianceKindOfModule(m)); continue; }
       if (m.kind === 'open') { floorKinds.push('open'); continue; }
       floorKinds.push(slot === 'tall' ? 'tall' : 'lower');
