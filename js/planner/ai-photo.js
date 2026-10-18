@@ -570,8 +570,8 @@ function plannerAiPhotoBuildSpec(input) {
   return r ? r.spec : null;
 }
 
-/** 2026-10-19: 천장 높이로 받는 범위 (mm) — 밖이면 모르는 값으로 본다. */
-const PLANNER_AI_PHOTO_CEILING_RANGE = [1500, 6000];
+/** 2026-10-19: 천장 높이로 받는 범위 (mm) — 밖이면 모르는 값으로 본다. 워커 계약(1500–4000 으로 자름)과 같은 범위. */
+const PLANNER_AI_PHOTO_CEILING_RANGE = [1500, 4000];
 
 /**
  * 2026-10-19: 배치 모양 — 모듈 회전(0·90·180·270)으로 정면 벽 수를 센다. 순수.

@@ -57,8 +57,8 @@ Authorization: Bearer <supabase jwt>
 | `appliances` | array | 최대 12개. 모르는 `kind` 는 조용히 버림 |
 | `finishes` | object | `door` · `body` · `top` 세 칸. 그 밖의 키는 무시 |
 | `notes` | string | 자유 서술. 300자로 자르고 줄바꿈은 공백으로 편다 |
-| `layout` | object | 2026-10-19 선택. 아래 "배치·높이" 절 |
-| `ceilingMm` | number | 2026-10-19 선택. 아래 "배치·높이" 절 |
+| `layout` | object | 선택 (2026-10-19, **플래너 모드만 읽는다**). `{ shape: 'straight'\|'corner'\|'u', walls?: number }`. `shape` 가 셋 밖이면 통째로 버림, `walls` 는 1–4 로 자름 |
+| `ceilingMm` | number | 선택 (2026-10-19, 플래너 모드만). 바닥에서 천장까지. 1500–4000 으로 자름 |
 
 ### `sections.{lower|upper|tall}`
 
@@ -68,21 +68,20 @@ Authorization: Bearer <supabase jwt>
 | `heightMm` | number | 100–3600 |
 | `depthMm` | number | 50–1200 |
 | `fromLeftMm` | number | 0–12000 — 이 구간의 **왼쪽 끝**이 런 왼쪽 끝에서 얼마인지 |
+| `fromFloorMm` | number | 선택 (2026-10-19, 플래너 모드만). 0–3600 — 바닥에서 이 구간 **아랫면**까지 (상부장이면 보통 1400–1500) |
 | `modules` | array | 왼→오 순서. 최대 40개, 넘으면 앞에서 40개만 |
-| `fromFloorMm` | number | 2026-10-19 선택. 아래 "배치·높이" 절 |
 
-### 배치·높이 — `layout` · `fromFloorMm` · `ceilingMm` (2026-10-19, 선택)
+### 배치·높이 — 플래너가 채우는 법 (2026-10-19)
 
-플래너가 **아는 값만** 보낸다. 모르면 키 자체가 없다. 기존 필드·순서는 그대로이고 새 키는 뒤에 붙는다
-(최상위는 `notes` 뒤에 `layout` · `ceilingMm`, 구간은 `modules` 뒤에 `fromFloorMm`).
-워커가 아직 읽지 않으면 조용히 버려진다 (`normalizeDesignSpec` 은 모르는 키를 400 으로 막지 않는다).
+위 표의 `layout` · `sections.*.fromFloorMm` · `ceilingMm` 를 플래너는 **아는 값만** 보낸다. 모르면 키 자체가 없다.
+기존 필드·순서는 그대로이고 새 키는 뒤에 붙는다 (최상위는 `notes` 뒤에 `layout` · `ceilingMm`, 구간은 `modules` 뒤에 `fromFloorMm`).
 
 | 필드 | 형 | 규칙 | 플래너가 채우는 법 (`js/planner/ai-photo.js`) |
 |---|---|---|---|
 | `layout.shape` | string | `straight` · `corner` · `u` | 장(마감재 빼고)의 회전 0·90·180·270 가짓수 — 하나 `straight`, 이웃한 둘(90° 차) `corner`(ㄱ자), 셋 `u`(ㄷ자). 마주 보는 둘(0·180)·넷·90° 배수가 아닌 회전은 모름 → 키 없음 (`plannerAiPhotoLayoutOf`) |
 | `layout.walls` | number | 1 · 2 · 3 | 위 가짓수 (정면 벽 수) |
 | `sections.*.fromFloorMm` | number | mm 정수 ≥ 0 | 그 줄 **아랫면**의 바닥 기준 높이 — 줄 안 모듈 중 가장 낮은 값. 3D 와 같은 `baseYOf` (상부장 = 천장 − 높이, 하부·키큰장 = 0, 모듈이 정한 값 우선) |
-| `ceilingMm` | number | 1500–6000, 밖이면 키 없음 | 플래너 3D 의 천장 높이 (`dadam_origin_v1.ceiling`, 배치 단계 값. 저장값이 없으면 플래너 기본 2300 — 상부장도 그 높이에 매달려 있다) |
+| `ceilingMm` | number | 1500–4000, 밖이면 키 없음 | 플래너 3D 의 천장 높이 (`dadam_origin_v1.ceiling`, 배치 단계 값. 저장값이 없으면 플래너 기본 2300 — 상부장도 그 높이에 매달려 있다) |
 
 정면 입면(IMAGE B)의 번호·치수선: 2026-10-19 부터 플래너는 입면 위에 모듈 번호(`L1`·`U1`·`T1`·`W1`)와
 치수선(칸 폭·줄 전체 mm, 줄 높이 mm)을 얇은 회색으로 얹어 보낸다. 번호는 이 문서의 `sections.*.modules[]` 를
@@ -291,11 +290,32 @@ POST /api/generate
 | 렌더 | 역할마다 한 장, 최대 2장, 다른 role 은 버림. 버킷 `{user}/{gen}/render-{role}.{ext}`, `inputs.renders[] = {role, path, url, mime}` |
 | options | `mode:'planner'`, `aspect`, `variants:false`(항상) |
 | 재생성 | `parent_id` 만 보내면 원본의 모드·요약·렌더·비율을 잇는다. 원본에 입면이 없으면 400 |
-| 설치 | `[방 사진, 입면, 3/4?]` + 프롬프트 v2, 온도 0.2, `aspectRatio` = `options.aspect` |
+| 설치 | `[방 사진, 입면, 3/4?]` + 프롬프트 v3(2026-10-19), 온도 0.2, `aspectRatio` = `options.aspect` |
 | 이미지 공급자 (2026-10-18) | 기본 Gemini(위 줄 그대로, 칸 표시 없음). `image_provider:'openai'` 면 `options.image_provider:'openai'` (gemini 면 **키 없음**), 재생성은 원본을 잇고 새 값이 이긴다. 잡은 같은 프롬프트·같은 이미지 순서로 GPT 편집(`/v1/images/edits`, `image[]` 첫 장 = 방 사진)을 부르고 온도는 보내지 않는다. 크기는 비율에서: 16:9 → 2048x1152 · 4:3 → 2048x1536 · 1:1 → 1760x1760 · 3:4 → 1536x2048 · 9:16 → 1152x2048. 키가 없거나 GPT 가 실패하면 Gemini 가 같은 인자로 대신 그린다. 누가 그렸는지: `images[base].provider·model`(GPT 면 `usage` 도), 대신 그렸으면 `fallback:true · fallback_reason`, 행의 `model`. 전역 `IMAGE_PROVIDER` 는 플래너 모드에 닿지 않는다 |
 | 검사 | 공통 + `layout_mismatch` + **`existing_left`**(남는 벽에 기존 가구) · **`pasted_reference`**(렌더를 붙임). **재시도 없음** — `images[base].qc` 에 기록만 |
 | 역판독 | 그대로 (`layout.verify`) |
 | 결과 | `base` 한 장. 추천안·`mockup` 슬롯 없음 |
+
+### 프롬프트 v3 (2026-10-19)
+
+실측 8장(사진 4 × Gemini/GPT)의 실패 — 방에 원래 있던 모양(ㄱ자)을 따라감, 상부장 줄이 하부 폭에 맞춰 늘어남,
+`gap_to_ceiling` 거짓 경보, 소품 삭제·카메라 재구성 — 을 사진·실수 이름이 아니라 **design_spec 에서 계산되는 일반 규칙**으로 막는다.
+시험: `test/planner-prompt.test.js`.
+
+| 문단 | 무엇을 계산하나 |
+|---|---|
+| IMAGE B | 입면의 번호(L·U·T·W, 줄 안 왼쪽부터 1)·치수선은 주석 — 그리지 말 것 |
+| `LAYOUT` | `layout` → 없으면 `notes` 의 `ㄱ자`·`ㄷ자` → 그래도 모르면 **문단 없음** (일자로 단정하지 않는다). ㄱ자·ㄷ자면 벽 대비 % 와 남는 벽 구역을 말하지 않는다 |
+| `FIXED GEOMETRY` | 줄마다 번호·폭·종류, `→ widths L1 : L2 : L3 = 2 : 1 : 2.5` (가장 좁은 모듈 = 1, 0.5 단위). 둘째 줄부터는 기준 줄(하부, 없으면 가장 긴 줄)의 모듈 경계로 시작·끝: `U1–U2 start above the left end of L1 and end above L3, 400 mm before the right end of the base row` |
+| 높이 | `fromFloorMm`·`ceilingMm` 중 하나라도 오면 줄마다 `bottom at X mm, top at Y mm from the floor` (`fromFloorMm` 없는 하부·키큰장·붙박이장은 0). 아무것도 없으면 예전처럼 `870 mm high` |
+| `CLOSED LIST` | `L1–L3 and U1–U2 are the only built-in units` — 다른 장·서랍장·선반·판 없음 |
+| `BINDING` | 순서·개수·줄 안 폭 비율(±10 %)·기준 줄 대비 위치는 구속, 벽에 맞추는 것은 **전체 배율만** (옛 "mm·% 는 참고" 를 바꿈) |
+| `EMPTY ZONES` | 벽장 높이·바닥 높이에서 아무 줄도 덮지 않는 구간, 하부 윗면~상부 아랫면, 맨 위 줄~천장 틈(`open or closed exactly as IMAGE B shows` — 막음 여부 필드가 아직 없다), 남는 벽(결정 ①′) |
+| `EDIT ZONE` / `KEEP` | 목표 벽의 붙박이만 철거·교체. 카메라·다른 벽·창·문·조명·움직이는 물건(냉장고·카트·조명·화분)은 그대로 |
+| `FINAL SELF-CHECK` | 맨 끝. 줄마다 유닛·도어·서랍 수, 빈 구역 수, `no other built-in unit anywhere` |
+
+검사: 플래너 모드이고 도면이 천장 틈을 두었으면(`ceilingMm` 과 맨 위 줄 윗면) `gap_to_ceiling` 줄 끝에
+"그만한 틈은 의도된 것 — 그보다 분명히 클 때만" 을 붙인다. 그 밖의 검사 프롬프트는 바이트 그대로.
 
 ### 내부 확인용 (`options.internal_only`, 계획서 §6.3 · §11-⑦)
 
