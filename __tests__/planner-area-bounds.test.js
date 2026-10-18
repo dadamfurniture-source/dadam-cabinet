@@ -183,9 +183,11 @@ describe('파츠는 서로 겹치지 않는다 (W12-25)', () => {
     expect(code).not.toMatch(/\bT = 18\b/);
   });
 
-  test('뒤판은 측판 사이에 들어간다 — 전폭이면 겹친다', () => {
+  // 2026-10-19: 뒷판은 우라 3T — 사쿠리 없으면 측판 **뒤**에 덮고(W − 1), 사쿠리면 홈 속(W − 20). 어느 쪽도 측판과 겹치지 않는다.
+  test('뒤판은 측판과 겹치지 않는다 — 사쿠리 없으면 측판 뒤, 있으면 홈 속', () => {
     const fn = SRC.slice(SRC.indexOf('function addCarcassShell'), SRC.indexOf('function addWoodChannel'));
-    expect(fn).toMatch(/makeBox\(o\.W - 2 \* o\.T, o\.carcassH, o\.T,/);
+    expect(fn).toMatch(/BACK_SAKURI_W_MINUS : MASTER_RULES\.BACK_FLAT_W_MINUS/);
+    expect(fn).toMatch(/-o\.D \/ 2 - MASTER_RULES\.BACK_PANEL_T \/ 2/);   // 측판 뒤끝 바깥
   });
 
   test('산술 — 뒤판과 측판이 안 겹친다', () => {

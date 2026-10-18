@@ -33,18 +33,6 @@
   },
   "entries": [
     {
-      "id": "cornerL|corner-blind-area-lower-1--area-lower-0|back|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "corner-blind-area-lower-1--area-lower-0",
-      "family": "back",
-      "scene": "1053×708×15 ×1",
-      "bom": "1053×693×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "cornerL|corner-blind-area-lower-1--area-lower-0|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "cornerL",
@@ -57,24 +45,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "cornerL|corner-blind-area-lower-1--area-lower-0|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "corner-blind-area-lower-1--area-lower-0",
-      "family": "body:bottom",
-      "scene": "1053×535×15 ×1",
-      "bom": "1053×550×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "cornerL|corner-blind-area-lower-1--area-lower-0|body:top|only3d",
       "kind": "only3d",
       "fixture": "cornerL",
       "moduleId": "corner-blind-area-lower-1--area-lower-0",
       "family": "body:top",
-      "scene": "1053×495×15 ×1",
+      "scene": "1053×510×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -213,18 +189,6 @@
       "reason": "BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 60×2, 12T 인조대리석 — P1-3)으로 확정 — 사용자 결정 2026-09-15. 3D 가 배치 공간(런)마다 한 장 그리는 것은 표시용 단순화. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
     },
     {
-      "id": "cornerL|lower-0|back|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "lower-0",
-      "family": "back",
-      "scene": "812×708×15 ×1",
-      "bom": "812×693×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "cornerL|lower-0|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "cornerL",
@@ -237,24 +201,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "cornerL|lower-0|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "lower-0",
-      "family": "body:bottom",
-      "scene": "812×535×15 ×1",
-      "bom": "812×550×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "cornerL|lower-0|body:top|only3d",
       "kind": "only3d",
       "fixture": "cornerL",
       "moduleId": "lower-0",
       "family": "body:top",
-      "scene": "812×495×15 ×1",
+      "scene": "812×510×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -321,18 +273,6 @@
       "reason": "3D 상판은 배치 공간(런)마다 그 런 폭(영역 전폭)으로 한 장 — 표시용 단순화. BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 × 품목 D, specs.topThickness)으로 확정 — 사용자 결정 2026-09-15. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
     },
     {
-      "id": "cornerL|lower-1|back|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "lower-1",
-      "family": "back",
-      "scene": "812×708×15 ×1",
-      "bom": "812×693×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "cornerL|lower-1|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "cornerL",
@@ -345,24 +285,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "cornerL|lower-1|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "lower-1",
-      "family": "body:bottom",
-      "scene": "812×535×15 ×1",
-      "bom": "812×550×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "cornerL|lower-1|body:top|only3d",
       "kind": "only3d",
       "fixture": "cornerL",
       "moduleId": "lower-1",
       "family": "body:top",
-      "scene": "812×495×15 ×1",
+      "scene": "812×510×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -405,18 +333,6 @@
       "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
     },
     {
-      "id": "cornerL|lower-2|back|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "lower-2",
-      "family": "back",
-      "scene": "812×708×15 ×1",
-      "bom": "812×693×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "cornerL|lower-2|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "cornerL",
@@ -429,24 +345,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "cornerL|lower-2|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "lower-2",
-      "family": "body:bottom",
-      "scene": "812×535×15 ×1",
-      "bom": "812×550×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "cornerL|lower-2|body:top|only3d",
       "kind": "only3d",
       "fixture": "cornerL",
       "moduleId": "lower-2",
       "family": "body:top",
-      "scene": "812×495×15 ×1",
+      "scene": "812×510×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -489,18 +393,6 @@
       "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
     },
     {
-      "id": "cornerL|lower-3|back|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "lower-3",
-      "family": "back",
-      "scene": "708×391×15 ×1",
-      "bom": "693×391×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "cornerL|lower-3|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "cornerL",
@@ -513,24 +405,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "cornerL|lower-3|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "lower-3",
-      "family": "body:bottom",
-      "scene": "535×391×15 ×1",
-      "bom": "550×391×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "cornerL|lower-3|body:top|only3d",
       "kind": "only3d",
       "fixture": "cornerL",
       "moduleId": "lower-3",
       "family": "body:top",
-      "scene": "495×391×15 ×1",
+      "scene": "510×391×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -573,18 +453,6 @@
       "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
     },
     {
-      "id": "cornerL|lower-4|back|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "lower-4",
-      "family": "back",
-      "scene": "806×708×15 ×1",
-      "bom": "806×693×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "cornerL|lower-4|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "cornerL",
@@ -597,24 +465,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "cornerL|lower-4|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "lower-4",
-      "family": "body:bottom",
-      "scene": "806×535×15 ×1",
-      "bom": "806×550×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "cornerL|lower-4|body:top|only3d",
       "kind": "only3d",
       "fixture": "cornerL",
       "moduleId": "lower-4",
       "family": "body:top",
-      "scene": "806×495×15 ×1",
+      "scene": "806×510×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -741,18 +597,6 @@
       "reason": "BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 60×2, 12T 인조대리석 — P1-3)으로 확정 — 사용자 결정 2026-09-15. 3D 가 배치 공간(런)마다 한 장 그리는 것은 표시용 단순화. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
     },
     {
-      "id": "lShape|lower-0|back|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "lower-0",
-      "family": "back",
-      "scene": "870×708×15 ×1",
-      "bom": "870×693×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "lShape|lower-0|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "lShape",
@@ -765,24 +609,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "lShape|lower-0|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "lower-0",
-      "family": "body:bottom",
-      "scene": "870×535×15 ×1",
-      "bom": "870×550×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "lShape|lower-0|body:top|only3d",
       "kind": "only3d",
       "fixture": "lShape",
       "moduleId": "lower-0",
       "family": "body:top",
-      "scene": "870×495×15 ×1",
+      "scene": "870×510×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -849,18 +681,6 @@
       "reason": "3D 상판은 배치 공간(런)마다 그 런 폭(영역 전폭)으로 한 장 — 표시용 단순화. BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 × 품목 D, specs.topThickness)으로 확정 — 사용자 결정 2026-09-15. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
     },
     {
-      "id": "lShape|lower-1|back|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "lower-1",
-      "family": "back",
-      "scene": "870×708×15 ×1",
-      "bom": "870×693×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "lShape|lower-1|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "lShape",
@@ -873,24 +693,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "lShape|lower-1|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "lower-1",
-      "family": "body:bottom",
-      "scene": "870×535×15 ×1",
-      "bom": "870×550×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "lShape|lower-1|body:top|only3d",
       "kind": "only3d",
       "fixture": "lShape",
       "moduleId": "lower-1",
       "family": "body:top",
-      "scene": "870×495×15 ×1",
+      "scene": "870×510×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -933,18 +741,6 @@
       "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
     },
     {
-      "id": "lShape|lower-2|back|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "lower-2",
-      "family": "back",
-      "scene": "870×708×15 ×1",
-      "bom": "870×693×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "lShape|lower-2|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "lShape",
@@ -957,24 +753,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "lShape|lower-2|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "lower-2",
-      "family": "body:bottom",
-      "scene": "870×535×15 ×1",
-      "bom": "870×550×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "lShape|lower-2|body:top|only3d",
       "kind": "only3d",
       "fixture": "lShape",
       "moduleId": "lower-2",
       "family": "body:top",
-      "scene": "870×495×15 ×1",
+      "scene": "870×510×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -1041,18 +825,6 @@
       "reason": "3D 상판은 배치 공간(런)마다 그 런 폭(영역 전폭)으로 한 장 — 표시용 단순화. BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 × 품목 D, specs.topThickness)으로 확정 — 사용자 결정 2026-09-15. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
     },
     {
-      "id": "lShape|lower-3|back|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "lower-3",
-      "family": "back",
-      "scene": "970×708×15 ×1",
-      "bom": "970×693×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "lShape|lower-3|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "lShape",
@@ -1065,24 +837,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "lShape|lower-3|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "lower-3",
-      "family": "body:bottom",
-      "scene": "970×535×15 ×1",
-      "bom": "970×550×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "lShape|lower-3|body:top|only3d",
       "kind": "only3d",
       "fixture": "lShape",
       "moduleId": "lower-3",
       "family": "body:top",
-      "scene": "970×495×15 ×1",
+      "scene": "970×510×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -1149,18 +909,6 @@
       "reason": "3D 상판은 배치 공간(런)마다 그 런 폭(영역 전폭)으로 한 장 — 표시용 단순화. BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 × 품목 D, specs.topThickness)으로 확정 — 사용자 결정 2026-09-15. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
     },
     {
-      "id": "lShape|lower-4|back|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "lower-4",
-      "family": "back",
-      "scene": "708×470×15 ×1",
-      "bom": "693×470×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "lShape|lower-4|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "lShape",
@@ -1173,24 +921,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "lShape|lower-4|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "lower-4",
-      "family": "body:bottom",
-      "scene": "535×470×15 ×1",
-      "bom": "550×470×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "lShape|lower-4|body:top|only3d",
       "kind": "only3d",
       "fixture": "lShape",
       "moduleId": "lower-4",
       "family": "body:top",
-      "scene": "495×470×15 ×1",
+      "scene": "510×470×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -1233,18 +969,6 @@
       "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
     },
     {
-      "id": "lShape|tall-0|back|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "tall-0",
-      "family": "back",
-      "scene": "801×570×15 ×1",
-      "bom": "786×570×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "lShape|tall-0|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "lShape",
@@ -1257,24 +981,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "lShape|tall-0|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "tall-0",
-      "family": "body:bottom",
-      "scene": "605×570×15 ×1",
-      "bom": "620×570×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "lShape|tall-0|body:top|only3d",
       "kind": "only3d",
       "fixture": "lShape",
       "moduleId": "tall-0",
       "family": "body:top",
-      "scene": "570×565×15 ×1",
+      "scene": "580×570×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -1341,18 +1053,6 @@
       "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
     },
     {
-      "id": "lShape|tall-1|back|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "tall-1",
-      "family": "back",
-      "scene": "979×570×15 ×1",
-      "bom": "964×570×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "lShape|tall-1|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "lShape",
@@ -1365,24 +1065,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "lShape|tall-1|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "tall-1",
-      "family": "body:bottom",
-      "scene": "605×570×15 ×1",
-      "bom": "620×570×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "lShape|tall-1|body:top|only3d",
       "kind": "only3d",
       "fixture": "lShape",
       "moduleId": "tall-1",
       "family": "body:top",
-      "scene": "605×570×15 ×1",
+      "scene": "620×570×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -1401,18 +1089,6 @@
       "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
     },
     {
-      "id": "lShape|tall-2|back|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "tall-2",
-      "family": "back",
-      "scene": "570×400×15 ×1",
-      "bom": "570×385×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "lShape|tall-2|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "lShape",
@@ -1425,24 +1101,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "lShape|tall-2|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "tall-2",
-      "family": "body:bottom",
-      "scene": "605×570×15 ×1",
-      "bom": "620×570×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "lShape|tall-2|body:top|only3d",
       "kind": "only3d",
       "fixture": "lShape",
       "moduleId": "tall-2",
       "family": "body:top",
-      "scene": "605×570×15 ×1",
+      "scene": "620×570×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -1461,18 +1125,6 @@
       "reason": "키큰장 상부단 상몰딩 — BOM 은 P1-1 부터 MDF 18T 면판 60×W 를 그 단에 낸다. 3D 는 W×60×(D+18) 통짜 블록(단순화)이라 치수가 안 맞는다"
     },
     {
-      "id": "lShape|upper-0|back|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "upper-0",
-      "family": "back",
-      "scene": "870×720×15 ×1",
-      "bom": "880×719×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 우라 3T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
-    },
-    {
       "id": "lShape|upper-0|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "lShape",
@@ -1483,30 +1135,6 @@
       "note": "",
       "cause": "밴드 미표현",
       "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
-    },
-    {
-      "id": "lShape|upper-0|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "upper-0",
-      "family": "body:bottom",
-      "scene": "870×275×15 ×1",
-      "bom": "870×272×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "사쿠리홈 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 지판은 사쿠리 반영 D−18 (3mm)"
-    },
-    {
-      "id": "lShape|upper-0|body:top|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "upper-0",
-      "family": "body:top",
-      "scene": "870×275×15 ×1",
-      "bom": "870×272×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "사쿠리홈 깊이",
-      "reason": "3D 천판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 천판은 사쿠리 반영 D−18 (3mm)"
     },
     {
       "id": "lShape|upper-0|molding|only3d",
@@ -1533,18 +1161,6 @@
       "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 상부 선반은 W−2T × D−34(사쿠리)"
     },
     {
-      "id": "lShape|upper-1|back|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "upper-1",
-      "family": "back",
-      "scene": "870×720×15 ×1",
-      "bom": "880×719×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 우라 3T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
-    },
-    {
       "id": "lShape|upper-1|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "lShape",
@@ -1555,30 +1171,6 @@
       "note": "",
       "cause": "밴드 미표현",
       "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
-    },
-    {
-      "id": "lShape|upper-1|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "upper-1",
-      "family": "body:bottom",
-      "scene": "870×275×15 ×1",
-      "bom": "870×272×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "사쿠리홈 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 지판은 사쿠리 반영 D−18 (3mm)"
-    },
-    {
-      "id": "lShape|upper-1|body:top|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "upper-1",
-      "family": "body:top",
-      "scene": "870×275×15 ×1",
-      "bom": "870×272×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "사쿠리홈 깊이",
-      "reason": "3D 천판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 천판은 사쿠리 반영 D−18 (3mm)"
     },
     {
       "id": "lShape|upper-1|molding|only3d",
@@ -1689,18 +1281,6 @@
       "reason": "BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 60×2, 12T 인조대리석 — P1-3)으로 확정 — 사용자 결정 2026-09-15. 3D 가 배치 공간(런)마다 한 장 그리는 것은 표시용 단순화. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
     },
     {
-      "id": "oblique|lower-0|back|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "lower-0",
-      "family": "back",
-      "scene": "870×708×15 ×1",
-      "bom": "870×693×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "oblique|lower-0|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "oblique",
@@ -1713,24 +1293,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "oblique|lower-0|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "lower-0",
-      "family": "body:bottom",
-      "scene": "870×535×15 ×1",
-      "bom": "870×550×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "oblique|lower-0|body:top|only3d",
       "kind": "only3d",
       "fixture": "oblique",
       "moduleId": "lower-0",
       "family": "body:top",
-      "scene": "870×495×15 ×1",
+      "scene": "870×510×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -1797,18 +1365,6 @@
       "reason": "3D 상판은 배치 공간(런)마다 그 런 폭(영역 전폭)으로 한 장 — 표시용 단순화. BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 × 품목 D, specs.topThickness)으로 확정 — 사용자 결정 2026-09-15. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
     },
     {
-      "id": "oblique|lower-1|back|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "lower-1",
-      "family": "back",
-      "scene": "870×708×15 ×1",
-      "bom": "870×693×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "oblique|lower-1|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "oblique",
@@ -1821,24 +1377,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "oblique|lower-1|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "lower-1",
-      "family": "body:bottom",
-      "scene": "870×535×15 ×1",
-      "bom": "870×550×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "oblique|lower-1|body:top|only3d",
       "kind": "only3d",
       "fixture": "oblique",
       "moduleId": "lower-1",
       "family": "body:top",
-      "scene": "870×495×15 ×1",
+      "scene": "870×510×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -1881,18 +1425,6 @@
       "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
     },
     {
-      "id": "oblique|lower-2|back|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "lower-2",
-      "family": "back",
-      "scene": "770×708×15 ×1",
-      "bom": "770×693×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "oblique|lower-2|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "oblique",
@@ -1905,24 +1437,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "oblique|lower-2|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "lower-2",
-      "family": "body:bottom",
-      "scene": "770×535×15 ×1",
-      "bom": "770×550×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "oblique|lower-2|body:top|only3d",
       "kind": "only3d",
       "fixture": "oblique",
       "moduleId": "lower-2",
       "family": "body:top",
-      "scene": "770×495×15 ×1",
+      "scene": "770×510×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -1989,18 +1509,6 @@
       "reason": "3D 상판은 배치 공간(런)마다 그 런 폭(영역 전폭)으로 한 장 — 표시용 단순화. BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 × 품목 D, specs.topThickness)으로 확정 — 사용자 결정 2026-09-15. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
     },
     {
-      "id": "oblique|lower-3|back|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "lower-3",
-      "family": "back",
-      "scene": "708×370×15 ×1",
-      "bom": "693×370×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "oblique|lower-3|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "oblique",
@@ -2013,24 +1521,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "oblique|lower-3|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "lower-3",
-      "family": "body:bottom",
-      "scene": "535×370×15 ×1",
-      "bom": "550×370×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "oblique|lower-3|body:top|only3d",
       "kind": "only3d",
       "fixture": "oblique",
       "moduleId": "lower-3",
       "family": "body:top",
-      "scene": "495×370×15 ×1",
+      "scene": "510×370×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -2073,18 +1569,6 @@
       "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
     },
     {
-      "id": "oblique|upper-0|back|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "upper-0",
-      "family": "back",
-      "scene": "870×720×15 ×1",
-      "bom": "880×719×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 우라 3T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
-    },
-    {
       "id": "oblique|upper-0|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "oblique",
@@ -2095,30 +1579,6 @@
       "note": "",
       "cause": "밴드 미표현",
       "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
-    },
-    {
-      "id": "oblique|upper-0|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "upper-0",
-      "family": "body:bottom",
-      "scene": "870×275×15 ×1",
-      "bom": "870×272×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "사쿠리홈 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 지판은 사쿠리 반영 D−18 (3mm)"
-    },
-    {
-      "id": "oblique|upper-0|body:top|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "upper-0",
-      "family": "body:top",
-      "scene": "870×275×15 ×1",
-      "bom": "870×272×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "사쿠리홈 깊이",
-      "reason": "3D 천판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 천판은 사쿠리 반영 D−18 (3mm)"
     },
     {
       "id": "oblique|upper-0|molding|only3d",
@@ -2145,18 +1605,6 @@
       "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 상부 선반은 W−2T × D−34(사쿠리)"
     },
     {
-      "id": "oblique|upper-1|back|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "upper-1",
-      "family": "back",
-      "scene": "870×720×15 ×1",
-      "bom": "880×719×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 우라 3T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
-    },
-    {
       "id": "oblique|upper-1|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "oblique",
@@ -2167,30 +1615,6 @@
       "note": "",
       "cause": "밴드 미표현",
       "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
-    },
-    {
-      "id": "oblique|upper-1|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "upper-1",
-      "family": "body:bottom",
-      "scene": "870×275×15 ×1",
-      "bom": "870×272×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "사쿠리홈 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 지판은 사쿠리 반영 D−18 (3mm)"
-    },
-    {
-      "id": "oblique|upper-1|body:top|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "upper-1",
-      "family": "body:top",
-      "scene": "870×275×15 ×1",
-      "bom": "870×272×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "사쿠리홈 깊이",
-      "reason": "3D 천판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 천판은 사쿠리 반영 D−18 (3mm)"
     },
     {
       "id": "oblique|upper-1|molding|only3d",
@@ -2301,18 +1725,6 @@
       "reason": "BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 60×2, 12T 인조대리석 — P1-3)으로 확정 — 사용자 결정 2026-09-15. 3D 가 배치 공간(런)마다 한 장 그리는 것은 표시용 단순화. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
     },
     {
-      "id": "straight|lower-0|back|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "lower-0",
-      "family": "back",
-      "scene": "770×708×15 ×1",
-      "bom": "770×693×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "straight|lower-0|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "straight",
@@ -2325,24 +1737,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "straight|lower-0|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "lower-0",
-      "family": "body:bottom",
-      "scene": "770×535×15 ×1",
-      "bom": "770×550×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "straight|lower-0|body:top|only3d",
       "kind": "only3d",
       "fixture": "straight",
       "moduleId": "lower-0",
       "family": "body:top",
-      "scene": "770×495×15 ×1",
+      "scene": "770×510×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -2409,18 +1809,6 @@
       "reason": "3D 상판은 배치 공간(런)마다 그 런 폭(영역 전폭)으로 한 장 — 표시용 단순화. BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 × 품목 D, specs.topThickness)으로 확정 — 사용자 결정 2026-09-15. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
     },
     {
-      "id": "straight|lower-1|back|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "lower-1",
-      "family": "back",
-      "scene": "708×370×15 ×1",
-      "bom": "693×370×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "straight|lower-1|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "straight",
@@ -2433,24 +1821,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "straight|lower-1|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "lower-1",
-      "family": "body:bottom",
-      "scene": "535×370×15 ×1",
-      "bom": "550×370×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "straight|lower-1|body:top|only3d",
       "kind": "only3d",
       "fixture": "straight",
       "moduleId": "lower-1",
       "family": "body:top",
-      "scene": "495×370×15 ×1",
+      "scene": "510×370×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -2493,18 +1869,6 @@
       "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
     },
     {
-      "id": "straight|lower-2|back|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "lower-2",
-      "family": "back",
-      "scene": "970×708×15 ×1",
-      "bom": "970×693×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "straight|lower-2|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "straight",
@@ -2517,24 +1881,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "straight|lower-2|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "lower-2",
-      "family": "body:bottom",
-      "scene": "970×535×15 ×1",
-      "bom": "970×550×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "straight|lower-2|body:top|only3d",
       "kind": "only3d",
       "fixture": "straight",
       "moduleId": "lower-2",
       "family": "body:top",
-      "scene": "970×495×15 ×1",
+      "scene": "970×510×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -2601,18 +1953,6 @@
       "reason": "3D 상판은 배치 공간(런)마다 그 런 폭(영역 전폭)으로 한 장 — 표시용 단순화. BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 × 품목 D, specs.topThickness)으로 확정 — 사용자 결정 2026-09-15. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
     },
     {
-      "id": "straight|lower-3|back|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "lower-3",
-      "family": "back",
-      "scene": "902×708×15 ×1",
-      "bom": "902×693×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "straight|lower-3|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "straight",
@@ -2625,24 +1965,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "straight|lower-3|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "lower-3",
-      "family": "body:bottom",
-      "scene": "902×535×15 ×1",
-      "bom": "902×550×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "straight|lower-3|body:top|only3d",
       "kind": "only3d",
       "fixture": "straight",
       "moduleId": "lower-3",
       "family": "body:top",
-      "scene": "902×495×15 ×1",
+      "scene": "902×510×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -2709,18 +2037,6 @@
       "reason": "3D 상판은 배치 공간(런)마다 그 런 폭(영역 전폭)으로 한 장 — 표시용 단순화. BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 × 품목 D, specs.topThickness)으로 확정 — 사용자 결정 2026-09-15. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
     },
     {
-      "id": "straight|lower-4|back|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "lower-4",
-      "family": "back",
-      "scene": "708×436×15 ×1",
-      "bom": "693×436×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 하부장 뒷판은 우라 3T MDF 를 뒤에 덧댐(W−2T × H−T)"
-    },
-    {
       "id": "straight|lower-4|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "straight",
@@ -2733,24 +2049,12 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
-      "id": "straight|lower-4|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "lower-4",
-      "family": "body:bottom",
-      "scene": "535×436×15 ×1",
-      "bom": "550×436×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "지판 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 하부장 지판은 D 그대로 (뒷판 3T 는 뒤에 덧대므로) — 15mm"
-    },
-    {
       "id": "straight|lower-4|body:top|only3d",
       "kind": "only3d",
       "fixture": "straight",
       "moduleId": "lower-4",
       "family": "body:top",
-      "scene": "495×436×15 ×1",
+      "scene": "510×436×15 ×1",
       "bom": "",
       "note": "",
       "cause": "천판↔밴드",
@@ -2793,18 +2097,6 @@
       "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
     },
     {
-      "id": "straight|upper-0|back|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-0",
-      "family": "back",
-      "scene": "870×720×15 ×1",
-      "bom": "880×719×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 우라 3T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
-    },
-    {
       "id": "straight|upper-0|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "straight",
@@ -2815,30 +2107,6 @@
       "note": "",
       "cause": "밴드 미표현",
       "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
-    },
-    {
-      "id": "straight|upper-0|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-0",
-      "family": "body:bottom",
-      "scene": "870×275×15 ×1",
-      "bom": "870×272×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "사쿠리홈 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 지판은 사쿠리 반영 D−18 (3mm)"
-    },
-    {
-      "id": "straight|upper-0|body:top|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-0",
-      "family": "body:top",
-      "scene": "870×275×15 ×1",
-      "bom": "870×272×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "사쿠리홈 깊이",
-      "reason": "3D 천판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 천판은 사쿠리 반영 D−18 (3mm)"
     },
     {
       "id": "straight|upper-0|molding|only3d",
@@ -2865,18 +2133,6 @@
       "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 상부 선반은 W−2T × D−34(사쿠리)"
     },
     {
-      "id": "straight|upper-1|back|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-1",
-      "family": "back",
-      "scene": "870×720×15 ×1",
-      "bom": "880×719×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 우라 3T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
-    },
-    {
       "id": "straight|upper-1|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "straight",
@@ -2887,30 +2143,6 @@
       "note": "",
       "cause": "밴드 미표현",
       "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
-    },
-    {
-      "id": "straight|upper-1|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-1",
-      "family": "body:bottom",
-      "scene": "870×275×15 ×1",
-      "bom": "870×272×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "사쿠리홈 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 지판은 사쿠리 반영 D−18 (3mm)"
-    },
-    {
-      "id": "straight|upper-1|body:top|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-1",
-      "family": "body:top",
-      "scene": "870×275×15 ×1",
-      "bom": "870×272×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "사쿠리홈 깊이",
-      "reason": "3D 천판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 천판은 사쿠리 반영 D−18 (3mm)"
     },
     {
       "id": "straight|upper-1|molding|only3d",
@@ -2937,18 +2169,6 @@
       "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 상부 선반은 W−2T × D−34(사쿠리)"
     },
     {
-      "id": "straight|upper-2|back|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-2",
-      "family": "back",
-      "scene": "770×720×15 ×1",
-      "bom": "780×719×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 우라 3T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
-    },
-    {
       "id": "straight|upper-2|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "straight",
@@ -2959,30 +2179,6 @@
       "note": "",
       "cause": "밴드 미표현",
       "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
-    },
-    {
-      "id": "straight|upper-2|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-2",
-      "family": "body:bottom",
-      "scene": "770×275×15 ×1",
-      "bom": "770×272×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "사쿠리홈 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 지판은 사쿠리 반영 D−18 (3mm)"
-    },
-    {
-      "id": "straight|upper-2|body:top|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-2",
-      "family": "body:top",
-      "scene": "770×275×15 ×1",
-      "bom": "770×272×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "사쿠리홈 깊이",
-      "reason": "3D 천판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 천판은 사쿠리 반영 D−18 (3mm)"
     },
     {
       "id": "straight|upper-2|molding|only3d",
@@ -3009,18 +2205,6 @@
       "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 상부 선반은 W−2T × D−34(사쿠리)"
     },
     {
-      "id": "straight|upper-3|back|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-3",
-      "family": "back",
-      "scene": "720×370×15 ×1",
-      "bom": "719×380×3 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "뒷판 모델",
-      "reason": "3D 뒷판은 15T 를 측판 사이에 끼움(W−2T × H). BOM 상부장 뒷판은 우라 3T MDF 를 사쿠리홈에 끼움(W−20 × H−1)"
-    },
-    {
       "id": "straight|upper-3|body:band|onlyBom",
       "kind": "onlyBom",
       "fixture": "straight",
@@ -3031,30 +2215,6 @@
       "note": "",
       "cause": "밴드 미표현",
       "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
-    },
-    {
-      "id": "straight|upper-3|body:bottom|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-3",
-      "family": "body:bottom",
-      "scene": "370×275×15 ×1",
-      "bom": "370×272×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "사쿠리홈 깊이",
-      "reason": "3D 지판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 지판은 사쿠리 반영 D−18 (3mm)"
-    },
-    {
-      "id": "straight|upper-3|body:top|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-3",
-      "family": "body:top",
-      "scene": "370×275×15 ×1",
-      "bom": "370×272×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "사쿠리홈 깊이",
-      "reason": "3D 천판은 15T 뒷판 앞에서 끝나 D−15, BOM 상부장 천판은 사쿠리 반영 D−18 (3mm)"
     },
     {
       "id": "straight|upper-3|molding|only3d",

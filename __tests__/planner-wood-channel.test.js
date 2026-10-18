@@ -164,11 +164,11 @@ describe('천판이 목찬넬 자리를 비켜난다', () => {
     SRC.indexOf('function addWoodChannel'));
 
   test('목찬넬이면 천판 깊이를 따내기만큼 줄인다', () => {
-    expect(fn).toMatch(/const topD\s*=\s*o\.D\s*-\s*o\.T\s*-\s*\(notch\s*\?\s*MASTER_RULES\.CHANNEL_NOTCH_D\s*:\s*0\)/);
+    expect(fn).toMatch(/const topD\s*=\s*panelD\s*-\s*\(notch\s*\?\s*MASTER_RULES\.CHANNEL_NOTCH_D\s*:\s*0\)/);
   });
 
-  test('줄인 만큼 뒤로 물린다', () => {
-    expect(fn).toMatch(/CHANNEL_NOTCH_D\s*\/\s*2\s*:\s*0/);
+  test('줄인 만큼 뒤로 물린다 — 앞선이 따내기 안쪽에 온다', () => {
+    expect(fn).toMatch(/o\.D \/ 2 - \(notch \? MASTER_RULES\.CHANNEL_NOTCH_D : 0\) - topD \/ 2/);
   });
 
   test('목찬넬이 아니면 예전 그대로다', () => {

@@ -50,6 +50,13 @@ const MASTER_RULES = {
   CHANNEL_BOARD_T: 18,          // 목찬넬 부재 두께 (18T MDF)
   CHANNEL_NOTCH_H: 70,          // 따내기 높이 = CHANNEL_BOARD_T + CHANNEL_FRONT_W
   CHANNEL_NOTCH_D: 40,          // 따내기 깊이 = CHANNEL_BACK_W (지면판 폭)
+  // 2026-10-19 사장님: 뒷판(우라 MDF 3T) 크기는 측판 사쿠리가 정한다 — BOM extractors.js bomBackPanelSize 와 같다.
+  //   사쿠리 있음 (W − 20) × (H − 1) 홈 끼움 · 없음 (W − 1) × (H − 1) 측판 뒤 덮음
+  BACK_PANEL_T: 3,
+  BACK_SAKURI_W_MINUS: 20,
+  BACK_FLAT_W_MINUS: 1,
+  BACK_H_MINUS: 1,
+  SAKURI_GROOVE_FROM_BACK: 15,  // 사쿠리 홈 = 측판 뒤끝에서 15 들어간 자리 (천지판 D − 18 = 15 + 뒷판 3)
   SINK_LOWER_H: 870,            // 싱크 하부장 표준 H (다리발 150 포함)
   SINK_UPPER_H: 720,            // 싱크 상부장 표준 H
   SINK_UPPER_D: 295,            // 싱크 상부장 표준 D
