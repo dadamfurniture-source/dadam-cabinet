@@ -521,6 +521,7 @@
             가전 모델 관리
           </a>
         </li>
+        <li><a href="work-reports.html"><span class="nav-icon">📑</span>작업 지시 보고</a></li>
         <li>
           <a href="logs.html">
             <span class="nav-icon">📋</span>
@@ -653,6 +654,17 @@
               </div>
             </div>
 
+            <!-- 작업 지시 보고 (work-reports-archive.plan.md §5.3) -->
+            <div class="card">
+              <div class="card-header">
+                <h3>최근 작업 지시 보고 <span id="wrPending" style="font-size: 12px; color: #f57c00"></span></h3>
+                <a href="work-reports.html">보관함 →</a>
+              </div>
+              <div class="card-body" id="recentWorkReports">
+                <div class="loading">로딩 중...</div>
+              </div>
+            </div>
+
             <!-- Recent Activity -->
             <div class="card">
               <div class="card-header">
@@ -718,6 +730,34 @@
 
         // 데이터 로드
         await loadDashboardData();
+        loadWorkReportsWidget();
+      }
+
+      /** 최근 작업 지시 보고 5건 + 결정 안 한 생산 제안 수 (workflow-api /reports). 실패해도 대시보드는 그대로. */
+      async function loadWorkReportsWidget() {
+        const box = document.getElementById('recentWorkReports');
+        const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const KIND = { production_plan: '생산 계획', staffing_decision: '인력 승인', daily_brief: '아침 요약', work_order: '작업지시서', installation_order: '설치 지시서', outsource_order: '외주 발주', countertop_order: '상판 발주', monthly_close: '월 마감', note: '메모' };
+        try {
+          const api = window.DADAM_CONFIG && window.DADAM_CONFIG.workflowApi && window.DADAM_CONFIG.workflowApi.url;
+          const r = await supabaseClient.auth.getSession();
+          const t = r && r.data && r.data.session && r.data.session.access_token;
+          if (!api || !t) throw new Error('업무 서버에 연결할 수 없습니다');
+          const get = async (path) => {
+            const res = await fetch(api + path, { headers: { Authorization: 'Bearer ' + t } });
+            const body = await res.json();
+            if (!res.ok || !body.success) throw new Error(body.message || '요청 실패');
+            return body.data;
+          };
+          const [list, sum] = await Promise.all([get('/reports?page=1'), get('/reports/summary')]);
+          document.getElementById('wrPending').textContent = sum.pendingProposals ? `결정 안 한 제안 ${sum.pendingProposals}` : '';
+          const items = (list.items || []).slice(0, 5);
+          box.innerHTML = items.length
+            ? items.map((x) => `<div style="padding: 8px 0; border-bottom: 1px solid #eee; font-size: 13px"><span style="color: #888">${esc(KIND[x.kind] || x.kind)}</span> · ${esc(x.title)}</div>`).join('')
+            : '<div style="color: #888; font-size: 13px">아직 보고가 없습니다.</div>';
+        } catch (e) {
+          box.innerHTML = `<div style="color: #888; font-size: 13px">${esc(e.message)}</div>`;
+        }
       }
 
       function showAccessDenied() {
