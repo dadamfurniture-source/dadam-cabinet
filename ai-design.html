@@ -287,6 +287,17 @@
                     <label for="wallW">벽 폭 (mm)</label>
                     <input type="number" id="wallW" min="1000" max="6000" step="50" placeholder="자동 인식" />
                   </div>
+                  <!-- 급수·배기 실측값 — 벽 왼쪽 끝에서 중심까지 mm (벽 폭과 같은 기준). 사진에서 못 읽은 걸 메운다 -->
+                  <div id="kitchenPlumbing" hidden style="display: grid; gap: 12px">
+                    <div class="studio-field">
+                      <label for="waterFromLeft">급수 위치 (mm)</label>
+                      <input type="number" id="waterFromLeft" min="0" step="10" placeholder="자동 인식" />
+                    </div>
+                    <div class="studio-field">
+                      <label for="exhaustFromLeft">배기 위치 (mm)</label>
+                      <input type="number" id="exhaustFromLeft" min="0" step="10" placeholder="자동 인식" />
+                    </div>
+                  </div>
                   <div id="fridgeAdv" hidden style="display: grid; gap: 12px">
                     <div class="studio-field">
                       <label for="fBrand">냉장고 브랜드</label>
@@ -715,6 +726,8 @@
           $('kindState').textContent = cur ? cur.label : '';
           // 냉장고 옵션은 냉장고장일 때만 의미가 있다
           $('fridgeAdv').hidden = S.kind !== 'fridge';
+          // 급수·배기 수동값은 주방(싱크대·아일랜드)만 워커가 받는다
+          $('kitchenPlumbing').hidden = !['sink', 'island'].includes(S.kind);
         }
 
         // ═══════════════════════════════════════════════
@@ -1152,6 +1165,9 @@
             door_color: $('doorColor').value,
             reference_images: refs.length ? refs : undefined,
             wall_width_override: $('wallW').value || undefined,
+            // 급수·배기 실측값 (mm). 칸이 숨은 품목에서는 남아 있던 값도 보내지 않는다
+            water_from_left_override: (!$('kitchenPlumbing').hidden && $('waterFromLeft').value) || undefined,
+            exhaust_from_left_override: (!$('kitchenPlumbing').hidden && $('exhaustFromLeft').value) || undefined,
             // ③ 상세 요청 — 손님이 쓴 말 (워커가 다듬어 설치 프롬프트에 싣는다)
             customer_request: customerRequest() || undefined,
           };
