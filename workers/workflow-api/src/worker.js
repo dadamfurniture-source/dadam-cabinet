@@ -78,6 +78,7 @@ import {
 import { listReworks, addRework, deleteRework } from './rework.js';
 import { getFeedback, createFeedbackLink, openFeedback, answerFeedback } from './feedback.js';
 import { listCounterparties, createCounterparty, updateCounterparty } from './counterparties.js';
+import { listPayments, addPayment, updatePayment, deletePayment, updateCostDates, addCashBalance } from './payments.js';
 import {
   createSchedules,
   listSchedules,
@@ -527,7 +528,33 @@ async function handleGetOrder(request, env, { params, user }) {
   data.reworks = await listReworks(env, params.orderId);
   // 설치 후 한 문항 — 같은 방식으로 표가 없으면 null
   data.feedback = await getFeedback(env, params.orderId);
+  // 수금 일정 — 표가 없으면 null
+  data.payments = await listPayments(env, params.orderId);
   return jsonResponse(request, env, { success: true, data });
+}
+
+async function handleAddPayment(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await addPayment(env, { orderId: params.orderId, user, body }) }, 201);
+}
+
+async function handleUpdatePayment(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await updatePayment(env, { orderId: params.orderId, paymentId: params.paymentId, user, body }) });
+}
+
+async function handleDeletePayment(request, env, { params, user }) {
+  return jsonResponse(request, env, { success: true, data: await deletePayment(env, { orderId: params.orderId, paymentId: params.paymentId, user }) });
+}
+
+async function handleUpdateCostDates(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await updateCostDates(env, { orderId: params.orderId, costId: params.costId, user, body }) });
+}
+
+async function handleAddCashBalance(request, env, { user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await addCashBalance(env, { user, body }) }, 201);
 }
 
 async function handleListCounterparties(request, env, { user }) {
@@ -686,6 +713,10 @@ const router = createRouter([
   { method: 'PATCH',  path: '/orders/:orderId',             auth: 'jwt', handler: handleUpdateOrder },
   { method: 'POST',   path: '/orders/:orderId/costs',       auth: 'jwt', handler: handleAddCost },
   { method: 'DELETE', path: '/orders/:orderId/costs/:costId', auth: 'jwt', handler: handleDeleteCost },
+  { method: 'PATCH',  path: '/orders/:orderId/costs/:costId', auth: 'jwt', handler: handleUpdateCostDates },
+  { method: 'POST',   path: '/orders/:orderId/payments',    auth: 'jwt', handler: handleAddPayment },
+  { method: 'PATCH',  path: '/orders/:orderId/payments/:paymentId', auth: 'jwt', handler: handleUpdatePayment },
+  { method: 'DELETE', path: '/orders/:orderId/payments/:paymentId', auth: 'jwt', handler: handleDeletePayment },
   { method: 'POST',   path: '/orders/:orderId/reworks',     auth: 'jwt', handler: handleAddRework },
   { method: 'DELETE', path: '/orders/:orderId/reworks/:reworkId', auth: 'jwt', handler: handleDeleteRework },
   { method: 'POST',   path: '/orders/:orderId/feedback-link', auth: 'jwt', handler: handleCreateFeedbackLink },
@@ -709,6 +740,7 @@ const router = createRouter([
   { method: 'POST', path: '/production/worker-links/:linkId/revoke',   auth: 'jwt', handler: handleRevokeWorkerLink },
   { method: 'GET',  path: '/production/monthly',                       auth: 'jwt', handler: handleMonthlySummary },
   { method: 'GET',  path: '/management/summary',                       auth: 'jwt', handler: handleManagementSummary },
+  { method: 'POST', path: '/management/cash-balance',                  auth: 'jwt', handler: handleAddCashBalance },
   { method: 'GET',  path: '/production/worklogs',                      auth: 'jwt', handler: handleListWorklogs },
   { method: 'GET',  path: '/production/calibration',                   auth: 'jwt', handler: handleGetCalibration },
   { method: 'POST', path: '/production/calibration/apply',             auth: 'jwt', handler: handleApplyCalibration },
