@@ -82,7 +82,8 @@ describe('내 연출컷이 추측을 알린다', () => {
 
   test('주방 품목에서만 배관을 말한다', () => {
     const fn = MY.slice(MY.indexOf('function renderWall'), MY.indexOf('function closeDetail'));
-    expect(fn).toMatch(/\['sink', 'island', 'fridge'\]/);
+    // prompts.js 의 KITCHEN_CATEGORIES 와 같은 집합 (냉장고장에는 싱크·후드가 없다)
+    expect(fn).toMatch(/\['sink', 'island'\]/);
     expect(fn).toMatch(/read\.water === false/);
     expect(fn).toMatch(/read\.exhaust === false/);
   });

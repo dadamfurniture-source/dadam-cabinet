@@ -693,7 +693,8 @@
           ];
 
           // 주방 품목에서만 배관을 말한다 — 침실 붙박이장에 급수 이야기를 띄울 이유가 없다
-          var kitchen = ['sink', 'island', 'fridge'].indexOf(r.category) >= 0;
+          // prompts.js 의 KITCHEN_CATEGORIES 와 같은 집합 — 냉장고장에는 싱크·후드가 없다
+          var kitchen = ['sink', 'island'].indexOf(r.category) >= 0;
           var guessed = [];
           if (kitchen && read.water === false) guessed.push('싱크');
           if (kitchen && read.exhaust === false) guessed.push('쿡탑·후드');
