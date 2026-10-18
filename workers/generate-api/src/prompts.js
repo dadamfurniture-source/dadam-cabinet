@@ -856,6 +856,19 @@ export function buildInstallPrompt(c, opts = {}) {
   //   모델의 일은 그리는 것이 아니라 **그 자리에서 다시 그리는 것**이다 — 기하는 사진에 이미 있다.
   //   문장은 도면 요약(FURNITURE)과 함께 간다: 그림이 기하를, 글이 개수·순서를 한 번 더 못박는다.
   //   realize 가 아니면 아래 반환문은 예전과 한 글자도 다르지 않다 (install-prompt-snapshot.test.js).
+  // 덩어리 합성 (깊이 3a, 2026-10-19): 첫 사진에 잡이 붙박이장 부피를 무광 흰 판으로 이미 합성해 두었다.
+  //   앞면은 튀어나온 벽 앞면에 맞춰 계산한 위치다 — 모델은 다듬기만 한다. 윤곽선만 줬을 땐 장을 뒷벽으로 되돌렸다.
+  if (c.mockVolume) {
+    return `Edit the first photo: it already shows the new built-in ${cat.label} (${key}) as a plain off-white mock volume at its exact position, depth and size. Its front stands forward of the back wall, flush with the front face of the protruding wall, and its door divisions are drawn on it. Re-render that mock as a real photograph of the installed furniture.
+GEOMETRY IS FIXED: keep every outer edge of the mock exactly where it is, where it meets the floor, the ceiling and the walls, and keep the door divisions. The furniture stays this far forward and this size.
+MAKE IT REAL: real material with fine grain and sheen, crisp narrow reveals between the doors, a recessed plinth with a soft shadow, contact shadows on the floor and on the walls beside it, and lighting consistent with the room.
+Keep the room exactly as photographed outside the furniture: camera, walls, ceiling, floor, windows and lighting.${room}
+WALL: about ${c.wallW} x ${c.wallH} mm.
+${furniture}
+${finish}${request}
+HANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.${site}${tile}${refs}${fixBlock}
+All doors and drawers closed. Photorealistic interior photograph with natural lighting and correct shadows. No text, labels or watermarks.`;
+  }
   if (c.realize) {
     return `Edit the first photo: it already contains the customer's own cabinet design placed on the main wall as a flat mockup, at its exact position and size. Re-render that mockup as a real photograph of the installed built-in ${cat.label} (${key}).
 GEOMETRY IS FIXED: keep every outer edge, module boundary, door and drawer split, count and position exactly where the mockup has them. Do not move, resize, add or remove any module, door or drawer.
@@ -1325,7 +1338,7 @@ export function buildQcPrompt(c) {
     ? '\n- layout_mismatch: the fronts do not match LAYOUT — a different number of modules, a different left-to-right order, or doors where LAYOUT says a drawer stack (ignore width differences and any module hidden behind an appliance)'
     : '';
   // 실사화 모드에서만: 붙여 놓은 티가 남았는지 본다
-  const realizeCode = c.realize
+  const realizeCode = c.realize || c.mockVolume
     ? '\n- flat_mockup: any part of the furniture still looks like a flat pasted picture — no depth, no contact shadow, cut-out edges, or a texture that ignores the room lighting'
     : '';
   // 플래너 모드에서만: 남는 벽의 기존 가구, 붙인 렌더. 아니면 빈 문자열 — 옛 검사 프롬프트는 바이트 그대로.
