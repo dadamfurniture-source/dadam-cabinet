@@ -695,6 +695,15 @@ export function depthPhrase(c) {
   return `DEPTH: ${size}The cabinets stand forward of the wall as a solid volume: they meet the floor closer to the camera than the original wall-floor line, covering that strip of floor, with front-edge thickness, recessed shadowed plinths where there are any and soft contact shadows on the wall and floor.${view}`;
 }
 
+/**
+ * 사진 위 가이드 선 (깊이 계획 3a, 2026-10-18). 잡이 방 사진 사본에 장 윤곽을 자홍색으로 그려
+ * 마지막 이미지로 보냈을 때만 붙는다 (c.guide). 글보다 그림 표시가 잘 지켜진다.
+ */
+function guidePhrase(c) {
+  if (!c.guide) return '';
+  return `\nGUIDE: the last image is this same photo with magenta guide lines that outline the wardrobe volume: the front rectangle is where its front meets the floor, the ceiling and the walls, and the short lines running back to the wall show its depth. Build the furniture to fill exactly that outline in the first photo. The result is a clean photograph with no magenta lines.`;
+}
+
 /** 공사 현장이면 완공된 방으로 그린다. 방 형태·창·카메라는 그대로. 설치·플래너 프롬프트가 같이 쓴다. */
 function sitePhrase(c) {
   return c.site === 'construction'
@@ -821,7 +830,7 @@ export function buildInstallPrompt(c, opts = {}) {
     : `\nIf furniture already exists on that wall, remove it and replace it cleanly with no demolition marks.`;
   const refs =
     c.refCount > 0
-      ? `\nThe additional ${c.refCount === 1 ? 'image is a' : 'images are'} style reference: match the door colour, material grain direction, sheen and overall mood of the reference fronts. Never copy the reference layout, room or camera. ${SINGLE_FRAME}`
+      ? `\n${c.guide ? `The ${c.refCount === 1 ? 'image between the first photo and the last is a' : 'images between the first photo and the last are'}` : `The additional ${c.refCount === 1 ? 'image is a' : 'images are'}`} style reference: match the door colour, material grain direction, sheen and overall mood of the reference fronts. Never copy the reference layout, room or camera. ${SINGLE_FRAME}`
       : '';
   const site = sitePhrase(c);
   const request = customerRequestBlock(c); // 손님 요청 — 없으면 빈 문자열
@@ -854,7 +863,7 @@ MAKE IT REAL: real materials with grain and sheen, depth (visible side panels an
 Keep the room exactly as photographed: camera angle, walls, ceiling, floor, windows, lighting and everything outside the furniture.${room}
 WALL: about ${c.wallW} x ${c.wallH} mm.
 ${furniture}
-${depthPhrase(c)}
+${depthPhrase(c)}${guidePhrase(c)}
 ${finish}${request}
 HANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.${site}${tile}${refs}${fixBlock}
 All doors and drawers closed. Photorealistic interior photograph with natural lighting and correct shadows. No text, labels or watermarks.`;
@@ -863,7 +872,7 @@ All doors and drawers closed. Photorealistic interior photograph with natural li
 Keep these as photographed: camera position and lens, perspective, walls, ceiling, floor, windows, lighting and everything outside the new furniture.${existing}${room}
 WALL: about ${c.wallW} x ${c.wallH} mm.
 ${furniture}
-${depthPhrase(c)}
+${depthPhrase(c)}${guidePhrase(c)}
 ${finish}${request}
 HANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.${site}${tile}${refs}${fixBlock}
 All doors and drawers closed. Photorealistic interior photograph with natural lighting and correct shadows. No text, labels or watermarks.`;
@@ -1295,6 +1304,7 @@ export const PLANNER_QC_FIXES = {
  */
 export const REFS_QC_FIXES = {
   split_frame: `Output one single continuous photograph of the room from the first photo's camera. ${SINGLE_FRAME}`,
+  guide_left: 'Remove every magenta guide line; the result is a clean photograph of the furniture in the room.',
 };
 
 export const ALL_QC_ISSUE_CODES = [
@@ -1325,9 +1335,11 @@ export function buildQcPrompt(c) {
     : '';
   // 참고 이미지가 있을 때만: 두 장을 이어 붙인 결과인지 본다
   const refsCode =
-    c.refCount > 0
+    (c.refCount > 0
       ? '\n- split_frame: the image is two or more photos joined into one frame — a split screen, collage, side-by-side or before/after panels, or a seam dividing two different scenes'
-      : '';
+      : '') +
+    // 가이드 선을 보냈을 때만: 자홍색 선이 결과에 남았는지
+    (c.guide ? '\n- guide_left: magenta or pink guide lines are still visible in the result' : '');
   return `You are checking an AI-rendered photo of a built-in ${CATEGORIES[key].label} (${key}) installed in a real room. The first image is the original room photo before editing; the second is the result to check.${layoutBlock}
 Answer JSON only: {"ok":boolean,"issues":[string],"note":string}
 Report an issue ONLY when it is clearly visible. Use these codes:
