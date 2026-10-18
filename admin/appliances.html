@@ -55,6 +55,8 @@
       td.center { text-align: center; }
       td.gap { white-space: nowrap; }
       td.gap small { display: block; color: #888; font-size: 11px; }
+      td small.sub { display: block; color: #888; font-size: 11px; }
+      .row-count { font-size: 12px; color: #888; align-self: center; }
       td.gap .none { color: #bbb; }
       .field .hint { font-size: 11px; color: #888; margin-top: 3px; }
       .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
@@ -120,6 +122,8 @@
 
       <div class="toolbar">
         <input id="searchInput" type="text" placeholder="브랜드/모델명/코드 검색..." />
+        <select id="subtypeFilter" aria-label="냉장고 세부 구분" style="display: none; padding: 8px; border: 1px solid #ddd; border-radius: 5px; font-size: 13px"></select>
+        <span class="row-count" id="rowCount"></span>
         <button class="btn-primary" id="addBtn">+ 새 모델</button>
       </div>
       <div id="readOnlyNote" style="display: none; margin-bottom: 12px; padding: 10px 12px; background: #fff3e0; color: #8a4b00; border-radius: 6px; font-size: 13px">
@@ -215,6 +219,33 @@
             <input type="number" id="f-tg" min="0" />
             <div class="hint">자리 높이 = H + 위 여유</div>
           </div>
+          <!-- 냉장고 대량 수집 칸 (database/appliance-models-catalog.sql) — 냉장고일 때만 -->
+          <div class="field fridge-field">
+            <label for="f-bg">뒤 여유 (mm)</label>
+            <input type="number" id="f-bg" min="0" />
+            <div class="hint">제조사가 공개한 경우만</div>
+          </div>
+          <div class="field fridge-field">
+            <label for="f-subtype">세부 구분</label>
+            <select id="f-subtype"></select>
+          </div>
+          <div class="field fridge-field">
+            <label for="f-install">설치 방식</label>
+            <select id="f-install">
+              <option value="">미지정</option>
+              <option value="freestanding">일반 (프리스탠딩)</option>
+              <option value="kitchen_fit">키친핏 (가구 깊이 맞춤)</option>
+              <option value="built_in">빌트인 (가구 도어 부착)</option>
+            </select>
+          </div>
+          <div class="field fridge-field">
+            <label for="f-line">제품 라인</label>
+            <input type="text" id="f-line" placeholder="예: BESPOKE · 오브제컬렉션 · 핏앤맥스" />
+          </div>
+          <div class="field full fridge-field">
+            <label for="f-codes">같은 크기 모델 코드 (색상 · 마감 변형)</label>
+            <textarea id="f-codes" placeholder="쉼표나 줄바꿈으로 구분 — 대표 코드는 자동으로 포함"></textarea>
+          </div>
           <div class="field">
             <label>검증</label>
             <select id="f-verified">
@@ -262,11 +293,27 @@
       let canEdit = false; // admin · super_admin 만 추가·수정·삭제 (init 에서 정한다)
       const CUTOUT_CATS = ['sink', 'cooktop'];
 
+      // 냉장고 세부 구분 (appliance_models.subtype — database/appliance-models-catalog.sql)
+      const FRIDGE_SUBTYPES = {
+        french_4door: '4도어', side_by_side: '양문형', two_door: '일반 2도어', one_door: '1도어',
+        built_in: '빌트인', kimchi_stand: '김치 스탠드', kimchi_lid: '김치 뚜껑형', wine: '와인셀러', small: '소형',
+      };
+      const INSTALL_LABEL = { freestanding: '일반', kitchen_fit: '키친핏', built_in: '빌트인' };
+      const escHtml = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+      /** 쉼표 · 줄바꿈 → 모델 코드 목록 (대표 코드를 맨 앞, 중복 제거) */
+      function parseCodes(text, main) {
+        const list = String(text || '').split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
+        if (main) list.unshift(main);
+        return [...new Set(list)];
+      }
+
       /** 타공 칸은 싱크볼 · 쿡탑일 때만, 수전 지름은 싱크볼만 */
       function toggleCutoutFields() {
         const cat = document.getElementById('f-category').value;
         document.querySelectorAll('.cutout-field').forEach((el) => { el.style.display = CUTOUT_CATS.includes(cat) ? '' : 'none'; });
         document.querySelectorAll('.faucet-field').forEach((el) => { el.style.display = cat === 'sink' ? '' : 'none'; });
+        document.querySelectorAll('.fridge-field').forEach((el) => { el.style.display = cat === 'refrigerator' ? '' : 'none'; });
       }
 
       // ── 초기화 ─────────────────────────────────────────────
@@ -304,6 +351,7 @@
       // ── 데이터 로드 ─────────────────────────────────────────
       async function loadCategory(cat) {
         currentCategory = cat;
+        document.getElementById('subtypeFilter').style.display = cat === 'refrigerator' ? '' : 'none';
         document.querySelectorAll('.tabs button').forEach(b => {
           b.classList.toggle('active', b.dataset.cat === cat);
         });
@@ -327,10 +375,12 @@
       function gapCell(r) {
         const side = r.side_gap_mm;
         const top = r.top_gap_mm;
-        if (side == null && top == null) return '<span class="none">미입력</span>';
+        const back = r.back_gap_mm;
+        if (side == null && top == null && back == null) return '<span class="none">미입력</span>';
         const parts = [];
         if (side != null) parts.push(`좌우 ${side}`);
         if (top != null) parts.push(`위 ${top}`);
+        if (back != null) parts.push(`뒤 ${back}`);
         const w = side != null && r.width_mm ? r.width_mm + 2 * side : null;
         const h = top != null && r.height_mm ? r.height_mm + top : null;
         const room = w || h ? `<small>자리 ${w ?? r.width_mm} × ${h ?? r.height_mm}</small>` : '';
@@ -339,10 +389,14 @@
 
       function renderTable(rows) {
         const q = document.getElementById('searchInput').value.trim().toLowerCase();
-        const filtered = q ? rows.filter(r =>
+        const sub = currentCategory === 'refrigerator' ? document.getElementById('subtypeFilter').value : '';
+        const filtered = rows.filter((r) => (!sub || (sub === '_none' ? !r.subtype : r.subtype === sub)) && (!q ||
           (r.brand || '').toLowerCase().includes(q) ||
           (r.model_name || '').toLowerCase().includes(q) ||
-          (r.model_code || '').toLowerCase().includes(q)) : rows;
+          (r.line || '').toLowerCase().includes(q) ||
+          (r.model_code || '').toLowerCase().includes(q) ||
+          (r.model_codes || []).some((c) => String(c).toLowerCase().includes(q))));
+        document.getElementById('rowCount').textContent = `${filtered.length}개${filtered.length !== rows.length ? ` / 전체 ${rows.length}개` : ''}`;
         const tbody = document.getElementById('tbody');
         if (!filtered.length) {
           tbody.innerHTML = '<tr><td colspan="10" class="empty">데이터 없음</td></tr>';
@@ -351,8 +405,8 @@
         tbody.innerHTML = filtered.map(r => `
           <tr>
             <td>${r.brand}</td>
-            <td>${r.model_name || ''}</td>
-            <td>${r.model_code || ''}</td>
+            <td>${escHtml(r.model_name)}${r.subtype || r.line || r.install_type ? `<small class="sub">${escHtml([FRIDGE_SUBTYPES[r.subtype], r.line, INSTALL_LABEL[r.install_type]].filter(Boolean).join(' · '))}</small>` : ''}</td>
+            <td>${escHtml(r.model_code)}${(r.model_codes || []).length > 1 ? `<small class="sub" title="${escHtml(r.model_codes.join(', '))}">외 ${r.model_codes.length - 1}개</small>` : ''}</td>
             <td class="right">${r.width_mm}</td>
             <td class="right">${r.depth_mm}</td>
             <td class="right">${r.height_mm}</td>
@@ -369,6 +423,15 @@
 
       // ── 검색 입력 ──────────────────────────────────────────
       document.getElementById('searchInput').addEventListener('input', () => renderTable(currentRows));
+      (function initSubtypeFilter() {
+        const sel = document.getElementById('subtypeFilter');
+        sel.innerHTML = '<option value="">전체 구분</option>'
+          + Object.entries(FRIDGE_SUBTYPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')
+          + '<option value="_none">구분 없음</option>';
+        sel.addEventListener('change', () => renderTable(currentRows));
+        document.getElementById('f-subtype').innerHTML = '<option value="">미지정</option>'
+          + Object.entries(FRIDGE_SUBTYPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+      })();
 
       // ── 카테고리 탭 ────────────────────────────────────────
       document.querySelectorAll('.tabs button').forEach(b => {
@@ -397,6 +460,11 @@
         document.getElementById('f-cd').value         = row?.cutout_d_mm ?? '';
         document.getElementById('f-cr').value         = row?.cutout_r_mm ?? '';
         document.getElementById('f-fh').value         = row?.faucet_hole_mm ?? '';
+        document.getElementById('f-bg').value         = row?.back_gap_mm ?? '';
+        document.getElementById('f-subtype').value    = row?.subtype || '';
+        document.getElementById('f-install').value    = row?.install_type || '';
+        document.getElementById('f-line').value       = row?.line || '';
+        document.getElementById('f-codes').value      = (row?.model_codes || []).filter((c) => c !== row?.model_code).join(', ');
         toggleCutoutFields();
         modal.classList.add('open');
       }
@@ -424,6 +492,15 @@
           source_url: document.getElementById('f-source').value.trim() || null,
           notes:      document.getElementById('f-notes').value.trim() || null,
         };
+        // 냉장고 칸은 냉장고만 보낸다 (database/appliance-models-catalog.sql)
+        if (payload.category === 'refrigerator') {
+          const bg = document.getElementById('f-bg').value;
+          payload.back_gap_mm = bg === '' ? null : parseInt(bg, 10);
+          payload.subtype = document.getElementById('f-subtype').value || null;
+          payload.install_type = document.getElementById('f-install').value || null;
+          payload.line = document.getElementById('f-line').value.trim() || null;
+          payload.model_codes = parseCodes(document.getElementById('f-codes').value, payload.model_code);
+        }
         // 타공 칸은 싱크볼 · 쿡탑만 보낸다 — 다른 가전은 칼럼(work-reports.sql) 유무와 상관없이 저장되게
         if (CUTOUT_CATS.includes(payload.category)) {
           const int = (id) => { const v = document.getElementById(id).value; return v === '' ? null : parseInt(v, 10); };
@@ -442,7 +519,8 @@
         const { error } = await q;
         if (error) {
           // 타공 칼럼이 없으면 database/work-reports.sql 을 아직 실행하지 않은 것
-          alert('저장 실패: ' + error.message + (/cutout|faucet/.test(error.message) ? '\n\n타공 칸은 database/work-reports.sql 을 Supabase 에서 실행해야 저장됩니다.' : ''));
+          alert('저장 실패: ' + error.message + (/cutout|faucet/.test(error.message) ? '\n\n타공 칸은 database/work-reports.sql 을 Supabase 에서 실행해야 저장됩니다.' : '')
+            + (/subtype|model_codes|back_gap|install_type|"line"/.test(error.message) ? '\n\n냉장고 칸은 database/appliance-models-catalog.sql 을 Supabase 에서 실행해야 저장됩니다.' : ''));
           return;
         }
         closeModal();
