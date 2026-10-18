@@ -81,7 +81,7 @@ export async function resolveWorker(env, token) {
 export function todaysWork(plan, today) {
   const ROLE_ITEM = {
     cutter: (j, c) => ({ units: (c.sheetsPB || 0) + (c.sheetsBack || 0), unit: '장', detail: `PB ${c.sheetsPB || 0} · 뒷판 ${c.sheetsBack || 0}` }),
-    edge: (j, c) => ({ units: c.sheetsPB || 0, unit: '장', detail: `PB ${c.sheetsPB || 0}장` }),
+    edge: (j, c) => ({ units: c.edgeFaces || 0, unit: '면', detail: `엣지 ${c.edgeFaces || 0}면 · PB ${c.sheetsPB || 0}장` }),
     asm: (j, c) => ({ units: (c.boxes || 0) + (c.drawers || 0), unit: '개', detail: `통 ${c.boxes || 0} · 서랍 ${c.drawers || 0} · 도어 ${c.doors || 0}짝`, doorArrival: j.doorArrival }),
   };
   const out = { cutter: [], edge: [], asm: [] };
