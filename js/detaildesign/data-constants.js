@@ -54,7 +54,17 @@
       // 도어/몰딩/목찬넬 MDF 두께 — 몸통 두께와 무관한 별개 값이다.
       // BODY_THICKNESS 를 18 로 바꿔도 여기는 따라가지 않는다.
       const DOOR_MDF_THICKNESS = 18;
-      const BACK_PANEL_THICKNESS = 2.7; // 뒷판 MDF
+      const BACK_PANEL_THICKNESS = 3; // 뒷판 우라 MDF 3T — 2026-10-18 사장님 (예전 2.7, 거래명세서는 3T 우라)
+
+      // 상판 두께 — 2026-10-18 사장님: 12 · 50T 두 가지 (인조대리석). 깊이는 도면 그대로, 이음은 상판 업체 판단.
+      const TOP_THICKNESS_OPTIONS = [12, 50];
+      /** 상판 두께 셀렉트의 <option> — 목록 밖의 옛 값(예: 18)은 지우지 않고 "옛 값"으로 보여 준다. */
+      function topThicknessOptionsHtml(cur) {
+        const v = parseFloat(cur);
+        const opts = TOP_THICKNESS_OPTIONS.map((t) => `<option value="${t}" ${v === t ? 'selected' : ''}>${t}T</option>`);
+        if (Number.isFinite(v) && !TOP_THICKNESS_OPTIONS.includes(v)) opts.push(`<option value="${v}" selected>${v}T (옛 값)</option>`);
+        return opts.join('');
+      }
 
       // ★ 개수대 기본 너비 (실측 기준)
       const SINK_DEFAULT_W_SMALL = 950; // W ≤ 2500mm
