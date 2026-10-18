@@ -213,3 +213,15 @@ test('잡: 키가 없으면 지금처럼 Gemini — 칸에 공급자 표시를 �
   assert.equal(last.model, PRO);
   for (const img of last.images) assert.equal(img.provider, undefined, img.slot);
 });
+
+test('상태 화면(/health)에 지금 이미지 공급자가 보이고 키는 싣지 않는다', async () => {
+  const { default: worker } = await import('../src/worker.js');
+  const get = async (env) => (await worker.fetch(new Request('https://w/health'), env, {})).json();
+  const on = await get(ENV);
+  assert.equal(on.image_provider, 'openai');
+  assert.equal(on.image_model, GPT);
+  assert.ok(!JSON.stringify(on).includes('sk-test'));
+  const off = await get({ ...BASE_ENV, IMAGE_PROVIDER: 'openai' });
+  assert.equal(off.image_provider, 'gemini');
+  assert.equal(off.image_model, PRO);
+});
