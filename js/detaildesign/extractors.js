@@ -573,6 +573,15 @@
         return { count: mod.doorCount || 1, h: t === 'lower' ? H - 30 : H + 20 };
       }
 
+      /**
+       * 서랍장 모듈 — 전면이 전부 "마이다"라 보링하지 않는다 (2026-10-18 사장님: "서랍 도어는 마이다라고 해서 보링을 하지 않음",
+       * 맨 위 칸 전면까지 전부). 하부 라인의 서랍장(싱크·단순 카테고리)이 해당한다. 키큰장 단은 제 규칙(bomTallTierDoorH)을 탄다.
+       * 자재 행은 그대로(도어·서랍도어) — 경첩·보링만 내지 않는다.
+       */
+      function bomIsMaidaModule(mod) {
+        return Boolean(mod && mod.isDrawer && mod.pos === 'lower' && !bomTallTierOf(mod));
+      }
+
       /** 경첩 컵 사이 최소 간격(mm) — 이보다 가까우면 비고에 [확인 필요] (끝 110 규칙이 짧은 도어에서 무너진다). */
       const BOM_HINGE_MIN_GAP = 100;
 
@@ -2242,25 +2251,6 @@
         }
 
         /**
-         * 싱크 하부 서랍장의 여닫이 도어 높이 — MaterialExtractor.drawerLayoutOf 의 도어 칸 그대로.
-         *   null = 해당 없음(서랍장이 아니거나 다른 경로), 0 = 도어 칸이 최소 전면 높이 미만(자재 행에 도어 없음).
-         */
-        sinkDrawerDoorHOf(item, mod, specs, tallTier, simpleDoorH) {
-          const category = item.categoryId || item.category;
-          if (category !== 'sink' || mod.pos !== 'lower' || !mod.isDrawer) return null;
-          if (tallTier || simpleDoorH !== null || isBlindModule(mod, 'lower') || !DrawerRules) return null;
-          const me = this._materialExtractor || (this._materialExtractor = new MaterialExtractor());
-          const T = me.thicknessFor(specs);
-          const topT = parseFloat(specs.topThickness) || 12;
-          const legH = specs.sinkLegHeight || 150;
-          const H = parseFloat(mod.h) || (specs.lowerH || 870) - topT - legH; // extractSink 하부장과 같은 식
-          const L = me.drawerLayoutOf(mod, H, T);
-          const door = (L.fronts || []).find((f) => f.kind === 'door');
-          if (!door || door.h < DrawerRules.DRAWER_RULES.MIN_FRONT_H) return 0;
-          return door.h;
-        }
-
-        /**
          * B4 (2026-10-13): 철물 행의 모듈 표시 — 이름(`module`)과 키(`moduleKey`).
          *   moduleKey 는 자재 행의 moduleKey(= partId 의 `${itemIdx}-${moduleId}`)와 같은 규칙이다. 모듈 id 가 없으면
          *   자재 쪽 폴백(`${pos}-${idx}`)을 여기서 똑같이 만들 수 없어 키를 싣지 않는다 — 작업지시서는 이름으로 맞춘다.
@@ -2306,6 +2296,8 @@
           //   서랍장 아래 여닫이 도어가 자재 행엔 있는데 경첩엔 없던 어긋남을 막는다. 키큰장 단은 아래 공통 경로(bomTallTierDoorH).
           const simpleRules = BOM_SIMPLE_CATEGORY_RULES[item.categoryId || item.category];
           (item.modules || []).forEach((mod) => {
+            // 2026-10-18: 서랍장 전면은 마이다 — 보링 없음 (bomIsMaidaModule)
+            if (bomIsMaidaModule(mod)) return;
             let doorCount = mod.doorCount || 0;
             let simpleDoorH = null;
             // B4: 붙박이장 통 · 냉장고장 모듈은 자재 도어 행과 같은 수·높이
@@ -2336,13 +2328,6 @@
             else if (mod.pos === 'lower') doorH = (mod.h || (specs.lowerH || 870) - (parseFloat(specs.topThickness) || 12) - (parseFloat(specs.sinkLegHeight) || 150)) - 30;
             else doorH = mod.h || 700;
             if (simpleDoorH !== null) doorH = simpleDoorH; // B3 서랍장 여닫이 도어 — 자재 행의 hingeDoorH
-            // 2026-10-13 (B4): 싱크 서랍장의 여닫이 도어 — 자재 행(addDrawerModuleParts)과 **같은 서랍 배치**에서 높이를 읽는다.
-            //   예전엔 서랍장도 일반 하부장처럼 H − 30 으로 셌다. 서랍 2단 위 도어가 244 인데 보링은 [110, 568] —
-            //   568 은 도어 밖이라 그대로 발주서에 실리면 외주처가 엉뚱한 자리를 뚫는다 (작업지시서 PR 4 시험에서 발견).
-            //   배치가 도어 칸을 최소 전면 높이 미만으로 내면 자재 행에 도어가 없다 → 경첩도 내지 않는다.
-            const sinkDrawerDoorH = this.sinkDrawerDoorHOf(item, mod, specs, tallTier, simpleDoorH);
-            if (sinkDrawerDoorH === 0) return;
-            if (sinkDrawerDoorH !== null) doorH = sinkDrawerDoorH;
             if (wardrobeDoor) doorH = wardrobeDoor.h;
 
             // 2026-10-13: 위로 여는 도어(플랩) — 경첩이 천판 쪽에 달려 도어 **폭** 변을 따라 보링하고 가스쇼바 2 가 붙는다

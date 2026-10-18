@@ -1150,22 +1150,6 @@
       "itemLabel": "신발장"
     },
     {
-      "category": "경첩",
-      "item": "H052W-5 105도 저압 경첩",
-      "manufacturer": "문주",
-      "spec": "2구",
-      "qty": 2,
-      "unit": "EA",
-      "note": "서랍장 (보링: 110, 128) [확인 필요] 도어 H 238 — 컵 간격 18",
-      "module": "서랍장",
-      "moduleKey": "0-l2",
-      "boring": [
-        110,
-        128
-      ],
-      "itemLabel": "신발장"
-    },
-    {
       "category": "레일",
       "item": "소프트클로즈 서랍레일",
       "manufacturer": "블룸",
@@ -1218,7 +1202,7 @@
     }
   ],
   "hardwareSummary": {
-    "경첩": 12,
+    "경첩": 10,
     "레일": 2,
     "손잡이": 6,
     "다리발": 14,
