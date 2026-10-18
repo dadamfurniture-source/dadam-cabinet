@@ -42,7 +42,7 @@ describe('읽은 것과 기본값을 가린다', () => {
       '{"wall_width_mm":3200,"wall_height_mm":2350,"water_supply_from_left_mm":null,"exhaust_from_left_mm":null}'
     );
     expect(w.read).toEqual({ width: true, height: true, water: false, exhaust: false });
-    expect(w.waterPct).toBe(30); // 기본값은 그대로 — 쓰는 쪽이 깨지지 않아야 한다
+    expect(w.waterPct).toBe(48); // 기본값(실측 중앙값)은 그대로 — 쓰는 쪽이 깨지지 않아야 한다
     expect(w.exhaustPct).toBe(70);
   });
 
