@@ -75,6 +75,7 @@
 //        무채색 짙은 회색 얇은 선·작은 글자 — 모델이 따라 그리지 않게 굵거나 진하지 않게
 //      글자 둘레 여백이 있도록 front 프레임을 PLANNER_CAPTURE_ANNOTATE_FILL 로 채운다 (clean 0.94 대신).
 //      front 가 아니거나 plan 에 그릴 칸이 없으면 무시한다 — annotate 가 없으면 예전과 바이트 같다.
+//      2026-10-19: 칸에 moduleIds 가 있으면(쌓인 단 한 통 — 키큰장 단들, 냉장고 본체 + 위 박스) 그 모듈들 상자를 합친다.
 //
 // 저장 (PlannerStore.saveRender, planner-store.js): 버킷 renders 의 {design}/{item}/{kind}-{yyyymmddHHMMss}.png
 //   + design_renders 행 (kind · path · width/height · camera · detail_hash). 스코프가 없으면(design=local ·
@@ -930,7 +931,13 @@ function plannerCaptureAnnotatePlan(v) {
       const from = clamp01(it.from, 0), to = clamp01(it.to, 1);
       if (!(to > from)) return;
       const w = num(it.widthMm);
-      items.push({ id: String(it.id), moduleId: String(it.moduleId), from, to, widthMm: w !== null && w > 0 ? w : null });
+      const item = { id: String(it.id), moduleId: String(it.moduleId), from, to, widthMm: w !== null && w > 0 ? w : null };
+      // 2026-10-19: 쌓인 단 한 통 — 칸 상자는 이 모듈들 상자를 합친 것 (없으면 moduleId 하나)
+      if (Array.isArray(it.moduleIds)) {
+        const ids = it.moduleIds.filter((x) => x != null && String(x) !== '').map(String);
+        if (ids.length) item.moduleIds = ids;
+      }
+      items.push(item);
     });
     if (!items.length) return;
     const W = num(r.widthMm), H = num(r.heightMm);
@@ -973,6 +980,16 @@ function plannerCaptureScreenBox(frame, width, height, bounds) {
   };
 }
 
+/** 2026-10-19: 픽셀 상자 여럿 → 합친 상자. 없는 것(null·undefined)은 건너뛰고, 하나도 없으면 null. */
+function plannerCaptureUnionBox(list) {
+  const bs = (list || []).filter(Boolean);
+  if (!bs.length) return null;
+  return {
+    x0: Math.min.apply(null, bs.map((b) => b.x0)), x1: Math.max.apply(null, bs.map((b) => b.x1)),
+    y0: Math.min.apply(null, bs.map((b) => b.y0)), y1: Math.max.apply(null, bs.map((b) => b.y1)),
+  };
+}
+
 /** 치수 글자 — 정수 mm, 단위 없이 (도면 관례). 모르면 ''. */
 function plannerCaptureDimText(mm) {
   const n = Number(mm);
@@ -1010,7 +1027,8 @@ function plannerCaptureAnnotationLayout(plan, boxes, width, height) {
   plan.rows.forEach((row) => {
     const cells = [];
     row.items.forEach((it) => {
-      const b = boxes[it.moduleId];
+      // 2026-10-19: moduleIds 가 있으면 찾은 상자들을 합친다 (쌓인 단 한 통)
+      const b = it.moduleIds ? plannerCaptureUnionBox(it.moduleIds.map((id) => boxes[id])) : boxes[it.moduleId];
       if (!b) return;
       const w = b.x1 - b.x0;
       const box = { x0: b.x0 + w * it.from, x1: b.x0 + w * it.to, y0: b.y0, y1: b.y1 };
@@ -1673,10 +1691,12 @@ const PlannerCapture = {
         // 2026-10-19: 모듈마다 경계를 재서(clean 이면 숨긴 것 빼고) 이 프레임으로 투영 → 표시 목록. 그리기는 capture 가.
         const boxes = {};
         annotate.rows.forEach((row) => row.items.forEach((it) => {
-          if (boxes[it.moduleId] !== undefined) return;
-          const obj = plannerCaptureModuleObject(t.moduleGroup, it.moduleId);
-          const b = obj ? plannerCaptureModuleBounds(obj, T, clean) : null;
-          boxes[it.moduleId] = b ? plannerCaptureScreenBox(frame, width, height, b) : null;
+          (it.moduleIds || [it.moduleId]).forEach((id) => {   // 2026-10-19: 쌓인 단 한 통은 단마다
+            if (boxes[id] !== undefined) return;
+            const obj = plannerCaptureModuleObject(t.moduleGroup, id);
+            const b = obj ? plannerCaptureModuleBounds(obj, T, clean) : null;
+            boxes[id] = b ? plannerCaptureScreenBox(frame, width, height, b) : null;
+          });
         }));
         Object.keys(boxes).forEach((id) => { if (!boxes[id]) delete boxes[id]; });
         shot.annotation = plannerCaptureAnnotationLayout(annotate, boxes, width, height);
@@ -2083,6 +2103,7 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerCaptureProjectPoint,
     plannerCaptureScreenBox,
     plannerCaptureDimText,
+    plannerCaptureUnionBox,
     plannerCaptureAnnotationLayout,
     plannerCaptureDrawAnnotation,
     PLANNER_CAPTURE_ANNOTATE_SPAN_SKIP,
