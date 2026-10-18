@@ -645,38 +645,38 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <!-- 플래너 공통 모듈 — 배치 단계(mockup-shell)와 같은 정본.
      클래식 스크립트라 아래 인라인보다 먼저 실행되어야 하며,
      여기서 선언한 이름을 인라인이 재선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-category-picker.js?v=38.9"></script>
-<script src="js/planner/planner-scope.js?v=38.9"></script>
-<script src="js/planner/planner-view.js?v=38.9"></script>
-<script src="js/planner/planner-sections.js?v=38.9"></script>
+<script src="js/planner/planner-category-picker.js?v=39.0"></script>
+<script src="js/planner/planner-scope.js?v=39.0"></script>
+<script src="js/planner/planner-view.js?v=39.0"></script>
+<script src="js/planner/planner-sections.js?v=39.0"></script>
 <!-- W12-71: 도면 스냅샷을 계정에 귀속 저장한다.
      같은 오리진의 iframe 이라 부모(detaildesign)의 로그인 세션을 그대로 본다.
      셋 다 없어도 플래너는 돈다 — PlannerStore 가 localStorage 로 물러난다. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-<script src="js/config.js?v=38.9"></script>
-<script src="js/planner/planner-store.js?v=38.9"></script>
-<script src="js/planner/planner-drawing-menu.js?v=38.9"></script>
+<script src="js/config.js?v=39.0"></script>
+<script src="js/planner/planner-store.js?v=39.0"></script>
+<script src="js/planner/planner-drawing-menu.js?v=39.0"></script>
 <!-- P2: 계산 엔진 — 구조 단계 전용 (배치 단계는 쓰지 않는다) -->
-<script src="js/planner/planner-engine.js?v=38.9"></script>
+<script src="js/planner/planner-engine.js?v=39.0"></script>
 <!-- 2026-09-15: 서랍장·목찬넬·레일 규칙 (BOM 과 같은 파일) — 3D 중간 따내기·서랍 박스가 이걸로 계산한다 -->
-<script src="js/detaildesign/bom-drawer-rules.js?v=38.9"></script>
+<script src="js/detaildesign/bom-drawer-rules.js?v=39.0"></script>
 <!-- 2026-09-17: 붙박이장 통 내부 구조 규칙 — BOM(extractors.js)과 같은 파일. 전역 DadamWardrobeRules -->
-<script src="js/detaildesign/bom-wardrobe-rules.js?v=38.9"></script>
+<script src="js/detaildesign/bom-wardrobe-rules.js?v=39.0"></script>
 <!-- 2026-09-19: 오픈장 규칙 (18T MDF 상자) — BOM(extractors.js)과 같은 파일. 전역 DadamOpenCabinetRules -->
-<script src="js/detaildesign/bom-open-cabinet-rules.js?v=38.9"></script>
+<script src="js/detaildesign/bom-open-cabinet-rules.js?v=39.0"></script>
 <!-- D0: 디테일 모드. 카탈로그 정본(bom-finish-color.js, IIFE → window.DadamBomFinishColor)을 먼저 싣고,
      순수 모델(planner-finish.js) → 화면·상태(planner-detail.js) 순. 셋 다 인라인보다 앞.
      D2: 그 사이에 DB 카탈로그(planner-catalog.js — materials 표, PlannerStore 클라이언트 재사용)와
      코드별 PBR 재질(planner-materials.js — window.THREE)을 싣는다. 둘 다 planner-detail.js 보다 앞. -->
-<script src="js/detaildesign/bom-finish-color.js?v=38.9"></script>
-<script src="js/planner/planner-finish.js?v=38.9"></script>
-<script src="js/planner/planner-catalog.js?v=38.9"></script>
-<script src="js/planner/planner-materials.js?v=38.9"></script>
-<script src="js/planner/planner-detail.js?v=38.9"></script>
+<script src="js/detaildesign/bom-finish-color.js?v=39.0"></script>
+<script src="js/planner/planner-finish.js?v=39.0"></script>
+<script src="js/planner/planner-catalog.js?v=39.0"></script>
+<script src="js/planner/planner-materials.js?v=39.0"></script>
+<script src="js/planner/planner-detail.js?v=39.0"></script>
 <!-- D3: 렌더 스냅샷 캡처·저장 (오프스크린 렌더타깃 → PNG → Storage renders + design_renders). PlannerDetail 뒤. -->
-<script src="js/planner/planner-capture.js?v=38.9"></script>
+<script src="js/planner/planner-capture.js?v=39.0"></script>
 <!-- R2: 사진으로 만들기. PlannerStore(토큰)·PlannerDetail(마감 모델)·PlannerCatalog(자재명)를 쓰므로 셋 뒤에 실린다. -->
-<script src="js/planner/ai-photo.js?v=38.9"></script>
+<script src="js/planner/ai-photo.js?v=39.0"></script>
 
 <script>
   // ─────────────────────────────────────────────────────────────
