@@ -68,6 +68,24 @@ function claudeLayout(doors) {
 }
 
 /**
+ * 2026-10-19: 플래너 모드 판독(layout.js §4) — 모듈마다 센다. doors 를 L1(2)·L2(1)·L3(나머지) 순서로 채운다.
+ */
+function claudePlannerRead(doors) {
+  const l1 = Math.min(2, doors), l2 = Math.min(1, doors - l1), l3 = doors - l1 - l2;
+  return {
+    rows: [{ row: 'base', units: [
+      { id: 'L1', seen: 'cabinet', doors: l1, drawers: 0 },
+      { id: 'L2', seen: 'cabinet', doors: l2, drawers: 0 },
+      { id: 'L3', seen: 'cabinet', doors: l3, drawers: 0 },
+    ] }],
+    extra_units: [],
+    layout_shape: 'straight',
+    confidence: 0.9,
+    notes: [],
+  };
+}
+
+/**
  * claude: null → Anthropic 호출 없음(키도 안 줌) / { doors } → 그 구성으로 답 / 'throw' → 500
  * rowOptions: 지금 행의 options (잡이 받은 것과 다르게 줘서 "읽어서 더한다" 를 확인)
  */
@@ -94,9 +112,12 @@ function installJob({ claude = null, rowOptions = null } = {}) {
     if (u.includes('api.anthropic.com')) {
       calls.claude++;
       if (claude === 'throw') return jsonRes({ type: 'error', error: { type: 'api_error', message: 'boom' } }, 400);
+      // 플래너 판독 스키마(rows)면 모듈별 답, 아니면 옛 구성 답
+      const planner = JSON.parse(init.body).output_config.format.schema.required.includes('rows');
+      const answer = planner ? claudePlannerRead(claude.doors) : claudeLayout(claude.doors);
       return jsonRes({
         id: 'msg_1', type: 'message', role: 'assistant', model: 'claude-opus-5',
-        content: [{ type: 'text', text: JSON.stringify(claudeLayout(claude.doors)) }],
+        content: [{ type: 'text', text: JSON.stringify(answer) }],
         stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 },
       });
     }

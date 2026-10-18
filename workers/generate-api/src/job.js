@@ -46,7 +46,15 @@ import {
 import { buildQuote } from './quote.js';
 import { selectOne, updateById, uploadObject, fetchObjectBase64, extOf } from './supabase.js';
 import { refundCreditService } from './credits.js';
-import { LAYOUT_CATEGORIES, LAYOUT_SCHEMA, buildLayoutPrompt, normalizeLayout } from './layout.js';
+import {
+  LAYOUT_CATEGORIES,
+  LAYOUT_SCHEMA,
+  PLANNER_READ_SCHEMA,
+  buildLayoutPrompt,
+  buildPlannerReadPrompt,
+  normalizeLayout,
+  normalizePlannerRead,
+} from './layout.js';
 import { callClaudeJson } from './claude.js';
 import { VERIFY_VERSION, compareLayoutToSpec } from './verify.js';
 import { controlNetModel, runControlNet } from './controlnet.js';
@@ -207,6 +215,31 @@ export async function internalOnlyPatch(env, job, ck) {
   return { options: { ...current, internal_only: true } };
 }
 
+/**
+ * 플래너 역판독에 같이 보일 정면 입면 (2026-10-19).
+ *   번호 입면(elevation_labeled)이 있으면 그것 — 설치 때 GPT 가 아니어서 안 읽었으면 여기서 읽는다.
+ *   없거나 못 읽거나 너무 크면 번호 없는 입면, 그것도 너무 크면 없이(글 목록만) 읽는다.
+ * @returns {Promise<{kind:'labeled'|'plain'|null, image:object|null}>}
+ */
+async function plannerVerifyElevation(env, job, inputs, elevation, elevationLabeled) {
+  const fits = (im) => im && typeof im.base64 === 'string' && im.base64.length <= VERIFY_MAX_B64;
+  let labeled = elevationLabeled;
+  if (!labeled) {
+    const list = Array.isArray(inputs.renders) ? inputs.renders : [];
+    const lb = list.find((r) => r && r.role === 'elevation_labeled');
+    if (lb && lb.path) {
+      try {
+        labeled = await fetchObjectBase64(env, lb.path);
+      } catch (e) {
+        console.warn(`[Job ${job.id}] verify: labeled elevation skipped: ${e.message}`);
+      }
+    }
+  }
+  if (fits(labeled)) return { kind: 'labeled', image: labeled };
+  if (fits(elevation)) return { kind: 'plain', image: elevation };
+  return { kind: null, image: null };
+}
+
 // ─── 파이프라인 ───
 
 function slotList(images) {
@@ -292,7 +325,7 @@ async function runPipeline(env, job, ck, save) {
 
   // 플래너 모드 (2026-10-08, 계획서 docs/01-plan/planner-render-realize.plan.md §6.2):
   //   설치는 [방 사진, 입면, 3/4?] + 프롬프트 v2 · 온도 0.2 · 비율 고정. 검사는 기록만(재시도 없음).
-  //   역판독 대조는 그대로. 추천안·mockup 슬롯 없음. worker.js 가 realize·engine 을 받지 않는다.
+  //   역판독 대조는 [결과 사진, 정면 입면] + 도면 목록으로 모듈마다 센다(2026-10-19). 추천안·mockup 슬롯 없음. worker.js 가 realize·engine 을 받지 않는다.
   const planner = opts.mode === 'planner';
 
   // 입력 이미지는 Storage 에서 읽는다 — DO storage 에 base64 를 두지 않는다.
@@ -638,6 +671,8 @@ async function runPipeline(env, job, ck, save) {
 
   // ═══ 3-b. 역판독 대조 (R4c, 2026-09-19 · 계획서 §4.1) ═══
   //   도면 요약이 있으면 기본안을 Claude 비전으로 읽어(layout.js) 우리가 보낸 도면과 순서·개수를 대조한다.
+  //   2026-10-19: 플래너 모드는 판독 방식이 다르다 — 사진 + 정면 입면 + 도면 목록으로 모듈(L1·U1…)마다 센다
+  //   (normalizePlannerRead). 같은 layout 모양이라 대조·화면은 그대로 받는다. 플래너가 아니면 옛 판독 그대로.
   //   절대 잡을 깨지 않는다 — 실패하면 layout.verify.error 만 남긴다. 생성 결과가 도면과 어긋났고
   //   실사화(realize)였다면, 올린 합성본(방 사진 자체)을 'mockup' 슬롯으로 같이 돌려준다 —
   //   도면 그대로인 그림은 그것이다. status 는 CHECK 제약 때문에 안 바꾸고 step_label 만 바꾼다.
@@ -649,12 +684,25 @@ async function runPipeline(env, job, ck, save) {
       if (!env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY not configured');
       if (base.base64.length > VERIFY_MAX_B64) throw new Error('image_too_large');
       const lctx = { category, wallAnalysis: wall, options: opts };
-      const { json: raw, model } = await callClaudeJson(env, {
-        prompt: buildLayoutPrompt(lctx),
-        image: base,
-        schema: LAYOUT_SCHEMA,
-      });
-      layout = normalizeLayout(raw, { ...lctx, slot: 'base', model, now: new Date().toISOString() });
+      if (planner) {
+        // 2026-10-19: 플래너 모드는 [결과 사진, 정면 입면] + 도면 목록으로 모듈(L1·U1…)마다 센다 (layout.js §4).
+        //   입면은 번호 있는 것(공급자와 상관없이)이 있으면 그것, 없거나 못 읽으면 번호 없는 것.
+        const read = await plannerVerifyElevation(env, job, inputs, elevation, elevationLabeled);
+        const pctx = { category, designSpec: opts.design_spec, wallAnalysis: wall, elevation: read.kind };
+        const { json: raw, model } = await callClaudeJson(env, {
+          prompt: buildPlannerReadPrompt(pctx),
+          images: read.image ? [base, read.image] : [base],
+          schema: PLANNER_READ_SCHEMA,
+        });
+        layout = normalizePlannerRead(raw, { ...pctx, slot: 'base', model, now: new Date().toISOString() });
+      } else {
+        const { json: raw, model } = await callClaudeJson(env, {
+          prompt: buildLayoutPrompt(lctx),
+          image: base,
+          schema: LAYOUT_SCHEMA,
+        });
+        layout = normalizeLayout(raw, { ...lctx, slot: 'base', model, now: new Date().toISOString() });
+      }
       layout.verify = compareLayoutToSpec(layout, opts.design_spec, category);
     } catch (e) {
       console.warn(`[Job ${job.id}] verify failed:`, e.message);
