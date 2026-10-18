@@ -16,7 +16,7 @@
  *   - 플래너 모드는 대조가 ok 가 아니면 done 과 함께 options.internal_only = true (계획서 §6.3).
  */
 
-import { aspectRatioOf, callGemini } from './gemini.js';
+import { aspectRatioOf, callGemini, textModel } from './gemini.js';
 import { renderImage, renderPlannerImage } from './images.js';
 import {
   CATEGORIES,
@@ -49,7 +49,7 @@ import { LAYOUT_CATEGORIES, LAYOUT_SCHEMA, buildLayoutPrompt, normalizeLayout } 
 import { callClaudeJson } from './claude.js';
 import { VERIFY_VERSION, compareLayoutToSpec } from './verify.js';
 import { controlNetModel, runControlNet } from './controlnet.js';
-import { buildGuidePointsPrompt, parseGuidePoints, renderGuideImage } from './guide.js';
+import { GUIDE_POINTS_SCHEMA, buildGuidePointsPrompt, drawGuide, parseGuidePoints, prepareGuideCanvas } from './guide.js';
 
 const MAX_ATTEMPTS = 2;
 /** 역판독(Claude 비전) 이미지 한도 — Anthropic 5MB, base64 는 4/3 배 (worker.js MAX_IMAGE_B64 와 같은 값) */
@@ -416,20 +416,41 @@ async function runPipeline(env, job, ck, save) {
     ck.guide = null;
     const t0 = Date.now();
     try {
-      const t = await callGemini(env, {
-        prompt: buildGuidePointsPrompt(wall.sideReturn.side),
-        images: [room],
-        want: 'text',
-        temperature: 0,
-      });
-      const points = parseGuidePoints(t.text, wall.sideReturn.side);
-      const g = points && (await renderGuideImage(room, points));
+      const side = wall.sideReturn.side;
+      const canvas = await prepareGuideCanvas(room); // 긴 변 1024 바탕 — 선 찾기와 그리기가 같은 그림을 쓴다
+      let points = null;
+      let by = null;
+      // 2026-10-18 사장님 "선 찾는 일은 Haiku 5.5" — 줄인 바탕 PNG 를 보내 그 픽셀 [x, y] 로 받는다.
+      //   키가 없거나 실패하면 Gemini(0~1000 [y, x]) 로.
+      if (canvas && env.ANTHROPIC_API_KEY) {
+        try {
+          const size = { width: canvas.width, height: canvas.height };
+          const { json, model } = await callClaudeJson(env, {
+            prompt: buildGuidePointsPrompt(side, size),
+            image: canvas.png,
+            schema: GUIDE_POINTS_SCHEMA,
+            model: env.GUIDE_MODEL || 'claude-haiku-5-5',
+            fallbacks: false, // Haiku 5.5 는 서버 거절 대체를 받지 않는다
+            maxTokens: 4000,
+          });
+          points = parseGuidePoints(json, side, size);
+          by = model;
+        } catch (e) {
+          console.warn(`[Job ${job.id}] guide points (Claude) failed:`, e.message);
+        }
+      }
+      if (canvas && !points) {
+        const t = await callGemini(env, { prompt: buildGuidePointsPrompt(side), images: [room], want: 'text', temperature: 0 });
+        points = parseGuidePoints(t.text, side);
+        by = points ? textModel(env) : by;
+      }
+      const g = points && (await drawGuide(canvas, points));
       if (g) {
         const up = await uploadObject(env, `${prefix}/guide.png`, g.base64, g.mimeType);
-        ck.guide = { path: up.path, url: up.url };
+        ck.guide = { path: up.path, url: up.url, by };
         guideImg = { base64: g.base64, mimeType: g.mimeType };
       }
-      console.log(`[Job ${job.id}] guide: ${ck.guide ? 'drawn' : points ? 'geometry rejected' : 'points missing'} ${Date.now() - t0}ms`);
+      console.log(`[Job ${job.id}] guide: ${ck.guide ? `drawn by ${by}` : points ? 'geometry rejected' : 'points missing'} ${Date.now() - t0}ms`);
     } catch (e) {
       console.warn(`[Job ${job.id}] guide skipped:`, e.message);
     }

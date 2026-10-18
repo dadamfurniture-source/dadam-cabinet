@@ -225,3 +225,10 @@ test('상태 화면(/health)에 지금 이미지 공급자가 보이고 키는 �
   assert.equal(off.image_provider, 'gemini');
   assert.equal(off.image_model, PRO);
 });
+
+test('상태 화면: 가이드 선 모델 — Claude 키가 있으면 Haiku 5.5, 없으면 Gemini 텍스트 모델', async () => {
+  const { default: worker } = await import('../src/worker.js');
+  const get = async (env) => (await worker.fetch(new Request('https://w/health'), env, {})).json();
+  assert.equal((await get({ ...ENV, ANTHROPIC_API_KEY: 'sk-ant' })).guide_points_model, 'claude-haiku-5-5');
+  assert.equal((await get(ENV)).guide_points_model, 'gemini-3.8-flash');
+});
