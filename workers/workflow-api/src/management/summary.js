@@ -13,6 +13,7 @@
  */
 import { summarizeMonth, kstDate } from '../production/service.js';
 import { COST_LABELS } from '../orders.js';
+import { calibrate, EDGE_FACE_SINCE } from '../production/calibration.js';
 
 const TIER_LABEL = Object.freeze({ customer: '직판', partner: '거래처' });
 
@@ -237,8 +238,8 @@ export function platformOf({ generations, designs, documents, orders, consultati
 // ── 공정 줄 (PR-3) ─────────────────────────────────────────────
 
 /**
- * 견적의 상판 · 설비 · 철거를 실적 범주에 맞춘다. 프로젝트 문서의 제안값이다
- * (사장님 결정 대기): 상판 · 철거 = 외주, 싱크볼 · 수전 · 후드 = 자재.
+ * 견적의 상판 · 설비 · 철거를 실적 범주에 맞춘다 (2026-10-19 대표 확정):
+ * 상판 · 철거 = 외주, 싱크볼 · 수전 · 후드 = 자재.
  */
 const EXTRA_CATEGORY = Object.freeze({ countertop: 'outsourcing', demolition: 'outsourcing', sinkBowl: 'material', faucet: 'material', hood: 'material' });
 /** 돈으로 비교하는 범주. 노무는 뺀다 — 재단 기사는 월급이라 수주마다 돈으로 적히지 않는다. 시간으로 본다 */
@@ -352,12 +353,37 @@ export function workdaysInMonth(month, holidays = []) {
   return n;
 }
 
+/** 실측으로 처리능력을 바꾸는 문턱 — 그 공정을 기록한 날이 한 달 근무일만큼 쌓여야 한다 */
+export const PACE_MIN_DAYS = 20;
+
+/**
+ * 공정별 실측 속도 = 실측 1단위 초 ÷ 생산 설정 표준 초 (표준시간 보정과 같은 계산 — calibrate).
+ * 1.2 면 표준보다 20% 느리다. 기록한 날이 PACE_MIN_DAYS 이상이고 보정 표본이 넉넉할 때만 값을 낸다
+ * (2026-10-19 대표: "실측이 쌓이면 실측으로"). 엣지는 단위가 면으로 바뀐 날 이후 기록만 센다.
+ */
+export function paceOf(logs, standards) {
+  const out = {};
+  for (const c of calibrate(logs, standards || {})) {
+    const days = new Set();
+    for (const l of logs || []) {
+      if (!l || l.role !== c.role || !(Number(l.units) > 0) || !(Number(l.minutes) > 0) || !l.work_date) continue;
+      const d = String(l.work_date).slice(0, 10);
+      if (c.role === 'edge' && d < EDGE_FACE_SINCE) continue;
+      days.add(d);
+    }
+    const ratio = c.enough && c.measured > 0 && c.current > 0 && days.size >= PACE_MIN_DAYS ? c.measured / c.current : null;
+    out[c.role] = { days: days.size, ratio };
+  }
+  return out;
+}
+
 /**
  * 공정별 부하 — 이달 **받은 일**(이달 수주의 견적 작업 시간)과 **실제로 한 일**(이달 실측)을
  * 한 달 능력에 대 본다. 능력 = 근무일 × 하루 시간 × 가동률 × 인원(재단 기사 · 엣지 기계 · 조립 기본 인원).
- * 받은 일 비율이 가장 높은 공정이 병목이다 — 공장 전체 속도는 거기서 정해진다.
+ * 실측 속도(paceOf)가 있는 공정은 능력을 그 속도로 나눈다 — 표준보다 20% 느린 공장은 견적 시간으로
+ * 잰 일을 그만큼 덜 받는다. 받은 일 비율이 가장 높은 공정이 병목이다 — 공장 전체 속도는 거기서 정해진다.
  */
-export function loadOf(orders, snapshotsById, worklogs, settings, month) {
+export function loadOf(orders, snapshotsById, worklogs, settings, month, pace = {}) {
   const crew = (settings && settings.crew) || {};
   const days = workdaysInMonth(month, settings && settings.holidays);
   const perPerson = days * num(crew.hoursPerDay) * num(crew.util) * 3600;
@@ -376,19 +402,25 @@ export function loadOf(orders, snapshotsById, worklogs, settings, month) {
   }
   const roles = ROLES.map((r) => {
     const cap = perPerson * people[r];
+    const p = (pace && pace[r]) || { days: 0, ratio: null };
+    // 받은 일은 견적 시간이라 능력도 견적 시간으로 잰다. 한 일은 실제 분이라 날 능력에 댄다
+    const capEst = p.ratio > 0 ? cap / p.ratio : cap;
     return {
       role: r,
       label: ROLE_LABEL[r],
       people: people[r],
-      capacityHours: Math.round((cap / 3600) * 10) / 10,
+      capacityHours: Math.round((capEst / 3600) * 10) / 10,
       receivedHours: Math.round((est[r] / 3600) * 10) / 10,
       doneHours: Math.round((done[r] / 3600) * 10) / 10,
-      load: pct(est[r], cap),
+      load: pct(est[r], capEst),
       doneLoad: pct(done[r], cap),
+      basis: p.ratio > 0 ? 'measured' : 'settings',
+      pace: p.ratio > 0 ? Math.round(p.ratio * 100) / 100 : null,
+      paceDays: p.days,
     };
   });
   const ranked = roles.filter((r) => r.load !== null).sort((a, b) => b.load - a.load);
-  return { workdays: days, roles, bottleneck: ranked.length && ranked.at(0).load > 0 ? ranked.at(0).role : null };
+  return { workdays: days, roles, bottleneck: ranked.length && ranked.at(0).load > 0 ? ranked.at(0).role : null, paceMinDays: PACE_MIN_DAYS };
 }
 
 /**
@@ -467,8 +499,8 @@ export function scenarioBase(orders, snapshotsById, settings, month) {
 }
 
 /** 공정 줄 한 벌 — 처리량은 병목 공정의 분으로 나눈다 (병목이 없으면 재단) */
-export function processOf({ orders, snapshotsById, costs, worklogs, settings }, month) {
-  const load = loadOf(orders, snapshotsById, worklogs, settings, month);
+export function processOf({ orders, snapshotsById, costs, worklogs, paceLogs = [], settings }, month) {
+  const load = loadOf(orders, snapshotsById, worklogs, settings, month, paceOf(paceLogs, settings && settings.standards));
   return {
     variance: costVariance(orders, snapshotsById, costs, month),
     time: timeVariance(orders, snapshotsById, worklogs, month),
@@ -490,10 +522,11 @@ const pair = (value, prev) => ({ value, prev });
  * @param {Array}  p.designs        연출컷에서 시작한 설계 (id · generation_id)
  * @param {Array}  p.costs          실적 원가 (order_id · category · amount)
  * @param {Array}  p.worklogs       작업 실측 (order_id · role · minutes · work_date)
+ * @param {Array}  p.paceLogs       처리능력 실측용 — 그 달 끝에서 거꾸로 PACE_WINDOW_DAYS 동안의 기록 (role · units · minutes · work_date)
  * @param {Object} p.settings       mergeSettings 결과 (+ source)
  * @param {string} p.month          'YYYY-MM'
  */
-export function buildManagementSummary({ orders, snapshotsById, documents, consultations, generations = null, designs = [], costs = [], worklogs = [], settings, month }) {
+export function buildManagementSummary({ orders, snapshotsById, documents, consultations, generations = null, designs = [], costs = [], worklogs = [], paceLogs = [], settings, month }) {
   const prev = prevMonthOf(month);
   const overheadMonthly = num(settings && settings.quote && settings.quote.overheadMonthly);
   const cur = financeOf(orders, snapshotsById, { month, overheadMonthly });
@@ -525,7 +558,7 @@ export function buildManagementSummary({ orders, snapshotsById, documents, consu
       value: platformOf({ generations, designs, documents, orders, consultations }, month),
       prev: platformOf({ generations, designs, documents, orders, consultations }, prev),
     },
-    process: processOf({ orders, snapshotsById, costs, worklogs, settings }, month),
+    process: processOf({ orders, snapshotsById, costs, worklogs, paceLogs, settings }, month),
     scenario: scenarioBase(orders, snapshotsById, settings, month),
     basis: {
       revenue: 'VAT 제외 계약금',
