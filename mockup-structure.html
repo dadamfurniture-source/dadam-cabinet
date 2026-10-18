@@ -6216,7 +6216,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
    */
   function crossAreaOverlaps(tol) {
     const t = Number.isFinite(tol) ? tol : 1;
-    const boxes = modules.filter((m) => !m.isFinishing)
+    // 2026-10-18: 가전 자리 표시(분배기·후드)는 **장이 아니라 자리 표시**다. 개수대는 하부
+    //   라인 **안의 셀**이고 그 자리를 가리키는 표시 모듈이라, 하부장과 겹쳐 있는 것이 정상이다
+    //   (autoCalcMarkerArea 주석). 그걸 겹침으로 세면 개수대가 있는 설계는 자동계산할 때마다
+    //   '배치 공간끼리 겹침' 경고가 뜬다 — 검사가 시끄러우면 진짜 불일치를 흘려보낸다.
+    const boxes = modules.filter((m) => !m.isFinishing && !isMarkerSection(m.section))
       .map((m) => ({ m: m, tier: getBaseY(m.section, 100) !== 0 ? 'hung' : 'floor', b: modulePlaneBox(m) }));
     const hits = [];
     for (let i = 0; i < boxes.length; i++) {
