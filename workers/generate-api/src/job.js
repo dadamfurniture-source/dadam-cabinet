@@ -24,6 +24,7 @@ import {
   STYLES,
   buildAnalysisPrompt,
   buildInstallPrompt,
+  buildPlumbingPrompt,
   buildPlannerPrompt,
   buildQcPrompt,
   buildThemePalettePrompt,
@@ -33,6 +34,7 @@ import {
   KITCHEN_CATEGORIES,
   clampWall,
   parseAnalysis,
+  parsePlumbing,
   parseQc,
   qcNeedsRetry,
   parseThemePalette,
@@ -221,6 +223,39 @@ async function setStep(env, job, ck, step, extra = {}) {
 }
 
 /**
+ * 2차 질문 — 1차가 놓친 배관만 다시 묻는다. 실패해도 조용히 넘어간다(기본값이 남는다).
+ * 이미 읽은 쪽은 덮어쓰지 않는다 — 1차가 본 것을 2차가 흔들 이유가 없다.
+ */
+async function askPlumbing(env, job, wall, room) {
+  try {
+    const r = await callGemini(env, {
+      prompt: buildPlumbingPrompt(wall.wallW),
+      images: [room],
+      want: 'text',
+      temperature: 0.1,
+    });
+    const p = parsePlumbing(r.text);
+    const got = [];
+    if (!wall.read.water && p.water != null) {
+      wall.waterPct = p.water;
+      wall.read.water = true;
+      got.push(`water ${p.water}% (${p.waterWhy || '-'})`);
+    }
+    if (!wall.read.exhaust && p.exhaust != null) {
+      wall.exhaustPct = p.exhaust;
+      wall.read.exhaust = true;
+      got.push(`exhaust ${p.exhaust}% (${p.exhaustWhy || '-'})`);
+    }
+    // 무엇을 2차로 건졌는지 남긴다 — 나중에 효과를 세려면 이 표시가 있어야 한다
+    wall.plumbingPass2 = { water: p.water != null, exhaust: p.exhaust != null,
+                           waterWhy: p.waterWhy, exhaustWhy: p.exhaustWhy };
+    console.log(`[Job ${job.id}] plumbing pass2: ${got.length ? got.join(' · ') : '못 찾음'}`);
+  } catch (e) {
+    console.warn(`[Job ${job.id}] plumbing pass2 failed:`, e.message);
+  }
+}
+
+/**
  * 사람이 알려준 급수(싱크)·배기(후드) 위치를 벽 폭 기준 %로 바꿔 넣는다.
  *
  * 벽 밖이거나 숫자가 아니면 무시한다 — 잘못 친 값으로 가구를 옮기는 것보다
@@ -301,7 +336,7 @@ async function runPipeline(env, job, ck, save) {
     let wall = {
       wallW: 3000,
       wallH: 2400,
-      waterPct: 30,
+      waterPct: 48,   // prompts.js 의 기본값과 같다 (실측 중앙값)
       exhaustPct: 70,
       confidence: null,
       brief: null,
@@ -326,7 +361,13 @@ async function runPipeline(env, job, ck, save) {
     // 급수·배기는 사진에서 자주 못 읽는다 (시공 전 828장 실측: 급수 56% · 배기 48% 만 읽음).
     // 못 읽으면 30% · 70% 로 **추측해서 배치**되므로, 현장에서 잰 값이 있으면 그게 이긴다.
     // 벽 왼쪽 끝에서 중심까지의 mm 를 받아 벽 폭 기준 %로 바꾼다 — 벽 폭 보정 뒤에 둬야 한다.
-    applyManualPlumbing(wall, opts);
+    // 1차가 배관을 놓쳤으면 **그것만** 다시 묻는다. 주방이 아니면 묻지 않는다.
+    //   실측(2026-10): 1차는 급수 56% · 배기 48% 만 읽고, 2차로 놓친 것의 절반을 더 읽는다.
+    //   벽 폭 보정 뒤에 둔다 — 2차 프롬프트가 그 폭을 기준으로 비율을 답한다.
+    if (KITCHEN_CATEGORIES.includes(category) && wall.read && (!wall.read.water || !wall.read.exhaust)) {
+      await askPlumbing(env, job, wall, room);
+    }
+    applyManualPlumbing(wall, opts);   // 사람이 넣은 값은 둘 다 이긴다
     ck.wall = wall;
     await save({ wall });
     await updateById(env, 'generations', job.id, { wall_analysis: wall });
