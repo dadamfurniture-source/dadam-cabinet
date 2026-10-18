@@ -335,6 +335,7 @@ async function runPipeline(env, job, ck, save) {
   let elevation = null;
   let elevationLabeled = null;
   let massing = null;
+  const returnElevations = []; // 2026-10-19: [{ side, plain, labeled }] — 꺾인 벽 입면
   if (planner) {
     const list = Array.isArray(inputs.renders) ? inputs.renders : [];
     const el = list.find((r) => r && r.role === 'elevation');
@@ -357,6 +358,24 @@ async function runPipeline(env, job, ck, save) {
       } catch (e) {
         console.warn(`[Job ${job.id}] massing render skipped: ${e.message}`);
       }
+    }
+    // 2026-10-19: ㄱ자·ㄷ자 꺾인 벽 입면 (elevation_left · elevation_right, 번호 붙은 것 _labeled) — design_spec.walls 에 있는 벽만.
+    //   못 읽으면 그 벽은 글 목록만으로 그린다. 번호 붙은 것은 설치 때 GPT 에만, 역판독에는 공급자와 상관없이 쓴다.
+    const sides = (Array.isArray(opts.design_spec && opts.design_spec.walls) ? opts.design_spec.walls : [])
+      .map((w) => w && w.side)
+      .filter((s) => s === 'left' || s === 'right');
+    for (const side of sides) {
+      const got = { side, plain: null, labeled: null };
+      for (const [role, k] of [[`elevation_${side}`, 'plain'], [`elevation_${side}_labeled`, 'labeled']]) {
+        const r = list.find((x) => x && x.role === role);
+        if (!r || !r.path) continue;
+        try {
+          got[k] = await fetchObjectBase64(env, r.path);
+        } catch (e) {
+          console.warn(`[Job ${job.id}] ${role} render skipped: ${e.message}`);
+        }
+      }
+      if (got.plain || got.labeled) returnElevations.push(got);
     }
   }
   // 참고 이미지는 역할이 둘이다.
@@ -585,9 +604,21 @@ async function runPipeline(env, job, ck, save) {
       const payload = (who) => {
         const labeled = who === 'openai' && !!elevationLabeled;
         const b = labeled ? elevationLabeled : elevation;
+        // 2026-10-19: 꺾인 벽 입면은 3/4 뒤에 (IMAGE C·D …) — GPT 는 번호 있는 것, Gemini 는 번호 없는 것만
+        const rets = returnElevations
+          .map((r) => {
+            const useLabeled = who === 'openai' && !!r.labeled;
+            const im = useLabeled ? r.labeled : r.plain;
+            return im ? { side: r.side, labeled: useLabeled, im } : null;
+          })
+          .filter(Boolean);
         return {
-          prompt: buildPlannerPrompt({ ...ctx, labeledElevation: labeled }),
-          images: massing ? [room, b, massing] : [room, b],
+          prompt: buildPlannerPrompt({
+            ...ctx,
+            labeledElevation: labeled,
+            ...(rets.length ? { returnElevations: rets.map((r) => ({ side: r.side, labeled: r.labeled })) } : {}),
+          }),
+          images: [room, b, ...(massing ? [massing] : []), ...rets.map((r) => r.im)],
           imageSize,
           temperature: 0.2,
           aspectRatio: ctx.aspect,
@@ -689,10 +720,20 @@ async function runPipeline(env, job, ck, save) {
         // 2026-10-19: 플래너 모드는 [결과 사진, 정면 입면] + 도면 목록으로 모듈(L1·U1…)마다 센다 (layout.js §4).
         //   입면은 번호 있는 것(공급자와 상관없이)이 있으면 그것, 없거나 못 읽으면 번호 없는 것.
         const read = await plannerVerifyElevation(env, job, inputs, elevation, elevationLabeled);
-        const pctx = { category, designSpec: opts.design_spec, wallAnalysis: wall, elevation: read.kind };
+        // 2026-10-19: 꺾인 벽 입면 — 번호 있는 것 먼저, 한도 안에 드는 것만 (주벽 입면이 있을 때만 — 그림 번호가 이어진다)
+        const fits = (im) => im && typeof im.base64 === 'string' && im.base64.length <= VERIFY_MAX_B64;
+        const rets = read.image
+          ? returnElevations
+            .map((r) => (fits(r.labeled) ? { side: r.side, labeled: true, im: r.labeled } : fits(r.plain) ? { side: r.side, labeled: false, im: r.plain } : null))
+            .filter(Boolean)
+          : [];
+        const pctx = {
+          category, designSpec: opts.design_spec, wallAnalysis: wall, elevation: read.kind,
+          ...(rets.length ? { returnElevations: rets.map((r) => ({ side: r.side, labeled: r.labeled })) } : {}),
+        };
         const { json: raw, model } = await callClaudeJson(env, {
           prompt: buildPlannerReadPrompt(pctx),
-          images: read.image ? [base, read.image] : [base],
+          images: read.image ? [base, read.image, ...rets.map((r) => r.im)] : [base],
           schema: PLANNER_READ_SCHEMA,
         });
         layout = normalizePlannerRead(raw, { ...pctx, slot: 'base', model, now: new Date().toISOString() });
