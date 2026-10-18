@@ -417,6 +417,14 @@ const tierOpening = (m) => (hasTiers(m) && m.tiers[0].kind === 'appliance' ? m.t
 /** 2026-10-19: 단 라벨(없으면 모듈 라벨)이 냉장고인가 — plannerApplianceOfLabel · verify.js 와 같은 규칙. */
 const isFridgeLabel = (label) => /냉장|fridge|refrig/.test(String(label || '').toLowerCase());
 
+/**
+ * 2026-10-19: 후드 칸 — 상부(·키큰장) 줄 안에서 장이 아니라 후드가 걸리는 자리. 플래너가 상부장 사이에 노출된 후드를
+ *   `{ kind:'appliance', label:'후드', widthMm }` 한 칸으로 줄에 넣어 보낸다(장 사이 틈째로). 상부장 밑에 끼는 내장형은 칸이 아니라
+ *   appliances[] 의 hood 가 그 장에 붙는다 (예전 그대로). 번호는 줄 머리가 아니라 H1·H2 (plannerRows · layout.js · 패널 같은 규칙).
+ */
+const isHoodLabel = (label) => /후드|hood/.test(String(label || '').toLowerCase());
+const isHoodCell = (m) => !!m && m.kind === 'appliance' && !hasTiers(m) && isHoodLabel(m.label);
+
 function normalizeDesignSection(raw, section) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const where = `sections.${section}`;
@@ -572,6 +580,9 @@ function designModulePhrase(m, withLabel = true) {
     what = n > 1 ? `${n}-drawer stack` : 'single drawer front';
   } else if (m.kind === 'open') {
     what = 'open shelving with no door';
+  } else if (isHoodCell(m)) {
+    // 2026-10-19: 후드 칸 (상부장 사이 노출 후드) — 옛 모양에는 없다
+    what = 'range hood gap (no cabinet)';
   } else if (m.kind === 'appliance') {
     what = 'appliance opening';
   } else {
@@ -1090,14 +1101,24 @@ function plannerApplianceOfLabel(label) {
   const s = String(label || '').toLowerCase();
   if (/냉장|fridge|refrig/.test(s)) return 'fridge';
   if (/식기|dish/.test(s)) return 'dishwasher';
+  // 2026-10-19: 후드 칸 (isHoodCell)
+  if (/후드|hood/.test(s)) return 'hood';
   return null;
 }
+
+/**
+ * 2026-10-19: 후드 칸의 구절 — 장이 아니라 상부장 사이 틈에 노출 후드가 걸린다. 정면 입면에서는 스테인리스 후드 대역으로 보인다.
+ * 실측(2026-10-19 GPT): 칸 없이 "U1 800, U2 800" 으로만 말했더니 상부장을 빈칸 없이 이어 붙이고 후드를 오른쪽 장 밑에 넣었다.
+ */
+const PLANNER_HOOD_CELL =
+  'range hood — not a cabinet: keep this gap between the wall units free of any cabinet, door or shelf and hang a slim stainless-steel chimney (or canopy) hood in it, its duct cover rising to the ceiling (IMAGE B shows it as the grey stainless hood)';
 
 /** 모듈 한 칸 → 영어 종류 구절. attached 는 이 모듈 자리에 걸린 가전 kind 목록. */
 function plannerModuleWhat(m, attached, wardrobe) {
   if (m.kind === 'appliance') {
     // 냉장고 자리: 요약에 냉장고가 있으면 "들어 있음", 없으면 "빈 자리" (계획서 §4.3)
     const own = plannerApplianceOfLabel(m.label);
+    if (own === 'hood') return PLANNER_HOOD_CELL;
     const fridge = 'opening with a built-in refrigerator, its front flush with the doors';
     if (own === 'fridge') return attached.includes('fridge') ? fridge : 'empty opening for a refrigerator — leave it empty';
     if (own === 'dishwasher' || attached.includes('dishwasher')) return PLANNER_APPLIANCE_ON_MODULE.dishwasher;
@@ -1155,6 +1176,26 @@ function plannerColumnWhat(m, rowKey) {
     return `${head} with ${stackWhat(above)} above`;
   }
   return `${rowKey === 'tall' || rowKey === 'wardrobe' ? 'tall column' : 'column'} — ${stackWhat(m.tiers)}`;
+}
+
+/**
+ * 2026-10-19: 후드 칸 밑에 둘 쿡탑 — 도면에 cooktop 이 없을 때만. 후드 칸 가운데가 걸린 하부장(가전 칸·싱크·쿡탑이 이미 걸린 장 제외).
+ * @returns {{hoodId:string, base:object}[]}
+ */
+function plannerImpliedCooktops(rows, spec) {
+  if (spec && Array.isArray(spec.appliances) && spec.appliances.some((a) => a && a.kind === 'cooktop')) return [];
+  const bases = rows.filter((r) => r.key === 'lower').flatMap((r) => r.items);
+  const out = [];
+  for (const row of rows) {
+    for (const h of row.items.filter((it) => isHoodCell(it.m))) {
+      const center = (h.start + h.end) / 2;
+      const base = bases.find((it) => it.end > it.start && center >= it.start && center < it.end);
+      if (!base || base.m.kind === 'appliance' || base.attached.includes('sink') || base.attached.includes('cooktop')) continue;
+      if (out.some((o) => o.base === base)) continue;
+      out.push({ hoodId: h.id, base });
+    }
+  }
+  return out;
 }
 
 /**
@@ -1218,7 +1259,12 @@ function plannerRows(spec, category) {
     }));
   }
   // 번호 — 줄 안 왼쪽부터 1 (L·U·T·W). 정면 입면의 라벨과 같은 규칙이다.
-  for (const row of rows) row.items.forEach((it, i) => (it.id = `${row.def.prefix}${i + 1}`));
+  // 2026-10-19: 후드 칸은 줄 번호를 받지 않고 H1·H2… (줄 순서 lower→upper→tall, 줄 안 왼→오) — U1 | H1 | U2.
+  let hoods = 0;
+  for (const row of rows) {
+    let n = 0;
+    row.items.forEach((it) => (it.id = isHoodCell(it.m) ? `H${++hoods}` : `${row.def.prefix}${++n}`));
+  }
 
   // 가전 → 그 자리에 걸린 모듈. 못 찾으면 APPLIANCES 줄로.
   const loose = [];
@@ -1238,13 +1284,22 @@ function plannerRows(spec, category) {
     if (hit) hit.attached.push(a.kind);
     else loose.push({ kind: a.kind, center });
   }
+  // 2026-10-19: 후드 칸(노출형)이 있고 쿡탑이 도면에 없으면 후드 바로 아래 하부장 상판에 쿡탑을 둔다 (플래너에는 쿡탑 섹션이
+  //   없다 — 후드 자리는 곧 조리 자리다). 그 하부장에 싱크가 걸렸으면 두지 않는다. 후드 칸이 없는 도면(내장형·후드 없음)은 예전 그대로.
+  const cooktops = plannerImpliedCooktops(rows, spec);
+  for (const c of cooktops) {
+    c.base.attached.push('cooktop');
+    c.base.cooktopUnder = c.hoodId;
+  }
   return { rows, loose, runMm };
 }
 
 /** 한 줄의 합계. 가전 칸(appliance)은 단위에서 빼고 따로 센다. */
 function plannerRowTotals(row) {
   let units = 0, openings = 0, doors = 0, drawers = 0;
-  for (const { m } of row.items) {
+  const hoods = []; // 2026-10-19: 후드 칸 번호 (H1 …) — 단위도 가전 칸도 아니다
+  for (const { m, id } of row.items) {
+    if (isHoodCell(m)) { hoods.push(id); continue; }
     // 2026-10-19: 쌓인 단 한 통 — 가전 자리가 있으면(냉장고장) 가전 칸, 없으면 유닛 하나. 도어·서랍은 단의 합.
     if (hasTiers(m)) {
       const c = plannerCounts(m);
@@ -1260,7 +1315,7 @@ function plannerRowTotals(row) {
     doors += c.doors;
     drawers += c.drawers;
   }
-  return { units, openings, doors, drawers };
+  return { units, openings, doors, drawers, hoods };
 }
 
 // ─── 2026-10-19: 프롬프트 v3 — 어떤 도면이 와도 design_spec 에서 계산되는 일반 규칙 ───
@@ -1516,8 +1571,13 @@ export function buildPlannerPrompt(c) {
           : plannerModuleWhat(it.m, it.attached, key === 'wardrobe');
         // 가전 칸은 냉장고·식세기를 이미 제 이름으로 말했다 — 싱크·쿡탑·후드만 덧붙인다.
         const opening = it.m.kind === 'appliance' || !!tierOpening(it.m);
-        const extra = it.attached.filter((k) => !(opening && (k === 'fridge' || k === 'dishwasher')));
-        what += extra.map((k) => `, ${PLANNER_APPLIANCE_ON_MODULE[k]}`).join('');
+        // 2026-10-19: 후드 칸은 후드를 이미 제 이름으로 말했다
+        const extra = it.attached.filter(
+          (k) => !(opening && (k === 'fridge' || k === 'dishwasher')) && !(k === 'hood' && isHoodCell(it.m))
+        );
+        what += extra
+          .map((k) => `, ${PLANNER_APPLIANCE_ON_MODULE[k]}${k === 'cooktop' && it.cooktopUnder ? `, directly under the hood ${it.cooktopUnder}` : ''}`)
+          .join('');
         return { head: `${it.id.padEnd(3)} ${size}`.trimEnd(), what };
       });
       const pad = Math.max(...lines.map((l) => l.head.length)) + 2;
@@ -1541,8 +1601,17 @@ export function buildPlannerPrompt(c) {
   const listJoin = (a) =>
     a.length <= 1 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`;
   // 닫힌 목록 — 도면에 없는 장·서랍장·선반은 어디에도 더하지 않는다
+  // 2026-10-19: 후드 칸(H1 …)은 장이 아니다 — 범위에서 빼고 따로 말한다. 후드 칸이 없으면 예전 문장 그대로.
+  const hoodIds = rows.flatMap((r) => r.items.filter((it) => isHoodCell(it.m)).map((it) => it.id));
+  const unitSpans = rows
+    .map((r) => r.items.filter((it) => !isHoodCell(it.m)))
+    .filter((items) => items.length)
+    .map(plannerIdSpan);
+  const hoodNote = hoodIds.length
+    ? ` ${listJoin(hoodIds)} ${hoodIds.length === 1 ? 'is a range hood' : 'are range hoods'}, not ${hoodIds.length === 1 ? 'a cabinet' : 'cabinets'}.`
+    : '';
   const closed = rows.length
-    ? `CLOSED LIST: ${listJoin(rows.map((r) => plannerIdSpan(r.items)))} are the only built-in units in the result. Add nothing else: no other cabinet, drawer unit, shelf or board anywhere in the room.`
+    ? `CLOSED LIST: ${listJoin(unitSpans)} are the only built-in units in the result.${hoodNote} Add nothing else: no other cabinet, drawer unit, shelf or board anywhere in the room.`
     : 'CLOSED LIST: the units IMAGE B shows are the only built-in units in the result. Add nothing else: no other cabinet, drawer unit, shelf or board anywhere in the room.';
   // 비율 구속 — 벽에 맞추는 것은 전체 배율뿐 (2026-10-19, 옛 "mm·% 는 참고" 를 바꿈)
   const binding = rows.length
@@ -1612,7 +1681,9 @@ export function buildPlannerPrompt(c) {
     (Array.isArray(spec.appliances) ? spec.appliances : []).map((a) => a && a.kind)
   );
   for (const row of rows) {
-    for (const { m } of row.items) {
+    for (const { m, cooktopUnder } of row.items) {
+      // 2026-10-19: 후드 칸 밑에 둔 쿡탑 (plannerRows) — 도면에 있는 셈이다
+      if (cooktopUnder) present.add('cooktop');
       if (m.kind === 'appliance') {
         const k = plannerApplianceOfLabel(m.label);
         if (k) present.add(k);
@@ -1648,7 +1719,11 @@ export function buildPlannerPrompt(c) {
     // 가전 칸만 있는 줄(냉장고 자리 하나)은 "0 units" 라고 말하지 않는다
     const what = t.units ? (t.openings ? `${units} + ${openings}` : units) : t.openings ? openings : units;
     const showDrawers = row.def.drawersAlways || t.drawers > 0;
-    return `${row.def.title.toLowerCase()} ${what}, ${plannerPlural(t.doors, 'door')}${showDrawers ? `, ${plannerPlural(t.drawers, 'drawer')}` : ''}`;
+    // 2026-10-19: 후드 칸 — "+ range hood H1 with no cabinet in its gap"
+    const hood = t.hoods.length
+      ? ` + range hood ${listJoin(t.hoods)} with no cabinet in ${t.hoods.length === 1 ? 'its gap' : 'their gaps'}`
+      : '';
+    return `${row.def.title.toLowerCase()} ${what}${hood}, ${plannerPlural(t.doors, 'door')}${showDrawers ? `, ${plannerPlural(t.drawers, 'drawer')}` : ''}`;
   });
   const selfCheck =
     'FINAL SELF-CHECK before you answer: ' +

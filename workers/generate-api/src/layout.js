@@ -375,8 +375,11 @@ export function normalizeLayout(raw, ctx) {
 // 일반 연출컷·/layout 라우트는 위 1~3 을 그대로 쓴다.
 
 export const PLANNER_READ_VERSION = 1;
-/** 모듈 한 칸이 사진에서 무엇으로 보였나. missing = 그 자리에 유닛이 없다. */
-export const PLANNER_READ_SEEN = ['cabinet', 'refrigerator', 'dishwasher', 'open', 'missing'];
+/**
+ * 모듈 한 칸이 사진에서 무엇으로 보였나. missing = 그 자리에 유닛이 없다.
+ * 2026-10-19: hood = 장 없이 후드만 걸린 틈 (후드 칸 H1 … — prompts.js isHoodCell).
+ */
+export const PLANNER_READ_SEEN = ['cabinet', 'refrigerator', 'dishwasher', 'open', 'hood', 'missing'];
 export const PLANNER_READ_SHAPES = ['straight', 'corner', 'u', 'unclear'];
 const PLANNER_READ_ROWS = ['base', 'wall', 'tall', 'wardrobe'];
 /** design_spec 구간 → 판독 줄 이름·번호 머리. prompts.js PLANNER_ROWS 와 같은 머리 글자. */
@@ -480,7 +483,14 @@ function plannerReadApplianceSeen(m) {
   const label = String((m && m.label) || '').toLowerCase();
   if (/냉장|fridge|refrig/.test(label)) return 'refrigerator';
   if (/식기|dish/.test(label)) return 'dishwasher';
+  // 2026-10-19: 후드 칸 — 장 없이 후드가 걸린 틈
+  if (/후드|hood/.test(label)) return 'hood';
   return 'open';
+}
+
+/** 2026-10-19: 후드 칸인가 — prompts.js isHoodCell 과 같은 규칙 (가전 칸 · 쌓인 단 없음 · 라벨 후드/hood). */
+function plannerReadIsHoodCell(m) {
+  return !!m && m.kind === 'appliance' && !(Array.isArray(m.tiers) && m.tiers.length) && /후드|hood/.test(String(m.label || '').toLowerCase());
 }
 
 /**
@@ -525,16 +535,20 @@ export function plannerReadPlan(spec, category) {
     const ends = rows.flatMap((r) => r.items.map((it) => it.endMm));
     runMm = ends.length && Math.max(...ends) > 0 ? Math.max(...ends) : null;
   }
-  const out = rows.map((r) => ({
+  // 2026-10-19: 번호 — 후드 칸은 줄 머리 대신 H1·H2 (줄 순서대로 이어서). prompts.js plannerRows 와 같다.
+  let hoods = 0;
+  const out = rows.map((r) => {
+    let n = 0;
+    return {
     row: r.row,
     section: r.section,
     title: r.title,
     prefix: r.prefix,
-    units: r.items.map((it, i) => {
+    units: r.items.map((it) => {
       const c = plannerReadCounts(it.m);
       const seen = it.m.kind === 'appliance' ? plannerReadApplianceSeen(it.m) : it.m.kind === 'open' ? 'open' : 'cabinet';
       const unit = {
-        id: `${r.prefix}${i + 1}`,
+        id: plannerReadIsHoodCell(it.m) ? `H${++hoods}` : `${r.prefix}${++n}`,
         section: it.section,
         widthMm: Number(it.m.widthMm) || null,
         startMm: it.startMm,
@@ -556,7 +570,8 @@ export function plannerReadPlan(spec, category) {
       }
       return unit;
     }),
-  }));
+    };
+  });
   // 가전 → 그 자리에 걸린 모듈 (중심이 모듈 [start,end) 안)
   (Array.isArray(s.appliances) ? s.appliances : []).forEach((a) => {
     const kind = a && String(a.kind || '').toLowerCase();
@@ -576,6 +591,22 @@ export function plannerReadPlan(spec, category) {
       }
     }
   });
+  // 2026-10-19: 후드 칸 밑 쿡탑 — 도면에 cooktop 이 없을 때 생성 프롬프트가 후드 칸 아래 하부장에 둔다 (prompts.js plannerImpliedCooktops)
+  if (!(Array.isArray(s.appliances) && s.appliances.some((a) => a && String(a.kind || '').toLowerCase() === 'cooktop'))) {
+    const bases = out.filter((r) => r.section === 'lower').flatMap((r) => r.units);
+    const used = new Set();
+    out.forEach((r) =>
+      r.units
+        .filter((u) => u.seen === 'hood')
+        .forEach((h) => {
+          const center = (h.startMm + h.endMm) / 2;
+          const b = bases.find((u) => u.endMm > u.startMm && center >= u.startMm && center < u.endMm);
+          if (!b || (b.seen !== 'cabinet' && b.seen !== 'open') || used.has(b) || b.attached.includes('sink') || b.attached.includes('cooktop')) return;
+          used.add(b);
+          b.attached.push('cooktop');
+        })
+    );
+  }
   const l = s.layout && typeof s.layout === 'object' ? s.layout : null;
   let shape = l && ['straight', 'corner', 'u'].includes(l.shape) ? l.shape : null;
   if (!shape) {
@@ -597,6 +628,8 @@ function plannerReadLine(u) {
     );
   } else if (u.seen === 'refrigerator') bits.push('refrigerator opening (fridge front, no cabinet doors)');
   else if (u.seen === 'dishwasher') bits.push('integrated dishwasher (one panel, not a door)');
+  // 2026-10-19: 후드 칸 — 장이 아니라 후드가 걸린 틈
+  else if (u.seen === 'hood') bits.push('range hood in a gap between the wall units, no cabinet (seen = hood when only a hood hangs there; cabinet when a cabinet was built in the gap)');
   else if (u.seen === 'open') bits.push('open, no doors');
   else {
     if (u.doors) bits.push(u.doors === 1 ? '1 door' : `${u.doors} doors`);
@@ -606,7 +639,12 @@ function plannerReadLine(u) {
     if (u.stack) bits[bits.length - 1] += ` (one column of ${u.stack} stacked sections)`;
   }
   u.attached
-    .filter((k) => !(k === 'fridge' && u.seen === 'refrigerator') && !(k === 'dishwasher' && u.seen === 'dishwasher'))
+    .filter(
+      (k) =>
+        !(k === 'fridge' && u.seen === 'refrigerator') &&
+        !(k === 'dishwasher' && u.seen === 'dishwasher') &&
+        !(k === 'hood' && u.seen === 'hood')
+    )
     .forEach((k) => bits.push(PLANNER_READ_ATTACH[k]));
   const size = u.widthMm ? `${String(u.widthMm).padStart(4)} mm` : '';
   return `${u.id.padEnd(3)} ${size}`.trimEnd().padEnd(11) + '  ' + bits.join(', ');
@@ -635,6 +673,8 @@ export function buildPlannerReadPrompt(c) {
       'IMAGE 2 — FRONT ELEVATION of the plan the photo was generated from, seen straight on. It has no labels: the IDs below run left to right inside each row. Use it only to tell which unit is which.'
     );
   }
+  // 2026-10-19: 후드 칸이 있을 때만 seen 에 hood 를 말한다 — 없으면 예전 문장 그대로
+  const hasHood = plan.rows.some((r) => r.units.some((u) => u.seen === 'hood'));
   const list = [];
   plan.rows.forEach((r) => {
     list.push(`  ${r.title} (row "${r.row}"):`);
@@ -656,7 +696,7 @@ ${list.join('\n') || '  (no units listed)'}
 ${shape ? shape + '\n' : ''}
 TASK: find every plan unit in IMAGE 1 and count what IMAGE 1 actually shows. The photo may differ from the plan — report the photo, never copy the plan's numbers.
 1. Match the units by their order from the left, their relative widths and landmarks (sink, cooktop, hood, refrigerator, tall columns). The photo is in perspective: units nearer the camera look wider. If the run turns a corner in IMAGE 1, keep following it in the same order.
-2. rows: for every plan row and every unit ID above give seen, doors and drawers. seen = cabinet (a unit with door or drawer fronts), refrigerator, dishwasher, open (open shelving or an empty opening) or missing (no unit there). doors = hinged door fronts on that unit; drawers = drawer fronts on that unit. Count fronts one unit at a time by the vertical and horizontal gaps between them — two fronts side by side are 2 doors even when they share one handle line. Refrigerator doors and dishwasher panels are not doors.
+2. rows: for every plan row and every unit ID above give seen, doors and drawers. seen = cabinet (a unit with door or drawer fronts), refrigerator, dishwasher, open (open shelving or an empty opening)${hasHood ? ', hood (a range hood hanging in the gap with no cabinet)' : ''} or missing (no unit there). doors = hinged door fronts on that unit; drawers = drawer fronts on that unit. Count fronts one unit at a time by the vertical and horizontal gaps between them — two fronts side by side are 2 doors even when they share one handle line. Refrigerator doors and dishwasher panels are not doors.
 3. extra_units: every built-in unit in IMAGE 1 that is none of the plan units — for example a cabinet above the refrigerator, cabinets on a side wall, a drawer stack added at an end. Give row (base, wall, tall, wardrobe or other), where (a few words), doors and drawers. Freestanding appliances, the hood, loose furniture and things outside the built-in run are not units.
 4. layout_shape: straight when all built-in units stand on one wall; corner when they turn one corner onto a second wall; u when they cover three walls; unclear when you cannot tell.
 5. confidence: 0 to 1 for your counts. notes: at most 5 short sentences about anything ambiguous.`;
@@ -766,8 +806,9 @@ export function normalizePlannerRead(raw, ctx) {
         )
     );
   }
+  // 2026-10-19: 후드로 보인 후드 칸은 상부장이 아니다 (gen-import 가 상부 영역으로 만들지 않게). 장으로 보였으면 그대로 센다.
   const uppers = units
-    .filter((u) => u.row === 'wall' && present(u))
+    .filter((u) => u.row === 'wall' && present(u) && u.seen !== 'hood')
     .map((u) =>
       Object.assign(
         {
