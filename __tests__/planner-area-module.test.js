@@ -740,6 +740,94 @@ describe('영역 자동계산', () => {
   });
 });
 
+describe('지운 자리에 다시 넣는다', () => {
+  // 2026-10-18: 모듈을 지우면 그 자리는 빈 채로 남는다 — 사람이 일부러 비운 자리일 수
+  //   있어 removeActiveModule 은 이웃을 당기지 않는다. 그런데 새 모듈은 **폭 합계 뒤**에
+  //   놓고 있어서, 가운데를 비운 뒤 모듈을 추가하면 뒤 모듈 위에 올라탔다.
+  //   (실측: 2400 [960][960][480] → 가운데 삭제 후 추가 → 1440..2040 이 1920..2400 과 겹침)
+  function areaWith(p, id, W) {
+    const a = { id, section: 'lower', W, H: 870, D: 700, x: 0, y: 0, rotation: 0 };
+    p.g('areas').push(a);
+    return a;
+  }
+  /** 이 배치의 모듈을 [시작, 끝] 로 — 왼쪽부터 */
+  function row(p, areaId) {
+    return p.g('modules').filter((m) => m.areaId === areaId && !m.isFinishing)
+      .slice().sort((a, b) => (a.x || 0) - (b.x || 0))
+      .map((m) => [Math.round(m.x), Math.round(m.x + m.W)]);
+  }
+  const overlaps = (list) => list.some((s, i) => i > 0 && s[0] < list[i - 1][1] - 0.5);
+
+  /** [960][960][480] 로 꽉 찬 2400 배치에서 가운데를 지운다 */
+  function holeInMiddle(p, id) {
+    const area = areaWith(p, id, 2400);
+    [[0, 960], [960, 960], [1920, 480]].forEach(([x, W]) =>
+      p.g('addModuleToArea')(area.id, { section: 'lower', W, x }));
+    const mid = p.g('modules').filter((m) => m.areaId === area.id)
+      .sort((a, b) => a.x - b.x)[1];
+    p.g('setActiveModule')(mid.id);
+    p.g('removeActiveModule')();
+    return area;
+  }
+
+  test('지운 자리는 빈 채로 남는다 — 이웃을 당기지 않는다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = holeInMiddle(p, 'area-gap-stay');
+    expect(row(p, area.id)).toEqual([[0, 960], [1920, 2400]]);
+  });
+
+  test('새 모듈은 그 빈 자리에 들어간다 — 뒤 모듈 위에 올라타지 않는다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = holeInMiddle(p, 'area-gap-fill');
+    const added = p.g('addModuleToArea')(area.id, { section: 'lower' });
+    expect(added).not.toBeNull();
+    expect(Math.round(added.x)).toBe(960);              // 폭 합계(1440) 가 아니라 빈 자리
+    expect(row(p, area.id)).toEqual([[0, 960], [960, 1560], [1920, 2400]]);
+    expect(overlaps(row(p, area.id))).toBe(false);
+  });
+
+  test('빈 자리가 기본 폭보다 좁으면 그 폭에 맞춰 넣는다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = areaWith(p, 'area-gap-narrow', 2400);
+    [[0, 900], [900, 500], [1400, 1000]].forEach(([x, W]) =>
+      p.g('addModuleToArea')(area.id, { section: 'lower', W, x }));
+    const mid = p.g('modules').filter((m) => m.areaId === area.id).sort((a, b) => a.x - b.x)[1];
+    p.g('setActiveModule')(mid.id);
+    p.g('removeActiveModule')();
+    const added = p.g('addModuleToArea')(area.id, { section: 'lower' });
+    expect(Math.round(added.x)).toBe(900);
+    expect(Math.round(added.W)).toBe(500);              // 빈 자리에 맞춰 줄여 넣는다
+    expect(overlaps(row(p, area.id))).toBe(false);
+  });
+
+  test('빈 자리가 여럿이면 기본 폭이 들어가는 첫 자리에 넣는다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = areaWith(p, 'area-gap-pick', 2400);
+    // 빈 자리 둘 — 600..900(300, 도어가 못 들어간다) · 1500..2400(900)
+    [[0, 600], [900, 600]].forEach(([x, W]) =>
+      p.g('addModuleToArea')(area.id, { section: 'lower', W, x }));
+    const added = p.g('addModuleToArea')(area.id, { section: 'lower' });
+    expect(Math.round(added.x)).toBe(1500);
+    expect(Math.round(added.W)).toBe(600);
+    expect(overlaps(row(p, area.id))).toBe(false);
+  });
+
+  test('자동계산이 정해 준 자리(opts.x)는 그대로 쓴다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = holeInMiddle(p, 'area-gap-explicit');
+    const added = p.g('addModuleToArea')(area.id, { section: 'lower', W: 300, x: 1200 });
+    expect(Math.round(added.x)).toBe(1200);
+    expect(Math.round(added.W)).toBe(300);
+  });
+
+  test('빈 자리가 도어 최소폭보다 좁으면 넣지 않는다', () => {
+    const p = boot(seedFor(FIXTURES.straight, { modules: false }));
+    const area = areaWith(p, 'area-gap-tiny', 1200);
+    p.g('addModuleToArea')(area.id, { section: 'lower', W: 1000, x: 0 });
+    expect(p.g('addModuleToArea')(area.id, { section: 'lower' })).toBeNull();
+  });
+});
+
 describe('자동계산은 보존 모듈의 자리를 지킨다', () => {
   // 2026-09-19: 예전엔 보존 모듈을 전부 시작점으로 몰아붙이고 그 뒤를 채웠다 —
   //   오른쪽 끝에 두었던 장이 왼쪽으로 옮겨 앉았다. '보존' 이라는 말과 다르다.
