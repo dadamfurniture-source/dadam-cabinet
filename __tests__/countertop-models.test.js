@@ -96,3 +96,31 @@ describe('관리자 가전 모델 — 싱크볼 · 쿡탑 타공 칸', () => {
     expect(AP).toContain("? '\\n\\n타공 칸은 database/work-reports.sql");
   });
 });
+
+describe('관리자 가전 모델 — 여유 공간 칸 (side_gap_mm · top_gap_mm)', () => {
+  /** gapCell 만 떼어 실행 */
+  const gapCell = (() => {
+    const start = AP.indexOf('function gapCell(r) {');
+    const end = AP.indexOf('function renderTable(rows) {');
+    // eslint-disable-next-line no-new-func
+    return new Function(`${AP.slice(start, end)}; return gapCell;`)();
+  })();
+
+  test('표 머리 · 행에 여유 공간 칸 (열 10개)', () => {
+    expect(AP).toMatch(/<th scope="col" class="right"[^>]*>여유 공간 \(mm\)<\/th>/);
+    expect(AP).toContain('<td class="right gap">${gapCell(r)}</td>');
+    expect(AP).not.toContain('colspan="9"');
+  });
+
+  test('좌우(한쪽) · 위 여유와 그 여유를 둔 자리 크기', () => {
+    expect(gapCell({ width_mm: 595, height_mm: 1853, side_gap_mm: 12, top_gap_mm: 15 })).toBe('좌우 12 · 위 15<small>자리 619 × 1868</small>');
+    expect(gapCell({ width_mm: 600, height_mm: 820, side_gap_mm: 0, top_gap_mm: null })).toBe('좌우 0<small>자리 600 × 820</small>');
+    expect(gapCell({ width_mm: 600, height_mm: 820 })).toBe('<span class="none">미입력</span>');
+  });
+
+  test('수정 창에서 옆 · 위 여유를 넣고 빈칸은 null 로 저장', () => {
+    for (const id of ['f-sg', 'f-tg']) expect(AP).toContain(`id="${id}"`);
+    expect(AP).toContain("side_gap_mm: document.getElementById('f-sg').value === '' ? null : parseInt(document.getElementById('f-sg').value, 10),");
+    expect(AP).toContain("document.getElementById('f-tg').value         = row?.top_gap_mm ?? '';");
+  });
+});
