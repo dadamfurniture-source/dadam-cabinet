@@ -52,21 +52,21 @@ CREATE POLICY "appliance_models_read_all" ON appliance_models
 
 CREATE POLICY "appliance_models_admin_insert" ON appliance_models
   FOR INSERT WITH CHECK (
-    auth.uid() IN (SELECT user_id FROM admin_roles WHERE role IN ('admin', 'superadmin'))
+    auth.uid() IN (SELECT user_id FROM admin_roles WHERE role IN ('admin', 'super_admin'))
   );
 
 CREATE POLICY "appliance_models_admin_update" ON appliance_models
   FOR UPDATE USING (
-    auth.uid() IN (SELECT user_id FROM admin_roles WHERE role IN ('admin', 'superadmin'))
+    auth.uid() IN (SELECT user_id FROM admin_roles WHERE role IN ('admin', 'super_admin'))
   );
 
 CREATE POLICY "appliance_models_admin_delete" ON appliance_models
   FOR DELETE USING (
-    auth.uid() IN (SELECT user_id FROM admin_roles WHERE role IN ('admin', 'superadmin'))
+    auth.uid() IN (SELECT user_id FROM admin_roles WHERE role IN ('admin', 'super_admin'))
   );
 
 -- ── 코멘트 ─────────────────────────────────────────────────────
-COMMENT ON TABLE  appliance_models IS '가전 모델 카탈로그 (냉장고/후드/식세기/분배기) — 도면 배치 시 W/D/H 참조';
+COMMENT ON TABLE  appliance_models IS '가전 모델 카탈로그 (냉장고/후드/식세기/싱크볼/쿡탑) — 도면 배치 W/D/H · 상판 타공 참조';
 COMMENT ON COLUMN appliance_models.category   IS 'refrigerator | hood | dishwasher | sink | oven | cooktop | washing_machine';
 COMMENT ON COLUMN appliance_models.width_mm   IS '도면 가로 (mm)';
 COMMENT ON COLUMN appliance_models.depth_mm   IS '도면 깊이 = 평면도 세로 (mm), 후면 핸들 포함';
