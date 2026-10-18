@@ -25,7 +25,7 @@ const ENV = {
 };
 
 /** 경로마다 다른 바이트 — 설치 호출에 어떤 순서로 실렸는지 알아볼 수 있게 */
-const BYTES = { room: 'ROOM', 'render-elevation': 'ELEV', 'render-massing': 'MASS' };
+const BYTES = { room: 'ROOM', 'render-elevation': 'ELEV', 'render-elevation_labeled': 'LABEL', 'render-massing': 'MASS' };
 const b64 = (s) => Buffer.from(s).toString('base64');
 
 let calls;
@@ -35,8 +35,9 @@ function jsonRes(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-function install({ qcIssues = ['existing_left'], openai = null } = {}) {
-  calls = { image: [], text: [], patched: [], uploads: [], openai: [] };
+/** failRead: 이 문자열이 든 경로의 Storage 읽기는 500 (2026-10-19 번호 입면 읽기 실패) */
+function install({ qcIssues = ['existing_left'], openai = null, failRead = null } = {}) {
+  calls = { image: [], text: [], patched: [], uploads: [], openai: [], reads: [] };
   globalThis.fetch = async (url, init = {}) => {
     const u = String(url);
     if (u.startsWith('https://api.openai.com/')) {
@@ -59,6 +60,8 @@ function install({ qcIssues = ['existing_left'], openai = null } = {}) {
         return jsonRes({ Key: 'ok' });
       }
       const name = u.split('/').pop().split('.')[0];
+      calls.reads.push(name);
+      if (failRead && u.includes(failRead)) return new Response('boom', { status: 500 });
       const mime = u.endsWith('.png') ? 'image/png' : 'image/jpeg';
       return new Response(Buffer.from(BYTES[name] || 'X'), { headers: { 'Content-Type': mime } });
     }
@@ -327,7 +330,7 @@ test('planner + openai 인데 키가 없으면 Gemini 가 그리고 사유에 �
   assert.match(base.fallback_reason, /OPENAI_API_KEY not configured/);
 });
 
-test('planner 기본(공급자 없음)은 키가 있어도 Gemini — 칸 표시 없이 예전 모양 그대로', async () => {
+test('기록 없는 옛 행(공급자 없음)은 키가 있어도 Gemini — 칸 표시 없이 예전 모양 그대로 (기본값은 worker.js 가 접수 때 기록)', async () => {
   install({ qcIssues: [] });
   const last = await run(PLANNER_OPTIONS, PLANNER_INPUTS, { ...OPENAI_ENV, IMAGE_PROVIDER: 'openai' });
   assert.equal(calls.openai.length, 0, '전역 IMAGE_PROVIDER 는 플래너 모드에 닿지 않는다');
@@ -335,4 +338,91 @@ test('planner 기본(공급자 없음)은 키가 있어도 Gemini — 칸 표시
   const base = last.images[0];
   for (const k of ['provider', 'model', 'fallback', 'fallback_reason', 'usage']) assert.equal(k in base, false, k);
   assert.equal(last.model, 'gemini-3-pro-image');
+});
+
+// ─── 번호 입면 (2026-10-19, renders 의 elevation_labeled) ───
+//   GPT 가 그릴 때만 번호 입면(있으면) + "번호·치수선은 주석" 문장. Gemini 는 기본이든 대체든 늘 번호 없는 입면, 문장 없음.
+
+const LABEL_SENTENCE = 'IMAGE B may carry ID labels (L1, U1 …) and dimension lines';
+const LABELED_INPUTS = {
+  ...PLANNER_INPUTS,
+  renders: [
+    PLANNER_INPUTS.renders[0],
+    { role: 'elevation_labeled', path: `${USER_ID}/${ROW_ID}/render-elevation_labeled.png`, url: 'u', mime: 'image/png' },
+    PLANNER_INPUTS.renders[1],
+  ],
+};
+const imgs = (list) => list.map((i) => Buffer.from(i.data, 'base64').toString());
+
+test('GPT + 번호 입면 있음: IMAGE B 는 번호 입면, 프롬프트에 주석 문장', async () => {
+  install({ qcIssues: [] });
+  const last = await run({ ...PLANNER_OPTIONS, image_provider: 'openai' }, LABELED_INPUTS, OPENAI_ENV);
+  assert.equal(calls.image.length, 0);
+  assert.equal(calls.openai.length, 1);
+  assert.deepEqual(calls.openai[0].images, ['ROOM', 'LABEL', 'MASS']);
+  assert.ok(calls.openai[0].prompt.includes(LABEL_SENTENCE));
+  assert.equal(last.images[0].provider, 'openai');
+});
+
+test('GPT + 번호 입면 없음: IMAGE B 는 번호 없는 입면, 주석 문장 없음', async () => {
+  install({ qcIssues: [] });
+  await run({ ...PLANNER_OPTIONS, image_provider: 'openai' }, PLANNER_INPUTS, OPENAI_ENV);
+  assert.deepEqual(calls.openai[0].images, ['ROOM', 'ELEV', 'MASS']);
+  assert.ok(!calls.openai[0].prompt.includes(LABEL_SENTENCE));
+  assert.ok(calls.openai[0].prompt.includes('IMAGE B — FRONT ELEVATION from our planner: the exact cabinet design to build, seen straight on.\n'));
+});
+
+test('GPT 실패 → Gemini 대체: GPT 에는 번호 입면, Gemini 에는 번호 없는 입면 + 문장 없는 프롬프트로 다시', async () => {
+  install({ qcIssues: [], openai: () => jsonRes({ error: { message: 'overloaded' } }, 503) });
+  const last = await run({ ...PLANNER_OPTIONS, image_provider: 'openai' }, LABELED_INPUTS, OPENAI_ENV);
+  assert.ok(calls.openai.length >= 1);
+  for (const c of calls.openai) {
+    assert.deepEqual(c.images, ['ROOM', 'LABEL', 'MASS']);
+    assert.ok(c.prompt.includes(LABEL_SENTENCE));
+  }
+  assert.equal(calls.image.length, 1, 'Gemini 가 한 번 대신');
+  assert.deepEqual(imgs(calls.image[0].images), ['ROOM', 'ELEV', 'MASS']);
+  assert.ok(!calls.image[0].prompt.includes(LABEL_SENTENCE));
+  // 문장 하나만 다르다 — 나머지 프롬프트는 같은 빌더·같은 ctx
+  assert.equal(calls.image[0].prompt, calls.openai[0].prompt.replace(` ${LABEL_SENTENCE}; they are annotations that match the list below — never draw any text, numbers or lines from them.`, ''));
+  assert.equal(calls.image[0].body.generationConfig.temperature, 0.2);
+  const base = last.images[0];
+  assert.equal(base.provider, 'gemini');
+  assert.equal(base.fallback, true);
+});
+
+test('GPT 키 없음 → Gemini 대체: 번호 없는 입면, 문장 없음', async () => {
+  install({ qcIssues: [] });
+  const last = await run({ ...PLANNER_OPTIONS, image_provider: 'openai' }, LABELED_INPUTS);
+  assert.equal(calls.openai.length, 0);
+  assert.deepEqual(imgs(calls.image[0].images), ['ROOM', 'ELEV', 'MASS']);
+  assert.ok(!calls.image[0].prompt.includes(LABEL_SENTENCE));
+  assert.equal(last.images[0].fallback, true);
+});
+
+test('Gemini 행: 번호 입면이 있어도 쓰지 않는다 (읽지도 않는다), 문장 없음', async () => {
+  for (const options of [{ ...PLANNER_OPTIONS, image_provider: 'gemini' }, PLANNER_OPTIONS]) {
+    install({ qcIssues: [] });
+    const last = await run(options, LABELED_INPUTS, OPENAI_ENV);
+    assert.equal(calls.openai.length, 0);
+    assert.deepEqual(imgs(calls.image[0].images), ['ROOM', 'ELEV', 'MASS']);
+    assert.ok(!calls.image[0].prompt.includes(LABEL_SENTENCE));
+    assert.ok(!calls.reads.includes('render-elevation_labeled'), '번호 입면은 읽지 않는다');
+    assert.equal('fallback' in last.images[0], false);
+  }
+});
+
+test('GPT 인데 번호 입면을 못 읽으면 번호 없는 입면 + 문장 없음으로 그린다 (잡은 멈추지 않는다)', async () => {
+  install({ qcIssues: [], failRead: 'render-elevation_labeled' });
+  const last = await run({ ...PLANNER_OPTIONS, image_provider: 'openai' }, LABELED_INPUTS, OPENAI_ENV);
+  assert.equal(last.status, 'done');
+  assert.deepEqual(calls.openai[0].images, ['ROOM', 'ELEV', 'MASS']);
+  assert.ok(!calls.openai[0].prompt.includes(LABEL_SENTENCE));
+});
+
+test('GPT + 번호 입면 + 3/4 없음: 두 장 [방, 번호 입면]', async () => {
+  install({ qcIssues: [] });
+  await run({ ...PLANNER_OPTIONS, image_provider: 'openai' }, { ...LABELED_INPUTS, renders: LABELED_INPUTS.renders.slice(0, 2) }, OPENAI_ENV);
+  assert.deepEqual(calls.openai[0].images, ['ROOM', 'LABEL']);
+  assert.match(calls.openai[0].prompt, /^You receive two images\./);
 });

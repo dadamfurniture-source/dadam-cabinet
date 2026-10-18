@@ -1288,6 +1288,8 @@ function plannerLevelZones(rows, ref, runStart, runEnd) {
  * @param {string} [c.site] / [c.siteNotes] / [c.tile]   분석 결과 (설치 프롬프트와 같은 문단)
  * @param {string} [c.doorColor] / [c.doorFinish]  마감이 없을 때의 옛 값
  * @param {boolean} [c.massing]   IMAGE C(3/4 렌더)가 함께 가는가
+ * @param {boolean} [c.labeledElevation]  IMAGE B 가 번호·치수선 붙은 입면인가 (2026-10-19, GPT 에만 보낸다).
+ *                                아니면 "번호·치수선은 주석" 문장을 빼고 IMAGE B 를 깨끗한 입면으로 말한다.
  * @param {string} [c.aspect]     결과 비율 (PLANNER_ASPECTS)
  */
 export function buildPlannerPrompt(c) {
@@ -1308,9 +1310,12 @@ export function buildPlannerPrompt(c) {
   const images = [
     `You receive ${massing ? 'three' : 'two'} images.`,
     `IMAGE A — ROOM PHOTO: the customer's real room. Edit this photo only inside the EDIT ZONE below.`,
-    // 2026-10-19: 정면 입면에 번호·치수선이 얹힌다 — 주석이지 그릴 것이 아니다.
-    `IMAGE B — FRONT ELEVATION from our planner: the exact cabinet design to build, seen straight on. ` +
-      `IMAGE B may carry ID labels (L1, U1 …) and dimension lines; they are annotations that match the list below — never draw any text, numbers or lines from them.`,
+    // 2026-10-19: 번호 입면(labeledElevation)이면 번호·치수선은 주석이지 그릴 것이 아니라고 말한다.
+    //   번호 없는 입면(Gemini, GPT 실패 대체)에는 그 문장이 없다 — 없는 번호를 말하면 오히려 그려 넣는다.
+    `IMAGE B — FRONT ELEVATION from our planner: the exact cabinet design to build, seen straight on.` +
+      (c.labeledElevation
+        ? ` IMAGE B may carry ID labels (L1, U1 …) and dimension lines; they are annotations that match the list below — never draw any text, numbers or lines from them.`
+        : ''),
   ];
   if (massing) {
     images.push(

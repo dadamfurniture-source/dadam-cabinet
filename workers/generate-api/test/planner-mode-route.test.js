@@ -7,6 +7,7 @@
  *   3) options.mode='planner', options.aspect (허용값 밖이면 16:9), variants 는 항상 false
  *   4) realize · engine · control_* · reference_images 는 받지 않는다
  *   5) mode 가 없으면 options·inputs 는 옛 모양 그대로
+ *   6) 2026-10-19: elevation_labeled(번호 입면, 선택) 저장 · options.image_provider 는 늘 기록 (기본 PLANNER_IMAGE_PROVIDER)
  *
  * generate-design-spec-route.test.js 와 같은 방식: Supabase 는 전부 global fetch 로 나가므로 fetch 하나만 갈아 끼운다.
  */
@@ -75,8 +76,9 @@ function install({ parent = null, failUpload = null } = {}) {
   };
 }
 
-const env = () => ({
+const env = (extra = {}) => ({
   ...ENV,
+  ...extra,
   GENERATE_JOB: {
     idFromName: (n) => ({ name: n }),
     get: () => ({
@@ -88,14 +90,14 @@ const env = () => ({
   },
 });
 
-function post(body) {
+function post(body, extraEnv = {}) {
   return worker.fetch(
     new Request('https://generate.example/api/generate', {
       method: 'POST',
       headers: { Authorization: 'Bearer token', 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }),
-    env()
+    env(extraEnv)
   );
 }
 
@@ -215,23 +217,75 @@ test('렌더는 render-{role}.{ext} 로 올라가고 inputs.renders 에 남는�
   assert.deepEqual(calls.jobStart.inputs, inputs);
 });
 
-test('역할마다 한 장·최대 2장, 모르는 role 은 버리고 순서는 elevation → massing', async () => {
+test('역할마다 한 장·최대 3장, 모르는 role 은 버리고 순서는 elevation → elevation_labeled → massing', async () => {
   install();
   await post(
     plannerBody({
       renders: [
         { role: 'massing', base64: PNG, mime: 'image/jpeg' },
         { role: 'top', base64: PNG },
+        { role: 'elevation_labeled', base64: PNG },
         { role: 'elevation', base64: PNG },
         { role: 'elevation', base64: PNG, mime: 'image/webp' },
+        { role: 'elevation_labeled', base64: PNG, mime: 'image/webp' },
       ],
     })
   );
   const inputs = calls.jobStart.inputs;
   assert.deepEqual(inputs.renders.map((r) => [r.role, r.mime]), [
     ['elevation', 'image/png'],
+    ['elevation_labeled', 'image/png'],
     ['massing', 'image/jpeg'],
   ]);
+});
+
+// 2026-10-19: 번호 붙은 입면 (선택) — 저장·기록은 다른 렌더와 같다
+test('elevation_labeled 는 render-elevation_labeled.{ext} 로 올라가고 inputs.renders 에 남는다', async () => {
+  install();
+  const res = await post(
+    plannerBody({
+      renders: [
+        { role: 'elevation', base64: PNG, mime: 'image/png' },
+        { role: 'elevation_labeled', base64: PNG, mime: 'image/png' },
+      ],
+    })
+  );
+  assert.equal(res.status, 202);
+  const paths = calls.uploads.map((x) => x.url.split('/generations/')[1]);
+  assert.deepEqual(paths, [
+    `${USER_ID}/${ROW_ID}/room.jpg`,
+    `${USER_ID}/${ROW_ID}/render-elevation.png`,
+    `${USER_ID}/${ROW_ID}/render-elevation_labeled.png`,
+  ]);
+  assert.deepEqual(calls.jobStart.inputs.renders[1], {
+    role: 'elevation_labeled',
+    path: `${USER_ID}/${ROW_ID}/render-elevation_labeled.png`,
+    url: `https://example.supabase.co/storage/v1/object/public/generations/${USER_ID}/${ROW_ID}/render-elevation_labeled.png`,
+    mime: 'image/png',
+  });
+});
+
+test('번호 입면만 있고 번호 없는 입면이 없으면 400 missing_render (차감 전)', async () => {
+  install();
+  const res = await post(plannerBody({ renders: [{ role: 'elevation_labeled', base64: PNG, mime: 'image/png' }] }));
+  assert.equal(res.status, 400);
+  assert.equal((await res.json()).code, 'missing_render');
+  assert.equal(calls.rpc.length, 0);
+  assert.equal(calls.inserted, null);
+});
+
+test('번호 입면 업로드가 실패해도 잡은 간다 (번호 없는 입면으로 그린다)', async () => {
+  install({ failUpload: 'render-elevation_labeled' });
+  const res = await post(
+    plannerBody({
+      renders: [
+        { role: 'elevation', base64: PNG, mime: 'image/png' },
+        { role: 'elevation_labeled', base64: PNG, mime: 'image/png' },
+      ],
+    })
+  );
+  assert.equal(res.status, 202);
+  assert.deepEqual(calls.jobStart.inputs.renders.map((r) => r.role), ['elevation']);
 });
 
 test('massing 없이 elevation 만 와도 된다', async () => {
@@ -372,7 +426,7 @@ test('급수·배기 수동값이 없으면 options 모양은 그대로 — 두 
   assert.equal(o.exhaust_from_left_override, null);
   assert.equal(
     Object.keys(o).join(','),
-    'design_style,door_color,door_finish,wall_width_override,water_from_left_override,exhaust_from_left_override,fridge_options,design_spec,mode,aspect,variants'
+    'design_style,door_color,door_finish,wall_width_override,water_from_left_override,exhaust_from_left_override,fridge_options,design_spec,mode,aspect,variants,image_provider'
   );
 });
 
@@ -416,39 +470,72 @@ test('재생성 원본에 입면 렌더가 없으면 planner 로 다시 그릴 �
   assert.equal(calls.rpc.length, 0);
 });
 
-// ─── 5. 이미지 공급자 (2026-10-18, image_provider) ───
+// ─── 5. 이미지 공급자 (2026-10-18, image_provider · 2026-10-19 기본 GPT) ───
+//   요청 값('gemini'|'openai') → 재생성 원본 값 → PLANNER_IMAGE_PROVIDER ('openai' 만 GPT, 없거나 모르면 gemini).
+//   플래너 모드는 결정된 값을 options.image_provider 에 **항상** 기록한다.
 
-test('image_provider openai 면 options.image_provider 가 생기고 잡에도 같은 값', async () => {
-  install();
-  const res = await post(plannerBody({ image_provider: 'openai' }));
-  assert.equal(res.status, 202);
-  assert.equal(calls.inserted.options.image_provider, 'openai');
-  assert.deepEqual(calls.jobStart.options, calls.inserted.options);
-});
+const GPT_DEFAULT = { PLANNER_IMAGE_PROVIDER: 'openai' };
 
-test('image_provider 가 없거나 gemini·모르는 값이면 키 자체가 없다 — options 모양 그대로', async () => {
-  const shapes = [];
-  for (const given of [undefined, 'gemini', 'GPT', 'OpenAI', '', null, 1]) {
+test('기본값: PLANNER_IMAGE_PROVIDER=openai 면 요청에 없을 때 GPT, env 에 없거나 모르는 값이면 gemini', async () => {
+  for (const [extra, want] of [
+    [GPT_DEFAULT, 'openai'],
+    [{}, 'gemini'],
+    [{ PLANNER_IMAGE_PROVIDER: 'gemini' }, 'gemini'],
+    [{ PLANNER_IMAGE_PROVIDER: 'gpt' }, 'gemini'],
+    [{ PLANNER_IMAGE_PROVIDER: '' }, 'gemini'],
+  ]) {
     install();
-    const res = await post(plannerBody(given === undefined ? {} : { image_provider: given }));
-    assert.equal(res.status, 202, String(given));
-    assert.equal('image_provider' in calls.inserted.options, false, String(given));
-    shapes.push(Object.keys(calls.inserted.options).join(','));
+    const res = await post(plannerBody(), extra);
+    assert.equal(res.status, 202, JSON.stringify(extra));
+    assert.equal(calls.inserted.options.image_provider, want, JSON.stringify(extra));
+    assert.deepEqual(calls.jobStart.options, calls.inserted.options);
   }
-  assert.equal(new Set(shapes).size, 1);
-  assert.equal(
-    shapes[0],
-    'design_style,door_color,door_finish,wall_width_override,water_from_left_override,exhaust_from_left_override,fridge_options,design_spec,mode,aspect,variants'
-  );
 });
 
-test('mode 가 없으면 image_provider 를 보내도 무시한다 (연출컷 경로는 IMAGE_PROVIDER 가 고른다)', async () => {
-  install();
-  await post({ room_image: PNG, category: 'sink', image_provider: 'openai' });
-  assert.equal('image_provider' in calls.inserted.options, false);
+test('요청 값이 기본값을 이긴다 — gemini·openai 둘 다, 모르는 값은 안 보낸 것으로 (기본값)', async () => {
+  for (const [given, extra, want] of [
+    ['gemini', GPT_DEFAULT, 'gemini'],
+    ['openai', {}, 'openai'],
+    ['openai', GPT_DEFAULT, 'openai'],
+    ['GPT', GPT_DEFAULT, 'openai'],
+    ['OpenAI', {}, 'gemini'],
+    ['', GPT_DEFAULT, 'openai'],
+    [null, GPT_DEFAULT, 'openai'],
+    [1, {}, 'gemini'],
+  ]) {
+    install();
+    const res = await post(plannerBody({ image_provider: given }), extra);
+    assert.equal(res.status, 202, String(given));
+    assert.equal(calls.inserted.options.image_provider, want, `${given} / ${JSON.stringify(extra)}`);
+  }
 });
 
-test('재생성은 원본의 image_provider 를 잇고, 새로 보낸 값이 이긴다', async () => {
+test('플래너 options 모양은 공급자와 상관없이 같다 — image_provider 가 맨 끝에 늘 있다', async () => {
+  const shapes = new Set();
+  for (const given of [undefined, 'gemini', 'openai']) {
+    install();
+    await post(plannerBody(given === undefined ? {} : { image_provider: given }), GPT_DEFAULT);
+    shapes.add(Object.keys(calls.inserted.options).join(','));
+  }
+  assert.deepEqual([...shapes], [
+    'design_style,door_color,door_finish,wall_width_override,water_from_left_override,exhaust_from_left_override,fridge_options,design_spec,mode,aspect,variants,image_provider',
+  ]);
+});
+
+test('mode 가 없으면 image_provider 를 보내도 무시한다 — 기본값이 GPT 여도 일반 경로 options 모양 그대로', async () => {
+  for (const extra of [{}, GPT_DEFAULT]) {
+    install();
+    await post({ room_image: PNG, category: 'sink', image_provider: 'openai' }, extra);
+    assert.equal('image_provider' in calls.inserted.options, false);
+    assert.equal('mode' in calls.inserted.options, false);
+    install();
+    await post({ room_image: PNG, category: 'sink', renders: [{ role: 'elevation_labeled', base64: PNG }] }, extra);
+    assert.equal('image_provider' in calls.inserted.options, false);
+    assert.equal(calls.uploads.some((x) => /render-/.test(x.url)), false, '일반 경로는 렌더를 올리지 않는다');
+  }
+});
+
+test('재생성은 원본의 image_provider 를 잇고, 새로 보낸 값이 이긴다 — 기록 없는 옛 원본은 기본값', async () => {
   const parent = {
     id: '33333333-3333-4333-8333-333333333333',
     user_id: USER_ID,
@@ -456,24 +543,40 @@ test('재생성은 원본의 image_provider 를 잇고, 새로 보낸 값이 이
     inputs: {
       room: { path: 'p/room.jpg', url: 'u', mime: 'image/jpeg' },
       refs: [],
-      renders: [{ role: 'elevation', path: 'p/render-elevation.png', url: 'u2', mime: 'image/png' }],
+      renders: [
+        { role: 'elevation', path: 'p/render-elevation.png', url: 'u2', mime: 'image/png' },
+        { role: 'elevation_labeled', path: 'p/render-elevation_labeled.png', url: 'u3', mime: 'image/png' },
+      ],
     },
     options: {
       design_spec: { version: 1, category: 'sink', wallRunMm: 2200 },
-      mode: 'planner', aspect: '16:9', variants: false, image_provider: 'openai',
+      mode: 'planner', aspect: '16:9', variants: false, image_provider: 'gemini',
     },
   };
   install({ parent });
-  await post({ parent_id: parent.id });
-  assert.equal(calls.inserted.options.image_provider, 'openai', '원본을 잇는다');
+  await post({ parent_id: parent.id }, GPT_DEFAULT);
+  assert.equal(calls.inserted.options.image_provider, 'gemini', 'Gemini 원본은 기본값이 GPT 여도 Gemini 를 잇는다');
+  assert.deepEqual(calls.jobStart.inputs, parent.inputs, '렌더(번호 입면 포함)도 원본 그대로');
 
   install({ parent });
-  await post({ parent_id: parent.id, image_provider: 'gemini' });
-  assert.equal('image_provider' in calls.inserted.options, false, '새 값 gemini 가 이긴다');
+  await post({ parent_id: parent.id, image_provider: 'openai' }, GPT_DEFAULT);
+  assert.equal(calls.inserted.options.image_provider, 'openai', '새 값이 이긴다');
 
-  const geminiParent = { ...parent, options: { ...parent.options } };
-  delete geminiParent.options.image_provider;
-  install({ parent: geminiParent });
-  await post({ parent_id: parent.id, image_provider: 'openai' });
-  assert.equal(calls.inserted.options.image_provider, 'openai', 'Gemini 원본도 GPT 로 다시 그릴 수 있다');
+  const gptParent = { ...parent, options: { ...parent.options, image_provider: 'openai' } };
+  install({ parent: gptParent });
+  await post({ parent_id: parent.id }, {});
+  assert.equal(calls.inserted.options.image_provider, 'openai', 'GPT 원본은 기본값이 Gemini 여도 GPT 를 잇는다');
+
+  const oldParent = { ...parent, options: { ...parent.options } };
+  delete oldParent.options.image_provider;
+  install({ parent: oldParent });
+  await post({ parent_id: parent.id }, GPT_DEFAULT);
+  assert.equal(calls.inserted.options.image_provider, 'openai', '기록 없는 옛 원본은 지금 기본값');
+});
+
+test('/health 에 플래너 기본 공급자가 보인다', async () => {
+  for (const [extra, want] of [[GPT_DEFAULT, 'openai'], [{}, 'gemini']]) {
+    const res = await worker.fetch(new Request('https://generate.example/health'), env(extra));
+    assert.equal((await res.json()).planner_image_provider, want);
+  }
 });
