@@ -416,6 +416,56 @@ export function throughputOf(orders, snapshotsById, month, role) {
   return { role, label: ROLE_LABEL[role], rows: rows.slice(0, 5), avgPerMin: sumM > 0 ? Math.round(sumT / sumM) : null };
 }
 
+// ── 만약에 판 (PR-4) ───────────────────────────────────────────
+
+/**
+ * 만약에 판의 바탕 — 이달 수주(견적 원가가 있는 것)의 변동원가를 갈래별로 더한 값.
+ *
+ * 갈래의 합은 **정확히** 월 손익의 변동원가(견적 원가 − 고정비 회수분)와 같다 —
+ * 그래야 판을 그대로 둔 값이 맨 위 이익 식과 한 원도 다르지 않다.
+ *   자재 = 몸통 자재 + 엣지 + 뒷판 자재 + 설비(싱크볼 · 수전 · 후드)
+ *   철물 = 몸통 철물 · 도어 = 도어 외주 · 그 밖 외주 = 시공 + 상판 · 철거 + 그 밖 추가
+ *   노무 = 재단 · 엣지 · 조립 노무 · 간접비 배분 = 공장 시간에 배분한 간접비(기본 0)
+ * 레버가 모두 선형이라 주문마다 들고 다닐 필요 없이 합만 내린다. 계산은 화면이 한다.
+ */
+export function scenarioBase(orders, snapshotsById, settings, month) {
+  const b = { orders: 0, revenueCustomer: 0, revenuePartner: 0, revenueUnknown: 0, material: 0, hardware: 0, door: 0, doorSheets: 0, outsourcing: 0, labor: 0, overheadAlloc: 0 };
+  for (const o of liveIn(orders, month)) {
+    b.orders += 1;
+    const revenue = Math.round(num(o.contract_amount) / 1.1);
+    const q = quoteOf(o, snapshotsById);
+    const c = q && q.cost;
+    if (!c || !Number.isFinite(Number(c.total))) { b.revenueUnknown += revenue; continue; }
+    const partner = q.partner && Math.abs(num(o.contract_amount) - num(q.partner.total)) < 1000;
+    if (partner) b.revenuePartner += revenue; else b.revenueCustomer += revenue;
+    const v = (x, k) => num(x && x[k]);
+    b.material += v(c.body, 'material') + v(c.body, 'edge') + v(c.back, 'material');
+    b.hardware += v(c.body, 'hardware');
+    b.door += v(c.door, 'outsourcing');
+    b.doorSheets += v(c.quantities, 'doorSheets');
+    b.outsourcing += v(c.install, 'outsourcing');
+    b.labor += v(c.body, 'labor') + v(c.back, 'labor') + v(c.door, 'labor');
+    b.overheadAlloc += v(c.body, 'overhead') + v(c.back, 'overhead') + v(c.door, 'overhead');
+    for (const [k, amt] of Object.entries(c.extras || {})) {
+      if ((EXTRA_CATEGORY[k] || 'other') === 'material') b.material += num(amt);
+      else b.outsourcing += num(amt);
+    }
+  }
+  for (const k of Object.keys(b)) if (k !== 'doorSheets') b[k] = Math.round(b[k]);
+  const q = (settings && settings.quote) || {};
+  const crew = (settings && settings.crew) || {};
+  const costs = (settings && settings.costs) || {};
+  return {
+    ...b,
+    doorSheets: Math.round(b.doorSheets * 10) / 10,
+    overheadMonthly: num(q.overheadMonthly),
+    marginRate: num(q.marginRate),
+    partnerMarginRate: num(q.partnerMarginRate),
+    // '알바 한 명 더' 단추의 값 — 시급 × 하루 시간 × 월 근무일 (생산 설정)
+    partTimeMonthly: Math.round(num(costs.partTimeHourly) * num(crew.hoursPerDay) * num(q.workDays)),
+  };
+}
+
 /** 공정 줄 한 벌 — 처리량은 병목 공정의 분으로 나눈다 (병목이 없으면 재단) */
 export function processOf({ orders, snapshotsById, costs, worklogs, settings }, month) {
   const load = loadOf(orders, snapshotsById, worklogs, settings, month);
@@ -476,6 +526,7 @@ export function buildManagementSummary({ orders, snapshotsById, documents, consu
       prev: platformOf({ generations, designs, documents, orders, consultations }, prev),
     },
     process: processOf({ orders, snapshotsById, costs, worklogs, settings }, month),
+    scenario: scenarioBase(orders, snapshotsById, settings, month),
     basis: {
       revenue: 'VAT 제외 계약금',
       cost: '확인서 견적 원가 (고정비 회수분 제외)',
