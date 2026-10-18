@@ -215,7 +215,7 @@ detaildesign.html                                        detaildesign.html
 | 2 | `agent/workflow-wo-elevation` | Workflow | `elevation.js` 정면도 · ⑪ 모듈 치수도 · 표지 교체 | 표준 3종(싱크 일자 3m · 붙박이장 3600 · 냉장고장) 골든 SVG · 폭 사슬 합 검증 |
 | 3 | `agent/designui-step4` | Design UI | 스테퍼 4 · `goToStep4` · 발행 연쇄 · 꾸러미 카드 · 이력 · 패널 버튼 이동 | 저장 안 된 설계 · 같은 hash 재발행 금지 · stale 표시 (브라우저 확인) |
 | 4 | `agent/bom-hardware-module` | BOM | `boring[]` · 철물 `module`·`moduleKey` · 자재 `moduleKey` — **완료**. 구현 중 경첩 보링이 실제 도어와 어긋난 세 곳(싱크 서랍장 위 도어 · 붙박이장 · 냉장고장)을 함께 고침 | extractors 골든 갱신 (키 추가 + 경첩 값 수정, 기준 다이제스트 재고정) |
-| 5 | `agent/planner-next-label` | Planner | `#nextBtn` 라벨 | — |
+| 5 | `agent/planner-next-label` | Planner | `#nextBtn` 라벨 "BOM 산출 →" — **완료** | `planner-next-label.test.js` |
 
 - 1·2 는 워커 → 머지 뒤 **배포 런 확인** (`workflow-api-deploy.yml`). 머지만으로 라이브가 아니다.
 - 3 은 1 이 라이브여야 카드가 동작한다. 4·5 는 독립.
