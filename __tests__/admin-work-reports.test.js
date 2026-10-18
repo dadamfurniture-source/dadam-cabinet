@@ -68,15 +68,7 @@ function boot(api) {
 }
 
 describe('관리자 사이드바', () => {
-  const pages = fs.readdirSync(path.join(ROOT, 'admin')).filter((f) => f.endsWith('.html'));
-  test.each(pages)('%s — 「작업 지시 보고」 1개 · 「시공사례 관리」 1개', (f) => {
-    const html = fs.readFileSync(path.join(ROOT, 'admin', f), 'utf8');
-    const menu = html.slice(html.indexOf('<ul class="nav-menu">'), html.indexOf('</ul>', html.indexOf('<ul class="nav-menu">')));
-    expect(menu.split('href="work-reports.html"').length - 1).toBe(1);
-    expect(menu.split('href="gallery.html"').length - 1).toBe(1);
-    // 활동 로그 바로 앞
-    expect(menu.indexOf('href="work-reports.html"')).toBeLessThan(menu.indexOf('href="logs.html"'));
-  });
+  // 메뉴 자체는 js/admin-shell.js 한 곳 — __tests__/admin-shell.test.js
 
   test('새 페이지는 정본 게이트(AdminAccess)를 쓴다 — 하드코딩 이메일 없음', () => {
     expect(HTML).toMatch(/<script src="\.\.\/js\/admin-access\.js"><\/script>/);
