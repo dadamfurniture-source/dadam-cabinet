@@ -7,7 +7,7 @@ import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { inflateSync } from 'node:zlib';
 import encodeJpeg from 'jpeg-js/lib/encoder.js';
-import { computeGuide, encodePng, parseGuidePoints, renderGuideImage } from '../src/guide.js';
+import { buildGuidePointsPrompt, computeGuide, encodePng, parseGuidePoints, renderGuideImage } from '../src/guide.js';
 import { buildInstallPrompt, buildQcPrompt } from '../src/prompts.js';
 import { GenerateJob } from '../src/job.js';
 
@@ -136,11 +136,16 @@ function fakeState() {
   } };
 }
 
-async function runJob({ category = 'wardrobe', sideReturn = { side: 'right', depth_mm: 700 }, points = REAL } = {}) {
+async function runJob({ category = 'wardrobe', sideReturn = { side: 'right', depth_mm: 700 }, points = REAL, env = {}, anthropic } = {}) {
   const roomJpeg = Buffer.from(grayJpeg(120, 160), 'base64');
-  const seen = { uploads: [], install: null, guideAsked: 0, patched: [] };
+  const seen = { uploads: [], install: null, guideAsked: 0, patched: [], claude: [] };
   globalThis.fetch = async (url, init = {}) => {
     const u = String(url);
+    if (u.startsWith('https://api.anthropic.com/')) {
+      const body = JSON.parse(typeof init.body === 'string' ? init.body : await new Response(init.body).text());
+      seen.claude.push(body);
+      return anthropic(body);
+    }
     if (u.includes('/storage/v1/object/')) {
       if ((init.method || 'GET') === 'POST') { seen.uploads.push(u.split('/generations/')[1]); return jsonRes({ Key: 'ok' }); }
       return new Response(roomJpeg, { headers: { 'Content-Type': 'image/jpeg' } });
@@ -170,7 +175,7 @@ async function runJob({ category = 'wardrobe', sideReturn = { side: 'right', dep
     }
     return jsonRes({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: Buffer.from('OUT').toString('base64') } }] } }] });
   };
-  const job = new GenerateJob(fakeState(), { ...ENV });
+  const job = new GenerateJob(fakeState(), { ...ENV, ...env });
   await job.fetch(new Request('https://generate-job/start', {
     method: 'POST',
     body: JSON.stringify({
@@ -208,4 +213,63 @@ test('잡: 점을 못 찾으면 가이드 없이 글 지시로 그린다', async
   assert.deepEqual(seen.install.mimes, ['image/jpeg']);
   assert.doesNotMatch(seen.install.prompt, /GUIDE:/);
   assert.equal(seen.patched.at(-1).status, 'done');
+});
+
+// ─── 선 찾기는 Claude Haiku 5.5 (2026-10-18 사장님) — 줄인 바탕 PNG 의 픽셀 [x, y] ───
+
+/** REAL(0~1000 [y,x]) → w×h 픽셀 [x,y] */
+function toPixels(src, w, hgt) {
+  const c = ([y, x]) => [(x / 1000) * w, (y / 1000) * hgt];
+  return {
+    back_floor: src.back_floor.map(c),
+    back_ceiling: src.back_ceiling.map(c),
+    return_front: { top: c(src.return_front.top), bottom: c(src.return_front.bottom) },
+    return_back: { top: c(src.return_back.top), bottom: c(src.return_back.bottom) },
+    far_floor: src.far_floor.map(c),
+    far_ceiling: src.far_ceiling.map(c),
+  };
+}
+
+const claudeOk = (json) => () =>
+  new Response(JSON.stringify({
+    id: 'msg_1', type: 'message', role: 'assistant', model: 'claude-haiku-5-5',
+    content: [{ type: 'text', text: JSON.stringify(json) }],
+    stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 10, output_tokens: 10 },
+  }), { headers: { 'Content-Type': 'application/json' } });
+
+test('픽셀 [x, y] 로 받은 점도 같은 0~1 좌표가 된다', () => {
+  const size = { width: 768, height: 1024 };
+  const fromPx = parseGuidePoints(toPixels(REAL, 768, 1024), 'right', size);
+  const fromNorm = parseGuidePoints(JSON.stringify(REAL), 'right');
+  assert.ok(Math.abs(fromPx.returnFront.bottom.x - fromNorm.returnFront.bottom.x) < 1e-9);
+  assert.ok(Math.abs(fromPx.backFloor[1].y - fromNorm.backFloor[1].y) < 1e-9);
+  assert.match(buildGuidePointsPrompt('right', size), /The image is 768 x 1024 pixels\. Every point is \[x, y\]/);
+  assert.match(buildGuidePointsPrompt('right'), /normalized to 0-1000/);
+});
+
+test('잡: Claude 키가 있으면 Haiku 5.5 가 선을 찾는다 — 거절 대체 없이, 줄인 PNG 와 픽셀 프롬프트로', async () => {
+  const seen = await runJob({ env: { ANTHROPIC_API_KEY: 'sk-ant-test' }, anthropic: claudeOk(toPixels(REAL, 120, 160)) });
+  assert.equal(seen.claude.length, 1);
+  const body = seen.claude[0];
+  assert.equal(body.model, 'claude-haiku-5-5');
+  assert.equal(body.fallbacks, undefined);
+  assert.equal(body.output_config.format.type, 'json_schema');
+  const [img, txt] = body.messages[0].content;
+  assert.equal(img.source.media_type, 'image/png');
+  assert.match(txt.text, /The image is 120 x 160 pixels/);
+  assert.equal(seen.guideAsked, 0, 'Gemini 에 묻지 않는다');
+  const wa = seen.patched.find((p) => p.wall_analysis && p.wall_analysis.guide);
+  assert.equal(wa.wall_analysis.guide.by, 'claude-haiku-5-5');
+  assert.deepEqual(seen.install.mimes, ['image/jpeg', 'image/png']);
+});
+
+test('잡: Haiku 가 실패하면 Gemini 가 선을 찾는다', async () => {
+  const seen = await runJob({
+    env: { ANTHROPIC_API_KEY: 'sk-ant-test' },
+    anthropic: () => new Response(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'bad' } }), { status: 400 }),
+  });
+  assert.equal(seen.claude.length, 1);
+  assert.equal(seen.guideAsked, 1);
+  const wa = seen.patched.find((p) => p.wall_analysis && p.wall_analysis.guide);
+  assert.equal(wa.wall_analysis.guide.by, 'gemini-3.8-flash');
 });
