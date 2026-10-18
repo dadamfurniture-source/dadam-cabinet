@@ -1941,3 +1941,60 @@ describe('clean 캡처 — 도어 테두리·갭 뒷판·목찬넬 판 바꾸기
     seen.bars.forEach((b, i) => expect(b.material).toBe(before.bars[i].material));
   });
 });
+
+// 2026-10-19: ㄱ자·ㄷ자 벽별 입면 — only(찍을 모듈)·facing(카메라 쪽)·yawDeg(3/4 방위). 기본값이면 예전 그대로.
+describe('벽별 입면 — only · facing · yawDeg', () => {
+  const PC = C.PlannerCapture;
+  beforeEach(() => {
+    window.THREE = THREE;
+    PC._encode = (px, w, h) => ({ type: 'image/png', w, h, px });
+    PC._outputPass = null;
+    window.OutputPass = class { render(renderer, write) { renderer.setRenderTarget(write); } };
+  });
+  afterEach(() => { window.THREE = undefined; PC._encode = null; PC._outputPass = null; delete window.OutputPass; PC.mount(null); });
+
+  test('순수: facing x± 면 옆에서 — 카메라가 그쪽으로 물러서고 그림 가로는 z 폭, 기본은 예전 그대로', () => {
+    const b = { min: { x: 0, y: 0, z: 0 }, max: { x: 600, y: 900, z: 1500 } };
+    expect(C.plannerCaptureFacingDir('x-')).toEqual([-1, 0]);
+    expect(C.plannerCaptureFacingDir('x+')).toEqual([1, 0]);
+    expect(C.plannerCaptureFacingDir(undefined)).toEqual([0, 1]);
+    expect(C.plannerCaptureAspectFor('front', b, 1.5, { facing: 'x-' })).toBeCloseTo(1500 / 900, 6);
+    expect(C.plannerCaptureAspectFor('front', b, 1.5)).toBeCloseTo(600 / 900, 6);
+    const f = C.plannerCaptureFrame('front', b, 1500 / 900, { facing: 'x-' });
+    expect(f.position[0]).toBeLessThan(0);
+    expect(f.position[2]).toBe(750);
+    expect(C.plannerCaptureFrame('front', b, 600 / 900)).toEqual(C.plannerCaptureFrame('front', b, 600 / 900, undefined));
+    const g = C.plannerCaptureCleanFrame('front', b, 1500 / 900, null, 0.9, { facing: 'x+' });
+    expect(g.position[0]).toBeGreaterThan(600);
+    expect(Math.abs(g.position[2] - g.target[2])).toBeLessThan(1e-6);
+    // massing 방위 — 기본 30°(앞에서 오른쪽), yawDeg −30 이면 왼쪽
+    expect(C.plannerCaptureYaw(undefined)).toBe(30);
+    expect(C.plannerCaptureYaw({ yawDeg: -30 })).toBe(-30);
+    const m = C.plannerCaptureFrame('massing', b, 16 / 9, { yawDeg: -30 });
+    expect(m.position[0]).toBeLessThan(300);
+    // 옆 입면의 픽셀 상자는 카메라 쪽 x 면 — 가로가 z 폭
+    const sb = C.plannerCaptureScreenBox(f, 1000, 600, b);
+    expect(sb.x1 - sb.x0).toBeGreaterThan(sb.y1 - sb.y0);
+    expect(C.plannerCaptureCameraJson(f, 1536, null, true, { facing: 'x-' }).facing).toBe('x-');
+    expect(C.plannerCaptureCameraJson(f, 1536, null, true)).not.toHaveProperty('facing');
+  });
+
+  test('capture({ only, facing }) — 찍는 동안 다른 모듈을 숨기고 옆에서, 끝나면 되돌린다', async () => {
+    const s = cleanScene();
+    const seen = [];
+    const r = cleanRenderer({
+      onRender(scene, cam) { seen.push({ upper: s.upper.visible, lower: s.body.visible, cam: cam.position.toArray() }); },
+    });
+    PC.mount({ three: () => ({ renderer: r, scene: s.scene, moduleGroup: s.mg }) });
+    const shot = await PC.capture({ kind: 'front', longEdge: 64, clean: true, only: ['lower-0'], facing: 'x-' });
+    expect(shot.ok).toBe(true);
+    expect(shot.camera.facing).toBe('x-');
+    expect(seen).toHaveLength(1);
+    expect(seen[0].upper).toBe(false);
+    expect(seen[0].lower).toBe(true);
+    expect(seen[0].cam[0]).toBeLessThan(0);      // −X 쪽에서
+    expect(s.upper.visible).toBe(true);           // 되돌림
+    const plain = await PC.capture({ kind: 'front', longEdge: 64, clean: true });
+    expect(plain.camera).not.toHaveProperty('facing');
+  });
+});
