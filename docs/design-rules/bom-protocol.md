@@ -538,6 +538,25 @@ cutPlan = {
 | ⑦ rev 차이 | `partId` 로 맞춰 `w h thickness qty finishCode material` 비교 |
 | ① 스와치 | `finishCode` 고유값 → `materials.code` (`color_name color_hex vendor_code series finish tone`) — §2-1 정본 |
 
+### 7-5. 사전 오류 검사 `BomPreflight.check` (2026-10-18, ArchiWood REA 1번)
+
+`js/detaildesign/bom-preflight.js`. 동결(`workflow-client.js createSnapshot`) 직전에 위 자재 행·철물 행·`cutPlan` 이 **서로 맞는지**만 본다.
+규칙 숫자를 새로 두지 않는다 — 원판 초과는 `NestingEngine.plan` 의 `unallocated`, 컵 간격 문턱은 `extractors.js BOM_HINGE_MIN_GAP`.
+오류가 있으면 동결 전에 확인을 받고, 경고는 상태줄·콘솔에 남긴다. 시험 `__tests__/bom-preflight.test.js` (표준 픽스처 9종은 오류·경고 0).
+
+| code | 수준 | 뜻 |
+|---|---|---|
+| `dim-invalid` | 오류 | w·h·thickness·qty 가 양수가 아님 |
+| `dup-partid` | 오류 | partId 가 두 행 이상 |
+| `oversize` | 오류 | 원판에 못 놓는 몸통·뒷판·도어·서랍도어 (`slot` 기준) |
+| `hinge-no-door` | 오류 | 경첩·쇼바·리프트업·슬라이딩 행의 `moduleKey` 에 도어 행이 없음 |
+| `hinge-out-of-door` | 오류 | `boring[]` 컵이 ≤0 또는 ≥ 도어 높이 (플랩 `boringSide:'top'` 은 폭) |
+| `body-incomplete` | 경고 | 측판이 있는데 지판·뒷판 없음 / 도어가 있는데 측판 없음 |
+| `door-no-hinge` | 경고 | 도어 모듈에 여는 철물이 없음 — 서랍도어가 있는 모듈(마이다)은 뺀다 |
+| `hinge-gap` | 경고 | 컵 간격 < `BOM_HINGE_MIN_GAP` |
+| `door-edge` | 경고 | 도어·서랍도어 `edges` 가 4면이 아님 |
+| `long-part` · `small-part` · `unkeyed` | 안내 | 원판보다 긴 상판·걸레받이·몰딩 / 소부품(재단 배치 제외) / `moduleKey` 없는 옛 행이라 대조 생략 |
+
 ---
 
 ## 8. 핵심 공식 요약
