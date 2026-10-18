@@ -221,3 +221,82 @@ describe('ERP · 생산 계획 화면 → 보관함 연결', () => {
     expect(html.split('href="admin/work-reports.html"').length - 1).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('외주 발주 — 입고 처리 · 발주 취소 (보관함 §2.1)', () => {
+  const OS = {
+    id: 'os1', owner_id: 'u1', kind: 'outsource_order', title: '외주 발주 — 도어재 · 상일 · DD-1-WO-r1', status: 'ordered', can_edit: true,
+    period_start: '2026-10-19', period_end: '2026-10-22', created_at: '2026-10-19T01:00:00Z',
+    metrics: { pack: 'door', vendor: '상일', qty: '원장 1장 · 도어 4짝', expected: '2026-10-22' },
+    body: { document_id: 'doc-1', doc_no: 'DD-1-WO-r1', pack: 'door', vendor: '상일', ordered_on: '2026-10-19', expected_on: '2026-10-22' },
+  };
+
+  function apiWith(row) {
+    const api = fakeApi();
+    const inner = api.fetchFn;
+    api.fetchFn = jest.fn(async (url, init = {}) => {
+      const u = String(url).replace(API, '');
+      const method = init.method || 'GET';
+      const ok = (data) => ({ ok: true, status: 200, json: async () => ({ success: true, data }) });
+      if (u.startsWith('/reports?')) { api.calls.push({ u, method }); return ok({ items: [row], page: 1, hasMore: false }); }
+      if (u === '/reports/os1' && method === 'GET') { api.calls.push({ u, method }); return ok(row); }
+      if (u === '/reports/os1' && method === 'PATCH') {
+        const body = JSON.parse(init.body);
+        api.calls.push({ u, method, body });
+        return ok({ ...row, ...body });
+      }
+      return inner(url, init);
+    });
+    return api;
+  }
+
+  test('목록 한 줄 · 상세(업체 · 입고 예정 · 수량 · 종이 다시 인쇄) · [입고 처리]', async () => {
+    const api = apiWith(OS);
+    boot(api);
+    await window.WorkReports.init();
+    await settle();
+    const row = document.querySelector('.report-row[data-id="os1"]');
+    expect(row.textContent).toMatch(/상일 · 원장 1장 · 도어 4짝 · 입고 예정 10\/22/);
+    row.click();
+    await settle();
+    const body = document.getElementById('detailBody').textContent;
+    expect(body).toMatch(/도어재/);
+    expect(body).toMatch(/원장 1장 · 도어 4짝/);
+    const reprint = document.querySelector('#detailBody [data-doc-print="doc-1"]');
+    expect(reprint.getAttribute('data-pack')).toBe('door');
+    expect(document.getElementById('btnReceived').style.display).toBe('');
+    expect(document.getElementById('btnCancelOrder').style.display).toBe('');
+
+    document.getElementById('btnReceived').click();
+    await settle();
+    expect(api.calls.find((c) => c.method === 'PATCH').body).toEqual({ status: 'received' });
+    expect(document.getElementById('btnReceived').style.display).toBe('none');
+    expect(document.getElementById('detailMeta').innerHTML).toMatch(/badge received/);
+  });
+
+  test('[발주 취소] 는 확인 후 · 입고된 건 · 읽기 전용이면 버튼 없음', async () => {
+    const api = apiWith(OS);
+    boot(api);
+    window.confirm = jest.fn(() => false);
+    await window.WorkReports.init();
+    await settle();
+    document.querySelector('.report-row[data-id="os1"]').click();
+    await settle();
+    document.getElementById('btnCancelOrder').click();
+    await settle();
+    expect(api.calls.some((c) => c.method === 'PATCH')).toBe(false);
+    window.confirm = jest.fn(() => true);
+    document.getElementById('btnCancelOrder').click();
+    await settle();
+    expect(api.calls.find((c) => c.method === 'PATCH').body).toEqual({ status: 'cancelled' });
+
+    for (const row of [{ ...OS, status: 'received' }, { ...OS, can_edit: false }]) {
+      const a = apiWith(row);
+      boot(a);
+      await window.WorkReports.init();
+      await settle();
+      document.querySelector('.report-row[data-id="os1"]').click();
+      await settle();
+      expect(document.getElementById('btnReceived').style.display).toBe('none');
+    }
+  });
+});

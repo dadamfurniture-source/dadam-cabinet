@@ -248,6 +248,7 @@ function summarize({ jobs, days, crew, costs, leads, base, cur, fixes, sec }) {
       doorArrival: at(j.doorArrivalIdx),
       doorOrderBy: doorOrderByIdx >= 0 ? days[doorOrderByIdx] : null,
       doorOrderLate: j.doorArrivalIdx > j.dueIdx,
+      doorOrdered: Boolean(j.doorOrdered),
       rescheduleTo: fixes.reschedule[j.id] !== undefined ? at(Math.min(days.length - 1, fixes.reschedule[j.id] + 1)) : null,
       work: { cutter: j.work.cutter, edge: j.work.edge, asm: j.work.asmMain + j.work.doorPart },
       // 공정별 계획 기간 [시작일, 끝일] — 작업자 화면이 "오늘 내 공정에 걸린 주문" 을 고를 때 쓴다
@@ -299,7 +300,7 @@ function summarize({ jobs, days, crew, costs, leads, base, cur, fixes, sec }) {
     if (j.rescheduleTo) {
       suggestions.push({ type: 'reschedule', jobId: j.id, to: j.rescheduleTo, cost: 0, text: `${j.label}: 공장 완료가 ${j.finish ? dayLabel(j.finish) : '계획 범위 밖'} — 설치일을 ${dayLabel(j.rescheduleTo)} 이후로 조정 필요` });
     }
-    if (j.doorOrderBy) {
+    if (j.doorOrderBy && !j.doorOrdered) {
       suggestions.push({ type: 'door_order', jobId: j.id, date: j.doorOrderBy, cost: 0, text: `${j.label}: 도어 외주 발주 ${dayLabel(j.doorOrderBy)}까지${j.doorOrderLate ? ' (이미 늦음 — 도어 도착 ' + (j.doorArrival ? dayLabel(j.doorArrival) : '?') + ')' : ''}` });
     }
   }

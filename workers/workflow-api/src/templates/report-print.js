@@ -6,7 +6,7 @@
 
 import { esc, num, ymd, ymdhm, tr, thead, documentShell } from './html.js';
 import { PRINT_CSS, PRINT_TOOLBAR } from './print-css.js';
-import { KIND_LABEL } from '../reports/record.js';
+import { KIND_LABEL, OUTSOURCE_PACKS, outsourceQtyText } from '../reports/record.js';
 import { dayLabel } from '../production/planner.js';
 
 const STATUS_LABEL = {
@@ -101,6 +101,14 @@ function monthBody(r) {
   <table class="compact">${thead(['주문', '매출', '지출', '남는 돈'])}<tbody>${(s.rows || []).map((o) => tr([esc(o.label), esc(won(o.revenue)), esc(o.cost === null ? '모름' : won(o.cost)), esc(o.gross === null ? '-' : won(o.gross))])).join('')}</tbody></table>`;
 }
 
+function outsourceBody(r) {
+  const b = r.body || {};
+  const p = OUTSOURCE_PACKS[b.pack];
+  return `
+  ${kpis([['꾸러미', esc(p ? p.label : b.pack || '-')], ['업체', esc(b.vendor || '-')], ['발주일', esc(b.ordered_on ? dayLabel(b.ordered_on) : '-')], ['입고 예정', esc(b.expected_on ? dayLabel(b.expected_on) : '-')]])}
+  <table class="compact">${thead(['문서', '수량'])}<tbody>${tr([esc(`${b.doc_no || ''}${b.title ? ` — ${b.title}` : ''}`), esc(outsourceQtyText(b.pack, b.quantities) || '-')])}</tbody></table>`;
+}
+
 /** 보고 한 건 → A4 HTML. */
 export function renderReportPrint(report, { live = null, toolbar = true } = {}) {
   const r = report || {};
@@ -109,6 +117,7 @@ export function renderReportPrint(report, { live = null, toolbar = true } = {}) 
   else if (r.kind === 'staffing_decision') body = decisionBody(r, live);
   else if (r.kind === 'daily_brief') body = dailyBody(r);
   else if (r.kind === 'monthly_close') body = monthBody(r);
+  else if (r.kind === 'outsource_order') body = outsourceBody(r);
   else body = '<div class="muted">이 보고는 원본 문서에서 인쇄합니다.</div>';
   const period = r.period_start
     ? (r.period_end && r.period_end !== r.period_start ? `${ymd(`${r.period_start}T00:00:00+09:00`)} ~ ${ymd(`${r.period_end}T00:00:00+09:00`)}` : ymd(`${r.period_start}T00:00:00+09:00`))
