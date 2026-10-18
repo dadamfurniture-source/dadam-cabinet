@@ -7,9 +7,9 @@
  */
 
 export const LABOR_STANDARDS = Object.freeze({
-  version: '2026-10-13',
+  version: '2026-10-18',
   cutMinPerSheet: 7, // 원판 1장 재단 (몸통 PB · 뒷판, 밴드·처짐방지목 포함, 도어는 외주라 제외)
-  edgeMinPerBodySheet: 15, // 몸통 PB 원판 1장 분량의 엣지
+  edgeSecPerFace: 20, // 엣지 부재 1면 (2026-10-18 대표: 1면 최대 10~20초). 옛 문서는 edgeMinPerBodySheet 15 로 동결돼 있다
   assemblyMinPerCabinet: 12, // 조립 1인 1통
   assemblyMinPerDrawer: 12, // 서랍 1개 = 1통
   doorHangMinPerDoor: 1, // 도어 1짝 달기
@@ -23,14 +23,16 @@ function n(v) {
 
 /**
  * 수량 → 분. std 가 없으면(옛 문서) null.
- * counts = { cutSheets, bodySheets, cabinets, drawers, doors }
+ * counts = { cutSheets, bodySheets, edgeFaces, cabinets, drawers, doors }
  */
 export function laborEstimate(std, counts) {
   if (!std || typeof std !== 'object') return null;
   const c = counts || {};
   return {
     cutMin: n(c.cutSheets) * n(std.cutMinPerSheet),
-    edgeMin: n(c.bodySheets) * n(std.edgeMinPerBodySheet),
+    edgeMin: std.edgeSecPerFace !== undefined
+      ? (n(c.edgeFaces) * n(std.edgeSecPerFace)) / 60
+      : n(c.bodySheets) * n(std.edgeMinPerBodySheet),
     assemblyMin:
       n(c.cabinets) * n(std.assemblyMinPerCabinet) +
       n(c.drawers) * n(std.assemblyMinPerDrawer) +

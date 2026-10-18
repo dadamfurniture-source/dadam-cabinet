@@ -13,8 +13,8 @@ export const DEFAULT_STANDARDS = Object.freeze({
   cutPerSheet: 420,
   /** 재단 기사 — 현장마다 작업지시 확인·자재 피킹 */
   cutPerJob: 1200,
-  /** 알바 — 엣지밴딩, PB 1장 (뒷판은 엣지 없음) */
-  edgePerPbSheet: 900,
+  /** 엣지 — 부재 1면 (대표 2026-10-18: 1면에 최대 10~20초 → 20초). 뒷판은 엣지 없음 */
+  edgePerFace: 20,
   /** 조립 기사 — 통 1개 */
   asmPerBox: 720,
   /** 조립 기사 — 서랍 1개 (통 1개와 같게) */

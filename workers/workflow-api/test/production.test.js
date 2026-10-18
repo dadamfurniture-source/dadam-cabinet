@@ -9,16 +9,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { countWork, workloadFromCounts, workloadFromSnapshot } from '../src/production/workload.js';
+import { countWork, workloadFromCounts, workloadFromSnapshot, edgeFaces, edgeFacesOfRow } from '../src/production/workload.js';
 import { planProduction, workdays, dayLabel } from '../src/production/planner.js';
 
-const SINK_3M = { sheetsPB: 5, sheetsBack: 2, boxes: 8, drawers: 2, doors: 11, shelves: 10, legs: 22, rods: 0 };
-const WARD_12 = { sheetsPB: 14, sheetsBack: 5, boxes: 4, drawers: 3, doors: 10, shelves: 7, legs: 0, rods: 15 };
+const SINK_3M = { sheetsPB: 5, sheetsBack: 2, edgeFaces: 112, boxes: 8, drawers: 2, doors: 11, shelves: 10, legs: 22, rods: 0 };
+const WARD_12 = { sheetsPB: 14, sheetsBack: 5, edgeFaces: 170, boxes: 4, drawers: 3, doors: 10, shelves: 7, legs: 0, rods: 15 };
 
-test('작업량: 싱크대 3m (8통) 은 재단 4,140 · 엣지 4,500 · 조립 11,885초', () => {
+test('작업량: 싱크대 3m (8통) 은 재단 4,140 · 엣지 2,240 (112면 × 20초) · 조립 11,885초', () => {
   const w = workloadFromCounts(SINK_3M);
   assert.equal(w.cutter, 1200 + 7 * 420);
-  assert.equal(w.edge, 5 * 900);
+  assert.equal(w.edge, 112 * 20);
   assert.equal(w.asmMain, 8 * 720 + 2 * 720 + 10 * 25 + 22 * 40);
   assert.equal(w.doorPart, 11 * 105 + 8 * 300);
   assert.equal(w.asm, 11885);
@@ -34,13 +34,30 @@ test('작업 수: 골든 싱크대 BOM 에서 통·서랍·도어·다리발을 
   assert.ok(c.doors > 0);
   assert.equal(c.sheetSource, 'area');
   assert.ok(c.sheetsPB >= 4 && c.sheetsPB <= 7, `PB ${c.sheetsPB}`);
+  // 엣지 면은 BOM 의 붙일 변(edges) 에서 센다
+  assert.equal(c.edgeFacesSource, 'bom');
+  const expected = golden.materials.filter((m) => String(m.material).toUpperCase().startsWith('PB'))
+    .reduce((s, m) => s + ['L', 'R', 'T', 'B'].filter((k) => m.edges && m.edges[k]).length * m.qty, 0);
+  assert.ok(expected > 0);
+  assert.equal(c.edgeFaces, expected);
+});
+
+test('엣지 면: edges 객체 우선, 옛 문자열은 숫자, 면 정보가 전혀 없으면 PB 장당 17면 추정', () => {
+  assert.equal(edgeFacesOfRow({ edges: { L: true, R: false, T: true, B: true } }), 3);
+  assert.equal(edgeFacesOfRow({ edge: '4면' }), 4);
+  assert.equal(edgeFacesOfRow({ edge: '2면(장)' }), 2);
+  assert.equal(edgeFacesOfRow({ edge: '' }), 0);
+  assert.equal(edgeFaces([{ material: 'PB', edge: '4면', qty: 2 }, { material: 'MDF', thickness: 2.7, edge: '4면', qty: 5 }]), 8, '뒷판은 세지 않는다');
+  assert.equal(edgeFaces([{ material: 'PB', qty: 2 }]), null);
+  const c = countWork({ materials: [{ material: 'PB', thickness: 15, w: 1000, h: 2000, qty: 4 }], hardware: [] }, { summary: { sheetsByMaterial: { PB_15: 3 } } });
+  assert.deepEqual([c.edgeFaces, c.edgeFacesSource], [51, 'estimate']);
 });
 
 test('작업 수: cutPlan 이 있으면 원판 장수는 재단 배치 요약을 따른다 (도어 MDF 18T 는 외주라 제외)', () => {
   const c = countWork({ materials: [], hardware: [] }, { summary: { sheetsByMaterial: { PB_15: 6, 'MDF_2.7': 3, MDF_18: 2 } } });
   assert.deepEqual([c.sheetsPB, c.sheetsBack, c.sheetSource], [6, 3, 'cutPlan']);
   const w = workloadFromSnapshot({ bom_payload: { materials: [], hardware: [] }, cut_plan_payload: { summary: { sheetsByMaterial: { PB_18: 2 } } } });
-  assert.equal(w.edge, 2 * 900);
+  assert.equal(w.edge, 34 * 20, 'BOM 행이 없으면 PB 2장 × 17면');
 });
 
 test('근무일: 주말·공휴일을 건너뛴다', () => {
@@ -79,9 +96,10 @@ test('싱크대가 몰리면: 조립 인원 추가를 먼저 추천하고 늦는
   assert.ok(plan.summary.extraCost > 0);
 });
 
-test('붙박이장이 몰리면: 엣지가 막혀 알바 연장·외주를 추천한다', () => {
+test('엣지 면이 많은 주문이 몰리면: 엣지가 막혀 알바 연장·외주를 추천한다', () => {
   const jobs = [];
-  for (let i = 0; i < 10; i++) jobs.push({ id: `w${i}`, label: `붙박이장 ${i + 1}`, orderedAt: '2026-10-13', installDate: '2026-10-20', work: workloadFromCounts(WARD_12) });
+  // 면당 20초면 붙박이장 한 건은 1시간 안팎이라 잘 안 막힌다 — 면이 아주 많은 주문 10건으로 막는다
+  for (let i = 0; i < 10; i++) jobs.push({ id: `w${i}`, label: `대형 ${i + 1}`, orderedAt: '2026-10-13', installDate: '2026-10-20', work: workloadFromCounts({ ...WARD_12, edgeFaces: 1400 }) });
   const plan = planProduction({ today: '2026-10-13', jobs });
   const kinds = new Set(plan.suggestions.map((s) => s.type));
   assert.ok(kinds.has('edge_overtime') || kinds.has('edge_outsource'), [...kinds].join(','));
@@ -231,7 +249,7 @@ test('작업자 할 일: 진행 중 주문을 모두 담고 오늘 예정을 앞
   const w = todaysWork(plan, '2026-10-13');
   assert.deepEqual(w.cutter.map((x) => [x.label, x.units, x.today]), [['싱크대 A', 7, true], ['나중 주문', 7, false]]);
   assert.equal(w.cutter[1].plannedStart, '2026-10-20');
-  assert.deepEqual(w.edge.map((x) => [x.label, x.units, x.today]), [['싱크대 A', 5, true], ['나중 주문', 5, false]]);
+  assert.deepEqual(w.edge.map((x) => [x.label, x.units, x.today]), [['싱크대 A', 112, true], ['나중 주문', 112, false]]);
   // 도어 도착(10/16) 뒤까지 조립 기간이 이어진다
   const w16 = todaysWork(plan, '2026-10-16');
   assert.deepEqual(w16.asm.filter((x) => x.today).map((x) => [x.label, x.units]), [['싱크대 A', 10]]); // 통 8 + 서랍 2
@@ -274,4 +292,13 @@ test('월 손익: 그 달(KST) 수주만, 매출 = 계약 ÷ 1.1, 지출 = 스�
   assert.equal(m.totals.gross, 3100000 - 2500000); // 원가를 아는 건만
   assert.equal(m.totals.net, 600000 - 3800000);
   assert.equal(m.totals.shortfall, 3200000);
+});
+
+test('보정: 엣지 기록은 면 단위가 된 날(2026-10-18)부터만 쓴다 — 그 전 기록은 PB 장 단위', () => {
+  const logs = [
+    { role: 'edge', units: 20, minutes: 300, work_date: '2026-10-15' }, // 옛 PB 장 단위
+    { role: 'edge', units: 120, minutes: 30, work_date: '2026-10-19' },
+  ];
+  const e = calibrate(logs, { cutPerSheet: 420, edgePerFace: 20, asmPerBox: 720 }).find((r) => r.role === 'edge');
+  assert.deepEqual([e.records, e.units, e.measured, e.suggested, e.label], [1, 120, 15, 20, '엣지 (부재 1면)']);
 });

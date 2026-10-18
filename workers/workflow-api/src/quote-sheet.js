@@ -264,7 +264,7 @@ export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extra
       back: roundAll(back),
       door: roundAll(door),
       install: roundAll(install),
-      quantities: { sheetsPB: c.sheetsPB, sheetsBack: c.sheetsBack, doorSheets: doors, edgeMeters: Math.round(edgeM * 10) / 10, installMeters: installM, boxes: c.boxes, drawers: c.drawers, doors: c.doors, ...hw },
+      quantities: { sheetsPB: c.sheetsPB, sheetsBack: c.sheetsBack, edgeFaces: c.edgeFaces, doorSheets: doors, edgeMeters: Math.round(edgeM * 10) / 10, installMeters: installM, boxes: c.boxes, drawers: c.drawers, doors: c.doors, ...hw },
       seconds: { cutter: Math.round(w.cutter), edge: Math.round(w.edge), asm: Math.round(w.asm) },
       sheet_source: c.sheetSource,
       area_m2: areaInfo ? areaInfo.areaM2 : null,

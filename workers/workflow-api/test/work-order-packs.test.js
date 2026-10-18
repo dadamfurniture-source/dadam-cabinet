@@ -127,7 +127,7 @@ test('cut — 재단·엣지 지시서: 사내 시트만 · 체크 칸 · 엣지
   assert.ok(html.includes('엣지 합계'));
   assert.ok(html.includes('<td class="num">3</td><td class="num">4.6 m</td>'), '몸통 0.6: 1820×2 + 970 = 4.61 m, 3장');
   assert.ok(html.includes('사내 원판</dt><dd>1장 (본체 1)'));
-  assert.ok(html.includes('재단 약 7분 · 엣지 약 15분 (알바)'));
+  assert.ok(html.includes('재단 약 7분 · 엣지 약 2분 (알바)'), '엣지 7면 × 20초');
   for (const s of ['② 모듈별 키팅', '⑥ 조립 순서 체크', '"section-title">⑩ 도어재 발주서', '⑧ 부재 라벨', '<h1>작 업 지 시 서</h1>']) {
     assert.ok(!html.includes(s), `cut 에 ${s} 없음`);
   }
@@ -151,7 +151,7 @@ test('cut — 배치에 없는 사내 부재는 빠뜨리지 않고 따로 싣�
   assert.ok(!full.includes('배치에 없는 부재'));
   assert.ok(full.includes('<b>시트 #3</b> MDF 2.7T · 뒷판'));
   assert.ok(full.includes('사내 원판</dt><dd>2장 (본체 1)'));
-  assert.ok(full.includes('재단 약 14분 · 엣지 약 15분 (알바)'), '뒷판 원판은 재단 시간만 늘고 엣지 시간은 본체 원판만');
+  assert.ok(full.includes('재단 약 14분 · 엣지 약 2분 (알바)'), '뒷판 원판은 재단 시간만 늘고 엣지는 면 수 그대로');
   // 소부품·미배치로 잡힌 것도 덮인 것으로 본다
   const p2 = fx.cutPlan();
   p2.smallParts = [{ partId: '0-l1-back-0', part: '뒷판', material: 'MDF', thickness: 2.7, partClass: '뒷판', w: 970, h: 60, qty: 1 }];
@@ -245,7 +245,7 @@ test('all — 전체 문서는 표지 + 모든 섹션, 표지에 사내/도어�
     assert.ok(html.includes(s), s);
   }
   assert.ok(html.includes('(사내 1 · 도어재 1)'));
-  assert.ok(html.includes('예상 시간</dt><dd>재단 약 7분 · 엣지 약 15분 · 조립 약 38분'));
+  assert.ok(html.includes('예상 시간</dt><dd>재단 약 7분 · 엣지 약 2분 · 조립 약 38분'));
   assert.equal(render(undefined), html, 'pack 생략 = all');
   assert.equal(renderDocument(docWithLabor(), fx.snapshot(), { toolbar: false, pack: 'cut' }), render('cut'), 'renderDocument 도 pack 을 넘긴다');
 });
@@ -262,14 +262,18 @@ test('표준시간 — 동결값이 없는 옛 문서는 예상 시간을 싣지
     assert.ok(!renderWorkOrder(fx.doc(), fx.snapshot(), { pack }).includes('예상 시간'), pack);
   }
   assert.equal(laborEstimate(null, {}), null);
-  assert.deepEqual(laborEstimate(LABOR_STANDARDS, { cutSheets: 6, bodySheets: 6, cabinets: 9, drawers: 3, doors: 10 }), {
-    cutMin: 42, edgeMin: 90, assemblyMin: (9 + 3) * 12 + 10 + 9 * 5,
+  // 엣지는 면당 20초 (2026-10-18) — 90면이면 30분
+  assert.deepEqual(laborEstimate(LABOR_STANDARDS, { cutSheets: 6, bodySheets: 6, edgeFaces: 90, cabinets: 9, drawers: 3, doors: 10 }), {
+    cutMin: 42, edgeMin: 30, assemblyMin: (9 + 3) * 12 + 10 + 9 * 5,
   });
   assert.equal(fmtMinutes(199), '약 3시간 19분');
   assert.equal(fmtMinutes(120), '약 2시간');
   assert.equal(fmtMinutes(42), '약 42분');
   assert.equal(fmtMinutes(0), '-');
   assert.ok(Object.isFrozen(LABOR_STANDARDS));
+  // 옛 문서는 PB 장당 15분으로 동결돼 있어 그 값대로 다시 그린다
+  const old = { version: '2026-10-13', cutMinPerSheet: 7, edgeMinPerBodySheet: 15, assemblyMinPerCabinet: 12, assemblyMinPerDrawer: 12, doorHangMinPerDoor: 1, inspectPackMinPerCabinet: 5 };
+  assert.equal(laborEstimate(old, { cutSheets: 6, bodySheets: 6, edgeFaces: 90 }).edgeMin, 90);
 });
 
 test('workCounts — 배치가 없으면 시트 수는 null, 서랍은 drawerFront 행 수량', () => {

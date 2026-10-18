@@ -158,6 +158,7 @@ export function workCounts(ctx) {
     inHouseSheets,
     doorSheets,
     bodySheets: inHouseSheets ? inHouseSheets.filter((s) => s.partClass === '본체').length : null,
+    edgeFaces: inHouseRows.reduce((s, m) => { const e = rowEdges(m); return s + ['L', 'R', 'T', 'B'].filter((k) => e[k]).length * qtyOf(m); }, 0),
     inHouseRows,
     doorRows,
     cabinets: ctx.items.reduce((s, it) => s + (Array.isArray(it.modules) ? it.modules.length : 0), 0),
@@ -170,6 +171,7 @@ function laborOf(ctx, counts) {
   return laborEstimate(ctx.labor, {
     cutSheets: counts.inHouseSheets ? counts.inHouseSheets.length : 0,
     bodySheets: counts.bodySheets || 0,
+    edgeFaces: counts.edgeFaces || 0,
     cabinets: counts.cabinets,
     drawers: counts.drawers,
     doors: counts.doors,

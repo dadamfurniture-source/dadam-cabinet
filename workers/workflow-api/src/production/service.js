@@ -35,14 +35,21 @@ const NUMERIC_LIMITS = {
   quote: [0, 100000000],
 };
 
+/** 저장값 중 지금 아는 키만 — 없어진 키(예: 엣지 PB 장당 edgePerPbSheet)가 남아 설정 저장을 막지 않게. */
+function known(def, saved) {
+  const out = { ...def };
+  for (const [k, v] of Object.entries(saved || {})) if (k in def) out[k] = v;
+  return out;
+}
+
 export function mergeSettings(saved) {
   const s = saved || {};
   return {
-    standards: { ...DEFAULT_STANDARDS, ...(s.standards || {}) },
-    crew: { ...DEFAULT_CREW, ...(s.crew || {}) },
-    costs: { ...DEFAULT_COSTS, ...(s.costs || {}) },
-    leads: { ...DEFAULT_LEADS, ...(s.leads || {}) },
-    quote: { ...DEFAULT_QUOTE, ...(s.quote || {}) },
+    standards: known(DEFAULT_STANDARDS, s.standards),
+    crew: known(DEFAULT_CREW, s.crew),
+    costs: known(DEFAULT_COSTS, s.costs),
+    leads: known(DEFAULT_LEADS, s.leads),
+    quote: known(DEFAULT_QUOTE, s.quote),
     holidays: Array.isArray(s.holidays) ? s.holidays : [],
   };
 }
