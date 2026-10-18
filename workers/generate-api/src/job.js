@@ -794,15 +794,21 @@ async function runPipeline(env, job, ck, save) {
       prompt: buildTwoToneVariantPrompt(pair),
     });
   }
-  // 붙박이장은 4장 중 2장이 내부 보기 (2026-10-19 사장님) — 색 추천안은 한 장 (테마가 있으면 테마 색감)
-  const interiorShots = category === 'wardrobe' ? ['left', 'right'] : [];
-  for (const f of pickFinishes(Math.max(0, VARIANT_COUNT - interiorShots.length - specs.length), seed)) {
-    specs.push({ key: f.key, label: `AI 추천 · ${f.tone}`, prompt: buildVariantPrompt(f) });
+  // 붙박이장은 4장 중 2장이 내부 보기 (2026-10-19 사장님) — 색 추천안은 한 장 (테마가 있으면 테마 색감).
+  //   내부 보기는 문을 전부 연다. 한 장은 기본안 색, 한 장은 그 색 추천안의 색.
+  const interior = category === 'wardrobe';
+  const interiorCount = interior ? 2 : 0;
+  const palette = pickFinishes(Math.max(0, VARIANT_COUNT - interiorCount - specs.length), seed);
+  for (const f of palette) {
+    specs.push({ key: f.key, label: `AI 추천 · ${f.tone}`, finishSrc: f, prompt: buildVariantPrompt(f) });
   }
-  specs.splice(VARIANT_COUNT - interiorShots.length);
-  for (const part of interiorShots) {
-    const { prompt, label } = buildWardrobeInteriorPrompt(wall.wallW, part);
-    specs.push({ key: `interior:${part}`, label, prompt, interior: true });
+  if (interior) {
+    const colourSpec = specs[0];
+    const colour = colourSpec.finishSrc || (ck.themeFinish ? { body: ck.themeFinish.body, tone: ck.themeFinish.tone } : null);
+    for (const recolour of [null, colour]) {
+      const { prompt, label } = buildWardrobeInteriorPrompt(wall.wallW, recolour);
+      specs.push({ key: recolour ? `interior:${colourSpec.key}` : 'interior', label, prompt, interior: true });
+    }
   }
 
   await Promise.all(
