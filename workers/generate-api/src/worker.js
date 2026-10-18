@@ -335,7 +335,8 @@ async function createGeneration(request, env, headers) {
   if (planner) {
     return await createPlannerGeneration(request, env, headers, {
       user, parent, room_image, image_type, rawCategory, design_style, door_color, door_finish,
-      wall_width_override, fridge_options, design_spec, renders, aspect, title, image_provider,
+      wall_width_override, water_from_left_override, exhaust_from_left_override,
+      fridge_options, design_spec, renders, aspect, title, image_provider,
     });
   }
 
@@ -421,6 +422,7 @@ async function createGeneration(request, env, headers) {
  * 플래너 모드 접수 (mode:'planner', 2026-10-08 · 계획서 §6.1).
  *   필수: room_image(재생성이면 원본 것), design_spec(원본 것을 이어도 된다), renders 의 elevation.
  *   선택: renders 의 massing, aspect (허용값 밖이면 16:9),
+ *         wall_width_override · water_from_left_override · exhaust_from_left_override (일반 경로와 같은 정규화),
  *         image_provider ('openai' 면 GPT 가 그린다 · 없거나 모르는 값이면 Gemini, 2026-10-18).
  *   받지 않음: realize · engine · control_* · reference_images.
  * 검증은 전부 크레딧 차감 전에 한다 — 틀린 요청으로 20 크레딧이 날아가지 않는다.
@@ -451,6 +453,8 @@ async function createPlannerGeneration(request, env, headers, p) {
     door_color: p.door_color,
     door_finish: p.door_finish,
     wall_width_override: Number(p.wall_width_override) || null,
+    // 급수·배기 수동값 — 일반 경로와 같은 정규화 (주방 품목만). 잡이 wall_analysis 에 반영한다 (applyManualPlumbing).
+    //   플래너 프롬프트는 싱크·후드 자리를 도면(design_spec)에서 말하므로 이 값을 쓰지 않는다.
     water_from_left_override: KITCHEN_CATEGORIES.includes(category) ? Number(p.water_from_left_override) || null : null,
     exhaust_from_left_override: KITCHEN_CATEGORIES.includes(category) ? Number(p.exhaust_from_left_override) || null : null,
     fridge_options: category === 'fridge' ? p.fridge_options : null,

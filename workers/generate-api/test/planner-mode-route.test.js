@@ -334,6 +334,48 @@ test('mode 가 planner 가 아닌 다른 값이면 옛 경로다 (design_spec �
   assert.equal('mode' in calls.inserted.options, false);
 });
 
+test('급수·배기 수동값은 플래너 모드에도 실린다 — 잡 options 에도 같은 값', async () => {
+  install();
+  const res = await post(plannerBody({ water_from_left_override: 1700, exhaust_from_left_override: '450' }));
+  assert.equal(res.status, 202);
+  const o = calls.inserted.options;
+  assert.equal(o.water_from_left_override, 1700);
+  assert.equal(o.exhaust_from_left_override, 450); // 일반 경로와 같은 Number() 정규화
+  assert.deepEqual(calls.jobStart.options, o);
+});
+
+test('급수·배기 수동값의 정규화는 일반 경로와 같다 — 숫자 아님·0 은 null, 주방 아니면 버린다', async () => {
+  for (const [given, want] of [['abc', null], [0, null], ['', null], [null, null], [1234.5, 1234.5]]) {
+    install();
+    await post(plannerBody({ water_from_left_override: given, exhaust_from_left_override: given }));
+    assert.equal(calls.inserted.options.water_from_left_override, want, String(given));
+    assert.equal(calls.inserted.options.exhaust_from_left_override, want, String(given));
+  }
+  install();
+  await post(
+    plannerBody({
+      category: 'wardrobe',
+      design_spec: { ...spec(), category: 'wardrobe', appliances: [] },
+      water_from_left_override: 1700,
+      exhaust_from_left_override: 450,
+    })
+  );
+  assert.equal(calls.inserted.options.water_from_left_override, null);
+  assert.equal(calls.inserted.options.exhaust_from_left_override, null);
+});
+
+test('급수·배기 수동값이 없으면 options 모양은 그대로 — 두 키는 null', async () => {
+  install();
+  await post(plannerBody());
+  const o = calls.inserted.options;
+  assert.equal(o.water_from_left_override, null);
+  assert.equal(o.exhaust_from_left_override, null);
+  assert.equal(
+    Object.keys(o).join(','),
+    'design_style,door_color,door_finish,wall_width_override,water_from_left_override,exhaust_from_left_override,fridge_options,design_spec,mode,aspect,variants'
+  );
+});
+
 // ─── 4. 재생성 ───
 
 test('재생성은 원본의 planner 모드·요약·렌더·비율을 잇는다 (업로드 없음)', async () => {
