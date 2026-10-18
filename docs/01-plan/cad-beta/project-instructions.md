@@ -16,7 +16,7 @@
 ## 저장소 규칙 (CLAUDE.md 가 정본 — 아래는 꼭 지킬 것만)
 - main 직접 커밋 금지. 브랜치 → PR → CI → 머지. 브랜치 prefix 는 CLAUDE.md 도메인 표 (BOM `agent/bom-*`, 플래너 `agent/planner-*`, 상세설계 UI `agent/designui-*`, 워크플로 워커 `agent/workflow-*`, MCP `agent/mcp-*`). `docs/**` 만 고치는 문서 스레드는 `agent/docs-*`.
 - **같은 도메인 스레드는 동시에 돌리지 않는다** (같은 파일 충돌). 도메인이 다르면 병렬 가능. 문서 스레드는 이 제한 밖. 코디네이터는 스레드를 시작하기 전에 도메인을 확인한다.
-- 소유자 없는 새 파일(`assembly-*.js`, `planner-bridge.js`, `tools/cad/**`, `.github/workflows/cad-oracle.yml`)과 `js/detaildesign/workflow-client.js` 는 **결정 D11 승인 전에는 만들거나 고치지 않는다**.
+- 소유자 없는 새 파일(`assembly-*.js`, `planner-bridge.js`, `tools/cad/**`, `.github/workflows/cad-oracle.yml`)과 `js/detaildesign/workflow-client.js` 는 **결정 D11 승인 전에는 만들거나 고치지 않는다**. (D11 승인됨 2026-10-18 — CLAUDE.md 도메인 표 반영 PR 머지 뒤부터 해당 도메인 스레드가 만든다.)
 - 클라우드 스레드는 자기 클론에서 일한다 — **git worktree 를 만들지 않는다** (jest 가 `.claude/worktrees/` 를 제외하지 않아 시험이 두 번 돈다).
 - **머지 (사장님 상시 승인 2026-10-08 — CI 통과하면 묻지 않고 머지)**:
   - 클라우드에서 `gh pr …` 는 GraphQL 이라 프록시가 403 으로 막는다. REST 를 쓴다.
@@ -46,7 +46,7 @@
 - **저장소는 공개다.** 고객 이름·주소·전화·실제 주문 설계, 개인 PC 경로를 커밋, Actions 로그, 산출물, PR 본문에 넣지 않는다. 시험 픽스처는 합성 데이터만.
 - 키·토큰은 환경변수에 넣지 않는다 (네트워크 시크릿). `.env`, `gcp-service-account.json` 은 저장소에 없다.
 - Supabase SQL 은 스레드가 실행하지 않는다. `database/*.sql` 파일로 만들고, 실행할 SQL 전문을 보고에 붙여 사장님이 실행하게 한다 (추가만, 되돌리는 drop 스크립트 함께).
-- 고객 화면에는 뒷판·처짐방지목·따내기·밴드·partId·보링 같은 내부 구조를 보이지 않는다 (결정 D6 전까지 CAD 기능은 관리자 전용).
+- 고객 화면에는 뒷판·처짐방지목·따내기·밴드·partId·보링 같은 내부 구조를 보이지 않는다. 예외: 상세설계 화면은 구독 standard 이상 고객에게 제공 (D6). 그 밖의 CAD 기능은 관리자 전용.
 
 ## 확정된 사실 (사장님 확정 — 바꾸려면 다시 묻는다)
 - 플래너는 `mockup-shell.html`(배치) + `mockup-structure.html`(구조·디테일) + `js/planner/*` 가 활성이다. `planner-vite/` 는 레거시 — 수정 금지.
@@ -67,8 +67,8 @@
 ## 결정 상태 (답을 받으면 이 표·프로젝트 메모리·저장소 사본을 갱신)
 | # | 질문 | 상태 |
 |---|---|---|
-| D6 | 공개 범위 (상세설계 잠금, 고객 외관 도면·3D, 파트너 외관 파일) | 미정 — 1주차 필요 |
-| D11 | CLAUDE.md 도메인 소유 행 추가 | 미정 — PR2·3 전 필요 |
+| D6 | 공개 범위 (상세설계 잠금, 고객 외관 도면·3D, 파트너 외관 파일) | 일부 확정 (2026-10-18): 상세설계 화면은 구독 standard 이상 고객에게 제공, 관리자는 항상. 파트너 접근·고객 확인서 외관 도면·파트너 외관 파일은 미정 |
+| D11 | CLAUDE.md 도메인 소유 행 추가 | 승인 (2026-10-18): BOM = assembly-rules.js · bom-assembly.js · assembly-check.js · tools/cad/** · cad-oracle.yml / 플래너 = planner-assembly-mesh.js · planner-export.js / 워크플로 = part-drawing.js · module-section.js · dxf-writer.js · js/detaildesign/workflow-client.js |
 | D8 | 검사 오류 강도 (확인창 → 발행 차단) | 미정 |
 | D2 | 서랍장 처짐방지목 위치 | 미정 (경고로만 표시) |
 | D12 | 선반 −15 가 상수인가 T 인가 | 미정 |
