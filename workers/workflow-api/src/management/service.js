@@ -8,6 +8,7 @@ import { selectMany, selectOne, ForbiddenError } from '../supabase.js';
 import { isAdmin } from '../reports/admin.js';
 import { mergeSettings, kstDate } from '../production/service.js';
 import { buildManagementSummary, prevMonthOf } from './summary.js';
+import { selectOrders } from '../orders.js';
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
 /** 처리능력 실측 창 — 그 달 끝에서 거꾸로 90일 (근무일 20일이 넉넉히 들어가게) */
@@ -55,7 +56,8 @@ export async function getManagementSummary(env, { user, month }) {
   const since = `${prevMonthOf(m)}-01T00:00:00+09:00`;
 
   const [orders, documents, consultations, generations, designs, settings] = await Promise.all([
-    selectMany(env, 'orders', {
+    // 구분(price_tier) 칸까지 — 칸이 아직 없으면 빼고 읽는다
+    selectOrders(env, {
       select: 'id,order_no,design_id,snapshot_id,customer_name,contract_amount,status,ordered_at',
       ordered_at: `gte.${since}`,
       order: 'ordered_at.desc',

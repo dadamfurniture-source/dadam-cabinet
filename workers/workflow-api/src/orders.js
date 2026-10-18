@@ -18,9 +18,40 @@ import {
   ValidationError,
   NotFoundError,
   ConflictError,
+  DbError,
 } from './supabase.js';
 
 export const ORDER_STATUSES = ['confirmed', 'in_production', 'delivered', 'completed', 'cancelled'];
+
+/**
+ * 수주 구분 — 고객(customer) · 거래처(partner, 인테리어 업체). 2026-10-19 대표: 수주에 거래처 칸.
+ * 칸은 database/orders-price-tier.sql 로 생긴다. 그 SQL 을 실행하기 전에도 수주 · 목록이 막히지 않게
+ * 읽기 · 쓰기마다 칸이 없으면 빼고 다시 한다.
+ */
+export const PRICE_TIERS = ['customer', 'partner'];
+
+/** 구분 칸이 아직 DB 에 없다 (PostgREST 가 모르는 칸이라고 거절) */
+export const isMissingTierColumn = (e) => e instanceof DbError && /price_tier/.test(e.message);
+
+/** 수주 읽기 — 구분 칸까지. 칸이 아직 없으면 빼고 다시 읽는다 */
+export async function selectOrders(env, query) {
+  try {
+    return (await selectMany(env, 'orders', { ...query, select: `${query.select},price_tier` })) || [];
+  } catch (e) {
+    if (!isMissingTierColumn(e)) throw e;
+    return (await selectMany(env, 'orders', query)) || [];
+  }
+}
+
+/**
+ * 고객 · 거래처. 수주에 적힌 구분이 정본이다. 없으면(옛 수주 · SQL 실행 전) 예전처럼
+ * 계약금이 거래처 견적과 1,000원 안이면 거래처로 본다.
+ */
+export function tierOf(order, quote) {
+  if (order && PRICE_TIERS.includes(order.price_tier)) return order.price_tier;
+  const contract = Number(order && order.contract_amount);
+  return quote && quote.partner && Math.abs(contract - Number(quote.partner.total)) < 1000 ? 'partner' : 'customer';
+}
 
 /**
  * 원가 분류. 견적(quote)과 **같은 축**으로 나눠야 대조가 의미를 갖는다.
@@ -82,7 +113,7 @@ export async function createOrderFromDocument(env, { documentId, user }) {
     throw new ValidationError('확인서에 금액이 없어 수주로 전환할 수 없습니다');
   }
 
-  const order = await insertOne(env, 'orders', {
+  const row = {
     order_no: buildOrderNo(doc.design_id),
     design_id: doc.design_id,
     document_id: doc.id,
@@ -91,7 +122,16 @@ export async function createOrderFromDocument(env, { documentId, user }) {
     contract_amount: contract,
     status: 'confirmed',
     created_by: user.id,
-  });
+  };
+  // 구분은 확인서를 낸 금액 종류(고객용 · 거래처용)를 그대로 옮긴다. 칸이 아직 없으면 빼고 넣는다
+  const tier = totals.price_tier === 'partner' ? 'partner' : 'customer';
+  let order;
+  try {
+    order = await insertOne(env, 'orders', { ...row, price_tier: tier });
+  } catch (e) {
+    if (!isMissingTierColumn(e)) throw e;
+    order = await insertOne(env, 'orders', row);
+  }
   return { order, reused: false };
 }
 
@@ -104,7 +144,7 @@ export async function listOrders(env, { user, designId }) {
   if (designId) {
     await assertDesignOwner(env, designId, user.id);
     query.design_id = `eq.${designId}`;
-    return (await selectMany(env, 'orders', query)) || [];
+    return selectOrders(env, query);
   }
   // 설계 지정이 없으면 내 설계의 수주 전부.
   // RLS 는 service_role 에 적용되지 않으므로 소유 설계를 직접 필터해야 한다.
@@ -116,7 +156,7 @@ export async function listOrders(env, { user, designId }) {
   if (designs.length === 0) return [];
   const ids = designs.map((d) => d.id).join(',');
   query.design_id = `in.(${ids})`;
-  return (await selectMany(env, 'orders', query)) || [];
+  return selectOrders(env, query);
 }
 
 async function loadOwnedOrder(env, orderId, user) {
@@ -208,9 +248,20 @@ export async function updateOrder(env, { orderId, user, patch }) {
   if (patch.note !== undefined) {
     allowed.note = patch.note ? String(patch.note).slice(0, 2000) : null;
   }
+  if (patch.price_tier !== undefined) {
+    if (patch.price_tier !== null && !PRICE_TIERS.includes(patch.price_tier)) {
+      throw new ValidationError(`price_tier 는 ${PRICE_TIERS.join(', ')} 중 하나여야 합니다`);
+    }
+    allowed.price_tier = patch.price_tier;
+  }
 
   if (Object.keys(allowed).length === 0) throw new ValidationError('변경할 필드가 없습니다');
-  return updateById(env, 'orders', orderId, allowed);
+  try {
+    return await updateById(env, 'orders', orderId, allowed);
+  } catch (e) {
+    if (isMissingTierColumn(e)) throw new ValidationError('수주 구분 칸이 아직 DB 에 없습니다 — database/orders-price-tier.sql 을 실행해 주세요');
+    throw e;
+  }
 }
 
 export async function addCost(env, { orderId, user, body }) {
