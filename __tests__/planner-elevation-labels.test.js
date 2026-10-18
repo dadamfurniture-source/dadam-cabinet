@@ -194,9 +194,21 @@ describe('design_spec — layout · fromFloorMm · ceilingMm', () => {
     expect(bad.sections.upper).not.toHaveProperty('fromFloorMm');
   });
 
-  test('워커 normalizeDesignSpec 은 새 키를 400 으로 막지 않는다 (조용히 버린다)', () => {
-    const spec = A.plannerAiPhotoBuildSpec({ modules: SEED, baseYOf: () => 0, ceilingMm: 2400 });
-    expect(() => P.normalizeDesignSpec(spec, spec.category)).not.toThrow();
+  test('워커 normalizeDesignSpec 이 새 키를 400 없이 받는다 (플래너 모드 v3 가 읽는 이름)', () => {
+    const baseYOf = (m) => (m.section === 'upper' ? 2400 - m.H : 0);
+    const spec = A.plannerAiPhotoBuildSpec({ modules: SEED, baseYOf, ceilingMm: 2400 });
+    let ds;
+    expect(() => { ds = P.normalizeDesignSpec(spec, spec.category); }).not.toThrow();
+    // 워커가 그 이름을 읽는다면 값이 그대로 살아남는다 (읽지 않는 옛 워커면 키가 없을 뿐)
+    if (ds.layout) expect(ds.layout.shape).toBe('straight');
+    if (ds.ceilingMm !== undefined) expect(ds.ceilingMm).toBe(2400);
+    if (ds.sections.upper.fromFloorMm !== undefined) expect(ds.sections.upper.fromFloorMm).toBe(1620);
+  });
+
+  test('천장 범위는 워커 계약과 같은 1500–4000', () => {
+    expect(A.PLANNER_AI_PHOTO_CEILING_RANGE).toEqual([1500, 4000]);
+    expect(A.plannerAiPhotoBuildSpec({ modules: SEED, ceilingMm: 4500 })).not.toHaveProperty('ceilingMm');
+    expect(A.plannerAiPhotoBuildSpec({ modules: SEED, ceilingMm: 4000 }).ceilingMm).toBe(4000);
   });
 });
 
