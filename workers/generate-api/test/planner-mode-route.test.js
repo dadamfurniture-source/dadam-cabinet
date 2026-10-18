@@ -239,6 +239,28 @@ test('역할마다 한 장·최대 3장, 모르는 role 은 버리고 순서는 
   ]);
 });
 
+// 2026-10-19: ㄱ자·ㄷ자 꺾인 벽 입면 (선택) — elevation_left·right (+ _labeled), 최대 7장, 순서는 RENDER_ROLES
+test('꺾인 벽 입면 elevation_left · elevation_right (+ _labeled) 도 저장한다 — 주벽 셋 뒤에', async () => {
+  install();
+  const res = await post(
+    plannerBody({
+      renders: [
+        { role: 'elevation_right_labeled', base64: PNG },
+        { role: 'elevation_left', base64: PNG },
+        { role: 'elevation', base64: PNG },
+        { role: 'elevation_left_labeled', base64: PNG },
+        { role: 'elevation_right', base64: PNG },
+        { role: 'elevation_back', base64: PNG },
+      ],
+    })
+  );
+  assert.equal(res.status, 202);
+  assert.deepEqual(calls.jobStart.inputs.renders.map((r) => r.role), [
+    'elevation', 'elevation_left', 'elevation_left_labeled', 'elevation_right', 'elevation_right_labeled',
+  ]);
+  assert.ok(calls.uploads.some((x) => x.url.endsWith(`${ROW_ID}/render-elevation_left_labeled.png`)));
+});
+
 // 2026-10-19: 번호 붙은 입면 (선택) — 저장·기록은 다른 렌더와 같다
 test('elevation_labeled 는 render-elevation_labeled.{ext} 로 올라가고 inputs.renders 에 남는다', async () => {
   install();

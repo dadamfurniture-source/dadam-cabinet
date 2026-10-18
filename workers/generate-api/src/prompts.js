@@ -325,7 +325,14 @@ const DESIGN_RANGE = {
   layoutWalls: [1, 4],
   // 2026-10-19: 쌓인 단 하나의 높이 (modules[].tiers[].heightMm)
   tierHeightMm: [50, 3600],
+  // 2026-10-19: 꺾인 벽(walls[]) — 줄·가전이 모서리(주벽 면)에서 얼마나 나와 시작하는가
+  fromCornerMm: [0, 12000],
 };
+/** 2026-10-19: 꺾인 벽 (design_spec.walls[], ㄱ자·ㄷ자) — 주벽은 최상위 sections 다. */
+export const DESIGN_WALL_SIDES = ['left', 'right'];
+/** 모서리를 누가 차지하나 — main: 주벽 런이 모서리까지(꺾인 런은 그 앞에서 시작) · return: 꺾인 런이 모서리까지 · open: 둘 다 닿지 않는다 */
+export const DESIGN_WALL_CORNERS = ['main', 'return', 'open'];
+const DESIGN_MAX_WALLS = 2;
 /** 2026-10-19: design_spec.layout.shape — 일자 · ㄱ자 · ㄷ자. 그 밖은 조용히 버린다. */
 export const DESIGN_LAYOUT_SHAPES = ['straight', 'corner', 'u'];
 
@@ -425,11 +432,15 @@ const isFridgeLabel = (label) => /냉장|fridge|refrig/.test(String(label || '')
 const isHoodLabel = (label) => /후드|hood/.test(String(label || '').toLowerCase());
 const isHoodCell = (m) => !!m && m.kind === 'appliance' && !hasTiers(m) && isHoodLabel(m.label);
 
-function normalizeDesignSection(raw, section) {
+/**
+ * @param {string} [posField] 줄 시작 자리 필드 — 주벽은 fromLeftMm, 꺾인 벽(walls[])은 fromCornerMm (2026-10-19)
+ * @param {string} [prefix]   오류 메시지의 자리 머리 (꺾인 벽은 'walls[].sections')
+ */
+function normalizeDesignSection(raw, section, posField = 'fromLeftMm', prefix = 'sections') {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  const where = `sections.${section}`;
+  const where = `${prefix}.${section}`;
   const out = {};
-  for (const f of ['widthMm', 'heightMm', 'depthMm', 'fromLeftMm', 'fromFloorMm']) {
+  for (const f of ['widthMm', 'heightMm', 'depthMm', posField, 'fromFloorMm']) {
     const v = designMm(raw[f], `${where}.${f}`, DESIGN_RANGE[f]);
     if (v !== null) out[f] = v;
   }
@@ -439,17 +450,47 @@ function normalizeDesignSection(raw, section) {
   return Object.keys(out).length ? out : null;
 }
 
-function normalizeDesignAppliance(raw) {
+function normalizeDesignAppliance(raw, posField = 'fromLeftMm') {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const key = typeof raw.kind === 'string' ? raw.kind.trim().toLowerCase() : '';
   const kind = DESIGN_APPLIANCE_ALIASES[key] || key;
   if (!DESIGN_APPLIANCE_KINDS.includes(kind)) return null; // 모르는 가전은 조용히 뺀다
   const out = { kind };
-  const fromLeftMm = designMm(raw.fromLeftMm, 'appliances[].fromLeftMm', DESIGN_RANGE.fromLeftMm);
-  if (fromLeftMm !== null) out.fromLeftMm = fromLeftMm;
+  const fromLeftMm = designMm(raw[posField], `appliances[].${posField}`, DESIGN_RANGE[posField]);
+  if (fromLeftMm !== null) out[posField] = fromLeftMm;
   const widthMm = designMm(raw.widthMm, 'appliances[].widthMm', DESIGN_RANGE.applianceWidthMm);
   if (widthMm !== null) out.widthMm = widthMm;
   return out;
+}
+
+/**
+ * 2026-10-19: 꺾인 벽 하나 — { side, corner?, runMm?, cornerEdge?, sections:{lower|upper|tall}, appliances? }.
+ *   줄의 자리는 fromCornerMm (주벽 면에서 나온 거리), 모듈은 모서리에서 방 쪽으로. 모르는 side 면 통째로 버린다.
+ *   cornerEdge = 이 벽 정면 입면(elevation_{side}) 그림에서 모서리 쪽 가장자리 'left'|'right'.
+ */
+function normalizeDesignWall(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const side = typeof raw.side === 'string' ? raw.side.trim().toLowerCase() : '';
+  if (!DESIGN_WALL_SIDES.includes(side)) return null;
+  const out = { side };
+  if (typeof raw.corner === 'string' && DESIGN_WALL_CORNERS.includes(raw.corner.trim().toLowerCase())) {
+    out.corner = raw.corner.trim().toLowerCase();
+  }
+  const runMm = designMm(raw.runMm, 'walls[].runMm', DESIGN_RANGE.wallRunMm);
+  if (runMm !== null) out.runMm = runMm;
+  if (raw.cornerEdge === 'left' || raw.cornerEdge === 'right') out.cornerEdge = raw.cornerEdge;
+  const rs = raw.sections && typeof raw.sections === 'object' && !Array.isArray(raw.sections) ? raw.sections : {};
+  const sections = {};
+  for (const key of DESIGN_SECTIONS) {
+    const sec = normalizeDesignSection(rs[key], key, 'fromCornerMm', 'walls[].sections');
+    if (sec) sections[key] = sec;
+  }
+  if (Object.keys(sections).length) out.sections = sections;
+  const apps = (Array.isArray(raw.appliances) ? raw.appliances.slice(0, DESIGN_MAX_APPLIANCES) : [])
+    .map((a) => normalizeDesignAppliance(a, 'fromCornerMm'))
+    .filter(Boolean);
+  if (apps.length) out.appliances = apps;
+  return out.sections ? out : null;
 }
 
 function normalizeDesignFinish(raw) {
@@ -516,7 +557,7 @@ export function normalizeDesignSpec(raw, category) {
   const rawAppliances = Array.isArray(raw.appliances)
     ? raw.appliances.slice(0, DESIGN_MAX_APPLIANCES)
     : [];
-  const appliances = rawAppliances.map(normalizeDesignAppliance).filter(Boolean);
+  const appliances = rawAppliances.map((a) => normalizeDesignAppliance(a)).filter(Boolean);
   if (appliances.length) out.appliances = appliances;
 
   const rawFinishes =
@@ -542,6 +583,15 @@ export function normalizeDesignSpec(raw, category) {
       const walls = designMm(raw.layout.walls, 'layout.walls', DESIGN_RANGE.layoutWalls);
       out.layout = walls !== null ? { shape, walls } : { shape };
     }
+  }
+  // 2026-10-19: 꺾인 벽 — ㄱ자·ㄷ자의 옆벽 줄 (플래너 모드만 읽는다). 없거나 쓸 벽이 없으면 키도 없다 — 옛 모양 바이트 그대로.
+  if (Array.isArray(raw.walls)) {
+    const walls = [];
+    for (const w of raw.walls.slice(0, DESIGN_MAX_WALLS)) {
+      const nw = normalizeDesignWall(w);
+      if (nw && !walls.some((x) => x.side === nw.side)) walls.push(nw);
+    }
+    if (walls.length) out.walls = walls;
   }
 
   if (!out.sections && !out.appliances && !out.finishes && out.wallRunMm === undefined) {
@@ -684,6 +734,15 @@ export function designSpecDigest(spec) {
     const mods = sections[key] && sections[key].modules;
     if (!mods || !mods.length) continue;
     parts.push(`${key} = ${mods.map((m) => designModulePhrase(m, false)).join('; ')}`);
+  }
+  // 2026-10-19: 꺾인 벽 (walls[]) — 모서리에서 방 쪽 순서. 없으면 예전 그대로.
+  for (const w of Array.isArray(spec.walls) ? spec.walls : []) {
+    const ws = (w && w.sections) || {};
+    for (const key of DESIGN_SECTIONS) {
+      const mods = ws[key] && ws[key].modules;
+      if (!mods || !mods.length) continue;
+      parts.push(`${w.side} wall ${key} (from the corner) = ${mods.map((m) => designModulePhrase(m, false)).join('; ')}`);
+    }
   }
   return parts.length ? parts.join(' | ') : null;
 }
@@ -1178,15 +1237,21 @@ function plannerColumnWhat(m, rowKey) {
   return `${rowKey === 'tall' || rowKey === 'wardrobe' ? 'tall column' : 'column'} — ${stackWhat(m.tiers)}`;
 }
 
+/** 2026-10-19: 꺾인 벽 목록 (normalizeDesignSpec 이 거른 것). 없으면 []. */
+function plannerWalls(spec) {
+  return spec && Array.isArray(spec.walls) ? spec.walls.filter((w) => w && w.sections && DESIGN_WALL_SIDES.includes(w.side)) : [];
+}
+
 /**
  * 2026-10-19: 후드 칸 밑에 둘 쿡탑 — 도면에 cooktop 이 없을 때만. 후드 칸 가운데가 걸린 하부장(가전 칸·싱크·쿡탑이 이미 걸린 장 제외).
  * @returns {{hoodId:string, base:object}[]}
  */
 function plannerImpliedCooktops(rows, spec) {
   if (spec && Array.isArray(spec.appliances) && spec.appliances.some((a) => a && a.kind === 'cooktop')) return [];
-  const bases = rows.filter((r) => r.key === 'lower').flatMap((r) => r.items);
   const out = [];
   for (const row of rows) {
+    // 2026-10-19: 같은 벽의 하부장만 (꺾인 벽은 자리를 모서리에서 잰다)
+    const bases = rows.filter((r) => r.key === 'lower' && r.wall === row.wall).flatMap((r) => r.items);
     for (const h of row.items.filter((it) => isHoodCell(it.m))) {
       const center = (h.start + h.end) / 2;
       const base = bases.find((it) => it.end > it.start && center >= it.start && center < it.end);
@@ -1251,38 +1316,68 @@ function plannerRows(spec, category) {
     rows = keys.map((k) => ({
       key: k,
       def: PLANNER_ROWS[k],
+      wall: 'main',
       heightMm: sections[k].heightMm || null,
       widthMm: widthOf(sections[k]),
       fromLeftMm: sections[k].fromLeftMm,
       fromFloorMm: sections[k].fromFloorMm,
       items: placed(k, sections[k]),
     }));
+    // 2026-10-19: 꺾인 벽 (walls[], ㄱ자·ㄷ자) — 벽마다 줄을 주벽 줄 뒤에. 자리는 모서리(주벽 면)에서 잰 fromCornerMm,
+    //   모듈은 모서리에서 방 쪽으로. 붙박이장은 한 줄이라 받지 않는다.
+    for (const w of plannerWalls(spec)) {
+      const ws = w.sections;
+      for (const k of DESIGN_SECTIONS.filter((x) => ws[x] && Array.isArray(ws[x].modules) && ws[x].modules.length)) {
+        const sec = ws[k];
+        rows.push({
+          key: k,
+          def: PLANNER_ROWS[k],
+          wall: w.side,
+          wallSpec: w,
+          heightMm: sec.heightMm || null,
+          widthMm: widthOf(sec),
+          fromLeftMm: sec.fromCornerMm,
+          fromFloorMm: sec.fromFloorMm,
+          items: placed(k, { ...sec, fromLeftMm: sec.fromCornerMm }),
+        });
+      }
+    }
   }
   // 번호 — 줄 안 왼쪽부터 1 (L·U·T·W). 정면 입면의 라벨과 같은 규칙이다.
   // 2026-10-19: 후드 칸은 줄 번호를 받지 않고 H1·H2… (줄 순서 lower→upper→tall, 줄 안 왼→오) — U1 | H1 | U2.
+  // 2026-10-19: 꺾인 벽의 줄은 같은 머리 글자로 주벽에 이어서 센다 (주벽 L1–L4 → 왼쪽 벽 L5 …). 주벽만이면 예전과 같다.
   let hoods = 0;
+  const counters = {};
   for (const row of rows) {
-    let n = 0;
-    row.items.forEach((it) => (it.id = isHoodCell(it.m) ? `H${++hoods}` : `${row.def.prefix}${++n}`));
+    const p = row.def.prefix;
+    row.items.forEach((it) => (it.id = isHoodCell(it.m) ? `H${++hoods}` : `${p}${(counters[p] = (counters[p] || 0) + 1)}`));
   }
 
   // 가전 → 그 자리에 걸린 모듈. 못 찾으면 APPLIANCES 줄로.
+  // 2026-10-19: 최상위 appliances[] 는 주벽 줄에만, 꺾인 벽의 appliances[](fromCornerMm)는 그 벽 줄에만 건다.
   const loose = [];
-  for (const a of Array.isArray(spec && spec.appliances) ? spec.appliances : []) {
-    if (!a || !PLANNER_APPLIANCE_ON_MODULE[a.kind]) continue;
-    const center = a.fromLeftMm !== undefined ? a.fromLeftMm + (a.widthMm || 0) / 2 : null;
-    let hit = null;
-    if (center !== null) {
-      for (const sk of PLANNER_APPLIANCE_ROWS[a.kind]) {
-        for (const row of rows) {
-          hit = row.items.find((it) => it.section === sk && it.end > it.start && center >= it.start && center < it.end);
+  const attach = (list, wall, pos) => {
+    for (const a of list) {
+      if (!a || !PLANNER_APPLIANCE_ON_MODULE[a.kind]) continue;
+      const center = a[pos] !== undefined ? a[pos] + (a.widthMm || 0) / 2 : null;
+      let hit = null;
+      if (center !== null) {
+        for (const sk of PLANNER_APPLIANCE_ROWS[a.kind]) {
+          for (const row of rows) {
+            if (row.wall !== undefined && row.wall !== wall) continue;
+            hit = row.items.find((it) => it.section === sk && it.end > it.start && center >= it.start && center < it.end);
+            if (hit) break;
+          }
           if (hit) break;
         }
-        if (hit) break;
       }
+      if (hit) hit.attached.push(a.kind);
+      else loose.push(wall === 'main' ? { kind: a.kind, center } : { kind: a.kind, center: null, wall });
     }
-    if (hit) hit.attached.push(a.kind);
-    else loose.push({ kind: a.kind, center });
+  };
+  attach(Array.isArray(spec && spec.appliances) ? spec.appliances : [], 'main', 'fromLeftMm');
+  if (category !== 'wardrobe') {
+    for (const w of plannerWalls(spec)) attach(w.appliances || [], w.side, 'fromCornerMm');
   }
   // 2026-10-19: 후드 칸(노출형)이 있고 쿡탑이 도면에 없으면 후드 바로 아래 하부장 상판에 쿡탑을 둔다 (플래너에는 쿡탑 섹션이
   //   없다 — 후드 자리는 곧 조리 자리다). 그 하부장에 싱크가 걸렸으면 두지 않는다. 후드 칸이 없는 도면(내장형·후드 없음)은 예전 그대로.
@@ -1470,6 +1565,96 @@ function plannerLevelZones(rows, ref, runStart, runEnd) {
   return zones;
 }
 
+// ─── 2026-10-19: ㄱ자·ㄷ자 — 벽별 줄 (design_spec.walls[]) ───
+// 실측(2026-10-19 GPT, 시드 evalc1): 꺾인 하부를 한 줄로 펴서 보냈더니(650 436 936 842 421 — 꺾인 936 이 가운데) 기존 ㄱ자 주방
+// 사진에는 꺾인 쪽에도 상부장을 붙이고, 공사현장 사진에는 꺾인 장을 방 안쪽으로 튀어나온 장으로 그렸다.
+// 그래서 꺾인 벽은 제 줄·제 입면으로 말한다: 어느 옆벽인지, 모서리를 누가 차지하는지, 상부장이 있는지.
+
+const listJoinAnd = (a) => (a.length <= 1 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`);
+const listJoinOr = (a) => (a.length <= 1 ? a.join('') : `${a.slice(0, -1).join(', ')} or ${a[a.length - 1]}`);
+
+/** 벽 이름 — main 은 뒷벽(사진의 정면 벽). */
+function plannerWallName(side) {
+  return side === 'left' ? 'left wall' : side === 'right' ? 'right wall' : 'back wall';
+}
+
+/**
+ * 줄 → 벽 묶음 [{ wall:'main', rows, ref }, { wall:'left', rows, ref, spec }]. 주벽 줄(wall 없음·'main')이 먼저.
+ * 줄이 없으면 [].
+ */
+function plannerWallGroups(rows) {
+  if (!rows.length) return [];
+  const main = rows.filter((r) => !r.wall || r.wall === 'main');
+  const groups = [{ wall: 'main', rows: main, ref: plannerReferenceRow(main) }];
+  for (const r of rows) {
+    if (!r.wall || r.wall === 'main') continue;
+    let g = groups.find((x) => x.wall === r.wall);
+    if (!g) groups.push((g = { wall: r.wall, rows: [], spec: r.wallSpec }));
+    g.rows.push(r);
+  }
+  groups.forEach((g) => { if (!g.ref) g.ref = plannerReferenceRow(g.rows); });
+  return groups;
+}
+
+/** FIXED GEOMETRY 의 벽 머리 한 줄. */
+function plannerWallHead(g, returnImages) {
+  if (g.wall === 'main') return `${plannerWallName('main').toUpperCase()} (IMAGE B), left to right:`;
+  const img = returnImages.find((r) => r.side === g.wall);
+  return `${plannerWallName(g.wall).toUpperCase()} — the return${img ? ` (IMAGE ${img.letter})` : ''}, from the corner toward the room:`;
+}
+
+/** 벽 묶음의 바닥 줄(하부, 없으면 키큰장) 모서리 쪽 끝 유닛 id. 주벽은 꺾인 벽 쪽 끝, 꺾인 벽은 첫 유닛. */
+function plannerCornerUnit(g, side) {
+  const row = g.rows.find((r) => r.key === 'lower') || g.rows.find((r) => r.key === 'tall') || g.rows[0];
+  const items = row ? row.items.filter((it) => !isHoodCell(it.m)) : [];
+  if (!items.length) return null;
+  if (g.wall !== 'main') return items[0].id;
+  return side === 'right' ? items[items.length - 1].id : items[0].id;
+}
+
+/** ㄱ자·ㄷ자 LAYOUT 문단 — 실제 방향, 모서리 차지, 꺾인 벽 상부장 유무. */
+function plannerCornerLayout(layout, groups, returnImages) {
+  const main = groups[0];
+  const rets = groups.slice(1);
+  const shape = rets.length >= 2 ? 'U-shape' : 'L-shape';
+  const sides = rets.map((g) => g.wall);
+  const out = [
+    `LAYOUT: ${shape} — the main run stands on the BACK wall of IMAGE A` +
+      rets.map((g) => ` and a return run stands on the ${g.wall.toUpperCase()} wall, joined to it at the ${g.wall} corner`).join('') +
+      `. Each return runs out from its corner along its side wall toward the room, its fronts facing into the room — never a free-standing block or peninsula.`,
+  ];
+  for (const g of rets) {
+    const mainEnd = plannerCornerUnit(main, g.wall);
+    const first = plannerCornerUnit(g);
+    const corner = g.spec && g.spec.corner;
+    if (corner === 'main' && mainEnd && first) {
+      out.push(`At the ${g.wall} corner ${mainEnd} runs into the corner; ${first} starts in front of it, its side against ${mainEnd}'s front.`);
+    } else if (corner === 'return' && mainEnd && first) {
+      out.push(`At the ${g.wall} corner ${first} runs into the corner; the back-wall run starts beside it with ${mainEnd}.`);
+    } else if (corner === 'open') {
+      out.push(`At the ${g.wall} corner the two runs do not meet — leave the corner itself without cabinets.`);
+    }
+    if (!g.rows.some((r) => r.key === 'upper' || r.key === 'tall')) out.push(`No wall units on the ${plannerWallName(g.wall)}.`);
+  }
+  const bare = ['left', 'right'].filter((s) => !sides.includes(s));
+  if (bare.length) out.push(`The ${listJoinAnd(bare)} wall${bare.length > 1 ? 's get' : ' gets'} no cabinets.`);
+  if (returnImages.length < rets.length) out.push('IMAGE B shows only the back wall; build the return from the list below.');
+  return out.join(' ');
+}
+
+/** 꺾인 벽의 빈 구역 — 상부장이 없으면 그 위 전체, 있으면 층마다 덮지 않는 구간. 벽 이름을 앞에 붙인다. */
+function plannerReturnZones(g) {
+  const name = plannerWallName(g.wall);
+  const ids = g.rows.map((r) => plannerIdSpan(r.items.filter((it) => !isHoodCell(it.m)).length ? r.items.filter((it) => !isHoodCell(it.m)) : r.items));
+  if (!g.rows.some((r) => r.key === 'upper' || r.key === 'tall')) {
+    return [`${name}: above the return (${listJoinAnd(ids)}) — no wall units, bare wall up to the ceiling`];
+  }
+  if (!g.ref) return [];
+  const starts = g.rows.map((r) => r.fromLeftMm || 0);
+  const ends = g.rows.map((r) => (r.fromLeftMm || 0) + (r.widthMm || 0));
+  return plannerLevelZones(g.rows, g.ref, Math.min(...starts), Math.max(...ends)).map((z) => `${name}: ${z}`);
+}
+
 /**
  * @param {object} c
  * @param {string} c.category
@@ -1484,6 +1669,8 @@ function plannerLevelZones(rows, ref, runStart, runEnd) {
  * @param {boolean} [c.labeledElevation]  IMAGE B 가 번호·치수선 붙은 입면인가 (2026-10-19, GPT 에만 보낸다).
  *                                아니면 "번호·치수선은 주석" 문장을 빼고 IMAGE B 를 깨끗한 입면으로 말한다.
  * @param {string} [c.aspect]     결과 비율 (PLANNER_ASPECTS)
+ * @param {{side:'left'|'right', labeled:boolean}[]} [c.returnElevations]  2026-10-19: 함께 가는 꺾인 벽 입면
+ *                                (IMAGE C(3/4) 다음 글자부터). design_spec.walls 에 그 벽이 있을 때만 쓴다.
  */
 export function buildPlannerPrompt(c) {
   const key = resolveCategory(c.category);
@@ -1499,9 +1686,19 @@ export function buildPlannerPrompt(c) {
   // ㄱ자·ㄷ자면 런이 여러 벽에 걸친다 — 한 벽 대비 % 와 "남는 벽" 을 말하지 않는다.
   const oneWall = !layout || layout.shape === 'straight';
 
+  // 2026-10-19: 꺾인 벽의 정면 입면 (elevation_left · elevation_right) — 실제로 함께 가는 것만. 글자는 B·C 다음부터.
+  //   꺾인 벽이 없으면 빈 목록 — 아래 문장은 예전 그대로다.
+  const wallSides = plannerWalls(spec).map((w) => w.side);
+  const returnImages = (Array.isArray(c.returnElevations) ? c.returnElevations : [])
+    .filter((r) => r && wallSides.includes(r.side))
+    .filter((r, i, a) => a.findIndex((x) => x.side === r.side) === i)
+    .map((r, i) => ({ side: r.side, labeled: !!r.labeled, letter: String.fromCharCode(67 + (massing ? 1 : 0) + i) }));
+  const imageCount = 2 + (massing ? 1 : 0) + returnImages.length;
+  const COUNT_WORD = ['zero', 'one', 'two', 'three', 'four', 'five'];
+
   // ── 세 장의 이름과 역할 ──
   const images = [
-    `You receive ${massing ? 'three' : 'two'} images.`,
+    `You receive ${COUNT_WORD[imageCount] || imageCount} images.`,
     `IMAGE A — ROOM PHOTO: the customer's real room. Edit this photo only inside the EDIT ZONE below.`,
     // 2026-10-19: 번호 입면(labeledElevation)이면 번호·치수선은 주석이지 그릴 것이 아니라고 말한다.
     //   번호 없는 입면(Gemini, GPT 실패 대체)에는 그 문장이 없다 — 없는 번호를 말하면 오히려 그려 넣는다.
@@ -1510,7 +1707,27 @@ export function buildPlannerPrompt(c) {
         ? ` IMAGE B may carry ID labels (L1, U1 …) and dimension lines; they are annotations that match the list below — never draw any text, numbers or lines from them.`
         : ''),
   ];
-  if (massing) {
+  if (wallSides.length) {
+    // 2026-10-19: ㄱ자·ㄷ자 — IMAGE B 는 주벽만, 꺾인 벽은 제 입면 (모서리가 그림의 어느 쪽인지까지)
+    images[2] = images[2].replace('the exact cabinet design to build, seen straight on.', `the ${plannerWallName('main')} run, seen straight on.`);
+    if (massing) {
+      images.push(`IMAGE C — 3/4 VIEW of the whole design: shows how the runs meet at the corner, depth, side panels${kitchen ? ' and the countertop edge' : ''}.`);
+    }
+    for (const r of returnImages) {
+      const w = plannerWalls(spec).find((x) => x.side === r.side);
+      const edge = w && w.cornerEdge ? ` Its ${w.cornerEdge} edge is the corner.` : '';
+      images.push(
+        `IMAGE ${r.letter} — FRONT ELEVATION of the ${plannerWallName(r.side)} run (the return), seen straight on.${edge}` +
+          (r.labeled ? ' Its ID labels and dimension lines are annotations too — never draw them.' : '')
+      );
+    }
+    const letters = ['B', ...(massing ? ['C'] : []), ...returnImages.map((r) => r.letter)];
+    images.push(
+      letters.length === 1
+        ? `IMAGE B is a design reference. Do not paste it into the photo and do not copy its plain white background or flat look. Build the real cabinets it shows, in the room of IMAGE A.`
+        : `IMAGE ${listJoinAnd(letters)} are design references. Do not paste them into the photo and do not copy their plain white background or flat look. Build the real cabinets they show, in the room of IMAGE A.`
+    );
+  } else if (massing) {
     images.push(
       `IMAGE C — 3/4 VIEW of the same design: shows depth, side panels${kitchen ? ' and the countertop edge' : ''}.`,
       `IMAGE B and IMAGE C are design references. Do not paste them into the photo and do not copy their plain white background or flat look. Build the real cabinets they show, in the room of IMAGE A.`
@@ -1537,12 +1754,38 @@ export function buildPlannerPrompt(c) {
   // ── FIXED GEOMETRY — 줄마다 번호·폭·종류, 바닥 기준 높이, 기준 줄 대비 시작·끝, 폭 비율 ──
   const { rows, loose, runMm } = plannerRows(spec, key);
   const { floors, ceilingMm, gaps } = plannerHeights(spec, rows);
-  const ref = plannerReferenceRow(rows);
+  // 2026-10-19: 벽마다 줄 묶음 — 주벽(최상위 sections) + 꺾인 벽(walls[]). 꺾인 벽이 없으면 묶음 하나, 예전과 같은 문장이다.
+  const groups = plannerWallGroups(rows);
+  const multi = groups.length > 1;
+  const mainRows = groups.length ? groups[0].rows : rows;
+  const ref = plannerReferenceRow(mainRows);
+  const refOf = (row) => (row.wall && row.wall !== 'main' ? groups.find((g) => g.wall === row.wall).ref : ref);
+  // 2026-10-19: 꺾인 벽이 있으면 LAYOUT 을 실제 방향으로 (어느 옆벽 · 모서리를 누가 차지하나 · 꺾인 벽의 상부장 유무)
+  if (multi) layoutPara = plannerCornerLayout(layout, groups, returnImages);
+  // 2026-10-19: 모서리를 차지한 유닛에 한마디 — "L1 …, in the left corner — L5 stands in front of it"
+  const cornerNote = {};
+  for (const g of multi ? groups.slice(1) : []) {
+    const mainEnd = plannerCornerUnit(groups[0], g.wall);
+    const first = plannerCornerUnit(g);
+    const corner = g.spec && g.spec.corner;
+    if (corner === 'main' && mainEnd && first) cornerNote[mainEnd] = `, in the ${g.wall} corner — ${first} stands in front of it`;
+    else if (corner === 'return' && first) cornerNote[first] = `, in the ${g.wall} corner`;
+  }
   const geo = [];
   if (rows.length) {
-    geo.push('FIXED GEOMETRY — left to right, exactly as IMAGE B shows:');
+    geo.push(
+      multi
+        ? 'FIXED GEOMETRY — each wall exactly as its own elevation shows:'
+        : 'FIXED GEOMETRY — left to right, exactly as IMAGE B shows:'
+    );
     for (const row of rows) {
       const { bottom, top } = floors.get(row);
+      const rref = refOf(row);
+      // 2026-10-19: 벽 머리 — 그 벽의 첫 줄 앞에 한 번
+      if (multi) {
+        const g = groups.find((x) => x.rows[0] === row);
+        if (g) geo.push(`  ${plannerWallHead(g, returnImages, ref)}`);
+      }
       const head = [];
       if (row.heightMm && top === null) head.push(`${row.heightMm} mm high`);
       if (row.widthMm) {
@@ -1552,8 +1795,11 @@ export function buildPlannerPrompt(c) {
         );
       }
       let position = '';
-      if (ref && row !== ref) position = ` — ${plannerRowPosition(row, ref)}`;
-      else if (row.fromLeftMm === 0) head.push('starts at the left corner');
+      if (rref && row !== rref) position = ` — ${plannerRowPosition(row, rref)}`;
+      else if (row.wall && row.wall !== 'main') {
+        // 2026-10-19: 꺾인 벽의 기준 줄 — 모서리(주벽 면)에서 얼마나 나와 시작하나
+        head.push(row.fromLeftMm > PLANNER_TOL_MM ? `starts ${row.fromLeftMm} mm out from the ${plannerWallName('main')}` : `starts in the corner`);
+      } else if (row.fromLeftMm === 0) head.push('starts at the left corner');
       else if (row.fromLeftMm > 0) head.push(`starts ${row.fromLeftMm} mm from the left end of the run`);
       let heads = head.join(', ');
       if (top !== null) {
@@ -1578,6 +1824,7 @@ export function buildPlannerPrompt(c) {
         what += extra
           .map((k) => `, ${PLANNER_APPLIANCE_ON_MODULE[k]}${k === 'cooktop' && it.cooktopUnder ? `, directly under the hood ${it.cooktopUnder}` : ''}`)
           .join('');
+        if (row.key === 'lower' || row.key === 'tall') what += cornerNote[it.id] || '';
         return { head: `${it.id.padEnd(3)} ${size}`.trimEnd(), what };
       });
       const pad = Math.max(...lines.map((l) => l.head.length)) + 2;
@@ -1616,31 +1863,38 @@ export function buildPlannerPrompt(c) {
   // 비율 구속 — 벽에 맞추는 것은 전체 배율뿐 (2026-10-19, 옛 "mm·% 는 참고" 를 바꿈)
   const binding = rows.length
     ? `BINDING: the order, the counts and the width ratios inside ${rows.length > 1 ? 'each row' : 'the row'} (within about ±10 %)` +
-      (rows.length > 1 && ref ? `, and where each row starts and ends against the ${ref.def.title.toLowerCase()}` : '') +
+      (multi
+        ? ', and where each row starts and ends against the reference row of its own wall'
+        : rows.length > 1 && ref ? `, and where each row starts and ends against the ${ref.def.title.toLowerCase()}` : '') +
       '. Only the overall scale may change to fit the real wall in IMAGE A.'
     : 'BINDING: the order and the counts IMAGE B shows. Only the overall scale may change to fit the real wall in IMAGE A.';
 
   // ── EMPTY ZONES — 계산한 빈 구역 ──
+  // 2026-10-19: 꺾인 벽이 있으면 벽마다 따로 세고 벽 이름을 앞에 붙인다 (주벽만이면 예전 그대로)
   const zones = [];
+  const wallTag = (row) => (multi ? `${plannerWallName(row.wall || 'main')}: ` : '');
   if (key !== 'wardrobe' && ref && runMm) {
-    const runStart = Math.min(0, ...rows.map((r) => r.fromLeftMm || 0));
-    zones.push(...plannerLevelZones(rows, ref, runStart, runMm));
+    const runStart = Math.min(0, ...mainRows.map((r) => r.fromLeftMm || 0));
+    zones.push(...plannerLevelZones(mainRows, ref, runStart, runMm).map((z) => (multi ? `${plannerWallName('main')}: ${z}` : z)));
   }
-  const lower = rows.find((r) => r.key === 'lower');
-  const upper = rows.find((r) => r.key === 'upper');
-  if (lower && upper) {
-    const lo = floors.get(lower);
-    const up = floors.get(upper);
-    if (lo.top !== null && up.bottom !== null && up.bottom - lo.top > PLANNER_TOL_MM) {
-      zones.push(
-        `between the top of the base row (${lo.top} mm) and the bottom of the wall row (${up.bottom} mm) — ${up.bottom - lo.top} mm of open wall`
-      );
+  if (multi) for (const g of groups.slice(1)) zones.push(...plannerReturnZones(g));
+  for (const g of groups.length ? groups : [{ rows }]) {
+    const lower = g.rows.find((r) => r.key === 'lower');
+    const upper = g.rows.find((r) => r.key === 'upper');
+    if (lower && upper) {
+      const lo = floors.get(lower);
+      const up = floors.get(upper);
+      if (lo.top !== null && up.bottom !== null && up.bottom - lo.top > PLANNER_TOL_MM) {
+        zones.push(
+          `${wallTag(lower)}between the top of the base row (${lo.top} mm) and the bottom of the wall row (${up.bottom} mm) — ${up.bottom - lo.top} mm of open wall`
+        );
+      }
     }
   }
   for (const g of gaps) {
     if (g.gap <= PLANNER_TOL_MM) continue;
     zones.push(
-      `between the top of the ${g.row.def.title.toLowerCase()} (${g.top} mm) and the ceiling (${ceilingMm} mm) — ${g.gap} mm, left open or closed exactly as IMAGE B shows`
+      `${wallTag(g.row)}between the top of the ${g.row.def.title.toLowerCase()} (${g.top} mm) and the ceiling (${ceilingMm} mm) — ${g.gap} mm, left open or closed exactly as IMAGE B shows`
     );
   }
   // 결정 ①′ — 도면이 벽보다 짧으면 나머지는 빈 벽
@@ -1657,7 +1911,10 @@ export function buildPlannerPrompt(c) {
     : null;
 
   // ── EDIT ZONE / KEEP — 목표 벽의 붙박이만 바꾸고 나머지는 사진 그대로 ──
-  const walls = layout && layout.walls > 1 ? `the ${layout.walls} target walls` : 'the target wall';
+  // 2026-10-19: 꺾인 벽이 있으면 벽 이름으로 ("the back wall and the left wall")
+  const walls = multi
+    ? listJoinAnd(groups.map((g) => `the ${plannerWallName(g.wall)}`))
+    : layout && layout.walls > 1 ? `the ${layout.walls} target walls` : 'the target wall';
   const existing = c.existing ? ` (${c.existing})` : '';
   const edit =
     `EDIT ZONE: ${walls} only — the new run plus the built-in cabinetry on ${walls} that it replaces${existing}. ` +
@@ -1707,7 +1964,7 @@ export function buildPlannerPrompt(c) {
       : 'add any appliance, sink or hood';
   const doNot =
     `DO NOT: change how many doors or drawers any unit has; ${forbidAppliances}; add handles or knobs; open any door or drawer; ` +
-    `paste IMAGE B${massing ? ' or IMAGE C' : ''} into the photo; add text, labels or watermarks.`;
+    `paste IMAGE ${returnImages.length ? listJoinOr(['B', ...(massing ? ['C'] : []), ...returnImages.map((r) => r.letter)]) : `B${massing ? ' or IMAGE C' : ''}`} into the photo; add text, labels or watermarks.`;
 
   const output = `OUTPUT: one photorealistic photograph of the finished room, ${aspect}.`;
 
@@ -1723,8 +1980,14 @@ export function buildPlannerPrompt(c) {
     const hood = t.hoods.length
       ? ` + range hood ${listJoin(t.hoods)} with no cabinet in ${t.hoods.length === 1 ? 'its gap' : 'their gaps'}`
       : '';
-    return `${row.def.title.toLowerCase()} ${what}${hood}, ${plannerPlural(t.doors, 'door')}${showDrawers ? `, ${plannerPlural(t.drawers, 'drawer')}` : ''}`;
+    return `${multi ? `${plannerWallName(row.wall || 'main')} ` : ''}${row.def.title.toLowerCase()} ${what}${hood}, ${plannerPlural(t.doors, 'door')}${showDrawers ? `, ${plannerPlural(t.drawers, 'drawer')}` : ''}`;
   });
+  // 2026-10-19: 꺾인 벽에 상부장이 없으면 자체 점검에서도 한 번 더
+  if (multi) {
+    for (const g of groups.slice(1)) {
+      if (!g.rows.some((r) => r.key === 'upper' || r.key === 'tall')) rowChecks.push(`no wall units on the ${plannerWallName(g.wall)}`);
+    }
+  }
   const selfCheck =
     'FINAL SELF-CHECK before you answer: ' +
     [
