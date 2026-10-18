@@ -671,7 +671,7 @@ describe('내부 서랍장은 따로 만드는 모듈이다 (2026-09-19 확정)'
     expect(side.note || '').not.toMatch(/sakuri|사쿠리/);  // 2026-09-23: 측판에 사쿠리가 없다
     expect(by('지판')[0]).toMatchObject({ w: 720, h: 480, qty: 1 });        // 모듈 깊이 그대로
     expect(by('밴드')[0]).toMatchObject({ w: 720, h: 70, qty: 2 });
-    expect(by('뒷판')[0]).toMatchObject({ material: 'MDF', t: 2.7, w: 730, h: 699, qty: 1 });
+    expect(by('뒷판')[0]).toMatchObject({ material: 'MDF', t: 3, w: 730, h: 699, qty: 1 });   // 우라 3T (2026-10-18)
     // 2026-09-22: 상판은 **좌우 몰딩까지 덮는다** → 가로가 통 내경이고, 깊이는 선반과 같다.
     //   결국 분할 없는 칸의 **선반과 같은 판**이다.
     const top = by('상판')[0];
@@ -741,7 +741,7 @@ describe('내부 서랍장은 따로 만드는 모듈이다 (2026-09-19 확정)'
     expect(WR.innerDrawerModulePartsOf(inner(2)).find((r) => r.part === '상판').h)
       .toBe(WR.shelfDepthOf({ D: BODY_D }));
     expect(by('서랍측판')).toMatchObject({ w: 440, h: 180, qty: 4 });      // 레일 450 − 10
-    expect(by('서랍밑판')).toMatchObject({ material: 'MDF', t: 2.7, w: 707, h: 439, qty: 2 });
+    expect(by('서랍밑판')).toMatchObject({ material: 'MDF', t: 3, w: 707, h: 439, qty: 2 });   // 우라 3T
     // 전후판 가로가 600 을 넘으면 하단보강 — 규칙 안에서 같이 나온다 (BOM 이 또 내면 두 번이다)
     expect(by('서랍 하단보강')).toMatchObject({ w: 440, h: 60, qty: 2 });
   });
