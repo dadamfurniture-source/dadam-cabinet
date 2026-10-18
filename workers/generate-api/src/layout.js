@@ -16,6 +16,8 @@
  *   1. LAYOUT_SCHEMA        Claude 구조화 출력 스키마 (output_config.format)
  *   2. buildLayoutPrompt()  사실 블록 + 과제 + 어휘
  *   3. normalizeLayout()    Claude JSON → generations.layout (연속성·클램프·mm 스냅·가전 좌표)
+ *   4. 플래너 모드 (2026-10-19) PLANNER_READ_SCHEMA · buildPlannerReadPrompt() · normalizePlannerRead()
+ *      — 사진 + 정면 입면 + 도면 목록을 주고 모듈(L1·U1…)마다 센다. 같은 layout 모양으로 낸다.
  *
  * 이 파일은 import 가 없어야 한다 — __tests__/generate-layout.test.js 가 export 만 떼어 평가한다.
  * 결과 형식은 js/detaildesign/gen-import.js (genLayoutToPlanner) 가 읽는다. 바꾸면 같이 고친다.
@@ -358,6 +360,464 @@ export function normalizeLayout(raw, ctx) {
     doorCounts,
     drawerCount,
     confidence: Object.assign({ overall: round2(overall) }, mapValues(conf, round2)),
+    notes: notes.slice(0, MAX_NOTES),
+    raw: r,
+  };
+}
+
+// ─── 4. 플래너 모드 역판독 (2026-10-19) ───
+// 플래너 모드는 도면(design_spec)이 정본이고 모듈마다 번호(L1·U1·T1·W1)가 있다 — 설치 프롬프트(prompts.js plannerRows)와
+// 번호 입면(render-elevation_labeled)이 같은 규칙이다. 그래서 결과 사진만 보여 주고 "벽 전체 도어 수" 를 묻지 않는다:
+// 사진 + 정면 입면(번호 있는 것이 있으면 그것) + 도면 목록(줄·번호·폭·도어/서랍 수)을 주고, 모듈마다 사진에 보이는
+// 도어·서랍 수를 세게 한다. 실측 16장 중 3장에서 하부 5짝을 4짝·6짝으로 읽은 것(사람이 세면 5짝)을 막으려는 것이다.
+// 결과는 normalizeLayout 과 같은 모양(segments·uppers·appliances·doorCounts …)으로 만들어 verify.js 가 그대로 받는다.
+// 덤으로 units(모듈별 판독)·extraUnits(도면 밖 유닛)·shape(배치 모양)를 더 싣는다.
+// 일반 연출컷·/layout 라우트는 위 1~3 을 그대로 쓴다.
+
+export const PLANNER_READ_VERSION = 1;
+/** 모듈 한 칸이 사진에서 무엇으로 보였나. missing = 그 자리에 유닛이 없다. */
+export const PLANNER_READ_SEEN = ['cabinet', 'refrigerator', 'dishwasher', 'open', 'missing'];
+export const PLANNER_READ_SHAPES = ['straight', 'corner', 'u', 'unclear'];
+const PLANNER_READ_ROWS = ['base', 'wall', 'tall', 'wardrobe'];
+/** design_spec 구간 → 판독 줄 이름·번호 머리. prompts.js PLANNER_ROWS 와 같은 머리 글자. */
+const PLANNER_READ_SECTION = {
+  lower: { row: 'base', prefix: 'L', title: 'BASE ROW' },
+  upper: { row: 'wall', prefix: 'U', title: 'WALL ROW' },
+  tall: { row: 'tall', prefix: 'T', title: 'TALL ROW' },
+};
+const PLANNER_READ_WARDROBE = { row: 'wardrobe', prefix: 'W', title: 'WARDROBE ROW' };
+const PLANNER_READ_SUBJECT = {
+  sink: 'kitchen',
+  island: 'kitchen',
+  fridge: 'refrigerator surround',
+  storage: 'storage wall',
+  wardrobe: 'wardrobe',
+};
+const PLANNER_READ_ATTACH = {
+  sink: 'sink on the countertop',
+  cooktop: 'cooktop on the countertop',
+  hood: 'hood under it',
+  dishwasher: 'integrated dishwasher',
+  fridge: 'refrigerator',
+};
+/** 가전이 걸리는 구간 — prompts.js PLANNER_APPLIANCE_ROWS 와 같다. */
+const PLANNER_READ_APPLIANCE_ROWS = {
+  sink: ['lower'],
+  cooktop: ['lower'],
+  dishwasher: ['lower'],
+  hood: ['upper'],
+  fridge: ['tall', 'lower'],
+  refrigerator: ['tall', 'lower'],
+};
+
+const READ_COUNT = { type: 'integer' };
+export const PLANNER_READ_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['rows', 'extra_units', 'layout_shape', 'confidence', 'notes'],
+  properties: {
+    rows: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['row', 'units'],
+        properties: {
+          row: { type: 'string', enum: PLANNER_READ_ROWS },
+          units: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['id', 'seen', 'doors', 'drawers'],
+              properties: {
+                id: { type: 'string' },
+                seen: { type: 'string', enum: PLANNER_READ_SEEN },
+                doors: READ_COUNT,
+                drawers: READ_COUNT,
+              },
+            },
+          },
+        },
+      },
+    },
+    extra_units: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['row', 'where', 'doors', 'drawers'],
+        properties: {
+          row: { type: 'string', enum: PLANNER_READ_ROWS.concat(['other']) },
+          where: { type: 'string' },
+          doors: READ_COUNT,
+          drawers: READ_COUNT,
+        },
+      },
+    },
+    layout_shape: { type: 'string', enum: PLANNER_READ_SHAPES },
+    confidence: { type: 'number' },
+    notes: { type: 'array', items: { type: 'string' } },
+  },
+};
+
+/** 모듈 한 칸의 유효 도어·서랍 수 — prompts.js plannerCounts 와 같은 규칙 (생성 모델이 받은 수). */
+function plannerReadCounts(m) {
+  if (m.kind === 'open' || m.kind === 'appliance') return { doors: 0, drawers: 0 };
+  if (m.kind === 'drawer') return { doors: m.doorCount || 0, drawers: m.drawerCount || 1 };
+  return { doors: m.doorCount || 1, drawers: m.drawerCount || 0 };
+}
+
+/** 가전 모듈 라벨 → 사진에서 보일 것. verify.js applianceKindOfModule 과 같은 규칙. */
+function plannerReadApplianceSeen(m) {
+  const label = String((m && m.label) || '').toLowerCase();
+  if (/냉장|fridge|refrig/.test(label)) return 'refrigerator';
+  if (/식기|dish/.test(label)) return 'dishwasher';
+  return 'open';
+}
+
+/**
+ * design_spec → 판독 계획: 줄마다 번호 매긴 모듈과 도면이 요구한 것.
+ * 번호는 prompts.js plannerRows 와 같다 — 줄 안 왼쪽부터 1, 붙박이장은 구간을 왼쪽 끝 순서로 이어 한 줄(W).
+ * @returns {{rows:{row:string, section:string, title:string, prefix:string, units:object[]}[],
+ *            runMm:number|null, shape:'straight'|'corner'|'u'|null}}
+ */
+export function plannerReadPlan(spec, category) {
+  const s = spec && typeof spec === 'object' ? spec : {};
+  const sections = s.sections && typeof s.sections === 'object' ? s.sections : {};
+  const keys = ['lower', 'upper', 'tall'].filter(
+    (k) => sections[k] && Array.isArray(sections[k].modules) && sections[k].modules.length
+  );
+  const placed = (key, sec) => {
+    let x = Number(sec.fromLeftMm) || 0;
+    return sec.modules.map((m) => {
+      const start = x;
+      x += Number(m.widthMm) || 0;
+      return { m, section: key, startMm: start, endMm: x };
+    });
+  };
+  let rows;
+  if (category === 'wardrobe') {
+    const ordered = keys
+      .slice()
+      .sort((a, b) => (sections[a].fromLeftMm || 0) - (sections[b].fromLeftMm || 0));
+    rows = ordered.length
+      ? [
+          Object.assign({ section: 'wardrobe' }, PLANNER_READ_WARDROBE, {
+            items: ordered.flatMap((k) => placed(k, sections[k])),
+          }),
+        ]
+      : [];
+  } else {
+    rows = keys.map((k) =>
+      Object.assign({ section: k }, PLANNER_READ_SECTION[k], { items: placed(k, sections[k]) })
+    );
+  }
+  let runMm = Number(s.wallRunMm) > 0 ? Number(s.wallRunMm) : null;
+  if (!runMm) {
+    const ends = rows.flatMap((r) => r.items.map((it) => it.endMm));
+    runMm = ends.length && Math.max(...ends) > 0 ? Math.max(...ends) : null;
+  }
+  const out = rows.map((r) => ({
+    row: r.row,
+    section: r.section,
+    title: r.title,
+    prefix: r.prefix,
+    units: r.items.map((it, i) => {
+      const c = plannerReadCounts(it.m);
+      const seen = it.m.kind === 'appliance' ? plannerReadApplianceSeen(it.m) : it.m.kind === 'open' ? 'open' : 'cabinet';
+      return {
+        id: `${r.prefix}${i + 1}`,
+        section: it.section,
+        widthMm: Number(it.m.widthMm) || null,
+        startMm: it.startMm,
+        endMm: it.endMm,
+        seen,
+        doors: c.doors,
+        drawers: c.drawers,
+        attached: [],
+      };
+    }),
+  }));
+  // 가전 → 그 자리에 걸린 모듈 (중심이 모듈 [start,end) 안)
+  (Array.isArray(s.appliances) ? s.appliances : []).forEach((a) => {
+    const kind = a && String(a.kind || '').toLowerCase();
+    const where = PLANNER_READ_APPLIANCE_ROWS[kind];
+    if (!where || a.fromLeftMm === undefined) return;
+    const center = Number(a.fromLeftMm) + (Number(a.widthMm) || 0) / 2;
+    for (const sec of where) {
+      for (const row of out) {
+        const hit = row.units.find(
+          (u) => u.section === sec && u.endMm > u.startMm && center >= u.startMm && center < u.endMm
+        );
+        if (hit) {
+          const k = kind === 'refrigerator' ? 'fridge' : kind;
+          if (!hit.attached.includes(k)) hit.attached.push(k);
+          return;
+        }
+      }
+    }
+  });
+  const l = s.layout && typeof s.layout === 'object' ? s.layout : null;
+  let shape = l && ['straight', 'corner', 'u'].includes(l.shape) ? l.shape : null;
+  if (!shape) {
+    const notes = String(s.notes || '');
+    if (/ㄷ자|U-shaped/i.test(notes)) shape = 'u';
+    else if (/ㄱ자|L-shaped/i.test(notes)) shape = 'corner';
+  }
+  return { rows: out, runMm, shape };
+}
+
+/** 도면 목록 한 줄 — "L1   800 mm  2 doors, sink on the countertop" */
+function plannerReadLine(u) {
+  const bits = [];
+  if (u.seen === 'refrigerator') bits.push('refrigerator opening (fridge front, no cabinet doors)');
+  else if (u.seen === 'dishwasher') bits.push('integrated dishwasher (one panel, not a door)');
+  else if (u.seen === 'open') bits.push('open, no doors');
+  else {
+    if (u.doors) bits.push(u.doors === 1 ? '1 door' : `${u.doors} doors`);
+    if (u.drawers) bits.push(u.drawers === 1 ? '1 drawer' : `${u.drawers} drawers`);
+    if (!bits.length) bits.push('no fronts');
+  }
+  u.attached
+    .filter((k) => !(k === 'fridge' && u.seen === 'refrigerator') && !(k === 'dishwasher' && u.seen === 'dishwasher'))
+    .forEach((k) => bits.push(PLANNER_READ_ATTACH[k]));
+  const size = u.widthMm ? `${String(u.widthMm).padStart(4)} mm` : '';
+  return `${u.id.padEnd(3)} ${size}`.trimEnd().padEnd(11) + '  ' + bits.join(', ');
+}
+
+/**
+ * 플래너 모드 역판독 프롬프트. 이미지 순서는 [결과 사진, 정면 입면?].
+ * @param {object} c
+ * @param {string} c.category
+ * @param {object} c.designSpec
+ * @param {'labeled'|'plain'|null} [c.elevation]  IMAGE 2 가 번호 입면 · 번호 없는 입면 · 없음
+ */
+export function buildPlannerReadPrompt(c) {
+  const category = LAYOUT_CATEGORIES.includes(c.category) ? c.category : 'storage';
+  const plan = plannerReadPlan(c.designSpec, category);
+  const el = c.elevation === 'labeled' || c.elevation === 'plain' ? c.elevation : null;
+  const images = [
+    `IMAGE 1 — RESULT PHOTO: an AI-generated photo of a built-in ${PLANNER_READ_SUBJECT[category]} installed in a real room. This is the image you count.`,
+  ];
+  if (el === 'labeled') {
+    images.push(
+      'IMAGE 2 — FRONT ELEVATION of the plan the photo was generated from, seen straight on, with each unit labelled by its ID (L1, U1 …) and dimension lines. Use it only to tell which unit is which.'
+    );
+  } else if (el === 'plain') {
+    images.push(
+      'IMAGE 2 — FRONT ELEVATION of the plan the photo was generated from, seen straight on. It has no labels: the IDs below run left to right inside each row. Use it only to tell which unit is which.'
+    );
+  }
+  const list = [];
+  plan.rows.forEach((r) => {
+    list.push(`  ${r.title} (row "${r.row}"):`);
+    r.units.forEach((u) => list.push(`    ${plannerReadLine(u)}`));
+  });
+  const shape =
+    plan.shape === 'straight'
+      ? 'PLAN LAYOUT: one straight run on one wall.'
+      : plan.shape === 'corner'
+        ? 'PLAN LAYOUT: one L-shaped run on two walls (the elevation shows it unfolded flat).'
+        : plan.shape === 'u'
+          ? 'PLAN LAYOUT: one U-shaped run on three walls (the elevation shows it unfolded flat).'
+          : null;
+  return `You are checking a generated photo against the cabinet plan it was generated from.
+${images.join('\n')}
+
+PLAN — every unit, left to right within each row (widths in mm; the door and drawer counts are what the plan asks for):
+${list.join('\n') || '  (no units listed)'}
+${shape ? shape + '\n' : ''}
+TASK: find every plan unit in IMAGE 1 and count what IMAGE 1 actually shows. The photo may differ from the plan — report the photo, never copy the plan's numbers.
+1. Match the units by their order from the left, their relative widths and landmarks (sink, cooktop, hood, refrigerator, tall columns). The photo is in perspective: units nearer the camera look wider. If the run turns a corner in IMAGE 1, keep following it in the same order.
+2. rows: for every plan row and every unit ID above give seen, doors and drawers. seen = cabinet (a unit with door or drawer fronts), refrigerator, dishwasher, open (open shelving or an empty opening) or missing (no unit there). doors = hinged door fronts on that unit; drawers = drawer fronts on that unit. Count fronts one unit at a time by the vertical and horizontal gaps between them — two fronts side by side are 2 doors even when they share one handle line. Refrigerator doors and dishwasher panels are not doors.
+3. extra_units: every built-in unit in IMAGE 1 that is none of the plan units — for example a cabinet above the refrigerator, cabinets on a side wall, a drawer stack added at an end. Give row (base, wall, tall, wardrobe or other), where (a few words), doors and drawers. Freestanding appliances, the hood, loose furniture and things outside the built-in run are not units.
+4. layout_shape: straight when all built-in units stand on one wall; corner when they turn one corner onto a second wall; u when they cover three walls; unclear when you cannot tell.
+5. confidence: 0 to 1 for your counts. notes: at most 5 short sentences about anything ambiguous.`;
+}
+
+/**
+ * 플래너 판독 JSON → generations.layout (normalizeLayout 과 같은 모양 + units·extraUnits·shape).
+ * 판독이 빠뜨린 모듈은 seen:'unread' 로 남기고 세그먼트에서 뺀다 — 도면 값으로 메우지 않는다.
+ * mm 는 도면 값이다 (사진에서 재지 않는다).
+ * @param {object} raw  Claude JSON (PLANNER_READ_SCHEMA). 깨진 입력에도 던지지 않는다.
+ * @param {object} ctx  {category, designSpec, wallAnalysis?, slot?, model?, now?, elevation?}
+ */
+export function normalizePlannerRead(raw, ctx) {
+  const category = LAYOUT_CATEGORIES.includes(ctx.category) ? ctx.category : 'storage';
+  const plan = plannerReadPlan(ctx.designSpec, category);
+  const wa = ctx.wallAnalysis || {};
+  const W = wallW(wa.wallW);
+  const H = wallH(wa.wallH);
+  const run = plan.runMm || W;
+  const r = raw && typeof raw === 'object' ? raw : {};
+  const notes = [];
+
+  // 판독 → id 별 (대소문자·공백 무시, 먼저 나온 것)
+  const got = new Map();
+  list(r.rows).forEach((row) => {
+    list(row && row.units).forEach((u) => {
+      const id = String((u && u.id) || '')
+        .trim()
+        .toUpperCase();
+      if (!id || got.has(id)) return;
+      got.set(id, {
+        seen: PLANNER_READ_SEEN.includes(u.seen) ? u.seen : 'cabinet',
+        doors: count(u.doors),
+        drawers: count(u.drawers),
+      });
+    });
+  });
+  const known = new Set();
+  const units = [];
+  plan.rows.forEach((row) => {
+    row.units.forEach((p) => {
+      known.add(p.id);
+      const g = got.get(p.id);
+      if (!g) notes.push(`${p.id} was not reported`);
+      units.push({
+        id: p.id,
+        row: row.row,
+        section: p.section,
+        widthMm: p.widthMm,
+        startMm: p.startMm,
+        endMm: p.endMm,
+        expected: { seen: p.seen, doors: p.doors, drawers: p.drawers },
+        seen: g ? g.seen : 'unread',
+        doors: g ? (g.seen === 'cabinet' || g.seen === 'open' ? g.doors : 0) : 0,
+        drawers: g ? (g.seen === 'cabinet' || g.seen === 'open' ? g.drawers : 0) : 0,
+      });
+    });
+  });
+  got.forEach((_, id) => {
+    if (!known.has(id)) notes.push(`unknown unit id "${id.slice(0, 12)}" ignored`);
+  });
+
+  const pctOf = (mm) => clampPct(round2((mm / run) * 100));
+  const mmBox = (u) => {
+    const x = Math.max(0, Math.min(W, Math.round(u.startMm)));
+    return { x, w: Math.max(0, Math.min(W, Math.round(u.endMm)) - x) };
+  };
+  const present = (u) => u.seen !== 'missing' && u.seen !== 'unread';
+
+  // 바닥 세그먼트 — 하부·키큰장 구간을 왼쪽 끝 순서로 (verify.js expectedFromSpec 과 같은 순서)
+  let segments;
+  if (category === 'wardrobe') {
+    const ws = units.filter(present);
+    segments = ws.length
+      ? [
+          {
+            kind: 'wardrobe',
+            startPct: 0,
+            endPct: 100,
+            doors: ws.reduce((n, u) => n + u.doors, 0),
+            drawers: ws.reduce((n, u) => n + u.drawers, 0),
+            x: 0,
+            w: W,
+          },
+        ]
+      : [];
+  } else {
+    const secs = plan.rows
+      .filter((row) => row.section === 'lower' || row.section === 'tall')
+      .sort((a, b) => (a.units[0] ? a.units[0].startMm : 0) - (b.units[0] ? b.units[0].startMm : 0));
+    segments = secs.flatMap((row) =>
+      units
+        .filter((u) => u.row === row.row && present(u))
+        .map((u) =>
+          Object.assign(
+            {
+              kind:
+                u.seen === 'cabinet' ? (u.section === 'tall' ? 'tall' : 'lower') : u.seen,
+              startPct: pctOf(u.startMm),
+              endPct: pctOf(u.endMm),
+              doors: u.doors,
+              drawers: u.drawers,
+              id: u.id,
+            },
+            mmBox(u)
+          )
+        )
+    );
+  }
+  const uppers = units
+    .filter((u) => u.row === 'wall' && present(u))
+    .map((u) =>
+      Object.assign(
+        {
+          kind: u.seen === 'open' ? 'open' : 'upper',
+          startPct: pctOf(u.startMm),
+          endPct: pctOf(u.endMm),
+          doors: u.doors,
+          id: u.id,
+        },
+        mmBox(u)
+      )
+    );
+
+  // 가전 — 냉장고·식세기는 그것으로 보인 모듈 자리, 싱크·쿡탑·후드는 도면 자리 (조사·도면이 사실)
+  const appliances = { sink: null, cooktop: null, hood: null, dishwasher: null, refrigerator: null };
+  const at = (startMm, endMm, source) => {
+    const b = mmBox({ startMm, endMm });
+    return { centerPct: Math.round(clampPct(((startMm + endMm) / 2 / run) * 100) * 10) / 10, x: b.x, w: b.w, source };
+  };
+  ['refrigerator', 'dishwasher'].forEach((k) => {
+    const u = units.find((x) => x.seen === k);
+    if (u) appliances[k] = at(u.startMm, u.endMm, 'unit');
+  });
+  (Array.isArray(ctx.designSpec && ctx.designSpec.appliances) ? ctx.designSpec.appliances : []).forEach((a) => {
+    const k = a && String(a.kind || '').toLowerCase();
+    if (!['sink', 'cooktop', 'hood'].includes(k) || appliances[k] || a.fromLeftMm === undefined) return;
+    const x0 = Number(a.fromLeftMm) || 0;
+    appliances[k] = at(x0, x0 + (Number(a.widthMm) || 0), 'spec');
+  });
+
+  const extraUnits = list(r.extra_units)
+    .filter((e) => e && typeof e === 'object')
+    .slice(0, 10)
+    .map((e) => ({
+      row: PLANNER_READ_ROWS.concat(['other']).includes(e.row) ? e.row : 'other',
+      where: String(e.where || '').trim().slice(0, 80),
+      doors: count(e.doors),
+      drawers: count(e.drawers),
+    }));
+  const shape = PLANNER_READ_SHAPES.includes(r.layout_shape) ? r.layout_shape : 'unclear';
+
+  const doorCounts = { lower: 0, upper: 0, tall: 0, fridge: 0, wardrobe: 0 };
+  let drawerCount = 0;
+  segments.forEach((s) => {
+    if (s.kind in doorCounts) doorCounts[s.kind] += s.doors;
+    drawerCount += s.drawers;
+  });
+  uppers.forEach((u) => {
+    doorCounts.upper += u.doors;
+  });
+  list(r.notes)
+    .filter((n) => typeof n === 'string' && n.trim())
+    .slice(0, 5)
+    .forEach((n) => notes.push('model: ' + n.trim().slice(0, 200)));
+  const conf = round2(unit(r.confidence, 0.5));
+
+  return {
+    version: LAYOUT_VERSION,
+    reader: 'planner',
+    readerVersion: PLANNER_READ_VERSION,
+    category,
+    sourceSlot: ctx.slot || 'base',
+    elevation: ctx.elevation === 'labeled' || ctx.elevation === 'plain' ? ctx.elevation : null,
+    model: ctx.model || null,
+    created_at: ctx.now || new Date().toISOString(),
+    wall: { W, H },
+    segments,
+    uppers,
+    appliances,
+    doorCounts,
+    drawerCount,
+    units,
+    extraUnits,
+    shape,
+    planShape: plan.shape,
+    confidence: { overall: conf, segments: conf, uppers: conf, appliances: conf },
     notes: notes.slice(0, MAX_NOTES),
     raw: r,
   };
