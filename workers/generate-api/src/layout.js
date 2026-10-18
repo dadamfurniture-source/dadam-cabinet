@@ -464,6 +464,13 @@ export const PLANNER_READ_SCHEMA = {
 /** 모듈 한 칸의 유효 도어·서랍 수 — prompts.js plannerCounts 와 같은 규칙 (생성 모델이 받은 수). */
 function plannerReadCounts(m) {
   if (m.kind === 'open' || m.kind === 'appliance') return { doors: 0, drawers: 0 };
+  // 2026-10-19: 쌓인 단(tiers) 한 통 — 단의 합 (가전 자리 단은 0). prompts.js plannerCounts 와 같다.
+  if (Array.isArray(m.tiers) && m.tiers.length) {
+    return m.tiers.reduce((acc, t) => {
+      const c = t && typeof t === 'object' ? plannerReadCounts(t) : { doors: 0, drawers: 0 };
+      return { doors: acc.doors + c.doors, drawers: acc.drawers + c.drawers };
+    }, { doors: 0, drawers: 0 });
+  }
   if (m.kind === 'drawer') return { doors: m.doorCount || 0, drawers: m.drawerCount || 1 };
   return { doors: m.doorCount || 1, drawers: m.drawerCount || 0 };
 }
@@ -526,7 +533,7 @@ export function plannerReadPlan(spec, category) {
     units: r.items.map((it, i) => {
       const c = plannerReadCounts(it.m);
       const seen = it.m.kind === 'appliance' ? plannerReadApplianceSeen(it.m) : it.m.kind === 'open' ? 'open' : 'cabinet';
-      return {
+      const unit = {
         id: `${r.prefix}${i + 1}`,
         section: it.section,
         widthMm: Number(it.m.widthMm) || null,
@@ -537,6 +544,17 @@ export function plannerReadPlan(spec, category) {
         drawers: c.drawers,
         attached: [],
       };
+      // 2026-10-19: 쌓인 단 한 통 — 목록 줄이 통으로 말하게 (tiers 가 없으면 키도 없다)
+      if (Array.isArray(it.m.tiers) && it.m.tiers.length) {
+        const tiers = it.m.tiers.filter((t) => t && typeof t === 'object');
+        if (tiers[0] && tiers[0].kind === 'appliance') {
+          const above = tiers.slice(1).reduce((n, t) => n + plannerReadCounts(t).doors + plannerReadCounts(t).drawers, 0);
+          if (above) unit.above = above;
+        } else if (tiers.length > 1) {
+          unit.stack = tiers.length;
+        }
+      }
+      return unit;
     }),
   }));
   // 가전 → 그 자리에 걸린 모듈 (중심이 모듈 [start,end) 안)
@@ -571,13 +589,21 @@ export function plannerReadPlan(spec, category) {
 /** 도면 목록 한 줄 — "L1   800 mm  2 doors, sink on the countertop" */
 function plannerReadLine(u) {
   const bits = [];
-  if (u.seen === 'refrigerator') bits.push('refrigerator opening (fridge front, no cabinet doors)');
+  if (u.seen === 'refrigerator' && u.above) {
+    // 2026-10-19: 냉장고장 — 냉장고 자리 + 위 장. 비어 있어도 냉장고 자리다 (생성 프롬프트가 비워 두게 했다).
+    bits.push(
+      `refrigerator opening (a refrigerator or an empty space for one — report it as refrigerator either way; ` +
+        `the cabinet with ${u.above === 1 ? '1 front' : `${u.above} fronts`} above it belongs to ${u.id}, not an extra unit)`
+    );
+  } else if (u.seen === 'refrigerator') bits.push('refrigerator opening (fridge front, no cabinet doors)');
   else if (u.seen === 'dishwasher') bits.push('integrated dishwasher (one panel, not a door)');
   else if (u.seen === 'open') bits.push('open, no doors');
   else {
     if (u.doors) bits.push(u.doors === 1 ? '1 door' : `${u.doors} doors`);
     if (u.drawers) bits.push(u.drawers === 1 ? '1 drawer' : `${u.drawers} drawers`);
     if (!bits.length) bits.push('no fronts');
+    // 2026-10-19: 쌓인 단 한 통 — 세로로 쌓인 앞판을 한 유닛으로 센다
+    if (u.stack) bits[bits.length - 1] += ` (one column of ${u.stack} stacked sections)`;
   }
   u.attached
     .filter((k) => !(k === 'fridge' && u.seen === 'refrigerator') && !(k === 'dishwasher' && u.seen === 'dishwasher'))
