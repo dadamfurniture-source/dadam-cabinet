@@ -446,6 +446,54 @@ export async function renderMassingImage(room, points, o = {}) {
   return { base64: bytesToB64(png), mimeType: 'image/png', width: img.width, height: img.height, guide };
 }
 
+// ─── 5. 추천안 되붙이기 (2026-10-19) ───
+// 범위 문장을 넣어도 GPT 추천안이 붙박이장 바로 옆 세면대 서랍까지 칠했다. 덩어리 합성을 쓴 건은 장 앞면이
+// 사진 어디인지 코드가 안다 → 그 영역(조금 넓게)만 추천안 픽셀, 나머지는 기본안 픽셀. 경계는 feather 만큼 섞는다.
+
+/**
+ * @param {{base64,mimeType}} base     기본안 (JPEG)
+ * @param {{base64,mimeType}} variant  추천안 (JPEG)
+ * @param {object} points              parseGuidePoints 결과 (0~1)
+ * @param {{grow?:number, feather?:number}} [o] 영역을 넓힐 폭·섞는 폭 (사진 너비 대비 비율)
+ * @returns {Promise<{base64:string, mimeType:'image/png'}|null>} 크기가 다르거나 JPEG 가 아니면 null
+ */
+export async function pasteVariantInside(base, variant, points, o = {}) {
+  if (!base || !variant || base.mimeType !== 'image/jpeg' || variant.mimeType !== 'image/jpeg' || !points) return null;
+  const B = decodeJpeg(b64ToBytes(base.base64), { useTArray: true, formatAsRGBA: true });
+  const V = decodeJpeg(b64ToBytes(variant.base64), { useTArray: true, formatAsRGBA: true });
+  if (B.width !== V.width || B.height !== V.height) return null;
+  const W = B.width;
+  const H = B.height;
+  const g = computeGuide(points, W, H);
+  if (!g) return null;
+  const f = g.front;
+  const left = f.ob.x <= f.rb.x;
+  const [tl, tr, br, bl] = left ? [f.ot, f.rt, f.rb, f.ob] : [f.rt, f.ot, f.ob, f.rb];
+  const Hq = squareToQuad([tl, tr, br, bl]);
+  const frontW = Math.max(1, Math.hypot(br.x - bl.x, br.y - bl.y));
+  const frontH = Math.max(1, Math.hypot(bl.x - tl.x, bl.y - tl.y));
+  const grow = (o.grow ?? 0.008) * W; // 끝 측판·걸레받이 그림자까지 담는다
+  const feather = Math.max(1, (o.feather ?? 0.005) * W);
+  const out = new Uint8Array(W * H * 3);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i4 = (y * W + x) * 4;
+      const i3 = (y * W + x) * 3;
+      const { u, v } = Hq.inv(x + 0.5, y + 0.5);
+      // 사각형 밖으로 얼마나 나갔는지(픽셀 근사)
+      const du = Math.max(0, -u, u - 1) * frontW;
+      const dv = Math.max(0, -v, v - 1) * frontH;
+      const d = Number.isFinite(du + dv) ? Math.max(du, dv) : Infinity;
+      const a = d <= grow ? 1 : d >= grow + feather ? 0 : 1 - (d - grow) / feather;
+      out[i3] = V.data[i4] * a + B.data[i4] * (1 - a);
+      out[i3 + 1] = V.data[i4 + 1] * a + B.data[i4 + 1] * (1 - a);
+      out[i3 + 2] = V.data[i4 + 2] * a + B.data[i4 + 2] * (1 - a);
+    }
+  }
+  const png = await encodePng({ width: W, height: H, rgb: out });
+  return { base64: bytesToB64(png), mimeType: 'image/png' };
+}
+
 /** 한 번에 (시험·도구용): 방 사진 사본에 윤곽을 그린 PNG. JPEG 가 아니거나 계산이 안 되면 null. */
 export async function renderGuideImage(room, points) {
   const canvas = await prepareGuideCanvas(room);
