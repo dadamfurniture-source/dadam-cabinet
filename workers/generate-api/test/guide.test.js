@@ -188,8 +188,22 @@ async function runJob({ category = 'wardrobe', sideReturn = { side: 'right', dep
   return seen;
 }
 
-test('잡: 붙박이장 + 튀어나온 벽이면 가이드를 그려 마지막 이미지로 보내고 기록한다', async () => {
+test('잡(기본=덩어리 합성): 합성본이 편집 대상(첫 사진)이 되고, 다듬기 프롬프트·flat_mockup 검사로 간다', async () => {
   const seen = await runJob();
+  assert.equal(seen.guideAsked, 1);
+  assert.ok(seen.uploads.some((p) => p.endsWith('/guide.png')));
+  assert.ok(seen.uploads.some((p) => p.endsWith('/massing.png')));
+  assert.deepEqual(seen.install.mimes, ['image/png'], '방 사진 대신 합성본 한 장');
+  assert.match(seen.install.prompt, /^Edit the first photo: it already shows the new built-in .+ as a plain off-white mock volume/);
+  assert.match(seen.install.prompt, /GEOMETRY IS FIXED/);
+  assert.doesNotMatch(seen.install.prompt, /\nGUIDE: /);
+  const wa = seen.patched.find((p) => p.wall_analysis && p.wall_analysis.guide);
+  assert.ok(wa.wall_analysis.guide.massing, '합성본 경로를 남긴다');
+  assert.equal(seen.patched.at(-1).status, 'done');
+});
+
+test('잡(GUIDE_MODE=outline): 윤곽선만 마지막 이미지로 — 예전 방식', async () => {
+  const seen = await runJob({ env: { GUIDE_MODE: 'outline' } });
   assert.equal(seen.guideAsked, 1);
   assert.ok(seen.uploads.some((p) => p.endsWith('/guide.png')));
   assert.deepEqual(seen.install.mimes, ['image/jpeg', 'image/png']);
@@ -260,7 +274,7 @@ test('잡: Claude 키가 있으면 Haiku 5.5 가 선을 찾는다 — 거절 대
   assert.equal(seen.guideAsked, 0, 'Gemini 에 묻지 않는다');
   const wa = seen.patched.find((p) => p.wall_analysis && p.wall_analysis.guide);
   assert.equal(wa.wall_analysis.guide.by, 'claude-haiku-5-5');
-  assert.deepEqual(seen.install.mimes, ['image/jpeg', 'image/png']);
+  assert.deepEqual(seen.install.mimes, ['image/png']); // 기본은 덩어리 합성본 한 장
 });
 
 test('잡: Haiku 가 실패하면 Gemini 가 선을 찾는다', async () => {
@@ -272,4 +286,29 @@ test('잡: Haiku 가 실패하면 Gemini 가 선을 찾는다', async () => {
   assert.equal(seen.guideAsked, 1);
   const wa = seen.patched.find((p) => p.wall_analysis && p.wall_analysis.guide);
   assert.equal(wa.wall_analysis.guide.by, 'gemini-3.8-flash');
+});
+
+test('덩어리: 앞면 사각형 안은 오프화이트로 칠하고, 밖(뒷벽)은 그대로 둔다', async () => {
+  const room = { base64: grayJpeg(300, 400), mimeType: 'image/jpeg' };
+  const { renderMassingImage } = await import('../src/guide.js');
+  const r = await renderMassingImage(room, parseGuidePoints(JSON.stringify(REAL), 'right'), { doors: 8 });
+  assert.equal(r.width, 300);
+  assert.equal(r.height, 400);
+  const png = Buffer.from(r.base64, 'base64');
+  // IDAT 가 여러 개일 수 있다 — 모두 모아 푼다
+  const chunks = [];
+  for (let o = 8; o < png.length; ) {
+    const len = png.readUInt32BE(o);
+    const type = png.toString('ascii', o + 4, o + 8);
+    if (type === 'IDAT') chunks.push(png.subarray(o + 8, o + 8 + len));
+    o += 12 + len;
+  }
+  const raw = inflateSync(Buffer.concat(chunks));
+  const px = (x, y) => { const o = y * (300 * 3 + 1) + 1 + x * 3; return [raw[o], raw[o + 1], raw[o + 2]]; };
+  // 앞면 한가운데(문짝 틈을 피한 곳)는 밝은 판
+  const f = r.guide.front;
+  const cx = Math.round((f.ob.x + f.rb.x) / 2 + 9), cy = Math.round((f.ot.y + f.ob.y) / 2);
+  assert.ok(px(cx, cy).every((v) => v > 200), `앞면 ${px(cx, cy)}`);
+  // 천장 위쪽(덩어리 밖)은 원래 회색
+  assert.ok(px(150, 20).every((v) => Math.abs(v - 128) < 6));
 });
