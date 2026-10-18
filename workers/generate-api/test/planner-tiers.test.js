@@ -11,7 +11,8 @@
  *   3) 자체 점검 — 통 기준 (유닛·가전 칸·도어 합)
  *   4) DO NOT — 냉장고 자리가 도면에 있으면 refrigerator 를 막지 않는다
  *   5) 검사 LAYOUT 요약 · 설치 프롬프트 FURNITURE 구절
- *   6) 역판독 기대값 — 통 하나 = 세그먼트 하나, 도어 합 · 냉장고장 품목의 냉장고 자리는 'fridge'
+ *   6) 역판독 기대값 — 통 하나 = 세그먼트 하나, 도어 합 · 냉장고 자리는 'refrigerator'
+ *      플래너 판독 계획(layout.js plannerReadPlan) — 통 하나에 번호 하나, 위 박스는 그 통의 것(덤 유닛이 아니다)
  *   7) 옛 모양(tiers 없음)은 그대로
  */
 import { test } from 'node:test';
@@ -24,7 +25,8 @@ import {
   designSpecDigest,
   normalizeDesignSpec,
 } from '../src/prompts.js';
-import { expectedFromSpec } from '../src/verify.js';
+import { compareLayoutToSpec, expectedFromSpec } from '../src/verify.js';
+import { buildPlannerReadPrompt, normalizePlannerRead, plannerReadPlan } from '../src/layout.js';
 
 /**
  * 사이트 도면 (2026-10-19): 하부 1800·상부 1800·싱크 900/700, 키큰장 x1800 w600 높이 2300(단 861·979·460),
@@ -263,14 +265,13 @@ test('검사 LAYOUT 요약과 설치 프롬프트 FURNITURE 도 통 하나로 �
 
 // ─── 6) 역판독 기대값 ───
 
-test('역판독 기대값 — 통 하나 = 세그먼트 하나, 도어는 단의 합, 냉장고장 품목의 냉장고 자리는 fridge', () => {
+test('역판독 기대값 — 통 하나 = 세그먼트 하나, 도어는 단의 합, 냉장고 자리는 refrigerator', () => {
   const want = expectedFromSpec(siteSpec(), 'fridge');
-  assert.deepEqual(want.floorKinds, ['lower', 'lower', 'tall', 'fridge']);
+  assert.deepEqual(want.floorKinds, ['lower', 'lower', 'tall', 'refrigerator']);
   assert.equal(want.floorDoors, 2 + 3);    // 하부 2 + 키큰장 3 (냉장고 위 박스는 가전 칸과 함께 세지 않는다)
   assert.equal(want.floorDrawers, 3);
   assert.equal(want.upperDoors, 4);
   assert.deepEqual(want.appliances.map((a) => a.kind), ['sink', 'refrigerator']);
-  // 싱크대 품목이면 예전 가전 칸과 같은 이름
   assert.deepEqual(expectedFromSpec(siteSpec('sink'), 'sink').floorKinds, ['lower', 'lower', 'tall', 'refrigerator']);
 });
 
@@ -287,4 +288,43 @@ test('옛 모양(tiers 없음)은 예전 그대로 — 나란한 T1·T2·T3·T4,
   const want = expectedFromSpec(s, 'fridge');
   assert.deepEqual(want.floorKinds, ['lower', 'lower', 'tall', 'tall', 'tall', 'tall']);
   assert.equal(want.floorDoors, 2 + 5);
+});
+
+// ─── 6-b) 플래너 판독 (layout.js) ───
+
+test('플래너 판독 계획 — 통 하나에 번호 하나, 키큰장은 쌓인 한 통, 냉장고장 위 장은 그 번호의 것', () => {
+  const plan = plannerReadPlan(siteSpec(), 'fridge');
+  const tall = plan.rows.find((r) => r.section === 'tall').units;
+  assert.deepEqual(
+    tall.map((u) => [u.id, u.seen, u.doors, u.drawers, u.stack, u.above]),
+    [['T1', 'cabinet', 3, 0, 3, undefined], ['T2', 'refrigerator', 0, 0, undefined, 2]]
+  );
+  const p = buildPlannerReadPrompt({ category: 'fridge', designSpec: siteSpec(), elevation: 'labeled' });
+  assert.ok(p.includes('T1   600 mm  3 doors (one column of 3 stacked sections)\n'), p);
+  assert.ok(p.includes(
+    'T2   680 mm  refrigerator opening (a refrigerator or an empty space for one — report it as refrigerator either way; ' +
+      'the cabinet with 2 fronts above it belongs to T2, not an extra unit)\n'
+  ));
+  // 옛 모양에는 새 키가 없다
+  plannerReadPlan(normalizeDesignSpec(oldRaw(), 'fridge'), 'fridge').rows.forEach((r) =>
+    r.units.forEach((u) => assert.ok(!('stack' in u) && !('above' in u)))
+  );
+});
+
+test('플래너 판독 → 대조: 도면대로 읽히면 ok (키큰장 3도어 한 통 + 냉장고 자리)', () => {
+  const spec = siteSpec();
+  const raw = {
+    rows: [
+      { row: 'base', units: [{ id: 'L1', seen: 'cabinet', doors: 0, drawers: 3 }, { id: 'L2', seen: 'cabinet', doors: 2, drawers: 0 }] },
+      { row: 'wall', units: [{ id: 'U1', seen: 'cabinet', doors: 2, drawers: 0 }, { id: 'U2', seen: 'cabinet', doors: 2, drawers: 0 }] },
+      { row: 'tall', units: [{ id: 'T1', seen: 'cabinet', doors: 3, drawers: 0 }, { id: 'T2', seen: 'refrigerator', doors: 2, drawers: 0 }] },
+    ],
+    extra_units: [],
+    layout_shape: 'straight',
+    confidence: 0.8,
+  };
+  const layout = normalizePlannerRead(raw, { category: 'fridge', designSpec: spec });
+  const v = compareLayoutToSpec(layout, spec, 'fridge');
+  assert.deepEqual(v.issues, []);
+  assert.equal(v.ok, true);
 });
