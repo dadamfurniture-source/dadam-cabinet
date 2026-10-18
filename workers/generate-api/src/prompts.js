@@ -1814,10 +1814,18 @@ export function pickTwoTone(seed) {
   return TWO_TONES[s % TWO_TONES.length];
 }
 
+/**
+ * 추천안이 바꿀 범위 (2026-10-19). "Side panels … accents" 를 모델이 방의 튀어나온 벽·기둥까지 측판으로 읽어
+ * 테마 추천안이 튀어나온 벽을 오크로, 옆 세면대 서랍을 노랑으로 칠했다. 새 붙박이 가구만 바꾸고 나머지는 그대로.
+ */
+const RECOLOUR_SCOPE =
+  'Only the new built-in furniture changes colour. The walls, the wall sections and columns beside it, the ceiling, the floor, the windows and every other piece of furniture or fixture in the room (for example a vanity, a door or an existing cabinet) keep exactly their colour and material from this photo.';
+
 export function buildTwoToneVariantPrompt(pair) {
   return `Recolour the kitchen furniture in this photo to a two-tone scheme:
 - Upper (wall) cabinets: ${pair.upper}
 - Lower (base) cabinets, drawers and any island: ${pair.lower}
+${RECOLOUR_SCOPE}
 Keep everything else identical: camera, room, furniture layout, every door and drawer line, countertop, sink, faucet, cooktop, hood, lighting and shadows. Handleless fronts stay handleless. All doors stay closed.
 Photorealistic. No text, labels or watermarks.`;
 }
@@ -1825,7 +1833,8 @@ Photorealistic. No text, labels or watermarks.`;
 export function buildVariantPrompt(finish) {
   return `Recolour the built-in furniture in this photo to a different finish:
 - Door and drawer fronts: ${finish.body}
-- Side panels, open shelves and accents: ${finish.accent}
+- The furniture's own exposed end panels, open shelves and trim: ${finish.accent}
+${RECOLOUR_SCOPE}
 Keep everything else identical: camera, room, furniture layout, every door and drawer line, countertop, lighting and shadows. Handleless fronts stay handleless. All doors stay closed.
 Photorealistic. No text, labels or watermarks.`;
 }
