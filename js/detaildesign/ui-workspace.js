@@ -1761,7 +1761,11 @@
             <div class="spec-row"><div class="spec-field"><label>상부장 도어</label>${FurnitureOptionCatalog.buildDoorMaterialFieldHtml(uid, 'upper', item.specs, 'sink', 'font-size:12px;')}</div></div>
             <div class="spec-row"><div class="spec-field"><label>하부장 도어</label>${FurnitureOptionCatalog.buildDoorMaterialFieldHtml(uid, 'lower', item.specs, 'sink', 'font-size:12px;')}</div></div>`,
           countertop: `
-            <div class="spec-row"><div class="spec-field"><label>상판 색상</label><select onchange="updateSpec(${uid},'topColor',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('countertop',item.specs.topColor)}</select></div><div class="spec-field"><label>상판 두께(T)</label><select onchange="updateSpecValue(${uid},'topThickness',this.value)">${topThicknessOptionsHtml(item.specs.topThickness)}</select></div></div>
+            <div class="spec-row"><div class="spec-field"><label>상판 색상</label><select onchange="updateSpec(${uid},'topColor',this.value)">${FurnitureOptionCatalog.buildOptionsHtml('countertop',item.specs.topColor)}</select></div><div class="spec-field"><label>상판 재질</label><select onchange="updateTopMaterial(${uid},this.value)">${topMaterialOptionsHtml(item.specs.topMaterial)}</select></div><div class="spec-field"><label>상판 두께(T)</label><select onchange="updateSpecValue(${uid},'topThickness',this.value)">${topThicknessOptionsHtml(item.specs.topThickness, topMaterialOf(item.specs))}</select></div></div>
+            <div class="spec-row"><div class="spec-field"><label>뒷턱(백가드)</label><select onchange="updateSpec(${uid},'topBacksplash',this.value)">${topToggleOptionsHtml(item.specs.topBacksplash, '있음')}</select></div><div class="spec-field"><label>뒷턱 높이(mm)</label><input type="number" placeholder="기본 ${TOP_FINISH_DEFAULT_LABEL.backsplashH}" value="${item.specs.topBacksplashH ?? ''}" onchange="updateSpecValue(${uid},'topBacksplashH',this.value)"></div></div>
+            <div class="spec-row"><div class="spec-field"><label>앞턱(등뜨기)</label><select onchange="updateSpec(${uid},'topFrontLip',this.value)">${topToggleOptionsHtml(item.specs.topFrontLip, '12T 있음')}</select></div><div class="spec-field"><label>앞턱 높이(mm)</label><input type="number" placeholder="기본 ${TOP_FINISH_DEFAULT_LABEL.frontLipH}" value="${item.specs.topFrontLipH ?? ''}" onchange="updateSpecValue(${uid},'topFrontLipH',this.value)"></div></div>
+            <div class="spec-row"><div class="spec-field"><label>물끊기</label><select onchange="updateSpec(${uid},'topDrip',this.value)">${topToggleOptionsHtml(item.specs.topDrip, '있음')}</select></div></div>
+            <div class="spec-row"><div class="spec-field"><label>좌측 옆면</label><select onchange="updateSpec(${uid},'topSideLeft',this.value)">${topSideOptionsHtml(item.specs.topSideLeft)}</select></div><div class="spec-field"><label>우측 옆면</label><select onchange="updateSpec(${uid},'topSideRight',this.value)">${topSideOptionsHtml(item.specs.topSideRight)}</select></div></div>
             <div class="spec-row"><div class="spec-field"><label>상판 크기 (${shapes[item.specs.layoutShape || item.specs.lowerLayoutShape || 'I']})</label>${topSizeInputs}</div></div>`,
           finish: `
             <div class="spec-row"><div class="spec-field"><label>상몰딩 높이</label><input type="number" value="${item.specs.moldingH}" onchange="updateSpecValue(${uid},'moldingH',this.value)"></div></div>
@@ -2574,6 +2578,22 @@
           // 3D 플래너에도 반영
           if (typeof _syncPlannerState === 'function') _syncPlannerState(item);
         }
+      }
+
+      /** 상판 재질 — 두께가 새 재질 목록에 없으면 그 재질의 첫 두께로 (세라믹 12T 등). 높이 동기화는 두께와 같이. */
+      function updateTopMaterial(itemUniqueId, value) {
+        const item = selectedItems.find((i) => i.uniqueId === itemUniqueId);
+        if (!item || !Object.prototype.hasOwnProperty.call(TOP_MATERIALS, value)) return;
+        if (item.specs.topMaterial === value) return;
+        pushUndo(item);
+        item.specs.topMaterial = value;
+        const list = TOP_MATERIALS[value];
+        if (!list.includes(parseFloat(item.specs.topThickness))) {
+          item.specs.topThickness = list[0];
+          if (item.categoryId === 'sink') syncModuleHeights(item);
+        }
+        renderWorkspaceContent(item);
+        if (typeof _syncPlannerState === 'function') _syncPlannerState(item);
       }
 
       // ★ 싱크대 모듈 높이를 현재 설정값에 동기화
