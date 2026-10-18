@@ -244,6 +244,8 @@
       const BOM_BACK_PANEL_T = 3;
       /** 상판 두께 — 2026-10-18 사장님: 12 · 50T (인조대리석). data-constants.js TOP_THICKNESS_OPTIONS 와 같다. */
       const BOM_TOP_THICKNESS_OPTIONS = [12, 50];
+      /** 상판 재질별 두께 — 2026-10-18 사장님 Q8 (상판 발주 요청서). data-constants.js TOP_MATERIALS 와 같다. 첫 재질이 기본. */
+      const BOM_TOP_MATERIALS = { '인조대리석': [12, 50], '엔지니어드 스톤': [12, 20], '세라믹': [12] };
       function bomDoorCountByWidth(W) {
         return Math.max(1, Math.ceil((parseFloat(W) || 0) / BOM_DOOR_W_MAX));
       }
@@ -1380,10 +1382,13 @@
             const topW = topLineW + finW(specs.finishLeftType, specs.finishLeftWidth) + finW(specs.finishRightType, specs.finishRightWidth);
             // 2026-10-18 사장님: 두께 12 · 50T 인조대리석, 깊이는 도면 그대로(배치 깊이 — 오버행 없음), 이음은 상판 업체 판단.
             //   목록 밖의 옛 값(18 도어자재 상판 등)은 그대로 내되 비고로 알린다 — 재질은 인조대리석 하나다.
-            const topOk = BOM_TOP_THICKNESS_OPTIONS.includes(topT);
-            this.add(materials, `${prefix}상판`, '상판', '인조대리석', topT, topW, topD, 1, '-',
+            //   재질은 사양 topMaterial (인조대리석 · 엔지니어드 스톤 · 세라믹, 없으면 인조대리석) — 두께 선택지가 재질마다 다르다.
+            const topMat = Object.prototype.hasOwnProperty.call(BOM_TOP_MATERIALS, specs.topMaterial) ? specs.topMaterial : '인조대리석';
+            const topTs = BOM_TOP_MATERIALS[topMat];
+            const topOk = topTs.includes(topT);
+            this.add(materials, `${prefix}상판`, '상판', topMat, topT, topW, topD, 1, '-',
                      '하부 라인 한 장(좌·우 마감 폭 포함) · 깊이 = 도면 · 이음은 상판 업체 판단'
-                     + (topOk ? '' : ` [확인 필요] 상판 두께는 ${BOM_TOP_THICKNESS_OPTIONS.join(' · ')}T — 지정 값 ${topT}`));
+                     + (topOk ? '' : ` [확인 필요] ${topMat} 상판 두께는 ${topTs.join(' · ')}T — 지정 값 ${topT}`));
           }
 
           // 좌측 마감 (몰딩/휠라/EP)
