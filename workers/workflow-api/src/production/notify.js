@@ -9,13 +9,14 @@
 
 import { dayLabel } from './planner.js';
 
-const KIND_ORDER = ['asm_extra', 'edge_overtime', 'edge_outsource', 'reschedule', 'door_order', 'asm_call'];
+const KIND_ORDER = ['asm_extra', 'edge_overtime', 'edge_outsource', 'reschedule', 'door_order', 'top_order', 'asm_call'];
 const KIND_LABEL = {
   asm_extra: '조립 인원 추가',
   edge_overtime: '알바(엣지) 연장',
   edge_outsource: '재단+엣지 외주',
   reschedule: '설치일 조정',
   door_order: '도어 발주',
+  top_order: '상판 발주',
   asm_call: '조립 기사 출근',
 };
 
@@ -27,9 +28,12 @@ function sortSuggestions(list) {
 
 export function buildProposalBlocks({ plan, link, triggerLabel }) {
   const s = plan.summary;
-  const actionable = sortSuggestions(plan.suggestions.filter((x) => x.type !== 'door_order' || x.text.includes('늦음')));
-  const doorSoon = plan.suggestions.filter((x) => x.type === 'door_order' && !x.text.includes('늦음'))
+  const isOrderBy = (x) => x.type === 'door_order' || x.type === 'top_order';
+  const actionable = sortSuggestions(plan.suggestions.filter((x) => !isOrderBy(x) || x.text.includes('늦음')));
+  const soon = (type) => plan.suggestions.filter((x) => x.type === type && !x.text.includes('늦음'))
     .sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(0, 5);
+  const doorSoon = soon('door_order');
+  const topSoon = soon('top_order');
   const head = s.lateBefore === 0
     ? `기본 인력으로 ${s.jobs}건 모두 설치일 전에 끝납니다.`
     : `기본 인력으로는 ${s.lateBefore}건이 늦습니다 → 아래대로 하면 ${s.lateAfter}건${s.needsReschedule ? ` (설치일 조정 ${s.needsReschedule}건)` : ''}.`;
@@ -40,6 +44,7 @@ export function buildProposalBlocks({ plan, link, triggerLabel }) {
   ];
   if (lines.length) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: lines.join('\n').slice(0, 2900) } });
   if (doorSoon.length) blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: '도어 발주 마감: ' + doorSoon.map((x) => x.text.split(': ')[0] + ' ' + dayLabel(x.date)).join(' · ') }] });
+  if (topSoon.length) blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: '상판 발주 마감: ' + topSoon.map((x) => x.text.split(': ')[0] + ' ' + dayLabel(x.date)).join(' · ') }] });
   if (link) blocks.push({ type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: '확인하고 승인하기' }, url: link, style: 'primary' }] });
   return { text: `생산 계획 — ${head}`, blocks };
 }
@@ -109,6 +114,9 @@ export function buildDailyBlocks({ plan, assignments, today }) {
   const due = plan.jobs
     .filter((j) => j.doorOrderBy && !j.doorOrdered && d1 && j.doorOrderBy <= d1.date)
     .map((j) => `• ${j.label}: 도어 발주 ${j.doorOrderBy === today ? '*오늘*' : '내일'}까지${j.doorOrderLate ? ' (이미 늦음)' : ''}`);
+  const topDue = plan.jobs
+    .filter((j) => j.topOrderBy && !j.topOrdered && d1 && j.topOrderBy <= d1.date)
+    .map((j) => `• ${j.label}: 상판 발주 ${j.topOrderBy === today ? '*오늘*' : j.topOrderBy < today ? '*이미 늦음*' : '내일'}까지`);
   const late = plan.jobs.filter((j) => j.late || j.rescheduleTo).map((j) => `• ${j.label}: 마감 ${j.due ? dayLabel(j.due) : '?'} · 완료 예정 ${j.finish ? dayLabel(j.finish) : '범위 밖'}`);
   const blocks = [
     { type: 'header', text: { type: 'plain_text', text: `☀️ 오늘 생산 — ${dayLabel(today)}`, emoji: true } },
@@ -117,6 +125,7 @@ export function buildDailyBlocks({ plan, assignments, today }) {
   const section = (title, lines) => ({ type: 'section', text: { type: 'mrkdwn', text: `*${title}*\n${lines.join('\n')}`.slice(0, 2900) } });
   if (assignments.length) blocks.push(section('오늘 지시', assignments.map((a) => `• ${a.text}`)));
   if (due.length) blocks.push(section('도어 발주 마감', due));
+  if (topDue.length) blocks.push(section('상판 발주 마감 (설치 4근무일 전)', topDue));
   if (late.length) blocks.push(section('늦어질 주문', late));
   return { text: `오늘 생산 — ${loadLine}`, blocks };
 }

@@ -52,7 +52,7 @@ import {
   backfillReports,
 } from './reports/service.js';
 import { isAdmin } from './reports/admin.js';
-import { createOutsourceOrder, listOutsourceOrders } from './reports/outsource.js';
+import { createOutsourceOrder, listOutsourceOrders, loadCountertopContext } from './reports/outsource.js';
 import { renderReportPrint } from './templates/report-print.js';
 import { createSnapshot, listSnapshots, getSnapshot, previewQuote } from './snapshots.js';
 import {
@@ -275,7 +275,9 @@ async function handlePrintDocument(request, env, { params, user }) {
   }
   // B5: 작업지시서 표지의 정면 렌더는 인쇄 시점에 서명 URL(1시간)을 만든다
   const assets = await resolvePrintAssets(env, doc);
-  return htmlResponse(request, env, renderDocument(doc, snapshot, { toolbar: true, pack, ...assets }));
+  // 상판 발주 요청서 — 발주 마감(설치 − 4근무일) · 재질별 업체 · 가전 모델 타공은 인쇄 시점에 읽는다
+  const top = doc.doc_type === 'work_order' && (pack === 'top' || pack === 'all') ? await loadCountertopContext(env, { doc, snapshot }) : null;
+  return htmlResponse(request, env, renderDocument(doc, snapshot, { toolbar: true, pack, top, ...assets }));
 }
 
 async function handleRevokeDocument(request, env, { params, user }) {
