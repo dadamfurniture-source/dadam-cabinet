@@ -205,6 +205,7 @@
           standards: { cutPerSheet: '재단 원판 1장', cutPerJob: '현장당 자재 피킹', edgePerFace: '엣지 부재 1면', asmPerBox: '통 조립 1통', asmPerDrawer: '서랍 1개', asmPerDoor: '도어 1짝 (검수+달기)', asmPerShelf: '선반 1장', asmPerLeg: '다리발 1개', asmPerRod: '옷봉 1개', packPerBox: '완성 검수·포장 1통' },
           crew: { hoursPerDay: '하루 근무시간', util: '실작업 비율 (0~1)', cutters: '재단 기사 (명)', edgeMachines: '엣지밴더 (대)', edgeMaxOvertimeHours: '알바 연장 최대 (시간)', assemblers: '조립 기사 기본 (명)', assemblersMaxExtra: '조립 추가 최대 (명)' },
           costs: { assemblerDay: '조립 일당', partTimeHourly: '알바 시급', outsourceCutEdgePerSheet: '재단+엣지 외주 (PB 1장)' },
+          vendors: { door: '도어 외주 업체', cutEdge: '재단+엣지 외주 업체' },
           leads: { doorLeadDays: '도어 외주 납기 (근무일)', outsourceLeadDays: '재단+엣지 외주 납기', defaultLeadDays: '설치일 없을 때 기본 (근무일)' },
           quote: { marginRate: '고객 마진율 (0.2 = 20%)', partnerMarginRate: '거래처 마진율 (0.1 = 10%)', pbSheet: '몸통 PB 15T 원판', backSheet: '뒷판 MDF 2.7T 원판', edgeRoll: '0.6T 엣지 1롤', edgeRollMeters: '엣지 1롤 길이 (m)', doorSheet: '도어 외주 원장 1장', hinge: '경첩 1개', rail: '서랍 레일 1조', leg: '다리발 1개', shelfPin: '선반 다보 1개', rod: '옷봉 1개', fastenerPerBox: '체결 부속 (통당)', cutterMonthly: '재단 기사 월급', workDays: '월 근무일', overheadPerHour: '간접비 배분 (공장 1시간당, 0 = 매출 전체에서 충당)', fixedPerPbSheet: '고정비 회수 (몸통 PB 1장당 원가에 더함)', installPerMeter: '시공 외주 (시공 m당)', countertopPerMeter: '인조대리석 상판 원가 (m당)', pbYield: '원판 수율 PB·뒷판 (0.8 = 80%)', doorYield: '도어 원판 수율 (0.5장 단위 청구)', overheadMonthly: '월 고정비 — 월세·운영비·식대·전기·4대보험·퇴직 (손익 요약에서만 뺌)', sinkBowl: '싱크볼 원가', faucet: '수전 원가', hood: '후드 원가', demolitionPerMeter: '철거 원가 (m당)' },
         };
@@ -292,7 +293,9 @@
           var html = '';
           Object.keys(LABELS).forEach(function (g) {
             Object.keys(LABELS[g]).forEach(function (k) {
-              html += '<label>' + esc(LABELS[g][k]) + '<input type="number" step="any" data-g="' + g + '" data-k="' + k + '" value="' + esc(s[g] && s[g][k]) + '"></label>';
+              // 업체 이름은 글자, 나머지는 숫자 (외주 발주 처리에서 비워 두면 이 업체 — 보관함 §2.1)
+              var type = g === 'vendors' ? 'type="text" maxlength="40"' : 'type="number" step="any"';
+              html += '<label>' + esc(LABELS[g][k]) + '<input ' + type + ' data-g="' + g + '" data-k="' + k + '" value="' + esc(s[g] && s[g][k]) + '"></label>';
             });
           });
           el('settingsForm').innerHTML = html;
@@ -330,8 +333,11 @@
         }
 
         async function saveSettings() {
-          var body = { standards: {}, crew: {}, costs: {}, leads: {}, quote: {} };
-          document.querySelectorAll('#settingsForm input').forEach(function (i) { if (i.value !== '') body[i.getAttribute('data-g')][i.getAttribute('data-k')] = Number(i.value); });
+          var body = { standards: {}, crew: {}, costs: {}, leads: {}, quote: {}, vendors: {} };
+          document.querySelectorAll('#settingsForm input').forEach(function (i) {
+            var g = i.getAttribute('data-g');
+            if (i.value.trim() !== '') body[g][i.getAttribute('data-k')] = g === 'vendors' ? i.value.trim() : Number(i.value);
+          });
           try { var r = await api('/production/settings', { method: 'POST', body: body }); state.settings = r.settings; renderSettings(); note('설정을 저장했습니다. "지금 다시 계산"을 누르면 반영됩니다.'); }
           catch (e) { fail(e.message); }
         }

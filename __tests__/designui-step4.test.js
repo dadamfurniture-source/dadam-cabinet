@@ -221,3 +221,82 @@ describe('꾸러미 인쇄', () => {
     expect(document.querySelector('#wo4Issue').textContent).toBe('설계 변경 반영해 새로 발행');
   });
 });
+
+describe('[발주 처리] — 외주 발주 내역 (work-reports-archive.plan.md §2.1)', () => {
+  const WO = { id: 'WO1', doc_type: 'work_order', snapshot_id: 'S1', status: 'issued', rev: 1, doc_no: 'DD-WO-r1', stale: false };
+
+  /** fakeWorker 위에 외주 발주 경로를 얹는다. conflictOnce: 첫 POST 를 409 로 */
+  function withOutsource(w, { items = [], conflictOnce = false } = {}) {
+    const inner = w.fetchFn;
+    let conflicted = false;
+    const ok = (data, status = 200) => ({ ok: true, status, json: async () => ({ success: true, data }) });
+    w.fetchFn = jest.fn(async (url, init = {}) => {
+      const u = String(url).replace(API, '');
+      const method = init.method || 'GET';
+      if (/\/documents\/WO1\/outsource-orders$/.test(u)) {
+        const body = init.body ? JSON.parse(init.body) : null;
+        w.calls.push({ method, u, body });
+        if (method === 'GET') return ok({ items: items.slice() });
+        if (conflictOnce && !conflicted) {
+          conflicted = true;
+          return { ok: false, status: 409, json: async () => ({ success: false, message: '이미 발주 처리했습니다 — 2026-10-17 상일 (발주).' }) };
+        }
+        items.unshift({ id: 'R' + items.length, pack: body.pack, vendor: body.vendor || '상일', status: 'ordered', ordered_on: '2026-10-19', expected_on: body.expected_on || '2026-10-22', qty: '도어 4짝' });
+        return ok({ id: 'new' }, 201);
+      }
+      return inner(url, init);
+    });
+    return w;
+  }
+  const p4 = () => document.getElementById('workOrderPanel');
+  const orderPosts = (w) => w.calls.filter((c) => c.method === 'POST' && /outsource-orders$/.test(c.u));
+
+  test('도어재 · 재단 의뢰 카드에만 [발주 처리], 지난 발주 상태가 보인다', async () => {
+    const w = withOutsource(fakeWorker({ docs: [WO] }), { items: [{ id: 'R0', pack: 'door', vendor: '상일', status: 'ordered', ordered_on: '2026-10-17', expected_on: '2026-10-22', qty: '도어 4짝' }] });
+    boot(w);
+    await window.DadamWorkflow.enterStep4();
+    await settle();
+    const btns = [...p4().querySelectorAll('[data-wo-order]')].map((b) => b.getAttribute('data-wo-order'));
+    expect(btns).toEqual(['cut-vendor', 'door']);
+    const doorCard = p4().querySelector('[data-wo-order="door"]').closest('.wo4-pack');
+    expect(doorCard.textContent).toMatch(/발주함 10\/17 · 상일 · 입고 예정 10\/22/);
+    expect(doorCard.textContent).toMatch(/도어 4짝/);
+    const cutCard = p4().querySelector('[data-wo-order="cut-vendor"]').closest('.wo4-pack');
+    expect(cutCard.textContent).toMatch(/아직 발주 처리 안 함/);
+  });
+
+  test('업체 · 입고일을 받아 남기고, 비우면 서버 기본값에 맡긴다 · 취소하면 안 남긴다', async () => {
+    const w = withOutsource(fakeWorker({ docs: [WO] }));
+    boot(w);
+    await window.DadamWorkflow.enterStep4();
+    await settle();
+    window.prompt = jest.fn().mockReturnValueOnce(' 우드원 ').mockReturnValueOnce('2026-10-24');
+    p4().querySelector('[data-wo-order="door"]').click();
+    await settle();
+    expect(orderPosts(w)[0].body).toEqual({ pack: 'door', vendor: '우드원', expected_on: '2026-10-24' });
+    expect(p4().querySelector('[data-wo-order="door"]').closest('.wo4-pack').textContent).toMatch(/발주함 10\/19 · 우드원/);
+
+    window.prompt = jest.fn().mockReturnValueOnce('').mockReturnValueOnce('');
+    p4().querySelector('[data-wo-order="cut-vendor"]').click();
+    await settle();
+    expect(orderPosts(w)[1].body).toEqual({ pack: 'cut-vendor' });
+
+    window.prompt = jest.fn(() => null);
+    p4().querySelector('[data-wo-order="door"]').click();
+    await settle();
+    expect(orderPosts(w)).toHaveLength(2);
+  });
+
+  test('이미 발주된 꾸러미 — 409 를 보여 주고, 확인하면 force 로 한 번 더', async () => {
+    const w = withOutsource(fakeWorker({ docs: [WO] }), { conflictOnce: true });
+    boot(w);
+    await window.DadamWorkflow.enterStep4();
+    await settle();
+    window.prompt = jest.fn(() => '');
+    window.confirm = jest.fn(() => true);
+    p4().querySelector('[data-wo-order="door"]').click();
+    await settle();
+    expect(window.confirm.mock.calls[0][0]).toMatch(/이미 발주 처리했습니다[\s\S]*그래도 다시/);
+    expect(orderPosts(w).map((c) => Boolean(c.body.force))).toEqual([false, true]);
+  });
+});

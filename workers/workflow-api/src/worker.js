@@ -52,6 +52,7 @@ import {
   backfillReports,
 } from './reports/service.js';
 import { isAdmin } from './reports/admin.js';
+import { createOutsourceOrder, listOutsourceOrders } from './reports/outsource.js';
 import { renderReportPrint } from './templates/report-print.js';
 import { createSnapshot, listSnapshots, getSnapshot, previewQuote } from './snapshots.js';
 import {
@@ -400,6 +401,15 @@ async function handleUpdateReport(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data: await updateReportMeta(env, { user, id: params.reportId, body }) });
 }
 
+async function handleCreateOutsourceOrder(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await createOutsourceOrder(env, { user, documentId: params.documentId, body }) }, 201);
+}
+
+async function handleListOutsourceOrders(request, env, { params, user }) {
+  return jsonResponse(request, env, { success: true, data: { items: await listOutsourceOrders(env, { user, documentId: params.documentId }) } });
+}
+
 async function handleCreateNote(request, env, { user }) {
   const body = (await readJson(request)) || {};
   return jsonResponse(request, env, { success: true, data: await createNote(env, { user, body }) }, 201);
@@ -598,6 +608,8 @@ const router = createRouter([
   { method: 'GET', path: '/documents/:documentId', auth: 'jwt', handler: handleGetDocument },
   { method: 'GET', path: '/documents/:documentId/print', auth: 'jwt', handler: handlePrintDocument },
   { method: 'POST', path: '/documents/:documentId/revoke', auth: 'jwt', handler: handleRevokeDocument },
+  { method: 'GET', path: '/documents/:documentId/outsource-orders', auth: 'jwt', handler: handleListOutsourceOrders },
+  { method: 'POST', path: '/documents/:documentId/outsource-orders', auth: 'jwt', handler: handleCreateOutsourceOrder },
 
   // CD-4: 현장 정보 — 설치 작업지시서의 입력
   { method: 'GET', path: '/designs/:designId/site-info', auth: 'jwt', handler: handleGetSiteInfo },

@@ -52,6 +52,12 @@ export const DEFAULT_COSTS = Object.freeze({
   outsourceCutEdgePerSheet: 13000,
 });
 
+/** 외주 업체 기본값 — Step 4 [발주 처리] 에서 비워 두면 이 이름 (work-reports-archive.plan.md §2.1) */
+export const DEFAULT_VENDORS = Object.freeze({
+  door: '상일',
+  cutEdge: '일성합판',
+});
+
 export const DEFAULT_LEADS = Object.freeze({
   /** 도어 외주(상일) 최소 납기, 근무일 */
   doorLeadDays: 3,
