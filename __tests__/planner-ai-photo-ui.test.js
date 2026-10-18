@@ -186,6 +186,73 @@ describe('누르기 전에 보이는 것', () => {
   });
 });
 
+// 2026-10-19: 번호 붙인 입면 · design_spec 선택 필드 · 작은 사진 알림
+describe('번호 붙인 입면 · 배치·높이 · 작은 사진', () => {
+  const okFetch = () => fakeFetch([
+    { status: 202, json: { success: true, id: 'gen-1' } },
+    { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images: [] } } },
+  ]);
+
+  test('입면 요청에 annotate — 보내는 design_spec 과 같은 번호(L·U, 왼쪽부터)·폭', async () => {
+    const p = withPhoto(boot());
+    p.AP._fetch = okFetch();
+    await p.AP.submit();
+    const plan = p.cap.calls[0].annotate;
+    const spec = p.AP._fetch.calls[0].body.design_spec;
+    expect(plan.rows.map((r) => r.key)).toEqual(Object.keys(spec.sections).filter((k) => ['lower', 'upper', 'tall'].includes(k)));
+    plan.rows.forEach((r) => {
+      const mods = spec.sections[r.key].modules;
+      expect(r.items.map((it) => it.id)).toEqual(mods.map((m, i) => r.prefix + (i + 1)));
+      expect(r.items.map((it) => it.widthMm)).toEqual(mods.map((m) => m.widthMm));
+      expect(r.widthMm).toBe(spec.sections[r.key].widthMm);
+      expect(r.heightMm).toBe(spec.sections[r.key].heightMm);
+    });
+    expect(plan.rows[0].prefix).toBe('L');
+    expect(plan.rows[0].items[0].moduleId).toBe('lower-0');
+    expect(plan.rows[1].prefix).toBe('U');
+    expect(plan.rows[1].items.every((it) => it.moduleId === 'upper-3')).toBe(true);
+    // 3/4 뷰는 그대로
+    expect(p.cap.calls[1]).toEqual({ kind: 'massing', longEdge: 1024, clean: true });
+  });
+
+  test('design_spec 새 필드 — layout · 구간 fromFloorMm(3D 바닥 높이) · ceilingMm(플래너 천장)', async () => {
+    const p = withPhoto(boot());
+    p.AP._fetch = okFetch();
+    await p.AP.submit();
+    const spec = p.AP._fetch.calls[0].body.design_spec;
+    expect(spec.layout).toEqual({ shape: 'straight', walls: 1 });
+    expect(spec.ceilingMm).toBe(2300);                        // 저장값 없음 → 플래너 기본 천장
+    expect(spec.sections.lower.fromFloorMm).toBe(0);
+    expect(spec.sections.upper.fromFloorMm).toBe(2300 - 780); // 상부장은 천장에 매달린다
+    // 기존 키 순서 그대로, 새 키는 뒤
+    expect(Object.keys(spec).slice(0, 5)).toEqual(['category', 'wallRunMm', 'sections', 'appliances', 'finishes']);
+    expect(Object.keys(spec.sections.upper).slice(-2)).toEqual(['modules', 'fromFloorMm']);
+  });
+
+  test('배치 단계 천장이 있으면 그 값 — 상부장 바닥 높이도 따라간다', async () => {
+    const p = withPhoto(boot({ storage: { ['dadam_origin_v1' + SCOPE]: JSON.stringify({ x: 0, y: 0, ceiling: 2400 }) } }));
+    const spec = p.AP.spec();
+    expect(spec.ceilingMm).toBe(2400);
+    expect(spec.sections.upper.fromFloorMm).toBe(2400 - 780);
+  });
+
+  test('작은 사진이면 한 줄 알림 (막지 않는다) — 큰 사진이면 없다', () => {
+    const p = boot();
+    p.AP.img = { base64: 'QUJD', mime: 'image/jpeg', preview: 'data:image/jpeg;base64,QUJD', name: '작은.jpg', width: 583, height: 781 };
+    p.AP.render();
+    const note = body(p).querySelector('#aiPhotoSmall');
+    expect(note).not.toBeNull();
+    expect(note.textContent).toBe('사진이 작아 방이 바뀔 수 있습니다 — 더 큰 사진을 권합니다');
+    expect(body(p).querySelector('#aiPhotoGo').disabled).toBe(false);
+    withPhoto(p);   // 1600×1200
+    expect(body(p).querySelector('#aiPhotoSmall')).toBeNull();
+  });
+
+  test('HTML 배선 — mount 가 baseYOf · ceilingMm 을 넘긴다', () => {
+    expect(HTML).toMatch(/PlannerAiPhoto\.mount\(\{[\s\S]*?baseYOf: \(m\) => baseYOf\(m\),[\s\S]*?ceilingMm: \(\) => ceilingHeight,[\s\S]*?\}\);/);
+  });
+});
+
 describe('생성 요청', () => {
   test('약속한 본문이 나간다 — room_image · category · design_spec', async () => {
     const p = withPhoto(boot());
@@ -219,11 +286,13 @@ describe('생성 요청', () => {
       { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images: [] } } },
     ]);
     await p.AP.submit();
-    // 캡처 — 공개 API 만, clean 으로, 계획 §5 크기
-    expect(p.cap.calls).toEqual([
+    // 캡처 — 공개 API 만, clean 으로, 계획 §5 크기. 2026-10-19: 입면에만 번호·치수선(annotate)
+    expect(p.cap.calls.map(({ annotate, ...rest }) => rest)).toEqual([
       { kind: 'front', longEdge: 1536, clean: true },
       { kind: 'massing', longEdge: 1024, clean: true },
     ]);
+    expect(p.cap.calls[0].annotate).toBeTruthy();
+    expect(p.cap.calls[1]).not.toHaveProperty('annotate');
     expect(p.jpegCalls).toEqual([{ quality: 0.9 }]);
     const b = p.AP._fetch.calls[0].body;
     expect(b.mode).toBe('planner');
