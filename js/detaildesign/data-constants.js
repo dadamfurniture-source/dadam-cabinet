@@ -59,11 +59,39 @@
       // 상판 두께 — 2026-10-18 사장님: 12 · 50T 두 가지 (인조대리석). 깊이는 도면 그대로, 이음은 상판 업체 판단.
       const TOP_THICKNESS_OPTIONS = [12, 50];
       /** 상판 두께 셀렉트의 <option> — 목록 밖의 옛 값(예: 18)은 지우지 않고 "옛 값"으로 보여 준다. */
-      function topThicknessOptionsHtml(cur) {
+      // 상판 재질별 두께 — 2026-10-18 사장님 Q8: 인조대리석 12·50 · 엔지니어드 스톤 12·20 · 세라믹 12. 첫 재질이 기본.
+      //   extractors.js BOM_TOP_MATERIALS 와 같다. 재질마다 상판 업체가 다르다 (워커 생산 설정 vendors).
+      const TOP_MATERIALS = { '인조대리석': [12, 50], '엔지니어드 스톤': [12, 20], '세라믹': [12] };
+      function topMaterialOf(specs) {
+        const m = specs && specs.topMaterial;
+        return Object.prototype.hasOwnProperty.call(TOP_MATERIALS, m) ? m : '인조대리석';
+      }
+      function topMaterialOptionsHtml(cur) {
+        const m = Object.prototype.hasOwnProperty.call(TOP_MATERIALS, cur) ? cur : '인조대리석';
+        return Object.keys(TOP_MATERIALS).map((k) => `<option value="${k}" ${k === m ? 'selected' : ''}>${k}</option>`).join('');
+      }
+      /** 상판 두께 셀렉트의 <option> — 재질의 두께 목록. 목록 밖의 옛 값(예: 18)은 지우지 않고 "옛 값"으로 보여 준다. */
+      function topThicknessOptionsHtml(cur, material) {
+        const list = TOP_MATERIALS[material] || TOP_THICKNESS_OPTIONS;
         const v = parseFloat(cur);
-        const opts = TOP_THICKNESS_OPTIONS.map((t) => `<option value="${t}" ${v === t ? 'selected' : ''}>${t}T</option>`);
-        if (Number.isFinite(v) && !TOP_THICKNESS_OPTIONS.includes(v)) opts.push(`<option value="${v}" selected>${v}T (옛 값)</option>`);
+        const opts = list.map((t) => `<option value="${t}" ${v === t ? 'selected' : ''}>${t}T</option>`);
+        if (Number.isFinite(v) && !list.includes(v)) opts.push(`<option value="${v}" selected>${v}T (옛 값)</option>`);
         return opts.join('');
+      }
+      /**
+       * 상판 발주 요청서 마감 항목 — 품목 사양에서 '' 이면 생산 설정 기본값(settings.countertop, 뒷턱 50 · 앞턱 40 · 물끊기 있음 ·
+       * 옆면은 노출면만)을 따른다. 'on' · 'off' 로 품목마다 덮어쓴다. 높이 칸은 비우면 기본값.
+       */
+      const TOP_FINISH_DEFAULT_LABEL = { backsplashH: 50, frontLipH: 40 };
+      function topToggleOptionsHtml(cur, defaultLabel) {
+        const v = cur === 'on' || cur === 'off' ? cur : '';
+        return [['', `기본 (${defaultLabel})`], ['on', '있음'], ['off', '없음']]
+          .map(([k, label]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${label}</option>`).join('');
+      }
+      function topSideOptionsHtml(cur) {
+        const v = cur === 'exposed' || cur === 'wall' ? cur : '';
+        return [['', '기본 (벽 아니면 마감)'], ['exposed', '노출 — 마감'], ['wall', '벽 — 마감 안 함']]
+          .map(([k, label]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${label}</option>`).join('');
       }
 
       // ★ 개수대 기본 너비 (실측 기준)
