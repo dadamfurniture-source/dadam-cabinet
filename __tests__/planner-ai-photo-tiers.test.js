@@ -89,7 +89,8 @@ describe('쌓인 단 — 통 하나 = 계약 모듈 하나', () => {
 
   test('냉장고장 통 = 냉장고 자리(바닥~1885) + 위 박스 2도어, 가전 목록에 fridge', () => {
     const { spec } = traceOf();
-    expect(spec.category).toBe('fridge');
+    // 2026-10-19 (C-1): 싱크대 + 키큰장 + 냉장고장 주방은 품목 sink (예전 fridge — TASK 가 "refrigerator surround" 였다)
+    expect(spec.category).toBe('sink');
     expect(spec.sections.tall.modules[1]).toEqual({
       widthMm: 680, kind: 'appliance', doorCount: 2, drawerCount: 0, label: '냉장고장',
       tiers: [

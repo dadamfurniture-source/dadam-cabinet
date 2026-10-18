@@ -550,8 +550,13 @@ function plannerAiPhotoCategoryOf(modules) {
   const list = Array.isArray(modules) ? modules : [];
   const has = (sec) => list.some((m) => m && m.section === sec);
   if (has('wardrobe')) return 'wardrobe';
+  // 2026-10-19: 냉장고장이 있어도 주방 구성(싱크·후드·식세기, 또는 하부장 + 상부장)이면 주방이다 —
+  //   싱크대 + 키큰장 + 냉장고장 도면이 fridge 로 판정돼 워커 TASK 가 "built-in refrigerator surround" 가 됐다.
+  //   냉장고장만(또는 냉장고장 + 수납장) 있는 도면은 그대로 fridge.
+  const kitchen = has('sink') || has('hood') || has('dishwasher') || (has('lower') && has('upper'));
+  if (kitchen) return 'sink';
   if (has('fridge')) return 'fridge';
-  if (has('lower') || has('upper') || has('sink') || has('hood') || has('dishwasher')) return 'sink';
+  if (has('lower') || has('upper')) return 'sink';
   if (has('tall')) return 'storage';
   return 'storage';
 }
