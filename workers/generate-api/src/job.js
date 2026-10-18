@@ -16,7 +16,8 @@
  *   - 플래너 모드는 대조가 ok 가 아니면 done 과 함께 options.internal_only = true (계획서 §6.3).
  */
 
-import { aspectRatioOf, callGemini, callImageWithFallback } from './gemini.js';
+import { aspectRatioOf, callGemini } from './gemini.js';
+import { renderImage } from './images.js';
 import {
   CATEGORIES,
   DEFAULT_STYLE,
@@ -378,14 +379,14 @@ async function runPipeline(env, job, ck, save) {
       console.log(`[Job ${job.id}] controlnet ${r.meta.model} ${r.meta.requestId} ${r.meta.elapsedMs}ms`);
       return { base64: r.base64, mimeType: r.mimeType };
     }
-    const r = await callGemini(env, {
-      prompt: buildInstallPrompt(ctx, fix ? { fix } : {}),
-      images: [room, ...refs],
-      imageSize,
-      aspectRatio,
-    });
+    // 연출컷 기본안 — 공급자는 images.js 가 고른다 (IMAGE_PROVIDER, GPT 실패 시 Gemini)
+    const r = await renderImage(
+      env,
+      { prompt: buildInstallPrompt(ctx, fix ? { fix } : {}), images: [room, ...refs], imageSize, aspectRatio },
+      'base'
+    );
     if (!r.image) throw new Error('install returned no image');
-    return { base64: r.image, mimeType: r.imageMime || 'image/jpeg' };
+    return { base64: r.image, mimeType: r.imageMime || 'image/jpeg', meta: drawnBy(r) };
   };
 
   // ═══ 2. 설치 + 3. 검사 (1회 재시도) ═══
@@ -435,7 +436,7 @@ async function runPipeline(env, job, ck, save) {
       base.base64,
       base.mimeType
     );
-    ck.images.base = { label: `${labelOf(category)} · 기본안`, path: up.path, url: up.url, qc };
+    ck.images.base = { label: `${labelOf(category)} · 기본안`, path: up.path, url: up.url, qc, ...(base.meta || {}) };
     await save({ images: ck.images });
     await updateById(env, 'generations', job.id, {
       images: slotList(ck.images),
@@ -540,13 +541,8 @@ async function runPipeline(env, job, ck, save) {
       let lastErr = null;
       for (let attempt = 1; attempt <= VARIANT_ATTEMPTS; attempt++) {
         try {
-          // 기본 모델이 과부하면 가벼운 모델로 (제안 3). 어느 모델이 그렸는지 칸에 남긴다.
-          const r = await callImageWithFallback(env, {
-            prompt: f.prompt,
-            images: [base],
-            imageSize,
-            aspectRatio,
-          });
+          // 공급자는 images.js 가 고른다. 어느 모델이 그렸는지 칸에 남긴다.
+          const r = await renderImage(env, { prompt: f.prompt, images: [base], imageSize, aspectRatio }, 'variant');
           if (!r.image) throw new Error('no image in response');
           const mime = r.imageMime || 'image/jpeg';
           const up = await uploadObject(env, `${prefix}/${slot}.${extOf(mime)}`, r.image, mime);
@@ -556,7 +552,7 @@ async function runPipeline(env, job, ck, save) {
             finish: f.finish,
             path: up.path,
             url: up.url,
-            ...(r.fallback ? { model: r.model, fallback: true } : {}),
+            ...drawnBy(r),
           };
           await save({ images: ck.images });
           await updateById(env, 'generations', job.id, {
@@ -595,7 +591,10 @@ async function runPipeline(env, job, ck, save) {
       : null,
     images: slotList(ck.images),
     quote: buildQuote(category, wall.wallW),
-    model: engine === 'controlnet' ? controlNetModel(env) : env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image',
+    model:
+      engine === 'controlnet'
+        ? controlNetModel(env)
+        : (ck.images.base && ck.images.base.model) || env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image',
     elapsed_ms: Date.now() - startedAt,
     completed_at: new Date().toISOString(),
     ...internal,
@@ -603,6 +602,21 @@ async function runPipeline(env, job, ck, save) {
   console.log(
     `[Job ${job.id}] done: variants ${variantCount}/${VARIANT_COUNT}, ${Date.now() - startedAt}ms`
   );
+}
+
+/**
+ * 칸에 남길 "누가 그렸나". Gemini 기본 모델이 정상으로 그렸으면 예전처럼 아무것도 안 남긴다
+ * (옛 기록·시험과 같은 모양). GPT 이거나 대체 모델이면 provider·model, 대체면 fallback·사유, GPT 면 사용량.
+ */
+function drawnBy(r) {
+  if (!r || (r.provider !== 'openai' && !r.fallback)) return {};
+  return {
+    provider: r.provider,
+    model: r.model,
+    ...(r.fallback ? { fallback: true } : {}),
+    ...(r.fallback_reason ? { fallback_reason: r.fallback_reason } : {}),
+    ...(r.usage ? { usage: r.usage } : {}),
+  };
 }
 
 function labelOf(category) {
