@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 업체 이름 · 연락처가 담긴다 — 색인 · 참조자 노출을 막는다 -->
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta name="referrer" content="no-referrer" />
+    <title>거래처 · 공급처 - 다담가구 관리자</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet" />
+    <script src="../js/config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="../js/admin-access.js"></script>
+    <!--
+      거래처 · 공급처 — 경영 대시보드 2단계 (Claude 프로젝트 문서 "다담 경영 대시보드" PR-8).
+      거래처 = 우리에게 주문하는 인테리어 업체, 공급처 = 우리가 사는 곳(도어 · 상판 · 원판 · 철물 · 재단 외주).
+      여기서 만든 이름을 수주(거래처)와 실적 원가(공급처)에 붙이면 대시보드의 파레토 · 성적표가 채워진다.
+      쓰기 · 읽기 모두 workflow-api /counterparties (관리자만). 화면에 넣는 값은 전부 esc() 를 거친다.
+    -->
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      [hidden] { display: none !important; }
+      body { font-family: 'Noto Sans KR', sans-serif; background: #f5f5f5; color: #333; }
+      .sidebar { position: fixed; left: 0; top: 0; width: 250px; height: 100vh; background: #1a1a2e; color: white; padding: 20px 0; overflow-y: auto; }
+      .sidebar-logo { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px; }
+      .sidebar-logo h1 { font-size: 20px; font-weight: 700; }
+      .sidebar-logo span { font-size: 12px; color: #888; }
+      .nav-menu { list-style: none; }
+      .nav-menu li a { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: #aaa; text-decoration: none; transition: all 0.3s; }
+      .nav-menu li a:hover, .nav-menu li a.active { background: rgba(255,255,255,0.1); color: white; }
+      .nav-menu li a.active { border-left: 3px solid #007bff; }
+      .nav-icon { font-size: 18px; width: 24px; text-align: center; }
+      .sidebar-footer { position: absolute; bottom: 20px; left: 20px; right: 20px; }
+      .sidebar-footer a { display: block; padding: 10px; text-align: center; background: rgba(255,255,255,0.1); color: #aaa; text-decoration: none; border-radius: 8px; font-size: 13px; }
+      .main-content { margin-left: 250px; padding: 20px 30px; min-height: 100vh; }
+      .header { margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #ddd; }
+      .header h2 { font-size: 24px; font-weight: 700; }
+      .muted { color: #888; font-size: 12px; }
+      .status-line { font-size: 13px; color: #666; min-height: 18px; margin-bottom: 12px; }
+      .access-denied { display: none; text-align: center; padding: 100px 20px; }
+      .access-denied h2 { margin-bottom: 10px; }
+      .access-denied a { color: #007bff; }
+      .card { background: #fff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); padding: 16px 18px; margin-bottom: 18px; }
+      .card h3 { font-size: 15px; margin-bottom: 10px; }
+      .form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+      .form input, .form select { padding: 7px 9px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit; font-size: 13px; }
+      .btn { padding: 8px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-family: inherit; }
+      .btn-primary { background: #007bff; color: #fff; }
+      .btn-light { background: #fff; color: #333; border: 1px solid #ddd; }
+      .btn-small { padding: 4px 9px; font-size: 12px; }
+      table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+      table.tbl th, table.tbl td { border-bottom: 1px solid #eee; padding: 8px 6px; text-align: left; vertical-align: middle; }
+      table.tbl th { color: #888; font-weight: 500; font-size: 12px; }
+      table.tbl tr.off td { color: #aaa; }
+      .tbl-wrap { overflow-x: auto; }
+      .empty-state { color: #888; font-size: 13px; padding: 10px 0; line-height: 1.7; }
+      .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 18px; }
+      @media (max-width: 900px) { .sidebar { display: none; } .main-content { margin-left: 0; padding: 16px; } .grid2 { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <nav class="sidebar">
+      <div class="sidebar-logo">
+        <h1>다담가구</h1>
+        <span>관리자 패널</span>
+      </div>
+      <ul class="nav-menu" id="adminNav"></ul>
+      <script src="../js/admin-shell.js"></script>
+      <div class="sidebar-footer"><a href="../index.html">← 메인 사이트로</a></div>
+    </nav>
+
+    <main class="main-content">
+      <div class="access-denied" id="accessDenied">
+        <h2>접근 권한이 없습니다</h2>
+        <p>관리자만 접근할 수 있는 페이지입니다.</p>
+        <a href="../index.html">메인 페이지로 돌아가기</a>
+      </div>
+
+      <div id="pageContent" style="display: none">
+        <header class="header">
+          <h2>거래처 · 공급처</h2>
+          <div class="muted">거래처는 우리에게 주문하는 인테리어 업체, 공급처는 우리가 사는 곳입니다. 수주와 실적 원가에 붙이면 <a href="management.html">경영 대시보드</a>의 거래처 줄이 채워집니다.</div>
+        </header>
+
+        <div class="status-line" id="statusLine"></div>
+
+        <div class="empty-state" id="needSql" hidden>
+          거래처 · 공급처 칸이 아직 없습니다. Supabase SQL Editor 에서 database/management-phase2.sql 을 한 번 실행해 주세요.
+        </div>
+
+        <div id="editor">
+          <section class="card">
+            <h3 id="formTitle">새로 넣기</h3>
+            <div class="form">
+              <select id="fKind" aria-label="종류">
+                <option value="partner">거래처 (인테리어 업체)</option>
+                <option value="supplier">공급처 (사는 곳)</option>
+              </select>
+              <input id="fName" type="text" maxlength="100" placeholder="이름" aria-label="이름" />
+              <select id="fCategory" aria-label="공급처 갈래"></select>
+              <input id="fPhone" type="text" maxlength="40" placeholder="연락처 (선택)" aria-label="연락처" />
+              <input id="fMemo" type="text" maxlength="1000" placeholder="메모 (선택)" aria-label="메모" style="min-width: 200px" />
+              <button class="btn btn-primary" id="btnSave" type="button">넣기</button>
+              <button class="btn btn-light" id="btnCancel" type="button" hidden>그만 고치기</button>
+            </div>
+          </section>
+
+          <div class="grid2">
+            <section class="card">
+              <h3>거래처</h3>
+              <div class="tbl-wrap"><table class="tbl" id="tblPartner">
+                <thead><tr><th scope="col">이름</th><th scope="col">연락처</th><th scope="col">메모</th><th scope="col"></th></tr></thead>
+                <tbody></tbody>
+              </table></div>
+            </section>
+            <section class="card">
+              <h3>공급처</h3>
+              <div class="tbl-wrap"><table class="tbl" id="tblSupplier">
+                <thead><tr><th scope="col">이름</th><th scope="col">갈래</th><th scope="col">연락처</th><th scope="col">메모</th><th scope="col"></th></tr></thead>
+                <tbody></tbody>
+              </table></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      (function () {
+        'use strict';
+
+        // 워커 counterparties.js 와 같은 축
+        const CATEGORY_LABEL = { door: '도어', cut_edge: '재단 · 엣지', countertop: '상판', board: '원판', hardware: '철물', install: '시공', other: '기타' };
+        const state = { sb: null, items: [], editing: null };
+        const $ = (id) => document.getElementById(id);
+        const esc = (v) => String(v === null || v === undefined ? '' : v)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+        function apiBase() {
+          return (window.DADAM_CONFIG && window.DADAM_CONFIG.workflowApi && window.DADAM_CONFIG.workflowApi.url) || '';
+        }
+        async function api(path, opts) {
+          const r = await state.sb.auth.getSession();
+          const t = r && r.data && r.data.session && r.data.session.access_token;
+          if (!t) throw new Error('로그인이 필요합니다.');
+          const o = opts || {};
+          const res = await fetch(apiBase() + path, {
+            method: o.method || 'GET',
+            headers: Object.assign({ Authorization: `Bearer ${t}` }, o.body ? { 'Content-Type': 'application/json' } : {}),
+            body: o.body ? JSON.stringify(o.body) : undefined,
+          });
+          let body = null;
+          try { body = await res.json(); } catch (e) { body = null; }
+          if (!res.ok || !body || !body.success) throw new Error((body && (body.message || body.error)) || `요청 실패 (${res.status})`);
+          return body.data;
+        }
+        function setStatus(msg, kind) {
+          $('statusLine').textContent = msg || '';
+          $('statusLine').style.color = kind === 'error' ? '#c62828' : kind === 'ok' ? '#2e7d32' : '#666';
+        }
+
+        function syncCategory() {
+          const supplier = $('fKind').value === 'supplier';
+          $('fCategory').hidden = !supplier;
+        }
+
+        function rowHtml(c) {
+          const toggle = c.active === false ? '다시 쓰기' : '숨기기';
+          const cells = [`<td>${esc(c.name)}</td>`];
+          if (c.kind === 'supplier') cells.push(`<td>${esc(CATEGORY_LABEL[c.category] || '-')}</td>`);
+          cells.push(`<td>${esc(c.phone || '-')}</td>`, `<td>${esc(c.memo || '-')}</td>`);
+          cells.push(`<td style="white-space:nowrap"><button class="btn btn-light btn-small" type="button" data-edit="${esc(c.id)}">고치기</button>
+            <button class="btn btn-light btn-small" type="button" data-toggle="${esc(c.id)}">${toggle}</button></td>`);
+          return `<tr data-id="${esc(c.id)}" class="${c.active === false ? 'off' : ''}">${cells.join('')}</tr>`;
+        }
+
+        function render() {
+          const missing = state.items === null;
+          $('needSql').hidden = !missing;
+          $('editor').hidden = missing;
+          if (missing) return;
+          const list = (kind, cols) => {
+            const rows = state.items.filter((c) => c.kind === kind);
+            return rows.length ? rows.map(rowHtml).join('') : `<tr><td colspan="${cols}" class="muted">아직 없습니다. 위에서 넣어 주세요.</td></tr>`;
+          };
+          $('tblPartner').querySelector('tbody').innerHTML = list('partner', 4);
+          $('tblSupplier').querySelector('tbody').innerHTML = list('supplier', 5);
+          document.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => startEdit(b.getAttribute('data-edit'))));
+          document.querySelectorAll('[data-toggle]').forEach((b) => b.addEventListener('click', () => toggle(b.getAttribute('data-toggle'))));
+        }
+
+        function resetForm() {
+          state.editing = null;
+          $('formTitle').textContent = '새로 넣기';
+          $('btnSave').textContent = '넣기';
+          $('btnCancel').hidden = true;
+          $('fKind').disabled = false;
+          ['fName', 'fPhone', 'fMemo'].forEach((id) => { $(id).value = ''; });
+          $('fCategory').value = '';
+          syncCategory();
+        }
+
+        function startEdit(id) {
+          const c = state.items.find((x) => x.id === id);
+          if (!c) return;
+          state.editing = id;
+          $('formTitle').textContent = `고치기 — ${c.name}`;
+          $('btnSave').textContent = '저장';
+          $('btnCancel').hidden = false;
+          $('fKind').value = c.kind;
+          $('fKind').disabled = true; // 거래처를 공급처로 바꾸지 않는다 — 새로 넣는다
+          $('fName').value = c.name;
+          $('fCategory').value = c.category || '';
+          $('fPhone').value = c.phone || '';
+          $('fMemo').value = c.memo || '';
+          syncCategory();
+          $('fName').focus();
+        }
+
+        async function load() {
+          try {
+            const d = await api('/counterparties');
+            state.items = d.items;
+            render();
+          } catch (e) { setStatus(e.message, 'error'); }
+        }
+
+        async function save() {
+          const body = { name: $('fName').value, phone: $('fPhone').value, memo: $('fMemo').value };
+          if ($('fKind').value === 'supplier') body.category = $('fCategory').value || null;
+          if (!body.name.trim()) { setStatus('이름을 적어 주세요.', 'error'); return; }
+          try {
+            if (state.editing) {
+              await api(`/counterparties/${encodeURIComponent(state.editing)}`, { method: 'PATCH', body });
+              setStatus('고쳤습니다.', 'ok');
+            } else {
+              await api('/counterparties', { method: 'POST', body: Object.assign({ kind: $('fKind').value }, body) });
+              setStatus('넣었습니다.', 'ok');
+            }
+            resetForm();
+            await load();
+          } catch (e) { setStatus(e.message, 'error'); }
+        }
+
+        async function toggle(id) {
+          const c = state.items.find((x) => x.id === id);
+          if (!c) return;
+          try {
+            await api(`/counterparties/${encodeURIComponent(id)}`, { method: 'PATCH', body: { active: c.active === false } });
+            setStatus(c.active === false ? '다시 씁니다.' : '숨겼습니다. 이미 붙인 수주 · 원가는 그대로입니다.', 'ok');
+            await load();
+          } catch (e) { setStatus(e.message, 'error'); }
+        }
+
+        function showAccessDenied() {
+          $('accessDenied').style.display = 'block';
+          $('pageContent').style.display = 'none';
+        }
+
+        async function init() {
+          if (!window.supabase || !window.DADAM_CONFIG || !window.DADAM_CONFIG.supabase) return showAccessDenied();
+          const { url, anonKey } = window.DADAM_CONFIG.supabase;
+          state.sb = window.supabase.createClient(url, anonKey);
+          const { data: { session } } = await state.sb.auth.getSession();
+          if (!session) return showAccessDenied();
+          const isAdmin = window.AdminAccess ? await window.AdminAccess.isAdmin(state.sb) : false;
+          if (!isAdmin) return showAccessDenied();
+          $('pageContent').style.display = 'block';
+          $('fCategory').innerHTML = '<option value="">갈래 (선택)</option>' +
+            Object.keys(CATEGORY_LABEL).map((k) => `<option value="${k}">${CATEGORY_LABEL[k]}</option>`).join('');
+          $('fKind').addEventListener('change', syncCategory);
+          $('btnSave').addEventListener('click', save);
+          $('btnCancel').addEventListener('click', resetForm);
+          syncCategory();
+          if (!apiBase()) { setStatus('업무 서버(workflowApi.url)가 설정되지 않았습니다.', 'error'); return; }
+          await load();
+        }
+
+        window.Counterparties = { init, render, esc };
+        if (!window.__COUNTERPARTIES_NO_AUTOSTART) {
+          if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+          else init();
+        }
+      })();
+    </script>
+  </body>
+</html>

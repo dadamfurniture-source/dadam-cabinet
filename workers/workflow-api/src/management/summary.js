@@ -618,6 +618,127 @@ export function referralOf(feedback, month, today = null) {
   };
 }
 
+// ── 거래처 · 공급처 (2단계 PR-8) ─────────────────────────────
+
+/** 거래처 · 공급처는 한 해로 본다 — 업체별 수주는 달마다 몇 건뿐이다 */
+export const PARTNER_WINDOW_DAYS = 365;
+
+function windowOf(month, today, days) {
+  const end = today && today.slice(0, 7) === month ? today : monthEndOf(month);
+  const start = new Date(Date.parse(`${end}T00:00:00Z`) - (days - 1) * 86400000).toISOString().slice(0, 10);
+  return { days, start, end };
+}
+
+/**
+ * 11 거래처 파레토 — 한 해 동안 업체별 수주 · 매출 · 공헌이익, 큰 순으로 누적 비중.
+ * "상위 20% 거래처가 매출의 몇 % 를 주나". 거래처로 판정됐는데 업체를 안 붙인 수주는 따로 센다.
+ * 칸이 아직 없으면(2단계 SQL 전) null.
+ */
+export function partnersOf({ partnerOrders, snapshotsById, counterparties }, month, today = null) {
+  if (!Array.isArray(partnerOrders) || !Array.isArray(counterparties)) return null;
+  const win = windowOf(month, today, PARTNER_WINDOW_DAYS);
+  const names = new Map(counterparties.map((c) => [c.id, c.name]));
+  const acc = new Map();
+  let unassigned = 0;
+  for (const o of partnerOrders) {
+    if (o.status === 'cancelled' || !o.ordered_at) continue;
+    const d = kstDate(o.ordered_at);
+    if (d < win.start || d > win.end) continue;
+    if (!o.partner_id) { if (o.price_tier === 'partner') unassigned += 1; continue; }
+    if (!acc.has(o.partner_id)) acc.set(o.partner_id, { orders: 0, revenue: 0, known: 0, cost: 0 });
+    const a = acc.get(o.partner_id);
+    const revenue = Math.round(num(o.contract_amount) / 1.1);
+    a.orders += 1; a.revenue += revenue;
+    const q = quoteOf(o, snapshotsById);
+    if (q && q.cost && Number.isFinite(Number(q.cost.total))) {
+      a.known += revenue;
+      a.cost += num(q.cost.total) - num(q.cost.fixed_recovery);
+    }
+  }
+  const total = [...acc.values()].reduce((s, a) => s + a.revenue, 0);
+  let cum = 0;
+  const rows = [...acc.entries()].sort((x, y) => y[1].revenue - x[1].revenue).map(([id, a]) => {
+    cum += a.revenue;
+    const contribution = Math.round(a.known - a.cost);
+    return {
+      id,
+      name: names.get(id) || '(지운 거래처)',
+      orders: a.orders,
+      revenue: a.revenue,
+      contribution: a.known > 0 ? contribution : null,
+      cmRate: a.known > 0 ? pct(contribution, a.known) : null,
+      share: pct(a.revenue, total),
+      cumShare: pct(cum, total),
+    };
+  });
+  const topN = Math.ceil(rows.length * 0.2);
+  const topRevenue = rows.slice(0, topN).reduce((s, r) => s + r.revenue, 0);
+  return {
+    window: win,
+    partners: rows.length,
+    revenue: total,
+    rows: rows.slice(0, 10),
+    top20: rows.length ? { count: topN, share: pct(topRevenue, total) } : null,
+    unassigned,
+  };
+}
+
+/**
+ * 16 외주 성적표 — 한 해 동안 공급처별 지출(원가 줄) · 발주 · 약속일 지킴.
+ *   지출     원가에 공급처를 붙인 줄의 합 (낸 날, 없으면 적은 날 기준)
+ *   약속일   외주 · 상판 발주(작업 지시 보고)의 입고 예정일(period_end) 대 입고한 날(metrics.received_on)
+ *            입고한 날이 없는 예전 입고는 약속 계산에서 뺀다 — 지금부터 쌓인다
+ *   밀림     아직 입고 전인데 예정일이 지난 발주
+ * 발주는 업체 이름으로 묶고, 장부의 공급처와 이름이 같으면 한 줄로 합친다.
+ */
+export function suppliersOf({ supplierCosts, outsource, counterparties }, month, today = null) {
+  if (!Array.isArray(counterparties)) return null;
+  const win = windowOf(month, today, PARTNER_WINDOW_DAYS);
+  const todayD = today || win.end;
+  const inWin = (d) => d && d >= win.start && d <= win.end;
+  const byId = new Map(counterparties.map((c) => [c.id, c]));
+  const acc = new Map(); // 이름(소문자) → 줄
+  const row = (name) => {
+    const key = String(name || '').trim().toLowerCase();
+    if (!key) return null;
+    if (!acc.has(key)) {
+      const cp = counterparties.find((c) => c.kind === 'supplier' && c.name.trim().toLowerCase() === key);
+      acc.set(key, { id: cp ? cp.id : null, name: cp ? cp.name : String(name).trim(), category: cp ? cp.category : null, spend: 0, costRows: 0, orders: 0, onTime: 0, late: 0, lateDays: 0, dated: 0, overdue: 0 });
+    }
+    return acc.get(key);
+  };
+  for (const c of supplierCosts || []) {
+    const cp = byId.get(c.counterparty_id);
+    const d = String(c.spent_on || c.created_at || '').slice(0, 10);
+    if (!cp || !inWin(d)) continue;
+    const r = row(cp.name);
+    r.spend += num(c.amount); r.costRows += 1;
+  }
+  for (const o of outsource || []) {
+    if (o.status === 'cancelled' || !inWin(String(o.period_start || '').slice(0, 10))) continue;
+    const r = row(o.metrics && o.metrics.vendor);
+    if (!r) continue;
+    r.orders += 1;
+    const due = String(o.period_end || '').slice(0, 10);
+    const got = o.metrics && o.metrics.received_on;
+    if (o.status === 'received' && got && due) {
+      r.dated += 1;
+      if (got <= due) r.onTime += 1;
+      else { r.late += 1; r.lateDays += (Date.parse(got) - Date.parse(due)) / 86400000; }
+    } else if (o.status === 'ordered' && due && due < todayD) r.overdue += 1;
+  }
+  const rows = [...acc.values()]
+    .map((r) => ({
+      id: r.id, name: r.name, category: r.category,
+      spend: Math.round(r.spend), costRows: r.costRows,
+      orders: r.orders, onTimeRate: pct(r.onTime, r.dated), dated: r.dated,
+      avgLateDays: r.late ? Math.round((r.lateDays / r.late) * 10) / 10 : null,
+      overdue: r.overdue,
+    }))
+    .sort((a, b) => b.spend - a.spend || b.orders - a.orders);
+  return { window: win, rows: rows.slice(0, 12), suppliers: counterparties.filter((c) => c.kind === 'supplier' && c.active !== false).length };
+}
+
 function monthEndOf(month) {
   const [y, m] = String(month).split('-').map(Number);
   return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
@@ -640,11 +761,15 @@ const pair = (value, prev) => ({ value, prev });
  * @param {Array|null} p.reworks    재작업 · A/S (반년 창). 표가 없으면 null
  * @param {Array}  p.installed      납품 · 완료된 수주 (id · status · delivered_at · completed_at)
  * @param {Array|null} p.feedback   설치 후 한 문항 (score · created_at · answered_at). 표가 없으면 null
+ * @param {Array|null} p.counterparties  거래처 · 공급처 (id · kind · name · category · active). 표가 없으면 null
+ * @param {Array|null} p.partnerOrders   한 해 동안 거래처가 붙었거나 거래처로 판정된 수주. 칸이 없으면 null
+ * @param {Array}  p.supplierCosts  한 해 동안 공급처를 붙인 원가 줄 (counterparty_id · amount · spent_on · created_at)
+ * @param {Array}  p.outsource      한 해 동안의 외주 · 상판 발주 보고 (status · period_start · period_end · metrics)
  * @param {string} [p.today]        오늘 (KST, YYYY-MM-DD) — 이번 달의 반년 창 끝
  * @param {Object} p.settings       mergeSettings 결과 (+ source)
  * @param {string} p.month          'YYYY-MM'
  */
-export function buildManagementSummary({ orders, snapshotsById, documents, consultations, generations = null, designs = [], costs = [], worklogs = [], paceLogs = [], reworks = null, installed = [], feedback = null, settings, month, today = null }) {
+export function buildManagementSummary({ orders, snapshotsById, documents, consultations, generations = null, designs = [], costs = [], worklogs = [], paceLogs = [], reworks = null, installed = [], feedback = null, counterparties = null, partnerOrders = null, supplierCosts = [], outsource = [], settings, month, today = null }) {
   const prev = prevMonthOf(month);
   const overheadMonthly = num(settings && settings.quote && settings.quote.overheadMonthly);
   const cur = financeOf(orders, snapshotsById, { month, overheadMonthly });
@@ -680,6 +805,8 @@ export function buildManagementSummary({ orders, snapshotsById, documents, consu
     scenario: scenarioBase(orders, snapshotsById, settings, month),
     quality: qualityOf({ reworks, installed, settings }, month, today),
     referral: referralOf(feedback, month, today),
+    partners: partnersOf({ partnerOrders, snapshotsById, counterparties }, month, today),
+    suppliers: suppliersOf({ supplierCosts, outsource, counterparties }, month, today),
     basis: {
       revenue: 'VAT 제외 계약금',
       cost: '확인서 견적 원가 (고정비 회수분 제외)',
