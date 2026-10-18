@@ -45,7 +45,7 @@ describe('mm → %', () => {
     expect(w.exhaustPct).toBe(70);
   });
 
-  test('값이 같아도 read 가 서는 것이 핵심이다 — 추측 30% 와 구분된다', () => {
+  test('값이 같아도 read 가 서는 것이 핵심이다 — 기본값과 구분된다', () => {
     const w = fresh();
     J.applyManualPlumbing(w, { water_from_left_override: 900 });
     expect(w.read.water).toBe(true);

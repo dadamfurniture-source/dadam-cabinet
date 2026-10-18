@@ -217,8 +217,8 @@ export function parseAnalysis(text) {
     tile: null, // {present, lightNeutral, description} | null
     cameraSide: null, // 'left' | 'center' | 'right' | null — 깊이 단서(어느 측면이 보이나)
     sideReturn: null, // {side:'left'|'right'|'both', depthMm} | null — 정면 벽 끝에 튀어나온 벽·기둥 (붙박이장 앞면을 맞출 기준)
-    // 아래 넷 중 무엇을 **실제로 읽었나**. waterPct 는 늘 숫자라(기본 30) 값만 봐서는
-    //   "사진에서 30% 로 읽음" 과 "못 읽어서 30%" 를 가릴 수 없다. 그래서 따로 적는다.
+    // 아래 넷 중 무엇을 **실제로 읽었나**. waterPct 는 늘 숫자라(못 읽어도 기본값이 남는다)
+    //   값만 봐서는 "사진에서 48% 로 읽음" 과 "못 읽어서 기본값 48%" 를 가릴 수 없다. 그래서 따로 적는다.
     //   시공 전 사진 828장 실측(2026-10): 벽 치수는 100% 읽지만 주방 급수는 56%, 배기는 48% 만 읽는다.
     read: { width: false, height: false, water: false, exhaust: false },
   };
