@@ -98,6 +98,20 @@
       .tbl .cum .track { display: block; height: 8px; background: #eef1f5; border-radius: 4px; overflow: hidden; }
       .tbl .cum .fill { display: block; height: 100%; background: #007bff; }
       .tbl .cum .n { text-align: right; font-variant-numeric: tabular-nums; }
+      .cash-chart { display: block; width: 100%; height: auto; margin: 6px 0 2px; }
+      .cash-chart .pos { fill: #007bff; }
+      .cash-chart .neg { fill: #c62828; }
+      .cash-chart .axis { stroke: #bbb; stroke-width: 1; }
+      .cash-chart .tick { font-size: 10px; fill: #888; }
+      .cash-chart .neg-t { fill: #c62828; }
+      .warn-line { font-size: 12.5px; color: #b26a00; margin: 4px 0; }
+      .warn-line.neg { color: #c62828; font-weight: 600; }
+      .cash-detail { margin-top: 8px; font-size: 12.5px; }
+      .cash-detail summary { cursor: pointer; color: #555; }
+      .cash-form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; padding-top: 10px; border-top: 1px solid #eee; }
+      .cash-form input { padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit; font-size: 13px; }
+      .cash-form input[type=number] { width: 150px; }
+      .reason.aging .fill { background: #c62828; }
       .nps { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
       .nps b { font-size: 28px; }
       .nps span { color: #888; font-size: 13px; }
@@ -202,6 +216,28 @@
               <h3>채널 공헌이익 — 직판 대 거래처</h3>
               <div class="q">어느 쪽 일이 고정비를 더 덮나 · 공장 1시간당으로 보면</div>
               <div id="channelBody"></div>
+            </article>
+          </div>
+        </div>
+
+        <div class="row" id="rowCash" hidden>
+          <div class="row-lens">현금</div>
+          <div class="cards">
+            <article class="card" id="cardCashflow">
+              <h3>13주 현금흐름</h3>
+              <div class="q">오늘부터 석 달, 주마다 통장에 얼마가 남나 — 비수기를 버틸 수 있나</div>
+              <div id="cashflowBody"></div>
+              <div class="cash-form" id="cashForm" hidden>
+                <label class="muted" for="cbDate">통장 잔액 적기</label>
+                <input type="date" id="cbDate" />
+                <input type="number" id="cbAmount" step="10000" placeholder="잔액 (원)" />
+                <button class="btn btn-light" id="btnCashBalance" type="button">적기</button>
+              </div>
+            </article>
+            <article class="card" id="cardAging">
+              <h3>미수 나이</h3>
+              <div class="q">받을 날이 지났는데 못 받은 돈 — 얼마나 오래 밀렸나</div>
+              <div id="agingBody"></div>
             </article>
           </div>
         </div>
@@ -333,10 +369,15 @@
           const r = await state.sb.auth.getSession();
           return (r && r.data && r.data.session && r.data.session.access_token) || null;
         }
-        async function api(path) {
+        async function api(path, opts) {
           const t = await token();
           if (!t) throw new Error('로그인이 필요합니다.');
-          const res = await fetch(apiBase() + path, { method: 'GET', headers: { Authorization: `Bearer ${t}` } });
+          const o = opts || {};
+          const res = await fetch(apiBase() + path, {
+            method: o.method || 'GET',
+            headers: Object.assign({ Authorization: `Bearer ${t}` }, o.body ? { 'Content-Type': 'application/json' } : {}),
+            body: o.body ? JSON.stringify(o.body) : undefined,
+          });
           let body = null;
           try { body = await res.json(); } catch (e) { body = null; }
           if (!res.ok || !body || !body.success) throw new Error((body && (body.message || body.error)) || `요청 실패 (${res.status})`);
@@ -570,6 +611,90 @@
             <div class="muted" style="margin-top:8px">처리량 = 매출 − 자재 · 철물 · 외주. 병목이 꽉 찬 달에는 1분당 처리량이 큰 일부터 받는 것이 이익을 가장 크게 합니다.</div>`;
         }
 
+        // ── 현금: 13주 현금흐름 · 미수 나이 ──
+        const NEED_CASH_SQL = '<div class="empty-state">수금 · 지급 칸이 아직 없습니다.<br>database/management-phase2.sql 을 실행하면 <a href="../erp.html">수주 · 원가 · 마진</a> 상세에서 수금 일정과 지급 예정일을 적을 수 있습니다.</div>';
+        const mmdd = (d) => `${Number(String(d).slice(5, 7))}/${Number(String(d).slice(8, 10))}`;
+
+        /** 주말 잔액 막대 — 0 선 위는 파랑, 아래는 빨강. 막대 높이는 한 눈금(최댓값)에 맞춘다 */
+        function cashChart(weeks) {
+          const W = 650, H = 170, top = 14, bottom = 24, left = 6, gap = 6;
+          const vals = weeks.map((w) => w.balance);
+          const max = Math.max(0, ...vals), min = Math.min(0, ...vals);
+          const span = max - min || 1;
+          const y = (v) => top + ((max - v) / span) * (H - top - bottom);
+          const bw = (W - left * 2) / weeks.length;
+          const zero = y(0);
+          const bars = weeks.map((w, i) => {
+            const x = left + i * bw + gap / 2;
+            const yv = y(w.balance);
+            const h = Math.max(1, Math.abs(zero - yv));
+            const cls = w.balance < 0 ? 'neg' : 'pos';
+            const label = i % 2 === 0 ? `<text class="tick" x="${(x + (bw - gap) / 2).toFixed(1)}" y="${H - 8}" text-anchor="middle">${esc(mmdd(w.start))}</text>` : '';
+            return `<rect class="${cls}" data-week="${i}" x="${x.toFixed(1)}" y="${Math.min(zero, yv).toFixed(1)}" width="${(bw - gap).toFixed(1)}" height="${h.toFixed(1)}"><title>${esc(`${w.start} 주 — 들어옴 ${won(w.inflow)} · 나감 ${won(w.outflow)} · 잔액 ${won(w.balance)}`)}</title></rect>${label}`;
+          }).join('');
+          return `<svg class="cash-chart" id="cashChart" viewBox="0 0 ${W} ${H}" role="img" aria-label="13주 주말 잔액">
+            <line class="axis" x1="0" x2="${W}" y1="${zero.toFixed(1)}" y2="${zero.toFixed(1)}"></line>${bars}
+            <text class="tick" x="${W - 2}" y="${(y(max) - 3).toFixed(1)}" text-anchor="end">${esc(man(max))}</text>
+            ${min < 0 ? `<text class="tick neg-t" x="${W - 2}" y="${(y(min) + 11).toFixed(1)}" text-anchor="end">${esc(man(min))}</text>` : ''}
+          </svg>`;
+        }
+
+        function renderCashflow(d) {
+          const c = d.cashflow;
+          $('cashForm').hidden = !c;
+          if (!c) { $('cashflowBody').innerHTML = NEED_CASH_SQL; return; }
+          if (!$('cbDate').value) $('cbDate').value = c.today;
+          const notes = [];
+          if (!c.opening) notes.push('<div class="warn-line">통장 잔액을 아직 안 적었습니다 — 0 에서 시작한 흐름입니다. 아래에 오늘 잔액을 적어 주세요.</div>');
+          else if (c.opening.stale) notes.push(`<div class="warn-line">잔액이 ${esc(c.opening.days)}일 전(${esc(c.opening.as_of)}) 것입니다 — 그 뒤 들고 난 돈이 빠져 있으니 새로 적어 주세요.</div>`);
+          if (c.firstNegative !== null) notes.push(`<div class="warn-line neg">${esc(c.firstNegative + 1)}주차(${esc(mmdd(c.weeks[c.firstNegative].start))} 주)에 잔액이 마이너스가 됩니다.</div>`);
+          const rows = c.weeks.map((w) => `<tr><td>${esc(mmdd(w.start))}~${esc(mmdd(w.end))}</td><td class="num">${esc(won(w.inflow))}</td><td class="num">${esc(won(w.outflow))}</td><td class="num${w.balance < 0 ? ' up' : ''}">${esc(won(w.balance))}</td></tr>`).join('');
+          $('cashflowBody').innerHTML = `
+            <div class="lead-line">시작 <b class="num">${esc(c.opening ? won(c.opening.amount) : '0원')}</b>${c.opening ? ` (${esc(c.opening.as_of)})` : ''} → 13주 뒤 <b class="num">${esc(won(c.weeks.at(-1).balance))}</b> · 가장 낮은 주 <b class="num">${esc(won(c.lowest.balance))}</b> (${esc(mmdd(c.lowest.start))} 주)</div>
+            ${notes.join('')}
+            ${cashChart(c.weeks)}
+            <div class="facts">
+              <span>밀린 받을 돈 <b class="num">${esc(won(c.overdueIn))}</b></span>
+              <span>밀린 낼 돈 <b class="num">${esc(won(c.overdueOut))}</b></span>
+              <span>날짜 모르는 받을 돈 <b class="num">${esc(won(c.unscheduledIn))}</b> (${esc(cnt(c.unscheduledOrders))})</span>
+              <span>13주 뒤 들어옴 ${esc(won(c.laterIn))} · 나감 ${esc(won(c.laterOut))}</span>
+            </div>
+            <details class="cash-detail"><summary>주별 자세히</summary>
+              <div class="tbl-wrap"><table class="tbl" id="tblCash"><thead><tr><th scope="col">주</th><th scope="col">들어옴</th><th scope="col">나감</th><th scope="col">주말 잔액</th></tr></thead><tbody>${rows}</tbody></table></div>
+            </details>
+            <div class="muted" style="margin-top:8px">들어옴 = 아직 안 받은 수금 일정(밀린 것은 이번 주), 일정 없는 수주는 남은 돈이 설치일에. 나감 = 낼 날이 있는 원가 + 월 고정비를 주마다 ${esc(won(c.weeklyOverhead))}. 이달 선택과 상관없이 오늘부터 봅니다.</div>`;
+        }
+
+        function renderAging(d) {
+          const a = d.aging;
+          if (!a) { $('agingBody').innerHTML = NEED_CASH_SQL; return; }
+          if (!(a.overdue > 0)) {
+            $('agingBody').innerHTML = `<div class="lead-line">밀린 돈이 없습니다 · 기한 전 받을 돈 <b class="num">${esc(won(a.notDue))}</b></div>`;
+            return;
+          }
+          const max = Math.max(1, ...a.buckets.map((b) => b.amount));
+          const bars = a.buckets.map((b) => `<div class="reason aging" data-bucket="${esc(b.key)}"><span>${esc(b.label)}</span><span class="track"><span class="fill" style="width:${Math.round((b.amount / max) * 100)}%"></span></span><span class="n">${esc(won(b.amount))}</span></div>`).join('');
+          const top = a.top.map((t) => `<tr><td>${esc(t.label)}</td><td class="num">${esc(won(t.amount))}</td><td class="num">${esc(`${t.days}일`)}</td></tr>`).join('');
+          $('agingBody').innerHTML = `
+            <div class="lead-line">밀린 돈 <b class="num up">${esc(won(a.overdue))}</b> · 기한 전 <b class="num">${esc(won(a.notDue))}</b></div>
+            <div id="agingBars">${bars}</div>
+            <div class="sub-h">오래 밀린 순</div>
+            <div class="tbl-wrap"><table class="tbl" id="tblAging"><thead><tr><th scope="col">수주</th><th scope="col">금액</th><th scope="col">밀린 날</th></tr></thead><tbody>${top}</tbody></table></div>
+            <div class="muted" style="margin-top:8px">수금 일정이 있으면 받기로 한 날부터, 없으면 설치(납품 · 완료)한 날부터 셉니다.</div>`;
+        }
+
+        async function saveCashBalance() {
+          const as_of = $('cbDate').value;
+          const amount = $('cbAmount').value;
+          if (!as_of || amount === '') { setStatus('기준일과 잔액을 적어 주세요.', 'error'); return; }
+          try {
+            await api('/management/cash-balance', { method: 'POST', body: { as_of, amount: Math.round(Number(amount)) } });
+            $('cbAmount').value = '';
+            setStatus('통장 잔액을 적었습니다.', 'ok');
+            await load();
+          } catch (e) { setStatus(e.message, 'error'); }
+        }
+
         // ── 거래처: 파레토 · 공급처 성적표 ──
         const NEED_CP_SQL = '<div class="empty-state">거래처 · 공급처 칸이 아직 없습니다.<br>database/management-phase2.sql 을 실행하면 <a href="counterparties.html">거래처 · 공급처</a>에서 목록을 만들 수 있습니다.</div>';
         function renderPartners(d) {
@@ -771,6 +896,9 @@
           $('rowProcess').hidden = !d.process;
           if (d.process) { renderVariance(d); renderBottleneck(d); }
           // 품질 — 옛 워커(칸 없음)면 카드를 숨기고, 기록 표가 아직 없으면(null) 안내를 띄운다
+          // 현금 줄 — 옛 워커(칸 없음)면 줄을 숨긴다
+          $('rowCash').hidden = d.cashflow === undefined && d.aging === undefined;
+          if (!$('rowCash').hidden) { renderCashflow(d); renderAging(d); }
           // 거래처 줄 — 옛 워커(칸 없음)면 줄을 숨긴다
           $('rowPartners').hidden = d.partners === undefined && d.suppliers === undefined;
           if (!$('rowPartners').hidden) { renderPartners(d); renderSuppliers(d); }
@@ -822,6 +950,7 @@
             if (/^\d{4}-\d{2}$/.test($('fMonth').value)) { state.month = $('fMonth').value; load(); }
           });
           $('btnReload').addEventListener('click', load);
+          $('btnCashBalance').addEventListener('click', saveCashBalance);
           if (!apiBase()) {
             setStatus('업무 서버(workflowApi.url)가 설정되지 않았습니다.', 'error');
             return;

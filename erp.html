@@ -135,6 +135,28 @@
           <button type="button" id="btnSaveOrder">저장</button>
         </div>
 
+        <div style="font-weight: 600; margin: 18px 0 8px">수금 일정</div>
+        <div id="payNeedSql" class="muted" hidden>
+          수금 일정 칸이 아직 없습니다. Supabase 에서 database/management-phase2.sql 을 실행하면 계약금 · 중도금 · 잔금을 날짜로 적을 수 있습니다.
+        </div>
+        <div id="payForm">
+          <div class="row">
+            <select id="selPayStage" aria-label="단계"></select>
+            <input id="inpPayAmount" type="number" min="0" step="10000" placeholder="금액" style="width: 140px" />
+            <label class="muted">받기로 한 날 <input id="inpPayDue" type="date" /></label>
+            <button type="button" class="primary" id="btnAddPay">일정 넣기</button>
+          </div>
+          <div class="scroll" style="margin-top: 10px">
+            <table>
+              <thead>
+                <tr><th>단계</th><th class="num">금액</th><th>받기로 한 날</th><th>받은 날</th><th></th></tr>
+              </thead>
+              <tbody id="payRows"></tbody>
+            </table>
+          </div>
+          <div id="paySummary" class="muted" style="margin-top: 6px"></div>
+        </div>
+
         <div style="font-weight: 600; margin: 18px 0 8px">실적 원가</div>
         <div class="row">
           <select id="selCategory"></select>
@@ -142,13 +164,14 @@
           <input id="inpDesc" placeholder="내용" style="min-width: 180px" />
           <input id="inpVendor" placeholder="거래처" style="width: 130px" />
           <input id="inpAmount" type="number" min="0" step="1000" placeholder="금액" style="width: 130px" />
-          <input id="inpDate" type="date" />
+          <input id="inpDate" type="date" aria-label="낸 날" title="낸 날" />
+          <label class="muted" id="lblDue">낼 날 <input id="inpDue" type="date" aria-label="낼 날" /></label>
           <button type="button" class="primary" id="btnAddCost">추가</button>
         </div>
         <div class="scroll" style="margin-top: 10px">
           <table>
             <thead>
-              <tr><th>분류</th><th>내용</th><th>거래처</th><th class="num">금액</th><th>지출일</th><th></th></tr>
+              <tr><th>분류</th><th>내용</th><th>거래처</th><th class="num">금액</th><th>낸 날</th><th></th></tr>
             </thead>
             <tbody id="costRows"></tbody>
           </table>
@@ -213,6 +236,9 @@
           material: '자재', hardware: '부자재', labor: '노무',
           outsourcing: '외주', logistics: '물류', other: '기타',
         };
+        // 수금 일정 — 워커 payments.js 와 같은 축
+        var PAY_STAGE_LABELS = { deposit: '계약금', interim: '중도금', balance: '잔금', other: '기타' };
+        function todayKst() { return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10); }
         // 재작업 · A/S — 워커 rework.js 와 같은 축 (경영 대시보드 품질비용 · A/S 율의 재료)
         var REWORK_KIND_LABELS = { rework: '재작업 (공장)', as: 'A/S (설치 뒤)' };
         var REWORK_CAUSE_LABELS = {
@@ -367,7 +393,8 @@
                 '<td>' + esc(c.description || '-') + '</td>' +
                 '<td>' + esc(c.vendor_name || '-') + '</td>' +
                 '<td class="num">' + krw(c.amount) + '</td>' +
-                '<td>' + esc(c.spent_on || '-') + '</td>' +
+                // 아직 안 낸 돈(낸 날 없음 · 낼 날 있음)은 낼 날과 '냈음' 단추
+                '<td>' + (c.spent_on ? esc(c.spent_on) : c.due_on ? '<span class="muted">낼 날 ' + esc(c.due_on) + '</span> <button type="button" data-paid-cost="' + esc(c.id) + '">냈음</button>' : '-') + '</td>' +
                 '<td><button type="button" data-del="' + esc(c.id) + '">삭제</button></td>' +
                 '</tr>'
               );
@@ -375,6 +402,9 @@
             .join('');
           tb.querySelectorAll('[data-del]').forEach(function (b) {
             b.addEventListener('click', function () { removeCost(b.getAttribute('data-del')); });
+          });
+          tb.querySelectorAll('[data-paid-cost]').forEach(function (b) {
+            b.addEventListener('click', function () { markCostPaid(b.getAttribute('data-paid-cost')); });
           });
         }
 
@@ -399,6 +429,7 @@
             var row = state.orders.find(function (o) { return o.id === orderId; });
             if (row) { row._cost_total = state.detail.margin.cost_total; renderOrders(); }
             renderDetail();
+            renderPayments();
             renderReworks();
             renderFeedback();
             await loadCounterparties();
@@ -409,7 +440,9 @@
         async function saveOrder() {
           if (!state.current) return;
           try {
-            var patch = { status: el('selStatus').value, received_amount: Number(el('inpReceived').value) || 0 };
+            var patch = { status: el('selStatus').value };
+            // 수금 일정이 있으면 수금액은 일정이 맞춘다 — 보내지 않는다
+            if (!el('inpReceived').readOnly) patch.received_amount = Number(el('inpReceived').value) || 0;
             if (!el('lblTier').hidden) patch.price_tier = el('selTier').value || null;
             // 거래처 칸이 보일 때만 싣는다. 구분을 고객으로 바꾸면 붙였던 거래처를 뗀다
             if (!el('lblPartner').hidden) patch.partner_id = el('selPartner').value || null;
@@ -516,6 +549,106 @@
           }
         }
 
+        function renderPayments() {
+          var d = state.detail;
+          if (!d) return;
+          var pays = d.payments;
+          var missing = pays === null || pays === undefined;
+          el('payNeedSql').hidden = !missing;
+          el('payForm').hidden = missing;
+          // 일정이 있으면 수금액은 일정의 받은 합 — 손으로 고치지 않는다
+          var scheduled = !missing && pays.length > 0;
+          el('inpReceived').readOnly = scheduled;
+          el('inpReceived').title = scheduled ? '수금 일정의 받은 합입니다. 일정에서 받음을 눌러 주세요' : '';
+          if (missing) return;
+          if (!el('selPayStage').options.length) {
+            el('selPayStage').innerHTML = Object.keys(PAY_STAGE_LABELS)
+              .map(function (k) { return '<option value="' + k + '">' + PAY_STAGE_LABELS[k] + '</option>'; }).join('');
+          }
+          var tb = el('payRows');
+          if (!pays.length) {
+            tb.innerHTML = '<tr><td colspan="5" class="muted">일정이 없습니다. 계약금 · 중도금 · 잔금을 받기로 한 날과 함께 넣어 주세요.</td></tr>';
+            el('paySummary').textContent = '';
+            return;
+          }
+          var today = todayKst();
+          tb.innerHTML = pays
+            .map(function (p) {
+              var late = !p.paid_on && p.due_on && p.due_on < today;
+              return (
+                '<tr>' +
+                '<td>' + esc(PAY_STAGE_LABELS[p.stage] || p.stage) + '</td>' +
+                '<td class="num">' + krw(p.amount) + '</td>' +
+                '<td' + (late ? ' class="neg"' : '') + '>' + esc(p.due_on || '-') + (late ? ' (밀림)' : '') + '</td>' +
+                '<td>' + esc(p.paid_on || '-') + '</td>' +
+                '<td>' + (p.paid_on
+                  ? '<button type="button" data-unpay="' + esc(p.id) + '">되돌리기</button>'
+                  : '<button type="button" class="primary" data-pay="' + esc(p.id) + '">받음</button>') +
+                ' <button type="button" data-del-pay="' + esc(p.id) + '">삭제</button></td>' +
+                '</tr>'
+              );
+            })
+            .join('');
+          var planned = pays.reduce(function (s, p) { return s + Number(p.amount || 0); }, 0);
+          var got = pays.filter(function (p) { return p.paid_on; }).reduce(function (s, p) { return s + Number(p.amount || 0); }, 0);
+          el('paySummary').textContent = '일정 합 ' + krw(planned) + ' · 받은 돈 ' + krw(got) + ' · 남은 돈 ' + krw(planned - got) +
+            (planned !== Number(d.order.contract_amount) ? ' — 계약금액 ' + krw(d.order.contract_amount) + ' 과 다릅니다' : '');
+          tb.querySelectorAll('[data-pay]').forEach(function (b) {
+            b.addEventListener('click', function () { patchPayment(b.getAttribute('data-pay'), { paid_on: todayKst() }); });
+          });
+          tb.querySelectorAll('[data-unpay]').forEach(function (b) {
+            b.addEventListener('click', function () { patchPayment(b.getAttribute('data-unpay'), { paid_on: null }); });
+          });
+          tb.querySelectorAll('[data-del-pay]').forEach(function (b) {
+            b.addEventListener('click', function () { removePayment(b.getAttribute('data-del-pay')); });
+          });
+        }
+
+        async function addPayment() {
+          if (!state.current) return;
+          var amount = Number(el('inpPayAmount').value);
+          if (!(amount > 0)) { fail('금액을 넣어 주세요.'); return; }
+          if (!el('inpPayDue').value) { fail('받기로 한 날을 넣어 주세요.'); return; }
+          try {
+            await api('/orders/' + encodeURIComponent(state.current) + '/payments', {
+              method: 'POST',
+              body: { stage: el('selPayStage').value, amount: amount, due_on: el('inpPayDue').value },
+            });
+            el('inpPayAmount').value = '';
+            note('수금 일정을 넣었습니다.');
+            await load();
+            await open(state.current);
+          } catch (e) { fail(e.message); }
+        }
+
+        async function patchPayment(paymentId, body) {
+          if (!state.current) return;
+          try {
+            await api('/orders/' + encodeURIComponent(state.current) + '/payments/' + encodeURIComponent(paymentId), { method: 'PATCH', body: body });
+            note(body.paid_on ? '받은 것으로 적었습니다.' : '받음을 되돌렸습니다.');
+            await load();
+            await open(state.current);
+          } catch (e) { fail(e.message); }
+        }
+
+        async function removePayment(paymentId) {
+          if (!state.current) return;
+          try {
+            await api('/orders/' + encodeURIComponent(state.current) + '/payments/' + encodeURIComponent(paymentId), { method: 'DELETE' });
+            await load();
+            await open(state.current);
+          } catch (e) { fail(e.message); }
+        }
+
+        async function markCostPaid(costId) {
+          if (!state.current) return;
+          try {
+            await api('/orders/' + encodeURIComponent(state.current) + '/costs/' + encodeURIComponent(costId), { method: 'PATCH', body: { spent_on: todayKst() } });
+            note('낸 것으로 적었습니다.');
+            await open(state.current);
+          } catch (e) { fail(e.message); }
+        }
+
         // 거래처 · 공급처 — 한 번만 읽는다. 관리자가 아니거나 2단계 SQL 전이면 null
         async function loadCounterparties() {
           if (state.cp !== undefined) return state.cp;
@@ -595,6 +728,7 @@
                 vendor_name: el('inpVendor').value,
                 // 공급처를 고르면 워커가 이름도 그 공급처로 맞춘다
                 counterparty_id: el('selSupplier').value || null,
+                due_on: el('inpDue').value || null,
                 amount: amount,
                 spent_on: el('inpDate').value || null,
               },
@@ -627,6 +761,7 @@
         el('btnSaveOrder').addEventListener('click', saveOrder);
         el('btnAddCost').addEventListener('click', addCost);
         el('btnAddRework').addEventListener('click', addRework);
+        el('btnAddPay').addEventListener('click', addPayment);
         el('selTier').addEventListener('change', renderCounterparties);
         el('selSupplier').addEventListener('change', function () { el('inpVendor').hidden = !!el('selSupplier').value; });
         el('btnFeedbackLink').addEventListener('click', createFeedbackLink);

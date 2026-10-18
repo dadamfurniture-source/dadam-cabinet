@@ -175,7 +175,7 @@ describe('재작업 · A/S 기록 (경영 대시보드 2단계 PR-6)', () => {
   });
 
   test('상세를 열 때마다 기록도 다시 그린다 (원가가 비어도)', () => {
-    expect(ERP).toMatch(/renderDetail\(\);\s*renderReworks\(\);/);
+    expect(ERP).toMatch(/renderDetail\(\);\s*renderPayments\(\);\s*renderReworks\(\);/);
   });
 
   test('SQL: 원인 · 종류는 정해진 것만, 분 · 비용은 음수 불가, 관리자만 읽는다', () => {
@@ -244,5 +244,42 @@ describe('거래처 · 공급처 붙이기 (경영 대시보드 2단계 PR-8)', 
   test('원가: 고른 공급처를 보내고, 다 넣으면 고르기를 비운다', () => {
     expect(add).toMatch(/counterparty_id: el\('selSupplier'\)\.value \|\| null/);
     expect(add).toMatch(/el\('selSupplier'\)\.value = ''/);
+  });
+});
+
+describe('수금 일정 · 지급 예정 (경영 대시보드 2단계 PR-9)', () => {
+  const pay = ERP.slice(ERP.indexOf('function renderPayments'), ERP.indexOf('async function addPayment'));
+  const save = ERP.slice(ERP.indexOf('async function saveOrder'), ERP.indexOf('async function addCost'));
+  const add = ERP.slice(ERP.indexOf('async function addCost'), ERP.indexOf('async function removeCost'));
+
+  test('계약금 · 중도금 · 잔금을 받기로 한 날과 함께 넣고, 받음 · 되돌리기 · 삭제', () => {
+    for (const id of ['selPayStage', 'inpPayAmount', 'inpPayDue', 'btnAddPay', 'payRows', 'paySummary']) {
+      expect(ERP).toMatch(new RegExp(`id="${id}"`));
+    }
+    expect(ERP).toMatch(/PAY_STAGE_LABELS = \{ deposit: '계약금', interim: '중도금', balance: '잔금', other: '기타' \}/);
+    expect(pay).toMatch(/patchPayment\(b\.getAttribute\('data-pay'\), \{ paid_on: todayKst\(\) \}\)/);
+    expect(pay).toMatch(/patchPayment\(b\.getAttribute\('data-unpay'\), \{ paid_on: null \}\)/);
+  });
+
+  test('일정이 있으면 수금액은 일정이 맞춘다 — 입력을 잠그고 저장에 싣지 않는다', () => {
+    expect(pay).toMatch(/el\('inpReceived'\)\.readOnly = scheduled/);
+    expect(save).toMatch(/if \(!el\('inpReceived'\)\.readOnly\) patch\.received_amount/);
+  });
+
+  test('밀린 일정 표시 · 일정 합이 계약금액과 다르면 알린다', () => {
+    expect(pay).toMatch(/\(밀림\)/);
+    expect(pay).toMatch(/과 다릅니다/);
+  });
+
+  test('원가 줄: 낼 날을 넣을 수 있고, 아직 안 낸 줄은 냈음 단추', () => {
+    expect(ERP).toMatch(/id="inpDue" type="date"/);
+    expect(add).toMatch(/due_on: el\('inpDue'\)\.value \|\| null/);
+    expect(ERP).toMatch(/data-paid-cost=/);
+    expect(ERP).toMatch(/'\/costs\/' \+ encodeURIComponent\(costId\), \{ method: 'PATCH', body: \{ spent_on: todayKst\(\) \} \}/);
+  });
+
+  test('표가 없으면(워커가 null) 입력 대신 SQL 안내', () => {
+    expect(pay).toMatch(/var missing = pays === null \|\| pays === undefined/);
+    expect(ERP).toMatch(/id="payNeedSql" class="muted" hidden/);
   });
 });
