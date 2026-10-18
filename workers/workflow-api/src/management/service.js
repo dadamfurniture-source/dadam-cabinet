@@ -155,6 +155,36 @@ export async function getManagementSummary(env, { user, month }) {
       snaps = snaps.concat(more);
     }
   }
+  // 현금 (오늘부터 13주) — 수금 · 잔액 표가 아직 없으면 null
+  const [balances, payments] = await Promise.all([
+    selectMany(env, 'cash_balances', { select: 'as_of,amount,created_at', order: 'as_of.desc,created_at.desc', limit: '20' }).catch(() => null),
+    selectMany(env, 'order_payments', { select: 'order_id,stage,amount,due_on,paid_on', limit: '10000' }).catch(() => null),
+  ]);
+  let dueCosts = [], cashOrders = [], installs = new Map();
+  if (payments) {
+    [dueCosts, cashOrders] = await Promise.all([
+      selectMany(env, 'order_costs', { select: 'amount,due_on,spent_on', spent_on: 'is.null', due_on: 'not.is.null', limit: '5000' }).catch(() => []),
+      selectMany(env, 'orders', {
+        select: 'id,order_no,customer_name,design_id,contract_amount,received_amount,status,delivered_at,completed_at',
+        status: 'in.(confirmed,in_production,delivered,completed)',
+        limit: '3000',
+      }).catch(() => []),
+    ]);
+    // 일정 없는 수주는 설치일에 남은 돈이 들어온다고 본다
+    const scheduled = new Set(payments.map((p) => p.order_id));
+    const designs = [...new Set((cashOrders || []).filter((o) => !scheduled.has(o.id) && !o.delivered_at && !o.completed_at).map((o) => o.design_id).filter(Boolean))];
+    if (designs.length) {
+      const rows = (await selectMany(env, 'design_schedules', {
+        select: 'design_id,scheduled_at,status',
+        type: 'eq.installation',
+        design_id: `in.(${designs.join(',')})`,
+        status: 'neq.cancelled',
+        order: 'scheduled_at.asc',
+        limit: '5000',
+      }).catch(() => [])) || [];
+      for (const r of rows) if (!installs.has(r.design_id)) installs.set(r.design_id, kstDate(r.scheduled_at));
+    }
+  }
   return buildManagementSummary({
     orders: list,
     snapshotsById: new Map(snaps.map((s) => [s.id, s])),
@@ -172,6 +202,11 @@ export async function getManagementSummary(env, { user, month }) {
     partnerOrders,
     supplierCosts: supplierCosts || [],
     outsource: outsource || [],
+    balances,
+    payments,
+    dueCosts: dueCosts || [],
+    cashOrders: cashOrders || [],
+    installs,
     today: kstDate(),
     settings,
     month: m,

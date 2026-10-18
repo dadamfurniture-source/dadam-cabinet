@@ -297,7 +297,18 @@ export async function addCost(env, { orderId, user, body }) {
     if (Number.isNaN(d.getTime())) throw new ValidationError('spent_on 이 올바르지 않습니다');
     row.spent_on = d.toISOString().slice(0, 10);
   }
-  return insertOne(env, 'order_costs', row);
+  // 지급 예정일 (2단계 — 현금흐름). 낸 날(spent_on)이 비고 이 날이 있으면 아직 안 낸 돈
+  if (body.due_on) {
+    const d = new Date(body.due_on);
+    if (Number.isNaN(d.getTime())) throw new ValidationError('due_on 이 올바르지 않습니다');
+    row.due_on = d.toISOString().slice(0, 10);
+  }
+  try {
+    return await insertOne(env, 'order_costs', row);
+  } catch (e) {
+    if (isMissingRelation(e) && /due_on/.test(e.message)) throw new ValidationError('지급 예정일 칸이 아직 DB 에 없습니다 — database/management-phase2.sql 을 실행해 주세요');
+    throw e;
+  }
 }
 
 export async function deleteCost(env, { orderId, costId, user }) {

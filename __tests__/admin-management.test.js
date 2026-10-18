@@ -90,6 +90,45 @@ const SUMMARY = {
       avgPerMin: 12767,
     },
   },
+  // 워커 시험(cashflow.test.js 2단계 PR-9) 의 손계산 결과 그대로 (13주 중 앞 다섯 · 마지막)
+  cashflow: {
+    start: '2026-10-19', end: '2027-01-17', today: '2026-10-21',
+    opening: { amount: 10000000, as_of: '2026-10-20', days: 1, stale: false },
+    weeks: [
+      { start: '2026-10-19', end: '2026-10-25', inflow: 4500000, outflow: 2348462, net: 2151538, balance: 12151538 },
+      { start: '2026-10-26', end: '2026-11-01', inflow: 0, outflow: 1928462, net: -1928462, balance: 10223076 },
+      { start: '2026-11-02', end: '2026-11-08', inflow: 5500000, outflow: 1428462, net: 4071538, balance: 14294614 },
+      { start: '2026-11-09', end: '2026-11-15', inflow: 0, outflow: 1428462, net: -1428462, balance: 12866152 },
+      { start: '2026-11-16', end: '2026-11-22', inflow: 4400000, outflow: 1428462, net: 2971538, balance: 15837690 },
+      { start: '2026-11-23', end: '2026-11-29', inflow: 0, outflow: 1428462, net: -1428462, balance: 14409228 },
+      { start: '2026-11-30', end: '2026-12-06', inflow: 0, outflow: 1428462, net: -1428462, balance: 12980766 },
+      { start: '2026-12-07', end: '2026-12-13', inflow: 0, outflow: 1428462, net: -1428462, balance: 11552304 },
+      { start: '2026-12-14', end: '2026-12-20', inflow: 0, outflow: 1428462, net: -1428462, balance: 10123842 },
+      { start: '2026-12-21', end: '2026-12-27', inflow: 0, outflow: 1428462, net: -1428462, balance: 8695380 },
+      { start: '2026-12-28', end: '2027-01-03', inflow: 0, outflow: 1428462, net: -1428462, balance: 7266918 },
+      { start: '2027-01-04', end: '2027-01-10', inflow: 0, outflow: 1428462, net: -1428462, balance: 5838456 },
+      { start: '2027-01-11', end: '2027-01-17', inflow: 0, outflow: 1428462, net: -1428462, balance: 4409994 },
+    ],
+    weeklyOverhead: 1428462,
+    overdueIn: 4500000, overdueOut: 920000, laterIn: 100000, laterOut: 300000,
+    unscheduledIn: 1300000, unscheduledOrders: 2,
+    lowest: { week: 12, start: '2027-01-11', balance: 4409994 },
+    firstNegative: null,
+  },
+  aging: {
+    overdue: 4500000,
+    notDue: 11300000,
+    buckets: [
+      { key: '0-30', label: '30일 이내', amount: 3300000, count: 1 },
+      { key: '31-60', label: '31~60일', amount: 0, count: 0 },
+      { key: '61-90', label: '61~90일', amount: 1200000, count: 1 },
+      { key: '90+', label: '90일 넘음', amount: 0, count: 0 },
+    ],
+    top: [
+      { order_id: 'C', label: '최고객 (SO-3)', stage: null, amount: 1200000, days: 81 },
+      { order_id: 'A', label: 'SO-1', stage: 'interim', amount: 3300000, days: 11 },
+    ],
+  },
   // 워커 시험(counterparties.test.js 2단계 PR-8) 의 손계산 결과 그대로
   partners: {
     window: { days: 365, start: '2025-11-01', end: '2026-10-31' },
@@ -147,9 +186,13 @@ const SUMMARY = {
 
 function fakeApi({ admin = true, data = SUMMARY, status = 200 } = {}) {
   const calls = [];
-  const fetchFn = jest.fn(async (url) => {
+  const fetchFn = jest.fn(async (url, init = {}) => {
     const u = String(url).replace(API, '');
     calls.push(u);
+    if (u === '/management/cash-balance') {
+      calls.push({ post: JSON.parse(init.body) });
+      return { ok: true, status: 201, json: async () => ({ success: true, data: { id: 'B1' } }) };
+    }
     if (u.startsWith('/management/summary') && status === 200) {
       return { ok: true, status: 200, json: async () => ({ success: true, data }) };
     }
@@ -762,5 +805,82 @@ describe('거래처 줄 (2단계 PR-8)', () => {
     expect(HTML).not.toMatch(/td\.cum \{ display: grid/);
     expect(HTML).toMatch(/\.tbl \.cum \{ display: grid;/);
     expect(HTML).toMatch(/\.tbl \.cum \.track \{ display: block;/);
+  });
+});
+
+describe('현금 줄 (2단계 PR-9)', () => {
+  test('13주: 시작 · 13주 뒤 · 가장 낮은 주, 주말 잔액 막대 13개(0 위는 파랑), 밀린 돈 · 날짜 모름', async () => {
+    boot(fakeApi());
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('rowCash').hidden).toBe(false);
+    expect(text('cashflowBody')).toMatch(/시작 10,000,000원 \(2026-10-20\) → 13주 뒤 4,409,994원 · 가장 낮은 주 4,409,994원 \(1\/11 주\)/);
+    const bars = [...document.querySelectorAll('#cashChart rect')];
+    expect(bars).toHaveLength(13);
+    expect(bars.every((b) => b.getAttribute('class') === 'pos')).toBe(true);
+    // 막대 높이는 잔액에 비례 — 가장 큰 주(15,837,690)가 가장 높다
+    const heights = bars.map((b) => Number(b.getAttribute('height')));
+    expect(heights.indexOf(Math.max(...heights))).toBe(4);
+    expect(text('cashflowBody')).toMatch(/밀린 받을 돈 4,500,000원/);
+    expect(text('cashflowBody')).toMatch(/날짜 모르는 받을 돈 1,300,000원 \(2건\)/);
+    expect(text('cashflowBody')).toMatch(/주마다 1,428,462원/);
+    expect(document.querySelectorAll('#tblCash tbody tr')).toHaveLength(13);
+    expect(document.getElementById('cashForm').hidden).toBe(false);
+    expect(document.getElementById('cbDate').value).toBe('2026-10-21');
+  });
+
+  test('마이너스가 되는 주는 빨강 막대와 경고, 묵은 잔액도 알린다', async () => {
+    const weeks = SUMMARY.cashflow.weeks.map((w, i) => ({ ...w, balance: i >= 3 ? -500000 * (i - 2) : w.balance }));
+    const cashflow = { ...SUMMARY.cashflow, weeks, firstNegative: 3, lowest: { week: 12, start: '2027-01-11', balance: -5000000 }, opening: { ...SUMMARY.cashflow.opening, days: 12, stale: true, as_of: '2026-10-09' } };
+    boot(fakeApi({ data: { ...SUMMARY, cashflow } }));
+    await window.Management.init();
+    await settle();
+    expect(document.querySelector('#cashChart rect[data-week="3"]').getAttribute('class')).toBe('neg');
+    expect(text('cashflowBody')).toMatch(/4주차\(11\/9 주\)에 잔액이 마이너스가 됩니다/);
+    expect(text('cashflowBody')).toMatch(/잔액이 12일 전\(2026-10-09\) 것입니다/);
+  });
+
+  test('잔액을 안 적었으면 0 에서 시작했다고 알린다', async () => {
+    boot(fakeApi({ data: { ...SUMMARY, cashflow: { ...SUMMARY.cashflow, opening: null } } }));
+    await window.Management.init();
+    await settle();
+    expect(text('cashflowBody')).toMatch(/통장 잔액을 아직 안 적었습니다/);
+  });
+
+  test('잔액 적기 → POST 후 다시 읽는다', async () => {
+    const api = fakeApi();
+    boot(api);
+    await window.Management.init();
+    await settle();
+    document.getElementById('cbAmount').value = '12345678';
+    document.getElementById('btnCashBalance').click();
+    await settle();
+    expect(api.calls).toContainEqual({ post: { as_of: '2026-10-21', amount: 12345678 } });
+    expect(api.calls.filter((c) => typeof c === 'string' && c.startsWith('/management/summary')).length).toBe(2);
+  });
+
+  test('미수 나이: 묶음 막대 · 오래 밀린 순', async () => {
+    boot(fakeApi());
+    await window.Management.init();
+    await settle();
+    expect(text('agingBody')).toMatch(/밀린 돈 4,500,000원 · 기한 전 11,300,000원/);
+    expect([...document.querySelectorAll('#agingBars .reason')].map((b) => b.querySelector('.fill').style.width)).toEqual(['100%', '0%', '36%', '0%']);
+    const rows = [...document.querySelectorAll('#tblAging tbody tr')].map((r) => [...r.cells].map((c) => c.textContent));
+    expect(rows).toEqual([['최고객 (SO-3)', '1,200,000원', '81일'], ['SO-1', '3,300,000원', '11일']]);
+  });
+
+  test('표가 없으면 SQL 안내 · 잔액 적기 숨김, 옛 워커면 줄을 숨긴다', async () => {
+    boot(fakeApi({ data: { ...SUMMARY, cashflow: null, aging: null } }));
+    await window.Management.init();
+    await settle();
+    expect(text('cashflowBody')).toMatch(/management-phase2\.sql/);
+    expect(document.getElementById('cashForm').hidden).toBe(true);
+    const data = { ...SUMMARY };
+    delete data.cashflow;
+    delete data.aging;
+    boot(fakeApi({ data }));
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('rowCash').hidden).toBe(true);
   });
 });
