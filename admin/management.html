@@ -94,6 +94,14 @@
       .stage .fill { display: block; height: 100%; background: #007bff; border-radius: 4px; }
       .stage .n { text-align: right; font-variant-numeric: tabular-nums; }
       .stage .r { text-align: right; color: #888; font-size: 12px; font-variant-numeric: tabular-nums; }
+      .nps { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+      .nps b { font-size: 28px; }
+      .nps span { color: #888; font-size: 13px; }
+      .segbar { display: flex; height: 14px; border-radius: 4px; overflow: hidden; background: #eef1f5; }
+      .segbar .seg { display: block; height: 100%; }
+      .segbar .pro { background: #2e7d32; }
+      .segbar .mid { background: #b0bec5; }
+      .segbar .det { background: #c62828; }
       .reason { display: grid; grid-template-columns: 76px minmax(0, 1fr) 72px; gap: 8px; align-items: center; font-size: 12.5px; margin: 5px 0; }
       .reason .track { display: block; height: 10px; background: #eef1f5; border-radius: 4px; overflow: hidden; }
       .reason .fill { display: block; height: 100%; background: #f57c00; border-radius: 4px; }
@@ -201,6 +209,11 @@
               <h3>영업 퍼널</h3>
               <div class="q">확인서를 열 번 보내면 몇 번 계약되나 · 어디서 떨어지나</div>
               <div id="funnelBody"></div>
+            </article>
+            <article class="card" id="cardReferral" hidden>
+              <h3>설치 후 소개 의향</h3>
+              <div class="q">설치한 고객이 지인에게 다담가구를 소개하겠다고 하나 (0~10)</div>
+              <div id="referralBody"></div>
             </article>
             <article class="card" id="cardPlatform">
               <h3>AI 플랫폼 → 수주</h3>
@@ -537,6 +550,26 @@
             <div class="muted" style="margin-top:8px">처리량 = 매출 − 자재 · 철물 · 외주. 병목이 꽉 찬 달에는 1분당 처리량이 큰 일부터 받는 것이 이익을 가장 크게 합니다.</div>`;
         }
 
+        // ── 고객: 설치 후 소개 의향 ──
+        function renderReferral(d) {
+          const r = d.referral;
+          if (!r) {
+            $('referralBody').innerHTML = '<div class="empty-state">설치 후 문항 칸이 아직 없습니다.<br>database/management-phase2.sql 을 실행하면 <a href="../erp.html">수주 · 원가 · 마진</a> 상세에서 고객에게 보낼 링크를 만들 수 있습니다.</div>';
+            return;
+          }
+          if (!(r.answered > 0)) {
+            $('referralBody').innerHTML = `<div class="empty-state">최근 ${esc(r.window.days)}일 받은 답이 없습니다${r.sent > 0 ? ` (보낸 링크 ${esc(cnt(r.sent))})` : ''}.<br>설치가 끝난 수주 상세에서 '링크 만들기' 로 고객에게 한 문항을 보내 주세요.</div>`;
+            return;
+          }
+          const seg = (n, cls, label) => (n > 0 ? `<span class="seg ${cls}" style="flex:${n}" title="${esc(label)} ${esc(n)}"></span>` : '');
+          $('referralBody').innerHTML = `
+            <div class="nps"><b class="num">${esc(r.nps > 0 ? `+${r.nps}` : r.nps)}</b><span>NPS · 평균 ${esc(r.avg)}점 · 답 ${esc(cnt(r.answered))}</span></div>
+            <div class="segbar" id="npsBar">${seg(r.promoters, 'pro', '소개함 9~10')}${seg(r.passives, 'mid', '중립 7~8')}${seg(r.detractors, 'det', '안 함 0~6')}</div>
+            <div class="facts"><span>소개함 <b class="num">${esc(cnt(r.promoters))}</b></span><span>중립 <b class="num">${esc(cnt(r.passives))}</b></span><span>안 함 <b class="num">${esc(cnt(r.detractors))}</b></span></div>
+            <div class="facts"><span>응답률 <b class="num">${esc(pct(r.responseRate))}</b> (보낸 링크 ${esc(cnt(r.sent))})</span><span>이달 받은 답 <b class="num">${esc(cnt(r.thisMonth))}</b></span></div>
+            <div class="muted" style="margin-top:8px">최근 ${esc(r.window.days)}일 받은 답 기준. NPS = 9~10점 비율 − 0~6점 비율. 고객이 남긴 한 줄은 수주 상세에서 봅니다.</div>`;
+        }
+
         // ── 품질: 재작업 · A/S ──
         function renderQuality(d) {
           const q = d.quality;
@@ -678,6 +711,8 @@
           $('rowProcess').hidden = !d.process;
           if (d.process) { renderVariance(d); renderBottleneck(d); }
           // 품질 — 옛 워커(칸 없음)면 카드를 숨기고, 기록 표가 아직 없으면(null) 안내를 띄운다
+          $('cardReferral').hidden = d.referral === undefined;
+          if (d.referral !== undefined) renderReferral(d);
           $('cardQuality').hidden = d.quality === undefined;
           if (d.quality !== undefined) renderQuality(d);
           $('rowWhatIf').hidden = !d.scenario;

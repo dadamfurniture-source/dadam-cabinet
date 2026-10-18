@@ -176,6 +176,16 @@
             </table>
           </div>
         </div>
+
+        <div style="font-weight: 600; margin: 18px 0 8px">설치 후 한 문항</div>
+        <div id="feedbackBox" class="muted"></div>
+        <div class="row" style="margin-top: 8px">
+          <button type="button" id="btnFeedbackLink" hidden>링크 만들기</button>
+        </div>
+        <div class="row" id="feedbackLinkRow" style="margin-top: 8px" hidden>
+          <input id="inpFeedbackUrl" type="text" readonly aria-label="고객에게 보낼 링크" style="min-width: 320px" />
+          <button type="button" id="btnCopyFeedback">복사</button>
+        </div>
       </div>
     </div>
 
@@ -385,6 +395,7 @@
             if (row) { row._cost_total = state.detail.margin.cost_total; renderOrders(); }
             renderDetail();
             renderReworks();
+            renderFeedback();
           } catch (e) { fail(e.message); }
         }
 
@@ -438,6 +449,61 @@
           tb.querySelectorAll('[data-del-rework]').forEach(function (b) {
             b.addEventListener('click', function () { removeRework(b.getAttribute('data-del-rework')); });
           });
+        }
+
+        // 설치 후 한 문항 — "지인에게 다담가구를 소개하시겠어요?" 0~10. 링크는 문자로 직접 보낸다
+        function renderFeedback() {
+          var d = state.detail;
+          if (!d) return;
+          var f = d.feedback;
+          var box = el('feedbackBox');
+          var btn = el('btnFeedbackLink');
+          el('feedbackLinkRow').hidden = true;
+          if (f === null || f === undefined) {
+            box.textContent = '설치 후 문항 칸이 아직 없습니다. Supabase 에서 database/management-phase2.sql 을 실행하면 링크를 만들 수 있습니다.';
+            btn.hidden = true;
+            return;
+          }
+          if (f.answered) {
+            box.textContent = '받은 답: ' + f.score + '점' + (f.comment ? ' · "' + f.comment + '"' : '') +
+              (f.answered_at ? ' (' + String(f.answered_at).slice(0, 10) + ')' : '');
+            btn.hidden = true;
+            return;
+          }
+          btn.hidden = false;
+          if (!f.exists) {
+            box.textContent = '아직 보내지 않았습니다. 설치가 끝나면 링크를 만들어 고객에게 문자로 보내 주세요.';
+            btn.textContent = '링크 만들기';
+          } else {
+            box.textContent = f.expired
+              ? '보낸 링크의 기간이 지났습니다. 새 링크를 만들어 다시 보내 주세요.'
+              : '링크를 보냈고 답을 기다리는 중입니다 (' + String(f.expires_at).slice(0, 10) + ' 까지). 새로 만들면 예전 링크는 더 열리지 않습니다.';
+            btn.textContent = '새 링크 만들기';
+          }
+        }
+
+        async function createFeedbackLink() {
+          if (!state.current) return;
+          try {
+            var out = await api('/orders/' + encodeURIComponent(state.current) + '/feedback-link', { method: 'POST' });
+            await open(state.current);
+            // 평문 링크는 이 응답에서 한 번만 온다 — 다시 열면 볼 수 없으니 여기서 보여 준다
+            el('inpFeedbackUrl').value = out.url;
+            el('feedbackLinkRow').hidden = false;
+            note('링크를 만들었습니다. 복사해서 고객에게 문자로 보내 주세요.');
+          } catch (e) { fail(e.message); }
+        }
+
+        async function copyFeedbackLink() {
+          var input = el('inpFeedbackUrl');
+          try {
+            await navigator.clipboard.writeText(input.value);
+            note('링크를 복사했습니다.');
+          } catch (e) {
+            input.focus();
+            input.select();
+            note('링크를 선택했습니다. Ctrl+C 로 복사해 주세요.');
+          }
         }
 
         async function addRework() {
@@ -510,6 +576,8 @@
         el('btnSaveOrder').addEventListener('click', saveOrder);
         el('btnAddCost').addEventListener('click', addCost);
         el('btnAddRework').addEventListener('click', addRework);
+        el('btnFeedbackLink').addEventListener('click', createFeedbackLink);
+        el('btnCopyFeedback').addEventListener('click', copyFeedbackLink);
 
         if (!API) {
           fail('업무 루프 서버(workflowApi.url)가 설정되지 않았습니다.');
