@@ -317,7 +317,13 @@ const DESIGN_RANGE = {
   moduleWidthMm: [50, 4000],
   applianceWidthMm: [50, 4000],
   count: [0, 12],
+  // 2026-10-19: 플래너 모드 v3 의 선택 필드 — 바닥에서 줄 아랫면까지, 바닥에서 천장까지, 배치가 걸친 벽 수
+  fromFloorMm: [0, 3600],
+  ceilingMm: [1500, 4000],
+  layoutWalls: [1, 4],
 };
+/** 2026-10-19: design_spec.layout.shape — 일자 · ㄱ자 · ㄷ자. 그 밖은 조용히 버린다. */
+export const DESIGN_LAYOUT_SHAPES = ['straight', 'corner', 'u'];
 
 /** design_spec 전용 400. code 를 따로 주어 플래너가 다른 400 과 구분한다. */
 export class DesignSpecError extends Error {
@@ -378,7 +384,7 @@ function normalizeDesignSection(raw, section) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const where = `sections.${section}`;
   const out = {};
-  for (const f of ['widthMm', 'heightMm', 'depthMm', 'fromLeftMm']) {
+  for (const f of ['widthMm', 'heightMm', 'depthMm', 'fromLeftMm', 'fromFloorMm']) {
     const v = designMm(raw[f], `${where}.${f}`, DESIGN_RANGE[f]);
     if (v !== null) out[f] = v;
   }
@@ -481,6 +487,17 @@ export function normalizeDesignSpec(raw, category) {
 
   const notes = designText(raw.notes, 300);
   if (notes) out.notes = notes;
+
+  // 2026-10-19: 플래너 모드 v3 선택 필드. 설치 프롬프트(buildDesignSpecBlock)는 읽지 않는다 — 옛 경로 바이트 그대로.
+  const ceilingMm = designMm(raw.ceilingMm, 'ceilingMm', DESIGN_RANGE.ceilingMm);
+  if (ceilingMm !== null) out.ceilingMm = ceilingMm;
+  if (raw.layout && typeof raw.layout === 'object' && !Array.isArray(raw.layout)) {
+    const shape = typeof raw.layout.shape === 'string' ? raw.layout.shape.trim().toLowerCase() : '';
+    if (DESIGN_LAYOUT_SHAPES.includes(shape)) {
+      const walls = designMm(raw.layout.walls, 'layout.walls', DESIGN_RANGE.layoutWalls);
+      out.layout = walls !== null ? { shape, walls } : { shape };
+    }
+  }
 
   if (!out.sections && !out.appliances && !out.finishes && out.wallRunMm === undefined) {
     throw new DesignSpecError(
@@ -897,8 +914,9 @@ All doors and drawers closed. Photorealistic interior photograph with natural li
  *
  * 모델은 세 장을 받는다: IMAGE A 방 사진(편집 대상) · IMAGE B 정면 입면 렌더(정확한 설계) ·
  * IMAGE C 3/4 렌더(깊이 참고, 없을 수 있다). 렌더는 참고 그림이지 붙일 그림이 아니다.
- * 그림이 형태를, 글이 개수를 말한다 — 모듈마다 번호(L1·U1·T1·W1), 폭 mm 와 런 대비 %, 줄 끝 합계,
- * 그리고 COUNT CHECK 로 합계를 한 번 더. 값은 전부 design_spec 과 ① 분석 결과에서 자동으로 채운다.
+ * 그림이 형태를, 글이 개수를 말한다 — 모듈마다 번호(L1·U1·T1·W1)와 폭 mm. 값은 전부 design_spec 과 ① 분석 결과에서 자동으로 채운다.
+ * 2026-10-19 v3: 닫힌 목록 · 배치 모양 · 기준 줄 대비 시작/끝 · 폭 비율 구속 · 빈 구역 · 바닥 기준 높이 ·
+ * 편집 구역/KEEP · 맨 끝 FINAL SELF-CHECK (아래 "프롬프트 v3" 블록, 계약 문서 "프롬프트 v3").
  *
  * 첫 실측(잡 116a8dd2, 역판독 0.45/3)의 실패 셋을 이름으로 막는다 —
  * 없는 가전 추가, 도어 수 변경, 남은 기존 장. 남는 벽은 지우고 빈 벽으로 둔다 (§11-①′).
@@ -1044,6 +1062,7 @@ function plannerRows(spec, category) {
     if (!ordered.length) rows = [];
     else {
       const heights = ordered.map((k) => sections[k].heightMm).filter(Boolean);
+      const floors = ordered.map((k) => sections[k].fromFloorMm).filter((v) => v !== undefined);
       const x0 = Math.min(...ordered.map((k) => sections[k].fromLeftMm || 0));
       const x1 = Math.max(...ordered.map((k) => (sections[k].fromLeftMm || 0) + (widthOf(sections[k]) || 0)));
       rows = [
@@ -1053,6 +1072,7 @@ function plannerRows(spec, category) {
           heightMm: heights.length ? Math.max(...heights) : null,
           widthMm: x1 - x0 || null,
           fromLeftMm: ordered.some((k) => sections[k].fromLeftMm !== undefined) ? x0 : undefined,
+          fromFloorMm: floors.length ? Math.min(...floors) : undefined,
           items: ordered.flatMap((k) => placed(k, sections[k])),
         },
       ];
@@ -1064,9 +1084,12 @@ function plannerRows(spec, category) {
       heightMm: sections[k].heightMm || null,
       widthMm: widthOf(sections[k]),
       fromLeftMm: sections[k].fromLeftMm,
+      fromFloorMm: sections[k].fromFloorMm,
       items: placed(k, sections[k]),
     }));
   }
+  // 번호 — 줄 안 왼쪽부터 1 (L·U·T·W). 정면 입면의 라벨과 같은 규칙이다.
+  for (const row of rows) row.items.forEach((it, i) => (it.id = `${row.def.prefix}${i + 1}`));
 
   // 가전 → 그 자리에 걸린 모듈. 못 찾으면 APPLIANCES 줄로.
   const loose = [];
@@ -1102,10 +1125,163 @@ function plannerRowTotals(row) {
   return { units, openings, doors, drawers };
 }
 
+// ─── 2026-10-19: 프롬프트 v3 — 어떤 도면이 와도 design_spec 에서 계산되는 일반 규칙 ───
+// 실측 8장(사진 4 × Gemini/GPT)의 실패 유형: 방에 원래 있던 모양(ㄱ자)을 따라감 · 상부장 줄이 하부 폭에 맞춰 늘어남 ·
+// 검사의 gap_to_ceiling 거짓 경보 · 소품을 지우거나 카메라·방을 새로 지어냄. 사진·실수를 이름으로 부르지 않고
+// 닫힌 목록 · 배치 모양 · 기준 줄 대비 시작/끝 · 빈 구역 · 바닥 기준 높이 · 폭 비율 · 편집 구역으로 막는다.
+
+/** 경계가 "같다" 고 볼 오차 (mm). 플래너 반올림이 1 mm 단위라 넉넉히. */
+const PLANNER_TOL_MM = 5;
+const plannerNear = (a, b) => Math.abs(a - b) <= PLANNER_TOL_MM;
+
+/**
+ * 배치 모양. design_spec.layout 이 정본이고, 없으면 플래너 notes 의 ㄱ자·ㄷ자 문구(회전 구간을 편 표시)로 추정한다.
+ * 그래도 모르면 null — 일자로 단정하지 않는다 (LAYOUT 문단을 뺀다).
+ * @returns {{shape:'straight'|'corner'|'u', walls:number}|null}
+ */
+function plannerLayout(spec) {
+  const l = spec && spec.layout;
+  if (l && DESIGN_LAYOUT_SHAPES.includes(l.shape)) {
+    if (l.shape === 'straight') return { shape: 'straight', walls: 1 };
+    return { shape: l.shape, walls: l.walls > 1 ? l.walls : l.shape === 'u' ? 3 : 2 };
+  }
+  const notes = String((spec && spec.notes) || '');
+  if (/ㄷ자|U-shaped/i.test(notes)) return { shape: 'u', walls: 3 };
+  if (/ㄱ자|L-shaped/i.test(notes)) return { shape: 'corner', walls: 2 };
+  return null;
+}
+
+/**
+ * 줄마다 바닥 기준 아랫면·윗면, 그리고 맨 위 줄과 천장 사이 틈.
+ * fromFloorMm 이 없는 바닥 줄(하부·키큰장·붙박이장)은 도면에 높이 기준(fromFloorMm·ceilingMm)이 하나라도 있을 때만 0 으로 본다.
+ * 아무 기준도 없으면 전부 null — 지금처럼 높이만 말한다.
+ * @returns {{floors:Map<object,{bottom:number|null, top:number|null}>, ceilingMm:number|null, gaps:object[]}}
+ */
+function plannerHeights(spec, rows) {
+  const ceilingMm = spec && spec.ceilingMm ? spec.ceilingMm : null;
+  const anchored = ceilingMm !== null || rows.some((r) => r.fromFloorMm !== undefined);
+  const floors = new Map();
+  for (const row of rows) {
+    const bottom = row.fromFloorMm !== undefined ? row.fromFloorMm : anchored && row.key !== 'upper' ? 0 : null;
+    const top = bottom !== null && row.heightMm ? bottom + row.heightMm : null;
+    floors.set(row, { bottom, top });
+  }
+  // 천장 틈은 맨 위에 서는 줄(상부·키큰장·붙박이장)만 — 하부장 위는 빈 구역이 따로 말한다.
+  const gaps = [];
+  if (ceilingMm !== null) {
+    for (const row of rows) {
+      const { top } = floors.get(row);
+      if (row.key === 'lower' || top === null || top > ceilingMm + PLANNER_TOL_MM) continue;
+      gaps.push({ row, top, gap: Math.max(0, ceilingMm - top) });
+    }
+  }
+  return { floors, ceilingMm, gaps };
+}
+
+/** 기준 줄 — 하부가 있으면 하부, 없으면 가장 긴 줄. 모듈 폭이 다 있어야 경계를 말할 수 있다. */
+function plannerReferenceRow(rows) {
+  const ok = rows.filter((r) => r.widthMm && r.items.length && r.items.every((it) => it.m.widthMm));
+  return ok.find((r) => r.key === 'lower') || ok.slice().sort((a, b) => b.widthMm - a.widthMm)[0] || null;
+}
+
+const plannerIdSpan = (items) =>
+  items.length === 1 ? items[0].id : `${items[0].id}–${items[items.length - 1].id}`;
+
+/**
+ * 런 위의 한 점 x → 기준 줄의 모듈 경계로 말한 자리. 기준 줄 위의 자리면 at:true (앞에 above/at 을 붙인다).
+ * side 'start' 면 왼쪽 끝에서, 'end' 면 오른쪽 끝에서 잰 거리로 말한다.
+ */
+function plannerSpot(x, ref, side) {
+  const it = ref.items;
+  const first = it[0];
+  const last = it[it.length - 1];
+  const name = ref.def.title.toLowerCase();
+  if (plannerNear(x, first.start)) return { at: true, text: `the left end of ${first.id}` };
+  if (plannerNear(x, last.end)) return { at: true, text: `the right end of ${last.id}` };
+  if (x < first.start) return { at: false, text: `${first.start - x} mm left of the ${name}` };
+  if (x > last.end) return { at: false, text: `${x - last.end} mm right of the ${name}` };
+  for (let i = 0; i < it.length - 1; i++) {
+    if (plannerNear(x, it[i].end)) return { at: true, text: `the joint between ${it[i].id} and ${it[i + 1].id}` };
+  }
+  const inside = it.find((m) => x > m.start && x < m.end) || last;
+  return side === 'end'
+    ? { at: true, text: `${inside.id}, ${last.end - x} mm before the right end of the ${name}` }
+    : { at: true, text: `${inside.id}, ${x - first.start} mm after the left end of the ${name}` };
+}
+
+/** 둘째 줄부터 — "U1–U2 start above the left end of L1 and end above L3, 400 mm before the right end of the base row". */
+function plannerRowPosition(row, ref) {
+  const start = row.items[0].start;
+  const end = row.items[row.items.length - 1].end;
+  const verb = row.key === 'upper' ? 'above' : 'at';
+  const say = (s) => (s.at ? `${verb} ${s.text}` : s.text);
+  const one = row.items.length === 1;
+  return `${plannerIdSpan(row.items)} ${one ? 'starts' : 'start'} ${say(plannerSpot(start, ref, 'start'))} and ${one ? 'ends' : 'end'} ${say(plannerSpot(end, ref, 'end'))}`;
+}
+
+/** 한 줄 안 모듈 폭의 비율 — 가장 좁은 모듈을 1 로, 0.5 단위. "L1 : L2 : L3 = 2 : 1 : 2.5". */
+function plannerRatio(row) {
+  if (row.items.length < 2 || !row.items.every((it) => it.m.widthMm)) return null;
+  const unit = Math.min(...row.items.map((it) => it.m.widthMm));
+  const parts = row.items.map((it) => String(Math.round((it.m.widthMm / unit) * 2) / 2));
+  return `${row.items.map((it) => it.id).join(' : ')} = ${parts.join(' : ')}`;
+}
+
+/** [a,b] 를 covers 로 덮고 남는 구간들. */
+function plannerUncovered(a, b, covers) {
+  const out = [];
+  let x = a;
+  for (const [s, e] of covers.slice().sort((p, q) => p[0] - q[0])) {
+    if (s - x > PLANNER_TOL_MM) out.push([x, Math.min(s, b)]);
+    x = Math.max(x, e);
+    if (x >= b) break;
+  }
+  if (b - x > PLANNER_TOL_MM) out.push([x, b]);
+  return out.filter(([s, e]) => e - s > PLANNER_TOL_MM);
+}
+
+/**
+ * 높이 층(벽장 높이·바닥 높이)마다 런 폭 안에서 아무 줄도 덮지 않는 구간 → 빈 구역 문장.
+ * 붙박이장(한 줄)은 층이 없다.
+ */
+function plannerLevelZones(rows, ref, runStart, runEnd) {
+  const span = (r) => {
+    const s = r.fromLeftMm || 0;
+    return [s, s + (r.widthMm || 0)];
+  };
+  const levels = [
+    { keys: ['upper', 'tall'], label: 'at wall-unit height', unit: 'wall unit', prep: 'above' },
+    { keys: ['lower', 'tall'], label: 'at floor level', unit: 'base unit', prep: 'under' },
+  ];
+  const zones = [];
+  for (const lv of levels) {
+    const on = rows.filter((r) => lv.keys.includes(r.key));
+    const items = on.flatMap((r) => r.items);
+    for (const [a, b] of plannerUncovered(runStart, runEnd, on.map(span))) {
+      // 기준 줄이 다른 층이면 그 위(아래)의 모듈 이름으로 자리를 짚는다
+      const over = lv.keys.includes(ref.key)
+        ? []
+        : ref.items.filter((it) => Math.min(b, it.end) - Math.max(a, it.start) > PLANNER_TOL_MM);
+      const where = over.length ? ` ${lv.prep} ${plannerIdSpan(over)}` : '';
+      if (!on.length || (plannerNear(a, runStart) && plannerNear(b, runEnd))) {
+        zones.push(`${lv.label}${where} across the whole run — no ${lv.unit}s`);
+        continue;
+      }
+      const leftUnit = items.find((it) => plannerNear(it.end, a));
+      const rightUnit = items.find((it) => plannerNear(it.start, b));
+      const left = leftUnit ? leftUnit.id : plannerNear(a, runStart) ? 'the left end of the run' : `${a - runStart} mm from the left end of the run`;
+      const right = rightUnit ? rightUnit.id : plannerNear(b, runEnd) ? 'the right end of the run' : `${runEnd - b} mm before the right end of the run`;
+      zones.push(`${lv.label}${where}, between ${left} and ${right} (${b - a} mm) — no ${lv.unit}`);
+    }
+  }
+  return zones;
+}
+
 /**
  * @param {object} c
  * @param {string} c.category
- * @param {object} c.designSpec   normalizeDesignSpec() 결과 (플래너 모드는 필수)
+ * @param {object} c.designSpec   normalizeDesignSpec() 결과 (플래너 모드는 필수).
+ *                                2026-10-19 선택 필드: layout{shape,walls} · ceilingMm · sections.*.fromFloorMm
  * @param {number} c.wallW / c.wallH
  * @param {string|null} [c.confidence]  분석 신뢰도. null 이고 벽이 기본값(3000×2400)이면 분석 실패로 본다
  * @param {string} [c.existing]   분석이 읽은 기존 가구
@@ -1124,12 +1300,17 @@ export function buildPlannerPrompt(c) {
   const wallW = Number(c.wallW) || 0;
   const wallKnown =
     wallW > 0 && !(c.confidence == null && c.wallW === 3000 && c.wallH === 2400);
+  const layout = plannerLayout(spec);
+  // ㄱ자·ㄷ자면 런이 여러 벽에 걸친다 — 한 벽 대비 % 와 "남는 벽" 을 말하지 않는다.
+  const oneWall = !layout || layout.shape === 'straight';
 
   // ── 세 장의 이름과 역할 ──
   const images = [
     `You receive ${massing ? 'three' : 'two'} images.`,
-    `IMAGE A — ROOM PHOTO: the customer's real room. Edit this photo. Keep its camera, walls, ceiling, floor, windows and lighting exactly as photographed.`,
-    `IMAGE B — FRONT ELEVATION from our planner: the exact cabinet design to build, seen straight on.`,
+    `IMAGE A — ROOM PHOTO: the customer's real room. Edit this photo only inside the EDIT ZONE below.`,
+    // 2026-10-19: 정면 입면에 번호·치수선이 얹힌다 — 주석이지 그릴 것이 아니다.
+    `IMAGE B — FRONT ELEVATION from our planner: the exact cabinet design to build, seen straight on. ` +
+      `IMAGE B may carry ID labels (L1, U1 …) and dimension lines; they are annotations that match the list below — never draw any text, numbers or lines from them.`,
   ];
   if (massing) {
     images.push(
@@ -1144,61 +1325,60 @@ export function buildPlannerPrompt(c) {
 
   const task = `TASK: install this ${PLANNER_SUBJECT[key] || 'built-in furniture'} on the main wall of IMAGE A as a real, finished installation.`;
 
-  // ── FIXED GEOMETRY — 줄마다 번호·폭·%·종류, 줄 끝 합계 ──
+  // ── LAYOUT — 모르면 문단째 뺀다 ──
+  let layoutPara = null;
+  if (layout && layout.shape === 'straight') {
+    layoutPara = 'LAYOUT: one straight run on the main wall only; the side walls get no cabinets, even if the old furniture turned the corner.';
+  } else if (layout) {
+    const shape = layout.shape === 'u' ? 'U-shaped' : 'L-shaped';
+    layoutPara =
+      `LAYOUT: one ${shape} run on ${layout.walls} walls. IMAGE B shows it unfolded into one flat strip — fold it at the room's corners in IMAGE A. ` +
+      `No cabinets on any other wall.`;
+  }
+
+  // ── FIXED GEOMETRY — 줄마다 번호·폭·종류, 바닥 기준 높이, 기준 줄 대비 시작·끝, 폭 비율 ──
   const { rows, loose, runMm } = plannerRows(spec, key);
+  const { floors, ceilingMm, gaps } = plannerHeights(spec, rows);
+  const ref = plannerReferenceRow(rows);
   const geo = [];
-  const checks = [];
   if (rows.length) {
     geo.push('FIXED GEOMETRY — left to right, exactly as IMAGE B shows:');
     for (const row of rows) {
+      const { bottom, top } = floors.get(row);
       const head = [];
-      if (row.heightMm) head.push(`${row.heightMm} mm high`);
+      if (row.heightMm && top === null) head.push(`${row.heightMm} mm high`);
       if (row.widthMm) {
         head.push(
           `${row.widthMm} mm long` +
-            (wallKnown ? ` — ${Math.min(100, plannerPct(row.widthMm, wallW))} % of the wall` : '')
+            (wallKnown && oneWall && (row === ref || !ref) ? ` — ${Math.min(100, plannerPct(row.widthMm, wallW))} % of the wall` : '')
         );
       }
-      if (row.fromLeftMm === 0) head.push('starts at the left corner');
-      else if (row.fromLeftMm > 0)
-        head.push(`starts ${row.fromLeftMm} mm from the left end of the run`);
-      geo.push(`  ${row.def.title}${head.length ? ` (${head.join(', ')})` : ''}:`);
+      let position = '';
+      if (ref && row !== ref) position = ` — ${plannerRowPosition(row, ref)}`;
+      else if (row.fromLeftMm === 0) head.push('starts at the left corner');
+      else if (row.fromLeftMm > 0) head.push(`starts ${row.fromLeftMm} mm from the left end of the run`);
+      let heads = head.join(', ');
+      if (top !== null) {
+        const gap = gaps.find((g) => g.row === row);
+        const reach = gap && gap.gap <= PLANNER_TOL_MM ? ' — up to the ceiling' : '';
+        heads += `${heads ? '; ' : ''}bottom at ${bottom} mm, top at ${top} mm from the floor${reach}`;
+      }
+      geo.push(`  ${row.def.title}${heads ? ` (${heads})` : ''}${position}:`);
 
-      const lines = row.items.map((it, i) => {
-        const id = `${row.def.prefix}${i + 1}`;
-        let size = '';
-        if (it.m.widthMm) {
-          size = `${String(it.m.widthMm).padStart(4)} mm`;
-          if (runMm) size += ` (${plannerPct(it.m.widthMm, runMm)} %${i === 0 ? ' of the run' : ''})`;
-        }
+      const lines = row.items.map((it) => {
+        const size = it.m.widthMm ? `${String(it.m.widthMm).padStart(4)} mm` : '';
         let what = plannerModuleWhat(it.m, it.attached, key === 'wardrobe');
         // 가전 칸은 냉장고·식세기를 이미 제 이름으로 말했다 — 싱크·쿡탑·후드만 덧붙인다.
         const extra = it.attached.filter(
           (k) => !(it.m.kind === 'appliance' && (k === 'fridge' || k === 'dishwasher'))
         );
         what += extra.map((k) => `, ${PLANNER_APPLIANCE_ON_MODULE[k]}`).join('');
-        return { head: `${id.padEnd(3)} ${size}`.trimEnd(), what };
+        return { head: `${it.id.padEnd(3)} ${size}`.trimEnd(), what };
       });
       const pad = Math.max(...lines.map((l) => l.head.length)) + 2;
       for (const l of lines) geo.push(`    ${l.head.padEnd(pad)}${l.what}`);
-
-      const t = plannerRowTotals(row);
-      const unitWord = plannerPlural(t.units, row.def.unit);
-      const openWord = plannerPlural(t.openings, 'appliance opening');
-      // 가전 칸만 있는 줄(냉장고 자리 하나)은 "0 tall units" 라고 말하지 않는다
-      const whatWord = t.units ? (t.openings ? `${unitWord} and ${openWord}` : unitWord) : t.openings ? openWord : unitWord;
-      const showDrawers = row.def.drawersAlways || t.drawers > 0;
-      geo.push(
-        `    → ${whatWord}, ${plannerPlural(t.doors, 'door')}${showDrawers ? `, ${plannerPlural(t.drawers, 'drawer')}` : ''}.`
-      );
-      const counts = [];
-      if (t.doors) counts.push(plannerPlural(t.doors, 'door'));
-      if (t.drawers) counts.push(plannerPlural(t.drawers, 'drawer'));
-      checks.push(
-        t.units || !t.openings
-          ? `${unitWord}${t.openings ? ` (plus ${openWord})` : ''}${counts.length ? ` with ${counts.join(' and ')}` : ''}`
-          : `${openWord} in the ${row.def.title.toLowerCase()}`
-      );
+      const ratio = plannerRatio(row);
+      if (ratio) geo.push(`    → widths ${ratio}`);
     }
   } else {
     geo.push(
@@ -1215,23 +1395,61 @@ export function buildPlannerPrompt(c) {
   }
   const listJoin = (a) =>
     a.length <= 1 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`;
-  const countCheck = checks.length
-    ? `\nCOUNT CHECK: exactly ${listJoin(checks)} — the same numbers IMAGE B shows.`
-    : '';
-  // 사진이 방의 진실이다 — 순서·개수는 구속, mm·% 는 참고 (§4.1-4, design-spec-prompt.md 와 같은 규칙).
-  const authority =
-    '\nThe order and the counts are binding. The millimetres and percentages are guidance: if they disagree with the real wall in IMAGE A, keep the order and the counts and scale the widths to fit.';
+  // 닫힌 목록 — 도면에 없는 장·서랍장·선반은 어디에도 더하지 않는다
+  const closed = rows.length
+    ? `CLOSED LIST: ${listJoin(rows.map((r) => plannerIdSpan(r.items)))} are the only built-in units in the result. Add nothing else: no other cabinet, drawer unit, shelf or board anywhere in the room.`
+    : 'CLOSED LIST: the units IMAGE B shows are the only built-in units in the result. Add nothing else: no other cabinet, drawer unit, shelf or board anywhere in the room.';
+  // 비율 구속 — 벽에 맞추는 것은 전체 배율뿐 (2026-10-19, 옛 "mm·% 는 참고" 를 바꿈)
+  const binding = rows.length
+    ? `BINDING: the order, the counts and the width ratios inside ${rows.length > 1 ? 'each row' : 'the row'} (within about ±10 %)` +
+      (rows.length > 1 && ref ? `, and where each row starts and ends against the ${ref.def.title.toLowerCase()}` : '') +
+      '. Only the overall scale may change to fit the real wall in IMAGE A.'
+    : 'BINDING: the order and the counts IMAGE B shows. Only the overall scale may change to fit the real wall in IMAGE A.';
 
-  // ── 남는 벽 — 기존 가구는 지우고 빈 벽 (§11-①′) ──
-  const existing = c.existing ? ` (${c.existing})` : '';
-  let rest;
-  if (!wallKnown) {
-    rest = `REST OF THE WALL: remove existing furniture that is not part of this design${existing}, with no demolition marks or ghost outlines.`;
-  } else if (runMm && runMm < wallW) {
-    rest = `REST OF THE WALL: the cabinets end at ${plannerPct(runMm, wallW)} % of the wall. Remove all existing furniture on the rest of the wall${existing} and leave it as a smooth finished empty wall, with no demolition marks or ghost outlines.`;
-  } else {
-    rest = `REST OF THE WALL: the cabinets fill the main wall. Remove all existing furniture on it${existing} that is not part of this design, with no demolition marks or ghost outlines.`;
+  // ── EMPTY ZONES — 계산한 빈 구역 ──
+  const zones = [];
+  if (key !== 'wardrobe' && ref && runMm) {
+    const runStart = Math.min(0, ...rows.map((r) => r.fromLeftMm || 0));
+    zones.push(...plannerLevelZones(rows, ref, runStart, runMm));
   }
+  const lower = rows.find((r) => r.key === 'lower');
+  const upper = rows.find((r) => r.key === 'upper');
+  if (lower && upper) {
+    const lo = floors.get(lower);
+    const up = floors.get(upper);
+    if (lo.top !== null && up.bottom !== null && up.bottom - lo.top > PLANNER_TOL_MM) {
+      zones.push(
+        `between the top of the base row (${lo.top} mm) and the bottom of the wall row (${up.bottom} mm) — ${up.bottom - lo.top} mm of open wall`
+      );
+    }
+  }
+  for (const g of gaps) {
+    if (g.gap <= PLANNER_TOL_MM) continue;
+    zones.push(
+      `between the top of the ${g.row.def.title.toLowerCase()} (${g.top} mm) and the ceiling (${ceilingMm} mm) — ${g.gap} mm, left open or closed exactly as IMAGE B shows`
+    );
+  }
+  // 결정 ①′ — 도면이 벽보다 짧으면 나머지는 빈 벽
+  if (oneWall) {
+    if (!wallKnown) zones.push('the main wall beyond the ends of the run, wherever the run is shorter than the wall');
+    else if (runMm && runMm < wallW) {
+      zones.push(
+        `the main wall right of the run — the remaining ${100 - plannerPct(runMm, wallW)} % of the wall (about ${wallW - runMm} mm), floor to ceiling`
+      );
+    }
+  }
+  const emptyZones = zones.length
+    ? `EMPTY ZONES — leave each as bare finished wall, with nothing built in:\n${zones.map((z, i) => `  ${i + 1}. ${z}`).join('\n')}`
+    : null;
+
+  // ── EDIT ZONE / KEEP — 목표 벽의 붙박이만 바꾸고 나머지는 사진 그대로 ──
+  const walls = layout && layout.walls > 1 ? `the ${layout.walls} target walls` : 'the target wall';
+  const existing = c.existing ? ` (${c.existing})` : '';
+  const edit =
+    `EDIT ZONE: ${walls} only — the new run plus the built-in cabinetry on ${walls} that it replaces${existing}. ` +
+    `Remove that cabinetry completely, with no demolition marks or ghost outlines.\n` +
+    `KEEP everything outside the edit zone exactly as photographed: the camera position, lens and framing (do not widen the view or invent any part of the room); ` +
+    `the other walls, ceiling, floor, windows and doors; the lighting; and every movable object — refrigerator, carts, chairs, lamps, plants and decorations — unless it stands where a new unit goes.`;
 
   // ── 마감 — 설치 프롬프트의 designFinishPhrase 를 그대로 ──
   const fin = spec.finishes || null;
@@ -1244,7 +1462,7 @@ export function buildPlannerPrompt(c) {
     (top ? `; countertop ${top}` : '') +
     '.';
 
-  // ── 금지 — 첫 실측 실패를 이름으로 ──
+  // ── 금지 — 닫힌 목록·편집 구역이 못 말하는 것만 ──
   const present = new Set(
     (Array.isArray(spec.appliances) ? spec.appliances : []).map((a) => a && a.kind)
   );
@@ -1265,21 +1483,61 @@ export function buildPlannerPrompt(c) {
         : 'add any appliance that is not listed'
       : 'add any appliance, sink or hood';
   const doNot =
-    `DO NOT: add or remove any cabinet, door or drawer, or change how many doors any unit has; ${forbidAppliances}; ` +
-    `keep any existing cabinet or any part of the old furniture; add handles or knobs; open any door or drawer; change the camera; ` +
+    `DO NOT: change how many doors or drawers any unit has; ${forbidAppliances}; add handles or knobs; open any door or drawer; ` +
     `paste IMAGE B${massing ? ' or IMAGE C' : ''} into the photo; add text, labels or watermarks.`;
 
   const output = `OUTPUT: one photorealistic photograph of the finished room, ${aspect}.`;
 
+  // ── FINAL SELF-CHECK — 맨 끝, 줄마다 숫자로 ──
+  const rowChecks = rows.map((row) => {
+    const t = plannerRowTotals(row);
+    const units = plannerPlural(t.units, 'unit');
+    const openings = plannerPlural(t.openings, 'appliance opening');
+    // 가전 칸만 있는 줄(냉장고 자리 하나)은 "0 units" 라고 말하지 않는다
+    const what = t.units ? (t.openings ? `${units} + ${openings}` : units) : t.openings ? openings : units;
+    const showDrawers = row.def.drawersAlways || t.drawers > 0;
+    return `${row.def.title.toLowerCase()} ${what}, ${plannerPlural(t.doors, 'door')}${showDrawers ? `, ${plannerPlural(t.drawers, 'drawer')}` : ''}`;
+  });
+  const selfCheck =
+    'FINAL SELF-CHECK before you answer: ' +
+    [
+      ...(rowChecks.length ? rowChecks : ['the same units, doors and drawers as IMAGE B']),
+      ...(zones.length ? [`${plannerPlural(zones.length, 'empty zone')} left empty`] : []),
+      'no other built-in unit anywhere',
+    ].join('; ') +
+    '.';
+
   return [
     images.join('\n'),
     task,
-    geo.join('\n') + countCheck + authority,
-    rest,
+    layoutPara,
+    `${geo.join('\n')}\n${closed}\n${binding}`,
+    emptyZones,
+    edit,
     `${materials}\n${HANDLES_LINE}${sitePhrase(c)}${tilePhrase(c)}`,
     doNot,
     output,
-  ].join('\n\n');
+    selfCheck,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+/**
+ * 플래너 모드 검사의 gap_to_ceiling 기준 (2026-10-19). 도면이 맨 위 줄과 천장 사이에 틈을 두었으면 그 크기를 알려
+ * 거짓 경보를 줄인다. 높이 기준(fromFloorMm·ceilingMm)이 없거나 틈이 없으면 빈 문자열.
+ */
+function plannerQcCeilingNote(c) {
+  const spec = c.designSpec && typeof c.designSpec === 'object' ? c.designSpec : null;
+  if (!spec) return '';
+  const { rows } = plannerRows(spec, resolveCategory(c.category));
+  const { gaps, ceilingMm } = plannerHeights(spec, rows);
+  const open = gaps.filter((g) => g.gap > PLANNER_TOL_MM);
+  if (!open.length) return '';
+  const bits = open.map(
+    (g) => `${g.gap} mm above the ${g.row.def.title.toLowerCase()} (top at ${g.top} mm, ceiling at ${ceilingMm} mm)`
+  );
+  return ` — but the design itself leaves ${bits.join(' and ')}, so a gap of about that size is intended; report it only when the gap is clearly larger`;
 }
 
 // ─── 3. 검사 ───
@@ -1353,13 +1611,15 @@ export function buildQcPrompt(c) {
       : '') +
     // 가이드 선을 보냈을 때만: 자홍색 선이 결과에 남았는지
     (c.guide ? '\n- guide_left: magenta or pink guide lines are still visible in the result' : '');
+  // 2026-10-19: 플래너 모드에서만 — 도면이 천장 틈을 두었으면 그 크기를 기준으로 (거짓 경보 줄이기). 아니면 빈 문자열.
+  const ceilingNote = c.planner ? plannerQcCeilingNote(c) : '';
   return `You are checking an AI-rendered photo of a built-in ${CATEGORIES[key].label} (${key}) installed in a real room. The first image is the original room photo before editing; the second is the result to check.${layoutBlock}
 Answer JSON only: {"ok":boolean,"issues":[string],"note":string}
 Report an issue ONLY when it is clearly visible. Use these codes:
 - handles: any visible handle, knob, pull or metal bar on a door or drawer
 - doors_open: any door or drawer open or interior shown
 - room_changed: the room itself looks re-rendered (different walls, floor, window, ceiling or camera angle)
-- gap_to_ceiling: a clear gap between the top of the tall/upper units and the ceiling
+- gap_to_ceiling: a clear gap between the top of the tall/upper units and the ceiling${ceilingNote}
 - appliances_visible: free-standing appliances (microwave, kettle, standalone fridge) on show
 - text: any text, label, logo or watermark
 - wrong_category: the furniture is not a ${CATEGORIES[key].label}
