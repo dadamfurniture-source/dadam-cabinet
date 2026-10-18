@@ -307,6 +307,7 @@ async function createGeneration(request, env, headers) {
     wall_width_override,
     water_from_left_override,
     exhaust_from_left_override,
+    room_focal35,
     fridge_options = {},
     design_spec,
     realize,
@@ -361,6 +362,8 @@ async function createGeneration(request, env, headers) {
     // 급수·배기는 주방 품목에서만 뜻이 있다 — 붙박이장 요청에 실려 와도 버린다
     water_from_left_override: KITCHEN_CATEGORIES.includes(category) ? Number(water_from_left_override) || null : null,
     exhaust_from_left_override: KITCHEN_CATEGORIES.includes(category) ? Number(exhaust_from_left_override) || null : null,
+    // 사진 EXIF 35mm 환산 초점거리 (2026-10-19) — 싱크대 덩어리 합성의 화각. 있을 때만 키를 둔다
+    ...(Number(room_focal35) >= 8 && Number(room_focal35) <= 200 ? { room_focal35: Math.round(Number(room_focal35)) } : {}),
     fridge_options: category === 'fridge' ? fridge_options : null,
     // 플래너 도면 요약 — 없으면 null 이고, 그러면 프롬프트는 예전 그대로다.
     // 크레딧은 그대로 20 (2026-09-17 결정): 새 action 을 만들지 않는다.
