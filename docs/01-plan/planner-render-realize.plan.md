@@ -212,6 +212,10 @@ OUTPUT: one photorealistic photograph of the finished room, 16:9.
   clean 동안에만 막대 두께를 찍는 카메라·출력 높이로 다시 잡고(max(갭/2 = 2mm, 1.25px)) 막대·뒷판은 짙은 회색 #2a2a2a,
   칠 안 한 목찬넬은 중간 회색 #8c8c8c. finally 에서 되돌린다. front 1469×1536 갈색 100,006 → 12,123(상판·다리발), 초록 2,427 → 0,
   작업 화면 줌을 바꿔도 같은 픽셀 [확인: 브라우저] (`plannerCaptureNeutralKind` · `plannerCaptureDoorEdgeThickness`).
+- 2026-10-19: Ⓑ 입면에 번호·치수선 — `capture({ kind:'front', …, annotate: plan })`. plan 은 패널이 보내는 design_spec 에서
+  워커 `plannerRows` 와 같은 규칙으로 매긴 L1·U1·T1·W1 (`plannerAiPhotoElevationLabels`), 모듈 3D 경계를 찍는 카메라로 투영해
+  칸 가운데 라벨 · 칸 폭/줄 전체 치수선(하부·키큰 아래, 상부 위) · 줄 높이를 짙은 회색 얇은 선으로 얹는다(가구 채움 0.8).
+  design_spec 에 `layout`·`sections.*.fromFloorMm`·`ceilingMm` 선택 필드, 방 사진 긴 변 1024px 미만이면 패널 알림 한 줄.
 
 **방 사진 16:9** (§11-③): 패널이 업로드 때 가운데를 16:9 로 자르고 미리보기에 자른 테두리를 보여 준다.
 세로 사진은 위아래가 많이 잘린다는 안내를 띄운다 [결정].

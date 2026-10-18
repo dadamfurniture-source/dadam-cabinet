@@ -40,6 +40,12 @@
 //   2026-10-18: eval=1 이면 이미지 모델(Gemini/GPT)을 고른다 — GPT 면 본문에 image_provider:'openai'.
 //     결과 아래에 누가 그렸는지 한 줄 (GPT 실패 → Gemini 대신 포함).
 //
+// ── 2026-10-19: 번호 붙인 입면 · design_spec 선택 필드 · 작은 사진 알림 ──
+//   입면 캡처에 annotate(번호·치수선 plan)를 얹는다. plan 은 보내는 design_spec 과 같은 요약에서 만든다
+//   (plannerAiPhotoSpecTrace → plannerAiPhotoElevationLabels) — 워커 프롬프트의 L1·U1·T1·W1 과 같은 번호다.
+//   design_spec 에 layout{shape,walls} · sections.*.fromFloorMm · ceilingMm 을 더한다 (모르면 넣지 않는다).
+//   방 사진 긴 변이 1024px 미만이면 한 줄 알린다 (막지 않는다).
+//
 // ⚠ 클래식 스크립트 — 최상위 이름은 전부 PLANNER_AI_PHOTO_ / plannerAiPhoto / PlannerAiPhoto 접두.
 // 브라우저: window.PlannerAiPhoto (+ 개별 함수) / Jest: module.exports
 // ============================================================
@@ -552,10 +558,52 @@ const PLANNER_AI_PHOTO_CATEGORY_LABEL = {
  * @param {object} [input.catalog]     PlannerCatalog.current
  * @param {string} [input.category]    강제 지정. 없으면 섹션으로 판정한다
  * @param {Function} [input.resolve]   마감 해석기. 기본은 전역 plannerFinishResolve (시험 주입용)
- * @returns {{category:string, wallRunMm:number, sections:object, appliances:Array, finishes:object, notes?:string}|null}
+ * @param {(m:object)=>number} [input.baseYOf]  2026-10-19: 모듈 아랫면의 바닥 기준 높이 (mm, 3D 와 같은 값).
+ *   주면 구간마다 `fromFloorMm` (그 줄에서 가장 낮은 값). 없으면 넣지 않는다
+ * @param {number} [input.ceilingMm]   2026-10-19: 플래너가 아는 천장 높이 (mm). 주면 최상위 `ceilingMm`
+ * @returns {{category:string, wallRunMm:number, sections:object, appliances:Array, finishes:object, notes?:string,
+ *   layout?:{shape:string, walls:number}, ceilingMm?:number}|null}
  *   보낼 내용이 하나도 없으면 null (계약은 빈 객체를 400 으로 돌려준다)
  */
 function plannerAiPhotoBuildSpec(input) {
+  const r = plannerAiPhotoSpecTrace(input);
+  return r ? r.spec : null;
+}
+
+/** 2026-10-19: 천장 높이로 받는 범위 (mm) — 밖이면 모르는 값으로 본다. 워커 계약(1500–4000 으로 자름)과 같은 범위. */
+const PLANNER_AI_PHOTO_CEILING_RANGE = [1500, 4000];
+
+/**
+ * 2026-10-19: 배치 모양 — 모듈 회전(0·90·180·270)으로 정면 벽 수를 센다. 순수.
+ *   회전이 한 가지 → straight (1벽) · 이웃한 두 가지(90° 차) → corner (ㄱ자, 2벽) · 세 가지 → u (ㄷ자, 3벽).
+ *   마주 보는 두 가지(0·180, 11자)·네 가지·90° 배수가 아닌 회전은 모른다 → null (보내지 않는다).
+ *   마감재(EP·몰딩·휠라·비움)는 판이라 세지 않는다. mockup-structure.html buildSets 와 같은 묶음 (회전 = 정면 세트).
+ * @returns {{shape:'straight'|'corner'|'u', walls:number}|null}
+ */
+function plannerAiPhotoLayoutOf(modules) {
+  const rots = [];
+  for (const m of (Array.isArray(modules) ? modules : [])) {
+    if (!m || plannerAiPhotoIsFinishing(m.section)) continue;
+    const r = ((plannerAiPhotoNum(m.rotation) % 360) + 360) % 360;
+    if (r % 90 !== 0) return null;
+    if (rots.indexOf(r) < 0) rots.push(r);
+  }
+  if (rots.length === 1) return { shape: 'straight', walls: 1 };
+  if (rots.length === 2) {
+    const d = Math.abs(rots[0] - rots[1]);
+    return (d === 90 || d === 270) ? { shape: 'corner', walls: 2 } : null;
+  }
+  if (rots.length === 3) return { shape: 'u', walls: 3 };
+  return null;
+}
+
+/**
+ * 2026-10-19: 도면 요약 + **번호 자취**. 순수. plannerAiPhotoBuildSpec 은 이것의 spec 만 돌려준다.
+ *   trace[slot][i] = spec.sections[slot].modules[i] 가 어느 플래너 모듈의 어느 몫인지 — { moduleId, from, to }
+ *   (모듈 폭 안의 비율 0~1. 칸마다 쪼갠 모듈은 칸 폭 비율, 한 덩이·가전은 0~1). 정면 입면 번호(annotate)가 쓴다.
+ * @returns {{spec:object, trace:Object<string,{moduleId:string, from:number, to:number}[]>}|null}
+ */
+function plannerAiPhotoSpecTrace(input) {
   const o = input || {};
   const all = (Array.isArray(o.modules) ? o.modules : []).filter(Boolean);
   if (!all.length) return null;
@@ -593,12 +641,14 @@ function plannerAiPhotoBuildSpec(input) {
     (bySlot[slot] || (bySlot[slot] = [])).push(x);
   });
 
+  const trace = {};
   PLANNER_AI_PHOTO_BUCKETS.forEach((slot) => {
     const list = (bySlot[slot] || []).slice().sort((a, b) => a.b.x - b.b.x);
     if (!list.length) return;
     const x0 = Math.min.apply(null, list.map((x) => x.b.x));
     const x1 = Math.max.apply(null, list.map((x) => x.b.x + x.b.w));
     let mods = [];
+    const tr = [];
     list.forEach((x) => {
       const m = x.m;
       const s = structureOf(m.id);
@@ -611,10 +661,22 @@ function plannerAiPhotoBuildSpec(input) {
           drawerCount: 0,
           label: (m.section === 'refrigerator') ? '냉장고' : '식기세척기',
         });
+        tr.push({ moduleId: String(m.id), from: 0, to: 1 });
         return;
       }
-      mods = mods.concat(plannerAiPhotoModulesOf(m, s, wardrobeFrontOf(m, s)));
+      const part = plannerAiPhotoModulesOf(m, s, wardrobeFrontOf(m, s));
+      // 2026-10-19: 칸마다 쪼갠 모듈은 칸 폭 비율로 자취를 남긴다 (좌→우)
+      const sum = part.reduce((n, p) => n + plannerAiPhotoNum(p.widthMm), 0);
+      let acc = 0;
+      part.forEach((p) => {
+        const w = plannerAiPhotoNum(p.widthMm);
+        const one = part.length === 1 || !(sum > 0);
+        tr.push({ moduleId: String(m.id), from: one ? 0 : acc / sum, to: one ? 1 : (acc + w) / sum });
+        acc += w;
+      });
+      mods = mods.concat(part);
     });
+    trace[slot] = tr.slice(0, PLANNER_AI_PHOTO_MAX_MODULES);
     // 폭은 **자리(x 범위)와 모듈 폭 합** 중 큰 쪽이다.
     //   · 보통은 둘이 같다 (모듈이 자리를 채운다).
     //   · ㄱ자에서 90° 로 꺾인 구간은 x 로 눌리면 깊이만큼(650)으로 보여 실제 1500 런을 잃는다.
@@ -627,6 +689,16 @@ function plannerAiPhotoBuildSpec(input) {
       fromLeftMm: plannerAiPhotoMm(x0 - left),
       modules: mods.slice(0, PLANNER_AI_PHOTO_MAX_MODULES),
     };
+    // 2026-10-19: 줄 아랫면의 바닥 기준 높이 — 페이지가 3D 와 같은 baseYOf 를 줄 때만 (상부장 설치 높이 등)
+    if (typeof o.baseYOf === 'function') {
+      const ys = [];
+      list.forEach((x) => {
+        let v = null;
+        try { v = Number(o.baseYOf(x.m)); } catch (e) { v = null; }
+        if (Number.isFinite(v) && v >= 0) ys.push(v);
+      });
+      if (ys.length) sections[slot].fromFloorMm = plannerAiPhotoMm(Math.min.apply(null, ys));
+    }
   });
 
   appliances.sort((a, b) => a._x - b._x);
@@ -689,7 +761,80 @@ function plannerAiPhotoBuildSpec(input) {
   if (!spec.wallRunMm && !Object.keys(sections).length && !apps.length && !Object.keys(finishes).length) {
     return null;
   }
-  return spec;
+  // 2026-10-19: 선택 필드 — 기존 필드 뒤에 붙인다. 모르면 넣지 않는다.
+  const layout = plannerAiPhotoLayoutOf(all);
+  if (layout) spec.layout = layout;
+  const ceil = Number(o.ceilingMm);
+  if (Number.isFinite(ceil) && ceil >= PLANNER_AI_PHOTO_CEILING_RANGE[0] && ceil <= PLANNER_AI_PHOTO_CEILING_RANGE[1]) {
+    spec.ceilingMm = plannerAiPhotoMm(ceil);
+  }
+  return { spec, trace };
+}
+
+/**
+ * 2026-10-19: 정면 입면에 얹을 번호 plan — PlannerCapture.capture({ annotate }) 가 받는 모양. 순수.
+ *
+ * 번호는 **워커 프롬프트와 같은 규칙**이다 (workers/generate-api/src/prompts.js `plannerRows` · `buildPlannerPrompt`):
+ *   · 줄 = design_spec.sections 의 lower → upper → tall 순서 (DESIGN_SECTIONS), modules 가 있는 칸만.
+ *     머리 L(하부) · U(상부) · T(키큰장), 번호는 줄 안 modules[] 순서(왼→오) 1부터. 칸마다 쪼갠 모듈은 칸마다 번호.
+ *     가전 칸(냉장고·식기세척기, kind 'appliance')도 번호를 받는다.
+ *   · 붙박이장(category 'wardrobe')은 한 줄 W — 구간을 fromLeftMm 순서(같으면 lower·upper·tall)로 이어 붙인다.
+ *     줄 높이 = 구간 높이 중 최대, 줄 폭 = 구간들의 왼쪽 끝~오른쪽 끝.
+ *   · 워커는 modules 를 40 개까지만 읽는다 — spec 이 이미 40 개로 잘랐다.
+ * @param {object} spec  plannerAiPhotoSpecTrace().spec
+ * @param {object} trace plannerAiPhotoSpecTrace().trace
+ * @returns {{rows:{key:string, prefix:string, widthMm:number|null, heightMm:number|null,
+ *   items:{id:string, moduleId:string, from:number, to:number, widthMm:number}[]}[]}|null}
+ */
+function plannerAiPhotoElevationLabels(spec, trace) {
+  const secs = (spec && spec.sections) || {};
+  const tr = trace || {};
+  const keys = PLANNER_AI_PHOTO_BUCKETS.filter((k) => secs[k] && Array.isArray(secs[k].modules) && secs[k].modules.length);
+  if (!keys.length) return null;
+  const widthOf = (sec) => sec.widthMm || sec.modules.reduce((n, m) => n + (m.widthMm || 0), 0) || null;
+  const itemsOf = (k) => secs[k].modules.map((m, i) => {
+    const t = (tr[k] || [])[i] || {};
+    return { moduleId: t.moduleId, from: t.from, to: t.to, widthMm: m.widthMm };
+  });
+  const number = (prefix, list) => list
+    .map((it, i) => ({ id: prefix + (i + 1), moduleId: it.moduleId, from: it.from, to: it.to, widthMm: it.widthMm }))
+    .filter((it) => it.moduleId != null);
+  let rows;
+  if (spec.category === 'wardrobe') {
+    const ordered = keys.slice().sort((a, b) => (secs[a].fromLeftMm || 0) - (secs[b].fromLeftMm || 0));
+    const heights = ordered.map((k) => secs[k].heightMm).filter(Boolean);
+    const x0 = Math.min.apply(null, ordered.map((k) => secs[k].fromLeftMm || 0));
+    const x1 = Math.max.apply(null, ordered.map((k) => (secs[k].fromLeftMm || 0) + (widthOf(secs[k]) || 0)));
+    rows = [{
+      key: 'wardrobe',
+      prefix: 'W',
+      widthMm: (x1 - x0) || null,
+      heightMm: heights.length ? Math.max.apply(null, heights) : null,
+      items: number('W', [].concat.apply([], ordered.map(itemsOf))),
+    }];
+  } else {
+    const PREFIX = { lower: 'L', upper: 'U', tall: 'T' };
+    rows = keys.map((k) => ({
+      key: k,
+      prefix: PREFIX[k],
+      widthMm: widthOf(secs[k]),
+      heightMm: secs[k].heightMm || null,
+      items: number(PREFIX[k], itemsOf(k)),
+    }));
+  }
+  rows = rows.filter((r) => r.items.length);
+  return rows.length ? { rows } : null;
+}
+
+/** 2026-10-19: 방 사진이 이보다 작으면(긴 변 px) 알린다 — 막지는 않는다. */
+const PLANNER_AI_PHOTO_SMALL_EDGE = 1024;
+const PLANNER_AI_PHOTO_SMALL_TEXT = '사진이 작아 방이 바뀔 수 있습니다 — 더 큰 사진을 권합니다';
+
+/** 2026-10-19: 작은 사진인가 — 긴 변 < 1024px. 크기를 모르면 false (알리지 않는다). */
+function plannerAiPhotoIsSmallPhoto(w, h) {
+  const W = plannerAiPhotoNum(w), H = plannerAiPhotoNum(h);
+  if (!(W > 0) || !(H > 0)) return false;
+  return Math.max(W, H) < PLANNER_AI_PHOTO_SMALL_EDGE;
 }
 
 /** 화면 한 줄 요약 — "붙박이장 · 3600mm · 모듈 5 · 가전 1". */
@@ -1045,6 +1190,8 @@ function plannerAiPhotoEsc(t) {
  *   detail()         마감 모델. 기본 PlannerDetail.detail
  *   toast(text)      알림
  *   ids()            스코프. 기본 plannerScopeIds()
+ *   baseYOf(m)       2026-10-19: 모듈 아랫면 바닥 기준 높이 (3D 와 같은 값) → 구간 fromFloorMm
+ *   ceilingMm()      2026-10-19: 천장 높이 → 최상위 ceilingMm
  */
 const PlannerAiPhoto = {
   CREDIT: PLANNER_AI_PHOTO_CREDIT,
@@ -1110,18 +1257,38 @@ const PlannerAiPhoto = {
 
   /** 지금 도면의 요약. 못 만들면 null. */
   spec() {
-    return plannerAiPhotoBuildSpec({
+    const r = this.specTrace();
+    return r ? r.spec : null;
+  },
+
+  /** 2026-10-19: 플래너가 아는 천장 높이 (mm) — mount 의 ceilingMm(). 모르면 null. */
+  ceilingMm() {
+    if (this._o && typeof this._o.ceilingMm === 'function') {
+      try { const v = Number(this._o.ceilingMm()); return Number.isFinite(v) ? v : null; } catch (e) { return null; }
+    }
+    return null;
+  },
+
+  /** 2026-10-19: 요약 + 번호 자취 (plannerAiPhotoSpecTrace). 못 만들면 null. */
+  specTrace() {
+    const o = this._o || {};
+    return plannerAiPhotoSpecTrace({
       modules: this.modules(),
-      structureOf: (id) => {
-        const o = this._o || {};
-        return typeof o.structureOf === 'function' ? o.structureOf(id) : null;
-      },
-      boxOf: (this._o && this._o.boxOf) || undefined,
-      wardrobeFrontOf: (this._o && this._o.wardrobeFrontOf) || undefined,
-      resolve: (this._o && this._o.resolve) || undefined,
+      structureOf: (id) => (typeof o.structureOf === 'function' ? o.structureOf(id) : null),
+      boxOf: o.boxOf || undefined,
+      wardrobeFrontOf: o.wardrobeFrontOf || undefined,
+      resolve: o.resolve || undefined,
+      baseYOf: typeof o.baseYOf === 'function' ? o.baseYOf : undefined,
+      ceilingMm: this.ceilingMm(),
       detail: this.detail(),
       catalog: this.catalog(),
     });
+  },
+
+  /** 2026-10-19: 정면 입면 번호 plan (plannerAiPhotoElevationLabels) — 지금 도면에서. 없으면 null. */
+  labelPlan() {
+    const r = this.specTrace();
+    return r ? plannerAiPhotoElevationLabels(r.spec, r.trace) : null;
   },
 
   // ── 잡 id 기억 ────────────────────────────────────────────
@@ -1204,16 +1371,22 @@ const PlannerAiPhoto = {
    * 도면 렌더 두 장 (계획 §5 · §6.1).
    *   입면 — 필수. 못 찍으면 {ok:false, message} 로 멈춘다 (요청 전이라 크레딧을 안 쓴다).
    *   3/4  — 선택. 못 찍거나 JPEG 로 못 바꾸면 빼고 입면만 보낸다. 평가 스위치를 켜도 뺀다.
+   *   2026-10-19: 입면에는 번호·치수선(annotate)을 얹는다 — plan 은 design_spec 에서 (plannerAiPhotoElevationLabels).
+   *   plan 을 안 주면 지금 도면에서 만든다. 그릴 칸이 없으면 annotate 키 없이 찍는다. 3/4 뷰는 그대로.
+   * @param {object} [plan] 번호 plan
    * @returns {Promise<{ok:true, renders:Array, elevation:object, massing:boolean, massingError?:string}|{ok:false, message:string}>}
    */
-  async renders() {
+  async renders(plan) {
     const cap = this.capturer();
     if (!cap || typeof cap.capture !== 'function') {
       return { ok: false, message: '도면을 찍을 수 없습니다 — 3D 화면이 아직 준비되지 않았습니다 · 크레딧은 쓰지 않았습니다' };
     }
     const E = PLANNER_AI_PHOTO_RENDER.elevation;
+    const labels = plan === undefined ? this.labelPlan() : plan;
+    const frontOpt = { kind: E.kind, longEdge: E.longEdge, clean: true };
+    if (labels && Array.isArray(labels.rows) && labels.rows.length) frontOpt.annotate = labels;
     let front;
-    try { front = await cap.capture({ kind: E.kind, longEdge: E.longEdge, clean: true }); }
+    try { front = await cap.capture(frontOpt); }
     catch (e) { front = { ok: false, message: (e && e.message) || String(e) }; }
     if (!front || !front.ok || !front.blob) {
       const why = (front && front.message) || '알 수 없는 이유';
@@ -1319,6 +1492,10 @@ const PlannerAiPhoto = {
     //   결과 비율은 사진을 따른다 (사장님 결정 2026-10-18). 누르기 전에 보여 준다.
     if (this.img) {
       parts.push(`<div class="ap-ratio" id="aiPhotoRatio">결과 비율: ${esc(plannerAiPhotoAspectLabel(this.img.width, this.img.height))}</div>`);
+      // 2026-10-19: 작은 사진 알림 — 막지는 않는다 (긴 변 1024px 미만)
+      if (plannerAiPhotoIsSmallPhoto(this.img.width, this.img.height)) {
+        parts.push(`<div class="ap-msg ap-small" id="aiPhotoSmall">${esc(PLANNER_AI_PHOTO_SMALL_TEXT)}</div>`);
+      }
     }
 
     // 평가 스위치 — 주소에 eval=1 일 때만 (계획 §7.2 R1 팔). 평소에는 없다.
@@ -1482,7 +1659,8 @@ const PlannerAiPhoto = {
   /** 「사진으로 만들기」. 성공하면 폴링까지 이어 간다. */
   async submit() {
     if (this.phase === 'sending' || this.phase === 'running') return { ok: false, reason: 'busy' };
-    const spec = this.spec();
+    const st = this.specTrace();
+    const spec = st ? st.spec : null;
     if (!spec) return this._fail('도면이 비어 있습니다 — 모듈을 먼저 넣어 주세요');
     if (!this.img) return this._fail('사진을 먼저 올려 주세요');
 
@@ -1502,7 +1680,8 @@ const PlannerAiPhoto = {
     this.render();
 
     // 2026-10-18 (P5): 도면 렌더를 스스로 찍는다. 입면을 못 찍으면 여기서 멈춘다 — 요청 전이라 크레딧을 안 쓴다.
-    const shots = await this.renders();
+    // 2026-10-19: 입면 번호는 보내는 design_spec 과 같은 요약에서 — 글과 그림의 번호가 어긋나지 않는다
+    const shots = await this.renders(plannerAiPhotoElevationLabels(st.spec, st.trace));
     if (!shots.ok) return this._fail(shots.message);
     this.elevation = shots.elevation;
     if (shots.massingError && shots.massingError !== 'eval' && typeof console !== 'undefined') {
@@ -1677,6 +1856,13 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerAiPhotoFinishOf,
     plannerAiPhotoCategoryOf,
     plannerAiPhotoBuildSpec,
+    plannerAiPhotoSpecTrace,
+    plannerAiPhotoLayoutOf,
+    plannerAiPhotoElevationLabels,
+    PLANNER_AI_PHOTO_CEILING_RANGE,
+    PLANNER_AI_PHOTO_SMALL_EDGE,
+    PLANNER_AI_PHOTO_SMALL_TEXT,
+    plannerAiPhotoIsSmallPhoto,
     plannerAiPhotoSpecSummary,
     plannerAiPhotoFitSize,
     plannerAiPhotoFileError,

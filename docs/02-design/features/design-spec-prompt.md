@@ -71,6 +71,23 @@ Authorization: Bearer <supabase jwt>
 | `fromFloorMm` | number | 선택 (2026-10-19, 플래너 모드만). 0–3600 — 바닥에서 이 구간 **아랫면**까지 (상부장이면 보통 1400–1500) |
 | `modules` | array | 왼→오 순서. 최대 40개, 넘으면 앞에서 40개만 |
 
+### 배치·높이 — 플래너가 채우는 법 (2026-10-19)
+
+위 표의 `layout` · `sections.*.fromFloorMm` · `ceilingMm` 를 플래너는 **아는 값만** 보낸다. 모르면 키 자체가 없다.
+기존 필드·순서는 그대로이고 새 키는 뒤에 붙는다 (최상위는 `notes` 뒤에 `layout` · `ceilingMm`, 구간은 `modules` 뒤에 `fromFloorMm`).
+
+| 필드 | 형 | 규칙 | 플래너가 채우는 법 (`js/planner/ai-photo.js`) |
+|---|---|---|---|
+| `layout.shape` | string | `straight` · `corner` · `u` | 장(마감재 빼고)의 회전 0·90·180·270 가짓수 — 하나 `straight`, 이웃한 둘(90° 차) `corner`(ㄱ자), 셋 `u`(ㄷ자). 마주 보는 둘(0·180)·넷·90° 배수가 아닌 회전은 모름 → 키 없음 (`plannerAiPhotoLayoutOf`) |
+| `layout.walls` | number | 1 · 2 · 3 | 위 가짓수 (정면 벽 수) |
+| `sections.*.fromFloorMm` | number | mm 정수 ≥ 0 | 그 줄 **아랫면**의 바닥 기준 높이 — 줄 안 모듈 중 가장 낮은 값. 3D 와 같은 `baseYOf` (상부장 = 천장 − 높이, 하부·키큰장 = 0, 모듈이 정한 값 우선) |
+| `ceilingMm` | number | 1500–4000, 밖이면 키 없음 | 플래너 3D 의 천장 높이 (`dadam_origin_v1.ceiling`, 배치 단계 값. 저장값이 없으면 플래너 기본 2300 — 상부장도 그 높이에 매달려 있다) |
+
+정면 입면(IMAGE B)의 번호·치수선: 2026-10-19 부터 플래너는 입면 위에 모듈 번호(`L1`·`U1`·`T1`·`W1`)와
+치수선(칸 폭·줄 전체 mm, 줄 높이 mm)을 얇은 회색으로 얹어 보낸다. 번호는 이 문서의 `sections.*.modules[]` 를
+워커 `plannerRows` 와 **같은 규칙**(구간 `lower`→`upper`→`tall`, 줄 안 왼→오 1부터, 붙박이장은 한 줄 `W`)으로 매긴 것이다.
+라벨·치수선은 **주석**이다 — 그려야 할 가구의 일부가 아니다.
+
 ### `sections.*.modules[]`
 
 | 필드 | 형 | 규칙 |

@@ -63,6 +63,19 @@
 //      (max(갭/2, 1.25px)) 막대·뒷판은 짙은 회색 틈 그림자, 칠 안 한 목찬넬은 중간 회색으로. 사람이 칠한 부재는 그대로.
 //      finally 에서 scale·position·재질 원래대로, 잠깐 만든 재질은 버린다.
 //
+// 2026-10-19: ⑩ 번호·치수선 (annotate) — capture({ kind:'front', …, annotate: plan }).
+//      그림의 장과 프롬프트 글의 번호(L1·U1·T1·W1)가 같은 것임을 모델이 짐작하지 않게, 정면 입면 위에 2D 로 얹는다.
+//      plan 은 부르는 쪽(사진으로 만들기 패널)이 design_spec 에서 만든다 — 번호의 정본은 design_spec 이다:
+//        { rows: [{ key:'lower', widthMm, heightMm, items: [{ id:'L1', moduleId:'lower-0', from:0, to:1, widthMm:800 }] }] }
+//        from·to 는 그 모듈 폭 안에서 이 칸이 차지하는 몫 (칸마다 쪼갠 모듈은 0~0.5 · 0.5~1 처럼).
+//      이 파일은 번호를 매기지 않는다 — 받은 plan 의 모듈을 3D 에서 찾아 찍는 카메라로 투영하고(plannerCaptureScreenBox),
+//      표시 목록(plannerCaptureAnnotationLayout)을 만들어 렌더 픽셀 위에 canvas 2D 로 그린다(plannerCaptureDrawAnnotation).
+//        라벨  칸의 앞면 가운데 작게 (흰 반투명 바탕)
+//        치수  하부·키큰장 줄은 아래, 상부 줄은 위 — 첫 단 칸 폭 mm, 둘째 단 줄 전체 mm. 줄 높이 mm 는 옆에 세로로 하나
+//        무채색 짙은 회색 얇은 선·작은 글자 — 모델이 따라 그리지 않게 굵거나 진하지 않게
+//      글자 둘레 여백이 있도록 front 프레임을 PLANNER_CAPTURE_ANNOTATE_FILL 로 채운다 (clean 0.94 대신).
+//      front 가 아니거나 plan 에 그릴 칸이 없으면 무시한다 — annotate 가 없으면 예전과 바이트 같다.
+//
 // 저장 (PlannerStore.saveRender, planner-store.js): 버킷 renders 의 {design}/{item}/{kind}-{yyyymmddHHMMss}.png
 //   + design_renders 행 (kind · path · width/height · camera · detail_hash). 스코프가 없으면(design=local ·
 //   로그인 전) <a download> 로 이 브라우저에 내려받는다 — 이 페이지는 앱 페이지라 다운로드가 된다.
@@ -111,6 +124,23 @@ const PLANNER_CAPTURE_FOV = {
  * massing 0.9 → 위아래(또는 좌우) 5% 씩. front 0.94 → 3% 씩 (입면이라 더 꽉 채운다).
  */
 const PLANNER_CAPTURE_CLEAN_FILL = { massing: 0.9, front: 0.94 };
+/**
+ * 2026-10-19: annotate front 에서 가구가 채우는 몫 — 나머지 위아래·좌우 10% 씩에 치수선 두 단과 높이 치수가 들어간다.
+ */
+const PLANNER_CAPTURE_ANNOTATE_FILL = 0.8;
+/**
+ * 2026-10-19: 번호·치수선의 모양. 크기는 긴 변 1536px 기준이고 긴 변에 비례한다 (plannerCaptureAnnotationLayout).
+ *   color 짙은 회색 · line 선 굵기 px · font 글자 px · labelBg 라벨 바탕(흰 반투명) · dimBg 치수 글자 바탕(배경과 같은 흰색)
+ */
+const PLANNER_CAPTURE_ANNOTATE_STYLE = {
+  baseEdge: 1536,
+  color: '#4a4a4a',
+  line: 1.2,
+  font: 15,
+  labelBg: 'rgba(255,255,255,0.78)',
+  dimBg: '#ffffff',
+  fontFamily: 'Arial, Helvetica, sans-serif',
+};
 /**
  * 2026-10-18: clean 캡처 동안 그림자 빛 — 앞(+Z)에서 왼쪽(−X)으로 35° 비낀 방위, 고도 50°.
  * massing 카메라(앞·오른쪽 30°)와 같은 앞쪽이라 보이는 면이 밝고, 바닥 그림자는 가구 오른쪽 뒤로 길게 떨어져 옆에서 보인다.
@@ -880,11 +910,193 @@ function plannerCaptureCameraJson(frame, longEdge, moduleId, clean) {
   return out;
 }
 
+// ── 2026-10-19: 번호·치수선 (annotate, 머리 주석 ⑩) — 순수 ─────────────
+
+/**
+ * annotate 옵션 → 그릴 수 있는 plan. 칸이 하나도 없으면 null (그때는 annotate 가 없는 것과 같다).
+ * 칸: id(문자열) · moduleId 가 있어야 한다. from·to 는 0~1 로 자르고, 없으면 모듈 전체(0~1).
+ * @returns {{rows:{key:string, widthMm:number|null, heightMm:number|null, items:object[]}[]}|null}
+ */
+function plannerCaptureAnnotatePlan(v) {
+  if (!v || typeof v !== 'object' || !Array.isArray(v.rows)) return null;
+  const num = (x) => { const n = Number(x); return Number.isFinite(n) ? n : null; };
+  const clamp01 = (x, d) => { const n = num(x); return n === null ? d : Math.min(1, Math.max(0, n)); };
+  const rows = [];
+  v.rows.forEach((r) => {
+    if (!r || !Array.isArray(r.items)) return;
+    const items = [];
+    r.items.forEach((it) => {
+      if (!it || it.id == null || it.moduleId == null || String(it.id) === '') return;
+      const from = clamp01(it.from, 0), to = clamp01(it.to, 1);
+      if (!(to > from)) return;
+      const w = num(it.widthMm);
+      items.push({ id: String(it.id), moduleId: String(it.moduleId), from, to, widthMm: w !== null && w > 0 ? w : null });
+    });
+    if (!items.length) return;
+    const W = num(r.widthMm), H = num(r.heightMm);
+    rows.push({ key: String(r.key || ''), widthMm: W !== null && W > 0 ? W : null, heightMm: H !== null && H > 0 ? H : null, items });
+  });
+  return rows.length ? { rows } : null;
+}
+
+/**
+ * 세계 좌표 한 점 → 출력 그림의 픽셀 [x, y] (왼쪽 위 0,0). 카메라 뒤면 null. 순수 — three 의 project 와 같은 값.
+ * 종횡비는 찍는 카메라처럼 width/height 다 (frame.aspect 는 정수 픽셀로 반올림하기 전 값이라 조금 다르다).
+ * @param {{position:number[], target:number[], up:number[], fov:number, near?:number}} frame
+ */
+function plannerCaptureProjectPoint(frame, width, height, p) {
+  if (!frame || !p || !(width > 0) || !(height > 0)) return null;
+  const B = plannerCaptureLookBasis(frame.position, frame.target, frame.up);
+  const tv = Math.tan((frame.fov / 2) * Math.PI / 180);
+  const th = tv * (width / height);
+  const v = [p[0] - frame.position[0], p[1] - frame.position[1], p[2] - frame.position[2]];
+  const depth = -(v[0] * B.z[0] + v[1] * B.z[1] + v[2] * B.z[2]);
+  if (!(depth > (frame.near || 0))) return null;
+  const x = (v[0] * B.x[0] + v[1] * B.x[1] + v[2] * B.x[2]) / (depth * th);
+  const y = (v[0] * B.y[0] + v[1] * B.y[1] + v[2] * B.y[2]) / (depth * tv);
+  return [(x + 1) / 2 * width, (1 - y) / 2 * height];
+}
+
+/**
+ * 모듈 경계 → 출력 그림의 픽셀 상자. 앞면(max.z)의 네 꼭짓점을 투영한다 — 원근이라 뒷면까지 넣으면 상자가 부푼다.
+ * @returns {{x0:number, x1:number, y0:number, y1:number}|null} y0 위 · y1 아래
+ */
+function plannerCaptureScreenBox(frame, width, height, bounds) {
+  if (!bounds || !bounds.min || !bounds.max) return null;
+  const z = bounds.max.z;
+  const pts = [[bounds.min.x, bounds.min.y, z], [bounds.max.x, bounds.min.y, z], [bounds.min.x, bounds.max.y, z], [bounds.max.x, bounds.max.y, z]]
+    .map((p) => plannerCaptureProjectPoint(frame, width, height, p));
+  if (pts.some((q) => !q)) return null;
+  return {
+    x0: Math.min.apply(null, pts.map((q) => q[0])), x1: Math.max.apply(null, pts.map((q) => q[0])),
+    y0: Math.min.apply(null, pts.map((q) => q[1])), y1: Math.max.apply(null, pts.map((q) => q[1])),
+  };
+}
+
+/** 치수 글자 — 정수 mm, 단위 없이 (도면 관례). 모르면 ''. */
+function plannerCaptureDimText(mm) {
+  const n = Number(mm);
+  return Number.isFinite(n) && n > 0 ? String(Math.round(n)) : '';
+}
+
+/**
+ * plan + 모듈별 픽셀 상자 → 표시 목록. 순수 — canvas 를 모른다.
+ *   라벨: 칸 상자(모듈 상자를 from~to 로 가로로 자른 것)의 가운데. 바탕 labelBg.
+ *   치수: 줄(key 'upper')은 위로, 나머지는 아래로. 첫 단 = 칸 폭, 둘째 단 = 줄 전체. 양 끝에 짧은 눈금.
+ *         글자는 선 가운데에 dimBg 바탕으로 얹는다 (선이 글자 뒤에서 끊겨 보인다).
+ *   높이: 줄 상자 옆 세로선 + 글자. 가구 전체의 왼쪽 끝에 닿은 줄은 왼쪽, 오른쪽 끝에 닿은 줄은 오른쪽, 아니면 왼쪽.
+ * @param {{rows:object[]}} plan  plannerCaptureAnnotatePlan 결과
+ * @param {Object<string,{x0,x1,y0,y1}>} boxes  moduleId → 픽셀 상자 (없는 모듈의 칸은 건너뛴다)
+ * @param {number} width @param {number} height 출력 크기
+ * @returns {{style:object, lines:number[][], texts:{x:number,y:number,text:string,kind:'label'|'dim',bg:string}[], items:object[]}}
+ *   items = 그린 칸 {id, moduleId, cx, cy, box} (시험·확인용)
+ */
+function plannerCaptureAnnotationLayout(plan, boxes, width, height) {
+  const S = PLANNER_CAPTURE_ANNOTATE_STYLE;
+  const k = Math.max(width, height) / S.baseEdge;
+  const font = Math.max(10, Math.round(S.font * k));
+  const style = { color: S.color, line: Math.max(1, Math.round(S.line * k * 10) / 10), font, fontFamily: S.fontFamily, labelBg: S.labelBg, dimBg: S.dimBg };
+  const out = { style, lines: [], texts: [], items: [] };
+  if (!plan || !Array.isArray(plan.rows) || !boxes) return out;
+  const tick = Math.round(font * 0.45);
+  const gap = Math.round(font * 1.2);
+  const step = Math.round(font * 2);
+  const clampY = (y) => Math.min(height - font, Math.max(font, y));
+  const clampX = (x) => Math.min(width - font, Math.max(font, x));
+  const hLine = (x0, x1, y) => {
+    out.lines.push([x0, y, x1, y], [x0, y - tick, x0, y + tick], [x1, y - tick, x1, y + tick]);
+  };
+  const rowsDrawn = [];
+  plan.rows.forEach((row) => {
+    const cells = [];
+    row.items.forEach((it) => {
+      const b = boxes[it.moduleId];
+      if (!b) return;
+      const w = b.x1 - b.x0;
+      const box = { x0: b.x0 + w * it.from, x1: b.x0 + w * it.to, y0: b.y0, y1: b.y1 };
+      cells.push({ it, box });
+    });
+    if (cells.length) rowsDrawn.push({ row, cells });
+  });
+  if (!rowsDrawn.length) return out;
+  const allX0 = Math.min.apply(null, rowsDrawn.map((r) => Math.min.apply(null, r.cells.map((c) => c.box.x0))));
+  const allX1 = Math.max.apply(null, rowsDrawn.map((r) => Math.max.apply(null, r.cells.map((c) => c.box.x1))));
+  rowsDrawn.forEach(({ row, cells }) => {
+    const rb = {
+      x0: Math.min.apply(null, cells.map((c) => c.box.x0)), x1: Math.max.apply(null, cells.map((c) => c.box.x1)),
+      y0: Math.min.apply(null, cells.map((c) => c.box.y0)), y1: Math.max.apply(null, cells.map((c) => c.box.y1)),
+    };
+    // 라벨
+    cells.forEach(({ it, box }) => {
+      const cx = (box.x0 + box.x1) / 2, cy = (box.y0 + box.y1) / 2;
+      out.texts.push({ x: cx, y: cy, text: it.id, kind: 'label', bg: style.labelBg });
+      out.items.push({ id: it.id, moduleId: it.moduleId, cx, cy, box });
+    });
+    // 치수 — 첫 단 칸 폭, 둘째 단 줄 전체
+    const up = row.key === 'upper';
+    const y1 = clampY(up ? rb.y0 - gap : rb.y1 + gap);
+    const y2 = clampY(up ? y1 - step : y1 + step);
+    cells.forEach(({ it, box }) => {
+      const t = plannerCaptureDimText(it.widthMm);
+      if (!t) return;
+      hLine(box.x0, box.x1, y1);
+      out.texts.push({ x: (box.x0 + box.x1) / 2, y: y1, text: t, kind: 'dim', bg: style.dimBg });
+    });
+    const total = plannerCaptureDimText(row.widthMm);
+    if (total) {
+      hLine(rb.x0, rb.x1, y2);
+      // 줄 양 끝 보조선 — 가구 가장자리에서 둘째 단까지 (가구에 닿지 않게 조금 띄운다)
+      const from = up ? rb.y0 - 3 : rb.y1 + 3;
+      out.lines.push([rb.x0, from, rb.x0, y2], [rb.x1, from, rb.x1, y2]);
+      out.texts.push({ x: (rb.x0 + rb.x1) / 2, y: y2, text: total, kind: 'dim', bg: style.dimBg });
+    }
+    // 높이 — 옆에 세로로 하나
+    const h = plannerCaptureDimText(row.heightMm);
+    if (h) {
+      const left = rb.x0 <= allX0 + 1 || rb.x1 < allX1 - 1;
+      const x = clampX(left ? rb.x0 - gap : rb.x1 + gap);
+      out.lines.push([x, rb.y0, x, rb.y1], [x - tick, rb.y0, x + tick, rb.y0], [x - tick, rb.y1, x + tick, rb.y1]);
+      out.texts.push({ x, y: (rb.y0 + rb.y1) / 2, text: h, kind: 'dim', bg: style.dimBg });
+    }
+  });
+  return out;
+}
+
+/**
+ * 표시 목록을 canvas 2D 문맥에 그린다. 선을 먼저, 글자는 바탕 상자 → 글자 순서로 (글자가 선 위에 온다).
+ * @param {CanvasRenderingContext2D} ctx @param {object} list plannerCaptureAnnotationLayout 결과
+ */
+function plannerCaptureDrawAnnotation(ctx, list) {
+  if (!ctx || !list || !list.style) return 0;
+  const st = list.style;
+  ctx.save();
+  ctx.strokeStyle = st.color;
+  ctx.lineWidth = st.line;
+  ctx.lineCap = 'butt';
+  ctx.beginPath();
+  list.lines.forEach((l) => { ctx.moveTo(l[0], l[1]); ctx.lineTo(l[2], l[3]); });
+  ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  list.texts.forEach((t) => {
+    ctx.font = (t.kind === 'label' ? '600 ' : '') + st.font + 'px ' + st.fontFamily;
+    const w = (typeof ctx.measureText === 'function' ? ctx.measureText(t.text).width : 0) || t.text.length * st.font * 0.6;
+    const padX = Math.round(st.font * 0.3), padY = Math.round(st.font * 0.15);
+    const bw = w + padX * 2, bh = st.font + padY * 2;
+    if (t.bg) { ctx.fillStyle = t.bg; ctx.fillRect(t.x - bw / 2, t.y - bh / 2, bw, bh); }
+    ctx.fillStyle = st.color;
+    ctx.fillText(t.text, t.x, t.y);
+  });
+  ctx.restore();
+  return list.lines.length + list.texts.length;
+}
+
 /**
  * mesh 만 모아 세계 좌표 경계를 잰다. area·pick 은 뺀다 (부재가 아니다). 선(LineSegments)도 뺀다 — 원점 마커.
  * @param {object} root three Object3D (moduleGroup 또는 모듈 그룹)
  * @param {object} T three 네임스페이스
- * @param {{visibleOnly?:boolean}} [opt] visibleOnly: 숨긴 것(과 그 아래)은 세지 않는다 — clean 캡처가 쓴다
+ * @param {{visibleOnly?:boolean, skip?:Object<string,boolean>}} [opt] visibleOnly: 숨긴 것(과 그 아래)은 세지 않는다 — clean 캡처가 쓴다.
+ *   skip: 더 뺄 entityKind (2026-10-19 annotate — 런 전체에 걸친 상판·걸레받이)
  * @returns {{min:{x,y,z}, max:{x,y,z}}|null} mesh 가 없으면 null
  */
 function plannerCaptureBoundsOf(root, T, opt) {
@@ -898,6 +1110,7 @@ function plannerCaptureBoundsOf(root, T, opt) {
     if (!obj || !obj.isMesh || !obj.geometry) return;
     const ud = obj.userData || {};
     if (ud.entityKind && PLANNER_CAPTURE_BOUNDS_SKIP[ud.entityKind]) return;
+    if (ud.entityKind && opt && opt.skip && opt.skip[ud.entityKind]) return;
     if (!obj.geometry.boundingBox) obj.geometry.computeBoundingBox();
     if (!obj.geometry.boundingBox) return;
     tmp.copy(obj.geometry.boundingBox).applyMatrix4(obj.matrixWorld);
@@ -907,6 +1120,24 @@ function plannerCaptureBoundsOf(root, T, opt) {
   });
   if (!any) return null;
   return { min: { x: box.min.x, y: box.min.y, z: box.min.z }, max: { x: box.max.x, y: box.max.y, z: box.max.z } };
+}
+
+/**
+ * 2026-10-19: annotate 에서 모듈 가로 범위를 잴 때 빼는 부재 — 런 전체에 걸쳐 첫 모듈 그룹에 붙는 상판·걸레받이·좌대·상몰딩.
+ * (브라우저 확인: 하부 첫 모듈 그룹의 상판·걸레받이가 x 0~2200 이라 L1 이 줄 가운데로 갔다.)
+ */
+const PLANNER_CAPTURE_ANNOTATE_SPAN_SKIP = { 'top-panel': true, 'toe-kick': true, pedestal: true, molding: true };
+
+/**
+ * 2026-10-19: annotate 용 모듈 경계 — 가로(x)는 런에 걸친 부재(PLANNER_CAPTURE_ANNOTATE_SPAN_SKIP)를 뺀 몸통·도어로,
+ * 세로·깊이는 모듈 전체로 (줄 높이 치수선이 바닥~상판 윗면이 되게). 몸통이 없으면 전체 경계 그대로.
+ */
+function plannerCaptureModuleBounds(obj, T, visibleOnly) {
+  const all = plannerCaptureBoundsOf(obj, T, visibleOnly ? { visibleOnly: true } : null);
+  if (!all) return null;
+  const core = plannerCaptureBoundsOf(obj, T, { visibleOnly: !!visibleOnly, skip: PLANNER_CAPTURE_ANNOTATE_SPAN_SKIP });
+  if (!core) return all;
+  return { min: { x: core.min.x, y: all.min.y, z: all.min.z }, max: { x: core.max.x, y: all.max.y, z: all.max.z } };
 }
 
 /**
@@ -1367,6 +1598,8 @@ const PlannerCapture = {
     const k = plannerCaptureParseKind(opt.kind, opt.moduleId);
     const r = t.renderer;
     const clean = !!opt.clean;
+    // 2026-10-19: 번호·치수선 — front 에서 그릴 칸이 있을 때만 (머리 주석 ⑩)
+    const annotate = k.kind === 'front' ? plannerCaptureAnnotatePlan(opt.annotate) : null;
     let longEdge = Number(opt.longEdge) || PLANNER_CAPTURE_LONG_EDGE;
     const cap = r.capabilities && r.capabilities.maxTextureSize;
     if (cap && longEdge > cap) longEdge = cap;
@@ -1387,9 +1620,12 @@ const PlannerCapture = {
       if (clean) this._cleanShadows(t, T, bounds, cleanSt);
       const aspect = plannerCaptureAspectFor(k.kind, bounds, this.canvasAspect());
       // clean 이면 보이는 부재 꼭짓점에 맞춰 가운데 세운다 (massing·front). 아니면 예전 그대로.
-      const frame = clean
-        ? plannerCaptureCleanFrame(k.kind, bounds, aspect, plannerCapturePointsOf(root, T))
-        : plannerCaptureFrame(k.kind, bounds, aspect);
+      // 2026-10-19: annotate front 는 글자 자리가 남도록 덜 채운다 (머리 주석 ⑩).
+      const frame = annotate
+        ? plannerCaptureCleanFrame(k.kind, bounds, aspect, plannerCapturePointsOf(root, T), PLANNER_CAPTURE_ANNOTATE_FILL)
+        : clean
+          ? plannerCaptureCleanFrame(k.kind, bounds, aspect, plannerCapturePointsOf(root, T))
+          : plannerCaptureFrame(k.kind, bounds, aspect);
       const size = plannerCaptureSizeFor(longEdge, frame.aspect);
       const width = size.width, height = size.height;
 
@@ -1421,7 +1657,7 @@ const PlannerCapture = {
       const pixels = plannerCaptureFlipRows(raw, width, height, clean);
       if (!out) plannerCaptureApplySrgb(pixels);   // 폴백: 톤매핑 없이 sRGB 곡선만
       if (clean) plannerCaptureOverWhite(pixels);  // 알파 0 배경 → 흰색
-      return {
+      const shot = {
         ok: true,
         kind: k.kind,
         moduleId: k.moduleId,
@@ -1433,6 +1669,20 @@ const PlannerCapture = {
         toneMapped: !!out,
         clean,
       };
+      if (annotate) {
+        // 2026-10-19: 모듈마다 경계를 재서(clean 이면 숨긴 것 빼고) 이 프레임으로 투영 → 표시 목록. 그리기는 capture 가.
+        const boxes = {};
+        annotate.rows.forEach((row) => row.items.forEach((it) => {
+          if (boxes[it.moduleId] !== undefined) return;
+          const obj = plannerCaptureModuleObject(t.moduleGroup, it.moduleId);
+          const b = obj ? plannerCaptureModuleBounds(obj, T, clean) : null;
+          boxes[it.moduleId] = b ? plannerCaptureScreenBox(frame, width, height, b) : null;
+        }));
+        Object.keys(boxes).forEach((id) => { if (!boxes[id]) delete boxes[id]; });
+        shot.annotation = plannerCaptureAnnotationLayout(annotate, boxes, width, height);
+        shot.camera.annotate = true;
+      }
+      return shot;
     } catch (e) {
       return { ok: false, reason: 'error', message: (e && e.message) || String(e) };
     } finally {
@@ -1463,15 +1713,26 @@ const PlannerCapture = {
    * 한 장 — 찍고 PNG 로. { ok, kind, moduleId, width, height, camera, blob, fileName, toneMapped, clean } | { ok:false, reason, message }
    * @param {{kind:string, moduleId?:string, longEdge?:number, clean?:boolean, date?:Date}} opt
    *   clean: 이미지 모델 참고 그림용 — 흰 배경·작업용 표시 숨김·가전 대역·그림자 (2026-10-08, 계획서 §5)
+   *   annotate: front 에 번호·치수선 plan (2026-10-19, 머리 주석 ⑩). 주면 결과에 annotated(그렸나)·labels({id, moduleId, x, y} 픽셀)가 붙는다
    */
   async capture(opt) {
     opt = opt || {};
     const shot = this.capturePixels(opt);
     if (!shot.ok) return shot;
+    // 2026-10-19: 번호·치수선 — 못 그리면(canvas 없음 등) 번호 없는 입면 그대로 간다. annotated 로 알린다.
+    let pixels = shot.pixels;
+    let annotated = null;
+    if (shot.annotation) {
+      annotated = false;
+      try {
+        const drawn = await this.overlay(shot.pixels, shot.width, shot.height, shot.annotation);
+        if (drawn && drawn.length === shot.pixels.length) { pixels = drawn; annotated = true; }
+      } catch (e) { annotated = false; }
+    }
     let blob;
-    try { blob = await this.encode(shot.pixels, shot.width, shot.height); }
+    try { blob = await this.encode(pixels, shot.width, shot.height); }
     catch (e) { return { ok: false, reason: 'encode', message: (e && e.message) || String(e) }; }
-    return {
+    const res = {
       ok: true,
       kind: shot.kind,
       moduleId: shot.moduleId,
@@ -1483,6 +1744,30 @@ const PlannerCapture = {
       blob,
       fileName: plannerCaptureFileName(shot.kind, shot.moduleId, opt.date),
     };
+    if (annotated !== null) {
+      res.annotated = annotated;
+      res.labels = shot.annotation.items.map((x) => ({ id: x.id, moduleId: x.moduleId, x: Math.round(x.cx), y: Math.round(x.cy) }));
+    }
+    return res;
+  },
+
+  /** 시험이 갈아 끼운다 — (pixels, width, height, list) → 그린 RGBA. 기본은 canvas 2D. */
+  _overlay: null,
+
+  /**
+   * 2026-10-19: 렌더 픽셀 위에 번호·치수선을 그린 새 RGBA. canvas 2D 가 없으면 null.
+   * @returns {Uint8ClampedArray|null}
+   */
+  overlay(pixels, width, height, list) {
+    if (typeof this._overlay === 'function') return this._overlay(pixels, width, height, list);
+    if (typeof document === 'undefined' || typeof ImageData === 'undefined') return null;
+    const c = document.createElement('canvas');
+    c.width = width; c.height = height;
+    const ctx = c.getContext && c.getContext('2d');
+    if (!ctx) return null;
+    ctx.putImageData(new ImageData(pixels, width, height), 0, 0);
+    plannerCaptureDrawAnnotation(ctx, list);
+    return ctx.getImageData(0, 0, width, height).data;
   },
 
   /**
@@ -1792,6 +2077,16 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerCaptureAspectFor,
     plannerCaptureFrame,
     plannerCaptureCameraJson,
+    PLANNER_CAPTURE_ANNOTATE_FILL,
+    PLANNER_CAPTURE_ANNOTATE_STYLE,
+    plannerCaptureAnnotatePlan,
+    plannerCaptureProjectPoint,
+    plannerCaptureScreenBox,
+    plannerCaptureDimText,
+    plannerCaptureAnnotationLayout,
+    plannerCaptureDrawAnnotation,
+    PLANNER_CAPTURE_ANNOTATE_SPAN_SKIP,
+    plannerCaptureModuleBounds,
     plannerCaptureBoundsOf,
     plannerCaptureModuleObject,
     plannerCaptureFlipRows,
