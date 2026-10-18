@@ -33,7 +33,9 @@ const MODULES = [
 
 /**
  * 가짜 PlannerCapture — 공개 API capture({kind, longEdge, clean}) 만 흉내 낸다.
- * fail: { front?: 메시지, massing?: 메시지 } 이면 그 kind 는 {ok:false} 를 낸다.
+ * fail: { front?: 메시지, massing?: 메시지, labeled?: 메시지 } 이면 그 kind 는 {ok:false} 를 낸다.
+ *   labeled = annotate 가 붙은 입면 (2026-10-19 번호 입면). 번호 없는 입면은 front 로 실패시킨다.
+ * 바이트는 'PNG-front' · 'PNG-front-labeled' · 'PNG-massing' — 본문에서 어느 캡처인지 알아볼 수 있다.
  */
 function fakeCapture(win, fail = {}) {
   const calls = [];
@@ -41,10 +43,12 @@ function fakeCapture(win, fail = {}) {
     calls,
     async capture(o) {
       calls.push(o);
-      if (fail[o.kind]) return { ok: false, reason: 'error', message: fail[o.kind] };
+      const key = o.kind === 'front' && o.annotate ? 'labeled' : o.kind;
+      if (fail[key]) return { ok: false, reason: 'error', message: fail[key] };
       const w = o.kind === 'front' ? 1536 : 1024;
       const h = o.kind === 'front' ? 640 : 576;
-      return { ok: true, kind: o.kind, width: w, height: h, clean: !!o.clean, blob: new win.Blob(['PNG-' + o.kind], { type: 'image/png' }) };
+      const bytes = 'PNG-' + o.kind + (o.annotate ? '-labeled' : '');
+      return { ok: true, kind: o.kind, width: w, height: h, clean: !!o.clean, blob: new win.Blob([bytes], { type: 'image/png' }) };
     },
   };
 }
@@ -197,7 +201,9 @@ describe('번호 붙인 입면 · 배치·높이 · 작은 사진', () => {
     const p = withPhoto(boot());
     p.AP._fetch = okFetch();
     await p.AP.submit();
-    const plan = p.cap.calls[0].annotate;
+    // 2026-10-19: 번호 없는 입면이 먼저, 번호 입면은 둘째 캡처
+    expect(p.cap.calls[0]).not.toHaveProperty('annotate');
+    const plan = p.cap.calls[1].annotate;
     const spec = p.AP._fetch.calls[0].body.design_spec;
     expect(plan.rows.map((r) => r.key)).toEqual(Object.keys(spec.sections).filter((k) => ['lower', 'upper', 'tall'].includes(k)));
     plan.rows.forEach((r) => {
@@ -212,7 +218,7 @@ describe('번호 붙인 입면 · 배치·높이 · 작은 사진', () => {
     expect(plan.rows[1].prefix).toBe('U');
     expect(plan.rows[1].items.every((it) => it.moduleId === 'upper-3')).toBe(true);
     // 3/4 뷰는 그대로
-    expect(p.cap.calls[1]).toEqual({ kind: 'massing', longEdge: 1024, clean: true });
+    expect(p.cap.calls[2]).toEqual({ kind: 'massing', longEdge: 1024, clean: true });
   });
 
   test('design_spec 새 필드 — layout · 구간 fromFloorMm(3D 바닥 높이) · ceilingMm(플래너 천장)', async () => {
@@ -278,6 +284,53 @@ describe('생성 요청', () => {
     expect(call.body.floor_quad).toBeUndefined();
   });
 
+  // 2026-10-19: 입면 두 장 — 번호 없음(elevation, 필수) · 번호 있음(elevation_labeled, 선택)
+  test('번호 입면을 못 찍으면 빼고 보낸다 — 번호 없는 입면·3/4 는 그대로, 비교용 그림은 번호 없는 입면', async () => {
+    const p = withPhoto(boot({ captureFail: { labeled: '번호를 얹지 못했습니다' } }));
+    p.AP._fetch = fakeFetch([
+      { status: 202, json: { success: true, id: 'gen-1' } },
+      { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images: [] } } },
+    ]);
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    let warned;
+    try {
+      await p.AP.submit();
+      warned = warn.mock.calls.some((c) => String(c[0]).includes('번호 입면 없이'));
+    } finally { warn.mockRestore(); }
+    expect(warned).toBe(true);
+    const b = p.AP._fetch.calls[0].body;
+    expect(b.renders.map((r) => [r.role, Buffer.from(r.base64, 'base64').toString()])).toEqual([
+      ['elevation', 'PNG-front'],
+      ['massing', 'JPG'],
+    ]);
+    expect(p.AP.elevation.url).toBe('data:image/png;base64,' + b64('PNG-front'));
+  });
+
+  test('번호 plan 이 비면 번호 입면을 찍지 않는다 (경고 없음)', async () => {
+    const p = withPhoto(boot());
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    let shots;
+    let warns;
+    try {
+      shots = await p.AP.renders({ rows: [] });
+      warns = warn.mock.calls.length;
+    } finally { warn.mockRestore(); }
+    expect(shots.ok).toBe(true);
+    expect(shots.labeled).toBe(false);
+    expect(p.cap.calls.map((c) => [c.kind, !!c.annotate])).toEqual([['front', false], ['massing', false]]);
+    expect(shots.renders.map((r) => r.role)).toEqual(['elevation', 'massing']);
+    expect(warns).toBe(0);
+  });
+
+  test('번호 없는 입면을 못 찍으면 번호 입면이 있어도 요청하지 않는다', async () => {
+    const p = withPhoto(boot({ captureFail: { front: '3D 가 아직 준비되지 않았습니다' } }));
+    p.AP._fetch = fakeFetch([{ json: {} }]);
+    const r = await p.AP.submit();
+    expect(r.ok).toBe(false);
+    expect(p.AP._fetch.calls).toHaveLength(0);
+    expect(p.cap.calls).toHaveLength(1);
+  });
+
   // 2026-10-18 (P5): 플래너 모드 — design-spec-prompt.md "플래너 모드" 계약
   test('플래너 모드 본문 — mode · renders(입면 PNG · 3/4 JPEG) · aspect, 옛 키 없음', async () => {
     const p = withPhoto(boot());
@@ -286,18 +339,22 @@ describe('생성 요청', () => {
       { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images: [] } } },
     ]);
     await p.AP.submit();
-    // 캡처 — 공개 API 만, clean 으로, 계획 §5 크기. 2026-10-19: 입면에만 번호·치수선(annotate)
+    // 캡처 — 공개 API 만, clean 으로, 계획 §5 크기.
+    //   2026-10-19: 입면 두 번 — 번호 없음(필수) → 번호·치수선(annotate) 입면(선택). 3/4 에는 번호 없음
     expect(p.cap.calls.map(({ annotate, ...rest }) => rest)).toEqual([
+      { kind: 'front', longEdge: 1536, clean: true },
       { kind: 'front', longEdge: 1536, clean: true },
       { kind: 'massing', longEdge: 1024, clean: true },
     ]);
-    expect(p.cap.calls[0].annotate).toBeTruthy();
-    expect(p.cap.calls[1]).not.toHaveProperty('annotate');
+    expect(p.cap.calls[0]).not.toHaveProperty('annotate');
+    expect(p.cap.calls[1].annotate).toBeTruthy();
+    expect(p.cap.calls[2]).not.toHaveProperty('annotate');
     expect(p.jpegCalls).toEqual([{ quality: 0.9 }]);
     const b = p.AP._fetch.calls[0].body;
     expect(b.mode).toBe('planner');
     expect(b.renders).toEqual([
       { role: 'elevation', base64: b64('PNG-front'), mime: 'image/png' },
+      { role: 'elevation_labeled', base64: b64('PNG-front-labeled'), mime: 'image/png' },
       { role: 'massing', base64: 'SlBH', mime: 'image/jpeg' },
     ]);
     expect(b.aspect).toBe('4:3');                  // 1600×1200
@@ -332,7 +389,7 @@ describe('생성 요청', () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
     try { await p.AP.submit(); } finally { warn.mockRestore(); }
     const b = p.AP._fetch.calls[0].body;
-    expect(b.renders.map((r) => r.role)).toEqual(['elevation']);
+    expect(b.renders.map((r) => r.role)).toEqual(['elevation', 'elevation_labeled']);
     expect(p.jpegCalls).toHaveLength(0);
   });
 
@@ -345,7 +402,7 @@ describe('생성 요청', () => {
     ]);
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
     try { await p.AP.submit(); } finally { warn.mockRestore(); }
-    expect(p.AP._fetch.calls[0].body.renders.map((r) => r.role)).toEqual(['elevation']);
+    expect(p.AP._fetch.calls[0].body.renders.map((r) => r.role)).toEqual(['elevation', 'elevation_labeled']);
   });
 
   test('입면을 못 찍으면 요청하지 않는다 (크레딧을 안 쓴다)', async () => {
@@ -392,7 +449,7 @@ describe('평가 스위치 (eval=1)', () => {
       { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images: [] } } },
     ]);
     await p.AP.submit();
-    expect(p.AP._fetch.calls[0].body.renders.map((r) => r.role)).toEqual(['elevation', 'massing']);
+    expect(p.AP._fetch.calls[0].body.renders.map((r) => r.role)).toEqual(['elevation', 'elevation_labeled', 'massing']);
   });
 
   test('eval=1 이면 보이고, 켜면 입면만 보낸다', async () => {
@@ -408,8 +465,8 @@ describe('평가 스위치 (eval=1)', () => {
       { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images: [] } } },
     ]);
     await p.AP.submit();
-    expect(p.AP._fetch.calls[0].body.renders.map((r) => r.role)).toEqual(['elevation']);
-    expect(p.cap.calls.map((c) => c.kind)).toEqual(['front']);
+    expect(p.AP._fetch.calls[0].body.renders.map((r) => r.role)).toEqual(['elevation', 'elevation_labeled']);
+    expect(p.cap.calls.map((c) => c.kind)).toEqual(['front', 'front']);
     // 다시 그려도 체크가 남는다
     expect(body(p).querySelector('#aiPhotoNoMassing').checked).toBe(true);
   });
@@ -421,7 +478,7 @@ describe('평가 스위치 (eval=1)', () => {
       { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images: [] } } },
     ]);
     await p.AP.submit();
-    expect(p.AP._fetch.calls[0].body.renders.map((r) => r.role)).toEqual(['elevation', 'massing']);
+    expect(p.AP._fetch.calls[0].body.renders.map((r) => r.role)).toEqual(['elevation', 'elevation_labeled', 'massing']);
   });
 });
 
@@ -439,11 +496,12 @@ describe('이미지 모델 고르기 (eval=1)', () => {
     r.dispatchEvent(new p.window.Event('change'));
   };
 
-  test('eval=1 이 없으면 토글이 없고, 저장된 값이 GPT 여도 본문은 그대로', async () => {
-    const p = withPhoto(boot({ storage: { [PROVIDER_KEY]: 'openai' } }));
+  test('eval=1 이 없으면 토글이 없고, 저장된 값이 있어도 본문에 키가 없다 (워커 기본값 GPT)', async () => {
+    const p = withPhoto(boot({ storage: { [PROVIDER_KEY]: 'gemini' } }));
     expect(body(p).querySelector('#aiPhotoProvider')).toBeNull();
     expect(radios(p)).toHaveLength(0);
-    p.AP.imageProvider = 'openai';  // 상태가 남아 있어도 주소가 아니면 무시한다
+    expect(p.AP.provider()).toBeNull();
+    p.AP.imageProvider = 'gemini';  // 상태가 남아 있어도 주소가 아니면 무시한다
     p.AP._fetch = okFetch();
     await p.AP.submit();
     const b = p.AP._fetch.calls[0].body;
@@ -452,17 +510,32 @@ describe('이미지 모델 고르기 (eval=1)', () => {
       ['aspect', 'category', 'design_spec', 'image_type', 'mode', 'renders', 'room_image']);
   });
 
-  test('eval=1 이면 Gemini/GPT 두 개, 기본은 Gemini 이고 본문에 키가 없다', async () => {
+  // 2026-10-19: 기본 GPT (워커 PLANNER_IMAGE_PROVIDER 와 같은 값). 토글이 있으면 고른 값을 그대로 싣는다
+  test('eval=1 이면 Gemini/GPT 두 개, 기억한 값이 없으면 GPT 이고 본문에 image_provider:openai', async () => {
     const p = withPhoto(boot({ search: '&eval=1' }));
     const rs = radios(p);
     expect(rs.map((r) => r.value)).toEqual(['gemini', 'openai']);
     expect(rs.map((r) => r.parentNode.textContent.trim())).toEqual(['Gemini', 'GPT']);
-    expect(rs.find((r) => r.checked).value).toBe('gemini');
+    expect(rs.find((r) => r.checked).value).toBe('openai');
     // 평가 스위치 옆에 있다
     expect(body(p).querySelector('#aiPhotoNoMassing')).not.toBeNull();
     p.AP._fetch = okFetch();
     await p.AP.submit();
-    expect(p.AP._fetch.calls[0].body).not.toHaveProperty('image_provider');
+    expect(p.AP._fetch.calls[0].body.image_provider).toBe('openai');
+  });
+
+  test('예전에 Gemini 를 기억해 뒀으면 Gemini 가 골라져 있고 본문에 image_provider:gemini', async () => {
+    const p = withPhoto(boot({ search: '&eval=1', storage: { [PROVIDER_KEY]: 'gemini' } }));
+    expect(radios(p).find((r) => r.checked).value).toBe('gemini');
+    p.AP._fetch = okFetch();
+    await p.AP.submit();
+    expect(p.AP._fetch.calls[0].body.image_provider).toBe('gemini');
+  });
+
+  test('기억한 값이 모르는 값이면 GPT', () => {
+    const p = withPhoto(boot({ search: '&eval=1', storage: { [PROVIDER_KEY]: 'claude' } }));
+    expect(radios(p).find((r) => r.checked).value).toBe('openai');
+    expect(p.AP.provider()).toBe('openai');
   });
 
   test('GPT 를 고르면 본문에 image_provider:openai, 고른 값을 기억한다', async () => {
@@ -476,12 +549,12 @@ describe('이미지 모델 고르기 (eval=1)', () => {
     expect(b.mode).toBe('planner');
     // 다시 그려도 GPT 가 골라져 있다
     expect(radios(p).find((r) => r.checked).value).toBe('openai');
-    // Gemini 로 돌리면 키가 빠진다
+    // Gemini 로 돌리면 'gemini' 를 싣는다 (2026-10-19 — 키가 없으면 워커 기본값 GPT 로 가므로)
     choose(p, 'gemini');
     expect(p.storage.getItem(PROVIDER_KEY)).toBe('gemini');
     p.AP._fetch = okFetch();
     await p.AP.submit();
-    expect(p.AP._fetch.calls[0].body).not.toHaveProperty('image_provider');
+    expect(p.AP._fetch.calls[0].body.image_provider).toBe('gemini');
   });
 
   test('새로 열어도 기억한 GPT 가 골라져 있다', () => {
@@ -496,9 +569,9 @@ describe('이미지 모델 고르기 (eval=1)', () => {
     const spy = jest.spyOn(p.storage, 'setItem').mockImplementation(() => { throw new Error('quota'); });
     const spyGet = jest.spyOn(p.storage, 'getItem').mockImplementation(() => { throw new Error('blocked'); });
     try {
-      expect(p.AP.pickedProvider()).toBe('gemini');
-      expect(p.AP.setProvider('openai')).toBe('openai');
-      expect(p.AP.provider()).toBe('openai');
+      expect(p.AP.pickedProvider()).toBe('openai');
+      expect(p.AP.setProvider('gemini')).toBe('gemini');
+      expect(p.AP.provider()).toBe('gemini');
     } finally { spy.mockRestore(); spyGet.mockRestore(); }
   });
 
@@ -570,7 +643,7 @@ describe('결과 — 대조 ok / 불일치 / internal_only (계획 §6.3)', () =
     expect(thumbs).toHaveLength(2);
     expect(thumbs[0].querySelector('img').getAttribute('src')).toBe('https://x/base.png');
     const elev = host.querySelector('.ap-elev img');
-    expect(elev.getAttribute('src')).toBe('data:image/png;base64,' + b64('PNG-front'));
+    expect(elev.getAttribute('src')).toBe('data:image/png;base64,' + b64('PNG-front-labeled')); // 번호 입면이 있으면 그것 (2026-10-19)
     expect(host.querySelector('.ap-elev').textContent).toContain('도면 입면');
     // 공유 버튼은 패널에 없다
     expect(host.textContent).not.toContain('공유하기');

@@ -46,6 +46,13 @@
 //   design_spec 에 layout{shape,walls} · sections.*.fromFloorMm · ceilingMm 을 더한다 (모르면 넣지 않는다).
 //   방 사진 긴 변이 1024px 미만이면 한 줄 알린다 (막지 않는다).
 //
+// ── 2026-10-19 (오후): 입면 두 장 · 기본 모델 GPT ──
+//   입면을 두 번 찍는다 — 번호 없음(clean) → renders 의 elevation(필수), 번호 있음(annotate) → elevation_labeled(선택).
+//   워커는 GPT 로 그릴 때만 번호 입면을 쓰고, Gemini(기본이든 GPT 실패 대체든)에는 번호 없는 입면을 준다
+//   (실측: Gemini 는 번호 라벨을 도어 위에 글자로 그려 넣었다). 번호 입면을 못 찍으면 빼고 보낸다.
+//   기본 모델은 워커가 정한다(PLANNER_IMAGE_PROVIDER = GPT) — 손님 화면은 image_provider 를 싣지 않는다.
+//   eval=1 토글은 기본 GPT, 고른 값을 그대로 싣는다 (Gemini 면 'gemini').
+//
 // ⚠ 클래식 스크립트 — 최상위 이름은 전부 PLANNER_AI_PHOTO_ / plannerAiPhoto / PlannerAiPhoto 접두.
 // 브라우저: window.PlannerAiPhoto (+ 개별 함수) / Jest: module.exports
 // ============================================================
@@ -95,7 +102,10 @@ const PLANNER_AI_PHOTO_ASPECTS = [
   { key: '9:16', r: 9 / 16 },
 ];
 
-/** 도면 렌더 캡처 (계획 §5) — 입면은 PNG 그대로, 3/4 는 JPEG 로 바꿔 보낸다. */
+/**
+ * 도면 렌더 캡처 (계획 §5) — 입면은 PNG 그대로, 3/4 는 JPEG 로 바꿔 보낸다.
+ * 2026-10-19: 입면은 번호 없음(elevation)·번호 있음(elevation_labeled) 두 장 — 같은 크기로 찍는다.
+ */
 const PLANNER_AI_PHOTO_RENDER = {
   elevation: { kind: 'front', longEdge: 1536 },
   massing: { kind: 'massing', longEdge: 1024, quality: 0.9 },
@@ -103,8 +113,9 @@ const PLANNER_AI_PHOTO_RENDER = {
 
 /**
  * 이미지 모델 고르기 (2026-10-18, 사장님 비교용) — 주소에 eval=1 일 때만 보인다.
- * 워커 계약: 요청 본문 image_provider:'openai' 면 GPT, 없으면 Gemini (design-spec-prompt.md "플래너 모드").
- * 고른 값은 이 브라우저에 기억한다 (스코프와 상관없이 한 값).
+ * 워커 계약 (2026-10-19): 요청 본문 image_provider 'gemini' | 'openai', 없으면 워커 기본값(PLANNER_IMAGE_PROVIDER = GPT)
+ *   (design-spec-prompt.md "플래너 모드"). 토글이 없으면(손님 화면) 키를 싣지 않는다.
+ * 고른 값은 이 브라우저에 기억한다 (스코프와 상관없이 한 값). 기억한 값이 없으면 GPT.
  */
 const PLANNER_AI_PHOTO_PROVIDER_KEY = 'dadam_aiphoto_provider_v1';
 const PLANNER_AI_PHOTO_PROVIDERS = [
@@ -1338,12 +1349,12 @@ const PlannerAiPhoto = {
     try { return new URLSearchParams(search).get('eval') === '1'; } catch (e) { return false; }
   },
 
-  /** 고른 이미지 모델 — 화면에서 고른 값 → 저장된 값 → 'gemini'. */
+  /** 고른 이미지 모델 — 화면에서 고른 값 → 저장된 값 → 'openai' (2026-10-19 기본 GPT). */
   pickedProvider() {
     if (this.imageProvider === 'openai' || this.imageProvider === 'gemini') return this.imageProvider;
     let v = null;
     try { v = localStorage.getItem(PLANNER_AI_PHOTO_PROVIDER_KEY); } catch (e) { v = null; }
-    return v === 'openai' ? 'openai' : 'gemini';
+    return v === 'gemini' ? 'gemini' : 'openai';
   },
 
   /** 고르기 — 기억해 둔다 (못 해도 이번 판은 고른 값으로 간다). */
@@ -1353,9 +1364,12 @@ const PlannerAiPhoto = {
     return this.imageProvider;
   },
 
-  /** 요청에 실을 공급자 — eval=1 이 아니면 언제나 Gemini (본문에 키를 넣지 않는다). */
+  /**
+   * 요청에 실을 공급자 — eval=1 이면 고른 값('gemini' | 'openai'), 아니면 null (본문에 키를 넣지 않는다 →
+   * 워커 기본값 PLANNER_IMAGE_PROVIDER, 2026-10-19 GPT).
+   */
   provider() {
-    return this.evalMode() ? this.pickedProvider() : 'gemini';
+    return this.evalMode() ? this.pickedProvider() : null;
   },
 
   /** 이 탭에서 만든 blob URL 을 놓는다. */
@@ -1368,13 +1382,15 @@ const PlannerAiPhoto = {
   },
 
   /**
-   * 도면 렌더 두 장 (계획 §5 · §6.1).
-   *   입면 — 필수. 못 찍으면 {ok:false, message} 로 멈춘다 (요청 전이라 크레딧을 안 쓴다).
-   *   3/4  — 선택. 못 찍거나 JPEG 로 못 바꾸면 빼고 입면만 보낸다. 평가 스위치를 켜도 뺀다.
-   *   2026-10-19: 입면에는 번호·치수선(annotate)을 얹는다 — plan 은 design_spec 에서 (plannerAiPhotoElevationLabels).
-   *   plan 을 안 주면 지금 도면에서 만든다. 그릴 칸이 없으면 annotate 키 없이 찍는다. 3/4 뷰는 그대로.
+   * 도면 렌더 (계획 §5 · §6.1).
+   *   입면(번호 없음, clean) — 필수 → elevation. 못 찍으면 {ok:false, message} 로 멈춘다 (요청 전이라 크레딧을 안 쓴다).
+   *   입면(번호 있음, annotate) — 선택 → elevation_labeled (2026-10-19). plan 은 design_spec 에서
+   *     (plannerAiPhotoElevationLabels), 안 주면 지금 도면에서 만든다. 그릴 칸이 없거나 못 찍으면 빼고 보낸다.
+   *     워커는 GPT 로 그릴 때만 이것을 쓴다 — Gemini 는 번호를 글자로 그려 넣는다.
+   *   3/4  — 선택. 못 찍거나 JPEG 로 못 바꾸면 빼고 보낸다. 평가 스위치를 켜도 뺀다.
+   *   비교용 그림(elevation)은 번호 입면이 있으면 그것, 없으면 번호 없는 입면.
    * @param {object} [plan] 번호 plan
-   * @returns {Promise<{ok:true, renders:Array, elevation:object, massing:boolean, massingError?:string}|{ok:false, message:string}>}
+   * @returns {Promise<{ok:true, renders:Array, elevation:object, labeled:boolean, labeledError?:string, massing:boolean, massingError?:string}|{ok:false, message:string}>}
    */
   async renders(plan) {
     const cap = this.capturer();
@@ -1383,10 +1399,8 @@ const PlannerAiPhoto = {
     }
     const E = PLANNER_AI_PHOTO_RENDER.elevation;
     const labels = plan === undefined ? this.labelPlan() : plan;
-    const frontOpt = { kind: E.kind, longEdge: E.longEdge, clean: true };
-    if (labels && Array.isArray(labels.rows) && labels.rows.length) frontOpt.annotate = labels;
     let front;
-    try { front = await cap.capture(frontOpt); }
+    try { front = await cap.capture({ kind: E.kind, longEdge: E.longEdge, clean: true }); }
     catch (e) { front = { ok: false, message: (e && e.message) || String(e) }; }
     if (!front || !front.ok || !front.blob) {
       const why = (front && front.message) || '알 수 없는 이유';
@@ -1398,16 +1412,40 @@ const PlannerAiPhoto = {
     if (!frontB64) return { ok: false, message: '도면 입면이 비어 있습니다 — 크레딧은 쓰지 않았습니다' };
 
     const renders = [{ role: 'elevation', base64: frontB64, mime: 'image/png' }];
+
+    // 번호 입면 (2026-10-19) — 선택. 못 찍으면 빼고 간다 (번호 없는 입면만으로도 워커는 그린다).
+    let shown = { shot: front, b64: frontB64 };
+    let labeledError = null;
+    if (labels && Array.isArray(labels.rows) && labels.rows.length) {
+      try {
+        const lb = await cap.capture({ kind: E.kind, longEdge: E.longEdge, clean: true, annotate: labels });
+        if (!lb || !lb.ok || !lb.blob) {
+          labeledError = (lb && lb.message) || '번호 입면을 찍지 못했습니다';
+        } else {
+          const lbB64 = await plannerAiPhotoBlobToBase64(lb.blob);
+          if (lbB64) {
+            renders.push({ role: 'elevation_labeled', base64: lbB64, mime: 'image/png' });
+            shown = { shot: lb, b64: lbB64 };
+          } else labeledError = '번호 입면이 비어 있습니다';
+        }
+      } catch (e) {
+        labeledError = (e && e.message) || String(e);
+      }
+    } else {
+      labeledError = 'no-labels';
+    }
+    const lab = labeledError ? { labeled: false, labeledError } : { labeled: true };
+
     // 비교용 그림 — blob URL 이 되면 그것을, 아니면 data URL (jsdom 은 createObjectURL 이 없다)
     let elevation;
     if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
-      try { elevation = { url: URL.createObjectURL(front.blob), revoke: true }; } catch (e) { elevation = null; }
+      try { elevation = { url: URL.createObjectURL(shown.shot.blob), revoke: true }; } catch (e) { elevation = null; }
     }
-    if (!elevation) elevation = { url: 'data:image/png;base64,' + frontB64, revoke: false };
-    elevation.width = front.width;
-    elevation.height = front.height;
+    if (!elevation) elevation = { url: 'data:image/png;base64,' + shown.b64, revoke: false };
+    elevation.width = shown.shot.width;
+    elevation.height = shown.shot.height;
 
-    if (this.evalMode() && this.noMassing) return { ok: true, renders, elevation, massing: false, massingError: 'eval' };
+    if (this.evalMode() && this.noMassing) return { ok: true, renders, elevation, ...lab, massing: false, massingError: 'eval' };
 
     const M = PLANNER_AI_PHOTO_RENDER.massing;
     let massingError = null;
@@ -1425,8 +1463,8 @@ const PlannerAiPhoto = {
       massingError = (e && e.message) || String(e);
     }
     return massingError
-      ? { ok: true, renders, elevation, massing: false, massingError }
-      : { ok: true, renders, elevation, massing: true };
+      ? { ok: true, renders, elevation, ...lab, massing: false, massingError }
+      : { ok: true, renders, elevation, ...lab, massing: true };
   },
 
   /** 로그인 토큰. PlannerStore 와 같은 클라이언트를 본다 (부모 세션 그대로). */
@@ -1504,7 +1542,7 @@ const PlannerAiPhoto = {
         `<label class="ap-eval"><input type="checkbox" id="aiPhotoNoMassing"${this.noMassing ? ' checked' : ''}> `
         + '평가: 3/4 뷰 빼기(입면만)</label>'
       );
-      // 이미지 모델 (2026-10-18) — 같은 사진·도면을 GPT 로도 돌려 비교한다. 기본 Gemini.
+      // 이미지 모델 (2026-10-18) — 같은 사진·도면을 두 모델로 돌려 비교한다. 2026-10-19 기본 GPT.
       const picked = this.pickedProvider();
       parts.push(
         '<div class="ap-eval ap-provider" id="aiPhotoProvider" role="radiogroup" aria-label="이미지 모델">평가: 이미지 모델'
@@ -1687,9 +1725,13 @@ const PlannerAiPhoto = {
     if (shots.massingError && shots.massingError !== 'eval' && typeof console !== 'undefined') {
       console.warn('[사진으로 만들기] 3/4 뷰 없이 입면만 보냅니다:', shots.massingError);
     }
+    if (shots.labeledError && shots.labeledError !== 'no-labels' && typeof console !== 'undefined') {
+      console.warn('[사진으로 만들기] 번호 입면 없이 보냅니다:', shots.labeledError);
+    }
     this.message = '생성을 요청하는 중…';
     this.render();
 
+    const provider = this.provider();
     let res;
     try {
       // 계약: design-spec-prompt.md "플래너 모드". realize·engine·control_*·variants 는 싣지 않는다
@@ -1705,8 +1747,8 @@ const PlannerAiPhoto = {
           design_spec: spec,
           renders: shots.renders,
           aspect: plannerAiPhotoAspectOf(this.img.width, this.img.height),
-          // 2026-10-18: eval=1 에서 GPT 를 골랐을 때만 키가 생긴다 — 평소·Gemini 면 본문 그대로
-          ...(this.provider() === 'openai' ? { image_provider: 'openai' } : {}),
+          // 2026-10-19: eval=1 이면 고른 값('gemini' | 'openai')을 싣는다. 평소(손님 화면)는 키 없음 → 워커 기본값(GPT)
+          ...(provider ? { image_provider: provider } : {}),
         }),
       });
     } catch (e) {
