@@ -182,6 +182,8 @@
         const row = byId.get(base);
         const what = `${(u.parts || []).join(', ') || '부재'} ${u.w}×${u.h} (${u.material} ${u.thickness}T) ${u.qty}장`;
         const extra = { partIds: (u.partIds || []).slice() };
+        if (row && row.moduleKey)
+          Object.assign(extra, { moduleKey: row.moduleKey, module: row.module });
         // 몸통·뒷판·도어는 원판에서 한 장으로 재단한다. 상판·걸레받이·몰딩 같은 긴 부재는 이음·별도 발주가 있어 알리기만 한다.
         if (row && SHEET_SLOTS.indexOf(row.slot) < 0) {
           push(
@@ -345,7 +347,96 @@
     return `사전 검사: 오류 ${c.error} · 경고 ${c.warning}`;
   }
 
-  const BomPreflight = { VERSION, OPENING_CATEGORIES, check, summaryOf, partKeyOf };
+  /**
+   * BOM 모듈 id → 플래너 모듈 id. 브리지(ui-step1.js)가 플래너 모듈을 BOM 모듈로 바꿀 때 붙인 이름의 역이다:
+   *   `planner-<id>-open` (오픈장) → id,  `planner-<id>-<칸>` (칸 셀 모듈) → id + 칸 번호,
+   *   `corner-blind-*` (멍장, 브리지가 새로 만든 모듈) → null,  그 밖 → 그대로 (플래너 id 를 그대로 쓴 모듈).
+   */
+  function plannerModuleOf(moduleId) {
+    const s = String(moduleId == null ? '' : moduleId);
+    if (!s || /^corner-blind-/.test(s)) return null;
+    let m = /^planner-(.+)-open$/.exec(s);
+    if (m) return { id: m[1], cell: null };
+    m = /^planner-(.+)-(\d+)$/.exec(s);
+    if (m) return { id: m[1], cell: Number(m[2]) };
+    return { id: s, cell: null };
+  }
+
+  /**
+   * 검사 결과를 품목·플래너 모듈별 표시로 묶는다 (플래너 3D 테두리용). 오류·경고만 싣는다.
+   * @param {object} result  check() 결과
+   * @param {{items:Array}} design  exportDesign() — moduleKey 의 앞 번호가 items 순번이다
+   * @returns {Object<string,{counts:{error:number,warning:number}, modules:Object<string,{level:string,messages:string[]}>, other:string[]}>}
+   *          키 = 품목 uniqueId (없으면 순번)
+   */
+  function plannerMarksOf(result, design) {
+    const items = (design && design.items) || [];
+    const out = {};
+    const slot = (idx) => {
+      const it = items[idx];
+      const key = it && it.uniqueId != null ? String(it.uniqueId) : String(idx);
+      if (!out[key]) out[key] = { counts: { error: 0, warning: 0 }, modules: {}, other: [] };
+      return out[key];
+    };
+    ((result && result.issues) || []).forEach((x) => {
+      if (x.level !== 'error' && x.level !== 'warning') return;
+      const mk = /^(\d+)-(.+)$/.exec(String(x.moduleKey || ''));
+      if (!mk) return; // 품목을 모르는 문제(partId 중복 등)는 상세설계 화면에서만 보인다
+      const bucket = slot(Number(mk[1]));
+      bucket.counts[x.level]++;
+      const pm = plannerModuleOf(mk[2]);
+      if (!pm) {
+        bucket.other.push(x.message);
+        return;
+      }
+      const mod =
+        bucket.modules[pm.id] || (bucket.modules[pm.id] = { level: 'warning', messages: [] });
+      if (x.level === 'error') mod.level = 'error';
+      mod.messages.push(pm.cell != null ? `칸 ${pm.cell + 1}: ${x.message}` : x.message);
+    });
+    return out;
+  }
+
+  /**
+   * 상세설계 → 품목별 플래너 iframe 으로 표시를 보낸다 (DADAM_PREFLIGHT_MARKS, 같은 오리진).
+   * 검사가 깨끗한 품목에도 빈 표시를 보내 지난 테두리를 지운다. 브라우저 전용 — DOM 이 없으면 0.
+   * @returns {number} 보낸 iframe 수
+   */
+  function publishToPlanners(report) {
+    if (typeof document === 'undefined' || !report || !report.materials) return 0;
+    const mats = Array.isArray(report.materials) ? report.materials : report.materials.materials;
+    if (!Array.isArray(mats)) return 0;
+    const result = check(mats, report.hardware || []);
+    const marks = plannerMarksOf(result, report.design);
+    let origin = '*';
+    try {
+      origin = location.origin || '*';
+    } catch (e) {
+      origin = '*';
+    }
+    let sent = 0;
+    ((report.design && report.design.items) || []).forEach((it, idx) => {
+      const key = it && it.uniqueId != null ? String(it.uniqueId) : String(idx);
+      const ov = document.getElementById('__planner-overlay-' + key);
+      const frame = ov && ov.querySelector('iframe[data-planner]');
+      if (!frame || !frame.contentWindow) return;
+      const payload = marks[key] || { counts: { error: 0, warning: 0 }, modules: {}, other: [] };
+      frame.contentWindow.postMessage({ type: 'DADAM_PREFLIGHT_MARKS', marks: payload }, origin);
+      sent++;
+    });
+    return sent;
+  }
+
+  const BomPreflight = {
+    VERSION,
+    OPENING_CATEGORIES,
+    check,
+    summaryOf,
+    partKeyOf,
+    plannerModuleOf,
+    plannerMarksOf,
+    publishToPlanners,
+  };
 
   if (typeof window !== 'undefined') window.BomPreflight = BomPreflight;
   if (typeof module !== 'undefined' && module.exports) module.exports = BomPreflight;

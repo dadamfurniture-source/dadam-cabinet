@@ -1830,15 +1830,20 @@ export function buildTwoToneVariantPrompt(pair) {
   return `Recolour the kitchen furniture in this photo to a two-tone scheme:
 - Upper (wall) cabinets: ${pair.upper}
 - Lower (base) cabinets, drawers and any island: ${pair.lower}
+Each run's own end panels, fillers, plinth and trim take that run's colour.
 ${RECOLOUR_SCOPE}
 Keep everything else identical: camera, room, furniture layout, every door and drawer line, countertop, sink, faucet, cooktop, hood, lighting and shadows. Handleless fronts stay handleless. All doors stay closed.
 Photorealistic. No text, labels or watermarks.`;
 }
 
+/**
+ * 2026-10-19 사장님 "문짝과 같은 색으로": 보조색이 붙박이장 끝 측판(필러)·걸레받이에 칠해져
+ * 오른쪽 끝에 오크·살구색 세로 띠가 생겼다. 끝 측판·필러·걸레받이·몰딩은 문짝 색, 보조색은 오픈 선반에만.
+ */
 export function buildVariantPrompt(finish) {
   return `Recolour the built-in furniture in this photo to a different finish:
-- Door and drawer fronts: ${finish.body}
-- The furniture's own exposed end panels, open shelves and trim: ${finish.accent}
+- Door and drawer fronts, together with the furniture's own end panels, fillers, plinth and trim: ${finish.body}, one continuous colour
+- Open shelves, only if the furniture has any: ${finish.accent}
 ${RECOLOUR_SCOPE}
 Keep everything else identical: camera, room, furniture layout, every door and drawer line, countertop, lighting and shadows. Handleless fronts stay handleless. All doors stay closed.
 Photorealistic. No text, labels or watermarks.`;
