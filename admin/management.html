@@ -109,6 +109,18 @@
       .load .v { text-align: right; font-variant-numeric: tabular-nums; }
       .load small { display: block; font-size: 11px; color: #888; text-align: right; }
       .tag { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 99px; background: #fff3e0; color: #f57c00; margin-left: 4px; }
+      /* 만약에 판 */
+      .whatif { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(0, 1.4fr); gap: 18px; align-items: start; }
+      .levers { display: grid; gap: 8px; }
+      .levers label { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; }
+      .levers label span { display: inline-flex; align-items: center; gap: 4px; color: #888; font-size: 12px; white-space: nowrap; }
+      .levers input { width: 96px; padding: 5px 8px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit; font-size: 13px; text-align: right; }
+      .levers .btn { justify-self: start; margin-top: 4px; }
+      .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+      .presets button { padding: 4px 10px; border-radius: 99px; border: 1px solid #ddd; background: #fff; cursor: pointer; font-size: 12px; font-family: inherit; }
+      .presets button:hover { border-color: #007bff; color: #007bff; }
+      #tblWhatIf tr.key td { font-weight: 700; }
+      @media (max-width: 900px) { .whatif { grid-template-columns: 1fr; } }
       .basis { font-size: 12px; color: #888; line-height: 1.7; margin-top: 4px; }
       .basis a { color: #007bff; }
       .empty-state { padding: 30px 10px; text-align: center; color: #888; font-size: 14px; line-height: 1.7; }
@@ -205,6 +217,35 @@
               <h3>병목 · 처리량</h3>
               <div class="q">어느 공정이 막히나 · 그 공정 1분당 가장 많이 남는 일은</div>
               <div id="bottleneckBody"></div>
+            </article>
+          </div>
+        </div>
+
+        <div class="row" id="rowWhatIf">
+          <div class="row-lens">만약에</div>
+          <div class="cards">
+            <article class="card" id="cardWhatIf">
+              <h3>만약에 판</h3>
+              <div class="q">단가 · 마진 · 물량 · 고정비를 바꾸면 이달 이익이 얼마나 움직이나 — 바꾸는 즉시 다시 셉니다</div>
+              <div class="presets" id="whatIfPresets"></div>
+              <div class="whatif">
+                <div class="levers">
+                  <label>원판 · 자재 단가<span><input type="number" id="lvMaterial" step="1" value="0" /> %</span></label>
+                  <label>철물 단가<span><input type="number" id="lvHardware" step="1" value="0" /> %</span></label>
+                  <label>도어 외주 장당<span><input type="number" id="lvDoor" step="1000" value="0" /> 원</span></label>
+                  <label>인건비<span><input type="number" id="lvLabor" step="1" value="0" /> %</span></label>
+                  <label>고객 마진율<span><input type="number" id="lvMargin" step="1" value="20" /> %</span></label>
+                  <label>거래처 마진율<span><input type="number" id="lvPartner" step="1" value="10" /> %</span></label>
+                  <label>수주량<span><input type="number" id="lvVolume" step="5" value="0" /> %</span></label>
+                  <label>월 고정비 더하기<span><input type="number" id="lvFixed" step="10" value="0" /> 만원</span></label>
+                  <button class="btn btn-light" id="btnWhatIfReset" type="button">처음 값으로</button>
+                </div>
+                <div class="tbl-wrap"><table class="tbl" id="tblWhatIf">
+                  <thead><tr><th scope="col"></th><th scope="col">지금</th><th scope="col">바꾸면</th><th scope="col">차이</th></tr></thead>
+                  <tbody></tbody>
+                </table></div>
+              </div>
+              <div class="muted" style="margin-top:8px">이달 수주 가운데 견적 원가가 있는 것으로 셉니다. 마진율은 이달 수주를 그 마진으로 다시 매긴다고 보고, 수주량은 매출과 변동원가를 같은 비율로 늘립니다.</div>
             </article>
           </div>
         </div>
@@ -471,6 +512,107 @@
             <div class="muted" style="margin-top:8px">처리량 = 매출 − 자재 · 철물 · 외주. 병목이 꽉 찬 달에는 1분당 처리량이 큰 일부터 받는 것이 이익을 가장 크게 합니다.</div>`;
         }
 
+        // ── 만약에 판 ──
+        const n0 = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+        /**
+         * 바탕(scenarioBase) 에 레버를 얹는다. 모두 선형이라 합에 바로 곱한다.
+         * 레버를 그대로 두면 맨 위 이익 식과 같은 값이 나온다 (워커 시험이 그 등식을 지킨다).
+         *   levers = { materialPct, hardwarePct, doorWon, laborPct, marginRate, partnerMarginRate, volumePct, fixedWon }
+         *   마진율은 0.2 꼴, 나머지 % 는 10 꼴
+         */
+        function applyScenario(b, L) {
+          const vol = 1 + n0(L.volumePct) / 100;
+          const mC = isNum(L.marginRate) ? Number(L.marginRate) : b.marginRate;
+          const mP = isNum(L.partnerMarginRate) ? Number(L.partnerMarginRate) : b.partnerMarginRate;
+          const priceC = (1 + mC) / (1 + n0(b.marginRate));
+          const priceP = (1 + mP) / (1 + n0(b.partnerMarginRate));
+          const revenueKnown = (b.revenueCustomer * priceC + b.revenuePartner * priceP) * vol;
+          const variable = (b.material * (1 + n0(L.materialPct) / 100)
+            + b.hardware * (1 + n0(L.hardwarePct) / 100)
+            + b.door + b.doorSheets * n0(L.doorWon)
+            + b.outsourcing
+            + b.labor * (1 + n0(L.laborPct) / 100)
+            + b.overheadAlloc) * vol;
+          const contribution = revenueKnown - variable;
+          const fixed = b.overheadMonthly + n0(L.fixedWon);
+          const cm = revenueKnown > 0 ? contribution / revenueKnown : null;
+          return {
+            revenue: Math.round(revenueKnown + b.revenueUnknown * vol),
+            variable: Math.round(variable),
+            contribution: Math.round(contribution),
+            cmRate: cm === null ? null : Math.round(cm * 1000) / 10,
+            fixed: Math.round(fixed),
+            net: Math.round(contribution - fixed),
+            breakEven: cm > 0 ? Math.round(fixed / cm) : null,
+          };
+        }
+        /** 차이 칸 — 100만 원이 안 되면 원 단위로 (만 원으로 반올림하면 작은 변화가 0 이 된다) */
+        const amt = (v) => (isNum(v) && Math.abs(v) < 1000000 ? won(v) : man(v));
+
+        function readLevers() {
+          const v = (id) => Number($(id).value);
+          return {
+            materialPct: v('lvMaterial'),
+            hardwarePct: v('lvHardware'),
+            doorWon: v('lvDoor'),
+            laborPct: v('lvLabor'),
+            marginRate: v('lvMargin') / 100,
+            partnerMarginRate: v('lvPartner') / 100,
+            volumePct: v('lvVolume'),
+            fixedWon: v('lvFixed') * 10000,
+          };
+        }
+        function resetLevers(b) {
+          ['lvMaterial', 'lvHardware', 'lvDoor', 'lvLabor', 'lvVolume', 'lvFixed'].forEach((id) => { $(id).value = '0'; });
+          $('lvMargin').value = String(Math.round(n0(b.marginRate) * 100));
+          $('lvPartner').value = String(Math.round(n0(b.partnerMarginRate) * 100));
+        }
+        function renderWhatIfResult() {
+          const b = state.data && state.data.scenario;
+          if (!b) return;
+          const base = applyScenario(b, {});
+          const next = applyScenario(b, readLevers());
+          const line = (label, k, fmt, key) => {
+            const a = base[k], z = next[k];
+            const d = isNum(a) && isNum(z) ? z - a : null;
+            const diff = !isNum(d) ? '-' : d === 0 ? '0' : k === 'cmRate'
+              ? `<span class="${d > 0 ? 'down' : 'up'}">${esc(`${d > 0 ? '+' : ''}${Math.round(d * 10) / 10}%p`)}</span>`
+              : `<span class="${(k === 'variable' || k === 'fixed' || k === 'breakEven') === (d > 0) ? 'up' : 'down'}">${esc(`${d > 0 ? '+' : ''}${amt(d)}`)}</span>`;
+            return `<tr class="${key ? 'key' : ''}" data-k="${k}"><td>${esc(label)}</td><td class="num">${esc(fmt(a))}</td><td class="num">${esc(fmt(z))}</td><td class="num">${diff}</td></tr>`;
+          };
+          $('tblWhatIf').querySelector('tbody').innerHTML = [
+            line('매출 (VAT 제외)', 'revenue', man),
+            line('변동원가', 'variable', man),
+            line('공헌이익', 'contribution', man),
+            line('공헌이익률', 'cmRate', pct),
+            line('월 고정비', 'fixed', man),
+            line('월 순이익', 'net', man, true),
+            line('손익분기 매출', 'breakEven', man),
+          ].join('');
+        }
+        function renderWhatIf(d) {
+          const b = d.scenario;
+          resetLevers(b);
+          const presets = [
+            ['원판 +10%', () => { $('lvMaterial').value = '10'; }],
+            ['도어 장당 +5천 원', () => { $('lvDoor').value = '5000'; }],
+            ['고객 마진 15%', () => { $('lvMargin').value = '15'; }],
+          ];
+          if (b.partTimeMonthly > 0) presets.splice(2, 0, [`알바 한 명 더 (+${man(b.partTimeMonthly)})`, () => { $('lvFixed').value = String(b.partTimeMonthly / 10000); }]);
+          $('whatIfPresets').innerHTML = presets.map(([label], i) => `<button type="button" data-preset="${i}">${esc(label)}</button>`).join('');
+          $('whatIfPresets').querySelectorAll('button').forEach((btn) => {
+            btn.addEventListener('click', () => { presets[Number(btn.dataset.preset)][1](); renderWhatIfResult(); });
+          });
+          renderWhatIfResult();
+        }
+        let leversBound = false;
+        function bindLevers() {
+          if (leversBound) return;
+          leversBound = true;
+          ['lvMaterial', 'lvHardware', 'lvDoor', 'lvLabor', 'lvMargin', 'lvPartner', 'lvVolume', 'lvFixed'].forEach((id) => $(id).addEventListener('input', renderWhatIfResult));
+          $('btnWhatIfReset').addEventListener('click', () => { if (state.data && state.data.scenario) { resetLevers(state.data.scenario); renderWhatIfResult(); } });
+        }
+
         const SOURCE_LABEL = { mine: '내 생산 설정', latest: '가장 최근에 저장된 생산 설정', default: '기본값' };
         function renderBasis(d) {
           const b = d.basis || {};
@@ -488,6 +630,8 @@
           if (d.funnel) { renderFunnel(d); renderPlatform(d); }
           $('rowProcess').hidden = !d.process;
           if (d.process) { renderVariance(d); renderBottleneck(d); }
+          $('rowWhatIf').hidden = !d.scenario;
+          if (d.scenario) { bindLevers(); renderWhatIf(d); }
           renderBasis(d);
         }
 
@@ -537,7 +681,7 @@
           await load();
         }
 
-        window.Management = { init, render, esc, man, won, pct };
+        window.Management = { init, render, esc, man, won, pct, applyScenario };
         if (!window.__MANAGEMENT_NO_AUTOSTART) {
           if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
           else init();
