@@ -192,7 +192,7 @@ describe('P1-3 상판·좌대 산출', () => {
     const rows = extract(sinkItem([...LOWERS], { specs: Object.assign({}, SPECS, { topThickness: 18 }) }));
     const top = one(rows, 'ep', '상판');
     expect(top).toMatchObject({ material: '인조대리석', thickness: 18, edge: '-' });
-    expect(top.note).toMatch(/\[확인 필요\] 상판 두께는 12 · 50T — 지정 값 18/);
+    expect(top.note).toMatch(/\[확인 필요\] 인조대리석 상판 두께는 12 · 50T — 지정 값 18/);
   });
 
   test('상판 두께 50 · 마감 없음 → 인조대리석 50, 폭 = 하부 폭 합만', () => {

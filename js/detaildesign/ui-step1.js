@@ -3382,7 +3382,8 @@
           <div style="font-size:10px;font-weight:700;color:#666;margin-bottom:4px;">상판</div>
           <div style="display:flex;flex-direction:column;gap:3px;">
             <div><label style="font-size:9px;color:#666;">색상</label><select style="width:100%;font-size:10px;padding:1px;" onchange="updateSpec(${item.uniqueId}, 'topColor', this.value)">${FurnitureOptionCatalog.buildOptionsHtml('countertop', item.specs.topColor)}</select></div>
-            <div><label style="font-size:9px;color:#666;">두께(T)</label><select style="width:100%;font-size:11px;padding:2px 4px;" onchange="updateSpecValue(${item.uniqueId}, 'topThickness', this.value)">${topThicknessOptionsHtml(item.specs.topThickness)}</select></div>
+            <div><label style="font-size:9px;color:#666;">재질</label><select style="width:100%;font-size:10px;padding:1px;" onchange="updateTopMaterial(${item.uniqueId}, this.value)">${topMaterialOptionsHtml(item.specs.topMaterial)}</select></div>
+            <div><label style="font-size:9px;color:#666;">두께(T)</label><select style="width:100%;font-size:11px;padding:2px 4px;" onchange="updateSpecValue(${item.uniqueId}, 'topThickness', this.value)">${topThicknessOptionsHtml(item.specs.topThickness, topMaterialOf(item.specs))}</select></div>
           </div>
         </div>
         <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:6px;">
