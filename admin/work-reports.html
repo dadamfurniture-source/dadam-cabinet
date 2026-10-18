@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>작업 지시 보고 - 다담가구 관리자</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet" />
+    <script src="../js/config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="../js/admin-access.js"></script>
+    <!--
+      작업 지시 보고 보관함 (docs/01-plan/work-reports-archive.plan.md §5).
+      생산 계획 · 인력 승인 · 아침 요약 · 작업지시서 · 설치 지시서 · 외주 발주 · 상판 발주 · 월 마감 · 메모를
+      workflow-api 의 /reports 로 읽는다. 관리자 전원이 보고, 메모·고정·보관 처리는 admin 이상 (서버가 판정).
+      화면에 넣는 값은 전부 esc() 를 거친다.
+    -->
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: 'Noto Sans KR', sans-serif; background: #f5f5f5; color: #333; }
+      .sidebar { position: fixed; left: 0; top: 0; width: 250px; height: 100vh; background: #1a1a2e; color: white; padding: 20px 0; overflow-y: auto; }
+      .sidebar-logo { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px; }
+      .sidebar-logo h1 { font-size: 20px; font-weight: 700; }
+      .sidebar-logo span { font-size: 12px; color: #888; }
+      .nav-menu { list-style: none; }
+      .nav-menu li a { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: #aaa; text-decoration: none; transition: all 0.3s; }
+      .nav-menu li a:hover, .nav-menu li a.active { background: rgba(255,255,255,0.1); color: white; }
+      .nav-menu li a.active { border-left: 3px solid #007bff; }
+      .nav-icon { font-size: 18px; width: 24px; text-align: center; }
+      .sidebar-footer { position: absolute; bottom: 20px; left: 20px; right: 20px; }
+      .sidebar-footer a { display: block; padding: 10px; text-align: center; background: rgba(255,255,255,0.1); color: #aaa; text-decoration: none; border-radius: 8px; font-size: 13px; }
+      .main-content { margin-left: 250px; padding: 20px 30px; min-height: 100vh; }
+      .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #ddd; gap: 12px; flex-wrap: wrap; }
+      .header h2 { font-size: 24px; font-weight: 700; }
+      .header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      .admin-info { font-size: 13px; color: #666; }
+      .btn { padding: 8px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-family: inherit; }
+      .btn-primary { background: #007bff; color: #fff; }
+      .btn-primary:hover { background: #0056b3; }
+      .btn-secondary { background: #6c757d; color: #fff; }
+      .btn-light { background: #fff; color: #333; border: 1px solid #ddd; }
+      .btn-sm { padding: 5px 10px; font-size: 12px; }
+      .btn:disabled { opacity: 0.5; cursor: default; }
+      .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+      .kpi { background: #fff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); padding: 16px 18px; }
+      .kpi b { display: block; font-size: 24px; color: #007bff; }
+      .kpi span { font-size: 13px; color: #888; }
+      .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+      .tab { padding: 6px 12px; border-radius: 99px; border: 1px solid #ddd; background: #fff; cursor: pointer; font-size: 13px; font-family: inherit; }
+      .tab.active { background: #007bff; border-color: #007bff; color: #fff; }
+      .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; background: #fff; border-radius: 10px; padding: 14px 16px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 14px; }
+      .filter-group { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #666; }
+      .filter-group input, .filter-group select { padding: 7px 9px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit; font-size: 13px; }
+      .card { background: #fff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+      .report-row { display: grid; grid-template-columns: 22px 110px 130px 1fr auto; gap: 10px; align-items: center; padding: 12px 16px; border-bottom: 1px solid #eee; cursor: pointer; }
+      .report-row:hover { background: #f8f9fb; }
+      .report-row:last-child { border-bottom: 0; }
+      .report-row .date { font-size: 12px; color: #888; font-variant-numeric: tabular-nums; }
+      .report-row .title { font-weight: 500; }
+      .report-row .meta { font-size: 12px; color: #888; margin-top: 2px; }
+      .report-row.archived { opacity: 0.55; }
+      .badge { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12px; white-space: nowrap; background: #eef1f5; color: #555; }
+      .badge.pending { background: #fff3e0; color: #f57c00; }
+      .badge.approved, .badge.sent, .badge.done, .badge.received { background: #e8f5e9; color: #388e3c; }
+      .badge.issued, .badge.ordered { background: #e3f2fd; color: #1976d2; }
+      .badge.dismissed, .badge.failed, .badge.cancelled { background: #ffebee; color: #c62828; }
+      .badge.superseded { background: #f1f1f1; color: #999; }
+      .kind { font-size: 12px; color: #555; }
+      .pagination { display: flex; justify-content: center; align-items: center; gap: 12px; padding: 14px; font-size: 13px; }
+      .empty-state { padding: 50px 20px; text-align: center; color: #888; font-size: 14px; line-height: 1.7; }
+      .access-denied { display: none; text-align: center; padding: 100px 20px; }
+      .access-denied h2 { margin-bottom: 10px; }
+      .access-denied a { color: #007bff; }
+      .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 100; padding: 30px 16px; overflow-y: auto; }
+      .modal.active { display: block; }
+      .modal-content { background: #fff; border-radius: 12px; max-width: 860px; margin: 0 auto; }
+      .modal-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 18px 22px; border-bottom: 1px solid #eee; }
+      .modal-header h3 { font-size: 18px; }
+      .modal-body { padding: 18px 22px; display: grid; gap: 14px; }
+      .modal-footer { padding: 14px 22px; border-top: 1px solid #eee; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+      .close-btn { background: none; border: none; font-size: 22px; cursor: pointer; color: #999; }
+      .sec h4 { font-size: 14px; margin-bottom: 6px; }
+      table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+      table.tbl th, table.tbl td { border-bottom: 1px solid #eee; padding: 6px 8px; text-align: left; vertical-align: top; }
+      table.tbl th { color: #888; font-weight: 500; font-size: 12px; }
+      .bar { position: relative; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; min-width: 80px; }
+      .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: #007bff; }
+      .bar i.over { background: #dc3545; }
+      .mini-kpis { display: flex; gap: 10px; flex-wrap: wrap; }
+      .mini-kpis div { background: #f5f7fa; border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #666; }
+      .mini-kpis b { display: block; font-size: 16px; color: #333; }
+      textarea, .modal input[type=text] { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit; font-size: 13px; }
+      textarea { min-height: 80px; resize: vertical; }
+      .muted { color: #888; font-size: 12px; }
+      .status-line { font-size: 13px; color: #666; min-height: 18px; }
+      @media (max-width: 1024px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+      @media (max-width: 768px) {
+        .sidebar { display: none; }
+        .main-content { margin-left: 0; padding: 16px; }
+        .report-row { grid-template-columns: 18px 1fr auto; }
+        .report-row .date, .report-row .kind { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="sidebar">
+      <div class="sidebar-logo">
+        <h1>다담가구</h1>
+        <span>관리자 패널</span>
+      </div>
+      <ul class="nav-menu">
+        <li><a href="index.html"><span class="nav-icon">📊</span>대시보드</a></li>
+        <li><a href="users.html"><span class="nav-icon">👥</span>회원 관리</a></li>
+        <li><a href="gallery.html"><span class="nav-icon">🖼️</span>시공사례 관리</a></li>
+        <li><a href="reference-images.html"><span class="nav-icon">🎨</span>참고 이미지</a></li>
+        <li><a href="dataset.html"><span class="nav-icon">🧠</span>학습 데이터셋</a></li>
+        <li><a href="expert-requests.html"><span class="nav-icon">⭐</span>Expert 승급 관리</a></li>
+        <li><a href="consultations.html"><span class="nav-icon">💬</span>상담 관리</a></li>
+        <li><a href="appliances.html"><span class="nav-icon">🧊</span>가전 모델 관리</a></li>
+        <li><a href="work-reports.html" class="active"><span class="nav-icon">📑</span>작업 지시 보고</a></li>
+        <li><a href="logs.html"><span class="nav-icon">📋</span>활동 로그</a></li>
+        <li><a href="settings.html"><span class="nav-icon">⚙️</span>설정</a></li>
+      </ul>
+      <div class="sidebar-footer"><a href="../index.html">← 메인 사이트로</a></div>
+    </nav>
+
+    <main class="main-content">
+      <div class="access-denied" id="accessDenied">
+        <h2>접근 권한이 없습니다</h2>
+        <p>관리자만 접근할 수 있는 페이지입니다.</p>
+        <a href="../index.html">메인 페이지로 돌아가기</a>
+      </div>
+
+      <div id="pageContent" style="display: none">
+        <header class="header">
+          <div>
+            <h2>작업 지시 보고</h2>
+            <div class="muted">생산 계획 · 인력 승인 · 아침 요약 · 작업지시서 · 외주 발주 · 월 마감을 그때 그대로 보관합니다</div>
+          </div>
+          <div class="header-actions">
+            <span class="admin-info" id="adminInfo"></span>
+            <button type="button" class="btn btn-light btn-sm" id="btnBackfill" title="이미 쌓인 생산 제안 · 작업지시서를 보관함으로 옮깁니다 (여러 번 눌러도 중복 없음)">기존 기록 옮겨 담기</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btnNewNote">메모 추가</button>
+          </div>
+        </header>
+
+        <section class="kpis" id="kpis">
+          <div class="kpi"><b id="kpiWeek">-</b><span>이번 주 지시</span></div>
+          <div class="kpi"><b id="kpiPending">-</b><span>결정 안 한 제안</span></div>
+          <div class="kpi"><b id="kpiLate">-</b><span id="kpiLateLabel">지연 예상 주문</span></div>
+          <div class="kpi"><b id="kpiCost">-</b><span>이번 달 추가 인건비</span></div>
+        </section>
+
+        <div class="tabs" id="kindTabs"></div>
+
+        <div class="filters">
+          <div class="filter-group"><label for="fFrom">기간</label><input type="date" id="fFrom" /></div>
+          <div class="filter-group"><label for="fTo">~</label><input type="date" id="fTo" /></div>
+          <div class="filter-group">
+            <label for="fStatus">상태</label>
+            <select id="fStatus">
+              <option value="">전체</option>
+              <option value="pending">결정 전</option>
+              <option value="approved">승인</option>
+              <option value="dismissed">무시</option>
+              <option value="superseded">대체됨</option>
+              <option value="issued">발행</option>
+              <option value="sent">보냄</option>
+              <option value="ordered">발주</option>
+              <option value="received">입고</option>
+            </select>
+          </div>
+          <div class="filter-group"><label for="fQ">제목 검색</label><input type="text" id="fQ" placeholder="주문번호 · 고객 · 문서번호" /></div>
+          <div class="filter-group">
+            <label for="fArchived">보관 처리</label>
+            <select id="fArchived">
+              <option value="">숨김</option>
+              <option value="1">포함</option>
+              <option value="only">보관된 것만</option>
+            </select>
+          </div>
+          <button type="button" class="btn btn-primary" id="btnSearch">검색</button>
+          <button type="button" class="btn btn-secondary" id="btnReset">초기화</button>
+        </div>
+
+        <div class="status-line" id="statusLine"></div>
+        <div class="card">
+          <div id="reportList"></div>
+          <div class="pagination">
+            <button type="button" class="btn btn-light btn-sm" id="btnPrev">이전</button>
+            <span id="pageInfo">1</span>
+            <button type="button" class="btn btn-light btn-sm" id="btnNext">다음</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <div class="modal" id="detailModal" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div><div class="kind" id="detailKind"></div><h3 id="detailTitle">보고</h3><div class="muted" id="detailMeta"></div></div>
+          <button type="button" class="close-btn" data-close="detailModal" aria-label="닫기">×</button>
+        </div>
+        <div class="modal-body" id="detailBody"></div>
+        <div class="modal-body" style="padding-top: 0">
+          <div class="sec">
+            <h4><label for="detailNote">메모</label></h4>
+            <textarea id="detailNote" maxlength="4000" placeholder="이 보고에 남길 메모"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <span class="status-line" id="detailStatus" style="margin-right: auto"></span>
+          <button type="button" class="btn btn-light" id="btnPin">📌 고정</button>
+          <button type="button" class="btn btn-light" id="btnArchive">보관 처리</button>
+          <button type="button" class="btn btn-light" id="btnPrint">인쇄 · PDF</button>
+          <button type="button" class="btn btn-primary" id="btnSaveNote">메모 저장</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="noteModal" role="dialog" aria-modal="true" aria-labelledby="noteModalTitle">
+      <div class="modal-content" style="max-width: 560px">
+        <div class="modal-header">
+          <h3 id="noteModalTitle">메모 보고 추가</h3>
+          <button type="button" class="close-btn" data-close="noteModal" aria-label="닫기">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="sec"><h4><label for="newNoteTitle">제목</label></h4><input type="text" id="newNoteTitle" maxlength="300" /></div>
+          <div class="sec"><h4><label for="newNoteBody">내용</label></h4><textarea id="newNoteBody" maxlength="4000"></textarea></div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-primary" id="btnCreateNote">추가</button></div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+
+        const KINDS = [
+          ['', '전체'],
+          ['production_plan', '생산 계획'],
+          ['staffing_decision', '인력 승인'],
+          ['daily_brief', '아침 요약'],
+          ['work_order', '작업지시서'],
+          ['installation_order', '설치 지시서'],
+          ['outsource_order', '외주 발주'],
+          ['countertop_order', '상판 발주'],
+          ['monthly_close', '월 마감'],
+          ['note', '메모'],
+        ];
+        const KIND_NAME = Object.fromEntries(KINDS.filter((k) => k[0]));
+        const STATUS_NAME = {
+          pending: '결정 전', approved: '승인', dismissed: '무시', superseded: '대체됨', issued: '발행', viewed: '열람',
+          sent: '보냄', failed: '보내기 실패', ordered: '발주', received: '입고', cancelled: '취소', instructed: '지시', done: '완료',
+        };
+        const SUGG = {
+          asm_extra: '조립 인원 추가', edge_overtime: '알바(엣지) 연장', edge_outsource: '재단+엣지 외주',
+          reschedule: '설치일 조정', door_order: '도어 발주', asm_call: '조립 기사 출근', top_order: '상판 발주',
+        };
+        const PACKS = [['cut', '재단·엣지'], ['cut-vendor', '재단·엣지 의뢰서'], ['assembly', '조립'], ['door', '도어재 발주'], ['labels', '라벨'], ['all', '전체']];
+        const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
+
+        const state = { kind: '', page: 1, hasMore: false, current: null, sb: null, session: null };
+        const $ = (id) => document.getElementById(id);
+
+        function esc(v) {
+          if (v === null || v === undefined) return '';
+          return String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+        const num = (n) => (n === null || n === undefined || n === '' || !Number.isFinite(Number(n)) ? '-' : Number(n).toLocaleString('ko-KR'));
+        const won = (n) => (n === null || n === undefined ? '-' : `${Math.round(Number(n) / 10000).toLocaleString('ko-KR')}만`);
+        function kstDay(iso) {
+          const t = iso ? new Date(iso) : new Date();
+          return new Date(t.getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+        }
+        function dayLabel(s) {
+          if (!s) return '-';
+          const d = new Date(`${String(s).slice(0, 10)}T00:00:00Z`);
+          return `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${WEEKDAY[d.getUTCDay()]})`;
+        }
+        const pct = (part) => (part && part.cap > 0 ? Math.round((part.load / part.cap) * 100) : 0);
+        const hours = (sec) => `${(Number(sec || 0) / 3600).toFixed(1)}h`;
+        function bar(part) {
+          const p = pct(part);
+          return `<div class="bar"><i class="${p > 100 ? 'over' : ''}" style="width:${Math.min(100, p)}%"></i></div><span class="muted">${esc(hours(part && part.load))} · ${esc(p)}%</span>`;
+        }
+        const badge = (status) => (status ? `<span class="badge ${esc(status)}">${esc(STATUS_NAME[status] || status)}</span>` : '');
+
+        // ── 서버 ──
+        function apiBase() {
+          return (window.DADAM_CONFIG && window.DADAM_CONFIG.workflowApi && window.DADAM_CONFIG.workflowApi.url) || '';
+        }
+        async function token() {
+          const r = await state.sb.auth.getSession();
+          return (r && r.data && r.data.session && r.data.session.access_token) || null;
+        }
+        async function api(path, opts) {
+          const o = opts || {};
+          const t = await token();
+          if (!t) throw new Error('로그인이 필요합니다.');
+          const headers = { Authorization: `Bearer ${t}` };
+          if (o.body) headers['Content-Type'] = 'application/json';
+          const res = await fetch(apiBase() + path, { method: o.method || 'GET', headers, body: o.body ? JSON.stringify(o.body) : undefined });
+          let body = null;
+          try { body = await res.json(); } catch (e) { body = null; }
+          if (!res.ok || !body || !body.success) throw new Error((body && body.message) || `요청 실패 (${res.status})`);
+          return body.data;
+        }
+        /** 인쇄 화면 — JWT 가 필요해 받아서 새 창에 쓴다. 창은 클릭 직후에 연다 (팝업 차단 회피). */
+        async function openPrint(path) {
+          const win = window.open('', '_blank');
+          if (!win) throw new Error('팝업이 차단되었습니다. 팝업을 허용해 주세요.');
+          win.document.write('<p style="font:14px sans-serif;padding:24px">인쇄 화면을 불러오는 중…</p>');
+          const t = await token();
+          const res = await fetch(apiBase() + path, { headers: { Authorization: `Bearer ${t}` } });
+          if (!res.ok) { win.close(); throw new Error(`인쇄 화면을 불러오지 못했습니다 (${res.status})`); }
+          const html = await res.text();
+          win.document.open();
+          win.document.write(html);
+          win.document.close();
+        }
+        function setStatus(id, msg, kind) {
+          const n = $(id);
+          if (!n) return;
+          n.textContent = msg || '';
+          n.style.color = kind === 'error' ? '#c62828' : kind === 'ok' ? '#2e7d32' : '#666';
+        }
+
+        // ── 목록 ──
+        function queryString() {
+          const p = new URLSearchParams();
+          if (state.kind) p.set('kind', state.kind);
+          if ($('fFrom').value) p.set('from', $('fFrom').value);
+          if ($('fTo').value) p.set('to', $('fTo').value);
+          if ($('fStatus').value) p.set('status', $('fStatus').value);
+          if ($('fQ').value.trim()) p.set('q', $('fQ').value.trim());
+          if ($('fArchived').value) p.set('archived', $('fArchived').value);
+          p.set('page', String(state.page));
+          return p.toString();
+        }
+
+        function metricsText(r) {
+          const m = r.metrics || {};
+          switch (r.kind) {
+            case 'production_plan': return `주문 ${num(m.jobs)} · 지연 ${num(m.lateBefore)}→${num(m.lateAfter)} · 추가 ${won(m.extraCost)} · 추천 ${num(m.suggestions)}`;
+            case 'staffing_decision': return `지시 ${num(m.assignments)} · ${won(m.cost)}`;
+            case 'daily_brief': return `재단 ${num(m.cut)}% · 엣지 ${num(m.edge)}% · 조립 ${num(m.asm)}%(${num(m.asmPeople)}명) · 오늘 지시 ${num(m.todays)} · 지연 ${num(m.late)}`;
+            case 'work_order': return `rev ${num(m.rev)} · 원판 ${num(m.sheets)} · 라벨 ${num(m.labels)}`;
+            case 'installation_order': return `rev ${num(m.rev)}`;
+            case 'monthly_close': return `매출 ${won(m.revenue)} · 손익 ${won(m.net)}`;
+            default: return r.note ? String(r.note).slice(0, 60) : '';
+          }
+        }
+
+        function renderList(data) {
+          const items = (data && data.items) || [];
+          state.hasMore = Boolean(data && data.hasMore);
+          $('pageInfo').textContent = String(state.page);
+          $('btnPrev').disabled = state.page <= 1;
+          $('btnNext').disabled = !state.hasMore;
+          if (!items.length) {
+            $('reportList').innerHTML = '<div class="empty-state">보고가 없습니다.<br>생산 계획 제안 · 승인 · 아침 요약 · 작업지시서 발행이 생기면 여기에 쌓입니다. 이미 있던 기록은 [기존 기록 옮겨 담기] 로 가져옵니다.</div>';
+            return;
+          }
+          $('reportList').innerHTML = items.map((r) => `
+            <div class="report-row${r.archived_at ? ' archived' : ''}" data-id="${esc(r.id)}" tabindex="0" role="button">
+              <span>${r.pinned ? '📌' : ''}</span>
+              <span class="date">${esc(dayLabel(kstDay(r.created_at)))}</span>
+              <span class="kind">${esc(KIND_NAME[r.kind] || r.kind)}</span>
+              <span><div class="title">${esc(r.title)}</div><div class="meta">${esc(metricsText(r))}</div></span>
+              <span>${badge(r.status)}</span>
+            </div>`).join('');
+          document.querySelectorAll('.report-row').forEach((row) => {
+            const open = () => guard(() => openDetail(row.getAttribute('data-id')));
+            row.addEventListener('click', open);
+            row.addEventListener('keydown', (e) => { if (e.key === 'Enter') open(); });
+          });
+        }
+
+        async function loadList() {
+          setStatus('statusLine', '불러오는 중…');
+          const data = await api(`/reports?${queryString()}`);
+          renderList(data);
+          setStatus('statusLine', data.scope === 'all' ? '전체 계정의 보고' : '내 보고', '');
+        }
+
+        async function loadSummary() {
+          const s = await api('/reports/summary');
+          $('kpiWeek').textContent = num(s.weekAssignments);
+          $('kpiPending').textContent = num(s.pendingProposals);
+          $('kpiLate').textContent = s.lateOrders === null ? '-' : num(s.lateOrders);
+          $('kpiLateLabel').textContent = s.lateAsOf ? `지연 예상 주문 (${dayLabel(s.lateAsOf)} 아침)` : '지연 예상 주문';
+          $('kpiCost').textContent = won(s.monthExtraCost);
+        }
+
+        // ── 상세 ──
+        function planHtml(r) {
+          const plan = (r.body && r.body.plan) || {};
+          const sugg = plan.suggestions || [];
+          const days = (plan.days || []).slice(0, 10);
+          const jobs = plan.jobs || [];
+          const s = plan.summary || {};
+          return `
+            <div class="mini-kpis"><div>진행 주문<b>${esc(num(s.jobs))}</b></div><div>지연 (전→후)<b>${esc(num(s.lateBefore))} → ${esc(num(s.lateAfter))}</b></div><div>추가 비용<b>${esc(won(s.extraCost))}</b></div></div>
+            <div class="sec"><h4>추천</h4><table class="tbl"><thead><tr><th>종류</th><th>내용</th><th>비용</th></tr></thead><tbody>${
+              sugg.map((x) => `<tr><td>${esc(SUGG[x.type] || x.type)}</td><td>${esc(x.text)}</td><td>${x.cost ? esc(won(x.cost)) : ''}</td></tr>`).join('') || '<tr><td colspan="3">추천 없음</td></tr>'
+            }</tbody></table></div>
+            <div class="sec"><h4>날짜별 부하</h4><table class="tbl"><thead><tr><th>날짜</th><th>재단</th><th>엣지</th><th>조립</th><th>인원</th></tr></thead><tbody>${
+              days.map((d) => `<tr><td>${esc(dayLabel(d.date))}</td><td>${bar(d.cut)}</td><td>${bar(d.edge)}</td><td>${bar(d.asm)}</td><td>${esc(num(d.asm && d.asm.people))}</td></tr>`).join('')
+            }</tbody></table></div>
+            <div class="sec"><h4>주문별 일정</h4><table class="tbl"><thead><tr><th>주문</th><th>마감</th><th>완료 예정</th><th></th></tr></thead><tbody>${
+              jobs.map((j) => `<tr><td>${esc(j.label)}</td><td>${esc(dayLabel(j.due))}</td><td>${esc(j.finish ? dayLabel(j.finish) : '범위 밖')}</td><td>${j.late ? badge('failed').replace('보내기 실패', '늦음') : ''}</td></tr>`).join('')
+            }</tbody></table></div>
+            ${r.status === 'pending' && r.source_id ? `<div><a class="btn btn-primary btn-sm" href="../production.html?p=${encodeURIComponent(r.source_id)}" target="_blank" rel="noopener">생산 계획 화면에서 승인 · 무시</a></div>` : ''}`;
+        }
+
+        function decisionHtml(r) {
+          const b = r.body || {};
+          const live = new Map((r.live || []).map((a) => [a.id, a]));
+          return `
+            ${b.reconstructed ? '<div class="muted">옛 제안에서 옮겨 담음 — 고른 추천은 지시로 재구성</div>' : ''}
+            <div class="sec"><h4>지시 <span class="muted">— 지금 상태</span></h4><table class="tbl"><thead><tr><th>날짜</th><th>지시</th><th>비용</th><th>상태</th></tr></thead><tbody>${
+              (b.assignments || []).map((a) => {
+                const now = a.id ? live.get(a.id) : null;
+                return `<tr><td>${esc(dayLabel(a.work_date))}</td><td>${esc(a.text)}</td><td>${a.cost ? esc(won(a.cost)) : ''}</td><td>${now ? badge(now.status) : ''}</td></tr>`;
+              }).join('') || '<tr><td colspan="4">지시 없음 (무시)</td></tr>'
+            }</tbody></table></div>`;
+        }
+
+        function dailyHtml(r) {
+          const b = r.body || {};
+          const d0 = b.day;
+          const late = (b.jobs || []).filter((j) => j.late || j.rescheduleTo);
+          return `
+            ${d0 ? `<table class="tbl"><thead><tr><th>재단</th><th>엣지</th><th>조립</th></tr></thead><tbody><tr><td>${bar(d0.cut)}</td><td>${bar(d0.edge)}</td><td>${bar(d0.asm)}</td></tr></tbody></table>` : '<div class="muted">오늘 공장 작업 없음</div>'}
+            <div class="sec"><h4>오늘 지시</h4><table class="tbl"><tbody>${(b.todays || []).map((a) => `<tr><td>${esc(a.text)}</td><td>${badge(a.status)}</td></tr>`).join('') || '<tr><td>없음</td></tr>'}</tbody></table></div>
+            ${late.length ? `<div class="sec"><h4>늦어질 주문</h4><table class="tbl"><tbody>${late.map((j) => `<tr><td>${esc(j.label)}</td><td>마감 ${esc(dayLabel(j.due))}</td><td>완료 ${esc(j.finish ? dayLabel(j.finish) : '범위 밖')}</td></tr>`).join('')}</tbody></table></div>` : ''}
+            <div class="muted">Slack: 대표 ${b.slack && b.slack.owner ? '보냄' : '실패'}</div>`;
+        }
+
+        function documentHtml(r) {
+          const b = r.body || {};
+          if (r.kind === 'installation_order') {
+            return `<div><button type="button" class="btn btn-light btn-sm" data-doc-print="${esc(b.document_id)}" data-pack="">설치 지시서 인쇄</button></div>`;
+          }
+          return `<div class="sec"><h4>꾸러미 인쇄</h4><div style="display:flex;gap:6px;flex-wrap:wrap">${
+            PACKS.map(([p, label]) => `<button type="button" class="btn btn-light btn-sm" data-doc-print="${esc(b.document_id)}" data-pack="${esc(p)}">${esc(label)}</button>`).join('')
+          }</div><div class="muted" style="margin-top:6px">문서번호 ${esc(b.doc_no)} · rev ${esc(num(b.rev))}</div></div>`;
+        }
+
+        function monthHtml(r) {
+          const t = (r.body && r.body.summary && r.body.summary.totals) || r.metrics || {};
+          return `<div class="mini-kpis"><div>주문<b>${esc(num(t.orders))}</b></div><div>매출<b>${esc(won(t.revenue))}</b></div><div>지출<b>${esc(won(t.cost))}</b></div><div>손익<b>${esc(won(t.net))}</b></div></div>`;
+        }
+
+        const IS_DOC = (k) => k === 'work_order' || k === 'installation_order';
+
+        async function openDetail(id) {
+          const r = await api(`/reports/${encodeURIComponent(id)}`);
+          state.current = r;
+          $('detailKind').textContent = KIND_NAME[r.kind] || r.kind;
+          $('detailTitle').textContent = r.title;
+          $('detailMeta').innerHTML = `${esc(r.period_start ? dayLabel(r.period_start) : '')}${r.period_end && r.period_end !== r.period_start ? ` ~ ${esc(dayLabel(r.period_end))}` : ''} · 기록 ${esc(kstDay(r.created_at))} ${badge(r.status)}`;
+          let html = '';
+          if (r.kind === 'production_plan') html = planHtml(r);
+          else if (r.kind === 'staffing_decision') html = decisionHtml(r);
+          else if (r.kind === 'daily_brief') html = dailyHtml(r);
+          else if (IS_DOC(r.kind)) html = documentHtml(r);
+          else if (r.kind === 'monthly_close') html = monthHtml(r);
+          else html = '';
+          $('detailBody').innerHTML = html || '<div class="muted">본문 없음</div>';
+          $('detailNote').value = r.note || '';
+          const canEdit = Boolean(r.can_edit);
+          ['detailNote', 'btnSaveNote', 'btnPin', 'btnArchive'].forEach((k) => { $(k).disabled = !canEdit; });
+          $('btnPin').textContent = r.pinned ? '📌 고정 해제' : '📌 고정';
+          $('btnArchive').textContent = r.archived_at ? '보관 해제' : '보관 처리';
+          $('btnPrint').style.display = IS_DOC(r.kind) ? 'none' : '';
+          setStatus('detailStatus', canEdit ? '' : '읽기만 할 수 있습니다 (admin 이상이 바꿉니다)');
+          $('detailBody').querySelectorAll('[data-doc-print]').forEach((btn) => {
+            btn.addEventListener('click', () => guard(() => {
+              const pack = btn.getAttribute('data-pack');
+              return openPrint(`/documents/${encodeURIComponent(btn.getAttribute('data-doc-print'))}/print${pack ? `?pack=${encodeURIComponent(pack)}` : ''}`);
+            }));
+          });
+          $('detailModal').classList.add('active');
+        }
+
+        async function patchCurrent(body, msg) {
+          const r = state.current;
+          if (!r) return;
+          const saved = await api(`/reports/${encodeURIComponent(r.id)}`, { method: 'PATCH', body });
+          state.current = { ...r, ...saved };
+          $('btnPin').textContent = state.current.pinned ? '📌 고정 해제' : '📌 고정';
+          $('btnArchive').textContent = state.current.archived_at ? '보관 해제' : '보관 처리';
+          setStatus('detailStatus', msg, 'ok');
+          await loadList();
+        }
+
+        let busy = false;
+        async function guard(fn) {
+          if (busy) return;
+          busy = true;
+          try {
+            await fn();
+          } catch (e) {
+            const where = $('detailModal').classList.contains('active') ? 'detailStatus' : 'statusLine';
+            setStatus(where, (e && e.message) || '오류가 발생했습니다', 'error');
+          } finally {
+            busy = false;
+          }
+        }
+
+        function bind() {
+          $('kindTabs').innerHTML = KINDS.map(([k, label]) => `<button type="button" class="tab${k === state.kind ? ' active' : ''}" data-kind="${esc(k)}">${esc(label)}</button>`).join('');
+          $('kindTabs').querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => {
+            state.kind = b.getAttribute('data-kind');
+            state.page = 1;
+            $('kindTabs').querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === b));
+            guard(loadList);
+          }));
+          $('btnSearch').addEventListener('click', () => { state.page = 1; guard(loadList); });
+          $('btnReset').addEventListener('click', () => {
+            resetFilters();
+            state.page = 1;
+            guard(loadList);
+          });
+          $('btnPrev').addEventListener('click', () => { if (state.page > 1) { state.page -= 1; guard(loadList); } });
+          $('btnNext').addEventListener('click', () => { if (state.hasMore) { state.page += 1; guard(loadList); } });
+          $('btnSaveNote').addEventListener('click', () => guard(() => patchCurrent({ note: $('detailNote').value }, '메모를 저장했습니다.')));
+          $('btnPin').addEventListener('click', () => guard(() => patchCurrent({ pinned: !state.current.pinned }, state.current.pinned ? '고정을 풀었습니다.' : '고정했습니다.')));
+          $('btnArchive').addEventListener('click', () => guard(() => patchCurrent({ archived: !state.current.archived_at }, state.current.archived_at ? '보관을 풀었습니다.' : '보관 처리했습니다 (목록에서 숨김 — 지우지 않습니다).')));
+          $('btnPrint').addEventListener('click', () => guard(() => openPrint(`/reports/${encodeURIComponent(state.current.id)}/print`)));
+          $('btnNewNote').addEventListener('click', () => { $('newNoteTitle').value = ''; $('newNoteBody').value = ''; $('noteModal').classList.add('active'); });
+          $('btnCreateNote').addEventListener('click', () => guard(async () => {
+            const title = $('newNoteTitle').value.trim();
+            if (!title) throw new Error('제목을 적어 주세요.');
+            await api('/reports', { method: 'POST', body: { title, note: $('newNoteBody').value } });
+            $('noteModal').classList.remove('active');
+            setStatus('statusLine', '메모 보고를 추가했습니다.', 'ok');
+            await loadList();
+          }));
+          $('btnBackfill').addEventListener('click', () => guard(async () => {
+            if (!window.confirm('이미 쌓인 생산 제안 · 작업지시서를 보관함으로 옮깁니다. 여러 번 눌러도 중복되지 않습니다. 진행할까요?')) return;
+            setStatus('statusLine', '옮겨 담는 중…');
+            const c = await api('/admin/reports/backfill', { method: 'POST' });
+            setStatus('statusLine', `옮겨 담음 — 생산 계획 ${c.proposals} · 인력 승인 ${c.decisions} · 문서 ${c.documents} (이미 있음 ${c.skipped})`, 'ok');
+            await Promise.all([loadList(), loadSummary()]);
+          }));
+          document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => $(b.getAttribute('data-close')).classList.remove('active')));
+          document.querySelectorAll('.modal').forEach((m) => m.addEventListener('click', (e) => { if (e.target === m) m.classList.remove('active'); }));
+        }
+
+        function resetFilters() {
+          const today = kstDay();
+          const d = new Date(`${today}T00:00:00Z`);
+          $('fFrom').value = new Date(d.getTime() - 30 * 86400000).toISOString().slice(0, 10);
+          $('fTo').value = today;
+          $('fStatus').value = '';
+          $('fQ').value = '';
+          $('fArchived').value = '';
+        }
+
+        function showAccessDenied() {
+          $('accessDenied').style.display = 'block';
+          $('pageContent').style.display = 'none';
+        }
+
+        async function init() {
+          if (!window.supabase || !window.DADAM_CONFIG || !window.DADAM_CONFIG.supabase) return showAccessDenied();
+          const { url, anonKey } = window.DADAM_CONFIG.supabase;
+          state.sb = window.supabase.createClient(url, anonKey);
+          const { data: { session } } = await state.sb.auth.getSession();
+          if (!session) return showAccessDenied();
+          const isAdmin = window.AdminAccess ? await window.AdminAccess.isAdmin(state.sb) : false;
+          if (!isAdmin) return showAccessDenied();
+          state.session = session;
+          $('adminInfo').textContent = (session.user && session.user.email) || '';
+          $('pageContent').style.display = 'block';
+          resetFilters();
+          bind();
+          if (!apiBase()) {
+            setStatus('statusLine', '업무 서버(workflowApi.url)가 설정되지 않았습니다.', 'error');
+            return;
+          }
+          await guard(async () => { await Promise.all([loadList(), loadSummary()]); });
+        }
+
+        window.WorkReports = { init, esc, metricsText, dayLabel };
+        if (!window.__WORK_REPORTS_NO_AUTOSTART) {
+          if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+          else init();
+        }
+      })();
+    </script>
+  </body>
+</html>
