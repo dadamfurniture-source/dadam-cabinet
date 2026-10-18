@@ -237,3 +237,55 @@ describe('차단 게이트 두 곳 모두 관리자를 통과시킨다', () => {
     });
   });
 });
+
+describe('역할 캐시 — isAdmin 이 남긴 캐시가 getRole 을 막지 않는다 (2026-10-19 가전 모델 관리 차단)', () => {
+  function roleClient(role, calls) {
+    calls.roleQueries = 0;
+    return {
+      auth: { getSession: async () => ({ data: { session: { user: { id: 'u1' } } } }) },
+      rpc: async () => ({ data: true, error: null }),
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            maybeSingle: async () => {
+              calls.roleQueries++;
+              return { data: role ? { role } : null, error: null };
+            },
+          }),
+        }),
+      }),
+    };
+  }
+
+  test('대시보드(isAdmin) → 가전 모델(getRole): 역할을 DB 에서 읽는다', async () => {
+    const win = loadModule(ADMIN, makeWindow());
+    const calls = {};
+    const sb = roleClient('super_admin', calls);
+    expect(await win.AdminAccess.isAdmin(sb)).toBe(true);
+    expect(await win.AdminAccess.getRole(sb, 'u1')).toBe('super_admin');
+    expect(calls.roleQueries).toBe(1);
+    // 한 번 읽은 역할은 캐시 — 다시 묻지 않는다, isAdmin 을 다시 불러도 역할이 지워지지 않는다
+    expect(await win.AdminAccess.isAdmin(sb)).toBe(true);
+    expect(await win.AdminAccess.getRole(sb, 'u1')).toBe('super_admin');
+    expect(calls.roleQueries).toBe(1);
+  });
+
+  test('역할이 없는 사용자는 읽은 뒤에 null 로 캐시', async () => {
+    const win = loadModule(ADMIN, makeWindow());
+    const calls = {};
+    const sb = roleClient(null, calls);
+    expect(await win.AdminAccess.getRole(sb, 'u1')).toBe(null);
+    expect(await win.AdminAccess.getRole(sb, 'u1')).toBe(null);
+    expect(calls.roleQueries).toBe(1);
+  });
+});
+
+describe('가전 모델 관리 — 들어오기는 관리자 전원, 바꾸기는 admin · super_admin', () => {
+  const AP = read('admin/appliances.html');
+  test('입장은 isAdmin, 수정 버튼은 역할로', () => {
+    expect(AP).toMatch(/const isAdmin = window\.AdminAccess \? await window\.AdminAccess\.isAdmin\(supabaseClient\) : false;\s*if \(!isAdmin\) \{\s*showAccessDenied\(\);/);
+    expect(AP).toContain("canEdit = ['admin', 'super_admin'].includes(role);");
+    expect(AP).toContain('${canEdit ? `');
+    expect(AP).toContain('id="readOnlyNote"');
+  });
+});
