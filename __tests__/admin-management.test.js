@@ -40,6 +40,14 @@ const SUMMARY = {
     { tier: 'partner', label: '거래처<img src=x onerror=alert(1)>', orders: 1, revenue: 1100000, contribution: 100000, cmRate: 9.1, factoryHours: 3, perHour: 33333 },
   ],
   basis: { revenue: 'VAT 제외 계약금', cost: '확인서 견적 원가 (고정비 회수분 제외)', overhead: 2000000, settingsSource: 'latest' },
+  funnel: {
+    leads: 3, issued: 4, viewed: 3, approved: 1, ordered: 1, rejected: 1, pending: 1,
+    conversion: 25, viewRate: 75, orderRate: 100, avgRevisions: 1.3, medianHoursToView: 6, medianDaysToDecide: 3.5,
+  },
+  platform: {
+    value: { generations: 3, failed: 1, failRate: 25, people: 2, consultedPeople: 1, designs: 2, confirmed: 1, ordered: 1 },
+    prev: { generations: 1, failed: 0, failRate: 0, people: 1, consultedPeople: 0, designs: 1, confirmed: 1, ordered: 1 },
+  },
 };
 
 function fakeApi({ admin = true, data = SUMMARY, status = 200 } = {}) {
@@ -197,5 +205,67 @@ describe('달 바꾸기 · 오류', () => {
     await window.Management.init();
     await settle();
     expect(text('statusLine')).toBe('경영 대시보드는 관리자만 볼 수 있습니다');
+  });
+});
+
+describe('고객 줄 (PR-2)', () => {
+  const stages = (id) => [...document.querySelectorAll(`#${id} .stage`)].map((r) => [...r.children].map((c) => c.textContent.trim()));
+
+  test('영업 퍼널: 발행 → 열람 → 승인 → 수주, 발행 대비 비율 · 막대', async () => {
+    boot(fakeApi());
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('rowCustomer').hidden).toBe(false);
+    expect(stages('funnelBody').map((r) => [r[0], r[2], r[3]])).toEqual([
+      ['발행', '4건', '100%'], ['열람', '3건', '75%'], ['승인', '1건', '25%'], ['수주', '1건', '25%'],
+    ]);
+    expect(document.querySelector('#funnelBody .stage:nth-child(3) .fill').style.width).toBe('75%');
+    const body = text('funnelBody');
+    expect(body).toMatch(/이달 상담 신청 3건/);
+    expect(body).toMatch(/확인서 평균 수정 1.3회/);
+    expect(body).toMatch(/첫 열람까지 중간 6시간/);
+    expect(body).toMatch(/결정까지 중간 3.5일/);
+    expect(body).toMatch(/결정 대기 1건 · 거절 1건/);
+  });
+
+  test('AI 플랫폼: 연출컷 → 설계 → 확인서 → 수주, 사람 · 실패 · 지난 달', async () => {
+    boot(fakeApi());
+    await window.Management.init();
+    await settle();
+    expect(stages('platformBody').map((r) => [r[0], r[2], r[3]])).toEqual([
+      ['연출컷', '3건', '100%'], ['설계', '2건', '66.7%'], ['확인서', '1건', '33.3%'], ['수주', '1건', '33.3%'],
+    ]);
+    const body = text('platformBody');
+    expect(body).toMatch(/연출컷 만든 사람 2명 · 그중 상담 신청 1명/);
+    expect(body).toMatch(/만들다 실패 1건 \(25%\)/);
+    expect(body).toMatch(/지난 달 연출컷 1건 → 수주 1건/);
+  });
+
+  test('비어 있는 달 · 못 읽은 기록은 지어내지 않고 말한다', async () => {
+    const data = { ...SUMMARY, funnel: { ...SUMMARY.funnel, issued: 0, leads: null }, platform: { value: null, prev: null } };
+    boot(fakeApi({ data }));
+    await window.Management.init();
+    await settle();
+    expect(text('funnelBody')).toMatch(/상담 기록을 읽지 못했습니다/);
+    expect(text('funnelBody')).toMatch(/이달 처음 나간 확인서가 없습니다/);
+    expect(text('platformBody')).toBe('연출컷 기록을 읽지 못했습니다.');
+  });
+
+  test('막대는 블록이어야 그려진다 — span 에 너비만 주면 jsdom 에선 통과해도 화면엔 빈 막대다', () => {
+    // jsdom 은 배치를 계산하지 않는다. 실제로 막대가 비어 보였던 것을 CSS 로 못박는다.
+    expect(HTML).toMatch(/\.stage \.track \{ display: block;/);
+    expect(HTML).toMatch(/\.stage \.fill \{ display: block;/);
+    expect(HTML).toMatch(/\[hidden\] \{ display: none !important; \}/);
+  });
+
+  test('워커가 아직 옛 판이면(퍼널이 없으면) 고객 줄을 숨긴다', async () => {
+    const data = { ...SUMMARY };
+    delete data.funnel;
+    delete data.platform;
+    boot(fakeApi({ data }));
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('rowCustomer').hidden).toBe(true);
+    expect(text('tree')).toMatch(/이익 식/); // 나머지는 그대로 그린다
   });
 });

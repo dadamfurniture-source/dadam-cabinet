@@ -485,16 +485,16 @@
 <!-- 플래너 공통 모듈 — 배치·구조 두 단계가 같은 정본을 본다.
      클래식 스크립트이므로 아래 인라인보다 **먼저** 실행되어야 하고,
      여기서 선언한 이름을 인라인이 다시 선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-category-picker.js?v=39.5"></script>
-<script src="js/planner/planner-scope.js?v=39.5"></script>
-<script src="js/planner/planner-view.js?v=39.5"></script>
-<script src="js/planner/planner-sections.js?v=39.5"></script>
+<script src="js/planner/planner-category-picker.js?v=40.5"></script>
+<script src="js/planner/planner-scope.js?v=40.5"></script>
+<script src="js/planner/planner-view.js?v=40.5"></script>
+<script src="js/planner/planner-sections.js?v=40.5"></script>
 <!-- W12-71: 배치 도면을 계정에도 한 벌 남긴다. 불러오기 UI 는 구조 단계에 있다.
      셋이 없어도 배치는 그대로 돈다 — PlannerStore 가 localStorage 로 물러난다. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-<script src="js/config.js?v=39.5"></script>
-<script src="js/planner/planner-store.js?v=39.5"></script>
-<script src="js/planner/planner-drawing-menu.js?v=39.5"></script>
+<script src="js/config.js?v=40.5"></script>
+<script src="js/planner/planner-store.js?v=40.5"></script>
+<script src="js/planner/planner-drawing-menu.js?v=40.5"></script>
 
 <script>
   const lt = document.getElementById('leftTools'), btnL = document.getElementById('btnLeft');
@@ -2514,7 +2514,10 @@
       // 2026-10-12: 설치 여유 칸(side_gap_mm·top_gap_mm)을 함께 읽는다. DB 에 칸이 아직 없으면
       //   (database/appliance-models-install-gaps.sql 적용 전) 400 이 오므로 예전 칸만 다시 읽는다 —
       //   그때는 fridgeGapsOf 가 브랜드 라인 기본값을 쓴다.
-      let res = await fetch(`${base},side_gap_mm,top_gap_mm`, { headers });
+      // 2026-10-19: 냉장고 대량 수집 칸(subtype · line · model_codes · back_gap_mm, appliance-models-catalog.sql)도
+      //   읽는다. 칸이 없으면 한 단계씩 줄여 다시 읽는다.
+      let res = await fetch(`${base},side_gap_mm,top_gap_mm,subtype,line,model_codes&order=brand,model_name`, { headers });
+      if (!res.ok) res = await fetch(`${base},side_gap_mm,top_gap_mm`, { headers });
       if (!res.ok) res = await fetch(base, { headers });
       if (!res.ok) return null;
       const rows = await res.json();
@@ -2529,6 +2532,9 @@
         notes:    r.notes,
         sideGap:  r.side_gap_mm,   // 2026-10-12 — 비어 있으면 fridgeGapsOf 가 기본값
         topGap:   r.top_gap_mm,
+        subtype:  r.subtype || null,           // 2026-10-19 — 4도어 · 김치 스탠드 · 와인 …
+        line:     r.line || null,
+        codes:    Array.isArray(r.model_codes) ? r.model_codes : [],  // 색상 변형 코드로도 찾는다
       }));
     } catch (e) {
       console.warn('[appliance_models] fetch 실패, fallback 사용:', e);
@@ -2549,12 +2555,21 @@
   const modelListEl     = document.getElementById('modelList');
   const closeModelBtn   = document.getElementById('closeModelModal');
 
+  /** appliance_models.subtype → 화면 이름 (admin/appliances.html FRIDGE_SUBTYPES 와 같다) */
+  const FRIDGE_SUBTYPE_LABEL = {
+    french_4door: '4도어', side_by_side: '양문형', two_door: '일반 2도어', one_door: '1도어',
+    built_in: '빌트인', kimchi_stand: '김치 스탠드', kimchi_lid: '김치 뚜껑형', wine: '와인셀러', small: '소형',
+  };
+
   function renderModelList(query) {
     const q = (query || '').trim().toLowerCase();
     const filtered = q
       ? REFRIGERATOR_MODELS.filter(m =>
           m.name.toLowerCase().includes(q) ||
-          m.brand.toLowerCase().includes(q))
+          m.brand.toLowerCase().includes(q) ||
+          (m.line || '').toLowerCase().includes(q) ||
+          (FRIDGE_SUBTYPE_LABEL[m.subtype] || '').includes(q) ||
+          (m.codes || []).some(c => String(c).toLowerCase().includes(q)))
       : REFRIGERATOR_MODELS;
     if (!filtered.length) {
       modelListEl.innerHTML = '<div class="model-empty">검색 결과 없음</div>';
@@ -2564,7 +2579,7 @@
       <button class="model-item" type="button" data-idx="${REFRIGERATOR_MODELS.indexOf(m)}">
         <div class="m-brand">${m.brand} ${m.verified ? '<span class="m-verified" title="제조사 공식 사양">✓ 검증</span>' : '<span class="m-unverified" title="표준 치수 추정 — 공식 사양 확인 권장">⚠ 표준</span>'}</div>
         <div class="m-name">${m.name}</div>
-        <div class="m-dim">W ${m.w} × D ${m.d} × H ${m.h} mm</div>
+        <div class="m-dim">W ${m.w} × D ${m.d} × H ${m.h} mm${m.subtype || m.line ? ` · ${[FRIDGE_SUBTYPE_LABEL[m.subtype], m.line].filter(Boolean).join(' · ')}` : ''}</div>
       </button>
     `).join('');
   }
