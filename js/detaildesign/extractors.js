@@ -2880,6 +2880,8 @@
           bomSimpleHingeDoorsOf, bomSimpleDepthOf, bomSimpleRailLenOf,
           // 2026-10-13 플랩 가스쇼바 — 규격표·자동 선택
           BOM_GAS_STRUTS, bomGasStrutFor,
+          // 2026-10-18 사전 오류 검사(bom-preflight.js)가 컵 간격 문턱을 여기서 읽는다
+          BOM_HINGE_MIN_GAP,
         };
       }
 
