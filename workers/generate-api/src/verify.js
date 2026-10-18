@@ -235,6 +235,12 @@ export function compareLayoutToSpec(layout, spec, category) {
       parts.shape = planner.shape === planner.planShape ? 1 : 0;
       if (!parts.shape) issues.push(`shape: expected ${planner.planShape}, read ${planner.shape}`);
     }
+    // 7) 후드 칸 (2026-10-19) — 도면이 상부장 사이에 둔 후드 자리(H1 …)에 장을 지었으면 도면 위반이다 (ok 도 막는다).
+    //    읽힌 후드 칸 중 장(cabinet)으로 보이지 않은 몫. 후드가 안 보여도(open·missing) 장이 없으면 지킨 것으로 본다.
+    const hoods = planner.units.filter((u) => u.expected && u.expected.seen === 'hood' && u.seen !== 'unread');
+    if (hoods.length) {
+      parts.hood = hoods.filter((u) => u.seen !== 'cabinet').length / hoods.length;
+    }
     // 모듈별 어긋남 · 도면 밖 덤 유닛 — 이슈로만 (점수·ok 는 위 총수가 본다)
     got.units = planner.units.map((u) => ({ id: u.id, seen: u.seen, doors: u.doors, drawers: u.drawers }));
     got.extraUnits = planner.extraUnits;
@@ -258,7 +264,8 @@ export function compareLayoutToSpec(layout, spec, category) {
     && (parts.order == null || parts.order >= 0.99)
     && (parts.counts == null || parts.counts >= 0.75)
     && (parts.appliances == null || parts.appliances >= 0.99)
-    && (parts.shape == null || parts.shape >= 0.99);
+    && (parts.shape == null || parts.shape >= 0.99)
+    && (parts.hood == null || parts.hood >= 0.99);
 
   return {
     version: VERIFY_VERSION,
