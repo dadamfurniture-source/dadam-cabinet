@@ -137,7 +137,7 @@ export async function getReport(env, { user, id }) {
       live = (await selectMany(env, 'production_assignments', {
         proposal_id: `eq.${row.source_id}`, select: 'id,work_date,status,done_at', order: 'work_date.asc', limit: '200',
       })) || [];
-    } catch (err) {
+    } catch {
       live = null;
     }
   }
@@ -214,7 +214,8 @@ export async function backfillReports(env, { user }) {
 
   const proposals = await pageAll(env, 'production_proposals', { select: '*', order: 'created_at.asc' });
   for (const p of proposals) {
-    (await recordReport(env, reportFromProposal(p))) ? counts.proposals++ : counts.skipped++;
+    if (await recordReport(env, reportFromProposal(p))) counts.proposals++;
+    else counts.skipped++;
     if (p.status === 'approved' || p.status === 'dismissed') {
       const assignments = p.status === 'approved'
         ? (await selectMany(env, 'production_assignments', { proposal_id: `eq.${p.id}`, select: '*', order: 'work_date.asc', limit: '500' })) || []
@@ -228,7 +229,8 @@ export async function backfillReports(env, { user }) {
         decidedAt: p.decided_at || p.created_at,
         reconstructed: true,
       });
-      (await recordReport(env, row)) ? counts.decisions++ : counts.skipped++;
+      if (await recordReport(env, row)) counts.decisions++;
+      else counts.skipped++;
     }
   }
 
@@ -253,7 +255,8 @@ export async function backfillReports(env, { user }) {
       const ownerId = owners.get(doc.design_id);
       if (!ownerId) { counts.skipped++; continue; }
       const row = reportFromDocument(doc, { ownerId, orderIds: ordersByDesign.get(doc.design_id) || [] });
-      (await recordReport(env, row)) ? counts.documents++ : counts.skipped++;
+      if (await recordReport(env, row)) counts.documents++;
+      else counts.skipped++;
     }
   }
   return counts;
@@ -267,7 +270,7 @@ export async function recordDocumentIssued(env, { user, doc }) {
   let orderIds = [];
   try {
     orderIds = ((await selectMany(env, 'orders', { design_id: `eq.${doc.design_id}`, select: 'id', limit: '50' })) || []).map((o) => o.id);
-  } catch (err) {
+  } catch {
     orderIds = [];
   }
   await safeSyncStatus(env, {
