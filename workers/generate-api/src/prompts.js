@@ -1528,6 +1528,9 @@ function plannerUncovered(a, b, covers) {
   return out.filter(([s, e]) => e - s > PLANNER_TOL_MM);
 }
 
+/** 2026-10-19: 빈 구역으로 세지 않는 틈 (mm) — 마감재(EP·몰딩·휠라·비움) 한 장 폭. 이보다 넓어야 빈 벽이다. */
+const PLANNER_FINISH_GAP_MM = 50;
+
 /**
  * 높이 층(벽장 높이·바닥 높이)마다 런 폭 안에서 아무 줄도 덮지 않는 구간 → 빈 구역 문장.
  * 붙박이장(한 줄)은 층이 없다.
@@ -1546,6 +1549,9 @@ function plannerLevelZones(rows, ref, runStart, runEnd) {
     const on = rows.filter((r) => lv.keys.includes(r.key));
     const items = on.flatMap((r) => r.items);
     for (const [a, b] of plannerUncovered(runStart, runEnd, on.map(span))) {
+      // 2026-10-19: 마감재 폭만큼의 틈(EP 20 · 휠라 50 이하 — 모듈이 아니라 런 폭에만 든다)은 빈 구역이 아니다.
+      //   실측 프롬프트에 "20 mm — no wall unit / no base unit" 같은 줄이 생겨 빈 구역 수만 부풀렸다. 줄이 아예 없는 층은 그대로 말한다.
+      if (on.length && b - a <= PLANNER_FINISH_GAP_MM) continue;
       // 기준 줄이 다른 층이면 그 위(아래)의 모듈 이름으로 자리를 짚는다
       const over = lv.keys.includes(ref.key)
         ? []
