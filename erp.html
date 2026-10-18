@@ -149,6 +149,33 @@
             <tbody id="costRows"></tbody>
           </table>
         </div>
+
+        <div style="font-weight: 600; margin: 18px 0 8px">재작업 · A/S</div>
+        <div id="reworkNeedSql" class="muted" hidden>
+          재작업 · A/S 기록 칸이 아직 없습니다. Supabase 에서 database/management-phase2.sql 을 실행하면 여기서 적을 수 있습니다.
+        </div>
+        <div id="reworkForm">
+          <div class="row">
+            <select id="selReworkKind" aria-label="종류"></select>
+            <select id="selReworkCause" aria-label="원인"></select>
+            <input id="inpReworkDate" type="date" aria-label="날짜" />
+            <input id="inpReworkMin" type="number" min="0" step="10" placeholder="다시 한 분" style="width: 110px" />
+            <input id="inpReworkCost" type="number" min="0" step="1000" placeholder="비용 (부재 · 외주)" style="width: 140px" />
+          </div>
+          <div class="row" style="margin-top: 6px">
+            <input id="inpReworkParts" type="text" placeholder="다시 만든 부재 (예: 상부장 도어 2장)" style="min-width: 220px" />
+            <input id="inpReworkMemo" type="text" placeholder="메모" style="min-width: 200px" />
+            <button type="button" class="primary" id="btnAddRework">기록</button>
+          </div>
+          <div class="scroll" style="margin-top: 10px">
+            <table>
+              <thead>
+                <tr><th>날짜</th><th>종류</th><th>원인</th><th class="num">분</th><th class="num">비용</th><th>부재 · 메모</th><th></th></tr>
+              </thead>
+              <tbody id="reworkRows"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -170,6 +197,12 @@
         var COST_LABELS = {
           material: '자재', hardware: '부자재', labor: '노무',
           outsourcing: '외주', logistics: '물류', other: '기타',
+        };
+        // 재작업 · A/S — 워커 rework.js 와 같은 축 (경영 대시보드 품질비용 · A/S 율의 재료)
+        var REWORK_KIND_LABELS = { rework: '재작업 (공장)', as: 'A/S (설치 뒤)' };
+        var REWORK_CAUSE_LABELS = {
+          measure: '실측', design: '설계', cutting: '재단', edge: '엣지', assembly: '조립',
+          install: '설치', material: '자재 불량', outsource: '외주 불량', customer: '고객 변경', other: '기타',
         };
         // 수주 구분 — 같은 원가라도 거래처(인테리어 업체)에는 × 1.1, 고객에게는 × 1.2 (2026-10-19 대표)
         var TIER_LABELS = { customer: '고객', partner: '거래처' };
@@ -351,6 +384,7 @@
             var row = state.orders.find(function (o) { return o.id === orderId; });
             if (row) { row._cost_total = state.detail.margin.cost_total; renderOrders(); }
             renderDetail();
+            renderReworks();
           } catch (e) { fail(e.message); }
         }
 
@@ -362,6 +396,75 @@
             await api('/orders/' + encodeURIComponent(state.current), { method: 'PATCH', body: patch });
             note('수주 정보를 저장했습니다.');
             await load();
+            await open(state.current);
+          } catch (e) { fail(e.message); }
+        }
+
+        function renderReworks() {
+          var d = state.detail;
+          if (!d) return;
+          // 표가 아직 없으면(2단계 SQL 전) 워커가 null 을 준다 — 입력칸 대신 안내
+          var missing = d.reworks === null || d.reworks === undefined;
+          el('reworkNeedSql').hidden = !missing;
+          el('reworkForm').hidden = missing;
+          if (missing) return;
+          if (!el('selReworkKind').options.length) {
+            el('selReworkKind').innerHTML = Object.keys(REWORK_KIND_LABELS)
+              .map(function (k) { return '<option value="' + k + '">' + REWORK_KIND_LABELS[k] + '</option>'; }).join('');
+            el('selReworkCause').innerHTML = Object.keys(REWORK_CAUSE_LABELS)
+              .map(function (k) { return '<option value="' + k + '">' + REWORK_CAUSE_LABELS[k] + '</option>'; }).join('');
+          }
+          var tb = el('reworkRows');
+          if (!d.reworks.length) {
+            tb.innerHTML = '<tr><td colspan="7" class="muted">적은 재작업 · A/S 가 없습니다.</td></tr>';
+            return;
+          }
+          tb.innerHTML = d.reworks
+            .map(function (r) {
+              var note = [r.parts, r.memo].filter(Boolean).join(' · ');
+              return (
+                '<tr>' +
+                '<td>' + esc(r.occurred_on || '-') + '</td>' +
+                '<td>' + esc(REWORK_KIND_LABELS[r.kind] || r.kind) + '</td>' +
+                '<td>' + esc(REWORK_CAUSE_LABELS[r.cause] || r.cause) + '</td>' +
+                '<td class="num">' + (r.minutes === null ? '-' : esc(r.minutes)) + '</td>' +
+                '<td class="num">' + (r.cost === null ? '-' : krw(r.cost)) + '</td>' +
+                '<td>' + esc(note || '-') + '</td>' +
+                '<td><button type="button" data-del-rework="' + esc(r.id) + '">삭제</button></td>' +
+                '</tr>'
+              );
+            })
+            .join('');
+          tb.querySelectorAll('[data-del-rework]').forEach(function (b) {
+            b.addEventListener('click', function () { removeRework(b.getAttribute('data-del-rework')); });
+          });
+        }
+
+        async function addRework() {
+          if (!state.current) return;
+          try {
+            await api('/orders/' + encodeURIComponent(state.current) + '/reworks', {
+              method: 'POST',
+              body: {
+                kind: el('selReworkKind').value,
+                cause: el('selReworkCause').value,
+                occurred_on: el('inpReworkDate').value || null,
+                minutes: el('inpReworkMin').value === '' ? null : Number(el('inpReworkMin').value),
+                cost: el('inpReworkCost').value === '' ? null : Number(el('inpReworkCost').value),
+                parts: el('inpReworkParts').value,
+                memo: el('inpReworkMemo').value,
+              },
+            });
+            ['inpReworkMin', 'inpReworkCost', 'inpReworkParts', 'inpReworkMemo'].forEach(function (id) { el(id).value = ''; });
+            note('재작업 · A/S 를 기록했습니다.');
+            await open(state.current);
+          } catch (e) { fail(e.message); }
+        }
+
+        async function removeRework(reworkId) {
+          if (!state.current) return;
+          try {
+            await api('/orders/' + encodeURIComponent(state.current) + '/reworks/' + encodeURIComponent(reworkId), { method: 'DELETE' });
             await open(state.current);
           } catch (e) { fail(e.message); }
         }
@@ -406,6 +509,7 @@
         });
         el('btnSaveOrder').addEventListener('click', saveOrder);
         el('btnAddCost').addEventListener('click', addCost);
+        el('btnAddRework').addEventListener('click', addRework);
 
         if (!API) {
           fail('업무 루프 서버(workflowApi.url)가 설정되지 않았습니다.');

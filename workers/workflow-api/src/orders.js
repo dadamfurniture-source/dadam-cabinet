@@ -159,7 +159,7 @@ export async function listOrders(env, { user, designId }) {
   return selectOrders(env, query);
 }
 
-async function loadOwnedOrder(env, orderId, user) {
+export async function loadOwnedOrder(env, orderId, user) {
   const order = await selectOne(env, 'orders', { id: `eq.${orderId}`, select: '*' });
   if (!order) throw new NotFoundError('수주를 찾을 수 없습니다');
   await assertDesignOwner(env, order.design_id, user.id);

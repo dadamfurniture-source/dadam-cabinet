@@ -75,6 +75,7 @@ import {
   addCost,
   deleteCost,
 } from './orders.js';
+import { listReworks, addRework, deleteRework } from './rework.js';
 import {
   createSchedules,
   listSchedules,
@@ -520,7 +521,20 @@ async function handleListOrders(request, env, { user }) {
 
 async function handleGetOrder(request, env, { params, user }) {
   const data = await getOrder(env, { orderId: params.orderId, user });
+  // 재작업 · A/S — 표가 아직 없으면(2단계 SQL 전) null 이고 화면이 안내를 띄운다
+  data.reworks = await listReworks(env, params.orderId);
   return jsonResponse(request, env, { success: true, data });
+}
+
+async function handleAddRework(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  const row = await addRework(env, { orderId: params.orderId, user, body });
+  return jsonResponse(request, env, { success: true, data: row }, 201);
+}
+
+async function handleDeleteRework(request, env, { params, user }) {
+  const out = await deleteRework(env, { orderId: params.orderId, reworkId: params.reworkId, user });
+  return jsonResponse(request, env, { success: true, data: out });
 }
 
 async function handleUpdateOrder(request, env, { params, user, ctx }) {
@@ -636,6 +650,8 @@ const router = createRouter([
   { method: 'PATCH',  path: '/orders/:orderId',             auth: 'jwt', handler: handleUpdateOrder },
   { method: 'POST',   path: '/orders/:orderId/costs',       auth: 'jwt', handler: handleAddCost },
   { method: 'DELETE', path: '/orders/:orderId/costs/:costId', auth: 'jwt', handler: handleDeleteCost },
+  { method: 'POST',   path: '/orders/:orderId/reworks',     auth: 'jwt', handler: handleAddRework },
+  { method: 'DELETE', path: '/orders/:orderId/reworks/:reworkId', auth: 'jwt', handler: handleDeleteRework },
 
   // 생산 계획 · 인력 추천 (주문이 들어오면 자동 제안 → 대표 승인 → 작업자 지시)
   { method: 'GET',  path: '/production/plan',                          auth: 'jwt', handler: handleGetProductionPlan },
