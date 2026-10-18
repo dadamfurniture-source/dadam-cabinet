@@ -219,6 +219,31 @@ async function setStep(env, job, ck, step, extra = {}) {
   });
 }
 
+/**
+ * 사람이 알려준 급수(싱크)·배기(후드) 위치를 벽 폭 기준 %로 바꿔 넣는다.
+ *
+ * 벽 밖이거나 숫자가 아니면 무시한다 — 잘못 친 값으로 가구를 옮기는 것보다
+ * 모델이 읽은 값(또는 기본값)을 쓰는 편이 낫다.
+ * pct 와 같은 5~95 범위로 자른다 (벽 끝에 붙은 싱크는 없다).
+ *
+ * @param {{wallW:number, waterPct:number, exhaustPct:number, read?:object}} wall
+ * @param {{water_from_left_override?:number, exhaust_from_left_override?:number}} opts
+ */
+export function applyManualPlumbing(wall, opts = {}) {
+  const put = (key, flag) => {
+    const mm = Number(opts[`${key}_from_left_override`]);
+    if (!(mm > 0) || mm > wall.wallW) return false;
+    const p = Math.max(5, Math.min(95, Math.round((mm / wall.wallW) * 100)));
+    wall[`${key === 'water' ? 'water' : 'exhaust'}Pct`] = p;
+    if (wall.read) wall.read[flag] = true;
+    return true;
+  };
+  const w = put('water', 'water');
+  const e = put('exhaust', 'exhaust');
+  if (w || e) wall.confidence = 'user';
+  return { water: w, exhaust: e };
+}
+
 async function runPipeline(env, job, ck, save) {
   const opts = job.options || {};
   const inputs = job.inputs || {};
@@ -297,6 +322,10 @@ async function runPipeline(env, job, ck, save) {
       wall.confidence = 'user';
       if (wall.read) wall.read.width = true;   // 사람이 넣은 값이다 — 추측이 아니다
     }
+    // 급수·배기는 사진에서 자주 못 읽는다 (시공 전 828장 실측: 급수 56% · 배기 48% 만 읽음).
+    // 못 읽으면 30% · 70% 로 **추측해서 배치**되므로, 현장에서 잰 값이 있으면 그게 이긴다.
+    // 벽 왼쪽 끝에서 중심까지의 mm 를 받아 벽 폭 기준 %로 바꾼다 — 벽 폭 보정 뒤에 둬야 한다.
+    applyManualPlumbing(wall, opts);
     ck.wall = wall;
     await save({ wall });
     await updateById(env, 'generations', job.id, { wall_analysis: wall });

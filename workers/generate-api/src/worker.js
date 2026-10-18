@@ -19,6 +19,7 @@ import { callGemini, geminiModel, probeRoutes } from './gemini.js';
 import { proxyStub } from './proxy.js';
 import {
   DEFAULT_STYLE,
+  KITCHEN_CATEGORIES,
   STYLES,
   buildChatPrompt,
   cleanChatReply,
@@ -293,6 +294,8 @@ async function createGeneration(request, env, headers) {
     door_color = 'white',
     door_finish = 'matte',
     wall_width_override,
+    water_from_left_override,
+    exhaust_from_left_override,
     fridge_options = {},
     design_spec,
     realize,
@@ -342,6 +345,9 @@ async function createGeneration(request, env, headers) {
     door_color,
     door_finish,
     wall_width_override: Number(wall_width_override) || null,
+    // 급수·배기는 주방 품목에서만 뜻이 있다 — 붙박이장 요청에 실려 와도 버린다
+    water_from_left_override: KITCHEN_CATEGORIES.includes(category) ? Number(water_from_left_override) || null : null,
+    exhaust_from_left_override: KITCHEN_CATEGORIES.includes(category) ? Number(exhaust_from_left_override) || null : null,
     fridge_options: category === 'fridge' ? fridge_options : null,
     // 플래너 도면 요약 — 없으면 null 이고, 그러면 프롬프트는 예전 그대로다.
     // 크레딧은 그대로 20 (2026-09-17 결정): 새 action 을 만들지 않는다.
@@ -438,6 +444,8 @@ async function createPlannerGeneration(request, env, headers, p) {
     door_color: p.door_color,
     door_finish: p.door_finish,
     wall_width_override: Number(p.wall_width_override) || null,
+    water_from_left_override: KITCHEN_CATEGORIES.includes(category) ? Number(p.water_from_left_override) || null : null,
+    exhaust_from_left_override: KITCHEN_CATEGORIES.includes(category) ? Number(p.exhaust_from_left_override) || null : null,
     fridge_options: category === 'fridge' ? p.fridge_options : null,
     design_spec: spec,
     mode: 'planner',
