@@ -182,6 +182,7 @@
           </div>
           <button type="button" class="btn btn-primary" id="btnSearch">검색</button>
           <button type="button" class="btn btn-secondary" id="btnReset">초기화</button>
+          <span class="badge" id="orderChip" hidden>이 주문의 보고만 <button type="button" class="close-btn" id="btnClearOrder" style="font-size: 13px" aria-label="주문 필터 해제">✕</button></span>
         </div>
 
         <div class="status-line" id="statusLine"></div>
@@ -261,7 +262,8 @@
         const PACKS = [['cut', '재단·엣지'], ['cut-vendor', '재단·엣지 의뢰서'], ['assembly', '조립'], ['door', '도어재 발주'], ['labels', '라벨'], ['all', '전체']];
         const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
 
-        const state = { kind: '', page: 1, hasMore: false, current: null, sb: null, session: null };
+        const state = { kind: '', order: '', page: 1, hasMore: false, current: null, sb: null, session: null };
+        const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         const $ = (id) => document.getElementById(id);
 
         function esc(v) {
@@ -331,6 +333,7 @@
         function queryString() {
           const p = new URLSearchParams();
           if (state.kind) p.set('kind', state.kind);
+          if (state.order) p.set('order', state.order);
           if ($('fFrom').value) p.set('from', $('fFrom').value);
           if ($('fTo').value) p.set('to', $('fTo').value);
           if ($('fStatus').value) p.set('status', $('fStatus').value);
@@ -520,7 +523,16 @@
             guard(loadList);
           }));
           $('btnSearch').addEventListener('click', () => { state.page = 1; guard(loadList); });
+          $('btnClearOrder').addEventListener('click', () => {
+            state.order = '';
+            $('orderChip').hidden = true;
+            resetFilters();
+            state.page = 1;
+            guard(loadList);
+          });
           $('btnReset').addEventListener('click', () => {
+            state.order = '';
+            $('orderChip').hidden = true;
             resetFilters();
             state.page = 1;
             guard(loadList);
@@ -578,6 +590,14 @@
           $('adminInfo').textContent = (session.user && session.user.email) || '';
           $('pageContent').style.display = 'block';
           resetFilters();
+          // ERP 수주 상세의 [보고 보기] → ?order=<id> : 그 주문이 걸린 보고만, 기간 제한 없이
+          const order = new URLSearchParams(window.location.search).get('order') || '';
+          if (UUID_RE.test(order)) {
+            state.order = order;
+            $('fFrom').value = '';
+            $('fTo').value = '';
+            $('orderChip').hidden = false;
+          }
           bind();
           if (!apiBase()) {
             setStatus('statusLine', '업무 서버(workflowApi.url)가 설정되지 않았습니다.', 'error');

@@ -16,7 +16,7 @@
  *   - 플래너 모드는 대조가 ok 가 아니면 done 과 함께 options.internal_only = true (계획서 §6.3).
  */
 
-import { aspectRatioOf, callGemini } from './gemini.js';
+import { aspectRatioOf, callGemini, textModel } from './gemini.js';
 import { renderImage, renderPlannerImage } from './images.js';
 import {
   CATEGORIES,
@@ -49,6 +49,7 @@ import { LAYOUT_CATEGORIES, LAYOUT_SCHEMA, buildLayoutPrompt, normalizeLayout } 
 import { callClaudeJson } from './claude.js';
 import { VERIFY_VERSION, compareLayoutToSpec } from './verify.js';
 import { controlNetModel, runControlNet } from './controlnet.js';
+import { GUIDE_POINTS_SCHEMA, buildGuidePointsPrompt, drawGuide, parseGuidePoints, prepareGuideCanvas } from './guide.js';
 
 const MAX_ATTEMPTS = 2;
 /** 역판독(Claude 비전) 이미지 한도 — Anthropic 5MB, base64 는 4/3 배 (worker.js MAX_IMAGE_B64 와 같은 값) */
@@ -402,6 +403,64 @@ async function runPipeline(env, job, ck, save) {
   //   fal.ai 의 조건 모델이 그린다. 바탕(방 사진 또는 합성본)과 조건은 공개 URL 로 넘긴다. 검사(QC)는 그대로 Gemini.
   const engine = !planner && opts.engine === 'controlnet' && inputs.control && inputs.control.url && inputs.room && inputs.room.url
     ? 'controlnet' : 'gemini';
+
+  // ═══ 1-b. 사진 위 가이드 선 (깊이 계획 3a, 2026-10-18) ═══
+  //   벽 전체 장(붙박이장·수납장)이고 정면 벽 끝에 튀어나온 벽이 있을 때만 — 그 벽 앞 모서리가 앞면의 기준이다.
+  //   텍스트 모델이 보이는 선·모서리만 찾고, 앞면 선은 guide.js 가 소실점으로 계산해 사진 사본에 그린다.
+  //   어느 단계든 실패하면 가이드 없이 글 지시만으로 그린다. GUIDE_LINES='off' 로 끈다.
+  let guideImg = null;
+  const wantGuide =
+    !planner && engine !== 'controlnet' && !ctx.realize && env.GUIDE_LINES !== 'off' &&
+    !!(CATEGORIES[category] && CATEGORIES[category].wallToWallMm) && !!wall.sideReturn;
+  if (wantGuide && ck.guide === undefined) {
+    ck.guide = null;
+    const t0 = Date.now();
+    try {
+      const side = wall.sideReturn.side;
+      const canvas = await prepareGuideCanvas(room); // 긴 변 1024 바탕 — 선 찾기와 그리기가 같은 그림을 쓴다
+      let points = null;
+      let by = null;
+      // 2026-10-18 사장님 "선 찾는 일은 Haiku 5.5" — 줄인 바탕 PNG 를 보내 그 픽셀 [x, y] 로 받는다.
+      //   키가 없거나 실패하면 Gemini(0~1000 [y, x]) 로.
+      if (canvas && env.ANTHROPIC_API_KEY) {
+        try {
+          const size = { width: canvas.width, height: canvas.height };
+          const { json, model } = await callClaudeJson(env, {
+            prompt: buildGuidePointsPrompt(side, size),
+            image: canvas.png,
+            schema: GUIDE_POINTS_SCHEMA,
+            model: env.GUIDE_MODEL || 'claude-haiku-5-5',
+            fallbacks: false, // Haiku 5.5 는 서버 거절 대체를 받지 않는다
+            maxTokens: 4000,
+          });
+          points = parseGuidePoints(json, side, size);
+          by = model;
+        } catch (e) {
+          console.warn(`[Job ${job.id}] guide points (Claude) failed:`, e.message);
+        }
+      }
+      if (canvas && !points) {
+        const t = await callGemini(env, { prompt: buildGuidePointsPrompt(side), images: [room], want: 'text', temperature: 0 });
+        points = parseGuidePoints(t.text, side);
+        by = points ? textModel(env) : by;
+      }
+      const g = points && (await drawGuide(canvas, points));
+      if (g) {
+        const up = await uploadObject(env, `${prefix}/guide.png`, g.base64, g.mimeType);
+        ck.guide = { path: up.path, url: up.url, by };
+        guideImg = { base64: g.base64, mimeType: g.mimeType };
+      }
+      console.log(`[Job ${job.id}] guide: ${ck.guide ? `drawn by ${by}` : points ? 'geometry rejected' : 'points missing'} ${Date.now() - t0}ms`);
+    } catch (e) {
+      console.warn(`[Job ${job.id}] guide skipped:`, e.message);
+    }
+    await save({ guide: ck.guide });
+    if (ck.guide) await updateById(env, 'generations', job.id, { wall_analysis: { ...wall, guide: ck.guide } });
+  } else if (wantGuide && ck.guide) {
+    guideImg = await fetchObjectBase64(env, ck.guide.path); // 재실행 — 그려 둔 것을 쓴다
+  }
+  if (guideImg) ctx.guide = true;
+
   const install = async (fix) => {
     if (planner) {
       // 2026-10-18: 공급자는 요청이 고른다 (options.image_provider, 없으면 Gemini — 지금 그대로).
@@ -430,7 +489,7 @@ async function runPipeline(env, job, ck, save) {
     // 연출컷 기본안 — 공급자는 images.js 가 고른다 (IMAGE_PROVIDER, GPT 실패 시 Gemini)
     const r = await renderImage(
       env,
-      { prompt: buildInstallPrompt(ctx, fix ? { fix } : {}), images: [room, ...refs], imageSize, aspectRatio },
+      { prompt: buildInstallPrompt(ctx, fix ? { fix } : {}), images: [room, ...refs, ...(guideImg ? [guideImg] : [])], imageSize, aspectRatio },
       'base'
     );
     if (!r.image) throw new Error('install returned no image');

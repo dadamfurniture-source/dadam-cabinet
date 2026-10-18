@@ -17,7 +17,7 @@ import { planProduction } from './planner.js';
 import { buildProposalBlocks, buildInstructionBlocks, buildDailyBlocks, assignmentsFromSuggestions, actionKey } from './notify.js';
 import { DEFAULT_STANDARDS, DEFAULT_CREW, DEFAULT_COSTS, DEFAULT_LEADS, DEFAULT_QUOTE } from './standards.js';
 import { safeRecord, safeSyncStatus } from '../reports/service.js';
-import { reportFromProposal, reportFromDecision, reportFromDailyBrief } from '../reports/record.js';
+import { reportFromProposal, reportFromDecision, reportFromDailyBrief, reportFromMonth, monthEnd } from '../reports/record.js';
 
 const ACTIVE = new Set(['confirmed', 'in_production']);
 const KST_MS = 9 * 3600 * 1000;
@@ -387,4 +387,60 @@ export async function getMonthlySummary(env, { user, month }) {
     snaps = (await selectMany(env, 'design_snapshots', { id: `in.(${ids})`, select: 'id,quote_payload', limit: '500' })) || [];
   }
   return summarizeMonth(inMonth, new Map(snaps.map((s) => [s.id, s])), { month: m, overheadMonthly: settings.quote.overheadMonthly });
+}
+
+// ── 월 생산 마감 (보관함, work-reports-archive.plan.md §2 · 사장님 결정 Q4) ──
+/** 'YYYY-MM-DD' 의 전월 'YYYY-MM' */
+export function prevMonthOf(day) {
+  const [y, m] = String(day).slice(0, 7).split('-').map(Number);
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+}
+
+/** 한 계정의 한 달 마감 보고를 만든다 (이미 있으면 그대로 — 주인×달 하나). */
+export async function closeMonth(env, { userId, month }) {
+  const user = { id: userId };
+  const summary = await getMonthlySummary(env, { user, month });
+  const assignments = (await selectMany(env, 'production_assignments', {
+    user_id: `eq.${userId}`,
+    and: `(work_date.gte.${month}-01,work_date.lte.${monthEnd(month)})`,
+    select: 'id,status,cost,work_date',
+    limit: '2000',
+  })) || [];
+  return safeRecord(env, reportFromMonth({ ownerId: userId, summary, assignments }));
+}
+
+/**
+ * 매월 첫 근무일 아침(평일 07시 cron) — 전월 마감이 없는 계정마다 하나 만든다.
+ * 1일이 주말이면 cron 이 돌지 않으므로 '1일' 이 아니라 '그 달 7일까지 + 아직 없음' 으로 본다 (주인×달 UNIQUE 라 중복 없음).
+ * 대상: 전월에 수주가 있었던 계정 + 지금 진행 중 수주가 있는 계정.
+ */
+export async function runMonthlyCloses(env, { today } = {}) {
+  const day = today || kstDate();
+  if (Number(day.slice(8, 10)) > 7) return [];
+  const month = prevMonthOf(day);
+  const ordered = (await selectMany(env, 'orders', {
+    and: `(ordered_at.gte.${month}-01T00:00:00+09:00,ordered_at.lte.${monthEnd(month)}T23:59:59+09:00)`,
+    select: 'design_id',
+    limit: '1000',
+  })) || [];
+  const ids = [...new Set(ordered.map((o) => o.design_id))];
+  const owners = new Set(await activeOwners(env));
+  if (ids.length) {
+    for (const d of (await selectMany(env, 'designs', { id: `in.(${ids.join(',')})`, select: 'user_id', limit: '1000' })) || []) {
+      if (d.user_id) owners.add(d.user_id);
+    }
+  }
+  const results = [];
+  for (const userId of owners) {
+    try {
+      const existing = await selectOne(env, 'work_reports', { kind: 'eq.monthly_close', owner_id: `eq.${userId}`, period_start: `eq.${month}-01`, select: 'id' });
+      if (existing) { results.push({ userId, skipped: 'exists' }); continue; }
+      const row = await closeMonth(env, { userId, month });
+      results.push({ userId, created: Boolean(row) });
+    } catch (e) {
+      console.error('monthly close failed for', userId, e && e.message);
+      results.push({ userId, error: e && e.message });
+    }
+  }
+  return results;
 }

@@ -103,7 +103,10 @@
       <div class="card" id="detailCard" hidden>
         <div class="row" style="justify-content: space-between">
           <div style="font-weight: 600" id="detailTitle">수주 상세</div>
-          <button type="button" id="btnClose">닫기</button>
+          <div class="row">
+            <a id="lnkReports" href="admin/work-reports.html" target="_blank" rel="noopener">작업 지시 보고 →</a>
+            <button type="button" id="btnClose">닫기</button>
+          </div>
         </div>
 
         <div class="kpi" style="margin-top: 12px">
@@ -258,6 +261,7 @@
           var m = d.margin;
           el('detailCard').hidden = false;
           el('detailTitle').textContent = d.order.order_no + ' · ' + (d.order.customer_name || '고객 미기재');
+          el('lnkReports').href = 'admin/work-reports.html?order=' + encodeURIComponent(d.order.id);
 
           el('kContract').textContent = krw(m.contract_amount);
           el('kReceived').textContent = krw(m.received_amount);
