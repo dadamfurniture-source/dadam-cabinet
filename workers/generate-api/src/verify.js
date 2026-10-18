@@ -142,6 +142,8 @@ export function readFromLayout(layout) {
 
 /**
  * 대조. 점수는 계획서 §4.1 의 다섯 항목, 각 0~1. 총점 `score` 는 있는 항목의 합(최대 5), `max` 는 항목 수.
+ * 2026-10-19: 플래너 판독(layout.reader === 'planner')이면 여섯째 항목 shape(배치 모양)가 붙을 수 있고(max +1),
+ *   모듈별 어긋남·도면 밖 덤 유닛은 issues 에만 남는다 (read.units · read.extraUnits).
  * `ok` 는 순서·개수가 구속이라는 계약(design-spec-prompt.md)을 그대로 옮긴 것이다:
  *   순서가 맞고(≥ 0.99), 도어·서랍 총수가 3/4 이상 맞고, 가전 종류·순서가 맞으면 ok.
  */
@@ -150,6 +152,10 @@ export function compareLayoutToSpec(layout, spec, category) {
   const got = readFromLayout(layout);
   const parts = {};
   const issues = [];
+  // 2026-10-19: 플래너 판독(layout.js normalizePlannerRead)이면 모듈별 판독이 같이 온다.
+  //   기대 총수는 그 판독 계획(생성 모델이 받은 수 — prompts.js plannerCounts 규칙)으로 맞춘다.
+  const planner = plannerUnitsOf(layout);
+  if (planner) Object.assign(want, plannerTotals(planner));
 
   // 1) 종류 순서 — 'open' 은 양쪽에서 뺀다 (읽는 쪽이 틈을 open 으로 메우기도, 안 메우기도 한다)
   const wantSeq = collapseRuns(want.floorKinds.filter((k) => k !== 'open'));
@@ -201,15 +207,43 @@ export function compareLayoutToSpec(layout, spec, category) {
     if (pos.length) parts.positions = pos.reduce((a, b) => a + b, 0) / pos.length;
   }
 
+  // 6) 배치 모양 (플래너 판독만) — 도면 모양을 알고 판독이 unclear 가 아닐 때만 점수에 넣는다.
+  //    일자 도면을 ㄱ자로 지은 것은 도면 위반이라 ok 도 막는다.
+  if (planner) {
+    want.shape = planner.planShape;
+    got.shape = planner.shape;
+    if (planner.planShape && planner.shape && planner.shape !== 'unclear') {
+      parts.shape = planner.shape === planner.planShape ? 1 : 0;
+      if (!parts.shape) issues.push(`shape: expected ${planner.planShape}, read ${planner.shape}`);
+    }
+    // 모듈별 어긋남 · 도면 밖 덤 유닛 — 이슈로만 (점수·ok 는 위 총수가 본다)
+    got.units = planner.units.map((u) => ({ id: u.id, seen: u.seen, doors: u.doors, drawers: u.drawers }));
+    got.extraUnits = planner.extraUnits;
+    planner.units.forEach((u) => {
+      const e = u.expected || {};
+      if (u.seen === 'unread') issues.push(`${u.id}: not read`);
+      else if (u.seen === 'missing') issues.push(`${u.id}: missing`);
+      else if (u.seen !== e.seen) issues.push(`${u.id}: expected ${e.seen}, read ${u.seen}`);
+      else if (u.doors !== e.doors || u.drawers !== e.drawers) {
+        issues.push(`${u.id}: expected ${e.doors} doors + ${e.drawers} drawers, read ${u.doors} + ${u.drawers}`);
+      }
+    });
+    planner.extraUnits.forEach((x) => {
+      issues.push(`extra: ${x.row} unit not in plan${x.where ? ` (${x.where})` : ''}, ${x.doors} doors + ${x.drawers} drawers`);
+    });
+  }
+
   const keys = Object.keys(parts);
   const score = keys.reduce((a, k) => a + parts[k], 0);
   const ok = keys.length > 0
     && (parts.order == null || parts.order >= 0.99)
     && (parts.counts == null || parts.counts >= 0.75)
-    && (parts.appliances == null || parts.appliances >= 0.99);
+    && (parts.appliances == null || parts.appliances >= 0.99)
+    && (parts.shape == null || parts.shape >= 0.99);
 
   return {
     version: VERIFY_VERSION,
+    ...(planner ? { reader: 'planner' } : {}),
     ok,
     score: Math.round(score * 100) / 100,
     max: keys.length,
@@ -218,4 +252,30 @@ export function compareLayoutToSpec(layout, spec, category) {
     expected: want,
     read: got,
   };
+}
+
+/** 플래너 판독이면 {units, extraUnits, shape, planShape}, 아니면 null. */
+function plannerUnitsOf(layout) {
+  const l = layout && typeof layout === 'object' ? layout : {};
+  if (l.reader !== 'planner' || !Array.isArray(l.units)) return null;
+  return {
+    units: l.units.filter((u) => u && typeof u === 'object'),
+    extraUnits: Array.isArray(l.extraUnits) ? l.extraUnits : [],
+    shape: typeof l.shape === 'string' ? l.shape : null,
+    planShape: typeof l.planShape === 'string' ? l.planShape : null,
+  };
+}
+
+/** 판독 계획의 기대 총수 — 바닥(하부·키큰장·붙박이장) 도어·서랍, 상부장 도어 (상부 모듈이 없으면 null). */
+function plannerTotals(p) {
+  let floorDoors = 0, floorDrawers = 0, upperDoors = null;
+  p.units.forEach((u) => {
+    const e = u.expected || {};
+    if (u.row === 'wall') upperDoors = (upperDoors || 0) + num(e.doors);
+    else {
+      floorDoors += num(e.doors);
+      floorDrawers += num(e.drawers);
+    }
+  });
+  return { floorDoors, floorDrawers, upperDoors };
 }
