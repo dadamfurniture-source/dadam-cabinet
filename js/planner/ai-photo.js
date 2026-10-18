@@ -37,6 +37,8 @@
 //   세로 사진은 사진 비율을 따른다). 계획서의 "16:9 로 자르기" 는 이 결정으로 대신한다.
 //   실사화 체크박스·구조 조건 드롭존은 화면에서 뺐다. 코드 삭제는 P6 (계획 §8).
 //   결과는 대조가 ok 일 때만 ✓. 그 밖은 "내부 확인용 — 고객 공유 불가" + 입면을 옆에 (§6.3).
+//   2026-10-18: eval=1 이면 이미지 모델(Gemini/GPT)을 고른다 — GPT 면 본문에 image_provider:'openai'.
+//     결과 아래에 누가 그렸는지 한 줄 (GPT 실패 → Gemini 대신 포함).
 //
 // ⚠ 클래식 스크립트 — 최상위 이름은 전부 PLANNER_AI_PHOTO_ / plannerAiPhoto / PlannerAiPhoto 접두.
 // 브라우저: window.PlannerAiPhoto (+ 개별 함수) / Jest: module.exports
@@ -92,6 +94,17 @@ const PLANNER_AI_PHOTO_RENDER = {
   elevation: { kind: 'front', longEdge: 1536 },
   massing: { kind: 'massing', longEdge: 1024, quality: 0.9 },
 };
+
+/**
+ * 이미지 모델 고르기 (2026-10-18, 사장님 비교용) — 주소에 eval=1 일 때만 보인다.
+ * 워커 계약: 요청 본문 image_provider:'openai' 면 GPT, 없으면 Gemini (design-spec-prompt.md "플래너 모드").
+ * 고른 값은 이 브라우저에 기억한다 (스코프와 상관없이 한 값).
+ */
+const PLANNER_AI_PHOTO_PROVIDER_KEY = 'dadam_aiphoto_provider_v1';
+const PLANNER_AI_PHOTO_PROVIDERS = [
+  { key: 'gemini', label: 'Gemini' },
+  { key: 'openai', label: 'GPT' },
+];
 
 /** 결과 옆 문구 — 도면과 맞는다고 확인되지 않은 결과 (계획 §6.3, design-spec-prompt.md "내부 확인용"). */
 const PLANNER_AI_PHOTO_INTERNAL_LABEL = '내부 확인용 — 고객 공유 불가';
@@ -892,6 +905,29 @@ function plannerAiPhotoVerdict(gen) {
   return { state: 'internal', score, max, reasons };
 }
 
+/**
+ * 끝난 결과 → 누가 그렸나 한 줄 (2026-10-18).
+ * 워커 필드: generation.images[base].{provider, model, fallback, fallback_reason} · generation.model.
+ *   GPT 가 그렸으면 칸에 provider:'openai'. GPT 가 실패해 Gemini 가 대신 그렸으면 fallback:true.
+ *   Gemini 가 정상으로 그리면 칸에 표시가 없다 — 그때는 행의 model 만 있다.
+ * @returns {{kind:'openai'|'gemini'|'fallback', model:string, text:string}|null}
+ */
+function plannerAiPhotoDrawnBy(gen) {
+  const g = gen || {};
+  const images = Array.isArray(g.images) ? g.images : [];
+  const base = images.find((im) => im && im.slot === 'base') || images[0] || null;
+  if (!base) return null;
+  const model = String(base.model || g.model || '');
+  const tail = model ? ` (${model})` : '';
+  if (base.fallback === true && base.provider !== 'openai') {
+    const why = base.fallback_reason ? ` — ${plannerAiPhotoCut(String(base.fallback_reason), 80)}` : '';
+    return { kind: 'fallback', model, text: `GPT 실패 → Gemini 대신${tail}${why}` };
+  }
+  if (base.provider === 'openai') return { kind: 'openai', model, text: `그린 모델: GPT${tail}` };
+  if (base.provider === 'gemini' || /^gemini/i.test(model)) return { kind: 'gemini', model, text: `그린 모델: Gemini${tail}` };
+  return model ? { kind: 'gemini', model, text: `그린 모델: ${model}` } : null;
+}
+
 // ────────────────────────────────────────────────────────────
 // 순수 — 오류 문구
 // ────────────────────────────────────────────────────────────
@@ -981,6 +1017,8 @@ a.ap-thumb:hover{border-color:var(--brand-mid,#b8956c)}
 .ap-pair .ap-thumb img{aspect-ratio:auto;object-fit:contain;max-height:160px}
 .ap-eval{font-size:9.5px;color:var(--text-faint,#a89c84);display:flex;gap:4px;align-items:center;cursor:pointer}
 .ap-eval input{margin:0}
+.ap-provider{gap:8px;cursor:default}
+.ap-provider label{display:flex;gap:3px;align-items:center;cursor:pointer}
 `;
 
 function plannerAiPhotoInjectCss() {
@@ -1027,6 +1065,8 @@ const PlannerAiPhoto = {
   elevation: null,
   /** 평가 스위치 (주소에 eval=1 일 때만 보인다) — 켜면 3/4 뷰를 안 보낸다. */
   noMassing: false,
+  /** 이미지 모델 (eval=1 일 때만 고른다) — 'gemini' | 'openai'. null 이면 저장된 값을 읽는다. */
+  imageProvider: null,
   gen: null,
   genId: null,
   message: '',
@@ -1129,6 +1169,26 @@ const PlannerAiPhoto = {
     if (this._o && typeof this._o.search === 'string') search = this._o.search;
     else if (typeof location !== 'undefined' && location) search = location.search || '';
     try { return new URLSearchParams(search).get('eval') === '1'; } catch (e) { return false; }
+  },
+
+  /** 고른 이미지 모델 — 화면에서 고른 값 → 저장된 값 → 'gemini'. */
+  pickedProvider() {
+    if (this.imageProvider === 'openai' || this.imageProvider === 'gemini') return this.imageProvider;
+    let v = null;
+    try { v = localStorage.getItem(PLANNER_AI_PHOTO_PROVIDER_KEY); } catch (e) { v = null; }
+    return v === 'openai' ? 'openai' : 'gemini';
+  },
+
+  /** 고르기 — 기억해 둔다 (못 해도 이번 판은 고른 값으로 간다). */
+  setProvider(v) {
+    this.imageProvider = v === 'openai' ? 'openai' : 'gemini';
+    try { localStorage.setItem(PLANNER_AI_PHOTO_PROVIDER_KEY, this.imageProvider); } catch (e) { /* 무해 */ }
+    return this.imageProvider;
+  },
+
+  /** 요청에 실을 공급자 — eval=1 이 아니면 언제나 Gemini (본문에 키를 넣지 않는다). */
+  provider() {
+    return this.evalMode() ? this.pickedProvider() : 'gemini';
   },
 
   /** 이 탭에서 만든 blob URL 을 놓는다. */
@@ -1267,6 +1327,14 @@ const PlannerAiPhoto = {
         `<label class="ap-eval"><input type="checkbox" id="aiPhotoNoMassing"${this.noMassing ? ' checked' : ''}> `
         + '평가: 3/4 뷰 빼기(입면만)</label>'
       );
+      // 이미지 모델 (2026-10-18) — 같은 사진·도면을 GPT 로도 돌려 비교한다. 기본 Gemini.
+      const picked = this.pickedProvider();
+      parts.push(
+        '<div class="ap-eval ap-provider" id="aiPhotoProvider" role="radiogroup" aria-label="이미지 모델">평가: 이미지 모델'
+        + PLANNER_AI_PHOTO_PROVIDERS.map((p) => `<label><input type="radio" name="aiPhotoProvider" value="${p.key}"`
+          + `${picked === p.key ? ' checked' : ''}${busy ? ' disabled' : ''}> ${esc(p.label)}</label>`).join('')
+        + '</div>'
+      );
     }
 
     // 버튼
@@ -1309,6 +1377,11 @@ const PlannerAiPhoto = {
           + '</div>'
         );
       }
+      // 누가 그렸나 (2026-10-18) — GPT 이거나 대신 그렸으면 늘, Gemini 정상은 eval=1 일 때만 (평소 화면 그대로)
+      const drawn = plannerAiPhotoDrawnBy(this.gen);
+      if (drawn && (drawn.kind !== 'gemini' || this.evalMode())) {
+        parts.push(`<div class="ap-note ap-drawn${drawn.kind === 'fallback' ? ' ap-verify-bad' : ''}" id="aiPhotoDrawnBy">${esc(drawn.text)}</div>`);
+      }
       parts.push('<div class="ap-note">치수는 참고이고 구성(순서·개수)이 구속입니다 — 실제 제작 도면과 다를 수 있습니다.</div>');
     }
 
@@ -1324,6 +1397,9 @@ const PlannerAiPhoto = {
     if (go) go.onclick = () => { this.submit(); };
     const nm = host.querySelector('#aiPhotoNoMassing');
     if (nm) nm.onchange = () => { this.noMassing = !!nm.checked; };
+    host.querySelectorAll('input[name="aiPhotoProvider"]').forEach((r) => {
+      r.onchange = () => { if (r.checked) this.setProvider(r.value); };
+    });
     // 아래 둘은 2026-10-18 부터 그리지 않아 걸리지 않는다 — P6 가 지운다.
     const rz = host.querySelector('#aiPhotoRealize');
     if (rz) rz.onchange = () => { this.realize = !!rz.checked; this.render(); };
@@ -1450,6 +1526,8 @@ const PlannerAiPhoto = {
           design_spec: spec,
           renders: shots.renders,
           aspect: plannerAiPhotoAspectOf(this.img.width, this.img.height),
+          // 2026-10-18: eval=1 에서 GPT 를 골랐을 때만 키가 생긴다 — 평소·Gemini 면 본문 그대로
+          ...(this.provider() === 'openai' ? { image_provider: 'openai' } : {}),
         }),
       });
     } catch (e) {
@@ -1570,6 +1648,7 @@ if (typeof window !== 'undefined') {
   window.plannerAiPhotoFitSize = plannerAiPhotoFitSize;
   window.plannerAiPhotoAspectOf = plannerAiPhotoAspectOf;
   window.plannerAiPhotoVerdict = plannerAiPhotoVerdict;
+  window.plannerAiPhotoDrawnBy = plannerAiPhotoDrawnBy;
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -1614,6 +1693,9 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerAiPhotoBlobToBase64,
     plannerAiPhotoBlobToJpeg,
     plannerAiPhotoVerdict,
+    PLANNER_AI_PHOTO_PROVIDER_KEY,
+    PLANNER_AI_PHOTO_PROVIDERS,
+    plannerAiPhotoDrawnBy,
     PlannerAiPhoto,
   };
 }

@@ -31,6 +31,7 @@ const {
   plannerAiPhotoBlobToBase64,
   plannerAiPhotoBlobToJpeg,
   plannerAiPhotoVerdict,
+  plannerAiPhotoDrawnBy,
 } = require('../js/planner/ai-photo');
 const { plannerFinishResolve, plannerFinishNormalize } = require('../js/planner/planner-finish');
 const { FIXTURES, modulesFromFixture } = require('../test-utils/planner-golden');
@@ -652,6 +653,28 @@ describe('대조 판정 — plannerAiPhotoVerdict (계획 §6.3)', () => {
   test('예전(플래너 모드가 아닌) 결과는 표시하지 않는다', () => {
     expect(plannerAiPhotoVerdict({ options: { variants: false } }).state).toBe('none');
     expect(plannerAiPhotoVerdict(null).state).toBe('none');
+  });
+});
+
+describe('누가 그렸나 — plannerAiPhotoDrawnBy (2026-10-18)', () => {
+  const img = (x) => ({ slot: 'base', url: 'u', ...x });
+  test('GPT', () => {
+    expect(plannerAiPhotoDrawnBy({ images: [img({ provider: 'openai', model: 'gpt-image-2.5-sunburst' })] }))
+      .toEqual({ kind: 'openai', model: 'gpt-image-2.5-sunburst', text: '그린 모델: GPT (gpt-image-2.5-sunburst)' });
+  });
+  test('GPT 실패 → Gemini 대신, 사유는 80자까지', () => {
+    const d = plannerAiPhotoDrawnBy({ images: [img({ provider: 'gemini', model: 'gemini-3-pro-image', fallback: true, fallback_reason: 'x'.repeat(200) })] });
+    expect(d.kind).toBe('fallback');
+    expect(d.text).toBe('GPT 실패 → Gemini 대신 (gemini-3-pro-image) — ' + 'x'.repeat(80));
+  });
+  test('Gemini 정상 — 칸 표시가 없으면 행의 model', () => {
+    expect(plannerAiPhotoDrawnBy({ model: 'gemini-3-pro-image', images: [img({})] }))
+      .toEqual({ kind: 'gemini', model: 'gemini-3-pro-image', text: '그린 모델: Gemini (gemini-3-pro-image)' });
+  });
+  test('이미지가 없거나 아무 정보도 없으면 null', () => {
+    expect(plannerAiPhotoDrawnBy(null)).toBeNull();
+    expect(plannerAiPhotoDrawnBy({ images: [] })).toBeNull();
+    expect(plannerAiPhotoDrawnBy({ images: [img({})] })).toBeNull();
   });
 });
 
