@@ -1,33 +1,44 @@
 /**
  * 붙박이장 내부 보기 (2026-10-19 사장님 "4장 중 2장은 내부 사진").
- * 기본안(문 닫힘) + 색 추천안 1장 + 내부 보기 2장(왼쪽 절반·오른쪽 절반 문을 연다). 칸 구성은 두 장이 같다.
+ * 기본안(문 닫힘) + 색 추천안 1장 + 내부 보기 2장(문을 전부 연다 — 기본안 색 / 추천안 색). 통 구성은 정본 기본형.
  */
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildWardrobeInteriorPrompt, wardrobeInteriorPlan } from '../src/prompts.js';
+import { createRequire } from 'node:module';
+import { INTERIOR_SAMPLE_PRESETS, buildWardrobeInteriorPrompt, wardrobeInteriorPlan } from '../src/prompts.js';
 import { GenerateJob } from '../src/job.js';
 
-test('칸 구성: 도어 한 쌍이 한 칸 — 벽 폭에 따라 2·3·4칸, 첫 칸은 긴 옷', () => {
-  assert.deepEqual(wardrobeInteriorPlan(2400), ['long', 'shelves']);
-  assert.deepEqual(wardrobeInteriorPlan(3000), ['long', 'double', 'shelves']);
-  assert.deepEqual(wardrobeInteriorPlan(3600), ['long', 'double', 'shelves', 'double']);
+test('통 구성: 정본 기본형(SAMPLE_PRESETS·samplePresetFor)과 같다 — 도어 한 쌍 = 한 통', () => {
+  const require = createRequire(import.meta.url);
+  const W = require('../../../js/detaildesign/bom-wardrobe-rules.js');
+  assert.deepEqual(INTERIOR_SAMPLE_PRESETS, [...W.SAMPLE_PRESETS]);
+  for (const wallW of [2400, 3000, 3600]) {
+    const plan = wardrobeInteriorPlan(wallW);
+    assert.deepEqual(plan, plan.map((_, i) => W.samplePresetFor(i, plan.length)), String(wallW));
+  }
+  assert.deepEqual(wardrobeInteriorPlan(3600), ['short2', 'longDrawer', 'halfSplit', 'rodTopSplitBottom']);
+  assert.equal(wardrobeInteriorPlan(2400).length, 2);
 });
 
-test('프롬프트: 두 장 모두 같은 칸 구성을 싣고, 왼쪽·오른쪽 절반만 연다', () => {
-  const L = buildWardrobeInteriorPrompt(3600, 'left');
-  const R = buildWardrobeInteriorPrompt(3600, 'right');
-  for (const p of [L.prompt, R.prompt]) {
+test('프롬프트: 문을 전부 연다 — 기본안 색 한 장, 추천 색 한 장, 내부는 같다', () => {
+  const A = buildWardrobeInteriorPrompt(3600);
+  const B = buildWardrobeInteriorPrompt(3600, { body: 'deep navy matte', tone: '네이비' });
+  for (const p of [A.prompt, B.prompt]) {
+    assert.match(p, /^Open every door of the built-in wardrobe/);
     assert.match(p, /The wardrobe has 4 pairs of doors/);
-    assert.match(p, /1\. long hanging[\s\S]*2\. double hanging[\s\S]*3\. shelves and drawers[\s\S]*4\. double hanging/);
-    assert.match(p, /every other pair stay closed/);
+    assert.match(p, /1\. two short-hanging tiers[\s\S]*2\. long hanging[\s\S]*two internal drawers[\s\S]*3\. split into left and right halves[\s\S]*4\. one clothes rail across the full width/);
+    assert.match(p, /all sections are visible at once/);
     assert.match(p, /Handleless doors stay handleless/);
+    assert.doesNotMatch(p, /stay closed/);
   }
-  assert.match(L.prompt, /Open both doors of pairs 1 and 2 \(the left side\)/);
-  assert.match(R.prompt, /Open both doors of pairs 3 and 4 \(the right side\)/);
-  assert.equal(L.label, '내부 보기 · 긴 옷·2단 옷걸이');
-  assert.equal(R.label, '내부 보기 · 선반·서랍·2단 옷걸이');
-  // 3칸이면 왼쪽 2칸 · 오른쪽 1칸
-  assert.match(buildWardrobeInteriorPrompt(3000, 'right').prompt, /Open both doors of pair 3 \(the right side\)/);
+  assert.match(A.prompt, /its door colour/);
+  assert.doesNotMatch(A.prompt, /Also change the colour/);
+  assert.match(B.prompt, /Also change the colour of every door[\s\S]*deep navy matte/);
+  assert.equal(A.label, '내부 보기');
+  assert.equal(B.label, '내부 보기 · 네이비');
+  // 내부 칸 구성 줄은 두 장이 같다
+  const sections = (p) => p.split('\n').filter((l) => /^\d\. /.test(l)).join('\n');
+  assert.equal(sections(A.prompt), sections(B.prompt));
 });
 
 // ─── 잡 흐름 ───
@@ -87,19 +98,25 @@ async function runJob(category) {
 test('잡(붙박이장): 기본안 + 색 추천안 1장 + 내부 보기 2장', async () => {
   const { prompts, last } = await runJob('wardrobe');
   assert.equal(prompts.length, 4);
-  assert.equal(prompts.filter((p) => p.startsWith('Recolour')).length, 1);
-  assert.equal(prompts.filter((p) => p.startsWith('Open some doors')).length, 2);
+  const recolour = prompts.filter((p) => p.startsWith('Recolour'));
+  const inside = prompts.filter((p) => p.startsWith('Open every door'));
+  assert.equal(recolour.length, 1);
+  assert.equal(inside.length, 2);
+  // 둘째 내부 보기는 색 추천안과 같은 색
+  const body = recolour[0].match(/plinth and trim: (.+), one continuous colour/)[1];
+  assert.equal(inside.filter((p) => p.includes(`to ${body}, one continuous colour`)).length, 1);
   assert.equal(last.status, 'done');
   assert.equal(last.step_label, '완료');
   const v = Object.fromEntries(last.images.map((i) => [i.slot, i]));
   assert.match(v.v1.label, /^AI 추천/);
-  assert.equal(v.v2.finish_key, 'interior:left');
-  assert.equal(v.v3.finish_key, 'interior:right');
-  assert.match(v.v2.label, /^내부 보기/);
+  assert.equal(v.v2.finish_key, 'interior');
+  assert.equal(v.v3.finish_key, `interior:${v.v1.finish_key}`);
+  assert.equal(v.v2.label, '내부 보기');
+  assert.match(v.v3.label, /^내부 보기 · /);
 });
 
 test('잡(다른 품목): 색 추천안 3장 그대로', async () => {
   const { prompts } = await runJob('storage');
   assert.equal(prompts.filter((p) => p.startsWith('Recolour')).length, 3);
-  assert.equal(prompts.filter((p) => p.startsWith('Open some doors')).length, 0);
+  assert.equal(prompts.filter((p) => p.startsWith('Open every door')).length, 0);
 });
