@@ -1291,6 +1291,177 @@ describe('clean 캡처 — 상몰딩 재질 바꿔 끼우기·되돌리기 (2026
   });
 });
 
+// 2026-10-19: 도어만 칠한 도면 — 몸통 앞면이 갈색 자리표시로 도어 둘레에 보였고 모델이 갈색 테두리를 그렸다 (잡 e4dc4435)
+describe('clean 캡처 — 칠 안 한 몸통·걸레받이는 도어 재질로 (순수 규칙, 2026-10-19)', () => {
+  const pick = C.plannerCaptureBorrowMaterial;
+  const kind = C.plannerCaptureBorrowKind;
+  const mesh = (ud, name) => ({ isMesh: true, userData: ud, material: { name } });
+  const door = (mid, name, extra) => mesh(Object.assign({ entityKind: 'carcass', side: 'front', areaType: 'door', moduleId: mid, areaIdx: 0 }, extra || {}), name);
+  const sec = (id) => String(id).split('-')[0];   // 시험용 — 'lower-0' → 'lower'
+
+  test('칠 안 한 몸통 → 같은 모듈 도어 재질 (다른 모듈 도어보다 먼저)', () => {
+    const body = mesh({ entityKind: 'carcass', moduleId: 'lower-1', side: 'left' }, 'brown');
+    const list = [door('lower-0', 'door0'), door('lower-1', 'door1'), body];
+    expect(pick(body, list, sec).name).toBe('door1');
+    const front = mesh({ entityKind: 'carcass', moduleId: 'lower-1' }, 'brown');   // side 없는 껍데기 판도 몸통
+    expect(pick(front, list, sec).name).toBe('door1');
+  });
+
+  test('칠한 몸통(_origMaterial 있음)은 그대로 — null', () => {
+    const body = mesh({ entityKind: 'carcass', moduleId: 'lower-1', side: 'left', _origMaterial: { name: 'brown' } }, 'pbrBody');
+    expect(pick(body, [door('lower-1', 'door1'), body], sec)).toBeNull();
+    const kick = mesh({ entityKind: 'toe-kick', moduleId: 'lower-0', _origMaterial: { name: 'beige' } }, 'pbrKick');
+    expect(pick(kick, [door('lower-0', 'door0'), kick], sec)).toBeNull();
+  });
+
+  test('걸레받이·좌대 → 도어 재질 (같은 모듈, 없으면 같은 섹션 묶음)', () => {
+    const kick = mesh({ entityKind: 'toe-kick', moduleId: 'lower-0' }, 'beige');
+    const ped = mesh({ entityKind: 'pedestal', moduleId: 'tall-7' }, 'beige');
+    const list = [door('upper-3', 'doorU'), door('lower-2', 'door2'), door('tall-7', 'door7'), kick, ped];
+    expect(pick(kick, list, sec).name).toBe('door2');   // lower-0 에 도어 없음 → 하부 묶음 도어 (상부 도어는 아님)
+    expect(pick(ped, list, sec).name).toBe('door7');
+  });
+
+  test('상판은 그대로 — 같은 모듈에 도어가 있어도 null', () => {
+    const top = mesh({ entityKind: 'top-panel', moduleId: 'lower-0' }, 'counter');
+    expect(kind(top.userData)).toBeNull();
+    expect(pick(top, [door('lower-0', 'door0'), top], sec)).toBeNull();
+  });
+
+  test('도어 없는 모듈(오픈장)의 몸통·선반 → 같은 섹션 묶음 도어 · 섹션을 모르거나 도어가 없으면 null (몸통은 몸통을 빌리지 않는다)', () => {
+    const body = mesh({ entityKind: 'carcass', moduleId: 'upper-4', side: 'right' }, 'sage');
+    const shelf = mesh({ entityKind: 'shelf', moduleId: 'upper-4', shelfIdx: 0, cellIdx: 0 }, 'shelfBeige');
+    const list = [door('lower-0', 'doorL'), mesh({ entityKind: 'carcass', moduleId: 'upper-4', side: 'back' }, 'back4'),
+      door('hood-9', 'doorHood'), body, shelf];
+    expect(pick(body, list, sec).name).toBe('doorHood');   // 상부·후드 묶음
+    expect(pick(shelf, list, sec).name).toBe('doorHood');
+    expect(pick(body, list, () => null)).toBeNull();
+    expect(pick(body, [body, mesh({ entityKind: 'carcass', moduleId: 'upper-4', side: 'back' }, 'back4')], sec)).toBeNull();
+  });
+
+  test('칠한 도어를 먼저 빌린다 · 서랍 앞판·먹장·숨긴 도어는 빌리지 않는다', () => {
+    const body = mesh({ entityKind: 'carcass', moduleId: 'lower-0', side: 'left' }, 'brown');
+    const list = [
+      door('lower-0', 'rawDoor', { doorIdx: 0 }),
+      door('lower-0', 'pbrDoor', { doorIdx: 1, _origMaterial: { name: 'raw' } }),
+      body,
+    ];
+    expect(pick(body, list, sec).name).toBe('pbrDoor');
+    const hidden = door('lower-0', 'hiddenDoor');
+    hidden.visible = false;
+    const list2 = [
+      mesh({ entityKind: 'carcass', side: 'front', areaType: 'drawer', moduleId: 'lower-0' }, 'drawer0'),
+      mesh({ entityKind: 'blank', moduleId: 'lower-0', areaIdx: 1 }, 'blank0'),
+      hidden, body,
+    ];
+    expect(pick(body, list2, sec)).toBeNull();
+  });
+
+  test('갈래 — 도어·서랍 앞판·오픈 틀·마감판·목찬넬·먹장·손잡이·다리발·마감재는 바꾸지 않는다', () => {
+    expect(kind({ entityKind: 'carcass', side: 'left' })).toBe('body');
+    expect(kind({ entityKind: 'carcass', side: 'divider' })).toBe('body');
+    expect(kind({ entityKind: 'carcass', side: 'batten' })).toBe('body');
+    expect(kind({ entityKind: 'shelf' })).toBe('body');
+    expect(kind({ entityKind: 'brace' })).toBe('body');
+    expect(kind({ entityKind: 'toe-kick' })).toBe('kick');
+    expect(kind({ entityKind: 'pedestal' })).toBe('kick');
+    expect(kind({ entityKind: 'molding' })).toBe('molding');
+    [
+      { entityKind: 'carcass', side: 'front', areaType: 'door' },
+      { entityKind: 'carcass', side: 'front', areaType: 'drawer' },
+      { entityKind: 'carcass', side: 'front', areaType: 'open' },
+      { entityKind: 'carcass', side: 'finish' },
+      { entityKind: 'carcass', side: 'channelBase' },
+      { entityKind: 'carcass', side: 'channelFace' },
+      { entityKind: 'blank' }, { entityKind: 'door' }, { entityKind: 'handle' }, { entityKind: 'leg' },
+      { entityKind: 'finishing' }, { entityKind: 'blind' }, { entityKind: 'blindfin' }, { entityKind: 'marker' },
+      { entityKind: 'top-panel' }, {}, null,
+    ].forEach((ud) => expect(kind(ud)).toBeNull());
+  });
+});
+
+describe('clean 캡처 — 몸통·걸레받이 재질 바꿔 끼우기·되돌리기 (2026-10-19)', () => {
+  const PC = C.PlannerCapture;
+  beforeEach(() => {
+    window.THREE = THREE;
+    PC._outputPass = null;
+    window.OutputPass = class { render(renderer, write) { renderer.setRenderTarget(write); } };
+  });
+  afterEach(() => { window.THREE = undefined; PC._outputPass = null; delete window.OutputPass; PC.mount(null); });
+
+  // cleanScene 의 lower-0(몸통·상판)·upper-0(몸통) 에 도어·걸레받이·칠한 측판을 더한다
+  function sceneWithDoors() {
+    const s = cleanScene();
+    s.ubody = s.upper.children.find((o) => o.userData && o.userData.entityKind === 'carcass');
+    const mk = (w, h, d, ud, color) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color })); m.userData = ud; return m; };
+    const lowerDoor = mk(1196, 716, 18, { entityKind: 'carcass', side: 'front', areaType: 'door', moduleId: 'lower-0', areaIdx: 0 }, 0x30302e);
+    lowerDoor.position.set(0, 500, 334);
+    s.lower.add(lowerDoor);
+    const kick = mk(1200, 95, 18, { entityKind: 'toe-kick', moduleId: 'lower-0' }, 0xc8b08a);
+    kick.position.set(0, 52, 280);
+    s.lower.add(kick);
+    const upperDoor = mk(1196, 716, 18, { entityKind: 'carcass', side: 'front', areaType: 'door', moduleId: 'upper-0', areaIdx: 0 }, 0xd9d4c7);
+    upperDoor.position.set(0, 360, 174);
+    s.upper.add(upperDoor);
+    // 사람이 칠한 측판 — 디테일 룩이 바꿔 끼운 재질 (원래 것은 _origMaterial)
+    const paintedRaw = new THREE.MeshStandardMaterial({ color: 0x79988c });
+    const painted = mk(18, 720, 330, { entityKind: 'carcass', side: 'left', moduleId: 'upper-0', _origMaterial: paintedRaw }, 0xffffff);
+    painted.position.set(-591, 360, 0);
+    s.upper.add(painted);
+    return {
+      s, lowerDoor, upperDoor, kick, painted,
+      orig: { body: s.body.material, ubody: s.ubody.material, kick: kick.material, counter: s.counter.material, painted: painted.material,
+        lowerDoor: lowerDoor.material, upperDoor: upperDoor.material },
+    };
+  }
+  const now = (m) => ({ body: m.s.body.material, ubody: m.s.ubody.material, kick: m.kick.material, counter: m.s.counter.material,
+    painted: m.painted.material, lowerDoor: m.lowerDoor.material, upperDoor: m.upperDoor.material });
+  const sectionOf = (id) => String(id).split('-')[0];
+
+  test('clean: 찍는 순간 칠 안 한 몸통·걸레받이 = 같은 모듈 도어, 상판·칠한 측판·도어는 그대로 — 끝나면 원래 참조', () => {
+    const m = sceneWithDoors();
+    const during = [];
+    const r = cleanRenderer({ onRender() { during.push(now(m)); } });
+    PC.mount({ three: () => ({ renderer: r, scene: m.s.scene, moduleGroup: m.s.mg }), sectionOf });
+    for (const k of ['front', 'massing']) {
+      during.length = 0;
+      const shot = PC.capturePixels({ kind: k, longEdge: 64, clean: true });
+      expect(shot.ok).toBe(true);
+      expect(during).toHaveLength(1);
+      expect(during[0].body).toBe(m.orig.lowerDoor);
+      expect(during[0].kick).toBe(m.orig.lowerDoor);
+      expect(during[0].ubody).toBe(m.orig.upperDoor);
+      expect(during[0].counter).toBe(m.orig.counter);
+      expect(during[0].painted).toBe(m.orig.painted);
+      expect(during[0].lowerDoor).toBe(m.orig.lowerDoor);
+      expect(during[0].upperDoor).toBe(m.orig.upperDoor);
+      Object.keys(m.orig).forEach((key) => expect(now(m)[key]).toBe(m.orig[key]));
+    }
+    expect(m.painted.userData._origMaterial.color.getHex()).toBe(0x79988c);
+    expect(m.orig.lowerDoor.color.getHex()).toBe(0x30302e);   // 빌린 재질은 버리지도 바꾸지도 않는다
+  });
+
+  test('렌더가 던져도 몸통·걸레받이 재질은 되돌린다', () => {
+    const m = sceneWithDoors();
+    const disposed = [];
+    Object.values(m.orig).forEach((mat) => { mat.addEventListener('dispose', () => disposed.push(mat)); });
+    const r = cleanRenderer({ onRender() { throw new Error('gl lost'); } });
+    PC.mount({ three: () => ({ renderer: r, scene: m.s.scene, moduleGroup: m.s.mg }), sectionOf });
+    expect(PC.capturePixels({ kind: 'front', longEdge: 64, clean: true })).toMatchObject({ ok: false, message: 'gl lost' });
+    Object.keys(m.orig).forEach((key) => expect(now(m)[key]).toBe(m.orig[key]));
+    expect(disposed).toEqual([]);
+  });
+
+  test('clean 이 아니면 몸통·걸레받이 재질을 건드리지 않는다', () => {
+    const m = sceneWithDoors();
+    const during = [];
+    const r = cleanRenderer({ onRender() { during.push(now(m)); } });
+    PC.mount({ three: () => ({ renderer: r, scene: m.s.scene, moduleGroup: m.s.mg }), sectionOf });
+    expect(PC.capturePixels({ kind: 'front', longEdge: 64 }).ok).toBe(true);
+    Object.keys(m.orig).forEach((key) => expect(during[0][key]).toBe(m.orig[key]));
+  });
+});
+
 describe('clean 프레이밍·그림자 빛 (순수, 2026-10-18)', () => {
   // 실제 D1 (하부 800·400·1000 + 상판 2400, 상부 900·900, 싱크) 의 보이는 부재 경계 — 브라우저에서 잰 값
   const box = (x0, y0, z0, x1, y1, z1) => C.plannerCaptureCorners({ min: { x: x0, y: y0, z: z0 }, max: { x: x1, y: y1, z: z1 } });
@@ -1485,5 +1656,38 @@ describe('clean 캡처 — 페이지 부팅(디테일 룩과 함께)', () => {
     expect(mold.material).toBe(before.mold);
     expect(f.door.material).toBe(before.door);
     expect(mold.userData._origMaterial).toBeUndefined();
+  });
+
+  // 2026-10-19: 도어만 칠한 도면 — 칠 안 한 몸통·걸레받이는 룩이 칠한 도어 재질로, 사람이 칠한 측판은 그 마감 그대로
+  test('구조 모드 clean: 칠 안 한 몸통·걸레받이 = 룩이 칠한 도어 재질, 칠한 측판은 제 마감 — 끝나면 전부 원래 참조', () => {
+    const p = boot();
+    const f = fakeThree(p);
+    p.PD.detail.parts[f.moduleId] = { 'door#0': { code: 'PET-OAK-M' }, 'body:left': { code: 'PET-WHT-G' } };
+    const mk = (w, h, d, ud, color) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color }));
+      m.userData = Object.assign({ moduleId: f.moduleId }, ud);
+      f.door.parent.add(m);
+      return m;
+    };
+    const back = mk(600, 720, 18, { entityKind: 'carcass', side: 'back' }, 0x8a6a4a);
+    const left = mk(18, 720, 560, { entityKind: 'carcass', side: 'left' }, 0x79988c);
+    const kick = mk(600, 95, 18, { entityKind: 'toe-kick' }, 0xc8b08a);
+    const top = mk(600, 12, 600, { entityKind: 'top-panel' }, 0x9a8a70);
+    const before = { door: f.door.material, back: back.material, left: left.material, kick: kick.material, top: top.material };
+    const during = [];
+    f.renderer.render = function () {
+      during.push({ door: f.door.material, back: back.material, left: left.material, kick: kick.material, top: top.material });
+    };
+    expect(p.PC.capturePixels({ kind: 'front', longEdge: 64, clean: true }).ok).toBe(true);
+    const d = during[0];
+    expect(d.door.constructor.name).toBe('MeshPhysicalMaterial');
+    expect(d.back).toBe(d.door);
+    expect(d.kick).toBe(d.door);
+    expect(d.left).not.toBe(d.door);                 // 사람이 칠한 측판 — 제 마감
+    expect(d.left).not.toBe(before.left);
+    expect(d.top).toBe(before.top);                   // 상판 — 칠 안 했으면 그대로
+    const after = { door: f.door.material, back: back.material, left: left.material, kick: kick.material, top: top.material };
+    Object.keys(before).forEach((k) => expect(after[k]).toBe(before[k]));
+    [back, left, kick, top].forEach((o) => expect(o.userData._origMaterial).toBeUndefined());
   });
 });
