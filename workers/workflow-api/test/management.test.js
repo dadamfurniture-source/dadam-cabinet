@@ -239,3 +239,120 @@ test('경영 요약에 퍼널과 플랫폼(이달 · 지난 달)이 실린다', 
   assert.equal(s.platform.prev.generations, 1);
   assert.equal(s.platform.prev.ordered, 1); // g5 → D4 → 수주
 });
+
+// ── PR-3: 공정 줄 — 견적 대비 실적 · 부하 · 처리량 ──
+import { estimateByCategory, costVariance, timeVariance, workdaysInMonth, loadOf, throughputOf, processOf } from '../src/management/summary.js';
+import { mergeLogs } from '../src/management/service.js';
+
+const P_ORDERS = [
+  { id: 'P1', order_no: 'SO-11', customer_name: 'P고객', snapshot_id: 'sp1', status: 'confirmed', contract_amount: 3300000, ordered_at: '2026-10-06T01:00:00Z' },
+  { id: 'P2', order_no: 'SO-12', snapshot_id: 'sp2', status: 'in_production', contract_amount: 1100000, ordered_at: '2026-10-13T01:00:00Z' },
+  { id: 'P3', order_no: 'SO-13', snapshot_id: 'sp1', status: 'cancelled', contract_amount: 9900000, ordered_at: '2026-10-14T01:00:00Z' },
+  { id: 'P4', order_no: 'SO-14', snapshot_id: 'sp2', status: 'confirmed', contract_amount: 1100000, ordered_at: '2026-09-14T01:00:00Z' },
+];
+const P_SNAPS = new Map([
+  ['sp1', { quote_payload: { cost: {
+    body: { material: 400000, edge: 20000, hardware: 80000, labor: 150000, overhead: 0, fixed: 100000 },
+    back: { material: 40000, labor: 10000, overhead: 0 },
+    door: { outsourcing: 500000, labor: 5000, overhead: 0 },
+    install: { outsourcing: 120000 },
+    extras: { countertop: 300000, sinkBowl: 55000 },
+    seconds: { cutter: 4200, edge: 1800, asm: 6000 },
+  } } }],
+  ['sp2', { quote_payload: { cost: {
+    body: { material: 200000, edge: 10000, hardware: 40000 },
+    back: { material: 20000 },
+    door: { outsourcing: 300000 },
+    install: { outsourcing: 0 },
+    extras: {},
+    seconds: { cutter: 2400, edge: 900, asm: 3000 },
+  } } }],
+]);
+const P_COSTS = [
+  { order_id: 'P1', category: 'material', amount: 300000 },
+  { order_id: 'P1', category: 'material', amount: 260000 },
+  { order_id: 'P1', category: 'outsourcing', amount: 950000 },
+  { order_id: 'P1', category: 'labor', amount: 200000 }, // 노무는 돈으로 비교하지 않는다
+  { order_id: 'P2', category: 'hardware', amount: 30000 },
+  { order_id: 'P4', category: 'material', amount: 100 },  // 9월 수주
+];
+const P_LOGS = [
+  { id: 'w1', order_id: 'P1', role: 'cutter', minutes: 50, work_date: '2026-10-07' },
+  { id: 'w2', order_id: 'P1', role: 'cutter', minutes: 30, work_date: '2026-10-08' },
+  { id: 'w3', order_id: 'P1', role: 'asm', minutes: 90, work_date: '2026-10-12' },
+  { id: 'w4', order_id: 'P2', role: 'edge', minutes: 20, work_date: '2026-10-15' },
+  { id: 'w5', order_id: null, role: 'edge', minutes: 60, work_date: '2026-10-20' }, // 주문 없는 기록 — 부하엔 들고 시간 차이엔 안 든다
+];
+const P_SETTINGS = { quote: { overheadMonthly: 0 }, crew: { hoursPerDay: 8, util: 0.85, cutters: 1, edgeMachines: 1, assemblers: 1 }, holidays: ['2026-10-09', '2026-10-03'] };
+
+test('견적 원가를 실적 범주로: 상판 · 철거 = 외주, 싱크볼 · 수전 · 후드 = 자재, 노무는 뺀다', () => {
+  assert.deepEqual(estimateByCategory(P_SNAPS.get('sp1').quote_payload), {
+    material: 400000 + 20000 + 40000 + 55000, hardware: 80000, outsourcing: 500000 + 120000 + 300000, logistics: 0, other: 0,
+  });
+  assert.equal(estimateByCategory({ total: 1 }), null);
+});
+
+test('견적 대비 실적(돈): 넣은 범주만 비교 — 자재 +8.7% · 철물 −25% · 외주 +3.3%, 크게 빗나간 순', () => {
+  const v = costVariance(P_ORDERS, P_SNAPS, P_COSTS, '2026-10');
+  assert.equal(v.orders, 2);
+  assert.equal(v.recorded, 2);
+  assert.deepEqual(v.categories, [
+    { category: 'material', label: '자재', orders: 1, estimate: 515000, actual: 560000, diff: 45000, diffRate: 8.7 },
+    { category: 'hardware', label: '부자재', orders: 1, estimate: 40000, actual: 30000, diff: -10000, diffRate: -25 },
+    { category: 'outsourcing', label: '외주', orders: 1, estimate: 920000, actual: 950000, diff: 30000, diffRate: 3.3 },
+  ]);
+  assert.deepEqual(v.totals, { estimate: 1475000, actual: 1540000, diff: 65000, diffRate: 4.4 });
+  assert.deepEqual(v.top.map((r) => [r.label, r.diff, r.diffRate, r.worst.label]), [
+    ['P고객 (SO-11)', 75000, 5.2, '자재'],
+    ['SO-12', -10000, -25, '부자재'],
+  ]);
+});
+
+test('견적 대비 실적(시간): 실측이 붙은 역할만 — 재단 +14.3% · 엣지 +33.3% · 조립 −10%', () => {
+  assert.deepEqual(timeVariance(P_ORDERS, P_SNAPS, P_LOGS, '2026-10'), [
+    { role: 'cutter', label: '재단', orders: 1, estimateMin: 70, actualMin: 80, diffRate: 14.3 },
+    { role: 'edge', label: '엣지', orders: 1, estimateMin: 15, actualMin: 20, diffRate: 33.3 },
+    { role: 'asm', label: '조립', orders: 1, estimateMin: 100, actualMin: 90, diffRate: -10 },
+  ]);
+});
+
+test('근무일: 2026-10 은 평일 22일에서 한글날(금) 하루를 뺀 21일, 토요일 휴일은 영향 없음', () => {
+  assert.equal(workdaysInMonth('2026-10', ['2026-10-09', '2026-10-03']), 21);
+  assert.equal(workdaysInMonth('2026-02', []), 20);
+});
+
+test('공정 부하: 능력 = 21일 × 8시간 × 0.85 = 142.8시간/인, 받은 일 비율이 가장 높은 조립이 병목', () => {
+  const l = loadOf(P_ORDERS, P_SNAPS, P_LOGS, P_SETTINGS, '2026-10');
+  assert.equal(l.workdays, 21);
+  assert.equal(l.bottleneck, 'asm');
+  assert.deepEqual(l.roles, [
+    { role: 'cutter', label: '재단', people: 1, capacityHours: 142.8, receivedHours: 1.8, doneHours: 1.3, load: 1.3, doneLoad: 0.9 },
+    { role: 'edge', label: '엣지', people: 1, capacityHours: 142.8, receivedHours: 0.8, doneHours: 1.3, load: 0.5, doneLoad: 0.9 },
+    { role: 'asm', label: '조립', people: 1, capacityHours: 142.8, receivedHours: 2.5, doneHours: 1.5, load: 1.8, doneLoad: 1.1 },
+  ]);
+});
+
+test('처리량: 매출 − 자재 · 철물 · 외주, 병목(조립) 1분당 — P1 14,850원 > P2 8,600원', () => {
+  const t = throughputOf(P_ORDERS, P_SNAPS, '2026-10', 'asm');
+  assert.equal(t.label, '조립');
+  assert.deepEqual(t.rows.map((r) => [r.label, r.throughput, r.minutes, r.perMin]), [
+    ['P고객 (SO-11)', 1485000, 100, 14850],
+    ['SO-12', 430000, 50, 8600],
+  ]);
+  assert.equal(t.avgPerMin, 12767); // 191.5만 ÷ 150분
+  assert.equal(throughputOf(P_ORDERS, P_SNAPS, '2026-10', 'cutter').avgPerMin, 17409);
+  assert.equal(throughputOf(P_ORDERS, P_SNAPS, '2026-10', 'nope').role, null);
+});
+
+test('공정 줄 한 벌: 처리량은 병목 공정의 분으로 나눈다', () => {
+  const p = processOf({ orders: P_ORDERS, snapshotsById: P_SNAPS, costs: P_COSTS, worklogs: P_LOGS, settings: P_SETTINGS }, '2026-10');
+  assert.equal(p.load.bottleneck, 'asm');
+  assert.equal(p.throughput.role, 'asm');
+  assert.equal(p.variance.recorded, 2);
+  assert.equal(p.time.length, 3);
+});
+
+test('실측을 두 번 읽어도(주문 기준 · 달 기준) 한 번만 센다', () => {
+  const merged = mergeLogs(P_LOGS.slice(0, 3), P_LOGS);
+  assert.equal(merged.length, P_LOGS.length);
+});
