@@ -12,7 +12,7 @@
  *   순이익    = 공헌이익 − 월 고정비
  */
 import { summarizeMonth, kstDate } from '../production/service.js';
-import { COST_LABELS } from '../orders.js';
+import { COST_LABELS, tierOf } from '../orders.js';
 import { calibrate, EDGE_FACE_SINCE } from '../production/calibration.js';
 
 const TIER_LABEL = Object.freeze({ customer: '직판', partner: '거래처' });
@@ -468,8 +468,7 @@ export function scenarioBase(orders, snapshotsById, settings, month) {
     const q = quoteOf(o, snapshotsById);
     const c = q && q.cost;
     if (!c || !Number.isFinite(Number(c.total))) { b.revenueUnknown += revenue; continue; }
-    const partner = q.partner && Math.abs(num(o.contract_amount) - num(q.partner.total)) < 1000;
-    if (partner) b.revenuePartner += revenue; else b.revenueCustomer += revenue;
+    if (tierOf(o, q) === 'partner') b.revenuePartner += revenue; else b.revenueCustomer += revenue;
     const v = (x, k) => num(x && x[k]);
     b.material += v(c.body, 'material') + v(c.body, 'edge') + v(c.back, 'material');
     b.hardware += v(c.body, 'hardware');
