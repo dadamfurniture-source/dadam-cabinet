@@ -195,20 +195,20 @@ export function computeGuide(g, W, H) {
 const MAGENTA = [255, 0, 255];
 const MAX_EDGE = 1024; // 가이드는 지시용 — 크게 보낼 까닭이 없다 (PNG 는 사진에 무겁다)
 
-function b64ToBytes(b64) {
+export function b64ToBytes(b64) {
   const bin = atob(b64);
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
 }
-function bytesToB64(bytes) {
+export function bytesToB64(bytes) {
   let s = '';
   for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
   return btoa(s);
 }
 
 /** RGBA → RGB, 긴 변 maxEdge 로 상자 평균 축소 */
-function downscale(img, maxEdge) {
+export function downscale(img, maxEdge) {
   const { width: w, height: hgt, data } = img;
   const s = Math.min(1, maxEdge / Math.max(w, hgt));
   const W = Math.max(1, Math.round(w * s));
@@ -489,6 +489,65 @@ export async function pasteVariantInside(base, variant, points, o = {}) {
       out[i3 + 1] = V.data[i4 + 1] * a + B.data[i4 + 1] * (1 - a);
       out[i3 + 2] = V.data[i4 + 2] * a + B.data[i4 + 2] * (1 - a);
     }
+  }
+  const png = await encodePng({ width: W, height: H, rgb: out });
+  return { base64: bytesToB64(png), mimeType: 'image/png' };
+}
+
+/**
+ * 되붙이기 — 다각형 여러 개(0~1, 싱크대의 칠한 면들) 안은 추천안, 밖은 기본안. 경계는 섞는다.
+ * 각 다각형은 볼록이다. 크기가 다르거나 JPEG 가 아니면 null.
+ */
+export async function pasteVariantInPolys(base, variant, polys, o = {}) {
+  if (!base || !variant || base.mimeType !== 'image/jpeg' || variant.mimeType !== 'image/jpeg' || !Array.isArray(polys) || !polys.length) return null;
+  const B = decodeJpeg(b64ToBytes(base.base64), { useTArray: true, formatAsRGBA: true });
+  const V = decodeJpeg(b64ToBytes(variant.base64), { useTArray: true, formatAsRGBA: true });
+  if (B.width !== V.width || B.height !== V.height) return null;
+  const W = B.width;
+  const H = B.height;
+  const grow = (o.grow ?? 0.006) * W;
+  const feather = Math.max(1, (o.feather ?? 0.005) * W);
+  const alpha = new Float32Array(W * H);
+  const reach = grow + feather;
+  for (const poly of polys) {
+    const P = poly.map((p) => ({ x: p.x * W, y: p.y * H }));
+    if (P.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) continue;
+    let area = 0;
+    for (let i = 0; i < P.length; i++) {
+      const a = P[i], b = P[(i + 1) % P.length];
+      area += a.x * b.y - b.x * a.y;
+    }
+    const sgn = area >= 0 ? 1 : -1;
+    const xs = P.map((p) => p.x), ys = P.map((p) => p.y);
+    const x0 = Math.max(0, Math.floor(Math.min(...xs) - reach)), x1 = Math.min(W - 1, Math.ceil(Math.max(...xs) + reach));
+    const y0 = Math.max(0, Math.floor(Math.min(...ys) - reach)), y1 = Math.min(H - 1, Math.ceil(Math.max(...ys) + reach));
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const px = x + 0.5, py = y + 0.5;
+        let inside = true;
+        let dmin = Infinity;
+        for (let i = 0; i < P.length; i++) {
+          const a = P[i], b = P[(i + 1) % P.length];
+          const ex = b.x - a.x, ey = b.y - a.y;
+          if (sgn * (ex * (py - a.y) - ey * (px - a.x)) < 0) inside = false;
+          const L2 = ex * ex + ey * ey || 1;
+          const t = Math.max(0, Math.min(1, ((px - a.x) * ex + (py - a.y) * ey) / L2));
+          dmin = Math.min(dmin, Math.hypot(px - (a.x + t * ex), py - (a.y + t * ey)));
+        }
+        const d = inside ? 0 : dmin;
+        const a = d <= grow ? 1 : d >= reach ? 0 : 1 - (d - grow) / feather;
+        const k = y * W + x;
+        if (a > alpha[k]) alpha[k] = a;
+      }
+    }
+  }
+  const out = new Uint8Array(W * H * 3);
+  for (let k = 0; k < W * H; k++) {
+    const a = alpha[k];
+    const i4 = k * 4, i3 = k * 3;
+    out[i3] = V.data[i4] * a + B.data[i4] * (1 - a);
+    out[i3 + 1] = V.data[i4 + 1] * a + B.data[i4 + 1] * (1 - a);
+    out[i3 + 2] = V.data[i4 + 2] * a + B.data[i4 + 2] * (1 - a);
   }
   const png = await encodePng({ width: W, height: H, rgb: out });
   return { base64: bytesToB64(png), mimeType: 'image/png' };
