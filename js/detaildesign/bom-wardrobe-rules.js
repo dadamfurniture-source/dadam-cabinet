@@ -138,8 +138,13 @@
       // 내부 서랍장 몸통 — 하부장과 같은 방식으로 만든다 (천판 없음)
       BAND_H: 70,           // 밴드 폭 — 천판 대신 상단 앞·뒤에 선다 (하부장과 같다)
       BACK_T: 3,            // 뒷판 · 서랍 밑판 우라 MDF 3T — 2026-10-18 (예전 2.7)
-      BACK_W_MINUS: 20,     // 뒷판 가로 = 모듈 외경 − 20
-      BACK_H_MINUS: 1,      // 뒷판 세로 = 모듈 높이 − 1
+      // 뒷판 크기는 측판 사쿠리가 정한다 (2026-10-19 사장님, extractors.js bomBackPanelSize 와 같은 규칙):
+      //   사쿠리 있음 (W − 20) × (H − 1) 홈 끼움 · 없음 (W − 1) × (H − 1) 측판 뒤 덮음.
+      //   내부 서랍장 몸통은 하부장과 같아 측판 사쿠리가 없다.
+      SIDE_SAKURI: false,
+      BACK_SAKURI_W_MINUS: 20,
+      BACK_FLAT_W_MINUS: 1,
+      BACK_H_MINUS: 1,
     }),
   });
 
@@ -664,7 +669,8 @@
       { part: '지판', material: 'PB', t: T, w: inner, h: L.panelD, qty: 1, edge: '1면(전)' },
       { part: '밴드', material: 'PB', t: T, w: inner, h: I.BAND_H, qty: 2, edge: '2면(장)',
         note: '천판 대신 상단 앞·뒤 (하부장과 같다)' },
-      { part: '뒷판', material: 'MDF', t: I.BACK_T, w: W - I.BACK_W_MINUS, h: H - I.BACK_H_MINUS, qty: 1, edge: '-' },
+      { part: '뒷판', material: 'MDF', t: I.BACK_T, w: W - (I.SIDE_SAKURI ? I.BACK_SAKURI_W_MINUS : I.BACK_FLAT_W_MINUS), h: H - I.BACK_H_MINUS, qty: 1, edge: '-',
+        note: I.SIDE_SAKURI ? '사쿠리 홈 끼움' : '측판 뒤 덮음' },
       { part: '상판', material: 'PB', t: L.topT, w: L.topPanelW, h: L.topPanelD, qty: 1, edge: '1면(전)',
         note: '모듈 + 좌우 몰딩을 덮는다 — 분할 없는 칸의 선반과 같은 판' },
     ];

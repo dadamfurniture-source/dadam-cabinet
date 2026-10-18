@@ -155,9 +155,9 @@ describe('신발장 (shoerack) — 얕은 깊이 350 · 선반 분배 · 서랍 
 describe('화장대 (vanity) — 18T · 찬넬(목찬넬 아님) · 우측 None', () => {
   const snap = snaps.vanity;
 
-  test('몸통 18T: W−36 · 뒷판 (W−36)×(H−18), 도어는 18T MDF 그대로', () => {
+  test('몸통 18T: W−36 · 뒷판 (W−1)×(H−1) 측판 뒤 덮음 (사쿠리 없음, 2026-10-19), 도어는 18T MDF 그대로', () => {
     expect(rowOf(snap, '하부장-하부장', '지판').w).toBe(600 - 36);
-    expect(rowOf(snap, '하부장-하부장', '뒷판')).toMatchObject({ w: 600 - 36, h: 708 - 18, thickness: 3 });
+    expect(rowOf(snap, '하부장-하부장', '뒷판')).toMatchObject({ w: 600 - 1, h: 708 - 1, thickness: 3 });
     expect(rowOf(snap, '하부장-하부장', '도어')).toMatchObject({ thickness: 18, w: 596, h: 678 });
   });
 
