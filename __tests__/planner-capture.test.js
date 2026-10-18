@@ -983,6 +983,7 @@ function workState(s, r) {
   const c = s.d1.shadow.camera;
   return {
     vis,
+    light: [s.d1.position.toArray(), s.d1.target.position.toArray(), Array.from(s.d1.target.matrixWorld.elements), s.d2.position.toArray()],
     bg: s.scene.background,
     bgHex: s.scene.background ? s.scene.background.getHex() : null,
     clear: [r._clear.getHex(), r._clearAlpha],
@@ -1018,6 +1019,10 @@ describe('clean 캡처 — 찍는 순간만 바뀌고, 끝나면(던져도) 작�
           visible: { grid: s.grid.visible, ground: s.ground.visible, area: s.area.visible, areaEdge: s.areaEdge.visible, pick: s.pick.visible, origin: s.origin.visible, sinkBox: s.sinkBox.visible, sinkEdge: s.sinkEdge.visible, hoodBox: s.hoodBox.visible, body: s.body.visible, bodyEdge: s.bodyEdge.visible, upper: s.upper.visible },
           standins: standins.map((m) => { m.updateWorldMatrix(true, false); const b = new THREE.Box3().setFromObject(m); return { part: m.userData.part, min: b.min.clone(), max: b.max.clone(), opaque: !m.material.transparent, shadowMat: !!m.material.isShadowMaterial }; }),
           shadowCam: [sc.left, sc.right, sc.top, sc.bottom, sc.near, sc.far],
+          d1: s.d1.position.toArray(),
+          d1Target: new THREE.Vector3().setFromMatrixPosition(s.d1.target.matrixWorld).toArray(),
+          d2: s.d2.position.toArray(),
+          catcherOpacity: (() => { let o = null; scene.traverse((x) => { if (x.material && x.material.isShadowMaterial) o = x.material.opacity; }); return o; })(),
           d2Cast: s.d2.castShadow,
           fov: cam.fov,
         });
@@ -1128,6 +1133,187 @@ describe('clean 캡처 — 찍는 순간만 바뀌고, 끝나면(던져도) 작�
     expect(mod.ok).toBe(true);   // 마커 모듈 하나 — 대역으로 경계를 잰다
     expect(mod.camera.target[1]).toBeGreaterThan(870);
     expect(workState(s, r)).toEqual(before);
+  });
+
+  // 2026-10-18: clean 프레이밍 · 그림자 빛
+  test('clean massing·front — 보이는 부재 꼭짓점에 맞춰 가운데, 그림자 빛은 앞·왼쪽 위로 갔다가 돌아온다 · 받는 판은 옅게', () => {
+    const { s, r, seen } = mountClean();
+    const before = workState(s, r);
+    for (const kind of ['massing', 'front']) {
+      const shot = PC.capturePixels({ kind, longEdge: 64, clean: true });
+      expect(shot.ok).toBe(true);
+      const w = seen[seen.length - 1];
+      // 찍는 순간 — 그림자 빛은 경계 바닥 가운데를 앞(+Z)·왼쪽(−X)·위에서 비춘다. 보조광 d2 는 그대로.
+      const dir = new THREE.Vector3(...w.d1).sub(new THREE.Vector3(...w.d1Target)).normalize();
+      expect(dir.x).toBeLessThan(0);
+      expect(dir.z).toBeGreaterThan(0);
+      expect(Math.asin(dir.y) * 180 / Math.PI).toBeCloseTo(C.PLANNER_CAPTURE_CLEAN_LIGHT.elevationDeg, 6);
+      expect(w.d1Target[1]).toBeCloseTo(0, 6);
+      expect(w.d2).toEqual([-3000, 4000, -3000]);
+      expect(w.catcherOpacity).toBe(C.PLANNER_CAPTURE_SHADOW_OPACITY);
+      expect(w.catcherOpacity).toBeLessThan(0.22);
+      // 그림자 카메라는 옮긴 빛 기준으로 맞았다 — 그 축에 투영한 꼭짓점이 다 들어온다
+      expect(w.shadowCam[1] - w.shadowCam[0]).toBeGreaterThan(1000);
+      // 프레임 — 숨긴 마커·배치 상자는 빼고, 보이는 부재(대역 포함)의 투영이 가운데·묶이는 축이 fill
+      const cam = new THREE.PerspectiveCamera(shot.frame.fov, shot.frame.aspect, shot.frame.near, shot.frame.far);
+      cam.position.set(...shot.frame.position);
+      cam.up.set(...shot.frame.up);
+      cam.lookAt(...shot.frame.target);
+      cam.updateMatrixWorld(true);
+      const pts = [];
+      [s.lower, s.upper].forEach((g) => C.plannerCapturePointsOf(g, THREE).forEach((p) => pts.push(p)));
+      expect(pts.length).toBeGreaterThan(8);
+      const xs = [], ys = [];
+      pts.forEach((p) => { const v = new THREE.Vector3(...p).project(cam); xs.push(v.x); ys.push(v.y); });
+      const F = C.PLANNER_CAPTURE_CLEAN_FILL[kind];
+      // 대역(볼·수전·후드)도 경계에 들어가므로 하부·상부만의 투영은 fill 안에 있다
+      [...xs, ...ys].forEach((v) => expect(Math.abs(v)).toBeLessThanOrEqual(F + 1e-6));
+    }
+    expect(workState(s, r)).toEqual(before);
+    expect(s.d1.position.toArray()).toEqual([5000, 8000, 5000]);
+    expect(s.d1.target.position.toArray()).toEqual([0, 0, 0]);
+  });
+});
+
+describe('clean 프레이밍·그림자 빛 (순수, 2026-10-18)', () => {
+  // 실제 D1 (하부 800·400·1000 + 상판 2400, 상부 900·900, 싱크) 의 보이는 부재 경계 — 브라우저에서 잰 값
+  const box = (x0, y0, z0, x1, y1, z1) => C.plannerCaptureCorners({ min: { x: x0, y: y0, z: z0 }, max: { x: x1, y: y1, z: z1 } });
+  const D1 = [
+    ...box(0, 0, 0, 2200, 858, 668),        // 하부 몸통·도어
+    ...box(0, 858, 0, 2400, 870, 650),      // 상판 (2400)
+    ...box(0, 1503, 300, 1800, 2300, 638),  // 상부
+    ...box(1390, 870, 37, 2010, 1170, 568), // 싱크 대역
+  ];
+  const boundsOf = (pts) => {
+    const b = { min: { x: Infinity, y: Infinity, z: Infinity }, max: { x: -Infinity, y: -Infinity, z: -Infinity } };
+    pts.forEach(([x, y, z]) => {
+      b.min.x = Math.min(b.min.x, x); b.min.y = Math.min(b.min.y, y); b.min.z = Math.min(b.min.z, z);
+      b.max.x = Math.max(b.max.x, x); b.max.y = Math.max(b.max.y, y); b.max.z = Math.max(b.max.z, z);
+    });
+    return b;
+  };
+  const project = (f, pts) => {
+    const cam = new THREE.PerspectiveCamera(f.fov, f.aspect, f.near, f.far);
+    cam.position.set(...f.position);
+    cam.up.set(...f.up);
+    cam.lookAt(...f.target);
+    cam.updateMatrixWorld(true);
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    pts.forEach((p) => {
+      const v = new THREE.Vector3(...p).project(cam);
+      minX = Math.min(minX, v.x); maxX = Math.max(maxX, v.x); minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
+    });
+    // 화면 폭·높이에 대한 몫과 양쪽 여백 (0~1)
+    return { w: (maxX - minX) / 2, h: (maxY - minY) / 2, left: (minX + 1) / 2, right: (1 - maxX) / 2, top: (1 - maxY) / 2, bottom: (minY + 1) / 2 };
+  };
+
+  test('projectExtent 는 three project 와 같다 · 카메라 뒤 점이 있으면 null', () => {
+    const f = C.plannerCaptureFrame('massing', B, 16 / 9);
+    const e = C.plannerCaptureProjectExtent(f.position, f.target, f.up, f.fov, f.aspect, C.plannerCaptureCorners(B), 10);
+    const p = project(f, C.plannerCaptureCorners(B));
+    expect((e.maxX - e.minX) / 2).toBeCloseTo(p.w, 9);
+    expect((e.maxY - e.minY) / 2).toBeCloseTo(p.h, 9);
+    expect(C.plannerCaptureProjectExtent(f.position, f.target, f.up, f.fov, f.aspect, [[f.position[0], 1500, f.position[2] + 100]], 10)).toBeNull();
+    expect(C.plannerCaptureProjectExtent(f.position, f.target, f.up, f.fov, f.aspect, [], 10)).toBeNull();
+  });
+
+  test('massing — 가구 투영이 가운데, 묶이는 축을 0.9 채운다. 예전 프레임은 위 7.6%·아래 5% 로 치우쳤다', () => {
+    const b = boundsOf(D1);
+    const old = project(C.plannerCaptureFrame('massing', b, 16 / 9), D1);
+    expect(old.top - old.bottom).toBeGreaterThan(0.015);   // 고치기 전: 위가 더 비었다
+    const f = C.plannerCaptureCleanFrame('massing', b, 16 / 9, D1);
+    const p = project(f, D1);
+    expect(Math.abs(p.top - p.bottom)).toBeLessThan(0.002);
+    expect(Math.abs(p.left - p.right)).toBeLessThan(0.002);
+    expect(Math.max(p.w, p.h)).toBeCloseTo(C.PLANNER_CAPTURE_CLEAN_FILL.massing, 3);
+    expect(p.h).toBeGreaterThan(old.h);
+    // 눈높이·방위각·화각·16:9 는 그대로 — 경계 중심에서 30°
+    expect(f.position[1]).toBe(1500);
+    const c = [(b.min.x + b.max.x) / 2, (b.min.z + b.max.z) / 2];
+    expect(Math.atan2(f.position[0] - c[0], f.position[2] - c[1]) * 180 / Math.PI).toBeCloseTo(30, 9);
+    expect([f.fov, f.aspect]).toEqual([C.PLANNER_CAPTURE_FOV.massing, 16 / 9]);
+    // 상부장까지 있는 D1 은 세로가 묶인다 — 16:9 에서 가로는 절반쯤이 한계다
+    expect(p.h).toBeCloseTo(0.9, 3);
+    expect(p.w).toBeGreaterThan(0.45);
+    expect(p.w).toBeLessThan(0.56);
+  });
+
+  test('massing — 가로 몫은 런 길이가 정한다: 상부 포함 3600 ≈ 65% · 4200 ≈ 73% · 하부만 2400 ≈ 87%', () => {
+    const run = (L) => [...box(0, 0, 0, L, 870, 650), ...box(0, 1500, 300, L, 2300, 650)];
+    const w = (pts) => project(C.plannerCaptureCleanFrame('massing', boundsOf(pts), 16 / 9, pts), pts);
+    const p36 = w(run(3600)), p42 = w(run(4200));
+    expect(p36.w).toBeCloseTo(0.646, 2);
+    expect(p42.w).toBeGreaterThan(0.7);
+    expect(p42.w).toBeLessThan(0.9 + 1e-6);
+    [p36, p42].forEach((p) => expect(p.h).toBeCloseTo(0.9, 3));   // 둘 다 세로가 묶인다
+    const lower = [...box(0, 0, 0, 2200, 858, 668), ...box(0, 858, 0, 2400, 870, 650)];
+    const p2 = project(C.plannerCaptureCleanFrame('massing', boundsOf(lower), 16 / 9, lower), lower);
+    expect(p2.w).toBeGreaterThan(0.8);
+    expect(Math.max(p2.w, p2.h)).toBeCloseTo(0.9, 3);
+    expect(Math.abs(p2.left - p2.right)).toBeLessThan(0.002);
+  });
+
+  test('front — 정면(−Z) 시선 그대로 가운데, 묶이는 축 0.94 · FOV 12° · 종횡비는 넘긴 값(경계 W/H)', () => {
+    const b = boundsOf(D1);
+    const a = C.plannerCaptureAspectFor('front', b, 1.5);
+    const f = C.plannerCaptureCleanFrame('front', b, a, D1);
+    expect(f.fov).toBe(12);
+    expect(f.aspect).toBe(a);
+    expect(f.position[0]).toBeCloseTo(f.target[0], 9);
+    expect(f.position[1]).toBeCloseTo(f.target[1], 9);
+    expect(f.position[2]).toBeGreaterThan(b.max.z);
+    const p = project(f, D1);
+    expect(Math.max(p.w, p.h)).toBeCloseTo(C.PLANNER_CAPTURE_CLEAN_FILL.front, 3);
+    expect(Math.abs(p.top - p.bottom)).toBeLessThan(0.002);
+    expect(Math.abs(p.left - p.right)).toBeLessThan(0.002);
+    // 예전 front(여백 8% 를 앞면에서 잰다)보다 가구가 크다
+    const old = project(C.plannerCaptureFrame('front', b, a), D1);
+    expect(Math.max(p.w, p.h)).toBeGreaterThan(Math.max(old.w, old.h));
+  });
+
+  test('iso·plan·module 은 clean 이어도 예전 프레임 · 점이 없으면 경계 꼭짓점', () => {
+    expect(C.plannerCaptureCleanFrame('iso', B, 1.5, D1)).toEqual(C.plannerCaptureFrame('iso', B, 1.5));
+    expect(C.plannerCaptureCleanFrame('plan', B, 1.5, D1)).toEqual(C.plannerCaptureFrame('plan', B, 1.5));
+    expect(C.plannerCaptureCleanFrame('massing', B, 16 / 9, [])).toEqual(C.plannerCaptureCleanFrame('massing', B, 16 / 9, C.plannerCaptureCorners(B)));
+    expect(C.plannerCaptureCleanFrame('massing', null, 16 / 9, D1)).toBeNull();
+  });
+
+  test('pointsOf — 보이는 부재 mesh 꼭짓점만: 숨긴 것(과 그 아래)·배치 상자·선택 테두리·선은 빠진다', () => {
+    const s = cleanScene();
+    // 숨긴 큰 판 — 예전 경계(traverse)에는 들어간다
+    const hiddenSlab = new THREE.Mesh(new THREE.BoxGeometry(9000, 10, 9000), new THREE.MeshStandardMaterial());
+    hiddenSlab.visible = false;
+    s.mg.add(hiddenSlab);
+    s.sink.visible = false;
+    s.hood.visible = false;
+    const pts = C.plannerCapturePointsOf(s.mg, THREE);
+    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    expect(Math.min(...xs)).toBeCloseTo(0, 6);       // 배치 상자(−1400~2600)·숨긴 판(±4500)이 아니다
+    expect(Math.max(...xs)).toBeCloseTo(1200, 6);
+    expect(Math.max(...ys)).toBeCloseTo(2220, 6);    // 상부장 윗면 — 후드(2300) 는 숨겼다
+    expect(new Set(pts.map((p) => p.join(','))).size).toBe(pts.length);   // 중복 없음
+    expect(C.plannerCaptureBoundsOf(s.mg, THREE).max.x).toBeCloseTo(4500, 6);   // 숨김을 안 보는 경계와 다르다
+    expect(C.plannerCapturePointsOf(null, THREE)).toEqual([]);
+  });
+
+  test('그림자 빛 — 앞·왼쪽 위(방위 −35° · 고도 50°), 타깃은 경계 바닥 가운데 · 그림자는 가구 오른쪽 뒤로 떨어진다', () => {
+    const L = C.plannerCaptureCleanLight(B);
+    expect(L.target).toEqual([1800, 0, 300]);
+    const v = L.position.map((x, i) => x - L.target[i]);
+    const len = Math.hypot(...v);
+    expect(len).toBeGreaterThanOrEqual(5000);
+    expect(v[0] / len).toBeCloseTo(L.dir[0], 12);
+    expect(Math.asin(L.dir[1]) * 180 / Math.PI).toBeCloseTo(50, 9);
+    expect(Math.atan2(L.dir[0], L.dir[2]) * 180 / Math.PI).toBeCloseTo(-35, 9);
+    // 상판 앞 왼쪽 모서리(0, 870, 600) 의 바닥 그림자 — 빛 반대쪽(오른쪽 +X, 뒤 −Z)
+    const t = 870 / L.dir[1];
+    const shadow = [0 - L.dir[0] * t, 0, 600 - L.dir[2] * t];
+    expect(shadow[0]).toBeGreaterThan(0);
+    expect(shadow[2]).toBeLessThan(600);
+    // 예전 빛(5000, 8000, 5000) 은 앞·오른쪽 — 그림자가 왼쪽 뒤로 갔다
+    expect(C.plannerCaptureCleanLight(null)).toBeNull();
+    expect(C.PLANNER_CAPTURE_SHADOW_OPACITY).toBeGreaterThan(0.08);
+    expect(C.PLANNER_CAPTURE_SHADOW_OPACITY).toBeLessThan(0.22);
   });
 });
 

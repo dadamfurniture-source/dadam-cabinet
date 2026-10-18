@@ -39,6 +39,15 @@
 //      바닥에 그림자만 받는 판(ShadowMaterial)을 깐다. 평소 화면에는 켜지 않는다 (계획서 §11-⑥).
 //   전부 finally 에서 되돌린다 — 캡처 뒤 작업 화면(배경·그리드·마커·그림자·재질)은 그대로다. 예외가 나도.
 //
+// 2026-10-18: clean 프레이밍·그림자 빛 보강.
+//   ⑤ 프레임 (plannerCaptureCleanFrame) — massing·front 는 경계 상자 여덟 꼭짓점이 아니라 **보이는 부재 mesh 하나하나의
+//      꼭짓점**(plannerCapturePointsOf)에 맞추고, 투영된 가구가 화면 가운데 오도록 타깃을 옮긴다. 묶이는 축(가로든 세로든)
+//      에서 가구가 PLANNER_CAPTURE_CLEAN_FILL 만큼 찬다 (massing 0.9 · front 0.94). 여백은 위아래·좌우가 같다.
+//      종횡비·화각·눈높이·방위각은 그대로 — massing 16:9, front 경계 W/H · FOV 12°. clean 이 아니면 예전 프레임 그대로.
+//      ⚠ massing 16:9 에서 상부장까지 있는 주방은 세로가 묶인다 (투영 실루엣이 거의 정사각형). 그때 가로는 약 50% 다.
+//   ⑥ 그림자 빛 (plannerCaptureCleanLight) — castShadow 방향광을 앞·왼쪽 위(방위 −35° · 고도 50°)로 옮겨
+//      바닥 그림자가 가구 오른쪽 옆으로 보이게 한다. 받는 판은 옅게 (PLANNER_CAPTURE_SHADOW_OPACITY). finally 에서 원위치.
+//
 // 저장 (PlannerStore.saveRender, planner-store.js): 버킷 renders 의 {design}/{item}/{kind}-{yyyymmddHHMMss}.png
 //   + design_renders 행 (kind · path · width/height · camera · detail_hash). 스코프가 없으면(design=local ·
 //   로그인 전) <a download> 로 이 브라우저에 내려받는다 — 이 페이지는 앱 페이지라 다운로드가 된다.
@@ -81,6 +90,18 @@ const PLANNER_CAPTURE_FOV = {
   front: 12, plan: 12, iso: 45, module: 45,
   massing: plannerCaptureVfov(PLANNER_CAPTURE_MASSING.hfov, PLANNER_CAPTURE_MASSING.aspect),
 };
+/**
+ * 2026-10-18: clean 캡처에서 묶이는 축(가로나 세로)을 가구가 채우는 몫. 나머지가 양쪽 같은 여백이다.
+ * massing 0.9 → 위아래(또는 좌우) 5% 씩. front 0.94 → 3% 씩 (입면이라 더 꽉 채운다).
+ */
+const PLANNER_CAPTURE_CLEAN_FILL = { massing: 0.9, front: 0.94 };
+/**
+ * 2026-10-18: clean 캡처 동안 그림자 빛 — 앞(+Z)에서 왼쪽(−X)으로 35° 비낀 방위, 고도 50°.
+ * massing 카메라(앞·오른쪽 30°)와 같은 앞쪽이라 보이는 면이 밝고, 바닥 그림자는 가구 오른쪽 뒤로 길게 떨어져 옆에서 보인다.
+ */
+const PLANNER_CAPTURE_CLEAN_LIGHT = { azimuthDeg: -35, elevationDeg: 50 };
+/** 그림자만 받는 바닥 판의 불투명도 — 진하면 오려 붙인 듯 보인다. 접지감만. */
+const PLANNER_CAPTURE_SHADOW_OPACITY = 0.16;
 /** 경계 계산에서 빼는 entityKind — 부재가 아니다 */
 const PLANNER_CAPTURE_BOUNDS_SKIP = { area: true, pick: true };
 /** 종횡비 한계 — 아주 납작하거나 긴 씬도 화면에 들어오게 */
@@ -375,6 +396,115 @@ function plannerCaptureFits(eye, target, up, vfovDeg, aspect, points, margin, ne
 }
 
 /**
+ * 점들의 투영 범위 — 화면 좌표(NDC, −1~1). three 의 project 와 같은 값. 순수.
+ * 한 점이라도 near 앞(카메라 뒤)이면 null.
+ * @returns {{minX:number, maxX:number, minY:number, maxY:number}|null}
+ */
+function plannerCaptureProjectExtent(eye, target, up, vfovDeg, aspect, points, near) {
+  if (!points || !points.length) return null;
+  const B = plannerCaptureLookBasis(eye, target, up);
+  const tv = Math.tan((vfovDeg / 2) * Math.PI / 180);
+  const th = tv * aspect;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (let i = 0; i < points.length; i++) {
+    const v = [points[i][0] - eye[0], points[i][1] - eye[1], points[i][2] - eye[2]];
+    const depth = -(v[0] * B.z[0] + v[1] * B.z[1] + v[2] * B.z[2]);
+    if (!(depth > (near || 0))) return null;
+    const x = (v[0] * B.x[0] + v[1] * B.x[1] + v[2] * B.x[2]) / (depth * th);
+    const y = (v[0] * B.y[0] + v[1] * B.y[1] + v[2] * B.y[2]) / (depth * tv);
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  return { minX, maxX, minY, maxY };
+}
+
+/**
+ * clean 캡처 프레임 (2026-10-18). 순수 — 머리 주석 ⑤.
+ *   massing·front 만 다르다. 나머지 프리셋은 plannerCaptureFrame 그대로.
+ *   points 는 보이는 부재 꼭짓점 (plannerCapturePointsOf). 없으면 경계 여덟 꼭짓점.
+ *   ① 투영 폭·높이가 fill 안에 드는 가장 가까운 거리 ② 투영 가운데로 타깃을 옮긴다 — 몇 번 되풀이하면 가운데에 선다
+ *   ③ 마지막으로 옮긴 타깃에서 "모든 점이 화면 가장자리에서 fill 안쪽" 인 가장 가까운 거리 (plannerCaptureFits) — 넘침 없음 보장.
+ *   massing: 눈은 경계 중심에서 방위 30° · 눈높이 1500 선 위에 그대로 둔다 (타깃만 옮긴다).
+ *   front: 정면(−Z) 시선을 유지한 채 눈과 타깃을 함께 옆·위로 옮긴다 — 입면이 기울지 않는다.
+ * @param {string} kind @param {{min,max}} bounds @param {number} aspect @param {number[][]} [points]
+ * @param {number} [fill] 묶이는 축을 채우는 몫. 기본 PLANNER_CAPTURE_CLEAN_FILL[kind]
+ */
+function plannerCaptureCleanFrame(kind, bounds, aspect, points, fill) {
+  const base = plannerCaptureFrame(kind, bounds, aspect);
+  if (!base || (base.kind !== 'massing' && base.kind !== 'front')) return base;
+  const k = base.kind;
+  const F = Math.min(0.99, Math.max(0.3, Number(fill) || PLANNER_CAPTURE_CLEAN_FILL[k]));
+  const pts = (Array.isArray(points) && points.length) ? points : plannerCaptureCorners(bounds);
+  const fov = base.fov, a = base.aspect, up = base.up, near = base.near;
+  const c = base.target.slice();
+  const tv = Math.tan((fov / 2) * Math.PI / 180), th = tv * a;
+  const P = PLANNER_CAPTURE_MASSING;
+  const yaw = P.yawDeg * Math.PI / 180;
+  let tgt = c.slice();
+  // 거리 d 에서의 눈. massing 은 경계 중심 기준 선 위, front 는 타깃 바로 앞.
+  const eyeAt = (d) => (k === 'massing'
+    ? [c[0] + Math.sin(yaw) * d, P.eyeY, c[2] + Math.cos(yaw) * d]
+    : [tgt[0], tgt[1], tgt[2] + d]);
+  const W = bounds.max.x - bounds.min.x, H = bounds.max.y - bounds.min.y, D = bounds.max.z - bounds.min.z;
+  const span = Math.max(W, H, D, 1000);
+  const search = (ok) => {
+    let lo = 0, hi = span;
+    for (let i = 0; i < 40 && !ok(hi); i++) hi *= 2;
+    for (let i = 0; i < 60; i++) { const mid = (lo + hi) / 2; if (ok(mid)) hi = mid; else lo = mid; }
+    return hi;
+  };
+  const spanFits = (d) => {
+    const e = plannerCaptureProjectExtent(eyeAt(d), tgt, up, fov, a, pts, near);
+    return !!e && (e.maxX - e.minX) / 2 <= F && (e.maxY - e.minY) / 2 <= F;
+  };
+  for (let iter = 0; iter < 8; iter++) {
+    const d = search(spanFits);
+    const eye = eyeAt(d);
+    const e = plannerCaptureProjectExtent(eye, tgt, up, fov, a, pts, near);
+    if (!e) break;
+    const ox = (e.minX + e.maxX) / 2, oy = (e.minY + e.maxY) / 2;
+    if (Math.abs(ox) < 1e-5 && Math.abs(oy) < 1e-5) break;
+    const B = plannerCaptureLookBasis(eye, tgt, up);
+    const dep = Math.sqrt((eye[0] - tgt[0]) ** 2 + (eye[1] - tgt[1]) ** 2 + (eye[2] - tgt[2]) ** 2);
+    const sx = ox * dep * th, sy = oy * dep * tv;
+    tgt = [tgt[0] + B.x[0] * sx + B.y[0] * sy, tgt[1] + B.x[1] * sx + B.y[1] * sy, tgt[2] + B.x[2] * sx + B.y[2] * sy];
+  }
+  const dist = search((d) => plannerCaptureFits(eyeAt(d), tgt, up, fov, a, pts, 1 / F, near));
+  const position = eyeAt(dist);
+  const diag = Math.sqrt(W * W + H * H + D * D);
+  return {
+    kind: k,
+    fov,
+    aspect: a,
+    position,
+    target: tgt,
+    up,
+    near,
+    far: Math.ceil(dist * 4 + diag + 20000),
+    dist,
+  };
+}
+
+/**
+ * clean 캡처 동안의 그림자 빛 자리 (2026-10-18). 순수 — 머리 주석 ⑥.
+ * 타깃은 경계 바닥 가운데, 조명은 거기서 방위·고도 방향으로 충분히 먼 곳 (방향광이라 방향만 뜻이 있다).
+ * @param {{min,max}} bounds
+ * @returns {{position:number[], target:number[], dir:number[]}|null} dir = 타깃 → 조명 (단위 벡터)
+ */
+function plannerCaptureCleanLight(bounds) {
+  if (!bounds || !bounds.min || !bounds.max) return null;
+  const L = PLANNER_CAPTURE_CLEAN_LIGHT;
+  const az = L.azimuthDeg * Math.PI / 180, el = L.elevationDeg * Math.PI / 180;
+  const dir = [Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)];
+  const W = bounds.max.x - bounds.min.x, H = bounds.max.y - bounds.min.y, D = bounds.max.z - bounds.min.z;
+  const R = Math.max(5000, 2 * Math.sqrt(W * W + H * H + D * D));
+  const target = [(bounds.min.x + bounds.max.x) / 2, Math.min(0, bounds.min.y), (bounds.min.z + bounds.max.z) / 2];
+  return { position: [target[0] + dir[0] * R, target[1] + dir[1] * R, target[2] + dir[2] * R], target, dir };
+}
+
+/**
  * 방향광 그림자 카메라(직교)를 경계에 맞춘다. 순수 — docs/02-design/features/shadow-frustum.md 의 수정 방향.
  * 기본 프러스텀(±5 · near 0.5 · far 500)은 mm 씬에서 10mm 상자라 그림자가 한 픽셀도 안 그려진다.
  * 그림자 카메라는 조명 자리에서 타깃을 본다. 꼭짓점을 그 축에 투영해 좌우·상하·깊이를 잰다.
@@ -552,6 +682,37 @@ function plannerCaptureBoundsOf(root, T, opt) {
   });
   if (!any) return null;
   return { min: { x: box.min.x, y: box.min.y, z: box.min.z }, max: { x: box.max.x, y: box.max.y, z: box.max.z } };
+}
+
+/**
+ * 2026-10-18: clean 프레임이 맞출 점 — **보이는** 부재 mesh 하나하나의 세계 경계 꼭짓점 (1mm 로 묶어 중복 제거).
+ * 경계 상자 하나의 꼭짓점과 달리 빈 허공의 모서리(상판 앞코 위 · 상부장 앞의 빈 공간)가 들어가지 않는다.
+ * 고르는 규칙은 plannerCaptureBoundsOf(visibleOnly) 와 같다 — 숨긴 것과 그 아래, area·pick, 선(원점 마커)은 뺀다.
+ * @returns {number[][]} [[x,y,z], …] — mesh 가 없으면 []
+ */
+function plannerCapturePointsOf(root, T) {
+  if (!root || !T || typeof root.traverse !== 'function') return [];
+  try { root.updateWorldMatrix(true, true); } catch (e) { /* 순수 객체면 없다 */ }
+  const tmp = new T.Box3();
+  const seen = new Set();
+  const out = [];
+  const walk = typeof root.traverseVisible === 'function' ? 'traverseVisible' : 'traverse';
+  root[walk]((obj) => {
+    if (!obj || !obj.isMesh || !obj.geometry || obj.visible === false) return;
+    const ud = obj.userData || {};
+    if (ud.entityKind && PLANNER_CAPTURE_BOUNDS_SKIP[ud.entityKind]) return;
+    if (!obj.geometry.boundingBox) obj.geometry.computeBoundingBox();
+    if (!obj.geometry.boundingBox) return;
+    tmp.copy(obj.geometry.boundingBox).applyMatrix4(obj.matrixWorld);
+    if (tmp.isEmpty()) return;
+    plannerCaptureCorners(tmp).forEach((p) => {
+      const key = Math.round(p[0]) + ',' + Math.round(p[1]) + ',' + Math.round(p[2]);
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(p);
+    });
+  });
+  return out;
 }
 
 /** moduleGroup 안에서 그 모듈의 그룹 (createModuleMesh 가 userData.entityKind='module' 을 붙인다). */
@@ -768,20 +929,33 @@ const PlannerCapture = {
       r.shadowMap.needsUpdate = true;
     }
     const floorY = Math.min(0, bounds.min.y);
+    const cl = plannerCaptureCleanLight(bounds);
     (t.scene.children || []).forEach((L) => {
       if (!L || !L.isDirectionalLight || !L.castShadow || !L.shadow || !L.shadow.camera) return;
+      const cam = L.shadow.camera;
+      // 바꾸기 전에 적는다 — 아래에서 던져도 _cleanEnd 가 자리·그림자 카메라를 되돌린다
+      const tgt = L.target || null;
+      const s = {
+        light: L,
+        cam: { left: cam.left, right: cam.right, top: cam.top, bottom: cam.bottom, near: cam.near, far: cam.far },
+        bias: L.shadow.bias,
+        normalBias: L.shadow.normalBias,
+        pos: L.position ? [L.position.x, L.position.y, L.position.z] : null,
+        tpos: (tgt && tgt.position) ? [tgt.position.x, tgt.position.y, tgt.position.z] : null,
+      };
+      st.lights.push(s);
+      // ⑥ 그림자 빛 — 앞·왼쪽 위로. 타깃이 씬 그래프 밖(부모 없음)일 때만 — 로컬 좌표가 곧 세계 좌표다.
+      if (cl && s.pos && s.tpos && !tgt.parent && (!L.parent || L.parent === t.scene)) {
+        L.position.set(cl.position[0], cl.position[1], cl.position[2]);
+        tgt.position.set(cl.target[0], cl.target[1], cl.target[2]);
+        s.moved = true;
+        try { tgt.updateMatrixWorld(true); } catch (e) { /* 무해 */ }
+      }
       try { L.updateWorldMatrix(true, false); } catch (e) { /* 무해 */ }
       const le = L.matrixWorld.elements;
       const te = (L.target && L.target.matrixWorld) ? L.target.matrixWorld.elements : null;
       const fr = plannerCaptureShadowFrustum([le[12], le[13], le[14]], te ? [te[12], te[13], te[14]] : [0, 0, 0], bounds, 50, floorY);
       if (!fr) return;
-      const cam = L.shadow.camera;
-      st.lights.push({
-        light: L,
-        cam: { left: cam.left, right: cam.right, top: cam.top, bottom: cam.bottom, near: cam.near, far: cam.far },
-        bias: L.shadow.bias,
-        normalBias: L.shadow.normalBias,
-      });
       Object.assign(cam, fr);
       cam.updateProjectionMatrix();
       // 깊이 지도 한 칸 크기만큼 법선 쪽으로 민다 — 그림자 여드름(acne) 막기. mm 단위.
@@ -792,7 +966,7 @@ const PlannerCapture = {
     });
     if (st.lights.length && T.ShadowMaterial && T.PlaneGeometry) {
       const W = (bounds.max.x - bounds.min.x) + 4000, D = (bounds.max.z - bounds.min.z) + 4000;
-      const plane = new T.Mesh(new T.PlaneGeometry(W, D), new T.ShadowMaterial({ opacity: 0.22 }));
+      const plane = new T.Mesh(new T.PlaneGeometry(W, D), new T.ShadowMaterial({ opacity: PLANNER_CAPTURE_SHADOW_OPACITY }));
       plane.rotation.x = -Math.PI / 2;
       plane.position.set((bounds.min.x + bounds.max.x) / 2, floorY, (bounds.min.z + bounds.max.z) / 2);
       plane.receiveShadow = true;
@@ -818,6 +992,14 @@ const PlannerCapture = {
     if (st.bg) { try { t.scene.background = st.bg.value; } catch (e) { /* 무해 */ } st.bg = null; }
     if (st.clear) { try { t.renderer.setClearColor(st.clear.color, st.clear.alpha); } catch (e) { /* 무해 */ } st.clear = null; }
     st.lights.splice(0).forEach((s) => {
+      if (s.moved) {
+        try {
+          s.light.position.set(s.pos[0], s.pos[1], s.pos[2]);
+          s.light.target.position.set(s.tpos[0], s.tpos[1], s.tpos[2]);
+          s.light.target.updateMatrixWorld(true);
+          s.light.updateMatrixWorld(true);
+        } catch (e) { /* 무해 */ }
+      }
       try {
         Object.assign(s.light.shadow.camera, s.cam);
         s.light.shadow.camera.updateProjectionMatrix();
@@ -867,7 +1049,10 @@ const PlannerCapture = {
       }
       if (clean) this._cleanShadows(t, T, bounds, cleanSt);
       const aspect = plannerCaptureAspectFor(k.kind, bounds, this.canvasAspect());
-      const frame = plannerCaptureFrame(k.kind, bounds, aspect);
+      // clean 이면 보이는 부재 꼭짓점에 맞춰 가운데 세운다 (massing·front). 아니면 예전 그대로.
+      const frame = clean
+        ? plannerCaptureCleanFrame(k.kind, bounds, aspect, plannerCapturePointsOf(root, T))
+        : plannerCaptureFrame(k.kind, bounds, aspect);
       const size = plannerCaptureSizeFor(longEdge, frame.aspect);
       const width = size.width, height = size.height;
 
@@ -1233,6 +1418,13 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerCaptureCorners,
     plannerCaptureLookBasis,
     plannerCaptureFits,
+    PLANNER_CAPTURE_CLEAN_FILL,
+    PLANNER_CAPTURE_CLEAN_LIGHT,
+    PLANNER_CAPTURE_SHADOW_OPACITY,
+    plannerCaptureProjectExtent,
+    plannerCaptureCleanFrame,
+    plannerCaptureCleanLight,
+    plannerCapturePointsOf,
     plannerCaptureShadowFrustum,
     plannerCaptureCleanTargets,
     plannerCaptureStandInSpec,
