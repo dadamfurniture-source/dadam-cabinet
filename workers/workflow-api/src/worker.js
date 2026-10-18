@@ -52,6 +52,7 @@ import {
   backfillReports,
 } from './reports/service.js';
 import { isAdmin } from './reports/admin.js';
+import { getManagementSummary } from './management/service.js';
 import { createOutsourceOrder, listOutsourceOrders, loadCountertopContext } from './reports/outsource.js';
 import { renderReportPrint } from './templates/report-print.js';
 import { createSnapshot, listSnapshots, getSnapshot, previewQuote } from './snapshots.js';
@@ -500,6 +501,12 @@ async function handleMonthlySummary(request, env, { user }) {
   return jsonResponse(request, env, { success: true, data: await getMonthlySummary(env, { user, month: url.searchParams.get('month') }) });
 }
 
+// 경영 대시보드 (Claude 프로젝트 문서 "다담 경영 대시보드" 1단계) — 관리자만, 회사 전체
+async function handleManagementSummary(request, env, { user }) {
+  const url = new URL(request.url);
+  return jsonResponse(request, env, { success: true, data: await getManagementSummary(env, { user, month: url.searchParams.get('month') }) });
+}
+
 async function handleSaveProductionSettings(request, env, { user }) {
   const body = (await readJson(request)) || {};
   return jsonResponse(request, env, { success: true, data: await saveSettings(env, { user, body }) });
@@ -643,6 +650,7 @@ const router = createRouter([
   { method: 'GET',  path: '/production/worker-links',                  auth: 'jwt', handler: handleListWorkerLinks },
   { method: 'POST', path: '/production/worker-links/:linkId/revoke',   auth: 'jwt', handler: handleRevokeWorkerLink },
   { method: 'GET',  path: '/production/monthly',                       auth: 'jwt', handler: handleMonthlySummary },
+  { method: 'GET',  path: '/management/summary',                       auth: 'jwt', handler: handleManagementSummary },
   { method: 'GET',  path: '/production/worklogs',                      auth: 'jwt', handler: handleListWorklogs },
   { method: 'GET',  path: '/production/calibration',                   auth: 'jwt', handler: handleGetCalibration },
   { method: 'POST', path: '/production/calibration/apply',             auth: 'jwt', handler: handleApplyCalibration },

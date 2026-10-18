@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 계약금 · 원가 · 이익이 담긴다 — 색인 · 참조자 노출을 막는다 -->
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta name="referrer" content="no-referrer" />
+    <title>경영 대시보드 - 다담가구 관리자</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet" />
+    <script src="../js/config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="../js/admin-access.js"></script>
+    <!--
+      경영 대시보드 — 1단계 (Claude 프로젝트 문서 "다담 경영 대시보드").
+      맨 위 이익 식이 이번 달 이익을 쪼개고, 그 아래 줄이 가지마다 원인을 보여 준다.
+      숫자는 workflow-api 의 GET /management/summary 가 계산한다 (관리자만, 회사 전체).
+      바탕은 월 생산 마감과 같다 — 매출 = VAT 제외 계약금, 변동원가 = 확인서 견적 원가 − 고정비 회수분.
+      화면에 넣는 값은 전부 esc() 를 거친다.
+    -->
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: 'Noto Sans KR', sans-serif; background: #f5f5f5; color: #333; }
+      .sidebar { position: fixed; left: 0; top: 0; width: 250px; height: 100vh; background: #1a1a2e; color: white; padding: 20px 0; overflow-y: auto; }
+      .sidebar-logo { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px; }
+      .sidebar-logo h1 { font-size: 20px; font-weight: 700; }
+      .sidebar-logo span { font-size: 12px; color: #888; }
+      .nav-menu { list-style: none; }
+      .nav-menu li a { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: #aaa; text-decoration: none; transition: all 0.3s; }
+      .nav-menu li a:hover, .nav-menu li a.active { background: rgba(255,255,255,0.1); color: white; }
+      .nav-menu li a.active { border-left: 3px solid #007bff; }
+      .nav-icon { font-size: 18px; width: 24px; text-align: center; }
+      .sidebar-footer { position: absolute; bottom: 20px; left: 20px; right: 20px; }
+      .sidebar-footer a { display: block; padding: 10px; text-align: center; background: rgba(255,255,255,0.1); color: #aaa; text-decoration: none; border-radius: 8px; font-size: 13px; }
+      .main-content { margin-left: 250px; padding: 20px 30px; min-height: 100vh; }
+      .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #ddd; gap: 12px; flex-wrap: wrap; }
+      .header h2 { font-size: 24px; font-weight: 700; }
+      .header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      .admin-info { font-size: 13px; color: #666; }
+      .btn { padding: 8px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-family: inherit; }
+      .btn-light { background: #fff; color: #333; border: 1px solid #ddd; }
+      .btn:disabled { opacity: 0.5; cursor: default; }
+      input[type=month] { padding: 7px 9px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit; font-size: 13px; }
+      .muted { color: #888; font-size: 12px; }
+      .status-line { font-size: 13px; color: #666; min-height: 18px; margin-bottom: 12px; }
+      .access-denied { display: none; text-align: center; padding: 100px 20px; }
+      .access-denied h2 { margin-bottom: 10px; }
+      .access-denied a { color: #007bff; }
+      .num { font-variant-numeric: tabular-nums; }
+
+      /* 맨 위 이익 식 */
+      .tree { background: #fff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); padding: 18px 20px; margin-bottom: 18px; }
+      .tree-title { font-size: 13px; color: #666; margin-bottom: 12px; }
+      .eq { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; }
+      .eq .cell { flex: 1 1 120px; min-width: 120px; border: 1px solid #e3e6ea; border-radius: 8px; padding: 10px 12px; }
+      .eq .cell.result { border: 2px solid #007bff; background: #f3f8ff; }
+      .eq .cell.result.neg { border-color: #c62828; background: #fff5f5; }
+      .eq .cell label { display: block; font-size: 12px; color: #888; }
+      .eq .cell b { display: block; font-size: 20px; margin-top: 2px; }
+      .eq .cell small { display: block; font-size: 11.5px; color: #999; margin-top: 2px; }
+      .eq .op { align-self: center; font-size: 20px; color: #888; padding: 0 2px; }
+      .tree-foot { margin-top: 12px; font-size: 13px; color: #555; line-height: 1.7; }
+      .tree-foot .warn { color: #c62828; }
+
+      /* 줄 */
+      .row { display: grid; grid-template-columns: 70px 1fr; gap: 14px; margin-bottom: 18px; }
+      .row-lens { font-size: 13px; color: #888; padding-top: 14px; }
+      .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
+      /* 채널 표는 일곱 칸이라 넓은 화면에서는 오른쪽 카드에 자리를 더 준다 */
+      @media (min-width: 1100px) { #rowFinance .cards { grid-template-columns: minmax(300px, 2fr) minmax(460px, 3fr); } }
+      .card { background: #fff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); padding: 16px 18px; min-width: 0; }
+      .card h3 { font-size: 15px; margin-bottom: 4px; }
+      .card .q { font-size: 12px; color: #888; margin-bottom: 12px; }
+      .bep-bar { position: relative; height: 12px; background: #eef1f5; border-radius: 6px; overflow: hidden; }
+      .bep-bar i { position: absolute; left: 0; top: 0; bottom: 0; background: #007bff; border-radius: 6px; }
+      .bep-bar i.over { background: #2e7d32; }
+      .bep-nums { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 12px; }
+      .bep-nums div { background: #f5f7fa; border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #666; }
+      .bep-nums b { display: block; font-size: 16px; color: #333; }
+      .bep-line { margin-top: 10px; font-size: 13px; }
+      table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+      table.tbl th, table.tbl td { border-bottom: 1px solid #eee; padding: 7px 6px; text-align: right; vertical-align: middle; white-space: nowrap; }
+      table.tbl th:first-child, table.tbl td:first-child { text-align: left; }
+      table.tbl th { color: #888; font-weight: 500; font-size: 12px; }
+      .tbl-wrap { overflow-x: auto; }
+      .hbar { display: inline-block; height: 8px; background: #007bff; border-radius: 4px; vertical-align: middle; margin-left: 6px; }
+      .basis { font-size: 12px; color: #888; line-height: 1.7; margin-top: 4px; }
+      .basis a { color: #007bff; }
+      .empty-state { padding: 30px 10px; text-align: center; color: #888; font-size: 14px; line-height: 1.7; }
+
+      @media (max-width: 768px) {
+        .sidebar { display: none; }
+        .main-content { margin-left: 0; padding: 16px; }
+        .row { grid-template-columns: 1fr; gap: 6px; }
+        .row-lens { padding-top: 0; }
+        .cards { grid-template-columns: 1fr; }
+        .eq .op { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="sidebar">
+      <div class="sidebar-logo">
+        <h1>다담가구</h1>
+        <span>관리자 패널</span>
+      </div>
+      <ul class="nav-menu" id="adminNav"></ul>
+      <script src="../js/admin-shell.js"></script>
+      <div class="sidebar-footer"><a href="../index.html">← 메인 사이트로</a></div>
+    </nav>
+
+    <main class="main-content">
+      <div class="access-denied" id="accessDenied">
+        <h2>접근 권한이 없습니다</h2>
+        <p>관리자만 접근할 수 있는 페이지입니다.</p>
+        <a href="../index.html">메인 페이지로 돌아가기</a>
+      </div>
+
+      <div id="pageContent" style="display: none">
+        <header class="header">
+          <div>
+            <h2>경영 대시보드</h2>
+            <div class="muted">이번 달 이익이 왜 이만큼인지 — 맨 위 식이 쪼개고, 아래 줄이 원인을 보여 줍니다</div>
+          </div>
+          <div class="header-actions">
+            <label class="muted" for="fMonth">달</label>
+            <input type="month" id="fMonth" />
+            <button class="btn btn-light" id="btnReload" type="button">새로고침</button>
+            <span class="admin-info" id="adminInfo"></span>
+          </div>
+        </header>
+
+        <div class="status-line" id="statusLine"></div>
+
+        <section class="tree" id="tree" aria-label="이익 식">
+          <div class="empty-state">불러오는 중…</div>
+        </section>
+
+        <div class="row" id="rowFinance">
+          <div class="row-lens">재무</div>
+          <div class="cards">
+            <article class="card" id="cardBep">
+              <h3>손익분기</h3>
+              <div class="q">이번 달 얼마를 더 받아야 월 고정비를 덮나</div>
+              <div id="bepBody"></div>
+            </article>
+            <article class="card" id="cardChannel">
+              <h3>채널 공헌이익 — 직판 대 거래처</h3>
+              <div class="q">어느 쪽 일이 고정비를 더 덮나 · 공장 1시간당으로 보면</div>
+              <div id="channelBody"></div>
+            </article>
+          </div>
+        </div>
+
+        <div class="basis" id="basis"></div>
+      </div>
+    </main>
+
+    <script>
+      (function () {
+        'use strict';
+
+        const state = { sb: null, session: null, month: '', data: null };
+        let busy = false;
+        const $ = (id) => document.getElementById(id);
+
+        function esc(v) {
+          if (v === null || v === undefined) return '';
+          return String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+        const isNum = (n) => n !== null && n !== undefined && n !== '' && Number.isFinite(Number(n));
+        /** 큰 금액 — 만 원 단위 */
+        const man = (n) => (isNum(n) ? `${Math.round(Number(n) / 10000).toLocaleString('ko-KR')}만` : '-');
+        /** 작은 금액 — 원 단위 그대로 */
+        const won = (n) => (isNum(n) ? `${Math.round(Number(n)).toLocaleString('ko-KR')}원` : '-');
+        const cnt = (n) => (isNum(n) ? `${Number(n).toLocaleString('ko-KR')}건` : '-');
+        const pct = (n) => (isNum(n) ? `${n}%` : '-');
+        const hrs = (n) => (isNum(n) ? `${n}시간` : '-');
+
+        function kstMonth() {
+          return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 7);
+        }
+        function monthLabel(m) {
+          const [y, mm] = String(m).split('-').map(Number);
+          return `${y}년 ${mm}월`;
+        }
+
+        function apiBase() {
+          return (window.DADAM_CONFIG && window.DADAM_CONFIG.workflowApi && window.DADAM_CONFIG.workflowApi.url) || '';
+        }
+        async function token() {
+          const r = await state.sb.auth.getSession();
+          return (r && r.data && r.data.session && r.data.session.access_token) || null;
+        }
+        async function api(path) {
+          const t = await token();
+          if (!t) throw new Error('로그인이 필요합니다.');
+          const res = await fetch(apiBase() + path, { method: 'GET', headers: { Authorization: `Bearer ${t}` } });
+          let body = null;
+          try { body = await res.json(); } catch (e) { body = null; }
+          if (!res.ok || !body || !body.success) throw new Error((body && (body.message || body.error)) || `요청 실패 (${res.status})`);
+          return body.data;
+        }
+        function setStatus(msg, kind) {
+          const n = $('statusLine');
+          n.textContent = msg || '';
+          n.style.color = kind === 'error' ? '#c62828' : kind === 'ok' ? '#2e7d32' : '#666';
+        }
+
+        // ── 맨 위 이익 식 ──
+        /** 지난 달 한 줄 — 같은 단위로 */
+        const prevLine = (v, fmt) => (isNum(v) ? `지난 달 ${fmt(v)}` : '지난 달 -');
+
+        function renderTree(d) {
+          const t = d.tree;
+          const net = t.net.value;
+          const cells = [
+            `<div class="cell"><label>수주</label><b class="num">${esc(cnt(t.orders.value))}</b><small>${esc(prevLine(t.orders.prev, cnt))}</small></div>`,
+            '<span class="op">×</span>',
+            `<div class="cell"><label>평균 계약금 (VAT 제외)</label><b class="num">${esc(man(t.avgContract.value))}</b><small>${esc(prevLine(t.avgContract.prev, man))}</small></div>`,
+            '<span class="op">×</span>',
+            `<div class="cell"><label>공헌이익률</label><b class="num">${esc(pct(t.cmRate.value))}</b><small>${esc(prevLine(t.cmRate.prev, pct))}</small></div>`,
+            '<span class="op">−</span>',
+            `<div class="cell"><label>월 고정비</label><b class="num">${esc(man(t.overhead))}</b><small>생산 설정 값</small></div>`,
+            '<span class="op">=</span>',
+            `<div class="cell result${isNum(net) && net < 0 ? ' neg' : ''}"><label>월 순이익</label><b class="num">${esc(man(net))}</b><small>${esc(prevLine(t.net.prev, man))}</small></div>`,
+          ];
+          const lead = isNum(t.leads.value) ? `상담 ${cnt(t.leads.value)}` : '상담 -';
+          const conv = `확인서 ${cnt(t.issued.value)} 발행 → ${cnt(t.approved.value)} 승인 (전환 ${pct(t.conversion.value)})`;
+          const pending = t.pending > 0 ? ` · 결정 대기 ${cnt(t.pending)} — 이달 전환율은 더 오를 수 있습니다` : '';
+          const unknown = t.unknownCost > 0
+            ? `<div class="warn">견적 원가가 없는 수주 ${esc(cnt(t.unknownCost))}은 공헌이익 · 손익분기에서 빠졌습니다.</div>`
+            : '';
+          $('tree').innerHTML = `
+            <div class="tree-title">${esc(monthLabel(d.month))} — 이익 식</div>
+            <div class="eq">${cells.join('')}</div>
+            <div class="tree-foot">
+              <div>매출 <b class="num">${esc(man(t.revenue.value))}</b> (수주 × 평균 계약금) · 공헌이익 <b class="num">${esc(man(t.contribution.value))}</b> (매출 × 공헌이익률)</div>
+              <div>수주 앞단 — ${esc(lead)} · ${esc(conv)}${esc(pending)}</div>
+              ${unknown}
+            </div>`;
+        }
+
+        // ── 재무: 손익분기 ──
+        function renderBreakEven(d) {
+          const b = d.breakEven;
+          const rev = d.tree.revenue.value;
+          if (!isNum(b.revenueNeeded)) {
+            $('bepBody').innerHTML = '<div class="empty-state">견적 원가가 있는 수주가 없어 공헌이익률을 낼 수 없습니다 — 손익분기를 계산하지 않았습니다.</div>';
+            return;
+          }
+          const over = Number(b.progress) >= 100;
+          const width = Math.max(0, Math.min(100, Number(b.progress) || 0));
+          const line = over
+            ? `손익분기를 넘었습니다 — 매출이 <b>${esc(pct(b.safety))}</b> 줄어도 손해가 아닙니다 (안전한계율).`
+            : `손익분기까지 매출 <b class="num">${esc(man(b.gap))}</b>을 더 받아야 합니다.`;
+          $('bepBody').innerHTML = `
+            <div class="bep-bar" role="img" aria-label="손익분기 달성률 ${esc(pct(b.progress))}"><i class="${over ? 'over' : ''}" style="width:${width}%"></i></div>
+            <div class="bep-nums">
+              <div>손익분기 매출<b class="num">${esc(man(b.revenueNeeded))}</b></div>
+              <div>이달 매출<b class="num">${esc(man(rev))}</b></div>
+              <div>달성률<b class="num">${esc(pct(b.progress))}</b></div>
+              <div>공헌이익률<b class="num">${esc(pct(b.cmRate))}</b></div>
+            </div>
+            <div class="bep-line">${line}</div>
+            <div class="muted" style="margin-top:6px">손익분기 매출 = 월 고정비 ${esc(man(b.overhead))} ÷ 공헌이익률</div>`;
+        }
+
+        // ── 재무: 채널 공헌이익 ──
+        function renderChannels(d) {
+          const list = d.channels || [];
+          if (!list.length) {
+            $('channelBody').innerHTML = '<div class="empty-state">이번 달 수주가 없습니다.</div>';
+            return;
+          }
+          const top = Math.max(...list.map((c) => Number(c.perHour) || 0), 1);
+          const rows = list.map((c) => {
+            const w = isNum(c.perHour) && c.perHour > 0 ? Math.round((c.perHour / top) * 48) : 0;
+            return `<tr>
+              <td>${esc(c.label)}</td>
+              <td class="num">${esc(cnt(c.orders))}</td>
+              <td class="num">${esc(man(c.revenue))}</td>
+              <td class="num">${esc(man(c.contribution))}</td>
+              <td class="num">${esc(pct(c.cmRate))}</td>
+              <td class="num">${esc(hrs(c.factoryHours))}</td>
+              <td class="num">${esc(won(c.perHour))}${w ? `<span class="hbar" style="width:${w}px"></span>` : ''}</td>
+            </tr>`;
+          }).join('');
+          $('channelBody').innerHTML = `
+            <div class="tbl-wrap"><table class="tbl">
+              <thead><tr><th>채널</th><th>수주</th><th>매출</th><th>공헌이익</th><th>공헌이익률</th><th>공장 시간</th><th>1시간당</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table></div>
+            <div class="muted" style="margin-top:8px">공장 시간 = 견적이 잡은 재단 · 엣지 · 조립 시간. 거래처는 계약금이 거래처 견적과 1,000원 안인 수주입니다.</div>`;
+        }
+
+        const SOURCE_LABEL = { mine: '내 생산 설정', latest: '가장 최근에 저장된 생산 설정', default: '기본값' };
+        function renderBasis(d) {
+          const b = d.basis || {};
+          $('basis').innerHTML = `근거 — 매출: ${esc(b.revenue)} · 원가: ${esc(b.cost)} · 월 고정비 ${esc(man(b.overhead))}: ${esc(SOURCE_LABEL[b.settingsSource] || b.settingsSource)}
+            (<a href="../production.html">생산 설정에서 바꾸기</a>)`;
+        }
+
+        function render(d) {
+          state.data = d;
+          renderTree(d);
+          renderBreakEven(d);
+          renderChannels(d);
+          renderBasis(d);
+        }
+
+        async function load() {
+          if (busy) return;
+          busy = true;
+          $('btnReload').disabled = true;
+          setStatus('불러오는 중…');
+          try {
+            const d = await api(`/management/summary?month=${encodeURIComponent(state.month)}`);
+            render(d);
+            setStatus('');
+          } catch (e) {
+            setStatus((e && e.message) || '불러오지 못했습니다', 'error');
+          } finally {
+            busy = false;
+            $('btnReload').disabled = false;
+          }
+        }
+
+        function showAccessDenied() {
+          $('accessDenied').style.display = 'block';
+          $('pageContent').style.display = 'none';
+        }
+
+        async function init() {
+          if (!window.supabase || !window.DADAM_CONFIG || !window.DADAM_CONFIG.supabase) return showAccessDenied();
+          const { url, anonKey } = window.DADAM_CONFIG.supabase;
+          state.sb = window.supabase.createClient(url, anonKey);
+          const { data: { session } } = await state.sb.auth.getSession();
+          if (!session) return showAccessDenied();
+          const isAdmin = window.AdminAccess ? await window.AdminAccess.isAdmin(state.sb) : false;
+          if (!isAdmin) return showAccessDenied();
+          state.session = session;
+          $('adminInfo').textContent = (session.user && session.user.email) || '';
+          $('pageContent').style.display = 'block';
+          state.month = kstMonth();
+          $('fMonth').value = state.month;
+          $('fMonth').addEventListener('change', () => {
+            if (/^\d{4}-\d{2}$/.test($('fMonth').value)) { state.month = $('fMonth').value; load(); }
+          });
+          $('btnReload').addEventListener('click', load);
+          if (!apiBase()) {
+            setStatus('업무 서버(workflowApi.url)가 설정되지 않았습니다.', 'error');
+            return;
+          }
+          await load();
+        }
+
+        window.Management = { init, render, esc, man, won, pct };
+        if (!window.__MANAGEMENT_NO_AUTOSTART) {
+          if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+          else init();
+        }
+      })();
+    </script>
+  </body>
+</html>

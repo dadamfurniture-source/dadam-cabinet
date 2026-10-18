@@ -14,6 +14,7 @@
 
   const ADMIN_NAV = [
     { href: 'index.html', icon: '📊', label: '대시보드' },
+    { href: 'management.html', icon: '📈', label: '경영 대시보드' },
     { href: 'users.html', icon: '👥', label: '회원 관리' },
     { href: 'gallery.html', icon: '🖼️', label: '시공사례 관리' },
     { href: 'reference-images.html', icon: '🎨', label: '참고 이미지' },
