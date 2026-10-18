@@ -70,6 +70,15 @@ test('정면 사진(뒷벽 선이 평행)이면 초점거리는 기본값(EXIF �
   assert.ok(Math.abs(cam.f - fDefault) < 1e-6);
 });
 
+test('살짝만 돈 사진(벽 방향 소실점이 아주 멂)도 초점거리는 기본값 — 멀리 있는 소실점은 흔들린다', () => {
+  const v = virtualRoom({ yawDeg: 5 });
+  const cam = solveKitchenCamera(parseKitchenPoints(v.json, v.size), v.size.width, v.size.height, { wallH: 2400, focalMm: 24 });
+  assert.ok(cam);
+  const fDefault = (24 / 43.27) * Math.hypot(v.size.width, v.size.height);
+  assert.ok(Math.abs(cam.f - fDefault) < 1e-6);
+  // 20° 돈 사진은 소실점이 가까워 그대로 푼다 (위 시험: f 500 을 되찾는다)
+});
+
 test('면 목록: 열린 끝(왼쪽)만 끝면이 있고, 개수대·쿡탑·문짝 틈이 있다', () => {
   const v = virtualRoom();
   const cam = solveKitchenCamera(parseKitchenPoints(v.json, v.size), v.size.width, v.size.height, { wallH: 2400 });
@@ -149,20 +158,30 @@ function fakeState() {
   } };
 }
 
-async function runJob({ existing = null, options = {} } = {}) {
+async function runJob({ existing = null, options = {}, out = null, variantOut = null, maskJson = null } = {}) {
   const v = virtualRoom();
   const roomJpeg = Buffer.from(solid(800, 1000, [150, 150, 150]).base64, 'base64');
-  const seen = { claude: [], install: null, uploads: [], patched: [] };
+  const seen = { claude: [], install: null, uploads: [], bodies: {}, patched: [] };
+  // 이미지 응답: 기본 'OUT'(PNG 흉내). out/variantOut 을 주면 그 JPEG — 기본안은 out, 추천안은 variantOut
+  const outB64 = out ? out.base64 : Buffer.from('OUT').toString('base64');
+  const outMime = out ? 'image/jpeg' : 'image/png';
   globalThis.fetch = async (url, init = {}) => {
     const u = String(url);
     if (u.startsWith('https://api.anthropic.com/')) {
       const body = JSON.parse(init.body);
       seen.claude.push(body);
-      // 바탕은 긴 변 1024 로 줄인 그림 — 800x1000 은 그대로
-      return jsonRes({ id: 'm', type: 'message', role: 'assistant', model: 'claude-haiku-5-5', content: [{ type: 'text', text: JSON.stringify(v.json) }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } });
+      // 바탕은 긴 변 1024 로 줄인 그림 — 800x1000 은 그대로. 기본안 윤곽 요청에는 maskJson
+      const isMask = /^This render shows/.test(body.messages[0].content[1].text);
+      const answer = isMask ? maskJson || { blocks: [] } : v.json;
+      return jsonRes({ id: 'm', type: 'message', role: 'assistant', model: 'claude-haiku-5-5', content: [{ type: 'text', text: JSON.stringify(answer) }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } });
     }
     if (u.includes('/storage/v1/object/')) {
-      if ((init.method || 'GET') === 'POST') { seen.uploads.push(u.split('/generations/')[1]); return jsonRes({ Key: 'ok' }); }
+      if ((init.method || 'GET') === 'POST') {
+        const key = u.split('/generations/')[1];
+        seen.uploads.push(key);
+        seen.bodies[key.split('/').at(-1)] = init.body;
+        return jsonRes({ Key: 'ok' });
+      }
       return new Response(roomJpeg, { headers: { 'Content-Type': 'image/jpeg' } });
     }
     if (u.includes('/rest/v1/generations')) {
@@ -179,8 +198,10 @@ async function runJob({ existing = null, options = {} } = {}) {
         : JSON.stringify({ ok: true, issues: [], note: 'n' });
       return jsonRes({ candidates: [{ content: { parts: [{ text }] } }] });
     }
-    if (prompt.startsWith('Edit the first photo')) seen.install = { prompt, mimes: parts.filter((p) => p.inlineData).map((p) => p.inlineData.mimeType) };
-    return jsonRes({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: Buffer.from('OUT').toString('base64') } }] } }] });
+    const isInstall = prompt.startsWith('Edit the first photo');
+    if (isInstall) seen.install = { prompt, mimes: parts.filter((p) => p.inlineData).map((p) => p.inlineData.mimeType) };
+    const data = !isInstall && variantOut ? variantOut.base64 : outB64;
+    return jsonRes({ candidates: [{ content: { parts: [{ inlineData: { mimeType: outMime, data } }] } }] });
   };
   const job = new GenerateJob(fakeState(), { ...ENV });
   await job.fetch(new Request('https://generate-job/start', { method: 'POST', body: JSON.stringify({
@@ -209,4 +230,24 @@ test('잡: 기존 가구가 있는 사진은 싱크대 덩어리 합성을 하�
   const seen = await runJob({ existing: 'old dark cabinets' });
   assert.equal(seen.claude.length, 0);
   assert.deepEqual(seen.install.mimes, ['image/jpeg']);
+});
+
+test('잡: 추천안 되붙이기는 기본안에서 다시 찾은 가구 윤곽(baseMask)을 쓴다', async () => {
+  // 기본안(회색)·추천안(초록). Haiku 는 기본안 위쪽 왼쪽 사분면만 가구라고 답한다 (픽셀, 800x1000).
+  const maskJson = { blocks: [{ name: 'upper', outline: [[400, 0], [0, 0], [0, 500], [400, 500]] }, { name: 'speck', outline: [[1, 1], [3, 1], [3, 3]] }] };
+  const seen = await runJob({
+    options: { variants: true },
+    out: solid(800, 1000, [128, 128, 128]),
+    variantOut: solid(800, 1000, [30, 150, 60]),
+    maskJson,
+  });
+  assert.equal(seen.claude.length, 2, '선 찾기 + 기본안 윤곽');
+  assert.match(seen.claude[1].messages[0].content[1].text, /fitted kitchen/);
+  const wa = seen.patched.filter((p) => p.wall_analysis && p.wall_analysis.guide).at(-1);
+  assert.equal(wa.wall_analysis.guide.baseMask.length, 1, '작은 조각은 버린다');
+  const v1 = seen.bodies['v1.png'];
+  assert.ok(v1, '추천안이 PNG 로 되붙여 올라간다');
+  const px = pngPixels(Buffer.from(await new Response(v1).arrayBuffer()).toString('base64'), 800);
+  assert.ok(px(150, 200)[1] > 130 && px(150, 200)[0] < 60, `윤곽 안은 추천안 ${px(150, 200)}`);
+  assert.ok(px(650, 800).every((c) => Math.abs(c - 128) < 8), `윤곽 밖은 기본안 ${px(650, 800)}`);
 });
