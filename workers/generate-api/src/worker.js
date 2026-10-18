@@ -17,6 +17,8 @@
 
 import { callGemini, geminiModel, probeRoutes } from './gemini.js';
 import { proxyStub } from './proxy.js';
+import { imageProvider } from './images.js';
+import { openaiImageModel } from './openai.js';
 import {
   DEFAULT_STYLE,
   KITCHEN_CATEGORIES,
@@ -189,6 +191,9 @@ export default {
             worker: true,
             version: 2,
             model: geminiModel(env),
+            // 연출컷 이미지를 지금 누가 그리나 — 키 값은 싣지 않고 공급자·모델만 (2026-10-18)
+            image_provider: imageProvider(env),
+            image_model: imageProvider(env) === 'openai' ? openaiImageModel(env) : geminiModel(env),
             colo: (request.cf && request.cf.colo) || null,
           },
           200,
