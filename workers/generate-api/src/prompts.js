@@ -876,9 +876,17 @@ export function buildInstallPrompt(c, opts = {}) {
   // 덩어리 합성 (깊이 3a, 2026-10-19): 첫 사진에 잡이 붙박이장 부피를 무광 흰 판으로 이미 합성해 두었다.
   //   앞면은 튀어나온 벽 앞면에 맞춰 계산한 위치다 — 모델은 다듬기만 한다. 윤곽선만 줬을 땐 장을 뒷벽으로 되돌렸다.
   if (c.mockVolume) {
-    return `Edit the first photo: it already shows the new built-in ${cat.label} (${key}) as a plain off-white mock volume at its exact position, depth and size. Its front stands forward of the back wall, flush with the front face of the protruding wall, and its door divisions are drawn on it. Re-render that mock as a real photograph of the installed furniture.
+    // 2026-10-19: 싱크대도 덩어리 합성 (kitchen.js) — 하부장·상판·상부장·개수대·쿡탑 자리가 이미 사진에 있다
+    const kitchenMock = c.mockKind === 'kitchen';
+    const shows = kitchenMock
+      ? `it already shows the new built-in kitchen as plain off-white mock volumes at their exact position, depth and size: base cabinets with a recessed plinth under a countertop, wall cabinets up to the ceiling, the sink and the cooktop marked as dark shapes on the countertop, and the door divisions drawn on them. Re-render that mock as a real photograph of the installed kitchen.`
+      : `it already shows the new built-in ${cat.label} (${key}) as a plain off-white mock volume at its exact position, depth and size. Its front stands forward of the back wall, flush with the front face of the protruding wall, and its door divisions are drawn on it. Re-render that mock as a real photograph of the installed furniture.`;
+    const real = kitchenMock
+      ? 'MAKE IT REAL: real material with fine grain and sheen, crisp narrow reveals between the doors and drawers, a stone countertop with a visible front edge, an undermount sink with a single-lever mixer faucet (matte black or brushed steel) behind it, a flush induction cooktop with a slim concealed hood above it, a recessed plinth with a soft shadow, contact shadows on the floor and walls, and lighting consistent with the room.'
+      : 'MAKE IT REAL: real material with fine grain and sheen, crisp narrow reveals between the doors, a recessed plinth with a soft shadow, contact shadows on the floor and on the walls beside it, and lighting consistent with the room.';
+    return `Edit the first photo: ${shows}
 GEOMETRY IS FIXED: keep every outer edge of the mock exactly where it is, where it meets the floor, the ceiling and the walls, and keep the door divisions. The furniture stays this far forward and this size.
-MAKE IT REAL: real material with fine grain and sheen, crisp narrow reveals between the doors, a recessed plinth with a soft shadow, contact shadows on the floor and on the walls beside it, and lighting consistent with the room.
+${real}
 Keep the room exactly as photographed outside the furniture: camera, walls, ceiling, floor, windows and lighting.${room}
 WALL: about ${c.wallW} x ${c.wallH} mm.
 ${furniture}

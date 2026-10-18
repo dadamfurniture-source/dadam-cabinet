@@ -50,7 +50,8 @@ import { LAYOUT_CATEGORIES, LAYOUT_SCHEMA, buildLayoutPrompt, normalizeLayout } 
 import { callClaudeJson } from './claude.js';
 import { VERIFY_VERSION, compareLayoutToSpec } from './verify.js';
 import { controlNetModel, runControlNet } from './controlnet.js';
-import { GUIDE_POINTS_SCHEMA, buildGuidePointsPrompt, drawGuide, parseGuidePoints, pasteVariantInside, prepareGuideCanvas, renderMassingImage } from './guide.js';
+import { GUIDE_POINTS_SCHEMA, buildGuidePointsPrompt, drawGuide, parseGuidePoints, pasteVariantInPolys, pasteVariantInside, prepareGuideCanvas, renderMassingImage } from './guide.js';
+import { KITCHEN_POINTS_SCHEMA, buildKitchenPointsPrompt, parseKitchenPoints, renderKitchenMassing } from './kitchen.js';
 
 const MAX_ATTEMPTS = 2;
 /** 역판독(Claude 비전) 이미지 한도 — Anthropic 5MB, base64 는 4/3 배 (worker.js MAX_IMAGE_B64 와 같은 값) */
@@ -483,8 +484,60 @@ async function runPipeline(env, job, ck, save) {
     guideImg = await fetchObjectBase64(env, ck.guide.path); // 재실행 — 그려 둔 것을 쓴다
     if (ck.guide.massing) massingImg = await fetchObjectBase64(env, ck.guide.massing.path);
   }
-  if (massingImg) ctx.mockVolume = true;
-  else if (guideImg) ctx.guide = true;
+  // ═══ 1-c. 싱크대 덩어리 합성 (2026-10-19) ═══
+  //   기존 가구가 없는 사진(빈 벽·공사 현장)이고 Claude 키가 있을 때만. Haiku 가 뒷벽·옆벽 선을 찾고, kitchen.js 가
+  //   두 소실점 + 벽 높이로 카메라를 풀어 하부장·상판·상부장을 사진에 투영해 칠한다. 화각은 사진 EXIF(room_focal35),
+  //   없으면 24mm. 실패하면 글 지시로. GUIDE_MODE='outline' 이나 GUIDE_LINES='off' 면 하지 않는다.
+  const wantKitchen =
+    !planner && engine !== 'controlnet' && !ctx.realize && env.GUIDE_LINES !== 'off' && env.GUIDE_MODE !== 'outline' &&
+    category === 'sink' && !wall.existing && !!env.ANTHROPIC_API_KEY;
+  if (wantKitchen && ck.guide === undefined) {
+    ck.guide = null;
+    const t0 = Date.now();
+    let why = 'points missing';
+    try {
+      const canvas = await prepareGuideCanvas(room);
+      if (canvas) {
+        const size = { width: canvas.width, height: canvas.height };
+        const { json, model } = await callClaudeJson(env, {
+          prompt: buildKitchenPointsPrompt(size),
+          image: canvas.png,
+          schema: KITCHEN_POINTS_SCHEMA,
+          model: env.GUIDE_MODEL || 'claude-haiku-5-5',
+          fallbacks: false,
+          maxTokens: 4000,
+        });
+        const points = parseKitchenPoints(json, size);
+        if (points) {
+          why = 'camera not solved';
+          const m = await renderKitchenMassing(room, points, {
+            wallH: wall.wallH,
+            waterPct: wall.waterPct,
+            exhaustPct: wall.exhaustPct,
+            focalMm: Number(opts.room_focal35) || 24,
+          });
+          if (m) {
+            const upM = await uploadObject(env, `${prefix}/massing.png`, m.base64, m.mimeType);
+            ck.guide = { kind: 'kitchen', by: model, cam: m.cam, mask: m.mask, massing: { path: upM.path, url: upM.url } };
+            massingImg = { base64: m.base64, mimeType: m.mimeType };
+            why = 'drawn';
+          }
+        }
+      }
+    } catch (e) {
+      why = `failed: ${e.message}`;
+    }
+    console.log(`[Job ${job.id}] kitchen massing: ${why} ${Date.now() - t0}ms`);
+    await save({ guide: ck.guide });
+    if (ck.guide) await updateById(env, 'generations', job.id, { wall_analysis: { ...wall, guide: ck.guide } });
+  } else if (wantKitchen && ck.guide && ck.guide.massing) {
+    massingImg = await fetchObjectBase64(env, ck.guide.massing.path);
+  }
+
+  if (massingImg) {
+    ctx.mockVolume = true;
+    ctx.mockKind = ck.guide && ck.guide.kind === 'kitchen' ? 'kitchen' : 'wardrobe';
+  } else if (guideImg) ctx.guide = true;
 
   const install = async (fix) => {
     if (planner) {
@@ -684,9 +737,12 @@ async function runPipeline(env, job, ck, save) {
           let out = r.image;
           let pasted = false;
           // 덩어리 합성을 쓴 건: 장 영역만 추천안, 나머지는 기본안 (옆 세면대·벽이 같이 칠해지던 것)
-          if (ck.guide && ck.guide.massing && ck.guide.points) {
+          if (ck.guide && ck.guide.massing && (ck.guide.points || ck.guide.mask)) {
             try {
-              const p = await pasteVariantInside(base, { base64: out, mimeType: mime }, ck.guide.points);
+              // 싱크대는 칠한 면 다각형(mask), 붙박이장은 앞면 점(points)
+              const p = ck.guide.mask
+                ? await pasteVariantInPolys(base, { base64: out, mimeType: mime }, ck.guide.mask)
+                : await pasteVariantInside(base, { base64: out, mimeType: mime }, ck.guide.points);
               if (p) {
                 out = p.base64;
                 mime = p.mimeType;

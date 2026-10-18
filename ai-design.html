@@ -592,6 +592,47 @@
         // ═══════════════════════════════════════════════
         // 이미지 — 축소 후 base64
         // ═══════════════════════════════════════════════
+        // 사진 EXIF 의 35mm 환산 초점거리 (태그 0xA405). 캔버스로 줄이면 EXIF 가 사라지므로 원본에서 먼저 읽는다.
+        // 워커가 싱크대 덩어리 합성에서 화각으로 쓴다 (정면 사진은 소실점만으로 화각을 알 수 없다). 없으면 null.
+        function exifFocal35(dataUrl) {
+          try {
+            var b64 = String(dataUrl).split(',')[1] || '';
+            var bin = atob(b64.slice(0, 174760)); // 앞쪽 약 128KB 면 EXIF 가 들어 있다
+            var u = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+            if (u[0] !== 0xff || u[1] !== 0xd8) return null;
+            var p = 2;
+            while (p + 4 < u.length) {
+              if (u[p] !== 0xff) return null;
+              var marker = u[p + 1];
+              var len = (u[p + 2] << 8) | u[p + 3];
+              if (marker === 0xe1 && u[p + 4] === 0x45 && u[p + 5] === 0x78 && u[p + 6] === 0x69 && u[p + 7] === 0x66) {
+                var t = p + 10; // TIFF 머리
+                var le = u[t] === 0x49;
+                var r16 = function (o) { return le ? u[t + o] | (u[t + o + 1] << 8) : (u[t + o] << 8) | u[t + o + 1]; };
+                var r32 = function (o) { return le ? (u[t + o] | (u[t + o + 1] << 8) | (u[t + o + 2] << 16) | (u[t + o + 3] << 24)) >>> 0 : ((u[t + o] << 24) | (u[t + o + 1] << 16) | (u[t + o + 2] << 8) | u[t + o + 3]) >>> 0; };
+                var find = function (ifd, tag) {
+                  var n = r16(ifd);
+                  for (var k = 0; k < n; k++) {
+                    var e = ifd + 2 + k * 12;
+                    if (r16(e) === tag) return e;
+                  }
+                  return -1;
+                };
+                var ptr = find(r32(4), 0x8769); // Exif IFD
+                if (ptr < 0) return null;
+                var e = find(r32(ptr + 8), 0xa405);
+                if (e < 0) return null;
+                var f = r16(e + 8);
+                return f >= 8 && f <= 200 ? f : null;
+              }
+              if (marker === 0xda) return null;
+              p += 2 + len;
+            }
+          } catch (err) {}
+          return null;
+        }
+
         function readImage(file) {
           return new Promise(function (resolve, reject) {
             if (!/^image\/(jpeg|png)$/.test(file.type)) return reject(new Error('JPG · PNG 만 올릴 수 있습니다'));
@@ -618,7 +659,7 @@
                 cv.height = ch;
                 cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
                 var url = cv.toDataURL('image/jpeg', 0.9);
-                resolve({ base64: url.split(',')[1], mime: 'image/jpeg', preview: url, name: file.name, width: cw, height: ch });
+                resolve({ base64: url.split(',')[1], mime: 'image/jpeg', preview: url, name: file.name, width: cw, height: ch, focal35: exifFocal35(fr.result) });
               };
               img.src = String(fr.result);
             };
@@ -1165,6 +1206,8 @@
             door_color: $('doorColor').value,
             reference_images: refs.length ? refs : undefined,
             wall_width_override: $('wallW').value || undefined,
+            // 사진 EXIF 의 35mm 환산 초점거리 — 싱크대 덩어리 합성의 화각 (없으면 워커 기본값)
+            room_focal35: S.img1.focal35 || undefined,
             // 급수·배기 실측값 (mm). 칸이 숨은 품목에서는 남아 있던 값도 보내지 않는다
             water_from_left_override: (!$('kitchenPlumbing').hidden && $('waterFromLeft').value) || undefined,
             exhaust_from_left_override: (!$('kitchenPlumbing').hidden && $('exhaustFromLeft').value) || undefined,
