@@ -26,6 +26,8 @@
 //   · 세로 축      계약의 modules[] 는 **좌→우 한 줄**이다. "위 도어 + 아래 서랍" 같은
 //                  세로 구성은 표현할 자리가 없어, 그런 모듈은 칸으로 쪼개지 않고
 //                  한 덩이로 보낸다 (kind=drawer · doorCount=위 도어 수 · drawerCount=서랍 단수).
+//                  2026-10-19: 모듈끼리 세로로 쌓인 것(키큰장 한 통의 단, 냉장고장 = 냉장고 자리 + 위 박스)은
+//                  계약의 `tiers`(아래부터)로 보낸다 — 통 하나 = 모듈 하나 (plannerAiPhotoStackColumns).
 //   · drawerFront  마감 슬롯이 door/body/top 셋뿐이다. 서랍 앞판 마감은 싣지 못한다.
 //   · 회전         ㄱ자 배치의 90° 구간은 x 축에 눌러 펴서 보낸다 — AI 가 받는 벽은 하나다.
 //
@@ -45,6 +47,11 @@
 //   (plannerAiPhotoSpecTrace → plannerAiPhotoElevationLabels) — 워커 프롬프트의 L1·U1·T1·W1 과 같은 번호다.
 //   design_spec 에 layout{shape,walls} · sections.*.fromFloorMm · ceilingMm 을 더한다 (모르면 넣지 않는다).
 //   방 사진 긴 변이 1024px 미만이면 한 줄 알린다 (막지 않는다).
+//
+// ── 2026-10-19 (저녁): 쌓인 단 (design_spec modules[].tiers) ──
+//   같은 섹션·같은 x·같은 폭으로 세로로 쌓인 모듈(키큰장 하부·중간·상부 단)을 한 통으로 묶는다 — 예전엔 단마다
+//   모듈 하나라 워커가 "T1 600, T2 600, T3 600 left to right" 로 말했다. 냉장고장 통은 아래 냉장고 자리를
+//   appliance 단으로 넣고 가전 목록에 fridge 를 올린다. 번호 입면도 통 하나에 번호 하나 (moduleIds).
 //
 // ── 2026-10-19 (오후): 입면 두 장 · 기본 모델 GPT ──
 //   입면을 두 번 찍는다 — 번호 없음(clean) → renders 의 elevation(필수), 번호 있음(annotate) → elevation_labeled(선택).
@@ -608,9 +615,94 @@ function plannerAiPhotoLayoutOf(modules) {
   return null;
 }
 
+/** 2026-10-19: 같은 통으로 볼 x·폭 오차 (mm). 플래너는 단을 같은 x·W 로 세운다 — 반올림만 넉넉히. */
+const PLANNER_AI_PHOTO_STACK_TOL = 2;
+/** 2026-10-19: 냉장고장 통의 맨 아래 단이 이보다 높이 떠 있으면 그 아래가 냉장고 자리다 (mm). */
+const PLANNER_AI_PHOTO_NICHE_MIN = 300;
+
+/**
+ * 2026-10-19: 한 구간의 모듈 → **통** 목록. 순수.
+ *   같은 섹션 · 같은 x · 같은 폭으로 세로로 쌓인 모듈(키큰장 하부·중간·상부 단)은 한 통 { mods, niche } 이다 (아래부터).
+ *   냉장고장(fridge) 통은 맨 아래 단이 떠 있으면(> 300) 그 아래가 냉장고 자리 — 혼자 서도 통이다 (niche).
+ *   냉장고 자리와 겹치는 냉장고 본체(refrigerator)는 그 통에 들어간다 (fridge) — 따로 세우지 않는다.
+ *   그 밖(가로로 나뉜 모듈, 겹쳐 선 모듈, 가전 본체)은 예전처럼 하나씩 { m, b }.
+ * @param {{m:object, b:{x:number,w:number}}[]} list  좌→우 정렬된 구간 모듈
+ * @param {(m:object)=>number} baseOf  아랫면 바닥 높이
+ * @returns {object[]} 좌→우. 통은 { col:true, mods, b, niche, fridge }
+ */
+function plannerAiPhotoStackColumns(list, baseOf) {
+  const near = (a, b) => Math.abs(a - b) <= PLANNER_AI_PHOTO_STACK_TOL;
+  const used = new Set();
+  const out = [];
+  list.forEach((x, i) => {
+    if (used.has(i)) return;
+    used.add(i);
+    if (PLANNER_AI_PHOTO_APPLIANCE[x.m.section]) { out.push(x); return; }
+    const group = [x];
+    list.forEach((y, j) => {
+      if (used.has(j) || y.m.section !== x.m.section || PLANNER_AI_PHOTO_APPLIANCE[y.m.section]) return;
+      if (near(y.b.x, x.b.x) && near(y.b.w, x.b.w)) { group.push(y); used.add(j); }
+    });
+    const mods = group.map((g) => g.m).sort((a, b) => baseOf(a) - baseOf(b));
+    // 겹쳐 선 단이 있으면 쌓인 것이 아니다 — 예전처럼 하나씩 둔다
+    const stacked = mods.every((m, k) => k === 0
+      || baseOf(m) >= baseOf(mods[k - 1]) + plannerAiPhotoNum(mods[k - 1].H) - PLANNER_AI_PHOTO_STACK_TOL);
+    const niche = x.m.section === 'fridge' && baseOf(mods[0]) > PLANNER_AI_PHOTO_NICHE_MIN;
+    if (!stacked || (mods.length === 1 && !niche)) { group.forEach((g) => out.push(g)); return; }
+    out.push({ col: true, mods, b: x.b, niche, fridge: null });
+  });
+  // 냉장고 자리 안의 냉장고 본체 — 폭의 절반 넘게 겹치면 그 통의 것
+  const result = [];
+  out.forEach((x) => {
+    if (!x.col && x.m.section === 'refrigerator') {
+      const hit = out.find((c) => c.col && c.niche && !c.fridge
+        && Math.min(c.b.x + c.b.w, x.b.x + x.b.w) - Math.max(c.b.x, x.b.x) > x.b.w / 2);
+      if (hit) { hit.fridge = x.m; return; }
+    }
+    result.push(x);
+  });
+  return result;
+}
+
+/**
+ * 2026-10-19: 통 하나 → 계약 모듈 하나 (design-spec-prompt.md "쌓인 단"). 순수.
+ *   tiers = 아래부터 단마다 { heightMm, kind, doorCount, drawerCount, label }. 냉장고 자리면 맨 아래에 appliance 단.
+ *   통의 doorCount·drawerCount 는 단의 합, kind 는 냉장고 자리면 appliance, 아니면 서랍 > 도어 > 오픈.
+ */
+function plannerAiPhotoColumnModule(col, structureOf, wardrobeFrontOf, baseOf) {
+  const tiers = [];
+  if (col.niche) {
+    tiers.push({ heightMm: plannerAiPhotoMm(baseOf(col.mods[0])), kind: 'appliance', doorCount: 0, drawerCount: 0, label: '냉장고' });
+  }
+  let doors = 0;
+  let drawers = 0;
+  col.mods.forEach((m) => {
+    const s = structureOf(m.id);
+    const parts = plannerAiPhotoModulesOf(m, s, wardrobeFrontOf(m, s));
+    let d = 0, r = 0;
+    parts.forEach((p) => { d += plannerAiPhotoNum(p.doorCount); r += plannerAiPhotoNum(p.drawerCount); });
+    const allOpen = parts.every((p) => p.kind === 'open');
+    const kind = r > 0 ? 'drawer' : (d > 0 ? 'door' : (allOpen ? 'open' : 'door'));
+    const label = m.part ? String(m.part) : (parts.length === 1 ? parts[0].label : `${parts.length}칸`);
+    tiers.push({ heightMm: plannerAiPhotoMm(m.H), kind, doorCount: Math.min(12, d), drawerCount: Math.min(12, r), label });
+    doors += d;
+    drawers += r;
+  });
+  const section = col.mods[0].section;
+  return {
+    widthMm: plannerAiPhotoMm(col.b.w),
+    kind: col.niche ? 'appliance' : (drawers > 0 ? 'drawer' : (doors > 0 ? 'door' : 'open')),
+    doorCount: Math.min(12, doors),
+    drawerCount: Math.min(12, drawers),
+    label: col.niche ? '냉장고장' : (section === 'tall' ? `키큰장 ${col.mods.length}단` : `${col.mods.length}단`),
+    tiers,
+  };
+}
+
 /**
  * 2026-10-19: 도면 요약 + **번호 자취**. 순수. plannerAiPhotoBuildSpec 은 이것의 spec 만 돌려준다.
  *   trace[slot][i] = spec.sections[slot].modules[i] 가 어느 플래너 모듈의 어느 몫인지 — { moduleId, from, to }
+ *   (2026-10-19: 쌓인 단 한 통이면 moduleIds 도 — 그 통의 단들, 냉장고 본체가 있으면 맨 앞. moduleId 는 그 첫째)
  *   (모듈 폭 안의 비율 0~1. 칸마다 쪼갠 모듈은 칸 폭 비율, 한 덩이·가전은 0~1). 정면 입면 번호(annotate)가 쓴다.
  * @returns {{spec:object, trace:Object<string,{moduleId:string, from:number, to:number}[]>}|null}
  */
@@ -652,6 +744,16 @@ function plannerAiPhotoSpecTrace(input) {
     (bySlot[slot] || (bySlot[slot] = [])).push(x);
   });
 
+  // 2026-10-19: 아랫면 바닥 높이 — 쌓인 단의 순서·냉장고 자리 높이에 쓴다. 페이지의 baseYOf(3D 와 같은 값)가 먼저,
+  //   없으면 모듈의 baseY, 그것도 없으면 0 (바닥).
+  const baseOf = (m) => {
+    if (typeof o.baseYOf === 'function') {
+      try { const v = Number(o.baseYOf(m)); if (Number.isFinite(v)) return v; } catch (e) { /* 아래로 */ }
+    }
+    const v = Number(m && m.baseY);
+    return Number.isFinite(v) ? v : 0;
+  };
+
   const trace = {};
   PLANNER_AI_PHOTO_BUCKETS.forEach((slot) => {
     const list = (bySlot[slot] || []).slice().sort((a, b) => a.b.x - b.b.x);
@@ -660,7 +762,19 @@ function plannerAiPhotoSpecTrace(input) {
     const x1 = Math.max.apply(null, list.map((x) => x.b.x + x.b.w));
     let mods = [];
     const tr = [];
-    list.forEach((x) => {
+    // 2026-10-19: 세로로 쌓인 단은 한 통 — 통 하나 = 계약 모듈 하나 (tiers). 쌓인 것이 없으면 예전과 같은 목록이다.
+    const entries = plannerAiPhotoStackColumns(list, baseOf);
+    entries.forEach((x) => {
+      if (x.col) {
+        mods.push(plannerAiPhotoColumnModule(x, structureOf, wardrobeFrontOf, baseOf));
+        const ids = (x.fridge ? [x.fridge] : []).concat(x.mods).map((m) => String(m.id));
+        tr.push({ moduleId: ids[0], moduleIds: ids, from: 0, to: 1 });
+        // 냉장고 자리 — 냉장고 본체가 놓여 있지 않으면 그 자리를 가전 목록에 올린다 (놓여 있으면 본체가 이미 올랐다)
+        if (x.niche && !x.fridge) {
+          appliances.push({ kind: 'fridge', fromLeftMm: plannerAiPhotoMm(x.b.x - left), widthMm: plannerAiPhotoMm(x.b.w), _x: x.b.x });
+        }
+        return;
+      }
       const m = x.m;
       const s = structureOf(m.id);
       if (PLANNER_AI_PHOTO_APPLIANCE[m.section]) {
@@ -695,7 +809,10 @@ function plannerAiPhotoSpecTrace(input) {
     const sumW = mods.reduce((n, m) => n + plannerAiPhotoNum(m.widthMm), 0);
     sections[slot] = {
       widthMm: plannerAiPhotoMm(Math.max(x1 - x0, sumW)),
-      heightMm: plannerAiPhotoMm(Math.max.apply(null, list.map((x) => plannerAiPhotoNum(x.m.H)))),
+      // 2026-10-19: 통은 맨 위 단 윗면 − 아랫면(냉장고 자리면 바닥) — 단 하나의 높이가 아니다
+      heightMm: plannerAiPhotoMm(Math.max.apply(null, entries.map((x) => (x.col
+        ? Math.max.apply(null, x.mods.map((m) => baseOf(m) + plannerAiPhotoNum(m.H))) - (x.niche ? 0 : baseOf(x.mods[0]))
+        : plannerAiPhotoNum(x.m.H))))),
       depthMm: plannerAiPhotoMm(Math.max.apply(null, list.map((x) => plannerAiPhotoNum(x.m.D)))),
       fromLeftMm: plannerAiPhotoMm(x0 - left),
       modules: mods.slice(0, PLANNER_AI_PHOTO_MAX_MODULES),
@@ -703,9 +820,11 @@ function plannerAiPhotoSpecTrace(input) {
     // 2026-10-19: 줄 아랫면의 바닥 기준 높이 — 페이지가 3D 와 같은 baseYOf 를 줄 때만 (상부장 설치 높이 등)
     if (typeof o.baseYOf === 'function') {
       const ys = [];
-      list.forEach((x) => {
+      entries.forEach((x) => {
+        // 2026-10-19: 통은 맨 아래 단 (냉장고 자리면 바닥 0)
+        if (x.col && x.niche) { ys.push(0); return; }
         let v = null;
-        try { v = Number(o.baseYOf(x.m)); } catch (e) { v = null; }
+        try { v = Number(o.baseYOf(x.col ? x.mods[0] : x.m)); } catch (e) { v = null; }
         if (Number.isFinite(v) && v >= 0) ys.push(v);
       });
       if (ys.length) sections[slot].fromFloorMm = plannerAiPhotoMm(Math.min.apply(null, ys));
@@ -794,8 +913,9 @@ function plannerAiPhotoSpecTrace(input) {
  *   · 워커는 modules 를 40 개까지만 읽는다 — spec 이 이미 40 개로 잘랐다.
  * @param {object} spec  plannerAiPhotoSpecTrace().spec
  * @param {object} trace plannerAiPhotoSpecTrace().trace
+ *   · 2026-10-19: 쌓인 단 한 통(tiers)은 번호 하나 — 칸에 moduleIds(그 통의 단들, 냉장고 본체가 있으면 맨 앞)가 붙는다.
  * @returns {{rows:{key:string, prefix:string, widthMm:number|null, heightMm:number|null,
- *   items:{id:string, moduleId:string, from:number, to:number, widthMm:number}[]}[]}|null}
+ *   items:{id:string, moduleId:string, moduleIds?:string[], from:number, to:number, widthMm:number}[]}[]}|null}
  */
 function plannerAiPhotoElevationLabels(spec, trace) {
   const secs = (spec && spec.sections) || {};
@@ -805,10 +925,15 @@ function plannerAiPhotoElevationLabels(spec, trace) {
   const widthOf = (sec) => sec.widthMm || sec.modules.reduce((n, m) => n + (m.widthMm || 0), 0) || null;
   const itemsOf = (k) => secs[k].modules.map((m, i) => {
     const t = (tr[k] || [])[i] || {};
-    return { moduleId: t.moduleId, from: t.from, to: t.to, widthMm: m.widthMm };
+    return { moduleId: t.moduleId, moduleIds: t.moduleIds, from: t.from, to: t.to, widthMm: m.widthMm };
   });
+  // 2026-10-19: 쌓인 단 한 통은 번호 하나 — moduleIds(단들 + 냉장고 본체)를 함께 넘겨 라벨이 통 전체 상자 가운데에 선다
   const number = (prefix, list) => list
-    .map((it, i) => ({ id: prefix + (i + 1), moduleId: it.moduleId, from: it.from, to: it.to, widthMm: it.widthMm }))
+    .map((it, i) => {
+      const out = { id: prefix + (i + 1), moduleId: it.moduleId, from: it.from, to: it.to, widthMm: it.widthMm };
+      if (Array.isArray(it.moduleIds) && it.moduleIds.length) out.moduleIds = it.moduleIds.slice();
+      return out;
+    })
     .filter((it) => it.moduleId != null);
   let rows;
   if (spec.category === 'wardrobe') {
@@ -1899,6 +2024,9 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerAiPhotoCategoryOf,
     plannerAiPhotoBuildSpec,
     plannerAiPhotoSpecTrace,
+    plannerAiPhotoStackColumns,
+    plannerAiPhotoColumnModule,
+    PLANNER_AI_PHOTO_NICHE_MIN,
     plannerAiPhotoLayoutOf,
     plannerAiPhotoElevationLabels,
     PLANNER_AI_PHOTO_CEILING_RANGE,
