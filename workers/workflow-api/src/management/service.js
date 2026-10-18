@@ -11,6 +11,23 @@ import { buildManagementSummary, prevMonthOf } from './summary.js';
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
 
+function monthLastDay(m) {
+  const [y, mm] = m.split('-').map(Number);
+  return new Date(Date.UTC(y, mm, 0)).toISOString().slice(0, 10);
+}
+
+/** 주문 기준으로 읽은 기록과 달 기준으로 읽은 기록이 겹치면 한 번만 (기록 id 로) */
+export function mergeLogs(a, b) {
+  const seen = new Set();
+  const out = [];
+  for (const w of [...a, ...b]) {
+    if (w.id && seen.has(w.id)) continue;
+    if (w.id) seen.add(w.id);
+    out.push(w);
+  }
+  return out;
+}
+
 /**
  * 경영 숫자에 쓰는 설정. 보는 사람이 저장한 생산 설정이 있으면 그것,
  * 없으면 가장 최근에 저장된 생산 설정(사장님 것)을 쓴다 — 직원 관리자가 열어도
@@ -53,13 +70,23 @@ export async function getManagementSummary(env, { user, month }) {
   ]);
 
   const list = orders || [];
-  let snaps = [];
+  let snaps = [], costs = [], worklogs = [];
   if (list.length) {
     const ids = [...new Set(list.map((o) => o.snapshot_id).filter(Boolean))];
-    if (ids.length) {
-      snaps = (await selectMany(env, 'design_snapshots', { id: `in.(${ids.join(',')})`, select: 'id,quote_payload', limit: '1000' })) || [];
-    }
+    const orderIds = list.map((o) => o.id).join(',');
+    [snaps, costs, worklogs] = await Promise.all([
+      ids.length ? selectMany(env, 'design_snapshots', { id: `in.(${ids.join(',')})`, select: 'id,quote_payload', limit: '1000' }) : [],
+      // 실적 원가 · 작업 실측은 그 수주에 붙은 것 — 언제 적었든 수주 기준으로 본다
+      selectMany(env, 'order_costs', { order_id: `in.(${orderIds})`, select: 'order_id,category,amount', limit: '5000' }).catch(() => []),
+      selectMany(env, 'production_worklogs', { order_id: `in.(${orderIds})`, select: 'id,order_id,role,minutes,work_date', limit: '5000' }).catch(() => []),
+    ]);
   }
+  // 부하의 '이달 실제로 한 일' 은 주문과 상관없이 그 달 기록 전부다
+  const monthLogs = (await selectMany(env, 'production_worklogs', {
+    select: 'id,order_id,role,minutes,work_date',
+    and: `(work_date.gte.${m}-01,work_date.lte.${monthLastDay(m)})`,
+    limit: '5000',
+  }).catch(() => [])) || [];
   return buildManagementSummary({
     orders: list,
     snapshotsById: new Map(snaps.map((s) => [s.id, s])),
@@ -67,6 +94,8 @@ export async function getManagementSummary(env, { user, month }) {
     consultations,
     generations,
     designs: designs || [],
+    costs: costs || [],
+    worklogs: mergeLogs(worklogs || [], monthLogs),
     settings,
     month: m,
   });

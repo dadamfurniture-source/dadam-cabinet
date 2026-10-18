@@ -28,7 +28,8 @@ export const ORDER_STATUSES = ['confirmed', 'in_production', 'delivered', 'compl
  */
 export const COST_CATEGORIES = ['material', 'hardware', 'labor', 'outsourcing', 'logistics', 'other'];
 
-const COST_LABELS = {
+// 경영 대시보드(management/summary.js)도 이 이름을 쓴다 — ERP 화면과 같은 말로 부르게
+export const COST_LABELS = {
   material: '자재',
   hardware: '부자재',
   labor: '노무',
