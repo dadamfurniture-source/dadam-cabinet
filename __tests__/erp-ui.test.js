@@ -212,3 +212,37 @@ describe('설치 후 한 문항 링크 (경영 대시보드 2단계 PR-7)', () =
     expect(copy).toMatch(/input\.select\(\)/);
   });
 });
+
+describe('거래처 · 공급처 붙이기 (경영 대시보드 2단계 PR-8)', () => {
+  const cp = ERP.slice(ERP.indexOf('async function loadCounterparties'), ERP.indexOf('async function addRework'));
+  const save = ERP.slice(ERP.indexOf('async function saveOrder'), ERP.indexOf('async function addCost'));
+  const add = ERP.slice(ERP.indexOf('async function addCost'), ERP.indexOf('async function removeCost'));
+
+  test('수주 상세에 거래처 고르기, 원가 줄에 공급처 고르기', () => {
+    expect(ERP).toMatch(/id="lblPartner" hidden/);
+    expect(ERP).toMatch(/id="selPartner"/);
+    expect(ERP).toMatch(/id="selSupplier" aria-label="공급처" hidden/);
+  });
+
+  test('목록은 한 번만 읽고, 관리자가 아니거나 SQL 전이면 고르기 칸을 숨긴다', () => {
+    expect(cp).toMatch(/if \(state\.cp !== undefined\) return state\.cp/);
+    expect(cp).toMatch(/catch \(e\) \{ state\.cp = null; \}/);
+    expect(cp).toMatch(/c\.active !== false/);
+  });
+
+  test('거래처 칸은 구분이 거래처이고 칸(partner_id)이 있을 때만', () => {
+    expect(cp).toMatch(/hasOwnProperty\.call\(d\.order, 'partner_id'\)/);
+    expect(cp).toMatch(/el\('selTier'\)\.value === 'partner'/);
+    expect(ERP).toMatch(/el\('selTier'\)\.addEventListener\('change', renderCounterparties\)/);
+  });
+
+  test('저장: 보일 때만 싣고, 고객으로 바꾸면 붙였던 거래처를 뗀다', () => {
+    expect(save).toMatch(/if \(!el\('lblPartner'\)\.hidden\) patch\.partner_id = el\('selPartner'\)\.value \|\| null/);
+    expect(save).toMatch(/patch\.price_tier === 'customer' && state\.detail && state\.detail\.order\.partner_id\) patch\.partner_id = null/);
+  });
+
+  test('원가: 고른 공급처를 보내고, 다 넣으면 고르기를 비운다', () => {
+    expect(add).toMatch(/counterparty_id: el\('selSupplier'\)\.value \|\| null/);
+    expect(add).toMatch(/el\('selSupplier'\)\.value = ''/);
+  });
+});

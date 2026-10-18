@@ -94,6 +94,10 @@
       .stage .fill { display: block; height: 100%; background: #007bff; border-radius: 4px; }
       .stage .n { text-align: right; font-variant-numeric: tabular-nums; }
       .stage .r { text-align: right; color: #888; font-size: 12px; font-variant-numeric: tabular-nums; }
+      .tbl .cum { display: grid; grid-template-columns: minmax(40px, 1fr) 46px; gap: 6px; align-items: center; min-width: 110px; }
+      .tbl .cum .track { display: block; height: 8px; background: #eef1f5; border-radius: 4px; overflow: hidden; }
+      .tbl .cum .fill { display: block; height: 100%; background: #007bff; }
+      .tbl .cum .n { text-align: right; font-variant-numeric: tabular-nums; }
       .nps { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
       .nps b { font-size: 28px; }
       .nps span { color: #888; font-size: 13px; }
@@ -219,6 +223,22 @@
               <h3>AI 플랫폼 → 수주</h3>
               <div class="q">연출컷이 공장 일감을 끌어오나</div>
               <div id="platformBody"></div>
+            </article>
+          </div>
+        </div>
+
+        <div class="row" id="rowPartners" hidden>
+          <div class="row-lens">거래처</div>
+          <div class="cards">
+            <article class="card" id="cardPartners">
+              <h3>거래처 파레토</h3>
+              <div class="q">어느 인테리어 업체가 매출을 얼마나 주나 — 한 해</div>
+              <div id="partnersBody"></div>
+            </article>
+            <article class="card" id="cardSuppliers">
+              <h3>공급처 성적표</h3>
+              <div class="q">어디에 돈을 쓰나 · 외주가 입고 약속을 지키나 — 한 해</div>
+              <div id="suppliersBody"></div>
             </article>
           </div>
         </div>
@@ -550,6 +570,46 @@
             <div class="muted" style="margin-top:8px">처리량 = 매출 − 자재 · 철물 · 외주. 병목이 꽉 찬 달에는 1분당 처리량이 큰 일부터 받는 것이 이익을 가장 크게 합니다.</div>`;
         }
 
+        // ── 거래처: 파레토 · 공급처 성적표 ──
+        const NEED_CP_SQL = '<div class="empty-state">거래처 · 공급처 칸이 아직 없습니다.<br>database/management-phase2.sql 을 실행하면 <a href="counterparties.html">거래처 · 공급처</a>에서 목록을 만들 수 있습니다.</div>';
+        function renderPartners(d) {
+          const p = d.partners;
+          if (!p) { $('partnersBody').innerHTML = NEED_CP_SQL; return; }
+          const unassigned = p.unassigned > 0 ? `<div class="muted" style="margin-top:6px">거래처로 판정됐지만 업체를 안 붙인 수주 ${esc(cnt(p.unassigned))} — 수주 상세에서 거래처를 골라 주세요</div>` : '';
+          if (!(p.partners > 0)) {
+            $('partnersBody').innerHTML = `<div class="empty-state">최근 ${esc(p.window.days)}일 업체를 붙인 거래처 수주가 없습니다.<br>수주 상세에서 구분을 '거래처' 로 두고 업체를 골라 주세요.</div>${unassigned}`;
+            return;
+          }
+          const rows = p.rows.map((r) => `<tr><td>${esc(r.name)}</td><td class="num">${esc(cnt(r.orders))}</td><td class="num">${esc(man(r.revenue))}</td><td class="num">${esc(pct(r.cmRate))}</td>
+            <td><div class="cum"><span class="track"><span class="fill" style="width:${Math.max(0, Math.min(100, Number(r.cumShare) || 0))}%"></span></span><span class="n">${esc(pct(r.cumShare))}</span></div></td></tr>`).join('');
+          $('partnersBody').innerHTML = `
+            <div class="lead-line">거래처 <b class="num">${esc(p.partners)}곳</b> · 매출 <b class="num">${esc(man(p.revenue))}</b>${p.top20 ? ` · 상위 ${esc(p.top20.count)}곳(20%)이 매출의 <b class="num">${esc(pct(p.top20.share))}</b>` : ''}</div>
+            <div class="tbl-wrap"><table class="tbl" id="tblPartners">
+              <thead><tr><th scope="col">거래처</th><th scope="col">수주</th><th scope="col">매출</th><th scope="col">공헌이익률</th><th scope="col">누적 비중</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table></div>
+            ${unassigned}
+            <div class="muted" style="margin-top:8px">매출은 VAT 제외 계약금, 공헌이익률은 견적 원가 기준. 큰 순으로 열 곳까지.</div>`;
+        }
+
+        function renderSuppliers(d) {
+          const s = d.suppliers;
+          if (!s) { $('suppliersBody').innerHTML = NEED_CP_SQL; return; }
+          if (!s.rows.length) {
+            $('suppliersBody').innerHTML = `<div class="empty-state">공급처를 붙인 원가나 외주 발주가 아직 없습니다 (등록한 공급처 ${esc(cnt(s.suppliers))}).<br>수주 상세의 실적 원가에서 공급처를 고르면 여기 쌓입니다.</div>`;
+            return;
+          }
+          const promise = (r) => (r.dated > 0 ? `${pct(r.onTimeRate)} <small class="muted">(${r.dated}건)</small>` : '-');
+          const rows = s.rows.map((r) => `<tr><td>${esc(r.name)}</td><td class="num">${esc(won(r.spend))}</td><td class="num">${esc(cnt(r.orders))}</td><td class="num">${promise(r)}</td>
+            <td class="num">${r.avgLateDays === null ? '-' : esc(`${r.avgLateDays}일`)}</td><td class="num">${r.overdue > 0 ? `<span class="up">${esc(cnt(r.overdue))}</span>` : '0'}</td></tr>`).join('');
+          $('suppliersBody').innerHTML = `
+            <div class="tbl-wrap"><table class="tbl" id="tblSuppliers">
+              <thead><tr><th scope="col">공급처</th><th scope="col">지출</th><th scope="col">발주</th><th scope="col">약속일 지킴</th><th scope="col">늦은 날</th><th scope="col">밀림</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table></div>
+            <div class="muted" style="margin-top:8px">지출 = 원가에 공급처를 붙인 줄. 약속일 = 외주 · 상판 발주의 입고 예정일 대 입고한 날(이번부터 쌓인다). 밀림 = 예정일이 지났는데 아직 입고 전. 목록은 <a href="counterparties.html">거래처 · 공급처</a>에서.</div>`;
+        }
+
         // ── 고객: 설치 후 소개 의향 ──
         function renderReferral(d) {
           const r = d.referral;
@@ -711,6 +771,9 @@
           $('rowProcess').hidden = !d.process;
           if (d.process) { renderVariance(d); renderBottleneck(d); }
           // 품질 — 옛 워커(칸 없음)면 카드를 숨기고, 기록 표가 아직 없으면(null) 안내를 띄운다
+          // 거래처 줄 — 옛 워커(칸 없음)면 줄을 숨긴다
+          $('rowPartners').hidden = d.partners === undefined && d.suppliers === undefined;
+          if (!$('rowPartners').hidden) { renderPartners(d); renderSuppliers(d); }
           $('cardReferral').hidden = d.referral === undefined;
           if (d.referral !== undefined) renderReferral(d);
           $('cardQuality').hidden = d.quality === undefined;

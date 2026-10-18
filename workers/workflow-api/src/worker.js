@@ -77,6 +77,7 @@ import {
 } from './orders.js';
 import { listReworks, addRework, deleteRework } from './rework.js';
 import { getFeedback, createFeedbackLink, openFeedback, answerFeedback } from './feedback.js';
+import { listCounterparties, createCounterparty, updateCounterparty } from './counterparties.js';
 import {
   createSchedules,
   listSchedules,
@@ -529,6 +530,21 @@ async function handleGetOrder(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data });
 }
 
+async function handleListCounterparties(request, env, { user }) {
+  const kind = new URL(request.url).searchParams.get('kind') || null;
+  return jsonResponse(request, env, { success: true, data: await listCounterparties(env, { user, kind }) });
+}
+
+async function handleCreateCounterparty(request, env, { user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await createCounterparty(env, { user, body }) }, 201);
+}
+
+async function handleUpdateCounterparty(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await updateCounterparty(env, { user, id: params.id, body }) });
+}
+
 async function handleCreateFeedbackLink(request, env, { params, user }) {
   const data = await createFeedbackLink(env, { orderId: params.orderId, user });
   return jsonResponse(request, env, { success: true, data }, 201);
@@ -673,6 +689,11 @@ const router = createRouter([
   { method: 'POST',   path: '/orders/:orderId/reworks',     auth: 'jwt', handler: handleAddRework },
   { method: 'DELETE', path: '/orders/:orderId/reworks/:reworkId', auth: 'jwt', handler: handleDeleteRework },
   { method: 'POST',   path: '/orders/:orderId/feedback-link', auth: 'jwt', handler: handleCreateFeedbackLink },
+
+  // 거래처 · 공급처 (관리자만)
+  { method: 'GET',   path: '/counterparties',     auth: 'jwt', handler: handleListCounterparties },
+  { method: 'POST',  path: '/counterparties',     auth: 'jwt', handler: handleCreateCounterparty },
+  { method: 'PATCH', path: '/counterparties/:id', auth: 'jwt', handler: handleUpdateCounterparty },
 
   // 생산 계획 · 인력 추천 (주문이 들어오면 자동 제안 → 대표 승인 → 작업자 지시)
   { method: 'GET',  path: '/production/plan',                          auth: 'jwt', handler: handleGetProductionPlan },
