@@ -10,10 +10,18 @@ import { mergeSettings, kstDate } from '../production/service.js';
 import { buildManagementSummary, prevMonthOf } from './summary.js';
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
+/** 처리능력 실측 창 — 그 달 끝에서 거꾸로 90일 (근무일 20일이 넉넉히 들어가게) */
+export const PACE_WINDOW_DAYS = 90;
 
 function monthLastDay(m) {
   const [y, mm] = m.split('-').map(Number);
   return new Date(Date.UTC(y, mm, 0)).toISOString().slice(0, 10);
+}
+
+/** 그 달 마지막 날에서 days 일 전 (그날 포함해 days 일) */
+export function windowStart(m, days) {
+  const end = Date.parse(`${monthLastDay(m)}T00:00:00Z`);
+  return new Date(end - (days - 1) * 86400000).toISOString().slice(0, 10);
 }
 
 /** 주문 기준으로 읽은 기록과 달 기준으로 읽은 기록이 겹치면 한 번만 (기록 id 로) */
@@ -87,6 +95,12 @@ export async function getManagementSummary(env, { user, month }) {
     and: `(work_date.gte.${m}-01,work_date.lte.${monthLastDay(m)})`,
     limit: '5000',
   }).catch(() => [])) || [];
+  // 처리능력 실측 — 수량 · 분이 있는 기록만 쓴다 (표준시간 보정과 같은 재료)
+  const paceLogs = (await selectMany(env, 'production_worklogs', {
+    select: 'role,units,minutes,work_date',
+    and: `(work_date.gte.${windowStart(m, PACE_WINDOW_DAYS)},work_date.lte.${monthLastDay(m)})`,
+    limit: '10000',
+  }).catch(() => [])) || [];
   return buildManagementSummary({
     orders: list,
     snapshotsById: new Map(snaps.map((s) => [s.id, s])),
@@ -96,6 +110,7 @@ export async function getManagementSummary(env, { user, month }) {
     designs: designs || [],
     costs: costs || [],
     worklogs: mergeLogs(worklogs || [], monthLogs),
+    paceLogs,
     settings,
     month: m,
   });
