@@ -259,7 +259,8 @@ POST /api/generate
     { "role": "elevation", "base64": "...", "mime": "image/png" },   ← 필수. 없으면 400 missing_render (차감 전)
     { "role": "massing",   "base64": "...", "mimeType": "image/jpeg" } ← 선택
   ],
-  "aspect": "16:9"                                          ← 선택. 16:9 · 4:3 · 3:4 · 1:1 · 9:16, 그 밖은 16:9
+  "aspect": "16:9",                                         ← 선택. 16:9 · 4:3 · 3:4 · 1:1 · 9:16, 그 밖은 16:9
+  "image_provider": "openai"                                ← 선택 (2026-10-18). 'openai' 만 알아듣고 없거나 다른 값이면 Gemini
 }
 ```
 
@@ -270,6 +271,7 @@ POST /api/generate
 | options | `mode:'planner'`, `aspect`, `variants:false`(항상) |
 | 재생성 | `parent_id` 만 보내면 원본의 모드·요약·렌더·비율을 잇는다. 원본에 입면이 없으면 400 |
 | 설치 | `[방 사진, 입면, 3/4?]` + 프롬프트 v2, 온도 0.2, `aspectRatio` = `options.aspect` |
+| 이미지 공급자 (2026-10-18) | 기본 Gemini(위 줄 그대로, 칸 표시 없음). `image_provider:'openai'` 면 `options.image_provider:'openai'` (gemini 면 **키 없음**), 재생성은 원본을 잇고 새 값이 이긴다. 잡은 같은 프롬프트·같은 이미지 순서로 GPT 편집(`/v1/images/edits`, `image[]` 첫 장 = 방 사진)을 부르고 온도는 보내지 않는다. 크기는 비율에서: 16:9 → 2048x1152 · 4:3 → 2048x1536 · 1:1 → 1760x1760 · 3:4 → 1536x2048 · 9:16 → 1152x2048. 키가 없거나 GPT 가 실패하면 Gemini 가 같은 인자로 대신 그린다. 누가 그렸는지: `images[base].provider·model`(GPT 면 `usage` 도), 대신 그렸으면 `fallback:true · fallback_reason`, 행의 `model`. 전역 `IMAGE_PROVIDER` 는 플래너 모드에 닿지 않는다 |
 | 검사 | 공통 + `layout_mismatch` + **`existing_left`**(남는 벽에 기존 가구) · **`pasted_reference`**(렌더를 붙임). **재시도 없음** — `images[base].qc` 에 기록만 |
 | 역판독 | 그대로 (`layout.verify`) |
 | 결과 | `base` 한 장. 추천안·`mockup` 슬롯 없음 |

@@ -17,7 +17,7 @@
 
 import { callGemini, geminiModel, probeRoutes } from './gemini.js';
 import { proxyStub } from './proxy.js';
-import { imageProvider } from './images.js';
+import { imageProvider, plannerProvider } from './images.js';
 import { openaiImageModel } from './openai.js';
 import {
   DEFAULT_STYLE,
@@ -316,6 +316,7 @@ async function createGeneration(request, env, headers) {
     renders,
     aspect,
     customer_request,
+    image_provider,
   } = body;
 
   // 재생성: 부모의 입력을 그대로 쓴다 (업로드 생략).
@@ -334,7 +335,7 @@ async function createGeneration(request, env, headers) {
   if (planner) {
     return await createPlannerGeneration(request, env, headers, {
       user, parent, room_image, image_type, rawCategory, design_style, door_color, door_finish,
-      wall_width_override, fridge_options, design_spec, renders, aspect, title,
+      wall_width_override, fridge_options, design_spec, renders, aspect, title, image_provider,
     });
   }
 
@@ -419,7 +420,8 @@ async function createGeneration(request, env, headers) {
 /**
  * 플래너 모드 접수 (mode:'planner', 2026-10-08 · 계획서 §6.1).
  *   필수: room_image(재생성이면 원본 것), design_spec(원본 것을 이어도 된다), renders 의 elevation.
- *   선택: renders 의 massing, aspect (허용값 밖이면 16:9).
+ *   선택: renders 의 massing, aspect (허용값 밖이면 16:9),
+ *         image_provider ('openai' 면 GPT 가 그린다 · 없거나 모르는 값이면 Gemini, 2026-10-18).
  *   받지 않음: realize · engine · control_* · reference_images.
  * 검증은 전부 크레딧 차감 전에 한다 — 틀린 요청으로 20 크레딧이 날아가지 않는다.
  * 추천안은 항상 끈다 (한 장이 결과물이다).
@@ -456,6 +458,11 @@ async function createPlannerGeneration(request, env, headers, p) {
     mode: 'planner',
     aspect: resolvePlannerAspect(p.aspect != null ? p.aspect : parentAspect),
     variants: false,
+    // 이미지 공급자 (2026-10-18, 사장님 비교용) — 'openai' 일 때만 키가 생긴다. Gemini 면 options 는 예전 모양 그대로
+    //   (route 시험이 지킨다). 재생성이면 새 값이 없을 때 원본을 잇는다.
+    ...(plannerProvider(p.image_provider != null ? p.image_provider : parent && parent.options && parent.options.image_provider) === 'openai'
+      ? { image_provider: 'openai' }
+      : {}),
   };
 
   return await enqueueGeneration(request, env, headers, {
