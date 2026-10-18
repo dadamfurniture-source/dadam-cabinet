@@ -20,6 +20,13 @@ GEMINI_IMAGE_MODEL = "gemini-3-pro-image"
 GEMINI_TEXT_MODEL = "gemini-3.8-flash"
 GEMINI_IMAGE_SIZE = "2K"
 
+# 연출컷 기본안·추천안 이미지 공급자 (2026-10-18, src/images.js). 'openai' | 'gemini'.
+# 'openai' 라도 시크릿 OPENAI_API_KEY 가 없으면 Gemini 로 그린다. GPT 가 실패하면 그 칸만 Gemini 가 대신 그린다.
+# 분석·검사·채팅(텍스트)과 플래너 모드 기본안은 Gemini 그대로. 되돌리려면 'gemini'.
+IMAGE_PROVIDER = "openai"
+OPENAI_IMAGE_MODEL = "gpt-image-2.5-sunburst"
+OPENAI_IMAGE_QUALITY = "high"
+
 # ControlNet 경로 (src/controlnet.js, 2026-09-22) — 구조 조건 이미지를 네이티브로 받는 fal.ai 모델.
 # 문서로 스키마를 확인한 것만: flux-control-lora-canny|depth /image-to-image ($0.04/MP), qwen-image-edit-2509|2511 ($0.03/MP).
 # 키는 시크릿 FAL_KEY. strength 1.0 = 바탕을 완전히 다시 그림, 0 = 그대로.
@@ -44,6 +51,7 @@ AI_GATEWAY_BASE = "https://gateway.ai.cloudflare.com/v1/8bd8e054dfc7bcdc577f9bb7
 
 # Secret (wrangler secret put):
 #   GEMINI_API_KEY               필수
+#   OPENAI_API_KEY               연출컷 이미지(IMAGE_PROVIDER=openai) — 없으면 Gemini 로 그린다
 #   ANTHROPIC_API_KEY            구성 분석 (플래너 가져오기) — 없으면 그 라우트만 500
 #   FAL_KEY                      ControlNet 경로 (engine=controlnet) — 없으면 그 잡만 실패(환불)
 #   SUPABASE_SERVICE_ROLE_KEY    generations 행·버킷 쓰기, 잡 안 환불

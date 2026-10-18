@@ -41,6 +41,10 @@ curl https://dadam-generate-api.dadamfurniture.workers.dev/health
 > https://fal.ai/dashboard/keys 에서 발급 → `npx wrangler secret put FAL_KEY`. 없으면 그 경로의 잡만 실패하고 크레딧은 환불된다.
 > 모델·강도는 `wrangler.toml` 의 `CONTROLNET_MODEL` / `CONTROLNET_STRENGTH` / `CONTROLNET_CONTROL_STRENGTH`.
 
+> 2026-10-18 추가 — `OPENAI_API_KEY`: 연출컷 기본안·추천안을 GPT(`gpt-image-2.5-sunburst`)로 그린다 (`src/openai.js`, `src/images.js`).
+> https://platform.openai.com/api-keys 에서 발급, 조직 인증(Organization Verification)과 선불 크레딧이 필요할 수 있다 → `npx wrangler secret put OPENAI_API_KEY`.
+> 키가 없으면 Gemini 로 그리고, GPT 가 실패한 칸은 Gemini 가 대신 그린다(칸에 `provider`·`fallback_reason`). 되돌리기는 `wrangler.toml` 의 `IMAGE_PROVIDER = "gemini"`.
+
 `wrangler secret put` 으로 등록한다 (wrangler.toml 에 넣지 않음).
 
 | 이름 | 용도 |
@@ -48,6 +52,7 @@ curl https://dadam-generate-api.dadamfurniture.workers.dev/health
 | `GEMINI_API_KEY` | 필수 |
 | `SUPABASE_SERVICE_ROLE_KEY` | `generations` 행·버킷 쓰기, 잡 안 환불(`refund_credit_svc`) |
 | `SHARE_TOKEN_PEPPER` | 공유 토큰 해시. 32바이트 이상 랜덤 문자열 |
+| `OPENAI_API_KEY` | 연출컷 이미지 (`IMAGE_PROVIDER = "openai"`). 없으면 Gemini 로 그린다 |
 | `ANTHROPIC_API_KEY` | 연출컷 구성 분석 (`POST /api/generate/:id/layout`, 플래너 가져오기). 없으면 그 라우트만 실패한다 |
 
 ```powershell
@@ -55,6 +60,7 @@ cd workers/generate-api
 npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 npx wrangler secret put SHARE_TOKEN_PEPPER
 npx wrangler secret put ANTHROPIC_API_KEY
+npx wrangler secret put OPENAI_API_KEY
 ```
 
 의존성: `@anthropic-ai/sdk` (package.json). 배포 워크플로가 `npm ci` 뒤 `wrangler deploy --dry-run` 으로 번들을
