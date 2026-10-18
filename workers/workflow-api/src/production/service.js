@@ -309,7 +309,8 @@ export function summarizeMonth(orders, snapshotsById, { month, overheadMonthly }
     if (kstDate(o.ordered_at).slice(0, 7) !== month) continue;
     const q = (snapshotsById.get(o.snapshot_id) || {}).quote_payload || null;
     const revenue = Math.round(Number(o.contract_amount || 0) / 1.1);
-    const cost = q && q.cost && Number.isFinite(Number(q.cost.total)) ? Number(q.cost.total) : null;
+    // 고정비 회수분(몸통 장당)은 지출이 아니다 — 월 고정비(overheadMonthly)와 두 번 빼지 않게 덜어낸다
+    const cost = q && q.cost && Number.isFinite(Number(q.cost.total)) ? Number(q.cost.total) - (Number(q.cost.fixed_recovery) || 0) : null;
     const tier = q && q.partner && Math.abs(Number(o.contract_amount) - Number(q.partner.total)) < 1000 ? 'partner' : 'customer';
     rows.push({
       id: o.id,

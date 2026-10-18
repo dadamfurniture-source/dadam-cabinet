@@ -149,3 +149,18 @@ test('원판 장수 기본은 면적 기준 — PB·뒷판 0.1장, 도어 0.5장
   const lowYield = areaSheets(SINK_BOM, { ...DEFAULT_QUOTE, pbYield: 0.6 });
   assert.ok(lowYield.pb > a.pb);
 });
+
+test('고정비 회수: 몸통 PB 1장마다 41,300원을 원가에 더하고 마진도 같이 붙는다 (2026-10-18 대표 확정)', () => {
+  assert.equal(DEFAULT_QUOTE.fixedPerPbSheet, 41300);
+  const q = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT });
+  const off = calculateSheetQuote({ design: designOf(FIXTURES.sink15), bom: SINK_BOM, cutPlan: SINK_CUT, settings: { quote: { fixedPerPbSheet: 0 } } });
+  const pb = q.cost.quantities.sheetsPB;
+  assert.equal(q.cost.body.fixed, Math.round(pb * 41300));
+  assert.equal(q.cost.fixed_recovery, q.cost.body.fixed);
+  assert.equal(off.cost.fixed_recovery, 0);
+  // 몸통 줄 단가가 장당 41,300 × 1.2 ≈ 49,560 오른다 (100원 단위 반올림 차이만)
+  const body = (x) => x.items.find((i) => i.name.startsWith('몸통'));
+  assert.ok(Math.abs(body(q).unit_price - body(off).unit_price - 41300 * 1.2) <= 100, `${body(q).unit_price} - ${body(off).unit_price}`);
+  const pbody = (x) => x.partner.items.find((i) => i.name.startsWith('몸통'));
+  assert.ok(Math.abs(pbody(q).unit_price - pbody(off).unit_price - 41300 * 1.1) <= 100);
+});

@@ -187,6 +187,7 @@ export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extra
     hardware: hardwareCost,
     labor: bodyCutSec * rateCut + w.edge * ratePart + bodyAsmSec * rateAsm,
     overhead: (bodyCutSec + w.edge + bodyAsmSec) * ohSec,
+    fixed: c.sheetsPB * (Q.fixedPerPbSheet || 0), // 고정비 회수 (장당)
   };
   const back = {
     material: c.sheetsBack * Q.backSheet,
@@ -258,6 +259,8 @@ export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extra
       cabinet: Math.round(cabinetCost),
       extras: roundAll(extraCost),
       priced_total: pricedTotal,
+      // 몸통 장당 고정비 회수분 — 실제로 나가는 돈이 아니라 고정비를 덮는 매출 몫. 손익 요약은 total 에서 이걸 뺀다
+      fixed_recovery: Math.round(body.fixed),
       margin_amount: Math.round(pricedTotal - costTotal),
       partner_margin_amount: Math.round(partner.priced - costTotal),
       body: roundAll(body),

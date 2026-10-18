@@ -292,6 +292,11 @@ test('월 손익: 그 달(KST) 수주만, 매출 = 계약 ÷ 1.1, 지출 = 스�
   assert.equal(m.totals.gross, 3100000 - 2500000); // 원가를 아는 건만
   assert.equal(m.totals.net, 600000 - 3800000);
   assert.equal(m.totals.shortfall, 3200000);
+
+  // 몸통 장당 고정비 회수분은 지출이 아니다 — 월 고정비와 두 번 빼지 않는다
+  const snaps2 = new Map([['s1', { quote_payload: { total: 2200000, cost: { total: 1500000, fixed_recovery: 200000 }, partner: { total: 2000000 } } }]]);
+  const m2 = summarizeMonth([orders[0]], snaps2, { month: '2026-10', overheadMonthly: 0 });
+  assert.equal(m2.totals.cost, 1300000);
 });
 
 test('보정: 엣지 기록은 면 단위가 된 날(2026-10-18)부터만 쓴다 — 그 전 기록은 PB 장 단위', () => {
