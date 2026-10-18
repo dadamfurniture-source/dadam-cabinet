@@ -15,7 +15,7 @@ import { listOrders } from '../orders.js';
 import { workloadFromSnapshot } from './workload.js';
 import { planProduction } from './planner.js';
 import { buildProposalBlocks, buildInstructionBlocks, buildDailyBlocks, assignmentsFromSuggestions, actionKey } from './notify.js';
-import { DEFAULT_STANDARDS, DEFAULT_CREW, DEFAULT_COSTS, DEFAULT_LEADS, DEFAULT_QUOTE } from './standards.js';
+import { DEFAULT_STANDARDS, DEFAULT_CREW, DEFAULT_COSTS, DEFAULT_LEADS, DEFAULT_QUOTE, DEFAULT_VENDORS } from './standards.js';
 import { safeRecord, safeSyncStatus } from '../reports/service.js';
 import { reportFromProposal, reportFromDecision, reportFromDailyBrief, reportFromMonth, monthEnd } from '../reports/record.js';
 
@@ -52,6 +52,7 @@ export function mergeSettings(saved) {
     costs: known(DEFAULT_COSTS, s.costs),
     leads: known(DEFAULT_LEADS, s.leads),
     quote: known(DEFAULT_QUOTE, s.quote),
+    vendors: known(DEFAULT_VENDORS, s.vendors),
     holidays: Array.isArray(s.holidays) ? s.holidays : [],
   };
 }
@@ -77,6 +78,16 @@ export function sanitizeSettings(body) {
       const max = (group === 'crew' && k === 'util') || (group === 'quote' && ['marginRate', 'partnerMarginRate', 'pbYield', 'doorYield'].includes(k)) ? 1 : hi;
       if (!Number.isFinite(n) || n < lo || n > max) throw new ValidationError(`${group}.${k} 값이 범위를 벗어났습니다`);
       out[group][k] = n;
+    }
+  }
+  if (body && body.vendors !== undefined) {
+    if (typeof body.vendors !== 'object' || body.vendors === null) throw new ValidationError('vendors 는 객체여야 합니다');
+    out.vendors = {};
+    for (const [k, v] of Object.entries(body.vendors)) {
+      if (!(k in DEFAULT_VENDORS)) throw new ValidationError(`알 수 없는 설정: vendors.${k}`);
+      const name = String(v == null ? '' : v).trim();
+      if (!name || name.length > 40) throw new ValidationError(`vendors.${k} 는 1~40자 업체 이름이어야 합니다`);
+      out.vendors[k] = name;
     }
   }
   if (body && body.holidays !== undefined) {
@@ -106,7 +117,7 @@ export async function saveSettings(env, { user, body }) {
  * 수주 · 스냅샷 · 설치 일정 → planner jobs (순수).
  * 설치 일정은 설계당 가장 이른, 취소되지 않은 것.
  */
-export function buildJobs(orders, snapshotsById, schedules, standards) {
+export function buildJobs(orders, snapshotsById, schedules, standards, doorOrdered = new Set()) {
   const installByDesign = new Map();
   for (const s of schedules || []) {
     if (s.type !== 'installation' || s.status === 'cancelled') continue;
@@ -128,6 +139,7 @@ export function buildJobs(orders, snapshotsById, schedules, standards) {
       orderedAt: kstDate(o.ordered_at),
       installDate: installByDesign.get(o.design_id) || null,
       work,
+      doorOrdered: doorOrdered.has(o.id),
     });
   }
   return { jobs, skipped };
@@ -145,13 +157,31 @@ async function loadInputs(env, user) {
     select: 'design_id,type,status,scheduled_at',
     limit: '500',
   })) || [];
-  return { orders, snapshotsById: new Map(snaps.map((s) => [s.id, s])), schedules };
+  return { orders, snapshotsById: new Map(snaps.map((s) => [s.id, s])), schedules, doorOrdered: await doorOrderedIds(env, user.id) };
+}
+
+/** 도어재 [발주 처리] 가 된 주문 — 계획의 '도어 발주 마감' 추천 · 아침 경고에서 뺀다 (보관함 §2.1). 표가 없으면 빈 집합. */
+export async function doorOrderedIds(env, userId) {
+  try {
+    const rows = (await selectMany(env, 'work_reports', {
+      owner_id: `eq.${userId}`,
+      kind: 'eq.outsource_order',
+      status: 'in.(ordered,received)',
+      'metrics->>pack': 'eq.door',
+      select: 'order_ids',
+      limit: '1000',
+    })) || [];
+    return new Set(rows.flatMap((r) => r.order_ids || []));
+  } catch (e) {
+    console.warn('door ordered lookup failed:', e && e.message);
+    return new Set();
+  }
 }
 
 export async function computePlan(env, { user, today }) {
   const { settings } = await getSettings(env, { user });
-  const { orders, snapshotsById, schedules } = await loadInputs(env, user);
-  const { jobs, skipped } = buildJobs(orders, snapshotsById, schedules, settings.standards);
+  const { orders, snapshotsById, schedules, doorOrdered } = await loadInputs(env, user);
+  const { jobs, skipped } = buildJobs(orders, snapshotsById, schedules, settings.standards, doorOrdered);
   const plan = planProduction({
     today: today || kstDate(),
     jobs,

@@ -28,9 +28,9 @@
   const WO_PACKS = [
     { pack: 'cut', title: '재단·엣지 지시서', who: '재단 기사', desc: '원판별 재단 배치 · 엣지 붙일 변 표시 · 엣지 합계 · 정면도' },
     // 2026-10-13 사장님 Q2: 재단·엣지를 가끔 외주(일성합판)로 — 같은 내용, 고객 정보·특기사항·시간 없음
-    { pack: 'cut-vendor', title: '재단·엣지 의뢰서', who: '재단·엣지 외주처', desc: '재단 배치 · 엣지 변 표시 · 엣지 합계 (고객 정보·금액 없음)' },
+    { pack: 'cut-vendor', title: '재단·엣지 의뢰서', who: '재단·엣지 외주처', desc: '재단 배치 · 엣지 변 표시 · 엣지 합계 (고객 정보·금액 없음)', order: true },
     { pack: 'assembly', title: '조립 지시서', who: '조립 기사', desc: '모듈별 부재·철물 · 모듈 치수도 · 조립 체크 · 정면도' },
-    { pack: 'door', title: '도어재 발주서', who: '도어 외주처', desc: '도어·몰딩·마감 부재 · 발주 코드 · 경첩 컵 위치 (고객 정보·금액 없음)' },
+    { pack: 'door', title: '도어재 발주서', who: '도어 외주처', desc: '도어·몰딩·마감 부재 · 발주 코드 · 경첩 컵 위치 (고객 정보·금액 없음)', order: true },
     { pack: 'labels', title: '부재 라벨', who: '재단 기사', desc: 'QR 라벨 A4 3×8 · 사내 부재 먼저, 도어재는 입고 시' },
     { pack: 'all', title: '전체 작업지시서', who: '사무실 보관', desc: '위 전부 + 표지 · 이전 rev 와의 차이' },
   ];
@@ -56,6 +56,7 @@
     documents: [],
     schedules: [],
     site: null,     // CD-4: 현장 정보
+    outsource: [],  // 외주 발주 내역 (보관함 §2.1) — 최신 작업지시서 설계 기준
     busy: false,
   };
 
@@ -427,17 +428,76 @@
       '#workOrderPanel .wo4-pack .desc{font-size:12px;color:#444;flex:1}',
       '#workOrderPanel .wo4-pack button{align-self:flex-start;padding:7px 14px;cursor:pointer;font-weight:600}',
       '#workOrderPanel .wo4-pack.off{opacity:.55}',
+      '#workOrderPanel .wo4-order{font-size:12px;border-radius:6px;padding:6px 8px;background:#f1f1f1;color:#555}',
+      '#workOrderPanel .wo4-order.ordered{background:#e3f2fd;color:#0d47a1}',
+      '#workOrderPanel .wo4-order.received{background:#e8f5e9;color:#1b5e20}',
     ].join('');
     document.head.appendChild(st);
   }
 
-  function packCard(title, who, desc, docId, pack) {
+  const ORDER_STATUS = { ordered: '발주함', received: '입고됨', cancelled: '취소' };
+
+  /** 이 꾸러미의 가장 최근 외주 발주 (취소 제외) */
+  function lastOrder(pack) {
+    return state.outsource.find(function (o) { return o.pack === pack && o.status !== 'cancelled'; }) || null;
+  }
+
+  function md(day) {
+    return day ? Number(day.slice(5, 7)) + '/' + Number(day.slice(8, 10)) : '?';
+  }
+
+  function packCard(title, who, desc, docId, pack, orderable) {
+    const o = orderable && docId ? lastOrder(pack) : null;
+    const orderLine = orderable && docId
+      ? '<div class="wo4-order' + (o ? ' ' + o.status : '') + '">' +
+        (o
+          ? esc(ORDER_STATUS[o.status] || o.status) + ' ' + esc(md(o.ordered_on)) + ' · ' + esc(o.vendor || '') +
+            (o.status === 'ordered' ? ' · 입고 예정 ' + esc(md(o.expected_on)) : '') + (o.qty ? '<br>' + esc(o.qty) : '')
+          : '아직 발주 처리 안 함') + '</div>'
+      : '';
     return '<div class="wo4-pack' + (docId ? '' : ' off') + '">' +
       '<div class="wo4-h">' + esc(title) + '</div>' +
       '<div class="who">' + esc(who) + '</div>' +
       '<div class="desc">' + esc(desc) + '</div>' +
+      orderLine +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
       '<button type="button" data-wo-print="' + esc(docId || '') + '" data-wo-pack="' + esc(pack || '') + '"' +
-      (docId ? '' : ' disabled') + '>인쇄</button></div>';
+      (docId ? '' : ' disabled') + '>인쇄</button>' +
+      (orderable && docId ? '<button type="button" data-wo-order="' + esc(pack) + '" data-wo-doc="' + esc(docId) + '">발주 처리</button>' : '') +
+      '</div></div>';
+  }
+
+  /**
+   * [발주 처리] — 업체 · 입고 예정일을 받아 보관함에 외주 발주 한 행 (비우면 생산 설정의 업체 · 납기 근무일).
+   * 같은 꾸러미가 이미 발주돼 있으면 서버가 409 — 확인하면 한 번 더 남긴다.
+   */
+  async function orderOutsource(docId, pack) {
+    const p = WO_PACKS.find(function (x) { return x.pack === pack; });
+    const vendor = window.prompt((p ? p.title : pack) + ' — 업체 이름 (비우면 기본 업체)', '');
+    if (vendor === null) return;
+    const expected = window.prompt('입고 예정일 YYYY-MM-DD (비우면 납기 근무일로 계산)', '');
+    if (expected === null) return;
+    const body = { pack: pack };
+    if (vendor.trim()) body.vendor = vendor.trim();
+    if (expected.trim()) body.expected_on = expected.trim();
+    const path = '/documents/' + encodeURIComponent(docId) + '/outsource-orders';
+    try {
+      await api(path, { method: 'POST', body: body });
+    } catch (e) {
+      if (e.status !== 409 || !window.confirm(e.message + '\n\n그래도 다시 발주 처리할까요?')) throw e;
+      body.force = true;
+      await api(path, { method: 'POST', body: body });
+    }
+    await loadOutsource();
+    renderStep4();
+    setStep4Status((p ? p.title : pack) + ' 발주 처리를 보관함에 남겼습니다.', 'ok');
+  }
+
+  async function loadOutsource() {
+    const wo = latestDoc('work_order');
+    state.outsource = wo
+      ? ((await api('/documents/' + encodeURIComponent(wo.id) + '/outsource-orders').catch(function () { return { items: [] }; })).items || [])
+      : [];
   }
 
   function renderStep4() {
@@ -475,7 +535,7 @@
         wo ? wo.doc_no : '');
 
     const packs =
-      WO_PACKS.map(function (p) { return packCard(p.title, p.who, p.desc, wo && wo.id, p.pack); }).join('') +
+      WO_PACKS.map(function (p) { return packCard(p.title, p.who, p.desc, wo && wo.id, p.pack, p.order); }).join('') +
       packCard('설치 지시서', '시공 기사',
         io ? '현장 주소 · 층 · 엘리베이터 · 반입 경로 · 시공 순서'
           : site ? '[발행] 할 때 아래 현장 정보로 함께 만듭니다' : '아래 현장 정보를 저장하면 [발행] 할 때 함께 만듭니다',
@@ -581,6 +641,11 @@
         guard(function () {
           return openPrint(b.getAttribute('data-wo-print'), b.getAttribute('data-wo-pack') || null);
         });
+      });
+    });
+    root.querySelectorAll('[data-wo-order]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        guard(function () { return orderOutsource(b.getAttribute('data-wo-doc'), b.getAttribute('data-wo-order')); });
       });
     });
     root.querySelectorAll('[data-wf-print]').forEach(function (b) {
@@ -859,6 +924,7 @@
     state.documents = docs.items || [];
     state.schedules = scheds.items || [];
     state.site = site || null;
+    await loadOutsource();
     render();
   }
 

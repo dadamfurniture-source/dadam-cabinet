@@ -154,7 +154,7 @@ export function reportFromDailyBrief({ ownerId, day, plan, todays, blocks, sent,
       day: d0,
       jobs: jobs.map((j) => ({
         id: j.id, label: j.label, due: j.due || null, finish: j.finish || null, late: Boolean(j.late),
-        rescheduleTo: j.rescheduleTo || null, doorOrderBy: j.doorOrderBy || null, doorOrderLate: Boolean(j.doorOrderLate),
+        rescheduleTo: j.rescheduleTo || null, doorOrderBy: j.doorOrdered ? null : j.doorOrderBy || null, doorOrderLate: Boolean(j.doorOrderLate),
       })),
       todays: (todays || []).map((a) => ({ id: a.id, work_date: a.work_date, kind: a.kind, text: a.text, status: a.status })),
       slack: { owner: Boolean(sent), workers: workersSent === undefined ? null : workersSent, blocks: blocks || null },
@@ -231,6 +231,50 @@ export function reportFromMonth({ ownerId, summary, assignments = [] }) {
       extraCost: live.reduce((s, a) => s + (Number(a.cost) || 0), 0),
     },
     body: { summary, completion: { total: live.length, done, rate: completion } },
+  };
+}
+
+export const OUTSOURCE_PACKS = Object.freeze({
+  door: { label: '도어재', vendorKey: 'door' },
+  'cut-vendor': { label: '재단·엣지', vendorKey: 'cutEdge' },
+});
+
+/** 외주 수량 한 줄 — 목록 · 인쇄 · Step 4 가 같이 쓴다. */
+export function outsourceQtyText(pack, q = {}) {
+  if (pack === 'door') {
+    return [q.doorSheets != null ? `원장 ${q.doorSheets}장` : null, q.doors ? `도어 ${q.doors}짝` : null, q.doorParts ? `부재 ${q.doorParts}장` : null].filter(Boolean).join(' · ');
+  }
+  if (pack === 'cut-vendor') {
+    return [q.sheets != null ? `원판 ${q.sheets}장` : null, q.edgeM ? `엣지 ${q.edgeM}m` : null, q.parts ? `부재 ${q.parts}장` : null].filter(Boolean).join(' · ');
+  }
+  return '';
+}
+
+/**
+ * [발주 처리] → outsource_order 보고 (상태 ordered → received / cancelled).
+ * 한 문서에 꾸러미별로 여러 번 생길 수 있어 source_id 는 비우고 body.document_id 로 가리킨다.
+ */
+export function reportFromOutsource({ ownerId, doc, pack, vendor, orderedOn, expectedOn, quantities = {}, orderIds = [], note, createdBy }) {
+  const p = OUTSOURCE_PACKS[pack];
+  const qty = outsourceQtyText(pack, quantities);
+  return {
+    owner_id: ownerId,
+    kind: 'outsource_order',
+    title: clip(`외주 발주 — ${p ? p.label : pack} · ${vendor} · ${doc.doc_no}`),
+    period_start: orderedOn,
+    period_end: expectedOn || orderedOn,
+    status: 'ordered',
+    source_table: 'design_documents',
+    source_id: null,
+    order_ids: uniq(orderIds).filter(isUuid),
+    design_ids: uniq([doc.design_id]).filter(isUuid),
+    metrics: { ...quantities, pack, vendor, expected: expectedOn || null, qty },
+    body: {
+      document_id: doc.id, doc_no: doc.doc_no, rev: doc.rev ?? null, title: doc.title || null, pack,
+      vendor, ordered_on: orderedOn, expected_on: expectedOn || null, quantities,
+    },
+    note: note ? clip(note, 4000) : null,
+    created_by: createdBy || null,
   };
 }
 
