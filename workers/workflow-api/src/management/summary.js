@@ -946,6 +946,100 @@ export function leadTimeOf({ schedules, leadOrders }, month, today = null) {
 }
 const inWindowDay = (d, win) => d >= win.start && d <= win.end;
 
+// ── 계절 지수 · 수주 예측 (3단계 PR-12) ──────────────────────
+
+/** 계절 지수를 내려면 열두 달이 있어야 한다 (달마다 한 번은 봐야 그 달의 무게를 안다) */
+export const SEASON_MIN_MONTHS = 12;
+const ym = (y, m) => `${y}-${String(m).padStart(2, '0')}`;
+function addMonths(month, n) {
+  const [y, m] = month.split('-').map(Number);
+  const t = y * 12 + (m - 1) + n;
+  return ym(Math.floor(t / 12), (t % 12) + 1);
+}
+
+/**
+ * 21 계절 지수 · 수주 예측 — 오늘이 든 달 기준.
+ *   달별 매출  사장님이 적은 과거 월 매출(sales_history)이 먼저, 없는 달은 시스템 수주(VAT 제외 계약금)
+ *              — 사장님 숫자는 시스템 밖 주문까지 담은 장부라 일부러 적은 값이다
+ *   계절 지수  끝난 달(이번 달 제외) 열두 개 이상일 때, 같은 달 평균 ÷ 전체 달 평균 (1.0 = 보통 달)
+ *   예측       최근 열두 달 평균 × 그 달의 지수 — 이번 달과 다음 두 달
+ *   파이프라인 결정을 기다리는 확인서(60일 안) × 최근 반년 전환율 × 최근 반년 평균 수주 금액
+ * 과거 매출 표가 아직 없으면 needSql 을 세우고 시스템 수주만으로 본다.
+ */
+export function forecastOf({ history, sysOrders, documents }, today) {
+  const cur = today.slice(0, 7);
+  const sys = new Map();
+  for (const o of sysOrders || []) {
+    if (o.status === 'cancelled' || !o.ordered_at) continue;
+    const k = kstDate(o.ordered_at).slice(0, 7);
+    if (!sys.has(k)) sys.set(k, { revenue: 0, orders: 0 });
+    const a = sys.get(k); a.revenue += Math.round(num(o.contract_amount) / 1.1); a.orders += 1;
+  }
+  const manual = new Map((history || []).map((h) => [String(h.month).slice(0, 7), h]));
+  const valueOf = (k) => {
+    if (manual.has(k)) return { revenue: num(manual.get(k).revenue), source: 'manual' };
+    if (sys.has(k) && sys.get(k).revenue > 0) return { revenue: sys.get(k).revenue, source: 'system' };
+    return { revenue: null, source: null };
+  };
+  // 끝난 달 — 가장 이른 기록부터 지난달까지
+  const keys = [...new Set([...manual.keys(), ...sys.keys()])].filter((k) => k < cur).sort();
+  const done = [];
+  if (keys.length) for (let k = keys[0]; k < cur; k = addMonths(k, 1)) { const v = valueOf(k); if (v.revenue !== null) done.push({ month: k, ...v }); }
+  const coverage = done.length;
+  const ready = coverage >= SEASON_MIN_MONTHS;
+  const avgAll = coverage ? done.reduce((s, d) => s + d.revenue, 0) / coverage : 0;
+  let index = null, peak = null, low = null;
+  if (ready && avgAll > 0) {
+    index = Array.from({ length: 12 }, (_, i) => {
+      const vals = done.filter((d) => Number(d.month.slice(5, 7)) === i + 1).map((d) => d.revenue);
+      return { m: i + 1, value: vals.length ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length / avgAll) * 100) / 100 : null };
+    });
+    const known = index.filter((x) => x.value !== null);
+    peak = known.reduce((a, b) => (b.value > a.value ? b : a));
+    low = known.reduce((a, b) => (b.value < a.value ? b : a));
+  }
+  const last12 = done.slice(-12);
+  const base = last12.length ? Math.round(last12.reduce((s, d) => s + d.revenue, 0) / last12.length) : null;
+  const next = ready && base !== null ? [0, 1, 2].map((n) => {
+    const k = addMonths(cur, n);
+    const idx = index[Number(k.slice(5, 7)) - 1].value;
+    return { month: k, index: idx, forecast: Math.round(base * (idx ?? 1)) };
+  }) : null;
+  // 파이프라인
+  const byDesign = confirmationsByDesign(documents);
+  const since60 = addDays(today, -60);
+  const half = addMonths(cur, -6);
+  let pending = 0, issued = 0, approved = 0;
+  for (const docs of byDesign.values()) {
+    const first = docs.at(0), last = docs.at(-1);
+    const firstM = kstDate(first.created_at).slice(0, 7);
+    if (firstM >= half && firstM < cur) { issued += 1; if (docs.some((d) => d.decision === 'approved')) approved += 1; }
+    if (!last.decision && !['revoked', 'superseded'].includes(last.status) && kstDate(last.created_at) >= since60) pending += 1;
+  }
+  const recent = (sysOrders || []).filter((o) => o.status !== 'cancelled' && o.ordered_at && kstDate(o.ordered_at).slice(0, 7) >= half);
+  const avgContract = recent.length ? Math.round(recent.reduce((s, o) => s + num(o.contract_amount) / 1.1, 0) / recent.length) : null;
+  const conversion = issued ? approved / issued : null;
+  return {
+    needSql: history === null,
+    today,
+    months: [...done.slice(-24), { month: cur, ...valueOf(cur), partial: true }],
+    coverage,
+    minMonths: SEASON_MIN_MONTHS,
+    ready,
+    index,
+    peak,
+    low,
+    base,
+    next,
+    pipeline: {
+      pending,
+      conversion: conversion === null ? null : Math.round(conversion * 1000) / 10,
+      avgContract,
+      expected: conversion !== null && avgContract !== null ? Math.round(pending * conversion * avgContract) : null,
+    },
+  };
+}
+
 // ── 원판 사용량 (3단계 PR-11) ────────────────────────────────
 
 /** 수율을 고치자고 말하려면 이만큼의 수주가 있어야 한다 — 몇 건으로 설정을 흔들지 않는다 */
@@ -1034,11 +1128,13 @@ const pair = (value, prev) => ({ value, prev });
  * @param {Array}  p.leadOrders     리드타임용 수주 (design_id · ordered_at · status)
  * @param {Array}  p.doneOrders     납품 · 완료된 수주 (id · snapshot_id · 납품/완료일 · 이름)
  * @param {Array}  p.cutLogs        그 수주들의 재단 실측 (order_id · role · units)
+ * @param {Array|null} p.history    과거 월 매출 (month · revenue · orders). 표가 없으면 null
+ * @param {Array}  p.sysOrders      예측용 수주 3년치 (contract_amount · status · ordered_at)
  * @param {string} [p.today]        오늘 (KST, YYYY-MM-DD) — 이번 달의 반년 창 끝
  * @param {Object} p.settings       mergeSettings 결과 (+ source)
  * @param {string} p.month          'YYYY-MM'
  */
-export function buildManagementSummary({ orders, snapshotsById, documents, consultations, generations = null, designs = [], costs = [], worklogs = [], paceLogs = [], reworks = null, installed = [], feedback = null, counterparties = null, partnerOrders = null, supplierCosts = [], outsource = [], balances = null, payments = null, dueCosts = [], cashOrders = [], installs = new Map(), schedules = null, leadOrders = [], doneOrders = [], cutLogs = [], settings, month, today = null }) {
+export function buildManagementSummary({ orders, snapshotsById, documents, consultations, generations = null, designs = [], costs = [], worklogs = [], paceLogs = [], reworks = null, installed = [], feedback = null, counterparties = null, partnerOrders = null, supplierCosts = [], outsource = [], balances = null, payments = null, dueCosts = [], cashOrders = [], installs = new Map(), schedules = null, leadOrders = [], doneOrders = [], cutLogs = [], history = null, sysOrders = [], settings, month, today = null }) {
   const prev = prevMonthOf(month);
   const overheadMonthly = num(settings && settings.quote && settings.quote.overheadMonthly);
   const cur = financeOf(orders, snapshotsById, { month, overheadMonthly });
@@ -1081,6 +1177,8 @@ export function buildManagementSummary({ orders, snapshotsById, documents, consu
     aging: agingOf({ payments, orders: cashOrders }, today || kstDate()),
     leadTime: leadTimeOf({ schedules, leadOrders }, month, today),
     sheetYield: sheetYieldOf({ doneOrders, snapshotsById, cutLogs, settings }, month, today),
+    // 예측은 이달 선택과 상관없이 오늘부터
+    forecast: forecastOf({ history, sysOrders, documents }, today || kstDate()),
     basis: {
       revenue: 'VAT 제외 계약금',
       cost: '확인서 견적 원가 (고정비 회수분 제외)',
