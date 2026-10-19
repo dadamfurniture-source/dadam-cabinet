@@ -37,9 +37,7 @@ curl https://dadam-generate-api.dadamfurniture.workers.dev/health
 
 ## 환경 변수 (Secret)
 
-> 2026-09-22 추가 — `FAL_KEY`: ControlNet 경로(`engine: 'controlnet'`, `src/controlnet.js`)가 fal.ai 를 부를 때 쓴다.
-> https://fal.ai/dashboard/keys 에서 발급 → `npx wrangler secret put FAL_KEY`. 없으면 그 경로의 잡만 실패하고 크레딧은 환불된다.
-> 모델·강도는 `wrangler.toml` 의 `CONTROLNET_MODEL` / `CONTROLNET_STRENGTH` / `CONTROLNET_CONTROL_STRENGTH`.
+> 2026-10-19 삭제 — `FAL_KEY`·ControlNet 경로(`engine: 'controlnet'`, `src/controlnet.js`)와 실사화(`realize`)를 지웠다 (계획 `docs/01-plan/planner-render-realize.plan.md` §8·P6). 코드는 더 이상 `FAL_KEY` 를 읽지 않는다.
 
 > 2026-10-18 추가 — `OPENAI_API_KEY`: 연출컷 기본안·추천안을 GPT(`gpt-image-2.5-sunburst`)로 그린다 (`src/openai.js`, `src/images.js`).
 > https://platform.openai.com/api-keys 에서 발급, 조직 인증(Organization Verification)과 선불 크레딧이 필요할 수 있다 → `npx wrangler secret put OPENAI_API_KEY`.

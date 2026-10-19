@@ -17,7 +17,7 @@ import {
   CATEGORIES,
   DESIGN_SPEC_QC_FIXES,
   QC_ISSUE_CODES,
-  REALIZE_QC_FIXES,
+  MOCK_QC_FIXES,
   buildInstallPrompt,
   buildQcPrompt,
   normalizeDesignSpec,
@@ -288,8 +288,9 @@ test('parseQc 는 layout_mismatch 를 알아듣는다', () => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// 2026-09-19 실사화(realize): 첫 사진에 플래너가 도면 입면을 이미 얹어 두었을 때.
-//   모델은 그리는 게 아니라 그 자리에서 다시 그린다. 기하는 사진에 있고 글은 개수·순서를 못박는다.
+// 2026-09-19 실사화(realize) → 2026-10-19 지웠다 (계획 planner-render-realize.plan.md §8·P6).
+//   옛 행의 options.realize 가 잡까지 와도 프롬프트·검사는 일반 경로와 바이트 그대로다.
+//   flat_mockup 검사 코드는 덩어리 합성(mockVolume)이 계속 쓴다 — MOCK_QC_FIXES (옛 이름 REALIZE_QC_FIXES).
 // ─────────────────────────────────────────────────────────────
 function realizeCtx(extra = {}) {
   const designSpec = normalizeDesignSpec(
@@ -316,39 +317,23 @@ function realizeCtx(extra = {}) {
   };
 }
 
-test('realize: 기하를 고정하고 그 자리에서 다시 그리라고 말한다 — 도면 요약도 같이 간다', () => {
+test('옛 행의 realize:true 는 무시된다 — 설치·검사 프롬프트가 realize 없을 때와 바이트 그대로', () => {
   const p = buildInstallPrompt(realizeCtx());
-  assert.match(p, /already contains the customer's own cabinet design/);
-  assert.match(p, /GEOMETRY IS FIXED/);
-  assert.match(p, /Do not move, resize, add or remove any module, door or drawer/);
-  assert.match(p, /MAKE IT REAL/);
-  // 글로도 한 번 더 못박는다 — 개수·순서
-  assert.match(p, /FURNITURE: this is the customer's own planner drawing/);
-  // 공통 규칙은 그대로
-  assert.match(p, /HANDLES: none/);
-  assert.match(p, /All doors and drawers closed/);
-  // "install a built-in" 은 맨땅에 그리라는 말이라 실사화에는 없다
-  assert.doesNotMatch(p, /^Edit the first photo: install a built-in/);
-});
-
-test('realize 가 아니면 실사화 문장이 한 줄도 없다', () => {
-  const p = buildInstallPrompt(realizeCtx({ realize: false }));
+  assert.equal(p, buildInstallPrompt(realizeCtx({ realize: false })));
   assert.doesNotMatch(p, /GEOMETRY IS FIXED|MAKE IT REAL|mockup/);
   assert.match(p, /^Edit the first photo: add a built-in .+ that occupies the space in front of the main wall/);
-});
-
-test('realize QC 는 flat_mockup 을 내고, 아니면 안 낸다', () => {
-  assert.match(buildQcPrompt(realizeCtx()), /- flat_mockup:/);
-  assert.doesNotMatch(buildQcPrompt(realizeCtx({ realize: false })), /flat_mockup/);
-  // 요약이 있으므로 layout_mismatch 도 같이 간다
+  assert.equal(buildQcPrompt(realizeCtx()), buildQcPrompt(realizeCtx({ realize: false })));
+  assert.doesNotMatch(buildQcPrompt(realizeCtx()), /flat_mockup/);
+  // 요약이 있으므로 layout_mismatch 는 그대로 간다
   assert.match(buildQcPrompt(realizeCtx()), /- layout_mismatch:/);
 });
 
-test('parseQc 는 flat_mockup 을 알아듣고, FIX 문장이 있다', () => {
+test('flat_mockup 은 덩어리 합성(mockVolume)에만 — parseQc 가 알아듣고 FIX 문장이 있다', () => {
+  assert.match(buildQcPrompt(realizeCtx({ realize: false, mockVolume: true })), /- flat_mockup:/);
   const qc = parseQc('{"ok":false,"issues":["flat_mockup","nonsense"],"note":"x"}');
   assert.deepEqual(qc.issues, ['flat_mockup']);
   assert.ok(ALL_QC_ISSUE_CODES.includes('flat_mockup'));
-  assert.ok(REALIZE_QC_FIXES.flat_mockup.length > 40);
-  const p = buildInstallPrompt(realizeCtx(), { fix: ['flat_mockup'] });
+  assert.ok(MOCK_QC_FIXES.flat_mockup.length > 40);
+  const p = buildInstallPrompt(realizeCtx({ realize: false, mockVolume: true, mockKind: 'kitchen' }), { fix: ['flat_mockup'] });
   assert.ok(p.includes('FIX (the previous attempt failed these checks):\n- Parts of the furniture still look like a flat pasted mockup'));
 });

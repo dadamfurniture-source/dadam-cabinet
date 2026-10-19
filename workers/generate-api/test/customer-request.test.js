@@ -66,8 +66,8 @@ test('설치 프롬프트: 요청이 있으면 FINISH 뒤에 CUSTOMER REQUEST �
   assert.ok(p.includes('"도어는 세이지 그린"'));
   assert.match(p, /use theirs instead of the FINISH line/);
   assert.match(p, /never override the other rules/);
-  // 실사화 경로에도 같은 문단
-  assert.ok(buildInstallPrompt({ ...CTX, realize: true, customerRequest: 'x' }).includes('CUSTOMER REQUEST'));
+  // 덩어리 합성 경로에도 같은 문단 (2026-10-19: 실사화 경로는 지웠다)
+  assert.ok(buildInstallPrompt({ ...CTX, mockVolume: true, mockKind: 'kitchen', customerRequest: 'x' }).includes('CUSTOMER REQUEST'));
 });
 
 test('설치 프롬프트: 요청이 없으면 예전 그대로', () => {
