@@ -98,6 +98,22 @@
       .tbl .cum .track { display: block; height: 8px; background: #eef1f5; border-radius: 4px; overflow: hidden; }
       .tbl .cum .fill { display: block; height: 100%; background: #007bff; }
       .tbl .cum .n { text-align: right; font-variant-numeric: tabular-nums; }
+      .fc-chart { display: block; width: 100%; height: auto; margin: 6px 0 2px; }
+      .fc-chart .hist { fill: #90a4ae; }
+      .fc-chart .sys { fill: #007bff; }
+      .fc-chart .fc { fill: #fff3e0; stroke: #f57c00; stroke-width: 1.5; stroke-dasharray: 4 3; }
+      .fc-chart .sofar { fill: #64b5f6; }
+      .fc-chart .tick { font-size: 10px; fill: #888; }
+      .idx-strip { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 3px; margin-top: 8px; }
+      .idx { display: block; text-align: center; border-radius: 4px; padding: 3px 0; background: #f2f4f7; font-variant-numeric: tabular-nums; }
+      .idx small { display: block; font-size: 10px; color: #888; }
+      .idx b { display: block; font-size: 12px; }
+      .idx.hi { background: #ffe0b2; }
+      .idx.lo { background: #e3f2fd; }
+      .idx.na b { color: #bbb; }
+      .hgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 6px; }
+      .hcell { display: grid; gap: 2px; font-size: 11px; color: #888; }
+      .hcell input { width: 100%; padding: 5px 6px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit; font-size: 12.5px; text-align: right; }
       .cash-chart { display: block; width: 100%; height: auto; margin: 6px 0 2px; }
       .cash-chart .pos { fill: #007bff; }
       .cash-chart .neg { fill: #c62828; }
@@ -242,6 +258,22 @@
               <h3>미수 나이</h3>
               <div class="q">받을 날이 지났는데 못 받은 돈 — 얼마나 오래 밀렸나</div>
               <div id="agingBody"></div>
+            </article>
+          </div>
+        </div>
+
+        <div class="row" id="rowForecast" hidden>
+          <div class="row-lens">앞으로</div>
+          <div class="cards">
+            <article class="card" id="cardForecast">
+              <h3>계절 지수 · 수주 예측</h3>
+              <div class="q">어느 달이 잘 되고 어느 달이 비나 · 이번 달과 다음 두 달은 얼마쯤</div>
+              <div id="forecastBody"></div>
+            </article>
+            <article class="card" id="cardHistory">
+              <h3>과거 월 매출 넣기</h3>
+              <div class="q">시스템 전의 장사를 달마다 (VAT 제외, 만원) — 열두 달이면 계절 지수가 나온다</div>
+              <div id="historyBody"></div>
             </article>
           </div>
         </div>
@@ -625,6 +657,110 @@
             <div class="muted" style="margin-top:8px">처리량 = 매출 − 자재 · 철물 · 외주. 병목이 꽉 찬 달에는 1분당 처리량이 큰 일부터 받는 것이 이익을 가장 크게 합니다.</div>`;
         }
 
+        // ── 앞으로: 계절 지수 · 수주 예측 ──
+        const monthName = (k) => `${Number(String(k).slice(5, 7))}월`;
+        const shortMonth = (k) => `${String(k).slice(2, 4)}.${String(k).slice(5, 7)}`;
+
+        /** 지난 달들(장부 = 회색 · 시스템 = 파랑) + 예측 석 달(주황 테두리, 이번 달은 지금까지를 안에 채운다) */
+        function forecastChart(f) {
+          const past = f.months.filter((x) => !x.partial);
+          const nexts = f.next || [];
+          const cur = f.months.find((x) => x.partial);
+          const cols = past.length + Math.max(nexts.length, 1);
+          const W = 650, H = 160, top = 12, bottom = 22;
+          const vals = past.map((x) => x.revenue).concat(nexts.map((n) => n.forecast), cur && cur.revenue ? [cur.revenue] : []);
+          const max = Math.max(1, ...vals);
+          const bw = W / cols;
+          const y = (v) => top + (1 - v / max) * (H - top - bottom);
+          const bar = (i, v, cls, title) => `<rect class="${cls}" x="${(i * bw + 2).toFixed(1)}" y="${y(v).toFixed(1)}" width="${(bw - 4).toFixed(1)}" height="${Math.max(1, H - bottom - y(v)).toFixed(1)}"><title>${esc(title)}</title></rect>`;
+          const label = (i, k) => `<text class="tick" x="${(i * bw + bw / 2).toFixed(1)}" y="${H - 7}" text-anchor="middle">${esc(shortMonth(k))}</text>`;
+          const step = Math.ceil(cols / 9);
+          let out = '';
+          past.forEach((x, i) => {
+            out += bar(i, x.revenue, x.source === 'manual' ? 'hist' : 'sys', `${x.month} ${won(x.revenue)} (${x.source === 'manual' ? '장부' : '시스템'})`);
+            if (i % step === 0) out += label(i, x.month);
+          });
+          nexts.forEach((n, j) => {
+            const i = past.length + j;
+            out += bar(i, n.forecast, 'fc', `${n.month} 예측 ${won(n.forecast)} (지수 ${n.index ?? '-'})`);
+            if (j === 0 && cur && cur.revenue) out += bar(i, cur.revenue, 'sofar', `${cur.month} 지금까지 ${won(cur.revenue)}`);
+            out += label(i, n.month);
+          });
+          return `<svg class="fc-chart" id="forecastChart" viewBox="0 0 ${W} ${H}" role="img" aria-label="달별 매출과 예측">${out}
+            <text class="tick" x="${W - 2}" y="${top - 2}" text-anchor="end">${esc(man(max))}</text></svg>`;
+        }
+
+        function renderForecast(d) {
+          const f = d.forecast;
+          const p = f.pipeline;
+          const pipe = p.pending > 0
+            ? `결정 기다리는 확인서 <b class="num">${esc(cnt(p.pending))}</b>${p.expected !== null ? ` × 전환율 ${esc(pct(p.conversion))} × 평균 ${esc(man(p.avgContract))} ≈ <b class="num">${esc(man(p.expected))}</b>` : ' — 전환율 · 평균 수주를 낼 이력이 아직 없습니다'}`
+            : '결정을 기다리는 확인서가 없습니다';
+          const sqlNote = f.needSql ? '<div class="warn-line">과거 월 매출 칸이 아직 없습니다 — database/management-phase3.sql 을 실행하면 장부 매출을 넣을 수 있습니다.</div>' : '';
+          if (!f.ready) {
+            $('forecastBody').innerHTML = `
+              <div class="lead-line">끝난 달 <b class="num">${esc(f.coverage)}개월</b> / ${esc(f.minMonths)}개월 — 열두 달이 모이면 계절 지수와 예측이 나옵니다</div>
+              ${sqlNote}
+              ${f.months.length > 1 ? forecastChart(f) : ''}
+              <div class="lead-line" style="margin-top:6px">${pipe}</div>
+              <div class="muted" style="margin-top:8px">오른쪽 '과거 월 매출 넣기' 에 장부의 지난 달 매출을 넣으면 바로 채워집니다.</div>`;
+            return;
+          }
+          const strip = f.index.map((x) => {
+            const v = x.value;
+            const cls = v === null ? 'na' : v >= 1.2 ? 'hi' : v <= 0.8 ? 'lo' : 'mid';
+            return `<span class="idx ${cls}" data-m="${x.m}"><small>${x.m}월</small><b>${v === null ? '-' : esc(v.toFixed(2))}</b></span>`;
+          }).join('');
+          const next = f.next.map((n) => `<span>${esc(monthName(n.month))} <b class="num">${esc(man(n.forecast))}</b></span>`).join(' ');
+          $('forecastBody').innerHTML = `
+            <div class="lead-line">최근 열두 달 평균 <b class="num">${esc(man(f.base))}</b> · 성수기 <b>${esc(`${f.peak.m}월`)}</b>(${esc(f.peak.value)}) · 비수기 <b>${esc(`${f.low.m}월`)}</b>(${esc(f.low.value)})</div>
+            ${sqlNote}
+            ${forecastChart(f)}
+            <div class="idx-strip" id="indexStrip">${strip}</div>
+            <div class="facts">예측 ${next}</div>
+            <div class="lead-line" style="margin-top:6px">${pipe}</div>
+            <div class="muted" style="margin-top:8px">지수 = 같은 달 평균 ÷ 전체 달 평균 (1.0 = 보통 달). 예측 = 최근 열두 달 평균 × 그 달 지수. 회색 = 장부에 적은 달, 파랑 = 시스템 수주, 주황 테두리 = 예측(이번 달은 지금까지를 안에). 끝난 달 ${esc(f.coverage)}개월 기준.</div>`;
+        }
+
+        /** 지난 스물네 달 입력 — 적은 달은 그 값, 시스템 숫자만 있는 달은 흐린 안내 */
+        function renderHistory(d) {
+          const f = d.forecast;
+          if (f.needSql) {
+            $('historyBody').innerHTML = '<div class="empty-state">과거 월 매출 칸이 아직 없습니다.<br>database/management-phase3.sql 을 실행해 주세요.</div>';
+            return;
+          }
+          const cur = String(f.today).slice(0, 7);
+          const known = new Map(f.months.map((x) => [x.month, x]));
+          const months = [];
+          for (let n = 24; n >= 1; n--) {
+            const [yy, mm] = cur.split('-').map(Number);
+            const t = yy * 12 + (mm - 1) - n;
+            months.push(`${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`);
+          }
+          const cells = months.map((k) => {
+            const x = known.get(k);
+            const val = x && x.source === 'manual' ? String(Math.round(x.revenue / 10000)) : '';
+            const ph = x && x.source === 'system' ? `시스템 ${Math.round(x.revenue / 10000)}` : '';
+            return `<label class="hcell"><span>${esc(shortMonth(k))}</span><input type="number" min="0" step="10" data-month="${esc(k)}" value="${esc(val)}" placeholder="${esc(ph)}" aria-label="${esc(k)} 매출 (만원)" /></label>`;
+          }).join('');
+          $('historyBody').innerHTML = `
+            <div class="hgrid" id="historyGrid">${cells}</div>
+            <div class="cash-form"><button class="btn btn-light" id="btnSaveHistory" type="button">저장</button><span class="muted">만원 단위 · 비우면 그 달을 지웁니다 · 적은 달은 시스템 숫자보다 먼저입니다</span></div>`;
+          $('btnSaveHistory').addEventListener('click', saveHistory);
+        }
+
+        async function saveHistory() {
+          const rows = [...document.querySelectorAll('#historyGrid input')].map((i) => ({
+            month: i.dataset.month,
+            revenue: i.value === '' ? '' : Math.round(Number(i.value) * 10000),
+          }));
+          try {
+            const out = await api('/management/sales-history', { method: 'PUT', body: { rows } });
+            setStatus(`과거 월 매출을 저장했습니다 (${out.saved}달).`, 'ok');
+            await load();
+          } catch (e) { setStatus(e.message, 'error'); }
+        }
+
         // ── 현금: 13주 현금흐름 · 미수 나이 ──
         const NEED_CASH_SQL = '<div class="empty-state">수금 · 지급 칸이 아직 없습니다.<br>database/management-phase2.sql 을 실행하면 <a href="../erp.html">수주 · 원가 · 마진</a> 상세에서 수금 일정과 지급 예정일을 적을 수 있습니다.</div>';
         const mmdd = (d) => `${Number(String(d).slice(5, 7))}/${Number(String(d).slice(8, 10))}`;
@@ -957,6 +1093,9 @@
           $('rowProcess').hidden = !d.process;
           if (d.process) { renderVariance(d); renderBottleneck(d); }
           // 품질 — 옛 워커(칸 없음)면 카드를 숨기고, 기록 표가 아직 없으면(null) 안내를 띄운다
+          // 앞으로 줄 — 옛 워커(칸 없음)면 줄을 숨긴다
+          $('rowForecast').hidden = d.forecast === undefined;
+          if (d.forecast !== undefined) { renderForecast(d); renderHistory(d); }
           // 현금 줄 — 옛 워커(칸 없음)면 줄을 숨긴다
           $('rowCash').hidden = d.cashflow === undefined && d.aging === undefined;
           if (!$('rowCash').hidden) { renderCashflow(d); renderAging(d); }
