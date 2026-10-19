@@ -872,6 +872,133 @@ export function agingOf({ payments, orders }, today) {
   };
 }
 
+// ── 리드타임 · 납기 (3단계 PR-10) ────────────────────────────
+
+/** 수주에서 설치까지 — 단계 사이의 빈 날이 대기다 (가치흐름) */
+export const LEAD_STAGES = Object.freeze([
+  { key: 'measure', from: 'order', to: 'measurement', label: '수주 → 실측' },
+  { key: 'start', from: 'measurement', to: 'manufacturing_start', label: '실측 → 제작 착수' },
+  { key: 'make', from: 'manufacturing_start', to: 'manufacturing_end', label: '제작' },
+  { key: 'install', from: 'manufacturing_end', to: 'installation', label: '제작 완료 → 설치' },
+]);
+
+/**
+ * 7 리드타임 · 납기 준수 — 반년 창(그 달 끝, 이번 달이면 오늘까지).
+ *   리드타임  수주마다 단계 일정의 **실제 완료 시각**(completed_at) 사이 날수, 중간값.
+ *             수주 시각은 ordered_at. 두 끝이 다 있어야 센다
+ *   납기 준수 그 창에 설치를 끝낸 것 중 처음 잡은 날(planned_at) 안에 끝낸 비율, 늦으면 평균 며칠
+ *   밀림      아직 설치 전인데 잡힌 날이 지난 것 · 일정을 미룬 설치
+ * planned_at 칸이 아직 없으면(3단계 SQL 전) null.
+ */
+export function leadTimeOf({ schedules, leadOrders }, month, today = null) {
+  if (!Array.isArray(schedules)) return null;
+  const win = windowOf(month, today, QUALITY_WINDOW_DAYS);
+  const todayD = today || win.end;
+  // 설계마다 종류별 가장 이른 (취소 아닌) 일정
+  const byDesign = new Map();
+  for (const s of schedules) {
+    if (s.status === 'cancelled') continue;
+    if (!byDesign.has(s.design_id)) byDesign.set(s.design_id, {});
+    const m = byDesign.get(s.design_id);
+    if (!m[s.type] || String(s.scheduled_at) < String(m[s.type].scheduled_at)) m[s.type] = s;
+  }
+  const at = (s) => (s && s.completed_at ? s.completed_at : null);
+  const stageDays = Object.fromEntries(LEAD_STAGES.map((st) => [st.key, []]));
+  const total = [];
+  for (const o of leadOrders || []) {
+    if (o.status === 'cancelled' || !o.ordered_at) continue;
+    const m = byDesign.get(o.design_id) || {};
+    const inst = at(m.installation);
+    if (!inst || !inWindowDay(kstDate(inst), win)) continue; // 창 안에서 설치를 끝낸 수주만
+    const point = (k) => (k === 'order' ? o.ordered_at : at(m[k]));
+    for (const st of LEAD_STAGES) {
+      const a = point(st.from), b = point(st.to);
+      if (a && b && Date.parse(b) >= Date.parse(a)) stageDays[st.key].push((Date.parse(b) - Date.parse(a)) / DAY_MS);
+    }
+    total.push((Date.parse(inst) - Date.parse(o.ordered_at)) / DAY_MS);
+  }
+  const stages = LEAD_STAGES.map((st) => ({ key: st.key, label: st.label, n: stageDays[st.key].length, medianDays: oneDecimal(median(stageDays[st.key])) }));
+  const known = stages.filter((s) => s.medianDays !== null);
+  const slowest = known.length ? known.reduce((a, b) => (b.medianDays > a.medianDays ? b : a)) : null;
+  // 납기 준수 — 설치
+  let done = 0, onTime = 0, lateDays = 0, late = 0, rescheduled = 0, overdue = 0;
+  for (const m of byDesign.values()) {
+    const s = m.installation;
+    if (!s) continue;
+    const planned = kstDate(s.planned_at || s.scheduled_at);
+    if (s.completed_at) {
+      const d = kstDate(s.completed_at);
+      if (!inWindowDay(d, win)) continue;
+      done += 1;
+      if (d <= planned) onTime += 1;
+      else { late += 1; lateDays += daysBetween(planned, d); }
+      if (s.planned_at && kstDate(s.scheduled_at) !== planned) rescheduled += 1;
+    } else if (kstDate(s.scheduled_at) < todayD) overdue += 1;
+  }
+  return {
+    window: win,
+    orders: total.length,
+    totalMedianDays: oneDecimal(median(total)),
+    stages,
+    slowest: slowest ? { key: slowest.key, label: slowest.label, medianDays: slowest.medianDays } : null,
+    install: { done, onTime, onTimeRate: pct(onTime, done), avgLateDays: late ? Math.round((lateDays / late) * 10) / 10 : null, rescheduled, overdue },
+  };
+}
+const inWindowDay = (d, win) => d >= win.start && d <= win.end;
+
+// ── 원판 사용량 (3단계 PR-11) ────────────────────────────────
+
+/** 수율을 고치자고 말하려면 이만큼의 수주가 있어야 한다 — 몇 건으로 설정을 흔들지 않는다 */
+export const YIELD_MIN_ORDERS = 5;
+
+/**
+ * 15 원판 수율 — 견적이 잡은 원판 장수(PB + 뒷판, 면적 ÷ 수율) 대 재단 기사가 실제로 자른 장수(작업 실측).
+ * 재단이 끝난 수주(납품 · 완료)만, 반년 창. 둘 다 있는 수주만 센다.
+ *   실제 수율 ≈ 설정 수율 × 계획 ÷ 실제 — 실제가 계획보다 많으면 원판을 더 쓴 것(수율이 낮다)
+ *   원가 차이 = (실제 − 계획) × 장당 값 (계획의 PB · 뒷판 비율로 섞은 값)
+ * YIELD_MIN_ORDERS 건 이상이면 생산 설정의 수율을 고치자고 제안한다.
+ */
+export function sheetYieldOf({ doneOrders, snapshotsById, cutLogs, settings }, month, today = null) {
+  const win = windowOf(month, today, QUALITY_WINDOW_DAYS);
+  const q = (settings && settings.quote) || {};
+  const yieldNow = num(q.pbYield) || 0.8;
+  const actualBy = new Map();
+  for (const l of cutLogs || []) {
+    if (l.role !== 'cutter' || !l.order_id) continue;
+    actualBy.set(l.order_id, (actualBy.get(l.order_id) || 0) + num(l.units));
+  }
+  const rows = [];
+  let planPB = 0, planBack = 0, planned = 0, actual = 0;
+  for (const o of doneOrders || []) {
+    const done = o.completed_at || o.delivered_at;
+    if (!done || !inWindowDay(kstDate(done), win)) continue;
+    const qq = quoteOf(o, snapshotsById);
+    const qty = qq && qq.cost && qq.cost.quantities;
+    const plan = qty ? num(qty.sheetsPB) + num(qty.sheetsBack) : 0;
+    const got = actualBy.get(o.id) || 0;
+    if (!(plan > 0) || !(got > 0)) continue;
+    planPB += num(qty.sheetsPB); planBack += num(qty.sheetsBack);
+    planned += plan; actual += got;
+    rows.push({ id: o.id, label: orderLabel(o), planned: Math.round(plan * 10) / 10, actual: Math.round(got * 10) / 10, diffRate: pct(got - plan, plan) });
+  }
+  const price = planned > 0 ? (planPB * num(q.pbSheet) + planBack * num(q.backSheet)) / planned : 0;
+  const implied = actual > 0 ? Math.round(yieldNow * (planned / actual) * 100) / 100 : null;
+  rows.sort((a, b) => (b.diffRate ?? 0) - (a.diffRate ?? 0));
+  return {
+    window: win,
+    orders: rows.length,
+    planned: Math.round(planned * 10) / 10,
+    actual: Math.round(actual * 10) / 10,
+    diffRate: pct(actual - planned, planned),
+    costDiff: Math.round((actual - planned) * price),
+    yieldNow,
+    impliedYield: implied,
+    suggestYield: rows.length >= YIELD_MIN_ORDERS && implied !== null && Math.abs(implied - yieldNow) >= 0.02 ? implied : null,
+    minOrders: YIELD_MIN_ORDERS,
+    top: rows.slice(0, 5),
+  };
+}
+
 function monthEndOf(month) {
   const [y, m] = String(month).split('-').map(Number);
   return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
@@ -903,11 +1030,15 @@ const pair = (value, prev) => ({ value, prev });
  * @param {Array}  p.dueCosts       아직 안 낸 원가 줄 (amount · due_on · spent_on)
  * @param {Array}  p.cashOrders     현금용 수주 (취소 아닌 것 — contract_amount · received_amount · 납품/완료일)
  * @param {Map}    p.installs       design_id → 가장 이른 설치일 (KST)
+ * @param {Array|null} p.schedules  일정 (design_id · type · status · scheduled_at · planned_at · completed_at). 칸이 없으면 null
+ * @param {Array}  p.leadOrders     리드타임용 수주 (design_id · ordered_at · status)
+ * @param {Array}  p.doneOrders     납품 · 완료된 수주 (id · snapshot_id · 납품/완료일 · 이름)
+ * @param {Array}  p.cutLogs        그 수주들의 재단 실측 (order_id · role · units)
  * @param {string} [p.today]        오늘 (KST, YYYY-MM-DD) — 이번 달의 반년 창 끝
  * @param {Object} p.settings       mergeSettings 결과 (+ source)
  * @param {string} p.month          'YYYY-MM'
  */
-export function buildManagementSummary({ orders, snapshotsById, documents, consultations, generations = null, designs = [], costs = [], worklogs = [], paceLogs = [], reworks = null, installed = [], feedback = null, counterparties = null, partnerOrders = null, supplierCosts = [], outsource = [], balances = null, payments = null, dueCosts = [], cashOrders = [], installs = new Map(), settings, month, today = null }) {
+export function buildManagementSummary({ orders, snapshotsById, documents, consultations, generations = null, designs = [], costs = [], worklogs = [], paceLogs = [], reworks = null, installed = [], feedback = null, counterparties = null, partnerOrders = null, supplierCosts = [], outsource = [], balances = null, payments = null, dueCosts = [], cashOrders = [], installs = new Map(), schedules = null, leadOrders = [], doneOrders = [], cutLogs = [], settings, month, today = null }) {
   const prev = prevMonthOf(month);
   const overheadMonthly = num(settings && settings.quote && settings.quote.overheadMonthly);
   const cur = financeOf(orders, snapshotsById, { month, overheadMonthly });
@@ -948,6 +1079,8 @@ export function buildManagementSummary({ orders, snapshotsById, documents, consu
     // 현금은 이달 선택과 상관없이 오늘부터 앞으로
     cashflow: cashflowOf({ balances, payments, costs: dueCosts, orders: cashOrders, installs, overheadMonthly }, today || kstDate()),
     aging: agingOf({ payments, orders: cashOrders }, today || kstDate()),
+    leadTime: leadTimeOf({ schedules, leadOrders }, month, today),
+    sheetYield: sheetYieldOf({ doneOrders, snapshotsById, cutLogs, settings }, month, today),
     basis: {
       revenue: 'VAT 제외 계약금',
       cost: '확인서 견적 원가 (고정비 회수분 제외)',

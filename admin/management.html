@@ -112,6 +112,10 @@
       .cash-form input { padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit; font-size: 13px; }
       .cash-form input[type=number] { width: 150px; }
       .reason.aging .fill { background: #c62828; }
+      .reason.lead { grid-template-columns: 116px minmax(0, 1fr) 56px; }
+      .reason.lead .fill { background: #78909c; }
+      .reason.lead.slow .fill { background: #f57c00; }
+      .reason.lead.slow span:first-child { font-weight: 700; }
       .nps { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
       .nps b { font-size: 28px; }
       .nps span { color: #888; font-size: 13px; }
@@ -286,6 +290,16 @@
               <h3>견적 대비 실적</h3>
               <div class="q">견적이 어디서 빗나가나 — 자재값인가, 외주인가, 작업 시간인가</div>
               <div id="varianceBody"></div>
+            </article>
+            <article class="card" id="cardLead" hidden>
+              <h3>리드타임 · 납기</h3>
+              <div class="q">수주부터 설치까지 며칠, 어디서 기다리나 · 약속한 날에 설치했나</div>
+              <div id="leadBody"></div>
+            </article>
+            <article class="card" id="cardYield" hidden>
+              <h3>원판 사용량</h3>
+              <div class="q">견적이 잡은 원판 장수만큼 잘랐나 — 수율 설정이 맞나</div>
+              <div id="yieldBody"></div>
             </article>
             <article class="card" id="cardQuality" hidden>
               <h3>재작업 · A/S</h3>
@@ -755,6 +769,53 @@
             <div class="muted" style="margin-top:8px">최근 ${esc(r.window.days)}일 받은 답 기준. NPS = 9~10점 비율 − 0~6점 비율. 고객이 남긴 한 줄은 수주 상세에서 봅니다.</div>`;
         }
 
+        // ── 공정: 리드타임 · 납기 ──
+        function renderLead(d) {
+          const l = d.leadTime;
+          if (!l) {
+            $('leadBody').innerHTML = '<div class="empty-state">일정의 처음 잡은 날 · 완료 시각 칸이 아직 없습니다.<br>database/management-phase3.sql 을 실행하면 그때부터 일정을 \'완료\' 로 바꿀 때마다 쌓입니다.</div>';
+            return;
+          }
+          const i = l.install;
+          const installLine = i.done > 0
+            ? `설치 <b class="num">${esc(cnt(i.done))}</b> 중 약속한 날 안에 <b class="num">${esc(pct(i.onTimeRate))}</b>${i.avgLateDays !== null ? ` · 늦으면 평균 ${esc(i.avgLateDays)}일` : ''}${i.rescheduled ? ` · 미룬 설치 ${esc(cnt(i.rescheduled))}` : ''}`
+            : `최근 ${esc(l.window.days)}일 끝낸 설치가 없습니다`;
+          const overdue = i.overdue > 0 ? `<div class="warn-line neg">잡힌 날이 지났는데 아직 끝내지 않은 설치 ${esc(cnt(i.overdue))}</div>` : '';
+          if (!(l.orders > 0)) {
+            $('leadBody').innerHTML = `<div class="lead-line">${installLine}</div>${overdue}<div class="empty-state">설치까지 끝낸 수주가 아직 없어 리드타임을 낼 수 없습니다.<br>상세설계의 일정을 '완료' 로 바꾸면 그 시각이 쌓입니다.</div>`;
+            return;
+          }
+          const max = Math.max(1, ...l.stages.map((s) => s.medianDays || 0));
+          const bars = l.stages.map((s) => `<div class="reason lead${l.slowest && l.slowest.key === s.key ? ' slow' : ''}" data-stage="${esc(s.key)}"><span>${esc(s.label)}</span><span class="track"><span class="fill" style="width:${Math.round(((s.medianDays || 0) / max) * 100)}%"></span></span><span class="n">${s.medianDays === null ? '-' : esc(`${s.medianDays}일`)}</span></div>`).join('');
+          $('leadBody').innerHTML = `
+            <div class="lead-line">수주 → 설치 중간 <b class="num">${esc(`${l.totalMedianDays}일`)}</b> (설치를 끝낸 수주 ${esc(cnt(l.orders))})${l.slowest ? ` · 가장 오래 기다리는 곳 <b>${esc(l.slowest.label)}</b>` : ''}</div>
+            <div id="leadBars">${bars}</div>
+            <div class="lead-line" style="margin-top:8px">${installLine}</div>
+            ${overdue}
+            <div class="muted" style="margin-top:8px">단계 사이 = 일정을 '완료' 로 바꾼 시각 사이의 날수(중간값). 약속한 날 = 설치 일정을 처음 잡은 날 — 미뤄도 바뀌지 않습니다. 최근 ${esc(l.window.days)}일.</div>`;
+        }
+
+        // ── 공정: 원판 사용량 ──
+        function renderYield(d) {
+          const y = d.sheetYield;
+          if (!(y && y.orders > 0)) {
+            $('yieldBody').innerHTML = `<div class="empty-state">견적 장수와 재단 실측이 둘 다 있는, 재단이 끝난 수주가 최근 ${esc(y ? y.window.days : 180)}일 안에 없습니다.<br>재단 기사가 작업 링크로 주문을 골라 장수를 남기면 쌓입니다.</div>`;
+            return;
+          }
+          const more = y.diffRate > 0;
+          const rows = y.top.map((r) => `<tr><td>${esc(r.label)}</td><td class="num">${esc(`${r.planned}장`)}</td><td class="num">${esc(`${r.actual}장`)}</td><td class="num"><span class="${r.diffRate > 0 ? 'up' : r.diffRate < 0 ? 'down' : ''}">${esc(r.diffRate > 0 ? `+${r.diffRate}%` : `${r.diffRate}%`)}</span></td></tr>`).join('');
+          const suggest = y.suggestYield !== null
+            ? `<div class="warn-line">실제 수율이 ${esc(y.impliedYield)} 쯤입니다 — <a href="../production.html">생산 설정</a>의 원판 수율(지금 ${esc(y.yieldNow)})을 ${esc(y.suggestYield)} 로 고치면 견적이 맞아집니다.</div>`
+            : `<div class="muted">수주 ${esc(y.minOrders)}건이 쌓이면 수율 설정을 고칠지 말합니다 (지금 ${esc(y.orders)}건).</div>`;
+          $('yieldBody').innerHTML = `
+            <div class="lead-line">계획 <b class="num">${esc(`${y.planned}장`)}</b> → 실제 <b class="num">${esc(`${y.actual}장`)}</b> <span class="${more ? 'up' : 'down'}">${esc(more ? `+${y.diffRate}%` : `${y.diffRate}%`)}</span> · 원판 값 ${esc(more ? '더 씀' : '덜 씀')} <b class="num">${esc(won(Math.abs(y.costDiff)))}</b></div>
+            <div class="facts"><span>실제 수율 ≈ <b class="num">${esc(y.impliedYield)}</b></span><span>설정 수율 ${esc(y.yieldNow)}</span><span>재단이 끝난 수주 ${esc(cnt(y.orders))}</span></div>
+            ${suggest}
+            <div class="sub-h">계획보다 많이 쓴 순</div>
+            <div class="tbl-wrap"><table class="tbl" id="tblYield"><thead><tr><th scope="col">수주</th><th scope="col">계획</th><th scope="col">실제</th><th scope="col">차이</th></tr></thead><tbody>${rows}</tbody></table></div>
+            <div class="muted" style="margin-top:8px">계획 = 견적의 PB + 뒷판 장수(부재 면적 ÷ 수율). 실제 = 재단 기사가 그 주문에 남긴 장수. 최근 ${esc(y.window.days)}일 납품 · 완료한 수주.</div>`;
+        }
+
         // ── 품질: 재작업 · A/S ──
         function renderQuality(d) {
           const q = d.quality;
@@ -904,6 +965,10 @@
           if (!$('rowPartners').hidden) { renderPartners(d); renderSuppliers(d); }
           $('cardReferral').hidden = d.referral === undefined;
           if (d.referral !== undefined) renderReferral(d);
+          $('cardLead').hidden = d.leadTime === undefined;
+          if (d.leadTime !== undefined) renderLead(d);
+          $('cardYield').hidden = d.sheetYield === undefined;
+          if (d.sheetYield !== undefined) renderYield(d);
           $('cardQuality').hidden = d.quality === undefined;
           if (d.quality !== undefined) renderQuality(d);
           $('rowWhatIf').hidden = !d.scenario;
