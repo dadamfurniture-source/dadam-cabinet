@@ -410,7 +410,7 @@ POST /api/generate
 
 | 항목 | 규칙 |
 |---|---|
-| 받지 않는 것 | `realize` · `engine` · `control_*` · `reference_images` (보내도 무시) |
+| 받지 않는 것 | `reference_images` (보내도 무시). `realize` · `engine` · `control_*` 는 2026-10-19 경로째 지웠다 — 어느 모드도 읽지 않고, 옛 행을 재생성해도 잇지 않는다 |
 | 렌더 | 역할마다 한 장, 최대 3장(`elevation` → `elevation_labeled` → `massing`) — 2026-10-19 부터 꺾인 벽 입면(`elevation_left`·`_labeled`·`elevation_right`·`_labeled`)까지 최대 7장, 다른 role 은 버림. 버킷 `{user}/{gen}/render-{role}.{ext}`, `inputs.renders[] = {role, path, url, mime}`. 번호 입면·3/4 는 업로드가 실패해도 잡은 간다 |
 | options | `mode:'planner'`, `aspect`, `variants:false`(항상) |
 | 재생성 | `parent_id` 만 보내면 원본의 모드·요약·렌더·비율을 잇는다. 원본에 입면이 없으면 400 |
