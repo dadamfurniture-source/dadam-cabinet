@@ -4103,6 +4103,32 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (revert) { revert.disabled = !d.dirty; revert.onclick = () => revertModuleDraft(); }
   }
 
+  /** 2026-10-19: 이 모듈 말고 전면 배분 레이아웃(목찬넬 도어 + 하부 서랍)이 있는 모듈들. */
+  function otherDrawerModules(m) {
+    return modules.filter((x) => x.id !== m.id && !x.isFinishing && !!drawerLayoutFor(x, getStructure(x.id)));
+  }
+
+  /**
+   * 2026-10-19: 이 모듈의 서랍 단수·도어 등급·서랍 등급을 다른 서랍장에 그대로 옮긴다 (ArchiWood 영상 E).
+   *   초안이 바뀌어 있으면 먼저 적용한다. 레일·사쿠리·서랍 자재는 각 모듈 것을 둔다.
+   */
+  function applyDrawerRatioToOthers(m) {
+    if (modulePanelDraft && modulePanelDraft.id === m.id && modulePanelDraft.dirty && !applyModuleDraft()) return 0;
+    const src = getStructure(m.id);
+    const dr = drawerRulesOf(src);
+    const cnt = Math.max(1, Math.min(DadamDrawerRules.DRAWER_RULES.MAX_COUNT, parseInt(src.drawerCount, 10) || 1));
+    const grades = Array.from({ length: cnt }, (_, i) => (dr.grades && dr.grades[i]) || DadamDrawerRules.DRAWER_RULES.FRONT_GRADE_DEFAULT);
+    const others = otherDrawerModules(m);
+    others.forEach((x) => {
+      const t = getStructure(x.id);
+      t.drawerCount = cnt;
+      t.drawer = Object.assign(drawerRulesOf(t), { doorGrade: dr.doorGrade || '', grades: grades.slice() });
+    });
+    panelCommit();
+    showToast(`✓ 서랍장 ${others.length}개에 비율 ${DadamDrawerRules.ratioOf(dr.doorGrade, grades)} 적용`);
+    return others.length;
+  }
+
   /**
    * 2026-10-19: 칸 도어 폭 범위 표시 (ArchiWood 영상 F). 칸 폭 ÷ 도어 장수가 MASTER_RULES.DOOR_W_MIN ~ DOOR_W_MAX
    *   (350 ~ 600, 자동계산 도어 분배와 같은 값) 밖이면 빨갛게 적는다. 값을 고치지는 않는다 — 보여 주기만.
@@ -4211,6 +4237,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           <input type="text" id="inpDrawerRatio" value="${ratio}" placeholder="2:1:1" style="width:90px;font-family:monospace">
           <span style="font-size:10px;color:#888">도어:서랍… · 1 소 · 2 자동(서랍 자리 ${R.AUTO_LARGE_ZONE_MIN}↑ 대)</span>
         </div>`;
+    // 2026-10-19: 같은 비율을 다른 서랍장에 한 번에 (ArchiWood 영상 E)
+    const others = otherDrawerModules(m);
+    if (others.length) {
+      html += `<div class="row"><button type="button" id="btnRatioToOthers">다른 서랍장 ${others.length}개에도 ${ratio} 적용</button></div>`;
+    }
     html += `<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--line);font-size:10px;color:var(--text-dim);font-weight:600">`
       + `전면 등급 · 영역 ${L.front.area} = ${L.front.base}(배치 ${L.front.areaH} − 상판) − 받침 ${L.front.support} − ${R.SLOT}×목찬넬 ${L.front.channelCount}</div>`;
     let di = 0;
@@ -4678,6 +4709,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       s.drawerCount = r.drawerCount;
       setDrawerRule({ doorGrade: r.doorGrade, grades: r.grades }, '#inpDrawerRatio');
     };
+    const btnRatioAll = document.getElementById('btnRatioToOthers');
+    if (btnRatioAll) btnRatioAll.onclick = () => applyDrawerRatioToOthers(m);
     const inpDrC = document.getElementById('inpDrawerCount');
     if (inpDrC) inpDrC.onchange = (e) => {
       const v = Math.max(1, Math.min(4, parseInt(e.target.value) || 1));
