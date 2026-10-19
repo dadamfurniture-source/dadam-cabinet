@@ -7,7 +7,8 @@
 import { selectMany, selectOne, ForbiddenError } from '../supabase.js';
 import { isAdmin } from '../reports/admin.js';
 import { mergeSettings, kstDate } from '../production/service.js';
-import { buildManagementSummary, prevMonthOf, QUALITY_WINDOW_DAYS, PARTNER_WINDOW_DAYS } from './summary.js';
+import { buildManagementSummary, prevMonthOf, QUALITY_WINDOW_DAYS, PARTNER_WINDOW_DAYS, monthsOfQuarter } from './summary.js';
+import { quarterOf } from '../okrs.js';
 import { selectOrders } from '../orders.js';
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
@@ -53,7 +54,9 @@ export async function businessSettings(env, user) {
 export async function getManagementSummary(env, { user, month }) {
   if (!(await isAdmin(env, user))) throw new ForbiddenError('경영 대시보드는 관리자만 볼 수 있습니다');
   const m = MONTH_RE.test(String(month || '')) ? month : kstDate().slice(0, 7);
-  const since = `${prevMonthOf(m)}-01T00:00:00+09:00`;
+  // 지난 달(비교) 또는 분기 첫 달(분기 목표 누계) 중 이른 쪽부터 읽는다
+  const firstOfQuarter = monthsOfQuarter(quarterOf(m))[0];
+  const since = `${[prevMonthOf(m), firstOfQuarter].sort()[0]}-01T00:00:00+09:00`;
 
   const [orders, documents, consultations, generations, designs, settings] = await Promise.all([
     // 구분(price_tier) 칸까지 — 칸이 아직 없으면 빼고 읽는다
@@ -223,6 +226,8 @@ export async function getManagementSummary(env, { user, month }) {
     selectMany(env, 'sales_history', { select: 'month,revenue,orders', order: 'month.asc', limit: '240' }).catch(() => null),
     selectMany(env, 'orders', { select: 'contract_amount,status,ordered_at', ordered_at: `gte.${threeYears}`, limit: '10000' }).catch(() => []),
   ]);
+  // 분기 목표 — 표가 아직 없으면 null
+  const okrs = await selectMany(env, 'okrs', { quarter: `eq.${quarterOf(m)}`, select: 'id,objective,metric,target,direction,manual_value,sort', order: 'sort.asc', limit: '20' }).catch(() => null);
   return buildManagementSummary({
     orders: list,
     snapshotsById: new Map(snaps.map((s) => [s.id, s])),
@@ -251,6 +256,7 @@ export async function getManagementSummary(env, { user, month }) {
     cutLogs,
     history,
     sysOrders: sysOrders || [],
+    okrs,
     today: kstDate(),
     settings,
     month: m,

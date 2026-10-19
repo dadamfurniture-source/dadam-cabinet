@@ -15,6 +15,7 @@ import { summarizeMonth, kstDate } from '../production/service.js';
 import { COST_LABELS, tierOf } from '../orders.js';
 import { calibrate, EDGE_FACE_SINCE } from '../production/calibration.js';
 import { REWORK_CAUSE_LABEL } from '../rework.js';
+import { OKR_METRICS, quarterOf } from '../okrs.js';
 
 const TIER_LABEL = Object.freeze({ customer: '직판', partner: '거래처' });
 
@@ -1040,6 +1041,89 @@ export function forecastOf({ history, sysOrders, documents }, today) {
   };
 }
 
+// ── 분기 목표 (3단계 PR-13) ──────────────────────────────────
+
+/** 분기의 세 달 'YYYY-MM' */
+export function monthsOfQuarter(quarter) {
+  const [y, q] = String(quarter).split('-Q').map(Number);
+  return [1, 2, 3].map((i) => ym(y, (q - 1) * 3 + i));
+}
+
+/**
+ * 분기 누계 — 이익 식과 같은 계산(financeOf)을 그 분기의 지난 달 · 이번 달까지 더한다.
+ * 아직 오지 않은 달은 더하지 않는다(월 고정비를 미리 빼지 않게). 전환율은 분기 코호트.
+ */
+export function quarterStatsOf({ orders, snapshotsById, documents, consultations, overheadMonthly }, quarter, today) {
+  const cur = today.slice(0, 7);
+  const months = monthsOfQuarter(quarter);
+  const s = { revenue: 0, net: 0, orders: 0, contribution: 0, revenueKnown: 0, issued: 0, approved: 0, months: 0 };
+  for (const m of months) {
+    if (m > cur) continue;
+    const f = financeOf(orders, snapshotsById, { month: m, overheadMonthly });
+    s.revenue += f.revenue; s.net += f.net; s.orders += f.orders; s.contribution += f.contribution;
+    s.revenueKnown += f.rows.filter((r) => r.cost !== null).reduce((a, r) => a + r.revenue, 0);
+    const l = leadsAndConversion({ documents, consultations }, m);
+    s.issued += l.issued; s.approved += l.approved; s.months += 1;
+  }
+  const start = `${months[0]}-01`;
+  const end = monthEndOf(months[2]);
+  const total = daysBetween(start, end) + 1;
+  const elapsed = today < start ? 0 : today > end ? 1 : (daysBetween(start, today) + 1) / total;
+  return {
+    quarter,
+    revenue: s.revenue, net: s.net, orders: s.orders,
+    cmRate: pct(s.contribution, s.revenueKnown),
+    conversion: pct(s.approved, s.issued),
+    elapsed: Math.round(elapsed * 1000) / 10,
+  };
+}
+
+/**
+ * 18 분기 목표 — 묶은 숫자의 지금 값 · 진도. 쌓이는 목표(매출 · 순이익 · 수주)는 지난 날 비율과 견줘
+ * '제 속도' / '뒤처짐', 비율 목표는 닿았는지만. 낮을수록 좋은 목표(A/S 율)는 목표 이하면 100%.
+ * 표가 아직 없으면 null.
+ */
+export function okrsOf({ okrs, stats, referral, quality, leadTime }) {
+  if (!Array.isArray(okrs)) return null;
+  const now = {
+    revenue_q: stats.revenue, net_q: stats.net, orders_q: stats.orders, cm_rate_q: stats.cmRate, conversion_q: stats.conversion,
+    nps: referral ? referral.nps : null,
+    as_rate: quality ? quality.window.asRate : null,
+    on_time: leadTime ? leadTime.install.onTimeRate : null,
+  };
+  const items = okrs.slice().sort((a, b) => num(a.sort) - num(b.sort)).map((o) => {
+    const def = OKR_METRICS[o.metric] || OKR_METRICS.manual;
+    const current = o.metric === 'manual' ? (o.manual_value ?? null) : (now[o.metric] ?? null);
+    const target = num(o.target);
+    const down = (o.direction || def.direction) === 'down';
+    let progress = null;
+    if (current !== null && current !== undefined) {
+      const c = num(current);
+      if (down) progress = c <= target ? 100 : c > 0 ? (target / c) * 100 : 0;
+      else progress = target > 0 ? (c / target) * 100 : c >= target ? 100 : 0;
+      progress = Math.max(0, Math.round(progress * 10) / 10);
+    }
+    let status = null;
+    if (progress !== null) {
+      if (progress >= 100) status = 'done';
+      else if (def.cumulative) status = progress >= stats.elapsed - 5 ? 'on_track' : 'behind';
+      else status = 'below';
+    }
+    return {
+      id: o.id, objective: o.objective, metric: o.metric, label: def.label, unit: def.unit,
+      target, current: current === null || current === undefined ? null : num(current),
+      direction: down ? 'down' : 'up', cumulative: Boolean(def.cumulative), progress, status,
+      manual_value: o.manual_value ?? null,
+    };
+  });
+  return {
+    quarter: stats.quarter,
+    elapsed: stats.elapsed,
+    items,
+    metrics: Object.entries(OKR_METRICS).map(([key, d]) => ({ key, label: d.label, unit: d.unit, direction: d.direction })),
+  };
+}
+
 // ── 원판 사용량 (3단계 PR-11) ────────────────────────────────
 
 /** 수율을 고치자고 말하려면 이만큼의 수주가 있어야 한다 — 몇 건으로 설정을 흔들지 않는다 */
@@ -1130,18 +1214,19 @@ const pair = (value, prev) => ({ value, prev });
  * @param {Array}  p.cutLogs        그 수주들의 재단 실측 (order_id · role · units)
  * @param {Array|null} p.history    과거 월 매출 (month · revenue · orders). 표가 없으면 null
  * @param {Array}  p.sysOrders      예측용 수주 3년치 (contract_amount · status · ordered_at)
+ * @param {Array|null} p.okrs       그 분기의 목표 (표가 없으면 null) — 분기는 고른 달이 든 분기
  * @param {string} [p.today]        오늘 (KST, YYYY-MM-DD) — 이번 달의 반년 창 끝
  * @param {Object} p.settings       mergeSettings 결과 (+ source)
  * @param {string} p.month          'YYYY-MM'
  */
-export function buildManagementSummary({ orders, snapshotsById, documents, consultations, generations = null, designs = [], costs = [], worklogs = [], paceLogs = [], reworks = null, installed = [], feedback = null, counterparties = null, partnerOrders = null, supplierCosts = [], outsource = [], balances = null, payments = null, dueCosts = [], cashOrders = [], installs = new Map(), schedules = null, leadOrders = [], doneOrders = [], cutLogs = [], history = null, sysOrders = [], settings, month, today = null }) {
+export function buildManagementSummary({ orders, snapshotsById, documents, consultations, generations = null, designs = [], costs = [], worklogs = [], paceLogs = [], reworks = null, installed = [], feedback = null, counterparties = null, partnerOrders = null, supplierCosts = [], outsource = [], balances = null, payments = null, dueCosts = [], cashOrders = [], installs = new Map(), schedules = null, leadOrders = [], doneOrders = [], cutLogs = [], history = null, sysOrders = [], okrs = null, settings, month, today = null }) {
   const prev = prevMonthOf(month);
   const overheadMonthly = num(settings && settings.quote && settings.quote.overheadMonthly);
   const cur = financeOf(orders, snapshotsById, { month, overheadMonthly });
   const old = financeOf(orders, snapshotsById, { month: prev, overheadMonthly });
   const lead = leadsAndConversion({ documents, consultations }, month);
   const leadPrev = leadsAndConversion({ documents, consultations }, prev);
-  return {
+  const out = {
     month,
     prevMonth: prev,
     tree: {
@@ -1186,4 +1271,9 @@ export function buildManagementSummary({ orders, snapshotsById, documents, consu
       settingsSource: (settings && settings.source) || 'default',
     },
   };
+  // 분기 목표 — 고른 달이 든 분기. 아래 줄들의 숫자(소개 의향 · A/S 율 · 납기)를 그대로 묶는다
+  const quarter = quarterOf(month);
+  const stats = quarterStatsOf({ orders, snapshotsById, documents, consultations, overheadMonthly }, quarter, today || kstDate());
+  out.okrs = okrsOf({ okrs, stats, referral: out.referral, quality: out.quality, leadTime: out.leadTime });
+  return out;
 }
