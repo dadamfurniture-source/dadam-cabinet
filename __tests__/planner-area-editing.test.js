@@ -251,7 +251,11 @@ describe('마감 — 배치 공간 양 끝에 한 장씩 (W12-20)', () => {
       .sort((a, b) => a.x - b.x);
     const span = area.W - w * 2;
     expect(Math.max(...mods.map((m) => m.W)) - Math.min(...mods.map((m) => m.W))).toBeLessThanOrEqual(2);
-    expect(mods.reduce((t, m) => t + m.W, 0)).toBe(span);
+    // 2026-10-19: 잔여는 자동계산과 같은 규칙이다 (W12-73) — 조립 여유(모듈 수 × 1mm)
+    //   안이면 나눠 붙이지 않는다. 마지막 모듈에 몰면 그 도어 하나만 커진다.
+    const slack = span - mods.reduce((t, m) => t + m.W, 0);
+    expect(slack).toBeGreaterThanOrEqual(0);
+    expect(slack).toBeLessThanOrEqual(p.g('jointSlack')(mods.length));
     // 왼쪽 마감재 다음부터 빈틈 없이 이어진다
     let cursor = (area.x || 0) + w;
     mods.forEach((m) => { expect(m.x).toBe(cursor); cursor += m.W; });
@@ -266,14 +270,17 @@ describe('마감 — 배치 공간 양 끝에 한 장씩 (W12-20)', () => {
     expect(mods[1].W).toBe(keep);
   });
 
-  test('영역 안 총 폭은 그대로다', () => {
+  test('영역 안 총 폭은 넘치지 않는다 — 모자라는 것은 조립 여유뿐이다', () => {
+    // 2026-10-19: 잔여는 자동계산과 같이 조립 여유로 남긴다 (W12-73).
     const p = boot(seedFor(FIXTURES.straight, { modules: false }));
     const { area } = fill(p, 3);
     const sum = () => p.g('modules').filter((m) => m.areaId === area.id).reduce((t, m) => t + m.W, 0);
     const before = sum();
     p.g('setAreaFinish')(area.id, 'left', 'ep');
     p.g('setAreaFinish')(area.id, 'right', 'molding');
-    expect(sum()).toBe(before);
+    const bodies = p.g('modules').filter((m) => m.areaId === area.id && !m.isFinishing);
+    expect(before - sum()).toBeGreaterThanOrEqual(0);
+    expect(before - sum()).toBeLessThanOrEqual(p.g('jointSlack')(bodies.length));
   });
 
   test('마감재는 영역 바깥 끝에 선다', () => {
