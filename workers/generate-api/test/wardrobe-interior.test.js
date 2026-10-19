@@ -25,14 +25,14 @@ import { GenerateJob } from '../src/job.js';
 const require = createRequire(import.meta.url);
 const W = require('../../../js/detaildesign/bom-wardrobe-rules.js');
 
-test('통 구성: 정본 기본형(SAMPLE_PRESETS·samplePresetFor)과 같다 — 도어 한 쌍 = 한 통', () => {
+test('통 구성: 정본 기본형(SAMPLE_PRESETS·samplePresetFor)과 같다 — 반 통도 자리 순서대로', () => {
   assert.deepEqual(INTERIOR_SAMPLE_PRESETS, [...W.SAMPLE_PRESETS]);
   for (const wallW of [2400, 3000, 3600]) {
     const plan = wardrobeInteriorPlan(wallW);
     assert.deepEqual(plan, plan.map((_, i) => W.samplePresetFor(i, plan.length)), String(wallW));
   }
   assert.deepEqual(wardrobeInteriorPlan(3600), ['short2', 'longDrawer', 'halfSplit', 'rodTopSplitBottom']);
-  assert.equal(wardrobeInteriorPlan(2400).length, 2);
+  assert.equal(wardrobeInteriorPlan(2400).length, 3, '2400 = 960 + 960 + 반 통 480');
 });
 
 test('추천 재료: 정본 PRESET_KEYS(custom 제외)·이름·서랍 상한·긴옷 기본 서랍과 같다', () => {
@@ -199,7 +199,7 @@ async function runJob(category, o = {}) {
     const prompt = body.contents[0].parts.at(-1).text;
     if (body.generationConfig.responseModalities.length === 1) {
       const text = prompt.startsWith('Measure and describe')
-        ? JSON.stringify({ wall_width_mm: 3600, wall_height_mm: 2400, confidence: 'medium', site_condition: 'finished', room_brief: 'bright bedroom' })
+        ? JSON.stringify({ wall_width_mm: o.wallW || 3600, wall_height_mm: 2400, confidence: 'medium', site_condition: 'finished', room_brief: 'bright bedroom' })
         : JSON.stringify({ ok: true, issues: [], note: 'n' });
       return jsonRes({ candidates: [{ content: { parts: [{ text }] } }] });
     }
@@ -226,6 +226,8 @@ const REC = {
   concept_ko: '수납 중심',
   reason_ko: '침실이라 접는 옷과 서랍을 늘렸다',
 };
+
+const REC4 = { ...REC, sections: [REC.sections[0], REC.sections[1], REC.sections[2], { preset: 'shelf22', drawers: 0 }] };
 
 test('잡(붙박이장): 내부 보기 둘째 장은 Claude 가 고른 추천 구조 + 색 추천안 색', async () => {
   const { prompts, last, claude } = await runJob('wardrobe', { claude: REC, options: { customer_request: '서랍이 많았으면 좋겠어요' } });
@@ -289,6 +291,17 @@ test('잡(붙박이장): 추천 고르기가 멈추면 시간 제한 뒤 정본 
   const v3 = last.images.find((i) => i.slot === 'v3');
   assert.equal(v3.structure.fallback, true);
   assert.equal(last.status, 'done');
+});
+
+test('잡(붙박이장, 벽 3000 = 7짝): 설치는 반 통을 이름 붙여 쓰고, 내부 보기 두 장 모두 오른쪽 끝 1짝 통', async () => {
+  const { prompts, last } = await runJob('wardrobe', { claude: REC4, wallW: 3000 });
+  const install = prompts.find((p) => !p.startsWith('Recolour') && !p.startsWith('Open every door'));
+  assert.match(install, /7 equal full-height flat doors: 3 two-door units in mirrored pairs, then one single-door unit at the right end/);
+  const inside = prompts.filter((p) => p.startsWith('Open every door'));
+  assert.equal(inside.length, 2);
+  for (const p of inside) assert.match(p, /section 4, the narrow one at the right end, is behind a single door hinged on its left side/);
+  const v3 = last.images.find((i) => i.slot === 'v3');
+  assert.equal(v3.structure.kind, 'recommended');
 });
 
 test('잡(다른 품목): 색 추천안 3장 그대로', async () => {
