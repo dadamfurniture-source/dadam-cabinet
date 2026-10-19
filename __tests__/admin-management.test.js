@@ -90,6 +90,30 @@ const SUMMARY = {
       avgPerMin: 12767,
     },
   },
+  // 워커 시험(sheet-yield.test.js 3단계 PR-11) 의 손계산 결과 그대로
+  sheetYield: {
+    window: { days: 180, start: '2026-04-25', end: '2026-10-21' },
+    orders: 2, planned: 18, actual: 19, diffRate: 5.6, costDiff: 30264,
+    yieldNow: 0.8, impliedYield: 0.76, suggestYield: null, minOrders: 5,
+    top: [
+      { id: 'Y1', label: '이고객 (SO-21)', planned: 8, actual: 9, diffRate: 12.5 },
+      { id: 'Y2', label: 'SO-22', planned: 10, actual: 10, diffRate: 0 },
+    ],
+  },
+  // 워커 시험(leadtime.test.js 3단계 PR-10) 의 손계산 결과 그대로
+  leadTime: {
+    window: { days: 180, start: '2026-04-25', end: '2026-10-21' },
+    orders: 2,
+    totalMedianDays: 21.2,
+    stages: [
+      { key: 'measure', label: '수주 → 실측', n: 2, medianDays: 3 },
+      { key: 'start', label: '실측 → 제작 착수', n: 2, medianDays: 5 },
+      { key: 'make', label: '제작', n: 2, medianDays: 6 },
+      { key: 'install', label: '제작 완료 → 설치', n: 2, medianDays: 7.2 },
+    ],
+    slowest: { key: 'install', label: '제작 완료 → 설치', medianDays: 7.2 },
+    install: { done: 2, onTime: 1, onTimeRate: 50, avgLateDays: 3, rescheduled: 1, overdue: 1 },
+  },
   // 워커 시험(cashflow.test.js 2단계 PR-9) 의 손계산 결과 그대로 (13주 중 앞 다섯 · 마지막)
   cashflow: {
     start: '2026-10-19', end: '2027-01-17', today: '2026-10-21',
@@ -882,5 +906,77 @@ describe('현금 줄 (2단계 PR-9)', () => {
     await window.Management.init();
     await settle();
     expect(document.getElementById('rowCash').hidden).toBe(true);
+  });
+});
+
+describe('리드타임 · 납기 (3단계 PR-10)', () => {
+  test('수주 → 설치 중간 · 단계 막대(가장 긴 곳 강조) · 납기 준수 · 밀린 설치', async () => {
+    boot(fakeApi());
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('cardLead').hidden).toBe(false);
+    expect(text('leadBody')).toMatch(/수주 → 설치 중간 21.2일 \(설치를 끝낸 수주 2건\) · 가장 오래 기다리는 곳 제작 완료 → 설치/);
+    const bars = [...document.querySelectorAll('#leadBars .reason')];
+    expect(bars.map((b) => b.dataset.stage)).toEqual(['measure', 'start', 'make', 'install']);
+    expect(bars.map((b) => b.querySelector('.fill').style.width)).toEqual(['42%', '69%', '83%', '100%']);
+    expect(bars.map((b) => b.classList.contains('slow'))).toEqual([false, false, false, true]);
+    expect(text('leadBody')).toMatch(/설치 2건 중 약속한 날 안에 50% · 늦으면 평균 3일 · 미룬 설치 1건/);
+    expect(text('leadBody')).toMatch(/아직 끝내지 않은 설치 1건/);
+  });
+
+  test('설치를 끝낸 수주가 없으면 일정을 완료로 바꾸라는 안내, 칸이 없으면 SQL 안내, 옛 워커면 숨김', async () => {
+    boot(fakeApi({ data: { ...SUMMARY, leadTime: { ...SUMMARY.leadTime, orders: 0, install: { done: 0, onTime: 0, onTimeRate: null, avgLateDays: null, rescheduled: 0, overdue: 0 } } } }));
+    await window.Management.init();
+    await settle();
+    expect(text('leadBody')).toMatch(/설치까지 끝낸 수주가 아직 없어/);
+    boot(fakeApi({ data: { ...SUMMARY, leadTime: null } }));
+    await window.Management.init();
+    await settle();
+    expect(text('leadBody')).toMatch(/management-phase3\.sql/);
+    const data = { ...SUMMARY };
+    delete data.leadTime;
+    boot(fakeApi({ data }));
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('cardLead').hidden).toBe(true);
+  });
+
+  test('단계 이름이 길어 이 막대는 이름 칸을 넓힌다', () => {
+    expect(HTML).toMatch(/\.reason\.lead \{ grid-template-columns: 116px/);
+  });
+});
+
+describe('원판 사용량 (3단계 PR-11)', () => {
+  test('계획 대 실제 장수 · 더 쓴 원판 값 · 실제 수율, 많이 쓴 순 표', async () => {
+    boot(fakeApi());
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('cardYield').hidden).toBe(false);
+    expect(text('yieldBody')).toMatch(/계획 18장 → 실제 19장 \+5.6% · 원판 값 더 씀 30,264원/);
+    expect(text('yieldBody')).toMatch(/실제 수율 ≈ 0.76/);
+    expect(text('yieldBody')).toMatch(/수주 5건이 쌓이면 수율 설정을 고칠지 말합니다 \(지금 2건\)/);
+    const rows = [...document.querySelectorAll('#tblYield tbody tr')].map((r) => [...r.cells].map((c) => c.textContent));
+    expect(rows).toEqual([['이고객 (SO-21)', '8장', '9장', '+12.5%'], ['SO-22', '10장', '10장', '0%']]);
+  });
+
+  test('충분히 쌓이면 생산 설정의 수율을 고치자고 한다', async () => {
+    boot(fakeApi({ data: { ...SUMMARY, sheetYield: { ...SUMMARY.sheetYield, orders: 6, impliedYield: 0.72, suggestYield: 0.72 } } }));
+    await window.Management.init();
+    await settle();
+    expect(text('yieldBody')).toMatch(/원판 수율\(지금 0.8\)을 0.72 로 고치면/);
+    expect(document.querySelector('#yieldBody a').getAttribute('href')).toBe('../production.html');
+  });
+
+  test('재단이 끝난 수주가 없으면 작업 링크로 남기라는 안내, 옛 워커면 숨김', async () => {
+    boot(fakeApi({ data: { ...SUMMARY, sheetYield: { ...SUMMARY.sheetYield, orders: 0, top: [] } } }));
+    await window.Management.init();
+    await settle();
+    expect(text('yieldBody')).toMatch(/재단 기사가 작업 링크로 주문을 골라 장수를 남기면/);
+    const data = { ...SUMMARY };
+    delete data.sheetYield;
+    boot(fakeApi({ data }));
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('cardYield').hidden).toBe(true);
   });
 });

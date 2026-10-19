@@ -185,6 +185,38 @@ export async function getManagementSummary(env, { user, month }) {
       for (const r of rows) if (!installs.has(r.design_id)) installs.set(r.design_id, kstDate(r.scheduled_at));
     }
   }
+  // 리드타임 · 납기 (반년 창) — planned_at · completed_at 칸이 아직 없으면(3단계 SQL 전) null
+  const leadFrom = windowStart(m, QUALITY_WINDOW_DAYS + 120);
+  const [schedules, leadOrders] = await Promise.all([
+    selectMany(env, 'design_schedules', {
+      select: 'design_id,type,status,scheduled_at,planned_at,completed_at',
+      type: 'in.(measurement,manufacturing_start,manufacturing_end,installation)',
+      scheduled_at: `gte.${leadFrom}T00:00:00+09:00`,
+      limit: '10000',
+    }).catch(() => null),
+    selectMany(env, 'orders', { select: 'design_id,ordered_at,status', ordered_at: `gte.${leadFrom}T00:00:00+09:00`, limit: '5000' }).catch(() => []),
+  ]);
+  // 원판 사용량 — 재단이 끝난(납품 · 완료) 수주의 견적 장수 대 재단 실측 장수
+  const doneOrders = ((await selectMany(env, 'orders', {
+    select: 'id,order_no,customer_name,snapshot_id,status,delivered_at,completed_at',
+    status: 'in.(delivered,completed)',
+    order: 'ordered_at.desc',
+    limit: '1000',
+  }).catch(() => [])) || []).filter((o) => {
+    const d = o.completed_at || o.delivered_at;
+    return d && kstDate(d) >= windowStart(m, QUALITY_WINDOW_DAYS + 31);
+  });
+  let cutLogs = [];
+  if (doneOrders.length) {
+    const ids = doneOrders.map((o) => o.id);
+    const need = [...new Set(doneOrders.map((o) => o.snapshot_id).filter((id) => id && !snaps.some((s) => s.id === id)))];
+    const [logs, more] = await Promise.all([
+      selectMany(env, 'production_worklogs', { select: 'order_id,role,units', role: 'eq.cutter', order_id: `in.(${ids.join(',')})`, limit: '10000' }).catch(() => []),
+      need.length ? selectMany(env, 'design_snapshots', { id: `in.(${need.join(',')})`, select: 'id,quote_payload', limit: '1000' }).catch(() => []) : [],
+    ]);
+    cutLogs = logs || [];
+    snaps = snaps.concat(more || []);
+  }
   return buildManagementSummary({
     orders: list,
     snapshotsById: new Map(snaps.map((s) => [s.id, s])),
@@ -207,6 +239,10 @@ export async function getManagementSummary(env, { user, month }) {
     dueCosts: dueCosts || [],
     cashOrders: cashOrders || [],
     installs,
+    schedules,
+    leadOrders: leadOrders || [],
+    doneOrders,
+    cutLogs,
     today: kstDate(),
     settings,
     month: m,

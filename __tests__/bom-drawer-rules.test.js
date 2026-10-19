@@ -123,7 +123,7 @@ describe('전면 배분식 (2026-09-16 확정) — 배치 높이를 버줌으로
   const dr = (...g) => g.map((x) => ({ kind: 'drawer', grade: x }));
 
   test('버줌은 소 1 · 중 2 · 대 2 — 중과 대는 전면 높이가 같다', () => {
-    expect(DRAWER_RULES.FRONT_WEIGHT).toEqual({ small: 1, medium: 2, large: 2 });
+    expect(DRAWER_RULES.FRONT_WEIGHT).toEqual({ small: 1, medium: 2, large: 2, auto: 2 }); // auto = 비율 2 서랍 (2026-10-19)
     const L = layoutByGrades(Object.assign({}, SINK, { fronts: dr('medium', 'large') }));
     const [a, b] = L.fronts.map((f) => f.h);
     expect(a).toBe(b);
