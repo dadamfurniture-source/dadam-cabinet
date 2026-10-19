@@ -946,6 +946,59 @@ export function leadTimeOf({ schedules, leadOrders }, month, today = null) {
 }
 const inWindowDay = (d, win) => d >= win.start && d <= win.end;
 
+// ── 원판 사용량 (3단계 PR-11) ────────────────────────────────
+
+/** 수율을 고치자고 말하려면 이만큼의 수주가 있어야 한다 — 몇 건으로 설정을 흔들지 않는다 */
+export const YIELD_MIN_ORDERS = 5;
+
+/**
+ * 15 원판 수율 — 견적이 잡은 원판 장수(PB + 뒷판, 면적 ÷ 수율) 대 재단 기사가 실제로 자른 장수(작업 실측).
+ * 재단이 끝난 수주(납품 · 완료)만, 반년 창. 둘 다 있는 수주만 센다.
+ *   실제 수율 ≈ 설정 수율 × 계획 ÷ 실제 — 실제가 계획보다 많으면 원판을 더 쓴 것(수율이 낮다)
+ *   원가 차이 = (실제 − 계획) × 장당 값 (계획의 PB · 뒷판 비율로 섞은 값)
+ * YIELD_MIN_ORDERS 건 이상이면 생산 설정의 수율을 고치자고 제안한다.
+ */
+export function sheetYieldOf({ doneOrders, snapshotsById, cutLogs, settings }, month, today = null) {
+  const win = windowOf(month, today, QUALITY_WINDOW_DAYS);
+  const q = (settings && settings.quote) || {};
+  const yieldNow = num(q.pbYield) || 0.8;
+  const actualBy = new Map();
+  for (const l of cutLogs || []) {
+    if (l.role !== 'cutter' || !l.order_id) continue;
+    actualBy.set(l.order_id, (actualBy.get(l.order_id) || 0) + num(l.units));
+  }
+  const rows = [];
+  let planPB = 0, planBack = 0, planned = 0, actual = 0;
+  for (const o of doneOrders || []) {
+    const done = o.completed_at || o.delivered_at;
+    if (!done || !inWindowDay(kstDate(done), win)) continue;
+    const qq = quoteOf(o, snapshotsById);
+    const qty = qq && qq.cost && qq.cost.quantities;
+    const plan = qty ? num(qty.sheetsPB) + num(qty.sheetsBack) : 0;
+    const got = actualBy.get(o.id) || 0;
+    if (!(plan > 0) || !(got > 0)) continue;
+    planPB += num(qty.sheetsPB); planBack += num(qty.sheetsBack);
+    planned += plan; actual += got;
+    rows.push({ id: o.id, label: orderLabel(o), planned: Math.round(plan * 10) / 10, actual: Math.round(got * 10) / 10, diffRate: pct(got - plan, plan) });
+  }
+  const price = planned > 0 ? (planPB * num(q.pbSheet) + planBack * num(q.backSheet)) / planned : 0;
+  const implied = actual > 0 ? Math.round(yieldNow * (planned / actual) * 100) / 100 : null;
+  rows.sort((a, b) => (b.diffRate ?? 0) - (a.diffRate ?? 0));
+  return {
+    window: win,
+    orders: rows.length,
+    planned: Math.round(planned * 10) / 10,
+    actual: Math.round(actual * 10) / 10,
+    diffRate: pct(actual - planned, planned),
+    costDiff: Math.round((actual - planned) * price),
+    yieldNow,
+    impliedYield: implied,
+    suggestYield: rows.length >= YIELD_MIN_ORDERS && implied !== null && Math.abs(implied - yieldNow) >= 0.02 ? implied : null,
+    minOrders: YIELD_MIN_ORDERS,
+    top: rows.slice(0, 5),
+  };
+}
+
 function monthEndOf(month) {
   const [y, m] = String(month).split('-').map(Number);
   return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
@@ -979,11 +1032,13 @@ const pair = (value, prev) => ({ value, prev });
  * @param {Map}    p.installs       design_id → 가장 이른 설치일 (KST)
  * @param {Array|null} p.schedules  일정 (design_id · type · status · scheduled_at · planned_at · completed_at). 칸이 없으면 null
  * @param {Array}  p.leadOrders     리드타임용 수주 (design_id · ordered_at · status)
+ * @param {Array}  p.doneOrders     납품 · 완료된 수주 (id · snapshot_id · 납품/완료일 · 이름)
+ * @param {Array}  p.cutLogs        그 수주들의 재단 실측 (order_id · role · units)
  * @param {string} [p.today]        오늘 (KST, YYYY-MM-DD) — 이번 달의 반년 창 끝
  * @param {Object} p.settings       mergeSettings 결과 (+ source)
  * @param {string} p.month          'YYYY-MM'
  */
-export function buildManagementSummary({ orders, snapshotsById, documents, consultations, generations = null, designs = [], costs = [], worklogs = [], paceLogs = [], reworks = null, installed = [], feedback = null, counterparties = null, partnerOrders = null, supplierCosts = [], outsource = [], balances = null, payments = null, dueCosts = [], cashOrders = [], installs = new Map(), schedules = null, leadOrders = [], settings, month, today = null }) {
+export function buildManagementSummary({ orders, snapshotsById, documents, consultations, generations = null, designs = [], costs = [], worklogs = [], paceLogs = [], reworks = null, installed = [], feedback = null, counterparties = null, partnerOrders = null, supplierCosts = [], outsource = [], balances = null, payments = null, dueCosts = [], cashOrders = [], installs = new Map(), schedules = null, leadOrders = [], doneOrders = [], cutLogs = [], settings, month, today = null }) {
   const prev = prevMonthOf(month);
   const overheadMonthly = num(settings && settings.quote && settings.quote.overheadMonthly);
   const cur = financeOf(orders, snapshotsById, { month, overheadMonthly });
@@ -1025,6 +1080,7 @@ export function buildManagementSummary({ orders, snapshotsById, documents, consu
     cashflow: cashflowOf({ balances, payments, costs: dueCosts, orders: cashOrders, installs, overheadMonthly }, today || kstDate()),
     aging: agingOf({ payments, orders: cashOrders }, today || kstDate()),
     leadTime: leadTimeOf({ schedules, leadOrders }, month, today),
+    sheetYield: sheetYieldOf({ doneOrders, snapshotsById, cutLogs, settings }, month, today),
     basis: {
       revenue: 'VAT 제외 계약금',
       cost: '확인서 견적 원가 (고정비 회수분 제외)',
