@@ -216,8 +216,9 @@ function moduleCaption(e) {
 /**
  * 품목 하나의 정면도 SVG. 단위는 mm (viewBox), 인쇄 폭에 맞춰 줄어든다.
  * 모듈 번호 = item.modules 의 순번(1부터) — ⑥ 조립 체크·⑪ 모듈 치수도와 같은 번호.
+ * warnings=false 면 빨간 검증 경고를 빼고 그린다 — 고객 확인서용 (검증은 작업지시서가 맡는다).
  */
-export function elevationSvg(item) {
+export function elevationSvg(item, { warnings = true } = {}) {
   const model = elevationModel(item);
   const { W, H, placed, positioned } = model;
   if (!placed.length || W <= 0) return '';
@@ -314,7 +315,7 @@ export function elevationSvg(item) {
   parts.push(vChain([{ y0: 0, h: H, label: `H ${num(H)}` }], vx + colW, fs * 0.95, toY));
 
   // 검증 경고 (빨강) — 그림 안 아래
-  const errs = model.notes.filter((x) => x.level === 'error');
+  const errs = warnings ? model.notes.filter((x) => x.level === 'error') : [];
   errs.forEach((x, i) => {
     parts.push(`<text x="${ml}" y="${toY(0) + fs * (4.4 + i * 1.1)}" font-size="${fs * 0.85}" fill="#c00" font-weight="700">⚠ ${esc(x.text)}</text>`);
   });
