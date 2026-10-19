@@ -161,7 +161,7 @@ test('planner: [방, 입면, 3/4] + 프롬프트 v2 + 온도 0.2 + 16:9, QC 에 
   assert.equal(call.body.generationConfig.temperature, 0.2);
   assert.deepEqual(call.body.generationConfig.imageConfig, { imageSize: '2K', aspectRatio: '16:9' });
   assert.match(call.prompt, /^You receive three images\./);
-  assert.match(call.prompt, /FINAL SELF-CHECK before you answer: base row 3 units, 5 doors/);
+  assert.match(call.prompt, /FINAL SELF-CHECK before you answer: base row 3 units, L1 2 \+ L2 1 \+ L3 2 = 5 doors/);
   // 분석 결과(벽 3600·기존 가구)가 빈 구역·편집 구역 문장으로 들어간다 (2026-10-19 v3)
   assert.ok(call.prompt.includes('the main wall right of the run — the remaining 39 % of the wall'));
   assert.ok(call.prompt.includes('the built-in cabinetry on the target wall that it replaces (dark glossy kitchen cabinets)'));
@@ -272,7 +272,7 @@ test('planner + image_provider openai: GPT 편집 한 번 — 이미지 3장 순
   assert.ok(!c.keys.includes('temperature') && !c.keys.includes('input_fidelity'), c.keys.join(','));
   // 프롬프트는 Gemini 와 같은 빌더 그대로
   assert.match(c.prompt, /^You receive three images\./);
-  assert.match(c.prompt, /FINAL SELF-CHECK before you answer: base row 3 units, 5 doors/);
+  assert.match(c.prompt, /FINAL SELF-CHECK before you answer: base row 3 units, L1 2 \+ L2 1 \+ L3 2 = 5 doors/);
 
   // 분석·검사는 Gemini 텍스트 그대로
   assert.ok(calls.text.some((t) => t.startsWith('Measure and describe')));
