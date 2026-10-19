@@ -112,6 +112,10 @@
       .cash-form input { padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit; font-size: 13px; }
       .cash-form input[type=number] { width: 150px; }
       .reason.aging .fill { background: #c62828; }
+      .reason.lead { grid-template-columns: 116px minmax(0, 1fr) 56px; }
+      .reason.lead .fill { background: #78909c; }
+      .reason.lead.slow .fill { background: #f57c00; }
+      .reason.lead.slow span:first-child { font-weight: 700; }
       .nps { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
       .nps b { font-size: 28px; }
       .nps span { color: #888; font-size: 13px; }
@@ -286,6 +290,11 @@
               <h3>견적 대비 실적</h3>
               <div class="q">견적이 어디서 빗나가나 — 자재값인가, 외주인가, 작업 시간인가</div>
               <div id="varianceBody"></div>
+            </article>
+            <article class="card" id="cardLead" hidden>
+              <h3>리드타임 · 납기</h3>
+              <div class="q">수주부터 설치까지 며칠, 어디서 기다리나 · 약속한 날에 설치했나</div>
+              <div id="leadBody"></div>
             </article>
             <article class="card" id="cardQuality" hidden>
               <h3>재작업 · A/S</h3>
@@ -755,6 +764,32 @@
             <div class="muted" style="margin-top:8px">최근 ${esc(r.window.days)}일 받은 답 기준. NPS = 9~10점 비율 − 0~6점 비율. 고객이 남긴 한 줄은 수주 상세에서 봅니다.</div>`;
         }
 
+        // ── 공정: 리드타임 · 납기 ──
+        function renderLead(d) {
+          const l = d.leadTime;
+          if (!l) {
+            $('leadBody').innerHTML = '<div class="empty-state">일정의 처음 잡은 날 · 완료 시각 칸이 아직 없습니다.<br>database/management-phase3.sql 을 실행하면 그때부터 일정을 \'완료\' 로 바꿀 때마다 쌓입니다.</div>';
+            return;
+          }
+          const i = l.install;
+          const installLine = i.done > 0
+            ? `설치 <b class="num">${esc(cnt(i.done))}</b> 중 약속한 날 안에 <b class="num">${esc(pct(i.onTimeRate))}</b>${i.avgLateDays !== null ? ` · 늦으면 평균 ${esc(i.avgLateDays)}일` : ''}${i.rescheduled ? ` · 미룬 설치 ${esc(cnt(i.rescheduled))}` : ''}`
+            : `최근 ${esc(l.window.days)}일 끝낸 설치가 없습니다`;
+          const overdue = i.overdue > 0 ? `<div class="warn-line neg">잡힌 날이 지났는데 아직 끝내지 않은 설치 ${esc(cnt(i.overdue))}</div>` : '';
+          if (!(l.orders > 0)) {
+            $('leadBody').innerHTML = `<div class="lead-line">${installLine}</div>${overdue}<div class="empty-state">설치까지 끝낸 수주가 아직 없어 리드타임을 낼 수 없습니다.<br>상세설계의 일정을 '완료' 로 바꾸면 그 시각이 쌓입니다.</div>`;
+            return;
+          }
+          const max = Math.max(1, ...l.stages.map((s) => s.medianDays || 0));
+          const bars = l.stages.map((s) => `<div class="reason lead${l.slowest && l.slowest.key === s.key ? ' slow' : ''}" data-stage="${esc(s.key)}"><span>${esc(s.label)}</span><span class="track"><span class="fill" style="width:${Math.round(((s.medianDays || 0) / max) * 100)}%"></span></span><span class="n">${s.medianDays === null ? '-' : esc(`${s.medianDays}일`)}</span></div>`).join('');
+          $('leadBody').innerHTML = `
+            <div class="lead-line">수주 → 설치 중간 <b class="num">${esc(`${l.totalMedianDays}일`)}</b> (설치를 끝낸 수주 ${esc(cnt(l.orders))})${l.slowest ? ` · 가장 오래 기다리는 곳 <b>${esc(l.slowest.label)}</b>` : ''}</div>
+            <div id="leadBars">${bars}</div>
+            <div class="lead-line" style="margin-top:8px">${installLine}</div>
+            ${overdue}
+            <div class="muted" style="margin-top:8px">단계 사이 = 일정을 '완료' 로 바꾼 시각 사이의 날수(중간값). 약속한 날 = 설치 일정을 처음 잡은 날 — 미뤄도 바뀌지 않습니다. 최근 ${esc(l.window.days)}일.</div>`;
+        }
+
         // ── 품질: 재작업 · A/S ──
         function renderQuality(d) {
           const q = d.quality;
@@ -904,6 +939,8 @@
           if (!$('rowPartners').hidden) { renderPartners(d); renderSuppliers(d); }
           $('cardReferral').hidden = d.referral === undefined;
           if (d.referral !== undefined) renderReferral(d);
+          $('cardLead').hidden = d.leadTime === undefined;
+          if (d.leadTime !== undefined) renderLead(d);
           $('cardQuality').hidden = d.quality === undefined;
           if (d.quality !== undefined) renderQuality(d);
           $('rowWhatIf').hidden = !d.scenario;

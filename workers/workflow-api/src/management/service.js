@@ -185,6 +185,17 @@ export async function getManagementSummary(env, { user, month }) {
       for (const r of rows) if (!installs.has(r.design_id)) installs.set(r.design_id, kstDate(r.scheduled_at));
     }
   }
+  // 리드타임 · 납기 (반년 창) — planned_at · completed_at 칸이 아직 없으면(3단계 SQL 전) null
+  const leadFrom = windowStart(m, QUALITY_WINDOW_DAYS + 120);
+  const [schedules, leadOrders] = await Promise.all([
+    selectMany(env, 'design_schedules', {
+      select: 'design_id,type,status,scheduled_at,planned_at,completed_at',
+      type: 'in.(measurement,manufacturing_start,manufacturing_end,installation)',
+      scheduled_at: `gte.${leadFrom}T00:00:00+09:00`,
+      limit: '10000',
+    }).catch(() => null),
+    selectMany(env, 'orders', { select: 'design_id,ordered_at,status', ordered_at: `gte.${leadFrom}T00:00:00+09:00`, limit: '5000' }).catch(() => []),
+  ]);
   return buildManagementSummary({
     orders: list,
     snapshotsById: new Map(snaps.map((s) => [s.id, s])),
@@ -207,6 +218,8 @@ export async function getManagementSummary(env, { user, month }) {
     dueCosts: dueCosts || [],
     cashOrders: cashOrders || [],
     installs,
+    schedules,
+    leadOrders: leadOrders || [],
     today: kstDate(),
     settings,
     month: m,
