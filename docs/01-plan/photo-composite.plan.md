@@ -1,6 +1,7 @@
 # 방 사진 + 도면 → AI 합성 이미지 계획 (울트라플랜)
 
 > **2026-09-23: 디테일 단계 이미지 생성은 `planner-render-realize.plan.md` 로 완전히 교체된다.** 이 문서는 경위 기록이다.
+> **2026-10-19:** 여기 나오는 `photo-solve.js`·실사화·ControlNet 코드는 지웠다 (`planner-render-realize.plan.md` §8 · P6). git 이력에 남는다.
 >
 > 다시 씀: 2026-09-17 / 기준 커밋: `a94afc0` (origin/main)
 > 첫 판(2026-09-16, 기하 방식)은 §1 의 이유로 폐기하고 통째로 다시 썼다.
