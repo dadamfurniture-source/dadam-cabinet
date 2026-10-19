@@ -334,17 +334,22 @@ POST /api/generate
 
 새 경로가 제품에서 도는 것을 확인한 **뒤에** 지운다 (P7). 순서를 거꾸로 하면 그 사이 디테일 단계가 빈다.
 
-| 파일 | 지우는 것 |
-|---|---|
-| `js/planner/ai-photo.js` | 실사화 체크박스, 구조 조건 드롭존, `setControl`, `realize`·`engine`·`control_*` 본문 (방 사진 올리기는 **남긴다**) |
-| `workers/generate-api/src/controlnet.js` + `test/controlnet.test.js` | 통째로 |
-| `workers/generate-api/src/worker.js` | `realize`·`engine`·`control_image`·`control_size` 수신, control 업로드 |
-| `workers/generate-api/src/job.js` | `engine` 분기, `mockup` 슬롯 |
-| `workers/generate-api/src/prompts.js` | 실사화 분기(`GEOMETRY IS FIXED` 판), `REALIZE_QC_FIXES`(`flat_mockup`) |
-| `js/planner/photo-solve.js` + 시험 + 벤치 2개 | 통째로 (어느 페이지도 싣지 않는다 [확인]) |
-| `test-utils/photo-composite-bench.html`, `test-utils/fixtures/photo-composite/` | 통째로 |
-| `wrangler.toml` | `CONTROLNET_*` 변수 |
-| 시크릿 `FAL_KEY` | P7 배포 확인 뒤 사장님이 지운다 (대시보드 또는 `npx wrangler secret delete FAL_KEY`) |
+**2026-10-19 완료 (P6)** — 워커 PR #875, 패널 PR #877. 지우기 전 `git grep` 으로 참조를 찾고 남은 코드 참조 0 을 확인했다.
+
+| | 파일 | 지우는 것 |
+|---|---|---|
+| ✅ | `js/planner/ai-photo.js` | 실사화 체크박스, 구조 조건 드롭존, `setControl`·`pickControl`, `realize`·`control` 상태 (방 사진 올리기는 **남긴다**). 본문의 `realize`·`engine`·`control_*` 는 P5 에서 이미 빠졌다 |
+| ✅ | `workers/generate-api/src/controlnet.js` + `test/controlnet.test.js` | 통째로 |
+| ✅ | `workers/generate-api/src/worker.js` | `realize`·`engine`·`control_image`·`control_type`·`control_size` 수신, control 업로드 |
+| ✅ | `workers/generate-api/src/job.js` | `engine` 분기, `inputs.control`, `mockup` 슬롯 |
+| ✅ | `workers/generate-api/src/prompts.js` | 실사화 분기(`GEOMETRY IS FIXED` 판). **`flat_mockup` 은 남겼다** — 덩어리 합성(mockVolume, 2026-10-19)이 같은 검사 코드를 쓴다. `REALIZE_QC_FIXES` → `MOCK_QC_FIXES` 로 이름만 |
+| ✅ | `js/planner/photo-solve.js` + 시험 + 벤치 2개 + `docs/02-design/features/photo-solve.md` | 통째로 (어느 페이지도 싣지 않는다 [확인]) |
+| ✅ | `test-utils/photo-composite-bench.html`, `test-utils/fixtures/photo-composite/` | 통째로 (벤치 밖에서 쓰는 곳 없음 [확인]) |
+| ✅ | `wrangler.toml` · `DEPLOY.md` | `CONTROLNET_*` 변수, `FAL_KEY` 설명 |
+| ⬜ | 시크릿 `FAL_KEY` | 사장님이 지운다 (대시보드 또는 `npx wrangler secret delete FAL_KEY`). 코드는 더 이상 읽지 않는다 |
+
+옛 행 호환: DB 에 이미 있는 `options.realize`·`options.engine` 행을 재생성하면 그 키를 잇지 않고 일반 경로(플래너 행이면 플래너 모드)로 간다.
+`images[]` 에 `mockup` 슬롯이 든 옛 행은 그대로 둔다 — GET·내 연출컷·공유가 칸 이름을 가리지 않고 그린다.
 
 git 이력에는 남는다.
 
@@ -359,7 +364,7 @@ git 이력에는 남는다.
 | **P3** | 내부 확인용 — `internal_only`, 공유 409, 내 연출컷 숨김 | S | `agent/imggen-internal-only` | P2 |
 | **P4** | 평가 — 표본 조합 10개, 팔 5개 실행 스크립트, 결과표 (§7 에 기록) | M | `agent/imggen-planner-eval` | P1·P2 · 표본 사진 |
 | **P5** | 패널 교체 — 방 사진 + 16:9 자르기 미리보기 + 버튼 하나, 자동 캡처, 결과·대조·내부용 표시 | M | `agent/planner-realize-panel` | P4 판정 |
-| **P6** | 정리 — §8 삭제, 문서 갱신 | M | `agent/imggen-realize-cleanup` | P5 배포 확인 |
+| **P6** | 정리 — §8 삭제, 문서 갱신 — ✅ 2026-10-19 (워커 #875 · 패널 #877) | M | `agent/imggen-realize-cleanup` | P5 배포 확인 |
 
 P1·P2 는 서로 안 겹쳐 **나란히** 간다. P4 의 판정(§7.4)이 P5 의 모양(Ⓒ 사용 여부)을 정한다.
 
