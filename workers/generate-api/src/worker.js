@@ -315,12 +315,7 @@ async function createGeneration(request, env, headers) {
     room_focal35,
     fridge_options = {},
     design_spec,
-    realize,
     variants,
-    engine,
-    control_image,
-    control_type = 'image/png',
-    control_size,
     reference_images,
     parent_id,
     title,
@@ -341,7 +336,10 @@ async function createGeneration(request, env, headers) {
   if (!parent && !room_image) throw new ValidationError('room_image is required');
 
   // 플래너 모드 (2026-10-08, docs/01-plan/planner-render-realize.plan.md §6): 방 사진 + 도면 렌더 + 도면 요약.
-  //   realize·engine·control_*·reference_images 는 받지 않는다. 재생성이면 원본의 모드를 잇는다.
+  //   reference_images 는 받지 않는다. 재생성이면 원본의 모드를 잇는다.
+  // 2026-10-19 (계획 §8·P6): 실사화(realize)·ControlNet(engine·control_image·control_type·control_size)을 지웠다.
+  //   요청에 실려 와도 읽지 않는다. 옛 행(options.realize·options.engine)을 재생성하면 그 키를 잇지 않고
+  //   일반 경로(또는 플래너 모드)로 간다 — 옛 행의 inputs.control 은 잡이 읽지 않는다.
   //   모드가 아니면 이 블록은 아무것도 하지 않는다 — 옛 경로는 바이트 그대로 (route 시험이 지킨다).
   const planner = mode === 'planner' || (mode == null && !!(parent && parent.options && parent.options.mode === 'planner'));
   if (planner) {
@@ -351,12 +349,6 @@ async function createGeneration(request, env, headers) {
       fridge_options, design_spec, renders, aspect, title, image_provider,
     });
   }
-
-  // ControlNet 경로 (2026-09-22): 구조 조건 이미지가 있어야 한다. 크레딧 차감 전에 막는다.
-  const wantControlNet = engine === 'controlnet' || (engine == null && !!(parent && parent.options && parent.options.engine === 'controlnet'));
-  if (wantControlNet && !parent && !control_image) throw new ValidationError('control_image is required when engine is controlnet');
-  const sizeOf = (v) => (v && Number.isFinite(Number(v.width)) && Number.isFinite(Number(v.height)) && Number(v.width) > 0 && Number(v.height) > 0
-    ? { width: Math.round(Number(v.width)), height: Math.round(Number(v.height)) } : null);
 
   const category = resolveCategory(rawCategory || (parent && parent.category) || 'sink');
   const options = {
@@ -373,13 +365,8 @@ async function createGeneration(request, env, headers) {
     // 플래너 도면 요약 — 없으면 null 이고, 그러면 프롬프트는 예전 그대로다.
     // 크레딧은 그대로 20 (2026-09-17 결정): 새 action 을 만들지 않는다.
     design_spec: resolveDesignSpec(design_spec, parent, category),
-    // 실사화 (2026-09-19): 첫 사진에 플래너가 도면 입면을 이미 얹어 둔 경우. 재생성이면 원본을 잇는다.
-    //   켰을 때만 키가 생긴다 — 안 켜면 options 는 예전과 같은 모양이다 (route 시험이 deepEqual 로 지킨다).
-    ...((realize != null ? !!realize : !!(parent && parent.options && parent.options.realize)) ? { realize: true } : {}),
     // 추천안 끄기 (2026-09-22): variants:false 면 기본안 한 장만. 재생성이면 원본을 잇는다. 켰을 때만 키가 생긴다.
     ...((variants != null ? variants === false : !!(parent && parent.options && parent.options.variants === false)) ? { variants: false } : {}),
-    // ControlNet 경로 — 켰을 때만 키가 생긴다. 크기는 조건 이미지와 바탕 사진의 화소 크기(같아야 한다).
-    ...(wantControlNet ? { engine: 'controlnet', control_size: sizeOf(control_size) || (parent && parent.options && parent.options.control_size) || null } : {}),
     // 손님 요청 (연출컷 ③ 상세 요청, 2026-10-08) — 다듬어서 남긴다. 재생성이면 새 글이 없을 때 원본을 잇는다.
     //   있을 때만 키가 생긴다 — 없으면 options 는 예전과 같은 모양이다.
     ...(() => {
@@ -417,17 +404,7 @@ async function createGeneration(request, env, headers) {
           console.warn('[Generate] ref upload skipped:', e.message);
         }
       }
-      // 구조 조건 이미지 (ControlNet) — 방 사진과 같은 화소 공간의 윤곽선/깊이 PNG
-      let control = null;
-      if (control_image) {
-        try {
-          const up = await uploadObject(env, `${prefix}/control.${extOf(control_type)}`, control_image, control_type);
-          control = { path: up.path, url: up.url, mime: control_type };
-        } catch (e) {
-          console.warn('[Generate] control upload failed:', e.message);
-        }
-      }
-      return { room: { path: room.path, url: room.url, mime: image_type }, refs, ...(control ? { control } : {}) };
+      return { room: { path: room.path, url: room.url, mime: image_type }, refs };
     },
   });
 }
@@ -440,7 +417,7 @@ async function createGeneration(request, env, headers) {
  *         image_provider ('openai' | 'gemini', 2026-10-18). 없거나 모르는 값이면 재생성 원본 값,
  *           그것도 없으면 PLANNER_IMAGE_PROVIDER (2026-10-19 기본 'openai' = GPT).
  *         renders 의 elevation_labeled (번호 붙은 입면, 2026-10-19) — GPT 가 그릴 때만 IMAGE B 로 쓴다.
- *   받지 않음: realize · engine · control_* · reference_images.
+ *   받지 않음: reference_images. (realize · engine · control_* 는 2026-10-19 경로째 지웠다 — 어느 모드도 읽지 않는다)
  * 검증은 전부 크레딧 차감 전에 한다 — 틀린 요청으로 20 크레딧이 날아가지 않는다.
  * 추천안은 항상 끈다 (한 장이 결과물이다).
  */

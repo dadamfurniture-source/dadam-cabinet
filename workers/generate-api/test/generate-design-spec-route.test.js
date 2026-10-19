@@ -235,36 +235,45 @@ test('재생성에서 품목을 바꾸면 원본 요약을 조용히 버린다 (
 });
 
 // ─────────────────────────────────────────────────────────────
-// 2026-09-19 실사화(realize): 첫 사진에 도면 입면이 이미 얹혀 있음. options.realize 로 잡에 간다.
+// 2026-10-19: 실사화(realize)·ControlNet(engine·control_*)은 지웠다 (계획 planner-render-realize.plan.md §8·P6).
+//   요청에 실려 와도 읽지 않고, 옛 행을 재생성해도 그 키를 잇지 않는다 — 일반 경로로 간다.
 // ─────────────────────────────────────────────────────────────
-test('realize:true 면 options.realize 가 true 이고 잡에도 같이 간다', async () => {
+test('옛 키(realize·engine·control_*)를 보내도 options 에 안 생기고, 구조 조건 이미지를 올리지 않는다', async () => {
   install();
-  const res = await post({ room_image: ROOM_IMAGE, category: 'sink', realize: true });
+  const res = await post({
+    room_image: ROOM_IMAGE, category: 'sink', realize: true, engine: 'controlnet',
+    control_image: ROOM_IMAGE, control_type: 'image/png', control_size: { width: 1600, height: 1200 },
+  });
   assert.equal(res.status, 202);
-  assert.equal(calls.inserted.options.realize, true);
-  assert.equal(calls.jobStart.options.realize, true);
-});
-
-test('realize 를 안 보내면 options 에 키 자체가 없다 (옛 모양 그대로)', async () => {
+  for (const k of ['realize', 'engine', 'control_size']) {
+    assert.equal(k in calls.inserted.options, false, k);
+    assert.equal(k in calls.jobStart.options, false, k);
+  }
+  assert.ok(!calls.uploads.some((u) => /\/control\./.test(String(u))), 'control 업로드 없음');
+  assert.equal('control' in (calls.jobStart.inputs || {}), false);
+  // control_image 없이 engine:controlnet 만 와도 400 이 아니다 (예전엔 400)
   install();
-  await post({ room_image: ROOM_IMAGE, category: 'sink' });
-  assert.equal('realize' in calls.inserted.options, false);
+  assert.equal((await post({ room_image: ROOM_IMAGE, category: 'sink', engine: 'controlnet' })).status, 202);
 });
 
-test('재생성은 원본의 realize 를 잇고, 요청이 false 를 주면 끈다', async () => {
+test('옛 행(options.realize·engine·control_size, inputs.control)을 재생성하면 그 키를 잇지 않는다', async () => {
   const parent = {
     id: '33333333-3333-4333-8333-333333333333',
     user_id: USER_ID,
     category: 'sink',
-    inputs: { room: { path: 'p/room.jpg', url: 'u', mime: 'image/jpeg' }, refs: [] },
-    options: { design_spec: null, realize: true },
+    inputs: {
+      room: { path: 'p/room.jpg', url: 'u', mime: 'image/jpeg' }, refs: [],
+      control: { path: 'p/control.png', url: 'c', mime: 'image/png' },
+    },
+    options: { design_spec: null, realize: true, engine: 'controlnet', control_size: { width: 1600, height: 1200 }, variants: false },
   };
   install({ parent });
-  await post({ parent_id: parent.id });
-  assert.equal(calls.inserted.options.realize, true);
-  install({ parent });
-  await post({ parent_id: parent.id, realize: false });
-  assert.equal('realize' in calls.inserted.options, false);
+  const res = await post({ parent_id: parent.id });
+  assert.equal(res.status, 202);
+  for (const k of ['realize', 'engine', 'control_size']) assert.equal(k in calls.inserted.options, false, k);
+  // 다른 옵션은 예전처럼 잇는다
+  assert.equal(calls.inserted.options.variants, false);
+  assert.equal(calls.jobStart.options.mode, undefined);
 });
 
 // 2026-09-22 추천안 끄기 — 디테일 실사화는 한 장만
@@ -295,28 +304,3 @@ test('재생성은 원본의 variants:false 를 잇는다', async () => {
   assert.equal(calls.inserted.options.variants, false);
 });
 
-// 2026-09-22 ControlNet 경로 — 구조 조건 이미지가 inputs.control 로 올라가고 options.engine 이 붙는다
-test('engine:controlnet + control_image → control 업로드, options.engine·control_size', async () => {
-  install();
-  const res = await post({ room_image: ROOM_IMAGE, category: 'sink', realize: true, engine: 'controlnet', control_image: ROOM_IMAGE, control_type: 'image/png', control_size: { width: 1600, height: 1200 } });
-  assert.equal(res.status, 202);
-  assert.equal(calls.inserted.options.engine, 'controlnet');
-  assert.deepEqual(calls.inserted.options.control_size, { width: 1600, height: 1200 });
-  assert.ok(calls.uploads.some((u) => /\/control\.png$/.test(String(u))), 'control.png 이 올라간다');
-  assert.equal(calls.jobStart.options.engine, 'controlnet');
-});
-
-test('engine:controlnet 인데 control_image 가 없으면 400 이고 크레딧을 안 건드린다', async () => {
-  install();
-  const res = await post({ room_image: ROOM_IMAGE, category: 'sink', engine: 'controlnet' });
-  assert.equal(res.status, 400);
-  assert.equal(calls.inserted, null);
-  assert.equal(calls.rpc.filter((c) => c.fn === 'consume_credit').length, 0);
-});
-
-test('engine 을 안 보내면 options 에 engine 키가 없다 (Gemini 경로 그대로)', async () => {
-  install();
-  await post({ room_image: ROOM_IMAGE, category: 'sink' });
-  assert.equal('engine' in calls.inserted.options, false);
-  assert.equal('control' in (calls.inserted.inputs || {}), false);
-});

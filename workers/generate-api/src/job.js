@@ -59,7 +59,6 @@ import {
 } from './layout.js';
 import { callClaudeJson } from './claude.js';
 import { VERIFY_VERSION, compareLayoutToSpec } from './verify.js';
-import { controlNetModel, runControlNet } from './controlnet.js';
 import { FURNITURE_MASK_SCHEMA, buildFurnitureMaskPrompt, parseFurnitureMask } from './furniture-mask.js';
 import { GUIDE_POINTS_SCHEMA, buildGuidePointsPrompt, drawGuide, parseGuidePoints, pasteVariantInPolys, pasteVariantInside, prepareGuideCanvas, renderMassingImage } from './guide.js';
 import { KITCHEN_POINTS_SCHEMA, buildKitchenPointsPrompt, parseKitchenPoints, renderKitchenMassing } from './kitchen.js';
@@ -245,8 +244,9 @@ async function plannerVerifyElevation(env, job, inputs, elevation, elevationLabe
 // ─── 파이프라인 ───
 
 function slotList(images) {
-  // 'mockup' = 실사화가 도면과 어긋났을 때 같이 돌려주는 올린 합성본 (R4c). 맨 뒤.
-  const order = ['base', 'v1', 'v2', 'v3', 'mockup'];
+  // 2026-10-19: 'mockup' 슬롯(실사화 합성본)은 실사화와 함께 지웠다. 이미 DB 에 그 슬롯이 든 옛 행은 그대로 둔다 —
+  //   GET·내 연출컷·공유는 images[] 를 그대로 돌려주고 칸마다 label·url 만 그린다(슬롯 이름을 가리지 않는다).
+  const order = ['base', 'v1', 'v2', 'v3'];
   return order.filter((s) => images[s]).map((s) => ({ slot: s, ...images[s] }));
 }
 
@@ -327,7 +327,7 @@ async function runPipeline(env, job, ck, save) {
 
   // 플래너 모드 (2026-10-08, 계획서 docs/01-plan/planner-render-realize.plan.md §6.2):
   //   설치는 [방 사진, 입면, 3/4?] + 프롬프트 v2 · 온도 0.2 · 비율 고정. 검사는 기록만(재시도 없음).
-  //   역판독 대조는 [결과 사진, 정면 입면] + 도면 목록으로 모듈마다 센다(2026-10-19). 추천안·mockup 슬롯 없음. worker.js 가 realize·engine 을 받지 않는다.
+  //   역판독 대조는 [결과 사진, 정면 입면] + 도면 목록으로 모듈마다 센다(2026-10-19). 추천안 없음.
   const planner = opts.mode === 'planner';
 
   // 입력 이미지는 Storage 에서 읽는다 — DO storage 에 base64 를 두지 않는다.
@@ -457,8 +457,6 @@ async function runPipeline(env, job, ck, save) {
     designSpec: opts.design_spec || null,
     // 손님 요청 (연출컷 ③ 상세 요청). worker.js 가 다듬어 두었다 — 한 번 더 다듬는다. 없으면 null.
     customerRequest: cleanCustomerRequest(opts.customer_request),
-    // 실사화 — 첫 사진에 도면 입면이 이미 얹혀 있다 (worker.js options.realize). 플래너 모드에는 없다.
-    realize: !planner && !!opts.realize,
     // 플래너 모드 — 프롬프트 v2 와 검사 코드(existing_left·pasted_reference)를 켠다
     ...(planner ? { planner: true, massing: !!massing, aspect: opts.aspect } : {}),
   };
@@ -467,11 +465,6 @@ async function runPipeline(env, job, ck, save) {
   const aspectRatio = planner ? ctx.aspect : aspectRatioOf(room);
   const prefix = `${job.userId}/${job.id}`;
 
-  // ControlNet 경로 (2026-09-22, 계획서 §5-C): 구조 조건 이미지(inputs.control)가 있고 engine 이 controlnet 이면
-  //   fal.ai 의 조건 모델이 그린다. 바탕(방 사진 또는 합성본)과 조건은 공개 URL 로 넘긴다. 검사(QC)는 그대로 Gemini.
-  const engine = !planner && opts.engine === 'controlnet' && inputs.control && inputs.control.url && inputs.room && inputs.room.url
-    ? 'controlnet' : 'gemini';
-
   // ═══ 1-b. 사진 위 가이드 선 (깊이 계획 3a, 2026-10-18) ═══
   //   벽 전체 장(붙박이장·수납장)이고 정면 벽 끝에 튀어나온 벽이 있을 때만 — 그 벽 앞 모서리가 앞면의 기준이다.
   //   텍스트 모델이 보이는 선·모서리만 찾고, 앞면 선은 guide.js 가 소실점으로 계산해 사진 사본에 그린다.
@@ -479,7 +472,7 @@ async function runPipeline(env, job, ck, save) {
   let guideImg = null;
   let massingImg = null; // 덩어리 합성본 — 있으면 방 사진 대신 편집 대상
   const wantGuide =
-    !planner && engine !== 'controlnet' && !ctx.realize && env.GUIDE_LINES !== 'off' &&
+    !planner && env.GUIDE_LINES !== 'off' &&
     !!(CATEGORIES[category] && CATEGORIES[category].wallToWallMm) && !!wall.sideReturn;
   if (wantGuide && ck.guide === undefined) {
     ck.guide = null;
@@ -544,7 +537,7 @@ async function runPipeline(env, job, ck, save) {
   //   두 소실점 + 벽 높이로 카메라를 풀어 하부장·상판·상부장을 사진에 투영해 칠한다. 화각은 사진 EXIF(room_focal35),
   //   없으면 24mm. 실패하면 글 지시로. GUIDE_MODE='outline' 이나 GUIDE_LINES='off' 면 하지 않는다.
   const wantKitchen =
-    !planner && engine !== 'controlnet' && !ctx.realize && env.GUIDE_LINES !== 'off' && env.GUIDE_MODE !== 'outline' &&
+    !planner && env.GUIDE_LINES !== 'off' && env.GUIDE_MODE !== 'outline' &&
     category === 'sink' && !wall.existing && !!env.ANTHROPIC_API_KEY;
   if (wantKitchen && ck.guide === undefined) {
     ck.guide = null;
@@ -629,12 +622,6 @@ async function runPipeline(env, job, ck, save) {
       if (!r.image) throw new Error('install returned no image');
       return { base64: r.image, mimeType: r.imageMime || 'image/jpeg', meta: drawnBy(r) };
     }
-    if (engine === 'controlnet') {
-      const r = await runControlNet(env, { ctx, baseUrl: inputs.room.url, controlUrl: inputs.control.url, size: opts.control_size || null, fix });
-      ck.engineMeta = r.meta;
-      console.log(`[Job ${job.id}] controlnet ${r.meta.model} ${r.meta.requestId} ${r.meta.elapsedMs}ms`);
-      return { base64: r.base64, mimeType: r.mimeType };
-    }
     // 연출컷 기본안 — 공급자는 images.js 가 고른다 (IMAGE_PROVIDER, GPT 실패 시 Gemini)
     const r = await renderImage(
       env,
@@ -706,9 +693,7 @@ async function runPipeline(env, job, ck, save) {
   //   도면 요약이 있으면 기본안을 Claude 비전으로 읽어(layout.js) 우리가 보낸 도면과 순서·개수를 대조한다.
   //   2026-10-19: 플래너 모드는 판독 방식이 다르다 — 사진 + 정면 입면 + 도면 목록으로 모듈(L1·U1…)마다 센다
   //   (normalizePlannerRead). 같은 layout 모양이라 대조·화면은 그대로 받는다. 플래너가 아니면 옛 판독 그대로.
-  //   절대 잡을 깨지 않는다 — 실패하면 layout.verify.error 만 남긴다. 생성 결과가 도면과 어긋났고
-  //   실사화(realize)였다면, 올린 합성본(방 사진 자체)을 'mockup' 슬롯으로 같이 돌려준다 —
-  //   도면 그대로인 그림은 그것이다. status 는 CHECK 제약 때문에 안 바꾸고 step_label 만 바꾼다.
+  //   절대 잡을 깨지 않는다 — 실패하면 layout.verify.error 만 남긴다. status 는 CHECK 제약 때문에 안 바꾸고 step_label 만 바꾼다.
   //   2026-10-19: 플래너 모드는 품목을 가리지 않는다(PLANNER_READ_CATEGORIES = CATEGORIES 전부) — 판독이 도면 목록을 센다.
   //   예전엔 신발장·화장대·서재·침실·사무실이 여기서 빠져 대조 기록이 없었고, 그래서 늘 internal_only 였다.
   //   플래너가 아니면 예전 그대로 LAYOUT_CATEGORIES 만 (옛 판독은 품목별 세그먼트 종류가 있어야 한다).
@@ -757,9 +742,6 @@ async function runPipeline(env, job, ck, save) {
     }
     layout.elapsed_ms = Date.now() - t0;
     ck.verify = { ok: layout.verify.ok, score: layout.verify.score ?? null };
-    if (!planner && opts.realize && layout.verify.ok === false && inputs.room && inputs.room.path) {
-      ck.images.mockup = { label: '합성본 · 도면 그대로', path: inputs.room.path, url: inputs.room.url || null };
-    }
     await save({ images: ck.images, verify: ck.verify });
     await updateById(env, 'generations', job.id, { layout, images: slotList(ck.images) });
     console.log(`[Job ${job.id}] verify: ok=${layout.verify.ok} score=${layout.verify.score ?? '-'} ${layout.elapsed_ms}ms`);
@@ -939,10 +921,7 @@ async function runPipeline(env, job, ck, save) {
       : null,
     images: slotList(ck.images),
     quote: buildQuote(category, wall.wallW),
-    model:
-      engine === 'controlnet'
-        ? controlNetModel(env)
-        : (ck.images.base && ck.images.base.model) || env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image',
+    model: (ck.images.base && ck.images.base.model) || env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image',
     elapsed_ms: Date.now() - startedAt,
     completed_at: new Date().toISOString(),
     ...internal,
