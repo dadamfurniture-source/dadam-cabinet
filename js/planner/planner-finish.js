@@ -501,6 +501,8 @@ if (typeof window !== 'undefined') {
   window.plannerFinishCatalog = plannerFinishCatalog;
   window.plannerFinishLookup = plannerFinishLookup;
   window.plannerFinishHex = plannerFinishHex;
+  // T4: planner-export.js 가 같은 거름망(화면용 메시)을 쓴다
+  window.PLANNER_FINISH_PAINT_SKIP = PLANNER_FINISH_PAINT_SKIP;
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {

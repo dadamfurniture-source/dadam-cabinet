@@ -90,6 +90,16 @@ const SUMMARY = {
       avgPerMin: 12767,
     },
   },
+  // 워커 시험(sheet-yield.test.js 3단계 PR-11) 의 손계산 결과 그대로
+  sheetYield: {
+    window: { days: 180, start: '2026-04-25', end: '2026-10-21' },
+    orders: 2, planned: 18, actual: 19, diffRate: 5.6, costDiff: 30264,
+    yieldNow: 0.8, impliedYield: 0.76, suggestYield: null, minOrders: 5,
+    top: [
+      { id: 'Y1', label: '이고객 (SO-21)', planned: 8, actual: 9, diffRate: 12.5 },
+      { id: 'Y2', label: 'SO-22', planned: 10, actual: 10, diffRate: 0 },
+    ],
+  },
   // 워커 시험(leadtime.test.js 3단계 PR-10) 의 손계산 결과 그대로
   leadTime: {
     window: { days: 180, start: '2026-04-25', end: '2026-10-21' },
@@ -933,5 +943,40 @@ describe('리드타임 · 납기 (3단계 PR-10)', () => {
 
   test('단계 이름이 길어 이 막대는 이름 칸을 넓힌다', () => {
     expect(HTML).toMatch(/\.reason\.lead \{ grid-template-columns: 116px/);
+  });
+});
+
+describe('원판 사용량 (3단계 PR-11)', () => {
+  test('계획 대 실제 장수 · 더 쓴 원판 값 · 실제 수율, 많이 쓴 순 표', async () => {
+    boot(fakeApi());
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('cardYield').hidden).toBe(false);
+    expect(text('yieldBody')).toMatch(/계획 18장 → 실제 19장 \+5.6% · 원판 값 더 씀 30,264원/);
+    expect(text('yieldBody')).toMatch(/실제 수율 ≈ 0.76/);
+    expect(text('yieldBody')).toMatch(/수주 5건이 쌓이면 수율 설정을 고칠지 말합니다 \(지금 2건\)/);
+    const rows = [...document.querySelectorAll('#tblYield tbody tr')].map((r) => [...r.cells].map((c) => c.textContent));
+    expect(rows).toEqual([['이고객 (SO-21)', '8장', '9장', '+12.5%'], ['SO-22', '10장', '10장', '0%']]);
+  });
+
+  test('충분히 쌓이면 생산 설정의 수율을 고치자고 한다', async () => {
+    boot(fakeApi({ data: { ...SUMMARY, sheetYield: { ...SUMMARY.sheetYield, orders: 6, impliedYield: 0.72, suggestYield: 0.72 } } }));
+    await window.Management.init();
+    await settle();
+    expect(text('yieldBody')).toMatch(/원판 수율\(지금 0.8\)을 0.72 로 고치면/);
+    expect(document.querySelector('#yieldBody a').getAttribute('href')).toBe('../production.html');
+  });
+
+  test('재단이 끝난 수주가 없으면 작업 링크로 남기라는 안내, 옛 워커면 숨김', async () => {
+    boot(fakeApi({ data: { ...SUMMARY, sheetYield: { ...SUMMARY.sheetYield, orders: 0, top: [] } } }));
+    await window.Management.init();
+    await settle();
+    expect(text('yieldBody')).toMatch(/재단 기사가 작업 링크로 주문을 골라 장수를 남기면/);
+    const data = { ...SUMMARY };
+    delete data.sheetYield;
+    boot(fakeApi({ data }));
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('cardYield').hidden).toBe(true);
   });
 });
