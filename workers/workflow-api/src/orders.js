@@ -20,6 +20,8 @@ import {
   ConflictError,
   DbError,
 } from './supabase.js';
+import { assertCounterparty, NEED_SQL as COUNTERPARTY_NEED_SQL } from './counterparties.js';
+import { isMissingRelation } from './work-order-data.js';
 
 export const ORDER_STATUSES = ['confirmed', 'in_production', 'delivered', 'completed', 'cancelled'];
 
@@ -254,12 +256,18 @@ export async function updateOrder(env, { orderId, user, patch }) {
     }
     allowed.price_tier = patch.price_tier;
   }
+  // 주문한 거래처 (2단계 — 거래처 파레토). null 이면 뗀다
+  if (patch.partner_id !== undefined) {
+    const p = await assertCounterparty(env, patch.partner_id || null, 'partner');
+    allowed.partner_id = p ? p.id : null;
+  }
 
   if (Object.keys(allowed).length === 0) throw new ValidationError('변경할 필드가 없습니다');
   try {
     return await updateById(env, 'orders', orderId, allowed);
   } catch (e) {
     if (isMissingTierColumn(e)) throw new ValidationError('수주 구분 칸이 아직 DB 에 없습니다 — database/orders-price-tier.sql 을 실행해 주세요');
+    if (isMissingRelation(e) && /partner_id/.test(e.message)) throw new ValidationError(COUNTERPARTY_NEED_SQL);
     throw e;
   }
 }
@@ -278,12 +286,29 @@ export async function addCost(env, { orderId, user, body }) {
     vendor_name: body.vendor_name ? String(body.vendor_name).slice(0, 100) : null,
     created_by: user.id,
   };
+  // 돈을 낸 공급처 (2단계 — 외주 성적표). 고르면 이름도 그 공급처로 맞춘다
+  if (body.counterparty_id) {
+    const s = await assertCounterparty(env, body.counterparty_id, 'supplier');
+    row.counterparty_id = s.id;
+    row.vendor_name = s.name;
+  }
   if (body.spent_on) {
     const d = new Date(body.spent_on);
     if (Number.isNaN(d.getTime())) throw new ValidationError('spent_on 이 올바르지 않습니다');
     row.spent_on = d.toISOString().slice(0, 10);
   }
-  return insertOne(env, 'order_costs', row);
+  // 지급 예정일 (2단계 — 현금흐름). 낸 날(spent_on)이 비고 이 날이 있으면 아직 안 낸 돈
+  if (body.due_on) {
+    const d = new Date(body.due_on);
+    if (Number.isNaN(d.getTime())) throw new ValidationError('due_on 이 올바르지 않습니다');
+    row.due_on = d.toISOString().slice(0, 10);
+  }
+  try {
+    return await insertOne(env, 'order_costs', row);
+  } catch (e) {
+    if (isMissingRelation(e) && /due_on/.test(e.message)) throw new ValidationError('지급 예정일 칸이 아직 DB 에 없습니다 — database/management-phase2.sql 을 실행해 주세요');
+    throw e;
+  }
 }
 
 export async function deleteCost(env, { orderId, costId, user }) {

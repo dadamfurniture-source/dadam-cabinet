@@ -76,6 +76,9 @@ import {
   deleteCost,
 } from './orders.js';
 import { listReworks, addRework, deleteRework } from './rework.js';
+import { getFeedback, createFeedbackLink, openFeedback, answerFeedback } from './feedback.js';
+import { listCounterparties, createCounterparty, updateCounterparty } from './counterparties.js';
+import { listPayments, addPayment, updatePayment, deletePayment, updateCostDates, addCashBalance } from './payments.js';
 import {
   createSchedules,
   listSchedules,
@@ -523,7 +526,67 @@ async function handleGetOrder(request, env, { params, user }) {
   const data = await getOrder(env, { orderId: params.orderId, user });
   // 재작업 · A/S — 표가 아직 없으면(2단계 SQL 전) null 이고 화면이 안내를 띄운다
   data.reworks = await listReworks(env, params.orderId);
+  // 설치 후 한 문항 — 같은 방식으로 표가 없으면 null
+  data.feedback = await getFeedback(env, params.orderId);
+  // 수금 일정 — 표가 없으면 null
+  data.payments = await listPayments(env, params.orderId);
   return jsonResponse(request, env, { success: true, data });
+}
+
+async function handleAddPayment(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await addPayment(env, { orderId: params.orderId, user, body }) }, 201);
+}
+
+async function handleUpdatePayment(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await updatePayment(env, { orderId: params.orderId, paymentId: params.paymentId, user, body }) });
+}
+
+async function handleDeletePayment(request, env, { params, user }) {
+  return jsonResponse(request, env, { success: true, data: await deletePayment(env, { orderId: params.orderId, paymentId: params.paymentId, user }) });
+}
+
+async function handleUpdateCostDates(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await updateCostDates(env, { orderId: params.orderId, costId: params.costId, user, body }) });
+}
+
+async function handleAddCashBalance(request, env, { user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await addCashBalance(env, { user, body }) }, 201);
+}
+
+async function handleListCounterparties(request, env, { user }) {
+  const kind = new URL(request.url).searchParams.get('kind') || null;
+  return jsonResponse(request, env, { success: true, data: await listCounterparties(env, { user, kind }) });
+}
+
+async function handleCreateCounterparty(request, env, { user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await createCounterparty(env, { user, body }) }, 201);
+}
+
+async function handleUpdateCounterparty(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await updateCounterparty(env, { user, id: params.id, body }) });
+}
+
+async function handleCreateFeedbackLink(request, env, { params, user }) {
+  const data = await createFeedbackLink(env, { orderId: params.orderId, user });
+  return jsonResponse(request, env, { success: true, data }, 201);
+}
+
+// 고객 공개 — 토큰은 확인서처럼 X-Share-Token 헤더로 (URL 에 두지 않는다)
+async function handlePublicFeedback(request, env) {
+  const { token } = shareCredentials(request);
+  return jsonResponse(request, env, { success: true, data: await openFeedback(env, { token }) });
+}
+
+async function handlePublicFeedbackAnswer(request, env) {
+  const { token } = shareCredentials(request);
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await answerFeedback(env, { token, body }) });
 }
 
 async function handleAddRework(request, env, { params, user }) {
@@ -650,8 +713,18 @@ const router = createRouter([
   { method: 'PATCH',  path: '/orders/:orderId',             auth: 'jwt', handler: handleUpdateOrder },
   { method: 'POST',   path: '/orders/:orderId/costs',       auth: 'jwt', handler: handleAddCost },
   { method: 'DELETE', path: '/orders/:orderId/costs/:costId', auth: 'jwt', handler: handleDeleteCost },
+  { method: 'PATCH',  path: '/orders/:orderId/costs/:costId', auth: 'jwt', handler: handleUpdateCostDates },
+  { method: 'POST',   path: '/orders/:orderId/payments',    auth: 'jwt', handler: handleAddPayment },
+  { method: 'PATCH',  path: '/orders/:orderId/payments/:paymentId', auth: 'jwt', handler: handleUpdatePayment },
+  { method: 'DELETE', path: '/orders/:orderId/payments/:paymentId', auth: 'jwt', handler: handleDeletePayment },
   { method: 'POST',   path: '/orders/:orderId/reworks',     auth: 'jwt', handler: handleAddRework },
   { method: 'DELETE', path: '/orders/:orderId/reworks/:reworkId', auth: 'jwt', handler: handleDeleteRework },
+  { method: 'POST',   path: '/orders/:orderId/feedback-link', auth: 'jwt', handler: handleCreateFeedbackLink },
+
+  // 거래처 · 공급처 (관리자만)
+  { method: 'GET',   path: '/counterparties',     auth: 'jwt', handler: handleListCounterparties },
+  { method: 'POST',  path: '/counterparties',     auth: 'jwt', handler: handleCreateCounterparty },
+  { method: 'PATCH', path: '/counterparties/:id', auth: 'jwt', handler: handleUpdateCounterparty },
 
   // 생산 계획 · 인력 추천 (주문이 들어오면 자동 제안 → 대표 승인 → 작업자 지시)
   { method: 'GET',  path: '/production/plan',                          auth: 'jwt', handler: handleGetProductionPlan },
@@ -667,6 +740,7 @@ const router = createRouter([
   { method: 'POST', path: '/production/worker-links/:linkId/revoke',   auth: 'jwt', handler: handleRevokeWorkerLink },
   { method: 'GET',  path: '/production/monthly',                       auth: 'jwt', handler: handleMonthlySummary },
   { method: 'GET',  path: '/management/summary',                       auth: 'jwt', handler: handleManagementSummary },
+  { method: 'POST', path: '/management/cash-balance',                  auth: 'jwt', handler: handleAddCashBalance },
   { method: 'GET',  path: '/production/worklogs',                      auth: 'jwt', handler: handleListWorklogs },
   { method: 'GET',  path: '/production/calibration',                   auth: 'jwt', handler: handleGetCalibration },
   { method: 'POST', path: '/production/calibration/apply',             auth: 'jwt', handler: handleApplyCalibration },
@@ -687,6 +761,8 @@ const router = createRouter([
 
   // 공개 — 고객 공유 링크 (JWT 없음, X-Share-Token 으로 인증)
   { method: 'GET', path: '/public/confirm', auth: 'none', handler: handlePublicConfirm },
+  { method: 'GET', path: '/public/feedback', auth: 'none', handler: handlePublicFeedback },
+  { method: 'POST', path: '/public/feedback', auth: 'none', handler: handlePublicFeedbackAnswer },
   { method: 'POST', path: '/public/confirm/decision', auth: 'none', handler: handlePublicDecision },
 ]);
 

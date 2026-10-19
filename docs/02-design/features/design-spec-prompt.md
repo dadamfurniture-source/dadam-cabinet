@@ -182,6 +182,45 @@ FINAL SELF-CHECK …; tall row 1 unit + 1 appliance opening, 5 doors, 0 drawers;
 - 플래너 판독: H1 은 `seen: 'hood'`(새 값) · 도어 0. 후드 칸에 장을 지었으면(`cabinet`) 대조의 `parts.hood` 가 0 이고 **ok 가 아니다**(내부 확인용).
   후드가 안 보여도 장이 없으면(`open`·`missing`) 지킨 것으로 본다(이슈만). 후드로 보인 칸은 `uppers` 에 넣지 않는다(gen-import 가 상부 영역으로 만들지 않게).
 
+### `walls[]` — ㄱ자·ㄷ자의 꺾인 벽 (2026-10-19, 플래너 모드만 읽는다)
+
+예전 패널은 꺾인 구간을 한 줄로 **펴서** 보냈다 (시드 evalc1: 하부 `650 436 936 842 421` — 꺾인 936 이 가운데, `wallRunMm` 3335,
+notes "꺾인 구간을 한 벽으로 폈습니다"). 실측(2026-10-19 GPT)에서 기존 ㄱ자 주방 사진에는 꺾인 쪽에도 상부장을 붙였고,
+공사현장 사진에는 꺾인 장을 방 안쪽으로 튀어나온 장으로 그렸다. 그래서 **주벽 = 최상위 `sections`(예전 그대로), 꺾인 벽 = `walls[]`**.
+
+| 필드 | 형 | 규칙 |
+|---|---|---|
+| `side` | string | `left` · `right` — 주벽(뒷벽)을 바라볼 때 어느 옆벽인가. 그 밖이면 그 벽을 통째로 버림. 같은 side 는 앞의 것 하나 |
+| `corner` | string | 선택. 모서리를 누가 차지하나: `main`(주벽 런이 모서리까지, 꺾인 런은 그 앞에서 시작) · `return`(꺾인 런이 모서리까지) · `open`(둘 다 닿지 않음) |
+| `runMm` | number | 선택. 모서리(주벽 면)에서 꺾인 런 끝까지. 300–12000 |
+| `cornerEdge` | string | 선택. 이 벽 정면 입면(`elevation_{side}`) 그림에서 모서리 쪽 가장자리 `left` · `right` |
+| `sections` | object | `lower`·`upper`·`tall` — 최상위와 같은 모양, 단 자리는 `fromLeftMm` 대신 **`fromCornerMm`**(주벽 면에서 나온 거리, 0–12000), 모듈은 **모서리에서 방 쪽으로** |
+| `appliances` | array | 선택. 최상위와 같은 모양, 자리는 `fromCornerMm` |
+
+최대 2개. `sections` 가 비면 그 벽은 버린다. `walls` 가 있으면 최상위 `wallRunMm`·`fromLeftMm` 는 **주벽만**의 값이다.
+
+```json
+"layout": { "shape": "corner", "walls": 2 },
+"walls": [
+  { "side": "left", "corner": "main", "runMm": 1574, "cornerEdge": "left",
+    "sections": { "lower": { "widthMm": 936, "heightMm": 870, "depthMm": 550, "fromCornerMm": 638, "fromFloorMm": 0,
+      "modules": [{ "widthMm": 936, "kind": "door", "doorCount": 2, "drawerCount": 0, "label": "양문" }] } } }
+]
+```
+
+프롬프트(`buildPlannerPrompt`):
+- 번호: 꺾인 벽 줄은 같은 머리 글자로 **주벽에 이어서** (주벽 L1–L4 → 왼쪽 벽 L5). 정면 입면 라벨·판독도 같은 규칙.
+- `LAYOUT: L-shape — the main run stands on the BACK wall of IMAGE A and a return run stands on the LEFT wall, joined to it at the left corner. … never a free-standing block or peninsula. At the left corner L1 runs into the corner; L5 starts in front of it, … No wall units on the left wall. The right wall gets no cabinets.`
+- `FIXED GEOMETRY — each wall exactly as its own elevation shows:` 아래 `BACK WALL (IMAGE B), left to right:` · `LEFT WALL — the return (IMAGE D), from the corner toward the room:` — 벽마다 기준 줄·비율·시작 자리(`starts 638 mm out from the back wall`). 모서리 유닛에 `, in the left corner — L5 stands in front of it`.
+- 빈 구역·자체 점검은 벽 이름을 앞에 (`left wall: above the return (L5) — no wall units, bare wall up to the ceiling`), EDIT ZONE `the back wall and the left wall`. 도면에 없는 쿡탑·후드는 계속 막는다.
+- 그림: 꺾인 벽 입면은 3/4(IMAGE C) **다음 글자** (D · 3/4 가 없으면 C). 입면을 못 받으면 "IMAGE B shows only the back wall; build the return from the list below."
+- 검사 LAYOUT 요약: ` | left wall lower (from the corner) = 936 mm 2-door cabinet`. 설치 프롬프트(일반 연출컷)는 `walls` 를 읽지 않는다.
+- 역판독: 판독 계획에 `BASE ROW — LEFT WALL, the return (from the corner outward)` 줄(L5), 꺾인 벽 입면을 IMAGE 3… 으로. 기대값(`expectedFromSpec`)은 주벽 바닥 → 꺾인 벽 바닥 순서, 상부장 도어는 벽을 합친다.
+- `walls` 가 없으면 예전 그대로 (펴진 ㄱ자 문단 `IMAGE B shows it unfolded into one flat strip`).
+
+렌더 역할 (플래너 모드 `renders[]`): `elevation_left` · `elevation_left_labeled` · `elevation_right` · `elevation_right_labeled` (선택, 최대 7장).
+`design_spec.walls` 에 그 벽이 있을 때만 싣는다. 번호 붙은 것은 설치 때 GPT 에만, 역판독에는 공급자와 상관없이.
+
 `kind` 별 영어 문장:
 
 | kind | 프롬프트 문구 |
@@ -372,7 +411,7 @@ POST /api/generate
 | 항목 | 규칙 |
 |---|---|
 | 받지 않는 것 | `realize` · `engine` · `control_*` · `reference_images` (보내도 무시) |
-| 렌더 | 역할마다 한 장, 최대 3장(`elevation` → `elevation_labeled` → `massing`), 다른 role 은 버림. 버킷 `{user}/{gen}/render-{role}.{ext}`, `inputs.renders[] = {role, path, url, mime}`. 번호 입면·3/4 는 업로드가 실패해도 잡은 간다 |
+| 렌더 | 역할마다 한 장, 최대 3장(`elevation` → `elevation_labeled` → `massing`) — 2026-10-19 부터 꺾인 벽 입면(`elevation_left`·`_labeled`·`elevation_right`·`_labeled`)까지 최대 7장, 다른 role 은 버림. 버킷 `{user}/{gen}/render-{role}.{ext}`, `inputs.renders[] = {role, path, url, mime}`. 번호 입면·3/4 는 업로드가 실패해도 잡은 간다 |
 | options | `mode:'planner'`, `aspect`, `variants:false`(항상) |
 | 재생성 | `parent_id` 만 보내면 원본의 모드·요약·렌더·비율을 잇는다. 원본에 입면이 없으면 400 |
 | 설치 | `[방 사진, 입면, 3/4?]` + 프롬프트 v3(2026-10-19), 온도 0.2, `aspectRatio` = `options.aspect` |
@@ -396,7 +435,7 @@ POST /api/generate
 | 높이 | `fromFloorMm`·`ceilingMm` 중 하나라도 오면 줄마다 `bottom at X mm, top at Y mm from the floor` (`fromFloorMm` 없는 하부·키큰장·붙박이장은 0). 아무것도 없으면 예전처럼 `870 mm high` |
 | `CLOSED LIST` | `L1–L3 and U1–U2 are the only built-in units` — 다른 장·서랍장·선반·판 없음 |
 | `BINDING` | 순서·개수·줄 안 폭 비율(±10 %)·기준 줄 대비 위치는 구속, 벽에 맞추는 것은 **전체 배율만** (옛 "mm·% 는 참고" 를 바꿈) |
-| `EMPTY ZONES` | 벽장 높이·바닥 높이에서 아무 줄도 덮지 않는 구간, 하부 윗면~상부 아랫면, 맨 위 줄~천장 틈(`open or closed exactly as IMAGE B shows` — 막음 여부 필드가 아직 없다), 남는 벽(결정 ①′) |
+| `EMPTY ZONES` | 벽장 높이·바닥 높이에서 아무 줄도 덮지 않는 구간, 하부 윗면~상부 아랫면, 맨 위 줄~천장 틈(`open or closed exactly as IMAGE B shows` — 막음 여부 필드가 아직 없다), 남는 벽(결정 ①′). 2026-10-19: 50 mm 이하 틈(EP 20 같은 마감재 한 장 — 모듈이 아니라 런 폭에만 든다)은 빈 구역으로 세지 않는다 (`PLANNER_FINISH_GAP_MM`). 층 전체가 빈 것은 그대로 |
 | `EDIT ZONE` / `KEEP` | 목표 벽의 붙박이만 철거·교체. 카메라·다른 벽·창·문·조명·움직이는 물건(냉장고·카트·조명·화분)은 그대로 |
 | `FINAL SELF-CHECK` | 맨 끝. 줄마다 유닛·도어·서랍 수, 빈 구역 수, `no other built-in unit anywhere` |
 

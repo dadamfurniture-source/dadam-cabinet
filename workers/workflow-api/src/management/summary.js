@@ -583,6 +583,295 @@ export function qualityOf({ reworks, installed, settings }, month, today = null)
   };
 }
 
+// ── 소개 의향 (2단계 PR-7) ───────────────────────────────────
+
+/**
+ * 설치 후 한 문항 — 12 만족도 · 소개율. 반년 창(QUALITY_WINDOW_DAYS)으로 본다 — 한 달 응답은 몇 건뿐이다.
+ *   응답률   창 안에서 만든 링크 중 답이 온 것
+ *   NPS      답한 사람 중 9~10(소개함) % − 0~6(안 함) %. 7~8 은 중립
+ * 표가 아직 없으면 null.
+ */
+export function referralOf(feedback, month, today = null) {
+  if (!Array.isArray(feedback)) return null;
+  const end = today && today.slice(0, 7) === month ? today : monthEndOf(month);
+  const start = new Date(Date.parse(`${end}T00:00:00Z`) - (QUALITY_WINDOW_DAYS - 1) * 86400000).toISOString().slice(0, 10);
+  const within = (t) => { if (!t) return false; const d = kstDate(t); return d >= start && d <= end; };
+  const sent = feedback.filter((f) => within(f.created_at));
+  const answeredOfSent = sent.filter((f) => f.answered_at).length;
+  const answers = feedback.filter((f) => within(f.answered_at) && Number.isInteger(Number(f.score)));
+  const scores = answers.map((f) => Number(f.score));
+  const promoters = scores.filter((s) => s >= 9).length;
+  const detractors = scores.filter((s) => s <= 6).length;
+  const dist = Array.from({ length: 11 }, (_, s) => scores.filter((x) => x === s).length);
+  return {
+    window: { days: QUALITY_WINDOW_DAYS, start, end },
+    sent: sent.length,
+    answered: answers.length,
+    responseRate: pct(answeredOfSent, sent.length),
+    promoters,
+    passives: answers.length - promoters - detractors,
+    detractors,
+    nps: answers.length ? Math.round(((promoters - detractors) / answers.length) * 100) : null,
+    avg: answers.length ? Math.round((scores.reduce((a, b) => a + b, 0) / answers.length) * 10) / 10 : null,
+    thisMonth: feedback.filter((f) => f.answered_at && kstDate(f.answered_at).slice(0, 7) === month).length,
+    dist,
+  };
+}
+
+// ── 거래처 · 공급처 (2단계 PR-8) ─────────────────────────────
+
+/** 거래처 · 공급처는 한 해로 본다 — 업체별 수주는 달마다 몇 건뿐이다 */
+export const PARTNER_WINDOW_DAYS = 365;
+
+function windowOf(month, today, days) {
+  const end = today && today.slice(0, 7) === month ? today : monthEndOf(month);
+  const start = new Date(Date.parse(`${end}T00:00:00Z`) - (days - 1) * 86400000).toISOString().slice(0, 10);
+  return { days, start, end };
+}
+
+/**
+ * 11 거래처 파레토 — 한 해 동안 업체별 수주 · 매출 · 공헌이익, 큰 순으로 누적 비중.
+ * "상위 20% 거래처가 매출의 몇 % 를 주나". 거래처로 판정됐는데 업체를 안 붙인 수주는 따로 센다.
+ * 칸이 아직 없으면(2단계 SQL 전) null.
+ */
+export function partnersOf({ partnerOrders, snapshotsById, counterparties }, month, today = null) {
+  if (!Array.isArray(partnerOrders) || !Array.isArray(counterparties)) return null;
+  const win = windowOf(month, today, PARTNER_WINDOW_DAYS);
+  const names = new Map(counterparties.map((c) => [c.id, c.name]));
+  const acc = new Map();
+  let unassigned = 0;
+  for (const o of partnerOrders) {
+    if (o.status === 'cancelled' || !o.ordered_at) continue;
+    const d = kstDate(o.ordered_at);
+    if (d < win.start || d > win.end) continue;
+    if (!o.partner_id) { if (o.price_tier === 'partner') unassigned += 1; continue; }
+    if (!acc.has(o.partner_id)) acc.set(o.partner_id, { orders: 0, revenue: 0, known: 0, cost: 0 });
+    const a = acc.get(o.partner_id);
+    const revenue = Math.round(num(o.contract_amount) / 1.1);
+    a.orders += 1; a.revenue += revenue;
+    const q = quoteOf(o, snapshotsById);
+    if (q && q.cost && Number.isFinite(Number(q.cost.total))) {
+      a.known += revenue;
+      a.cost += num(q.cost.total) - num(q.cost.fixed_recovery);
+    }
+  }
+  const total = [...acc.values()].reduce((s, a) => s + a.revenue, 0);
+  let cum = 0;
+  const rows = [...acc.entries()].sort((x, y) => y[1].revenue - x[1].revenue).map(([id, a]) => {
+    cum += a.revenue;
+    const contribution = Math.round(a.known - a.cost);
+    return {
+      id,
+      name: names.get(id) || '(지운 거래처)',
+      orders: a.orders,
+      revenue: a.revenue,
+      contribution: a.known > 0 ? contribution : null,
+      cmRate: a.known > 0 ? pct(contribution, a.known) : null,
+      share: pct(a.revenue, total),
+      cumShare: pct(cum, total),
+    };
+  });
+  const topN = Math.ceil(rows.length * 0.2);
+  const topRevenue = rows.slice(0, topN).reduce((s, r) => s + r.revenue, 0);
+  return {
+    window: win,
+    partners: rows.length,
+    revenue: total,
+    rows: rows.slice(0, 10),
+    top20: rows.length ? { count: topN, share: pct(topRevenue, total) } : null,
+    unassigned,
+  };
+}
+
+/**
+ * 16 외주 성적표 — 한 해 동안 공급처별 지출(원가 줄) · 발주 · 약속일 지킴.
+ *   지출     원가에 공급처를 붙인 줄의 합 (낸 날, 없으면 적은 날 기준)
+ *   약속일   외주 · 상판 발주(작업 지시 보고)의 입고 예정일(period_end) 대 입고한 날(metrics.received_on)
+ *            입고한 날이 없는 예전 입고는 약속 계산에서 뺀다 — 지금부터 쌓인다
+ *   밀림     아직 입고 전인데 예정일이 지난 발주
+ * 발주는 업체 이름으로 묶고, 장부의 공급처와 이름이 같으면 한 줄로 합친다.
+ */
+export function suppliersOf({ supplierCosts, outsource, counterparties }, month, today = null) {
+  if (!Array.isArray(counterparties)) return null;
+  const win = windowOf(month, today, PARTNER_WINDOW_DAYS);
+  const todayD = today || win.end;
+  const inWin = (d) => d && d >= win.start && d <= win.end;
+  const byId = new Map(counterparties.map((c) => [c.id, c]));
+  const acc = new Map(); // 이름(소문자) → 줄
+  const row = (name) => {
+    const key = String(name || '').trim().toLowerCase();
+    if (!key) return null;
+    if (!acc.has(key)) {
+      const cp = counterparties.find((c) => c.kind === 'supplier' && c.name.trim().toLowerCase() === key);
+      acc.set(key, { id: cp ? cp.id : null, name: cp ? cp.name : String(name).trim(), category: cp ? cp.category : null, spend: 0, costRows: 0, orders: 0, onTime: 0, late: 0, lateDays: 0, dated: 0, overdue: 0 });
+    }
+    return acc.get(key);
+  };
+  for (const c of supplierCosts || []) {
+    const cp = byId.get(c.counterparty_id);
+    const d = String(c.spent_on || c.created_at || '').slice(0, 10);
+    if (!cp || !inWin(d)) continue;
+    const r = row(cp.name);
+    r.spend += num(c.amount); r.costRows += 1;
+  }
+  for (const o of outsource || []) {
+    if (o.status === 'cancelled' || !inWin(String(o.period_start || '').slice(0, 10))) continue;
+    const r = row(o.metrics && o.metrics.vendor);
+    if (!r) continue;
+    r.orders += 1;
+    const due = String(o.period_end || '').slice(0, 10);
+    const got = o.metrics && o.metrics.received_on;
+    if (o.status === 'received' && got && due) {
+      r.dated += 1;
+      if (got <= due) r.onTime += 1;
+      else { r.late += 1; r.lateDays += (Date.parse(got) - Date.parse(due)) / 86400000; }
+    } else if (o.status === 'ordered' && due && due < todayD) r.overdue += 1;
+  }
+  const rows = [...acc.values()]
+    .map((r) => ({
+      id: r.id, name: r.name, category: r.category,
+      spend: Math.round(r.spend), costRows: r.costRows,
+      orders: r.orders, onTimeRate: pct(r.onTime, r.dated), dated: r.dated,
+      avgLateDays: r.late ? Math.round((r.lateDays / r.late) * 10) / 10 : null,
+      overdue: r.overdue,
+    }))
+    .sort((a, b) => b.spend - a.spend || b.orders - a.orders);
+  return { window: win, rows: rows.slice(0, 12), suppliers: counterparties.filter((c) => c.kind === 'supplier' && c.active !== false).length };
+}
+
+// ── 현금 (2단계 PR-9) ────────────────────────────────────────
+
+export const CASH_WEEKS = 13;
+const DAY_MS = 86400000;
+const addDays = (d, n) => new Date(Date.parse(`${d}T00:00:00Z`) + n * DAY_MS).toISOString().slice(0, 10);
+const daysBetween = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / DAY_MS);
+/** 그 날이 든 주의 월요일 */
+function mondayOf(d) {
+  const wd = new Date(`${d}T00:00:00Z`).getUTCDay(); // 0 일 ~ 6 토
+  return addDays(d, wd === 0 ? -6 : 1 - wd);
+}
+const ACTIVE_FOR_CASH = new Set(['confirmed', 'in_production', 'delivered', 'completed']);
+const outstandingOf = (o) => Math.max(0, num(o.contract_amount) - num(o.received_amount));
+
+/**
+ * 9 13주 현금흐름 — 오늘이 든 주부터 13주, 주마다 들어올 돈 · 나갈 돈 · 주말 잔액.
+ *   시작   관리자가 적은 가장 최근 통장 잔액 (7일이 넘으면 다시 적으라고 알린다)
+ *   들어옴 아직 안 받은 수금 일정 — 받기로 한 날의 주. 지난 날짜는 이번 주(밀린 돈)
+ *          일정이 없는 수주는 남은 돈(계약금 − 수금액)이 설치일에 들어온다고 본다. 설치일도 없으면 '날짜 모름'
+ *   나감   아직 안 낸 원가 줄(낸 날 없음 · 낼 날 있음)의 그 주 + 월 고정비를 주마다 고르게 (× 12 ÷ 52)
+ * 이달 선택과 상관없이 오늘부터 앞으로 본다. 수금 표가 아직 없으면 null.
+ */
+export function cashflowOf({ balances, payments, costs, orders, installs, overheadMonthly }, today) {
+  if (!Array.isArray(balances) || !Array.isArray(payments)) return null;
+  const start = mondayOf(today);
+  const end = addDays(start, CASH_WEEKS * 7 - 1);
+  const weeks = Array.from({ length: CASH_WEEKS }, (_, i) => ({ start: addDays(start, i * 7), end: addDays(start, i * 7 + 6), inflow: 0, outflow: 0 }));
+  const weekOf = (d) => Math.floor(daysBetween(start, d) / 7);
+  let overdueIn = 0, overdueOut = 0, laterIn = 0, laterOut = 0, unscheduledIn = 0, unscheduledOrders = 0;
+  const put = (d, amount, dir) => {
+    if (d < today) {
+      weeks[0][dir] += amount;
+      if (dir === 'inflow') overdueIn += amount; else overdueOut += amount;
+    } else if (d > end) {
+      if (dir === 'inflow') laterIn += amount; else laterOut += amount;
+    } else weeks[weekOf(d)][dir] += amount;
+  };
+  const live = new Map((orders || []).filter((o) => ACTIVE_FOR_CASH.has(o.status)).map((o) => [o.id, o]));
+  const scheduled = new Set();
+  for (const p of payments) {
+    scheduled.add(p.order_id);
+    if (p.paid_on || !live.has(p.order_id)) continue;
+    if (p.due_on) put(String(p.due_on).slice(0, 10), num(p.amount), 'inflow');
+    else { unscheduledIn += num(p.amount); unscheduledOrders += 1; }
+  }
+  for (const o of live.values()) {
+    if (scheduled.has(o.id)) continue;
+    const left = outstandingOf(o);
+    if (!(left > 0)) continue;
+    const inst = installs && installs.get(o.design_id);
+    const done = o.completed_at || o.delivered_at;
+    // 이미 설치(납품 · 완료)했으면 받을 날이 지난 돈, 아니면 설치일에
+    const d = done ? kstDate(done) : inst || null;
+    if (d) put(d, left, 'inflow');
+    else { unscheduledIn += left; unscheduledOrders += 1; }
+  }
+  for (const c of costs || []) {
+    if (c.spent_on || !c.due_on) continue;
+    put(String(c.due_on).slice(0, 10), num(c.amount), 'outflow');
+  }
+  const weeklyOverhead = Math.round((num(overheadMonthly) * 12) / 52);
+  const latest = balances.slice().sort((a, b) => String(b.as_of).localeCompare(String(a.as_of)) || String(b.created_at || '').localeCompare(String(a.created_at || ''))).at(0) || null;
+  let bal = latest ? num(latest.amount) : 0;
+  let lowest = null, firstNegative = null;
+  const out = weeks.map((w, i) => {
+    const outflow = Math.round(w.outflow + weeklyOverhead);
+    const inflow = Math.round(w.inflow);
+    bal += inflow - outflow;
+    if (!lowest || bal < lowest.balance) lowest = { week: i, start: w.start, balance: bal };
+    if (firstNegative === null && bal < 0) firstNegative = i;
+    return { start: w.start, end: w.end, inflow, outflow, net: inflow - outflow, balance: bal };
+  });
+  return {
+    start, end, today,
+    opening: latest ? { amount: num(latest.amount), as_of: latest.as_of, days: daysBetween(latest.as_of, today), stale: daysBetween(latest.as_of, today) > 7 } : null,
+    weeks: out,
+    weeklyOverhead,
+    overdueIn: Math.round(overdueIn), overdueOut: Math.round(overdueOut),
+    laterIn: Math.round(laterIn), laterOut: Math.round(laterOut),
+    unscheduledIn: Math.round(unscheduledIn), unscheduledOrders,
+    lowest, firstNegative,
+  };
+}
+
+/**
+ * 미수 나이 — 받을 날이 지났는데 아직 못 받은 돈을 밀린 날수로 묶는다 (0~30 · 31~60 · 61~90 · 90일 넘음).
+ *   일정이 있으면 받기로 한 날부터, 없으면 설치(납품 · 완료)한 날부터 센다.
+ *   아직 받을 날이 안 된 돈은 '기한 전' 으로 따로.
+ */
+export function agingOf({ payments, orders }, today) {
+  if (!Array.isArray(payments)) return null;
+  const live = new Map((orders || []).filter((o) => ACTIVE_FOR_CASH.has(o.status)).map((o) => [o.id, o]));
+  const buckets = [
+    { key: '0-30', label: '30일 이내', max: 30, amount: 0, count: 0 },
+    { key: '31-60', label: '31~60일', max: 60, amount: 0, count: 0 },
+    { key: '61-90', label: '61~90일', max: 90, amount: 0, count: 0 },
+    { key: '90+', label: '90일 넘음', max: Infinity, amount: 0, count: 0 },
+  ];
+  const items = [];
+  let notDue = 0;
+  const add = (o, amount, since, stage) => {
+    const days = daysBetween(since, today);
+    if (days <= 0) { notDue += amount; return; }
+    const b = buckets.find((x) => days <= x.max);
+    b.amount += amount; b.count += 1;
+    items.push({ order_id: o.id, label: orderLabel(o), stage, amount, days });
+  };
+  const scheduled = new Set();
+  for (const p of payments) {
+    scheduled.add(p.order_id);
+    const o = live.get(p.order_id);
+    if (!o || p.paid_on) continue;
+    if (p.due_on) add(o, num(p.amount), String(p.due_on).slice(0, 10), p.stage);
+    else notDue += num(p.amount);
+  }
+  for (const o of live.values()) {
+    if (scheduled.has(o.id)) continue;
+    const left = outstandingOf(o);
+    if (!(left > 0)) continue;
+    const done = o.completed_at || o.delivered_at;
+    if (done) add(o, left, kstDate(done), null);
+    else notDue += left;
+  }
+  items.sort((a, b) => b.days - a.days || b.amount - a.amount);
+  const overdue = buckets.reduce((s, b) => s + b.amount, 0);
+  return {
+    overdue: Math.round(overdue),
+    notDue: Math.round(notDue),
+    buckets: buckets.map(({ key, label, amount, count }) => ({ key, label, amount: Math.round(amount), count })),
+    top: items.slice(0, 5),
+  };
+}
+
 function monthEndOf(month) {
   const [y, m] = String(month).split('-').map(Number);
   return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
@@ -604,11 +893,21 @@ const pair = (value, prev) => ({ value, prev });
  * @param {Array}  p.paceLogs       처리능력 실측용 — 그 달 끝에서 거꾸로 PACE_WINDOW_DAYS 동안의 기록 (role · units · minutes · work_date)
  * @param {Array|null} p.reworks    재작업 · A/S (반년 창). 표가 없으면 null
  * @param {Array}  p.installed      납품 · 완료된 수주 (id · status · delivered_at · completed_at)
+ * @param {Array|null} p.feedback   설치 후 한 문항 (score · created_at · answered_at). 표가 없으면 null
+ * @param {Array|null} p.counterparties  거래처 · 공급처 (id · kind · name · category · active). 표가 없으면 null
+ * @param {Array|null} p.partnerOrders   한 해 동안 거래처가 붙었거나 거래처로 판정된 수주. 칸이 없으면 null
+ * @param {Array}  p.supplierCosts  한 해 동안 공급처를 붙인 원가 줄 (counterparty_id · amount · spent_on · created_at)
+ * @param {Array}  p.outsource      한 해 동안의 외주 · 상판 발주 보고 (status · period_start · period_end · metrics)
+ * @param {Array|null} p.balances   통장 잔액 기록 (as_of · amount). 표가 없으면 null
+ * @param {Array|null} p.payments   수금 일정 (order_id · stage · amount · due_on · paid_on). 표가 없으면 null
+ * @param {Array}  p.dueCosts       아직 안 낸 원가 줄 (amount · due_on · spent_on)
+ * @param {Array}  p.cashOrders     현금용 수주 (취소 아닌 것 — contract_amount · received_amount · 납품/완료일)
+ * @param {Map}    p.installs       design_id → 가장 이른 설치일 (KST)
  * @param {string} [p.today]        오늘 (KST, YYYY-MM-DD) — 이번 달의 반년 창 끝
  * @param {Object} p.settings       mergeSettings 결과 (+ source)
  * @param {string} p.month          'YYYY-MM'
  */
-export function buildManagementSummary({ orders, snapshotsById, documents, consultations, generations = null, designs = [], costs = [], worklogs = [], paceLogs = [], reworks = null, installed = [], settings, month, today = null }) {
+export function buildManagementSummary({ orders, snapshotsById, documents, consultations, generations = null, designs = [], costs = [], worklogs = [], paceLogs = [], reworks = null, installed = [], feedback = null, counterparties = null, partnerOrders = null, supplierCosts = [], outsource = [], balances = null, payments = null, dueCosts = [], cashOrders = [], installs = new Map(), settings, month, today = null }) {
   const prev = prevMonthOf(month);
   const overheadMonthly = num(settings && settings.quote && settings.quote.overheadMonthly);
   const cur = financeOf(orders, snapshotsById, { month, overheadMonthly });
@@ -643,6 +942,12 @@ export function buildManagementSummary({ orders, snapshotsById, documents, consu
     process: processOf({ orders, snapshotsById, costs, worklogs, paceLogs, settings }, month),
     scenario: scenarioBase(orders, snapshotsById, settings, month),
     quality: qualityOf({ reworks, installed, settings }, month, today),
+    referral: referralOf(feedback, month, today),
+    partners: partnersOf({ partnerOrders, snapshotsById, counterparties }, month, today),
+    suppliers: suppliersOf({ supplierCosts, outsource, counterparties }, month, today),
+    // 현금은 이달 선택과 상관없이 오늘부터 앞으로
+    cashflow: cashflowOf({ balances, payments, costs: dueCosts, orders: cashOrders, installs, overheadMonthly }, today || kstDate()),
+    aging: agingOf({ payments, orders: cashOrders }, today || kstDate()),
     basis: {
       revenue: 'VAT 제외 계약금',
       cost: '확인서 견적 원가 (고정비 회수분 제외)',

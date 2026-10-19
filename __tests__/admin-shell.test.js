@@ -78,3 +78,13 @@ describe('각 관리자 페이지', () => {
     }
   });
 });
+
+describe('메인 사이트로 버튼이 메뉴를 덮지 않는다', () => {
+  test('사이드바 바닥에 absolute 로 붙어 있던 버튼을 메뉴 아래로 흘린다 (메뉴가 길어진 낮은 화면)', () => {
+    document.body.innerHTML = '<nav class="sidebar"><ul class="nav-menu" id="adminNav"></ul><div class="sidebar-footer" style="position:absolute"><a href="../index.html">← 메인 사이트로</a></div></nav>';
+    window.history.replaceState(null, '', '/admin/index.html');
+    (0, eval)(SHELL);
+    const f = document.querySelector('.sidebar-footer');
+    expect(f.style.position).toBe('static');
+  });
+});

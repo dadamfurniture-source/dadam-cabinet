@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta name="referrer" content="no-referrer" />
+    <title>설치 후 한 가지 질문 · 다담가구</title>
+    <style>
+      :root {
+        --bg: #eef0f3;
+        --panel: #fff;
+        --border: #d6dae0;
+        --text: #1a1d21;
+        --muted: #6b7280;
+        --accent: #147a3d;
+        --danger: #a02020;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: 'Pretendard', 'Malgun Gothic', -apple-system, BlinkMacSystemFont, sans-serif;
+        line-height: 1.5;
+        /* 한국어는 낱말 중간에서 줄을 바꾸지 않게 ("다담가구 / 를" 방지) */
+        word-break: keep-all;
+      }
+      .wrap {
+        max-width: 560px;
+        margin: 0 auto;
+        padding: 20px 16px 60px;
+      }
+      header.brand {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        padding: 14px 0;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 18px;
+      }
+      header.brand h1 {
+        font-size: 18px;
+        margin: 0;
+      }
+      header.brand span {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 20px;
+      }
+      .card h2 {
+        font-size: 19px;
+        margin: 0 0 6px;
+        text-wrap: balance;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .scale {
+        display: grid;
+        grid-template-columns: repeat(11, minmax(0, 1fr));
+        gap: 4px;
+        margin: 18px 0 6px;
+      }
+      .scale button {
+        padding: 10px 0;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: #fff;
+        font-size: 15px;
+        font-family: inherit;
+        cursor: pointer;
+        font-variant-numeric: tabular-nums;
+      }
+      .scale button[aria-pressed='true'] {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .scale button:focus-visible,
+      .submit:focus-visible,
+      textarea:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .ends {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      textarea {
+        width: 100%;
+        min-height: 84px;
+        margin-top: 16px;
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font: inherit;
+        resize: vertical;
+      }
+      .submit {
+        margin-top: 14px;
+        width: 100%;
+        padding: 12px;
+        border: none;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #fff;
+        font-size: 16px;
+        font-family: inherit;
+        cursor: pointer;
+      }
+      .submit:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .error {
+        color: var(--danger);
+        font-size: 14px;
+        margin-top: 10px;
+      }
+      @media (max-width: 420px) {
+        .scale {
+          grid-template-columns: repeat(6, minmax(0, 1fr));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="brand">
+        <h1>다담가구</h1>
+        <span>설치 후 한 가지 질문</span>
+      </header>
+
+      <div class="card" id="loadingCard"><p class="muted">불러오는 중…</p></div>
+
+      <div class="card" id="askCard" hidden>
+        <h2 id="question">지인에게 다담가구를 소개하시겠어요?</h2>
+        <p class="muted">0은 전혀 아니다, 10은 꼭 소개하겠다입니다.</p>
+        <div class="scale" id="scale" role="group" aria-label="소개 의향 0부터 10"></div>
+        <div class="ends"><span>0 전혀 아니다</span><span>10 꼭 소개</span></div>
+        <label class="muted" for="comment" style="display: block; margin-top: 16px">한 줄 남기기 (선택)</label>
+        <textarea id="comment" maxlength="1000" placeholder="좋았던 점이나 아쉬웠던 점을 적어 주세요"></textarea>
+        <button class="submit" id="btnSubmit" type="button" disabled>보내기</button>
+        <div class="error" id="askError" hidden></div>
+      </div>
+
+      <div class="card" id="doneCard" hidden>
+        <h2>고맙습니다</h2>
+        <p class="muted" id="doneText">남겨 주신 답은 더 나은 가구를 만드는 데 쓰겠습니다.</p>
+      </div>
+
+      <div class="card" id="errorCard" hidden>
+        <h2 id="errorTitle">링크를 열 수 없습니다</h2>
+        <p class="muted" id="errorMessage"></p>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+
+        // 고객 전용 독립 페이지 — confirm.html 과 같이 공개 Worker URL 하나만 쓴다
+        var API = 'https://dadam-workflow-api.dadamfurniture.workers.dev';
+
+        // 토큰은 URL fragment(#t=)로 온다. fragment 는 서버 · 링크 미리보기 로그에 남지 않는다
+        function readToken() {
+          var h = String(location.hash || '').replace(/^#/, '');
+          var m = /(?:^|&)t=([^&]+)/.exec(h);
+          return m ? decodeURIComponent(m[1]) : '';
+        }
+        var token = readToken();
+        var score = null;
+        var el = function (id) { return document.getElementById(id); };
+
+        function only(id) {
+          ['loadingCard', 'askCard', 'doneCard', 'errorCard'].forEach(function (c) { el(c).hidden = c !== id; });
+        }
+        function showError(title, message) {
+          el('errorTitle').textContent = title;
+          el('errorMessage').textContent = message;
+          only('errorCard');
+        }
+        async function call(method, body) {
+          var res = await fetch(API + '/public/feedback', {
+            method: method,
+            headers: Object.assign({ 'X-Share-Token': token }, body ? { 'Content-Type': 'application/json' } : {}),
+            body: body ? JSON.stringify(body) : undefined,
+          });
+          var data = null;
+          try { data = await res.json(); } catch (e) { data = null; }
+          if (!res.ok || !data || !data.success) {
+            var err = new Error((data && data.message) || '요청에 실패했습니다');
+            err.status = res.status;
+            throw err;
+          }
+          return data.data;
+        }
+
+        function renderScale() {
+          var box = el('scale');
+          for (var i = 0; i <= 10; i++) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = String(i);
+            b.setAttribute('data-score', String(i));
+            b.setAttribute('aria-pressed', 'false');
+            b.addEventListener('click', function (ev) {
+              score = Number(ev.currentTarget.getAttribute('data-score'));
+              box.querySelectorAll('button').forEach(function (x) {
+                x.setAttribute('aria-pressed', String(Number(x.getAttribute('data-score')) === score));
+              });
+              el('btnSubmit').disabled = false;
+            });
+            box.appendChild(b);
+          }
+        }
+
+        async function submit() {
+          if (score === null) return;
+          el('btnSubmit').disabled = true;
+          el('askError').hidden = true;
+          try {
+            await call('POST', { score: score, comment: el('comment').value });
+            only('doneCard');
+          } catch (e) {
+            if (e.status === 409) { only('doneCard'); return; }
+            el('askError').textContent = e.message;
+            el('askError').hidden = false;
+            el('btnSubmit').disabled = false;
+          }
+        }
+
+        async function load() {
+          if (!token) { showError('링크가 올바르지 않습니다', '문자로 받으신 링크 전체를 그대로 열어 주세요.'); return; }
+          try {
+            var d = await call('GET');
+            if (d.answered) {
+              el('doneText').textContent = '이미 답해 주셨습니다. 고맙습니다.';
+              only('doneCard');
+              return;
+            }
+            if (d.question) el('question').textContent = d.question;
+            renderScale();
+            only('askCard');
+          } catch (e) {
+            showError(e.status === 410 ? '링크 기간이 지났습니다' : '링크를 열 수 없습니다', e.status === 410 ? '담당자에게 새 링크를 요청해 주세요.' : e.message);
+          }
+        }
+
+        el('btnSubmit').addEventListener('click', submit);
+        window.Feedback = { readToken: readToken };
+        if (!window.__FEEDBACK_NO_AUTOSTART) load();
+      })();
+    </script>
+  </body>
+</html>

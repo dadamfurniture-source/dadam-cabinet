@@ -865,7 +865,19 @@ describe('clean 캡처 — 순수 판정', () => {
     expect(bowl.color).toBe(C.PLANNER_CAPTURE_STANDIN_COLOR.bowl);
     // 상판을 못 찾으면 870 − 마커 그룹 높이
     expect(C.plannerCaptureStandInSpec('sink', { W: 700, H: 500, D: 400, baseY: 100 }, null)[0].pos[1]).toBe(870 - 100 + 3);
-    expect(C.plannerCaptureStandInSpec('hood', { W: 900, H: 300, D: 350 }, null)).toEqual([expect.objectContaining({ part: 'hood', size: [900, 300, 350], pos: [0, 150, 0] })]);
+    // 2026-10-19: 후드 = 스테인리스 슬림 캐노피(바닥 90) + 뒤쪽 가운데 좁은 덕트 커버(마커 윗면까지) — 회색 상자 한 덩이가 아니다
+    const hood = C.plannerCaptureStandInSpec('hood', { W: 900, H: 300, D: 350 }, null);
+    expect(hood.map((x) => x.part)).toEqual(['hood', 'hood-duct']);
+    expect(hood[0]).toMatchObject({ size: [900, 90, 350], pos: [0, 45, 0], color: C.PLANNER_CAPTURE_STANDIN_COLOR.hood });
+    expect(hood[0].metalness).toBeGreaterThan(0.4);                       // 스테인리스 톤
+    const duct = hood[1];
+    expect(duct.size[0]).toBe(405);                                       // 900 × 0.45 — 양옆으로 벽이 보인다
+    expect(duct.pos[1] - duct.size[1] / 2).toBe(90);                      // 캐노피 위에서
+    expect(duct.pos[1] + duct.size[1] / 2).toBe(300);                     // 마커 윗면(천장)까지
+    expect(duct.pos[2] - duct.size[2] / 2).toBe(-175);                    // 뒤에 붙는다
+    expect(duct.pos[0]).toBe(0);
+    // 마커가 캐노피보다 얇으면 캐노피만
+    expect(C.plannerCaptureStandInSpec('hood', { W: 600, H: 60, D: 400 }, null).map((x) => x.part)).toEqual(['hood']);
     expect(C.plannerCaptureStandInSpec('refrigerator', { W: 720, H: 1870, D: 700 }, null)[0]).toMatchObject({ size: [720, 1870, 700], pos: [0, 935, 0] });
     expect(C.plannerCaptureStandInSpec('dishwasher', { W: 600, H: 820, D: 650 }, null)[0]).toMatchObject({ part: 'dishwasher', size: [600, 820, 650] });
     expect(C.plannerCaptureStandInSpec('cooktop', { W: 700, H: 10, D: 600 }, { top: 870, zMin: -300, zMax: 300 })[0]).toMatchObject({ part: 'cooktop', pos: [0, 874, 0] });
@@ -1051,13 +1063,15 @@ describe('clean 캡처 — 찍는 순간만 바뀌고, 끝나면(던져도) 작�
     expect(w.shadowMap).toBe(true);
     expect(w.visible).toEqual({ grid: false, ground: false, area: false, areaEdge: false, pick: false, origin: false, sinkBox: false, sinkEdge: false, hoodBox: false, body: true, bodyEdge: true, upper: true });
     const part = (p) => w.standins.find((x) => x.part === p);
-    expect(w.standins.map((x) => x.part).sort()).toEqual(['bowl', 'faucet', 'hood', 'shadow-catcher', 'spout']);
+    expect(w.standins.map((x) => x.part).sort()).toEqual(['bowl', 'faucet', 'hood', 'hood-duct', 'shadow-catcher', 'spout']);
     // 싱크 볼은 하부장 상판(870) 위, 상판 앞뒤 가운데 (세계 z 0) — 마커 상자(바닥~500)가 아니다
     expect(part('bowl').min.y).toBeCloseTo(870, 6);
     expect((part('bowl').min.z + part('bowl').max.z) / 2).toBeCloseTo(0, 6);
     expect(part('faucet').max.y).toBeCloseTo(1170, 6);
     // 후드는 마커 자리 그대로 (2000~2300), 불투명
-    expect([part('hood').min.y, part('hood').max.y]).toEqual([2000, 2300]);
+    // 2026-10-19: 캐노피는 마커 바닥(2000~2090), 덕트 커버는 그 위 마커 윗면(2300)까지
+    expect([part('hood').min.y, part('hood').max.y]).toEqual([2000, 2090]);
+    expect([part('hood-duct').min.y, part('hood-duct').max.y]).toEqual([2090, 2300]);
     expect(part('hood').opaque).toBe(true);
     // 바닥 그림자 받이 — y 0, 그림자만 받는 재질
     expect(part('shadow-catcher').shadowMat).toBe(true);
@@ -1925,5 +1939,62 @@ describe('clean 캡처 — 도어 테두리·갭 뒷판·목찬넬 판 바꾸기
     expect(seen).toEqual(before);
     expect(seen.reveal).toBe(before.reveal);
     seen.bars.forEach((b, i) => expect(b.material).toBe(before.bars[i].material));
+  });
+});
+
+// 2026-10-19: ㄱ자·ㄷ자 벽별 입면 — only(찍을 모듈)·facing(카메라 쪽)·yawDeg(3/4 방위). 기본값이면 예전 그대로.
+describe('벽별 입면 — only · facing · yawDeg', () => {
+  const PC = C.PlannerCapture;
+  beforeEach(() => {
+    window.THREE = THREE;
+    PC._encode = (px, w, h) => ({ type: 'image/png', w, h, px });
+    PC._outputPass = null;
+    window.OutputPass = class { render(renderer, write) { renderer.setRenderTarget(write); } };
+  });
+  afterEach(() => { window.THREE = undefined; PC._encode = null; PC._outputPass = null; delete window.OutputPass; PC.mount(null); });
+
+  test('순수: facing x± 면 옆에서 — 카메라가 그쪽으로 물러서고 그림 가로는 z 폭, 기본은 예전 그대로', () => {
+    const b = { min: { x: 0, y: 0, z: 0 }, max: { x: 600, y: 900, z: 1500 } };
+    expect(C.plannerCaptureFacingDir('x-')).toEqual([-1, 0]);
+    expect(C.plannerCaptureFacingDir('x+')).toEqual([1, 0]);
+    expect(C.plannerCaptureFacingDir(undefined)).toEqual([0, 1]);
+    expect(C.plannerCaptureAspectFor('front', b, 1.5, { facing: 'x-' })).toBeCloseTo(1500 / 900, 6);
+    expect(C.plannerCaptureAspectFor('front', b, 1.5)).toBeCloseTo(600 / 900, 6);
+    const f = C.plannerCaptureFrame('front', b, 1500 / 900, { facing: 'x-' });
+    expect(f.position[0]).toBeLessThan(0);
+    expect(f.position[2]).toBe(750);
+    expect(C.plannerCaptureFrame('front', b, 600 / 900)).toEqual(C.plannerCaptureFrame('front', b, 600 / 900, undefined));
+    const g = C.plannerCaptureCleanFrame('front', b, 1500 / 900, null, 0.9, { facing: 'x+' });
+    expect(g.position[0]).toBeGreaterThan(600);
+    expect(Math.abs(g.position[2] - g.target[2])).toBeLessThan(1e-6);
+    // massing 방위 — 기본 30°(앞에서 오른쪽), yawDeg −30 이면 왼쪽
+    expect(C.plannerCaptureYaw(undefined)).toBe(30);
+    expect(C.plannerCaptureYaw({ yawDeg: -30 })).toBe(-30);
+    const m = C.plannerCaptureFrame('massing', b, 16 / 9, { yawDeg: -30 });
+    expect(m.position[0]).toBeLessThan(300);
+    // 옆 입면의 픽셀 상자는 카메라 쪽 x 면 — 가로가 z 폭
+    const sb = C.plannerCaptureScreenBox(f, 1000, 600, b);
+    expect(sb.x1 - sb.x0).toBeGreaterThan(sb.y1 - sb.y0);
+    expect(C.plannerCaptureCameraJson(f, 1536, null, true, { facing: 'x-' }).facing).toBe('x-');
+    expect(C.plannerCaptureCameraJson(f, 1536, null, true)).not.toHaveProperty('facing');
+  });
+
+  test('capture({ only, facing }) — 찍는 동안 다른 모듈을 숨기고 옆에서, 끝나면 되돌린다', async () => {
+    const s = cleanScene();
+    const seen = [];
+    const r = cleanRenderer({
+      onRender(scene, cam) { seen.push({ upper: s.upper.visible, lower: s.body.visible, cam: cam.position.toArray() }); },
+    });
+    PC.mount({ three: () => ({ renderer: r, scene: s.scene, moduleGroup: s.mg }) });
+    const shot = await PC.capture({ kind: 'front', longEdge: 64, clean: true, only: ['lower-0'], facing: 'x-' });
+    expect(shot.ok).toBe(true);
+    expect(shot.camera.facing).toBe('x-');
+    expect(seen).toHaveLength(1);
+    expect(seen[0].upper).toBe(false);
+    expect(seen[0].lower).toBe(true);
+    expect(seen[0].cam[0]).toBeLessThan(0);      // −X 쪽에서
+    expect(s.upper.visible).toBe(true);           // 되돌림
+    const plain = await PC.capture({ kind: 'front', longEdge: 64, clean: true });
+    expect(plain.camera).not.toHaveProperty('facing');
   });
 });
