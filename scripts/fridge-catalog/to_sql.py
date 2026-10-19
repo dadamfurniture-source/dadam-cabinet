@@ -13,8 +13,11 @@ import math
 import re
 import sys
 
-# DB 에 이미 있는 이름에 맞춘다 (기존 냉장고 8개가 '삼성' · 'LG')
-BRAND = {'Samsung': '삼성', 'samsung': '삼성', 'LG': 'LG', 'lg': 'LG'}
+# DB 에 이미 있는 이름에 맞춘다 (기존 냉장고 8개가 '삼성' · 'LG'). 위니아(딤채) · 데이코(Dacor)도 한글 이름으로.
+# LG SIGNATURE Kitchen Suite 는 LG 의 한 라인이라 브랜드 'LG' + line 'SIGNATURE Kitchen Suite'
+BRAND = {'Samsung': '삼성', 'samsung': '삼성', 'LG': 'LG', 'lg': 'LG', 'Winia': '위니아', 'winia': '위니아',
+         'Dacor': '데이코', 'dacor': '데이코'}
+NICHE_KEYS = ('niche_min_w_mm', 'niche_min_h_mm', 'niche_min_d_mm', 'niche_max_w_mm', 'niche_max_h_mm', 'niche_max_d_mm')
 BATCH = 100
 NOTES_MAX = 900
 
@@ -25,6 +28,13 @@ def notes_of(r):
     if r.get('niche_min_w_mm') or r.get('niche_min_h_mm') or r.get('niche_min_d_mm'):
         dims = ' × '.join(str(r.get(k) or '?') for k in ('niche_min_w_mm', 'niche_min_h_mm', 'niche_min_d_mm'))
         parts.append(f'장 최소 W×H×D {dims}')
+    if r.get('niche_max_w_mm') or r.get('niche_max_h_mm') or r.get('niche_max_d_mm'):
+        dims = ' × '.join(str(r.get(k) or '-') for k in ('niche_max_w_mm', 'niche_max_h_mm', 'niche_max_d_mm'))
+        parts.append(f'장 최대 W×H×D {dims}')
+    if r.get('niche_raw'):
+        parts.append(f"설치 공간 원문: {r['niche_raw']}")
+    if r.get('panel_ready'):
+        parts.append('패널레디(가구 도어 부착)')
     if r.get('niche_recommended_d_mm'):
         parts.append(f"장 권장 깊이 {r['niche_recommended_d_mm']}")
     if r.get('door_side_gap_mm') is not None:
@@ -68,17 +78,19 @@ def refine_subtype(r, name):
     """
     수집기의 세부 구분(상품 이름 추정)을 사람 기준으로 바로잡는다 (2026-10-19 전체 수집 187행 검토).
       - 세워 쓰는 냉동고 단품(RZ22 · A202S · DF165ME)이 two_door/small 로 → one_door (키 1m 미만만 small)
-      - built_in 은 '가구 도어를 붙이는 완전 빌트인'(삼성 BR* 계열)만. LG '빌트인 타입'은 장에 맞춰 넣는
-        일반 냉장고라 도어 형태로 다시 나눈다 (설치 방식 install_type 은 원래 값을 둔다)
+      - built_in 은 '가구 도어를 붙이는 완전 빌트인'(삼성 BR* 계열 · 수집기가 panel_ready 로 표시한 데이코 · SKS)만.
+        LG '빌트인 타입'은 장에 맞춰 넣는 일반 냉장고라 도어 형태로 다시 나눈다 (설치 방식 install_type 은 원래 값을 둔다)
     """
     st = r.get('category_subtype')
+    if st in ('kimchi_stand', 'kimchi_lid'):  # 김치냉장고는 수집기 구분(스탠드/뚜껑 목록)을 그대로 둔다
+        return st
     codes = r.get('model_codes') or []
     h = num(r.get('height_mm')) or 0
     w = num(r.get('width_mm')) or 0
     freezer = ('냉동고' in name or '냉동전용' in name) and '2도어' not in name
     if st in ('two_door', 'small') and freezer:
         return 'one_door' if h >= 1000 else 'small'
-    if st == 'built_in' and not any(str(c).startswith('BR') for c in codes):
+    if st == 'built_in' and not r.get('panel_ready') and not any(str(c).startswith('BR') for c in codes):
         if '김치' in name:
             return 'kimchi_stand'
         if '전용고' in name or '1도어' in name:
@@ -107,6 +119,7 @@ def row_of(r):
         'side_gap_mm': num(r.get('side_gap_mm'), up=True),
         'top_gap_mm': num(r.get('top_gap_mm'), up=True),
         'back_gap_mm': num(r.get('back_gap_mm'), up=True),
+        **{k: num(r.get(k)) for k in NICHE_KEYS},  # 니치(장 안쪽) 치수 — 반올림. DB 칸은 appliance-models-niche.sql
         'verified': True,  # 제조사 공식 스펙 API 값
         'source_url': r.get('page_url') or r.get('source_url'),
         'notes': notes_of(r),

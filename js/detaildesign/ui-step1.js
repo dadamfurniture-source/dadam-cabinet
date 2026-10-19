@@ -1158,6 +1158,31 @@
         return out;
       }
 
+      /**
+       * 2026-10-19: 기둥·배관 따내기 (플래너 s.cutouts, js/planner/planner-cutout.js) 를 셀 모듈에 나눠 싣는다.
+       *   플래너 몸통 한 벌이 BOM 에선 셀마다 한 상자다. 좌측판 → 첫 셀, 우측판 → 끝 셀,
+       *   천·지판은 격자 열로 — 좌 → 첫 셀, 우 → 끝 셀, 가운데 → 모듈 가운데가 들어 있는 셀.
+       *   값만 나른다. 비고 글은 extractors.js bomCutoutNoteOf 가 만든다.
+       */
+      function _attachCutouts(cellMods, m, s) {
+        const list = (s && Array.isArray(s.cutouts) ? s.cutouts : []).filter((c) =>
+          c && ['left', 'right', 'top', 'bottom'].includes(c.panel) && [0, 1, 2].includes(Number(c.row))
+          && [0, 1, 2].includes(Number(c.col)) && Number(c.w) > 0 && Number(c.h) > 0);
+        if (!list.length || !cellMods.length) return;
+        const first = cellMods[0];
+        const last = cellMods[cellMods.length - 1];
+        const mid = (Number(m.x) || 0) + (Number(m.W) || 0) / 2;
+        const center = cellMods.find((c) => c._x <= mid && mid < c._x + (Number(c.w) || 0)) || first;
+        list.forEach((c) => {
+          const col = Number(c.col);
+          const target = c.panel === 'left' ? first : c.panel === 'right' ? last
+            : col === 0 ? first : col === 2 ? last : center;
+          (target.cutouts = target.cutouts || []).push({
+            panel: c.panel, row: Number(c.row), col, w: Number(c.w), h: Number(c.h),
+          });
+        });
+      }
+
       /** 붙박이장 규칙 파일 (detaildesign.html 이 extractors.js 앞에 싣는다). */
       function _wardrobeRules() {
         if (typeof DadamWardrobeRules !== 'undefined') return DadamWardrobeRules;
@@ -1385,6 +1410,7 @@
               _x: Number(m.x) || 0,
             });
             placeLast(m, 0, Number(m.W) || 0);
+            _attachCutouts(out.slice(-1), m, s);   // 2026-10-19: 멍장도 몸통 한 벌
             return;
           }
 
@@ -1412,6 +1438,7 @@
             }
           }
 
+          const firstOut = out.length;   // 2026-10-19: 이 모듈이 낸 셀들 — 따내기를 붙일 자리
           cells.forEach((c, i) => {
             // blank = 350mm 미만 잔여 조각 (MASTER_RULES.BLANK_THRESHOLD).
             // 캐비닛으로 제작하지 않고 휠라/마감으로 처리되므로 모듈에서 뺀다.
@@ -1500,6 +1527,7 @@
               else warnings.push(`${m.id}: 붙박이장 통 구조를 읽지 못했습니다 — 구조 단계에서 통 구조를 고르세요`);
             }
           });
+          if (m.section !== 'wardrobe') _attachCutouts(out.slice(firstOut), m, s);
         });
 
         // 2026-09-17: 커튼박스는 품목 스펙이다 (배치 공간에서 정하고 플래너가 payload 에 싣는다).

@@ -355,7 +355,10 @@ async function createGeneration(request, env, headers) {
     design_style: STYLES[design_style] ? design_style : DEFAULT_STYLE,
     door_color,
     door_finish,
-    wall_width_override: Number(wall_width_override) || null,
+    // 재생성이면 원본의 실측 폭을 잇는다 (2026-10-19) — 붙박이장 통 나누기는 폭 ±100mm 로도 문 수가
+    //   짝·홀로 바뀐다. 다시 만들기에서 손님이 넣은 폭이 빠지면 같은 사진이 다른 문 수로 나왔다.
+    wall_width_override:
+      Number(wall_width_override) || (parent && parent.options && Number(parent.options.wall_width_override)) || null,
     // 급수·배기는 주방 품목에서만 뜻이 있다 — 붙박이장 요청에 실려 와도 버린다
     water_from_left_override: KITCHEN_CATEGORIES.includes(category) ? Number(water_from_left_override) || null : null,
     exhaust_from_left_override: KITCHEN_CATEGORIES.includes(category) ? Number(exhaust_from_left_override) || null : null,
