@@ -1,0 +1,4338 @@
+{
+  "_doc": [
+    "T1 (PR1) 3D 장면 판재 겹침 허용 목록 — 지금 플래너 3D 가 그리는 판끼리 파고드는 곳 전부. __tests__/scene-overlap.test.js 가 지킨다.",
+    "id = fixture|부재A×부재B (부재 = moduleId|partKey). 겹침 = 부피 > 1mm³ 이고 파고든 깊이 > 0.1mm. volume mm³ · depth mm · region 모듈 로컬 겹친 자리.",
+    "kind: solid(판끼리) · envelope(서랍 박스 외피 — 서랍이 드나드는 자리). cause 는 원인 묶음, reason 은 한 줄 설명. pending-owner Dn 은 사장님 결정 대기.",
+    "항목을 지우는 길은 코드를 고쳐 겹침을 없애는 것뿐이다. 갱신: UPDATE_OVERLAP_ALLOWLIST=1 npx jest __tests__/scene-overlap.test.js"
+  ],
+  "limits": {
+    "minVolume": 1,
+    "minDepth": 0.1
+  },
+  "entries": [
+    {
+      "id": "drawer18|lower-0|brace#0×lower-0|channel:channelBase~2",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "lower-0|brace#0",
+      "b": "lower-0|channel:channelBase~2",
+      "volume": 18900,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          604,
+          260
+        ],
+        "max": [
+          35,
+          622,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer18|lower-0|brace#0×lower-0|channel:channelBase~3",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "lower-0|brace#0",
+      "b": "lower-0|channel:channelBase~3",
+      "volume": 18900,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          266,
+          260
+        ],
+        "max": [
+          35,
+          284,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer18|lower-0|brace#0×lower-0|drawerBox#drawer1",
+      "fixture": "drawer18",
+      "kind": "envelope",
+      "a": "lower-0|brace#0",
+      "b": "lower-0|drawerBox#drawer1",
+      "volume": 63000,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          500,
+          260
+        ],
+        "max": [
+          35,
+          560,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer18|lower-0|brace#0×lower-0|drawerBox#drawer2",
+      "fixture": "drawer18",
+      "kind": "envelope",
+      "a": "lower-0|brace#0",
+      "b": "lower-0|drawerBox#drawer2",
+      "volume": 63000,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          366,
+          260
+        ],
+        "max": [
+          35,
+          426,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer18|lower-0|brace#0×lower-0|drawerBox#drawer3",
+      "fixture": "drawer18",
+      "kind": "envelope",
+      "a": "lower-0|brace#0",
+      "b": "lower-0|drawerBox#drawer3",
+      "volume": 63000,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          175,
+          260
+        ],
+        "max": [
+          35,
+          235,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer18|lower-0|brace#0×lower-0|shelf#0-0",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "lower-0|brace#0",
+      "b": "lower-0|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          496.5,
+          260
+        ],
+        "max": [
+          35,
+          511.5,
+          273
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "drawer18|lower-0|drawerBox#drawer1×lower-0|shelf#0-0",
+      "fixture": "drawer18",
+      "kind": "envelope",
+      "a": "lower-0|drawerBox#drawer1",
+      "b": "lower-0|shelf#0-0",
+      "volume": 4249434,
+      "depth": 11.5,
+      "region": {
+        "min": [
+          -371,
+          500,
+          -225
+        ],
+        "max": [
+          371,
+          511.5,
+          273
+        ]
+      },
+      "cause": "drawer-shelf-kept",
+      "reason": "하부장을 서랍장으로 바꿔도 예전 선반 높이(s.shelves)가 그대로 남아 맨 위 서랍 박스 자리를 지나간다 (볼레일·18T 서랍에서 드러남) — UI 가 서랍 구성으로 바꿀 때 선반을 다시 잡지 않는다"
+    },
+    {
+      "id": "drawer18|lower-1|drawerBox#drawer1×lower-1|shelf#0-0",
+      "fixture": "drawer18",
+      "kind": "envelope",
+      "a": "lower-1|drawerBox#drawer1",
+      "b": "lower-1|shelf#0-0",
+      "volume": 1958634,
+      "depth": 11.5,
+      "region": {
+        "min": [
+          -171,
+          500,
+          -225
+        ],
+        "max": [
+          171,
+          511.5,
+          273
+        ]
+      },
+      "cause": "drawer-shelf-kept",
+      "reason": "하부장을 서랍장으로 바꿔도 예전 선반 높이(s.shelves)가 그대로 남아 맨 위 서랍 박스 자리를 지나간다 (볼레일·18T 서랍에서 드러남) — UI 가 서랍 구성으로 바꿀 때 선반을 다시 잡지 않는다"
+    },
+    {
+      "id": "drawer18|lower-2|brace#0×lower-2|channel:channelBase~2",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "lower-2|brace#0",
+      "b": "lower-2|channel:channelBase~2",
+      "volume": 18900,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          604,
+          260
+        ],
+        "max": [
+          35,
+          622,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer18|lower-2|brace#0×lower-2|channel:channelBase~3",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "lower-2|brace#0",
+      "b": "lower-2|channel:channelBase~3",
+      "volume": 18900,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          266,
+          260
+        ],
+        "max": [
+          35,
+          284,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer18|lower-2|brace#0×lower-2|drawerBox#drawer1",
+      "fixture": "drawer18",
+      "kind": "envelope",
+      "a": "lower-2|brace#0",
+      "b": "lower-2|drawerBox#drawer1",
+      "volume": 63000,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          500,
+          260
+        ],
+        "max": [
+          35,
+          560,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer18|lower-2|brace#0×lower-2|drawerBox#drawer2",
+      "fixture": "drawer18",
+      "kind": "envelope",
+      "a": "lower-2|brace#0",
+      "b": "lower-2|drawerBox#drawer2",
+      "volume": 63000,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          366,
+          260
+        ],
+        "max": [
+          35,
+          426,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer18|lower-2|brace#0×lower-2|drawerBox#drawer3",
+      "fixture": "drawer18",
+      "kind": "envelope",
+      "a": "lower-2|brace#0",
+      "b": "lower-2|drawerBox#drawer3",
+      "volume": 63000,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          175,
+          260
+        ],
+        "max": [
+          35,
+          235,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer18|lower-2|brace#0×lower-2|shelf#0-0",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "lower-2|brace#0",
+      "b": "lower-2|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          496.5,
+          260
+        ],
+        "max": [
+          35,
+          511.5,
+          273
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "drawer18|lower-2|drawerBox#drawer1×lower-2|shelf#0-0",
+      "fixture": "drawer18",
+      "kind": "envelope",
+      "a": "lower-2|drawerBox#drawer1",
+      "b": "lower-2|shelf#0-0",
+      "volume": 5394834,
+      "depth": 11.5,
+      "region": {
+        "min": [
+          -471,
+          500,
+          -225
+        ],
+        "max": [
+          471,
+          511.5,
+          273
+        ]
+      },
+      "cause": "drawer-shelf-kept",
+      "reason": "하부장을 서랍장으로 바꿔도 예전 선반 높이(s.shelves)가 그대로 남아 맨 위 서랍 박스 자리를 지나간다 (볼레일·18T 서랍에서 드러남) — UI 가 서랍 구성으로 바꿀 때 선반을 다시 잡지 않는다"
+    },
+    {
+      "id": "drawer18|lower-3|brace#0×lower-3|channel:channelBase~2",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "lower-3|brace#0",
+      "b": "lower-3|channel:channelBase~2",
+      "volume": 18900,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          604,
+          260
+        ],
+        "max": [
+          35,
+          622,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer18|lower-3|brace#0×lower-3|channel:channelBase~3",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "lower-3|brace#0",
+      "b": "lower-3|channel:channelBase~3",
+      "volume": 18900,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          266,
+          260
+        ],
+        "max": [
+          35,
+          284,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer18|lower-3|brace#0×lower-3|drawerBox#drawer1",
+      "fixture": "drawer18",
+      "kind": "envelope",
+      "a": "lower-3|brace#0",
+      "b": "lower-3|drawerBox#drawer1",
+      "volume": 63000,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          500,
+          260
+        ],
+        "max": [
+          35,
+          560,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer18|lower-3|brace#0×lower-3|drawerBox#drawer2",
+      "fixture": "drawer18",
+      "kind": "envelope",
+      "a": "lower-3|brace#0",
+      "b": "lower-3|drawerBox#drawer2",
+      "volume": 63000,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          366,
+          260
+        ],
+        "max": [
+          35,
+          426,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer18|lower-3|brace#0×lower-3|drawerBox#drawer3",
+      "fixture": "drawer18",
+      "kind": "envelope",
+      "a": "lower-3|brace#0",
+      "b": "lower-3|drawerBox#drawer3",
+      "volume": 63000,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          175,
+          260
+        ],
+        "max": [
+          35,
+          235,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer18|lower-3|brace#0×lower-3|shelf#0-0",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "lower-3|brace#0",
+      "b": "lower-3|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          496.5,
+          260
+        ],
+        "max": [
+          35,
+          511.5,
+          273
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "drawer18|lower-3|drawerBox#drawer1×lower-3|shelf#0-0",
+      "fixture": "drawer18",
+      "kind": "envelope",
+      "a": "lower-3|drawerBox#drawer1",
+      "b": "lower-3|shelf#0-0",
+      "volume": 5005398,
+      "depth": 11.5,
+      "region": {
+        "min": [
+          -437,
+          500,
+          -225
+        ],
+        "max": [
+          437,
+          511.5,
+          273
+        ]
+      },
+      "cause": "drawer-shelf-kept",
+      "reason": "하부장을 서랍장으로 바꿔도 예전 선반 높이(s.shelves)가 그대로 남아 맨 위 서랍 박스 자리를 지나간다 (볼레일·18T 서랍에서 드러남) — UI 가 서랍 구성으로 바꿀 때 선반을 다시 잡지 않는다"
+    },
+    {
+      "id": "drawer18|lower-4|drawerBox#drawer1×lower-4|shelf#0-0",
+      "fixture": "drawer18",
+      "kind": "envelope",
+      "a": "lower-4|drawerBox#drawer1",
+      "b": "lower-4|shelf#0-0",
+      "volume": 2336616,
+      "depth": 11.5,
+      "region": {
+        "min": [
+          -204,
+          500,
+          -225
+        ],
+        "max": [
+          204,
+          511.5,
+          273
+        ]
+      },
+      "cause": "drawer-shelf-kept",
+      "reason": "하부장을 서랍장으로 바꿔도 예전 선반 높이(s.shelves)가 그대로 남아 맨 위 서랍 박스 자리를 지나간다 (볼레일·18T 서랍에서 드러남) — UI 가 서랍 구성으로 바꿀 때 선반을 다시 잡지 않는다"
+    },
+    {
+      "id": "drawer18|upper-0|body:back×upper-0|body:left",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -440,
+          0.5,
+          -130
+        ],
+        "max": [
+          -435,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "drawer18|upper-0|body:back×upper-0|body:right",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          435,
+          0.5,
+          -130
+        ],
+        "max": [
+          440,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "drawer18|upper-0|body:back×upper-0|shelf#0-0",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|shelf#0-0",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          235.5,
+          -128
+        ],
+        "max": [
+          433,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "drawer18|upper-0|body:back×upper-0|shelf#0-1",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|shelf#0-1",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          470.5,
+          -128
+        ],
+        "max": [
+          433,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "drawer18|upper-0|brace#0×upper-0|shelf#0-0",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-0|brace#0",
+      "b": "upper-0|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          235.5,
+          130
+        ],
+        "max": [
+          35,
+          250.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "drawer18|upper-0|brace#0×upper-0|shelf#0-1",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-0|brace#0",
+      "b": "upper-0|shelf#0-1",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          470.5,
+          130
+        ],
+        "max": [
+          35,
+          485.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "drawer18|upper-1|body:back×upper-1|body:left",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -440,
+          0.5,
+          -130
+        ],
+        "max": [
+          -435,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "drawer18|upper-1|body:back×upper-1|body:right",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          435,
+          0.5,
+          -130
+        ],
+        "max": [
+          440,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "drawer18|upper-1|body:back×upper-1|shelf#0-0",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|shelf#0-0",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          235.5,
+          -128
+        ],
+        "max": [
+          433,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "drawer18|upper-1|body:back×upper-1|shelf#0-1",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|shelf#0-1",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          470.5,
+          -128
+        ],
+        "max": [
+          433,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "drawer18|upper-1|brace#0×upper-1|shelf#0-0",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-1|brace#0",
+      "b": "upper-1|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          235.5,
+          130
+        ],
+        "max": [
+          35,
+          250.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "drawer18|upper-1|brace#0×upper-1|shelf#0-1",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-1|brace#0",
+      "b": "upper-1|shelf#0-1",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          470.5,
+          130
+        ],
+        "max": [
+          35,
+          485.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "drawer18|upper-2|body:back×upper-2|body:left",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-2|body:back",
+      "b": "upper-2|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -390,
+          0.5,
+          -130
+        ],
+        "max": [
+          -385,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "drawer18|upper-2|body:back×upper-2|body:right",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-2|body:back",
+      "b": "upper-2|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          385,
+          0.5,
+          -130
+        ],
+        "max": [
+          390,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "drawer18|upper-2|body:back×upper-2|shelf#0-0",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-2|body:back",
+      "b": "upper-2|shelf#0-0",
+      "volume": 11490,
+      "depth": 1,
+      "region": {
+        "min": [
+          -383,
+          235.5,
+          -128
+        ],
+        "max": [
+          383,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "drawer18|upper-2|body:back×upper-2|shelf#0-1",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-2|body:back",
+      "b": "upper-2|shelf#0-1",
+      "volume": 11490,
+      "depth": 1,
+      "region": {
+        "min": [
+          -383,
+          470.5,
+          -128
+        ],
+        "max": [
+          383,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "drawer18|upper-2|brace#0×upper-2|shelf#0-0",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-2|brace#0",
+      "b": "upper-2|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          235.5,
+          130
+        ],
+        "max": [
+          35,
+          250.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "drawer18|upper-2|brace#0×upper-2|shelf#0-1",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-2|brace#0",
+      "b": "upper-2|shelf#0-1",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          470.5,
+          130
+        ],
+        "max": [
+          35,
+          485.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "drawer18|upper-3|body:back×upper-3|body:left",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-3|body:back",
+      "b": "upper-3|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -190,
+          0.5,
+          -130
+        ],
+        "max": [
+          -185,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "drawer18|upper-3|body:back×upper-3|body:right",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-3|body:back",
+      "b": "upper-3|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          185,
+          0.5,
+          -130
+        ],
+        "max": [
+          190,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "drawer18|upper-3|body:back×upper-3|shelf#0-0",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-3|body:back",
+      "b": "upper-3|shelf#0-0",
+      "volume": 5490,
+      "depth": 1,
+      "region": {
+        "min": [
+          -183,
+          235.5,
+          -128
+        ],
+        "max": [
+          183,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "drawer18|upper-3|body:back×upper-3|shelf#0-1",
+      "fixture": "drawer18",
+      "kind": "solid",
+      "a": "upper-3|body:back",
+      "b": "upper-3|shelf#0-1",
+      "volume": 5490,
+      "depth": 1,
+      "region": {
+        "min": [
+          -183,
+          470.5,
+          -128
+        ],
+        "max": [
+          183,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "drawer|lower-0|brace#0×lower-0|channel:channelBase~2",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "lower-0|brace#0",
+      "b": "lower-0|channel:channelBase~2",
+      "volume": 18900,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          604,
+          260
+        ],
+        "max": [
+          35,
+          622,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer|lower-0|brace#0×lower-0|channel:channelBase~3",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "lower-0|brace#0",
+      "b": "lower-0|channel:channelBase~3",
+      "volume": 18900,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          266,
+          260
+        ],
+        "max": [
+          35,
+          284,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer|lower-0|brace#0×lower-0|drawerBox#drawer1",
+      "fixture": "drawer",
+      "kind": "envelope",
+      "a": "lower-0|brace#0",
+      "b": "lower-0|drawerBox#drawer1",
+      "volume": 63000,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          520,
+          260
+        ],
+        "max": [
+          35,
+          580,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer|lower-0|brace#0×lower-0|drawerBox#drawer2",
+      "fixture": "drawer",
+      "kind": "envelope",
+      "a": "lower-0|brace#0",
+      "b": "lower-0|drawerBox#drawer2",
+      "volume": 63000,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          386,
+          260
+        ],
+        "max": [
+          35,
+          446,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer|lower-0|brace#0×lower-0|drawerBox#drawer3",
+      "fixture": "drawer",
+      "kind": "envelope",
+      "a": "lower-0|brace#0",
+      "b": "lower-0|drawerBox#drawer3",
+      "volume": 63000,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          195,
+          260
+        ],
+        "max": [
+          35,
+          255,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer|lower-0|brace#0×lower-0|shelf#0-0",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "lower-0|brace#0",
+      "b": "lower-0|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          496.5,
+          260
+        ],
+        "max": [
+          35,
+          511.5,
+          273
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "drawer|lower-2|brace#0×lower-2|channel:channelBase~2",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "lower-2|brace#0",
+      "b": "lower-2|channel:channelBase~2",
+      "volume": 18900,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          604,
+          260
+        ],
+        "max": [
+          35,
+          622,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer|lower-2|brace#0×lower-2|channel:channelBase~3",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "lower-2|brace#0",
+      "b": "lower-2|channel:channelBase~3",
+      "volume": 18900,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          266,
+          260
+        ],
+        "max": [
+          35,
+          284,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer|lower-2|brace#0×lower-2|drawerBox#drawer1",
+      "fixture": "drawer",
+      "kind": "envelope",
+      "a": "lower-2|brace#0",
+      "b": "lower-2|drawerBox#drawer1",
+      "volume": 63000,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          520,
+          260
+        ],
+        "max": [
+          35,
+          580,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer|lower-2|brace#0×lower-2|drawerBox#drawer2",
+      "fixture": "drawer",
+      "kind": "envelope",
+      "a": "lower-2|brace#0",
+      "b": "lower-2|drawerBox#drawer2",
+      "volume": 63000,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          386,
+          260
+        ],
+        "max": [
+          35,
+          446,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer|lower-2|brace#0×lower-2|drawerBox#drawer3",
+      "fixture": "drawer",
+      "kind": "envelope",
+      "a": "lower-2|brace#0",
+      "b": "lower-2|drawerBox#drawer3",
+      "volume": 63000,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          195,
+          260
+        ],
+        "max": [
+          35,
+          255,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer|lower-2|brace#0×lower-2|shelf#0-0",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "lower-2|brace#0",
+      "b": "lower-2|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          496.5,
+          260
+        ],
+        "max": [
+          35,
+          511.5,
+          273
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "drawer|lower-3|brace#0×lower-3|channel:channelBase~2",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "lower-3|brace#0",
+      "b": "lower-3|channel:channelBase~2",
+      "volume": 18900,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          604,
+          260
+        ],
+        "max": [
+          35,
+          622,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer|lower-3|brace#0×lower-3|channel:channelBase~3",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "lower-3|brace#0",
+      "b": "lower-3|channel:channelBase~3",
+      "volume": 18900,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          266,
+          260
+        ],
+        "max": [
+          35,
+          284,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer|lower-3|brace#0×lower-3|drawerBox#drawer1",
+      "fixture": "drawer",
+      "kind": "envelope",
+      "a": "lower-3|brace#0",
+      "b": "lower-3|drawerBox#drawer1",
+      "volume": 63000,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          520,
+          260
+        ],
+        "max": [
+          35,
+          580,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer|lower-3|brace#0×lower-3|drawerBox#drawer2",
+      "fixture": "drawer",
+      "kind": "envelope",
+      "a": "lower-3|brace#0",
+      "b": "lower-3|drawerBox#drawer2",
+      "volume": 63000,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          386,
+          260
+        ],
+        "max": [
+          35,
+          446,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer|lower-3|brace#0×lower-3|drawerBox#drawer3",
+      "fixture": "drawer",
+      "kind": "envelope",
+      "a": "lower-3|brace#0",
+      "b": "lower-3|drawerBox#drawer3",
+      "volume": 63000,
+      "depth": 15,
+      "region": {
+        "min": [
+          -35,
+          195,
+          260
+        ],
+        "max": [
+          35,
+          255,
+          275
+        ]
+      },
+      "cause": "pending-owner D2",
+      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
+    },
+    {
+      "id": "drawer|lower-3|brace#0×lower-3|shelf#0-0",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "lower-3|brace#0",
+      "b": "lower-3|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          496.5,
+          260
+        ],
+        "max": [
+          35,
+          511.5,
+          273
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "drawer|upper-0|body:back×upper-0|body:left",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -440,
+          0.5,
+          -130
+        ],
+        "max": [
+          -435,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "drawer|upper-0|body:back×upper-0|body:right",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          435,
+          0.5,
+          -130
+        ],
+        "max": [
+          440,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "drawer|upper-0|body:back×upper-0|shelf#0-0",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|shelf#0-0",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          235.5,
+          -128
+        ],
+        "max": [
+          433,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "drawer|upper-0|body:back×upper-0|shelf#0-1",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|shelf#0-1",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          470.5,
+          -128
+        ],
+        "max": [
+          433,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "drawer|upper-0|brace#0×upper-0|shelf#0-0",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-0|brace#0",
+      "b": "upper-0|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          235.5,
+          130
+        ],
+        "max": [
+          35,
+          250.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "drawer|upper-0|brace#0×upper-0|shelf#0-1",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-0|brace#0",
+      "b": "upper-0|shelf#0-1",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          470.5,
+          130
+        ],
+        "max": [
+          35,
+          485.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "drawer|upper-1|body:back×upper-1|body:left",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -440,
+          0.5,
+          -130
+        ],
+        "max": [
+          -435,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "drawer|upper-1|body:back×upper-1|body:right",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          435,
+          0.5,
+          -130
+        ],
+        "max": [
+          440,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "drawer|upper-1|body:back×upper-1|shelf#0-0",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|shelf#0-0",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          235.5,
+          -128
+        ],
+        "max": [
+          433,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "drawer|upper-1|body:back×upper-1|shelf#0-1",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|shelf#0-1",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          470.5,
+          -128
+        ],
+        "max": [
+          433,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "drawer|upper-1|brace#0×upper-1|shelf#0-0",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-1|brace#0",
+      "b": "upper-1|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          235.5,
+          130
+        ],
+        "max": [
+          35,
+          250.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "drawer|upper-1|brace#0×upper-1|shelf#0-1",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-1|brace#0",
+      "b": "upper-1|shelf#0-1",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          470.5,
+          130
+        ],
+        "max": [
+          35,
+          485.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "drawer|upper-2|body:back×upper-2|body:left",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-2|body:back",
+      "b": "upper-2|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -390,
+          0.5,
+          -130
+        ],
+        "max": [
+          -385,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "drawer|upper-2|body:back×upper-2|body:right",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-2|body:back",
+      "b": "upper-2|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          385,
+          0.5,
+          -130
+        ],
+        "max": [
+          390,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "drawer|upper-2|body:back×upper-2|shelf#0-0",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-2|body:back",
+      "b": "upper-2|shelf#0-0",
+      "volume": 11490,
+      "depth": 1,
+      "region": {
+        "min": [
+          -383,
+          235.5,
+          -128
+        ],
+        "max": [
+          383,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "drawer|upper-2|body:back×upper-2|shelf#0-1",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-2|body:back",
+      "b": "upper-2|shelf#0-1",
+      "volume": 11490,
+      "depth": 1,
+      "region": {
+        "min": [
+          -383,
+          470.5,
+          -128
+        ],
+        "max": [
+          383,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "drawer|upper-2|brace#0×upper-2|shelf#0-0",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-2|brace#0",
+      "b": "upper-2|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          235.5,
+          130
+        ],
+        "max": [
+          35,
+          250.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "drawer|upper-2|brace#0×upper-2|shelf#0-1",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-2|brace#0",
+      "b": "upper-2|shelf#0-1",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          470.5,
+          130
+        ],
+        "max": [
+          35,
+          485.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "drawer|upper-3|body:back×upper-3|body:left",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-3|body:back",
+      "b": "upper-3|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -190,
+          0.5,
+          -130
+        ],
+        "max": [
+          -185,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "drawer|upper-3|body:back×upper-3|body:right",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-3|body:back",
+      "b": "upper-3|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          185,
+          0.5,
+          -130
+        ],
+        "max": [
+          190,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "drawer|upper-3|body:back×upper-3|shelf#0-0",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-3|body:back",
+      "b": "upper-3|shelf#0-0",
+      "volume": 5490,
+      "depth": 1,
+      "region": {
+        "min": [
+          -183,
+          235.5,
+          -128
+        ],
+        "max": [
+          183,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "drawer|upper-3|body:back×upper-3|shelf#0-1",
+      "fixture": "drawer",
+      "kind": "solid",
+      "a": "upper-3|body:back",
+      "b": "upper-3|shelf#0-1",
+      "volume": 5490,
+      "depth": 1,
+      "region": {
+        "min": [
+          -183,
+          470.5,
+          -128
+        ],
+        "max": [
+          183,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "lShape|lower-0|brace#0×lower-0|shelf#0-0",
+      "fixture": "lShape",
+      "kind": "solid",
+      "a": "lower-0|brace#0",
+      "b": "lower-0|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          496.5,
+          260
+        ],
+        "max": [
+          35,
+          511.5,
+          273
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "lShape|lower-1|brace#0×lower-1|shelf#0-0",
+      "fixture": "lShape",
+      "kind": "solid",
+      "a": "lower-1|brace#0",
+      "b": "lower-1|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          496.5,
+          260
+        ],
+        "max": [
+          35,
+          511.5,
+          273
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "lShape|lower-2|brace#0×lower-2|shelf#0-0",
+      "fixture": "lShape",
+      "kind": "solid",
+      "a": "lower-2|brace#0",
+      "b": "lower-2|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          496.5,
+          260
+        ],
+        "max": [
+          35,
+          511.5,
+          273
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "lShape|lower-3|brace#0×lower-3|shelf#0-0",
+      "fixture": "lShape",
+      "kind": "solid",
+      "a": "lower-3|brace#0",
+      "b": "lower-3|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          496.5,
+          260
+        ],
+        "max": [
+          35,
+          511.5,
+          273
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "lShape|upper-0|body:back×upper-0|body:left",
+      "fixture": "lShape",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -440,
+          0.5,
+          -130
+        ],
+        "max": [
+          -435,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "lShape|upper-0|body:back×upper-0|body:right",
+      "fixture": "lShape",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          435,
+          0.5,
+          -130
+        ],
+        "max": [
+          440,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "lShape|upper-0|body:back×upper-0|shelf#0-0",
+      "fixture": "lShape",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|shelf#0-0",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          235.5,
+          -128
+        ],
+        "max": [
+          433,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "lShape|upper-0|body:back×upper-0|shelf#0-1",
+      "fixture": "lShape",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|shelf#0-1",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          470.5,
+          -128
+        ],
+        "max": [
+          433,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "lShape|upper-0|brace#0×upper-0|shelf#0-0",
+      "fixture": "lShape",
+      "kind": "solid",
+      "a": "upper-0|brace#0",
+      "b": "upper-0|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          235.5,
+          130
+        ],
+        "max": [
+          35,
+          250.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "lShape|upper-0|brace#0×upper-0|shelf#0-1",
+      "fixture": "lShape",
+      "kind": "solid",
+      "a": "upper-0|brace#0",
+      "b": "upper-0|shelf#0-1",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          470.5,
+          130
+        ],
+        "max": [
+          35,
+          485.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "lShape|upper-1|body:back×upper-1|body:left",
+      "fixture": "lShape",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -440,
+          0.5,
+          -130
+        ],
+        "max": [
+          -435,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "lShape|upper-1|body:back×upper-1|body:right",
+      "fixture": "lShape",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          435,
+          0.5,
+          -130
+        ],
+        "max": [
+          440,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "lShape|upper-1|body:back×upper-1|shelf#0-0",
+      "fixture": "lShape",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|shelf#0-0",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          235.5,
+          -128
+        ],
+        "max": [
+          433,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "lShape|upper-1|body:back×upper-1|shelf#0-1",
+      "fixture": "lShape",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|shelf#0-1",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          470.5,
+          -128
+        ],
+        "max": [
+          433,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "lShape|upper-1|brace#0×upper-1|shelf#0-0",
+      "fixture": "lShape",
+      "kind": "solid",
+      "a": "upper-1|brace#0",
+      "b": "upper-1|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          235.5,
+          130
+        ],
+        "max": [
+          35,
+          250.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "lShape|upper-1|brace#0×upper-1|shelf#0-1",
+      "fixture": "lShape",
+      "kind": "solid",
+      "a": "upper-1|brace#0",
+      "b": "upper-1|shelf#0-1",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          470.5,
+          130
+        ],
+        "max": [
+          35,
+          485.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "multiCell|lower-0|brace#0×lower-0|shelf#0-0",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "lower-0|brace#0",
+      "b": "lower-0|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          496.5,
+          260
+        ],
+        "max": [
+          35,
+          511.5,
+          273
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "multiCell|lower-2|body:bottom×lower-2|body:divider#0",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "lower-2|body:bottom",
+      "b": "lower-2|body:divider#0",
+      "volume": 123750,
+      "depth": 15,
+      "region": {
+        "min": [
+          -174.2,
+          150,
+          -275
+        ],
+        "max": [
+          -159.2,
+          165,
+          275
+        ]
+      },
+      "cause": "divider-full-height",
+      "reason": "3D 칸막이가 몸통 전체 높이(측판과 같은 H)로 서서 지판·천판(측판 사이 전폭)을 15T 관통한다 — 한 통 + 칸막이로 그릴지 칸마다 통으로 그릴지는 결정 D1"
+    },
+    {
+      "id": "multiCell|lower-2|body:bottom×lower-2|body:divider#1",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "lower-2|body:bottom",
+      "b": "lower-2|body:divider#1",
+      "volume": 123750,
+      "depth": 15,
+      "region": {
+        "min": [
+          159.2,
+          150,
+          -275
+        ],
+        "max": [
+          174.2,
+          165,
+          275
+        ]
+      },
+      "cause": "divider-full-height",
+      "reason": "3D 칸막이가 몸통 전체 높이(측판과 같은 H)로 서서 지판·천판(측판 사이 전폭)을 15T 관통한다 — 한 통 + 칸막이로 그릴지 칸마다 통으로 그릴지는 결정 D1"
+    },
+    {
+      "id": "multiCell|lower-2|body:divider#0×lower-2|body:top",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "lower-2|body:divider#0",
+      "b": "lower-2|body:top",
+      "volume": 114750,
+      "depth": 15,
+      "region": {
+        "min": [
+          -174.2,
+          843,
+          -275
+        ],
+        "max": [
+          -159.2,
+          858,
+          235
+        ]
+      },
+      "cause": "divider-full-height",
+      "reason": "3D 칸막이가 몸통 전체 높이(측판과 같은 H)로 서서 지판·천판(측판 사이 전폭)을 15T 관통한다 — 한 통 + 칸막이로 그릴지 칸마다 통으로 그릴지는 결정 D1"
+    },
+    {
+      "id": "multiCell|lower-2|body:divider#1×lower-2|body:top",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "lower-2|body:divider#1",
+      "b": "lower-2|body:top",
+      "volume": 114750,
+      "depth": 15,
+      "region": {
+        "min": [
+          159.2,
+          843,
+          -275
+        ],
+        "max": [
+          174.2,
+          858,
+          235
+        ]
+      },
+      "cause": "divider-full-height",
+      "reason": "3D 칸막이가 몸통 전체 높이(측판과 같은 H)로 서서 지판·천판(측판 사이 전폭)을 15T 관통한다 — 한 통 + 칸막이로 그릴지 칸마다 통으로 그릴지는 결정 D1"
+    },
+    {
+      "id": "multiCell|lower-2|brace#0×lower-2|shelf#1-0",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "lower-2|brace#0",
+      "b": "lower-2|shelf#1-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          496.5,
+          260
+        ],
+        "max": [
+          35,
+          511.5,
+          273
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "multiCell|lower-3|brace#0×lower-3|shelf#0-0",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "lower-3|brace#0",
+      "b": "lower-3|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          496.5,
+          260
+        ],
+        "max": [
+          35,
+          511.5,
+          273
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "multiCell|upper-0|body:back×upper-0|body:divider#0",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|body:divider#0",
+      "volume": 32355,
+      "depth": 3,
+      "region": {
+        "min": [
+          -157.5,
+          0.5,
+          -130
+        ],
+        "max": [
+          -142.5,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 칸막이가 측판처럼 깊이 D 전체로 서서 사쿠리 뒷판을 지나간다 — 칸막이에 홈을 파는지 짧게 자르는지는 정본에 없다 (다칸 구조는 결정 D1)"
+    },
+    {
+      "id": "multiCell|upper-0|body:back×upper-0|body:divider#1",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|body:divider#1",
+      "volume": 32355,
+      "depth": 3,
+      "region": {
+        "min": [
+          142.5,
+          0.5,
+          -130
+        ],
+        "max": [
+          157.5,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 칸막이가 측판처럼 깊이 D 전체로 서서 사쿠리 뒷판을 지나간다 — 칸막이에 홈을 파는지 짧게 자르는지는 정본에 없다 (다칸 구조는 결정 D1)"
+    },
+    {
+      "id": "multiCell|upper-0|body:back×upper-0|body:left",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -440,
+          0.5,
+          -130
+        ],
+        "max": [
+          -435,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "multiCell|upper-0|body:back×upper-0|body:right",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          435,
+          0.5,
+          -130
+        ],
+        "max": [
+          440,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "multiCell|upper-0|body:back×upper-0|shelf#0-0",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|shelf#0-0",
+      "volume": 3990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          235.5,
+          -128
+        ],
+        "max": [
+          -167,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "multiCell|upper-0|body:back×upper-0|shelf#0-1",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|shelf#0-1",
+      "volume": 3990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          470.5,
+          -128
+        ],
+        "max": [
+          -167,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "multiCell|upper-0|body:back×upper-0|shelf#1-0",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|shelf#1-0",
+      "volume": 3990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -133,
+          235.5,
+          -128
+        ],
+        "max": [
+          133,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "multiCell|upper-0|body:back×upper-0|shelf#1-1",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|shelf#1-1",
+      "volume": 3990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -133,
+          470.5,
+          -128
+        ],
+        "max": [
+          133,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "multiCell|upper-0|body:back×upper-0|shelf#2-0",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|shelf#2-0",
+      "volume": 3990,
+      "depth": 1,
+      "region": {
+        "min": [
+          167,
+          235.5,
+          -128
+        ],
+        "max": [
+          433,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "multiCell|upper-0|body:back×upper-0|shelf#2-1",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|shelf#2-1",
+      "volume": 3990,
+      "depth": 1,
+      "region": {
+        "min": [
+          167,
+          470.5,
+          -128
+        ],
+        "max": [
+          433,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "multiCell|upper-0|body:bottom×upper-0|body:divider#0",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-0|body:bottom",
+      "b": "upper-0|body:divider#0",
+      "volume": 61200,
+      "depth": 15,
+      "region": {
+        "min": [
+          -157.5,
+          0,
+          -127
+        ],
+        "max": [
+          -142.5,
+          15,
+          145
+        ]
+      },
+      "cause": "divider-full-height",
+      "reason": "3D 칸막이가 몸통 전체 높이(측판과 같은 H)로 서서 지판·천판(측판 사이 전폭)을 15T 관통한다 — 한 통 + 칸막이로 그릴지 칸마다 통으로 그릴지는 결정 D1"
+    },
+    {
+      "id": "multiCell|upper-0|body:bottom×upper-0|body:divider#1",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-0|body:bottom",
+      "b": "upper-0|body:divider#1",
+      "volume": 61200,
+      "depth": 15,
+      "region": {
+        "min": [
+          142.5,
+          0,
+          -127
+        ],
+        "max": [
+          157.5,
+          15,
+          145
+        ]
+      },
+      "cause": "divider-full-height",
+      "reason": "3D 칸막이가 몸통 전체 높이(측판과 같은 H)로 서서 지판·천판(측판 사이 전폭)을 15T 관통한다 — 한 통 + 칸막이로 그릴지 칸마다 통으로 그릴지는 결정 D1"
+    },
+    {
+      "id": "multiCell|upper-0|body:divider#0×upper-0|body:top",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-0|body:divider#0",
+      "b": "upper-0|body:top",
+      "volume": 61200,
+      "depth": 15,
+      "region": {
+        "min": [
+          -157.5,
+          705,
+          -127
+        ],
+        "max": [
+          -142.5,
+          720,
+          145
+        ]
+      },
+      "cause": "divider-full-height",
+      "reason": "3D 칸막이가 몸통 전체 높이(측판과 같은 H)로 서서 지판·천판(측판 사이 전폭)을 15T 관통한다 — 한 통 + 칸막이로 그릴지 칸마다 통으로 그릴지는 결정 D1"
+    },
+    {
+      "id": "multiCell|upper-0|body:divider#1×upper-0|body:top",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-0|body:divider#1",
+      "b": "upper-0|body:top",
+      "volume": 61200,
+      "depth": 15,
+      "region": {
+        "min": [
+          142.5,
+          705,
+          -127
+        ],
+        "max": [
+          157.5,
+          720,
+          145
+        ]
+      },
+      "cause": "divider-full-height",
+      "reason": "3D 칸막이가 몸통 전체 높이(측판과 같은 H)로 서서 지판·천판(측판 사이 전폭)을 15T 관통한다 — 한 통 + 칸막이로 그릴지 칸마다 통으로 그릴지는 결정 D1"
+    },
+    {
+      "id": "multiCell|upper-0|brace#0×upper-0|shelf#1-0",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-0|brace#0",
+      "b": "upper-0|shelf#1-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          235.5,
+          130
+        ],
+        "max": [
+          35,
+          250.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "multiCell|upper-0|brace#0×upper-0|shelf#1-1",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-0|brace#0",
+      "b": "upper-0|shelf#1-1",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          470.5,
+          130
+        ],
+        "max": [
+          35,
+          485.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "multiCell|upper-1|body:back×upper-1|body:left",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -440,
+          0.5,
+          -130
+        ],
+        "max": [
+          -435,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "multiCell|upper-1|body:back×upper-1|body:right",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          435,
+          0.5,
+          -130
+        ],
+        "max": [
+          440,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "multiCell|upper-1|body:back×upper-1|shelf#0-0",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|shelf#0-0",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          235.5,
+          -128
+        ],
+        "max": [
+          433,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "multiCell|upper-1|body:back×upper-1|shelf#0-1",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|shelf#0-1",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          470.5,
+          -128
+        ],
+        "max": [
+          433,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "multiCell|upper-1|brace#0×upper-1|shelf#0-0",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-1|brace#0",
+      "b": "upper-1|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          235.5,
+          130
+        ],
+        "max": [
+          35,
+          250.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "multiCell|upper-1|brace#0×upper-1|shelf#0-1",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-1|brace#0",
+      "b": "upper-1|shelf#0-1",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          470.5,
+          130
+        ],
+        "max": [
+          35,
+          485.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "multiCell|upper-2|body:back×upper-2|body:left",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-2|body:back",
+      "b": "upper-2|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -390,
+          0.5,
+          -130
+        ],
+        "max": [
+          -385,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "multiCell|upper-2|body:back×upper-2|body:right",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-2|body:back",
+      "b": "upper-2|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          385,
+          0.5,
+          -130
+        ],
+        "max": [
+          390,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "multiCell|upper-2|body:back×upper-2|shelf#0-0",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-2|body:back",
+      "b": "upper-2|shelf#0-0",
+      "volume": 11490,
+      "depth": 1,
+      "region": {
+        "min": [
+          -383,
+          235.5,
+          -128
+        ],
+        "max": [
+          383,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "multiCell|upper-2|body:back×upper-2|shelf#0-1",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-2|body:back",
+      "b": "upper-2|shelf#0-1",
+      "volume": 11490,
+      "depth": 1,
+      "region": {
+        "min": [
+          -383,
+          470.5,
+          -128
+        ],
+        "max": [
+          383,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "multiCell|upper-2|brace#0×upper-2|shelf#0-0",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-2|brace#0",
+      "b": "upper-2|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          235.5,
+          130
+        ],
+        "max": [
+          35,
+          250.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "multiCell|upper-2|brace#0×upper-2|shelf#0-1",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-2|brace#0",
+      "b": "upper-2|shelf#0-1",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          470.5,
+          130
+        ],
+        "max": [
+          35,
+          485.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "multiCell|upper-3|body:back×upper-3|body:left",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-3|body:back",
+      "b": "upper-3|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -190,
+          0.5,
+          -130
+        ],
+        "max": [
+          -185,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "multiCell|upper-3|body:back×upper-3|body:right",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-3|body:back",
+      "b": "upper-3|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          185,
+          0.5,
+          -130
+        ],
+        "max": [
+          190,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "multiCell|upper-3|body:back×upper-3|shelf#0-0",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-3|body:back",
+      "b": "upper-3|shelf#0-0",
+      "volume": 5490,
+      "depth": 1,
+      "region": {
+        "min": [
+          -183,
+          235.5,
+          -128
+        ],
+        "max": [
+          183,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "multiCell|upper-3|body:back×upper-3|shelf#0-1",
+      "fixture": "multiCell",
+      "kind": "solid",
+      "a": "upper-3|body:back",
+      "b": "upper-3|shelf#0-1",
+      "volume": 5490,
+      "depth": 1,
+      "region": {
+        "min": [
+          -183,
+          470.5,
+          -128
+        ],
+        "max": [
+          183,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "oblique|lower-0|brace#0×lower-0|shelf#0-0",
+      "fixture": "oblique",
+      "kind": "solid",
+      "a": "lower-0|brace#0",
+      "b": "lower-0|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          496.5,
+          260
+        ],
+        "max": [
+          35,
+          511.5,
+          273
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "oblique|lower-1|brace#0×lower-1|shelf#0-0",
+      "fixture": "oblique",
+      "kind": "solid",
+      "a": "lower-1|brace#0",
+      "b": "lower-1|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          496.5,
+          260
+        ],
+        "max": [
+          35,
+          511.5,
+          273
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "oblique|lower-2|brace#0×lower-2|shelf#0-0",
+      "fixture": "oblique",
+      "kind": "solid",
+      "a": "lower-2|brace#0",
+      "b": "lower-2|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          496.5,
+          260
+        ],
+        "max": [
+          35,
+          511.5,
+          273
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "oblique|upper-0|body:back×upper-0|body:left",
+      "fixture": "oblique",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -440,
+          0.5,
+          -130
+        ],
+        "max": [
+          -435,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "oblique|upper-0|body:back×upper-0|body:right",
+      "fixture": "oblique",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          435,
+          0.5,
+          -130
+        ],
+        "max": [
+          440,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "oblique|upper-0|body:back×upper-0|shelf#0-0",
+      "fixture": "oblique",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|shelf#0-0",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          235.5,
+          -128
+        ],
+        "max": [
+          433,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "oblique|upper-0|body:back×upper-0|shelf#0-1",
+      "fixture": "oblique",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|shelf#0-1",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          470.5,
+          -128
+        ],
+        "max": [
+          433,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "oblique|upper-0|brace#0×upper-0|shelf#0-0",
+      "fixture": "oblique",
+      "kind": "solid",
+      "a": "upper-0|brace#0",
+      "b": "upper-0|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          235.5,
+          130
+        ],
+        "max": [
+          35,
+          250.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "oblique|upper-0|brace#0×upper-0|shelf#0-1",
+      "fixture": "oblique",
+      "kind": "solid",
+      "a": "upper-0|brace#0",
+      "b": "upper-0|shelf#0-1",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          470.5,
+          130
+        ],
+        "max": [
+          35,
+          485.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "oblique|upper-1|body:back×upper-1|body:left",
+      "fixture": "oblique",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -440,
+          0.5,
+          -130
+        ],
+        "max": [
+          -435,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "oblique|upper-1|body:back×upper-1|body:right",
+      "fixture": "oblique",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          435,
+          0.5,
+          -130
+        ],
+        "max": [
+          440,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "oblique|upper-1|body:back×upper-1|shelf#0-0",
+      "fixture": "oblique",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|shelf#0-0",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          235.5,
+          -128
+        ],
+        "max": [
+          433,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "oblique|upper-1|body:back×upper-1|shelf#0-1",
+      "fixture": "oblique",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|shelf#0-1",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          470.5,
+          -128
+        ],
+        "max": [
+          433,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "oblique|upper-1|brace#0×upper-1|shelf#0-0",
+      "fixture": "oblique",
+      "kind": "solid",
+      "a": "upper-1|brace#0",
+      "b": "upper-1|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          235.5,
+          130
+        ],
+        "max": [
+          35,
+          250.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "oblique|upper-1|brace#0×upper-1|shelf#0-1",
+      "fixture": "oblique",
+      "kind": "solid",
+      "a": "upper-1|brace#0",
+      "b": "upper-1|shelf#0-1",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          470.5,
+          130
+        ],
+        "max": [
+          35,
+          485.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "straight|lower-0|brace#0×lower-0|shelf#0-0",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "lower-0|brace#0",
+      "b": "lower-0|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          496.5,
+          260
+        ],
+        "max": [
+          35,
+          511.5,
+          273
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "straight|lower-2|brace#0×lower-2|shelf#0-0",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "lower-2|brace#0",
+      "b": "lower-2|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          496.5,
+          260
+        ],
+        "max": [
+          35,
+          511.5,
+          273
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "straight|lower-3|brace#0×lower-3|shelf#0-0",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "lower-3|brace#0",
+      "b": "lower-3|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          496.5,
+          260
+        ],
+        "max": [
+          35,
+          511.5,
+          273
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "straight|upper-0|body:back×upper-0|body:left",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -440,
+          0.5,
+          -130
+        ],
+        "max": [
+          -435,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "straight|upper-0|body:back×upper-0|body:right",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          435,
+          0.5,
+          -130
+        ],
+        "max": [
+          440,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "straight|upper-0|body:back×upper-0|shelf#0-0",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|shelf#0-0",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          235.5,
+          -128
+        ],
+        "max": [
+          433,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "straight|upper-0|body:back×upper-0|shelf#0-1",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-0|body:back",
+      "b": "upper-0|shelf#0-1",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          470.5,
+          -128
+        ],
+        "max": [
+          433,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "straight|upper-0|brace#0×upper-0|shelf#0-0",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-0|brace#0",
+      "b": "upper-0|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          235.5,
+          130
+        ],
+        "max": [
+          35,
+          250.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "straight|upper-0|brace#0×upper-0|shelf#0-1",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-0|brace#0",
+      "b": "upper-0|shelf#0-1",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          470.5,
+          130
+        ],
+        "max": [
+          35,
+          485.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "straight|upper-1|body:back×upper-1|body:left",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -440,
+          0.5,
+          -130
+        ],
+        "max": [
+          -435,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "straight|upper-1|body:back×upper-1|body:right",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          435,
+          0.5,
+          -130
+        ],
+        "max": [
+          440,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "straight|upper-1|body:back×upper-1|shelf#0-0",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|shelf#0-0",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          235.5,
+          -128
+        ],
+        "max": [
+          433,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "straight|upper-1|body:back×upper-1|shelf#0-1",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-1|body:back",
+      "b": "upper-1|shelf#0-1",
+      "volume": 12990,
+      "depth": 1,
+      "region": {
+        "min": [
+          -433,
+          470.5,
+          -128
+        ],
+        "max": [
+          433,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "straight|upper-1|brace#0×upper-1|shelf#0-0",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-1|brace#0",
+      "b": "upper-1|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          235.5,
+          130
+        ],
+        "max": [
+          35,
+          250.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "straight|upper-1|brace#0×upper-1|shelf#0-1",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-1|brace#0",
+      "b": "upper-1|shelf#0-1",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          470.5,
+          130
+        ],
+        "max": [
+          35,
+          485.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "straight|upper-2|body:back×upper-2|body:left",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-2|body:back",
+      "b": "upper-2|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -390,
+          0.5,
+          -130
+        ],
+        "max": [
+          -385,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "straight|upper-2|body:back×upper-2|body:right",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-2|body:back",
+      "b": "upper-2|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          385,
+          0.5,
+          -130
+        ],
+        "max": [
+          390,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "straight|upper-2|body:back×upper-2|shelf#0-0",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-2|body:back",
+      "b": "upper-2|shelf#0-0",
+      "volume": 11490,
+      "depth": 1,
+      "region": {
+        "min": [
+          -383,
+          235.5,
+          -128
+        ],
+        "max": [
+          383,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "straight|upper-2|body:back×upper-2|shelf#0-1",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-2|body:back",
+      "b": "upper-2|shelf#0-1",
+      "volume": 11490,
+      "depth": 1,
+      "region": {
+        "min": [
+          -383,
+          470.5,
+          -128
+        ],
+        "max": [
+          383,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "straight|upper-2|brace#0×upper-2|shelf#0-0",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-2|brace#0",
+      "b": "upper-2|shelf#0-0",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          235.5,
+          130
+        ],
+        "max": [
+          35,
+          250.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "straight|upper-2|brace#0×upper-2|shelf#0-1",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-2|brace#0",
+      "b": "upper-2|shelf#0-1",
+      "volume": 13650,
+      "depth": 13,
+      "region": {
+        "min": [
+          -35,
+          470.5,
+          130
+        ],
+        "max": [
+          35,
+          485.5,
+          143
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "straight|upper-3|body:back×upper-3|body:left",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-3|body:back",
+      "b": "upper-3|body:left",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          -190,
+          0.5,
+          -130
+        ],
+        "max": [
+          -185,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "straight|upper-3|body:back×upper-3|body:right",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-3|body:back",
+      "b": "upper-3|body:right",
+      "volume": 10785,
+      "depth": 3,
+      "region": {
+        "min": [
+          185,
+          0.5,
+          -130
+        ],
+        "max": [
+          190,
+          719.5,
+          -127
+        ]
+      },
+      "cause": "sakuri-groove",
+      "reason": "상부장 뒷판 (W−20) 이 측판 홈(사쿠리)에 5mm 씩 끼워진 자리 — 실제로는 홈이라 겹침이 아니다. 3D 측판에 홈을 파지 않았을 뿐 (홈 깊이 실측은 결정 D5)"
+    },
+    {
+      "id": "straight|upper-3|body:back×upper-3|shelf#0-0",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-3|body:back",
+      "b": "upper-3|shelf#0-0",
+      "volume": 5490,
+      "depth": 1,
+      "region": {
+        "min": [
+          -183,
+          235.5,
+          -128
+        ],
+        "max": [
+          183,
+          250.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "straight|upper-3|body:back×upper-3|shelf#0-1",
+      "fixture": "straight",
+      "kind": "solid",
+      "a": "upper-3|body:back",
+      "b": "upper-3|shelf#0-1",
+      "volume": 5490,
+      "depth": 1,
+      "region": {
+        "min": [
+          -183,
+          470.5,
+          -128
+        ],
+        "max": [
+          183,
+          485.5,
+          -127
+        ]
+      },
+      "cause": "shelf-depth-3d",
+      "reason": "상부장 3D 선반이 뒤로 D/2−T 까지 가서 사쿠리 뒷판(뒤끝에서 15 홈)을 1mm 파고든다 — 규칙은 상부 선반 D−34 (BOM 과 같다)"
+    },
+    {
+      "id": "wardrobeExt|wardrobe-1|body:panel~4×wardrobe-1|wardrobeDrawerFront#drawer0",
+      "fixture": "wardrobeExt",
+      "kind": "solid",
+      "a": "wardrobe-1|body:panel~4",
+      "b": "wardrobe-1|wardrobeDrawerFront#drawer0",
+      "volume": 180570,
+      "depth": 13,
+      "region": {
+        "min": [
+          -463,
+          62,
+          280
+        ],
+        "max": [
+          463,
+          75,
+          295
+        ]
+      },
+      "cause": "wardrobe-front-inset",
+      "reason": "붙박이장 서랍 전면이 몸통 앞선 **안쪽**(앞선 − T)에 그려져 서랍 몸통의 측판·지판·밴드(외부 서랍은 서랍 통 천지판)를 13~15mm 파고든다 — 전면은 몸통 앞에 덧대야 한다"
+    },
+    {
+      "id": "wardrobeExt|wardrobe-1|body:panel~5×wardrobe-1|wardrobeDrawerFront#drawer1",
+      "fixture": "wardrobeExt",
+      "kind": "solid",
+      "a": "wardrobe-1|body:panel~5",
+      "b": "wardrobe-1|wardrobeDrawerFront#drawer1",
+      "volume": 180570,
+      "depth": 13,
+      "region": {
+        "min": [
+          -463,
+          745,
+          280
+        ],
+        "max": [
+          463,
+          758,
+          295
+        ]
+      },
+      "cause": "wardrobe-front-inset",
+      "reason": "붙박이장 서랍 전면이 몸통 앞선 **안쪽**(앞선 − T)에 그려져 서랍 몸통의 측판·지판·밴드(외부 서랍은 서랍 통 천지판)를 13~15mm 파고든다 — 전면은 몸통 앞에 덧대야 한다"
+    },
+    {
+      "id": "wardrobe|wardrobe-1|wardrobeDrawerFront#drawer0×wardrobe-1|wardrobeInnerModule~1",
+      "fixture": "wardrobe",
+      "kind": "solid",
+      "a": "wardrobe-1|wardrobeDrawerFront#drawer0",
+      "b": "wardrobe-1|wardrobeInnerModule~1",
+      "volume": 64935,
+      "depth": 13,
+      "region": {
+        "min": [
+          -403,
+          77,
+          210
+        ],
+        "max": [
+          -390,
+          410,
+          225
+        ]
+      },
+      "cause": "wardrobe-front-inset",
+      "reason": "붙박이장 서랍 전면이 몸통 앞선 **안쪽**(앞선 − T)에 그려져 서랍 몸통의 측판·지판·밴드(외부 서랍은 서랍 통 천지판)를 13~15mm 파고든다 — 전면은 몸통 앞에 덧대야 한다"
+    },
+    {
+      "id": "wardrobe|wardrobe-1|wardrobeDrawerFront#drawer0×wardrobe-1|wardrobeInnerModule~2",
+      "fixture": "wardrobe",
+      "kind": "solid",
+      "a": "wardrobe-1|wardrobeDrawerFront#drawer0",
+      "b": "wardrobe-1|wardrobeInnerModule~2",
+      "volume": 64935,
+      "depth": 13,
+      "region": {
+        "min": [
+          390,
+          77,
+          210
+        ],
+        "max": [
+          403,
+          410,
+          225
+        ]
+      },
+      "cause": "wardrobe-front-inset",
+      "reason": "붙박이장 서랍 전면이 몸통 앞선 **안쪽**(앞선 − T)에 그려져 서랍 몸통의 측판·지판·밴드(외부 서랍은 서랍 통 천지판)를 13~15mm 파고든다 — 전면은 몸통 앞에 덧대야 한다"
+    },
+    {
+      "id": "wardrobe|wardrobe-1|wardrobeDrawerFront#drawer0×wardrobe-1|wardrobeInnerModule~3",
+      "fixture": "wardrobe",
+      "kind": "solid",
+      "a": "wardrobe-1|wardrobeDrawerFront#drawer0",
+      "b": "wardrobe-1|wardrobeInnerModule~3",
+      "volume": 152100,
+      "depth": 13,
+      "region": {
+        "min": [
+          -390,
+          77,
+          210
+        ],
+        "max": [
+          390,
+          90,
+          225
+        ]
+      },
+      "cause": "wardrobe-front-inset",
+      "reason": "붙박이장 서랍 전면이 몸통 앞선 **안쪽**(앞선 − T)에 그려져 서랍 몸통의 측판·지판·밴드(외부 서랍은 서랍 통 천지판)를 13~15mm 파고든다 — 전면은 몸통 앞에 덧대야 한다"
+    },
+    {
+      "id": "wardrobe|wardrobe-1|wardrobeDrawerFront#drawer1×wardrobe-1|wardrobeInnerModule~1",
+      "fixture": "wardrobe",
+      "kind": "solid",
+      "a": "wardrobe-1|wardrobeDrawerFront#drawer1",
+      "b": "wardrobe-1|wardrobeInnerModule~1",
+      "volume": 64935,
+      "depth": 13,
+      "region": {
+        "min": [
+          -403,
+          440,
+          210
+        ],
+        "max": [
+          -390,
+          773,
+          225
+        ]
+      },
+      "cause": "wardrobe-front-inset",
+      "reason": "붙박이장 서랍 전면이 몸통 앞선 **안쪽**(앞선 − T)에 그려져 서랍 몸통의 측판·지판·밴드(외부 서랍은 서랍 통 천지판)를 13~15mm 파고든다 — 전면은 몸통 앞에 덧대야 한다"
+    },
+    {
+      "id": "wardrobe|wardrobe-1|wardrobeDrawerFront#drawer1×wardrobe-1|wardrobeInnerModule~2",
+      "fixture": "wardrobe",
+      "kind": "solid",
+      "a": "wardrobe-1|wardrobeDrawerFront#drawer1",
+      "b": "wardrobe-1|wardrobeInnerModule~2",
+      "volume": 64935,
+      "depth": 13,
+      "region": {
+        "min": [
+          390,
+          440,
+          210
+        ],
+        "max": [
+          403,
+          773,
+          225
+        ]
+      },
+      "cause": "wardrobe-front-inset",
+      "reason": "붙박이장 서랍 전면이 몸통 앞선 **안쪽**(앞선 − T)에 그려져 서랍 몸통의 측판·지판·밴드(외부 서랍은 서랍 통 천지판)를 13~15mm 파고든다 — 전면은 몸통 앞에 덧대야 한다"
+    },
+    {
+      "id": "wardrobe|wardrobe-1|wardrobeDrawerFront#drawer1×wardrobe-1|wardrobeInnerModule~4",
+      "fixture": "wardrobe",
+      "kind": "solid",
+      "a": "wardrobe-1|wardrobeDrawerFront#drawer1",
+      "b": "wardrobe-1|wardrobeInnerModule~4",
+      "volume": 795600,
+      "depth": 15,
+      "region": {
+        "min": [
+          -390,
+          705,
+          210
+        ],
+        "max": [
+          390,
+          773,
+          225
+        ]
+      },
+      "cause": "wardrobe-front-inset",
+      "reason": "붙박이장 서랍 전면이 몸통 앞선 **안쪽**(앞선 − T)에 그려져 서랍 몸통의 측판·지판·밴드(외부 서랍은 서랍 통 천지판)를 13~15mm 파고든다 — 전면은 몸통 앞에 덧대야 한다"
+    }
+  ]
+}
