@@ -92,6 +92,15 @@ export function expectedFromSpec(spec, category) {
     .map((slot) => [slot, sections[slot]])
     .filter(([, sec]) => sec && Array.isArray(sec.modules) && sec.modules.length)
     .sort((a, b) => num(a[1].fromLeftMm) - num(b[1].fromLeftMm));
+  // 2026-10-19: 꺾인 벽(walls[], ㄱ자·ㄷ자)의 바닥 구간은 주벽 뒤에 — 벽마다 모서리에서 잰 순서 (layout.js 판독 세그먼트와 같은 순서)
+  for (const w of Array.isArray(s.walls) ? s.walls : []) {
+    const ws = w && w.sections && typeof w.sections === 'object' ? w.sections : {};
+    FLOOR_SECTIONS
+      .map((slot) => [slot, ws[slot]])
+      .filter(([, sec]) => sec && Array.isArray(sec.modules) && sec.modules.length)
+      .sort((a, b) => num(a[1].fromCornerMm) - num(b[1].fromCornerMm))
+      .forEach((x) => floorSecs.push(x));
+  }
   for (const [slot, sec] of floorSecs) {
     for (const m of sec.modules) {
       // 2026-10-19: 쌓인 단(tiers) = 한 통. 맨 아래가 가전 자리면(냉장고장) 그 가전 — 예전 가전 칸과 같은 이름
@@ -125,6 +134,13 @@ export function expectedFromSpec(spec, category) {
   const up = sections.upper;
   if (up && Array.isArray(up.modules) && up.modules.length) {
     upperDoors = up.modules.reduce((n, m) => n + num(m.doorCount), 0);
+  }
+  // 2026-10-19: 꺾인 벽의 상부장 도어도 상부장 도어 수에 (판독 uppers 는 벽을 가리지 않는다)
+  for (const w of Array.isArray(s.walls) ? s.walls : []) {
+    const wu = w && w.sections && w.sections.upper;
+    if (wu && Array.isArray(wu.modules) && wu.modules.length) {
+      upperDoors = (upperDoors || 0) + wu.modules.reduce((n, m) => n + num(m.doorCount), 0);
+    }
   }
 
   const appliances = (Array.isArray(s.appliances) ? s.appliances : [])

@@ -7,7 +7,7 @@
 import { selectMany, selectOne, ForbiddenError } from '../supabase.js';
 import { isAdmin } from '../reports/admin.js';
 import { mergeSettings, kstDate } from '../production/service.js';
-import { buildManagementSummary, prevMonthOf, QUALITY_WINDOW_DAYS } from './summary.js';
+import { buildManagementSummary, prevMonthOf, QUALITY_WINDOW_DAYS, PARTNER_WINDOW_DAYS } from './summary.js';
 import { selectOrders } from '../orders.js';
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
@@ -116,6 +116,75 @@ export async function getManagementSummary(env, { user, month }) {
     order: 'ordered_at.desc',
     limit: '2000',
   }).catch(() => [])) || [];
+  // 설치 후 한 문항 (반년 창, 링크를 만든 날 또는 답한 날 기준) — 점수 · 날짜만 읽는다, 한 줄 메모는 읽지 않는다
+  const fbFrom = windowStart(m, QUALITY_WINDOW_DAYS + 31);
+  const feedback = await selectMany(env, 'install_feedback', {
+    select: 'score,created_at,answered_at',
+    or: `(created_at.gte.${fbFrom},answered_at.gte.${fbFrom})`,
+    limit: '5000',
+  }).catch(() => null);
+  // 거래처 · 공급처 (한 해 창) — 표 · 칸이 아직 없으면 null
+  const yearFrom = windowStart(m, PARTNER_WINDOW_DAYS + 31);
+  const counterparties = await selectMany(env, 'counterparties', { select: 'id,kind,name,category,active', limit: '2000' }).catch(() => null);
+  let partnerOrders = null, supplierCosts = [], outsource = [];
+  if (counterparties) {
+    [partnerOrders, supplierCosts, outsource] = await Promise.all([
+      selectMany(env, 'orders', {
+        select: 'id,partner_id,price_tier,contract_amount,snapshot_id,status,ordered_at',
+        or: '(partner_id.not.is.null,price_tier.eq.partner)',
+        ordered_at: `gte.${yearFrom}T00:00:00+09:00`,
+        limit: '5000',
+      }).catch(() => null),
+      selectMany(env, 'order_costs', {
+        select: 'counterparty_id,amount,spent_on,created_at',
+        counterparty_id: 'not.is.null',
+        created_at: `gte.${windowStart(m, PARTNER_WINDOW_DAYS + 400)}T00:00:00+09:00`,
+        limit: '10000',
+      }).catch(() => []),
+      selectMany(env, 'work_reports', {
+        select: 'status,period_start,period_end,metrics',
+        kind: 'in.(outsource_order,countertop_order)',
+        period_start: `gte.${yearFrom}`,
+        limit: '5000',
+      }).catch(() => []),
+    ]);
+    // 거래처 수주 중 이달 묶음에 없던 스냅샷도 읽는다 (공헌이익)
+    const need = [...new Set((partnerOrders || []).map((o) => o.snapshot_id).filter((id) => id && !snaps.some((s) => s.id === id)))];
+    if (need.length) {
+      const more = (await selectMany(env, 'design_snapshots', { id: `in.(${need.join(',')})`, select: 'id,quote_payload', limit: '5000' }).catch(() => [])) || [];
+      snaps = snaps.concat(more);
+    }
+  }
+  // 현금 (오늘부터 13주) — 수금 · 잔액 표가 아직 없으면 null
+  const [balances, payments] = await Promise.all([
+    selectMany(env, 'cash_balances', { select: 'as_of,amount,created_at', order: 'as_of.desc,created_at.desc', limit: '20' }).catch(() => null),
+    selectMany(env, 'order_payments', { select: 'order_id,stage,amount,due_on,paid_on', limit: '10000' }).catch(() => null),
+  ]);
+  let dueCosts = [], cashOrders = [], installs = new Map();
+  if (payments) {
+    [dueCosts, cashOrders] = await Promise.all([
+      selectMany(env, 'order_costs', { select: 'amount,due_on,spent_on', spent_on: 'is.null', due_on: 'not.is.null', limit: '5000' }).catch(() => []),
+      selectMany(env, 'orders', {
+        select: 'id,order_no,customer_name,design_id,contract_amount,received_amount,status,delivered_at,completed_at',
+        status: 'in.(confirmed,in_production,delivered,completed)',
+        limit: '3000',
+      }).catch(() => []),
+    ]);
+    // 일정 없는 수주는 설치일에 남은 돈이 들어온다고 본다
+    const scheduled = new Set(payments.map((p) => p.order_id));
+    const designs = [...new Set((cashOrders || []).filter((o) => !scheduled.has(o.id) && !o.delivered_at && !o.completed_at).map((o) => o.design_id).filter(Boolean))];
+    if (designs.length) {
+      const rows = (await selectMany(env, 'design_schedules', {
+        select: 'design_id,scheduled_at,status',
+        type: 'eq.installation',
+        design_id: `in.(${designs.join(',')})`,
+        status: 'neq.cancelled',
+        order: 'scheduled_at.asc',
+        limit: '5000',
+      }).catch(() => [])) || [];
+      for (const r of rows) if (!installs.has(r.design_id)) installs.set(r.design_id, kstDate(r.scheduled_at));
+    }
+  }
   return buildManagementSummary({
     orders: list,
     snapshotsById: new Map(snaps.map((s) => [s.id, s])),
@@ -128,6 +197,16 @@ export async function getManagementSummary(env, { user, month }) {
     paceLogs,
     reworks,
     installed,
+    feedback,
+    counterparties,
+    partnerOrders,
+    supplierCosts: supplierCosts || [],
+    outsource: outsource || [],
+    balances,
+    payments,
+    dueCosts: dueCosts || [],
+    cashOrders: cashOrders || [],
+    installs,
     today: kstDate(),
     settings,
     month: m,

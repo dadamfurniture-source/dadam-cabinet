@@ -175,12 +175,111 @@ describe('재작업 · A/S 기록 (경영 대시보드 2단계 PR-6)', () => {
   });
 
   test('상세를 열 때마다 기록도 다시 그린다 (원가가 비어도)', () => {
-    expect(ERP).toMatch(/renderDetail\(\);\s*renderReworks\(\);/);
+    expect(ERP).toMatch(/renderDetail\(\);\s*renderPayments\(\);\s*renderReworks\(\);/);
   });
 
   test('SQL: 원인 · 종류는 정해진 것만, 분 · 비용은 음수 불가, 관리자만 읽는다', () => {
     expect(PHASE2).toMatch(/kind\s+TEXT NOT NULL CHECK \(kind IN \('rework', 'as'\)\)/);
     expect(PHASE2).toMatch(/minutes\s+INT CHECK \(minutes IS NULL OR minutes >= 0\)/);
     expect(PHASE2).toMatch(/CREATE POLICY "Admin read rework logs" ON rework_logs FOR SELECT TO authenticated USING \(public\.is_admin\(\)\)/);
+  });
+});
+
+describe('설치 후 한 문항 링크 (경영 대시보드 2단계 PR-7)', () => {
+  const render = ERP.slice(ERP.indexOf('function renderFeedback'), ERP.indexOf('async function createFeedbackLink'));
+  const create = ERP.slice(ERP.indexOf('async function createFeedbackLink'), ERP.indexOf('async function copyFeedbackLink'));
+  const copy = ERP.slice(ERP.indexOf('async function copyFeedbackLink'), ERP.indexOf('async function addRework'));
+
+  test('링크 만들기 → 링크 칸 · 복사 버튼', () => {
+    for (const id of ['feedbackBox', 'btnFeedbackLink', 'feedbackLinkRow', 'inpFeedbackUrl', 'btnCopyFeedback']) {
+      expect(ERP).toMatch(new RegExp(`id="${id}"`));
+    }
+    expect(create).toMatch(/'\/feedback-link', \{ method: 'POST' \}/);
+  });
+
+  test('평문 링크는 만든 응답에서만 보인다 — 다시 그린 뒤에 링크 칸을 연다', () => {
+    expect(create.indexOf('await open(state.current)')).toBeLessThan(create.indexOf("el('feedbackLinkRow').hidden = false"));
+  });
+
+  test('답을 받았으면 점수 · 한 줄을 보이고 버튼을 숨긴다, 표가 없으면 SQL 안내', () => {
+    expect(render).toMatch(/if \(f\.answered\)/);
+    expect(render).toMatch(/'받은 답: ' \+ f\.score \+ '점'/);
+    expect(render).toMatch(/management-phase2\.sql/);
+  });
+
+  test('복사는 클립보드, 막히면 선택해 두고 알린다', () => {
+    expect(copy).toMatch(/navigator\.clipboard\.writeText/);
+    expect(copy).toMatch(/input\.select\(\)/);
+  });
+});
+
+describe('거래처 · 공급처 붙이기 (경영 대시보드 2단계 PR-8)', () => {
+  const cp = ERP.slice(ERP.indexOf('async function loadCounterparties'), ERP.indexOf('async function addRework'));
+  const save = ERP.slice(ERP.indexOf('async function saveOrder'), ERP.indexOf('async function addCost'));
+  const add = ERP.slice(ERP.indexOf('async function addCost'), ERP.indexOf('async function removeCost'));
+
+  test('수주 상세에 거래처 고르기, 원가 줄에 공급처 고르기', () => {
+    expect(ERP).toMatch(/id="lblPartner" hidden/);
+    expect(ERP).toMatch(/id="selPartner"/);
+    expect(ERP).toMatch(/id="selSupplier" aria-label="공급처" hidden/);
+  });
+
+  test('목록은 한 번만 읽고, 관리자가 아니거나 SQL 전이면 고르기 칸을 숨긴다', () => {
+    expect(cp).toMatch(/if \(state\.cp !== undefined\) return state\.cp/);
+    expect(cp).toMatch(/catch \(e\) \{ state\.cp = null; \}/);
+    expect(cp).toMatch(/c\.active !== false/);
+  });
+
+  test('거래처 칸은 구분이 거래처이고 칸(partner_id)이 있을 때만', () => {
+    expect(cp).toMatch(/hasOwnProperty\.call\(d\.order, 'partner_id'\)/);
+    expect(cp).toMatch(/el\('selTier'\)\.value === 'partner'/);
+    expect(ERP).toMatch(/el\('selTier'\)\.addEventListener\('change', renderCounterparties\)/);
+  });
+
+  test('저장: 보일 때만 싣고, 고객으로 바꾸면 붙였던 거래처를 뗀다', () => {
+    expect(save).toMatch(/if \(!el\('lblPartner'\)\.hidden\) patch\.partner_id = el\('selPartner'\)\.value \|\| null/);
+    expect(save).toMatch(/patch\.price_tier === 'customer' && state\.detail && state\.detail\.order\.partner_id\) patch\.partner_id = null/);
+  });
+
+  test('원가: 고른 공급처를 보내고, 다 넣으면 고르기를 비운다', () => {
+    expect(add).toMatch(/counterparty_id: el\('selSupplier'\)\.value \|\| null/);
+    expect(add).toMatch(/el\('selSupplier'\)\.value = ''/);
+  });
+});
+
+describe('수금 일정 · 지급 예정 (경영 대시보드 2단계 PR-9)', () => {
+  const pay = ERP.slice(ERP.indexOf('function renderPayments'), ERP.indexOf('async function addPayment'));
+  const save = ERP.slice(ERP.indexOf('async function saveOrder'), ERP.indexOf('async function addCost'));
+  const add = ERP.slice(ERP.indexOf('async function addCost'), ERP.indexOf('async function removeCost'));
+
+  test('계약금 · 중도금 · 잔금을 받기로 한 날과 함께 넣고, 받음 · 되돌리기 · 삭제', () => {
+    for (const id of ['selPayStage', 'inpPayAmount', 'inpPayDue', 'btnAddPay', 'payRows', 'paySummary']) {
+      expect(ERP).toMatch(new RegExp(`id="${id}"`));
+    }
+    expect(ERP).toMatch(/PAY_STAGE_LABELS = \{ deposit: '계약금', interim: '중도금', balance: '잔금', other: '기타' \}/);
+    expect(pay).toMatch(/patchPayment\(b\.getAttribute\('data-pay'\), \{ paid_on: todayKst\(\) \}\)/);
+    expect(pay).toMatch(/patchPayment\(b\.getAttribute\('data-unpay'\), \{ paid_on: null \}\)/);
+  });
+
+  test('일정이 있으면 수금액은 일정이 맞춘다 — 입력을 잠그고 저장에 싣지 않는다', () => {
+    expect(pay).toMatch(/el\('inpReceived'\)\.readOnly = scheduled/);
+    expect(save).toMatch(/if \(!el\('inpReceived'\)\.readOnly\) patch\.received_amount/);
+  });
+
+  test('밀린 일정 표시 · 일정 합이 계약금액과 다르면 알린다', () => {
+    expect(pay).toMatch(/\(밀림\)/);
+    expect(pay).toMatch(/과 다릅니다/);
+  });
+
+  test('원가 줄: 낼 날을 넣을 수 있고, 아직 안 낸 줄은 냈음 단추', () => {
+    expect(ERP).toMatch(/id="inpDue" type="date"/);
+    expect(add).toMatch(/due_on: el\('inpDue'\)\.value \|\| null/);
+    expect(ERP).toMatch(/data-paid-cost=/);
+    expect(ERP).toMatch(/'\/costs\/' \+ encodeURIComponent\(costId\), \{ method: 'PATCH', body: \{ spent_on: todayKst\(\) \} \}/);
+  });
+
+  test('표가 없으면(워커가 null) 입력 대신 SQL 안내', () => {
+    expect(pay).toMatch(/var missing = pays === null \|\| pays === undefined/);
+    expect(ERP).toMatch(/id="payNeedSql" class="muted" hidden/);
   });
 });

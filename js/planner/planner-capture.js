@@ -305,12 +305,31 @@ function plannerCaptureClampAspect(a) {
   return Math.min(PLANNER_CAPTURE_ASPECT_MAX, Math.max(PLANNER_CAPTURE_ASPECT_MIN, a));
 }
 
+/**
+ * 2026-10-19: front 가 바라보는 쪽 — 'z+'(기본, 뒷벽 앞에서 −Z 로) · 'x-'(−X 쪽에서 +X 로) · 'x+'(+X 쪽에서 −X 로).
+ *   ㄱ자·ㄷ자의 꺾인 벽 입면은 그 벽 장들의 앞면 쪽에서 찍는다. 반환은 카메라가 서는 쪽 단위 벡터 (x, z).
+ */
+function plannerCaptureFacingDir(facing) {
+  if (facing === 'x-') return [-1, 0];
+  if (facing === 'x+') return [1, 0];
+  return [0, 1];
+}
+
+/** 2026-10-19: massing 방위 (°) — view.yawDeg 가 숫자면 그것, 아니면 기본 30 (앞에서 오른쪽). ㄱ자는 꺾인 장 앞면이 보이는 쪽. */
+function plannerCaptureYaw(view) {
+  const v = view && Number(view.yawDeg);
+  return Number.isFinite(v) && view.yawDeg !== null && view.yawDeg !== undefined ? v : PLANNER_CAPTURE_MASSING.yawDeg;
+}
+
 /** 프리셋별 종횡비 — front 는 경계 W/H, plan 은 W/D, massing 은 16:9 고정, iso·module 은 화면 캔버스(없으면 3:2). */
-function plannerCaptureAspectFor(kind, bounds, canvasAspect) {
+function plannerCaptureAspectFor(kind, bounds, canvasAspect, view) {
   const k = plannerCaptureParseKind(kind).kind;
   if (k === 'massing') return PLANNER_CAPTURE_MASSING.aspect;
   if (bounds && (k === 'front' || k === 'plan')) {
-    const W = bounds.max.x - bounds.min.x, H = bounds.max.y - bounds.min.y, D = bounds.max.z - bounds.min.z;
+    let W = bounds.max.x - bounds.min.x;
+    const H = bounds.max.y - bounds.min.y, D = bounds.max.z - bounds.min.z;
+    // 2026-10-19: 옆에서 찍는 입면(facing x±)은 그림 가로가 z 폭
+    if (k === 'front' && view && plannerCaptureFacingDir(view.facing)[0] !== 0) W = D;
     const den = k === 'front' ? H : D;
     if (W > 0 && den > 0) return plannerCaptureClampAspect(W / den);
   }
@@ -322,9 +341,11 @@ function plannerCaptureAspectFor(kind, bounds, canvasAspect) {
  * @param {string} kind front | iso | plan | module
  * @param {{min:{x,y,z}, max:{x,y,z}}} bounds
  * @param {number} aspect 가로/세로
+ * @param {{facing?:'z+'|'x-'|'x+', yawDeg?:number}} [view] 2026-10-19: front 가 바라보는 쪽 · massing 방위 (ㄱ자 꺾인 벽).
+ *   없으면 예전 그대로 (front 는 −Z 로, massing 은 오른쪽 30°)
  * @returns {{kind, fov, aspect, position:number[], target:number[], up:number[], near, far, dist}|null}
  */
-function plannerCaptureFrame(kind, bounds, aspect) {
+function plannerCaptureFrame(kind, bounds, aspect, view) {
   if (!bounds || !bounds.min || !bounds.max) return null;
   const k = plannerCaptureParseKind(kind).kind;
   const W = Math.max(1, bounds.max.x - bounds.min.x);
@@ -343,8 +364,11 @@ function plannerCaptureFrame(kind, bounds, aspect) {
   let dist, position, up;
   if (k === 'front') {
     // 앞면(max.z)에서 H·W 가 다 들어오는 거리 + 중심까지 D/2
-    dist = Math.max((H * M) / (2 * t), (W * M) / (2 * t * a)) + D / 2;
-    position = [c.x, c.y, c.z + dist];
+    // 2026-10-19: facing x± 면 옆에서 — 그림 가로는 z 폭(D), 앞면까지는 x 폭(W)의 반
+    const n = plannerCaptureFacingDir(view && view.facing);
+    const side = n[0] !== 0;
+    dist = Math.max((H * M) / (2 * t), ((side ? D : W) * M) / (2 * t * a)) + (side ? W : D) / 2;
+    position = [c.x + n[0] * dist, c.y, c.z + n[1] * dist];
     up = [0, 1, 0];
   } else if (k === 'plan') {
     // 윗면(max.y)에서 D·W 가 다 들어오는 거리 + H/2. up = −Z 라 뒷벽이 그림 위쪽.
@@ -354,7 +378,7 @@ function plannerCaptureFrame(kind, bounds, aspect) {
   } else if (k === 'massing') {
     // 실내 3/4 — 눈높이 고정, 경계 중심을 향해 30° 비껴 선다. 거리는 꼭짓점이 다 들어오는 가장 가까운 값.
     const P = PLANNER_CAPTURE_MASSING;
-    const yaw = P.yawDeg * Math.PI / 180;
+    const yaw = plannerCaptureYaw(view) * Math.PI / 180;
     const dir = [Math.sin(yaw), Math.cos(yaw)];   // 수평 (x, z)
     up = [0, 1, 0];
     const at = (d) => [c.x + dir[0] * d, P.eyeY, c.z + dir[1] * d];
@@ -478,8 +502,8 @@ function plannerCaptureProjectExtent(eye, target, up, vfovDeg, aspect, points, n
  * @param {string} kind @param {{min,max}} bounds @param {number} aspect @param {number[][]} [points]
  * @param {number} [fill] 묶이는 축을 채우는 몫. 기본 PLANNER_CAPTURE_CLEAN_FILL[kind]
  */
-function plannerCaptureCleanFrame(kind, bounds, aspect, points, fill) {
-  const base = plannerCaptureFrame(kind, bounds, aspect);
+function plannerCaptureCleanFrame(kind, bounds, aspect, points, fill, view) {
+  const base = plannerCaptureFrame(kind, bounds, aspect, view);
   if (!base || (base.kind !== 'massing' && base.kind !== 'front')) return base;
   const k = base.kind;
   const F = Math.min(0.99, Math.max(0.3, Number(fill) || PLANNER_CAPTURE_CLEAN_FILL[k]));
@@ -488,12 +512,14 @@ function plannerCaptureCleanFrame(kind, bounds, aspect, points, fill) {
   const c = base.target.slice();
   const tv = Math.tan((fov / 2) * Math.PI / 180), th = tv * a;
   const P = PLANNER_CAPTURE_MASSING;
-  const yaw = P.yawDeg * Math.PI / 180;
+  const yaw = plannerCaptureYaw(view) * Math.PI / 180;
+  // 2026-10-19: front 가 옆에서 찍으면(facing x±) 그쪽으로 물러선다
+  const n = plannerCaptureFacingDir(view && view.facing);
   let tgt = c.slice();
   // 거리 d 에서의 눈. massing 은 경계 중심 기준 선 위, front 는 타깃 바로 앞.
   const eyeAt = (d) => (k === 'massing'
     ? [c[0] + Math.sin(yaw) * d, P.eyeY, c[2] + Math.cos(yaw) * d]
-    : [tgt[0], tgt[1], tgt[2] + d]);
+    : [tgt[0] + n[0] * d, tgt[1], tgt[2] + n[1] * d]);
   const W = bounds.max.x - bounds.min.x, H = bounds.max.y - bounds.min.y, D = bounds.max.z - bounds.min.z;
   const span = Math.max(W, H, D, 1000);
   const search = (ok) => {
@@ -836,13 +862,18 @@ const PLANNER_CAPTURE_COUNTER_TOP = 870;
 const PLANNER_CAPTURE_LOWER_MAX_Y = 1200;
 /** 가전 대역 색 — 불투명, 무채색. 모델이 "가전 자리" 로 읽되 가구 마감과 헷갈리지 않게. */
 const PLANNER_CAPTURE_STANDIN_COLOR = {
-  bowl: 0x2e3134, faucet: 0xa3a9ae, cooktop: 0x141516, hood: 0x9aa0a6, refrigerator: 0xd8dcdf, dishwasher: 0x8e959b,
+  bowl: 0x2e3134, faucet: 0xa3a9ae, cooktop: 0x141516, hood: 0x8d949a, refrigerator: 0xd8dcdf, dishwasher: 0x8e959b,
 };
+/**
+ * 2026-10-19: 후드 대역 모양 — 슬림 캐노피 + 덕트 커버 (스테인리스 톤).
+ *   canopyH 캐노피 두께 mm · ductW/ductD 덕트 커버 폭·깊이 비율(후드 폭·깊이 대비) · ductMinW/ductMinD 최소 mm
+ */
+const PLANNER_CAPTURE_HOOD = { canopyH: 90, ductW: 0.45, ductD: 0.55, ductMinW: 200, ductMinD: 180, metalness: 0.45, roughness: 0.38 };
 
 /**
  * 가전 대역의 상자 목록. 순수. 좌표는 **마커 그룹의 로컬** — 원점이 마커 바닥 가운데, +Z 앞, mm.
  *   sink         상판 위 어두운 사각 볼(얇은 판) + 뒤쪽 수전 기둥 + 앞으로 나온 토수구
- *   hood         마커 자리 그대로 회색 상자 (천장 아래)
+ *   hood         스테인리스 슬림 캐노피(마커 바닥) + 뒤쪽 가운데 좁은 덕트 커버(마커 윗면 = 천장까지) — 2026-10-19 (PLANNER_CAPTURE_HOOD)
  *   refrigerator 마커 자리 그대로 연회색 몸체
  *   dishwasher   마커 자리 그대로 회색 몸체 (앞면이 회색 판으로 읽힌다)
  *   cooktop      상판 위 검은 얇은 판 — 지금은 쿡탑 섹션이 없어 만들어지지 않는다 (마커가 있는 가전만 만든다)
@@ -874,7 +905,19 @@ function plannerCaptureStandInSpec(section, dims, support) {
   if (section === 'cooktop') {
     return [box('cooktop', [Math.min(600, Math.max(300, W - 40)), 8, Math.min(520, Math.max(300, depth * 0.8))], [0, top + 4, zc], C.cooktop, 0, 0.3)];
   }
-  if (section === 'hood') return [box('hood', [W, H, D], [0, H / 2, 0], C.hood, 0.2, 0.45)];
+  if (section === 'hood') {
+    // 2026-10-19: 회색 상자 한 덩이는 정면 입면에서 상부장처럼 읽혔다(실측 GPT — 상부장을 빈칸 없이 이어 붙임).
+    //   스테인리스 슬림 캐노피(마커 바닥) + 뒤쪽 가운데로 좁은 덕트 커버(마커 윗면 = 천장까지) — 양옆으로 벽이 보이게.
+    const canopyH = Math.min(H, PLANNER_CAPTURE_HOOD.canopyH);
+    const out = [box('hood', [W, canopyH, D], [0, canopyH / 2, 0], C.hood, PLANNER_CAPTURE_HOOD.metalness, PLANNER_CAPTURE_HOOD.roughness)];
+    const ductH = H - canopyH;
+    if (ductH > 1) {
+      const dw = Math.min(W, Math.max(PLANNER_CAPTURE_HOOD.ductMinW, Math.round(W * PLANNER_CAPTURE_HOOD.ductW)));
+      const dd = Math.min(D, Math.max(PLANNER_CAPTURE_HOOD.ductMinD, Math.round(D * PLANNER_CAPTURE_HOOD.ductD)));
+      out.push(box('hood-duct', [dw, ductH, dd], [0, canopyH + ductH / 2, -D / 2 + dd / 2], C.hood, PLANNER_CAPTURE_HOOD.metalness, PLANNER_CAPTURE_HOOD.roughness));
+    }
+    return out;
+  }
   if (section === 'refrigerator') return [box('refrigerator', [W, H, D], [0, H / 2, 0], C.refrigerator, 0, 0.5)];
   if (section === 'dishwasher') return [box('dishwasher', [W, H, D], [0, H / 2, 0], C.dishwasher, 0.1, 0.5)];
   return [];
@@ -894,7 +937,7 @@ function plannerCaptureOverWhite(px) {
 }
 
 /** design_renders.camera 에 넣을 모양 — 좌표는 정수 mm 로 줄인다. clean 이면 clean:true 를 남긴다. */
-function plannerCaptureCameraJson(frame, longEdge, moduleId, clean) {
+function plannerCaptureCameraJson(frame, longEdge, moduleId, clean, view) {
   if (!frame) return null;
   const r = (v) => Math.round(v);
   const out = {
@@ -908,6 +951,9 @@ function plannerCaptureCameraJson(frame, longEdge, moduleId, clean) {
   };
   if (moduleId != null) out.moduleId = String(moduleId);
   if (clean) out.clean = true;
+  // 2026-10-19: 벽별 입면·방위를 바꿔 찍었으면 남긴다 (기본값이면 키 없음 — 예전과 같은 모양)
+  if (view && view.facing && view.facing !== 'z+') out.facing = view.facing;
+  if (view && view.yawDeg != null && Number.isFinite(Number(view.yawDeg))) out.yawDeg = Number(view.yawDeg);
   return out;
 }
 
@@ -970,9 +1016,18 @@ function plannerCaptureProjectPoint(frame, width, height, p) {
  */
 function plannerCaptureScreenBox(frame, width, height, bounds) {
   if (!bounds || !bounds.min || !bounds.max) return null;
-  const z = bounds.max.z;
-  const pts = [[bounds.min.x, bounds.min.y, z], [bounds.max.x, bounds.min.y, z], [bounds.min.x, bounds.max.y, z], [bounds.max.x, bounds.max.y, z]]
-    .map((p) => plannerCaptureProjectPoint(frame, width, height, p));
+  // 2026-10-19: 꺾인 벽 입면(facing x±)은 카메라 쪽 x 면 — 시선이 x 축에 더 가까우면 x 면, 아니면 예전처럼 앞면(max.z)
+  const dx = frame && frame.position && frame.target ? frame.position[0] - frame.target[0] : 0;
+  const dz = frame && frame.position && frame.target ? frame.position[2] - frame.target[2] : 1;
+  let raw;
+  if (Math.abs(dx) > Math.abs(dz)) {
+    const x = dx > 0 ? bounds.max.x : bounds.min.x;
+    raw = [[x, bounds.min.y, bounds.min.z], [x, bounds.min.y, bounds.max.z], [x, bounds.max.y, bounds.min.z], [x, bounds.max.y, bounds.max.z]];
+  } else {
+    const z = bounds.max.z;
+    raw = [[bounds.min.x, bounds.min.y, z], [bounds.max.x, bounds.min.y, z], [bounds.min.x, bounds.max.y, z], [bounds.max.x, bounds.max.y, z]];
+  }
+  const pts = raw.map((p) => plannerCaptureProjectPoint(frame, width, height, p));
   if (pts.some((q) => !q)) return null;
   return {
     x0: Math.min.apply(null, pts.map((q) => q[0])), x1: Math.max.apply(null, pts.map((q) => q[0])),
@@ -1150,11 +1205,13 @@ const PLANNER_CAPTURE_ANNOTATE_SPAN_SKIP = { 'top-panel': true, 'toe-kick': true
  * 2026-10-19: annotate 용 모듈 경계 — 가로(x)는 런에 걸친 부재(PLANNER_CAPTURE_ANNOTATE_SPAN_SKIP)를 뺀 몸통·도어로,
  * 세로·깊이는 모듈 전체로 (줄 높이 치수선이 바닥~상판 윗면이 되게). 몸통이 없으면 전체 경계 그대로.
  */
-function plannerCaptureModuleBounds(obj, T, visibleOnly) {
+function plannerCaptureModuleBounds(obj, T, visibleOnly, axis) {
   const all = plannerCaptureBoundsOf(obj, T, visibleOnly ? { visibleOnly: true } : null);
   if (!all) return null;
   const core = plannerCaptureBoundsOf(obj, T, { visibleOnly: !!visibleOnly, skip: PLANNER_CAPTURE_ANNOTATE_SPAN_SKIP });
   if (!core) return all;
+  // 2026-10-19: 옆에서 찍는 입면(facing x±)은 그림 가로가 z 축 — 그 축만 몸통·도어로
+  if (axis === 'z') return { min: { x: all.min.x, y: all.min.y, z: core.min.z }, max: { x: all.max.x, y: all.max.y, z: core.max.z } };
   return { min: { x: core.min.x, y: all.min.y, z: all.min.z }, max: { x: core.max.x, y: all.max.y, z: all.max.z } };
 }
 
@@ -1627,7 +1684,18 @@ const PlannerCapture = {
     const prevRT = (typeof r.getRenderTarget === 'function') ? r.getRenderTarget() : null;
     let rtA = null, rtB = null;
     const cleanSt = clean ? this._cleanState() : null;
+    // 2026-10-19: ㄱ자·ㄷ자 벽별 입면 — only(모듈 id 목록)에 없는 모듈 그룹은 찍는 동안 숨긴다. facing·yawDeg 는 카메라 쪽.
+    const view = (opt.facing || opt.yawDeg != null) ? { facing: opt.facing, yawDeg: opt.yawDeg } : undefined;
+    const onlyHidden = [];
     try {
+      if (Array.isArray(opt.only) && t.moduleGroup) {
+        const keep = new Set(opt.only.map(String));
+        (t.moduleGroup.children || []).forEach((ch) => {
+          const ud = (ch && ch.userData) || {};
+          if (ud.entityKind !== 'module' || ch.visible === false) return;
+          if (!keep.has(String(ud.moduleId))) { ch.visible = false; onlyHidden.push(ch); }
+        });
+      }
       if (clean) this._cleanBegin(t, T, cleanSt);
       // 경계 — 룩을 켠 뒤에 잰다 (mesh 는 그대로지만 순서를 한 곳에 둔다). clean 이면 숨긴 것은 빼고 대역은 센다.
       const root = k.kind === 'module' ? plannerCaptureModuleObject(t.moduleGroup, k.moduleId) : t.moduleGroup;
@@ -1636,14 +1704,14 @@ const PlannerCapture = {
         return { ok: false, reason: 'empty', message: k.kind === 'module' ? '그 모듈이 3D 에 없습니다' : '3D 에 찍을 모듈이 없습니다' };
       }
       if (clean) this._cleanShadows(t, T, bounds, cleanSt);
-      const aspect = plannerCaptureAspectFor(k.kind, bounds, this.canvasAspect());
+      const aspect = plannerCaptureAspectFor(k.kind, bounds, this.canvasAspect(), view);
       // clean 이면 보이는 부재 꼭짓점에 맞춰 가운데 세운다 (massing·front). 아니면 예전 그대로.
       // 2026-10-19: annotate front 는 글자 자리가 남도록 덜 채운다 (머리 주석 ⑩).
       const frame = annotate
-        ? plannerCaptureCleanFrame(k.kind, bounds, aspect, plannerCapturePointsOf(root, T), PLANNER_CAPTURE_ANNOTATE_FILL)
+        ? plannerCaptureCleanFrame(k.kind, bounds, aspect, plannerCapturePointsOf(root, T), PLANNER_CAPTURE_ANNOTATE_FILL, view)
         : clean
-          ? plannerCaptureCleanFrame(k.kind, bounds, aspect, plannerCapturePointsOf(root, T))
-          : plannerCaptureFrame(k.kind, bounds, aspect);
+          ? plannerCaptureCleanFrame(k.kind, bounds, aspect, plannerCapturePointsOf(root, T), undefined, view)
+          : plannerCaptureFrame(k.kind, bounds, aspect, view);
       const size = plannerCaptureSizeFor(longEdge, frame.aspect);
       const width = size.width, height = size.height;
 
@@ -1682,7 +1750,7 @@ const PlannerCapture = {
         width,
         height,
         frame,
-        camera: plannerCaptureCameraJson(frame, longEdge, k.moduleId, clean),
+        camera: plannerCaptureCameraJson(frame, longEdge, k.moduleId, clean, view),
         pixels,
         toneMapped: !!out,
         clean,
@@ -1694,7 +1762,7 @@ const PlannerCapture = {
           (it.moduleIds || [it.moduleId]).forEach((id) => {   // 2026-10-19: 쌓인 단 한 통은 단마다
             if (boxes[id] !== undefined) return;
             const obj = plannerCaptureModuleObject(t.moduleGroup, id);
-            const b = obj ? plannerCaptureModuleBounds(obj, T, clean) : null;
+            const b = obj ? plannerCaptureModuleBounds(obj, T, clean, view && plannerCaptureFacingDir(view.facing)[0] !== 0 ? 'z' : 'x') : null;
             boxes[id] = b ? plannerCaptureScreenBox(frame, width, height, b) : null;
           });
         }));
@@ -1710,6 +1778,7 @@ const PlannerCapture = {
       if (rtA) { try { rtA.dispose(); } catch (e) { /* 무해 */ } }
       if (rtB) { try { rtB.dispose(); } catch (e) { /* 무해 */ } }
       if (cleanSt) this._cleanEnd(t, cleanSt);   // 룩보다 먼저 — 들어온 순서의 거꾸로
+      onlyHidden.splice(0).forEach((o) => { try { o.visible = true; } catch (e) { /* 무해 */ } });
       if (PD && look) PD.popLook(look);
     }
   },
@@ -2095,6 +2164,8 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerCaptureDetailHash,
     plannerCaptureSizeFor,
     plannerCaptureAspectFor,
+    plannerCaptureFacingDir,
+    plannerCaptureYaw,
     plannerCaptureFrame,
     plannerCaptureCameraJson,
     PLANNER_CAPTURE_ANNOTATE_FILL,

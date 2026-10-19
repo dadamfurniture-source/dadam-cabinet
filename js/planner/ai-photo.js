@@ -205,7 +205,10 @@ function plannerAiPhotoBoxOf(m) {
   const swap = rot === 90 || rot === 270;
   const w = swap ? D : W;
   const cx = plannerAiPhotoNum(m && m.x) + W / 2;
-  return { x: cx - w / 2, w };
+  // 2026-10-19: 앞뒤 범위(y·d)도 — ㄱ자 꺾인 벽의 자리(모서리에서 나온 거리)를 잰다
+  const d = swap ? W : D;
+  const cy = plannerAiPhotoNum(m && m.y) + D / 2;
+  return { x: cx - w / 2, w, y: cy - d / 2, d };
 }
 
 function plannerAiPhotoIsFinishing(section) {
@@ -547,8 +550,13 @@ function plannerAiPhotoCategoryOf(modules) {
   const list = Array.isArray(modules) ? modules : [];
   const has = (sec) => list.some((m) => m && m.section === sec);
   if (has('wardrobe')) return 'wardrobe';
+  // 2026-10-19: 냉장고장이 있어도 주방 구성(싱크·후드·식세기, 또는 하부장 + 상부장)이면 주방이다 —
+  //   싱크대 + 키큰장 + 냉장고장 도면이 fridge 로 판정돼 워커 TASK 가 "built-in refrigerator surround" 가 됐다.
+  //   냉장고장만(또는 냉장고장 + 수납장) 있는 도면은 그대로 fridge.
+  const kitchen = has('sink') || has('hood') || has('dishwasher') || (has('lower') && has('upper'));
+  if (kitchen) return 'sink';
   if (has('fridge')) return 'fridge';
-  if (has('lower') || has('upper') || has('sink') || has('hood') || has('dishwasher')) return 'sink';
+  if (has('lower') || has('upper')) return 'sink';
   if (has('tall')) return 'storage';
   return 'storage';
 }
@@ -613,6 +621,83 @@ function plannerAiPhotoLayoutOf(modules) {
   }
   if (rots.length === 3) return { shape: 'u', walls: 3 };
   return null;
+}
+
+/** 2026-10-19: 모서리를 "차지했다" 고 볼 오차 (mm) — 주벽 런 끝이 꺾인 런 바깥면에서 이만큼 안이면 모서리까지 간 것. */
+const PLANNER_AI_PHOTO_CORNER_TOL = 50;
+
+/**
+ * 2026-10-19: ㄱ자·ㄷ자 — 모듈을 벽별로 가른다. 순수 (design-spec-prompt.md "꺾인 벽").
+ *   회전 = 정면 세트 (plannerAiPhotoLayoutOf 와 같은 묶음). 주벽 = 회전 0 이 있으면 그것, 없으면 폭 합이 가장 큰 회전.
+ *   꺾인 벽 = 주벽과 90° 차인 회전. 180° 차(마주 보는 벽)·같은 쪽에 둘·앞뒤 범위(b.y·b.d)를 모르면 null — 예전처럼 편다.
+ *   좌표 (plan x, plan y = 3D z, y 가 커질수록 방 앞쪽). 모듈 앞면 법선 = (−sin r, cos r):
+ *     side       꺾인 벽 묶음 가운데 x 가 주벽 가운데보다 작으면 'left'
+ *     backLine   주벽 모듈의 가장 뒤(y 최소) — 모서리(뒷벽 면)
+ *     corner     'main' 주벽 바닥 런이 꺾인 바닥 런 바깥면까지 · 'return' 꺾인 바닥 런이 주벽 바닥 런 뒷면까지 · 'open'
+ *     facing     꺾인 벽 입면을 찍는 쪽 = 앞면 법선 x 부호 ('x-' | 'x+') — 앞면을 정면으로 본다
+ *     cornerEdge 그 입면 그림에서 모서리(y 작은 쪽)의 가장자리 — 'x-' 면 왼쪽, 'x+' 면 오른쪽
+ *     flip       모듈 앞면의 왼→오가 모서리→방 쪽과 반대(sin r < 0)면 칸 순서를 뒤집는다
+ *     list       { m, b:{x: y − backLine, w: d} } — 모서리에서 나온 거리로 잰 자리
+ *   massingYawDeg 3/4 뷰 방위 — 꺾인 장 앞면이 보이는 쪽 (꺾인 장 법선 x 가 −면 왼쪽에서 −30°, 아니면 30°)
+ * @param {{m:object, b:{x:number,w:number,y?:number,d?:number}}[]} boxes
+ * @returns {{main:object[], mainIds:string[], returns:object[], massingYawDeg:number}|null}
+ */
+function plannerAiPhotoWallGroups(boxes) {
+  const list = Array.isArray(boxes) ? boxes.filter((x) => x && x.m && x.b) : [];
+  const layout = plannerAiPhotoLayoutOf(list.map((x) => x.m));
+  if (!layout || layout.shape === 'straight') return null;
+  if (!list.every((x) => Number.isFinite(Number(x.b.y)) && Number(x.b.d) > 0)) return null;
+  const rotOf = (m) => ((plannerAiPhotoNum(m.rotation) % 360) + 360) % 360;
+  const groups = {};
+  list.forEach((x) => { const r = rotOf(x.m); (groups[r] || (groups[r] = [])).push(x); });
+  const real = (g) => g.filter((x) => !plannerAiPhotoIsFinishing(x.m.section));
+  const rots = Object.keys(groups).map(Number).filter((r) => real(groups[r]).length);
+  const widthSum = (r) => real(groups[r]).reduce((n, x) => n + x.b.w, 0);
+  const mainRot = rots.indexOf(0) >= 0 ? 0 : rots.slice().sort((a, b) => widthSum(b) - widthSum(a))[0];
+  const main = groups[mainRot];
+  const floor = (g) => {
+    const f = real(g).filter((x) => { const s = PLANNER_AI_PHOTO_BUCKET[x.m.section]; return s === 'lower' || s === 'tall'; });
+    return f.length ? f : real(g);
+  };
+  const ext = (g, k, w) => [Math.min.apply(null, g.map((x) => x.b[k])), Math.max.apply(null, g.map((x) => x.b[k] + x.b[w]))];
+  const [mx0, mx1] = ext(real(main), 'x', 'w');
+  const [fx0, fx1] = ext(floor(main), 'x', 'w');
+  const [fy0] = ext(floor(main), 'y', 'd');
+  const backLine = Math.min.apply(null, main.map((x) => x.b.y));
+  const mcx = (mx0 + mx1) / 2;
+  const T = PLANNER_AI_PHOTO_CORNER_TOL;
+  const returns = [];
+  for (const r of rots) {
+    if (r === mainRot) continue;
+    const d = Math.abs(r - mainRot);
+    if (d !== 90 && d !== 270) return null;                   // 마주 보는 벽 — 모른다
+    const g = groups[r];
+    const [gx0, gx1] = ext(real(g), 'x', 'w');
+    const side = (gx0 + gx1) / 2 < mcx ? 'left' : 'right';
+    if (returns.some((w) => w.side === side)) return null;
+    const [rx0, rx1] = ext(floor(g), 'x', 'w');
+    const [ry0, ry1] = ext(g, 'y', 'd');
+    const [ry0f] = ext(floor(g), 'y', 'd');
+    const mainReach = side === 'left' ? fx0 <= rx0 + T : fx1 >= rx1 - T;
+    const retReach = ry0f <= fy0 + T;
+    const corner = mainReach ? 'main' : retReach ? 'return' : 'open';
+    const nx = -Math.sin(r * Math.PI / 180);
+    const facing = nx < 0 ? 'x-' : 'x+';
+    const flipOn = Math.sin(r * Math.PI / 180) < 0;
+    returns.push({
+      side, rot: r, corner, facing,
+      cornerEdge: facing === 'x-' ? 'left' : 'right',
+      runMm: ry1 - backLine,
+      ids: g.map((x) => String(x.m.id)),
+      flip: () => flipOn,
+      list: g.map((x) => ({ m: x.m, b: { x: x.b.y - backLine, w: x.b.d } })),
+    });
+  }
+  if (!returns.length) return null;
+  returns.sort((a, b) => (a.side === 'left' ? 0 : 1) - (b.side === 'left' ? 0 : 1));
+  // 3/4 뷰 — 꺾인 장 앞면이 보이는 쪽에서 (첫 꺾인 벽 기준)
+  const massingYawDeg = returns[0].facing === 'x-' ? -30 : 30;
+  return { main, mainIds: main.map((x) => String(x.m.id)), returns, massingYawDeg };
 }
 
 /** 2026-10-19: 같은 통으로 볼 x·폭 오차 (mm). 플래너는 단을 같은 x·W 로 세운다 — 반올림만 넉넉히. */
@@ -700,6 +785,46 @@ function plannerAiPhotoColumnModule(col, structureOf, wardrobeFrontOf, baseOf) {
 }
 
 /**
+ * 2026-10-19: 계약 모듈이 후드 칸인가 — 워커 prompts.js isHoodCell 과 같은 규칙 (가전 칸 · 쌓인 단 없음 · 라벨 후드/hood).
+ */
+function plannerAiPhotoIsHoodCell(m) {
+  return !!m && m.kind === 'appliance' && !(Array.isArray(m.tiers) && m.tiers.length)
+    && /후드|hood/.test(String(m.label || '').toLowerCase());
+}
+
+/** 2026-10-19: 후드와 상부장이 "겹친다" 고 볼 최소 폭 (mm) — 맞닿기만 한 것은 겹침이 아니다. */
+const PLANNER_AI_PHOTO_HOOD_OVERLAP = 5;
+
+/**
+ * 2026-10-19: 상부장 사이에 **노출된** 후드 → 상부 줄의 후드 칸. 순수 (design-spec-prompt.md "후드 칸").
+ *   후드 마커(section 'hood')가 어느 상부장과도 x 가 겹치지 않으면 노출형 — 칸 하나로 줄에 넣는다.
+ *   칸 폭은 이웃 상부장 사이 틈 전체 (워커는 줄을 빈틈 없이 이어 놓는다 — 틈을 남기면 뒤의 장이 당겨진다).
+ *   한쪽에 이웃이 없으면(줄 끝) 그쪽은 후드 가장자리까지. 겹치면(상부장 밑 내장형) 칸을 만들지 않는다 — 예전처럼 가전 목록만.
+ *   상부장이 하나도 없으면 칸도 없다.
+ * @param {{m:object, b:{x:number,w:number}}[]} boxes 전체 (boxOf 반영)
+ * @param {{m:object, b:{x:number,w:number}}[]|undefined} uppers 상부 줄 모듈
+ * @returns {{m:object, b:{x:number,w:number}, hoodCell:true}[]}
+ */
+function plannerAiPhotoHoodCells(boxes, uppers) {
+  const ups = (uppers || []).filter((x) => !x.hoodCell);
+  if (!ups.length) return [];
+  const T = PLANNER_AI_PHOTO_HOOD_OVERLAP;
+  const out = [];
+  (boxes || []).forEach((x) => {
+    if (!x || !x.m || x.m.section !== 'hood' || !(x.b.w > 0)) return;
+    const h0 = x.b.x, h1 = x.b.x + x.b.w;
+    if (ups.some((u) => Math.min(h1, u.b.x + u.b.w) - Math.max(h0, u.b.x) > T)) return;   // 내장형
+    const lefts = ups.filter((u) => u.b.x + u.b.w <= h0 + T).map((u) => u.b.x + u.b.w);
+    const rights = ups.filter((u) => u.b.x >= h1 - T).map((u) => u.b.x);
+    const x0 = lefts.length ? Math.max.apply(null, lefts) : h0;
+    const x1 = rights.length ? Math.min.apply(null, rights) : h1;
+    if (!(x1 - x0 > T)) return;
+    out.push({ m: x.m, b: { x: x0, w: x1 - x0 }, hoodCell: true });
+  });
+  return out;
+}
+
+/**
  * 2026-10-19: 도면 요약 + **번호 자취**. 순수. plannerAiPhotoBuildSpec 은 이것의 spec 만 돌려준다.
  *   trace[slot][i] = spec.sections[slot].modules[i] 가 어느 플래너 모듈의 어느 몫인지 — { moduleId, from, to }
  *   (2026-10-19: 쌓인 단 한 통이면 moduleIds 도 — 그 통의 단들, 냉장고 본체가 있으면 맨 앞. moduleId 는 그 첫째)
@@ -717,18 +842,34 @@ function plannerAiPhotoSpecTrace(input) {
   // 런의 왼쪽 끝 — 마감재·가전 표시까지 **전부** 센다. 계약의 fromLeftMm 가 여기서부터 잰 값이다.
   const boxes = all.map((m) => ({ m, b: boxOf(m) }));
   const left = Math.min.apply(null, boxes.map((x) => x.b.x));
-  const right = Math.max.apply(null, boxes.map((x) => x.b.x + x.b.w));
+  const category = o.category || plannerAiPhotoCategoryOf(all);
+  // 2026-10-19: ㄱ자·ㄷ자 — 꺾인 벽은 펴지 않고 walls[] 로 (design-spec-prompt.md "꺾인 벽"). 붙박이장·모르는 모양은 예전처럼 편다.
+  const wallsInfo = category === 'wardrobe' ? null : plannerAiPhotoWallGroups(boxes);
+  const mainBoxes = wallsInfo ? wallsInfo.main : boxes;
+  const right = Math.max.apply(null, mainBoxes.map((x) => x.b.x + x.b.w));
 
+  const notes = [];
+  const rotated = boxes.some((x) => ((plannerAiPhotoNum(x.m.rotation) % 360) + 360) % 360);
+
+  // 2026-10-19: 아랫면 바닥 높이 — 쌓인 단의 순서·냉장고 자리 높이에 쓴다. 페이지의 baseYOf(3D 와 같은 값)가 먼저,
+  //   없으면 모듈의 baseY, 그것도 없으면 0 (바닥).
+  const baseOf = (m) => {
+    if (typeof o.baseYOf === 'function') {
+      try { const v = Number(o.baseYOf(m)); if (Number.isFinite(v)) return v; } catch (e) { /* 아래로 */ }
+    }
+    const v = Number(m && m.baseY);
+    return Number.isFinite(v) ? v : 0;
+  };
+
+  // 한 벽의 런 → 구간·자취·가전. list 의 b.x·b.w 는 그 벽을 따라 잰 자리(주벽은 평면 x, 꺾인 벽은 모서리에서 나온 거리).
+  //   flip(m) 이 참이면 그 모듈 안의 칸 순서를 뒤집는다 (꺾인 벽에서 모듈 앞면의 왼→오가 모서리→방 쪽과 반대일 때).
+  const runOf = (list0, left, flip) => {
   const sections = {};
   const appliances = [];
-  const notes = [];
-  let rotated = false;
-
   // 구간 — 섹션 칸마다 폭·높이·깊이·왼쪽 끝을 모으고, 그 안의 모듈을 좌→우로 늘어놓는다.
   const bySlot = {};
-  boxes.forEach((x) => {
+  list0.forEach((x) => {
     const m = x.m;
-    if (((plannerAiPhotoNum(m.rotation) % 360) + 360) % 360) rotated = true;
     if (plannerAiPhotoIsFinishing(m.section)) return;                  // 판 한 장 — 모듈이 아니다
     const kind = PLANNER_AI_PHOTO_APPLIANCE[m.section];
     if (kind) {
@@ -743,16 +884,8 @@ function plannerAiPhotoSpecTrace(input) {
     if (!slot) return;                                                  // 분배기·후드는 자리 표시뿐
     (bySlot[slot] || (bySlot[slot] = [])).push(x);
   });
-
-  // 2026-10-19: 아랫면 바닥 높이 — 쌓인 단의 순서·냉장고 자리 높이에 쓴다. 페이지의 baseYOf(3D 와 같은 값)가 먼저,
-  //   없으면 모듈의 baseY, 그것도 없으면 0 (바닥).
-  const baseOf = (m) => {
-    if (typeof o.baseYOf === 'function') {
-      try { const v = Number(o.baseYOf(m)); if (Number.isFinite(v)) return v; } catch (e) { /* 아래로 */ }
-    }
-    const v = Number(m && m.baseY);
-    return Number.isFinite(v) ? v : 0;
-  };
+  // 2026-10-19: 상부장 사이의 노출 후드 → 상부 줄 안의 후드 칸 (design-spec-prompt.md "후드 칸")
+  plannerAiPhotoHoodCells(list0, bySlot.upper).forEach((h) => bySlot.upper.push(h));
 
   const trace = {};
   PLANNER_AI_PHOTO_BUCKETS.forEach((slot) => {
@@ -777,6 +910,12 @@ function plannerAiPhotoSpecTrace(input) {
       }
       const m = x.m;
       const s = structureOf(m.id);
+      if (x.hoodCell) {
+        // 2026-10-19: 후드 칸 — 장이 아니라 후드가 걸리는 틈. 워커는 라벨 '후드' 로 알고 번호를 H1 … 로 매긴다
+        mods.push({ widthMm: plannerAiPhotoMm(x.b.w), kind: 'appliance', doorCount: 0, drawerCount: 0, label: '후드' });
+        tr.push({ moduleId: String(m.id), from: 0, to: 1 });
+        return;
+      }
       if (PLANNER_AI_PHOTO_APPLIANCE[m.section]) {
         // 가전 본체(냉장고·식기세척기)는 장이 아니라 **구멍**이다.
         mods.push({
@@ -793,12 +932,16 @@ function plannerAiPhotoSpecTrace(input) {
       // 2026-10-19: 칸마다 쪼갠 모듈은 칸 폭 비율로 자취를 남긴다 (좌→우)
       const sum = part.reduce((n, p) => n + plannerAiPhotoNum(p.widthMm), 0);
       let acc = 0;
+      const ptr = [];
       part.forEach((p) => {
         const w = plannerAiPhotoNum(p.widthMm);
         const one = part.length === 1 || !(sum > 0);
-        tr.push({ moduleId: String(m.id), from: one ? 0 : acc / sum, to: one ? 1 : (acc + w) / sum });
+        ptr.push({ moduleId: String(m.id), from: one ? 0 : acc / sum, to: one ? 1 : (acc + w) / sum });
         acc += w;
       });
+      // 2026-10-19: 꺾인 벽에서 앞면 왼→오가 모서리→방 쪽과 반대면 칸 순서를 뒤집는다 (자취의 from·to 는 앞면 기준 그대로)
+      if (flip && flip(m)) { part.reverse(); ptr.reverse(); }
+      ptr.forEach((t) => tr.push(t));
       mods = mods.concat(part);
     });
     trace[slot] = tr.slice(0, PLANNER_AI_PHOTO_MAX_MODULES);
@@ -813,7 +956,8 @@ function plannerAiPhotoSpecTrace(input) {
       heightMm: plannerAiPhotoMm(Math.max.apply(null, entries.map((x) => (x.col
         ? Math.max.apply(null, x.mods.map((m) => baseOf(m) + plannerAiPhotoNum(m.H))) - (x.niche ? 0 : baseOf(x.mods[0]))
         : plannerAiPhotoNum(x.m.H))))),
-      depthMm: plannerAiPhotoMm(Math.max.apply(null, list.map((x) => plannerAiPhotoNum(x.m.D)))),
+      // 2026-10-19: 후드 칸의 깊이(후드 마커 450)는 줄 깊이가 아니다
+      depthMm: plannerAiPhotoMm(Math.max.apply(null, list.map((x) => (x.hoodCell ? 0 : plannerAiPhotoNum(x.m.D))))),
       fromLeftMm: plannerAiPhotoMm(x0 - left),
       modules: mods.slice(0, PLANNER_AI_PHOTO_MAX_MODULES),
     };
@@ -830,10 +974,38 @@ function plannerAiPhotoSpecTrace(input) {
       if (ys.length) sections[slot].fromFloorMm = plannerAiPhotoMm(Math.min.apply(null, ys));
     }
   });
-
   appliances.sort((a, b) => a._x - b._x);
-  const apps = appliances.slice(0, PLANNER_AI_PHOTO_MAX_APPLIANCES)
+  return { sections, trace, appliances };
+  };
+
+  const main = runOf(mainBoxes, left, null);
+  const sections = main.sections;
+  const trace = main.trace;
+  const apps = main.appliances.slice(0, PLANNER_AI_PHOTO_MAX_APPLIANCES)
     .map((a) => ({ kind: a.kind, fromLeftMm: a.fromLeftMm, widthMm: a.widthMm }));
+
+  // 2026-10-19: 꺾인 벽 — 벽마다 같은 규칙으로 런을 만들고 자리를 fromCornerMm 로 바꾼다 (모서리 → 방 쪽)
+  const walls = [];
+  const views = wallsInfo ? { main: wallsInfo.mainIds, walls: [], massingYawDeg: wallsInfo.massingYawDeg } : null;
+  (wallsInfo ? wallsInfo.returns : []).forEach((w) => {
+    const r = runOf(w.list, 0, w.flip);
+    const secs = {};
+    PLANNER_AI_PHOTO_BUCKETS.forEach((slot) => {
+      const s = r.sections[slot];
+      if (!s) return;
+      const out = {};
+      Object.keys(s).forEach((k) => { if (k === 'fromLeftMm') out.fromCornerMm = s[k]; else out[k] = s[k]; });
+      secs[slot] = out;
+    });
+    if (!Object.keys(secs).length) return;
+    const wall = { side: w.side, corner: w.corner, runMm: plannerAiPhotoMm(w.runMm), cornerEdge: w.cornerEdge, sections: secs };
+    const wa = r.appliances.map((a) => ({ kind: a.kind, fromCornerMm: a.fromLeftMm, widthMm: a.widthMm }));
+    if (wa.length) wall.appliances = wa.slice(0, PLANNER_AI_PHOTO_MAX_APPLIANCES);
+    walls.push(wall);
+    trace.walls = trace.walls || {};
+    trace.walls[w.side] = r.trace;
+    views.walls.push({ side: w.side, facing: w.facing, moduleIds: w.ids });
+  });
 
   // 마감 — 도어·몸통·상판. 모듈마다 해석해(부재>모듈>섹션>품목) 가장 많이 나온 코드를 대표로 삼는다.
   const finishes = {};
@@ -870,7 +1042,9 @@ function plannerAiPhotoSpecTrace(input) {
     });
     notes.push(`양 끝 마감재: ${names.join('·')} ${fins.length}장`);
   }
-  if (rotated) notes.push('ㄱ자 배치라 꺾인 구간을 한 벽으로 폈습니다');
+  // 2026-10-19: 꺾인 벽을 walls[] 로 보냈으면 "폈다" 가 아니다
+  if (walls.length) notes.push(`${walls.length > 1 ? 'ㄷ자' : 'ㄱ자'} 배치 — 꺾인 벽: ${walls.map((w) => (w.side === 'left' ? '왼쪽' : '오른쪽')).join('·')}`);
+  else if (rotated) notes.push('ㄱ자 배치라 꺾인 구간을 한 벽으로 폈습니다');
 
   // 런 폭 — 모든 모듈의 좌우 끝. 구간이 그보다 길어졌으면(위 sumW) 그쪽을 따른다.
   let runMm = right - left;
@@ -880,7 +1054,7 @@ function plannerAiPhotoSpecTrace(input) {
   });
 
   const spec = {
-    category: o.category || plannerAiPhotoCategoryOf(all),
+    category,
     wallRunMm: plannerAiPhotoMm(runMm),
     sections,
     appliances: apps,
@@ -898,7 +1072,9 @@ function plannerAiPhotoSpecTrace(input) {
   if (Number.isFinite(ceil) && ceil >= PLANNER_AI_PHOTO_CEILING_RANGE[0] && ceil <= PLANNER_AI_PHOTO_CEILING_RANGE[1]) {
     spec.ceilingMm = plannerAiPhotoMm(ceil);
   }
-  return { spec, trace };
+  // 2026-10-19: 꺾인 벽 (ㄱ자·ㄷ자) — 맨 뒤에. views 는 캡처용(벽마다 찍을 모듈·카메라 쪽, 3/4 방위) — 계약 밖.
+  if (walls.length) spec.walls = walls;
+  return walls.length ? { spec, trace, views } : { spec, trace };
 }
 
 /**
@@ -917,24 +1093,53 @@ function plannerAiPhotoSpecTrace(input) {
  * @returns {{rows:{key:string, prefix:string, widthMm:number|null, heightMm:number|null,
  *   items:{id:string, moduleId:string, moduleIds?:string[], from:number, to:number, widthMm:number}[]}[]}|null}
  */
-function plannerAiPhotoElevationLabels(spec, trace) {
-  const secs = (spec && spec.sections) || {};
-  const tr = trace || {};
+function plannerAiPhotoElevationLabels(spec, trace, side) {
+  const tr0 = trace || {};
+  const walls = (spec && Array.isArray(spec.walls) ? spec.walls : []).filter((w) => w && w.sections);
+  // 2026-10-19: 후드 칸은 줄 머리 대신 H1·H2 — 줄 순서(lower→upper→tall)대로 이어서 (워커 plannerRows 와 같다)
+  // 2026-10-19: 꺾인 벽(walls[])의 줄은 같은 머리 글자로 주벽에 이어서 센다 (L1–L4 → L5) — 머리 글자마다 하나의 셈
+  let hoods = 0;
+  const counters = {};
+  const plans = {};
+  // 주벽 → 꺾인 벽 순서로 번호를 매기고, side 의 plan 만 돌려준다 (없으면 주벽)
+  [{ key: 'main', secs: (spec && spec.sections) || {}, tr: tr0 }]
+    .concat(walls.map((w) => ({ key: w.side, secs: w.sections, tr: (tr0.walls && tr0.walls[w.side]) || {} })))
+    .forEach((g) => { plans[g.key] = plannerAiPhotoLabelRows(spec, g.secs, g.tr, counters, () => ++hoods); });
+  return plans[side || 'main'] || null;
+}
+
+/**
+ * 2026-10-19: 요약 자취(plannerAiPhotoSpecTrace 결과) → renders() 가 받는 벽별 캡처 지시. 순수.
+ *   { main: 주벽 모듈 id, massingYawDeg, walls: [{ side, facing, moduleIds, plan }] }. 꺾인 벽이 없으면 null (예전 그대로 찍는다).
+ */
+function plannerAiPhotoWallViews(st) {
+  if (!st || !st.views || !st.spec) return null;
+  return {
+    main: st.views.main,
+    massingYawDeg: st.views.massingYawDeg,
+    walls: st.views.walls.map((w) => ({ ...w, plan: plannerAiPhotoElevationLabels(st.spec, st.trace, w.side) })),
+  };
+}
+
+/** 2026-10-19: 한 벽의 번호 plan (plannerAiPhotoElevationLabels 안). counters·nextHood 는 벽 사이에 이어진다. */
+function plannerAiPhotoLabelRows(spec, secs, tr, counters, nextHood) {
   const keys = PLANNER_AI_PHOTO_BUCKETS.filter((k) => secs[k] && Array.isArray(secs[k].modules) && secs[k].modules.length);
   if (!keys.length) return null;
   const widthOf = (sec) => sec.widthMm || sec.modules.reduce((n, m) => n + (m.widthMm || 0), 0) || null;
   const itemsOf = (k) => secs[k].modules.map((m, i) => {
     const t = (tr[k] || [])[i] || {};
-    return { moduleId: t.moduleId, moduleIds: t.moduleIds, from: t.from, to: t.to, widthMm: m.widthMm };
+    return { moduleId: t.moduleId, moduleIds: t.moduleIds, from: t.from, to: t.to, widthMm: m.widthMm, hood: plannerAiPhotoIsHoodCell(m) };
   });
   // 2026-10-19: 쌓인 단 한 통은 번호 하나 — moduleIds(단들 + 냉장고 본체)를 함께 넘겨 라벨이 통 전체 상자 가운데에 선다
-  const number = (prefix, list) => list
-    .map((it, i) => {
-      const out = { id: prefix + (i + 1), moduleId: it.moduleId, from: it.from, to: it.to, widthMm: it.widthMm };
+  const number = (prefix, list) => {
+    return list.map((it) => {
+      const id = it.hood ? 'H' + nextHood() : prefix + (counters[prefix] = (counters[prefix] || 0) + 1);
+      const out = { id, moduleId: it.moduleId, from: it.from, to: it.to, widthMm: it.widthMm };
       if (Array.isArray(it.moduleIds) && it.moduleIds.length) out.moduleIds = it.moduleIds.slice();
       return out;
     })
-    .filter((it) => it.moduleId != null);
+      .filter((it) => it.moduleId != null);
+  };
   let rows;
   if (spec.category === 'wardrobe') {
     const ordered = keys.slice().sort((a, b) => (secs[a].fromLeftMm || 0) - (secs[b].fromLeftMm || 0));
@@ -1517,15 +1722,17 @@ const PlannerAiPhoto = {
    * @param {object} [plan] 번호 plan
    * @returns {Promise<{ok:true, renders:Array, elevation:object, labeled:boolean, labeledError?:string, massing:boolean, massingError?:string}|{ok:false, message:string}>}
    */
-  async renders(plan) {
+  async renders(plan, views) {
     const cap = this.capturer();
     if (!cap || typeof cap.capture !== 'function') {
       return { ok: false, message: '도면을 찍을 수 없습니다 — 3D 화면이 아직 준비되지 않았습니다 · 크레딧은 쓰지 않았습니다' };
     }
     const E = PLANNER_AI_PHOTO_RENDER.elevation;
     const labels = plan === undefined ? this.labelPlan() : plan;
+    // 2026-10-19: ㄱ자·ㄷ자 (views — plannerAiPhotoSpecTrace) — 주벽 입면은 주벽 모듈만, 꺾인 벽은 제 입면을 따로 (아래)
+    const mainOnly = views && Array.isArray(views.main) ? { only: views.main } : {};
     let front;
-    try { front = await cap.capture({ kind: E.kind, longEdge: E.longEdge, clean: true }); }
+    try { front = await cap.capture({ kind: E.kind, longEdge: E.longEdge, clean: true, ...mainOnly }); }
     catch (e) { front = { ok: false, message: (e && e.message) || String(e) }; }
     if (!front || !front.ok || !front.blob) {
       const why = (front && front.message) || '알 수 없는 이유';
@@ -1543,7 +1750,7 @@ const PlannerAiPhoto = {
     let labeledError = null;
     if (labels && Array.isArray(labels.rows) && labels.rows.length) {
       try {
-        const lb = await cap.capture({ kind: E.kind, longEdge: E.longEdge, clean: true, annotate: labels });
+        const lb = await cap.capture({ kind: E.kind, longEdge: E.longEdge, clean: true, annotate: labels, ...mainOnly });
         if (!lb || !lb.ok || !lb.blob) {
           labeledError = (lb && lb.message) || '번호 입면을 찍지 못했습니다';
         } else {
@@ -1570,12 +1777,34 @@ const PlannerAiPhoto = {
     elevation.width = shown.shot.width;
     elevation.height = shown.shot.height;
 
-    if (this.evalMode() && this.noMassing) return { ok: true, renders, elevation, ...lab, massing: false, massingError: 'eval' };
+    // 2026-10-19: ㄱ자·ㄷ자 꺾인 벽 입면 — 그 벽 모듈만, 그 장들의 앞면 쪽에서 (facing). 번호 plan 이 있으면 번호 입면도.
+    //   선택 — 못 찍으면 빼고 간다 (워커는 글 목록으로 그 벽을 그린다). 역할 elevation_{side}(_labeled).
+    const wallShots = [];
+    for (const w of (views && Array.isArray(views.walls) ? views.walls : [])) {
+      const base = { kind: E.kind, longEdge: E.longEdge, clean: true, only: w.moduleIds, facing: w.facing };
+      const got = { side: w.side, plain: false, labeled: false };
+      try {
+        const s = await cap.capture(base);
+        const b = s && s.ok && s.blob ? await plannerAiPhotoBlobToBase64(s.blob) : null;
+        if (b) { renders.push({ role: `elevation_${w.side}`, base64: b, mime: 'image/png' }); got.plain = true; }
+        if (got.plain && w.plan && Array.isArray(w.plan.rows) && w.plan.rows.length) {
+          const l = await cap.capture({ ...base, annotate: w.plan });
+          const lb = l && l.ok && l.blob ? await plannerAiPhotoBlobToBase64(l.blob) : null;
+          if (lb) { renders.push({ role: `elevation_${w.side}_labeled`, base64: lb, mime: 'image/png' }); got.labeled = true; }
+        }
+      } catch (e) { got.error = (e && e.message) || String(e); }
+      wallShots.push(got);
+    }
+    const wallsOut = wallShots.length ? { walls: wallShots } : {};
+
+    if (this.evalMode() && this.noMassing) return { ok: true, renders, elevation, ...lab, ...wallsOut, massing: false, massingError: 'eval' };
 
     const M = PLANNER_AI_PHOTO_RENDER.massing;
     let massingError = null;
     try {
-      const shot = await cap.capture({ kind: M.kind, longEdge: M.longEdge, clean: true });
+      // 2026-10-19: ㄱ자·ㄷ자면 꺾인 장 앞면이 보이는 쪽에서 (views.massingYawDeg)
+      const yaw = views && Number.isFinite(Number(views.massingYawDeg)) ? { yawDeg: Number(views.massingYawDeg) } : {};
+      const shot = await cap.capture({ kind: M.kind, longEdge: M.longEdge, clean: true, ...yaw });
       if (!shot || !shot.ok || !shot.blob) {
         massingError = (shot && shot.message) || '3/4 뷰를 찍지 못했습니다';
       } else {
@@ -1588,8 +1817,8 @@ const PlannerAiPhoto = {
       massingError = (e && e.message) || String(e);
     }
     return massingError
-      ? { ok: true, renders, elevation, ...lab, massing: false, massingError }
-      : { ok: true, renders, elevation, ...lab, massing: true };
+      ? { ok: true, renders, elevation, ...lab, ...wallsOut, massing: false, massingError }
+      : { ok: true, renders, elevation, ...lab, ...wallsOut, massing: true };
   },
 
   /** 로그인 토큰. PlannerStore 와 같은 클라이언트를 본다 (부모 세션 그대로). */
@@ -1844,7 +2073,8 @@ const PlannerAiPhoto = {
 
     // 2026-10-18 (P5): 도면 렌더를 스스로 찍는다. 입면을 못 찍으면 여기서 멈춘다 — 요청 전이라 크레딧을 안 쓴다.
     // 2026-10-19: 입면 번호는 보내는 design_spec 과 같은 요약에서 — 글과 그림의 번호가 어긋나지 않는다
-    const shots = await this.renders(plannerAiPhotoElevationLabels(st.spec, st.trace));
+    // 2026-10-19: ㄱ자·ㄷ자면 벽마다 입면 (views — 찍을 모듈·카메라 쪽, 번호는 주벽에 이어서)
+    const shots = await this.renders(plannerAiPhotoElevationLabels(st.spec, st.trace), plannerAiPhotoWallViews(st));
     if (!shots.ok) return this._fail(shots.message);
     this.elevation = shots.elevation;
     if (shots.massingError && shots.massingError !== 'eval' && typeof console !== 'undefined') {
@@ -2027,6 +2257,11 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerAiPhotoStackColumns,
     plannerAiPhotoColumnModule,
     PLANNER_AI_PHOTO_NICHE_MIN,
+    plannerAiPhotoIsHoodCell,
+    plannerAiPhotoHoodCells,
+    plannerAiPhotoWallGroups,
+    plannerAiPhotoWallViews,
+    PLANNER_AI_PHOTO_CORNER_TOL,
     plannerAiPhotoLayoutOf,
     plannerAiPhotoElevationLabels,
     PLANNER_AI_PHOTO_CEILING_RANGE,

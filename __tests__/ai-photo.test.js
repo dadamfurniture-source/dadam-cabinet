@@ -204,16 +204,24 @@ describe('구간 묶기 (골든 픽스처 · 직선 싱크대)', () => {
     expect(spec.sections.lower.modules.some((m) => m.widthMm === 20)).toBe(false);
   });
 
-  test('ㄱ자 — 90° 구간은 x 축에 눌러 펴고 그 사실을 노트에 적는다', () => {
+  // 2026-10-19: ㄱ자는 더 이상 펴지 않는다 — 주벽은 sections, 꺾인 벽은 walls[] (design-spec-prompt.md "꺾인 벽").
+  //   예전: lower 1800·900·1500 을 한 줄로 펴고 wallRunMm 4200. 꺾인 1500 이 주벽 줄에 끼어 프롬프트가 일자로 말했다.
+  test('ㄱ자 — 90° 구간은 꺾인 벽(walls[])으로, 주벽은 주벽만 · 노트에 ㄱ자', () => {
     const spec = plannerAiPhotoBuildSpec({
       modules: modulesFromFixture(FIXTURES.lShape),
       structureOf: () => struct(),
     });
-    // 자리(x)는 회전을 반영해 눌리지만(planeBoxOf 와 같은 규약: 90° 면 폭↔깊이),
-    // 모듈 폭은 그 장의 실제 폭 그대로다 — 눌러 편 도면이라도 가구 양을 잃지 않는다.
-    expect(spec.sections.lower.modules.map((m) => m.widthMm)).toEqual([1800, 900, 1500]);
-    expect(spec.sections.lower.widthMm).toBe(4200);   // 모듈 폭 합 > x 범위(3775)
-    expect(spec.wallRunMm).toBe(4200);
+    expect(spec.sections.lower.modules.map((m) => m.widthMm)).toEqual([1800, 900]);
+    expect(spec.sections.lower.widthMm).toBe(2700);
+    expect(spec.wallRunMm).toBe(2700);
+    // 꺾인 하부 1500 · 키큰장 600 은 오른쪽 벽 — 모서리에서 나온 거리로, 모듈 폭은 그 장의 실제 폭
+    expect(spec.walls).toHaveLength(1);
+    const w = spec.walls[0];
+    expect([w.side, w.corner, w.cornerEdge, w.runMm]).toEqual(['right', 'open', 'left', 2775]);
+    expect(w.sections.lower).toMatchObject({ widthMm: 1500, fromCornerMm: 225 });
+    expect(w.sections.lower.modules.map((m) => m.widthMm)).toEqual([1500]);
+    expect(w.sections.tall).toMatchObject({ widthMm: 600, fromCornerMm: 2175 });
+    expect(spec.layout).toEqual({ shape: 'corner', walls: 2 });
     expect(spec.notes).toContain('ㄱ자');
   });
 });
@@ -440,6 +448,16 @@ describe('품목 판정 — 플래너 URL 에는 품목 종류가 없다', () =>
     [[{ section: 'lower' }, { section: 'upper' }], 'sink'],
     [[{ section: 'tall' }], 'storage'],
     [[], 'storage'],
+    // 2026-10-19 (C-1): 주방 구성이 있으면 냉장고장이 있어도 주방 — 싱크대 + 키큰장 + 냉장고장 도면이 fridge 로 갔다
+    [[{ section: 'lower' }, { section: 'upper' }, { section: 'sink' }, { section: 'tall' }, { section: 'fridge' }], 'sink'],
+    [[{ section: 'fridge' }, { section: 'sink' }], 'sink'],
+    [[{ section: 'fridge' }, { section: 'lower' }, { section: 'upper' }], 'sink'],
+    [[{ section: 'fridge' }, { section: 'hood' }], 'sink'],
+    [[{ section: 'fridge' }, { section: 'tall' }], 'fridge'],
+    [[{ section: 'fridge' }, { section: 'refrigerator' }], 'fridge'],
+    [[{ section: 'fridge' }, { section: 'lower' }], 'fridge'],
+    [[{ section: 'dishwasher' }], 'sink'],
+    [[{ section: 'upper' }], 'sink'],
   ])('%j → %s', (mods, want) => {
     expect(plannerAiPhotoCategoryOf(mods)).toBe(want);
   });
@@ -451,10 +469,11 @@ describe('품목 판정 — 플래너 URL 에는 품목 종류가 없다', () =>
 
 describe('평면 좌우 범위', () => {
   test('회전 90/270 은 폭과 깊이를 맞바꾼다', () => {
+    // 2026-10-19: 앞뒤 범위(y·d)도 — ㄱ자 꺾인 벽 자리
     expect(plannerAiPhotoBoxOf({ W: 1500, D: 650, x: 2700, rotation: 90 }))
-      .toEqual({ x: 3125, w: 650 });
-    expect(plannerAiPhotoBoxOf({ W: 1200, D: 650, x: 0, rotation: 0 })).toEqual({ x: 0, w: 1200 });
-    expect(plannerAiPhotoBoxOf({ W: 1200, D: 650, x: 0, rotation: 180 })).toEqual({ x: 0, w: 1200 });
+      .toEqual({ x: 3125, w: 650, y: -425, d: 1500 });
+    expect(plannerAiPhotoBoxOf({ W: 1200, D: 650, x: 0, rotation: 0 })).toEqual({ x: 0, w: 1200, y: 0, d: 650 });
+    expect(plannerAiPhotoBoxOf({ W: 1200, D: 650, x: 0, y: 100, rotation: 180 })).toEqual({ x: 0, w: 1200, y: 100, d: 650 });
   });
 });
 

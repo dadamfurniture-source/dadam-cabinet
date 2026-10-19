@@ -15,6 +15,7 @@
   const ADMIN_NAV = [
     { href: 'index.html', icon: '📊', label: '대시보드' },
     { href: 'management.html', icon: '📈', label: '경영 대시보드' },
+    { href: 'counterparties.html', icon: '🤝', label: '거래처 · 공급처' },
     { href: 'users.html', icon: '👥', label: '회원 관리' },
     { href: 'gallery.html', icon: '🖼️', label: '시공사례 관리' },
     { href: 'reference-images.html', icon: '🎨', label: '참고 이미지' },
@@ -59,6 +60,20 @@
     }
   }
 
-  window.AdminShell = { ADMIN_NAV, currentPage, render };
+  /**
+   * '메인 사이트로' 버튼(.sidebar-footer)은 페이지마다 사이드바 바닥에 absolute 로 붙어 있다.
+   * 메뉴가 길어지면 낮은 화면에서 마지막 메뉴(설정)를 덮으므로 메뉴 바로 아래로 흘려 둔다.
+   * 버튼은 이 스크립트 뒤에 있어 문서를 다 읽은 뒤에 고친다.
+   */
+  function unpinFooter() {
+    const f = document.querySelector('.sidebar .sidebar-footer');
+    if (!f) return;
+    f.style.position = 'static';
+    f.style.margin = '16px 20px 20px';
+  }
+
+  window.AdminShell = { ADMIN_NAV, currentPage, render, unpinFooter };
   render(document.getElementById('adminNav'), window.location.pathname);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', unpinFooter);
+  else unpinFooter();
 })();
