@@ -110,10 +110,32 @@ test('빈 구역·자체 점검·편집 구역: 벽 이름으로, 꺾인 벽 위
   const p = prompt();
   assert.match(p, /left wall: above the return \(L5\) — no wall units, bare wall up to the ceiling/);
   assert.match(p, /back wall: between the top of the base row \(870 mm\) and the bottom of the wall row \(1520 mm\)/);
-  assert.match(p, /FINAL SELF-CHECK before you answer: back wall base row 4 units, 5 doors, 0 drawers; back wall wall row 3 units, 5 doors; left wall base row 1 unit, 2 doors, 0 drawers; no wall units on the left wall;/);
+  assert.match(p, /FINAL SELF-CHECK before you answer: back wall base row 4 units, L1 1 \+ L2 1 \+ L3 2 \+ L4 1 = 5 doors, 0 drawers; back wall wall row 3 units, U1 2 \+ U2 2 \+ U3 1 = 5 doors; left wall base row 1 unit, 2 doors, 0 drawers; no wall units on the left wall;/);
   assert.match(p, /EDIT ZONE: the back wall and the left wall only/);
   // 도면에 없는 쿡탑·후드는 계속 막는다
   assert.match(p, /add a dishwasher, refrigerator, oven, cooktop or hood that is not listed/);
+});
+
+// 2026-10-19 실측(GPT): 기존 ㄱ자 주방 사진 — 새 장은 ㄱ자로 맞게 지었지만 옛 가스레인지·슬림 후드가 남았다 (도면에 없음).
+//   공사현장 사진 — 상부 960·960·480(2·2·1)을 6짝으로 그렸다.
+test('ㄱ자 보강: 두 벽의 옛 붙박이 가전 철거 · 외문이 섞인 줄은 칸별 문 수', () => {
+  const p = prompt();
+  assert.ok(p.includes(
+    'Remove that cabinetry completely, with no demolition marks or ghost outlines. ' +
+      'The old built-in appliances on the back wall and the left wall go with it: remove any old gas range or cooktop, range hood, built-in oven and built-in dishwasher — the new design has none — ' +
+      'and close each place with the new countertop, fronts or bare wall. The sink is new, only where the list above puts it.\n'
+  ));
+  assert.ok(p.includes('every movable object — a free-standing refrigerator, microwave, carts,'));
+  assert.ok(p.includes('    → widths U1 : U2 : U3 = 2 : 2 : 1\n    → doors U1 2 + U2 2 + U3 1 = 5 doors\n'));
+  assert.ok(p.includes('    → doors L1 1 + L2 1 + L3 2 + L4 1 = 5 doors\n'));
+  // 꺾인 벽 한 칸(2짝)은 고른 줄 — 합계만
+  assert.match(p, /left wall base row 1 unit, 2 doors, 0 drawers/);
+  // 꺾인 벽에 놓인 가전(fromCornerMm)도 도면에 있는 셈 — 철거 목록·DO NOT 에서 빠진다
+  const raw = cornerRaw();
+  raw.walls[0].appliances = [{ kind: 'cooktop', fromCornerMm: 700, widthMm: 600 }];
+  const q = buildPlannerPrompt({ category: 'sink', designSpec: normalizeDesignSpec(raw, 'sink'), wallW: 3000, wallH: 2400, confidence: 'high' });
+  assert.match(q, /remove any old range hood, built-in oven and built-in dishwasher — .* The sink and cooktop are new/);
+  assert.match(q, /add a dishwasher, refrigerator, oven or hood that is not listed/);
 });
 
 test('그림: 꺾인 벽 입면은 3/4 다음 글자 (D, 3/4 가 없으면 C) · 모서리 쪽 가장자리 · DO NOT 글자', () => {
