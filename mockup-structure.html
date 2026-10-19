@@ -479,6 +479,13 @@
           </div>
           <div class="section-body" id="shelvesBody"></div>
         </div>
+        <!-- 2026-10-19: 기둥·배관 따내기 (ArchiWood 영상 D, js/planner/planner-cutout.js) -->
+        <div class="section" data-mp="cutout">
+          <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+            <span class="chev">▼</span> <span class="sec-title">기둥·배관 따내기</span>
+          </div>
+          <div class="section-body" id="cutoutBody"></div>
+        </div>
         <div class="section collapsed" data-mp="handle">
           <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
             <span class="chev">▼</span> <span class="sec-title">손잡이</span>
@@ -688,6 +695,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <!-- 2026-10-18 사전 오류 검사 표시 — 상세설계가 보낸 DADAM_PREFLIGHT_MARKS 로 문제 모듈에 테두리 (검사 정본 js/detaildesign/bom-preflight.js) -->
 <script src="js/planner/planner-preflight.js?v=41.4"></script>
 <script src="js/planner/planner-measure.js?v=41.4"></script>
+<script src="js/planner/planner-cutout.js?v=41.4"></script>
 <!-- CAD 베타 T4 (PR1b): 관리자 근사 GLB 내보내기 — 역할은 부모 창이 postMessage 로 알려 준다 -->
 <script src="js/planner/planner-export.js?v=41.4"></script>
 
@@ -4076,6 +4084,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const cfg = SECTION_CONFIG[m.section] || {};
     document.getElementById('mpTitle').textContent = `${cfg.label || m.section} ${moduleTag(m)} · W${m.W}×H${m.H}×D${m.D}`.trim();
     renderModulePanelSections(m, s);
+    renderCutoutBody(m, s);
     syncModulePanelSections(s, m);
     renderModulePreview(m, s);
     // 2026-09-15: 규칙이 내는 경고(최소 전면 미만·최대 단수 초과)를 그대로 보여준다 — 안 보이면 BOM 에서만 드러난다.
@@ -4092,6 +4101,75 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const revert = document.getElementById('btnRevertModule');
     if (apply) { apply.disabled = !d.dirty; apply.onclick = () => applyModuleDraft(); }
     if (revert) { revert.disabled = !d.dirty; revert.onclick = () => revertModuleDraft(); }
+  }
+
+  /**
+   * 2026-10-19: 따낼 판의 크기 (판 좌표 u × v) — addCarcassShell 이 그리는 판과 같은 값.
+   *   측판 깊이 D × 몸통 H · 지판 (W − 2T) × 깊이 · 천판은 목찬넬이면 따내기 깊이만큼 짧다.
+   */
+  function cutoutPanelSizes(m, s) {
+    const T = BODY_T;
+    const D = Number(m.D) || 0;
+    const H = bodyHeightOf(m, s);
+    const inner = (Number(m.W) || 0) - 2 * T;
+    const panelD = m.section === 'upper' ? D - MASTER_RULES.SAKURI_GROOVE_FROM_BACK - MASTER_RULES.BACK_PANEL_T : D;
+    const topD = panelD - (isWoodChannel(m, s) ? MASTER_RULES.CHANNEL_NOTCH_D : 0);
+    return { left: [D, H], right: [D, H], top: [inner, topD], bottom: [inner, panelD] };
+  }
+
+  /**
+   * 2026-10-19: 기둥·배관 따내기 — 판 · 3×3 위치 · 가로 × 세로 mm. 값은 초안 s.cutouts 에 담는다.
+   *   천판은 하부장 BOM 에 부재가 없어(밴드로 낸다) 하부장에선 고를 수 없다.
+   */
+  function renderCutoutBody(m, s) {
+    const body = document.getElementById('cutoutBody');
+    if (!body) return;
+    const list = plannerCutoutsOf(s);
+    const sizes = cutoutPanelSizes(m, s);
+    const panels = ['left', 'right', 'bottom'].concat(m.section === 'lower' ? [] : ['top']);
+    const P = PLANNER_CUTOUT_PANELS;
+    const rowHtml = (c, i) => {
+      const p = P[c.panel];
+      const [A, B] = sizes[c.panel];
+      const fits = plannerCutoutFits(c, A, B);
+      const posOpts = [2, 1, 0].map((r) => [0, 1, 2].map((k) =>
+        `<option value="${r}-${k}" ${c.row === r && c.col === k ? 'selected' : ''}>${p.cols[k]}·${p.rows[r]}</option>`).join('')).join('');
+      return `<div class="row" data-cut-idx="${i}" style="flex-wrap:wrap;gap:4px">
+          <select data-cut="panel">${panels.map((k) => `<option value="${k}" ${c.panel === k ? 'selected' : ''}>${P[k].label}</option>`).join('')}</select>
+          <select data-cut="pos">${posOpts}</select>
+          <input type="number" min="1" step="1" data-cut="w" value="${c.w}" title="${p.u}" style="width:56px">
+          <span style="font-size:10px">×</span>
+          <input type="number" min="1" step="1" data-cut="h" value="${c.h}" title="${p.v}" style="width:56px">
+          <button type="button" data-cut="del" title="이 따내기 지우기">✕</button>
+          <div style="width:100%;font-size:10px;color:${fits ? '#888' : '#b4452e'}">${fits
+            ? `${p.u} × ${p.v} · 판 ${Math.round(A)} × ${Math.round(B)}`
+            : `⚠ 따내기가 판(${Math.round(A)} × ${Math.round(B)})보다 큽니다 — 그리지 않습니다`}</div>
+        </div>`;
+    };
+    body.innerHTML = list.map(rowHtml).join('') + `
+        <div class="row"><button type="button" id="btnAddCutout">+ 따내기 추가</button></div>
+        <div style="font-size:10px;color:#888;line-height:1.4">
+          기둥·배관 자리를 판에서 사각으로 따냅니다. 재단기는 사각 판만 자르므로 자재표에는 그 판의 비고로 적힙니다.
+        </div>`;
+    const save = (next, focus) => { s.cutouts = next; draftChanged(focus); };
+    const add = document.getElementById('btnAddCutout');
+    if (add) add.onclick = () => save(list.concat([{ panel: 'bottom', row: 0, col: 0, w: 100, h: 100 }]), '#btnAddCutout');
+    body.querySelectorAll('[data-cut-idx]').forEach((rowEl) => {
+      const i = Number(rowEl.dataset.cutIdx);
+      rowEl.querySelectorAll('[data-cut]').forEach((el) => {
+        const kind = el.dataset.cut;
+        const handler = () => {
+          const next = list.map((c) => Object.assign({}, c));
+          if (kind === 'del') next.splice(i, 1);
+          else if (kind === 'panel') next[i].panel = el.value;
+          else if (kind === 'pos') { const [r, k] = el.value.split('-').map(Number); next[i].row = r; next[i].col = k; }
+          else { const v = Math.round(Number(el.value)); if (!(v > 0)) { el.value = next[i][kind]; return; } next[i][kind] = v; }
+          save(next, null);
+        };
+        if (kind === 'del') el.onclick = handler;
+        else el.onchange = handler;
+      });
+    });
   }
 
   /**
@@ -4251,6 +4329,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       drawer: !open && !wardrobe && has((t) => t === 'drawer'),
       shelves: !open && !wardrobe && has((t) => t === 'door' || t === 'open' || t === 'blind'),
       handle: !open && has((t) => t === 'door' || t === 'drawer'),
+      cutout: !open && !wardrobe,   // 2026-10-19: 몸통 껍데기(addCarcassShell) 를 쓰는 모듈만
     };
     document.querySelectorAll('#modulePanel .section[data-mp]').forEach((sec) => {
       const k = sec.getAttribute('data-mp');
@@ -8286,9 +8365,27 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 안 그러면 판이 칸막이를 뚫고 지나가는 그림이 된다.
     const notch = !!o.woodChannel;
     const notches = notchesOf(o);   // 2026-09-15: 상단 + 서랍장 중간 따내기
-    const sidePanel = () => (notches.length
-      ? makeNotchedPanel(o.T, o.carcassH, o.D, notches, o.color)
-      : makeBox(o.T, o.carcassH, o.D, o.color));
+    // 2026-10-19: 기둥·배관 따내기 (planner-cutout.js) — 그 판만 따낸 단면으로 만든다. 판보다 크면 그리지 않는다.
+    const cutsOf = (panel, A, B) => (o.cutouts || [])
+      .filter((c) => c.panel === panel && plannerCutoutFits(c, A, B))
+      .map((c) => plannerCutoutRect(c, A, B));
+    const sidePanel = (panel) => {
+      const cuts = cutsOf(panel, o.D, o.carcassH);
+      if (cuts.length) {
+        // 목찬넬 따내기도 같은 판 좌표(u 깊이 · v 높이)의 사각형으로 넣는다
+        const rects = notches.map((n) => ({ u0: o.D - n.d, u1: o.D, v0: o.carcassH - n.top - n.h, v1: o.carcassH - n.top }));
+        return plannerCutPanelMesh(THREE, { A: o.D, B: o.carcassH, T: o.T, rects: rects.concat(cuts), orient: 'side', color: o.color });
+      }
+      return notches.length
+        ? makeNotchedPanel(o.T, o.carcassH, o.D, notches, o.color)
+        : makeBox(o.T, o.carcassH, o.D, o.color);
+    };
+    const flatPanel = (panel, A, B) => {
+      const cuts = cutsOf(panel, A, B);
+      return cuts.length
+        ? plannerCutPanelMesh(THREE, { A, B, T: o.T, rects: cuts, orient: 'flat', color: o.color })
+        : makeBox(A, o.T, B, o.color);
+    };
     // 2026-10-19 사장님: 뒷판(우라 MDF 3T) 크기·자리는 **측판 사쿠리**가 정한다 — BOM bomBackPanelSize 와 같은 규칙.
     //   사쿠리 있음(상부장)  측판 홈에 끼운다 (W − 20) × (H − 1) — 뒤끝에서 15 들어간 홈, 천지판은 D − 18
     //   사쿠리 없음(하부장·키큰장 단)  측판 뒤끝에 덮어 붙인다 (W − 1) × (H − 1) — 측판 깊이를 먹지 않는다
@@ -8303,15 +8400,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 천지판 깊이 — 사쿠리면 D − 18 (홈 앞까지), 아니면 측판 깊이 그대로 (BOM 하부 지판 (W−2T)×D)
     const panelD = sakuri ? o.D - MASTER_RULES.SAKURI_GROOVE_FROM_BACK - MASTER_RULES.BACK_PANEL_T : o.D;
     // 좌·우 측판 — 모듈 바깥 끝에만
-    const left = sidePanel();
+    const left = sidePanel('left');
     left.position.set(-o.W / 2 + o.T / 2, cyMid, 0);
     put(left, 'left');
-    const right = sidePanel();
+    const right = sidePanel('right');
     right.position.set(o.W / 2 - o.T / 2, cyMid, 0);
     put(right, 'right');
     // 지판 · 천판 — 측판 사이 전폭
     const inner = o.W - 2 * o.T;
-    const bottom = makeBox(inner, o.T, panelD, o.color);
+    const bottom = flatPanel('bottom', inner, panelD);
     bottom.position.set(0, o.legH + o.T / 2, o.D / 2 - panelD / 2);
     put(bottom, 'bottom');
     // 천판은 목찬넬 자리를 비켜 뒤로 물러난다 — 안 그러면 전면판과 같은 칸을 차지한다.
@@ -8320,7 +8417,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     //   천판만 12mm 더 올라가 상판과 겹쳤다 (실측 12mm). 목찬넬 자리를 잡는
     //   addWoodChannel 은 처음부터 legH + carcassH 를 쓰고 있었다.
     const topD = panelD - (notch ? MASTER_RULES.CHANNEL_NOTCH_D : 0);
-    const top = makeBox(inner, o.T, topD, o.color);
+    const top = flatPanel('top', inner, topD);
     top.position.set(0, o.legH + o.carcassH - o.T / 2,
       o.D / 2 - (notch ? MASTER_RULES.CHANNEL_NOTCH_D : 0) - topD / 2);
     put(top, 'top');
@@ -9520,6 +9617,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       addWardrobeCarcasses(g, m, wardrobeLayout, { W, D, T, legH, color: carcassColor, ud: carcassUd });
     } else {
       addCarcassShell(g, { W, D, T, legH, carcassH, H, moldingH, color: carcassColor, ud: carcassUd, woodChannel, drawerLayout,
+        cutouts: plannerCutoutsOf(s),   // 2026-10-19: 기둥·배관 따내기
         sakuri: m.section === 'upper',   // 상부장만 측판 사쿠리 — 하부장·키큰장 단은 뒷판을 측판 뒤에 덮는다 (BOM 과 같다)
         drawerT: drawerRules.boxT || T, drawerSakuri: drawerRules.sakuri });
       addCellDividers(g, { cellWidths, W, D, T, legH, carcassH, color: carcassColor, ud: carcassUd, woodChannel, drawerLayout,
