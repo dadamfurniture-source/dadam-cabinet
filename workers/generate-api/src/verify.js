@@ -190,7 +190,10 @@ export function compareLayoutToSpec(layout, spec, category) {
   // 2026-10-19: 플래너 판독(layout.js normalizePlannerRead)이면 모듈별 판독이 같이 온다.
   //   기대 총수는 그 판독 계획(생성 모델이 받은 수 — prompts.js plannerCounts 규칙)으로 맞춘다.
   const planner = plannerUnitsOf(layout);
-  if (planner) Object.assign(want, plannerTotals(planner));
+  if (planner) {
+    Object.assign(want, plannerTotals(planner));
+    plannerCornerAdjust(planner, got);
+  }
 
   // 1) 종류 순서 — 'open' 은 양쪽에서 뺀다 (읽는 쪽이 틈을 open 으로 메우기도, 안 메우기도 한다)
   const wantSeq = collapseRuns(want.floorKinds.filter((k) => k !== 'open'));
@@ -262,11 +265,15 @@ export function compareLayoutToSpec(layout, spec, category) {
     got.extraUnits = planner.extraUnits;
     planner.units.forEach((u) => {
       const e = u.expected || {};
+      // 2026-10-19: 가려진 ㄱ자 모서리 장 — 가려짐·없음·보임 어느 쪽이든 세지 않으니 이슈도 없다 (다른 것으로 보였으면 아래로)
+      if (u.hiddenBehind && (u.seen === 'hidden' || u.seen === 'missing' || u.seen === e.seen)) return;
       if (u.seen === 'unread') issues.push(`${u.id}: not read`);
       else if (u.seen === 'missing') issues.push(`${u.id}: missing`);
       else if (u.seen !== e.seen) issues.push(`${u.id}: expected ${e.seen}, read ${u.seen}`);
       else if (u.doors !== e.doors || u.drawers !== e.drawers) {
-        issues.push(`${u.id}: expected ${e.doors} doors + ${e.drawers} drawers, read ${u.doors} + ${u.drawers}`);
+        // 2026-10-19: 꺾인 벽 장은 비스듬히 보여 문 수를 감점하지 않는다 — 이슈로만
+        const angle = u.wall && !u.hiddenBehind ? ` (seen at an angle on the ${u.wall} wall — not scored)` : '';
+        issues.push(`${u.id}: expected ${e.doors} doors + ${e.drawers} drawers, read ${u.doors} + ${u.drawers}${angle}`);
       }
     });
     planner.extraUnits.forEach((x) => {
@@ -313,6 +320,7 @@ function plannerTotals(p) {
   let floorDoors = 0, floorDrawers = 0, upperDoors = null;
   p.units.forEach((u) => {
     const e = u.expected || {};
+    if (u.hiddenBehind) return; // 2026-10-19: 가려진 ㄱ자 모서리 장은 기대 총수에서 뺀다 (plannerCornerAdjust)
     if (u.row === 'wall') upperDoors = (upperDoors || 0) + num(e.doors);
     else {
       floorDoors += num(e.doors);
@@ -320,4 +328,32 @@ function plannerTotals(p) {
     }
   });
   return { floorDoors, floorDrawers, upperDoors };
+}
+
+/**
+ * 2026-10-19: ㄱ자·ㄷ자 판독 총수 보정 — 읽힌 총수(got)를 기대 총수(plannerTotals)와 같은 눈높이로 맞춘다.
+ *   - 가려진 모서리 장(hiddenBehind): 앞에 선 장이 앞판을 가린다. 사진에 없다고 장이 없다고 단정할 수 없으니
+ *     (도면이 그 자리에 장을 두고 생성 프롬프트도 "앞 장 뒤로" 지으라 했다) 기대·판독 양쪽에서 뺀다. 무엇으로 읽혔든.
+ *   - 꺾인 벽 장(wall): 카메라에서 비스듬히 보여 틈을 세기 어렵다. 도면대로 보였으면(seen 일치) 문 수는 도면 값으로 —
+ *     차이는 이슈로만 남는다. 안 보였으면(missing·unread·다른 것) 예전처럼 판독 값 그대로 감점한다.
+ *   일자 도면(둘 다 없음)은 아무것도 바꾸지 않는다.
+ */
+function plannerCornerAdjust(p, got) {
+  p.units.forEach((u) => {
+    const e = u.expected || {};
+    let dd, dr;
+    if (u.hiddenBehind) {
+      dd = -num(u.doors);
+      dr = -num(u.drawers);
+    } else if (u.wall && u.seen === e.seen) {
+      dd = num(e.doors) - num(u.doors);
+      dr = num(e.drawers) - num(u.drawers);
+    } else return;
+    if (!dd && !dr) return;
+    if (u.row === 'wall') got.upperDoors = (got.upperDoors || 0) + dd;
+    else {
+      got.floorDoors += dd;
+      got.floorDrawers += dr;
+    }
+  });
 }
