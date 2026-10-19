@@ -56,7 +56,8 @@ function profileClient(row, error = null) {
 describe('정책은 한 곳 — POLICY', () => {
   test('최소 등급과 승인 우회가 POLICY 에 있다', () => {
     const { POLICY } = makeWindow().DetailDesignAccess;
-    expect(POLICY.minTier).toBe('expert');
+    // 2026-10-19 사장님: 모든 회원 (standard 는 무료 가입 등급)
+    expect(POLICY.minTier).toBe('standard');
     expect(POLICY.approvedBypassesPlan).toBe(true);
     expect(Object.isFrozen(POLICY)).toBe(true);
   });
@@ -68,8 +69,8 @@ describe('decide — 판정표', () => {
     [{ isAdmin: true, tier: 'standard', approved: false }, true, 'admin'],
     [{ tier: 'agent', approved: false }, true, 'plan'],
     [{ tier: 'expert', approved: false }, true, 'plan'],
-    [{ tier: 'standard', approved: false }, false, 'plan_required'],
-    [{ tier: 'standard', approved: true }, true, 'approved'],
+    [{ tier: 'standard', approved: false }, true, 'plan'],
+    [{ tier: null, approved: true }, true, 'approved'],
     [{ tier: 'business', approved: false }, false, 'plan_required'], // 옛 등급 이름은 모른다
     [{ tier: null, approved: false }, false, 'plan_required'],
     [{}, false, 'plan_required'],
@@ -79,7 +80,7 @@ describe('decide — 판정표', () => {
 });
 
 describe('fetchStatus — profiles.tier 를 본다', () => {
-  test('expert 구독자는 승인 없이 열린다', async () => {
+  test('expert 구독자는 열린다', async () => {
     const win = makeWindow();
     const r = await win.DetailDesignAccess.fetchStatus(
       profileClient({ tier: 'expert', detaildesign_approved: false, detaildesign_requested_at: null }),
@@ -88,22 +89,28 @@ describe('fetchStatus — profiles.tier 를 본다', () => {
     expect(r).toMatchObject({ approved: true, reason: 'plan', tier: 'expert' });
   });
 
-  test('standard 미승인은 막힌다', async () => {
+  test('standard(무료) 회원도 승인 없이 열린다', async () => {
     const win = makeWindow();
     const r = await win.DetailDesignAccess.fetchStatus(
-      profileClient({ tier: 'standard', detaildesign_approved: false, detaildesign_requested_at: '2026-10-01' }),
+      profileClient({ tier: 'standard', detaildesign_approved: false, detaildesign_requested_at: null }),
       'u1'
     );
-    expect(r).toMatchObject({ approved: false, reason: 'plan_required', tier: 'standard', requestedAt: '2026-10-01' });
+    expect(r).toMatchObject({ approved: true, reason: 'plan', tier: 'standard' });
   });
 
-  test('standard 라도 본사 승인이면 열린다 (파트너)', async () => {
+  test('등급이 없는 프로필은 막히고, 본사 승인이면 열린다', async () => {
     const win = makeWindow();
-    const r = await win.DetailDesignAccess.fetchStatus(
-      profileClient({ tier: 'standard', detaildesign_approved: true, detaildesign_requested_at: null }),
+    const blocked = await win.DetailDesignAccess.fetchStatus(
+      profileClient({ tier: null, detaildesign_approved: false, detaildesign_requested_at: '2026-10-01' }),
       'u1'
     );
-    expect(r).toMatchObject({ approved: true, reason: 'approved' });
+    expect(blocked).toMatchObject({ approved: false, reason: 'plan_required', requestedAt: '2026-10-01' });
+    const win2 = makeWindow();
+    const opened = await win2.DetailDesignAccess.fetchStatus(
+      profileClient({ tier: null, detaildesign_approved: true, detaildesign_requested_at: null }),
+      'u1'
+    );
+    expect(opened).toMatchObject({ approved: true, reason: 'approved' });
   });
 
   test('profiles 조회 실패는 막힌다', async () => {

@@ -25,7 +25,7 @@
 
   // ── 정책: 여기 한 곳만 고친다 ──
   const POLICY = Object.freeze({
-    minTier: 'expert',            // D6 — 이 등급 이상 구독 고객에게 연다
+    minTier: 'standard',          // D6 (2026-10-19 사장님: 모든 회원) — 이 등급 이상에게 연다. standard 는 무료 가입 등급
     approvedBypassesPlan: true,   // 본사 승인(파트너 등)은 플랜과 상관없이 연다
   });
   // profiles_tier_check 의 등급 순서 (database/tier-agent.sql)
