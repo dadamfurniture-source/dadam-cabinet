@@ -1138,6 +1138,34 @@ const PLANNER_FORBIDDEN_APPLIANCES = [
   ['hood', 'hood'],
 ];
 
+/**
+ * 2026-10-19: 목표 벽의 옛 붙박이 가전 — 옛 장과 함께 철거한다 (주방 품목만, EDIT ZONE 문단).
+ * 실측(2026-10-19 GPT, ㄱ자 도면·쿡탑/후드 없음): 기존 ㄱ자 주방 사진에 새 장은 맞게 지었지만 옛 가스레인지와 슬림 후드를
+ * 그대로 남겼다. "cabinetry 를 철거" 만으로는 장 사이에 박힌 가전이 철거 대상인지 모른다 — 종류를 이름으로 부르고,
+ * 도면에 있는 것은 "새 것, 목록 자리에만" 이라고 말한다. 이동식(독립형 냉장고·전자레인지·카트)은 KEEP 쪽이다.
+ * [design_spec kind, 옛 것 이름, 새 것 이름] — oven 은 계약에 없으니 늘 철거.
+ */
+const PLANNER_OLD_BUILTINS = [
+  ['sink', 'sink', 'sink'],
+  ['cooktop', 'gas range or cooktop', 'cooktop'],
+  ['hood', 'range hood', 'hood'],
+  [null, 'built-in oven', null],
+  ['dishwasher', 'built-in dishwasher', 'dishwasher'],
+];
+
+/** EDIT ZONE 의 옛 붙박이 가전 문장. present = 도면에 있는 가전 kind Set, walls = "the target wall" 등. */
+function plannerOldBuiltIns(present, walls) {
+  const gone = PLANNER_OLD_BUILTINS.filter(([k]) => !k || !present.has(k)).map(([, old]) => old);
+  const kept = PLANNER_OLD_BUILTINS.filter(([k]) => k && present.has(k)).map(([, , now]) => now);
+  return (
+    `The old built-in appliances on ${walls} go with it: remove any old ${listJoinAnd(gone)} — the new design has none — ` +
+    `and close each place with the new countertop, fronts or bare wall.` +
+    (kept.length
+      ? ` The ${listJoinAnd(kept)} ${kept.length === 1 ? 'is' : 'are'} new, only where the list above puts ${kept.length === 1 ? 'it' : 'them'}.`
+      : '')
+  );
+}
+
 const plannerPlural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const plannerPct = (x, total) => Math.round((x / total) * 100);
 
@@ -1393,6 +1421,7 @@ function plannerRows(spec, category) {
 function plannerRowTotals(row) {
   let units = 0, openings = 0, doors = 0, drawers = 0;
   const hoods = []; // 2026-10-19: 후드 칸 번호 (H1 …) — 단위도 가전 칸도 아니다
+  const perUnit = []; // 2026-10-19: 문이 있는 칸마다 { id, doors } — doorList 용
   for (const { m, id } of row.items) {
     if (isHoodCell(m)) { hoods.push(id); continue; }
     // 2026-10-19: 쌓인 단 한 통 — 가전 자리가 있으면(냉장고장) 가전 칸, 없으면 유닛 하나. 도어·서랍은 단의 합.
@@ -1402,6 +1431,7 @@ function plannerRowTotals(row) {
       else units++;
       doors += c.doors;
       drawers += c.drawers;
+      if (c.doors) perUnit.push({ id, doors: c.doors });
       continue;
     }
     if (m.kind === 'appliance') { openings++; continue; }
@@ -1409,8 +1439,14 @@ function plannerRowTotals(row) {
     const c = plannerCounts(m);
     doors += c.doors;
     drawers += c.drawers;
+    if (c.doors) perUnit.push({ id, doors: c.doors });
   }
-  return { units, openings, doors, drawers, hoods };
+  // 2026-10-19: 한 줄에 외문(1짝) 칸과 2짝 이상 칸이 섞이면 칸별 문 수를 적는다 — "U1 2 + U2 2 + U3 1 = 5 doors".
+  //   실측(2026-10-19 GPT, ㄱ자 공사현장): 상부 960·960·480 = 2·2·1 을 "wall row 3 units, 5 doors" 로만 말했더니
+  //   외문 U3 까지 2짝으로 맞춰 6짝을 그렸다. 문 수가 고른 줄(전부 2짝 등)은 예전 그대로 합계만.
+  const mixed = perUnit.some((u) => u.doors === 1) && perUnit.some((u) => u.doors > 1);
+  const doorList = mixed ? `${perUnit.map((u) => `${u.id} ${u.doors}`).join(' + ')} = ${plannerPlural(doors, 'door')}` : null;
+  return { units, openings, doors, drawers, hoods, doorList };
 }
 
 // ─── 2026-10-19: 프롬프트 v3 — 어떤 도면이 와도 design_spec 에서 계산되는 일반 규칙 ───
@@ -1837,6 +1873,9 @@ export function buildPlannerPrompt(c) {
       for (const l of lines) geo.push(`    ${l.head.padEnd(pad)}${l.what}`);
       const ratio = plannerRatio(row);
       if (ratio) geo.push(`    → widths ${ratio}`);
+      // 2026-10-19: 외문 칸이 섞인 줄은 칸별 문 수 (plannerRowTotals.doorList) — 외문을 2짝으로 맞추지 않게
+      const { doorList } = plannerRowTotals(row);
+      if (doorList) geo.push(`    → doors ${doorList}`);
     }
   } else {
     geo.push(
@@ -1916,30 +1955,7 @@ export function buildPlannerPrompt(c) {
     ? `EMPTY ZONES — leave each as bare finished wall, with nothing built in:\n${zones.map((z, i) => `  ${i + 1}. ${z}`).join('\n')}`
     : null;
 
-  // ── EDIT ZONE / KEEP — 목표 벽의 붙박이만 바꾸고 나머지는 사진 그대로 ──
-  // 2026-10-19: 꺾인 벽이 있으면 벽 이름으로 ("the back wall and the left wall")
-  const walls = multi
-    ? listJoinAnd(groups.map((g) => `the ${plannerWallName(g.wall)}`))
-    : layout && layout.walls > 1 ? `the ${layout.walls} target walls` : 'the target wall';
-  const existing = c.existing ? ` (${c.existing})` : '';
-  const edit =
-    `EDIT ZONE: ${walls} only — the new run plus the built-in cabinetry on ${walls} that it replaces${existing}. ` +
-    `Remove that cabinetry completely, with no demolition marks or ghost outlines.\n` +
-    `KEEP everything outside the edit zone exactly as photographed: the camera position, lens and framing (do not widen the view or invent any part of the room); ` +
-    `the other walls, ceiling, floor, windows and doors; the lighting; and every movable object — refrigerator, carts, chairs, lamps, plants and decorations — unless it stands where a new unit goes.`;
-
-  // ── 마감 — 설치 프롬프트의 designFinishPhrase 를 그대로 ──
-  const fin = spec.finishes || null;
-  const door = designFinishPhrase(fin && fin.door) || `${c.doorColor || 'white'} ${c.doorFinish || 'matte'}`;
-  const body = designFinishPhrase(fin && fin.body);
-  const top = designFinishPhrase(fin && fin.top);
-  const materials =
-    `MATERIALS: fronts ${door}, the same on every door and drawer` +
-    (body ? `; carcass and visible sides ${body}` : '') +
-    (top ? `; countertop ${top}` : '') +
-    '.';
-
-  // ── 금지 — 닫힌 목록·편집 구역이 못 말하는 것만 ──
+  // ── 도면에 있는 가전 — EDIT ZONE(옛 붙박이 가전 철거)과 DO NOT(없는 가전 금지)이 함께 쓴다 ──
   const present = new Set(
     (Array.isArray(spec.appliances) ? spec.appliances : []).map((a) => a && a.kind)
   );
@@ -1960,6 +1976,36 @@ export function buildPlannerPrompt(c) {
       }
     }
   }
+  // 꺾인 벽(walls[])의 가전도 도면에 있는 셈이다
+  for (const w of plannerWalls(spec)) for (const a of w.appliances || []) if (a && a.kind) present.add(a.kind);
+
+  // ── EDIT ZONE / KEEP — 목표 벽의 붙박이만 바꾸고 나머지는 사진 그대로 ──
+  // 2026-10-19: 꺾인 벽이 있으면 벽 이름으로 ("the back wall and the left wall")
+  const walls = multi
+    ? listJoinAnd(groups.map((g) => `the ${plannerWallName(g.wall)}`))
+    : layout && layout.walls > 1 ? `the ${layout.walls} target walls` : 'the target wall';
+  const existing = c.existing ? ` (${c.existing})` : '';
+  const edit =
+    `EDIT ZONE: ${walls} only — the new run plus the built-in cabinetry on ${walls} that it replaces${existing}. ` +
+    `Remove that cabinetry completely, with no demolition marks or ghost outlines.` +
+    (kitchen ? ` ${plannerOldBuiltIns(present, walls)}` : '') +
+    `\n` +
+    `KEEP everything outside the edit zone exactly as photographed: the camera position, lens and framing (do not widen the view or invent any part of the room); ` +
+    `the other walls, ceiling, floor, windows and doors; the lighting; and every movable object — ` +
+    `${kitchen ? 'a free-standing refrigerator, microwave, ' : 'refrigerator, '}carts, chairs, lamps, plants and decorations — unless it stands where a new unit goes.`;
+
+  // ── 마감 — 설치 프롬프트의 designFinishPhrase 를 그대로 ──
+  const fin = spec.finishes || null;
+  const door = designFinishPhrase(fin && fin.door) || `${c.doorColor || 'white'} ${c.doorFinish || 'matte'}`;
+  const body = designFinishPhrase(fin && fin.body);
+  const top = designFinishPhrase(fin && fin.top);
+  const materials =
+    `MATERIALS: fronts ${door}, the same on every door and drawer` +
+    (body ? `; carcass and visible sides ${body}` : '') +
+    (top ? `; countertop ${top}` : '') +
+    '.';
+
+  // ── 금지 — 닫힌 목록·편집 구역이 못 말하는 것만 ──
   const absent = PLANNER_FORBIDDEN_APPLIANCES.filter(([k]) => !k || !present.has(k)).map(([, n]) => n);
   const article = absent.length && /^[aeiou]/.test(absent[0]) ? 'an' : 'a';
   const forbidAppliances =
@@ -1986,7 +2032,7 @@ export function buildPlannerPrompt(c) {
     const hood = t.hoods.length
       ? ` + range hood ${listJoin(t.hoods)} with no cabinet in ${t.hoods.length === 1 ? 'its gap' : 'their gaps'}`
       : '';
-    return `${multi ? `${plannerWallName(row.wall || 'main')} ` : ''}${row.def.title.toLowerCase()} ${what}${hood}, ${plannerPlural(t.doors, 'door')}${showDrawers ? `, ${plannerPlural(t.drawers, 'drawer')}` : ''}`;
+    return `${multi ? `${plannerWallName(row.wall || 'main')} ` : ''}${row.def.title.toLowerCase()} ${what}${hood}, ${t.doorList || plannerPlural(t.doors, 'door')}${showDrawers ? `, ${plannerPlural(t.drawers, 'drawer')}` : ''}`;
   });
   // 2026-10-19: 꺾인 벽에 상부장이 없으면 자체 점검에서도 한 번 더
   if (multi) {
