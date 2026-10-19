@@ -98,6 +98,28 @@
       .tbl .cum .track { display: block; height: 8px; background: #eef1f5; border-radius: 4px; overflow: hidden; }
       .tbl .cum .fill { display: block; height: 100%; background: #007bff; }
       .tbl .cum .n { text-align: right; font-variant-numeric: tabular-nums; }
+      .okr { background: #fff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); padding: 14px 20px; margin-bottom: 18px; }
+      .okr-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; margin-bottom: 8px; font-size: 14px; }
+      .okr-item { padding: 8px 0; border-top: 1px solid #f0f0f0; }
+      .okr-item:first-child { border-top: none; }
+      .okr-title { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; font-size: 13.5px; }
+      .okr-st { font-size: 11px; padding: 1px 8px; border-radius: 99px; white-space: nowrap; background: #eceff1; color: #607d8b; }
+      .okr-st.done { background: #e8f5e9; color: #2e7d32; }
+      .okr-st.track { background: #e3f2fd; color: #1565c0; }
+      .okr-st.behind { background: #ffebee; color: #c62828; }
+      .okr-bar { position: relative; display: block; height: 10px; background: #eef1f5; border-radius: 5px; margin: 6px 0 4px; }
+      .okr-bar .fill { display: block; height: 100%; border-radius: 5px; background: #90a4ae; }
+      .okr-bar .fill.done { background: #2e7d32; }
+      .okr-bar .fill.track { background: #007bff; }
+      .okr-bar .fill.behind { background: #c62828; }
+      .okr-bar .pace { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #333; border-radius: 1px; }
+      .okr-meta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 12px; color: #666; }
+      .okr-manual { display: inline-flex; gap: 4px; align-items: center; }
+      .okr-manual input { width: 110px; padding: 3px 6px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; }
+      .btn-xs { padding: 3px 8px; font-size: 11.5px; }
+      .okr-edit { margin-top: 8px; font-size: 13px; }
+      .okr-edit summary { cursor: pointer; color: #555; }
+      .okr-edit select, .okr-edit input { padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit; font-size: 13px; }
       .fc-chart { display: block; width: 100%; height: auto; margin: 6px 0 2px; }
       .fc-chart .hist { fill: #90a4ae; }
       .fc-chart .sys { fill: #007bff; }
@@ -222,6 +244,25 @@
 
         <section class="tree" id="tree" aria-label="이익 식">
           <div class="empty-state">불러오는 중…</div>
+        </section>
+
+        <section class="okr" id="okrSection" aria-label="분기 목표" hidden>
+          <div class="okr-head" id="okrHead"></div>
+          <div id="okrList"></div>
+          <details class="okr-edit" id="okrEdit">
+            <summary>목표 넣기</summary>
+            <div class="cash-form">
+              <input type="text" id="okObjective" maxlength="200" placeholder="목표 (예: 가을 성수기 매출 3천만)" style="min-width: 240px" />
+              <select id="okMetric" aria-label="묶을 숫자"></select>
+              <input type="number" id="okTarget" placeholder="목표 값" aria-label="목표 값" />
+              <select id="okDirection" aria-label="방향" hidden>
+                <option value="up">높을수록 좋음</option>
+                <option value="down">낮을수록 좋음</option>
+              </select>
+              <button class="btn btn-light" id="btnAddOkr" type="button">넣기</button>
+            </div>
+            <div class="muted" id="okHint"></div>
+          </details>
         </section>
 
         <div class="row" id="rowFinance">
@@ -657,6 +698,82 @@
             <div class="muted" style="margin-top:8px">처리량 = 매출 − 자재 · 철물 · 외주. 병목이 꽉 찬 달에는 1분당 처리량이 큰 일부터 받는 것이 이익을 가장 크게 합니다.</div>`;
         }
 
+        // ── 분기 목표 ──
+        const OKR_STATUS = { done: ['닿음', 'done'], on_track: ['제 속도', 'track'], behind: ['뒤처짐', 'behind'], below: ['아직', 'below'] };
+        function okrValue(v, unit) {
+          if (!isNum(v)) return '-';
+          if (unit === 'won') return man(v);
+          if (unit === 'count') return cnt(v);
+          if (unit === 'pct') return pct(v);
+          return Number(v).toLocaleString('ko-KR');
+        }
+        /** 목표 값 입력의 단위 안내 */
+        const OKR_UNIT_HINT = { won: '원 단위 (3천만 = 30000000)', count: '건', pct: '% (5 = 5%)', score: '점 (-100 ~ 100)', number: '직접 정한 단위' };
+
+        function renderOkrs(d) {
+          const o = d.okrs;
+          if (!o) {
+            $('okrHead').innerHTML = '<b>분기 목표</b>';
+            $('okrList').innerHTML = '<div class="empty-state">분기 목표 칸이 아직 없습니다 — database/management-phase3.sql 을 실행하면 석 달 목표 셋을 대시보드 숫자에 묶을 수 있습니다.</div>';
+            $('okrEdit').hidden = true;
+            return;
+          }
+          $('okrEdit').hidden = false;
+          $('okrHead').innerHTML = `<b>${esc(o.quarter.replace('-Q', '년 '))}분기 목표</b><span class="muted">분기 ${esc(o.elapsed)}% 지남 · 석 달에 셋이 가장 좋습니다</span>`;
+          if (!$('okMetric').options.length) {
+            $('okMetric').innerHTML = o.metrics.map((m) => `<option value="${esc(m.key)}">${esc(m.label)}</option>`).join('');
+            const sync = () => {
+              const m = o.metrics.find((x) => x.key === $('okMetric').value);
+              $('okDirection').hidden = $('okMetric').value !== 'manual';
+              $('okHint').textContent = m ? `목표 값: ${OKR_UNIT_HINT[m.unit] || ''}${m.direction === 'down' ? ' · 낮을수록 좋음' : ''}` : '';
+            };
+            $('okMetric').addEventListener('change', sync);
+            sync();
+          }
+          if (!o.items.length) {
+            $('okrList').innerHTML = '<div class="empty-state">이번 분기 목표가 없습니다. 아래 \'목표 넣기\' 에서 대시보드 숫자에 묶어 넣으면 진도가 저절로 납니다.</div>';
+            return;
+          }
+          $('okrList').innerHTML = o.items.map((i) => {
+            const st = OKR_STATUS[i.status] || ['값 없음', 'none'];
+            const w = Math.max(0, Math.min(100, Number(i.progress) || 0));
+            const pace = i.cumulative ? `<i class="pace" style="left:${Math.min(100, o.elapsed)}%" title="지난 날 ${esc(o.elapsed)}%"></i>` : '';
+            const manual = i.metric === 'manual'
+              ? `<span class="okr-manual"><input type="number" data-okr-value="${esc(i.id)}" value="${esc(i.manual_value ?? '')}" placeholder="지금 값" aria-label="지금 값" /><button class="btn btn-light btn-xs" type="button" data-okr-save="${esc(i.id)}">적기</button></span>`
+              : '';
+            return `<div class="okr-item" data-okr="${esc(i.id)}">
+              <div class="okr-title"><b>${esc(i.objective)}</b><span class="okr-st ${st[1]}">${esc(st[0])}</span></div>
+              <div class="okr-bar"><span class="fill ${st[1]}" style="width:${w}%"></span>${pace}</div>
+              <div class="okr-meta"><span>${esc(i.label)} · 지금 <b class="num">${esc(okrValue(i.current, i.unit))}</b> / 목표 <b class="num">${esc(okrValue(i.target, i.unit))}</b>${i.direction === 'down' ? ' (이하)' : ''}${isNum(i.progress) ? ` · ${esc(i.progress)}%` : ''}</span>
+                ${manual}<button class="btn btn-light btn-xs" type="button" data-okr-del="${esc(i.id)}">지우기</button></div>
+            </div>`;
+          }).join('');
+          document.querySelectorAll('[data-okr-del]').forEach((b) => b.addEventListener('click', () => okrCall(`/management/okrs/${encodeURIComponent(b.dataset.okrDel)}`, { method: 'DELETE' }, '목표를 지웠습니다.')));
+          document.querySelectorAll('[data-okr-save]').forEach((b) => b.addEventListener('click', () => {
+            const v = document.querySelector(`[data-okr-value="${b.dataset.okrSave}"]`).value;
+            okrCall(`/management/okrs/${encodeURIComponent(b.dataset.okrSave)}`, { method: 'PATCH', body: { manual_value: v === '' ? null : Number(v) } }, '지금 값을 적었습니다.');
+          }));
+        }
+
+        async function okrCall(path, opts, ok) {
+          try {
+            await api(path, opts);
+            setStatus(ok, 'ok');
+            await load();
+          } catch (e) { setStatus(e.message, 'error'); }
+        }
+
+        function addOkr() {
+          const objective = $('okObjective').value.trim();
+          const target = $('okTarget').value;
+          if (!objective || target === '') { setStatus('목표와 목표 값을 적어 주세요.', 'error'); return; }
+          const body = { quarter: state.data.okrs.quarter, objective, metric: $('okMetric').value, target: Number(target) };
+          if (body.metric === 'manual') body.direction = $('okDirection').value;
+          $('okObjective').value = '';
+          $('okTarget').value = '';
+          return okrCall('/management/okrs', { method: 'POST', body }, '목표를 넣었습니다.');
+        }
+
         // ── 앞으로: 계절 지수 · 수주 예측 ──
         const monthName = (k) => `${Number(String(k).slice(5, 7))}월`;
         const shortMonth = (k) => `${String(k).slice(2, 4)}.${String(k).slice(5, 7)}`;
@@ -1085,6 +1202,9 @@
         function render(d) {
           state.data = d;
           renderTree(d);
+          // 분기 목표 — 옛 워커(칸 없음)면 숨긴다
+          $('okrSection').hidden = d.okrs === undefined;
+          if (d.okrs !== undefined) renderOkrs(d);
           renderBreakEven(d);
           renderChannels(d);
           // 고객 줄 — 워커가 아직 옛 판이면(배포 사이) 줄을 숨긴다
@@ -1155,6 +1275,7 @@
           });
           $('btnReload').addEventListener('click', load);
           $('btnCashBalance').addEventListener('click', saveCashBalance);
+          $('btnAddOkr').addEventListener('click', addOkr);
           if (!apiBase()) {
             setStatus('업무 서버(workflowApi.url)가 설정되지 않았습니다.', 'error');
             return;
