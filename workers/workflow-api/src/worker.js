@@ -79,6 +79,7 @@ import { listReworks, addRework, deleteRework } from './rework.js';
 import { getFeedback, createFeedbackLink, openFeedback, answerFeedback } from './feedback.js';
 import { listCounterparties, createCounterparty, updateCounterparty } from './counterparties.js';
 import { listPayments, addPayment, updatePayment, deletePayment, updateCostDates, addCashBalance } from './payments.js';
+import { listSalesHistory, saveSalesHistory } from './sales-history.js';
 import {
   createSchedules,
   listSchedules,
@@ -552,6 +553,15 @@ async function handleUpdateCostDates(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data: await updateCostDates(env, { orderId: params.orderId, costId: params.costId, user, body }) });
 }
 
+async function handleListSalesHistory(request, env, { user }) {
+  return jsonResponse(request, env, { success: true, data: await listSalesHistory(env, { user }) });
+}
+
+async function handleSaveSalesHistory(request, env, { user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await saveSalesHistory(env, { user, body }) });
+}
+
 async function handleAddCashBalance(request, env, { user }) {
   const body = (await readJson(request)) || {};
   return jsonResponse(request, env, { success: true, data: await addCashBalance(env, { user, body }) }, 201);
@@ -741,6 +751,8 @@ const router = createRouter([
   { method: 'GET',  path: '/production/monthly',                       auth: 'jwt', handler: handleMonthlySummary },
   { method: 'GET',  path: '/management/summary',                       auth: 'jwt', handler: handleManagementSummary },
   { method: 'POST', path: '/management/cash-balance',                  auth: 'jwt', handler: handleAddCashBalance },
+  { method: 'GET',  path: '/management/sales-history',                 auth: 'jwt', handler: handleListSalesHistory },
+  { method: 'PUT',  path: '/management/sales-history',                 auth: 'jwt', handler: handleSaveSalesHistory },
   { method: 'GET',  path: '/production/worklogs',                      auth: 'jwt', handler: handleListWorklogs },
   { method: 'GET',  path: '/production/calibration',                   auth: 'jwt', handler: handleGetCalibration },
   { method: 'POST', path: '/production/calibration/apply',             auth: 'jwt', handler: handleApplyCalibration },

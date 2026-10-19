@@ -51,7 +51,7 @@ CREATE TRIGGER trg_dsched_track_times BEFORE INSERT OR UPDATE ON design_schedule
 
 -- ── 2. 과거 월 매출 ──────────────────────────────────────────
 -- 시스템 수주가 쌓이기 전의 장사를 사장님이 달마다 적는다 (거래명세서 · 장부 기준, VAT 제외).
--- 시스템 수주가 있는 달은 시스템 숫자가 먼저다 — 이 표는 그 전의 달을 메운다.
+-- 이 표에 적은 달은 이 숫자가 먼저다(시스템 밖 주문까지 담은 장부라서). 적지 않은 달은 시스템 수주로 센다.
 CREATE TABLE IF NOT EXISTS sales_history (
   month       DATE PRIMARY KEY CHECK (EXTRACT(DAY FROM month) = 1),
   revenue     BIGINT NOT NULL CHECK (revenue >= 0),
