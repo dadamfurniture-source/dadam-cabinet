@@ -1142,7 +1142,8 @@
       function _drawerRulesOf(s) {
         const d = (s && s.drawer) || {};
         const railRaw = d.rail || (s && s.drawerRail);
-        const GRADES = ['small', 'medium', 'large'];
+        // 2026-10-19: 'auto' = 비율 2 서랍 (존 높이로 대·중·소, bom-drawer-rules.js autoGradeFor)
+        const GRADES = ['small', 'medium', 'large', 'auto'];
         // 2026-09-16: 전면 등급 — 서랍마다 소·중·대, 도어는 따로. 모르는 값은 버리고 규칙 파일 기본값에 맡긴다.
         const grades = Array.isArray(d.grades)
           ? d.grades.map((g) => (GRADES.includes(g) ? g : null)).filter((g) => g !== null)
