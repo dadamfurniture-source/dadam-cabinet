@@ -80,6 +80,7 @@ import { getFeedback, createFeedbackLink, openFeedback, answerFeedback } from '.
 import { listCounterparties, createCounterparty, updateCounterparty } from './counterparties.js';
 import { listPayments, addPayment, updatePayment, deletePayment, updateCostDates, addCashBalance } from './payments.js';
 import { listSalesHistory, saveSalesHistory } from './sales-history.js';
+import { createOkr, updateOkr, deleteOkr } from './okrs.js';
 import {
   createSchedules,
   listSchedules,
@@ -553,6 +554,20 @@ async function handleUpdateCostDates(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data: await updateCostDates(env, { orderId: params.orderId, costId: params.costId, user, body }) });
 }
 
+async function handleCreateOkr(request, env, { user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await createOkr(env, { user, body }) }, 201);
+}
+
+async function handleUpdateOkr(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await updateOkr(env, { user, id: params.id, body }) });
+}
+
+async function handleDeleteOkr(request, env, { params, user }) {
+  return jsonResponse(request, env, { success: true, data: await deleteOkr(env, { user, id: params.id }) });
+}
+
 async function handleListSalesHistory(request, env, { user }) {
   return jsonResponse(request, env, { success: true, data: await listSalesHistory(env, { user }) });
 }
@@ -753,6 +768,9 @@ const router = createRouter([
   { method: 'POST', path: '/management/cash-balance',                  auth: 'jwt', handler: handleAddCashBalance },
   { method: 'GET',  path: '/management/sales-history',                 auth: 'jwt', handler: handleListSalesHistory },
   { method: 'PUT',  path: '/management/sales-history',                 auth: 'jwt', handler: handleSaveSalesHistory },
+  { method: 'POST',   path: '/management/okrs',                        auth: 'jwt', handler: handleCreateOkr },
+  { method: 'PATCH',  path: '/management/okrs/:id',                    auth: 'jwt', handler: handleUpdateOkr },
+  { method: 'DELETE', path: '/management/okrs/:id',                    auth: 'jwt', handler: handleDeleteOkr },
   { method: 'GET',  path: '/production/worklogs',                      auth: 'jwt', handler: handleListWorklogs },
   { method: 'GET',  path: '/production/calibration',                   auth: 'jwt', handler: handleGetCalibration },
   { method: 'POST', path: '/production/calibration/apply',             auth: 'jwt', handler: handleApplyCalibration },
