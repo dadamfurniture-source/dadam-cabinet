@@ -70,6 +70,8 @@ const STRUCTURE_ONLY = [
   'js/planner/planner-capture.js',
   // R2: 사진으로 만들기 — PlannerStore(토큰)·PlannerDetail(마감 모델)·PlannerCatalog(자재명)를 쓴다.
   'js/planner/ai-photo.js',
+  // CAD 베타 T4: 관리자 근사 GLB 내보내기. 배치 단계에는 3D 장면이 없다.
+  'js/planner/planner-export.js',
 ];
 
 // D0: 마감 카탈로그 정본. IIFE 라 최상위 이름이 없고 window.DadamBomFinishColor 만 남긴다 —
