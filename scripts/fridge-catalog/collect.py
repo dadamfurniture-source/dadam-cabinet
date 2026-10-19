@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Korean-market refrigerator dimension collector (prototype, stdlib only).
 
-Brands: Samsung (samsung.com/sec), LG (lge.co.kr)
+Brands: Samsung (samsung.com/sec), LG (lge.co.kr), Winia (winia.com, opt-in via --brands)
 Model list  : manufacturer list APIs (the same JSON the category pages call)
-Dimensions  : manufacturer official spec APIs (W x H x D, mm)
-Install gaps: manufacturer installation guides (Samsung buying-guide, LG setup-guide)
+Dimensions  : manufacturer official spec APIs (W x H x D, mm); Winia: static product page spec table
+Install gaps: manufacturer installation guides (Samsung buying-guide, LG setup-guide; Winia has none in HTML)
 
 Politeness: robots.txt checked per host, >= --delay seconds between network
 requests, one request at a time, every raw response cached under cache/.
@@ -13,6 +13,7 @@ Usage:
   python collect.py --sample 10            # ~10 list items per brand, writes sample.json/csv
   python collect.py --out fridges          # full run, writes fridges.json/csv
   python collect.py --brands lg --no-guides --out lg_only
+  python collect.py --brands winia --out winia   # default brands stay samsung,lg
 """
 import argparse
 import csv
@@ -114,6 +115,16 @@ class Fetcher:
         h = {"Content-Type": "application/json;charset=UTF-8", "Accept": "application/json"}
         h.update(headers or {})
         r = self._raw(url, "POST", json.dumps(payload, ensure_ascii=False, sort_keys=True), h)
+        if r is None:
+            raise RuntimeError(f"offline and not cached: {url}")
+        return r
+
+    def post_form(self, url, fields, headers=None):
+        """application/x-www-form-urlencoded POST (jQuery $.ajax({data: {...}}) 와 같은 모양)."""
+        h = {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+             "Accept": "application/json, text/javascript, */*; q=0.01", "X-Requested-With": "XMLHttpRequest"}
+        h.update(headers or {})
+        r = self._raw(url, "POST", urllib.parse.urlencode(fields), h)
         if r is None:
             raise RuntimeError(f"offline and not cached: {url}")
         return r
@@ -663,6 +674,171 @@ def lg_collect(f, sample=None, guides=True):
     return rows
 
 
+# --------------------------------------------------------------------------- Winia (위니아 딤채)
+
+WN = "https://www.winia.com"
+# list_ajax 의 TYPE / GNB_SEQ (메인 메뉴 '냉장고/와인셀러' · '김치냉장고' 와 같은 값)
+WN_CATS = {
+    "1": ("refrigerators", "2055_2060_2065_2056_2061_2066_2057_2062_2067_2058_2063_2068_2059_2064_2069"),
+    "2": ("kimchi-refrigerators", "2070_2071"),
+}
+WN_HDR = {"Origin": WN, "Referer": WN + "/product/list"}
+
+
+def wn_list(f, type_, gnb):
+    out, page, total = [], 0, None
+    while True:
+        st, body = f.post_form(f"{WN}/product/list_ajax", {"pageNo": page, "pageSize": 400, "TYPE": type_,
+                                                           "GNB_SEQ": gnb, "PRODUCT_SEQS": "", "PRODUCT_SEQ": ""},
+                               WN_HDR)
+        ro = (json.loads(body) or {}).get("resultObject") or {}
+        total = ro.get("totCnt") or 0
+        ml = ro.get("list") or []
+        out.extend(ml)
+        if not ml or len(out) >= total or (ro.get("pageInfo") or {}).get("lastPage", True):
+            break
+        page += 1
+    return total, out
+
+
+def wn_spec(h):
+    """상세 페이지 '제품사양' 표 → {항목: 값}. <dt class="name">항목</dt><dd class="text">값</dd>"""
+    i = h.find('id="productSpec"')
+    if i < 0:
+        return {}
+    j = h.find("제품사양 끝", i)
+    seg = h[i:j if j > 0 else len(h)]
+    out = {}
+    for m in re.finditer(r'<dt class="name">(.*?)</dt>\s*<dd class="text">(.*?)</dd>', seg, re.S):
+        k = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", m.group(1)))).strip()
+        v = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", m.group(2)))).strip()
+        if k:
+            out.setdefault(k, v)
+    return out
+
+
+def wn_line(title, kimchi):
+    if kimchi:  # '딤채 스탠드형 551L' · '클라쎄 스탠드형 328L'
+        w = title.split(" ")[0]
+        return w if w in ("딤채", "클라쎄") else "일반"
+    return "보르도" if "보르도" in title else "일반"
+
+
+def wn_tags(title, p, spec):
+    tags = []
+    if p.get("MNG_NAME") == "쁘띠형" or "쁘띠" in title:
+        tags.append("쁘띠형")
+    if "와인셀러" in title or any("와인셀러" in k for k in spec):
+        tags.append("와인셀러")
+    if p.get("YEAR"):
+        tags.append(f"{p['YEAR']}년형")
+    return tags
+
+
+def wn_subtype(p, cat, title, spec, cap, h):
+    mng = p.get("MNG_NAME") or ""
+    if cat == "kimchi-refrigerators":
+        return "kimchi_lid" if ("뚜껑" in mng or "뚜껑" in title) else "kimchi_stand"
+    struct = spec.get("냉장/냉동구조") or ""
+    if "양문" in mng or "양문" in struct:
+        return "side_by_side"
+    # '와인 보관형'(보르도) 은 상냉장/하냉동 4도어 몸체 — 크기로는 프렌치 4도어다 (와인셀러 칸은 tags 에 남긴다)
+    if "상냉장/하냉동" in mng or "프렌치" in title or "와인" in mng:
+        return "french_4door"
+    if "냉동고" in mng or "냉동고" in title:  # 세워 쓰는 냉동고 단품 (to_sql.refine_subtype 과 같은 기준)
+        return "one_door" if (h or 0) >= 1000 else "small"
+    if cap and cap <= 150:  # 삼성 · LG 와 같은 기준 (위니아 '소형냉장고' 메뉴엔 182L 도 있다)
+        return "small"
+    if not cap and "소형" in mng:
+        return "small"
+    return "two_door"
+
+
+def winia_collect(f, sample=None, guides=True):
+    """위니아 (딤채 · 클라쎄 김치냉장고, 위니아 냉장고 · 냉동고 · 보르도).
+    목록: POST /product/list_ajax (form) · 치수: /product/view?PRODUCT_SEQ= 정적 HTML '제품사양' 표.
+    목록 한 칸 = 모델 코드 하나 (색상 변형도 따로 올라온다). 설치 여유는 winia.com HTML 에 없다 (매뉴얼 PDF 뿐)
+    → guides 는 받기만 하고 쓰지 않는다. 여유 칸은 비워 둔다."""
+    items = []
+    for type_, (cat, gnb) in WN_CATS.items():
+        total, ml = wn_list(f, type_, gnb)
+        print(f"[winia] {cat}: totCnt={total} listed={len(ml)}", file=sys.stderr)
+        for p in ml:
+            p["_cat"] = cat
+            items.append(p)
+    seen, uniq = set(), []
+    for p in items:
+        if p["PRODUCT_SEQ"] not in seen:
+            seen.add(p["PRODUCT_SEQ"])
+            uniq.append(p)
+    if sample:
+        uniq = pick_sample(uniq, lambda p: (p["_cat"], p.get("MNG_NAME")), sample)
+    rows, done_codes = [], set()
+    queue = list(uniq)
+    while queue:
+        p = queue.pop(0)
+        code = (p.get("PRODUCT_MODEL_NAME") or "").strip()
+        if code in done_codes:
+            print(f"  [winia] skip duplicate code {code} (PRODUCT_SEQ={p['PRODUCT_SEQ']})", file=sys.stderr)
+            continue
+        page = f"{WN}/product/view?PRODUCT_SEQ={p['PRODUCT_SEQ']}"
+        st, h = f.get(page)
+        spec = wn_spec(h) if st == 200 else {}
+        if not spec:  # 목록에는 있는데 상세가 '요청하신 페이지를 찾을 수 없습니다' (200) 인 경우가 있다
+            print(f"  [winia] no spec table {code or '?'} {page} (status {st})", file=sys.stderr)
+            continue
+        m = re.search(r'<p class="title">([^<]+)</p>\s*<p class="code">\s*<span>([^<]+)', h)
+        title = re.sub(r"\s+", " ", html.unescape(m.group(1) if m else (p.get("PRODUCT_TITLE") or ""))).strip()
+        page_code = html.unescape(m.group(2)).strip() if m else code
+        if not code:  # 색상 칩으로만 이어진 상품 (목록에 없다)
+            code = page_code
+            if not code or code in done_codes:
+                continue
+        elif page_code != code:
+            print(f"  [winia] code mismatch list={code} page={page_code}", file=sys.stderr)
+        done_codes.add(code)  # 같은 코드의 다른 PRODUCT_SEQ 는 상세가 없을 때만 다시 시도한다
+        if not sample:  # 상세의 색상 칩(fnMoveDetail) 중 목록에 없는 상품도 따라간다 — 같은 분류로 본다
+            for s in re.findall(r"fnMoveDetail\((\d+)\)", h):
+                if int(s) not in seen:
+                    seen.add(int(s))
+                    queue.append(dict(p, PRODUCT_SEQ=int(s), PRODUCT_MODEL_NAME=None, PRODUCT_TITLE=None))
+                    print(f"  [winia] color chip {s} (from {code}) not in list - following", file=sys.stderr)
+        size_k = next((k for k in spec if "WxHxD" in k.replace(" ", "")), None) \
+            or next((k for k in spec if ("크기" in k or "사이즈" in k) and "포장" not in k), None)
+        size = spec.get(size_k) if size_k else None
+        dims = parse_dims(size)
+        cap_k = next((k for k in spec if k.replace(" ", "").startswith(("전체용량", "총용량"))), None) \
+            or next((k for k in spec if k.replace(" ", "") in ("용량", "용량(L)")), None)
+        cap = first_num(spec.get(cap_k)) if cap_k else None
+        if cap is None:  # 김치냉장고 사양표엔 용량 칸이 없다 — 제목 '딤채 스탠드형 551L'
+            cap = rx(r"(\d+(?:\.\d+)?)\s*L\b", title)
+        cat = p["_cat"]
+        row = {
+            "brand": "Winia",
+            "category_subtype": wn_subtype(p, cat, title, spec, cap, dims[1] if dims else None),
+            "line": wn_line(title, cat == "kimchi-refrigerators"),
+            "tags": wn_tags(title, p, spec),
+            "model_name": title,
+            "model_codes": [code],
+            "width_mm": dims[0] if dims else None,
+            "height_mm": dims[1] if dims else None,
+            "depth_mm": dims[2] if dims else None,
+            "capacity_l": cap,
+            "wine_bottles": None,
+            "install_type": "built_in" if "빌트인" in title else "freestanding",
+            "product_type_raw": " / ".join(x for x in [p.get("TYPE_NAME"), p.get("MNG_NAME"), spec.get("냉장/냉동구조"),
+                                                         f"{p['YEAR']}년형" if p.get("YEAR") else None,
+                                                         spec.get("패턴 및 색상")] if x),
+            "size_raw": f"{size_k}: {size}" if size else None,
+            "source_url": page,
+            "page_url": page,
+            "sale_status": p.get("STATUS"),
+            "collected_at": now_iso(),
+        }
+        rows.append(row)
+    return rows
+
+
 # --------------------------------------------------------------------------- merge / output
 
 GAP_KEYS = ["side_gap_mm", "door_side_gap_mm", "top_gap_mm", "back_gap_mm", "niche_min_w_mm", "niche_min_h_mm",
@@ -729,6 +905,8 @@ def main():
         rows += samsung_collect(f, a.sample or None, not a.no_guides)
     if "lg" in brands:
         rows += lg_collect(f, a.sample or None, not a.no_guides)
+    if "winia" in brands:
+        rows += winia_collect(f, a.sample or None, not a.no_guides)
     merged = merge(rows)
     base = os.path.join(HERE, a.out or ("sample" if a.sample else "fridges"))
     write(merged, base)
