@@ -90,6 +90,28 @@ const SUMMARY = {
       avgPerMin: 12767,
     },
   },
+  // 워커 시험(forecast.test.js 3단계 PR-12) 의 손계산 결과 그대로
+  forecast: {
+    needSql: false,
+    today: '2026-10-21',
+    months: [
+      ['2025-10', 60], ['2025-11', 60], ['2025-12', 40], ['2026-01', 20], ['2026-02', 20], ['2026-03', 30],
+      ['2026-04', 40], ['2026-05', 40], ['2026-06', 30], ['2026-07', 20], ['2026-08', 20], ['2026-09', 40],
+    ].map(([month, r]) => ({ month, revenue: r * 1000000, source: 'manual' })).concat([{ month: '2026-10', revenue: 15000000, source: 'system', partial: true }]),
+    coverage: 12,
+    minMonths: 12,
+    ready: true,
+    index: [0.57, 0.57, 0.86, 1.14, 1.14, 0.86, 0.57, 0.57, 1.14, 1.71, 1.71, 1.14].map((value, i) => ({ m: i + 1, value })),
+    peak: { m: 10, value: 1.71 },
+    low: { m: 1, value: 0.57 },
+    base: 35000000,
+    next: [
+      { month: '2026-10', index: 1.71, forecast: 59850000 },
+      { month: '2026-11', index: 1.71, forecast: 59850000 },
+      { month: '2026-12', index: 1.14, forecast: 39900000 },
+    ],
+    pipeline: { pending: 2, conversion: 33.3, avgContract: 5333333, expected: 3555555 },
+  },
   // 워커 시험(sheet-yield.test.js 3단계 PR-11) 의 손계산 결과 그대로
   sheetYield: {
     window: { days: 180, start: '2026-04-25', end: '2026-10-21' },
@@ -213,6 +235,10 @@ function fakeApi({ admin = true, data = SUMMARY, status = 200 } = {}) {
   const fetchFn = jest.fn(async (url, init = {}) => {
     const u = String(url).replace(API, '');
     calls.push(u);
+    if (u === '/management/sales-history') {
+      calls.push({ put: JSON.parse(init.body) });
+      return { ok: true, status: 200, json: async () => ({ success: true, data: { saved: 2, removed: 22 } }) };
+    }
     if (u === '/management/cash-balance') {
       calls.push({ post: JSON.parse(init.body) });
       return { ok: true, status: 201, json: async () => ({ success: true, data: { id: 'B1' } }) };
@@ -978,5 +1004,72 @@ describe('원판 사용량 (3단계 PR-11)', () => {
     await window.Management.init();
     await settle();
     expect(document.getElementById('cardYield').hidden).toBe(true);
+  });
+});
+
+describe('계절 지수 · 수주 예측 (3단계 PR-12)', () => {
+  test('평균 · 성수기 · 비수기, 지난 열두 달 막대(장부 회색) + 예측 석 달(주황), 지수 띠, 파이프라인', async () => {
+    boot(fakeApi());
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('rowForecast').hidden).toBe(false);
+    expect(text('forecastBody')).toMatch(/최근 열두 달 평균 3,500만 · 성수기 10월\(1.71\) · 비수기 1월\(0.57\)/);
+    const chart = document.getElementById('forecastChart');
+    expect(chart.querySelectorAll('rect.hist')).toHaveLength(12);
+    expect(chart.querySelectorAll('rect.fc')).toHaveLength(3);
+    expect(chart.querySelectorAll('rect.sofar')).toHaveLength(1);
+    // 막대 높이는 값에 비례 — 2,000만(1월)은 6,000만(작년 10월)의 1/3
+    const hist = [...chart.querySelectorAll('rect.hist')].map((r) => Number(r.getAttribute('height')));
+    expect(hist[3] / hist[0]).toBeCloseTo(1 / 3, 1);
+    const strip = [...document.querySelectorAll('#indexStrip .idx')];
+    expect(strip).toHaveLength(12);
+    expect(strip[9].className).toBe('idx hi');
+    expect(strip[0].className).toBe('idx lo');
+    expect(strip[2].className).toBe('idx mid');
+    expect(text('forecastBody')).toMatch(/예측 10월 5,985만 11월 5,985만 12월 3,990만/);
+    expect(text('forecastBody')).toMatch(/결정 기다리는 확인서 2건 × 전환율 33.3% × 평균 533만 ≈ 356만/);
+  });
+
+  test('열두 달이 안 되면 몇 달인지만, 표가 없으면 SQL 안내', async () => {
+    boot(fakeApi({ data: { ...SUMMARY, forecast: { ...SUMMARY.forecast, ready: false, coverage: 7, index: null, next: null, peak: null, low: null } } }));
+    await window.Management.init();
+    await settle();
+    expect(text('forecastBody')).toMatch(/끝난 달 7개월 \/ 12개월/);
+    expect(document.getElementById('indexStrip')).toBeNull();
+    boot(fakeApi({ data: { ...SUMMARY, forecast: { ...SUMMARY.forecast, needSql: true } } }));
+    await window.Management.init();
+    await settle();
+    expect(text('historyBody')).toMatch(/management-phase3\.sql/);
+    expect(text('forecastBody')).toMatch(/과거 월 매출 칸이 아직 없습니다/);
+  });
+
+  test('과거 매출 넣기: 지난 스물네 달 칸(만원), 적은 달은 채워 두고, 저장은 원으로 PUT', async () => {
+    const api = fakeApi();
+    boot(api);
+    await window.Management.init();
+    await settle();
+    const inputs = [...document.querySelectorAll('#historyGrid input')];
+    expect(inputs).toHaveLength(24);
+    expect(inputs[0].dataset.month).toBe('2024-10');
+    expect(inputs.at(-1).dataset.month).toBe('2026-09');
+    expect(inputs.at(-1).value).toBe('4000');
+    expect(inputs[0].value).toBe('');
+    inputs[0].value = '2500';
+    document.getElementById('btnSaveHistory').click();
+    await settle();
+    const put = api.calls.find((c) => c && c.put).put;
+    expect(put.rows).toHaveLength(24);
+    expect(put.rows[0]).toEqual({ month: '2024-10', revenue: 25000000 });
+    expect(put.rows[1]).toEqual({ month: '2024-11', revenue: '' });
+    expect(put.rows.at(-1)).toEqual({ month: '2026-09', revenue: 40000000 });
+  });
+
+  test('옛 워커(칸 없음)면 줄을 숨긴다', async () => {
+    const data = { ...SUMMARY };
+    delete data.forecast;
+    boot(fakeApi({ data }));
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('rowForecast').hidden).toBe(true);
   });
 });

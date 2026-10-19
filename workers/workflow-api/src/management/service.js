@@ -217,6 +217,12 @@ export async function getManagementSummary(env, { user, month }) {
     cutLogs = logs || [];
     snaps = snaps.concat(more || []);
   }
+  // 계절 지수 · 예측 — 과거 월 매출(표가 없으면 null) + 시스템 수주 3년치
+  const threeYears = new Date(Date.now() - 3 * 365 * 86400000).toISOString().slice(0, 10);
+  const [history, sysOrders] = await Promise.all([
+    selectMany(env, 'sales_history', { select: 'month,revenue,orders', order: 'month.asc', limit: '240' }).catch(() => null),
+    selectMany(env, 'orders', { select: 'contract_amount,status,ordered_at', ordered_at: `gte.${threeYears}`, limit: '10000' }).catch(() => []),
+  ]);
   return buildManagementSummary({
     orders: list,
     snapshotsById: new Map(snaps.map((s) => [s.id, s])),
@@ -243,6 +249,8 @@ export async function getManagementSummary(env, { user, month }) {
     leadOrders: leadOrders || [],
     doneOrders,
     cutLogs,
+    history,
+    sysOrders: sysOrders || [],
     today: kstDate(),
     settings,
     month: m,
