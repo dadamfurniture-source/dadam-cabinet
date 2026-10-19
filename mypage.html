@@ -17,7 +17,7 @@
     <script defer src="js/nav-transitions.js"></script>
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="js/detaildesign-access.js"></script>
+    <script src="js/detaildesign-access.js?v=37.0"></script>
     <script src="js/admin-access.js"></script>
     <style>
       * {
@@ -1748,9 +1748,13 @@
             .select('detaildesign_approved, detaildesign_requested_at, tier')
             .eq('id', currentUser.id)
             .single();
-          approved = Boolean(data?.detaildesign_approved);
           requestedAt = data?.detaildesign_requested_at || null;
           tier = data?.tier || 'standard';
+          // D6: 구독 플랜이 기준 이상이면 승인 없이도 열린다 — 판정은 js/detaildesign-access.js 한 곳
+          approved = window.DetailDesignAccess.decide({
+            tier: data?.tier,
+            approved: Boolean(data?.detaildesign_approved),
+          }).allowed;
           // 헤더의 등급 뱃지를 DB 기준으로 재갱신 (승인 후 Expert 로 동기화)
           if (typeof updateTierDisplay === 'function') updateTierDisplay(tier);
         } catch (e) {

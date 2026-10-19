@@ -180,7 +180,7 @@ describe('관리자는 상세설계 승인으로 본다', () => {
 
   test('소스에 관리자 우회와 참-only 캐시가 있다', () => {
     expect(DD).toContain('window.AdminAccess.isAdmin(supabaseClient)');
-    expect(DD).toMatch(/if \(approved\) writeCache\(userId, true/);
+    expect(DD).toMatch(/if \(allowed\) writeCache\(userId, true/);
     expect(DD).toMatch(/if \(cached && cached\.approved\)/);
   });
 });
@@ -197,9 +197,9 @@ describe('차단 게이트 두 곳 모두 관리자를 통과시킨다', () => {
     expect(guard.indexOf('isAdmin')).toBeLessThan(guard.indexOf('fetchStatus'));
   });
 
-  test('persistence-init.js — approved || isAdminBypass', () => {
+  test('persistence-init.js — decide({ isAdmin: isAdminBypass, … })', () => {
     const js = read('js/detaildesign/persistence-init.js');
-    expect(js).toMatch(/detaildesign_approved\) \|\| isAdminBypass/);
+    expect(js).toMatch(/DetailDesignAccess\.decide\(\{\s*isAdmin: isAdminBypass,/);
   });
 
   test('그 밖의 페이지는 차단이 아니라 메뉴 노출만 다룬다', () => {
