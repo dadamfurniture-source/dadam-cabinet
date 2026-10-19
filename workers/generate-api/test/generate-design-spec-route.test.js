@@ -220,6 +220,25 @@ test('재생성은 원본의 요약을 이어받는다', async () => {
   assert.equal(calls.uploads.length, 0); // 업로드 없이 원본 입력을 다시 쓴다
 });
 
+test('재생성은 원본의 실측 폭(wall_width_override)을 잇고, 새로 보낸 폭이 있으면 그것을 쓴다', async () => {
+  const parent = {
+    id: '33333333-3333-4333-8333-333333333333',
+    user_id: USER_ID,
+    category: 'wardrobe',
+    inputs: { room: { path: 'p/room.jpg', url: 'u', mime: 'image/jpeg' }, refs: [] },
+    options: { wall_width_override: 3200 },
+  };
+  install({ parent });
+  assert.equal((await post({ parent_id: parent.id })).status, 202);
+  assert.equal(calls.inserted.options.wall_width_override, 3200);
+  install({ parent });
+  await post({ parent_id: parent.id, wall_width_override: 3000 });
+  assert.equal(calls.inserted.options.wall_width_override, 3000);
+  install({ parent: { ...parent, options: {} } });
+  await post({ parent_id: parent.id });
+  assert.equal(calls.inserted.options.wall_width_override, null);
+});
+
 test('재생성에서 품목을 바꾸면 원본 요약을 조용히 버린다 (400 이 아니다)', async () => {
   const parent = {
     id: '33333333-3333-4333-8333-333333333333',
