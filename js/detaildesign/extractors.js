@@ -187,6 +187,22 @@
         return (parseFloat(W) || 0) >= min ? 1 : 0;
       }
 
+      // 2026-10-19: 기둥·배관 따내기 비고 — "따내기 좌측판 80×350 뒤·아래". 위치 말은 플래너 따내기 칸
+      //   (js/planner/planner-cutout.js PLANNER_CUTOUT_PANELS) 과 같다. 판에서 본 격자 열·행이다.
+      const BOM_CUTOUT_PANELS = {
+        left: { label: '좌측판', cols: ['뒤', '가운데', '앞'], rows: ['아래', '가운데', '위'] },
+        right: { label: '우측판', cols: ['뒤', '가운데', '앞'], rows: ['아래', '가운데', '위'] },
+        top: { label: '천판', cols: ['좌', '가운데', '우'], rows: ['뒤', '가운데', '앞'] },
+        bottom: { label: '지판', cols: ['좌', '가운데', '우'], rows: ['뒤', '가운데', '앞'] },
+      };
+      function bomCutoutNoteOf(c) {
+        const P = c && BOM_CUTOUT_PANELS[c.panel];
+        const col = P && P.cols[Number(c.col)];
+        const row = P && P.rows[Number(c.row)];
+        if (!P || !col || !row || !(Number(c.w) > 0) || !(Number(c.h) > 0)) return '';
+        return `따내기 ${P.label} ${Number(c.w)}×${Number(c.h)} ${col}·${row}`;
+      }
+
       // 키큰장 단의 도어 높이 (sink.md §5.1) — 목찬넬 단만 H−30 (목찬넬 틈, 하부장과 같다), 나머지(푸쉬)는 H−4 (도어 간격 4).
       // 자재 행(addTallTierParts)과 경첩 수(HardwareExtractor.extractHinges)가 **같은 함수**를 쓴다 — 경첩이 하부장 가정
       // (H−30)으로 도어 높이를 따로 셈해 푸쉬 단 경첩 수가 어긋나던 결함(bom-protocol.md §4-1).
@@ -680,6 +696,8 @@
                 if (simpleRules) this.extractSimpleBox(catItem, materials, prefix, simpleRules);
                 break;
             }
+            // 2026-10-19: 기둥·배관 따내기 — 그 모듈의 해당 판 비고에 적는다 (재단기는 사각 판만 자른다)
+            this.applyCutoutNotes(item, materials, beforeLen, itemIdx);
             // ★ 새로 추가된 자재에 품목 라벨 태깅
             for (let i = beforeLen; i < materials.length; i++) {
               materials[i].itemLabel = itemLabel;
@@ -697,6 +715,26 @@
             edgeBanding: this.calculateEdgeBanding(materials),
             extractDate: new Date().toISOString(),
           };
+        }
+
+        /**
+         * 2026-10-19: 기둥·배관 따내기 (플래너 s.cutouts → 브리지 mod.cutouts) — 측판·천판·지판 행의 비고에 붙인다.
+         *   치수·수량은 바꾸지 않는다: 원판에서 사각으로 자르고 따내기는 가공이다. 측판은 두 장이 한 행이라
+         *   비고가 어느 쪽(좌·우) 판인지 적는다. 그 판 행이 없으면(하부장 천판) 비고 없이 dlog 로 남긴다.
+         */
+        applyCutoutNotes(item, materials, fromIdx, itemIdx) {
+          const PART = { left: '측판', right: '측판', top: '천판', bottom: '지판' };
+          (item.modules || []).forEach((mod) => {
+            const cuts = Array.isArray(mod && mod.cutouts) ? mod.cutouts : [];
+            if (!cuts.length || mod.id === undefined || mod.id === null) return;
+            const moduleKey = `${itemIdx | 0}-${String(mod.id)}`;
+            cuts.forEach((c) => {
+              const row = materials.slice(fromIdx).find((r) => r.moduleKey === moduleKey && r.part === PART[c.panel]);
+              const note = bomCutoutNoteOf(c);
+              if (!row || !note) { dlog(`[Cutout] ${moduleKey}: ${note || c.panel} 를 붙일 판 행이 없다`); return; }
+              row.note = row.note ? `${row.note} · ${note}` : note;
+            });
+          });
         }
 
         // ========================================
@@ -786,7 +824,8 @@
         // ========================================
         // 자재 추가 헬퍼 (W7-3: mod 옵셔널 — 도어/서랍도어 자동 자재 코드 매핑)
         // B1: 모든 행에 partId·slot 을 더한다 (기존 필드는 그대로 — I4).
-        // ========================================
+        // ========================================
+
         /** 뒷판 한 장 — 크기는 측판 사쿠리 여부로 (bomBackPanelSize). 비고에 조립 방식을 적는다. */
         addBackPanel(materials, label, W, H, sakuri) {
           const b = bomBackPanelSize(W, H, sakuri);

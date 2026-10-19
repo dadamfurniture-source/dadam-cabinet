@@ -252,7 +252,8 @@ describe('소스 규약', () => {
     // 2026-09-19: 개별 모듈 패널이 일곱 벌 — 모듈 타입(data-mp="kind")이 맨 앞에 더해졌다.
     //   오픈장을 고르면 그 아래 여섯 벌이 통째로 닫힌다 (syncModulePanelSections).
     expect(keys).toBe(5);
-    expect((SRC.match(/class="section[^"]*" data-mp="(\w+)"/g) || []).length).toBe(7);   // D0: '선택 부재 마감'(data-sec="detail") 이 더해졌다 — 디테일 모드에서만 보인다
+    // 2026-10-19: 여덟 벌 — 기둥·배관 따내기(data-mp="cutout")가 더해졌다.
+    expect((SRC.match(/class="section[^"]*" data-mp="(\w+)"/g) || []).length).toBe(8);   // D0: '선택 부재 마감'(data-sec="detail") 이 더해졌다 — 디테일 모드에서만 보인다
     expect(SRC).toContain('const PANEL_LAYOUT = {');
   });
 
