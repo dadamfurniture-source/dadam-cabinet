@@ -395,7 +395,24 @@ const PLANNER_READ_SUBJECT = {
   fridge: 'refrigerator surround',
   storage: 'storage wall',
   wardrobe: 'wardrobe',
+  // 2026-10-19: 역판독 품목(LAYOUT_CATEGORIES) 밖 — 플래너 판독은 도면 목록으로 세므로 품목을 가리지 않는다.
+  //   이름은 prompts.js CATEGORIES[key].spec 첫머리와 같다.
+  vanity: 'dressing table',
+  shoe: 'shoe cabinet',
+  office: 'home office wall',
+  study: 'study wall',
+  bedroom: 'bedroom built-in wall',
 };
+/**
+ * 플래너 판독을 돌리는 품목 (2026-10-19) — prompts.js CATEGORIES 의 모든 키.
+ *   옛 판독(LAYOUT_CATEGORIES)은 품목별 세그먼트 종류가 있어야 하지만, 플래너 판독은 도면 목록(L1·U1…)을 센다.
+ *   붙박이장만 한 줄(W)로 잇고, 나머지는 구간(하부·상부·키큰장)대로 줄을 만든다.
+ */
+export const PLANNER_READ_CATEGORIES = Object.keys(PLANNER_READ_SUBJECT);
+/** 모르는 품목은 storage 로 (prompts.js resolveCategory 와 같은 폴백). */
+function plannerReadCategory(key) {
+  return PLANNER_READ_CATEGORIES.includes(key) ? key : 'storage';
+}
 const PLANNER_READ_ATTACH = {
   sink: 'sink on the countertop',
   cooktop: 'cooktop on the countertop',
@@ -686,7 +703,7 @@ function plannerReadLine(u) {
  * @param {'labeled'|'plain'|null} [c.elevation]  IMAGE 2 가 번호 입면 · 번호 없는 입면 · 없음
  */
 export function buildPlannerReadPrompt(c) {
-  const category = LAYOUT_CATEGORIES.includes(c.category) ? c.category : 'storage';
+  const category = plannerReadCategory(c.category);
   const plan = plannerReadPlan(c.designSpec, category);
   const el = c.elevation === 'labeled' || c.elevation === 'plain' ? c.elevation : null;
   const images = [
@@ -748,7 +765,7 @@ TASK: find every plan unit in IMAGE 1 and count what IMAGE 1 actually shows. The
  * @param {object} ctx  {category, designSpec, wallAnalysis?, slot?, model?, now?, elevation?}
  */
 export function normalizePlannerRead(raw, ctx) {
-  const category = LAYOUT_CATEGORIES.includes(ctx.category) ? ctx.category : 'storage';
+  const category = plannerReadCategory(ctx.category);
   const plan = plannerReadPlan(ctx.designSpec, category);
   const wa = ctx.wallAnalysis || {};
   const W = wallW(wa.wallW);
