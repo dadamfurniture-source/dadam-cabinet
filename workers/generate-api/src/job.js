@@ -33,6 +33,11 @@ import {
   buildTwoToneVariantPrompt,
   buildVariantPrompt,
   buildWardrobeInteriorPrompt,
+  buildInteriorRecommendPrompt,
+  INTERIOR_RECOMMEND_SCHEMA,
+  interiorPlanKo,
+  parseInteriorRecommendation,
+  wardrobeInteriorPlan,
   KITCHEN_CATEGORIES,
   clampWall,
   parseAnalysis,
@@ -56,7 +61,7 @@ import {
   normalizeLayout,
   normalizePlannerRead,
 } from './layout.js';
-import { callClaudeJson } from './claude.js';
+import { callClaudeJson, claudeModel } from './claude.js';
 import { VERIFY_VERSION, compareLayoutToSpec } from './verify.js';
 import { controlNetModel, runControlNet } from './controlnet.js';
 import { FURNITURE_MASK_SCHEMA, buildFurnitureMaskPrompt, parseFurnitureMask } from './furniture-mask.js';
@@ -69,6 +74,7 @@ const VERIFY_MAX_B64 = Math.floor((5 * 1024 * 1024 * 4) / 3);
 const RETRY_DELAY_MS = 15_000;
 /** 검사(QC) 한 번의 상한 — 넘기면 통과로 보고 진행한다 */
 const QC_TIMEOUT_MS = 90_000;
+const INTERIOR_REC_TIMEOUT_MS = 60_000; // 붙박이장 추천 구조 고르기 — 넘으면 그 장은 정본 기본형 + 추천 색
 const JOB_TIMEOUT_MS = 10 * 60_000; // 환불 창(30분) 안에 끝나야 한다
 const VARIANT_COUNT = 3;
 const VARIANT_ATTEMPTS = 2; // 실패·빈 응답이면 한 번 더
@@ -846,11 +852,75 @@ async function runPipeline(env, job, ck, save) {
   if (interior) {
     const colourSpec = specs[0];
     const colour = colourSpec.finishSrc || (ck.themeFinish ? { body: ck.themeFinish.body, tone: ck.themeFinish.tone } : null);
-    for (const recolour of [null, colour]) {
-      const { prompt, label } = buildWardrobeInteriorPrompt(wall.wallW, recolour);
-      specs.push({ key: recolour ? `interior:${colourSpec.key}` : 'interior', label, prompt, interior: true });
-    }
+    // 첫 장: 정본 기본형 + 기본안 색. 둘째 장: 추천 구조(그 슬롯 차례에 고른다) + 색 추천안 색
+    const std = buildWardrobeInteriorPrompt(wall.wallW, null, { tag: '기본 구조', wallH: wall.wallH });
+    specs.push({ key: 'interior', label: std.label, prompt: std.prompt, interior: true, structure: { kind: 'standard', plan: interiorPlanKo(wardrobeInteriorPlan(wall.wallW)) } });
+    specs.push({ key: `interior:${colourSpec.key}`, interior: true, recommend: true, colour });
   }
+
+  // 붙박이장 추천 구조 (2026-10-19 사장님 "정본 구조 이외에 추천 구조를 알아서 만들어 나머지 1장에").
+  //   기본안 사진·방 메모·손님 요청을 Claude 에 보여 주고 정본 프리셋 **조합** 하나를 고르게 한다
+  //   (prompts.js INTERIOR_PRESET_KEYS · 긴옷 내부 서랍 0~5 — 새 칸 규칙은 만들지 않는다).
+  //   한 번 고르면 체크포인트에 둔다 — 재실행에도 같은 구조. 못 고르면 그 장은 정본 기본형 + 추천 색 (#854 와 같다).
+  const recommendedInterior = async (colour) => {
+    const canonical = wardrobeInteriorPlan(wall.wallW);
+    if (ck.interiorRec === undefined) {
+      // 고르는 동안 ck 에 null 을 두지 않는다 — 다른 슬롯의 save() 가 그 null 을 "추천 없음" 으로 굳혀
+      //   중간에 재시작되면 추천을 다시 고르지 않았다. 결과는 끝나고 한 번에 넣는다.
+      let decided = null;
+      let timer = null;
+      const t0 = Date.now();
+      let why = 'no key';
+      try {
+        if (env.ANTHROPIC_API_KEY) {
+          const model = env.INTERIOR_MODEL || claudeModel(env);
+          // 프록시 경유 Claude 호출은 SDK 시간 제한(중단 신호)이 닿지 않는다 — 검사처럼 따로 끊는다
+          const { json, model: by } = await Promise.race([
+            callClaudeJson(env, {
+              prompt: buildInteriorRecommendPrompt({
+                sections: canonical.length,
+                wallW: wall.wallW,
+                wallH: wall.wallH,
+                brief: wall.brief,
+                customerRequest: ctx.customerRequest,
+                canonical,
+              }),
+              image: base,
+              schema: INTERIOR_RECOMMEND_SCHEMA,
+              model,
+              fallbacks: !/haiku/i.test(model), // Haiku 5.5 는 서버 거절 대체를 받지 않는다
+              maxTokens: 4000,
+            }),
+            new Promise((_, reject) => {
+              timer = setTimeout(
+                () => reject(new Error('interior recommendation timeout')),
+                Number(env.INTERIOR_REC_TIMEOUT_MS) || INTERIOR_REC_TIMEOUT_MS
+              );
+            }),
+          ]);
+          const rec = parseInteriorRecommendation(json, { sections: canonical.length, canonical, wallH: wall.wallH });
+          if (rec) decided = { ...rec, by };
+          why = rec ? `${by} ${interiorPlanKo(rec.plan)}` : `rejected ${JSON.stringify(json).slice(0, 160)}`;
+        }
+      } catch (e) {
+        why = `failed: ${e.message}`;
+      } finally {
+        clearTimeout(timer);
+      }
+      console.log(`[Job ${job.id}] interior recommendation: ${why} ${Date.now() - t0}ms`);
+      ck.interiorRec = decided;
+      await save({ interiorRec: decided });
+    }
+    const rec = ck.interiorRec;
+    const built = buildWardrobeInteriorPrompt(wall.wallW, colour, rec ? { plan: rec.plan, tag: '추천 구조', wallH: wall.wallH } : { wallH: wall.wallH });
+    return {
+      prompt: built.prompt,
+      label: built.label,
+      structure: rec
+        ? { kind: 'recommended', plan: interiorPlanKo(rec.plan), concept: rec.concept, reason: rec.reason, by: rec.by }
+        : { kind: 'standard', plan: interiorPlanKo(canonical), fallback: true },
+    };
+  };
 
   await Promise.all(
     specs.map(async (f, i) => {
@@ -858,6 +928,7 @@ async function runPipeline(env, job, ck, save) {
       if (ck.images[slot]) return; // 재실행 시 이미 올라간 슬롯
       // 세 호출을 한꺼번에 쏘면 분당 한도에 걸릴 수 있어 살짝 어긋나게 보낸다.
       await sleep(i * VARIANT_STAGGER_MS);
+      if (f.recommend) Object.assign(f, await recommendedInterior(f.colour));
       let lastErr = null;
       for (let attempt = 1; attempt <= VARIANT_ATTEMPTS; attempt++) {
         try {
@@ -896,6 +967,7 @@ async function runPipeline(env, job, ck, save) {
             url: up.url,
             ...drawnBy(r),
             ...(pasted ? { pasted: true } : {}),
+            ...(f.structure ? { structure: f.structure } : {}),
           };
           await save({ images: ck.images });
           await updateById(env, 'generations', job.id, {
