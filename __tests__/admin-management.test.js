@@ -90,6 +90,23 @@ const SUMMARY = {
       avgPerMin: 12767,
     },
   },
+  // 워커 시험(okrs.test.js 3단계 PR-13) 의 손계산 결과 그대로
+  okrs: {
+    quarter: '2026-Q4',
+    elapsed: 22.8,
+    items: [
+      { id: 'a', objective: '가을 성수기 매출', metric: 'revenue_q', label: '분기 매출 (VAT 제외)', unit: 'won', target: 30000000, current: 3000000, direction: 'up', cumulative: true, progress: 10, status: 'behind', manual_value: null },
+      { id: 'b', objective: '수주 8건', metric: 'orders_q', label: '분기 수주 건수', unit: 'count', target: 8, current: 2, direction: 'up', cumulative: true, progress: 25, status: 'on_track', manual_value: null },
+      { id: 'c', objective: 'A/S 줄이기', metric: 'as_rate', label: 'A/S 율 (반년)', unit: 'pct', target: 5, current: 4, direction: 'down', cumulative: false, progress: 100, status: 'done', manual_value: null },
+      { id: 'e', objective: '쇼룸 열기', metric: 'manual', label: '직접 적기', unit: 'number', target: 3, current: null, direction: 'up', cumulative: false, progress: null, status: null, manual_value: null },
+    ],
+    metrics: [
+      { key: 'revenue_q', label: '분기 매출 (VAT 제외)', unit: 'won', direction: 'up' },
+      { key: 'orders_q', label: '분기 수주 건수', unit: 'count', direction: 'up' },
+      { key: 'as_rate', label: 'A/S 율 (반년)', unit: 'pct', direction: 'down' },
+      { key: 'manual', label: '직접 적기', unit: 'number', direction: 'up' },
+    ],
+  },
   // 워커 시험(forecast.test.js 3단계 PR-12) 의 손계산 결과 그대로
   forecast: {
     needSql: false,
@@ -235,6 +252,10 @@ function fakeApi({ admin = true, data = SUMMARY, status = 200 } = {}) {
   const fetchFn = jest.fn(async (url, init = {}) => {
     const u = String(url).replace(API, '');
     calls.push(u);
+    if (u.startsWith('/management/okrs')) {
+      calls.push({ okr: { path: u, method: init.method, body: init.body ? JSON.parse(init.body) : null } });
+      return { ok: true, status: 200, json: async () => ({ success: true, data: {} }) };
+    }
     if (u === '/management/sales-history') {
       calls.push({ put: JSON.parse(init.body) });
       return { ok: true, status: 200, json: async () => ({ success: true, data: { saved: 2, removed: 22 } }) };
@@ -1071,5 +1092,81 @@ describe('계절 지수 · 수주 예측 (3단계 PR-12)', () => {
     await window.Management.init();
     await settle();
     expect(document.getElementById('rowForecast').hidden).toBe(true);
+  });
+});
+
+describe('분기 목표 (3단계 PR-13)', () => {
+  test('분기 · 지난 날, 목표마다 막대 · 상태(닿음/제 속도/뒤처짐) · 쌓이는 목표엔 지난 날 표시', async () => {
+    boot(fakeApi());
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('okrSection').hidden).toBe(false);
+    expect(text('okrHead')).toMatch(/2026년 4분기 목표/);
+    expect(text('okrHead')).toMatch(/분기 22.8% 지남/);
+    const items = [...document.querySelectorAll('#okrList .okr-item')];
+    expect(items.map((i) => i.querySelector('.okr-st').textContent)).toEqual(['뒤처짐', '제 속도', '닿음', '값 없음']);
+    expect(items.map((i) => i.querySelector('.fill').style.width)).toEqual(['10%', '25%', '100%', '0%']);
+    expect(items[0].querySelector('.pace').style.left).toBe('22.8%');
+    expect(items[2].querySelector('.pace')).toBeNull();
+    expect(items[0].textContent.replace(/\s+/g, ' ')).toMatch(/분기 매출 \(VAT 제외\) · 지금 300만 \/ 목표 3,000만 · 10%/);
+    expect(items[2].textContent.replace(/\s+/g, ' ')).toMatch(/지금 4% \/ 목표 5% \(이하\)/);
+    expect(items[3].querySelector('[data-okr-value="e"]')).not.toBeNull();
+  });
+
+  test('넣기: 고른 숫자 · 목표 값을 그 분기로 POST, 직접 적기만 방향을 고른다', async () => {
+    const api = fakeApi();
+    boot(api);
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('okDirection').hidden).toBe(true);
+    document.getElementById('okObjective').value = '수주 10건';
+    document.getElementById('okMetric').value = 'orders_q';
+    document.getElementById('okMetric').dispatchEvent(new window.Event('change'));
+    document.getElementById('okTarget').value = '10';
+    document.getElementById('btnAddOkr').click();
+    await settle();
+    const post = api.calls.find((c) => c && c.okr && c.okr.method === 'POST').okr;
+    expect(post).toEqual({ path: '/management/okrs', method: 'POST', body: { quarter: '2026-Q4', objective: '수주 10건', metric: 'orders_q', target: 10 } });
+    document.getElementById('okMetric').value = 'manual';
+    document.getElementById('okMetric').dispatchEvent(new window.Event('change'));
+    expect(document.getElementById('okDirection').hidden).toBe(false);
+  });
+
+  test('직접 적기 목표의 지금 값 적기 · 지우기', async () => {
+    const api = fakeApi();
+    boot(api);
+    await window.Management.init();
+    await settle();
+    document.querySelector('[data-okr-value="e"]').value = '1';
+    document.querySelector('[data-okr-save="e"]').click();
+    await settle();
+    document.querySelector('[data-okr-del="b"]').click();
+    await settle();
+    const okrs = api.calls.filter((c) => c && c.okr).map((c) => c.okr);
+    expect(okrs).toContainEqual({ path: '/management/okrs/e', method: 'PATCH', body: { manual_value: 1 } });
+    expect(okrs).toContainEqual({ path: '/management/okrs/b', method: 'DELETE', body: null });
+  });
+
+  test('목표가 없으면 넣으라는 안내, 표가 없으면 SQL 안내 · 넣기 숨김, 옛 워커면 섹션을 숨긴다', async () => {
+    boot(fakeApi({ data: { ...SUMMARY, okrs: { ...SUMMARY.okrs, items: [] } } }));
+    await window.Management.init();
+    await settle();
+    expect(text('okrList')).toMatch(/이번 분기 목표가 없습니다/);
+    boot(fakeApi({ data: { ...SUMMARY, okrs: null } }));
+    await window.Management.init();
+    await settle();
+    expect(text('okrList')).toMatch(/management-phase3\.sql/);
+    expect(document.getElementById('okrEdit').hidden).toBe(true);
+    const data = { ...SUMMARY };
+    delete data.okrs;
+    boot(fakeApi({ data }));
+    await window.Management.init();
+    await settle();
+    expect(document.getElementById('okrSection').hidden).toBe(true);
+  });
+
+  test('진도 막대 · 지난 날 표시도 블록이어야 그려진다', () => {
+    expect(HTML).toMatch(/\.okr-bar \{ position: relative; display: block;/);
+    expect(HTML).toMatch(/\.okr-bar \.fill \{ display: block;/);
   });
 });
