@@ -28,6 +28,10 @@
  *       받침보정  = 좌대가 있으면 20 (도어가 다리발·좌대를 40 덮고 바닥에서 20 뜬다), 없으면 다리발 높이
  *     기준은 **모듈 높이가 아니라 배치(영역) 높이**다 — 한 런의 도어가 모듈 높이와 무관하게 줄을 맞춘다.
  *     소·중·대는 **전면 등급**이고 박스 60·120·180 과 다른 축이다 (중·대는 전면 높이가 같고 박스만 다르다).
+ *   · 자동 등급 (2026-10-19 사장님 확정, autoGradeFor):
+ *       비율 문자열(예 "2:1:1")의 서랍 "2" 는 등급 'auto' — 버줌 2 로 전면을 나눈 뒤, 목찬넬 자리를 뺀 존 높이가
+ *       250 이상이면 대, 아니면 들어가는 박스에 따라 중 또는 소. 박스도 그 등급 박스다 (대 180 · 중 120 · 소 60).
+ *       비율은 1 · 2 만 받는다 — 고정 mm 전면(1:200:1)은 받지 않는다.
  */
 (function (root, factory) {
   const api = factory();
@@ -61,8 +65,11 @@
     FRONT_GAP: 4,                 // 목찬넬 없는 전면 사이 갭 (전면별 높이를 직접 줄 때)
     // 2026-09-16 전면 배분식 — 소·중·대는 전면 등급이다 (박스 BOX_H 와 다른 축).
     //   중·대 버줌이 둘 다 2 인 것은 사장님 확인값이다: 전면 높이는 같고 속 박스만 120 · 180 으로 다르다.
-    FRONT_WEIGHT: Object.freeze({ small: 1, medium: 2, large: 2 }),
-    FRONT_GRADE_LABEL: Object.freeze({ small: '소', medium: '중', large: '대' }),
+    FRONT_WEIGHT: Object.freeze({ small: 1, medium: 2, large: 2, auto: 2 }),
+    FRONT_GRADE_LABEL: Object.freeze({ small: '소', medium: '중', large: '대', auto: '자동' }),
+    // 2026-10-19 사장님: 비율 2 서랍은 목찬넬 자리를 뺀 서랍 자리(존)가 250 이상이면 대, 아니면 중이나 소.
+    AUTO_LARGE_ZONE_MIN: 250,
+    RATIO_GRADE: Object.freeze({ 1: 'small', 2: 'auto' }),   // 서랍 비율 → 등급 (도어 2 는 도어 기본 등급)
     FRONT_GRADE_DEFAULT: 'medium',
     DOOR_GRADE_DEFAULT: 'large',  // 도어도 배분에 끼는 전면이다
     SLOT: 30,                     // 목찬넬 하나당 30 (TOP_SLOT · MID_SLOT 과 같은 값)
@@ -112,6 +119,46 @@
       if (h + c.below + c.above <= zoneH) return { size, h, fits: true };
     }
     return { size: 'small', h: DRAWER_RULES.BOX_H.small, fits: false };
+  }
+
+  /**
+   * 2026-10-19: 자동 등급 — 존 높이로 대·중·소를 정하고 그 등급 박스를 쓴다.
+   *   존 ≥ AUTO_LARGE_ZONE_MIN(250) 이고 대 박스가 들어가면 대, 아니면 중 박스가 들어가면 중, 아니면 소.
+   */
+  function autoGradeFor(zoneH, rail) {
+    const R = DRAWER_RULES;
+    const c = railOf(rail);
+    const fit = (size) => R.BOX_H[size] + c.below + c.above <= zoneH;
+    let size = 'small';
+    if (zoneH >= R.AUTO_LARGE_ZONE_MIN && fit('large')) size = 'large';
+    else if (fit('medium')) size = 'medium';
+    return { size, h: R.BOX_H[size], fits: fit(size) };
+  }
+
+  /**
+   * 2026-10-19: 비율 문자열 → 전면 등급. 위→아래, 첫 칸은 도어 ("2:1:1" = 도어 2 · 서랍 1 · 서랍 1).
+   *   1 = 소, 2 = 서랍이면 자동(대·중·소), 도어면 도어 기본 등급. 다른 수(고정 mm 포함)는 받지 않는다.
+   * @returns {{doorGrade, grades, drawerCount} | {error}}
+   */
+  function gradesFromRatio(str) {
+    const R = DRAWER_RULES;
+    const parts = String(str == null ? '' : str).split(':').map((x) => x.trim());
+    if (parts.length < 2 || parts.length > R.MAX_COUNT + 1) {
+      return { error: `도어 1 + 서랍 1~${R.MAX_COUNT} 칸을 : 로 이어 적습니다 (예 2:1:1)` };
+    }
+    if (parts.some((x) => x !== '1' && x !== '2')) {
+      return { error: '비율은 1 또는 2 만 적습니다 (mm 고정은 받지 않습니다)' };
+    }
+    const doorGrade = parts[0] === '1' ? 'small' : R.DOOR_GRADE_DEFAULT;
+    const grades = parts.slice(1).map((x) => R.RATIO_GRADE[x]);
+    return { doorGrade, grades, drawerCount: grades.length };
+  }
+
+  /** 등급 → 비율 문자열 (입력칸 표시용). 소 1, 나머지 2. */
+  function ratioOf(doorGrade, grades) {
+    const R = DRAWER_RULES;
+    const w = (g, kind) => R.FRONT_WEIGHT[gradeOf(g, kind)];
+    return [w(doorGrade, 'door')].concat((grades || []).map((g) => w(g, 'drawer'))).join(':');
   }
 
   /** 전면 n 장에 필요한 목찬넬 개수 — 상단 1 + 중간 최소 수. */
@@ -280,7 +327,10 @@
       else if (i < n - 1) bottom = f.y1 + frontGap / 2;
       else bottom = H - T;
       const zoneH = bottom - top;
-      const box = pickBox(zoneH, rail);
+      // 2026-10-19: 자동 등급이면 존 높이로 등급과 박스를 정한다 (autoGradeFor)
+      const auto = f.grade === 'auto';
+      const box = auto ? autoGradeFor(zoneH, rail) : pickBox(zoneH, rail);
+      if (auto) { f.grade = box.size; f.gradeAuto = true; }
       f.zone = { top, bottom, h: zoneH };
       f.box = box;
       if (!box.fits) warnings.push(`전면 ${i + 1}: 존 ${zoneH} 에 소 박스(${box.h}+${railOf(rail).below + railOf(rail).above})도 안 들어간다`);
@@ -343,5 +393,5 @@
   }
 
   return { DRAWER_RULES, layoutDrawerModule, layoutByGrades, distributeFronts, frontAreaOf, channelCountFor, gradeOf,
-    assignChannels, pickBox, railOf, railKeyOf, notchNote, railLengthFor, drawerBoxDims };
+    assignChannels, pickBox, autoGradeFor, gradesFromRatio, ratioOf, railOf, railKeyOf, notchNote, railLengthFor, drawerBoxDims };
 });
