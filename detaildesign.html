@@ -23,6 +23,8 @@
     <script src="js/planner/planner-sections.js?v=38.5"></script>
     <script src="js/detaildesign-access.js?v=36.1"></script>
     <script src="js/admin-access.js?v=36.1"></script>
+    <!-- CAD 베타 T4: 플래너(iframe)가 묻으면 관리자인지 답한다 — 관리자 근사 GLB 버튼. admin-access.js 뒤에 실린다. -->
+    <script src="js/planner/planner-export.js?v=36.1"></script>
   </head>
   <body class="has-toolbar">
     <!-- 헤더 — 메인 사이트와 같은 셸 (js/site-shell.js 가 주입). 2026-09-12:
@@ -372,7 +374,7 @@
     <!-- W7-1: BOM 자재 코드 매트릭스 (extractors.js 보다 먼저 load) -->
     <script src="js/detaildesign/bom-finish-color.js?v=36.0"></script>
     <!-- B1: 디테일 마감 모델 해석기 (플래너와 같은 파일, window.plannerFinishResolve) — extractors.js 가 item.detail 을 읽을 때 쓴다 -->
-    <script src="js/planner/planner-finish.js?v=38.8"></script>
+    <script src="js/planner/planner-finish.js?v=38.9"></script>
     <!-- 2026-09-15: 서랍장·목찬넬·레일 규칙 — extractors.js 가 전역 DadamDrawerRules 로 읽는다 -->
     <script src="js/detaildesign/bom-drawer-rules.js?v=36.0"></script>
     <!-- 2026-09-16: 붙박이장 통 내부 구조 규칙 — extractors.js 가 전역 DadamWardrobeRules 로 읽는다 -->
