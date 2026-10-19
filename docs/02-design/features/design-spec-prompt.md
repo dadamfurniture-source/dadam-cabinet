@@ -436,8 +436,8 @@ POST /api/generate
 | `CLOSED LIST` | `L1–L3 and U1–U2 are the only built-in units` — 다른 장·서랍장·선반·판 없음 |
 | `BINDING` | 순서·개수·줄 안 폭 비율(±10 %)·기준 줄 대비 위치는 구속, 벽에 맞추는 것은 **전체 배율만** (옛 "mm·% 는 참고" 를 바꿈) |
 | `EMPTY ZONES` | 벽장 높이·바닥 높이에서 아무 줄도 덮지 않는 구간, 하부 윗면~상부 아랫면, 맨 위 줄~천장 틈(`open or closed exactly as IMAGE B shows` — 막음 여부 필드가 아직 없다), 남는 벽(결정 ①′). 2026-10-19: 50 mm 이하 틈(EP 20 같은 마감재 한 장 — 모듈이 아니라 런 폭에만 든다)은 빈 구역으로 세지 않는다 (`PLANNER_FINISH_GAP_MM`). 층 전체가 빈 것은 그대로 |
-| `EDIT ZONE` / `KEEP` | 목표 벽의 붙박이만 철거·교체. 카메라·다른 벽·창·문·조명·움직이는 물건(냉장고·카트·조명·화분)은 그대로 |
-| `FINAL SELF-CHECK` | 맨 끝. 줄마다 유닛·도어·서랍 수, 빈 구역 수, `no other built-in unit anywhere` |
+| `EDIT ZONE` / `KEEP` | 목표 벽의 붙박이만 철거·교체. 카메라·다른 벽·창·문·조명·움직이는 물건(냉장고·카트·조명·화분)은 그대로. 2026-10-19 (주방 품목): 목표 벽들(주벽+꺾인 벽)의 **옛 붙박이 가전**도 함께 철거 — 도면에 없는 싱크·가스레인지/쿡탑·후드·빌트인 오븐(늘)·식세기는 이름으로 지우고 그 자리는 새 상판·전면·빈 벽, 도면에 있는 것은 `… is new, only where the list above puts it`. 꺾인 벽 `appliances[]` 도 도면에 있는 셈. KEEP 의 이동식은 `a free-standing refrigerator, microwave, …` (실측: ㄱ자 주방 사진에 옛 가스레인지·슬림 후드가 남았다) |
+| `FINAL SELF-CHECK` | 맨 끝. 줄마다 유닛·도어·서랍 수, 빈 구역 수, `no other built-in unit anywhere`. 2026-10-19: 한 줄에 외문(1짝) 칸과 2짝 이상 칸이 섞이면 문 수를 칸별로 — 줄 끝 `→ doors U1 2 + U2 2 + U3 1 = 5 doors`, 자체 점검 `wall row 3 units, U1 2 + U2 2 + U3 1 = 5 doors`. 고른 줄은 합계만 (실측: 상부 2·2·1 을 6짝으로 그렸다) |
 
 검사: 플래너 모드이고 도면이 천장 틈을 두었으면(`ceilingMm` 과 맨 위 줄 윗면) `gap_to_ceiling` 줄 끝에
 "그만한 틈은 의도된 것 — 그보다 분명히 클 때만" 을 붙인다. 그 밖의 검사 프롬프트는 바이트 그대로.

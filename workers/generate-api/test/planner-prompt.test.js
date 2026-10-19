@@ -440,14 +440,47 @@ test('8) EDIT ZONE 은 목표 벽의 붙박이만, KEEP 은 카메라·방·움�
   assert.ok(
     p.includes(
       '\n\nEDIT ZONE: the target wall only — the new run plus the built-in cabinetry on the target wall that it replaces (old wood kitchen cabinets). ' +
-        'Remove that cabinetry completely, with no demolition marks or ghost outlines.\n' +
+        'Remove that cabinetry completely, with no demolition marks or ghost outlines. ' +
+        'The old built-in appliances on the target wall go with it: remove any old gas range or cooktop, range hood, built-in oven and built-in dishwasher — the new design has none — ' +
+        'and close each place with the new countertop, fronts or bare wall. The sink is new, only where the list above puts it.\n' +
         'KEEP everything outside the edit zone exactly as photographed: the camera position, lens and framing (do not widen the view or invent any part of the room); ' +
-        'the other walls, ceiling, floor, windows and doors; the lighting; and every movable object — refrigerator, carts, chairs, lamps, plants and decorations — unless it stands where a new unit goes.\n\n'
+        'the other walls, ceiling, floor, windows and doors; the lighting; and every movable object — a free-standing refrigerator, microwave, carts, chairs, lamps, plants and decorations — unless it stands where a new unit goes.\n\n'
     )
   );
   // 기존 가구 설명이 없으면 괄호도 없다
   const q = buildPlannerPrompt(d1Ctx({ existing: null }));
   assert.ok(q.includes('the built-in cabinetry on the target wall that it replaces. Remove'));
+});
+
+// 2026-10-19: 옛 붙박이 가전 — 실측(ㄱ자, 쿡탑·후드 없는 도면)에서 옛 가스레인지·슬림 후드가 남았다
+test('8) EDIT ZONE — 목표 벽의 옛 붙박이 가전은 도면에 없으면 철거, 있으면 새 것만 (주방 품목만)', () => {
+  const sentence = (p) => p.match(/The old built-in appliances on [^\n]*/)[0];
+  // 도면에 쿡탑·후드·식세기가 있으면 철거 목록에서 빠지고 "새 것" 쪽으로 간다 (오븐은 계약에 없으니 늘 철거)
+  const t = buildPlannerPrompt(d1Ctx({ designSpec: tallSpec() }));
+  assert.equal(
+    sentence(t),
+    'The old built-in appliances on the target wall go with it: remove any old sink, gas range or cooktop and built-in oven — the new design has none — ' +
+      'and close each place with the new countertop, fronts or bare wall. The hood and dishwasher are new, only where the list above puts them.'
+  );
+  const full = d1Spec({ appliances: [{ kind: 'sink', fromLeftMm: 1350, widthMm: 700 }, { kind: 'cooktop', fromLeftMm: 200, widthMm: 600 }, { kind: 'hood', fromLeftMm: 200, widthMm: 600 }] });
+  assert.match(sentence(buildPlannerPrompt(d1Ctx({ designSpec: full }))), /remove any old built-in oven and built-in dishwasher — .* The sink, cooktop and hood are new, only where the list above puts them\.$/);
+  // 붙박이장·수납장 등 주방이 아니면 그 문장이 없고, KEEP 은 예전 그대로
+  const w = buildPlannerPrompt(d2Ctx());
+  assert.doesNotMatch(w, /old built-in appliances/);
+  assert.ok(w.includes('every movable object — refrigerator, carts, chairs, lamps, plants and decorations — unless'));
+});
+
+// 2026-10-19: 외문 칸이 섞인 줄 — 실측(ㄱ자 공사현장)에서 상부 2·2·1 을 6짝으로 그렸다
+test('9) 외문(1짝) 칸과 2짝 칸이 섞인 줄만 칸별 문 수 — 줄 끝 합계와 자체 점검 둘 다', () => {
+  const p = buildPlannerPrompt(d1Ctx({ designSpec: d1Full() }));
+  assert.ok(p.includes('    → widths L1 : L2 : L3 = 2 : 1 : 2.5\n    → doors L1 2 + L2 1 + L3 2 = 5 doors\n'));
+  // 문 수가 고른 상부(2·2)는 합계만
+  assert.doesNotMatch(p, /→ doors U1/);
+  assert.match(p, /wall row 2 units, 4 doors;/);
+  // 붙박이장 900×4 각 2도어 — 고른 줄이라 예전 그대로
+  const w = buildPlannerPrompt(d2Ctx());
+  assert.doesNotMatch(w, /→ doors/);
+  assert.match(w, /wardrobe row 4 units, 8 doors/);
 });
 
 // ─── 마감·손잡이·금지·출력 · 9) FINAL SELF-CHECK ───
@@ -498,7 +531,7 @@ test('9) FINAL SELF-CHECK 가 맨 끝 — 줄마다 유닛·도어·서랍, 빈 
   const p = buildPlannerPrompt(d1Ctx({ designSpec: d1Full() }));
   assert.match(
     p,
-    /\n\nOUTPUT: one photorealistic photograph of the finished room, 16:9\.\n\nFINAL SELF-CHECK before you answer: base row 3 units, 5 doors, 0 drawers; wall row 2 units, 4 doors; 4 empty zones left empty; no other built-in unit anywhere\.$/
+    /\n\nOUTPUT: one photorealistic photograph of the finished room, 16:9\.\n\nFINAL SELF-CHECK before you answer: base row 3 units, L1 2 \+ L2 1 \+ L3 2 = 5 doors, 0 drawers; wall row 2 units, 4 doors; 4 empty zones left empty; no other built-in unit anywhere\.$/
   );
   const t = buildPlannerPrompt(d1Ctx({ designSpec: tallSpec() }));
   assert.ok(

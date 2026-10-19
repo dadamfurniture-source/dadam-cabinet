@@ -207,7 +207,7 @@ test('단이 섞인 통 · 여러 단 박스 · 높이를 모르는 단', () => 
     'a free-standing refrigerator may stand there — keep the one IMAGE A shows, do not invent a built-in one) ' +
     'with 2 stacked sections, bottom to top: single-door cabinet, open shelving, no door above\n'));
   assert.ok(p.includes('T3   600 mm  tall column — 2 stacked doors\n'));
-  assert.ok(p.includes('tall row 2 units + 1 appliance opening, 7 doors, 3 drawers'));
+  assert.ok(p.includes('tall row 2 units + 1 appliance opening, T1 4 + T2 1 + T3 2 = 7 doors, 3 drawers'));
 });
 
 // ─── 3) 자체 점검 ───
@@ -283,7 +283,7 @@ test('옛 모양(tiers 없음)은 예전 그대로 — 나란한 T1·T2·T3·T4,
   const p = buildPlannerPrompt(ctx({ designSpec: s }));
   assert.ok(p.includes('    T1   600 mm  single-door cabinet\n'));
   assert.ok(p.includes('    T4   680 mm  2-door cabinet\n'));
-  assert.ok(p.includes('tall row 4 units, 5 doors, 0 drawers'));
+  assert.ok(p.includes('tall row 4 units, T1 1 + T2 1 + T3 1 + T4 2 = 5 doors, 0 drawers'));
   assert.ok(p.match(/\nDO NOT: [^\n]*/)[0].includes('refrigerator'));
   const want = expectedFromSpec(s, 'fridge');
   assert.deepEqual(want.floorKinds, ['lower', 'lower', 'tall', 'tall', 'tall', 'tall']);
