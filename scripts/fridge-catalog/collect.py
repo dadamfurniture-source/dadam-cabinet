@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Korean-market refrigerator dimension collector (prototype, stdlib only).
 
-Brands: Samsung (samsung.com/sec), LG (lge.co.kr), Winia (winia.com, opt-in via --brands)
-Model list  : manufacturer list APIs (the same JSON the category pages call)
-Dimensions  : manufacturer official spec APIs (W x H x D, mm); Winia: static product page spec table
+Brands: Samsung (samsung.com/sec), LG (lge.co.kr), Winia (winia.com, opt-in via --brands),
+        Dacor (dacorkorea.com, opt-in), LG SIGNATURE Kitchen Suite (lge.co.kr/kr/business/sks, opt-in)
+Model list  : manufacturer list APIs (the same JSON the category pages call); Dacor/SKS: brand-site menus
+Dimensions  : manufacturer official spec APIs (W x H x D, mm); Winia/Dacor/SKS: static product page spec table
 Install gaps: manufacturer installation guides (Samsung buying-guide, LG setup-guide; Winia has none in HTML)
+Niche       : Dacor '설치공간 (권장)', SKS '설치 치수' -> niche_min_* / niche_max_* (built-in units)
 
 Politeness: robots.txt checked per host, >= --delay seconds between network
 requests, one request at a time, every raw response cached under cache/.
@@ -14,6 +16,7 @@ Usage:
   python collect.py --out fridges          # full run, writes fridges.json/csv
   python collect.py --brands lg --no-guides --out lg_only
   python collect.py --brands winia --out winia   # default brands stay samsung,lg
+  python collect.py --brands dacor,sks --out dacor_sks
 """
 import argparse
 import csv
@@ -839,13 +842,315 @@ def winia_collect(f, sample=None, guides=True):
     return rows
 
 
+# --------------------------------------------------------------------------- built-in niche (설치 공간)
+
+
+def parse_niche(value):
+    """설치 공간 원문 → niche_min/max_{w,h,d}_mm. W x H x D 순서, 값은 원문 그대로 (지어내지 않는다).
+      '610 x 2,135 x 670 mm (권장)'        → min 610 / 2135 / 670
+      '457 x 2,135 x 635~655'              → 깊이 min 635 · max 655
+      '600 x 820~828 or 836↑ x 600↑'       → 높이는 대안이 둘이라 min 820 만 (max 는 비운다 — 836 이상도 된다)"""
+    if not value:
+        return {}
+    v = re.sub(r"\([^)]*\)", " ", value.replace(",", ""))
+    v = re.sub(r"(?i)mm", " ", v).strip()
+    parts = re.split(r"\s+[xX×]\s+", v)
+    if len(parts) != 3:
+        return {}
+    out = {}
+    for axis, part in zip("whd", parts):
+        alts = re.split(r"\bor\b|또는", part)
+        nums = [to_num(n) for n in re.findall(r"\d+(?:\.\d+)?", alts[0])]
+        nums = [n for n in nums if 200 <= n <= 2600]
+        if not nums:
+            continue
+        out[f"niche_min_{axis}_mm"] = nums[0]
+        if "~" in alts[0] and len(nums) >= 2 and len(alts) == 1:
+            out[f"niche_max_{axis}_mm"] = nums[1]
+    return out
+
+
+def _text(s, br="\n"):
+    """HTML 조각 → 글자. <br> 은 br 로, 줄마다 공백을 접는다."""
+    s = re.sub(r"(?s)<!--.*?-->", "", s or "")
+    s = re.sub(r"<br\s*/?>", br, s)
+    s = html.unescape(re.sub(r"<[^>]+>", " ", s))
+    lines = [re.sub(r"[ \t\r\xa0]+", " ", x).strip() for x in s.split("\n")]
+    return "\n".join(x for x in lines if x)
+
+
+PANEL_RE = re.compile(r"(?i)panel ?ready|패널 ?레디|가구 패널")
+
+
+# --------------------------------------------------------------------------- Dacor (데이코, 삼성 브랜드)
+
+DC = "https://www.dacorkorea.com"
+
+
+def dc_pages(f):
+    """홈 메뉴의 '쿨링' 제품 페이지 (/products/refrigerators/<slug>/). 페이지 하나 = 제품 하나."""
+    st, h = f.get(DC + "/")
+    out = []
+    for p in re.findall(r'href="(/products/refrigerators/[\w-]+)/?"', h):
+        if p + "/" not in out:
+            out.append(p + "/")
+    return out
+
+
+def dc_spec(h):
+    """'제품 상세 스펙표' → {항목: 값}. <th>구분</th><td><ul><li><strong>항목</strong><span>값</span></li>…
+    같은 항목 이름이 두 구분에 있으면(와인 '타입') '구분/항목' 키로도 남긴다."""
+    i = h.find("<caption>제품 상세 스펙표")
+    if i < 0:
+        return {}
+    seg = re.sub(r"(?s)<!--.*?-->", "", h[i:h.find("</table>", i)])
+    out = {}
+    for tr in re.findall(r"(?s)<tr>(.*?)</tr>", seg):
+        th = re.search(r"(?s)<th[^>]*>(.*?)</th>", tr)
+        td = re.search(r"(?s)<td[^>]*>(.*?)</td>", tr)
+        if not th or not td:
+            continue
+        sec = _text(th.group(1), " ").replace("\n", " ")
+        lis = re.findall(r"(?s)<li>\s*<strong>(.*?)</strong>\s*<span>(.*?)</span>", td.group(1))
+        if not lis:
+            out.setdefault(sec, _text(td.group(1)))
+        for k, v in lis:
+            k = _text(k, " ").replace("\n", " ")
+            out.setdefault(k, _text(v))
+            out[f"{sec}/{k}"] = _text(v)
+    return out
+
+
+def dc_subtype(kind, panel, combo):
+    if "와인" in kind:
+        return "wine"  # 유리 도어 — 패널레디 틀이어도 와인셀러로 둔다
+    if panel:
+        return "built_in"  # 가구 패널을 붙이는 완전 빌트인
+    if combo:
+        return "french_4door"
+    if "김치" in kind:
+        return "kimchi_stand"
+    return "one_door"
+
+
+def dacor_collect(f, sample=None, guides=True):
+    """데이코 (Dacor, 삼성전자 브랜드). samsung.com/sec 목록에는 없다 — 삼성이 운영하는 www.dacorkorea.com 이 정본.
+    목록: 홈 메뉴의 /products/refrigerators/* · 치수: 각 페이지 정적 HTML '제품 상세 스펙표'
+    (제품크기 · 설치공간(권장) · 색상/재질 · 도어). 설치 가이드 글은 없다 → guides 는 쓰지 않는다."""
+    pages = dc_pages(f)
+    print(f"[dacor] refrigeration pages={len(pages)}", file=sys.stderr)
+    if sample:
+        pages = pages[:sample]
+    rows = []
+    for path in pages:
+        page = DC + path
+        st, h = f.get(page)
+        spec = dc_spec(h) if st == 200 else {}
+        if not spec:
+            print(f"  [dacor] no spec table {page} (status {st})", file=sys.stderr)
+            continue
+        kind = spec.get("타입") or ""
+        code = (spec.get("모델명") or "").strip().upper()
+        codes = [code] if code else []
+        for t in re.findall(r"<title>([^<]*)</title>", h):  # 김치: 표는 DRQ24982RAP, 제목은 DRQ24992RAP
+            for c in re.findall(r"\bDR[A-Z0-9]{6,}\b", t.upper()):
+                if c not in codes:
+                    print(f"  [dacor] {path}: title code {c} differs from spec table {code} - kept as 2nd code",
+                          file=sys.stderr)
+                    codes.append(c)
+        size = spec.get("제품크기 (W x H x D)") or ""
+        dims = parse_dims(size.split("\n")[0])  # 첫 줄 = Door Panel 제외 (둘째 줄은 패널 · 설치자재 포함)
+        niche_raw = spec.get("설치공간 (W x H x D)")
+        cap_k = next((k for k in spec if k.replace(" ", "").startswith("총용량")), None)  # '총 용량 (냉장/냉동)' 포함
+        capv = spec.get(cap_k) or ""
+        cap = first_num(capv) if re.search(r"ℓ|L\b", capv) else None
+        bottles = rx(r"(\d+)\s*bottles", capv)
+        door = spec.get("도어") or ""
+        finish = spec.get("색상 / 재질") or spec.get("도어/타입") or ""
+        hinge = spec.get("힌지 방향")
+        panel = bool(PANEL_RE.search(finish + " " + door))
+        combo = "(냉장/냉동)" in (cap_k or "") or "T-TYPE" in kind.upper()
+        tags = ["컬럼"] if "컬럼" in kind else (["T-Type"] if "T-TYPE" in kind.upper() else [])
+        tags += ["패널레디"] if panel else []
+        row = {
+            "brand": "Dacor",
+            "category_subtype": dc_subtype(kind, panel, combo),
+            "line": "일반",
+            "tags": tags,
+            "model_name": f"데이코 {kind}" + (f" {cap}L" if cap else (f" {bottles}병" if bottles else "")),
+            "model_codes": codes,
+            "width_mm": dims[0] if dims else None,
+            "height_mm": dims[1] if dims else None,
+            "depth_mm": dims[2] if dims else None,
+            "capacity_l": cap,
+            "wine_bottles": bottles,
+            "install_type": "built_in",
+            "panel_ready": panel,
+            "niche_raw": niche_raw,
+            "product_type_raw": " / ".join(x.replace("\n", " ") for x in [
+                kind, f"색상·재질: {finish}" if finish else None, f"도어: {door}" if door else None,
+                f"힌지: {hinge}" if hinge else None] if x),
+            "size_raw": size.replace("\n", " / ") or None,
+            "source_url": page,
+            "page_url": page,
+            "sale_status": None,
+            "collected_at": now_iso(),
+        }
+        row.update(parse_niche(niche_raw))
+        rows.append(row)
+    return rows
+
+
+# --------------------------------------------------------------------------- LG SIGNATURE Kitchen Suite (SKS)
+
+SKS = "https://www.lge.co.kr/kr/business/sks"
+SKS_CODE = re.compile(r"(\[(?:Professional|Transitional)\])|\b([A-Z][A-Z0-9]{2,})\s*(냉동고|냉장고)?\s*\(([좌우])경첩\)")
+
+
+def sks_pages(f):
+    """SKS 홈 'Products' 슬라이드 중 이름에 냉장 · 냉동 · 와인이 든 페이지 (컬럼 · 얼음정수기 냉장고 · 아일랜드)."""
+    st, h = f.get(f"{SKS}/signaturekitchenMain.do")
+    out = []
+    for path, label in re.findall(r'<a[^>]+href="(/kr/business/sks/[\w-]+\.do)(?:#[^"]*)?"[^>]*>(.*?)</a>', h, re.S):
+        if re.search(r"냉장|냉동|와인", _text(label, " ")) and path not in out:
+            out.append(path)
+    return out
+
+
+def sks_codes(cat_text, img_items):
+    """→ [(code, design, kind_word, hinge)]. 표 머리('[Professional] CF24 냉동고 (좌경첩) / …') 가 있으면 그걸,
+    없으면 사진 설명('CW24R(우경첩) / CW24L(좌경첩)', '본체 : U092CN421 / 패널 : …', 'S695RE13BW')."""
+    out = []
+    if cat_text:
+        design = None
+        for m in SKS_CODE.finditer(cat_text):
+            if m.group(1):
+                design = m.group(1).strip("[]")
+            else:
+                out.append((m.group(2), design, m.group(3), m.group(4)))
+        return out
+    for title, desc in img_items:
+        design = title if title in ("Professional", "Transitional") else None
+        found = [(m.group(2), design, m.group(3), m.group(4)) for m in SKS_CODE.finditer(desc) if m.group(2)]
+        if not found:
+            body = re.search(r"본체\s*:\s*([A-Z][A-Z0-9]{4,})", desc)
+            if body:
+                found = [(body.group(1), design, None, None)]
+            elif re.fullmatch(r"[A-Z][A-Z0-9]{5,}", desc.strip()):
+                found = [(desc.strip(), design, None, None)]
+        out += found
+    return out
+
+
+def sks_collect(f, sample=None, guides=True):
+    """LG SIGNATURE Kitchen Suite (SKS) 냉장 계열. lge.co.kr 일반 목록(plp)에는 없다 — 브랜드관 lge.co.kr/kr/business/sks/*.do
+    정적 HTML '제품 스펙' 탭이 정본: 표 머리/사진 설명의 모델 코드 · '제품 치수 (WxHxD, mm)' · '설치 치수 (WxHxD, mm)'.
+    세트(CFL1830 = 냉동 CF18 + 냉장 CL30) 는 단품이 따로 있어 건너뛴다. 설치 가이드 글은 PDF 뿐 → guides 는 쓰지 않는다."""
+    pages = sks_pages(f)
+    print(f"[sks] refrigeration pages={pages}", file=sys.stderr)
+    if sample:
+        pages = pages[:sample]
+    rows = []
+    for path in pages:
+        page = LG_WWW + path
+        st, h = f.get(page)
+        h = re.sub(r"(?s)<!--.*?-->", "", h)
+        labels = dict(re.findall(r'<a href="#(tab[\d-]+)" class="tab-menu">(.*?)</a>', h, re.S))
+        for sec in re.findall(r'(?s)id="productSpec\d+">(.*?)(?=<section |$)', h):
+            for tab_id, tab in re.findall(r'(?s)<div class="tabs-content" id="(tab[\d-]+)">(.*?)(?=<div class="tabs-content"|$)',
+                                          sec):
+                tab_label = re.sub(r"\s*\(.*", "", _text(labels.get(tab_id, ""), " ").replace("선택됨", "")).strip()
+                img_items = [(_text(a, " "), _text(b, " / ").replace("\n", " "))
+                             for a, b in re.findall(r'(?s)class="item-text">\s*<p class="title">(.*?)</p>\s*'
+                                                    r'<span class="desc">(.*?)</span>', tab)]
+                summary = _text(" ".join(re.findall(r'(?s)<ul class="bullet-list">(.*?)</ul>', tab)), " ")
+                notes = [_text(x, " ") for x in re.findall(r"(?s)<li>(.*?)</li>", " ".join(
+                    re.findall(r'(?s)<ul class="(?:noti-list|multiple-list)">(.*?)</ul>', tab)))]
+                notes += [_text(x, " ").replace("\n", " ") for x in re.findall(r'(?s)<div class="blind">(.*?)</div>', tab)]
+                notes = [n for n in notes if re.search(r"\d ?mm|패널|Gap", n)]
+                blocks = re.split(r'<div class="spec-table(?! download)', tab)[1:]
+                for blk in blocks:
+                    if "list-tit" not in blk:
+                        continue
+                    cat = re.search(r'(?s)<div class="table-category">(.*?)</div>', blk)
+                    cat_text = _text(cat.group(1), " ").replace("\n", " / ") if cat else ""
+                    pairs = [(_text(a, " ").replace("\n", " "), _text(b, " / ").replace("\n", " ")) for a, b in
+                             re.findall(r'(?s)<p class="list-tit">(.*?)</p>\s*<p class="list-cont">(.*?)</p>', blk)]
+                    get = lambda key: next((v for k, v in pairs if k.replace(" ", "").startswith(key)), None)  # noqa
+                    size = get("제품치수")
+                    if not size:
+                        continue
+                    if len(re.findall(r"\d+ x [\d,]+ x \d+", size)) > 1 or any("냉동:" in d for _, d in img_items):
+                        print(f"  [sks] {path}#{tab_id}: set (냉동+냉장 묶음) - skipped: {size}", file=sys.stderr)
+                        continue
+                    codes = sks_codes(cat_text, [] if cat else img_items)
+                    if not codes:
+                        print(f"  [sks] {path}#{tab_id}: no model code - skipped", file=sys.stderr)
+                        continue
+                    dims = parse_dims(size)
+                    niche_raw = get("설치치수")
+                    caps = {k: v for k, v in pairs if k in ("용량", "전체용량", "냉동고", "냉장고")}
+                    combo = any(k.replace(" ", "") in ("냉동용량", "냉장용량") for k, _ in pairs)
+                    img_title = next((t for t, _ in img_items if t not in ("Professional", "Transitional")), "")
+                    panel = bool(PANEL_RE.search(" ".join(notes) + " " + summary + " " + blk))
+                    for code, design, kind_word, hinge in codes:
+                        capv = caps.get(kind_word) or caps.get("전체용량") or caps.get("용량") or ""
+                        if kind_word and caps.get(kind_word):  # '(CF24/CL24) 375L' — 괄호 속 코드 묶음이 어긋나 있어 냉동고/냉장고 이름으로 고른다
+                            inner = re.findall(r"[A-Z][A-Z0-9]{2,}", capv.split(")")[0])
+                            if inner and code not in inner:
+                                print(f"  [sks] {code} ({kind_word}): capacity cell '{kind_word} {capv}' lists {inner}"
+                                      f" - matched by kind word", file=sys.stderr)
+                        cap = rx(r"([\d,]+(?:\.\d+)?)\s*L\b", capv.split(")")[-1])
+                        bottles = rx(r"(\d+)\s*병", capv) or rx(r"(\d+)\s*병", summary)
+                        kind = img_title or ("컬럼 " + kind_word if kind_word else tab_label)
+                        if "와인" in kind + tab_label:
+                            sub = "wine"
+                        elif panel:
+                            sub = "built_in"
+                        elif combo:  # LG 코드 관례: S… = 양문형 (일반 목록 28/28), 그 밖은 상냉장 4도어
+                            sub = "side_by_side" if code.startswith("S") else "french_4door"
+                        else:
+                            sub = "one_door"
+                        panel_code = re.search(r"패널\s*:\s*([A-Z][A-Z0-9 –-]+)", " ".join(d for _, d in img_items))
+                        row = {
+                            "brand": "LG",
+                            "category_subtype": sub,
+                            "line": "SIGNATURE Kitchen Suite",
+                            "tags": ["SKS"] + ([design] if design else []) + (["패널레디"] if panel else []),
+                            "model_name": f"SKS {kind}" + (f" {cap}L" if cap else (f" {bottles}병" if bottles else "")),
+                            "model_codes": [code],
+                            "width_mm": dims[0] if dims else None,
+                            "height_mm": dims[1] if dims else None,
+                            "depth_mm": dims[2] if dims else None,
+                            "capacity_l": cap,
+                            "wine_bottles": bottles,
+                            "install_type": "built_in",
+                            "panel_ready": panel,
+                            "niche_raw": niche_raw,
+                            "install_notes": " | ".join(dict.fromkeys(notes))[:900] or None,
+                            "product_type_raw": " / ".join(x for x in [
+                                kind, design, f"{hinge}경첩" if hinge else None,
+                                f"STS 패널 {panel_code.group(1).strip()} 또는 가구 패널" if panel_code else None,
+                                "패널레디(가구 패널 부착)" if panel else "도어 일체형(가구 패널 언급 없음)"] if x),
+                            "size_raw": size,
+                            "source_url": f"{page}#{tab_id}",
+                            "page_url": page,
+                            "sale_status": None,
+                            "collected_at": now_iso(),
+                        }
+                        row.update(parse_niche(niche_raw))
+                        rows.append(row)
+    return rows
+
+
 # --------------------------------------------------------------------------- merge / output
 
 GAP_KEYS = ["side_gap_mm", "door_side_gap_mm", "top_gap_mm", "back_gap_mm", "niche_min_w_mm", "niche_min_h_mm",
-            "niche_min_d_mm", "niche_recommended_d_mm", "door_open_width_mm", "door_swing_side_mm", "pair_gap_mm",
+            "niche_min_d_mm", "niche_max_w_mm", "niche_max_h_mm", "niche_max_d_mm", "niche_recommended_d_mm",
+            "niche_raw", "door_open_width_mm", "door_swing_side_mm", "pair_gap_mm",
             "install_guide_title", "install_guide_ref", "install_notes"]
 COLS = ["brand", "category_subtype", "line", "tags", "model_name", "model_codes", "width_mm", "height_mm", "depth_mm",
-        "capacity_l", "wine_bottles", "install_type"] + GAP_KEYS + [
+        "capacity_l", "wine_bottles", "install_type", "panel_ready"] + GAP_KEYS + [
            "product_type_raw", "size_raw", "drawing_dims_raw", "source_url", "page_url", "source_urls",
            "sale_status", "collected_at"]
 
@@ -907,6 +1212,10 @@ def main():
         rows += lg_collect(f, a.sample or None, not a.no_guides)
     if "winia" in brands:
         rows += winia_collect(f, a.sample or None, not a.no_guides)
+    if "dacor" in brands:
+        rows += dacor_collect(f, a.sample or None, not a.no_guides)
+    if "sks" in brands:
+        rows += sks_collect(f, a.sample or None, not a.no_guides)
     merged = merge(rows)
     base = os.path.join(HERE, a.out or ("sample" if a.sample else "fridges"))
     write(merged, base)

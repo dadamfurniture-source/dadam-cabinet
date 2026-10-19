@@ -242,6 +242,20 @@
             <label for="f-line">제품 라인</label>
             <input type="text" id="f-line" placeholder="예: BESPOKE · 오브제컬렉션 · 핏앤맥스" />
           </div>
+          <!-- 빌트인 장 안쪽 치수 (database/appliance-models-niche.sql) — 한 값이면 최소 칸만 -->
+          <div class="field full fridge-field">
+            <label>빌트인 장 안쪽 치수 (니치, mm) — 한 값이면 최소 칸만</label>
+            <div style="display: grid; grid-template-columns: auto repeat(3, 1fr); gap: 6px; align-items: center">
+              <span class="hint">최소</span>
+              <input type="number" id="f-nw" min="1" placeholder="W" aria-label="니치 폭 최소" />
+              <input type="number" id="f-nh" min="1" placeholder="H" aria-label="니치 높이 최소" />
+              <input type="number" id="f-nd" min="1" placeholder="D" aria-label="니치 깊이 최소" />
+              <span class="hint">최대</span>
+              <input type="number" id="f-nw2" min="1" placeholder="W" aria-label="니치 폭 최대" />
+              <input type="number" id="f-nh2" min="1" placeholder="H" aria-label="니치 높이 최대" />
+              <input type="number" id="f-nd2" min="1" placeholder="D" aria-label="니치 깊이 최대" />
+            </div>
+          </div>
           <div class="field full fridge-field">
             <label for="f-codes">같은 크기 모델 코드 (색상 · 마감 변형)</label>
             <textarea id="f-codes" placeholder="쉼표나 줄바꿈으로 구분 — 대표 코드는 자동으로 포함"></textarea>
@@ -376,7 +390,8 @@
         const side = r.side_gap_mm;
         const top = r.top_gap_mm;
         const back = r.back_gap_mm;
-        if (side == null && top == null && back == null) return '<span class="none">미입력</span>';
+        const niche = nicheText(r);
+        if (side == null && top == null && back == null) return niche ? `<small>${niche}</small>` : '<span class="none">미입력</span>';
         const parts = [];
         if (side != null) parts.push(`좌우 ${side}`);
         if (top != null) parts.push(`위 ${top}`);
@@ -384,7 +399,14 @@
         const w = side != null && r.width_mm ? r.width_mm + 2 * side : null;
         const h = top != null && r.height_mm ? r.height_mm + top : null;
         const room = w || h ? `<small>자리 ${w ?? r.width_mm} × ${h ?? r.height_mm}</small>` : '';
-        return parts.join(' · ') + room;
+        return parts.join(' · ') + room + (niche ? `<small>${niche}</small>` : '');
+      }
+
+      /** 빌트인 장 안쪽 치수(니치) — 한 값이면 그 값, 범위면 최소~최대. 없으면 빈 글자 */
+      function nicheText(r) {
+        const one = (lo, hi) => (lo == null ? '?' : hi != null && hi !== lo ? `${lo}~${hi}` : `${lo}`);
+        if (r.niche_min_w_mm == null && r.niche_min_h_mm == null && r.niche_min_d_mm == null) return '';
+        return `장 ${one(r.niche_min_w_mm, r.niche_max_w_mm)} × ${one(r.niche_min_h_mm, r.niche_max_h_mm)} × ${one(r.niche_min_d_mm, r.niche_max_d_mm)}`;
       }
 
       function renderTable(rows) {
@@ -461,6 +483,9 @@
         document.getElementById('f-cr').value         = row?.cutout_r_mm ?? '';
         document.getElementById('f-fh').value         = row?.faucet_hole_mm ?? '';
         document.getElementById('f-bg').value         = row?.back_gap_mm ?? '';
+        [['f-nw', 'niche_min_w_mm'], ['f-nh', 'niche_min_h_mm'], ['f-nd', 'niche_min_d_mm'],
+         ['f-nw2', 'niche_max_w_mm'], ['f-nh2', 'niche_max_h_mm'], ['f-nd2', 'niche_max_d_mm']]
+          .forEach(([id, k]) => { document.getElementById(id).value = row?.[k] ?? ''; });
         document.getElementById('f-subtype').value    = row?.subtype || '';
         document.getElementById('f-install').value    = row?.install_type || '';
         document.getElementById('f-line').value       = row?.line || '';
@@ -500,6 +525,9 @@
           payload.install_type = document.getElementById('f-install').value || null;
           payload.line = document.getElementById('f-line').value.trim() || null;
           payload.model_codes = parseCodes(document.getElementById('f-codes').value, payload.model_code);
+          const nv = (id) => { const v = document.getElementById(id).value; return v === '' ? null : parseInt(v, 10); };
+          payload.niche_min_w_mm = nv('f-nw'); payload.niche_min_h_mm = nv('f-nh'); payload.niche_min_d_mm = nv('f-nd');
+          payload.niche_max_w_mm = nv('f-nw2'); payload.niche_max_h_mm = nv('f-nh2'); payload.niche_max_d_mm = nv('f-nd2');
         }
         // 타공 칸은 싱크볼 · 쿡탑만 보낸다 — 다른 가전은 칼럼(work-reports.sql) 유무와 상관없이 저장되게
         if (CUTOUT_CATS.includes(payload.category)) {
@@ -520,7 +548,8 @@
         if (error) {
           // 타공 칼럼이 없으면 database/work-reports.sql 을 아직 실행하지 않은 것
           alert('저장 실패: ' + error.message + (/cutout|faucet/.test(error.message) ? '\n\n타공 칸은 database/work-reports.sql 을 Supabase 에서 실행해야 저장됩니다.' : '')
-            + (/subtype|model_codes|back_gap|install_type|"line"/.test(error.message) ? '\n\n냉장고 칸은 database/appliance-models-catalog.sql 을 Supabase 에서 실행해야 저장됩니다.' : ''));
+            + (/subtype|model_codes|back_gap|install_type|"line"/.test(error.message) ? '\n\n냉장고 칸은 database/appliance-models-catalog.sql 을 Supabase 에서 실행해야 저장됩니다.' : '')
+            + (/niche_/.test(error.message) ? '\n\n장 안쪽 치수 칸은 database/appliance-models-niche.sql 을 Supabase 에서 실행해야 저장됩니다.' : ''));
           return;
         }
         closeModal();
