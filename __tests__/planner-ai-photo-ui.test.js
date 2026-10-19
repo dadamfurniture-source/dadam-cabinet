@@ -428,7 +428,8 @@ describe('생성 요청', () => {
 
   test('화면 — 실사화 체크박스·구조 조건 드롭존이 없다, 비율·크레딧·버튼은 있다', () => {
     const p = withPhoto(boot());
-    p.AP.realize = true;          // 예전 상태가 남아 있어도 그리지 않는다
+    // 2026-10-19 (P6): 상태·함수째 지웠다
+    ['realize', 'control', 'pickControl', 'setControl'].forEach((k) => expect(k in p.AP).toBe(false));
     p.AP.render();
     const host = body(p);
     expect(host.querySelector('#aiPhotoRealize')).toBeNull();

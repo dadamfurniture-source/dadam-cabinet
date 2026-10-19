@@ -1,6 +1,7 @@
 # 도면 그대로 합성하기 — 연구 계획
 
 > **2026-09-23: 디테일 단계 이미지 생성은 `planner-render-realize.plan.md` 로 완전히 교체된다.** 이 문서는 경위 기록이다.
+> **2026-10-19:** 여기 나오는 `photo-solve.js`·벤치·실사화(`realize`)·ControlNet(`src/controlnet.js`, `FAL_KEY`) 코드는 지웠다 (`planner-render-realize.plan.md` §8 · P6). git 이력에 남는다.
 >
 > 다시 씀: 2026-09-19 (같은 날 세 번 — §4 를 측정이 뒤집었고, §4.6 에서 실제로 얹어 봤다) / 기준 커밋: `de2dbd3` (origin/main)
 > 첫 판(2026-09-18)은 "렌더를 참고로 같이 보낸다" 를 중심 가설로 삼았다. 사장님 지시로 방향이 바뀌었고,
