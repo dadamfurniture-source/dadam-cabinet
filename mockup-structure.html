@@ -4102,9 +4102,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const L = drawerLayoutFor(m, s);
     if (!L) return '';
     const R = DadamDrawerRules.DRAWER_RULES;
-    const opts = (sel) => ['small', 'medium', 'large']
+    const opts = (sel, isDoor) => (isDoor ? ['small', 'medium', 'large'] : ['small', 'medium', 'large', 'auto'])
       .map((g) => `<option value="${g}" ${sel === g ? 'selected' : ''}>${R.FRONT_GRADE_LABEL[g]} (버줌 ${R.FRONT_WEIGHT[g]})</option>`).join('');
-    let html = `<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--line);font-size:10px;color:var(--text-dim);font-weight:600">`
+    // 2026-10-19: 비율 한 줄 (ArchiWood 영상 B) — "도어:서랍:서랍" 위→아래. 1 = 소, 서랍 2 = 자동(존 250 이상 대, 아니면 중·소).
+    const dr = drawerRulesOf(s);
+    const n = L.fronts.length - 1;
+    const ratio = DadamDrawerRules.ratioOf(dr.doorGrade, Array.from({ length: n }, (_, i) => dr.grades && dr.grades[i]));
+    let html = `<div class="row">
+          <label>전면 비율</label>
+          <input type="text" id="inpDrawerRatio" value="${ratio}" placeholder="2:1:1" style="width:90px;font-family:monospace">
+          <span style="font-size:10px;color:#888">도어:서랍… · 1 소 · 2 자동(서랍 자리 ${R.AUTO_LARGE_ZONE_MIN}↑ 대)</span>
+        </div>`;
+    html += `<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--line);font-size:10px;color:var(--text-dim);font-weight:600">`
       + `전면 등급 · 영역 ${L.front.area} = ${L.front.base}(배치 ${L.front.areaH} − 상판) − 받침 ${L.front.support} − ${R.SLOT}×목찬넬 ${L.front.channelCount}</div>`;
     let di = 0;
     L.fronts.forEach((f, i) => {
@@ -4113,8 +4122,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const id = isDoor ? 'selDoorGrade' : `selDrawerGrade${di - 1}`;
       html += `<div class="row">
           <label>${label}</label>
-          <select id="${id}" data-grade-idx="${isDoor ? -1 : di - 1}">${opts(f.grade)}</select>
-          <span style="font-size:10px;color:#888;font-family:monospace">${f.h}mm</span>
+          <select id="${id}" data-grade-idx="${isDoor ? -1 : di - 1}">${opts(f.gradeAuto ? 'auto' : f.grade, isDoor)}</select>
+          <span style="font-size:10px;color:#888;font-family:monospace">${f.h}mm${f.gradeAuto ? ' → ' + R.FRONT_GRADE_LABEL[f.grade] : ''}</span>
         </div>`;
     });
     return html;
@@ -4555,6 +4564,20 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         setDrawerRule({ grades }, `#${el.id}`);
       };
     });
+    // 2026-10-19: 전면 비율 — 단수·도어 등급·서랍 등급을 한 번에 바꾼다. 1·2 밖의 값(mm 고정 포함)은 받지 않는다.
+    const inpRatio = document.getElementById('inpDrawerRatio');
+    if (inpRatio) inpRatio.onchange = (e) => {
+      const r = DadamDrawerRules.gradesFromRatio(e.target.value);
+      if (r.error) {
+        showToast('⚠ ' + r.error);
+        const dr = drawerRulesOf(s);
+        const cnt = Math.max(1, Math.min(4, parseInt(s.drawerCount, 10) || 1));
+        e.target.value = DadamDrawerRules.ratioOf(dr.doorGrade, Array.from({ length: cnt }, (_, i) => dr.grades && dr.grades[i]));
+        return;
+      }
+      s.drawerCount = r.drawerCount;
+      setDrawerRule({ doorGrade: r.doorGrade, grades: r.grades }, '#inpDrawerRatio');
+    };
     const inpDrC = document.getElementById('inpDrawerCount');
     if (inpDrC) inpDrC.onchange = (e) => {
       const v = Math.max(1, Math.min(4, parseInt(e.target.value) || 1));
