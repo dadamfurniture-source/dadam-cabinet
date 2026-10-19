@@ -94,3 +94,33 @@ describe('플래너 — 모델 고르기', () => {
     expect(SHELL).toContain("(FRIDGE_SUBTYPE_LABEL[m.subtype] || '').includes(q)");
   });
 });
+
+describe('빌트인 장 안쪽 치수(니치) — appliance-models-niche.sql', () => {
+  const NICHE = read('database/appliance-models-niche.sql');
+
+  test('최소 · 최대 6칸, IF NOT EXISTS', () => {
+    for (const k of ['min_w', 'min_h', 'min_d', 'max_w', 'max_h', 'max_d']) {
+      expect(NICHE).toMatch(new RegExp(`ADD COLUMN IF NOT EXISTS niche_${k}_mm INT`));
+    }
+  });
+
+  test('가져오기 함수가 니치를 넣고, 갱신 때는 기존 값 우선 · 함수는 웹에서 못 부른다', () => {
+    expect(NICHE).toContain('CREATE OR REPLACE FUNCTION import_appliance_models(rows JSONB)');
+    expect(NICHE).toContain("niche_min_w_mm = COALESCE(niche_min_w_mm, NULLIF(r->>'niche_min_w_mm', '')::INT)");
+    expect(NICHE).toContain("side_gap_mm    = COALESCE(side_gap_mm, NULLIF(r->>'side_gap_mm', '')::INT)");
+    expect(NICHE).toContain('REVOKE ALL ON FUNCTION import_appliance_models(JSONB) FROM anon, authenticated;');
+  });
+
+  test('관리 화면 — 한 값이면 그 값, 범위면 최소~최대', () => {
+    const start = AP.indexOf('function nicheText(r) {');
+    const CLOSE = '\n      }'; // 함수를 닫는 줄 (템플릿 안 } 는 건너뛴다)
+    const end = AP.indexOf(CLOSE, start) + CLOSE.length;
+    // eslint-disable-next-line no-new-func
+    const nicheText = new Function(`${AP.slice(start, end)}; return nicheText;`)();
+    expect(nicheText({ niche_min_w_mm: 610, niche_min_h_mm: 2135, niche_min_d_mm: 670 })).toBe('장 610 × 2135 × 670');
+    expect(nicheText({ niche_min_w_mm: 560, niche_max_w_mm: 570, niche_min_h_mm: 1772, niche_max_h_mm: 1788, niche_min_d_mm: 550 })).toBe('장 560~570 × 1772~1788 × 550');
+    expect(nicheText({})).toBe('');
+    for (const id of ['f-nw', 'f-nh', 'f-nd', 'f-nw2', 'f-nh2', 'f-nd2']) expect(AP).toContain(`id="${id}"`);
+    expect(AP).toContain("payload.niche_min_w_mm = nv('f-nw');");
+  });
+});
