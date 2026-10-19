@@ -13,8 +13,8 @@ import math
 import re
 import sys
 
-# DB 에 이미 있는 이름에 맞춘다 (기존 냉장고 8개가 '삼성' · 'LG')
-BRAND = {'Samsung': '삼성', 'samsung': '삼성', 'LG': 'LG', 'lg': 'LG'}
+# DB 에 이미 있는 이름에 맞춘다 (기존 냉장고 8개가 '삼성' · 'LG'). 위니아(딤채)도 한글 이름으로
+BRAND = {'Samsung': '삼성', 'samsung': '삼성', 'LG': 'LG', 'lg': 'LG', 'Winia': '위니아', 'winia': '위니아'}
 BATCH = 100
 NOTES_MAX = 900
 
@@ -72,6 +72,8 @@ def refine_subtype(r, name):
         일반 냉장고라 도어 형태로 다시 나눈다 (설치 방식 install_type 은 원래 값을 둔다)
     """
     st = r.get('category_subtype')
+    if st in ('kimchi_stand', 'kimchi_lid'):  # 김치냉장고는 수집기 구분(스탠드/뚜껑 목록)을 그대로 둔다
+        return st
     codes = r.get('model_codes') or []
     h = num(r.get('height_mm')) or 0
     w = num(r.get('width_mm')) or 0
