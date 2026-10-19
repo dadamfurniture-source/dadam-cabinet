@@ -116,10 +116,13 @@ describe('설치 프롬프트', () => {
     expect(island).toMatch(/sink about 30%/);
   });
 
-  test('붙박이장 도어 수는 짝수 4/6/8', () => {
+  test('붙박이장 도어 수는 플래너 정본 통 나누기 — 홀수면 반 통 (2026-10-19)', () => {
     expect(P.wardrobeDoors(2000)).toBe(4);
-    expect(P.wardrobeDoors(3000)).toBe(6);
+    expect(P.wardrobeDoors(3000)).toBe(7);
     expect(P.wardrobeDoors(3600)).toBe(8);
+    expect(P.buildInstallPrompt({ ...ctx, category: 'wardrobe', wallW: 3000 })).toContain(
+      '7 equal full-height flat doors: 3 two-door units in mirrored pairs, then one single-door unit at the right end'
+    );
     expect(P.buildInstallPrompt({ ...ctx, category: 'wardrobe', wallW: 3600 })).toContain(
       '8 equal'
     );

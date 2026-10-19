@@ -24,6 +24,13 @@
       const DrawerRules = (typeof DadamDrawerRules !== 'undefined') ? DadamDrawerRules
         : (typeof require === 'function' ? require('./bom-drawer-rules.js') : null);
 
+      // 2026-10-19 (CAD 베타 PR3): 몸통 판재 숫자(뒷판·사쿠리·밴드·처짐방지목·천지판/선반 깊이)는
+      //   js/detaildesign/assembly-rules.js 한 표에 있다. 조립 명세(bom-assembly.js)도 같은 표를 읽는다.
+      //   규칙 표 없이 BOM 을 내지 않는다 — 폴백 숫자를 두지 않는다 (detaildesign.html 이 이 파일보다 먼저 싣는다).
+      const AsmRules = (typeof DadamAssemblyRules !== 'undefined') ? DadamAssemblyRules
+        : (typeof require === 'function' ? require('./assembly-rules.js') : null);
+      const ASM = AsmRules.CARCASS;
+
       // 2026-09-16: 붙박이장 통 내부 구조(칸·칸막이·선반·옷봉) 규칙도 같은 방식으로 한 곳에 있다.
       //   js/detaildesign/bom-wardrobe-rules.js — 플래너도 같은 파일을 읽는다.
       const WardrobeRules = (typeof DadamWardrobeRules !== 'undefined') ? DadamWardrobeRules
@@ -180,11 +187,23 @@
        *
        * 자리(중앙)는 BOM 이 정하지 않는다 — 3D(`mockup-structure.html addBraces`)가 같은 결정을 그린다.
        */
-      const BOM_BRACE_W_MIN_UPPER = 700;
-      const BOM_BRACE_W_MIN_LOWER = 800;   // 하부장 · 키큰장 단
-      function bomBraceQtyOf(W, pos) {
-        const min = pos === 'upper' ? BOM_BRACE_W_MIN_UPPER : BOM_BRACE_W_MIN_LOWER;
-        return (parseFloat(W) || 0) >= min ? 1 : 0;
+      // 문턱(상부 700 · 하부 800)과 판정은 assembly-rules.js (CARCASS.BRACE_W_MIN_*, braceQtyOf).
+      const bomBraceQtyOf = AsmRules.braceQtyOf;
+
+      // 2026-10-19: 기둥·배관 따내기 비고 — "따내기 좌측판 80×350 뒤·아래". 위치 말은 플래너 따내기 칸
+      //   (js/planner/planner-cutout.js PLANNER_CUTOUT_PANELS) 과 같다. 판에서 본 격자 열·행이다.
+      const BOM_CUTOUT_PANELS = {
+        left: { label: '좌측판', cols: ['뒤', '가운데', '앞'], rows: ['아래', '가운데', '위'] },
+        right: { label: '우측판', cols: ['뒤', '가운데', '앞'], rows: ['아래', '가운데', '위'] },
+        top: { label: '천판', cols: ['좌', '가운데', '우'], rows: ['뒤', '가운데', '앞'] },
+        bottom: { label: '지판', cols: ['좌', '가운데', '우'], rows: ['뒤', '가운데', '앞'] },
+      };
+      function bomCutoutNoteOf(c) {
+        const P = c && BOM_CUTOUT_PANELS[c.panel];
+        const col = P && P.cols[Number(c.col)];
+        const row = P && P.rows[Number(c.row)];
+        if (!P || !col || !row || !(Number(c.w) > 0) || !(Number(c.h) > 0)) return '';
+        return `따내기 ${P.label} ${Number(c.w)}×${Number(c.h)} ${col}·${row}`;
       }
 
       // 키큰장 단의 도어 높이 (sink.md §5.1) — 목찬넬 단만 H−30 (목찬넬 틈, 하부장과 같다), 나머지(푸쉬)는 H−4 (도어 간격 4).
@@ -241,7 +260,7 @@
       /** 서랍 밑판 — 2026-10-13 사장님: 우라 3T (예전 MDF 2.7T). 싱크·간단 카테고리·붙박이장 서랍 모두. */
       const BOM_DRAWER_BOTTOM_T = 3;
       /** 몸통 뒷판 — 2026-10-18 사장님: 우라 MDF 3T (예전 2.7T). 서랍 밑판과 같은 판 (홈카페장 18T 통판은 따로). */
-      const BOM_BACK_PANEL_T = 3;
+      const BOM_BACK_PANEL_T = ASM.BACK_PANEL_T;
       /**
        * 뒷판 크기는 **측판 사쿠리**가 정한다 (2026-10-19 사장님 — 모든 모듈 공통).
        *   사쿠리 있음  측판 홈(15→3mm)에 끼운다 → (W − 20) × (H − 1)   좌우 10씩 홈 속
@@ -249,12 +268,8 @@
        * 예전 하부장(사쿠리 없음)은 (W − 2T) × (H − T) 로 측판 사이에 끼우는 크기였다 — 실제 조립(뒤에 덮음)과 달라
        * 900 하부장에서 폭 29 · 높이 14 가 모자랐다. 홈카페장·오픈장 18T 통판 뒷판은 구조재라 이 규칙 밖이다.
        */
-      const BOM_BACK_SAKURI_W_MINUS = 20;
-      const BOM_BACK_FLAT_W_MINUS = 1;
-      const BOM_BACK_H_MINUS = 1;
-      function bomBackPanelSize(W, H, sakuri) {
-        return { w: W - (sakuri ? BOM_BACK_SAKURI_W_MINUS : BOM_BACK_FLAT_W_MINUS), h: H - BOM_BACK_H_MINUS };
-      }
+      // 숫자(W − 20 · W − 1 · H − 1)와 계산은 assembly-rules.js (CARCASS.BACK_*, backPanelSize).
+      const bomBackPanelSize = AsmRules.backPanelSize;
       /** 상판 두께 — 2026-10-18 사장님: 12 · 50T (인조대리석). data-constants.js TOP_THICKNESS_OPTIONS 와 같다. */
       const BOM_TOP_THICKNESS_OPTIONS = [12, 50];
       /** 상판 재질별 두께 — 2026-10-18 사장님 Q8 (상판 발주 요청서). data-constants.js TOP_MATERIALS 와 같다. 첫 재질이 기본. */
@@ -680,6 +695,8 @@
                 if (simpleRules) this.extractSimpleBox(catItem, materials, prefix, simpleRules);
                 break;
             }
+            // 2026-10-19: 기둥·배관 따내기 — 그 모듈의 해당 판 비고에 적는다 (재단기는 사각 판만 자른다)
+            this.applyCutoutNotes(item, materials, beforeLen, itemIdx);
             // ★ 새로 추가된 자재에 품목 라벨 태깅
             for (let i = beforeLen; i < materials.length; i++) {
               materials[i].itemLabel = itemLabel;
@@ -697,6 +714,26 @@
             edgeBanding: this.calculateEdgeBanding(materials),
             extractDate: new Date().toISOString(),
           };
+        }
+
+        /**
+         * 2026-10-19: 기둥·배관 따내기 (플래너 s.cutouts → 브리지 mod.cutouts) — 측판·천판·지판 행의 비고에 붙인다.
+         *   치수·수량은 바꾸지 않는다: 원판에서 사각으로 자르고 따내기는 가공이다. 측판은 두 장이 한 행이라
+         *   비고가 어느 쪽(좌·우) 판인지 적는다. 그 판 행이 없으면(하부장 천판) 비고 없이 dlog 로 남긴다.
+         */
+        applyCutoutNotes(item, materials, fromIdx, itemIdx) {
+          const PART = { left: '측판', right: '측판', top: '천판', bottom: '지판' };
+          (item.modules || []).forEach((mod) => {
+            const cuts = Array.isArray(mod && mod.cutouts) ? mod.cutouts : [];
+            if (!cuts.length || mod.id === undefined || mod.id === null) return;
+            const moduleKey = `${itemIdx | 0}-${String(mod.id)}`;
+            cuts.forEach((c) => {
+              const row = materials.slice(fromIdx).find((r) => r.moduleKey === moduleKey && r.part === PART[c.panel]);
+              const note = bomCutoutNoteOf(c);
+              if (!row || !note) { dlog(`[Cutout] ${moduleKey}: ${note || c.panel} 를 붙일 판 행이 없다`); return; }
+              row.note = row.note ? `${row.note} · ${note}` : note;
+            });
+          });
         }
 
         // ========================================
@@ -786,7 +823,8 @@
         // ========================================
         // 자재 추가 헬퍼 (W7-3: mod 옵셔널 — 도어/서랍도어 자동 자재 코드 매핑)
         // B1: 모든 행에 partId·slot 을 더한다 (기존 필드는 그대로 — I4).
-        // ========================================
+        // ========================================
+
         /** 뒷판 한 장 — 크기는 측판 사쿠리 여부로 (bomBackPanelSize). 비고에 조립 방식을 적는다. */
         addBackPanel(materials, label, W, H, sakuri) {
           const b = bomBackPanelSize(W, H, sakuri);
@@ -1125,11 +1163,11 @@
           // 몸통 — 하부장과 같다 (사쿠리 없음)
           this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면');
           this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
-          this.add(materials, modLabel, '밴드', 'PB', T, 70, W - T * 2, 2, '2면(장)');
+          this.add(materials, modLabel, '밴드', 'PB', T, ASM.BAND_W, W - T * 2, 2, '2면(장)');
           this.addBackPanel(materials, modLabel, W, H, false);
-          const bandH = channelHere ? H - T * 2 - 70 : H - T * 2;
+          const bandH = channelHere ? H - T * 2 - DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : H - T * 2;
           const braceQty = bomBraceQtyOf(W, 'lower');   // 키큰장 단은 하부장 문턱(800)
-          if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, bandH, braceQty, '2면(장)');
+          if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, bandH, braceQty, '2면(장)');
           // 선반 — 단이 가진 만큼 (하부장 규칙 "서랍·EL·오픈 아니면 1" 을 타지 않는다)
           const rawShelf = Number(mod.shelfCount);
           const shelfQty = Number.isFinite(rawShelf) ? Math.max(0, Math.round(rawShelf)) : 1;
@@ -1222,8 +1260,8 @@
         extractSink(item, materials, prefix = '') {
           const specs = item.specs || {};
           const T = this.thicknessFor(specs);
-          const defaultUpperD = 295; // 상부장 기본 깊이
-          const defaultLowerD = 550; // 하부장 기본 깊이
+          const defaultUpperD = ASM.UPPER_D_DEFAULT; // 상부장 기본 깊이
+          const defaultLowerD = ASM.LOWER_D_DEFAULT; // 하부장 기본 깊이
           const isWoodChannel = (specs.handle || '').includes('목찬넬');
           const legH = specs.sinkLegHeight || 150;
           // W12-61: 멍장 정면 부재(멍가림판·목대·마감재) 치수는 addBlindFrontParts 로 모았다.
@@ -1244,18 +1282,18 @@
             // 측판 2개 (사쿠리홈)
             this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면', 'sakuri(15→3mm)');
             // 천판 (사쿠리 반영 D-18)
-            this.add(materials, modLabel, '천판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
+            this.add(materials, modLabel, '천판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
             // 지판 (사쿠리 반영 D-18)
-            this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
+            this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
             // 뒷판 (사쿠리홈에 끼움 — bomBackPanelSize)
             this.addBackPanel(materials, modLabel, W, H, true);
             // 밴드(보강목) 2개
-            this.add(materials, modLabel, '밴드(보강목)', 'PB', T, W - T * 2, 70, 2, '2면(장)');
+            this.add(materials, modLabel, '밴드(보강목)', 'PB', T, W - T * 2, ASM.BAND_W, 2, '2면(장)');
             // 밴드(처짐방지목) — W ≥ 700 이면 1장, 모듈 중앙 (bomBraceQtyOf)
             const braceQty = bomBraceQtyOf(W, 'upper');
-            if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, H - T * 2, braceQty, '2면(장)');
+            if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, H - T * 2, braceQty, '2면(장)');
             // 선반 2개 (사쿠리 반영 D-34). 2026-09-13: 멍장은 ㄱ자 목대 깊이 75 만큼 짧다 (corner.md §3.5)
-            this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - 34 - this.blindShelfCut(mod, 'upper'), 2, '1면(전)');
+            this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - ASM.SAKURI_SHELF_D_MINUS - this.blindShelfCut(mod, 'upper'), 2, '1면(전)');
             // 도어 (H + overlap)
             // W11-13: 미지정(undefined)과 0 을 구분한다.
             //   기존 저장 설계는 doorCount 를 안 넣고 폴백 1 에 의존하므로 그대로 1.
@@ -1313,13 +1351,13 @@
             // 지판 (하부장: 사쿠리 없음, D 그대로)
             this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
             // 밴드 2개
-            this.add(materials, modLabel, '밴드', 'PB', T, 70, W - T * 2, 2, '2면(장)');
+            this.add(materials, modLabel, '밴드', 'PB', T, ASM.BAND_W, W - T * 2, 2, '2면(장)');
             // 뒷판 (하부장: 사쿠리 없음 → 측판 뒤 덮음, bomBackPanelSize)
             this.addBackPanel(materials, modLabel, W, H, false);
             // 밴드(처짐방지목) — 목찬넬이면 −70. W ≥ 800 이면 1장, 모듈 중앙 (bomBraceQtyOf)
-            const bandH = isWoodChannel ? H - T * 2 - 70 : H - T * 2;
+            const bandH = isWoodChannel ? H - T * 2 - DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : H - T * 2;
             const braceQty = bomBraceQtyOf(W, 'lower');
-            if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, bandH, braceQty, '2면(장)');
+            if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, bandH, braceQty, '2면(장)');
             // 선반 (서랍/EL/오픈장 없으면 1개, 하부장: 사쿠리 없음)
             if (!isDrawer && !isEL && !isOpen && mod.type !== 'sink') {
               // 2026-09-13: 멍장은 ㄱ자 목대 깊이 75 만큼 짧다 (corner.md §3.5)
@@ -1521,12 +1559,12 @@
 
               // --- 상부장 ---
               this.add(materials, `${name}-상부장`, '측판', 'PB', T, modD, upperH, 2, '3면', 'sakuri(15→3mm)');
-              this.add(materials, `${name}-상부장`, '천판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
-              this.add(materials, `${name}-상부장`, '지판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
+              this.add(materials, `${name}-상부장`, '천판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
+              this.add(materials, `${name}-상부장`, '지판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
               this.addBackPanel(materials, `${name}-상부장`, W, upperH, true);
               const shelfUpper = wrLayout ? 0 : (mod.shelfCountUpper || 0);
               if (shelfUpper > 0) {
-                this.add(materials, `${name}-상부장`, '선반', 'PB', T, W - T * 2, modD - 18 - 70, shelfUpper, '1면(전)');
+                this.add(materials, `${name}-상부장`, '선반', 'PB', T, W - T * 2, modD - ASM.WARDROBE_SHELF_D_MINUS, shelfUpper, '1면(전)');
               }
 
               // --- 하부장 ---
@@ -1546,10 +1584,10 @@
                   // 외부 서랍 모듈 본체 (별도 제작)
                   const drawerModH = drawerCount * DRAWER_MOD_H;
                   this.add(materials, `${name}-서랍모듈`, '측판', 'PB', T, modD, drawerModH, 2, '3면', 'sakuri(15→3mm)');
-                  this.add(materials, `${name}-서랍모듈`, '천판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
-                  this.add(materials, `${name}-서랍모듈`, '지판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
+                  this.add(materials, `${name}-서랍모듈`, '천판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
+                  this.add(materials, `${name}-서랍모듈`, '지판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
                   this.addBackPanel(materials, `${name}-서랍모듈`, W, drawerModH, true);
-                  this.add(materials, `${name}-서랍모듈`, '밴드', 'PB', T, W - T * 2, 70, 2, '2면(장)');
+                  this.add(materials, `${name}-서랍모듈`, '밴드', 'PB', T, W - T * 2, ASM.BAND_W, 2, '2면(장)');
                   // 외부 서랍 자재
                   this.add(materials, `${name}-서랍모듈`, '서랍전후판', 'PB', T, drawerFBW, 180, drawerCount * 2, '1면(장)');
                   this.add(materials, `${name}-서랍모듈`, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(장)');
@@ -1618,13 +1656,13 @@
               dlog(`[Wardrobe] 모듈 ${name}: type=${modType}, W=${W}, H=${modH}, D=${modD}, doors=${doorCount}, extDrawerH=${externalDrawerH}`);
 
               this.add(materials, `${name}`, '측판', 'PB', T, modD, modH, 2, '3면', 'sakuri(15→3mm)');
-              this.add(materials, `${name}`, '천판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
-              this.add(materials, `${name}`, '지판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
+              this.add(materials, `${name}`, '천판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
+              this.add(materials, `${name}`, '지판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
               this.addBackPanel(materials, `${name}`, W, modH, true);
 
               const shelfCount = wrLayout ? 0 : (mod.shelfCount || 1);
               if (shelfCount > 0) {
-                this.add(materials, `${name}`, '선반', 'PB', T, W - T * 2, modD - 18 - 70, shelfCount, '1면(전)');
+                this.add(materials, `${name}`, '선반', 'PB', T, W - T * 2, modD - ASM.WARDROBE_SHELF_D_MINUS, shelfCount, '1면(전)');
               }
               if (drawerCount > 0) {
                 const drawerFBW = isExternalDrawer ? W - 30 - 42 : W - 30 - 42 - 120;
@@ -1632,10 +1670,10 @@
                   // 외부 서랍 모듈 본체 (별도 제작)
                   const drawerModH = drawerCount * DRAWER_MOD_H_LONG;
                   this.add(materials, `${name}-서랍모듈`, '측판', 'PB', T, modD, drawerModH, 2, '3면', 'sakuri(15→3mm)');
-                  this.add(materials, `${name}-서랍모듈`, '천판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
-                  this.add(materials, `${name}-서랍모듈`, '지판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
+                  this.add(materials, `${name}-서랍모듈`, '천판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
+                  this.add(materials, `${name}-서랍모듈`, '지판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
                   this.addBackPanel(materials, `${name}-서랍모듈`, W, drawerModH, true);
-                  this.add(materials, `${name}-서랍모듈`, '밴드', 'PB', T, W - T * 2, 70, 2, '2면(장)');
+                  this.add(materials, `${name}-서랍모듈`, '밴드', 'PB', T, W - T * 2, ASM.BAND_W, 2, '2면(장)');
                   // 외부 서랍 자재
                   this.add(materials, `${name}-서랍모듈`, '서랍전후판', 'PB', T, drawerFBW, 180, drawerCount * 2, '1면(장)');
                   this.add(materials, `${name}-서랍모듈`, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(장)');
@@ -1834,10 +1872,10 @@
             const pf = prefix; // 같은 카테고리 복수 아이템 구분용
             if (modType === 'tall') {
               this.add(materials, `${pf}키큰장`, '측판', 'PB', T, D, H, 2, '3면', 'sakuri(15→3mm)');
-              this.add(materials, `${pf}키큰장`, '천판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
-              this.add(materials, `${pf}키큰장`, '지판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
+              this.add(materials, `${pf}키큰장`, '천판', 'PB', T, W - T * 2, D - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
+              this.add(materials, `${pf}키큰장`, '지판', 'PB', T, W - T * 2, D - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
               this.addBackPanel(materials, `${pf}키큰장`, W, H, true);
-              this.add(materials, `${pf}키큰장`, '선반', 'PB', T, W - T * 2, D - 34, 3, '1면(전)');
+              this.add(materials, `${pf}키큰장`, '선반', 'PB', T, W - T * 2, D - ASM.SAKURI_SHELF_D_MINUS, 3, '1면(전)');
               const doorCount = mod.doorCount || 1;
               if (doorCount > 0) {
                 const doorW = Math.floor(W / doorCount) - 4;
@@ -1860,8 +1898,8 @@
             // 상부장 (upper) — PB 구조
             else if (modType === 'upper') {
               this.add(materials, `${pf}냉장고상부장`, '측판', 'PB', T, D, H, 2, '3면', 'sakuri(15→3mm)');
-              this.add(materials, `${pf}냉장고상부장`, '천판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
-              this.add(materials, `${pf}냉장고상부장`, '지판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
+              this.add(materials, `${pf}냉장고상부장`, '천판', 'PB', T, W - T * 2, D - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
+              this.add(materials, `${pf}냉장고상부장`, '지판', 'PB', T, W - T * 2, D - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
               this.addBackPanel(materials, `${pf}냉장고상부장`, W, H, true);
               const doorCount = mod.doorCount || 1;
               if (doorCount > 0) {
@@ -1884,8 +1922,8 @@
             // EL장 (el) — PB 구조 (뒷판만)
             else if (modType === 'el') {
               this.add(materials, `${pf}EL장`, '측판', 'PB', T, D, H, 2, '3면', 'sakuri(15→3mm)');
-              this.add(materials, `${pf}EL장`, '천판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
-              this.add(materials, `${pf}EL장`, '지판', 'PB', T, W - T * 2, D - 18, 1, '1면(전)');
+              this.add(materials, `${pf}EL장`, '천판', 'PB', T, W - T * 2, D - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
+              this.add(materials, `${pf}EL장`, '지판', 'PB', T, W - T * 2, D - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
               this.addBackPanel(materials, `${pf}EL장`, W, H, true);
             }
           });
@@ -1930,15 +1968,15 @@
             const modLabel = `${prefix}상부장-${name}`;
 
             this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면', 'sakuri(15→3mm)');
-            this.add(materials, modLabel, '천판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
-            this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD - 18, 1, '1면(전)');
+            this.add(materials, modLabel, '천판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
+            this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
             this.addBackPanel(materials, modLabel, W, H, true);
-            this.add(materials, modLabel, '밴드(보강목)', 'PB', T, W - T * 2, 70, 2, '2면(장)');
+            this.add(materials, modLabel, '밴드(보강목)', 'PB', T, W - T * 2, ASM.BAND_W, 2, '2면(장)');
             const braceQty = bomBraceQtyOf(W, 'upper');
-            if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, H - T * 2, braceQty, '2면(장)');
+            if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, H - T * 2, braceQty, '2면(장)');
             const shelf = bomSimpleShelfQtyOf(mod, rules);
             if (shelf.qty > 0) {
-              this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - 34, shelf.qty, '1면(전)', shelf.defaulted ? shelfNote : '');
+              this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - ASM.SAKURI_SHELF_D_MINUS, shelf.qty, '1면(전)', shelf.defaulted ? shelfNote : '');
             }
             if (door.count > 0) {
               const doorW = Math.floor(W / door.count) - 4;
@@ -1969,11 +2007,11 @@
 
             this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면');
             this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
-            this.add(materials, modLabel, '밴드', 'PB', T, 70, W - T * 2, 2, '2면(장)');
+            this.add(materials, modLabel, '밴드', 'PB', T, ASM.BAND_W, W - T * 2, 2, '2면(장)');
             this.addBackPanel(materials, modLabel, W, H, false);
-            const bandH = isWoodChannel ? H - T * 2 - 70 : H - T * 2;
+            const bandH = isWoodChannel ? H - T * 2 - DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : H - T * 2;
             const braceQty = bomBraceQtyOf(W, 'lower');
-            if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, 70, bandH, braceQty, '2면(장)');
+            if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, bandH, braceQty, '2면(장)');
             const shelf = bomSimpleShelfQtyOf(mod, rules);
             if (shelf.qty > 0) {
               this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - T, shelf.qty, '1면(전)', shelf.defaulted ? shelfNote : '');

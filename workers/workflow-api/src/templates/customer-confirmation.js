@@ -3,10 +3,16 @@
  *
  * 작업지시서와 달리 금액을 표시하고, 고객이 [확인] 을 눌러 승인할 수 있다.
  * 공유 링크로 열리므로 고객명은 마스킹본만 싣는다 (연락처·상세주소는 미포함).
+ *
+ * 외관 도면 (사장님 결정 D6, 2026-10-19): 작업지시서와 같은 정면도(elevation.js)·코너 아이소(isometric.js)를
+ * 싣는다. 두 그림은 모듈 겉모양(몸통·다리·상판·몰딩·도어 나눔)만 그린다 — 뒷판·처짐방지목·따내기·밴드·보링 같은
+ * 내부 구조는 원래 그리지 않는다. 빨간 검증 경고는 공장용이라 뺀다. 3D 는 나중.
  */
 
 import { esc, krw, num, ymd, ymdhm, tr, thead, documentShell } from './html.js';
 import { PRINT_CSS, PRINT_TOOLBAR } from './print-css.js';
+import { elevationSvg } from './elevation.js';
+import { isCornerItem, isoSvg } from './isometric.js';
 
 const CATEGORY_NAMES = {
   sink: '싱크대',
@@ -48,6 +54,27 @@ function specSheet(doc, snapshot) {
     ${thead(['품목', '분류', 'W × H × D (mm)', '도어 마감 · 색상'], ['', '', 'num', ''])}
     <tbody>${rows || tr(['품목 없음', '', '', ''])}</tbody>
   </table>`;
+}
+
+/** 품목마다 외관 정면도, 벽이 둘 이상인 코너 품목은 아이소메트릭. 그릴 모듈이 없는 품목은 건너뛴다. */
+function exteriorSheet(snapshot) {
+  const design = snapshot.design_payload || {};
+  const items = Array.isArray(design.items) ? design.items : [];
+  const boxes = items
+    .map((item, i) => {
+      const label = esc(item.labelName || CATEGORY_NAMES[item.categoryId] || `품목 ${i + 1}`);
+      const corner = isCornerItem(item);
+      const svg = corner ? isoSvg(item) : elevationSvg(item, { warnings: false });
+      if (!svg) return '';
+      return `<div class="elev-box">${svg}<div class="elev-cap">${label} · ${corner ? '입체도' : '정면도'} (mm)</div></div>`;
+    })
+    .filter(Boolean)
+    .join('');
+  if (!boxes) return '';
+  return `
+  <div class="section-title">외관 도면</div>
+  ${boxes}
+  <p class="note">동그라미 번호는 모듈 순서입니다. 수정을 요청하실 때 번호로 알려 주세요.</p>`;
 }
 
 function quoteSheet(quote) {
@@ -146,6 +173,7 @@ ${toolbar ? PRINT_TOOLBAR : ''}
   </dl>
 
   ${specSheet(doc, snapshot)}
+  ${exteriorSheet(snapshot)}
   ${quoteSheet(quote)}
 
   <div class="note">
