@@ -50,6 +50,7 @@ import { refundCreditService } from './credits.js';
 import {
   LAYOUT_CATEGORIES,
   LAYOUT_SCHEMA,
+  PLANNER_READ_CATEGORIES,
   PLANNER_READ_SCHEMA,
   buildLayoutPrompt,
   buildPlannerReadPrompt,
@@ -708,7 +709,11 @@ async function runPipeline(env, job, ck, save) {
   //   절대 잡을 깨지 않는다 — 실패하면 layout.verify.error 만 남긴다. 생성 결과가 도면과 어긋났고
   //   실사화(realize)였다면, 올린 합성본(방 사진 자체)을 'mockup' 슬롯으로 같이 돌려준다 —
   //   도면 그대로인 그림은 그것이다. status 는 CHECK 제약 때문에 안 바꾸고 step_label 만 바꾼다.
-  if (!ck.verify && opts.design_spec && LAYOUT_CATEGORIES.includes(category)) {
+  //   2026-10-19: 플래너 모드는 품목을 가리지 않는다(PLANNER_READ_CATEGORIES = CATEGORIES 전부) — 판독이 도면 목록을 센다.
+  //   예전엔 신발장·화장대·서재·침실·사무실이 여기서 빠져 대조 기록이 없었고, 그래서 늘 internal_only 였다.
+  //   플래너가 아니면 예전 그대로 LAYOUT_CATEGORIES 만 (옛 판독은 품목별 세그먼트 종류가 있어야 한다).
+  const verifiable = planner ? PLANNER_READ_CATEGORIES.includes(category) : LAYOUT_CATEGORIES.includes(category);
+  if (!ck.verify && opts.design_spec && verifiable) {
     await updateById(env, 'generations', job.id, { step_label: '도면과 대조하는 중', progress: 65 });
     let layout;
     const t0 = Date.now();

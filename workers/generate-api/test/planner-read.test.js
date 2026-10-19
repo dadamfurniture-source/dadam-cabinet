@@ -12,6 +12,8 @@
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  LAYOUT_CATEGORIES,
+  PLANNER_READ_CATEGORIES,
   PLANNER_READ_SCHEMA,
   buildPlannerReadPrompt,
   normalizeLayout,
@@ -19,7 +21,7 @@ import {
   plannerReadPlan,
 } from '../src/layout.js';
 import { compareLayoutToSpec } from '../src/verify.js';
-import { buildPlannerPrompt } from '../src/prompts.js';
+import { CATEGORIES, buildPlannerPrompt } from '../src/prompts.js';
 import { GenerateJob } from '../src/job.js';
 
 /** D1 — 하부 800(2)·400(1)·1000(2, 싱크), 상부 900(2)·900(2), 런 2200, 일자 */
@@ -294,6 +296,23 @@ test('플래너가 아니면 옛 판독 그대로 — reader 도 shape 항목도
   assert.equal('shape' in v.parts, false);
   assert.equal('units' in v.read, false);
   assert.equal(v.expected.upperDoors, 4);
+});
+
+test('플래너 판독 품목 = CATEGORIES 전부 — 새 품목이 생겨도 대조를 건너뛰어 늘 internal_only 가 되지 않게', () => {
+  assert.deepEqual([...PLANNER_READ_CATEGORIES].sort(), Object.keys(CATEGORIES).sort());
+  LAYOUT_CATEGORIES.forEach((k) => assert.ok(PLANNER_READ_CATEGORIES.includes(k)));
+});
+
+test('역판독 품목 밖(신발장)도 같은 판독 — 품목을 storage 로 바꾸지 않고, 구간대로 줄을 만든다', () => {
+  const spec = { ...D1, category: 'shoe' };
+  const prompt = buildPlannerReadPrompt({ category: 'shoe', designSpec: spec, elevation: 'labeled' });
+  assert.match(prompt, /built-in shoe cabinet installed/);
+  assert.equal(prompt.replace('shoe cabinet', 'kitchen'), buildPlannerReadPrompt({ category: 'sink', designSpec: D1, elevation: 'labeled' }));
+  const l = norm(goodRead(), spec, { category: 'shoe' });
+  assert.equal(l.category, 'shoe');
+  assert.deepEqual(l.units.map((u) => u.id), norm(goodRead()).units.map((u) => u.id));
+  // 모르는 품목은 예전처럼 storage
+  assert.equal(norm(goodRead(), D1, { category: 'nope' }).category, 'storage');
 });
 
 // ─── 잡: Claude 에 무엇을 싣나 ───

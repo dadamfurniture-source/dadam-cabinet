@@ -90,7 +90,7 @@ function claudePlannerRead(doors) {
  * rowOptions: 지금 행의 options (잡이 받은 것과 다르게 줘서 "읽어서 더한다" 를 확인)
  */
 function installJob({ claude = null, rowOptions = null } = {}) {
-  calls = { image: 0, patched: [], reads: 0, claude: 0, refunds: 0 };
+  calls = { image: 0, patched: [], reads: 0, claude: 0, refunds: 0, claudeBodies: [] };
   globalThis.fetch = async (url, init = {}) => {
     const u = String(url);
     if (u.includes('/storage/v1/object/')) {
@@ -111,6 +111,7 @@ function installJob({ claude = null, rowOptions = null } = {}) {
     }
     if (u.includes('api.anthropic.com')) {
       calls.claude++;
+      calls.claudeBodies.push(String(init.body));
       if (claude === 'throw') return jsonRes({ type: 'error', error: { type: 'api_error', message: 'boom' } }, 400);
       // 플래너 판독 스키마(rows)면 모듈별 답, 아니면 옛 구성 답
       const planner = JSON.parse(init.body).output_config.format.schema.required.includes('rows');
@@ -158,12 +159,12 @@ const INPUTS = {
 };
 const PLANNER_OPTIONS = { design_spec: SPEC, mode: 'planner', aspect: '16:9', variants: false };
 
-async function runJob(options, { withKey = true } = {}) {
+async function runJob(options, { withKey = true, category = 'sink' } = {}) {
   const job = new GenerateJob(fakeState(), { ...ENV, ...(withKey ? { ANTHROPIC_API_KEY: 'k' } : {}) });
   await job.fetch(
     new Request('https://generate-job/start', {
       method: 'POST',
-      body: JSON.stringify({ id: ROW_ID, userId: USER_ID, creditRef: 'c', category: 'sink', options, inputs: INPUTS, startedAt: Date.now() }),
+      body: JSON.stringify({ id: ROW_ID, userId: USER_ID, creditRef: 'c', category, options, inputs: INPUTS, startedAt: Date.now() }),
     })
   );
   await job.alarm();
@@ -227,6 +228,42 @@ test('잡: 플래너가 아니면 대조가 어긋나도 options 를 쓰지 않�
     'status', 'progress', 'step_label', 'error', 'images', 'quote', 'model', 'elapsed_ms', 'completed_at',
   ]);
   assert.equal(calls.reads, 0);
+});
+
+// 2026-10-19: 역판독 품목(LAYOUT_CATEGORIES) 밖이어도 플래너 모드면 플래너 판독(도면 목록 기반)으로 대조한다.
+//   예전에는 대조를 건너뛰어 기록이 없었고, 그래서 늘 internal_only 가 돼 공유가 막혔다.
+const OTHER_CATEGORIES = ['shoe', 'vanity', 'study', 'bedroom', 'office'];
+const SUBJECT = { shoe: /shoe cabinet/, vanity: /dressing table/, study: /study wall/, bedroom: /bedroom built-in wall/, office: /home office wall/ };
+
+for (const category of OTHER_CATEGORIES) {
+  test(`잡: planner + ${category}(역판독 품목 밖) — 플래너 판독으로 대조하고, 맞으면 internal_only 를 넣지 않는다`, async () => {
+    const options = { ...PLANNER_OPTIONS, design_spec: { ...SPEC, category } };
+    installJob({ claude: { doors: 5 }, rowOptions: { ...options } });
+    const done = await runJob(options, { category });
+    assert.equal(calls.claude, 1, '대조를 건너뛰지 않는다');
+    const layout = calls.patched.find((p) => p.layout).layout;
+    assert.equal(layout.reader, 'planner');
+    assert.equal(layout.category, category, '품목을 storage 로 바꾸지 않는다');
+    assert.equal(layout.verify.ok, true, `대조가 맞아야 한다: ${JSON.stringify(layout.verify.issues)}`);
+    assert.match(calls.claudeBodies[0], SUBJECT[category], '판독 프롬프트가 그 품목을 말한다');
+    assert.equal('options' in done, false, '대조가 맞으면 내부 확인용이 아니다');
+  });
+}
+
+test('잡: planner + 신발장 대조 불일치 → 다른 품목과 똑같이 internal_only:true', async () => {
+  const options = { ...PLANNER_OPTIONS, design_spec: { ...SPEC, category: 'shoe' } };
+  installJob({ claude: { doors: 2 }, rowOptions: { ...options } });
+  const done = await runJob(options, { category: 'shoe' });
+  assert.equal(calls.patched.find((p) => p.layout).layout.verify.ok, false);
+  assert.equal(done.options.internal_only, true);
+});
+
+test('잡: 플래너가 아니면 역판독 품목 밖(신발장)은 예전처럼 대조하지 않는다', async () => {
+  installJob({ claude: { doors: 5 }, rowOptions: null });
+  const done = await runJob({ design_spec: { ...SPEC, category: 'shoe' }, variants: false }, { category: 'shoe' });
+  assert.equal(calls.claude, 0);
+  assert.ok(calls.patched.every((p) => !('layout' in p)));
+  assert.equal('options' in done, false);
 });
 
 // ─── 공유 ───
