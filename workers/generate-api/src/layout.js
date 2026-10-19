@@ -378,8 +378,9 @@ export const PLANNER_READ_VERSION = 1;
 /**
  * 모듈 한 칸이 사진에서 무엇으로 보였나. missing = 그 자리에 유닛이 없다.
  * 2026-10-19: hood = 장 없이 후드만 걸린 틈 (후드 칸 H1 … — prompts.js isHoodCell).
+ * 2026-10-19: hidden = ㄱ자 모서리 장의 앞판이 앞에 선 장에 가려 보이지 않는다 (판독 계획의 hiddenBehind 장만 — verify.js 가 세지 않는다).
  */
-export const PLANNER_READ_SEEN = ['cabinet', 'refrigerator', 'dishwasher', 'open', 'hood', 'missing'];
+export const PLANNER_READ_SEEN = ['cabinet', 'refrigerator', 'dishwasher', 'open', 'hood', 'missing', 'hidden'];
 export const PLANNER_READ_SHAPES = ['straight', 'corner', 'u', 'unclear'];
 const PLANNER_READ_ROWS = ['base', 'wall', 'tall', 'wardrobe'];
 /** design_spec 구간 → 판독 줄 이름·번호 머리. prompts.js PLANNER_ROWS 와 같은 머리 글자. */
@@ -611,6 +612,24 @@ export function plannerReadPlan(spec, category) {
     }),
     }, r.wall ? { wall: r.wall } : {});
   });
+  // 2026-10-19: ㄱ자 모서리 장 — 꺾인 벽마다 모서리를 차지한 장(prompts.js plannerCornerUnit 과 같은 장)은 앞에 선 장에 가려진다.
+  //   corner 'main' 이면 주벽 바닥 줄의 그 벽 쪽 끝 장이 꺾인 벽 첫 장 뒤에, 'return' 이면 꺾인 벽 첫 장이 주벽 끝 장 뒤에.
+  //   생성 프롬프트도 그렇게 지으라고 했다 ("L1 runs into the corner; L5 starts in front of it"). open 이면 없다.
+  const cornerUnit = (wall, side) => {
+    const rs = out.filter((r) => (r.wall || null) === wall);
+    const row = rs.find((r) => r.section === 'lower') || rs.find((r) => r.section === 'tall') || rs[0];
+    const us = row ? row.units.filter((u) => !/^H\d/.test(u.id)) : []; // 후드 칸 제외 (plannerCornerUnit 과 같다)
+    if (!us.length) return null;
+    if (wall) return us[0];
+    return side === 'right' ? us[us.length - 1] : us[0];
+  };
+  plannerReadWalls(s).forEach((w) => {
+    const mainEnd = cornerUnit(null, w.side);
+    const first = cornerUnit(w.side);
+    if (!mainEnd || !first) return;
+    if (w.corner === 'main') mainEnd.hiddenBehind = first.id;
+    else if (w.corner === 'return') first.hiddenBehind = mainEnd.id;
+  });
   // 가전 → 그 자리에 걸린 모듈 (중심이 모듈 [start,end) 안)
   // 2026-10-19: 최상위 appliances[] 는 주벽 줄, 꺾인 벽의 appliances[](fromCornerMm)는 그 벽 줄에만
   const attach = (a, wall, pos) => {
@@ -692,7 +711,11 @@ function plannerReadLine(u) {
     )
     .forEach((k) => bits.push(PLANNER_READ_ATTACH[k]));
   const size = u.widthMm ? `${String(u.widthMm).padStart(4)} mm` : '';
-  return `${u.id.padEnd(3)} ${size}`.trimEnd().padEnd(11) + '  ' + bits.join(', ');
+  // 2026-10-19: ㄱ자 모서리 장 — 가려졌으면 hidden 으로 (verify.js 가 세지 않는다)
+  const corner = u.hiddenBehind
+    ? ` — corner unit: ${u.hiddenBehind} stands in front of it, so its fronts may be hidden. Report seen = hidden if you cannot see its fronts`
+    : '';
+  return `${u.id.padEnd(3)} ${size}`.trimEnd().padEnd(11) + '  ' + bits.join(', ') + corner;
 }
 
 /**
@@ -728,10 +751,14 @@ export function buildPlannerReadPrompt(c) {
   });
   // 2026-10-19: 후드 칸이 있을 때만 seen 에 hood 를 말한다 — 없으면 예전 문장 그대로
   const hasHood = plan.rows.some((r) => r.units.some((u) => u.seen === 'hood'));
+  // 2026-10-19: ㄱ자 모서리 장이 있을 때만 seen 에 hidden 을 말한다 — 없으면 예전 문장 그대로
+  const hasCorner = plan.rows.some((r) => r.units.some((u) => u.hiddenBehind));
   const list = [];
   plan.rows.forEach((r) => {
     list.push(`  ${r.title} (row "${r.row}"):`);
     r.units.forEach((u) => list.push(`    ${plannerReadLine(u)}`));
+    // 2026-10-19: 꺾인 벽 줄은 카메라에서 비스듬히 보인다 — 보이는 면의 틈으로 센다 (verify.js 는 보였으면 문 수 차이를 감점하지 않는다)
+    if (r.wall) list.push('    (seen at an angle: count the door gaps on the visible face of each unit)');
   });
   const shape = wallSides.length
     // 2026-10-19: 꺾인 벽이 있으면 실제 방향으로 (목록이 벽마다 따로 있다)
@@ -751,7 +778,7 @@ ${list.join('\n') || '  (no units listed)'}
 ${shape ? shape + '\n' : ''}
 TASK: find every plan unit in IMAGE 1 and count what IMAGE 1 actually shows. The photo may differ from the plan — report the photo, never copy the plan's numbers.
 1. Match the units by their order from the left, their relative widths and landmarks (sink, cooktop, hood, refrigerator, tall columns). The photo is in perspective: units nearer the camera look wider. If the run turns a corner in IMAGE 1, keep following it in the same order.
-2. rows: for every plan row and every unit ID above give seen, doors and drawers. seen = cabinet (a unit with door or drawer fronts), refrigerator, dishwasher, open (open shelving or an empty opening)${hasHood ? ', hood (a range hood hanging in the gap with no cabinet)' : ''} or missing (no unit there). doors = hinged door fronts on that unit; drawers = drawer fronts on that unit. Count fronts one unit at a time by the vertical and horizontal gaps between them — two fronts side by side are 2 doors even when they share one handle line. Refrigerator doors and dishwasher panels are not doors.
+2. rows: for every plan row and every unit ID above give seen, doors and drawers. seen = cabinet (a unit with door or drawer fronts), refrigerator, dishwasher, open (open shelving or an empty opening)${hasHood ? ', hood (a range hood hanging in the gap with no cabinet)' : ''} or missing (no unit there).${hasCorner ? ' hidden = a corner unit whose fronts are covered by the run in front of it — use it only for a unit marked as a corner unit.' : ''} doors = hinged door fronts on that unit; drawers = drawer fronts on that unit. Count fronts one unit at a time by the vertical and horizontal gaps between them — two fronts side by side are 2 doors even when they share one handle line. Refrigerator doors and dishwasher panels are not doors.
 3. extra_units: every built-in unit in IMAGE 1 that is none of the plan units — for example a cabinet above the refrigerator, cabinets on a side wall, a drawer stack added at an end. Give row (base, wall, tall, wardrobe or other), where (a few words), doors and drawers. Freestanding appliances, the hood, loose furniture and things outside the built-in run are not units.
 4. layout_shape: straight when all built-in units stand on one wall; corner when they turn one corner onto a second wall; u when they cover three walls; unclear when you cannot tell.
 5. confidence: 0 to 1 for your counts. notes: at most 5 short sentences about anything ambiguous.`;
@@ -809,6 +836,8 @@ export function normalizePlannerRead(raw, ctx) {
         drawers: g ? (g.seen === 'cabinet' || g.seen === 'open' ? g.drawers : 0) : 0,
         // 2026-10-19: 꺾인 벽 유닛만 — 자리(startMm·endMm)는 모서리에서 잰 값이다
         ...(row.wall ? { wall: row.wall } : {}),
+        // 2026-10-19: ㄱ자 모서리 장만 — 앞에 선 장 번호 (verify.js 가 문 수 대조에서 뺀다)
+        ...(p.hiddenBehind ? { hiddenBehind: p.hiddenBehind } : {}),
       });
     });
   });
@@ -821,7 +850,8 @@ export function normalizePlannerRead(raw, ctx) {
     const x = Math.max(0, Math.min(W, Math.round(u.startMm)));
     return { x, w: Math.max(0, Math.min(W, Math.round(u.endMm)) - x) };
   };
-  const present = (u) => u.seen !== 'missing' && u.seen !== 'unread';
+  // 2026-10-19: hidden(가려진 모서리 장)도 사진에 없는 것 — 세그먼트·상부장 영역을 만들지 않는다
+  const present = (u) => u.seen !== 'missing' && u.seen !== 'unread' && u.seen !== 'hidden';
 
   // 바닥 세그먼트 — 하부·키큰장 구간을 왼쪽 끝 순서로 (verify.js expectedFromSpec 과 같은 순서)
   let segments;
