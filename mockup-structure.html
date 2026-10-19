@@ -4095,6 +4095,26 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   /**
+   * 2026-10-19: 칸 도어 폭 범위 표시 (ArchiWood 영상 F). 칸 폭 ÷ 도어 장수가 MASTER_RULES.DOOR_W_MIN ~ DOOR_W_MAX
+   *   (350 ~ 600, 자동계산 도어 분배와 같은 값) 밖이면 빨갛게 적는다. 값을 고치지는 않는다 — 보여 주기만.
+   *   칸 폭은 3D 와 같다: areaWidths 가 칸 수와 맞으면 그 값, 아니면 균등 분할.
+   */
+  function doorRangeTagHtml(m, s, i, is2D) {
+    // 싱크 라인 상·하부장만 — 붙박이장·냉장고장·키큰장 도어는 각자 규칙 문서가 정한다
+    if (m.section !== 'lower' && m.section !== 'upper') return '';
+    const n = Math.max(1, s.verticalCount || 1);
+    const ws = Array.isArray(s.areaWidths) && s.areaWidths.length === n ? s.areaWidths : null;
+    const cw = ws ? Number(ws[i]) || 0 : (Number(m.W) || 0) / n;
+    const per = cw / (is2D ? 2 : 1);
+    const lo = MASTER_RULES.DOOR_W_MIN;
+    const hi = MASTER_RULES.DOOR_W_MAX;
+    const ok = per >= lo && per <= hi;
+    const tip = `도어 한 장 ${Math.round(per)}mm · 범위 ${lo}~${hi}${ok ? '' : ' 밖'}`;
+    return ` <span class="door-range${ok ? '' : ' bad'}" title="${tip}"`
+      + ` style="font-weight:400;color:${ok ? 'var(--text-faint)' : '#b4452e'}">${Math.round(cw)}${ok ? '' : ' ⚠'}</span>`;
+  }
+
+  /**
    * 2026-09-16: 전면 등급 행 — 도어와 서랍마다 소·중·대 를 고른다. 오른쪽에 배분식이 낸 mm 를 그대로 보여준다.
    *   버줌 소1 중2 대2 (규칙 파일). 중과 대는 전면 높이가 같고 속 박스만 다르다.
    */
@@ -4495,6 +4515,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         <div class="row">
           <label>서랍 단수</label>
           <input type="number" min="1" max="4" step="1" id="inpDrawerCount" value="${Number(s.drawerCount) || 1}">
+          <span style="font-size:10px;color:#888">1~${DadamDrawerRules.DRAWER_RULES.MAX_COUNT}단</span>
         </div>
         <div class="row">
           <label>서랍 레일</label>
@@ -4598,7 +4619,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const is2DCell = !!(s.areaIs2D && s.areaIs2D[i]);
       areaHTML += `
         <div class="area-row" data-idx="${i}">
-          <span class="a-lab">#${i+1}</span>
+          <span class="a-lab">#${i+1}${t === 'door' ? doorRangeTagHtml(m, s, i, is2DCell) : ''}</span>
           <select class="a-type">
             <option value="door"   ${t==='door'?'selected':''}>도어</option>
             <option value="drawer" ${t==='drawer'?'selected':''}>서랍</option>
