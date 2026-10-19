@@ -37,7 +37,7 @@
 //     3/4(massing) 긴 변 1024 → JPEG 0.9 — 선택. 못 찍거나 못 바꾸면 입면만 보낸다.
 //   결과 비율(aspect)은 방 사진에 가장 가까운 허용 비율이다 (사장님 결정 2026-10-18 —
 //   세로 사진은 사진 비율을 따른다). 계획서의 "16:9 로 자르기" 는 이 결정으로 대신한다.
-//   실사화 체크박스·구조 조건 드롭존은 화면에서 뺐다. 코드 삭제는 P6 (계획 §8).
+//   실사화 체크박스·구조 조건 드롭존은 화면에서 뺐고, 2026-10-19 P6 (계획 §8) 에서 코드째 지웠다.
 //   결과는 대조가 ok 일 때만 ✓. 그 밖은 "내부 확인용 — 고객 공유 불가" + 입면을 옆에 (§6.3).
 //   2026-10-18: eval=1 이면 이미지 모델(Gemini/GPT)을 고른다 — GPT 면 본문에 image_provider:'openai'.
 //     결과 아래에 누가 그렸는지 한 줄 (GPT 실패 → Gemini 대신 포함).
@@ -1546,9 +1546,6 @@ const PlannerAiPhoto = {
   /** 'idle' | 'sending' | 'running' | 'done' */
   phase: 'idle',
   img: null,
-  // 2026-10-18: 화면에서 뺐다(P5). 본문에도 안 싣는다. 필드·setControl 은 P6 가 지운다 (계획 §8).
-  realize: false,
-  control: null,
   /** 방금 보낸 입면 — 결과가 내부 확인용일 때 옆에 놓는 비교 그림 {url, width, height}. 이 탭에서만 산다. */
   elevation: null,
   /** 평가 스위치 (주소에 eval=1 일 때만 보인다) — 켜면 3/4 뷰를 안 보낸다. */
@@ -1880,7 +1877,7 @@ const PlannerAiPhoto = {
       );
     }
 
-    // 2026-10-18 (P5): 실사화 체크박스·구조 조건 드롭존은 그리지 않는다 — 도면은 플래너가 스스로 찍는다.
+    // 2026-10-18 (P5): 실사화 체크박스·구조 조건 드롭존은 없다 (2026-10-19 P6 코드째 삭제) — 도면은 플래너가 스스로 찍는다.
     //   결과 비율은 사진을 따른다 (사장님 결정 2026-10-18). 누르기 전에 보여 준다.
     if (this.img) {
       parts.push(`<div class="ap-ratio" id="aiPhotoRatio">결과 비율: ${esc(plannerAiPhotoAspectLabel(this.img.width, this.img.height))}</div>`);
@@ -1969,16 +1966,6 @@ const PlannerAiPhoto = {
     host.querySelectorAll('input[name="aiPhotoProvider"]').forEach((r) => {
       r.onchange = () => { if (r.checked) this.setProvider(r.value); };
     });
-    // 아래 둘은 2026-10-18 부터 그리지 않아 걸리지 않는다 — P6 가 지운다.
-    const rz = host.querySelector('#aiPhotoRealize');
-    if (rz) rz.onchange = () => { this.realize = !!rz.checked; this.render(); };
-    const cdrop = host.querySelector('#aiPhotoControlDrop');
-    if (cdrop) {
-      cdrop.onclick = () => this.pickControl();
-      ['dragenter', 'dragover'].forEach((t) => cdrop.addEventListener(t, (e) => { e.preventDefault(); cdrop.classList.add('ap-over'); }));
-      ['dragleave', 'drop'].forEach((t) => cdrop.addEventListener(t, (e) => { e.preventDefault(); cdrop.classList.remove('ap-over'); }));
-      cdrop.addEventListener('drop', (e) => { const files = (e.dataTransfer && e.dataTransfer.files) || []; if (files.length) this.setControl(files[0]); });
-    }
     if (!drop) return;
     drop.onclick = () => this.pick();
     ['dragenter', 'dragover'].forEach((t) => {
@@ -2002,32 +1989,6 @@ const PlannerAiPhoto = {
     inp.onchange = () => { if (inp.files && inp.files[0]) this.setFile(inp.files[0]); };
     inp.click();
     return true;
-  },
-
-  /** 구조 조건 이미지 고르기 창. */
-  pickControl() {
-    if (typeof document === 'undefined') return false;
-    const inp = document.createElement('input');
-    inp.type = 'file';
-    inp.accept = 'image/png,image/jpeg';
-    inp.onchange = () => { if (inp.files && inp.files[0]) this.setControl(inp.files[0]); };
-    inp.click();
-    return true;
-  },
-
-  /** 구조 조건 이미지 — 사진과 같은 규칙으로 줄이되 PNG 로 둔다 (같은 원본 크기면 같은 화소 크기가 된다). */
-  async setControl(file) {
-    try {
-      this.control = await plannerAiPhotoReadImage(file, { mime: 'image/png' });
-      this.message = '';
-      this.bad = false;
-    } catch (e) {
-      this.control = null;
-      this.message = (e && e.message) || '구조 조건 이미지를 읽지 못했습니다';
-      this.bad = true;
-    }
-    this.render();
-    return !!this.control;
   },
 
   /** 사진 한 장을 받아 축소·인코딩해서 들고 있는다. */
@@ -2089,8 +2050,8 @@ const PlannerAiPhoto = {
     const provider = this.provider();
     let res;
     try {
-      // 계약: design-spec-prompt.md "플래너 모드". realize·engine·control_*·variants 는 싣지 않는다
-      //   (워커가 variants 를 false 로 강제한다).
+      // 계약: design-spec-prompt.md "플래너 모드". variants 는 싣지 않는다 (워커가 false 로 강제한다).
+      //   realize·engine·control_* 는 2026-10-19 워커에서도 지웠다.
       res = await f(this.api(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
