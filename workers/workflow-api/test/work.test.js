@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import worker from '../src/worker.js';
 import { clearAdminCache } from '../src/reports/admin.js';
-import { computeJobStatus } from '../src/work/jobs.js';
+import { computeJobStatus, pickNextJob } from '../src/work/jobs.js';
 import { effectiveStatus, jobCard, jobDetail, findForbiddenKeys, FORBIDDEN_KEYS, SITE_NOTE } from '../src/work/reveal.js';
 import { buildWorkSlack } from '../src/work/notify.js';
 import { hashInviteToken } from '../src/work/invites.js';
@@ -58,6 +58,7 @@ const DEFAULTS = {
   work_assignments: () => ({ application_id: null, started_at: null, submitted_at: null, accepted_at: null, revision_count: 0, no_show: false, release_reason: null, updated_at: new Date().toISOString() }),
   work_updates: () => ({ assignment_id: null, issue_chips: [], amends_id: null, visible_to_worker: true }),
   work_job_events: () => ({ assignment_id: null, actor_user_id: null, from_status: null, to_status: null, note: null, payload: {}, notified_at: null }),
+  worker_events: () => ({ actor_user_id: null, from_status: null, to_status: null, note: null, payload: {} }),
 };
 const UNIQUE = {
   workers: (r) => r.user_id || null,
@@ -326,6 +327,7 @@ const CONTRACT_ROUTES = [
   ['POST', `/work/admin/assignments/${ORDER}/accept`], ['POST', `/work/admin/assignments/${ORDER}/revision`], ['POST', `/work/admin/assignments/${ORDER}/remove`],
   ['GET', '/work/admin/workers'], ['PATCH', `/work/admin/workers/${ORDER}`],
   ['GET', `/work/admin/workers/${ORDER}/notes`], ['POST', `/work/admin/workers/${ORDER}/notes`], ['POST', '/work/admin/invites'],
+  ['GET', `/work/admin/workers/${ORDER}/events`],
 ];
 
 test('라우트 — 계약의 경로가 모두 JWT 로 등록돼 있다 (토큰 없으면 401, 404 · 405 아님)', async () => {
@@ -392,7 +394,9 @@ test('중복 신청 409 · 모집 아님 · 마감 · 종류 불일치 409 · �
   const asJob = await makeJob({ kind: 'as' });
   assert.equal((await call('POST', `/work/jobs/${asJob.id}/apply`, { token: 'tok-w2', body: {} })).status, 409, '종류 불일치');
   const expired = await makeJob({ apply_deadline: '2026-01-01T00:00:00Z' });
-  assert.equal((await call('POST', `/work/jobs/${expired.id}/apply`, { token: 'tok-w1', body: {} })).status, 409, '마감');
+  const late = await call('POST', `/work/jobs/${expired.id}/apply`, { token: 'tok-w1', body: {} });
+  assert.equal(late.status, 409, '지원 종료일 지남');
+  assert.equal(late.body.message, '지원 종료일이 지났습니다');
   const draft = await call('POST', '/work/admin/jobs', { token: 'tok-admin', body: { kind: 'install', title: '초안' } });
   assert.equal((await call('POST', `/work/jobs/${draft.data.id}/apply`, { token: 'tok-w1', body: {} })).status, 409, '모집 아님');
   const invited = await makeJob({ mode: 'invite' });
@@ -502,7 +506,8 @@ test('한 바퀴 — 게시 → 신청 → 승인 → 시작 → 보고 → 완�
   const done = await call('GET', '/work/jobs?tab=done', { token: 'tok-w1' });
   assert.deepEqual(done.data.items.map((c) => c.id), [job.id]);
 
-  assert.equal((await call('POST', `/work/admin/jobs/${job.id}/close`, { token: 'tok-admin' })).data.status, 'closed');
+  const closed = await call('POST', `/work/admin/jobs/${job.id}/close`, { token: 'tok-admin' });
+  assert.deepEqual([closed.data.status, closed.data.auto_declined], ['closed', 0], '남은 초대가 없으면 0건');
   const late = await call('POST', `/work/assignments/${asg.id}/updates`, { token: 'tok-w1', body: { kind: 'progress', body: '추가' } });
   assert.equal(late.status, 409, 'closed 작업에 보고 409');
 
@@ -672,7 +677,9 @@ test('Slack — 신청 · 철회 · 거절 · 포기 · 완료 · 문제 보고,
 
 test('직접 지정 — 승인 · 종류 맞는 작업자만, 수락하면 정원에 들고 정원이 찼으면 수락 409', async () => {
   const job = await makeJob({ mode: 'invite', slots: 1, kind: 'install' });
-  assert.equal((await call('POST', `/work/admin/jobs/${job.id}/invite`, { token: 'tok-admin', body: { worker_id: WP } })).status, 409, '대기 작업자');
+  const pend = await call('POST', `/work/admin/jobs/${job.id}/invite`, { token: 'tok-admin', body: { worker_id: WP } });
+  assert.equal(pend.status, 409, '대기 작업자');
+  assert.equal(pend.body.message, '승인된 작업자만 배정할 수 있습니다');
   const asJob = await makeJob({ kind: 'as', mode: 'invite' });
   assert.equal((await call('POST', `/work/admin/jobs/${asJob.id}/invite`, { token: 'tok-admin', body: { worker_id: W2 } })).status, 409, '종류 불일치');
   const o1 = await call('POST', `/work/admin/jobs/${job.id}/invite`, { token: 'tok-admin', body: { worker_id: W1 } });
@@ -695,7 +702,7 @@ test('직접 지정 — 승인 · 종류 맞는 작업자만, 수락하면 정�
   assert.equal((await call('POST', `/work/assignments/${o2.data.id}/confirm`, { token: 'tok-w2' })).data.status, 'confirmed');
 });
 
-test('남은 초대는 검수 · 완료를 막지 않는다 — 정원 1 에 둘을 초대, 한 명이 끝내면 review → done → 마감', async () => {
+test('남은 초대는 검수 · 완료를 막지 않는다 — 정원 1 에 둘을 초대, 한 명이 끝내면 review → done → 마감, 마감하면 남은 초대는 자동 종료', async () => {
   const job = await makeJob({ mode: 'invite', slots: 1, kind: 'install' });
   const o1 = await call('POST', `/work/admin/jobs/${job.id}/invite`, { token: 'tok-admin', body: { worker_id: W1 } });
   const o2 = await call('POST', `/work/admin/jobs/${job.id}/invite`, { token: 'tok-admin', body: { worker_id: W2 } });
@@ -706,12 +713,65 @@ test('남은 초대는 검수 · 완료를 막지 않는다 — 정원 1 에 둘
   assert.equal(rowOf('work_jobs', job.id).status, 'review', '응답 없는 초대가 남아도 검수 대기');
   assert.equal((await call('POST', `/work/admin/assignments/${o1.data.id}/accept`, { token: 'tok-admin' })).data.status, 'accepted');
   assert.equal(rowOf('work_jobs', job.id).status, 'done');
-  assert.equal((await call('POST', `/work/admin/jobs/${job.id}/close`, { token: 'tok-admin' })).data.status, 'closed');
-  // 남은 초대는 저절로 정리하지 않는다 — offered 그대로, 수락은 409
+  // done 까지는 남은 초대를 건드리지 않는다
   assert.equal(rowOf('work_assignments', o2.data.id).status, 'offered');
+  const closed = await call('POST', `/work/admin/jobs/${job.id}/close`, { token: 'tok-admin' });
+  assert.deepEqual([closed.status, closed.data.status, closed.data.auto_declined], [200, 'closed', 1]);
+  // 마감하면 남은 초대는 declined (사유는 작업자에게 보이는 안내), 수락은 409
+  const o2Row = rowOf('work_assignments', o2.data.id);
+  assert.deepEqual([o2Row.status, o2Row.release_reason], ['declined', '작업이 마감돼 초대가 끝났습니다']);
+  assert.equal(rowOf('work_assignments', o1.data.id).status, 'accepted', '끝난 배정은 그대로');
   assert.equal((await call('POST', `/work/assignments/${o2.data.id}/confirm`, { token: 'tok-w2' })).status, 409);
+  const auto = db.tables.work_job_events.filter((e) => e.job_id === job.id && e.type === 'assignment_auto_declined');
+  assert.equal(auto.length, 1);
+  assert.deepEqual(
+    [auto[0].assignment_id, auto[0].actor_kind, auto[0].actor_user_id, auto[0].from_status, auto[0].to_status, auto[0].note, auto[0].payload],
+    [o2.data.id, 'system', null, 'offered', 'declined', '작업이 마감돼 초대가 끝났습니다', { worker_id: W2, reason: 'job_closed' }],
+  );
   const statusFlow = db.tables.work_job_events.filter((e) => e.job_id === job.id && e.type === 'job_status').map((e) => `${e.from_status}>${e.to_status}`);
   assert.deepEqual(statusFlow, ['open>filled', 'filled>in_progress', 'in_progress>review', 'review>done']);
+});
+
+test('작업 취소 — 응답 없는 초대만 자동 종료(auto_declined), 확정 배정 · 대기 신청은 그대로, 초대받은 사람의 새 소식 · 지난 작업에 사유', async () => {
+  // 세 번째 승인 작업자 (공개 신청 → 승인)
+  const reg = await call('POST', '/work/register', { token: 'tok-new', body: { display_name: '시험기사C', kinds: ['install'], consent_version: 'v1' } });
+  await call('PATCH', `/work/admin/workers/${reg.data.id}`, { token: 'tok-admin', body: { status: 'approved' } });
+
+  const job = await makeJob({ slots: 3 });
+  const asg = await assign(job, 'tok-w1');
+  const waiting = await call('POST', `/work/jobs/${job.id}/apply`, { token: 'tok-new', body: {} });
+  const offer = await call('POST', `/work/admin/jobs/${job.id}/invite`, { token: 'tok-admin', body: { worker_id: W2 } });
+  assert.equal(offer.data.status, 'offered');
+  // 다른 작업의 초대는 건드리지 않는다
+  const other = await makeJob({ mode: 'invite', title: '다른 초대 작업' });
+  const otherOffer = await call('POST', `/work/admin/jobs/${other.id}/invite`, { token: 'tok-admin', body: { worker_id: W2 } });
+
+  await call('GET', '/work/jobs?tab=mine', { token: 'tok-w2' });
+  await tick();
+  const c = await call('POST', `/work/admin/jobs/${job.id}/cancel`, { token: 'tok-admin', body: { reason: '고객 일정 변경' } });
+  assert.deepEqual([c.status, c.data.status, c.data.auto_declined], [200, 'cancelled', 1]);
+
+  assert.deepEqual([rowOf('work_assignments', offer.data.id).status, rowOf('work_assignments', offer.data.id).release_reason], ['declined', '작업이 취소돼 초대가 끝났습니다']);
+  assert.equal(rowOf('work_assignments', asg.id).status, 'confirmed', '확정 배정은 그대로');
+  assert.equal(rowOf('work_applications', waiting.data.id).status, 'applied', '대기 신청은 그대로');
+  assert.equal(rowOf('work_assignments', otherOffer.data.id).status, 'offered', '다른 작업의 초대는 그대로');
+
+  const ev = db.tables.work_job_events.filter((e) => e.type === 'assignment_auto_declined');
+  assert.deepEqual(ev.map((e) => [e.job_id, e.assignment_id, e.actor_kind, e.from_status, e.to_status, e.note, e.payload]), [
+    [job.id, offer.data.id, 'system', 'offered', 'declined', '작업이 취소돼 초대가 끝났습니다', { worker_id: W2, reason: 'job_cancelled' }],
+  ]);
+
+  // 초대받은 사람의 새 소식 배지에 잡힌다
+  const me = await call('GET', '/work/me', { token: 'tok-w2' });
+  assert.equal(me.data.counts.newEvents, 1);
+  // 지난 작업 탭에서 끝난 이유가 보인다
+  const done = await call('GET', '/work/jobs?tab=done', { token: 'tok-w2' });
+  const card = done.data.items.find((j) => j.id === job.id);
+  assert.deepEqual([card.my.assignment_status, card.my.release_reason], ['declined', '작업이 취소돼 초대가 끝났습니다']);
+  assert.deepEqual(findForbiddenKeys(done.body), []);
+  // 이미 취소된 작업을 다시 취소하면 409 — 자동 종료도 다시 돌지 않는다
+  assert.equal((await call('POST', `/work/admin/jobs/${job.id}/cancel`, { token: 'tok-admin', body: { reason: '다시' } })).status, 409);
+  assert.equal(db.tables.work_job_events.filter((e) => e.type === 'assignment_auto_declined').length, 1);
 });
 
 test('작업 취소 — done 전만, 취소된 작업에는 보고 · 승인 409', async () => {
@@ -753,7 +813,7 @@ test('표가 아직 없으면 — 목록은 빈 결과, /work/me 는 { ready:fal
   for (const t of ['workers', 'worker_invites', 'worker_notes', 'work_jobs', 'work_applications', 'work_assignments', 'work_updates', 'work_job_events']) db.missing.add(t);
   const me = await call('GET', '/work/me', { token: 'tok-w1' });
   assert.equal(me.status, 200);
-  assert.deepEqual(me.data, { ready: false, worker: null, counts: { open: 0, mine: 0, revision: 0, newEvents: 0 } });
+  assert.deepEqual(me.data, { ready: false, worker: null, counts: { open: 0, mine: 0, revision: 0, newEvents: 0 }, next_job: null });
   for (const tab of ['open', 'mine', 'done']) {
     const r = await call('GET', `/work/jobs?tab=${tab}`, { token: 'tok-w1' });
     assert.deepEqual([r.status, r.data.items], [200, []], tab);
@@ -779,4 +839,257 @@ test('작업 만들기 — 초안 · 금액 기본 숨김 · 주소 칸은 받�
   assert.equal((await call('POST', `/work/admin/jobs/${r.data.id}/close`, { token: 'tok-admin' })).status, 409, 'done 이 아니면 마감 불가');
   const list = await call('GET', '/work/admin/jobs?status=open', { token: 'tok-admin' });
   assert.deepEqual([list.data.items[0].applications, list.data.items[0].confirmed, list.data.items[0].slots], [0, 0, 2]);
+});
+
+// ── 1주차 후속 (2026-10-20) ──────────────────────────────────────
+
+const iso = (ms) => new Date(ms).toISOString();
+const DAY = 86400000;
+
+test('다음 작업 고르기 (순수) — 보완요청 먼저, 아니면 KST 오늘 이후 가장 이른 시작일, 아니면 첫 줄 (mypage-work.js 와 같은 규칙)', () => {
+  const NOW = Date.parse('2026-10-20T03:00:00Z'); // KST 10/20 12:00
+  const card = (id, startsAt, status = 'confirmed') => ({ id, starts_at: startsAt, my: { assignment_status: status } });
+  const past = card('past', '2026-10-19T01:00:00Z');
+  const earlyToday = card('today', '2026-10-19T15:30:00Z'); // KST 10/20 00:30 — 오늘이라 아직 다음 작업
+  const lateYesterday = card('yday', '2026-10-19T14:30:00Z'); // KST 10/19 23:30 — 어제
+  const later = card('later', '2026-10-25T00:00:00Z');
+  const soon = card('soon', '2026-10-22T00:00:00Z');
+  const undated = card('none', null);
+  assert.equal(pickNextJob([past, later, soon, undated], NOW).id, 'soon');
+  assert.equal(pickNextJob([lateYesterday, earlyToday, later], NOW).id, 'today');
+  assert.equal(pickNextJob([past, later, card('rev', '2026-10-30T00:00:00Z', 'revision')], NOW).id, 'rev');
+  assert.equal(pickNextJob([later, card('rev2', null, 'revision')], NOW).id, 'rev2', '보완요청은 날짜가 없어도 먼저');
+  assert.equal(pickNextJob([past, lateYesterday, undated], NOW).id, 'past', '날짜가 다 지났거나 없으면 첫 줄');
+  assert.equal(pickNextJob([undated], NOW).id, 'none');
+  assert.equal(pickNextJob([], NOW), null);
+  assert.equal(pickNextJob(null, NOW), null);
+});
+
+test('/work/me next_job — 내 작업 중 다음 작업 한 장 (JobCard), 읽음 처리(last_seen_at)는 건드리지 않는다', async () => {
+  const now = Date.now();
+  const pastJob = await makeJob({ title: '지난 날짜', starts_at: iso(now - 3 * DAY) });
+  const farJob = await makeJob({ title: '먼 날짜', starts_at: iso(now + 6 * DAY) });
+  const nearJob = await makeJob({ title: '가까운 날짜', mode: 'invite', starts_at: iso(now + 2 * DAY), pay_amount: PAY, pay_unit: 'day', pay_visible: false, order_id: ORDER });
+  const undatedJob = await makeJob({ title: '날짜 없음' });
+  await assign(pastJob, 'tok-w1');
+  await assign(farJob, 'tok-w1');
+  await call('POST', `/work/admin/jobs/${nearJob.id}/invite`, { token: 'tok-admin', body: { worker_id: W1 } });
+  await assign(undatedJob, 'tok-w1');
+  const callsBefore = db.calls.length;
+
+  let me = await call('GET', '/work/me', { token: 'tok-w1' });
+  assert.equal(me.status, 200);
+  assert.equal(me.data.next_job.id, nearJob.id, '오늘 이후 가장 이른 시작일 (초대도 내 작업)');
+  assert.deepEqual([me.data.next_job.title, me.data.next_job.my.assignment_status, me.data.next_job.effective_status], ['가까운 날짜', 'offered', 'open']);
+  assert.equal('pay' in me.data.next_job, false, 'pay_visible=false 면 금액 없음');
+  assert.deepEqual(findForbiddenKeys(me.body, { allowPhoneAt: ['$.data.worker'] }), []);
+  assert.ok(!JSON.stringify(me.data.next_job).includes(CUSTOMER_NAME) && !JSON.stringify(me.data.next_job).includes('DD-TEST-1'), '카드에는 주문 정보가 없다');
+  // 읽음 처리 없음 — workers 를 고치는 요청이 없고 last_seen_at 은 그대로
+  assert.equal(rowOf('workers', W1).last_seen_at, null);
+  assert.equal(db.calls.slice(callsBefore).some((c) => c.method !== 'GET' && c.url.includes('/rest/v1/workers')), false);
+  assert.equal(me.data.counts.newEvents > 0, true, '새 소식은 그대로 남는다');
+
+  // 같은 규칙을 내 작업 탭 순서에 적용한 것과 같다
+  const mine = await call('GET', '/work/jobs?tab=mine', { token: 'tok-w1' });
+  assert.deepEqual(mine.data.items.map((j) => j.id), [pastJob.id, nearJob.id, farJob.id, undatedJob.id], '시작일 오름차순, 없는 것은 뒤');
+  assert.equal(pickNextJob(mine.data.items).id, me.data.next_job.id);
+
+  // 보완요청이 있으면 그것이 먼저
+  const revJob = await makeJob({ title: '보완 작업', starts_at: iso(now + 9 * DAY) });
+  const revAsg = await assign(revJob, 'tok-w1');
+  await call('POST', `/work/assignments/${revAsg.id}/start`, { token: 'tok-w1' });
+  await call('POST', `/work/assignments/${revAsg.id}/updates`, { token: 'tok-w1', body: { kind: 'result', body: '끝' } });
+  await call('POST', `/work/admin/assignments/${revAsg.id}/revision`, { token: 'tok-admin', body: { reason: '사진 부족' } });
+  me = await call('GET', '/work/me', { token: 'tok-w1' });
+  assert.equal(me.data.next_job.id, revJob.id);
+
+  // 내 작업이 없으면 null, 작업자가 아니면 null
+  assert.equal((await call('GET', '/work/me', { token: 'tok-w2' })).data.next_job, null);
+  assert.equal((await call('GET', '/work/me', { token: 'tok-pend' })).data.next_job, null);
+  assert.equal((await call('GET', '/work/me', { token: 'tok-cust' })).data.next_job, null);
+});
+
+test('/work/me next_job — 앞날 작업이 없으면 내 작업 탭 첫 줄 (지난 시작일 중 가장 이른 것)', async () => {
+  const now = Date.now();
+  const a = await makeJob({ title: '나흘 전', starts_at: iso(now - 4 * DAY) });
+  const b = await makeJob({ title: '이틀 전', starts_at: iso(now - 2 * DAY) });
+  const c = await makeJob({ title: '날짜 없음' });
+  await assign(b, 'tok-w1');
+  await assign(c, 'tok-w1');
+  await assign(a, 'tok-w1');
+  const me = await call('GET', '/work/me', { token: 'tok-w1' });
+  assert.equal(me.data.next_job.id, a.id);
+});
+
+test('정지된 작업자 — 모집중 · 신청 · 초대 수락만 403(문구), 지난 기록 · 진행 중인 일 정리는 된다', async () => {
+  const applied = await makeJob({ title: '신청만 한 작업' });
+  const appliedForApprove = await makeJob({ title: '승인 대기 신청' });
+  const confirmed = await makeJob({ title: '확정 작업', starts_at: iso(Date.now() + 2 * DAY) });
+  const toRelease = await makeJob({ title: '포기할 작업' });
+  const invited = await makeJob({ mode: 'invite', title: '초대 작업' });
+  const invited2 = await makeJob({ mode: 'invite', title: '거절할 초대' });
+  const fresh = await makeJob({ title: '새 작업' });
+
+  const app = await call('POST', `/work/jobs/${applied.id}/apply`, { token: 'tok-w2', body: {} });
+  const app2 = await call('POST', `/work/jobs/${appliedForApprove.id}/apply`, { token: 'tok-w2', body: {} });
+  const asg = await assign(confirmed, 'tok-w2');
+  const asgRelease = await assign(toRelease, 'tok-w2');
+  const offer = await call('POST', `/work/admin/jobs/${invited.id}/invite`, { token: 'tok-admin', body: { worker_id: W2 } });
+  const offer2 = await call('POST', `/work/admin/jobs/${invited2.id}/invite`, { token: 'tok-admin', body: { worker_id: W2 } });
+
+  const sus = await call('PATCH', `/work/admin/workers/${W2}`, { token: 'tok-admin', body: { status: 'suspended' } });
+  assert.equal(sus.data.status, 'suspended');
+
+  // /work/me — 요약은 보이고 모집중은 0
+  const me = await call('GET', '/work/me', { token: 'tok-w2' });
+  assert.equal(me.status, 200);
+  assert.equal(me.data.worker.status, 'suspended');
+  assert.deepEqual([me.data.counts.open, me.data.counts.mine], [0, 4]);
+  assert.equal(me.data.next_job.id, confirmed.id);
+
+  // 막음 — 라우트마다 문구
+  const open = await call('GET', '/work/jobs?tab=open', { token: 'tok-w2' });
+  assert.deepEqual([open.status, open.body.message], [403, '정지된 계정은 새 작업을 볼 수 없습니다']);
+  const noTab = await call('GET', '/work/jobs', { token: 'tok-w2' });
+  assert.equal(noTab.status, 403, 'tab 없음 = open');
+  const apply = await call('POST', `/work/jobs/${fresh.id}/apply`, { token: 'tok-w2', body: {} });
+  assert.deepEqual([apply.status, apply.body.message], [403, '정지된 계정은 새 작업에 신청할 수 없습니다']);
+  const confirm = await call('POST', `/work/assignments/${offer.data.id}/confirm`, { token: 'tok-w2' });
+  assert.deepEqual([confirm.status, confirm.body.message], [403, '정지된 계정은 새 작업을 수락할 수 없습니다']);
+  assert.equal(rowOf('work_assignments', offer.data.id).status, 'offered');
+  assert.equal(db.tables.work_applications.filter((a) => a.job_id === fresh.id).length, 0);
+  // 모집중 열람 경로 없음 — 내 신청 · 배정이 없는 작업은 404
+  assert.equal((await call('GET', `/work/jobs/${fresh.id}`, { token: 'tok-w2' })).status, 404);
+
+  // 허용 — 지난 기록
+  const mine = await call('GET', '/work/jobs?tab=mine', { token: 'tok-w2' });
+  assert.equal(mine.status, 200);
+  assert.deepEqual(mine.data.items.map((j) => j.id).sort(), [confirmed.id, toRelease.id, invited.id, invited2.id].sort());
+  assert.equal((await call('GET', '/work/jobs?tab=done', { token: 'tok-w2' })).status, 200);
+  const detailApplied = await call('GET', `/work/jobs/${applied.id}`, { token: 'tok-w2' });
+  assert.deepEqual([detailApplied.status, detailApplied.data.my.application_status], [200, 'applied'], '내 신청이 있는 작업');
+  const detail = await call('GET', `/work/jobs/${confirmed.id}`, { token: 'tok-w2' });
+  assert.deepEqual([detail.status, detail.data.my.assignment_status], [200, 'confirmed'], '내 배정이 있는 작업');
+  // 허용 — 진행 중인 일 정리
+  assert.equal((await call('POST', `/work/applications/${app.data.id}/withdraw`, { token: 'tok-w2' })).data.status, 'withdrawn');
+  assert.equal((await call('POST', `/work/assignments/${offer2.data.id}/decline`, { token: 'tok-w2', body: { reason: '일정 겹침' } })).data.status, 'declined');
+  assert.equal((await call('POST', `/work/assignments/${asgRelease.id}/release`, { token: 'tok-w2', body: { reason: '개인 사정' } })).data.status, 'released');
+  assert.equal((await call('POST', `/work/assignments/${asg.id}/start`, { token: 'tok-w2' })).data.status, 'started');
+  assert.equal((await call('POST', `/work/assignments/${asg.id}/updates`, { token: 'tok-w2', body: { kind: 'progress', body: '설치 중' } })).status, 201);
+  assert.equal((await call('POST', `/work/assignments/${asg.id}/updates`, { token: 'tok-w2', body: { kind: 'result', body: '설치 끝' } })).status, 201);
+  assert.equal(rowOf('work_assignments', asg.id).status, 'submitted');
+
+  // 정지 작업자의 응답에도 금지 키 없음
+  for (const r of [me.body, mine.body, detail.body, detailApplied.body]) {
+    assert.deepEqual(findForbiddenKeys(r, { allowPhoneAt: ['$.data.worker'] }), [], JSON.stringify(r));
+  }
+
+  // 관리자 — 정지 작업자에게 초대 · 신청 승인은 409
+  const inv = await call('POST', `/work/admin/jobs/${fresh.id}/invite`, { token: 'tok-admin', body: { worker_id: W2 } });
+  assert.deepEqual([inv.status, inv.body.message], [409, '정지된 작업자는 배정할 수 없습니다']);
+  const appr = await call('POST', `/work/admin/applications/${app2.data.id}/approve`, { token: 'tok-admin', body: {} });
+  assert.deepEqual([appr.status, appr.body.message], [409, '정지된 작업자는 배정할 수 없습니다']);
+  assert.equal(rowOf('work_applications', app2.data.id).status, 'applied');
+
+  // 다시 승인하면 모집중이 열린다
+  await call('PATCH', `/work/admin/workers/${W2}`, { token: 'tok-admin', body: { status: 'approved' } });
+  assert.equal((await call('GET', '/work/jobs?tab=open', { token: 'tok-w2' })).status, 200);
+  assert.equal((await call('POST', `/work/assignments/${offer.data.id}/confirm`, { token: 'tok-w2' })).data.status, 'confirmed');
+});
+
+test('대기 · 반려 · 미등록 — 지난 기록 라우트도 403 (그대로)', async () => {
+  const job = await makeJob();
+  await call('PATCH', `/work/admin/workers/${WP}`, { token: 'tok-admin', body: { status: 'rejected', reject_reason: '서류 미비' } });
+  for (const tok of ['tok-pend', 'tok-cust']) {
+    for (const tab of ['open', 'mine', 'done']) assert.equal((await call('GET', `/work/jobs?tab=${tab}`, { token: tok })).status, 403, `${tok} ${tab}`);
+    assert.equal((await call('GET', `/work/jobs/${job.id}`, { token: tok })).status, 403, tok);
+    assert.equal((await call('POST', `/work/applications/${ORDER}/withdraw`, { token: tok })).status, 403, tok);
+    for (const p of ['decline', 'release', 'start', 'updates']) {
+      assert.equal((await call('POST', `/work/assignments/${ORDER}/${p}`, { token: tok, body: { reason: 'x', kind: 'progress', body: 'x' } })).status, 403, `${tok} ${p}`);
+    }
+  }
+});
+
+test('관리자 작업자 목록 — active_count(응답 대기 · 확정 · 진행 · 보고 · 보완) · done_count', async () => {
+  const j1 = await makeJob({ title: '확정' });
+  await assign(j1, 'tok-w1');
+  const j2 = await makeJob({ mode: 'invite', title: '초대' });
+  await call('POST', `/work/admin/jobs/${j2.id}/invite`, { token: 'tok-admin', body: { worker_id: W1 } });
+  const j3 = await makeJob({ kind: 'assembly', title: '조립 끝' });
+  const a3 = await assign(j3, 'tok-w1');
+  await call('POST', `/work/assignments/${a3.id}/start`, { token: 'tok-w1' });
+  await call('POST', `/work/assignments/${a3.id}/updates`, { token: 'tok-w1', body: { kind: 'result', body: '끝' } });
+  const j4 = await makeJob({ mode: 'invite', title: '거절' });
+  const o4 = await call('POST', `/work/admin/jobs/${j4.id}/invite`, { token: 'tok-admin', body: { worker_id: W1 } });
+  await call('POST', `/work/assignments/${o4.data.id}/decline`, { token: 'tok-w1', body: {} });
+  const j5 = await makeJob({ title: '진행' });
+  const a5 = await assign(j5, 'tok-w1');
+  await call('POST', `/work/assignments/${a5.id}/start`, { token: 'tok-w1' });
+
+  const list = await call('GET', '/work/admin/workers', { token: 'tok-support' });
+  const byId = new Map(list.data.items.map((w) => [w.id, w]));
+  assert.deepEqual([byId.get(W1).active_count, byId.get(W1).done_count], [3, 1], 'confirmed · offered · started = 3, declined 은 빼고, accepted 는 실적');
+  assert.deepEqual([byId.get(W2).active_count, byId.get(W2).done_count], [0, 0]);
+  assert.deepEqual([byId.get(WP).active_count, byId.get(WP).done_count], [0, 0]);
+});
+
+test('작업자 이력 (worker_events) — 공개 신청 · 초대 가입 · 상태 변경(반려 사유) · 종류 변경, 개인정보 없음, 409 는 한국어 상태 이름', async () => {
+  const reg = await call('POST', '/work/register', { token: 'tok-cust', body: { display_name: '시험신청', phone: '010-0000-0009', kinds: ['install'], region_label: '시험시', consent_version: 'v1' } });
+  assert.equal(reg.status, 201);
+  const inv = await call('POST', '/work/admin/invites', { token: 'tok-admin', body: { kinds_preset: ['as'], display_name_preset: '시험초대', expires_at: '2099-01-01T00:00:00Z' } });
+  const claim = await call('POST', '/work/claim-invite', { token: 'tok-new', body: { token: inv.data.url.split('#invite=')[1], consent_version: 'v1' } });
+  assert.equal(claim.status, 201);
+
+  await call('PATCH', `/work/admin/workers/${reg.data.id}`, { token: 'tok-admin', body: { status: 'approved' } });
+  await call('PATCH', `/work/admin/workers/${reg.data.id}`, { token: 'tok-admin', body: { kinds: ['install', 'as'] } });
+  await call('PATCH', `/work/admin/workers/${reg.data.id}`, { token: 'tok-admin', body: { kinds: ['as', 'install'] } }); // 같은 종류 — 이력 없음
+  await call('PATCH', `/work/admin/workers/${claim.data.id}`, { token: 'tok-admin', body: { status: 'rejected', reject_reason: '활동 지역 밖' } });
+
+  const rows = (id) => db.tables.worker_events.filter((e) => e.worker_id === id).map((e) => [e.type, e.actor_kind, e.actor_user_id, e.from_status, e.to_status, e.note, e.payload]);
+  assert.deepEqual(rows(reg.data.id), [
+    ['registered', 'worker', CUSTOMER, null, 'pending', null, { via: 'public' }],
+    ['status_changed', 'admin', ADMIN, 'pending', 'approved', null, {}],
+    ['kinds_changed', 'admin', ADMIN, null, null, null, { kinds: ['install', 'as'] }],
+  ]);
+  assert.deepEqual(rows(claim.data.id), [
+    ['registered', 'worker', NEWBIE, null, 'pending', null, { via: 'invite', invite_id: inv.data.id }],
+    ['status_changed', 'admin', ADMIN, 'pending', 'rejected', '활동 지역 밖', {}],
+  ]);
+  const all = JSON.stringify(db.tables.worker_events);
+  for (const bad of ['시험신청', '시험초대', '010-0000-0009', '시험시']) assert.ok(!all.includes(bad), bad);
+
+  // 상태 변경 409 — 한국어 상태 이름
+  const no = await call('PATCH', `/work/admin/workers/${reg.data.id}`, { token: 'tok-admin', body: { status: 'rejected' } });
+  assert.deepEqual([no.status, no.body.message], [409, "'승인' 상태에서 '반려'(으)로 바꿀 수 없습니다"]);
+  const no2 = await call('PATCH', `/work/admin/workers/${claim.data.id}`, { token: 'tok-admin', body: { status: 'approved' } });
+  assert.equal(no2.body.message, "'반려' 상태에서 '승인'(으)로 바꿀 수 없습니다");
+  await call('PATCH', `/work/admin/workers/${reg.data.id}`, { token: 'tok-admin', body: { status: 'suspended' } });
+  const no3 = await call('PATCH', `/work/admin/workers/${reg.data.id}`, { token: 'tok-admin', body: { status: 'rejected' } });
+  assert.equal(no3.body.message, "'정지' 상태에서 '반려'(으)로 바꿀 수 없습니다");
+  assert.equal(db.tables.worker_events.filter((e) => e.worker_id === reg.data.id).length, 4, '막힌 변경은 이력이 없다');
+});
+
+test('GET /work/admin/workers/:id/events — 최근순, support 도 읽는다, 고객 403 · 없는 작업자 404 · 잘못된 id 422 · 표가 없으면 빈 목록', async () => {
+  await call('PATCH', `/work/admin/workers/${WP}`, { token: 'tok-admin', body: { status: 'approved' } });
+  await tick();
+  await call('PATCH', `/work/admin/workers/${WP}`, { token: 'tok-admin', body: { kinds: ['install', 'as'] } });
+  db.tables.worker_events.push({ id: randomUUID(), worker_id: W1, actor_kind: 'admin', type: 'status_changed', from_status: 'pending', to_status: 'approved', payload: {}, created_at: '2020-01-01T00:00:00.000Z' });
+
+  const r = await call('GET', `/work/admin/workers/${WP}/events`, { token: 'tok-support' });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.data.items.map((e) => e.type), ['kinds_changed', 'status_changed'], '최근순, 이 작업자 것만');
+  assert.equal(r.headers.get('Cache-Control'), 'no-store, private');
+  assert.equal((await call('GET', `/work/admin/workers/${WP}/events`, { token: 'tok-admin' })).status, 200);
+  assert.equal((await call('GET', `/work/admin/workers/${WP}/events`, { token: 'tok-cust' })).status, 403);
+  assert.equal((await call('GET', `/work/admin/workers/${WP}/events`, { token: 'tok-w1' })).status, 403);
+  assert.equal((await call('GET', `/work/admin/workers/${ORDER}/events`, { token: 'tok-admin' })).status, 404);
+  assert.equal((await call('GET', '/work/admin/workers/not-a-uuid/events', { token: 'tok-admin' })).status, 422);
+  assert.deepEqual((await call('GET', `/work/admin/workers/${W2}/events`, { token: 'tok-admin' })).data.items, [], '기록 없음');
+
+  // 표가 아직 없으면 — 읽기는 빈 목록, 쓰기(가입 · 상태 변경)는 경고만 남기고 계속
+  db.missing.add('worker_events');
+  assert.deepEqual((await call('GET', `/work/admin/workers/${WP}/events`, { token: 'tok-admin' })).data.items, []);
+  const reg = await call('POST', '/work/register', { token: 'tok-cust', body: { display_name: '시험신청', kinds: ['install'], consent_version: 'v1' } });
+  assert.equal(reg.status, 201);
+  assert.equal((await call('PATCH', `/work/admin/workers/${reg.data.id}`, { token: 'tok-admin', body: { status: 'approved' } })).status, 200);
 });

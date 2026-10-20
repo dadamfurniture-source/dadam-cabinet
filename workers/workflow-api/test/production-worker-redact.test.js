@@ -7,6 +7,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import worker from '../src/worker.js';
 import { buildJobs, summarizeMonth } from '../src/production/service.js';
 import { planProduction } from '../src/production/planner.js';
@@ -187,4 +189,14 @@ test('대표 쪽은 그대로 — 계획 주문 이름은 실명, 제안 문구�
   assert.ok(proposal.includes(NAME));
   const month = summarizeMonth([{ ...ORDERS[0], ordered_at: '2026-10-12T00:00:00Z', contract_amount: 1100000 }], new Map(), { month: '2026-10', overheadMonthly: 0 });
   assert.equal(month.rows[0].label, `${NAME} (SO-1)`);
+});
+
+test('공장 작업자 화면 "다른 작업 기록" 예시 — 고객 이름 대신 주문번호(orders.js buildOrderNo 모양) + 품목 (1주차 후속 F)', () => {
+  const html = readFileSync(fileURLToPath(new URL('../../../production-worker.html', import.meta.url)), 'utf8');
+  const m = /<input id="freeLabel" placeholder="([^"]*)"/.exec(html);
+  assert.ok(m, 'freeLabel 입력칸');
+  assert.match(m[1], /^예: SO-\d{8}-[0-9A-F]{4} 싱크대 /, '주문번호 SO-YYYYMMDD-XXXX + 품목');
+  // 어떤 예시 문구도 사람 이름(김OO 등)을 적게 유도하지 않는다
+  const placeholders = [...html.matchAll(/placeholder="([^"]*)"/g)].map((x) => x[1]);
+  for (const p of placeholders) assert.doesNotMatch(p, /[가-힣]O{2}|[가-힣]○○|고객/, p);
 });

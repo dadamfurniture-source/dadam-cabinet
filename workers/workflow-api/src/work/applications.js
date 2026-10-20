@@ -6,7 +6,7 @@
  */
 
 import { ConflictError, NotFoundError, insertOne, restDelete, selectOne, updateBy } from '../supabase.js';
-import { assertMine, requireAdminEditor, requireApprovedWorker } from './access.js';
+import { assertAssignable, assertMine, requireAdminEditor, requireApprovedWorker, requireWorker } from './access.js';
 import { recordEvent, recordJobStatusChange } from './events.js';
 import { computeJobStatus, countFilled, loadJob, loadJobAssignments, lockJob } from './jobs.js';
 import { notifyWork } from './notify.js';
@@ -23,14 +23,14 @@ async function loadApplication(env, id) {
 
 // ── 작업자 ───────────────────────────────────────────────────────
 
-/** POST /work/jobs/:id/apply — 모집 중 · 마감 전 · 내 종류인 공개 모집 작업에만 */
+/** POST /work/jobs/:id/apply — 모집 중 · 지원 종료일 전 · 내 종류인 공개 모집 작업에만. 정지된 작업자는 403 */
 export async function applyToJob(env, { user, params, body, ctx }) {
   const jobId = assertUuid(params.id, '작업 id');
-  const worker = await requireApprovedWorker(env, user);
+  const worker = await requireApprovedWorker(env, user, 'apply');
   const message = optText(body && body.message, 300, '메시지');
   const job = await loadJob(env, jobId);
   if (job.status !== 'open' || job.mode !== 'open') throw new ConflictError('모집 중인 작업이 아닙니다');
-  if (effectiveStatus(job) !== 'open') throw new ConflictError('신청 마감이 지났습니다');
+  if (effectiveStatus(job) !== 'open') throw new ConflictError('지원 종료일이 지났습니다');
   if (!(worker.kinds || []).includes(job.kind)) throw new ConflictError('내 작업 종류와 맞지 않는 작업입니다');
   const dup = await selectOne(env, 'work_applications', { job_id: `eq.${jobId}`, worker_id: `eq.${worker.id}`, select: 'id' });
   if (dup) throw new ConflictError('이미 신청한 작업입니다');
@@ -50,10 +50,10 @@ export async function applyToJob(env, { user, params, body, ctx }) {
   return workerApplication(app);
 }
 
-/** POST /work/applications/:id/withdraw — 대기(applied) 신청만 */
+/** POST /work/applications/:id/withdraw — 대기(applied) 신청만 (정지된 작업자도 정리할 수 있다) */
 export async function withdrawApplication(env, { user, params, ctx }) {
   const id = assertUuid(params.id, '신청 id');
-  const worker = await requireApprovedWorker(env, user);
+  const worker = await requireWorker(env, user);
   const app = assertMine(await selectOne(env, 'work_applications', { id: `eq.${id}`, select: '*' }), worker, '신청');
   if (app.status !== 'applied') throw new ConflictError('대기 중인 신청만 철회할 수 있습니다');
   const rows = await updateBy(env, 'work_applications', { id: `eq.${id}`, status: 'eq.applied' }, { status: 'withdrawn' });
@@ -81,8 +81,7 @@ export async function approveApplication(env, { user, params, body }) {
   if (app.status !== 'applied') throw new ConflictError('대기 중인 신청만 승인할 수 있습니다');
   const job = await loadJob(env, app.job_id);
   if (!['open', 'filled', 'in_progress'].includes(job.status)) throw new ConflictError('모집 · 진행 중인 작업에서만 승인할 수 있습니다');
-  const worker = await selectOne(env, 'workers', { id: `eq.${app.worker_id}`, select: 'id,status,display_name' });
-  if (!worker || worker.status !== 'approved') throw new ConflictError('승인된 작업자의 신청이 아닙니다');
+  const worker = assertAssignable(await selectOne(env, 'workers', { id: `eq.${app.worker_id}`, select: 'id,status,display_name' }));
   const all = await loadJobAssignments(env, job.id);
   if (countFilled(all) >= job.slots) throw new ConflictError('정원이 찼습니다');
   if (all.some((a) => a.worker_id === worker.id && ACTIVE_STATUSES.includes(a.status))) throw new ConflictError('이미 배정된 작업자입니다');

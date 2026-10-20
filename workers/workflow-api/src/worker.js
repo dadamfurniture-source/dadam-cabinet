@@ -112,7 +112,7 @@ import {
   getCalibration,
   applyCalibration,
 } from './production/worker-access.js';
-import { getMe, registerWorker, listWorkersAdmin, patchWorkerAdmin, listWorkerNotes, addWorkerNote } from './work/workers.js';
+import { getMe, registerWorker, listWorkersAdmin, patchWorkerAdmin, listWorkerNotes, addWorkerNote, listWorkerEvents } from './work/workers.js';
 import { createInvite, claimInvite } from './work/invites.js';
 import {
   listJobsForWorker,
@@ -824,7 +824,8 @@ const router = createRouter([
   { method: 'GET',   path: '/reports/:reportId/print',   auth: 'jwt', handler: handlePrintReport },
   { method: 'POST',  path: '/admin/reports/backfill',    auth: 'jwt', handler: handleBackfillReports },
 
-  // 작업자 포털 — 작업자 (호출자의 workers 행이 approved 여야 한다. /work/me · register · claim-invite 는 예외)
+  // 작업자 포털 — 작업자 (호출자의 workers 행이 approved 또는 suspended. /work/me · register · claim-invite 는 예외)
+  //   정지(suspended)는 모집중 목록 · 신청 · 초대 수락만 403 — 지난 기록 · 진행 중인 일 정리는 된다 (src/work/access.js)
   { method: 'GET',   path: '/work/me',                                auth: 'jwt', handler: workRoute(getMe) },
   { method: 'POST',  path: '/work/register',                          auth: 'jwt', handler: workRoute(registerWorker, 201) },
   { method: 'POST',  path: '/work/claim-invite',                      auth: 'jwt', handler: workRoute(claimInvite, 201) },
@@ -857,6 +858,7 @@ const router = createRouter([
   { method: 'PATCH', path: '/work/admin/workers/:id',                 auth: 'jwt', handler: workRoute(patchWorkerAdmin) },
   { method: 'GET',   path: '/work/admin/workers/:id/notes',           auth: 'jwt', handler: workRoute(listWorkerNotes) },
   { method: 'POST',  path: '/work/admin/workers/:id/notes',           auth: 'jwt', handler: workRoute(addWorkerNote, 201) },
+  { method: 'GET',   path: '/work/admin/workers/:id/events',          auth: 'jwt', handler: workRoute(listWorkerEvents) },
   { method: 'POST',  path: '/work/admin/invites',                     auth: 'jwt', handler: workRoute(createInvite, 201) },
 
   { method: 'GET',  path: '/public/production/today',                          auth: 'none', handler: handleWorkerToday },
