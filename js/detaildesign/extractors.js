@@ -36,6 +36,9 @@
       const WardrobeRules = (typeof DadamWardrobeRules !== 'undefined') ? DadamWardrobeRules
         : (typeof require === 'function' ? require('./bom-wardrobe-rules.js') : null);
       /** 붙박이장 기본값 — 규칙 파일이 정본. 없으면(구형 로드) 문서값으로 버틴다. */
+      // 2026-10-20: 밥솥장 규칙 — js/detaildesign/bom-rice-cabinet-rules.js (플래너와 같은 파일, 오픈장 규칙 다음에 싣는다).
+      const RiceRules = (typeof DadamRiceCabinetRules !== 'undefined') ? DadamRiceCabinetRules
+        : (typeof require === 'function' ? require('./bom-rice-cabinet-rules.js') : null);
       const WR_DEFAULTS = (WardrobeRules && WardrobeRules.WARDROBE_RULES)
         || { DEFAULT_D: 620, DEFAULT_H: 2310, PEDESTAL_H: 60, MOLDING_H: 20 };
 
@@ -678,7 +681,8 @@
             //   모듈 타입이라 싱크대에도 붙박이장에도 수납장에도 붙을 수 있는데, 규칙(18T MDF)은
             //   어디 붙든 같다. 카테고리 추출기에 그대로 넘기면 그쪽 규칙(PB 몸통·도어·선반)으로
             //   한 번 더 산출돼 한 상자가 두 벌 나간다.
-            const catItem = this.extractOpenCabinets(item, materials, prefix);
+            // 2026-10-20: 밥솥장도 같은 이유로 먼저 걷어낸다 (상자는 오픈장 규칙 + 도어 한 장).
+            const catItem = this.extractRiceCabinets(this.extractOpenCabinets(item, materials, prefix), materials, prefix);
 
             switch (category) {
               case 'sink':
@@ -1252,6 +1256,40 @@
 
           // 원본은 건드리지 않는다 — 호출자(extract)가 같은 item 을 다른 곳에서도 읽는다.
           return Object.assign({}, item, { modules: mods.filter((m) => !R.isOpenCabinet(m)) });
+        }
+
+        // ========================================
+        // 2026-10-20: 밥솥장 (bom-rice-cabinet-rules.js — 사장님 확정: 오픈장 + 슬라이딩 선반, 도어 여닫이·포켓·리프트)
+        //   상자 = 오픈장 부재 그대로 (18T MDF 측판 2 · 천지판 2 · 뒷판 1). 천지판 비고에 슬라이딩 선반 [확인 필요].
+        //   도어 = 규칙 파일 doorOf (W − 4) × (H − 4), 도어 종류를 비고에 적는다. 철물은 HardwareExtractor 가 doorType 으로 낸다.
+        //   밥솥장 모듈을 뺀 item 을 돌려준다 (extractOpenCabinets 와 같은 이유).
+        // ========================================
+        extractRiceCabinets(item, materials, prefix = '') {
+          const R = RiceRules;
+          const mods = (item && item.modules) || [];
+          if (!R || !mods.length) return item;
+          const rice = mods.filter((m) => R.isRiceCabinet(m));
+          if (!rice.length) return item;
+
+          rice.forEach((mod, i) => {
+            const dims = { W: Number(mod.w) || 0, H: Number(mod.h) || 0, D: Number(mod.d) || 0 };
+            const name = `${prefix}${R.RULES.LABEL}${rice.length > 1 ? ` ${i + 1}` : ''}`;
+            const parts = R.partsOf(dims);
+            if (!parts.length) {
+              dlog(`[BOM] 밥솥장 ${mod.id || name} 치수가 규칙을 못 채운다:`, dims, R.warningsOf(dims));
+              return;
+            }
+            parts.forEach((p) => {
+              this.add(materials, name, p.part, p.material, p.t, p.w, p.h, p.qty, p.edge, p.note || '', mod);
+            });
+            const door = R.doorOf(dims, mod.doorType || 'none');
+            if (door) {
+              const note = `밥솥장 ${door.name} 도어` + (door.note ? ` — ${door.note}` : '');
+              this.add(materials, name, '도어', 'MDF', 18, door.w, door.h, door.qty, '4면', note, mod);
+            }
+          });
+
+          return Object.assign({}, item, { modules: mods.filter((m) => !R.isRiceCabinet(m)) });
         }
 
         // ========================================
@@ -2362,10 +2400,14 @@
             if (bomIsMaidaModule(mod)) return;
             let doorCount = mod.doorCount || 0;
             let simpleDoorH = null;
+            // 2026-10-20: 밥솥장 — 도어 수·높이는 자재 행과 같은 규칙 파일 doorOf (카테고리 규칙을 타지 않는다)
+            const riceDoor = (RiceRules && RiceRules.isRiceCabinet(mod))
+              ? (RiceRules.doorOf({ W: mod.w, H: mod.h }, mod.doorType || 'none') || { qty: 0 }) : null;
+            if (riceDoor) doorCount = riceDoor.qty;
             // B4: 붙박이장 통 · 냉장고장 모듈은 자재 도어 행과 같은 수·높이
-            const wardrobeDoor = bomWardrobeDoorOf(item, mod) || bomFridgeDoorOf(item, mod);
+            const wardrobeDoor = riceDoor ? null : (bomWardrobeDoorOf(item, mod) || bomFridgeDoorOf(item, mod));
             if (wardrobeDoor) doorCount = wardrobeDoor.count;
-            if (simpleRules && (mod.pos === 'upper' || mod.pos === 'lower')) {
+            if (!riceDoor && simpleRules && (mod.pos === 'upper' || mod.pos === 'lower')) {
               const d = bomSimpleHingeDoorsOf(mod, specs);
               doorCount = d.count;
               simpleDoorH = d.doorH;
@@ -2390,6 +2432,7 @@
             else if (mod.pos === 'lower') doorH = (mod.h || (specs.lowerH || 870) - (parseFloat(specs.topThickness) || 12) - (parseFloat(specs.sinkLegHeight) || 150)) - 30;
             else doorH = mod.h || 700;
             if (simpleDoorH !== null) doorH = simpleDoorH; // B3 서랍장 여닫이 도어 — 자재 행의 hingeDoorH
+            if (riceDoor) doorH = riceDoor.h;
             if (wardrobeDoor) doorH = wardrobeDoor.h;
 
             // 2026-10-13: 위로 여는 도어(플랩) — 경첩이 천판 쪽에 달려 도어 **폭** 변을 따라 보링하고 가스쇼바 2 가 붙는다
