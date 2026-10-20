@@ -282,7 +282,8 @@ async function setStep(env, job, ck, step, extra = {}) {
   });
 }
 
-export { roomPhotoSha256 }; // 2026-10-20 room-photo.js 로 옮겼다 — 예전 import 자리
+// roomPhotoSha256 은 2026-10-20 room-photo.js 로 옮겼다 (re-export 는 두지 않는다 — __tests__/wall-manual-plumbing.test.js 의
+//   loadEsm 이 import 를 지우고 export 접두사만 벗겨 평가하므로 `export { x }` 가 참조 오류가 된다).
 
 /**
  * 같은 사용자의 같은 방 사진 행들의 분석 (2026-10-20, 플래너 모드).
