@@ -46,6 +46,9 @@ describe('냉장고장 BOM — 플래너 모듈은 싱크대 규칙', () => {
     const side = r.materials.find((m) => m.part === '측판' && /상부장/.test(m.module));
     expect(side).toBeTruthy();
     expect([side.w, side.h]).toEqual([670, 355]);
+    expect(side.note).toContain('[확인 필요] 냉장고 위 상부장 깊이');
+    // 키큰장 측판에는 붙지 않는다
+    expect(r.materials.filter((m) => m.part === '측판' && /키큰장/.test(m.module)).every((m) => !/냉장고 위/.test(m.note || ''))).toBe(true);
     expect(r.materials[0].itemLabel).toBe('냉장고장');
   });
 
