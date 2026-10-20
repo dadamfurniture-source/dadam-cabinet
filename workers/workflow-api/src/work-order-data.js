@@ -108,6 +108,21 @@ export function isDoorClass(row) {
   return partClassOf(row && row.part) === '도어';
 }
 
+/**
+ * 밥솥장·홈카페장의 MDF 18T 몸통 — 재단은 외주, 조립은 사내 (2026-10-20 사장님 "재단 외주, 조립 사내").
+ * 사내 재단 시트·라벨 묶음에서 빼고 「MDF 18T 재단 외주」 목록으로 낸다. 도어 행은 원래대로 도어재 발주서.
+ * 외주처는 정해지지 않았다 — 종이에 업체 이름을 적지 않는다. 견적은 이 판을 이미 외주 장수(MDF 15T 이상)로 센다.
+ */
+export const OUTSOURCED_CUT_MODULE = /밥솥장|홈카페장/;
+export function isOutsourcedCutRow(row) {
+  if (!row || isDoorClass(row)) return false;
+  return (
+    String(row.material || '').toUpperCase() === 'MDF' &&
+    Number(row.thickness) >= 15 &&
+    OUTSOURCED_CUT_MODULE.test(String(row.module || ''))
+  );
+}
+
 /** 재단 조각 id `partId#k` → 자재 행 partId (partId 자체에 '#' 이 있을 수 있어 마지막 '#' 을 뗀다). */
 export function pieceBaseId(pieceId) {
   const s = String(pieceId || '');

@@ -4,12 +4,16 @@
  * 플래너에서 뽑은 실제 행 모양(partId·비고)을 줄여 담았다.
  *   1. 스냅샷은 철물을 bom_payload 가 아니라 hardware_payload 에 둔다 — 견적·생산 작업량이 철물을 읽어야 한다 (사장님 카드 10/20 14:11 「넣기」).
  *   2. 재단 지시서(사내·외주)에 부재 비고(따내기 · [확인 필요])가 나와야 재단 기사가 본다.
+ *   3. 밥솥장·홈카페장 MDF 18T 몸통은 재단 외주, 조립 사내 (사장님 10/20 14:13 "재단 외주, 조립 사내").
+ *   4. 도어교체 견적에는 '기존 철거' 줄이 없다 (사장님 카드 10/20 「철거 빼기」).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createSnapshot } from '../src/snapshots.js';
 import { workloadFromSnapshot, bomWithHardware } from '../src/production/workload.js';
-import { renderWorkOrder } from '../src/templates/work-order.js';
+import { renderWorkOrder, labelGroups } from '../src/templates/work-order.js';
+import { isOutsourcedCutRow } from '../src/work-order-data.js';
+import { calculateSheetQuote } from '../src/quote-sheet.js';
 import * as fx from './fixtures/work-order-v2.js';
 
 // 플래너 BOM 그대로의 행 (아일랜드 측판 · EL장 측판 · 밥솥장 MDF 18T 상자)
@@ -228,4 +232,192 @@ test('재단·엣지 지시서(배치 있음) — 시트별 부재 표에 비고
   const html = renderWorkOrder(fx.doc(), snap, { toolbar: false, pack: 'cut' });
   assert.ok(html.includes(esc(ISLAND_NOTE)));
   assert.ok(html.includes('<th>비고</th>') || html.includes('>비고<'));
+});
+
+// ── 3. MDF 18T 몸통 재단 외주 ─────────────────────────────────────
+
+test('isOutsourcedCutRow — 밥솥장·홈카페장의 MDF 15T 이상 몸통만 (도어·PB·다른 모듈의 MDF 18T 는 아니다)', () => {
+  const rice = materials().find((m) => m.module === '밥솥장' && m.part === '측판');
+  assert.equal(isOutsourcedCutRow(rice), true);
+  assert.equal(isOutsourcedCutRow({ ...rice, module: '홈카페장', part: '선반' }), true);
+  assert.equal(isOutsourcedCutRow({ ...rice, part: '도어' }), false, '도어는 도어재 발주서');
+  assert.equal(isOutsourcedCutRow({ ...rice, material: 'PB', thickness: 15 }), false);
+  assert.equal(
+    isOutsourcedCutRow({ ...rice, module: 'EP', part: '휠라(좌)' }),
+    false,
+    '휠라는 그대로'
+  );
+  assert.equal(
+    isOutsourcedCutRow({ ...rice, module: '하부장-하부장', part: '뒷판', thickness: 3 }),
+    false
+  );
+  assert.equal(isOutsourcedCutRow(null), false);
+});
+
+test('재단 지시서 — 밥솥장 MDF 18T 몸통은 사내 재단 목록에서 빠지고 「MDF 18T 재단 외주」 목록에 나온다', () => {
+  const snap = fx.snapshot({
+    bom_payload: { materials: materials() },
+    hardware_payload: { hardware: hardware() },
+    cut_plan_payload: null,
+  });
+  const doc = fx.doc({ render_payload: { ...fx.doc().render_payload, cut_plan: null } });
+  const html = renderWorkOrder(doc, snap, { toolbar: false, pack: 'cut' });
+  const at = html.indexOf('MDF 18T 재단 외주');
+  assert.ok(at > 0, '외주 목록 제목');
+  assert.ok(html.includes('입고 후 사내 조립'));
+  assert.ok(html.indexOf('0-planner-tall-1-rice-body:side-0') > at, '밥솥장 측판은 외주 목록에만');
+  assert.ok(html.indexOf('0-planner-tall-0-el-body:side-0') < at, 'EL장 PB 측판은 사내 목록');
+  // 조립은 사내 — 조립 지시서에는 그대로 남는다
+  const asm = renderWorkOrder(doc, snap, { toolbar: false, pack: 'assembly' });
+  assert.ok(asm.includes('밥솥장'));
+});
+
+test('재단 지시서(배치 있음) — 외주 조각만 든 원판은 사내 원판 수에서 빠진다', () => {
+  const mats = materials();
+  const plan = {
+    version: 1,
+    sheetSize: { w: 1220, h: 2440 },
+    kerf: 4,
+    trim: 10,
+    sheets: [
+      {
+        no: 1,
+        material: 'PB',
+        thickness: 15,
+        partClass: '본체',
+        size: { w: 1220, h: 2440 },
+        parts: [
+          {
+            partId: '0-planner-lower-0-0-body:side-0#0',
+            part: '측판',
+            w: 550,
+            h: 708,
+            x: 10,
+            y: 10,
+          },
+          {
+            partId: '0-planner-lower-0-0-body:side-0#1',
+            part: '측판',
+            w: 550,
+            h: 708,
+            x: 570,
+            y: 10,
+          },
+          {
+            partId: '0-planner-tall-0-el-body:side-0#0',
+            part: '측판',
+            w: 620,
+            h: 801,
+            x: 10,
+            y: 730,
+          },
+          {
+            partId: '0-planner-tall-0-el-body:side-0#1',
+            part: '측판',
+            w: 620,
+            h: 801,
+            x: 10,
+            y: 1540,
+          },
+        ],
+      },
+      {
+        no: 2,
+        material: 'MDF',
+        thickness: 18,
+        partClass: '본체',
+        size: { w: 1220, h: 2440 },
+        parts: [
+          {
+            partId: '0-planner-tall-1-rice-body:side-0#0',
+            part: '측판',
+            w: 620,
+            h: 801,
+            x: 10,
+            y: 10,
+          },
+          {
+            partId: '0-planner-tall-1-rice-body:side-0#1',
+            part: '측판',
+            w: 620,
+            h: 801,
+            x: 10,
+            y: 820,
+          },
+          {
+            partId: '0-planner-tall-1-rice-part:천지판-0#0',
+            part: '천지판',
+            w: 564,
+            h: 600,
+            x: 640,
+            y: 10,
+          },
+          {
+            partId: '0-planner-tall-1-rice-part:천지판-0#1',
+            part: '천지판',
+            w: 564,
+            h: 600,
+            x: 640,
+            y: 620,
+          },
+        ],
+      },
+      {
+        no: 3,
+        material: 'MDF',
+        thickness: 18,
+        partClass: '도어',
+        size: { w: 1220, h: 2440 },
+        parts: [
+          { partId: '0-planner-lower-0-0-door#0-0#0', part: '도어', w: 476, h: 678, x: 10, y: 10 },
+          { partId: '0-planner-lower-0-0-door#0-0#1', part: '도어', w: 476, h: 678, x: 500, y: 10 },
+        ],
+      },
+    ],
+    offcuts: [],
+    smallParts: [],
+    unallocated: [],
+    summary: { sheetsByMaterial: { PB_15: 1, MDF_18: 2 }, sheetCount: 3 },
+  };
+  const snap = fx.snapshot({ bom_payload: { materials: mats }, cut_plan_payload: plan });
+  const doc = fx.doc({ render_payload: { ...fx.doc().render_payload, cut_plan: plan } });
+  const html = renderWorkOrder(doc, snap, { toolbar: false, pack: 'cut' });
+  assert.ok(html.includes('사내 원판 1장'), '시트 #2(밥솥장만)는 사내에서 자르지 않는다');
+  assert.ok(!html.includes('<b>시트 #2</b>'));
+  assert.ok(!html.includes('배치에 없는 부재'), '외주 행을 "배치에 없음" 으로 다시 띄우지 않는다');
+  assert.ok(html.includes('MDF 18T 재단 외주'));
+});
+
+test('라벨 — 사내 재단 → MDF 18T 재단 외주 → 도어재 순서', () => {
+  const g = labelGroups(materials());
+  assert.equal(g.outsourced.length, 4, '밥솥장 측판 2 + 천지판 2');
+  assert.ok(g.outsourced.every((u) => u.row.module === '밥솥장'));
+  assert.ok(g.inHouse.every((u) => u.row.module !== '밥솥장'));
+  assert.equal(g.door.length, 2);
+});
+
+// ── 4. 도어교체 철거 줄 ────────────────────────────────────────────
+
+test('도어교체 견적 — 기존 철거 줄 없음, 시공 줄은 그대로. 다른 품목은 철거 그대로', () => {
+  const doorOnly = {
+    materials: [{ part: '도어', material: 'MDF', thickness: 18, w: 596, h: 735, qty: 1 }],
+    hardware: [],
+  };
+  const mods = [
+    { pos: 'upper', w: 600, h: 735 },
+    { pos: 'lower', w: 600, h: 720 },
+  ];
+  const q = calculateSheetQuote({
+    design: { items: [{ categoryId: 'door', labelName: '도어교체', modules: mods }] },
+    bom: doorOnly,
+    cutPlan: null,
+  });
+  assert.ok(!q.items.some((i) => /철거/.test(i.name)), q.items.map((i) => i.name).join(', '));
+  assert.ok(q.items.some((i) => /^시공/.test(i.name)));
+  const sink = calculateSheetQuote({
+    design: { items: [{ categoryId: 'sink', labelName: '싱크대', modules: mods }] },
+    bom: doorOnly,
+    cutPlan: null,
+  });
+  assert.ok(sink.items.some((i) => /철거/.test(i.name)));
 });
