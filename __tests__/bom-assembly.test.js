@@ -166,9 +166,25 @@ describe('sink15 자리 (확정 사실)', () => {
     expect(s0.box.min[1]).toBeLessThan(s1.box.min[1]);
   });
 
-  test('미정은 unplaced 에 이유와 함께 — 밴드 자리 · 서랍장 처짐방지목(D2)', () => {
+  // 2026-10-20 사장님 "뒤 눕힘, 두께는 몸통과 같게": 하부장 밴드 2장 (70 × W−2T, T) 은 천판 대신 상단 앞·뒤에 눕는다.
+  //   앞 밴드는 목찬넬 ㄴ자 지면판 바로 아래 (따내기 70 아래, 처짐방지목 윗끝이 닿는다), 뒤 밴드는 윗면 = 몸통 상단, 뒤끝.
+  test('하부장 밴드 — 앞은 목찬넬 지면판 아래, 뒤는 상단 뒤끝, 둘 다 눕혀서 측판 사이', () => {
+    const m = mod('l3');
+    const bands = m.parts.filter((p) => p.part === '밴드');
+    expect(bands.map((p) => [p.box, p.t, p.tags.end])).toEqual([
+      [{ min: [-435, 708 - 70 - 15, 275 - 70], max: [435, 708 - 70, 275] }, 15, 'front'],
+      [{ min: [-435, 708 - 15, -275], max: [435, 708, -275 + 70] }, 15, 'back'],
+    ]);
+    expect(part(m, '밴드(처짐방지)').box.max[1]).toBe(bands[0].box.min[1]);   // 처짐방지목 윗끝 = 앞 밴드 아랫면
+    expect(spec.unplaced.filter((u) => u.part === '밴드')).toEqual([]);
+    // 목찬넬이 없는 하부장(신발장) — 앞 밴드도 윗면 = 몸통 상단
+    const sh = specOf('shoerack').spec.items[0].modules.find((x) => x.moduleId === 'l1');
+    expect(sh.parts.filter((p) => p.part === '밴드').map((p) => [p.box.min[1], p.box.max[1], p.box.min[2], p.box.max[2]]))
+      .toEqual([[693, 708, 105, 175], [693, 708, -175, -105]]);
+  });
+
+  test('미정은 unplaced 에 이유와 함께 — 서랍장 처짐방지목(D2)', () => {
     const reasons = (id) => spec.unplaced.filter((u) => u.rowPartId.indexOf(`0-${id}-`) === 0);
-    expect(reasons('l3').filter((u) => u.part === '밴드').map((u) => u.reason)).toEqual(['band-position-pending']);
     expect(reasons('u1').filter((u) => u.part === '밴드(보강목)')).toEqual([]);
     expect(reasons('l2').find((u) => u.part === '밴드(처짐방지)').reason).toBe('pending-owner D2');
     // 중간 따내기는 서랍 레이아웃이 자리를 정한다 (아래 l2 시험) — 더는 pending 이 아니다
@@ -401,9 +417,9 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
     expect(s.unplaced.filter((u) => /칸막이/.test(u.part))).toEqual([]);
   });
 
-  test('아직 자리를 안 정한 행은 이유와 함께 — 서랍모듈 밴드', () => {
+  test('외부 서랍 통은 못 놓은 행이 없다', () => {
     const reasons = (id) => [...new Set(spec.unplaced.filter((u) => u.moduleKey === `0-${id}`).map((u) => u.reason))].sort();
-    expect(reasons('w2')).toEqual(['band-position-pending']);
+    expect(reasons('w2')).toEqual([]);
     expect(spec.unplaced.filter((u) => u.part === '도어')).toEqual([]);
     expect(spec.unplaced.filter((u) => /^좌대 (전후|측|중간보강)$/.test(u.part))).toEqual([]);
   });
@@ -476,6 +492,14 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
     expect(w2.parts.filter((p) => p.part === '서랍밑판').map((p) => [p.cut.w, p.cut.h, p.box.max[1]])).toEqual(y0s.map((y) => [857, 489, y]));
     expect(w2.parts.filter((p) => p.part === '서랍 하단보강')).toHaveLength(n);
     expect(s.unplaced.filter((u) => u.moduleKey === '0-w2' && /^서랍/.test(u.part))).toEqual([]);
+    // 서랍모듈 밴드 2장 — 2026-10-20 사장님 "뒤 눕힘" (하부장과 같다): 앞은 상단 ㄴ자 지면판 바로 아래 (따내기 70 아래),
+    //   뒤는 윗면 = 몸통 상단, 사쿠리 홈 앞 (천지판처럼 −282). 둘 다 눕혀서 측판 사이, 두께는 몸통 15.
+    const top = n * 350;
+    expect(w2.parts.filter((p) => p.part === '밴드').map((p) => [p.box, p.tags.end])).toEqual([
+      [{ min: [-435, top - 70 - 15, 230], max: [435, top - 70, 300] }, 'front'],
+      [{ min: [-435, top - 15, -282], max: [435, top, -212] }, 'back'],
+    ]);
+    expect(s.unplaced.filter((u) => u.moduleKey === '0-w2')).toEqual([]);
     expect(require('../js/detaildesign/assembly-check.js').check(s).issues.filter((i) => i.level === 'error')).toEqual([]);
   });
 
@@ -497,7 +521,8 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
     expect(inner('내부서랍 좌우몰딩')).toEqual([{ min: [-435, 15, 215], max: [-375, 15 + H, 230] }, { min: [375, 15, 215], max: [435, 15 + H, 230] }]);
     expect(inner('측판')).toEqual([{ min: [-375, 15, -275], max: [-360, 15 + H, 215] }, { min: [360, 15, -275], max: [375, 15 + H, 215] }]);
     expect(inner('상판')).toEqual([{ min: [-435, 15 + H, 230 - 512], max: [435, 30 + H, 230] }]);
-    expect(inner('밴드').map((p) => [p.min[1], p.max[1], p.min[2], p.max[2]])).toEqual([[H - 55, 15 + H, 200, 215], [H - 55, 15 + H, -275, -260]]);
+    // 밴드 — 2026-10-20 사장님 "뒤 눕힘": 천판 대신 상단 앞·뒤에 눕는다 (70 이 앞뒤), 윗면 = 모듈 상단, 그 위 상판
+    expect(inner('밴드').map((p) => [p.min[1], p.max[1], p.min[2], p.max[2]])).toEqual([[H, 15 + H, 215 - 70, 215], [H, 15 + H, -275, -205]]);
     // 박스 — 카드 "싱크 규칙 바닥+30": 측판 밑단 = 서랍 자리 바닥(맨 아래는 지판 윗면 30, 그 위는 도어 아랫단) + 30, 앞끝 = 모듈 앞선 215
     expect(w2.parts.filter((p) => p.part === '서랍측판' && p.tags.side === 'left').map((p) => p.box))
       .toEqual(spans.map(([a], i) => (i === 0 ? 30 : a) + 30).map((y) => ({ min: [-354, y, -225], max: [-339, y + 180, 215] })));
