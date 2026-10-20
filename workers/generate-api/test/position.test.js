@@ -17,6 +17,7 @@ import crypto from 'node:crypto';
 import encodeJpeg from 'jpeg-js/lib/encoder.js';
 import {
   POSITION_ITEMS,
+  POSITION_VERSION,
   capRecord,
   cropScale,
   derive,
@@ -858,6 +859,212 @@ test('채점: 플래너 ok 는 자유 끝(줄 오른끝)이 판정됐을 때만 
   assert.notEqual(txt.ok, undefined);
 });
 
+// ─── 덩어리 끝 대조 run_right_place (v3) — 가상 방의 투영으로 ck.place.ref 를 합성한다 (plannerPlaceRef 와 같은 꼴) ───
+/** 칠할 수 있는 specA (하부 높이·천장 기준) — 런 2200 · 하부 깊이 650 */
+const placeSpecA = () => ({ ...specA(), sections: { ...specA().sections, lower: { ...specA().sections.lower, heightMm: 870 } }, ceilingMm: 2400 });
+/** 가상 방 → ref. 하부 줄 [X0, X1](도면 mm Xd0·Xd1), 깊이, 벽 모서리 [wl, wr] (장면 X), 소실점은 장면의 +X 방향 */
+function sceneRef(s, { X0 = 0, X1 = 2200, Xd0 = 0, Xd1 = 2200, depth = 650, wall = [0, 3000], top = 880 } = {}) {
+  const pt = (X, h, z, Xmm) => {
+    const [x, y] = s.proj(X, h, z);
+    return { x: Math.round((x / s.W) * 1e4) / 100, y: Math.round((y / s.H) * 1e4) / 100, ...(Xmm !== undefined ? { X: Xmm } : {}) };
+  };
+  const far = s.proj(1e9, top, 0)[0]; // +X 방향 소실점 (정면이면 폭의 5배 밖 → null)
+  const vx = Math.abs(far / s.W - 0.5) < 5 ? Math.round((far / s.W) * 1e4) / 100 : null;
+  return { w: s.W, h: s.H, bl: pt(X0, top, 0, Xd0), br: pt(X1, top, 0, Xd1), fl: pt(X0, top, depth, Xd0), fr: pt(X1, top, depth, Xd1), wl: pt(wall[0], top, 0), wr: pt(wall[1], top, 0), vx };
+}
+/** 장면 점 — 줄은 [0, run], 벽은 [0, 3000] (WR 은 줄 끝이 아니라 벽 끝) */
+function placeScene(yawDeg, run = 2200, extra = {}) {
+  const s = scene({ yawDeg, X0: 0, X1: 3000, ...extra });
+  const L = {
+    ...s.L,
+    CBL: s.P(0, 880, 0), CBR: s.P(run, 880, 0), CFL: s.P(0, 880, 650), CFR: s.P(run, 880, 650),
+    SINK_B: s.P(1800, 880, 100), K_BL: undefined, K_BR: undefined, K_FL: undefined, K_FR: undefined, HL: undefined, HR: undefined, U1: undefined, U2: undefined,
+  };
+  return { s, L };
+}
+const placeInput = (ref, extra = {}) => ({
+  category: 'sink', options: { mode: 'planner', design_spec: placeSpecA() }, wall: { wallW: 3000, wallH: 2400, confidence: 'medium' },
+  place: { cam: { xL: 0, xR: 3000 }, ...(ref ? { ref } : {}) }, placeBlocks: plannerPlaceBlocks(placeSpecA()), provider: 'openai', ...extra,
+});
+const ON = { POSITION_ALARM_ROUTES: 'text_pct,planner,planner_place' };
+
+test('덩어리 끝 대조: 정답 = ref.br.X(도면 mm), 제자리면 d≈0 · 줄을 +400 늘리면 경보(+부호·σ ≤ 75)·run_right_wall 은 place_frame · 경보 경로 밖이면 shadow', () => {
+  for (const yaw of [0, 18, -12]) {
+    const { s, L } = placeScene(yaw);
+    const ref = sceneRef(s);
+    assert.equal(ref.vx == null, yaw === 0, `vx ${ref.vx}`);
+    const E = positionExpected('planner_place', placeInput(ref));
+    assert.equal(E.mm.run_right_place, 2200);
+    assert.equal(E.placeSide, 'right');
+    assert.equal(E.hold.run_right_place, undefined);
+    const r = judge({ input: placeInput(ref), L, env: ON });
+    assert.equal(r.measured.hold.run_right_place, undefined, JSON.stringify(r.measured.hold));
+    near(r.measured.mm.run_right_place, 2200, 3, `yaw ${yaw}`);
+    assert.equal(r.measured.place.fm, 'same');
+    assert.equal(r.measured.place.side, 'right');
+    near(r.measured.place.d_back_pp, 0, 0.05);
+    near(r.measured.place.d_front_pp, 0, 0.05);
+    near(r.measured.place.wl_d, 0, 0.05);
+    assert.ok(r.measured.sd.run_right_place >= 55 && r.measured.sd.run_right_place <= 75, `σ ${r.measured.sd.run_right_place}`);
+    assert.equal(r.measured.img.CFR, Math.round(L.CFR.x * 10) / 10);
+    assert.ok(!r.alerts.some((a) => a.k === 'run_right_place'));
+    // 줄 끝을 +400 (뒤·앞 둘 다) — 같은 부호, |d| 작은 쪽
+    const far = { ...L, CBR: s.P(2600, 880, 0), CFR: s.P(2600, 880, 650) };
+    const rf = judge({ input: placeInput(ref), L: far, env: ON });
+    const a = rf.alerts.find((x) => x.k === 'run_right_place');
+    assert.ok(a, JSON.stringify(rf.alerts));
+    near(a.d, 400, 5, `yaw ${yaw}`);
+    assert.equal(a.thr, 300);
+    assert.ok(a.sd <= 75 && a.sd >= 55, `σ ${a.sd}`);
+    assert.equal(a.edge, false);
+    near(rf.measured.place.d_back, 400, 5);
+    near(rf.measured.place.d_front, 400, 5);
+    assert.ok(rf.measured.place.d_back_pp > 0);
+    assert.equal(rf.measured.hold.run_right_wall, 'place_frame', '벽 % 줄 끝은 기록만');
+    assert.ok(!rf.alerts.some((x) => x.k === 'run_right_wall'));
+    assert.equal(rf.ok, false);
+    // 경보 경로 밖(기본) — shadow 에만, 벽 % 줄 끝은 place_frame 이라 shadow 에 없다
+    const sh = judge({ input: placeInput(ref), L: far });
+    assert.equal(sh.ok, null);
+    assert.deepEqual(sh.alerts, []);
+    assert.ok(sh.shadow.includes('run_right_place'), JSON.stringify(sh.shadow));
+    assert.ok(!sh.shadow.includes('run_right_wall'));
+  }
+});
+
+test('덩어리 끝 대조: 오른쪽 앵커(ㄱ자 corner main)면 자유 끝은 왼쪽 — 정답 ref.bl.X, CBL·CFL 대 bl·fl, side left, 왼쪽으로 늘리면 d<0', () => {
+  const sr = placeCornerSpec('right', 'main'); // 주벽 하부 0~2400, rightMm 2400 · span 3000 → 칠 좌표 X = 600 + x
+  const pr = plannerPlaceBlocks(sr, { corners: true });
+  const s = scene({ yawDeg: 10, X0: 0, X1: 3000 });
+  const ref = sceneRef(s, { X0: 600, X1: 3000, Xd0: 0, Xd1: 2400, depth: 600 });
+  const L = { ...s.L, CBL: s.P(600, 880, 0), CBR: s.P(3000, 880, 0), CFL: s.P(600, 880, 600), CFR: s.P(3000, 880, 600), SINK_B: s.P(2400, 880, 100), K_BL: undefined, K_BR: undefined, K_FL: undefined, K_FR: undefined, HL: undefined, HR: undefined };
+  const input = { category: 'sink', options: { mode: 'planner', design_spec: sr }, wall: { wallW: 3000, wallH: 2400, confidence: 'medium' }, place: { cam: { xL: 0, xR: 3000 }, ref }, placeBlocks: pr, provider: 'openai' };
+  const E = positionExpected('planner_place', input);
+  assert.equal(E.placeSide, 'left');
+  assert.equal(E.mm.run_right_place, 0);
+  assert.equal(E.hold.run_right_place, undefined, 'place_corner 는 벽 % 사유 — 이 항목에는 없다');
+  const r = judge({ input, L, env: ON });
+  assert.equal(r.measured.place.side, 'left');
+  assert.equal(r.measured.hold.run_right_place, undefined, JSON.stringify(r.measured.hold));
+  near(r.measured.mm.run_right_place, 0, 3);
+  assert.equal(r.measured.hold.run_left_wall, 'place_corner', '벽 % 는 그대로 place_corner');
+  assert.equal(r.freeEnd, undefined);
+  assert.equal(r.ok, true, JSON.stringify({ alerts: r.alerts, hold: r.measured.hold }));
+  const far = judge({ input, L: { ...L, CBL: s.P(200, 880, 0), CFL: s.P(200, 880, 600) }, env: ON });
+  const a = far.alerts.find((x) => x.k === 'run_right_place');
+  assert.ok(a, JSON.stringify(far.alerts));
+  near(a.d, -400, 5);
+  assert.equal(far.ok, false);
+});
+
+test('덩어리 끝 대조: 틀 보류 — 공급자가 openai 가 아니거나 기본안이 가로로 더 넓으면 frame(값은 기록), 세로로 더 길면 fit_width 판정', () => {
+  const { s, L } = placeScene(18);
+  const ref = sceneRef(s);
+  const g = judge({ input: placeInput(ref, { provider: 'gemini' }), L, env: ON });
+  assert.equal(g.measured.hold.run_right_place, 'frame');
+  assert.equal(g.measured.place.fm, 'same');
+  near(g.measured.mm.run_right_place, 2200, 3, '값은 기록');
+  const wide = judge({ input: placeInput(ref), L, W: 1600, H: 1000, env: ON }); // 1.6 > 1.333
+  assert.equal(wide.measured.hold.run_right_place, 'frame');
+  assert.equal(wide.measured.place.fm, 'frame');
+  const tall = judge({ input: placeInput(ref), L, W: 1600, H: 1600, env: ON }); // 1760² 기본안 대 1600×1481 칠 — 가로 맞춤
+  assert.equal(tall.measured.place.fm, 'fit_width');
+  assert.equal(tall.measured.hold.run_right_place, undefined, JSON.stringify(tall.measured.hold));
+  near(tall.measured.mm.run_right_place, 2200, 3);
+  // 1 % 안이면 same
+  const near1 = judge({ input: placeInput({ ...ref, w: 1600, h: 1208 }), L, env: ON });
+  assert.equal(near1.measured.place.fm, 'same');
+});
+
+test('덩어리 끝 대조: 뒤·앞 부호가 다르면 front_back 보류(값은 둘 다 기록) · 앞선 끝이 없거나 clipped 면 기존 줄 끝 사유 · 부호 같으면 |d| 작은 쪽', () => {
+  const { s, L } = placeScene(18);
+  const ref = sceneRef(s);
+  const mixed = judge({ input: placeInput(ref), L: { ...L, CBR: s.P(2500, 880, 0), CFR: s.P(1900, 880, 650) }, env: ON });
+  assert.equal(mixed.measured.hold.run_right_place, 'front_back');
+  assert.equal(mixed.measured.mm.run_right_place, undefined);
+  near(mixed.measured.place.d_back, 300, 5);
+  near(mixed.measured.place.d_front, -300, 5);
+  assert.equal(mixed.measured.hold.run_right_wall, undefined, '덩어리 대조가 보류면 벽 % 가 판정한다');
+  assert.notEqual(mixed.ok, true);
+  const noF = judge({ input: placeInput(ref), L: { ...L, CFR: undefined }, env: ON });
+  assert.equal(noF.measured.hold.run_right_place, 'run_end_missing');
+  const clip = judge({ input: placeInput(ref), L: { ...L, CFR: { ...L.CFR, flag: 'clipped' } }, env: ON });
+  assert.equal(clip.measured.hold.run_right_place, 'run_end_clipped');
+  const bad = judge({ input: placeInput(ref), L: { ...L, CFR: { x: null, y: null, flag: 'visible', bad: true } }, env: ON });
+  assert.equal(bad.measured.hold.run_right_place, 'bad_points');
+  // 뒤 +500 · 앞 +350 → d = +350 (보수적), σ 에 정의 차 75 가 들어간다
+  const cons = judge({ input: placeInput(ref), L: { ...L, CBR: s.P(2700, 880, 0), CFR: s.P(2550, 880, 650) }, env: ON });
+  const a = cons.alerts.find((x) => x.k === 'run_right_place');
+  assert.ok(a, JSON.stringify(cons.alerts));
+  near(a.d, 350, 5);
+  assert.ok(cons.measured.sd.run_right_place >= 90, `σ ${cons.measured.sd.run_right_place}`);
+  // 뒤 +350 · 앞 +250 → d = +250, 경보 아님 (둘 다 300 을 넘어야 경보)
+  const one = judge({ input: placeInput(ref), L: { ...L, CBR: s.P(2550, 880, 0), CFR: s.P(2450, 880, 650) }, env: ON });
+  assert.ok(!one.alerts.some((x) => x.k === 'run_right_place'), JSON.stringify(one.alerts));
+  near(one.measured.mm.run_right_place, 2450, 5);
+});
+
+test('덩어리 끝 대조: ref 없음(옛 행) → 항목은 no_ref 로 기록만, 정답은 칠한 하부 끝, 나머지 항목·ok 규칙은 v2 그대로', () => {
+  const { s, L } = placeScene(0);
+  const E = positionExpected('planner_place', placeInput(null));
+  assert.equal(E.hold.run_right_place, 'no_ref');
+  assert.equal(E.mm.run_right_place, 2200);
+  const r = judge({ input: placeInput(null), L, env: ON });
+  assert.equal(r.measured.hold.run_right_place, 'no_ref');
+  assert.equal(r.measured.mm.run_right_place, undefined);
+  assert.deepEqual(r.measured.place, { side: 'right' });
+  assert.equal(r.measured.hold.run_right_wall, undefined, '벽 % 줄 끝이 판정한다');
+  assert.equal(r.freeEnd, undefined);
+  assert.ok(r.ok === true || r.ok === false);
+  // 깨진 ref 도 no_ref
+  const broken = judge({ input: placeInput({ ...sceneRef(s), br: { x: 60 } }), L, env: ON });
+  assert.equal(broken.measured.hold.run_right_place, 'no_ref');
+  assert.equal(broken.expected.mm.run_right_place, 2200);
+});
+
+test('덩어리 끝 대조: ok 규칙 — 벽 끝이 occluded 라 run_right_wall 이 wall_end 여도 덩어리 대조가 판정되면 통과/불통과, 둘 다 보류면 null', () => {
+  const { s, L } = placeScene(18);
+  const ref = sceneRef(s);
+  const occ = { ...L, WR: { ...L.WR, type: 'occluded', flag: 'occluded' } };
+  const r = judge({ input: placeInput(ref), L: occ, env: ON });
+  assert.equal(r.measured.hold.run_right_wall, 'wall_end');
+  assert.equal(r.measured.hold.run_right_place, undefined, JSON.stringify(r.measured.hold));
+  assert.equal(r.ok, true, JSON.stringify(r.alerts));
+  const far = judge({ input: placeInput(ref), L: { ...occ, CBR: s.P(2700, 880, 0), CFR: s.P(2700, 880, 650) }, env: ON });
+  assert.equal(far.ok, false);
+  assert.ok(far.alerts.some((x) => x.k === 'run_right_place'));
+  // 덩어리 대조 front_back + 벽 끝 wall_end → 자유 끝 판정 없음 → ok null
+  const both = judge({ input: placeInput(ref), L: { ...occ, CBR: s.P(2500, 880, 0), CFR: s.P(1900, 880, 650) }, env: ON });
+  assert.equal(both.measured.hold.run_right_place, 'front_back');
+  assert.equal(both.ok, both.alerts.length ? false : null);
+  assert.notEqual(both.ok, true);
+  // room_changed 는 이 항목을 막지 않는다 (벽 틀을 쓰지 않는다)
+  const room = judge({ input: placeInput(ref, { qc: { ok: false, issues: ['room_changed'] } }), L, env: ON });
+  assert.equal(room.measured.hold.run_right_wall, 'room_changed');
+  assert.equal(room.measured.hold.run_right_place, undefined);
+  assert.equal(room.ok, true, JSON.stringify(room.alerts));
+});
+
+test('덩어리 끝 대조: 기록 — measured.place·img.CFL·CFR 포함 2 KB 안, 판 v 3, 넘치면 place 는 img 다음에 빠진다', () => {
+  const { s, L } = placeScene(18);
+  const ref = sceneRef(s);
+  const r = judge({ input: placeInput(ref), L: { ...L, CBR: s.P(2700, 880, 0), CFR: s.P(2650, 880, 650) }, env: ON });
+  const rec = capRecord({ v: POSITION_VERSION, route: 'planner_place', ...r, model: 'gemini-3.8-flash', calls: 2, ms: 12000, tokens: { in: 4800, out: 800 }, size: { b: [1760, 1760], r: [1600, 1481] }, provider: 'openai' });
+  const json = JSON.stringify(rec);
+  assert.ok(json.length <= 2048, `${json.length}`);
+  assert.equal(rec.cut, undefined, `잘리지 않는다 (${json.length} B)`);
+  assert.equal(rec.v, 3);
+  assert.equal(POSITION_VERSION, 3);
+  assert.ok(rec.measured.place && rec.measured.place.fm === 'same' && typeof rec.measured.place.d_back_pp === 'number');
+  assert.ok(typeof rec.measured.img.CFR === 'number' && typeof rec.measured.img.CFL === 'number');
+  assert.ok(!/https?:|key=|\/storage\/|base64/i.test(json));
+  walkNumbers(rec, (n) => assert.ok(Number.isFinite(n)));
+  const big = capRecord({ v: 3, measured: { sd: { a: 'x'.repeat(1200) }, wall_pct: { a: 'x'.repeat(1200) }, img: { a: 'x'.repeat(1200) }, place: { a: 'x'.repeat(1200) }, types: { a: 'x'.repeat(1200) } }, expected: { src: {} } });
+  assert.equal(big.measured.place, undefined);
+  assert.ok(big.measured.types, 'place 는 img 다음, types 앞');
+  assert.equal(big.cut, 4);
+});
+
 test('채점: 보류 사유 — 끝점 clipped·사진 끝, 꺾임 응답(layout), 아일랜드 위, bad_points, room_changed, 띠 없음', () => {
   const s = scene({ yawDeg: 0 });
   const spec = specA();
@@ -1023,7 +1230,7 @@ test('실행: 전체 1회 + 띠 1회 — 같은 질의(띠 문장만 더), 응�
     assert.ok(c.signal instanceof AbortSignal);
     assert.equal(c.withMeta, true);
   }
-  assert.equal(rec.v, 2);
+  assert.equal(rec.v, 3);
   assert.equal(rec.route, 'text_pct');
   assert.equal(rec.calls, 2);
   assert.equal(rec.measured.zoom, true);
@@ -1112,7 +1319,7 @@ test('positionSkipped: 재실행 기록 — 게이트 켬·주방이면 {error, 
   assert.equal(positionSkipped({}, input, 'rerun'), null);
   assert.equal(positionSkipped({ POSITION_QC: 'on' }, { ...input, category: 'wardrobe' }, 'rerun'), null);
   const r = positionSkipped({ POSITION_QC: 'on' }, input, 'rerun');
-  assert.deepEqual({ route: r.route, ok: r.ok, alerts: r.alerts, calls: r.calls, error: r.error, v: r.v }, { route: 'text_pct', ok: null, alerts: [], calls: 0, error: 'rerun', v: 2 });
+  assert.deepEqual({ route: r.route, ok: r.ok, alerts: r.alerts, calls: r.calls, error: r.error, v: r.v }, { route: 'text_pct', ok: null, alerts: [], calls: 0, error: 'rerun', v: 3 });
 });
 
 test('실행: 시간 초과(응답 없음)도 예산 안에서 timeout_1 로 풀린다', async () => {

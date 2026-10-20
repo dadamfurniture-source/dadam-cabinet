@@ -9,6 +9,8 @@
 > 판: 2026-10-20 R2(84회) 검증·코드 검토 반영본 — 기록 `v: 2`. origin/main(b42eb671 — #938 도면 덩어리 ㄱ자 `PLANNER_PLACE_CORNERS` · #941 같은 방 벽 하나·뒷벽 모서리 고정 · #944 렌즈 판정) 위로 옮김.
 > 바뀐 것: 도면 덩어리 앵커·런 틀·ㄱ자 보류(§2.3) · 덩어리 칠 자리 클램프 없음(§2.4) · 후드 세로 소실점·vz 지평선/정면 검사·vh 위치 검사·직선 2개 σ_u(§4·§5) ·
 > 깊이 비율 범위(§2.2) · 과부하 건너뛰기·재실행 기록·alarm() doneAt 가드(§3.6·§7) · 기록 2 KB 보장(§6) · R2 결과(§5.5·§9·§11)
+> 판: 2026-10-20 v3 — 도면 덩어리 경로 **덩어리 끝 대조 `run_right_place`**(§2.3, 기록 전용 · 사장님 결정) · 판정 시 `run_right_wall` 은 `place_frame` ·
+> ok 의 자유 끝 인정 · `measured.place`·`img.CFL/CFR`(§6) · 시험 7개 더함(§11.1) · 오프라인 합성 ref 재현(§11.3)
 
 ## 한 문단
 
@@ -169,6 +171,21 @@
   | `vx` | 벽 방향(+X) 소실점의 이미지 x % — 벽이 이미지 면과 평행(무한원)이면 `null` |
 
   주벽 하부 줄(`lower`)만 — ㄱ자·ㄷ자의 꺾인 줄은 없다. 하부 줄이 없는 도면(상부만·키큰장만)은 칠해도 `ref` 키가 없다. 재생 세트에 이 경로 그림이 0장이라 v1 은 측정만.
+- **덩어리 끝 대조 `run_right_place` (v3, 2026-10-20, 사장님 기록 전용 승인)** — 칠한 하부 덩어리의 **자유 끝** 대 기본안에 그린 상판 끝을
+  **같은 화면 틀에서 x % 로 직접** 견준다. 기본안은 칠한 사진(IMAGE A)을 편집한 그림이라 벽 방향 소실점을 기본안에서 다시 풀 필요가 없다 —
+  `run_right_wall` 의 보류 원인(벽 끝·σ_u, 재생 13/17)이 이 항목에는 없다. 벽 % 가 아니라 **칠 카메라의 1차원 사영**으로 mm 를 낸다.
+
+  | 요소 | 정의 |
+  |---|---|
+  | 정답 `E.mm.run_right_place` | `ref.br.X` (도면 mm, 앵커 기준·배율 s 적용 전). 오른쪽 앵커(ㄱ자 corner main 오른쪽)면 자유 끝은 왼쪽 → `ref.bl.X`. `measured.place.side` 에 `right`/`left`. `ref` 가 없으면(옛 행·하부 줄 없음) 정답은 칠한 하부 끝(`x1`/`x0`)으로 두고 **`no_ref` 보류**(기록만) |
+  | 틀 `fm` | 기본안 `size.b` 와 `ref.w·h` 의 가로세로비 차 ≤ 1 % → `same` · 기본안이 세로로 더 길면 → `fit_width`(x % 그대로 — 오프라인 6장 SIFT 정합 배율 0.986~1.005, x 오차 −0.43~+0.24 pp) · 가로로 더 넓으면 → **`frame` 보류**(가로를 자르는지 늘이는지 표본 0). 판정은 검증된 조합 **provider `openai` + same/fit_width** 에서만 — 그 밖(Gemini 등)은 `frame` 보류(값은 기록) |
+  | 측정 | `d_back_pp = CBR − ref.br.x`, `d_front_pp = CFR − ref.fr.x` (오른쪽 앵커면 `CBL − bl.x`, `CFL − fl.x`). mm: `u = vx==null ? 0 : 100/(vx−50)`(`uOfVh` 와 같은 5배 폭 클램프), `X(x) = X_l + (X_r − X_l)·sCr(x, l.x, r.x, u)/100` — 뒷선은 `bl·br`, 앞선은 `fl·fr` 로 각각. `d_back = X_back(CBR) − br.X`, `d_front = X_front(CFR) − fr.X` |
+  | 값 `d` | 뒤·앞 **둘 다 있고 부호가 같으면 \|d\| 가 작은 쪽**(보수적 — 반박 반영: 경보는 뒤·앞 둘 다 같은 부호로 300 을 넘을 때만). σ0(55 mm) 안의 값은 부호 없음(제자리 장은 뒤 +20·앞 −30 처럼 0 근처에서 갈린다). 부호가 다르면 **`front_back` 보류**(둘 다 기록). 한쪽이 없으면 기존 줄 끝 사유(`run_end_missing`·`run_end_clipped`·`bad_points`) |
+  | σ | `σ² = max(55, σ_p)² + σ_frame² + σ_def²` — σ_p 고른 쪽 점(CBR 0.47·CBL 0.15 pp, 앞선 끝은 같은 쪽 뒷선 값)을 흔든 mm · σ_frame 0.45 pp 의 mm · σ_def `\|d_front − d_back\|/2`. `sd > 150` 이면 `sd` 보류 |
+  | 쓰지 않는 보류 | `room_changed`·`place_corner`·`vh`·`wall_end` — 벽 틀을 쓰지 않는다 |
+  | 우선 | 판정되면 같은 끝의 벽 % 항목(`run_right_wall`, 오른쪽 앵커면 `run_left_wall`)은 **`place_frame` 기록만**, 그리고 ok 규칙의 **자유 끝**으로 인정(`freeEnd: run_right_place`). 보류면 벽 % 항목이 종전대로 판정 |
+  | 기록 | `measured.place = {fm, side, wl_d(WL − ref.wl.x, pp, 기록만), d_back_pp, d_front_pp, d_back, d_front}` · `measured.img` 에 `CFL`·`CFR` · 판 `v: 3` |
+  | 검증 계획 | 오프라인: 덩어리 5장 + 운영 3cb7888c 의 저장된 Flash 원응답을 **합성 ref**(칠 카메라 복원 → `plannerPlaceRef`)로 다시 채점해 `place_validate/judge.json` 정답(앞 모서리 기준 +202·+205·+297·+549·+592·+633)과 대조 → `place_validate/rrp_replay.json`. 운영: `PLANNER_PLACE_GUIDE` 켠 뒤 ≥ 20장(방 3·공급자별) 블라인드 대조에서 경계 아닌 오경보 0·재현율 ≥ 80 %·보류 ≤ 30 %(§14-11) 뒤 `planner_place` 를 경보 경로에 |
 - 반복 시험용 요청 옵션 `place_guide:false` (2026-10-20): `options.place_guide === false` 면 운영 변수가 켜져 있어도 1-d 가 칠하지 않는다
   (`placeImg` 없음 → 경로 `planner`). false 일 때만 options 에 남고 재생성은 원본 값을 잇는다 (DEPLOY.md).
 
@@ -328,6 +345,7 @@ callGemini(env, {
 | 전 경로 | `hood_cook` | 벽(text) · 런(planner) · 마스크(mock) | 150 mm | 40 |
 | planner* | `sink_wall` · `cook_wall` · `hood_wall` | 벽 | 300 | 100 · 30 · 25 |
 | planner* | `run_left_wall` · `run_right_wall` | 벽 | 300 | 20 · 70 |
+| planner_place | `run_right_place` (v3) | 칠한 덩어리 끝 — 같은 화면 틀 (§2.3) | 300 | 55 |
 | planner* | `sink_run` · `cook_run` · `hood_run` | 런 (벽 항목 판정 시 기록만) | 300 | 90 · 40 · 30 |
 | mock_kitchen | `sink_mask` · `cook_mask` · `run_left_mask` · `run_right_mask` | 마스크 | 300 | 115 · 85 · 75 · 75 |
 
@@ -367,6 +385,7 @@ callGemini(env, {
 | `on_island` | 품목 island 이고 싱크·쿡탑이 상판 앞선보다 앞(아래) — 아일랜드 위 |
 | `no_depth` | §5.2 |
 | `wall_frame` · `frames` | §2.2 벽 틀 우선 · §2.1 런 동의 |
+| `no_ref` · `frame` · `front_back` · `place_frame` (v3) | 덩어리 끝 대조(§2.3): `ck.place.ref` 없음 · 틀(가로세로비 반대·검증 안 된 공급자) · 뒤·앞 모서리 부호 불일치 · 덩어리 대조가 판정해 벽 % 줄 끝은 기록만 |
 | `sd` | σ > 문턱/2 (300 mm 항목 150, 후드 75) |
 
 ### 5.4 경계·ok·경로
@@ -457,13 +476,14 @@ callGemini(env, {
 | `measured.nz` | 띠 생략 사유 (`not_jpeg`·`big`·`crop`·`budget`·`overload`(v2)·`decode`·`parse_2`·`timeout_2`·`http_*`·`no_run`) |
 | `measured.mm` / `sd` / `hold` | 항목별 측정 mm · σ · 보류 사유 (키는 §5.1) |
 | `measured.mask_wall` | 덩어리: 칠한 벽 끝 대비 기본안 WL·WR 차 (pp) |
+| `measured.place` (v3) | 도면 덩어리: 덩어리 끝 대조 `{fm, side, wl_d, d_back_pp, d_front_pp, d_back, d_front}` (§2.3). `img` 에 `CFL`·`CFR` 도 v3 부터 |
 | `expected` | 정답 mm · 틀(`run`, `anchor`, `wallW`, `run_hold`, 덩어리 `span`·`mask_u`, 도면 덩어리 `span`·`s`·`returns`) · 출처(`src`) |
 | `calls` · `ms` · `tokens` | 보낸 호출 수(재시도 포함) · 시작~기록 ms · usage 합(`out` = candidates + thoughts) |
 | `ms_decode` · `zoom_px` | 띠 만들기 시간 · 띠 크기. **워커는 CPU 가 도는 동안 시계가 멈춘다**(I/O 에서만 흐름) — 운영 `ms_decode` 는 0 에 가깝고, CPU 는 `zoom_px`·`size` 로 Node 실측에서 환산한다 |
 | `size` | 기본안 `b`·방 사진 `r` 의 [가로, 세로] |
 | `provider` | 그린 공급자 (Gemini 가 정상으로 그려 칸에 표시가 없어도 `gemini`) |
 | `error` | 코드만 — `timeout_1`·`timeout_2`·`http_429`·`http_5xx`·`http_4xx`·`net_1`·`net_2`·`parse_1`·`parse_2`·`decode`·`budget`·`no_image`·`internal`·`timeout`(안전장치)·`skipped_overload`(v2, 호출 0)·`rerun`(v2, 알람 재실행 — 다시 재지 않음, 호출 0) |
-| `cut` | 2 KB 를 넘어 뺀 단계 수 — 빼는 순서: `sd` → `wall_pct`·`run_pct` → `img` → `types` → `expected.src` → `gate.why` → `size` → (v2) 경보 `{k, d, edge}` → 측정 `{zoom, nz, gate.ok, mm, hold}` → 정답 `{mm}` → 측정 `{zoom, nz, gate.ok}` → 경보 `{k, d}` → 정답 → 측정·shadow·tokens. 마지막까지 가면 13 항목 경보 `{k, d}` 와 머리 필드만 남아 **늘 2 KB 안** (최대 기록 시험) |
+| `cut` | 2 KB 를 넘어 뺀 단계 수 — 빼는 순서: `sd` → `wall_pct`·`run_pct` → `img` → (v3) `place` → `types` → `expected.src` → `gate.why` → `size` → (v2) 경보 `{k, d, edge}` → 측정 `{zoom, nz, gate.ok, mm, hold}` → 정답 `{mm}` → 측정 `{zoom, nz, gate.ok}` → 경보 `{k, d}` → 정답 → 측정·shadow·tokens. 마지막까지 가면 14 항목 경보 `{k, d}` 와 머리 필드만 남아 **늘 2 KB 안** (최대 기록 시험) |
 
 - 주인 `GET /api/generate/:id` 에는 `qc` 처럼 보인다(`PUBLIC_COLUMNS` 가 images 를 통째로) — 목록 API 로 손님 브라우저까지 모델·토큰·경보가 간다(키·URL·원응답은 없음).
   공유 응답·화면(label·url 만)에는 나가지 않는다. 숨기려면 worker.js 목록 응답에서 `position` 을 빼야 한다(이 PR 밖, §14).
@@ -577,7 +597,12 @@ async function runPipeline(env, job, ck, save) {
 
 ## 11. 시험·검증
 
-### 11.1 `test/position.test.js` (node --test, 62개 — v2 에서 16개 더함)
+### 11.1 `test/position.test.js` (node --test, 70개 — v2 에서 16개, v3 에서 7개 더함)
+
+v3 에서 더한 것(덩어리 끝 대조 `run_right_place`, 가상 방 투영으로 `ref` 합성): 정답 = `ref.br.X`·제자리 d≈0·+400 늘리면 경보(부호·σ 55~75)·`run_right_wall` → `place_frame`·경보 경로 밖이면 shadow(정면·사선 ±) ·
+**오른쪽 앵커**(ㄱ자 corner main — 자유 끝 왼쪽, `ref.bl.X`, side left, −400) · **틀 보류**(Gemini → frame, 가로로 넓은 기본안 → frame, 세로로 긴 1760² → fit_width 판정, 1 % 안 same) ·
+**뒤·앞 부호 불일치 front_back**(값은 둘 다 기록)·앞선 끝 없음/clipped/bad → 기존 줄 끝 사유·부호 같으면 |d| 작은 쪽(σ_def)·한쪽만 300 넘으면 경보 아님 · **ref 없음 → no_ref**(깨진 ref 포함, 정답은 칠한 하부 끝, ok 규칙은 v2) ·
+**ok 규칙**(벽 끝 occluded 여도 덩어리 대조 판정이면 true/false, 둘 다 보류면 null, room_changed 는 이 항목을 막지 않음) · **기록**(measured.place·img.CFL/CFR 2 KB 안·잘리지 않음·v 3, 넘치면 place 는 img 다음·types 앞).
 
 v2 에서 더한 것: **실제 보내는 질의 조립 전체의 해시**(전체 `b63d4b281b` · 띠 `6258986872` = 오프라인 `promptFor('gen', zoom, 'core')`) ·
 **후드 세로 소실점**(가상 방 pitch 5~20°·−10°, 정면·사선, 참 f·가정 f, 옛 계산과 비교, σ_v) · **vz 지평선·정면 검사** · **vh 위치 검사**(벽·런·후드−쿡탑 보류) ·
@@ -632,6 +657,21 @@ startPositionCheck(게이트·attach·wait·안전장치) · callGemini(기존 �
 - **R2 의 글 % 오경보 3건(0a802b7f r1·42e498eb r2·1a1b0425 r2)은 R2' 표본에서 다시 나오지 않았다**(옛 코드로도 0) — 회차 변동이다. 그 세 회차의 원응답은 저장되지 않아
   같은 응답으로 v2 효과를 잴 수는 없다. 기록된 vz 로 보면 42e498eb r2(vz y 16.2, 같은 방 vh y 약 49)는 지평선 검사에 걸리고, 0a802b7f r1(40.9)은 경계, 1a1b0425 r2(42.8)는 걸리지 않는다.
 - 운영 경보 경로의 판정 결과는 v1 과 같고, v2 의 차이는 **틀린 vz 를 버려 보류가 느는 쪽**(측정만 경로)이다.
+
+**v3 덩어리 끝 대조 재현 (API 0, `place_validate/rrp_replay.json`, 2026-10-20)** — 덩어리 5장 + 운영 3cb7888c 의 저장된 Flash 원응답 16기록.
+저장된 `place.cam` 에는 회전이 없어 칠한 `place.png` 의 면 라벨(PANEL 색 정확 일치)에 yaw·pitch·roll 을 맞춰 카메라를 복원(라벨 일치 99.96 %)하고
+`plannerPlaceRef` 로 ref 를 합성했다(마스크 모서리 대비 br·fr x 차 ≤ 0.06 pp). 정답은 `judge.json` 의 덩어리 뒤 모서리 기준 d(+202·+205·+297·+549·+592·+633).
+
+| 결과 | 값 |
+|---|---|
+| 판정 14 / 보류 2 (둘 다 `sd` — CBR 을 앞 모서리에 찍은 cc1cb1d5 r1·3cb7888c r1, σ_def 가 잡음) | 보류율 2/16 (v2 `run_right_wall` 13/17) |
+| 확실히 넘는 3장(cf5·00de·3cb) 9기록 | 경보 9/9 (+386~+538), fn 0 |
+| 안인 3장(72f·cc1·61ed) 5기록 | 오경보 0 (d +96~+195) |
+| d 대 정답 | 뒤 모서리 d_back 은 정답과 중앙 ±10 mm, 고른 값(앞 모서리, 보수적)은 정답보다 중앙 130 mm 작다 — 그린 상판 앞선이 칠한 덩어리 앞선보다 안쪽 |
+| ok | true 5 · false 9 · null 2 (v2 는 줄 끝을 못 봐 ok:true 가 위반 장에도 찍혔다) · `run_right_wall` 은 판정 3기록에서 `place_frame` |
+| 기록 크기 | 최대 1,233 B |
+
+한계: 방 1개·openai 1760² 만, 합성 ref(실제 저장 ref 0장), 정답 6장 중 3cb7888c 는 눈 판독. 운영 ≥ 20장 뒤 켠다(§14-11).
 
 ### 11.4 켜기 전 통과 기준 (경로별 — must_fix)
 
@@ -732,7 +772,8 @@ select p->>'error' as code, count(*) from b where p ? 'error' group by 1;
 
 | 항목 | 이유·다음 |
 |---|---|
-| 도면 덩어리 이미지 좌표 대조 | 선행 조건은 됨 — job.js 1-d 가 `ck.place.ref`(§2.3 표)를 저장한다 (2026-10-20). 위치 검사 쪽 `run_right_place` 항목은 아직. 재생 그림 0장이라 PLANNER_PLACE_GUIDE 켠 뒤 실제 표본 ≥ 20장을 모아 재생 |
+| 도면 덩어리 이미지 좌표 대조 — 운영 검증 | 항목 `run_right_place` 는 v3 에 들어갔다(§2.3, 기록 전용). 오프라인은 합성 ref(칠 카메라 복원)로 6장만 — 실제 `ref` 가 저장된 운영 기록은 아직 0장. PLANNER_PLACE_GUIDE 켠 뒤 ≥ 20장(방 3·Gemini/openai) 블라인드 대조(§14-11 C4) 뒤 경보 경로에 넣는다. Gemini 출력은 틀(`fm`) 근거가 없어 `frame` 보류 — 표본이 생기면 품 |
+| 덩어리 끝 대조의 앞선 끝 σ | CFL·CFR 의 블라인드 대조 자료가 없어 같은 쪽 뒷선 끝 σ(0.15·0.47 pp)를 쓴다. R3 에서 재생 점으로 잰다 |
 | 도면 덩어리 ㄱ자의 벽 기준 | v2 는 앵커·런 틀을 맞췄지만 판정은 `place_corner` 로 막았다 — 꺾인 다리 쪽 벽 끝·상판 끝을 측정 질의가 어떻게 잡는지 재생 근거가 생기면 푼다 |
 | 후드 세로 소실점의 독립 정답 | 재생 정답(융합)이 pitch 0 계산이라 v2 보정을 실제 그림으로 검증하지 못했다(§4-5). 덩어리·도면 덩어리 경로는 칠한 카메라 `cam.f` 가 있어 독립 f 로 쓸 수 있다(미구현) |
 | 후드−쿡탑 축척을 쿡탑 자체 폭으로 | 글 % 설치 문장은 쿡탑 폭을 말하지 않는다 — 폭을 가정하면 정본에 없는 규칙이 된다. 플래너(가전 widthMm)·덩어리(칠 600)만 가능 — R3 에서 필요하면 |
