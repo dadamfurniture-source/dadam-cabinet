@@ -62,9 +62,9 @@ describe('플래너 — 품목 선택 (송신측)', () => {
     expect(PICKER).toMatch(/e\.key === 'Escape'[\s\S]{0,80}setOpen\(false\)/);
   });
 
-  test('data-constants 의 카테고리 10종을 모두 노출한다', () => {
+  test('data-constants 의 카테고리 11종을 모두 노출한다', () => {
     const ids = [...CONSTANTS.matchAll(/\{ id: '([a-z]+)', name: '[^']+', defaultD/g)].map((m) => m[1]);
-    expect(ids.length).toBe(10);
+    expect(ids.length).toBe(11);
     expect(PLANNER_CATEGORY_LIST.map((c) => c.id).sort()).toEqual(ids.slice().sort());
   });
 
@@ -168,9 +168,9 @@ describe('품목 드롭다운 — 동작 (jsdom)', () => {
     expect(sent).toEqual([{ type: 'PLANNER_READY' }]);
   });
 
-  test('10종이 모두 행으로 나온다', () => {
+  test('11종이 모두 행으로 나온다', () => {
     mount();
-    expect(document.querySelectorAll('.cat-menu-row').length).toBe(10);
+    expect(document.querySelectorAll('.cat-menu-row').length).toBe(11);
     for (const cat of PLANNER_CATEGORY_LIST) {
       const btn = document.getElementById(`catBtn-${cat.id}`);
       expect(btn).not.toBeNull();
@@ -217,7 +217,7 @@ describe('품목 드롭다운 — 동작 (jsdom)', () => {
     });
     expect(again.ok).toBe(false);
     expect(again.reason).toBe('already');
-    expect(document.querySelectorAll('.cat-menu-row').length).toBe(10);
+    expect(document.querySelectorAll('.cat-menu-row').length).toBe(11);
   });
 
   test('부모 없이 단독으로 열면 통째로 숨긴다 (품목을 만들 곳이 없다)', () => {
