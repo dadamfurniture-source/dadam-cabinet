@@ -139,6 +139,13 @@ function routes(env) {
 }
 
 let firstOpenRoute = 0; // isolate 수명 동안 기억한다
+/** 2026-10-20: 모델별 마지막 과부하(429·500·503) 시각 — isolate 수명 동안. 기록 전용 위치 검사가 과부하 중에 끼어들지 않게 */
+const overloadAt = new Map();
+
+/** 이 isolate 에서 그 모델이 마지막으로 과부하를 받은 시각 (ms epoch, 없으면 0) */
+export function geminiOverloadAt(model) {
+  return overloadAt.get(model) || 0;
+}
 
 /**
  * @param {object} env
@@ -151,11 +158,16 @@ let firstOpenRoute = 0; // isolate 수명 동안 기억한다
  * @param {string}   [p.imageSize]    '1K' | '2K' | '4K' (이미지일 때만)
  * @param {string}   [p.aspectRatio]  예: '4:3' (이미지일 때만)
  * @param {number[]} [p.retryDelaysMs] 과부하 재시도 간격. 비우면 retryDelaysMs(env). 손님이 기다리는 호출은 짧게
- * @returns {Promise<{image?:string, imageMime?:string, text?:string}>}
+ * 2026-10-20 위치 검사(position.js)용 선택 인자 — 넘기지 않으면 요청·응답 모양은 예전과 한 글자도 같다:
+ * @param {object}   [p.extraConfig]   generationConfig 에 더할 키 (responseSchema · thinkingConfig · mediaResolution …)
+ * @param {boolean}  [p.noTemperature] temperature 키를 뺀다 (모델 기본값 — 오프라인 검증 조건)
+ * @param {AbortSignal} [p.signal]     호출 전체(모든 경로)에 걸 중단 신호. 없으면 경로마다 geminiTimeoutMs
+ * @param {boolean}  [p.withMeta]      thought 아닌 글 파트를 이어 붙이고 meta {usage, finish} 를 함께 돌려준다
+ * @returns {Promise<{image?:string, imageMime?:string, text?:string, meta?:object}>}
  */
 export async function callGemini(
   env,
-  { prompt, images = [], want = 'image', temperature, model, imageSize, aspectRatio, retryDelaysMs: delaysOverride }
+  { prompt, images = [], want = 'image', temperature, model, imageSize, aspectRatio, retryDelaysMs: delaysOverride, extraConfig, noTemperature, signal, withMeta }
 ) {
   const parts = images
     .filter((i) => i && i.base64 && i.mimeType)
@@ -166,11 +178,13 @@ export async function callGemini(
     responseModalities: want === 'text' ? ['TEXT'] : ['IMAGE', 'TEXT'],
     temperature: temperature ?? (want === 'text' ? 0.2 : 0.4),
   };
+  if (noTemperature) delete generationConfig.temperature;
   if (want !== 'text' && (imageSize || aspectRatio)) {
     generationConfig.imageConfig = {};
     if (imageSize) generationConfig.imageConfig.imageSize = imageSize;
     if (aspectRatio) generationConfig.imageConfig.aspectRatio = aspectRatio;
   }
+  if (extraConfig) Object.assign(generationConfig, extraConfig);
   const body = { contents: [{ parts }], generationConfig };
   const useModel = model || (want === 'text' ? textModel(env) : imageModel(env));
   const path = `/models/${useModel}:generateContent?key=${env.GEMINI_API_KEY}`;
@@ -178,8 +192,9 @@ export async function callGemini(
   const delays = delaysOverride || retryDelaysMs(env);
   for (let retry = 0; ; retry++) {
     try {
-      return await callOnce(env, path, body, want);
+      return await callOnce(env, path, body, want, signal, withMeta);
     } catch (e) {
+      if (e && e.retryable) overloadAt.set(useModel, Date.now()); // 2026-10-20 위치 검사가 본다 (geminiOverloadAt)
       // 과부하(429·500·503)만 기다렸다 다시 보낸다. 시간 초과·4xx 는 그대로 던진다 —
       //   시간 초과를 여기서 또 기다리면 잡의 10분을 다 쓴다 (잡 단위 재시도가 따로 있다).
       if (!e.retryable || retry >= delays.length) throw e;
@@ -219,10 +234,10 @@ function retryAfterMs(res) {
   return Number.isFinite(at) ? Math.max(0, at - Date.now()) : null;
 }
 
-async function callOnce(env, path, body, want) {
+async function callOnce(env, path, body, want, signal, withMeta) {
   const list = routes(env);
   for (let i = Math.min(firstOpenRoute, list.length - 1); i < list.length; i++) {
-    const res = await send(env, list[i], path, body, want);
+    const res = await send(env, list[i], path, body, want, signal);
     const text = await res.text();
     if (!res.ok) {
       if (isGeoBlock(text) && i < list.length - 1) {
@@ -238,12 +253,18 @@ async function callOnce(env, path, body, want) {
     }
     const data = JSON.parse(text);
     const out = {};
+    const texts = []; // withMeta — JSON 이 파트 여럿으로 쪼개져도 잘리지 않게 (thought 파트는 뺀다)
     for (const part of data.candidates?.[0]?.content?.parts || []) {
       if (part.inlineData) {
         out.image = part.inlineData.data;
         out.imageMime = part.inlineData.mimeType || 'image/png';
       }
       if (part.text) out.text = part.text;
+      if (part.text && !part.thought) texts.push(part.text);
+    }
+    if (withMeta) {
+      out.text = texts.join('');
+      out.meta = { usage: data.usageMetadata || null, finish: data.candidates?.[0]?.finishReason || null };
     }
     return out;
   }
@@ -264,8 +285,9 @@ export function geminiTimeoutMs(env, want = 'text') {
   return want === 'image' ? 210_000 : 150_000;
 }
 
-function send(env, route, path, body, want = 'text') {
-  const signal = AbortSignal.timeout(geminiTimeoutMs(env, want));
+function send(env, route, path, body, want = 'text', callerSignal) {
+  // 2026-10-20: 호출하는 쪽이 신호를 주면(위치 검사 — 남은 예산 하나) 경로가 바뀌어도 그 신호 하나로 끊는다
+  const signal = callerSignal || AbortSignal.timeout(geminiTimeoutMs(env, want));
   if (route === 'proxy') {
     const stub = proxyStub(env);
     if (!stub) throw new Error('GEMINI_PROXY binding missing');
