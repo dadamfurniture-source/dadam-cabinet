@@ -251,10 +251,10 @@ describe('창고장 (warehouse) — 플래너 3단 스택 · 몰딩(좌)·EP(우
 });
 
 describe('규칙표·도우미 (BOM_SIMPLE_CATEGORY_RULES)', () => {
-  test('categoryId 는 data-constants CATEGORIES 그대로 — shoerack·vanity·storage·warehouse, 기본 깊이 350·500·400·450', () => {
-    expect(Object.keys(X.BOM_SIMPLE_CATEGORY_RULES)).toEqual(['shoerack', 'vanity', 'storage', 'warehouse']);
-    expect(Object.values(X.BOM_SIMPLE_CATEGORY_RULES).map((r) => r.defaultD)).toEqual([350, 500, 400, 450]);
-    expect(Object.values(X.BOM_SIMPLE_CATEGORY_RULES).map((r) => r.label)).toEqual(['신발장', '화장대', '수납장', '창고장']);
+  test('categoryId 는 data-constants CATEGORIES 그대로 — shoerack·vanity·storage·warehouse·tvcabinet, 기본 깊이 350·500·400·450·400', () => {
+    expect(Object.keys(X.BOM_SIMPLE_CATEGORY_RULES)).toEqual(['shoerack', 'vanity', 'storage', 'warehouse', 'tvcabinet']);
+    expect(Object.values(X.BOM_SIMPLE_CATEGORY_RULES).map((r) => r.defaultD)).toEqual([350, 500, 400, 450, 400]);
+    expect(Object.values(X.BOM_SIMPLE_CATEGORY_RULES).map((r) => r.label)).toEqual(['신발장', '화장대', '수납장', '창고장', 'TV장']);
     // 플래너 프리셋 이름 'shoe' 는 품목 id 가 아니다
     expect(X.BOM_SIMPLE_CATEGORY_RULES.shoe).toBeUndefined();
   });
