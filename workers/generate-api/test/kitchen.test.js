@@ -7,6 +7,10 @@ import { inflateSync } from 'node:zlib';
 import encodeJpeg from 'jpeg-js/lib/encoder.js';
 import decodeJpeg from 'jpeg-js/lib/decoder.js';
 import {
+  LENS_FOCAL35,
+  buildLensPrompt,
+  massingFocal,
+  parseLens,
   buildKitchenPointsPrompt,
   kitchenFaces,
   parseKitchenPoints,
@@ -186,8 +190,8 @@ function fakeState() {
   } };
 }
 
-async function runJob({ existing = null, options = {}, out = null, variantOut = null, maskJson = null } = {}) {
-  const v = virtualRoom();
+async function runJob({ existing = null, options = {}, out = null, variantOut = null, maskJson = null, yawDeg, lens } = {}) {
+  const v = virtualRoom(yawDeg == null ? {} : { yawDeg });
   const roomJpeg = Buffer.from(solid(800, 1000, [150, 150, 150]).base64, 'base64');
   const seen = { claude: [], install: null, uploads: [], bodies: {}, patched: [] };
   // 이미지 응답: 기본 'OUT'(PNG 흉내). out/variantOut 을 주면 그 JPEG — 기본안은 out, 추천안은 variantOut
@@ -223,6 +227,8 @@ async function runJob({ existing = null, options = {}, out = null, variantOut = 
     if (body.generationConfig.responseModalities.length === 1) {
       const text = prompt.startsWith('Measure and describe')
         ? JSON.stringify({ wall_width_mm: 3000, wall_height_mm: 2400, confidence: 'medium', site_condition: 'finished', existing_furniture: existing })
+        : prompt.startsWith('Was this room photo taken')
+        ? ((seen.lensAsked = (seen.lensAsked || 0) + 1), JSON.stringify({ lens: lens || 'unsure', confidence: 'high' }))
         : JSON.stringify({ ok: true, issues: [], note: 'n' });
       return jsonRes({ candidates: [{ content: { parts: [{ text }] } }] });
     }
@@ -281,4 +287,48 @@ test('잡: 추천안 되붙이기는 기본안에서 다시 찾은 가구 윤곽
   const px = jpegPixels(Buffer.from(await new Response(v1).arrayBuffer()).toString('base64'));
   assert.ok(px(150, 200)[1] > 130 && px(150, 200)[0] < 60, `윤곽 안은 추천안 ${px(150, 200)}`);
   assert.ok(px(650, 800).every((c) => Math.abs(c - 128) < 8), `윤곽 밖은 기본안 ${px(650, 800)}`);
+});
+
+// ─── 렌즈 판정으로 화각 고르기 (2026-10-20 사장님 승인: 광각 13 · 표준 24) ───
+
+test('화각 고르기: EXIF 가 이기고, 없으면 분석의 렌즈 판정, 그것도 없으면 24', () => {
+  assert.deepEqual(LENS_FOCAL35, { ultra_wide: 13, standard: 24 });
+  assert.deepEqual(massingFocal(26, 'ultra_wide'), { focalMm: 26, basis: 'exif' });
+  assert.deepEqual(massingFocal(undefined, 'ultra_wide'), { focalMm: 13, basis: 'lens-ultra_wide' });
+  assert.deepEqual(massingFocal(null, 'standard'), { focalMm: 24, basis: 'lens-standard' });
+  assert.deepEqual(massingFocal(undefined, undefined), { focalMm: 24, basis: 'default' });
+  assert.deepEqual(massingFocal(5, 'unsure'), { focalMm: 24, basis: 'default' }, '말이 안 되는 EXIF 는 버린다');
+});
+
+test('정면 광각 사진: 13mm 로 풀면 벽 거리가 24mm 의 13/24 — 깊이가 제대로 선다', () => {
+  const v = virtualRoom({ yawDeg: 0 });
+  const p = parseKitchenPoints(v.json, v.size);
+  const a = solveKitchenCamera(p, v.size.width, v.size.height, { wallH: 2400, ...((m) => ({ focalMm: m.focalMm, focalBasis: m.basis }))(massingFocal(null, 'standard')) });
+  const b = solveKitchenCamera(p, v.size.width, v.size.height, { wallH: 2400, ...((m) => ({ focalMm: m.focalMm, focalBasis: m.basis }))(massingFocal(null, 'ultra_wide')) });
+  assert.equal(b.focalSource, 'lens-ultra_wide');
+  assert.ok(Math.abs(b.D / a.D - 13 / 24) < 1e-9, `${b.D} / ${a.D}`);
+  assert.ok(Math.abs(b.hf - a.hf) < 1e-6, '카메라 높이는 그대로');
+});
+
+test('잡: EXIF 없는 정면 사진은 렌즈를 따로 한 번 묻고, 광각이면 13mm 로 풀어 기록한다 · EXIF 가 있으면 묻지 않는다', async () => {
+  let seen = await runJob({ yawDeg: 0, lens: 'ultra_wide' });
+  assert.equal(seen.lensAsked, 1);
+  let wa = seen.patched.filter((p) => p.wall_analysis && p.wall_analysis.guide).at(-1);
+  assert.equal(wa.wall_analysis.guide.cam.focalSource, 'lens-ultra_wide');
+  seen = await runJob({ yawDeg: 0, lens: 'ultra_wide', options: { room_focal35: 26 } });
+  assert.equal(seen.lensAsked, undefined, 'EXIF 가 있으면 묻지 않는다');
+  wa = seen.patched.filter((p) => p.wall_analysis && p.wall_analysis.guide).at(-1);
+  assert.equal(wa.wall_analysis.guide.cam.focalSource, 'exif');
+  seen = await runJob({ yawDeg: 0 });
+  assert.equal(seen.lensAsked, 1);
+  wa = seen.patched.filter((p) => p.wall_analysis && p.wall_analysis.guide).at(-1);
+  assert.equal(wa.wall_analysis.guide.cam.focalSource, 'default', 'unsure 면 24');
+});
+
+test('렌즈 질문: 시험한 문장 그대로, 답 풀기는 ultra_wide·standard 만', () => {
+  assert.match(buildLensPrompt(), /^Was this room photo taken with a phone's ultra-wide lens \(the 0\.5x camera/);
+  assert.equal(parseLens('{"lens":"ultra_wide","confidence":"high"}'), 'ultra_wide');
+  assert.equal(parseLens('```json\n{"lens":"standard"}\n```'), 'standard');
+  assert.equal(parseLens('{"lens":"unsure"}'), null);
+  assert.equal(parseLens('nope'), null);
 });

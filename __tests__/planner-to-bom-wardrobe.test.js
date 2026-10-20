@@ -255,7 +255,7 @@ describe('자재표 — 칸막이·선반·옷봉이 끝까지 간다', () => {
     }] });
     const drawerMod = s.materials.filter((m) => m.module === '2번-서랍모듈').map((m) => m.part);
     expect(drawerMod).toContain('측판');
-    expect(drawerMod).toContain('천판');
+    expect(drawerMod).not.toContain('천판');   // 2026-10-20 카드 "천판 빼기" — 싱크처럼 밴드만
     expect(drawerMod).toContain('서랍전후판');
     // 내부 서랍 부재는 그때 나오지 않는다
     expect(parts(s, '2번')).not.toContain('내부서랍 상판');

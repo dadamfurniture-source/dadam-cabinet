@@ -401,7 +401,7 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
     expect(s.unplaced.filter((u) => /칸막이/.test(u.part))).toEqual([]);
   });
 
-  test('아직 자리를 안 정한 행은 이유와 함께 — 서랍모듈 밴드 · 서랍 박스 · 목찬넬 EP', () => {
+  test('아직 자리를 안 정한 행은 이유와 함께 — 서랍모듈 밴드 · 서랍 박스', () => {
     const reasons = (id) => [...new Set(spec.unplaced.filter((u) => u.moduleKey === `0-${id}`).map((u) => u.reason))].sort();
     expect(reasons('w2')).toEqual(['band-position-pending', 'not-yet']);
     expect(spec.unplaced.filter((u) => u.part === '도어')).toEqual([]);
@@ -425,16 +425,36 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
     ]);
   });
 
+  // notches — 서랍모듈 측판 앞선 따내기 [src, v0, v1] (2026-10-20 카드 "싱크처럼 따냄"):
+  //   상단 70×40 은 몸통 상단, 중간 90×40 은 윗선 = 위 전면 아랫단 + 20, 아래 전면 윗단 = 윗선 − 50
   test.each([
-    [1, [[-40, 320]]],
-    [3, [[-40, 303], [333, 676], [676, 1019]]],   // 상단 틈 + 아래 두 장 사이 틈 (assignChannels), 내림 나머지 1 은 맨 위 틈
-  ])('외부 서랍 %i단 전면 — 바닥 20 위부터, 목찬넬 손잡이 규칙 그대로', (n, spans) => {
+    [1, [[-40, 320]], [['channel-top', 280, 350]]],
+    [2, [[-40, 300], [330, 670]], [['channel-top', 630, 700], ['channel-mid', 260, 350]]],
+    // 3단: 상단 틈 + 아래 두 장 사이 틈 (assignChannels), 위 두 장 사이는 싱크 규칙 4 (카드 "4 띄움") — 342 × 3 딱 맞음
+    [3, [[-40, 302], [332, 674], [678, 1020]], [['channel-top', 980, 1050], ['channel-mid', 262, 352]]],
+  ])('외부 서랍 %i단 전면 — 바닥 20 위부터, 목찬넬 손잡이 규칙 그대로 · 측판 따내기는 싱크처럼', (n, spans, notches) => {
     const item = JSON.parse(JSON.stringify(FIXTURES.wardrobe));
     item.modules.find((x) => x.id === 'w2').drawerCount = n;
     const design = { items: [item] };
     const s = Asm.of(design, { materials: new MaterialExtractor().extract(design).materials });
     const w2 = s.items[0].modules.find((x) => x.moduleId === 'w2');
     expect(w2.parts.filter((p) => p.part === '서랍도어').map((p) => [p.box.min[1], p.box.max[1]])).toEqual(spans);
+    const sides = w2.parts.filter((p) => p.part === '측판' && p.tags.carcass === 0);
+    expect(sides).toHaveLength(2);
+    sides.forEach((p) => {
+      expect(p.features.filter((f) => f.type === 'notch').map((f) => [f.src, f.v0, f.v1])).toEqual(notches);
+      p.features.filter((f) => f.type === 'notch').forEach((f) => expect([f.u0, f.u1]).toEqual([560, 600]));
+    });
+    expect(w2.pending).toEqual([]);
+    // 서랍모듈 천판 없음 (카드 "천판 빼기") — 목찬넬 ㄴ자가 따낸 자리에: 지면판 40 이 따낸 바닥, 전면판이 그 위 안쪽 끝
+    expect(w2.parts.filter((p) => p.part === '천판' && p.tags.carcass === 0)).toEqual([]);
+    const ch = (part) => w2.parts.filter((p) => p.part === part).map((p) => p.box);
+    const notchBox = (lo, faceH) => [{ min: [-450, lo, 260], max: [450, lo + 18, 300] }, { min: [-450, lo + 18, 260], max: [450, lo + 18 + faceH, 278] }];
+    expect([...ch('목찬넬(지면)'), ...ch('목찬넬(전면)')]).toEqual(notchBox(notches[0][1], 52));
+    const mids = notches.slice(1).map(([, lo]) => notchBox(lo, 72));
+    expect(ch('목찬넬(중간 지면)')).toEqual(mids.map((m) => m[0]));
+    expect(ch('목찬넬(중간 전면)')).toEqual(mids.map((m) => m[1]));
+    expect(s.unplaced.filter((u) => /목찬넬/.test(u.part))).toEqual([]);
     expect(s.unplaced.filter((u) => u.part === '서랍도어' || u.part === '도어')).toEqual([]);
     expect(require('../js/detaildesign/assembly-check.js').check(s).issues.filter((i) => i.level === 'error')).toEqual([]);
   });
