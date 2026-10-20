@@ -210,11 +210,22 @@ test('sink18 — 몸통 18T 가 자리에도 들어간다', () => {
   expect(right.box.min[0]).toBe(m.box.W / 2 - 18);
 });
 
-test('sink18 — 보강목 18 은 홈 뒤 15 자리보다 두꺼워 자리 미정 (사장님 확인 대기)', () => {
+// 2026-10-20 사장님 ("15T 고정"): 보강목은 몸통이 18T 여도 15T 판 — 18T 몸통에서도 홈 뒤 같은 자리
+test('sink18 — 보강목은 15T 판, 18T 몸통에서도 홈 뒤 · 지판 위 · 천판 아래', () => {
   const { spec } = specOf('sink18');
-  const un = spec.unplaced.filter((u) => u.part === '밴드(보강목)');
-  expect(un.length).toBeGreaterThan(0);
-  un.forEach((u) => expect(u.reason).toBe('upper-band-18t-pending'));
+  expect(spec.unplaced.filter((u) => u.part === '밴드(보강목)')).toEqual([]);
+  const m = spec.items[0].modules.find((x) => x.moduleId === 'u1');
+  const { W, H, D, T } = m.box;
+  expect(T).toBe(18);
+  const [lo, hi] = m.parts.filter((p) => p.part === '밴드(보강목)');
+  [lo, hi].forEach((p) => {
+    expect(p.t).toBe(15);
+    expect(p.cut.w).toBe(W - 2 * T);
+    expect(p.box.min[2]).toBe(-D / 2);
+    expect(p.box.max[2]).toBe(-D / 2 + 15);
+  });
+  expect(lo.box.min[1]).toBe(T);
+  expect(hi.box.max[1]).toBe(H - T);
 });
 
 test('solidsOf — 관통 따내기를 뺀 부피', () => {
