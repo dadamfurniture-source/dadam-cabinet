@@ -178,10 +178,13 @@ export async function removeObjects(env, paths) {
   }
 }
 
-/** 저장된 객체를 다시 base64 로. 잡이 재개될 때 입력·기본안을 읽는 데 쓴다. */
-export async function fetchObjectBase64(env, path) {
+/**
+ * 저장된 객체를 다시 base64 로. 잡이 재개될 때 입력·기본안을 읽는 데 쓴다.
+ * 2026-10-20: bucket — 다른 버킷(appliance-images, 가전 모델 제품 사진)도 읽는다. 없으면 generations.
+ */
+export async function fetchObjectBase64(env, path, bucket = bucketName(env)) {
   const key = serviceKey(env);
-  const res = await fetch(`${env.SUPABASE_URL}/storage/v1/object/${bucketName(env)}/${path}`, {
+  const res = await fetch(`${env.SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
     headers: { apikey: key, Authorization: `Bearer ${key}` },
   });
   if (!res.ok) throw new DbError(`Storage read ${res.status} for ${path}`, res.status);

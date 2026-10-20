@@ -155,7 +155,12 @@ FINAL SELF-CHECK …; tall row 1 unit + 1 appliance opening, 5 doors, 0 drawers;
   `model`(아래 "냉장고 모델")이 있으면 `draw this refrigerator: Samsung BESPOKE 409L, model RR40C7805AP, 595 × 1853 × 700 mm (W × H × D), single-door type — if IMAGE A shows a different refrigerator in this spot, replace it with this one`
   (사진 냉장고는 교체). 모델이 없을 때만 사진(IMAGE A)의 그 자리 냉장고를 유지하고, 그것도 없으면 위의 중립 냉장고. 중립 냉장고 색은 워커가 정하지 않고 "흰색, 전면이 어두우면 스테인리스" 로 모델에게 맡긴다 (새 문턱값 없음).
   옛 문장(`may stand there — keep the one IMAGE A shows, do not invent a built-in one`)은 허용일 뿐이라 사진에 냉장고가 없을 때 무엇을 그릴지 정하지 않았다
-  (실측 GPT 2장: 둘 다 독립형 냉장고를 그렸고 검사가 둘 다 `appliances_visible` 로 잡았다). 1단계는 사진 없이 글로만 — 모델 사진은 `appliance_models` 에 사진이 생긴 뒤.
+  (실측 GPT 2장: 둘 다 독립형 냉장고를 그렸고 검사가 둘 다 `appliances_visible` 로 잡았다).
+  **모델 제품 사진** (2026-10-20 사장님 결정 "모델 사진 = (b)"): 그 모델(코드 + 브랜드)의 `appliance_models.image_path`
+  (관리자가 「사진 가져오기」로 버킷 `appliance-images` 에 복사한 것 — `database/appliance-models-images.sql`)가 있으면
+  잡이 설치 호출(GPT · Gemini 둘 다) **맨 뒤 이미지**로 붙이고 그 글자로 한 줄 —
+  `IMAGE D — PRODUCT PHOTO of the chosen refrigerator (model RR40C7805AP): match its look; size it to the opening.`
+  (글자는 B · C(3/4) · 꺾인 벽 입면 다음). 사진이 없거나 칸 없음(SQL 미실행) · 읽기 실패면 글만. 검사 · 역판독에는 안 붙인다.
   도면에 냉장고 자리가 있으면 DO NOT 의 "없는 가전" 에서 `refrigerator` 를 뺀다 (모듈·단 라벨로 안다).
 - 자체 점검: 가전 자리가 있는 통은 `appliance opening`, 없는 통은 `unit` 하나. 도어·서랍은 단의 합.
 - 검사 LAYOUT 요약·설치 프롬프트: `600 mm column of 3 stacked doors` · `680 mm refrigerator opening with a 2-door cabinet above`.
