@@ -10,7 +10,7 @@
         { id: 'vanity', name: '화장대', defaultD: 500, defaultH: 2310 },
         { id: 'storage', name: '수납장', defaultD: 400, defaultH: 2310 },
         { id: 'warehouse', name: '창고장', defaultD: 450, defaultH: 2310 },
-        // 2026-10-20 TV장(거실장) — 사장님 확정(결정 카드): 기본 구성 거실장만, 깊이 400. 높이는 결정 대기
+        // 2026-10-20 TV장(거실장) — 사장님 확정(결정 카드): 기본 구성 거실장만, 깊이 400, 거실장 전체 높이 450 (정본 planner-sections.js PLANNER_CATEGORY_SECTION_OVERRIDES)
         { id: 'tvcabinet', name: 'TV장', defaultD: 400, defaultH: 2310 },
         { id: 'door', name: '도어교체', defaultD: 18, defaultH: 2310 },
         { id: 'custom', name: '비규격장', defaultD: 0, defaultH: 2310 },

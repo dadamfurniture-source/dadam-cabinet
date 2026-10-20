@@ -133,3 +133,43 @@ describe('TV장 BOM — 수납장과 라벨만 다르다', () => {
     expect(dims.some((v) => v >= 350 && v <= 400)).toBe(true);
   });
 });
+
+describe('TV장 거실장 높이 450 (2026-10-20 사장님 확정)', () => {
+  const S = require('../js/planner/planner-sections.js');
+
+  test('정본 표: tvcabinet 하부 moduleH 450, 다른 품목·기본은 870 그대로', () => {
+    expect(S.PLANNER_CATEGORY_SECTION_OVERRIDES.tvcabinet.lower.moduleH).toBe(450);
+    expect(S.buildSectionConfig(undefined, undefined, 'tvcabinet').lower.moduleH).toBe(450);
+    expect(S.buildSectionConfig().lower.moduleH).toBe(870);
+    expect(S.buildSectionConfig(undefined, undefined, 'storage').lower.moduleH).toBe(870);
+    // 정본 객체는 건드리지 않는다
+    expect(S.PLANNER_SECTIONS.lower.moduleH).toBe(870);
+    expect(S.buildSectionConfig(undefined, undefined, 'tvcabinet').upper.moduleH).toBe(780);
+  });
+
+  test('배치·구조 단계가 URL preset 으로 품목 기본값을 얹는다', () => {
+    const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+    expect(read('mockup-shell.html')).toMatch(
+      /buildSectionConfig\(undefined, undefined, new URLSearchParams\(location\.search\)\.get\('preset'\)\)/
+    );
+    expect(read('mockup-structure.html')).toMatch(
+      /buildSectionConfig\(STRUCTURE_ONLY_SECTIONS, SECTION_PALETTE_3D,\s*new URLSearchParams\(location\.search\)\.get\('preset'\)\)/
+    );
+  });
+
+  test('부모 incrementCategory 가 새 TV장의 specs.lowerH 를 정본 표에서 채운다', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../js/detaildesign/ui-step1.js'), 'utf8');
+    expect(src).toMatch(/PLANNER_CATEGORY_SECTION_OVERRIDES\[cat\.id\]/);
+    expect(src).toMatch(/newItem\.specs\.lowerH = catSections\.lower\.moduleH/);
+  });
+
+  test('모듈 h 가 없으면 BOM 이 specs.lowerH 450 으로 몸통 288 (450 − 상판 12 − 받침 150) 을 잰다', () => {
+    const d = tvDesign('tvcabinet');
+    d.specs.lowerH = 450;
+    d.modules.forEach((m) => delete m.h);
+    const snap = snapshotOf(designOf(d));
+    const side = snap.materials.find((m) => /하부장/.test(m.module) && /측판/.test(m.part));
+    expect(side).toBeTruthy();
+    expect([side.w, side.h, side.d].map(Number)).toContain(288);
+  });
+});
