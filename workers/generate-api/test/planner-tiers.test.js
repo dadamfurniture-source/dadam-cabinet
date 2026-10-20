@@ -227,7 +227,7 @@ test('자체 점검은 통 기준 — 키큰장 1 유닛(3도어) + 냉장고 �
         'tall row 1 unit + 1 appliance opening, 5 doors, 0 drawers; ' +
         // 2026-10-20: 런(3120, 끝 EP 20)이 벽(3600)보다 짧다 — 런 끝에 닿는 줄
         'tall row ends at about 87 % of the wall (3120 mm); ' +
-        p.match(/(\d+ empty zones? left empty; )?no other built-in unit anywhere\.$/)[0]
+        p.match(/(\d+ empty zones? left empty; )?both main-wall corners at the same place as in IMAGE A; no other built-in unit anywhere\.$/)[0]
     )
   );
 });

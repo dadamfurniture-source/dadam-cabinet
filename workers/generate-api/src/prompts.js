@@ -2067,7 +2067,9 @@ export function buildPlannerPrompt(c) {
         head.push(
           `${row.widthMm} mm long` +
             // 2026-10-20: ㄱ자 walls[] 도 주벽 기준 줄에 벽 % (꺾인 벽 줄은 옆벽 폭을 모른다)
-            (wallKnown && (multi ? runAnchor && row === ref : oneWall && (row === ref || !ref))
+            // 2026-10-20: 줄 길이 고정 문장(runShort)이 있으면 벽 % 는 거기(런 = wallRunMm, 끝 마감재 포함) 한 값만 —
+            //   줄 머리의 모듈 폭 % 와 둘이 되면 ㄱ자에서 53 %(모듈 2349)·55 %(런 2400)가 같이 들어갔다.
+            (wallKnown && !runShort && (multi ? runAnchor && row === ref : oneWall && (row === ref || !ref))
               ? ` — ${Math.min(100, plannerPct(row.widthMm, wallW))} % of the wall`
               : '')
         );
@@ -2232,6 +2234,7 @@ export function buildPlannerPrompt(c) {
     ? listJoinAnd(groups.map((g) => `the ${plannerWallName(g.wall)}`))
     : layout && layout.walls > 1 ? `the ${layout.walls} target walls` : 'the target wall';
   const existing = c.existing ? ` (${c.existing})` : '';
+  const mainWallName = multi ? plannerWallName('main') : 'main wall';
   const edit =
     `EDIT ZONE: ${walls} only — the new run plus the built-in cabinetry on ${walls} that it replaces${existing}. ` +
     `Remove that cabinetry completely, with no demolition marks or ghost outlines.` +
@@ -2239,7 +2242,10 @@ export function buildPlannerPrompt(c) {
     `\n` +
     `KEEP everything outside the edit zone exactly as photographed: the camera position, lens and framing (do not widen the view or invent any part of the room); ` +
     `the other walls, ceiling, floor, windows and doors; the lighting; and every movable object — ` +
-    `${kitchen ? 'a free-standing refrigerator, microwave, ' : 'refrigerator, '}carts, chairs, lamps, plants and decorations — unless it stands where a new unit goes.`;
+    `${kitchen ? 'a free-standing refrigerator, microwave, ' : 'refrigerator, '}carts, chairs, lamps, plants and decorations — unless it stands where a new unit goes.` +
+    // 2026-10-20: 뒷벽 양 끝 모서리 고정 — 실측(GPT 6장): ㄱ자 2장이 뒷벽 오른 모서리를 92.5·93.0 %(원본 89.7 %)에,
+    //   일자 1장이 97.2 %(원본 85.7 %)에 그렸다. "남는 벽" 을 벽을 넓혀 만든다.
+    ` The ${mainWallName}'s left and right corners stay exactly where IMAGE A shows them — do not widen or move the wall to make room for the units or for bare wall.`;
 
   // ── 마감 — 설치 프롬프트의 designFinishPhrase 를 그대로 ──
   const fin = spec.finishes || null;
@@ -2308,6 +2314,7 @@ export function buildPlannerPrompt(c) {
     [
       ...(rowChecks.length ? rowChecks : ['the same units, doors and drawers as IMAGE B']),
       ...(zones.length ? [`${plannerPlural(zones.length, 'empty zone')} left empty`] : []),
+      `both ${mainWallName.replace(' ', '-')} corners at the same place as in IMAGE A`,
       'no other built-in unit anywhere',
     ].join('; ') +
     '.';

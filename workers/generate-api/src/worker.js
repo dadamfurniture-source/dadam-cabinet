@@ -465,7 +465,10 @@ async function createPlannerGeneration(request, env, headers, p) {
     design_style: STYLES[p.design_style] ? p.design_style : DEFAULT_STYLE,
     door_color: p.door_color,
     door_finish: p.door_finish,
-    wall_width_override: Number(p.wall_width_override) || null,
+    // 2026-10-20: 재생성이면 원본의 실측 폭을 잇는다 (일반 경로와 같게) — 예전엔 플래너 재생성에서 손님이 넣은 폭이 빠졌다.
+    //   분석 벽은 잡이 방 사진 해시로 원본 것을 다시 쓴다 (job.js roomPhoto).
+    wall_width_override:
+      Number(p.wall_width_override) || (parent && parent.options && Number(parent.options.wall_width_override)) || null,
     // 급수·배기 수동값 — 일반 경로와 같은 정규화 (주방 품목만). 잡이 wall_analysis 에 반영한다 (applyManualPlumbing).
     //   플래너 프롬프트는 싱크·후드 자리를 도면(design_spec)에서 말하므로 이 값을 쓰지 않는다.
     water_from_left_override: KITCHEN_CATEGORIES.includes(category) ? Number(p.water_from_left_override) || null : null,
