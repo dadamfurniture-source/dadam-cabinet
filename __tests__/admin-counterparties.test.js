@@ -19,7 +19,7 @@ const ITEMS = [
 ];
 
 function boot({ items = ITEMS, admin = true } = {}) {
-  document.body.innerHTML = BODY.replace(/<script src="\.\.\/js\/admin-shell\.js"><\/script>/, '');
+  document.body.innerHTML = BODY.replace(/<script src="\.\.\/js\/admin-shell\.js(\?v=[\d.]+)?"><\/script>/, '');
   window.DADAM_CONFIG = { supabase: { url: 'https://sb', anonKey: 'k' }, workflowApi: { url: API } };
   window.supabase = { createClient: () => ({ auth: { getSession: async () => ({ data: { session: { access_token: 'T', user: { email: 'a@b.c' } } } }) } }) };
   window.AdminAccess = { isAdmin: async () => admin };

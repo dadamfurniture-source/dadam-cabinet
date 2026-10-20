@@ -24,6 +24,7 @@
     { href: 'consultations.html', icon: '💬', label: '상담 관리' },
     { href: 'appliances.html', icon: '🧊', label: '가전 모델 관리' },
     { href: 'work-reports.html', icon: '📑', label: '작업 지시 보고' },
+    { href: 'work-jobs.html', icon: '🧰', label: '작업 배정' },
     { href: 'logs.html', icon: '📋', label: '활동 로그' },
     { href: 'settings.html', icon: '⚙️', label: '설정' },
   ];
