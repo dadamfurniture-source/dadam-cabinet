@@ -332,6 +332,7 @@ async function createGeneration(request, env, headers) {
     aspect,
     customer_request,
     image_provider,
+    place_guide,
   } = body;
 
   // 재생성: 부모의 입력을 그대로 쓴다 (업로드 생략).
@@ -354,7 +355,7 @@ async function createGeneration(request, env, headers) {
     return await createPlannerGeneration(request, env, headers, {
       user, parent, room_image, image_type, rawCategory, design_style, door_color, door_finish,
       wall_width_override, water_from_left_override, exhaust_from_left_override,
-      fridge_options, design_spec, renders, aspect, title, image_provider, room_focal35,
+      fridge_options, design_spec, renders, aspect, title, image_provider, room_focal35, place_guide,
     });
   }
 
@@ -485,6 +486,11 @@ async function createPlannerGeneration(request, env, headers, p) {
     // 사진 EXIF 35mm 환산 초점거리 (2026-10-20) — 도면 덩어리(1-d)의 카메라 화각. 일반 경로와 같은 정규화.
     //   재생성은 같은 방 사진을 쓰므로 원본 값을 잇는다. 있을 때만 키를 둔다 (없으면 options 모양 그대로).
     ...plannerFocalOption(p.room_focal35, parent),
+    // 도면 덩어리 안내 끄기 (2026-10-20, 반복 시험용) — 요청 place_guide:false 면 잡 1-d 가 칠하지 않는다 (운영 변수
+    //   PLANNER_PLACE_GUIDE 배포 없이). **false 일 때만** 키를 둔다 (기본은 키 없음 = 지금과 같음). 재생성은 원본 값을 잇는다.
+    ...(p.place_guide === false || (p.place_guide === undefined && !!(parent && parent.options && parent.options.place_guide === false))
+      ? { place_guide: false }
+      : {}),
     // 이미지 공급자 (2026-10-18 → 2026-10-19 기본 GPT) — 플래너 모드는 결정된 값을 **항상** 기록한다.
     //   요청 값 → 재생성 원본 값 → PLANNER_IMAGE_PROVIDER. 잡은 이 값만 읽는다 (없는 옛 행은 Gemini).
     image_provider: resolvePlannerProvider(env, p.image_provider, parent && parent.options && parent.options.image_provider),
