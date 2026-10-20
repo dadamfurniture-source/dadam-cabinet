@@ -29,6 +29,7 @@ import {
   buildPlannerPrompt,
   plannerChosenFridgeModel,
   fridgeModelFromRow,
+  fridgeMassingLines,
   FRIDGE_DEFAULT_MODELS,
   buildQcPrompt,
   buildThemePalettePrompt,
@@ -731,7 +732,8 @@ async function runPipeline(env, job, ck, save) {
         // 2026-10-19: 윤곽선만으로는 GPT 가 장을 뒷벽으로 되돌렸다 → 기본은 덩어리 합성(편집 대상 자체를 바꾼다).
         //   GUIDE_MODE='outline' 이면 예전처럼 윤곽선만 마지막 이미지로.
         if (env.GUIDE_MODE !== 'outline') {
-          const m = await renderMassingImage(room, points, { doors: wardrobeDoors(wall.wallW) });
+          // 2026-10-20 냉장고장: 같은 폭 문짝 대신 자리·통·단 나눔선 (prompts.js fridgeMassingLines)
+          const m = await renderMassingImage(room, points, category === 'fridge' ? { lines: fridgeMassingLines(ctx) } : { doors: wardrobeDoors(wall.wallW) });
           if (m) {
             const upM = await uploadObject(env, `${prefix}/massing.png`, m.base64, m.mimeType);
             ck.guide.massing = { path: upM.path, url: upM.url };

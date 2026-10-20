@@ -75,7 +75,9 @@ export const CATEGORIES = {
   fridge: {
     label: '냉장고장',
     depth: '700 mm deep, with the refrigerator recess the same depth so its front is flush.',
-    // 2026-10-20: 정본 구조(fridge.md §2) + 기본 모델 세트 (D1) — fridgeSpecText
+    // 2026-10-20: 정본 구조(fridge.md §2) + 기본 모델 세트 (D1) — fridgeSpecText.
+    //   벽 끝에서 끝·바닥에서 천장 (붙박이장과 같다) → 옆벽 가이드·덩어리 합성·no_depth 검사가 같은 길을 탄다 (③)
+    wallToWallMm: 700,
     spec: (c) => fridgeSpecText(c),
   },
   vanity: {
@@ -319,12 +321,16 @@ function fridgeModelPhrase(m, doorColorPhrase) {
     : m.subtype === 'side_by_side' ? 'side-by-side refrigerator'
     : m.doors ? `${COUNT_WORDS[m.doors] || m.doors}-door refrigerator` : 'refrigerator';
   const size = `${m.widthMm} × ${m.heightMm} × ${m.depthMm || '-'} mm`;
-  const finish = fridgePanelLine(m.line)
-    ? `flat colour panels in a tone close to ${doorColorPhrase}, no visible logo or display`
-    : 'its own factory finish';
   const label = [brand, line].filter(Boolean).join(' ');
   const article = /^[AEIOU]|^LG\b/i.test(label) ? 'an' : 'a';
-  return `${article} ${label} ${form}${m.code ? ` (model ${m.code}` : ' ('}${m.code ? ', ' : ''}${size}), ${finish}`;
+  return `${article} ${label} ${form}${m.code ? ` (model ${m.code}` : ' ('}${m.code ? ', ' : ''}${size})`;
+}
+/** 냉장고 마감 한 문장 (D5) — 색 패널 라인은 문짝 색에 가깝게, 아니면 제 마감. 섞이면 하나씩 */
+function fridgeFinishSentence(fridges, doorColorPhrase) {
+  const panel = (m) => fridgePanelLine(m.line);
+  const text = (yes) => (yes ? `flat colour panels in a tone close to ${doorColorPhrase}, no visible logo or display` : 'its own factory finish');
+  if (fridges.every(panel) || !fridges.some(panel)) return `${fridges.length > 1 ? 'Both have' : 'It has'} ${text(panel(fridges[0]))}.`;
+  return fridges.map((m, i) => `The ${i === 0 ? 'first' : 'second'} has ${text(panel(m))}`).join('; ') + '.';
 }
 
 /** 설치 지시문의 FURNITURE 문단 — CATEGORIES.fridge.spec 이 부른다 */
@@ -333,8 +339,8 @@ export function fridgeSpecText(c) {
   const R = FRIDGE_RULES;
   const colour = `${c.doorColor || 'white'}`;
   const n = L.fridges.length;
-  const order = L.fridges.map((m) => fridgeModelPhrase(m, colour)).join(' and, next to it, ');
-  const recess = `On the ${c.fridgePosition === 'right' ? 'right' : 'left'} end, one open recess ${L.nicheW} mm wide from the floor up, holding${n > 1 ? ', from left to right,' : ''} ${order}. ${n > 1 ? 'Each refrigerator stands' : 'It stands'} on the floor with a ${n > 1 ? 'small' : `${L.fridges[0].topGap} mm`} gap above it.`;
+  const order = L.fridges.map((m) => fridgeModelPhrase(m)).join(' and, next to it, ');
+  const recess = `On the ${c.fridgePosition === 'right' ? 'right' : 'left'} end, one open recess ${L.nicheW} mm wide from the floor up, holding${n > 1 ? ', from left to right,' : ''} ${order}. ${fridgeFinishSentence(L.fridges, colour)} ${n > 1 ? 'Each refrigerator stands' : 'It stands'} on the floor with a ${n > 1 ? 'small' : `${L.fridges[0].topGap} mm`} gap above it.`;
   const sameUpper = L.fridges.every((m) => m.upperH === L.fridges[0].upperH);
   const uppers = n > 1
     ? `Above the recess, one wall cabinet over each refrigerator (${sameUpper ? `each ${L.upperH} mm high` : L.fridges.map((m) => `${m.upperH} mm high`).join(' and ')}), flat doors up to the crown moulding.`
@@ -346,6 +352,42 @@ export function fridgeSpecText(c) {
     ? `The remaining ${L.rest} mm ${filler}is ${COUNT_WORDS[L.columns.length] || L.columns.length} tall column${many ? 's' : ''}, ${L.columns.map((m) => `${m.w} mm with ${m.doors === 2 ? 'a pair of doors' : 'a single door'}`).join(', ')}, ${many ? 'each ' : ''}built as a plinth ${R.PEDESTAL_H} mm, a lower door ${L.lowerH} mm high, a middle door ${L.midH} mm high above it, and the same ${L.upperH} mm wall cabinet on top — three stacked fronts per column.`
     : L.rest > 0 ? `The remaining ${L.rest} mm is closed with a flat filler panel.` : '';
   return `Refrigerator surround covering the full wall width, built up to the ceiling with a ${R.MOLDING_H} mm crown moulding. ${recess} ${uppers} ${cols} All fronts — the tall columns, the wall cabinets and the refrigerator doors — sit in one flush plane.`;
+}
+
+/**
+ * 덩어리 합성의 나눔선 (③, 2026-10-20) — 앞면 폭·높이 대비 0~1. guide.js paintMassing 의 lines.
+ *   세로: 냉장고 자리 끝 · 자리 안 냉장고 사이(여유 가운데) · 키큰장 통 경계 · 2짝 통의 가운데
+ *   가로: 상부장 줄 아래(상몰딩 + 상부장, 전체 폭) · 키큰장 중간장/하부장 경계(좌대 + 하부장, 통 구간만)
+ */
+export function fridgeMassingLines(c) {
+  const L = fridgeLayout(c.wallW, c.wallH, fridgeModelsOf(c), c.fridgePosition);
+  const W = L.wallW;
+  const H = L.wallH;
+  if (!(W > 0 && H > 0)) return null;
+  const right = c.fridgePosition === 'right';
+  const nicheStart = right ? W - L.nicheW : 0;
+  const vertical = [];
+  let nx = L.fridges.length ? L.fridges[0].sideGap : 0;
+  for (let i = 0; i < L.fridges.length - 1; i++) {
+    nx += L.fridges[i].widthMm;
+    const g = Math.max(L.fridges[i].sideGap, L.fridges[i + 1].sideGap);
+    vertical.push((nicheStart + nx + g / 2) / W);
+    nx += g;
+  }
+  vertical.push(right ? (W - L.nicheW) / W : L.nicheW / W);
+  const colStart = right ? 0 : L.nicheW;
+  let cx = colStart;
+  for (const m of L.columns) {
+    if (m.doors === 2) vertical.push((cx + m.w / 2) / W);
+    cx += m.w;
+    vertical.push(cx / W);
+  }
+  const horizontal = [{ v: (FRIDGE_RULES.MOLDING_H + L.upperH) / H, u0: 0, u1: 1 }];
+  if (L.columns.length) horizontal.push({ v: 1 - (FRIDGE_RULES.PEDESTAL_H + L.lowerH) / H, u0: colStart / W, u1: cx / W });
+  return {
+    vertical: Array.from(new Set(vertical.map((u) => Math.round(u * 10000) / 10000))).filter((u) => u > 0 && u < 1),
+    horizontal: horizontal.filter((h) => h.v > 0 && h.v < 1),
+  };
 }
 
 export function resolveCategory(key) {
@@ -1093,11 +1135,12 @@ export function depthPhrase(c) {
     const r = c.sideReturn;
     const where = r.side === 'both' ? 'the protruding walls at both ends' : `the protruding ${r.side} wall`;
     const about = r.depthMm ? ` (about ${r.depthMm} mm in front of the main wall)` : '';
-    const ends = r.side === 'both' ? 'Each end of the wardrobe meets' : `The ${r.side} end of the wardrobe meets`;
+    const noun = resolveCategory(c.category) === 'fridge' ? 'cabinet' : 'wardrobe'; // 2026-10-20 냉장고장도 이 길 — 붙박이장·수납장 문장은 그대로
+    const ends = r.side === 'both' ? `Each end of the ${noun} meets` : `The ${r.side} end of the ${noun} meets`;
     const other = r.side === 'left' ? 'right' : r.side === 'right' ? 'left' : null;
     return (
       `DEPTH: It fills the recess from side to side and floor to ceiling, its front flush with the front face of ${where}${about}. ` +
-      `${ends} that wall's front corner, so the return of that wall is hidden behind the wardrobe, and the wardrobe front, the protruding wall's face and their floor line form one continuous plane.` +
+      `${ends} that wall's front corner, so the return of that wall is hidden behind the ${noun}, and the ${noun} front, the protruding wall's face and their floor line form one continuous plane.` +
       (other ? ` On the ${other} side it covers the same depth of the ${other} wall.` : '') +
       ` Its front meets the floor and the ceiling closer to the camera than the original wall did. A slim recessed plinth casts a dark shadow line along the floor, a slim filler meets the ceiling with a crisp shadow, and narrow dark reveals between the doors show their thickness.`
     );
@@ -1297,7 +1340,11 @@ export function buildInstallPrompt(c, opts = {}) {
     const kitchenMock = c.mockKind === 'kitchen';
     const shows = kitchenMock
       ? `it already shows the new built-in kitchen as plain off-white mock volumes at their exact position, depth and size: base cabinets with a recessed plinth under a countertop, wall cabinets up to the ceiling, the sink and the cooktop marked as dark shapes on the countertop, and the door divisions drawn on them. Re-render that mock as a real photograph of the installed kitchen.`
-      : `it already shows the new built-in ${cat.label} (${key}) as a plain off-white mock volume at its exact position, depth and size. Its front stands forward of the back wall, flush with the front face of the protruding wall, and its door divisions are drawn on it. Re-render that mock as a real photograph of the installed furniture.`;
+      : `it already shows the new built-in ${cat.label} (${key}) as a plain off-white mock volume at its exact position, depth and size. Its front stands forward of the back wall, flush with the front face of the protruding wall, and its door divisions are drawn on it. Re-render that mock as a real photograph of the installed furniture.${
+          key === 'fridge'
+            ? ` The ${c.fridgePosition === 'right' ? 'rightmost' : 'leftmost'} part of the mock, up to the first vertical line, is the refrigerator recess: open from the floor with the refrigerators standing in it and the wall cabinets above; the horizontal line across the top marks the bottom of the wall-cabinet row, and the lower horizontal line on the columns is the joint between their middle and lower doors.`
+            : ''
+        }`;
     const real = kitchenMock
       ? 'MAKE IT REAL: real material with fine grain and sheen, crisp narrow reveals between the doors and drawers, a stone countertop with a visible front edge, an undermount sink with a single-lever mixer faucet (matte black or brushed steel) behind it, a flush induction cooktop with a slim concealed hood above it, a recessed plinth with a soft shadow, contact shadows on the floor and walls, and lighting consistent with the room.'
       : 'MAKE IT REAL: real material with fine grain and sheen, crisp narrow reveals between the doors, a recessed plinth with a soft shadow, contact shadows on the floor and on the walls beside it, and lighting consistent with the room.';
@@ -2626,9 +2673,9 @@ Report an issue ONLY when it is clearly visible. Use these codes:
 - tile_not_neutral: wall tiles around the furniture are dark, brown, black or strongly coloured (light neutral tiles are fine)
 ${
     CATEGORIES[key].wallToWallMm && c.sideReturn
-      ? `- no_depth: compared with the original photo, the wardrobe front is not flush with the front face of the protruding ${c.sideReturn.side === 'both' ? 'walls at both ends' : `${c.sideReturn.side} wall`} — part of that wall's return still shows in front of the wardrobe — or the fronts still sit on the original wall plane`
+      ? `- no_depth: compared with the original photo, the ${key === 'fridge' ? 'cabinet' : 'wardrobe'} front is not flush with the front face of the protruding ${c.sideReturn.side === 'both' ? 'walls at both ends' : `${c.sideReturn.side} wall`} — part of that wall's return still shows in front of the ${key === 'fridge' ? 'cabinet' : 'wardrobe'} — or the fronts still sit on the original wall plane`
       : CATEGORIES[key].wallToWallMm
-      ? '- no_depth: compared with the original photo, the fronts sit on the original wall plane — they meet the floor, the ceiling and the side-wall corners where the original wall did, with no plinth shadow line (a wall-to-wall wardrobe shows no side panels; that alone is fine)'
+      ? `- no_depth: compared with the original photo, the fronts sit on the original wall plane — they meet the floor, the ceiling and the side-wall corners where the original wall did, with no plinth shadow line (a wall-to-wall ${key === 'fridge' ? 'cabinet' : 'wardrobe'} shows no side panels; that alone is fine)`
       : '- no_depth: compared with the original photo, the furniture does not stand forward of the wall — its base sits on the original wall-floor line with no floor strip covered, and it shows no side or edge thickness or contact shadow, as if painted on the wall'
   }${
     KITCHEN_CATEGORIES.includes(key)
