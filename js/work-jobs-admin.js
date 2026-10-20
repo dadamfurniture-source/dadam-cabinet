@@ -6,10 +6,10 @@
  * 화면에 넣는 사용자 글(작업자 이름 · 제목 · 보고 본문 · 메모 · 사유)은 전부 esc() 를 거친다.
  * 현장 주소 · 연락처는 이 화면에서 받지도 보여 주지도 않는다 (★7 공개 기간 미정 — 계약 머리말).
  *
- * 서버 응답 모양 (계약 §3 은 이름만 정했다 — 이 화면이 읽는 열):
+ * 서버 응답 모양 (계약 §3 은 이름만 정했다 — 이 화면이 읽는 열, 서버 workers/workflow-api/src/work/jobs.js 기준):
  *   AdminJobCard   { id, kind, title, status, effective_status, region_label, starts_at, ends_at, apply_deadline,
- *                    slots, filled, applied_count, mode, pay_amount, pay_unit, pay_visible, version }
- *   AdminJobDetail { job: AdminJob, applications[], assignments[], updates[], events[] } — 또는 작업 열을 펼친 모양
+ *                    slots, confirmed(확정 수), applications(신청 수 · 숫자), mode, pay_amount, pay_unit, pay_visible, version }
+ *   AdminJobDetail { ...작업 열, filled(확정 수), applications[], assignments[], updates[], events[] } — 또는 { job, … } 로 감싼 모양
  *   신청 · 배정 행  { id, status, worker_id, worker: { id, display_name, kinds, region_label, done_count }, … }
  */
 (function (root, factory) {
@@ -143,16 +143,22 @@
     return job.status || 'draft';
   }
 
-  /** 확정 수 · 신청 수 — 목록 카드는 숫자 열, 상세는 배열에서 센다 */
+  /**
+   * 확정 수 · 신청 수 — 상세는 배열에서 세고, 목록 카드는 서버가 보낸 숫자를 읽는다.
+   *   목록 (GET /work/admin/jobs, listJobsAdmin): confirmed = 확정 수, applications = 신청 수 (숫자)
+   *   상세 (GET /work/admin/jobs/:id, getJobAdmin): filled = 확정 수 (숫자), applications = 신청 배열
+   * 상세의 applications 는 배열이라 숫자일 때만 신청 수로 읽는다.
+   */
   function jobCounts(job, detail) {
     const d = detail || {};
+    const j = job || {};
     const filled = Array.isArray(d.assignments)
       ? d.assignments.filter((a) => COUNTED.includes(a.status)).length
-      : firstNum(job && job.filled, job && job.confirmed_count);
+      : firstNum(j.confirmed, j.filled);
     const applied = Array.isArray(d.applications)
       ? d.applications.filter((a) => a.status === 'applied').length
-      : firstNum(job && job.applied_count, job && job.applications_count, job && job.application_count);
-    return { filled, applied, slots: firstNum(job && job.slots) };
+      : (typeof j.applications === 'number' ? num(j.applications) : null);
+    return { filled, applied, slots: firstNum(j.slots) };
   }
 
   /** 상세 응답 → { job, applications, assignments, updates, events } (감싼 모양 · 펼친 모양 둘 다) */
