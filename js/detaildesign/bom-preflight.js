@@ -243,11 +243,14 @@
     mods.forEach((mod) => {
       const has = (k) => mod.keys.has(k);
       if (has('body:side')) {
+        // 2026-10-20: 오픈장·밥솥장은 천판·지판을 한 줄 '천지판' 2장으로 낸다 (bom-open-cabinet-rules.js).
+        //   부재 표에 없는 이름이라 키가 part:천지판 이다 (bom-assembly.js 도 이 키로 찾는다).
+        //   이걸 지판으로 안 쳐서 오픈장·밥솥장마다 "측판은 있는데 지판이 없습니다" 가 떴다.
         const miss = [
-          ['body:bottom', '지판'],
+          ['body:bottom', '지판', 'part:천지판'],
           ['back', '뒷판'],
         ]
-          .filter(([k]) => !has(k))
+          .filter(([k, , alt]) => !has(k) && !(alt && has(alt)))
           .map(([, n]) => n);
         if (miss.length) {
           push(

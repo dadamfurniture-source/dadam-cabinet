@@ -177,10 +177,11 @@ describe('개별 모듈 패널 조작은 적용해야 저장된다 (W12-29 → 2
   test('영역 타입', () => {
     const { p, m, doc } = panel();
     const sel = doc.querySelector('#areasBody .a-type');
-    sel.value = 'drawer';
+    // 2026-10-20: 칸 하나에서 '서랍'은 모듈을 서랍장으로 바꾼다 (planner-qa-2026-10-20.test.js) — 저장 검사는 먹장으로 한다.
+    sel.value = 'blank';
     sel.onchange({ target: sel });
     p.g('applyModuleDraft')();
-    expect(reboot(p).g('getStructure')(m.id).areaTypes[0]).toBe('drawer');
+    expect(reboot(p).g('getStructure')(m.id).areaTypes[0]).toBe('blank');
   });
 
   test('도어 방향', () => {

@@ -669,7 +669,7 @@
             const prefix = categoryTotals[category] > 1 ? `#${categoryCounts[category]} ` : '';
             // ★ 품목 라벨 (아이템 구분용)
             // B3: 단순 카테고리 라벨은 규칙표(BOM_SIMPLE_CATEGORY_RULES)에서 — 기존 셋은 그대로.
-            const catNames = { sink: '싱크대', wardrobe: '붙박이장', fridge: '냉장고장' };
+            const catNames = { sink: '싱크대', island: '아일랜드', wardrobe: '붙박이장', fridge: '냉장고장' };
             const simpleRules = BOM_SIMPLE_CATEGORY_RULES[category] || null;
             const catName = catNames[category] || (simpleRules && simpleRules.label) || category;
             const itemLabel = item.labelName || `${prefix}${catName}`;
@@ -688,6 +688,9 @@
             const catItem = this.extractRiceCabinets(this.extractOpenCabinets(item, materials, prefix), materials, prefix);
 
             switch (category) {
+              // 2026-10-20 플래너 점검: 아일랜드는 싱크대 규칙 문서를 같이 쓴다 (docs/design-rules/sink.md "categoryId: sink / island").
+              //   분기가 없어 아일랜드 BOM 이 0 개였다(철물만 나왔다). 깊이는 플래너 모듈 깊이(mod.d) 그대로다.
+              case 'island':
               case 'sink':
                 this.extractSink(catItem, materials, prefix);
                 break;
@@ -2244,7 +2247,7 @@
           const items = designData.items || [];
 
           // 품목 라벨 생성 (MaterialExtractor와 동일 로직 — B3 단순 카테고리 라벨은 규칙표에서)
-          const catNames = { sink: '싱크대', wardrobe: '붙박이장', fridge: '냉장고장' };
+          const catNames = { sink: '싱크대', island: '아일랜드', wardrobe: '붙박이장', fridge: '냉장고장' };
           const categoryTotals = {};
           const categoryCounts = {};
           items.forEach(item => {
@@ -2660,7 +2663,8 @@
           // B3: 단순 카테고리도 다리발 150 위에 선다 (simple-categories.md §2). 키큰장 단은 좌대가 받치므로 뺀다
           //   (싱크는 골든에 묶여 있어 그대로 — 키큰장 단도 세는 옛 셈이 남아 있다).
           const simple = !!BOM_SIMPLE_CATEGORY_RULES[category];
-          if (category !== 'sink' && !simple) return;
+          // 2026-10-20: 아일랜드도 다리발 150 (sink.md §1 표).
+          if (category !== 'sink' && category !== 'island' && !simple) return;
           const specs = item.specs || {};
           const legH = specs.sinkLegHeight || 150;
           let totalLegs = 0;
