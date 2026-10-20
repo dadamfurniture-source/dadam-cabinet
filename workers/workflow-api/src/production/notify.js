@@ -2,12 +2,13 @@
  * 생산 계획 Slack 메시지 (순수 함수).
  *
  *   buildProposalBlocks    대표에게 — "이렇게 더 부르면 됩니다, 승인해 주세요" + 승인 화면 링크
- *   buildInstructionBlocks 작업자 채널에 — 승인된 지시만, 날짜순
+ *   buildInstructionBlocks 작업자 채널에 — 승인된 지시만, 날짜순 (가린 이름 · 금액 없음)
  *
  * 웹훅은 버튼 응답(interactivity)을 받을 수 없어 승인은 링크로 연 화면에서 한다.
  */
 
 import { dayLabel } from './planner.js';
+import { workerAssignmentText } from './redact.js';
 
 const KIND_ORDER = ['asm_extra', 'edge_overtime', 'edge_outsource', 'reschedule', 'door_order', 'top_order', 'asm_call'];
 const KIND_LABEL = {
@@ -49,7 +50,7 @@ export function buildProposalBlocks({ plan, link, triggerLabel }) {
   return { text: `생산 계획 — ${head}`, blocks };
 }
 
-/** 승인된 지시 → 작업자 채널 메시지. 날짜별로 묶는다. */
+/** 승인된 지시 → 작업자 채널 메시지. 날짜별로 묶는다. 고객은 가린 이름, 일당은 뺀다 (결정 ★15). */
 export function buildInstructionBlocks({ assignments }) {
   const byDate = new Map();
   for (const a of assignments) {
@@ -61,7 +62,7 @@ export function buildInstructionBlocks({ assignments }) {
   const blocks = [{ type: 'header', text: { type: 'plain_text', text: '📋 작업 지시', emoji: true } }];
   for (const d of dates) {
     const label = d === '날짜 없음' ? d : dayLabel(d);
-    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${label}*\n` + byDate.get(d).map((a) => `• ${a.text}`).join('\n') } });
+    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${label}*\n` + byDate.get(d).map((a) => `• ${workerAssignmentText(a)}`).join('\n') } });
   }
   return { text: `작업 지시 ${assignments.length}건`, blocks: blocks.slice(0, 50) };
 }

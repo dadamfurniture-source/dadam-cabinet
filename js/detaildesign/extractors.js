@@ -128,6 +128,13 @@
         '좌대 중간보강':   { key: 'pedestal:brace',   slot: 'kick' },
       };
 
+      /** 2026-10-20: 아일랜드 몸통 깊이는 사장님 값 대기 — 측판 비고에 붙인다 (extract 'island'). */
+      const BOM_ISLAND_DEPTH_NOTE = '[확인 필요] 아일랜드 몸통 깊이';
+      // 2026-10-20: 플래너 냉장고장 위장 깊이는 구조 단계가 자리 − 30 (700 → 670) 으로 앉힌다 — 사장님 카드 답 전까지 표시만.
+      const BOM_FRIDGE_UPPER_DEPTH_NOTE = '[확인 필요] 냉장고 위 상부장 깊이';
+      /** 2026-10-20: 도어교체 품목이 내는 판 — 도어·서랍 전면 (extract 'door'). */
+      const BOM_DOOR_ONLY_SLOTS = ['door', 'drawerFront'];
+
       /** 부재 이름 → {key, slot, indexed}. 표에 없으면 `part:<이름>` + slot null (시험이 잡는다). */
       function bomPartDefOf(part) {
         const def = BOM_PART_DEFS[part];
@@ -669,7 +676,7 @@
             const prefix = categoryTotals[category] > 1 ? `#${categoryCounts[category]} ` : '';
             // ★ 품목 라벨 (아이템 구분용)
             // B3: 단순 카테고리 라벨은 규칙표(BOM_SIMPLE_CATEGORY_RULES)에서 — 기존 셋은 그대로.
-            const catNames = { sink: '싱크대', island: '아일랜드', wardrobe: '붙박이장', fridge: '냉장고장' };
+            const catNames = { sink: '싱크대', island: '아일랜드', door: '도어교체', custom: '비규격장', wardrobe: '붙박이장', fridge: '냉장고장' };
             const simpleRules = BOM_SIMPLE_CATEGORY_RULES[category] || null;
             const catName = catNames[category] || (simpleRules && simpleRules.label) || category;
             const itemLabel = item.labelName || `${prefix}${catName}`;
@@ -690,15 +697,47 @@
             switch (category) {
               // 2026-10-20 플래너 점검: 아일랜드는 싱크대 규칙 문서를 같이 쓴다 (docs/design-rules/sink.md "categoryId: sink / island").
               //   분기가 없어 아일랜드 BOM 이 0 개였다(철물만 나왔다). 깊이는 플래너 모듈 깊이(mod.d) 그대로다.
-              case 'island':
+              //   2026-10-20 카드: 사장님이 몸통 깊이를 따로 정한다(770·550 아님) — 값이 올 때까지 측판 비고에 [확인 필요].
+              case 'island': {
+                const from = materials.length;
+                this.extractSink(catItem, materials, prefix);
+                for (let i = from; i < materials.length; i++) {
+                  const m = materials[i];
+                  if (m.part !== '측판') continue;
+                  m.note = (m.note ? m.note + ' · ' : '') + BOM_ISLAND_DEPTH_NOTE;
+                }
+                break;
+              }
+              // 2026-10-20 카드 "도어만·싱크대 규칙" (사장님): 비규격장은 싱크대 규칙으로 산출한다 (door.md 워크스페이스 = 싱크 기반).
+              case 'custom':
               case 'sink':
                 this.extractSink(catItem, materials, prefix);
                 break;
+              // 2026-10-20 같은 카드: 도어교체는 도어 판만 (door.md "BOM: 도어 자재만", ACTIVE_RULES §12 "도어재만").
+              //   싱크대 규칙으로 모듈을 풀어 도어·서랍 전면 판만 남긴다 — 도어 치수 규칙을 따로 두지 않는다. 철물은 경첩만 (HardwareExtractor).
+              case 'door': {
+                const tmp = [];
+                this.extractSink(catItem, tmp, prefix);
+                tmp.forEach((m) => { if (BOM_DOOR_ONLY_SLOTS.indexOf(m.slot) >= 0) materials.push(m); });
+                break;
+              }
               case 'wardrobe':
                 this.extractWardrobe(catItem, materials, prefix);
                 break;
+              // 2026-10-20: 냉장고장이 플래너로 옮겨 왔다. 플래너 브리지가 만든 모듈(pos: 냉장고 위 상부장 'upper',
+              //   키큰장 단 'lower'+단 표시)은 싱크대 규칙으로 낸다 — 위장은 2026-09-22 사장님 확정(일반 상부장 규칙),
+              //   키큰장 단은 싱크대 옆 키큰장과 같은 sink.md §5.1. 전용 화면이 만든 type 모듈(옛 설계)만 extractFridge.
               case 'fridge':
-                this.extractFridge(catItem, materials, prefix);
+                if ((catItem.modules || []).some((m) => m && m.pos)) {
+                  const from = materials.length;
+                  this.extractSink(catItem, materials, prefix);
+                  for (let i = from; i < materials.length; i++) {
+                    const m = materials[i];
+                    if (m.part === '측판' && String(m.module || '').startsWith(`${prefix}상부장`)) {
+                      m.note = (m.note ? m.note + ' · ' : '') + BOM_FRIDGE_UPPER_DEPTH_NOTE;
+                    }
+                  }
+                } else this.extractFridge(catItem, materials, prefix);
                 break;
               default:
                 // B3: 신발장·화장대·수납장·창고장 — 같은 상자 규칙, 카테고리 상수만 다르다 (BOM_SIMPLE_CATEGORY_RULES)
@@ -2251,7 +2290,7 @@
           const items = designData.items || [];
 
           // 품목 라벨 생성 (MaterialExtractor와 동일 로직 — B3 단순 카테고리 라벨은 규칙표에서)
-          const catNames = { sink: '싱크대', island: '아일랜드', wardrobe: '붙박이장', fridge: '냉장고장' };
+          const catNames = { sink: '싱크대', island: '아일랜드', door: '도어교체', custom: '비규격장', wardrobe: '붙박이장', fridge: '냉장고장' };
           const categoryTotals = {};
           const categoryCounts = {};
           items.forEach(item => {
@@ -2270,12 +2309,8 @@
             this._itemIdx = itemIdx; // B4: 철물 행 moduleKey — 자재 행 partId 와 같은 품목 순번
 
             this.extractHinges(item, hardware);
-            this.extractRails(item, hardware);
-            this.extractWardrobeRods(item, hardware);
-            this.extractHandles(item, hardware);
-            this.extractLegs(item, hardware);
-            this.extractBrackets(item, hardware);
-            this.extractOthers(item, hardware);
+            // 2026-10-20 카드 "도어만·싱크대 규칙": 도어교체는 도어 판 + 경첩만 — 레일·손잡이·다리발은 내지 않는다.
+            if (category !== 'door') this.extractRest(item, hardware);
 
             // 새로 추가된 부자재에 품목 라벨 태깅
             for (let i = beforeLen; i < hardware.length; i++) {
@@ -2288,6 +2323,16 @@
             summary: this.calculateSummary(hardware),
             extractDate: new Date().toISOString(),
           };
+        }
+
+        /** 경첩 다음 철물 — 레일·옷봉·손잡이·다리발·브라켓·기타 (도어교체는 부르지 않는다). */
+        extractRest(item, hardware) {
+          this.extractRails(item, hardware);
+          this.extractWardrobeRods(item, hardware);
+          this.extractHandles(item, hardware);
+          this.extractLegs(item, hardware);
+          this.extractBrackets(item, hardware);
+          this.extractOthers(item, hardware);
         }
 
         /**
@@ -2672,8 +2717,8 @@
           // B3: 단순 카테고리도 다리발 150 위에 선다 (simple-categories.md §2). 키큰장 단은 좌대가 받치므로 뺀다
           //   (싱크는 골든에 묶여 있어 그대로 — 키큰장 단도 세는 옛 셈이 남아 있다).
           const simple = !!BOM_SIMPLE_CATEGORY_RULES[category];
-          // 2026-10-20: 아일랜드도 다리발 150 (sink.md §1 표).
-          if (category !== 'sink' && category !== 'island' && !simple) return;
+          // 2026-10-20: 아일랜드도 다리발 150 (sink.md §1 표). 비규격장은 싱크대 규칙 (2026-10-20 카드).
+          if (category !== 'sink' && category !== 'island' && category !== 'custom' && !simple) return;
           const specs = item.specs || {};
           const legH = specs.sinkLegHeight || 150;
           let totalLegs = 0;
