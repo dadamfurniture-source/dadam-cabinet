@@ -103,6 +103,8 @@ function installJob({ claude = null, rowOptions = null } = {}) {
     }
     if (u.includes('/rest/v1/generations')) {
       if ((init.method || 'GET') === 'GET') {
+        // 2026-10-20: 방 사진 해시 조회(job.js roomPhoto)는 options 읽기가 아니다 — 같은 사진 행 없음
+        if (decodeURIComponent(u).includes('roomPhoto->>sha256')) return jsonRes([]);
         calls.reads++;
         return jsonRes([{ options: rowOptions }]);
       }
