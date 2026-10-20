@@ -112,6 +112,31 @@ import {
   getCalibration,
   applyCalibration,
 } from './production/worker-access.js';
+import { getMe, registerWorker, listWorkersAdmin, patchWorkerAdmin, listWorkerNotes, addWorkerNote } from './work/workers.js';
+import { createInvite, claimInvite } from './work/invites.js';
+import {
+  listJobsForWorker,
+  getJobForWorker,
+  listJobsAdmin,
+  createJobAdmin,
+  getJobAdmin,
+  patchJobAdmin,
+  publishJob,
+  cancelJob,
+  closeJob,
+} from './work/jobs.js';
+import { applyToJob, withdrawApplication, approveApplication, rejectApplication } from './work/applications.js';
+import {
+  confirmAssignment,
+  declineAssignment,
+  startAssignment,
+  releaseAssignment,
+  inviteWorker,
+  acceptAssignment,
+  requestRevision,
+  removeAssignment,
+} from './work/assignments.js';
+import { addWorkerUpdate, addCompanyUpdate } from './work/updates.js';
 
 const SERVICE = 'dadam-workflow-api';
 const VERSION = '0.1.0';
@@ -704,6 +729,20 @@ async function handleResendSlack(request, env, { params, user, ctx }) {
   return jsonResponse(request, env, { success: true, data });
 }
 
+// ===== 작업자 포털 (docs/01-plan/worker-portal-contract.md §3) =====
+
+/** 작업자 이름 · 휴대폰이 담길 수 있어 중간 캐시 · 브라우저 캐시에 남기지 않는다 */
+const NO_STORE = { 'Cache-Control': 'no-store, private' };
+
+/** src/work/* 함수 (env, { user, params, body, query, ctx }) → data 를 라우트 핸들러로 */
+function workRoute(fn, status = 200) {
+  return async (request, env, { params, user, ctx }) => {
+    const body = request.method === 'GET' ? null : (await readJson(request)) || {};
+    const data = await fn(env, { user, params, body, query: queryOf(request), ctx });
+    return jsonResponse(request, env, { success: true, data }, status, NO_STORE);
+  };
+}
+
 // ===== 라우팅 =====
 
 const router = createRouter([
@@ -784,6 +823,41 @@ const router = createRouter([
   { method: 'PATCH', path: '/reports/:reportId',         auth: 'jwt', handler: handleUpdateReport },
   { method: 'GET',   path: '/reports/:reportId/print',   auth: 'jwt', handler: handlePrintReport },
   { method: 'POST',  path: '/admin/reports/backfill',    auth: 'jwt', handler: handleBackfillReports },
+
+  // 작업자 포털 — 작업자 (호출자의 workers 행이 approved 여야 한다. /work/me · register · claim-invite 는 예외)
+  { method: 'GET',   path: '/work/me',                                auth: 'jwt', handler: workRoute(getMe) },
+  { method: 'POST',  path: '/work/register',                          auth: 'jwt', handler: workRoute(registerWorker, 201) },
+  { method: 'POST',  path: '/work/claim-invite',                      auth: 'jwt', handler: workRoute(claimInvite, 201) },
+  { method: 'GET',   path: '/work/jobs',                              auth: 'jwt', handler: workRoute(listJobsForWorker) },
+  { method: 'GET',   path: '/work/jobs/:id',                          auth: 'jwt', handler: workRoute(getJobForWorker) },
+  { method: 'POST',  path: '/work/jobs/:id/apply',                    auth: 'jwt', handler: workRoute(applyToJob, 201) },
+  { method: 'POST',  path: '/work/applications/:id/withdraw',         auth: 'jwt', handler: workRoute(withdrawApplication) },
+  { method: 'POST',  path: '/work/assignments/:id/confirm',           auth: 'jwt', handler: workRoute(confirmAssignment) },
+  { method: 'POST',  path: '/work/assignments/:id/decline',           auth: 'jwt', handler: workRoute(declineAssignment) },
+  { method: 'POST',  path: '/work/assignments/:id/start',             auth: 'jwt', handler: workRoute(startAssignment) },
+  { method: 'POST',  path: '/work/assignments/:id/release',           auth: 'jwt', handler: workRoute(releaseAssignment) },
+  { method: 'POST',  path: '/work/assignments/:id/updates',           auth: 'jwt', handler: workRoute(addWorkerUpdate, 201) },
+
+  // 작업자 포털 — 관리자 (읽기 isAdmin, 쓰기 · 작업자 메모는 super_admin · admin)
+  { method: 'GET',   path: '/work/admin/jobs',                        auth: 'jwt', handler: workRoute(listJobsAdmin) },
+  { method: 'POST',  path: '/work/admin/jobs',                        auth: 'jwt', handler: workRoute(createJobAdmin, 201) },
+  { method: 'GET',   path: '/work/admin/jobs/:id',                    auth: 'jwt', handler: workRoute(getJobAdmin) },
+  { method: 'PATCH', path: '/work/admin/jobs/:id',                    auth: 'jwt', handler: workRoute(patchJobAdmin) },
+  { method: 'POST',  path: '/work/admin/jobs/:id/publish',            auth: 'jwt', handler: workRoute(publishJob) },
+  { method: 'POST',  path: '/work/admin/jobs/:id/cancel',             auth: 'jwt', handler: workRoute(cancelJob) },
+  { method: 'POST',  path: '/work/admin/jobs/:id/close',              auth: 'jwt', handler: workRoute(closeJob) },
+  { method: 'POST',  path: '/work/admin/jobs/:id/invite',             auth: 'jwt', handler: workRoute(inviteWorker, 201) },
+  { method: 'POST',  path: '/work/admin/jobs/:id/updates',            auth: 'jwt', handler: workRoute(addCompanyUpdate, 201) },
+  { method: 'POST',  path: '/work/admin/applications/:id/approve',    auth: 'jwt', handler: workRoute(approveApplication) },
+  { method: 'POST',  path: '/work/admin/applications/:id/reject',     auth: 'jwt', handler: workRoute(rejectApplication) },
+  { method: 'POST',  path: '/work/admin/assignments/:id/accept',      auth: 'jwt', handler: workRoute(acceptAssignment) },
+  { method: 'POST',  path: '/work/admin/assignments/:id/revision',    auth: 'jwt', handler: workRoute(requestRevision) },
+  { method: 'POST',  path: '/work/admin/assignments/:id/remove',      auth: 'jwt', handler: workRoute(removeAssignment) },
+  { method: 'GET',   path: '/work/admin/workers',                     auth: 'jwt', handler: workRoute(listWorkersAdmin) },
+  { method: 'PATCH', path: '/work/admin/workers/:id',                 auth: 'jwt', handler: workRoute(patchWorkerAdmin) },
+  { method: 'GET',   path: '/work/admin/workers/:id/notes',           auth: 'jwt', handler: workRoute(listWorkerNotes) },
+  { method: 'POST',  path: '/work/admin/workers/:id/notes',           auth: 'jwt', handler: workRoute(addWorkerNote, 201) },
+  { method: 'POST',  path: '/work/admin/invites',                     auth: 'jwt', handler: workRoute(createInvite, 201) },
 
   { method: 'GET',  path: '/public/production/today',                          auth: 'none', handler: handleWorkerToday },
   { method: 'POST', path: '/public/production/worklogs',                       auth: 'none', handler: handleWorkerLog },
