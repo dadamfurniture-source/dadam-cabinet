@@ -505,7 +505,7 @@
       "part": "서랍측판",
       "material": "PB",
       "thickness": 15,
-      "w": 440,
+      "w": 490,
       "h": 180,
       "qty": 4,
       "edge": "1면(장)",
@@ -519,7 +519,7 @@
         "T": false,
         "B": true
       },
-      "edgeLen": 440,
+      "edgeLen": 490,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-w2",
@@ -531,7 +531,7 @@
       "material": "MDF",
       "thickness": 3,
       "w": 857,
-      "h": 449,
+      "h": 489,
       "qty": 2,
       "edge": "-",
       "note": "",
@@ -555,7 +555,7 @@
       "part": "서랍 하단보강",
       "material": "PB",
       "thickness": 15,
-      "w": 440,
+      "w": 490,
       "h": 60,
       "qty": 2,
       "edge": "2면(장)",
@@ -569,7 +569,7 @@
         "T": true,
         "B": true
       },
-      "edgeLen": 880,
+      "edgeLen": 980,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-w2",
@@ -1580,13 +1580,13 @@
     "PB_15": {
       "material": "PB",
       "thickness": 15,
-      "totalArea": 20381702,
+      "totalArea": 20423702,
       "panelCount": 7
     },
     "MDF_3": {
       "material": "MDF",
       "thickness": 3,
-      "totalArea": 7211581,
+      "totalArea": 7280141,
       "panelCount": 3
     },
     "MDF_18": {
@@ -1598,7 +1598,7 @@
   },
   "edgeBanding": {
     "1": 35176,
-    "0.6": 113422
+    "0.6": 113822
   },
   "hardware": [
     {
@@ -1658,7 +1658,7 @@
       "category": "레일",
       "item": "문주 언더레일",
       "manufacturer": "문주",
-      "spec": "450mm",
+      "spec": "500mm",
       "qty": 2,
       "unit": "SET",
       "note": "긴옷",

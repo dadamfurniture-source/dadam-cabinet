@@ -401,9 +401,9 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
     expect(s.unplaced.filter((u) => /칸막이/.test(u.part))).toEqual([]);
   });
 
-  test('아직 자리를 안 정한 행은 이유와 함께 — 서랍모듈 밴드 · 서랍 박스', () => {
+  test('아직 자리를 안 정한 행은 이유와 함께 — 서랍모듈 밴드', () => {
     const reasons = (id) => [...new Set(spec.unplaced.filter((u) => u.moduleKey === `0-${id}`).map((u) => u.reason))].sort();
-    expect(reasons('w2')).toEqual(['band-position-pending', 'not-yet']);
+    expect(reasons('w2')).toEqual(['band-position-pending']);
     expect(spec.unplaced.filter((u) => u.part === '도어')).toEqual([]);
     expect(spec.unplaced.filter((u) => /^좌대 (전후|측|중간보강)$/.test(u.part))).toEqual([]);
   });
@@ -456,6 +456,50 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
     expect(ch('목찬넬(중간 전면)')).toEqual(mids.map((m) => m[1]));
     expect(s.unplaced.filter((u) => /목찬넬/.test(u.part))).toEqual([]);
     expect(s.unplaced.filter((u) => u.part === '서랍도어' || u.part === '도어')).toEqual([]);
+    expect(require('../js/detaildesign/assembly-check.js').check(s).issues.filter((i) => i.level === 'error')).toEqual([]);
+  });
+
+  // 2026-10-20 사장님 카드 "싱크 규칙": 외부 서랍 박스는 싱크 서랍 박스 — 언더레일 500 (깊이 600 − 50 이하 최대), 측판 490,
+  //   측판 밑단 = 서랍 자리 바닥 + 30, 가로 가운데 (외경 858), 앞끝 = 몸통 앞선. 자리 바닥: 지판 윗면 · 중간 따낸 윗선 · 전면 사이 틈 가운데
+  test.each([
+    [1, [45]],
+    [2, [380, 45]],             // 위 서랍: 중간 따낸 윗선 350 + 30
+    [3, [706, 382, 45]],        // 맨 위: 전면 사이 틈 가운데 676 + 30, 가운데: 중간 따낸 윗선 352 + 30
+  ])('외부 서랍 %i단 박스 — 싱크 서랍 박스 자리', (n, y0s) => {
+    const item = JSON.parse(JSON.stringify(FIXTURES.wardrobe));
+    item.modules.find((x) => x.id === 'w2').drawerCount = n;
+    const design = { items: [item] };
+    const s = Asm.of(design, { materials: new MaterialExtractor().extract(design).materials });
+    const w2 = s.items[0].modules.find((x) => x.moduleId === 'w2');
+    const sides = w2.parts.filter((p) => p.part === '서랍측판');
+    expect(sides.filter((p) => p.tags.side === 'left').map((p) => p.box)).toEqual(y0s.map((y) => ({ min: [-429, y, -190], max: [-414, y + 180, 300] })));
+    expect(w2.parts.filter((p) => p.part === '서랍밑판').map((p) => [p.cut.w, p.cut.h, p.box.max[1]])).toEqual(y0s.map((y) => [857, 489, y]));
+    expect(w2.parts.filter((p) => p.part === '서랍 하단보강')).toHaveLength(n);
+    expect(s.unplaced.filter((u) => u.moduleKey === '0-w2' && /^서랍/.test(u.part))).toEqual([]);
+    expect(require('../js/detaildesign/assembly-check.js').check(s).issues.filter((i) => i.level === 'error')).toEqual([]);
+  });
+
+  // 2026-10-20 사장님 카드 "도어 앞선−70": 내부 서랍장 — 도어 앞면 = 통 앞선 − 70, 모듈은 그 뒤 (앞선 − 85), 좌우몰딩·상판 앞선도 앞선 − 70.
+  //   높이·가로는 규칙 파일 innerDrawerLayout: 통 지판 위, 모듈 W = 통 내경 − 120 가운데, 몰딩 60, 상판은 모듈 위.
+  test.each([
+    [1, [[17, 333]]],
+    [2, [[17, 350], [380, 713]]],
+    [3, [[17, 345], [375, 703], [703, 1031]]],
+  ])('내부 서랍장 %i단 — 도어 앞면 = 앞선 − 70, 모듈은 그 뒤', (n, spans) => {
+    const item = JSON.parse(JSON.stringify(FIXTURES.wardrobe));
+    Object.assign(item.modules.find((x) => x.id === 'w2'), { isExternalDrawer: false, drawerCount: n, wardrobe: { preset: 'longDrawer', drawers: n } });
+    const design = { items: [item] };
+    const s = Asm.of(design, { materials: new MaterialExtractor().extract(design).materials });
+    const w2 = s.items[0].modules.find((x) => x.moduleId === 'w2');
+    const inner = (part) => w2.parts.filter((p) => p.tags.innerDrawer && p.part === part).map((p) => p.box);
+    const H = n * 350;
+    expect(w2.parts.filter((p) => p.part === '내부서랍 전면판').map((p) => [p.box.min[1], p.box.max[1], p.box.min[2], p.box.max[2], p.box.min[0]])).toEqual(spans.map(([a, b]) => [a, b, 215, 230, -373]));
+    expect(inner('내부서랍 좌우몰딩')).toEqual([{ min: [-435, 15, 215], max: [-375, 15 + H, 230] }, { min: [375, 15, 215], max: [435, 15 + H, 230] }]);
+    expect(inner('측판')).toEqual([{ min: [-375, 15, -275], max: [-360, 15 + H, 215] }, { min: [360, 15, -275], max: [375, 15 + H, 215] }]);
+    expect(inner('상판')).toEqual([{ min: [-435, 15 + H, 230 - 512], max: [435, 30 + H, 230] }]);
+    expect(inner('밴드').map((p) => [p.min[1], p.max[1], p.min[2], p.max[2]])).toEqual([[H - 55, 15 + H, 200, 215], [H - 55, 15 + H, -275, -260]]);
+    // 박스 높이 자리는 아직 — 그 밖의 내부 서랍장 판은 모두 놓인다
+    expect([...new Set(s.unplaced.filter((u) => u.moduleKey === '0-w2').map((u) => u.part))].sort()).toEqual(['서랍 하단보강', '서랍밑판', '서랍전후판', '서랍측판']);
     expect(require('../js/detaildesign/assembly-check.js').check(s).issues.filter((i) => i.level === 'error')).toEqual([]);
   });
 
