@@ -426,7 +426,7 @@
   function wardrobeOf(mk, mod, rows, opts, item) {
     const keyed = rows.map((r) => ({ row: r, key: keyOfRow(r) }));
     const groupOf = (r) => { const m = String(r.module || '').match(WARDROBE_GROUP_RE); return m ? m[1] : ''; };
-    const parts = [], unplaced = [];
+    const parts = [], unplaced = [], pending = [];
     const skip = (row, reason) => unplaced.push({ rowPartId: row.partId, moduleKey: mk, part: row.part, qty: row.qty, reason });
 
     // 몸통 — 측판 행이 있는 묶음
@@ -449,6 +449,33 @@
     let y = 0;
     cars.forEach((c) => { c.y0 = y; y += c.H; });
 
+    const ped = keyed.filter((x) => x.key && groupOf(x.row) === '좌대');
+    const pedH = ped.length ? ped[0].row.h : 0;
+    const drawerCar = cars.find((c) => c.group === '서랍모듈');
+
+    // 외부 서랍 전면 자리 — 좌대를 덮고 바닥에서 20 위부터 쌓는다. 목찬넬 틈 30 자리 (2026-10-20 사장님):
+    //   2단은 서랍마다 위에 하나씩, 그 밖은 목찬넬 손잡이 규칙 그대로 (서랍 규칙 assignChannels: 상단 1 + 중간 최소).
+    //   BOM 은 단수 3 까지 단수만큼 전면을 낸다. 전면을 내림한 나머지(3단 1mm)는 맨 위 틈에 남는다.
+    //   ys 아래→위, midBelow[i] — 위→아래 전면 i 와 i+1 사이에 틈. 측판 따내기가 같은 자리를 쓴다.
+    const extFronts = (() => {
+      const hit = keyed.filter((x) => x.key && x.key.family === 'drawer' && groupOf(x.row) === '서랍모듈');
+      if (hit.length !== 1) return null;
+      const row = hit[0].row, n = row.qty;
+      if (!drawerCar || !pedH || n < 1 || n > 3 || row.w !== W - C.DOOR_GAP) return null;
+      const midBelow = n === 2 ? [true] : DrawerRules.assignChannels(n);
+      const slots = 1 + midBelow.filter(Boolean).length;
+      const top = drawerCar.y0 + drawerCar.H;
+      let yy = DR.SUPPORT_PEDESTAL_GAP - pedH;
+      const ys = [];
+      for (let i = n - 1; i >= 0; i--) {
+        ys.push(yy);
+        yy += row.h + (i > 0 && midBelow[i - 1] ? DR.SLOT : 0);
+      }
+      const rest = top - DR.SLOT - yy;   // 맨 위 틈 위로 남는 자리
+      if (rest < 0 || rest >= n || slots * DR.SLOT + n * row.h + DR.SUPPORT_PEDESTAL_GAP + rest !== top - (-pedH)) return null;
+      return { row, ys, midBelow };
+    })();
+
     // 통 구조 블록이 있으면 BOM 과 같은 배치 (extractWardrobe 와 같은 입력)
     const WR = WardrobeRules;
     const R = WR.WARDROBE_RULES;
@@ -470,6 +497,23 @@
       const panelZ0 = c.sakuri ? zBack + C.SAKURI_PANEL_D_MINUS : zBack;
       const tag = (t) => Object.assign({ carcass: ci }, t || {});
       const feats = c.sakuri ? [{ type: 'groove', face: 'inner', u0: C.SAKURI_FROM_BACK, u1: C.SAKURI_FROM_BACK + C.SAKURI_W, v0: 0, v1: c.H, depth: null, src: 'sakuri' }] : [];
+      if (c === drawerCar && /목찬넬 따내기 상단/.test(String(c.side.note || ''))) {
+        // 2026-10-20 사장님 카드 "싱크처럼 따냄": 측판 앞선 따내기 — 싱크 서랍장과 같은 짜임.
+        //   상단 70×40 은 몸통 상단에서, 중간 90×40 은 위 전면 아랫단에서 20 위가 따내기 윗선 (UPPER_DROP).
+        feats.push({ type: 'notch', u0: D - DR.CHANNEL_BASE_W, u1: D, v0: c.H - DR.CHANNEL_TOP_NOTCH_H, v1: c.H, src: 'channel-top' });
+        if (/중간/.test(String(c.side.note || ''))) {
+          if (!extFronts) pending.push('channel-mid-notch');
+          else {
+            const { ys, midBelow } = extFronts;
+            midBelow.forEach((on, i) => {
+              if (!on) return;
+              const yUp = ys[ys.length - 1 - i];   // 위→아래 i 번째 전면의 아랫단
+              const v1 = yUp + DR.UPPER_DROP - c.y0;
+              feats.push({ type: 'notch', u0: D - DR.CHANNEL_BASE_W, u1: D, v0: v1 - DR.CHANNEL_MID_NOTCH_H, v1, src: 'channel-mid' });
+            });
+          }
+        }
+      }
       parts.push(makePart(c.side, 0, { o: [-W / 2, c.y0, zBack], u: '+z', v: '+y', n: '+x' }, feats, 'exterior', tag({ side: 'left' })));
       parts.push(makePart(c.side, 1, { o: [W / 2, c.y0, zBack], u: '+z', v: '+y', n: '-x' }, feats, 'exterior', tag({ side: 'right' })));
       parts.push(makePart(c.bottom, 0, { o: [-W / 2 + T, c.y0, panelZ0], u: '+x', v: '+z', n: '+y' }, [], 'interior', tag()));
@@ -543,7 +587,6 @@
     //   (그 자리에 걸레받이 18T). 측판은 전후판 사이, 중간보강은 폭 가운데.
     //   tags.side 를 쓰지 않는다 — 검사가 몸통 측판(side)으로 읽는다.
     const pedRows = new Set();
-    const ped = keyed.filter((x) => x.key && groupOf(x.row) === '좌대');
     if (ped.length) {
       const pfam = (f) => ped.filter((x) => x.key.family === f).map((x) => x.row);
       const fbs = pfam('pedestal:fb'), psides = pfam('pedestal:side'), braces = pfam('pedestal:brace');
@@ -567,8 +610,6 @@
     //   좌대 높이는 좌대 행 높이. 외부 서랍 몸통이 있으면 도어는 그 몸통 상단부터 (카드 "도어 1580" — 좌대 덮기는 서랍 전면 몫).
     //   높이가 그 식과 다르면 자리를 모른다.
     const doorRows = new Set();
-    const pedH = ped.length ? ped[0].row.h : 0;
-    const drawerCar = cars.find((c) => c.group === '서랍모듈');
     keyed.filter((x) => x.key && x.key.family === 'door' && groupOf(x.row) === '').forEach(({ row }) => {
       const xs = doorXsOf(W, row);
       const y0 = drawerCar ? drawerCar.y0 + drawerCar.H : DR.SUPPORT_PEDESTAL_GAP - pedH;   // 서랍 규칙: 좌대가 있으면 바닥에서 20
@@ -577,27 +618,12 @@
       doorRows.add(row);
     });
 
-    // 외부 서랍 전면 — 좌대를 덮고 바닥에서 20 위부터 쌓는다. 목찬넬 틈 30 자리 (2026-10-20 사장님):
-    //   2단은 서랍마다 위에 하나씩, 그 밖은 목찬넬 손잡이 규칙 그대로 (서랍 규칙 assignChannels: 상단 1 + 중간 최소).
-    //   BOM 은 단수 3 까지 단수만큼 전면을 낸다. 전면을 내림한 나머지(3단 1mm)는 맨 위 틈에 남는다.
-    keyed.filter((x) => x.key && x.key.family === 'drawer' && groupOf(x.row) === '서랍모듈').forEach(({ row }) => {
-      const n = row.qty;
-      if (!drawerCar || !pedH || n < 1 || n > 3 || row.w !== W - C.DOOR_GAP) return;
-      // midBelow[i] — 위→아래 전면 i 와 i+1 사이에 틈
-      const midBelow = n === 2 ? [true] : DrawerRules.assignChannels(n);
-      const slots = 1 + midBelow.filter(Boolean).length;
-      const top = drawerCar.y0 + drawerCar.H;
-      let yy = DR.SUPPORT_PEDESTAL_GAP - pedH;
-      const ys = [];   // 아래→위
-      for (let i = n - 1; i >= 0; i--) {
-        ys.push(yy);
-        yy += row.h + (i > 0 && midBelow[i - 1] ? DR.SLOT : 0);
-      }
-      const rest = top - DR.SLOT - yy;   // 맨 위 틈 위로 남는 자리
-      if (rest < 0 || rest >= n || slots * DR.SLOT + n * row.h + DR.SUPPORT_PEDESTAL_GAP + rest !== top - (-pedH)) return;
-      ys.forEach((y0, k) => parts.push(makePart(row, k, { o: [-W / 2 + C.DOOR_GAP / 2, y0, D / 2], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { drawerIdx: n - 1 - k })));
+    // 외부 서랍 전면 — 위에서 푼 자리 (extFronts)
+    if (extFronts) {
+      const { row, ys } = extFronts;
+      ys.forEach((y0, k) => parts.push(makePart(row, k, { o: [-W / 2 + C.DOOR_GAP / 2, y0, D / 2], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { drawerIdx: ys.length - 1 - k })));
       doorRows.add(row);
-    });
+    }
 
     const placed = new Set([...divRows, ...pedRows, ...doorRows]);
     cars.forEach((c) => [c.side, c.top, c.bottom, c.back].concat(c.rows.filter((x) => x.key.family === 'shelf').map((x) => x.row)).forEach((r) => placed.add(r)));
@@ -620,7 +646,7 @@
         carcasses: cars.map((c, ci) => ({ carcass: ci, group: c.group || '통', y0: c.y0, h: c.H, sakuri: c.sakuri })),
         place: (opts.place && opts.place[mk]) || null,
         parts,
-        pending: [],
+        pending,
       },
       unplaced,
     };
