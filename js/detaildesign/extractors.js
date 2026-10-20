@@ -1238,8 +1238,8 @@
           const crowned = tier === 'top' || tier === 'single';       // 천장에 닿는 단 — 상몰딩
           const channelHere = bomTallTierHasChannel(tier, specs);
 
-          // 몸통 — 하부장과 같다 (사쿠리 없음)
-          this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면');
+          // 몸통 — 하부장과 같다 (사쿠리 없음). 목찬넬 단은 하부장처럼 측판 앞 위를 70×40 따낸다 (sink.md §5.1, 비고는 하부장과 같은 글)
+          this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면', (channelHere && DrawerRules) ? DrawerRules.notchNote(null) : '');
           this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
           this.add(materials, modLabel, '밴드', 'PB', T, ASM.BAND_W, W - T * 2, 2, '2면(장)');
           this.addBackPanel(materials, modLabel, W, H, false);
