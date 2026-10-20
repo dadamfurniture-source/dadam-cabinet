@@ -13,10 +13,10 @@
     <script src="../js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <script src="../js/admin-access.js?v=36.1"></script>
-    <script src="../js/work-jobs-admin.js?v=2"></script>
+    <script src="../js/work-jobs-admin.js?v=3"></script>
     <!--
       작업 배정 (docs/01-plan/worker-portal-contract.md §4, 계획 worker-portal.plan.md §7-1).
-      작업 보드(초안 · 모집중 · 마감 · 배정 · 진행 · 검수대기 · 완료) + 작업자 탭(승인 · 종류 · 초대 링크 · 메모).
+      작업 보드(초안 · 모집중 · 지원 종료 · 배정 · 진행 · 검수대기 · 완료) + 작업자 탭(승인 · 종류 · 초대 링크 · 메모).
       workflow-api 의 /work/admin/* 로 읽고 쓴다. 관리자 전원이 보고, 쓰기는 super_admin · admin (서버가 판정).
       현장 주소 · 연락처는 받지도 보여 주지도 않는다 (★7 공개 기간 미정). 화면에 넣는 값은 전부 esc() 를 거친다
       (이름표 · 카드 · 타임라인 HTML 은 js/work-jobs-admin.js).
@@ -80,6 +80,14 @@
       .jc-title { font-weight: 500; font-size: 14px; word-break: break-word; }
       .jc-meta { font-size: 12px; color: #777; }
       .dday { font-size: 11px; font-weight: 700; color: #c62828; }
+      /* 지원 종료일 꼬리표 — D-n 은 조용히, 오늘 종료 · 지원 종료는 눈에 띄게 */
+      .dl-tag { font-weight: 700; }
+      .dl-days { color: #555; }
+      .dl-today { color: #fff; background: #e65100; border-radius: 99px; padding: 0 7px; }
+      .dl-over { color: #c62828; }
+      .field-help { font-size: 12px; color: #888; }
+      .field-warn { font-size: 12px; color: #8a4b00; background: #fff3e0; border: 1px solid #ffd8a8; border-radius: 6px; padding: 6px 8px; }
+      .wk-suspended { font-size: 12px; color: #8a4b00; background: #fff8e1; border-radius: 6px; padding: 4px 8px; margin-top: 4px; }
       .kind-chip { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 11px; background: #e3f2fd; color: #1565c0; }
       .kind-as { background: #fce4ec; color: #ad1457; }
       .kind-assembly { background: #e8f5e9; color: #2e7d32; }
@@ -336,7 +344,12 @@
             <div class="field"><label for="jSlots">정원</label><input type="number" id="jSlots" min="1" step="1" value="1" /></div>
             <div class="field"><label for="jStarts">시작 (한국 시간)</label><input type="datetime-local" id="jStarts" /></div>
             <div class="field"><label for="jEnds">끝 (한국 시간)</label><input type="datetime-local" id="jEnds" /></div>
-            <div class="field"><label for="jDeadline">신청 마감 (한국 시간)</label><input type="datetime-local" id="jDeadline" /></div>
+            <div class="field">
+              <label for="jDeadline">지원 종료일 (한국 시간, 선택)</label>
+              <input type="datetime-local" id="jDeadline" aria-describedby="jDeadlineHelp jDeadlineWarn" />
+              <div class="field-help" id="jDeadlineHelp">비워 두면 정원이 찰 때까지 받습니다</div>
+              <div class="field-warn" id="jDeadlineWarn" role="status" hidden></div>
+            </div>
           </div>
           <div class="form-grid">
             <div class="field"><label for="jPay">금액 (원, 매번 직접 입력)</label><input type="number" id="jPay" min="0" step="1" /></div>
@@ -400,6 +413,18 @@
           <span class="status-line" id="notesStatus" style="margin-right: auto"></span>
           <button type="button" class="btn btn-primary" id="btnAddNote">메모 추가</button>
         </div>
+      </div>
+    </div>
+
+    <!-- 작업자 가입 · 승인 이력 (관리자 전원 읽기) -->
+    <div class="modal" id="workerEventsModal" role="dialog" aria-modal="true" aria-labelledby="workerEventsTitle">
+      <div class="modal-content" style="max-width: 640px">
+        <div class="modal-header">
+          <div><h3 id="workerEventsTitle">작업자 이력</h3><div class="muted">가입 신청 · 상태 변경 · 종류 변경</div></div>
+          <button type="button" class="close-btn" data-close="workerEventsModal" aria-label="닫기">×</button>
+        </div>
+        <div class="modal-body"><div class="scroll-x" id="workerEventsList"></div></div>
+        <div class="modal-footer"><span class="status-line" id="workerEventsStatus" style="margin-right: auto"></span></div>
       </div>
     </div>
 
@@ -638,7 +663,7 @@
           const row = (k, v) => `<dt>${esc(k)}</dt><dd>${v}</dd>`;
           $('jobInfo').innerHTML = `<dl class="info">${[
             row('일시', esc(H.fmtRange(job.starts_at, job.ends_at))),
-            row('신청 마감', esc(job.apply_deadline ? H.fmtDateTime(job.apply_deadline) : '없음')),
+            row('지원 종료일', H.deadlineDetailHtml(job)),
             row('시/구', esc(job.region_label || '미정')),
             row('정원', esc(`확정 ${c.filled === null ? '-' : c.filled} / ${c.slots === null ? '-' : c.slots} · 신청 대기 ${c.applied === null ? '-' : c.applied}`)),
             row('모집 방식', esc(H.MODE_LABEL[job.mode] || job.mode || '-')),
@@ -706,15 +731,17 @@
               await shareOrCopy('다담가구 작업', text, 'jobStatus');
               return;
             }
-            case 'job-close':
-              if (!window.confirm('검수가 끝난 작업을 닫을까요?')) return;
-              await post(`${jobPath}/close`);
-              return afterWrite('작업을 닫았습니다.');
+            case 'job-close': {
+              // 응답 없는 초대(offered)는 서버가 닫으면서 끝낸다 — 응답의 auto_declined 로 몇 건인지 알린다
+              if (!window.confirm(H.closeConfirmText(job, state.current.assignments))) return;
+              const res = await post(`${jobPath}/close`);
+              return afterWrite(`작업을 닫았습니다.${H.autoDeclinedNote(res)}`);
+            }
             case 'job-cancel': {
-              const r = await askReason({ title: '작업 취소', hint: '배정된 작업자가 있으면 그 사람의 작업 화면에도 취소로 보입니다.', required: true });
+              const r = await askReason({ title: '작업 취소', hint: H.cancelHint(state.current.assignments), required: true });
               if (!r) return;
-              await post(`${jobPath}/cancel`, { reason: r.reason });
-              return afterWrite('작업을 취소했습니다.');
+              const res = await post(`${jobPath}/cancel`, { reason: r.reason });
+              return afterWrite(`작업을 취소했습니다.${H.autoDeclinedNote(res)}`);
             }
             case 'app-approve':
               await post(`/work/admin/applications/${encodeURIComponent(id)}/approve`);
@@ -785,6 +812,13 @@
         };
         const DRAWER_TIMES = { starts_at: 'jStarts', ends_at: 'jEnds', apply_deadline: 'jDeadline' };
 
+        /** 지원 종료일이 지난 시각이면 경고만 (저장은 막지 않는다) */
+        function renderDeadlineWarn() {
+          const msg = H.deadlineWarning($('jDeadline').value);
+          $('jDeadlineWarn').textContent = msg;
+          $('jDeadlineWarn').hidden = !msg;
+        }
+
         function openDrawer(job) {
           state.editing = job || null;
           const j = job || {};
@@ -794,6 +828,7 @@
           }
           if (!job) { $('jMode').value = 'open'; $('jSlots').value = '1'; }
           for (const [k, id] of Object.entries(DRAWER_TIMES)) $(id).value = H.toKstInput(j[k]);
+          renderDeadlineWarn();
           $('jPayVisible').checked = Boolean(j.pay_visible);
           $('drawerTitle').textContent = job ? '작업 고치기' : '작업 만들기';
           $('btnSaveJob').textContent = job ? '저장' : '초안 저장';
@@ -872,7 +907,8 @@
               return patchWorker(id, r.reason ? { status: 'rejected', reject_reason: r.reason } : { status: 'rejected' }, '반려했습니다.');
             }
             case 'wk-suspend':
-              if (!window.confirm('이 작업자를 정지할까요? 새 작업을 보거나 신청할 수 없게 됩니다.')) return;
+              // 정지는 새 신청 · 초대 수락만 막는다 — 진행 중인 배정(active_count)은 그대로 남는다
+              if (!window.confirm(H.suspendConfirmText(w))) return;
               return patchWorker(id, { status: 'suspended' }, '정지했습니다.');
             case 'wk-resume':
               return patchWorker(id, { status: 'approved' }, '정지를 풀었습니다.');
@@ -884,8 +920,29 @@
             }
             case 'wk-notes':
               return openNotes(w);
+            case 'wk-events':
+              return openWorkerEvents(w);
             default:
           }
+        }
+
+        /** 작업자 이력 (GET /work/admin/workers/:id/events) — 라우트가 아직 없거나(404) 비면 '기록 없음' */
+        async function openWorkerEvents(w) {
+          $('workerEventsTitle').textContent = `작업자 이력 — ${w.display_name || '작업자'}`;
+          $('workerEventsList').innerHTML = '';
+          setStatus('workerEventsStatus', '불러오는 중…');
+          $('workerEventsModal').classList.add('active');
+          let items = [];
+          try {
+            items = itemsOf(await api(`/work/admin/workers/${encodeURIComponent(w.id)}/events`));
+          } catch (e) {
+            if (!(e && e.status === 404)) {
+              setStatus('workerEventsStatus', (e && e.message) || '이력을 불러오지 못했습니다.', 'error');
+              return;
+            }
+          }
+          $('workerEventsList').innerHTML = H.workerEventsHtml(items);
+          setStatus('workerEventsStatus', items.length ? `${items.length}건` : '');
         }
 
         async function openNotes(w) {
@@ -952,6 +1009,8 @@
           $('btnNewJob').addEventListener('click', () => openDrawer(null));
           $('btnSaveJob').addEventListener('click', () => guard(() => saveJob(false), 'drawerStatus'));
           $('btnSavePublish').addEventListener('click', () => guard(() => saveJob(true), 'drawerStatus'));
+          $('jDeadline').addEventListener('input', renderDeadlineWarn);
+          $('jDeadline').addEventListener('change', renderDeadlineWarn);
 
           $('jobModal').addEventListener('click', (e) => {
             const b = e.target.closest('[data-act]');

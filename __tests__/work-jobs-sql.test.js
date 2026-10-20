@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+/* global require, describe, test, expect, __dirname */
 /**
  * 작업자 포털 — database/work-jobs.sql · work-jobs-rollback.sql 안전성 시험 (DB 없이 소스 텍스트로 고정).
  * 계약: docs/01-plan/worker-portal-contract.md §2 · §6
@@ -6,6 +8,7 @@
  *     worker_notes 만 정책이 없다 (편집자만 읽는다 — is_admin() 은 support·moderator 도 참이라 API 의 편집자 검사로만 읽는다)
  *   - auth.users FK 는 모두 ON DELETE SET NULL · 주민번호 · 계좌 열 없음 · 글자 수 CHECK
  *   - 되돌리기 파일은 모든 표를 만든 순서의 역순으로 DROP
+ *   - worker_events (1주차 후속 2026-10-20 F): 작업자 가입 · 상태 · 종류 변경 이력 — work_job_events 와 같은 규칙 (관리자 SELECT 정책 있음)
  * 워커가 같은 이름으로 쓰는지는 workers/workflow-api/test/work.test.js 가 본다.
  */
 const fs = require('fs');
@@ -20,7 +23,7 @@ const statements = body.split(/;\s*\n/).map((s) => s.trim()).filter(Boolean);
 
 const TABLES = [
   'worker_invites', 'workers', 'worker_notes', 'work_jobs', 'work_applications',
-  'work_assignments', 'work_updates', 'work_photos', 'work_reviews', 'work_job_events',
+  'work_assignments', 'work_updates', 'work_photos', 'work_reviews', 'work_job_events', 'worker_events',
 ];
 /** 관리자 SELECT 정책을 두는 표 — worker_notes 는 편집자만 읽으므로 정책이 없다 (계약 §2 · §3) */
 const ADMIN_READ_TABLES = TABLES.filter((t) => t !== 'worker_notes');
@@ -79,7 +82,7 @@ describe('work-jobs.sql — 멱등 · 비파괴', () => {
     }
   });
 
-  test('계약의 표 10개를 모두 만든다', () => {
+  test('계약의 표 11개를 모두 만든다 (worker_events 는 맨 뒤 — workers 다음)', () => {
     const made = [...body.matchAll(/CREATE TABLE IF NOT EXISTS (\w+)/g)].map((m) => m[1]);
     expect(made).toEqual(TABLES);
   });
@@ -155,6 +158,7 @@ describe('work-jobs.sql — 열 · 제약', () => {
       work_updates: ['length(body) BETWEEN 1 AND 1000'],
       work_reviews: ['length(comment), 0) <= 500', 'length(reply), 0) <= 500', 'length(objection), 0) <= 500'],
       work_job_events: ['length(note), 0) <= 300'],
+      worker_events: ['length(type) BETWEEN 1 AND 40', 'length(note), 0) <= 300', 'length(from_status), 0) <= 20', 'length(to_status), 0) <= 20'],
     };
     for (const [t, parts] of Object.entries(want)) {
       const chk = checksOf(t);
@@ -182,6 +186,7 @@ describe('work-jobs.sql — 열 · 제약', () => {
     expect(inList(checksOf('work_reviews'), 'direction')).toEqual(['company_to_worker', 'worker_to_company']);
     expect(checksOf('work_reviews')).toMatch(/score IS NULL OR score BETWEEN 1 AND 5/);
     expect(inList(checksOf('work_job_events'), 'actor_kind')).toEqual(['worker', 'admin', 'system']);
+    expect(inList(checksOf('worker_events'), 'actor_kind')).toEqual(['worker', 'admin', 'system']);
   });
 
   test('기본값 — 작업자 pending · 작업 draft · 금액 숨김 · version 0 · 신청 applied', () => {
@@ -204,6 +209,37 @@ describe('work-jobs.sql — 열 · 제약', () => {
   test('기록은 추가만 — 정정은 amends_id 로 원본을 가리킨다 (원본이 지워져도 정정은 남는다)', () => {
     expect(tableBody('work_updates')).toMatch(/amends_id\s+UUID REFERENCES work_updates\(id\) ON DELETE SET NULL/);
     expect(tableBody('work_job_events')).toMatch(/payload\s+JSONB NOT NULL DEFAULT '\{\}'::jsonb/);
+  });
+});
+
+describe('worker_events — 작업자 가입 · 승인 이력 (1주차 후속 F)', () => {
+  test('열 — 명세 그대로 (이름 · 연락처 · 주소 열 없음)', () => {
+    expect(columnsOf('worker_events')).toEqual([
+      'id', 'worker_id', 'actor_user_id', 'actor_kind', 'type', 'from_status', 'to_status', 'note', 'payload', 'created_at',
+    ]);
+    const t = tableBody('worker_events');
+    expect(t).toMatch(/id\s+UUID PRIMARY KEY DEFAULT gen_random_uuid\(\)/);
+    expect(t).toMatch(/worker_id\s+UUID NOT NULL REFERENCES workers\(id\) ON DELETE CASCADE/);
+    expect(t).toMatch(/actor_user_id\s+UUID REFERENCES auth\.users\(id\) ON DELETE SET NULL/);
+    expect(t).toMatch(/actor_kind\s+TEXT NOT NULL/);
+    expect(t).toMatch(/type\s+TEXT NOT NULL/);
+    expect(t).toMatch(/payload\s+JSONB NOT NULL DEFAULT '\{\}'::jsonb/);
+    expect(t).toMatch(/created_at\s+TIMESTAMPTZ NOT NULL DEFAULT now\(\)/);
+    for (const bad of ['display_name', 'phone', 'address', 'region', 'email']) {
+      expect(columnsOf('worker_events').some((c) => c.includes(bad))).toBe(false);
+    }
+  });
+
+  test('workers 다음에 만든다 (FK) · 작업자별 최근순 인덱스', () => {
+    expect(body.indexOf('CREATE TABLE IF NOT EXISTS worker_events')).toBeGreaterThan(body.indexOf('CREATE TABLE IF NOT EXISTS workers ('));
+    expect(body).toMatch(/CREATE INDEX IF NOT EXISTS idx_worker_events_worker ON worker_events \(worker_id, created_at DESC\);/);
+  });
+
+  test('RLS — work_job_events 와 같다: 켬 · anon REVOKE · 관리자 SELECT 정책 하나 (worker_notes 같은 예외 아님)', () => {
+    expect(body).toMatch(/ALTER TABLE worker_events\s+ENABLE ROW LEVEL SECURITY/);
+    expect(body).toMatch(/REVOKE ALL ON worker_events\s+FROM anon/);
+    expect(body).toContain('DROP POLICY IF EXISTS "Admins read worker events" ON worker_events;');
+    expect(body).toMatch(/CREATE POLICY "Admins read worker events" ON worker_events\s+FOR SELECT TO authenticated USING \(public\.is_admin\(\)\);/);
   });
 });
 
