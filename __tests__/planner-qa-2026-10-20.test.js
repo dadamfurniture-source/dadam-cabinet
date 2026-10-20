@@ -119,3 +119,64 @@ describe('적용 안 한 모듈 변경을 잃지 않는다', () => {
     expect(p.g('getStructure')(a.id).verticalCount).toBe(before);
   });
 });
+
+describe('칸 타입 서랍 — 서랍장으로 바꾼다 (BOM 브리지가 읽는 모양)', () => {
+  function pick() {
+    const p = bootPlanner('mockup-structure.html', { search: '?design=t&item=1' });
+    const area = p.g('areas').find((a) => a.section === 'lower');
+    const m = p.g('addModuleToArea')(area.id);
+    p.g('setActiveModule')(m.id);
+    return { p, m };
+  }
+  const typeSel = (p) => p.document.querySelector('#areasBody .area-row[data-idx="0"] .a-type');
+
+  test('칸 하나에서 서랍을 고르면 하부 서랍 모듈이 된다', () => {
+    const { p, m } = pick();
+    const sel = typeSel(p);
+    sel.value = 'drawer';
+    sel.dispatchEvent(new p.window.Event('change', { bubbles: true }));
+    p.g('applyModuleDraft')();
+    const s = p.g('getStructure')(m.id);
+    expect(s.horizontalLayout).toBe('doorTopDrawerBottom');
+    expect(s.bottomType).toBe('drawer');
+    expect(s.areaTypes[0]).toBe('door');
+  });
+
+  test('칸이 여럿이면 서랍 고르기가 없다', () => {
+    const { p } = pick();
+    const inp = p.document.querySelector('#inpVCount');
+    inp.value = '2';
+    inp.dispatchEvent(new p.window.Event('change', { bubbles: true }));
+    const opts = [...typeSel(p).options].map((o) => o.value);
+    expect(opts).not.toContain('drawer');
+    expect(opts).toContain('door');
+  });
+});
+
+describe('아일랜드 BOM — 싱크대 규칙으로 산출한다 (sink.md categoryId sink / island)', () => {
+  const { snapshotOf } = require('../test-utils/bom-golden/golden');
+  const design = {
+    items: [{
+      categoryId: 'island', w: 2400, h: 870, d: 800,
+      specs: { bodyThickness: 15, lowerH: 870, sinkLegHeight: 150, topThickness: 12 },
+      modules: [
+        { id: 'l1', type: 'storage', name: '하부장', pos: 'lower', w: 1200, h: 708, d: 770, doorCount: 2, is2door: true, isDrawer: false },
+        { id: 'l2', type: 'storage', name: '하부장', pos: 'lower', w: 1200, h: 708, d: 770, doorCount: 2, is2door: true, isDrawer: false },
+      ],
+    }],
+  };
+
+  test('몸통·도어 부재가 나온다 (전에는 0 개)', () => {
+    const r = snapshotOf(design);
+    const parts = r.materials.map((m) => m.part);
+    expect(parts).toContain('측판');
+    expect(parts).toContain('도어');
+    expect(r.materials.find((m) => m.part === '측판').w).toBe(770);
+    expect(r.materials[0].itemLabel).toBe('아일랜드');
+  });
+
+  test('다리발이 나온다', () => {
+    const r = snapshotOf(design);
+    expect(r.hardware.some((h) => /다리/.test(h.category + h.item))).toBe(true);
+  });
+});
