@@ -411,47 +411,10 @@
         </div>
       </div>
 
-      <div class="section">
-        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="chev">▼</span> 도어 / 손잡이
-        </div>
-        <div class="section-body">
-          <div class="row"><label>도어 색상</label>
-            <div class="swatch-row" style="margin:0">
-              <span class="swatch sel" style="background:#e8dcc4"></span>
-              <span class="swatch" style="background:#3d342a"></span>
-              <span class="swatch" style="background:#b8956c"></span>
-              <span class="swatch" style="background:#fff"></span>
-            </div>
-          </div>
-          <div class="row"><label>도어 개수</label><input type="number" value="2"></div>
-          <div class="row"><label>손잡이</label>
-            <select><option>매립형</option><option>막대형</option><option>노브</option></select>
-          </div>
-        </div>
-      </div>
-
-      <div class="section collapsed">
-        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="chev">▼</span> 마감 / 조명
-        </div>
-        <div class="section-body">
-          <div class="row"><label>몰딩 높이</label><input type="number" value="80"></div>
-          <div class="row"><label>걸레받이</label><input type="number" value="100"></div>
-          <div class="row"><label>LED 라인</label><select><option>없음</option><option>하부</option><option>상부</option></select></div>
-        </div>
-      </div>
-
-      <div class="section collapsed">
-        <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="chev">▼</span> BOM 미리보기
-        </div>
-        <div class="section-body">
-          <div class="row"><label>총 모듈</label><span>14 개</span></div>
-          <div class="row"><label>도어 패널</label><span>22 장</span></div>
-          <div class="row"><label>예상 자재비</label><span>2,840,000원</span></div>
-        </div>
-      </div>
+      <!-- 2026-10-20 플래너 점검: 여기 있던 '도어 / 손잡이'·'마감 / 조명'·'BOM 미리보기' 세 칸을 지웠다.
+           어디에도 연결되지 않은 목업이라 BOM 미리보기는 배치와 상관없이 "14 개 · 22 장 · 2,840,000원" 을,
+           손잡이는 쓰지 않는 막대형·노브를 보여 주고 있었다 (W12-4 가 가구 W/H/D 목업을 지운 것과 같은 이유).
+           도어·손잡이·마감은 구조·디테일 단계에서, 자재 수량은 BOM 산출에서 정한다. -->
     </div>
   </div>
 
@@ -488,16 +451,18 @@
 <!-- 플래너 공통 모듈 — 배치·구조 두 단계가 같은 정본을 본다.
      클래식 스크립트이므로 아래 인라인보다 **먼저** 실행되어야 하고,
      여기서 선언한 이름을 인라인이 다시 선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-category-picker.js?v=42.5"></script>
-<script src="js/planner/planner-scope.js?v=42.5"></script>
-<script src="js/planner/planner-view.js?v=42.5"></script>
-<script src="js/planner/planner-sections.js?v=42.5"></script>
+<script src="js/planner/planner-category-picker.js?v=42.6"></script>
+<script src="js/planner/planner-scope.js?v=42.6"></script>
+<script src="js/planner/planner-view.js?v=42.6"></script>
+<script src="js/planner/planner-sections.js?v=42.6"></script>
+<!-- 2026-10-20: 품목 깊이로 배치 깊이를 잡을 때 몸통 앞 여유(MASTER_RULES)를 구조 단계와 같은 값으로 쓴다. -->
+<script src="js/planner/planner-engine.js?v=42.6"></script>
 <!-- W12-71: 배치 도면을 계정에도 한 벌 남긴다. 불러오기 UI 는 구조 단계에 있다.
      셋이 없어도 배치는 그대로 돈다 — PlannerStore 가 localStorage 로 물러난다. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-<script src="js/config.js?v=42.5"></script>
-<script src="js/planner/planner-store.js?v=42.5"></script>
-<script src="js/planner/planner-drawing-menu.js?v=42.5"></script>
+<script src="js/config.js?v=42.6"></script>
+<script src="js/planner/planner-store.js?v=42.6"></script>
+<script src="js/planner/planner-drawing-menu.js?v=42.6"></script>
 
 <script>
   const lt = document.getElementById('leftTools'), btnL = document.getElementById('btnLeft');
@@ -513,6 +478,13 @@
   // 섹션 정본(치수·색·moduleH 의미)은 js/planner/planner-sections.js 에 있다.
   // 배치 단계는 덮어쓸 것이 없어 정본 그대로 쓴다. 품목별 기본값(TV장 거실장 높이 등)만 URL preset 으로 얹는다.
   const SECTION_CONFIG = buildSectionConfig(undefined, undefined, new URLSearchParams(location.search).get('preset'));
+  // 2026-10-20: 품목 깊이(URL d)를 하부장·키큰장 배치 깊이에 얹는다 — 방식은 planner-sections.js PLANNER_CATEGORY_DEPTH_MODE.
+  //   몸통 앞 여유(물끊기 + 도어 자리)는 구조 단계가 쓰는 planner-engine 값 그대로다.
+  {
+    const q = new URLSearchParams(location.search);
+    applyItemDepthToSections(SECTION_CONFIG, q.get('preset'), q.get('d'),
+      MASTER_RULES.CORNER_DRIP + MASTER_RULES.DOOR_SEAT_D);
+  }
 
   // W9-28: 도면에 가장 최근 추가된 일반 모듈 (lower/upper/tall/fridge) 의 깊이/높이 자동 참조
   function getAdjacentModuleDims() {
