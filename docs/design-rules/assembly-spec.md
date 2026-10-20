@@ -54,3 +54,16 @@ BOM 행마다 판재 조각의 **자리**를 붙인다. 재단 치수는 BOM 행
 
 - **18T 상부장 선반 ↔ 처짐방지목 2mm.** 상부 선반 깊이가 상수 D−34 라, 18T 에서는 홈 앞 18 + 선반 + 처짐방지목 18 = D + 2.
   15T 에서는 1mm 가 남는다. 결정 D10(18T 실사용)·D12(선반 감산이 상수인가 T 인가)와 함께 사장님 확인 대기.
+
+## CAD GLB (관리자 전용)
+
+- 코드: `js/planner/planner-export.js` (`plannerExportCadSpec` · `plannerExportCadScene`), 버튼: `mockup-structure.html` 🧊 CAD GLB
+- 시험: `__tests__/planner-export-cad.test.js`
+
+플래너 구조 페이지가 부모 창(상세설계)의 변환(`_convertPlannerModules`)과 `MaterialExtractor` 로 BOM 을 내고, 이 명세를 만들어 판재를 그대로 GLB 로 쓴다.
+3D 장면은 베끼지 않는다. 모듈을 세우는 자리만 3D 모듈 그룹에서 가져온다 (그룹 자리 · 칸 오프셋 · 다리발/좌대 높이).
+
+- 노드: 루트 `dadam-planner-cad`(배율 0.001, mm → m) ▸ `module·<moduleKey>` ▸ 판재 `<partId>#k`. 따낸 판은 상자 여럿.
+- 판재 extras: `rowPartId · part · material · t · cutW · cutH · moduleKey · vis`. 루트 extras: `schema · rulesVersion · unplaced`(자리 미정 행 수).
+- `unplaced` 행(도어·서랍·밴드 자리 등)은 GLB 에 없다.
+- 선반 높이는 플래너 구조의 `s.shelves`. BOM 선반 장수와 다르면 선반은 놓지 않는다.
