@@ -154,7 +154,7 @@ function isDrawerFrontRow(m) {
 }
 
 /** 꾸러미 머리 숫자의 재료 — 사내/도어재 시트·행, 통·서랍·도어 수. (순수, 시험용으로 노출) */
-/** 사내에서 자르는 행 — 도어재(외주)와 밥솥장·홈카페장 MDF 18T 몸통(재단 외주)을 뺀 나머지. */
+/** 사내에서 자르는 행 — 도어재(외주)와 밥솥장·홈카페장·오픈장 MDF 18T 몸통(재단 외주)을 뺀 나머지. */
 function isInHouseRow(m) {
   return !isDoorClass(m) && !isOutsourcedCutRow(m);
 }
@@ -878,7 +878,7 @@ function cutSheets(ctx, { vendor = false } = {}) {
     .filter(({ row }) => isOutsourcedCutRow(row));
   // 2026-10-20 사장님 "재단 외주, 조립 사내" — 외주처 미정이라 업체 이름 없이 적는다
   const outsourcedBlock = outsourced.length
-    ? `<div class="sub-title">MDF 18T 재단 외주 <span class="muted">밥솥장·홈카페장 몸통 ${num(outsourced.reduce((s, x) => s + qtyOf(x.row), 0))}장 — 사내에서 자르지 않는다 · 입고 후 사내 조립</span></div>${flatMaterialTable(ctx, outsourced)}`
+    ? `<div class="sub-title">MDF 18T 재단 외주 <span class="muted">밥솥장·홈카페장·오픈장 몸통 ${num(outsourced.reduce((s, x) => s + qtyOf(x.row), 0))}장 — 사내에서 자르지 않는다 · 입고 후 사내 조립</span></div>${flatMaterialTable(ctx, outsourced)}`
     : '';
   const doorNote = !vendor && counts.doorRows.length
     ? `<div class="muted">도어재 ${num(counts.doorRows.reduce((s, m) => s + qtyOf(m), 0))}장${counts.doorSheets ? ` (원장 ${num(counts.doorSheets.length)}장)` : ''} 은 외주 — ⑩ 도어재 발주서.</div>`
