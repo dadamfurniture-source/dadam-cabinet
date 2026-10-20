@@ -165,6 +165,13 @@
       let cursor = 0;
 
       const $ = (id) => document.getElementById(id);
+      // innerHTML 에 넣는 값은 모두 거친다 — 시공사례 샘플의 attrs(제목·원 라벨·지역)는
+      // 고객이 시공사례를 올릴 때 적은 글이 그대로 옮겨 온 것이다 (workers/dataset-api/src/adapters.js).
+      const esc = (v) =>
+        String(v == null ? '' : v).replace(
+          /[&<>"']/g,
+          (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+        );
       const api = () => (window.DADAM_CONFIG && window.DADAM_CONFIG.datasetApi && window.DADAM_CONFIG.datasetApi.url) || '';
 
       async function initAdmin() {
@@ -286,19 +293,19 @@
         $('stageMsg').hidden = true;
         img.hidden = false;
         img.src = it.image_url;
-        $('guess').innerHTML = it.space + '<small>' + it.label_source + (it.confidence != null ? ' ' + it.confidence : '') + '</small>';
+        $('guess').innerHTML = esc(it.space) + '<small>' + esc(it.label_source) + (it.confidence != null ? ' ' + esc(it.confidence) : '') + '</small>';
         $('guessSub').textContent = [it.media, it.phase, it.furniture, it.layout_shape].join(' · ');
         Array.prototype.forEach.call($('keys').querySelectorAll('button[data-val]'), (b) => {
           b.classList.toggle('cur', b.dataset.val === it.space);
         });
         const a = it.attrs || {};
         $('meta').innerHTML = [
-          '<b>' + it.sample_id + '</b>',
-          '출처 ' + it.source + ' · 그룹 ' + it.group_key,
-          '라이선스 <b>' + it.license + '</b>' + (it.consent === true ? ' · 동의함' : it.consent === false ? ' · 동의 안 함' : ' · 동의 미확인'),
-          a.title ? '제목 ' + a.title : '',
-          a.raw_label ? '원 라벨 ' + a.raw_label : '',
-          a.region ? '지역 ' + a.region : '',
+          '<b>' + esc(it.sample_id) + '</b>',
+          '출처 ' + esc(it.source) + ' · 그룹 ' + esc(it.group_key),
+          '라이선스 <b>' + esc(it.license) + '</b>' + (it.consent === true ? ' · 동의함' : it.consent === false ? ' · 동의 안 함' : ' · 동의 미확인'),
+          a.title ? '제목 ' + esc(a.title) : '',
+          a.raw_label ? '원 라벨 ' + esc(a.raw_label) : '',
+          a.region ? '지역 ' + esc(a.region) : '',
           '남은 ' + (queue.length - cursor) + '장',
         ].filter(Boolean).join('<br>');
 

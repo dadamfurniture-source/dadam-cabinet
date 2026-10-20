@@ -677,6 +677,14 @@
         cancelled: '취소',
       };
 
+      // innerHTML 에 넣는 값은 모두 거친다 — 상담 신청은 비로그인 공개 폼이라 모든 칸을 남이 정한다
+      // (이름·이메일·전화·제목·내용뿐 아니라 status·admin_memo 까지 insert 때 직접 넣을 수 있다).
+      const esc = (v) =>
+        String(v == null ? '' : v).replace(
+          /[&<>"']/g,
+          (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+        );
+
       document.addEventListener('DOMContentLoaded', async () => {
         await initAdmin();
       });
@@ -778,7 +786,7 @@
           container.innerHTML = `
                     <div class="empty-state">
                         <h4>데이터를 불러올 수 없습니다</h4>
-                        <p>${e.message}</p>
+                        <p>${esc(e.message)}</p>
                         <p style="font-size:0.85rem;color:#888;margin-top:10px;">
                             consultations 테이블이 생성되어 있는지 확인하세요.
                         </p>
@@ -815,7 +823,7 @@
           ? cats
               .map(
                 (cat) =>
-                  `<span class="type-badge" style="margin:2px 4px 2px 0;">${CATEGORY_LABELS_KO[cat] || cat}</span>`
+                  `<span class="type-badge" style="margin:2px 4px 2px 0;">${esc(CATEGORY_LABELS_KO[cat] || cat)}</span>`
               )
               .join('')
           : '-';
@@ -823,30 +831,33 @@
         const budgetLabel = BUDGET_LABELS_KO[c.budget_range] || c.budget_range || '-';
         const styleLabel = STYLE_LABELS_KO[c.style_preference] || c.style_preference || '-';
         const hasDims = c.space_width_mm || c.space_height_mm || c.space_depth_mm;
-        const dimHtml = hasDims
+        const dimText = hasDims
           ? `${c.space_width_mm || '?'} × ${c.space_height_mm || '?'} × ${c.space_depth_mm || '?'} mm`
           : '-';
         const ddRequested = c.request_detail_design
           ? '<span style="color:#e65100;font-weight:600;margin-left:4px;">상세설계 권한 신청</span>'
           : '';
 
+        // 단추의 상담 id 는 data-id 로만 싣는다 — 인라인 onclick 의 JS 문자열에 DB 값을 넣지 않는다.
+        // 누르면 아래 consultationList 의 click 위임(CARD_ACTIONS)이 받는다.
+        const id = esc(c.id);
         let actionsHtml = '';
         if (c.status === 'pending') {
           actionsHtml = `
-                    <button class="btn btn-primary btn-sm" onclick="openConfirmModal('${c.id}')">일정 확정</button>
-                    <button class="btn btn-secondary btn-sm" onclick="openEditModal('${c.id}')">내용 정리</button>
-                    <button class="btn btn-danger btn-sm" onclick="cancelConsultation('${c.id}')">취소</button>
+                    <button class="btn btn-primary btn-sm" data-act="confirm" data-id="${id}">일정 확정</button>
+                    <button class="btn btn-secondary btn-sm" data-act="edit" data-id="${id}">내용 정리</button>
+                    <button class="btn btn-danger btn-sm" data-act="cancel" data-id="${id}">취소</button>
                 `;
         } else if (c.status === 'confirmed') {
           actionsHtml = `
-                    <button class="btn btn-success btn-sm" onclick="openCompleteModal('${c.id}')">완료 처리</button>
-                    <button class="btn btn-secondary btn-sm" onclick="openEditModal('${c.id}')">내용 정리</button>
-                    <button class="btn btn-warning btn-sm" onclick="openConfirmModal('${c.id}')">일정 변경</button>
-                    <button class="btn btn-danger btn-sm" onclick="cancelConsultation('${c.id}')">취소</button>
+                    <button class="btn btn-success btn-sm" data-act="complete" data-id="${id}">완료 처리</button>
+                    <button class="btn btn-secondary btn-sm" data-act="edit" data-id="${id}">내용 정리</button>
+                    <button class="btn btn-warning btn-sm" data-act="confirm" data-id="${id}">일정 변경</button>
+                    <button class="btn btn-danger btn-sm" data-act="cancel" data-id="${id}">취소</button>
                 `;
         } else {
           actionsHtml = `
-                    <button class="btn btn-secondary btn-sm" onclick="openEditModal('${c.id}')">내용 정리</button>
+                    <button class="btn btn-secondary btn-sm" data-act="edit" data-id="${id}">내용 정리</button>
                     <button class="btn btn-secondary btn-sm" disabled>처리 완료</button>
                 `;
         }
@@ -855,33 +866,33 @@
                 <div class="consultation-card">
                     <div class="consultation-header">
                         <div class="consultation-user">
-                            <div class="user-avatar">${initial}</div>
+                            <div class="user-avatar">${esc(initial)}</div>
                             <div class="user-details">
-                                <h4>${c.name || '이름 없음'} <span class="type-badge">${typeLabel}</span>${ddRequested}</h4>
-                                <span>${c.email} ${c.phone ? '| ' + c.phone : ''}</span>
+                                <h4>${esc(c.name || '이름 없음')} <span class="type-badge">${esc(typeLabel)}</span>${ddRequested}</h4>
+                                <span>${esc(c.email)} ${c.phone ? '| ' + esc(c.phone) : ''}</span>
                             </div>
                         </div>
-                        <span class="badge ${c.status}">${statusLabel}</span>
+                        <span class="badge ${esc(c.status)}">${esc(statusLabel)}</span>
                     </div>
                     <div class="consultation-info">
                         <div class="info-item">
                             <label>제목</label>
-                            <p>${c.title || '-'}</p>
+                            <p>${esc(c.title || '-')}</p>
                         </div>
                         <div class="info-item">
                             <label>희망 일시</label>
-                            <p>${c.preferred_date || '-'} ${c.preferred_time || ''}</p>
+                            <p>${esc(c.preferred_date || '-')} ${esc(c.preferred_time || '')}</p>
                         </div>
                         <div class="info-item">
                             <label>신청일</label>
-                            <p>${formatDate(c.created_at)}</p>
+                            <p>${esc(formatDate(c.created_at))}</p>
                         </div>
                         ${
                           c.confirmed_at
                             ? `
                         <div class="info-item">
                             <label>확정 일시</label>
-                            <p>${formatDateTime(c.confirmed_at)}</p>
+                            <p>${esc(formatDateTime(c.confirmed_at))}</p>
                         </div>
                         `
                             : ''
@@ -892,17 +903,17 @@
                         </div>
                         <div class="info-item">
                             <label>설치 공간 / 크기</label>
-                            <p>${spaceLabel} · ${dimHtml}</p>
+                            <p>${esc(spaceLabel)} · ${esc(dimText)}</p>
                         </div>
                         <div class="info-item">
                             <label>예산 / 스타일</label>
-                            <p>${budgetLabel} · ${styleLabel}</p>
+                            <p>${esc(budgetLabel)} · ${esc(styleLabel)}</p>
                         </div>
                     </div>
                     ${
                       c.description
                         ? `
-                    <div class="consultation-description">${c.description}</div>
+                    <div class="consultation-description">${esc(c.description)}</div>
                     `
                         : ''
                     }
@@ -910,7 +921,7 @@
                       c.admin_memo
                         ? `
                     <div class="consultation-description" style="background:#fff3e0;">
-                        <strong>관리자 메모:</strong> ${c.admin_memo}
+                        <strong>관리자 메모:</strong> ${esc(c.admin_memo)}
                     </div>
                     `
                         : ''
@@ -919,6 +930,20 @@
                 </div>
             `;
       }
+
+      // 카드 단추 → 함수. id 는 data-id 에서 글자 그대로 읽는다.
+      const CARD_ACTIONS = {
+        confirm: (id) => openConfirmModal(id),
+        edit: (id) => openEditModal(id),
+        cancel: (id) => cancelConsultation(id),
+        complete: (id) => openCompleteModal(id),
+      };
+      document.getElementById('consultationList').addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-act]');
+        if (!btn || btn.disabled) return;
+        const run = CARD_ACTIONS[btn.dataset.act];
+        if (run) run(btn.dataset.id);
+      });
 
       function formatDate(dateStr) {
         if (!dateStr) return '-';
