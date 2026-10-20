@@ -2927,6 +2927,24 @@ Photorealistic. No text, labels or watermarks.`;
 }
 
 /**
+ * 화장대 내부 보기 — 키큰장 문을 전부 열고 서랍을 모두 빼서 보인다. 키큰장 선반은 정본 칸 간격 300~450 (§6.0 화장대),
+ * 키큰장 높이가 사진마다 달라 선반 수는 세지 않고 간격만 준다. 거울은 거울장 규칙이 없어(§6.5) 그대로 둔다.
+ * @param {{wallH?:number, tag?:string}} [o]
+ * @returns {{prompt:string, label:string, plan:string}}
+ */
+export function buildVanityInteriorPrompt(o = {}) {
+  const { gap } = tallShelfPlan(o.wallH);
+  const prompt = `Open the dressing table in this photo to show its storage.
+Keep the furniture exactly as it is: the wall-mounted counter, the bank of drawers, the mirror and its lighting, the tall cabinet at one end, the same number of doors and drawers, the same sizes.
+Every door of the tall cabinet swings fully open on its side hinges, about 90 degrees towards the camera. Behind it the cabinet is one tall open space with fixed flat shelves running the full width, evenly spaced about ${gap} mm apart. Each open door shows its inner face in the same finish as its outside.
+Every drawer is pulled out about halfway, so its inside is visible; the drawer boxes are plain white inside. The mirror stays a plain mirror on the wall.
+Inside: carcass and shelves in white. Tidy and lightly styled: skincare bottles, a few cosmetics in small trays, brushes, folded towels and a hair dryer, in neutral colours, not packed full. Soft, even light inside.
+Keep everything else identical: camera, room, the furniture's outer size, position and colour, the walls, ceiling, floor and lighting. Handleless doors and drawer fronts stay handleless.
+Photorealistic. No text, labels or watermarks.`;
+  return { prompt, label: ['내부 보기', o.tag].filter(Boolean).join(' · '), plan: `키큰장 선반 간격 약 ${gap} · 서랍 열림` };
+}
+
+/**
  * 추천 구조 고르기 (텍스트 모델, 기본안 사진을 같이 본다). 정본 기본형과 다른 조합을 하나 고르게 한다.
  * @param {{sections:number, wallW:number, wallH:number, brief?:string, customerRequest?:string, canonical:string[]}} c
  */
