@@ -8,6 +8,7 @@
  * 좌표 (모듈 로컬, mm) — 플래너 createModuleMesh 와 같은 축:
  *   x 오른쪽 · y 위 · z 앞 (+z 가 정면). 원점은 **몸통 바닥 가운데** (x = 0, y = 0, z = 0 이 몸통 깊이 가운데).
  *   다리발·좌대 높이는 여기 넣지 않는다 — 모듈을 세우는 자리(place)는 부르는 쪽(플래너)이 넘긴다.
+ *   (붙박이장 좌대 상자는 BOM 행이 모듈에 있어 몸통 아래 y < 0 에 놓는다)
  *
  * 판재 하나 (Part):
  *   id         `${rowPartId}#${k}` — k 는 0부터, 왼→오 · 아래→위 · 앞→뒤 (네스팅 조각 번호와 같은 규약)
@@ -417,8 +418,9 @@
    * 선반 높이 — 통 구조 블록(mod.wardrobe)이 있으면 규칙 파일 배치(layoutWardrobeModule)의 선반 자리,
    *   없는 옛 설계는 wardrobe.md §6 (shelfPositions: 긴옷은 상단 315 아래 첫 선반, 그 밖은 균등).
    * 선반은 싱크와 같이 천지판 뒤끝에 맞춘다 (§6 "천저판보다 70 짧게 — 전면 여유").
-   * 아직 자리를 정하지 않은 행: 도어·서랍도어 (BOM 도어 H = 좌대 + 몸통 − 20 인데 플래너는 몸통 안에 그린다),
-   *   서랍모듈 밴드, 서랍 박스·내부 서랍, 좌대. 칸막이는 규칙 파일 배치가 있을 때만 (없으면 'divider-layout-unknown').
+   * 도어는 좌대를 덮고 바닥에서 20, 외부 서랍 통은 서랍 몸통 위부터 (2026-10-20 카드). 서랍도어는 1·2단만 (서랍마다 위 30).
+   *   아직 자리를 정하지 않은 행: 3단 이상 서랍도어 · 목찬넬 EP,
+   *   서랍모듈 밴드, 서랍 박스·내부 서랍. 좌대는 뒤 맞춤 (2026-10-20 카드). 칸막이는 규칙 파일 배치가 있을 때만 (없으면 'divider-layout-unknown').
    * @returns {{module:object, unplaced:Array}|null}
    */
   function wardrobeOf(mk, mod, rows, opts, item) {
@@ -537,7 +539,58 @@
       });
     });
 
-    const placed = new Set(divRows);
+    // 좌대 상자 — 몸통 아래 (y −h … 0). 2026-10-20 사장님 카드 "뒤 맞춤": 상자 뒷면 = 몸통 뒷면, 앞이 50 들어간다
+    //   (그 자리에 걸레받이 18T). 측판은 전후판 사이, 중간보강은 폭 가운데.
+    //   tags.side 를 쓰지 않는다 — 검사가 몸통 측판(side)으로 읽는다.
+    const pedRows = new Set();
+    const ped = keyed.filter((x) => x.key && groupOf(x.row) === '좌대');
+    if (ped.length) {
+      const pfam = (f) => ped.filter((x) => x.key.family === f).map((x) => x.row);
+      const fbs = pfam('pedestal:fb'), psides = pfam('pedestal:side'), braces = pfam('pedestal:brace');
+      const fb = fbs[0], ps = psides[0], br = braces[0];
+      const ok = fbs.length === 1 && psides.length === 1 && braces.length <= 1 && ped.length === 2 + braces.length
+        && fb.qty === 2 && fb.w === W && ps.qty === 2 && ps.h === fb.h && ps.thickness === fb.thickness
+        && ps.w + 2 * fb.thickness <= D && (!br || (br.qty === 1 && br.w === ps.w && br.h === fb.h));
+      if (ok) {
+        const t = fb.thickness, h = fb.h, zb = -D / 2;
+        const tag = (o) => Object.assign({ pedestal: true }, o);
+        parts.push(makePart(fb, 0, { o: [-W / 2, -h, zb + t + ps.w], u: '+x', v: '+y', n: '+z' }, [], 'interior', tag({ end: 'front' })));
+        parts.push(makePart(fb, 1, { o: [-W / 2, -h, zb], u: '+x', v: '+y', n: '+z' }, [], 'interior', tag({ end: 'back' })));
+        parts.push(makePart(ps, 0, { o: [-W / 2, -h, zb + t], u: '+z', v: '+y', n: '+x' }, [], 'interior', tag({ end: 'left' })));
+        parts.push(makePart(ps, 1, { o: [W / 2, -h, zb + t], u: '+z', v: '+y', n: '-x' }, [], 'interior', tag({ end: 'right' })));
+        if (br) parts.push(makePart(br, 0, { o: [-br.thickness / 2, -h, zb + t], u: '+z', v: '+y', n: '+x' }, [], 'interior', tag()));
+        ped.forEach((x) => pedRows.add(x.row));
+      }
+    }
+
+    // 도어 — 2026-10-20 사장님 카드 "바닥 20 띄움": 좌대를 덮고 바닥에서 20 뜬다, 윗변 = 몸통 상단 (BOM 좌대H + 몸통 − 20).
+    //   좌대 높이는 좌대 행 높이. 외부 서랍 몸통이 있으면 도어는 그 몸통 상단부터 (카드 "도어 1580" — 좌대 덮기는 서랍 전면 몫).
+    //   높이가 그 식과 다르면 자리를 모른다.
+    const doorRows = new Set();
+    const pedH = ped.length ? ped[0].row.h : 0;
+    const drawerCar = cars.find((c) => c.group === '서랍모듈');
+    keyed.filter((x) => x.key && x.key.family === 'door' && groupOf(x.row) === '').forEach(({ row }) => {
+      const xs = doorXsOf(W, row);
+      const y0 = drawerCar ? drawerCar.y0 + drawerCar.H : DR.SUPPORT_PEDESTAL_GAP - pedH;   // 서랍 규칙: 좌대가 있으면 바닥에서 20
+      if (!xs || (!pedH && !drawerCar) || row.h !== y - y0) return;
+      xs.forEach((x0, k) => parts.push(makePart(row, k, { o: [x0, y0, D / 2], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { doorIdx: k })));
+      doorRows.add(row);
+    });
+
+    // 외부 서랍 전면 — 좌대를 덮고 바닥에서 20, 서랍마다 위에 목찬넬 틈 30 (2026-10-20 사장님: 1단 · 2단).
+    //   맨 위 틈이 서랍 몸통 상단에서 끝나야 한다. 3단 이상은 중간 목찬넬 자리를 몰라 놓지 않는다.
+    keyed.filter((x) => x.key && x.key.family === 'drawer' && groupOf(x.row) === '서랍모듈').forEach(({ row }) => {
+      const n = row.qty;
+      const y0 = DR.SUPPORT_PEDESTAL_GAP - pedH;
+      if (!drawerCar || !pedH || (n !== 1 && n !== 2) || row.w !== W - C.DOOR_GAP
+        || y0 + n * (row.h + DR.SLOT) !== drawerCar.y0 + drawerCar.H) return;
+      for (let k = 0; k < n; k++) {
+        parts.push(makePart(row, k, { o: [-W / 2 + C.DOOR_GAP / 2, y0 + k * (row.h + DR.SLOT), D / 2], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { drawerIdx: k }));
+      }
+      doorRows.add(row);
+    });
+
+    const placed = new Set([...divRows, ...pedRows, ...doorRows]);
     cars.forEach((c) => [c.side, c.top, c.bottom, c.back].concat(c.rows.filter((x) => x.key.family === 'shelf').map((x) => x.row)).forEach((r) => placed.add(r)));
     keyed.forEach(({ row, key }) => {
       if (placed.has(row)) return;

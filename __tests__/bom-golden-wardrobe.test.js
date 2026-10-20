@@ -44,9 +44,9 @@ describe('BOM 골든 — 붙박이장 (wardrobe)', () => {
     ]));
     expect(snap.materials.find((m) => m.module === '선반형-상부장' && m.part === '선반').qty).toBe(2);
     expect(snap.materials.find((m) => m.module === '선반형-하부장' && m.part === '선반').qty).toBe(2);
-    // EP: 상몰딩(60) · 좌측몰딩 + 덧대 · 우측 없음 · 좌대 걸레받이 · 외부서랍 2 → 목찬넬 120
-    expect(parts('EP')).toEqual(['상몰딩', '좌측몰딩', '좌측몰딩 덧대', '좌대 걸레받이', '목찬넬']);
-    expect(snap.materials.find((m) => m.module === 'EP' && m.part === '목찬넬').w).toBe(120);
+    // EP: 상몰딩(60) · 좌측몰딩 + 덧대 · 우측 없음 · 좌대 걸레받이 · 외부서랍 2 → 목찬넬 100 + 120 (2026-10-20 사장님, 서랍마다 위에 하나씩)
+    expect(parts('EP')).toEqual(['상몰딩', '좌측몰딩', '좌측몰딩 덧대', '좌대 걸레받이', '목찬넬', '목찬넬']);
+    expect(snap.materials.filter((m) => m.module === 'EP' && m.part === '목찬넬').map((m) => m.w)).toEqual([100, 120]);
     // 좌대: 모듈마다, W≥700 이면 중간보강
     expect(parts('긴옷-좌대')).toEqual(['좌대 전후', '좌대 측', '좌대 중간보강']);
   });
@@ -56,11 +56,11 @@ describe('BOM 골든 — 붙박이장 (wardrobe)', () => {
     expect(rails.map((h) => [h.note, h.qty])).toEqual([['긴옷', 2], ['선반형', 1]]);
     expect(snap.hardware.find((h) => h.category === '손잡이').item).toBe('푸쉬');
     // 2026-10-13 (B4): 예전엔 doorCount 가 없는 short 모듈(UI 기본)이 경첩에서 빠졌다 — 자재는 round(W/450)=2 로 낸다.
-    //   지금은 bomWardrobeDoorOf 로 자재 도어 행과 같은 수·높이를 센다. 외부 서랍 위 긴옷 도어(1620)도 그 높이로 보링한다.
+    //   지금은 bomWardrobeDoorOf 로 자재 도어 행과 같은 수·높이를 센다. 외부 서랍 위 긴옷 도어(1580 — 2026-10-20 몸통 − 서랍모듈H, 1600 이하라 3구)도 그 높이로 보링한다.
     const hinges = snap.hardware.filter((h) => h.category === '경첩');
     expect(hinges.map((h) => [h.module, h.qty, h.boring])).toEqual([
       ['짧은옷(2단)', 8, [110, 773, 1547, 2210]],
-      ['긴옷', 8, [110, 540, 1080, 1510]],
+      ['긴옷', 6, [110, 790, 1470]],
       ['선반형', 8, [110, 773, 1547, 2210]],
     ]);
     const doors = snap.materials.filter((m) => m.slot === 'door');
