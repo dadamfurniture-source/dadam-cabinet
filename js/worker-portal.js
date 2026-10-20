@@ -10,6 +10,12 @@
  *   - 금액은 서버가 pay_visible 일 때만 `pay` 를 준다. 화면은 받은 것만 보여 주고 지어 넣지 않는다
  *   - 초대 토큰(#invite=)은 sessionStorage 에 두고 로그인 왕복 뒤 POST /work/claim-invite 로 쓴다
  *   - 사진 · 문제 칩 · 평가는 2주차 (결정 8 · 9 미정) — 1주차 보고는 글만
+ *
+ * 1주차 후속 (2026-10-20, 계약 머리 "1주차 후속" 절):
+ *   - 0 지원 종료일: apply_deadline 을 "지원 종료일" 이라 부른다. 모집중 카드 한 줄 · 상세 사실 행 · 꼬리표(D-n · 오늘 종료 · 지원 종료),
+ *     화면 시각으로 지났으면 신청 버튼을 잠그고 "지원 종료". 서버 409 문구는 그대로 보여 준다
+ *   - C: 지난 작업(완료) 탭에서 거절(declined) 배정의 release_reason — 작업 닫기 · 취소로 끝난 초대 안내 포함
+ *   - D: 정지(suspended) 작업자는 같은 앱 화면 + 맨 위 안내. 모집중 탭 · 신청 · 초대 수락 버튼만 숨긴다
  */
 (function (root, factory) {
   const api = factory();
@@ -30,7 +36,7 @@
   const KIND_LABEL = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립 추가 인원' });
   /** 작업자에게 보이는 작업 상태 (effective_status — expired 는 API 가 읽을 때 판정) */
   const JOB_STATUS_LABEL = Object.freeze({
-    draft: '준비 중', open: '모집중', expired: '신청 마감', filled: '인원 마감', in_progress: '진행 중',
+    draft: '준비 중', open: '모집중', expired: '지원 종료', filled: '인원 마감', in_progress: '진행 중',
     review: '검수 중', done: '완료', closed: '종료', cancelled: '취소됨',
   });
   const APP_STATUS_LABEL = Object.freeze({ applied: '신청함', approved: '선정됨', rejected: '선정 안 됨', withdrawn: '철회함' });
@@ -70,6 +76,17 @@
   const SITE_NOTE = '현장 주소·연락처는 공개 기간이 정해지면 열립니다';
   /** sessionStorage 키 — 초대 토큰을 로그인 왕복 동안 보관 */
   const INVITE_KEY = 'dadamWorkerInvite';
+  /** 정지된 작업자 맨 위 안내 (1주차 후속 D) — worker.html #suspendedNote 와 같은 글 */
+  const SUSPENDED_NOTE = '계정이 정지되어 새 작업 신청·수락을 할 수 없습니다. 지난 기록은 볼 수 있습니다.';
+  /** 지원 종료일이 없을 때 상세 사실 행 (1주차 후속 0) */
+  const DEADLINE_NONE = '정하지 않음 (정원이 차면 마감)';
+  /** 지원 종료일이 지났을 때의 꼬리표 · 잠근 신청 버튼 글 */
+  const DEADLINE_ENDED = '지원 종료';
+  /**
+   * 작업 닫기 · 취소 때 서버가 남은 초대를 끝내며 release_reason 에 넣는 문구 (계약 1주차 후속 C).
+   * 이 글이면 작업자가 거절한 것이 아니므로 칩을 「거절함」 대신 「초대 끝남」으로 보인다.
+   */
+  const AUTO_DECLINE_REASONS = Object.freeze(['작업이 마감돼 초대가 끝났습니다', '작업이 취소돼 초대가 끝났습니다']);
 
   /** 일이 시작된 배정 · 보고할 수 있는 배정 (서버 updates.js 와 같은 조건) */
   const REPORTABLE = Object.freeze(['confirmed', 'started', 'submitted', 'revision', 'accepted']);
@@ -77,6 +94,9 @@
   /** 검수를 거치는 종류 — 공장 조립은 완료 보고로 끝난다 (계약 머리말) */
   const REVIEWED_KINDS = Object.freeze(['install', 'as']);
   const ENDED_JOB = Object.freeze(['closed', 'cancelled']);
+  /** 작업자 탭에 드는 배정 (서버 jobs.js 의 MINE_STATUSES · DONE_STATUSES 와 같다) — 상세의 '← 목록으로' 를 고른다 */
+  const MINE_ASSIGN = Object.freeze(['offered', 'confirmed', 'started', 'submitted', 'revision']);
+  const DONE_ASSIGN = Object.freeze(['accepted', 'declined', 'released', 'removed']);
 
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   /** 초대 토큰 — 서버가 base64url 로 만든다 (claim-invite 는 20~100자만 받는다) */
@@ -121,14 +141,41 @@
     if (fmtDate(startsAt) === fmtDate(endsAt)) return `${fmtDateTime(startsAt)}~${fmtTime(endsAt)}`;
     return `${fmtDateTime(startsAt)} ~ ${fmtDateTime(endsAt)}`;
   }
+  const kstDay = (ms) => Math.floor((ms + KST_MS) / DAY_MS);
+  const nowOr = (nowMs) => (Number.isFinite(nowMs) ? nowMs : Date.now());
   /** 한국 날짜 기준 D-day ('D-1' · 'D-day' · 'D+2'), 날짜 없으면 '' */
   function ddayLabel(iso, nowMs) {
     const t = Date.parse(iso);
     if (!iso || !Number.isFinite(t)) return '';
-    const day = (ms) => Math.floor((ms + KST_MS) / DAY_MS);
-    const diff = day(t) - day(Number.isFinite(nowMs) ? nowMs : Date.now());
+    const diff = kstDay(t) - kstDay(nowOr(nowMs));
     if (diff === 0) return 'D-day';
     return diff > 0 ? `D-${diff}` : `D+${-diff}`;
+  }
+
+  // ── 지원 종료일 (work_jobs.apply_deadline, 1주차 후속 0) ──
+  /** 지원 종료일이 지났나 — 서버 effectiveStatus 와 같은 경계 (지원 종료일 < 지금). 없으면 false */
+  function deadlinePassed(iso, nowMs) {
+    const t = Date.parse(iso);
+    if (!iso || !Number.isFinite(t)) return false;
+    return t < nowOr(nowMs);
+  }
+  /**
+   * 꼬리표 — 지났으면 '지원 종료', 한국 날짜로 같은 날이고 아직 전이면 '오늘 종료', 아니면 'D-n' (n ≥ 1).
+   * 지원 종료일이 없으면 ''. (관리자 화면 js/work-jobs-admin.js deadlineTag 와 같은 규칙)
+   */
+  function deadlineTag(iso, nowMs) {
+    const t = Date.parse(iso);
+    if (!iso || !Number.isFinite(t)) return '';
+    const now = nowOr(nowMs);
+    if (t < now) return DEADLINE_ENDED;
+    const diff = kstDay(t) - kstDay(now);
+    return diff >= 1 ? `D-${diff}` : '오늘 종료';
+  }
+  /** 꼬리표 HTML — 오늘 종료 · 지원 종료는 눈에 띄게 */
+  function deadlineTagHtml(tag) {
+    if (!tag) return '';
+    const cls = tag === DEADLINE_ENDED ? 'dl-over' : tag === '오늘 종료' ? 'dl-today' : 'dl-days';
+    return `<span class="dl-tag ${cls}">${esc(tag)}</span>`;
   }
 
   // ── 주소 · 로그인 ──
@@ -186,10 +233,33 @@
     return 'pending';
   }
 
-  /** 승인 작업자가 처음 볼 탭 — 주소에 탭이 있으면 그것, 아니면 내 작업이 있으면 내 작업 */
-  function defaultTab(route, counts) {
-    if (route && route.tab && TAB_KEYS.includes(route.tab)) return route.tab;
+  /** 작업자 상태로 본 정지 여부 (GET /work/me 의 worker.status) */
+  const isSuspended = (me) => !!(me && me.worker && me.worker.status === 'suspended');
+  /** 보이는 탭 — 정지된 작업자는 모집중 탭이 없다 (1주차 후속 D) */
+  const tabsFor = (suspended) => (suspended ? TABS.filter((t) => t.key !== 'open') : TABS);
+
+  /**
+   * 처음 볼 탭 — 주소에 탭이 있으면 그것, 아니면 내 작업이 있으면 내 작업.
+   * 정지된 작업자는 모집중 탭이 없어 기본이 내 작업 (주소가 #tab=open 이어도).
+   */
+  function defaultTab(route, counts, suspended) {
+    const keys = tabsFor(suspended).map((t) => t.key);
+    if (route && route.tab && keys.includes(route.tab)) return route.tab;
+    if (suspended) return 'mine';
     return counts && Number(counts.mine) > 0 ? 'mine' : 'open';
+  }
+
+  /**
+   * 작업 상세의 '← 목록으로' — 목록에서 들어왔으면 그 탭, #job= 로 바로 들어왔으면 내 배정이 든 탭
+   * (내 작업 · 완료), 배정이 없으면 처음 탭 (1주차 리뷰: 내 배정 작업인데 모집중으로 돌아가던 것).
+   */
+  function backTabFor(d, fromTab, suspended) {
+    const keys = tabsFor(suspended).map((t) => t.key);
+    if (fromTab && keys.includes(fromTab)) return fromTab;
+    const a = d && d.my && d.my.assignment_status;
+    if (MINE_ASSIGN.includes(a)) return 'mine';
+    if (DONE_ASSIGN.includes(a)) return 'done';
+    return defaultTab(null, null, suspended);
   }
 
   // ── 신청서 ──
@@ -240,19 +310,52 @@
   }
   const slotsText = (c) => `확정 ${toNum(c && c.filled) || 0}/${toNum(c && c.slots) || 0}명`;
 
+  /** 작업 닫기 · 취소로 서버가 끝낸 초대인가 (거절 배정 + 계약 문구) */
+  function isAutoDeclined(my) {
+    return !!(my && my.assignment_status === 'declined' && AUTO_DECLINE_REASONS.includes(trimStr(my.release_reason)));
+  }
+
+  /**
+   * 화면에 보일 작업 상태 — 서버가 open 이라고 줬어도 화면 시각으로 지원 종료일이 지났으면 expired(「지원 종료」)
+   * (목록을 연 채 시간이 지나면 칩과 지원 종료일 줄이 엇갈리지 않게. 서버 경계와 같다: 지원 종료일 < 지금)
+   */
+  function shownStatus(c, nowMs) {
+    const eff = (c && (c.effective_status || c.status)) || '';
+    return eff === 'open' && deadlinePassed(c.apply_deadline, nowMs) ? 'expired' : eff;
+  }
+
   /** 카드의 내 상태 — 배정 > 신청 > 작업 상태 */
-  function myStatus(c) {
+  function myStatus(c, nowMs) {
     const my = (c && c.my) || {};
+    if (isAutoDeclined(my)) return { key: 'declined', text: '초대 끝남', tone: TONE.declined };
     if (my.assignment_status) return { key: my.assignment_status, text: label(ASSIGN_STATUS_LABEL, my.assignment_status), tone: TONE[my.assignment_status] };
     if (my.application_status) return { key: my.application_status, text: label(APP_STATUS_LABEL, my.application_status), tone: TONE[my.application_status] };
-    const eff = (c && (c.effective_status || c.status)) || '';
+    const eff = shownStatus(c, nowMs);
     return { key: eff, text: label(JOB_STATUS_LABEL, eff), tone: TONE[eff] };
   }
 
-  /** 작업 카드 (목록 한 줄). 누르면 #job=<id> 로 상세 */
-  function jobCardHtml(c, nowMs) {
+  /** 모집중 카드 한 줄 '지원 종료일 10/25(토) 18:00 · D-3' — 지원 종료일이 있을 때만 */
+  function deadlineLineHtml(c, nowMs) {
+    const iso = c && c.apply_deadline;
+    if (!kstParts(iso)) return '';
+    return `<div class="jd dl">지원 종료일 ${esc(fmtDateTime(iso))} · ${deadlineTagHtml(deadlineTag(iso, nowMs))}</div>`;
+  }
+
+  /** 지난 작업(완료) 탭 — 거절 배정의 사유 (내가 적은 거절 사유, 또는 작업 닫기 · 취소로 끝난 초대 안내) */
+  function releaseReasonHtml(c) {
+    const my = (c && c.my) || {};
+    const reason = trimStr(my.release_reason);
+    if (my.assignment_status !== 'declined' || !reason) return '';
+    return `<div class="jd reason">${isAutoDeclined(my) ? esc(reason) : `거절 사유: ${esc(reason)}`}</div>`;
+  }
+
+  /**
+   * 작업 카드 (목록 한 줄). 누르면 #job=<id> 로 상세.
+   * tab 이 'open' 이면 지원 종료일 줄, 'done' 이면 거절 사유 줄을 덧붙인다.
+   */
+  function jobCardHtml(c, nowMs, tab) {
     if (!c || !isUuid(c.id)) return '';
-    const st = myStatus(c);
+    const st = myStatus(c, nowMs);
     const dday = ddayLabel(c.starts_at, nowMs);
     const pay = payText(c.pay);
     return `<a class="card job" href="#job=${esc(c.id)}">` +
@@ -260,6 +363,8 @@
       `<div class="jt">${esc(c.title)}</div>` +
       `<div class="jd">${esc(fmtRange(c.starts_at, c.ends_at))}${c.region_label ? ` · ${esc(c.region_label)}` : ''}</div>` +
       `<div class="jd">${esc(slotsText(c))}${pay ? ` · ${esc(pay)}` : ''}</div>` +
+      (tab === 'open' ? deadlineLineHtml(c, nowMs) : '') +
+      (tab === 'done' ? releaseReasonHtml(c) : '') +
       '</a>';
   }
 
@@ -269,18 +374,18 @@
     done: '끝난 작업이 없습니다.',
   });
   function jobListHtml(items, tab, nowMs) {
-    const list = (items || []).map((c) => jobCardHtml(c, nowMs)).filter(Boolean);
+    const list = (items || []).map((c) => jobCardHtml(c, nowMs, tab)).filter(Boolean);
     if (!list.length) return `<div class="card empty">${esc(EMPTY_TEXT[tab] || '작업이 없습니다.')}</div>`;
     return list.join('');
   }
 
   /**
    * 탭 줄 — 모집중 · 내 작업 건수 (GET /work/me counts). 보완요청 · 새 소식은 탭 아래 한 줄로
-   * (탭 칸에 넣으면 375px 에서 칸이 세 줄로 늘어난다).
+   * (탭 칸에 넣으면 375px 에서 칸이 세 줄로 늘어난다). 정지된 작업자는 모집중 탭이 없다.
    */
-  function tabsHtml(active, counts) {
+  function tabsHtml(active, counts, suspended) {
     const c = counts || {};
-    const tabs = TABS.map((t) => {
+    const tabs = tabsFor(suspended).map((t) => {
       let n = '';
       if (t.key === 'open' && toNum(c.open)) n = `<span class="n">${esc(toNum(c.open))}</span>`;
       if (t.key === 'mine' && toNum(c.mine)) n = `<span class="n">${esc(toNum(c.mine))}</span>`;
@@ -298,20 +403,26 @@
    *   apply: 신청 · 배정이 없고 모집중 / withdraw: 신청 대기 / confirm · decline: 초대 받음 /
    *   start: 확정 / release: 확정 · 작업 중 / reports: progress · issue 는 확정 이후 언제든(끝난 뒤 추가 보고 포함),
    *   result 는 작업 중 · 보완요청에서만. 닫히거나 취소된 작업에는 아무것도 못 한다.
+   *   applyEnded: 신청할 자리였지만 지원 종료일이 지났다 (서버가 expired 로 줬거나 화면 시각으로 지남) — 잠근 「지원 종료」 버튼.
+   *   opts.suspended: 정지된 작업자 — 신청 · 초대 수락만 없다 (거절 · 철회 · 시작 · 포기 · 보고는 그대로, 1주차 후속 D).
    */
-  function availableActions(d) {
-    const out = { apply: false, withdraw: false, confirm: false, decline: false, start: false, release: false, reports: [] };
+  function availableActions(d, opts) {
+    const o = opts || {};
+    const out = { apply: false, applyEnded: false, withdraw: false, confirm: false, decline: false, start: false, release: false, reports: [] };
     if (!d) return out;
     const my = d.my || {};
     const a = my.assignment_status || null;
     const app = my.application_status || null;
     const eff = d.effective_status || d.status || '';
     if (ENDED_JOB.includes(eff)) return out;
-    if (!a && !app && eff === 'open') out.apply = true;
+    if (!o.suspended && !a && !app && (eff === 'open' || eff === 'expired')) {
+      if (eff === 'expired' || deadlinePassed(d.apply_deadline, o.nowMs)) out.applyEnded = true;
+      else out.apply = true;
+    }
     if (app === 'applied' && isUuid(my.application_id)) out.withdraw = true;
     if (isUuid(my.assignment_id)) {
       if (a === 'offered') {
-        out.confirm = true;
+        out.confirm = !o.suspended;
         out.decline = true;
       }
       if (a === 'confirmed') out.start = true;
@@ -321,14 +432,19 @@
     return out;
   }
 
-  /** 내 상태 한 줄 설명 */
-  function stateText(d) {
+  /** 내 상태 한 줄 설명 (opts: { nowMs, suspended }) */
+  function stateText(d, opts) {
+    const o = opts || {};
     const my = (d && d.my) || {};
     const eff = (d && (d.effective_status || d.status)) || '';
+    // 닫기 · 취소로 끝난 초대는 그 안내 문구 그대로 (작업자가 거절한 것이 아니다)
+    if (isAutoDeclined(my)) return `${trimStr(my.release_reason)}.`;
     if (eff === 'cancelled') return '취소된 작업입니다.';
     if (eff === 'closed') return '종료된 작업입니다.';
     switch (my.assignment_status) {
-      case 'offered': return '회사가 이 작업을 맡아 달라고 초대했습니다. 수락하면 확정됩니다.';
+      case 'offered': return o.suspended
+        ? '회사가 이 작업을 맡아 달라고 초대했습니다. 계정이 정지되어 수락할 수 없습니다.'
+        : '회사가 이 작업을 맡아 달라고 초대했습니다. 수락하면 확정됩니다.';
       case 'confirmed': return '확정됐습니다. 작업을 시작할 때 「작업 시작」을 눌러 주세요.';
       case 'started': return '작업 중입니다. 진행 상황이나 문제가 있으면 보고하고, 끝나면 완료 보고를 보내 주세요.';
       case 'submitted': return '완료 보고를 보냈습니다. 회사 검수를 기다리는 중입니다.';
@@ -346,7 +462,8 @@
       case 'withdrawn': return '신청을 철회했습니다.';
       default: break;
     }
-    if (eff === 'open') return '신청하면 회사가 신청자 중에서 골라 확정합니다.';
+    if (eff === 'expired' || (eff === 'open' && deadlinePassed(d.apply_deadline, o.nowMs))) return '지원 종료일이 지났습니다.';
+    if (eff === 'open' && !o.suspended) return '신청하면 회사가 신청자 중에서 골라 확정합니다.';
     return '지금은 신청할 수 없는 작업입니다.';
   }
 
@@ -391,17 +508,19 @@
       '<button type="submit" class="big go">보고 보내기</button></form>';
   }
 
-  /** 내 상태 + 할 수 있는 일 */
-  function actionsHtml(d) {
-    const act = availableActions(d);
+  /** 내 상태 + 할 수 있는 일 (opts: { nowMs, suspended }) */
+  function actionsHtml(d, opts) {
+    const act = availableActions(d, opts);
     const my = d.my || {};
-    const parts = [`<p>${esc(stateText(d))}</p>`];
+    const parts = [`<p>${esc(stateText(d, opts))}</p>`];
     if (act.apply) {
       parts.push('<form data-form="apply" class="stack">' +
         `<label for="applyMsg">회사에 남길 말 (선택, ${LIMITS.message}자 이내)</label>` +
         `<textarea id="applyMsg" name="message" rows="3" maxlength="${LIMITS.message}"></textarea>` +
         '<button type="submit" class="big go">이 작업 신청하기</button></form>');
     }
+    // 지원 종료일이 지났다 (서버 expired 또는 화면 시각) — 신청 버튼 자리에 잠근 「지원 종료」 버튼
+    if (act.applyEnded) parts.push(`<button type="button" class="big" disabled>${esc(DEADLINE_ENDED)}</button>`);
     if (act.withdraw) parts.push(`<button type="button" class="big" data-act="withdraw" data-id="${esc(my.application_id)}">신청 철회</button>`);
     if (act.confirm) parts.push(`<button type="button" class="big go" data-act="confirm" data-id="${esc(my.assignment_id)}">수락하기</button>`);
     if (act.decline) {
@@ -423,23 +542,37 @@
     return parts.join('');
   }
 
-  /** 작업 상세 (#job=<id>) */
-  function jobDetailHtml(d, nowMs, backTab) {
-    if (!d) return '';
-    const st = myStatus(d);
+  /**
+   * 상세 사실 행 「지원 종료일」 값 (HTML) — 없으면 '정하지 않음 (정원이 차면 마감)'.
+   * 꼬리표는 모집중 · 지원 종료 작업에만 (인원이 찼거나 진행 중이면 D-n 이 틀린 말이 된다 — 관리자 상세와 같다).
+   */
+  function deadlineFactHtml(d, nowMs) {
+    const iso = d && d.apply_deadline;
+    if (!kstParts(iso)) return esc(DEADLINE_NONE);
     const eff = d.effective_status || d.status || '';
+    const tag = eff === 'open' || eff === 'expired' ? deadlineTag(iso, nowMs) : '';
+    return `${esc(fmtDateTime(iso))}${tag ? ` · ${deadlineTagHtml(tag)}` : ''}`;
+  }
+
+  /** 작업 상세 (#job=<id>). opts: { suspended } — 정지된 작업자는 신청 · 수락 버튼이 없다 */
+  function jobDetailHtml(d, nowMs, backTab, opts) {
+    if (!d) return '';
+    const o = { ...(opts || {}), nowMs };
+    const st = myStatus(d, nowMs);
+    const eff = shownStatus(d, nowMs);
     const dday = ddayLabel(d.starts_at, nowMs);
     const pay = payText(d.pay);
+    // [이름, 값 HTML] — 값은 여기서 esc() 를 거친다
     const facts = [
-      ['일시', `${fmtRange(d.starts_at, d.ends_at)}${dday ? ` (${dday})` : ''}`],
-      ['지역', d.region_label || '정해지지 않음'],
-      ['인원', slotsText(d)],
+      ['일시', esc(`${fmtRange(d.starts_at, d.ends_at)}${dday ? ` (${dday})` : ''}`)],
+      ['지역', esc(d.region_label || '정해지지 않음')],
+      ['인원', esc(slotsText(d))],
+      ['지원 종료일', deadlineFactHtml(d, nowMs)],
     ];
-    if (d.apply_deadline) facts.push(['신청 마감', fmtDateTime(d.apply_deadline)]);
-    if (pay) facts.push(['금액', pay]);
-    if (d.order_no) facts.push(['주문번호', d.order_no]);
-    if (d.customer_masked) facts.push(['고객', d.customer_masked]);
-    const back = TAB_KEYS.includes(backTab) ? backTab : 'open';
+    if (pay) facts.push(['금액', esc(pay)]);
+    if (d.order_no) facts.push(['주문번호', esc(d.order_no)]);
+    if (d.customer_masked) facts.push(['고객', esc(d.customer_masked)]);
+    const back = tabsFor(o.suspended).some((t) => t.key === backTab) ? backTab : defaultTab(null, null, o.suspended);
     // site 는 1주차에 늘 null — 주소 · 연락처를 그리지 않는다 (공개 기간 ★7 미정)
     const site = d.site == null ? `<p class="site-note">${esc(d.site_note || SITE_NOTE)}</p>` : '';
     const showTimeline = !!(d.my && d.my.assignment_id) || (Array.isArray(d.timeline) && d.timeline.length);
@@ -447,9 +580,9 @@
       '<div class="card">' +
       `<div class="chips">${kindChip(d.kind)}${chip(label(JOB_STATUS_LABEL, eff), TONE[eff])}${st.key !== eff ? chip(st.text, st.tone) : ''}</div>` +
       `<h2 class="jt">${esc(d.title)}</h2>` +
-      `<dl class="facts">${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` +
+      `<dl class="facts">${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>` +
       `${d.detail ? `<div class="detail-text">${esc(d.detail)}</div>` : ''}${site}</div>` +
-      `<div class="card"><h3>내 상태</h3>${actionsHtml(d)}</div>` +
+      `<div class="card"><h3>내 상태</h3>${actionsHtml(d, o)}</div>` +
       (showTimeline ? `<div class="card"><h3>작업 기록</h3><p class="muted">내 보고와 회사 정정 · 메모가 고쳐지지 않고 차례로 쌓입니다.</p>${timelineHtml(d.timeline)}</div>` : '');
   }
 
@@ -505,12 +638,14 @@
     const $ = (id) => document.getElementById(id);
     const cfg = (typeof window !== 'undefined' && window.DADAM_CONFIG) || {};
     const API = (cfg.workflowApi && cfg.workflowApi.url) || '';
-    const VIEWS = ['viewLoading', 'viewLogin', 'viewRegister', 'viewPending', 'viewRejected', 'viewSuspended', 'viewNotReady', 'viewError', 'viewApp'];
+    // 정지(suspended)는 따로 막는 화면 없이 viewApp + 맨 위 안내 (1주차 후속 D)
+    const VIEWS = ['viewLoading', 'viewLogin', 'viewRegister', 'viewPending', 'viewRejected', 'viewNotReady', 'viewError', 'viewApp'];
     let sb = null;
     let me = null;
     let route = parseHash(location.hash);
     let invite = null;
-    let currentTab = 'open';
+    /** 마지막으로 그린 목록 탭 — #job= 로 바로 들어왔으면 null (그때 '← 목록으로' 는 backTabFor 가 고른다) */
+    let listTab = null;
     let currentJob = null;
     let seq = 0;
     let alertTimer = null;
@@ -603,10 +738,8 @@
         sub(`${w.display_name} 님`);
         $('rejectReason').textContent = w.reject_reason ? `사유: ${w.reject_reason}` : '';
         show('viewRejected');
-      } else if (view === 'suspended') {
-        sub(`${w.display_name} 님`);
-        show('viewSuspended');
-      } else if (view === 'approved') {
+      } else if (view === 'approved' || view === 'suspended') {
+        // 정지도 같은 앱 화면 — 맨 위 안내 + 모집중 탭 · 신청 · 수락만 빠진다 (renderRoute 가 맞춘다)
         sub(`${w.display_name} 님 · ${kindsText(w.kinds)}`);
         show('viewApp');
         route = parseHash(location.hash);
@@ -620,17 +753,23 @@
     }
 
     function renderTabs(active) {
-      $('tabs').innerHTML = tabsHtml(active, me && me.counts);
+      const suspended = isSuspended(me);
+      const nav = $('tabs');
+      nav.classList.toggle('three', suspended);
+      nav.innerHTML = tabsHtml(active, me && me.counts, suspended);
     }
 
     async function renderRoute() {
       const mySeq = ++seq;
       const body = $('appBody');
+      const suspended = isSuspended(me);
+      $('suspendedNote').hidden = !suspended;
+      const listBack = () => listTab || defaultTab(null, me && me.counts, suspended);
       window.scrollTo(0, 0);
       if (route.badJob) {
         currentJob = null;
         renderTabs(null);
-        body.innerHTML = `<a class="back" href="#tab=${currentTab}">← 목록으로</a><div class="card empty">작업 링크가 올바르지 않습니다.</div>`;
+        body.innerHTML = `<a class="back" href="#tab=${listBack()}">← 목록으로</a><div class="card empty">작업 링크가 올바르지 않습니다.</div>`;
         return;
       }
       if (route.job) {
@@ -640,30 +779,31 @@
         try {
           const d = await api(`/work/jobs/${route.job}`);
           if (mySeq !== seq) return;
-          body.innerHTML = jobDetailHtml(d, Date.now(), currentTab);
+          body.innerHTML = jobDetailHtml(d, Date.now(), backTabFor(d, listTab, suspended), { suspended });
         } catch (err) {
           if (mySeq !== seq) return;
           if (await handleAuthError(err)) return;
           const msg = err.status === 404 ? '작업을 찾을 수 없습니다. 마감됐거나 볼 수 없는 작업입니다.' : err.message;
-          body.innerHTML = `<a class="back" href="#tab=${currentTab}">← 목록으로</a><div class="card empty">${esc(msg)}</div>`;
+          body.innerHTML = `<a class="back" href="#tab=${listBack()}">← 목록으로</a><div class="card empty">${esc(msg)}</div>`;
         }
         return;
       }
       currentJob = null;
-      currentTab = defaultTab(route, me && me.counts);
-      renderTabs(currentTab);
-      if (currentTab === 'me') {
+      const tab = defaultTab(route, me && me.counts, suspended);
+      listTab = tab;
+      renderTabs(tab);
+      if (tab === 'me') {
         body.innerHTML = workerInfoHtml(me && me.worker);
         return;
       }
       body.innerHTML = '<div class="card empty">불러오는 중…</div>';
       try {
-        const data = await api(`/work/jobs?tab=${currentTab}`);
+        const data = await api(`/work/jobs?tab=${tab}`);
         if (mySeq !== seq) return;
-        body.innerHTML = jobListHtml(data && data.items, currentTab, Date.now());
+        body.innerHTML = jobListHtml(data && data.items, tab, Date.now());
         // 내 작업을 열면 서버가 새 소식을 읽음으로 센다 — 배지를 다시 받는다
-        if (currentTab === 'mine' && me && me.counts && toNum(me.counts.newEvents)) {
-          refreshMe().then(() => { if (mySeq === seq) renderTabs(currentTab); }).catch(() => {});
+        if (tab === 'mine' && me && me.counts && toNum(me.counts.newEvents)) {
+          refreshMe().then(() => { if (mySeq === seq) renderTabs(tab); }).catch(() => {});
         }
       } catch (err) {
         if (mySeq !== seq) return;
@@ -672,22 +812,28 @@
       }
     }
 
-    /** 로그인 만료(401) · 자격 변경(403) — 처음 화면부터 다시 */
+    /**
+     * 로그인 만료(401) · 자격 변경(403) — 처음 화면부터 다시.
+     * 403 이면 /work/me 를 다시 받아, 자격이 그대로면 false (부르는 쪽이 서버 문구를 보여 준다 — 같은 403 이 되풀이되지 않게).
+     * 바뀌었으면(예: 쓰는 도중 정지됨) 새 상태로 다시 그리고 서버 문구를 띄운다.
+     */
     async function handleAuthError(err) {
       if (err.status === 401) {
         showLogin();
         return true;
       }
       if (err.status === 403) {
+        const before = me && me.worker ? me.worker.status : null;
         try {
           await refreshMe();
         } catch (e) {
           say(e.message);
           return true;
         }
-        // 자격이 그대로면 다시 그리지 않는다 (같은 403 이 되풀이되지 않게) — 부르는 쪽이 오류 문구를 보여 준다
-        if (me && me.worker && me.worker.status === 'approved') return false;
+        const after = me && me.worker ? me.worker.status : null;
+        if (after === before && (after === 'approved' || after === 'suspended')) return false;
         renderWorkerState();
+        say(err.message);
         return true;
       }
       return false;
@@ -882,7 +1028,8 @@
         return;
       }
       route = next;
-      if (me && me.worker && me.worker.status === 'approved' && !$('viewApp').hidden) renderRoute();
+      const st = me && me.worker && me.worker.status;
+      if ((st === 'approved' || st === 'suspended') && !$('viewApp').hidden) renderRoute();
     });
 
     boot();
@@ -902,20 +1049,33 @@
     LIMITS,
     SITE_NOTE,
     INVITE_KEY,
+    SUSPENDED_NOTE,
+    DEADLINE_NONE,
+    AUTO_DECLINE_REASONS,
     esc,
     fmtDate,
     fmtTime,
     fmtDateTime,
     fmtRange,
     ddayLabel,
+    deadlinePassed,
+    deadlineTag,
+    deadlineTagHtml,
+    deadlineLineHtml,
+    deadlineFactHtml,
     parseHash,
     returnTarget,
     loginHref,
     selectView,
+    isSuspended,
+    tabsFor,
     defaultTab,
+    backTabFor,
     registrationBody,
     payText,
     myStatus,
+    isAutoDeclined,
+    releaseReasonHtml,
     jobCardHtml,
     jobListHtml,
     tabsHtml,

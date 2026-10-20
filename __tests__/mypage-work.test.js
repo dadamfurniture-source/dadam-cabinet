@@ -88,6 +88,40 @@ describe('건수 · 다음 작업', () => {
     expect(W.summaryHtml({ ready: true, worker: { id: 'w', status: 'pending', display_name: '테스트' }, counts: {} }, null)).toContain('승인 대기');
     expect(W.summaryHtml({ ready: true, worker: { id: 'w', status: 'rejected', display_name: '테스트' }, counts: {} }, null)).toContain('승인되지 않았습니다');
   });
+
+  test('다음 작업을 따로 넘기지 않으면 서버가 고른 me.next_job 을 쓴다', () => {
+    const me = { ...approved({ mine: 2 }), next_job: job(J2, '2026-10-22T00:00:00Z', { my: { assignment_status: 'revision' } }) };
+    const html = W.summaryHtml(me);
+    expect(html).toContain(`href="worker.html#job=${J2}"`);
+    expect(html).toContain('(보완요청)');
+    expect(W.summaryHtml({ ...me, next_job: { id: 'not-a-uuid' } })).toContain('href="worker.html#tab=mine"');
+  });
+});
+
+describe('정지된 작업자 — 요약 카드는 보이고 모집중 줄 대신 정지 안내 (1주차 후속 D)', () => {
+  const suspended = (counts, nextJob) => ({
+    ready: true,
+    worker: { id: 'w', status: 'suspended', display_name: '테스트 작업자', kinds: ['install'] },
+    counts: { open: 0, mine: 0, revision: 0, newEvents: 0, ...counts },
+    next_job: nextJob || null,
+  });
+
+  test('건수 · 정지 안내 한 줄 · 다음 작업 · 작업자 페이지 링크', () => {
+    const html = W.summaryHtml(suspended({ mine: 1, newEvents: 2 }, job(J1, '2026-10-21T00:00:00Z')));
+    expect(html).toContain(W.SUSPENDED_NOTE);
+    expect(W.SUSPENDED_NOTE).toBe('계정이 정지되어 새 작업 신청·수락을 할 수 없습니다. 지난 기록은 볼 수 있습니다.');
+    expect(html).not.toContain('모집중');
+    expect(html).toContain('예정 · 진행');
+    expect(html).toContain('2건');
+    expect(html).toContain(`href="worker.html#job=${J1}"`);
+    expect(html).toContain('작업자 페이지 열기');
+  });
+
+  test('다음 작업이 없고 내 작업도 없으면 없음', () => {
+    const html = W.summaryHtml(suspended({ mine: 0 }));
+    expect(html).toContain('없음');
+    expect(html).not.toContain('worker.html#tab=mine');
+  });
 });
 
 describe('mypage.html — 섹션 자리 · 부르는 곳', () => {
@@ -104,6 +138,11 @@ describe('mypage.html — 섹션 자리 · 부르는 곳', () => {
   test('loadMyProjects() 다음에 loadMyWork(supabaseClient) — 스크립트는 ?v= 를 단다', () => {
     expect(MYPAGE).toMatch(/await loadMyProjects\(\);\s*\n\s*\/\/[^\n]*\n\s*if \(typeof loadMyWork === 'function'\) await loadMyWork\(supabaseClient\);/);
     expect(MYPAGE).toMatch(/<script src="js\/mypage-work\.js\?v=\d+"><\/script>/);
+  });
+
+  test('next_job · 정지 요약을 담은 mypage-work.js 는 ?v=3 이상 (캐시된 옛 파일을 쓰지 않게)', () => {
+    const v = Number(MYPAGE.match(/<script src="js\/mypage-work\.js\?v=(\d+)"><\/script>/)[1]);
+    expect(v).toBeGreaterThanOrEqual(3);
   });
 });
 
@@ -172,6 +211,40 @@ describe('loadMyWork — 섹션 열고 닫기', () => {
     expect(calls.map((c) => c.path)).toEqual(['/work/me']);
     expect(server.lastSeenAt).toBe('2026-10-19T00:00:00.000Z');
     expect(document.getElementById('myWorkBody').textContent).toContain('3건');
+  });
+
+  test('다음 작업 한 줄은 /work/me 의 next_job — 목록은 부르지 않는다', async () => {
+    const calls = mount({
+      '/work/me': { ...approved({ mine: 2, revision: 1 }), next_job: job(J3, '2026-10-21T00:00:00Z', { title: XSS }) },
+      '/work/jobs?tab=mine': { items: [job(J1, '2026-10-21T00:00:00Z')] },
+    });
+    await W.loadMyWork(client());
+    expect(section().hidden).toBe(false);
+    expect(calls.map((c) => c.path)).toEqual(['/work/me']);
+    const body = document.getElementById('myWorkBody');
+    const link = body.querySelector(`a[href="worker.html#job=${J3}"]`);
+    expect(link).not.toBe(null);
+    expect(link.textContent).toBe(`10/21(수) 09:00 · 설치 · 테스트시 · ${XSS} (확정)`);
+    expect(body.querySelector('script')).toBe(null);
+    expect(body.querySelector('a[href="worker.html#tab=mine"]')).toBe(null);
+  });
+
+  test('정지된 작업자도 요약 카드를 연다 — 정지 안내 한 줄 + next_job', async () => {
+    const calls = mount({
+      '/work/me': {
+        ready: true,
+        worker: { id: 'w', status: 'suspended', display_name: '테스트', kinds: ['install'] },
+        counts: { open: 0, mine: 1, revision: 0, newEvents: 0 },
+        next_job: job(J1, '2026-10-21T00:00:00Z'),
+      },
+    });
+    await W.loadMyWork(client());
+    expect(section().hidden).toBe(false);
+    const body = document.getElementById('myWorkBody');
+    expect(body.textContent).toContain(W.SUSPENDED_NOTE);
+    expect(body.textContent).not.toContain('모집중');
+    expect(body.querySelector(`a[href="worker.html#job=${J1}"]`)).not.toBe(null);
+    expect(calls.map((c) => c.path)).toEqual(['/work/me']);
   });
 
   test('내 작업이 0 이면 목록은 부르지 않는다', async () => {

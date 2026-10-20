@@ -62,7 +62,8 @@ describe('esc · 카드 — 사용자 글은 글자로 나온다', () => {
   test('내 상태 칩 — 배정 > 신청 > 작업 상태', () => {
     expect(P.myStatus(card({ my: { assignment_id: A1, assignment_status: 'offered', application_status: 'applied' } })).text).toBe('초대 받음');
     expect(P.myStatus(card({ my: { application_id: AP1, application_status: 'applied' } })).text).toBe('신청함');
-    expect(P.myStatus(card({ effective_status: 'expired' })).text).toBe('신청 마감');
+    // 1주차 후속 0 — expired 의 화면 이름은 「지원 종료」 (「신청 마감」 글자는 없앤다)
+    expect(P.myStatus(card({ effective_status: 'expired' })).text).toBe('지원 종료');
   });
 
   test('빈 목록은 탭마다 안내', () => {
@@ -287,6 +288,22 @@ async function settle() {
   for (let i = 0; i < 15; i++) await flush();
 }
 
+// 앞 시험의 start() 가 단 hashchange 듣개 — 다음 mount 전에 뗀다 (안 떼면 주소를 바꿀 때 옛 화면들도 같이 다시 그린다)
+const LIVE_HASH_LISTENERS = [];
+function startPortal() {
+  LIVE_HASH_LISTENERS.splice(0).forEach((fn) => window.removeEventListener('hashchange', fn));
+  const orig = window.addEventListener;
+  window.addEventListener = function (type, fn, o) {
+    if (type === 'hashchange') LIVE_HASH_LISTENERS.push(fn);
+    return orig.call(this, type, fn, o);
+  };
+  try {
+    P.start();
+  } finally {
+    window.addEventListener = orig;
+  }
+}
+
 function mount({ session = true, routes = {}, hash = '' } = {}) {
   document.body.innerHTML = BODY;
   window.history.replaceState(null, '', `/worker.html${hash}`);
@@ -312,7 +329,7 @@ function mount({ session = true, routes = {}, hash = '' } = {}) {
     const status = r.status || 200;
     return { ok: status < 400, status, json: async () => (status < 400 ? { success: true, data: r.data } : { success: false, message: r.message }) };
   });
-  P.start();
+  startPortal();
   return calls;
 }
 const visible = (id) => !document.getElementById(id).hidden;
@@ -437,5 +454,345 @@ describe('페이지 — 상태별 화면', () => {
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     await settle();
     expect(calls.find((c) => c.path.endsWith('/release')).body).toEqual({ reason: '테스트 사유' });
+  });
+});
+
+// ── 1주차 후속 (2026-10-20, 계약 머리 "1주차 후속" 절) ──
+
+describe('지원 종료일 — 형식 · 꼬리표 (KST, 날짜 경계)', () => {
+  const at = (iso) => Date.parse(iso);
+
+  test('형식은 한국 시간 "10/25(일) 18:00"', () => {
+    expect(P.fmtDateTime('2026-10-25T09:00:00Z')).toBe('10/25(일) 18:00');
+    // UTC 로는 10/20 이지만 한국은 10/21 0시
+    expect(P.fmtDateTime('2026-10-20T15:00:00Z')).toBe('10/21(수) 00:00');
+  });
+
+  test.each([
+    ['2026-10-25T09:00:00Z', NOW, 'D-5'],
+    ['2026-10-20T09:00:00Z', NOW, '오늘 종료'], // 같은 날 18:00, 지금 10:00
+    ['2026-10-20T14:59:00Z', NOW, '오늘 종료'], // 같은 날 23:59
+    ['2026-10-20T15:00:00Z', NOW, 'D-1'], // 다음 날 00:00 — UTC 로는 같은 날이지만 한국 날짜로 하루 뒤
+    ['2026-10-20T01:00:00Z', NOW, '오늘 종료'], // 지금과 같은 시각은 아직 안 지남 (서버 expired = 지원 종료일 < 지금)
+    ['2026-10-20T00:59:00Z', NOW, '지원 종료'], // 1분 전
+    ['2026-10-18T09:00:00Z', NOW, '지원 종료'],
+    ['2026-10-20T15:30:00Z', at('2026-10-20T14:30:00Z'), 'D-1'], // 밤 23:30 에 본 다음 날 00:30 — 한 시간 남아도 D-1
+    ['2026-10-20T14:45:00Z', at('2026-10-20T14:30:00Z'), '오늘 종료'],
+    ['2026-10-21T10:00:00Z', at('2026-10-20T16:00:00Z'), '오늘 종료'], // 한국 10/21 01:00 에 본 10/21 19:00 (UTC 날짜는 다르다)
+  ])('%s (지금 %s) → %s', (iso, now, tag) => {
+    expect(P.deadlineTag(iso, now)).toBe(tag);
+  });
+
+  test('지원 종료일이 없거나 이상하면 꼬리표 없음 · 지나지 않음', () => {
+    expect(P.deadlineTag(null, NOW)).toBe('');
+    expect(P.deadlineTag('nope', NOW)).toBe('');
+    expect(P.deadlinePassed(null, NOW)).toBe(false);
+    expect(P.deadlinePassed('2026-10-20T00:59:00Z', NOW)).toBe(true);
+    expect(P.deadlinePassed('2026-10-20T01:00:00Z', NOW)).toBe(false);
+  });
+
+  test('꼬리표 HTML — 오늘 종료 · 지원 종료는 눈에 띄는 칸', () => {
+    expect(P.deadlineTagHtml('오늘 종료')).toBe('<span class="dl-tag dl-today">오늘 종료</span>');
+    expect(P.deadlineTagHtml('지원 종료')).toContain('dl-over');
+    expect(P.deadlineTagHtml('D-3')).toContain('dl-days');
+    expect(P.deadlineTagHtml('')).toBe('');
+  });
+});
+
+describe('지원 종료일 — 카드 · 상세 · 신청 버튼', () => {
+  test('모집중 카드 — "지원 종료일 10/25(일) 18:00 · D-5", 없으면 줄이 없다', () => {
+    const html = P.jobCardHtml(card({ apply_deadline: '2026-10-25T09:00:00Z' }), NOW, 'open');
+    expect(html).toContain('지원 종료일 10/25(일) 18:00 · <span class="dl-tag dl-days">D-5</span>');
+    expect(P.jobCardHtml(card(), NOW, 'open')).not.toContain('지원 종료일');
+  });
+
+  test('모집중 카드 — 오늘 종료는 눈에 띄게', () => {
+    const html = P.jobListHtml([card({ apply_deadline: '2026-10-20T09:00:00Z' })], 'open', NOW);
+    expect(html).toContain('지원 종료일 10/20(화) 18:00 · <span class="dl-tag dl-today">오늘 종료</span>');
+  });
+
+  test('내 작업 · 완료 카드에는 지원 종료일 줄이 없다', () => {
+    const c = card({ apply_deadline: '2026-10-25T09:00:00Z', my: { assignment_id: A1, assignment_status: 'confirmed' } });
+    expect(P.jobCardHtml(c, NOW, 'mine')).not.toContain('지원 종료일');
+    expect(P.jobListHtml([c], 'done', NOW)).not.toContain('지원 종료일');
+  });
+
+  test('상세 사실 행 「지원 종료일」 — 없으면 "정하지 않음 (정원이 차면 마감)"', () => {
+    const none = P.jobDetailHtml(detail(), NOW, 'open');
+    expect(none).toContain('<dt>지원 종료일</dt><dd>정하지 않음 (정원이 차면 마감)</dd>');
+    expect(none).not.toContain('신청 마감');
+    const some = P.jobDetailHtml(detail({ apply_deadline: '2026-10-23T09:00:00Z' }), NOW, 'open');
+    expect(some).toContain('<dt>지원 종료일</dt><dd>10/23(금) 18:00 · <span class="dl-tag dl-days">D-3</span></dd>');
+  });
+
+  test('상세 꼬리표는 모집중 · 지원 종료 작업에만 (인원이 찼으면 날짜만)', () => {
+    const filled = P.jobDetailHtml(detail({ apply_deadline: '2026-10-23T09:00:00Z', effective_status: 'filled', my: { assignment_id: A1, assignment_status: 'confirmed' } }), NOW, 'mine');
+    expect(filled).toContain('<dt>지원 종료일</dt><dd>10/23(금) 18:00</dd>');
+    const expired = P.jobDetailHtml(detail({ apply_deadline: '2026-10-19T09:00:00Z', effective_status: 'expired' }), NOW, 'open');
+    expect(expired).toContain('<span class="dl-tag dl-over">지원 종료</span>');
+  });
+
+  test('화면 시각으로 지났으면 신청 양식 대신 잠긴 「지원 종료」 버튼 (서버가 아직 open 이라고 해도)', () => {
+    const d = detail({ apply_deadline: '2026-10-20T00:30:00Z', effective_status: 'open' });
+    expect(P.availableActions(d, { nowMs: NOW })).toMatchObject({ apply: false, applyEnded: true });
+    const html = P.jobDetailHtml(d, NOW, 'open');
+    expect(html).not.toContain('data-form="apply"');
+    expect(html).toContain('<button type="button" class="big" disabled>지원 종료</button>');
+    expect(html).toContain('지원 종료일이 지났습니다.');
+    // 상태 칩도 화면 시각을 따른다 — 「모집중」 칩과 「지원 종료」 꼬리표가 엇갈리지 않게
+    expect(html).toContain('<span class="chip t-off">지원 종료</span>');
+    expect(html).not.toContain('모집중');
+    expect(P.jobCardHtml(card({ apply_deadline: '2026-10-20T00:30:00Z' }), NOW, 'open')).toContain('<span class="chip t-off">지원 종료</span>');
+    // 아직 전이면 신청 양식
+    expect(P.jobDetailHtml(detail({ apply_deadline: '2026-10-20T09:00:00Z' }), NOW, 'open')).toContain('data-form="apply"');
+  });
+
+  test('서버가 expired 로 준 작업도 잠긴 「지원 종료」 — 신청 · 배정이 있으면 버튼 없음', () => {
+    expect(P.availableActions(detail({ effective_status: 'expired' }), { nowMs: NOW })).toMatchObject({ apply: false, applyEnded: true });
+    expect(P.availableActions(detail({ effective_status: 'expired', my: { application_id: AP1, application_status: 'applied' } }), { nowMs: NOW }))
+      .toMatchObject({ applyEnded: false, withdraw: true });
+  });
+});
+
+describe('정지된 작업자 — 새 신청 · 수락만 막는다 (순수)', () => {
+  const opts = { nowMs: NOW, suspended: true };
+
+  test('탭 — 모집중이 없고 기본은 내 작업 (주소가 #tab=open 이어도)', () => {
+    expect(P.tabsFor(true).map((t) => t.key)).toEqual(['mine', 'done', 'me']);
+    const html = P.tabsHtml('mine', { open: 3, mine: 1 }, true);
+    expect(html).not.toContain('#tab=open');
+    expect(html).not.toContain('모집중');
+    expect(P.defaultTab({}, { mine: 0 }, true)).toBe('mine');
+    expect(P.defaultTab({ tab: 'open' }, { mine: 0 }, true)).toBe('mine');
+    expect(P.defaultTab({ tab: 'done' }, { mine: 0 }, true)).toBe('done');
+    expect(P.isSuspended({ worker: { status: 'suspended' } })).toBe(true);
+    expect(P.isSuspended({ worker: { status: 'approved' } })).toBe(false);
+  });
+
+  test('초대 받음 → 수락은 없고 거절은 있다', () => {
+    const d = detail({ effective_status: 'filled', my: { assignment_id: A1, assignment_status: 'offered' } });
+    expect(P.availableActions(d, opts)).toMatchObject({ confirm: false, decline: true });
+    const html = P.jobDetailHtml(d, NOW, 'mine', { suspended: true });
+    expect(html).not.toContain('data-act="confirm"');
+    expect(html).toContain('data-form="decline"');
+    expect(html).toContain('계정이 정지되어 수락할 수 없습니다');
+  });
+
+  test('모집중 작업에 신청 버튼이 없다 (잠긴 버튼도 없다)', () => {
+    const html = P.jobDetailHtml(detail(), NOW, 'open', { suspended: true });
+    expect(P.availableActions(detail(), opts)).toMatchObject({ apply: false, applyEnded: false });
+    expect(html).not.toContain('data-form="apply"');
+    expect(html).not.toContain('disabled>지원 종료');
+    expect(html).toContain('href="#tab=mine"'); // 모집중 탭이 없으니 돌아갈 곳은 내 작업
+  });
+
+  test('나머지는 그대로 — 철회 · 시작 · 포기 · 보고', () => {
+    expect(P.availableActions(detail({ my: { application_id: AP1, application_status: 'applied' } }), opts).withdraw).toBe(true);
+    expect(P.availableActions(detail({ effective_status: 'filled', my: { assignment_id: A1, assignment_status: 'confirmed' } }), opts))
+      .toMatchObject({ start: true, release: true, reports: ['progress', 'issue'] });
+    expect(P.availableActions(detail({ effective_status: 'in_progress', my: { assignment_id: A1, assignment_status: 'started' } }), opts).reports)
+      .toEqual(['progress', 'issue', 'result']);
+  });
+});
+
+describe('지난 작업(완료) 탭 — 거절 배정의 사유', () => {
+  test('작업이 마감 · 취소돼 끝난 초대는 「초대 끝남」 + 안내 문구', () => {
+    const closed = card({ effective_status: 'closed', my: { assignment_id: A1, assignment_status: 'declined', release_reason: '작업이 마감돼 초대가 끝났습니다' } });
+    const html = P.jobListHtml([closed], 'done', NOW);
+    expect(html).toContain('초대 끝남');
+    expect(html).not.toContain('거절함');
+    expect(html).toContain('<div class="jd reason">작업이 마감돼 초대가 끝났습니다</div>');
+    const cancelled = card({ effective_status: 'cancelled', my: { assignment_id: A1, assignment_status: 'declined', release_reason: '작업이 취소돼 초대가 끝났습니다' } });
+    expect(P.jobListHtml([cancelled], 'done', NOW)).toContain('작업이 취소돼 초대가 끝났습니다');
+    expect(P.stateText(cancelled)).toBe('작업이 취소돼 초대가 끝났습니다.');
+  });
+
+  test('내가 거절한 초대는 「거절함」 + 거절 사유 (글자로)', () => {
+    const mine = card({ effective_status: 'filled', my: { assignment_id: A1, assignment_status: 'declined', release_reason: XSS } });
+    const html = P.jobCardHtml(mine, NOW, 'done');
+    expect(html).toContain('거절함');
+    expect(html).toContain('거절 사유: &lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(html).not.toContain('<script>');
+  });
+
+  test('사유가 없거나 거절이 아니면 줄이 없다 · 다른 탭에서는 보이지 않는다', () => {
+    expect(P.releaseReasonHtml(card({ my: { assignment_id: A1, assignment_status: 'declined' } }))).toBe('');
+    expect(P.releaseReasonHtml(card({ my: { assignment_id: A1, assignment_status: 'accepted', release_reason: 'x' } }))).toBe('');
+    const c = card({ my: { assignment_id: A1, assignment_status: 'declined', release_reason: '일정이 겹침' } });
+    expect(P.jobCardHtml(c, NOW, 'mine')).not.toContain('일정이 겹침');
+  });
+});
+
+describe("작업 상세 '← 목록으로'", () => {
+  test('목록에서 왔으면 그 탭', () => {
+    expect(P.backTabFor(detail({ my: { assignment_id: A1, assignment_status: 'confirmed' } }), 'open', false)).toBe('open');
+  });
+  test('#job= 로 바로 들어왔으면 내 배정이 든 탭 — 진행 중은 내 작업, 끝난 배정은 완료, 없으면 모집중', () => {
+    expect(P.backTabFor(detail({ my: { assignment_id: A1, assignment_status: 'confirmed' } }), null, false)).toBe('mine');
+    expect(P.backTabFor(detail({ my: { assignment_id: A1, assignment_status: 'offered' } }), null, false)).toBe('mine');
+    expect(P.backTabFor(detail({ my: { assignment_id: A1, assignment_status: 'accepted' } }), null, false)).toBe('done');
+    expect(P.backTabFor(detail(), null, false)).toBe('open');
+    expect(P.backTabFor(detail({ my: { application_id: AP1, application_status: 'applied' } }), null, true)).toBe('mine');
+  });
+});
+
+describe('페이지 — 1주차 후속', () => {
+  const SUSPENDED_ME = { data: { ready: true, worker: { id: 'w', status: 'suspended', display_name: '테스트', kinds: ['install'] }, counts: { open: 0, mine: 1, revision: 0, newEvents: 0 }, next_job: null } };
+  const APPROVED_ME = { data: { ready: true, worker: { id: 'w', status: 'approved', display_name: '테스트', kinds: ['install'] }, counts: COUNTS, next_job: null } };
+  const goto = async (hash) => {
+    window.history.replaceState(null, '', `/worker.html${hash}`);
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    await settle();
+  };
+  beforeEach(() => {
+    sessionStorage.clear();
+    jest.spyOn(Date, 'now').mockReturnValue(NOW);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  test('worker.html — 맨 위 정지 안내 자리, 정지 전용 화면은 없다, 스크립트 ?v=2', () => {
+    expect(HTML).toContain(`<p class="alert warn" id="suspendedNote" hidden>${P.SUSPENDED_NOTE}</p>`);
+    expect(HTML).not.toContain('id="viewSuspended"');
+    expect(HTML).not.toContain('신청 마감');
+    expect(HTML).toMatch(/<script src="js\/worker-portal\.js\?v=2"><\/script>/);
+  });
+
+  test('정지 작업자 → 앱 화면 + 맨 위 안내, 모집중 탭 없음, 기본 탭 내 작업 — 모집중 목록은 부르지 않는다', async () => {
+    const calls = mount({
+      routes: {
+        'GET /work/me': SUSPENDED_ME,
+        'GET /work/jobs?tab=mine': { data: { items: [card({ effective_status: 'filled', my: { assignment_id: A1, assignment_status: 'offered' } })] } },
+        'GET /work/jobs?tab=done': { data: { items: [] } },
+      },
+    });
+    await settle();
+    expect(visible('viewApp')).toBe(true);
+    expect(visible('suspendedNote')).toBe(true);
+    expect(document.getElementById('suspendedNote').textContent).toBe(P.SUSPENDED_NOTE);
+    const tabs = document.getElementById('tabs');
+    expect(tabs.classList.contains('three')).toBe(true);
+    expect(tabs.querySelector('a[href="#tab=open"]')).toBe(null);
+    expect(document.querySelector('.tab.on').textContent).toContain('내 작업');
+    await goto('#tab=open'); // 주소로 모집중을 열어도 내 작업
+    await goto('#tab=done');
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(['GET /work/me', 'GET /work/jobs?tab=mine', 'GET /work/jobs?tab=mine', 'GET /work/jobs?tab=done']);
+  });
+
+  test('정지 작업자 상세 — 수락 버튼 없이 거절만, 거절은 보낼 수 있다', async () => {
+    const calls = mount({
+      hash: `#job=${J1}`,
+      routes: {
+        'GET /work/me': SUSPENDED_ME,
+        [`GET /work/jobs/${J1}`]: { data: detail({ effective_status: 'filled', my: { assignment_id: A1, assignment_status: 'offered' } }) },
+        [`POST /work/assignments/${A1}/decline`]: { data: { id: A1, status: 'declined' } },
+      },
+    });
+    await settle();
+    expect(document.querySelector('[data-act="confirm"]')).toBe(null);
+    expect(document.querySelector('.back').getAttribute('href')).toBe('#tab=mine');
+    document.querySelector('[data-form="decline"]').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    expect(calls.some((c) => c.method === 'POST' && c.path === `/work/assignments/${A1}/decline`)).toBe(true);
+  });
+
+  test('승인 작업자는 정지 안내가 숨겨져 있고 모집중 탭이 있다', async () => {
+    mount({ routes: { 'GET /work/me': APPROVED_ME, 'GET /work/jobs?tab=mine': { data: { items: [] } } } });
+    await settle();
+    expect(visible('suspendedNote')).toBe(false);
+    expect(document.querySelector('#tabs a[href="#tab=open"]')).not.toBe(null);
+  });
+
+  test('쓰는 도중 정지되면 — 신청 403 문구를 그대로 보이고 정지 화면으로 다시 그린다', async () => {
+    let suspended = false;
+    const calls = mount({
+      hash: `#job=${J1}`,
+      routes: {
+        'GET /work/me': () => (suspended ? SUSPENDED_ME : APPROVED_ME),
+        [`GET /work/jobs/${J1}`]: () => (suspended ? null : { data: detail() }),
+        [`POST /work/jobs/${J1}/apply`]: () => {
+          suspended = true;
+          return { status: 403, message: '정지된 계정은 새 작업에 신청할 수 없습니다' };
+        },
+      },
+    });
+    await settle();
+    document.querySelector('[data-form="apply"]').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    expect(calls.filter((c) => c.path === '/work/me').length).toBe(2);
+    expect(visible('suspendedNote')).toBe(true);
+    expect(document.getElementById('alert').textContent).toBe('정지된 계정은 새 작업에 신청할 수 없습니다');
+    expect(document.querySelector('[data-form="apply"]')).toBe(null);
+  });
+
+  test('신청 409 — 서버 문구 "지원 종료일이 지났습니다" 를 그대로 보인다', async () => {
+    mount({
+      hash: `#job=${J1}`,
+      routes: {
+        'GET /work/me': APPROVED_ME,
+        [`GET /work/jobs/${J1}`]: { data: detail({ apply_deadline: '2026-10-20T09:00:00Z' }) },
+        [`POST /work/jobs/${J1}/apply`]: { status: 409, message: '지원 종료일이 지났습니다' },
+      },
+    });
+    await settle();
+    expect(document.getElementById('appBody').textContent).toContain('오늘 종료');
+    document.querySelector('[data-form="apply"]').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    expect(document.getElementById('alert').textContent).toBe('지원 종료일이 지났습니다');
+  });
+
+  test('화면 시각으로 지원 종료일이 지난 상세 — 신청 양식 대신 잠긴 「지원 종료」 버튼', async () => {
+    mount({
+      hash: `#job=${J1}`,
+      routes: {
+        'GET /work/me': APPROVED_ME,
+        [`GET /work/jobs/${J1}`]: { data: detail({ apply_deadline: '2026-10-20T00:30:00Z' }) },
+      },
+    });
+    await settle();
+    const btn = Array.from(document.querySelectorAll('#appBody button')).find((b) => b.textContent === '지원 종료');
+    expect(btn).toBeTruthy();
+    expect(btn.disabled).toBe(true);
+    expect(document.querySelector('[data-form="apply"]')).toBe(null);
+  });
+
+  test('모집중 탭 카드에 지원 종료일 줄', async () => {
+    mount({
+      hash: '#tab=open',
+      routes: {
+        'GET /work/me': APPROVED_ME,
+        'GET /work/jobs?tab=open': { data: { items: [card({ apply_deadline: '2026-10-20T09:00:00Z' })] } },
+      },
+    });
+    await settle();
+    const line = document.querySelector('#appBody .jd.dl');
+    expect(line.textContent).toBe('지원 종료일 10/20(화) 18:00 · 오늘 종료');
+    expect(line.querySelector('.dl-today')).not.toBe(null);
+  });
+
+  test("#job= 로 바로 들어온 내 배정 작업 — '← 목록으로' 는 내 작업 탭", async () => {
+    mount({
+      hash: `#job=${J1}`,
+      routes: {
+        'GET /work/me': APPROVED_ME,
+        [`GET /work/jobs/${J1}`]: { data: detail({ effective_status: 'filled', my: { assignment_id: A1, assignment_status: 'confirmed' } }) },
+      },
+    });
+    await settle();
+    expect(document.querySelector('.back').getAttribute('href')).toBe('#tab=mine');
+  });
+
+  test("완료 탭에서 들어간 상세 — '← 목록으로' 는 완료 탭", async () => {
+    mount({
+      hash: '#tab=done',
+      routes: {
+        'GET /work/me': APPROVED_ME,
+        'GET /work/jobs?tab=done': { data: { items: [card({ effective_status: 'closed', my: { assignment_id: A1, assignment_status: 'declined', release_reason: '작업이 마감돼 초대가 끝났습니다' } })] } },
+        [`GET /work/jobs/${J1}`]: { data: detail({ effective_status: 'closed', my: { assignment_id: A1, assignment_status: 'declined', release_reason: '작업이 마감돼 초대가 끝났습니다' } }) },
+      },
+    });
+    await settle();
+    expect(document.getElementById('appBody').textContent).toContain('작업이 마감돼 초대가 끝났습니다');
+    await goto(`#job=${J1}`);
+    expect(document.querySelector('.back').getAttribute('href')).toBe('#tab=done');
   });
 });
