@@ -223,6 +223,8 @@ test('플래너 재생성은 원본의 wall_width_override 를 잇고, 새로 �
     globalThis.fetch = async (url, init = {}) => {
       const u = String(url);
       if (u.includes('/auth/v1/user')) return jsonRes({ id: USER_ID, email: 'a@b.c' });
+      // 2026-10-20 등급 관문 (src/tier-gate.js) — 플래너 재생성도 지나므로 expert 로 둔다
+      if (u.includes('/rest/v1/profiles')) return jsonRes([{ tier: 'expert' }]);
       if (u.includes('/rest/v1/rpc/')) return jsonRes([{ ref: 'r', balance: 80, cost: 20 }]);
       if (u.includes('/rest/v1/generations')) {
         const m = init.method || 'GET';
