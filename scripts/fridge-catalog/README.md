@@ -133,3 +133,64 @@ python -I to_sql.py dacor_sks.json > import-dacor-sks.sql         # 데이코 �
 - SKS 아일랜드 니치 높이 원문은 `820~828 or 836↑` — 대안이 둘이라 최대는 비우고 최소 820 만 넣었다. 깊이 `600↑` 은 최소 600.
 - SKS 컬럼 와인셀러 24 는 설치 치수가 페이지에 없다 (18 만 있다) — 비워 둔다. 얼음정수기 냉장고 페이지의 `S695SI34B` 는 케어 서비스 문구에만 나오고 사양이 없어 뺐다.
 - 얼음정수기 냉장고 S695RE13BW 는 좌우 문 두 짝(냉동 254L · 냉장 432L) 이라 `side_by_side` 로 넣었다 (LG 코드 S… = 양문형).
+
+## 리페르 (Liebherr) · 마이디어 (Midea) · 스메그 (Smeg)
+
+기본 실행(`samsung,lg`)에는 들어가지 않는다. 셋 다 각자 고를 수 있다 (`--brands liebherr`, `--brands midea`, `--brands smeg`).
+
+```bash
+python -I collect.py --brands liebherr,midea,smeg --sample 6 --out lms_sample   # 시험
+python -I collect.py --brands liebherr,midea,smeg --out lms                     # 전체 · 요청 ~100개 (약 3분)
+python -I to_sql.py lms.json > import-lms.sql                                   # 브랜드 '리페르' · '마이디어' · '스메그'
+```
+
+| | 리페르 | 마이디어 | 스메그 |
+|---|---|---|---|
+| 한국 판매 | 수입사 코스모앤컴퍼니 (백화점 · 하이마트 등) | 마이디어코리아 | 공식 수입사 (주)제이컬렉션 = 스메그코리아 |
+| 목록 | `www.liebherr.com/sitemap-en-kr.xml` 의 `/en-kr/p/…` 중 가정용 (아래) | `www.midea.com/kr/sitemap.xml` 의 `/kr/refrigerator/…` 상품 경로 | `j-collection.co.kr/product/product_list.php?cate=15`(냉장고) · `629`(와인셀러) → 'MORE' 버튼이 부르는 `POST /product/product_proc.php` (`reg_state=list`, `page`, `page_size`) |
+| 치수 | 제품 페이지 `__NEXT_DATA__` 속성 4431 `Exterior dimensions: height/width/depth` (cm) · 조합(양문형)은 5739 (mm) — **H/W/D 순서** | 상품 페이지 '전체 사양' `크기` (`833x1775x740mm`) | 상세 `product_view.php?pseq=` '상품 정보 고시' `크기, 용량, 형태` — **W×D×H 순서** (`(가로x세로x높이)601x728x1530mm`) |
+| 모델 코드 | `productSetName` (`SCNsdh 5253_126620` 의 `_…` 는 변형 번호라 뗀다) | JSON-LD `Product.model` | 페이지 제목 끝 코드 (= 목록 `data-promodel`) |
+| 니치 · 도어 | 4491 `Nischenmaße` (범위) → `niche_min/max_*`, 4518 도어 방식(고정 Festtür / 슬라이딩 Schlepptür), 4582 설치 방식 `Integrierbar` → `built_in` + `panel_ready` | 없음 | 없음 |
+| 설치 여유 | 없음 (PDF 뿐) | 없음 | 상세의 안내 문장 → `install_notes` + 숫자가 분명한 것만 칸으로 (아래) |
+
+- robots.txt: liebherr.com 은 제품 경로 금지 없음. midea.com 은 `Disallow: /*?*` (쿼리 URL 금지) — 사이트맵의 경로형 URL 만 쓴다 (파이썬 robotparser 는 와일드카드를 못 읽어서 `?` 든 URL 은 수집기가 직접 뺀다). j-collection.co.kr 은 robots.txt 없음(404 → 허용). 셋 다 로그인 없이 공개 페이지만, 한 번에 하나씩 1.2초 이상 간격.
+- 리페르 범위는 **한국 사이트(en-kr) 가정용만**이다. ko-kr 사이트맵엔 건설장비뿐이고, en-kr 의 `/p/` 1,635개 대부분은 업무용 · 의료용 · 건설장비다. 슬러그 끝 숫자(목록 템플릿) 묶음마다 한 쪽을 열어 `hierarchyLevels` 2단계 `Haushalt` + `customerSegment` `Consumer` 인 묶음만 남긴다 (2026-10-20: 5묶음 12쪽). 제품마다 `countries` 에 `KR` 이 있는지도 본다. 글로벌(de-de 등) 통합형 카탈로그는 긁지 않는다.
+- 리페르 en-kr 가정용은 전부 프리스탠딩이다 — **통합형(빌트인) 한국 공식 모델 0개**. 그래서 니치 · 도어 방식 칸은 비어 있다. 같은 코드가 통합형 페이지(4491 · 4518 · 4582 가 있는 페이지)에서도 돈다는 것은 캐시된 de-de `IRe 5100` 으로 확인했다 (니치 H 1772~1788 · W 560~570 · D 550, 고정 도어, panel_ready).
+- 리페르 용량은 순용량(4424 Net) — 양문형 조합은 두 칸의 합. 와인셀러는 순용량 칸이 없어 총용량(Gross). 조합 중 한 칸이라도 용량이 없으면(XRCsdh 5265 의 SWNsdh 5264) 합이 틀리므로 비운다. 용량 기준은 `product_type_raw` 에 남긴다.
+- 마이디어 `크기` 순서가 페이지마다 다르다 (`833x1775x740` = W×H×D, `562x595x1778` · `908x736x1775` = W×D×H). 첫 값은 늘 너비, 나머지 둘 중 큰 값을 높이로 읽는다 (마이디어 KR 냉장고는 모두 세워 쓰는 형태). 원문은 `size_raw`.
+- 마이디어 상품 페이지 일부는 다른 상품 페이지를 복사해 만들어 sku-map(`skuTitle`) · 사양 `용량` 이 틀려 있다 (예: 3도어 233L 페이지 sku = 미니바 `MDRD86FGO30`, 용량 44L). JSON-LD `model` · 제목의 용량을 정본으로 쓰고 sku-map 값은 `product_type_raw` 에 남긴다.
+- 스메그 설치 안내 → 칸: `경첩 방향으로 약 Ncm` → `door_swing_side_mm` (도어 열 때 경첩 쪽 여유, 비고에 '도어 열림 측면'), `제품 위쪽에 / 상단 Ncm` → `top_gap_mm`, `좌/우 Ncm` → `side_gap_mm`, `후면과 벽면 사이에 최소 Ncm` → `back_gap_mm`. `뒤쪽 벽 사이의 거리는 75mm 이하` 같은 상한은 칸에 넣지 않고 `install_notes` 에만 둔다. (`install_notes` 는 to_sql 비고로 가지 않는다 — JSON/CSV 에만 있다.)
+- 스메그 상단 '사이즈' 칸(`…mm(WxDxH)`)은 HTML 주석 처리돼 있어 쓰지 않는다 — 고시 정보가 정본. FAB5 는 둘이 다르다 (고시 734 · 주석 740).
+- 세부 구분: 리페르 `Side-by-Side combination` → `side_by_side`, 냉장+냉동 한 몸(SCNsdh)과 냉동+와인칸(SWNsdh) → `two_door` (+ `와인칸` 태그 — 위니아 보르도와 같은 기준), 냉장 · 냉동 단품 → `one_door`, `Wine storage fridge` → `wine`. 마이디어: 양문형 · 3/4도어(LG 기준 → `french_4door`) · 150L 이하 `small` · 냉동고/1도어/스탠딩 `one_door` · 나머지 `two_door`. 스메그: 와인셀러 `wine`, 150L 이하 `small` (FAB5 · FAB10 · SMEG500), FAB28 `one_door`, FAB30 · FAB32 · 콜로니얼 · 클래식 `two_door`.
+- 스메그 KR 페이지엔 도어 수가 적혀 있지 않다. FAB28 = 냉동칸이 안에 든 1도어, FAB30(상냉동) · FAB32(하냉동) = 2도어는 스메그 제품군 구성으로 넣었다 (`SM_DOORS`). 콜로니얼 · 클래식 · FAB32 일부 페이지엔 '투도어' 가 있다.
+
+### 2026-10-20 수집 — 모델 코드 80개 → 39행 (리페르 11 · 마이디어 16 · 스메그 12), SQL 36행
+
+| 브랜드 | 세부 구분 | 행 | 코드 |
+|---|---|---|---|
+| 리페르 | side_by_side | 4 | 4 (XCCsdh 5250 · XRCsdh 5265 · XRFsdh 5220 · XRFsdh 5265, 모두 1204×1855×675) |
+| 리페르 | one_door | 3 | 3 (SRBsdh 5260 · SRsdh 5220 · SFNsdh 5227, 597×1855×675) |
+| 리페르 | two_door | 2 | 2 (SCNsdh 5253 좌 · 우경첩 한 행, SWNsdh 5264) |
+| 리페르 | wine | 2 | 2 (WKb 1712 언더카운터 657×850×663 · WKb 4612) |
+| 마이디어 | two_door | 4 | 5 |
+| 마이디어 | small | 4 | 7 |
+| 마이디어 | french_4door | 3 | 3 (4도어 2 + 3도어 1) |
+| 마이디어 | one_door | 3 | 3 (스탠딩 냉장고 362L + 냉동고 2 — 냉동고 둘은 페이지에 크기가 없다) |
+| 마이디어 | side_by_side | 2 | 2 |
+| 스메그 | two_door | 6 | 17 (FAB30 8 · FAB32 6 · 콜로니얼 2 · 클래식 1) |
+| 스메그 | small | 3 | 18 (FAB5 8 · FAB10 8 · SMEG500 2) |
+| 스메그 | one_door | 2 | 13 (FAB28) |
+| 스메그 | wine | 1 | 1 (SCV115A 198병) |
+
+### 리페르 · 마이디어 · 스메그 주의
+
+- 리페르 한국 마이크로사이트(`/en-kr/fridges-freezers/liebherr-korean-7645557`)에 올라 있는 모델은 6개 (XRFsdh 5265 · XRFsdh 5220 · XCCsdh 5250 · SCNsdh 5253 · WKb 1712 · WKb 4612) 다. en-kr 가정용 페이지는 그보다 많아 XRCsdh 5265 · SRBsdh 5260 · SRsdh 5220 · SFNsdh 5227 · SWNsdh 5264 도 들어갔다 (양문형 조합의 단품). 실제 수입 여부는 코스모앤컴퍼니에 확인이 필요하다.
+- 리페르 XCCsdh 5250 은 SCNsdh 5253 두 대 조합, XRFsdh · XRCsdh 는 냉동/와인 단품 + 냉장 단품 조합이다 (구성은 `product_type_raw`). 단품 코드는 다른 행과 겹치지 않게 `model_codes` 에 넣지 않았다.
+- 리페르 깊이 675 는 공식 외형 깊이 (손잡이 포함 여부는 페이지에 없음).
+- 마이디어 KR 냉장고 페이지는 **전부 `OutOfStock`** 이다 (`sale_status`). 사이트에 올라 있을 뿐 지금 파는지는 모른다.
+- 마이디어 양문형 698L `MDRS925FGO50` 크기 원문이 `910x1130x1810mm` — 깊이 1130 은 냉장고로 맞지 않아 비우고 `치수확인필요` 태그를 달았다 (SQL 에서 빠진다). 냉동고 `MDRU255FEG01`(178L) · `MDRU385FEG21H`(272L) 는 페이지에 크기가 없어 SQL 에서 빠진다.
+- 마이디어 `MDRB424FGO50`(2도어 콤비 302L) 은 크기가 `MDRT437MTO50`(314L) 과 똑같은 595×1620×695 이고 페이지가 그 복사본이다 — 크기도 복사된 값일 수 있다. 3도어 233L `MDRM372FGO50` 은 폭 562 의 좁은 3도어라 `french_4door` 가 어색할 수 있다.
+- 스메그 같은 시리즈인데 원문이 조금씩 달라 행이 나뉜다: FAB28 270L(11색) · 266.1L(유니언잭 · 이태리), FAB32 331.1L(2022) · 331L(2019), FAB30 폭 600(7색) · 601(레드 FAB30RRD5). 고시 정보 원문 그대로라 합치지 않았다.
+- 스메그 고시의 모델명이 제목과 다른 곳이 있다: `FA8005RPO5` 페이지 고시 = `FA8005RAO5`, `FAB30RPG5` 페이지 고시 = `FAB30RPG3`. 제목 코드(목록과 같은 값)를 쓴다. 클래식 `FA3905RX5` 는 크기 · 용량 · 설치 문구가 콜로니얼과 글자까지 같다 — 복사일 수 있다.
+- 스메그 `SMEG500`(피아트 500 모양 냉장고, 100L) 원문 `1250x800x830mm` 를 W×D×H 로 읽어 1250×830×800 으로 넣었다. 와인셀러 메뉴는 2개로 표시되지만 목록엔 SCV115A 하나뿐이다.
+- 스메그 글로벌(smeg.com)의 도어 개방 치수는 쓰지 않았다 — 국가 사이트마다 코드 접미사가 달라 KR 코드로 열리지 않는다 (`/uk/products/FAB28RCR5` 404).
