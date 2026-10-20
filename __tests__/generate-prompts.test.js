@@ -135,7 +135,11 @@ describe('설치 프롬프트', () => {
       fridgeBrand: 'LG',
       fridgePosition: 'right',
     });
-    expect(p).toContain('LG french-door refrigerator on the right side');
+    // 2026-10-20 D1: 브랜드 기본 세트(4도어 + 3도어 김치냉장고)·자리 끝·정본 단 높이 — 상세는 workers 쪽 fridge-layout.test.js
+    expect(p).toContain('On the right end');
+    expect(p).toContain('an LG Objet Collection four-door french-door refrigerator (model D646GBB041');
+    expect(p).toContain('stand-type kimchi refrigerator with three doors');
+    expect(p).toContain('sit in one flush plane');
   });
 
   test('참고 이미지가 있으면 마감만 빌리고 레이아웃은 베끼지 말라고 말한다', () => {
