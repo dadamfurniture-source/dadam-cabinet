@@ -596,22 +596,36 @@ describe('정지된 작업자 — 새 신청 · 수락만 막는다 (순수)', (
 });
 
 describe('지난 작업(완료) 탭 — 거절 배정의 사유', () => {
-  test('작업이 마감 · 취소돼 끝난 초대는 「초대 끝남」 + 안내 문구', () => {
+  test('작업이 마감 · 취소돼 끝난 초대 — 칩은 배정 상태 그대로 「거절함」, 서버 사유를 "사유:" 줄로 (문구 글자로 판별하지 않는다)', () => {
     const closed = card({ effective_status: 'closed', my: { assignment_id: A1, assignment_status: 'declined', release_reason: '작업이 마감돼 초대가 끝났습니다' } });
     const html = P.jobListHtml([closed], 'done', NOW);
-    expect(html).toContain('초대 끝남');
-    expect(html).not.toContain('거절함');
-    expect(html).toContain('<div class="jd reason">작업이 마감돼 초대가 끝났습니다</div>');
+    expect(html).toContain('거절함');
+    expect(html).not.toContain('초대 끝남');
+    expect(html).toContain('<div class="jd reason">사유: 작업이 마감돼 초대가 끝났습니다</div>');
+    expect(html).not.toContain('거절 사유');
     const cancelled = card({ effective_status: 'cancelled', my: { assignment_id: A1, assignment_status: 'declined', release_reason: '작업이 취소돼 초대가 끝났습니다' } });
-    expect(P.jobListHtml([cancelled], 'done', NOW)).toContain('작업이 취소돼 초대가 끝났습니다');
-    expect(P.stateText(cancelled)).toBe('작업이 취소돼 초대가 끝났습니다.');
+    expect(P.jobListHtml([cancelled], 'done', NOW)).toContain('사유: 작업이 취소돼 초대가 끝났습니다');
+    // 상세 한 줄은 작업 상태로 (취소 · 종료) — 사유 글자에 기대지 않는다
+    expect(P.stateText(cancelled)).toBe('취소된 작업입니다.');
+    expect(P.stateText(closed)).toBe('종료된 작업입니다.');
+    expect(P.isAutoDeclined).toBeUndefined();
+    expect(P.AUTO_DECLINE_REASONS).toBeUndefined();
   });
 
-  test('내가 거절한 초대는 「거절함」 + 거절 사유 (글자로)', () => {
+  test('서버 문구가 조금 바뀌어도 화면은 같다 — 칩 「거절함」 + "사유:" 줄', () => {
+    const changed = card({ effective_status: 'closed', my: { assignment_id: A1, assignment_status: 'declined', release_reason: '작업이 마감되어 초대가 끝났습니다' } });
+    const exact = card({ effective_status: 'closed', my: { assignment_id: A1, assignment_status: 'declined', release_reason: '작업이 마감돼 초대가 끝났습니다' } });
+    const strip = (h) => h.replace(/작업이 마감(돼|되어) 초대가 끝났습니다/, '#');
+    expect(strip(P.jobCardHtml(changed, NOW, 'done'))).toBe(strip(P.jobCardHtml(exact, NOW, 'done')));
+    expect(P.myStatus(exact, NOW)).toEqual(P.myStatus(changed, NOW));
+    expect(P.stateText(exact)).toBe(P.stateText(changed));
+  });
+
+  test('내가 거절한 초대는 「거절함」 + 사유 (글자로)', () => {
     const mine = card({ effective_status: 'filled', my: { assignment_id: A1, assignment_status: 'declined', release_reason: XSS } });
     const html = P.jobCardHtml(mine, NOW, 'done');
     expect(html).toContain('거절함');
-    expect(html).toContain('거절 사유: &lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(html).toContain('사유: &lt;script&gt;alert(1)&lt;/script&gt;');
     expect(html).not.toContain('<script>');
   });
 
@@ -738,6 +752,53 @@ describe('페이지 — 1주차 후속', () => {
     document.querySelector('[data-form="apply"]').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     await settle();
     expect(document.getElementById('alert').textContent).toBe('지원 종료일이 지났습니다');
+  });
+
+  test('신청 409 뒤에는 상세를 다시 받는다 — 서버가 expired 를 주면 신청 양식 대신 잠긴 「지원 종료」 (휴대폰 시계가 늦어도)', async () => {
+    // 화면 시각으로는 아직 모집중(오늘 종료)인데 서버 기준으로는 이미 지원 종료
+    let serverExpired = false;
+    const calls = mount({
+      hash: `#job=${J1}`,
+      routes: {
+        'GET /work/me': APPROVED_ME,
+        [`GET /work/jobs/${J1}`]: () => ({
+          data: detail(serverExpired
+            ? { effective_status: 'expired', apply_deadline: '2026-10-20T09:00:00Z' }
+            : { apply_deadline: '2026-10-20T09:00:00Z' }),
+        }),
+        [`POST /work/jobs/${J1}/apply`]: () => {
+          serverExpired = true;
+          return { status: 409, message: '지원 종료일이 지났습니다' };
+        },
+      },
+    });
+    await settle();
+    expect(document.querySelector('[data-form="apply"]')).not.toBe(null);
+    document.querySelector('[data-form="apply"]').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    expect(calls.filter((c) => c.method === 'GET' && c.path === `/work/jobs/${J1}`).length).toBe(2);
+    expect(document.getElementById('alert').textContent).toBe('지원 종료일이 지났습니다');
+    expect(document.querySelector('[data-form="apply"]')).toBe(null);
+    const btn = Array.from(document.querySelectorAll('#appBody button')).find((b) => b.textContent === '지원 종료');
+    expect(btn).toBeTruthy();
+    expect(btn.disabled).toBe(true);
+  });
+
+  test('409 가 아닌 실패(예: 500)는 상세를 다시 받지 않고 컨트롤만 다시 켠다', async () => {
+    const calls = mount({
+      hash: `#job=${J1}`,
+      routes: {
+        'GET /work/me': APPROVED_ME,
+        [`GET /work/jobs/${J1}`]: { data: detail() },
+        [`POST /work/jobs/${J1}/apply`]: { status: 500, message: '잠시 뒤 다시 시도해 주세요' },
+      },
+    });
+    await settle();
+    document.querySelector('[data-form="apply"]').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    expect(calls.filter((c) => c.method === 'GET' && c.path === `/work/jobs/${J1}`).length).toBe(1);
+    expect(document.getElementById('alert').textContent).toBe('잠시 뒤 다시 시도해 주세요');
+    expect(document.querySelector('[data-form="apply"] button').disabled).toBe(false);
   });
 
   test('화면 시각으로 지원 종료일이 지난 상세 — 신청 양식 대신 잠긴 「지원 종료」 버튼', async () => {
