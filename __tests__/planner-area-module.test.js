@@ -532,10 +532,10 @@ describe('클릭해도 화면이 초기화되지 않는다', () => {
   });
 
   test('상호작용 경로는 fit:false 로 부른다', () => {
-    // 초기 진입(fit:true) 하나만 예외다.
+    // 초기 진입만 예외다 — 첫 화면 setTimeout 과, three.js 가 늦게 왔을 때의 첫 그림(init3D, 2026-10-20).
     const calls = src.match(/renderAll3D\(\{[^}]*\}\)/g) || [];
     expect(calls.length).toBeGreaterThan(4);
-    expect(calls.filter((c) => c.includes('fit: true'))).toHaveLength(1);
+    expect(calls.filter((c) => c.includes('fit: true'))).toHaveLength(2);
   });
 
   test('영역은 다른 영역으로 옮길 때만 다시 맞춘다', () => {
