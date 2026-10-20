@@ -5,6 +5,7 @@
  *   expired 는 저장하지 않는다 — open 이고 apply_deadline(화면 이름 "지원 종료일")이 지났으면 effective_status 로만 돌려준다
  *   자동 전이(computeJobStatus)는 배정이 바뀔 때마다 다시 계산한다. closed 는 편집자만.
  *   닫기(closed) · 취소(cancelled)가 성공하면 응답 없는 초대(offered)를 declined 로 끝낸다 (autoDeclineOffers).
+ *   겹친 쓰기로 정리에서 빠진 초대는 declineOffersIfEnded 가, 정리 쓰기가 실패한 것은 같은 닫기 · 취소의 재호출이 끝낸다.
  *
  * 낙관적 잠금: 상태를 바꾸는 쓰기는 work_jobs.version 을 조건으로 건다 (id=eq.X&version=eq.N).
  * 결과가 비면 다른 관리자 · 작업자의 변경과 겹친 것이므로 409. 배정 행을 먼저 바꾼 뒤 잠그고,
@@ -94,6 +95,8 @@ export async function lockJob(env, job, patch = {}) {
  *   1) 배정을 from 상태일 때만 바꾼다 (두 번 누름 · 동시 요청은 여기서 409)
  *   2) 바뀐 배정으로 작업 상태를 다시 계산해 version 잠금으로 저장한다
  *   3) 잠금이 실패하면 배정을 원래 값으로 되돌리고 409
+ *   4) 되돌린 값이 초대(offered)면 작업이 그 사이 닫히거나 취소됐는지 다시 본다 — 닫기 · 취소의 자동 정리는
+ *      잠깐 바뀌어 있던 이 배정을 보지 못했으므로, 끝난 작업이면 여기서 같은 문구로 declined 로 끝낸다
  */
 export async function transitionAssignment(env, { job, assignment, jobAssignments, from, patch }) {
   const rows = await updateBy(
@@ -113,6 +116,10 @@ export async function transitionAssignment(env, { job, assignment, jobAssignment
     for (const k of Object.keys(patch)) back[k] = assignment[k] === undefined ? null : assignment[k];
     await updateBy(env, 'work_assignments', { id: `eq.${assignment.id}`, status: `eq.${updated.status}` }, back)
       .catch((e) => console.warn('[work] 배정 되돌리기 실패:', e && e.message));
+    if (assignment.status === 'offered') {
+      await declineOffersIfEnded(env, job.id)
+        .catch((e) => console.warn('[work] 남은 초대 정리 실패:', e && e.message));
+    }
     throw err;
   }
 }
@@ -400,7 +407,11 @@ export const AUTO_DECLINE = Object.freeze({
 
 /**
  * 닫기 · 취소가 성공한 작업의 응답 없는 초대(offered)를 모두 declined 로 (1주차 후속 C).
- * 확정 · 진행 중 배정과 대기 신청(applied)은 건드리지 않는다. offered 일 때만 바꾸므로 같은 순간의 수락과 겹치면 한쪽만 된다.
+ * 확정 · 진행 중 배정과 대기 신청(applied)은 건드리지 않는다. offered 일 때만 바꾸므로 같은 배정을 두 번 끝내지 않는다.
+ * 작업 잠금과 따로 하는 쓰기라서 정리에서 빠지는 초대가 생길 수 있고, 그 길은 둘 다 막아 둔다:
+ *   - 같은 순간의 수락 · 거절 · 제외가 배정을 잠깐 바꿔 둔 사이면 여기서는 못 본다 → 그쪽 잠금이 실패해
+ *     offered 로 되돌린 뒤 transitionAssignment 가 declineOffersIfEnded 로 정리한다 (초대 넣기도 같은 방식)
+ *   - 이 쓰기가 DB 오류로 실패하면 작업은 이미 닫혔거나 취소됐는데 500 이다 → 같은 닫기 · 취소를 다시 부르면 정리만 한다
  * 배정마다 system 이벤트 한 줄 (payload.worker_id → 초대받은 사람의 새 소식 배지). 바꾼 건수를 돌려준다.
  */
 async function autoDeclineOffers(env, jobId, endedAs) {
@@ -416,12 +427,37 @@ async function autoDeclineOffers(env, jobId, endedAs) {
   return rows.length;
 }
 
-/** POST /work/admin/jobs/:id/cancel — done 전만, 사유 필수. 응답 없는 초대는 자동으로 끝난다 (auto_declined: 건수) */
+/**
+ * 작업을 다시 읽어 닫혔거나 취소됐으면 남은 초대를 정리한다 (닫기 · 취소의 정리와 겹친 쓰기 뒤에 부른다).
+ * 끝난 작업이 아니면 null, 끝난 작업이면 정리한 건수 (0 일 수 있다).
+ */
+export async function declineOffersIfEnded(env, jobId) {
+  const now = await selectOne(env, 'work_jobs', { id: `eq.${jobId}`, select: 'id,status' });
+  if (!now || !['closed', 'cancelled'].includes(now.status)) return null;
+  return autoDeclineOffers(env, jobId, now.status);
+}
+
+/**
+ * 이미 endedAs 로 끝난 작업에 같은 닫기 · 취소가 다시 오면 — 남은 초대가 있을 때만 정리하고 그 결과를 돌려준다
+ * (앞선 정리 쓰기가 실패해 500 이 났을 때 다시 누르는 길). 남은 초대가 없으면 null — 부르는 쪽이 원래대로 409.
+ */
+async function retryAutoDecline(env, job, endedAs) {
+  if (job.status !== endedAs) return null;
+  const n = await autoDeclineOffers(env, job.id, endedAs);
+  return n ? { ...job, auto_declined: n } : null;
+}
+
+/**
+ * POST /work/admin/jobs/:id/cancel — done 전만, 사유 필수. 응답 없는 초대는 자동으로 끝난다 (auto_declined: 건수).
+ * 이미 취소된 작업이면 남은 초대 정리만 다시 하고(취소 사유는 그대로), 남은 초대가 없으면 409.
+ */
 export async function cancelJob(env, { user, params, body }) {
   await requireAdminEditor(env, user);
   const id = assertUuid(params.id, '작업 id');
   const reason = reqText(body && body.reason, 200, '취소 사유');
   const job = await loadJob(env, id);
+  const retried = await retryAutoDecline(env, job, 'cancelled');
+  if (retried) return retried;
   if (['done', 'closed', 'cancelled'].includes(job.status)) throw new ConflictError('완료 · 마감 · 취소된 작업은 취소할 수 없습니다');
   const locked = await lockJob(env, job, { status: 'cancelled', cancel_reason: reason });
   await recordEvent(env, { jobId: id, actorUserId: user.id, actorKind: 'admin', type: 'job_cancelled', from: job.status, to: 'cancelled', note: reason });
@@ -429,11 +465,16 @@ export async function cancelJob(env, { user, params, body }) {
   return { ...locked, auto_declined: autoDeclined };
 }
 
-/** POST /work/admin/jobs/:id/close — done → closed. 응답 없는 초대는 자동으로 끝난다 (auto_declined: 건수) */
+/**
+ * POST /work/admin/jobs/:id/close — done → closed. 응답 없는 초대는 자동으로 끝난다 (auto_declined: 건수).
+ * 이미 마감된 작업이면 남은 초대 정리만 다시 하고, 남은 초대가 없으면 409.
+ */
 export async function closeJob(env, { user, params }) {
   await requireAdminEditor(env, user);
   const id = assertUuid(params.id, '작업 id');
   const job = await loadJob(env, id);
+  const retried = await retryAutoDecline(env, job, 'closed');
+  if (retried) return retried;
   if (job.status !== 'done') throw new ConflictError('완료된 작업만 마감할 수 있습니다');
   const locked = await lockJob(env, job, { status: 'closed' });
   await recordEvent(env, { jobId: id, actorUserId: user.id, actorKind: 'admin', type: 'job_closed', from: 'done', to: 'closed' });

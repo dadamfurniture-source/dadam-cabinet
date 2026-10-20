@@ -21,8 +21,8 @@
 | 0 지원 종료일 | 이미 있는 `work_jobs.apply_deadline`(선택)의 화면 이름을 **"지원 종료일"** 로. "신청 마감" 글자는 모두 "지원 종료일", `effective_status: 'expired'` 의 화면 이름은 **"지원 종료"** (관리자 보드 "마감 (신청 마감 지남)" 칸도 "지원 종료"). 작업 상태 `closed` 의 "마감/닫힘" 표현은 그대로. 설정은 관리자 작업 만들기·고치기 폼(`jDeadline`, datetime-local, KST), 필수 아님 — 빈 칸 도움말 "비워 두면 정원이 찰 때까지 받습니다", 지난 시각은 막지 않고 경고 "지원 종료일이 이미 지났습니다 — 게시하면 바로 '지원 종료'로 보입니다". 지원 종료된 작업도 지원 종료일을 뒤로 고치면 다시 모집중 (서버는 이미 `open` 작업 PATCH 를 허용). 표시는 KST `10/25(토) 18:00`, 꼬리표는 KST 날짜 기준 `D-n`(n≥1) · 같은 날이고 아직 전이면 "오늘 종료" · 지났으면 "지원 종료". 서버 409 문구 **"지원 종료일이 지났습니다"**. 새 검증 규칙은 만들지 않는다 (시작일보다 늦어도 막지 않음) | S(서버 문구) · W1 · W2 |
 | A 관리자 화면 XSS | `admin/consultations.html` · `admin/logs.html` · `admin/expert-requests.html` 외 `admin/*.html`(work-jobs 제외) · `js/admin-*.js` 에서 DB 값이 HTML · 속성 · 인라인 onclick 에 들어가는 곳을 막는다. `admin_logs` 의 `"System can insert logs"`(WITH CHECK true) 정책을 지우고 쓰는 트리거 함수를 SECURITY DEFINER 로 — `database/fix-admin-logs-insert-policy.sql` | X |
 | B 마이페이지 다음 작업 | `GET /work/me` 응답에 `next_job: JobCard \| null` (승인·정지 작업자). 고르는 규칙 = `js/mypage-work.js` `pickNextJob`: 내 작업 탭 배정의 작업 중 보완요청 먼저, 아니면 KST 오늘 이후 시작일이 가장 이른 것, 아니면 내 작업 탭 첫 줄(시작일 오름차순, 없는 것은 뒤). **읽음 처리(`last_seen_at`)는 건드리지 않는다.** 마이페이지는 `/work/me` 하나만 부른다 | S · W2 |
-| C 닫기·취소 때 남은 초대 | 정원 계산 배정이 다 보고하면 review/done 은 그대로 (응답 없는 초대는 보지 않는다). 추가: 닫기(`done→closed`)·취소(`→cancelled`)가 성공하면 그 작업의 `offered` 배정을 모두 `declined` 로 — `release_reason` 닫기 "작업이 마감돼 초대가 끝났습니다" · 취소 "작업이 취소돼 초대가 끝났습니다", 배정마다 이벤트 `assignment_auto_declined`(system, offered→declined, note 같은 문구, payload `{ worker_id, reason: 'job_closed' \| 'job_cancelled' }`), 응답에 `auto_declined: 건수`. 확정·진행 중 배정과 대기 신청은 건드리지 않는다. 관리자 확인 문구에 응답 없는 초대 수, 작업자 지난 작업 탭에 `release_reason` | S · W1 · W2 |
-| D 정지된 작업자 | 새 신청·수락만 막고 지난 기록은 보이게 (§3 표). 관리자 초대·신청 승인은 승인 작업자만 (409 "정지된 작업자는 배정할 수 없습니다"). `GET /work/admin/workers` 에 `active_count`. 관리자 정지 확인 문구 "정지하면 새 작업 신청·초대 수락을 못 합니다. 진행 중인 배정 N건은 그대로 남으니 필요하면 작업에서 제외하세요." (N=0 이면 뒷문장 생략). 작업자 화면은 맨 위 안내 "계정이 정지되어 새 작업 신청·수락을 할 수 없습니다. 지난 기록은 볼 수 있습니다.", 모집중 탭·신청·수락 버튼 숨김 | S · W1 · W2 |
+| C 닫기·취소 때 남은 초대 | 정원 계산 배정이 다 보고하면 review/done 은 그대로 (응답 없는 초대는 보지 않는다). 추가: 닫기(`done→closed`)·취소(`→cancelled`)가 성공하면 그 작업의 `offered` 배정을 모두 `declined` 로 — `release_reason` 닫기 "작업이 마감돼 초대가 끝났습니다" · 취소 "작업이 취소돼 초대가 끝났습니다", 배정마다 이벤트 `assignment_auto_declined`(system, offered→declined, note 같은 문구, payload `{ worker_id, reason: 'job_closed' \| 'job_cancelled' }`), 응답에 `auto_declined: 건수`. 확정·진행 중 배정과 대기 신청은 건드리지 않는다. 겹친 수락·거절·제외·초대로 정리에서 빠진 초대는 서버가 작업을 다시 읽어 끝내고, 정리 쓰기가 실패하면 같은 닫기·취소를 다시 불러 정리만 할 수 있다 (§1). 관리자 확인 문구에 응답 없는 초대 수, 작업자 지난 작업 탭에 `release_reason` | S · W1 · W2 |
+| D 정지된 작업자 | 새 신청·수락만 막고 지난 기록은 보이게 (§3 표). 관리자 초대·신청 승인은 승인 작업자만 (정지·대기·반려 모두 409 "정지된 작업자는 배정할 수 없습니다"). `GET /work/admin/workers` 에 `active_count`. 관리자 정지 확인 문구 "정지하면 새 작업 신청·초대 수락을 못 합니다. 진행 중인 배정 N건은 그대로 남으니 필요하면 작업에서 제외하세요." (N=0 이면 뒷문장 생략). 작업자 화면은 맨 위 안내 "계정이 정지되어 새 작업 신청·수락을 할 수 없습니다. 지난 기록은 볼 수 있습니다.", 모집중 탭·신청·수락 버튼 숨김 | S · W1 · W2 |
 | E 로그인 마무리 | 이메일 가입 `emailRedirectTo` = `login.html?redirect=<원래 목적지>`, 인앱 브라우저 안내를 카카오톡 밖(네이버·인스타그램·페이스북·라인·다음·밴드)으로 — `js/auth-redirect.js` `inAppBrowser` · `externalOpenUrl` | A1 |
 | F 공장 작업자 예시 · 작업자 이력 | `production-worker.html` "다른 작업 기록" 예시를 고객 이름 대신 주문번호 + 품목으로. 새 표 `worker_events`(§2) — 가입 신청 · 상태 변경 · 종류 변경을 서버가 기록 (실패해도 요청은 계속), `GET /work/admin/workers/:id/events`, 관리자 작업자 탭 "이력". 관리자 상태 변경 409 는 한국어 상태 이름 ("'승인' 상태에서 '반려'(으)로 바꿀 수 없습니다") | S · W1(SQL · 화면) |
 
@@ -43,6 +43,7 @@ PR: **S 서버** `agent/workflow-work-followup` (`workers/workflow-api/src/work/
 - 정원 계산 배정이 모두 `submitted`/`accepted` 이고 install·as 이면 `review`, 모두 `accepted` 면 `done` — 응답 없는 초대(`offered`)는 보지 않는다 (정원이 찬 뒤 남은 초대는 수락이 409 라 작업이 `in_progress` 에 갇힌다)
 - `closed` 는 편집자만
 - **닫기(`closed`)·취소(`cancelled`)가 성공하면** 그 작업의 남은 `offered` 배정을 모두 `declined` 로 (1주차 후속 C). 확정·진행 중 배정과 대기 신청(`applied`)은 건드리지 않는다
+  - 정리는 작업 잠금과 따로 하는 쓰기라 빠지는 초대가 생길 수 있어 두 길을 막는다: (1) 같은 순간의 수락·거절·제외가 작업 잠금에 져서 배정을 `offered` 로 되돌릴 때, 또는 초대를 넣는 사이 작업이 끝났을 때 — 작업을 다시 읽어 `closed`·`cancelled` 면 같은 문구·이벤트로 `declined` (2) 정리 쓰기가 DB 오류로 실패하면(작업은 이미 끝났는데 500) — 같은 닫기·취소를 다시 부르면 정리만 하고 `auto_declined` 를 돌려준다 (남은 초대가 없으면 원래대로 409)
 
 모든 전이는 `work_job_events` 에 한 줄 (`type`, `from_status`, `to_status`, `actor_kind`, `note`). 작업자 가입 신청·상태 변경·종류 변경은 `worker_events` 에 한 줄.
 
@@ -146,11 +147,11 @@ work_job_events    id, job_id → work_jobs cascade, assignment_id null, actor_u
 | `POST /work/admin/jobs` | `{ kind, title, detail?, region_label?, starts_at?, ends_at?, apply_deadline?, slots, mode, pay_amount?, pay_unit?, pay_visible?, order_id?, design_id? }` | `AdminJob` (`draft`). `apply_deadline` = 지원 종료일 (선택, 지난 시각도 받는다) |
 | `PATCH /work/admin/jobs/:id` | 위 필드 일부 + `version` | `draft`·`open` 만 (지원 종료된 `open` 작업 포함 — 지원 종료일을 뒤로 고치면 다시 모집중) |
 | `POST /work/admin/jobs/:id/publish` | – | `draft` → `open` (종류·제목·정원 필수) |
-| `POST /work/admin/jobs/:id/cancel` | `{ reason }` | `done` 전만. `AdminJob + { auto_declined: 건수 }` — 남은 `offered` 배정은 `declined` ("작업이 취소돼 초대가 끝났습니다") |
-| `POST /work/admin/jobs/:id/close` | – | `done` → `closed`. `AdminJob + { auto_declined: 건수 }` — 남은 `offered` 배정은 `declined` ("작업이 마감돼 초대가 끝났습니다") |
+| `POST /work/admin/jobs/:id/cancel` | `{ reason }` | `done` 전만. `AdminJob + { auto_declined: 건수 }` — 남은 `offered` 배정은 `declined` ("작업이 취소돼 초대가 끝났습니다"). 이미 `cancelled` 인 작업이면 남은 `offered` 가 있을 때만 정리만 다시 하고 200 (취소 사유는 그대로), 없으면 409 |
+| `POST /work/admin/jobs/:id/close` | – | `done` → `closed`. `AdminJob + { auto_declined: 건수 }` — 남은 `offered` 배정은 `declined` ("작업이 마감돼 초대가 끝났습니다"). 이미 `closed` 인 작업이면 남은 `offered` 가 있을 때만 정리만 다시 하고 200, 없으면 409 |
 | `GET /work/admin/jobs/:id` | – | `AdminJobDetail`: 작업 + 신청 목록(작업자 표시 이름·종류·지역·실적 건수) + 배정 + 기록 전부 + 이벤트 (`assignment_auto_declined` 포함) |
-| `POST /work/admin/jobs/:id/invite` | `{ worker_id }` | `Assignment` (`offered`, via `invite`). 승인 작업자만 — 정지면 409 "정지된 작업자는 배정할 수 없습니다", 대기·반려면 409 "승인된 작업자만 배정할 수 있습니다". 종류 맞아야 |
-| `POST /work/admin/applications/:id/approve` · `reject` | `{ reason? }` | approve → 배정 `confirmed` (정원 넘으면 409, 신청자가 정지면 409 "정지된 작업자는 배정할 수 없습니다") |
+| `POST /work/admin/jobs/:id/invite` | `{ worker_id }` | `Assignment` (`offered`, via `invite`). 승인 작업자만 — 정지·대기·반려면 409 "정지된 작업자는 배정할 수 없습니다". 종류 맞아야. 넣는 사이 작업이 닫히거나 취소됐으면 그 초대도 자동 종료하고 409 "더 이상 사람을 받지 않는 작업입니다" |
+| `POST /work/admin/applications/:id/approve` · `reject` | `{ reason? }` | approve → 배정 `confirmed` (정원 넘으면 409, 신청자가 승인 상태가 아니면 409 "정지된 작업자는 배정할 수 없습니다") |
 | `POST /work/admin/assignments/:id/accept` | – | `submitted` → `accepted` (install·as) |
 | `POST /work/admin/assignments/:id/revision` | `{ reason }` (필수) | `submitted` → `revision` |
 | `POST /work/admin/assignments/:id/remove` | `{ reason, no_show? }` | → `removed` |
@@ -197,6 +198,6 @@ work_job_events    id, job_id → work_jobs cascade, assignment_id null, actor_u
 ## 6. 시험 (완료 기준)
 
 - 서버 `workers/workflow-api/test/work.test.js` (node --test): 대기 작업자 신청 403 · 중복 신청 409 · 정원 초과 승인 409(버전 경쟁) · 남의 배정 404 · 잘못된 UUID 422 · 작업자 응답에 금지 키 없음 · `pay_visible=false` 면 금액 없음 · 초대 1회용·만료 410 · 고객이 `/work/admin/*` 403 · support 역할이 메모 403 · Slack 문구에 주소·실명·금액 없음 · assembly 완료 보고는 바로 accepted · 회사 정정 후 원본 행 그대로 · `closed` 작업에 보고 409
-  - 1주차 후속: 정지 작업자 라우트별 허용/403(문구) · 관리자 초대·신청 승인 409 · `next_job` 규칙(순수 + 라우트)과 `last_seen_at` 미변경 · 닫기·취소의 `auto_declined` 와 이벤트 payload · `active_count` · `worker_events` 행(개인정보 없음) · 이력 라우트 권한·404·표 없음 · 409 한국어 문구("지원 종료일이 지났습니다", "'승인' 상태에서 '반려'(으)로 …")
+  - 1주차 후속: 정지 작업자 라우트별 허용/403(문구) · 관리자 초대·신청 승인 409 · `next_job` 규칙(순수 + 라우트)과 `last_seen_at` 미변경 · 닫기·취소의 `auto_declined` 와 이벤트 payload · 수락·거절·초대와 취소가 겹쳐도 `offered` 가 남지 않음 · 정리 실패 뒤 같은 닫기·취소 재호출은 정리만 · `active_count` · `worker_events` 행(개인정보 없음) · 이력 라우트 권한·404·표 없음 · 409 한국어 문구("지원 종료일이 지났습니다", "'승인' 상태에서 '반려'(으)로 …")
 - SQL `__tests__/work-jobs-sql.test.js` (jest): 멱등 구문 · 쓰기 정책 없음 · 정책이 `is_admin()` 만 (`worker_notes` 는 정책 없음) · auth FK SET NULL · 주민·계좌 열 없음 · anon REVOKE · 글자 수 CHECK · rollback 파일이 모든 표를 역순 DROP
 - 화면: `html-validate`·`linkinator` 통과, 렌더 함수 jest(이름에 `<script>` → 글자), 375px 가로 스크롤 없음(수동 확인 절차 PR 에 기록)

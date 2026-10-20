@@ -11,7 +11,7 @@ import { ConflictError, NotFoundError, insertOne, selectOne } from '../supabase.
 import { assertAssignable, assertMine, requireAdminEditor, requireApprovedWorker, requireWorker } from './access.js';
 import { recordEvent } from './events.js';
 import {
-  countFilled, loadJob, loadJobAssignments, needsReview, recordAssignmentChange, transitionAssignment,
+  countFilled, declineOffersIfEnded, loadJob, loadJobAssignments, needsReview, recordAssignmentChange, transitionAssignment,
 } from './jobs.js';
 import { notifyWork } from './notify.js';
 import { ACTIVE_STATUSES, workerAssignment } from './reveal.js';
@@ -119,6 +119,10 @@ export async function inviteWorker(env, { user, params, body }) {
     jobId, assignmentId: row.id, actorUserId: user.id, actorKind: 'admin', type: 'assignment_offered', to: 'offered',
     payload: { worker_id: workerId, via: 'invite' },
   });
+  // 상태 확인과 넣기 사이에 작업이 닫히거나 취소됐으면 그쪽의 자동 정리는 이 초대를 보지 못했다 — 같은 문구로 끝내고 409
+  const ended = await declineOffersIfEnded(env, jobId)
+    .catch((e) => { console.warn('[work] 남은 초대 정리 실패:', e && e.message); return null; });
+  if (ended !== null) throw new ConflictError('더 이상 사람을 받지 않는 작업입니다');
   return row;
 }
 
