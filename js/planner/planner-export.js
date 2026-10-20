@@ -166,10 +166,159 @@ async function plannerExportGlb(THREE, GLTFExporter, moduleGroup, opts) {
   return { glb, parts: built.parts, modules: built.modules };
 }
 
-function plannerExportFileName(now) {
+function plannerExportFileName(now, kind) {
   const d = now || new Date();
   const p = (n) => String(n).padStart(2, '0');
-  return `dadam-approx-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.glb`;
+  return `dadam-${kind || 'approx'}-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.glb`;
+}
+
+// ============================================================
+// CAD GLB — 조립 명세(bom-assembly.js, dadam.assembly/1)에서 바로 짓는다 (CAD 베타, 사장님 2026-10-19 "바로 GLB 로").
+//
+// 근사 GLB 와 달리 3D 장면을 베끼지 않는다. 판재 하나 = BOM 행 하나의 조각 하나이고, 재단 치수는 BOM 그대로다.
+//   흐름 (구조 페이지 안):  buildPlannerPayload → 부모 창 _convertPlannerModules(ui-step1.js) → 부모 MaterialExtractor
+//                           → DadamAssembly.of → 모듈마다 3D 모듈 그룹의 자리 + 칸 오프셋 + 몸통 바닥(다리발·좌대) 위에 판재
+//   노드: 루트(배율 0.001) ▸ `module·<moduleKey>` ▸ 판재 `<partId#k>` (따낸 판은 상자 여럿을 자식으로).
+//   extras: { rowPartId, part, material, t, cutW, cutH, moduleKey, vis }.
+//   명세가 아직 자리를 못 정한 행(도어·서랍·밴드 …)은 GLB 에 없다 — 루트 extras.unplaced 에 개수, 토스트에 개수.
+// 부모 창이 상세설계(detaildesign.html)일 때만 된다 — 변환·BOM 이 그쪽에 있다.
+// ============================================================
+const PLANNER_EXPORT_CAD_ROOT_NAME = 'dadam-planner-cad';
+const PLANNER_EXPORT_CAD_COLORS = { PB: 0xd9c4a3, MDF: 0xbdb5a8 };
+const PLANNER_EXPORT_CELL_RE = /^planner-(.+)-(\d+|open)$/;
+
+/**
+ * 조립 명세와 모듈별 자리 단서를 만든다.
+ * @param {Window} P  부모 창 — _currentStep2Item · _convertPlannerModules · MaterialExtractor · selectedItems
+ * @param {{ payload: object, structureOf: Function, Assembly: object }} deps
+ * @returns {{ spec: object, cells: Object<string, {plannerId: string, dx: number}> }}
+ */
+function plannerExportCadSpec(P, deps) {
+  if (!P || typeof P._convertPlannerModules !== 'function' || typeof P.MaterialExtractor !== 'function') {
+    throw new Error('상세설계 화면에서 연 플래너에서만 CAD GLB 를 만들 수 있습니다');
+  }
+  if (!deps || !deps.Assembly) throw new Error('조립 명세(bom-assembly.js)가 실리지 않았습니다');
+  const item = typeof P._currentStep2Item === 'function' ? P._currentStep2Item() : null;
+  if (!item) throw new Error('품목이 없습니다 — 자재표는 품목에 붙습니다');
+  const payload = deps.payload;
+  // 변환기가 specs 에 커튼박스를 적는다 — 부모 품목을 건드리지 않게 사본으로
+  const specs = JSON.parse(JSON.stringify(item.specs || {}));
+  const conv = P._convertPlannerModules(payload, specs);
+  const list = Array.isArray(P.selectedItems) ? P.selectedItems : [item];
+  const itemIdx = Math.max(0, list.indexOf(item));
+  // partId 의 품목 번호를 BOM 과 맞춘다 — 다른 품목 자리는 비워 둔 성긴 배열 (forEach 가 건너뛴다)
+  const items = [];
+  items[itemIdx] = Object.assign({}, item, { specs, modules: conv.modules });
+  const design = { items };
+  const materials = new P.MaterialExtractor().extract(design).materials;
+
+  const byId = new Map((payload.modules || []).map((m) => [String(m.id), m]));
+  const cells = {};
+  const shelfY = {};
+  conv.modules.forEach((mod) => {
+    const hit = String(mod.id).match(PLANNER_EXPORT_CELL_RE);
+    if (!hit) return;
+    const pm = byId.get(hit[1]);
+    if (!pm) return;
+    const mk = `${itemIdx}-${mod.id}`;
+    const dx = hit[2] === 'open' ? 0
+      : ((Number(mod._x) || 0) + (Number(mod.w) || 0) / 2) - ((Number(pm.x) || 0) + (Number(pm.W) || 0) / 2);
+    cells[mk] = { plannerId: hit[1], dx };
+    const s = typeof deps.structureOf === 'function' ? deps.structureOf(pm.id) : null;
+    if (s && Array.isArray(s.shelves)) shelfY[mk] = s.shelves.map(Number).filter(Number.isFinite);
+  });
+  return { spec: deps.Assembly.of(design, { materials, shelfY }), cells };
+}
+
+/**
+ * 명세 → three 장면.
+ * @param {object} THREE
+ * @param {object} spec        dadam.assembly/1
+ * @param {(module) => object|null} frameOf  모듈 → 몸통 바닥 가운데의 월드 행렬(mm, THREE.Matrix4). null 이면 뺀다
+ * @param {{ solidsOf: Function, exportedAt?: string }} opts
+ */
+function plannerExportCadScene(THREE, spec, frameOf, opts) {
+  const o = opts || {};
+  const root = new THREE.Group();
+  root.name = PLANNER_EXPORT_CAD_ROOT_NAME;
+  root.scale.setScalar(PLANNER_EXPORT_SCALE);
+  const mats = {};
+  const matOf = (name) => {
+    const key = PLANNER_EXPORT_CAD_COLORS[name] ? name : 'PB';
+    if (!mats[key]) {
+      mats[key] = new THREE.MeshStandardMaterial({ color: PLANNER_EXPORT_CAD_COLORS[key], roughness: 0.8, metalness: 0 });
+      mats[key].name = key;
+    }
+    return mats[key];
+  };
+  let parts = 0, modules = 0, skipped = 0;
+  (spec.items || []).forEach((it) => {
+    if (!it) return;
+    it.modules.forEach((m) => {
+      const mat = frameOf(m);
+      if (!mat) { skipped++; return; }
+      const node = new THREE.Group();
+      node.name = `module·${m.moduleKey}`;
+      node.userData = { moduleKey: m.moduleKey, moduleId: m.moduleId, kind: m.kind, box: m.box };
+      mat.decompose(node.position, node.quaternion, node.scale);
+      m.parts.forEach((p) => {
+        const solids = o.solidsOf(p);
+        const meshOf = (b, name) => {
+          const geo = new THREE.BoxGeometry(b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]);
+          const mesh = new THREE.Mesh(geo, matOf(p.material));
+          mesh.position.set((b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2);
+          mesh.name = name;
+          return mesh;
+        };
+        let part;
+        if (solids.length === 1) {
+          part = meshOf(solids[0], p.id);
+        } else {
+          part = new THREE.Group();
+          part.name = p.id;
+          solids.forEach((b, i) => part.add(meshOf(b, `${p.id}/${i}`)));
+        }
+        part.userData = {
+          rowPartId: p.rowPartId, part: p.part, material: p.material, t: p.t,
+          cutW: p.cut.w, cutH: p.cut.h, moduleKey: m.moduleKey, vis: p.vis,
+        };
+        node.add(part);
+        parts++;
+      });
+      root.add(node);
+      modules++;
+    });
+  });
+  root.userData = {
+    schema: spec.schema,
+    rulesVersion: spec.rulesVersion,
+    units: 'mm (root scale 0.001 → m)',
+    unplaced: (spec.unplaced || []).length,
+    skippedModules: skipped,
+    source: 'dadam.assembly',
+    exportedAt: o.exportedAt || new Date().toISOString(),
+  };
+  return { root, parts, modules, skipped, unplaced: (spec.unplaced || []).length };
+}
+
+async function plannerExportCadGlb(THREE, GLTFExporter, spec, frameOf, opts) {
+  const built = plannerExportCadScene(THREE, spec, frameOf, opts);
+  const exporter = new GLTFExporter();
+  const glb = await new Promise((resolve, reject) => {
+    exporter.parse(built.root, resolve, reject, { binary: true, onlyVisible: true, trs: true });
+  });
+  return Object.assign({ glb }, built);
+}
+
+function plannerExportDownload(buf, name) {
+  const blob = new Blob([buf], { type: 'model/gltf-binary' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 const PlannerExport = {
@@ -186,6 +335,11 @@ const PlannerExport = {
     if (btn) {
       btn.hidden = true;
       btn.onclick = () => this.download();
+    }
+    const cadBtn = this._o.cadButton;
+    if (cadBtn) {
+      cadBtn.hidden = true;
+      cadBtn.onclick = () => this.downloadCad();
     }
     try {
       window.addEventListener('message', (e) => {
@@ -206,6 +360,8 @@ const PlannerExport = {
     this.admin = !!on;
     const btn = this._o && this._o.button;
     if (btn) btn.hidden = !this.admin;
+    const cadBtn = this._o && this._o.cadButton;
+    if (cadBtn) cadBtn.hidden = !this.admin;
   },
 
   async loadExporter() {
@@ -224,18 +380,31 @@ const PlannerExport = {
       const GLTFExporter = await this.loadExporter();
       const r = await plannerExportGlb(window.THREE, GLTFExporter, three.moduleGroup, { sectionOf: o.sectionOf });
       if (!r.parts) { toast('내보낼 부재가 없습니다'); return r; }
-      const blob = new Blob([r.glb], { type: 'model/gltf-binary' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = plannerExportFileName();
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      plannerExportDownload(r.glb, plannerExportFileName());
       toast(`근사 GLB 저장 — 모듈 ${r.modules} · 부재 ${r.parts}`);
       return r;
     } catch (e) {
       toast('GLB 내보내기 실패: ' + ((e && e.message) || e));
+      return null;
+    }
+  },
+
+  /** CAD GLB — 조립 명세에서. o.cad() 가 { spec, frameOf } 를 낸다 (구조 페이지가 부모 창으로 계산). */
+  async downloadCad() {
+    const o = this._o || {};
+    const toast = typeof o.toast === 'function' ? o.toast : () => {};
+    if (!this.admin) return null;
+    if (!window.THREE || typeof o.cad !== 'function') { toast('3D 장면이 아직 없습니다'); return null; }
+    try {
+      const { spec, frameOf, solidsOf } = o.cad();
+      const GLTFExporter = await this.loadExporter();
+      const r = await plannerExportCadGlb(window.THREE, GLTFExporter, spec, frameOf, { solidsOf });
+      if (!r.parts) { toast('조립 명세에 자리가 정해진 판재가 없습니다'); return r; }
+      plannerExportDownload(r.glb, plannerExportFileName(null, 'cad'));
+      toast(`CAD GLB 저장 — 모듈 ${r.modules} · 판재 ${r.parts} · 아직 자리 미정 행 ${r.unplaced}`);
+      return r;
+    } catch (e) {
+      toast('CAD GLB 내보내기 실패: ' + ((e && e.message) || e));
       return null;
     }
   },
@@ -282,6 +451,8 @@ if (typeof window !== 'undefined') {
   window.plannerExportGlb = plannerExportGlb;
   window.plannerExportIsPart = plannerExportIsPart;
   window.plannerExportServeRole = plannerExportServeRole;
+  window.plannerExportCadSpec = plannerExportCadSpec;
+  window.plannerExportCadScene = plannerExportCadScene;
   // 부모 창(AdminAccess 를 싣는 페이지)에서만 역할을 답한다. 구조 페이지는 AdminAccess 를 싣지 않는다.
   if (window.AdminAccess) plannerExportServeRole(window, plannerExportAdminCheck(window));
 }
@@ -294,7 +465,11 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerExportServeRole,
     plannerExportAdminCheck,
     plannerExportFileName,
+    plannerExportCadSpec,
+    plannerExportCadScene,
+    plannerExportCadGlb,
     PLANNER_EXPORT_SCALE,
+    PLANNER_EXPORT_CAD_ROOT_NAME,
     PLANNER_EXPORT_ROOT_NAME,
   };
 }
