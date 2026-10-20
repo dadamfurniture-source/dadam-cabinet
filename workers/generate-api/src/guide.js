@@ -15,6 +15,22 @@
  */
 
 import decodeJpeg from 'jpeg-js/lib/decoder.js';
+import encodeJpegLib from 'jpeg-js/lib/encoder.js';
+
+/**
+ * RGBA → JPEG 바이트 (2026-10-20). 추천안 되붙이기 결과를 PNG(1.6~2.3MB)로 올려 휴대폰에서 늦게 떴다.
+ * jpeg-js 인코더는 끝에서 Buffer.from(바이트 배열) 한 번만 쓰는데 워커에는 Buffer 가 없다 —
+ * 인코딩하는 그 순간에만 Uint8Array 로 대신한다. 동기 코드라 그 사이 다른 요청이 끼어들지 않는다.
+ */
+export function encodeJpeg({ width, height, data }, quality = 88) {
+  const had = typeof globalThis.Buffer !== 'undefined';
+  if (!had) globalThis.Buffer = { from: (a) => Uint8Array.from(a) };
+  try {
+    return new Uint8Array(encodeJpegLib({ width, height, data }, quality).data);
+  } finally {
+    if (!had) delete globalThis.Buffer;
+  }
+}
 
 // ─── 1. 선·모서리 찾기 (텍스트 모델) ───
 
@@ -39,6 +55,37 @@ back_ceiling = two points far apart on the line where the main wall meets the ce
 return_front = the front vertical edge of the protruding ${anchor} wall: its top where it meets the ceiling and its bottom where it meets the floor.
 return_back = the inner corner where the protruding ${anchor} wall meets the main wall: top and bottom.
 far_floor / far_ceiling = two points far apart on the line where the ${far} side wall (or a protruding ${far} wall's inner face) meets the floor / the ceiling; null if not visible.`;
+}
+
+/**
+ * 튀어나온 옆벽 다시 보기 (2026-10-20). 분석(Gemini)이 side_return 을 자주 놓쳤다 — 같은 붙박이장 사진 6번 중
+ * 3번만 잡았다. 놓치면 덩어리 합성 없이 글로만 그려 깊이 검사에 걸리고 한 번 더 그린다(30~60초).
+ * 분석이 null 일 때만 Haiku 에게 이것 하나만 묻는다. 확실할 때(high)만 받는다 — 틀린 쪽을 받아도
+ * 다음 단계(선 찾기 → computeGuide)가 앞면이 뒷벽보다 앞에 있지 않으면 그리지 않는다.
+ */
+export function buildSideReturnCheckPrompt() {
+  return `This photo shows a room. The main wall faces the camera; a built-in wardrobe will fill it from side to side.
+Look at the left and right ends of the main wall. Is there a wall section, partition or column at either end whose own front face is parallel to the main wall but stands closer to the camera, so the main wall sits in a recess between or beside it? You would see that section's short side face (its return) running from the main wall toward the camera, then its front face.
+An ordinary side wall that simply meets the main wall at an inside corner and runs toward the camera does NOT count. A door frame, window or a piece of furniture does NOT count.
+Answer JSON: side = "left", "right", "both" or "none"; confidence = "high" only when the protruding section is clearly visible, otherwise "medium" or "low"; note = a few words on what you saw.`;
+}
+
+export const SIDE_RETURN_CHECK_SCHEMA = {
+  type: 'object',
+  properties: {
+    side: { type: 'string', enum: ['left', 'right', 'both', 'none'] },
+    confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+    note: { type: 'string' },
+  },
+  required: ['side', 'confidence', 'note'],
+  additionalProperties: false,
+};
+
+/** 답 → 'left'|'right'|'both' (확실할 때만) 또는 null */
+export function parseSideReturnCheck(j) {
+  if (!j || typeof j !== 'object') return null;
+  if (j.confidence !== 'high') return null;
+  return ['left', 'right', 'both'].includes(j.side) ? j.side : null;
 }
 
 /** Claude 구조화 출력용 — buildGuidePointsPrompt(side, size) 의 픽셀 [x, y] 모양 */
@@ -455,7 +502,7 @@ export async function renderMassingImage(room, points, o = {}) {
  * @param {{base64,mimeType}} variant  추천안 (JPEG)
  * @param {object} points              parseGuidePoints 결과 (0~1)
  * @param {{grow?:number, feather?:number}} [o] 영역을 넓힐 폭·섞는 폭 (사진 너비 대비 비율)
- * @returns {Promise<{base64:string, mimeType:'image/png'}|null>} 크기가 다르거나 JPEG 가 아니면 null
+ * @returns {Promise<{base64:string, mimeType:'image/jpeg'}|null>} 크기가 다르거나 JPEG 가 아니면 null (2026-10-20 PNG → JPEG)
  */
 export async function pasteVariantInside(base, variant, points, o = {}) {
   if (!base || !variant || base.mimeType !== 'image/jpeg' || variant.mimeType !== 'image/jpeg' || !points) return null;
@@ -474,24 +521,23 @@ export async function pasteVariantInside(base, variant, points, o = {}) {
   const frontH = Math.max(1, Math.hypot(bl.x - tl.x, bl.y - tl.y));
   const grow = (o.grow ?? 0.008) * W; // 끝 측판·걸레받이 그림자까지 담는다
   const feather = Math.max(1, (o.feather ?? 0.005) * W);
-  const out = new Uint8Array(W * H * 3);
+  // 기본안 RGBA 에 그대로 섞는다 (메모리 — 2K 사진 한 장이 12MB 다)
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       const i4 = (y * W + x) * 4;
-      const i3 = (y * W + x) * 3;
       const { u, v } = Hq.inv(x + 0.5, y + 0.5);
       // 사각형 밖으로 얼마나 나갔는지(픽셀 근사)
       const du = Math.max(0, -u, u - 1) * frontW;
       const dv = Math.max(0, -v, v - 1) * frontH;
       const d = Number.isFinite(du + dv) ? Math.max(du, dv) : Infinity;
       const a = d <= grow ? 1 : d >= grow + feather ? 0 : 1 - (d - grow) / feather;
-      out[i3] = V.data[i4] * a + B.data[i4] * (1 - a);
-      out[i3 + 1] = V.data[i4 + 1] * a + B.data[i4 + 1] * (1 - a);
-      out[i3 + 2] = V.data[i4 + 2] * a + B.data[i4 + 2] * (1 - a);
+      if (a <= 0) continue;
+      B.data[i4] = V.data[i4] * a + B.data[i4] * (1 - a);
+      B.data[i4 + 1] = V.data[i4 + 1] * a + B.data[i4 + 1] * (1 - a);
+      B.data[i4 + 2] = V.data[i4 + 2] * a + B.data[i4 + 2] * (1 - a);
     }
   }
-  const png = await encodePng({ width: W, height: H, rgb: out });
-  return { base64: bytesToB64(png), mimeType: 'image/png' };
+  return { base64: bytesToB64(encodeJpeg(B)), mimeType: 'image/jpeg' };
 }
 
 /**
@@ -541,16 +587,15 @@ export async function pasteVariantInPolys(base, variant, polys, o = {}) {
       }
     }
   }
-  const out = new Uint8Array(W * H * 3);
   for (let k = 0; k < W * H; k++) {
     const a = alpha[k];
-    const i4 = k * 4, i3 = k * 3;
-    out[i3] = V.data[i4] * a + B.data[i4] * (1 - a);
-    out[i3 + 1] = V.data[i4 + 1] * a + B.data[i4 + 1] * (1 - a);
-    out[i3 + 2] = V.data[i4 + 2] * a + B.data[i4 + 2] * (1 - a);
+    if (a <= 0) continue;
+    const i4 = k * 4;
+    B.data[i4] = V.data[i4] * a + B.data[i4] * (1 - a);
+    B.data[i4 + 1] = V.data[i4 + 1] * a + B.data[i4 + 1] * (1 - a);
+    B.data[i4 + 2] = V.data[i4 + 2] * a + B.data[i4 + 2] * (1 - a);
   }
-  const png = await encodePng({ width: W, height: H, rgb: out });
-  return { base64: bytesToB64(png), mimeType: 'image/png' };
+  return { base64: bytesToB64(encodeJpeg(B)), mimeType: 'image/jpeg' };
 }
 
 /** 한 번에 (시험·도구용): 방 사진 사본에 윤곽을 그린 PNG. JPEG 가 아니거나 계산이 안 되면 null. */

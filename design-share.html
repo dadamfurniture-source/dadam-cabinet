@@ -54,6 +54,17 @@
         color: var(--v5-ink-55);
         padding: 8px 2px 0;
       }
+      /* 붙박이장 내부 보기 — 칸 구성과 추천 이유 (2026-10-20) */
+      .sh-shot-note {
+        margin: 4px 2px 0;
+        font-size: 11.5px;
+        line-height: 1.55;
+        color: var(--v5-ink-60);
+      }
+      .sh-shot-note .plan {
+        display: block;
+        color: var(--v5-ink-45);
+      }
       .sh-quote {
         max-width: 640px;
         margin: 36px auto 0;
@@ -149,6 +160,14 @@
         function won(n) {
           return Number(n || 0).toLocaleString() + '원';
         }
+        /** 붙박이장 내부 보기 칸 아래 한 줄 — 추천 구조면 이름·이유, 그리고 칸 구성 (2026-10-20) */
+        function structureNoteHTML(st) {
+          if (!st || !st.plan) return '';
+          var why = st.kind === 'recommended' && (st.concept || st.reason)
+            ? esc([st.concept, st.reason].filter(Boolean).join(' — '))
+            : '';
+          return '<p class="sh-shot-note">' + why + '<span class="plan">' + esc(st.plan) + '</span></p>';
+        }
         function when(iso) {
           var d = new Date(iso);
           return (
@@ -206,7 +225,9 @@
                 esc(im.label) +
                 '</span><span>' +
                 (i + 1) +
-                '</span></figcaption></figure>'
+                '</span></figcaption>' +
+                structureNoteHTML(im.structure) +
+                '</figure>'
               );
             })
             .join('');
