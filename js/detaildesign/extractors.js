@@ -130,8 +130,8 @@
 
       /** 2026-10-20: 아일랜드 몸통 깊이는 사장님 값 대기 — 측판 비고에 붙인다 (extract 'island'). */
       const BOM_ISLAND_DEPTH_NOTE = '[확인 필요] 아일랜드 몸통 깊이';
-      // 2026-10-20: 플래너 냉장고장 위장 깊이는 구조 단계가 자리 − 30 (700 → 670) 으로 앉힌다 — 사장님 카드 답 전까지 표시만.
-      const BOM_FRIDGE_UPPER_DEPTH_NOTE = '[확인 필요] 냉장고 위 상부장 깊이';
+      // 2026-10-20: 플래너 냉장고장 위장 깊이 = 좌우 EP 깊이 − 도어 자리 20 (사장님 "EP 기준", 빼는 값은 카드 답 전 추천안).
+      const BOM_FRIDGE_UPPER_DEPTH_NOTE = '[확인 필요] 냉장고 위 상부장 깊이 — EP 기준(EP − 20), 빼는 값 확인 중';
       /** 2026-10-20: 도어교체 품목이 내는 판 — 도어·서랍 전면 (extract 'door'). */
       const BOM_DOOR_ONLY_SLOTS = ['door', 'drawerFront'];
 
