@@ -249,6 +249,8 @@
         vanity:    { label: '화장대', defaultD: 500, upperD: 295, shelfSpace: BOM_SHELF_SPACE_GENERAL },
         storage:   { label: '수납장', defaultD: 400, upperD: 295, shelfSpace: BOM_SHELF_SPACE_GENERAL },
         warehouse: { label: '창고장', defaultD: 450, upperD: 295, shelfSpace: BOM_SHELF_SPACE_GENERAL },
+        // 2026-10-20 TV장 — 정본 규칙 없음. 깊이·선반은 수납장 규칙 준용 [확인 필요] (simple-categories.md §1)
+        tvcabinet: { label: 'TV장', defaultD: 400, upperD: 295, shelfSpace: BOM_SHELF_SPACE_GENERAL },
       };
 
       /**

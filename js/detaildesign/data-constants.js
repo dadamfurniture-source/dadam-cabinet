@@ -10,6 +10,8 @@
         { id: 'vanity', name: '화장대', defaultD: 500, defaultH: 2310 },
         { id: 'storage', name: '수납장', defaultD: 400, defaultH: 2310 },
         { id: 'warehouse', name: '창고장', defaultD: 450, defaultH: 2310 },
+        // 2026-10-20 TV장(거실장) — 깊이 [확인 필요]: 정본 규칙이 없어 수납장 400 을 준용 (사장님 결정 카드 대기)
+        { id: 'tvcabinet', name: 'TV장', defaultD: 400, defaultH: 2310 },
         { id: 'door', name: '도어교체', defaultD: 18, defaultH: 2310 },
         { id: 'custom', name: '비규격장', defaultD: 0, defaultH: 2310 },
       ];

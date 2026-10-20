@@ -12,6 +12,7 @@
 | vanity | 화장대 | 500 |
 | storage | 수납장 | 400 |
 | warehouse | 창고장 | 450 |
+| tvcabinet | TV장 | 400 [확인 필요] (수납장 준용) |
 | door | 도어교체 | 18 |
 | custom | 비규격장 | 0 |
 
