@@ -425,16 +425,26 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
     ]);
   });
 
+  // notches — 서랍모듈 측판 앞선 따내기 [src, v0, v1] (2026-10-20 카드 "싱크처럼 따냄"):
+  //   상단 70×40 은 몸통 상단, 중간 90×40 은 윗선 = 위 전면 아랫단 + 20, 아래 전면 윗단 = 윗선 − 50
   test.each([
-    [1, [[-40, 320]]],
-    [3, [[-40, 303], [333, 676], [676, 1019]]],   // 상단 틈 + 아래 두 장 사이 틈 (assignChannels), 내림 나머지 1 은 맨 위 틈
-  ])('외부 서랍 %i단 전면 — 바닥 20 위부터, 목찬넬 손잡이 규칙 그대로', (n, spans) => {
+    [1, [[-40, 320]], [['channel-top', 280, 350]]],
+    [2, [[-40, 300], [330, 670]], [['channel-top', 630, 700], ['channel-mid', 260, 350]]],
+    [3, [[-40, 303], [333, 676], [676, 1019]], [['channel-top', 980, 1050], ['channel-mid', 263, 353]]],   // 상단 틈 + 아래 두 장 사이 틈 (assignChannels), 내림 나머지 1 은 맨 위 틈
+  ])('외부 서랍 %i단 전면 — 바닥 20 위부터, 목찬넬 손잡이 규칙 그대로 · 측판 따내기는 싱크처럼', (n, spans, notches) => {
     const item = JSON.parse(JSON.stringify(FIXTURES.wardrobe));
     item.modules.find((x) => x.id === 'w2').drawerCount = n;
     const design = { items: [item] };
     const s = Asm.of(design, { materials: new MaterialExtractor().extract(design).materials });
     const w2 = s.items[0].modules.find((x) => x.moduleId === 'w2');
     expect(w2.parts.filter((p) => p.part === '서랍도어').map((p) => [p.box.min[1], p.box.max[1]])).toEqual(spans);
+    const sides = w2.parts.filter((p) => p.part === '측판' && p.tags.carcass === 0);
+    expect(sides).toHaveLength(2);
+    sides.forEach((p) => {
+      expect(p.features.filter((f) => f.type === 'notch').map((f) => [f.src, f.v0, f.v1])).toEqual(notches);
+      p.features.filter((f) => f.type === 'notch').forEach((f) => expect([f.u0, f.u1]).toEqual([560, 600]));
+    });
+    expect(w2.pending).toEqual([]);
     expect(s.unplaced.filter((u) => u.part === '서랍도어' || u.part === '도어')).toEqual([]);
     expect(require('../js/detaildesign/assembly-check.js').check(s).issues.filter((i) => i.level === 'error')).toEqual([]);
   });

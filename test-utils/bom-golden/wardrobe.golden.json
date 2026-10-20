@@ -384,7 +384,7 @@
       "h": 700,
       "qty": 2,
       "edge": "3면",
-      "note": "sakuri(15→3mm)",
+      "note": "sakuri(15→3mm) · 목찬넬 따내기 상단 70×40 + 중간 90×40 ×1",
       "finishCode": "",
       "partId": "0-w2-body:side-1",
       "slot": "body",
@@ -1277,10 +1277,10 @@
     },
     {
       "module": "EP",
-      "part": "목찬넬",
+      "part": "목찬넬(전면)",
       "material": "MDF",
       "thickness": 18,
-      "w": 100,
+      "w": 52,
       "h": 900,
       "qty": 1,
       "edge": "2면(장)",
@@ -1302,16 +1302,66 @@
     },
     {
       "module": "EP",
-      "part": "목찬넬",
+      "part": "목찬넬(지면)",
       "material": "MDF",
       "thickness": 18,
-      "w": 120,
+      "w": 40,
       "h": 900,
       "qty": 1,
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
-      "partId": "0-w2-channel:front-1",
+      "partId": "0-w2-channel:back-0",
+      "slot": "handle",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 1800,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "moduleKey": "0-w2",
+      "itemLabel": "붙박이장"
+    },
+    {
+      "module": "EP",
+      "part": "목찬넬(중간 전면)",
+      "material": "MDF",
+      "thickness": 18,
+      "w": 72,
+      "h": 900,
+      "qty": 1,
+      "edge": "2면(장)",
+      "note": "",
+      "finishCode": "",
+      "partId": "0-w2-channel:mid-front-0",
+      "slot": "handle",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 1800,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "moduleKey": "0-w2",
+      "itemLabel": "붙박이장"
+    },
+    {
+      "module": "EP",
+      "part": "목찬넬(중간 지면)",
+      "material": "MDF",
+      "thickness": 18,
+      "w": 40,
+      "h": 900,
+      "qty": 1,
+      "edge": "2면(장)",
+      "note": "",
+      "finishCode": "",
+      "partId": "0-w2-channel:mid-back-0",
       "slot": "handle",
       "edges": {
         "L": true,
@@ -1567,13 +1617,13 @@
     "MDF_18": {
       "material": "MDF",
       "thickness": 18,
-      "totalArea": 7160720,
+      "totalArea": 7146320,
       "panelCount": 3
     }
   },
   "edgeBanding": {
     "1": 35176,
-    "0.6": 110692
+    "0.6": 114292
   },
   "hardware": [
     {
