@@ -122,6 +122,9 @@ export function solveKitchenCamera(g, W, H, o = {}) {
   const cy = H / 2;
   const fDefault = ((o.focalMm || 26) / 43.27) * Math.hypot(W, H);
   let f = fDefault;
+  // 어느 초점거리를 썼나 (2026-10-20 기록용): 'vp' 두 소실점 · 'exif' 사진 EXIF · 'default' 가정값.
+  //   정면에 가까운 사진은 선만으로 초점거리가 정해지지 않는다(수학적으로) — 가정값이면 깊이가 그만큼 틀릴 수 있다.
+  let focalSource = o.focalFromExif ? 'exif' : 'default';
   if (Math.abs(vx[2]) > 1e-9 * Math.hypot(vx[0], vx[1])) {
     const ax = vx[0] / vx[2] - cx, ay = vx[1] / vx[2] - cy;
     const bx = vz[0] / vz[2] - cx, by = vz[1] / vz[2] - cy;
@@ -130,7 +133,10 @@ export function solveKitchenCamera(g, W, H, o = {}) {
     //   (10/19 공사 현장 싱크대: f 798px 로 벽 거리 7.1m, 시멘트 띠로 검산하면 3m 남짓). 대각선 2.5배 밖이면 쓰지 않는다.
     if (f2 > 0 && Math.hypot(ax, ay) < 2.5 * Math.hypot(W, H)) {
       const fv = Math.sqrt(f2);
-      if (fv > 0.5 * fDefault && fv < 2.2 * fDefault) f = fv; // 두 소실점이 그럴듯할 때만 믿는다
+      if (fv > 0.5 * fDefault && fv < 2.2 * fDefault) {
+        f = fv; // 두 소실점이 그럴듯할 때만 믿는다
+        focalSource = 'vp';
+      }
     }
   }
   const Kinv = (p) => [(p[0] - cx * p[2]) / f, (p[1] - cy * p[2]) / f, p[2]];
@@ -171,7 +177,7 @@ export function solveKitchenCamera(g, W, H, o = {}) {
   };
   const camOf = (X, h, z) => add(scale(r1, X), scale(r2, hf - h), scale(r3, D - z));
   return {
-    f, cx, cy, r1, r2, r3, hf, D, xL, xR, wallH,
+    f, focalSource, cx, cy, r1, r2, r3, hf, D, xL, xR, wallH,
     leftOpen: !(g.leftEnd && g.leftEnd.sideWall) && !!g.leftEnd,
     rightOpen: !(g.rightEnd && g.rightEnd.sideWall) && !!g.rightEnd,
     // 2026-10-20: 그 끝에서 옆벽이 방 쪽으로 이어진다 (planner-place.js ㄱ자·ㄷ자 — 꺾인 줄이 붙을 벽)
@@ -302,7 +308,7 @@ export async function renderFacesMassing(room, points, o, facesOf, bigKinds) {
   if (!room || room.mimeType !== 'image/jpeg' || !points) return null;
   const decoded = decodeJpeg(b64ToBytes(room.base64), { useTArray: true, formatAsRGBA: true });
   const img = downscale(decoded, Infinity);
-  const cam = solveKitchenCamera(points, img.width, img.height, { wallH: o.wallH, focalMm: o.focalMm });
+  const cam = solveKitchenCamera(points, img.width, img.height, { wallH: o.wallH, focalMm: o.focalMm, focalFromExif: o.focalFromExif });
   if (!cam) return null;
   const list = facesOf(cam);
   if (!list || !list.length) return null;
@@ -319,5 +325,5 @@ export async function renderFacesMassing(room, points, o, facesOf, bigKinds) {
   const mask = faces
     .filter((fc) => fc.kind !== 'gap')
     .map((fc) => fc.poly.map((p) => ({ x: p.x / img.width, y: p.y / img.height })));
-  return { base64: bytesToB64(png), mimeType: 'image/png', width: img.width, height: img.height, mask, cam: { f: cam.f, hf: cam.hf, D: cam.D, xL: cam.xL, xR: cam.xR } };
+  return { base64: bytesToB64(png), mimeType: 'image/png', width: img.width, height: img.height, mask, cam: { f: cam.f, focalSource: cam.focalSource, hf: cam.hf, D: cam.D, xL: cam.xL, xR: cam.xR } };
 }

@@ -71,6 +71,28 @@ test('정면 사진(뒷벽 선이 평행)이면 초점거리는 기본값(EXIF �
   assert.ok(Math.abs(cam.f - fDefault) < 1e-6);
 });
 
+test('초점거리 출처를 남긴다: 소실점 vp · EXIF exif · 가정 default (2026-10-20)', () => {
+  const at = (yawDeg, o) => {
+    const v = virtualRoom({ yawDeg });
+    return solveKitchenCamera(parseKitchenPoints(v.json, v.size), v.size.width, v.size.height, { wallH: 2400, focalMm: 24, ...o });
+  };
+  assert.equal(at(20, {}).focalSource, 'vp');
+  assert.equal(at(0, {}).focalSource, 'default');
+  assert.equal(at(0, { focalFromExif: true }).focalSource, 'exif');
+});
+
+test('정면 사진은 선만으로 초점거리가 정해지지 않는다 — (f, D) 를 같이 키우면 Haiku 가 찾는 선이 똑같다 (2026-10-20 조사)', () => {
+  // 광각(f 작음·벽 가까움)과 표준(f 큼·벽 멂)이 같은 사진 선을 낸다 → 풀린 벽 거리는 가정한 화각에 비례할 뿐이다
+  const near = virtualRoom({ yawDeg: 0, f: 330, D: 2700 });
+  const far = virtualRoom({ yawDeg: 0, f: 550, D: 4500 });
+  // 뒷벽 선·양 끝은 같은 픽셀이다 (옆벽 점은 같은 선 위의 다른 자리 — 선은 같다)
+  const r3 = (o) => JSON.parse(JSON.stringify(o), (k, v) => (typeof v === 'number' ? Math.round(v * 1000) / 1000 : v));
+  for (const k of ['back_floor', 'back_ceiling', 'left_end', 'right_end']) assert.deepEqual(r3(near.json[k]), r3(far.json[k]), k);
+  const a = solveKitchenCamera(parseKitchenPoints(near.json, near.size), 800, 1000, { wallH: 2400, focalMm: 24 });
+  const b = solveKitchenCamera(parseKitchenPoints(far.json, far.size), 800, 1000, { wallH: 2400, focalMm: 24 });
+  assert.ok(Math.abs(a.D - b.D) < 1e-6, `${a.D} vs ${b.D}`);
+});
+
 test('살짝만 돈 사진(벽 방향 소실점이 아주 멂)도 초점거리는 기본값 — 멀리 있는 소실점은 흔들린다', () => {
   const v = virtualRoom({ yawDeg: 5 });
   const cam = solveKitchenCamera(parseKitchenPoints(v.json, v.size), v.size.width, v.size.height, { wallH: 2400, focalMm: 24 });
@@ -230,6 +252,8 @@ test('잡: 빈 벽 싱크대 → Haiku 가 선을 찾고 덩어리 합성본이 
   assert.equal(wa.wall_analysis.guide.kind, 'kitchen');
   assert.ok(wa.wall_analysis.guide.mask.length >= 6);
   assert.ok(wa.wall_analysis.guide.cam.D > 0);
+  // 가상 방은 20° 돈 사진이라 두 소실점으로 풀린다 (EXIF 24 가 있어도 소실점이 이긴다)
+  assert.equal(wa.wall_analysis.guide.cam.focalSource, 'vp');
 });
 
 test('잡: 기존 가구가 있는 사진은 싱크대 덩어리 합성을 하지 않는다 (글 지시)', async () => {
