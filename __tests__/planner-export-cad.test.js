@@ -49,6 +49,7 @@ const SCENE_OF = {
   '천판': () => ({ entityKind: 'carcass', side: 'top' }),
   '뒷판': () => ({ entityKind: 'carcass', side: 'back' }),
   '밴드(처짐방지)': () => ({ entityKind: 'brace', side: null }),
+  '도어': () => ({ entityKind: 'carcass', side: 'front' }),
 };
 
 describe.each(Object.keys(FIXTURES))('%s 장면 → CAD GLB', (name) => {
@@ -82,13 +83,13 @@ describe.each(Object.keys(FIXTURES))('%s 장면 → CAD GLB', (name) => {
     expect(JSON.stringify(item)).toBe(itemJson);
   });
 
-  test('측판·지판·천판·뒷판·처짐방지목 — 월드 상자가 3D 장면의 같은 판과 같다', () => {
+  test('측판·지판·천판·뒷판·처짐방지목·도어 — 월드 상자가 3D 장면의 같은 판과 같다', () => {
     const box3 = (solids) => {
       const g = new THREE.Box3();
       solids.forEach((s) => g.union(new THREE.Box3(new THREE.Vector3(...s.min), new THREE.Vector3(...s.max)).applyMatrix4(new THREE.Matrix4().fromArray(s.m))));
       return g;
     };
-    let checked = 0;
+    let checked = 0, doors = 0;
     cad.spec.items.forEach((it) => it && it.modules.forEach((m) => {
       const M = cad.frameOf(m);
       const plannerId = cad.cells[m.moduleKey].plannerId;
@@ -104,9 +105,11 @@ describe.each(Object.keys(FIXTURES))('%s 장면 → CAD GLB', (name) => {
           .filter((g) => g.min.distanceTo(b.min) < 0.6 && g.max.distanceTo(b.max) < 0.6);
         expect({ id: pt.id, hit: hits.length }).toEqual({ id: pt.id, hit: 1 });
         checked++;
+        if (pt.part === '도어') doors++;
       });
     }));
     expect(checked).toBeGreaterThan(20);
+    expect(doors).toBeGreaterThan(0);
   });
 
   test('GLB — 루트 배율 0.001 · 판재 노드 이름 partId#k · extras 에 BOM 행', () => {

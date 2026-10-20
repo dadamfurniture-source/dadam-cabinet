@@ -20,13 +20,14 @@
  *   features   따내기·홈. notch 는 관통(u0..u1 × v0..v1), groove 는 깊이 미정(D5) 이라 depth null
  *
  * 이 단계(PR6)에서 자리를 정하는 부재 — 싱크 라인(상부장 · 하부장 · 키큰장 단)의 몸통:
- *   측판 · 지판 · 천판 · 뒷판 · 선반 · 처짐방지목. 나머지 행은 `unplaced` 에 이유와 함께 남는다 (조용히 빠지지 않는다).
+ *   측판 · 지판 · 천판 · 뒷판 · 선반 · 처짐방지목 · 상부장 보강목 · 여닫이 도어. 나머지 행은 `unplaced` 에 이유와 함께 남는다 (조용히 빠지지 않는다).
  *
  * 자리의 근거 (확정 사실 — 프로젝트 지침, PR #832, 플래너 addCarcassShell · addBraces):
  *   측판     모듈 양 끝. 사쿠리 측판에는 뒤끝에서 15 들어온 폭 3 홈 (깊이는 D5 미정)
  *   지판·천판 측판 사이. 사쿠리면 홈 앞까지 (D − 18, 앞선 맞춤), 아니면 측판 깊이 그대로
  *   뒷판     사쿠리면 홈 속 (뒤끝에서 15~18), 아니면 측판 뒤끝에 덮어 붙임 (측판 깊이 밖 3T). 높이 H − 1 은 가운데
  *   처짐방지목 모듈 폭 가운데, 측판 앞선에 맞대어 도어 바로 뒤, 지판 위에서 시작
+ *   도어     측판 앞선에 붙어 밖으로. 가로·세로는 플래너 addFrontPanel 과 같은 칸 규칙 (doorXsOf · doorYOf)
  *   선반     측판 사이. 깊이가 "측판 깊이 − T (처짐방지목 몫)" 이라 처짐방지목 **뒤**에 놓인다 — 뒤로 붙인다
  *            (사쿠리면 홈 앞, 아니면 측판 뒤끝). 높이는 부르는 쪽이 넘긴 선반 중심 높이(opts.shelfY)를 쓴다
  *
@@ -134,6 +135,32 @@
   }
 
   /**
+   * 도어 가로 자리 (왼쪽 끝 x, 장마다). 플래너: 칸 폭 − 갭 4 를 칸 가운데에 (좌우 2 씩), 양문은 가운데 갭 4.
+   * 1장 = W − 4, 2장 = W/2 − 4 (BOM floor(W/n) − 4) 일 때만 — 그 밖의 장수·폭은 자리를 모른다 (null).
+   */
+  function doorXsOf(W, row) {
+    const G = C.DOOR_GAP;
+    if (row.qty === 1 && row.w === W - G) return [-W / 2 + G / 2];
+    if (row.qty === 2 && row.w === Math.floor(W / 2) - G) return [-W / 4 - row.w / 2, W / 4 - row.w / 2];
+    return null;
+  }
+
+  /**
+   * 도어 세로 자리 (밑단 y). 플래너 addFrontPanel:
+   *   상부장 — 도어 내림: 윗변 = 몸통 상단, 밑단이 (도어 H − 장H) 만큼 아래로 (BOM 장H + 내림)
+   *   하부장 — 목찬넬 상단 틈: 밑단 = 몸통 바닥, 윗변이 몸통 상단보다 내려옴 (BOM 장H − 30)
+   *   갭만 둔 도어 (장H − 4) — 위아래 2 씩
+   * 그 밖은 null.
+   */
+  function doorYOf(pos, H, h) {
+    const G = C.DOOR_GAP;
+    if (h === H - G) return G / 2;
+    if (pos === 'upper' && h > H) return H - h;
+    if (pos === 'lower' && h < H) return 0;
+    return null;
+  }
+
+  /**
    * 한 모듈의 몸통. 지원하지 못하면 null (행은 모두 unplaced 로).
    * @returns {{module:object, unplaced:Array}|null}
    */
@@ -199,6 +226,16 @@
           [T, H - T - row.h].forEach((y0, k) => {
             parts.push(makePart(row, k, { o: [-W / 2 + T, y0, zBack], u: '+x', v: '+y', n: '+z' }, [], 'interior', { mount: 'behind-groove' }));
           });
+          return;
+        }
+        case 'door': {
+          // 여닫이 도어 — 플래너 addFrontPanel 과 같은 자리 (mockup-structure.html, 3D 장면과 대조 시험).
+          //   앞뒤: 측판 앞선에 붙어 밖으로 (z = D/2 … D/2 + 두께). 서랍장 도어는 서랍 레이아웃 몫 (PR9 다음).
+          if (mod.isDrawer) { skip(row, 'not-yet'); return; }
+          const xs = doorXsOf(W, row);
+          const y0 = doorYOf(mod.pos, H, row.h);
+          if (!xs || y0 == null) { skip(row, 'door-layout-unknown'); return; }
+          xs.forEach((x0, k) => parts.push(makePart(row, k, { o: [x0, y0, zFront], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { doorIdx: k })));
           return;
         }
         default:
