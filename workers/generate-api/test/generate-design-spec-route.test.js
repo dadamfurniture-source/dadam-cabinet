@@ -239,6 +239,25 @@ test('재생성은 원본의 실측 폭(wall_width_override)을 잇고, 새로 �
   assert.equal(calls.inserted.options.wall_width_override, null);
 });
 
+test('재생성은 원본의 사진 화각(room_focal35)을 잇고, 새로 보낸 값이 있으면 그것을 쓴다 (2026-10-20)', async () => {
+  const parent = {
+    id: '33333333-3333-4333-8333-333333333333',
+    user_id: USER_ID,
+    category: 'sink',
+    inputs: { room: { path: 'p/room.jpg', url: 'u', mime: 'image/jpeg' }, refs: [] },
+    options: { room_focal35: 13 },
+  };
+  install({ parent });
+  await post({ parent_id: parent.id });
+  assert.equal(calls.inserted.options.room_focal35, 13);
+  install({ parent });
+  await post({ parent_id: parent.id, room_focal35: 26 });
+  assert.equal(calls.inserted.options.room_focal35, 26);
+  install({ parent: { ...parent, options: {} } });
+  await post({ parent_id: parent.id });
+  assert.equal('room_focal35' in calls.inserted.options, false, '없으면 키도 없다');
+});
+
 test('재생성에서 품목을 바꾸면 원본 요약을 조용히 버린다 (400 이 아니다)', async () => {
   const parent = {
     id: '33333333-3333-4333-8333-333333333333',
