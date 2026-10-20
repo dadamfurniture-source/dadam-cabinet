@@ -5738,9 +5738,6 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const base = section === 'lower'
       ? { W: NEW_MODULE.W, H: NEW_MODULE.H, D: NEW_MODULE.D }
       : { W: cfg.w || NEW_MODULE.W, H: cfg.moduleH || NEW_MODULE.H, D: cfg.h || NEW_MODULE.D };
-    // 2026-10-20: 냉장고장 위장 몸통은 냉장고장 표준 깊이 550 (fridge.md MODULE_D · MASTER_RULES.FRIDGE_D).
-    //   예전엔 배치 기본 깊이 700 이 그대로 들어가 자리 − 30 = 670 까지 찼다 (카드 추천 550, 답 전 추천안으로 진행).
-    if (section === 'fridge') base.D = MASTER_RULES.FRIDGE_D;
     // W12-39: **배치 공간이 제한 기준이다** — 높이는 영역에서 받는다.
     //   예전엔 섹션 기본값(하부장 850)을 써서, 영역이 870 이어도 모듈은 850 이었다.
     //   높이 모델은 그 안에서 나뉜다: 870 = 다리발 150 + 상판 12 + 몸통 708.
