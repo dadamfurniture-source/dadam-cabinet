@@ -157,7 +157,7 @@ FINAL SELF-CHECK …; tall row 1 unit + 1 appliance opening, 5 doors, 0 drawers;
   옛 문장(`may stand there — keep the one IMAGE A shows, do not invent a built-in one`)은 허용일 뿐이라 사진에 냉장고가 없을 때 무엇을 그릴지 정하지 않았다
   (실측 GPT 2장: 둘 다 독립형 냉장고를 그렸고 검사가 둘 다 `appliances_visible` 로 잡았다).
   **모델 제품 사진** (2026-10-20 사장님 결정 "모델 사진 = (b)"): 그 모델(코드 + 브랜드)의 `appliance_models.image_path`
-  (관리자가 「사진 가져오기」로 버킷 `appliance-images` 에 복사한 것 — `database/appliance-models-images.sql`)가 있으면
+  (관리자가 「사진 가져오기」로 버킷 `appliance-images` 에 복사한 것 — `database/appliance-models-images.sql`. 검증된 모델(`verified = true`)만 가져올 수 있고, 미검증은 구매처 설치 도면 가이드로 치수를 검증한 뒤 — 사장님 결정 2026-10-20)가 있으면
   잡이 설치 호출(GPT · Gemini 둘 다) **맨 뒤 이미지**로 붙이고 그 글자로 한 줄 —
   `IMAGE D — PRODUCT PHOTO of the chosen refrigerator (model RR40C7805AP): match its look; size it to the opening.`
   (글자는 B · C(3/4) · 꺾인 벽 입면 다음). 사진이 없거나 칸 없음(SQL 미실행) · 읽기 실패면 글만. 검사 · 역판독에는 안 붙인다.
