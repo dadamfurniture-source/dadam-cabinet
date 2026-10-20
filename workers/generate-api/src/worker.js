@@ -726,7 +726,22 @@ async function getShared(request, env) {
       category: row.category,
       title: row.title,
       options: { design_style: row.options && row.options.design_style },
-      images: (row.images || []).map((im) => ({ slot: im.slot, label: im.label, url: im.url })),
+      // 붙박이장 내부 보기의 칸 구성·추천 이유도 싣는다 (2026-10-20). 고른 모델(by)은 공유하지 않는다.
+      images: (row.images || []).map((im) => ({
+        slot: im.slot,
+        label: im.label,
+        url: im.url,
+        ...(im.structure && im.structure.plan
+          ? {
+              structure: {
+                kind: im.structure.kind,
+                plan: im.structure.plan,
+                ...(im.structure.concept ? { concept: im.structure.concept } : {}),
+                ...(im.structure.reason ? { reason: im.structure.reason } : {}),
+              },
+            }
+          : {}),
+      })),
       quote: row.quote,
       created_at: row.created_at,
       expires_at: row.share_expires_at,

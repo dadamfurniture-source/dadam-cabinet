@@ -330,6 +330,26 @@ test('공유 열람: 이미 나간 링크라도 internal_only 면 410 internal_o
   assert.equal(body.generation, undefined);
 });
 
+test('공유 열람: 붙박이장 내부 보기의 칸 구성·추천 이유를 싣고, 고른 모델(by)은 싣지 않는다 (2026-10-20)', async () => {
+  installRoute({
+    ...DONE_ROW,
+    category: 'wardrobe',
+    options: {},
+    share_expires_at: future(),
+    images: [
+      { slot: 'base', label: '붙박이장 · 기본안', url: 'u0', qc: { ok: true } },
+      { slot: 'v2', label: '내부 보기 · 기본 구조', url: 'u2', structure: { kind: 'standard', plan: '짧은옷 2단 · 긴옷 + 서랍 2' } },
+      { slot: 'v3', label: '내부 보기 · 추천 구조 · 월넛', url: 'u3', structure: { kind: 'recommended', plan: '선반형 (상 2 · 하 2)', concept: '수납 중심', reason: '서랍을 늘렸다', by: 'claude-opus-5' } },
+    ],
+  });
+  const res = await worker.fetch(new Request('https://api.test/api/share', { headers: { 'X-Share-Token': 'tok' } }), { ...ENV });
+  assert.equal(res.status, 200);
+  const imgs = (await res.json()).generation.images;
+  assert.deepEqual(imgs[0], { slot: 'base', label: '붙박이장 · 기본안', url: 'u0' }, '기본안은 예전 모양 그대로 (qc 도 싣지 않는다)');
+  assert.deepEqual(imgs[1].structure, { kind: 'standard', plan: '짧은옷 2단 · 긴옷 + 서랍 2' });
+  assert.deepEqual(imgs[2].structure, { kind: 'recommended', plan: '선반형 (상 2 · 하 2)', concept: '수납 중심', reason: '서랍을 늘렸다' });
+});
+
 test('checkShareAccessible / isInternalOnly — true 일 때만', () => {
   const ok = { status: 'done', share_expires_at: future() };
   assert.equal(checkShareAccessible(ok).ok, true);
