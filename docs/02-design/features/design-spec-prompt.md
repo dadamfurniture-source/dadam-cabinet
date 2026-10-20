@@ -426,6 +426,11 @@ All doors and drawers closed. Photorealistic interior photograph with natural li
 정본 계획: `docs/01-plan/planner-render-realize.plan.md` §4 · §6. 위의 설치 프롬프트와 **다른 빌더**
 (`buildPlannerPrompt`)를 쓴다 — `mode` 가 없으면 위 내용이 한 글자도 바뀌지 않는다.
 
+**등급 관문 (사장님 결정 2026-10-20)**: 플래너 모드(재생성 포함)는 `profiles.tier` 가 `expert` · `agent` 이거나
+`admin_roles` 가 `admin` · `super_admin` 인 사용자만 — 아니면 **403 `planner_tier`** ("사진으로 만들기는 Expert 등급부터
+쓸 수 있습니다"), 검증·크레딧 차감보다 앞이라 차감 없음. profiles 조회 실패는 거절(fail-closed). 정본 `src/tier-gate.js`,
+시험 `test/planner-tier-gate.test.js`. `mode` 없는 일반 경로에는 관문이 없다.
+
 ```
 POST /api/generate
 {

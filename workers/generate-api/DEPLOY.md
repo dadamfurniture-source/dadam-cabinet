@@ -94,7 +94,7 @@ alarm 으로 실행한다. 진행 상태의 정본은 `generations` 행이고 �
 
 | | 인증 | |
 |---|---|---|
-| `POST /api/generate` | JWT | 202 `{id, status, credit:{balance,cost}}`. `parent_id` 면 재생성. 실행 중 잡이 있으면 409 |
+| `POST /api/generate` | JWT | 202 `{id, status, credit:{balance,cost}}`. `parent_id` 면 재생성. 실행 중 잡이 있으면 409. `mode:'planner'`(재생성 포함)는 `profiles.tier` expert · agent 또는 `admin_roles` admin · super_admin 만 — 아니면 403 `planner_tier`, 차감 없음 (`src/tier-gate.js`, 2026-10-20) |
 | `GET /api/generate/:id` | JWT | `{generation:{status,progress,step_label,images[],quote,…}}` |
 | `DELETE /api/generate/:id` | JWT | 파일·행 삭제 (실행 중이면 409) |
 | `POST /api/generate/:id/share` | JWT | `{share_url, expires_at}` — 토큰은 1회만, 다시 부르면 회전 |
