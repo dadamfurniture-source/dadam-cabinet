@@ -2,11 +2,15 @@
 """Korean-market refrigerator dimension collector (prototype, stdlib only).
 
 Brands: Samsung (samsung.com/sec), LG (lge.co.kr), Winia (winia.com, opt-in via --brands),
-        Dacor (dacorkorea.com, opt-in), LG SIGNATURE Kitchen Suite (lge.co.kr/kr/business/sks, opt-in)
-Model list  : manufacturer list APIs (the same JSON the category pages call); Dacor/SKS: brand-site menus
-Dimensions  : manufacturer official spec APIs (W x H x D, mm); Winia/Dacor/SKS: static product page spec table
-Install gaps: manufacturer installation guides (Samsung buying-guide, LG setup-guide; Winia has none in HTML)
-Niche       : Dacor '설치공간 (권장)', SKS '설치 치수' -> niche_min_* / niche_max_* (built-in units)
+        Dacor (dacorkorea.com, opt-in), LG SIGNATURE Kitchen Suite (lge.co.kr/kr/business/sks, opt-in),
+        Liebherr (liebherr.com/en-kr, opt-in), Midea (midea.com/kr, opt-in), Smeg (j-collection.co.kr, opt-in)
+Model list  : manufacturer list APIs (the same JSON the category pages call); Dacor/SKS: brand-site menus;
+              Liebherr/Midea: sitemap; Smeg: importer category list (+ 'MORE' POST)
+Dimensions  : manufacturer official spec APIs (W x H x D, mm); Winia/Dacor/SKS/Midea/Smeg: static product page;
+              Liebherr: __NEXT_DATA__ attributes (H/W/D)
+Install gaps: manufacturer installation guides (Samsung buying-guide, LG setup-guide; Winia has none in HTML);
+              Smeg: product page install sentences (hinge-side clearance etc.)
+Niche       : Dacor '설치공간 (권장)', SKS '설치 치수', Liebherr attr 4491 -> niche_min_* / niche_max_* (built-in units)
 
 Politeness: robots.txt checked per host, >= --delay seconds between network
 requests, one request at a time, every raw response cached under cache/.
@@ -17,6 +21,7 @@ Usage:
   python collect.py --brands lg --no-guides --out lg_only
   python collect.py --brands winia --out winia   # default brands stay samsung,lg
   python collect.py --brands dacor,sks --out dacor_sks
+  python collect.py --brands liebherr,midea,smeg --out lms
 """
 import argparse
 import csv
@@ -1143,6 +1148,465 @@ def sks_collect(f, sample=None, guides=True):
     return rows
 
 
+# --------------------------------------------------------------------------- Liebherr (리페르, 수입사 코스모앤컴퍼니)
+
+LH = "https://www.liebherr.com"
+LH_LOCALE = "en-kr"  # 한국 사이트. ko-kr 사이트맵엔 건설장비뿐이다 (가전 /p/ 0개)
+# 속성 ID (__NEXT_DATA__ product.attributeGroups[*].attributes[*].attributeId)
+LH_A = {"ext_mm": "5739", "ext": "4431", "niche": "4491", "door_mount": "4518", "install": "4582", "hinge": "4524",
+        "model_type": "4557", "series": "5998", "net": "4424", "gross": "4626", "gross_wine": "4634",
+        "bottles": "4492", "item_no": "4040"}
+# 4518 도어 방식 — 통합형은 가구 도어를 붙이는 방식이 둘이다
+LH_DOOR = {"festtür": "고정 도어(Festtür)", "fixed door": "고정 도어(Fixed door)",
+           "schlepptür": "슬라이딩 도어(Schlepptür)", "sliding door": "슬라이딩 도어(Sliding door)"}
+
+
+def lh_product(h):
+    """제품 페이지 HTML → __NEXT_DATA__ 의 product 객체 (없으면 None)."""
+    m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', h, re.S)
+    if not m:
+        return None
+    pm = (json.loads(m.group(1)).get("props") or {}).get("pageProps", {}).get("pageModel") or {}
+    for c in (pm.get("components") or {}).get("additionalContent") or []:
+        if isinstance(c, dict) and isinstance(c.get("product"), dict):
+            return c["product"]
+    return None
+
+
+def lh_attrs(node):
+    """node.attributeGroups (하위 children 포함) → {attributeId: (값, 단위)}. 조합 제품의 components 는 따로 부른다."""
+    out = {}
+
+    def walk(groups):
+        for g in groups or []:
+            for a in g.get("attributes") or []:
+                if a.get("attributeId") and a.get("formattedValue") not in (None, "", "—"):
+                    out.setdefault(str(a["attributeId"]), (str(a["formattedValue"]).strip(), a.get("unitOfMeasurement")))
+            walk(g.get("children"))
+    walk(node.get("attributeGroups"))
+    return out
+
+
+def lh_mm(s, unit):
+    """'185.5' cm · '1,855' mm · '177,2' cm(독일어 소수점) → mm."""
+    s = s.strip()
+    if unit == "mm":
+        s = s.replace(",", "")
+    elif "," in s and "." not in s:
+        s = s.replace(",", ".")
+    else:
+        s = s.replace(",", "")
+    try:
+        v = float(s)
+    except ValueError:
+        return None
+    return round(v * (10 if unit == "cm" else 1), 1)
+
+
+def lh_hwd(value, unit):
+    """'185.5 / 59.7 / 67.5' (높이/너비/깊이) → [[h…], [w…], [d…]] mm. 니치는 '177,2 - 178,8 / 56 - 57 / 55,0' 처럼 범위."""
+    parts = [p.strip() for p in (value or "").split("/")]
+    if len(parts) != 3:
+        return None
+    out = []
+    for p in parts:
+        nums = [lh_mm(x, unit) for x in re.split(r"\s+-\s+|\s*–\s*", p) if x.strip()]
+        nums = [int(round(n)) if float(n).is_integer() else n for n in nums if n]
+        if not nums:
+            return None
+        out.append(nums)
+    return out
+
+
+def lh_subtype(ptype, mtype, panel, cap, h):
+    t = f"{ptype} {mtype}".lower()
+    if "side-by-side" in t:
+        return "side_by_side"
+    if "wine" in t and "freezer" not in t and "combination" not in t:  # 'Wine storage fridge'
+        return "wine"
+    if panel:
+        return "built_in"  # 가구 도어를 붙이는 통합형(Integrierbar)만
+    if cap and cap <= 150:
+        return "small"
+    if "fridge-freezer" in t or "combination" in t or "kühl-gefrier" in t:  # 냉장+냉동(또는 와인칸) 두 문
+        return "two_door"
+    return "one_door" if (h or 0) >= 1000 else "small"
+
+
+def lh_household_pages(f):
+    """en-kr 사이트맵의 /p/ 중 가정용. 슬러그 끝 숫자(목록 템플릿 ID) 묶음마다 한 쪽만 열어
+    hierarchyLevels 2단계가 'Haushalt' · customerSegment 'Consumer' 인 묶음만 남긴다 (업무용 · 의료용 · 건설장비 제외)."""
+    st, xml = f.get(f"{LH}/sitemap-{LH_LOCALE}.xml")
+    groups = {}
+    for u in re.findall(rf"<loc>({re.escape(LH)}/{LH_LOCALE}/p/[^<?]+)</loc>", xml):
+        slug = u.rsplit("/p/", 1)[1]
+        if re.match(r"[a-z]+-\d{3,4}-", slug):  # 모델 이름 꼴 (srbsdh-5260-…). 숫자뿐인 부품 · 장비 슬러그는 뺀다
+            groups.setdefault(slug.rsplit("-", 1)[1], []).append(u)
+    out = []
+    for gid, urls in groups.items():
+        st, h = f.get(urls[0])
+        p = lh_product(h) if st == 200 else None
+        levels = {lv.get("level"): lv.get("name") for lv in (p or {}).get("hierarchyLevels") or []}
+        if not p or levels.get(2) != "Haushalt" or p.get("customerSegment") != "Consumer":
+            print(f"  [liebherr] group {gid} ({len(urls)}) skipped: {levels.get(2)} / {(p or {}).get('customerSegment')}",
+                  file=sys.stderr)
+            continue
+        out += urls
+    return out
+
+
+def liebherr_collect(f, sample=None, guides=True):
+    """리페르 (Liebherr). 한국 수입 · 판매는 코스모앤컴퍼니. 정본은 liebherr.com/en-kr (한국 마이크로사이트 · 매장 목록이 있는 국가 사이트).
+    목록: sitemap-en-kr.xml 의 가정용 /p/ · 치수: 제품 페이지 __NEXT_DATA__ 속성 (외형 4431/5739, 니치 4491,
+    도어 방식 4518, 설치 방식 4582). en-kr 가정용은 전부 프리스탠딩이라 니치 · 도어 방식은 비어 있다 (통합형은 KR 공식 0).
+    설치 가이드 글은 PDF 뿐 → guides 는 쓰지 않는다."""
+    pages = lh_household_pages(f)
+    print(f"[liebherr] household product pages={len(pages)}", file=sys.stderr)
+    if sample:
+        pages = pages[:sample]
+    found = {}  # code -> row (경첩 좌 · 우만 다른 같은 모델은 한 행으로 모은다)
+    for page in pages:
+        st, h = f.get(page)
+        p = lh_product(h) if st == 200 else None
+        if not p:
+            print(f"  [liebherr] no product data {page} (status {st})", file=sys.stderr)
+            continue
+        if "KR" not in (p.get("countries") or []):
+            print(f"  [liebherr] {page}: countries has no KR - skipped", file=sys.stderr)
+            continue
+        a = lh_attrs(p)
+        comps = p.get("components") or []
+        ca = [lh_attrs(c) for c in comps]
+        name = re.sub(r"\s+", " ", p.get("displayName") or "").strip()
+        # productSetName 'SCNsdh 5253_126620' — 밑줄 뒤는 경첩 · 판매 변형 번호 (슬러그에도 있다). 모델 코드는 앞부분만
+        code = re.sub(r"_\d+$", "", (p.get("productSetName") or " ".join(name.split()[:2])).strip())
+        ext = a.get(LH_A["ext_mm"]) or a.get(LH_A["ext"])
+        hwd = lh_hwd(*ext) if ext else None
+        dims = (hwd[1][0], hwd[0][0], hwd[2][0]) if hwd else None  # → W, H, D
+        nets = [x[LH_A["net"]][0] for x in ca if LH_A["net"] in x] if comps else \
+            ([a[LH_A["net"]][0]] if LH_A["net"] in a else [])
+        cap_basis = "순용량(Net)"
+        if comps and len(nets) != len(comps):  # 조합 중 한 칸이라도 용량이 없으면 합이 틀린다 → 비운다
+            cap, cap_basis = None, "없음(구성 칸 용량 누락)"
+        elif nets:
+            cap = sum(to_num(n) or 0 for n in nets) or None
+        else:  # 와인셀러는 순용량이 없다 → 총용량(Gross)
+            gv = a.get(LH_A["gross"]) or a.get(LH_A["gross_wine"])
+            cap, cap_basis = (to_num(gv[0]), "총용량(Gross)") if gv else (None, "없음")
+        bottles = to_num((a.get(LH_A["bottles"]) or ("",))[0])
+        mtype = (a.get(LH_A["model_type"]) or ("",))[0]
+        ptype = p.get("type") or ""
+        install_raw = (a.get(LH_A["install"]) or ("",))[0]
+        panel = bool(re.search(r"(?i)integrierbar|integrable|fully integrated|vollintegriert", install_raw))
+        door_raw = (a.get(LH_A["door_mount"]) or ("",))[0]
+        door = LH_DOOR.get(door_raw.lower(), door_raw) if door_raw else None
+        hinges = [x[LH_A["hinge"]][0] for x in ([a] + ca) if LH_A["hinge"] in x]
+        niche_v = a.get(LH_A["niche"])
+        niche = {}
+        if niche_v:
+            nh = lh_hwd(*niche_v)
+            if nh:
+                for axis, vals in zip("hwd", nh):
+                    niche[f"niche_min_{axis}_mm"] = vals[0]
+                    if len(vals) > 1:
+                        niche[f"niche_max_{axis}_mm"] = vals[1]
+        if code in found:  # 같은 모델의 경첩 반대 판 (scnsdh-5253-126620 / -126625)
+            r = found[code]
+            r["_hinges"] += [x for x in hinges if x not in r["_hinges"]]
+            r["_item_nos"] += [a[LH_A["item_no"]][0]] if LH_A["item_no"] in a else []
+            r["_pages"].append(page)
+            continue
+        tags = [t for t in ("BioFresh", "NoFrost", "DuoCooling") if t in name]
+        if "wine tempering" in f"{ptype} {mtype}".lower():  # 냉동 + 와인칸 조합 (SWNsdh · XRCsdh)
+            tags.append("와인칸")
+        tags += ["패널레디"] if panel else []
+        found[code] = {
+            "brand": "Liebherr",
+            "category_subtype": lh_subtype(ptype, mtype, panel, cap, dims[1] if dims else None),
+            "line": (a.get(LH_A["series"]) or ("",))[0] or next(iter({x[LH_A["series"]][0] for x in ca if LH_A["series"] in x}
+                                                                    if len({x.get(LH_A["series"]) for x in ca}) == 1 else []),
+                                                                   "일반"),
+            "tags": tags,
+            "model_name": name,
+            "model_codes": [code],
+            "width_mm": dims[0] if dims else None,
+            "height_mm": dims[1] if dims else None,
+            "depth_mm": dims[2] if dims else None,
+            "capacity_l": cap,
+            "wine_bottles": bottles,
+            "install_type": "built_in" if panel else "freestanding",
+            "panel_ready": panel,
+            "niche_raw": f"H/W/D {niche_v[0]} {niche_v[1] or ''}".strip() if niche_v else None,
+            "size_raw": f"H/W/D {ext[0]} {ext[1] or ''}".strip() if ext else None,
+            "source_url": page,
+            "page_url": page,
+            "sale_status": None,
+            "collected_at": now_iso(),
+            "_ptype": ptype, "_mtype": mtype, "_door": door, "_install": install_raw, "_cap_basis": cap_basis,
+            "_comps": [re.sub(r"\s+", " ", c.get("displayName") or "").strip() for c in comps],
+            "_hinges": hinges, "_item_nos": [a[LH_A["item_no"]][0]] if LH_A["item_no"] in a else [], "_pages": [page],
+        }
+        found[code].update(niche)
+    rows = []
+    for r in found.values():
+        r["product_type_raw"] = " / ".join(x for x in [
+            r["_ptype"], r["_mtype"] if r["_mtype"] != r["_ptype"] else None,
+            f"구성: {' + '.join(r['_comps'])}" if r["_comps"] else None,
+            f"도어 방식: {r['_door']}" if r["_door"] else None,
+            f"설치: {r['_install']}" if r["_install"] else None,
+            f"경첩: {'/'.join(dict.fromkeys(r['_hinges']))}" if r["_hinges"] else None,
+            f"용량 {r['_cap_basis']}", f"판매번호 {', '.join(r['_item_nos'])}" if r["_item_nos"] else None] if x)
+        rows.append({k: v for k, v in r.items() if not k.startswith("_")})
+    return rows
+
+
+# --------------------------------------------------------------------------- Midea (마이디어)
+
+MD = "https://www.midea.com"
+
+
+def md_pages(f):
+    """/kr/sitemap.xml 의 냉장고 상품 경로 ('…-479l.mdrf648fgf46'). robots.txt 가 쿼리 URL(/*?*)을 막아 경로형만 쓴다.
+    (파이썬 robotparser 는 와일드카드를 못 읽으니 '?' 든 URL 은 여기서 직접 뺀다.)"""
+    st, xml = f.get(f"{MD}/kr/sitemap.xml")
+    out = []
+    for u in re.findall(r"<loc>([^<]+)</loc>", xml):
+        if "/kr/refrigerator/" in u and "?" not in u and re.search(r"/[^/]+\.[a-z0-9]+$", u) and u not in out:
+            out.append(u)
+    return out
+
+
+def md_dims(size):
+    """'833x1775x740mm' · '562x595x1778mm' — 페이지마다 순서가 다르다 (W×H×D 와 W×D×H 가 섞여 있다).
+    첫 값은 늘 너비, 나머지 둘 중 큰 값이 높이 (마이디어 KR 냉장고는 모두 세워 쓰는 형태)."""
+    if not size:
+        return None
+    nums = [to_num(n) for n in re.findall(r"\d+(?:\.\d+)?", size.replace(",", ""))]
+    if len(nums) < 3:
+        return None
+    w, a, b = nums[:3]
+    return w, max(a, b), min(a, b)
+
+
+def md_subtype(cat, name, cap):
+    s = f"{cat} {name}"
+    if "양문형" in s:
+        return "side_by_side"
+    if "4도어" in s or "3도어" in s:  # LG 와 같은 기준 (3·4도어 → french_4door)
+        return "french_4door"
+    if cap and cap <= 150:
+        return "small"
+    if "냉동고" in s or "1도어" in s or "스탠드" in s or "스탠딩" in s:  # 글라스도어 스탠딩 냉장고 = 문 하나
+        return "one_door"
+    return "two_door"
+
+
+def midea_collect(f, sample=None, guides=True):
+    """마이디어 (Midea Korea). 목록: midea.com/kr/sitemap.xml 의 /kr/refrigerator/… 상품 경로 · 치수: 상품 페이지 정적 HTML
+    '전체 사양' (spec-label '크기' → '833x1775x740mm'). 모델 코드는 JSON-LD Product.model —
+    sku-map 의 skuTitle 은 다른 페이지에서 복사된 값인 경우가 있다 (예: 3도어 233L 페이지 = MDRD86FGO30 미니바 코드).
+    설치 여유는 HTML 에 없다 → guides 는 쓰지 않는다."""
+    pages = md_pages(f)
+    print(f"[midea] refrigerator product pages={len(pages)}", file=sys.stderr)
+    if sample:
+        pages = pick_sample(pages, lambda u: u.split("/kr/refrigerator/")[1].split("/")[0], sample)
+    rows = []
+    for page in pages:
+        st, h = f.get(page)
+        ld = None
+        for blk in re.findall(r'(?s)<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', h):
+            try:
+                d = json.loads(blk)
+            except ValueError:
+                continue
+            if isinstance(d, dict) and d.get("@type") == "Product":
+                ld = d
+                break
+        if st != 200 or not ld:
+            print(f"  [midea] no Product JSON-LD {page} (status {st})", file=sys.stderr)
+            continue
+        spec = {}
+        for k, v in re.findall(r'<span class="spec-label">([^<]*)</span>\s*<a class="spec-val">([^<]*)</a>', h):
+            spec.setdefault(html.unescape(k).strip(), html.unescape(v).strip())
+        sm = re.search(r'name="sku-map" value="(.*?)"/>', h, re.S)
+        try:
+            skus = json.loads(html.unescape(sm.group(1))) if sm else []
+        except ValueError:
+            skus = []
+        sku = skus[0] if skus else {}
+        name = re.sub(r"\s+", " ", ld.get("name") or "").strip()
+        code = (ld.get("model") or sku.get("skuTitle") or "").strip().upper()
+        if sku.get("skuTitle") and sku["skuTitle"].upper() != code:
+            print(f"  [midea] {page.rsplit('/', 1)[1]}: JSON-LD model {code} != sku-map {sku['skuTitle']} - JSON-LD kept",
+                  file=sys.stderr)
+        size = spec.get("크기")
+        if not size:  # sku-map 'Color:Capacity:Size' 의 크기 칸
+            types = (sku.get("variantsType") or "").split(":")
+            vals = (sku.get("variantsName") or "").split(":")
+            size = next((v for t, v in zip(types, vals) if t == "Size"), None)
+        dims = md_dims(size)
+        cap_name = rx(r"(\d+(?:\.\d+)?)\s*L\b", name)
+        cap_spec = first_num(spec.get("용량"))
+        if cap_name and cap_spec and cap_name != cap_spec:
+            print(f"  [midea] {code}: capacity name {cap_name}L != spec {cap_spec}L - name kept", file=sys.stderr)
+        cap = cap_name or cap_spec
+        cat = spec.get("카테고리") or sku.get("subCategory") or ""
+        tags = [t for t in ("레트로", "글라스도어", "인버터", "김치 프레쉬", "저소음", "미니") if t in name]
+        row = {
+            "brand": "Midea",
+            "category_subtype": md_subtype(cat, name, cap),
+            "line": "일반",
+            "tags": tags,
+            "model_name": name,
+            "model_codes": [code] if code else [],
+            "width_mm": dims[0] if dims else None,
+            "height_mm": dims[1] if dims else None,
+            "depth_mm": dims[2] if dims else None,
+            "capacity_l": cap,
+            "wine_bottles": None,
+            "install_type": "freestanding",
+            "product_type_raw": " / ".join(x for x in [cat, sku.get("subCategory") if sku.get("subCategory") != cat else None,
+                                                     spec.get("색상"),
+                                                     f"sku-map {sku['skuTitle']}" if sku.get("skuTitle")
+                                                     and sku["skuTitle"].upper() != code else None] if x),
+            "size_raw": f"크기: {size} (원문 순서 — 첫 값 너비, 큰 값 높이로 읽음)" if size else None,
+            "source_url": page,
+            "page_url": page,
+            "sale_status": ((ld.get("offers") or {}).get("availability") or "").rsplit("/", 1)[-1] or None,
+            "collected_at": now_iso(),
+        }
+        if dims and dims[2] > 900:  # 세워 쓰는 냉장고 깊이로 맞지 않는 값 (양문형 698L '910x1130x1810') — 비우고 원문만 남긴다
+            print(f"  [midea] {code}: depth {dims[2]} from '{size}' looks wrong - depth left empty", file=sys.stderr)
+            row["depth_mm"] = None
+            row["tags"] = tags + ["치수확인필요"]
+        rows.append(row)
+    return rows
+
+
+# --------------------------------------------------------------------------- Smeg (스메그, 공식 수입사 제이컬렉션)
+
+SM = "https://www.j-collection.co.kr"
+SM_CATS = {"15": "refrigerators", "629": "winecellar"}
+# 페이지에 도어 수가 적혀 있지 않은 시리즈. FAB28 은 냉동칸이 안에 든 1도어, FAB30(상냉동) · FAB32(하냉동) 은 2도어
+# (스메그 제품군 구성 — FAB32 · 콜로니얼 · 클래식은 KR 페이지에도 '투도어' 가 있다). 목록에 없는 시리즈는 '투도어' 글자로 본다.
+SM_DOORS = {"FAB28": 1, "FAB30": 2, "FAB32": 2, "FA8005": 2, "FA3905": 2}
+
+
+def sm_list(f, cate):
+    """카테고리 목록: GET product_list.php?cate= 로 전체 개수(total_row)를 읽고, 'MORE' 버튼이 부르는
+    POST product_proc.php (reg_state=list) 로 상품 칸을 받는다. 한 칸 = 색상 하나 = 모델 코드 하나."""
+    st, h = f.get(f"{SM}/product/product_list.php?cate={cate}")
+    total = to_num(rx(r'var total_row = Number\("(\d+)"\)', h) or 0) or 0
+    seqs, page = [], 1
+    while page <= 10:
+        st, body = f.post_form(f"{SM}/product/product_proc.php",
+                               {"reg_state": "list", "cate": cate, "pstyle": "", "pcolor": "", "page": str(page),
+                                "page_size": "60", "membership_division": ""},
+                               {"Referer": f"{SM}/product/product_list.php?cate={cate}", "Origin": SM})
+        new = [int(s) for s in re.findall(r"product_view\.php\?pseq=(\d+)", body)]
+        new = [s for s in dict.fromkeys(new) if s not in seqs]
+        seqs += new
+        if not new or len(seqs) >= total:
+            break
+        page += 1
+    return total, seqs
+
+
+def sm_gaps(notes):
+    """설치 안내 문장 중 숫자가 분명한 여유만 칸으로. 나머지(… 75mm 이하 등)는 install_notes 에만 남긴다."""
+    t = " ".join(notes)
+    cm = lambda p: (lambda v: int(round(v * 10)) if v is not None else None)(rx(p, t))  # noqa
+    return {
+        "door_swing_side_mm": cm(r"경첩 방향으로 약 (\d+(?:\.\d+)?) ?cm"),  # 도어를 열기 위한 경첩 쪽 여유
+        "top_gap_mm": cm(r"(?:제품 위쪽에|상단) (\d+(?:\.\d+)?) ?cm"),
+        "side_gap_mm": cm(r"좌/우 (\d+(?:\.\d+)?) ?cm"),
+        "back_gap_mm": cm(r"후면과 벽면 사이에 최소 (\d+(?:\.\d+)?) ?cm"),
+    }
+
+
+def smeg_collect(f, sample=None, guides=True):
+    """스메그 (Smeg). 공식 수입사 (주)제이컬렉션 = 스메그코리아 www.j-collection.co.kr (robots.txt 없음 → 허용).
+    목록: 냉장고(cate=15) · 와인셀러(cate=629) · 치수: 상세 product_view.php?pseq= 정적 HTML '상품 정보 고시'
+    '크기, 용량, 형태' = '(가로x세로x높이)601x728x1530mm' — 순서가 W×D×H 다. 설치 안내 문장(경첩 쪽 여유 등)은 install_notes."""
+    items = []
+    for cate, cat in SM_CATS.items():
+        total, seqs = sm_list(f, cate)
+        print(f"[smeg] {cat}: total_row={total} listed={len(seqs)}", file=sys.stderr)
+        items += [(cat, s) for s in seqs]
+    if sample:
+        items = pick_sample(items, lambda it: it[0], sample)
+    rows = []
+    for cat, seq in items:
+        page = f"{SM}/product/product_view.php?pseq={seq}"
+        st, h = f.get(page)
+        h = re.sub(r"(?s)<!--.*?-->", "", h)  # 위쪽 '사이즈' 칸은 주석 처리돼 있다 — 고시 정보가 정본
+        t = re.search(r"<title>\s*스메그\s+(.*?)\s*\|", h)
+        notice = {html.unescape(k).strip(): re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", v))).strip()
+                  for k, v in re.findall(r'(?s)<li class="pro_info_li">\s*<div class="title">(.*?)</div>\s*'
+                                         r'<div class="text">(.*?)</div>', h)}
+        if st != 200 or not t or not notice:
+            print(f"  [smeg] no title/notice {page} (status {st})", file=sys.stderr)
+            continue
+        title = re.sub(r"\s+", " ", html.unescape(t.group(1))).strip()
+        code = title.split(" ")[-1].upper()
+        name = title[:-len(code)].strip()
+        nmodel = notice.get("품명 및 모델명") or ""
+        if code not in nmodel.upper():
+            print(f"  [smeg] {code}: notice model '{nmodel}' differs - title code kept", file=sys.stderr)
+        size = next((v for k, v in notice.items() if "크기" in k or "규격" in k), "")
+        m = re.search(r"(\d[\d,]*)\s*[xX×]\s*(\d[\d,]*)\s*[xX×]\s*(\d[\d,]*)\s*mm", size)
+        dims = None
+        if m:
+            a, b, c = (to_num(x) for x in m.groups())
+            dims = (a, b, c) if "WxHxD" in size.replace(" ", "") else (a, c, b)  # 기본 W×D×H → W, H, D
+        cap = rx(r"(\d+(?:\.\d+)?)\s*(?:L|ℓ|리터)", size)
+        bottles = rx(r"(\d+)\s*병", title) if cat == "winecellar" else None
+        text = html.unescape(re.sub(r"(?s)<script.*?</script>|<style.*?</style>", " ", h))
+        lines = [re.sub(r"\s+", " ", x).strip() for x in re.sub(r"<[^>]+>", "\n", text).split("\n")]
+        notes = list(dict.fromkeys(x for x in lines if re.search(r"\d ?(cm|mm)", x) and re.search(r"여유|간격|거리|공간", x)
+                                   and len(x) < 200))
+        sm_series = re.match(r"(FAB\d+|FA\d{4}|SCV\d+|SMEG\d+)", code)
+        series = sm_series.group(1) if sm_series else None
+        doors = SM_DOORS.get(series) or (2 if "투도어" in " ".join(lines) else None)
+        if cat == "winecellar" or "와인" in name:
+            sub = "wine"
+        elif cap and cap <= 150:
+            sub = "small"
+        elif doors == 1:
+            sub = "one_door"
+        else:
+            sub = "two_door"
+        line = "50's Style" if (series or "").startswith("FAB") else \
+            next((w for w in ("콜로니얼", "클래식") if w in name), "일반")
+        row = {
+            "brand": "Smeg",
+            "category_subtype": sub,
+            "line": line,
+            "tags": [x for x in [series, "세미빌트인 겸용" if "세미 빌트인" in size else None] if x],
+            "model_name": f"스메그 {name}",
+            "model_codes": [code],
+            "width_mm": dims[0] if dims else None,
+            "height_mm": dims[1] if dims else None,
+            "depth_mm": dims[2] if dims else None,
+            "capacity_l": cap,
+            "wine_bottles": bottles,
+            "install_type": "freestanding",
+            "install_notes": " | ".join(notes)[:900] or None,
+            "install_guide_ref": page if notes else None,
+            "product_type_raw": " / ".join(x for x in [
+                cat, f"{doors}도어" if doors else None, f"출시 {notice.get('동일모델의 출시년월')}"
+                if notice.get("동일모델의 출시년월") else None] if x),
+            "size_raw": size or None,
+            "source_url": page,
+            "page_url": page,
+            "sale_status": None,
+            "collected_at": now_iso(),
+        }
+        row.update({k: v for k, v in sm_gaps(notes).items() if v is not None})
+        rows.append(row)
+    return rows
+
+
 # --------------------------------------------------------------------------- merge / output
 
 GAP_KEYS = ["side_gap_mm", "door_side_gap_mm", "top_gap_mm", "back_gap_mm", "niche_min_w_mm", "niche_min_h_mm",
@@ -1216,6 +1680,12 @@ def main():
         rows += dacor_collect(f, a.sample or None, not a.no_guides)
     if "sks" in brands:
         rows += sks_collect(f, a.sample or None, not a.no_guides)
+    if "liebherr" in brands:
+        rows += liebherr_collect(f, a.sample or None, not a.no_guides)
+    if "midea" in brands:
+        rows += midea_collect(f, a.sample or None, not a.no_guides)
+    if "smeg" in brands:
+        rows += smeg_collect(f, a.sample or None, not a.no_guides)
     merged = merge(rows)
     base = os.path.join(HERE, a.out or ("sample" if a.sample else "fridges"))
     write(merged, base)
