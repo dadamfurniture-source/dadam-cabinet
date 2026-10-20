@@ -10,6 +10,7 @@
 import { pepperedHash } from '../util/hash.js';
 import { ConflictError, GoneError, NotFoundError, ValidationError, insertOne, selectOne, updateBy } from '../supabase.js';
 import { loadSelfWorker, requireAdminEditor } from './access.js';
+import { recordWorkerEvent } from './events.js';
 import { notifyWork } from './notify.js';
 import { workerSelf } from './reveal.js';
 import { kindsOf, optIso, optText } from './validate.js';
@@ -86,6 +87,7 @@ export async function claimInvite(env, { user, body, ctx }) {
     if (err instanceof ConflictError) throw new ConflictError('이미 작업자로 등록돼 있습니다');
     throw err;
   }
+  await recordWorkerEvent(env, { workerId: row.id, actorUserId: user.id, actorKind: 'worker', type: 'registered', to: 'pending', payload: { via: 'invite', invite_id: invite.id } });
   notifyWork(env, ctx, 'worker_registered', { workerName: row.display_name });
   return workerSelf(row);
 }
