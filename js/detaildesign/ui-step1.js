@@ -1195,6 +1195,12 @@
         return (typeof window !== 'undefined' && window.DadamOpenCabinetRules) || null;
       }
 
+      /** 2026-10-20: 밥솥장 규칙 — 플래너(mockup-structure)와 BOM(extractors)이 읽는 그 파일. */
+      function _riceCabinetRules() {
+        if (typeof DadamRiceCabinetRules !== 'undefined') return DadamRiceCabinetRules;
+        return (typeof window !== 'undefined' && window.DadamRiceCabinetRules) || null;
+      }
+
       /**
        * 붙박이장 통 하나를 **옛 모듈 필드**로 옮긴다 — extractWardrobe 가 읽는 이름들.
        *
@@ -1347,6 +1353,44 @@
               isDrawer: false,
               drawerCount: 0,
               isOpen: true,               // 옛 필드도 참으로 — 도어·선반 기본값 규칙이 이걸 본다
+              shelfCount: 0,
+              isEL: false,
+              isFixed: !!m.isFixed,
+              _x: Number(m.x) || 0,
+            });
+            placeLast(m, 0, w);
+            return;
+          }
+
+          // 2026-10-20: 밥솥장 — 오픈장과 같은 상자 하나 + 도어 종류 (bom-rice-cabinet-rules.js).
+          //   상자 부재·도어 치수는 규칙 파일이 낸다. 여기서는 표시(moduleKind)·치수·도어 종류만 넘긴다.
+          //   doorType 은 EL_DOOR_TYPES id 그대로 — 철물(nonSwingHardwareOf)이 리프트를 가변철물로 낸다.
+          //   "밑에 무조건 서랍" 은 플래너가 배치를 보고 판정한 값(riceBelow)을 받아 경고로 남긴다.
+          const RC = _riceCabinetRules();
+          if (RC && RC.isRiceCabinet(s)) {
+            const w = Number(m.W) || 0;
+            const h = _carcassHeight(m.H, m.section, specs, s);
+            const d = Number(m.D) || 0;
+            const door = RC.doorTypeOf(s);
+            const ctx = m.riceBelow ? { below: m.riceBelow } : {};
+            (RC.warningsOf({ W: w, H: h, D: d }, ctx) || []).forEach((t) => warnings.push(`${m.id}: ${t}`));
+            out.push({
+              id: `planner-${m.id}-rice`,
+              type: 'storage',
+              moduleKind: RC.RULES.KIND,
+              name: RC.RULES.LABEL,
+              pos,
+              w,
+              h,
+              totalH: Number(m.H) || 0,
+              heightParts: _heightPartsOf(m.section, specs, s),
+              d,
+              doorCount: door === 'none' ? 0 : 1,
+              doorType: door === 'none' ? null : door,
+              is2door: false,
+              isDrawer: false,
+              drawerCount: 0,
+              isOpen: door === 'none',
               shelfCount: 0,
               isEL: false,
               isFixed: !!m.isFixed,
