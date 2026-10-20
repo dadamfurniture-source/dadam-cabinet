@@ -688,6 +688,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <script src="js/detaildesign/bom-open-cabinet-rules.js?v=43.0"></script>
 <!-- 2026-10-20: 밥솥장 규칙 (오픈장 상자 + 슬라이딩 선반 + 도어 종류) — BOM 과 같은 파일. 오픈장 규칙 다음에 싣는다. 전역 DadamRiceCabinetRules -->
 <script src="js/detaildesign/bom-rice-cabinet-rules.js?v=43.0"></script>
+<!-- 2026-10-20: 홈카페장 규칙 (fridge.md §11 부재표, MDF 18T) — BOM 과 같은 파일. 전역 DadamHomecafeRules -->
+<script src="js/detaildesign/bom-homecafe-rules.js?v=43.0"></script>
+<!-- 2026-10-20: EL장 모듈 타입 (도어 종류만, 치수 [확인 필요]) — BOM 과 같은 파일. 전역 DadamElRules -->
+<script src="js/detaildesign/bom-el-rules.js?v=43.0"></script>
 <!-- D0: 디테일 모드. 카탈로그 정본(bom-finish-color.js, IIFE → window.DadamBomFinishColor)을 먼저 싣고,
      순수 모델(planner-finish.js) → 화면·상태(planner-detail.js) 순. 셋 다 인라인보다 앞.
      D2: 그 사이에 DB 카탈로그(planner-catalog.js — materials 표, PlannerStore 클라이언트 재사용)와
@@ -3203,6 +3207,28 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return !!R && R.isRiceCabinet(s);
   }
 
+  /** 2026-10-20: 홈카페장 규칙 (js/detaildesign/bom-homecafe-rules.js, fridge.md §11) — BOM 과 같은 파일. */
+  function homecafeRules() {
+    if (typeof DadamHomecafeRules !== 'undefined') return DadamHomecafeRules;
+    return (typeof window !== 'undefined' && window.DadamHomecafeRules) || null;
+  }
+
+  function isHomecafe(s) {
+    const R = homecafeRules();
+    return !!R && R.isHomecafe(s);
+  }
+
+  /** 2026-10-20: EL장 모듈 타입 (js/detaildesign/bom-el-rules.js) — 도어 종류만 고른다. */
+  function elRules() {
+    if (typeof DadamElRules !== 'undefined') return DadamElRules;
+    return (typeof window !== 'undefined' && window.DadamElRules) || null;
+  }
+
+  function isEl(s) {
+    const R = elRules();
+    return !!R && R.isEl(s);
+  }
+
   /** 상자로 그리는 타입인가 — 오픈장 · 밥솥장 (둘 다 18T MDF 상자, 칸·서랍·손잡이를 쓰지 않는다). */
   function isBoxKind(s) {
     return isOpenCabinet(s) || isRiceCabinet(s);
@@ -4684,6 +4710,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 2026-10-20: 밥솥장 — 같은 18T MDF 상자 + 슬라이딩 선반 + 도어 종류 (bom-rice-cabinet-rules.js)
     const RR = riceCabinetRules();
     const rice = isRiceCabinet(s);
+    // 2026-10-20: 홈카페장 — MDF 18T 몸통 + 18T 뒷판 + 선반 2 + 도어 (bom-homecafe-rules.js, fridge.md §11)
+    const HR = homecafeRules();
+    const hc = isHomecafe(s);
+    const ER = elRules();
+    const el = isEl(s);
     // 몸통 높이 기준 — BOM 이 재단하는 그 치수다 (openCabinetGeom 주석)
     const bodyH = bodyHeightOf(m, s);
     const dims = { W: m.W, H: bodyH, D: m.D };
@@ -4693,12 +4724,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       <div class="row">
         <label>타입</label>
         <select id="selModuleKind">
-          <option value="normal" ${open || rice ? '' : 'selected'}>일반 (도어·서랍)</option>
+          <option value="normal" ${open || rice || hc || el ? '' : 'selected'}>일반 (도어·서랍)</option>
           <option value="${R.RULES.KIND}" ${open ? 'selected' : ''}>${R.RULES.LABEL} (18T MDF)</option>
           ${RR ? `<option value="${RR.RULES.KIND}" ${rice ? 'selected' : ''}>${RR.RULES.LABEL} (오픈장 + 슬라이딩 선반)</option>` : ''}
+          ${HR ? `<option value="${HR.RULES.KIND}" ${hc ? 'selected' : ''}>${HR.RULES.LABEL} (MDF 18T · 뒷판 18T)</option>` : ''}
+          ${ER ? `<option value="${ER.RULES.KIND}" ${el ? 'selected' : ''}>${ER.RULES.LABEL} (도어 종류만)</option>` : ''}
         </select>
       </div>
+      ${el ? elKindHtml(s) : ''}
       ${rice ? riceKindHtml(m, s, dims) : ''}
+      ${hc ? homecafeKindHtml(s, dims) : ''}
       ${open ? `
       <div style="font-size:10px;color:var(--text-dim);line-height:1.6;margin-top:4px">
         도어·서랍·손잡이가 없는 <b>18T MDF 상자</b>입니다. 부재는 아래 셋뿐입니다.<br>
@@ -4714,11 +4749,56 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     `;
     const sel = document.getElementById('selModuleKind');
     if (sel) sel.onchange = (e) => { s.moduleKind = e.target.value; draftChanged('#selModuleKind'); };
+    const selElDoor = document.getElementById('selElDoor');
+    if (selElDoor) selElDoor.onchange = (e) => {
+      s.el = Object.assign({}, s.el, { door: e.target.value || null });
+      draftChanged('#selElDoor');
+    };
     const selDoor = document.getElementById('selRiceDoor');
     if (selDoor) selDoor.onchange = (e) => {
       s.rice = Object.assign({}, s.rice, { door: e.target.value });
       draftChanged('#selRiceDoor');
     };
+  }
+
+  /** 2026-10-20: EL장 타입 섹션 — 도어 종류(data-constants EL_DOOR_TYPES). 몸통·도어 치수 규칙은 없다. */
+  function elKindHtml(s) {
+    const R = elRules();
+    const cur = R.doorTypeOf(s);
+    return `
+      <div class="row">
+        <label>도어 종류</label>
+        <select id="selElDoor">
+          <option value="" ${cur ? '' : 'selected'}>고르지 않음</option>
+          ${R.RULES.DOOR_TYPES.map((d) => `<option value="${d.id}" ${cur === d.id ? 'selected' : ''}>${d.name}</option>`).join('')}
+        </select>
+      </div>
+      <div style="font-size:10px;color:#b4452e;line-height:1.6;margin-top:4px">
+        EL장 몸통은 예전 냉장고장과 같은 PB 상자로 나갑니다. 도어·몸통 치수 규칙이 아직 없어 BOM 비고에 ${R.RULES.NOTE} 로 적힙니다.
+      </div>
+    `;
+  }
+
+  /** 2026-10-20: 홈카페장 타입 섹션 — BOM 과 같은 규칙 파일이 낸 부재·도어 치수. 도어 수는 칸(양문 2). */
+  function homecafeKindHtml(s, dims) {
+    const R = homecafeRules();
+    const parts = R.partsOf(dims);
+    const is2 = Array.isArray(s.areaIs2D) ? s.areaIs2D : [];
+    const cells = Math.max(1, (Array.isArray(s.areaWidths) ? s.areaWidths.length : 0) || 1);
+    let doors = 0;
+    for (let i = 0; i < cells; i++) doors += is2[i] ? 2 : 1;
+    const door = R.doorOf(dims, doors);
+    return `
+      <div style="font-size:10px;color:var(--text-dim);line-height:1.6;margin-top:4px">
+        냉장고장 홈카페장 규칙(fridge.md §11) — 몸통·뒷판 모두 <b>MDF 18T</b>, 선반 ${R.RULES.SHELF_QTY}장.
+      </div>
+      ${parts.length
+        ? `<div style="font-size:10px;color:#888;font-family:monospace;line-height:1.7;margin-top:4px">
+             ${parts.map((p) => `${p.part} ${p.w}×${p.h} · ${p.qty}장`).join('<br>')}
+             ${door ? `<br>도어 ${door.w}×${door.h} · ${door.qty}장` : ''}
+           </div>`
+        : '<div style="font-size:10px;color:#b4452e;margin-top:4px">⚠ 치수가 작아 홈카페장 부재가 나오지 않습니다</div>'}
+    `;
   }
 
   /**

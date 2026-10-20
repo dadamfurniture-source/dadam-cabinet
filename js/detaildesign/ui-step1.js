@@ -1208,6 +1208,18 @@
         return (typeof window !== 'undefined' && window.DadamOpenCabinetRules) || null;
       }
 
+      /** 2026-10-20: 홈카페장 규칙 (fridge.md §11) — 플래너와 BOM 이 읽는 그 파일. */
+      function _homecafeRules() {
+        if (typeof DadamHomecafeRules !== 'undefined') return DadamHomecafeRules;
+        return (typeof window !== 'undefined' && window.DadamHomecafeRules) || null;
+      }
+
+      /** 2026-10-20: EL장 모듈 타입 (도어 종류만) — 플래너와 BOM 이 읽는 그 파일. */
+      function _elRules() {
+        if (typeof DadamElRules !== 'undefined') return DadamElRules;
+        return (typeof window !== 'undefined' && window.DadamElRules) || null;
+      }
+
       /** 2026-10-20: 밥솥장 규칙 — 플래너(mockup-structure)와 BOM(extractors)이 읽는 그 파일. */
       function _riceCabinetRules() {
         if (typeof DadamRiceCabinetRules !== 'undefined') return DadamRiceCabinetRules;
@@ -1406,6 +1418,71 @@
               isOpen: door === 'none',
               shelfCount: 0,
               isEL: false,
+              isFixed: !!m.isFixed,
+              _x: Number(m.x) || 0,
+            });
+            placeLast(m, 0, w);
+            return;
+          }
+
+          // 2026-10-20: 홈카페장 — 모듈 하나 = 상자 하나 (fridge.md §11 부재표, bom-homecafe-rules.js).
+          //   도어 수는 칸마다 한 장(양문 칸은 두 장)으로 센다. 부재·도어 치수는 규칙 파일이 낸다.
+          const HC = _homecafeRules();
+          if (HC && HC.isHomecafe(s)) {
+            const w = Number(m.W) || 0;
+            const is2 = Array.isArray(s.areaIs2D) ? s.areaIs2D : [];
+            const cells = Math.max(1, (Array.isArray(s.areaWidths) ? s.areaWidths.length : 0) || 1);
+            let doors = 0;
+            for (let i = 0; i < cells; i++) doors += is2[i] ? 2 : 1;
+            out.push({
+              id: `planner-${m.id}-homecafe`,
+              type: 'storage',
+              moduleKind: HC.RULES.KIND,
+              name: HC.RULES.LABEL,
+              pos,
+              w,
+              h: _carcassHeight(m.H, m.section, specs, s),
+              totalH: Number(m.H) || 0,
+              heightParts: _heightPartsOf(m.section, specs, s),
+              d: Number(m.D) || 0,
+              doorCount: doors,
+              is2door: doors === 2,
+              isDrawer: false,
+              drawerCount: 0,
+              isOpen: false,
+              shelfCount: HC.RULES.SHELF_QTY,
+              isEL: false,
+              isFixed: !!m.isFixed,
+              _x: Number(m.x) || 0,
+            });
+            placeLast(m, 0, w);
+            return;
+          }
+
+          // 2026-10-20: EL장 — 모듈 하나 = 몸통 하나 (예전 extractFridge 'el' 과 같은 PB 몸통). 도어 종류만 싣고,
+          //   도어 행·치수는 내지 않는다 — 규칙이 없다 (사장님 카드: 치수는 [확인 필요]).
+          const EL = _elRules();
+          if (EL && EL.isEl(s)) {
+            const w = Number(m.W) || 0;
+            out.push({
+              id: `planner-${m.id}-el`,
+              type: 'storage',
+              moduleKind: EL.RULES.KIND,
+              name: EL.RULES.LABEL,
+              pos,
+              w,
+              h: _carcassHeight(m.H, m.section, specs, s),
+              totalH: Number(m.H) || 0,
+              heightParts: _heightPartsOf(m.section, specs, s),
+              d: Number(m.D) || 0,
+              doorCount: 0,
+              doorType: EL.doorTypeOf(s),
+              is2door: false,
+              isDrawer: false,
+              drawerCount: 0,
+              isOpen: false,
+              shelfCount: 0,
+              isEL: true,
               isFixed: !!m.isFixed,
               _x: Number(m.x) || 0,
             });
