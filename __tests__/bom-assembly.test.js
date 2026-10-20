@@ -425,6 +425,20 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
     ]);
   });
 
+  test.each([
+    [1, [[-40, 320]]],
+    [3, [[-40, 303], [333, 676], [676, 1019]]],   // 상단 틈 + 아래 두 장 사이 틈 (assignChannels), 내림 나머지 1 은 맨 위 틈
+  ])('외부 서랍 %i단 전면 — 바닥 20 위부터, 목찬넬 손잡이 규칙 그대로', (n, spans) => {
+    const item = JSON.parse(JSON.stringify(FIXTURES.wardrobe));
+    item.modules.find((x) => x.id === 'w2').drawerCount = n;
+    const design = { items: [item] };
+    const s = Asm.of(design, { materials: new MaterialExtractor().extract(design).materials });
+    const w2 = s.items[0].modules.find((x) => x.moduleId === 'w2');
+    expect(w2.parts.filter((p) => p.part === '서랍도어').map((p) => [p.box.min[1], p.box.max[1]])).toEqual(spans);
+    expect(s.unplaced.filter((u) => u.part === '서랍도어' || u.part === '도어')).toEqual([]);
+    expect(require('../js/detaildesign/assembly-check.js').check(s).issues.filter((i) => i.level === 'error')).toEqual([]);
+  });
+
   test('좌대 상자 — 몸통 아래, 뒤 맞춤 (앞 50 들어감), 측판은 전후판 사이, 중간보강은 폭 가운데 (2026-10-20 카드)', () => {
     const m = spec.items[0].modules.find((x) => x.moduleId === 'w1');
     const ped = m.parts.filter((p) => p.tags.pedestal);
