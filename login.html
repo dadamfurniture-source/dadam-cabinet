@@ -1052,10 +1052,20 @@
       }
 
       // OAuth 가 실패하면 Supabase 가 돌아온 주소에 error_description 을 붙인다 (예: 카카오가 이메일을 주지 않음).
+      // 인증 메일 링크가 만료됐거나 이미 쓰였을 때도 같은 자리에 error_code=otp_expired 로 돌아온다
+      // (emailRedirectTo 가 login.html?redirect=… 이므로). 이메일로 가입한 사람에게 소셜 로그인 문구를 보이지 않게 나눈다.
       // 그 글은 링크로 아무렇게나 꾸밀 수 있으므로 화면에는 고정 문구만, 원문은 콘솔에만 남긴다.
       (function showOAuthError() {
         const params = new URLSearchParams(window.location.hash.slice(1) + '&' + window.location.search.slice(1));
+        const code = params.get('error_code');
         const desc = params.get('error_description');
+        if (code === 'otp_expired') {
+          console.warn('[login] 인증 링크:', code, desc);
+          showError(
+            "이메일 인증 링크가 만료되었거나 이미 사용되었습니다. 이메일과 비밀번호로 로그인해 주세요. 아직 인증 전이면 '인증 메일 다시 보내기'로 새 링크를 받을 수 있습니다."
+          );
+          return;
+        }
         if (!desc) return;
         console.warn('[login] OAuth:', desc);
         showError('소셜 로그인에 실패했습니다. 다시 시도하거나 다른 방법으로 로그인해주세요.');
