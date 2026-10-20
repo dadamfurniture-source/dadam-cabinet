@@ -129,8 +129,9 @@ function planOnce(jobs, days, crew, leads, fixes) {
 // ── 공개 함수 ──
 /**
  * @param {Object} input
- * @param {Array<{id, label, orderedAt, installDate?, doorOrderedAt?, work}>} input.jobs
+ * @param {Array<{id, label, workerLabel?, orderedAt, installDate?, doorOrderedAt?, work}>} input.jobs
  *        work = workloadFromCounts() 결과 (cutter, edge, asmMain, doorPart)
+ *        label = 대표용 주문 이름(추천 문구에 들어간다), workerLabel = 작업자 화면용 가린 이름
  * @param {string} input.today  계획 시작일 (YYYY-MM-DD)
  * @param {number} [input.horizonDays=30]  계획할 근무일 수
  * @param {string[]} [input.holidays]
@@ -243,6 +244,7 @@ function summarize({ jobs, days, crew, costs, leads, base, cur, fixes, sec }) {
     return {
       id: j.id,
       label: j.label,
+      workerLabel: j.workerLabel, // 작업자 화면용 가린 이름 (service.js buildJobs, 결정 ★15)
       due: at(j.dueIdx),
       dueSource: j.dueSource,
       finish: at(r.finish),
