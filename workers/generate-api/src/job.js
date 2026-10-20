@@ -46,6 +46,7 @@ import {
   qcNeedsRetry,
   parseThemePalette,
   pickFinishes,
+  finishLookalikes,
   pickTwoTone,
   resolveCategory,
 } from './prompts.js';
@@ -886,7 +887,8 @@ async function runPipeline(env, job, ck, save) {
   //   내부 보기는 문을 전부 연다. 한 장은 기본안 색, 한 장은 그 색 추천안의 색.
   const interior = category === 'wardrobe';
   const interiorCount = interior ? 2 : 0;
-  const palette = pickFinishes(Math.max(0, VARIANT_COUNT - interiorCount - specs.length), seed);
+  // 기본안 문짝 색과 같은 계열은 빼고 뽑는다 (2026-10-20: 흰 문짝에 '무광 화이트' 추천이 나와 기본안과 같았다)
+  const palette = pickFinishes(Math.max(0, VARIANT_COUNT - interiorCount - specs.length), seed, finishLookalikes(ctx.doorColor));
   for (const f of palette) {
     specs.push({ key: f.key, label: `AI 추천 · ${f.tone}`, finishSrc: f, prompt: buildVariantPrompt(f) });
   }
