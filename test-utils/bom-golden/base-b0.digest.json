@@ -29,9 +29,9 @@
     "boringSide"
   ],
   "digests": {
-    "sink15": "749f7c565b91ad5876f83ad3a43843a300c36a3dda37876de755afa2ea448167",
-    "sink18": "a584eb12c2a615ecf6ce41073a1a9ac4b1f1f5b790533fd55ee6db59a97357ea",
-    "sinkCorner": "fc906965684b16c2eac820c0613ae073782f5550c70d6b4c64943258a24abe63",
+    "sink15": "ed0e4e22c847e513fd21d4014ce68c1bc3f2a5dc6fc9dfb740c7b00403c1669f",
+    "sink18": "fc69456fe074be6f47a4cd380f7ad43d7bdfd3eef487add01d161de26bff62a6",
+    "sinkCorner": "0caf10cbfb4257b067e6207c72ea916f29efbf6d3f62f93111c455ce910b09be",
     "wardrobe": "a521583382dc7e1826573aa42c0dbb6d77ee76f96ab4029f4c1e0632bc7a4446",
     "fridge": "53843f10eb6485f92b1f2298cb6f27a542d44d3f873e1f6abab8821fd0deea18"
   }
