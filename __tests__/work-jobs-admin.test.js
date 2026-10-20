@@ -38,19 +38,21 @@ const WK3 = 'f3f3f3f3-f3f3-4f3f-8f3f-f3f3f3f3f3f3';
 const XSS = '<script>alert(1)</script>';
 const IMG = '<img src=x onerror=alert(1)>';
 
+// 목록 항목은 서버(workers/workflow-api/src/work/jobs.js listJobsAdmin) 모양 그대로:
+//   { ...work_jobs 행, effective_status, applications: 신청 수(숫자), confirmed: 확정 수(숫자), next_date }
 // 2026-10-21(수) 09:00~18:00 한국 시간
 const JOB1 = {
   id: J1, kind: 'install', title: `${XSS} 싱크대 설치 보조`, status: 'open', effective_status: 'open', region_label: '가상시 시험구',
   starts_at: '2026-10-21T00:00:00Z', ends_at: '2026-10-21T09:00:00Z', apply_deadline: '2099-01-01T00:00:00Z',
-  slots: 2, filled: 1, applied_count: 3, mode: 'open', pay_amount: 150000, pay_unit: 'day', pay_visible: false, version: 4,
+  slots: 2, applications: 3, confirmed: 1, mode: 'open', pay_amount: 150000, pay_unit: 'day', pay_visible: false, version: 4,
   detail: `범위 ${IMG}`, created_at: '2026-10-19T01:00:00Z',
 };
 const JOBS = [
   JOB1,
-  { id: J2, kind: 'as', title: '마감 지난 A/S', status: 'open', effective_status: 'expired', region_label: '가상시 동구', starts_at: '2026-10-25T01:00:00Z', slots: 1, filled: 0, applied_count: 0 },
-  { id: J3, kind: 'assembly', title: '조립 초안', status: 'draft', effective_status: 'draft', slots: 1, filled: 0, applied_count: 0 },
-  { id: J4, kind: 'install', title: '취소된 작업', status: 'cancelled', effective_status: 'cancelled', slots: 1, filled: 0, applied_count: 0 },
-  { id: J5, kind: 'install', title: '닫힌 작업', status: 'closed', effective_status: 'closed', slots: 1, filled: 1, applied_count: 0 },
+  { id: J2, kind: 'as', title: '마감 지난 A/S', status: 'open', effective_status: 'expired', region_label: '가상시 동구', starts_at: '2026-10-25T01:00:00Z', slots: 1, applications: 0, confirmed: 0 },
+  { id: J3, kind: 'assembly', title: '조립 초안', status: 'draft', effective_status: 'draft', slots: 1, applications: 0, confirmed: 0 },
+  { id: J4, kind: 'install', title: '취소된 작업', status: 'cancelled', effective_status: 'cancelled', slots: 1, applications: 0, confirmed: 0 },
+  { id: J5, kind: 'install', title: '닫힌 작업', status: 'closed', effective_status: 'closed', slots: 1, applications: 0, confirmed: 1 },
 ];
 const DETAIL = {
   job: JOB1,
@@ -187,6 +189,22 @@ describe('js/work-jobs-admin.js — 순수 함수', () => {
     expect(W.ddayLabel('2026-10-18T00:00:00Z', now)).toBe('D+2');
     expect(W.fmtRange(null, null)).toBe('날짜 미정');
     expect(W.fmtRange('2026-10-21T00:00:00Z', '2026-10-22T03:00:00Z')).toBe('10/21(수) 09:00 ~ 10/22(목) 12:00');
+  });
+
+  test('확정 수 · 신청 수 — 서버 목록 모양(applications · confirmed 숫자)과 상세 모양(펼친 작업 + 배열)을 읽는다', () => {
+    // 목록: listJobsAdmin 항목 — 작업 행에는 filled 열이 없고 confirmed · applications 가 숫자로 온다
+    expect(W.jobCounts(JOB1)).toEqual({ filled: 1, applied: 3, slots: 2 });
+    expect(W.jobCounts(JOBS[1])).toEqual({ filled: 0, applied: 0, slots: 1 });
+    // 상세: getJobAdmin — 작업 열을 펼치고 filled(숫자) + applications · assignments(배열)
+    const flat = {
+      ...JOB1, confirmed: undefined, filled: 1,
+      applications: DETAIL.applications, assignments: DETAIL.assignments, updates: DETAIL.updates, events: DETAIL.events,
+    };
+    const d = W.splitDetail(flat);
+    expect(d.job.id).toBe(J1);
+    expect(W.jobCounts(d.job, d)).toEqual({ filled: 1, applied: 1, slots: 2 }); // submitted 1 (offered 는 정원 밖) · applied 1
+    // 상세에서 꺼낸 작업만 넘겨도 신청 배열을 숫자로 잘못 읽지 않는다
+    expect(W.jobCounts(d.job).applied).toBeNull();
   });
 
   test('보드 열 — 마감은 effective_status, 없으면 계약 식(open + 신청 마감 지남), 닫힘은 완료 열, 취소는 볼 때만', () => {
