@@ -166,12 +166,13 @@ describe('sink15 자리 (확정 사실)', () => {
     expect(s0.box.min[1]).toBeLessThan(s1.box.min[1]);
   });
 
-  test('미정은 unplaced 에 이유와 함께 — 밴드 자리 · 서랍장 처짐방지목(D2) · 서랍장 중간 따내기', () => {
+  test('미정은 unplaced 에 이유와 함께 — 밴드 자리 · 서랍장 처짐방지목(D2)', () => {
     const reasons = (id) => spec.unplaced.filter((u) => u.rowPartId.indexOf(`0-${id}-`) === 0);
     expect(reasons('l3').filter((u) => u.part === '밴드').map((u) => u.reason)).toEqual(['band-position-pending']);
     expect(reasons('u1').filter((u) => u.part === '밴드(보강목)')).toEqual([]);
     expect(reasons('l2').find((u) => u.part === '밴드(처짐방지)').reason).toBe('pending-owner D2');
-    expect(mod('l2').pending).toContain('channel-mid-notch');
+    // 중간 따내기는 서랍 레이아웃이 자리를 정한다 (아래 l2 시험) — 더는 pending 이 아니다
+    expect(mod('l2').pending).not.toContain('channel-mid-notch');
   });
 
   // 2026-10-20 사장님: 상부장 보강목 2장 (W − 2T) × 60 — 사쿠리 홈 뒤 장의 맨 뒤, 위 1장은 천판 바로 아래 · 아래 1장은 지판 바로 위
@@ -216,8 +217,28 @@ describe('sink15 자리 (확정 사실)', () => {
     ]);
     // 외문 400
     expect(doors('l4')).toEqual([{ min: [-198, 0, 275], max: [198, 678, 293] }]);
-    // 서랍장 도어는 서랍 레이아웃 몫 — 아직 놓지 않는다
-    expect(spec.unplaced.find((u) => u.moduleKey === '0-l2' && u.part === '도어')).toMatchObject({ reason: 'not-yet' });
+  });
+
+  test('서랍장 l2 — 도어·서랍 전면·중간 목찬넬·측판 중간 따내기가 서랍 레이아웃 자리에', () => {
+    const m = mod('l2');
+    const box = (name, k = 0) => part(m, name, k).box;
+    // 전면 (위→아래): 도어 434..678 (상단 슬롯 30) · 서랍 230..430 (갭 4) · 서랍 0..200 (중간 슬롯 30)
+    expect(box('도어')).toEqual({ min: [-398, 434, 275], max: [398, 678, 293] });
+    expect(box('서랍도어', 0)).toEqual({ min: [-398, 230, 275], max: [398, 430, 293] });
+    expect(box('서랍도어', 1)).toEqual({ min: [-398, 0, 275], max: [398, 200, 293] });
+    // 중간 목찬넬 ㄴ자 — 따낸 자리(90×40) 바닥 160 에 지면판, 그 위 안쪽 끝에 전면판 72 (앞 22 가 손 자리)
+    expect(box('목찬넬(중간 지면)')).toEqual({ min: [-400, 160, 235], max: [400, 178, 275] });
+    expect(box('목찬넬(중간 전면)')).toEqual({ min: [-400, 178, 235], max: [400, 250, 253] });
+    expect(part(m, '측판').features.filter((f) => f.type === 'notch').map((f) => [f.src, f.v0, f.v1])).toEqual([['channel-top', 638, 708], ['channel-mid', 160, 250]]);
+    expect(m.pending).toEqual([]);
+  });
+
+  test('서랍장 레이아웃을 못 구하면 서랍장 전면은 놓지 않는다 (추출기 없이 지어내지 않는다)', () => {
+    const design = { items: [FIXTURES.sink15] };
+    const materials = new MaterialExtractor().extract(design).materials;
+    const s = Asm.of(design, { materials, MaterialExtractor: function () { return { drawerLayoutOf: () => null }; } });
+    const un = s.unplaced.filter((u) => u.moduleKey === '0-l2').map((u) => [u.part, u.reason]);
+    expect(un).toEqual(expect.arrayContaining([['도어', 'door-layout-unknown'], ['서랍도어', 'drawer-layout-unknown'], ['목찬넬(중간 전면)', 'drawer-layout-unknown']]));
   });
 
   test('도어 장수·폭이 플래너 칸 규칙과 다르면 놓지 않는다 (door-layout-unknown)', () => {

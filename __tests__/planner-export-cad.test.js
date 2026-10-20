@@ -50,12 +50,30 @@ const SCENE_OF = {
   '뒷판': () => ({ entityKind: 'carcass', side: 'back' }),
   '밴드(처짐방지)': () => ({ entityKind: 'brace', side: null }),
   '도어': () => ({ entityKind: 'carcass', side: 'front' }),
+  '서랍도어': () => ({ entityKind: 'carcass', side: 'front' }),
+  '목찬넬(중간 전면)': () => ({ entityKind: 'carcass', side: 'channelFace' }),
+  '목찬넬(중간 지면)': () => ({ entityKind: 'carcass', side: 'channelBase' }),
 };
 
-describe.each(Object.keys(FIXTURES))('%s 장면 → CAD GLB', (name) => {
+/** 하부장을 서랍장(도어 위 · 서랍 3단)으로 — __tests__/scene-overlap.test.js 의 drawer 장면과 같다. */
+function toDrawer(p) {
+  p.g('modules').filter((m) => m.section === 'lower').forEach((m) => {
+    const s = p.g('getStructure')(m.id);
+    s.horizontalLayout = 'doorTopDrawerBottom';
+    s.bottomType = 'drawer';
+    s.drawerCount = 3;
+  });
+  p.g('renderAll3D')({ fit: false });
+  return p;
+}
+const SCENES = Object.assign({}, ...Object.keys(FIXTURES).map((k) => ({ [k]: (o) => bootPlanner3D(FIXTURES[k], o) })), {
+  drawer: (o) => toDrawer(bootPlanner3D(FIXTURES.straight, o)),
+});
+
+describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
   let p, THREE, cad, item, itemJson, pieces, built, gltf;
   beforeAll(async () => {
-    p = bootPlanner3D(FIXTURES[name], { design: 'cad', item: name });
+    p = SCENES[name]({ design: 'cad', item: name });
     await new Promise((r) => setTimeout(r, 150));
     THREE = window.THREE;
     item = fakeParent(p);
@@ -89,7 +107,7 @@ describe.each(Object.keys(FIXTURES))('%s 장면 → CAD GLB', (name) => {
       solids.forEach((s) => g.union(new THREE.Box3(new THREE.Vector3(...s.min), new THREE.Vector3(...s.max)).applyMatrix4(new THREE.Matrix4().fromArray(s.m))));
       return g;
     };
-    let checked = 0, doors = 0;
+    let checked = 0, doors = 0, drawerParts = 0;
     cad.spec.items.forEach((it) => it && it.modules.forEach((m) => {
       const M = cad.frameOf(m);
       const plannerId = cad.cells[m.moduleKey].plannerId;
@@ -106,10 +124,13 @@ describe.each(Object.keys(FIXTURES))('%s 장면 → CAD GLB', (name) => {
         expect({ id: pt.id, hit: hits.length }).toEqual({ id: pt.id, hit: 1 });
         checked++;
         if (pt.part === '도어') doors++;
+        if (pt.part === '서랍도어' || /^목찬넬\(중간/.test(pt.part)) drawerParts++;
       });
     }));
     expect(checked).toBeGreaterThan(20);
     expect(doors).toBeGreaterThan(0);
+    // 서랍장 장면 — 서랍 전면 · 중간 목찬넬도 3D 와 같은 자리
+    if (name === 'drawer') expect(drawerParts).toBeGreaterThan(0);
   });
 
   test('GLB — 루트 배율 0.001 · 판재 노드 이름 partId#k · extras 에 BOM 행', () => {
