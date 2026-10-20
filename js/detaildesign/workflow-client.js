@@ -587,7 +587,11 @@
       if (!designId()) throw new Error('저장이 취소되어 발행하지 않았습니다.');
     }
 
-    await createSnapshot();
+    // 확인창에서 취소하면 발행하지 않는다 — 앞서 동결한 스냅샷이 남아 있어도 그것으로 발행하지 않는다 (D8).
+    if (!(await createSnapshot())) {
+      setStep4Status('검사 오류 확인을 취소해 발행하지 않았습니다 — 고친 뒤 다시 눌러 주세요.', 'error');
+      return;
+    }
     const snap = state.snapshot;
     const sameSnap = function (type) {
       return state.documents.find(function (d) {
@@ -697,10 +701,18 @@
 
     // 2026-10-18 사전 오류 검사 (bom-preflight.js) — 공장에 넘기기 전에 부재 누락·불가능 보링·원판 초과를 알린다.
     //   오류가 있으면 확인을 받고, 경고는 동결 후 상태줄에 남긴다. 검사기가 없으면(옛 캐시) 그냥 동결한다.
+    //   2026-10-20 결정 D8: 조립 명세(bom-assembly.js)도 함께 넘겨 조립 검사(assembly-check.js) 오류를 같은 확인창에 띄운다.
+    //   상세설계에는 플래너 선반 높이가 없어 선반은 "자리 미정" 경고로만 나온다.
     let preflight = null;
     if (window.BomPreflight && Array.isArray(materials)) {
       try {
-        preflight = window.BomPreflight.check(materials, report.hardware || [], { cutPlan: cutPlan });
+        const assembly = window.DadamAssembly
+          ? window.DadamAssembly.of(report.design, { materials: materials })
+          : null;
+        preflight = window.BomPreflight.check(materials, report.hardware || [], {
+          cutPlan: cutPlan,
+          assembly: assembly,
+        });
       } catch (e) {
         console.warn('[Workflow] 사전 검사 실패 — 검사 없이 진행합니다:', e);
       }
@@ -719,7 +731,7 @@
         );
         if (!go) {
           setStatus(window.BomPreflight.summaryOf(preflight) + ' — 동결을 취소했습니다', 'error');
-          return;
+          return false;
         }
       }
     }
@@ -747,6 +759,7 @@
       'ok'
     );
     await refresh();
+    return true;
   }
 
   async function issue(docType) {
