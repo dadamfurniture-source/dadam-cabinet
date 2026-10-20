@@ -28,6 +28,8 @@ import {
   buildPlumbingPrompt,
   buildPlannerPrompt,
   plannerChosenFridgeModel,
+  fridgeModelFromRow,
+  FRIDGE_DEFAULT_MODELS,
   buildQcPrompt,
   buildThemePalettePrompt,
   cleanCustomerRequest,
@@ -482,6 +484,38 @@ async function runPipeline(env, job, ck, save) {
       }
     }
   }
+  // 2026-10-20 냉장고장 일반 모드 (사장님 결정 D1): 고른 모델(fridge_options.models 코드) → appliance_models 행,
+  //   없으면 브랜드 기본 세트(prompts.js FRIDGE_DEFAULT_MODELS). 제품 사진(image_path)이 있는 모델은 설치 호출 맨 뒤 이미지로.
+  //   표를 못 읽으면 기본 세트로 그린다 — 사진은 없으면 글만.
+  let fridgeModels = null; // [{brand,name,code,widthMm,...}] — 지시문이 쓴다
+  const fridgePhotos = []; // [{base64, mimeType, code}] — 설치 호출 맨 뒤
+  if (!planner && category === 'fridge') {
+    const codes = Array.isArray(opts.fridge_options && opts.fridge_options.models) ? opts.fridge_options.models : [];
+    if (codes.length) {
+      try {
+        const rows = await selectMany(env, 'appliance_models', {
+          select: 'brand,model_name,model_code,subtype,line,width_mm,height_mm,depth_mm,side_gap_mm,top_gap_mm',
+          model_code: `in.(${codes.map((c) => `"${c}"`).join(',')})`,
+        });
+        const byCode = new Map((rows || []).map((r) => [r.model_code, fridgeModelFromRow(r)]));
+        fridgeModels = codes.map((c) => byCode.get(c)).filter((m) => m && m.widthMm > 0 && m.heightMm > 0);
+        if (!fridgeModels.length) fridgeModels = null;
+      } catch (e) {
+        console.warn(`[Job ${job.id}] fridge models lookup failed, using defaults: ${e.message}`);
+      }
+    }
+    const brandKey = opts.fridge_options && opts.fridge_options.brand === 'lg' ? 'LG' : 'Samsung';
+    const list = fridgeModels || FRIDGE_DEFAULT_MODELS[brandKey];
+    for (const m of list) {
+      try {
+        const p = await loadFridgeModelPhoto(env, m);
+        if (p) fridgePhotos.push(p);
+      } catch (e) {
+        console.warn(`[Job ${job.id}] fridge photo skipped (${m.code}): ${e.message}`);
+      }
+    }
+    console.log(`[Job ${job.id}] fridge models: ${list.map((m) => m.code).join('+')} (${fridgeModels ? 'chosen' : 'default ' + brandKey}), photos ${fridgePhotos.map((p) => p.code).join('+') || '-'}`);
+  }
   // 참고 이미지는 역할이 둘이다.
   //   style (업로드·시공사례) → 설치 단계에 첨부, 마감·분위기 참고
   //   theme (식물·명품·회화 등)  → 색감만 뽑아 추천안 한 장으로
@@ -625,6 +659,9 @@ async function runPipeline(env, job, ck, save) {
     fridgeBrand: opts.fridge_options && opts.fridge_options.brand === 'lg' ? 'LG' : 'Samsung',
     fridgePosition:
       opts.fridge_options && opts.fridge_options.position === 'right' ? 'right' : 'left',
+    // 2026-10-20: 고른 냉장고 모델(없으면 지시문이 기본 세트를 쓴다)·맨 뒤에 붙는 제품 사진의 코드
+    ...(fridgeModels ? { fridgeModels } : {}),
+    ...(fridgePhotos.length ? { fridgePhotos: fridgePhotos.map((p) => ({ code: p.code })) } : {}),
     // 플래너 도면 요약 (worker.js 가 이미 검증해 options 에 넣었다). null 이면 범용 문단.
     designSpec: opts.design_spec || null,
     // 손님 요청 (연출컷 ③ 상세 요청). worker.js 가 다듬어 두었다 — 한 번 더 다듬는다. 없으면 null.
@@ -869,7 +906,13 @@ async function runPipeline(env, job, ck, save) {
     // 연출컷 기본안 — 공급자는 images.js 가 고른다 (IMAGE_PROVIDER, GPT 실패 시 Gemini)
     const r = await renderImage(
       env,
-      { prompt: buildInstallPrompt(ctx, fix ? { fix } : {}), images: massingImg ? [massingImg, ...refs] : [room, ...refs, ...(guideImg ? [guideImg] : [])], imageSize, aspectRatio },
+      {
+        prompt: buildInstallPrompt(ctx, fix ? { fix } : {}),
+        // 냉장고 제품 사진은 맨 뒤 (buildInstallPrompt 가 "the last N images" 로 가리킨다)
+        images: [...(massingImg ? [massingImg, ...refs] : [room, ...refs, ...(guideImg ? [guideImg] : [])]), ...fridgePhotos.map((p) => ({ base64: p.base64, mimeType: p.mimeType }))],
+        imageSize,
+        aspectRatio,
+      },
       'base'
     );
     if (!r.image) throw new Error('install returned no image');
@@ -1069,7 +1112,7 @@ async function runPipeline(env, job, ck, save) {
       key: 'theme',
       label: `AI 추천 · 테마 색감 (${f.tone})`,
       finish: { body: f.body, accent: f.accent },
-      prompt: buildVariantPrompt(f),
+      prompt: buildVariantPrompt(f, { fridgePanels: category === 'fridge' }),
     });
   }
   if (KITCHEN_CATEGORIES.includes(category)) {
@@ -1092,7 +1135,7 @@ async function runPipeline(env, job, ck, save) {
   // 기본안 문짝 색과 같은 계열은 빼고 뽑는다 (2026-10-20: 흰 문짝에 '무광 화이트' 추천이 나와 기본안과 같았다)
   const palette = pickFinishes(Math.max(0, VARIANT_COUNT - interiorCount - specs.length), seed, finishLookalikes(ctx.doorColor));
   for (const f of palette) {
-    specs.push({ key: f.key, label: `AI 추천 · ${f.tone}`, finishSrc: f, prompt: buildVariantPrompt(f) });
+    specs.push({ key: f.key, label: `AI 추천 · ${f.tone}`, finishSrc: f, prompt: buildVariantPrompt(f, { fridgePanels: category === 'fridge' }) });
   }
   if (interior) {
     const colourSpec = specs[0];

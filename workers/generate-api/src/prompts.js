@@ -75,10 +75,8 @@ export const CATEGORIES = {
   fridge: {
     label: '냉장고장',
     depth: '700 mm deep, with the refrigerator recess the same depth so its front is flush.',
-    spec: (c) =>
-      `Refrigerator surround: a recess holding a ${c.fridgeBrand} french-door refrigerator on the ` +
-      `${c.fridgePosition} side, tall pantry columns filling the rest of the width, and a bridge ` +
-      `cabinet above the refrigerator up to the ceiling. The refrigerator front sits flush with the doors.`,
+    // 2026-10-20: 정본 구조(fridge.md §2) + 기본 모델 세트 (D1) — fridgeSpecText
+    spec: (c) => fridgeSpecText(c),
   },
   vanity: {
     label: '화장대',
@@ -218,6 +216,136 @@ export function wardrobeDoorPhrase(wallW) {
     `${doors} equal full-height flat doors: ${pairs} two-door unit${pairs === 1 ? '' : 's'} in mirrored pairs, then ` +
     `one single-door unit at the right end, hinged on its left side`
   );
+}
+
+// ─── 냉장고장 (2026-10-20 사장님 결정 D1~D5) ───
+// 정본 docs/design-rules/fridge.md §1·§2 · data-constants.js FRIDGE_RULES (시험이 글자로 대조한다).
+//   D1 모델을 안 골랐을 때 기본 = 브랜드별 4도어 냉장고 1 + 3도어 김치냉장고 1
+//   D2 키큰장 도어 구분 개별 (중간장 55 : 하부장 45, EL 없음 → 단마다 문 한 벌)
+//   D3 앞면 한 면 (키큰장·상부장·냉장고 문이 한 평면)
+//   D5 색이 있는 모델(비스포크·오브제)은 냉장고 패널 색을 문짝 색에 가깝게
+export const FRIDGE_RULES = { MAX_UPPER_H: 400, PEDESTAL_H: 60, MOLDING_H: 50, TOP_GAP: 15, MID_RATIO: 0.55, INSTALL_D: 700, NICHE_EXTRA: 6 };
+/** 모델 표에 옆 여유가 없을 때 — mockup-shell.html FRIDGE_DEFAULT_GAPS 와 같다 */
+export const FRIDGE_DEFAULT_SIDE_GAP = { LG_BUILTIN: 4, SS_BESPOKE: 12, SS_INFINITE: 5, FREESTANDING: 50 };
+/**
+ * D1 기본 냉장고 — appliance_models (2026-10-20, verified · kitchen_fit) 에서 복사. 치수·여유는 표 값 그대로다.
+ *   job.js 가 같은 코드로 제품 사진(image_path)을 찾는다. 바꾸려면 코드·치수를 함께 — 표가 정본이다.
+ */
+export const FRIDGE_DEFAULT_MODELS = {
+  Samsung: [
+    { brand: '삼성', name: 'Bespoke AI 하이브리드 냉장고 4도어 키친핏 Max 640L', code: 'RM70F63R2A', subtype: 'french_4door', line: 'BESPOKE', widthMm: 912, heightMm: 1853, depthMm: 697, sideGap: 12, topGap: 15, doors: 4, kind: 'fridge' },
+    { brand: '삼성', name: 'Bespoke 김치플러스 3도어 키친핏 313L', code: 'RQ33HB7411A', subtype: 'kimchi_stand', line: 'BESPOKE', widthMm: 695, heightMm: 1853, depthMm: 600, sideGap: 12, topGap: 15, doors: 3, kind: 'kimchi' },
+  ],
+  LG: [
+    { brand: 'LG', name: 'LG 디오스 AI 오브제컬렉션 냉장고 Fit & Max', code: 'D646GBB041', subtype: 'french_4door', line: '오브제컬렉션', widthMm: 914, heightMm: 1860, depthMm: 709, sideGap: 4, topGap: 9, doors: 4, kind: 'fridge' },
+    { brand: 'LG', name: 'LG 디오스 오브제컬렉션 김치톡톡 Fit & Max', code: 'Z334GBB171', subtype: 'kimchi_stand', line: '오브제컬렉션', widthMm: 666, heightMm: 1860, depthMm: 685, sideGap: 4, topGap: 15, doors: 3, kind: 'kimchi' },
+  ],
+};
+const FRIDGE_BRAND_EN = { 삼성: 'Samsung', 삼성전자: 'Samsung', LG: 'LG', 엘지: 'LG', LG전자: 'LG', 위니아: 'Winia', 데이코: 'Dacor' };
+const FRIDGE_LINE_EN = { BESPOKE: 'BESPOKE', 오브제컬렉션: 'Objet Collection', 디오스: 'DIOS', 인피니트: 'Infinite' };
+/** 색 패널이 있는 라인 — D5 는 이 라인에만 (스테인리스·일반 라인은 제 색 그대로) */
+export const fridgePanelLine = (line) => /bespoke|오브제|objet|인피니트|infinite/i.test(String(line || ''));
+
+/** appliance_models 행 → 모델 (fridge_options.models 로 고른 모델). 옆 여유는 표 → 라인 기본값. */
+export function fridgeModelFromRow(row) {
+  if (!row || typeof row !== 'object') return null;
+  const num = (v) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Number(v) : null);
+  const name = String(row.model_name || '');
+  const s = `${row.brand || ''} ${name} ${row.line || ''}`;
+  const lineKey = /키친핏|kitchen ?fit|bespoke/i.test(s) ? 'SS_BESPOKE'
+    : /인피니트|infinite/i.test(s) ? 'SS_INFINITE'
+    : /빌트인|built-?in|fit ?& ?max|오브제/i.test(s) ? 'LG_BUILTIN' : 'FREESTANDING';
+  const doorsFromName = name.match(/(\d)\s*도어/);
+  const doors = doorsFromName ? Number(doorsFromName[1]) : row.subtype === 'french_4door' ? 4 : row.subtype === 'side_by_side' || row.subtype === 'two_door' ? 2 : row.subtype === 'one_door' ? 1 : null;
+  return {
+    brand: row.brand || null, name: name || null, code: row.model_code || null, subtype: row.subtype || null, line: row.line || null,
+    widthMm: num(row.width_mm), heightMm: num(row.height_mm), depthMm: num(row.depth_mm),
+    sideGap: num(row.side_gap_mm) != null ? num(row.side_gap_mm) : FRIDGE_DEFAULT_SIDE_GAP[lineKey],
+    topGap: num(row.top_gap_mm) != null ? num(row.top_gap_mm) : FRIDGE_RULES.TOP_GAP,
+    doors, kind: /kimchi/.test(String(row.subtype || '')) || /김치/.test(name) ? 'kimchi' : 'fridge',
+  };
+}
+
+/** 지시문에 쓸 냉장고 목록 — c.fridgeModels (고른 모델) 가 없으면 브랜드 기본 세트 (D1) */
+export function fridgeModelsOf(c) {
+  const chosen = Array.isArray(c && c.fridgeModels) ? c.fridgeModels.filter((m) => m && m.widthMm > 0 && m.heightMm > 0) : [];
+  if (chosen.length) return chosen;
+  return FRIDGE_DEFAULT_MODELS[c && c.fridgeBrand === 'LG' ? 'LG' : 'Samsung'];
+}
+
+/**
+ * 냉장고장 배치 — 정본 셈:
+ *   자리 폭 = 옆 여유 + 냉장고 + (사이 여유 = 양쪽 옆 여유 중 큰 값) + … + 옆 여유 + 전체 여유 6 (플래너 fridgeNichesOf, #893·#901)
+ *   상부장 = min(400, 전체 − 냉장고H − 위 틈 − 상몰딩 50), 냉장고마다 한 통 (fridge.md §2, stackForArea)
+ *   키큰장 몸통 = 전체 − 상몰딩 − 상부장(첫 냉장고 기준, 플래너 sideFridge) − 좌대 60, 중간장 = floor(몸통 × 0.55), 하부장 = 나머지
+ *   키큰장 통 나누기 = 플래너 distributeModules (wardrobeModules) — 자리를 뺀 나머지 폭에
+ *   두 대가 벽에 안 들어가면 4도어만 (김치냉장고를 뺀다). 4도어 자리는 바깥쪽(벽 끝), 김치냉장고는 그 안쪽.
+ */
+export function fridgeLayout(wallW, wallH, models, position = 'left') {
+  const R = FRIDGE_RULES;
+  const W = Math.round(Number(wallW) || 0);
+  const H = Math.round(Number(wallH) || 0);
+  const nicheWidthOf = (list) => {
+    if (!list.length) return 0;
+    let w = list[0].sideGap + list[0].widthMm;
+    for (let i = 1; i < list.length; i++) w += Math.max(list[i - 1].sideGap, list[i].sideGap) + list[i].widthMm;
+    return w + list[list.length - 1].sideGap + R.NICHE_EXTRA;
+  };
+  let list = models.slice();
+  while (list.length > 1 && nicheWidthOf(list) > W) list = list.slice(0, -1);
+  if (position === 'right') list = list.slice().reverse(); // 4도어가 바깥쪽
+  const nicheW = nicheWidthOf(list);
+  const fridges = list.map((m) => ({
+    ...m,
+    upperH: Math.max(0, Math.min(R.MAX_UPPER_H, H - m.heightMm - m.topGap - R.MOLDING_H)),
+  }));
+  const first = position === 'right' ? fridges[fridges.length - 1] : fridges[0];
+  const upperH = first ? first.upperH : R.MAX_UPPER_H;
+  const bodyH = Math.max(0, H - R.MOLDING_H - upperH - R.PEDESTAL_H);
+  const midH = Math.floor(bodyH * R.MID_RATIO);
+  const lowerH = bodyH - midH;
+  const rest = Math.max(0, W - nicheW);
+  const columns = rest >= WARDROBE_DOOR_RULES.DOOR_W_MIN ? wardrobeModules(rest).modules : [];
+  const columnsW = columns.reduce((n, m) => n + m.w, 0);
+  return { wallW: W, wallH: H, nicheW, fridges, upperH, bodyH, midH, lowerH, columns, rest, filler: rest - columnsW };
+}
+
+function fridgeModelPhrase(m, doorColorPhrase) {
+  const brand = FRIDGE_BRAND_EN[m.brand] || m.brand || '';
+  const line = m.line ? FRIDGE_LINE_EN[m.line] || m.line : '';
+  const form = m.kind === 'kimchi'
+    ? `stand-type kimchi refrigerator${m.doors ? ` with ${COUNT_WORDS[m.doors] || m.doors} doors` : ''}`
+    : m.subtype === 'french_4door' ? 'four-door french-door refrigerator'
+    : m.subtype === 'side_by_side' ? 'side-by-side refrigerator'
+    : m.doors ? `${COUNT_WORDS[m.doors] || m.doors}-door refrigerator` : 'refrigerator';
+  const size = `${m.widthMm} × ${m.heightMm} × ${m.depthMm || '-'} mm`;
+  const finish = fridgePanelLine(m.line)
+    ? `flat colour panels in a tone close to ${doorColorPhrase}, no visible logo or display`
+    : 'its own factory finish';
+  const label = [brand, line].filter(Boolean).join(' ');
+  const article = /^[AEIOU]|^LG\b/i.test(label) ? 'an' : 'a';
+  return `${article} ${label} ${form}${m.code ? ` (model ${m.code}` : ' ('}${m.code ? ', ' : ''}${size}), ${finish}`;
+}
+
+/** 설치 지시문의 FURNITURE 문단 — CATEGORIES.fridge.spec 이 부른다 */
+export function fridgeSpecText(c) {
+  const L = fridgeLayout(c.wallW, c.wallH, fridgeModelsOf(c), c.fridgePosition);
+  const R = FRIDGE_RULES;
+  const colour = `${c.doorColor || 'white'}`;
+  const n = L.fridges.length;
+  const order = L.fridges.map((m) => fridgeModelPhrase(m, colour)).join(' and, next to it, ');
+  const recess = `On the ${c.fridgePosition === 'right' ? 'right' : 'left'} end, one open recess ${L.nicheW} mm wide from the floor up, holding${n > 1 ? ', from left to right,' : ''} ${order}. ${n > 1 ? 'Each refrigerator stands' : 'It stands'} on the floor with a ${n > 1 ? 'small' : `${L.fridges[0].topGap} mm`} gap above it.`;
+  const sameUpper = L.fridges.every((m) => m.upperH === L.fridges[0].upperH);
+  const uppers = n > 1
+    ? `Above the recess, one wall cabinet over each refrigerator (${sameUpper ? `each ${L.upperH} mm high` : L.fridges.map((m) => `${m.upperH} mm high`).join(' and ')}), flat doors up to the crown moulding.`
+    : `Above the recess, one wall cabinet ${L.upperH} mm high with flat doors up to the crown moulding.`;
+  // 남는 폭이 정본 나머지 허용(MAX_REMAINDER 10)보다 크면 끝 필러 — 1~2 mm 는 이음 여유라 말하지 않는다
+  const filler = L.filler > WARDROBE_DOOR_RULES.MAX_REMAINDER ? `(less a ${L.filler} mm filler at the far end) ` : '';
+  const many = L.columns.length > 1;
+  const cols = L.columns.length
+    ? `The remaining ${L.rest} mm ${filler}is ${COUNT_WORDS[L.columns.length] || L.columns.length} tall column${many ? 's' : ''}, ${L.columns.map((m) => `${m.w} mm with ${m.doors === 2 ? 'a pair of doors' : 'a single door'}`).join(', ')}, ${many ? 'each ' : ''}built as a plinth ${R.PEDESTAL_H} mm, a lower door ${L.lowerH} mm high, a middle door ${L.midH} mm high above it, and the same ${L.upperH} mm wall cabinet on top — three stacked fronts per column.`
+    : L.rest > 0 ? `The remaining ${L.rest} mm is closed with a flat filler panel.` : '';
+  return `Refrigerator surround covering the full wall width, built up to the ceiling with a ${R.MOLDING_H} mm crown moulding. ${recess} ${uppers} ${cols} All fronts — the tall columns, the wall cabinets and the refrigerator doors — sit in one flush plane.`;
 }
 
 export function resolveCategory(key) {
@@ -1125,10 +1253,20 @@ export function buildInstallPrompt(c, opts = {}) {
   const existing = c.existing
     ? `\nREMOVE FIRST: ${c.existing}. Replace it cleanly with no demolition marks, patched walls or ghost outlines.`
     : `\nIf furniture already exists on that wall, remove it and replace it cleanly with no demolition marks.`;
+  // 2026-10-20: 냉장고 제품 사진(맨 뒤)이 있으면 참고 이미지는 자리로 말한다 — "추가 이미지 = 참고" 가 틀리기 때문
+  const photos = Array.isArray(c.fridgePhotos) && c.fridgePhotos.length ? c.fridgePhotos : null;
+  const refsHead = photos
+    ? `The ${c.refCount === 1 ? 'image right after the first photo is a' : `${c.refCount} images right after the first photo are`}`
+    : c.guide
+    ? `The ${c.refCount === 1 ? 'image between the first photo and the last is a' : 'images between the first photo and the last are'}`
+    : `The additional ${c.refCount === 1 ? 'image is a' : 'images are'}`;
   const refs =
     c.refCount > 0
-      ? `\n${c.guide ? `The ${c.refCount === 1 ? 'image between the first photo and the last is a' : 'images between the first photo and the last are'}` : `The additional ${c.refCount === 1 ? 'image is a' : 'images are'}`} style reference: match the door colour, material grain direction, sheen and overall mood of the reference fronts. Never copy the reference layout, room or camera. ${SINGLE_FRAME}`
+      ? `\n${refsHead} style reference: match the door colour, material grain direction, sheen and overall mood of the reference fronts. Never copy the reference layout, room or camera. ${SINGLE_FRAME}`
       : '';
+  const photoLine = photos
+    ? `\nThe last ${photos.length === 1 ? 'image is a product photo' : `${photos.length} images are product photos`} of the refrigerator${photos.length === 1 ? '' : 's'} (${photos.map((p) => `model ${p.code}`).join(', ')}, in that order): match ${photos.length === 1 ? 'its' : 'their'} door layout, handles and panel look; size each to its place in the recess. Do not paste the photo or its white background.`
+    : '';
   const site = sitePhrase(c);
   const request = customerRequestBlock(c); // 손님 요청 — 없으면 빈 문자열
   const tile = tilePhrase(c);
@@ -1179,7 +1317,7 @@ WALL: about ${c.wallW} x ${c.wallH} mm.
 ${furniture}
 ${depthPhrase(c)}${guidePhrase(c)}
 ${finish}${request}
-HANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.${site}${tile}${refs}${fixBlock}
+HANDLES: none. Every door and drawer is a flat handleless front; lower doors open by reaching behind the door edge. No bar handles, knobs, chrome hardware or push-to-open buttons.${site}${tile}${refs}${photoLine}${fixBlock}
 All doors and drawers closed. Photorealistic interior photograph with natural lighting and correct shadows. No text, labels or watermarks.`;
 }
 
@@ -3027,10 +3165,17 @@ export function parseInteriorRecommendation(j, { sections, canonical, wallH }) {
  * 2026-10-19 사장님 "문짝과 같은 색으로": 보조색이 붙박이장 끝 측판(필러)·걸레받이에 칠해져
  * 오른쪽 끝에 오크·살구색 세로 띠가 생겼다. 끝 측판·필러·걸레받이·몰딩은 문짝 색, 보조색은 오픈 선반에만.
  */
-export function buildVariantPrompt(finish) {
+/**
+ * @param {{body:string, accent:string}} finish
+ * @param {{fridgePanels?:boolean}} [o] 냉장고장(D5, 2026-10-20): 색 패널 냉장고는 새 문짝 색에 가깝게, 스테인리스는 그대로
+ */
+export function buildVariantPrompt(finish, o = {}) {
+  const fridge = o.fridgePanels
+    ? `\n- Refrigerator fronts, only if the refrigerator has flat colour panels: a tone close to ${finish.body}; a stainless, glass or patterned refrigerator keeps its own finish`
+    : '';
   return `Recolour the built-in furniture in this photo to a different finish:
 - Door and drawer fronts, together with the furniture's own end panels, fillers, plinth and trim: ${finish.body}, one continuous colour
-- Open shelves, only if the furniture has any: ${finish.accent}
+- Open shelves, only if the furniture has any: ${finish.accent}${fridge}
 ${RECOLOUR_SCOPE}
 Keep everything else identical: camera, room, furniture layout, every door and drawer line, countertop, lighting and shadows. Handleless fronts stay handleless. All doors stay closed.
 Photorealistic. No text, labels or watermarks.`;
