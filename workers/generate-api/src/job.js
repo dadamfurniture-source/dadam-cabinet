@@ -623,7 +623,10 @@ async function runPipeline(env, job, ck, save) {
   //   도면의 실제 줄을 칠한 사진을 IMAGE A 로 준다 (planner-place.js). 기본은 꺼짐: PLANNER_PLACE_GUIDE='on' 일 때만.
   //   기존 가구가 없는 사진 · 일자(꺾인 벽 없음) · Claude 키가 있을 때만. 어느 단계든 실패하면 방 사진 그대로.
   let placeImg = null;
-  const placeBlocks = planner ? plannerPlaceBlocks(opts.design_spec) : null;
+  //   2026-10-20: ㄱ자·ㄷ자(꺾인 벽 walls[])는 따로 PLANNER_PLACE_CORNERS='on' 일 때만 (기본 꺼짐)
+  const placeBlocks = planner
+    ? plannerPlaceBlocks(opts.design_spec, { corners: env.PLANNER_PLACE_CORNERS === 'on' })
+    : null;
   const wantPlace =
     planner && env.PLANNER_PLACE_GUIDE === 'on' && !!placeBlocks && !wall.existing && !!env.ANTHROPIC_API_KEY;
   if (wantPlace && ck.place === undefined) {
