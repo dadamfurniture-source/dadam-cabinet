@@ -2951,3 +2951,240 @@ ${RECOLOUR_SCOPE}
 Keep everything else identical: camera, room, furniture layout, every door and drawer line, countertop, lighting and shadows. Handleless fronts stay handleless. All doors stay closed.
 Photorealistic. No text, labels or watermarks.`;
 }
+
+// ─── 2026-10-20: 기본안 위치 검사 (기록 전용) — src/position.js 가 쓴다 ───
+// 이 아래는 파일 끝에 덧붙이기만 했다 (위의 플래너 프롬프트는 다른 세션이 고친다). 설계: docs/02-design/features/position-qc.md
+// 측정 질의는 오프라인 검증본(1단계 핵심 질의, 기본안 41장+ 측정)과 글자 하나까지 같다 — 바꾸면 검증 근거가 사라진다.
+//   test/position.test.js 가 해시(md5 앞 10자리 7d7a7f69a5)로 묶는다. 바꿀 때는 오프라인 재검증 뒤 해시·position.js 의 판(v)을 함께.
+//   상판 뒷선 문장은 옛것이다 (접합선 문장은 GPT 용 — Flash 에서는 WR 이 상부장 앞면 끝으로 밀렸다).
+
+const POSITION_DEF_A = `TASK: mark precise geometric landmarks of the MAIN kitchen run in this image (a real photo or an AI-generated photo).
+The MAIN RUN is the straight line of base cabinets with a countertop standing against the BACK WALL (the wall the run is installed against, usually facing the camera). If the kitchen is L- or U-shaped, the main run is the leg that faces the camera most directly (normally the one with the sink or cooktop). Ignore islands, tall units and appliances that stand in front of the run.
+
+DEFINITIONS - follow them literally:
+1. WL / WR = the left / right END OF THE BACK WALL, located at COUNTERTOP HEIGHT (on the line where the countertop top surface meets the back wall).
+   wall_type:
+   - "corner": the vertical INNER corner where the back wall meets a side wall that comes toward the camera. Put the point exactly on that vertical corner line, at countertop height.
+   - "free_end": the back wall stops at an outside edge / jamb (open space, a passage or another room beyond it).
+   - "occluded": the end is hidden (behind a refrigerator, tall cabinet, person, etc.): give your best estimate of where the back-wall plane ends.
+   - "out_of_frame": the back wall continues past the image edge (use flag "clipped" and give your best extrapolated estimate).
+   - "no_wall": there is no back wall at all (e.g. an outdoor scene).
+   These are NOT wall ends: where the backsplash tiles end; the front edge or front corner of the countertop; the front edge or side panel of the upper cabinets; the side of a refrigerator or tall cabinet; a door frame or column standing in front of the wall.
+   The wall end lies ON the back-wall plane (depth 0 mm). It is the deepest point, never a point on the front face of any cabinet and never a point on the side wall.
+   Geometry check: when the run is built into a corner, the countertop back edge stops exactly at the inner corner, and the countertop's short side edge then runs diagonally (toward the camera, outward in the image) along the side wall down to the countertop front corner. WL/WR is the INNER/BACK end of that diagonal - never its front end and never a point part-way along it. The front face of the upper cabinets (about 350 mm in front of the wall) and the countertop front edge (about 650 mm in front) end further outward in the image than the true wall corner.
+`;
+const POSITION_ITEM2 = `2. CBL / CBR = left / right ends of the countertop BACK edge (the line where the countertop top surface meets the back wall). When the countertop reaches a wall corner, CBR is the same point as WR (and CBL as WL).`;
+const POSITION_DEF_B = `3. CFL / CFR = left / right ends of the countertop FRONT edge (the top front corners, nearest the camera).
+4. U1 / U2 = two points on the bottom FRONT edge of the upper (wall) cabinets - the lower edge of their doors, NOT the line where they meet the wall. U1 near the left end of that edge, U2 near the right end, both on the same straight edge and not on the hood.
+5. F = faucet base: the point where the faucet body meets the countertop / sink deck (bottom centre of the faucet column) - not the spout tip, not the lever. If the faucet comes out of the wall: the point where it leaves the wall, mount = "wall_mounted".
+6. SINK = the sink bowl opening (the basin cut into the countertop): a tight box of the opening only (no drainboard, no dish rack, no faucet), and back_mid = the midpoint of the back (far) rim of the opening.
+7. K = cooktop (hob): the glass / metal cooktop plate. Its four corners BL (back-left), BR (back-right), FR (front-right), FL (front-left) - back = the edge nearest the back wall - and a tight box.
+   In perspective the plate looks like a trapezoid / parallelogram: its BACK edge BL-BR runs parallel to the countertop back edge, its FRONT edge FL-FR runs parallel to the countertop front edge, and its left and right edges run in the depth direction (like the countertop's short side edges). Mark the corners of the plate itself. BR is the right end of the plate's back edge even when the plate touches a wall corner - never a point on the side wall or on the countertop's side edge; FL is the left end of the plate's front edge.
+8. HOOD = range hood. HL / HR = the left / right ends of the hood's lower FRONT edge. Slim concealed hood under the upper cabinets: the visible visor / strip below the cabinets. Chimney hood: the bottom edge of the canopy. hood_type: slim_concealed | chimney | separate_box | none | other. Also a tight box of the visible hood.`;
+const POSITION_FLAGS = `FLAGS (every item): "visible" = seen directly; "clipped" = lies outside the image frame (give an estimate); "occluded" = inside the frame but hidden (give an estimate); "absent" = the thing does not exist in this image (then give null). Never invent objects that are not there.`;
+const POSITION_COORD = `COORDINATES: every point is [y, x] - integers normalized to 0-1000 over the WHOLE image you see (x = 0 at the left edge, 1000 at the right edge; y = 0 at the top, 1000 at the bottom). Every box is [ymin, xmin, ymax, xmax] on the same scale. Precision matters: place each point within 2/1000 of the true position - look closely at each landmark before answering. A clipped point may lie slightly outside 0-1000.`;
+const POSITION_COORD_ZOOM = `This image is a ZOOMED CROP (enlarged 2x) of a larger photo. It shows the horizontal band from the upper cabinets down to the countertop front edge, including both ends of the back wall and of the cabinet runs when they are inside the photo. Coordinates refer to THIS crop. A landmark that lies outside this crop: flag "clipped" with an estimate (it may lie outside 0-1000), or null if it does not exist.`;
+
+/** 정의 문단 (좌표 문장 앞) — 오프라인 defGen('old') 와 같은 조립 */
+export function positionDefinition() {
+  return [POSITION_DEF_A, POSITION_ITEM2, POSITION_DEF_B, POSITION_FLAGS].map((x) => x.replace(/\n+$/, '')).join('\n');
+}
+
+/** 해시 대조용 — 오프라인 promptHash 가 md5 를 잰 문자열 (정의 + 좌표 + 띠 좌표) */
+export function positionPromptHashSource() {
+  return positionDefinition() + POSITION_COORD + POSITION_COORD_ZOOM;
+}
+
+/**
+ * 위치 검사 질의. zoom 이면 상판~상부장 띠를 잘라 키운 그림이라는 문장이 좌표 문장 앞에 붙는다.
+ * @param {{zoom?:boolean}} [o]
+ */
+export function buildPositionPrompt({ zoom = false } = {}) {
+  return [positionDefinition(), zoom ? POSITION_COORD_ZOOM : '', POSITION_COORD].filter(Boolean).join('\n\n');
+}
+
+// 응답 스키마 — 오프라인 geminiGenSchema(false) 그대로 (OpenAPI 부분집합, 대문자 형, propertyOrdering = 키 순서).
+//   test/fixtures/position-schema.json 과 같아야 한다.
+const POSITION_FLAG = { type: 'STRING', enum: ['visible', 'clipped', 'occluded', 'absent'] };
+const positionYX = () => ({ type: 'ARRAY', items: { type: 'INTEGER' }, nullable: true, description: '[y, x] 0-1000' });
+const positionBox = () => ({ type: 'ARRAY', items: { type: 'INTEGER' }, nullable: true, description: '[ymin, xmin, ymax, xmax] 0-1000' });
+const positionObj = (props, order) => ({ type: 'OBJECT', properties: props, required: order, propertyOrdering: order });
+const positionPt = () => positionObj({ flag: POSITION_FLAG, p: positionYX() }, ['flag', 'p']);
+const positionWall = () =>
+  positionObj(
+    {
+      evidence: { type: 'STRING', description: 'max 12 words: what meets what exactly at this point' },
+      wall_type: { type: 'STRING', enum: ['corner', 'free_end', 'occluded', 'out_of_frame', 'no_wall'] },
+      flag: POSITION_FLAG,
+      p: positionYX(),
+    },
+    ['evidence', 'wall_type', 'flag', 'p']
+  );
+const POSITION_PROPS = {
+  kitchen_installed: { type: 'BOOLEAN' },
+  layout: { type: 'STRING', enum: ['straight', 'L_shape', 'U_shape', 'parallel', 'island_only', 'none', 'other'] },
+  content_x: { type: 'ARRAY', items: { type: 'INTEGER' }, description: '[left, right] x of the real picture content, excluding black letterbox bars (0-1000)' },
+  WL: positionWall(),
+  WR: positionWall(),
+  CBL: positionPt(),
+  CBR: positionPt(),
+  CFL: positionPt(),
+  CFR: positionPt(),
+  U1: positionPt(),
+  U2: positionPt(),
+  F: positionObj({ mount: { type: 'STRING', enum: ['deck', 'wall_mounted', 'none'] }, flag: POSITION_FLAG, p: positionYX() }, ['mount', 'flag', 'p']),
+  SINK: positionObj({ flag: POSITION_FLAG, box: positionBox(), back_mid: positionYX() }, ['flag', 'box', 'back_mid']),
+  K: positionObj(
+    { kind: { type: 'STRING', enum: ['induction', 'gas', 'other', 'none'] }, flag: POSITION_FLAG, BL: positionYX(), BR: positionYX(), FR: positionYX(), FL: positionYX(), box: positionBox() },
+    ['kind', 'flag', 'BL', 'BR', 'FR', 'FL', 'box']
+  ),
+  HOOD: positionObj(
+    { hood_type: { type: 'STRING', enum: ['slim_concealed', 'chimney', 'separate_box', 'none', 'other'] }, flag: POSITION_FLAG, HL: positionYX(), HR: positionYX(), box: positionBox() },
+    ['hood_type', 'flag', 'HL', 'HR', 'box']
+  ),
+  notes: { type: 'STRING', description: 'at most 25 words' },
+};
+export const POSITION_SCHEMA = positionObj(POSITION_PROPS, Object.keys(POSITION_PROPS));
+
+/** Flash 응답 글 → 객체. 코드 울타리를 벗기고 JSON 하나. 객체가 아니면 null (좌표 변환은 position.js). */
+export function parsePositionLandmarks(text) {
+  if (typeof text !== 'string' || !text.trim()) return null;
+  const s = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  try {
+    const j = JSON.parse(s);
+    return j && typeof j === 'object' && !Array.isArray(j) ? j : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 플래너 경로의 위치 정답 (2026-10-20, position.js) — 생성 프롬프트와 같은 줄·번호·가전 걸기(plannerRows)로 만든다.
+ * mm 는 주벽 도면 좌표 (0 = 모든 모듈의 왼쪽 끝, js/planner/ai-photo.js). 정답을 못 만드는 항목은 null.
+ * anchor·wallKnown·runShort 는 buildPlannerPrompt 안의 규칙(runAnchor·wallKnown·runShort)을 그대로 옮겼다 —
+ *   test/position.test.js 가 같은 도면의 프롬프트 글(줄 길이 고정 문장 유무)과 대조해, 한쪽만 바뀌면 깨진다.
+ * 런 틀(상판 뒷선 끝 CBL·CBR 에 맞는 도면 mm):
+ *   하부 구간 = fromLeftMm ~ fromLeftMm + widthMm. 줄 끝의 냉장고 칸은 상판 밖이라 뺀다. 모듈 폭 합이 구간보다 50 mm 넘게
+ *   모자라면(가운데가 끊긴 줄) 런 틀을 만들지 않는다. ㄱ자 walls[]: 왼쪽 꺾임은 상판이 모서리(0)에서 시작(corner open 이면
+ *   하부 왼끝), 오른쪽 corner 'return' 은 꺾인 다리가 모서리를 차지하므로 상판이 그 하부 깊이만큼 더 간다.
+ * @returns {object}
+ */
+export function plannerPositionFrame(spec, category, wall = {}) {
+  const key = resolveCategory(category);
+  const s = spec && typeof spec === 'object' ? spec : {};
+  const w = wall && typeof wall === 'object' ? wall : {};
+  const wallW = Number(w.wallW) || 0;
+  const wallKnown = wallW > 0 && !(w.confidence == null && w.wallW === 3000 && w.wallH === 2400);
+  const layout = plannerLayout(s);
+  const oneWall = !layout || layout.shape === 'straight';
+  const { rows, runMm } = plannerRows(s, key);
+  const groups = plannerWallGroups(rows);
+  const multi = groups.length > 1;
+  const rets = multi ? groups.slice(1) : [];
+  const anchor = !multi
+    ? oneWall ? 'left' : null
+    : rets.length === 1 && (rets[0].wall === 'left' || (rets[0].spec && rets[0].spec.corner === 'main'))
+      ? rets[0].wall
+      : null;
+  const runShort = !!(anchor && wallKnown && runMm && runMm < wallW);
+  const mainRows = groups.length ? groups[0].rows : [];
+  const lowerRow = mainRows.find((r) => r.key === 'lower') || null;
+  const mid = (it) => (it.start + it.end) / 2;
+
+  // ── 런 틀 ──
+  let run = null;
+  let runHold = null;
+  let lower = null;
+  const fridgeCell = (it) => {
+    const op = tierOpening(it.m);
+    return it.attached.includes('fridge') || (it.m.kind === 'appliance' && isFridgeLabel(it.m.label)) || !!(op && isFridgeLabel(op.label || it.m.label));
+  };
+  if (!lowerRow || !lowerRow.items.length) runHold = 'no_lower';
+  else if (!multi && !oneWall) runHold = 'unfolded'; // ㄱ자·ㄷ자를 한 줄로 편 도면 — 주벽 상판 끝이 도면의 어디인지 모른다
+  else if (lowerRow.items.some((it) => !(it.m.widthMm > 0))) runHold = 'width';
+  else {
+    const items = lowerRow.items.slice();
+    while (items.length && fridgeCell(items[0])) items.shift();
+    while (items.length && fridgeCell(items[items.length - 1])) items.pop();
+    const sum = lowerRow.items.reduce((n, it) => n + it.m.widthMm, 0);
+    const lsec = s.sections && s.sections.lower;
+    if (!items.length) runHold = 'no_lower';
+    else if (lsec && lsec.widthMm && sum < lsec.widthMm - PLANNER_FINISH_GAP_MM) runHold = 'run_gap';
+    else {
+      const last = lowerRow.items[lowerRow.items.length - 1];
+      const a = items[0].start;
+      const b = items[items.length - 1] === last && lsec && lsec.widthMm ? (lsec.fromLeftMm || 0) + lsec.widthMm : items[items.length - 1].end;
+      lower = [a, b];
+      let R0 = a;
+      let R1 = b;
+      for (const g of rets) {
+        const corner = g.spec && g.spec.corner;
+        if (g.wall === 'left' && corner !== 'open') R0 = 0;
+        if (g.wall === 'right' && corner === 'return') {
+          const d = g.spec.sections && g.spec.sections.lower && g.spec.sections.lower.depthMm;
+          if (d > 0) R1 = b + d;
+          else runHold = 'corner_depth';
+        }
+      }
+      if (!runHold && R1 > R0) run = [R0, R1];
+      else if (!runHold) runHold = 'no_lower';
+    }
+  }
+
+  // ── 가전 정답 — 도면 가전 중심(fromLeftMm 은 왼쪽 끝)과 그 가전이 걸린 모듈 중심 둘 다 ──
+  const apps = Array.isArray(s.appliances) ? s.appliances : [];
+  const mainItems = mainRows.flatMap((r) => r.items);
+  const pick = (kind) => {
+    const a = apps.find((x) => x && x.kind === kind && x.fromLeftMm !== undefined);
+    const it = mainItems.find((x) => x.attached.includes(kind)) || null;
+    const alt = it ? mid(it) : null;
+    if (a && a.widthMm > 0) return { x: a.fromLeftMm + a.widthMm / 2, alt, src: 'appliance' };
+    if (it) return { x: alt, alt, src: 'module' };
+    return null;
+  };
+  const sink = pick('sink');
+  // 출처는 pick 그대로 ('appliance' 가전 중심 | 'module' 걸린 모듈 중심 대체) — 집계에서 대체값을 가른다
+  let cooktop = apps.some((a) => a && a.kind === 'cooktop') ? pick('cooktop') : null;
+  if (!cooktop) {
+    // 후드 칸(H1) 밑에 프롬프트가 넣는 쿡탑 — 문장이 "directly under the hood H1" 이라 H1 중심이 정답, 하부 모듈 중심은 대안
+    const base = mainItems.find((x) => x.cooktopUnder);
+    const h = base ? mainItems.find((x) => x.id === base.cooktopUnder) : null;
+    if (base && h) cooktop = { x: mid(h), alt: mid(base), src: 'implied_h1' };
+  }
+  let hood = apps.some((a) => a && a.kind === 'hood') ? pick('hood') : null;
+  if (!hood) {
+    const h = mainRows.filter((r) => r.key === 'upper').flatMap((r) => r.items).find((x) => isHoodCell(x.m));
+    if (h) hood = { x: mid(h), alt: mid(h), src: 'h1' };
+  }
+
+  // ── 키큰장 쪽 (벽 끝 문: 키큰장 옆면을 벽 끝으로 잡는 실패) · 후드 깊이 비율 ──
+  const sec = s.sections || {};
+  let tallSide = null;
+  if (sec.tall && lower) {
+    const t0 = sec.tall.fromLeftMm || 0;
+    const t1 = t0 + (sec.tall.widthMm || 0);
+    if (t0 >= lower[1] - PLANNER_TOL_MM) tallSide = 'right';
+    else if (t1 <= lower[0] + PLANNER_TOL_MM) tallSide = 'left';
+  }
+  const depthRatio =
+    sec.upper && sec.lower && sec.upper.depthMm > 0 && sec.lower.depthMm > 0 ? sec.upper.depthMm / sec.lower.depthMm : null;
+
+  return {
+    wallW,
+    wallKnown,
+    anchor,
+    runShort,
+    runMm: runMm || null,
+    multi,
+    shape: layout ? layout.shape : null,
+    corners: rets.map((g) => ({ side: g.wall, corner: (g.spec && g.spec.corner) || null })),
+    run,
+    runHold,
+    lower,
+    sink,
+    cooktop,
+    hood,
+    tallSide,
+    depthRatio,
+  };
+}
