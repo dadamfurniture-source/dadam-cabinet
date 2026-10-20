@@ -2503,9 +2503,30 @@ export const FINISHES = [
   { key: 'walnut', body: 'walnut woodgrain', accent: 'matte off-white', tone: '월넛' },
 ];
 
-/** 시드로 n개를 겹치지 않게 뽑는다. 같은 입력이면 같은 추천이 나와 로그로 되짚을 수 있다. */
-export function pickFinishes(n, seed) {
-  const pool = FINISHES.slice();
+/**
+ * 손님이 고른 문짝 색(ai-design.html #doorColor 값) → 그와 같은 계열이라 추천 색으로 쓰면 기본안과 거의 같아지는 FINISHES 키.
+ * 2026-10-20: 흰 문짝 붙박이장 두 건에서 색 추천안이 '무광 화이트'로 뽑혀 기본안과 같은 그림이 됐다.
+ */
+export const DOOR_COLOR_LOOKALIKES = {
+  white: ['matte-white'],
+  cream: ['matte-white'],
+  greige: ['greige'],
+  'oak woodgrain': ['warm-oak'],
+  'walnut woodgrain': ['walnut'],
+  charcoal: ['charcoal'],
+};
+
+/** 문짝 색과 같은 계열의 추천 색 키 (모르는 색이면 빈 목록) */
+export function finishLookalikes(doorColor) {
+  return DOOR_COLOR_LOOKALIKES[String(doorColor || '').trim().toLowerCase()] || [];
+}
+
+/**
+ * 시드로 n개를 겹치지 않게 뽑는다. 같은 입력이면 같은 추천이 나와 로그로 되짚을 수 있다.
+ * @param {string[]} [exclude] 빼고 뽑을 키 — 기본안 문짝 색과 같은 계열 (finishLookalikes)
+ */
+export function pickFinishes(n, seed, exclude = []) {
+  const pool = FINISHES.filter((f) => !exclude.includes(f.key));
   const out = [];
   let s = seed >>> 0 || 1;
   for (let i = 0; i < n && pool.length; i++) {

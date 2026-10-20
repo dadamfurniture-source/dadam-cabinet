@@ -56,6 +56,8 @@
     BRACE_W_MIN_UPPER: 700,
     BRACE_W_MIN_LOWER: 800,   // 하부장 · 키큰장 단
     // 모듈 깊이 폴백 — 모듈에 d 가 없을 때 (싱크대 extractSink)
+    // 도어 갭 — 도어 가로 = 칸 폭 − 4 (extractors.js floor(W/n) − 4 · 플래너 MASTER_RULES.DOOR_GAP). 좌우 2 씩, 양문 가운데 4.
+    DOOR_GAP: 4,
     UPPER_D_DEFAULT: 295,
     LOWER_D_DEFAULT: 550,
   });
