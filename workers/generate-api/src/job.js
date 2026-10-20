@@ -505,6 +505,14 @@ async function runPipeline(env, job, ck, save) {
       }
     }
     const brandKey = opts.fridge_options && opts.fridge_options.brand === 'lg' ? 'LG' : 'Samsung';
+    // 화면은 고른 쪽만 보낸다 — 비운 종류(냉장고·김치냉장고)는 브랜드 기본 세트에서 채운다 (D1 은 늘 두 대)
+    if (fridgeModels) {
+      const defaults = FRIDGE_DEFAULT_MODELS[brandKey];
+      const chosen = fridgeModels;
+      fridgeModels = defaults
+        .map((d) => chosen.find((m) => m.kind === d.kind) || d)
+        .concat(chosen.filter((m) => !defaults.some((d) => d.kind === m.kind)));
+    }
     const list = fridgeModels || FRIDGE_DEFAULT_MODELS[brandKey];
     for (const m of list) {
       try {
