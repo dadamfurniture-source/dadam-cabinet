@@ -103,6 +103,44 @@ const add = (...vs) => vs.reduce((s, v) => [s[0] + v[0], s[1] + v[1], s[2] + v[2
 const norm = (a) => scale(a, 1 / Math.hypot(a[0], a[1], a[2]));
 
 /**
+ * 덩어리 합성 화각 (35mm 환산). 정면에 가까운 사진은 선만으로 초점거리가 정해지지 않아(2026-10-20 조사)
+ * EXIF 가 없으면 이 값이 깊이를 정한다. EXIF → 분석의 렌즈 판정(camera_lens) → 24 순.
+ * 2026-10-20 사장님 승인: 광각 13 · 표준 24 (시공사례 EXIF 사진의 0.5x·1x 값). 판정 정확도는
+ * EXIF 지운 472장 시험에서 광각 맞힘 78~88% · 표준을 광각으로 잘못 봄 3% 안팎.
+ */
+export const LENS_FOCAL35 = { ultra_wide: 13, standard: 24 };
+
+/**
+ * 렌즈 판정 질문 (Gemini 텍스트, 사진 한 장). 시험한 문장 그대로 — 분석 질문 안에 한 줄로 넣었더니
+ * 주방 표준 사진을 광각으로 잘못 보는 비율이 2%→17% 로 늘어 따로 묻는다 (2026-10-20 시험, 줄인 사진 455장).
+ */
+export function buildLensPrompt() {
+  return `Was this room photo taken with a phone's ultra-wide lens (the 0.5x camera, about 13 mm equivalent, field of view about 120 degrees) or with its main lens (the 1x camera, about 24-26 mm equivalent, field of view about 80 degrees)?
+Judge only from the image itself: how much of the room fits in the frame, how strongly lines converge and stretch toward the edges and corners, how large nearby objects look compared with far ones, and how much floor and ceiling is visible at once.
+Answer JSON only: {"lens":"ultra_wide"|"standard"|"unsure","confidence":"high"|"medium"|"low"}`;
+}
+
+/** 답 → 'ultra_wide' | 'standard' | null (unsure·이상한 답) */
+export function parseLens(text) {
+  const m = typeof text === 'string' && text.match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  try {
+    const j = JSON.parse(m[0]);
+    return j.lens === 'ultra_wide' || j.lens === 'standard' ? j.lens : null;
+  } catch {
+    return null;
+  }
+}
+
+/** @returns {{focalMm:number, basis:'exif'|'lens-ultra_wide'|'lens-standard'|'default'}} */
+export function massingFocal(exifFocal35, lens) {
+  const e = Number(exifFocal35);
+  if (e >= 8 && e <= 200) return { focalMm: e, basis: 'exif' };
+  if (LENS_FOCAL35[lens]) return { focalMm: LENS_FOCAL35[lens], basis: `lens-${lens}` };
+  return { focalMm: 24, basis: 'default' };
+}
+
+/**
  * @param {object} g parseKitchenPoints 결과
  * @param {number} W @param {number} H 그릴 이미지 픽셀 크기
  * @param {{wallH?:number, focalMm?:number}} [o] 벽 높이(mm, 분석값), 기본 초점거리(35mm 환산)
@@ -124,7 +162,7 @@ export function solveKitchenCamera(g, W, H, o = {}) {
   let f = fDefault;
   // 어느 초점거리를 썼나 (2026-10-20 기록용): 'vp' 두 소실점 · 'exif' 사진 EXIF · 'default' 가정값.
   //   정면에 가까운 사진은 선만으로 초점거리가 정해지지 않는다(수학적으로) — 가정값이면 깊이가 그만큼 틀릴 수 있다.
-  let focalSource = o.focalFromExif ? 'exif' : 'default';
+  let focalSource = o.focalBasis || (o.focalFromExif ? 'exif' : 'default');
   if (Math.abs(vx[2]) > 1e-9 * Math.hypot(vx[0], vx[1])) {
     const ax = vx[0] / vx[2] - cx, ay = vx[1] / vx[2] - cy;
     const bx = vz[0] / vz[2] - cx, by = vz[1] / vz[2] - cy;
@@ -308,7 +346,12 @@ export async function renderFacesMassing(room, points, o, facesOf, bigKinds) {
   if (!room || room.mimeType !== 'image/jpeg' || !points) return null;
   const decoded = decodeJpeg(b64ToBytes(room.base64), { useTArray: true, formatAsRGBA: true });
   const img = downscale(decoded, Infinity);
-  const cam = solveKitchenCamera(points, img.width, img.height, { wallH: o.wallH, focalMm: o.focalMm, focalFromExif: o.focalFromExif });
+  const cam = solveKitchenCamera(points, img.width, img.height, {
+    wallH: o.wallH,
+    focalMm: o.focalMm,
+    focalFromExif: o.focalFromExif,
+    focalBasis: o.focalBasis,
+  });
   if (!cam) return null;
   const list = facesOf(cam);
   if (!list || !list.length) return null;
