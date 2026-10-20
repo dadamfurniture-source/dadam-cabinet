@@ -344,3 +344,46 @@ test('되붙이기: 장 앞면 영역 안은 추천안, 멀리 밖은 기본안 
   assert.equal(await pasteVariantInside(base, solid(200, 400, [0, 0, 0]), pts), null);
   assert.equal(await pasteVariantInside({ ...base, mimeType: 'image/png' }, variant, pts), null);
 });
+
+// ─── 튀어나온 옆벽 다시 보기 (2026-10-20) — 분석이 놓치면 Haiku 에게 한 번 더 ───
+
+/** 옆벽 확인 질문과 선 찾기 질문을 나눠 답한다 */
+const claudeBy = (check, points) => (body) => {
+  const text = body.messages[0].content.at(-1).text;
+  return claudeOk(text.startsWith('This photo shows a room.') ? check : points)();
+};
+
+test('옆벽 확인: 분석이 놓쳤어도 Haiku 가 확실(high)하다면 받아 덩어리 합성까지 간다', async () => {
+  const seen = await runJob({
+    sideReturn: null,
+    env: { ANTHROPIC_API_KEY: 'sk-ant-test' },
+    anthropic: claudeBy({ side: 'right', confidence: 'high', note: 'grey column at right end' }, toPixels(REAL, 120, 160)),
+  });
+  assert.equal(seen.claude.length, 2, '옆벽 확인 + 선 찾기');
+  assert.match(seen.claude[0].messages[0].content.at(-1).text, /^This photo shows a room\./);
+  assert.equal(seen.claude[0].model, 'claude-haiku-5-5');
+  assert.equal(seen.claude[0].fallbacks, undefined);
+  const wa = seen.patched.find((p) => p.wall_analysis && p.wall_analysis.sideReturn);
+  assert.deepEqual(wa.wall_analysis.sideReturn, { side: 'right', depthMm: null, by: 'claude-haiku-5-5' });
+  assert.ok(seen.uploads.some((p) => p.endsWith('/massing.png')));
+  assert.deepEqual(seen.install.mimes, ['image/png'], '덩어리 합성본이 편집 대상');
+  assert.match(seen.install.prompt, /flush with the front face of the protruding wall/);
+});
+
+test('옆벽 확인: 확실하지 않거나(medium) none 이면 받지 않는다 — 예전처럼 글로 그린다', async () => {
+  for (const check of [{ side: 'right', confidence: 'medium', note: 'maybe' }, { side: 'none', confidence: 'high', note: 'flat' }]) {
+    const seen = await runJob({ sideReturn: null, env: { ANTHROPIC_API_KEY: 'sk-ant-test' }, anthropic: claudeBy(check, toPixels(REAL, 120, 160)) });
+    assert.equal(seen.claude.length, 1, '옆벽 확인만 묻고 선은 찾지 않는다');
+    assert.ok(!seen.uploads.some((p) => p.endsWith('/massing.png')));
+    assert.deepEqual(seen.install.mimes, ['image/jpeg']);
+  }
+});
+
+test('옆벽 확인: 분석이 이미 잡았거나, 벽 끝까지 채우는 장이 아니거나, 키가 없으면 묻지 않는다', async () => {
+  let seen = await runJob({ env: { ANTHROPIC_API_KEY: 'sk-ant-test' }, anthropic: claudeBy({ side: 'left', confidence: 'high', note: '' }, toPixels(REAL, 120, 160)) });
+  assert.ok(!seen.claude.some((b) => b.messages[0].content.at(-1).text.startsWith('This photo shows a room.')), '분석이 잡았으면 묻지 않는다');
+  seen = await runJob({ category: 'sink', sideReturn: null, env: { ANTHROPIC_API_KEY: 'sk-ant-test', GUIDE_MODE: 'outline' }, anthropic: claudeBy({ side: 'right', confidence: 'high', note: '' }, {}) });
+  assert.ok(!seen.claude.some((b) => b.messages[0].content.at(-1).text.startsWith('This photo shows a room.')), '싱크대는 묻지 않는다');
+  seen = await runJob({ sideReturn: null });
+  assert.equal(seen.claude.length, 0, '키가 없으면 묻지 않는다');
+});
