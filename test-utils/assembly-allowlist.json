@@ -1,0 +1,51 @@
+{
+  "_doc": [
+    "PR7 조립 검사 허용 목록 — 사장님 미결 질문으로 남은 겹침만. 여기 있는 error 는 시험에서 warning 으로 본다 (운영 검사는 그대로 error).",
+    "id = fixture|partId×other (assembly-check 이슈의 partId · other). 결정이 나서 코드가 고쳐지면 항목을 지운다 — 없어진 항목이 남아 있으면 시험이 실패한다.",
+    "__tests__/assembly-check.test.js 가 지킨다."
+  ],
+  "entries": [
+    {
+      "id": "sink18|0-u1-body:brace#0-0#0×0-u1-shelf#0-0#0",
+      "code": "part-overlap",
+      "level": "warning",
+      "cause": "pending-owner D10",
+      "reason": "18T 상부장 선반 D−34 가 처짐방지목에 2mm 파고든다 — D10 과 함께 사장님 확인 대기 (알려진 겹침, 2026-10-19)"
+    },
+    {
+      "id": "sink18|0-u1-body:brace#0-0#0×0-u1-shelf#0-0#1",
+      "code": "part-overlap",
+      "level": "warning",
+      "cause": "pending-owner D10",
+      "reason": "18T 상부장 선반 D−34 가 처짐방지목에 2mm 파고든다 — D10 과 함께 사장님 확인 대기 (알려진 겹침, 2026-10-19)"
+    },
+    {
+      "id": "sink18|0-u4-body:brace#0-0#0×0-u4-shelf#0-0#0",
+      "code": "part-overlap",
+      "level": "warning",
+      "cause": "pending-owner D10",
+      "reason": "18T 상부장 선반 D−34 가 처짐방지목에 2mm 파고든다 — D10 과 함께 사장님 확인 대기 (알려진 겹침, 2026-10-19)"
+    },
+    {
+      "id": "sink18|0-u4-body:brace#0-0#0×0-u4-shelf#0-0#1",
+      "code": "part-overlap",
+      "level": "warning",
+      "cause": "pending-owner D10",
+      "reason": "18T 상부장 선반 D−34 가 처짐방지목에 2mm 파고든다 — D10 과 함께 사장님 확인 대기 (알려진 겹침, 2026-10-19)"
+    },
+    {
+      "id": "vanity|0-u1-body:brace#0-0#0×0-u1-shelf#0-0#0",
+      "code": "part-overlap",
+      "level": "warning",
+      "cause": "pending-owner D10",
+      "reason": "18T 상부장 선반 D−34 가 처짐방지목에 2mm 파고든다 — D10 과 함께 사장님 확인 대기 (알려진 겹침, 2026-10-19)"
+    },
+    {
+      "id": "vanity|0-u1-body:brace#0-0#0×0-u1-shelf#0-0#1",
+      "code": "part-overlap",
+      "level": "warning",
+      "cause": "pending-owner D10",
+      "reason": "18T 상부장 선반 D−34 가 처짐방지목에 2mm 파고든다 — D10 과 함께 사장님 확인 대기 (알려진 겹침, 2026-10-19)"
+    }
+  ]
+}

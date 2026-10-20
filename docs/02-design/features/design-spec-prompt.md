@@ -151,9 +151,9 @@ FINAL SELF-CHECK …; tall row 1 unit + 1 appliance opening, 5 doors, 0 drawers;
 ```
 
 - 냉장고 자리 (2026-10-20 사장님 결정 — "냉장고가 특정되면 해당 냉장고 사진을 넣어서 보여주고, 아니라면 가능한 중립 냉장고로 보여줘"):
-  장·선반·판은 없고 **냉장고를 그린다**. 사진(IMAGE A)의 그 자리에 냉장고가 보이면 그것을 유지, 없으면 그 자리에 걸린
-  `appliances[]` fridge 의 `model`(아래 "냉장고 모델")로 `this refrigerator: Samsung BESPOKE 409L, model RR40C7805AP, 595 × 1853 × 700 mm (W × H × D), single-door type`,
-  모델이 없으면 위의 중립 냉장고. 중립 냉장고 색은 워커가 정하지 않고 "흰색, 전면이 어두우면 스테인리스" 로 모델에게 맡긴다 (새 문턱값 없음).
+  장·선반·판은 없고 **냉장고를 그린다**. **고른 모델 우선** (2026-10-20 사장님 결정): 그 자리에 걸린 `appliances[]` fridge 에
+  `model`(아래 "냉장고 모델")이 있으면 `draw this refrigerator: Samsung BESPOKE 409L, model RR40C7805AP, 595 × 1853 × 700 mm (W × H × D), single-door type — if IMAGE A shows a different refrigerator in this spot, replace it with this one`
+  (사진 냉장고는 교체). 모델이 없을 때만 사진(IMAGE A)의 그 자리 냉장고를 유지하고, 그것도 없으면 위의 중립 냉장고. 중립 냉장고 색은 워커가 정하지 않고 "흰색, 전면이 어두우면 스테인리스" 로 모델에게 맡긴다 (새 문턱값 없음).
   옛 문장(`may stand there — keep the one IMAGE A shows, do not invent a built-in one`)은 허용일 뿐이라 사진에 냉장고가 없을 때 무엇을 그릴지 정하지 않았다
   (실측 GPT 2장: 둘 다 독립형 냉장고를 그렸고 검사가 둘 다 `appliances_visible` 로 잡았다). 1단계는 사진 없이 글로만 — 모델 사진은 `appliance_models` 에 사진이 생긴 뒤.
   도면에 냉장고 자리가 있으면 DO NOT 의 "없는 가전" 에서 `refrigerator` 를 뺀다 (모듈·단 라벨로 안다).

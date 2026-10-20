@@ -903,3 +903,28 @@ describe('우측 패널에서 「사진으로 만들기」가 마감 팔레트�
     expect(card).toBeGreaterThan(pal);    // 고르는 곳이 카드보다 먼저 (기존 규칙 유지)
   });
 });
+
+// 2026-10-20: 사진 EXIF 35mm 환산 초점거리 — 일반 연출컷(ai-design.html room_focal35)과 같은 키로 싣는다.
+//   워커의 도면 덩어리(PLANNER_PLACE_GUIDE)가 카메라 화각으로 쓴다. 없으면 키를 싣지 않는다 (워커 기본 24mm).
+describe('사진 초점거리 (room_focal35)', () => {
+  const okFetch = () => fakeFetch([
+    { status: 202, json: { success: true, id: 'gen-1' } },
+    { json: { success: true, generation: { id: 'gen-1', status: 'done', progress: 100, images: [] } } },
+  ]);
+
+  test('사진에 초점거리가 있으면 본문에 room_focal35 를 싣는다', async () => {
+    const p = withPhoto(boot());
+    p.AP.img.focal35 = 26;
+    p.AP._fetch = okFetch();
+    await p.AP.submit();
+    expect(p.AP._fetch.calls[0].body.room_focal35).toBe(26);
+  });
+
+  test('초점거리가 없으면 키가 없다', async () => {
+    const p = withPhoto(boot());
+    p.AP.img.focal35 = null;
+    p.AP._fetch = okFetch();
+    await p.AP.submit();
+    expect(p.AP._fetch.calls[0].body).not.toHaveProperty('room_focal35');
+  });
+});

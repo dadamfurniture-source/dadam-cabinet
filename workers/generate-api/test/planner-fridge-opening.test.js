@@ -10,7 +10,8 @@
  *
  * 고정하는 것:
  *   1) normalizeDesignSpec — appliances[].model (fridge 만, 이름이나 코드가 있어야, 자르기·400)
- *   2) FIXED GEOMETRY 냉장고 자리 — 사진 냉장고 유지 · 없으면 모델(이름·치수·문 형태) 또는 중립 냉장고
+ *   2) FIXED GEOMETRY 냉장고 자리 — 모델이 있으면 모델(이름·치수·문 형태)을 그리고 사진의 다른 냉장고는 교체 (2026-10-20 고른 모델 우선),
+ *      모델이 없으면 사진 냉장고 유지 · 없으면 중립 냉장고
  *   3) 비율 줄 — 소수 둘째 자리 (1 : 1.13)
  *   4) 검사 appliances_visible — 플래너 모드 + 냉장고 자리가 도면에 있을 때만 예외 문장
  *   5) 비 planner 설치 프롬프트·검사는 그대로
@@ -146,15 +147,21 @@ test('모델이 없으면 — 사진 냉장고는 유지, 없으면 중립 냉�
   assert.ok(!p.includes('do not invent a built-in one'));
 });
 
-test('모델이 있으면 — 브랜드(영문)·라틴 이름·코드·치수·문 형태로', () => {
+// 2026-10-20: 고른 모델 우선 (사장님 결정) — 모델이 있으면 사진(IMAGE A) 그 자리의 다른 냉장고는 교체한다.
+const REPLACE = ' — if IMAGE A shows a different refrigerator in this spot, replace it with this one';
+
+test('모델이 있으면 — 고른 모델을 그리고 사진의 다른 냉장고는 교체 (브랜드 영문·라틴 이름·코드·치수·문 형태)', () => {
   const p = buildPlannerPrompt(ctx(normalizeDesignSpec(siteRaw({ model: MODEL }), 'fridge')));
   assert.equal(
     t2Line(p),
     '    T2   680 mm  refrigerator opening (open from the floor up to 1885 mm, with no cabinet, shelf or panel inside; ' +
-      'a refrigerator stands in it: if IMAGE A shows a refrigerator in this spot, keep that one, otherwise draw ' +
+      'a refrigerator stands in it: draw ' +
       'this refrigerator: Samsung BESPOKE 409L, model RR40C7805AP, 595 × 1853 × 700 mm (W × H × D), single-door type' +
+      REPLACE +
       ') with a 2-door cabinet above (415 mm high)'
   );
+  assert.ok(!t2Line(p).includes('keep that one'), '모델이 있으면 사진 냉장고를 유지하지 않는다');
+  assert.ok(!t2Line(p).includes('neutral'), '모델이 있으면 중립 냉장고가 아니다');
 });
 
 test('모델 — 코드가 이름에 이미 있으면 한 번만, 치수 일부·문 형태 모름·한글 브랜드 모름', () => {
@@ -162,13 +169,13 @@ test('모델 — 코드가 이름에 이미 있으면 한 번만, 치수 일부�
     siteRaw({ model: { brand: '하이얼', name: 'Bespoke RM70F64', code: 'RM70F64', widthMm: 912, subtype: 'built_in' } }),
     'fridge'
   )));
-  assert.ok(t2Line(p).includes('otherwise draw this refrigerator: Bespoke RM70F64, 912 mm wide) with a 2-door cabinet above'), t2Line(p));
+  assert.ok(t2Line(p).includes(`draw this refrigerator: Bespoke RM70F64, 912 mm wide${REPLACE}) with a 2-door cabinet above`), t2Line(p));
   const p2 = buildPlannerPrompt(ctx(normalizeDesignSpec(
     siteRaw({ model: { brand: 'LG', name: '오브제컬렉션 양문형', code: 'T875MEE111', widthMm: 914, heightMm: 1787, depthMm: 918, subtype: 'side_by_side' } }),
     'fridge'
   )));
   assert.ok(
-    t2Line(p2).includes('otherwise draw this refrigerator: LG, model T875MEE111, 914 × 1787 × 918 mm (W × H × D), side-by-side two-door type)'),
+    t2Line(p2).includes(`draw this refrigerator: LG, model T875MEE111, 914 × 1787 × 918 mm (W × H × D), side-by-side two-door type${REPLACE})`),
     t2Line(p2)
   );
 });
