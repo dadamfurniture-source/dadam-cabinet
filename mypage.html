@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
@@ -19,6 +19,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <script src="js/detaildesign-access.js?v=37.0"></script>
     <script src="js/admin-access.js"></script>
+    <script src="js/mypage-work.js?v=2"></script>
     <style>
       * {
         margin: 0;
@@ -929,7 +930,7 @@
           <span class="profile-tier tier-admin admin-only" id="profileAdminBadge" style="display: none">관리자</span>
         </div>
         <div class="profile-actions">
-          <button class="btn-edit" onclick="openEditProfile()">프로필 수정</button>
+          <button type="button" class="btn-edit" onclick="openEditProfile()">프로필 수정</button>
           <div class="tier-toggle user-only" id="tierToggleContainer">
             <span class="tier-label" id="labelStandard">Standard</span>
             <label class="toggle-switch">
@@ -1196,6 +1197,21 @@
         </div>
       </section>
 
+      <!-- 작업자 요약 — GET /work/me 가 작업자 행을 줄 때만 연다 (js/mypage-work.js, 계약 worker-portal-contract.md §4).
+           관리자도 작업자일 수 있어 user-only 를 붙이지 않는다 -->
+      <section class="section" id="myWorkSection" hidden>
+        <div class="section-header">
+          <h2 class="section-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="7" width="20" height="14" rx="2" />
+              <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+            </svg>
+            작업자
+          </h2>
+        </div>
+        <div id="myWorkBody"></div>
+      </section>
+
       <!-- Saved Partners (일반 사용자 전용) -->
       <section class="section user-only" id="savedPartnersSection">
         <div class="section-header">
@@ -1223,7 +1239,7 @@
               <polyline points="9 22 9 12 15 12 15 22" />
             </svg>
             <p>저장된 추천 업체가 없습니다.</p>
-            <button class="btn-primary" onclick="location.href = 'ai-design.html'">AI 설계 시작하기</button>
+            <button type="button" class="btn-primary" onclick="location.href = 'ai-design.html'">AI 설계 시작하기</button>
           </div>
         </div>
       </section>
@@ -1253,7 +1269,7 @@
               <line x1="9" y1="15" x2="15" y2="15" />
             </svg>
             <p>아직 저장된 설계가 없습니다.</p>
-            <button class="btn-primary" onclick="location.href = 'ai-design.html'">첫 설계 시작하기</button>
+            <button type="button" class="btn-primary" onclick="location.href = 'ai-design.html'">첫 설계 시작하기</button>
           </div>
         </div>
       </section>
@@ -1310,7 +1326,7 @@
       <div class="modal-content">
         <div class="modal-header">
           <h3>프로필 수정</h3>
-          <button class="modal-close" onclick="closeEditModal()">&times;</button>
+          <button type="button" class="modal-close" onclick="closeEditModal()">&times;</button>
         </div>
         <div class="modal-body">
           <form id="editForm" onsubmit="submitEditProfile(event)">
@@ -1661,6 +1677,8 @@
         // 시공사례는 관리자·일반 모두 올릴 수 있다
         await loadMyCases();
         await loadMyProjects();
+        // 작업자 요약 — 작업자 행이 있을 때만 열린다. 실패해도 던지지 않는다 (js/mypage-work.js)
+        if (typeof loadMyWork === 'function') await loadMyWork(supabaseClient);
       }
 
       // 관리자 역할 배지 ("Super Admin" / "Admin")

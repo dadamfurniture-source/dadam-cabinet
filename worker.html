@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta name="referrer" content="no-referrer" />
+    <title>작업자 · 다담가구</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="js/config.js?v=36.0"></script>
+    <style>
+      /* production-worker.html 의 틀 — 560px 한 열, 16px 이상 글자, 전체 폭 버튼 */
+      :root {
+        --bg: #f3f4f6; --panel: #fff; --border: #d6dae0; --text: #111827; --muted: #5b6270;
+        --accent: #147a3d; --danger: #a02020; --warn: #8a5300; --info: #1f56b8;
+      }
+      * { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; }
+      body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; font-size: 16px; line-height: 1.55; }
+      /* 한글은 낱말 단위로 줄을 바꾸고(keep-all), 아주 긴 글자열만 아무 데서나 끊는다 — 375px 가로 스크롤 없음 */
+      .wrap { max-width: 560px; margin: 0 auto; padding: 16px 14px 60px; word-break: keep-all; overflow-wrap: anywhere; }
+      h1 { font-size: 22px; margin: 4px 0 2px; }
+      h2 { font-size: 19px; margin: 0 0 10px; }
+      h3 { font-size: 17px; margin: 0 0 8px; }
+      p { margin: 0 0 10px; }
+      .muted { color: var(--muted); font-size: 16px; }
+      .card { display: block; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 10px; color: var(--text); text-decoration: none; }
+      .empty { color: var(--muted); }
+      .note { background: #eef4ff; color: #173d80; border-radius: 10px; padding: 10px 12px; }
+      .alert { padding: 12px; border-radius: 10px; margin: 10px 0; font-size: 16px; }
+      .err { background: #fdecec; color: #7a1a1a; }
+      .ok { background: #e8f5ec; color: #14562c; }
+
+      /* 탭 — 4칸, 글자 아래 건수 */
+      .tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 14px 0; }
+      .tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 58px; padding: 6px 2px; border: 2px solid var(--border); border-radius: 10px; background: #fff; color: var(--text); text-decoration: none; font-size: 16px; font-weight: 700; text-align: center; }
+      .tab.on { border-color: var(--accent); background: var(--accent); color: #fff; }
+      .tab .n { font-size: 16px; font-weight: 700; line-height: 1.2; }
+      .tab-note { grid-column: 1 / -1; display: block; padding: 8px 12px; border-radius: 10px; background: #fff1d6; color: var(--warn); font-weight: 600; text-decoration: none; }
+
+      /* 작업 카드 · 칩 */
+      .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+      .chip { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 16px; font-weight: 600; background: #eef1f4; color: #374151; }
+      .chip.k-install { background: #e4eefc; color: #1f4f9e; }
+      .chip.k-as { background: #fdeee4; color: #8a3b0c; }
+      .chip.k-assembly { background: #f1e9fb; color: #5b2a91; }
+      .chip.t-ok { background: #e3f3e8; color: #14562c; }
+      .chip.t-run { background: var(--accent); color: #fff; }
+      .chip.t-wait { background: #e8effc; color: var(--info); }
+      .chip.t-warn { background: #fff1d6; color: var(--warn); }
+      .chip.t-off { background: #eef0f2; color: #4b5563; }
+      .chip.t-dday { background: #111827; color: #fff; }
+      .job .jt, h2.jt { font-size: 18px; font-weight: 700; margin: 2px 0 4px; }
+      .job .jd { color: var(--muted); font-size: 16px; }
+      .back { display: inline-block; margin: 4px 0 10px; color: var(--info); font-size: 16px; text-decoration: none; padding: 6px 0; }
+      .facts { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 6px 10px; margin: 10px 0; }
+      .facts dt { color: var(--muted); }
+      .facts dd { margin: 0; font-weight: 600; }
+      .detail-text { white-space: pre-wrap; border-top: 1px solid var(--border); padding-top: 10px; margin-top: 6px; }
+      .site-note { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: #f6f7f9; color: var(--muted); }
+
+      /* 버튼 · 양식 */
+      .big { display: block; width: 100%; padding: 14px 10px; margin: 8px 0; font-size: 17px; font-weight: 700; border-radius: 10px; border: 1px solid var(--border); background: #fff; color: var(--text); text-align: center; text-decoration: none; cursor: pointer; font-family: inherit; }
+      .big.go { background: var(--accent); border-color: var(--accent); color: #fff; }
+      .big.stop { background: var(--danger); border-color: var(--danger); color: #fff; }
+      .big:disabled { opacity: 0.55; cursor: default; }
+      .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .btns .big { margin: 8px 0 0; }
+      .stack { display: grid; gap: 6px; margin: 10px 0; }
+      label { font-size: 16px; }
+      input[type='text'], input[type='tel'], textarea { width: 100%; padding: 11px 10px; font-size: 17px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; background: #fff; color: var(--text); }
+      textarea { resize: vertical; }
+      fieldset { border: 1px solid var(--border); border-radius: 10px; margin: 6px 0; padding: 8px 12px; min-width: 0; }
+      legend { font-size: 16px; padding: 0 4px; }
+      .check, .radio { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; font-size: 16px; }
+      .check input, .radio input { width: 22px; height: 22px; margin: 1px 0 0; flex: none; }
+      .radios { display: grid; gap: 0; }
+      .req { color: var(--danger); }
+      .consent { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin: 12px 0; background: #fafbfc; }
+      .consent dl { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 6px 10px; margin: 0 0 10px; }
+      .consent dt { color: var(--muted); }
+      .consent dd { margin: 0; }
+      .fold { margin: 10px 0; border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; }
+      .fold summary { padding: 12px 0; font-weight: 700; cursor: pointer; }
+      .fold.danger summary { color: var(--danger); }
+
+      /* 작업 기록 */
+      .tl { list-style: none; margin: 8px 0 0; padding: 0; }
+      .tl-item { border-left: 4px solid #cfe7d7; padding: 6px 0 10px 12px; margin-bottom: 8px; }
+      .tl-item.tl-co { border-left-color: #f0c97a; }
+      .tl-h { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 4px; }
+      .tl-b { white-space: pre-wrap; }
+      .tl-amends { color: var(--warn); margin-bottom: 4px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap" id="workerApp">
+      <h1>다담 작업자</h1>
+      <div class="muted" id="sub">불러오는 중…</div>
+      <div id="alert" class="alert" role="status" hidden></div>
+
+      <noscript><div class="alert err">이 페이지는 자바스크립트를 켜야 쓸 수 있습니다.</div></noscript>
+
+      <section id="viewLoading">
+        <div class="card empty">불러오는 중…</div>
+      </section>
+
+      <!-- 미로그인 — 카카오 먼저 (작업자 링크는 카카오톡으로 받는다, 계약 §4 · §5) -->
+      <section id="viewLogin" hidden>
+        <div class="card">
+          <h2>로그인이 필요합니다</h2>
+          <p>작업자 페이지는 로그인한 뒤 쓸 수 있습니다.</p>
+          <p><strong>카카오 계정으로 로그인하는 것이 가장 빠릅니다.</strong> 로그인 화면에서 「카카오로 계속하기」를 누르세요. 구글 · 이메일로도 로그인할 수 있습니다.</p>
+          <p class="note" id="loginInviteNote" hidden>초대 링크를 받았습니다. 로그인하면 이어서 작업자 신청서를 쓸 수 있습니다.</p>
+          <a class="big go" id="loginLink" href="login.html?redirect=worker.html">로그인하러 가기</a>
+        </div>
+      </section>
+
+      <!-- 미등록 — 작업자 신청서 (공개 신청 · 초대 공통, 둘 다 승인 전까지 대기 ★3).
+           동의 문구는 결정 13(동의 문구 · 위탁 계약) 전까지 초안 — 바꾸면 js/worker-portal.js 의 CONSENT_VERSION 을 올린다 -->
+      <section id="viewRegister" hidden>
+        <div class="card">
+          <h2 id="regTitle">작업자 신청</h2>
+          <p class="note" id="regInviteNote" hidden>초대 링크로 신청합니다. 초대에 작업 종류가 정해져 있으면 그 종류로 등록됩니다.</p>
+          <p class="muted">신청하면 회사가 확인한 뒤 승인합니다. 승인되면 내 작업 종류에 맞는 작업을 보고 신청할 수 있습니다.</p>
+          <form id="regForm" class="stack" novalidate>
+            <label for="regName">이름 <span class="req">(필수)</span></label>
+            <input type="text" id="regName" name="display_name" maxlength="30" autocomplete="name" required />
+
+            <label for="regPhone">휴대폰 (선택)</label>
+            <input type="tel" id="regPhone" name="phone" maxlength="30" inputmode="tel" autocomplete="tel" />
+
+            <fieldset>
+              <legend>작업 종류 <span id="regKindsHint">(하나 이상)</span></legend>
+              <label class="check"><input type="checkbox" name="kind_install" value="install" data-kind /> 설치</label>
+              <label class="check"><input type="checkbox" name="kind_as" value="as" data-kind /> A/S</label>
+              <label class="check"><input type="checkbox" name="kind_assembly" value="assembly" data-kind /> 조립 추가 인원</label>
+            </fieldset>
+
+            <label for="regRegion">활동 지역 (선택)</label>
+            <input type="text" id="regRegion" name="region_label" maxlength="40" placeholder="예: 서울 송파구" />
+
+            <div class="consent">
+              <h3>개인정보 수집 · 이용 안내</h3>
+              <dl>
+                <dt>수집 항목</dt>
+                <dd>이름 · 휴대폰(선택) · 작업 종류 · 활동 지역</dd>
+                <dt>목적</dt>
+                <dd>작업 안내, 작업 신청 · 배정 확인과 연락, 작업 기록 관리</dd>
+                <dt>보관 기간</dt>
+                <dd>미정 (아직 정하지 않았습니다)</dd>
+              </dl>
+              <p><strong>주민등록번호 · 계좌는 받지 않습니다.</strong></p>
+              <label class="check"><input type="checkbox" id="regConsent" name="consent" /> 위 내용에 동의합니다 <span class="req">(필수)</span></label>
+            </div>
+
+            <div class="consent">
+              <h3>작업 사진 (선택)</h3>
+              <p>작업 결과 사진을 올리고 회사가 작업 기록으로 보관하는 데 동의합니다. 사진에는 현장 모습이 찍힐 수 있습니다. 사진 보관 기간은 미정이며, 사진 올리기는 준비 중입니다.</p>
+              <label class="check"><input type="checkbox" id="regPhoto" name="photo_consent" /> 작업 사진 촬영 · 제출에 동의합니다 (선택)</label>
+            </div>
+
+            <p class="muted">동의 버전 <span id="regConsentVersion"></span></p>
+            <button type="submit" class="big go">작업자 신청하기</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="viewPending" hidden>
+        <div class="card">
+          <h2>신청을 받았습니다</h2>
+          <p>회사가 확인한 뒤 승인하면 이 페이지에서 작업을 보고 신청할 수 있습니다.</p>
+          <div id="pendingInfo"></div>
+          <button type="button" class="big" id="pendingRefresh">승인됐는지 다시 보기</button>
+        </div>
+      </section>
+
+      <section id="viewRejected" hidden>
+        <div class="card">
+          <h2>작업자 신청이 승인되지 않았습니다</h2>
+          <p id="rejectReason"></p>
+          <p class="muted">궁금한 점은 회사에 문의해 주세요.</p>
+        </div>
+      </section>
+
+      <section id="viewSuspended" hidden>
+        <div class="card">
+          <h2>작업자 이용이 멈춰 있습니다</h2>
+          <p class="muted">회사에 문의해 주세요.</p>
+        </div>
+      </section>
+
+      <section id="viewNotReady" hidden>
+        <div class="card">
+          <h2>작업자 기능을 준비하고 있습니다</h2>
+          <p class="muted">잠시 뒤 다시 열어 주세요.</p>
+        </div>
+      </section>
+
+      <section id="viewError" hidden>
+        <div class="card">
+          <h2>불러오지 못했습니다</h2>
+          <p id="errorText"></p>
+        </div>
+      </section>
+
+      <!-- 승인 작업자 — 탭(모집중 · 내 작업 · 완료 · 내 정보), 작업 상세는 #job=<id> -->
+      <section id="viewApp" hidden>
+        <nav class="tabs" id="tabs" aria-label="작업 목록"></nav>
+        <div id="appBody"></div>
+      </section>
+    </div>
+
+    <script src="js/worker-portal.js?v=1"></script>
+  </body>
+</html>
