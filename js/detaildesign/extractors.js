@@ -1628,8 +1628,11 @@
                 if (isExternalDrawer) {
                   // 외부 서랍 모듈 본체 (별도 제작)
                   const drawerModH = drawerCount * DRAWER_MOD_H;
-                  this.add(materials, `${name}-서랍모듈`, '측판', 'PB', T, modD, drawerModH, 2, '3면', 'sakuri(15→3mm)');
-                  this.add(materials, `${name}-서랍모듈`, '천판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
+                  // 2026-10-20 사장님 카드 "싱크처럼 따냄": 측판 앞선에 목찬넬 따내기 — 상단 70×40, 서랍 사이 90×40 (2단은 서랍마다 위, 그 밖은 assignChannels)
+                  const extMids = drawerCount === 2 ? 1 : DrawerRules.assignChannels(Math.min(drawerCount, 3)).filter(Boolean).length;
+                  const extNotch = ` · ${DrawerRules.notchNote({ midCount: extMids })}`;
+                  this.add(materials, `${name}-서랍모듈`, '측판', 'PB', T, modD, drawerModH, 2, '3면', `sakuri(15→3mm)${extNotch}`);
+                  // 2026-10-20 사장님 카드 "천판 빼기": 서랍모듈은 싱크처럼 천판 없이 밴드만 — 위는 위 몸통 지판이 막고, 앞 위는 상단 목찬넬 ㄴ자 자리
                   this.add(materials, `${name}-서랍모듈`, '지판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
                   this.addBackPanel(materials, `${name}-서랍모듈`, W, drawerModH, true);
                   this.add(materials, `${name}-서랍모듈`, '밴드', 'PB', T, W - T * 2, ASM.BAND_W, 2, '2면(장)');
@@ -1685,7 +1688,8 @@
                     drawerDoorH = Math.floor((drawerModTotal - 20 - 30 - 30) / 2);
                     drawerDoorQty = 2;
                   } else {
-                    drawerDoorH = Math.floor((drawerModTotal - 20 - 30 - 30) / 3);
+                    // 2026-10-20 사장님 카드 "4 띄움": 목찬넬 없는 위 두 전면 사이는 싱크 규칙대로 4 (FRONT_GAP)
+                    drawerDoorH = Math.floor((drawerModTotal - 20 - 30 - 30 - 4) / 3);
                     drawerDoorQty = 3;
                   }
                   this.add(materials, `${name}-서랍모듈`, '서랍도어', 'MDF', 18, drawerDoorW, drawerDoorH, drawerDoorQty, '4면', '', mod);
@@ -1716,8 +1720,11 @@
                 if (isExternalDrawer) {
                   // 외부 서랍 모듈 본체 (별도 제작)
                   const drawerModH = drawerCount * DRAWER_MOD_H_LONG;
-                  this.add(materials, `${name}-서랍모듈`, '측판', 'PB', T, modD, drawerModH, 2, '3면', 'sakuri(15→3mm)');
-                  this.add(materials, `${name}-서랍모듈`, '천판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
+                  // 2026-10-20 사장님 카드 "싱크처럼 따냄": 측판 앞선에 목찬넬 따내기 — 상단 70×40, 서랍 사이 90×40 (2단은 서랍마다 위, 그 밖은 assignChannels)
+                  const extMids = drawerCount === 2 ? 1 : DrawerRules.assignChannels(Math.min(drawerCount, 3)).filter(Boolean).length;
+                  const extNotch = ` · ${DrawerRules.notchNote({ midCount: extMids })}`;
+                  this.add(materials, `${name}-서랍모듈`, '측판', 'PB', T, modD, drawerModH, 2, '3면', `sakuri(15→3mm)${extNotch}`);
+                  // 2026-10-20 사장님 카드 "천판 빼기": 서랍모듈은 싱크처럼 천판 없이 밴드만 — 위는 위 몸통 지판이 막고, 앞 위는 상단 목찬넬 ㄴ자 자리
                   this.add(materials, `${name}-서랍모듈`, '지판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
                   this.addBackPanel(materials, `${name}-서랍모듈`, W, drawerModH, true);
                   this.add(materials, `${name}-서랍모듈`, '밴드', 'PB', T, W - T * 2, ASM.BAND_W, 2, '2면(장)');
@@ -1773,7 +1780,8 @@
                     drawerDoorH = Math.floor((drawerModTotal - 20 - 30 - 30) / 2);
                     drawerDoorQty = 2;
                   } else {
-                    drawerDoorH = Math.floor((drawerModTotal - 20 - 30 - 30) / 3);
+                    // 2026-10-20 사장님 카드 "4 띄움": 목찬넬 없는 위 두 전면 사이는 싱크 규칙대로 4 (FRONT_GAP)
+                    drawerDoorH = Math.floor((drawerModTotal - 20 - 30 - 30 - 4) / 3);
                     drawerDoorQty = 3;
                   }
                   this.add(materials, `${name}-서랍모듈`, '서랍도어', 'MDF', 18, drawerDoorW, drawerDoorH, drawerDoorQty, '4면', '', mod);
@@ -1863,12 +1871,14 @@
             if (!isExternalDrawer || drawerCount <= 0) return;
             this.beginModule(mod, idx, mod.pos || 'wardrobe');
             const modW = parseFloat(mod.w) || 900;
-            if (drawerCount === 1) {
-              this.add(materials, 'EP', '목찬넬', 'MDF', 18, 100, modW, 1, '2면(장)');
-            } else if (drawerCount >= 2) {
-              // 2026-10-20 사장님: 2단도 서랍마다 위에 목찬넬 하나씩 — EP 는 3단처럼 100 + 120 (예전 120 한 장)
-              this.add(materials, 'EP', '목찬넬', 'MDF', 18, 100, modW, 1, '2면(장)');
-              this.add(materials, 'EP', '목찬넬', 'MDF', 18, 120, modW, 1, '2면(장)');
+            // 2026-10-20 사장님: EP 는 ㄴ자로 나눠 만든다 — 100 = 지면 40 + 전면 52 (상단), 120 = 지면 40 + 전면 72 (중간).
+            //   싱크 서랍장 목찬넬과 같은 판이다 (bom-drawer-rules CHANNEL_*). 2단도 서랍마다 위에 하나씩이라 상단 + 중간.
+            const CR = DrawerRules.DRAWER_RULES;
+            this.add(materials, 'EP', '목찬넬(전면)', 'MDF', 18, CR.CHANNEL_TOP_FACE_H, modW, 1, '2면(장)');
+            this.add(materials, 'EP', '목찬넬(지면)', 'MDF', 18, CR.CHANNEL_BASE_W, modW, 1, '2면(장)');
+            if (drawerCount >= 2) {
+              this.add(materials, 'EP', '목찬넬(중간 전면)', 'MDF', 18, CR.CHANNEL_MID_FACE_H, modW, 1, '2면(장)');
+              this.add(materials, 'EP', '목찬넬(중간 지면)', 'MDF', 18, CR.CHANNEL_BASE_W, modW, 1, '2면(장)');
             }
           });
 
