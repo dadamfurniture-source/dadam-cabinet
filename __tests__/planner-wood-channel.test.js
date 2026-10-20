@@ -43,10 +43,10 @@ describe('목찬넬 치수 상수 — 정본과 맞는가', () => {
   });
 
   test('처짐방지목이 빼는 70 과 같은 값이다', () => {
-    // sink.md: bandH = 목찬넬이면 H-36-70. 이 70 이 따내기 높이와 같아야
-    // 처짐방지목이 목찬넬 자리를 피해 앉는다.
+    // sink.md: bandH = 목찬넬이면 H-2T-70 (2026-10-20 정정: 18T 고정 표기 36 → 2T). 이 70 이 따내기 높이와 같아야
+    // 처짐방지목이 목찬넬 자리를 피해 앉는다 — 윗끝이 앞 밴드(지면판 바로 아래) 아랫면에 닿는다.
     const sink = read('docs/design-rules/sink.md');
-    expect(sink).toContain('H-36-70');
+    expect(sink).toContain('H-2T-70');
     expect(R.CHANNEL_NOTCH_H).toBe(70);
   });
 });
