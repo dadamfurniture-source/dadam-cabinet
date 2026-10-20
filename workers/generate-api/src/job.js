@@ -52,7 +52,7 @@ import {
   resolveCategory,
 } from './prompts.js';
 import { buildQuote } from './quote.js';
-import { selectOne, updateById, uploadObject, fetchObjectBase64, extOf } from './supabase.js';
+import { selectOne, updateById, uploadObject, fetchObjectBase64, extOf, base64ToBytes } from './supabase.js';
 import { refundCreditService } from './credits.js';
 import {
   LAYOUT_CATEGORIES,
@@ -271,6 +271,42 @@ async function setStep(env, job, ck, step, extra = {}) {
   });
 }
 
+/** 방 사진 바이트의 SHA-256 (소문자 hex). 못 구하면 null — 그러면 예전처럼 매번 분석한다. */
+export async function roomPhotoSha256(room) {
+  try {
+    if (!room || typeof room.base64 !== 'string' || !room.base64) return null;
+    const buf = await crypto.subtle.digest('SHA-256', base64ToBytes(room.base64));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 같은 사용자의 같은 방 사진(해시)을 가장 먼저 분석한 행의 분석 원본 (2026-10-20, 플래너 모드).
+ *   generations.wall_analysis.roomPhoto = { sha256, analysis(parseAnalysis 결과, 사람 값 덮기 전), from(처음 분석한 행 id) }.
+ *   못 찾거나 읽기 실패·모양이 틀리면 null — 그러면 새로 분석한다.
+ * @returns {Promise<{analysis:object, from:string}|null>}
+ */
+async function findRoomAnalysis(env, job, sha256) {
+  try {
+    const row = await selectOne(env, 'generations', {
+      user_id: `eq.${job.userId}`,
+      'wall_analysis->roomPhoto->>sha256': `eq.${sha256}`,
+      id: `neq.${job.id}`,
+      order: 'created_at.asc',
+      select: 'id,wall_analysis',
+    });
+    const rp = row && row.wall_analysis && row.wall_analysis.roomPhoto;
+    const a = rp && rp.sha256 === sha256 ? rp.analysis : null;
+    if (!a || typeof a !== 'object' || !(Number(a.wallW) > 0) || !(Number(a.wallH) > 0)) return null;
+    return { analysis: a, from: typeof rp.from === 'string' && rp.from ? rp.from : row.id };
+  } catch (e) {
+    console.warn(`[Job ${job.id}] room photo lookup failed, analysing:`, e.message);
+    return null;
+  }
+}
+
 /**
  * 2차 질문 — 1차가 놓친 배관만 다시 묻는다. 실패해도 조용히 넘어간다(기본값이 남는다).
  * 이미 읽은 쪽은 덮어쓰지 않는다 — 1차가 본 것을 2차가 흔들 이유가 없다.
@@ -433,16 +469,38 @@ async function runPipeline(env, job, ck, save) {
       brief: null,
       existing: null,
     };
-    try {
-      const r = await callGemini(env, {
-        prompt: buildAnalysisPrompt(),
-        images: [room],
-        want: 'text',
-      });
-      wall = parseAnalysis(r.text);
-    } catch (e) {
-      console.warn(`[Job ${job.id}] analysis failed, defaults:`, e.message);
+    // 2026-10-20: 같은 방 사진이면 벽 하나 (플래너 모드) — 같은 사진(md5 같음)인데 분석 벽 폭이 3900~4400 으로 흔들려
+    //   프롬프트의 줄 길이 % 가 50 → 56 % 로 바뀌었다. 지시가 사진마다 하나여야 반복 산포를 잰다.
+    //   방 사진 바이트 SHA-256 을 열쇠로, 같은 사용자의 같은 해시 행 중 가장 먼저 분석한 것(parseAnalysis 결과)을 다시 쓴다.
+    //   새 표 없이 generations.wall_analysis.roomPhoto 에 남긴다. 사람이 넣은 벽 폭은 아래에서 그래도 이긴다.
+    //   재생성은 원본과 같은 inputs.room 을 쓰므로 같은 해시다. 일반 경로는 찾지도 남기지도 않는다 (예전 그대로).
+    let roomPhoto = null;
+    if (planner) {
+      const sha256 = await roomPhotoSha256(room);
+      const prior = sha256 ? await findRoomAnalysis(env, job, sha256) : null;
+      if (prior) {
+        wall = JSON.parse(JSON.stringify(prior.analysis));
+        roomPhoto = { sha256, analysis: prior.analysis, from: prior.from };
+        console.log(`[Job ${job.id}] room photo ${sha256.slice(0, 12)}: reuse wall ${wall.wallW} from ${prior.from}`);
+      } else if (sha256) {
+        roomPhoto = { sha256, analysis: null, from: job.id };
+      }
     }
+    if (!roomPhoto || !roomPhoto.analysis) {
+      try {
+        const r = await callGemini(env, {
+          prompt: buildAnalysisPrompt(),
+          images: [room],
+          want: 'text',
+        });
+        wall = parseAnalysis(r.text);
+        // 분석이 성공했을 때만 남긴다 — 실패 기본값(3000×2400)을 다음 요청이 이어받지 않게
+        if (roomPhoto) roomPhoto.analysis = JSON.parse(JSON.stringify(wall));
+      } catch (e) {
+        console.warn(`[Job ${job.id}] analysis failed, defaults:`, e.message);
+      }
+    }
+    if (roomPhoto && roomPhoto.analysis) wall.roomPhoto = roomPhoto;
     const manualW = Number(opts.wall_width_override);
     if (manualW >= 1000 && manualW <= 6000) {
       wall.wallW = clampWall(manualW);

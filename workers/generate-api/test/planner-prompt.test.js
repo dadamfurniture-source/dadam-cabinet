@@ -199,7 +199,8 @@ test('IMAGE C 가 없으면 C 문장이 하나도 없다', () => {
 test('모듈마다 번호·폭·종류, 줄마다 폭 비율 — 런 대비 % 는 비율로 바뀌었다', () => {
   const p = buildPlannerPrompt(d1Ctx());
   assert.ok(p.includes('FIXED GEOMETRY — left to right, exactly as IMAGE B shows:'));
-  assert.ok(p.includes('  BASE ROW (870 mm high, 2200 mm long — 61 % of the wall, starts at the left corner):'));
+  // 2026-10-20: 줄 길이 고정 문장(4′)이 있으면 벽 % 는 BINDING 의 런 기준 한 값 — 줄 머리에는 붙이지 않는다
+  assert.ok(p.includes('  BASE ROW (870 mm high, 2200 mm long, starts at the left corner):'));
   assert.match(p, /\n {4}L1 {3}800 mm {2}2-door cabinet\n/);
   assert.match(p, /\n {4}L2 {3}400 mm {2}single-door cabinet\n/);
   // 싱크는 그 자리 모듈(L3)에 붙는다 — 수전 필수
@@ -251,7 +252,9 @@ test('3) 하부가 없으면 가장 긴 줄이 기준이다', () => {
     'sink'
   );
   const p = buildPlannerPrompt(d1Ctx({ designSpec: spec }));
-  assert.ok(p.includes('  WALL ROW (700 mm high, 2400 mm long — 67 % of the wall, starts at the left corner):'));
+  // 2026-10-20: 런 3000 < 벽 3600 — 벽 % 는 BINDING 의 런 기준(83 %) 한 값, 줄 머리(67 %)에는 없다
+  assert.ok(p.includes('  WALL ROW (700 mm high, 2400 mm long, starts at the left corner):'));
+  assert.ok(p.includes('The run is 3000 mm long — about 83 % of the wall'));
   assert.ok(p.includes(' — T1 starts at the right end of U3 and ends 600 mm right of the wall row:'));
   assert.ok(p.includes('BINDING: the order, the counts and the width ratios inside each row (within about ±10 %), and where each row starts and ends against the wall row.'));
 });
@@ -310,7 +313,7 @@ test('붙박이장(D2)은 한 줄 — W 번호, 벽을 다 채우면 남는 벽 
   assert.ok(p.includes('add any appliance, sink or hood;'));
   // 높이 기준도 없고 벽을 다 채운다 — 빈 구역 문단 자체가 없다
   assert.doesNotMatch(p, /EMPTY ZONES/);
-  assert.ok(p.endsWith('FINAL SELF-CHECK before you answer: wardrobe row 4 units, 8 doors, 0 drawers; no other built-in unit anywhere.'));
+  assert.ok(p.endsWith('FINAL SELF-CHECK before you answer: wardrobe row 4 units, 8 doors, 0 drawers; both main-wall corners at the same place as in IMAGE A; no other built-in unit anywhere.'));
 });
 
 // ─── 2) LAYOUT ───
@@ -414,7 +417,7 @@ test('4′) 줄이 벽보다 짧고 벽 폭을 알면(D1 2200 / 3600) — 줄 �
   // 남는 벽은 EMPTY ZONES 에서 숫자를 되풀이하지 않는다 — 1400 은 BINDING 한 번
   assert.ok(p.includes('  2. the main wall right of the run, floor to ceiling\n'));
   assert.equal(p.split('1400 mm').length - 1, 1);
-  assert.match(p, /FINAL SELF-CHECK before you answer: .*; base row ends at about 61 % of the wall \(2200 mm\); 2 empty zones left empty; no other built-in unit anywhere\.$/);
+  assert.match(p, /FINAL SELF-CHECK before you answer: .*; base row ends at about 61 % of the wall \(2200 mm\); 2 empty zones left empty; both main-wall corners at the same place as in IMAGE A; no other built-in unit anywhere\.$/);
 });
 
 test('4′) 벽 폭을 모르면 배율 문장 그대로, 줄이 벽을 다 채우면 예전 그대로', () => {
@@ -433,7 +436,7 @@ test('4′) 벽 폭을 모르면 배율 문장 그대로, 줄이 벽을 다 채�
 
 test('5) fromFloorMm·ceilingMm — 줄마다 바닥 기준 아랫면·윗면, 줄 사이·천장 틈이 빈 구역으로', () => {
   const p = buildPlannerPrompt(d1Ctx({ designSpec: d1Full() }));
-  assert.ok(p.includes('  BASE ROW (2200 mm long — 61 % of the wall, starts at the left corner; bottom at 0 mm, top at 870 mm from the floor):'));
+  assert.ok(p.includes('  BASE ROW (2200 mm long, starts at the left corner; bottom at 0 mm, top at 870 mm from the floor):'));
   assert.ok(p.includes('  WALL ROW (1800 mm long; bottom at 1450 mm, top at 2230 mm from the floor) — U1–U2 start above the left end of L1'));
   assert.ok(
     p.includes(
@@ -478,7 +481,9 @@ test('8) EDIT ZONE 은 목표 벽의 붙박이만, KEEP 은 카메라·방·움�
         'The old built-in appliances on the target wall go with it: remove any old gas range or cooktop, range hood, built-in oven and built-in dishwasher — the new design has none — ' +
         'and close each place with the new countertop, fronts or bare wall. The sink is new, only where the list above puts it.\n' +
         'KEEP everything outside the edit zone exactly as photographed: the camera position, lens and framing (do not widen the view or invent any part of the room); ' +
-        'the other walls, ceiling, floor, windows and doors; the lighting; and every movable object — a free-standing refrigerator, microwave, carts, chairs, lamps, plants and decorations — unless it stands where a new unit goes.\n\n'
+        'the other walls, ceiling, floor, windows and doors; the lighting; and every movable object — a free-standing refrigerator, microwave, carts, chairs, lamps, plants and decorations — unless it stands where a new unit goes. ' +
+        // 2026-10-20: 뒷벽(주벽) 양 끝 모서리 고정
+        "The main wall's left and right corners stay exactly where IMAGE A shows them — do not widen or move the wall to make room for the units or for bare wall.\n\n"
     )
   );
   // 기존 가구 설명이 없으면 괄호도 없다
@@ -565,12 +570,12 @@ test('9) FINAL SELF-CHECK 가 맨 끝 — 줄마다 유닛·도어·서랍, 빈 
   const p = buildPlannerPrompt(d1Ctx({ designSpec: d1Full() }));
   assert.match(
     p,
-    /\n\nOUTPUT: one photorealistic photograph of the finished room, 16:9\.\n\nFINAL SELF-CHECK before you answer: base row 3 units, L1 2 \+ L2 1 \+ L3 2 = 5 doors, 0 drawers; wall row 2 units, 4 doors; base row ends at about 61 % of the wall \(2200 mm\); 4 empty zones left empty; no other built-in unit anywhere\.$/
+    /\n\nOUTPUT: one photorealistic photograph of the finished room, 16:9\.\n\nFINAL SELF-CHECK before you answer: base row 3 units, L1 2 \+ L2 1 \+ L3 2 = 5 doors, 0 drawers; wall row 2 units, 4 doors; base row ends at about 61 % of the wall \(2200 mm\); 4 empty zones left empty; both main-wall corners at the same place as in IMAGE A; no other built-in unit anywhere\.$/
   );
   const t = buildPlannerPrompt(d1Ctx({ designSpec: tallSpec() }));
   assert.ok(
     t.endsWith(
-      'FINAL SELF-CHECK before you answer: base row 3 units + 1 appliance opening, 1 door, 4 drawers; tall row 1 appliance opening, 0 doors, 0 drawers; 1 empty zone left empty; no other built-in unit anywhere.'
+      'FINAL SELF-CHECK before you answer: base row 3 units + 1 appliance opening, 1 door, 4 drawers; tall row 1 appliance opening, 0 doors, 0 drawers; 1 empty zone left empty; both main-wall corners at the same place as in IMAGE A; no other built-in unit anywhere.'
     )
   );
   assert.doesNotMatch(t, /0 units/);
@@ -591,15 +596,15 @@ test('구간이 없는 요약도 터지지 않는다 — IMAGE B 를 그대로 �
   assert.ok(p.includes('FIXED GEOMETRY: build exactly the cabinets IMAGE B shows'));
   assert.ok(p.includes('CLOSED LIST: the units IMAGE B shows are the only built-in units in the result.'));
   assert.ok(p.includes('MATERIALS: fronts walnut woodgrain'));
-  assert.ok(p.endsWith('FINAL SELF-CHECK before you answer: the same units, doors and drawers as IMAGE B; no other built-in unit anywhere.'));
+  assert.ok(p.endsWith('FINAL SELF-CHECK before you answer: the same units, doors and drawers as IMAGE B; both main-wall corners at the same place as in IMAGE A; no other built-in unit anywhere.'));
 });
 
 test('같은 내용을 두 번 말하지 않는다 — 한 문장이 두 번 나오지 않고, 길이도 v2 보다 크게 늘지 않는다', () => {
   const p = buildPlannerPrompt(d1Ctx({ designSpec: d1Full() }));
   const sentences = p.split(/(?<=\.)\s+/).filter((s) => s.length > 30);
   assert.equal(new Set(sentences).size, sentences.length);
-  // 2026-10-20: 줄 길이 고정 문장(4′)으로 4200 → 4400
-  assert.ok(p.length < 4400, `length ${p.length}`);
+  // 2026-10-20: 줄 길이 고정 문장(4′)으로 4200 → 4400, 뒷벽 모서리 고정(KEEP·자체 점검)으로 4400 → 4600
+  assert.ok(p.length < 4600, `length ${p.length}`);
 });
 
 // ─── 옛 경로 불변 ───

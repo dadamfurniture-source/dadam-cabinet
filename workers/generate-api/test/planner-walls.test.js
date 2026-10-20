@@ -103,8 +103,8 @@ test('FIXED GEOMETRY: 벽마다 — 뒷벽 L1–L4·U1–U3, 왼쪽 벽 L5 (주�
   assert.match(p, /against the reference row of its own wall/);
   // 펴진 한 줄(650 436 936 842 421)이 아니다
   assert.doesNotMatch(p, /L3 {3}936/);
-  // 2026-10-20: 벽 % 는 주벽 기준 줄에만 — 꺾인 벽 줄에는 없다
-  assert.equal(p.split('% of the wall,').length - 1, 1);
+  // 2026-10-20: 꺾인 벽 줄에는 벽 % 가 없다. 주벽 줄 머리에도 이제 없다 — 줄 길이 고정 문장(런 기준) 한 값 (planner-wall-lock.test.js)
+  assert.equal(p.split('% of the wall,').length - 1, 0);
   assert.doesNotMatch(p, /936 mm long — /);
 });
 
@@ -122,7 +122,8 @@ test('빈 구역·자체 점검·편집 구역: 벽 이름으로, 꺾인 벽 위
 //   아예 말하지 않았다(oneWall 게이트). 이제 주벽 줄 길이(mm·벽 %)와 꺾인 벽 반대쪽 끝 너머 남는 벽을 말하고 배율 문장을 뺀다.
 test('ㄱ자 주벽 줄 길이: 왼쪽 꺾임 — 줄 길이 mm·%, 오른쪽 남는 벽, 배율 문장 없음, 자체 점검에 끝 %', () => {
   const p = prompt();
-  assert.ok(p.includes('  BASE ROW (2349 mm long — 78 % of the wall, starts 50 mm from the left end of the run; bottom at 0 mm, top at 870 mm from the floor):'));
+  // 2026-10-20: 줄 머리의 모듈 폭 %(78)는 뺐다 — 벽 % 는 런(2400, 끝 마감재 포함) 기준 80 % 한 값
+  assert.ok(p.includes('  BASE ROW (2349 mm long, starts 50 mm from the left end of the run; bottom at 0 mm, top at 870 mm from the floor):'));
   assert.ok(p.includes(
     'against the reference row of its own wall. The back-wall run is 2400 mm long — about 80 % of the back wall (about 3000 mm in IMAGE A). ' +
       'Do not stretch the units to fill the wall; keep the remaining 600 mm (about 20 %) right of the run as bare wall. ' +
