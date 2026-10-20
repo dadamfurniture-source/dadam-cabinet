@@ -111,7 +111,9 @@ describe('플래너 — 오픈장 배선', () => {
 
   test('오픈장은 그 아래 섹션(칸·서랍·선반·손잡이)을 닫는다 — 고를 것이 없다', () => {
     const sync = sliceBalanced(STRUCT, STRUCT.indexOf('function syncModulePanelSections'));
-    expect(sync).toMatch(/const open = isOpenCabinet\(s\)/);
+    // 2026-10-20: 밥솥장도 같은 상자라 isBoxKind 로 묶었다 — 오픈장 판별은 그 안에 그대로 있다
+    expect(sync).toMatch(/const open = isBoxKind\(s\)/);
+    expect(sliceBalanced(STRUCT, STRUCT.indexOf('function isBoxKind'))).toMatch(/isOpenCabinet\(s\)/);
     ['split', 'areas', 'drawer', 'shelves', 'handle'].forEach((k) => {
       expect(sync).toMatch(new RegExp(`${k}: !open`));
     });

@@ -430,14 +430,14 @@ POST /api/generate
 | 문단 | 무엇을 계산하나 |
 |---|---|
 | IMAGE B | 번호 입면을 보낼 때만(GPT): 입면의 번호(L·U·T·W, 줄 안 왼쪽부터 1)·치수선은 주석 — 그리지 말 것. 번호 없는 입면이면 문장 없음 (2026-10-19) |
-| `LAYOUT` | `layout` → 없으면 `notes` 의 `ㄱ자`·`ㄷ자` → 그래도 모르면 **문단 없음** (일자로 단정하지 않는다). ㄱ자·ㄷ자면 벽 대비 % 와 남는 벽 구역을 말하지 않는다 |
+| `LAYOUT` | `layout` → 없으면 `notes` 의 `ㄱ자`·`ㄷ자` → 그래도 모르면 **문단 없음** (일자로 단정하지 않는다). ㄱ자·ㄷ자면 벽 대비 % 와 남는 벽 구역을 말하지 않는다 (2026-10-20: `walls[]` ㄱ자는 주벽 기준으로 말한다 — `BINDING`) |
 | `FIXED GEOMETRY` | 줄마다 번호·폭·종류, `→ widths L1 : L2 : L3 = 2 : 1 : 2.5` (가장 좁은 모듈 = 1, 0.5 단위). 둘째 줄부터는 기준 줄(하부, 없으면 가장 긴 줄)의 모듈 경계로 시작·끝: `U1–U2 start above the left end of L1 and end above L3, 400 mm before the right end of the base row` |
 | 높이 | `fromFloorMm`·`ceilingMm` 중 하나라도 오면 줄마다 `bottom at X mm, top at Y mm from the floor` (`fromFloorMm` 없는 하부·키큰장·붙박이장은 0). 아무것도 없으면 예전처럼 `870 mm high` |
 | `CLOSED LIST` | `L1–L3 and U1–U2 are the only built-in units` — 다른 장·서랍장·선반·판 없음 |
-| `BINDING` | 순서·개수·줄 안 폭 비율(±10 %)·기준 줄 대비 위치는 구속, 벽에 맞추는 것은 **전체 배율만** (옛 "mm·% 는 참고" 를 바꿈) |
-| `EMPTY ZONES` | 벽장 높이·바닥 높이에서 아무 줄도 덮지 않는 구간, 하부 윗면~상부 아랫면, 맨 위 줄~천장 틈(`open or closed exactly as IMAGE B shows` — 막음 여부 필드가 아직 없다), 남는 벽(결정 ①′). 2026-10-19: 50 mm 이하 틈(EP 20 같은 마감재 한 장 — 모듈이 아니라 런 폭에만 든다)은 빈 구역으로 세지 않는다 (`PLANNER_FINISH_GAP_MM`). 층 전체가 빈 것은 그대로 |
+| `BINDING` | 순서·개수·줄 안 폭 비율(±10 %)·기준 줄 대비 위치는 구속, 벽에 맞추는 것은 **전체 배율만** (옛 "mm·% 는 참고" 를 바꿈). 2026-10-20: **벽 폭을 알고 런이 벽보다 짧으면** 배율 문장 대신 고정 문장 — `The run is 2200 mm long — about 61 % of the wall (about 3600 mm in IMAGE A). Do not stretch the units to fill the wall; keep the remaining 1400 mm (about 39 %) right of the run as bare wall. Keep each door's proportions as IMAGE B shows — do not widen any door.` (분석 벽 폭이 ±150~200 mm 흔들려 mm 와 % 를 함께). 실측(싱크대 연출컷 26건 mm 측정): 일자 15장 중 14장이 하부장 줄 오른끝을 늘렸다(중앙 +223 mm), ㄱ자는 벽의 55 % 인 주벽 줄을 84~88 % 까지. 런이 붙은 벽 끝: 일자·모양 모름은 왼쪽 모서리(예전 가정), `walls[]` ㄱ자는 꺾인 벽 쪽 모서리 — 왼쪽 꺾임은 늘, 오른쪽 꺾임은 `corner:'main'` 일 때만(주벽 좌표 0 이 주벽 줄 왼쪽 끝이라). ㄷ자·펴진 ㄱ자·벽 모름·런 ≥ 벽은 배율 문장 그대로 |
+| `EMPTY ZONES` | 벽장 높이·바닥 높이에서 아무 줄도 덮지 않는 구간, 하부 윗면~상부 아랫면, 맨 위 줄~천장 틈(`open or closed exactly as IMAGE B shows` — 막음 여부 필드가 아직 없다), 남는 벽(결정 ①′). 2026-10-19: 50 mm 이하 틈(EP 20 같은 마감재 한 장 — 모듈이 아니라 런 폭에만 든다)은 빈 구역으로 세지 않는다 (`PLANNER_FINISH_GAP_MM`). 층 전체가 빈 것은 그대로. 2026-10-20: 남는 벽 항목은 자리만(`the main wall right of the run, floor to ceiling`, ㄱ자 `back wall: right of the run, …`) — 크기는 `BINDING` 한 번 |
 | `EDIT ZONE` / `KEEP` | 목표 벽의 붙박이만 철거·교체. 카메라·다른 벽·창·문·조명·움직이는 물건(냉장고·카트·조명·화분)은 그대로. 2026-10-19 (주방 품목): 목표 벽들(주벽+꺾인 벽)의 **옛 붙박이 가전**도 함께 철거 — 도면에 없는 싱크·가스레인지/쿡탑·후드·빌트인 오븐(늘)·식세기는 이름으로 지우고 그 자리는 새 상판·전면·빈 벽, 도면에 있는 것은 `… is new, only where the list above puts it`. 꺾인 벽 `appliances[]` 도 도면에 있는 셈. KEEP 의 이동식은 `a free-standing refrigerator, microwave, …` (실측: ㄱ자 주방 사진에 옛 가스레인지·슬림 후드가 남았다) |
-| `FINAL SELF-CHECK` | 맨 끝. 줄마다 유닛·도어·서랍 수, 빈 구역 수, `no other built-in unit anywhere`. 2026-10-19: 한 줄에 외문(1짝) 칸과 2짝 이상 칸이 섞이면 문 수를 칸별로 — 줄 끝 `→ doors U1 2 + U2 2 + U3 1 = 5 doors`, 자체 점검 `wall row 3 units, U1 2 + U2 2 + U3 1 = 5 doors`. 고른 줄은 합계만 (실측: 상부 2·2·1 을 6짝으로 그렸다) |
+| `FINAL SELF-CHECK` | 맨 끝. 줄마다 유닛·도어·서랍 수, 빈 구역 수, `no other built-in unit anywhere`. 2026-10-19: 한 줄에 외문(1짝) 칸과 2짝 이상 칸이 섞이면 문 수를 칸별로 — 줄 끝 `→ doors U1 2 + U2 2 + U3 1 = 5 doors`, 자체 점검 `wall row 3 units, U1 2 + U2 2 + U3 1 = 5 doors`. 고른 줄은 합계만 (실측: 상부 2·2·1 을 6짝으로 그렸다). 2026-10-20: 고정 문장이 나갈 때 주벽 줄 점검 뒤에 `base row ends at about 61 % of the wall (2200 mm)` (런 끝에 닿는 줄 이름, 끝 마감재 50 mm 이하는 무시) |
 
 검사: 플래너 모드이고 도면이 천장 틈을 두었으면(`ceilingMm` 과 맨 위 줄 윗면) `gap_to_ceiling` 줄 끝에
 "그만한 틈은 의도된 것 — 그보다 분명히 클 때만" 을 붙인다. 그 밖의 검사 프롬프트는 바이트 그대로.
