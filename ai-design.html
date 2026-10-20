@@ -22,6 +22,18 @@
 
     <style>
       /* 이 페이지에만 필요한 것. 공통은 css/dadam-v5.css 가 갖는다. */
+      /* 붙박이장 내부 보기 — 칸 구성과 추천 이유 (2026-10-20) */
+      .v5-shot-note {
+        margin: 4px 0 0;
+        font-weight: 300;
+        font-size: 11.5px;
+        line-height: 1.55;
+        color: var(--v5-ink-60);
+      }
+      .v5-shot-note .plan {
+        display: block;
+        color: var(--v5-ink-45);
+      }
       .studio-adv > summary {
         list-style: none;
         cursor: pointer;
@@ -1052,8 +1064,22 @@
             esc(r ? r.label : kind ? kind.label : '') +
             '</span><span class="v5-shot-no">' +
             (i + 1) +
-            '</span></figcaption></figure>'
+            '</span></figcaption>' +
+            structureNoteHTML(r && r.structure) +
+            '</figure>'
           );
+        }
+
+        /**
+         * 붙박이장 내부 보기 칸 아래 한 줄 (2026-10-20). 추천 구조면 이름·이유, 그리고 칸 구성.
+         * 정본 기본형이면 칸 구성만. structure 가 없는 칸(기본안·색 추천안)은 빈 문자열.
+         */
+        function structureNoteHTML(st) {
+          if (!st || !st.plan) return '';
+          var why = st.kind === 'recommended' && (st.concept || st.reason)
+            ? esc([st.concept, st.reason].filter(Boolean).join(' — '))
+            : '';
+          return '<p class="v5-shot-note">' + why + '<span class="plan">' + esc(st.plan) + '</span></p>';
         }
 
         function renderResults() {
@@ -1301,7 +1327,7 @@
           S.genId = g.id;
           if (g.category) S.kind = g.category;
           S.results = (g.images || []).slice(0, 4).map(function (im) {
-            return { src: im.url, label: im.label || '' };
+            return { src: im.url, label: im.label || '', structure: im.structure || null };
           });
           S.quote = g.quote || null;
         }

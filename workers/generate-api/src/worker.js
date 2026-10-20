@@ -353,7 +353,7 @@ async function createGeneration(request, env, headers) {
     return await createPlannerGeneration(request, env, headers, {
       user, parent, room_image, image_type, rawCategory, design_style, door_color, door_finish,
       wall_width_override, water_from_left_override, exhaust_from_left_override,
-      fridge_options, design_spec, renders, aspect, title, image_provider,
+      fridge_options, design_spec, renders, aspect, title, image_provider, room_focal35,
     });
   }
 
@@ -431,6 +431,14 @@ async function createGeneration(request, env, headers) {
  * 검증은 전부 크레딧 차감 전에 한다 — 틀린 요청으로 20 크레딧이 날아가지 않는다.
  * 추천안은 항상 끈다 (한 장이 결과물이다).
  */
+/** 플래너 모드 초점거리 — 요청 값 → 재생성 원본 값. 8~200 밖이거나 없으면 키를 두지 않는다. */
+function plannerFocalOption(given, parent) {
+  const ok = (v) => Number(v) >= 8 && Number(v) <= 200;
+  const parentFocal = parent && parent.options && parent.options.room_focal35;
+  const f = ok(given) ? given : ok(parentFocal) ? parentFocal : null;
+  return f == null ? {} : { room_focal35: Math.round(Number(f)) };
+}
+
 async function createPlannerGeneration(request, env, headers, p) {
   const { user, parent, room_image, image_type } = p;
   const category = resolveCategory(p.rawCategory || (parent && parent.category) || 'sink');
@@ -465,6 +473,9 @@ async function createPlannerGeneration(request, env, headers, p) {
     mode: 'planner',
     aspect: resolvePlannerAspect(p.aspect != null ? p.aspect : parentAspect),
     variants: false,
+    // 사진 EXIF 35mm 환산 초점거리 (2026-10-20) — 도면 덩어리(1-d)의 카메라 화각. 일반 경로와 같은 정규화.
+    //   재생성은 같은 방 사진을 쓰므로 원본 값을 잇는다. 있을 때만 키를 둔다 (없으면 options 모양 그대로).
+    ...plannerFocalOption(p.room_focal35, parent),
     // 이미지 공급자 (2026-10-18 → 2026-10-19 기본 GPT) — 플래너 모드는 결정된 값을 **항상** 기록한다.
     //   요청 값 → 재생성 원본 값 → PLANNER_IMAGE_PROVIDER. 잡은 이 값만 읽는다 (없는 옛 행은 Gemini).
     image_provider: resolvePlannerProvider(env, p.image_provider, parent && parent.options && parent.options.image_provider),
@@ -733,7 +744,22 @@ async function getShared(request, env) {
       category: row.category,
       title: row.title,
       options: { design_style: row.options && row.options.design_style },
-      images: (row.images || []).map((im) => ({ slot: im.slot, label: im.label, url: im.url })),
+      // 붙박이장 내부 보기의 칸 구성·추천 이유도 싣는다 (2026-10-20). 고른 모델(by)은 공유하지 않는다.
+      images: (row.images || []).map((im) => ({
+        slot: im.slot,
+        label: im.label,
+        url: im.url,
+        ...(im.structure && im.structure.plan
+          ? {
+              structure: {
+                kind: im.structure.kind,
+                plan: im.structure.plan,
+                ...(im.structure.concept ? { concept: im.structure.concept } : {}),
+                ...(im.structure.reason ? { reason: im.structure.reason } : {}),
+              },
+            }
+          : {}),
+      })),
       quote: row.quote,
       created_at: row.created_at,
       expires_at: row.share_expires_at,

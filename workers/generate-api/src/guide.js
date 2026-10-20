@@ -41,6 +41,37 @@ return_back = the inner corner where the protruding ${anchor} wall meets the mai
 far_floor / far_ceiling = two points far apart on the line where the ${far} side wall (or a protruding ${far} wall's inner face) meets the floor / the ceiling; null if not visible.`;
 }
 
+/**
+ * 튀어나온 옆벽 다시 보기 (2026-10-20). 분석(Gemini)이 side_return 을 자주 놓쳤다 — 같은 붙박이장 사진 6번 중
+ * 3번만 잡았다. 놓치면 덩어리 합성 없이 글로만 그려 깊이 검사에 걸리고 한 번 더 그린다(30~60초).
+ * 분석이 null 일 때만 Haiku 에게 이것 하나만 묻는다. 확실할 때(high)만 받는다 — 틀린 쪽을 받아도
+ * 다음 단계(선 찾기 → computeGuide)가 앞면이 뒷벽보다 앞에 있지 않으면 그리지 않는다.
+ */
+export function buildSideReturnCheckPrompt() {
+  return `This photo shows a room. The main wall faces the camera; a built-in wardrobe will fill it from side to side.
+Look at the left and right ends of the main wall. Is there a wall section, partition or column at either end whose own front face is parallel to the main wall but stands closer to the camera, so the main wall sits in a recess between or beside it? You would see that section's short side face (its return) running from the main wall toward the camera, then its front face.
+An ordinary side wall that simply meets the main wall at an inside corner and runs toward the camera does NOT count. A door frame, window or a piece of furniture does NOT count.
+Answer JSON: side = "left", "right", "both" or "none"; confidence = "high" only when the protruding section is clearly visible, otherwise "medium" or "low"; note = a few words on what you saw.`;
+}
+
+export const SIDE_RETURN_CHECK_SCHEMA = {
+  type: 'object',
+  properties: {
+    side: { type: 'string', enum: ['left', 'right', 'both', 'none'] },
+    confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+    note: { type: 'string' },
+  },
+  required: ['side', 'confidence', 'note'],
+  additionalProperties: false,
+};
+
+/** 답 → 'left'|'right'|'both' (확실할 때만) 또는 null */
+export function parseSideReturnCheck(j) {
+  if (!j || typeof j !== 'object') return null;
+  if (j.confidence !== 'high') return null;
+  return ['left', 'right', 'both'].includes(j.side) ? j.side : null;
+}
+
 /** Claude 구조화 출력용 — buildGuidePointsPrompt(side, size) 의 픽셀 [x, y] 모양 */
 const XY = { type: 'array', items: { type: 'number' } };
 const XY_PAIR = { type: 'array', items: XY };

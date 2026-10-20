@@ -116,3 +116,24 @@ describe('상부장 보강목 폭 60', () => {
     if (name.indexOf('sink') === 0) expect(bands.length).toBeGreaterThan(0);
   });
 });
+
+describe('도어 갭 (조립 명세 도어 자리)', () => {
+  test('DOOR_GAP = 플래너 MASTER_RULES.DOOR_GAP = BOM 도어 폭 감산', () => {
+    global.dlog = global.dlog || (() => {});
+    const engine = require('../js/planner/planner-engine.js');
+    const { MaterialExtractor } = require('../js/detaildesign/extractors.js');
+    const { FIXTURES } = require('../test-utils/bom-golden/fixtures.js');
+    expect(R.CARCASS.DOOR_GAP).toBe(engine.MASTER_RULES.DOOR_GAP);
+    const rows = new MaterialExtractor().extract({ items: [FIXTURES.sink15] }).materials;
+    const door = rows.find((r) => r.moduleKey === '0-l4' && r.part === '도어');
+    expect(door.w).toBe(400 - R.CARCASS.DOOR_GAP);
+  });
+});
+
+describe('사쿠리 서랍 홈 (2026-10-20 사장님 15mm)', () => {
+  test('홈 15 + 우라 3 = 앞뒷판 감산 18 — 앞뒷판이 우라 위에 서서 측판 윗단과 맞는다', () => {
+    const { DRAWER_RULES } = require('../js/detaildesign/bom-drawer-rules.js');
+    expect(DRAWER_RULES.BOX_SAKURI_GROOVE_Y).toBe(15);
+    expect(DRAWER_RULES.BOX_SAKURI_GROOVE_Y + 3).toBe(DRAWER_RULES.BOX_SAKURI_FB_MINUS);
+  });
+});

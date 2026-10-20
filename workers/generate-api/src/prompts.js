@@ -1410,6 +1410,8 @@ function plannerFridgeModelPhrase(model) {
  * 2026-10-20: 냉장고 자리에는 **냉장고를 그린다** (사장님 결정) — 사진(IMAGE A)에서 그 자리에 냉장고가 보이면 그것을 유지,
  *   없으면 고른 모델(fridgeModel, appliances[].model)을, 모델이 없으면 중립 냉장고를. 옛 문장("may stand there — keep the one
  *   IMAGE A shows, do not invent a built-in one")은 허용이라 사진에 냉장고가 없을 때 무엇을 그릴지 정하지 않았다.
+ * 2026-10-20: 고른 모델 우선 — 모델이 있으면 "draw this refrigerator: … — if IMAGE A shows a different refrigerator in this
+ *   spot, replace it with this one". 모델이 없을 때만 위 문장(사진 냉장고 유지 → 중립).
  * @param {object} [fridgeModel] 이 통에 걸린 fridge 가전의 model (plannerRows)
  */
 function plannerColumnWhat(m, rowKey, fridgeModel) {
@@ -1424,10 +1426,14 @@ function plannerColumnWhat(m, rowKey, fridgeModel) {
   if (opening) {
     const h = opening.heightMm;
     const fridge = isFridgeLabel(opening.label || m.label);
+    const chosen = fridge ? plannerFridgeModelPhrase(fridgeModel) : null;
+    // 2026-10-20: 고른 모델 우선 (사장님 결정) — 모델을 골랐으면 사진(IMAGE A) 그 자리의 다른 냉장고는 교체한다.
+    //   모델이 없을 때만 사진 냉장고 유지 → 없으면 중립 냉장고.
+    const inIt = chosen
+      ? `a refrigerator stands in it: draw ${chosen} — if IMAGE A shows a different refrigerator in this spot, replace it with this one`
+      : `a refrigerator stands in it: if IMAGE A shows a refrigerator in this spot, keep that one, otherwise draw ${PLANNER_NEUTRAL_FRIDGE}`;
     const head = fridge
-      ? `refrigerator opening (open from the floor${h ? ` up to ${h} mm` : ''}, with no cabinet, shelf or panel inside; ` +
-        `a refrigerator stands in it: if IMAGE A shows a refrigerator in this spot, keep that one, otherwise draw ` +
-        `${plannerFridgeModelPhrase(fridgeModel) || PLANNER_NEUTRAL_FRIDGE})`
+      ? `refrigerator opening (open from the floor${h ? ` up to ${h} mm` : ''}, with no cabinet, shelf or panel inside; ${inIt})`
       : `appliance opening (open from the floor${h ? ` up to ${h} mm` : ''})`;
     const above = m.tiers.slice(1);
     if (!above.length) return head;
