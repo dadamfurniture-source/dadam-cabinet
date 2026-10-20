@@ -38,6 +38,16 @@ describe('정상 설계는 통과한다', () => {
     expect(codes(r)).not.toContain('oversize');
   });
 
+  // 2026-10-20 플래너 점검: 오픈장·밥솥장은 천판·지판을 '천지판' 한 줄로 낸다 — 지판 없음 경고가 뜨면 안 된다.
+  test.each([['오픈장', 'open'], ['밥솥장', 'rice']])('%s 의 천지판은 지판으로 친다', (_, kind) => {
+    const fx = clone(FIXTURES.sink15);
+    fx.modules = [{ id: 'k1', type: 'storage', name: '하부장', pos: 'lower', w: 600, h: 708, d: 550, doorCount: 0, moduleKind: kind }];
+    const s = snapshotOf(designOf(fx));
+    expect(s.materials.some((m) => m.part === '천지판')).toBe(true);
+    const msgs = BomPreflight.check(s.materials, s.hardware).issues.filter((i) => i.code === 'body-incomplete').map((i) => i.message);
+    expect(msgs.filter((t) => t.includes('지판'))).toEqual([]);
+  });
+
   test('같은 입력이면 같은 출력 · HardwareExtractor 결과 객체도 받는다', () => {
     const s = snap('wardrobe');
     const a = BomPreflight.check(s.materials, s.hardware);

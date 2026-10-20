@@ -6,13 +6,14 @@
 
 | 계층 | 위치 | 지원 카테고리 | 지위 |
 |------|------|-------------|------|
-| **프론트엔드** | `js/detaildesign/extractors.js` `MaterialExtractor` · `HardwareExtractor` | sink, wardrobe, fridge, **shoerack, vanity, storage, warehouse** (B3) | **정본**. 상세설계 → 스냅샷 `bom_payload` → 작업지시서가 이 출력을 쓴다 |
+| **프론트엔드** | `js/detaildesign/extractors.js` `MaterialExtractor` · `HardwareExtractor` | sink, island, wardrobe, fridge, **shoerack, vanity, storage, warehouse** (B3) | **정본**. 상세설계 → 스냅샷 `bom_payload` → 작업지시서가 이 출력을 쓴다 |
 | **MCP 서버** | `mcp-server/src/services/bom.service.ts` | sink, wardrobe, fridge, vanity, shoe, storage | **프로토타입**. MCP 도구(`generate_bom`·도면 렌더)만 호출하고, 상세설계·워커·문서 어느 생산 경로도 호출하지 않는다. 값이 정본과 다르다(18T·밴드 60·경첩 2) |
 | **설계 규칙** | `docs/design-rules/` | 6개 문서 (common, sink, wardrobe, fridge, etc.) | 규칙 원본 |
 
 > 신발장·화장대·수납장·창고장은 B3(계획 §5)부터 프론트엔드가 낸다 — `extractors.js extractSimpleBox`, 부재표는 §3-4 → `simple-categories.md` §6.
 > `categoryId` 는 `data-constants.js CATEGORIES` 그대로(`shoerack`·`vanity`·`storage`·`warehouse`); MCP 의 `shoe` 는 별개 이름이다.
-> 아일랜드(`island`)·도어교체(`door`)·비규격장(`custom`)은 아직 없다.
+> 아일랜드(`island`)는 2026-10-20 부터 싱크대 추출기(`extractSink`)로 낸다 — `sink.md` 가 두 categoryId 를 같은 문서로 묶는다. 하부장 깊이는 플래너 모듈 깊이 그대로다(sink.md 아일랜드 칸의 BOM 깊이는 비어 있다 [확인 필요]).
+> 도어교체(`door`)·비규격장(`custom`)은 아직 없다.
 >
 > **정본 선언 (2026-09, 계획 B0)** — 이 문서의 부재표·철물 규칙과 어긋나는 코드가 있으면
 > `extractors.js` 가 기준이고, 문서를 코드에 맞춘다. 표준 3종 출력은 `test-utils/bom-golden/*.golden.json`
