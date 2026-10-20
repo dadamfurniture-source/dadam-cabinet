@@ -591,7 +591,8 @@
         const W = parseFloat(mod.w) || 900;
         const drawerCount = mod.drawerCount || 0;
         const external = mod.isExternalDrawer && drawerCount > 0 ? drawerCount * 350 : 0;
-        return { count: mod.doorCount || Math.max(1, Math.round(W / 450)), h: pedestalH + bodyH - 20 - external };
+        // 2026-10-20 (도어 1580): 외부 서랍 위 도어는 몸통 − 서랍모듈H (extractWardrobe 와 같은 식)
+        return { count: mod.doorCount || Math.max(1, Math.round(W / 450)), h: external ? bodyH - external : pedestalH + bodyH - 20 };
       }
 
       /**
@@ -1670,7 +1671,8 @@
                 const doorW = Math.floor(W / doorCount) - 4;
                 const doorH = pedestalH + bodyH - 20;
                 if (isExternalDrawer && drawerCount > 0) {
-                  this.add(materials, `${name}`, '도어', 'MDF', 18, doorW, doorH - drawerCount * DRAWER_MOD_H, doorCount, '4면', '', mod);
+                  // 2026-10-20 사장님 카드 "도어 1580": 외부 서랍 위 도어는 서랍모듈 상단~몸통 상단 (= 몸통 − 서랍모듈H). 좌대 덮기는 서랍 전면 몫이다
+                  this.add(materials, `${name}`, '도어', 'MDF', 18, doorW, bodyH - drawerCount * DRAWER_MOD_H, doorCount, '4면', '', mod);
                   // 외부 서랍 도어 (목찬넬, 서랍수별 높이)
                   const drawerDoorW = W - 4;
                   const drawerModTotal = drawerCount * DRAWER_MOD_H + pedestalH;
@@ -1756,7 +1758,8 @@
                 const doorW = Math.floor(W / doorCount) - 4;
                 const doorH = pedestalH + bodyH - 20;
                 if (isExternalDrawer && drawerCount > 0) {
-                  this.add(materials, `${name}`, '도어', 'MDF', 18, doorW, doorH - drawerCount * DRAWER_MOD_H_LONG, doorCount, '4면', '', mod);
+                  // 2026-10-20 사장님 카드 "도어 1580": 외부 서랍 위 도어는 서랍모듈 상단~몸통 상단 (= 몸통 − 서랍모듈H). 좌대 덮기는 서랍 전면 몫이다
+                  this.add(materials, `${name}`, '도어', 'MDF', 18, doorW, bodyH - drawerCount * DRAWER_MOD_H_LONG, doorCount, '4면', '', mod);
                   // 외부 서랍 도어 (목찬넬, 서랍수별 높이)
                   const drawerDoorW = W - 4;
                   const drawerModTotal = drawerCount * DRAWER_MOD_H_LONG + pedestalH;
