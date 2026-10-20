@@ -757,8 +757,9 @@ function cutSheetBlock(ctx, sheet, labelNo) {
           num(p.y),
           p.rot ? '↻' : '-',
           m ? `${edgeSvg(rowEdges(m))}${edgeText(m)}` : '<span class="muted">행 미확인</span>',
+          m ? esc(m.note || '') : '',
         ],
-        ['num', '', '', 'num', 'num', 'num', '', ''],
+        ['num', '', '', 'num', 'num', 'num', '', '', ''],
       );
     })
     .join('');
@@ -779,7 +780,7 @@ function cutSheetBlock(ctx, sheet, labelNo) {
   <div class="cut-sheet">
     <div class="cut-svg">${svg}</div>
     <div class="cut-parts">
-      <table class="compact">${thead(['라벨', 'partId', '부품', 'w × h', 'x', 'y', '회전', '엣지 (두께 · 변 길이×개수)'], ['num', '', '', 'num', 'num', 'num', '', ''])}<tbody>${rows}</tbody></table>
+      <table class="compact">${thead(['라벨', 'partId', '부품', 'w × h', 'x', 'y', '회전', '엣지 (두께 · 변 길이×개수)', '비고'], ['num', '', '', 'num', 'num', 'num', '', '', ''])}<tbody>${rows}</tbody></table>
     </div>
   </div>`;
 }
@@ -800,14 +801,15 @@ function flatMaterialTable(ctx, rows) {
           num(m.h),
           num(m.qty),
           `${edgeSvg(rowEdges(m))}${edgeText(m)}`,
+          esc(m.note || ''),
         ],
-        ['', '', '', '', '', 'num', 'num', 'num', 'num', ''],
+        ['', '', '', '', '', 'num', 'num', 'num', 'num', '', ''],
       ),
     )
     .join('');
   return `<table class="compact">${thead(
-    ['partId', '품목', '모듈', '부품', '자재', '두께', '가로', '세로', '수량', '엣지'],
-    ['', '', '', '', '', 'num', 'num', 'num', 'num', ''],
+    ['partId', '품목', '모듈', '부품', '자재', '두께', '가로', '세로', '수량', '엣지', '비고'],
+    ['', '', '', '', '', 'num', 'num', 'num', 'num', '', ''],
   )}<tbody>${body}</tbody></table>`;
 }
 
@@ -889,7 +891,7 @@ function cutSheets(ctx, { vendor = false } = {}) {
   const smallRows = smalls
     .map((s) => {
       const hit = ctx.rowById.get(s.partId);
-      return tr([`<span class="mono">${esc(s.partId || '')}</span>`, esc(s.part || ''), `${esc(s.material || '')} ${num(s.thickness)}T`, `${num(s.w)} × ${num(s.h)}`, num(s.qty), hit ? edgeText(hit.row) : ''], ['', '', '', 'num', 'num', '']);
+      return tr([`<span class="mono">${esc(s.partId || '')}</span>`, esc(s.part || ''), `${esc(s.material || '')} ${num(s.thickness)}T`, `${num(s.w)} × ${num(s.h)}`, num(s.qty), hit ? edgeText(hit.row) : '', hit ? esc(hit.row.note || '') : ''], ['', '', '', 'num', 'num', '', '']);
     })
     .join('');
   const missingRows = uncoveredInHouse(ctx.materials, plan);
@@ -905,7 +907,7 @@ function cutSheets(ctx, { vendor = false } = {}) {
   ${doorNote}
   ${sheets.map((s) => cutSheetBlock(ctx, s, labelNo)).join('')}
   ${offRows ? `<div class="sub-title">잔재 (60mm 이상)</div><table class="compact">${thead(['시트', '종류', 'w × h', 'x', 'y', '남는 쪽'], ['num', '', 'num', 'num', 'num', 'num'])}<tbody>${offRows}</tbody></table>` : ''}
-  ${smallRows ? `<div class="sub-title">소부품 (원판 미배치 — 잔재에서 뽑는다)</div><table class="compact">${thead(['partId', '부품', '자재', 'w × h', '수량', '엣지'], ['', '', '', 'num', 'num', ''])}<tbody>${smallRows}</tbody></table>` : ''}
+  ${smallRows ? `<div class="sub-title">소부품 (원판 미배치 — 잔재에서 뽑는다)</div><table class="compact">${thead(['partId', '부품', '자재', 'w × h', '수량', '엣지', '비고'], ['', '', '', 'num', 'num', '', ''])}<tbody>${smallRows}</tbody></table>` : ''}
   ${unRows ? `<div class="sub-title">미배치 (원판 초과)</div><div class="warn">원판보다 큰 부재가 있다 — 별도 재단.</div><table class="compact">${thead(['partId', '부품', '자재', 'w × h', '수량'], ['', '', '', 'num', 'num'])}<tbody>${unRows}</tbody></table>` : ''}
   ${missingRows.length ? `<div class="sub-title">배치에 없는 부재</div><div class="warn">재단 배치와 자재표가 어긋난다 (스냅샷 재발행 권장) — 아래 부재는 목록대로 따로 재단.</div>${flatMaterialTable(ctx, missingRows.map(({ row, index, missing }) => ({ row: { ...row, qty: missing.length }, index })))}` : ''}
   ${totalsBlock}

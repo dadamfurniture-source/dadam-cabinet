@@ -112,8 +112,20 @@ export function workloadFromCounts(c, standards = DEFAULT_STANDARDS) {
   return { cutter, edge, asmMain, doorPart, asm: asmMain + doorPart, counts: c.edgeFaces === faces ? c : { ...c, edgeFaces: faces } };
 }
 
+/**
+ * 스냅샷은 철물을 bom_payload 가 아니라 hardware_payload.hardware 에 따로 둔다 (workflow-client.js createSnapshot).
+ * countWork 는 bom.hardware 를 읽으므로 둘을 합친다. bom 에 이미 hardware 가 있으면 그대로 쓴다.
+ */
+export function bomWithHardware(bom, hardwarePayload) {
+  const b = bom && typeof bom === 'object' ? bom : {};
+  if (Array.isArray(b.hardware)) return b;
+  const hw = hardwarePayload && Array.isArray(hardwarePayload.hardware) ? hardwarePayload.hardware : [];
+  return { ...b, hardware: hw };
+}
+
 /** 스냅샷 한 개 → 사람별 작업량(초). */
 export function workloadFromSnapshot(snapshot, standards = DEFAULT_STANDARDS) {
-  const counts = countWork(snapshot && snapshot.bom_payload, snapshot && snapshot.cut_plan_payload);
+  const bom = bomWithHardware(snapshot && snapshot.bom_payload, snapshot && snapshot.hardware_payload);
+  const counts = countWork(bom, snapshot && snapshot.cut_plan_payload);
   return workloadFromCounts(counts, standards);
 }
