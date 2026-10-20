@@ -870,8 +870,16 @@ export function positionScore(c) {
     if (c.alarmsOn) alerts.push(a);
     else shadow.push(k);
   }
-  const ok = !c.alarmsOn || !judged ? null : alerts.length === 0;
-  return { items, alerts, shadow, ok, M };
+  // 2026-10-20 사장님 결정: 플래너 계열은 도면 반대쪽 자유 끝(줄 끝)이 판정됐을 때만 ok 를 낸다.
+  //   줄 끝이 보류(벽 끝 불확실·room_changed·σ…)인데 줄 왼끝·줄 안 싱크만 맞아 ok:true 가 찍히면 — 줄을 600 mm 늘린 장도
+  //   '통과'로 집계된다(planner_place 재생 cf5b2f3f·00de889d). 앵커 쪽 끝(CBL = WL)은 거의 늘 맞으므로 판정 수에서 뺀다.
+  const freeEndKey = E.route.startsWith('planner')
+    ? E.anchor === 'right' ? 'run_left_wall' : 'run_right_wall'
+    : null;
+  //   경보가 하나라도 있으면 ok:false 는 그대로(위반은 위반이다). '통과(true)'만 자유 끝 판정을 요구한다.
+  const freeEndJudged = !freeEndKey || !!(items[freeEndKey] && !items[freeEndKey].hold && items[freeEndKey].d != null);
+  const ok = !c.alarmsOn || !judged ? null : alerts.length ? false : freeEndJudged ? true : null;
+  return { items, alerts, shadow, ok, M, ...(freeEndKey ? { freeEnd: freeEndKey } : {}) };
 }
 
 // ─────────────────────────────── 기록 ───────────────────────────────
