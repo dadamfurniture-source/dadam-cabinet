@@ -32,8 +32,8 @@ IMAGE_PROVIDER = "openai"
 PLANNER_IMAGE_PROVIDER = "openai"
 # 플래너 모드 도면 덩어리 (2026-10-20, src/planner-place.js). 'on' 이면 빈 벽 사진·일자 도면에서 카메라를 풀어
 # 도면 줄(폭·높이·깊이)을 방 사진에 칠한 그림을 IMAGE A 로 준다 — 줄을 늘리는 실패를 자리로 막는다. 시크릿 ANTHROPIC_API_KEY 필요.
-# 효과를 재기 전이라 기본은 꺼 둔다.
-PLANNER_PLACE_GUIDE = "off"
+# 2026-10-20 사장님 카드 "켜는 PR" 로 켰다. 되돌리려면 "off".
+PLANNER_PLACE_GUIDE = "on"
 OPENAI_IMAGE_MODEL = "gpt-image-2.5-sunburst"
 OPENAI_IMAGE_QUALITY = "high"
 

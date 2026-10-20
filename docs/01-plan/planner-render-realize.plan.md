@@ -248,7 +248,7 @@ POST /api/generate
 **2026-10-20 사장님 결정 (카드 "덩어리 켜기"): 플래너 도면 덩어리** — 줄 늘림 실측(싱크대 일자 14/15, 중앙 +223 mm)을 자리로 막는다.
 빈 벽 사진 · 일자 도면이면 싱크대 연출컷의 선 찾기·카메라 풀기(`kitchen.js`)로 design_spec 의 줄(폭·높이·깊이·바닥 높이)을
 방 사진에 무광 판으로 칠해 IMAGE A 로 준다 (`src/planner-place.js`). 깊이·바닥 높이를 모르는 줄은 칠하지 않는다. 스위치
-`PLANNER_PLACE_GUIDE` (wrangler.toml, 기본 `off`). 카메라 풀기 민감도·근거는 연구 보고서
+`PLANNER_PLACE_GUIDE` (wrangler.toml — PR #913 은 `off`, 같은 날 사장님 카드 "켜는 PR" 로 `on`). 카메라 풀기 민감도·근거는 연구 보고서
 `/mnt/project-files/imggen-composite-research/report.html`. 렌더는 `inputs.renders[]` 로 버킷에 저장.
 
 ### 6.2 단계 [결정]
