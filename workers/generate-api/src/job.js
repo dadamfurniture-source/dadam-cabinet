@@ -68,7 +68,7 @@ import { callClaudeJson, claudeModel } from './claude.js';
 import { VERIFY_VERSION, compareLayoutToSpec } from './verify.js';
 import { FURNITURE_MASK_SCHEMA, buildFurnitureMaskPrompt, parseFurnitureMask } from './furniture-mask.js';
 import { GUIDE_POINTS_SCHEMA, SIDE_RETURN_CHECK_SCHEMA, buildGuidePointsPrompt, buildSideReturnCheckPrompt, parseSideReturnCheck, drawGuide, parseGuidePoints, pasteVariantInPolys, pasteVariantInside, prepareGuideCanvas, renderMassingImage } from './guide.js';
-import { KITCHEN_POINTS_SCHEMA, buildKitchenPointsPrompt, parseKitchenPoints, renderFacesMassing, renderKitchenMassing } from './kitchen.js';
+import { KITCHEN_POINTS_SCHEMA, buildKitchenPointsPrompt, buildLensPrompt, massingFocal, parseKitchenPoints, parseLens, renderFacesMassing, renderKitchenMassing } from './kitchen.js';
 import { plannerPlaceBlocks, plannerPlaceFaces } from './planner-place.js';
 import { loadFridgeModelPhoto } from './appliance-image.js';
 
@@ -550,6 +550,22 @@ async function runPipeline(env, job, ck, save) {
     await updateById(env, 'generations', job.id, { wall_analysis: wall });
   }
   const wall = ck.wall;
+  // 덩어리 합성 화각: EXIF → 렌즈 판정(광각 13·표준 24) → 24 (2026-10-20 사장님 승인, kitchen.js massingFocal).
+  //   EXIF 가 없을 때만 Gemini 에 렌즈를 따로 한 번 묻는다 (덩어리를 그릴 때만, 한 번 정하면 체크포인트에).
+  const focalForMassing = async () => {
+    if (!(Number(opts.room_focal35) >= 8 && Number(opts.room_focal35) <= 200) && ck.lens === undefined) {
+      ck.lens = null;
+      try {
+        const t = await callGemini(env, { prompt: buildLensPrompt(), images: [room], want: 'text', temperature: 0 });
+        ck.lens = parseLens(t.text);
+      } catch (e) {
+        console.warn(`[Job ${job.id}] lens guess failed:`, e.message);
+      }
+      console.log(`[Job ${job.id}] lens guess: ${ck.lens}`);
+      await save({ lens: ck.lens });
+    }
+    return massingFocal(opts.room_focal35, ck.lens);
+  };
 
   const ctx = {
     category,
@@ -666,12 +682,13 @@ async function runPipeline(env, job, ck, save) {
         const points = parseKitchenPoints(json, size);
         if (points) {
           why = 'camera not solved';
+          const focal = await focalForMassing();
           const m = await renderKitchenMassing(room, points, {
             wallH: wall.wallH,
             waterPct: wall.waterPct,
             exhaustPct: wall.exhaustPct,
-            focalMm: Number(opts.room_focal35) || 24,
-            focalFromExif: Number(opts.room_focal35) > 0, // 기록용 — guide.cam.focalSource
+            focalMm: focal.focalMm,
+            focalBasis: focal.basis,
           });
           if (m) {
             const upM = await uploadObject(env, `${prefix}/massing.png`, m.base64, m.mimeType);
@@ -721,10 +738,11 @@ async function runPipeline(env, job, ck, save) {
         const points = parseKitchenPoints(json, size);
         if (points) {
           why = 'camera not solved';
+          const focal = await focalForMassing();
           const m = await renderFacesMassing(
             room,
             points,
-            { wallH: wall.wallH, focalMm: Number(opts.room_focal35) || 24, focalFromExif: Number(opts.room_focal35) > 0 },
+            { wallH: wall.wallH, focalMm: focal.focalMm, focalBasis: focal.basis },
             (cam) => plannerPlaceFaces(cam, placeBlocks),
             ['front']
           );
