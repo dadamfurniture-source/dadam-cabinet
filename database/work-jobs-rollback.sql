@@ -1,7 +1,7 @@
 -- ============================================================
 -- 작업자 포털 되돌리기 — database/work-jobs.sql 이 만든 표를 모두 지운다
 --
--- ⚠️ 데이터가 지워진다 (작업 · 신청 · 배정 · 보고 · 작업자 · 초대 · 메모 · 이벤트).
+-- ⚠️ 데이터가 지워진다 (작업 · 신청 · 배정 · 보고 · 작업자 · 초대 · 메모 · 이벤트 · 작업자 이력).
 --    실수로 실행하지 않도록 work-jobs.sql 과 따로 둔다. 필요하면 먼저 백업한다.
 --
 -- 순서: 가리키는 쪽(자식)부터 역순으로 — work-jobs.sql 의 CREATE 순서를 거꾸로.
@@ -10,6 +10,7 @@
 
 BEGIN;
 
+DROP TABLE IF EXISTS worker_events;
 DROP TABLE IF EXISTS work_job_events;
 DROP TABLE IF EXISTS work_reviews;
 DROP TABLE IF EXISTS work_photos;
