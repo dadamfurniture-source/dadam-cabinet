@@ -7,7 +7,7 @@
  *
  * 고정하는 것:
  *   1) normalizeDesignSpec 이 tiers 를 받는다 (자르기·400·빈 배열은 키 없음)
- *   2) FIXED GEOMETRY — 통 하나에 번호 하나, 단 높이를 아래부터 · 냉장고 자리는 비우되 독립형 냉장고는 서 있어도 된다
+ *   2) FIXED GEOMETRY — 통 하나에 번호 하나, 단 높이를 아래부터 · 냉장고 자리는 장·선반 없이 냉장고 (2026-10-20: 사진 냉장고 유지, 없으면 중립 냉장고를 그린다)
  *   3) 자체 점검 — 통 기준 (유닛·가전 칸·도어 합)
  *   4) DO NOT — 냉장고 자리가 도면에 있으면 refrigerator 를 막지 않는다
  *   5) 검사 LAYOUT 요약 · 설치 프롬프트 FURNITURE 구절
@@ -160,19 +160,26 @@ test('키큰장 한 통 = T1 하나 — 단 높이를 아래부터 말한다 (�
   assert.ok(!/\bT3\b/.test(p), 'T3 가 없다 — 통은 둘');
 });
 
-test('냉장고장 = T2 하나 — 냉장고 자리(바닥~1885 비움, 독립형 냉장고는 서 있어도 된다) + 위 2도어 박스', () => {
+// 2026-10-20: 냉장고 자리에는 냉장고를 그린다 (사장님 결정) — 사진 냉장고 유지, 없으면 모델·중립 (planner-fridge-opening.test.js)
+const FRIDGE_IN =
+  'a refrigerator stands in it: if IMAGE A shows a refrigerator in this spot, keep that one, otherwise draw ' +
+  'a neutral free-standing two-door refrigerator, plain matte white or, if the fronts are dark, brushed stainless, ' +
+  'with no logo or display, sized to fill the opening)';
+
+test('냉장고장 = T2 하나 — 냉장고 자리(바닥~1885, 장·선반 없이 냉장고) + 위 2도어 박스', () => {
   const p = buildPlannerPrompt(ctx());
   assert.ok(
     p.includes(
-      '    T2   680 mm  refrigerator opening (keep it open from the floor up to 1885 mm, with no cabinet, shelf or panel inside; ' +
-        'a free-standing refrigerator may stand there — keep the one IMAGE A shows, do not invent a built-in one) ' +
-        'with a 2-door cabinet above (415 mm high)\n'
+      '    T2   680 mm  refrigerator opening (open from the floor up to 1885 mm, with no cabinet, shelf or panel inside; ' +
+        FRIDGE_IN +
+        ' with a 2-door cabinet above (415 mm high)\n'
     )
   );
   // 줄 머리·닫힌 목록·비율은 통 기준
   assert.ok(p.includes('  TALL ROW (2300 mm high, 1300 mm long) — T1–T2 start at the right end of L2 and end 1280 mm right of the base row:'));
   assert.ok(p.includes('CLOSED LIST: L1–L2, U1–U2 and T1–T2 are the only built-in units in the result.'));
-  assert.ok(p.includes('    → widths T1 : T2 = 1 : 1\n'));
+  // 2026-10-20: 소수 둘째 자리 — 600 : 680 (예전 반올림 "1 : 1")
+  assert.ok(p.includes('    → widths T1 : T2 = 1 : 1.13\n'));
 });
 
 test('단이 섞인 통 · 여러 단 박스 · 높이를 모르는 단', () => {
@@ -203,9 +210,9 @@ test('단이 섞인 통 · 여러 단 박스 · 높이를 모르는 단', () => 
   );
   const p = buildPlannerPrompt({ category: 'storage', designSpec: spec, wallW: 0, wallH: 0 });
   assert.ok(p.includes('T1   900 mm  tall column — 3 stacked sections, bottom to top: 3-drawer stack 700 mm, 2-door cabinet 1100 mm, 2-door cabinet 500 mm\n'));
-  assert.ok(p.includes('T2   700 mm  refrigerator opening (keep it open from the floor, with no cabinet, shelf or panel inside; ' +
-    'a free-standing refrigerator may stand there — keep the one IMAGE A shows, do not invent a built-in one) ' +
-    'with 2 stacked sections, bottom to top: single-door cabinet, open shelving, no door above\n'));
+  assert.ok(p.includes('T2   700 mm  refrigerator opening (open from the floor, with no cabinet, shelf or panel inside; ' +
+    FRIDGE_IN +
+    ' with 2 stacked sections, bottom to top: single-door cabinet, open shelving, no door above\n'));
   assert.ok(p.includes('T3   600 mm  tall column — 2 stacked doors\n'));
   assert.ok(p.includes('tall row 2 units + 1 appliance opening, T1 4 + T2 1 + T3 2 = 7 doors, 3 drawers'));
 });
@@ -238,7 +245,7 @@ test('냉장고 자리가 도면에 있으면 DO NOT 이 refrigerator 를 막지
   raw.sections.tall.modules[1].label = '위장';   // 모듈 라벨이 아니라 단 라벨로 안다
   const p2 = buildPlannerPrompt(ctx({ designSpec: normalizeDesignSpec(raw, 'fridge') }));
   assert.ok(!p2.match(/\nDO NOT: [^\n]*/)[0].includes('refrigerator'));
-  assert.ok(p2.includes('T2   680 mm  refrigerator opening (keep it open from the floor up to 1885 mm'));
+  assert.ok(p2.includes('T2   680 mm  refrigerator opening (open from the floor up to 1885 mm'));
 });
 
 test('키큰장만 있으면(냉장고 자리 없음) DO NOT 은 예전처럼 refrigerator 를 막는다', () => {
