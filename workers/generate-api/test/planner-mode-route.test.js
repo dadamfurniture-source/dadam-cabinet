@@ -602,3 +602,38 @@ test('/health 에 플래너 기본 공급자가 보인다', async () => {
     assert.equal((await res.json()).planner_image_provider, want);
   }
 });
+
+// ─── 6. 사진 초점거리 (2026-10-20, room_focal35) ───
+//   도면 덩어리(1-d)의 카메라 화각. 일반 경로와 같은 정규화 (8~200, 반올림), 재생성은 원본 값을 잇는다.
+
+test('플래너 모드도 room_focal35 를 options 에 싣는다 — 범위 밖·없음이면 키 없음', async () => {
+  for (const [given, want] of [[26, 26], [24.6, 25], ['52', 52], [4, undefined], [500, undefined], [undefined, undefined]]) {
+    install();
+    const res = await post(plannerBody(given === undefined ? {} : { room_focal35: given }));
+    assert.equal(res.status, 202);
+    assert.equal(calls.inserted.options.room_focal35, want, String(given));
+    if (want === undefined) assert.equal('room_focal35' in calls.inserted.options, false);
+    const keys = Object.keys(calls.inserted.options);
+    assert.equal(keys[keys.length - 1], 'image_provider', 'image_provider 는 맨 끝');
+  }
+});
+
+test('재생성은 원본의 room_focal35 를 잇고, 새로 보낸 값이 이긴다', async () => {
+  const parent = {
+    id: '33333333-3333-4333-8333-333333333333',
+    user_id: USER_ID,
+    category: 'sink',
+    inputs: {
+      room: { path: 'p/room.jpg', url: 'u', mime: 'image/jpeg' },
+      refs: [],
+      renders: [{ role: 'elevation', path: 'p/render-elevation.png', url: 'u2', mime: 'image/png' }],
+    },
+    options: { design_spec: { version: 1, category: 'sink', wallRunMm: 2200 }, mode: 'planner', aspect: '4:3', variants: false, room_focal35: 26 },
+  };
+  install({ parent });
+  await post({ parent_id: parent.id });
+  assert.equal(calls.inserted.options.room_focal35, 26);
+  install({ parent });
+  await post({ parent_id: parent.id, room_focal35: 70 });
+  assert.equal(calls.inserted.options.room_focal35, 70);
+});
