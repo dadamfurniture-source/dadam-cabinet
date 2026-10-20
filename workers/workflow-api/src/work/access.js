@@ -58,12 +58,11 @@ export async function requireAdminEditor(env, user) {
 
 /**
  * 관리자가 사람을 넣을 때 (직접 지정 초대 · 신청 승인) — 승인된 작업자만, 아니면 409.
- * 정지는 정지 문구로, 대기 · 반려(· 행 없음)는 승인 문구로.
+ * 문구는 정지 · 대기 · 반려(· 행 없음) 모두 "정지된 작업자는 배정할 수 없습니다" (1주차 후속 D 명세 그대로).
  */
 export function assertAssignable(worker) {
   if (worker && worker.status === 'approved') return worker;
-  if (worker && worker.status === 'suspended') throw new ConflictError('정지된 작업자는 배정할 수 없습니다');
-  throw new ConflictError('승인된 작업자만 배정할 수 있습니다');
+  throw new ConflictError('정지된 작업자는 배정할 수 없습니다');
 }
 
 /** 작업자 본인 행인지 — 아니면 404 (403 아님: 남의 배정 · 신청은 있는지도 모르게) */

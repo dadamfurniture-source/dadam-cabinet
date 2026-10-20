@@ -68,7 +68,7 @@ const UNIQUE = {
 };
 
 function makeDb() {
-  const db = { tables: {}, users: {}, calls: [], slack: [], missing: new Set(), onPatch: null };
+  const db = { tables: {}, users: {}, calls: [], slack: [], missing: new Set(), onPatch: null, onPost: null };
 
   const col = (row, key) => {
     if (key.includes('->>')) {
@@ -162,6 +162,9 @@ function makeDb() {
       return json(clone(out));
     }
     if (method === 'POST') {
+      // onPost · onPatch: 쓰기 직전에 끼어든다 (다른 요청이 겹친 것처럼). 응답을 돌려주면 그것으로 끝낸다 (DB 오류 흉내)
+      const forced = db.onPost ? await db.onPost(table, body) : null;
+      if (forced) return forced;
       const made = [];
       for (const b of Array.isArray(body) ? body : [body]) {
         const row = { id: randomUUID(), created_at: new Date().toISOString(), ...(DEFAULTS[table] ? DEFAULTS[table]() : {}), ...b };
@@ -172,7 +175,8 @@ function makeDb() {
       return json(clone(made), 201);
     }
     if (method === 'PATCH') {
-      if (db.onPatch) db.onPatch(table, filters, body);
+      const forced = db.onPatch ? await db.onPatch(table, filters, body) : null;
+      if (forced) return forced;
       const hit = rows.filter(match);
       for (const r of hit) if (violates(table, { ...r, ...body }, r)) return fail(409, '{"code":"23505"}');
       hit.forEach((r) => Object.assign(r, body));
@@ -679,7 +683,7 @@ test('직접 지정 — 승인 · 종류 맞는 작업자만, 수락하면 정�
   const job = await makeJob({ mode: 'invite', slots: 1, kind: 'install' });
   const pend = await call('POST', `/work/admin/jobs/${job.id}/invite`, { token: 'tok-admin', body: { worker_id: WP } });
   assert.equal(pend.status, 409, '대기 작업자');
-  assert.equal(pend.body.message, '승인된 작업자만 배정할 수 있습니다');
+  assert.equal(pend.body.message, '정지된 작업자는 배정할 수 없습니다', '명세 D — 정지 · 승인 아님 모두 같은 문구');
   const asJob = await makeJob({ kind: 'as', mode: 'invite' });
   assert.equal((await call('POST', `/work/admin/jobs/${asJob.id}/invite`, { token: 'tok-admin', body: { worker_id: W2 } })).status, 409, '종류 불일치');
   const o1 = await call('POST', `/work/admin/jobs/${job.id}/invite`, { token: 'tok-admin', body: { worker_id: W1 } });
@@ -786,6 +790,144 @@ test('작업 취소 — done 전만, 취소된 작업에는 보고 · 승인 409
   assert.equal((await call('POST', `/work/admin/jobs/${job.id}/cancel`, { token: 'tok-admin', body: { reason: '다시' } })).status, 409);
   const card = (await call('GET', '/work/jobs?tab=mine', { token: 'tok-w1' })).data.items[0];
   assert.equal(card.effective_status, 'cancelled');
+});
+
+/** 작업을 잠그는 PATCH(work_jobs) 직전에 관리자 취소가 끝난 것처럼 — 취소 응답을 담아 둘 상자를 돌려준다 */
+function cancelBeforeJobLock(jobId) {
+  const box = { cancel: null };
+  db.onPatch = async (table) => {
+    if (table !== 'work_jobs') return null;
+    db.onPatch = null;
+    box.cancel = await call('POST', `/work/admin/jobs/${jobId}/cancel`, { token: 'tok-admin', body: { reason: '고객 일정 변경' } });
+    return null;
+  };
+  return box;
+}
+
+test('수락 · 거절과 취소가 겹치면 — 잠금에 져서 초대로 되돌아간 배정도 작업이 끝났으면 자동 종료 (offered 로 남지 않는다)', async () => {
+  // 수락: 배정을 confirmed 로 바꾼 직후 · 작업을 잠그기 전에 취소가 끝난다 — 취소의 정리는 confirmed 라 이 배정을 못 본다
+  const job = await makeJob({ mode: 'invite', slots: 1 });
+  const offer = await call('POST', `/work/admin/jobs/${job.id}/invite`, { token: 'tok-admin', body: { worker_id: W1 } });
+  const box = cancelBeforeJobLock(job.id);
+  const confirm = await call('POST', `/work/assignments/${offer.data.id}/confirm`, { token: 'tok-w1' });
+  assert.equal(confirm.status, 409, '수락은 작업 잠금에 진다');
+  assert.deepEqual([box.cancel.status, box.cancel.data.status, box.cancel.data.auto_declined], [200, 'cancelled', 0], '취소 때는 confirmed 라 정리 대상이 아니었다');
+  const row = rowOf('work_assignments', offer.data.id);
+  assert.deepEqual([row.status, row.release_reason], ['declined', '작업이 취소돼 초대가 끝났습니다']);
+  const ev = db.tables.work_job_events.filter((e) => e.type === 'assignment_auto_declined');
+  assert.deepEqual(ev.map((e) => [e.job_id, e.assignment_id, e.actor_kind, e.from_status, e.to_status, e.note, e.payload]), [
+    [job.id, offer.data.id, 'system', 'offered', 'declined', '작업이 취소돼 초대가 끝났습니다', { worker_id: W1, reason: 'job_cancelled' }],
+  ]);
+  assert.equal(db.tables.work_job_events.some((e) => e.type === 'assignment_confirmed'), false, '수락은 일어나지 않았다');
+  // 작업자에게는 지난 작업 — 내 작업 · 다음 작업에서 빠진다
+  const me = await call('GET', '/work/me', { token: 'tok-w1' });
+  assert.deepEqual([me.data.counts.mine, me.data.next_job], [0, null]);
+
+  // 거절도 같다 — 잠금에 지면 초대로 되돌아갔다가 자동 종료 (작업자가 적은 사유 대신 안내 문구)
+  const job2 = await makeJob({ mode: 'invite', title: '거절과 겹친 초대' });
+  const offer2 = await call('POST', `/work/admin/jobs/${job2.id}/invite`, { token: 'tok-admin', body: { worker_id: W2 } });
+  const box2 = cancelBeforeJobLock(job2.id);
+  const decline = await call('POST', `/work/assignments/${offer2.data.id}/decline`, { token: 'tok-w2', body: { reason: '일정 겹침' } });
+  assert.equal(decline.status, 409);
+  assert.equal(box2.cancel.data.auto_declined, 0);
+  const row2 = rowOf('work_assignments', offer2.data.id);
+  assert.deepEqual([row2.status, row2.release_reason], ['declined', '작업이 취소돼 초대가 끝났습니다']);
+
+  // 끝나지 않은 작업에서 잠금에 지면 원래대로 초대로 남는다 (다시 수락할 수 있다)
+  const job3 = await makeJob({ mode: 'invite', title: '버전만 겹친 초대' });
+  const offer3 = await call('POST', `/work/admin/jobs/${job3.id}/invite`, { token: 'tok-admin', body: { worker_id: W1 } });
+  db.onPatch = (table) => {
+    if (table !== 'work_jobs') return null;
+    db.onPatch = null;
+    rowOf('work_jobs', job3.id).version += 1;
+    return null;
+  };
+  assert.equal((await call('POST', `/work/assignments/${offer3.data.id}/confirm`, { token: 'tok-w1' })).status, 409);
+  assert.equal(rowOf('work_assignments', offer3.data.id).status, 'offered');
+  assert.equal((await call('POST', `/work/assignments/${offer3.data.id}/confirm`, { token: 'tok-w1' })).data.status, 'confirmed');
+});
+
+test('초대 넣기와 취소가 겹치면 — 넣은 초대도 자동 종료하고 409', async () => {
+  const job = await makeJob({ mode: 'invite' });
+  let cancel = null;
+  // 상태 확인은 통과했고 배정을 넣기 직전에 취소가 끝난다 — 취소의 정리는 아직 없는 초대를 못 본다
+  db.onPost = async (table) => {
+    if (table !== 'work_assignments') return null;
+    db.onPost = null;
+    cancel = await call('POST', `/work/admin/jobs/${job.id}/cancel`, { token: 'tok-admin', body: { reason: '고객 일정 변경' } });
+    return null;
+  };
+  const inv = await call('POST', `/work/admin/jobs/${job.id}/invite`, { token: 'tok-admin', body: { worker_id: W1 } });
+  assert.deepEqual([inv.status, inv.body.message], [409, '더 이상 사람을 받지 않는 작업입니다']);
+  assert.deepEqual([cancel.status, cancel.data.auto_declined], [200, 0]);
+  const rows = db.tables.work_assignments.filter((a) => a.job_id === job.id);
+  assert.deepEqual(rows.map((a) => [a.status, a.release_reason]), [['declined', '작업이 취소돼 초대가 끝났습니다']]);
+  const types = db.tables.work_job_events.filter((e) => e.assignment_id === rows[0].id).map((e) => e.type);
+  assert.deepEqual(types, ['assignment_offered', 'assignment_auto_declined']);
+
+  // 끝나지 않은 작업이면 초대는 그대로
+  const job2 = await makeJob({ mode: 'invite', title: '평소 초대' });
+  const ok = await call('POST', `/work/admin/jobs/${job2.id}/invite`, { token: 'tok-admin', body: { worker_id: W1 } });
+  assert.deepEqual([ok.status, ok.data.status], [201, 'offered']);
+});
+
+test('남은 초대 정리 쓰기가 실패하면 — 작업은 이미 마감 · 취소, 같은 닫기 · 취소를 다시 부르면 정리만 하고 auto_declined, 남은 초대가 없으면 409 그대로', async () => {
+  // 작업 잠금은 되고, 그 뒤 offered 정리 PATCH 한 번만 DB 오류
+  const failOfferCleanupOnce = () => {
+    db.onPatch = (table, filters) => {
+      if (table !== 'work_assignments' || !filters.some(([k, v]) => k === 'status' && v === 'eq.offered')) return null;
+      db.onPatch = null;
+      return fail(503, '{"message":"temporary"}');
+    };
+  };
+
+  // 닫기 — 정원 1 에 둘을 초대, 한 명이 끝내 done, 남은 초대 1
+  const job = await makeJob({ mode: 'invite', slots: 1 });
+  const o1 = await call('POST', `/work/admin/jobs/${job.id}/invite`, { token: 'tok-admin', body: { worker_id: W1 } });
+  const o2 = await call('POST', `/work/admin/jobs/${job.id}/invite`, { token: 'tok-admin', body: { worker_id: W2 } });
+  await call('POST', `/work/assignments/${o1.data.id}/confirm`, { token: 'tok-w1' });
+  await call('POST', `/work/assignments/${o1.data.id}/start`, { token: 'tok-w1' });
+  await call('POST', `/work/assignments/${o1.data.id}/updates`, { token: 'tok-w1', body: { kind: 'result', body: '설치 끝' } });
+  await call('POST', `/work/admin/assignments/${o1.data.id}/accept`, { token: 'tok-admin' });
+  assert.equal(rowOf('work_jobs', job.id).status, 'done');
+
+  failOfferCleanupOnce();
+  const first = await call('POST', `/work/admin/jobs/${job.id}/close`, { token: 'tok-admin' });
+  assert.equal(first.status, 503);
+  assert.equal(rowOf('work_jobs', job.id).status, 'closed', '작업은 이미 마감됐다');
+  assert.equal(rowOf('work_assignments', o2.data.id).status, 'offered', '정리는 안 됐다');
+  const version = rowOf('work_jobs', job.id).version;
+
+  const retry = await call('POST', `/work/admin/jobs/${job.id}/close`, { token: 'tok-admin' });
+  assert.equal(retry.status, 200, `다시 누르면 정리만 — ${JSON.stringify(retry.body)}`);
+  assert.deepEqual([retry.data.id, retry.data.status, retry.data.auto_declined], [job.id, 'closed', 1]);
+  const o2Row = rowOf('work_assignments', o2.data.id);
+  assert.deepEqual([o2Row.status, o2Row.release_reason], ['declined', '작업이 마감돼 초대가 끝났습니다']);
+  assert.equal(rowOf('work_assignments', o1.data.id).status, 'accepted', '끝난 배정은 그대로');
+  assert.equal(rowOf('work_jobs', job.id).version, version, '다시 부르면 정리만 — 작업은 다시 잠그지 않는다');
+  const closeEvents = db.tables.work_job_events.filter((e) => e.job_id === job.id);
+  assert.equal(closeEvents.filter((e) => e.type === 'job_closed').length, 1);
+  assert.deepEqual(closeEvents.filter((e) => e.type === 'assignment_auto_declined').map((e) => [e.assignment_id, e.payload]), [[o2.data.id, { worker_id: W2, reason: 'job_closed' }]]);
+  const again = await call('POST', `/work/admin/jobs/${job.id}/close`, { token: 'tok-admin' });
+  assert.deepEqual([again.status, again.body.message], [409, '완료된 작업만 마감할 수 있습니다'], '남은 초대가 없으면 원래대로 409');
+
+  // 취소 — 같은 길, 취소 사유는 처음 것 그대로
+  const job2 = await makeJob({ mode: 'invite', title: '취소할 초대 작업' });
+  const o3 = await call('POST', `/work/admin/jobs/${job2.id}/invite`, { token: 'tok-admin', body: { worker_id: W2 } });
+  failOfferCleanupOnce();
+  const c1 = await call('POST', `/work/admin/jobs/${job2.id}/cancel`, { token: 'tok-admin', body: { reason: '고객 일정 변경' } });
+  assert.equal(c1.status, 503);
+  assert.deepEqual([rowOf('work_jobs', job2.id).status, rowOf('work_assignments', o3.data.id).status], ['cancelled', 'offered']);
+  const c2 = await call('POST', `/work/admin/jobs/${job2.id}/cancel`, { token: 'tok-admin', body: { reason: '다시 누름' } });
+  assert.equal(c2.status, 200, `다시 누르면 정리만 — ${JSON.stringify(c2.body)}`);
+  assert.deepEqual([c2.data.status, c2.data.cancel_reason, c2.data.auto_declined], ['cancelled', '고객 일정 변경', 1]);
+  assert.equal(rowOf('work_jobs', job2.id).cancel_reason, '고객 일정 변경');
+  const o3Row = rowOf('work_assignments', o3.data.id);
+  assert.deepEqual([o3Row.status, o3Row.release_reason], ['declined', '작업이 취소돼 초대가 끝났습니다']);
+  assert.equal(db.tables.work_job_events.filter((e) => e.job_id === job2.id && e.type === 'job_cancelled').length, 1);
+  assert.equal((await call('POST', `/work/admin/jobs/${job2.id}/cancel`, { token: 'tok-admin', body: { reason: '또' } })).status, 409);
+  // 다른 끝난 상태로는 정리하지 않는다 — 마감된 작업에 취소는 409 (정리할 초대가 없어도 · 있어도)
+  assert.equal((await call('POST', `/work/admin/jobs/${job.id}/cancel`, { token: 'tok-admin', body: { reason: 'x' } })).status, 409);
 });
 
 test('/work/me 배지 — 모집중 · 내 작업 · 보완요청 · 새 소식(내 작업을 열어 보면 0)', async () => {
