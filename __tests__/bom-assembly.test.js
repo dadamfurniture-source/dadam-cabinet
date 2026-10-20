@@ -351,7 +351,7 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
     expect(of(m, 'body:side-1')[0].features).toEqual([]);
     expect(of(m, 'body:top-1')[0].box).toEqual({ min: [-435, 1125, -300], max: [435, 1140, 300] });
     expect(of(m, 'back-1')[0].box).toEqual({ min: [-449.5, 0.5, -303], max: [449.5, 1139.5, -300] });
-    expect(m.parts.filter((p) => p.part !== '선반' && !p.tags.pedestal).every((p) => p.tags.carcass === (p.box.min[1] >= 1140 ? 1 : 0))).toBe(true);
+    expect(m.parts.filter((p) => p.part !== '선반' && p.part !== '도어' && !p.tags.pedestal).every((p) => p.tags.carcass === (p.box.min[1] >= 1140 ? 1 : 0))).toBe(true);
   });
 
   test('선반 높이 — 통 구조 블록이 없는 옛 설계는 wardrobe.md §6 (긴옷: 상단 315 아래, 그 밖: 균등)', () => {
@@ -401,11 +401,21 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
     expect(s.unplaced.filter((u) => /칸막이/.test(u.part))).toEqual([]);
   });
 
-  test('아직 자리를 안 정한 행은 이유와 함께 — 도어(좌대+몸통−20 세로 자리 미정) · 서랍모듈 밴드 · 서랍', () => {
+  test('아직 자리를 안 정한 행은 이유와 함께 — 외부 서랍 통 도어 · 서랍모듈 밴드 · 서랍', () => {
     const reasons = (id) => [...new Set(spec.unplaced.filter((u) => u.moduleKey === `0-${id}`).map((u) => u.reason))].sort();
     expect(reasons('w2')).toEqual(['band-position-pending', 'door-layout-unknown', 'drawer-layout-unknown', 'not-yet']);
-    expect(spec.unplaced.filter((u) => u.part === '도어').map((u) => u.reason)).toEqual(['door-layout-unknown', 'door-layout-unknown', 'door-layout-unknown']);
+    // 외부 서랍 몸통이 있는 통(w2)의 도어 1620 은 서랍 전면과 합이 좌대 + 몸통보다 40 길어 자리를 모른다 — 사장님 확인 대기
+    expect(spec.unplaced.filter((u) => u.part === '도어').map((u) => [u.moduleKey, u.reason])).toEqual([['0-w2', 'door-layout-unknown']]);
     expect(spec.unplaced.filter((u) => /^좌대 (전후|측|중간보강)$/.test(u.part))).toEqual([]);
+  });
+
+  test('도어 — 좌대를 덮고 바닥에서 20 뜬다, 윗변 = 몸통 상단 (2026-10-20 카드 "바닥 20 띄움")', () => {
+    const m = spec.items[0].modules.find((x) => x.moduleId === 'w1');
+    const doors = m.parts.filter((p) => p.part === '도어');
+    expect(doors.map((p) => p.box)).toEqual([
+      { min: [-448, -40, 300], max: [-2, 2280, 318] },
+      { min: [2, -40, 300], max: [448, 2280, 318] },
+    ]);
   });
 
   test('좌대 상자 — 몸통 아래, 뒤 맞춤 (앞 50 들어감), 측판은 전후판 사이, 중간보강은 폭 가운데 (2026-10-20 카드)', () => {
