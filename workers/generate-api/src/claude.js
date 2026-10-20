@@ -19,7 +19,11 @@ import { proxyStub } from './proxy.js';
 
 export const CLAUDE_MODEL_DEFAULT = 'claude-opus-5';
 
-/** SDK 가 쓸 fetch — 요청을 통째로 미국 콜로 DO 에 넘긴다. 바인딩이 없으면 undefined(기본 fetch). */
+/**
+ * SDK 가 쓸 fetch — 요청을 통째로 미국 콜로 DO 에 넘긴다. 바인딩이 없으면 undefined(기본 fetch).
+ * 2026-10-20: SDK 의 시간 제한은 중단 신호(init.signal)로만 걸린다. 예전엔 그 신호를 DO 로 넘기지 않아
+ * 90초 제한이 실제로는 걸리지 않았다 — 업스트림이 멈추면 잡의 10분 제한까지 기다렸다. Gemini(send)처럼 넘긴다.
+ */
 export function proxiedFetch(env) {
   const stub = proxyStub(env);
   if (!stub) return undefined;
@@ -37,6 +41,7 @@ export function proxiedFetch(env) {
         headers,
         bodyText: init && typeof init.body === 'string' ? init.body : undefined,
       }),
+      ...(init && init.signal ? { signal: init.signal } : {}),
     });
   };
 }
