@@ -722,8 +722,12 @@
               case 'wardrobe':
                 this.extractWardrobe(catItem, materials, prefix);
                 break;
+              // 2026-10-20: 냉장고장이 플래너로 옮겨 왔다. 플래너 브리지가 만든 모듈(pos: 냉장고 위 상부장 'upper',
+              //   키큰장 단 'lower'+단 표시)은 싱크대 규칙으로 낸다 — 위장은 2026-09-22 사장님 확정(일반 상부장 규칙),
+              //   키큰장 단은 싱크대 옆 키큰장과 같은 sink.md §5.1. 전용 화면이 만든 type 모듈(옛 설계)만 extractFridge.
               case 'fridge':
-                this.extractFridge(catItem, materials, prefix);
+                if ((catItem.modules || []).some((m) => m && m.pos)) this.extractSink(catItem, materials, prefix);
+                else this.extractFridge(catItem, materials, prefix);
                 break;
               default:
                 // B3: 신발장·화장대·수납장·창고장 — 같은 상자 규칙, 카테고리 상수만 다르다 (BOM_SIMPLE_CATEGORY_RULES)

@@ -31,7 +31,7 @@ python3 .claude/skills/planner-qa/scripts/planner_flow.py --help
 | 4 작업지시서·견적 | 워커 | 로그인 + 워커 키가 필요하다. 이 컨테이너에서는 못 한다 — 건너뛰고 보고서에 적는다 |
 
 - 품목 드롭다운은 iframe 이 부모 안에 있을 때만 보인다. `mockup-shell.html` 을 바로 열면 품목이 없다.
-- 냉장고장(`fridge`)은 플래너가 아니라 예전 화면으로 간다 (`ui-step1.js NATIVE_ONLY_CATEGORIES`).
+- 냉장고장(`fridge`)도 2026-10-20 부터 플래너다. 빠른 배치가 없어 장 버튼으로 놓는다: `--place fridge,tall` (냉장고장 + 키큰장). 장 버튼은 줄 끝에 이어 붙는다.
 - 품목 id 와 기본 치수 정본: `js/detaildesign/data-constants.js CATEGORIES`.
 - 배치 저장 키: `dadam_layout_v1::local:<itemId>` (localStorage). 구조는 `dadam_structure_v1::...`.
   배치를 손으로 넣을 때는 이 키에 쓰고 '📥 도면 불러오기 → ↩ 마지막 저장'.

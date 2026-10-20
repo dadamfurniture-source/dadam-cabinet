@@ -943,6 +943,50 @@
     // W9-18: Reset = 기본 view (가로 7000mm fit)
     setInitialView();
   }
+  /**
+   * 2026-10-20: 장 버튼으로 놓는 캐비닛 사각형의 자리 — 같은 층(바닥 장 / 벽 상부장) 줄의 오른쪽 끝에 붙인다.
+   * 뒷선(y)은 놓인 사각형 중 가장 위. 돌린 사각형이 하나라도 있으면(ㄱ자·ㄷ자) 줄을 알 수 없어 null — 예전 자동 위치.
+   */
+  const ROW_LAYER_OF = { lower: 'floor', tall: 'floor', fridge: 'floor', wardrobe: 'floor', upper: 'wall' };
+  let lastAutoRow = null;
+  function rowSlotFor(section) {
+    const layer = ROW_LAYER_OF[section];
+    if (!layer) return null;
+    const content = getContent();
+    if (!content) return null;
+    const placed = [];
+    for (const g of content.querySelectorAll(':scope > g.sect-rect')) {
+      const r = g.querySelector(':scope > rect:not(.resize-handle)');
+      if (!r) continue;
+      if ((rotations.get(g) || 0) !== 0) return null;
+      const sec = Array.from(g.classList).find((c) => SECTION_CONFIG[c]);
+      placed.push({ layer: ROW_LAYER_OF[sec], x: parseFloat(r.getAttribute('x')), y: parseFloat(r.getAttribute('y')),
+        w: parseFloat(r.getAttribute('width')), h: parseFloat(r.getAttribute('height')) });
+    }
+    if (!placed.length) return { x: 80, y: 80 };
+    const same = placed.filter((p) => p.layer === layer);
+    return {
+      x: same.length ? Math.max(...same.map((p) => p.x + p.w)) : Math.min(...placed.map((p) => p.x)),
+      y: Math.min(...placed.map((p) => p.y)),
+    };
+  }
+  /** 줄 사각형 가운데 앞에 사람을 세운다 — 모두 정면(회전 0)이 사람을 본다. 거리 900 은 빠른 배치와 같다. */
+  function personInFrontOfRow() {
+    const content = getContent();
+    if (!content) return;
+    const rs = Array.from(content.querySelectorAll(':scope > g.sect-rect > rect:not(.resize-handle)'));
+    if (!rs.length) return;
+    const n = (r, a) => parseFloat(r.getAttribute(a));
+    const x0 = Math.min(...rs.map((r) => n(r, 'x')));
+    const x1 = Math.max(...rs.map((r) => n(r, 'x') + n(r, 'width')));
+    const y1 = Math.max(...rs.map((r) => n(r, 'y') + n(r, 'height')));
+    const cx = (x0 + x1) / 2, cy = y1 + 900;
+    const c = content.querySelector('g.person circle');
+    const t = content.querySelector('g.person text');
+    if (c) { c.setAttribute('cx', cx); c.setAttribute('cy', cy); }
+    if (t) { t.setAttribute('x', cx); t.setAttribute('y', cy); }
+  }
+
   function addSectionRect(section, override) {
     override = override || {};
     const cfg = SECTION_CONFIG[section];
@@ -965,8 +1009,14 @@
     }
     // W9-29: override.x/y 있으면 명시 위치, 아니면 자동
     const baseX = 80, baseY = 80;
-    const offsetX = override.x !== undefined ? override.x : baseX + (rectIdx % 3) * (useW + 100);
-    const offsetY = override.y !== undefined ? override.y : baseY + Math.floor(rectIdx / 3) * (useH + 100);
+    // 2026-10-20: 장 버튼은 줄 끝에 이어 붙인다 (rowSlotFor). 예전 자동 위치는 새 사각형 폭으로 칸을 띄워
+    //   2400 하부장 옆 키큰장이 1620 겹쳤고(구조 단계가 겹침으로 막는다), 사람과 먼 첫 사각형은 옆으로 돌았다.
+    lastAutoRow = (override.x === undefined && override.y === undefined && !override.parentG)
+      ? rowSlotFor(section) : null;
+    const offsetX = override.x !== undefined ? override.x
+      : lastAutoRow ? lastAutoRow.x : baseX + (rectIdx % 3) * (useW + 100);
+    const offsetY = override.y !== undefined ? override.y
+      : lastAutoRow ? lastAutoRow.y : baseY + Math.floor(rectIdx / 3) * (useH + 100);
     const g = document.createElementNS(ns, 'g');
     g.setAttribute('class', 'sect-rect ' + section);
     g.setAttribute('data-module-h', useModuleH);
@@ -2425,7 +2475,10 @@
       // W9-60: forceRotation override 있으면 alignToPerson 건너뜀 (복원 시 저장된 회전 유지)
       const isFinishing = last.classList.contains('finishing');
       if (!isFinishing) {
-        if (!override || override.forceRotation === undefined) {
+        if (lastAutoRow) {
+          // 2026-10-20: 줄 끝에 붙인 장은 정면 그대로(회전 0) — 사람을 줄 앞으로 옮긴다
+          personInFrontOfRow();
+        } else if (!override || override.forceRotation === undefined) {
           alignToPerson(last);
         }
         if (!override || !override.suppressSelect) {
