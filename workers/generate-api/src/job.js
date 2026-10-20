@@ -66,7 +66,8 @@ import { callClaudeJson, claudeModel } from './claude.js';
 import { VERIFY_VERSION, compareLayoutToSpec } from './verify.js';
 import { FURNITURE_MASK_SCHEMA, buildFurnitureMaskPrompt, parseFurnitureMask } from './furniture-mask.js';
 import { GUIDE_POINTS_SCHEMA, buildGuidePointsPrompt, drawGuide, parseGuidePoints, pasteVariantInPolys, pasteVariantInside, prepareGuideCanvas, renderMassingImage } from './guide.js';
-import { KITCHEN_POINTS_SCHEMA, buildKitchenPointsPrompt, parseKitchenPoints, renderKitchenMassing } from './kitchen.js';
+import { KITCHEN_POINTS_SCHEMA, buildKitchenPointsPrompt, parseKitchenPoints, renderFacesMassing, renderKitchenMassing } from './kitchen.js';
+import { plannerPlaceBlocks, plannerPlaceFaces } from './planner-place.js';
 
 const MAX_ATTEMPTS = 2;
 /** 역판독(Claude 비전) 이미지 한도 — Anthropic 5MB, base64 는 4/3 배 (worker.js MAX_IMAGE_B64 와 같은 값) */
@@ -588,6 +589,59 @@ async function runPipeline(env, job, ck, save) {
     massingImg = await fetchObjectBase64(env, ck.guide.massing.path);
   }
 
+  // ═══ 1-d. 플래너 도면 덩어리 (2026-10-20) ═══
+  //   플래너 모드에서 줄 길이를 늘리는 실패(싱크대 26건: 일자 14/15)를 자리로 막는다 — 1-c 와 같은 선 찾기·카메라 풀기로
+  //   도면의 실제 줄을 칠한 사진을 IMAGE A 로 준다 (planner-place.js). 기본은 꺼짐: PLANNER_PLACE_GUIDE='on' 일 때만.
+  //   기존 가구가 없는 사진 · 일자(꺾인 벽 없음) · Claude 키가 있을 때만. 어느 단계든 실패하면 방 사진 그대로.
+  let placeImg = null;
+  const placeBlocks = planner ? plannerPlaceBlocks(opts.design_spec) : null;
+  const wantPlace =
+    planner && env.PLANNER_PLACE_GUIDE === 'on' && !!placeBlocks && !wall.existing && !!env.ANTHROPIC_API_KEY;
+  if (wantPlace && ck.place === undefined) {
+    ck.place = null;
+    const t0 = Date.now();
+    let why = 'points missing';
+    try {
+      const canvas = await prepareGuideCanvas(room);
+      if (canvas) {
+        const size = { width: canvas.width, height: canvas.height };
+        const { json, model } = await callClaudeJson(env, {
+          prompt: buildKitchenPointsPrompt(size),
+          image: canvas.png,
+          schema: KITCHEN_POINTS_SCHEMA,
+          model: env.GUIDE_MODEL || 'claude-haiku-5-5',
+          fallbacks: false,
+          maxTokens: 4000,
+        });
+        const points = parseKitchenPoints(json, size);
+        if (points) {
+          why = 'camera not solved';
+          const m = await renderFacesMassing(
+            room,
+            points,
+            { wallH: wall.wallH, focalMm: Number(opts.room_focal35) || 24 },
+            (cam) => plannerPlaceFaces(cam, placeBlocks),
+            ['front']
+          );
+          if (m) {
+            const up = await uploadObject(env, `${prefix}/place.png`, m.base64, m.mimeType);
+            ck.place = { by: model, cam: m.cam, path: up.path, url: up.url };
+            placeImg = { base64: m.base64, mimeType: m.mimeType };
+            why = 'drawn';
+          }
+        }
+      }
+    } catch (e) {
+      why = `failed: ${e.message}`;
+    }
+    console.log(`[Job ${job.id}] planner place guide: ${why} ${Date.now() - t0}ms`);
+    await save({ place: ck.place });
+    if (ck.place) await updateById(env, 'generations', job.id, { wall_analysis: { ...wall, place: ck.place } });
+  } else if (wantPlace && ck.place) {
+    placeImg = await fetchObjectBase64(env, ck.place.path);
+  }
+  if (placeImg) ctx.placeGuide = true;
+
   if (massingImg) {
     ctx.mockVolume = true;
     ctx.mockKind = ck.guide && ck.guide.kind === 'kitchen' ? 'kitchen' : 'wardrobe';
@@ -618,7 +672,7 @@ async function runPipeline(env, job, ck, save) {
             labeledElevation: labeled,
             ...(rets.length ? { returnElevations: rets.map((r) => ({ side: r.side, labeled: r.labeled })) } : {}),
           }),
-          images: [room, b, ...(massing ? [massing] : []), ...rets.map((r) => r.im)],
+          images: [placeImg || room, b, ...(massing ? [massing] : []), ...rets.map((r) => r.im)],
           imageSize,
           temperature: 0.2,
           aspectRatio: ctx.aspect,
