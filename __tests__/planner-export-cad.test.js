@@ -56,18 +56,21 @@ const SCENE_OF = {
 };
 
 /** 하부장을 서랍장(도어 위 · 서랍 3단)으로 — __tests__/scene-overlap.test.js 의 drawer 장면과 같다. */
-function toDrawer(p) {
+function toDrawer(p, drawer) {
   p.g('modules').filter((m) => m.section === 'lower').forEach((m) => {
     const s = p.g('getStructure')(m.id);
     s.horizontalLayout = 'doorTopDrawerBottom';
     s.bottomType = 'drawer';
     s.drawerCount = 3;
+    if (drawer) s.drawer = drawer;
   });
   p.g('renderAll3D')({ fit: false });
   return p;
 }
 const SCENES = Object.assign({}, ...Object.keys(FIXTURES).map((k) => ({ [k]: (o) => bootPlanner3D(FIXTURES[k], o) })), {
   drawer: (o) => toDrawer(bootPlanner3D(FIXTURES.straight, o)),
+  // 서랍 자재 18T · 볼레일 · 서랍 사쿠리 (우라가 측판 홈에)
+  drawer18: (o) => toDrawer(bootPlanner3D(FIXTURES.straight, o), { rail: 'ball', sakuri: true, boxT: 18 }),
 });
 
 describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
@@ -90,6 +93,36 @@ describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
     expect(built.skipped).toBe(0);
     expect(built.parts).toBe(cad.spec.items.reduce((s, it) => s + (it ? it.modules.reduce((a, m) => a + m.parts.length, 0) : 0), 0));
     expect(built.unplaced).toBe(cad.spec.unplaced.length);
+  });
+
+  test('서랍 박스 — 측판·앞뒷판을 합친 상자가 3D 장면의 서랍 박스 외경과 같다', () => {
+    const box3 = (solids) => {
+      const g = new THREE.Box3();
+      solids.forEach((s) => g.union(new THREE.Box3(new THREE.Vector3(...s.min), new THREE.Vector3(...s.max)).applyMatrix4(new THREE.Matrix4().fromArray(s.m))));
+      return g;
+    };
+    let n = 0;
+    cad.spec.items.forEach((it) => it && it.modules.forEach((m) => {
+      const M = cad.frameOf(m);
+      const plannerId = cad.cells[m.moduleKey].plannerId;
+      const byBox = {};
+      m.parts.filter((pt) => pt.part === '서랍측판' || pt.part === '서랍전후판').forEach((pt) => {
+        const b = new THREE.Box3(new THREE.Vector3(...pt.box.min), new THREE.Vector3(...pt.box.max)).applyMatrix4(M);
+        byBox[pt.tags.box] = byBox[pt.tags.box] ? byBox[pt.tags.box].union(b) : b;
+      });
+      Object.keys(byBox).forEach((k) => {
+        const b = byBox[k];
+        const hits = pieces.filter((r) => r.moduleId === plannerId && r.entityKind === 'drawerBox').map((r) => box3(r.solids))
+          .filter((g) => g.min.distanceTo(b.min) < 0.6 && g.max.distanceTo(b.max) < 0.6);
+        expect({ module: m.moduleKey, box: k, hit: hits.length }).toEqual({ module: m.moduleKey, box: k, hit: 1 });
+        n++;
+      });
+    }));
+    if (/^drawer/.test(name)) expect(n).toBeGreaterThan(0);
+    // 사쿠리 서랍 — 우라가 측판 홈에 낀다 (겹침 검사는 홈 자리 안이라 통과 — 위 조립 검사 시험)
+    const bottoms = cad.spec.items.flatMap((it) => (it ? it.modules : [])).flatMap((m) => m.parts).filter((pt) => pt.part === '서랍밑판');
+    if (name === 'drawer18') expect(bottoms.length > 0 && bottoms.every((pt) => pt.tags.mount === 'groove')).toBe(true);
+    if (name === 'drawer') expect(bottoms.length > 0 && bottoms.every((pt) => !pt.tags.mount)).toBe(true);
   });
 
   test('조립 검사 (PR7) — 플래너 장면의 명세에 error 0', () => {

@@ -233,6 +233,47 @@ describe('sink15 자리 (확정 사실)', () => {
     expect(m.pending).toEqual([]);
   });
 
+  // 2026-10-20 사장님 "박스 아래 덮음": 우라는 측판·앞뒷판 밑면에 덮어, 하단보강은 우라 아래 폭 가운데에 앞뒤로 눕힘
+  test('서랍 박스 — 측판 양 끝, 앞뒷판 사이, 우라 밑면 덮음, 하단보강 그 아래 가운데', () => {
+    const m = mod('l2');
+    const of = (name, k) => m.parts.filter((p) => p.part === name && p.tags.box === k).map((p) => p.box);
+    // 위 서랍 (중 박스 120): 존 바닥 + 언더레일 30 → 박스 바닥 280, 앞면 = 몸통 앞선 275, 측판 길이 490
+    expect(of('서랍측판', 0)).toEqual([
+      { min: [-379, 280, -215], max: [-364, 400, 275] },
+      { min: [364, 280, -215], max: [379, 400, 275] },
+    ]);
+    expect(of('서랍전후판', 0)).toEqual([
+      { min: [-364, 280, 260], max: [364, 400, 275] },
+      { min: [-364, 280, -215], max: [364, 400, -200] },
+    ]);
+    expect(of('서랍밑판', 0)).toEqual([{ min: [-378.5, 277, -214.5], max: [378.5, 280, 274.5] }]);
+    expect(of('서랍 하단보강', 0)).toEqual([{ min: [-30, 262, -215], max: [30, 277, 275] }]);
+    // 아래 서랍 (소 박스 60)
+    expect(of('서랍측판', 1)[0]).toEqual({ min: [-379, 45, -215], max: [-364, 105, 275] });
+    expect(spec.unplaced.filter((u) => u.moduleKey === '0-l2' && /^서랍/.test(u.part))).toEqual([]);
+  });
+
+  test('사쿠리 서랍 — 우라가 바닥에서 15 위 측판 홈에, 앞뒷판(측판 − 18)은 그 위에', () => {
+    const fx = JSON.parse(JSON.stringify(FIXTURES.sink15));
+    fx.modules.find((x) => x.id === 'l2').drawer = { sakuri: true };
+    const design = { items: [fx] };
+    const s = Asm.of(design);
+    const m = s.items[0].modules.find((x) => x.moduleId === 'l2');
+    const of = (name) => m.parts.filter((p) => p.part === name && p.tags.box === 0);
+    const side = of('서랍측판')[0], fb = of('서랍전후판')[0], bottom = of('서랍밑판')[0];
+    const y0 = side.box.min[1];
+    expect(side.features).toEqual([{ type: 'groove', face: 'inner', u0: 0, u1: side.cut.w, v0: 15, v1: 18, depth: null, src: 'drawer-sakuri' }]);
+    expect([bottom.box.min[1] - y0, bottom.box.max[1] - y0]).toEqual([15, 18]);
+    expect(bottom.tags.mount).toBe('groove');
+    expect(fb.box.min[1] - y0).toBe(18);
+    expect(fb.box.max[1]).toBe(side.box.max[1]);
+    // 우라는 앞뒷판 + 20 — 양쪽 측판 홈에 10 씩
+    expect(side.box.max[0] - bottom.box.min[0]).toBe(10);
+    expect(of('서랍 하단보강')[0].box.max[1]).toBe(bottom.box.min[1]);
+    const r = require('../js/detaildesign/assembly-check.js').check(s);
+    expect(r.issues.filter((x) => x.level === 'error' && x.moduleKey === '0-l2')).toEqual([]);
+  });
+
   test('서랍장 레이아웃을 못 구하면 서랍장 전면은 놓지 않는다 (추출기 없이 지어내지 않는다)', () => {
     const design = { items: [FIXTURES.sink15] };
     const materials = new MaterialExtractor().extract(design).materials;
