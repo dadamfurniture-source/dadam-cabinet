@@ -87,6 +87,16 @@
       .modal-footer button.cancel { background: #eee; color: #555; border: 1px solid #ddd; }
       .modal-footer button.save { background: #007bff; color: white; border: 1px solid #007bff; }
 
+      /* 제품 사진 (2026-10-20, database/appliance-models-images.sql) */
+      td.photo { width: 76px; }
+      td.photo img { width: 56px; height: 56px; object-fit: contain; background: #fafafa; border: 1px solid #eee; border-radius: 4px; display: block; }
+      td.photo img.src { border-style: dashed; opacity: .75; }
+      td.photo small { display: block; color: #888; font-size: 10px; margin-top: 2px; white-space: nowrap; }
+      td.photo .none { color: #bbb; font-size: 11px; }
+      .row-actions button.photo-copy { color: #2c6a26; border-color: #2c6a26; }
+      .toolbar .btn-secondary { padding: 8px 12px; background: white; color: #2c6a26; border: 1px solid #2c6a26; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: 600; }
+      .toolbar .btn-secondary:disabled { opacity: .5; cursor: default; }
+
       .access-denied { display: none; text-align: center; padding: 100px 20px; }
       .access-denied h2 { color: #c62828; margin-bottom: 15px; }
     </style>
@@ -124,6 +134,8 @@
         <input id="searchInput" type="text" placeholder="브랜드/모델명/코드 검색..." />
         <select id="subtypeFilter" aria-label="냉장고 세부 구분" style="display: none; padding: 8px; border: 1px solid #ddd; border-radius: 5px; font-size: 13px"></select>
         <span class="row-count" id="rowCount"></span>
+        <!-- 2026-10-20: 보이는 행 중 원본 주소만 있고 아직 안 가져온 것을 차례로 가져온다 -->
+        <button type="button" class="btn-secondary" id="photoBulkBtn" style="display: none" title="제조사 사진을 우리 Storage 로 복사 — 연출컷 생성 때 이 냉장고의 참고 사진이 된다">사진 일괄 가져오기</button>
         <button class="btn-primary" id="addBtn">+ 새 모델</button>
       </div>
       <div id="readOnlyNote" style="display: none; margin-bottom: 12px; padding: 10px 12px; background: #fff3e0; color: #8a4b00; border-radius: 6px; font-size: 13px">
@@ -133,6 +145,7 @@
         <table>
           <thead>
             <tr>
+              <th scope="col" title="실선 = 우리 Storage 에 가져온 사진 (생성에 쓴다) · 점선 = 제조사 원본 미리보기 (아직 안 가져옴)">사진</th>
               <th>브랜드</th>
               <th>모델명</th>
               <th>코드</th>
@@ -146,7 +159,7 @@
             </tr>
           </thead>
           <tbody id="tbody">
-            <tr><td colspan="10" class="empty">로딩 중...</td></tr>
+            <tr><td colspan="11" class="empty">로딩 중...</td></tr>
           </tbody>
         </table>
       </div>
@@ -271,6 +284,12 @@
             <label>출처 URL</label>
             <input type="text" id="f-source" placeholder="https://..." />
           </div>
+          <!-- 제품 사진 원본 (database/appliance-models-images.sql) — 저장 뒤 목록의 「사진 가져오기」로 우리 Storage 에 복사 -->
+          <div class="field full fridge-field photo-field">
+            <label for="f-imgsrc">제품 사진 원본 URL (제조사)</label>
+            <input type="text" id="f-imgsrc" placeholder="https://images.samsung.com/… · https://www.lge.co.kr/… · https://www.winia.com/…" />
+            <div class="hint">삼성 · LG · 위니아 사진 주소만 가져올 수 있다. 바꾸면 목록에서 「다시 가져오기」</div>
+          </div>
           <!-- 상판 발주 요청서 타공 (work-reports-archive.plan.md §8.1 Q10) — 싱크볼 · 쿡탑만. 표는 database/work-reports.sql -->
           <div class="field cutout-field">
             <label for="f-cw">타공 W (mm)</label>
@@ -315,6 +334,46 @@
       const INSTALL_LABEL = { freestanding: '일반', kitchen_fit: '키친핏', built_in: '빌트인' };
       const escHtml = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+      // ── 제품 사진 (2026-10-20 사장님 결정 "모델 사진 = (b)", database/appliance-models-images.sql) ──
+      //   제조사 원본(image_source_url) → 워커가 받아 버킷 appliance-images 에 올리고 image_path 를 채운다 (= 승인).
+      //   image_path 가 있는 모델만 연출컷 생성 때 참고 사진으로 쓴다. 칸이 없으면(SQL 미실행) 사진 열은 비어 보인다.
+      const PHOTO_BUCKET = 'appliance-images';
+      function generateApiBase() {
+        const u = (window.DADAM_CONFIG && window.DADAM_CONFIG.generateApi && window.DADAM_CONFIG.generateApi.url) || '';
+        return u.replace(/\/api\/generate\/?$/, '');
+      }
+      function photoPublicUrl(r) {
+        const base = window.DADAM_CONFIG?.supabase?.url || '';
+        const v = r.image_approved_at ? `?v=${encodeURIComponent(r.image_approved_at)}` : '';
+        return `${base}/storage/v1/object/public/${PHOTO_BUCKET}/${String(r.image_path).split('/').map(encodeURIComponent).join('/')}${v}`;
+      }
+      /** 사진 칸 — 실선 = 가져온 사진, 점선 = 원본 미리보기, 없으면 '—' */
+      function photoCell(r) {
+        if (r.image_path) {
+          const d = r.image_approved_at ? new Date(r.image_approved_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }) : '';
+          return `<img src="${escHtml(photoPublicUrl(r))}" alt="" loading="lazy" /><small>가져옴${d ? ` ${escHtml(d)}` : ''}</small>`;
+        }
+        if (/^https:\/\//.test(r.image_source_url || '')) {
+          return `<img class="src" src="${escHtml(r.image_source_url)}" alt="" loading="lazy" referrerpolicy="no-referrer" /><small>원본만</small>`;
+        }
+        return '<span class="none">—</span>';
+      }
+      const hasPhotoCols = () => currentRows.some((r) => Object.prototype.hasOwnProperty.call(r, 'image_source_url'));
+
+      /** 워커 관리자 경로로 한 모델의 사진을 가져온다. 성공하면 {image_path, …}, 실패하면 Error */
+      async function copyPhoto(modelId) {
+        const { data: { session } = { session: null } } = await supabaseClient.auth.getSession();
+        if (!session) throw new Error('로그인이 만료되었습니다');
+        const res = await fetch(`${generateApiBase()}/api/admin/appliance-image`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ modelId }),
+        });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok || !out.success) throw new Error(out.error || `HTTP ${res.status}`);
+        return out;
+      }
+
       /** 쉼표 · 줄바꿈 → 모델 코드 목록 (대표 코드를 맨 앞, 중복 제거) */
       function parseCodes(text, main) {
         const list = String(text || '').split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
@@ -328,6 +387,8 @@
         document.querySelectorAll('.cutout-field').forEach((el) => { el.style.display = CUTOUT_CATS.includes(cat) ? '' : 'none'; });
         document.querySelectorAll('.faucet-field').forEach((el) => { el.style.display = cat === 'sink' ? '' : 'none'; });
         document.querySelectorAll('.fridge-field').forEach((el) => { el.style.display = cat === 'refrigerator' ? '' : 'none'; });
+        // 사진 원본 칸은 SQL(appliance-models-images.sql)을 돌린 뒤에만 — 없는 칸을 저장하면 실패한다
+        document.querySelectorAll('.photo-field').forEach((el) => { if (!hasPhotoCols()) el.style.display = 'none'; });
       }
 
       // ── 초기화 ─────────────────────────────────────────────
@@ -366,16 +427,17 @@
       async function loadCategory(cat) {
         currentCategory = cat;
         document.getElementById('subtypeFilter').style.display = cat === 'refrigerator' ? '' : 'none';
+        document.getElementById('photoBulkBtn').style.display = cat === 'refrigerator' && canEdit ? '' : 'none';
         document.querySelectorAll('.tabs button').forEach(b => {
           b.classList.toggle('active', b.dataset.cat === cat);
         });
         const tbody = document.getElementById('tbody');
-        tbody.innerHTML = '<tr><td colspan="10" class="empty">로딩 중...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="empty">로딩 중...</td></tr>';
         const { data, error } = await supabaseClient
           .from('appliance_models').select('*')
           .eq('category', cat).order('brand').order('model_name');
         if (error) {
-          tbody.innerHTML = `<tr><td colspan="10" class="empty">에러: ${error.message}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="11" class="empty">에러: ${error.message}</td></tr>`;
           return;
         }
         currentRows = data || [];
@@ -421,12 +483,13 @@
         document.getElementById('rowCount').textContent = `${filtered.length}개${filtered.length !== rows.length ? ` / 전체 ${rows.length}개` : ''}`;
         const tbody = document.getElementById('tbody');
         if (!filtered.length) {
-          tbody.innerHTML = '<tr><td colspan="10" class="empty">데이터 없음</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="11" class="empty">데이터 없음</td></tr>';
           return;
         }
         tbody.innerHTML = filtered.map(r => `
           <tr>
-            <td>${r.brand}</td>
+            <td class="photo">${photoCell(r)}</td>
+            <td>${escHtml(r.brand)}</td>
             <td>${escHtml(r.model_name)}${r.subtype || r.line || r.install_type ? `<small class="sub">${escHtml([FRIDGE_SUBTYPES[r.subtype], r.line, INSTALL_LABEL[r.install_type]].filter(Boolean).join(' · '))}</small>` : ''}</td>
             <td>${escHtml(r.model_code)}${(r.model_codes || []).length > 1 ? `<small class="sub" title="${escHtml(r.model_codes.join(', '))}">외 ${r.model_codes.length - 1}개</small>` : ''}</td>
             <td class="right">${r.width_mm}</td>
@@ -435,7 +498,8 @@
             <td class="right">${r.capacity_l ?? ''}</td>
             <td class="right gap">${gapCell(r)}</td>
             <td class="center"><span class="badge ${r.verified ? 'verified' : 'unverified'}">${r.verified ? '✓ 검증' : '⚠ 표준'}</span></td>
-            <td class="right row-actions">${canEdit ? `
+            <td class="right row-actions">${canEdit ? `${r.image_source_url ? `
+              <button class="photo-copy" data-id="${r.id}" title="제조사 사진을 우리 Storage 로 복사 (연출컷 참고 사진)">${r.image_path ? '사진 다시' : '사진 가져오기'}</button>` : ''}
               <button class="edit"   data-id="${r.id}">수정</button>
               <button class="delete" data-id="${r.id}">삭제</button>` : ''}
             </td>
@@ -490,6 +554,7 @@
         document.getElementById('f-install').value    = row?.install_type || '';
         document.getElementById('f-line').value       = row?.line || '';
         document.getElementById('f-codes').value      = (row?.model_codes || []).filter((c) => c !== row?.model_code).join(', ');
+        document.getElementById('f-imgsrc').value     = row?.image_source_url || '';
         toggleCutoutFields();
         modal.classList.add('open');
       }
@@ -528,6 +593,12 @@
           const nv = (id) => { const v = document.getElementById(id).value; return v === '' ? null : parseInt(v, 10); };
           payload.niche_min_w_mm = nv('f-nw'); payload.niche_min_h_mm = nv('f-nh'); payload.niche_min_d_mm = nv('f-nd');
           payload.niche_max_w_mm = nv('f-nw2'); payload.niche_max_h_mm = nv('f-nh2'); payload.niche_max_d_mm = nv('f-nd2');
+          // 사진 원본 주소 — 칸이 있을 때만 (appliance-models-images.sql). 이미 가져온 사진(image_path)은 그대로 둔다
+          if (hasPhotoCols()) {
+            const src = document.getElementById('f-imgsrc').value.trim();
+            if (src && !/^https:\/\//.test(src)) { alert('제품 사진 원본 URL 은 https:// 로 시작해야 합니다'); return; }
+            payload.image_source_url = src || null;
+          }
         }
         // 타공 칸은 싱크볼 · 쿡탑만 보낸다 — 다른 가전은 칼럼(work-reports.sql) 유무와 상관없이 저장되게
         if (CUTOUT_CATS.includes(payload.category)) {
@@ -563,7 +634,16 @@
         const id = btn.dataset.id;
         const row = currentRows.find(r => r.id === id);
         if (!row) return;
-        if (btn.classList.contains('edit')) {
+        if (btn.classList.contains('photo-copy')) {
+          btn.disabled = true;
+          btn.textContent = '가져오는 중…';
+          try {
+            await copyPhoto(id);
+          } catch (err) {
+            alert(`사진 가져오기 실패 — ${row.brand} ${row.model_name}\n${err.message}`);
+          }
+          await loadCategory(currentCategory);
+        } else if (btn.classList.contains('edit')) {
           openModal(row);
         } else if (btn.classList.contains('delete')) {
           if (!confirm(`정말로 "${row.brand} ${row.model_name}" 모델을 삭제하시겠습니까?`)) return;
@@ -574,6 +654,30 @@
       });
 
       document.getElementById('f-category').addEventListener('change', toggleCutoutFields);
+
+      // ── 사진 일괄 가져오기 — 지금 보이는 행(검색 · 구분 필터 뒤) 중 원본만 있는 것을 하나씩 ──
+      document.getElementById('photoBulkBtn').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        const shown = new Set([...document.querySelectorAll('#tbody button.photo-copy')].map((b) => b.dataset.id));
+        const todo = currentRows.filter((r) => shown.has(r.id) && r.image_source_url && !r.image_path);
+        if (!todo.length) { alert('가져올 사진이 없습니다 — 보이는 행 중 원본 주소만 있고 아직 안 가져온 모델이 없습니다.'); return; }
+        if (!confirm(`보이는 모델 ${todo.length}개의 제조사 사진을 우리 Storage 로 가져옵니다.\n(제조사 사진 사용 약관은 따로 확인해 주세요)`)) return;
+        btn.disabled = true;
+        const fails = [];
+        for (let i = 0; i < todo.length; i++) {
+          btn.textContent = `가져오는 중 ${i + 1}/${todo.length}`;
+          try {
+            await copyPhoto(todo[i].id);
+          } catch (err) {
+            fails.push(`${todo[i].brand} ${todo[i].model_name}: ${err.message}`);
+            if (/appliance-models-images\.sql|admin · super_admin|로그인/.test(err.message)) break; // 모두 같은 이유로 실패한다
+          }
+        }
+        btn.disabled = false;
+        btn.textContent = '사진 일괄 가져오기';
+        await loadCategory(currentCategory);
+        if (fails.length) alert(`실패 ${fails.length}개\n\n${fails.slice(0, 10).join('\n')}${fails.length > 10 ? '\n…' : ''}`);
+      });
 
       init();
     </script>

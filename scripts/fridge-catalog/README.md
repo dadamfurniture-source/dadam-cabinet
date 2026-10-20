@@ -34,6 +34,21 @@ python -I to_sql.py fridges.json > import-fridges.sql  # Supabase SQL 편집기�
 - 소수 여유(16.5mm)는 올림해서 넣는다 — 여유를 줄이지 않는다.
 - `to_sql.py` 가 세부 구분을 한 번 더 바로잡는다: 세워 쓰는 냉동고 단품은 `one_door`, `built_in` 은 가구 도어를 붙이는 완전 빌트인(삼성 BR*)만 — LG '빌트인 타입'은 도어 형태로 다시 나누고 설치 방식 칸에 원래 값을 둔다. 이름의 HTML 태그, 모델 코드 끝 `_` 는 지운다.
 
+## 제품 사진 (2026-10-20 사장님 결정 "모델 사진 = (b)")
+
+수집기는 대표 사진 **원본 주소**만 `image_source_url` 로 내보낸다 (크기가 같아 한 행으로 묶인 색상 변형은 첫 변형의 1장).
+우리 Storage 로 복사하는 것은 관리자 → 가전 모델 관리의 「사진 가져오기」 (워커 `POST /api/admin/appliance-image`).
+가져온 사진(`image_path`)이 있는 모델만 연출컷 생성 때 그 냉장고의 참고 사진으로 쓴다.
+DB 칸 · 버킷은 `database/appliance-models-images.sql` — import SQL 보다 먼저 실행한다.
+**제조사 사진 사용 약관 확인은 사장님 몫이다.**
+
+| | 어디서 (2026-10-20 실제 응답으로 확인) | 크기 |
+|---|---|---|
+| 삼성 | 목록 `goodsList` 상품의 `imgPath1` (`//images.samsung.com/kdp/goods/…png`) — `goodsOptStr` 마지막 칸(색상별 img)은 비어 있었다 | 원본 PNG (수백 KB ~ 1MB) |
+| LG | 목록 칸의 `largeImageAddr` (`/kr/images/…-450x450.jpg`) → `www.lge.co.kr` 가 `static.lge.co.kr` 로 넘긴다 (실제 형식 webp) | 450×450 |
+| 위니아 | 상세 HTML 갤러리 첫 큰 사진 `IMG_PATH=/upload/basic_gallery/…_Gallery_big_…` (2000×2000), 없으면 목록 `PRODUCT_BEST_IMG` · `PRODUCT_THUMB_IMG` (590×590). `/upload/…` 를 바로 부르면 notFound 로 넘어가므로 `/common/file/imageView?IMG_PATH=…` 로 | |
+| 데이코 · SKS · 그 밖 | 아직 안 넣었다 (원본 주소 비움) | |
+
 ## 2026-10-19 첫 수집
 
 모델 코드 840개 → 크기가 같은 것끼리 187행 (삼성 94 · LG 93). 설치 여유가 들어온 행: 옆 47 · 위 14 · 뒤 25.
