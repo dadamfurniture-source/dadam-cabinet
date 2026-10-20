@@ -1446,6 +1446,24 @@ function plannerColumnWhat(m, rowKey, fridgeModel) {
   return `${rowKey === 'tall' || rowKey === 'wardrobe' ? 'tall column' : 'column'} — ${stackWhat(m.tiers)}`;
 }
 
+/**
+ * 2026-10-20: 플래너 프롬프트가 **실제로 모델 문장을 쓰는** 냉장고 자리의 고른 모델 (첫 번째). 없으면 null.
+ *   job.js 가 이것으로 그 모델의 제품 사진(appliance_models.image_path)을 찾아 참고 이미지로 붙인다.
+ *   냉장고장 통(tiers) 맨 아래 냉장고 자리에 모델이 걸리고 모델 문장이 만들어질 때만 — plannerColumnWhat 과 같은 조건.
+ */
+export function plannerChosenFridgeModel(spec, category) {
+  if (!spec || typeof spec !== 'object') return null;
+  const { rows } = plannerRows(spec, resolveCategory(category));
+  for (const row of rows) {
+    for (const it of row.items) {
+      if (!it.fridgeModel || !hasTiers(it.m)) continue;
+      const opening = tierOpening(it.m);
+      if (opening && isFridgeLabel(opening.label || it.m.label) && plannerFridgeModelPhrase(it.fridgeModel)) return it.fridgeModel;
+    }
+  }
+  return null;
+}
+
 /** 2026-10-19: 꺾인 벽 목록 (normalizeDesignSpec 이 거른 것). 없으면 []. */
 export function plannerWalls(spec) {
   return spec && Array.isArray(spec.walls) ? spec.walls.filter((w) => w && w.sections && DESIGN_WALL_SIDES.includes(w.side)) : [];
@@ -1899,6 +1917,8 @@ function plannerReturnZones(g) {
  * @param {string} [c.aspect]     결과 비율 (PLANNER_ASPECTS)
  * @param {{side:'left'|'right', labeled:boolean}[]} [c.returnElevations]  2026-10-19: 함께 가는 꺾인 벽 입면
  *                                (IMAGE C(3/4) 다음 글자부터). design_spec.walls 에 그 벽이 있을 때만 쓴다.
+ * @param {{code?:string}} [c.fridgePhoto]  2026-10-20: 고른 냉장고 모델의 제품 사진이 **맨 뒤 이미지로** 함께 간다
+ *                                (job.js, appliance_models.image_path). 없으면 예전 그대로.
  */
 export function buildPlannerPrompt(c) {
   const key = resolveCategory(c.category);
@@ -1922,8 +1942,10 @@ export function buildPlannerPrompt(c) {
     .filter((r) => r && wallSides.includes(r.side))
     .filter((r, i, a) => a.findIndex((x) => x.side === r.side) === i)
     .map((r, i) => ({ side: r.side, labeled: !!r.labeled, letter: String.fromCharCode(67 + (massing ? 1 : 0) + i) }));
-  const imageCount = 2 + (massing ? 1 : 0) + returnImages.length;
-  const COUNT_WORD = ['zero', 'one', 'two', 'three', 'four', 'five'];
+  // 2026-10-20: 고른 냉장고의 제품 사진 (job.js 가 appliance_models.image_path 에서 읽어 맨 뒤에 붙였을 때만) — 마지막 글자
+  const fridgePhoto = c.fridgePhoto && typeof c.fridgePhoto === 'object' ? c.fridgePhoto : null;
+  const imageCount = 2 + (massing ? 1 : 0) + returnImages.length + (fridgePhoto ? 1 : 0);
+  const COUNT_WORD = ['zero', 'one', 'two', 'three', 'four', 'five', 'six'];
 
   // ── 세 장의 이름과 역할 ──
   const images = [
@@ -1969,8 +1991,13 @@ export function buildPlannerPrompt(c) {
       `IMAGE B is a design reference. Do not paste it into the photo and do not copy its plain white background or flat look. Build the real cabinets it shows, in the room of IMAGE A.`
     );
   }
+  if (fridgePhoto) {
+    const letter = String.fromCharCode(64 + imageCount);
+    const code = typeof fridgePhoto.code === 'string' && fridgePhoto.code ? ` (model ${fridgePhoto.code})` : '';
+    images.push(`IMAGE ${letter} — PRODUCT PHOTO of the chosen refrigerator${code}: match its look; size it to the opening.`);
+  }
 
-  const task = `TASK: install this ${PLANNER_SUBJECT[key] || 'built-in furniture'} on the main wall of IMAGE A as a real, finished installation.`;
+  const task =`TASK: install this ${PLANNER_SUBJECT[key] || 'built-in furniture'} on the main wall of IMAGE A as a real, finished installation.`;
 
   // ── LAYOUT — 모르면 문단째 뺀다 ──
   let layoutPara = null;

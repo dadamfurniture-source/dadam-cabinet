@@ -11,7 +11,7 @@
  * ※ 제조사 사진 사용 약관 확인은 사장님 몫이다.
  */
 import { verifyJwt } from './auth.js';
-import { DbError, ForbiddenError, NotFoundError, ValidationError, selectOne, updateById } from './supabase.js';
+import { DbError, ForbiddenError, NotFoundError, ValidationError, fetchObjectBase64, selectOne, updateById } from './supabase.js';
 
 export const APPLIANCE_IMAGE_BUCKET = 'appliance-images';
 
@@ -130,7 +130,32 @@ export function applianceImagePublicUrl(env, path) {
   return `${env.SUPABASE_URL}/storage/v1/object/public/${APPLIANCE_IMAGE_BUCKET}/${path}`;
 }
 
-/** 관리자 판별 — 가전 모델 쓰기 정책(database/fix-appliance-models-rls.sql)과 같은 admin · super_admin. */
+/**
+ * 2026-10-20: 생성 때 — 고른 냉장고 모델(design_spec appliances[].model)의 가져온 사진을 읽는다.
+ *   모델 코드(대표 코드 또는 색상 변형 코드)로 찾고, 브랜드가 있으면 브랜드도 맞춘다. image_path 가 있는 행만.
+ *   없으면 null (글만으로 그린다). 칸이 없거나(SQL 미실행) 읽기 실패는 던진다 — job.js 가 잡아 글만으로 간다.
+ * @returns {Promise<{base64:string, mimeType:string, code:string, modelId:string}|null>}
+ */
+export async function loadFridgeModelPhoto(env, model) {
+  const code = model && typeof model.code === 'string' ? model.code.trim() : '';
+  // PostgREST 필터에 그대로 들어간다 — 수집한 코드 모양(영숫자 · . _ - 괄호)만 받는다. 위니아는 'LWFU266HEMYSO(A)'
+  if (!/^[A-Za-z0-9][A-Za-z0-9._()-]{0,39}$/.test(code)) return null;
+  const query = {
+    select: 'id,image_path',
+    image_path: 'not.is.null',
+    or: `(model_code.eq."${code}",model_codes.cs.{"${code}"})`,
+    order: 'verified.desc,updated_at.desc',
+  };
+  if (model && typeof model.brand === 'string' && model.brand.trim()) query.brand = `eq.${model.brand.trim()}`;
+  const row = await selectOne(env, 'appliance_models', query);
+  if (!row || !row.image_path) return null;
+  const img = await fetchObjectBase64(env, row.image_path, APPLIANCE_IMAGE_BUCKET);
+  const mimeType = String(img.mimeType || '').split(';')[0].trim().toLowerCase();
+  if (!EXT[mimeType]) return null;
+  return { base64: img.base64, mimeType, code, modelId: row.id };
+}
+
+/** 관리자 판별 —가전 모델 쓰기 정책(database/fix-appliance-models-rls.sql)과 같은 admin · super_admin. */
 async function assertApplianceAdmin(env, user) {
   let row = null;
   try {
