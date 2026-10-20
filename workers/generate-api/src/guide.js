@@ -15,6 +15,22 @@
  */
 
 import decodeJpeg from 'jpeg-js/lib/decoder.js';
+import encodeJpegLib from 'jpeg-js/lib/encoder.js';
+
+/**
+ * RGBA → JPEG 바이트 (2026-10-20). 추천안 되붙이기 결과를 PNG(1.6~2.3MB)로 올려 휴대폰에서 늦게 떴다.
+ * jpeg-js 인코더는 끝에서 Buffer.from(바이트 배열) 한 번만 쓰는데 워커에는 Buffer 가 없다 —
+ * 인코딩하는 그 순간에만 Uint8Array 로 대신한다. 동기 코드라 그 사이 다른 요청이 끼어들지 않는다.
+ */
+export function encodeJpeg({ width, height, data }, quality = 88) {
+  const had = typeof globalThis.Buffer !== 'undefined';
+  if (!had) globalThis.Buffer = { from: (a) => Uint8Array.from(a) };
+  try {
+    return new Uint8Array(encodeJpegLib({ width, height, data }, quality).data);
+  } finally {
+    if (!had) delete globalThis.Buffer;
+  }
+}
 
 // ─── 1. 선·모서리 찾기 (텍스트 모델) ───
 
@@ -486,7 +502,7 @@ export async function renderMassingImage(room, points, o = {}) {
  * @param {{base64,mimeType}} variant  추천안 (JPEG)
  * @param {object} points              parseGuidePoints 결과 (0~1)
  * @param {{grow?:number, feather?:number}} [o] 영역을 넓힐 폭·섞는 폭 (사진 너비 대비 비율)
- * @returns {Promise<{base64:string, mimeType:'image/png'}|null>} 크기가 다르거나 JPEG 가 아니면 null
+ * @returns {Promise<{base64:string, mimeType:'image/jpeg'}|null>} 크기가 다르거나 JPEG 가 아니면 null (2026-10-20 PNG → JPEG)
  */
 export async function pasteVariantInside(base, variant, points, o = {}) {
   if (!base || !variant || base.mimeType !== 'image/jpeg' || variant.mimeType !== 'image/jpeg' || !points) return null;
@@ -505,24 +521,23 @@ export async function pasteVariantInside(base, variant, points, o = {}) {
   const frontH = Math.max(1, Math.hypot(bl.x - tl.x, bl.y - tl.y));
   const grow = (o.grow ?? 0.008) * W; // 끝 측판·걸레받이 그림자까지 담는다
   const feather = Math.max(1, (o.feather ?? 0.005) * W);
-  const out = new Uint8Array(W * H * 3);
+  // 기본안 RGBA 에 그대로 섞는다 (메모리 — 2K 사진 한 장이 12MB 다)
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       const i4 = (y * W + x) * 4;
-      const i3 = (y * W + x) * 3;
       const { u, v } = Hq.inv(x + 0.5, y + 0.5);
       // 사각형 밖으로 얼마나 나갔는지(픽셀 근사)
       const du = Math.max(0, -u, u - 1) * frontW;
       const dv = Math.max(0, -v, v - 1) * frontH;
       const d = Number.isFinite(du + dv) ? Math.max(du, dv) : Infinity;
       const a = d <= grow ? 1 : d >= grow + feather ? 0 : 1 - (d - grow) / feather;
-      out[i3] = V.data[i4] * a + B.data[i4] * (1 - a);
-      out[i3 + 1] = V.data[i4 + 1] * a + B.data[i4 + 1] * (1 - a);
-      out[i3 + 2] = V.data[i4 + 2] * a + B.data[i4 + 2] * (1 - a);
+      if (a <= 0) continue;
+      B.data[i4] = V.data[i4] * a + B.data[i4] * (1 - a);
+      B.data[i4 + 1] = V.data[i4 + 1] * a + B.data[i4 + 1] * (1 - a);
+      B.data[i4 + 2] = V.data[i4 + 2] * a + B.data[i4 + 2] * (1 - a);
     }
   }
-  const png = await encodePng({ width: W, height: H, rgb: out });
-  return { base64: bytesToB64(png), mimeType: 'image/png' };
+  return { base64: bytesToB64(encodeJpeg(B)), mimeType: 'image/jpeg' };
 }
 
 /**
@@ -572,16 +587,15 @@ export async function pasteVariantInPolys(base, variant, polys, o = {}) {
       }
     }
   }
-  const out = new Uint8Array(W * H * 3);
   for (let k = 0; k < W * H; k++) {
     const a = alpha[k];
-    const i4 = k * 4, i3 = k * 3;
-    out[i3] = V.data[i4] * a + B.data[i4] * (1 - a);
-    out[i3 + 1] = V.data[i4 + 1] * a + B.data[i4 + 1] * (1 - a);
-    out[i3 + 2] = V.data[i4 + 2] * a + B.data[i4 + 2] * (1 - a);
+    if (a <= 0) continue;
+    const i4 = k * 4;
+    B.data[i4] = V.data[i4] * a + B.data[i4] * (1 - a);
+    B.data[i4 + 1] = V.data[i4 + 1] * a + B.data[i4 + 1] * (1 - a);
+    B.data[i4 + 2] = V.data[i4 + 2] * a + B.data[i4 + 2] * (1 - a);
   }
-  const png = await encodePng({ width: W, height: H, rgb: out });
-  return { base64: bytesToB64(png), mimeType: 'image/png' };
+  return { base64: bytesToB64(encodeJpeg(B)), mimeType: 'image/jpeg' };
 }
 
 /** 한 번에 (시험·도구용): 방 사진 사본에 윤곽을 그린 PNG. JPEG 가 아니거나 계산이 안 되면 null. */
