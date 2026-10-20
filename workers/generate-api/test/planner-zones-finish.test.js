@@ -30,7 +30,7 @@ test('EP 20 양 끝 — 20 mm 틈은 빈 구역이 아니다 (층마다 두 줄�
   assert.doesNotMatch(p, /\(20 mm\) — no/);
   assert.deepEqual(zonesOf(p), [
     '  1. between the top of the base row (870 mm) and the bottom of the wall row (1520 mm) — 650 mm of open wall',
-    '  2. the main wall right of the run — the remaining 32 % of the wall (about 1160 mm), floor to ceiling',
+    '  2. the main wall right of the run, floor to ceiling',
   ]);
   assert.match(p, /; 2 empty zones left empty;/);
 });

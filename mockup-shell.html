@@ -2499,7 +2499,14 @@
   function fridgeGapsOf(m) {
     const d = FRIDGE_DEFAULT_GAPS[fridgeLineOf(m)];
     const num = (v, def) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Number(v) : def);
-    return { side: num(m && m.sideGap, d.side), top: num(m && m.topGap, FRIDGE_TOP_GAP_DEFAULT) };
+    // 2026-10-20 사장님: 빌트인은 **장 안쪽 치수(니치)** 기준. 모델 표에 니치가 있으면
+    //   옆 여유 = (니치 폭 − 냉장고 폭) / 2, 위 여유 = 니치 높이 − 냉장고 높이 로 되돌려 싣는다 —
+    //   구조 단계는 여유만 보므로 '니치 + 전체 여유 5' 가 그대로 나온다 (fridgeNichesOf).
+    const nw = num(m && m.nicheW, null);
+    const nh = num(m && m.nicheH, null);
+    const side = nw !== null && nw > num(m && m.w, 0) ? (nw - m.w) / 2 : num(m && m.sideGap, d.side);
+    const top = nh !== null && nh > num(m && m.h, 0) ? nh - m.h : num(m && m.topGap, FRIDGE_TOP_GAP_DEFAULT);
+    return { side, top };
   }
 
   // W9-44: Supabase 에서 가전 모델 fetch — 실패 시 hard-coded fallback 유지
@@ -2516,7 +2523,9 @@
       //   그때는 fridgeGapsOf 가 브랜드 라인 기본값을 쓴다.
       // 2026-10-19: 냉장고 대량 수집 칸(subtype · line · model_codes · back_gap_mm, appliance-models-catalog.sql)도
       //   읽는다. 칸이 없으면 한 단계씩 줄여 다시 읽는다.
-      let res = await fetch(`${base},side_gap_mm,top_gap_mm,subtype,line,model_codes&order=brand,model_name`, { headers });
+      // 2026-10-20: 빌트인 장 안쪽 치수(niche_min_w/h_mm, appliance-models-niche.sql)도 읽는다.
+      let res = await fetch(`${base},side_gap_mm,top_gap_mm,subtype,line,model_codes,niche_min_w_mm,niche_min_h_mm&order=brand,model_name`, { headers });
+      if (!res.ok) res = await fetch(`${base},side_gap_mm,top_gap_mm,subtype,line,model_codes&order=brand,model_name`, { headers });
       if (!res.ok) res = await fetch(`${base},side_gap_mm,top_gap_mm`, { headers });
       if (!res.ok) res = await fetch(base, { headers });
       if (!res.ok) return null;
@@ -2535,6 +2544,8 @@
         subtype:  r.subtype || null,           // 2026-10-19 — 4도어 · 김치 스탠드 · 와인 …
         line:     r.line || null,
         codes:    Array.isArray(r.model_codes) ? r.model_codes : [],  // 색상 변형 코드로도 찾는다
+        nicheW:   r.niche_min_w_mm ?? null,    // 2026-10-20 — 빌트인 장 안쪽 치수 (fridgeGapsOf)
+        nicheH:   r.niche_min_h_mm ?? null,
       }));
     } catch (e) {
       console.warn('[appliance_models] fetch 실패, fallback 사용:', e);
