@@ -27,6 +27,7 @@ import {
   buildInstallPrompt,
   buildPlumbingPrompt,
   buildPlannerPrompt,
+  plannerChosenFridgeModel,
   buildQcPrompt,
   buildThemePalettePrompt,
   cleanCustomerRequest,
@@ -69,6 +70,7 @@ import { FURNITURE_MASK_SCHEMA, buildFurnitureMaskPrompt, parseFurnitureMask } f
 import { GUIDE_POINTS_SCHEMA, buildGuidePointsPrompt, drawGuide, parseGuidePoints, pasteVariantInPolys, pasteVariantInside, prepareGuideCanvas, renderMassingImage } from './guide.js';
 import { KITCHEN_POINTS_SCHEMA, buildKitchenPointsPrompt, parseKitchenPoints, renderFacesMassing, renderKitchenMassing } from './kitchen.js';
 import { plannerPlaceBlocks, plannerPlaceFaces } from './planner-place.js';
+import { loadFridgeModelPhoto } from './appliance-image.js';
 
 const MAX_ATTEMPTS = 2;
 /** 역판독(Claude 비전) 이미지 한도 — Anthropic 5MB, base64 는 4/3 배 (worker.js MAX_IMAGE_B64 와 같은 값) */
@@ -345,6 +347,7 @@ async function runPipeline(env, job, ck, save) {
   let elevationLabeled = null;
   let massing = null;
   const returnElevations = []; // 2026-10-19: [{ side, plain, labeled }] — 꺾인 벽 입면
+  let fridgePhoto = null; // 2026-10-20: {base64, mimeType, code, modelId} — 고른 냉장고 모델의 제품 사진
   if (planner) {
     const list = Array.isArray(inputs.renders) ? inputs.renders : [];
     const el = list.find((r) => r && r.role === 'elevation');
@@ -385,6 +388,17 @@ async function runPipeline(env, job, ck, save) {
         }
       }
       if (got.plain || got.labeled) returnElevations.push(got);
+    }
+    // 2026-10-20: 고른 냉장고 모델의 제품 사진 (사장님 결정 "모델 사진 = (b)") — 프롬프트가 그 모델 문장을 쓰고,
+    //   관리자가 가져온 사진(appliance_models.image_path)이 있을 때만 설치 호출 맨 뒤 이미지로. 없거나 못 읽으면 글만.
+    const chosen = plannerChosenFridgeModel(opts.design_spec, category);
+    if (chosen) {
+      try {
+        fridgePhoto = await loadFridgeModelPhoto(env, chosen);
+        console.log(`[Job ${job.id}] fridge model photo: ${fridgePhoto ? `${fridgePhoto.code} (${fridgePhoto.modelId})` : `none for ${chosen.code || chosen.name}`}`);
+      } catch (e) {
+        console.warn(`[Job ${job.id}] fridge model photo skipped: ${e.message}`);
+      }
     }
   }
   // 참고 이미지는 역할이 둘이다.
@@ -672,8 +686,16 @@ async function runPipeline(env, job, ck, save) {
             ...ctx,
             labeledElevation: labeled,
             ...(rets.length ? { returnElevations: rets.map((r) => ({ side: r.side, labeled: r.labeled })) } : {}),
+            ...(fridgePhoto ? { fridgePhoto: { code: fridgePhoto.code } } : {}),
           }),
-          images: [placeImg || room, b, ...(massing ? [massing] : []), ...rets.map((r) => r.im)],
+          // 2026-10-20: 냉장고 제품 사진은 맨 뒤 (GPT · Gemini 둘 다)
+          images: [
+            placeImg || room,
+            b,
+            ...(massing ? [massing] : []),
+            ...rets.map((r) => r.im),
+            ...(fridgePhoto ? [{ base64: fridgePhoto.base64, mimeType: fridgePhoto.mimeType }] : []),
+          ],
           imageSize,
           temperature: 0.2,
           aspectRatio: ctx.aspect,
