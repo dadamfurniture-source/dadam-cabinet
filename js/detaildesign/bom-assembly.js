@@ -411,7 +411,7 @@
    *   없는 옛 설계는 wardrobe.md §6 (shelfPositions: 긴옷은 상단 315 아래 첫 선반, 그 밖은 균등).
    * 선반은 싱크와 같이 천지판 뒤끝에 맞춘다 (§6 "천저판보다 70 짧게 — 전면 여유").
    * 아직 자리를 정하지 않은 행: 도어·서랍도어 (BOM 도어 H = 좌대 + 몸통 − 20 인데 플래너는 몸통 안에 그린다),
-   *   서랍모듈 밴드, 칸막이, 서랍 박스·내부 서랍, 좌대.
+   *   서랍모듈 밴드, 서랍 박스·내부 서랍, 좌대. 칸막이는 규칙 파일 배치가 있을 때만 (없으면 'divider-layout-unknown').
    * @returns {{module:object, unplaced:Array}|null}
    */
   function wardrobeOf(mk, mod, rows, opts, item) {
@@ -507,7 +507,30 @@
       }
     });
 
-    const placed = new Set();
+    // 칸막이 — 규칙 파일 배치의 자리 (세로 = 지판 위~천판 아래, 수평 = 칸 사이). 깊이는 천지판과 같아 천지판 뒤끝에 맞춘다.
+    const divRows = new Set();
+    cars.forEach((c, ci) => {
+      const rowsHere = c.rows.filter((x) => x.key.family === 'divider:v' || x.key.family === 'divider:h').map((x) => x.row);
+      if (!rowsHere.length) return;
+      const cab = c.group === '서랍모듈' || !layoutOk ? null : cabs[ourCabs.indexOf(c)];
+      const pool = cab ? cab.dividers.slice() : [];
+      const picks = rowsHere.map((r) => {
+        const axis = r.partId.indexOf('divider:v') >= 0 ? 'v' : 'h';
+        const i = pool.findIndex((d) => d.axis === axis && d.cutW === r.w && d.cutH === r.h);
+        return i < 0 || r.qty !== 1 ? null : pool.splice(i, 1)[0];
+      });
+      if (!cab || picks.some((d) => !d) || pool.length) { rowsHere.forEach((r) => { divRows.add(r); skip(r, 'divider-layout-unknown'); }); return; }
+      const panelZ0 = c.sakuri ? -D / 2 + C.SAKURI_PANEL_D_MINUS : -D / 2;
+      rowsHere.forEach((r, i) => {
+        const d = picks[i];
+        divRows.add(r);
+        parts.push(makePart(r, 0, d.axis === 'v'
+          ? { o: [-W / 2 + T + d.x, d.y0, panelZ0], u: '+z', v: '+y', n: '+x' }
+          : { o: [-W / 2 + T + d.x0, d.y, panelZ0], u: '+x', v: '+z', n: '+y' }, [], 'interior', { carcass: ci, divider: d.axis }));
+      });
+    });
+
+    const placed = new Set(divRows);
     cars.forEach((c) => [c.side, c.top, c.bottom, c.back].concat(c.rows.filter((x) => x.key.family === 'shelf').map((x) => x.row)).forEach((r) => placed.add(r)));
     keyed.forEach(({ row, key }) => {
       if (placed.has(row)) return;
