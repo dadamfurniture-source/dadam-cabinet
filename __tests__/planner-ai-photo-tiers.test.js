@@ -190,7 +190,8 @@ describe('번호 입면 — 통 하나에 번호 하나', () => {
     expect(ids).toEqual(w.out);
     // 그리고 그 워커 프롬프트가 통을 말한다
     expect(w.prompt).toContain('T1   600 mm  tall column — 3 stacked doors (bottom 861 mm, middle 979 mm, top 460 mm)');
-    expect(w.prompt).toContain('T2   680 mm  refrigerator opening (keep it open from the floor up to 1885 mm');
+    // 2026-10-20: 냉장고 자리에는 냉장고를 그린다 (워커 plannerColumnWhat — 사진 냉장고 유지, 없으면 모델·중립)
+    expect(w.prompt).toContain('T2   680 mm  refrigerator opening (open from the floor up to 1885 mm');
   });
 
   test('planner-capture — moduleIds 를 다듬어 넘기고, 칸 상자는 그 모듈 상자들을 합친 것', () => {
