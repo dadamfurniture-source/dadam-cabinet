@@ -34,6 +34,7 @@ import {
   buildTwoToneVariantPrompt,
   buildVariantPrompt,
   buildWardrobeInteriorPrompt,
+  buildStorageInteriorPrompt,
   buildInteriorRecommendPrompt,
   INTERIOR_RECOMMEND_SCHEMA,
   interiorPlanKo,
@@ -1038,7 +1039,10 @@ async function runPipeline(env, job, ck, save) {
   // 붙박이장은 4장 중 2장이 내부 보기 (2026-10-19 사장님) — 색 추천안은 한 장 (테마가 있으면 테마 색감).
   //   내부 보기는 문을 전부 연다. 한 장은 기본안 색, 한 장은 그 색 추천안의 색.
   const interior = category === 'wardrobe';
-  const interiorCount = interior ? 2 : 0;
+  // 수납장은 4장 중 1장이 내부 보기 (2026-10-20 사장님 "수납장·신발장·화장대 순서대로") — 정본 기본 선반만, 기본안 색.
+  //   추천 구조는 없다: 수납장 칸 구성의 정본은 키큰장 통짜 + 칸 간격 선반뿐이다.
+  const storageInterior = category === 'storage';
+  const interiorCount = interior ? 2 : storageInterior ? 1 : 0;
   // 기본안 문짝 색과 같은 계열은 빼고 뽑는다 (2026-10-20: 흰 문짝에 '무광 화이트' 추천이 나와 기본안과 같았다)
   const palette = pickFinishes(Math.max(0, VARIANT_COUNT - interiorCount - specs.length), seed, finishLookalikes(ctx.doorColor));
   for (const f of palette) {
@@ -1051,6 +1055,10 @@ async function runPipeline(env, job, ck, save) {
     const std = buildWardrobeInteriorPrompt(wall.wallW, null, { tag: '기본 구조', wallH: wall.wallH });
     specs.push({ key: 'interior', label: std.label, prompt: std.prompt, interior: true, structure: { kind: 'standard', plan: interiorPlanKo(wardrobeInteriorPlan(wall.wallW)) } });
     specs.push({ key: `interior:${colourSpec.key}`, interior: true, recommend: true, colour });
+  }
+  if (storageInterior) {
+    const s = buildStorageInteriorPrompt({ tag: '기본 구조', wallH: wall.wallH });
+    specs.push({ key: 'interior', label: s.label, prompt: s.prompt, interior: true, structure: { kind: 'standard', plan: s.plan } });
   }
 
   // 붙박이장 추천 구조 (2026-10-19 사장님 "정본 구조 이외에 추천 구조를 알아서 만들어 나머지 1장에").
