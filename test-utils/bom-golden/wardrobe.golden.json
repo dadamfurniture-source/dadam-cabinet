@@ -631,7 +631,7 @@
       "material": "MDF",
       "thickness": 18,
       "w": 896,
-      "h": 355,
+      "h": 340,
       "qty": 2,
       "edge": "4면",
       "note": "",
@@ -644,7 +644,7 @@
         "T": true,
         "B": true
       },
-      "edgeLen": 2502,
+      "edgeLen": 2472,
       "edgeT": 1,
       "edgeCode": null,
       "moduleKey": "0-w2",
@@ -1280,13 +1280,38 @@
       "part": "목찬넬",
       "material": "MDF",
       "thickness": 18,
-      "w": 120,
+      "w": 100,
       "h": 900,
       "qty": 1,
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
       "partId": "0-w2-channel:front-0",
+      "slot": "handle",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 1800,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "moduleKey": "0-w2",
+      "itemLabel": "붙박이장"
+    },
+    {
+      "module": "EP",
+      "part": "목찬넬",
+      "material": "MDF",
+      "thickness": 18,
+      "w": 120,
+      "h": 900,
+      "qty": 1,
+      "edge": "2면(장)",
+      "note": "",
+      "finishCode": "",
+      "partId": "0-w2-channel:front-1",
       "slot": "handle",
       "edges": {
         "L": true,
@@ -1542,13 +1567,13 @@
     "MDF_18": {
       "material": "MDF",
       "thickness": 18,
-      "totalArea": 7097600,
+      "totalArea": 7160720,
       "panelCount": 3
     }
   },
   "edgeBanding": {
-    "1": 35236,
-    "0.6": 108892
+    "1": 35176,
+    "0.6": 110692
   },
   "hardware": [
     {
