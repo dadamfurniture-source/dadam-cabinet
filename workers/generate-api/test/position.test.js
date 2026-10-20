@@ -834,6 +834,30 @@ test('채점: 플래너 — 벽 틀이 판정하면 런 값은 기록만(wall_fr
   assert.equal(a.cause, 'run_end');
 });
 
+test('채점: 플래너 ok 는 자유 끝(줄 오른끝)이 판정됐을 때만 — 줄 끝 보류면 다른 항목이 맞아도 ok:null (2026-10-20 결정)', () => {
+  const s = scene({ yawDeg: 0 });
+  const spec = specA();
+  const wall = { wallW: 3000, wallH: 2400, confidence: 'medium' };
+  const planner = (L, extra = {}) => judge({ input: { category: 'sink', options: { mode: 'planner', design_spec: spec }, wall, ...extra }, L });
+  // 정상: 줄 끝 판정됨 → ok 는 true/false
+  const base = planner(s.L);
+  assert.ok(base.ok === true || base.ok === false, `ok ${base.ok}`);
+  assert.equal(base.measured.hold.run_right_wall, undefined);
+  // 벽 오른끝 occluded → run_right_wall 보류(wall_end) → 다른 항목이 맞아도 '통과'는 없다 (경보가 있으면 false, 없으면 null)
+  const occ = planner({ ...s.L, WR: { ...s.L.WR, type: 'occluded', flag: 'occluded' } });
+  assert.equal(occ.measured.hold.run_right_wall, 'wall_end');
+  assert.notEqual(occ.ok, true, '줄 끝을 못 쟀으면 통과를 찍지 않는다');
+  assert.equal(occ.ok, occ.alerts.length ? false : null);
+  // room_changed 도 같다
+  const room = planner(s.L, { qc: { ok: false, issues: ['room_changed'] } });
+  assert.equal(room.measured.hold.run_right_wall, 'room_changed');
+  assert.notEqual(room.ok, true);
+  assert.equal(room.ok, room.alerts.length ? false : null);
+  // 글 % 경로는 그대로(자유 끝 조건 없음)
+  const txt = judge({ input: { category: 'sink', options: {}, wall: { ...wall, waterPct: 50, exhaustPct: (2500 / 3000) * 100 } }, L: { ...s.L, WR: { ...s.L.WR, type: 'occluded', flag: 'occluded' } } });
+  assert.notEqual(txt.ok, undefined);
+});
+
 test('채점: 보류 사유 — 끝점 clipped·사진 끝, 꺾임 응답(layout), 아일랜드 위, bad_points, room_changed, 띠 없음', () => {
   const s = scene({ yawDeg: 0 });
   const spec = specA();
