@@ -146,10 +146,12 @@ const analysed = () => calls.text.filter((t) => t.startsWith('Measure and descri
 
 // ─── 1. 잡: 같은 사진이면 벽 하나 ───
 
+// 2026-10-20 phash: 플래너는 새 사진을 3회 분석해 중앙값 (모의 응답은 셋 다 3600). 여기 방 바이트('ROOM')는 JPEG 가 아니라
+//   지각 해시가 null → sha256 조회만 한다. 지각 해시·중앙값은 planner-wall-phash.test.js.
 test('처음 보는 사진: 분석하고 방 사진 해시·분석 원본을 wall_analysis.roomPhoto 에 남긴다 (조회는 사용자 범위)', async () => {
   installJob();
   await runJob(PLANNER_OPTIONS);
-  assert.equal(analysed(), 1);
+  assert.equal(analysed(), 3);
   assert.equal(calls.lookups.length, 1);
   assert.ok(calls.lookups[0].includes(`user_id=eq.${USER_ID}`), calls.lookups[0]);
   assert.ok(calls.lookups[0].includes(`wall_analysis->roomPhoto->>sha256=eq.${ROOM_SHA}`), calls.lookups[0]);
@@ -159,6 +161,8 @@ test('처음 보는 사진: 분석하고 방 사진 해시·분석 원본을 wal
   assert.equal(w.wallW, 3600);
   assert.equal(w.roomPhoto.sha256, ROOM_SHA);
   assert.equal(w.roomPhoto.from, ROW_ID);
+  assert.equal(w.roomPhoto.phash, null);
+  assert.equal(w.roomPhoto.rounds, 3);
   assert.equal(w.roomPhoto.analysis.wallW, 3600);
   assert.equal('roomPhoto' in w.roomPhoto.analysis, false);
   assert.ok(calls.image[0].prompt.includes('about 3600 mm in IMAGE A'));
@@ -172,7 +176,7 @@ test('같은 사진 두 번째: 첫 분석의 벽(4100)을 그대로 — 분석 
   assert.equal(w.wallW, 4100);
   assert.equal(w.confidence, 'medium');
   assert.equal(w.existing, 'old white cabinets');
-  assert.deepEqual(w.roomPhoto, { sha256: ROOM_SHA, analysis: OLD_ANALYSIS, from: OLD_ID });
+  assert.deepEqual(w.roomPhoto, { sha256: ROOM_SHA, phash: null, analysis: OLD_ANALYSIS, from: OLD_ID, pooled: 1 });
   assert.ok(calls.image[0].prompt.includes('about 4100 mm in IMAGE A'));
   assert.doesNotMatch(calls.image[0].prompt, /3600 mm in IMAGE A/);
 });
@@ -191,7 +195,7 @@ test('사람이 넣은 벽 폭이 이긴다 — 재사용 분석 위에 덮고, 
 test('해시 행의 분석이 망가졌으면 다시 분석한다', async () => {
   installJob({ prior: { id: OLD_ID, wall_analysis: { roomPhoto: { sha256: ROOM_SHA, analysis: { wallW: 'x' } } } } });
   await runJob(PLANNER_OPTIONS);
-  assert.equal(analysed(), 1);
+  assert.equal(analysed(), 3);
   assert.equal(savedWall().wallW, 3600);
   assert.equal(savedWall().roomPhoto.from, ROW_ID);
 });

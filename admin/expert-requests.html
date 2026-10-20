@@ -606,6 +606,19 @@
       // 관리자 판정 — admin_roles + is_admin() RPC (js/admin-access.js). 예전 하드코딩 이메일 목록은 폐기 (PR7).
       const isAdminUser = () => (window.AdminAccess ? window.AdminAccess.isAdmin(supabaseClient) : Promise.resolve(false));
 
+      // innerHTML 에 넣는 값은 모두 거친다 — 승급 신청은 회원이 직접 넣는 행이라
+      // 이름·이메일·회사·업종·사업자번호·포트폴리오 주소·status·admin_memo 까지 신청자가 정할 수 있다.
+      const esc = (v) =>
+        String(v == null ? '' : v).replace(
+          /[&<>"']/g,
+          (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+        );
+      /** 링크로 거는 주소는 http(s) 만 — javascript: · data: 같은 것은 링크 없이 글자로만 보인다 */
+      function safeUrl(u) {
+        const s = String(u == null ? '' : u).trim();
+        return /^https?:\/\//i.test(s) ? s : '';
+      }
+
       document.addEventListener('DOMContentLoaded', async () => {
         await initAdmin();
       });
@@ -704,7 +717,7 @@
           container.innerHTML = `
                     <div class="empty-state">
                         <h4>데이터를 불러올 수 없습니다</h4>
-                        <p>${error.message}</p>
+                        <p>${esc(error.message)}</p>
                         <br>
                         <p style="font-size: 0.85rem; color: #888;">
                             expert_requests 테이블이 생성되어 있는지 확인하세요.<br>
@@ -723,60 +736,69 @@
           rejected: '거절됨',
         };
 
+        // 단추의 신청 id 는 data-id 로만 싣는다 — 인라인 onclick 의 JS 문자열에 DB 값을 넣지 않는다.
+        // 누르면 아래 requestList 의 click 위임(CARD_ACTIONS)이 받는다.
+        const id = esc(req.id);
         const actionsHtml =
           req.status === 'pending'
             ? `
-                <button class="btn btn-success btn-sm" onclick="openReviewModal('${req.id}', 'approve')">승인</button>
-                <button class="btn btn-danger btn-sm" onclick="openReviewModal('${req.id}', 'reject')">거절</button>
+                <button class="btn btn-success btn-sm" data-act="approve" data-id="${id}">승인</button>
+                <button class="btn btn-danger btn-sm" data-act="reject" data-id="${id}">거절</button>
             `
             : `
-                <button class="btn btn-secondary btn-sm" onclick="viewDetails('${req.id}')">상세 보기</button>
+                <button class="btn btn-secondary btn-sm" data-act="details" data-id="${id}">상세 보기</button>
             `;
+
+        // 포트폴리오: http(s) 면 새 창 링크, 아니면 적힌 글자만 보인다
+        const portfolioHref = safeUrl(req.portfolio_url);
+        const portfolioHtml = portfolioHref
+          ? `<a href="${esc(portfolioHref)}" target="_blank" rel="noopener noreferrer">바로가기</a>`
+          : esc(req.portfolio_url);
 
         return `
                 <div class="request-card">
                     <div class="request-header">
                         <div class="request-user">
-                            <div class="user-avatar">${initial}</div>
+                            <div class="user-avatar">${esc(initial)}</div>
                             <div class="user-details">
-                                <h4>${req.user_name || '이름 없음'}</h4>
-                                <span>${req.user_email}</span>
+                                <h4>${esc(req.user_name || '이름 없음')}</h4>
+                                <span>${esc(req.user_email)}</span>
                             </div>
                         </div>
-                        <span class="badge ${req.status}">${statusLabel[req.status]}</span>
+                        <span class="badge ${esc(req.status)}">${esc(statusLabel[req.status] || req.status)}</span>
                     </div>
 
                     <div class="request-info">
                         <div class="info-item">
                             <label>신청 등급</label>
-                            <p>${req.requested_tier || 'Expert'}</p>
+                            <p>${esc(req.requested_tier || 'Expert')}</p>
                         </div>
                         <div class="info-item">
                             <label>회사/상호명</label>
-                            <p>${req.company_name || '-'}</p>
+                            <p>${esc(req.company_name || '-')}</p>
                         </div>
                         <div class="info-item">
                             <label>업종</label>
-                            <p>${req.business_type || '-'}</p>
+                            <p>${esc(req.business_type || '-')}</p>
                         </div>
                         <div class="info-item">
                             <label>경력</label>
-                            <p>${req.career_years ? req.career_years + '년' : '-'}</p>
+                            <p>${esc(req.career_years ? req.career_years + '년' : '-')}</p>
                         </div>
                         <div class="info-item">
                             <label>사업자등록번호</label>
-                            <p>${req.business_number || '-'}</p>
+                            <p>${esc(req.business_number || '-')}</p>
                         </div>
                         <div class="info-item">
                             <label>신청일</label>
-                            <p>${formatDate(req.created_at)}</p>
+                            <p>${esc(formatDate(req.created_at))}</p>
                         </div>
                         ${
                           req.portfolio_url
                             ? `
                         <div class="info-item">
                             <label>포트폴리오</label>
-                            <p><a href="${req.portfolio_url}" target="_blank">바로가기</a></p>
+                            <p>${portfolioHtml}</p>
                         </div>
                         `
                             : ''
@@ -786,7 +808,7 @@
                             ? `
                         <div class="info-item" style="grid-column: 1 / -1;">
                             <label>관리자 메모</label>
-                            <p>${req.admin_memo}</p>
+                            <p>${esc(req.admin_memo)}</p>
                         </div>
                         `
                             : ''
@@ -874,6 +896,19 @@
         // 상세 보기 (추후 구현)
         alert('상세 보기 기능은 추후 구현 예정입니다.');
       }
+
+      // 카드 단추 → 함수. id 는 data-id 에서 글자 그대로 읽는다.
+      const CARD_ACTIONS = {
+        approve: (id) => openReviewModal(id, 'approve'),
+        reject: (id) => openReviewModal(id, 'reject'),
+        details: (id) => viewDetails(id),
+      };
+      document.getElementById('requestList').addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-act]');
+        if (!btn || btn.disabled) return;
+        const run = CARD_ACTIONS[btn.dataset.act];
+        if (run) run(btn.dataset.id);
+      });
 
       // 모달 외부 클릭 시 닫기
       document.getElementById('reviewModal').addEventListener('click', (e) => {

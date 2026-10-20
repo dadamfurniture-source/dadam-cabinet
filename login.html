@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="css/dadam-system.css" />
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="js/auth-redirect.js?v=1"></script>
+    <script src="js/auth-redirect.js?v=2"></script>
     <style>
       * {
         margin: 0;
@@ -490,7 +490,7 @@
         background: #fdd800;
       }
 
-      /* 카카오톡 인앱 브라우저 안내 (hidden 으로 감춘다 — display 를 주지 않는다) */
+      /* 인앱 브라우저 안내 (hidden 으로 감춘다 — 안의 요소에도 display 를 주지 않는다) */
       .inapp-notice {
         margin-bottom: 16px;
         padding: 14px 16px;
@@ -517,6 +517,29 @@
 
       .btn-inapp:hover {
         background: var(--gold);
+      }
+
+      .inapp-manual {
+        margin-top: 8px;
+        font-weight: 500;
+      }
+
+      .inapp-copy-hint {
+        margin-top: 8px;
+        font-size: 13px;
+        color: var(--gray);
+      }
+
+      .inapp-url {
+        margin-top: 8px;
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--warm);
+        border-radius: 8px;
+        background: #fff;
+        font-family: inherit;
+        font-size: 16px;
+        color: var(--charcoal);
       }
 
       .btn-naver {
@@ -707,10 +730,19 @@
           <!-- Divider -->
           <div class="divider"><span>또는</span></div>
 
-          <!-- 카카오톡 인앱 브라우저 안내 — UA 에 KAKAOTALK 이 있을 때만 보인다 -->
+          <!-- 인앱 브라우저 안내 — js/auth-redirect.js 의 inAppBrowser 가 알아본 앱
+               (카카오톡·네이버·인스타그램·페이스북·라인·다음·밴드) 안에서만 보인다 -->
           <div class="inapp-notice" id="inappNotice" hidden>
-            <p>카카오톡 안에서는 구글 로그인이 막힐 수 있습니다. 카카오 로그인은 그대로 쓸 수 있습니다.</p>
-            <button type="button" class="btn-inapp" id="openExternalBtn">외부 브라우저로 열기</button>
+            <p id="inappText"></p>
+            <!-- 외부 브라우저로 여는 주소가 있을 때 (카카오톡·라인·안드로이드의 그 밖 앱) -->
+            <button type="button" class="btn-inapp" id="openExternalBtn" hidden>외부 브라우저로 열기</button>
+            <!-- 없을 때 (iOS 의 그 밖 앱) — 메뉴 안내 + 주소 복사, 복사가 안 되면 주소 글자를 골라 둔다 -->
+            <div id="inappManual" hidden>
+              <p class="inapp-manual">오른쪽 위 메뉴에서 '다른 브라우저로 열기'를 눌러 주세요.</p>
+              <button type="button" class="btn-inapp" id="copyUrlBtn">주소 복사</button>
+              <p class="inapp-copy-hint" id="copyHint" hidden></p>
+              <input type="text" class="inapp-url" id="inappUrl" readonly hidden aria-label="이 페이지 주소" />
+            </div>
           </div>
 
           <!-- Social Login — 카카오 먼저 (작업자 링크는 카카오톡으로 받는다) -->
@@ -785,18 +817,59 @@
           : window.location.origin + '/index.html';
       }
 
+      // 인증 메일 링크가 돌아올 주소 — OAuth 와 같은 규칙 (돌아갈 곳이 있으면 login.html?redirect=…)
+      function emailRedirectTo() {
+        return AuthRedirect
+          ? AuthRedirect.emailRedirectTo(window.location.origin, REDIRECT_TARGET)
+          : window.location.origin + '/index.html';
+      }
+
       // 회원가입으로 넘어가도 돌아갈 곳을 들고 간다
       if (AuthRedirect) {
         document.getElementById('signupLink').href = AuthRedirect.withRedirect('signup.html', REDIRECT_TARGET);
       }
 
-      // 카카오톡 인앱 브라우저: 구글이 웹뷰 로그인을 막는다(disallowed_useragent). 카카오 로그인은 그대로 된다.
-      if (AuthRedirect && AuthRedirect.isKakaoInApp(navigator.userAgent)) {
+      // 인앱 브라우저(카카오톡·네이버·인스타그램 등): 구글이 웹뷰 로그인을 막는다(disallowed_useragent).
+      // 카카오 로그인은 그대로 된다. 앱 이름은 auth-redirect.js 의 고정 목록에서만 — UA 글자는 화면에 넣지 않는다.
+      function setupInAppNotice() {
+        const app = AuthRedirect ? AuthRedirect.inAppBrowser(navigator.userAgent) : null;
+        if (!app) return;
+        document.getElementById('inappText').textContent =
+          app.label + ' 앱 안에서는 구글 로그인이 막힙니다. 카카오로 로그인하거나 외부 브라우저로 열어 주세요.';
         document.getElementById('inappNotice').hidden = false;
-        document.getElementById('openExternalBtn').addEventListener('click', () => {
-          window.location.href = AuthRedirect.kakaoOpenExternalUrl(window.location.href);
-        });
+        if (AuthRedirect.externalOpenUrl(window.location.href, navigator.userAgent)) {
+          const btn = document.getElementById('openExternalBtn');
+          btn.hidden = false;
+          btn.addEventListener('click', () => {
+            window.location.href = AuthRedirect.externalOpenUrl(window.location.href, navigator.userAgent);
+          });
+        } else {
+          // iOS 의 그 밖 앱 — 여는 주소가 없다. 메뉴 안내 + 주소 복사
+          document.getElementById('inappManual').hidden = false;
+          document.getElementById('copyUrlBtn').addEventListener('click', copyPageUrl);
+        }
       }
+
+      // 지금 주소 복사 — 앱이 클립보드를 막으면 주소를 보여 주고 글자를 골라 둔다 (길게 눌러 복사)
+      async function copyPageUrl() {
+        const href = window.location.href;
+        const hint = document.getElementById('copyHint');
+        try {
+          await navigator.clipboard.writeText(href);
+          hint.textContent = '주소를 복사했습니다. 다른 브라우저 주소창에 붙여 넣어 주세요.';
+        } catch (e) {
+          const input = document.getElementById('inappUrl');
+          input.value = href;
+          input.hidden = false;
+          input.focus();
+          input.select();
+          input.setSelectionRange(0, href.length);
+          hint.textContent = '자동 복사가 되지 않습니다. 아래 주소를 길게 눌러 복사해 주세요.';
+        }
+        hint.hidden = false;
+      }
+
+      setupInAppNotice();
 
       // DOM 요소
       const loginForm = document.getElementById('loginForm');
@@ -830,7 +903,12 @@
         btn.disabled = true;
         btn.textContent = '보내는 중…';
         try {
-          await supabaseClient.auth.resend({ type: 'signup', email });
+          // 인증 링크가 login.html?redirect=<원래 목적지> 로 돌아오게 (signup.html 의 가입과 같은 주소)
+          await supabaseClient.auth.resend({
+            type: 'signup',
+            email,
+            options: { emailRedirectTo: emailRedirectTo() },
+          });
         } catch (e) {
           console.warn('[login] resend:', e?.message);
         }
@@ -974,10 +1052,20 @@
       }
 
       // OAuth 가 실패하면 Supabase 가 돌아온 주소에 error_description 을 붙인다 (예: 카카오가 이메일을 주지 않음).
+      // 인증 메일 링크가 만료됐거나 이미 쓰였을 때도 같은 자리에 error_code=otp_expired 로 돌아온다
+      // (emailRedirectTo 가 login.html?redirect=… 이므로). 이메일로 가입한 사람에게 소셜 로그인 문구를 보이지 않게 나눈다.
       // 그 글은 링크로 아무렇게나 꾸밀 수 있으므로 화면에는 고정 문구만, 원문은 콘솔에만 남긴다.
       (function showOAuthError() {
         const params = new URLSearchParams(window.location.hash.slice(1) + '&' + window.location.search.slice(1));
+        const code = params.get('error_code');
         const desc = params.get('error_description');
+        if (code === 'otp_expired') {
+          console.warn('[login] 인증 링크:', code, desc);
+          showError(
+            "이메일 인증 링크가 만료되었거나 이미 사용되었습니다. 이메일과 비밀번호로 로그인해 주세요. 아직 인증 전이면 '인증 메일 다시 보내기'로 새 링크를 받을 수 있습니다."
+          );
+          return;
+        }
         if (!desc) return;
         console.warn('[login] OAuth:', desc);
         showError('소셜 로그인에 실패했습니다. 다시 시도하거나 다른 방법으로 로그인해주세요.');

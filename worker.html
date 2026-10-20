@@ -30,9 +30,11 @@
       .alert { padding: 12px; border-radius: 10px; margin: 10px 0; font-size: 16px; }
       .err { background: #fdecec; color: #7a1a1a; }
       .ok { background: #e8f5ec; color: #14562c; }
+      .alert.warn { background: #fff1d6; color: var(--warn); font-weight: 600; }
 
-      /* 탭 — 4칸, 글자 아래 건수 */
+      /* 탭 — 4칸, 글자 아래 건수 (정지된 작업자는 모집중이 빠져 3칸) */
       .tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 14px 0; }
+      .tabs.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 58px; padding: 6px 2px; border: 2px solid var(--border); border-radius: 10px; background: #fff; color: var(--text); text-decoration: none; font-size: 16px; font-weight: 700; text-align: center; }
       .tab.on { border-color: var(--accent); background: var(--accent); color: #fff; }
       .tab .n { font-size: 16px; font-weight: 700; line-height: 1.2; }
@@ -52,6 +54,12 @@
       .chip.t-dday { background: #111827; color: #fff; }
       .job .jt, h2.jt { font-size: 18px; font-weight: 700; margin: 2px 0 4px; }
       .job .jd { color: var(--muted); font-size: 16px; }
+      /* 지원 종료일 꼬리표 — 오늘 종료 · 지원 종료는 눈에 띄게 */
+      .dl-tag { font-weight: 700; }
+      .dl-tag.dl-days { color: var(--info); }
+      .dl-tag.dl-today { display: inline-block; padding: 0 8px; border-radius: 6px; background: var(--danger); color: #fff; }
+      .dl-tag.dl-over { color: var(--danger); }
+      .job .jd.reason { color: var(--text); }
       .back { display: inline-block; margin: 4px 0 10px; color: var(--info); font-size: 16px; text-decoration: none; padding: 6px 0; }
       .facts { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 6px 10px; margin: 10px 0; }
       .facts dt { color: var(--muted); }
@@ -183,13 +191,6 @@
         </div>
       </section>
 
-      <section id="viewSuspended" hidden>
-        <div class="card">
-          <h2>작업자 이용이 멈춰 있습니다</h2>
-          <p class="muted">회사에 문의해 주세요.</p>
-        </div>
-      </section>
-
       <section id="viewNotReady" hidden>
         <div class="card">
           <h2>작업자 기능을 준비하고 있습니다</h2>
@@ -204,13 +205,15 @@
         </div>
       </section>
 
-      <!-- 승인 작업자 — 탭(모집중 · 내 작업 · 완료 · 내 정보), 작업 상세는 #job=<id> -->
+      <!-- 승인 · 정지 작업자 — 탭(모집중 · 내 작업 · 완료 · 내 정보), 작업 상세는 #job=<id>.
+           정지(suspended)는 맨 위 안내 + 모집중 탭 · 신청 · 초대 수락 버튼만 빠진다 (계약 1주차 후속 D) -->
       <section id="viewApp" hidden>
+        <p class="alert warn" id="suspendedNote" hidden>계정이 정지되어 새 작업 신청·수락을 할 수 없습니다. 지난 기록은 볼 수 있습니다.</p>
         <nav class="tabs" id="tabs" aria-label="작업 목록"></nav>
         <div id="appBody"></div>
       </section>
     </div>
 
-    <script src="js/worker-portal.js?v=1"></script>
+    <script src="js/worker-portal.js?v=2"></script>
   </body>
 </html>

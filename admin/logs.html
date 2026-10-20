@@ -450,6 +450,14 @@
         system: { class: 'system', icon: '⚙️' },
       };
 
+      // innerHTML 에 넣는 값은 모두 거친다 — 로그 설명에는 트리거가 상담 신청자 이름·제목,
+      // 승급 신청 이메일 같은 남이 적은 글을 이어 붙인다 (database/stability-triggers.sql).
+      const esc = (v) =>
+        String(v == null ? '' : v).replace(
+          /[&<>"']/g,
+          (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+        );
+
       document.addEventListener('DOMContentLoaded', async () => {
         await initAdmin();
         // 기본 날짜 설정 (최근 30일)
@@ -537,7 +545,7 @@
           container.innerHTML = `
                     <div class="empty-state">
                         <h4>로그를 불러올 수 없습니다</h4>
-                        <p>${e.message}</p>
+                        <p>${esc(e.message)}</p>
                         <p style="font-size:0.85rem;color:#888;margin-top:10px;">
                             admin_logs 테이블이 생성되어 있는지 확인하세요.<br>
                             database/admin-schema.sql을 Supabase에서 실행하세요.
@@ -555,9 +563,9 @@
         if (log.old_value || log.new_value) {
           changesHtml = `
                     <div class="log-changes">
-                        ${log.old_value ? `<span class="old">${JSON.stringify(log.old_value)}</span>` : ''}
+                        ${log.old_value ? `<span class="old">${esc(JSON.stringify(log.old_value))}</span>` : ''}
                         ${log.old_value && log.new_value ? ' → ' : ''}
-                        ${log.new_value ? `<span class="new">${JSON.stringify(log.new_value)}</span>` : ''}
+                        ${log.new_value ? `<span class="new">${esc(JSON.stringify(log.new_value))}</span>` : ''}
                     </div>
                 `;
         }
@@ -567,14 +575,14 @@
                     <div class="log-icon ${actionInfo.class}">${actionInfo.icon}</div>
                     <div class="log-content">
                         <div class="log-header">
-                            <span class="log-action">${actionLabel}</span>
-                            <span class="log-badge">${log.target_type || '-'}</span>
+                            <span class="log-action">${esc(actionLabel)}</span>
+                            <span class="log-badge">${esc(log.target_type || '-')}</span>
                         </div>
-                        <div class="log-description">${log.description || '-'}</div>
+                        <div class="log-description">${esc(log.description || '-')}</div>
                         <div class="log-meta">
-                            <span>👤 ${log.admin_email || '시스템'}</span>
-                            <span>🕐 ${formatDateTime(log.created_at)}</span>
-                            ${log.ip_address ? `<span>🌐 ${log.ip_address}</span>` : ''}
+                            <span>👤 ${esc(log.admin_email || '시스템')}</span>
+                            <span>🕐 ${esc(formatDateTime(log.created_at))}</span>
+                            ${log.ip_address ? `<span>🌐 ${esc(log.ip_address)}</span>` : ''}
                         </div>
                         ${changesHtml}
                     </div>

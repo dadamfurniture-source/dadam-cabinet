@@ -4,10 +4,12 @@
  *   GET /work/me 가 작업자 행을 주면 요약 카드(예정 · 보완요청 · 새 소식, 다음 작업 한 줄, [작업자 페이지 열기]),
  *   아니면 섹션을 숨긴 채 둔다. 표가 아직 없으면({ ready:false }) 도 숨김. 요청이 실패해도 숨김 — 마이페이지를 막지 않는다.
  *   관리자도 작업자일 수 있어 .user-only 가 아니라 hidden 으로 연다.
+ *   정지된 작업자도 요약 카드를 보인다 — 모집중 줄 대신 정지 안내 한 줄 (1주차 후속 D).
  *
  *   마이페이지는 GET /work/me 만 부른다. GET /work/jobs?tab=mine 은 서버가 workers.last_seen_at 을 갱신해
  *   새 소식을 읽음으로 세므로(#946), 부르면 작업자가 worker.html 에서 새 소식을 못 보게 된다.
- *   그래서 다음 작업 한 줄은 서버에 읽기만 하는 길이 생기기 전까지 '작업자 페이지 내 작업에서 확인' 안내로 대신한다.
+ *   다음 작업 한 줄은 서버가 /work/me 에 싣는 next_job(JobCard | null, 읽음 처리 안 함 — 1주차 후속 B) 으로 그린다.
+ *   next_job 이 없고 내 작업이 있으면 '작업자 페이지 내 작업에서 확인' 안내.
  *
  * 순수 함수는 Node(Jest) 에서 module.exports 로, 브라우저에서는 전역 `DadamMyPageWork` 로 쓴다.
  * mypage.html 은 `loadMyWork(supabaseClient)` 한 줄만 부른다. mypage 에는 esc 가 없어 여기에 둔다.
@@ -55,9 +57,13 @@
     return { open: count(c.open), mine: count(c.mine), revision: count(c.revision), newEvents: count(c.newEvents) };
   }
 
+  /** 정지된 작업자 안내 (worker.html 맨 위 안내와 같은 글) */
+  const SUSPENDED_NOTE = '계정이 정지되어 새 작업 신청·수락을 할 수 없습니다. 지난 기록은 볼 수 있습니다.';
+
   /**
    * 다음 작업 한 줄 — 내 작업 카드 목록 중 보완요청이 먼저, 그다음 오늘 이후 가장 이른 날짜,
-   * 날짜가 다 지났거나 없으면 첫 줄. 지금 loadMyWork 는 목록을 받지 않는다 (위 머리말 — 읽음 처리 문제).
+   * 날짜가 다 지났거나 없으면 첫 줄. 서버 workers/workflow-api/src/work/jobs.js pickNextJob 과 같은 규칙.
+   * loadMyWork 는 이것을 부르지 않는다 — 서버가 고른 me.next_job 을 쓴다 (목록을 받으면 읽음 처리된다, 머리말).
    */
   function pickNextJob(items, nowMs) {
     const list = (Array.isArray(items) ? items : []).filter((j) => j && UUID_RE.test(String(j.id || '')));
@@ -81,23 +87,29 @@
 
   const row = (k, v) => `<div class="info-item"><span class="info-label">${esc(k)}</span><span class="info-value">${v}</span></div>`;
 
-  /** 요약 카드 HTML — 모든 글은 esc() 를 거친다 */
+  /**
+   * 요약 카드 HTML — 모든 글은 esc() 를 거친다.
+   * nextJob 을 안 넘기면(undefined) 서버가 고른 me.next_job 을 쓴다. 승인 · 정지 작업자만 건수 · 다음 작업을 보인다.
+   */
   function summaryHtml(me, nextJob) {
     if (!shouldShow(me)) return '';
     const w = me.worker;
     const rows = [];
     let next = '';
-    if (w.status === 'approved') {
+    if (w.status === 'approved' || w.status === 'suspended') {
       const c = summaryCounts(me);
+      const job = nextJob === undefined ? me.next_job : nextJob;
       rows.push(row('예정 · 진행', `${esc(c.mine)}건`));
       rows.push(row('보완요청', `${esc(c.revision)}건`));
       rows.push(row('새 소식', `${esc(c.newEvents)}건`));
-      rows.push(row('모집중', `${esc(c.open)}건`));
+      // 정지된 작업자는 새 작업을 볼 수 없다 (서버 counts.open = 0) — 모집중 줄 대신 정지 안내
+      if (w.status === 'suspended') rows.push(row('상태', esc(SUSPENDED_NOTE)));
+      else rows.push(row('모집중', `${esc(c.open)}건`));
       // 다음 작업은 길어서 표 줄이 아니라 아래 한 덩어리로 (좁은 화면에서 이름표가 눌리지 않게).
-      // 작업을 받지 못했으면 내 작업이 있을 때 작업자 페이지 '내 작업' 탭으로 안내한다
+      // 서버가 다음 작업을 주지 않았으면 내 작업이 있을 때 작업자 페이지 '내 작업' 탭으로 안내한다
       let line = '없음';
-      if (nextJob && UUID_RE.test(String(nextJob.id || ''))) {
-        line = `<a href="worker.html#job=${esc(nextJob.id)}" style="color: inherit">${esc(nextJobText(nextJob))}</a>`;
+      if (job && UUID_RE.test(String(job.id || ''))) {
+        line = `<a href="worker.html#job=${esc(job.id)}" style="color: inherit">${esc(nextJobText(job))}</a>`;
       } else if (c.mine > 0) {
         line = '<a href="worker.html#tab=mine" style="color: inherit">작업자 페이지 \'내 작업\'에서 확인하세요</a>';
       }
@@ -106,8 +118,6 @@
       rows.push(row('상태', '승인 대기 — 회사가 확인하면 작업을 볼 수 있습니다'));
     } else if (w.status === 'rejected') {
       rows.push(row('상태', '신청이 승인되지 않았습니다'));
-    } else if (w.status === 'suspended') {
-      rows.push(row('상태', '이용이 멈춰 있습니다'));
     }
     return `<p class="form-hint" style="margin: -8px 0 8px">${esc(w.display_name)} 님의 작업자 정보입니다.</p>` +
       `<div class="info-list">${rows.join('')}</div>${next}` +
@@ -128,7 +138,7 @@
 
   /**
    * mypage.html 이 loadMyProjects() 다음에 부른다. 실패해도 던지지 않는다 (섹션은 숨긴 채).
-   * GET /work/me 하나만 부른다 — /work/jobs?tab=mine 은 새 소식을 읽음 처리하므로 부르지 않는다 (머리말).
+   * GET /work/me 하나만 부른다 — 다음 작업은 그 응답의 next_job. /work/jobs?tab=mine 은 새 소식을 읽음 처리하므로 부르지 않는다 (머리말).
    */
   async function loadMyWork(client) {
     if (typeof document === 'undefined') return;
@@ -145,7 +155,7 @@
       if (!token) return;
       const me = await getJson(apiBase, '/work/me', token);
       if (!shouldShow(me)) return;
-      box.innerHTML = summaryHtml(me, null);
+      box.innerHTML = summaryHtml(me, me.next_job || null);
       section.hidden = false;
     } catch (e) {
       section.hidden = true;
@@ -153,5 +163,5 @@
     }
   }
 
-  return Object.freeze({ esc, shouldShow, summaryCounts, pickNextJob, nextJobText, summaryHtml, loadMyWork });
+  return Object.freeze({ SUSPENDED_NOTE, esc, shouldShow, summaryCounts, pickNextJob, nextJobText, summaryHtml, loadMyWork });
 });

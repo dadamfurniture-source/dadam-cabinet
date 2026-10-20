@@ -11,8 +11,11 @@
  *   DadamAuthRedirect.sanitize('//evil.example/a.html') → 'index.html'
  *   DadamAuthRedirect.fromSearch(location.search)       → ?redirect= 값을 걸러서
  *   DadamAuthRedirect.oauthRedirectTo(location.origin, target)
+ *   DadamAuthRedirect.emailRedirectTo(location.origin, target)  → 인증 메일 링크가 돌아올 주소 (같은 규칙)
  *   DadamAuthRedirect.isKakaoInApp(navigator.userAgent)
  *   DadamAuthRedirect.kakaoOpenExternalUrl(location.href)
+ *   DadamAuthRedirect.inAppBrowser(navigator.userAgent)          → { id, label } | null
+ *   DadamAuthRedirect.externalOpenUrl(location.href, navigator.userAgent) → 문자열 | null
  */
 (function (root, factory) {
   const api = factory();
@@ -83,13 +86,85 @@
     return 'kakaotalk://web/openExternal?url=' + encodeURIComponent(String(href || ''));
   }
 
+  /**
+   * 이메일 가입 인증 메일(그리고 다시 보내기)의 링크가 돌아올 주소 — oauthRedirectTo 와 같은 규칙.
+   * Supabase 는 인증 링크를 눌렀을 때도 돌아오는 주소 뒤에 '#access_token=…' 을 붙이므로
+   * 같은 이유로 login.html?redirect=… 를 거친다 (돌아갈 곳이 기본이면 /index.html).
+   */
+  function emailRedirectTo(origin, target) {
+    return oauthRedirectTo(origin, target);
+  }
+
+  /*
+   * 인앱 브라우저 — 앱 속 웹뷰에서는 구글이 로그인을 막는다 (disallowed_useragent).
+   * 위에서부터 먼저 맞는 것. 화면에 쓰는 이름(label)은 이 표에서만 나온다 — UA 글자는 누구나 꾸밀 수 있으므로
+   * 화면에 넣지 않는다.
+   */
+  const IN_APP_BROWSERS = [
+    { id: 'kakaotalk', label: '카카오톡', re: /KAKAOTALK/i },
+    { id: 'naver', label: '네이버', re: /NAVER\(inapp/i },
+    { id: 'instagram', label: '인스타그램', re: /\bInstagram\b/i },
+    { id: 'facebook', label: '페이스북', re: /\bFB(?:AN|AV|_IAB)\// },
+    { id: 'line', label: '라인', re: /\bLine\//i },
+    { id: 'daum', label: '다음', re: /\bDaumApps\b/i },
+    { id: 'band', label: '밴드', re: /\bBAND\//i },
+  ];
+
+  /** UA 로 인앱 브라우저를 알아본다 → { id, label } | null */
+  function inAppBrowser(userAgent) {
+    if (typeof userAgent !== 'string' || !userAgent) return null;
+    for (const app of IN_APP_BROWSERS) {
+      if (app.re.test(userAgent)) return { id: app.id, label: app.label };
+    }
+    return null;
+  }
+
+  /** 주소의 ?query 끝에 한 쌍을 붙인다 (해시는 뒤에 그대로, 이미 있으면 그대로) */
+  function addQueryParam(href, pair) {
+    const i = href.indexOf('#');
+    const base = i < 0 ? href : href.slice(0, i);
+    const hash = i < 0 ? '' : href.slice(i);
+    const q = base.indexOf('?');
+    const pairs = q < 0 ? [] : base.slice(q + 1).split('&');
+    if (pairs.indexOf(pair) >= 0) return href;
+    const sep = q < 0 ? '?' : /[?&]$/.test(base) ? '' : '&';
+    return base + sep + pair + hash;
+  }
+
+  /**
+   * 인앱 브라우저에서 지금 주소를 외부 브라우저로 여는 주소. 열 길이 없으면 null.
+   *   - 카카오톡: kakaotalk://web/openExternal?url=…  (안드로이드·iOS)
+   *   - 라인: 주소에 openExternalBrowser=1             (안드로이드·iOS)
+   *   - 안드로이드의 그 밖 앱: intent://…#Intent;scheme=https;package=com.android.chrome;end (크롬으로)
+   *     지금 주소의 해시는 떼어 낸다 — intent 의 '#Intent;' 와 겹치지 않게.
+   *     돌아갈 곳은 ?redirect= 안에 %23 으로 들어 있어 잃지 않는다.
+   *   - iOS 의 그 밖 앱 · 보통 브라우저: null → 화면이 "오른쪽 위 메뉴에서 '다른 브라우저로 열기'" + 주소 복사
+   */
+  function externalOpenUrl(href, userAgent) {
+    const app = inAppBrowser(userAgent);
+    if (!app) return null;
+    const url = typeof href === 'string' ? href : '';
+    const m = /^(https?):\/\/([^#]+)/i.exec(url);
+    if (!m) return null;
+    if (app.id === 'kakaotalk') return kakaoOpenExternalUrl(url);
+    if (app.id === 'line') return addQueryParam(url, 'openExternalBrowser=1');
+    if (/Android/i.test(userAgent)) {
+      const scheme = m[1].toLowerCase();
+      return `intent://${m[2]}#Intent;scheme=${scheme};package=com.android.chrome;end`;
+    }
+    return null;
+  }
+
   return Object.freeze({
     DEFAULT_TARGET,
     sanitize,
     fromSearch,
     oauthRedirectTo,
+    emailRedirectTo,
     withRedirect,
     isKakaoInApp,
     kakaoOpenExternalUrl,
+    inAppBrowser,
+    externalOpenUrl,
   });
 });

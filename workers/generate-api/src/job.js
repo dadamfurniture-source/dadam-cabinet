@@ -28,6 +28,8 @@ import {
   buildPlumbingPrompt,
   buildPlannerPrompt,
   plannerChosenFridgeModel,
+  fridgeModelFromRow,
+  FRIDGE_DEFAULT_MODELS,
   buildQcPrompt,
   buildThemePalettePrompt,
   cleanCustomerRequest,
@@ -55,7 +57,8 @@ import {
   resolveCategory,
 } from './prompts.js';
 import { buildQuote } from './quote.js';
-import { selectOne, updateById, uploadObject, fetchObjectBase64, extOf, base64ToBytes } from './supabase.js';
+import { selectOne, selectMany, updateById, uploadObject, fetchObjectBase64, extOf, base64ToBytes } from './supabase.js';
+import { ANALYSIS_ROUNDS, ROOM_PHOTO_LOOKUP_LIMIT, medianAnalysis, roomPhotoPhash, roomPhotoSha256, samePhoto } from './room-photo.js';
 import { refundCreditService } from './credits.js';
 import {
   LAYOUT_CATEGORIES,
@@ -281,40 +284,74 @@ async function setStep(env, job, ck, step, extra = {}) {
   });
 }
 
-/** 방 사진 바이트의 SHA-256 (소문자 hex). 못 구하면 null — 그러면 예전처럼 매번 분석한다. */
-export async function roomPhotoSha256(room) {
+// roomPhotoSha256 은 2026-10-20 room-photo.js 로 옮겼다 (re-export 는 두지 않는다 — __tests__/wall-manual-plumbing.test.js 의
+//   loadEsm 이 import 를 지우고 export 접두사만 벗겨 평가하므로 `export { x }` 가 참조 오류가 된다).
+
+/**
+ * 같은 사용자의 같은 방 사진 행들의 분석 (2026-10-20, 플래너 모드).
+ *   generations.wall_analysis.roomPhoto = { sha256, phash, analysis(parseAnalysis 결과, 사람 값 덮기 전), from(분석한 행 id),
+ *     pooled(모아 쓴 행 수) | rounds(새로 분석한 회차 수) }.
+ *   같은 사진 = 바이트 sha256 같음(#941, 어느 때 행이든) 또는 지각 해시 거리 ≤ 문턱(최근 50행, room-photo.js).
+ *   같은 그림 행이 여럿이면(예: 이전 13회) 그 분석들의 중앙값 — 첫 값 하나가 분포의 끝일 수 있다. 재사용 행은 원본 분석의 사본이라
+ *   from 이 같은 행은 하나로 센다 (원본 행 우선). 배포 전 행에는 phash 가 없어 sha256 같은 것만 후보가 된다.
+ *   못 찾거나 읽기 실패·모양이 틀리면 null — 그러면 새로 분석한다.
+ * @param {{sha256:string, phash:string|null}} key
+ * @returns {Promise<{analysis:object, from:string, pooled:number}|null>}
+ */
+async function findRoomAnalysis(env, job, key) {
   try {
-    if (!room || typeof room.base64 !== 'string' || !room.base64) return null;
-    const buf = await crypto.subtle.digest('SHA-256', base64ToBytes(room.base64));
-    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
-  } catch {
+    const base = { user_id: `eq.${job.userId}`, id: `neq.${job.id}`, select: 'id,created_at,wall_analysis' };
+    const rows = await selectMany(env, 'generations', {
+      ...base, 'wall_analysis->roomPhoto->>sha256': `eq.${key.sha256}`, order: 'created_at.asc', limit: String(ROOM_PHOTO_LOOKUP_LIMIT),
+    });
+    if (key.phash) {
+      rows.push(...await selectMany(env, 'generations', {
+        ...base, 'wall_analysis->roomPhoto->>phash': 'not.is.null', order: 'created_at.desc', limit: String(ROOM_PHOTO_LOOKUP_LIMIT),
+      }));
+    }
+    const byFrom = new Map(); // from → { row, rp }
+    const seen = new Set();
+    for (const row of rows || []) {
+      if (!row || row.id === job.id || seen.has(row.id)) continue;
+      seen.add(row.id);
+      const rp = row.wall_analysis && row.wall_analysis.roomPhoto;
+      const a = rp && samePhoto(key, rp) ? rp.analysis : null;
+      if (!a || typeof a !== 'object' || !(Number(a.wallW) > 0) || !(Number(a.wallH) > 0)) continue;
+      const from = typeof rp.from === 'string' && rp.from ? rp.from : row.id;
+      const prev = byFrom.get(from);
+      const prevIsOrigin = !!prev && prev.row.id === from;
+      const better = !prev
+        || (row.id === from && !prevIsOrigin)
+        || (row.id !== from && !prevIsOrigin && String(row.created_at || '') < String(prev.row.created_at || ''));
+      if (better) byFrom.set(from, { row, from, analysis: a });
+    }
+    const cands = [...byFrom.values()];
+    const m = medianAnalysis(cands.map((c) => c.analysis));
+    if (!m) return null;
+    return { analysis: m.analysis, from: cands[m.chosen].from, pooled: cands.length };
+  } catch (e) {
+    console.warn(`[Job ${job.id}] room photo lookup failed, analysing:`, e.message);
     return null;
   }
 }
 
 /**
- * 같은 사용자의 같은 방 사진(해시)을 가장 먼저 분석한 행의 분석 원본 (2026-10-20, 플래너 모드).
- *   generations.wall_analysis.roomPhoto = { sha256, analysis(parseAnalysis 결과, 사람 값 덮기 전), from(처음 분석한 행 id) }.
- *   못 찾거나 읽기 실패·모양이 틀리면 null — 그러면 새로 분석한다.
- * @returns {Promise<{analysis:object, from:string}|null>}
+ * 방 사진 분석을 rounds 회 돌려 중앙값 (room-photo.js medianAnalysis). 실패한 회차는 빼고, 전부 실패면 null.
+ * @returns {Promise<{wall:object, rounds:number}|null>}
  */
-async function findRoomAnalysis(env, job, sha256) {
-  try {
-    const row = await selectOne(env, 'generations', {
-      user_id: `eq.${job.userId}`,
-      'wall_analysis->roomPhoto->>sha256': `eq.${sha256}`,
-      id: `neq.${job.id}`,
-      order: 'created_at.asc',
-      select: 'id,wall_analysis',
-    });
-    const rp = row && row.wall_analysis && row.wall_analysis.roomPhoto;
-    const a = rp && rp.sha256 === sha256 ? rp.analysis : null;
-    if (!a || typeof a !== 'object' || !(Number(a.wallW) > 0) || !(Number(a.wallH) > 0)) return null;
-    return { analysis: a, from: typeof rp.from === 'string' && rp.from ? rp.from : row.id };
-  } catch (e) {
-    console.warn(`[Job ${job.id}] room photo lookup failed, analysing:`, e.message);
-    return null;
+async function analyseRoom(env, job, room, rounds) {
+  const results = await Promise.allSettled(
+    Array.from({ length: rounds }, () => callGemini(env, { prompt: buildAnalysisPrompt(), images: [room], want: 'text' }))
+  );
+  const ok = [];
+  for (const r of results) {
+    if (r.status === 'fulfilled') ok.push(parseAnalysis(r.value.text));
+    else console.warn(`[Job ${job.id}] analysis round failed:`, r.reason && r.reason.message);
   }
+  if (!ok.length) return null;
+  if (ok.length === 1) return { wall: ok[0], rounds: 1 };
+  const m = medianAnalysis(ok);
+  return m ? { wall: m.analysis, rounds: m.count } : { wall: ok[0], rounds: 1 };
 }
 
 /**
@@ -447,6 +484,38 @@ async function runPipeline(env, job, ck, save) {
       }
     }
   }
+  // 2026-10-20 냉장고장 일반 모드 (사장님 결정 D1): 고른 모델(fridge_options.models 코드) → appliance_models 행,
+  //   없으면 브랜드 기본 세트(prompts.js FRIDGE_DEFAULT_MODELS). 제품 사진(image_path)이 있는 모델은 설치 호출 맨 뒤 이미지로.
+  //   표를 못 읽으면 기본 세트로 그린다 — 사진은 없으면 글만.
+  let fridgeModels = null; // [{brand,name,code,widthMm,...}] — 지시문이 쓴다
+  const fridgePhotos = []; // [{base64, mimeType, code}] — 설치 호출 맨 뒤
+  if (!planner && category === 'fridge') {
+    const codes = Array.isArray(opts.fridge_options && opts.fridge_options.models) ? opts.fridge_options.models : [];
+    if (codes.length) {
+      try {
+        const rows = await selectMany(env, 'appliance_models', {
+          select: 'brand,model_name,model_code,subtype,line,width_mm,height_mm,depth_mm,side_gap_mm,top_gap_mm',
+          model_code: `in.(${codes.map((c) => `"${c}"`).join(',')})`,
+        });
+        const byCode = new Map((rows || []).map((r) => [r.model_code, fridgeModelFromRow(r)]));
+        fridgeModels = codes.map((c) => byCode.get(c)).filter((m) => m && m.widthMm > 0 && m.heightMm > 0);
+        if (!fridgeModels.length) fridgeModels = null;
+      } catch (e) {
+        console.warn(`[Job ${job.id}] fridge models lookup failed, using defaults: ${e.message}`);
+      }
+    }
+    const brandKey = opts.fridge_options && opts.fridge_options.brand === 'lg' ? 'LG' : 'Samsung';
+    const list = fridgeModels || FRIDGE_DEFAULT_MODELS[brandKey];
+    for (const m of list) {
+      try {
+        const p = await loadFridgeModelPhoto(env, m);
+        if (p) fridgePhotos.push(p);
+      } catch (e) {
+        console.warn(`[Job ${job.id}] fridge photo skipped (${m.code}): ${e.message}`);
+      }
+    }
+    console.log(`[Job ${job.id}] fridge models: ${list.map((m) => m.code).join('+')} (${fridgeModels ? 'chosen' : 'default ' + brandKey}), photos ${fridgePhotos.map((p) => p.code).join('+') || '-'}`);
+  }
   // 참고 이미지는 역할이 둘이다.
   //   style (업로드·시공사례) → 설치 단계에 첨부, 마감·분위기 참고
   //   theme (식물·명품·회화 등)  → 색감만 뽑아 추천안 한 장으로
@@ -481,33 +550,36 @@ async function runPipeline(env, job, ck, save) {
     };
     // 2026-10-20: 같은 방 사진이면 벽 하나 (플래너 모드) — 같은 사진(md5 같음)인데 분석 벽 폭이 3900~4400 으로 흔들려
     //   프롬프트의 줄 길이 % 가 50 → 56 % 로 바뀌었다. 지시가 사진마다 하나여야 반복 산포를 잰다.
-    //   방 사진 바이트 SHA-256 을 열쇠로, 같은 사용자의 같은 해시 행 중 가장 먼저 분석한 것(parseAnalysis 결과)을 다시 쓴다.
+    //   #941 은 방 사진 바이트 SHA-256 만 열쇠였다 — 같은 화면을 다시 저장한 JPEG 는 바이트가 달라 못 이었고 첫 값(4500)이
+    //   고정됐다 (이전 13회 중앙값 4350). 그래서 (사장님 결정 2026-10-20, room-photo.js):
+    //     · 지각 해시(dHash)도 열쇠 — 같은 그림(재저장·재압축)은 같은 사진. 다른 기기의 다른 사진은 새로 분석.
+    //     · 같은 그림 행이 여럿이면 그 분석들의 중앙값, 새 사진은 분석 3회의 중앙값 (호출 3배는 사장님이 안 것).
     //   새 표 없이 generations.wall_analysis.roomPhoto 에 남긴다. 사람이 넣은 벽 폭은 아래에서 그래도 이긴다.
-    //   재생성은 원본과 같은 inputs.room 을 쓰므로 같은 해시다. 일반 경로는 찾지도 남기지도 않는다 (예전 그대로).
+    //   재생성은 원본과 같은 inputs.room 을 쓰므로 같은 해시다. 일반 경로는 찾지도 남기지도 않고 1회 분석 (예전 그대로).
     let roomPhoto = null;
     if (planner) {
       const sha256 = await roomPhotoSha256(room);
-      const prior = sha256 ? await findRoomAnalysis(env, job, sha256) : null;
+      const phash = sha256 ? roomPhotoPhash(room) : null;
+      const prior = sha256 ? await findRoomAnalysis(env, job, { sha256, phash }) : null;
       if (prior) {
         wall = JSON.parse(JSON.stringify(prior.analysis));
-        roomPhoto = { sha256, analysis: prior.analysis, from: prior.from };
-        console.log(`[Job ${job.id}] room photo ${sha256.slice(0, 12)}: reuse wall ${wall.wallW} from ${prior.from}`);
+        roomPhoto = { sha256, phash, analysis: prior.analysis, from: prior.from, pooled: prior.pooled };
+        console.log(`[Job ${job.id}] room photo ${sha256.slice(0, 12)}/${phash || '-'}: reuse wall ${wall.wallW} from ${prior.from} (pooled ${prior.pooled})`);
       } else if (sha256) {
-        roomPhoto = { sha256, analysis: null, from: job.id };
+        roomPhoto = { sha256, phash, analysis: null, from: job.id };
       }
     }
     if (!roomPhoto || !roomPhoto.analysis) {
-      try {
-        const r = await callGemini(env, {
-          prompt: buildAnalysisPrompt(),
-          images: [room],
-          want: 'text',
-        });
-        wall = parseAnalysis(r.text);
+      const got = await analyseRoom(env, job, room, planner ? ANALYSIS_ROUNDS : 1);
+      if (got) {
+        wall = got.wall;
         // 분석이 성공했을 때만 남긴다 — 실패 기본값(3000×2400)을 다음 요청이 이어받지 않게
-        if (roomPhoto) roomPhoto.analysis = JSON.parse(JSON.stringify(wall));
-      } catch (e) {
-        console.warn(`[Job ${job.id}] analysis failed, defaults:`, e.message);
+        if (roomPhoto) {
+          roomPhoto.analysis = JSON.parse(JSON.stringify(wall));
+          roomPhoto.rounds = got.rounds;
+        }
+      } else {
+        console.warn(`[Job ${job.id}] analysis failed, defaults`);
       }
     }
     if (roomPhoto && roomPhoto.analysis) wall.roomPhoto = roomPhoto;
@@ -587,6 +659,9 @@ async function runPipeline(env, job, ck, save) {
     fridgeBrand: opts.fridge_options && opts.fridge_options.brand === 'lg' ? 'LG' : 'Samsung',
     fridgePosition:
       opts.fridge_options && opts.fridge_options.position === 'right' ? 'right' : 'left',
+    // 2026-10-20: 고른 냉장고 모델(없으면 지시문이 기본 세트를 쓴다)·맨 뒤에 붙는 제품 사진의 코드
+    ...(fridgeModels ? { fridgeModels } : {}),
+    ...(fridgePhotos.length ? { fridgePhotos: fridgePhotos.map((p) => ({ code: p.code })) } : {}),
     // 플래너 도면 요약 (worker.js 가 이미 검증해 options 에 넣었다). null 이면 범용 문단.
     designSpec: opts.design_spec || null,
     // 손님 요청 (연출컷 ③ 상세 요청). worker.js 가 다듬어 두었다 — 한 번 더 다듬는다. 없으면 null.
@@ -831,7 +906,13 @@ async function runPipeline(env, job, ck, save) {
     // 연출컷 기본안 — 공급자는 images.js 가 고른다 (IMAGE_PROVIDER, GPT 실패 시 Gemini)
     const r = await renderImage(
       env,
-      { prompt: buildInstallPrompt(ctx, fix ? { fix } : {}), images: massingImg ? [massingImg, ...refs] : [room, ...refs, ...(guideImg ? [guideImg] : [])], imageSize, aspectRatio },
+      {
+        prompt: buildInstallPrompt(ctx, fix ? { fix } : {}),
+        // 냉장고 제품 사진은 맨 뒤 (buildInstallPrompt 가 "the last N images" 로 가리킨다)
+        images: [...(massingImg ? [massingImg, ...refs] : [room, ...refs, ...(guideImg ? [guideImg] : [])]), ...fridgePhotos.map((p) => ({ base64: p.base64, mimeType: p.mimeType }))],
+        imageSize,
+        aspectRatio,
+      },
       'base'
     );
     if (!r.image) throw new Error('install returned no image');
@@ -1031,7 +1112,7 @@ async function runPipeline(env, job, ck, save) {
       key: 'theme',
       label: `AI 추천 · 테마 색감 (${f.tone})`,
       finish: { body: f.body, accent: f.accent },
-      prompt: buildVariantPrompt(f),
+      prompt: buildVariantPrompt(f, { fridgePanels: category === 'fridge' }),
     });
   }
   if (KITCHEN_CATEGORIES.includes(category)) {
@@ -1054,7 +1135,7 @@ async function runPipeline(env, job, ck, save) {
   // 기본안 문짝 색과 같은 계열은 빼고 뽑는다 (2026-10-20: 흰 문짝에 '무광 화이트' 추천이 나와 기본안과 같았다)
   const palette = pickFinishes(Math.max(0, VARIANT_COUNT - interiorCount - specs.length), seed, finishLookalikes(ctx.doorColor));
   for (const f of palette) {
-    specs.push({ key: f.key, label: `AI 추천 · ${f.tone}`, finishSrc: f, prompt: buildVariantPrompt(f) });
+    specs.push({ key: f.key, label: `AI 추천 · ${f.tone}`, finishSrc: f, prompt: buildVariantPrompt(f, { fridgePanels: category === 'fridge' }) });
   }
   if (interior) {
     const colourSpec = specs[0];

@@ -11,6 +11,13 @@
  *                    slots, confirmed(확정 수), applications(신청 수 · 숫자), mode, pay_amount, pay_unit, pay_visible, version }
  *   AdminJobDetail { ...작업 열, filled(확정 수), applications[], assignments[], updates[], events[] } — 또는 { job, … } 로 감싼 모양
  *   신청 · 배정 행  { id, status, worker_id, worker: { id, display_name, kinds, region_label, done_count }, … }
+ *
+ * 1주차 후속 (2026-10-20, 계약 맨 위 「1주차 후속」 절):
+ *   - apply_deadline 을 화면에서 「지원 종료일」이라 부른다. effective_status 'expired' 의 이름은 「지원 종료」
+ *     형식 '10/25(토) 18:00' (한국 시간), 꼬리표는 한국 날짜 기준 D-n · 오늘 종료 · 지원 종료 (deadlineTag)
+ *   - 작업 닫기 · 취소 응답 { …, auto_declined: 건수 } — 응답 없는 초대(offered)를 서버가 끝낸 수
+ *   - 작업자 목록 행 { …, active_count } — offered · confirmed · started · submitted · revision 배정 수
+ *   - GET /work/admin/workers/:id/events → { items: [{ type, actor_kind, from_status, to_status, note, payload, created_at }] } 최근순
  */
 (function (root, factory) {
   const api = factory();
@@ -23,7 +30,7 @@
   const KINDS = Object.freeze(['install', 'as', 'assembly']);
   const KIND_LABEL = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립 추가 인원' });
   const JOB_STATUS_LABEL = Object.freeze({
-    draft: '초안', open: '모집중', expired: '마감', filled: '배정', in_progress: '진행',
+    draft: '초안', open: '모집중', expired: '지원 종료', filled: '배정', in_progress: '진행',
     review: '검수대기', done: '완료', closed: '닫힘', cancelled: '취소',
   });
   const APP_STATUS_LABEL = Object.freeze({ applied: '신청', approved: '선정', rejected: '반려', withdrawn: '철회' });
@@ -39,6 +46,19 @@
   const PAY_UNIT_LABEL = Object.freeze({ day: '일', hour: '시간', meter: 'm', job: '건' });
   const VIA_LABEL = Object.freeze({ application: '신청에서 선정', invite: '직접 초대' });
   const ACTOR_LABEL = Object.freeze({ worker: '작업자', admin: '관리자', system: '시스템' });
+  /** 작업 이벤트 이름 — 없는 것은 type 그대로 보인다 */
+  const EVENT_TYPE_LABEL = Object.freeze({ assignment_auto_declined: '응답 없는 초대 자동 종료' });
+  /** 작업자 이력의 상태 이름 (계약 1주차 후속 F — '대기 → 승인') */
+  const WORKER_STATUS_SHORT = Object.freeze({ pending: '대기', approved: '승인', suspended: '정지', rejected: '반려' });
+  /** 작업자 이력의 이벤트 이름 · 가입 경로 */
+  const WORKER_EVENT_LABEL = Object.freeze({ registered: '가입 신청', status_changed: '상태 변경', kinds_changed: '종류 변경' });
+  const REGISTER_VIA_LABEL = Object.freeze({ public: '공개 신청', invite: '초대 링크' });
+
+  /** 지원 종료일 — 서랍 도움말 · 지난 시각 경고 (막지 않는다) */
+  const DEADLINE_HELP = '비워 두면 정원이 찰 때까지 받습니다';
+  const DEADLINE_PAST_WARNING = "지원 종료일이 이미 지났습니다 — 게시하면 바로 '지원 종료'로 보입니다";
+  /** 보드 카드에 지원 종료일을 보이는 칸 (effective_status) */
+  const DEADLINE_STATUSES = Object.freeze(['draft', 'open', 'expired']);
 
   /** 정원 계산에 드는 배정 (계약 §1) */
   const COUNTED = Object.freeze(['confirmed', 'started', 'submitted', 'revision', 'accepted']);
@@ -51,7 +71,7 @@
   const BOARD_COLUMNS = Object.freeze([
     { key: 'draft', label: '초안', statuses: ['draft'] },
     { key: 'open', label: '모집중', statuses: ['open'] },
-    { key: 'expired', label: '마감 (신청 마감 지남)', statuses: ['expired'] },
+    { key: 'expired', label: '지원 종료', statuses: ['expired'] },
     { key: 'filled', label: '배정', statuses: ['filled'] },
     { key: 'in_progress', label: '진행', statuses: ['in_progress'] },
     { key: 'review', label: '검수대기', statuses: ['review'] },
@@ -68,7 +88,7 @@
     if (v === null || v === undefined) return '';
     return String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
-  const label = (map, key) => (key ? map[key] || String(key) : '');
+  const label = (map, key) => (key ? (Object.prototype.hasOwnProperty.call(map, key) ? map[key] : String(key)) : '');
   const kindLabel = (k) => label(KIND_LABEL, k);
   const kindsText = (list) => (Array.isArray(list) && list.length ? list.map(kindLabel).join(' · ') : '종류 없음');
   const num = (n) => (n === null || n === undefined || n === '' || !Number.isFinite(Number(n)) ? null : Number(n));
@@ -104,14 +124,59 @@
     if (fmtDate(startsAt) === fmtDate(endsAt)) return `${fmtDateTime(startsAt)}~${fmtTime(endsAt)}`;
     return `${fmtDateTime(startsAt)} ~ ${fmtDateTime(endsAt)}`;
   }
+  /** 한국 날짜 번호 (1970-01-01 한국 날짜부터 센 날 수) */
+  const kstDay = (ms) => Math.floor((ms + KST_MS) / DAY_MS);
   /** 한국 날짜 기준 D-day ('D-1' · 'D-day' · 'D+2'), 날짜 없으면 '' */
   function ddayLabel(iso, nowMs) {
     const t = Date.parse(iso);
     if (!iso || !Number.isFinite(t)) return '';
-    const day = (ms) => Math.floor((ms + KST_MS) / DAY_MS);
-    const diff = day(t) - day(Number.isFinite(nowMs) ? nowMs : Date.now());
+    const diff = kstDay(t) - kstDay(Number.isFinite(nowMs) ? nowMs : Date.now());
     if (diff === 0) return 'D-day';
     return diff > 0 ? `D-${diff}` : `D+${-diff}`;
+  }
+
+  // ── 지원 종료일 (work_jobs.apply_deadline) ──
+  /**
+   * 지원 종료일 꼬리표 — 지났으면 '지원 종료', 한국 날짜로 같은 날이고 아직 전이면 '오늘 종료', 아니면 'D-n' (n ≥ 1).
+   * 지났는지는 effectiveStatus 와 같은 경계 (지원 종료일 < 지금). 지원 종료일이 없으면 ''.
+   */
+  function deadlineTag(iso, nowMs) {
+    const t = Date.parse(iso);
+    if (!iso || !Number.isFinite(t)) return '';
+    const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+    if (t < now) return '지원 종료';
+    const diff = kstDay(t) - kstDay(now);
+    return diff >= 1 ? `D-${diff}` : '오늘 종료';
+  }
+  /** 꼬리표 HTML — 오늘 종료 · 지원 종료는 눈에 띄게 (dl-today · dl-over) */
+  function deadlineTagHtml(tag) {
+    if (!tag) return '';
+    const cls = tag === '지원 종료' ? 'dl-over' : tag === '오늘 종료' ? 'dl-today' : 'dl-days';
+    return `<span class="dl-tag ${cls}">${esc(tag)}</span>`;
+  }
+  /** 보드 카드 한 줄 '지원 종료 10/25(토) 18:00 · D-3' — 초안 · 모집중 · 지원 종료 칸에서만, 지원 종료일이 있을 때만 */
+  function deadlineCardHtml(job, nowMs) {
+    const j = job || {};
+    if (!kstParts(j.apply_deadline) || !DEADLINE_STATUSES.includes(effectiveStatus(j, nowMs))) return '';
+    return `<span class="jc-meta jc-deadline">지원 종료 ${esc(fmtDateTime(j.apply_deadline))} · ${deadlineTagHtml(deadlineTag(j.apply_deadline, nowMs))}</span>`;
+  }
+  /** 작업 상세 「지원 종료일」 행 값 — 없으면 '정하지 않음'. 꼬리표는 보드와 같이 초안 · 모집중 · 지원 종료일 때만 */
+  function deadlineDetailHtml(job, nowMs) {
+    const j = job || {};
+    if (!kstParts(j.apply_deadline)) return '<span class="muted">정하지 않음</span>';
+    const tag = DEADLINE_STATUSES.includes(effectiveStatus(j, nowMs)) ? deadlineTag(j.apply_deadline, nowMs) : '';
+    return `${esc(fmtDateTime(j.apply_deadline))}${tag ? ` · ${deadlineTagHtml(tag)}` : ''}`;
+  }
+  /** 서랍의 지원 종료일 칸(datetime-local, 한국 시간) 값이 지난 시각이면 경고 문구, 아니면 '' — 막지는 않는다 */
+  function deadlineWarning(inputValue, nowMs) {
+    let iso;
+    try {
+      iso = fromKstInput(inputValue);
+    } catch (e) {
+      return ''; // 형식 오류는 저장할 때 buildJobPayload 가 알린다
+    }
+    if (!iso) return '';
+    return Date.parse(iso) < (Number.isFinite(nowMs) ? nowMs : Date.now()) ? DEADLINE_PAST_WARNING : '';
   }
   /** ISO → <input type="datetime-local"> 값 (한국 시간) */
   function toKstInput(iso) {
@@ -230,6 +295,29 @@
     return { approve: st === 'pending', reject: st === 'pending', suspend: st === 'approved', resume: st === 'suspended' };
   }
 
+  // ── 작업 닫기 · 취소 확인 (1주차 후속 C — 서버가 응답 없는 초대를 declined 로 끝낸다) ──
+  /** 응답 없는 초대 수 — 상세의 배정 중 offered */
+  function offeredCount(assignments) {
+    return (Array.isArray(assignments) ? assignments : []).filter((a) => a && a.status === 'offered').length;
+  }
+  const inviteEndLine = (n) => (n > 0 ? `응답 없는 초대 ${n}건은 자동으로 끝납니다.` : '');
+  /** 닫기 확인 — 조립(assembly)은 검수 단계가 없어 「검수가 끝난」이라 하지 않는다 */
+  function closeConfirmText(job, assignments) {
+    const head = job && job.kind === 'assembly' ? '완료 보고가 끝난 작업을 닫을까요?' : '검수가 끝난 작업을 닫을까요?';
+    const tail = inviteEndLine(offeredCount(assignments));
+    return tail ? `${head}\n${tail}` : head;
+  }
+  /** 취소 사유 창의 안내 */
+  function cancelHint(assignments) {
+    const tail = inviteEndLine(offeredCount(assignments));
+    return `배정된 작업자가 있으면 그 사람의 작업 화면에도 취소로 보입니다.${tail ? ` ${tail}` : ''}`;
+  }
+  /** 닫기 · 취소 응답의 auto_declined → 완료 문구에 덧붙일 말 (0 · 없음이면 '') */
+  function autoDeclinedNote(res) {
+    const n = num(res && res.auto_declined);
+    return n ? ` 응답 없는 초대 ${n}건을 끝냈습니다.` : '';
+  }
+
   // ── HTML 조각 ──
   const badge = (map, status, cls) => (status ? `<span class="badge st-${esc(status)}${cls ? ` ${esc(cls)}` : ''}">${esc(label(map, status))}</span>` : '');
   const kindChip = (k) => `<span class="kind-chip kind-${esc(k)}">${esc(kindLabel(k))}</span>`;
@@ -241,7 +329,7 @@
     return `${amt.toLocaleString('ko-KR')}원${unit} · ${job.pay_visible ? '작업자에게 공개' : '작업자에게 숨김'}`;
   }
 
-  /** 보드 카드 — 날짜 · 종류 · 시/구 · 확정 n/정원 · 신청 수 (계약 §4) */
+  /** 보드 카드 — 날짜 · 종류 · 시/구 · 확정 n/정원 · 신청 수 (계약 §4) + 지원 종료일 · 꼬리표 (초안 · 모집중 · 지원 종료 칸) */
   function jobCardHtml(job, opts) {
     const o = opts || {};
     const eff = effectiveStatus(job, o.now);
@@ -254,6 +342,7 @@
       + `<span class="jc-title">${esc(job.title)}</span>`
       + `<span class="jc-meta">${esc(fmtRange(job.starts_at, job.ends_at))}${job.region_label ? ` · ${esc(job.region_label)}` : ''}</span>`
       + `<span class="jc-meta">${esc(filledText)} · ${esc(appliedText)}</span>`
+      + deadlineCardHtml(job, o.now)
       + '</button>';
   }
 
@@ -338,20 +427,31 @@
     }).join('')}</ol>`;
   }
 
-  /** 이벤트 기록 (work_job_events) — 누가 · 전 → 후 · 사유 */
+  /** 이벤트 기록 (work_job_events) — 누가 · 전 → 후 · 사유. 이름표가 있는 이벤트(EVENT_TYPE_LABEL)는 한국어로 */
   function eventsHtml(events) {
     const list = (Array.isArray(events) ? events : []).slice().sort((a, b) => (Date.parse(a.created_at) || 0) - (Date.parse(b.created_at) || 0));
     if (!list.length) return '<div class="empty-mini">이벤트가 없습니다.</div>';
     return `<table class="tbl"><thead><tr><th>시각</th><th>누가</th><th>무엇</th><th>상태</th><th>사유</th></tr></thead><tbody>${list.map((e) => `<tr>`
-      + `<td>${esc(fmtDateTime(e.created_at))}</td><td>${esc(label(ACTOR_LABEL, e.actor_kind))}</td><td>${esc(e.type)}</td>`
+      + `<td>${esc(fmtDateTime(e.created_at))}</td><td>${esc(label(ACTOR_LABEL, e.actor_kind))}</td><td>${esc(label(EVENT_TYPE_LABEL, e.type))}</td>`
       + `<td>${e.from_status || e.to_status ? `${esc(e.from_status || '-')} → ${esc(e.to_status || '-')}` : ''}</td><td>${esc(e.note)}</td></tr>`).join('')}</tbody></table>`;
   }
 
-  /** 작업자 탭 한 줄 — 승인 · 반려 · 정지 · 종류 · 메모 */
+  /** 진행 중인 배정 수 (서버 active_count — offered · confirmed · started · submitted · revision). 모르면 null */
+  const activeCountOf = (w) => num(w && w.active_count);
+
+  /** 정지 상태 설명 (1주차 후속 D) — 새 신청 · 수락만 막히고 지난 기록 · 진행 중인 배정은 남는다 */
+  function suspendedNote(w) {
+    const n = activeCountOf(w);
+    return '정지 중 — 새 작업 신청 · 초대 수락을 할 수 없습니다. 지난 기록은 작업자가 계속 볼 수 있습니다.'
+      + (n ? ` 진행 중인 배정 ${n}건이 남아 있습니다 — 필요하면 작업에서 제외하세요.` : '');
+  }
+
+  /** 작업자 탭 한 줄 — 승인 · 반려 · 정지 · 종류 · 메모 (편집자), 이력 (관리자 전원) */
   function workerRowHtml(w, opts) {
     const o = opts || {};
     const act = workerActions(w);
     const kinds = Array.isArray(w.kinds) ? w.kinds : [];
+    const active = activeCountOf(w);
     const contact = [w.region_label, w.phone, w.email ? `${w.email}${w.provider ? ` (${w.provider})` : ''}` : ''].filter(Boolean).join(' · ');
     const facts = [
       `가입 ${fmtDate(w.created_at) || '-'}`,
@@ -359,24 +459,71 @@
       w.consent_version ? `동의 ${w.consent_version}` : '',
       `사진 동의 ${w.photo_consent ? '예' : '아니오'}`,
       w.last_seen_at ? `최근 접속 ${fmtDate(w.last_seen_at)}` : '',
+      active !== null && (w.status === 'approved' || w.status === 'suspended') ? `진행 중인 배정 ${active}건` : '',
     ].filter(Boolean).join(' · ');
     const kindBoxes = KINDS.map((k) => `<label class="kind-box"><input type="checkbox" data-kind-of="${esc(w.id)}" value="${esc(k)}"${kinds.includes(k) ? ' checked' : ''}${o.canEdit ? '' : ' disabled'} />${esc(kindLabel(k))}</label>`).join('');
-    const btns = o.canEdit ? [
-      act.approve ? `<button type="button" class="btn btn-primary btn-sm" data-act="wk-approve" data-id="${esc(w.id)}">승인</button>` : '',
-      act.reject ? `<button type="button" class="btn btn-light btn-sm" data-act="wk-reject" data-id="${esc(w.id)}">반려</button>` : '',
-      act.suspend ? `<button type="button" class="btn btn-light btn-sm" data-act="wk-suspend" data-id="${esc(w.id)}">정지</button>` : '',
-      act.resume ? `<button type="button" class="btn btn-light btn-sm" data-act="wk-resume" data-id="${esc(w.id)}">정지 해제</button>` : '',
-      `<button type="button" class="btn btn-light btn-sm" data-act="wk-kinds" data-id="${esc(w.id)}">종류 저장</button>`,
-      `<button type="button" class="btn btn-light btn-sm" data-act="wk-notes" data-id="${esc(w.id)}">메모</button>`,
-    ].join('') : '';
+    const btns = [
+      ...(o.canEdit ? [
+        act.approve ? `<button type="button" class="btn btn-primary btn-sm" data-act="wk-approve" data-id="${esc(w.id)}">승인</button>` : '',
+        act.reject ? `<button type="button" class="btn btn-light btn-sm" data-act="wk-reject" data-id="${esc(w.id)}">반려</button>` : '',
+        act.suspend ? `<button type="button" class="btn btn-light btn-sm" data-act="wk-suspend" data-id="${esc(w.id)}">정지</button>` : '',
+        act.resume ? `<button type="button" class="btn btn-light btn-sm" data-act="wk-resume" data-id="${esc(w.id)}">정지 해제</button>` : '',
+        `<button type="button" class="btn btn-light btn-sm" data-act="wk-kinds" data-id="${esc(w.id)}">종류 저장</button>`,
+        `<button type="button" class="btn btn-light btn-sm" data-act="wk-notes" data-id="${esc(w.id)}">메모</button>`,
+      ] : []),
+      // 이력은 읽기 — support · moderator 도 본다 (GET /work/admin/workers/:id/events)
+      `<button type="button" class="btn btn-light btn-sm" data-act="wk-events" data-id="${esc(w.id)}">이력</button>`,
+    ].join('');
     return `<div class="row wk-row" data-worker="${esc(w.id)}">`
       + `<div class="row-main"><b>${esc(w.display_name || '(이름 없음)')}</b> ${badge(WORKER_STATUS_LABEL, w.status)}`
       + `${contact ? `<div class="muted">${esc(contact)}</div>` : ''}`
       + `<div class="muted">${esc(facts)}</div>`
+      + `${w.status === 'suspended' ? `<div class="wk-suspended">${esc(suspendedNote(w))}</div>` : ''}`
       + `${w.reject_reason ? `<div class="muted">반려 사유: ${esc(w.reject_reason)}</div>` : ''}`
       + `<div class="kind-boxes">${kindBoxes}</div></div>`
       + `<div class="row-actions">${btns}</div>`
       + '</div>';
+  }
+
+  /** 정지 확인 문구 (1주차 후속 D) — 진행 중인 배정이 없거나 모르면 뒷문장을 뺀다 */
+  function suspendConfirmText(w) {
+    const n = activeCountOf(w);
+    return '이 작업자를 정지할까요?\n정지하면 새 작업 신청·초대 수락을 못 합니다.'
+      + (n ? ` 진행 중인 배정 ${n}건은 그대로 남으니 필요하면 작업에서 제외하세요.` : '');
+  }
+
+  // ── 작업자 가입 · 승인 이력 (worker_events, 1주차 후속 F) ──
+  /** 이력 한 줄 → { what, detail } — '가입 신청' · '공개 신청', '상태 변경' · '대기 → 승인', '종류 변경' · '작업 종류: 설치·A/S' */
+  function workerEventLabel(ev) {
+    const e = ev || {};
+    const p = e.payload && typeof e.payload === 'object' ? e.payload : {};
+    const st = (s) => label(WORKER_STATUS_SHORT, s) || '-';
+    switch (e.type) {
+      case 'registered':
+        return { what: WORKER_EVENT_LABEL.registered, detail: p.via ? label(REGISTER_VIA_LABEL, String(p.via)) : '' };
+      case 'status_changed':
+        return { what: WORKER_EVENT_LABEL.status_changed, detail: `${st(e.from_status)} → ${st(e.to_status)}` };
+      case 'kinds_changed': {
+        const kinds = Array.isArray(p.kinds) ? p.kinds.map((k) => kindLabel(String(k))) : [];
+        return { what: WORKER_EVENT_LABEL.kinds_changed, detail: `작업 종류: ${kinds.length ? kinds.join('·') : '없음'}` };
+      }
+      default:
+        return {
+          what: String(e.type || '기록'),
+          detail: e.from_status || e.to_status ? `${e.from_status || '-'} → ${e.to_status || '-'}` : '',
+        };
+    }
+  }
+
+  /** 작업자 이력 표 — 최근순 (서버 순서 그대로가 아니라 시각으로 다시 줄 세운다). 없으면 '기록 없음' */
+  function workerEventsHtml(items) {
+    const list = (Array.isArray(items) ? items : []).slice().sort((a, b) => (Date.parse(b && b.created_at) || 0) - (Date.parse(a && a.created_at) || 0));
+    if (!list.length) return '<div class="empty-mini">기록 없음</div>';
+    return `<table class="tbl"><thead><tr><th>시각</th><th>누가</th><th>무엇</th><th>내용</th><th>사유</th></tr></thead><tbody>${list.map((e) => {
+      const l = workerEventLabel(e);
+      return `<tr data-wk-event-type="${esc(e.type)}"><td>${esc(fmtDateTime(e.created_at))}</td><td>${esc(label(ACTOR_LABEL, e.actor_kind))}</td>`
+        + `<td>${esc(l.what)}</td><td>${esc(l.detail)}</td><td>${esc(e.note)}</td></tr>`;
+    }).join('')}</tbody></table>`;
   }
 
   /** 관리자 메모 목록 (worker_notes — 편집자만) */
@@ -392,12 +539,18 @@
     return new URL(`../worker.html#job=${encodeURIComponent(id)}`, baseHref).href;
   }
   /**
-   * [카톡으로 공유] 문구 — 종류 · 시/구 · 날짜 · 링크만 (계획 §9-1 「Slack, 공유 문구」 줄).
+   * [카톡으로 공유] 문구 — 종류 · 시/구 · 날짜 · 지원 종료일(있으면) · 링크만 (계획 §9-1 「Slack, 공유 문구」 줄).
    * 제목 · 상세 · 금액 · 주소 · 이름은 넣지 않는다 (제목은 편집자가 자유롭게 쓰는 글이라 고객 이름이 섞일 수 있다).
+   * 지원 종료일 줄에는 D-n 꼬리표를 붙이지 않는다 — 대화방에서 나중에 읽으면 틀린 말이 된다.
    */
   function shareText(job, url) {
     const j = job || {};
-    return [`[다담가구 작업] ${kindLabel(j.kind) || '작업'} · ${j.region_label || '지역 미정'}`, fmtRange(j.starts_at, j.ends_at), url].filter(Boolean).join('\n');
+    return [
+      `[다담가구 작업] ${kindLabel(j.kind) || '작업'} · ${j.region_label || '지역 미정'}`,
+      fmtRange(j.starts_at, j.ends_at),
+      kstParts(j.apply_deadline) ? `지원 종료일 ${fmtDateTime(j.apply_deadline)}` : '',
+      url,
+    ].filter(Boolean).join('\n');
   }
 
   // ── 입력 검사 → 요청 본문 ──
@@ -496,11 +649,16 @@
   return {
     KINDS, KIND_LABEL, JOB_STATUS_LABEL, APP_STATUS_LABEL, ASSIGN_STATUS_LABEL, WORKER_STATUS_LABEL,
     UPDATE_KIND_LABEL, MODE_LABEL, PAY_UNIT_LABEL, VIA_LABEL, ACTOR_LABEL,
+    EVENT_TYPE_LABEL, WORKER_STATUS_SHORT, WORKER_EVENT_LABEL, REGISTER_VIA_LABEL,
+    DEADLINE_HELP, DEADLINE_PAST_WARNING, DEADLINE_STATUSES,
     COUNTED, ACTIVE, FINISHED, BOARD_COLUMNS, CANCELLED_COLUMN, UUID_RE,
     esc, kindLabel, kindsText, fmtDate, fmtDateTime, fmtRange, ddayLabel, toKstInput, fromKstInput,
+    deadlineTag, deadlineTagHtml, deadlineCardHtml, deadlineDetailHtml, deadlineWarning,
     effectiveStatus, jobCounts, splitDetail, workerOf, groupBoard,
     jobActions, assignmentActions, workerActions, payText,
+    offeredCount, closeConfirmText, cancelHint, autoDeclinedNote, suspendConfirmText, suspendedNote,
     jobCardHtml, applicantRowHtml, assignmentRowHtml, timelineHtml, eventsHtml, workerRowHtml, notesHtml,
+    workerEventLabel, workerEventsHtml,
     workerJobUrl, shareText, buildJobPayload, buildUpdatePayload, buildInvitePayload,
   };
 });
