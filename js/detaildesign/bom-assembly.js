@@ -33,7 +33,7 @@
  * 미정 (지금 BOM 동작을 그대로 두고 결과에 적는다):
  *   하부장·키큰장 단 밴드 2장 — 자리 미정, 사장님 확인 대기 → unplaced 'band-position-pending'
  *   상부장 보강목 2장 — 2026-10-20 사장님: 사쿠리 홈 뒤 장의 맨 뒤, 지판 바로 위 · 천판 바로 아래.
- *     18T 는 홈 뒤 자리보다 두꺼워 확인 대기 → unplaced 'upper-band-18t-pending'
+ *     판은 몸통이 18T 여도 15T (assembly-rules UPPER_BAND_T).
  *   D2 서랍장 처짐방지목 자리 → unplaced 'pending-owner D2'
  *   D1 다칸 모듈 — BOM 대로 칸마다 통 (BOM 행이 칸마다 있으면 칸마다 명세)
  *   D12 하부 선반 −15 = T — BOM 대로
@@ -195,8 +195,7 @@
           // 2026-10-20 사장님: 상부장 보강목 2장은 사쿠리 홈 뒤 — 장의 맨 뒤, 판이 서서 뒤를 본다.
           //   아래 1장은 지판 바로 위, 위 1장은 천판 바로 아래. 하부장 밴드 자리는 아직 미정.
           if (row.part !== '밴드(보강목)' || !sakuri || row.qty !== 2) { skip(row, 'band-position-pending'); return; }
-          // 18T 는 홈 뒤 자리(15)보다 두껍다 — 처리 방법 사장님 확인 대기
-          if (row.thickness > C.SAKURI_FROM_BACK) { skip(row, 'upper-band-18t-pending'); return; }
+          //   판은 몸통과 상관없이 15T (2026-10-20 사장님 "15T 고정") — 홈 뒤 15 자리에 맞는다.
           [T, H - T - row.h].forEach((y0, k) => {
             parts.push(makePart(row, k, { o: [-W / 2 + T, y0, zBack], u: '+x', v: '+y', n: '+z' }, [], 'interior', { mount: 'behind-groove' }));
           });
