@@ -199,6 +199,11 @@
   .area-tools .at-add:hover{background:#523a20}
   .area-tools .at-del{background:#eee;color:#666}
   .area-tools .at-del:hover{background:#ddd}
+  /* 2026-10-20 조합 캐비닛 — 복사·붙여넣기 (js/planner/planner-combo.js) */
+  .area-tools .at-combo{margin-top:6px}
+  .area-tools .at-copy,.area-tools .at-paste{background:#eef3fa;color:#0d47a1}
+  .area-tools .at-copy:hover,.area-tools .at-paste:hover{background:#dde8f6}
+  .area-tools .at-paste:disabled{opacity:.45;cursor:default}
   .area-tools .at-note{font-size:10px;color:var(--text-dim);line-height:1.5;background:var(--bg);
     border:1px solid var(--line);border-radius:4px;padding:6px 8px}
   .area-tools .at-fin{margin-top:8px;margin-bottom:0;padding-top:8px;border-top:1px solid var(--line)}
@@ -699,6 +704,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <!-- 2026-10-18 사전 오류 검사 표시 — 상세설계가 보낸 DADAM_PREFLIGHT_MARKS 로 문제 모듈에 테두리 (검사 정본 js/detaildesign/bom-preflight.js) -->
 <script src="js/planner/planner-preflight.js?v=41.6"></script>
 <script src="js/planner/planner-measure.js?v=41.6"></script>
+<script src="js/planner/planner-combo.js?v=41.6"></script>
 <script src="js/planner/planner-cutout.js?v=41.6"></script>
 <!-- CAD 베타 T4 (PR1b): 관리자 근사 GLB 내보내기 — 역할은 부모 창이 postMessage 로 알려 준다 -->
 <!-- CAD GLB: 조립 명세 — BOM 과 같은 파일. 전역 DadamAssemblyRules · DadamAssembly (bom-drawer-rules.js 뒤) -->
@@ -795,6 +801,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   /** @type {Record<string, {verticalCount, horizontalSplits, areaTypes, shelves, handleType, handlePosition}>} */
   let structures = {};
   let activeId = null;
+  // 조합 캐비닛 클립보드 (planner-combo.js) — renderAreaTools 가 읽으므로 처음 그리기 전에 선언한다
+  let comboClip = (typeof PlannerCombo !== 'undefined') ? PlannerCombo.load() : null;
 
   // 모듈 ID 생성
   function moduleIdFor(section, idx) { return `${section}-${idx}`; }
@@ -7497,6 +7505,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         <button class="at-add">＋ 모듈 추가</button>
         <button class="at-del">− 모듈 제거</button>
       </div>
+      <div class="at-btns at-combo">
+        <button class="at-copy" title="모듈을 골랐으면 그 모듈, 아니면 이 배치의 모듈 전부를 구조 설정째 복사">📋 ${activeId && areaIdOfModule(moduleById(activeId)) === area.id ? '모듈 복사' : '배치 통째 복사'}</button>
+        <button class="at-paste" title="복사한 조합을 이 배치의 첫 빈 자리에 놓습니다" ${comboClip ? '' : 'disabled'}>📌 붙여넣기${comboClip ? ` (${comboClip.count}개 · ${Math.round(comboClip.span)}mm)` : ''}</button>
+      </div>
       <button class="at-auto">${autoCalcTarget(area).label}</button>
       <div class="at-sec at-fin">
         <select class="at-fintype">
@@ -7551,6 +7563,68 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     on('.at-del', () => {
       if (removeActiveModule()) { renderAreaTools(); renderFrontView(); renderRightPanel(); }
     });
+    on('.at-copy', () => {
+      const r = copyComboFrom(area);
+      if (!r.ok) { showToast('⚠ 복사할 모듈이 없습니다 (멍장·냉장고 칸·가전 자리는 복사하지 않습니다)'); return; }
+      renderAreaTools();
+      showToast(`📋 ${r.combo.count}개 모듈 복사 (${Math.round(r.combo.span)}mm) — 다른 배치를 고르고 📌 붙여넣기`);
+    });
+    on('.at-paste', () => {
+      const r = pasteComboInto(area);
+      if (!r.ok) { showToast(comboPasteMessage(r)); return; }
+      renderAreaTools();
+      renderFrontView();
+      renderModuleList();
+      renderRightPanel();
+      if (typeof renderAll3D === 'function') { try { renderAll3D({ fit: false }); } catch (_) {} }
+      showToast(`📌 ${r.modules.length}개 붙여넣기 — ${Math.round(r.x - (area.x || 0))}mm 자리부터`);
+    });
+  }
+
+  // ── 조합 캐비닛 (2026-10-20 사장님 결정: 복사·붙여넣기, 이름 저장 없음) ─────────────
+  // 계산은 js/planner/planner-combo.js. 여기는 페이지 상태(modules·structures)와 잇기만 한다.
+  // 멤버십은 정본 규칙 areaIdOfModule 로 — m.areaId 를 직접 보면 옛 설계 모듈이 빠진다.
+  function copyComboFrom(area) {
+    if (typeof PlannerCombo === 'undefined') return { ok: false, reason: 'no-lib' };
+    const act = activeId ? moduleById(activeId) : null;
+    const picked = act && areaIdOfModule(act) === area.id && !act.isFinishing
+      ? [act]
+      : modules.filter((m) => areaIdOfModule(m) === area.id);
+    const r = PlannerCombo.copy(picked, modules, structures, { isMarker: isMarkerSection });
+    if (r.ok) { comboClip = r.combo; PlannerCombo.save(r.combo); }
+    return r;
+  }
+
+  function pasteComboInto(area) {
+    if (typeof PlannerCombo === 'undefined') return { ok: false, reason: 'no-lib' };
+    comboClip = PlannerCombo.load() || comboClip;
+    const issued = new Set();
+    const nextId = (section) => {
+      let n = 0;
+      while (modules.some((m) => m.id === section + '-' + n) || issued.has(section + '-' + n)) n++;
+      issued.add(section + '-' + n);
+      return section + '-' + n;
+    };
+    const r = PlannerCombo.paste(comboClip, area, {
+      freeSlots: freeSlotsOf(area),
+      sections: sectionsFor(area),
+      nextId,
+      // addModuleToArea 와 같은 깊이 상한 (W12-54)
+      roomD: (area.D || 0) - MASTER_RULES.CORNER_DRIP - MASTER_RULES.DOOR_SEAT_D,
+    });
+    if (!r.ok) return r;
+    r.modules.forEach((m) => { modules.push(m); seatModuleDepth(m); });
+    Object.keys(r.structures).forEach((id) => { structures[id] = r.structures[id]; });
+    persistPlannerState();
+    return r;
+  }
+
+  function comboPasteMessage(r) {
+    if (r.reason === 'empty') return '⚠ 먼저 📋 복사로 조합을 담으세요';
+    if (r.reason === 'section') return `⚠ ${(SECTION_CONFIG[r.section] || {}).label || r.section} 은 이 배치에 넣을 수 없습니다`;
+    if (r.reason === 'height') return `⚠ 복사한 모듈 높이 ${Math.round(r.need)}mm 가 이 배치 높이 ${Math.round(r.room)}mm 보다 높습니다`;
+    if (r.reason === 'width') return `⚠ 빈 자리 ${Math.round(r.room)}mm — 조합 폭 ${Math.round(r.need)}mm 가 들어가지 않습니다`;
+    return '⚠ 붙여넣지 못했습니다';
   }
 
   // ─────────────────────────────────────────────────────────────
