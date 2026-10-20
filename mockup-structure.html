@@ -5756,6 +5756,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     //   도어 **자재**는 18T 그대로다 — 20 은 시공 갭을 포함한 자리값이지 발주 치수가 아니다.
     const roomD = (area.D || 0) - MASTER_RULES.CORNER_DRIP - MASTER_RULES.DOOR_SEAT_D;
     if (roomD > 0) base.D = Math.min(base.D, roomD);
+    // 2026-10-20 사장님: 냉장고 위 상부장은 **좌우 EP 크기를 기준으로** 단다 (보통 700~800).
+    //   냉장고장 EP 깊이 = 배치 자리 깊이(setStackAreaFinish D: area.D). 위장에는 상판이 없어 물끊기 10 은 빼지 않고
+    //   도어 자리 20 만 뺀다 — 도어 앞면이 EP 앞면과 맞는다 (카드 추천안 "EP − 20", 답 전).
+    if (section === 'fridge' && area.D > MASTER_RULES.DOOR_SEAT_D) base.D = area.D - MASTER_RULES.DOOR_SEAT_D;
 
     const MIN_W = MASTER_RULES.DOOR_W_MIN;
     // opts.W / opts.x 는 자동계산이 폭과 자리를 직접 정할 때 쓴다.
