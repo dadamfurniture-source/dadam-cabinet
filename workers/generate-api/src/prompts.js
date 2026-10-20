@@ -2865,6 +2865,51 @@ Photorealistic. No text, labels or watermarks.`;
 }
 
 /**
+ * 간단 품목(수납장·신발장·화장대) 선반 — 정본 docs/design-rules/simple-categories.md §6.0·§6.3,
+ * extractors.js bomSimpleDefaultShelfCount (= 플래너 calcDefaultShelves). 키큰장 몸통 높이 = 전체 − 상몰딩 60 − 좌대 60 (§2·§4).
+ */
+export const SIMPLE_SHELF_RULES = {
+  MOLDING_H: 60,
+  PEDESTAL_H: 60,
+  DEFAULT_H: 2310,
+  space: { general: { min: 300, max: 450 }, shoe: { min: 150, max: 300 } },
+};
+
+/** 칸 간격 규칙 선반 수: n = floor(H/min) − 1, H/(n+1) > max 이면 n = ceil(H/max) − 1 */
+export function simpleShelfCount(bodyH, space = SIMPLE_SHELF_RULES.space.general) {
+  const h = Number(bodyH) || 0;
+  let n = Math.max(0, Math.floor(h / space.min) - 1);
+  if (n === 0) return 0;
+  if (h / (n + 1) > space.max) n = Math.max(0, Math.ceil(h / space.max) - 1);
+  return n;
+}
+
+/** 바닥~천장 키큰장의 몸통 높이와 정본 선반 수·간격 */
+export function tallShelfPlan(wallH, space = SIMPLE_SHELF_RULES.space.general) {
+  const R = SIMPLE_SHELF_RULES;
+  const bodyH = (Number(wallH) || R.DEFAULT_H) - R.MOLDING_H - R.PEDESTAL_H;
+  const shelves = simpleShelfCount(bodyH, space);
+  return { bodyH, shelves, gap: shelves ? Math.round(bodyH / (shelves + 1)) : bodyH };
+}
+
+/**
+ * 수납장 내부 보기 (2026-10-20 사장님 "수납장·신발장·화장대 순서대로"). 문을 전부 열고, 칸마다 정본 기본 선반
+ * (§6.3 키큰장 통짜 · §6.0 칸 간격 300~450) 만 보인다. 서랍·추천 구조는 정본 기본 구성이 없어 넣지 않는다.
+ * @param {{wallH?:number, tag?:string}} [o]
+ * @returns {{prompt:string, label:string, plan:string}}
+ */
+export function buildStorageInteriorPrompt(o = {}) {
+  const { shelves, gap } = tallShelfPlan(o.wallH);
+  const prompt = `Open every door of the built-in storage cabinet in this photo to show its whole interior.
+Keep the cabinet's sections exactly as they are: the same number of sections and doors, the same widths. Behind each door the section is one tall open space from bottom to top with ${COUNT_WORDS[shelves] || shelves} fixed shelves, evenly spaced about ${gap} mm apart, running the full width of the section. No drawers, clothes rails or other fittings inside.
+Every door swings fully open on its side hinges, about 90 degrees towards the camera, so all sections are visible at once. Each open door shows its inner face in the same finish as its outside.
+Inside: carcass and shelves in white; the cabinet is ${CATEGORIES.storage.depth.replace(/\.$/, '')}, so the shelves are shallow. Tidy and lightly styled in neutral colours: folded towels and linen, a few storage boxes and baskets, household items, not packed full. Soft, even light inside.
+Keep everything else identical: camera, room, the cabinet's outer size, position and door colour, the walls, ceiling, floor and lighting. Handleless doors stay handleless.
+Photorealistic. No text, labels or watermarks.`;
+  return { prompt, label: ['내부 보기', o.tag].filter(Boolean).join(' · '), plan: `칸마다 선반 ${shelves}단 (간격 약 ${gap})` };
+}
+
+/**
  * 추천 구조 고르기 (텍스트 모델, 기본안 사진을 같이 본다). 정본 기본형과 다른 조합을 하나 고르게 한다.
  * @param {{sections:number, wallW:number, wallH:number, brief?:string, customerRequest?:string, canonical:string[]}} c
  */
