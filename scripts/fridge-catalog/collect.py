@@ -241,6 +241,26 @@ def ss_variants(p):
     return out  # mdlCode -> goodsId
 
 
+def abs_image_url(path, base):
+    """제품 사진 주소 → https 절대 주소. '//host/…' 는 https:, '/…' 는 base 를 붙인다. 없으면 None."""
+    path = (path or "").strip()
+    if not path:
+        return None
+    if path.startswith("//"):
+        return "https:" + path
+    if path.startswith("/"):
+        return base + path
+    if path.startswith(("https://", "http://")):
+        return path
+    return None
+
+
+def ss_image(p):
+    """삼성 목록 상품의 대표 사진 (imgPath1, '//images.samsung.com/kdp/goods/…'). 2026-10-20 확인:
+    goodsOptStr 마지막 칸(img)은 비어 있었다 — 색상별 사진은 쓰지 않는다."""
+    return abs_image_url(p.get("imgPath1"), SS)
+
+
 def ss_spec(f, goods_id):
     st, body = f.get(f"{SS}/sec/xhr/pf/compGoodsSpecList?goodsIds={goods_id}", {"Accept": "application/json"})
     if st != 200:
@@ -455,6 +475,8 @@ def samsung_collect(f, sample=None, guides=True):
                 "product_type_raw": ptype,
                 "size_raw": size,
                 "source_url": f"{SS}/sec/xhr/pf/compGoodsSpecList?goodsIds={gid}",
+                # 2026-10-20: 대표 제품 사진 — 목록의 imgPath1 (상품 단위, 색상 변형마다 따로 없다)
+                "image_source_url": ss_image(p),
                 "page_url": pdp,
                 "sale_status": p.get("saleStatCd"),
                 "collected_at": now_iso(),
@@ -671,6 +693,9 @@ def lg_collect(f, sample=None, guides=True):
                 "size_raw": flat.get(size_k) if size_k else None,
                 "drawing_dims_raw": alt_dims,
                 "source_url": f"{LG_API}/pdpsvc/ajax/v1/models/{vid}/spec",
+                # 2026-10-20: 대표 제품 사진 — 목록 칸의 largeImageAddr (450×450, www → static.lge.co.kr 로 넘어간다).
+                #   색상 변형(optionGroupList)은 목록 칸 하나의 사진을 같이 쓴다
+                "image_source_url": abs_image_url(m.get("largeImageAddr") or m.get("mediumImageAddr"), LG_WWW),
                 "page_url": LG_WWW + (m.get("modelUrlPath") or ""),
                 "sale_status": m.get("modelStatusCode"),
                 "collected_at": now_iso(),
@@ -763,6 +788,17 @@ def wn_subtype(p, cat, title, spec, cap, h):
     return "two_door"
 
 
+def wn_image(h, p):
+    """위니아 대표 제품 사진 (2026-10-20 확인).
+    /upload/… 를 바로 부르면 notFound 로 넘어간다 — 사이트는 /common/file/imageView?IMG_PATH=/upload/… 로 보여 준다.
+    상세 갤러리 첫 큰 사진(1_0.*_Gallery_big_*, 2000×2000) → 없으면 목록의 PRODUCT_BEST_IMG · PRODUCT_THUMB_IMG (590×590)."""
+    m = re.search(r"IMG_PATH=(/upload/basic_gallery/[^\"'\s>]*_Gallery_big_[^\"'\s>]*)", h or "")
+    path = m.group(1) if m else (p.get("PRODUCT_BEST_IMG") or p.get("PRODUCT_THUMB_IMG") or "").strip()
+    if not path.startswith("/upload/"):
+        return None
+    return f"{WN}/common/file/imageView?IMG_PATH={path}"
+
+
 def winia_collect(f, sample=None, guides=True):
     """위니아 (딤채 · 클라쎄 김치냉장고, 위니아 냉장고 · 냉동고 · 보르도).
     목록: POST /product/list_ajax (form) · 치수: /product/view?PRODUCT_SEQ= 정적 HTML '제품사양' 표.
@@ -841,6 +877,7 @@ def winia_collect(f, sample=None, guides=True):
             "size_raw": f"{size_k}: {size}" if size else None,
             "source_url": page,
             "page_url": page,
+            "image_source_url": wn_image(h, p),
             "sale_status": p.get("STATUS"),
             "collected_at": now_iso(),
         }
@@ -1958,7 +1995,7 @@ GAP_KEYS = ["side_gap_mm", "door_side_gap_mm", "top_gap_mm", "back_gap_mm", "nic
             "install_guide_title", "install_guide_ref", "install_notes"]
 COLS = ["brand", "category_subtype", "line", "tags", "model_name", "model_codes", "width_mm", "height_mm", "depth_mm",
         "capacity_l", "wine_bottles", "install_type", "panel_ready"] + GAP_KEYS + [
-           "product_type_raw", "size_raw", "drawing_dims_raw", "source_url", "page_url", "source_urls",
+           "product_type_raw", "size_raw", "drawing_dims_raw", "source_url", "page_url", "source_urls", "image_source_url",
            "sale_status", "collected_at"]
 
 
@@ -1980,6 +2017,9 @@ def merge(rows):
                 if c not in o["model_codes"]:
                     o["model_codes"].append(c)
             o["source_urls"].append(r["source_url"])
+            # 2026-10-20: 대표 사진 1장 — 첫 변형 것, 없으면 사진 있는 다음 변형
+            if not o.get("image_source_url") and r.get("image_source_url"):
+                o["image_source_url"] = r["image_source_url"]
             for k in GAP_KEYS:
                 if o.get(k) in (None, "") and r.get(k) not in (None, ""):
                     o[k] = r[k]

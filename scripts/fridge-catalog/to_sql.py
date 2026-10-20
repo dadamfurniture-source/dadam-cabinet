@@ -136,6 +136,9 @@ def row_of(r):
         # 2026-10-20 수집 검토) 사람이 확인하기 전까지 '⚠ 표준' 으로 둔다.
         'verified': r.get('brand') not in UNVERIFIED_BRANDS and not (set(r.get('tags') or []) & UNVERIFIED_TAGS),
         'source_url': r.get('page_url') or r.get('source_url'),
+        # 2026-10-20: 대표 제품 사진 원본 주소 (DB 칸은 database/appliance-models-images.sql). 그 SQL 을 아직 안 돌렸으면
+        #   옛 가져오기 함수가 이 키를 그냥 버린다 — 깨지지 않는다. 우리 Storage 복사는 관리 화면 「사진 가져오기」.
+        'image_source_url': r.get('image_source_url') if str(r.get('image_source_url') or '').startswith('https://') else None,
         'notes': notes_of(r),
     }
 
@@ -151,6 +154,7 @@ def main(paths):
         '-- 냉장고 모델 가져오기 — scripts/fridge-catalog/to_sql.py 가 만든 파일',
         f'-- 행 {len(ok)}개 (건너뜀 {len(out) - len(ok)}개 — 모델 코드나 치수 없음)',
         '-- 먼저 database/appliance-models-catalog.sql 을 실행해 두어야 한다. 여러 번 실행해도 중복이 생기지 않는다.',
+        '-- 제품 사진 원본 주소(image_source_url)까지 넣으려면 database/appliance-models-images.sql 을 먼저 실행한다.',
         '',
     ]
     for i in range(0, len(ok), BATCH):

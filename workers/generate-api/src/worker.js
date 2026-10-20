@@ -8,6 +8,7 @@
  *   DELETE /api/generate/:id/share    공유 회수                    (JWT, 본인)
  *   POST   /api/generate/:id/layout   구성 분석 → 플래너용 layout  (JWT, 본인, 완료된 결과만)
  *   GET    /api/share                 공유 열람                    (X-Share-Token)
+ *   POST   /api/admin/appliance-image 가전 모델 제품 사진 가져오기 (JWT, admin · super_admin)
  *   GET    /health · /diag            진단
  *
  * 생성 자체는 job.js 의 GenerateJob(Durable Object, 미국 콜로) 이 alarm 으로 실행한다.
@@ -49,6 +50,7 @@ import {
   ValidationError,
 } from './supabase.js';
 import { jobStub } from './job.js';
+import { copyApplianceImage } from './appliance-image.js';
 import { LAYOUT_CATEGORIES, LAYOUT_SCHEMA, buildLayoutPrompt, normalizeLayout } from './layout.js';
 import { callClaudeJson } from './claude.js';
 import {
@@ -219,6 +221,11 @@ export default {
 
       if (url.pathname === '/api/share' && request.method === 'GET') {
         return json(await getShared(request, env), 200, headers);
+      }
+
+      // 2026-10-20: 가전 모델 제품 사진 — 관리자가 제조사 사진을 우리 버킷으로 가져온다 (appliance-image.js)
+      if (url.pathname === '/api/admin/appliance-image' && request.method === 'POST') {
+        return json(await copyApplianceImage(request, env), 200, headers);
       }
 
       const m = url.pathname.match(/^\/api\/generate(?:\/([0-9a-f-]{36}))?(\/share|\/layout)?$/);
