@@ -31,6 +31,7 @@ import { buildQuoteInputs } from './adapters.js';
 import { calculateQuote, VALID_GRADES } from './quote.js';
 import { calculateSheetQuote } from './quote-sheet.js';
 import { getSettings } from './production/service.js';
+import { bomWithHardware } from './production/workload.js';
 
 /**
  * 고객 견적 = 장당 견적 (2026-10-13 대표 결정).
@@ -38,7 +39,7 @@ import { getSettings } from './production/service.js';
  * 단가표 견적(m당)은 legacy 로 남겨 비교만 한다 (범위 배수만 단가표에서 가져온다).
  * 생산 설정(원가 기준)을 못 읽으면 기본값으로 계산한다 — 스냅샷 저장을 막지 않는다.
  */
-async function buildCustomerQuote(env, { user, designPayload, bom, cutPlan, pricebook, grade }) {
+async function buildCustomerQuote(env, { user, designPayload, bom, hardware, cutPlan, pricebook, grade }) {
   const legacy = calculateQuote(buildQuoteInputs(designPayload), pricebook, bom, grade);
   let settings = {};
   try {
@@ -50,7 +51,8 @@ async function buildCustomerQuote(env, { user, designPayload, bom, cutPlan, pric
   const maxMult = pricebook.rangeMax();
   const sheet = calculateSheetQuote({
     design: designPayload,
-    bom,
+    // 철물(경첩·레일·다리발·브라켓·옷봉)은 hardware 에 따로 온다 — 합쳐야 몸통 줄에 철물 값이 든다
+    bom: bomWithHardware(bom, hardware),
     cutPlan,
     settings,
     range: minMult !== null && maxMult !== null ? { min: minMult, max: maxMult } : null,
@@ -382,6 +384,7 @@ export async function createSnapshot(env, { designId, user, body }) {
     user,
     designPayload,
     bom,
+    hardware,
     cutPlan: cut ? cut.cutPlan : null,
     pricebook,
     grade: resolveGrade(env, body.grade),
@@ -484,6 +487,7 @@ export async function previewQuote(env, { snapshotId, user, grade, useActiveRule
     user,
     designPayload: snapshot.design_payload,
     bom: snapshot.bom_payload,
+    hardware: snapshot.hardware_payload,
     cutPlan: snapshot.cut_plan_payload || null,
     pricebook,
     grade: resolveGrade(env, grade),

@@ -174,7 +174,7 @@ async function loadInputs(env, user) {
   if (!orders.length) return { orders, snapshotsById: new Map(), schedules: [] };
   const snapIds = [...new Set(orders.map((o) => o.snapshot_id))].join(',');
   const designIds = [...new Set(orders.map((o) => o.design_id))].join(',');
-  const snaps = (await selectMany(env, 'design_snapshots', { id: `in.(${snapIds})`, select: 'id,bom_payload,cut_plan_payload', limit: '200' })) || [];
+  const snaps = (await selectMany(env, 'design_snapshots', { id: `in.(${snapIds})`, select: 'id,bom_payload,hardware_payload,cut_plan_payload', limit: '200' })) || [];
   const schedules = (await selectMany(env, 'design_schedules', {
     design_id: `in.(${designIds})`,
     type: 'eq.installation',

@@ -122,7 +122,8 @@ export function extraCostLines(design, Q) {
   for (const input of buildQuoteInputs(design)) {
     const a = input.analysis;
     const label = input.label;
-    demolitionMm += a.lower_cabinets.reduce((s, c) => s + c.width_mm, 0) + a.upper_cabinets.reduce((s, c) => s + c.width_mm, 0);
+    // 도어교체는 몸통을 그대로 두므로 철거할 캐비닛이 없다 (2026-10-20 사장님 카드 「철거 빼기」). 시공 줄은 그대로.
+    if (input.category !== 'door') demolitionMm += a.lower_cabinets.reduce((s, c) => s + c.width_mm, 0) + a.upper_cabinets.reduce((s, c) => s + c.width_mm, 0);
     const ct = num(a.countertop_length_mm) / 1000;
     if (ct > 0) lines.push({ name: `${label} 상판 (인조대리석)`, qty: Math.round(ct * 100) / 100, unit: 'm', cost: ct * Q.countertopPerMeter, key: 'countertop' });
     if (a.has_sink) {
