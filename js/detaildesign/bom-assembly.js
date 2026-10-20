@@ -418,7 +418,7 @@
    * 선반 높이 — 통 구조 블록(mod.wardrobe)이 있으면 규칙 파일 배치(layoutWardrobeModule)의 선반 자리,
    *   없는 옛 설계는 wardrobe.md §6 (shelfPositions: 긴옷은 상단 315 아래 첫 선반, 그 밖은 균등).
    * 선반은 싱크와 같이 천지판 뒤끝에 맞춘다 (§6 "천저판보다 70 짧게 — 전면 여유").
-   * 도어는 좌대를 덮고 바닥에서 20 (2026-10-20 카드). 아직 자리를 정하지 않은 행: 외부 서랍 통의 도어·서랍도어 (합이 40 길다),
+   * 도어는 좌대를 덮고 바닥에서 20, 외부 서랍 통은 서랍 몸통 위부터 (2026-10-20 카드). 아직 자리를 정하지 않은 행: 서랍도어 (목찬넬 30 자리 확인 대기),
    *   서랍모듈 밴드, 서랍 박스·내부 서랍. 좌대는 뒤 맞춤 (2026-10-20 카드). 칸막이는 규칙 파일 배치가 있을 때만 (없으면 'divider-layout-unknown').
    * @returns {{module:object, unplaced:Array}|null}
    */
@@ -563,13 +563,15 @@
     }
 
     // 도어 — 2026-10-20 사장님 카드 "바닥 20 띄움": 좌대를 덮고 바닥에서 20 뜬다, 윗변 = 몸통 상단 (BOM 좌대H + 몸통 − 20).
-    //   좌대 높이는 좌대 행 높이. 높이가 그 식과 다르면 (외부 서랍 몸통이 있는 통 등) 자리를 모른다.
+    //   좌대 높이는 좌대 행 높이. 외부 서랍 몸통이 있으면 도어는 그 몸통 상단부터 (카드 "도어 1580" — 좌대 덮기는 서랍 전면 몫).
+    //   높이가 그 식과 다르면 자리를 모른다.
     const doorRows = new Set();
     const pedH = ped.length ? ped[0].row.h : 0;
+    const drawerCar = cars.find((c) => c.group === '서랍모듈');
     keyed.filter((x) => x.key && x.key.family === 'door' && groupOf(x.row) === '').forEach(({ row }) => {
       const xs = doorXsOf(W, row);
-      const y0 = DR.SUPPORT_PEDESTAL_GAP - pedH;   // 서랍 규칙: 좌대가 있으면 바닥에서 20
-      if (!xs || !pedH || row.h !== y - y0) return;
+      const y0 = drawerCar ? drawerCar.y0 + drawerCar.H : DR.SUPPORT_PEDESTAL_GAP - pedH;   // 서랍 규칙: 좌대가 있으면 바닥에서 20
+      if (!xs || (!pedH && !drawerCar) || row.h !== y - y0) return;
       xs.forEach((x0, k) => parts.push(makePart(row, k, { o: [x0, y0, D / 2], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { doorIdx: k })));
       doorRows.add(row);
     });

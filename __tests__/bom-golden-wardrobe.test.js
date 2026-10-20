@@ -56,11 +56,11 @@ describe('BOM 골든 — 붙박이장 (wardrobe)', () => {
     expect(rails.map((h) => [h.note, h.qty])).toEqual([['긴옷', 2], ['선반형', 1]]);
     expect(snap.hardware.find((h) => h.category === '손잡이').item).toBe('푸쉬');
     // 2026-10-13 (B4): 예전엔 doorCount 가 없는 short 모듈(UI 기본)이 경첩에서 빠졌다 — 자재는 round(W/450)=2 로 낸다.
-    //   지금은 bomWardrobeDoorOf 로 자재 도어 행과 같은 수·높이를 센다. 외부 서랍 위 긴옷 도어(1620)도 그 높이로 보링한다.
+    //   지금은 bomWardrobeDoorOf 로 자재 도어 행과 같은 수·높이를 센다. 외부 서랍 위 긴옷 도어(1580 — 2026-10-20 몸통 − 서랍모듈H, 1600 이하라 3구)도 그 높이로 보링한다.
     const hinges = snap.hardware.filter((h) => h.category === '경첩');
     expect(hinges.map((h) => [h.module, h.qty, h.boring])).toEqual([
       ['짧은옷(2단)', 8, [110, 773, 1547, 2210]],
-      ['긴옷', 8, [110, 540, 1080, 1510]],
+      ['긴옷', 6, [110, 790, 1470]],
       ['선반형', 8, [110, 773, 1547, 2210]],
     ]);
     const doors = snap.materials.filter((m) => m.slot === 'door');

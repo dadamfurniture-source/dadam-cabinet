@@ -401,11 +401,10 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
     expect(s.unplaced.filter((u) => /칸막이/.test(u.part))).toEqual([]);
   });
 
-  test('아직 자리를 안 정한 행은 이유와 함께 — 외부 서랍 통 도어 · 서랍모듈 밴드 · 서랍', () => {
+  test('아직 자리를 안 정한 행은 이유와 함께 — 서랍모듈 밴드 · 서랍', () => {
     const reasons = (id) => [...new Set(spec.unplaced.filter((u) => u.moduleKey === `0-${id}`).map((u) => u.reason))].sort();
-    expect(reasons('w2')).toEqual(['band-position-pending', 'door-layout-unknown', 'drawer-layout-unknown', 'not-yet']);
-    // 외부 서랍 몸통이 있는 통(w2)의 도어 1620 은 서랍 전면과 합이 좌대 + 몸통보다 40 길어 자리를 모른다 — 사장님 확인 대기
-    expect(spec.unplaced.filter((u) => u.part === '도어').map((u) => [u.moduleKey, u.reason])).toEqual([['0-w2', 'door-layout-unknown']]);
+    expect(reasons('w2')).toEqual(['band-position-pending', 'drawer-layout-unknown', 'not-yet']);
+    expect(spec.unplaced.filter((u) => u.part === '도어')).toEqual([]);
     expect(spec.unplaced.filter((u) => /^좌대 (전후|측|중간보강)$/.test(u.part))).toEqual([]);
   });
 
@@ -416,6 +415,9 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
       { min: [-448, -40, 300], max: [-2, 2280, 318] },
       { min: [2, -40, 300], max: [448, 2280, 318] },
     ]);
+    // 외부 서랍 통 — 도어 1580 은 서랍 몸통 상단(700)부터 몸통 상단까지 (2026-10-20 카드 "도어 1580")
+    const w2 = spec.items[0].modules.find((x) => x.moduleId === 'w2');
+    expect(w2.parts.filter((p) => p.part === '도어').map((p) => [p.box.min[1], p.box.max[1], p.cut.h])).toEqual([[700, 2280, 1580], [700, 2280, 1580]]);
   });
 
   test('좌대 상자 — 몸통 아래, 뒤 맞춤 (앞 50 들어감), 측판은 전후판 사이, 중간보강은 폭 가운데 (2026-10-20 카드)', () => {
