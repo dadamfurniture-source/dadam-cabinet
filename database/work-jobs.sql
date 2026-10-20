@@ -15,7 +15,7 @@
 --   work_reviews       평가 (2주차에 사용 — 표만 미리)
 --   work_job_events    상태 전이 기록 (추가만, 개인정보 없음)
 --
--- 규칙: 쓰기는 Worker(service_role)만. 읽기 정책은 관리자(is_admin) SELECT 하나. anon 차단.
+-- 규칙: 쓰기는 Worker(service_role)만. 읽기 정책은 관리자(is_admin) SELECT 하나 — worker_notes 만 정책 없음(편집자만, API 로). anon 차단.
 --       auth.users 를 가리키는 칸은 모두 ON DELETE SET NULL (회원탈퇴가 FK 에 막히지 않게 — account-deletion.sql).
 --       주민등록번호 · 계좌 칸은 어느 표에도 두지 않는다 (__tests__/work-jobs-sql.test.js 가 막는다).
 --       금액 · 기간 · 벌칙 같은 사업 규칙 값은 여기 넣지 않는다 (정원 상한도 두지 않는다 — slots >= 1 만).
@@ -373,9 +373,10 @@ DROP POLICY IF EXISTS "Admins read workers" ON workers;
 CREATE POLICY "Admins read workers" ON workers
   FOR SELECT TO authenticated USING (public.is_admin());
 
+-- worker_notes 는 정책을 두지 않는다 — 편집자(super_admin·admin)만 읽어야 하는데 is_admin() 은 support·moderator 도 참이다.
+-- RLS 켜고 정책이 없으면 authenticated 는 한 행도 못 읽는다. 읽기는 API(requireAdminEditor → service_role)로만.
+-- 예전 판으로 이미 만든 정책은 다시 실행할 때 지운다.
 DROP POLICY IF EXISTS "Admins read worker notes" ON worker_notes;
-CREATE POLICY "Admins read worker notes" ON worker_notes
-  FOR SELECT TO authenticated USING (public.is_admin());
 
 DROP POLICY IF EXISTS "Admins read work jobs" ON work_jobs;
 CREATE POLICY "Admins read work jobs" ON work_jobs

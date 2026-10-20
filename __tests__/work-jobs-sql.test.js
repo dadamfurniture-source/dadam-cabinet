@@ -3,6 +3,7 @@
  * 계약: docs/01-plan/worker-portal-contract.md §2 · §6
  *   - 두 번 실행해도 안전: CREATE … IF NOT EXISTS · DROP CONSTRAINT/POLICY IF EXISTS 뒤 재생성, 파괴 문장 없음
  *   - RLS: 표마다 켜고, 정책은 관리자 SELECT(public.is_admin()) 하나 — 쓰기 정책 없음 (Worker service_role 만), anon REVOKE
+ *     worker_notes 만 정책이 없다 (편집자만 읽는다 — is_admin() 은 support·moderator 도 참이라 API 의 편집자 검사로만 읽는다)
  *   - auth.users FK 는 모두 ON DELETE SET NULL · 주민번호 · 계좌 열 없음 · 글자 수 CHECK
  *   - 되돌리기 파일은 모든 표를 만든 순서의 역순으로 DROP
  * 워커가 같은 이름으로 쓰는지는 workers/workflow-api/test/work.test.js 가 본다.
@@ -21,6 +22,8 @@ const TABLES = [
   'worker_invites', 'workers', 'worker_notes', 'work_jobs', 'work_applications',
   'work_assignments', 'work_updates', 'work_photos', 'work_reviews', 'work_job_events',
 ];
+/** 관리자 SELECT 정책을 두는 표 — worker_notes 는 편집자만 읽으므로 정책이 없다 (계약 §2 · §3) */
+const ADMIN_READ_TABLES = TABLES.filter((t) => t !== 'worker_notes');
 
 /** CREATE TABLE 본문 (괄호 안) */
 function tableBody(name) {
@@ -83,7 +86,7 @@ describe('work-jobs.sql — 멱등 · 비파괴', () => {
 });
 
 describe('work-jobs.sql — RLS', () => {
-  test.each(TABLES)('%s — RLS 켬 · anon REVOKE · 정책은 관리자 SELECT 하나', (t) => {
+  test.each(ADMIN_READ_TABLES)('%s — RLS 켬 · anon REVOKE · 정책은 관리자 SELECT 하나', (t) => {
     expect(body).toMatch(new RegExp(`ALTER TABLE ${t}\\s+ENABLE ROW LEVEL SECURITY`));
     expect(body).toMatch(new RegExp(`REVOKE ALL ON ${t}\\s+FROM anon`));
     const policies = [...body.matchAll(new RegExp(`CREATE POLICY "[^"]+" ON ${t}\\s+FOR (\\w+) TO (\\w+) USING \\(([^;]*)\\);`, 'g'))];
@@ -91,6 +94,14 @@ describe('work-jobs.sql — RLS', () => {
     expect(policies[0][1]).toBe('SELECT');
     expect(policies[0][2]).toBe('authenticated');
     expect(policies[0][3].trim()).toBe('public.is_admin()');
+  });
+
+  test('worker_notes — RLS 켬 · anon REVOKE · 정책 없음 (is_admin 은 support·moderator 도 참 → 편집자 검사는 API 에서만)', () => {
+    expect(body).toMatch(/ALTER TABLE worker_notes\s+ENABLE ROW LEVEL SECURITY/);
+    expect(body).toMatch(/REVOKE ALL ON worker_notes\s+FROM anon/);
+    expect(body).not.toMatch(/CREATE POLICY "[^"]+" ON worker_notes\b/);
+    // 예전 판으로 이미 실행한 DB 에서도 다시 실행하면 정책이 지워진다
+    expect(body).toContain('DROP POLICY IF EXISTS "Admins read worker notes" ON worker_notes;');
   });
 
   test('쓰기 정책이 없다 — INSERT · UPDATE · DELETE · ALL · WITH CHECK', () => {
@@ -101,7 +112,7 @@ describe('work-jobs.sql — RLS', () => {
 
   test('정책은 is_admin() 만 부른다 (admin_roles 직접 조회 금지 — 42P17 재귀)', () => {
     const usings = [...body.matchAll(/USING \(([^;]*)\);/g)].map((m) => m[1].trim());
-    expect(usings.length).toBe(TABLES.length);
+    expect(usings.length).toBe(ADMIN_READ_TABLES.length);
     usings.forEach((u) => expect(u).toBe('public.is_admin()'));
   });
 });
