@@ -11,7 +11,7 @@
  *   - 0 지원 종료일: 서랍 이름 · 도움말 · 지난 시각 경고(막지 않음), 보드 카드 'D-n · 오늘 종료 · 지원 종료', 상세 행, 공유 문구 한 줄
  *   - C 닫기 · 취소 확인에 응답 없는 초대 수 (조립 닫기는 「검수」라 하지 않음), assignment_auto_declined 이름표
  *   - D 정지 확인에 진행 중인 배정 수(active_count), 정지 상태 설명
- *   - F 작업자 이력 (GET /work/admin/workers/:id/events — 404 · 빈 목록은 '기록 없음')
+ *   - F 작업자 이력 (GET /work/admin/workers/:id/events — 404 · 빈 목록은 '기록 없음', 그 밖의 오류는 목록을 비우고 서버 문구를 오류색으로)
  * 페이지 스크립트를 jsdom 에 그대로 올리고 workflow-api 는 가짜 fetch 로 대신한다. 이름 · 지역은 전부 가짜.
  */
 const fs = require('fs');
@@ -24,6 +24,8 @@ const SCRIPT_START = HTML.lastIndexOf('<script>');
 const SCRIPT = HTML.slice(SCRIPT_START + '<script>'.length, HTML.lastIndexOf('</script>'));
 const BODY = HTML.slice(HTML.indexOf('<body>') + 6, SCRIPT_START);
 const API = 'https://api.test';
+/** 이력 라우트의 가짜 500 문구 — 화면이 서버 message 를 그대로 오류색으로 보이는지 본다 */
+const EVENTS_500 = '이력 표를 읽지 못했습니다 (가짜 서버 오류)';
 
 const J1 = '11111111-1111-4111-8111-111111111111';
 const J2 = '22222222-2222-4222-8222-222222222222';
@@ -131,7 +133,9 @@ function fakeApi(opts) {
     if (u === `/work/admin/jobs/${J9}` && method === 'GET') return ok({ job: { id: J9, kind: 'as', title: '새 작업', status: 'draft', slots: 1, version: 0 }, applications: [], assignments: [], updates: [], events: [] });
     if (u === '/work/admin/workers?status=approved') return ok({ items: APPROVED });
     if (u.startsWith('/work/admin/workers/') && u.endsWith('/events') && method === 'GET') {
-      return o.workerEvents === 404 ? res(404, { success: false, message: 'Not found' }) : ok({ items: o.workerEvents || [] });
+      if (o.workerEvents === 404) return res(404, { success: false, message: 'Not found' });
+      if (o.workerEvents === 500) return res(500, { success: false, message: EVENTS_500 });
+      return ok({ items: o.workerEvents || [] });
     }
     if (u.startsWith('/work/admin/workers') && u.endsWith('/notes') && method === 'GET') return ok({ items: [{ id: 'n1', note: XSS, created_at: '2026-10-19T00:00:00Z' }] });
     if (u.startsWith('/work/admin/workers') && method === 'GET') return ok({ items: o.workers });
@@ -989,6 +993,22 @@ describe('admin/work-jobs.html — 페이지', () => {
       expect($('workerEventsList').textContent).toBe('기록 없음');
       expect($('workerEventsStatus').style.color).not.toBe('rgb(198, 40, 40)');
     }
+  });
+
+  test('작업자 [이력] — 404 가 아닌 오류(500)는 「기록 없음」으로 합치지 않고 목록을 비운 채 서버 문구를 오류색으로', async () => {
+    const api = fakeApi({ workerEvents: 500 });
+    await start(api);
+    await click(document.querySelector('#viewTabs [data-view="workers"]'));
+    await click($('workerList').querySelector(`[data-act="wk-events"][data-id="${WK1}"]`));
+    expect(api.calls.some((c) => c.u === `/work/admin/workers/${WK1}/events` && c.method === 'GET')).toBe(true);
+    expect($('workerEventsModal').classList.contains('active')).toBe(true);
+    const list = $('workerEventsList');
+    expect(list.textContent).not.toContain('기록 없음');
+    expect(list.textContent.trim()).toBe('');
+    expect(list.children).toHaveLength(0);
+    expect($('workerEventsStatus').textContent).toBe(EVENTS_500);
+    expect($('workerEventsStatus').style.color).toBe('rgb(198, 40, 40)');
+    expect(writes(api)).toHaveLength(0);
   });
 
   test('이력은 읽기 — support 역할도 [이력] 을 열 수 있다', async () => {
