@@ -147,6 +147,12 @@ describe('배치 단계 — 모델의 설치 여유', () => {
     expect(g).toEqual({ side: 3, top: 17 });   // 구조 단계: 3 + 604 + 3 + 6 = 616 = 장 610 + 6
   });
 
+  test('표준 니치 템플릿 — 니치 = 냉장고 치수면 여유 0 (기본 여유 50 으로 새지 않는다)', () => {
+    const p = bootPlanner('mockup-shell.html', { search: '?design=d1&item=100' });
+    const g = p.g('fridgeGapsOf')({ brand: '표준', name: '유럽 통합형 니치 178', w: 560, h: 1772, nicheW: 560, nicheH: 1772 });
+    expect(g).toEqual({ side: 0, top: 0 });   // 구조 단계: 560 + 6 = 566
+  });
+
   test('모델 표에 값이 있으면 그것을 쓴다', () => {
     const p = shell();
     expect(p.g('fridgeGapsOf')({ brand: '삼성', name: 'BESPOKE 1도어 키친핏', sideGap: 10, topGap: 15 }))
