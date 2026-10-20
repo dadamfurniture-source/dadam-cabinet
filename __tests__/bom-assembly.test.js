@@ -498,8 +498,10 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
     expect(inner('측판')).toEqual([{ min: [-375, 15, -275], max: [-360, 15 + H, 215] }, { min: [360, 15, -275], max: [375, 15 + H, 215] }]);
     expect(inner('상판')).toEqual([{ min: [-435, 15 + H, 230 - 512], max: [435, 30 + H, 230] }]);
     expect(inner('밴드').map((p) => [p.min[1], p.max[1], p.min[2], p.max[2]])).toEqual([[H - 55, 15 + H, 200, 215], [H - 55, 15 + H, -275, -260]]);
-    // 박스 높이 자리는 아직 — 그 밖의 내부 서랍장 판은 모두 놓인다
-    expect([...new Set(s.unplaced.filter((u) => u.moduleKey === '0-w2').map((u) => u.part))].sort()).toEqual(['서랍 하단보강', '서랍밑판', '서랍전후판', '서랍측판']);
+    // 박스 — 카드 "싱크 규칙 바닥+30": 측판 밑단 = 서랍 자리 바닥(맨 아래는 지판 윗면 30, 그 위는 도어 아랫단) + 30, 앞끝 = 모듈 앞선 215
+    expect(w2.parts.filter((p) => p.part === '서랍측판' && p.tags.side === 'left').map((p) => p.box))
+      .toEqual(spans.map(([a], i) => (i === 0 ? 30 : a) + 30).map((y) => ({ min: [-354, y, -225], max: [-339, y + 180, 215] })));
+    expect(s.unplaced.filter((u) => u.moduleKey === '0-w2')).toEqual([]);
     expect(require('../js/detaildesign/assembly-check.js').check(s).issues.filter((i) => i.level === 'error')).toEqual([]);
   });
 
