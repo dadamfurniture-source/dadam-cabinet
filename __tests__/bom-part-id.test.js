@@ -58,7 +58,8 @@ describe('partId — 모든 자재 행에, 설계 안에서 유일, 두 번 돌�
   });
 
   test('품목 단위 마감재(EP) 행은 moduleId "ep", 모듈에 딸린 EP 목찬넬은 그 모듈 id', () => {
-    expect(oneRow(rows, '#1 EP', '걸레받이').partId).toBe('0-ep-kick-0');
+    // 2026-10-20 카드 「꺾임에서 나누기」: 3500 벽은 2440 + 1060 두 장 — 행마다 kick-0, kick-1
+    expect(rowsOf(rows, '#1 EP', '걸레받이').map((r) => r.partId)).toEqual(['0-ep-kick-0', '0-ep-kick-1']);
     expect(rowsOf(rows, 'EP', '목찬넬(전면)')[0].partId).toBe('1-w2-channel:front-0');
     expect(rowsOf(rows, 'EP', '목찬넬(지면)')[0].partId).toBe('1-w2-channel:back-0');
     expect(oneRow(rows, '긴옷-좌대', '좌대 전후').partId).toBe('1-w2-pedestal:fb-0');
@@ -106,7 +107,7 @@ describe('slot — planner-finish 7 슬롯 + back', () => {
     expect(slotOf('#1 하부장-서랍장', '목찬넬(중간 지면)')).toBe('handle');
     expect(slotOf('#1 EP', '상몰딩')).toBe('finishing');
     expect(slotOf('#1 EP', '휠라(좌)')).toBe('finishing');
-    expect(slotOf('#1 EP', '걸레받이')).toBe('kick');
+    expect(rowsOf(rows, '#1 EP', '걸레받이').map((r) => r.slot)).toEqual(['kick', 'kick']); // 2440 넘는 벽은 나뉜다
     expect(slotOf('긴옷-좌대', '좌대 측')).toBe('kick');
     expect(slotOf('#2 하부장-LT망장', '멍가림판')).toBe('finishing');
     expect(slotOf('#2 하부장-LT망장', '경첩목대(앞다리)')).toBe('body');
@@ -212,7 +213,7 @@ describe('finishCode — 디테일 모델(부재 > 모듈 > 섹션 > 품목) > �
     expect(oneRow(rows, '하부장-EL장', '측판').material).toBe('PB');
     expect(code('하부장-EL장', '뒷판')).toBe('');
     expect(code('하부장-서랍장', '서랍밑판')).toBe('');
-    expect(code('EP', '걸레받이')).toBe('PNT-BLK-M');             // 품목 kick
+    expect(rowsOf(rows, 'EP', '걸레받이').map((r) => r.finishCode)).toEqual(['PNT-BLK-M', 'PNT-BLK-M']); // 2440 넘는 벽은 나뉜다             // 품목 kick
     expect(code('EP', '상몰딩')).toBe('');                        // finishing 지정 없음
   });
   test('플래너 셀 모듈(planner-X-2)은 X 의 모듈·부재 지정을 받는다', () => {
@@ -395,7 +396,7 @@ describe('엣지밴딩 — edges/edgeLen/edgeT/edgeCode + 요약 edgeBanding', (
     expect(oneRow(rows, 'EP', '휠라(좌)').edgeCode).toBe('PNT-WHT-M');
     expect(oneRow(rows, '하부장-서랍장', '측판').finishCode).toBe('MFB-WHT');
     expect(oneRow(rows, '하부장-서랍장', '측판').edgeCode).toBeNull();
-    expect(oneRow(rows, 'EP', '걸레받이').edgeCode).toBeNull();
+    expect(rowsOf(rows, 'EP', '걸레받이').map((r) => r.edgeCode)).toEqual([null, null]); // 2440 넘는 벽은 나뉜다
     expect(oneRow(rows, '하부장-서랍장', '목찬넬(중간 전면)').edgeCode).toBeNull();
   });
 

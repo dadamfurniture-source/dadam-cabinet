@@ -50,8 +50,8 @@ describe('BOM 골든 — 싱크대 15T (sink15)', () => {
     expect(parts('하부장-서랍장')).not.toContain('목찬넬');
     // 가스대는 몸통 없음
     expect(snap.materials.some((m) => /가스대/.test(m.module))).toBe(false);
-    // EP: 상몰딩(상부 2700 > 2000 → 2면(장)), 걸레받이, 목찬넬 전면·지면, 좌측 휠라, 우측 없음
-    expect(parts('EP')).toEqual(['상몰딩', '걸레받이', '목찬넬(전면)', '목찬넬(지면)', '휠라(좌)']);
+    // EP: 상몰딩(상부 2700 > 2000 → 2면(장)), 걸레받이(3500 한 벽 → 2440 + 1060, 2026-10-20 카드), 목찬넬 전면·지면, 좌측 휠라, 우측 없음
+    expect(parts('EP')).toEqual(['상몰딩', '걸레받이', '걸레받이', '목찬넬(전면)', '목찬넬(지면)', '휠라(좌)']);
     expect(snap.materials.find((m) => m.part === '상몰딩').edge).toBe('2면(장)');
     // 철물 분류 다섯 가지가 다 나온다
     expect(Object.keys(snap.hardwareSummary).sort()).toEqual(['경첩', '다리발', '레일', '브라켓', '손잡이', '걸레받이카바'].sort());
