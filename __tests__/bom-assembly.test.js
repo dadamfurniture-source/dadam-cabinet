@@ -410,3 +410,43 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
     expect(ped.every((u) => u.reason === 'not-yet')).toBe(true);
   });
 });
+
+// 오픈장·밥솥장 — 18T MDF 상자 (bom-open-cabinet-rules.js). 자리는 플래너 buildOpenCabinetMesh 와 같다.
+describe('오픈장·밥솥장 자리 — 18T 상자', () => {
+  const item = JSON.parse(JSON.stringify(FIXTURES.sink15));
+  item.modules.push({ id: 'oc1', moduleKind: 'open', pos: 'upper', w: 500, h: 450, d: 570 });
+  item.modules.push({ id: 'rc1', moduleKind: 'rice', pos: 'lower', w: 600, h: 700, d: 550, doorType: 'swing' });
+  const design = { items: [item] };
+  const materials = new MaterialExtractor().extract(design).materials;
+  const s = Asm.of(design, { materials });
+  const mod = (id) => s.items[0].modules.find((m) => m.moduleId === id);
+  const box = (m, part, k) => m.parts.filter((p) => p.part === part)[k].box;
+
+  test('BOM 행이 제 모듈을 가리킨다 (0-none 이 아니다)', () => {
+    expect(materials.filter((r) => /^(오픈장|밥솥장)$/.test(r.module)).map((r) => r.moduleKey).sort())
+      .toEqual(['0-oc1', '0-oc1', '0-oc1', '0-rc1', '0-rc1', '0-rc1', '0-rc1']);
+  });
+
+  test('오픈장 — 측판 깊이 전체, 천지판 측판 사이 앞선 맞춤, 뒷판 측판 사이 뒤끝 맞춤 몸통 높이 전체', () => {
+    const m = mod('oc1');
+    expect(m.kind).toBe('open');
+    expect(m.box).toEqual({ W: 500, H: 450, D: 570, T: 18 });
+    expect(box(m, '측판', 0)).toEqual({ min: [-250, 0, -285], max: [-232, 450, 285] });
+    expect(box(m, '측판', 1)).toEqual({ min: [232, 0, -285], max: [250, 450, 285] });
+    expect(box(m, '천지판', 0)).toEqual({ min: [-232, 0, -265], max: [232, 18, 285] });
+    expect(box(m, '천지판', 1)).toEqual({ min: [-232, 432, -265], max: [232, 450, 285] });
+    expect(box(m, '뒷판', 0)).toEqual({ min: [-232, 0, -285], max: [232, 450, -267] });
+  });
+
+  test('밥솥장 — 같은 상자 + 도어 (W−4)×(H−4) 가 측판 앞선에 붙어 가운데', () => {
+    const m = mod('rc1');
+    expect(m.parts).toHaveLength(6);
+    expect(box(m, '도어', 0)).toEqual({ min: [-298, 2, 275], max: [298, 698, 293] });
+  });
+
+  test('못 놓은 행 없음 · 조립 검사 오류 없음', () => {
+    expect(s.unplaced.filter((u) => /oc1|rc1/.test(u.moduleKey))).toEqual([]);
+    const issues = require('../js/detaildesign/assembly-check.js').check(s).issues;
+    expect(issues.filter((i) => /oc1|rc1/.test(i.moduleKey))).toEqual([]);
+  });
+});

@@ -34,6 +34,9 @@
  *            (사쿠리면 홈 앞, 아니면 측판 뒤끝). 높이는 부르는 쪽이 넘긴 선반 중심 높이(opts.shelfY)를 쓴다
  *   붙박이장 통 — 몸통 여럿을 아래→위로 쌓는다 (외부 서랍 몸통 · 하부장 · 통 · 상부장, 규칙 파일 layoutWardrobeModule).
  *            몸통마다 위 짜임. 선반 높이는 규칙 파일 배치 또는 wardrobe.md §6 (wardrobeOf)
+ *   오픈장·밥솥장 — 18T MDF 상자 (bom-open-cabinet-rules.js, 플래너 buildOpenCabinetMesh): 측판 양 끝 깊이 전체,
+ *            천지판 측판 사이 앞선 맞춤 (뒤에 뒷판 자리 20), 18T 뒷판 측판 사이 뒤끝 맞춤 몸통 높이 전체.
+ *            밥솥장 도어 (W − 4) × (H − 4) 는 측판 앞선에 붙어 가운데 (openBoxOf)
  *
  * 미정 (지금 BOM 동작을 그대로 두고 결과에 적는다):
  *   하부장·키큰장 단 밴드 2장 — 자리 미정, 사장님 확인 대기 → unplaced 'band-position-pending'
@@ -58,6 +61,10 @@
     || (typeof require === 'function' ? require('./bom-drawer-rules.js') : null);
   const WardrobeRules = root.DadamWardrobeRules
     || (typeof require === 'function' ? require('./bom-wardrobe-rules.js') : null);
+  const OpenRules = root.DadamOpenCabinetRules
+    || (typeof require === 'function' ? require('./bom-open-cabinet-rules.js') : null);
+  const RiceRules = root.DadamRiceCabinetRules
+    || (typeof require === 'function' ? require('./bom-rice-cabinet-rules.js') : null);
   const C = AsmRules.CARCASS;
   const DR = DrawerRules.DRAWER_RULES;
 
@@ -558,6 +565,55 @@
   }
 
   /**
+   * 오픈장·밥솥장 상자 — 판 다섯 장 (+ 밥솥장 도어 한 장). 행 치수가 규칙 파일 모양이 아니면 null.
+   */
+  function openBoxOf(mk, mod, rows, opts) {
+    const keyed = rows.map((r) => ({ row: r, key: keyOfRow(r) }));
+    const fam = (f) => keyed.filter((x) => x.key && x.key.family === f).map((x) => x.row);
+    const sides = fam('body:side'), tbs = fam('part:천지판'), backs = fam('back');
+    if (sides.length !== 1 || tbs.length !== 1 || backs.length !== 1) return null;
+    const side = sides[0], tb = tbs[0], back = backs[0];
+    const T = side.thickness, D = side.w, H = side.h, W = tb.w + 2 * T;
+    if (side.qty !== 2 || tb.qty !== 2 || tb.thickness !== T || tb.h >= D
+      || back.qty !== 1 || back.thickness !== T || back.w !== tb.w || back.h !== H) return null;
+    const zBack = -D / 2, zFront = D / 2;
+    const parts = [], unplaced = [];
+    const skip = (row, reason) => unplaced.push({ rowPartId: row.partId, moduleKey: mk, part: row.part, qty: row.qty, reason });
+    parts.push(makePart(side, 0, { o: [-W / 2, 0, zBack], u: '+z', v: '+y', n: '+x' }, [], 'exterior', { side: 'left' }));
+    parts.push(makePart(side, 1, { o: [W / 2, 0, zBack], u: '+z', v: '+y', n: '-x' }, [], 'exterior', { side: 'right' }));
+    // 천판·지판 — 측판 사이, 앞선 맞춤 (뒤에 뒷판 자리)
+    parts.push(makePart(tb, 0, { o: [-W / 2 + T, 0, zFront - tb.h], u: '+x', v: '+z', n: '+y' }, [], 'interior', { panel: 'bottom' }));
+    parts.push(makePart(tb, 1, { o: [-W / 2 + T, H - T, zFront - tb.h], u: '+x', v: '+z', n: '+y' }, [], 'interior', { panel: 'top' }));
+    // 뒷판 — 18T 통판, 측판 사이 뒤끝 맞춤, 몸통 높이 전체
+    parts.push(makePart(back, 0, { o: [-W / 2 + T, 0, zBack], u: '+x', v: '+y', n: '+z' }, [], 'interior', { mount: 'between-sides' }));
+    keyed.forEach(({ row, key }) => {
+      if (row === side || row === tb || row === back) return;
+      if (!key) { skip(row, 'no-part-key'); return; }
+      if (key.family === 'door') {
+        const xs = doorXsOf(W, row);
+        const y0 = doorYOf(mod.pos, H, row.h);
+        if (!xs || xs.length !== 1 || y0 == null || row.h !== H - C.DOOR_GAP) { skip(row, 'door-layout-unknown'); return; }
+        parts.push(makePart(row, 0, { o: [xs[0], y0, zFront], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { doorIdx: 0 }));
+        return;
+      }
+      skip(row, 'not-yet');
+    });
+    return {
+      module: {
+        moduleKey: mk,
+        moduleId: String(mod.id),
+        kind: 'open',
+        box: { W, H, D, T },
+        sakuri: false,
+        place: (opts.place && opts.place[mk]) || null,
+        parts,
+        pending: [],
+      },
+      unplaced,
+    };
+  }
+
+  /**
    * 조립 명세를 만든다.
    * @param {{items:Array}} design   MaterialExtractor 에 넣는 것과 같은 설계
    * @param {object} [opts]
@@ -590,7 +646,9 @@
       const mod = item && (item.modules || []).find((x) => String(x.id) === m[2]);
       const blind = mod && String(mod.id).indexOf('corner-blind-') === 0;
       const wardrobe = mod && (item.categoryId || item.category) === 'wardrobe' && (mod.pos === 'wardrobe' || mod.pos === 'tall');
-      const res = wardrobe ? wardrobeOf(mk, mod, rows, o, item)
+      const openBox = mod && ((OpenRules && OpenRules.isOpenCabinet(mod)) || (RiceRules && RiceRules.isRiceCabinet(mod)));
+      const res = openBox ? openBoxOf(mk, mod, rows, o)
+        : wardrobe ? wardrobeOf(mk, mod, rows, o, item)
         : (mod && SHELL_POS.indexOf(mod.pos) >= 0 && !blind) ? shellOf(mk, mod, rows, o) : null;
       if (!res) {
         const reason = !mod ? (m && m[2] === 'ep' ? 'run-part' : 'no-module') : blind ? 'blind-pending' : 'module-not-yet';

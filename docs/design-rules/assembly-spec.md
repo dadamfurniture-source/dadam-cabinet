@@ -41,6 +41,7 @@ BOM 행마다 판재 조각의 **자리**를 붙인다. 재단 치수는 BOM 행
 | 서랍 박스 판 | 외경은 플래너 `addDrawerBoxes` 자리 (가로 가운데, 앞면 = 몸통 앞선, 바닥 = 존 바닥 + 레일 아래 여유). 측판 양 끝 · 앞뒷판 사이 · 우라 밑면 덮음(사쿠리면 측판 홈 15~18, `mount: groove`) · 하단보강 우라 아래 가운데 앞뒤로 | 사장님 2026-10-20 "박스 아래 덮음" · 홈 "15mm", `drawerBoxDims` (3D 장면 박스 외경 대조 시험) |
 | 서랍장 중간 목찬넬 ㄴ자 | 측판 앞 중간 따내기(90×40) 바닥에 지면판 40, 그 위 따낸 자리 안쪽 끝에 전면판 72 (앞 22 가 손 자리). 모듈 폭 전체. 측판 특징에 중간 따내기 `channel-mid` | 플래너 `addMidChannels` · `notchesOf`, `bom-drawer-rules.js` |
 | 붙박이장 통 | 몸통이 여럿 — BOM 행 module 이름(`-서랍모듈` · `-하부장` · 통 · `-상부장`)으로 묶어 **아래→위로 쌓는다** (외부 서랍 몸통이 맨 아래). 몸통마다 측판·천지판·뒷판은 위 짜임 그대로 (사쿠리 여부는 측판 비고). 부재에 `tags.carcass`, 모듈에 `carcasses[]`. 선반 — 통 구조 블록이 있으면 규칙 파일 배치(`layoutWardrobeModule`)의 선반 자리 (몸통 높이가 BOM 과 다르면 `shelf-height-unknown`), 없으면 wardrobe.md §6 (`shelfPositions`: 긴옷 상단 315 아래, 그 밖 균등). 앞뒤는 천지판 뒤끝 맞춤 (§6 전면 여유 70). 칸막이(세로·수평) — 규칙 파일 배치(`dividersOf`)의 자리, 깊이는 천지판과 같아 천지판 뒤끝 맞춤 (배치가 없거나 BOM 과 다르면 `divider-layout-unknown`) | `bom-wardrobe-rules.js` `layoutWardrobeModule` · `cabinetsOf` (3D 장면 측판·선반 대조 시험). 3D 는 뒷판을 측판 사이에, 천지판을 D−T 로, 선반을 깊이 가운데에 그린다 — 명세는 BOM 재단 치수를 따른다 |
+| 오픈장 · 밥솥장 | 18T MDF 상자 (모듈 타입이라 어느 품목에든 붙는다). 측판 양 끝 깊이 전체, 천지판 측판 사이 **앞선 맞춤** (뒤에 뒷판 자리 20), 18T 뒷판 측판 사이 **뒤끝 맞춤** 몸통 높이 전체 (`mount: 'between-sides'` — 뒷판 덮개 검사 대상 아님). 밥솥장 도어 (W−4)×(H−4) 는 측판 앞선에 붙어 가운데 (위아래·좌우 2) | `bom-open-cabinet-rules.js` · `bom-rice-cabinet-rules.js`, 플래너 `buildOpenCabinetMesh` · `buildRiceCabinetMesh` 와 같은 자리 |
 
 ## `unplaced` 이유
 
