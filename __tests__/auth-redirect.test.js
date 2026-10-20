@@ -691,6 +691,61 @@ describe('login.html', () => {
     expect(err.textContent).toContain('소셜 로그인에 실패했습니다');
     expect(err.textContent).not.toContain('010');
   });
+
+  // 인증 메일 링크가 만료됐거나 이미 쓰였으면 GoTrue verify 가 돌아오는 주소 해시에
+  // error=access_denied&error_code=otp_expired&error_description=… 를 붙인다 (리뷰 #970).
+  const EMAIL_LINK_MSG =
+    "이메일 인증 링크가 만료되었거나 이미 사용되었습니다. 이메일과 비밀번호로 로그인해 주세요. 아직 인증 전이면 '인증 메일 다시 보내기'로 새 링크를 받을 수 있습니다.";
+
+  test.each([
+    [
+      '해시 (인증 링크 기본 흐름)',
+      '/login.html?redirect=worker.html#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired',
+    ],
+    [
+      '쿼리',
+      '/login.html?redirect=worker.html&error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired',
+    ],
+  ])('인증 메일 링크 만료(otp_expired, %s)는 소셜 로그인 실패와 다른 고정 문구', (_name, url) => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    boot(LOGIN, { url });
+    const err = document.getElementById('errorMsg');
+    expect(err.classList.contains('show')).toBe(true);
+    expect(err.textContent).toBe(EMAIL_LINK_MSG);
+    expect(err.textContent).not.toContain('소셜 로그인');
+    // 돌아온 글은 화면에 넣지 않고 콘솔에만
+    expect(err.textContent).not.toContain('Email link');
+    expect(warn.mock.calls.flat().join(' ')).toContain('Email link is invalid or has expired');
+    // 돌아갈 곳은 그대로 — 다시 로그인하면 원래 목적지로 간다
+    expect(window.getRedirectUrl()).toBe('worker.html');
+  });
+
+  test('otp_expired 문구도 돌아온 글을 화면에 넣지 않는다', () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    boot(LOGIN, {
+      url: '/login.html#error=access_denied&error_code=otp_expired&error_description=%3Cimg+src%3Dx+onerror%3Dalert(1)%3E+CALL+010-0000-0000',
+    });
+    const err = document.getElementById('errorMsg');
+    expect(err.textContent).toBe(EMAIL_LINK_MSG);
+    expect(err.querySelector('img')).toBeNull();
+    expect(err.textContent).not.toContain('010');
+  });
+
+  test('otp_expired 가 아닌 error_code 는 지금처럼 소셜 로그인 실패 문구', () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    boot(LOGIN, {
+      url: '/login.html#error=server_error&error_code=bad_oauth_callback&error_description=OAuth+callback+failed',
+    });
+    const err = document.getElementById('errorMsg');
+    expect(err.textContent).toBe(
+      '소셜 로그인에 실패했습니다. 다시 시도하거나 다른 방법으로 로그인해주세요.'
+    );
+  });
+
+  test('오류 없이 열면 오류 문구가 없다', () => {
+    boot(LOGIN, { url: '/login.html?redirect=worker.html' });
+    expect(document.getElementById('errorMsg').classList.contains('show')).toBe(false);
+  });
 });
 
 describe('signup.html', () => {
