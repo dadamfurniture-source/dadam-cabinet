@@ -161,6 +161,30 @@ describe('#832 회귀를 잡는다', () => {
   });
 });
 
+describe('붙박이장 — 몸통이 여럿이면 뒷판 검사도 몸통마다', () => {
+  const { spec } = specOf('wardrobe');
+
+  test('지금 명세는 깨끗하다 (2단 · 외부 서랍 몸통)', () => {
+    expect(codesOf(Check.check(spec))).toEqual([]);
+  });
+
+  test('상부장 뒷판을 홈 밖으로 빼면 그 몸통만 걸린다 — 하부장(뒤에 덮음) 측판 뒤끝과 섞어 보지 않는다', () => {
+    const s = clone(spec);
+    const m = modOf(s, 'w1');
+    const back = m.parts.find((p) => p.rowPartId === '0-w1-back-0');
+    move(back, { o: [back.frame.o[0], back.frame.o[1], back.frame.o[2] - 15] });
+    const errs = Check.check(s).issues.filter((x) => x.level === 'error');
+    expect(errs.filter((x) => x.code === 'back-contact').map((x) => x.partId)).toEqual([back.id]);
+  });
+
+  test('하부장 뒷판이 측판 뒤끝에서 떨어지면 접촉 검사가 잡는다', () => {
+    const s = clone(spec);
+    const back = modOf(s, 'w1').parts.find((p) => p.rowPartId === '0-w1-back-1');
+    move(back, { o: [back.frame.o[0], back.frame.o[1], back.frame.o[2] - 5] });
+    expect(codesOf(Check.check(s)).sort()).toEqual(['back-contact', 'part-detached']);
+  });
+});
+
 describe('사전 검사(bom-preflight)에 붙는다', () => {
   const { materials, spec } = specOf('sink18');
 
