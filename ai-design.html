@@ -325,6 +325,15 @@
                         <option value="right">우측</option>
                       </select>
                     </div>
+                    <!-- 2026-10-20 냉장고 모델 (appliance_models, 검증된 키친핏·빌트인·일반) — 비우면 워커의 브랜드 기본 세트(4도어 + 3도어 김치) -->
+                    <div class="studio-field">
+                      <label for="fModel">냉장고 (4도어)</label>
+                      <select id="fModel"><option value="">기본 모델</option></select>
+                    </div>
+                    <div class="studio-field">
+                      <label for="fKimchi">김치냉장고</label>
+                      <select id="fKimchi"><option value="">기본 모델</option></select>
+                    </div>
                   </div>
                 </div>
               </details>
@@ -779,6 +788,7 @@
           $('kindState').textContent = cur ? cur.label : '';
           // 냉장고 옵션은 냉장고장일 때만 의미가 있다
           $('fridgeAdv').hidden = S.kind !== 'fridge';
+          if (S.kind === 'fridge') loadFridgeModels();
           // 급수·배기 수동값은 주방(싱크대·아일랜드)만 워커가 받는다
           $('kitchenPlumbing').hidden = !['sink', 'island'].includes(S.kind);
         }
@@ -786,6 +796,59 @@
         // ═══════════════════════════════════════════════
         // 슬롯 ② — 시공사례 / 테마
         // ═══════════════════════════════════════════════
+        // ═══════════════════════════════════════════════
+        // 냉장고 모델 목록 (2026-10-20) — appliance_models 에서 삼성·LG 의 4도어·김치 스탠드형(검증·단종 아님)을 한 번 받아
+        //   브랜드 칸에 맞춰 채운다. 못 받으면 "기본 모델"만 남는다 (워커가 브랜드 기본 세트로 그린다).
+        // ═══════════════════════════════════════════════
+        var fridgeModelRows = null;
+        var fridgeModelsLoading = null;
+        function loadFridgeModels() {
+          if (fridgeModelRows) return fillFridgeModels();
+          if (fridgeModelsLoading || !sb) return;
+          fridgeModelsLoading = sb
+            .from('appliance_models')
+            .select('brand,model_name,model_code,subtype,width_mm,height_mm,depth_mm,image_path')
+            .in('brand', ['삼성', 'LG'])
+            .in('subtype', ['french_4door', 'kimchi_stand'])
+            .eq('discontinued', false)
+            .eq('verified', true)
+            .order('width_mm')
+            .then(function (res) {
+              if (res.error) throw res.error;
+              fridgeModelRows = res.data || [];
+              fillFridgeModels();
+            })
+            .catch(function (e) {
+              console.warn('[studio] fridge models:', e && e.message);
+              fridgeModelsLoading = null;
+            });
+        }
+        function fillFridgeModels() {
+          var brand = $('fBrand').value === 'lg' ? 'LG' : '삼성';
+          [
+            ['fModel', 'french_4door'],
+            ['fKimchi', 'kimchi_stand'],
+          ].forEach(function (pair) {
+            var sel = $(pair[0]);
+            var keep = sel.value;
+            var rows = (fridgeModelRows || []).filter(function (m) {
+              return m.brand === brand && m.subtype === pair[1];
+            });
+            sel.innerHTML =
+              '<option value="">기본 모델</option>' +
+              rows
+                .map(function (m) {
+                  return (
+                    '<option value="' + esc(m.model_code) + '">' +
+                    esc(m.model_name + ' · ' + m.width_mm + '×' + m.height_mm + '×' + m.depth_mm + (m.image_path ? ' · 사진' : '')) +
+                    '</option>'
+                  );
+                })
+                .join('');
+            sel.value = rows.some(function (m) { return m.model_code === keep; }) ? keep : '';
+          });
+        }
+
         function caseLabel(r) {
           return r.region ? '다담가구 · ' + r.region : '다담가구';
         }
@@ -1242,6 +1305,9 @@
           };
           if (S.kind === 'fridge') {
             body.fridge_options = { brand: $('fBrand').value, position: $('fPos').value };
+            // 고른 모델 코드만 보낸다 — 비운 쪽은 워커가 브랜드 기본 세트로 채운다
+            var models = [$('fModel').value, $('fKimchi').value].filter(Boolean);
+            if (models.length) body.fridge_options.models = models;
           }
 
           await submit(body);
@@ -1551,6 +1617,11 @@
 
         function bind() {
           bindChat();
+          // 냉장고 브랜드를 바꾸면 모델 목록도 그 브랜드로
+          $('fBrand').onchange = function () {
+            if (fridgeModelRows) fillFridgeModels();
+            else loadFridgeModels();
+          };
           $('pick1').onclick = function () {
             $('input1').click();
           };
@@ -1774,6 +1845,7 @@
           }
           // 테마는 시공사례·세션을 기다리지 않고 바로 시작한다 (예전엔 시공사례를 다 받은 뒤에 불렀다)
           loadThemes();
+          if (S.kind === 'fridge') loadFridgeModels(); // renderKinds 가 sb 보다 먼저 돌았다
 
           // 화면 전체를 덮던 로그인 게이트는 걷어냈다.
           // 로그인은 '생성' 을 누르는 순간에만 필요하다 — 그 전까지는
