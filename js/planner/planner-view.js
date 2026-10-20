@@ -100,8 +100,24 @@ function fitViewTo(v, box, cw, ch, pad) {
   return s.zoom;
 }
 
+/**
+ * 2026-10-20 플래너 점검: 3D 카메라 맞춤 — 보여 줄 상자의 **가운데**를 본다.
+ * 예전 구조 단계는 카메라를 상자 크기만큼 빼면서도 원점(줄 왼쪽 끝)만 봐서, 자동계산 뒤 줄 오른쪽이 화면 밖으로 나갔다.
+ * @param {{minX:number,maxX:number,minZ:number,maxZ:number}} box 3D 바닥 범위(mm, 원점 기준)
+ * @param {number} height 보일 높이(mm) — 천장 높이
+ * @returns {{size:number, target:{x:number,y:number,z:number}}} size 는 fitCameraToBoundsAt 에 넘긴다
+ */
+function camera3DFitOf(box, height) {
+  const h = Number(height) > 0 ? Number(height) : 0;
+  return {
+    size: Math.max(box.maxX - box.minX, box.maxZ - box.minZ, h, 1),
+    target: { x: (box.minX + box.maxX) / 2, y: h / 2, z: (box.minZ + box.maxZ) / 2 },
+  };
+}
+
 if (typeof window !== 'undefined') {
   window.view = view;
+  window.camera3DFitOf = camera3DFitOf;
   window.PLANNER_ZOOM_MIN = PLANNER_ZOOM_MIN;
   window.PLANNER_ZOOM_MAX = PLANNER_ZOOM_MAX;
   window.PLANNER_GRID_MM = PLANNER_GRID_MM;
@@ -119,6 +135,6 @@ if (typeof module !== 'undefined' && module.exports) {
     view,
     PLANNER_ZOOM_MIN, PLANNER_ZOOM_MAX, PLANNER_GRID_MM,
     toScene, toScreen, screenToSceneLen,
-    clampZoom, zoomAtPoint, gridBackground, viewTransform, fitViewTo,
+    clampZoom, zoomAtPoint, gridBackground, viewTransform, fitViewTo, camera3DFitOf,
   };
 }

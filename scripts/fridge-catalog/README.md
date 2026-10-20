@@ -39,6 +39,7 @@ python -I to_sql.py fridges.json > import-fridges.sql  # Supabase SQL 편집기�
 수집기는 대표 사진 **원본 주소**만 `image_source_url` 로 내보낸다 (크기가 같아 한 행으로 묶인 색상 변형은 첫 변형의 1장).
 우리 Storage 로 복사하는 것은 관리자 → 가전 모델 관리의 「사진 가져오기」 (워커 `POST /api/admin/appliance-image`).
 가져온 사진(`image_path`)이 있는 모델만 연출컷 생성 때 그 냉장고의 참고 사진으로 쓴다.
+**검증된 모델만** (사장님 결정 2026-10-20): `verified = true` 인 모델만 가져올 수 있고, 미검증 모델은 구매처에 설치 도면 가이드를 요청해 치수를 검증한 뒤에야 가져온다 — 워커가 `409 model_unverified` 로 거절하고 관리 화면은 버튼 대신 안내를 보인다. 허용 호스트도 검증된 브랜드(삼성 · LG · 위니아 · 리페르 · 데이코 · 스메그 수입사 j-collection)만, 가게나우 · 하이얼 · 마이디어 · 쿠쿠 호스트는 없다.
 DB 칸 · 버킷은 `database/appliance-models-images.sql` — import SQL 보다 먼저 실행한다.
 **제조사 사진 사용 약관 확인은 사장님 몫이다.**
 
