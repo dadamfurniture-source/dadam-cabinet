@@ -280,7 +280,7 @@ function fakeState() {
   };
 }
 
-async function runPlannerJob({ flag, existing = null }) {
+async function runPlannerJob({ flag, existing = null, design = spec(), extraEnv = {} }) {
   const { GenerateJob } = await import('../src/job.js');
   const v = virtualRoom();
   // 선 찾기 바탕은 긴 변 1024 로 줄인 그림 (1600 → 1024) — 답도 그 픽셀로
@@ -364,6 +364,7 @@ async function runPlannerJob({ flag, existing = null }) {
     const job = new GenerateJob(fakeState(), {
       ...ENV,
       ...(flag ? { PLANNER_PLACE_GUIDE: flag } : {}),
+      ...extraEnv,
     });
     await job.fetch(
       new Request('https://generate-job/start', {
@@ -378,7 +379,7 @@ async function runPlannerJob({ flag, existing = null }) {
             variants: false,
             image_provider: 'gemini',
             aspect: '4:3',
-            design_spec: spec(),
+            design_spec: design,
           },
           inputs: {
             room: { path: `${USER_ID}/${ROW_ID}/room.jpg`, url: 'u', mime: 'image/jpeg' },
@@ -422,4 +423,233 @@ test('잡: 스위치가 꺼져 있거나 기존 가구가 있으면 예전 그�
     assert.equal(seen.install.mimes[0], 'image/jpeg', JSON.stringify(o));
     assert.doesNotMatch(seen.install.prompt, /already painted in/);
   }
+});
+
+// ─── ㄱ자·ㄷ자 (2026-10-20, 스위치 PLANNER_PLACE_CORNERS) ───
+
+/** ㄱ자 — 주벽 하부 2400 (왼쪽 모서리까지), 왼쪽 벽 하부 1200 (주벽 하부 앞에서, fromCornerMm 600) */
+const cornerSpec = ({ side = 'left', corner = 'main', retWidth = 1200 } = {}) => {
+  const s = spec({ wallRunMm: 2400, layout: { shape: 'corner', walls: 2 } });
+  s.sections.lower.widthMm = 2400;
+  s.sections.lower.modules = [{ widthMm: 1200 }, { widthMm: 1200 }];
+  s.walls = [
+    {
+      side,
+      corner,
+      runMm: 600 + retWidth,
+      cornerEdge: 'right',
+      sections: {
+        lower: {
+          widthMm: retWidth,
+          heightMm: 870,
+          depthMm: 600,
+          fromCornerMm: 600,
+          fromFloorMm: 0,
+          modules: [{ widthMm: retWidth / 2 }, { widthMm: retWidth / 2 }],
+        },
+      },
+    },
+  ];
+  return s;
+};
+
+test('ㄱ자 덩어리: 스위치 없이는 예전처럼 칠하지 않고, 켜면 꺾인 줄을 모서리에서 잰다', () => {
+  assert.equal(plannerPlaceBlocks(cornerSpec()), null);
+  const p = plannerPlaceBlocks(cornerSpec(), { corners: true });
+  assert.equal(p.anchor, 'left');
+  assert.equal(p.runMm, 2400);
+  assert.deepEqual(
+    p.returns.map((b) => [b.wall, b.key, b.x0, b.x1, b.depth, b.cuts]),
+    [['left', 'lower', 600, 1800, 600, [1200]]]
+  );
+  // 일자 도면은 스위치와 상관없이 그대로
+  assert.deepEqual(plannerPlaceBlocks(spec(), { corners: true }), plannerPlaceBlocks(spec()));
+});
+
+test('ㄱ자 덩어리: 주벽 줄이 붙는 끝을 모르면 칠하지 않는다 — 오른쪽 꺾임 return·open, 펴진 ㄱ자, 일자인데 walls[]', () => {
+  assert.equal(
+    plannerPlaceBlocks(cornerSpec({ side: 'right', corner: 'return' }), { corners: true }),
+    null
+  );
+  assert.equal(
+    plannerPlaceBlocks(cornerSpec({ side: 'right', corner: 'open' }), { corners: true }),
+    null
+  );
+  const r = plannerPlaceBlocks(cornerSpec({ side: 'right', corner: 'main' }), { corners: true });
+  assert.equal(r.anchor, 'right');
+  assert.equal(r.rightMm, 2400, '주벽 바닥 줄 오른끝 = 오른쪽 벽 면');
+  // walls[] 없이 펴서 온 ㄱ자는 접는 자리를 모른다
+  assert.equal(
+    plannerPlaceBlocks(spec({ layout: { shape: 'corner', walls: 2 } }), { corners: true }),
+    null
+  );
+  const contra = cornerSpec();
+  contra.layout = { shape: 'straight' };
+  assert.equal(plannerPlaceBlocks(contra, { corners: true }), null);
+});
+
+/** 가상 방의 참 초점거리 (f 1000 px, 대각선 2000 px → 35mm 환산). 꺾인 줄은 깊이 방향이라 초점거리가 틀리면 끝이 샌다 */
+const TRUE_FOCAL = (1000 / 2000) * 43.27;
+
+const solved = (json = virtualRoom().json) => {
+  const v = virtualRoom();
+  return solveKitchenCamera(parseKitchenPoints(json, v.size), v.size.width, v.size.height, {
+    wallH: 2400,
+    focalMm: TRUE_FOCAL,
+  });
+};
+
+test('가상 방 ㄱ자: 꺾인 줄은 왼쪽 벽에 붙어 깊이만큼 나오고 모서리에서 도면 길이만큼 간다', () => {
+  const v = virtualRoom();
+  const cam = solved();
+  assert.ok(cam.leftWall && cam.rightWall);
+  const faces = plannerPlaceFaces(cam, plannerPlaceBlocks(cornerSpec(), { corners: true }));
+  const front = faces.find((f) => f.kind === 'front' && f.normal[0] === 1);
+  assert.ok(front, '꺾인 줄 앞면이 보인다');
+  const xs = front.pts.map((p) => p[0]);
+  const zs = front.pts.map((p) => p[2]);
+  assert.ok(
+    xs.every((x) => Math.abs(x - (cam.xL + 600)) < 1e-6),
+    '앞면 = 왼쪽 벽 면 + 깊이 600'
+  );
+  assert.deepEqual([Math.min(...zs), Math.max(...zs)], [600, 1800]);
+  // 방 쪽 끝 윗 모서리가 참 카메라의 (L+600, 870, 1800) 과 몇 px 안
+  const p = cam.project(cam.xL + 600, 870, 1800);
+  const q = v.proj(v.L + 600, 870, 1800);
+  assert.ok(Math.hypot(p.x - q[0], p.y - q[1]) < 15, `${p.x},${p.y} vs ${q}`);
+  // 주벽 줄은 일자와 똑같이 왼쪽 모서리에서 2400
+  const main = faces.find((f) => f.kind === 'front' && f.normal[2] === 1 && f.pts[0][1] === 870);
+  const mx = main.pts.map((pt) => pt[0]);
+  assert.ok(
+    Math.abs(Math.min(...mx) - cam.xL) < 1e-6 && Math.abs(Math.max(...mx) - (cam.xL + 2400)) < 1e-6
+  );
+  // 꺾인 줄 경계(1200)는 앞면 위 얇은 띠
+  const gap = faces.find((f) => f.kind === 'gap' && f.normal[0] === 1);
+  assert.deepEqual(
+    [Math.min(...gap.pts.map((pt) => pt[2])), Math.max(...gap.pts.map((pt) => pt[2]))],
+    [1197, 1203]
+  );
+});
+
+test('가상 방 ㄱ자 오른쪽: 주벽 줄 오른끝이 오른쪽 벽 면, 꺾인 줄은 오른쪽 벽에서 나온다', () => {
+  const cam = solved();
+  const faces = plannerPlaceFaces(
+    cam,
+    plannerPlaceBlocks(cornerSpec({ side: 'right', corner: 'main' }), { corners: true })
+  );
+  const main = faces.find((f) => f.kind === 'front' && f.normal[2] === 1 && f.pts[0][1] === 870);
+  const mx = main.pts.map((pt) => pt[0]);
+  assert.ok(
+    Math.abs(Math.max(...mx) - cam.xR) < 1e-6 && Math.abs(Math.min(...mx) - (cam.xR - 2400)) < 1e-6
+  );
+  const ret = faces.find((f) => f.kind === 'front' && f.normal[0] === -1);
+  assert.ok(ret.pts.every((pt) => Math.abs(pt[0] - (cam.xR - 600)) < 1e-6));
+});
+
+test('가상 방 ㄱ자: 사진에 그 옆벽이 안 보이면 칠하지 않는다', () => {
+  const j = virtualRoom().json;
+  const cam = solved({ ...j, left_end: { ...j.left_end, side_wall: false } });
+  assert.ok(cam && !cam.leftWall);
+  assert.deepEqual(plannerPlaceFaces(cam, plannerPlaceBlocks(cornerSpec(), { corners: true })), []);
+  // 일자는 예전 그대로 칠한다
+  assert.ok(plannerPlaceFaces(cam, plannerPlaceBlocks(spec())).length);
+});
+
+test('가상 방 ㄱ자: 카메라 쪽으로 사진 밖까지 가는 꺾인 줄은 사진 끝에서 자르고, 잘린 끝엔 끝면이 없다', async () => {
+  const v = virtualRoom();
+  const cam = solved();
+  const place = plannerPlaceBlocks(cornerSpec({ retWidth: 3800 }), { corners: true });
+  const faces = plannerPlaceFaces(cam, place);
+  const front = faces.find((f) => f.kind === 'front' && f.normal[0] === 1);
+  const zMax = Math.max(...front.pts.map((p) => p[2]));
+  assert.ok(zMax > 1800 && zMax < 4400, `잘린 끝 ${zMax}`);
+  assert.ok(!faces.some((f) => f.kind === 'end' && f.normal[2] === 1 && f.pts[0][2] === zMax));
+  const r = await renderFacesMassing(
+    solid(1600, 1200, [128, 128, 128]),
+    parseKitchenPoints(v.json, v.size),
+    { wallH: 2400, focalMm: TRUE_FOCAL },
+    (c) => plannerPlaceFaces(c, place),
+    ['front']
+  );
+  assert.ok(r, '투영 검사를 통과해 그려진다');
+});
+
+test('칠하기 ㄱ자: 꺾인 줄 앞면은 밝은 판, 그 위 옆벽과 앞 바닥은 사진 그대로', async () => {
+  const v = virtualRoom();
+  const place = plannerPlaceBlocks(cornerSpec(), { corners: true });
+  const r = await renderFacesMassing(
+    solid(1600, 1200, [128, 128, 128]),
+    parseKitchenPoints(v.json, v.size),
+    { wallH: 2400, focalMm: TRUE_FOCAL },
+    (cam) => plannerPlaceFaces(cam, place),
+    ['front']
+  );
+  const px = pngPixels(r.base64, 1600);
+  const at = (X, h, z) => {
+    const q = v.proj(X, h, z).map(Math.round);
+    assert.ok(q[0] >= 0 && q[0] < 1600 && q[1] >= 0 && q[1] < 1200, `사진 안 ${q}`);
+    return px(q[0], q[1]);
+  };
+  assert.ok(
+    at(v.L + 600, 450, 1300).every((c) => c > 190),
+    '꺾인 줄 앞면'
+  );
+  assert.ok(
+    at(v.L, 1200, 700).every((c) => Math.abs(c - 128) < 8),
+    '꺾인 줄 위 옆벽'
+  );
+  assert.ok(
+    at(v.L + 900, 0, 1300).every((c) => Math.abs(c - 128) < 8),
+    '꺾인 줄 앞 바닥'
+  );
+});
+
+test('프롬프트: 꺾인 벽이 있으면 덩어리를 "제 벽의 입면" 대로 그리라고 말한다', () => {
+  const c = {
+    category: 'sink',
+    wallW: 3600,
+    wallH: 2400,
+    confidence: 0.8,
+    aspect: '16:9',
+    placeGuide: true,
+  };
+  assert.match(
+    buildPlannerPrompt({ ...c, designSpec: cornerSpec() }),
+    /as the real units its wall's elevation shows/
+  );
+  assert.match(buildPlannerPrompt({ ...c, designSpec: spec() }), /as the real units IMAGE B shows/);
+});
+
+test('잡 ㄱ자: PLANNER_PLACE_CORNERS 를 켜야 칠하고, 꺼져 있으면 예전 그대로', async () => {
+  const on = await runPlannerJob({
+    flag: 'on',
+    design: cornerSpec(),
+    extraEnv: { PLANNER_PLACE_CORNERS: 'on' },
+  });
+  assert.equal(on.lines, 1);
+  assert.ok(on.uploads.some((p) => p.endsWith('/place.png')));
+  assert.equal(on.install.mimes[0], 'image/png');
+  for (const extraEnv of [{}, { PLANNER_PLACE_CORNERS: 'off' }]) {
+    const off = await runPlannerJob({ flag: 'on', design: cornerSpec(), extraEnv });
+    assert.equal(off.lines, 0, JSON.stringify(extraEnv));
+    assert.equal(off.install.mimes[0], 'image/jpeg');
+  }
+});
+
+test('가상 방 ㄷ자: 꺾인 줄이 양쪽 옆벽에 하나씩, 주벽 줄은 왼쪽 모서리에서', () => {
+  const s = cornerSpec();
+  s.layout = { shape: 'u', walls: 3 };
+  s.walls.push({ ...cornerSpec({ side: 'right' }).walls[0], side: 'right' });
+  const p = plannerPlaceBlocks(s, { corners: true });
+  assert.equal(p.anchor, 'left');
+  assert.deepEqual(
+    p.returns.map((b) => b.wall),
+    ['left', 'right']
+  );
+  const cam = solved();
+  const fronts = plannerPlaceFaces(cam, p).filter((f) => f.kind === 'front');
+  const l = fronts.find((f) => f.normal[0] === 1);
+  const r = fronts.find((f) => f.normal[0] === -1);
+  assert.ok(l.pts.every((pt) => Math.abs(pt[0] - (cam.xL + 600)) < 1e-6));
+  assert.ok(r.pts.every((pt) => Math.abs(pt[0] - (cam.xR - 600)) < 1e-6));
 });

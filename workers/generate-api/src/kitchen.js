@@ -174,6 +174,9 @@ export function solveKitchenCamera(g, W, H, o = {}) {
     f, cx, cy, r1, r2, r3, hf, D, xL, xR, wallH,
     leftOpen: !(g.leftEnd && g.leftEnd.sideWall) && !!g.leftEnd,
     rightOpen: !(g.rightEnd && g.rightEnd.sideWall) && !!g.rightEnd,
+    // 2026-10-20: 그 끝에서 옆벽이 방 쪽으로 이어진다 (planner-place.js ㄱ자·ㄷ자 — 꺾인 줄이 붙을 벽)
+    leftWall: !!(g.leftEnd && g.leftEnd.sideWall),
+    rightWall: !!(g.rightEnd && g.rightEnd.sideWall),
     project, camOf,
   };
 }

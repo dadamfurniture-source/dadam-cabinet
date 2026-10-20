@@ -34,6 +34,10 @@ PLANNER_IMAGE_PROVIDER = "openai"
 # 도면 줄(폭·높이·깊이)을 방 사진에 칠한 그림을 IMAGE A 로 준다 — 줄을 늘리는 실패를 자리로 막는다. 시크릿 ANTHROPIC_API_KEY 필요.
 # 2026-10-20 사장님 카드 "켜는 PR" 로 켰다. 되돌리려면 "off".
 PLANNER_PLACE_GUIDE = "on"
+# 같은 도면 덩어리를 ㄱ자·ㄷ자(꺾인 벽 walls[])에도 (2026-10-20). PLANNER_PLACE_GUIDE 가 'on' 일 때만 뜻이 있다.
+# 꺾인 줄은 제 옆벽에 붙여 모서리에서 방 쪽으로 칠하고, 사진에 그 옆벽이 안 보이거나 주벽 줄이 붙는 끝을 모르면 칠하지 않는다.
+# 기본 꺼짐 — 켜려면 "on".
+PLANNER_PLACE_CORNERS = "off"
 OPENAI_IMAGE_MODEL = "gpt-image-2.5-sunburst"
 OPENAI_IMAGE_QUALITY = "high"
 
