@@ -7,6 +7,7 @@ import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { inflateSync } from 'node:zlib';
 import encodeJpeg from 'jpeg-js/lib/encoder.js';
+import decodeJpeg from 'jpeg-js/lib/decoder.js';
 import { buildGuidePointsPrompt, computeGuide, encodePng, parseGuidePoints, renderGuideImage } from '../src/guide.js';
 import { buildInstallPrompt, buildQcPrompt } from '../src/prompts.js';
 import { GenerateJob } from '../src/job.js';
@@ -325,15 +326,11 @@ test('되붙이기: 장 앞면 영역 안은 추천안, 멀리 밖은 기본안 
   const variant = solid(300, 400, [40, 160, 60]);
   const pts = parseGuidePoints(JSON.stringify(REAL), 'right');
   const r = await pasteVariantInside(base, variant, pts);
-  const png = Buffer.from(r.base64, 'base64');
-  const chunks = [];
-  for (let o = 8; o < png.length; ) {
-    const len = png.readUInt32BE(o);
-    if (png.toString('ascii', o + 4, o + 8) === 'IDAT') chunks.push(png.subarray(o + 8, o + 8 + len));
-    o += 12 + len;
-  }
-  const raw = inflateSync(Buffer.concat(chunks));
-  const px = (x, y) => { const o = y * (300 * 3 + 1) + 1 + x * 3; return [raw[o], raw[o + 1], raw[o + 2]]; };
+  // 2026-10-20: 결과는 JPEG 다 (PNG 1.6~2.3MB → 휴대폰에서 늦게 떴다)
+  assert.equal(r.mimeType, 'image/jpeg');
+  const dec = decodeJpeg(Buffer.from(r.base64, 'base64'), { useTArray: true, formatAsRGBA: true });
+  assert.equal(dec.width, 300);
+  const px = (x, y) => { const o = (y * 300 + x) * 4; return [dec.data[o], dec.data[o + 1], dec.data[o + 2]]; };
   const g = computeGuide(pts, 300, 400).front;
   const inside = px(Math.round((g.ob.x + g.rb.x) / 2), Math.round((g.ot.y + g.ob.y) / 2));
   assert.ok(inside[1] > 140 && inside[0] < 70, `안 ${inside}`);
@@ -343,4 +340,67 @@ test('되붙이기: 장 앞면 영역 안은 추천안, 멀리 밖은 기본안 
   }
   assert.equal(await pasteVariantInside(base, solid(200, 400, [0, 0, 0]), pts), null);
   assert.equal(await pasteVariantInside({ ...base, mimeType: 'image/png' }, variant, pts), null);
+});
+
+// ─── 튀어나온 옆벽 다시 보기 (2026-10-20) — 분석이 놓치면 Haiku 에게 한 번 더 ───
+
+/** 옆벽 확인 질문과 선 찾기 질문을 나눠 답한다 */
+const claudeBy = (check, points) => (body) => {
+  const text = body.messages[0].content.at(-1).text;
+  return claudeOk(text.startsWith('This photo shows a room.') ? check : points)();
+};
+
+test('옆벽 확인: 분석이 놓쳤어도 Haiku 가 확실(high)하다면 받아 덩어리 합성까지 간다', async () => {
+  const seen = await runJob({
+    sideReturn: null,
+    env: { ANTHROPIC_API_KEY: 'sk-ant-test' },
+    anthropic: claudeBy({ side: 'right', confidence: 'high', note: 'grey column at right end' }, toPixels(REAL, 120, 160)),
+  });
+  assert.equal(seen.claude.length, 2, '옆벽 확인 + 선 찾기');
+  assert.match(seen.claude[0].messages[0].content.at(-1).text, /^This photo shows a room\./);
+  assert.equal(seen.claude[0].model, 'claude-haiku-5-5');
+  assert.equal(seen.claude[0].fallbacks, undefined);
+  const wa = seen.patched.find((p) => p.wall_analysis && p.wall_analysis.sideReturn);
+  assert.deepEqual(wa.wall_analysis.sideReturn, { side: 'right', depthMm: null, by: 'claude-haiku-5-5' });
+  assert.ok(seen.uploads.some((p) => p.endsWith('/massing.png')));
+  assert.deepEqual(seen.install.mimes, ['image/png'], '덩어리 합성본이 편집 대상');
+  assert.match(seen.install.prompt, /flush with the front face of the protruding wall/);
+});
+
+test('옆벽 확인: 확실하지 않거나(medium) none 이면 받지 않는다 — 예전처럼 글로 그린다', async () => {
+  for (const check of [{ side: 'right', confidence: 'medium', note: 'maybe' }, { side: 'none', confidence: 'high', note: 'flat' }]) {
+    const seen = await runJob({ sideReturn: null, env: { ANTHROPIC_API_KEY: 'sk-ant-test' }, anthropic: claudeBy(check, toPixels(REAL, 120, 160)) });
+    assert.equal(seen.claude.length, 1, '옆벽 확인만 묻고 선은 찾지 않는다');
+    assert.ok(!seen.uploads.some((p) => p.endsWith('/massing.png')));
+    assert.deepEqual(seen.install.mimes, ['image/jpeg']);
+  }
+});
+
+test('옆벽 확인: 분석이 이미 잡았거나, 벽 끝까지 채우는 장이 아니거나, 키가 없으면 묻지 않는다', async () => {
+  let seen = await runJob({ env: { ANTHROPIC_API_KEY: 'sk-ant-test' }, anthropic: claudeBy({ side: 'left', confidence: 'high', note: '' }, toPixels(REAL, 120, 160)) });
+  assert.ok(!seen.claude.some((b) => b.messages[0].content.at(-1).text.startsWith('This photo shows a room.')), '분석이 잡았으면 묻지 않는다');
+  seen = await runJob({ category: 'sink', sideReturn: null, env: { ANTHROPIC_API_KEY: 'sk-ant-test', GUIDE_MODE: 'outline' }, anthropic: claudeBy({ side: 'right', confidence: 'high', note: '' }, {}) });
+  assert.ok(!seen.claude.some((b) => b.messages[0].content.at(-1).text.startsWith('This photo shows a room.')), '싱크대는 묻지 않는다');
+  seen = await runJob({ sideReturn: null });
+  assert.equal(seen.claude.length, 0, '키가 없으면 묻지 않는다');
+});
+
+test('JPEG 인코딩: 워커처럼 전역 Buffer 가 없어도 되고, 끝나면 전역을 그대로 둔다 (2026-10-20)', async () => {
+  const { encodeJpeg: enc } = await import('../src/guide.js');
+  const w = 64, h = 48;
+  const data = new Uint8Array(w * h * 4).map((_, i) => (i % 4 === 3 ? 255 : (i * 7) % 256));
+  const saved = globalThis.Buffer;
+  delete globalThis.Buffer;
+  let bytes;
+  try {
+    bytes = enc({ width: w, height: h, data });
+    assert.equal(typeof globalThis.Buffer, 'undefined', '빌려 쓴 Buffer 를 치운다');
+  } finally {
+    globalThis.Buffer = saved;
+  }
+  assert.ok(bytes instanceof Uint8Array);
+  assert.deepEqual([bytes[0], bytes[1], bytes.at(-2), bytes.at(-1)], [0xff, 0xd8, 0xff, 0xd9], 'SOI … EOI');
+  const back = decodeJpeg(Buffer.from(bytes), { useTArray: true });
+  assert.equal(back.width, w);
+  assert.equal(back.height, h);
 });

@@ -67,7 +67,7 @@ import {
 import { callClaudeJson, claudeModel } from './claude.js';
 import { VERIFY_VERSION, compareLayoutToSpec } from './verify.js';
 import { FURNITURE_MASK_SCHEMA, buildFurnitureMaskPrompt, parseFurnitureMask } from './furniture-mask.js';
-import { GUIDE_POINTS_SCHEMA, buildGuidePointsPrompt, drawGuide, parseGuidePoints, pasteVariantInPolys, pasteVariantInside, prepareGuideCanvas, renderMassingImage } from './guide.js';
+import { GUIDE_POINTS_SCHEMA, SIDE_RETURN_CHECK_SCHEMA, buildGuidePointsPrompt, buildSideReturnCheckPrompt, parseSideReturnCheck, drawGuide, parseGuidePoints, pasteVariantInPolys, pasteVariantInside, prepareGuideCanvas, renderMassingImage } from './guide.js';
 import { KITCHEN_POINTS_SCHEMA, buildKitchenPointsPrompt, parseKitchenPoints, renderFacesMassing, renderKitchenMassing } from './kitchen.js';
 import { plannerPlaceBlocks, plannerPlaceFaces } from './planner-place.js';
 import { loadFridgeModelPhoto } from './appliance-image.js';
@@ -459,6 +459,34 @@ async function runPipeline(env, job, ck, save) {
       await askPlumbing(env, job, wall, room);
     }
     applyManualPlumbing(wall, opts);   // 사람이 넣은 값은 둘 다 이긴다
+    // 튀어나온 옆벽 다시 보기 (2026-10-20) — 벽 끝까지 채우는 장(붙박이장·수납장)에서 분석이 못 잡았을 때만.
+    //   같은 사진 6번 중 3번 놓쳤다. Haiku 가 확실하다고 할 때만 받는다 (guide.js parseSideReturnCheck).
+    if (
+      !planner && env.GUIDE_LINES !== 'off' && env.ANTHROPIC_API_KEY &&
+      CATEGORIES[category] && CATEGORIES[category].wallToWallMm && !wall.sideReturn
+    ) {
+      const t0 = Date.now();
+      let why = 'none';
+      try {
+        const canvas = await prepareGuideCanvas(room);
+        if (canvas) {
+          const { json, model } = await callClaudeJson(env, {
+            prompt: buildSideReturnCheckPrompt(),
+            image: canvas.png,
+            schema: SIDE_RETURN_CHECK_SCHEMA,
+            model: env.GUIDE_MODEL || 'claude-haiku-5-5',
+            fallbacks: false, // Haiku 5.5 는 서버 거절 대체를 받지 않는다
+            maxTokens: 2000,
+          });
+          const side = parseSideReturnCheck(json);
+          if (side) wall.sideReturn = { side, depthMm: null, by: model };
+          why = `${json.side}/${json.confidence}${side ? ' → used' : ''}`;
+        }
+      } catch (e) {
+        why = `failed: ${e.message}`;
+      }
+      console.log(`[Job ${job.id}] side return check: ${why} ${Date.now() - t0}ms`);
+    }
     ck.wall = wall;
     await save({ wall });
     await updateById(env, 'generations', job.id, { wall_analysis: wall });
@@ -609,7 +637,10 @@ async function runPipeline(env, job, ck, save) {
   //   도면의 실제 줄을 칠한 사진을 IMAGE A 로 준다 (planner-place.js). 기본은 꺼짐: PLANNER_PLACE_GUIDE='on' 일 때만.
   //   기존 가구가 없는 사진 · 일자(꺾인 벽 없음) · Claude 키가 있을 때만. 어느 단계든 실패하면 방 사진 그대로.
   let placeImg = null;
-  const placeBlocks = planner ? plannerPlaceBlocks(opts.design_spec) : null;
+  //   2026-10-20: ㄱ자·ㄷ자(꺾인 벽 walls[])는 따로 PLANNER_PLACE_CORNERS='on' 일 때만 (기본 꺼짐)
+  const placeBlocks = planner
+    ? plannerPlaceBlocks(opts.design_spec, { corners: env.PLANNER_PLACE_CORNERS === 'on' })
+    : null;
   const wantPlace =
     planner && env.PLANNER_PLACE_GUIDE === 'on' && !!placeBlocks && !wall.existing && !!env.ANTHROPIC_API_KEY;
   if (wantPlace && ck.place === undefined) {
