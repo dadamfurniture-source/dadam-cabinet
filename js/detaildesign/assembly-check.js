@@ -354,12 +354,14 @@
     });
 
     // 뒷판 덮개 · 접촉 — 뒷판 자리(mount)는 명세가 정했다
-    const sides = parts.filter((p) => p.tags && (p.tags.side === 'left' || p.tags.side === 'right'));
+    // 몸통 측판·뒷판만 (서랍 박스 판은 tags.box 가 있다 — 박스 우라도 mount 'groove' 지만 몸통 뒷판이 아니다)
+    const shell = (p) => p.tags && p.tags.box == null;
+    const sides = parts.filter((p) => shell(p) && (p.tags.side === 'left' || p.tags.side === 'right'));
     if (sides.length === 2) {
       const inner = { lo: Math.max(...sides.filter((s) => s.tags.side === 'left').map((s) => s.box.max[0])),
         hi: Math.min(...sides.filter((s) => s.tags.side === 'right').map((s) => s.box.min[0])) };
       const sideBack = Math.max(...sides.map((s) => s.box.min[2]));
-      parts.filter((p) => p.tags && (p.tags.mount === 'groove' || p.tags.mount === 'behind-sides')).forEach((p) => {
+      parts.filter((p) => shell(p) && (p.tags.mount === 'groove' || p.tags.mount === 'behind-sides')).forEach((p) => {
         if (!(p.box.min[0] < inner.lo - EPS && p.box.max[0] > inner.hi + EPS)) {
           issues.push({
             level: 'error',

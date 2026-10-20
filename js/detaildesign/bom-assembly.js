@@ -28,7 +28,8 @@
  *   뒷판     사쿠리면 홈 속 (뒤끝에서 15~18), 아니면 측판 뒤끝에 덮어 붙임 (측판 깊이 밖 3T). 높이 H − 1 은 가운데
  *   처짐방지목 모듈 폭 가운데, 측판 앞선에 맞대어 도어 바로 뒤, 지판 위에서 시작
  *   도어     측판 앞선에 붙어 밖으로. 가로·세로는 플래너 addFrontPanel 과 같은 칸 규칙 (doorXsOf · doorYOf)
- *   서랍장   전면(도어·서랍도어) · 중간 목찬넬 ㄴ자 · 측판 중간 따내기 — 서랍 레이아웃 (drawerLayoutOf, 플래너 frontSpanOf · addMidChannels)
+ *   서랍장   전면(도어·서랍도어) · 중간 목찬넬 ㄴ자 · 측판 중간 따내기 — 서랍 레이아웃 (drawerOf, 플래너 frontSpanOf · addMidChannels)
+ *            서랍 박스 판 — 플래너 addDrawerBoxes 외경 + 사장님 2026-10-20 짜임 (drawerBoxesOf)
  *   선반     측판 사이. 깊이가 "측판 깊이 − T (처짐방지목 몫)" 이라 처짐방지목 **뒤**에 놓인다 — 뒤로 붙인다
  *            (사쿠리면 홈 앞, 아니면 측판 뒤끝). 높이는 부르는 쪽이 넘긴 선반 중심 높이(opts.shelfY)를 쓴다
  *
@@ -139,10 +140,32 @@
    * 서랍장 레이아웃 — BOM 과 같은 답 (MaterialExtractor.drawerLayoutOf, 규칙은 bom-drawer-rules.js).
    * 플래너 iframe 은 추출기가 부모 창에 있으므로 opts.MaterialExtractor 로 받는다. 없으면 null (서랍장 전면은 놓지 않는다).
    */
-  function drawerLayoutOf(mod, H, T, opts) {
+  function drawerOf(mod, H, T, opts) {
     const ME = (opts && opts.MaterialExtractor) || root.MaterialExtractor
       || (typeof require === 'function' ? require('./extractors.js').MaterialExtractor : null);
-    return ME ? new ME().drawerLayoutOf(mod, H, T) : null;
+    if (!ME) return { layout: null, rules: null };
+    const me = new ME();
+    return {
+      layout: me.drawerLayoutOf(mod, H, T),
+      rules: typeof me.drawerRulesOf === 'function' ? me.drawerRulesOf(mod, T) : null,
+    };
+  }
+
+  /**
+   * 서랍 박스 판 — 박스 외경은 플래너 addDrawerBoxes 와 같은 자리 (가로 가운데, 앞면 = 몸통 앞선, 바닥 = 존 바닥 + 레일 아래 여유).
+   * 판 짜임 (2026-10-20 사장님 "박스 아래 덮음"): 측판이 외경 양 끝에 박스 길이 전체, 앞뒷판은 측판 사이 앞·뒤 끝,
+   * 밑판(우라)은 측판·앞뒷판 밑면에 덮어 붙이고 (외경 −1 × 측판 −1, 가운데), 하단보강은 밑판 아래 폭 가운데에 앞뒤로 눕힌다.
+   * @returns {Array<{dims, x0, y0, z0, zf}>|null} 레이아웃 박스 순서 (서랍 전면 위→아래)
+   */
+  function drawerBoxesOf(layout, rules, W, D, H, T) {
+    if (!layout || !rules) return null;
+    const rail = DR.RAIL_CLEARANCE[layout.rail] || DR.RAIL_CLEARANCE[DR.RAIL_DEFAULT];
+    return layout.boxes.map((b) => {
+      const f = layout.fronts[b.frontIndex];
+      const dims = DrawerRules.drawerBoxDims({ W, D, bodyT: T, drawerT: rules.boxT, rail: layout.rail, boxH: b.h, sakuri: rules.sakuri });
+      const zf = D / 2;
+      return { size: b.size, dims, x0: -dims.outerW / 2, y0: H - f.zone.bottom + rail.below, zf, z0: zf - dims.sideL };
+    });
   }
 
   /**
@@ -190,7 +213,9 @@
     const panelZ0 = sakuri ? zBack + C.SAKURI_PANEL_D_MINUS : zBack;   // 천지판 뒤끝 (앞선 맞춤)
     const shelfZ0 = sakuri ? zBack + C.SAKURI_PANEL_D_MINUS : zBack;   // 선반은 뒤로 붙인다
     const parts = [], unplaced = [], pending = [];
-    const layout = mod.isDrawer ? drawerLayoutOf(mod, H, T, opts) : null;
+    const drawer = mod.isDrawer ? drawerOf(mod, H, T, opts) : { layout: null, rules: null };
+    const layout = drawer.layout;
+    const boxes = drawerBoxesOf(layout, drawer.rules, W, D, H, T);
     const frontsOf = (kind) => (layout ? layout.fronts.filter((f) => f.kind === kind && f.h >= DR.MIN_FRONT_H) : []);
     const skip = (row, reason) => unplaced.push({ rowPartId: row.partId, moduleKey: mk, part: row.part, qty: row.qty, reason });
 
@@ -279,6 +304,54 @@
             parts.push(makePart(row, k, face
               ? { o: [-W / 2, yb + row.thickness, z0], u: '+y', v: '+x', n: '+z' }
               : { o: [-W / 2, yb, z0], u: '+z', v: '+x', n: '+y' }, [], 'exterior', { channel: 'mid', mid: k }));
+          });
+          return;
+        }
+        case 'drawerbox:fb':
+        case 'drawerbox:side':
+        case 'drawerbox:bottom':
+        case 'drawerbox:brace': {
+          if (!boxes) { skip(row, 'drawer-layout-unknown'); return; }
+          // 사쿠리 서랍 — 우라가 측판 홈(바닥에서 BOX_SAKURI_GROOVE_Y)에 끼고, 앞뒷판은 그 위에 서서 측판 윗단에 맞춘다
+          const sakuri = !!drawer.rules.sakuri;
+          const bottomT = (rows.find((r) => keyOfRow(r) && keyOfRow(r).family === 'drawerbox:bottom') || {}).thickness || 0;
+          // 행 → 박스: 전후판·측판은 같은 크기 묶음(행 번호 = 크기 등장 순), 밑판·하단보강은 박스 전부
+          const sizes = [];
+          boxes.forEach((b) => { if (sizes.indexOf(b.size) < 0) sizes.push(b.size); });
+          const mine = (key.family === 'drawerbox:fb' || key.family === 'drawerbox:side') ? boxes.filter((b) => b.size === sizes[key.n]) : boxes;
+          const per = (key.family === 'drawerbox:fb' || key.family === 'drawerbox:side') ? 2 : 1;
+          const dimOk = mine.length * per === row.qty && mine.every((b) => {
+            const d = b.dims;
+            if (key.family === 'drawerbox:fb') return row.w === d.fbW && row.h === d.fbH;
+            if (key.family === 'drawerbox:side') return row.w === d.sideL && row.h === d.sideH;
+            if (key.family === 'drawerbox:bottom') return row.w === d.bottomW && row.h === d.bottomD;
+            return d.brace && row.w === d.sideL;
+          });
+          if (!dimOk) { skip(row, 'drawer-layout-unknown'); return; }
+          let k = 0;
+          mine.forEach((b) => {
+            const d = b.dims, t = row.thickness;
+            const tag = { box: boxes.indexOf(b) };
+            // 우라 밑면 높이 — 일반은 박스 바닥 바로 아래, 사쿠리는 측판 홈 속
+            const yBottom = sakuri ? b.y0 + DR.BOX_SAKURI_GROOVE_Y : b.y0 - bottomT;
+            if (key.family === 'drawerbox:side') {
+              // 왼 · 오 — 서서 앞뒤로 (u = 뒤→앞). 사쿠리면 안쪽 면에 우라 홈 (깊이 미정)
+              const feats = sakuri ? [{ type: 'groove', face: 'inner', u0: 0, u1: d.sideL, v0: DR.BOX_SAKURI_GROOVE_Y, v1: DR.BOX_SAKURI_GROOVE_Y + bottomT, depth: null, src: 'drawer-sakuri' }] : [];
+              parts.push(makePart(row, k++, { o: [b.x0, b.y0, b.z0], u: '+z', v: '+y', n: '+x' }, feats, 'interior', Object.assign({ side: 'left' }, tag)));
+              parts.push(makePart(row, k++, { o: [-b.x0, b.y0, b.z0], u: '+z', v: '+y', n: '-x' }, feats, 'interior', Object.assign({ side: 'right' }, tag)));
+            } else if (key.family === 'drawerbox:fb') {
+              // 앞 · 뒤 — 측판 사이, 윗단은 측판 윗단 (사쿠리면 측판 − 18 높이라 우라 위에 선다)
+              const yfb = b.y0 + d.sideH - d.fbH;
+              parts.push(makePart(row, k++, { o: [-d.fbW / 2, yfb, b.zf - t], u: '+x', v: '+y', n: '+z' }, [], 'interior', Object.assign({ end: 'front' }, tag)));
+              parts.push(makePart(row, k++, { o: [-d.fbW / 2, yfb, b.z0], u: '+x', v: '+y', n: '+z' }, [], 'interior', Object.assign({ end: 'back' }, tag)));
+            } else if (key.family === 'drawerbox:bottom') {
+              // 가운데. 일반은 밑면에 덮어 붙이고, 사쿠리는 양쪽 측판 홈에 끼운다
+              parts.push(makePart(row, k++, { o: [-row.w / 2, yBottom, (b.z0 + b.zf) / 2 - row.h / 2], u: '+x', v: '+z', n: '+y' }, [], 'interior',
+                Object.assign(sakuri ? { mount: 'groove' } : {}, tag)));
+            } else {
+              // 하단보강 — 밑판 아래 폭 가운데, 앞뒤로 눕힘 (u = 앞뒤 길이, v = 폭 60)
+              parts.push(makePart(row, k++, { o: [-row.h / 2, yBottom - t, b.z0], u: '+z', v: '+x', n: '+y' }, [], 'interior', tag));
+            }
           });
           return;
         }

@@ -38,6 +38,7 @@ BOM 행마다 판재 조각의 **자리**를 붙인다. 재단 치수는 BOM 행
 | 선반 | 처짐방지목 뒤 — 뒤로 붙임 (깊이가 "D − T, 처짐방지목 몫"). 높이는 부르는 쪽이 넘긴 값(`opts.shelfY`, 플래너 `s.shelves`) | 확정 사실 |
 | 도어 (여닫이) | 측판 앞선에 붙어 밖으로 (z = D/2 … D/2+18). 가로: 1장 = W−4 가운데(좌우 2), 2장 = W/2−4 양쪽에 가운데 갭 4. 세로: 상부장은 윗변 = 몸통 상단, 내림만큼 아래로 / 하부장은 밑단 = 몸통 바닥 (장H−30) / 장H−4 면 위아래 2. 그 밖의 장수·폭은 `door-layout-unknown` | 플래너 `addFrontPanel` (3D 장면 대조 시험), `CARCASS.DOOR_GAP` |
 | 서랍장 전면 (도어·서랍도어) | 서랍 레이아웃(`MaterialExtractor.drawerLayoutOf` → `bom-drawer-rules.js`)의 전면 y0..y1 (몸통 상단에서 아래로)을 뒤집어 세로 자리, 서랍도어 가로 W−4 가운데 | 플래너 `frontSpanOf` (3D 장면 대조 시험) |
+| 서랍 박스 판 | 외경은 플래너 `addDrawerBoxes` 자리 (가로 가운데, 앞면 = 몸통 앞선, 바닥 = 존 바닥 + 레일 아래 여유). 측판 양 끝 · 앞뒷판 사이 · 우라 밑면 덮음(사쿠리면 측판 홈 15~18, `mount: groove`) · 하단보강 우라 아래 가운데 앞뒤로 | 사장님 2026-10-20 "박스 아래 덮음" · 홈 "15mm", `drawerBoxDims` (3D 장면 박스 외경 대조 시험) |
 | 서랍장 중간 목찬넬 ㄴ자 | 측판 앞 중간 따내기(90×40) 바닥에 지면판 40, 그 위 따낸 자리 안쪽 끝에 전면판 72 (앞 22 가 손 자리). 모듈 폭 전체. 측판 특징에 중간 따내기 `channel-mid` | 플래너 `addMidChannels` · `notchesOf`, `bom-drawer-rules.js` |
 
 ## `unplaced` 이유
@@ -50,8 +51,8 @@ BOM 행마다 판재 조각의 **자리**를 붙인다. 재단 치수는 BOM 행
 | `blind-pending` | 멍장 (목대·멍가림판) — 다음 단계 |
 | `module-not-yet` | 붙박이장·냉장고장 — 다음 단계 |
 | `door-layout-unknown` | 도어 장수·폭이 플래너 칸 규칙(1장 W−4, 2장 W/2−4)과 다름, 또는 서랍장 도어 높이가 레이아웃 전면과 다름 |
-| `drawer-layout-unknown` | 서랍 전면·중간 목찬넬 행이 서랍 레이아웃과 맞지 않음 (간단 카테고리의 옛 서랍 식 등) 또는 레이아웃을 못 구함 |
-| `not-yet` | 서랍 박스(앞뒤·측·밑판·하단보강) · 상단 목찬넬 등 — PR9 |
+| `drawer-layout-unknown` | 서랍 전면·중간 목찬넬·박스 판 행이 서랍 레이아웃·`drawerBoxDims` 와 맞지 않음 (간단 카테고리의 옛 서랍 식 등) 또는 레이아웃을 못 구함 |
+| `not-yet` | 상단 목찬넬 등 — PR9 |
 | `run-part` | 품목 단위 행 (걸레받이·몰딩·상판·휠라) — PR9 `runs[]` |
 
 `unplaced` 항목은 `{ rowPartId, moduleKey, part, qty, reason }` 이다 (`moduleKey` 는 조립 검사가 모듈별로 묶을 때 쓴다).
@@ -78,6 +79,7 @@ BOM 행마다 판재 조각의 **자리**를 붙인다. 재단 치수는 BOM 행
 | `assembly-unplaced` | warning | 자리 못 정한 행 — 모듈마다 한 줄, 사유별 개수 |
 
 - 이슈 모양: `{ level, code, message, partId, other, moduleKey, volumeMm3, depthMm }`.
+- 뒷판 덮개·접촉은 몸통 판만 본다 (서랍 박스 판은 `tags.box` 가 있다).
 - `bom-preflight.js` 의 `check(materials, hardware, { assembly })` 에 명세를 넘기면 이 이슈가 더해진다. error 는 동결 확인창(결정 D8)으로 간다.
 - 아직 없는 검사: `clearance` (도어·서랍 틈 문턱이 정본에 없음), `dfm-*`.
 - 시험 허용 목록 `test-utils/assembly-allowlist.json` — 사장님 미결 질문만 (지금은 위 18T 선반 겹침). 운영 검사는 그대로 error.
