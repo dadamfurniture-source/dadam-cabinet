@@ -103,17 +103,66 @@ test('FIXED GEOMETRY: 벽마다 — 뒷벽 L1–L4·U1–U3, 왼쪽 벽 L5 (주�
   assert.match(p, /against the reference row of its own wall/);
   // 펴진 한 줄(650 436 936 842 421)이 아니다
   assert.doesNotMatch(p, /L3 {3}936/);
-  assert.doesNotMatch(p, /% of the wall/);
+  // 2026-10-20: 벽 % 는 주벽 기준 줄에만 — 꺾인 벽 줄에는 없다
+  assert.equal(p.split('% of the wall,').length - 1, 1);
+  assert.doesNotMatch(p, /936 mm long — /);
 });
 
 test('빈 구역·자체 점검·편집 구역: 벽 이름으로, 꺾인 벽 위는 상부장 없이 천장까지', () => {
   const p = prompt();
   assert.match(p, /left wall: above the return \(L5\) — no wall units, bare wall up to the ceiling/);
   assert.match(p, /back wall: between the top of the base row \(870 mm\) and the bottom of the wall row \(1520 mm\)/);
-  assert.match(p, /FINAL SELF-CHECK before you answer: back wall base row 4 units, L1 1 \+ L2 1 \+ L3 2 \+ L4 1 = 5 doors, 0 drawers; back wall wall row 3 units, U1 2 \+ U2 2 \+ U3 1 = 5 doors; left wall base row 1 unit, 2 doors, 0 drawers; no wall units on the left wall;/);
+  assert.match(p, /FINAL SELF-CHECK before you answer: back wall base row 4 units, L1 1 \+ L2 1 \+ L3 2 \+ L4 1 = 5 doors, 0 drawers; back wall wall row 3 units, U1 2 \+ U2 2 \+ U3 1 = 5 doors; back wall base row ends at about 80 % of the wall \(2400 mm\); left wall base row 1 unit, 2 doors, 0 drawers; no wall units on the left wall;/);
   assert.match(p, /EDIT ZONE: the back wall and the left wall only/);
   // 도면에 없는 쿡탑·후드는 계속 막는다
   assert.match(p, /add a dishwasher, refrigerator, oven, cooktop or hood that is not listed/);
+});
+
+// 2026-10-20 실측(싱크대 연출컷 mm 측정): ㄱ자 walls[] 에서 벽의 55 % 인 주벽 줄을 84~88 % 까지 늘렸다 — 주벽 줄 길이·남는 벽을
+//   아예 말하지 않았다(oneWall 게이트). 이제 주벽 줄 길이(mm·벽 %)와 꺾인 벽 반대쪽 끝 너머 남는 벽을 말하고 배율 문장을 뺀다.
+test('ㄱ자 주벽 줄 길이: 왼쪽 꺾임 — 줄 길이 mm·%, 오른쪽 남는 벽, 배율 문장 없음, 자체 점검에 끝 %', () => {
+  const p = prompt();
+  assert.ok(p.includes('  BASE ROW (2349 mm long — 78 % of the wall, starts 50 mm from the left end of the run; bottom at 0 mm, top at 870 mm from the floor):'));
+  assert.ok(p.includes(
+    'against the reference row of its own wall. The back-wall run is 2400 mm long — about 80 % of the back wall (about 3000 mm in IMAGE A). ' +
+      'Do not stretch the units to fill the wall; keep the remaining 600 mm (about 20 %) right of the run as bare wall. ' +
+      "Keep each door's proportions as IMAGE B shows — do not widen any door.\n"
+  ));
+  assert.doesNotMatch(p, /Only the overall scale/);
+  assert.match(p, /\n {2}\d+\. back wall: right of the run, floor to ceiling\n/);
+  assert.match(p, /U3 1 = 5 doors; back wall base row ends at about 80 % of the wall \(2400 mm\); left wall base row 1 unit,/);
+  // 꺾인 벽 줄에는 % 가 없다 (옆벽 폭은 모른다)
+  assert.ok(p.includes('  BASE ROW (936 mm long, starts 638 mm out from the back wall;'));
+});
+
+test('ㄱ자 주벽 줄 길이: 오른쪽 꺾임 — 주벽 줄이 모서리까지(main)면 왼쪽 남는 벽, return·open·ㄷ자·벽 모름이면 예전 배율 문장', () => {
+  const raw = cornerRaw();
+  raw.walls[0].side = 'right';
+  raw.walls[0].cornerEdge = 'right';
+  const ctx = (r, extra = {}) => ({ category: 'sink', designSpec: normalizeDesignSpec(r, 'sink'), wallW: 3000, wallH: 2400, confidence: 'high', ...extra });
+  const p = buildPlannerPrompt(ctx(raw));
+  assert.ok(p.includes('keep the remaining 600 mm (about 20 %) left of the run as bare wall.'));
+  assert.match(p, /\d+\. back wall: left of the run, floor to ceiling\n/);
+  assert.match(p, /; back wall base row ends at about 80 % of the wall \(2400 mm\) counted from the right corner;/);
+  // 꺾인 장이 모서리를 차지하면(return) 주벽 좌표의 0 이 벽 끝이 아니다 — 남는 벽을 재지 않는다
+  for (const corner of ['return', 'open']) {
+    raw.walls[0].corner = corner;
+    const q = buildPlannerPrompt(ctx(raw));
+    assert.match(q, /Only the overall scale may change to fit the real wall in IMAGE A\./);
+    assert.doesNotMatch(q, /Do not stretch|of the run, floor to ceiling|ends at about/);
+  }
+  // ㄷ자(꺾인 벽 둘) — 주벽 줄은 양 모서리 사이, 남는 벽을 말하지 않는다
+  const u = cornerRaw();
+  u.layout = { shape: 'u', walls: 3 };
+  u.walls.push({ side: 'right', corner: 'main', sections: { lower: { fromCornerMm: 600, modules: [two(800)] } } });
+  const q = buildPlannerPrompt(ctx(u));
+  assert.match(q, /Only the overall scale may change to fit the real wall in IMAGE A\./);
+  assert.doesNotMatch(q, /Do not stretch|of the run, floor to ceiling|ends at about/);
+  // 벽 폭을 모르면(분석 실패) 배율 문장 그대로, 남는 벽은 % 없이
+  const r = prompt({ confidence: null });
+  assert.match(r, /Only the overall scale may change to fit the real wall in IMAGE A\./);
+  assert.doesNotMatch(r, /% of the wall|Do not stretch/);
+  assert.match(r, /\d+\. back wall: beyond the right end of the run, wherever the run is shorter than the wall\n/);
 });
 
 // 2026-10-19 실측(GPT): 기존 ㄱ자 주방 사진 — 새 장은 ㄱ자로 맞게 지었지만 옛 가스레인지·슬림 후드가 남았다 (도면에 없음).
