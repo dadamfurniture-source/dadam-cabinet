@@ -209,3 +209,22 @@ python -I to_sql.py lms.json > import-lms.sql                                   
 - 스메그 고시의 모델명이 제목과 다른 곳이 있다: `FA8005RPO5` 페이지 고시 = `FA8005RAO5`, `FAB30RPG5` 페이지 고시 = `FAB30RPG3`. 제목 코드(목록과 같은 값)를 쓴다. 클래식 `FA3905RX5` 는 크기 · 용량 · 설치 문구가 콜로니얼과 글자까지 같다 — 복사일 수 있다.
 - 스메그 `SMEG500`(피아트 500 모양 냉장고, 100L) 원문 `1250x800x830mm` 를 W×D×H 로 읽어 1250×830×800 으로 넣었다. 와인셀러 메뉴는 2개로 표시되지만 목록엔 SCV115A 하나뿐이다.
 - 스메그 글로벌(smeg.com)의 도어 개방 치수는 쓰지 않았다 — 국가 사이트마다 코드 접미사가 달라 KR 코드로 열리지 않는다 (`/uk/products/FAB28RCR5` 404).
+
+## 가게나우 · 밀레 · 하이얼 · 쿠쿠 (2026-10-20)
+
+```bash
+python -I collect.py --brands gaggenau --out gaggenau          # 글로벌 사이트맵 + BSH 스펙시트(en-ZZ) + 치수도
+python -I to_sql.py gaggenau.json manual/miele.json manual/haier_cuckoo_carrier.json > import-gmhc.sql
+```
+
+| 브랜드 | 출처 | 행 | 검증 |
+|---|---|---|---|
+| 가게나우 | gaggenau.com/global 사이트맵 52코드, `media3.bsh-group.com/Documents/specsheet/en-ZZ/{코드}.pdf`(pdftotext), 니치 · 외형은 공식 치수도 그림 24장을 읽어 옮긴 `GG_DRAWINGS` | 43 (+2 빠짐) | 아님 — 그림 판독, 전부 `국내판매미확인` |
+| 밀레 | `manual/miele.json` — 공식 팩트시트 `media.miele.com/downloads/n-/ce/FS_…pdf` 글자 (MasterCool 8종) | 8 (+1 빠짐) | 검증 |
+| 하이얼 | `manual/haier_cuckoo_carrier.json` — haier.co.kr 상세 사양 이미지 판독 | 25 | 아님 — `이미지판독` |
+| 쿠쿠 | 같은 파일 — cuckoo.co.kr 상세 이미지 판독 (옆 · 뒤 · 위 10cm 여유 문구) | 9 | 아님 — `이미지판독` |
+| 캐리어 | 공식 사이트에 냉장고 없음 — 다나와 · 오픈마켓은 쓰지 않는다 | 0 | – |
+
+- `manual/*.json` 은 사람이(에이전트가) 공식 PDF · 이미지를 읽어 만든 행이다. 수집기와 같은 행 형식이라 `to_sql.py` 에 같이 넘긴다.
+- miele.co.kr 은 스크립트 접속에 403 — 우회하지 않는다. 밀레 국내판 자재번호 · 한국어 카탈로그는 확인 못 함.
+- 가게나우는 Vario 400 니치 높이 최대 2164 를 RC 계열에만 넣었다(설치설명서가 RC 만 명시).

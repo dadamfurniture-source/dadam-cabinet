@@ -755,3 +755,54 @@ describe('missing_render 오류 문구', () => {
     expect(m).toContain('차감되지 않았습니다');
   });
 });
+
+// 2026-10-20: EXIF 35mm 환산 초점거리 (태그 0xA405) — ai-design.html exifFocal35 와 같은 읽기
+describe('plannerAiPhotoExifFocal35', () => {
+  const { plannerAiPhotoExifFocal35 } = require('../js/planner/ai-photo');
+
+  /** 가장 작은 JPEG 머리: SOI · APP1(Exif, TIFF IFD0 → Exif IFD → 0xA405) · SOS */
+  function jpegWithFocal(focal, littleEndian) {
+    const tiff = [];
+    const w16 = (v) => (littleEndian ? tiff.push(v & 0xff, v >> 8) : tiff.push(v >> 8, v & 0xff));
+    const w32 = (v) => (littleEndian
+      ? tiff.push(v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff, v >>> 24)
+      : tiff.push(v >>> 24, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff));
+    if (littleEndian) tiff.push(0x49, 0x49); else tiff.push(0x4d, 0x4d);
+    w16(42); w32(8);
+    // IFD0 (8): 항목 1개 — Exif IFD 포인터 → 26
+    w16(1); w16(0x8769); w16(4); w32(1); w32(26); w32(0);
+    // Exif IFD (26): 항목 1개 — 0xA405 SHORT
+    w16(1); w16(0xa405); w16(3); w32(1); w16(focal); w16(0); w32(0);
+    const len = 2 + 6 + tiff.length;
+    const bytes = [0xff, 0xd8, 0xff, 0xe1, len >> 8, len & 0xff, 0x45, 0x78, 0x69, 0x66, 0, 0]
+      .concat(tiff, [0xff, 0xda, 0, 2]);
+    return 'data:image/jpeg;base64,' + Buffer.from(bytes).toString('base64');
+  }
+
+  test('리틀·빅 엔디언 둘 다 읽는다', () => {
+    expect(plannerAiPhotoExifFocal35(jpegWithFocal(26, true))).toBe(26);
+    expect(plannerAiPhotoExifFocal35(jpegWithFocal(52, false))).toBe(52);
+  });
+
+  test('8~200 밖이면 null, JPEG 아님·깨진 값도 null', () => {
+    expect(plannerAiPhotoExifFocal35(jpegWithFocal(4, true))).toBeNull();
+    expect(plannerAiPhotoExifFocal35(jpegWithFocal(300, true))).toBeNull();
+    expect(plannerAiPhotoExifFocal35('data:image/png;base64,iVBORw0KGgo=')).toBeNull();
+    expect(plannerAiPhotoExifFocal35('엉망')).toBeNull();
+  });
+
+  test('readImage 가 원본에서 읽은 초점거리를 focal35 로 낸다', async () => {
+    const src = jpegWithFocal(26, true);
+    const canvas = { width: 0, height: 0, getContext: () => ({ drawImage() {} }), toDataURL: () => 'data:image/jpeg;base64,QUJD' };
+    class FakeReader { readAsDataURL() { this.result = src; setTimeout(() => this.onload(), 0); } }
+    class FakeImage {
+      constructor() { this.naturalWidth = 800; this.naturalHeight = 600; }
+      set src(v) { setTimeout(() => this.onload(), 0); }
+    }
+    const out = await plannerAiPhotoReadImage(
+      { type: 'image/jpeg', size: 1000, name: '방.jpg' },
+      { canvas, FileReader: FakeReader, Image: FakeImage }
+    );
+    expect(out.focal35).toBe(26);
+  });
+});

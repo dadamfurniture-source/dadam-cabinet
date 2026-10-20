@@ -115,7 +115,11 @@ describe('냉장고 모델 → appliances[].model', () => {
     const ds = P.normalizeDesignSpec(spec, spec.category);
     const prompt = P.buildPlannerPrompt({ category: spec.category, designSpec: ds, wallW: 0, wallH: 0 });
     expect(prompt).toContain('T2   680 mm  refrigerator opening (open from the floor up to 1885 mm');
-    expect(prompt).toContain('otherwise draw this refrigerator: Samsung BESPOKE 409L, model RR40C7805AP, 595 × 1853 × 700 mm (W × H × D), single-door type)');
+    // 2026-10-20: 고른 모델 우선 — 사진 그 자리의 다른 냉장고는 교체
+    expect(prompt).toContain(
+      'a refrigerator stands in it: draw this refrigerator: Samsung BESPOKE 409L, model RR40C7805AP, 595 × 1853 × 700 mm (W × H × D), single-door type' +
+        ' — if IMAGE A shows a different refrigerator in this spot, replace it with this one)'
+    );
   });
 });
 
