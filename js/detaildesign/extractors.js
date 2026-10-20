@@ -591,7 +591,8 @@
         const W = parseFloat(mod.w) || 900;
         const drawerCount = mod.drawerCount || 0;
         const external = mod.isExternalDrawer && drawerCount > 0 ? drawerCount * 350 : 0;
-        return { count: mod.doorCount || Math.max(1, Math.round(W / 450)), h: pedestalH + bodyH - 20 - external };
+        // 2026-10-20 (도어 1580): 외부 서랍 위 도어는 몸통 − 서랍모듈H (extractWardrobe 와 같은 식)
+        return { count: mod.doorCount || Math.max(1, Math.round(W / 450)), h: external ? bodyH - external : pedestalH + bodyH - 20 };
       }
 
       /**
@@ -1670,7 +1671,8 @@
                 const doorW = Math.floor(W / doorCount) - 4;
                 const doorH = pedestalH + bodyH - 20;
                 if (isExternalDrawer && drawerCount > 0) {
-                  this.add(materials, `${name}`, '도어', 'MDF', 18, doorW, doorH - drawerCount * DRAWER_MOD_H, doorCount, '4면', '', mod);
+                  // 2026-10-20 사장님 카드 "도어 1580": 외부 서랍 위 도어는 서랍모듈 상단~몸통 상단 (= 몸통 − 서랍모듈H). 좌대 덮기는 서랍 전면 몫이다
+                  this.add(materials, `${name}`, '도어', 'MDF', 18, doorW, bodyH - drawerCount * DRAWER_MOD_H, doorCount, '4면', '', mod);
                   // 외부 서랍 도어 (목찬넬, 서랍수별 높이)
                   const drawerDoorW = W - 4;
                   const drawerModTotal = drawerCount * DRAWER_MOD_H + pedestalH;
@@ -1679,7 +1681,8 @@
                     drawerDoorH = drawerModTotal - 30 - 20;
                     drawerDoorQty = 1;
                   } else if (drawerCount === 2) {
-                    drawerDoorH = Math.floor((drawerModTotal - 20 - 30) / 2);
+                    // 2026-10-20 사장님: 2단은 서랍마다 위에 목찬넬 30 하나씩 (예전 30 하나 → 355, 지금 340)
+                    drawerDoorH = Math.floor((drawerModTotal - 20 - 30 - 30) / 2);
                     drawerDoorQty = 2;
                   } else {
                     drawerDoorH = Math.floor((drawerModTotal - 20 - 30 - 30) / 3);
@@ -1756,7 +1759,8 @@
                 const doorW = Math.floor(W / doorCount) - 4;
                 const doorH = pedestalH + bodyH - 20;
                 if (isExternalDrawer && drawerCount > 0) {
-                  this.add(materials, `${name}`, '도어', 'MDF', 18, doorW, doorH - drawerCount * DRAWER_MOD_H_LONG, doorCount, '4면', '', mod);
+                  // 2026-10-20 사장님 카드 "도어 1580": 외부 서랍 위 도어는 서랍모듈 상단~몸통 상단 (= 몸통 − 서랍모듈H). 좌대 덮기는 서랍 전면 몫이다
+                  this.add(materials, `${name}`, '도어', 'MDF', 18, doorW, bodyH - drawerCount * DRAWER_MOD_H_LONG, doorCount, '4면', '', mod);
                   // 외부 서랍 도어 (목찬넬, 서랍수별 높이)
                   const drawerDoorW = W - 4;
                   const drawerModTotal = drawerCount * DRAWER_MOD_H_LONG + pedestalH;
@@ -1765,7 +1769,8 @@
                     drawerDoorH = drawerModTotal - 30 - 20;
                     drawerDoorQty = 1;
                   } else if (drawerCount === 2) {
-                    drawerDoorH = Math.floor((drawerModTotal - 20 - 30) / 2);
+                    // 2026-10-20 사장님: 2단은 서랍마다 위에 목찬넬 30 하나씩 (예전 30 하나 → 355, 지금 340)
+                    drawerDoorH = Math.floor((drawerModTotal - 20 - 30 - 30) / 2);
                     drawerDoorQty = 2;
                   } else {
                     drawerDoorH = Math.floor((drawerModTotal - 20 - 30 - 30) / 3);
@@ -1860,9 +1865,8 @@
             const modW = parseFloat(mod.w) || 900;
             if (drawerCount === 1) {
               this.add(materials, 'EP', '목찬넬', 'MDF', 18, 100, modW, 1, '2면(장)');
-            } else if (drawerCount === 2) {
-              this.add(materials, 'EP', '목찬넬', 'MDF', 18, 120, modW, 1, '2면(장)');
-            } else if (drawerCount >= 3) {
+            } else if (drawerCount >= 2) {
+              // 2026-10-20 사장님: 2단도 서랍마다 위에 목찬넬 하나씩 — EP 는 3단처럼 100 + 120 (예전 120 한 장)
               this.add(materials, 'EP', '목찬넬', 'MDF', 18, 100, modW, 1, '2면(장)');
               this.add(materials, 'EP', '목찬넬', 'MDF', 18, 120, modW, 1, '2면(장)');
             }
