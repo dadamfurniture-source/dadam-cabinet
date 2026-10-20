@@ -4895,7 +4895,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
           <span class="a-lab">#${i+1}${t === 'door' ? doorRangeTagHtml(m, s, i, is2DCell) : ''}</span>
           <select class="a-type">
             <option value="door"   ${t==='door'?'selected':''}>도어</option>
-            <option value="drawer" ${t==='drawer'?'selected':''}>서랍</option>
+            ${s.verticalCount === 1 || t === 'drawer' ? `<option value="drawer" ${t==='drawer'?'selected':''}>서랍${s.verticalCount === 1 ? '장으로' : ''}</option>` : ''}
             <option value="open"   ${t==='open'?'selected':''}>오픈</option>
             <option value="blank"  ${t==='blank'?'selected':''}>먹장</option>
             ${t==='blind' ? '<option value="blind" selected>멍 (파생)</option>' : ''}
@@ -4938,7 +4938,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const tSel = row.querySelector('.a-type, .b-type');
       const dSel = row.querySelector('.a-dir, .b-dir');
       if (tSel) tSel.onchange = (e) => {
-        if (idx !== undefined) s.areaTypes[+idx] = e.target.value;
+        // 2026-10-20 플래너 점검 (카드 "서랍장으로 바꾸기"): 칸 타입 '서랍'은 BOM 브리지·3D 가 읽지 않아
+        //   서랍 단수·레일을 고쳐도 도어+선반으로 나갔다. 서랍은 모듈 단위(상하 구성 = 하부 서랍)로만 산출된다.
+        //   칸이 하나면 그 모듈을 서랍장으로 바꾸고, 칸이 여럿이면 목록에서 뺐다(모듈을 나눠 쓴다).
+        if (idx !== undefined && e.target.value === 'drawer' && s.verticalCount === 1) {
+          s.areaTypes[0] = 'door';
+          s.horizontalLayout = 'doorTopDrawerBottom';
+          s.bottomType = 'drawer';
+          showToast('서랍장으로 바꿨습니다 — 서랍 단수는 아래 서랍 칸에서 정합니다');
+        } else if (idx !== undefined) s.areaTypes[+idx] = e.target.value;
         else s.bottomType = e.target.value;
         draftChanged();
       };
