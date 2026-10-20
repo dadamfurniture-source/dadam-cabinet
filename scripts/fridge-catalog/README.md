@@ -213,3 +213,24 @@ python -I to_sql.py gaggenau.json manual/miele.json manual/haier_cuckoo_carrier.
 - `manual/*.json` 은 사람이(에이전트가) 공식 PDF · 이미지를 읽어 만든 행이다. 수집기와 같은 행 형식이라 `to_sql.py` 에 같이 넘긴다.
 - miele.co.kr 은 스크립트 접속에 403 — 우회하지 않는다. 밀레 국내판 자재번호 · 한국어 카탈로그는 확인 못 함.
 - 가게나우는 Vario 400 니치 높이 최대 2164 를 RC 계열에만 넣었다(설치설명서가 RC 만 명시).
+
+## 대표 사진 `image_url` (2026-10-20)
+
+제조사 공식 사이트의 대표 사진 **URL 만** 저장한다 (핫링크). 사진을 내려받거나 다시 올리지 않는다.
+이미 받아 둔 목록 · 스펙 · 페이지 응답에서 읽으므로 `--offline` 재실행으로 채워진다. 묶인 행(merge)은 사진이 있는 첫 변형의 것.
+
+| 브랜드 | 어디서 | 비고 |
+|---|---|---|
+| 삼성 | 목록 `goodsList` 항목 `imgPathN` — 설명에 '정면' 이 든 첫 장 (`images.samsung.com`) | 색상 변형은 목록 항목 사진을 같이 쓴다 |
+| LG | 스펙 응답 `largeImageAddr` (`/kr/images/…-450x450.jpg`, 변형별) | `static.lge.co.kr` 로 302 |
+| 위니아 | 상세 `main-thumnail` 첫 `<img>` (`/common/file/imageView?IMG_PATH=/upload/basic_gallery/…`) | |
+| 데이코 | 다른 제품 페이지의 '관련 제품' 칸 `collection-product-item-*.png` (제품 누끼) | 자기 페이지엔 연출 사진뿐 |
+| SKS | 탭의 `spec-img-item` 중 설명에 모델 코드가 든 칸 (`image5.lge.co.kr`) | Professional(CF18 등)은 사진 칸이 없어 Transitional 사진으로 묶인다 |
+| 리페르 | `__NEXT_DATA__` `product_gallery` — perspective `straight_closed…` 우선, 480 webp 파생본 | |
+| 마이디어 | JSON-LD `Product.image` (og:image 는 깨진 페이지가 있다) | 원본 크기 그대로라 수 MB 인 것이 있다 |
+| 스메그 | 상세 `pro_view_swiper_single` 첫 장 (`j-collection.co.kr/upload/product/`) | |
+| 가게나우 | 제품 페이지 `images[]` 의 `Product_Shots` → `media3.bsh-group.com/Product_Shots/600x/{id}.webp` — 모델 코드가 든 제품 사진 우선, 문 열림 · 연출 · 부분 사진은 뒤로 | |
+| 하이얼 · 쿠쿠 | `manual/haier_cuckoo_carrier.json` — 상세 상단 사진 첫 장 (`haier.co.kr/board_data/…`, `cdn.cuckoo.co.kr`) | |
+| 밀레 | 없음 (`null`) — miele.co.kr · miele.hk 모두 스크립트 접속 403, 우회하지 않는다 | |
+
+Referer `https://dadamfurniture.com/` 를 붙여도 브랜드마다 1장씩 200/206 image/* 확인 (2026-10-20). 사이트가 바뀌면 깨질 수 있으니 화면에서는 사진이 없을 때를 대비한다.

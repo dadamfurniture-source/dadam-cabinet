@@ -74,7 +74,7 @@ describe('관리 화면 — admin/appliances.html', () => {
   });
 
   test('모델 이름 · 코드는 escape 한다 (수집한 글자가 들어온다)', () => {
-    expect(AP).toContain('<td>${escHtml(r.model_name)}');
+    expect(AP).toContain("onerror=\"this.remove()\">` : ''}${escHtml(r.model_name)}");
     expect(AP).toContain('<td>${escHtml(r.model_code)}');
   });
 });
@@ -122,5 +122,31 @@ describe('빌트인 장 안쪽 치수(니치) — appliance-models-niche.sql', (
     expect(nicheText({})).toBe('');
     for (const id of ['f-nw', 'f-nh', 'f-nd', 'f-nw2', 'f-nh2', 'f-nd2']) expect(AP).toContain(`id="${id}"`);
     expect(AP).toContain("payload.niche_min_w_mm = nv('f-nw');");
+  });
+});
+
+describe('대표 사진 — 제조사 공식 이미지 주소만 (appliance-models-image.sql)', () => {
+  const IMG = read('database/appliance-models-image.sql');
+
+  test('https 주소 칸 · 가져오기 함수가 넣고, 새 주소가 오면 바꾼다 · 웹에서 못 부른다', () => {
+    expect(IMG).toContain("ADD COLUMN IF NOT EXISTS image_url TEXT CHECK (image_url IS NULL OR image_url ~ '^https://')");
+    expect(IMG).toContain("image_url      = COALESCE(NULLIF(r->>'image_url', ''), image_url),");
+    expect(IMG).toContain("niche_min_w_mm = COALESCE(niche_min_w_mm, NULLIF(r->>'niche_min_w_mm', '')::INT)");
+    expect(IMG).toContain('REVOKE ALL ON FUNCTION import_appliance_models(JSONB) FROM anon, authenticated;');
+  });
+
+  test('관리 화면 — 이름 옆 작은 사진, 깨지면 지운다, 수정 창에 주소 칸', () => {
+    expect(AP).toContain('<img class="thumb" src="${escHtml(r.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">');
+    expect(AP).toContain('id="f-img"');
+    expect(AP).toContain("payload.image_url = img.startsWith('https://') ? img : null;");
+  });
+
+  test('플래너 — 사진 칸을 먼저 읽고 없으면 줄여 읽는다, 목록에 사진', () => {
+    const a = SHELL.indexOf('niche_min_w_mm,niche_min_h_mm,image_url&order');
+    const b = SHELL.indexOf('niche_min_w_mm,niche_min_h_mm&order', a);
+    expect(a).toBeGreaterThan(0);
+    expect(b).toBeGreaterThan(a);
+    expect(SHELL).toContain("img:      typeof r.image_url === 'string' && r.image_url.startsWith('https://') ? r.image_url : null");
+    expect(SHELL).toContain('class="m-img"');
   });
 });

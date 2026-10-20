@@ -56,6 +56,7 @@
       td.gap { white-space: nowrap; }
       td.gap small { display: block; color: #888; font-size: 11px; }
       td small.sub { display: block; color: #888; font-size: 11px; }
+      td img.thumb { float: left; width: 36px; height: 48px; object-fit: contain; margin-right: 8px; background: #fff; }
       .row-count { font-size: 12px; color: #888; align-self: center; }
       td.gap .none { color: #bbb; }
       .field .hint { font-size: 11px; color: #888; margin-top: 3px; }
@@ -242,6 +243,10 @@
             <label for="f-line">제품 라인</label>
             <input type="text" id="f-line" placeholder="예: BESPOKE · 오브제컬렉션 · 핏앤맥스" />
           </div>
+          <div class="field full fridge-field">
+            <label for="f-img">대표 사진 주소 (제조사 공식, https)</label>
+            <input type="text" id="f-img" placeholder="https://… — 주소만 저장합니다" />
+          </div>
           <!-- 빌트인 장 안쪽 치수 (database/appliance-models-niche.sql) — 한 값이면 최소 칸만 -->
           <div class="field full fridge-field">
             <label>빌트인 장 안쪽 치수 (니치, mm) — 한 값이면 최소 칸만</label>
@@ -427,7 +432,7 @@
         tbody.innerHTML = filtered.map(r => `
           <tr>
             <td>${r.brand}</td>
-            <td>${escHtml(r.model_name)}${r.subtype || r.line || r.install_type ? `<small class="sub">${escHtml([FRIDGE_SUBTYPES[r.subtype], r.line, INSTALL_LABEL[r.install_type]].filter(Boolean).join(' · '))}</small>` : ''}</td>
+            <td>${r.image_url ? `<img class="thumb" src="${escHtml(r.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}${escHtml(r.model_name)}${r.subtype || r.line || r.install_type ? `<small class="sub">${escHtml([FRIDGE_SUBTYPES[r.subtype], r.line, INSTALL_LABEL[r.install_type]].filter(Boolean).join(' · '))}</small>` : ''}</td>
             <td>${escHtml(r.model_code)}${(r.model_codes || []).length > 1 ? `<small class="sub" title="${escHtml(r.model_codes.join(', '))}">외 ${r.model_codes.length - 1}개</small>` : ''}</td>
             <td class="right">${r.width_mm}</td>
             <td class="right">${r.depth_mm}</td>
@@ -489,6 +494,7 @@
         document.getElementById('f-subtype').value    = row?.subtype || '';
         document.getElementById('f-install').value    = row?.install_type || '';
         document.getElementById('f-line').value       = row?.line || '';
+        document.getElementById('f-img').value        = row?.image_url || '';
         document.getElementById('f-codes').value      = (row?.model_codes || []).filter((c) => c !== row?.model_code).join(', ');
         toggleCutoutFields();
         modal.classList.add('open');
@@ -524,6 +530,8 @@
           payload.subtype = document.getElementById('f-subtype').value || null;
           payload.install_type = document.getElementById('f-install').value || null;
           payload.line = document.getElementById('f-line').value.trim() || null;
+          const img = document.getElementById('f-img').value.trim();
+          payload.image_url = img.startsWith('https://') ? img : null;   // DB 칸이 https 만 받는다
           payload.model_codes = parseCodes(document.getElementById('f-codes').value, payload.model_code);
           const nv = (id) => { const v = document.getElementById(id).value; return v === '' ? null : parseInt(v, 10); };
           payload.niche_min_w_mm = nv('f-nw'); payload.niche_min_h_mm = nv('f-nh'); payload.niche_min_d_mm = nv('f-nd');
@@ -549,7 +557,8 @@
           // 타공 칼럼이 없으면 database/work-reports.sql 을 아직 실행하지 않은 것
           alert('저장 실패: ' + error.message + (/cutout|faucet/.test(error.message) ? '\n\n타공 칸은 database/work-reports.sql 을 Supabase 에서 실행해야 저장됩니다.' : '')
             + (/subtype|model_codes|back_gap|install_type|"line"/.test(error.message) ? '\n\n냉장고 칸은 database/appliance-models-catalog.sql 을 Supabase 에서 실행해야 저장됩니다.' : '')
-            + (/niche_/.test(error.message) ? '\n\n장 안쪽 치수 칸은 database/appliance-models-niche.sql 을 Supabase 에서 실행해야 저장됩니다.' : ''));
+            + (/niche_/.test(error.message) ? '\n\n장 안쪽 치수 칸은 database/appliance-models-niche.sql 을 Supabase 에서 실행해야 저장됩니다.' : '')
+            + (/image_url/.test(error.message) ? '\n\n대표 사진 칸은 database/appliance-models-image.sql 을 Supabase 에서 실행해야 저장됩니다.' : ''));
           return;
         }
         closeModal();
