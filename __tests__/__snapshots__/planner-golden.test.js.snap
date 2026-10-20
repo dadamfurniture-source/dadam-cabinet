@@ -2,6 +2,7 @@
 
 exports[`골든 — 135° 사선 (P9 목표) 현재 구조가 사선을 어떻게 다루는지 고정해둔다 1`] = `
 "{
+  "areaCount": 3,
   "ceilingHeight": 2300,
   "hasStructures": false,
   "modules": [
@@ -80,6 +81,7 @@ exports[`골든 — 135° 사선 (P9 목표) 현재 구조가 사선을 어떻�
 
 exports[`골든 — ㄱ자 (회전 0·90 혼재) payload 스냅샷 1`] = `
 "{
+  "areaCount": 6,
   "ceilingHeight": 2300,
   "hasStructures": false,
   "modules": [
@@ -224,6 +226,7 @@ exports[`골든 — ㄱ자 (회전 0·90 혼재) payload 스냅샷 1`] = `
 
 exports[`골든 — 직선 싱크대 payload 스냅샷 1`] = `
 "{
+  "areaCount": 7,
   "ceilingHeight": 2300,
   "hasStructures": false,
   "modules": [
