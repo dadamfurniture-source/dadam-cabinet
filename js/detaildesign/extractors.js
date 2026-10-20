@@ -136,8 +136,6 @@
 
       /** 2026-10-20: 아일랜드 몸통 깊이는 사장님 값 대기 — 측판 비고에 붙인다 (extract 'island'). */
       const BOM_ISLAND_DEPTH_NOTE = '[확인 필요] 아일랜드 몸통 깊이';
-      // 2026-10-20: 플래너 냉장고장 위장 깊이 = 좌우 EP 깊이 − 도어 자리 20 (사장님 "EP 기준", 빼는 값은 카드 답 전 추천안).
-      const BOM_FRIDGE_UPPER_DEPTH_NOTE = '[확인 필요] 냉장고 위 상부장 깊이 — EP 기준(EP − 20), 빼는 값 확인 중';
       /** 2026-10-20: 도어교체 품목이 내는 판 — 도어·서랍 전면 (extract 'door'). */
       const BOM_DOOR_ONLY_SLOTS = ['door', 'drawerFront'];
 
@@ -738,16 +736,9 @@
               //   키큰장 단 'lower'+단 표시)은 싱크대 규칙으로 낸다 — 위장은 2026-09-22 사장님 확정(일반 상부장 규칙),
               //   키큰장 단은 싱크대 옆 키큰장과 같은 sink.md §5.1. 전용 화면이 만든 type 모듈(옛 설계)만 extractFridge.
               case 'fridge':
-                if ((catItem.modules || []).some((m) => m && m.pos)) {
-                  const from = materials.length;
-                  this.extractSink(catItem, materials, prefix);
-                  for (let i = from; i < materials.length; i++) {
-                    const m = materials[i];
-                    if (m.part === '측판' && String(m.module || '').startsWith(`${prefix}상부장`)) {
-                      m.note = (m.note ? m.note + ' · ' : '') + BOM_FRIDGE_UPPER_DEPTH_NOTE;
-                    }
-                  }
-                } else this.extractFridge(catItem, materials, prefix);
+                //   위장 깊이 = 좌우 EP − 25, 싱크대 상부장처럼 벽에 건다 (2026-10-20 사장님 확정, 구조 단계가 깊이를 앉힌다).
+                if ((catItem.modules || []).some((m) => m && m.pos)) this.extractSink(catItem, materials, prefix);
+                else this.extractFridge(catItem, materials, prefix);
                 break;
               default:
                 // B3: 신발장·화장대·수납장·창고장 — 같은 상자 규칙, 카테고리 상수만 다르다 (BOM_SIMPLE_CATEGORY_RULES)
