@@ -306,8 +306,21 @@ test('잡(붙박이장, 벽 3000 = 7짝): 설치는 반 통을 이름 붙여 쓰
 });
 
 test('잡(다른 품목): 색 추천안 3장 그대로', async () => {
-  const { prompts, claude } = await runJob('storage', { claude: REC });
+  const { prompts, claude } = await runJob('fridge', { claude: REC });
   assert.equal(prompts.filter((p) => p.startsWith('Recolour')).length, 3);
   assert.equal(prompts.filter((p) => p.startsWith('Open every door')).length, 0);
   assert.equal(claude.length, 0);
+});
+
+test('잡(수납장): 색 추천안 2장 + 내부 보기 1장 (정본 선반, 추천 구조 없음)', async () => {
+  const { prompts, claude, last } = await runJob('storage', { claude: REC });
+  assert.equal(prompts.filter((p) => p.startsWith('Recolour')).length, 2);
+  const inside = prompts.filter((p) => p.startsWith('Open every door'));
+  assert.equal(inside.length, 1);
+  assert.match(inside[0], /built-in storage cabinet/);
+  assert.match(inside[0], /fixed shelves, evenly spaced/);
+  assert.equal(claude.length, 0);
+  const v3 = last.images.find((i) => i.slot === 'v3');
+  assert.equal(v3.structure.kind, 'standard');
+  assert.match(v3.structure.plan, /^칸마다 선반 \d+단/);
 });
