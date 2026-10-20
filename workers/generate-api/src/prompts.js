@@ -523,7 +523,7 @@ const isFridgeLabel = (label) => /냉장|fridge|refrig/.test(String(label || '')
  *   appliances[] 의 hood 가 그 장에 붙는다 (예전 그대로). 번호는 줄 머리가 아니라 H1·H2 (plannerRows · layout.js · 패널 같은 규칙).
  */
 const isHoodLabel = (label) => /후드|hood/.test(String(label || '').toLowerCase());
-const isHoodCell = (m) => !!m && m.kind === 'appliance' && !hasTiers(m) && isHoodLabel(m.label);
+export const isHoodCell = (m) => !!m && m.kind === 'appliance' && !hasTiers(m) && isHoodLabel(m.label);
 
 /**
  * @param {string} [posField] 줄 시작 자리 필드 — 주벽은 fromLeftMm, 꺾인 벽(walls[])은 fromCornerMm (2026-10-19)
@@ -1441,7 +1441,7 @@ function plannerColumnWhat(m, rowKey, fridgeModel) {
 }
 
 /** 2026-10-19: 꺾인 벽 목록 (normalizeDesignSpec 이 거른 것). 없으면 []. */
-function plannerWalls(spec) {
+export function plannerWalls(spec) {
   return spec && Array.isArray(spec.walls) ? spec.walls.filter((w) => w && w.sections && DESIGN_WALL_SIDES.includes(w.side)) : [];
 }
 
@@ -1641,7 +1641,7 @@ const plannerNear = (a, b) => Math.abs(a - b) <= PLANNER_TOL_MM;
  * 그래도 모르면 null — 일자로 단정하지 않는다 (LAYOUT 문단을 뺀다).
  * @returns {{shape:'straight'|'corner'|'u', walls:number}|null}
  */
-function plannerLayout(spec) {
+export function plannerLayout(spec) {
   const l = spec && spec.layout;
   if (l && DESIGN_LAYOUT_SHAPES.includes(l.shape)) {
     if (l.shape === 'straight') return { shape: 'straight', walls: 1 };
@@ -1922,7 +1922,10 @@ export function buildPlannerPrompt(c) {
   // ── 세 장의 이름과 역할 ──
   const images = [
     `You receive ${COUNT_WORD[imageCount] || imageCount} images.`,
-    `IMAGE A — ROOM PHOTO: the customer's real room. Edit this photo only inside the EDIT ZONE below.`,
+    // 2026-10-20: 도면 덩어리(planner-place.js, PLANNER_PLACE_GUIDE='on')가 칠해져 있으면 그 자리·크기를 지키라고 말한다
+    c.placeGuide
+      ? `IMAGE A — ROOM PHOTO: the customer's real room, with the new built-in units already painted in as plain off-white blocks at their exact position, size and depth; a thin dark line marks each unit boundary. Edit this photo only inside the EDIT ZONE below. Re-render every block as the real units IMAGE B shows: keep each block's outer edges exactly where they are — do not stretch, move or extend any run — and keep the unit boundaries.`
+      : `IMAGE A — ROOM PHOTO: the customer's real room. Edit this photo only inside the EDIT ZONE below.`,
     // 2026-10-19: 번호 입면(labeledElevation)이면 번호·치수선은 주석이지 그릴 것이 아니라고 말한다.
     //   번호 없는 입면(Gemini, GPT 실패 대체)에는 그 문장이 없다 — 없는 번호를 말하면 오히려 그려 넣는다.
     `IMAGE B — FRONT ELEVATION from our planner: the exact cabinet design to build, seen straight on.` +
