@@ -78,6 +78,25 @@ const PLANNER_AI_PHOTO_MIME_RE = /^image\/(jpeg|png)$/;
 const PLANNER_AI_PHOTO_CREDIT = 20;
 /** 상태 폴링 간격 (ai-design.html POLL_MS 와 같다) */
 const PLANNER_AI_PHOTO_POLL_MS = 3000;
+/**
+ * 등급 관문 (사장님 결정 2026-10-20): expert · agent 등급과 관리자(admin · super_admin)만 쓴다.
+ * **정본은 워커**(workers/generate-api/src/tier-gate.js — 403 `planner_tier`)다. 여기는 같은 순서의
+ * 사본으로 버튼을 잠그고 안내만 한다 — 화면이 열려 있어도 서버가 거절한다.
+ * 등급 순서는 database/tier-agent.sql profiles_tier_check · js/detaildesign-access.js TIER_RANK 와 같다
+ * (그 파일의 POLICY.minTier 는 상세설계용 'standard' 라 그대로 못 쓴다).
+ */
+const PLANNER_AI_PHOTO_TIER_RANK = Object.freeze({ standard: 0, expert: 1, agent: 2 });
+const PLANNER_AI_PHOTO_MIN_TIER = 'expert';
+const PLANNER_AI_PHOTO_ADMIN_ROLES = Object.freeze(['admin', 'super_admin']);
+/** 워커 PLANNER_TIER_MESSAGE 와 같은 문장 — 서버 메시지가 오면 그것이 이긴다 */
+const PLANNER_AI_PHOTO_TIER_TEXT = '사진으로 만들기는 Expert 등급부터 쓸 수 있습니다';
+
+/** 순수 판정 (워커 plannerTierAllowed 의 사본). 모르는 등급은 막는다. */
+function plannerAiPhotoTierAllowed({ isAdmin, tier } = {}) {
+  if (isAdmin) return true;
+  const rank = Object.prototype.hasOwnProperty.call(PLANNER_AI_PHOTO_TIER_RANK, tier) ? PLANNER_AI_PHOTO_TIER_RANK[tier] : -1;
+  return rank >= PLANNER_AI_PHOTO_TIER_RANK[PLANNER_AI_PHOTO_MIN_TIER];
+}
 /** 마지막 잡 id 를 담는 저장 키의 밑동. 스코프(scopedKey)가 붙는다. */
 const PLANNER_AI_PHOTO_JOB_KEY = 'dadam_aiphoto_job_v1';
 
@@ -1527,6 +1546,8 @@ function plannerAiPhotoErrorMessage(status, data) {
     return `크레딧이 부족합니다 (1회 ${PLANNER_AI_PHOTO_CREDIT} 크레딧) — 구독을 올리면 더 만들 수 있습니다`;
   }
   if (status === 409) return '이미 생성 중인 작업이 있습니다 — 끝난 뒤 다시 눌러 주세요';
+  // 등급 관문 (2026-10-20) — 서버가 준 말을 그대로. 크레딧은 차감되지 않는다 (워커가 차감 전에 막는다)
+  if (code === 'planner_tier') return server || PLANNER_AI_PHOTO_TIER_TEXT;
   if (code === 'bad_design_spec') {
     return '도면 요약을 서버가 받지 못했습니다 — 크레딧은 차감되지 않았습니다' + (server ? ` (${server})` : '');
   }
@@ -1649,6 +1670,11 @@ const PlannerAiPhoto = {
   noMassing: false,
   /** 이미지 모델 (eval=1 일 때만 고른다) — 'gemini' | 'openai'. null 이면 저장된 값을 읽는다. */
   imageProvider: null,
+  /**
+   * 등급 관문 결과 (2026-10-20) — {allowed, tier, isAdmin, message?}. null 이면 모른다(로그인 전·SDK 없음)
+   * 그때 화면은 예전 그대로이고 서버가 판정한다. 서버 403 planner_tier 가 오면 여기에 거절로 적는다.
+   */
+  access: null,
   gen: null,
   genId: null,
   message: '',
@@ -1935,6 +1961,53 @@ const PlannerAiPhoto = {
     return await PlannerStore.ready(this._o && this._o.ids ? this.ids() : undefined);
   },
 
+  /**
+   * 등급 관문 (2026-10-20) — 로그인 사용자의 profiles.tier(본인 행)와 admin_roles(본인 행)를 읽는다.
+   * 로그인 전·SDK 없음이면 null (화면은 예전 그대로). profiles 조회 실패는 등급 없음(= 막힘)으로 본다 —
+   * 관리자 행이 읽히면 그것으로 연다. 정본은 워커라 여기 결과는 화면 안내용이다.
+   * @returns {Promise<null|{allowed:boolean, tier:?string, isAdmin:boolean}>}
+   */
+  async fetchAccess() {
+    if (this._o && typeof this._o.access === 'function') return await this._o.access();
+    if (typeof PlannerStore === 'undefined' || !PlannerStore) return null;
+    let c = null;
+    try { c = PlannerStore.client(); } catch (e) { c = null; }
+    if (!c) return null;
+    let uid = null;
+    try {
+      const { data } = await c.auth.getSession();
+      uid = (data && data.session && data.session.user && data.session.user.id) || null;
+    } catch (e) { uid = null; }
+    if (!uid) return null;
+
+    let tier = null;
+    try {
+      const { data, error } = await c.from('profiles').select('tier').eq('id', uid).maybeSingle();
+      if (error) console.warn('[사진으로 만들기] profiles 조회 실패:', error.message);
+      else tier = (data && typeof data.tier === 'string') ? data.tier : null;
+    } catch (e) { console.warn('[사진으로 만들기] profiles 조회 예외:', e && e.message); }
+
+    let isAdmin = false;
+    if (!plannerAiPhotoTierAllowed({ tier })) {
+      try {
+        const { data, error } = await c.from('admin_roles').select('role').eq('user_id', uid).maybeSingle();
+        if (!error && data && PLANNER_AI_PHOTO_ADMIN_ROLES.includes(data.role)) isAdmin = true;
+      } catch (e) { /* 관리자 아님으로 본다 */ }
+    }
+    return { allowed: plannerAiPhotoTierAllowed({ isAdmin, tier }), tier, isAdmin };
+  },
+
+  /** 등급을 다시 읽어 화면에 반영한다. 바뀐 것이 없으면 다시 그리지 않는다. */
+  async refreshAccess() {
+    let next = null;
+    try { next = await this.fetchAccess(); } catch (e) { next = null; }
+    const before = this.access;
+    this.access = next;
+    const same = (!before && !next) || (before && next && before.allowed === next.allowed && !before.message);
+    if (!same) this.render();
+    return this.access;
+  },
+
   // ── 화면 ─────────────────────────────────────────────────
   host() {
     return (typeof document !== 'undefined') ? document.getElementById('aiPhotoBody') : null;
@@ -1944,6 +2017,8 @@ const PlannerAiPhoto = {
   onDetailEnter() {
     plannerAiPhotoInjectCss();
     this.render();
+    // 등급 관문 (2026-10-20) — 기다리지 않는다. 읽히면 그때 화면을 맞춘다 (막힌 등급이면 안내 + 잠긴 버튼).
+    this.refreshAccess().catch(() => {});
     return this.reattach();
   },
 
@@ -1961,6 +2036,16 @@ const PlannerAiPhoto = {
       `<div class="ap-cost"><span><b>${PLANNER_AI_PHOTO_CREDIT} 크레딧</b> / 1장</span>`
       + `<span class="ap-sum">${esc(plannerAiPhotoSpecSummary(spec))}</span></div>`
     );
+
+    // 등급 관문 (2026-10-20): 막힌 등급이면 올릴 곳 없이 안내 + 잠긴 버튼만. 서버가 준 말(403 planner_tier)이 있으면 그것.
+    //   등급을 모르면(로그인 전·SDK 없음) 아래 평소 화면 — 서버가 판정한다.
+    if (this.access && !this.access.allowed) {
+      parts.push(`<div class="ap-msg ap-bad ap-tier" id="aiPhotoTier">🔒 ${esc(this.access.message || PLANNER_AI_PHOTO_TIER_TEXT)}</div>`);
+      parts.push('<button type="button" class="ap-go" id="aiPhotoGo" disabled>사진으로 만들기</button>');
+      parts.push('</div>');
+      host.innerHTML = parts.join('');
+      return true;
+    }
 
     // 사진
     if (this.img) {
@@ -2121,6 +2206,10 @@ const PlannerAiPhoto = {
     const token = await this.token();
     if (!token) return this._fail(plannerAiPhotoScopeMessage('no-session'));
 
+    // 등급 관문 (2026-10-20) — 아직 못 읽었으면 한 번 읽는다. 막혔으면 요청 전에 멈춘다 (크레딧·캡처 없음). 정본은 서버.
+    if (!this.access) { try { this.access = await this.fetchAccess(); } catch (e) { this.access = null; } }
+    if (this.access && !this.access.allowed) return this._fail(this.access.message || PLANNER_AI_PHOTO_TIER_TEXT);
+
     const f = this.fetch();
     if (!f) return this._fail('이 화면에서는 사진 생성을 쓸 수 없습니다');
 
@@ -2173,6 +2262,10 @@ const PlannerAiPhoto = {
     }
     const data = await this._json(res);
     if (!res.ok || !data || data.success === false) {
+      // 등급 관문 (2026-10-20): 서버가 막았으면 화면도 잠근다 — 그 말을 패널에 그대로 (render 의 관문 분기가 보인다)
+      if (data && data.code === 'planner_tier') {
+        this.access = { allowed: false, tier: this.access ? this.access.tier : null, isAdmin: false, message: plannerAiPhotoErrorMessage(res.status, data) };
+      }
       return this._fail(plannerAiPhotoErrorMessage(res.status, data));
     }
     if (!data.id) return this._fail('생성 번호를 받지 못했습니다');
@@ -2287,6 +2380,7 @@ if (typeof window !== 'undefined') {
   window.plannerAiPhotoAspectOf = plannerAiPhotoAspectOf;
   window.plannerAiPhotoVerdict = plannerAiPhotoVerdict;
   window.plannerAiPhotoDrawnBy = plannerAiPhotoDrawnBy;
+  window.plannerAiPhotoTierAllowed = plannerAiPhotoTierAllowed;
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -2352,6 +2446,11 @@ if (typeof module !== 'undefined' && module.exports) {
     PLANNER_AI_PHOTO_PROVIDER_KEY,
     PLANNER_AI_PHOTO_PROVIDERS,
     plannerAiPhotoDrawnBy,
+    PLANNER_AI_PHOTO_TIER_RANK,
+    PLANNER_AI_PHOTO_MIN_TIER,
+    PLANNER_AI_PHOTO_ADMIN_ROLES,
+    PLANNER_AI_PHOTO_TIER_TEXT,
+    plannerAiPhotoTierAllowed,
     PlannerAiPhoto,
   };
 }

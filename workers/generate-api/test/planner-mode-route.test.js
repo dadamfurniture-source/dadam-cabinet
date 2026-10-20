@@ -42,6 +42,8 @@ function install({ parent = null, failUpload = null } = {}) {
   globalThis.fetch = async (url, init = {}) => {
     const u = String(url);
     if (u.includes('/auth/v1/user')) return jsonRes({ id: USER_ID, email: 'a@b.c' });
+    // 2026-10-20 등급 관문 (src/tier-gate.js) — 이 시험의 사용자는 expert 다. 관문 자체는 planner-tier-gate.test.js 가 본다.
+    if (u.includes('/rest/v1/profiles')) return jsonRes([{ tier: 'expert' }]);
     if (u.includes('/rest/v1/rpc/')) {
       const fn = u.split('/rpc/')[1];
       calls.rpc.push({ fn, body: init.body ? JSON.parse(init.body) : null });
