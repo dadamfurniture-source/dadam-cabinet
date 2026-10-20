@@ -69,6 +69,15 @@ describe('건수 · 다음 작업', () => {
     expect(html).toContain('작업자 페이지 열기');
   });
 
+  test('다음 작업을 받지 못하면 — 내 작업이 있으면 작업자 페이지 내 작업으로 안내, 없으면 없음', () => {
+    const some = W.summaryHtml(approved({ mine: 2 }), null);
+    expect(some).toContain('href="worker.html#tab=mine"');
+    expect(some).not.toContain('worker.html#job=');
+    const none = W.summaryHtml(approved({ mine: 0 }), null);
+    expect(none).not.toContain('worker.html#tab=mine');
+    expect(none).toContain('없음');
+  });
+
   test('이름 · 제목 · 지역의 <script> 는 글자로', () => {
     const html = W.summaryHtml(approved({ mine: 1 }, { display_name: XSS }), job(J1, '2026-10-21T00:00:00Z', { title: XSS, region_label: XSS }));
     expect(html).not.toContain('<script>');
@@ -109,8 +118,9 @@ describe('loadMyWork — 섹션 열고 닫기', () => {
     global.fetch = jest.fn(async (url, opts = {}) => {
       const p = url.replace(API, '');
       calls.push({ path: p, auth: opts.headers && opts.headers.Authorization });
-      const r = routes[p];
+      let r = routes[p];
       if (r instanceof Error) throw r;
+      if (typeof r === 'function') r = r();
       if (!r) return { ok: false, status: 404, json: async () => ({ success: false, message: 'Not found' }) };
       return { ok: true, status: 200, json: async () => ({ success: true, data: r }) };
     });
@@ -136,18 +146,32 @@ describe('loadMyWork — 섹션 열고 닫기', () => {
     expect(document.getElementById('myWorkBody').innerHTML).toBe('');
   });
 
-  test('승인 작업자 + 내 작업 → 열고 다음 작업 한 줄', async () => {
-    const calls = mount({
-      '/work/me': approved({ mine: 1, open: 2 }),
-      '/work/jobs?tab=mine': { items: [job(J1, '2099-01-01T00:00:00Z', { title: XSS })] },
-    });
+  test('승인 작업자 + 내 작업 → 열고, 다음 작업은 작업자 페이지 내 작업으로 안내', async () => {
+    const calls = mount({ '/work/me': approved({ mine: 1, open: 2 }, { display_name: XSS }) });
     await W.loadMyWork(client());
     expect(section().hidden).toBe(false);
     const body = document.getElementById('myWorkBody');
     expect(body.querySelector('script')).toBe(null);
     expect(body.textContent).toContain(XSS);
-    expect(body.querySelector(`a[href="worker.html#job=${J1}"]`)).not.toBe(null);
+    expect(body.querySelector('a[href="worker.html#tab=mine"]').textContent).toContain('내 작업');
     expect(calls.every((c) => c.auth === 'Bearer jwt-test')).toBe(true);
+  });
+
+  test('마이페이지를 열어도 새 소식이 읽음 처리되지 않는다 — /work/me 만 부른다', async () => {
+    // 서버(#946)는 GET /work/jobs?tab=mine 마다 workers.last_seen_at 을 now 로 바꾸고, 새 소식은 그 뒤 이벤트만 센다
+    const server = { lastSeenAt: '2026-10-19T00:00:00.000Z' };
+    const calls = mount({
+      '/work/me': approved({ mine: 2, revision: 1, newEvents: 3 }),
+      '/work/jobs?tab=mine': () => {
+        server.lastSeenAt = new Date().toISOString();
+        return { items: [job(J1, '2099-01-01T00:00:00Z')] };
+      },
+    });
+    await W.loadMyWork(client());
+    expect(section().hidden).toBe(false);
+    expect(calls.map((c) => c.path)).toEqual(['/work/me']);
+    expect(server.lastSeenAt).toBe('2026-10-19T00:00:00.000Z');
+    expect(document.getElementById('myWorkBody').textContent).toContain('3건');
   });
 
   test('내 작업이 0 이면 목록은 부르지 않는다', async () => {
