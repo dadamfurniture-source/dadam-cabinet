@@ -182,6 +182,7 @@ export function readFromLayout(layout) {
  * `ok` 는 순서·개수가 구속이라는 계약(design-spec-prompt.md)을 그대로 옮긴 것이다:
  *   순서가 맞고(≥ 0.99), 도어·서랍 총수가 3/4 이상 맞고, 가전 종류·순서가 맞으면 ok.
  * 2026-10-20: 플래너 판독은 여기에 상부장 관문이 더해진다 — 상부 도어 총수가 도면과 같고, 도면 밖 상부 줄 덤 유닛이 없어야 ok.
+ * 2026-10-20: 덤 관문 — 도면 밖 덤 유닛이 어느 줄에든 있으면 ok 가 아니다 (상부 줄만이 아니라).
  */
 export function compareLayoutToSpec(layout, spec, category) {
   const want = expectedFromSpec(spec, category);
@@ -261,12 +262,13 @@ export function compareLayoutToSpec(layout, spec, category) {
     if (hoods.length) {
       parts.hood = hoods.filter((u) => u.seen !== 'cabinet').length / hoods.length;
     }
-    // 모듈별 어긋남 · 도면 밖 덤 유닛 — 이슈로만 (점수·ok 는 위 총수가 본다)
+    // 모듈별 어긋남 · 도면 밖 덤 유닛 — 점수에는 넣지 않는다 (점수는 위 총수가 본다. 덤은 아래 ok 관문만)
     got.units = planner.units.map((u) => ({ id: u.id, seen: u.seen, doors: u.doors, drawers: u.drawers }));
     got.extraUnits = planner.extraUnits;
-    // 2026-10-20: 상부 줄 덤(도면 밖 상부장)은 ok 를 막으니 사유가 화면(앞 3개)에 보이게 모듈 이슈보다 앞에 둔다
+    // 2026-10-20: 도면 밖 덤 유닛은 어느 줄이든 ok 를 막으니 사유가 화면(앞 3개)에 보이게 모듈 이슈보다 앞에 둔다
+    //   (#897 은 상부 줄 덤만 앞으로 옮겼다 — 이제 바닥·tall·other 덤도 관문이라 모두 앞으로)
     const extraIssue = (x) => `extra: ${x.row} unit not in plan${x.where ? ` (${x.where})` : ''}, ${x.doors} doors + ${x.drawers} drawers`;
-    planner.extraUnits.filter((x) => x.row === 'wall').forEach((x) => issues.push(extraIssue(x)));
+    planner.extraUnits.forEach((x) => issues.push(extraIssue(x)));
     planner.units.forEach((u) => {
       const e = u.expected || {};
       // 2026-10-19: 가려진 ㄱ자 모서리 장 — 가려짐·없음·보임 어느 쪽이든 세지 않으니 이슈도 없다 (다른 것으로 보였으면 아래로)
@@ -280,18 +282,22 @@ export function compareLayoutToSpec(layout, spec, category) {
         issues.push(`${u.id}: expected ${e.doors} doors + ${e.drawers} drawers, read ${u.doors} + ${u.drawers}${angle}`);
       }
     });
-    planner.extraUnits.filter((x) => x.row !== 'wall').forEach((x) => issues.push(extraIssue(x)));
   }
 
   // 2026-10-20 사장님 결정: 플래너 판독은 상부장도 ok 관문에 넣는다 — 실측에서 모델이 가장 자주 틀린 곳이 상부장 덤이었다.
   //   (1) 상부 도어 총수가 도면과 같아야 한다. 총수는 위 plannerTotals·plannerCornerAdjust 의 눈높이 그대로 —
   //       가려진 모서리 장은 양쪽에서 빼고, 꺾인 벽 장은 보였으면 도면 값(차이는 이슈만), 후드 칸은 0짝.
   //       도면에 상부장이 없으면(upperDoors null) 이 관문은 없다. 못 읽은 상부(null)는 0짝으로 본다.
-  //   (2) 도면 밖 상부 줄 덤 유닛(extra_units row 'wall')이 없어야 한다. 바닥 줄·other 덤은 이슈만 (PR #844 거짓 경보 근거).
-  //   점수(parts.uppers·score·max)는 바꾸지 않는다 — 관문만. 플래너가 아니면(옛 판독) 예전 그대로.
+  //   (2) 도면 밖 상부 줄 덤 유닛(extra_units row 'wall')이 없어야 한다.
+  // 2026-10-20 사장님 결정 (덤 관문): 도면 밖 덤 유닛은 바닥(base)·tall·wardrobe·other 줄이어도 ok 를 막는다.
+  //   그 전에는 상부 줄 덤만 관문이었다 — PR #844 가 거짓 경보를 이유로 뺀 것을, 사장님이 그 위험을 알고 넣기로 했다
+  //   (실측 1cf4c7be ㄱ자: 문 1짝을 더 그렸고 판독이 extraUnits 로 읽고도 ok 였다).
+  //   도면 유닛의 것(냉장고장 위 박스·후드 칸·쌓인 단)은 판독 프롬프트가 그 유닛에 세게 한다 (layout.js buildPlannerReadPrompt).
+  //   줄 끝 % 관문은 넣지 않는다 (사장님: 아니오).
+  //   점수(parts·score·max)는 바꾸지 않는다 — 관문만. 플래너가 아니면(옛 판독) 예전 그대로.
   const upperGate = !planner
-    || ((want.upperDoors == null || (got.upperDoors || 0) === want.upperDoors)
-      && !planner.extraUnits.some((x) => x.row === 'wall'));
+    || want.upperDoors == null || (got.upperDoors || 0) === want.upperDoors;
+  const extraGate = !planner || planner.extraUnits.length === 0;
 
   const keys = Object.keys(parts);
   const score = keys.reduce((a, k) => a + parts[k], 0);
@@ -301,7 +307,8 @@ export function compareLayoutToSpec(layout, spec, category) {
     && (parts.appliances == null || parts.appliances >= 0.99)
     && (parts.shape == null || parts.shape >= 0.99)
     && (parts.hood == null || parts.hood >= 0.99)
-    && upperGate;
+    && upperGate
+    && extraGate;
 
   return {
     version: VERIFY_VERSION,
