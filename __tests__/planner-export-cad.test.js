@@ -185,6 +185,85 @@ describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
   });
 });
 
+// 붙박이장 — 통 하나에 몸통이 여럿 (규칙 파일 layoutWardrobeModule 의 carcasses). __tests__/scene-overlap.test.js 의 장면과 같다.
+const WARDROBE_LAYOUT = {
+  version: 1,
+  savedAt: '2026-01-01T00:00:00.000Z',
+  person: null,
+  modules: [{ section: 'wardrobe', x: 0, y: 0, w: 2400, h: 620, moduleH: 2310, rotation: 0, finishings: [] }],
+};
+const WARDROBE_SCENES = {
+  wardrobe: (o) => bootPlanner3D(WARDROBE_LAYOUT, o),
+  // 2번 통을 긴옷 + 외부 서랍 2단으로 — 서랍모듈 몸통이 맨 아래에 따로 선다
+  wardrobeExt: (o) => {
+    const p = bootPlanner3D(WARDROBE_LAYOUT, o);
+    p.g('modules').filter((m) => m.id === 'wardrobe-1').forEach((m) => {
+      const s = p.g('getStructure')(m.id);
+      s.wardrobe = Object.assign({}, s.wardrobe, { preset: 'longDrawer', externalDrawer: true });
+    });
+    p.g('renderAll3D')({ fit: false });
+    return p;
+  },
+};
+
+describe.each(Object.keys(WARDROBE_SCENES))('%s 장면 → CAD 명세 (붙박이장)', (name) => {
+  let p, THREE, cad, pieces;
+  beforeAll(async () => {
+    p = WARDROBE_SCENES[name]({ design: 'cad', item: name });
+    await new Promise((r) => setTimeout(r, 150));
+    THREE = window.THREE;
+    // 품목 높이 = 플래너 모듈 높이 (좌대 60 + 몸통 + 상몰딩 20 — 규칙 파일 기본값)
+    const item = { categoryId: 'wardrobe', w: 2400, h: 2310, d: 620, specs: {}, modules: [] };
+    Object.assign(p.window.parent, {
+      _convertPlannerModules: loadConverter()._convertPlannerModules,
+      MaterialExtractor: loadExtractors().MaterialExtractor,
+      _currentStep2Item: () => item,
+      selectedItems: [item],
+    });
+    cad = p.g('PlannerExport')._o.cad();
+    pieces = collectScenePieces(p);
+  });
+  const worldOf = (pt, M) => new THREE.Box3(new THREE.Vector3(...pt.box.min), new THREE.Vector3(...pt.box.max)).applyMatrix4(M);
+  const box3 = (solids) => {
+    const g = new THREE.Box3();
+    solids.forEach((s) => g.union(new THREE.Box3(new THREE.Vector3(...s.min), new THREE.Vector3(...s.max)).applyMatrix4(new THREE.Matrix4().fromArray(s.m))));
+    return g;
+  };
+
+  test('통마다 몸통 판재가 놓이고 조립 검사 error 0 · 선반은 모두 자리를 받는다', () => {
+    const mods = cad.spec.items[0].modules;
+    expect(mods.map((m) => m.kind)).toEqual(['wardrobe', 'wardrobe', 'wardrobe']);
+    expect(AssemblyCheck.check(cad.spec).issues.filter((x) => x.level === 'error')).toEqual([]);
+    expect(cad.spec.unplaced.filter((u) => u.part === '선반')).toEqual([]);
+    if (name === 'wardrobeExt') expect(mods[1].carcasses.map((c) => c.group)).toEqual(['서랍모듈', '통']);
+  });
+
+  test('측판 — 월드 상자가 3D 장면 몸통(carcassIdx)의 측판과 같다 · 선반은 가로·높이가 같다', () => {
+    let sides = 0, shelves = 0;
+    cad.spec.items[0].modules.forEach((m) => {
+      const M = cad.frameOf(m);
+      const plannerId = cad.cells[m.moduleKey].plannerId;
+      m.parts.forEach((pt) => {
+        const b = worldOf(pt, M);
+        if (pt.part === '측판') {
+          const hits = pieces.filter((r) => r.moduleId === plannerId && r.entityKind === 'carcass' && r.ud.carcassIdx === pt.tags.carcass)
+            .map((r) => box3(r.solids)).filter((g) => g.min.distanceTo(b.min) < 0.6 && g.max.distanceTo(b.max) < 0.6);
+          expect({ id: pt.id, hit: hits.length }).toEqual({ id: pt.id, hit: 1 });
+          sides++;
+        } else if (pt.part === '선반') {
+          // 앞뒤는 다르다 — 3D 는 선반을 깊이 가운데에 그리고, 명세는 천지판 뒤끝에 맞춘다 (wardrobe.md §6 전면 여유 70)
+          const hits = pieces.filter((r) => r.moduleId === plannerId && r.entityKind === 'shelf').map((r) => box3(r.solids))
+            .filter((g) => Math.abs(g.min.x - b.min.x) < 0.6 && Math.abs(g.max.x - b.max.x) < 0.6 && Math.abs(g.min.y - b.min.y) < 0.6 && Math.abs(g.max.y - b.max.y) < 0.6);
+          expect({ id: pt.id, hit: hits.length }).toEqual({ id: pt.id, hit: 1 });
+          shelves++;
+        }
+      });
+    });
+    expect(sides).toBeGreaterThanOrEqual(6);
+    expect(shelves).toBeGreaterThan(0);
+  });
+});
+
 describe('관리자만 · 부모 창', () => {
   test('구조 페이지: CAD 버튼은 숨김으로 실리고, 관리자일 때만 보인다', () => {
     const p = bootPlanner3D(FIXTURES.straight, { design: 'cad-btn', item: 'x' });

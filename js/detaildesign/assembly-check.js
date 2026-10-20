@@ -356,39 +356,45 @@
     // 뒷판 덮개 · 접촉 — 뒷판 자리(mount)는 명세가 정했다
     // 몸통 측판·뒷판만 (서랍 박스 판은 tags.box 가 있다 — 박스 우라도 mount 'groove' 지만 몸통 뒷판이 아니다)
     const shell = (p) => p.tags && p.tags.box == null;
-    const sides = parts.filter((p) => shell(p) && (p.tags.side === 'left' || p.tags.side === 'right'));
-    if (sides.length === 2) {
-      const inner = { lo: Math.max(...sides.filter((s) => s.tags.side === 'left').map((s) => s.box.max[0])),
-        hi: Math.min(...sides.filter((s) => s.tags.side === 'right').map((s) => s.box.min[0])) };
-      const sideBack = Math.max(...sides.map((s) => s.box.min[2]));
-      parts.filter((p) => shell(p) && (p.tags.mount === 'groove' || p.tags.mount === 'behind-sides')).forEach((p) => {
-        if (!(p.box.min[0] < inner.lo - EPS && p.box.max[0] > inner.hi + EPS)) {
-          issues.push({
-            level: 'error',
-            code: 'back-cover',
-            message: `${mk}: ${p.part} 가 양쪽 측판에 걸치지 않습니다 (가로 ${round1(p.box.min[0])}~${round1(p.box.max[0])}, 측판 안쪽 ${round1(inner.lo)}~${round1(inner.hi)})`,
-            partId: p.id,
-            moduleKey: mk,
-          });
-        }
-        let seated;
-        if (p.tags.mount === 'groove') {
-          const grooves = sides.flatMap((s) => grooveBoxesOf(Asm, s));
-          seated = grooves.length > 0 && grooves.every((g) => p.box.min[2] >= g.min[2] - EPS && p.box.max[2] <= g.max[2] + EPS);
-        } else {
-          seated = Math.abs(p.box.max[2] - sideBack) <= EPS;
-        }
-        if (!seated) {
-          issues.push({
-            level: 'error',
-            code: 'back-contact',
-            message: `${mk}: ${p.part} 가 ${p.tags.mount === 'groove' ? '측판 홈' : '측판 뒤끝'}에 붙어 있지 않습니다 (깊이 ${round1(p.box.min[2])}~${round1(p.box.max[2])})`,
-            partId: p.id,
-            moduleKey: mk,
-          });
-        }
-      });
-    }
+    // 붙박이장 통은 몸통이 여럿이다 (tags.carcass) — 몸통마다 따로 본다
+    const carcassOf = (p) => (p.tags.carcass == null ? 0 : p.tags.carcass);
+    const shellParts = parts.filter(shell);
+    [...new Set(shellParts.map(carcassOf))].forEach((ci) => {
+      const own = shellParts.filter((p) => carcassOf(p) === ci);
+      const sides = own.filter((p) => p.tags.side === 'left' || p.tags.side === 'right');
+      if (sides.length === 2) {
+        const inner = { lo: Math.max(...sides.filter((s) => s.tags.side === 'left').map((s) => s.box.max[0])),
+          hi: Math.min(...sides.filter((s) => s.tags.side === 'right').map((s) => s.box.min[0])) };
+        const sideBack = Math.max(...sides.map((s) => s.box.min[2]));
+        own.filter((p) => p.tags.mount === 'groove' || p.tags.mount === 'behind-sides').forEach((p) => {
+          if (!(p.box.min[0] < inner.lo - EPS && p.box.max[0] > inner.hi + EPS)) {
+            issues.push({
+              level: 'error',
+              code: 'back-cover',
+              message: `${mk}: ${p.part} 가 양쪽 측판에 걸치지 않습니다 (가로 ${round1(p.box.min[0])}~${round1(p.box.max[0])}, 측판 안쪽 ${round1(inner.lo)}~${round1(inner.hi)})`,
+              partId: p.id,
+              moduleKey: mk,
+            });
+          }
+          let seated;
+          if (p.tags.mount === 'groove') {
+            const grooves = sides.flatMap((s) => grooveBoxesOf(Asm, s));
+            seated = grooves.length > 0 && grooves.every((g) => p.box.min[2] >= g.min[2] - EPS && p.box.max[2] <= g.max[2] + EPS);
+          } else {
+            seated = Math.abs(p.box.max[2] - sideBack) <= EPS;
+          }
+          if (!seated) {
+            issues.push({
+              level: 'error',
+              code: 'back-contact',
+              message: `${mk}: ${p.part} 가 ${p.tags.mount === 'groove' ? '측판 홈' : '측판 뒤끝'}에 붙어 있지 않습니다 (깊이 ${round1(p.box.min[2])}~${round1(p.box.max[2])})`,
+              partId: p.id,
+              moduleKey: mk,
+            });
+          }
+        });
+      }
+    });
 
     // 떠 있는 판재
     if (parts.length > 1) {
