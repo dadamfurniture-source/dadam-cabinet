@@ -16,6 +16,7 @@ import { workloadFromSnapshot } from './workload.js';
 import { planProduction } from './planner.js';
 import { buildProposalBlocks, buildInstructionBlocks, buildDailyBlocks, assignmentsFromSuggestions, actionKey } from './notify.js';
 import { DEFAULT_STANDARDS, DEFAULT_CREW, DEFAULT_COSTS, DEFAULT_LEADS, DEFAULT_QUOTE, DEFAULT_VENDORS, DEFAULT_COUNTERTOP } from './standards.js';
+import { orderLabel, workerOrderLabel } from './redact.js';
 import { hasCountertop } from '../countertop.js';
 import { safeRecord, safeSyncStatus } from '../reports/service.js';
 import { reportFromProposal, reportFromDecision, reportFromDailyBrief, reportFromMonth, monthEnd } from '../reports/record.js';
@@ -147,13 +148,16 @@ export function buildJobs(orders, snapshotsById, schedules, standards, doorOrder
   const skipped = [];
   for (const o of orders) {
     if (!ACTIVE.has(o.status)) continue;
+    // label 은 대표용(실명), workerLabel 은 작업자 화면용(가린 이름) — 결정 ★15
+    const skip = (reason) => skipped.push({ id: o.id, label: o.customer_name || o.order_no, workerLabel: workerOrderLabel(o), reason });
     const snap = snapshotsById.get(o.snapshot_id);
-    if (!snap || !snap.bom_payload) { skipped.push({ id: o.id, label: o.customer_name || o.order_no, reason: 'BOM 없음' }); continue; }
+    if (!snap || !snap.bom_payload) { skip('BOM 없음'); continue; }
     const work = workloadFromSnapshot(snap, standards);
-    if (work.cutter + work.edge + work.asm <= 0) { skipped.push({ id: o.id, label: o.customer_name || o.order_no, reason: '작업량 0' }); continue; }
+    if (work.cutter + work.edge + work.asm <= 0) { skip('작업량 0'); continue; }
     jobs.push({
       id: o.id,
-      label: o.customer_name ? `${o.customer_name} (${o.order_no})` : o.order_no,
+      label: orderLabel(o),
+      workerLabel: workerOrderLabel(o),
       orderedAt: kstDate(o.ordered_at),
       installDate: installByDesign.get(o.design_id) || null,
       work,
@@ -412,7 +416,7 @@ export function summarizeMonth(orders, snapshotsById, { month, overheadMonthly }
     rows.push({
       id: o.id,
       order_no: o.order_no,
-      label: o.customer_name ? `${o.customer_name} (${o.order_no})` : o.order_no,
+      label: orderLabel(o), // 대표 전용 (JWT /production/monthly · 경영 대시보드) — 작업자에게 가지 않는다
       status: o.status,
       tier,
       revenue,
