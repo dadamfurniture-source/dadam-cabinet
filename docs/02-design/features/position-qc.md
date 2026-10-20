@@ -41,6 +41,7 @@
 | 성격 | **기록 전용.** 재시도·QC 이슈 코드·`internal_only`·화면 표시·크레딧 어느 것도 바꾸지 않는다 |
 | 켜고 끄기 | `wrangler.toml [vars] POSITION_QC`. 이 PR 은 `"off"` 로 넣는다 — `"on"` 은 §11.4 R2(경로별)·운영 CPU 여유 확인 뒤. 시험 ENV 기본 = 꺼짐 → 기존 잡 시험 그대로 |
 | 경보 경로 | `POSITION_ALARM_ROUTES` (기본 `text_pct,planner`). 목록 밖 경로는 측정만(`ok:null`), 넘은 항목 이름은 `shadow[]` |
+| ok 규칙 (2026-10-20 결정) | 플래너 계열(`planner`·`planner_walls`·`planner_place`)은 **도면 반대쪽 자유 끝**(왼쪽 앵커면 `run_right_wall`, 오른쪽 앵커면 `run_left_wall`)이 판정됐을 때만 `ok:true`. 경보가 있으면 `ok:false` 는 그대로, 자유 끝이 보류인데 경보도 없으면 `ok:null`. 근거: planner_place 재생(gen-eval3/place_validate)에서 줄을 600 mm 넘게 늘린 장이 줄 왼끝·런 안 싱크만 맞아 `ok:true` 로 찍혔다(잘못된 안심). 기록의 `freeEnd` 가 어느 끝인지 적는다 |
 
 ### 경로 판별 (잡 안에 이미 있는 조건만 쓴다)
 
@@ -710,6 +711,7 @@ select p->>'error' as code, count(*) from b where p ? 'error' group by 1;
 8. **덩어리 쿡탑·볼 정답의 클램프**: v2 는 칠한 자리 그대로(클램프 없음) + 상판 끝을 넘으면 `mask_edge` 보류(§2.4). "생성기는 안으로 당긴다" 를 정답으로 둘지(예전 v1) — 정본에 없는 가정이라 확인이 필요하다.
 9. **2표본 합의·seed 고정**: 경보 한 건이 표본 하나라(§12) 같은 장을 두 번 재 합의하는 안은 장당 비용 2배 · 규칙 추가다 — 하지 않았다.
 10. **위치 기록의 노출**: 목록 API(`PUBLIC_COLUMNS` 의 images)로 손님 브라우저까지 위치 기록(모델·토큰·경보)이 간다 — `qc` 와 같은 수준. 숨기려면 worker.js 목록 응답에서 `position` 을 빼는 작은 PR (이 PR 밖).
+11. **planner_place 경보 켜기 (보류, 2026-10-20)**: 덩어리 5장 + 운영 1장 재생(오경보 0, 그러나 줄 끝 보류 13/17)으로는 켜지 않는다. 조건: (a) ok 규칙 변경(위 표, 이 PR) (b) `run_right_place`(칠한 덩어리 끝 대 그린 줄 끝 — 같은 화면 틀이라 원근 가정 없음, 사장님 기록 전용 승인) — job.js 가 `ck.place.ref`(칠한 하부 뒷선·앞선 양 끝·벽 모서리·소실점)를 저장해야 하므로 Image Gen 선행 (c) 운영 planner_place ≥ 20장(방 3·공급자별) 블라인드 대조에서 경계 아닌 오경보 0·장 재현율 ≥ 80 %·줄 끝 보류 ≤ 30 %. 자료 gen-eval3/place_validate/judge.json.
 
 ---
 
