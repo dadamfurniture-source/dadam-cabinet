@@ -43,7 +43,7 @@ def route_externals(context):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--category', required=True, help='품목 id: sink island wardrobe shoerack vanity storage warehouse tvcabinet door custom')
+    ap.add_argument('--category', required=True, help='품목 id: sink island wardrobe fridge shoerack vanity storage warehouse tvcabinet door custom')
     ap.add_argument('--preset', choices=['I', 'L', 'U'], help='빠른 배치 모양')
     ap.add_argument('--place', default='', help='장 버튼으로 놓을 섹션들, 쉼표로 (예: lower,upper)')
     ap.add_argument('--base', default='http://127.0.0.1:8765/')

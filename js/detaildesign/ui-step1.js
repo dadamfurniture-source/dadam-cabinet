@@ -249,9 +249,11 @@
        *
        * 2026-09-17: **붙박이장을 뺐다.** 플래너가 통 구조(프리셋·칸·칸막이·옷봉·서랍)를 담고
        * 자재표까지 이어진다 (wardrobe.md §1.3·§1.4). 이제 붙박이장도 싱크대와 같은 화면이다.
-       * 냉장고장은 모듈 type 분기를 플래너가 만들지 못해 그대로 남는다.
+       * 2026-10-20: **냉장고장도 뺐다.** 플래너 배치의 냉장고장(냉장고 자리 + 위 상부장)·키큰장 단이
+       * 브리지를 거쳐 자재표까지 이어진다 (extractors.js case 'fridge' — 플래너 모듈은 싱크대 규칙).
+       * 목록은 비었지만 남겨 둔다: 플래너가 못 그리는 카테고리가 다시 생기면 여기에 넣는다.
        */
-      const NATIVE_ONLY_CATEGORIES = ['fridge'];
+      const NATIVE_ONLY_CATEGORIES = [];
 
       function _isNativeOnly(item) {
         return !!item && NATIVE_ONLY_CATEGORIES.includes(item.categoryId);
@@ -261,10 +263,11 @@
        * 플래너 **결과**를 받지 못하는 카테고리. 화면 선택(_isNativeOnly)과 다른 축이다.
        *
        * 2026-09-17: 붙박이장을 풀었다 — 브리지가 통 구조를 pos 'wardrobe' 모듈로 옮기고
-       * extractWardrobe 가 칸막이·선반·옷봉까지 낸다. 냉장고장은 아직 모듈 type 분기를
-       * 플래너가 만들지 못해 그대로 막는다.
+       * extractWardrobe 가 칸막이·선반·옷봉까지 낸다.
+       * 2026-10-20: 냉장고장도 풀었다 — 플래너 모듈(pos 가 있는 모듈)은 extractFridge 가 아니라
+       * 싱크대 규칙으로 산출한다 (전용 화면의 type 모듈만 extractFridge).
        */
-      const PLANNER_RESULT_BLOCKED = ['fridge'];
+      const PLANNER_RESULT_BLOCKED = [];
 
       function _plannerResultBlocked(item) {
         return !!item && PLANNER_RESULT_BLOCKED.includes(item.categoryId);
@@ -986,7 +989,10 @@
         const molding = section === 'wardrobe'
           ? n(p.moldingH, n(sp.wardrobeMoldingH, 20))
           : n(p.moldingH, n(sp.moldingH, 60));
-        if (section === 'upper') return Math.max(0, H - molding);
+        // 2026-10-20: 냉장고장(fridge) 모듈은 냉장고 위 **상부장**이다 (2026-09-22 일반 상부장 규칙) — 상몰딩만 뺀다.
+        //   예전엔 아래 하부장 식으로 떨어져 상판 12 만 빠졌다: 위장 415 (= 355 + 상몰딩 60) 가 몸통 403 으로 나가
+        //   상몰딩 60 과 48 겹쳤다.
+        if (section === 'upper' || section === 'fridge') return Math.max(0, H - molding);
         if (section === 'tall' || section === 'wardrobe') {
           return Math.max(0, H - molding - n(p.pedestalH, n(sp.wardrobePedestal, 60)));
         }
@@ -1014,7 +1020,7 @@
         const molding = section === 'wardrobe'
           ? n(p.moldingH, n(sp.wardrobeMoldingH, 20))
           : n(p.moldingH, n(sp.moldingH, 60));
-        if (section === 'upper') return { moldingH: molding };
+        if (section === 'upper' || section === 'fridge') return { moldingH: molding };
         if (section === 'tall' || section === 'wardrobe') {
           return { moldingH: molding, pedestalH: n(p.pedestalH, n(sp.wardrobePedestal, 60)) };
         }
@@ -1687,7 +1693,7 @@
         //
         // 2026-09-17: 붙박이장은 풀렸다 — 브리지가 통 구조를 pos 'wardrobe' 모듈로 옮기고
         // extractWardrobe 가 칸막이·선반·옷봉까지 낸다 (wardrobe.md §1.4).
-        // 냉장고장만 남았다 — 모듈 type 분기를 플래너가 만들지 못한다 (extractFridge 는 mod.type 만 본다).
+        // 2026-10-20: 냉장고장도 풀렸다 — 플래너 모듈은 pos 로 싱크대 규칙을 탄다 (extractors.js case 'fridge').
         //
         // 예전엔 카테고리를 안 보고 item.modules 를 통째로 교체해서, 붙박이장 품목에 플래너
         // 결과가 들어오면 기존 모듈이 지워지고 BOM 이 **조용히 0건**이 됐다. 그 사고는 아래
@@ -1695,7 +1701,7 @@
         if (_plannerResultBlocked(item)) {
           throw new Error(
             `${item.labelName || item.name} 은(는) 플래너로 설계하지 않습니다.\n\n` +
-              '냉장고장은 전용 화면에서 모듈을 구성해 주세요.\n' +
+              '이 품목은 전용 화면에서 모듈을 구성해 주세요.\n' +
               '(플래너 결과를 적용하면 기존 모듈이 지워지고 자재가 산출되지 않습니다)'
           );
         }
@@ -2930,13 +2936,8 @@
         //   옛 전용 화면(renderWardrobeWorkspace)은 함수로 남아 있지만 더 이상 불리지 않는다.
         //   통 구조·선반·옷봉·서랍은 플래너 구조 단계가 정본이다 (wardrobe.md §1.3).
 
-        // ★ 냉장고장인 경우 별도 렌더링
-        if (item.categoryId === 'fridge') {
-          renderFridgeWorkspace(item);
-          _restoreScroll(ws, scrollInfo);
-          _restoreFocus(ws, focusInfo);
-          return;
-        }
+        // 2026-10-20: 냉장고장 분기도 걷었다 — 붙박이장처럼 아래 일반 경로(플래너 오버레이)를 탄다.
+        //   옛 전용 화면(renderFridgeWorkspace, ui-fridge-el.js)은 함수로 남아 있지만 더 이상 불리지 않는다.
 
         const upperModules = item.modules.filter((m) => m.pos === 'upper' && !m.orientation);
         const lowerModules = item.modules.filter((m) => m.pos === 'lower' && !m.orientation);
