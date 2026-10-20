@@ -351,7 +351,7 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
     expect(of(m, 'body:side-1')[0].features).toEqual([]);
     expect(of(m, 'body:top-1')[0].box).toEqual({ min: [-435, 1125, -300], max: [435, 1140, 300] });
     expect(of(m, 'back-1')[0].box).toEqual({ min: [-449.5, 0.5, -303], max: [449.5, 1139.5, -300] });
-    expect(m.parts.filter((p) => p.part !== '선반').every((p) => p.tags.carcass === (p.box.min[1] >= 1140 ? 1 : 0))).toBe(true);
+    expect(m.parts.filter((p) => p.part !== '선반' && !p.tags.pedestal).every((p) => p.tags.carcass === (p.box.min[1] >= 1140 ? 1 : 0))).toBe(true);
   });
 
   test('선반 높이 — 통 구조 블록이 없는 옛 설계는 wardrobe.md §6 (긴옷: 상단 315 아래, 그 밖: 균등)', () => {
@@ -401,13 +401,25 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
     expect(s.unplaced.filter((u) => /칸막이/.test(u.part))).toEqual([]);
   });
 
-  test('아직 자리를 안 정한 행은 이유와 함께 — 도어(좌대+몸통−20 세로 자리 미정) · 서랍모듈 밴드 · 좌대 · 서랍', () => {
+  test('아직 자리를 안 정한 행은 이유와 함께 — 도어(좌대+몸통−20 세로 자리 미정) · 서랍모듈 밴드 · 서랍', () => {
     const reasons = (id) => [...new Set(spec.unplaced.filter((u) => u.moduleKey === `0-${id}`).map((u) => u.reason))].sort();
     expect(reasons('w2')).toEqual(['band-position-pending', 'door-layout-unknown', 'drawer-layout-unknown', 'not-yet']);
     expect(spec.unplaced.filter((u) => u.part === '도어').map((u) => u.reason)).toEqual(['door-layout-unknown', 'door-layout-unknown', 'door-layout-unknown']);
-    const ped = spec.unplaced.filter((u) => /^좌대 (전후|측|중간보강)$/.test(u.part));
-    expect(ped).toHaveLength(9);
-    expect(ped.every((u) => u.reason === 'not-yet')).toBe(true);
+    expect(spec.unplaced.filter((u) => /^좌대 (전후|측|중간보강)$/.test(u.part))).toEqual([]);
+  });
+
+  test('좌대 상자 — 몸통 아래, 뒤 맞춤 (앞 50 들어감), 측판은 전후판 사이, 중간보강은 폭 가운데 (2026-10-20 카드)', () => {
+    const m = spec.items[0].modules.find((x) => x.moduleId === 'w1');
+    const ped = m.parts.filter((p) => p.tags.pedestal);
+    const box = (part, k) => ped.filter((p) => p.part === part)[k].box;
+    expect(ped).toHaveLength(5);
+    expect(box('좌대 전후', 0)).toEqual({ min: [-450, -60, 300 - 50 - 15], max: [450, 0, 300 - 50] });
+    expect(box('좌대 전후', 1)).toEqual({ min: [-450, -60, -300], max: [450, 0, -285] });
+    expect(box('좌대 측', 0)).toEqual({ min: [-450, -60, -285], max: [-435, 0, 235] });
+    expect(box('좌대 측', 1)).toEqual({ min: [435, -60, -285], max: [450, 0, 235] });
+    expect(box('좌대 중간보강', 0)).toEqual({ min: [-7.5, -60, -285], max: [7.5, 0, 235] });
+    const issues = require('../js/detaildesign/assembly-check.js').check(spec).issues;
+    expect(issues.filter((i) => i.level === 'error')).toEqual([]);
   });
 });
 
