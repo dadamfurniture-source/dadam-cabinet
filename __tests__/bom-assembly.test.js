@@ -584,3 +584,73 @@ describe('오픈장·밥솥장 자리 — 18T 상자', () => {
     expect(issues.filter((i) => /oc1|rc1/.test(i.moduleKey))).toEqual([]);
   });
 });
+
+describe('키큰장 단 자리 — 좌대 뒤 맞춤 · 걸레받이 · 목찬넬 ㄴ자 (2026-10-20 카드)', () => {
+  const st = specOf('storage').spec;
+  const wh = specOf('warehouse').spec;
+  const modOf = (s, id) => s.items[0].modules.find((m) => m.moduleId === id);
+  const box = (m, part, k) => m.parts.filter((p) => p.part === part)[k].box;
+  const notches = (m, k) => m.parts.filter((p) => p.part === '측판')[k].features.filter((f) => f.type === 'notch');
+
+  test('storage t1 — 측판 상단 70×40 따내기, 앞 밴드 따내기 아래 · 뒤 밴드 몸통 상단 뒤끝 (둘 다 눕힘 T)', () => {
+    const m = modOf(st, 't1');
+    expect(m.kind).toBe('tall');
+    expect(m.box).toEqual({ W: 600, H: 2190, D: 400, T: 15 });
+    expect(notches(m, 0)).toEqual([{ type: 'notch', u0: 360, u1: 400, v0: 2120, v1: 2190, src: 'channel-top' }]);
+    expect(notches(m, 1)).toEqual(notches(m, 0));
+    expect(box(m, '밴드', 0)).toEqual({ min: [-285, 2105, 130], max: [285, 2120, 200] });
+    expect(box(m, '밴드', 1)).toEqual({ min: [-285, 2175, -200], max: [285, 2190, -130] });
+  });
+
+  test('storage t1 — 목찬넬 ㄴ자: 지면판 40 따내기 바닥에, 전면판 52 그 위 앞선 −40', () => {
+    const m = modOf(st, 't1');
+    expect(box(m, '목찬넬(지면)', 0)).toEqual({ min: [-300, 2120, 160], max: [300, 2138, 200] });
+    expect(box(m, '목찬넬(전면)', 0)).toEqual({ min: [-300, 2138, 160], max: [300, 2190, 178] });
+  });
+
+  test('storage t1 — 좌대 뒤 맞춤: 상자 뒷면 = 몸통 뒷면, 앞 50 들어감, 걸레받이 MDF 18 그 앞, 32 남음', () => {
+    const m = modOf(st, 't1');
+    expect(box(m, '좌대 전후', 0)).toEqual({ min: [-300, -60, 135], max: [300, 0, 150] });
+    expect(box(m, '좌대 전후', 1)).toEqual({ min: [-300, -60, -200], max: [300, 0, -185] });
+    expect(box(m, '좌대 측', 0)).toEqual({ min: [-300, -60, -185], max: [-285, 0, 135] });
+    expect(box(m, '좌대 측', 1)).toEqual({ min: [285, -60, -185], max: [300, 0, 135] });
+    expect(box(m, '좌대 걸레받이', 0)).toEqual({ min: [-300, -60, 150], max: [300, 0, 168] });
+    expect(m.parts.find((p) => p.part === '좌대 걸레받이').tags).toEqual({ pedestal: true, kick: true });
+    expect(box(m, '도어', 0)).toEqual({ min: [-298, 0, 200], max: [-2, 2160, 218] });
+  });
+
+  test('warehouse planner-x-0 — 목찬넬 단: 따내기 · 밴드 · ㄴ자 · 좌대(중간보강 가운데) · 처짐방지목이 앞 밴드 아랫면까지', () => {
+    const m = modOf(wh, 'planner-x-0');
+    expect(m.box).toEqual({ W: 800, H: 750, D: 450, T: 15 });
+    expect(notches(m, 0)).toEqual([{ type: 'notch', u0: 410, u1: 450, v0: 680, v1: 750, src: 'channel-top' }]);
+    expect(box(m, '밴드', 0)).toEqual({ min: [-385, 665, 155], max: [385, 680, 225] });
+    expect(box(m, '밴드', 1)).toEqual({ min: [-385, 735, -225], max: [385, 750, -155] });
+    expect(box(m, '밴드(처짐방지)', 0)).toEqual({ min: [-35, 15, 210], max: [35, 665, 225] });
+    expect(box(m, '목찬넬(지면)', 0)).toEqual({ min: [-400, 680, 185], max: [400, 698, 225] });
+    expect(box(m, '목찬넬(전면)', 0)).toEqual({ min: [-400, 698, 185], max: [400, 750, 203] });
+    expect(box(m, '좌대 전후', 0)).toEqual({ min: [-400, -60, 160], max: [400, 0, 175] });
+    expect(box(m, '좌대 전후', 1)).toEqual({ min: [-400, -60, -225], max: [400, 0, -210] });
+    expect(box(m, '좌대 측', 0)).toEqual({ min: [-400, -60, -210], max: [-385, 0, 160] });
+    expect(box(m, '좌대 중간보강', 0)).toEqual({ min: [-7.5, -60, -210], max: [7.5, 0, 160] });
+    expect(box(m, '좌대 걸레받이', 0)).toEqual({ min: [-400, -60, 175], max: [400, 0, 193] });
+  });
+
+  test('warehouse planner-x-1·x-2 — 목찬넬 없는 단: 따내기 없음, 밴드 둘 다 몸통 상단', () => {
+    [['planner-x-1', 780], ['planner-x-2', 600]].forEach(([id, H]) => {
+      const m = modOf(wh, id);
+      expect(notches(m, 0)).toEqual([]);
+      expect(m.parts.filter((p) => /목찬넬|좌대/.test(p.part))).toEqual([]);
+      expect(box(m, '밴드', 0)).toEqual({ min: [-385, H - 15, 155], max: [385, H, 225] });
+      expect(box(m, '밴드', 1)).toEqual({ min: [-385, H - 15, -225], max: [385, H, -155] });
+    });
+  });
+
+  test('상몰딩은 자리 미정(molding-position-pending) — 그 밖에 못 놓은 행 없음 · 조립 검사 오류 없음', () => {
+    expect(st.unplaced.filter((u) => u.moduleKey === '0-t1').map((u) => [u.part, u.reason])).toEqual([['상몰딩', 'molding-position-pending']]);
+    expect(wh.unplaced.filter((u) => /planner-x/.test(u.moduleKey)).map((u) => [u.moduleKey, u.part, u.reason]))
+      .toEqual([['0-planner-x-2', '상몰딩', 'molding-position-pending']]);
+    const Check = require('../js/detaildesign/assembly-check.js');
+    expect(Check.check(st).issues.filter((i) => i.level === 'error')).toEqual([]);
+    expect(Check.check(wh).issues.filter((i) => i.level === 'error')).toEqual([]);
+  });
+});
