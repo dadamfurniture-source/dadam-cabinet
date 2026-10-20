@@ -162,6 +162,23 @@ function isStale(row) {
  * 플래너 도면 요약. 요청이 주면 검증해서 쓰고(틀리면 400), 없으면 재생성 원본의 것을 잇는다.
  * 원본 것을 이을 때는 던지지 않는다 — 품목을 바꿔 다시 그리는 길을 400 으로 막지 않는다.
  */
+/**
+ * 2026-10-20 냉장고장 일반 모드 옵션 — brand(samsung|lg) · position(left|right) 는 예전대로, models 는 appliance_models
+ *   model_code 최대 2개(수집한 코드 모양만 — PostgREST 필터에 들어간다). 없으면 잡이 브랜드 기본 세트(D1)를 쓴다.
+ */
+function normalizeFridgeOptions(raw) {
+  const o = raw && typeof raw === 'object' ? raw : {};
+  const out = {
+    brand: o.brand === 'lg' ? 'lg' : 'samsung',
+    position: o.position === 'right' ? 'right' : 'left',
+  };
+  const models = Array.isArray(o.models)
+    ? o.models.filter((c) => typeof c === 'string' && /^[A-Za-z0-9][A-Za-z0-9._()-]{0,39}$/.test(c)).slice(0, 2)
+    : [];
+  if (models.length) out.models = models;
+  return out;
+}
+
 function resolveDesignSpec(raw, parent, category) {
   if (raw !== undefined && raw !== null) return normalizeDesignSpec(raw, category);
   const inherited = parent && parent.options && parent.options.design_spec;
@@ -375,7 +392,7 @@ async function createGeneration(request, env, headers) {
     //   2026-10-20: 다시 만들기는 원본의 값을 잇는다 (화면은 다시 만들 때 사진을 다시 보내지 않아 EXIF 를 못 읽는다 —
     //   예전엔 같은 사진이 24mm 로 다시 풀렸다). 플래너 경로와 같은 함수.
     ...plannerFocalOption(room_focal35, parent),
-    fridge_options: category === 'fridge' ? fridge_options : null,
+    fridge_options: category === 'fridge' ? normalizeFridgeOptions(fridge_options) : null,
     // 플래너 도면 요약 — 없으면 null 이고, 그러면 프롬프트는 예전 그대로다.
     // 크레딧은 그대로 20 (2026-09-17 결정): 새 action 을 만들지 않는다.
     design_spec: resolveDesignSpec(design_spec, parent, category),
