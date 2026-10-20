@@ -404,3 +404,35 @@ test('JPEG 인코딩: 워커처럼 전역 Buffer 가 없어도 되고, 끝나면
   assert.equal(back.width, w);
   assert.equal(back.height, h);
 });
+
+test('덩어리 나눔선(lines): 세로선·가로선 자리는 어둡고 바로 옆은 밝다 (2026-10-20 냉장고장)', async () => {
+  const room = { base64: grayJpeg(300, 400), mimeType: 'image/jpeg' };
+  const { renderMassingImage } = await import('../src/guide.js');
+  const points = parseGuidePoints(JSON.stringify(REAL), 'right');
+  const r = await renderMassingImage(room, points, { lines: { vertical: [0.5], horizontal: [{ v: 0.3, u0: 0, u1: 1 }] } });
+  const png = Buffer.from(r.base64, 'base64');
+  const chunks = [];
+  for (let o = 8; o < png.length; ) {
+    const len = png.readUInt32BE(o);
+    const type = png.toString('ascii', o + 4, o + 8);
+    if (type === 'IDAT') chunks.push(png.subarray(o + 8, o + 8 + len));
+    o += 12 + len;
+  }
+  const raw = inflateSync(Buffer.concat(chunks));
+  const px = (x, y) => { const o = y * (300 * 3 + 1) + 1 + x * 3; return [raw[o], raw[o + 1], raw[o + 2]]; };
+  const f = r.guide.front;
+  const left = f.ob.x <= f.rb.x;
+  const [tl, tr, br, bl] = left ? [f.ot, f.rt, f.rb, f.ob] : [f.rt, f.ot, f.ob, f.rb];
+  // doors 는 1 이라 앞면 안쪽(걸레받이·가장자리 제외)의 어두운 픽셀은 나눔선뿐이다 — 줄·열을 훑어 한 무리인지 본다
+  const dark = (v) => v < 170;
+  const y = Math.round((tl.y + bl.y) / 2 + (br.y - tr.y) * 0.1);
+  const xs = [];
+  for (let x = Math.round(Math.min(tl.x, bl.x)) + 4; x < Math.round(Math.max(tr.x, br.x)) - 4; x++) if (dark(px(x, y)[0])) xs.push(x);
+  assert.ok(xs.length >= 1 && xs.length <= 6, `세로선 픽셀 ${xs.join(',')}`);
+  assert.ok(Math.max(...xs) - Math.min(...xs) <= 4, `세로선이 한 무리 ${xs.join(',')}`);
+  const x = Math.round(tl.x + (tr.x - tl.x) * 0.25);
+  const ys = [];
+  for (let yy = Math.round(Math.max(tl.y, tr.y)) + 4; yy < Math.round(Math.min(bl.y, br.y)) * 0.85; yy++) if (dark(px(x, yy)[0])) ys.push(yy);
+  assert.ok(ys.length >= 1 && ys.length <= 6, `가로선 픽셀 ${ys.join(',')}`);
+  assert.ok(Math.max(...ys) - Math.min(...ys) <= 4, `가로선이 한 무리 ${ys.join(',')}`);
+});
