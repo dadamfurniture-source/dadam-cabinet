@@ -5,3 +5,5 @@ probe/
 import-*.sql
 *.log
 __pycache__/
+!manual/
+!manual/*.json
