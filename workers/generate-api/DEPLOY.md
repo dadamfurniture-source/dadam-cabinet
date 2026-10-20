@@ -46,6 +46,10 @@ curl https://dadam-generate-api.dadamfurniture.workers.dev/health
 > 2026-10-19 추가 — 플래너 모드(사진으로 만들기) 기본 공급자는 `PLANNER_IMAGE_PROVIDER = "openai"` (GPT). 요청에 `image_provider` 가 없을 때 쓰고,
 > 결정된 값은 `options.image_provider` 에 늘 남는다. GPT 에는 번호 입면(`elevation_labeled`)을, Gemini(기본이든 대체든)에는 번호 없는 입면을 보낸다.
 > 되돌리기는 `PLANNER_IMAGE_PROVIDER = "gemini"`. 지금 값은 `/health` 의 `planner_image_provider`.
+>
+> 2026-10-20 추가 — 플래너 요청 본문의 선택 옵션 `place_guide: false`: 운영 변수 `PLANNER_PLACE_GUIDE` 를 바꿔 배포하지 않고도 그 생성 한 건만
+> 도면 덩어리 안내(IMAGE A 에 칠하기, 잡 1-d)를 끈다 — 반복 시험용. false 일 때만 `options.place_guide` 에 남고(기본은 키 없음), 재생성은 원본 값을 잇는다.
+> 클라이언트 UI 는 보내지 않는다. 칠한 생성은 `ck.place.ref`(칠한 기준 좌표, `docs/02-design/features/position-qc.md` §2.3)를 함께 기록한다.
 
 `wrangler secret put` 으로 등록한다 (wrangler.toml 에 넣지 않음).
 

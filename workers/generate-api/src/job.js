@@ -72,7 +72,7 @@ import { VERIFY_VERSION, compareLayoutToSpec } from './verify.js';
 import { FURNITURE_MASK_SCHEMA, buildFurnitureMaskPrompt, parseFurnitureMask } from './furniture-mask.js';
 import { GUIDE_POINTS_SCHEMA, SIDE_RETURN_CHECK_SCHEMA, buildGuidePointsPrompt, buildSideReturnCheckPrompt, parseSideReturnCheck, drawGuide, parseGuidePoints, pasteVariantInPolys, pasteVariantInside, prepareGuideCanvas, renderMassingImage } from './guide.js';
 import { KITCHEN_POINTS_SCHEMA, buildKitchenPointsPrompt, buildLensPrompt, massingFocal, parseKitchenPoints, parseLens, renderFacesMassing, renderKitchenMassing } from './kitchen.js';
-import { plannerPlaceBlocks, plannerPlaceFaces } from './planner-place.js';
+import { plannerPlaceBlocks, plannerPlaceFaces, plannerPlaceRef } from './planner-place.js';
 import { loadFridgeModelPhoto } from './appliance-image.js';
 import { positionSkipped, startPositionCheck } from './position.js';
 
@@ -727,8 +727,9 @@ async function runPipeline(env, job, ck, save) {
   const placeBlocks = planner
     ? plannerPlaceBlocks(opts.design_spec, { corners: env.PLANNER_PLACE_CORNERS === 'on' })
     : null;
+  //   2026-10-20: 요청 옵션 place_guide:false 는 운영 변수 배포 없이 안내를 끈 생성 (반복 시험용, worker.js createPlannerGeneration)
   const wantPlace =
-    planner && env.PLANNER_PLACE_GUIDE === 'on' && !!placeBlocks && !wall.existing && !!env.ANTHROPIC_API_KEY;
+    planner && env.PLANNER_PLACE_GUIDE === 'on' && opts.place_guide !== false && !!placeBlocks && !wall.existing && !!env.ANTHROPIC_API_KEY;
   if (wantPlace && ck.place === undefined) {
     ck.place = null;
     const t0 = Date.now();
@@ -749,16 +750,20 @@ async function runPipeline(env, job, ck, save) {
         if (points) {
           why = 'camera not solved';
           const focal = await focalForMassing();
+          let placeCam = null; // 풀린 카메라 전체 (m.cam 은 f·hf·D·xL·xR 만 — 회전이 없어 기준 좌표를 뒤에 다시 못 구한다)
           const m = await renderFacesMassing(
             room,
             points,
             { wallH: wall.wallH, focalMm: focal.focalMm, focalBasis: focal.basis },
-            (cam) => plannerPlaceFaces(cam, placeBlocks),
+            (cam) => ((placeCam = cam), plannerPlaceFaces(cam, placeBlocks)),
             ['front']
           );
           if (m) {
             const up = await uploadObject(env, `${prefix}/place.png`, m.base64, m.mimeType);
-            ck.place = { by: model, cam: m.cam, path: up.path, url: up.url };
+            // 2026-10-20: 칠한 직후 기준 좌표 ref (주벽 하부 줄 뒷선·앞선 끝, 벽 모서리, 소실점 — 이미지 %) 를 같이 둔다.
+            //   위치 검사 run_right_place 의 선행 조건. 하부 줄이 없으면 키 없음. wall_analysis.place 복사본에도 그대로 들어간다.
+            const ref = plannerPlaceRef(placeCam, placeBlocks);
+            ck.place = { by: model, cam: m.cam, path: up.path, url: up.url, ...(ref ? { ref } : {}) };
             placeImg = { base64: m.base64, mimeType: m.mimeType };
             why = 'drawn';
           }

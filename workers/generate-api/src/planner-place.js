@@ -172,6 +172,62 @@ function returnClipZ(cam, xf, b) {
 }
 
 /**
+ * 주벽 줄의 도면 x(mm, 앵커 기준) → 칠 좌표 X(mm, 카메라 xL 기준). 런이 사진의 벽보다 넓으면 같은 비율 s 로 줄인다 (사진이 이긴다).
+ *   plannerPlaceFaces 와 plannerPlaceRef 가 같은 식을 쓴다 — 둘이 갈리면 기준 좌표가 칠과 어긋난다.
+ */
+function placeX(cam, place) {
+  const wall = cam.xR - cam.xL;
+  const s = place.runMm > wall ? wall / place.runMm : 1;
+  const X =
+    place.anchor === 'right' ? (x) => cam.xR - (place.rightMm - x) * s : (x) => cam.xL + x * s;
+  return { s, X };
+}
+
+/**
+ * 칠한 직후 저장하는 기준 좌표 ck.place.ref (2026-10-20) — 위치 검사(position.js)가 "칠한 덩어리 끝 대 그린 줄 끝"
+ * (run_right_place)을 재는 선행 조건. ck.place.cam 에는 회전이 없고 PNG 를 다시 읽을 수도 없어 칠할 때 바로 적는다.
+ *
+ * 좌표 관례는 position.js 와 같다 — x·y 는 이미지 % 0~100 (toPct · img.CBL = px / W × 100), 소실점도 x % (uOfVh).
+ *   w, h   칠한 캔버스 픽셀 (2·cx × 2·cy — renderFacesMassing 이 원본 해상도에 칠한다)
+ *   bl, br 주벽 하부 줄 **뒷선**(벽 z 0, 상판 높이 = 줄 윗면) 양 끝 {x, y, X}. X 는 앵커 기준 도면 mm (블록 x0·x1)
+ *   fl, fr 같은 줄 **앞선**(상판 앞 끝, z = 깊이) 양 끝
+ *   wl, wr 뒷벽 양 모서리(카메라가 본 벽 끝 xL·xR)를 뒷선과 같은 높이에서 {x, y}
+ *   vx     벽 방향(+X) 소실점의 이미지 x % — 벽이 이미지 면과 평행이면(무한원) null
+ * 주벽 하부 줄(key 'lower')만 — ㄱ자·ㄷ자의 꺾인 줄은 넣지 않는다. 하부 줄이 없으면 null (ref 를 저장하지 않는다).
+ * @param {object} cam solveKitchenCamera 결과
+ * @param {{runMm:number, anchor?:string, rightMm?:number, blocks:object[]}} place plannerPlaceBlocks 결과
+ * @returns {{w:number,h:number,bl:object,br:object,fl:object,fr:object,wl:object,wr:object,vx:number|null}|null}
+ */
+export function plannerPlaceRef(cam, place) {
+  if (!cam || !place || !Array.isArray(place.blocks)) return null;
+  const b = place.blocks.find((k) => k.key === 'lower');
+  if (!b) return null;
+  const W = 2 * cam.cx,
+    H = 2 * cam.cy;
+  const { X } = placeX(cam, place);
+  const r2 = (v) => Math.round(v * 100) / 100;
+  const pt = (Xmm, h, z) => {
+    const p = cam.project(Xmm, h, z);
+    return { x: r2((p.x / W) * 100), y: r2((p.y / H) * 100) };
+  };
+  const x0 = X(b.x0),
+    x1 = X(b.x1);
+  // 벽 방향 소실점 — 카메라 좌표의 +X 방향 r1 을 그대로 투영 (r1[2] 가 0 이면 무한원)
+  const vx = Math.abs(cam.r1[2]) > 1e-9 ? r2((((cam.f * cam.r1[0]) / cam.r1[2] + cam.cx) / W) * 100) : null;
+  return {
+    w: W,
+    h: H,
+    bl: { ...pt(x0, b.top, 0), X: Math.round(b.x0) },
+    br: { ...pt(x1, b.top, 0), X: Math.round(b.x1) },
+    fl: { ...pt(x0, b.top, b.depth), X: Math.round(b.x0) },
+    fr: { ...pt(x1, b.top, b.depth), X: Math.round(b.x1) },
+    wl: pt(cam.xL, b.top, 0),
+    wr: pt(cam.xR, b.top, 0),
+    vx,
+  };
+}
+
+/**
  * 풀린 카메라(kitchen.js solveKitchenCamera) 위의 면 목록 — kitchenFaces 와 같은 모양, 먼 면부터.
  * @param {object} cam
  * @param {{runMm:number, anchor?:string, rightMm?:number, blocks:object[], returns?:object[]}} place plannerPlaceBlocks 결과
@@ -183,10 +239,7 @@ export function plannerPlaceFaces(cam, place) {
   if (returns.some((b) => !(b.wall === 'left' ? cam.leftWall : cam.rightWall))) return [];
   if (place.anchor === 'left' && place.returns && !cam.leftWall) return [];
   if (place.anchor === 'right' && !cam.rightWall) return [];
-  const wall = cam.xR - cam.xL;
-  const s = place.runMm > wall ? wall / place.runMm : 1; // 사진이 이긴다
-  const X =
-    place.anchor === 'right' ? (x) => cam.xR - (place.rightMm - x) * s : (x) => cam.xL + x * s;
+  const { X } = placeX(cam, place);
   const faces = [];
   const push = (pts, shade, kind, normal) => faces.push({ pts, shade, kind, normal });
   for (const b of place.blocks) {

@@ -40,7 +40,9 @@
  *            밥솥장 도어 (W − 4) × (H − 4) 는 측판 앞선에 붙어 가운데 (openBoxOf)
  *
  * 미정 (지금 BOM 동작을 그대로 두고 결과에 적는다):
- *   하부장·키큰장 단 밴드 2장 — 자리 미정, 사장님 확인 대기 → unplaced 'band-position-pending'
+ *   하부장·키큰장 단·붙박이장 서랍모듈·내부 서랍장 밴드 2장 — 2026-10-20 사장님 "뒤 눕힘": 천판 대신 상단 앞·뒤에
+ *     눕는다 (윗면 = 몸통 상단). 목찬넬이면 앞 밴드는 ㄴ자 지면판 바로 아래. 판 두께는 몸통 T.
+ *     행이 이 짜임(2장 · 70 × W−2T · T)과 다르면 unplaced 'band-position-pending'
  *   상부장 보강목 2장 — 2026-10-20 사장님: 사쿠리 홈 뒤 장의 맨 뒤, 지판 바로 위 · 천판 바로 아래.
  *     판은 몸통이 18T 여도 15T (assembly-rules UPPER_BAND_T).
  *   D2 서랍장 처짐방지목 자리 → unplaced 'pending-owner D2'
@@ -322,13 +324,25 @@
         case 'shelf':
           return;   // 아래에서 모듈 선반을 한꺼번에 높이 순으로
         case 'body:band': {
-          // 2026-10-20 사장님: 상부장 보강목 2장은 사쿠리 홈 뒤 — 장의 맨 뒤, 판이 서서 뒤를 본다.
-          //   아래 1장은 지판 바로 위, 위 1장은 천판 바로 아래. 하부장 밴드 자리는 아직 미정.
-          if (row.part !== '밴드(보강목)' || !sakuri || row.qty !== 2) { skip(row, 'band-position-pending'); return; }
-          //   판은 몸통과 상관없이 15T (2026-10-20 사장님 "15T 고정") — 홈 뒤 15 자리에 맞는다.
-          [T, H - T - row.h].forEach((y0, k) => {
-            parts.push(makePart(row, k, { o: [-W / 2 + T, y0, zBack], u: '+x', v: '+y', n: '+z' }, [], 'interior', { mount: 'behind-groove' }));
-          });
+          if (row.part === '밴드(보강목)') {
+            // 2026-10-20 사장님: 상부장 보강목 2장은 사쿠리 홈 뒤 — 장의 맨 뒤, 판이 서서 뒤를 본다.
+            //   아래 1장은 지판 바로 위, 위 1장은 천판 바로 아래.
+            if (!sakuri || row.qty !== 2) { skip(row, 'band-position-pending'); return; }
+            //   판은 몸통과 상관없이 15T (2026-10-20 사장님 "15T 고정") — 홈 뒤 15 자리에 맞는다.
+            [T, H - T - row.h].forEach((y0, k) => {
+              parts.push(makePart(row, k, { o: [-W / 2 + T, y0, zBack], u: '+x', v: '+y', n: '+z' }, [], 'interior', { mount: 'behind-groove' }));
+            });
+            return;
+          }
+          // 하부장·키큰장 단 밴드 2장 (70 × W−2T, 몸통 T) — 2026-10-20 사장님 "뒤 눕힘, 두께는 몸통과 같게":
+          //   천판 대신 상단 앞·뒤에 눕는다 (70 이 앞뒤 방향, 측판 사이). 앞 밴드는 목찬넬 ㄴ자 지면판 바로 아래
+          //   (프로젝트 지침 — 처짐방지목 윗끝이 앞 밴드 아랫면에 닿는다, BOM bandH = H − 2T − 70), 목찬넬이 없으면
+          //   윗면 = 몸통 상단 (bandH = H − 2T). 뒤 밴드는 윗면 = 몸통 상단, 뒤끝 — 사쿠리면 천지판처럼 홈 앞(panelZ0).
+          if (row.part !== '밴드' || row.qty !== 2 || row.w !== C.BAND_W || row.h !== W - 2 * T || row.thickness !== T) { skip(row, 'band-position-pending'); return; }
+          const chanTop = /목찬넬 따내기 상단/.test(String(side.note || ''));
+          const yFront = H - (chanTop ? DR.CHANNEL_TOP_NOTCH_H : 0) - T;
+          parts.push(makePart(row, 0, { o: [-W / 2 + T, yFront, zFront - row.w], u: '+z', v: '+x', n: '+y' }, [], 'interior', { end: 'front' }));
+          parts.push(makePart(row, 1, { o: [-W / 2 + T, H - T, panelZ0], u: '+z', v: '+x', n: '+y' }, [], 'interior', { end: 'back' }));
           return;
         }
         case 'door': {
@@ -669,6 +683,23 @@
       }
     }
 
+    // 서랍모듈 밴드 2장 (W−2T × 70, 몸통 T) — 2026-10-20 사장님 "뒤 눕힘" (하부장과 같다): 천판 대신 상단 앞·뒤에 눕는다.
+    //   앞 밴드는 상단 목찬넬 ㄴ자 지면판 바로 아래 (따내기 70 아래), 뒤 밴드는 윗면 = 몸통 상단, 뒤끝 — 사쿠리면 천지판처럼 홈 앞.
+    const bandRows = new Set();
+    if (drawerCar && !drawerCar.top) {
+      const hit = drawerCar.rows.filter((x) => x.key.family === 'body:band');
+      const row = hit.length === 1 ? hit[0].row : null;
+      if (row && row.qty === 2 && row.w === W - 2 * T && row.h === C.BAND_W && row.thickness === T) {
+        const ci = cars.indexOf(drawerCar);
+        const top = drawerCar.y0 + drawerCar.H;
+        const chanTop = /목찬넬 따내기 상단/.test(String(drawerCar.side.note || ''));
+        const panelZ0 = drawerCar.sakuri ? -D / 2 + C.SAKURI_PANEL_D_MINUS : -D / 2;
+        parts.push(makePart(row, 0, { o: [-W / 2 + T, top - (chanTop ? DR.CHANNEL_TOP_NOTCH_H : 0) - T, D / 2 - row.h], u: '+x', v: '+z', n: '+y' }, [], 'interior', { carcass: ci, end: 'front' }));
+        parts.push(makePart(row, 1, { o: [-W / 2 + T, top - T, panelZ0], u: '+x', v: '+z', n: '+y' }, [], 'interior', { carcass: ci, end: 'back' }));
+        bandRows.add(row);
+      }
+    }
+
     // 외부 서랍 박스 — 2026-10-20 사장님 카드 "싱크 규칙": 싱크 서랍 박스와 같은 짜임·자리 (언더레일).
     //   서랍 자리(존)는 싱크 layoutDrawerModule 과 같은 식: 위는 상단 따낸 밑선 · 중간 따낸 밑선 · 전면 사이 틈 가운데,
     //   아래는 중간 따낸 윗선 · 전면 사이 틈 가운데 · 지판 윗면. 박스 측판 밑단 = 존 바닥 + 레일 아래 여유, 가로 가운데, 앞끝 = 몸통 앞선.
@@ -703,7 +734,8 @@
     //   서랍 도어 앞면 = 통 앞선 − 70 (경첩 자리), 모듈은 그 뒤 (모듈 앞선 = 앞선 − 70 − 도어 두께), 뒤는 남는 만큼 빈다.
     //   좌우몰딩은 앞을 보고 서서 앞면 = 앞선 − 70, 상판 앞선도 앞선 − 70.
     //   높이는 규칙 그대로 — 통 지판 위(zone.y0)에 모듈, 그 위 상판, 도어는 모듈 외경 면에서 아래 2 (frontY0).
-    //   가로는 통 내경 가운데, 좌우 몰딩 60. 몸통은 하부장과 같다 — 천판 없이 밴드가 상단 앞·뒤에 선다 (규칙 BAND_H 주석).
+    //   가로는 통 내경 가운데, 좌우 몰딩 60. 몸통은 하부장과 같다 — 천판 없이 밴드 2장이 상단 앞·뒤에 눕는다
+    //   (2026-10-20 사장님 "뒤 눕힘": 70 이 앞뒤 방향, 윗면 = 모듈 상단, 그 위에 상판).
     const innerRows = new Set();
     const zoneCab = layoutOk && cabs ? cabs.find((cb) => cb.drawerZone && cb.drawerZone.fronts && cb.drawerZone.fronts.length) : null;
     const innerHit = keyed.filter((x) => x.key && (groupOf(x.row) === '내부서랍모듈' || /^innerdrawer:/.test(x.key.family)));
@@ -734,8 +766,8 @@
         parts.push(makePart(side, 0, { o: [-mW / 2, y0, zMod - mD], u: '+z', v: '+y', n: '+x' }, [], 'interior', tag({ side: 'left' })));
         parts.push(makePart(side, 1, { o: [mW / 2, y0, zMod - mD], u: '+z', v: '+y', n: '-x' }, [], 'interior', tag({ side: 'right' })));
         parts.push(makePart(bottom, 0, { o: [-mW / 2 + t, y0, zMod - z.panelD], u: '+x', v: '+z', n: '+y' }, [], 'interior', tag()));
-        parts.push(makePart(band, 0, { o: [-band.w / 2, y0 + mH - I.BAND_H, zMod - band.thickness], u: '+x', v: '+y', n: '+z' }, [], 'interior', tag({ end: 'front' })));
-        parts.push(makePart(band, 1, { o: [-band.w / 2, y0 + mH - I.BAND_H, zMod - mD], u: '+x', v: '+y', n: '+z' }, [], 'interior', tag({ end: 'back' })));
+        parts.push(makePart(band, 0, { o: [-band.w / 2, y0 + mH - t, zMod - band.h], u: '+x', v: '+z', n: '+y' }, [], 'interior', tag({ end: 'front' })));
+        parts.push(makePart(band, 1, { o: [-band.w / 2, y0 + mH - t, zMod - mD], u: '+x', v: '+z', n: '+y' }, [], 'interior', tag({ end: 'back' })));
         // 뒷판 — 측판 뒤 덮음 (사쿠리 없음), 위아래 가운데
         parts.push(makePart(back, 0, { o: [-back.w / 2, y0 + (mH - back.h) / 2, zMod - mD - back.thickness], u: '+x', v: '+y', n: '+z' }, [], 'interior', tag({ mount: 'behind-sides' })));
         // 상판 — 모듈 위, 통 내경 폭으로 좌우 몰딩까지 덮는다. 앞선 = 앞선 − 70, 뒤로 뻗는다
@@ -759,7 +791,7 @@
           if (!b || b.idx !== f.idx) return;
           const rail = DR.RAIL_CLEARANCE[b.rail];
           const bottomY = i === 0 ? y0 + t : ys[i];
-          const topY = i < z.fronts.length - 1 ? ys[i + 1] : y0 + mH - I.BAND_H;
+          const topY = i < z.fronts.length - 1 ? ys[i + 1] : y0 + mH - t;   // 맨 위는 눕힌 밴드 아랫면
           const by = bottomY + rail.below;
           if (by + b.sideH + rail.above > topY) return;
           boxes.push({ size: b.size, dims: b, x0: -b.outerW / 2, y0: by, zf: zMod, z0: zMod - b.sideL });
@@ -778,7 +810,7 @@
       }
     }
 
-    const placed = new Set([...divRows, ...pedRows, ...doorRows, ...chanRows, ...boxRows, ...innerRows]);
+    const placed = new Set([...divRows, ...pedRows, ...doorRows, ...chanRows, ...bandRows, ...boxRows, ...innerRows]);
     cars.forEach((c) => [c.side, c.top, c.bottom, c.back].filter(Boolean).concat(c.rows.filter((x) => x.key.family === 'shelf').map((x) => x.row)).forEach((r) => placed.add(r)));
     keyed.forEach(({ row, key }) => {
       if (placed.has(row)) return;
