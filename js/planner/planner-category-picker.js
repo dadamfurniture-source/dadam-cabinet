@@ -20,7 +20,7 @@
 // 그 둘은 계층이 다르다 — 여기는 '품목', 아래는 품목 안에 놓는 '모듈/가전'.
 // ============================================================
 
-/** 품목 10종. js/detaildesign/data-constants.js 의 CATEGORIES 와 id·name 이 같아야 한다. */
+/** 품목 11종 (2026-10-20 TV장 추가). js/detaildesign/data-constants.js 의 CATEGORIES 와 id·name 이 같아야 한다. */
 const PLANNER_CATEGORY_LIST = [
   { id: 'sink', name: '싱크대', icon: '🍳' },
   { id: 'island', name: '아일랜드', icon: '🏝' },
@@ -30,6 +30,7 @@ const PLANNER_CATEGORY_LIST = [
   { id: 'vanity', name: '화장대', icon: '💄' },
   { id: 'storage', name: '수납장', icon: '📦' },
   { id: 'warehouse', name: '창고장', icon: '🏭' },
+  { id: 'tvcabinet', name: 'TV장', icon: '📺' },
   { id: 'door', name: '도어교체', icon: '🚪' },
   { id: 'custom', name: '비규격장', icon: '✏️' },
 ];

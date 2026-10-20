@@ -63,6 +63,7 @@ const CATEGORY_NAMES = {
   vanity: '화장대',
   storage: '수납장',
   warehouse: '창고장',
+  tvcabinet: 'TV장',
   door: '도어교체',
   custom: '비규격장',
 };

@@ -40,7 +40,7 @@ build123d·cadgen 을 사이트에 올리지 않는다. 오늘 CAD 로 실제로
 | D11 | 2026-10-18 | 승인: BOM = `assembly-rules.js` · `bom-assembly.js` · `assembly-check.js` · `tools/cad/**` · `cad-oracle.yml` / 플래너 = `planner-assembly-mesh.js` · `planner-export.js` / 워크플로 = `part-drawing.js` · `module-section.js` · `dxf-writer.js` · `js/detaildesign/workflow-client.js` | CLAUDE.md 도메인 표에 반영. 이 PR 머지 뒤부터 PR2·PR3 시작 가능. `planner-bridge.js` 는 D11 목록에 없어 아직 소유자 없음 |
 | D12 | 2026-10-20 | 하부 선반 = 측판 깊이 − **T** (몸통 판 두께: 15T −15, 18T −18). 상부 D−34 는 그대로 | 규칙 표·명세의 하부 선반 깊이는 T 로 계산 |
 | D8 | 2026-10-20 | 검사 오류가 있으면 작업지시서 발행 전에 **확인창**, 확인을 눌러야 발행 (차단은 아님) | PR7 검사의 error 는 확인창으로 |
-| 상부장 보강목 | 2026-10-20 | 2장, **(W − 2T) × 60** (70 에서 바꿈). 사쿠리 홈 뒤쪽, 장의 맨 뒤에 붙임 | 명세의 보강목 자리 미정(unplaced)을 이 자리로. BOM 치수 70 → 60 은 BOM 도메인 작업 |
+| 상부장 보강목 | 2026-10-20 | 2장, **(W − 2T) × 60** (70 에서 바꿈). 사쿠리 홈 뒤쪽, 장의 맨 뒤에 붙임. 높이: 위 1장 천판 바로 아래, 아래 1장 지판 바로 위. 18T 몸통은 미정 | 명세의 보강목 자리 미정(unplaced)을 이 자리로. BOM 치수 70 → 60 은 BOM 도메인 작업 |
 
 ### 단계 0 (1주차) — 개정판
 
