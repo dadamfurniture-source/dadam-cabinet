@@ -8,10 +8,10 @@
  */
 
 import { ConflictError, NotFoundError, insertOne, selectOne } from '../supabase.js';
-import { assertMine, requireAdminEditor, requireApprovedWorker } from './access.js';
+import { assertAssignable, assertMine, requireAdminEditor, requireApprovedWorker, requireWorker } from './access.js';
 import { recordEvent } from './events.js';
 import {
-  countFilled, loadJob, loadJobAssignments, needsReview, recordAssignmentChange, transitionAssignment,
+  countFilled, declineOffersIfEnded, loadJob, loadJobAssignments, needsReview, recordAssignmentChange, transitionAssignment,
 } from './jobs.js';
 import { notifyWork } from './notify.js';
 import { ACTIVE_STATUSES, workerAssignment } from './reveal.js';
@@ -22,10 +22,13 @@ const nowIso = () => new Date().toISOString();
 const STAFFABLE = ['draft', 'open', 'filled', 'in_progress'];
 const ENDED_JOB = ['closed', 'cancelled'];
 
-/** 작업자 본인 배정 + 작업 + 그 작업의 모든 배정. 남의 배정은 404 */
-export async function loadMyAssignment(env, user, rawId) {
+/**
+ * 작업자 본인 배정 + 작업 + 그 작업의 모든 배정. 남의 배정은 404.
+ * 정지된 작업자도 진행 중인 일을 정리할 수 있다 (거절 · 시작 · 포기 · 보고). approvedFor 를 주면 승인된 작업자만 (초대 수락).
+ */
+export async function loadMyAssignment(env, user, rawId, { approvedFor = null } = {}) {
   const id = assertUuid(rawId, '배정 id');
-  const worker = await requireApprovedWorker(env, user);
+  const worker = approvedFor ? await requireApprovedWorker(env, user, approvedFor) : await requireWorker(env, user);
   const assignment = assertMine(await selectOne(env, 'work_assignments', { id: `eq.${id}`, select: '*' }), worker, '배정');
   const job = await loadJob(env, assignment.job_id);
   const all = await loadJobAssignments(env, job.id);
@@ -43,9 +46,9 @@ async function loadAssignmentAdmin(env, rawId) {
 
 // ── 작업자 ───────────────────────────────────────────────────────
 
-/** POST /work/assignments/:id/confirm — 초대(offered) 수락. 정원이 찼으면 409 */
+/** POST /work/assignments/:id/confirm — 초대(offered) 수락. 정원이 찼으면 409, 정지된 작업자는 403 */
 export async function confirmAssignment(env, { user, params }) {
-  const { assignment, job, all } = await loadMyAssignment(env, user, params.id);
+  const { assignment, job, all } = await loadMyAssignment(env, user, params.id, { approvedFor: 'confirm' });
   if (assignment.status !== 'offered') throw new ConflictError('초대받은 배정만 수락할 수 있습니다');
   if (!STAFFABLE.includes(job.status)) throw new ConflictError('더 이상 사람을 받지 않는 작업입니다');
   if (countFilled(all) >= job.slots) throw new ConflictError('정원이 찼습니다');
@@ -89,7 +92,7 @@ export async function releaseAssignment(env, { user, params, body, ctx }) {
 
 // ── 관리자 ───────────────────────────────────────────────────────
 
-/** POST /work/admin/jobs/:id/invite — 직접 지정 (offered). 승인된 작업자 · 종류가 맞아야 */
+/** POST /work/admin/jobs/:id/invite — 직접 지정 (offered). 승인된 작업자(정지 · 대기는 409) · 종류가 맞아야 */
 export async function inviteWorker(env, { user, params, body }) {
   await requireAdminEditor(env, user);
   const jobId = assertUuid(params.id, '작업 id');
@@ -98,7 +101,7 @@ export async function inviteWorker(env, { user, params, body }) {
   if (!STAFFABLE.includes(job.status)) throw new ConflictError('더 이상 사람을 받지 않는 작업입니다');
   const worker = await selectOne(env, 'workers', { id: `eq.${workerId}`, select: 'id,status,kinds,display_name' });
   if (!worker) throw new NotFoundError('작업자를 찾을 수 없습니다');
-  if (worker.status !== 'approved') throw new ConflictError('승인된 작업자만 지정할 수 있습니다');
+  assertAssignable(worker);
   if (!(worker.kinds || []).includes(job.kind)) throw new ConflictError('작업 종류가 맞지 않는 작업자입니다');
   const all = await loadJobAssignments(env, jobId);
   if (all.some((a) => a.worker_id === workerId && ACTIVE_STATUSES.includes(a.status))) throw new ConflictError('이미 배정된 작업자입니다');
@@ -116,6 +119,10 @@ export async function inviteWorker(env, { user, params, body }) {
     jobId, assignmentId: row.id, actorUserId: user.id, actorKind: 'admin', type: 'assignment_offered', to: 'offered',
     payload: { worker_id: workerId, via: 'invite' },
   });
+  // 상태 확인과 넣기 사이에 작업이 닫히거나 취소됐으면 그쪽의 자동 정리는 이 초대를 보지 못했다 — 같은 문구로 끝내고 409
+  const ended = await declineOffersIfEnded(env, jobId)
+    .catch((e) => { console.warn('[work] 남은 초대 정리 실패:', e && e.message); return null; });
+  if (ended !== null) throw new ConflictError('더 이상 사람을 받지 않는 작업입니다');
   return row;
 }
 
