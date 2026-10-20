@@ -448,7 +448,7 @@ POST /api/generate
 
 | 항목 | 규칙 |
 |---|---|
-| 언제 붙나 | `mode:'planner'` 잡이 done 으로 끝날 때 `layout.verify.ok !== true` — 불일치(`false`) · 대조 실패(`null`, `verify.error`) · 대조를 못 돈 경우 모두. ok 면 **키 자체가 없다** |
+| 언제 붙나 | `mode:'planner'` 잡이 done 으로 끝날 때 `layout.verify.ok !== true` — 불일치(`false`) · 대조 실패(`null`, `verify.error`) · 대조를 못 돈 경우 모두. ok 면 **키 자체가 없다**. 2026-10-20: 플래너 판독의 ok 는 상부 도어 총수가 도면과 같고 도면 밖 상부 줄 덤이 없어야 한다 |
 | 어떻게 | done 패치와 **같은 PATCH** 로. 지금 행의 `options` 를 읽어 `internal_only: true` 만 더한다(덮어쓰지 않음). 기본안이 있어 `fail()` 이 done 으로 닫는 길도 같다 |
 | 크레딧 | 환불하지 않는다 — 이미지는 나왔다 |
 | 플래너가 아니면 | 아무것도 안 한다 — 마무리 패치가 바이트 그대로 |

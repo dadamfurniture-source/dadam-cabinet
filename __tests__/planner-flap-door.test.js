@@ -60,12 +60,12 @@ describe('플래너 — 열림 방향에 "위"가 있다 (상부장만)', () => 
 describe('냉장고 자리 위장은 자동계산이 플랩으로 둔다', () => {
   const FRIDGE_AREA = { section: 'fridge', x: 0, y: 0, w: 1500, h: 700, moduleH: 2300, rotation: 0, finishings: [] };
   const fridge = { section: 'refrigerator', x: 100, y: 0, w: 595, h: 680, moduleH: 1780, rotation: 0, finishings: [], sideGap: 10, topGap: 15 };
-  test('620 위장 (2026-10-20 +전체 여유 5) — 도어 한 장, 열림 "위"', () => {
+  test('621 위장 (2026-10-20 +전체 여유 6) — 도어 한 장, 열림 "위"', () => {
     const layout = { version: 1, savedAt: '2026-10-13T00:00:00.000Z', person: null, modules: [FRIDGE_AREA, fridge] };
     const p = bootPlanner('mockup-structure.html', { search: '?design=d1&item=1', storage: { 'dadam_layout_v1::d1:1': JSON.stringify(layout) } });
     const a = p.g('areas').find((x) => x.section === 'fridge');
     p.g('autoCalcArea')(a.id);
-    const niche = p.g('modules').find((m) => m.areaId === a.id && !m.isFinishing && Math.round(m.W) === 620);
+    const niche = p.g('modules').find((m) => m.areaId === a.id && !m.isFinishing && Math.round(m.W) === 621);
     const s = p.g('structures')[niche.id];
     expect(s.areaDirections).toEqual(['up']);
     // 옆 통(냉장고 자리 아님)은 예전처럼 옆으로 연다

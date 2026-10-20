@@ -169,11 +169,13 @@ test('대조: 사람이 센 정답이면 ok — 순서·개수·상부장·모�
   assert.equal(v.expected.upperDoors, 4);
 });
 
-test('대조: 도면 밖 덤 유닛(냉장고 위 2짝)은 상부장 도어 수에 섞지 않고 이슈로만 — b9f48bfb 경우', () => {
+test('대조: 도면 밖 덤 유닛(냉장고 위 2짝)은 상부장 도어 수에 섞지 않는다 — b9f48bfb 경우. 상부 줄 덤이라 ok 는 막는다 (2026-10-20)', () => {
   const raw = goodRead();
   raw.extra_units = [{ row: 'wall', where: 'above the refrigerator', doors: 2, drawers: 0 }];
   const v = compareLayoutToSpec(norm(raw), D1, 'sink');
-  assert.equal(v.ok, true);
+  // 2026-10-20 사장님 결정: 도면 밖 상부 줄 덤은 ok 관문에 든다 (planner-upper-gate.test.js). 점수는 그대로.
+  assert.equal(v.ok, false);
+  assert.equal(v.score, 4);
   assert.equal(v.parts.uppers, 1, '상부 U1·U2 는 4짝 그대로');
   assert.deepEqual(v.issues, ['extra: wall unit not in plan (above the refrigerator), 2 doors + 0 drawers']);
   assert.deepEqual(v.read.extraUnits, [{ row: 'wall', where: 'above the refrigerator', doors: 2, drawers: 0 }]);
