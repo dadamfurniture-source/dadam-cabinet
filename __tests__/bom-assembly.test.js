@@ -325,3 +325,71 @@ test('solidsOf — 관통 따내기를 뺀 부피', () => {
   const vol = Asm.solidsOf(p).reduce((s, b) => s + (b.max[0] - b.min[0]) * (b.max[1] - b.min[1]) * (b.max[2] - b.min[2]), 0);
   expect(vol).toBeCloseTo((550 * 708 - 40 * 70) * 15, 6);
 });
+
+// 붙박이장 통 — 몸통이 여럿이다. 규칙 파일 layoutWardrobeModule: 외부 서랍 몸통이 맨 아래, 그 위 하부장 · 상부장 (cabinetsOf 0 = 하부장).
+describe('wardrobe 자리 — 몸통 쌓기', () => {
+  const WR = require('../js/detaildesign/bom-wardrobe-rules.js');
+  const { spec } = specOf('wardrobe');
+  const mod = (id) => spec.items[0].modules.find((m) => m.moduleId === id);
+  const of = (m, rowPartId) => m.parts.filter((p) => p.rowPartId === `${m.moduleKey}-${rowPartId}`);
+
+  test('통 모듈 셋이 명세에 들어온다 — 몸통은 아래→위 (2단 = 하부장·상부장, 외부 서랍 = 서랍모듈이 맨 아래)', () => {
+    expect(spec.items[0].modules.map((m) => [m.moduleId, m.kind])).toEqual([['w1', 'wardrobe'], ['w2', 'wardrobe'], ['w3', 'wardrobe']]);
+    expect(mod('w1').carcasses.map((c) => [c.group, c.y0, c.h, c.sakuri])).toEqual([['하부장', 0, 1140, false], ['상부장', 1140, 1140, true]]);
+    expect(mod('w2').carcasses.map((c) => [c.group, c.y0, c.h, c.sakuri])).toEqual([['서랍모듈', 0, 700, true], ['통', 700, 1580, true]]);
+    spec.items[0].modules.forEach((m) => expect(m.box).toEqual({ W: 900, H: 2280, D: 600, T: 15 }));
+  });
+
+  test('몸통마다 싱크와 같은 짜임 — 사쿠리 상부장은 홈·천지판 D−18, 하부장은 뒤에 덮음·측판 깊이', () => {
+    const m = mod('w1');
+    const [upL] = of(m, 'body:side-0');
+    expect(upL.box).toEqual({ min: [-450, 1140, -300], max: [-435, 2280, 300] });
+    expect(upL.features.map((f) => f.src)).toEqual(['sakuri']);
+    expect(of(m, 'body:bottom-0')[0].box).toEqual({ min: [-435, 1140, -282], max: [435, 1155, 300] });
+    expect(of(m, 'body:top-0')[0].box).toEqual({ min: [-435, 2265, -282], max: [435, 2280, 300] });
+    expect(of(m, 'back-0')[0].box).toEqual({ min: [-440, 1140.5, -285], max: [440, 2279.5, -282] });
+    expect(of(m, 'body:side-1')[0].features).toEqual([]);
+    expect(of(m, 'body:top-1')[0].box).toEqual({ min: [-435, 1125, -300], max: [435, 1140, 300] });
+    expect(of(m, 'back-1')[0].box).toEqual({ min: [-449.5, 0.5, -303], max: [449.5, 1139.5, -300] });
+    expect(m.parts.filter((p) => p.part !== '선반').every((p) => p.tags.carcass === (p.box.min[1] >= 1140 ? 1 : 0))).toBe(true);
+  });
+
+  test('선반 높이 — 통 구조 블록이 없는 옛 설계는 wardrobe.md §6 (긴옷: 상단 315 아래, 그 밖: 균등)', () => {
+    // w2 긴옷 통 (몸통 1580, y0 700) — 첫 선반 밑면 = 칸 상단 − 315
+    const [s2] = of(mod('w2'), 'shelf#0-0');
+    expect(s2.box.min[1]).toBe(700 + 1580 - 15 - WR.WARDROBE_RULES.LONG_FIRST_SHELF);
+    // w3 하부장 선반 2 — (1140 − 30 − 2×15) / 3 간격
+    expect(of(mod('w3'), 'shelf#1-0').map((p) => p.box.min[1])).toEqual([15 + 360, 15 + 360 + 15 + 360]);
+    // 천지판 뒤끝에 맞춘다 — 사쿠리 몸통 D−88 선반은 앞이 70 남는다 (§6 전면 여유)
+    expect(s2.box.min[2]).toBe(-282);
+    expect(s2.box.max[2]).toBe(300 - 70);
+  });
+
+  test('통 구조 블록이 있으면 규칙 파일 배치의 선반 자리 — 몸통 높이가 다르면 놓지 않는다', () => {
+    const item = JSON.parse(JSON.stringify(FIXTURES.wardrobe));
+    const w2 = item.modules.find((m) => m.id === 'w2');
+    w2.wardrobe = { preset: 'longDrawer', drawers: 2, externalDrawer: true };
+    item.specs.wardrobeMoldingH = 60;
+    const design = { items: [item] };
+    const materials = new MaterialExtractor().extract(design).materials;
+    const s = Asm.of(design, { materials });
+    const m = s.items[0].modules.find((x) => x.moduleId === 'w2');
+    const L = WR.layoutWardrobeModule({ W: 900, D: 600, T: 15, bodyH: 2400 - 60 - 60, preset: 'longDrawer', drawers: 2, externalDrawer: true });
+    const shelves = m.parts.filter((p) => p.part === '선반');
+    expect(shelves.map((p) => p.box.min[1])).toEqual(L.shelves.map((x) => x.y));
+    expect(shelves.length).toBeGreaterThan(0);
+    // 몸통 높이를 바꾸면 (BOM 몸통 ≠ 배치) 선반은 shelf-height-unknown
+    w2.h = 2200;
+    const s2 = Asm.of(design, { materials: new MaterialExtractor().extract(design).materials });
+    expect(s2.unplaced.filter((u) => u.moduleKey === '0-w2' && u.part === '선반').map((u) => u.reason)).toEqual(['shelf-height-unknown']);
+  });
+
+  test('아직 자리를 안 정한 행은 이유와 함께 — 도어(좌대+몸통−20 세로 자리 미정) · 서랍모듈 밴드 · 좌대 · 서랍', () => {
+    const reasons = (id) => [...new Set(spec.unplaced.filter((u) => u.moduleKey === `0-${id}`).map((u) => u.reason))].sort();
+    expect(reasons('w2')).toEqual(['band-position-pending', 'door-layout-unknown', 'drawer-layout-unknown', 'not-yet']);
+    expect(spec.unplaced.filter((u) => u.part === '도어').map((u) => u.reason)).toEqual(['door-layout-unknown', 'door-layout-unknown', 'door-layout-unknown']);
+    const ped = spec.unplaced.filter((u) => /^좌대 (전후|측|중간보강)$/.test(u.part));
+    expect(ped).toHaveLength(9);
+    expect(ped.every((u) => u.reason === 'not-yet')).toBe(true);
+  });
+});
