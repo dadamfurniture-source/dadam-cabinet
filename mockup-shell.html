@@ -42,6 +42,9 @@
   #modelList{overflow-y:auto;max-height:50vh;display:flex;flex-direction:column;gap:4px;padding-right:2px}
   .model-item{display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:8px 10px;border:1px solid #e0d6c0;background:#fff;border-radius:5px;cursor:pointer;transition:background .12s ease}
   .model-item:hover{background:#f4efe7;border-color:#b8956c}
+  .model-item.has-img{flex-direction:row;align-items:center;gap:10px}
+  .model-item .m-img{width:44px;height:58px;object-fit:contain;flex:none;background:#fff}
+  .model-item .m-txt{display:flex;flex-direction:column;align-items:flex-start;min-width:0}
   .model-item .m-name{font-size:12px;font-weight:700;color:#3d342a}
   .model-item .m-brand{font-size:10px;color:#7a7062;margin-top:1px;display:flex;align-items:center;gap:6px}
   .m-verified{font-size:9px;padding:1px 6px;border-radius:8px;background:#e3f5e1;color:#2c6a26;font-weight:700}
@@ -2547,7 +2550,9 @@
       // 2026-10-19: 냉장고 대량 수집 칸(subtype · line · model_codes · back_gap_mm, appliance-models-catalog.sql)도
       //   읽는다. 칸이 없으면 한 단계씩 줄여 다시 읽는다.
       // 2026-10-20: 빌트인 장 안쪽 치수(niche_min_w/h_mm, appliance-models-niche.sql)도 읽는다.
-      let res = await fetch(`${base},side_gap_mm,top_gap_mm,subtype,line,model_codes,niche_min_w_mm,niche_min_h_mm&order=brand,model_name`, { headers });
+      // 2026-10-20: 제조사 공식 대표 사진 주소(image_url, appliance-models-image.sql)도 읽는다 — 없으면 한 단계 줄여 다시.
+      let res = await fetch(`${base},side_gap_mm,top_gap_mm,subtype,line,model_codes,niche_min_w_mm,niche_min_h_mm,image_url&order=brand,model_name`, { headers });
+      if (!res.ok) res = await fetch(`${base},side_gap_mm,top_gap_mm,subtype,line,model_codes,niche_min_w_mm,niche_min_h_mm&order=brand,model_name`, { headers });
       if (!res.ok) res = await fetch(`${base},side_gap_mm,top_gap_mm,subtype,line,model_codes&order=brand,model_name`, { headers });
       if (!res.ok) res = await fetch(`${base},side_gap_mm,top_gap_mm`, { headers });
       if (!res.ok) res = await fetch(base, { headers });
@@ -2571,6 +2576,7 @@
         codes:    Array.isArray(r.model_codes) ? r.model_codes : [],  // 색상 변형 코드로도 찾는다
         nicheW:   r.niche_min_w_mm ?? null,    // 2026-10-20 — 빌트인 장 안쪽 치수 (fridgeGapsOf)
         nicheH:   r.niche_min_h_mm ?? null,
+        img:      typeof r.image_url === 'string' && r.image_url.startsWith('https://') ? r.image_url : null,  // 공식 대표 사진
       }));
     } catch (e) {
       console.warn('[appliance_models] fetch 실패, fallback 사용:', e);
@@ -2612,10 +2618,12 @@
       return;
     }
     modelListEl.innerHTML = filtered.map((m, i) => `
-      <button class="model-item" type="button" data-idx="${REFRIGERATOR_MODELS.indexOf(m)}">
+      <button class="model-item${m.img ? ' has-img' : ''}" type="button" data-idx="${REFRIGERATOR_MODELS.indexOf(m)}">
+        ${m.img ? `<img class="m-img" src="${m.img.replace(/"/g, '%22')}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()"><div class="m-txt">` : ''}
         <div class="m-brand">${m.brand} ${m.verified ? '<span class="m-verified" title="제조사 공식 사양">✓ 검증</span>' : '<span class="m-unverified" title="표준 치수 추정 — 공식 사양 확인 권장">⚠ 표준</span>'}</div>
         <div class="m-name">${m.name}</div>
         <div class="m-dim">W ${m.w} × D ${m.d} × H ${m.h} mm${m.subtype || m.line ? ` · ${[FRIDGE_SUBTYPE_LABEL[m.subtype], m.line].filter(Boolean).join(' · ')}` : ''}</div>
+        ${m.img ? '</div>' : ''}
       </button>
     `).join('');
   }

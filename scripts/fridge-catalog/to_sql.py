@@ -111,6 +111,14 @@ def refine_subtype(r, name):
     return st
 
 
+def image_of(r):
+    """대표 사진 주소 — DB 칸이 https 만 받는다(appliance-models-image.sql). '//host/…' 는 https 로, http 는 버린다."""
+    u = str(r.get('image_url') or '').strip()
+    if u.startswith('//'):
+        u = 'https:' + u
+    return u if u.startswith('https://') and len(u) < 2000 else None
+
+
 def row_of(r):
     codes = [str(c).rstrip('_') for c in (r.get('model_codes') or []) if c]
     codes = list(dict.fromkeys(c for c in codes if c))
@@ -137,6 +145,7 @@ def row_of(r):
         'verified': r.get('brand') not in UNVERIFIED_BRANDS and not (set(r.get('tags') or []) & UNVERIFIED_TAGS),
         'source_url': r.get('page_url') or r.get('source_url'),
         'notes': notes_of(r),
+        'image_url': image_of(r),  # 제조사 공식 대표 이미지 주소 (주소만, 재호스팅 안 함)
     }
 
 
