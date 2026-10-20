@@ -264,3 +264,48 @@ describe('빠른 배치 — 일자·ㄱ자·ㄷ자', () => {
     expect(shown).toEqual(['I']);
   });
 });
+
+describe('도어교체·비규격장 BOM (2026-10-20 카드 "도어만·싱크대 규칙")', () => {
+  const { snapshotOf } = require('../test-utils/bom-golden/golden');
+  const designOf = (categoryId) => ({
+    items: [{
+      categoryId, w: 2400, h: 870, d: 650,
+      specs: { bodyThickness: 15, lowerH: 870, sinkLegHeight: 150, topThickness: 12 },
+      modules: [
+        { id: 'l1', type: 'storage', name: '하부장', pos: 'lower', w: 900, h: 708, d: 550, doorCount: 2, is2door: true, isDrawer: false },
+        { id: 'l2', type: 'storage', name: '서랍장', pos: 'lower', w: 600, h: 708, d: 550, doorCount: 1, isDrawer: true, drawerCount: 2 },
+      ],
+    }],
+  });
+
+  test('도어교체 — 도어·서랍 전면 판만, 철물은 경첩만', () => {
+    const s = snapshotOf(designOf('door'));
+    expect(s.materials.length).toBeGreaterThan(0);
+    expect([...new Set(s.materials.map((m) => m.slot))].sort()).toEqual(['door', 'drawerFront']);
+    expect(s.materials.every((m) => m.itemLabel === '도어교체')).toBe(true);
+    expect(s.hardware.length).toBeGreaterThan(0);
+    expect([...new Set(s.hardware.map((h) => h.category))]).toEqual(['경첩']);
+  });
+
+  test('도어교체 도어 판은 싱크대 규칙과 같은 치수다', () => {
+    const door = snapshotOf(designOf('door')).materials.filter((m) => m.slot === 'door').map((m) => [m.w, m.h, m.qty]);
+    const sink = snapshotOf(designOf('sink')).materials.filter((m) => m.slot === 'door').map((m) => [m.w, m.h, m.qty]);
+    expect(door).toEqual(sink);
+  });
+
+  test('비규격장 — 싱크대 규칙 그대로 (몸통·도어·다리발)', () => {
+    const custom = snapshotOf(designOf('custom'));
+    const sink = snapshotOf(designOf('sink'));
+    expect(custom.materials.map((m) => [m.part, m.w, m.h, m.qty])).toEqual(sink.materials.map((m) => [m.part, m.w, m.h, m.qty]));
+    expect(custom.hardware.map((h) => [h.category, h.item, h.qty])).toEqual(sink.hardware.map((h) => [h.category, h.item, h.qty]));
+    expect(custom.materials[0].itemLabel).toBe('비규격장');
+  });
+
+  test('아일랜드 측판 비고에 몸통 깊이 [확인 필요]', () => {
+    const d = designOf('island');
+    d.items[0].d = 800;
+    const sides = snapshotOf(d).materials.filter((m) => m.part === '측판');
+    expect(sides.length).toBeGreaterThan(0);
+    sides.forEach((m) => expect(m.note).toContain('[확인 필요] 아일랜드 몸통 깊이'));
+  });
+});
