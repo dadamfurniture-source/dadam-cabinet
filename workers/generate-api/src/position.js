@@ -20,8 +20,11 @@ import { KITCHEN_CATEGORIES, POSITION_SCHEMA, buildPositionPrompt, parsePosition
  * 기록 형식·질의·기하·문턱의 판. 하나라도 바뀌면 올린다 — 집계는 판별로 나눈다.
  *   2 (2026-10-20 검토 반영): 후드 세로 소실점 투영 · vz 지평선 검사 · vh 위치 검사 · 직선 2개 σ_u · 도면 덩어리 앵커·런 틀 ·
  *     덩어리 칠 자리(클램프 없음) · 깊이 비율 범위 · 과부하 건너뛰기 · 재실행 기록
+ *   3 (2026-10-20): 도면 덩어리 경로 항목 run_right_place — 칠한 하부 덩어리 끝(ck.place.ref) 대 그린 줄 끝을 같은 화면 틀에서
+ *     직접 비교 (뒤·앞 모서리 둘 다, 보수적인 쪽). 판정되면 run_right_wall 은 place_frame 기록만 · ok 의 자유 끝으로 인정 ·
+ *     measured.place · img 에 CFL·CFR
  */
-export const POSITION_VERSION = 2;
+export const POSITION_VERSION = 3;
 /** 정확도 근거가 이 모델에만 있다 — GEMINI_TEXT_MODEL 을 따라가지 않는다 (env.POSITION_MODEL 로만 바꾼다) */
 export const POSITION_MODEL_DEFAULT = 'gemini-3.8-flash';
 /**
@@ -71,6 +74,9 @@ export const POSITION_ITEMS = {
   hood_wall: { thr: 300, s0: 25, frame: 'wall' },
   run_left_wall: { thr: 300, s0: 20, frame: 'wall' },
   run_right_wall: { thr: 300, s0: 70, frame: 'wall' },
+  // 도면 덩어리(planner_place)만: 칠한 하부 덩어리 끝(ref) 대 그린 줄 끝 — 같은 화면 틀이라 벽 % 원근 가정이 없다.
+  //   σ0 55 = 오프라인 6장(SIFT 정합) 점 0.47 + 틀 0.45 + 모서리 정의 0.30 pp ≈ 0.72 pp × 73~76 mm/pp (place_validate/judge.json design_b)
+  run_right_place: { thr: 300, s0: 55, frame: 'place' },
   sink_run: { thr: 300, s0: 90, frame: 'run' },
   cook_run: { thr: 300, s0: 40, frame: 'run' },
   hood_run: { thr: 300, s0: 30, frame: 'run' },
@@ -86,6 +92,15 @@ const ITEM_KEYS = Object.keys(POSITION_ITEMS);
  * 그 자리의 mm 로는 교차비 미분으로 바뀐다(점을 σ 만큼 옮겨 다시 잰다) — 원근이 강한 벽의 먼 쪽에서 σ 가 커진다.
  */
 export const POINT_SD_PP = { WL: 0.21, WR: 0.34, CBL: 0.15, CBR: 0.47, SINK_B: 0.53, K_BL: 0.42, K_BR: 0.42, HL: 0.25, HR: 0.37 };
+/**
+ * 덩어리 끝 대조(run_right_place)의 점 σ (pp). 앞선 끝(CFL·CFR)은 블라인드 대조 자료가 없어 같은 쪽 뒷선 끝의 값을 쓴다.
+ * POINT_SD_PP 에 넣지 않는다 — 거기 넣으면 앞선 끝점 흔들기가 다른 항목(vh 적합·후드 투영)의 σ 까지 바꾼다.
+ */
+const PLACE_POINT_SD_PP = { CBL: 0.15, CBR: 0.47, CFL: 0.15, CFR: 0.47 };
+/** 덩어리 끝 대조의 틀 σ (pp) — 방 사진 → 기본안 '가로 맞춤' 가정의 x 오차 (오프라인 6장 SIFT 정합 −0.43~+0.24 pp) */
+const PLACE_FRAME_SD_PP = 0.45;
+/** 틀 판정: 기본안과 칠한 캔버스의 가로세로비 차가 이 안이면 같은 틀 */
+const PLACE_ASPECT_TOL = 0.01;
 /** 항목이 기대는 점 (bad_points 판정) */
 const ITEM_POINTS = {
   sink: ['SINK_B'], cook: ['K_BL', 'K_BR'], hood: ['HL', 'HR'], run_left: ['CBL'], run_right: ['CBR'],
@@ -119,6 +134,16 @@ export function positionRoute(input) {
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+/** ck.place.ref 가 쓸 만한 꼴인가 — 하부 뒷선·앞선 양 끝 {x, y, X}, 벽 모서리 {x, y}, 캔버스 크기 (vx 는 null 허용) */
+function placeRefOk(ref) {
+  if (!ref || typeof ref !== 'object') return false;
+  const pt = (p, mm) => !!p && isNum(p.x) && isNum(p.y) && (!mm || isNum(p.X));
+  return (
+    isNum(ref.w) && ref.w > 0 && isNum(ref.h) && ref.h > 0 &&
+    pt(ref.bl, true) && pt(ref.br, true) && pt(ref.fl, true) && pt(ref.fr, true) && pt(ref.wl) && pt(ref.wr) &&
+    (ref.vx == null || isNum(ref.vx)) && ref.br.x !== ref.bl.x && ref.fr.x !== ref.fl.x
+  );
+}
 
 /** 경로별 정답 (mm) · 정답 단계 보류 · 틀. 측정과 무관하다. */
 export function positionExpected(route, input) {
@@ -208,6 +233,19 @@ export function positionExpected(route, input) {
       if (conflict) holdAll(wallKeys, 'place_conflict');
       // ㄱ자·ㄷ자를 칠한 장: 측정 질의가 꺾인 다리 쪽 벽 끝·상판 끝을 어떻게 잡는지 재생 근거가 없다(재생 0장) — 벽 기준은 기록만
       if (corners) holdAll(wallKeys, 'place_corner');
+      // 덩어리 끝 대조 run_right_place (v3): 정답 = 칠한 하부 덩어리의 자유 끝 도면 mm (ck.place.ref — planner-place.js plannerPlaceRef,
+      //   X 는 앵커 기준·배율 s 적용 전). 오른쪽 앵커면 자유 끝은 왼쪽(bl). ref 가 없으면(옛 행·하부 줄 없음) 항목은 두되 no_ref 로 기록만.
+      //   place_conflict·place_corner 는 벽 % 틀의 사유라 이 항목에는 쓰지 않는다 (같은 화면 틀 직접 비교).
+      E.placeSide = right ? 'left' : 'right';
+      const ref = placeRefOk(input.place.ref) ? input.place.ref : null;
+      const lowerB = pb.blocks.find((b) => b.key === 'lower');
+      if (ref) {
+        E.ref = ref;
+        E.mm.run_right_place = right ? ref.bl.X : ref.br.X;
+      } else if (lowerB) {
+        E.mm.run_right_place = right ? lowerB.x0 : lowerB.x1;
+        E.hold.run_right_place = 'no_ref';
+      }
       return E;
     }
 
@@ -735,6 +773,102 @@ export function positionMeasure(D, E) {
 }
 
 /**
+ * 덩어리 끝 대조 (run_right_place, v3) — 칠한 하부 덩어리의 자유 끝(ck.place.ref) 대 기본안에 그린 상판 끝(CBR·CFR, 오른쪽 앵커면 CBL·CFL)
+ * 을 **같은 화면 틀**에서 x % 로 직접 견준다. 기본안은 칠한 사진(IMAGE A)을 편집한 그림이라 벽 방향 소실점을 기본안에서 다시 풀 필요가 없다.
+ *   틀: 기본안(W×H)과 칠한 캔버스(ref.w×h)의 가로세로비 차 ≤ 1 % 면 same, 기본안이 세로로 더 길면 fit_width(x % 그대로 — 오프라인 6장 SIFT
+ *       정합 배율 0.986~1.005), 가로로 더 넓으면 frame 보류(가로를 자르는지 늘이는지 표본 0). 판정은 검증된 조합(provider openai)에서만.
+ *   mm: 칠 카메라의 벽 방향 소실점 vx 로 뒷선·앞선 각각 1차원 사영(sCr) — X(x) = X_l + (X_r − X_l)·sCr(x, l.x, r.x, u)/100.
+ *   값: 뒤·앞 둘 다 있고 부호가 같으면 |d| 가 작은 쪽(보수적). 부호가 다르면 front_back 보류. 한쪽이 없으면 기존 줄 끝 보류 사유.
+ *   σ² = max(σ0, σ_p)² + σ_frame² + σ_def²  (σ_p 점 흔들기 → mm, σ_frame 0.45 pp → mm, σ_def |d_front − d_back|/2)
+ * @returns {{m:number|null, e:number, d?:number, sd:number, hold:string|null, place:object}|null} 항목 + 기록(measured.place)
+ */
+export function placeItem(E, L, D, W, H, c) {
+  const ref = E.ref;
+  const side = E.placeSide || 'right';
+  const e = E.mm.run_right_place;
+  if (!isNum(e)) return null;
+  const it = { m: null, e, sd: POSITION_ITEMS.run_right_place.s0, hold: null, place: { side } };
+  if (!ref) {
+    it.hold = E.hold.run_right_place || 'no_ref';
+    return it;
+  }
+  const bk = side === 'right' ? 'CBR' : 'CBL';
+  const fk = side === 'right' ? 'CFR' : 'CFL';
+  const rb = side === 'right' ? ref.br : ref.bl;
+  const rf = side === 'right' ? ref.fr : ref.fl;
+  // 틀
+  const arB = W / H, arR = ref.w / ref.h;
+  const fm = Math.abs(arB / arR - 1) <= PLACE_ASPECT_TOL ? 'same' : arB < arR ? 'fit_width' : 'frame';
+  const P = it.place;
+  P.fm = fm;
+  if (D && D.img && isNum(D.img.WL)) P.wl_d = D.img.WL - ref.wl.x;
+  // 1차원 사영 (뒷선·앞선 각각 — 둘 다 벽 방향이라 소실점은 같다)
+  const u = ref.vx == null ? 0 : uOfVh([ref.vx, 0], 100);
+  const Xof = (x, l, r) => {
+    const s = sCr(x, l.x, r.x, u);
+    return s == null ? null : l.X + ((r.X - l.X) * s) / 100;
+  };
+  const Xb = (x) => Xof(x, ref.bl, ref.br);
+  const Xf = (x) => Xof(x, ref.fl, ref.fr);
+  const B = L[bk], F = L[fk];
+  let dB = null, dF = null;
+  if (present(B)) {
+    P.d_back_pp = B.x - rb.x;
+    const X = Xb(B.x);
+    if (X != null) dB = X - rb.X;
+  }
+  if (present(F)) {
+    P.d_front_pp = F.x - rf.x;
+    const X = Xf(F.x);
+    if (X != null) dF = X - rf.X;
+  }
+  if (dB != null) P.d_back = dB;
+  if (dF != null) P.d_front = dF;
+  // 보류 — 틀 먼저, 그다음 끝점(기존 줄 끝 규칙), 그다음 뒤·앞 부호
+  const runEnd = (k) => {
+    const p = L[k];
+    if (!present(p)) return p && p.bad ? 'bad_points' : 'run_end_missing';
+    if (p.flag === 'clipped' || p.x <= 1 || p.x >= 99) return 'run_end_clipped';
+    return null;
+  };
+  let hold = null;
+  if (!c.zoom) hold = 'no_zoom';
+  else if (E.hold.run_right_place) hold = E.hold.run_right_place;
+  else if (fm === 'frame' || c.provider !== 'openai') hold = 'frame';
+  else hold = runEnd(bk) || runEnd(fk);
+  // 뒤·앞 부호 — σ0 안의 값은 부호 없음(잡음)으로 본다. 제자리 장은 뒤 +20·앞 −30 처럼 0 근처에서 갈리는데 그것은 어긋남이 아니다
+  const s0 = POSITION_ITEMS.run_right_place.s0;
+  const sgn = (v) => (v == null || Math.abs(v) < s0 ? 0 : Math.sign(v));
+  const both = dB != null && dF != null;
+  const sameSign = both && sgn(dB) * sgn(dF) >= 0;
+  if (!hold && !both) hold = 'front_back';
+  if (!hold && !sameSign) hold = 'front_back';
+  // 값 — 보류여도 둘 다 있고 부호가 같으면 기록용 m·d 를 남긴다
+  if (sameSign) {
+    const useBack = Math.abs(dB) <= Math.abs(dF);
+    const d = useBack ? dB : dF;
+    it.m = e + d;
+    it.d = d;
+    // σ: 고른 쪽 점을 σ 만큼 흔든 mm, 틀 가정 0.45 pp 의 mm, 뒤·앞 정의 차의 절반
+    const pk = useBack ? bk : fk;
+    const px = useBack ? B.x : F.x;
+    const Xk = useBack ? Xb : Xf;
+    const at = (x) => Xk(x);
+    const dxOf = (dpp) => {
+      const a = at(px), b = at(px + dpp);
+      return a == null || b == null ? null : Math.abs(b - a);
+    };
+    const sp = dxOf(PLACE_POINT_SD_PP[pk]) ?? 0;
+    const sf = dxOf(PLACE_FRAME_SD_PP) ?? 0;
+    const sdef = Math.abs(dF - dB) / 2;
+    it.sd = Math.sqrt(Math.max(POSITION_ITEMS.run_right_place.s0, sp) ** 2 + sf ** 2 + sdef ** 2);
+    if (!hold && it.sd > POSITION_ITEMS.run_right_place.thr / 2) hold = 'sd';
+  }
+  it.hold = hold;
+  return it;
+}
+
+/**
  * 채점. 정답이 있는 항목마다 d = 측정 − 정답, σ, 보류 사유, 경보·경계.
  * @param {object} c {E, L, Lf, Lz, D, Df, W, H, zoom, nz, gate, qc, category, alarmsOn}
  * @returns {{items:object, alerts:object[], shadow:string[], ok:boolean|null, M:object}}
@@ -796,6 +930,12 @@ export function positionScore(c) {
   for (const k of ITEM_KEYS) {
     if (!isNum(E.mm[k])) continue;
     const spec = POSITION_ITEMS[k];
+    if (spec.frame === 'place') {
+      // 덩어리 끝 대조 — 벽 틀을 쓰지 않으므로 room_changed·place_corner·vh·wall_end 보류는 해당 없음 (placeItem)
+      const pi = placeItem(E, L, D, W, H, c);
+      if (pi) items[k] = pi;
+      continue;
+    }
     const ob = objOf(k);
     const it = { m: isNum(M.mm[k]) ? M.mm[k] : null, e: E.mm[k] };
     items[k] = it;
@@ -835,6 +975,14 @@ export function positionScore(c) {
     if (!hold && w && !w.hold && w.d != null) hold = 'wall_frame';
     it.hold = hold;
   }
+  // 2026-10-20 사장님 결정: 플래너 계열은 도면 반대쪽 자유 끝(줄 끝)이 판정됐을 때만 ok 를 낸다 (아래 freeEndKey).
+  //   v3: 덩어리 끝 대조(run_right_place)가 판정되면 같은 끝의 벽 % 항목은 기록만(place_frame) — 같은 위반을 두 번 세지 않는다
+  const freeEndKey = E.route.startsWith('planner')
+    ? E.anchor === 'right' ? 'run_left_wall' : 'run_right_wall'
+    : null;
+  const judgedItem = (it) => !!(it && !it.hold && it.d != null);
+  const placeJudged = E.route === 'planner_place' && judgedItem(items.run_right_place);
+  if (placeJudged && freeEndKey && items[freeEndKey] && !items[freeEndKey].hold) items[freeEndKey].hold = 'place_frame';
 
   // 글 % 경로 — 지시 "N % from the left" 는 벽인지 런인지 말하지 않는다: 런(CBL~CBR) 틀로도 넘을 때만 경보
   if (E.route === 'text_pct' && !runHold) {
@@ -870,16 +1018,14 @@ export function positionScore(c) {
     if (c.alarmsOn) alerts.push(a);
     else shadow.push(k);
   }
-  // 2026-10-20 사장님 결정: 플래너 계열은 도면 반대쪽 자유 끝(줄 끝)이 판정됐을 때만 ok 를 낸다.
   //   줄 끝이 보류(벽 끝 불확실·room_changed·σ…)인데 줄 왼끝·줄 안 싱크만 맞아 ok:true 가 찍히면 — 줄을 600 mm 늘린 장도
   //   '통과'로 집계된다(planner_place 재생 cf5b2f3f·00de889d). 앵커 쪽 끝(CBL = WL)은 거의 늘 맞으므로 판정 수에서 뺀다.
-  const freeEndKey = E.route.startsWith('planner')
-    ? E.anchor === 'right' ? 'run_left_wall' : 'run_right_wall'
-    : null;
   //   경보가 하나라도 있으면 ok:false 는 그대로(위반은 위반이다). '통과(true)'만 자유 끝 판정을 요구한다.
-  const freeEndJudged = !freeEndKey || !!(items[freeEndKey] && !items[freeEndKey].hold && items[freeEndKey].d != null);
+  //   v3: planner_place 에서 덩어리 끝 대조가 판정됐으면 그것이 자유 끝이다 (벽 % 항목은 place_frame 으로 기록만).
+  const freeEnd = placeJudged ? 'run_right_place' : freeEndKey;
+  const freeEndJudged = !freeEnd || judgedItem(items[freeEnd]);
   const ok = !c.alarmsOn || !judged ? null : alerts.length ? false : freeEndJudged ? true : null;
-  return { items, alerts, shadow, ok, M, ...(freeEndKey ? { freeEnd: freeEndKey } : {}) };
+  return { items, alerts, shadow, ok, M, ...(freeEnd ? { freeEnd } : {}) };
 }
 
 // ─────────────────────────────── 기록 ───────────────────────────────
@@ -893,9 +1039,9 @@ const compact = (o) => {
 };
 
 /**
- * 기록 2 KB 이하 — 넘으면 이 순서로 뺀다 (σ → 벽·런 % → 점 → 유형 → 정답 출처 → 문 사유 → 크기 →
+ * 기록 2 KB 이하 — 넘으면 이 순서로 뺀다 (σ → 벽·런 % → 점 → 덩어리 끝 대조(v3) → 유형 → 정답 출처 → 문 사유 → 크기 →
  * 경보는 {k, d, edge} → 측정은 판정 값(mm·hold)과 띠·문만 → 정답은 mm 만 → 측정은 띠·문만 → 경보는 {k, d} →
- * 정답 → 측정·shadow·토큰). 마지막 단계까지 가면 항목 13개의 경보 {k, d} 와 머리 필드만 남아 늘 2 KB 안이다.
+ * 정답 → 측정·shadow·토큰). 마지막 단계까지 가면 항목 14개의 경보 {k, d} 와 머리 필드만 남아 늘 2 KB 안이다.
  */
 export function capRecord(rec, max = RECORD_MAX) {
   const gateOk = (m) => (m && m.gate ? { ok: m.gate.ok } : null);
@@ -903,6 +1049,7 @@ export function capRecord(rec, max = RECORD_MAX) {
     (r) => r.measured && delete r.measured.sd,
     (r) => r.measured && (delete r.measured.wall_pct, delete r.measured.run_pct),
     (r) => r.measured && delete r.measured.img,
+    (r) => r.measured && delete r.measured.place,
     (r) => r.measured && delete r.measured.types,
     (r) => r.expected && delete r.expected.src,
     (r) => r.measured && r.measured.gate && delete r.measured.gate.why,
@@ -1243,6 +1390,7 @@ export function positionResult(p) {
   const types = compact({ WL: L.WL && L.WL.type, WR: L.WR && L.WR.type, hood: (L.HL && L.HL.type) || (L.HR && L.HR.type) || null });
   const img = compact({
     WL: r1(L.WL && L.WL.x), WR: r1(L.WR && L.WR.x), CBL: r1(L.CBL && L.CBL.x), CBR: r1(L.CBR && L.CBR.x),
+    CFL: r1(L.CFL && L.CFL.x), CFR: r1(L.CFR && L.CFR.x), // v3: 앞선 끝 — 덩어리 끝 대조(run_right_place)의 앞 모서리
     sink: r1(L.SINK_B && L.SINK_B.x), kl: r1(L.K_BL && L.K_BL.x), kr: r1(L.K_BR && L.K_BR.x), HL: r1(L.HL && L.HL.x), HR: r1(L.HR && L.HR.x),
     // 수전 밑동 (투영 전) — 싱크 측정점(볼 뒷변 중점) 결정을 위한 기록만 (R2: 사선에서 볼 중점 −1.0 pp 치우침, 수전 0.0)
     F: L.F && L.F.flag !== 'absent' ? r1(L.F.x) : null,
@@ -1259,7 +1407,7 @@ export function positionResult(p) {
     : null;
   const S = positionScore({
     E, L, D, W, H, zoom, nz, gate, qc: input.qc, category: input.category,
-    alarmsOn: alarmRoutes(env).includes(route), aspectDiff,
+    alarmsOn: alarmRoutes(env).includes(route), aspectDiff, provider: input.provider || null,
   });
   const mm = {}, sd = {}, hold = {};
   for (const [k, it] of Object.entries(S.items)) {
@@ -1287,6 +1435,11 @@ export function positionResult(p) {
     const dl = isNum(D.img.WL) ? D.img.WL - E.mask.L : null;
     const dr = isNum(D.img.WR) ? D.img.WR - E.mask.R : null;
     if (dl != null || dr != null) measured.mask_wall = [r1(dl), r1(dr)];
+  }
+  if (route === 'planner_place' && S.items.run_right_place && S.items.run_right_place.place) {
+    // v3 덩어리 끝 대조 기록 — 틀·쪽·벽 왼 모서리 차(pp, 기록만)·뒤/앞 모서리 차 (pp · mm)
+    const P = S.items.run_right_place.place;
+    measured.place = compact({ fm: P.fm, side: P.side, wl_d: r1(P.wl_d), d_back_pp: r1(P.d_back_pp), d_front_pp: r1(P.d_front_pp), d_back: r0(P.d_back), d_front: r0(P.d_front) });
   }
   return {
     ok: S.ok,
