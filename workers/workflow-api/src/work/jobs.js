@@ -2,8 +2,9 @@
  * 작업자 포털 — 작업 (docs/01-plan/worker-portal-contract.md §1 · §3).
  *
  *   상태: draft → open → filled → in_progress → review(install · as) → done → closed, done 전 어디서나 → cancelled
- *   expired 는 저장하지 않는다 — open 이고 apply_deadline 이 지났으면 effective_status 로만 돌려준다
+ *   expired 는 저장하지 않는다 — open 이고 apply_deadline(화면 이름 "지원 종료일")이 지났으면 effective_status 로만 돌려준다
  *   자동 전이(computeJobStatus)는 배정이 바뀔 때마다 다시 계산한다. closed 는 편집자만.
+ *   닫기(closed) · 취소(cancelled)가 성공하면 응답 없는 초대(offered)를 declined 로 끝낸다 (autoDeclineOffers).
  *
  * 낙관적 잠금: 상태를 바꾸는 쓰기는 work_jobs.version 을 조건으로 건다 (id=eq.X&version=eq.N).
  * 결과가 비면 다른 관리자 · 작업자의 변경과 겹친 것이므로 409. 배정 행을 먼저 바꾼 뒤 잠그고,
@@ -12,7 +13,7 @@
 
 import { ConflictError, NotFoundError, ValidationError, insertOne, selectMany, selectOne, updateBy } from '../supabase.js';
 import { isMissingRelation } from '../work-order-data.js';
-import { requireAdminEditor, requireAdminReader, requireApprovedWorker } from './access.js';
+import { requireAdminEditor, requireAdminReader, requireApprovedWorker, requireWorker } from './access.js';
 import { recordEvent, recordJobStatusChange } from './events.js';
 import { ACTIVE_STATUSES, COUNTED_STATUSES, effectiveStatus, jobCard, jobDetail, pickAssignment } from './reveal.js';
 import { WORK_KINDS, assertUuid, oneOf, optBool, optInt, optIso, optText, optUuid, reqText } from './validate.js';
@@ -147,9 +148,10 @@ async function loadOrderLabel(env, orderId) {
 
 const WORKER_TABS = ['open', 'mine', 'done'];
 
-/** 작업자가 모집중으로 볼 수 있는 작업인가 — 공개 모집 · 마감 전 · 내 종류 */
+/** 작업자가 모집중으로 볼 수 있는 작업인가 — 승인된 작업자 · 공개 모집 · 지원 종료일 전 · 내 종류 (정지된 작업자는 모집중 열람 경로가 없다) */
 export function isBrowsable(job, worker, now = Date.now()) {
-  return job.status === 'open' && job.mode === 'open'
+  return worker.status === 'approved'
+    && job.status === 'open' && job.mode === 'open'
     && Array.isArray(worker.kinds) && worker.kinds.includes(job.kind)
     && effectiveStatus(job, now) === 'open';
 }
@@ -189,43 +191,81 @@ async function cardsFor(env, worker, jobs, pool) {
   }));
 }
 
-/** GET /work/jobs?tab=open|mine|done */
+/** 내 배정 행 (tab: mine = MINE_STATUSES, done = DONE_STATUSES), 최근 배정 먼저 */
+export async function loadMyAssignments(env, worker, tab) {
+  const statuses = tab === 'mine' ? MINE_STATUSES : DONE_STATUSES;
+  return (await selectMany(env, 'work_assignments', {
+    worker_id: `eq.${worker.id}`,
+    status: `in.(${statuses.join(',')})`,
+    select: '*',
+    order: 'created_at.desc',
+    limit: '200',
+  })) || [];
+}
+
+/**
+ * 내 작업 · 완료 탭 카드 (읽기만 — last_seen_at 은 건드리지 않는다).
+ *   mine: 시작일 오름차순, 시작일 없는 것은 뒤 (같으면 최근 배정 먼저)
+ *   done: 최근 배정 먼저
+ */
+export async function myJobCards(env, worker, tab, mine) {
+  const rows = mine || (await loadMyAssignments(env, worker, tab));
+  const jobIds = uniq(rows.map((a) => a.job_id));
+  if (!jobIds.length) return [];
+  const order = new Map(jobIds.map((id, i) => [id, i]));
+  let jobs = ((await selectMany(env, 'work_jobs', { id: `in.(${jobIds.join(',')})`, select: '*' })) || [])
+    .sort((a, b) => order.get(a.id) - order.get(b.id));
+  if (tab === 'mine') jobs = jobs.sort((a, b) => String(a.starts_at || '9999').localeCompare(String(b.starts_at || '9999')));
+  return cardsFor(env, worker, jobs, rows);
+}
+
+const KST_MS = 9 * 3600 * 1000;
+const DAY_MS = 86400000;
+const kstDay = (ms) => Math.floor((ms + KST_MS) / DAY_MS);
+
+/**
+ * 다음 작업 한 줄 (순수) — js/mypage-work.js pickNextJob 과 같은 규칙.
+ * 내 작업 탭 카드(그 순서 그대로) 중 보완요청(revision)이 먼저, 아니면 KST 오늘 이후 시작일이 가장 이른 것,
+ * 아니면 내 작업 탭 첫 줄. 카드가 없으면 null.
+ */
+export function pickNextJob(cards, nowMs = Date.now()) {
+  const list = (Array.isArray(cards) ? cards : []).filter(Boolean);
+  if (!list.length) return null;
+  const rev = list.find((j) => j.my && j.my.assignment_status === 'revision');
+  if (rev) return rev;
+  const today = kstDay(Number.isFinite(nowMs) ? nowMs : Date.now());
+  const dated = list
+    .filter((j) => Number.isFinite(Date.parse(j.starts_at)) && kstDay(Date.parse(j.starts_at)) >= today)
+    .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
+  return dated[0] || list[0];
+}
+
+/** GET /work/jobs?tab=open|mine|done — 정지된 작업자는 open 만 403 */
 export async function listJobsForWorker(env, { user, query = {} }) {
   const tab = query.tab ? oneOf(query.tab, WORKER_TABS, 'tab') : 'open';
   try {
-    const worker = await requireApprovedWorker(env, user);
-    if (tab === 'open') return { items: await cardsFor(env, worker, await openJobsFor(env, worker), null) };
-
-    const statuses = tab === 'mine' ? MINE_STATUSES : DONE_STATUSES;
-    const mine = (await selectMany(env, 'work_assignments', {
-      worker_id: `eq.${worker.id}`,
-      status: `in.(${statuses.join(',')})`,
-      select: '*',
-      order: 'created_at.desc',
-      limit: '200',
-    })) || [];
-    const jobIds = uniq(mine.map((a) => a.job_id));
-    let jobs = jobIds.length ? (await selectMany(env, 'work_jobs', { id: `in.(${jobIds.join(',')})`, select: '*' })) || [] : [];
+    if (tab === 'open') {
+      const worker = await requireApprovedWorker(env, user, 'browse');
+      return { items: await cardsFor(env, worker, await openJobsFor(env, worker), null) };
+    }
+    const worker = await requireWorker(env, user);
+    const items = await myJobCards(env, worker, tab, null);
     if (tab === 'mine') {
-      jobs = jobs.sort((a, b) => String(a.starts_at || '9999').localeCompare(String(b.starts_at || '9999')));
       // 새 소식 배지는 내 작업을 열어 본 시각 이후로 센다
       await updateBy(env, 'workers', { id: `eq.${worker.id}` }, { last_seen_at: nowIso() })
         .catch((e) => console.warn('[work] last_seen_at 갱신 실패:', e && e.message));
-    } else {
-      const order = new Map(jobIds.map((id, i) => [id, i]));
-      jobs = jobs.sort((a, b) => order.get(a.id) - order.get(b.id));
     }
-    return { items: await cardsFor(env, worker, jobs, mine) };
+    return { items };
   } catch (err) {
     if (isMissingRelation(err)) return { items: [] };
     throw err;
   }
 }
 
-/** GET /work/jobs/:id — 모집중이거나 내 신청 · 배정이 있는 작업만, 아니면 404 */
+/** GET /work/jobs/:id — 모집중이거나 내 신청 · 배정이 있는 작업만, 아니면 404 (정지된 작업자는 내 신청 · 배정이 있는 것만) */
 export async function getJobForWorker(env, { user, params }) {
   const id = assertUuid(params.id, '작업 id');
-  const worker = await requireApprovedWorker(env, user);
+  const worker = await requireWorker(env, user);
   const job = await loadJob(env, id);
   const [apps, mine] = await Promise.all([
     selectMany(env, 'work_applications', { worker_id: `eq.${worker.id}`, job_id: `eq.${id}`, select: '*' }),
@@ -352,7 +392,31 @@ export async function publishJob(env, { user, params }) {
   return locked;
 }
 
-/** POST /work/admin/jobs/:id/cancel — done 전만, 사유 필수 */
+/** 작업을 닫거나 취소할 때 남은 초대(offered)를 끝내는 사유 — 작업자 지난 작업 탭에 release_reason 으로 보인다 */
+export const AUTO_DECLINE = Object.freeze({
+  closed: Object.freeze({ reason: 'job_closed', text: '작업이 마감돼 초대가 끝났습니다' }),
+  cancelled: Object.freeze({ reason: 'job_cancelled', text: '작업이 취소돼 초대가 끝났습니다' }),
+});
+
+/**
+ * 닫기 · 취소가 성공한 작업의 응답 없는 초대(offered)를 모두 declined 로 (1주차 후속 C).
+ * 확정 · 진행 중 배정과 대기 신청(applied)은 건드리지 않는다. offered 일 때만 바꾸므로 같은 순간의 수락과 겹치면 한쪽만 된다.
+ * 배정마다 system 이벤트 한 줄 (payload.worker_id → 초대받은 사람의 새 소식 배지). 바꾼 건수를 돌려준다.
+ */
+async function autoDeclineOffers(env, jobId, endedAs) {
+  const { reason, text } = AUTO_DECLINE[endedAs];
+  const rows = (await updateBy(env, 'work_assignments', { job_id: `eq.${jobId}`, status: 'eq.offered' },
+    { status: 'declined', release_reason: text, updated_at: nowIso() })) || [];
+  for (const a of rows) {
+    await recordEvent(env, {
+      jobId, assignmentId: a.id, actorKind: 'system', type: 'assignment_auto_declined', from: 'offered', to: 'declined',
+      note: text, payload: { worker_id: a.worker_id, reason },
+    });
+  }
+  return rows.length;
+}
+
+/** POST /work/admin/jobs/:id/cancel — done 전만, 사유 필수. 응답 없는 초대는 자동으로 끝난다 (auto_declined: 건수) */
 export async function cancelJob(env, { user, params, body }) {
   await requireAdminEditor(env, user);
   const id = assertUuid(params.id, '작업 id');
@@ -361,10 +425,11 @@ export async function cancelJob(env, { user, params, body }) {
   if (['done', 'closed', 'cancelled'].includes(job.status)) throw new ConflictError('완료 · 마감 · 취소된 작업은 취소할 수 없습니다');
   const locked = await lockJob(env, job, { status: 'cancelled', cancel_reason: reason });
   await recordEvent(env, { jobId: id, actorUserId: user.id, actorKind: 'admin', type: 'job_cancelled', from: job.status, to: 'cancelled', note: reason });
-  return locked;
+  const autoDeclined = await autoDeclineOffers(env, id, 'cancelled');
+  return { ...locked, auto_declined: autoDeclined };
 }
 
-/** POST /work/admin/jobs/:id/close — done → closed */
+/** POST /work/admin/jobs/:id/close — done → closed. 응답 없는 초대는 자동으로 끝난다 (auto_declined: 건수) */
 export async function closeJob(env, { user, params }) {
   await requireAdminEditor(env, user);
   const id = assertUuid(params.id, '작업 id');
@@ -372,7 +437,8 @@ export async function closeJob(env, { user, params }) {
   if (job.status !== 'done') throw new ConflictError('완료된 작업만 마감할 수 있습니다');
   const locked = await lockJob(env, job, { status: 'closed' });
   await recordEvent(env, { jobId: id, actorUserId: user.id, actorKind: 'admin', type: 'job_closed', from: 'done', to: 'closed' });
-  return locked;
+  const autoDeclined = await autoDeclineOffers(env, id, 'closed');
+  return { ...locked, auto_declined: autoDeclined };
 }
 
 /** 관리자 화면의 작업자 요약 — 표시 이름 · 종류 · 지역 · 실적 건수 */
