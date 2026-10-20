@@ -1243,6 +1243,8 @@
           if (!open.length) return item;
 
           open.forEach((mod, i) => {
+            // 2026-10-20: 행 식별자(partId·moduleKey)가 이 모듈을 가리키게 — 문맥이 없으면 '0-none' 으로 떨어져 조립 명세가 모듈을 못 찾는다.
+            this.beginModule(mod, i, mod.pos);
             const dims = { W: Number(mod.w) || 0, H: Number(mod.h) || 0, D: Number(mod.d) || 0 };
             // 같은 품목에 오픈장이 여럿이면 자재표에서 구분되어야 한다 (#1·#2 는 품목 접두사라 여기선 못 쓴다).
             const name = `${prefix}${R.RULES.LABEL}${open.length > 1 ? ` ${i + 1}` : ''}`;
@@ -1274,6 +1276,8 @@
           if (!rice.length) return item;
 
           rice.forEach((mod, i) => {
+            // 2026-10-20: 행 식별자(partId·moduleKey)가 이 모듈을 가리키게 — 문맥이 없으면 '0-none' 으로 떨어져 조립 명세가 모듈을 못 찾는다.
+            this.beginModule(mod, i, mod.pos);
             const dims = { W: Number(mod.w) || 0, H: Number(mod.h) || 0, D: Number(mod.d) || 0 };
             const name = `${prefix}${R.RULES.LABEL}${rice.length > 1 ? ` ${i + 1}` : ''}`;
             const parts = R.partsOf(dims);
