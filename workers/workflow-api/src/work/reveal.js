@@ -123,6 +123,9 @@ export function jobCard(job, { filled = 0, application = null, assignment = null
   if (assignment) {
     card.my.assignment_id = assignment.id;
     card.my.assignment_status = assignment.status;
+    // 거절 · 포기 사유(작업자 본인 글) 또는 작업 마감 · 취소로 끝난 초대의 안내 — 지난 작업 탭에서 보인다.
+    // 편집자 제외(removed) 사유는 이 칸에 없다 (이벤트에만)
+    if (assignment.release_reason) card.my.release_reason = assignment.release_reason;
   }
   return card;
 }

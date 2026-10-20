@@ -2,8 +2,12 @@
  * 로그인 리다이렉트 (Site Auth PR0, docs/01-plan/worker-portal-contract.md §5).
  *
  *   - js/auth-redirect.js   ?redirect= 검사기 — 같은 사이트 *.html (+ ?… · #…) 만, 나머지는 index.html
- *   - login.html            검사한 값으로 이동 · OAuth redirectTo 가 돌아갈 곳을 유지 · 카카오 버튼 · 카카오톡 인앱 안내
- *   - signup.html           OAuth redirectTo 가 돌아갈 곳을 유지 · 로그인 링크가 돌아갈 곳을 들고 감
+ *                           인앱 브라우저 판별(inAppBrowser) · 외부 브라우저로 여는 주소(externalOpenUrl)
+ *                           인증 메일 복귀 주소(emailRedirectTo) — 작업자 포털 1주차 후속 명세 E
+ *   - login.html            검사한 값으로 이동 · OAuth redirectTo 가 돌아갈 곳을 유지 · 카카오 버튼 · 인앱 안내
+ *                           · 인증 메일 다시 보내기에 emailRedirectTo
+ *   - signup.html           OAuth redirectTo 가 돌아갈 곳을 유지 · 로그인 링크가 돌아갈 곳을 들고 감 · 인앱 안내
+ *                           · 이메일 가입 signUp 에 emailRedirectTo
  *
  * 페이지 스크립트는 jsdom 에 그대로 올리고 Supabase 는 가짜 클라이언트로 대신한다 (admin-work-reports.test.js 방식).
  */
@@ -156,6 +160,189 @@ describe('카카오톡 인앱 브라우저', () => {
   });
 });
 
+// ── 인앱 브라우저 (명세 E) ──────────────────────────────────────────────────
+// UA 표본은 각 앱이 웹뷰에 붙이는 꼬리 모양만 흉내 낸 가짜 값이다.
+
+const ANDROID_WV =
+  'Mozilla/5.0 (Linux; Android 14; SM-S921N Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/129.0.6668.100 Mobile Safari/537.36';
+const IOS_WV =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148';
+
+const UA = {
+  kakaoAndroid: ANDROID_WV + ';KAKAOTALK 2410200',
+  kakaoIos: IOS_WV + ' KAKAOTALK 10.9.0',
+  naverAndroid: ANDROID_WV + ' NAVER(inapp; search; 2000; 12.10.1)',
+  naverIos: IOS_WV + ' NAVER(inapp; search; 2000; 12.10.1; 15PRO)',
+  instagramAndroid:
+    ANDROID_WV +
+    ' Instagram 350.0.0.42.84 Android (34/14; 480dpi; 1080x2340; samsung; SM-S921N; e1q; qcom; ko_KR; 640000000)',
+  instagramIos:
+    IOS_WV +
+    ' Instagram 350.0.2.20.84 (iPhone15,2; iOS 17_6; ko_KR; ko; scale=3.00; 1179x2556; 640000000)',
+  facebookAndroid: ANDROID_WV + ' [FB_IAB/FB4A;FBAV/480.0.0.48.109;]',
+  facebookIos:
+    IOS_WV +
+    ' [FBAN/FBIOS;FBAV/480.0.0.38.107;FBBV/650000000;FBDV/iPhone15,2;FBMD/iPhone;FBSN/iOS;FBSV/17.6;FBSS/3;FBID/phone;FBLC/ko_KR;FBOP/5]',
+  lineAndroid: ANDROID_WV + ' Line/14.16.1/IAB',
+  lineIos: IOS_WV + ' Safari Line/14.16.0',
+  daumAndroid: ANDROID_WV + ' DaumApps/8.9.2 DaumDevice/mobile',
+  daumIos: IOS_WV + ' DaumApps/8.9.2 DaumDevice/mobile',
+  bandAndroid: ANDROID_WV + ' BAND/15.1.0',
+  bandIos: IOS_WV + ' BAND/15.1.0',
+  // 보통 브라우저
+  chromeAndroid:
+    'Mozilla/5.0 (Linux; Android 14; SM-S921N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36',
+  chromeDesktop:
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+  chromeIos:
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/129.0.6668.69 Mobile/15E148 Safari/604.1',
+  safariIos:
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1',
+  safariMac:
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15',
+  samsungInternet:
+    'Mozilla/5.0 (Linux; Android 14; SAMSUNG SM-S921N) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/26.0 Chrome/122.0.0.0 Mobile Safari/537.36',
+  // 네이버 웨일은 앱 속 웹뷰가 아니라 브라우저다
+  whale:
+    'Mozilla/5.0 (Linux; Android 14; SM-S921N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Whale/3.27.0.0 Mobile Safari/537.36',
+};
+
+describe('inAppBrowser — UA 로 앱을 알아본다 (이름은 고정 목록에서만)', () => {
+  test.each([
+    ['kakaoAndroid', 'kakaotalk', '카카오톡'],
+    ['kakaoIos', 'kakaotalk', '카카오톡'],
+    ['naverAndroid', 'naver', '네이버'],
+    ['naverIos', 'naver', '네이버'],
+    ['instagramAndroid', 'instagram', '인스타그램'],
+    ['instagramIos', 'instagram', '인스타그램'],
+    ['facebookAndroid', 'facebook', '페이스북'],
+    ['facebookIos', 'facebook', '페이스북'],
+    ['lineAndroid', 'line', '라인'],
+    ['lineIos', 'line', '라인'],
+    ['daumAndroid', 'daum', '다음'],
+    ['daumIos', 'daum', '다음'],
+    ['bandAndroid', 'band', '밴드'],
+    ['bandIos', 'band', '밴드'],
+  ])('%s → %s', (key, id, label) => {
+    expect(AR.inAppBrowser(UA[key])).toEqual({ id, label });
+  });
+
+  test.each([
+    ['chromeAndroid'],
+    ['chromeDesktop'],
+    ['chromeIos'],
+    ['safariIos'],
+    ['safariMac'],
+    ['samsungInternet'],
+    ['whale'],
+  ])('%s → null (보통 브라우저)', (key) => {
+    expect(AR.inAppBrowser(UA[key])).toBeNull();
+  });
+
+  test('빈 값 · 문자열 아님 → null', () => {
+    expect(AR.inAppBrowser('')).toBeNull();
+    expect(AR.inAppBrowser(undefined)).toBeNull();
+    expect(AR.inAppBrowser(null)).toBeNull();
+    expect(AR.inAppBrowser(123)).toBeNull();
+  });
+
+  test('돌려주는 것은 id · label 두 가지뿐 — UA 글자가 섞이지 않는다', () => {
+    const app = AR.inAppBrowser(IOS_WV + ' Instagram <img src=x onerror=alert(1)>');
+    expect(app).toEqual({ id: 'instagram', label: '인스타그램' });
+  });
+
+  test('기존 isKakaoInApp 은 그대로 (다른 화면이 쓸 수 있다)', () => {
+    expect(AR.isKakaoInApp(UA.kakaoIos)).toBe(true);
+    expect(AR.isKakaoInApp(UA.naverAndroid)).toBe(false);
+  });
+});
+
+describe('externalOpenUrl — 외부 브라우저로 여는 주소', () => {
+  const HREF = 'https://site.test/login.html?redirect=worker.html%23invite%3Dabc';
+
+  test('카카오톡 (안드로이드·iOS) → kakaotalk://web/openExternal?url=…', () => {
+    const want = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(HREF);
+    expect(AR.externalOpenUrl(HREF, UA.kakaoAndroid)).toBe(want);
+    expect(AR.externalOpenUrl(HREF, UA.kakaoIos)).toBe(want);
+    expect(AR.externalOpenUrl(HREF, UA.kakaoIos)).toBe(AR.kakaoOpenExternalUrl(HREF));
+  });
+
+  test('라인 (안드로이드·iOS) → 주소에 openExternalBrowser=1', () => {
+    expect(AR.externalOpenUrl(HREF, UA.lineAndroid)).toBe(HREF + '&openExternalBrowser=1');
+    expect(AR.externalOpenUrl(HREF, UA.lineIos)).toBe(HREF + '&openExternalBrowser=1');
+    expect(AR.externalOpenUrl('https://site.test/signup.html', UA.lineIos)).toBe(
+      'https://site.test/signup.html?openExternalBrowser=1'
+    );
+  });
+
+  test('라인: 해시는 뒤에 그대로, 이미 붙어 있으면 다시 붙이지 않는다', () => {
+    expect(AR.externalOpenUrl('https://site.test/login.html#x', UA.lineIos)).toBe(
+      'https://site.test/login.html?openExternalBrowser=1#x'
+    );
+    const already = 'https://site.test/login.html?openExternalBrowser=1';
+    expect(AR.externalOpenUrl(already, UA.lineAndroid)).toBe(already);
+  });
+
+  test.each([
+    ['naverAndroid'],
+    ['instagramAndroid'],
+    ['facebookAndroid'],
+    ['daumAndroid'],
+    ['bandAndroid'],
+  ])('안드로이드의 그 밖 앱 (%s) → 크롬 intent://', (key) => {
+    expect(AR.externalOpenUrl(HREF, UA[key])).toBe(
+      'intent://site.test/login.html?redirect=worker.html%23invite%3Dabc#Intent;scheme=https;package=com.android.chrome;end'
+    );
+  });
+
+  test('intent:// 는 지금 주소의 해시를 떼어 낸다 (#Intent; 와 겹치지 않게)', () => {
+    expect(
+      AR.externalOpenUrl(
+        'https://site.test/login.html?redirect=mypage.html#error=x',
+        UA.naverAndroid
+      )
+    ).toBe(
+      'intent://site.test/login.html?redirect=mypage.html#Intent;scheme=https;package=com.android.chrome;end'
+    );
+  });
+
+  test.each([['naverIos'], ['instagramIos'], ['facebookIos'], ['daumIos'], ['bandIos']])(
+    'iOS 의 그 밖 앱 (%s) → null (메뉴 안내 + 주소 복사)',
+    (key) => {
+      expect(AR.externalOpenUrl(HREF, UA[key])).toBeNull();
+    }
+  );
+
+  test.each([['chromeAndroid'], ['safariIos'], ['samsungInternet'], ['chromeDesktop']])(
+    '보통 브라우저 (%s) → null',
+    (key) => {
+      expect(AR.externalOpenUrl(HREF, UA[key])).toBeNull();
+    }
+  );
+
+  test('http(s) 가 아닌 주소는 만들지 않는다', () => {
+    for (const ua of [UA.kakaoAndroid, UA.lineIos, UA.naverAndroid]) {
+      expect(AR.externalOpenUrl('javascript:alert(1)', ua)).toBeNull();
+      expect(AR.externalOpenUrl('', ua)).toBeNull();
+      expect(AR.externalOpenUrl(undefined, ua)).toBeNull();
+    }
+  });
+});
+
+describe('emailRedirectTo — 인증 메일 링크가 돌아올 주소 (oauthRedirectTo 와 같은 규칙)', () => {
+  const O = 'https://site.test';
+  test('돌아갈 곳이 있으면 login.html?redirect=…, 기본이거나 나쁘면 /index.html', () => {
+    expect(AR.emailRedirectTo(O, 'worker.html#invite=abc')).toBe(
+      O + '/login.html?redirect=worker.html%23invite%3Dabc'
+    );
+    expect(AR.emailRedirectTo(O, 'index.html')).toBe(O + '/index.html');
+    expect(AR.emailRedirectTo(O, '//evil.example/a.html')).toBe(O + '/index.html');
+    for (const t of ['mypage.html', 'worker.html#job=1', null]) {
+      expect(AR.emailRedirectTo(O, t)).toBe(AR.oauthRedirectTo(O, t));
+    }
+  });
+});
+
 // ── 페이지 ────────────────────────────────────────────────────────────────
 
 function pageParts(file) {
@@ -173,12 +360,18 @@ const CHROME_UA =
 const KAKAO_UA =
   'Mozilla/5.0 (Linux; Android 14; SM-S921N; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/129.0.0.0 Mobile Safari/537.36;KAKAOTALK 2410200';
 
-/** 페이지를 jsdom 에 올린다. 돌려주는 calls 에 signInWithOAuth 인자가 쌓인다. */
-function boot(page, { url, ua = CHROME_UA, session = null } = {}) {
+/**
+ * 페이지를 jsdom 에 올린다. 돌려주는 calls 에 signInWithOAuth 인자가 쌓인다.
+ * calls.signUp · calls.resend 에는 이메일 가입 · 인증 메일 다시 보내기 인자가 쌓인다.
+ * auth 로 가짜 Supabase auth 함수를 바꿔 끼울 수 있다.
+ */
+function boot(page, { url, ua = CHROME_UA, session = null, auth = {} } = {}) {
   window.history.replaceState(null, '', url);
   Object.defineProperty(window.navigator, 'userAgent', { get: () => ua, configurable: true });
   document.body.innerHTML = page.body;
   const calls = [];
+  calls.signUp = [];
+  calls.resend = [];
   window.DADAM_CONFIG = { supabase: { url: 'https://sb.test', anonKey: 'k' } };
   window.supabase = {
     createClient: () => ({
@@ -189,6 +382,15 @@ function boot(page, { url, ua = CHROME_UA, session = null } = {}) {
           return { data: {}, error: null };
         },
         signInWithPassword: async () => ({ data: {}, error: null }),
+        signUp: async (args) => {
+          calls.signUp.push(args);
+          return { data: { user: { id: 'u-test' } }, error: null };
+        },
+        resend: async (args) => {
+          calls.resend.push(args);
+          return { data: {}, error: null };
+        },
+        ...auth,
       },
     }),
   };
@@ -198,11 +400,157 @@ function boot(page, { url, ua = CHROME_UA, session = null } = {}) {
   return calls;
 }
 
+const flush = () => new Promise((r) => setTimeout(r, 0));
+
+/** 클립보드 — jsdom 에는 없다. writeText 가 성공/실패하는 가짜를 끼운다 (null 이면 아예 없음) */
+function setClipboard(writeText) {
+  if (writeText === null) {
+    delete window.navigator.clipboard;
+    return;
+  }
+  Object.defineProperty(window.navigator, 'clipboard', {
+    value: { writeText },
+    configurable: true,
+  });
+}
+
 beforeEach(() => {
   jest.spyOn(console, 'log').mockImplementation(() => {});
+  // signup.html 의 showError 가 부른다 — jsdom 에는 없다
+  Element.prototype.scrollIntoView = () => {};
 });
 afterEach(() => {
   jest.restoreAllMocks();
+  setClipboard(null);
+});
+
+const NOTICE = (label) =>
+  label + ' 앱 안에서는 구글 로그인이 막힙니다. 카카오로 로그인하거나 외부 브라우저로 열어 주세요.';
+
+/** 안내 상자에서 지금 보이는 것만 */
+function noticeState() {
+  const $ = (id) => document.getElementById(id);
+  return {
+    shown: !$('inappNotice').hidden,
+    text: $('inappText').textContent,
+    openBtn: !$('openExternalBtn').hidden,
+    manual: !$('inappManual').hidden,
+  };
+}
+
+describe.each([
+  ['login.html', () => LOGIN],
+  ['signup.html', () => SIGNUP],
+])('%s 인앱 안내 (명세 E)', (file, page) => {
+  const url = '/' + file + '?redirect=mypage.html';
+
+  test('보통 브라우저(크롬·사파리·삼성 인터넷)면 숨긴다', () => {
+    for (const ua of [
+      UA.chromeAndroid,
+      UA.chromeDesktop,
+      UA.safariIos,
+      UA.samsungInternet,
+      UA.whale,
+    ]) {
+      boot(page(), { url, ua });
+      expect(document.getElementById('inappNotice').hidden).toBe(true);
+    }
+  });
+
+  test.each([
+    ['kakaoAndroid', '카카오톡'],
+    ['kakaoIos', '카카오톡'],
+    ['naverAndroid', '네이버'],
+    ['instagramAndroid', '인스타그램'],
+    ['facebookAndroid', '페이스북'],
+    ['lineIos', '라인'],
+    ['daumAndroid', '다음'],
+    ['bandAndroid', '밴드'],
+  ])('%s → "%s 앱 안에서는…" + [외부 브라우저로 열기]', (key, label) => {
+    boot(page(), { url, ua: UA[key] });
+    expect(noticeState()).toEqual({
+      shown: true,
+      text: NOTICE(label),
+      openBtn: true,
+      manual: false,
+    });
+    expect(document.getElementById('openExternalBtn').textContent).toContain(
+      '외부 브라우저로 열기'
+    );
+    // 인앱이어도 카카오 로그인은 그대로 쓸 수 있다
+    expect(document.querySelector('.btn-kakao').disabled).toBe(false);
+  });
+
+  test.each([
+    ['naverIos', '네이버'],
+    ['instagramIos', '인스타그램'],
+    ['facebookIos', '페이스북'],
+    ['daumIos', '다음'],
+    ['bandIos', '밴드'],
+  ])('%s → 메뉴 안내 + [주소 복사] (열기 버튼 없음)', (key, label) => {
+    boot(page(), { url, ua: UA[key] });
+    expect(noticeState()).toEqual({
+      shown: true,
+      text: NOTICE(label),
+      openBtn: false,
+      manual: true,
+    });
+    const manual = document.getElementById('inappManual');
+    expect(manual.textContent).toContain("오른쪽 위 메뉴에서 '다른 브라우저로 열기'");
+    expect(document.getElementById('copyUrlBtn').textContent).toContain('주소 복사');
+    expect(document.getElementById('inappUrl').hidden).toBe(true);
+  });
+
+  test('UA 글자는 화면에 들어가지 않는다 (앱 이름은 고정 목록)', () => {
+    boot(page(), { url, ua: IOS_WV + ' Instagram <img src=x onerror=alert(1)> evil-label' });
+    const notice = document.getElementById('inappNotice');
+    expect(notice.hidden).toBe(false);
+    expect(notice.querySelector('img')).toBeNull();
+    expect(notice.textContent).not.toContain('evil-label');
+    expect(notice.textContent).not.toContain('onerror');
+    expect(document.getElementById('inappText').textContent).toBe(NOTICE('인스타그램'));
+  });
+
+  test('주소 복사: 클립보드에 지금 주소를 넣고 알려 준다', async () => {
+    const writeText = jest.fn(async () => {});
+    setClipboard(writeText);
+    boot(page(), { url, ua: UA.instagramIos });
+    document.getElementById('copyUrlBtn').click();
+    await flush();
+    expect(writeText).toHaveBeenCalledWith(window.location.href);
+    expect(window.location.href).toContain(file + '?redirect=mypage.html');
+    const hint = document.getElementById('copyHint');
+    expect(hint.hidden).toBe(false);
+    expect(hint.textContent).toContain('주소를 복사했습니다');
+    expect(document.getElementById('inappUrl').hidden).toBe(true);
+  });
+
+  test.each([
+    ['클립보드가 없으면', null],
+    ['복사가 거절되면', () => Promise.reject(new Error('NotAllowedError'))],
+  ])('주소 복사: %s 주소를 보여 주고 글자를 골라 둔다', async (_name, writeText) => {
+    setClipboard(writeText);
+    boot(page(), { url, ua: UA.facebookIos });
+    document.getElementById('copyUrlBtn').click();
+    await flush();
+    const input = document.getElementById('inappUrl');
+    expect(input.hidden).toBe(false);
+    expect(input.readOnly).toBe(true);
+    expect(input.value).toBe(window.location.href);
+    expect(document.activeElement).toBe(input);
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+    const hint = document.getElementById('copyHint');
+    expect(hint.hidden).toBe(false);
+    expect(hint.textContent).not.toContain('복사했습니다');
+  });
+});
+
+describe('auth-redirect.js ?v=', () => {
+  test('login.html · signup.html 이 같은 판을 싣는다', () => {
+    const v = (html) => html.match(/js\/auth-redirect\.js\?v=(\d+)/)[1];
+    expect(v(LOGIN.html)).toBe(v(SIGNUP.html));
+  });
 });
 
 describe('login.html', () => {
@@ -277,7 +625,7 @@ describe('login.html', () => {
     boot(LOGIN, { url: '/login.html?redirect=worker.html', ua: KAKAO_UA });
     const notice = document.getElementById('inappNotice');
     expect(notice.hidden).toBe(false);
-    expect(notice.textContent).toContain('카카오톡 안에서는 구글 로그인이 막힐 수 있습니다');
+    expect(notice.textContent).toContain('카카오톡 앱 안에서는 구글 로그인이 막힙니다');
     expect(document.getElementById('openExternalBtn').textContent).toContain(
       '외부 브라우저로 열기'
     );
@@ -286,6 +634,48 @@ describe('login.html', () => {
 
     boot(LOGIN, { url: '/login.html', ua: CHROME_UA });
     expect(document.getElementById('inappNotice').hidden).toBe(true);
+  });
+
+  test('인증 메일 다시 보내기에 emailRedirectTo — login.html?redirect=<원래 목적지>', async () => {
+    const calls = boot(LOGIN, {
+      url: '/login.html?redirect=' + encodeURIComponent('worker.html#invite=abc'),
+      auth: {
+        signInWithPassword: async () => ({ data: {}, error: { message: 'Email not confirmed' } }),
+      },
+    });
+    document.getElementById('email').value = 'worker@example.test';
+    document.getElementById('password').value = 'pw-test-1234';
+    document.getElementById('loginForm').dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+    const rb = document.getElementById('resendBtn');
+    expect(rb.hidden).toBe(false);
+    rb.click();
+    await flush();
+    expect(calls.resend).toEqual([
+      {
+        type: 'signup',
+        email: 'worker@example.test',
+        options: {
+          emailRedirectTo: 'http://localhost/login.html?redirect=worker.html%23invite%3Dabc',
+        },
+      },
+    ]);
+  });
+
+  test('인증 메일 다시 보내기: 돌아갈 곳이 없으면 /index.html', async () => {
+    const calls = boot(LOGIN, {
+      url: '/login.html',
+      auth: {
+        signInWithPassword: async () => ({ data: {}, error: { message: 'Email not confirmed' } }),
+      },
+    });
+    document.getElementById('email').value = 'worker@example.test';
+    document.getElementById('password').value = 'pw-test-1234';
+    document.getElementById('loginForm').dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+    document.getElementById('resendBtn').click();
+    await flush();
+    expect(calls.resend[0].options.emailRedirectTo).toBe('http://localhost/index.html');
   });
 
   test('「인증 메일 다시 보내기」는 hidden 이면 감춰진다 (.resend-link 의 display: block 이 hidden 을 이기지 않게)', () => {
@@ -300,6 +690,61 @@ describe('login.html', () => {
     expect(err.classList.contains('show')).toBe(true);
     expect(err.textContent).toContain('소셜 로그인에 실패했습니다');
     expect(err.textContent).not.toContain('010');
+  });
+
+  // 인증 메일 링크가 만료됐거나 이미 쓰였으면 GoTrue verify 가 돌아오는 주소 해시에
+  // error=access_denied&error_code=otp_expired&error_description=… 를 붙인다 (리뷰 #970).
+  const EMAIL_LINK_MSG =
+    "이메일 인증 링크가 만료되었거나 이미 사용되었습니다. 이메일과 비밀번호로 로그인해 주세요. 아직 인증 전이면 '인증 메일 다시 보내기'로 새 링크를 받을 수 있습니다.";
+
+  test.each([
+    [
+      '해시 (인증 링크 기본 흐름)',
+      '/login.html?redirect=worker.html#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired',
+    ],
+    [
+      '쿼리',
+      '/login.html?redirect=worker.html&error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired',
+    ],
+  ])('인증 메일 링크 만료(otp_expired, %s)는 소셜 로그인 실패와 다른 고정 문구', (_name, url) => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    boot(LOGIN, { url });
+    const err = document.getElementById('errorMsg');
+    expect(err.classList.contains('show')).toBe(true);
+    expect(err.textContent).toBe(EMAIL_LINK_MSG);
+    expect(err.textContent).not.toContain('소셜 로그인');
+    // 돌아온 글은 화면에 넣지 않고 콘솔에만
+    expect(err.textContent).not.toContain('Email link');
+    expect(warn.mock.calls.flat().join(' ')).toContain('Email link is invalid or has expired');
+    // 돌아갈 곳은 그대로 — 다시 로그인하면 원래 목적지로 간다
+    expect(window.getRedirectUrl()).toBe('worker.html');
+  });
+
+  test('otp_expired 문구도 돌아온 글을 화면에 넣지 않는다', () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    boot(LOGIN, {
+      url: '/login.html#error=access_denied&error_code=otp_expired&error_description=%3Cimg+src%3Dx+onerror%3Dalert(1)%3E+CALL+010-0000-0000',
+    });
+    const err = document.getElementById('errorMsg');
+    expect(err.textContent).toBe(EMAIL_LINK_MSG);
+    expect(err.querySelector('img')).toBeNull();
+    expect(err.textContent).not.toContain('010');
+  });
+
+  test('otp_expired 가 아닌 error_code 는 지금처럼 소셜 로그인 실패 문구', () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    boot(LOGIN, {
+      url: '/login.html#error=server_error&error_code=bad_oauth_callback&error_description=OAuth+callback+failed',
+    });
+    const err = document.getElementById('errorMsg');
+    expect(err.textContent).toBe(
+      '소셜 로그인에 실패했습니다. 다시 시도하거나 다른 방법으로 로그인해주세요.'
+    );
+  });
+
+  test('오류 없이 열면 오류 문구가 없다', () => {
+    boot(LOGIN, { url: '/login.html?redirect=worker.html' });
+    expect(document.getElementById('errorMsg').classList.contains('show')).toBe(false);
   });
 });
 
@@ -345,5 +790,44 @@ describe('signup.html', () => {
     expect(document.getElementById('inappNotice').hidden).toBe(false);
     boot(SIGNUP, { url: '/signup.html', ua: CHROME_UA });
     expect(document.getElementById('inappNotice').hidden).toBe(true);
+  });
+
+  /** 이메일 가입 폼을 채워 제출한다 (가짜 값) */
+  async function submitEmailSignup() {
+    document.getElementById('name').value = '테스트';
+    document.getElementById('email').value = 'new@example.test';
+    document.getElementById('password').value = 'abcd1234';
+    document.getElementById('confirmPassword').value = 'abcd1234';
+    document.getElementById('agreeTerms').checked = true;
+    document.getElementById('signupForm').dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+  }
+
+  test('이메일 가입 signUp 에 emailRedirectTo — login.html?redirect=<원래 목적지>', async () => {
+    const calls = boot(SIGNUP, {
+      url: '/signup.html?redirect=' + encodeURIComponent('worker.html#invite=abc'),
+    });
+    await submitEmailSignup();
+    expect(calls.signUp).toHaveLength(1);
+    const args = calls.signUp[0];
+    expect(args.email).toBe('new@example.test');
+    expect(args.options.emailRedirectTo).toBe(
+      'http://localhost/login.html?redirect=worker.html%23invite%3Dabc'
+    );
+    // 가입 메타데이터는 예전 그대로 실린다
+    expect(args.options.data).toMatchObject({ name: '테스트', interest_tier: 'standard' });
+    expect(document.getElementById('successMsg').textContent).toContain('이메일 인증 후 로그인');
+  });
+
+  test('이메일 가입: 돌아갈 곳이 없거나 나쁘면 /index.html (oauthRedirectTo 와 같은 규칙)', async () => {
+    let calls = boot(SIGNUP, { url: '/signup.html' });
+    await submitEmailSignup();
+    expect(calls.signUp[0].options.emailRedirectTo).toBe('http://localhost/index.html');
+
+    calls = boot(SIGNUP, {
+      url: '/signup.html?redirect=' + encodeURIComponent('https://evil.example/a.html'),
+    });
+    await submitEmailSignup();
+    expect(calls.signUp[0].options.emailRedirectTo).toBe('http://localhost/index.html');
   });
 });
