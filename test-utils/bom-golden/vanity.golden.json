@@ -104,7 +104,7 @@
       "module": "상부장-상부장",
       "part": "밴드(보강목)",
       "material": "PB",
-      "thickness": 18,
+      "thickness": 15,
       "w": 764,
       "h": 60,
       "qty": 2,
@@ -304,7 +304,7 @@
       "module": "상부장-상부장",
       "part": "밴드(보강목)",
       "material": "PB",
-      "thickness": 18,
+      "thickness": 15,
       "w": 564,
       "h": 60,
       "qty": 2,
@@ -855,13 +855,19 @@
     "PB_18": {
       "material": "PB",
       "thickness": 18,
-      "totalArea": 6085098,
-      "panelCount": 3
+      "totalArea": 5925738,
+      "panelCount": 2
     },
     "MDF_3": {
       "material": "MDF",
       "thickness": 3,
       "totalArea": 2934893,
+      "panelCount": 1
+    },
+    "PB_15": {
+      "material": "PB",
+      "thickness": 15,
+      "totalArea": 159360,
       "panelCount": 1
     },
     "MDF_18": {
