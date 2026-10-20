@@ -124,3 +124,18 @@ describe('빌트인 장 안쪽 치수(니치) — appliance-models-niche.sql', (
     expect(AP).toContain("payload.niche_min_w_mm = nv('f-nw');");
   });
 });
+
+describe('플래너 목록 사진 — 가져온 사진(image_path) 먼저, 없으면 제조사 원본(image_source_url)', () => {
+  test('사진 칸을 먼저 읽고 없으면 줄여 읽는다', () => {
+    const a = SHELL.indexOf('niche_min_w_mm,niche_min_h_mm,image_source_url,image_path&order');
+    const b = SHELL.indexOf('niche_min_w_mm,niche_min_h_mm&order', a);
+    expect(a).toBeGreaterThan(0);
+    expect(b).toBeGreaterThan(a);
+  });
+
+  test('image_path 면 공개 버킷 appliance-images 주소, 아니면 https 원본, 목록에 사진', () => {
+    expect(SHELL).toContain('/storage/v1/object/public/appliance-images/');
+    expect(SHELL).toContain("r.image_source_url.startsWith('https://') ? r.image_source_url : null");
+    expect(SHELL).toContain('class="m-img"');
+  });
+});
