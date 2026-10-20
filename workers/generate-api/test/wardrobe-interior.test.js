@@ -245,6 +245,7 @@ test('잡(붙박이장): 내부 보기 둘째 장은 Claude 가 고른 추천 �
   assert.equal(recolour.length, 1);
   assert.equal(inside.length, 2);
   const body = recolour[0].match(/plinth and trim: (.+), one continuous colour/)[1];
+  assert.notEqual(body, 'matte pure white', '흰 문짝(기본값)에 무광 화이트를 추천하지 않는다 (벽 3600 은 예전에 그랬다)');
   const std = inside.find((p) => !p.includes('Also change the colour'));
   const rec = inside.find((p) => p.includes(`to ${body}, one continuous colour`));
   assert.ok(std && rec);
