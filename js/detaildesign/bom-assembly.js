@@ -577,16 +577,25 @@
       doorRows.add(row);
     });
 
-    // 외부 서랍 전면 — 좌대를 덮고 바닥에서 20, 서랍마다 위에 목찬넬 틈 30 (2026-10-20 사장님: 1단 · 2단).
-    //   맨 위 틈이 서랍 몸통 상단에서 끝나야 한다. 3단 이상은 중간 목찬넬 자리를 몰라 놓지 않는다.
+    // 외부 서랍 전면 — 좌대를 덮고 바닥에서 20 위부터 쌓는다. 목찬넬 틈 30 자리 (2026-10-20 사장님):
+    //   2단은 서랍마다 위에 하나씩, 그 밖은 목찬넬 손잡이 규칙 그대로 (서랍 규칙 assignChannels: 상단 1 + 중간 최소).
+    //   BOM 은 단수 3 까지 단수만큼 전면을 낸다. 전면을 내림한 나머지(3단 1mm)는 맨 위 틈에 남는다.
     keyed.filter((x) => x.key && x.key.family === 'drawer' && groupOf(x.row) === '서랍모듈').forEach(({ row }) => {
       const n = row.qty;
-      const y0 = DR.SUPPORT_PEDESTAL_GAP - pedH;
-      if (!drawerCar || !pedH || (n !== 1 && n !== 2) || row.w !== W - C.DOOR_GAP
-        || y0 + n * (row.h + DR.SLOT) !== drawerCar.y0 + drawerCar.H) return;
-      for (let k = 0; k < n; k++) {
-        parts.push(makePart(row, k, { o: [-W / 2 + C.DOOR_GAP / 2, y0 + k * (row.h + DR.SLOT), D / 2], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { drawerIdx: k }));
+      if (!drawerCar || !pedH || n < 1 || n > 3 || row.w !== W - C.DOOR_GAP) return;
+      // midBelow[i] — 위→아래 전면 i 와 i+1 사이에 틈
+      const midBelow = n === 2 ? [true] : DrawerRules.assignChannels(n);
+      const slots = 1 + midBelow.filter(Boolean).length;
+      const top = drawerCar.y0 + drawerCar.H;
+      let yy = DR.SUPPORT_PEDESTAL_GAP - pedH;
+      const ys = [];   // 아래→위
+      for (let i = n - 1; i >= 0; i--) {
+        ys.push(yy);
+        yy += row.h + (i > 0 && midBelow[i - 1] ? DR.SLOT : 0);
       }
+      const rest = top - DR.SLOT - yy;   // 맨 위 틈 위로 남는 자리
+      if (rest < 0 || rest >= n || slots * DR.SLOT + n * row.h + DR.SUPPORT_PEDESTAL_GAP + rest !== top - (-pedH)) return;
+      ys.forEach((y0, k) => parts.push(makePart(row, k, { o: [-W / 2 + C.DOOR_GAP / 2, y0, D / 2], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { drawerIdx: n - 1 - k })));
       doorRows.add(row);
     });
 
