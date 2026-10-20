@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import encodeJpeg from 'jpeg-js/lib/encoder.js';
 import { inflateSync } from 'node:zlib';
 import { parseKitchenPoints, renderFacesMassing, solveKitchenCamera } from '../src/kitchen.js';
-import { plannerPlaceBlocks, plannerPlaceFaces } from '../src/planner-place.js';
+import { plannerPlaceBlocks, plannerPlaceFaces, plannerPlaceRef } from '../src/planner-place.js';
 import { buildPlannerPrompt } from '../src/prompts.js';
 
 /** 가상 방 — kitchen.test.js 와 같은 카메라. 왼쪽 끝(-1800)이 런의 왼쪽 모서리, 오른쪽 옆벽(1800) */
@@ -280,7 +280,7 @@ function fakeState() {
   };
 }
 
-async function runPlannerJob({ flag, existing = null, design = spec(), extraEnv = {} }) {
+async function runPlannerJob({ flag, existing = null, design = spec(), extraEnv = {}, extraOpts = {} }) {
   const { GenerateJob } = await import('../src/job.js');
   const v = virtualRoom();
   // 선 찾기 바탕은 긴 변 1024 로 줄인 그림 (1600 → 1024) — 답도 그 픽셀로
@@ -296,7 +296,7 @@ async function runPlannerJob({ flag, existing = null, design = spec(), extraEnv 
     side_ceiling: j.side_ceiling.map(sc),
   };
   const roomJpeg = Buffer.from(solid(1600, 1200, [128, 128, 128]).base64, 'base64');
-  const seen = { lines: 0, uploads: [], install: null };
+  const seen = { lines: 0, uploads: [], install: null, place: undefined };
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, init = {}) => {
     const u = String(url);
@@ -325,6 +325,9 @@ async function runPlannerJob({ flag, existing = null, design = spec(), extraEnv 
     }
     if (u.includes('/rest/v1/generations')) {
       if ((init.method || 'GET') === 'GET') return jsonRes([{ id: ROW_ID, options: {} }]);
+      // 행에 복사된 wall_analysis.place (ck.place 전체) — 마지막 것
+      const patch = init.body ? JSON.parse(init.body) : {};
+      if (patch.wall_analysis && 'place' in patch.wall_analysis) seen.place = patch.wall_analysis.place;
       return jsonRes([{ id: ROW_ID }]);
     }
     const body = JSON.parse(init.body);
@@ -380,6 +383,7 @@ async function runPlannerJob({ flag, existing = null, design = spec(), extraEnv 
             image_provider: 'gemini',
             aspect: '4:3',
             design_spec: design,
+            ...extraOpts,
           },
           inputs: {
             room: { path: `${USER_ID}/${ROW_ID}/room.jpg`, url: 'u', mime: 'image/jpeg' },
@@ -652,4 +656,120 @@ test('가상 방 ㄷ자: 꺾인 줄이 양쪽 옆벽에 하나씩, 주벽 줄은
   const r = fronts.find((f) => f.normal[0] === -1);
   assert.ok(l.pts.every((pt) => Math.abs(pt[0] - (cam.xL + 600)) < 1e-6));
   assert.ok(r.pts.every((pt) => Math.abs(pt[0] - (cam.xR - 600)) < 1e-6));
+});
+
+// ─── 칠한 기준 좌표 ck.place.ref (2026-10-20, 위치 검사 run_right_place 의 선행 조건) ───
+//   좌표 관례는 position.js 와 같다 — 이미지 % 0~100 (toPct · img.CBL = px / W × 100), 소실점 x 도 % (uOfVh 의 vh[0]/W×100).
+
+const refKeys = ['w', 'h', 'bl', 'br', 'fl', 'fr', 'wl', 'wr', 'vx'];
+const inImage = (p) => p && p.x >= 0 && p.x <= 100 && p.y >= 0 && p.y <= 100;
+const xy = (p) => ({ x: p.x, y: p.y });
+
+test('ref 일자: 캔버스 크기 · 하부 줄 뒷선·앞선 양 끝 · 벽 모서리 · 벽 방향 소실점 — 참 카메라와 1 % 안', () => {
+  const v = virtualRoom();
+  const cam = solved();
+  const place = plannerPlaceBlocks(spec());
+  const ref = plannerPlaceRef(cam, place);
+  assert.deepEqual(Object.keys(ref), refKeys);
+  assert.deepEqual([ref.w, ref.h], [1600, 1200], '캔버스 = 2·cx × 2·cy');
+  // X 는 앵커 기준 도면 mm (하부 줄 양 끝)
+  assert.deepEqual([ref.bl.X, ref.br.X, ref.fl.X, ref.fr.X], [0, 2200, 0, 2200]);
+  for (const k of ['bl', 'br', 'fl', 'fr', 'wl', 'wr']) assert.ok(inImage(ref[k]), `${k} ${JSON.stringify(ref[k])}`);
+  // 참 카메라의 점과 비교 (이미지 %) — 뒷선 = 상판 높이 870 · 벽(z 0), 앞선 = 상판 앞 끝(z 600)
+  const pct = (q) => ({ x: (q[0] / 1600) * 100, y: (q[1] / 1200) * 100 });
+  const near = (p, q, tol = 1) => Math.hypot(p.x - q.x, p.y - q.y) < tol; // 1 % ≈ 16 px
+  assert.ok(near(ref.bl, pct(v.proj(v.L, 870, 0))), `bl ${JSON.stringify(ref.bl)}`);
+  assert.ok(near(ref.br, pct(v.proj(v.L + 2200, 870, 0))), `br ${JSON.stringify(ref.br)}`);
+  assert.ok(near(ref.fl, pct(v.proj(v.L, 870, 600))), `fl ${JSON.stringify(ref.fl)}`);
+  assert.ok(near(ref.fr, pct(v.proj(v.L + 2200, 870, 600))), `fr ${JSON.stringify(ref.fr)}`);
+  // 벽 모서리는 뒷선 높이 — 왼쪽 앵커라 bl = wl, 오른쪽 벽(1800)은 줄 끝(400)보다 오른쪽
+  assert.deepEqual(ref.wl, xy(ref.bl));
+  assert.ok(near(ref.wr, pct(v.proj(1800, 870, 0))), `wr ${JSON.stringify(ref.wr)}`);
+  assert.ok(ref.wr.x > ref.br.x);
+  assert.ok(ref.fl.y > ref.bl.y, '앞선이 뒷선보다 아래 (카메라가 상판보다 높다)');
+  // 벽 방향 소실점 — 요 10° 의 참값 x = f·cot(10°) + W/2 (이미지 오른쪽 멀리), %
+  const vxTrue = ((1000 / Math.tan((10 * Math.PI) / 180) + 800) / 1600) * 100;
+  assert.ok(Math.abs(ref.vx - vxTrue) < 0.1 * vxTrue, `vx ${ref.vx} vs ${vxTrue}`);
+  // 소수 둘째 자리 · 정수 mm — 200 B 안팎
+  assert.ok(JSON.stringify(ref).length < 260, JSON.stringify(ref));
+  for (const k of refKeys.slice(2, 8)) {
+    assert.equal(ref[k].x, Math.round(ref[k].x * 100) / 100, k);
+    assert.equal(ref[k].y, Math.round(ref[k].y * 100) / 100, k);
+  }
+});
+
+test('ref 일자: 런이 벽보다 넓으면 칠한 대로(벽 끝에서 끝) — X 는 도면 mm 그대로', () => {
+  const cam = solved();
+  const wide = spec({ wallRunMm: 5000 });
+  wide.sections.lower.widthMm = 5000;
+  wide.sections.lower.modules = [{ widthMm: 2500 }, { widthMm: 2500 }];
+  const ref = plannerPlaceRef(cam, plannerPlaceBlocks(wide));
+  assert.equal(ref.br.X, 5000);
+  assert.deepEqual(xy(ref.br), ref.wr, '칠은 오른쪽 벽 면에서 끝난다');
+});
+
+test('ref ㄱ자: 주벽 하부 줄만 — 왼쪽 앵커는 왼쪽 벽 면에서, 오른쪽 앵커(corner main)는 오른쪽 벽 면에서 끝난다', () => {
+  const cam = solved();
+  const left = plannerPlaceRef(cam, plannerPlaceBlocks(cornerSpec(), { corners: true }));
+  assert.deepEqual([left.bl.X, left.br.X], [0, 2400]);
+  assert.deepEqual(xy(left.bl), left.wl);
+  assert.ok(left.br.x < left.wr.x, '주벽 줄 2400 은 벽 3600 보다 짧다');
+  const right = plannerPlaceRef(
+    cam,
+    plannerPlaceBlocks(cornerSpec({ side: 'right', corner: 'main' }), { corners: true })
+  );
+  assert.deepEqual([right.bl.X, right.br.X], [0, 2400], '도면 좌표 그대로 (앵커 기준)');
+  assert.deepEqual(xy(right.br), right.wr, '오른끝 = 오른쪽 벽 면');
+  assert.ok(right.bl.x > right.wl.x);
+  // 꺾인 줄은 ref 에 없다 (주벽만)
+  assert.deepEqual(Object.keys(left), refKeys);
+});
+
+test('ref: 하부 줄이 없으면(상부만·키큰장만) 없다 — null', () => {
+  const cam = solved();
+  const upperOnly = spec();
+  delete upperOnly.sections.lower;
+  const p = plannerPlaceBlocks(upperOnly);
+  assert.deepEqual(p.blocks.map((b) => b.key), ['upper']);
+  assert.equal(plannerPlaceRef(cam, p), null);
+  const tallOnly = spec();
+  delete tallOnly.sections.lower;
+  delete tallOnly.sections.upper;
+  tallOnly.sections.tall = { widthMm: 600, heightMm: 2200, depthMm: 600, fromLeftMm: 0, fromFloorMm: 0, modules: [{ widthMm: 600 }] };
+  assert.equal(plannerPlaceRef(cam, plannerPlaceBlocks(tallOnly)), null);
+  assert.equal(plannerPlaceRef(null, p), null);
+  assert.equal(plannerPlaceRef(cam, null), null);
+});
+
+test('잡: 칠한 직후 ck.place.ref 를 저장하고 wall_analysis.place 복사본에도 들어간다', async () => {
+  const seen = await runPlannerJob({ flag: 'on' });
+  assert.ok(seen.place && seen.place.ref, 'wall_analysis.place.ref');
+  const ref = seen.place.ref;
+  assert.deepEqual(Object.keys(ref), refKeys);
+  assert.deepEqual([ref.w, ref.h], [1600, 1200], '칠한 캔버스(원본 해상도) 크기');
+  assert.deepEqual([ref.bl.X, ref.br.X], [0, 2200]);
+  assert.ok(inImage(ref.bl) && inImage(ref.br) && inImage(ref.fl) && inImage(ref.fr));
+  assert.ok(seen.place.cam && seen.place.path, '기존 필드는 그대로');
+});
+
+test('잡: 상부만 있는 도면은 칠하되 ref 키가 없다', async () => {
+  const upperOnly = spec();
+  delete upperOnly.sections.lower;
+  const seen = await runPlannerJob({ flag: 'on', design: upperOnly });
+  assert.ok(seen.place && seen.place.path, '칠했다');
+  assert.equal('ref' in seen.place, false);
+});
+
+// ─── 요청 옵션 place_guide:false (2026-10-20) — 운영 변수 배포 없이 덩어리 안내를 끈 생성 ───
+
+test('잡: options.place_guide === false 면 스위치가 켜져 있어도 칠하지 않는다 — 방 사진이 IMAGE A', async () => {
+  const seen = await runPlannerJob({ flag: 'on', extraOpts: { place_guide: false } });
+  assert.equal(seen.lines, 0, '선 찾기 없음');
+  assert.equal(seen.place, undefined, 'ck.place 를 만들지 않는다');
+  assert.ok(!seen.uploads.some((p) => p.endsWith('/place.png')));
+  assert.equal(seen.install.mimes[0], 'image/jpeg');
+  assert.doesNotMatch(seen.install.prompt, /already painted in/);
+  // false 만 끈다 — true 는 지금과 같다
+  const on = await runPlannerJob({ flag: 'on', extraOpts: { place_guide: true } });
+  assert.equal(on.install.mimes[0], 'image/png');
 });
