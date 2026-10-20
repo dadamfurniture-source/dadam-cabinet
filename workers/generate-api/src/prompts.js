@@ -997,10 +997,14 @@ function guidePhrase(c) {
   return `\nGUIDE: the last image is this same photo with magenta guide lines that outline the wardrobe volume: the front rectangle is where its front meets the floor, the ceiling and the walls, and the short lines running back to the wall show its depth. Build the furniture to fill exactly that outline in the first photo. The result is a clean photograph with no magenta lines.`;
 }
 
-/** 공사 현장이면 완공된 방으로 그린다. 방 형태·창·카메라는 그대로. 설치·플래너 프롬프트가 같이 쓴다. */
+/**
+ * 공사 현장이면 완공된 방으로 그린다. 방 형태·창·카메라는 그대로. 설치·플래너 프롬프트가 같이 쓴다.
+ * 2026-10-20 사장님 "주변과 어울리는 색상·재질을 판단해서 자연스럽게 마감" — 마감 목록·고르는 칸 없이
+ * 모델이 방의 마감된 부분을 보고 이어 간다. 천장 구멍은 생성마다 막히기도·조명 홈이 되기도 했다 → 막고, 전선이 나온 자리만 매립등.
+ */
 function sitePhrase(c) {
   return c.site === 'construction'
-    ? `\nSITE: the photo shows an unfinished construction site${c.siteNotes ? ` (${c.siteNotes})` : ''}. Render the room fully finished and clean: remove debris, tools, boxes, dust and protective film; finish bare walls and ceiling smoothly in a light neutral tone; complete the flooring to match what already exists; route every exposed pipe, valve and wire behind the new furniture or inside the wall so none stays visible. Keep the room geometry, window positions and camera unchanged.`
+    ? `\nSITE: the photo shows an unfinished construction site${c.siteNotes ? ` (${c.siteNotes})` : ''}. Render the room fully finished and clean: remove debris, tools, boxes, dust and protective film. Finish every unfinished surface so it blends with the finished parts of this room: continue the colour, material and pattern of the existing floor, walls, ceiling, skirting and trim; where no finished part is visible, choose a calm finish that suits the room and the new furniture. Close holes, slots and cut-outs in the walls and ceiling flush with the surface around them; where wires hang out for a light, fit a simple flush light that matches the room's other lights. Route every exposed pipe, valve and wire behind the new furniture or inside the wall so none stays visible. Keep the room geometry, window positions and camera unchanged.`
     : '';
 }
 
