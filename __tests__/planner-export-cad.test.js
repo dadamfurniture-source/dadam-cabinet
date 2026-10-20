@@ -245,7 +245,8 @@ describe.each(Object.keys(WARDROBE_SCENES))('%s 장면 → CAD 명세 (붙박이
       const plannerId = cad.cells[m.moduleKey].plannerId;
       m.parts.forEach((pt) => {
         const b = worldOf(pt, M);
-        if (pt.part === '측판') {
+        // 내부 서랍장 측판은 몸통이 아니다 (3D 는 wardrobeInnerModule 로, 아직 예전 앞뒤 자리에 그린다)
+        if (pt.part === '측판' && !pt.tags.innerDrawer) {
           const hits = pieces.filter((r) => r.moduleId === plannerId && r.entityKind === 'carcass' && r.ud.carcassIdx === pt.tags.carcass)
             .map((r) => box3(r.solids)).filter((g) => g.min.distanceTo(b.min) < 0.6 && g.max.distanceTo(b.max) < 0.6);
           expect({ id: pt.id, hit: hits.length }).toEqual({ id: pt.id, hit: 1 });
