@@ -501,6 +501,35 @@ function plannerAiPhotoCut(s, n) {
   return t.length > n ? t.slice(0, n) : t;
 }
 
+/** 2026-10-20: appliance_models.subtype — 워커 DESIGN_FRIDGE_SUBTYPES 와 같은 값. 그 밖은 보내지 않는다. */
+const PLANNER_AI_PHOTO_FRIDGE_SUBTYPES = [
+  'french_4door', 'side_by_side', 'two_door', 'one_door', 'built_in', 'kimchi_stand', 'kimchi_lid', 'wine', 'small',
+];
+
+/**
+ * 2026-10-20: 고른 냉장고 모델 → 계약의 `appliances[].model` (design-spec-prompt.md "냉장고 모델"). 순수.
+ *   배치 단계(mockup-shell W9-44)가 냉장고 사각형에 싣는 fridgeModel { brand, name, code, widthMm, heightMm, depthMm, subtype }.
+ *   이름도 코드도 없으면 null — 키를 보내지 않고, 워커는 중립 냉장고로 그린다 (사장님 결정 2026-10-20).
+ * @returns {{brand?:string, name?:string, code?:string, widthMm?:number, heightMm?:number, depthMm?:number, subtype?:string}|null}
+ */
+function plannerAiPhotoFridgeModel(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const out = {};
+  [['brand', 30], ['name', 80], ['code', 40]].forEach(([k, n]) => {
+    const t = typeof raw[k] === 'string' ? plannerAiPhotoCut(raw[k], n) : '';
+    if (t) out[k] = t;
+  });
+  if (!out.name && !out.code) return null;
+  ['widthMm', 'heightMm', 'depthMm'].forEach((k) => {
+    const v = raw[k];
+    if (v === null || v === undefined || v === '') return;
+    const n = Number(v);
+    if (Number.isFinite(n) && n > 0) out[k] = plannerAiPhotoMm(n);
+  });
+  if (PLANNER_AI_PHOTO_FRIDGE_SUBTYPES.indexOf(raw.subtype) >= 0) out.subtype = raw.subtype;
+  return out;
+}
+
 /**
  * 마감 코드 하나 → 계약의 `finishes.*` 한 칸.
  *
@@ -838,6 +867,27 @@ function plannerAiPhotoSpecTrace(input) {
   const structureOf = typeof o.structureOf === 'function' ? o.structureOf : () => null;
   const boxOf = typeof o.boxOf === 'function' ? o.boxOf : plannerAiPhotoBoxOf;
   const wardrobeFrontOf = typeof o.wardrobeFrontOf === 'function' ? o.wardrobeFrontOf : () => null;
+  // 2026-10-20: 고른 냉장고 모델 — 페이지가 그 모듈(냉장고 본체 또는 냉장고장 통의 맨 아래 단)과 평면이 겹치는 냉장고 영역의
+  //   fridgeModel 을 준다. 없거나 던지면 null (예전 그대로 model 키 없음).
+  const fridgeModelOf = (m) => {
+    if (typeof o.fridgeModelOf !== 'function') return null;
+    try { return plannerAiPhotoFridgeModel(o.fridgeModelOf(m)); } catch (e) { return null; }
+  };
+  /** 가전 목록 한 칸 — fridge 면 고른 모델을 붙인다 */
+  const applianceOf = (kind, fromLeftMm, widthMm, x, m) => {
+    const a = { kind, fromLeftMm, widthMm, _x: x };
+    const model = kind === 'fridge' ? fridgeModelOf(m) : null;
+    if (model) a.model = model;
+    return a;
+  };
+  /** 계약으로 내보낼 모양 (_x 를 떼고, 자리 필드 이름은 pos) */
+  const applianceOut = (a, pos) => {
+    const out = { kind: a.kind };
+    out[pos] = a.fromLeftMm;
+    out.widthMm = a.widthMm;
+    if (a.model) out.model = a.model;
+    return out;
+  };
 
   // 런의 왼쪽 끝 — 마감재·가전 표시까지 **전부** 센다. 계약의 fromLeftMm 가 여기서부터 잰 값이다.
   const boxes = all.map((m) => ({ m, b: boxOf(m) }));
@@ -873,12 +923,7 @@ function plannerAiPhotoSpecTrace(input) {
     if (plannerAiPhotoIsFinishing(m.section)) return;                  // 판 한 장 — 모듈이 아니다
     const kind = PLANNER_AI_PHOTO_APPLIANCE[m.section];
     if (kind) {
-      appliances.push({
-        kind,
-        fromLeftMm: plannerAiPhotoMm(x.b.x - left),
-        widthMm: plannerAiPhotoMm(x.b.w),
-        _x: x.b.x,
-      });
+      appliances.push(applianceOf(kind, plannerAiPhotoMm(x.b.x - left), plannerAiPhotoMm(x.b.w), x.b.x, m));
     }
     const slot = PLANNER_AI_PHOTO_BUCKET[m.section];
     if (!slot) return;                                                  // 분배기·후드는 자리 표시뿐
@@ -904,7 +949,7 @@ function plannerAiPhotoSpecTrace(input) {
         tr.push({ moduleId: ids[0], moduleIds: ids, from: 0, to: 1 });
         // 냉장고 자리 — 냉장고 본체가 놓여 있지 않으면 그 자리를 가전 목록에 올린다 (놓여 있으면 본체가 이미 올랐다)
         if (x.niche && !x.fridge) {
-          appliances.push({ kind: 'fridge', fromLeftMm: plannerAiPhotoMm(x.b.x - left), widthMm: plannerAiPhotoMm(x.b.w), _x: x.b.x });
+          appliances.push(applianceOf('fridge', plannerAiPhotoMm(x.b.x - left), plannerAiPhotoMm(x.b.w), x.b.x, x.mods[0]));
         }
         return;
       }
@@ -982,7 +1027,7 @@ function plannerAiPhotoSpecTrace(input) {
   const sections = main.sections;
   const trace = main.trace;
   const apps = main.appliances.slice(0, PLANNER_AI_PHOTO_MAX_APPLIANCES)
-    .map((a) => ({ kind: a.kind, fromLeftMm: a.fromLeftMm, widthMm: a.widthMm }));
+    .map((a) => applianceOut(a, 'fromLeftMm'));
 
   // 2026-10-19: 꺾인 벽 — 벽마다 같은 규칙으로 런을 만들고 자리를 fromCornerMm 로 바꾼다 (모서리 → 방 쪽)
   const walls = [];
@@ -999,7 +1044,7 @@ function plannerAiPhotoSpecTrace(input) {
     });
     if (!Object.keys(secs).length) return;
     const wall = { side: w.side, corner: w.corner, runMm: plannerAiPhotoMm(w.runMm), cornerEdge: w.cornerEdge, sections: secs };
-    const wa = r.appliances.map((a) => ({ kind: a.kind, fromCornerMm: a.fromLeftMm, widthMm: a.widthMm }));
+    const wa = r.appliances.map((a) => applianceOut(a, 'fromCornerMm'));
     if (wa.length) wall.appliances = wa.slice(0, PLANNER_AI_PHOTO_MAX_APPLIANCES);
     walls.push(wall);
     trace.walls = trace.walls || {};
@@ -1617,6 +1662,8 @@ const PlannerAiPhoto = {
       wardrobeFrontOf: o.wardrobeFrontOf || undefined,
       resolve: o.resolve || undefined,
       baseYOf: typeof o.baseYOf === 'function' ? o.baseYOf : undefined,
+      // 2026-10-20: 고른 냉장고 모델 (appliances[].model) — 페이지가 냉장고 영역에서 찾아 준다
+      fridgeModelOf: typeof o.fridgeModelOf === 'function' ? o.fridgeModelOf : undefined,
       ceilingMm: this.ceilingMm(),
       detail: this.detail(),
       catalog: this.catalog(),
@@ -2212,6 +2259,8 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerAiPhotoMaterialEn,
     plannerAiPhotoColorEn,
     plannerAiPhotoFinishOf,
+    PLANNER_AI_PHOTO_FRIDGE_SUBTYPES,
+    plannerAiPhotoFridgeModel,
     plannerAiPhotoCategoryOf,
     plannerAiPhotoBuildSpec,
     plannerAiPhotoSpecTrace,
