@@ -430,9 +430,15 @@
         case 'pedestal:brace':
         case 'kick':
           return;   // 아래에서 좌대 상자를 한꺼번에
-        case 'molding':
-          skip(row, 'molding-position-pending');   // 키큰장 상부단 상몰딩 — 자리 미정 (사장님 확인 대기)
+        case 'molding': {
+          // 키큰장 상부단 상몰딩 띠 (MDF 18T, 몰딩H × W) — 2026-10-20 카드 "도어 앞면 맞춤":
+          //   몸통 위에 올라서고(y H…H+몰딩H), 띠 앞면 = 도어 앞면(z D/2+18), 띠 뒷면 = 몸통 앞선(z D/2).
+          //   도어 두께 = 띠 두께 18 이라 도어 바로 위에 같은 면으로 선다. 3D(addCrownMolding)가 D+18 통판으로 그리는 것은
+          //   BOM 과 다른 그림이고 자재 근거가 아니다.
+          if (row.qty !== 1 || row.h !== W) { skip(row, 'molding-layout-unknown'); return; }
+          parts.push(makePart(row, 0, { o: [-W / 2, H, zFront], u: '+y', v: '+x', n: '+z' }, [], 'exterior', { molding: true }));
           return;
+        }
         default:
           skip(row, 'not-yet');
       }
