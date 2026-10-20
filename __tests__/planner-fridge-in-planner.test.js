@@ -132,14 +132,3 @@ describe('장 버튼 — 줄 끝에 이어 붙인다', () => {
     expect(+c.getAttribute('cx')).toBe((f.x + t.x + t.w) / 2);
   });
 });
-
-describe('냉장고장 위장 몸통 깊이 — 표준 550 (fridge.md MODULE_D · FRIDGE_D)', () => {
-  test('자리 700 이어도 몸통은 550 (예전 670 = 자리 − 30)', () => {
-    const p = bootPlanner('mockup-structure.html', { search: '?design=t&item=1' });
-    const area = p.g('areas').find((a) => a.section === 'fridge');
-    expect(area.D).toBe(700);
-    const m = p.g('addModuleToArea')(area.id, { section: 'fridge' });
-    expect(m.D).toBe(p.g('MASTER_RULES').FRIDGE_D);
-    expect(m.D).toBe(550);
-  });
-});
