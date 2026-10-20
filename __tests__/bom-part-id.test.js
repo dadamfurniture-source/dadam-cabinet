@@ -59,7 +59,8 @@ describe('partId — 모든 자재 행에, 설계 안에서 유일, 두 번 돌�
 
   test('품목 단위 마감재(EP) 행은 moduleId "ep", 모듈에 딸린 EP 목찬넬은 그 모듈 id', () => {
     expect(oneRow(rows, '#1 EP', '걸레받이').partId).toBe('0-ep-kick-0');
-    expect(rowsOf(rows, 'EP', '목찬넬')[0].partId).toBe('1-w2-channel:front-0');
+    expect(rowsOf(rows, 'EP', '목찬넬(전면)')[0].partId).toBe('1-w2-channel:front-0');
+    expect(rowsOf(rows, 'EP', '목찬넬(지면)')[0].partId).toBe('1-w2-channel:back-0');
     expect(oneRow(rows, '긴옷-좌대', '좌대 전후').partId).toBe('1-w2-pedestal:fb-0');
   });
 

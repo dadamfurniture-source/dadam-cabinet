@@ -32,9 +32,9 @@ describe('BOM 골든 — 붙박이장 (wardrobe)', () => {
     expect(parts('짧은옷(2단)-상부장')).toEqual(['측판', '천판', '지판', '뒷판']);
     expect(parts('짧은옷(2단)-하부장')).toEqual(['측판', '천판', '지판', '뒷판', '선반']);
     expect(snap.materials.find((m) => m.module === '짧은옷(2단)' && m.part === '도어').qty).toBe(2); // round(900/450)
-    // long + 외부서랍 2: 서랍모듈 본체·서랍 부재·하단보강·서랍도어 2장
+    // long + 외부서랍 2: 서랍모듈 본체·서랍 부재·하단보강·서랍도어 2장 (천판 없음 — 2026-10-20 카드 "천판 빼기")
     expect(parts('긴옷-서랍모듈')).toEqual([
-      '측판', '천판', '지판', '뒷판', '밴드', '서랍전후판', '서랍측판', '서랍밑판', '서랍 하단보강', '서랍도어',
+      '측판', '지판', '뒷판', '밴드', '서랍전후판', '서랍측판', '서랍밑판', '서랍 하단보강', '서랍도어',
     ]);
     expect(snap.materials.find((m) => m.module === '긴옷-서랍모듈' && m.part === '서랍도어').qty).toBe(2);
     // shelf + 내부서랍 1: 내부서랍 프레임이 모듈 라벨에 붙는다, 상·하 선반 2
@@ -45,8 +45,9 @@ describe('BOM 골든 — 붙박이장 (wardrobe)', () => {
     expect(snap.materials.find((m) => m.module === '선반형-상부장' && m.part === '선반').qty).toBe(2);
     expect(snap.materials.find((m) => m.module === '선반형-하부장' && m.part === '선반').qty).toBe(2);
     // EP: 상몰딩(60) · 좌측몰딩 + 덧대 · 우측 없음 · 좌대 걸레받이 · 외부서랍 2 → 목찬넬 100 + 120 (2026-10-20 사장님, 서랍마다 위에 하나씩)
-    expect(parts('EP')).toEqual(['상몰딩', '좌측몰딩', '좌측몰딩 덧대', '좌대 걸레받이', '목찬넬', '목찬넬']);
-    expect(snap.materials.filter((m) => m.module === 'EP' && m.part === '목찬넬').map((m) => m.w)).toEqual([100, 120]);
+    //   100 = 지면 40 + 전면 52, 120 = 지면 40 + 전면 72 로 나눠 ㄴ자 (2026-10-20 사장님) — 싱크 서랍장 목찬넬과 같은 판
+    expect(parts('EP')).toEqual(['상몰딩', '좌측몰딩', '좌측몰딩 덧대', '좌대 걸레받이', '목찬넬(전면)', '목찬넬(지면)', '목찬넬(중간 전면)', '목찬넬(중간 지면)']);
+    expect(snap.materials.filter((m) => m.module === 'EP' && /^목찬넬/.test(m.part)).map((m) => [m.w, m.thickness])).toEqual([[52, 18], [40, 18], [72, 18], [40, 18]]);
     // 좌대: 모듈마다, W≥700 이면 중간보강
     expect(parts('긴옷-좌대')).toEqual(['좌대 전후', '좌대 측', '좌대 중간보강']);
   });
