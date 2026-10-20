@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-/* global require, __dirname, describe, test, expect */
+/* global require, __dirname, describe, test, expect, global */
 /**
  * CAD 베타 PR3 — 몸통 조립 규칙 한 표 (js/detaildesign/assembly-rules.js).
  *
@@ -94,4 +94,23 @@ test('detaildesign.html 이 assembly-rules.js 를 extractors.js 보다 먼저 �
   const e = html.indexOf('js/detaildesign/extractors.js?v=');
   expect(a).toBeGreaterThan(0);
   expect(e).toBeGreaterThan(a);
+});
+
+// 2026-10-20 사장님: 상부장 보강목 2장은 폭 60 (W − 2T × 60), 사쿠리 홈 뒤 — 장의 맨 뒤. 하부장 밴드는 70 그대로.
+describe('상부장 보강목 폭 60', () => {
+  global.dlog = global.dlog || (() => {});
+  const { MaterialExtractor } = require('../js/detaildesign/extractors.js');
+  const { FIXTURES } = require('../test-utils/bom-golden/fixtures.js');
+  test('규칙 표 — UPPER_BAND_W 60, BAND_W 70', () => {
+    expect(R.CARCASS.UPPER_BAND_W).toBe(60);
+    expect(R.CARCASS.BAND_W).toBe(70);
+  });
+  test.each(['sink15', 'sink18', 'vanity', 'storage'])('%s — 밴드(보강목) 행은 (W − 2T) × 60', (name) => {
+    const rows = new MaterialExtractor().extract({ items: [FIXTURES[name]] }).materials;
+    const bands = rows.filter((r) => r.part === '밴드(보강목)');
+    bands.forEach((r) => expect(r.h).toBe(60));
+    const lower = rows.filter((r) => r.part === '밴드');
+    lower.forEach((r) => expect(Math.min(r.w, r.h)).toBe(70));
+    if (name.indexOf('sink') === 0) expect(bands.length).toBeGreaterThan(0);
+  });
 });

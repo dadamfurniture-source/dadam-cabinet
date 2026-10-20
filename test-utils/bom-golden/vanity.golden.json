@@ -106,7 +106,7 @@
       "material": "PB",
       "thickness": 18,
       "w": 764,
-      "h": 70,
+      "h": 60,
       "qty": 2,
       "edge": "2면(장)",
       "note": "",
@@ -306,7 +306,7 @@
       "material": "PB",
       "thickness": 18,
       "w": 564,
-      "h": 70,
+      "h": 60,
       "qty": 2,
       "edge": "2면(장)",
       "note": "",
@@ -855,7 +855,7 @@
     "PB_18": {
       "material": "PB",
       "thickness": 18,
-      "totalArea": 6111658,
+      "totalArea": 6085098,
       "panelCount": 3
     },
     "MDF_3": {
