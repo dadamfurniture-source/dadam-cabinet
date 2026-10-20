@@ -736,6 +736,14 @@
       // 임시 사용자 데이터 (실제로는 서버에서 가져옴)
       let usersData = [];
 
+      // innerHTML 에 넣는 값은 모두 이스케이프한다 — 이름·이메일·지역은 가입한 사람이 직접 적은 글이다
+      // (작업자 포털이 열리면 작업자 이름도 여기 나온다. docs/01-plan/worker-portal.plan.md 개정 #20)
+      const esc = (v) =>
+        String(v == null ? '' : v).replace(
+          /[&<>"']/g,
+          (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+        );
+
       document.addEventListener('DOMContentLoaded', async () => {
         await initAdmin();
       });
@@ -873,7 +881,7 @@
                         <tr>
                             <td colspan="9" class="empty-state">
                                 <h4>사용자 목록을 불러올 수 없습니다</h4>
-                                <p>${error.message}</p>
+                                <p>${esc(error.message)}</p>
                             </td>
                         </tr>
                     `;
@@ -915,8 +923,8 @@
             const sub = subsById[user.id];
             const SUB_KO = { active: '이용 중', cancelled: '해지 예약', past_due: '결제 실패', expired: '종료' };
             const subCell = sub
-              ? `<span class="badge sub-${sub.status}">${SUB_KO[sub.status] || sub.status}</span>` +
-                `<div class="cell-sub">${sub.plan} · ${Number(sub.amount_krw || 0).toLocaleString('ko-KR')}원</div>`
+              ? `<span class="badge sub-${esc(sub.status)}">${esc(SUB_KO[sub.status] || sub.status)}</span>` +
+                `<div class="cell-sub">${esc(sub.plan)} · ${Number(sub.amount_krw || 0).toLocaleString('ko-KR')}원</div>`
               : '<span class="cell-muted">-</span>';
 
             // 크레딧. 아직 한 번도 안 쓴 사용자는 행이 없다 — 지급 전이라는 뜻이다.
@@ -934,23 +942,23 @@
                     <tr>
                         <td>
                             <div class="user-info">
-                                <div class="user-avatar">${initial}</div>
+                                <div class="user-avatar">${esc(initial)}</div>
                                 <div class="user-details">
-                                    <h4>${user.name || '이름 없음'}</h4>
-                                    <span>${user.email}</span>
+                                    <h4>${esc(user.name || '이름 없음')}</h4>
+                                    <span>${esc(user.email)}</span>
                                 </div>
                             </div>
                         </td>
                         <td>
-                            <span class="badge ${tier}">${tier.charAt(0).toUpperCase() + tier.slice(1)}</span>
+                            <span class="badge ${esc(tier)}">${esc(tier.charAt(0).toUpperCase() + tier.slice(1))}</span>
                             ${user.tier_source === 'subscription' ? '<div class="cell-sub">결제</div>' : ''}
                         </td>
                         <td>${subCell}</td>
                         <td>${creditCell}</td>
                         <td>${ddBadge}</td>
-                        <td>${location}</td>
+                        <td>${esc(location)}</td>
                         <td>
-                            <span class="provider-badge ${provider}">${getProviderLabel(provider)}</span>
+                            <span class="provider-badge ${esc(provider)}">${esc(getProviderLabel(provider))}</span>
                         </td>
                         <td>${formatDate(user.created_at)}</td>
                         <td>
