@@ -7,6 +7,8 @@
  *   3) 형식은 바이트로 (jpeg · png · webp), 8MB 넘으면 413
  *   4) 성공: 버킷 appliance-images/{id}/photo.{ext} 업로드 → 행에 image_path · image_approved_at · image_approved_by
  *   5) SQL 을 아직 안 돌렸으면(칸·버킷 없음) 409 sql_missing — 그 파일 이름을 알려 준다
+ *   6) 2026-10-20 사장님 결정: 치수가 검증된 모델(verified = true)만 — 미검증은 409 model_unverified, 제조사 서버에 가지 않는다.
+ *      허용 호스트도 검증된 브랜드(삼성 · LG · 위니아 · 리페르 · 데이코 · 스메그 수입사)만, 미검증 브랜드(가게나우 · 하이얼 · 마이디어 · 쿠쿠)는 없다
  */
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -37,7 +39,7 @@ beforeEach(() => {
   calls = [];
   state = {
     role: 'admin',
-    row: { id: MODEL_ID, brand: 'LG', model_code: 'S834MEE111', image_source_url: 'https://www.lge.co.kr/kr/images/refrigerators/md1/md1-450x450.jpg' },
+    row: { id: MODEL_ID, brand: 'LG', model_code: 'S834MEE111', verified: true, image_source_url: 'https://www.lge.co.kr/kr/images/refrigerators/md1/md1-450x450.jpg' },
     rowError: null,
     image: { status: 200, body: WEBP },
     bucketMissing: false,
@@ -63,7 +65,8 @@ beforeEach(() => {
     if (u.startsWith('https://www.lge.co.kr/')) {
       return new Response(null, { status: 302, headers: { Location: u.replace('https://www.lge.co.kr', 'https://static.lge.co.kr') } });
     }
-    if (u.startsWith('https://static.lge.co.kr/') || u.startsWith('https://images.samsung.com/') || u.startsWith('https://www.winia.com/')) {
+    if (u.startsWith('https://static.lge.co.kr/') || u.startsWith('https://images.samsung.com/') || u.startsWith('https://www.winia.com/') ||
+        u.startsWith('https://assets-cdn.liebherr.com/')) {
       const { status, body, headers } = state.image;
       return new Response(body, { status, headers: headers || {} });
     }
@@ -102,7 +105,7 @@ test('modelId 가 uuid 가 아니면 400, 행이 없으면 404, 원본 주소가
   assert.equal((await post({ modelId: 'x' })).status, 400);
   state.row = null;
   assert.equal((await post({ modelId: MODEL_ID })).status, 404);
-  state.row = { id: MODEL_ID, brand: 'LG', model_code: 'X', image_source_url: null };
+  state.row = { id: MODEL_ID, brand: 'LG', model_code: 'X', verified: true, image_source_url: null };
   const r = await post({ modelId: MODEL_ID });
   assert.equal(r.status, 400);
   assert.equal((await r.json()).code, 'no_source');
@@ -157,6 +160,11 @@ test('허용 호스트의 https 만', () => {
   assert.ok(isAllowedImageUrl('https://images.samsung.com/kdp/goods/a.png'));
   assert.ok(isAllowedImageUrl('https://static.lge.co.kr/kr/images/a.jpg'));
   assert.ok(isAllowedImageUrl('https://www.winia.com/common/file/imageView?IMG_PATH=/upload/basic_info/A(A)_1.png'));
+  // 2026-10-20 검증된 브랜드의 원본 호스트 — SKS(image5.lge) · 리페르 · 데이코 · 스메그 수입사(j-collection)
+  assert.ok(isAllowedImageUrl('https://image5.lge.co.kr/kr/sks/spec-img.png'));
+  assert.ok(isAllowedImageUrl('https://assets-cdn.liebherr.com/fileadmin/products/straight_closed_480.webp'));
+  assert.ok(isAllowedImageUrl('https://www.dacorkorea.com/images/collection-product-item-1.png'));
+  assert.ok(isAllowedImageUrl('https://www.j-collection.co.kr/upload/product/fab28.jpg'));
   for (const bad of [
     'http://images.samsung.com/a.png',
     'https://images.samsung.com.evil.example/a.png',
@@ -168,6 +176,16 @@ test('허용 호스트의 https 만', () => {
     '',
     null,
   ]) assert.equal(isAllowedImageUrl(bad), false, String(bad));
+});
+
+test('미검증 브랜드(가게나우 · 하이얼 · 마이디어 · 쿠쿠) 호스트는 허용 목록에 없다', () => {
+  for (const bad of [
+    'https://media3.bsh-group.com/Product_Shots/600x/1.webp',
+    'https://haier.co.kr/board_data/a.jpg',
+    'https://www.haier.co.kr/board_data/a.jpg',
+    'https://www.midea.com/kr/a.jpg',
+    'https://cdn.cuckoo.co.kr/a.jpg',
+  ]) assert.equal(isAllowedImageUrl(bad), false, bad);
 });
 
 test('원본이 다른 호스트면 400 image_host — 그 서버에 가지 않는다', async () => {
@@ -208,4 +226,45 @@ test('사진 칸이 없으면 409 sql_missing, 버킷이 없으면 409 sql_missi
   out = await r.json();
   assert.equal(out.code, 'sql_missing');
   assert.ok(!calls.some((c) => c.method === 'PATCH'));
+});
+
+// ─── 6) 치수 검증된 모델만 (2026-10-20 사장님 결정) ───
+
+test('verified 가 true 가 아니면 409 model_unverified — 제조사 서버 · 버킷 · 행 어디에도 가지 않는다', async () => {
+  for (const verified of [false, null, undefined, 'true']) {
+    calls = [];
+    state.row = { ...state.row, verified };
+    const r = await post({ modelId: MODEL_ID });
+    assert.equal(r.status, 409, String(verified));
+    const out = await r.json();
+    assert.equal(out.code, 'model_unverified');
+    assert.match(out.error, /검증된 모델만/);
+    assert.match(out.error, /설치 도면 가이드/);
+    assert.equal(calls.filter((c) => /lge\.co\.kr/.test(c.url)).length, 0, '제조사 fetch 0');
+    assert.equal(calls.filter((c) => c.url.includes('/storage/v1/object/')).length, 0, '업로드 0');
+    assert.ok(!calls.some((c) => c.method === 'PATCH'));
+  }
+});
+
+test('미검증이면 허용 호스트 검사보다 먼저 거절한다 — 원본이 미검증 브랜드 호스트여도 model_unverified', async () => {
+  state.row = { ...state.row, verified: false, image_source_url: 'https://media3.bsh-group.com/Product_Shots/600x/1.webp' };
+  const r = await post({ modelId: MODEL_ID });
+  assert.equal(r.status, 409);
+  assert.equal((await r.json()).code, 'model_unverified');
+});
+
+test('검증된 모델은 통과 — 리페르(assets-cdn.liebherr.com) 원본을 png 로 올린다', async () => {
+  state.row = { id: MODEL_ID, brand: '리페르', model_code: 'CNsdc 5223', verified: true, image_source_url: 'https://assets-cdn.liebherr.com/p/straight_closed_480.webp' };
+  state.image = { status: 200, body: PNG };
+  const r = await post({ modelId: MODEL_ID });
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).image_path, `${MODEL_ID}/photo.png`);
+  assert.ok(calls.some((c) => c.url.startsWith('https://assets-cdn.liebherr.com/')));
+  assert.ok(calls.some((c) => c.method === 'PATCH'));
+});
+
+test('행을 읽을 때 verified 를 같이 읽는다', async () => {
+  await post({ modelId: MODEL_ID });
+  const sel = calls.find((c) => c.url.includes('/rest/v1/appliance_models') && c.method === 'GET');
+  assert.match(decodeURIComponent(sel.url), /select=[^&]*\bverified\b/);
 });
