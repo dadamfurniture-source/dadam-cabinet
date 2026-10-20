@@ -20,7 +20,7 @@
  *   features   따내기·홈. notch 는 관통(u0..u1 × v0..v1), groove 는 깊이 미정(D5) 이라 depth null
  *
  * 이 단계(PR6)에서 자리를 정하는 부재 — 싱크 라인(상부장 · 하부장 · 키큰장 단)의 몸통:
- *   측판 · 지판 · 천판 · 뒷판 · 선반 · 처짐방지목 · 상부장 보강목 · 여닫이 도어. 나머지 행은 `unplaced` 에 이유와 함께 남는다 (조용히 빠지지 않는다).
+ *   측판 · 지판 · 천판 · 뒷판 · 선반 · 처짐방지목 · 상부장 보강목 · 여닫이 도어 · 서랍장 전면 · 중간 목찬넬. 나머지 행은 `unplaced` 에 이유와 함께 남는다 (조용히 빠지지 않는다).
  *
  * 자리의 근거 (확정 사실 — 프로젝트 지침, PR #832, 플래너 addCarcassShell · addBraces):
  *   측판     모듈 양 끝. 사쿠리 측판에는 뒤끝에서 15 들어온 폭 3 홈 (깊이는 D5 미정)
@@ -28,6 +28,7 @@
  *   뒷판     사쿠리면 홈 속 (뒤끝에서 15~18), 아니면 측판 뒤끝에 덮어 붙임 (측판 깊이 밖 3T). 높이 H − 1 은 가운데
  *   처짐방지목 모듈 폭 가운데, 측판 앞선에 맞대어 도어 바로 뒤, 지판 위에서 시작
  *   도어     측판 앞선에 붙어 밖으로. 가로·세로는 플래너 addFrontPanel 과 같은 칸 규칙 (doorXsOf · doorYOf)
+ *   서랍장   전면(도어·서랍도어) · 중간 목찬넬 ㄴ자 · 측판 중간 따내기 — 서랍 레이아웃 (drawerLayoutOf, 플래너 frontSpanOf · addMidChannels)
  *   선반     측판 사이. 깊이가 "측판 깊이 − T (처짐방지목 몫)" 이라 처짐방지목 **뒤**에 놓인다 — 뒤로 붙인다
  *            (사쿠리면 홈 앞, 아니면 측판 뒤끝). 높이는 부르는 쪽이 넘긴 선반 중심 높이(opts.shelfY)를 쓴다
  *
@@ -135,6 +136,16 @@
   }
 
   /**
+   * 서랍장 레이아웃 — BOM 과 같은 답 (MaterialExtractor.drawerLayoutOf, 규칙은 bom-drawer-rules.js).
+   * 플래너 iframe 은 추출기가 부모 창에 있으므로 opts.MaterialExtractor 로 받는다. 없으면 null (서랍장 전면은 놓지 않는다).
+   */
+  function drawerLayoutOf(mod, H, T, opts) {
+    const ME = (opts && opts.MaterialExtractor) || root.MaterialExtractor
+      || (typeof require === 'function' ? require('./extractors.js').MaterialExtractor : null);
+    return ME ? new ME().drawerLayoutOf(mod, H, T) : null;
+  }
+
+  /**
    * 도어 가로 자리 (왼쪽 끝 x, 장마다). 플래너: 칸 폭 − 갭 4 를 칸 가운데에 (좌우 2 씩), 양문은 가운데 갭 4.
    * 1장 = W − 4, 2장 = W/2 − 4 (BOM floor(W/n) − 4) 일 때만 — 그 밖의 장수·폭은 자리를 모른다 (null).
    */
@@ -179,6 +190,8 @@
     const panelZ0 = sakuri ? zBack + C.SAKURI_PANEL_D_MINUS : zBack;   // 천지판 뒤끝 (앞선 맞춤)
     const shelfZ0 = sakuri ? zBack + C.SAKURI_PANEL_D_MINUS : zBack;   // 선반은 뒤로 붙인다
     const parts = [], unplaced = [], pending = [];
+    const layout = mod.isDrawer ? drawerLayoutOf(mod, H, T, opts) : null;
+    const frontsOf = (kind) => (layout ? layout.fronts.filter((f) => f.kind === kind && f.h >= DR.MIN_FRONT_H) : []);
     const skip = (row, reason) => unplaced.push({ rowPartId: row.partId, moduleKey: mk, part: row.part, qty: row.qty, reason });
 
     keyed.forEach(({ row, key }) => {
@@ -190,7 +203,12 @@
           if (/목찬넬 따내기 상단/.test(String(row.note || ''))) {
             feats.push({ type: 'notch', u0: D - DR.CHANNEL_BASE_W, u1: D, v0: H - DR.CHANNEL_TOP_NOTCH_H, v1: H, src: 'channel-top' });
           }
-          if (/중간/.test(String(row.note || ''))) pending.push('channel-mid-notch');   // 중간 따내기 높이는 서랍 레이아웃 (PR9)
+          if (/중간/.test(String(row.note || ''))) {
+            // 서랍장 중간 따내기 — 서랍 레이아웃의 중간 목찬넬 자리 (y 는 몸통 상단에서 아래로, 플래너 notchesOf)
+            const mids = layout ? layout.channels.filter((c) => c.kind === 'mid') : [];
+            if (mids.length) mids.forEach((c) => feats.push({ type: 'notch', u0: D - c.notchD, u1: D, v0: H - c.y - c.notchH, v1: H - c.y, src: 'channel-mid' }));
+            else pending.push('channel-mid-notch');
+          }
           // u 는 뒤→앞 (BOM 측판 L = 앞)
           parts.push(makePart(row, 0, { o: [-W / 2, 0, zBack], u: '+z', v: '+y', n: '+x' }, feats, 'exterior', { side: 'left' }));
           parts.push(makePart(row, 1, { o: [W / 2, 0, zBack], u: '+z', v: '+y', n: '-x' }, feats, 'exterior', { side: 'right' }));
@@ -231,11 +249,37 @@
         case 'door': {
           // 여닫이 도어 — 플래너 addFrontPanel 과 같은 자리 (mockup-structure.html, 3D 장면과 대조 시험).
           //   앞뒤: 측판 앞선에 붙어 밖으로 (z = D/2 … D/2 + 두께). 서랍장 도어는 서랍 레이아웃 몫 (PR9 다음).
-          if (mod.isDrawer) { skip(row, 'not-yet'); return; }
           const xs = doorXsOf(W, row);
-          const y0 = doorYOf(mod.pos, H, row.h);
+          let y0 = doorYOf(mod.pos, H, row.h);
+          if (mod.isDrawer) {
+            // 서랍장 도어 — 레이아웃 전면 (플래너 frontSpanOf: 몸통 상단에서 아래로 잰 y0..y1 을 뒤집는다)
+            const f = frontsOf('door');
+            y0 = f.length === 1 && f[0].h === row.h ? H - f[0].y1 : null;
+          }
           if (!xs || y0 == null) { skip(row, 'door-layout-unknown'); return; }
           xs.forEach((x0, k) => parts.push(makePart(row, k, { o: [x0, y0, zFront], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { doorIdx: k })));
+          return;
+        }
+        case 'drawer': {
+          // 서랍 전면 — 레이아웃 전면 중 같은 높이의 것을 위에서부터 (BOM 은 같은 높이끼리 한 행). 가로 W − 4 가운데.
+          const fs = frontsOf('drawer').filter((f) => f.h === row.h);
+          if (!layout || row.w !== W - C.DOOR_GAP || fs.length !== row.qty) { skip(row, 'drawer-layout-unknown'); return; }
+          fs.forEach((f, k) => parts.push(makePart(row, k, { o: [-W / 2 + C.DOOR_GAP / 2, H - f.y1, zFront], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { drawerIdx: layout.fronts.indexOf(f) })));
+          return;
+        }
+        case 'channel:mid-front':
+        case 'channel:mid-back': {
+          // 서랍장 중간 목찬넬 ㄴ자 — 따낸 자리 바닥에 지면판, 그 위 따낸 자리 안쪽 끝에 전면판 (플래너 addMidChannels)
+          const mids = layout ? layout.channels.filter((c) => c.kind === 'mid') : [];
+          if (mids.length !== row.qty || row.h !== W) { skip(row, 'drawer-layout-unknown'); return; }
+          const face = key.family === 'channel:mid-front';
+          mids.forEach((c, k) => {
+            const yb = H - c.y - c.notchH;   // 따낸 자리 바닥
+            const z0 = zFront - c.notchD;
+            parts.push(makePart(row, k, face
+              ? { o: [-W / 2, yb + row.thickness, z0], u: '+y', v: '+x', n: '+z' }
+              : { o: [-W / 2, yb, z0], u: '+z', v: '+x', n: '+y' }, [], 'exterior', { channel: 'mid', mid: k }));
+          });
           return;
         }
         default:
