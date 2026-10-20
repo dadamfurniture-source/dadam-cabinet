@@ -14,6 +14,7 @@
 --   work_photos        사진 (2주차에 사용 — 표만 미리)
 --   work_reviews       평가 (2주차에 사용 — 표만 미리)
 --   work_job_events    상태 전이 기록 (추가만, 개인정보 없음)
+--   worker_events      작업자 가입 · 상태 · 종류 변경 이력 (추가만, 개인정보 없음 — 1주차 후속 2026-10-20)
 --
 -- 규칙: 쓰기는 Worker(service_role)만. 읽기 정책은 관리자(is_admin) SELECT 하나 — worker_notes 만 정책 없음(편집자만, API 로). anon 차단.
 --       auth.users 를 가리키는 칸은 모두 ON DELETE SET NULL (회원탈퇴가 FK 에 막히지 않게 — account-deletion.sql).
@@ -341,6 +342,36 @@ ALTER TABLE work_job_events ADD CONSTRAINT work_job_events_len_chk
 CREATE INDEX IF NOT EXISTS idx_work_job_events_job ON work_job_events (job_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_work_job_events_created ON work_job_events (created_at DESC);
 
+-- ── 작업자 가입 · 승인 이력 (추가만, 개인정보 없음) — 1주차 후속 (2026-10-20) F ──
+-- 가입 신청(registered) · 관리자 상태 변경(status_changed) · 종류 변경(kinds_changed) 을 한 줄씩.
+-- payload 에는 via · invite_id · kinds 같은 값만 — 이름 · 연락처 · 주소는 넣지 않는다.
+CREATE TABLE IF NOT EXISTS worker_events (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  worker_id     UUID NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  actor_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  actor_kind    TEXT NOT NULL,
+  type          TEXT NOT NULL,
+  from_status   TEXT,
+  to_status     TEXT,
+  note          TEXT,
+  payload       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE worker_events DROP CONSTRAINT IF EXISTS worker_events_actor_chk;
+ALTER TABLE worker_events ADD CONSTRAINT worker_events_actor_chk
+  CHECK (actor_kind IN ('worker', 'admin', 'system'));
+
+ALTER TABLE worker_events DROP CONSTRAINT IF EXISTS worker_events_len_chk;
+ALTER TABLE worker_events ADD CONSTRAINT worker_events_len_chk
+  CHECK (length(type) BETWEEN 1 AND 40 AND coalesce(length(note), 0) <= 300
+    AND coalesce(length(from_status), 0) <= 20 AND coalesce(length(to_status), 0) <= 20);
+
+CREATE INDEX IF NOT EXISTS idx_worker_events_worker ON worker_events (worker_id, created_at DESC);
+
+COMMENT ON TABLE worker_events IS
+  '작업자 가입 · 상태 · 종류 변경 이력. 추가만 한다. payload 에 이름 · 연락처 · 주소를 넣지 않는다.';
+
 -- ── RLS — 관리자 읽기만, 쓰기는 Worker(service_role)만 ──────
 -- 작업자의 읽기는 전부 API 를 거친다 (금액 공개 여부 · 주소 비공개가 늘 적용되게)
 ALTER TABLE worker_invites    ENABLE ROW LEVEL SECURITY;
@@ -353,6 +384,7 @@ ALTER TABLE work_updates      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE work_photos       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE work_reviews      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE work_job_events   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE worker_events     ENABLE ROW LEVEL SECURITY;
 
 REVOKE ALL ON worker_invites    FROM anon;
 REVOKE ALL ON workers           FROM anon;
@@ -364,6 +396,7 @@ REVOKE ALL ON work_updates      FROM anon;
 REVOKE ALL ON work_photos       FROM anon;
 REVOKE ALL ON work_reviews      FROM anon;
 REVOKE ALL ON work_job_events   FROM anon;
+REVOKE ALL ON worker_events     FROM anon;
 
 DROP POLICY IF EXISTS "Admins read worker invites" ON worker_invites;
 CREATE POLICY "Admins read worker invites" ON worker_invites
@@ -404,6 +437,11 @@ CREATE POLICY "Admins read work reviews" ON work_reviews
 
 DROP POLICY IF EXISTS "Admins read work job events" ON work_job_events;
 CREATE POLICY "Admins read work job events" ON work_job_events
+  FOR SELECT TO authenticated USING (public.is_admin());
+
+-- worker_events 는 work_job_events 와 같다 (관리자 읽기 — support · moderator 포함). worker_notes 같은 예외가 아니다.
+DROP POLICY IF EXISTS "Admins read worker events" ON worker_events;
+CREATE POLICY "Admins read worker events" ON worker_events
   FOR SELECT TO authenticated USING (public.is_admin());
 
 COMMIT;
