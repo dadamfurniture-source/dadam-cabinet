@@ -14,6 +14,8 @@
  *       hardware  = HardwareExtractor.extract() 결과 또는 그 .hardware 배열
  *       opts.cutPlan = 이미 계산한 NestingEngine.plan 결과 (없으면 여기서 계산, 엔진도 없으면 원판 검사 생략)
  *       opts.hingeMinGap = 컵 간격 문턱 (없으면 extractors 전역/모듈에서 읽는다)
+ *       opts.assembly = 조립 명세 DadamAssembly.of() 결과 — 있으면 assembly-check.js 이슈를 더한다
+ *                       (part-overlap · back-cover · back-contact · part-detached = error, assembly-unplaced = warning)
  * 출력: { version, ok, counts: {error, warning, info}, issues: [{code, level, message, partId?, moduleKey?, module?, part?}] }
  *       ok = error 0. 같은 입력이면 같은 출력(결정적).
  *
@@ -87,6 +89,18 @@
     return null;
   }
 
+  function resolveAssemblyCheck() {
+    if (typeof window !== 'undefined' && window.DadamAssemblyCheck) return window.DadamAssemblyCheck;
+    if (typeof module !== 'undefined' && typeof require === 'function') {
+      try {
+        return require('./assembly-check.js');
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  }
+
   function resolveHingeMinGap(opts) {
     if (positive(opts.hingeMinGap)) return num(opts.hingeMinGap);
     // 브라우저: extractors.js 의 최상위 const 는 스크립트 전역 바인딩이다 (window 속성은 아니다)
@@ -110,7 +124,7 @@
   /**
    * @param {Array} materials
    * @param {Array|{hardware:Array}} hardware
-   * @param {{cutPlan?:object, hingeMinGap?:number}} [opts]
+   * @param {{cutPlan?:object, hingeMinGap?:number, assembly?:object}} [opts]
    */
   function check(materials, hardware, opts) {
     opts = opts || {};
@@ -329,6 +343,14 @@
         'unkeyed',
         `모듈 키가 없는 옛 행 (자재 ${unkeyedRows} · 철물 ${unkeyedHw}) — 도어·경첩 대조를 일부 건너뛰었습니다`
       );
+    }
+
+    // ── 조립 검사 (CAD 베타 PR7) — 조립 명세(DadamAssembly.of)를 넘겼을 때만. 판정은 assembly-check.js 한 곳 ──
+    if (opts.assembly) {
+      const AC = resolveAssemblyCheck();
+      if (AC && typeof AC.check === 'function') {
+        AC.check(opts.assembly).issues.forEach((x) => issues.push(x));
+      }
     }
 
     issues.sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level]);

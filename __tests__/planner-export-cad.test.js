@@ -15,6 +15,7 @@ const { bootPlanner3D, collectScenePieces } = require('../test-utils/scene-parts
 const { loadConverter, LEDGER_SPECS } = require('../test-utils/bom-parts');
 const { loadExtractors } = require('../test-utils/bom-golden/golden');
 const Asm = require('../js/detaildesign/bom-assembly.js');
+const AssemblyCheck = require('../js/detaildesign/assembly-check.js');
 const {
   plannerExportCadSpec, plannerExportCadGlb, PLANNER_EXPORT_SCALE, PLANNER_EXPORT_CAD_ROOT_NAME,
 } = require('../js/planner/planner-export.js');
@@ -70,6 +71,11 @@ describe.each(Object.keys(FIXTURES))('%s 장면 → CAD GLB', (name) => {
     expect(built.skipped).toBe(0);
     expect(built.parts).toBe(cad.spec.items.reduce((s, it) => s + (it ? it.modules.reduce((a, m) => a + m.parts.length, 0) : 0), 0));
     expect(built.unplaced).toBe(cad.spec.unplaced.length);
+  });
+
+  test('조립 검사 (PR7) — 플래너 장면의 명세에 error 0', () => {
+    const r = AssemblyCheck.check(cad.spec);
+    expect(r.issues.filter((x) => x.level === 'error')).toEqual([]);
   });
 
   test('부모 품목은 건드리지 않는다', () => {

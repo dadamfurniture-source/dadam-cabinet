@@ -49,12 +49,32 @@ BOM 행마다 판재 조각의 **자리**를 붙인다. 재단 치수는 BOM 행
 | `not-yet` | 도어·서랍·목찬넬 부재 등 — PR9 |
 | `run-part` | 품목 단위 행 (걸레받이·몰딩·상판·휠라) — PR9 `runs[]` |
 
+`unplaced` 항목은 `{ rowPartId, moduleKey, part, qty, reason }` 이다 (`moduleKey` 는 조립 검사가 모듈별로 묶을 때 쓴다).
+
 모듈 `pending` 에는 자리는 정했지만 특징이 빠진 것(예: 서랍장 중간 따내기 `channel-mid-notch`)을 적는다.
 
 ## 알려진 겹침
 
 - **18T 상부장 선반 ↔ 처짐방지목 2mm.** 상부 선반 깊이가 상수 D−34 라, 18T 에서는 홈 앞 18 + 선반 + 처짐방지목 18 = D + 2.
   15T 에서는 1mm 가 남는다. 결정 D10(18T 실사용)·D12(선반 감산이 상수인가 T 인가)와 함께 사장님 확인 대기.
+
+## 조립 검사 (PR7, `js/detaildesign/assembly-check.js`)
+
+규칙을 새로 정하지 않고 명세가 정한 자리끼리 맞는지만 본다. 모듈 로컬에서 모듈마다.
+
+| code | 수준 | 뜻 |
+|---|---|---|
+| `part-overlap` | error | 두 판재가 파고든다 — 부피 > 1mm³ **이고** 깊이 > 0.1mm (T1 기준). 사쿠리 뒷판이 측판 홈 자리 안에서만 겹치는 것은 뺀다 |
+| `back-cover` | error | 뒷판이 양쪽 측판 안쪽 면을 넘지 않는다 (#832 이전 옛 크기 W−2T) |
+| `back-contact` | error | 뒷판이 홈 안(`mount: groove`) 또는 측판 뒤끝 면(`behind-sides`)에 있지 않다 |
+| `part-detached` | error | 어느 판재에도 닿지 않는 판재 |
+| `assembly-unplaced` | warning | 자리 못 정한 행 — 모듈마다 한 줄, 사유별 개수 |
+
+- 이슈 모양: `{ level, code, message, partId, other, moduleKey, volumeMm3, depthMm }`.
+- `bom-preflight.js` 의 `check(materials, hardware, { assembly })` 에 명세를 넘기면 이 이슈가 더해진다. error 는 동결 확인창(결정 D8)으로 간다.
+- 아직 없는 검사: `clearance` (도어·서랍 틈 문턱이 정본에 없음), `dfm-*`.
+- 시험 허용 목록 `test-utils/assembly-allowlist.json` — 사장님 미결 질문만 (지금은 위 18T 선반 겹침). 운영 검사는 그대로 error.
+- 겹침 판정 핵심(옛 `test-utils/box-overlap.js`)은 이 파일로 옮겼고, test-utils 는 같은 함수를 다시 내보낸다.
 
 ## CAD GLB (관리자 전용)
 
