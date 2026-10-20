@@ -79,3 +79,33 @@ describe('appliance-models-images.sql', () => {
     expect(SQL).toContain('REVOKE ALL ON FUNCTION import_appliance_models(JSONB) FROM anon, authenticated;');
   });
 });
+
+describe('관리 화면 admin/appliances.html — 사진 가져오기 (2026-10-20)', () => {
+  const AP = read('admin/appliances.html');
+
+  test('행마다 「사진 가져오기」 · 툴바 일괄 — 워커 관리자 경로로 modelId 만 보낸다', () => {
+    expect(AP).toContain('class="photo-copy"');
+    expect(AP).toContain('id="photoBulkBtn"');
+    expect(AP).toContain('/api/admin/appliance-image');
+    expect(AP).toContain('JSON.stringify({ modelId })');
+    expect(AP).toContain('Authorization: `Bearer ${session.access_token}`');
+  });
+
+  test('썸네일 — 가져온 사진은 우리 버킷, 원본은 점선 미리보기 · 둘 다 escape', () => {
+    expect(AP).toContain("const PHOTO_BUCKET = 'appliance-images';");
+    expect(AP).toContain('<img src="${escHtml(photoPublicUrl(r))}"');
+    expect(AP).toContain('<img class="src" src="${escHtml(r.image_source_url)}"');
+  });
+
+  test('SQL 을 아직 안 돌렸으면 사진 원본 칸을 숨기고 저장에도 싣지 않는다', () => {
+    expect(AP).toMatch(/if \(hasPhotoCols\(\)\) \{[\s\S]*?payload\.image_source_url = src \|\| null;/);
+    expect(AP).toContain("if (!hasPhotoCols()) el.style.display = 'none'");
+  });
+
+  test('표 열 수와 빈 줄 colspan 이 같다', () => {
+    const head = AP.slice(AP.indexOf('<thead>'), AP.indexOf('</thead>'));
+    const cols = (head.match(/<th\b/g) || []).length;
+    expect(cols).toBe(11);
+    for (const m of AP.matchAll(/colspan="(\d+)"/g)) expect(Number(m[1])).toBe(cols);
+  });
+});
