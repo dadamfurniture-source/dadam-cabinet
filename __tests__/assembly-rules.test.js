@@ -116,3 +116,16 @@ describe('상부장 보강목 폭 60', () => {
     if (name.indexOf('sink') === 0) expect(bands.length).toBeGreaterThan(0);
   });
 });
+
+describe('도어 갭 (조립 명세 도어 자리)', () => {
+  test('DOOR_GAP = 플래너 MASTER_RULES.DOOR_GAP = BOM 도어 폭 감산', () => {
+    global.dlog = global.dlog || (() => {});
+    const engine = require('../js/planner/planner-engine.js');
+    const { MaterialExtractor } = require('../js/detaildesign/extractors.js');
+    const { FIXTURES } = require('../test-utils/bom-golden/fixtures.js');
+    expect(R.CARCASS.DOOR_GAP).toBe(engine.MASTER_RULES.DOOR_GAP);
+    const rows = new MaterialExtractor().extract({ items: [FIXTURES.sink15] }).materials;
+    const door = rows.find((r) => r.moduleKey === '0-l4' && r.part === '도어');
+    expect(door.w).toBe(400 - R.CARCASS.DOOR_GAP);
+  });
+});

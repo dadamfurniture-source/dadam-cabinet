@@ -200,6 +200,32 @@ describe('sink15 자리 (확정 사실)', () => {
     expect(allParts(bare).some((p) => p.part === '선반')).toBe(false);
     expect(bare.unplaced.filter((u) => u.part === '선반').every((u) => u.reason === 'shelf-height-unknown')).toBe(true);
   });
+
+  test('도어 — 측판 앞선에 붙어 밖으로, 좌우 갭 2 · 양문 가운데 4 (플래너 addFrontPanel)', () => {
+    const doors = (id) => mod(id).parts.filter((p) => p.part === '도어').map((p) => p.box);
+    const D = (id) => mod(id).box.D;
+    // 상부장 양문 900 — 윗변 = 몸통 상단, 내림 15
+    expect(doors('u1')).toEqual([
+      { min: [-448, -15, D('u1') / 2], max: [-2, 720, D('u1') / 2 + 18] },
+      { min: [2, -15, D('u1') / 2], max: [448, 720, D('u1') / 2 + 18] },
+    ]);
+    // 하부장 양문 900 — 밑단 = 몸통 바닥, 윗변 = 장H − 30 (목찬넬 손 넣는 틈)
+    expect(doors('l3')).toEqual([
+      { min: [-448, 0, 275], max: [-2, 678, 293] },
+      { min: [2, 0, 275], max: [448, 678, 293] },
+    ]);
+    // 외문 400
+    expect(doors('l4')).toEqual([{ min: [-198, 0, 275], max: [198, 678, 293] }]);
+    // 서랍장 도어는 서랍 레이아웃 몫 — 아직 놓지 않는다
+    expect(spec.unplaced.find((u) => u.moduleKey === '0-l2' && u.part === '도어')).toMatchObject({ reason: 'not-yet' });
+  });
+
+  test('도어 장수·폭이 플래너 칸 규칙과 다르면 놓지 않는다 (door-layout-unknown)', () => {
+    const design = { items: [FIXTURES.sink15] };
+    const materials = new MaterialExtractor().extract(design).materials.map((r) => (r.moduleKey === '0-l3' && r.part === '도어' ? Object.assign({}, r, { w: r.w - 1 }) : r));
+    const s = Asm.of(design, { materials });
+    expect(s.unplaced.find((u) => u.moduleKey === '0-l3' && u.part === '도어')).toMatchObject({ reason: 'door-layout-unknown', qty: 2 });
+  });
 });
 
 test('sink18 — 몸통 18T 가 자리에도 들어간다', () => {
