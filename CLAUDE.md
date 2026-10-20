@@ -77,8 +77,11 @@
 | MCP Server | `mcp-server/src/**` (BOM 파일 제외) | `agent/mcp-*` |
 | Planner (활성) | `mockup-shell.html`, `mockup-structure.html`, `js/planner/*` (`planner-assembly-mesh.js`, `planner-export.js` 포함) | `agent/planner-*` |
 | Workflow Worker | `workers/workflow-api/**` (작업지시서·스냅샷·견적, `part-drawing.js`·`module-section.js`·`dxf-writer.js` 포함), `js/detaildesign/workflow-client.js` | `agent/workflow-*` |
+| Worker Portal | `worker.html`, `js/worker-portal.js`, `js/mypage-work.js`, `admin/work-jobs.html`, `mypage.html` 의 `#myWorkSection` 부분, `database/work-jobs*.sql` | `agent/worker-*` |
+| Site Auth | `login.html`, `signup.html` (리다이렉트·OAuth·로그인 수단) | `agent/auth-*` |
 
 CAD 베타 파일 소유는 결정 D11 (2026-10-18 승인, `docs/01-plan/planner-cad.plan.md`).
+작업자 포털 소유는 2026-10-20 사장님 결정 16 (`docs/01-plan/worker-portal.plan.md`). 서버 `workers/workflow-api/src/work/**` 는 Workflow Worker 영역.
 
 ### 역할별 실행 순서
 1. **Engineer** → 코드 수정 + PR 생성
