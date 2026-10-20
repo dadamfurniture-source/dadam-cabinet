@@ -50,6 +50,8 @@
     BOX_SAKURI_FB_MINUS: 18,      // 측판 사쿠리면 앞뒷판 높이 = 측판 높이 − 18
     BOTTOM_TRIM: 1,               // 우라 = (가로 − 1) × (세로 − 1)
     BOTTOM_SAKURI_PLUS_W: 20,     // 사쿠리면 우라 가로 = 앞뒷판 + 20 (양쪽 홈 10)
+    // 사쿠리 서랍 측판 홈 — 서랍 바닥에서 15 위 (2026-10-20 사장님 "15mm"). 우라 3T 가 15~18 에 끼고 앞뒷판(측판 − 18)이 그 위에 선다.
+    BOX_SAKURI_GROOVE_Y: 15,
     RAIL_LENGTHS: Object.freeze([250, 300, 350, 400, 450, 500]),
     RAIL_DEPTH_MARGIN: 50,        // 레일 길이 ≤ 모듈 깊이 − 50
     RAIL_CLEARANCE: Object.freeze({
