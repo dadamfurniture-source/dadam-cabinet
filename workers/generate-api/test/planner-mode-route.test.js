@@ -639,3 +639,41 @@ test('재생성은 원본의 room_focal35 를 잇고, 새로 보낸 값이 이�
   await post({ parent_id: parent.id, room_focal35: 70 });
   assert.equal(calls.inserted.options.room_focal35, 70);
 });
+
+// ─── 7. 덩어리 안내 끄기 (2026-10-20, place_guide:false) ───
+//   반복 시험용 — 운영 변수(PLANNER_PLACE_GUIDE) 배포 없이 안내를 끈 생성. false 일 때만 options 에 남고, 재생성은 원본 값을 잇는다.
+
+test('place_guide 는 false 일 때만 options 에 남는다 — true·없음·다른 값은 키 없음', async () => {
+  for (const [given, want] of [[false, false], [true, undefined], ['false', undefined], [0, undefined], [undefined, undefined]]) {
+    install();
+    const res = await post(plannerBody(given === undefined ? {} : { place_guide: given }));
+    assert.equal(res.status, 202);
+    assert.equal(calls.inserted.options.place_guide, want, String(given));
+    if (want === undefined) assert.equal('place_guide' in calls.inserted.options, false, String(given));
+    const keys = Object.keys(calls.inserted.options);
+    assert.equal(keys[keys.length - 1], 'image_provider', 'image_provider 는 맨 끝');
+  }
+});
+
+test('재생성은 원본의 place_guide:false 를 잇고, 원본에 없으면 없다', async () => {
+  const base = {
+    id: '33333333-3333-4333-8333-333333333333',
+    user_id: USER_ID,
+    category: 'sink',
+    inputs: {
+      room: { path: 'p/room.jpg', url: 'u', mime: 'image/jpeg' },
+      refs: [],
+      renders: [{ role: 'elevation', path: 'p/render-elevation.png', url: 'u2', mime: 'image/png' }],
+    },
+    options: { design_spec: { version: 1, category: 'sink', wallRunMm: 2200 }, mode: 'planner', aspect: '4:3', variants: false },
+  };
+  install({ parent: { ...base, options: { ...base.options, place_guide: false } } });
+  await post({ parent_id: base.id });
+  assert.equal(calls.inserted.options.place_guide, false);
+  install({ parent: base });
+  await post({ parent_id: base.id });
+  assert.equal('place_guide' in calls.inserted.options, false);
+  install({ parent: base });
+  await post({ parent_id: base.id, place_guide: false });
+  assert.equal(calls.inserted.options.place_guide, false, '새로 보낸 값');
+});
