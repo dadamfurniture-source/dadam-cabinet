@@ -110,6 +110,10 @@
   /* W12-2: 품목 아이콘 그룹 (Step1 카테고리 페이지 대체) */
   /* 2026-10-20 빠른 배치 — 글자 버튼 (아이콘만으로는 무엇인지 몰랐다) */
   .tool-btn.preset-btn{font-size:12px;font-weight:700;color:var(--brand-deep)}
+  /* 2026-10-20 플래너 점검: 장·기기 버튼 아이콘 밑 글자 — 아이콘만으론 하부장·키큰장을 몰랐다 */
+  .tool-btn.labeled{flex-direction:column;gap:1px;height:42px}
+  .tool-btn .lbl{font-size:9px;line-height:1;font-weight:600;color:var(--text-dim);white-space:nowrap;letter-spacing:-.3px}
+  .tool-btn.labeled:hover .lbl{color:var(--brand-deep)}
   .preset-hint{position:absolute;top:18px;left:50%;transform:translateX(-50%);z-index:40;background:#fff;border:1px solid var(--brand-mid);border-radius:10px;padding:12px 16px;box-shadow:0 4px 14px rgba(0,0,0,.08);color:var(--text-dim);font-size:13px;text-align:center;max-width:90%}
   .preset-hint[hidden]{display:none}
   .preset-hint .ph-row{display:flex;gap:8px;justify-content:center;margin-top:8px}
@@ -308,10 +312,10 @@
       <button type="button" class="tool-btn preset-btn" data-preset="U" title="ㄷ자 배치 — 본 줄 + 양쪽 옆 줄">ㄷ자</button>
       <div class="tool-sep"></div>
       <div class="tool-group-label" title="도면에 배치할 요소">배치</div>
-      <button class="tool-btn rect-btn" title="분배기 (W900×D600 · 도면 배치)" data-section="sink">🚰</button>
-      <button class="tool-btn rect-btn" title="후드 (W900×D500 · 도면 배치)" data-section="hood">💨</button>
-      <button class="tool-btn rect-btn" title="냉장고 (W720×D700 · 도면 배치)" data-section="refrigerator">🧊</button>
-      <button class="tool-btn rect-btn" title="식기세척기 (W600×D600 · 도면 배치)" data-section="dishwasher">🍽️</button>
+      <button class="tool-btn rect-btn labeled" title="분배기 (W900×D600 · 도면 배치)" data-section="sink"><span aria-hidden="true">🚰</span><span class="lbl" aria-hidden="true">분배기</span></button>
+      <button class="tool-btn rect-btn labeled" title="후드 (W900×D500 · 도면 배치)" data-section="hood"><span aria-hidden="true">💨</span><span class="lbl" aria-hidden="true">후드</span></button>
+      <button class="tool-btn rect-btn labeled" title="냉장고 (W720×D700 · 도면 배치)" data-section="refrigerator"><span aria-hidden="true">🧊</span><span class="lbl" aria-hidden="true">냉장고</span></button>
+      <button class="tool-btn rect-btn labeled" title="식기세척기 (W600×D600 · 도면 배치)" data-section="dishwasher"><span aria-hidden="true">🍽️</span><span class="lbl" aria-hidden="true">식세기</span></button>
       <div class="tool-sep"></div>
       <!-- W9-66: 원점 설정 모드 + 세트 만들기 -->
       <button class="tool-btn" id="originToolBtn" title="원점 설정 (O) — 도면에서 원점이 될 위치 클릭 (자석 활성화)">⊕</button>
@@ -320,42 +324,47 @@
       <button class="tool-btn" id="trimToolBtn" title="트리밍 모드 (T) — ① 기준 사각형 클릭 → ② 잘릴 사각형 클릭">✂</button>
       <div class="tool-sep"></div>
       <!-- W9-10: 하부장/상부장/키큰장 — 직사각형 비율 SVG + 클릭 시 도면에 색상별 배치 -->
-      <button class="tool-btn rect-btn" title="하부장 추가 (도면에 배치)" data-section="lower">
+      <button class="tool-btn rect-btn labeled" title="하부장 추가 (도면에 배치)" data-section="lower">
         <svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true">
           <rect x="2" y="3" width="18" height="11" fill="#b8956c" stroke="#6a4b2a" stroke-width="1.5" rx="1"/>
           <line x1="8" y1="3" x2="8" y2="14" stroke="#6a4b2a" stroke-width="1"/>
           <line x1="14" y1="3" x2="14" y2="14" stroke="#6a4b2a" stroke-width="1"/>
         </svg>
+        <span class="lbl" aria-hidden="true">하부장</span>
       </button>
-      <button class="tool-btn rect-btn" title="상부장 추가 (도면에 배치)" data-section="upper">
+      <button class="tool-btn rect-btn labeled" title="상부장 추가 (도면에 배치)" data-section="upper">
         <svg width="22" height="12" viewBox="0 0 22 12" aria-hidden="true">
           <rect x="2" y="1" width="18" height="9" fill="#7c9c8f" stroke="#3d5750" stroke-width="1.5" rx="1"/>
           <line x1="11" y1="1" x2="11" y2="10" stroke="#3d5750" stroke-width="1"/>
         </svg>
+        <span class="lbl" aria-hidden="true">상부장</span>
       </button>
-      <button class="tool-btn rect-btn" title="키큰장 추가 (도면에 배치)" data-section="tall">
+      <button class="tool-btn rect-btn labeled" title="키큰장 추가 (도면에 배치)" data-section="tall">
         <svg width="18" height="22" viewBox="0 0 18 22" aria-hidden="true">
           <rect x="2" y="2" width="14" height="18" fill="#9c6e7c" stroke="#5c3848" stroke-width="1.5" rx="1"/>
           <line x1="2" y1="8" x2="16" y2="8" stroke="#5c3848" stroke-width="1"/>
           <line x1="2" y1="14" x2="16" y2="14" stroke="#5c3848" stroke-width="1"/>
         </svg>
+        <span class="lbl" aria-hidden="true">키큰장</span>
       </button>
-      <button class="tool-btn rect-btn" title="냉장고장 추가 (도면에 배치)" data-section="fridge">
+      <button class="tool-btn rect-btn labeled" title="냉장고장 추가 (도면에 배치)" data-section="fridge">
         <svg width="18" height="22" viewBox="0 0 18 22" aria-hidden="true">
           <rect x="2" y="2" width="14" height="18" fill="#a0a8b0" stroke="#4a525a" stroke-width="1.5" rx="1"/>
           <line x1="2" y1="9" x2="16" y2="9" stroke="#4a525a" stroke-width="1.2"/>
           <circle cx="13" cy="6" r="0.9" fill="#4a525a"/>
           <circle cx="13" cy="14" r="0.9" fill="#4a525a"/>
         </svg>
+        <span class="lbl" aria-hidden="true">냉장고장</span>
       </button>
       <!-- P11: 붙박이장 — 치수 정본은 js/planner/planner-sections.js (W3600×D620×H2310) -->
-      <button class="tool-btn rect-btn" title="붙박이장 추가 (도면에 배치)" data-section="wardrobe">
+      <button class="tool-btn rect-btn labeled" title="붙박이장 추가 (도면에 배치)" data-section="wardrobe">
         <svg width="24" height="20" viewBox="0 0 24 20" aria-hidden="true">
           <rect x="1" y="1" width="22" height="18" fill="#8c8a6e" stroke="#4e4c38" stroke-width="1.5" rx="1"/>
           <line x1="6.5" y1="1" x2="6.5" y2="19" stroke="#4e4c38" stroke-width="1"/>
           <line x1="12" y1="1" x2="12" y2="19" stroke="#4e4c38" stroke-width="1"/>
           <line x1="17.5" y1="1" x2="17.5" y2="19" stroke="#4e4c38" stroke-width="1"/>
         </svg>
+        <span class="lbl" aria-hidden="true">붙박이장</span>
       </button>
     </div>
 
@@ -963,11 +972,12 @@
       placed.push({ layer: ROW_LAYER_OF[sec], x: parseFloat(r.getAttribute('x')), y: parseFloat(r.getAttribute('y')),
         w: parseFloat(r.getAttribute('width')), h: parseFloat(r.getAttribute('height')) });
     }
-    if (!placed.length) return { x: 80, y: 80 };
+    if (!placed.length) return { x: 80, y: 80, first: true };
     const same = placed.filter((p) => p.layer === layer);
     return {
       x: same.length ? Math.max(...same.map((p) => p.x + p.w)) : Math.min(...placed.map((p) => p.x)),
       y: Math.min(...placed.map((p) => p.y)),
+      first: !same.length,
     };
   }
   /** 줄 사각형 가운데 앞에 사람을 세운다 — 모두 정면(회전 0)이 사람을 본다. 거리 900 은 빠른 배치와 같다. */
@@ -1013,6 +1023,14 @@
     //   2400 하부장 옆 키큰장이 1620 겹쳤고(구조 단계가 겹침으로 막는다), 사람과 먼 첫 사각형은 옆으로 돌았다.
     lastAutoRow = (override.x === undefined && override.y === undefined && !override.parentG)
       ? rowSlotFor(section) : null;
+    // 2026-10-20 플래너 점검 M7: 줄의 첫 사각형이 품목의 본 섹션(빠른 배치가 놓는 섹션)이면 폭 = 품목 폭.
+    //   빠른 배치와 같은 규칙이다 (planner-presets.js). 예전엔 품목 폭 3000 이어도 2400 이 놓였다.
+    if (lastAutoRow && lastAutoRow.first && override.w === undefined && typeof plannerPresetPlanOf === 'function') {
+      const q = new URLSearchParams(location.search);
+      const plan = plannerPresetPlanOf(q.get('preset'));
+      const itemW = Number(q.get('w'));
+      if (plan && plan.sections.indexOf(section) >= 0 && Number.isFinite(itemW) && itemW > 0) useW = itemW;
+    }
     const offsetX = override.x !== undefined ? override.x
       : lastAutoRow ? lastAutoRow.x : baseX + (rectIdx % 3) * (useW + 100);
     const offsetY = override.y !== undefined ? override.y
