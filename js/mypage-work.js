@@ -5,6 +5,10 @@
  *   아니면 섹션을 숨긴 채 둔다. 표가 아직 없으면({ ready:false }) 도 숨김. 요청이 실패해도 숨김 — 마이페이지를 막지 않는다.
  *   관리자도 작업자일 수 있어 .user-only 가 아니라 hidden 으로 연다.
  *
+ *   마이페이지는 GET /work/me 만 부른다. GET /work/jobs?tab=mine 은 서버가 workers.last_seen_at 을 갱신해
+ *   새 소식을 읽음으로 세므로(#946), 부르면 작업자가 worker.html 에서 새 소식을 못 보게 된다.
+ *   그래서 다음 작업 한 줄은 서버에 읽기만 하는 길이 생기기 전까지 '작업자 페이지 내 작업에서 확인' 안내로 대신한다.
+ *
  * 순수 함수는 Node(Jest) 에서 module.exports 로, 브라우저에서는 전역 `DadamMyPageWork` 로 쓴다.
  * mypage.html 은 `loadMyWork(supabaseClient)` 한 줄만 부른다. mypage 에는 esc 가 없어 여기에 둔다.
  */
@@ -52,8 +56,8 @@
   }
 
   /**
-   * 다음 작업 한 줄 — 내 작업(GET /work/jobs?tab=mine) 중 보완요청이 먼저, 그다음 오늘 이후 가장 이른 날짜,
-   * 날짜가 다 지났거나 없으면 첫 줄.
+   * 다음 작업 한 줄 — 내 작업 카드 목록 중 보완요청이 먼저, 그다음 오늘 이후 가장 이른 날짜,
+   * 날짜가 다 지났거나 없으면 첫 줄. 지금 loadMyWork 는 목록을 받지 않는다 (위 머리말 — 읽음 처리 문제).
    */
   function pickNextJob(items, nowMs) {
     const list = (Array.isArray(items) ? items : []).filter((j) => j && UUID_RE.test(String(j.id || '')));
@@ -89,10 +93,14 @@
       rows.push(row('보완요청', `${esc(c.revision)}건`));
       rows.push(row('새 소식', `${esc(c.newEvents)}건`));
       rows.push(row('모집중', `${esc(c.open)}건`));
-      // 다음 작업은 길어서 표 줄이 아니라 아래 한 덩어리로 (좁은 화면에서 이름표가 눌리지 않게)
-      const line = nextJob && UUID_RE.test(String(nextJob.id || ''))
-        ? `<a href="worker.html#job=${esc(nextJob.id)}" style="color: inherit">${esc(nextJobText(nextJob))}</a>`
-        : '없음';
+      // 다음 작업은 길어서 표 줄이 아니라 아래 한 덩어리로 (좁은 화면에서 이름표가 눌리지 않게).
+      // 작업을 받지 못했으면 내 작업이 있을 때 작업자 페이지 '내 작업' 탭으로 안내한다
+      let line = '없음';
+      if (nextJob && UUID_RE.test(String(nextJob.id || ''))) {
+        line = `<a href="worker.html#job=${esc(nextJob.id)}" style="color: inherit">${esc(nextJobText(nextJob))}</a>`;
+      } else if (c.mine > 0) {
+        line = '<a href="worker.html#tab=mine" style="color: inherit">작업자 페이지 \'내 작업\'에서 확인하세요</a>';
+      }
       next = `<div style="margin-top: 16px"><div class="info-label">다음 작업</div><div class="info-value" style="margin-top: 4px">${line}</div></div>`;
     } else if (w.status === 'pending') {
       rows.push(row('상태', '승인 대기 — 회사가 확인하면 작업을 볼 수 있습니다'));
@@ -120,7 +128,7 @@
 
   /**
    * mypage.html 이 loadMyProjects() 다음에 부른다. 실패해도 던지지 않는다 (섹션은 숨긴 채).
-   * 다음 작업 한 줄은 내 작업이 있을 때만 GET /work/jobs?tab=mine 으로 읽는다.
+   * GET /work/me 하나만 부른다 — /work/jobs?tab=mine 은 새 소식을 읽음 처리하므로 부르지 않는다 (머리말).
    */
   async function loadMyWork(client) {
     if (typeof document === 'undefined') return;
@@ -137,16 +145,7 @@
       if (!token) return;
       const me = await getJson(apiBase, '/work/me', token);
       if (!shouldShow(me)) return;
-      let next = null;
-      if (me.worker.status === 'approved' && summaryCounts(me).mine > 0) {
-        try {
-          const data = await getJson(apiBase, '/work/jobs?tab=mine', token);
-          next = pickNextJob(data && data.items, Date.now());
-        } catch (e) {
-          next = null;
-        }
-      }
-      box.innerHTML = summaryHtml(me, next);
+      box.innerHTML = summaryHtml(me, null);
       section.hidden = false;
     } catch (e) {
       section.hidden = true;
