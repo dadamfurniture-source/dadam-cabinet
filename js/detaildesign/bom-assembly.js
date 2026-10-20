@@ -31,8 +31,9 @@
  *            (사쿠리면 홈 앞, 아니면 측판 뒤끝). 높이는 부르는 쪽이 넘긴 선반 중심 높이(opts.shelfY)를 쓴다
  *
  * 미정 (지금 BOM 동작을 그대로 두고 결과에 적는다):
- *   밴드 2장 (하부장·키큰장 단) · 보강목 2장 (상부장) — 자리 미정, 사장님 확인 대기 → unplaced 'band-position-pending'
- *     (보강목은 2026-10-20 사장님: 사쿠리 홈 뒤 장의 맨 뒤 — 높이 두 자리를 받으면 놓는다)
+ *   하부장·키큰장 단 밴드 2장 — 자리 미정, 사장님 확인 대기 → unplaced 'band-position-pending'
+ *   상부장 보강목 2장 — 2026-10-20 사장님: 사쿠리 홈 뒤 장의 맨 뒤, 지판 바로 위 · 천판 바로 아래.
+ *     18T 는 홈 뒤 자리보다 두꺼워 확인 대기 → unplaced 'upper-band-18t-pending'
  *   D2 서랍장 처짐방지목 자리 → unplaced 'pending-owner D2'
  *   D1 다칸 모듈 — BOM 대로 칸마다 통 (BOM 행이 칸마다 있으면 칸마다 명세)
  *   D12 하부 선반 −15 = T — BOM 대로
@@ -190,9 +191,17 @@
         }
         case 'shelf':
           return;   // 아래에서 모듈 선반을 한꺼번에 높이 순으로
-        case 'body:band':
-          skip(row, 'band-position-pending');
+        case 'body:band': {
+          // 2026-10-20 사장님: 상부장 보강목 2장은 사쿠리 홈 뒤 — 장의 맨 뒤, 판이 서서 뒤를 본다.
+          //   아래 1장은 지판 바로 위, 위 1장은 천판 바로 아래. 하부장 밴드 자리는 아직 미정.
+          if (row.part !== '밴드(보강목)' || !sakuri || row.qty !== 2) { skip(row, 'band-position-pending'); return; }
+          // 18T 는 홈 뒤 자리(15)보다 두껍다 — 처리 방법 사장님 확인 대기
+          if (row.thickness > C.SAKURI_FROM_BACK) { skip(row, 'upper-band-18t-pending'); return; }
+          [T, H - T - row.h].forEach((y0, k) => {
+            parts.push(makePart(row, k, { o: [-W / 2 + T, y0, zBack], u: '+x', v: '+y', n: '+z' }, [], 'interior', { mount: 'behind-groove' }));
+          });
           return;
+        }
         default:
           skip(row, 'not-yet');
       }
