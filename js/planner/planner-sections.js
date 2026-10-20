@@ -139,6 +139,52 @@ const PLANNER_CATEGORY_SECTION_OVERRIDES = {
 };
 
 /**
+ * 품목 깊이(부모가 URL `d` 로 넘기는 item.d — 처음 값은 data-constants.js CATEGORIES.defaultD)를
+ * 바닥 섹션(하부장·키큰장) 배치 깊이에 쓰는 방식. 숫자는 여기 적지 않는다 — 깊이는 품목에서 온다.
+ *
+ * 2026-10-20 플래너 점검: 예전엔 이 표가 없어 신발장(350)·수납장(400)·TV장(400)을 넣어도 배치 사각형이
+ *   늘 650 이었고, BOM 측판이 550(하부)·620(키큰장)으로 나갔다. TV장 "깊이 400" 결정도 플래너를 거치면 사라졌다.
+ *
+ *   'area' — 품목 깊이 = 배치 자리 깊이(= 상판 깊이). 싱크대 계열이다 (sink.md: 아일랜드 800, 하부 몸통 550 고정).
+ *   'body' — 품목 깊이 = 몸통(측판) 깊이. 간단 카테고리다 — BOM 정본 extractors.js BOM_SIMPLE_CATEGORY_RULES 의
+ *            defaultD 가 "하부 모듈 깊이 폴백"이다. 배치 자리는 몸통 + 앞 여유(물끊기 + 도어 자리, planner-engine
+ *            MASTER_RULES)로 잡는다 — 구조 단계가 자리에서 그 앞 여유를 빼고 몸통을 앉히기 때문이다 (seatModuleDepth).
+ *
+ * 싱크대·붙박이장·냉장고장은 섹션 기본값이 이미 품목 깊이와 같아 넣지 않는다. 도어교체(18)·비규격장(사용자 입력)은
+ * 배치 깊이로 쓸 값이 아니라 넣지 않는다.
+ */
+const PLANNER_CATEGORY_DEPTH_MODE = {
+  island: 'area',
+  shoerack: 'body',
+  vanity: 'body',
+  storage: 'body',
+  warehouse: 'body',
+  tvcabinet: 'body',
+};
+
+/** 품목 깊이를 받는 섹션 — 바닥에 서는 장. 상부장(벽걸이)은 품목 깊이와 무관하다. */
+const PLANNER_ITEM_DEPTH_SECTIONS = ['lower', 'tall'];
+
+/**
+ * 품목 깊이를 SECTION_CONFIG 의 바닥 섹션 깊이(h)에 얹는다. 값이 없거나 표에 없는 품목이면 그대로 둔다.
+ * @param {object} config        buildSectionConfig 결과 (제자리에서 고친다)
+ * @param {string} categoryId    품목 id (URL preset)
+ * @param {number|string} itemD  품목 깊이 (URL d)
+ * @param {number} frontReserve  몸통 앞 여유 = MASTER_RULES.CORNER_DRIP + MASTER_RULES.DOOR_SEAT_D
+ * @returns {object} config
+ */
+function applyItemDepthToSections(config, categoryId, itemD, frontReserve) {
+  const mode = categoryId ? PLANNER_CATEGORY_DEPTH_MODE[categoryId] : null;
+  const d = Number(itemD);
+  if (!config || !mode || !Number.isFinite(d) || d <= 0) return config;
+  const reserve = Number(frontReserve);
+  if (mode === 'body' && !(Number.isFinite(reserve) && reserve >= 0)) return config;
+  const h = mode === 'body' ? d + reserve : d;
+  PLANNER_ITEM_DEPTH_SECTIONS.forEach((k) => { if (config[k]) config[k].h = h; });
+  return config;
+}
+
+/**
  * 페이지별 SECTION_CONFIG 를 만든다. 정본 객체를 공유하지 않도록 항상 새 객체를 준다
  * (한 페이지에서의 수정이 다른 정의로 새지 않게).
  * @param {object} [extra]    이 페이지에만 있는 섹션
@@ -163,10 +209,13 @@ if (typeof window !== 'undefined') {
   window.PLANNER_MARKER_SECTIONS = PLANNER_MARKER_SECTIONS;
   window.buildSectionConfig = buildSectionConfig;
   window.PLANNER_CATEGORY_SECTION_OVERRIDES = PLANNER_CATEGORY_SECTION_OVERRIDES;
+  window.PLANNER_CATEGORY_DEPTH_MODE = PLANNER_CATEGORY_DEPTH_MODE;
+  window.applyItemDepthToSections = applyItemDepthToSections;
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     PLANNER_SECTIONS, SECTION_PALETTE_3D, STRUCTURE_ONLY_SECTIONS, FINISHING_SECTIONS, PLANNER_MARKER_SECTIONS,
     buildSectionConfig, PLANNER_CATEGORY_SECTION_OVERRIDES,
+    PLANNER_CATEGORY_DEPTH_MODE, PLANNER_ITEM_DEPTH_SECTIONS, applyItemDepthToSections,
   };
 }
