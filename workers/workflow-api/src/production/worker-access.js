@@ -4,13 +4,14 @@
  * 작업자는 계정이 없다. 대표가 만든 링크의 토큰(X-Worker-Token)이 곧 권한이다.
  * 토큰은 발급 응답에서 1회만 평문으로 주고 DB 에는 해시만 둔다 (고객 공유 링크와 같은 방식).
  * 링크로 할 수 있는 일은 좁게 둔다: 오늘 할 일 보기, 실측 기록 남기기, 내 지시 완료 체크.
- * 금액(일당·비용)은 작업자 화면에 내보내지 않는다.
+ * 금액(일당·비용)은 작업자 화면에 내보내지 않는다. 고객은 가린 이름(홍*동)과 주문번호로만 (결정 ★15, redact.js).
  */
 
 import { pepperedHash } from '../util/hash.js';
 import { selectOne, selectMany, insertOne, updateById, AuthError, ValidationError, NotFoundError } from '../supabase.js';
 import { computePlan, getSettings, saveSettings, kstDate } from './service.js';
 import { calibrate, calibrationPatch } from './calibration.js';
+import { maskOrderLabel, workerAssignmentText } from './redact.js';
 
 const TOKEN_BYTES = 24;
 const MAX_LINK_DAYS = 365;
@@ -96,7 +97,7 @@ export function todaysWork(plan, today) {
       const end = st ? st[1] : null;
       const isToday = !!(start && start <= today && (end === null || end >= today));
       const order = isToday ? 0 : start && start > today ? 1 : 2; // 오늘 → 다음 예정 → 계획상 지난 것
-      out[role].push({ orderId: j.id, label: j.label, due: j.due, plannedStart: start, today: isToday, _o: order, ...item });
+      out[role].push({ orderId: j.id, label: j.workerLabel, due: j.due, plannedStart: start, today: isToday, _o: order, ...item });
     }
   }
   for (const role of Object.keys(out)) {
@@ -109,21 +110,25 @@ export function todaysWork(plan, today) {
 export async function workerToday(env, { link }) {
   const today = kstDate();
   const plan = await computePlan(env, { user: { id: link.user_id }, today });
-  const assignments = (await selectMany(env, 'production_assignments', {
+  // 지시 문구는 대표가 승인한 원문(실명·일당 포함)이라 order_label 로 이름을 가리고 일당을 뺀 뒤 내보낸다
+  const assignments = ((await selectMany(env, 'production_assignments', {
     user_id: `eq.${link.user_id}`,
     work_date: `eq.${today}`,
     status: 'in.(instructed,done)',
-    select: 'id,kind,role,text,status,done_at',
+    select: 'id,kind,role,text,order_label,status,done_at',
     order: 'created_at.asc',
     limit: '100',
-  })) || [];
-  const logs = (await selectMany(env, 'production_worklogs', {
+  })) || []).map((a) => ({ id: a.id, kind: a.kind, role: a.role, text: workerAssignmentText(a), status: a.status, done_at: a.done_at }));
+  // 주문에 묶인 기록의 이름은 예전 화면이 보낸 실명일 수 있어 가린다. 손으로 적은 글(order_id 없음)은 작업자 자신의 것이라 그대로
+  const logs = ((await selectMany(env, 'production_worklogs', {
     link_id: `eq.${link.id}`,
     work_date: `eq.${today}`,
-    select: 'id,role,order_label,units,minutes,created_at',
+    select: 'id,role,order_id,order_label,units,minutes,created_at',
     order: 'created_at.desc',
     limit: '100',
-  })) || [];
+  })) || []).map((l) => ({
+    id: l.id, role: l.role, order_label: l.order_id ? maskOrderLabel(l.order_label) : l.order_label, units: l.units, minutes: l.minutes, created_at: l.created_at,
+  }));
   await updateById(env, 'production_worker_links', link.id, { last_used_at: new Date().toISOString() });
   // 비어 있을 때 작업자 화면이 이유를 말할 수 있게 진행 중 주문 수와 빠진 주문(사유만)을 함께 준다
   return {
@@ -131,7 +136,7 @@ export async function workerToday(env, { link }) {
     today,
     work: todaysWork(plan, today),
     activeJobs: plan.jobs.length,
-    skipped: (plan.skipped || []).map((x) => ({ label: x.label, reason: x.reason })),
+    skipped: (plan.skipped || []).map((x) => ({ label: x.workerLabel, reason: x.reason })),
     assignments,
     logs,
   };
