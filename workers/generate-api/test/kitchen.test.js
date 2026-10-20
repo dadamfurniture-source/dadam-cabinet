@@ -5,6 +5,7 @@ import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { inflateSync } from 'node:zlib';
 import encodeJpeg from 'jpeg-js/lib/encoder.js';
+import decodeJpeg from 'jpeg-js/lib/decoder.js';
 import {
   buildKitchenPointsPrompt,
   kitchenFaces,
@@ -94,6 +95,10 @@ function solid(w, h, rgb) {
   for (let i = 0; i < data.length; i += 4) { data[i] = rgb[0]; data[i + 1] = rgb[1]; data[i + 2] = rgb[2]; data[i + 3] = 255; }
   return { base64: Buffer.from(encodeJpeg({ data, width: w, height: h }, 95).data).toString('base64'), mimeType: 'image/jpeg' };
 }
+function jpegPixels(b64) {
+  const d = decodeJpeg(Buffer.from(b64, 'base64'), { useTArray: true, formatAsRGBA: true });
+  return (x, y) => { const o = (y * d.width + x) * 4; return [d.data[o], d.data[o + 1], d.data[o + 2]]; };
+}
 function pngPixels(b64, w) {
   const png = Buffer.from(b64, 'base64');
   const chunks = [];
@@ -123,7 +128,8 @@ test('되붙이기(다각형): 안은 추천안, 밖은 기본안', async () => 
   const variant = solid(200, 200, [30, 150, 60]);
   const poly = [{ x: 0.25, y: 0.25 }, { x: 0.75, y: 0.25 }, { x: 0.75, y: 0.75 }, { x: 0.25, y: 0.75 }];
   const r = await pasteVariantInPolys(base, variant, [poly]);
-  const px = pngPixels(r.base64, 200);
+  assert.equal(r.mimeType, 'image/jpeg');
+  const px = jpegPixels(r.base64);
   assert.ok(px(100, 100)[1] > 130 && px(100, 100)[0] < 60);
   assert.ok(px(10, 10).every((c) => Math.abs(c - 128) < 8));
   assert.equal(await pasteVariantInPolys(base, solid(100, 200, [0, 0, 0]), [poly]), null);
@@ -245,9 +251,10 @@ test('잡: 추천안 되붙이기는 기본안에서 다시 찾은 가구 윤곽
   assert.match(seen.claude[1].messages[0].content[1].text, /fitted kitchen/);
   const wa = seen.patched.filter((p) => p.wall_analysis && p.wall_analysis.guide).at(-1);
   assert.equal(wa.wall_analysis.guide.baseMask.length, 1, '작은 조각은 버린다');
-  const v1 = seen.bodies['v1.png'];
-  assert.ok(v1, '추천안이 PNG 로 되붙여 올라간다');
-  const px = pngPixels(Buffer.from(await new Response(v1).arrayBuffer()).toString('base64'), 800);
+  const v1 = seen.bodies['v1.jpg'];
+  assert.ok(v1, '추천안이 JPEG 로 되붙여 올라간다 (2026-10-20 PNG → JPEG)');
+  assert.ok(!seen.bodies['v1.png']);
+  const px = jpegPixels(Buffer.from(await new Response(v1).arrayBuffer()).toString('base64'));
   assert.ok(px(150, 200)[1] > 130 && px(150, 200)[0] < 60, `윤곽 안은 추천안 ${px(150, 200)}`);
   assert.ok(px(650, 800).every((c) => Math.abs(c - 128) < 8), `윤곽 밖은 기본안 ${px(650, 800)}`);
 });

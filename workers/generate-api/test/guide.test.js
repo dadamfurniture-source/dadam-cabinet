@@ -7,6 +7,7 @@ import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { inflateSync } from 'node:zlib';
 import encodeJpeg from 'jpeg-js/lib/encoder.js';
+import decodeJpeg from 'jpeg-js/lib/decoder.js';
 import { buildGuidePointsPrompt, computeGuide, encodePng, parseGuidePoints, renderGuideImage } from '../src/guide.js';
 import { buildInstallPrompt, buildQcPrompt } from '../src/prompts.js';
 import { GenerateJob } from '../src/job.js';
@@ -325,15 +326,11 @@ test('되붙이기: 장 앞면 영역 안은 추천안, 멀리 밖은 기본안 
   const variant = solid(300, 400, [40, 160, 60]);
   const pts = parseGuidePoints(JSON.stringify(REAL), 'right');
   const r = await pasteVariantInside(base, variant, pts);
-  const png = Buffer.from(r.base64, 'base64');
-  const chunks = [];
-  for (let o = 8; o < png.length; ) {
-    const len = png.readUInt32BE(o);
-    if (png.toString('ascii', o + 4, o + 8) === 'IDAT') chunks.push(png.subarray(o + 8, o + 8 + len));
-    o += 12 + len;
-  }
-  const raw = inflateSync(Buffer.concat(chunks));
-  const px = (x, y) => { const o = y * (300 * 3 + 1) + 1 + x * 3; return [raw[o], raw[o + 1], raw[o + 2]]; };
+  // 2026-10-20: 결과는 JPEG 다 (PNG 1.6~2.3MB → 휴대폰에서 늦게 떴다)
+  assert.equal(r.mimeType, 'image/jpeg');
+  const dec = decodeJpeg(Buffer.from(r.base64, 'base64'), { useTArray: true, formatAsRGBA: true });
+  assert.equal(dec.width, 300);
+  const px = (x, y) => { const o = (y * 300 + x) * 4; return [dec.data[o], dec.data[o + 1], dec.data[o + 2]]; };
   const g = computeGuide(pts, 300, 400).front;
   const inside = px(Math.round((g.ob.x + g.rb.x) / 2), Math.round((g.ot.y + g.ob.y) / 2));
   assert.ok(inside[1] > 140 && inside[0] < 70, `안 ${inside}`);
@@ -386,4 +383,24 @@ test('옆벽 확인: 분석이 이미 잡았거나, 벽 끝까지 채우는 장�
   assert.ok(!seen.claude.some((b) => b.messages[0].content.at(-1).text.startsWith('This photo shows a room.')), '싱크대는 묻지 않는다');
   seen = await runJob({ sideReturn: null });
   assert.equal(seen.claude.length, 0, '키가 없으면 묻지 않는다');
+});
+
+test('JPEG 인코딩: 워커처럼 전역 Buffer 가 없어도 되고, 끝나면 전역을 그대로 둔다 (2026-10-20)', async () => {
+  const { encodeJpeg: enc } = await import('../src/guide.js');
+  const w = 64, h = 48;
+  const data = new Uint8Array(w * h * 4).map((_, i) => (i % 4 === 3 ? 255 : (i * 7) % 256));
+  const saved = globalThis.Buffer;
+  delete globalThis.Buffer;
+  let bytes;
+  try {
+    bytes = enc({ width: w, height: h, data });
+    assert.equal(typeof globalThis.Buffer, 'undefined', '빌려 쓴 Buffer 를 치운다');
+  } finally {
+    globalThis.Buffer = saved;
+  }
+  assert.ok(bytes instanceof Uint8Array);
+  assert.deepEqual([bytes[0], bytes[1], bytes.at(-2), bytes.at(-1)], [0xff, 0xd8, 0xff, 0xd9], 'SOI … EOI');
+  const back = decodeJpeg(Buffer.from(bytes), { useTArray: true });
+  assert.equal(back.width, w);
+  assert.equal(back.height, h);
 });
