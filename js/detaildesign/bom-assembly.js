@@ -152,7 +152,7 @@
     const panelZ0 = sakuri ? zBack + C.SAKURI_PANEL_D_MINUS : zBack;   // 천지판 뒤끝 (앞선 맞춤)
     const shelfZ0 = sakuri ? zBack + C.SAKURI_PANEL_D_MINUS : zBack;   // 선반은 뒤로 붙인다
     const parts = [], unplaced = [], pending = [];
-    const skip = (row, reason) => unplaced.push({ rowPartId: row.partId, part: row.part, qty: row.qty, reason });
+    const skip = (row, reason) => unplaced.push({ rowPartId: row.partId, moduleKey: mk, part: row.part, qty: row.qty, reason });
 
     keyed.forEach(({ row, key }) => {
       if (!key) { skip(row, 'no-part-key'); return; }
@@ -276,7 +276,7 @@
       const res = (mod && SHELL_POS.indexOf(mod.pos) >= 0 && !blind) ? shellOf(mk, mod, rows, o) : null;
       if (!res) {
         const reason = !mod ? (m && m[2] === 'ep' ? 'run-part' : 'no-module') : blind ? 'blind-pending' : 'module-not-yet';
-        rows.forEach((r) => unplaced.push({ rowPartId: r.partId, part: r.part, qty: r.qty, reason }));
+        rows.forEach((r) => unplaced.push({ rowPartId: r.partId, moduleKey: mk, part: r.part, qty: r.qty, reason }));
         return;
       }
       outItems[itemIdx].modules.push(res.module);
