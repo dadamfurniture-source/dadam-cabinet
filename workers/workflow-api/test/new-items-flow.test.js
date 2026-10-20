@@ -254,6 +254,49 @@ test('isOutsourcedCutRow — 밥솥장·홈카페장의 MDF 15T 이상 몸통만
   assert.equal(isOutsourcedCutRow(null), false);
 });
 
+test('isOutsourcedCutRow — 오픈장 MDF 18T 상자도 재단 외주 (사장님 카드 10/20 14:47 「재단 외주」)', () => {
+  // 플래너 BOM 그대로 (sink + 키큰장 첫 단 = 오픈장)
+  const rows = [
+    {
+      partId: '0-planner-tall-0-open-body:side-0',
+      module: '오픈장',
+      part: '측판',
+      material: 'MDF',
+      thickness: 18,
+      w: 620,
+      h: 801,
+      qty: 2,
+    },
+    {
+      partId: '0-planner-tall-0-open-part:천지판-0',
+      module: '오픈장',
+      part: '천지판',
+      material: 'MDF',
+      thickness: 18,
+      w: 564,
+      h: 600,
+      qty: 2,
+    },
+    {
+      partId: '0-planner-tall-0-open-back-0',
+      module: '오픈장',
+      part: '뒷판',
+      material: 'MDF',
+      thickness: 18,
+      w: 564,
+      h: 801,
+      qty: 1,
+    },
+  ];
+  for (const r of rows) assert.equal(isOutsourcedCutRow(r), true, r.part);
+  assert.equal(
+    isOutsourcedCutRow({ ...rows[0], module: '오픈장 #2' }),
+    true,
+    '같은 품목에 오픈장이 여럿'
+  );
+  assert.equal(labelGroups(rows).outsourced.length, 5);
+});
+
 test('재단 지시서 — 밥솥장 MDF 18T 몸통은 사내 재단 목록에서 빠지고 「MDF 18T 재단 외주」 목록에 나온다', () => {
   const snap = fx.snapshot({
     bom_payload: { materials: materials() },
