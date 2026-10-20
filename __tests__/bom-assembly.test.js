@@ -384,6 +384,23 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
     expect(s2.unplaced.filter((u) => u.moduleKey === '0-w2' && u.part === '선반').map((u) => u.reason)).toEqual(['shelf-height-unknown']);
   });
 
+  test('칸막이 — 규칙 파일 배치 자리 (반 분할: 세로 칸막이가 칸 사이, 지판 위~천판 아래, 천지판과 같은 깊이)', () => {
+    const item = JSON.parse(JSON.stringify(FIXTURES.wardrobe));
+    const w2 = item.modules.find((m) => m.id === 'w2');
+    Object.assign(w2, { isExternalDrawer: false, drawerCount: 0, wardrobe: { preset: 'halfSplit', drawers: 0 } });
+    item.specs.wardrobeMoldingH = 60;
+    const design = { items: [item] };
+    const s = Asm.of(design, { materials: new MaterialExtractor().extract(design).materials });
+    const m = s.items[0].modules.find((x) => x.moduleId === 'w2');
+    const L = WR.layoutWardrobeModule({ W: 900, D: 600, T: 15, bodyH: 2280, preset: 'halfSplit', drawers: 0 });
+    const divs = m.parts.filter((p) => p.part === '세로칸막이');
+    expect(divs).toHaveLength(L.dividers.length);
+    expect(divs.length).toBeGreaterThan(0);
+    const d = L.dividers[0];
+    expect(divs[0].box).toEqual({ min: [-450 + 15 + d.x, 15, -282], max: [-450 + 15 + d.x + 15, 2280 - 15, 300] });
+    expect(s.unplaced.filter((u) => /칸막이/.test(u.part))).toEqual([]);
+  });
+
   test('아직 자리를 안 정한 행은 이유와 함께 — 도어(좌대+몸통−20 세로 자리 미정) · 서랍모듈 밴드 · 좌대 · 서랍', () => {
     const reasons = (id) => [...new Set(spec.unplaced.filter((u) => u.moduleKey === `0-${id}`).map((u) => u.reason))].sort();
     expect(reasons('w2')).toEqual(['band-position-pending', 'door-layout-unknown', 'drawer-layout-unknown', 'not-yet']);
