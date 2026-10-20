@@ -1810,8 +1810,14 @@
         }
         if (modules.length === 0) {
           const placed = (payload.modules || []).length;
+          // 2026-10-20 플래너 점검: 배치는 있는데 구조 단계에서 자동계산을 안 한 경우를 가린다.
+          //   예전엔 이때도 "배치 화면에서 먼저 놓으라"고 해 이미 놓은 사용자가 막혔다.
+          const areaCount = Number(payload.areaCount) || 0;
           throw new Error(
-            placed === 0
+            placed === 0 && areaCount > 0
+              ? `배치 ${areaCount}곳에 아직 모듈이 없습니다.\n\n` +
+                '2.구조 화면 위쪽 「⚡ 전체 자동계산」을 눌러 모듈을 세운 뒤 다시 눌러 주세요.'
+              : placed === 0
               ? '플래너에 배치된 모듈이 없습니다.\n\n1.배치 화면에서 하부장·상부장을 먼저 놓아 주세요.'
               : `배치된 ${placed}개 중 제작 대상 캐비닛이 없습니다.\n\n` +
                 `하부장·상부장·키큰장만 자재로 산출됩니다 (분배기·후드·냉장고 등 가전과 마감재는 제외).`
