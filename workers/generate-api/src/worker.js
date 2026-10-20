@@ -369,8 +369,10 @@ async function createGeneration(request, env, headers) {
     // 급수·배기는 주방 품목에서만 뜻이 있다 — 붙박이장 요청에 실려 와도 버린다
     water_from_left_override: KITCHEN_CATEGORIES.includes(category) ? Number(water_from_left_override) || null : null,
     exhaust_from_left_override: KITCHEN_CATEGORIES.includes(category) ? Number(exhaust_from_left_override) || null : null,
-    // 사진 EXIF 35mm 환산 초점거리 (2026-10-19) — 싱크대 덩어리 합성의 화각. 있을 때만 키를 둔다
-    ...(Number(room_focal35) >= 8 && Number(room_focal35) <= 200 ? { room_focal35: Math.round(Number(room_focal35)) } : {}),
+    // 사진 EXIF 35mm 환산 초점거리 (2026-10-19) — 싱크대 덩어리 합성의 화각. 있을 때만 키를 둔다.
+    //   2026-10-20: 다시 만들기는 원본의 값을 잇는다 (화면은 다시 만들 때 사진을 다시 보내지 않아 EXIF 를 못 읽는다 —
+    //   예전엔 같은 사진이 24mm 로 다시 풀렸다). 플래너 경로와 같은 함수.
+    ...plannerFocalOption(room_focal35, parent),
     fridge_options: category === 'fridge' ? fridge_options : null,
     // 플래너 도면 요약 — 없으면 null 이고, 그러면 프롬프트는 예전 그대로다.
     // 크레딧은 그대로 20 (2026-09-17 결정): 새 action 을 만들지 않는다.
