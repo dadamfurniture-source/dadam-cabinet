@@ -1258,6 +1258,57 @@ function plannerAiPhotoFileError(file) {
 }
 
 /**
+ * 사진 EXIF 의 35mm 환산 초점거리 (태그 0xA405). 없거나 8~200 밖이면 null.
+ *
+ * ai-design.html 의 `exifFocal35` 와 **같은 읽기**다 (2026-10-20). 캔버스로 줄이면 EXIF 가 사라지므로
+ * 원본 data URL 에서 먼저 읽는다. 워커가 도면 덩어리(PLANNER_PLACE_GUIDE)의 카메라 화각으로 쓴다 —
+ * 정면 사진은 소실점만으로 화각을 알 수 없어, 없으면 워커 기본 24mm 로 풀고 오차가 커진다.
+ */
+function plannerAiPhotoExifFocal35(dataUrl) {
+  try {
+    const b64 = String(dataUrl).split(',')[1] || '';
+    const bin = atob(b64.slice(0, 174760)); // 앞쪽 약 128KB 면 EXIF 가 들어 있다
+    const u = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    if (u[0] !== 0xff || u[1] !== 0xd8) return null;
+    let p = 2;
+    while (p + 4 < u.length) {
+      if (u[p] !== 0xff) return null;
+      const marker = u[p + 1];
+      const len = (u[p + 2] << 8) | u[p + 3];
+      if (marker === 0xe1 && u[p + 4] === 0x45 && u[p + 5] === 0x78 && u[p + 6] === 0x69 && u[p + 7] === 0x66) {
+        const t = p + 10; // TIFF 머리
+        const le = u[t] === 0x49;
+        const r16 = (o) => (le ? u[t + o] | (u[t + o + 1] << 8) : (u[t + o] << 8) | u[t + o + 1]);
+        const r32 = (o) =>
+          le
+            ? (u[t + o] | (u[t + o + 1] << 8) | (u[t + o + 2] << 16) | (u[t + o + 3] << 24)) >>> 0
+            : ((u[t + o] << 24) | (u[t + o + 1] << 16) | (u[t + o + 2] << 8) | u[t + o + 3]) >>> 0;
+        const find = (ifd, tag) => {
+          const n = r16(ifd);
+          for (let k = 0; k < n; k++) {
+            const e = ifd + 2 + k * 12;
+            if (r16(e) === tag) return e;
+          }
+          return -1;
+        };
+        const ptr = find(r32(4), 0x8769); // Exif IFD
+        if (ptr < 0) return null;
+        const e = find(r32(ptr + 8), 0xa405);
+        if (e < 0) return null;
+        const f = r16(e + 8);
+        return f >= 8 && f <= 200 ? f : null;
+      }
+      if (marker === 0xda) return null;
+      p += 2 + len;
+    }
+  } catch (err) {
+    /* 깨진 파일이면 초점거리 없이 간다 */
+  }
+  return null;
+}
+
+/**
  * 파일 → 축소한 base64 JPEG.
  *
  * ai-design.html 의 `readImage`(:480-512) 와 **같은 규칙**이다 — 긴 변 1600px, JPEG 0.9.
@@ -1292,6 +1343,7 @@ function plannerAiPhotoReadImage(file, opt) {
             name: file.name || 'room.jpg',
             width: size.width,
             height: size.height,
+            focal35: plannerAiPhotoExifFocal35(fr.result),
           });
         } catch (e) {
           reject(new Error('사진을 줄이지 못했습니다'));
@@ -2110,6 +2162,8 @@ const PlannerAiPhoto = {
           design_spec: spec,
           renders: shots.renders,
           aspect: plannerAiPhotoAspectOf(this.img.width, this.img.height),
+          // 2026-10-20: 사진 EXIF 35mm 환산 초점거리 — 도면 덩어리의 화각. 없으면 키 없음 (워커 기본값)
+          ...(this.img.focal35 ? { room_focal35: this.img.focal35 } : {}),
           // 2026-10-19: eval=1 이면 고른 값('gemini' | 'openai')을 싣는다. 평소(손님 화면)는 키 없음 → 워커 기본값(GPT)
           ...(provider ? { image_provider: provider } : {}),
         }),
@@ -2282,6 +2336,7 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerAiPhotoFitSize,
     plannerAiPhotoFileError,
     plannerAiPhotoReadImage,
+    plannerAiPhotoExifFocal35,
     plannerAiPhotoErrorMessage,
     plannerAiPhotoScopeMessage,
     plannerAiPhotoStepLabel,
