@@ -46,7 +46,7 @@ describe('냉장고장 BOM — 플래너 모듈은 싱크대 규칙', () => {
     const side = r.materials.find((m) => m.part === '측판' && /상부장/.test(m.module));
     expect(side).toBeTruthy();
     expect([side.w, side.h]).toEqual([670, 355]);
-    expect(side.note).toContain('[확인 필요] 냉장고 위 상부장 깊이');
+    expect(side.note).toContain('[확인 필요] 냉장고 위 상부장 깊이 — EP 기준');
     // 키큰장 측판에는 붙지 않는다
     expect(r.materials.filter((m) => m.part === '측판' && /키큰장/.test(m.module)).every((m) => !/냉장고 위/.test(m.note || ''))).toBe(true);
     expect(r.materials[0].itemLabel).toBe('냉장고장');
@@ -130,5 +130,20 @@ describe('장 버튼 — 줄 끝에 이어 붙인다', () => {
     const [f, t] = placed(p);
     const c = p.document.querySelector('g.person circle');
     expect(+c.getAttribute('cx')).toBe((f.x + t.x + t.w) / 2);
+  });
+});
+
+describe('냉장고장 위장 몸통 깊이 = 좌우 EP 깊이 − 20 (사장님 "EP 기준", 2026-10-20)', () => {
+  test('자리 700 (EP 700) → 몸통 680 · 자리 800 → 780', () => {
+    const p = bootPlanner('mockup-structure.html', { search: '?design=t&item=1' });
+    const area = p.g('areas').find((a) => a.section === 'fridge');
+    expect(area.D).toBe(700);
+    const seat = p.g('MASTER_RULES').DOOR_SEAT_D;
+    expect(p.g('addModuleToArea')(area.id, { section: 'fridge' }).D).toBe(700 - seat);
+    expect(seat).toBe(20);
+    const p2 = bootPlanner('mockup-structure.html', { search: '?design=t&item=1' });
+    const area2 = p2.g('areas').find((a) => a.section === 'fridge');
+    area2.D = 800;
+    expect(p2.g('addModuleToArea')(area2.id, { section: 'fridge' }).D).toBe(780);
   });
 });
