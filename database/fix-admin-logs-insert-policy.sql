@@ -23,6 +23,14 @@
 --
 -- 실행 뒤 확인: 로그인하지 않은 창에서 상담 신청(consultation.html)이 여전히 접수되는지.
 -- 멱등: 여러 번 실행해도 된다.
+--
+-- 주의 — 되돌아가는 길: stability-triggers.sql 은 위 다섯 함수를 CREATE OR REPLACE … SECURITY DEFINER 로만
+--   만들고 (search_path 없음), 9절에서 "System can insert logs" (WITH CHECK (true)) 를 다시 만든다.
+--   이 파일을 실행한 뒤 stability-triggers.sql 을 다시 돌리면 (트리거 하나를 고칠 때 등)
+--   CREATE OR REPLACE 가 함수 설정을 새로 써서 search_path 고정이 지워지고, 아무나 쓰기 정책도 경고 없이 되살아난다.
+--   그 파일을 다시 돌렸으면 이 파일도 다시 실행한다.
+--   근본 고침 (9절 삭제 · 다섯 CREATE 문에 SET search_path = public) 은 stability-triggers.sql 쪽 후속 작업이다.
+--   __tests__/admin-logs-insert-policy-sql.test.js 가 이 두 가지를 알려진 실패 (test.failing) 로 붙들고 있다.
 -- ============================================================
 
 BEGIN;
