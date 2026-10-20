@@ -613,6 +613,7 @@ async function runPipeline(env, job, ck, save) {
             waterPct: wall.waterPct,
             exhaustPct: wall.exhaustPct,
             focalMm: Number(opts.room_focal35) || 24,
+            focalFromExif: Number(opts.room_focal35) > 0, // 기록용 — guide.cam.focalSource
           });
           if (m) {
             const upM = await uploadObject(env, `${prefix}/massing.png`, m.base64, m.mimeType);
@@ -665,7 +666,7 @@ async function runPipeline(env, job, ck, save) {
           const m = await renderFacesMassing(
             room,
             points,
-            { wallH: wall.wallH, focalMm: Number(opts.room_focal35) || 24 },
+            { wallH: wall.wallH, focalMm: Number(opts.room_focal35) || 24, focalFromExif: Number(opts.room_focal35) > 0 },
             (cam) => plannerPlaceFaces(cam, placeBlocks),
             ['front']
           );
