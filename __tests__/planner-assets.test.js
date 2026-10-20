@@ -54,15 +54,16 @@ const SHARED = [
   'js/planner/planner-view.js',
   'js/planner/planner-sections.js',
   'js/planner/planner-drawing-menu.js',   // 2026-09-13: 도면 저장/불러오기 공통 메뉴
+  // 2026-10-20: 배치 단계도 품목 깊이로 자리 깊이를 잡을 때 몸통 앞 여유(MASTER_RULES)를 쓴다 — 구조와 같은 값.
+  'js/planner/planner-engine.js',
 ];
 
-// 구조 단계 전용 (P2). 배치 단계는 계산 엔진을 쓰지 않는다 — 실측 0건이라
-// 공통으로 싣지 않는다. 이 구분이 없으면 shell 에 안 쓰는 코드가 계속 딸려간다.
+// 구조 단계 전용 (P2). 이 구분이 없으면 shell 에 안 쓰는 코드가 계속 딸려간다.
+// planner-engine 은 2026-10-20 부터 배치도 몸통 앞 여유 값을 써서 SHARED 로 올렸다.
 // D0: 디테일 모드도 구조 페이지 안의 모드라 구조 전용이다 (planner-finish 는 BOM 이 쓰게 되면 공통으로 올린다).
 // D2: 카탈로그(DB)·PBR 재질도 디테일 모드 것이라 구조 전용. planner-detail.js 보다 먼저 실린다.
 // D3: 렌더 캡처(planner-capture.js)는 PlannerDetail.pushLook 과 PlannerStore 를 쓰므로 둘 뒤에 실린다.
 const STRUCTURE_ONLY = [
-  'js/planner/planner-engine.js',
   'js/planner/planner-finish.js',
   'js/planner/planner-catalog.js',
   'js/planner/planner-materials.js',
