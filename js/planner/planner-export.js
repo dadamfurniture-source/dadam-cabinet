@@ -227,7 +227,8 @@ function plannerExportCadSpec(P, deps) {
     const s = typeof deps.structureOf === 'function' ? deps.structureOf(pm.id) : null;
     if (s && Array.isArray(s.shelves)) shelfY[mk] = s.shelves.map(Number).filter(Number.isFinite);
   });
-  return { spec: deps.Assembly.of(design, { materials, shelfY }), cells };
+  // 서랍장 레이아웃도 BOM 과 같은 추출기로 (부모 창 전역 — iframe 에는 없다)
+  return { spec: deps.Assembly.of(design, { materials, shelfY, MaterialExtractor: P.MaterialExtractor }), cells };
 }
 
 /**
