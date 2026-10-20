@@ -39,6 +39,12 @@
       // 2026-10-20: 밥솥장 규칙 — js/detaildesign/bom-rice-cabinet-rules.js (플래너와 같은 파일, 오픈장 규칙 다음에 싣는다).
       const RiceRules = (typeof DadamRiceCabinetRules !== 'undefined') ? DadamRiceCabinetRules
         : (typeof require === 'function' ? require('./bom-rice-cabinet-rules.js') : null);
+      // 2026-10-20: 홈카페장 규칙 — js/detaildesign/bom-homecafe-rules.js (fridge.md §11 부재표, 플래너와 같은 파일).
+      const HomecafeRules = (typeof DadamHomecafeRules !== 'undefined') ? DadamHomecafeRules
+        : (typeof require === 'function' ? require('./bom-homecafe-rules.js') : null);
+      // 2026-10-20: EL장 모듈 타입 — js/detaildesign/bom-el-rules.js (도어 종류만, 치수 [확인 필요]).
+      const ElRules = (typeof DadamElRules !== 'undefined') ? DadamElRules
+        : (typeof require === 'function' ? require('./bom-el-rules.js') : null);
       const WR_DEFAULTS = (WardrobeRules && WardrobeRules.WARDROBE_RULES)
         || { DEFAULT_D: 620, DEFAULT_H: 2310, PEDESTAL_H: 60, MOLDING_H: 20 };
 
@@ -692,7 +698,11 @@
             //   어디 붙든 같다. 카테고리 추출기에 그대로 넘기면 그쪽 규칙(PB 몸통·도어·선반)으로
             //   한 번 더 산출돼 한 상자가 두 벌 나간다.
             // 2026-10-20: 밥솥장도 같은 이유로 먼저 걷어낸다 (상자는 오픈장 규칙 + 도어 한 장).
-            const catItem = this.extractRiceCabinets(this.extractOpenCabinets(item, materials, prefix), materials, prefix);
+            // 2026-10-20: 플래너 홈카페장(moduleKind)도 같은 이유로 먼저 걷어낸다 — 어느 품목에 붙든 fridge.md §11 부재표.
+            //   EL장 모듈 타입도 같다 (몸통만, 도어 [확인 필요]).
+            const catItem = this.extractEls(this.extractHomecafes(
+              this.extractRiceCabinets(this.extractOpenCabinets(item, materials, prefix), materials, prefix), materials, prefix),
+            materials, prefix);
 
             switch (category) {
               // 2026-10-20 플래너 점검: 아일랜드는 싱크대 규칙 문서를 같이 쓴다 (docs/design-rules/sink.md "categoryId: sink / island").
@@ -1341,6 +1351,69 @@
           return Object.assign({}, item, { modules: mods.filter((m) => !R.isRiceCabinet(m)) });
         }
 
+        /** EL장 몸통 — PB 측판(사쿠리)·천판·지판 + 뒷판, 도어 없음 (extractFridge 'el' 가지 그대로). sideNote 는 측판 비고에 덧붙인다. */
+        addElParts(materials, name, dims, T, sideNote) {
+          const { W, H, D } = dims;
+          this.add(materials, name, '측판', 'PB', T, D, H, 2, '3면', 'sakuri(15→3mm)' + (sideNote ? ` · ${sideNote}` : ''));
+          this.add(materials, name, '천판', 'PB', T, W - T * 2, D - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
+          this.add(materials, name, '지판', 'PB', T, W - T * 2, D - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
+          this.addBackPanel(materials, name, W, H, true);
+        }
+
+        // ========================================
+        // 2026-10-20: EL장 모듈 타입 (플래너 — moduleKind 'el', 사장님 카드 "모듈 타입으로")
+        //   몸통은 예전 extractFridge 'el' 과 같다. 도어 치수 규칙이 없어 도어 행은 내지 않고,
+        //   측판 비고에 도어 종류와 [확인 필요] 를 적는다. EL장 모듈을 뺀 item 을 돌려준다.
+        // ========================================
+        extractEls(item, materials, prefix = '') {
+          const R = ElRules;
+          const mods = (item && item.modules) || [];
+          if (!R || !mods.length) return item;
+          const els = mods.filter((m) => R.isEl(m));
+          if (!els.length) return item;
+          const T = this.thicknessFor((item && item.specs) || {});
+          els.forEach((mod, i) => {
+            const dims = { W: Number(mod.w) || 0, H: Number(mod.h) || 0, D: Number(mod.d) || 0 };
+            if (!dims.W || !dims.H || !dims.D) return;
+            this.beginModule(mod, i, mod.pos || null);
+            const door = R.doorTypeName(mod.doorType);
+            const note = (door ? `도어 ${door} · ` : '도어 종류 미선택 · ') + R.RULES.NOTE;
+            this.addElParts(materials, `${prefix}${R.RULES.LABEL}${els.length > 1 ? ` ${i + 1}` : ''}`, dims, T, note);
+          });
+          return Object.assign({}, item, { modules: mods.filter((m) => !R.isEl(m)) });
+        }
+
+        /** 홈카페장 한 칸 — 몸통 + 도어 (bom-homecafe-rules.js). 예전 화면(extractFridge)과 플래너 모듈 타입이 같이 쓴다. */
+        addHomecafeParts(materials, name, mod, dims) {
+          const R = HomecafeRules;
+          if (!R) return;
+          R.partsOf(dims).forEach((p) => {
+            this.add(materials, name, p.part, p.material, p.t, p.w, p.h, p.qty, p.edge, p.note || '');
+          });
+          const door = R.doorOf(dims, mod.doorCount);
+          if (door) this.add(materials, name, '도어', 'MDF', 18, door.w, door.h, door.qty, '4면', '', mod);
+        }
+
+        // ========================================
+        // 2026-10-20: 홈카페장 모듈 타입 (플래너 — moduleKind 'homecafe', 결정 카드 추천안)
+        //   부재는 fridge.md §11 홈카페장 그대로. 홈카페장 모듈을 뺀 item 을 돌려준다 (extractOpenCabinets 와 같은 이유).
+        //   예전 냉장고장 화면의 type 'homecafe' 모듈은 여기서 걷지 않는다 — extractFridge 가 낸다.
+        // ========================================
+        extractHomecafes(item, materials, prefix = '') {
+          const R = HomecafeRules;
+          const mods = (item && item.modules) || [];
+          if (!R || !mods.length) return item;
+          const isPlannerHc = (m) => !!m && String(m.moduleKind || '') === R.RULES.KIND;
+          const hc = mods.filter(isPlannerHc);
+          if (!hc.length) return item;
+          hc.forEach((mod, i) => {
+            const dims = { W: Number(mod.w) || 0, H: Number(mod.h) || 0, D: Number(mod.d) || 0 };
+            this.beginModule(mod, i, mod.pos || null);
+            this.addHomecafeParts(materials, `${prefix}${R.RULES.LABEL}${hc.length > 1 ? ` ${i + 1}` : ''}`, mod, dims);
+          });
+          return Object.assign({}, item, { modules: mods.filter((m) => !isPlannerHc(m)) });
+        }
+
         // ========================================
         // 싱크대 자재 추출
         // ========================================
@@ -1986,18 +2059,9 @@
                 this.add(materials, `${pf}키큰장`, '도어', 'MDF', 18, doorW, H + 20, doorCount, '4면', '', mod);
               }
             }
-            // 홈카페장 (homecafe) - 오픈장 규칙: MDF 18T 전체
+            // 홈카페장 (homecafe) - MDF 18T 전체 — 부재표는 규칙 파일(bom-homecafe-rules.js, fridge.md §11)
             else if (modType === 'homecafe') {
-              this.add(materials, `${pf}홈카페장`, '측판', 'MDF', 18, D + 20, H, 2, '3면');
-              this.add(materials, `${pf}홈카페장`, '천판', 'MDF', 18, W - 36, D, 1, '2면(가로)');
-              this.add(materials, `${pf}홈카페장`, '지판', 'MDF', 18, W - 36, D, 1, '2면(가로)');
-              this.add(materials, `${pf}홈카페장`, '뒷판', 'MDF', 18, W - 36, H, 1, '2면(가로)'); // 18T!
-              this.add(materials, `${pf}홈카페장`, '선반', 'MDF', 18, W - 36, D - 15, 2, '1면(전)');
-              const doorCount = mod.doorCount || 1;
-              if (doorCount > 0) {
-                const doorW = Math.floor(W / doorCount) - 4;
-                this.add(materials, `${pf}홈카페장`, '도어', 'MDF', 18, doorW, H + 20, doorCount, '4면', '', mod);
-              }
+              this.addHomecafeParts(materials, `${pf}홈카페장`, mod, { W, H, D });
             }
             // 상부장 (upper) — PB 구조
             else if (modType === 'upper') {
@@ -2025,10 +2089,7 @@
             }
             // EL장 (el) — PB 구조 (뒷판만)
             else if (modType === 'el') {
-              this.add(materials, `${pf}EL장`, '측판', 'PB', T, D, H, 2, '3면', 'sakuri(15→3mm)');
-              this.add(materials, `${pf}EL장`, '천판', 'PB', T, W - T * 2, D - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
-              this.add(materials, `${pf}EL장`, '지판', 'PB', T, W - T * 2, D - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
-              this.addBackPanel(materials, `${pf}EL장`, W, H, true);
+              this.addElParts(materials, `${pf}EL장`, { W, H, D }, T, '');
             }
           });
         }
@@ -2476,10 +2537,15 @@
             const riceDoor = (RiceRules && RiceRules.isRiceCabinet(mod))
               ? (RiceRules.doorOf({ W: mod.w, H: mod.h }, mod.doorType || 'none') || { qty: 0 }) : null;
             if (riceDoor) doorCount = riceDoor.qty;
+            // 2026-10-20: 플래너 홈카페장 모듈 타입 — 자재 행과 같은 규칙 파일 doorOf (H + 20, 수 없으면 1)
+            const hcDoor = (!riceDoor && HomecafeRules && String(mod.moduleKind || '') === HomecafeRules.RULES.KIND)
+              ? HomecafeRules.doorOf({ W: mod.w, H: mod.h }, mod.doorCount) : null;
             // B4: 붙박이장 통 · 냉장고장 모듈은 자재 도어 행과 같은 수·높이
-            const wardrobeDoor = riceDoor ? null : (bomWardrobeDoorOf(item, mod) || bomFridgeDoorOf(item, mod));
+            const wardrobeDoor = riceDoor ? null
+              : hcDoor ? { count: hcDoor.qty, h: hcDoor.h }
+              : (bomWardrobeDoorOf(item, mod) || bomFridgeDoorOf(item, mod));
             if (wardrobeDoor) doorCount = wardrobeDoor.count;
-            if (!riceDoor && simpleRules && (mod.pos === 'upper' || mod.pos === 'lower')) {
+            if (!riceDoor && !hcDoor && simpleRules && (mod.pos === 'upper' || mod.pos === 'lower')) {
               const d = bomSimpleHingeDoorsOf(mod, specs);
               doorCount = d.count;
               simpleDoorH = d.doorH;
