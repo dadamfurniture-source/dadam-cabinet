@@ -34,3 +34,6 @@ pnpm-lock.yaml
 
 # Git
 .git/
+
+# Vendored third-party skills (kept verbatim, see .claude/skills/THIRD_PARTY.md)
+.claude/skills/webapp-testing/
