@@ -257,6 +257,31 @@
   }
 
   /**
+   * 좌대 상자 — 몸통 아래 (y −h … 0). 2026-10-20 사장님 카드 "뒤 맞춤" (붙박이장·키큰장 좌대 상자):
+   *   상자 뒷면 = 몸통 뒷면, 앞이 50 들어간다 (그 자리에 걸레받이 18T, 32 남음). 측판은 전후판 사이, 중간보강은 폭 가운데.
+   *   tags.side 를 쓰지 않는다 — 검사가 몸통 측판(side)으로 읽는다.
+   * @param {Array} ped keyed 행 (pedestal:fb · pedestal:side · pedestal:brace)
+   * @returns {{h:number, zFront:number}|null} 놓았으면 좌대 높이와 상자 앞면 z, 행이 이 짜임과 다르면 null (놓지 않는다)
+   */
+  function placePedestal(parts, ped, W, D) {
+    const pfam = (f) => ped.filter((x) => x.key.family === f).map((x) => x.row);
+    const fbs = pfam('pedestal:fb'), psides = pfam('pedestal:side'), braces = pfam('pedestal:brace');
+    const fb = fbs[0], ps = psides[0], br = braces[0];
+    const ok = fbs.length === 1 && psides.length === 1 && braces.length <= 1 && ped.length === 2 + braces.length
+      && fb.qty === 2 && fb.w === W && ps.qty === 2 && ps.h === fb.h && ps.thickness === fb.thickness
+      && ps.w + 2 * fb.thickness <= D && (!br || (br.qty === 1 && br.w === ps.w && br.h === fb.h));
+    if (!ok) return null;
+    const t = fb.thickness, h = fb.h, zb = -D / 2;
+    const tag = (o) => Object.assign({ pedestal: true }, o);
+    parts.push(makePart(fb, 0, { o: [-W / 2, -h, zb + t + ps.w], u: '+x', v: '+y', n: '+z' }, [], 'interior', tag({ end: 'front' })));
+    parts.push(makePart(fb, 1, { o: [-W / 2, -h, zb], u: '+x', v: '+y', n: '+z' }, [], 'interior', tag({ end: 'back' })));
+    parts.push(makePart(ps, 0, { o: [-W / 2, -h, zb + t], u: '+z', v: '+y', n: '+x' }, [], 'interior', tag({ end: 'left' })));
+    parts.push(makePart(ps, 1, { o: [W / 2, -h, zb + t], u: '+z', v: '+y', n: '-x' }, [], 'interior', tag({ end: 'right' })));
+    if (br) parts.push(makePart(br, 0, { o: [-br.thickness / 2, -h, zb + t], u: '+z', v: '+y', n: '+x' }, [], 'interior', tag()));
+    return { h, zFront: zb + t + ps.w + t };
+  }
+
+  /**
    * 한 모듈의 몸통. 지원하지 못하면 null (행은 모두 unplaced 로).
    * @returns {{module:object, unplaced:Array}|null}
    */
@@ -271,6 +296,7 @@
     const D = side.w, H = side.h;
     const W = bottom.w + 2 * T;
     const sakuri = /sakuri/.test(String(side.note || ''));
+    const chanTop = /목찬넬 따내기 상단/.test(String(side.note || ''));   // 측판 앞 위 70×40 따내기 (목찬넬 손잡이)
     const zBack = -D / 2, zFront = D / 2;
     const panelZ0 = sakuri ? zBack + C.SAKURI_PANEL_D_MINUS : zBack;   // 천지판 뒤끝 (앞선 맞춤)
     const shelfZ0 = sakuri ? zBack + C.SAKURI_PANEL_D_MINUS : zBack;   // 선반은 뒤로 붙인다
@@ -339,7 +365,6 @@
           //   (프로젝트 지침 — 처짐방지목 윗끝이 앞 밴드 아랫면에 닿는다, BOM bandH = H − 2T − 70), 목찬넬이 없으면
           //   윗면 = 몸통 상단 (bandH = H − 2T). 뒤 밴드는 윗면 = 몸통 상단, 뒤끝 — 사쿠리면 천지판처럼 홈 앞(panelZ0).
           if (row.part !== '밴드' || row.qty !== 2 || row.w !== C.BAND_W || row.h !== W - 2 * T || row.thickness !== T) { skip(row, 'band-position-pending'); return; }
-          const chanTop = /목찬넬 따내기 상단/.test(String(side.note || ''));
           const yFront = H - (chanTop ? DR.CHANNEL_TOP_NOTCH_H : 0) - T;
           parts.push(makePart(row, 0, { o: [-W / 2 + T, yFront, zFront - row.w], u: '+z', v: '+x', n: '+y' }, [], 'interior', { end: 'front' }));
           parts.push(makePart(row, 1, { o: [-W / 2 + T, H - T, panelZ0], u: '+z', v: '+x', n: '+y' }, [], 'interior', { end: 'back' }));
@@ -388,9 +413,40 @@
           if (!boxes || !placeBoxRow(parts, row, key, boxes, !!drawer.rules.sakuri, rows)) skip(row, 'drawer-layout-unknown');
           return;
         }
+        case 'channel:front':
+        case 'channel:back': {
+          // 키큰장 단의 상단 목찬넬 ㄴ자 — 그 단의 모듈 폭 (sink.md §5.1). 싱크 하부장의 목찬넬은 품목 행(run-part)이라 여기 오지 않는다.
+          //   측판 따내기(70×40) 바닥에 지면판 40, 그 위 따낸 자리 안쪽 끝에 전면판 52 (붙박이장 서랍모듈 상단 ㄴ자와 같다).
+          const face = key.family === 'channel:front';
+          if (!chanTop || row.qty !== 1 || row.h !== W || row.w !== (face ? DR.CHANNEL_TOP_FACE_H : DR.CHANNEL_BASE_W) || row.thickness !== DR.CHANNEL_T) { skip(row, 'channel-layout-unknown'); return; }
+          const yb = H - DR.CHANNEL_TOP_NOTCH_H, z0 = zFront - DR.CHANNEL_BASE_W;
+          parts.push(makePart(row, 0, face
+            ? { o: [-W / 2, yb + row.thickness, z0], u: '+y', v: '+x', n: '+z' }
+            : { o: [-W / 2, yb, z0], u: '+z', v: '+x', n: '+y' }, [], 'exterior', { channel: 'top' }));
+          return;
+        }
+        case 'pedestal:fb':
+        case 'pedestal:side':
+        case 'pedestal:brace':
+        case 'kick':
+          return;   // 아래에서 좌대 상자를 한꺼번에
+        case 'molding':
+          skip(row, 'molding-position-pending');   // 키큰장 상부단 상몰딩 — 자리 미정 (사장님 확인 대기)
+          return;
         default:
           skip(row, 'not-yet');
       }
+    });
+
+    // 좌대 상자 + 걸레받이 — 키큰장 바닥 단 (sink.md §5.1, 상자 구성은 붙박이장과 같다). 자리는 2026-10-20 사장님 카드
+    //   "뒤 맞춤" (붙박이장·키큰장): 상자 뒷면 = 몸통 뒷면, 앞이 50 들어가고 그 자리에 걸레받이 MDF 18T (상자 앞면에 붙어 선다, 앞에 32 남음).
+    const ped = keyed.filter((x) => x.key && /^pedestal:/.test(x.key.family));
+    const kicks = keyed.filter((x) => x.key && x.key.family === 'kick');
+    const pd = ped.length ? placePedestal(parts, ped, W, D) : null;
+    if (ped.length && !pd) ped.forEach((x) => skip(x.row, 'pedestal-layout-unknown'));
+    kicks.forEach(({ row }) => {
+      if (!pd || row.qty !== 1 || row.h !== W || row.w !== pd.h) { skip(row, 'pedestal-layout-unknown'); return; }
+      parts.push(makePart(row, 0, { o: [-W / 2, -pd.h, pd.zFront], u: '+y', v: '+x', n: '+z' }, [], 'exterior', { pedestal: true, kick: true }));
     });
 
     // 선반 — 높이는 부르는 쪽(플래너 구조 s.shelves)이 넘긴다. 개수가 BOM 과 다르면 놓지 않는다.
@@ -615,24 +671,7 @@
     //   (그 자리에 걸레받이 18T). 측판은 전후판 사이, 중간보강은 폭 가운데.
     //   tags.side 를 쓰지 않는다 — 검사가 몸통 측판(side)으로 읽는다.
     const pedRows = new Set();
-    if (ped.length) {
-      const pfam = (f) => ped.filter((x) => x.key.family === f).map((x) => x.row);
-      const fbs = pfam('pedestal:fb'), psides = pfam('pedestal:side'), braces = pfam('pedestal:brace');
-      const fb = fbs[0], ps = psides[0], br = braces[0];
-      const ok = fbs.length === 1 && psides.length === 1 && braces.length <= 1 && ped.length === 2 + braces.length
-        && fb.qty === 2 && fb.w === W && ps.qty === 2 && ps.h === fb.h && ps.thickness === fb.thickness
-        && ps.w + 2 * fb.thickness <= D && (!br || (br.qty === 1 && br.w === ps.w && br.h === fb.h));
-      if (ok) {
-        const t = fb.thickness, h = fb.h, zb = -D / 2;
-        const tag = (o) => Object.assign({ pedestal: true }, o);
-        parts.push(makePart(fb, 0, { o: [-W / 2, -h, zb + t + ps.w], u: '+x', v: '+y', n: '+z' }, [], 'interior', tag({ end: 'front' })));
-        parts.push(makePart(fb, 1, { o: [-W / 2, -h, zb], u: '+x', v: '+y', n: '+z' }, [], 'interior', tag({ end: 'back' })));
-        parts.push(makePart(ps, 0, { o: [-W / 2, -h, zb + t], u: '+z', v: '+y', n: '+x' }, [], 'interior', tag({ end: 'left' })));
-        parts.push(makePart(ps, 1, { o: [W / 2, -h, zb + t], u: '+z', v: '+y', n: '-x' }, [], 'interior', tag({ end: 'right' })));
-        if (br) parts.push(makePart(br, 0, { o: [-br.thickness / 2, -h, zb + t], u: '+z', v: '+y', n: '+x' }, [], 'interior', tag()));
-        ped.forEach((x) => pedRows.add(x.row));
-      }
-    }
+    if (ped.length && placePedestal(parts, ped, W, D)) ped.forEach((x) => pedRows.add(x.row));
 
     // 도어 — 2026-10-20 사장님 카드 "바닥 20 띄움": 좌대를 덮고 바닥에서 20 뜬다, 윗변 = 몸통 상단 (BOM 좌대H + 몸통 − 20).
     //   좌대 높이는 좌대 행 높이. 외부 서랍 몸통이 있으면 도어는 그 몸통 상단부터 (카드 "도어 1580" — 좌대 덮기는 서랍 전면 몫).
