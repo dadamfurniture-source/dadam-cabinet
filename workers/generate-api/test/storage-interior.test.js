@@ -9,6 +9,7 @@ import { createRequire } from 'node:module';
 import {
   SIMPLE_SHELF_RULES,
   buildStorageInteriorPrompt,
+  buildShoeInteriorPrompt,
   simpleShelfCount,
   tallShelfPlan,
 } from '../src/prompts.js';
@@ -52,4 +53,19 @@ test('내부 보기 지시문: 문 전부 열림, 정본 선반만, 서랍 없�
   assert.doesNotMatch(prompt, /bar handle|push-to-open/i);
   assert.equal(label, '내부 보기 · 기본 구조');
   assert.equal(plan, `칸마다 선반 ${shelves}단 (간격 약 ${gap})`);
+});
+
+test('신발장 내부 보기: 칸 간격 150~300 정본, 띄운 하부장·불빛 틈 유지, 서랍 없음', () => {
+  const { prompt, label, plan } = buildShoeInteriorPrompt({ wallH: 2310, tag: '기본 구조' });
+  const { shelves, gap } = tallShelfPlan(2310, SIMPLE_SHELF_RULES.space.shoe);
+  assert.equal(shelves, 13);
+  assert.equal(gap, 156);
+  assert.ok(prompt.includes('with 13 fixed flat shelves, evenly spaced about 156 mm apart'));
+  assert.match(prompt, /floating lower unit, the lit gap beneath/);
+  assert.match(prompt, /350 mm deep/);
+  assert.match(prompt, /No drawers/);
+  assert.match(prompt, /Handleless doors stay handleless/);
+  assert.doesNotMatch(prompt, /tilt|bar handle|push-to-open/i);
+  assert.equal(label, '내부 보기 · 기본 구조');
+  assert.equal(plan, '키큰 칸 선반 13단 · 간격 약 156');
 });

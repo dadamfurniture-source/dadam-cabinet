@@ -2910,6 +2910,23 @@ Photorealistic. No text, labels or watermarks.`;
 }
 
 /**
+ * 신발장 내부 보기 — 수납장과 같은 방식, 칸 간격만 신발장 정본 150~300 (§6.0). 키큰 칸은 몸통 높이로 선반 수를 세고,
+ * 띄운 하부장은 높이가 정해져 있지 않아 같은 간격만 준다. 틸트도어·통풍은 정본 규칙이 없어 넣지 않는다 (§6.5).
+ * @param {{wallH?:number, tag?:string}} [o]
+ * @returns {{prompt:string, label:string, plan:string}}
+ */
+export function buildShoeInteriorPrompt(o = {}) {
+  const { shelves, gap } = tallShelfPlan(o.wallH, SIMPLE_SHELF_RULES.space.shoe);
+  const prompt = `Open every door of the entrance shoe cabinet in this photo to show its whole interior.
+Keep the cabinet exactly as it is: the tall unit and the floating lower unit, the lit gap beneath the lower unit, the same number of sections and doors, the same widths. Behind each door of the tall unit the section is one tall open space from bottom to top with ${shelves} fixed flat shelves, evenly spaced about ${gap} mm apart, running the full width of the section. The lower unit has fixed flat shelves at the same spacing, about ${gap} mm apart. No drawers, clothes rails or other fittings inside.
+Every door swings fully open on its side hinges, about 90 degrees towards the camera, so all sections are visible at once. Each open door shows its inner face in the same finish as its outside.
+Inside: carcass and shelves in white; the cabinet is ${CATEGORIES.shoe.depth.replace(/\.$/, '')}, so the shelves are shallow. Neatly lined with pairs of shoes — sneakers, loafers, heels and a few boots on the lower shelves — one pair deep, toes facing out, with a little space between pairs, not packed full. Soft, even light inside.
+Keep everything else identical: camera, room, the cabinet's outer size, position and door colour, the walls, ceiling, floor and lighting. Handleless doors stay handleless.
+Photorealistic. No text, labels or watermarks.`;
+  return { prompt, label: ['내부 보기', o.tag].filter(Boolean).join(' · '), plan: `키큰 칸 선반 ${shelves}단 · 간격 약 ${gap}` };
+}
+
+/**
  * 추천 구조 고르기 (텍스트 모델, 기본안 사진을 같이 본다). 정본 기본형과 다른 조합을 하나 고르게 한다.
  * @param {{sections:number, wallW:number, wallH:number, brief?:string, customerRequest?:string, canonical:string[]}} c
  */
