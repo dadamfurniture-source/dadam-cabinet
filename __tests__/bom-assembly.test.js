@@ -645,10 +645,18 @@ describe('키큰장 단 자리 — 좌대 뒤 맞춤 · 걸레받이 · 목찬�
     });
   });
 
-  test('상몰딩은 자리 미정(molding-position-pending) — 그 밖에 못 놓은 행 없음 · 조립 검사 오류 없음', () => {
-    expect(st.unplaced.filter((u) => u.moduleKey === '0-t1').map((u) => [u.part, u.reason])).toEqual([['상몰딩', 'molding-position-pending']]);
-    expect(wh.unplaced.filter((u) => /planner-x/.test(u.moduleKey)).map((u) => [u.moduleKey, u.part, u.reason]))
-      .toEqual([['0-planner-x-2', '상몰딩', 'molding-position-pending']]);
+  test('상몰딩 띠 — 몸통 위 y H…H+60, 앞면 = 도어 앞면(D/2+18), 뒷면 = 몸통 앞선 (2026-10-20 카드 "도어 앞면 맞춤")', () => {
+    const t1 = modOf(st, 't1'), x2 = modOf(wh, 'planner-x-2');
+    expect(box(t1, '상몰딩', 0)).toEqual({ min: [-300, 2190, 200], max: [300, 2250, 218] });
+    expect(box(t1, '도어', 0).max[2]).toBe(218);
+    expect(box(x2, '상몰딩', 0)).toEqual({ min: [-400, 600, 225], max: [400, 660, 243] });
+    expect(t1.parts.find((p) => p.part === '상몰딩').tags).toEqual({ molding: true });
+    expect(modOf(wh, 'planner-x-0').parts.filter((p) => p.part === '상몰딩')).toEqual([]);
+  });
+
+  test('못 놓은 행 없음 · 조립 검사 오류 없음', () => {
+    expect(st.unplaced.filter((u) => u.moduleKey === '0-t1')).toEqual([]);
+    expect(wh.unplaced.filter((u) => /planner-x/.test(u.moduleKey))).toEqual([]);
     const Check = require('../js/detaildesign/assembly-check.js');
     expect(Check.check(st).issues.filter((i) => i.level === 'error')).toEqual([]);
     expect(Check.check(wh).issues.filter((i) => i.level === 'error')).toEqual([]);
