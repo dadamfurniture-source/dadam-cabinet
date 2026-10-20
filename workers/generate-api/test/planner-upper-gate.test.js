@@ -6,7 +6,8 @@
  *
  * 고정하는 것:
  *   1) 상부 도어 총수 ≠ 도면 → ok=false (점수 parts.uppers·score·max 는 예전 그대로) → 잡 마무리에서 internal_only
- *   2) 도면 밖 상부 줄 덤 유닛(extra_units row 'wall') → ok=false. 바닥 줄 덤은 예전처럼 이슈만 (PR #844)
+ *   2) 도면 밖 상부 줄 덤 유닛(extra_units row 'wall') → ok=false.
+ *      2026-10-20 덤 관문: 바닥·tall·other 줄 덤도 ok=false (planner-extra-gate.test.js) — 예전 "이슈만" (PR #844) 기대값을 바꿨다
  *   3) 예외는 총수 보정 그대로: 꺾인 벽 상부장(비스듬히 — 보였으면 도면 값, 이슈만) · 가려진 모서리 장(셈에서 뺌) ·
  *      후드 칸(장이 아니라 0짝)
  *   4) 상부장 없는 도면 · 비 플래너(옛 판독) 대조는 그대로
@@ -100,7 +101,7 @@ test('도면 밖 상부 줄 덤 유닛(냉장고 위 2짝) → ok=false, 상부�
   assert.ok(v.issues.indexOf(extra) < v.issues.findIndex((s) => s.startsWith('L3:')));
 });
 
-test('바닥 줄·other 덤 유닛은 예전처럼 이슈만 — ok 그대로 (PR #844 거짓 경보 근거)', () => {
+test('바닥 줄·tall·other 덤 유닛도 ok=false — 2026-10-20 덤 관문 (예전 PR #844 는 이슈만이었다) · 이슈 문구·순서는 그대로', () => {
   const v = verify(
     read([u('U1', 2), u('U2', 2), u('U3', 1)], {
       extra: [
@@ -110,7 +111,8 @@ test('바닥 줄·other 덤 유닛은 예전처럼 이슈만 — ok 그대로 (P
       ],
     })
   );
-  assert.equal(v.ok, true);
+  // 2026-10-20 사장님 결정: 도면 밖 덤은 어느 줄이든 ok 를 막는다 (예전 기대값 true)
+  assert.equal(v.ok, false);
   assert.deepEqual(v.issues, [
     'extra: base unit not in plan (drawer stack at the right end), 0 doors + 3 drawers',
     'extra: tall unit not in plan (pantry at the left), 2 doors + 0 drawers',
