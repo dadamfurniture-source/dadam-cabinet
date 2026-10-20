@@ -146,11 +146,16 @@ Authorization: Bearer <supabase jwt>
 
 ```
     T1   600 mm  tall column — 3 stacked doors (bottom 861 mm, middle 979 mm, top 460 mm)
-    T2   680 mm  refrigerator opening (keep it open from the floor up to 1885 mm, with no cabinet, shelf or panel inside; a free-standing refrigerator may stand there — keep the one IMAGE A shows, do not invent a built-in one) with a 2-door cabinet above (415 mm high)
+    T2   680 mm  refrigerator opening (open from the floor up to 1885 mm, with no cabinet, shelf or panel inside; a refrigerator stands in it: if IMAGE A shows a refrigerator in this spot, keep that one, otherwise draw a neutral free-standing two-door refrigerator, plain matte white or, if the fronts are dark, brushed stainless, with no logo or display, sized to fill the opening) with a 2-door cabinet above (415 mm high)
 FINAL SELF-CHECK …; tall row 1 unit + 1 appliance opening, 5 doors, 0 drawers; …
 ```
 
-- 냉장고 자리: **비워 두되** 사진 속 냉장고를 지우지도 새 붙박이 냉장고를 지어내지도 않는다 — 독립형 냉장고는 그 자리에 서 있어도 된다 (KEEP 의 움직이는 물건과 같은 편).
+- 냉장고 자리 (2026-10-20 사장님 결정 — "냉장고가 특정되면 해당 냉장고 사진을 넣어서 보여주고, 아니라면 가능한 중립 냉장고로 보여줘"):
+  장·선반·판은 없고 **냉장고를 그린다**. 사진(IMAGE A)의 그 자리에 냉장고가 보이면 그것을 유지, 없으면 그 자리에 걸린
+  `appliances[]` fridge 의 `model`(아래 "냉장고 모델")로 `this refrigerator: Samsung BESPOKE 409L, model RR40C7805AP, 595 × 1853 × 700 mm (W × H × D), single-door type`,
+  모델이 없으면 위의 중립 냉장고. 중립 냉장고 색은 워커가 정하지 않고 "흰색, 전면이 어두우면 스테인리스" 로 모델에게 맡긴다 (새 문턱값 없음).
+  옛 문장(`may stand there — keep the one IMAGE A shows, do not invent a built-in one`)은 허용일 뿐이라 사진에 냉장고가 없을 때 무엇을 그릴지 정하지 않았다
+  (실측 GPT 2장: 둘 다 독립형 냉장고를 그렸고 검사가 둘 다 `appliances_visible` 로 잡았다). 1단계는 사진 없이 글로만 — 모델 사진은 `appliance_models` 에 사진이 생긴 뒤.
   도면에 냉장고 자리가 있으면 DO NOT 의 "없는 가전" 에서 `refrigerator` 를 뺀다 (모듈·단 라벨로 안다).
 - 자체 점검: 가전 자리가 있는 통은 `appliance opening`, 없는 통은 `unit` 하나. 도어·서랍은 단의 합.
 - 검사 LAYOUT 요약·설치 프롬프트: `600 mm column of 3 stacked doors` · `680 mm refrigerator opening with a 2-door cabinet above`.
@@ -239,6 +244,31 @@ notes "꺾인 구간을 한 벽으로 폈습니다"). 실측(2026-10-19 GPT)에�
 | `kind` | string | `sink` · `hood` · `cooktop` · `fridge` · `dishwasher`. `refrigerator`→`fridge`, `range`/`hob`→`cooktop` 로 받아 준다. 그 밖은 버림 |
 | `fromLeftMm` | number | 0–12000 — 가전의 **왼쪽 끝**이 런 왼쪽 끝에서 얼마인지 (중심이 아니다) |
 | `widthMm` | number | 50–4000 |
+| `model` | object | 선택 (2026-10-20). **`fridge` 만** — 아래 "냉장고 모델". 다른 가전에 오면 버림 |
+
+#### `appliances[].model` — 냉장고 모델 (2026-10-20)
+
+플래너 배치 단계(`mockup-shell.html` W9-44 모델 고르기)에서 고른 냉장고. 값은 `appliance_models` 의 행 그대로다.
+플래너 모드의 냉장고 자리 문장만 읽는다 — 설치 프롬프트(`buildDesignSpecBlock`)·검사 요약은 읽지 않는다 (바이트 그대로).
+
+| 필드 | 형 | 규칙 |
+|---|---|---|
+| `brand` | string | `appliance_models.brand` (`삼성` · `LG` · `위니아` …). 30자. 프롬프트는 `삼성`→`Samsung`, `위니아`→`Winia`, `데이코`→`Dacor` 로 바꾸고 그 밖의 한글 브랜드는 뺀다 |
+| `name` | string | `model_name` (코드 없이). 80자. 프롬프트는 한글이 든 낱말을 뺀다 (`BESPOKE 1도어 키친핏 409L` → `BESPOKE 409L`) |
+| `code` | string | `model_code`. 40자. 이름에 이미 있으면 한 번만 말한다 |
+| `widthMm` · `heightMm` · `depthMm` | number | 50–4000 · 100–3600 · 50–1200 으로 자름. 숫자가 아니면 400 (`appliances[].model.heightMm …`) |
+| `subtype` | string | `appliance_models.subtype`. `french_4door` · `side_by_side` · `two_door` · `one_door` 는 문 형태로 말하고(`four-door french-door type` …), `built_in` · `kimchi_stand` · `kimchi_lid` · `wine` · `small` 은 받기만 한다. 그 밖은 버림 |
+
+- `name` 도 `code` 도 없으면(또는 객체가 아니면) `model` 키가 없다 → 중립 냉장고.
+- 모델은 가전이 걸린 모듈(냉장고장 통)에 붙는다 — 가전 자리(`fromLeftMm` + 폭/2)가 그 통 안이어야 한다.
+
+```json
+"appliances": [
+  { "kind": "fridge", "fromLeftMm": 2420, "widthMm": 680,
+    "model": { "brand": "삼성", "name": "BESPOKE 1도어 키친핏 409L", "code": "RR40C7805AP",
+               "widthMm": 595, "heightMm": 1853, "depthMm": 700, "subtype": "one_door" } }
+]
+```
 
 ### `finishes.{door|body|top}`
 
@@ -431,7 +461,7 @@ POST /api/generate
 |---|---|
 | IMAGE B | 번호 입면을 보낼 때만(GPT): 입면의 번호(L·U·T·W, 줄 안 왼쪽부터 1)·치수선은 주석 — 그리지 말 것. 번호 없는 입면이면 문장 없음 (2026-10-19) |
 | `LAYOUT` | `layout` → 없으면 `notes` 의 `ㄱ자`·`ㄷ자` → 그래도 모르면 **문단 없음** (일자로 단정하지 않는다). ㄱ자·ㄷ자면 벽 대비 % 와 남는 벽 구역을 말하지 않는다 (2026-10-20: `walls[]` ㄱ자는 주벽 기준으로 말한다 — `BINDING`) |
-| `FIXED GEOMETRY` | 줄마다 번호·폭·종류, `→ widths L1 : L2 : L3 = 2 : 1 : 2.5` (가장 좁은 모듈 = 1, 0.5 단위). 둘째 줄부터는 기준 줄(하부, 없으면 가장 긴 줄)의 모듈 경계로 시작·끝: `U1–U2 start above the left end of L1 and end above L3, 400 mm before the right end of the base row` |
+| `FIXED GEOMETRY` | 줄마다 번호·폭·종류, `→ widths L1 : L2 : L3 = 2 : 1 : 2.5` (가장 좁은 모듈 = 1, **2026-10-20 부터 소수 둘째 자리** — 예전 0.5 단위는 600 : 680 을 `1 : 1`, 800 : 600 을 `1.5 : 1` 로 말해 냉장고장을 도면보다 넓게 그렸다. 이제 `1 : 1.13` · `1.33 : 1`. 정수·0.5 배는 예전과 같은 글자). 둘째 줄부터는 기준 줄(하부, 없으면 가장 긴 줄)의 모듈 경계로 시작·끝: `U1–U2 start above the left end of L1 and end above L3, 400 mm before the right end of the base row` |
 | 높이 | `fromFloorMm`·`ceilingMm` 중 하나라도 오면 줄마다 `bottom at X mm, top at Y mm from the floor` (`fromFloorMm` 없는 하부·키큰장·붙박이장은 0). 아무것도 없으면 예전처럼 `870 mm high` |
 | `CLOSED LIST` | `L1–L3 and U1–U2 are the only built-in units` — 다른 장·서랍장·선반·판 없음 |
 | `BINDING` | 순서·개수·줄 안 폭 비율(±10 %)·기준 줄 대비 위치는 구속, 벽에 맞추는 것은 **전체 배율만** (옛 "mm·% 는 참고" 를 바꿈). 2026-10-20: **벽 폭을 알고 런이 벽보다 짧으면** 배율 문장 대신 고정 문장 — `The run is 2200 mm long — about 61 % of the wall (about 3600 mm in IMAGE A). Do not stretch the units to fill the wall; keep the remaining 1400 mm (about 39 %) right of the run as bare wall. Keep each door's proportions as IMAGE B shows — do not widen any door.` (분석 벽 폭이 ±150~200 mm 흔들려 mm 와 % 를 함께). 실측(싱크대 연출컷 26건 mm 측정): 일자 15장 중 14장이 하부장 줄 오른끝을 늘렸다(중앙 +223 mm), ㄱ자는 벽의 55 % 인 주벽 줄을 84~88 % 까지. 런이 붙은 벽 끝: 일자·모양 모름은 왼쪽 모서리(예전 가정), `walls[]` ㄱ자는 꺾인 벽 쪽 모서리 — 왼쪽 꺾임은 늘, 오른쪽 꺾임은 `corner:'main'` 일 때만(주벽 좌표 0 이 주벽 줄 왼쪽 끝이라). ㄷ자·펴진 ㄱ자·벽 모름·런 ≥ 벽은 배율 문장 그대로 |
@@ -440,7 +470,10 @@ POST /api/generate
 | `FINAL SELF-CHECK` | 맨 끝. 줄마다 유닛·도어·서랍 수, 빈 구역 수, `no other built-in unit anywhere`. 2026-10-19: 한 줄에 외문(1짝) 칸과 2짝 이상 칸이 섞이면 문 수를 칸별로 — 줄 끝 `→ doors U1 2 + U2 2 + U3 1 = 5 doors`, 자체 점검 `wall row 3 units, U1 2 + U2 2 + U3 1 = 5 doors`. 고른 줄은 합계만 (실측: 상부 2·2·1 을 6짝으로 그렸다). 2026-10-20: 고정 문장이 나갈 때 주벽 줄 점검 뒤에 `base row ends at about 61 % of the wall (2200 mm)` (런 끝에 닿는 줄 이름, 끝 마감재 50 mm 이하는 무시) |
 
 검사: 플래너 모드이고 도면이 천장 틈을 두었으면(`ceilingMm` 과 맨 위 줄 윗면) `gap_to_ceiling` 줄 끝에
-"그만한 틈은 의도된 것 — 그보다 분명히 클 때만" 을 붙인다. 그 밖의 검사 프롬프트는 바이트 그대로.
+"그만한 틈은 의도된 것 — 그보다 분명히 클 때만" 을 붙인다. 2026-10-20: 플래너 모드이고 도면에 냉장고 자리(냉장고장 통의
+가전 단 또는 냉장고 가전 칸, 꺾인 벽 포함)가 있으면 `appliances_visible` 줄 끝에
+`; a refrigerator standing in the refrigerator opening of the design is expected — do not report it` 를 붙인다 (그 자리에 냉장고를 그리라고 했다).
+그 밖의 검사 프롬프트는 바이트 그대로.
 
 ### 내부 확인용 (`options.internal_only`, 계획서 §6.3 · §11-⑦)
 
