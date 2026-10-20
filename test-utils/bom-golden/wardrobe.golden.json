@@ -384,7 +384,7 @@
       "h": 700,
       "qty": 2,
       "edge": "3면",
-      "note": "sakuri(15→3mm)",
+      "note": "sakuri(15→3mm) · 목찬넬 따내기 상단 70×40 + 중간 90×40 ×1",
       "finishCode": "",
       "partId": "0-w2-body:side-1",
       "slot": "body",
@@ -395,31 +395,6 @@
         "B": true
       },
       "edgeLen": 1900,
-      "edgeT": 0.6,
-      "edgeCode": null,
-      "moduleKey": "0-w2",
-      "itemLabel": "붙박이장"
-    },
-    {
-      "module": "긴옷-서랍모듈",
-      "part": "천판",
-      "material": "PB",
-      "thickness": 15,
-      "w": 870,
-      "h": 582,
-      "qty": 1,
-      "edge": "1면(전)",
-      "note": "",
-      "finishCode": "",
-      "partId": "0-w2-body:top-1",
-      "slot": "body",
-      "edges": {
-        "L": false,
-        "R": false,
-        "T": false,
-        "B": true
-      },
-      "edgeLen": 870,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-w2",
@@ -1277,10 +1252,10 @@
     },
     {
       "module": "EP",
-      "part": "목찬넬",
+      "part": "목찬넬(전면)",
       "material": "MDF",
       "thickness": 18,
-      "w": 100,
+      "w": 52,
       "h": 900,
       "qty": 1,
       "edge": "2면(장)",
@@ -1302,16 +1277,66 @@
     },
     {
       "module": "EP",
-      "part": "목찬넬",
+      "part": "목찬넬(지면)",
       "material": "MDF",
       "thickness": 18,
-      "w": 120,
+      "w": 40,
       "h": 900,
       "qty": 1,
       "edge": "2면(장)",
       "note": "",
       "finishCode": "",
-      "partId": "0-w2-channel:front-1",
+      "partId": "0-w2-channel:back-0",
+      "slot": "handle",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 1800,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "moduleKey": "0-w2",
+      "itemLabel": "붙박이장"
+    },
+    {
+      "module": "EP",
+      "part": "목찬넬(중간 전면)",
+      "material": "MDF",
+      "thickness": 18,
+      "w": 72,
+      "h": 900,
+      "qty": 1,
+      "edge": "2면(장)",
+      "note": "",
+      "finishCode": "",
+      "partId": "0-w2-channel:mid-front-0",
+      "slot": "handle",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 1800,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "moduleKey": "0-w2",
+      "itemLabel": "붙박이장"
+    },
+    {
+      "module": "EP",
+      "part": "목찬넬(중간 지면)",
+      "material": "MDF",
+      "thickness": 18,
+      "w": 40,
+      "h": 900,
+      "qty": 1,
+      "edge": "2면(장)",
+      "note": "",
+      "finishCode": "",
+      "partId": "0-w2-channel:mid-back-0",
       "slot": "handle",
       "edges": {
         "L": true,
@@ -1555,8 +1580,8 @@
     "PB_15": {
       "material": "PB",
       "thickness": 15,
-      "totalArea": 20888042,
-      "panelCount": 8
+      "totalArea": 20381702,
+      "panelCount": 7
     },
     "MDF_3": {
       "material": "MDF",
@@ -1567,13 +1592,13 @@
     "MDF_18": {
       "material": "MDF",
       "thickness": 18,
-      "totalArea": 7160720,
+      "totalArea": 7146320,
       "panelCount": 3
     }
   },
   "edgeBanding": {
     "1": 35176,
-    "0.6": 110692
+    "0.6": 113422
   },
   "hardware": [
     {
