@@ -402,31 +402,6 @@
     },
     {
       "module": "긴옷-서랍모듈",
-      "part": "천판",
-      "material": "PB",
-      "thickness": 15,
-      "w": 870,
-      "h": 582,
-      "qty": 1,
-      "edge": "1면(전)",
-      "note": "",
-      "finishCode": "",
-      "partId": "0-w2-body:top-1",
-      "slot": "body",
-      "edges": {
-        "L": false,
-        "R": false,
-        "T": false,
-        "B": true
-      },
-      "edgeLen": 870,
-      "edgeT": 0.6,
-      "edgeCode": null,
-      "moduleKey": "0-w2",
-      "itemLabel": "붙박이장"
-    },
-    {
-      "module": "긴옷-서랍모듈",
       "part": "지판",
       "material": "PB",
       "thickness": 15,
@@ -1605,8 +1580,8 @@
     "PB_15": {
       "material": "PB",
       "thickness": 15,
-      "totalArea": 20888042,
-      "panelCount": 8
+      "totalArea": 20381702,
+      "panelCount": 7
     },
     "MDF_3": {
       "material": "MDF",
@@ -1623,7 +1598,7 @@
   },
   "edgeBanding": {
     "1": 35176,
-    "0.6": 114292
+    "0.6": 113422
   },
   "hardware": [
     {
