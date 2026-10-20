@@ -127,16 +127,31 @@ const SECTION_PALETTE_3D = {
 const STRUCTURE_ONLY_SECTIONS = {};
 
 /**
+ * 품목별 섹션 기본값 덮어쓰기 — **여기가 정본이다.** 키는 data-constants.js CATEGORIES 의 id.
+ *
+ * 2026-10-20 사장님 확정(결정 카드): TV장 거실장 전체 높이 450 (받침 150 은 하부장과 같다 → 몸통 288 + 상판 12).
+ *   기본 구성은 거실장(하부 한 줄)만, 깊이 400 (data-constants CATEGORIES.tvcabinet.defaultD).
+ * 플래너(배치·구조)는 URL 의 preset(= 품목 id)으로 이 표를 읽고, 부모 ui-step1 incrementCategory 는
+ * 새 품목의 specs.lowerH 를 여기서 채운다 (BOM 의 하부 높이 폴백이 specs.lowerH 다).
+ */
+const PLANNER_CATEGORY_SECTION_OVERRIDES = {
+  tvcabinet: { lower: { moduleH: 450 } },
+};
+
+/**
  * 페이지별 SECTION_CONFIG 를 만든다. 정본 객체를 공유하지 않도록 항상 새 객체를 준다
  * (한 페이지에서의 수정이 다른 정의로 새지 않게).
  * @param {object} [extra]    이 페이지에만 있는 섹션
  * @param {object} [palette]  섹션별 색 덮어쓰기
+ * @param {string} [categoryId] 품목 id — PLANNER_CATEGORY_SECTION_OVERRIDES 를 얹는다
  */
-function buildSectionConfig(extra, palette) {
+function buildSectionConfig(extra, palette, categoryId) {
   const out = {};
   Object.keys(PLANNER_SECTIONS).forEach((k) => { out[k] = Object.assign({}, PLANNER_SECTIONS[k]); });
   if (extra) Object.keys(extra).forEach((k) => { out[k] = Object.assign({}, out[k], extra[k]); });
   if (palette) Object.keys(palette).forEach((k) => { if (out[k]) Object.assign(out[k], palette[k]); });
+  const cat = categoryId ? PLANNER_CATEGORY_SECTION_OVERRIDES[categoryId] : null;
+  if (cat) Object.keys(cat).forEach((k) => { if (out[k]) Object.assign(out[k], cat[k]); });
   return out;
 }
 
@@ -147,10 +162,11 @@ if (typeof window !== 'undefined') {
   window.FINISHING_SECTIONS = FINISHING_SECTIONS;
   window.PLANNER_MARKER_SECTIONS = PLANNER_MARKER_SECTIONS;
   window.buildSectionConfig = buildSectionConfig;
+  window.PLANNER_CATEGORY_SECTION_OVERRIDES = PLANNER_CATEGORY_SECTION_OVERRIDES;
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     PLANNER_SECTIONS, SECTION_PALETTE_3D, STRUCTURE_ONLY_SECTIONS, FINISHING_SECTIONS, PLANNER_MARKER_SECTIONS,
-    buildSectionConfig,
+    buildSectionConfig, PLANNER_CATEGORY_SECTION_OVERRIDES,
   };
 }
