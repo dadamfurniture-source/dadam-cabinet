@@ -22,6 +22,11 @@ function plannerPresetPlanOf(categoryId) {
       return null;
     case 'wardrobe':
       return { kinds: ['I'], sections: ['wardrobe'] };
+    // 신발장·창고장: 품목 폭 그대로 키큰장 한 줄 — 구조 단계가 폭을 나눠 모듈을 세운다 (2026-10-20 사장님 카드 「키큰장 한 줄」).
+    //   하부장 + 상부장 줄은 쓰지 않는다. 키큰장 ㄱ자·ㄷ자 모양은 정해진 적이 없어 일자만 둔다.
+    case 'shoerack':
+    case 'warehouse':
+      return { kinds: ['I'], sections: ['tall'] };
     // TV장: 기본 구성은 거실장(하부 한 줄)만 (2026-10-20 결정). 아일랜드: 하부 한 줄 (sink.md 상부장 없음).
     case 'tvcabinet':
     case 'island':
