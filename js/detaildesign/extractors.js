@@ -178,6 +178,34 @@
 
       const BOM_TALL_TIER_LABEL = { bottom: '하부단', middle: '중간단', top: '상부단', single: '' };
 
+      // ============================================================
+      // 걸레받이 나누기 — 2026-10-20 사장님 카드 「꺾임에서 나누기」.
+      //   벽마다 한 장. 원판 긴 변(SHEET_H 2440)을 넘는 벽은 그 길이 단위로 더 나눈다 (ㄱ자면 최소 2장).
+      //   예전엔 라인 폭 합을 한 장으로 냈다 — ㄱ자 4161×145 한 장은 원판에 안 들어간다.
+      //   벽 = 하부 라인 모듈의 앞면 방향(_place.front, ui-step1 _plannerPlaceOf). 자리가 없는 옛 설계는 한 벽.
+      //   걸레받이카바 개수는 그대로다 — 전체 길이(조각 길이 × 수량 합)로 센다.
+      // ============================================================
+      function bomKickWallLensOf(modules) {
+        const order = [];
+        const sum = {};
+        (modules || []).forEach((m) => {
+          const front = m && m._place && Array.isArray(m._place.front) ? m._place.front.join(',') : '-';
+          if (!(front in sum)) { sum[front] = 0; order.push(front); }
+          sum[front] += parseFloat(m && m.w) || 0;
+        });
+        return order.map((k) => sum[k]).filter((w) => w > 0);
+      }
+
+      /** 벽 하나를 원판 긴 변 단위로 자른 조각 길이들 (앞에서부터 unit, 끝에 나머지) */
+      function bomKickPiecesOf(wallLen, unit) {
+        const out = [];
+        let rest = Math.round(Number(wallLen) || 0);
+        const u = Number(unit) > 0 ? Number(unit) : rest;
+        while (rest > u) { out.push(u); rest -= u; }
+        if (rest > 0) out.push(rest);
+        return out;
+      }
+
       /** 키큰장 단이 목찬넬을 짊어지는가 — 바닥 단(하부단·통짜) + 목찬넬 손잡이 스펙. 도어 H·처짐방지·목찬넬 부재가 이걸 본다. */
       function bomTallTierHasChannel(tier, specs) {
         const grounded = tier === 'bottom' || tier === 'single';
@@ -1408,6 +1436,22 @@
         // ========================================
         // 싱크대 자재 추출
         // ========================================
+        /**
+         * 걸레받이 행 — 벽마다, 원판 긴 변을 넘으면 그 단위로 나눈 조각을 길이별로 묶어 낸다 (bomKickWallLensOf).
+         * @param {number[]} wallLens 벽 길이들
+         * @param {number} kickH      걸레받이 높이 (다리발 − 5)
+         */
+        addKickBoards(materials, label, wallLens, kickH) {
+          const unit = this.PANEL_H || 2440;
+          const qtyByLen = new Map();
+          wallLens.forEach((len) => bomKickPiecesOf(len, unit).forEach((p) => qtyByLen.set(p, (qtyByLen.get(p) || 0) + 1)));
+          const pieces = [...qtyByLen.values()].reduce((a, b) => a + b, 0);
+          const note = pieces > 1 ? `벽 ${wallLens.length}개 · ${unit} 넘으면 ${unit} 단위로 나눔` : '';
+          [...qtyByLen.keys()].sort((a, b) => b - a).forEach((len) => {
+            this.add(materials, label, '걸레받이', 'MDF', 18, len, kickH, qtyByLen.get(len), '2면(장)', note);
+          });
+        }
+
         extractSink(item, materials, prefix = '') {
           const specs = item.specs || {};
           const T = this.thicknessFor(specs);
@@ -1559,10 +1603,10 @@
             this.add(materials, epLabel, '상몰딩', 'MDF', 18, moldingH, moldingW, 1, moldingEdge);
           }
 
-          // 걸레받이 — 여기부터 하부 라인 마감
+          // 걸레받이 — 여기부터 하부 라인 마감. 벽마다 나눈다 (2026-10-20 카드 「꺾임에서 나누기」)
           this.beginItemLevel('lower');
           if (effectiveW > 0) {
-            this.add(materials, epLabel, '걸레받이', 'MDF', 18, effectiveW, legH - 5, 1, '2면(장)');
+            this.addKickBoards(materials, epLabel, lowerModules.length ? bomKickWallLensOf(lineLowerModules) : [effectiveW], legH - 5);
           }
 
           // 목찬넬
@@ -2225,7 +2269,7 @@
           // 걸레받이·목찬넬 — 다리발 위 하부 라인 폭 (키큰장 단은 좌대가 받치므로 뺀다). 하부장이 없으면 없다.
           this.beginItemLevel('lower');
           if (effectiveW > 0) {
-            this.add(materials, epLabel, '걸레받이', 'MDF', 18, effectiveW, legH - 5, 1, '2면(장)');
+            this.addKickBoards(materials, epLabel, bomKickWallLensOf(lineLowerModules), legH - 5);
           }
           if (isWoodChannel && effectiveW > 0) {
             this.add(materials, epLabel, '목찬넬(전면)', 'MDF', 18, 52, effectiveW, 1, '2면(장)');
@@ -2842,9 +2886,13 @@
 
           // 2026-10-13 사장님: 걸레받이카바(18T 투명) — 한 개 2400mm, 걸레받이 전체 길이로 센다.
           //   자재 표의 '걸레받이'·'좌대 걸레받이' 행의 긴 변 × 수량 합 ÷ 2400 올림.
+          //   2026-10-20: 걸레받이는 벽마다 나뉜다(addKickBoards) — 길이는 w 다. 나머지 조각(예 47)이 높이 145 보다
+          //   짧아도 긴 변(145)으로 세면 전체 길이가 늘어 카바 개수가 바뀐다. 좌대 걸레받이는 행마다 놓는 방향이 달라 긴 변 그대로.
           const kickLen = this.materialRowsOf(item)
             .filter((r) => r.part === '걸레받이' || r.part === '좌대 걸레받이')
-            .reduce((n, r) => n + Math.max(Number(r.w) || 0, Number(r.h) || 0) * (Number(r.qty) || 0), 0);
+            .reduce((n, r) => n + (r.part === '걸레받이'
+              ? Number(r.w) || 0
+              : Math.max(Number(r.w) || 0, Number(r.h) || 0)) * (Number(r.qty) || 0), 0);
           if (kickLen > 0) {
             hardware.push({
               category: '걸레받이카바',
@@ -3098,6 +3146,8 @@
           BOM_GAS_STRUTS, bomGasStrutFor,
           // 2026-10-18 사전 오류 검사(bom-preflight.js)가 컵 간격 문턱을 여기서 읽는다
           BOM_HINGE_MIN_GAP,
+          // 2026-10-20 걸레받이 꺾임에서 나누기
+          bomKickWallLensOf, bomKickPiecesOf,
         };
       }
 

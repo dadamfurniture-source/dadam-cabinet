@@ -1381,7 +1381,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     return modules.filter((x) => !x.isFinishing && areaIdOfModule(x) === area.id);
   }
 
-  // 2026-10-20 플래너 점검: 개별 모듈 패널 초안을 '적용' 없이 두고 다른 모듈을 고르면
+  // 2026-10-20 플래너 점검 (사장님 카드 「자동 적용」 확정): 개별 모듈 패널 초안을 '적용' 없이 두고 다른 모듈을 고르면
   //   moduleDraftFor 가 새 초안을 띄우며 바꾼 값이 말없이 사라졌다. 떠나기 전에 적용한다.
   function setActiveModule(id) {
     if (modulePanelDraft && modulePanelDraft.dirty && modulePanelDraft.id !== id) applyModuleDraft();
@@ -5028,7 +5028,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const tSel = row.querySelector('.a-type, .b-type');
       const dSel = row.querySelector('.a-dir, .b-dir');
       if (tSel) tSel.onchange = (e) => {
-        // 2026-10-20 플래너 점검 (카드 "서랍장으로 바꾸기"): 칸 타입 '서랍'은 BOM 브리지·3D 가 읽지 않아
+        // 2026-10-20 플래너 점검 (카드 "서랍장으로 바꾸기", 2026-10-20 사장님 확정): 칸 타입 '서랍'은 BOM 브리지·3D 가 읽지 않아
         //   서랍 단수·레일을 고쳐도 도어+선반으로 나갔다. 서랍은 모듈 단위(상하 구성 = 하부 서랍)로만 산출된다.
         //   칸이 하나면 그 모듈을 서랍장으로 바꾸고, 칸이 여럿이면 목록에서 뺐다(모듈을 나눠 쓴다).
         if (idx !== undefined && e.target.value === 'drawer' && s.verticalCount === 1) {

@@ -169,7 +169,8 @@ describe('P1-2 상부장 없는 배치에는 상몰딩을 내지 않는다', () 
   test('하부 모듈이 하나도 없는 옛 저장 설계 — 상몰딩은 여전히 없고 걸레받이만 품목 폭 − 120 으로 떨어진다', () => {
     const rows = extract(sinkItem([]));
     expect(rowsOf(rows, 'ep', '상몰딩')).toHaveLength(0);
-    expect(one(rows, 'ep', '걸레받이').w).toBe(4200 - 120);
+    // 2026-10-20 카드 「꺾임에서 나누기」: 4080 한 벽은 원판 2440 단위로 2440 + 1640
+    expect(rowsOf(rows, 'ep', '걸레받이').map((r) => [r.w, r.qty])).toEqual([[2440, 1], [4200 - 120 - 2440, 1]]);
   });
 });
 
