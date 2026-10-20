@@ -336,3 +336,13 @@ test('잡(신발장): 색 추천안 2장 + 내부 보기 1장 (신발장 칸 간
   assert.equal(v3.structure.kind, 'standard');
   assert.match(v3.structure.plan, /^키큰 칸 선반 \d+단/);
 });
+
+test('잡(화장대): 색 추천안 2장 + 내부 보기 1장', async () => {
+  const { prompts, claude, last } = await runJob('vanity', { claude: REC });
+  assert.equal(prompts.filter((p) => p.startsWith('Recolour')).length, 2);
+  assert.equal(prompts.filter((p) => p.startsWith('Open the dressing table')).length, 1);
+  assert.equal(claude.length, 0);
+  const v3 = last.images.find((i) => i.slot === 'v3');
+  assert.equal(v3.structure.kind, 'standard');
+  assert.match(v3.structure.plan, /서랍 열림$/);
+});

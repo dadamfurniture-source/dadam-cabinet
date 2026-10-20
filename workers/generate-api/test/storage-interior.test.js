@@ -10,6 +10,7 @@ import {
   SIMPLE_SHELF_RULES,
   buildStorageInteriorPrompt,
   buildShoeInteriorPrompt,
+  buildVanityInteriorPrompt,
   simpleShelfCount,
   tallShelfPlan,
 } from '../src/prompts.js';
@@ -68,4 +69,16 @@ test('신발장 내부 보기: 칸 간격 150~300 정본, 띄운 하부장·불�
   assert.doesNotMatch(prompt, /tilt|bar handle|push-to-open/i);
   assert.equal(label, '내부 보기 · 기본 구조');
   assert.equal(plan, '키큰 칸 선반 13단 · 간격 약 156');
+});
+
+test('화장대 내부 보기: 키큰장 문 열림·선반 간격 300~450, 서랍 반쯤 빼기, 거울 그대로', () => {
+  const { prompt, label, plan } = buildVanityInteriorPrompt({ wallH: 2310, tag: '기본 구조' });
+  assert.match(prompt, /Every door of the tall cabinet swings fully open/);
+  assert.ok(prompt.includes('evenly spaced about 313 mm apart'));
+  assert.match(prompt, /Every drawer is pulled out about halfway/);
+  assert.match(prompt, /The mirror stays a plain mirror/);
+  assert.match(prompt, /Handleless doors and drawer fronts stay handleless/);
+  assert.doesNotMatch(prompt, /bar handle|push-to-open/i);
+  assert.equal(label, '내부 보기 · 기본 구조');
+  assert.equal(plan, '키큰장 선반 간격 약 313 · 서랍 열림');
 });
