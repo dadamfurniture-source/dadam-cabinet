@@ -428,7 +428,8 @@
    * 도어는 좌대를 덮고 바닥에서 20, 외부 서랍 통은 서랍 몸통 위부터 (2026-10-20 카드). 서랍도어는 1~3단 (목찬넬 틈 30, 그 밖 전면 사이 4).
    *   외부 서랍 몸통은 천판이 없고 (카드 "천판 빼기") 측판 따내기 자리에 목찬넬 ㄴ자 (EP) 를 놓는다.
    *   외부 서랍 박스는 싱크 서랍 박스 짜임 (카드 "싱크 규칙"). 내부 서랍장은 도어 앞면 = 앞선 − 70 (카드 "도어 앞선−70").
-   *   아직 자리를 정하지 않은 행: 서랍모듈 밴드, 내부 서랍장 박스, 규칙 블록이 없는 옛 내부 서랍. 좌대는 뒤 맞춤 (2026-10-20 카드). 칸막이는 규칙 파일 배치가 있을 때만 (없으면 'divider-layout-unknown').
+   *   내부 서랍장 박스는 서랍 자리 바닥 + 30 (카드 "싱크 규칙 바닥+30").
+   *   아직 자리를 정하지 않은 행: 서랍모듈 밴드, 규칙 블록이 없는 옛 내부 서랍. 좌대는 뒤 맞춤 (2026-10-20 카드). 칸막이는 규칙 파일 배치가 있을 때만 (없으면 'divider-layout-unknown').
    * @returns {{module:object, unplaced:Array}|null}
    */
   function wardrobeOf(mk, mod, rows, opts, item) {
@@ -703,7 +704,6 @@
     //   좌우몰딩은 앞을 보고 서서 앞면 = 앞선 − 70, 상판 앞선도 앞선 − 70.
     //   높이는 규칙 그대로 — 통 지판 위(zone.y0)에 모듈, 그 위 상판, 도어는 모듈 외경 면에서 아래 2 (frontY0).
     //   가로는 통 내경 가운데, 좌우 몰딩 60. 몸통은 하부장과 같다 — 천판 없이 밴드가 상단 앞·뒤에 선다 (규칙 BAND_H 주석).
-    //   서랍 박스 높이 자리는 아직 정하지 않았다.
     const innerRows = new Set();
     const zoneCab = layoutOk && cabs ? cabs.find((cb) => cb.drawerZone && cb.drawerZone.fronts && cb.drawerZone.fronts.length) : null;
     const innerHit = keyed.filter((x) => x.key && (groupOf(x.row) === '내부서랍모듈' || /^innerdrawer:/.test(x.key.family)));
@@ -749,6 +749,32 @@
           parts.push(makePart(slot.r, slot.k++, { o: [-z.frontW / 2, y0 + z.frontY0 + f.y0, zMod], u: '+x', v: '+y', n: '+z' }, [], 'exterior', tag({ drawerIdx: f.idx })));
         });
         [side, bottom, band, back, topP, molding].concat(fronts).forEach((r) => innerRows.add(r));
+
+        // 박스 — 2026-10-20 사장님 카드 "싱크 규칙 바닥+30": 서랍 자리 = 자기 도어 높이 구간 (맨 아래는 지판 윗면부터),
+        //   측판 밑단 = 그 바닥 + 레일 아래 여유, 가로 가운데, 앞끝 = 모듈 앞선. 치수는 규칙 파일 박스 (innerDrawerBoxOf).
+        const ys = z.fronts.map((f) => y0 + z.frontY0 + f.y0);
+        const boxes = [];
+        z.fronts.forEach((f, i) => {
+          const b = z.boxes[i];
+          if (!b || b.idx !== f.idx) return;
+          const rail = DR.RAIL_CLEARANCE[b.rail];
+          const bottomY = i === 0 ? y0 + t : ys[i];
+          const topY = i < z.fronts.length - 1 ? ys[i + 1] : y0 + mH - I.BAND_H;
+          const by = bottomY + rail.below;
+          if (by + b.sideH + rail.above > topY) return;
+          boxes.push({ size: b.size, dims: b, x0: -b.outerW / 2, y0: by, zf: zMod, z0: zMod - b.sideL });
+        });
+        if (boxes.length === z.fronts.length) {
+          const boxHit = innerHit.filter((x) => groupOf(x.row) === '내부서랍모듈' && /^drawerbox:/.test(x.key.family));
+          const boxRowsOf = boxHit.map((x) => x.row);
+          const placedBox = boxHit.filter(({ row, key }) => {
+            const n0 = parts.length;
+            if (!placeBoxRow(parts, row, key, boxes, false, boxRowsOf)) return false;
+            for (let k = n0; k < parts.length; k++) Object.assign(parts[k].tags, { innerDrawer: true });
+            return true;
+          });
+          placedBox.forEach((x) => innerRows.add(x.row));
+        }
       }
     }
 
