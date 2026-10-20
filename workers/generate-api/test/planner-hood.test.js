@@ -57,7 +57,8 @@ test('후드 칸: U1 | H1 | U2 — 줄 번호를 받지 않고, 줄 안 위치·
   assert.match(p, /\n {4}U1 {3}800 mm {2}2-door cabinet\n {4}H1 {3}600 mm {2}range hood — not a cabinet/);
   assert.match(p, /\n {4}U2 {3}800 mm {2}2-door cabinet\n/);
   assert.doesNotMatch(p, /\bU3\b/);
-  assert.match(p, /→ widths U1 : H1 : U2 = 1\.5 : 1 : 1\.5/);
+  // 2026-10-20: 소수 둘째 자리 — 800 : 600 (예전 0.5 단위 반올림 "1.5 : 1 : 1.5")
+  assert.match(p, /→ widths U1 : H1 : U2 = 1\.33 : 1 : 1\.33/);
   // 상부 줄은 기준 줄(하부)의 L1 왼쪽 끝 ~ L3 오른쪽 끝 (H1 이 빠지면 U2 가 L2 위로 당겨진다)
   assert.match(p, /U1–U2 start above the left end of L1 and end above the right end of L3/);
 });
