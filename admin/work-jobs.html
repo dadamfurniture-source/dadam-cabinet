@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 작업자 이름 · 연락처 · 금액이 담긴다 — 색인 · 참조자 노출을 막는다 -->
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta name="referrer" content="no-referrer" />
+    <title>작업 배정 - 다담가구 관리자</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet" />
+    <script src="../js/config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="../js/admin-access.js?v=36.1"></script>
+    <script src="../js/work-jobs-admin.js?v=2"></script>
+    <!--
+      작업 배정 (docs/01-plan/worker-portal-contract.md §4, 계획 worker-portal.plan.md §7-1).
+      작업 보드(초안 · 모집중 · 마감 · 배정 · 진행 · 검수대기 · 완료) + 작업자 탭(승인 · 종류 · 초대 링크 · 메모).
+      workflow-api 의 /work/admin/* 로 읽고 쓴다. 관리자 전원이 보고, 쓰기는 super_admin · admin (서버가 판정).
+      현장 주소 · 연락처는 받지도 보여 주지도 않는다 (★7 공개 기간 미정). 화면에 넣는 값은 전부 esc() 를 거친다
+      (이름표 · 카드 · 타임라인 HTML 은 js/work-jobs-admin.js).
+    -->
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      [hidden] { display: none !important; }
+      body { font-family: 'Noto Sans KR', sans-serif; background: #f5f5f5; color: #333; }
+      .sidebar { position: fixed; left: 0; top: 0; width: 250px; height: 100vh; background: #1a1a2e; color: white; padding: 20px 0; overflow-y: auto; }
+      .sidebar-logo { padding: 0 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px; }
+      .sidebar-logo h1 { font-size: 20px; font-weight: 700; }
+      .sidebar-logo span { font-size: 12px; color: #888; }
+      .nav-menu { list-style: none; }
+      .nav-menu li a { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: #aaa; text-decoration: none; transition: all 0.3s; }
+      .nav-menu li a:hover, .nav-menu li a.active { background: rgba(255,255,255,0.1); color: white; }
+      .nav-menu li a.active { border-left: 3px solid #007bff; }
+      .nav-icon { font-size: 18px; width: 24px; text-align: center; }
+      .sidebar-footer { position: absolute; bottom: 20px; left: 20px; right: 20px; }
+      .sidebar-footer a { display: block; padding: 10px; text-align: center; background: rgba(255,255,255,0.1); color: #aaa; text-decoration: none; border-radius: 8px; font-size: 13px; }
+      .main-content { margin-left: 250px; padding: 20px 30px; min-height: 100vh; min-width: 0; }
+      .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #ddd; gap: 12px; flex-wrap: wrap; }
+      .header h2 { font-size: 24px; font-weight: 700; }
+      .header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      .admin-info { font-size: 13px; color: #666; }
+      .btn { padding: 8px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-family: inherit; }
+      .btn-primary { background: #007bff; color: #fff; }
+      .btn-primary:hover { background: #0056b3; }
+      .btn-secondary { background: #6c757d; color: #fff; }
+      .btn-light { background: #fff; color: #333; border: 1px solid #ddd; }
+      .btn-danger { background: #fff; color: #c62828; border: 1px solid #f1b0b0; }
+      .btn-sm { padding: 5px 10px; font-size: 12px; }
+      .btn-xs { padding: 3px 8px; font-size: 11px; }
+      .btn:disabled { opacity: 0.5; cursor: default; }
+      .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+      .tab { padding: 6px 12px; border-radius: 99px; border: 1px solid #ddd; background: #fff; cursor: pointer; font-size: 13px; font-family: inherit; }
+      .tab.active { background: #007bff; border-color: #007bff; color: #fff; }
+      .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; background: #fff; border-radius: 10px; padding: 12px 16px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 12px; }
+      .filter-group { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #666; }
+      .filter-group select { padding: 7px 9px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit; font-size: 13px; }
+      .check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #444; cursor: pointer; }
+      .notice { background: #fff3e0; color: #8a4b00; border: 1px solid #ffd8a8; border-radius: 8px; padding: 10px 14px; font-size: 13px; line-height: 1.6; margin-bottom: 12px; }
+      .notice-info { background: #eef4ff; color: #24527a; border-color: #c9dbf5; }
+      .card { background: #fff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+      .muted { color: #888; font-size: 12px; }
+      .pre { white-space: pre-wrap; word-break: break-word; font-size: 13px; margin-top: 4px; }
+      .status-line { font-size: 13px; color: #666; min-height: 18px; margin-bottom: 6px; }
+      .empty-mini { color: #999; font-size: 13px; padding: 10px 2px; }
+      .access-denied { display: none; text-align: center; padding: 100px 20px; }
+      .access-denied h2 { margin-bottom: 10px; }
+      .access-denied a { color: #007bff; }
+
+      /* 보드 */
+      .board { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; align-items: start; }
+      .col { background: #eceff3; border-radius: 10px; padding: 10px; min-width: 0; }
+      .col h3 { font-size: 14px; font-weight: 700; margin: 2px 4px 8px; display: flex; justify-content: space-between; }
+      .col h3 .count { color: #888; font-weight: 500; }
+      .col-body { display: grid; gap: 8px; }
+      .job-card { display: grid; gap: 4px; width: 100%; text-align: left; background: #fff; border: 1px solid #e3e6ea; border-radius: 8px; padding: 10px 12px; cursor: pointer; font-family: inherit; color: inherit; }
+      .job-card:hover { border-color: #007bff; }
+      .jc-top { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+      .jc-title { font-weight: 500; font-size: 14px; word-break: break-word; }
+      .jc-meta { font-size: 12px; color: #777; }
+      .dday { font-size: 11px; font-weight: 700; color: #c62828; }
+      .kind-chip { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 11px; background: #e3f2fd; color: #1565c0; }
+      .kind-as { background: #fce4ec; color: #ad1457; }
+      .kind-assembly { background: #e8f5e9; color: #2e7d32; }
+      .badge { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12px; white-space: nowrap; background: #eef1f5; color: #555; }
+      .st-open, .st-applied, .st-offered, .st-pending { background: #fff3e0; color: #e65100; }
+      .st-filled, .st-confirmed, .st-started, .st-in_progress, .st-approved { background: #e3f2fd; color: #1565c0; }
+      .st-submitted, .st-review { background: #f3e5f5; color: #6a1b9a; }
+      .st-revision, .st-expired, .st-no-show { background: #fff8e1; color: #8d6e00; }
+      .st-accepted, .st-done, .st-closed { background: #e8f5e9; color: #2e7d32; }
+      .st-cancelled, .st-rejected, .st-removed, .st-declined, .st-released, .st-withdrawn, .st-suspended { background: #ffebee; color: #c62828; }
+      .st-hidden { background: #f1f1f1; color: #666; }
+
+      /* 줄 (신청자 · 배정 · 작업자) */
+      .row { display: flex; gap: 10px; justify-content: space-between; align-items: flex-start; padding: 10px 12px; border-bottom: 1px solid #eee; flex-wrap: wrap; }
+      .row:last-child { border-bottom: 0; }
+      .row-main { flex: 1 1 260px; min-width: 0; word-break: break-word; }
+      .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+      .kind-boxes { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+      .kind-box { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; }
+
+      /* 작업자 탭 · 초대 */
+      .invite-card { margin-top: 16px; padding: 16px; display: grid; gap: 10px; }
+      .invite-card h3 { font-size: 16px; }
+      .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+      .field { display: grid; gap: 4px; font-size: 13px; min-width: 0; }
+      .field > label, fieldset legend { font-size: 12px; color: #666; }
+      fieldset { border: 0; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+      .field input, .field select, .field textarea, .copy-line input { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit; font-size: 13px; }
+      .field textarea { min-height: 80px; resize: vertical; }
+      .copy-line { display: flex; gap: 6px; flex-wrap: wrap; }
+      .copy-line input { flex: 1 1 220px; }
+
+      /* 모달 · 서랍 */
+      .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 100; padding: 30px 16px; overflow-y: auto; }
+      .modal.active { display: block; }
+      .modal-top { z-index: 120; }
+      .modal-content { background: #fff; border-radius: 12px; max-width: 900px; margin: 0 auto; }
+      .modal-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 18px 22px; border-bottom: 1px solid #eee; }
+      .modal-header h3 { font-size: 18px; word-break: break-word; }
+      .modal-body { padding: 18px 22px; display: grid; gap: 16px; }
+      .modal-footer { padding: 12px 22px; border-top: 1px solid #eee; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; align-items: center; }
+      .close-btn { background: none; border: none; font-size: 22px; cursor: pointer; color: #999; }
+      .kind { font-size: 12px; color: #555; }
+      .sec h4 { font-size: 14px; margin-bottom: 6px; }
+      .sec > .list { border: 1px solid #eee; border-radius: 8px; }
+      .action-bar { display: flex; gap: 6px; flex-wrap: wrap; }
+      .info { display: grid; grid-template-columns: 110px 1fr; gap: 6px 12px; font-size: 13px; }
+      .info dt { color: #888; }
+      .info dd { word-break: break-word; }
+      .scroll-x { overflow-x: auto; }
+      table.tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+      table.tbl th, table.tbl td { border-bottom: 1px solid #eee; padding: 5px 8px; text-align: left; vertical-align: top; }
+      table.tbl th { color: #888; font-weight: 500; }
+      .timeline { list-style: none; display: grid; gap: 8px; }
+      .tl { border-radius: 8px; padding: 8px 12px; border-left: 4px solid #90caf9; background: #f5f9ff; }
+      .tl-company { border-left-color: #ffb74d; background: #fffaf2; }
+      .tl-head { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 12px; }
+      .tl-who { font-weight: 700; }
+      .tl-kind { color: #555; }
+      .tl-amends { font-size: 12px; color: #8a4b00; margin-top: 4px; }
+      .chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+      .chip { font-size: 11px; background: #eee; border-radius: 99px; padding: 1px 8px; }
+      .amends-line { font-size: 12px; color: #8a4b00; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      .notes { list-style: none; display: grid; gap: 8px; max-height: 320px; overflow-y: auto; }
+      .notes li { border-bottom: 1px solid #eee; padding-bottom: 6px; }
+      .drawer { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 110; }
+      .drawer.active { display: block; }
+      .drawer-panel { position: absolute; top: 0; right: 0; bottom: 0; width: 100%; max-width: 540px; background: #fff; display: flex; flex-direction: column; }
+      .drawer-body { padding: 16px 22px; overflow-y: auto; display: grid; gap: 12px; flex: 1; }
+      @media (max-width: 768px) {
+        .sidebar { display: none; }
+        .main-content { margin-left: 0; padding: 16px; }
+        .board { grid-template-columns: 1fr; }
+        .modal { padding: 0; }
+        .modal-content { border-radius: 0; min-height: 100%; }
+        .modal-header, .modal-body, .modal-footer, .drawer-body { padding-left: 16px; padding-right: 16px; }
+        .info { grid-template-columns: 90px 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="sidebar">
+      <div class="sidebar-logo">
+        <h1>다담가구</h1>
+        <span>관리자 패널</span>
+      </div>
+      <ul class="nav-menu" id="adminNav"></ul>
+      <script src="../js/admin-shell.js?v=2"></script>
+      <div class="sidebar-footer"><a href="../index.html">← 메인 사이트로</a></div>
+    </nav>
+
+    <main class="main-content">
+      <div class="access-denied" id="accessDenied">
+        <h2>접근 권한이 없습니다</h2>
+        <p>관리자만 접근할 수 있는 페이지입니다.</p>
+        <a href="../index.html">메인 페이지로 돌아가기</a>
+      </div>
+
+      <div id="pageContent" style="display: none">
+        <header class="header">
+          <div>
+            <h2>작업 배정</h2>
+            <div class="muted">설치 · A/S · 조립 추가 인원 — 게시 → 신청 → 선정 · 초대 → 완료 보고 → 검수</div>
+          </div>
+          <div class="header-actions">
+            <span class="admin-info" id="adminInfo"></span>
+            <button type="button" class="btn btn-primary btn-sm" id="btnNewJob">작업 만들기</button>
+          </div>
+        </header>
+
+        <div class="notice" id="setupNotice" hidden></div>
+        <div class="notice notice-info" id="readOnlyNotice" hidden>읽기만 할 수 있습니다 — 게시 · 선정 · 승인 · 작업자 관리는 super_admin · admin 이 합니다.</div>
+
+        <div class="tabs" id="viewTabs">
+          <button type="button" class="tab active" data-view="board">작업 보드</button>
+          <button type="button" class="tab" data-view="workers">작업자</button>
+        </div>
+
+        <section id="boardView">
+          <div class="filters">
+            <div class="filter-group">
+              <label for="fKind">종류</label>
+              <select id="fKind">
+                <option value="">전체</option>
+                <option value="install">설치</option>
+                <option value="as">A/S</option>
+                <option value="assembly">조립 추가 인원</option>
+              </select>
+            </div>
+            <label class="check"><input type="checkbox" id="fCancelled" />취소된 작업도 보기</label>
+            <button type="button" class="btn btn-light" id="btnReload">새로고침</button>
+          </div>
+          <div class="status-line" id="statusLine"></div>
+          <div class="board" id="board"></div>
+        </section>
+
+        <section id="workersView" hidden>
+          <div class="tabs" id="workerTabs">
+            <button type="button" class="tab active" data-wstatus="pending">승인 대기</button>
+            <button type="button" class="tab" data-wstatus="approved">승인</button>
+            <button type="button" class="tab" data-wstatus="suspended">정지</button>
+            <button type="button" class="tab" data-wstatus="rejected">반려</button>
+            <button type="button" class="tab" data-wstatus="">전체</button>
+          </div>
+          <div class="status-line" id="workerStatus"></div>
+          <div class="card" id="workerList"></div>
+
+          <div class="card invite-card" id="inviteCard">
+            <h3>초대 링크 발급</h3>
+            <p class="muted">링크로 들어와 신청해도 <b>승인 대기</b>로 들어옵니다 — 신청자를 확인하고 승인해 주세요. 링크는 한 번만 쓸 수 있습니다. 만료 일시는 직접 고릅니다 (기본값 없음).</p>
+            <div class="form-grid">
+              <fieldset>
+                <legend>미리 정할 작업 종류</legend>
+                <label class="kind-box"><input type="checkbox" id="invKindInstall" data-inv-kind value="install" />설치</label>
+                <label class="kind-box"><input type="checkbox" id="invKindAs" data-inv-kind value="as" />A/S</label>
+                <label class="kind-box"><input type="checkbox" id="invKindAssembly" data-inv-kind value="assembly" />조립 추가 인원</label>
+              </fieldset>
+              <div class="field"><label for="invName">이름 미리 채우기 (선택)</label><input type="text" id="invName" maxlength="30" /></div>
+              <div class="field"><label for="invExpires">만료 일시 (한국 시간)</label><input type="datetime-local" id="invExpires" /></div>
+            </div>
+            <div><button type="button" class="btn btn-primary" id="btnInvite">초대 링크 만들기</button></div>
+            <div id="inviteResult" hidden>
+              <div class="field">
+                <label for="inviteUrl">초대 링크</label>
+                <div class="copy-line">
+                  <input type="text" id="inviteUrl" readonly />
+                  <button type="button" class="btn btn-light btn-sm" id="btnCopyInvite">복사</button>
+                  <button type="button" class="btn btn-light btn-sm" id="btnShareInvite">카톡으로 공유</button>
+                </div>
+              </div>
+              <div class="muted" id="inviteMeta"></div>
+            </div>
+            <div class="status-line" id="inviteStatus"></div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- 작업 상세 -->
+    <div class="modal" id="jobModal" role="dialog" aria-modal="true" aria-labelledby="jobTitle">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div><div class="kind" id="jobKind"></div><h3 id="jobTitle">작업</h3><div class="muted" id="jobMeta"></div></div>
+          <button type="button" class="close-btn" data-close="jobModal" aria-label="닫기">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="action-bar" id="jobActions"></div>
+          <div class="sec" id="jobInfo"></div>
+          <div class="sec"><h4>신청자</h4><div class="list" id="jobApplicants"></div></div>
+          <div class="sec">
+            <h4>배정</h4>
+            <div class="list" id="jobAssignments"></div>
+            <div class="copy-line" id="inviteBox" style="margin-top: 8px" hidden>
+              <label class="muted" for="inviteWorker" style="align-self: center">승인 작업자 직접 초대</label>
+              <select id="inviteWorker" style="flex: 1 1 200px; padding: 7px 9px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit"></select>
+              <button type="button" class="btn btn-light btn-sm" id="btnInviteWorker">초대</button>
+            </div>
+          </div>
+          <div class="sec"><h4>기록 <span class="muted">— 작업자 보고 · 회사 정정은 덮어쓰지 않고 쌓입니다</span></h4><div id="jobTimeline"></div></div>
+          <div class="sec" id="updateForm" hidden>
+            <h4>회사 정정 · 메모 추가</h4>
+            <div class="form-grid">
+              <div class="field">
+                <label for="uKind">종류</label>
+                <select id="uKind"><option value="correction">회사 정정</option><option value="note">회사 메모</option></select>
+              </div>
+              <div class="field"><label for="uAssignment">대상</label><select id="uAssignment"></select></div>
+            </div>
+            <div class="amends-line" id="uAmends" hidden><span id="uAmendsText"></span><button type="button" class="btn btn-light btn-xs" id="btnClearAmends">정정 대상 지우기</button></div>
+            <div class="field" style="margin-top: 8px"><label for="uBody">내용</label><textarea id="uBody" maxlength="1000" placeholder="원래 기록은 그대로 남고, 이 내용이 아래에 덧붙습니다"></textarea></div>
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 6px">
+              <label class="check"><input type="checkbox" id="uVisible" />작업자에게 보이기</label>
+              <button type="button" class="btn btn-primary btn-sm" id="btnAddUpdate">기록 추가</button>
+            </div>
+          </div>
+          <details class="sec"><summary>이벤트 기록</summary><div class="scroll-x" id="jobEvents"></div></details>
+        </div>
+        <div class="modal-footer"><span class="status-line" id="jobStatus" style="margin-right: auto"></span></div>
+      </div>
+    </div>
+
+    <!-- 작업 만들기 · 고치기 서랍 — 주소 · 연락처 칸은 일부러 없다 -->
+    <div class="drawer" id="jobDrawer">
+      <div class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+        <div class="modal-header">
+          <h3 id="drawerTitle">작업 만들기</h3>
+          <button type="button" class="close-btn" data-close="jobDrawer" aria-label="닫기">×</button>
+        </div>
+        <div class="drawer-body">
+          <div class="notice notice-info">현장 주소 · 연락처 · 고객 이름은 적지 않습니다. 공개 기간이 정해지기 전까지 작업자에게 보내지 않으며, 기존 현장 정보 화면에서 확인합니다.</div>
+          <div class="form-grid">
+            <div class="field">
+              <label for="jKind">종류</label>
+              <select id="jKind">
+                <option value="">고르기</option>
+                <option value="install">설치</option>
+                <option value="as">A/S</option>
+                <option value="assembly">조립 추가 인원</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="jMode">모집 방식</label>
+              <select id="jMode">
+                <option value="open">모집 (신청 받기)</option>
+                <option value="invite">지정 초대</option>
+                <option value="direct">직접 배정</option>
+              </select>
+            </div>
+          </div>
+          <div class="field"><label for="jTitle">제목</label><input type="text" id="jTitle" maxlength="80" placeholder="예: 싱크대 설치 보조" /></div>
+          <div class="field"><label for="jDetail">상세 (작업 범위 · 준비물)</label><textarea id="jDetail" maxlength="2000" placeholder="주소 · 연락처 · 고객 이름은 적지 않습니다"></textarea></div>
+          <div class="form-grid">
+            <div class="field"><label for="jRegion">시/구</label><input type="text" id="jRegion" maxlength="40" placeholder="예: 서울 송파구" /></div>
+            <div class="field"><label for="jSlots">정원</label><input type="number" id="jSlots" min="1" step="1" value="1" /></div>
+            <div class="field"><label for="jStarts">시작 (한국 시간)</label><input type="datetime-local" id="jStarts" /></div>
+            <div class="field"><label for="jEnds">끝 (한국 시간)</label><input type="datetime-local" id="jEnds" /></div>
+            <div class="field"><label for="jDeadline">신청 마감 (한국 시간)</label><input type="datetime-local" id="jDeadline" /></div>
+          </div>
+          <div class="form-grid">
+            <div class="field"><label for="jPay">금액 (원, 매번 직접 입력)</label><input type="number" id="jPay" min="0" step="1" /></div>
+            <div class="field">
+              <label for="jPayUnit">금액 단위</label>
+              <select id="jPayUnit">
+                <option value="">없음</option>
+                <option value="day">일</option>
+                <option value="hour">시간</option>
+                <option value="meter">m</option>
+                <option value="job">건</option>
+              </select>
+            </div>
+          </div>
+          <label class="check"><input type="checkbox" id="jPayVisible" />작업자에게 금액 보이기 (기본 숨김)</label>
+          <div class="form-grid">
+            <div class="field"><label for="jOrder">주문 ID (선택)</label><input type="text" id="jOrder" maxlength="36" /></div>
+            <div class="field"><label for="jDesign">디자인 ID (선택)</label><input type="text" id="jDesign" maxlength="36" /></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <span class="status-line" id="drawerStatus" style="margin-right: auto"></span>
+          <button type="button" class="btn btn-light" id="btnSaveJob">초안 저장</button>
+          <button type="button" class="btn btn-primary" id="btnSavePublish">저장하고 게시</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 사유 묻기 (반려 · 보완요청 · 제외 · 취소) -->
+    <div class="modal modal-top" id="reasonModal" role="dialog" aria-modal="true" aria-labelledby="reasonTitle">
+      <div class="modal-content" style="max-width: 480px">
+        <div class="modal-header">
+          <h3 id="reasonTitle">사유</h3>
+          <button type="button" class="close-btn" id="btnReasonClose" aria-label="닫기">×</button>
+        </div>
+        <div class="modal-body">
+          <p class="muted" id="reasonHint"></p>
+          <div class="field"><label for="reasonText" id="reasonLabel">사유</label><textarea id="reasonText" maxlength="200"></textarea></div>
+          <label class="check" id="reasonNoShowWrap" hidden><input type="checkbox" id="reasonNoShow" />노쇼로 기록 (기록만 남깁니다)</label>
+        </div>
+        <div class="modal-footer">
+          <span class="status-line" id="reasonStatus" style="margin-right: auto"></span>
+          <button type="button" class="btn btn-light" id="btnReasonCancel">그만두기</button>
+          <button type="button" class="btn btn-primary" id="btnReasonOk">확인</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 작업자 메모 (편집자만) -->
+    <div class="modal" id="notesModal" role="dialog" aria-modal="true" aria-labelledby="notesTitle">
+      <div class="modal-content" style="max-width: 560px">
+        <div class="modal-header">
+          <div><h3 id="notesTitle">관리자 메모</h3><div class="muted">작업자에게는 보이지 않습니다</div></div>
+          <button type="button" class="close-btn" data-close="notesModal" aria-label="닫기">×</button>
+        </div>
+        <div class="modal-body">
+          <div id="notesList"></div>
+          <div class="field"><label for="noteText">새 메모</label><textarea id="noteText" maxlength="1000"></textarea></div>
+        </div>
+        <div class="modal-footer">
+          <span class="status-line" id="notesStatus" style="margin-right: auto"></span>
+          <button type="button" class="btn btn-primary" id="btnAddNote">메모 추가</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+
+        const H = window.DadamWorkJobsAdmin;
+        const $ = (id) => document.getElementById(id);
+        const esc = H.esc;
+        const EDITOR_ROLES = ['super_admin', 'admin'];
+        const state = {
+          sb: null, session: null, canEdit: false, view: 'board',
+          jobs: [], current: null, editing: null, amends: null,
+          workerStatus: 'pending', workers: [], approved: null, notesFor: null, invite: null,
+        };
+
+        // ── 서버 ──
+        function apiBase() {
+          return (window.DADAM_CONFIG && window.DADAM_CONFIG.workflowApi && window.DADAM_CONFIG.workflowApi.url) || '';
+        }
+        async function token() {
+          const r = await state.sb.auth.getSession();
+          return (r && r.data && r.data.session && r.data.session.access_token) || null;
+        }
+        async function api(path, opts) {
+          const o = opts || {};
+          const t = await token();
+          if (!t) throw new Error('로그인이 필요합니다.');
+          const headers = { Authorization: `Bearer ${t}` };
+          if (o.body) headers['Content-Type'] = 'application/json';
+          const res = await fetch(apiBase() + path, { method: o.method || 'GET', headers, body: o.body ? JSON.stringify(o.body) : undefined });
+          let body = null;
+          try { body = await res.json(); } catch (e) { body = null; }
+          if (!res.ok || !body || !body.success) {
+            const err = new Error((body && body.message) || `요청 실패 (${res.status})`);
+            err.status = res.status;
+            throw err;
+          }
+          return body.data;
+        }
+        const post = (path, body) => api(path, { method: 'POST', body: body || {} });
+        const itemsOf = (d) => (Array.isArray(d) ? d : (d && Array.isArray(d.items) ? d.items : []));
+
+        function setStatus(id, msg, kind) {
+          const n = $(id);
+          if (!n) return;
+          n.textContent = msg || '';
+          n.style.color = kind === 'error' ? '#c62828' : kind === 'ok' ? '#2e7d32' : '#666';
+        }
+
+        /** 표가 아직 없거나(SQL 미실행) 서버에 /work 가 아직 없을 때 — 보드는 빈 채로 두고 이유를 적는다 */
+        const SETUP = {
+          tables: '작업 배정 표가 아직 없습니다. 사장님이 Supabase SQL 편집기에서 database/work-jobs.sql 을 한 번 실행하면 열립니다.',
+          route: '업무 서버(workflow-api)에 작업 배정 기능이 아직 배포되지 않았습니다. 배포가 끝나면 새로고침해 주세요.',
+        };
+        function showSetup(kind) {
+          $('setupNotice').textContent = SETUP[kind] || '';
+          $('setupNotice').hidden = !SETUP[kind];
+        }
+
+        let busy = false;
+        /** 버튼 하나가 끝날 때까지 다른 쓰기를 막는다. 409(다른 관리자가 먼저 바꿈)면 상세를 다시 읽는다 */
+        async function guard(fn, where) {
+          if (busy) return;
+          busy = true;
+          try {
+            await fn();
+          } catch (e) {
+            const msg = (e && e.message) || '오류가 발생했습니다';
+            if (e && e.status === 409 && state.current) {
+              try { await reloadCurrent(); } catch (_) { /* 아래 메시지로 충분 */ }
+              setStatus(where || 'jobStatus', `${msg} — 다른 관리자가 먼저 바꿨을 수 있어 최신 상태로 다시 불러왔습니다.`, 'error');
+            } else {
+              setStatus(where || 'statusLine', msg, 'error');
+            }
+          } finally {
+            busy = false;
+          }
+        }
+
+        // ── 공유 · 복사 (Web Share 가 없으면 클립보드 — 계획 개정 13) ──
+        async function copyText(text) {
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText(text);
+            return;
+          }
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.setAttribute('readonly', '');
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          let ok = false;
+          try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+          ta.remove();
+          if (!ok) throw new Error('복사하지 못했습니다. 링크를 길게 눌러 직접 복사해 주세요.');
+        }
+        async function shareOrCopy(title, text, where) {
+          if (typeof navigator.share === 'function') {
+            try {
+              await navigator.share({ title, text });
+              setStatus(where, '공유 창을 열었습니다.', 'ok');
+              return 'shared';
+            } catch (e) {
+              if (e && e.name === 'AbortError') return 'cancelled';
+              // 공유가 막힌 브라우저(윈도 크롬 등) — 복사로 넘어간다
+            }
+          }
+          await copyText(text);
+          setStatus(where, '복사했습니다 — 카톡 대화방에 붙여 넣으세요.', 'ok');
+          return 'copied';
+        }
+
+        // ── 사유 묻기 ──
+        let reasonResolve = null;
+        /**
+         * @param {{ title: string, hint?: string, required?: boolean, noShow?: boolean }} o
+         * @returns {Promise<{reason: string, no_show: boolean}|null>} 그만두면 null
+         */
+        function askReason(o) {
+          $('reasonTitle').textContent = o.title;
+          $('reasonHint').textContent = o.hint || '';
+          $('reasonLabel').textContent = o.required ? '사유 (필수)' : '사유 (선택)';
+          $('reasonText').value = '';
+          $('reasonNoShow').checked = false;
+          $('reasonNoShowWrap').hidden = !o.noShow;
+          setStatus('reasonStatus', '');
+          $('reasonModal').classList.add('active');
+          $('reasonModal').dataset.required = o.required ? '1' : '';
+          return new Promise((resolve) => { reasonResolve = resolve; });
+        }
+        function closeReason(result) {
+          $('reasonModal').classList.remove('active');
+          const r = reasonResolve;
+          reasonResolve = null;
+          if (r) r(result);
+        }
+
+        // ── 보드 ──
+        function renderBoard() {
+          const cols = H.groupBoard(state.jobs, { kind: $('fKind').value, showCancelled: $('fCancelled').checked });
+          $('board').innerHTML = cols.map((c) => `
+            <section class="col" data-col="${esc(c.key)}">
+              <h3>${esc(c.label)} <span class="count">${esc(c.items.length)}</span></h3>
+              <div class="col-body">${c.items.map((j) => H.jobCardHtml(j)).join('') || '<div class="empty-mini">없음</div>'}</div>
+            </section>`).join('');
+          $('board').querySelectorAll('.job-card').forEach((card) => {
+            card.addEventListener('click', () => guard(() => openDetail(card.getAttribute('data-job')), 'statusLine'));
+          });
+        }
+
+        async function loadBoard() {
+          setStatus('statusLine', '불러오는 중…');
+          let data;
+          try {
+            data = await api('/work/admin/jobs');
+          } catch (e) {
+            if (e && e.status === 404) {
+              showSetup('route');
+              state.jobs = [];
+              renderBoard();
+              setStatus('statusLine', '');
+              return;
+            }
+            throw e;
+          }
+          if (data && data.ready === false) showSetup('tables');
+          state.jobs = itemsOf(data);
+          renderBoard();
+          setStatus('statusLine', state.jobs.length ? `작업 ${state.jobs.length}건` : '작업이 없습니다. [작업 만들기] 로 첫 작업을 올려 보세요.');
+        }
+
+        /** 표가 있는지 — /work/me 가 { ready:false } 를 주면 SQL 미실행 (계약 §3 공통) */
+        async function probeReady() {
+          try {
+            const me = await api('/work/me');
+            if (me && me.ready === false) showSetup('tables');
+          } catch (e) {
+            if (e && e.status === 404) showSetup('route');
+          }
+        }
+
+        // ── 작업 상세 ──
+        async function openDetail(id) {
+          if (!H.UUID_RE.test(String(id || ''))) throw new Error('작업 ID 가 올바르지 않습니다.');
+          const d = H.splitDetail(await api(`/work/admin/jobs/${encodeURIComponent(id)}`));
+          state.current = d;
+          state.amends = null;
+          // 다른 작업을 열면 쓰던 정정 · 보이기 체크를 넘기지 않는다
+          $('uBody').value = '';
+          $('uVisible').checked = false;
+          $('uKind').value = 'correction';
+          renderDetail();
+          setStatus('jobStatus', state.canEdit ? '' : '읽기만 할 수 있습니다 (super_admin · admin 이 바꿉니다)');
+          $('jobModal').classList.add('active');
+          if (state.canEdit && H.jobActions(d.job).invite) await fillInviteSelect();
+        }
+        async function reloadCurrent() {
+          if (!state.current) return;
+          const d = H.splitDetail(await api(`/work/admin/jobs/${encodeURIComponent(state.current.job.id)}`));
+          state.current = d;
+          renderDetail();
+          if (state.canEdit && H.jobActions(d.job).invite) await fillInviteSelect();
+        }
+        async function afterWrite(msg) {
+          await Promise.all([reloadCurrent(), loadBoard()]);
+          setStatus('jobStatus', msg, 'ok');
+        }
+
+        function namesOf(assignments) {
+          const out = {};
+          for (const a of assignments) out[a.id] = H.workerOf(a).name;
+          return out;
+        }
+
+        function renderDetail() {
+          const { job, applications, assignments, updates, events } = state.current;
+          const eff = H.effectiveStatus(job);
+          const act = H.jobActions(job);
+          const c = H.jobCounts(job, state.current);
+          $('jobKind').textContent = H.kindLabel(job.kind);
+          $('jobTitle').textContent = job.title || '(제목 없음)';
+          $('jobMeta').innerHTML = `<span class="badge st-${esc(eff)}">${esc(H.JOB_STATUS_LABEL[eff] || eff)}</span>${job.version !== undefined && job.version !== null ? ` · 버전 ${esc(job.version)}` : ''}${job.created_at ? ` · 만든 날 ${esc(H.fmtDate(job.created_at))}` : ''}`;
+
+          const btn = (key, text, cls) => `<button type="button" class="btn ${cls || 'btn-light'} btn-sm" data-act="${key}">${esc(text)}</button>`;
+          $('jobActions').innerHTML = [
+            state.canEdit && act.publish ? btn('job-publish', '게시', 'btn-primary') : '',
+            state.canEdit && act.edit ? btn('job-edit', '고치기') : '',
+            act.share ? btn('job-share', '카톡으로 공유') : '',
+            state.canEdit && act.close ? btn('job-close', '작업 닫기') : '',
+            state.canEdit && act.cancel ? btn('job-cancel', '작업 취소', 'btn-danger') : '',
+          ].join('');
+
+          const row = (k, v) => `<dt>${esc(k)}</dt><dd>${v}</dd>`;
+          $('jobInfo').innerHTML = `<dl class="info">${[
+            row('일시', esc(H.fmtRange(job.starts_at, job.ends_at))),
+            row('신청 마감', esc(job.apply_deadline ? H.fmtDateTime(job.apply_deadline) : '없음')),
+            row('시/구', esc(job.region_label || '미정')),
+            row('정원', esc(`확정 ${c.filled === null ? '-' : c.filled} / ${c.slots === null ? '-' : c.slots} · 신청 대기 ${c.applied === null ? '-' : c.applied}`)),
+            row('모집 방식', esc(H.MODE_LABEL[job.mode] || job.mode || '-')),
+            row('금액', esc(H.payText(job))),
+            job.order_id || job.design_id ? row('연결', esc([job.order_id ? `주문 ${job.order_id}` : '', job.design_id ? `디자인 ${job.design_id}` : ''].filter(Boolean).join(' · '))) : '',
+            row('상세', job.detail ? `<div class="pre">${esc(job.detail)}</div>` : '<span class="muted">없음</span>'),
+            job.cancel_reason ? row('취소 사유', esc(job.cancel_reason)) : '',
+            row('현장 주소', '<span class="muted">이 화면에는 없습니다 — 공개 기간이 정해지기 전까지 작업자에게도 보내지 않습니다</span>'),
+          ].join('')}</dl>`;
+
+          $('jobApplicants').innerHTML = applications.map((a) => H.applicantRowHtml(a, { canEdit: state.canEdit })).join('')
+            || '<div class="empty-mini" style="padding: 10px 12px">신청자가 없습니다.</div>';
+          $('jobAssignments').innerHTML = assignments.map((a) => H.assignmentRowHtml(a, { canEdit: state.canEdit, job })).join('')
+            || '<div class="empty-mini" style="padding: 10px 12px">배정된 작업자가 없습니다.</div>';
+          $('inviteBox').hidden = !(state.canEdit && act.invite);
+
+          const names = namesOf(assignments);
+          $('jobTimeline').innerHTML = H.timelineHtml(updates, { names, canEdit: state.canEdit });
+          $('jobEvents').innerHTML = H.eventsHtml(events);
+
+          $('updateForm').hidden = !state.canEdit;
+          $('uAssignment').innerHTML = `<option value="">작업 전체</option>${assignments.map((a) => `<option value="${esc(a.id)}">${esc(names[a.id] || '(이름 없음)')} · ${esc(H.ASSIGN_STATUS_LABEL[a.status] || a.status)}</option>`).join('')}`;
+          renderAmends();
+        }
+
+        function renderAmends() {
+          const u = state.amends && state.current ? state.current.updates.find((x) => x.id === state.amends) : null;
+          $('uAmends').hidden = !u;
+          $('uAmendsText').textContent = u ? `정정 대상: ${H.UPDATE_KIND_LABEL[u.kind] || u.kind} ${H.fmtDateTime(u.created_at)} — 원본은 그대로 남습니다` : '';
+        }
+
+        /** 초대할 수 있는 승인 작업자 — 이 작업 종류를 하고, 이미 활성 배정이 없는 사람 */
+        async function fillInviteSelect() {
+          if (!state.approved) {
+            try {
+              state.approved = itemsOf(await api('/work/admin/workers?status=approved'));
+            } catch (e) {
+              $('inviteWorker').innerHTML = '<option value="">작업자 목록을 불러오지 못했습니다</option>';
+              $('btnInviteWorker').disabled = true;
+              return;
+            }
+          }
+          const { job, assignments } = state.current;
+          const busyIds = new Set(assignments.filter((a) => H.ACTIVE.includes(a.status)).map((a) => H.workerOf(a).id));
+          const list = state.approved.filter((w) => Array.isArray(w.kinds) && w.kinds.includes(job.kind) && !busyIds.has(w.id));
+          $('inviteWorker').innerHTML = list.length
+            ? `<option value="">작업자 고르기</option>${list.map((w) => `<option value="${esc(w.id)}">${esc(w.display_name)}${w.region_label ? ` · ${esc(w.region_label)}` : ''}</option>`).join('')}`
+            : `<option value="">초대할 수 있는 ${esc(H.kindLabel(job.kind))} 작업자가 없습니다</option>`;
+          $('btnInviteWorker').disabled = !list.length;
+        }
+
+        async function onDetailAction(act, id) {
+          const job = state.current && state.current.job;
+          if (!job) return;
+          const jobPath = `/work/admin/jobs/${encodeURIComponent(job.id)}`;
+          switch (act) {
+            case 'job-publish':
+              if (!window.confirm('이 작업을 게시할까요? 게시하면 종류가 맞는 승인 작업자에게 보입니다.')) return;
+              await post(`${jobPath}/publish`);
+              return afterWrite('게시했습니다.');
+            case 'job-edit':
+              return openDrawer(job);
+            case 'job-share': {
+              const text = H.shareText(job, H.workerJobUrl(job.id, window.location.href));
+              await shareOrCopy('다담가구 작업', text, 'jobStatus');
+              return;
+            }
+            case 'job-close':
+              if (!window.confirm('검수가 끝난 작업을 닫을까요?')) return;
+              await post(`${jobPath}/close`);
+              return afterWrite('작업을 닫았습니다.');
+            case 'job-cancel': {
+              const r = await askReason({ title: '작업 취소', hint: '배정된 작업자가 있으면 그 사람의 작업 화면에도 취소로 보입니다.', required: true });
+              if (!r) return;
+              await post(`${jobPath}/cancel`, { reason: r.reason });
+              return afterWrite('작업을 취소했습니다.');
+            }
+            case 'app-approve':
+              await post(`/work/admin/applications/${encodeURIComponent(id)}/approve`);
+              return afterWrite('선정했습니다 — 배정이 확정됐습니다.');
+            case 'app-reject': {
+              const r = await askReason({ title: '신청 반려', required: false });
+              if (!r) return;
+              await post(`/work/admin/applications/${encodeURIComponent(id)}/reject`, r.reason ? { reason: r.reason } : {});
+              return afterWrite('신청을 반려했습니다.');
+            }
+            case 'asg-accept':
+              if (!window.confirm('완료 보고를 승인할까요?')) return;
+              await post(`/work/admin/assignments/${encodeURIComponent(id)}/accept`);
+              return afterWrite('승인했습니다.');
+            case 'asg-revision': {
+              const r = await askReason({ title: '보완요청', hint: '작업자에게 보이는 사유입니다.', required: true });
+              if (!r) return;
+              await post(`/work/admin/assignments/${encodeURIComponent(id)}/revision`, { reason: r.reason });
+              return afterWrite('보완요청을 보냈습니다.');
+            }
+            case 'asg-remove': {
+              const r = await askReason({ title: '배정에서 제외', required: true, noShow: true });
+              if (!r) return;
+              await post(`/work/admin/assignments/${encodeURIComponent(id)}/remove`, { reason: r.reason, no_show: r.no_show });
+              return afterWrite('배정에서 제외했습니다.');
+            }
+            case 'amend': {
+              const u = state.current.updates.find((x) => x.id === id);
+              if (!u) return;
+              state.amends = u.id;
+              $('uKind').value = 'correction';
+              $('uAssignment').value = u.assignment_id || '';
+              renderAmends();
+              $('uBody').focus();
+              return;
+            }
+            default:
+          }
+        }
+
+        async function addUpdate() {
+          const job = state.current.job;
+          const body = H.buildUpdatePayload({
+            kind: $('uKind').value,
+            body: $('uBody').value,
+            assignment_id: $('uAssignment').value,
+            amends_id: state.amends,
+            visible_to_worker: $('uVisible').checked,
+          });
+          await post(`/work/admin/jobs/${encodeURIComponent(job.id)}/updates`, body);
+          $('uBody').value = '';
+          $('uVisible').checked = false;
+          state.amends = null;
+          await afterWrite(body.visible_to_worker ? '기록을 추가했습니다 (작업자에게 보임).' : '기록을 추가했습니다 (작업자에게 숨김).');
+        }
+
+        async function inviteWorker() {
+          const workerId = $('inviteWorker').value;
+          if (!workerId) throw new Error('초대할 작업자를 골라 주세요.');
+          await post(`/work/admin/jobs/${encodeURIComponent(state.current.job.id)}/invite`, { worker_id: workerId });
+          await afterWrite('초대했습니다 — 작업자가 수락하면 확정됩니다. [카톡으로 공유] 로 알려 주세요.');
+        }
+
+        // ── 작업 만들기 · 고치기 서랍 ──
+        const DRAWER_FIELDS = {
+          kind: 'jKind', title: 'jTitle', detail: 'jDetail', region_label: 'jRegion', slots: 'jSlots', mode: 'jMode',
+          pay_amount: 'jPay', pay_unit: 'jPayUnit', order_id: 'jOrder', design_id: 'jDesign',
+        };
+        const DRAWER_TIMES = { starts_at: 'jStarts', ends_at: 'jEnds', apply_deadline: 'jDeadline' };
+
+        function openDrawer(job) {
+          state.editing = job || null;
+          const j = job || {};
+          for (const [k, id] of Object.entries(DRAWER_FIELDS)) {
+            const v = j[k];
+            $(id).value = v === null || v === undefined ? '' : String(v);
+          }
+          if (!job) { $('jMode').value = 'open'; $('jSlots').value = '1'; }
+          for (const [k, id] of Object.entries(DRAWER_TIMES)) $(id).value = H.toKstInput(j[k]);
+          $('jPayVisible').checked = Boolean(j.pay_visible);
+          $('drawerTitle').textContent = job ? '작업 고치기' : '작업 만들기';
+          $('btnSaveJob').textContent = job ? '저장' : '초안 저장';
+          $('btnSavePublish').hidden = Boolean(job);
+          setStatus('drawerStatus', '');
+          $('jobDrawer').classList.add('active');
+        }
+
+        function readDrawer() {
+          const f = {};
+          for (const [k, id] of Object.entries(DRAWER_FIELDS)) f[k] = $(id).value;
+          for (const [k, id] of Object.entries(DRAWER_TIMES)) f[k] = $(id).value;
+          f.pay_visible = $('jPayVisible').checked;
+          return f;
+        }
+
+        async function saveJob(publish) {
+          const f = readDrawer();
+          if (state.editing) {
+            const body = H.buildJobPayload(f, { forPatch: true, version: state.editing.version });
+            await api(`/work/admin/jobs/${encodeURIComponent(state.editing.id)}`, { method: 'PATCH', body });
+            $('jobDrawer').classList.remove('active');
+            state.editing = null;
+            await afterWrite('작업을 고쳤습니다.');
+            return;
+          }
+          const created = await post('/work/admin/jobs', H.buildJobPayload(f));
+          let msg = '초안으로 저장했습니다.';
+          if (publish && created && created.id) {
+            try {
+              await post(`/work/admin/jobs/${encodeURIComponent(created.id)}/publish`);
+              msg = '저장하고 게시했습니다.';
+            } catch (e) {
+              msg = `초안은 저장했지만 게시하지 못했습니다: ${(e && e.message) || ''}`;
+            }
+          }
+          $('jobDrawer').classList.remove('active');
+          await loadBoard();
+          setStatus('statusLine', msg, msg.includes('못했') ? 'error' : 'ok');
+          if (created && created.id) await openDetail(created.id);
+        }
+
+        // ── 작업자 탭 ──
+        async function loadWorkers() {
+          setStatus('workerStatus', '불러오는 중…');
+          const q = state.workerStatus ? `?status=${encodeURIComponent(state.workerStatus)}` : '';
+          let data;
+          try {
+            data = await api(`/work/admin/workers${q}`);
+          } catch (e) {
+            if (e && e.status === 404) { showSetup('route'); data = { items: [] }; } else throw e;
+          }
+          if (data && data.ready === false) showSetup('tables');
+          state.workers = itemsOf(data);
+          $('workerList').innerHTML = state.workers.map((w) => H.workerRowHtml(w, { canEdit: state.canEdit })).join('')
+            || '<div class="empty-mini" style="padding: 14px 16px">해당하는 작업자가 없습니다.</div>';
+          setStatus('workerStatus', state.workers.length ? `${state.workers.length}명` : '');
+        }
+
+        async function patchWorker(id, body, msg) {
+          await api(`/work/admin/workers/${encodeURIComponent(id)}`, { method: 'PATCH', body });
+          state.approved = null; // 초대 후보가 바뀐다
+          await loadWorkers();
+          setStatus('workerStatus', msg, 'ok');
+        }
+
+        async function onWorkerAction(act, id) {
+          const w = state.workers.find((x) => x.id === id);
+          if (!w) return;
+          switch (act) {
+            case 'wk-approve':
+              return patchWorker(id, { status: 'approved' }, `${w.display_name || '작업자'} — 승인했습니다.`);
+            case 'wk-reject': {
+              const r = await askReason({ title: '작업자 신청 반려', hint: '작업자 본인 화면에 보이는 사유입니다.', required: false });
+              if (!r) return;
+              return patchWorker(id, r.reason ? { status: 'rejected', reject_reason: r.reason } : { status: 'rejected' }, '반려했습니다.');
+            }
+            case 'wk-suspend':
+              if (!window.confirm('이 작업자를 정지할까요? 새 작업을 보거나 신청할 수 없게 됩니다.')) return;
+              return patchWorker(id, { status: 'suspended' }, '정지했습니다.');
+            case 'wk-resume':
+              return patchWorker(id, { status: 'approved' }, '정지를 풀었습니다.');
+            case 'wk-kinds': {
+              const kinds = [...document.querySelectorAll('input[data-kind-of]')]
+                .filter((b) => b.getAttribute('data-kind-of') === id && b.checked)
+                .map((b) => b.value);
+              return patchWorker(id, { kinds }, '작업 종류를 저장했습니다.');
+            }
+            case 'wk-notes':
+              return openNotes(w);
+            default:
+          }
+        }
+
+        async function openNotes(w) {
+          state.notesFor = w;
+          $('notesTitle').textContent = `관리자 메모 — ${w.display_name || '작업자'}`;
+          $('noteText').value = '';
+          $('notesList').innerHTML = '';
+          setStatus('notesStatus', '');
+          $('notesModal').classList.add('active');
+          try {
+            $('notesList').innerHTML = H.notesHtml(itemsOf(await api(`/work/admin/workers/${encodeURIComponent(w.id)}/notes`)));
+          } catch (e) {
+            if (e && e.status === 403) throw new Error('메모는 super_admin · admin 만 볼 수 있습니다.');
+            throw e;
+          }
+        }
+
+        async function addNote() {
+          const w = state.notesFor;
+          const note = $('noteText').value.trim();
+          if (!note) throw new Error('메모를 적어 주세요.');
+          if (note.length > 1000) throw new Error('메모는 1000자 이하로 적어 주세요.');
+          await post(`/work/admin/workers/${encodeURIComponent(w.id)}/notes`, { note });
+          $('noteText').value = '';
+          $('notesList').innerHTML = H.notesHtml(itemsOf(await api(`/work/admin/workers/${encodeURIComponent(w.id)}/notes`)));
+          setStatus('notesStatus', '메모를 추가했습니다.', 'ok');
+        }
+
+        async function createInvite() {
+          const kinds = [...document.querySelectorAll('input[data-inv-kind]')].filter((b) => b.checked).map((b) => b.value);
+          const body = H.buildInvitePayload({ kinds, display_name: $('invName').value, expires_at: $('invExpires').value });
+          const r = await post('/work/admin/invites', body);
+          state.invite = r;
+          $('inviteUrl').value = r.url;
+          $('inviteMeta').textContent = `만료 ${H.fmtDateTime(r.expires_at || body.expires_at)} · 한 번만 쓸 수 있습니다 · 이 링크는 지금만 보입니다 (서버에는 해시만 남습니다)`;
+          $('inviteResult').hidden = false;
+          setStatus('inviteStatus', '초대 링크를 만들었습니다.', 'ok');
+        }
+        function inviteShareText() {
+          const r = state.invite;
+          return `다담가구 작업자 초대 링크입니다 (만료 ${H.fmtDateTime(r.expires_at)}).\n${r.url}`;
+        }
+
+        // ── 화면 전환 · 연결 ──
+        function showView(view) {
+          state.view = view;
+          $('viewTabs').querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.getAttribute('data-view') === view));
+          $('boardView').hidden = view !== 'board';
+          $('workersView').hidden = view !== 'workers';
+          $('btnNewJob').hidden = !state.canEdit || view !== 'board';
+          $('inviteCard').hidden = !state.canEdit;
+        }
+
+        function bind() {
+          $('viewTabs').querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
+            const v = t.getAttribute('data-view');
+            showView(v);
+            if (v === 'workers') guard(loadWorkers, 'workerStatus');
+            else guard(loadBoard, 'statusLine');
+          }));
+          $('fKind').addEventListener('change', renderBoard);
+          $('fCancelled').addEventListener('change', renderBoard);
+          $('btnReload').addEventListener('click', () => guard(loadBoard, 'statusLine'));
+          $('btnNewJob').addEventListener('click', () => openDrawer(null));
+          $('btnSaveJob').addEventListener('click', () => guard(() => saveJob(false), 'drawerStatus'));
+          $('btnSavePublish').addEventListener('click', () => guard(() => saveJob(true), 'drawerStatus'));
+
+          $('jobModal').addEventListener('click', (e) => {
+            const b = e.target.closest('[data-act]');
+            if (!b || !$('jobModal').contains(b)) return;
+            guard(() => onDetailAction(b.getAttribute('data-act'), b.getAttribute('data-id')), 'jobStatus');
+          });
+          $('btnAddUpdate').addEventListener('click', () => guard(addUpdate, 'jobStatus'));
+          $('btnClearAmends').addEventListener('click', () => { state.amends = null; renderAmends(); });
+          $('btnInviteWorker').addEventListener('click', () => guard(inviteWorker, 'jobStatus'));
+
+          $('workerTabs').querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
+            state.workerStatus = t.getAttribute('data-wstatus');
+            $('workerTabs').querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === t));
+            guard(loadWorkers, 'workerStatus');
+          }));
+          $('workerList').addEventListener('click', (e) => {
+            const b = e.target.closest('[data-act]');
+            if (!b) return;
+            guard(() => onWorkerAction(b.getAttribute('data-act'), b.getAttribute('data-id')), 'workerStatus');
+          });
+          $('btnAddNote').addEventListener('click', () => guard(addNote, 'notesStatus'));
+          $('btnInvite').addEventListener('click', () => guard(createInvite, 'inviteStatus'));
+          $('btnCopyInvite').addEventListener('click', () => guard(async () => {
+            await copyText($('inviteUrl').value);
+            setStatus('inviteStatus', '링크를 복사했습니다.', 'ok');
+          }, 'inviteStatus'));
+          $('btnShareInvite').addEventListener('click', () => guard(() => shareOrCopy('다담가구 작업자 초대', inviteShareText(), 'inviteStatus'), 'inviteStatus'));
+
+          $('btnReasonOk').addEventListener('click', () => {
+            const reason = $('reasonText').value.trim();
+            if ($('reasonModal').dataset.required && !reason) { setStatus('reasonStatus', '사유를 적어 주세요.', 'error'); return; }
+            closeReason({ reason, no_show: $('reasonNoShow').checked });
+          });
+          $('btnReasonCancel').addEventListener('click', () => closeReason(null));
+          $('btnReasonClose').addEventListener('click', () => closeReason(null));
+
+          document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => $(b.getAttribute('data-close')).classList.remove('active')));
+          document.querySelectorAll('.modal, .drawer').forEach((m) => m.addEventListener('click', (e) => {
+            if (e.target !== m) return;
+            if (m.id === 'reasonModal') closeReason(null);
+            else m.classList.remove('active');
+          }));
+          document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            if ($('reasonModal').classList.contains('active')) { closeReason(null); return; }
+            document.querySelectorAll('.modal.active, .drawer.active').forEach((m) => m.classList.remove('active'));
+          });
+        }
+
+        function showAccessDenied() {
+          $('accessDenied').style.display = 'block';
+          $('pageContent').style.display = 'none';
+        }
+
+        async function init() {
+          if (!window.supabase || !window.DADAM_CONFIG || !window.DADAM_CONFIG.supabase || !H) return showAccessDenied();
+          const { url, anonKey } = window.DADAM_CONFIG.supabase;
+          state.sb = window.supabase.createClient(url, anonKey);
+          const { data: { session } } = await state.sb.auth.getSession();
+          if (!session) return showAccessDenied();
+          const isAdmin = window.AdminAccess ? await window.AdminAccess.isAdmin(state.sb) : false;
+          if (!isAdmin) return showAccessDenied();
+          state.session = session;
+          const role = window.AdminAccess.getRole && session.user ? await window.AdminAccess.getRole(state.sb, session.user.id) : null;
+          state.canEdit = EDITOR_ROLES.includes(role);
+          $('adminInfo').textContent = (session.user && session.user.email) || '';
+          $('readOnlyNotice').hidden = state.canEdit;
+          $('pageContent').style.display = 'block';
+          bind();
+          const params = new URLSearchParams(window.location.search);
+          showView(params.get('tab') === 'workers' ? 'workers' : 'board');
+          if (!apiBase()) {
+            setStatus('statusLine', '업무 서버(workflowApi.url)가 설정되지 않았습니다.', 'error');
+            return;
+          }
+          await guard(async () => {
+            await Promise.all([probeReady(), loadBoard(), state.view === 'workers' ? loadWorkers() : null]);
+            // Slack 알림의 [관리자 화면] 링크 → ?job=<id> 로 바로 상세
+            const jobId = params.get('job') || '';
+            if (H.UUID_RE.test(jobId)) await openDetail(jobId);
+          }, 'statusLine');
+        }
+
+        window.WorkJobs = { init, state };
+        if (!window.__WORK_JOBS_NO_AUTOSTART) {
+          if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+          else init();
+        }
+      })();
+    </script>
+  </body>
+</html>
