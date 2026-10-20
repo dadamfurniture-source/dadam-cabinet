@@ -82,11 +82,6 @@
   const DEADLINE_NONE = '정하지 않음 (정원이 차면 마감)';
   /** 지원 종료일이 지났을 때의 꼬리표 · 잠근 신청 버튼 글 */
   const DEADLINE_ENDED = '지원 종료';
-  /**
-   * 작업 닫기 · 취소 때 서버가 남은 초대를 끝내며 release_reason 에 넣는 문구 (계약 1주차 후속 C).
-   * 이 글이면 작업자가 거절한 것이 아니므로 칩을 「거절함」 대신 「초대 끝남」으로 보인다.
-   */
-  const AUTO_DECLINE_REASONS = Object.freeze(['작업이 마감돼 초대가 끝났습니다', '작업이 취소돼 초대가 끝났습니다']);
 
   /** 일이 시작된 배정 · 보고할 수 있는 배정 (서버 updates.js 와 같은 조건) */
   const REPORTABLE = Object.freeze(['confirmed', 'started', 'submitted', 'revision', 'accepted']);
@@ -310,11 +305,6 @@
   }
   const slotsText = (c) => `확정 ${toNum(c && c.filled) || 0}/${toNum(c && c.slots) || 0}명`;
 
-  /** 작업 닫기 · 취소로 서버가 끝낸 초대인가 (거절 배정 + 계약 문구) */
-  function isAutoDeclined(my) {
-    return !!(my && my.assignment_status === 'declined' && AUTO_DECLINE_REASONS.includes(trimStr(my.release_reason)));
-  }
-
   /**
    * 화면에 보일 작업 상태 — 서버가 open 이라고 줬어도 화면 시각으로 지원 종료일이 지났으면 expired(「지원 종료」)
    * (목록을 연 채 시간이 지나면 칩과 지원 종료일 줄이 엇갈리지 않게. 서버 경계와 같다: 지원 종료일 < 지금)
@@ -327,7 +317,6 @@
   /** 카드의 내 상태 — 배정 > 신청 > 작업 상태 */
   function myStatus(c, nowMs) {
     const my = (c && c.my) || {};
-    if (isAutoDeclined(my)) return { key: 'declined', text: '초대 끝남', tone: TONE.declined };
     if (my.assignment_status) return { key: my.assignment_status, text: label(ASSIGN_STATUS_LABEL, my.assignment_status), tone: TONE[my.assignment_status] };
     if (my.application_status) return { key: my.application_status, text: label(APP_STATUS_LABEL, my.application_status), tone: TONE[my.application_status] };
     const eff = shownStatus(c, nowMs);
@@ -341,12 +330,16 @@
     return `<div class="jd dl">지원 종료일 ${esc(fmtDateTime(iso))} · ${deadlineTagHtml(deadlineTag(iso, nowMs))}</div>`;
   }
 
-  /** 지난 작업(완료) 탭 — 거절 배정의 사유 (내가 적은 거절 사유, 또는 작업 닫기 · 취소로 끝난 초대 안내) */
+  /**
+   * 지난 작업(완료) 탭 — 거절(declined) 배정의 release_reason 을 그대로 한 줄로 (계약 1주차 후속 C).
+   * 내가 적은 거절 사유일 수도, 작업 닫기 · 취소로 서버가 끝낸 초대의 안내 문구일 수도 있어 "사유:" 로만 붙인다.
+   * 서버 문구 글자를 맞춰 칩을 바꾸지 않는다 — 문구가 바뀌면 소리 없이 엇갈린다 (PR #978 리뷰).
+   */
   function releaseReasonHtml(c) {
     const my = (c && c.my) || {};
     const reason = trimStr(my.release_reason);
     if (my.assignment_status !== 'declined' || !reason) return '';
-    return `<div class="jd reason">${isAutoDeclined(my) ? esc(reason) : `거절 사유: ${esc(reason)}`}</div>`;
+    return `<div class="jd reason">사유: ${esc(reason)}</div>`;
   }
 
   /**
@@ -437,8 +430,6 @@
     const o = opts || {};
     const my = (d && d.my) || {};
     const eff = (d && (d.effective_status || d.status)) || '';
-    // 닫기 · 취소로 끝난 초대는 그 안내 문구 그대로 (작업자가 거절한 것이 아니다)
-    if (isAutoDeclined(my)) return `${trimStr(my.release_reason)}.`;
     if (eff === 'cancelled') return '취소된 작업입니다.';
     if (eff === 'closed') return '종료된 작업입니다.';
     switch (my.assignment_status) {
@@ -839,7 +830,11 @@
       return false;
     }
 
-    /** 버튼을 잠그고 요청 → 성공 문구 → 상세 · 건수 다시 받기 */
+    /**
+     * 버튼을 잠그고 요청 → 성공 문구 → 상세 · 건수 다시 받기.
+     * 409(상태가 이미 바뀜 — 예: 서버 기준으로 지원 종료일이 지남)면 서버 문구를 띄우고 상세를 다시 받는다
+     * (화면이 옛 상태로 남아 같은 409 를 되풀이하지 않게).
+     */
     async function act(fn, okMsg) {
       const box = $('appBody');
       const controls = box.querySelectorAll('button, textarea, input');
@@ -855,6 +850,7 @@
         controls.forEach((c) => { c.disabled = false; });
         if (await handleAuthError(err)) return;
         say(err.message);
+        if (err.status === 409) await renderRoute();
       }
     }
 
@@ -1051,7 +1047,6 @@
     INVITE_KEY,
     SUSPENDED_NOTE,
     DEADLINE_NONE,
-    AUTO_DECLINE_REASONS,
     esc,
     fmtDate,
     fmtTime,
@@ -1074,7 +1069,6 @@
     registrationBody,
     payText,
     myStatus,
-    isAutoDeclined,
     releaseReasonHtml,
     jobCardHtml,
     jobListHtml,
