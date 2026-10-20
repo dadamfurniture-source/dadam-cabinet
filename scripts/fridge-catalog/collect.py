@@ -11,7 +11,7 @@ Dimensions  : manufacturer official spec APIs (W x H x D, mm); Winia/Dacor/SKS/M
 Install gaps: manufacturer installation guides (Samsung buying-guide, LG setup-guide; Winia has none in HTML);
               Smeg: product page install sentences (hinge-side clearance etc.)
 Niche       : Dacor '설치공간 (권장)', SKS '설치 치수', Liebherr attr 4491 -> niche_min_* / niche_max_* (built-in units)
-Image       : image_url = 제조사 공식 대표 사진 URL (핫링크용, 사진 자체는 받지 않는다) — 이미 받은 목록/스펙/페이지 응답에서 읽는다
+Image       : image_source_url = 제조사 공식 대표 사진 URL (핫링크용, 사진 자체는 받지 않는다) — 이미 받은 목록/스펙/페이지 응답에서 읽는다
 
 Politeness: robots.txt checked per host, >= --delay seconds between network
 requests, one request at a time, every raw response cached under cache/.
@@ -200,7 +200,7 @@ def now_iso():
 
 def abs_url(u, base):
     """제조사 사진 경로 → 절대 https URL ('//host/…' · '/path' · 'https://…'). 비면 None.
-    image_url 은 URL 만 저장한다 (핫링크) — 사진을 내려받거나 다시 올리지 않는다."""
+    image_source_url 은 URL 만 저장한다 (핫링크) — 사진을 내려받거나 다시 올리지 않는다."""
     if not u or not str(u).strip():
         return None
     u = html.unescape(str(u).strip())
@@ -253,14 +253,24 @@ def ss_variants(p):
     return out  # mdlCode -> goodsId
 
 
-def ss_image(p):
-    """목록 항목의 대표 사진 imgPath1…8 ('//images.samsung.com/kdp/goods/…png'). 설명 imgContentN 에 '정면' 이 든
-    첫 장, 없으면 imgPath1. 색상 변형(goodsOptStr)은 따로 사진이 없어 목록 항목의 사진을 같이 쓴다."""
-    shots = [(p.get(f"imgPath{i}"), p.get(f"imgContent{i}") or "") for i in range(1, 9)]
-    shots = [(u, c) for u, c in shots if u]
-    if not shots:
+def abs_image_url(path, base):
+    """제품 사진 주소 → https 절대 주소. '//host/…' 는 https:, '/…' 는 base 를 붙인다. 없으면 None."""
+    path = (path or "").strip()
+    if not path:
         return None
-    return abs_url(next((u for u, c in shots if "정면" in c), shots[0][0]), SS)
+    if path.startswith("//"):
+        return "https:" + path
+    if path.startswith("/"):
+        return base + path
+    if path.startswith(("https://", "http://")):
+        return path
+    return None
+
+
+def ss_image(p):
+    """삼성 목록 상품의 대표 사진 (imgPath1, '//images.samsung.com/kdp/goods/…'). 2026-10-20 확인:
+    goodsOptStr 마지막 칸(img)은 비어 있었다 — 색상별 사진은 쓰지 않는다."""
+    return abs_image_url(p.get("imgPath1"), SS)
 
 
 def ss_spec(f, goods_id):
@@ -477,8 +487,9 @@ def samsung_collect(f, sample=None, guides=True):
                 "product_type_raw": ptype,
                 "size_raw": size,
                 "source_url": f"{SS}/sec/xhr/pf/compGoodsSpecList?goodsIds={gid}",
+                # 2026-10-20: 대표 제품 사진 — 목록의 imgPath1 (상품 단위, 색상 변형마다 따로 없다)
+                "image_source_url": ss_image(p),
                 "page_url": pdp,
-                "image_url": ss_image(p),
                 "sale_status": p.get("saleStatCd"),
                 "collected_at": now_iso(),
             }
@@ -694,9 +705,10 @@ def lg_collect(f, sample=None, guides=True):
                 "size_raw": flat.get(size_k) if size_k else None,
                 "drawing_dims_raw": alt_dims,
                 "source_url": f"{LG_API}/pdpsvc/ajax/v1/models/{vid}/spec",
+                # 2026-10-20: 대표 제품 사진 — 목록 칸의 largeImageAddr (450×450, www → static.lge.co.kr 로 넘어간다).
+                #   색상 변형(optionGroupList)은 목록 칸 하나의 사진을 같이 쓴다
+                "image_source_url": abs_image_url(m.get("largeImageAddr") or m.get("mediumImageAddr"), LG_WWW),
                 "page_url": LG_WWW + (m.get("modelUrlPath") or ""),
-                # 스펙 응답의 모델(색상 변형)별 대표 사진 '/kr/images/…-450x450.jpg', 없으면 목록 항목의 사진
-                "image_url": abs_url(spec.get("largeImageAddr") or m.get("largeImageAddr"), LG_WWW),
                 "sale_status": m.get("modelStatusCode"),
                 "collected_at": now_iso(),
             }
@@ -751,13 +763,6 @@ def wn_spec(h):
     return out
 
 
-def wn_image(h):
-    """상세 페이지 첫 대표 사진 (swiper 'main-thumnail' 의 <img src='/common/file/imageView?IMG_PATH=/upload/basic_gallery/…'>).
-    목록 칸이 없는 색상 칩 상품도 상세는 있으니 상세에서 읽는다."""
-    m = re.search(r'(?s)class="swiper-container main-thumnail".*?<img src="([^"]+)"', h)
-    return abs_url(m.group(1), WN) if m else None
-
-
 def wn_line(title, kimchi):
     if kimchi:  # '딤채 스탠드형 551L' · '클라쎄 스탠드형 328L'
         w = title.split(" ")[0]
@@ -793,6 +798,17 @@ def wn_subtype(p, cat, title, spec, cap, h):
     if not cap and "소형" in mng:
         return "small"
     return "two_door"
+
+
+def wn_image(h, p):
+    """위니아 대표 제품 사진 (2026-10-20 확인).
+    /upload/… 를 바로 부르면 notFound 로 넘어간다 — 사이트는 /common/file/imageView?IMG_PATH=/upload/… 로 보여 준다.
+    상세 갤러리 첫 큰 사진(1_0.*_Gallery_big_*, 2000×2000) → 없으면 목록의 PRODUCT_BEST_IMG · PRODUCT_THUMB_IMG (590×590)."""
+    m = re.search(r"IMG_PATH=(/upload/basic_gallery/[^\"'\s>]*_Gallery_big_[^\"'\s>]*)", h or "")
+    path = m.group(1) if m else (p.get("PRODUCT_BEST_IMG") or p.get("PRODUCT_THUMB_IMG") or "").strip()
+    if not path.startswith("/upload/"):
+        return None
+    return f"{WN}/common/file/imageView?IMG_PATH={path}"
 
 
 def winia_collect(f, sample=None, guides=True):
@@ -873,7 +889,7 @@ def winia_collect(f, sample=None, guides=True):
             "size_raw": f"{size_k}: {size}" if size else None,
             "source_url": page,
             "page_url": page,
-            "image_url": wn_image(h),
+            "image_source_url": wn_image(h, p),
             "sale_status": p.get("STATUS"),
             "collected_at": now_iso(),
         }
@@ -1046,15 +1062,15 @@ def dacor_collect(f, sample=None, guides=True):
             "size_raw": size.replace("\n", " / ") or None,
             "source_url": page,
             "page_url": page,
-            "image_url": None,  # 아래에서 다른 페이지의 '관련 제품' 사진으로 채운다
+            "image_source_url": None,  # 아래에서 다른 페이지의 '관련 제품' 사진으로 채운다
             "sale_status": None,
             "collected_at": now_iso(),
         }
         row.update(parse_niche(niche_raw))
         rows.append(row)
     for r in rows:
-        r["image_url"] = thumbs.get(r["page_url"][len(DC):])
-        if not r["image_url"]:
+        r["image_source_url"] = thumbs.get(r["page_url"][len(DC):])
+        if not r["image_source_url"]:
             print(f"  [dacor] {r['page_url']}: no product thumbnail in other pages' related-products block",
                   file=sys.stderr)
     return rows
@@ -1209,7 +1225,7 @@ def sks_collect(f, sample=None, guides=True):
                             "size_raw": size,
                             "source_url": f"{page}#{tab_id}",
                             "page_url": page,
-                            "image_url": sks_image(tab, code),
+                            "image_source_url": sks_image(tab, code),
                             "sale_status": None,
                             "collected_at": now_iso(),
                         }
@@ -1405,7 +1421,7 @@ def liebherr_collect(f, sample=None, guides=True):
             r["_hinges"] += [x for x in hinges if x not in r["_hinges"]]
             r["_item_nos"] += [a[LH_A["item_no"]][0]] if LH_A["item_no"] in a else []
             r["_pages"].append(page)
-            r["image_url"] = r.get("image_url") or lh_image(p)
+            r["image_source_url"] = r.get("image_source_url") or lh_image(p)
             continue
         tags = [t for t in ("BioFresh", "NoFrost", "DuoCooling") if t in name]
         if "wine tempering" in f"{ptype} {mtype}".lower():  # 냉동 + 와인칸 조합 (SWNsdh · XRCsdh)
@@ -1431,7 +1447,7 @@ def liebherr_collect(f, sample=None, guides=True):
             "size_raw": f"H/W/D {ext[0]} {ext[1] or ''}".strip() if ext else None,
             "source_url": page,
             "page_url": page,
-            "image_url": lh_image(p),
+            "image_source_url": lh_image(p),
             "sale_status": None,
             "collected_at": now_iso(),
             "_ptype": ptype, "_mtype": mtype, "_door": door, "_install": install_raw, "_cap_basis": cap_basis,
@@ -1565,7 +1581,7 @@ def midea_collect(f, sample=None, guides=True):
             "source_url": page,
             "page_url": page,
             # JSON-LD Product.image (og:image 는 'https://www.midea.comhttps://…' 처럼 깨진 페이지가 있다)
-            "image_url": abs_url((ld.get("image") or [None])[0] if isinstance(ld.get("image"), list) else ld.get("image"),
+            "image_source_url": abs_url((ld.get("image") or [None])[0] if isinstance(ld.get("image"), list) else ld.get("image"),
                                  MD),
             "sale_status": ((ld.get("offers") or {}).get("availability") or "").rsplit("/", 1)[-1] or None,
             "collected_at": now_iso(),
@@ -1695,7 +1711,7 @@ def smeg_collect(f, sample=None, guides=True):
             "size_raw": size or None,
             "source_url": page,
             "page_url": page,
-            "image_url": abs_url(img.group(1), SM) if img else None,
+            "image_source_url": abs_url(img.group(1), SM) if img else None,
             "sale_status": None,
             "collected_at": now_iso(),
         }
@@ -2059,7 +2075,7 @@ def gaggenau_collect(f, sample=None, guides=True):
             "size_raw": size_raw,
             "source_url": sheet,
             "page_url": page,
-            "image_url": gg_image(ph) if st == 200 else None,
+            "image_source_url": gg_image(ph) if st == 200 else None,
             "sale_status": None,
             "collected_at": now_iso(),
         }
@@ -2076,7 +2092,7 @@ GAP_KEYS = ["side_gap_mm", "door_side_gap_mm", "top_gap_mm", "back_gap_mm", "nic
             "install_guide_title", "install_guide_ref", "install_notes"]
 COLS = ["brand", "category_subtype", "line", "tags", "model_name", "model_codes", "width_mm", "height_mm", "depth_mm",
         "capacity_l", "wine_bottles", "install_type", "panel_ready"] + GAP_KEYS + [
-           "product_type_raw", "size_raw", "drawing_dims_raw", "source_url", "page_url", "image_url", "source_urls",
+           "product_type_raw", "size_raw", "drawing_dims_raw", "source_url", "page_url", "source_urls", "image_source_url",
            "sale_status", "collected_at"]
 
 
@@ -2098,8 +2114,9 @@ def merge(rows):
                 if c not in o["model_codes"]:
                     o["model_codes"].append(c)
             o["source_urls"].append(r["source_url"])
-            if not o.get("image_url") and r.get("image_url"):  # 묶인 변형 중 사진이 있는 첫 행
-                o["image_url"] = r["image_url"]
+            # 2026-10-20: 대표 사진 1장 — 첫 변형 것, 없으면 사진 있는 다음 변형
+            if not o.get("image_source_url") and r.get("image_source_url"):
+                o["image_source_url"] = r["image_source_url"]
             for k in GAP_KEYS:
                 if o.get(k) in (None, "") and r.get(k) not in (None, ""):
                     o[k] = r[k]

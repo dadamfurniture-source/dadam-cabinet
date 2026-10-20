@@ -43,7 +43,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://haier.co.kr/board_data/editor_img/20260915145501_brk64.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182026000002&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182026000002_file2.jpg",
   "source_urls": [
    "https://haier.co.kr/board_data/editor_img/20260915145501_brk64.jpg",
    "https://haier.co.kr/board_data/editor_img/20260827092446_95qsw.jpg"
@@ -53,7 +52,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182025000007&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182026000002_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -98,7 +98,6 @@
   "drawing_dims_raw": "SIZE 그림: Height 1365mm, Width 356mm, Depth 356mm — 스펙표와 불일치(그림 오기로 보임), 스펙표 값을 사용",
   "source_url": "https://haier.co.kr/board_data/editor_img/20251201174625_p6jlt.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182025000006&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182025000006_file2.jpg",
   "source_urls": [
    "https://haier.co.kr/board_data/editor_img/20251201174625_p6jlt.jpg"
   ],
@@ -106,7 +105,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182025000006&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182025000006_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -152,7 +152,6 @@
   "drawing_dims_raw": "ARK121MNGW SIZE 그림: Height 1365mm, Width 356mm, Depth 356mm — 스펙표와 불일치, 스펙표 값 사용 (ARK121MNW 그림은 356/1366/555로 일치)",
   "source_url": "https://haier.co.kr/board_data/editor_img/20251201174516_zt62c.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182025000005&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182025000005_file2.jpg",
   "source_urls": [
    "https://haier.co.kr/board_data/editor_img/20251201174516_zt62c.jpg",
    "https://haier.co.kr/board_data/editor_img/20241212150505_t1gh2.jpg"
@@ -162,7 +161,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000058&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182025000005_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -207,7 +207,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://haier.co.kr/board_data/editor_img/20241212150326_n0134.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000059&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000059_file2.jpg",
   "source_urls": [
    "https://haier.co.kr/board_data/editor_img/20241212150326_n0134.jpg"
   ],
@@ -215,7 +214,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000059&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000059_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -260,7 +260,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://haier.co.kr/board_data/editor_img/20250529172501_wt632.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182025000002&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182025000002_file2.jpg",
   "source_urls": [
    "https://haier.co.kr/board_data/editor_img/20250529172501_wt632.jpg"
   ],
@@ -268,7 +267,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182025000002&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182025000002_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -313,7 +313,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://haier.co.kr/board_data/editor_img/20241211133004_wm44d.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000014&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000014_file1.jpg",
   "source_urls": [
    "https://haier.co.kr/board_data/editor_img/20241211133004_wm44d.jpg",
    "https://haier.co.kr/board_data/editor_img/20241211133100_fqt2g.jpg"
@@ -323,7 +322,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000016&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000014_file1.jpg"
  },
  {
   "brand": "Haier",
@@ -368,7 +368,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://www.haier.co.kr/board_data/editor_img/20241119140442_ldi5r.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000055&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000055_file2.jpg",
   "source_urls": [
    "https://www.haier.co.kr/board_data/editor_img/20241119140442_ldi5r.jpg"
   ],
@@ -376,7 +375,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000055&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000055_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -422,7 +422,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://www.haier.co.kr/board_data/editor_img/20241122170949_acbky.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000011&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000011_file2.jpg",
   "source_urls": [
    "https://www.haier.co.kr/board_data/editor_img/20241122170949_acbky.jpg"
   ],
@@ -430,7 +429,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000011&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000011_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -477,7 +477,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://haier.co.kr/board_data/editor_img/20250911170326_bfmx4.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182025000004&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182025000004_file2.jpg",
   "source_urls": [
    "https://haier.co.kr/board_data/editor_img/20250911170326_bfmx4.jpg",
    "https://www.haier.co.kr/board_data/editor_img/20241107112010_cpn5c.jpg",
@@ -489,7 +488,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000033&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182025000004_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -535,7 +535,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://haier.co.kr/board_data/editor_img/20250911170146_99c8r.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182025000003&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182025000003_file2.jpg",
   "source_urls": [
    "https://haier.co.kr/board_data/editor_img/20250911170146_99c8r.jpg",
    "https://www.haier.co.kr/board_data/editor_img/20241107105851_17hrb.jpg"
@@ -545,7 +544,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000031&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182025000003_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -590,7 +590,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://ai.esmplus.com/ithaier00/03_Product%20page/REF/HRP266MDWE/HRP266MDWE_product%20page.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182026000001&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182026000001_file2.jpg",
   "source_urls": [
    "https://ai.esmplus.com/ithaier00/03_Product%20page/REF/HRP266MDWE/HRP266MDWE_product%20page.jpg"
   ],
@@ -598,7 +597,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182026000001&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182026000001_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -645,7 +645,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://www.haier.co.kr/board_data/editor_img/20241112154107_9y1qg.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000050&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000050_file2.jpg",
   "source_urls": [
    "https://www.haier.co.kr/board_data/editor_img/20241112154107_9y1qg.jpg",
    "https://www.haier.co.kr/board_data/editor_img/20241112154511_j8tio.jpg",
@@ -659,7 +658,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000054&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000050_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -703,7 +703,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://www.haier.co.kr/board_data/editor_img/20241105160554_ocvam.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000019&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000019_file2.jpg",
   "source_urls": [
    "https://www.haier.co.kr/board_data/editor_img/20241105160554_ocvam.jpg"
   ],
@@ -711,7 +710,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000019&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000019_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -755,7 +755,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://www.haier.co.kr/board_data/editor_img/20241119133911_i6jud.jpeg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000053&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000053_file2.jpg",
   "source_urls": [
    "https://www.haier.co.kr/board_data/editor_img/20241119133911_i6jud.jpeg"
   ],
@@ -763,7 +762,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000053&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000053_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -807,7 +807,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://www.haier.co.kr/board_data/editor_img/20241105160236_oqiud.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000018&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000018_file2.jpg",
   "source_urls": [
    "https://www.haier.co.kr/board_data/editor_img/20241105160236_oqiud.jpg"
   ],
@@ -815,7 +814,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000018&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000018_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -860,7 +860,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://www.haier.co.kr/board_data/editor_img/20241105160738_t3308.jpeg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000020&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000020_file2.jpg",
   "source_urls": [
    "https://www.haier.co.kr/board_data/editor_img/20241105160738_t3308.jpeg"
   ],
@@ -868,7 +867,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000020&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000020_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -913,7 +913,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://www.haier.co.kr/board_data/editor_img/20241024143346_c6xec.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000005&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000005_file2.jpg",
   "source_urls": [
    "https://www.haier.co.kr/board_data/editor_img/20241024143346_c6xec.jpg"
   ],
@@ -921,7 +920,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000005&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000005_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -965,7 +965,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://www.haier.co.kr/board_data/editor_img/20241105164311_2ddvh.jpeg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000024&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000024_file2.jpg",
   "source_urls": [
    "https://www.haier.co.kr/board_data/editor_img/20241105164311_2ddvh.jpeg"
   ],
@@ -973,7 +972,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000024&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000024_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -1017,7 +1017,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://www.haier.co.kr/board_data/editor_img/20241105164443_08moo.jpeg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000025&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000025_file2.jpg",
   "source_urls": [
    "https://www.haier.co.kr/board_data/editor_img/20241105164443_08moo.jpeg"
   ],
@@ -1025,7 +1024,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000025&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000025_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -1069,7 +1069,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://www.haier.co.kr/board_data/editor_img/20241105171028_qmuw7.jpeg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000028&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000028_file2.jpg",
   "source_urls": [
    "https://www.haier.co.kr/board_data/editor_img/20241105171028_qmuw7.jpeg"
   ],
@@ -1077,7 +1076,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000028&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000028_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -1121,7 +1121,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://haier.co.kr/board_data/editor_img/20250403151445_ptwoz.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000026&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000026_file2.jpg",
   "source_urls": [
    "https://haier.co.kr/board_data/editor_img/20250403151445_ptwoz.jpg"
   ],
@@ -1129,7 +1128,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000026&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000026_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -1175,7 +1175,6 @@
   "drawing_dims_raw": "Specification 그림: Width 440mm, Height 510mm, Depth 465mm — 상품정보고시 표와 다름, 표 값 사용",
   "source_url": "https://www.haier.co.kr/board_data/editor_img/20241107153953_g2isu.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000048&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000048_file2.jpg",
   "source_urls": [
    "https://www.haier.co.kr/board_data/editor_img/20241107153953_g2isu.jpg",
    "https://www.haier.co.kr/board_data/editor_img/20241107112441_01rp8.jpg"
@@ -1185,7 +1184,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000039&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000048_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -1231,7 +1231,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://www.haier.co.kr/board_data/editor_img/20241107135416_nahwf.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000042&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000042_file2.jpg",
   "source_urls": [
    "https://www.haier.co.kr/board_data/editor_img/20241107135416_nahwf.jpg",
    "https://www.haier.co.kr/board_data/editor_img/20241107112247_4ya6i.jpg"
@@ -1241,7 +1240,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000038&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000042_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -1285,7 +1285,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://www.haier.co.kr/board_data/editor_img/20241107152812_g9kwp.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000046&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000046_file2.jpg",
   "source_urls": [
    "https://www.haier.co.kr/board_data/editor_img/20241107152812_g9kwp.jpg"
   ],
@@ -1293,7 +1292,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000046&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000046_file2.jpg"
  },
  {
   "brand": "Haier",
@@ -1338,7 +1338,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://www.haier.co.kr/board_data/editor_img/20241107153050_6nl6t.jpg",
   "page_url": "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000047&act=view",
-  "image_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000047_file2.jpg",
   "source_urls": [
    "https://www.haier.co.kr/board_data/editor_img/20241107153050_6nl6t.jpg",
    "https://www.haier.co.kr/board_data/editor_img/20241107143611_f020l.jpg"
@@ -1348,7 +1347,8 @@
    "https://www.haier.co.kr/board/board_product/board_detail.asp?scrID=0000000218&bd_num=00000002182024000044&act=view"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://www.haier.co.kr/board_data/0000000218/00000002182024000047_file2.jpg"
  },
  {
   "brand": "Cuckoo",
@@ -1393,7 +1393,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/file_fff5f3fa-224b-4d8d-8d2e-7c03cb42d8fa.jpg",
   "page_url": "https://www.cuckoo.co.kr/mall/productView?productNo=7838",
-  "image_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/06f52dc3-9dc2-46b5-9e2c-59fbc3d0560f.png",
   "source_urls": [
    "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/file_fff5f3fa-224b-4d8d-8d2e-7c03cb42d8fa.jpg"
   ],
@@ -1401,7 +1400,8 @@
    "https://www.cuckoo.co.kr/mall/productView?productNo=7838"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/06f52dc3-9dc2-46b5-9e2c-59fbc3d0560f.png"
  },
  {
   "brand": "Cuckoo",
@@ -1446,7 +1446,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/file_cea21dfc-1377-45a0-8a65-d2e51bdad3b3.jpg",
   "page_url": "https://www.cuckoo.co.kr/mall/productView?productNo=7849",
-  "image_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/d2d090e7-dca1-4845-b57b-9a351eed6907.png",
   "source_urls": [
    "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/file_cea21dfc-1377-45a0-8a65-d2e51bdad3b3.jpg"
   ],
@@ -1454,7 +1453,8 @@
    "https://www.cuckoo.co.kr/mall/productView?productNo=7849"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/d2d090e7-dca1-4845-b57b-9a351eed6907.png"
  },
  {
   "brand": "Cuckoo",
@@ -1499,7 +1499,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/file_a9e3a09f-5bc0-480c-a16b-c09ffcbb884f.jpg",
   "page_url": "https://www.cuckoo.co.kr/mall/productView?productNo=11062",
-  "image_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/dd51f800-8bb9-4811-916a-a59b4f316dab.png",
   "source_urls": [
    "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/file_a9e3a09f-5bc0-480c-a16b-c09ffcbb884f.jpg"
   ],
@@ -1508,7 +1507,8 @@
    "https://www.cuckoo.co.kr/mall/productView?productNo=11446"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/dd51f800-8bb9-4811-916a-a59b4f316dab.png"
  },
  {
   "brand": "Cuckoo",
@@ -1554,7 +1554,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/file_f6d222a5-1075-4b25-b735-1dc46107a86c.jpg",
   "page_url": "https://www.cuckoo.co.kr/mall/productView?productNo=8935",
-  "image_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/f8038f8a-9cc0-4b3a-9a86-91733246fd8a.png",
   "source_urls": [
    "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/file_f6d222a5-1075-4b25-b735-1dc46107a86c.jpg"
   ],
@@ -1562,7 +1561,8 @@
    "https://www.cuckoo.co.kr/mall/productView?productNo=8935"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/f8038f8a-9cc0-4b3a-9a86-91733246fd8a.png"
  },
  {
   "brand": "Cuckoo",
@@ -1607,7 +1607,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/file_a4417bdd-28d8-41a8-baae-173bbf6551ab.jpg",
   "page_url": "https://www.cuckoo.co.kr/mall/productView?productNo=8610",
-  "image_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/891e7a32-1c31-4000-aa65-357a9016ff17.png",
   "source_urls": [
    "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/file_a4417bdd-28d8-41a8-baae-173bbf6551ab.jpg"
   ],
@@ -1615,7 +1614,8 @@
    "https://www.cuckoo.co.kr/mall/productView?productNo=8610"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/891e7a32-1c31-4000-aa65-357a9016ff17.png"
  },
  {
   "brand": "Cuckoo",
@@ -1661,7 +1661,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/file_a5bfd9ba-0189-4e98-9b42-b0e0d8f0464b.jpg",
   "page_url": "https://www.cuckoo.co.kr/mall/productView?productNo=11312",
-  "image_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/23738f06-0d8f-4d9f-9a74-d125dc4c3495.png",
   "source_urls": [
    "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/file_a5bfd9ba-0189-4e98-9b42-b0e0d8f0464b.jpg"
   ],
@@ -1669,7 +1668,8 @@
    "https://www.cuckoo.co.kr/mall/productView?productNo=11312"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/23738f06-0d8f-4d9f-9a74-d125dc4c3495.png"
  },
  {
   "brand": "Cuckoo",
@@ -1713,7 +1713,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/file_a40aba90-a891-4238-a8ea-b4e11404940d.jpg",
   "page_url": "https://www.cuckoo.co.kr/mall/productView?productNo=8611",
-  "image_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/a1c34bb0-17e1-4c6a-9385-15e4b2892126.png",
   "source_urls": [
    "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/file_a40aba90-a891-4238-a8ea-b4e11404940d.jpg"
   ],
@@ -1721,7 +1720,8 @@
    "https://www.cuckoo.co.kr/mall/productView?productNo=8611"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/a1c34bb0-17e1-4c6a-9385-15e4b2892126.png"
  },
  {
   "brand": "Cuckoo",
@@ -1765,7 +1765,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/file_2a2e4433-4e5e-49d0-951d-6eaaf16d1a39.png",
   "page_url": "https://www.cuckoo.co.kr/mall/productView?productNo=7104",
-  "image_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/3c3f85e5-2235-4278-b7ad-e29afe05b9cf.png",
   "source_urls": [
    "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/file_2a2e4433-4e5e-49d0-951d-6eaaf16d1a39.png"
   ],
@@ -1773,7 +1772,8 @@
    "https://www.cuckoo.co.kr/mall/productView?productNo=7104"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/3c3f85e5-2235-4278-b7ad-e29afe05b9cf.png"
  },
  {
   "brand": "Cuckoo",
@@ -1817,7 +1817,6 @@
   "drawing_dims_raw": null,
   "source_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/file_e8d15e44-38af-4e49-9220-9c5ccd3e233b.png",
   "page_url": "https://www.cuckoo.co.kr/mall/productView?productNo=6773",
-  "image_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/caa166a2-d815-4a5a-a346-be3c48758282.png",
   "source_urls": [
    "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/file_e8d15e44-38af-4e49-9220-9c5ccd3e233b.png"
   ],
@@ -1825,6 +1824,7 @@
    "https://www.cuckoo.co.kr/mall/productView?productNo=6773"
   ],
   "sale_status": null,
-  "collected_at": "2026-10-20T07:01:59+00:00"
+  "collected_at": "2026-10-20T07:01:59+00:00",
+  "image_source_url": "https://cdn.cuckoo.co.kr/upload_cuckoo/_bo_mall/product/caa166a2-d815-4a5a-a346-be3c48758282.png"
  }
 ]

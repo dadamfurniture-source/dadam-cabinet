@@ -40,19 +40,21 @@ BOM 행마다 판재 조각의 **자리**를 붙인다. 재단 치수는 BOM 행
 | 서랍장 전면 (도어·서랍도어) | 서랍 레이아웃(`MaterialExtractor.drawerLayoutOf` → `bom-drawer-rules.js`)의 전면 y0..y1 (몸통 상단에서 아래로)을 뒤집어 세로 자리, 서랍도어 가로 W−4 가운데 | 플래너 `frontSpanOf` (3D 장면 대조 시험) |
 | 서랍 박스 판 | 외경은 플래너 `addDrawerBoxes` 자리 (가로 가운데, 앞면 = 몸통 앞선, 바닥 = 존 바닥 + 레일 아래 여유). 측판 양 끝 · 앞뒷판 사이 · 우라 밑면 덮음(사쿠리면 측판 홈 15~18, `mount: groove`) · 하단보강 우라 아래 가운데 앞뒤로 | 사장님 2026-10-20 "박스 아래 덮음" · 홈 "15mm", `drawerBoxDims` (3D 장면 박스 외경 대조 시험) |
 | 서랍장 중간 목찬넬 ㄴ자 | 측판 앞 중간 따내기(90×40) 바닥에 지면판 40, 그 위 따낸 자리 안쪽 끝에 전면판 72 (앞 22 가 손 자리). 모듈 폭 전체. 측판 특징에 중간 따내기 `channel-mid` | 플래너 `addMidChannels` · `notchesOf`, `bom-drawer-rules.js` |
+| 붙박이장 통 | 몸통이 여럿 — BOM 행 module 이름(`-서랍모듈` · `-하부장` · 통 · `-상부장`)으로 묶어 **아래→위로 쌓는다** (외부 서랍 몸통이 맨 아래). 몸통마다 측판·천지판·뒷판은 위 짜임 그대로 (사쿠리 여부는 측판 비고). 부재에 `tags.carcass`, 모듈에 `carcasses[]`. 선반 — 통 구조 블록이 있으면 규칙 파일 배치(`layoutWardrobeModule`)의 선반 자리 (몸통 높이가 BOM 과 다르면 `shelf-height-unknown`), 없으면 wardrobe.md §6 (`shelfPositions`: 긴옷 상단 315 아래, 그 밖 균등). 앞뒤는 천지판 뒤끝 맞춤 (§6 전면 여유 70). 칸막이(세로·수평) — 규칙 파일 배치(`dividersOf`)의 자리, 깊이는 천지판과 같아 천지판 뒤끝 맞춤 (배치가 없거나 BOM 과 다르면 `divider-layout-unknown`) | `bom-wardrobe-rules.js` `layoutWardrobeModule` · `cabinetsOf` (3D 장면 측판·선반 대조 시험). 3D 는 뒷판을 측판 사이에, 천지판을 D−T 로, 선반을 깊이 가운데에 그린다 — 명세는 BOM 재단 치수를 따른다 |
 
 ## `unplaced` 이유
 
 | 이유 | 뜻 |
 |---|---|
-| `band-position-pending` | 하부장 밴드 2장의 자리 — 사장님 확인 대기 |
+| `band-position-pending` | 하부장 · 붙박이장 서랍모듈 밴드 2장의 자리 — 사장님 확인 대기 |
 | `pending-owner D2` | 서랍장 처짐방지목 자리 (결정 D2) |
 | `shelf-height-unknown` | 선반 높이를 넘기지 않음 — 지어내지 않는다 |
 | `blind-pending` | 멍장 (목대·멍가림판) — 다음 단계 |
-| `module-not-yet` | 붙박이장·냉장고장 — 다음 단계 |
-| `door-layout-unknown` | 도어 장수·폭이 플래너 칸 규칙(1장 W−4, 2장 W/2−4)과 다름, 또는 서랍장 도어 높이가 레이아웃 전면과 다름 |
+| `module-not-yet` | 냉장고장 · 붙박이장 몸통 행이 짜임과 맞지 않음 — 다음 단계 |
+| `door-layout-unknown` | 도어 장수·폭이 플래너 칸 규칙(1장 W−4, 2장 W/2−4)과 다름, 또는 서랍장 도어 높이가 레이아웃 전면과 다름. 붙박이장 도어·서랍도어 — BOM 도어 H 가 좌대 + 몸통 − 20 인데 3D 는 몸통 안(H−4)에 그린다, 세로 자리 사장님 확인 대기 |
 | `drawer-layout-unknown` | 서랍 전면·중간 목찬넬·박스 판 행이 서랍 레이아웃·`drawerBoxDims` 와 맞지 않음 (간단 카테고리의 옛 서랍 식 등) 또는 레이아웃을 못 구함 |
-| `not-yet` | 상단 목찬넬 등 — PR9 |
+| `divider-layout-unknown` | 붙박이장 칸막이 행이 규칙 파일 배치와 맞지 않음 (통 구조 블록 없음 · 몸통 높이 다름) |
+| `not-yet` | 상단 목찬넬 · 붙박이장 좌대 · 서랍 박스 · 내부 서랍 등 — PR9 |
 | `run-part` | 품목 단위 행 (걸레받이·몰딩·상판·휠라) — PR9 `runs[]` |
 
 `unplaced` 항목은 `{ rowPartId, moduleKey, part, qty, reason }` 이다 (`moduleKey` 는 조립 검사가 모듈별로 묶을 때 쓴다).
@@ -73,7 +75,7 @@ BOM 행마다 판재 조각의 **자리**를 붙인다. 재단 치수는 BOM 행
 | code | 수준 | 뜻 |
 |---|---|---|
 | `part-overlap` | error | 두 판재가 파고든다 — 부피 > 1mm³ **이고** 깊이 > 0.1mm (T1 기준). 사쿠리 뒷판이 측판 홈 자리 안에서만 겹치는 것은 뺀다 |
-| `back-cover` | error | 뒷판이 양쪽 측판 안쪽 면을 넘지 않는다 (#832 이전 옛 크기 W−2T) |
+| `back-cover` | error | 뒷판이 양쪽 측판 안쪽 면을 넘지 않는다 (#832 이전 옛 크기 W−2T). 붙박이장은 몸통(`tags.carcass`)마다 본다 |
 | `back-contact` | error | 뒷판이 홈 안(`mount: groove`) 또는 측판 뒤끝 면(`behind-sides`)에 있지 않다 |
 | `part-detached` | error | 어느 판재에도 닿지 않는 판재 |
 | `assembly-unplaced` | warning | 자리 못 정한 행 — 모듈마다 한 줄, 사유별 개수 |

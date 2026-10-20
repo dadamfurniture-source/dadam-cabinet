@@ -488,16 +488,16 @@
 <!-- 플래너 공통 모듈 — 배치·구조 두 단계가 같은 정본을 본다.
      클래식 스크립트이므로 아래 인라인보다 **먼저** 실행되어야 하고,
      여기서 선언한 이름을 인라인이 다시 선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-category-picker.js?v=42.0"></script>
-<script src="js/planner/planner-scope.js?v=42.0"></script>
-<script src="js/planner/planner-view.js?v=42.0"></script>
-<script src="js/planner/planner-sections.js?v=42.0"></script>
+<script src="js/planner/planner-category-picker.js?v=42.2"></script>
+<script src="js/planner/planner-scope.js?v=42.2"></script>
+<script src="js/planner/planner-view.js?v=42.2"></script>
+<script src="js/planner/planner-sections.js?v=42.2"></script>
 <!-- W12-71: 배치 도면을 계정에도 한 벌 남긴다. 불러오기 UI 는 구조 단계에 있다.
      셋이 없어도 배치는 그대로 돈다 — PlannerStore 가 localStorage 로 물러난다. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-<script src="js/config.js?v=42.0"></script>
-<script src="js/planner/planner-store.js?v=42.0"></script>
-<script src="js/planner/planner-drawing-menu.js?v=42.0"></script>
+<script src="js/config.js?v=42.2"></script>
+<script src="js/planner/planner-store.js?v=42.2"></script>
+<script src="js/planner/planner-drawing-menu.js?v=42.2"></script>
 
 <script>
   const lt = document.getElementById('leftTools'), btnL = document.getElementById('btnLeft');
@@ -2550,8 +2550,9 @@
       // 2026-10-19: 냉장고 대량 수집 칸(subtype · line · model_codes · back_gap_mm, appliance-models-catalog.sql)도
       //   읽는다. 칸이 없으면 한 단계씩 줄여 다시 읽는다.
       // 2026-10-20: 빌트인 장 안쪽 치수(niche_min_w/h_mm, appliance-models-niche.sql)도 읽는다.
-      // 2026-10-20: 제조사 공식 대표 사진 주소(image_url, appliance-models-image.sql)도 읽는다 — 없으면 한 단계 줄여 다시.
-      let res = await fetch(`${base},side_gap_mm,top_gap_mm,subtype,line,model_codes,niche_min_w_mm,niche_min_h_mm,image_url&order=brand,model_name`, { headers });
+      // 2026-10-20: 제품 사진(appliance-models-images.sql) — 관리자가 가져온 사진 image_path(버킷 appliance-images),
+      //   없으면 제조사 원본 주소 image_source_url. 칸이 없으면 한 단계 줄여 다시 읽는다.
+      let res = await fetch(`${base},side_gap_mm,top_gap_mm,subtype,line,model_codes,niche_min_w_mm,niche_min_h_mm,image_source_url,image_path&order=brand,model_name`, { headers });
       if (!res.ok) res = await fetch(`${base},side_gap_mm,top_gap_mm,subtype,line,model_codes,niche_min_w_mm,niche_min_h_mm&order=brand,model_name`, { headers });
       if (!res.ok) res = await fetch(`${base},side_gap_mm,top_gap_mm,subtype,line,model_codes&order=brand,model_name`, { headers });
       if (!res.ok) res = await fetch(`${base},side_gap_mm,top_gap_mm`, { headers });
@@ -2576,7 +2577,9 @@
         codes:    Array.isArray(r.model_codes) ? r.model_codes : [],  // 색상 변형 코드로도 찾는다
         nicheW:   r.niche_min_w_mm ?? null,    // 2026-10-20 — 빌트인 장 안쪽 치수 (fridgeGapsOf)
         nicheH:   r.niche_min_h_mm ?? null,
-        img:      typeof r.image_url === 'string' && r.image_url.startsWith('https://') ? r.image_url : null,  // 공식 대표 사진
+        img:      r.image_path
+          ? `${cfg.url}/storage/v1/object/public/appliance-images/${String(r.image_path).split('/').map(encodeURIComponent).join('/')}`
+          : (typeof r.image_source_url === 'string' && r.image_source_url.startsWith('https://') ? r.image_source_url : null),  // 목록 사진
       }));
     } catch (e) {
       console.warn('[appliance_models] fetch 실패, fallback 사용:', e);
