@@ -6848,19 +6848,26 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   }
 
   /**
-   * 냉장고장 안의 **냉장고 자리** (2026-10-12 사장님 결정, 2026-10-20 전체 여유 +5).
+   * 냉장고장 안의 **냉장고 자리** (2026-10-12 사장님 결정, 2026-10-20 전체 여유).
    *
-   * 자리(장 안쪽) 폭 = 냉장고 폭 + 양옆 설치 여유 + **전체 여유 5**.
-   *   한 대: 10 + 595 + 10 + 5 = 620.
+   * 자리(장 안쪽) 폭 = 냉장고 폭 + 양옆 설치 여유 + **전체 여유 6**.
+   *   한 대: 10 + 595 + 10 + 6 = 621.
    *   나란히 붙은 여러 대는 한 자리로 묶고 사이 여유는 하나만 — 삼성 1도어 3대면
-   *   10 + 595 + 10 + 595 + 10 + 595 + 10 + 5 = 1830 (사장님 예시). 사이 여유는 양쪽 중 큰 값.
-   * 위장은 냉장고마다 한 통 — 사이 여유를 반씩 나눠 갖고(홀수면 왼쪽이 내림), 전체 여유 5 는 마지막 통이 갖는다.
+   *   10 + 595 + 10 + 595 + 10 + 595 + 10 + 6 = 1831 (사장님 예시, 여유 5 → 6). 사이 여유는 양쪽 중 큰 값.
+   * 위장은 냉장고마다 한 통 — 사이 여유를 반씩 나눠 갖고(홀수면 왼쪽이 내림), 전체 여유 6 은 냉장고 수로
+   *   **등분**해 통마다 더한다 (사장님 2026-10-20). 3대면 2씩 · 4대면 2·2·1·1 (나머지는 왼쪽 통부터 1씩).
    * 여유는 배치에서 모델을 고를 때 냉장고에 실린다(sideGap — 모델 표 side_gap_mm, 빌트인은 장 안쪽 치수에서
-   * 되돌린 값, 비면 브랜드 라인 기본값). 여유가 없는 옛 배치는 0 — 냉장고 폭 + 5.
+   * 되돌린 값, 비면 브랜드 라인 기본값). 여유가 없는 옛 배치는 0 — 냉장고 폭 + 6.
    * '붙어 있다' = 두 냉장고의 여유 포함 구간이 맞닿거나 겹친다.
    * 같은 회전·평면이 겹치는 냉장고만 본다. 자리는 [L, R] 안으로 자른다.
    */
-  const FRIDGE_NICHE_EXTRA = 5;
+  const FRIDGE_NICHE_EXTRA = 6;
+  /** 전체 여유를 n 통에 등분 — 정수로, 나머지는 왼쪽 통부터 1씩 (6 ÷ 4 → 2, 2, 1, 1) */
+  function fridgeExtraShares(n) {
+    const base = Math.floor(FRIDGE_NICHE_EXTRA / n);
+    const rest = FRIDGE_NICHE_EXTRA - base * n;
+    return Array.from({ length: n }, (_, i) => base + (i < rest ? 1 : 0));
+  }
   function fridgeNichesOf(area, L, R) {
     const ab = planeBoxOf(area);
     const items = areas
@@ -6883,10 +6890,11 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const out = [];
     groups.forEach((g) => {
       let x = g[0].s0 - g[0].side;
+      const extra = fridgeExtraShares(g.length);
       g.forEach((it, i) => {
         const left = i === 0 ? it.side : Math.ceil(Math.max(g[i - 1].side, it.side) / 2);
-        const right = i === g.length - 1 ? it.side + FRIDGE_NICHE_EXTRA : Math.floor(Math.max(it.side, g[i + 1].side) / 2);
-        const w = left + it.w + right;
+        const right = i === g.length - 1 ? it.side : Math.floor(Math.max(it.side, g[i + 1].side) / 2);
+        const w = left + it.w + right + extra[i];
         const x0 = Math.max(L, Math.round(x));
         const x1 = Math.min(R, Math.round(x + w));
         out.push({ x: x0, w: x1 - x0, fridgeAt: { fridgeH: it.a.H, topGap: it.a.topGap }, fridgeId: it.a.id });

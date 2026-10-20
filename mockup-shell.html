@@ -2501,7 +2501,7 @@
     const num = (v, def) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Number(v) : def);
     // 2026-10-20 사장님: 빌트인은 **장 안쪽 치수(니치)** 기준. 모델 표에 니치가 있으면
     //   옆 여유 = (니치 폭 − 냉장고 폭) / 2, 위 여유 = 니치 높이 − 냉장고 높이 로 되돌려 싣는다 —
-    //   구조 단계는 여유만 보므로 '니치 + 전체 여유 5' 가 그대로 나온다 (fridgeNichesOf).
+    //   구조 단계는 여유만 보므로 '니치 + 전체 여유 6' 이 그대로 나온다 (fridgeNichesOf).
     const nw = num(m && m.nicheW, null);
     const nh = num(m && m.nicheH, null);
     const side = nw !== null && nw > num(m && m.w, 0) ? (nw - m.w) / 2 : num(m && m.sideGap, d.side);
