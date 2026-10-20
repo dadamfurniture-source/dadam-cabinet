@@ -11,7 +11,7 @@
 | vanity | 화장대 | 500 | |
 | storage | 수납장 | 400 | |
 | warehouse | 창고장 | 450 | |
-| tvcabinet | TV장 | 400 | 2026-10-20 사장님 확정: 기본 구성 거실장만(하부 한 줄, 상부장·키큰장은 필요할 때 추가), 깊이 400. 전체 높이 [확인 필요] |
+| tvcabinet | TV장 | 400 | 2026-10-20 사장님 확정: 기본 구성 거실장만(하부 한 줄, 상부장·키큰장은 필요할 때 추가), 깊이 400, 거실장 전체 높이 450 (받침 150 + 몸통 288 + 상판 12, 정본 `planner-sections.js PLANNER_CATEGORY_SECTION_OVERRIDES`) |
 
 ## 2. 공유 스펙 (DEFAULT_SPECS)
 

@@ -20,7 +20,7 @@
     <!-- 2026-09-13: 도면 저장 / 불러오기 공통 메뉴 — 디테일 단계 우측 상단 -->
     <script src="js/planner/planner-drawing-menu.js?v=38.8"></script>
     <!-- P11 gen-to-planner: 연출컷 가져오기가 배치 영역의 깊이·높이·가전 폭을 이 정본에서 읽는다 (읽기 전용 상수) -->
-    <script src="js/planner/planner-sections.js?v=38.5"></script>
+    <script src="js/planner/planner-sections.js?v=41.5"></script>
     <script src="js/detaildesign-access.js?v=36.1"></script>
     <script src="js/admin-access.js?v=36.1"></script>
     <!-- CAD 베타 T4: 플래너(iframe)가 묻으면 관리자인지 답한다 — 관리자 근사 GLB 버튼. admin-access.js 뒤에 실린다. -->
@@ -365,7 +365,7 @@
 
     <!-- JS 모듈 (로딩 순서 중요: data → utils → config → engine → extractors → ui → 나머지) -->
     <!-- 정적 <script>는 동일 origin/동기 로드 시 선언 순서 보장됨 -->
-    <script src="js/detaildesign/data-constants.js?v=36.2"></script>
+    <script src="js/detaildesign/data-constants.js?v=36.3"></script>
     <script src="js/detaildesign/utils.js?v=36.0"></script>
     <script src="js/detaildesign/config-constants.js?v=36.0"></script>
     <!-- W10-1: 멍장(코너장) 파생 엔진 — calc-engine/ui 보다 먼저 load -->
@@ -385,8 +385,8 @@
     <script src="js/detaildesign/bom-rice-cabinet-rules.js?v=36.0"></script>
     <!-- 2026-10-19 CAD 베타 PR3: 몸통 조립 규칙 한 표 — extractors.js 가 전역 DadamAssemblyRules 로 읽는다 (없으면 BOM 을 내지 않는다) -->
     <script src="js/detaildesign/assembly-rules.js?v=36.0"></script>
-    <script src="js/detaildesign/extractors.js?v=36.7"></script>
-    <script src="js/detaildesign/ui-step1.js?v=36.7"></script>
+    <script src="js/detaildesign/extractors.js?v=36.8"></script>
+    <script src="js/detaildesign/ui-step1.js?v=36.8"></script>
     <script src="js/detaildesign/ui-workspace.js?v=36.3"></script>
     <script src="js/detaildesign/ui-fridge-el.js?v=36.0"></script>
     <!-- Three.js 레거시 제거됨 — R3F planner iframe으로 대체 -->

@@ -59,6 +59,13 @@
           newItem.specs.autoCalculated = false;
         }
 
+        // 2026-10-20 TV장: 거실장 전체 높이 — 정본 planner-sections.js PLANNER_CATEGORY_SECTION_OVERRIDES (사장님 확정 450)
+        const catSections = typeof PLANNER_CATEGORY_SECTION_OVERRIDES !== 'undefined' ? PLANNER_CATEGORY_SECTION_OVERRIDES[cat.id] : null;
+        if (catSections && catSections.lower && catSections.lower.moduleH) {
+          newItem.specs.lowerH = catSections.lower.moduleH;
+          newItem.specs.lowerTotalH = catSections.lower.moduleH;
+        }
+
         if (cat.id === 'sink') {
           newItem.modules = []; // 빈 상태로 시작 — 자동계산 또는 수동 추가
         }
