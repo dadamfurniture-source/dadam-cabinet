@@ -880,6 +880,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
             blindOwner: !!a.blindOwner,           // W12-65 — 겹친 코너에서 멍장을 갖는 쪽
             // 2026-10-12: 냉장고 설치 여유 (배치에서 모델을 고를 때 실린다) — fridgeNichesOf
             sideGap: a.sideGap, topGap: a.topGap,
+            // 2026-10-20: 배치에서 고른 냉장고 모델 — 사진으로 만들기(fridgeModelOf → design_spec appliances[].model)
+            fridgeModel: (a.fridgeModel && typeof a.fridgeModel === 'object') ? a.fridgeModel : null,
           }));
       }
     } catch (e) { console.warn('[STRUCT] 영역 로드 실패', e); }
@@ -10246,6 +10248,18 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 2026-10-19: 3D 와 같은 바닥 높이·천장 — design_spec 의 sections.*.fromFloorMm · ceilingMm
     baseYOf: (m) => baseYOf(m),
     ceilingMm: () => ceilingHeight,
+    // 2026-10-20: 고른 냉장고 모델 — 그 모듈(냉장고 본체 또는 냉장고장 통의 맨 아래 단)과 평면이 가장 많이 겹치는
+    //   냉장고 영역(배치에서 모델을 고른 것)의 fridgeModel. 없으면 null — 워커가 중립 냉장고로 그린다.
+    fridgeModelOf: (m) => {
+      const mb = modulePlaneBox(m);
+      let best = null, bestOv = 0;
+      areas.forEach((a) => {
+        if (a.section !== 'refrigerator' || a.isFinishing || !a.fridgeModel) return;
+        const ov = boxOverlapArea(planeBoxOf(a), mb);
+        if (ov > bestOv) { bestOv = ov; best = a; }
+      });
+      return best ? best.fridgeModel : null;
+    },
     toast: showToast,
   });
   PlannerCapture.mountMenu({

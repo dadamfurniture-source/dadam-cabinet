@@ -287,14 +287,25 @@ export function fillPolygon(img, poly, rgb) {
  *   mask = 칠한 면들의 0~1 다각형 (추천안 되붙이기용)
  */
 export async function renderKitchenMassing(room, points, o = {}) {
+  return renderFacesMassing(room, points, o, (cam) => kitchenFaces(cam, o), ['lower-front', 'upper-front']);
+}
+
+/**
+ * 카메라를 풀고 facesOf(cam) 의 면을 방 사진에 칠한다 — 싱크대 덩어리(위)와 플래너 도면 덩어리(planner-place.js)가 같이 쓴다.
+ * @param {(cam:object) => object[]|null} facesOf 면 목록 (kitchenFaces 모양). 빈 목록·null 이면 null
+ * @param {string[]} bigKinds 사진 밖으로 크게 나가면 버릴 면 종류
+ */
+export async function renderFacesMassing(room, points, o, facesOf, bigKinds) {
   if (!room || room.mimeType !== 'image/jpeg' || !points) return null;
   const decoded = decodeJpeg(b64ToBytes(room.base64), { useTArray: true, formatAsRGBA: true });
   const img = downscale(decoded, Infinity);
   const cam = solveKitchenCamera(points, img.width, img.height, { wallH: o.wallH, focalMm: o.focalMm });
   if (!cam) return null;
-  const faces = projectFaces(cam, kitchenFaces(cam, o));
+  const list = facesOf(cam);
+  if (!list || !list.length) return null;
+  const faces = projectFaces(cam, list);
   // 말이 안 되는 투영(사진 밖으로 크게)이면 버린다
-  const big = faces.filter((fc) => fc.kind === 'lower-front' || fc.kind === 'upper-front');
+  const big = faces.filter((fc) => bigKinds.includes(fc.kind));
   const ok = big.every((fc) => fc.poly.every((p) => p.depth > 0 && p.x > -img.width && p.x < 2 * img.width && p.y > -img.height && p.y < 2 * img.height));
   if (!ok) return null;
   for (const fc of faces) {

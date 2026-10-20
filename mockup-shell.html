@@ -977,6 +977,10 @@
     // 2026-10-12: 냉장고 설치 여유 — 구조 단계가 위장 폭을 「냉장고 폭 + 양옆 여유」로 가른다.
     if (Number.isFinite(Number(override.sideGap))) g.setAttribute('data-side-gap', Number(override.sideGap));
     if (Number.isFinite(Number(override.topGap))) g.setAttribute('data-top-gap', Number(override.topGap));
+    // 2026-10-20: 고른 냉장고 모델 — 사진으로 만들기(design_spec appliances[].model)가 그 냉장고를 그리게 한다
+    if (override.fridgeModel && typeof override.fridgeModel === 'object') {
+      g.setAttribute('data-fridge-model', JSON.stringify(override.fridgeModel));
+    }
     g.style.cursor = 'move';
     const r = document.createElementNS(ns, 'rect');
     r.setAttribute('x', offsetX);
@@ -2510,6 +2514,24 @@
     return { side, top };
   }
 
+  /**
+   * 2026-10-20: 고른 모델 → 배치에 싣는 fridgeModel (design_spec appliances[].model 과 같은 모양,
+   *   docs/02-design/features/design-spec-prompt.md "냉장고 모델"). 표에서 온 행은 이름·코드가 따로,
+   *   옛 hard-coded 목록은 이름에 코드가 붙어 있다 (code 없음).
+   */
+  function fridgeModelSpecOf(m) {
+    if (!m) return null;
+    const out = { brand: m.brand || null, name: m.modelName || m.name || null };
+    if (m.code) out.code = m.code;
+    if (Number.isFinite(Number(m.w)) && m.w) out.widthMm = Number(m.w);
+    if (Number.isFinite(Number(m.h)) && m.h) out.heightMm = Number(m.h);
+    if (Number.isFinite(Number(m.d)) && m.d) out.depthMm = Number(m.d);
+    if (m.subtype) out.subtype = m.subtype;
+    if (!out.brand) delete out.brand;
+    if (!out.name) delete out.name;
+    return (out.name || out.code) ? out : null;
+  }
+
   // W9-44: Supabase 에서 가전 모델 fetch — 실패 시 hard-coded fallback 유지
   async function fetchApplianceModels(category) {
     const cfg = window.parent && window.parent.DADAM_CONFIG && window.parent.DADAM_CONFIG.supabase
@@ -2535,6 +2557,8 @@
       return rows.map(r => ({
         brand:    r.brand,
         name:     r.model_code ? `${r.model_name} ${r.model_code}` : r.model_name,
+        modelName: r.model_name,   // 2026-10-20 — 코드 없는 이름·코드 따로 (fridgeModelSpecOf)
+        code:     r.model_code || null,
         w:        r.width_mm,
         d:        r.depth_mm,
         h:        r.height_mm,
@@ -2621,7 +2645,8 @@
     // W, D 는 도면 평면도. H 는 moduleH (3D 정보).
     // 2026-10-12: 설치 여유도 함께 싣는다 — 구조 단계가 위장 폭 = 폭 + 양옆 여유로 가른다.
     const gaps = fridgeGapsOf(m);
-    addSectionRect('refrigerator', { w: m.w, h: m.d, moduleH: m.h, sideGap: gaps.side, topGap: gaps.top });
+    // 2026-10-20: 고른 모델도 싣는다 — 구조 단계 영역(area.fridgeModel) → 사진으로 만들기 design_spec appliances[].model
+    addSectionRect('refrigerator', { w: m.w, h: m.d, moduleH: m.h, sideGap: gaps.side, topGap: gaps.top, fridgeModel: fridgeModelSpecOf(m) });
     closeModelModal();
   });
 
@@ -2690,6 +2715,13 @@
         // 2026-10-12: 냉장고 설치 여유 (모델에서 온 값) — 없으면 칸을 만들지 않는다
         ...(g.hasAttribute('data-side-gap') ? { sideGap: parseFloat(g.getAttribute('data-side-gap')) } : {}),
         ...(g.hasAttribute('data-top-gap') ? { topGap: parseFloat(g.getAttribute('data-top-gap')) } : {}),
+        // 2026-10-20: 고른 냉장고 모델 — 없으면 칸을 만들지 않는다
+        ...(() => {
+          try {
+            const fm = g.hasAttribute('data-fridge-model') ? JSON.parse(g.getAttribute('data-fridge-model')) : null;
+            return fm && typeof fm === 'object' ? { fridgeModel: fm } : {};
+          } catch (e) { return {}; }
+        })(),
       });
     });
     const personPos = getPersonPos();
@@ -2843,6 +2875,7 @@
           w: m.w, h: m.h, x: m.x, y: m.y,
           moduleH: m.moduleH,
           sideGap: m.sideGap, topGap: m.topGap,   // 2026-10-12 냉장고 설치 여유
+          fridgeModel: m.fridgeModel,             // 2026-10-20 고른 냉장고 모델
           forceRotation: m.rotation || 0,
           rotCenter: { cx, cy },
           suppressSelect: true,
