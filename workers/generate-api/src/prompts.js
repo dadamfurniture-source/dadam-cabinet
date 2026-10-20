@@ -1930,7 +1930,7 @@ export function buildPlannerPrompt(c) {
     `You receive ${COUNT_WORD[imageCount] || imageCount} images.`,
     // 2026-10-20: 도면 덩어리(planner-place.js, PLANNER_PLACE_GUIDE='on')가 칠해져 있으면 그 자리·크기를 지키라고 말한다
     c.placeGuide
-      ? `IMAGE A — ROOM PHOTO: the customer's real room, with the new built-in units already painted in as plain off-white blocks at their exact position, size and depth; a thin dark line marks each unit boundary. Edit this photo only inside the EDIT ZONE below. Re-render every block as the real units IMAGE B shows: keep each block's outer edges exactly where they are — do not stretch, move or extend any run — and keep the unit boundaries.`
+      ? `IMAGE A — ROOM PHOTO: the customer's real room, with the new built-in units already painted in as plain off-white blocks at their exact position, size and depth; a thin dark line marks each unit boundary. Edit this photo only inside the EDIT ZONE below. Re-render every block as the real units ${wallSides.length ? "its wall's elevation" : 'IMAGE B'} shows: keep each block's outer edges exactly where they are — do not stretch, move or extend any run — and keep the unit boundaries.`
       : `IMAGE A — ROOM PHOTO: the customer's real room. Edit this photo only inside the EDIT ZONE below.`,
     // 2026-10-19: 번호 입면(labeledElevation)이면 번호·치수선은 주석이지 그릴 것이 아니라고 말한다.
     //   번호 없는 입면(Gemini, GPT 실패 대체)에는 그 문장이 없다 — 없는 번호를 말하면 오히려 그려 넣는다.
