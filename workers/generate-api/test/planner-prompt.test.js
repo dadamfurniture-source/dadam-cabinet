@@ -257,7 +257,8 @@ test('3) 하부가 없으면 가장 긴 줄이 기준이다', () => {
 });
 
 test('6) BINDING — 줄 안 폭 비율·줄끼리 위치는 구속, 벽에 맞추는 것은 전체 배율만', () => {
-  const p = buildPlannerPrompt(d1Ctx());
+  // 2026-10-20: 벽 폭을 알고 줄이 짧으면 배율 문장 대신 줄 길이 고정 문장(4′) — 여기서는 벽 폭을 모르는 방
+  const p = buildPlannerPrompt(d1Ctx({ wallW: 3000, wallH: 2400, confidence: null }));
   assert.ok(
     p.includes(
       '\nBINDING: the order, the counts and the width ratios inside each row (within about ±10 %), and where each row starts and ends against the base row. Only the overall scale may change to fit the real wall in IMAGE A.'
@@ -367,7 +368,7 @@ test('4) 빈 구역 — 상부가 덮지 않는 하부 위, 남는 벽 (높이 �
     p.includes(
       '\n\nEMPTY ZONES — leave each as bare finished wall, with nothing built in:\n' +
         '  1. at wall-unit height above L3, between U2 and the right end of the run (400 mm) — no wall unit\n' +
-        '  2. the main wall right of the run — the remaining 39 % of the wall (about 1400 mm), floor to ceiling\n\n'
+        '  2. the main wall right of the run, floor to ceiling\n\n'
     )
   );
   // 옛 REST OF THE WALL 문단은 EMPTY ZONES · EDIT ZONE 으로 합쳐졌다
@@ -394,7 +395,40 @@ test('4) 분석이 실패하면 % 없이 "런보다 벽이 길면" 으로', () =
 
 test('사용자가 벽 폭을 직접 넣었으면(confidence user) 분석 실패로 보지 않는다', () => {
   const p = buildPlannerPrompt(d1Ctx({ wallW: 3000, wallH: 2400, confidence: 'user', existing: null }));
-  assert.ok(p.includes('the remaining 27 % of the wall (about 800 mm)'));
+  assert.ok(p.includes('keep the remaining 800 mm (about 27 %) right of the run as bare wall'));
+});
+
+// 2026-10-20 실측(싱크대 연출컷 26건 mm 측정): 일자 15장 중 14장이 하부장 줄 오른끝을 도면보다 오른쪽으로 늘렸다(중앙 +223 mm).
+//   "Only the overall scale may change to fit the real wall" 이 "벽에 맞게 늘려라" 로 읽혔다 — 벽 폭을 알고 줄이 짧으면 고정 문장으로.
+test('4′) 줄이 벽보다 짧고 벽 폭을 알면(D1 2200 / 3600) — 줄 길이 mm·%, 남는 1400 mm, 배율 문장 없음', () => {
+  const p = buildPlannerPrompt(d1Ctx());
+  assert.ok(
+    p.includes(
+      '\nBINDING: the order, the counts and the width ratios inside each row (within about ±10 %), and where each row starts and ends against the base row. ' +
+        'The run is 2200 mm long — about 61 % of the wall (about 3600 mm in IMAGE A). ' +
+        'Do not stretch the units to fill the wall; keep the remaining 1400 mm (about 39 %) right of the run as bare wall. ' +
+        "Keep each door's proportions as IMAGE B shows — do not widen any door.\n\n"
+    )
+  );
+  assert.doesNotMatch(p, /Only the overall scale/);
+  // 남는 벽은 EMPTY ZONES 에서 숫자를 되풀이하지 않는다 — 1400 은 BINDING 한 번
+  assert.ok(p.includes('  2. the main wall right of the run, floor to ceiling\n'));
+  assert.equal(p.split('1400 mm').length - 1, 1);
+  assert.match(p, /FINAL SELF-CHECK before you answer: .*; base row ends at about 61 % of the wall \(2200 mm\); 2 empty zones left empty; no other built-in unit anywhere\.$/);
+});
+
+test('4′) 벽 폭을 모르면 배율 문장 그대로, 줄이 벽을 다 채우면 예전 그대로', () => {
+  const unknown = buildPlannerPrompt(d1Ctx({ wallW: 3000, wallH: 2400, confidence: null, existing: null }));
+  assert.ok(unknown.includes('against the base row. Only the overall scale may change to fit the real wall in IMAGE A.\n'));
+  assert.doesNotMatch(unknown, /Do not stretch|ends at about/);
+  for (const p of [buildPlannerPrompt(d1Ctx({ designSpec: tallSpec() })), buildPlannerPrompt(d2Ctx())]) {
+    assert.match(p, /Only the overall scale may change to fit the real wall in IMAGE A\./);
+    assert.doesNotMatch(p, /Do not stretch|right of the run|ends at about/);
+  }
+  // 줄이 벽보다 길어도(분석 벽이 짧게 읽힘) 예전 그대로
+  const long = buildPlannerPrompt(d1Ctx({ wallW: 2000 }));
+  assert.match(long, /Only the overall scale may change to fit the real wall in IMAGE A\./);
+  assert.doesNotMatch(long, /Do not stretch|right of the run|ends at about/);
 });
 
 test('5) fromFloorMm·ceilingMm — 줄마다 바닥 기준 아랫면·윗면, 줄 사이·천장 틈이 빈 구역으로', () => {
@@ -406,7 +440,7 @@ test('5) fromFloorMm·ceilingMm — 줄마다 바닥 기준 아랫면·윗면, �
       '  1. at wall-unit height above L3, between U2 and the right end of the run (400 mm) — no wall unit\n' +
         '  2. between the top of the base row (870 mm) and the bottom of the wall row (1450 mm) — 580 mm of open wall\n' +
         '  3. between the top of the wall row (2230 mm) and the ceiling (2400 mm) — 170 mm, left open or closed exactly as IMAGE B shows\n' +
-        '  4. the main wall right of the run — the remaining 39 % of the wall (about 1400 mm), floor to ceiling\n'
+        '  4. the main wall right of the run, floor to ceiling\n'
     )
   );
   assert.doesNotMatch(p, /780 mm high/);
@@ -531,7 +565,7 @@ test('9) FINAL SELF-CHECK 가 맨 끝 — 줄마다 유닛·도어·서랍, 빈 
   const p = buildPlannerPrompt(d1Ctx({ designSpec: d1Full() }));
   assert.match(
     p,
-    /\n\nOUTPUT: one photorealistic photograph of the finished room, 16:9\.\n\nFINAL SELF-CHECK before you answer: base row 3 units, L1 2 \+ L2 1 \+ L3 2 = 5 doors, 0 drawers; wall row 2 units, 4 doors; 4 empty zones left empty; no other built-in unit anywhere\.$/
+    /\n\nOUTPUT: one photorealistic photograph of the finished room, 16:9\.\n\nFINAL SELF-CHECK before you answer: base row 3 units, L1 2 \+ L2 1 \+ L3 2 = 5 doors, 0 drawers; wall row 2 units, 4 doors; base row ends at about 61 % of the wall \(2200 mm\); 4 empty zones left empty; no other built-in unit anywhere\.$/
   );
   const t = buildPlannerPrompt(d1Ctx({ designSpec: tallSpec() }));
   assert.ok(
@@ -564,7 +598,8 @@ test('같은 내용을 두 번 말하지 않는다 — 한 문장이 두 번 나
   const p = buildPlannerPrompt(d1Ctx({ designSpec: d1Full() }));
   const sentences = p.split(/(?<=\.)\s+/).filter((s) => s.length > 30);
   assert.equal(new Set(sentences).size, sentences.length);
-  assert.ok(p.length < 4200, `length ${p.length}`);
+  // 2026-10-20: 줄 길이 고정 문장(4′)으로 4200 → 4400
+  assert.ok(p.length < 4400, `length ${p.length}`);
 });
 
 // ─── 옛 경로 불변 ───

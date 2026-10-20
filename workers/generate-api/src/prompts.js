@@ -1806,6 +1806,7 @@ export function buildPlannerPrompt(c) {
     wallW > 0 && !(c.confidence == null && c.wallW === 3000 && c.wallH === 2400);
   const layout = plannerLayout(spec);
   // ㄱ자·ㄷ자면 런이 여러 벽에 걸친다 — 한 벽 대비 % 와 "남는 벽" 을 말하지 않는다.
+  //   (2026-10-20: walls[] 로 주벽 줄만 따로 오면 주벽 기준으로 말한다 — 아래 runAnchor)
   const oneWall = !layout || layout.shape === 'straight';
 
   // 2026-10-19: 꺾인 벽의 정면 입면 (elevation_left · elevation_right) — 실제로 함께 가는 것만. 글자는 B·C 다음부터.
@@ -1893,6 +1894,22 @@ export function buildPlannerPrompt(c) {
     if (corner === 'main' && mainEnd && first) cornerNote[mainEnd] = `, in the ${g.wall} corner — ${first} stands in front of it`;
     else if (corner === 'return' && first) cornerNote[first] = `, in the ${g.wall} corner`;
   }
+  // 2026-10-20: 줄 길이 고정 — 실측(싱크대 연출컷 26건 mm 측정): 일자 15장 중 14장이 하부장 줄 오른끝을 도면보다 오른쪽으로
+  //   늘렸다(중앙 +223 mm). "Only the overall scale may change to fit the real wall" 이 "벽에 맞게 늘려라" 로 읽혔다.
+  //   ㄱ자 walls[] 는 벽의 55 % 인 주벽 줄을 84~88 % 까지 늘렸다 — 주벽 줄 길이·남는 벽을 아예 말하지 않았다.
+  //   줄이 붙은 벽 끝(runAnchor): 일자(또는 모양 모름)는 왼쪽 모서리(예전 가정), ㄱ자는 꺾인 벽 쪽 모서리.
+  //   주벽 좌표의 0 은 모든 모듈의 왼쪽 끝(js/planner/ai-photo.js) — 왼쪽으로 꺾이면 왼쪽 벽이고, 오른쪽으로 꺾이면 주벽 줄의
+  //   왼쪽 끝이라 주벽 줄이 오른쪽 모서리까지 갈 때(corner 'main')만 벽 끝에 붙었다고 본다. ㄷ자·펴진 ㄱ자는 모른다(null).
+  const rets = multi ? groups.slice(1) : [];
+  const runAnchor = !multi
+    ? oneWall ? 'left' : null
+    : rets.length === 1 && (rets[0].wall === 'left' || (rets[0].spec && rets[0].spec.corner === 'main'))
+      ? rets[0].wall
+      : null;
+  const runFar = runAnchor === 'right' ? 'left' : 'right';
+  // 벽 폭을 알고 줄이 벽보다 짧을 때만 고정 문장 — 모르거나 벽을 다 채우면 예전 배율 문장
+  const runShort = !!(runAnchor && wallKnown && runMm && runMm < wallW);
+  const runPct = runShort ? plannerPct(runMm, wallW) : null;
   const geo = [];
   if (rows.length) {
     geo.push(
@@ -1913,7 +1930,10 @@ export function buildPlannerPrompt(c) {
       if (row.widthMm) {
         head.push(
           `${row.widthMm} mm long` +
-            (wallKnown && oneWall && (row === ref || !ref) ? ` — ${Math.min(100, plannerPct(row.widthMm, wallW))} % of the wall` : '')
+            // 2026-10-20: ㄱ자 walls[] 도 주벽 기준 줄에 벽 % (꺾인 벽 줄은 옆벽 폭을 모른다)
+            (wallKnown && (multi ? runAnchor && row === ref : oneWall && (row === ref || !ref))
+              ? ` — ${Math.min(100, plannerPct(row.widthMm, wallW))} % of the wall`
+              : '')
         );
       }
       let position = '';
@@ -1986,13 +2006,20 @@ export function buildPlannerPrompt(c) {
     ? `CLOSED LIST: ${listJoin(unitSpans)} are the only built-in units in the result.${hoodNote} Add nothing else: no other cabinet, drawer unit, shelf or board anywhere in the room.`
     : 'CLOSED LIST: the units IMAGE B shows are the only built-in units in the result. Add nothing else: no other cabinet, drawer unit, shelf or board anywhere in the room.';
   // 비율 구속 — 벽에 맞추는 것은 전체 배율뿐 (2026-10-19, 옛 "mm·% 는 참고" 를 바꿈)
+  // 2026-10-20: 벽 폭을 알고 줄이 짧으면 배율 문장 대신 줄 길이(mm·벽 %)와 남는 벽 — 분석 벽 폭이 ±150~200 mm 흔들려 둘 다 쓴다.
+  //   남는 벽의 mm 는 여기 한 번만 (EMPTY ZONES 의 남는 벽 항목은 자리만 말한다).
+  const scaleLine = runShort
+    ? `The ${multi ? 'back-wall ' : ''}run is ${runMm} mm long — about ${runPct} % of the ${multi ? 'back ' : ''}wall (about ${wallW} mm in IMAGE A). ` +
+      `Do not stretch the units to fill the wall; keep the remaining ${wallW - runMm} mm (about ${100 - runPct} %) ${runFar} of the run as bare wall. ` +
+      `Keep each door's proportions as IMAGE B shows — do not widen any door.`
+    : 'Only the overall scale may change to fit the real wall in IMAGE A.';
   const binding = rows.length
     ? `BINDING: the order, the counts and the width ratios inside ${rows.length > 1 ? 'each row' : 'the row'} (within about ±10 %)` +
       (multi
         ? ', and where each row starts and ends against the reference row of its own wall'
         : rows.length > 1 && ref ? `, and where each row starts and ends against the ${ref.def.title.toLowerCase()}` : '') +
-      '. Only the overall scale may change to fit the real wall in IMAGE A.'
-    : 'BINDING: the order and the counts IMAGE B shows. Only the overall scale may change to fit the real wall in IMAGE A.';
+      `. ${scaleLine}`
+    : `BINDING: the order and the counts IMAGE B shows. ${scaleLine}`;
 
   // ── EMPTY ZONES — 계산한 빈 구역 ──
   // 2026-10-19: 꺾인 벽이 있으면 벽마다 따로 세고 벽 이름을 앞에 붙인다 (주벽만이면 예전 그대로)
@@ -2023,12 +2050,16 @@ export function buildPlannerPrompt(c) {
     );
   }
   // 결정 ①′ — 도면이 벽보다 짧으면 나머지는 빈 벽
-  if (oneWall) {
-    if (!wallKnown) zones.push('the main wall beyond the ends of the run, wherever the run is shorter than the wall');
-    else if (runMm && runMm < wallW) {
+  // 2026-10-20: 크기(mm·%)는 BINDING 의 줄 길이 문장이 말한다 — 여기서는 자리만. ㄱ자 walls[] 는 꺾인 벽 반대쪽 끝 너머.
+  if (runAnchor) {
+    if (!wallKnown) {
       zones.push(
-        `the main wall right of the run — the remaining ${100 - plannerPct(runMm, wallW)} % of the wall (about ${wallW - runMm} mm), floor to ceiling`
+        multi
+          ? `${plannerWallName('main')}: beyond the ${runFar} end of the run, wherever the run is shorter than the wall`
+          : 'the main wall beyond the ends of the run, wherever the run is shorter than the wall'
       );
+    } else if (runShort) {
+      zones.push(multi ? `${plannerWallName('main')}: ${runFar} of the run, floor to ceiling` : `the main wall ${runFar} of the run, floor to ceiling`);
     }
   }
   const emptyZones = zones.length
@@ -2119,6 +2150,22 @@ export function buildPlannerPrompt(c) {
     for (const g of groups.slice(1)) {
       if (!g.rows.some((r) => r.key === 'upper' || r.key === 'tall')) rowChecks.push(`no wall units on the ${plannerWallName(g.wall)}`);
     }
+  }
+  // 2026-10-20: 줄 끝 — "base row ends at about 61 % of the wall (2200 mm)". 런 끝에 닿는 주벽 줄(기준 줄 먼저)의 이름으로.
+  //   끝 마감재(EP 20 등, PLANNER_FINISH_GAP_MM 이하)는 런 폭에만 들므로 그만큼 앞에서 끝나도 그 줄이 런 끝이다.
+  if (runShort) {
+    const endRow = [ref, ...mainRows].find(
+      (r) => r && r.widthMm && Math.abs((r.fromLeftMm || 0) + r.widthMm - runMm) <= PLANNER_FINISH_GAP_MM
+    );
+    const name = endRow
+      ? `${multi ? `${plannerWallName('main')} ` : ''}${endRow.def.title.toLowerCase()}`
+      : multi ? 'the back-wall run' : 'the run';
+    // 주벽 줄 점검 바로 뒤 (꺾인 벽 줄·"no wall units on …" 앞)
+    rowChecks.splice(
+      mainRows.length,
+      0,
+      `${name} ends at about ${runPct} % of the wall (${runMm} mm)${runAnchor === 'right' ? ' counted from the right corner' : ''}`
+    );
   }
   const selfCheck =
     'FINAL SELF-CHECK before you answer: ' +
