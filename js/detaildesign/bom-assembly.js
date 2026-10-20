@@ -32,6 +32,8 @@
  *            서랍 박스 판 — 플래너 addDrawerBoxes 외경 + 사장님 2026-10-20 짜임 (drawerBoxesOf)
  *   선반     측판 사이. 깊이가 "측판 깊이 − T (처짐방지목 몫)" 이라 처짐방지목 **뒤**에 놓인다 — 뒤로 붙인다
  *            (사쿠리면 홈 앞, 아니면 측판 뒤끝). 높이는 부르는 쪽이 넘긴 선반 중심 높이(opts.shelfY)를 쓴다
+ *   붙박이장 통 — 몸통 여럿을 아래→위로 쌓는다 (외부 서랍 몸통 · 하부장 · 통 · 상부장, 규칙 파일 layoutWardrobeModule).
+ *            몸통마다 위 짜임. 선반 높이는 규칙 파일 배치 또는 wardrobe.md §6 (wardrobeOf)
  *
  * 미정 (지금 BOM 동작을 그대로 두고 결과에 적는다):
  *   하부장·키큰장 단 밴드 2장 — 자리 미정, 사장님 확인 대기 → unplaced 'band-position-pending'
@@ -54,6 +56,8 @@
     || (typeof require === 'function' ? require('./assembly-rules.js') : null);
   const DrawerRules = root.DadamDrawerRules
     || (typeof require === 'function' ? require('./bom-drawer-rules.js') : null);
+  const WardrobeRules = root.DadamWardrobeRules
+    || (typeof require === 'function' ? require('./bom-wardrobe-rules.js') : null);
   const C = AsmRules.CARCASS;
   const DR = DrawerRules.DRAWER_RULES;
 
@@ -395,6 +399,164 @@
     };
   }
 
+  /** 붙박이장 통의 몸통 묶음 — BOM 행의 module 이름 끝 (extractWardrobe: `${name}-상부장` · `-하부장` · `-서랍모듈`, 긴옷 통은 이름 그대로). */
+  const WARDROBE_GROUP_RE = /-(상부장|하부장|서랍모듈|내부서랍모듈|좌대)$/;
+  /** 아래→위 쌓는 순서 — 규칙 파일 layoutWardrobeModule: 외부 서랍 몸통이 맨 아래(y0 = 0), 그 위에 캐비닛 (cabinetsOf 0 = 하부장). */
+  const WARDROBE_STACK = ['서랍모듈', '하부장', '', '상부장'];
+
+  /**
+   * 붙박이장 통 하나 — 몸통이 여럿이다 (2단 = 하부장 + 상부장, 외부 서랍 = 서랍모듈 몸통이 맨 아래).
+   * 몸통마다 측판·천판·지판·뒷판은 싱크 몸통과 같은 짜임 (사쿠리면 홈 · 천지판 D − 18, 아니면 뒤에 덮음 · 측판 깊이).
+   * 선반 높이 — 통 구조 블록(mod.wardrobe)이 있으면 규칙 파일 배치(layoutWardrobeModule)의 선반 자리,
+   *   없는 옛 설계는 wardrobe.md §6 (shelfPositions: 긴옷은 상단 315 아래 첫 선반, 그 밖은 균등).
+   * 선반은 싱크와 같이 천지판 뒤끝에 맞춘다 (§6 "천저판보다 70 짧게 — 전면 여유").
+   * 아직 자리를 정하지 않은 행: 도어·서랍도어 (BOM 도어 H = 좌대 + 몸통 − 20 인데 플래너는 몸통 안에 그린다),
+   *   서랍모듈 밴드, 서랍 박스·내부 서랍, 좌대. 칸막이는 규칙 파일 배치가 있을 때만 (없으면 'divider-layout-unknown').
+   * @returns {{module:object, unplaced:Array}|null}
+   */
+  function wardrobeOf(mk, mod, rows, opts, item) {
+    const keyed = rows.map((r) => ({ row: r, key: keyOfRow(r) }));
+    const groupOf = (r) => { const m = String(r.module || '').match(WARDROBE_GROUP_RE); return m ? m[1] : ''; };
+    const parts = [], unplaced = [];
+    const skip = (row, reason) => unplaced.push({ rowPartId: row.partId, moduleKey: mk, part: row.part, qty: row.qty, reason });
+
+    // 몸통 — 측판 행이 있는 묶음
+    const cars = [];
+    for (const g of WARDROBE_STACK) {
+      const mine = keyed.filter((x) => x.key && groupOf(x.row) === g);
+      const fam = (f) => mine.filter((x) => x.key.family === f).map((x) => x.row);
+      const sides = fam('body:side');
+      if (!sides.length) continue;
+      const tops = fam('body:top'), bottoms = fam('body:bottom'), backs = fam('back');
+      if (sides.length !== 1 || sides[0].qty !== 2 || tops.length !== 1 || bottoms.length !== 1 || backs.length !== 1) return null;
+      const side = sides[0];
+      const sakuri = /sakuri/.test(String(side.note || ''));
+      const T = side.thickness, D = side.w;
+      if (tops[0].w !== bottoms[0].w || tops[0].h !== bottoms[0].h || bottoms[0].h !== D - (sakuri ? C.SAKURI_PANEL_D_MINUS : 0)) return null;
+      cars.push({ group: g, rows: mine, side, top: tops[0], bottom: bottoms[0], back: backs[0], sakuri, T, D, H: side.h, W: bottoms[0].w + 2 * T });
+    }
+    if (!cars.length || cars.some((c) => c.W !== cars[0].W || c.D !== cars[0].D || c.T !== cars[0].T)) return null;
+    const { W, D, T } = cars[0];
+    let y = 0;
+    cars.forEach((c) => { c.y0 = y; y += c.H; });
+
+    // 통 구조 블록이 있으면 BOM 과 같은 배치 (extractWardrobe 와 같은 입력)
+    const WR = WardrobeRules;
+    const R = WR.WARDROBE_RULES;
+    const specs = (item && item.specs) || {};
+    const block = mod.wardrobe ? WR.normalizeBlock(mod.wardrobe) : null;
+    const layout = block && (block.preset || block.cells) ? WR.layoutWardrobeModule({
+      W: parseFloat(mod.w) || R.SAMPLE_CELL_W,
+      D: parseFloat(mod.d) || parseFloat(item && item.d) || R.DEFAULT_D,
+      T,
+      bodyH: (parseFloat(item && item.h) || R.DEFAULT_H) - (parseFloat(specs.wardrobePedestal) || R.PEDESTAL_H) - (parseFloat(specs.wardrobeMoldingH) || R.MOLDING_H),
+      preset: block.preset, cells: block.cells, drawers: block.drawers, externalDrawer: block.externalDrawer,
+    }) : null;
+    const cabs = layout ? WR.cabinetsOf(layout) : null;
+    const ourCabs = cars.filter((c) => c.group !== '서랍모듈');
+    const layoutOk = !!cabs && cabs.length === ourCabs.length && cabs.every((cb, i) => cb.y0 === ourCabs[i].y0 && cb.h === ourCabs[i].H);
+
+    cars.forEach((c, ci) => {
+      const zBack = -D / 2;
+      const panelZ0 = c.sakuri ? zBack + C.SAKURI_PANEL_D_MINUS : zBack;
+      const tag = (t) => Object.assign({ carcass: ci }, t || {});
+      const feats = c.sakuri ? [{ type: 'groove', face: 'inner', u0: C.SAKURI_FROM_BACK, u1: C.SAKURI_FROM_BACK + C.SAKURI_W, v0: 0, v1: c.H, depth: null, src: 'sakuri' }] : [];
+      parts.push(makePart(c.side, 0, { o: [-W / 2, c.y0, zBack], u: '+z', v: '+y', n: '+x' }, feats, 'exterior', tag({ side: 'left' })));
+      parts.push(makePart(c.side, 1, { o: [W / 2, c.y0, zBack], u: '+z', v: '+y', n: '-x' }, feats, 'exterior', tag({ side: 'right' })));
+      parts.push(makePart(c.bottom, 0, { o: [-W / 2 + T, c.y0, panelZ0], u: '+x', v: '+z', n: '+y' }, [], 'interior', tag()));
+      parts.push(makePart(c.top, 0, { o: [-W / 2 + T, c.y0 + c.H - T, panelZ0], u: '+x', v: '+z', n: '+y' }, [], 'interior', tag()));
+      const b = c.back;
+      parts.push(makePart(b, 0, { o: [-b.w / 2, c.y0 + (c.H - b.h) / 2, c.sakuri ? zBack + C.SAKURI_FROM_BACK : zBack - b.thickness], u: '+x', v: '+y', n: '+z' },
+        [], 'interior', tag({ mount: c.sakuri ? 'groove' : 'behind-sides' })));
+
+      // 선반 — 몸통 안 선반 밑면 높이 (통 좌표)
+      const shelfRows = c.rows.filter((x) => x.key.family === 'shelf').map((x) => x.row);
+      if (shelfRows.length) {
+        const cab = c.group === '서랍모듈' ? null : cabs && cabs[ourCabs.indexOf(c)];
+        let spots = null;   // [{x0, y}] 행 순서대로
+        if (layout) {
+          if (layoutOk && cab) {
+            const pool = cab.shelves.slice();
+            spots = [];
+            shelfRows.forEach((r) => {
+              for (let k = 0; k < r.qty; k++) {
+                const i = pool.findIndex((s) => s.cutW === r.w && s.cutH === r.h);
+                if (i < 0) { spots = null; return; }
+                spots && spots.push({ x0: pool[i].x0, y: pool[i].y });
+                pool.splice(i, 1);
+              }
+            });
+            if (spots && pool.length) spots = null;
+          }
+        } else {
+          const n = shelfRows.reduce((s, r) => s + r.qty, 0);
+          const long = c.group === '' && (mod.moduleType || 'long') === 'long';
+          const ys = WR.shelfPositions({ h: c.H - 2 * T, shelves: n, rods: long ? 1 : 0 }, { T });
+          if (ys.length === n) spots = ys.slice().sort((p, q) => p - q).map((v) => ({ x0: 0, y: c.y0 + T + v }));
+        }
+        if (!spots || shelfRows.some((r) => r.w > W - 2 * T)) {
+          shelfRows.forEach((r) => skip(r, 'shelf-height-unknown'));
+        } else {
+          let i = 0;
+          shelfRows.forEach((r) => {
+            for (let k = 0; k < r.qty; k++, i++) {
+              parts.push(makePart(r, k, { o: [-W / 2 + T + spots[i].x0, spots[i].y, panelZ0], u: '+x', v: '+z', n: '+y' }, [], 'interior', tag({ shelfIdx: i })));
+            }
+          });
+        }
+      }
+    });
+
+    // 칸막이 — 규칙 파일 배치의 자리 (세로 = 지판 위~천판 아래, 수평 = 칸 사이). 깊이는 천지판과 같아 천지판 뒤끝에 맞춘다.
+    const divRows = new Set();
+    cars.forEach((c, ci) => {
+      const rowsHere = c.rows.filter((x) => x.key.family === 'divider:v' || x.key.family === 'divider:h').map((x) => x.row);
+      if (!rowsHere.length) return;
+      const cab = c.group === '서랍모듈' || !layoutOk ? null : cabs[ourCabs.indexOf(c)];
+      const pool = cab ? cab.dividers.slice() : [];
+      const picks = rowsHere.map((r) => {
+        const axis = r.partId.indexOf('divider:v') >= 0 ? 'v' : 'h';
+        const i = pool.findIndex((d) => d.axis === axis && d.cutW === r.w && d.cutH === r.h);
+        return i < 0 || r.qty !== 1 ? null : pool.splice(i, 1)[0];
+      });
+      if (!cab || picks.some((d) => !d) || pool.length) { rowsHere.forEach((r) => { divRows.add(r); skip(r, 'divider-layout-unknown'); }); return; }
+      const panelZ0 = c.sakuri ? -D / 2 + C.SAKURI_PANEL_D_MINUS : -D / 2;
+      rowsHere.forEach((r, i) => {
+        const d = picks[i];
+        divRows.add(r);
+        parts.push(makePart(r, 0, d.axis === 'v'
+          ? { o: [-W / 2 + T + d.x, d.y0, panelZ0], u: '+z', v: '+y', n: '+x' }
+          : { o: [-W / 2 + T + d.x0, d.y, panelZ0], u: '+x', v: '+z', n: '+y' }, [], 'interior', { carcass: ci, divider: d.axis }));
+      });
+    });
+
+    const placed = new Set(divRows);
+    cars.forEach((c) => [c.side, c.top, c.bottom, c.back].concat(c.rows.filter((x) => x.key.family === 'shelf').map((x) => x.row)).forEach((r) => placed.add(r)));
+    keyed.forEach(({ row, key }) => {
+      if (placed.has(row)) return;
+      if (!key) { skip(row, 'no-part-key'); return; }
+      if (key.family === 'door') skip(row, 'door-layout-unknown');
+      else if (key.family === 'drawer') skip(row, 'drawer-layout-unknown');
+      else if (key.family === 'body:band') skip(row, 'band-position-pending');
+      else skip(row, 'not-yet');
+    });
+
+    return {
+      module: {
+        moduleKey: mk,
+        moduleId: String(mod.id),
+        kind: 'wardrobe',
+        box: { W, H: y, D, T },
+        sakuri: cars.some((c) => c.sakuri),
+        carcasses: cars.map((c, ci) => ({ carcass: ci, group: c.group || '통', y0: c.y0, h: c.H, sakuri: c.sakuri })),
+        place: (opts.place && opts.place[mk]) || null,
+        parts,
+        pending: [],
+      },
+      unplaced,
+    };
+  }
+
   /**
    * 조립 명세를 만든다.
    * @param {{items:Array}} design   MaterialExtractor 에 넣는 것과 같은 설계
@@ -427,7 +589,9 @@
       const item = items[itemIdx];
       const mod = item && (item.modules || []).find((x) => String(x.id) === m[2]);
       const blind = mod && String(mod.id).indexOf('corner-blind-') === 0;
-      const res = (mod && SHELL_POS.indexOf(mod.pos) >= 0 && !blind) ? shellOf(mk, mod, rows, o) : null;
+      const wardrobe = mod && (item.categoryId || item.category) === 'wardrobe' && (mod.pos === 'wardrobe' || mod.pos === 'tall');
+      const res = wardrobe ? wardrobeOf(mk, mod, rows, o, item)
+        : (mod && SHELL_POS.indexOf(mod.pos) >= 0 && !blind) ? shellOf(mk, mod, rows, o) : null;
       if (!res) {
         const reason = !mod ? (m && m[2] === 'ep' ? 'run-part' : 'no-module') : blind ? 'blind-pending' : 'module-not-yet';
         rows.forEach((r) => unplaced.push({ rowPartId: r.partId, moduleKey: mk, part: r.part, qty: r.qty, reason }));
