@@ -169,9 +169,29 @@ describe('sink15 자리 (확정 사실)', () => {
   test('미정은 unplaced 에 이유와 함께 — 밴드 자리 · 서랍장 처짐방지목(D2) · 서랍장 중간 따내기', () => {
     const reasons = (id) => spec.unplaced.filter((u) => u.rowPartId.indexOf(`0-${id}-`) === 0);
     expect(reasons('l3').filter((u) => u.part === '밴드').map((u) => u.reason)).toEqual(['band-position-pending']);
-    expect(reasons('u1').filter((u) => u.part === '밴드(보강목)').map((u) => u.reason)).toEqual(['band-position-pending']);
+    expect(reasons('u1').filter((u) => u.part === '밴드(보강목)')).toEqual([]);
     expect(reasons('l2').find((u) => u.part === '밴드(처짐방지)').reason).toBe('pending-owner D2');
     expect(mod('l2').pending).toContain('channel-mid-notch');
+  });
+
+  // 2026-10-20 사장님: 상부장 보강목 2장 (W − 2T) × 60 — 사쿠리 홈 뒤 장의 맨 뒤, 위 1장은 천판 바로 아래 · 아래 1장은 지판 바로 위
+  test('상부장 보강목 — 장의 맨 뒤(홈 뒤), 지판 바로 위 · 천판 바로 아래', () => {
+    const m = mod('u1');
+    const { W, H, D, T } = m.box;
+    const [lo, hi] = m.parts.filter((p) => p.part === '밴드(보강목)');
+    expect(lo.id.endsWith('#0')).toBe(true);
+    expect(hi.id.endsWith('#1')).toBe(true);
+    [lo, hi].forEach((p) => {
+      expect(p.box.min[0]).toBe(-W / 2 + T);
+      expect(p.box.max[0]).toBe(W / 2 - T);
+      expect(p.box.min[2]).toBe(-D / 2);
+      expect(p.box.max[2]).toBe(-D / 2 + T);
+      expect(p.box.max[2]).toBeLessThanOrEqual(-D / 2 + Rules.CARCASS.SAKURI_FROM_BACK);   // 홈 뒤
+    });
+    expect(lo.box.min[1]).toBe(T);
+    expect(lo.box.max[1]).toBe(T + 60);
+    expect(hi.box.max[1]).toBe(H - T);
+    expect(hi.box.min[1]).toBe(H - T - 60);
   });
 
   test('선반 높이를 안 주면 선반은 놓지 않는다 (지어내지 않는다)', () => {
@@ -188,6 +208,13 @@ test('sink18 — 몸통 18T 가 자리에도 들어간다', () => {
   expect(m.box.T).toBe(18);
   const right = m.parts.filter((p) => p.part === '측판')[1];
   expect(right.box.min[0]).toBe(m.box.W / 2 - 18);
+});
+
+test('sink18 — 보강목 18 은 홈 뒤 15 자리보다 두꺼워 자리 미정 (사장님 확인 대기)', () => {
+  const { spec } = specOf('sink18');
+  const un = spec.unplaced.filter((u) => u.part === '밴드(보강목)');
+  expect(un.length).toBeGreaterThan(0);
+  un.forEach((u) => expect(u.reason).toBe('upper-band-18t-pending'));
 });
 
 test('solidsOf — 관통 따내기를 뺀 부피', () => {

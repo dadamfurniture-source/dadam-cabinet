@@ -1131,7 +1131,7 @@
       "moduleId": "upper-0",
       "family": "body:band",
       "scene": "",
-      "bom": "870×70×15 ×2",
+      "bom": "870×60×15 ×2",
       "note": "",
       "cause": "밴드 미표현",
       "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
@@ -1167,7 +1167,7 @@
       "moduleId": "upper-1",
       "family": "body:band",
       "scene": "",
-      "bom": "870×70×15 ×2",
+      "bom": "870×60×15 ×2",
       "note": "",
       "cause": "밴드 미표현",
       "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
@@ -1575,7 +1575,7 @@
       "moduleId": "upper-0",
       "family": "body:band",
       "scene": "",
-      "bom": "870×70×15 ×2",
+      "bom": "870×60×15 ×2",
       "note": "",
       "cause": "밴드 미표현",
       "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
@@ -1611,7 +1611,7 @@
       "moduleId": "upper-1",
       "family": "body:band",
       "scene": "",
-      "bom": "870×70×15 ×2",
+      "bom": "870×60×15 ×2",
       "note": "",
       "cause": "밴드 미표현",
       "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
@@ -2103,7 +2103,7 @@
       "moduleId": "upper-0",
       "family": "body:band",
       "scene": "",
-      "bom": "870×70×15 ×2",
+      "bom": "870×60×15 ×2",
       "note": "",
       "cause": "밴드 미표현",
       "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
@@ -2139,7 +2139,7 @@
       "moduleId": "upper-1",
       "family": "body:band",
       "scene": "",
-      "bom": "870×70×15 ×2",
+      "bom": "870×60×15 ×2",
       "note": "",
       "cause": "밴드 미표현",
       "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
@@ -2175,7 +2175,7 @@
       "moduleId": "upper-2",
       "family": "body:band",
       "scene": "",
-      "bom": "770×70×15 ×2",
+      "bom": "770×60×15 ×2",
       "note": "",
       "cause": "밴드 미표현",
       "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
@@ -2211,7 +2211,7 @@
       "moduleId": "upper-3",
       "family": "body:band",
       "scene": "",
-      "bom": "370×70×15 ×2",
+      "bom": "370×60×15 ×2",
       "note": "",
       "cause": "밴드 미표현",
       "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"

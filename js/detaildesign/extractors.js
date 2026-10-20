@@ -1328,7 +1328,7 @@
             // 뒷판 (사쿠리홈에 끼움 — bomBackPanelSize)
             this.addBackPanel(materials, modLabel, W, H, true);
             // 밴드(보강목) 2개
-            this.add(materials, modLabel, '밴드(보강목)', 'PB', T, W - T * 2, ASM.BAND_W, 2, '2면(장)');
+            this.add(materials, modLabel, '밴드(보강목)', 'PB', T, W - T * 2, ASM.UPPER_BAND_W, 2, '2면(장)');
             // 밴드(처짐방지목) — W ≥ 700 이면 1장, 모듈 중앙 (bomBraceQtyOf)
             const braceQty = bomBraceQtyOf(W, 'upper');
             if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, H - T * 2, braceQty, '2면(장)');
@@ -2011,7 +2011,7 @@
             this.add(materials, modLabel, '천판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
             this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
             this.addBackPanel(materials, modLabel, W, H, true);
-            this.add(materials, modLabel, '밴드(보강목)', 'PB', T, W - T * 2, ASM.BAND_W, 2, '2면(장)');
+            this.add(materials, modLabel, '밴드(보강목)', 'PB', T, W - T * 2, ASM.UPPER_BAND_W, 2, '2면(장)');
             const braceQty = bomBraceQtyOf(W, 'upper');
             if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, H - T * 2, braceQty, '2면(장)');
             const shelf = bomSimpleShelfQtyOf(mod, rules);

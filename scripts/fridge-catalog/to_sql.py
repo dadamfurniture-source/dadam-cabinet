@@ -16,9 +16,11 @@ import sys
 # DB 에 이미 있는 이름에 맞춘다 (기존 냉장고 8개가 '삼성' · 'LG'). 위니아(딤채) · 데이코(Dacor)도 한글 이름으로.
 # LG SIGNATURE Kitchen Suite 는 LG 의 한 라인이라 브랜드 'LG' + line 'SIGNATURE Kitchen Suite'
 BRAND = {'Samsung': '삼성', 'samsung': '삼성', 'LG': 'LG', 'lg': 'LG', 'Winia': '위니아', 'winia': '위니아',
-         'Dacor': '데이코', 'dacor': '데이코'}
+         'Dacor': '데이코', 'dacor': '데이코',
+         'Liebherr': '리페르', 'liebherr': '리페르', 'Midea': '마이디어', 'midea': '마이디어', 'Smeg': '스메그', 'smeg': '스메그'}
 NICHE_KEYS = ('niche_min_w_mm', 'niche_min_h_mm', 'niche_min_d_mm', 'niche_max_w_mm', 'niche_max_h_mm', 'niche_max_d_mm')
 BATCH = 100
+UNVERIFIED_BRANDS = {'Midea'}  # 공식 페이지 값이 서로 복사돼 있어 확인 전까지 검증 아님
 NOTES_MAX = 900
 
 
@@ -120,7 +122,9 @@ def row_of(r):
         'top_gap_mm': num(r.get('top_gap_mm'), up=True),
         'back_gap_mm': num(r.get('back_gap_mm'), up=True),
         **{k: num(r.get(k)) for k in NICHE_KEYS},  # 니치(장 안쪽) 치수 — 반올림. DB 칸은 appliance-models-niche.sql
-        'verified': True,  # 제조사 공식 스펙 API 값
+        # 제조사 공식 값 → 검증. 마이디어 KR 상품 페이지는 다른 상품을 복사한 곳이 있어(sku · 용량 어긋남,
+        # 2026-10-20 수집 검토) 사람이 확인하기 전까지 '⚠ 표준' 으로 둔다.
+        'verified': r.get('brand') not in UNVERIFIED_BRANDS,
         'source_url': r.get('page_url') or r.get('source_url'),
         'notes': notes_of(r),
     }

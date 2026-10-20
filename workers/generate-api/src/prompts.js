@@ -553,6 +553,48 @@ function normalizeDesignAppliance(raw, posField = 'fromLeftMm') {
   if (fromLeftMm !== null) out[posField] = fromLeftMm;
   const widthMm = designMm(raw.widthMm, 'appliances[].widthMm', DESIGN_RANGE.applianceWidthMm);
   if (widthMm !== null) out.widthMm = widthMm;
+  // 2026-10-20: 냉장고 모델 (fridge 만, 선택) — 플래너 모드의 냉장고 자리 문장만 읽는다. 없으면 키도 없다.
+  if (kind === 'fridge') {
+    const model = normalizeDesignFridgeModel(raw.model);
+    if (model) out.model = model;
+  }
+  return out;
+}
+
+/**
+ * 2026-10-20: 냉장고 모델의 세부 구분 — appliance_models.subtype (admin/appliances.html FRIDGE_SUBTYPES 와 같은 값).
+ *   문 형태를 아는 넷만 프롬프트에 말한다 (DESIGN_FRIDGE_DOOR_FORM). 그 밖의 값은 조용히 버린다.
+ */
+export const DESIGN_FRIDGE_SUBTYPES = [
+  'french_4door', 'side_by_side', 'two_door', 'one_door', 'built_in', 'kimchi_stand', 'kimchi_lid', 'wine', 'small',
+];
+
+/**
+ * 2026-10-20: appliances[].model — { brand?, name?, code?, widthMm?, heightMm?, depthMm?, subtype? }.
+ *   플래너 배치 단계에서 고른 냉장고 (appliance_models 의 brand · model_name · model_code · 치수 · subtype).
+ *   이름이나 코드가 없으면(모델을 특정하지 못하면) null — 중립 냉장고로 그린다. 객체가 아니면 조용히 버린다.
+ */
+function normalizeDesignFridgeModel(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const out = {};
+  const brand = designText(raw.brand, 30);
+  if (brand) out.brand = brand;
+  const name = designText(raw.name, 80);
+  if (name) out.name = name;
+  const code = designText(raw.code, 40);
+  if (code) out.code = code;
+  if (!out.name && !out.code) return null;
+  const dims = [
+    ['widthMm', DESIGN_RANGE.applianceWidthMm],
+    ['heightMm', DESIGN_RANGE.heightMm],
+    ['depthMm', DESIGN_RANGE.depthMm],
+  ];
+  for (const [f, range] of dims) {
+    const v = designMm(raw[f], `appliances[].model.${f}`, range);
+    if (v !== null) out[f] = v;
+  }
+  const subtype = typeof raw.subtype === 'string' ? raw.subtype.trim().toLowerCase() : '';
+  if (DESIGN_FRIDGE_SUBTYPES.includes(subtype)) out.subtype = subtype;
   return out;
 }
 
@@ -1312,13 +1354,65 @@ function plannerTierHeights(tiers) {
 }
 
 /**
+ * 2026-10-20: 냉장고장 냉장고 자리에 그릴 냉장고 — 사장님 결정 (2026-10-20): "냉장고가 특정되면 해당 냉장고 사진을 넣어서
+ *   보여주고, 아니라면 가능한 중립 냉장고로 보여줘." 1단계는 사진 없이 글로만 (모델 이름·치수·문 형태).
+ * 중립 냉장고의 색은 정하지 않고 모델에게 맡긴다 — 흰색이 기본, 전면이 어두우면 스테인리스 (마감 대비만으로 고르는 규칙,
+ *   새 문턱값을 만들지 않는다).
+ */
+const PLANNER_NEUTRAL_FRIDGE =
+  'a neutral free-standing two-door refrigerator, plain matte white or, if the fronts are dark, brushed stainless, ' +
+  'with no logo or display, sized to fill the opening';
+
+/** 2026-10-20: appliance_models.brand(한국어) → 영문. 이미지 모델은 한국어 이름을 못 읽는다 (PLANNER_SUBJECT 와 같은 이유). */
+const PLANNER_FRIDGE_BRAND_EN = { 삼성: 'Samsung', 삼성전자: 'Samsung', 엘지: 'LG', LG전자: 'LG', 위니아: 'Winia', 데이코: 'Dacor' };
+
+/** 2026-10-20: appliance_models.subtype → 문 형태 (문 형태가 이름인 넷만). */
+const PLANNER_FRIDGE_DOOR_FORM = {
+  french_4door: 'four-door french-door type',
+  side_by_side: 'side-by-side two-door type',
+  two_door: 'two-door type',
+  one_door: 'single-door type',
+};
+
+/** 한글이 든 낱말을 뺀다 — "BESPOKE 1도어 키친핏 409L" → "BESPOKE 409L". */
+const plannerLatinWords = (s) =>
+  String(s || '')
+    .split(/\s+/)
+    .filter((w) => w && !/[ᄀ-ᇿ㄰-㆏가-힯]/.test(w))
+    .join(' ');
+
+/**
+ * 2026-10-20: 냉장고 모델 (appliances[].model) → "this refrigerator: Samsung BESPOKE 409L, model RR40C7805AP,
+ *   595 × 1853 × 700 mm (W × H × D), single-door type". 말할 것이 없으면 null (중립 냉장고).
+ */
+function plannerFridgeModelPhrase(model) {
+  if (!model || typeof model !== 'object') return null;
+  const brand = PLANNER_FRIDGE_BRAND_EN[model.brand] || plannerLatinWords(model.brand);
+  const label = [brand, plannerLatinWords(model.name)].filter(Boolean).join(' ');
+  const parts = [];
+  if (label) parts.push(label);
+  if (model.code && !label.includes(model.code)) parts.push(`model ${model.code}`);
+  const { widthMm: w, heightMm: h, depthMm: d } = model;
+  if (w && h && d) parts.push(`${w} × ${h} × ${d} mm (W × H × D)`);
+  else {
+    if (w) parts.push(`${w} mm wide`);
+    if (h) parts.push(`${h} mm high`);
+    if (d) parts.push(`${d} mm deep`);
+  }
+  if (PLANNER_FRIDGE_DOOR_FORM[model.subtype]) parts.push(PLANNER_FRIDGE_DOOR_FORM[model.subtype]);
+  return parts.length ? `this refrigerator: ${parts.join(', ')}` : null;
+}
+
+/**
  * 2026-10-19: 쌓인 단 한 통 (design_spec modules[].tiers) → FIXED GEOMETRY 의 종류 구절.
  *   키큰장 한 통  "tall column — 3 stacked doors (bottom 861 mm, middle 979 mm, top 460 mm)"
- *   냉장고장      "refrigerator opening (keep it open from the floor up to 1880 mm …) with a 2-door cabinet above (420 mm high)"
- * 냉장고 자리는 **비워 두되** 사진 속 냉장고를 지우지도, 새 붙박이 냉장고를 지어내지도 않게 말한다 —
- *   방에 놓인 독립형 냉장고는 그 자리에 서 있어도 된다 (KEEP 의 "movable object" 와 같은 편).
+ *   냉장고장      "refrigerator opening (open from the floor up to 1880 mm …; a refrigerator stands in it: …) with a 2-door cabinet above (420 mm high)"
+ * 2026-10-20: 냉장고 자리에는 **냉장고를 그린다** (사장님 결정) — 사진(IMAGE A)에서 그 자리에 냉장고가 보이면 그것을 유지,
+ *   없으면 고른 모델(fridgeModel, appliances[].model)을, 모델이 없으면 중립 냉장고를. 옛 문장("may stand there — keep the one
+ *   IMAGE A shows, do not invent a built-in one")은 허용이라 사진에 냉장고가 없을 때 무엇을 그릴지 정하지 않았다.
+ * @param {object} [fridgeModel] 이 통에 걸린 fridge 가전의 model (plannerRows)
  */
-function plannerColumnWhat(m, rowKey) {
+function plannerColumnWhat(m, rowKey, fridgeModel) {
   const opening = tierOpening(m);
   const stackWhat = (tiers) => {
     const allSingle = tiers.every((t) => t.kind === 'door' && (t.doorCount || 1) === 1);
@@ -1331,8 +1425,9 @@ function plannerColumnWhat(m, rowKey) {
     const h = opening.heightMm;
     const fridge = isFridgeLabel(opening.label || m.label);
     const head = fridge
-      ? `refrigerator opening (keep it open from the floor${h ? ` up to ${h} mm` : ''}, with no cabinet, shelf or panel inside; ` +
-        `a free-standing refrigerator may stand there — keep the one IMAGE A shows, do not invent a built-in one)`
+      ? `refrigerator opening (open from the floor${h ? ` up to ${h} mm` : ''}, with no cabinet, shelf or panel inside; ` +
+        `a refrigerator stands in it: if IMAGE A shows a refrigerator in this spot, keep that one, otherwise draw ` +
+        `${plannerFridgeModelPhrase(fridgeModel) || PLANNER_NEUTRAL_FRIDGE})`
       : `appliance opening (open from the floor${h ? ` up to ${h} mm` : ''})`;
     const above = m.tiers.slice(1);
     if (!above.length) return head;
@@ -1479,8 +1574,11 @@ function plannerRows(spec, category) {
           if (hit) break;
         }
       }
-      if (hit) hit.attached.push(a.kind);
-      else loose.push(wall === 'main' ? { kind: a.kind, center } : { kind: a.kind, center: null, wall });
+      if (hit) {
+        hit.attached.push(a.kind);
+        // 2026-10-20: 고른 냉장고 모델 — 그 자리(냉장고장 통)의 문장이 쓴다 (plannerColumnWhat)
+        if (a.kind === 'fridge' && a.model && !hit.fridgeModel) hit.fridgeModel = a.model;
+      } else loose.push(wall === 'main' ? { kind: a.kind, center } : { kind: a.kind, center: null, wall });
     }
   };
   attach(Array.isArray(spec && spec.appliances) ? spec.appliances : [], 'main', 'fromLeftMm');
@@ -1627,7 +1725,9 @@ function plannerRowPosition(row, ref) {
 function plannerRatio(row) {
   if (row.items.length < 2 || !row.items.every((it) => it.m.widthMm)) return null;
   const unit = Math.min(...row.items.map((it) => it.m.widthMm));
-  const parts = row.items.map((it) => String(Math.round((it.m.widthMm / unit) * 2) / 2));
+  // 2026-10-20: 소수 둘째 자리 (예전 0.5 단위). 실측: 키큰장 600 · 냉장고장 680 이 "1 : 1" 로 나가 냉장고장을 도면보다 최대
+  //   229 mm 넓게 그렸다 — 이제 "1 : 1.13". 정수·0.5 배는 예전과 같은 글자 ("2 : 1 : 2.5").
+  const parts = row.items.map((it) => String(Math.round((it.m.widthMm / unit) * 100) / 100));
   return `${row.items.map((it) => it.id).join(' : ')} = ${parts.join(' : ')}`;
 }
 
@@ -1955,7 +2055,7 @@ export function buildPlannerPrompt(c) {
         const size = it.m.widthMm ? `${String(it.m.widthMm).padStart(4)} mm` : '';
         // 2026-10-19: 쌓인 단(tiers)이 있으면 한 통으로 — 옛 모양은 예전 그대로
         let what = hasTiers(it.m)
-          ? plannerColumnWhat(it.m, row.key)
+          ? plannerColumnWhat(it.m, row.key, it.fridgeModel)
           : plannerModuleWhat(it.m, it.attached, key === 'wardrobe');
         // 가전 칸은 냉장고·식세기를 이미 제 이름으로 말했다 — 싱크·쿡탑·후드만 덧붙인다.
         const opening = it.m.kind === 'appliance' || !!tierOpening(it.m);
@@ -2209,6 +2309,24 @@ function plannerQcCeilingNote(c) {
   return ` — but the design itself leaves ${bits.join(' and ')}, so a gap of about that size is intended; report it only when the gap is clearly larger`;
 }
 
+/**
+ * 2026-10-20: 도면에 냉장고 자리가 있는가 — 냉장고장 통의 맨 아래 가전 단(냉장고), 또는 냉장고 가전 칸.
+ *   주벽 sections 와 꺾인 벽 walls[].sections 를 모두 본다. 플래너 모드 검사(appliances_visible 예외)가 쓴다.
+ */
+function plannerHasFridgeOpening(spec) {
+  if (!spec || typeof spec !== 'object') return false;
+  const secs = [spec.sections, ...plannerWalls(spec).map((w) => w.sections)].filter((s) => s && typeof s === 'object');
+  return secs.some((sections) =>
+    DESIGN_SECTIONS.some((k) =>
+      (sections[k] && Array.isArray(sections[k].modules) ? sections[k].modules : []).some((m) => {
+        const opening = tierOpening(m);
+        if (opening) return isFridgeLabel(opening.label || m.label);
+        return !!m && m.kind === 'appliance' && !hasTiers(m) && plannerApplianceOfLabel(m.label) === 'fridge';
+      })
+    )
+  );
+}
+
 // ─── 3. 검사 ───
 /** 모든 실행이 받는 공통 코드. */
 export const QC_ISSUE_CODES = Object.keys(QC_FIXES);
@@ -2294,6 +2412,12 @@ export function buildQcPrompt(c) {
     (c.guide ? '\n- guide_left: magenta or pink guide lines are still visible in the result' : '');
   // 2026-10-19: 플래너 모드에서만 — 도면이 천장 틈을 두었으면 그 크기를 기준으로 (거짓 경보 줄이기). 아니면 빈 문자열.
   const ceilingNote = c.planner ? plannerQcCeilingNote(c) : '';
+  // 2026-10-20: 플래너 모드 + 도면에 냉장고 자리가 있을 때만 — 그 자리의 냉장고는 그리라고 했다 (plannerColumnWhat).
+  //   실측: 냉장고장 도면 2/2 장이 appliances_visible 로 잡혔다 (거짓 경보). 아니면 빈 문자열 — 옛 검사 프롬프트 바이트 그대로.
+  const fridgeNote =
+    c.planner && plannerHasFridgeOpening(c.designSpec)
+      ? '; a refrigerator standing in the refrigerator opening of the design is expected — do not report it'
+      : '';
   // 붙박이장 문 수 — 정본 통 나누기 그대로인지. 설치 FURNITURE 가 도어 문장(cat.spec)일 때만 —
   //   도면 요약 블록이 FURNITURE 를 대신하면 문 수를 말하지 않았으니 검사도 하지 않는다 (플래너 모드는 따로 본다)
   let doorCode = '';
@@ -2309,7 +2433,7 @@ Report an issue ONLY when it is clearly visible. Use these codes:
 - doors_open: any door or drawer open or interior shown
 - room_changed: the room itself looks re-rendered (different walls, floor, window, ceiling or camera angle)
 - gap_to_ceiling: a clear gap between the top of the tall/upper units and the ceiling${ceilingNote}
-- appliances_visible: free-standing appliances (microwave, kettle, standalone fridge) on show
+- appliances_visible: free-standing appliances (microwave, kettle, standalone fridge) on show${fridgeNote}
 - text: any text, label, logo or watermark
 - wrong_category: the furniture is not a ${CATEGORIES[key].label}
 - low_detail: blurry, smeared or obviously synthetic surfaces
