@@ -485,16 +485,16 @@
 <!-- 플래너 공통 모듈 — 배치·구조 두 단계가 같은 정본을 본다.
      클래식 스크립트이므로 아래 인라인보다 **먼저** 실행되어야 하고,
      여기서 선언한 이름을 인라인이 다시 선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-category-picker.js?v=41.5"></script>
-<script src="js/planner/planner-scope.js?v=41.5"></script>
-<script src="js/planner/planner-view.js?v=41.5"></script>
-<script src="js/planner/planner-sections.js?v=41.5"></script>
+<script src="js/planner/planner-category-picker.js?v=41.6"></script>
+<script src="js/planner/planner-scope.js?v=41.6"></script>
+<script src="js/planner/planner-view.js?v=41.6"></script>
+<script src="js/planner/planner-sections.js?v=41.6"></script>
 <!-- W12-71: 배치 도면을 계정에도 한 벌 남긴다. 불러오기 UI 는 구조 단계에 있다.
      셋이 없어도 배치는 그대로 돈다 — PlannerStore 가 localStorage 로 물러난다. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-<script src="js/config.js?v=41.5"></script>
-<script src="js/planner/planner-store.js?v=41.5"></script>
-<script src="js/planner/planner-drawing-menu.js?v=41.5"></script>
+<script src="js/config.js?v=41.6"></script>
+<script src="js/planner/planner-store.js?v=41.6"></script>
+<script src="js/planner/planner-drawing-menu.js?v=41.6"></script>
 
 <script>
   const lt = document.getElementById('leftTools'), btnL = document.getElementById('btnLeft');
@@ -508,8 +508,8 @@
   });
   // W9-10: 하부장/상부장/키큰장 — 도면 (canvas-wrap) 에 색상별 직사각형 추가
   // 섹션 정본(치수·색·moduleH 의미)은 js/planner/planner-sections.js 에 있다.
-  // 배치 단계는 덮어쓸 것이 없어 정본 그대로 쓴다.
-  const SECTION_CONFIG = buildSectionConfig();
+  // 배치 단계는 덮어쓸 것이 없어 정본 그대로 쓴다. 품목별 기본값(TV장 거실장 높이 등)만 URL preset 으로 얹는다.
+  const SECTION_CONFIG = buildSectionConfig(undefined, undefined, new URLSearchParams(location.search).get('preset'));
 
   // W9-28: 도면에 가장 최근 추가된 일반 모듈 (lower/upper/tall/fridge) 의 깊이/높이 자동 참조
   function getAdjacentModuleDims() {
