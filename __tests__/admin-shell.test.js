@@ -26,7 +26,15 @@ describe('메뉴 정본 — js/admin-shell.js', () => {
     const links = boot('/admin/index.html').map((a) => a.getAttribute('href'));
     expect([...links].sort()).toEqual([...PAGES].sort());
     expect(new Set(links).size).toBe(links.length);
-    expect(links.indexOf('work-reports.html')).toBe(links.indexOf('logs.html') - 1);
+    // 작업 배정(worker-portal-contract.md §4)은 작업 지시 보고 바로 다음, 그 다음이 활동 로그
+    expect(links.indexOf('work-jobs.html')).toBe(links.indexOf('work-reports.html') + 1);
+    expect(links.indexOf('logs.html')).toBe(links.indexOf('work-jobs.html') + 1);
+  });
+
+  test('「작업 배정」 메뉴 — 🧰 아이콘 · 이름', () => {
+    const a = boot('/admin/work-jobs.html?job=x').find((x) => x.classList.contains('active'));
+    expect(a.getAttribute('href')).toBe('work-jobs.html');
+    expect(a.textContent).toBe('🧰작업 배정');
   });
 
   test('지금 페이지에 active · aria-current, 나머지는 없음', () => {
@@ -53,8 +61,13 @@ describe('각 관리자 페이지', () => {
   test.each(PAGES)('%s — 빈 #adminNav + 공용 스크립트, 하드코딩 메뉴 없음', (f) => {
     const html = read(f);
     expect(html.split('<ul class="nav-menu"').length - 1).toBe(1);
-    expect(html).toMatch(/<ul class="nav-menu" id="adminNav"><\/ul>\s*<script src="\.\.\/js\/admin-shell\.js"><\/script>/);
+    expect(html).toMatch(/<ul class="nav-menu" id="adminNav"><\/ul>\s*<script src="\.\.\/js\/admin-shell\.js(\?v=[\d.]+)?"><\/script>/);
     expect(html).not.toMatch(/<li><a href="logs\.html"/);
+  });
+
+  test('메뉴를 바꾸면 모든 관리자 페이지의 ?v= 를 같이 올린다 — 한 페이지만 옛 메뉴를 캐시에서 꺼내지 않게', () => {
+    const versions = PAGES.map((f) => (read(f).match(/<script src="\.\.\/js\/admin-shell\.js(\?v=[\d.]+)?"><\/script>/) || [])[1] || '(없음)');
+    expect(new Set(versions)).toEqual(new Set(['?v=2']));
   });
 
   test.each(PAGES)('%s — 관리자 판정은 AdminAccess, 하드코딩 이메일 없음', (f) => {
