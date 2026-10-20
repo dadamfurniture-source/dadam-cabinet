@@ -44,9 +44,9 @@ describe('BOM 골든 — 붙박이장 (wardrobe)', () => {
     ]));
     expect(snap.materials.find((m) => m.module === '선반형-상부장' && m.part === '선반').qty).toBe(2);
     expect(snap.materials.find((m) => m.module === '선반형-하부장' && m.part === '선반').qty).toBe(2);
-    // EP: 상몰딩(60) · 좌측몰딩 + 덧대 · 우측 없음 · 좌대 걸레받이 · 외부서랍 2 → 목찬넬 120
-    expect(parts('EP')).toEqual(['상몰딩', '좌측몰딩', '좌측몰딩 덧대', '좌대 걸레받이', '목찬넬']);
-    expect(snap.materials.find((m) => m.module === 'EP' && m.part === '목찬넬').w).toBe(120);
+    // EP: 상몰딩(60) · 좌측몰딩 + 덧대 · 우측 없음 · 좌대 걸레받이 · 외부서랍 2 → 목찬넬 100 + 120 (2026-10-20 사장님, 서랍마다 위에 하나씩)
+    expect(parts('EP')).toEqual(['상몰딩', '좌측몰딩', '좌측몰딩 덧대', '좌대 걸레받이', '목찬넬', '목찬넬']);
+    expect(snap.materials.filter((m) => m.module === 'EP' && m.part === '목찬넬').map((m) => m.w)).toEqual([100, 120]);
     // 좌대: 모듈마다, W≥700 이면 중간보강
     expect(parts('긴옷-좌대')).toEqual(['좌대 전후', '좌대 측', '좌대 중간보강']);
   });

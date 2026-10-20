@@ -1681,7 +1681,8 @@
                     drawerDoorH = drawerModTotal - 30 - 20;
                     drawerDoorQty = 1;
                   } else if (drawerCount === 2) {
-                    drawerDoorH = Math.floor((drawerModTotal - 20 - 30) / 2);
+                    // 2026-10-20 사장님: 2단은 서랍마다 위에 목찬넬 30 하나씩 (예전 30 하나 → 355, 지금 340)
+                    drawerDoorH = Math.floor((drawerModTotal - 20 - 30 - 30) / 2);
                     drawerDoorQty = 2;
                   } else {
                     drawerDoorH = Math.floor((drawerModTotal - 20 - 30 - 30) / 3);
@@ -1768,7 +1769,8 @@
                     drawerDoorH = drawerModTotal - 30 - 20;
                     drawerDoorQty = 1;
                   } else if (drawerCount === 2) {
-                    drawerDoorH = Math.floor((drawerModTotal - 20 - 30) / 2);
+                    // 2026-10-20 사장님: 2단은 서랍마다 위에 목찬넬 30 하나씩 (예전 30 하나 → 355, 지금 340)
+                    drawerDoorH = Math.floor((drawerModTotal - 20 - 30 - 30) / 2);
                     drawerDoorQty = 2;
                   } else {
                     drawerDoorH = Math.floor((drawerModTotal - 20 - 30 - 30) / 3);
@@ -1863,9 +1865,8 @@
             const modW = parseFloat(mod.w) || 900;
             if (drawerCount === 1) {
               this.add(materials, 'EP', '목찬넬', 'MDF', 18, 100, modW, 1, '2면(장)');
-            } else if (drawerCount === 2) {
-              this.add(materials, 'EP', '목찬넬', 'MDF', 18, 120, modW, 1, '2면(장)');
-            } else if (drawerCount >= 3) {
+            } else if (drawerCount >= 2) {
+              // 2026-10-20 사장님: 2단도 서랍마다 위에 목찬넬 하나씩 — EP 는 3단처럼 100 + 120 (예전 120 한 장)
               this.add(materials, 'EP', '목찬넬', 'MDF', 18, 100, modW, 1, '2면(장)');
               this.add(materials, 'EP', '목찬넬', 'MDF', 18, 120, modW, 1, '2면(장)');
             }
