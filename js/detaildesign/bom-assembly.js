@@ -427,7 +427,8 @@
    * 선반은 싱크와 같이 천지판 뒤끝에 맞춘다 (§6 "천저판보다 70 짧게 — 전면 여유").
    * 도어는 좌대를 덮고 바닥에서 20, 외부 서랍 통은 서랍 몸통 위부터 (2026-10-20 카드). 서랍도어는 1~3단 (목찬넬 틈 30, 그 밖 전면 사이 4).
    *   외부 서랍 몸통은 천판이 없고 (카드 "천판 빼기") 측판 따내기 자리에 목찬넬 ㄴ자 (EP) 를 놓는다.
-   *   외부 서랍 박스는 싱크 서랍 박스 짜임 (카드 "싱크 규칙"). 아직 자리를 정하지 않은 행: 서랍모듈 밴드, 내부 서랍. 좌대는 뒤 맞춤 (2026-10-20 카드). 칸막이는 규칙 파일 배치가 있을 때만 (없으면 'divider-layout-unknown').
+   *   외부 서랍 박스는 싱크 서랍 박스 짜임 (카드 "싱크 규칙"). 내부 서랍장은 도어 앞면 = 앞선 − 70 (카드 "도어 앞선−70").
+   *   아직 자리를 정하지 않은 행: 서랍모듈 밴드, 내부 서랍장 박스, 규칙 블록이 없는 옛 내부 서랍. 좌대는 뒤 맞춤 (2026-10-20 카드). 칸막이는 규칙 파일 배치가 있을 때만 (없으면 'divider-layout-unknown').
    * @returns {{module:object, unplaced:Array}|null}
    */
   function wardrobeOf(mk, mod, rows, opts, item) {
@@ -697,7 +698,61 @@
       });
     }
 
-    const placed = new Set([...divRows, ...pedRows, ...doorRows, ...chanRows, ...boxRows]);
+    // 내부 서랍장 — 규칙 파일 배치(innerDrawerLayout)의 모듈. 2026-10-20 사장님 카드 "도어 앞선−70":
+    //   서랍 도어 앞면 = 통 앞선 − 70 (경첩 자리), 모듈은 그 뒤 (모듈 앞선 = 앞선 − 70 − 도어 두께), 뒤는 남는 만큼 빈다.
+    //   좌우몰딩은 앞을 보고 서서 앞면 = 앞선 − 70, 상판 앞선도 앞선 − 70.
+    //   높이는 규칙 그대로 — 통 지판 위(zone.y0)에 모듈, 그 위 상판, 도어는 모듈 외경 면에서 아래 2 (frontY0).
+    //   가로는 통 내경 가운데, 좌우 몰딩 60. 몸통은 하부장과 같다 — 천판 없이 밴드가 상단 앞·뒤에 선다 (규칙 BAND_H 주석).
+    //   서랍 박스 높이 자리는 아직 정하지 않았다.
+    const innerRows = new Set();
+    const zoneCab = layoutOk && cabs ? cabs.find((cb) => cb.drawerZone && cb.drawerZone.fronts && cb.drawerZone.fronts.length) : null;
+    const innerHit = keyed.filter((x) => x.key && (groupOf(x.row) === '내부서랍모듈' || /^innerdrawer:/.test(x.key.family)));
+    if (zoneCab && innerHit.length) {
+      const z = zoneCab.drawerZone;
+      const I = WR.WARDROBE_RULES.INNER_DRAWER;
+      const one = (fam, g) => { const h = innerHit.filter((x) => x.key.family === fam && (g == null || groupOf(x.row) === g)); return h.length === 1 ? h[0].row : null; };
+      const side = one('body:side', '내부서랍모듈'), bottom = one('body:bottom', '내부서랍모듈'), band = one('body:band', '내부서랍모듈');
+      const back = one('back', '내부서랍모듈'), topP = one('top', '내부서랍모듈'), molding = one('innerdrawer:molding');
+      const fronts = innerHit.filter((x) => x.key.family === 'innerdrawer:front').map((x) => x.row);
+      const t = z.frontT;
+      const zFace = D / 2 - I.FRONT_SETBACK;            // 도어·몰딩 앞면, 상판 앞선
+      const zMod = zFace - t;                          // 모듈 앞선
+      const mW = z.moduleW, mH = z.moduleH, mD = z.moduleD, y0 = z.y0;
+      const frontHs = z.fronts.map((f) => f.h).sort((a, b) => a - b);
+      const rowHs = [].concat(...fronts.map((r) => new Array(r.qty).fill(r.h))).sort((a, b) => a - b);
+      const ok = side && side.qty === 2 && side.w === mD && side.h === mH && side.thickness === t
+        && bottom && bottom.w === mW - 2 * t && bottom.h === z.panelD
+        && band && band.qty === 2 && band.w === mW - 2 * t && band.h === I.BAND_H
+        && back && back.w === mW - I.BACK_FLAT_W_MINUS && back.h === mH - I.BACK_H_MINUS && !I.SIDE_SAKURI
+        && topP && topP.w === z.topPanelW && topP.h === z.topPanelD
+        && molding && molding.qty === 2 && molding.w === z.moldingH && molding.h === z.moldingW
+        && fronts.every((r) => r.w === z.frontW) && rowHs.join() === frontHs.join()
+        && z.topPanelW <= W - 2 * T && zMod - mD >= -D / 2;
+      if (ok) {
+        // 검사는 몸통마다 측판·뒷판을 본다 — 내부 서랍장은 따로 만드는 몸통이라 carcass 'inner'
+        const tag = (o) => Object.assign({ innerDrawer: true, carcass: 'inner' }, o || {});
+        parts.push(makePart(side, 0, { o: [-mW / 2, y0, zMod - mD], u: '+z', v: '+y', n: '+x' }, [], 'interior', tag({ side: 'left' })));
+        parts.push(makePart(side, 1, { o: [mW / 2, y0, zMod - mD], u: '+z', v: '+y', n: '-x' }, [], 'interior', tag({ side: 'right' })));
+        parts.push(makePart(bottom, 0, { o: [-mW / 2 + t, y0, zMod - z.panelD], u: '+x', v: '+z', n: '+y' }, [], 'interior', tag()));
+        parts.push(makePart(band, 0, { o: [-band.w / 2, y0 + mH - I.BAND_H, zMod - band.thickness], u: '+x', v: '+y', n: '+z' }, [], 'interior', tag({ end: 'front' })));
+        parts.push(makePart(band, 1, { o: [-band.w / 2, y0 + mH - I.BAND_H, zMod - mD], u: '+x', v: '+y', n: '+z' }, [], 'interior', tag({ end: 'back' })));
+        // 뒷판 — 측판 뒤 덮음 (사쿠리 없음), 위아래 가운데
+        parts.push(makePart(back, 0, { o: [-back.w / 2, y0 + (mH - back.h) / 2, zMod - mD - back.thickness], u: '+x', v: '+y', n: '+z' }, [], 'interior', tag({ mount: 'behind-sides' })));
+        // 상판 — 모듈 위, 통 내경 폭으로 좌우 몰딩까지 덮는다. 앞선 = 앞선 − 70, 뒤로 뻗는다
+        parts.push(makePart(topP, 0, { o: [-topP.w / 2, y0 + mH, zFace - topP.h], u: '+x', v: '+z', n: '+y' }, [], 'interior', tag({ panel: 'top' })));
+        // 좌우몰딩 — 모듈 옆 60 자리에 앞을 보고 선다 (u = 높이, v = 폭 60)
+        [-mW / 2 - z.moldingW, mW / 2].forEach((x0, k) => parts.push(makePart(molding, k, { o: [x0, y0, zMod], u: '+y', v: '+x', n: '+z' }, [], 'exterior', tag({ end: k ? 'right' : 'left' }))));
+        // 서랍 도어 — 아래에서 위로 (f.y0 는 frontY0 위), 가로 가운데
+        const pool = fronts.map((r) => ({ r, k: 0 }));
+        z.fronts.forEach((f) => {
+          const slot = pool.find((p) => p.r.h === f.h && p.k < p.r.qty);
+          parts.push(makePart(slot.r, slot.k++, { o: [-z.frontW / 2, y0 + z.frontY0 + f.y0, zMod], u: '+x', v: '+y', n: '+z' }, [], 'exterior', tag({ drawerIdx: f.idx })));
+        });
+        [side, bottom, band, back, topP, molding].concat(fronts).forEach((r) => innerRows.add(r));
+      }
+    }
+
+    const placed = new Set([...divRows, ...pedRows, ...doorRows, ...chanRows, ...boxRows, ...innerRows]);
     cars.forEach((c) => [c.side, c.top, c.bottom, c.back].filter(Boolean).concat(c.rows.filter((x) => x.key.family === 'shelf').map((x) => x.row)).forEach((r) => placed.add(r)));
     keyed.forEach(({ row, key }) => {
       if (placed.has(row)) return;
