@@ -248,8 +248,9 @@ test('작업자 할 일: 진행 중 주문을 모두 담고 오늘 예정을 앞
   const plan = planProduction({
     today: '2026-10-13',
     jobs: [
-      { id: 'a', label: '싱크대 A', orderedAt: '2026-10-13', installDate: '2026-10-22', work: workloadFromCounts(SINK_3M) },
-      { id: 'b', label: '나중 주문', orderedAt: '2026-10-20', installDate: '2026-10-28', work: workloadFromCounts(SINK_3M) },
+      // 작업자 화면은 workerLabel(가린 이름)을 쓴다 — 결정 ★15, production-worker-redact.test.js
+      { id: 'a', label: '대표용 A', workerLabel: '싱크대 A', orderedAt: '2026-10-13', installDate: '2026-10-22', work: workloadFromCounts(SINK_3M) },
+      { id: 'b', label: '대표용 B', workerLabel: '나중 주문', orderedAt: '2026-10-20', installDate: '2026-10-28', work: workloadFromCounts(SINK_3M) },
     ],
   });
   const a = plan.jobs.find((j) => j.id === 'a');

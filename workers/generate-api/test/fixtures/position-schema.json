@@ -1,0 +1,566 @@
+{
+ "type": "OBJECT",
+ "properties": {
+  "kitchen_installed": {
+   "type": "BOOLEAN"
+  },
+  "layout": {
+   "type": "STRING",
+   "enum": [
+    "straight",
+    "L_shape",
+    "U_shape",
+    "parallel",
+    "island_only",
+    "none",
+    "other"
+   ]
+  },
+  "content_x": {
+   "type": "ARRAY",
+   "items": {
+    "type": "INTEGER"
+   },
+   "description": "[left, right] x of the real picture content, excluding black letterbox bars (0-1000)"
+  },
+  "WL": {
+   "type": "OBJECT",
+   "properties": {
+    "evidence": {
+     "type": "STRING",
+     "description": "max 12 words: what meets what exactly at this point"
+    },
+    "wall_type": {
+     "type": "STRING",
+     "enum": [
+      "corner",
+      "free_end",
+      "occluded",
+      "out_of_frame",
+      "no_wall"
+     ]
+    },
+    "flag": {
+     "type": "STRING",
+     "enum": [
+      "visible",
+      "clipped",
+      "occluded",
+      "absent"
+     ]
+    },
+    "p": {
+     "type": "ARRAY",
+     "items": {
+      "type": "INTEGER"
+     },
+     "nullable": true,
+     "description": "[y, x] 0-1000"
+    }
+   },
+   "required": [
+    "evidence",
+    "wall_type",
+    "flag",
+    "p"
+   ],
+   "propertyOrdering": [
+    "evidence",
+    "wall_type",
+    "flag",
+    "p"
+   ]
+  },
+  "WR": {
+   "type": "OBJECT",
+   "properties": {
+    "evidence": {
+     "type": "STRING",
+     "description": "max 12 words: what meets what exactly at this point"
+    },
+    "wall_type": {
+     "type": "STRING",
+     "enum": [
+      "corner",
+      "free_end",
+      "occluded",
+      "out_of_frame",
+      "no_wall"
+     ]
+    },
+    "flag": {
+     "type": "STRING",
+     "enum": [
+      "visible",
+      "clipped",
+      "occluded",
+      "absent"
+     ]
+    },
+    "p": {
+     "type": "ARRAY",
+     "items": {
+      "type": "INTEGER"
+     },
+     "nullable": true,
+     "description": "[y, x] 0-1000"
+    }
+   },
+   "required": [
+    "evidence",
+    "wall_type",
+    "flag",
+    "p"
+   ],
+   "propertyOrdering": [
+    "evidence",
+    "wall_type",
+    "flag",
+    "p"
+   ]
+  },
+  "CBL": {
+   "type": "OBJECT",
+   "properties": {
+    "flag": {
+     "type": "STRING",
+     "enum": [
+      "visible",
+      "clipped",
+      "occluded",
+      "absent"
+     ]
+    },
+    "p": {
+     "type": "ARRAY",
+     "items": {
+      "type": "INTEGER"
+     },
+     "nullable": true,
+     "description": "[y, x] 0-1000"
+    }
+   },
+   "required": [
+    "flag",
+    "p"
+   ],
+   "propertyOrdering": [
+    "flag",
+    "p"
+   ]
+  },
+  "CBR": {
+   "type": "OBJECT",
+   "properties": {
+    "flag": {
+     "type": "STRING",
+     "enum": [
+      "visible",
+      "clipped",
+      "occluded",
+      "absent"
+     ]
+    },
+    "p": {
+     "type": "ARRAY",
+     "items": {
+      "type": "INTEGER"
+     },
+     "nullable": true,
+     "description": "[y, x] 0-1000"
+    }
+   },
+   "required": [
+    "flag",
+    "p"
+   ],
+   "propertyOrdering": [
+    "flag",
+    "p"
+   ]
+  },
+  "CFL": {
+   "type": "OBJECT",
+   "properties": {
+    "flag": {
+     "type": "STRING",
+     "enum": [
+      "visible",
+      "clipped",
+      "occluded",
+      "absent"
+     ]
+    },
+    "p": {
+     "type": "ARRAY",
+     "items": {
+      "type": "INTEGER"
+     },
+     "nullable": true,
+     "description": "[y, x] 0-1000"
+    }
+   },
+   "required": [
+    "flag",
+    "p"
+   ],
+   "propertyOrdering": [
+    "flag",
+    "p"
+   ]
+  },
+  "CFR": {
+   "type": "OBJECT",
+   "properties": {
+    "flag": {
+     "type": "STRING",
+     "enum": [
+      "visible",
+      "clipped",
+      "occluded",
+      "absent"
+     ]
+    },
+    "p": {
+     "type": "ARRAY",
+     "items": {
+      "type": "INTEGER"
+     },
+     "nullable": true,
+     "description": "[y, x] 0-1000"
+    }
+   },
+   "required": [
+    "flag",
+    "p"
+   ],
+   "propertyOrdering": [
+    "flag",
+    "p"
+   ]
+  },
+  "U1": {
+   "type": "OBJECT",
+   "properties": {
+    "flag": {
+     "type": "STRING",
+     "enum": [
+      "visible",
+      "clipped",
+      "occluded",
+      "absent"
+     ]
+    },
+    "p": {
+     "type": "ARRAY",
+     "items": {
+      "type": "INTEGER"
+     },
+     "nullable": true,
+     "description": "[y, x] 0-1000"
+    }
+   },
+   "required": [
+    "flag",
+    "p"
+   ],
+   "propertyOrdering": [
+    "flag",
+    "p"
+   ]
+  },
+  "U2": {
+   "type": "OBJECT",
+   "properties": {
+    "flag": {
+     "type": "STRING",
+     "enum": [
+      "visible",
+      "clipped",
+      "occluded",
+      "absent"
+     ]
+    },
+    "p": {
+     "type": "ARRAY",
+     "items": {
+      "type": "INTEGER"
+     },
+     "nullable": true,
+     "description": "[y, x] 0-1000"
+    }
+   },
+   "required": [
+    "flag",
+    "p"
+   ],
+   "propertyOrdering": [
+    "flag",
+    "p"
+   ]
+  },
+  "F": {
+   "type": "OBJECT",
+   "properties": {
+    "mount": {
+     "type": "STRING",
+     "enum": [
+      "deck",
+      "wall_mounted",
+      "none"
+     ]
+    },
+    "flag": {
+     "type": "STRING",
+     "enum": [
+      "visible",
+      "clipped",
+      "occluded",
+      "absent"
+     ]
+    },
+    "p": {
+     "type": "ARRAY",
+     "items": {
+      "type": "INTEGER"
+     },
+     "nullable": true,
+     "description": "[y, x] 0-1000"
+    }
+   },
+   "required": [
+    "mount",
+    "flag",
+    "p"
+   ],
+   "propertyOrdering": [
+    "mount",
+    "flag",
+    "p"
+   ]
+  },
+  "SINK": {
+   "type": "OBJECT",
+   "properties": {
+    "flag": {
+     "type": "STRING",
+     "enum": [
+      "visible",
+      "clipped",
+      "occluded",
+      "absent"
+     ]
+    },
+    "box": {
+     "type": "ARRAY",
+     "items": {
+      "type": "INTEGER"
+     },
+     "nullable": true,
+     "description": "[ymin, xmin, ymax, xmax] 0-1000"
+    },
+    "back_mid": {
+     "type": "ARRAY",
+     "items": {
+      "type": "INTEGER"
+     },
+     "nullable": true,
+     "description": "[y, x] 0-1000"
+    }
+   },
+   "required": [
+    "flag",
+    "box",
+    "back_mid"
+   ],
+   "propertyOrdering": [
+    "flag",
+    "box",
+    "back_mid"
+   ]
+  },
+  "K": {
+   "type": "OBJECT",
+   "properties": {
+    "kind": {
+     "type": "STRING",
+     "enum": [
+      "induction",
+      "gas",
+      "other",
+      "none"
+     ]
+    },
+    "flag": {
+     "type": "STRING",
+     "enum": [
+      "visible",
+      "clipped",
+      "occluded",
+      "absent"
+     ]
+    },
+    "BL": {
+     "type": "ARRAY",
+     "items": {
+      "type": "INTEGER"
+     },
+     "nullable": true,
+     "description": "[y, x] 0-1000"
+    },
+    "BR": {
+     "type": "ARRAY",
+     "items": {
+      "type": "INTEGER"
+     },
+     "nullable": true,
+     "description": "[y, x] 0-1000"
+    },
+    "FR": {
+     "type": "ARRAY",
+     "items": {
+      "type": "INTEGER"
+     },
+     "nullable": true,
+     "description": "[y, x] 0-1000"
+    },
+    "FL": {
+     "type": "ARRAY",
+     "items": {
+      "type": "INTEGER"
+     },
+     "nullable": true,
+     "description": "[y, x] 0-1000"
+    },
+    "box": {
+     "type": "ARRAY",
+     "items": {
+      "type": "INTEGER"
+     },
+     "nullable": true,
+     "description": "[ymin, xmin, ymax, xmax] 0-1000"
+    }
+   },
+   "required": [
+    "kind",
+    "flag",
+    "BL",
+    "BR",
+    "FR",
+    "FL",
+    "box"
+   ],
+   "propertyOrdering": [
+    "kind",
+    "flag",
+    "BL",
+    "BR",
+    "FR",
+    "FL",
+    "box"
+   ]
+  },
+  "HOOD": {
+   "type": "OBJECT",
+   "properties": {
+    "hood_type": {
+     "type": "STRING",
+     "enum": [
+      "slim_concealed",
+      "chimney",
+      "separate_box",
+      "none",
+      "other"
+     ]
+    },
+    "flag": {
+     "type": "STRING",
+     "enum": [
+      "visible",
+      "clipped",
+      "occluded",
+      "absent"
+     ]
+    },
+    "HL": {
+     "type": "ARRAY",
+     "items": {
+      "type": "INTEGER"
+     },
+     "nullable": true,
+     "description": "[y, x] 0-1000"
+    },
+    "HR": {
+     "type": "ARRAY",
+     "items": {
+      "type": "INTEGER"
+     },
+     "nullable": true,
+     "description": "[y, x] 0-1000"
+    },
+    "box": {
+     "type": "ARRAY",
+     "items": {
+      "type": "INTEGER"
+     },
+     "nullable": true,
+     "description": "[ymin, xmin, ymax, xmax] 0-1000"
+    }
+   },
+   "required": [
+    "hood_type",
+    "flag",
+    "HL",
+    "HR",
+    "box"
+   ],
+   "propertyOrdering": [
+    "hood_type",
+    "flag",
+    "HL",
+    "HR",
+    "box"
+   ]
+  },
+  "notes": {
+   "type": "STRING",
+   "description": "at most 25 words"
+  }
+ },
+ "required": [
+  "kitchen_installed",
+  "layout",
+  "content_x",
+  "WL",
+  "WR",
+  "CBL",
+  "CBR",
+  "CFL",
+  "CFR",
+  "U1",
+  "U2",
+  "F",
+  "SINK",
+  "K",
+  "HOOD",
+  "notes"
+ ],
+ "propertyOrdering": [
+  "kitchen_installed",
+  "layout",
+  "content_x",
+  "WL",
+  "WR",
+  "CBL",
+  "CBR",
+  "CFL",
+  "CFR",
+  "U1",
+  "U2",
+  "F",
+  "SINK",
+  "K",
+  "HOOD",
+  "notes"
+ ]
+}

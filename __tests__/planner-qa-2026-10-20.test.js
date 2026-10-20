@@ -180,3 +180,132 @@ describe('아일랜드 BOM — 싱크대 규칙으로 산출한다 (sink.md cate
     expect(r.hardware.some((h) => /다리/.test(h.category + h.item))).toBe(true);
   });
 });
+
+describe('빠른 배치 — 일자·ㄱ자·ㄷ자', () => {
+  const P = require('../js/planner/planner-presets');
+  const cfg = sections.buildSectionConfig(undefined, undefined, 'sink');
+
+  /** alignToPerson 과 같은 셈 — 회전 후 앞(W 변) 중심 */
+  function frontOf(m) {
+    const cx = m.x + m.w / 2, cy = m.y + m.h / 2;
+    const r = m.rotation;
+    const sin = r === 90 ? 1 : r === 270 ? -1 : 0;
+    const cos = r === 0 ? 1 : r === 180 ? -1 : 0;
+    return { x: cx - (m.h / 2) * sin, y: cy + (m.h / 2) * cos };
+  }
+  /** 회전 후 화면 상자 */
+  function boxOf(m) {
+    const cx = m.x + m.w / 2, cy = m.y + m.h / 2;
+    const vert = m.rotation === 90 || m.rotation === 270;
+    const w = vert ? m.h : m.w, h = vert ? m.w : m.h;
+    return { x0: cx - w / 2, x1: cx + w / 2, y0: cy - h / 2, y1: cy + h / 2 };
+  }
+
+  test('품목별 모양 — 붙박이장·TV장·아일랜드는 일자만, 냉장고장은 없다', () => {
+    expect(P.plannerPresetPlanOf('sink').kinds).toEqual(['I', 'L', 'U']);
+    expect(P.plannerPresetPlanOf('wardrobe')).toEqual({ kinds: ['I'], sections: ['wardrobe'] });
+    expect(P.plannerPresetPlanOf('tvcabinet')).toEqual({ kinds: ['I'], sections: ['lower'] });
+    expect(P.plannerPresetPlanOf('island').kinds).toEqual(['I']);
+    expect(P.plannerPresetPlanOf('fridge')).toBeNull();
+    expect(P.plannerPresetLayout('L', { config: cfg, categoryId: 'tvcabinet' })).toBeNull();
+  });
+
+  test('본 줄 길이 = 품목 폭, 깊이 = 섹션 정본', () => {
+    const L = P.plannerPresetLayout('I', { config: cfg, categoryId: 'sink', itemW: '3000' });
+    const lower = L.modules.filter((m) => m.section === 'lower');
+    expect(lower).toHaveLength(1);
+    expect(lower[0]).toMatchObject({ w: 3000, h: cfg.lower.h, moduleH: cfg.lower.moduleH, rotation: 0 });
+    expect(L.modules.find((m) => m.section === 'upper')).toMatchObject({ w: 3000, h: cfg.upper.h });
+  });
+
+  test.each(['L', 'U'])('%s — 옆 줄은 본 줄 깊이 아래에 붙고, 모든 앞이 사람 쪽이다', (kind) => {
+    const L = P.plannerPresetLayout(kind, { config: cfg, categoryId: 'sink', itemW: 3000 });
+    const lower = L.modules.filter((m) => m.section === 'lower');
+    expect(lower).toHaveLength(kind === 'L' ? 2 : 3);
+    const main = boxOf(lower[0]);
+    lower.slice(1).forEach((m) => {
+      const b = boxOf(m);
+      expect(b.y0).toBe(main.y1);                       // 본 줄 바로 아래에서 시작
+      expect(b.y1 - b.y0).toBe(cfg.lower.w);            // 옆 줄 길이 = 섹션 기본 폭
+      expect(b.x0 === main.x0 || b.x1 === main.x1).toBe(true); // 벽 쪽 끝을 맞춘다
+    });
+    // 앞 중심이 사람과 가장 가까운 회전이어야 다음 사람 끌기에도 그대로 남는다
+    lower.forEach((m) => {
+      const f = frontOf(m);
+      const back = frontOf({ ...m, rotation: (m.rotation + 180) % 360 });
+      const d = (p) => Math.hypot(p.x - L.person.cx, p.y - L.person.cy);
+      expect(d(f)).toBeLessThan(d(back));
+    });
+  });
+
+  test('ㄱ자는 예전에 손으로 만들던 배치와 같은 모양이다 (회전 90, 앞이 왼쪽)', () => {
+    const L = P.plannerPresetLayout('L', { config: cfg, categoryId: 'sink', itemW: 2400 });
+    // 2026-10-20 점검에서 손으로 넣어 구조 단계가 ㄱ자(멍장)로 읽은 배치: x 1175, y 1225, 1800×650, 90°
+    //   (옆 줄 길이만 1800 → 섹션 기본 폭으로 다르다)
+    const side = L.modules[1];
+    const b = boxOf(side);
+    expect(side.rotation).toBe(90);
+    expect([b.x0, b.x1, b.y0]).toEqual([2400 - 650, 2400, 650]);
+  });
+
+  test('배치 화면 — 빈 캔버스에 안내가 뜨고, 고르면 놓이고 안내가 사라진다', () => {
+    const p = bootShell('?design=t&item=1&preset=sink&w=3000&d=650');
+    expect(p.document.getElementById('presetHint').hidden).toBe(false);
+    expect([...p.document.querySelectorAll('#presetHintRow button')].map((b) => b.textContent)).toEqual(['일자', 'ㄱ자', 'ㄷ자']);
+    expect(p.g('applyPreset')('U')).toBe(true);
+    const mods = p.g('serializeLayout')().modules;
+    expect(mods.filter((m) => m.section === 'lower').map((m) => m.rotation)).toEqual([0, 90, 270]);
+    expect(p.document.getElementById('presetHint').hidden).toBe(true);
+  });
+
+  test('붙박이장 화면은 일자 버튼만 보인다', () => {
+    const p = bootShell('?design=t&item=1&preset=wardrobe');
+    const shown = [...p.document.querySelectorAll('.preset-btn')].filter((b) => b.style.display !== 'none').map((b) => b.dataset.preset);
+    expect(shown).toEqual(['I']);
+  });
+});
+
+describe('도어교체·비규격장 BOM (2026-10-20 카드 "도어만·싱크대 규칙")', () => {
+  const { snapshotOf } = require('../test-utils/bom-golden/golden');
+  const designOf = (categoryId) => ({
+    items: [{
+      categoryId, w: 2400, h: 870, d: 650,
+      specs: { bodyThickness: 15, lowerH: 870, sinkLegHeight: 150, topThickness: 12 },
+      modules: [
+        { id: 'l1', type: 'storage', name: '하부장', pos: 'lower', w: 900, h: 708, d: 550, doorCount: 2, is2door: true, isDrawer: false },
+        { id: 'l2', type: 'storage', name: '서랍장', pos: 'lower', w: 600, h: 708, d: 550, doorCount: 1, isDrawer: true, drawerCount: 2 },
+      ],
+    }],
+  });
+
+  test('도어교체 — 도어·서랍 전면 판만, 철물은 경첩만', () => {
+    const s = snapshotOf(designOf('door'));
+    expect(s.materials.length).toBeGreaterThan(0);
+    expect([...new Set(s.materials.map((m) => m.slot))].sort()).toEqual(['door', 'drawerFront']);
+    expect(s.materials.every((m) => m.itemLabel === '도어교체')).toBe(true);
+    expect(s.hardware.length).toBeGreaterThan(0);
+    expect([...new Set(s.hardware.map((h) => h.category))]).toEqual(['경첩']);
+  });
+
+  test('도어교체 도어 판은 싱크대 규칙과 같은 치수다', () => {
+    const door = snapshotOf(designOf('door')).materials.filter((m) => m.slot === 'door').map((m) => [m.w, m.h, m.qty]);
+    const sink = snapshotOf(designOf('sink')).materials.filter((m) => m.slot === 'door').map((m) => [m.w, m.h, m.qty]);
+    expect(door).toEqual(sink);
+  });
+
+  test('비규격장 — 싱크대 규칙 그대로 (몸통·도어·다리발)', () => {
+    const custom = snapshotOf(designOf('custom'));
+    const sink = snapshotOf(designOf('sink'));
+    expect(custom.materials.map((m) => [m.part, m.w, m.h, m.qty])).toEqual(sink.materials.map((m) => [m.part, m.w, m.h, m.qty]));
+    expect(custom.hardware.map((h) => [h.category, h.item, h.qty])).toEqual(sink.hardware.map((h) => [h.category, h.item, h.qty]));
+    expect(custom.materials[0].itemLabel).toBe('비규격장');
+  });
+
+  test('아일랜드 측판 비고에 몸통 깊이 [확인 필요]', () => {
+    const d = designOf('island');
+    d.items[0].d = 800;
+    const sides = snapshotOf(d).materials.filter((m) => m.part === '측판');
+    expect(sides.length).toBeGreaterThan(0);
+    sides.forEach((m) => expect(m.note).toContain('[확인 필요] 아일랜드 몸통 깊이'));
+  });
+});
