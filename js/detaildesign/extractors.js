@@ -1628,6 +1628,8 @@
               // 서랍
               if (drawerCount > 0) {
                 const drawerFBW = isExternalDrawer ? W - 30 - 42 : W - 30 - 42 - 120;
+                // 2026-10-20 사장님 카드 "싱크 규칙": 외부 서랍 박스는 싱크 서랍 박스 규칙 (언더레일, 레일 = 깊이 − 50 이하 최대 규격, 대 박스 180)
+                const extBox = isExternalDrawer ? DrawerRules.drawerBoxDims({ W, D: modD, bodyT: T, drawerT: T, rail: 'under', boxH: DrawerRules.DRAWER_RULES.BOX_H.large, sakuri: false }) : null;
                 if (isExternalDrawer) {
                   // 외부 서랍 모듈 본체 (별도 제작)
                   const drawerModH = drawerCount * DRAWER_MOD_H;
@@ -1640,9 +1642,9 @@
                   this.addBackPanel(materials, `${name}-서랍모듈`, W, drawerModH, true);
                   this.add(materials, `${name}-서랍모듈`, '밴드', 'PB', T, W - T * 2, ASM.BAND_W, 2, '2면(장)');
                   // 외부 서랍 자재
-                  this.add(materials, `${name}-서랍모듈`, '서랍전후판', 'PB', T, drawerFBW, 180, drawerCount * 2, '1면(장)');
-                  this.add(materials, `${name}-서랍모듈`, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(장)');
-                  this.add(materials, `${name}-서랍모듈`, '서랍밑판', 'MDF', BOM_DRAWER_BOTTOM_T, W - 30 - 13, 449, drawerCount, '-');
+                  this.add(materials, `${name}-서랍모듈`, '서랍전후판', 'PB', T, extBox.fbW, extBox.fbH, drawerCount * 2, '1면(장)');
+                  this.add(materials, `${name}-서랍모듈`, '서랍측판', 'PB', T, extBox.sideL, extBox.sideH, drawerCount * 2, '1면(장)');
+                  this.add(materials, `${name}-서랍모듈`, '서랍밑판', 'MDF', BOM_DRAWER_BOTTOM_T, extBox.bottomW, extBox.bottomD, drawerCount, '-');
                 } else if (innerModRows.length) {
                   // 내부 서랍장 — **따로 만드는 모듈**이다. 몸통·박스 모두 규칙 파일 치수다.
                   //   옛 코드는 서랍 1단짜리 고정치(측판 350×500 · 박스 440×180)라 단수가 늘어도 그대로였다.
@@ -1668,7 +1670,7 @@
                 const bogangModule = isExternalDrawer ? `${name}-서랍모듈` : `${name}`;
                 // 내부 서랍을 모듈로 낼 때는 하단보강도 그 안에 있다 — 여기서 또 내면 두 번 나온다.
                 if (drawerFBW > 600 && (isExternalDrawer || !innerModRows.length)) {
-                  this.add(materials, bogangModule, '서랍 하단보강', 'PB', T, 440, 60, drawerCount, '2면(장)');
+                  this.add(materials, bogangModule, '서랍 하단보강', 'PB', T, extBox ? extBox.sideL : 440, 60, drawerCount, '2면(장)');
                 }
               }
 
@@ -1720,6 +1722,8 @@
               }
               if (drawerCount > 0) {
                 const drawerFBW = isExternalDrawer ? W - 30 - 42 : W - 30 - 42 - 120;
+                // 2026-10-20 사장님 카드 "싱크 규칙": 외부 서랍 박스는 싱크 서랍 박스 규칙 (언더레일, 레일 = 깊이 − 50 이하 최대 규격, 대 박스 180)
+                const extBox = isExternalDrawer ? DrawerRules.drawerBoxDims({ W, D: modD, bodyT: T, drawerT: T, rail: 'under', boxH: DrawerRules.DRAWER_RULES.BOX_H.large, sakuri: false }) : null;
                 if (isExternalDrawer) {
                   // 외부 서랍 모듈 본체 (별도 제작)
                   const drawerModH = drawerCount * DRAWER_MOD_H_LONG;
@@ -1732,9 +1736,9 @@
                   this.addBackPanel(materials, `${name}-서랍모듈`, W, drawerModH, true);
                   this.add(materials, `${name}-서랍모듈`, '밴드', 'PB', T, W - T * 2, ASM.BAND_W, 2, '2면(장)');
                   // 외부 서랍 자재
-                  this.add(materials, `${name}-서랍모듈`, '서랍전후판', 'PB', T, drawerFBW, 180, drawerCount * 2, '1면(장)');
-                  this.add(materials, `${name}-서랍모듈`, '서랍측판', 'PB', T, 440, 180, drawerCount * 2, '1면(장)');
-                  this.add(materials, `${name}-서랍모듈`, '서랍밑판', 'MDF', BOM_DRAWER_BOTTOM_T, W - 30 - 13, 449, drawerCount, '-');
+                  this.add(materials, `${name}-서랍모듈`, '서랍전후판', 'PB', T, extBox.fbW, extBox.fbH, drawerCount * 2, '1면(장)');
+                  this.add(materials, `${name}-서랍모듈`, '서랍측판', 'PB', T, extBox.sideL, extBox.sideH, drawerCount * 2, '1면(장)');
+                  this.add(materials, `${name}-서랍모듈`, '서랍밑판', 'MDF', BOM_DRAWER_BOTTOM_T, extBox.bottomW, extBox.bottomD, drawerCount, '-');
                 } else if (innerModRows.length) {
                   // 내부 서랍장 — **따로 만드는 모듈**이다. 몸통·박스 모두 규칙 파일 치수다.
                   //   옛 코드는 서랍 1단짜리 고정치(측판 350×500 · 박스 440×180)라 단수가 늘어도 그대로였다.
@@ -1760,7 +1764,7 @@
                 const bogangModule = isExternalDrawer ? `${name}-서랍모듈` : `${name}`;
                 // 내부 서랍을 모듈로 낼 때는 하단보강도 그 안에 있다 — 여기서 또 내면 두 번 나온다.
                 if (drawerFBW > 600 && (isExternalDrawer || !innerModRows.length)) {
-                  this.add(materials, bogangModule, '서랍 하단보강', 'PB', T, 440, 60, drawerCount, '2면(장)');
+                  this.add(materials, bogangModule, '서랍 하단보강', 'PB', T, extBox ? extBox.sideL : 440, 60, drawerCount, '2면(장)');
                 }
               }
 
@@ -2547,11 +2551,16 @@
             (item.modules || []).forEach((mod) => {
               const drawerCount = mod.drawerCount || 0;
               if (drawerCount <= 0) return;
+              // 2026-10-20 사장님 카드 "싱크 규칙": 외부 서랍은 깊이 − 50 이하 최대 규격 (railLengthFor, 깊이 600 → 500). 내부 서랍은 그대로 450.
+              //   박스 측판과 같은 값 (drawerBoxDims.railLength — 깊이가 모자라면 가장 짧은 규격).
+              const extRail = mod.isExternalDrawer
+                ? DrawerRules.drawerBoxDims({ W: parseFloat(mod.w) || 900, D: parseFloat(mod.d) || parseFloat(item.d) || WR_DEFAULTS.DEFAULT_D, rail: 'under' }).railLength
+                : null;
               hardware.push({
                 category: '레일',
                 item: '문주 언더레일',
                 manufacturer: '문주',
-                spec: '450mm',
+                spec: `${extRail || 450}mm`,
                 qty: drawerCount,
                 unit: 'SET',
                 note: mod.name || mod.type,
