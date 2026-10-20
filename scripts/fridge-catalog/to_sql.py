@@ -2,6 +2,7 @@
 수집 결과(fridges.json) → Supabase SQL 편집기에 붙여 넣을 가져오기 SQL.
 
   python -I to_sql.py fridges.json > import-fridges.sql
+  python -I to_sql.py gaggenau.json manual/miele.json > import-gm.sql   # 여러 파일
 
 database/appliance-models-catalog.sql 의 import_appliance_models(jsonb) 를 부른다
 (같은 브랜드에서 모델 코드가 겹치면 갱신 · 여유는 기존 값 우선 · 반복 실행 안전).
@@ -17,10 +18,16 @@ import sys
 # LG SIGNATURE Kitchen Suite 는 LG 의 한 라인이라 브랜드 'LG' + line 'SIGNATURE Kitchen Suite'
 BRAND = {'Samsung': '삼성', 'samsung': '삼성', 'LG': 'LG', 'lg': 'LG', 'Winia': '위니아', 'winia': '위니아',
          'Dacor': '데이코', 'dacor': '데이코',
-         'Liebherr': '리페르', 'liebherr': '리페르', 'Midea': '마이디어', 'midea': '마이디어', 'Smeg': '스메그', 'smeg': '스메그'}
+         'Liebherr': '리페르', 'liebherr': '리페르', 'Midea': '마이디어', 'midea': '마이디어', 'Smeg': '스메그', 'smeg': '스메그',
+         'Gaggenau': '가게나우', 'gaggenau': '가게나우', 'Miele': '밀레', 'miele': '밀레',
+         'Haier': '하이얼', 'haier': '하이얼', 'Cuckoo': '쿠쿠', 'cuckoo': '쿠쿠', 'Carrier': '캐리어', 'carrier': '캐리어'}
 NICHE_KEYS = ('niche_min_w_mm', 'niche_min_h_mm', 'niche_min_d_mm', 'niche_max_w_mm', 'niche_max_h_mm', 'niche_max_d_mm')
 BATCH = 100
-UNVERIFIED_BRANDS = {'Midea'}  # 공식 페이지 값이 서로 복사돼 있어 확인 전까지 검증 아님
+# 마이디어: 공식 페이지 값이 서로 복사돼 있다. 가게나우: 2024년 이후 스펙시트에 치수 글자가 없어 공식 치수도 그림을
+# 사람이(에이전트가) 읽어 옮겼다 (collect.py GG_DRAWINGS). 둘 다 확인 전까지 검증 아님.
+UNVERIFIED_BRANDS = {'Midea', 'Gaggenau'}
+# 이 태그가 붙은 행도 검증 아님 — 이미지판독: 공식 상세 이미지를 눈으로 읽은 값(오독 가능)
+UNVERIFIED_TAGS = {'이미지판독', '치수확인필요'}
 NOTES_MAX = 900
 
 
@@ -55,6 +62,9 @@ def notes_of(r):
         parts.append(f"도면 치수: {r['drawing_dims_raw']}")
     if r.get('install_guide_title'):
         parts.append(f"설치 가이드: {r['install_guide_title']}")
+    flags = [t for t in (r.get('tags') or []) if t in ('이미지판독', '국내판매미확인', '치수확인필요')]
+    if flags:
+        parts.append('확인 필요: ' + ', '.join(flags))
     text = ' · '.join(str(p) for p in parts)
     return text[:NOTES_MAX] or None
 
@@ -124,15 +134,17 @@ def row_of(r):
         **{k: num(r.get(k)) for k in NICHE_KEYS},  # 니치(장 안쪽) 치수 — 반올림. DB 칸은 appliance-models-niche.sql
         # 제조사 공식 값 → 검증. 마이디어 KR 상품 페이지는 다른 상품을 복사한 곳이 있어(sku · 용량 어긋남,
         # 2026-10-20 수집 검토) 사람이 확인하기 전까지 '⚠ 표준' 으로 둔다.
-        'verified': r.get('brand') not in UNVERIFIED_BRANDS,
+        'verified': r.get('brand') not in UNVERIFIED_BRANDS and not (set(r.get('tags') or []) & UNVERIFIED_TAGS),
         'source_url': r.get('page_url') or r.get('source_url'),
         'notes': notes_of(r),
     }
 
 
-def main(path):
-    data = json.load(open(path, encoding='utf-8'))
-    rows = data if isinstance(data, list) else data.get('rows', [])
+def main(paths):
+    rows = []
+    for path in paths:  # 여러 파일을 한 번에 (수집 결과 + manual/*.json)
+        data = json.load(open(path, encoding='utf-8'))
+        rows += data if isinstance(data, list) else data.get('rows', [])
     out = [row_of(r) for r in rows]
     ok = [r for r in out if r['model_codes'] and all((r[k] or 0) > 0 for k in ('width_mm', 'depth_mm', 'height_mm'))]
     lines = [
@@ -152,4 +164,4 @@ def main(path):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1] if len(sys.argv) > 1 else 'fridges.json')
+    main(sys.argv[1:] or ['fridges.json'])
