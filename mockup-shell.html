@@ -578,6 +578,40 @@
     t2.textContent = dim;
     textEl.appendChild(t2);
   }
+  /**
+   * 2026-10-20 플래너 점검 L2: 상부장이 하부장·키큰장 뒤쪽을 덮으면 두 글자가 겹쳐 읽을 수 없었다.
+   * 바닥 장 글자를 덮이지 않은 앞쪽 띠 가운데로 옮긴다. 상부장이 글자 가운데(x)를 덮을 때만, 돌린 사각형은 그대로.
+   */
+  function separateCoveredLabels() {
+    const content = getContent();
+    if (!content) return;
+    const items = [];
+    for (const g of content.querySelectorAll(':scope > g.sect-rect')) {
+      const r = g.querySelector(':scope > rect:not(.resize-handle)');
+      const t = g.querySelector(':scope > text');
+      if (!r || !t) continue;
+      const sec = Array.from(g.classList).find((c) => SECTION_CONFIG[c]);
+      const n = (a) => parseFloat(r.getAttribute(a));
+      items.push({ layer: ROW_LAYER_OF[sec], t, x: n('x'), y: n('y'), w: n('width'), h: n('height'),
+        rotated: (rotations.get(g) || 0) !== 0 });
+    }
+    const walls = items.filter((i) => i.layer === 'wall' && !i.rotated);
+    for (const f of items) {
+      if (f.layer !== 'floor') continue;
+      const cx = f.x + f.w / 2;
+      let top = f.y;
+      for (const u of f.rotated ? [] : walls) {
+        if (cx < u.x || cx > u.x + u.w) continue;
+        if (u.y <= top + 1 && u.y + u.h > top && u.y + u.h < f.y + f.h) top = u.y + u.h;
+      }
+      const h = f.y + f.h - top;
+      const cy = top + h / 2;
+      if (Math.abs(parseFloat(f.t.getAttribute('y')) - cy) < 0.5 && f.t.getAttribute('data-band-h') === String(h)) continue;
+      const dim = f.t.lastChild ? f.t.lastChild.textContent : '';
+      applyLabel(f.t, cx, cy, f.w, h, f.t.getAttribute('data-name') || '', dim);
+      f.t.setAttribute('data-band-h', String(h));
+    }
+  }
   let rectIdx = 0;
   // W9-17: pan/zoom view state → js/planner/planner-view.js (구조 단계와 공유).
   // applyView 는 페이지마다 DOM 이 달라 여기 남는다. 공통분모(transform·격자)만 정본을 쓴다.
@@ -637,6 +671,13 @@
       const ph = wrap.querySelector('.canvas-placeholder');
       if (ph) ph.style.display = 'none';
       attachPanZoomHandlers(svg, wrap);
+      // 2026-10-20 플래너 점검 L2: 사각형이 놓이고·움직이고·지워질 때마다 덮인 바닥 장 글자를 옮긴다.
+      //   끌기·크기·복원 길이 여럿이라 한 곳에서 지켜본다. 글자(text)만 바뀐 기록은 무시해 되돌아 돌지 않는다.
+      if (typeof MutationObserver === 'function') {
+        new MutationObserver((records) => {
+          if (records.some((m) => m.type === 'childList' || (m.target && m.target.tagName !== 'text' && m.target.tagName !== 'tspan'))) separateCoveredLabels();
+        }).observe(content, { subtree: true, childList: true, attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform'] });
+      }
       // W9-32: 사람 원 (500mm) 자동 추가
       ensurePersonCircle();
       // W9-18: 첫 표시 시 가로 7000mm 가 보일 정도로 줌아웃
