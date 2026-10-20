@@ -49,18 +49,19 @@ export function countFilled(assignments) {
 /**
  * 배정 목록으로 다시 계산한 작업 상태 (순수, 계약 §1 자동 전이).
  *   - draft · done · closed · cancelled 는 그대로
- *   - 일이 시작된 배정이 있으면: 활성 배정이 모두 accepted → done, 모두 submitted/accepted 이고 검수 종류 → review, 아니면 in_progress
+ *   - 일이 시작된 배정이 있으면: 정원 계산 배정이 모두 accepted → done, 모두 submitted/accepted 이고 검수 종류 → review, 아니면 in_progress
+ *     응답 없는 초대(offered)는 보지 않는다 — 정원이 찬 뒤 남은 초대는 수락할 수 없어(409) 작업이 in_progress 에 갇힌다
  *   - 아니면 정원 계산 수 = slots → filled, 모자라면 open
  */
 export function computeJobStatus(job, assignments) {
   if (FROZEN_STATUSES.includes(job.status)) return job.status;
-  const active = (assignments || []).filter((a) => ACTIVE_STATUSES.includes(a.status));
-  if (active.some((a) => STARTED_STATUSES.includes(a.status))) {
-    if (active.every((a) => a.status === 'accepted')) return 'done';
-    if (needsReview(job.kind) && active.every((a) => a.status === 'submitted' || a.status === 'accepted')) return 'review';
+  const working = (assignments || []).filter((a) => COUNTED_STATUSES.includes(a.status));
+  if (working.some((a) => STARTED_STATUSES.includes(a.status))) {
+    if (working.every((a) => a.status === 'accepted')) return 'done';
+    if (needsReview(job.kind) && working.every((a) => a.status === 'submitted' || a.status === 'accepted')) return 'review';
     return 'in_progress';
   }
-  return countFilled(active) >= job.slots ? 'filled' : 'open';
+  return working.length >= job.slots ? 'filled' : 'open';
 }
 
 // ── 읽기 · 잠금 ──────────────────────────────────────────────────

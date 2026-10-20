@@ -265,6 +265,11 @@ test('작업 상태 자동 전이 — 정원 · 첫 시작 · 검수 · 완료, 
   assert.equal(computeJobStatus({ ...job, status: 'review' }, [a('revision'), a('accepted')]), 'in_progress');
   assert.equal(computeJobStatus({ ...job, kind: 'assembly', status: 'in_progress' }, [a('accepted')]), 'done');
   assert.equal(computeJobStatus({ ...job, kind: 'assembly', status: 'in_progress' }, [a('submitted')]), 'in_progress', '조립은 review 를 거치지 않는다');
+  // 응답 없는 초대(offered)는 정원에 세지 않으므로 검수 · 완료도 막지 않는다
+  assert.equal(computeJobStatus({ ...job, slots: 1, status: 'in_progress' }, [a('submitted'), a('offered')]), 'review');
+  assert.equal(computeJobStatus({ ...job, slots: 1, status: 'review' }, [a('accepted'), a('offered')]), 'done');
+  assert.equal(computeJobStatus({ ...job, kind: 'assembly', slots: 1, status: 'in_progress' }, [a('accepted'), a('offered')]), 'done');
+  assert.equal(computeJobStatus({ ...job, status: 'filled' }, [a('started'), a('offered')]), 'in_progress');
   for (const s of ['draft', 'cancelled', 'closed', 'done']) assert.equal(computeJobStatus({ ...job, status: s }, [a('confirmed'), a('confirmed')]), s);
 });
 
@@ -688,6 +693,25 @@ test('직접 지정 — 승인 · 종류 맞는 작업자만, 수락하면 정�
   const done = await call('GET', '/work/jobs?tab=done', { token: 'tok-w1' });
   assert.ok(!JSON.stringify(done.body).includes('연락 두절'));
   assert.equal((await call('POST', `/work/assignments/${o2.data.id}/confirm`, { token: 'tok-w2' })).data.status, 'confirmed');
+});
+
+test('남은 초대는 검수 · 완료를 막지 않는다 — 정원 1 에 둘을 초대, 한 명이 끝내면 review → done → 마감', async () => {
+  const job = await makeJob({ mode: 'invite', slots: 1, kind: 'install' });
+  const o1 = await call('POST', `/work/admin/jobs/${job.id}/invite`, { token: 'tok-admin', body: { worker_id: W1 } });
+  const o2 = await call('POST', `/work/admin/jobs/${job.id}/invite`, { token: 'tok-admin', body: { worker_id: W2 } });
+  assert.equal((await call('POST', `/work/assignments/${o1.data.id}/confirm`, { token: 'tok-w1' })).data.status, 'confirmed');
+  assert.equal((await call('POST', `/work/assignments/${o1.data.id}/start`, { token: 'tok-w1' })).data.status, 'started');
+  assert.equal(rowOf('work_jobs', job.id).status, 'in_progress');
+  assert.equal((await call('POST', `/work/assignments/${o1.data.id}/updates`, { token: 'tok-w1', body: { kind: 'result', body: '설치 끝' } })).status, 201);
+  assert.equal(rowOf('work_jobs', job.id).status, 'review', '응답 없는 초대가 남아도 검수 대기');
+  assert.equal((await call('POST', `/work/admin/assignments/${o1.data.id}/accept`, { token: 'tok-admin' })).data.status, 'accepted');
+  assert.equal(rowOf('work_jobs', job.id).status, 'done');
+  assert.equal((await call('POST', `/work/admin/jobs/${job.id}/close`, { token: 'tok-admin' })).data.status, 'closed');
+  // 남은 초대는 저절로 정리하지 않는다 — offered 그대로, 수락은 409
+  assert.equal(rowOf('work_assignments', o2.data.id).status, 'offered');
+  assert.equal((await call('POST', `/work/assignments/${o2.data.id}/confirm`, { token: 'tok-w2' })).status, 409);
+  const statusFlow = db.tables.work_job_events.filter((e) => e.job_id === job.id && e.type === 'job_status').map((e) => `${e.from_status}>${e.to_status}`);
+  assert.deepEqual(statusFlow, ['open>filled', 'filled>in_progress', 'in_progress>review', 'review>done']);
 });
 
 test('작업 취소 — done 전만, 취소된 작업에는 보고 · 승인 409', async () => {

@@ -24,7 +24,7 @@
 작업 상태 자동 전이 (서버가 배정 변화 뒤 다시 계산):
 - `open`/`filled`: 정원 계산 수 = `slots` 이면 `filled`, 모자라면 `open` (`draft`·`cancelled` 이후는 건드리지 않음)
 - 첫 `started` → `in_progress`
-- 활성 배정이 모두 `submitted`/`accepted` 이고 install·as 이면 `review`, 모두 `accepted` 면 `done`
+- 정원 계산 배정이 모두 `submitted`/`accepted` 이고 install·as 이면 `review`, 모두 `accepted` 면 `done` — 응답 없는 초대(`offered`)는 보지 않는다 (정원이 찬 뒤 남은 초대는 수락이 409 라 작업이 `in_progress` 에 갇힌다). 남은 초대를 저절로 정리하지는 않는다
 - `closed` 는 편집자만
 
 모든 전이는 `work_job_events` 에 한 줄 (`type`, `from_status`, `to_status`, `actor_kind`, `note`).
@@ -32,6 +32,7 @@
 ## 2. SQL — `database/work-jobs.sql` (멱등, BEGIN…COMMIT) + `database/work-jobs-rollback.sql`
 
 규칙: `auth.users` FK 는 모두 `ON DELETE SET NULL` · `REVOKE ALL … FROM anon` · RLS 켬 · 정책은 `FOR SELECT TO authenticated USING (public.is_admin())` 하나 (쓰기 정책 없음, 쓰기는 Worker service_role) · 글자 수 CHECK · **주민번호·계좌 열 금지**.
+예외: `worker_notes` 는 정책을 두지 않는다 — `is_admin()` 은 support·moderator 도 참이라 브라우저 anon 키 + 본인 JWT 로 메모를 읽을 수 있다. RLS 만 켜 두면 authenticated 는 못 읽고, 읽기는 API(편집자 검사 → service_role)로만.
 
 ```
 workers            id uuid pk, user_id uuid unique null → auth.users, display_name text not null (≤30),
@@ -156,5 +157,5 @@ work_job_events    id, job_id → work_jobs cascade, assignment_id null, actor_u
 ## 6. 시험 (완료 기준)
 
 - 서버 `workers/workflow-api/test/work.test.js` (node --test): 대기 작업자 신청 403 · 중복 신청 409 · 정원 초과 승인 409(버전 경쟁) · 남의 배정 404 · 잘못된 UUID 422 · 작업자 응답에 금지 키 없음 · `pay_visible=false` 면 금액 없음 · 초대 1회용·만료 410 · 고객이 `/work/admin/*` 403 · support 역할이 메모 403 · Slack 문구에 주소·실명·금액 없음 · assembly 완료 보고는 바로 accepted · 회사 정정 후 원본 행 그대로 · `closed` 작업에 보고 409
-- SQL `__tests__/work-jobs-sql.test.js` (jest): 멱등 구문 · 쓰기 정책 없음 · 정책이 `is_admin()` 만 · auth FK SET NULL · 주민·계좌 열 없음 · anon REVOKE · 글자 수 CHECK · rollback 파일이 모든 표를 역순 DROP
+- SQL `__tests__/work-jobs-sql.test.js` (jest): 멱등 구문 · 쓰기 정책 없음 · 정책이 `is_admin()` 만 (`worker_notes` 는 정책 없음) · auth FK SET NULL · 주민·계좌 열 없음 · anon REVOKE · 글자 수 CHECK · rollback 파일이 모든 표를 역순 DROP
 - 화면: `html-validate`·`linkinator` 통과, 렌더 함수 jest(이름에 `<script>` → 글자), 375px 가로 스크롤 없음(수동 확인 절차 PR 에 기록)
