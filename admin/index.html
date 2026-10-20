@@ -629,6 +629,9 @@
       let supabaseClient = null;
       let currentUser = null;
 
+      // innerHTML 에 넣는 글은 모두 거친다. 회원 이름·이메일, 상담 신청자 이름·제목(활동 로그)은 남이 적은 글이다.
+      const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
       // 관리자 판별: AdminAccess.isAdmin() (is_admin RPC) 사용. ADMIN_EMAILS 하드코딩 폐기.
 
       document.addEventListener('DOMContentLoaded', async () => {
@@ -680,7 +683,6 @@
       /** 최근 작업 지시 보고 5건 + 결정 안 한 생산 제안 수 (workflow-api /reports). 실패해도 대시보드는 그대로. */
       async function loadWorkReportsWidget() {
         const box = document.getElementById('recentWorkReports');
-        const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         const KIND = { production_plan: '생산 계획', staffing_decision: '인력 승인', daily_brief: '아침 요약', work_order: '작업지시서', installation_order: '설치 지시서', outsource_order: '외주 발주', countertop_order: '상판 발주', monthly_close: '월 마감', note: '메모' };
         try {
           const api = window.DADAM_CONFIG && window.DADAM_CONFIG.workflowApi && window.DADAM_CONFIG.workflowApi.url;
@@ -814,16 +816,17 @@
           }
 
           tbody.innerHTML = users
-            .map(
-              (user) => `
+            .map((user) => {
+              const tier = user.tier || 'standard';
+              return `
                     <tr>
-                        <td>${user.name || '-'}</td>
-                        <td>${user.email || '-'}</td>
-                        <td><span class="badge ${user.tier || 'standard'}">${(user.tier || 'standard').charAt(0).toUpperCase() + (user.tier || 'standard').slice(1)}</span></td>
-                        <td>${formatDate(user.created_at)}</td>
+                        <td>${esc(user.name || '-')}</td>
+                        <td>${esc(user.email || '-')}</td>
+                        <td><span class="badge ${esc(tier)}">${esc(tier.charAt(0).toUpperCase() + tier.slice(1))}</span></td>
+                        <td>${esc(formatDate(user.created_at))}</td>
                     </tr>
-                `
-            )
+                `;
+            })
             .join('');
         } catch (e) {
           console.log('profiles 테이블 조회 실패:', e.message);
@@ -867,8 +870,8 @@
                             ${getActivityIcon(log.action_type)}
                         </div>
                         <div class="activity-content">
-                            <p>${log.description || log.action_type}</p>
-                            <span>${formatDate(log.created_at)}</span>
+                            <p>${esc(log.description || log.action_type)}</p>
+                            <span>${esc(formatDate(log.created_at))}</span>
                         </div>
                     </div>
                 `

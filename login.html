@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="css/dadam-system.css" />
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="js/auth-redirect.js?v=1"></script>
     <style>
       * {
         margin: 0;
@@ -370,6 +371,10 @@
         cursor: default;
         opacity: 0.6;
       }
+      /* display: block 이 hidden 을 이겨 늘 보이던 것 — 미인증일 때만 뜨게 */
+      .resend-link[hidden] {
+        display: none;
+      }
 
       .forgot-link {
         font-size: 14px;
@@ -472,6 +477,46 @@
 
       .btn-google:hover {
         background: var(--cream);
+      }
+
+      /* 카카오 — signup.html 의 .btn-kakao 와 같은 색 */
+      .btn-kakao {
+        background: #fee500;
+        border: none;
+        color: #191919;
+      }
+
+      .btn-kakao:hover {
+        background: #fdd800;
+      }
+
+      /* 카카오톡 인앱 브라우저 안내 (hidden 으로 감춘다 — display 를 주지 않는다) */
+      .inapp-notice {
+        margin-bottom: 16px;
+        padding: 14px 16px;
+        background: #fffbea;
+        border: 1px solid #f3e3a3;
+        border-radius: 12px;
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--charcoal);
+      }
+
+      .btn-inapp {
+        margin-top: 10px;
+        width: 100%;
+        padding: 12px;
+        background: var(--charcoal);
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+
+      .btn-inapp:hover {
+        background: var(--gold);
       }
 
       .btn-naver {
@@ -602,7 +647,7 @@
             <h2 data-i18n="login.btn">로그인</h2>
             <p>
               <span data-i18n="login.no_account">계정이 없으신가요?</span>
-              <a href="signup.html" data-i18n="login.signup_link">회원가입</a>
+              <a href="signup.html" id="signupLink" data-i18n="login.signup_link">회원가입</a>
             </p>
           </div>
 
@@ -662,8 +707,22 @@
           <!-- Divider -->
           <div class="divider"><span>또는</span></div>
 
-          <!-- Social Login -->
+          <!-- 카카오톡 인앱 브라우저 안내 — UA 에 KAKAOTALK 이 있을 때만 보인다 -->
+          <div class="inapp-notice" id="inappNotice" hidden>
+            <p>카카오톡 안에서는 구글 로그인이 막힐 수 있습니다. 카카오 로그인은 그대로 쓸 수 있습니다.</p>
+            <button type="button" class="btn-inapp" id="openExternalBtn">외부 브라우저로 열기</button>
+          </div>
+
+          <!-- Social Login — 카카오 먼저 (작업자 링크는 카카오톡으로 받는다) -->
           <div class="social-buttons">
+            <button type="button" class="btn-social btn-kakao" onclick="signInWithKakao()">
+              <svg viewBox="0 0 24 24" fill="#191919">
+                <path
+                  d="M12 3C6.48 3 2 6.58 2 11c0 2.85 1.93 5.35 4.84 6.75-.22.81-.8 2.93-.92 3.38-.14.54.2.53.42.39.17-.11 2.72-1.84 3.83-2.59.59.09 1.2.13 1.83.13 5.52 0 10-3.58 10-8s-4.48-8-10-8z"
+                />
+              </svg>
+              카카오로 계속하기
+            </button>
             <button type="button" class="btn-social btn-google" onclick="signInWithGoogle()">
               <svg viewBox="0 0 24 24">
                 <path
@@ -711,6 +770,32 @@
         }
       } catch (e) {
         console.error('Supabase 초기화 오류:', e);
+      }
+
+      // 로그인 뒤 돌아갈 곳 — ?redirect= 는 누구나 링크로 만들 수 있으므로 같은 사이트 *.html 만 받는다
+      // (js/auth-redirect.js). 페이지를 열 때 한 번만 읽어 둔다.
+      // 검사기가 안 실렸으면 믿지 않고 index.html 로 간다.
+      const AuthRedirect = window.DadamAuthRedirect || null;
+      const REDIRECT_TARGET = AuthRedirect ? AuthRedirect.fromSearch(window.location.search) : 'index.html';
+
+      // OAuth 뒤 돌아올 주소 — 돌아갈 곳이 있으면 login.html?redirect=… 로 돌아와 아래 checkSession 이 보낸다
+      function oauthRedirectTo() {
+        return AuthRedirect
+          ? AuthRedirect.oauthRedirectTo(window.location.origin, REDIRECT_TARGET)
+          : window.location.origin + '/index.html';
+      }
+
+      // 회원가입으로 넘어가도 돌아갈 곳을 들고 간다
+      if (AuthRedirect) {
+        document.getElementById('signupLink').href = AuthRedirect.withRedirect('signup.html', REDIRECT_TARGET);
+      }
+
+      // 카카오톡 인앱 브라우저: 구글이 웹뷰 로그인을 막는다(disallowed_useragent). 카카오 로그인은 그대로 된다.
+      if (AuthRedirect && AuthRedirect.isKakaoInApp(navigator.userAgent)) {
+        document.getElementById('inappNotice').hidden = false;
+        document.getElementById('openExternalBtn').addEventListener('click', () => {
+          window.location.href = AuthRedirect.kakaoOpenExternalUrl(window.location.href);
+        });
       }
 
       // DOM 요소
@@ -851,7 +936,7 @@
           const { data, error } = await supabaseClient.auth.signInWithOAuth({
             provider: 'google',
             options: {
-              redirectTo: window.location.origin + '/index.html',
+              redirectTo: oauthRedirectTo(),
             },
           });
 
@@ -863,10 +948,44 @@
         }
       }
 
+      // 카카오 로그인 — signup.html 과 같은 공급자('kakao')
+      async function signInWithKakao() {
+        if (!supabaseClient) {
+          showError('Supabase가 설정되지 않았습니다.');
+          return;
+        }
+
+        hideMessages();
+
+        try {
+          const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: 'kakao',
+            options: {
+              redirectTo: oauthRedirectTo(),
+            },
+          });
+
+          if (error) {
+            showError('카카오 로그인 중 오류가 발생했습니다.');
+          }
+        } catch (err) {
+          showError('카카오 로그인 중 오류가 발생했습니다.');
+        }
+      }
+
+      // OAuth 가 실패하면 Supabase 가 돌아온 주소에 error_description 을 붙인다 (예: 카카오가 이메일을 주지 않음).
+      // 그 글은 링크로 아무렇게나 꾸밀 수 있으므로 화면에는 고정 문구만, 원문은 콘솔에만 남긴다.
+      (function showOAuthError() {
+        const params = new URLSearchParams(window.location.hash.slice(1) + '&' + window.location.search.slice(1));
+        const desc = params.get('error_description');
+        if (!desc) return;
+        console.warn('[login] OAuth:', desc);
+        showError('소셜 로그인에 실패했습니다. 다시 시도하거나 다른 방법으로 로그인해주세요.');
+      })();
+
       // 페이지 로드 시 세션 확인
       function getRedirectUrl() {
-        const params = new URLSearchParams(window.location.search);
-        return params.get('redirect') || 'index.html';
+        return REDIRECT_TARGET;
       }
 
       async function checkSession() {

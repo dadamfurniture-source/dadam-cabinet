@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="css/dadam-system.css" />
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="js/auth-redirect.js?v=1"></script>
     <style>
       * {
         margin: 0;
@@ -276,6 +277,33 @@
       }
       .btn-kakao:hover {
         background: #fdd800;
+      }
+
+      /* 카카오톡 인앱 브라우저 안내 (hidden 으로 감춘다 — display 를 주지 않는다) */
+      .inapp-notice {
+        margin-bottom: 16px;
+        padding: 14px 16px;
+        background: #fffbea;
+        border: 1px solid #f3e3a3;
+        border-radius: 12px;
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--charcoal);
+      }
+      .btn-inapp {
+        margin-top: 10px;
+        width: 100%;
+        padding: 12px;
+        background: var(--charcoal);
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      .btn-inapp:hover {
+        background: var(--gold);
       }
 
       /* Divider */
@@ -671,13 +699,19 @@
             <h2 data-i18n="login.signup_btn">회원가입</h2>
             <p>
               <span data-i18n="login.have_account">이미 계정이 있으신가요?</span>
-              <a href="login.html" data-i18n="login.login_link">로그인</a>
+              <a href="login.html" id="loginLink" data-i18n="login.login_link">로그인</a>
             </p>
           </div>
 
           <!-- Messages -->
           <div class="error-message" id="errorMsg"></div>
           <div class="success-message" id="successMsg"></div>
+
+          <!-- 카카오톡 인앱 브라우저 안내 — UA 에 KAKAOTALK 이 있을 때만 보인다 -->
+          <div class="inapp-notice" id="inappNotice" hidden>
+            <p>카카오톡 안에서는 구글 로그인이 막힐 수 있습니다. 카카오 로그인은 그대로 쓸 수 있습니다.</p>
+            <button type="button" class="btn-inapp" id="openExternalBtn">외부 브라우저로 열기</button>
+          </div>
 
           <!-- Social Signup -->
           <div class="social-buttons">
@@ -931,6 +965,30 @@
         }
       } catch (e) {
         console.error('Supabase 초기화 오류:', e);
+      }
+
+      // 가입 뒤 돌아갈 곳 — login.html 과 같은 검사(js/auth-redirect.js). 검사기가 안 실렸으면 index.html.
+      const AuthRedirect = window.DadamAuthRedirect || null;
+      const REDIRECT_TARGET = AuthRedirect ? AuthRedirect.fromSearch(window.location.search) : 'index.html';
+
+      // OAuth 뒤 돌아올 주소 — 돌아갈 곳이 있으면 login.html?redirect=… 로 돌아와 login.html 이 보낸다
+      function oauthRedirectTo() {
+        return AuthRedirect
+          ? AuthRedirect.oauthRedirectTo(window.location.origin, REDIRECT_TARGET)
+          : window.location.origin + '/index.html';
+      }
+
+      // 로그인으로 넘어가도 돌아갈 곳을 들고 간다
+      if (AuthRedirect) {
+        document.getElementById('loginLink').href = AuthRedirect.withRedirect('login.html', REDIRECT_TARGET);
+      }
+
+      // 카카오톡 인앱 브라우저: 구글이 웹뷰 로그인을 막는다(disallowed_useragent). 카카오 로그인은 그대로 된다.
+      if (AuthRedirect && AuthRedirect.isKakaoInApp(navigator.userAgent)) {
+        document.getElementById('inappNotice').hidden = false;
+        document.getElementById('openExternalBtn').addEventListener('click', () => {
+          window.location.href = AuthRedirect.kakaoOpenExternalUrl(window.location.href);
+        });
       }
 
       // 한국 시/도 및 구/군 데이터
@@ -1358,7 +1416,7 @@
         try {
           await supabaseClient.auth.signInWithOAuth({
             provider: 'google',
-            options: { redirectTo: window.location.origin + '/index.html' },
+            options: { redirectTo: oauthRedirectTo() },
           });
         } catch (err) {
           showError('Google 로그인 중 오류가 발생했습니다.');
@@ -1375,7 +1433,7 @@
         try {
           await supabaseClient.auth.signInWithOAuth({
             provider: 'kakao',
-            options: { redirectTo: window.location.origin + '/index.html' },
+            options: { redirectTo: oauthRedirectTo() },
           });
         } catch (err) {
           showError('카카오 로그인 중 오류가 발생했습니다.');
