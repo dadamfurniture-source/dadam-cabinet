@@ -22,6 +22,7 @@ Usage:
   python collect.py --brands winia --out winia   # default brands stay samsung,lg
   python collect.py --brands dacor,sks --out dacor_sks
   python collect.py --brands liebherr,midea,smeg --out lms
+  python collect.py --brands gaggenau --out gaggenau   # BSH 스펙시트 PDF (pdftotext) + 공식 치수도 판독표 GG_DRAWINGS
 """
 import argparse
 import csv
@@ -1607,6 +1608,348 @@ def smeg_collect(f, sample=None, guides=True):
     return rows
 
 
+# --------------------------------------------------------------------------- Gaggenau (가게나우, BSH)
+
+GG = "https://www.gaggenau.com"
+GG_SHEET = "https://media3.bsh-group.com/Documents/specsheet/{loc}/{code}.pdf"
+# en-ZZ = 가게나우 글로벌(international) 사이트 /global/en 의 스펙시트. gaggenau.com/kr 은 gaggenau-asia.com(싱가포르)으로
+# 넘어가는데 그 사이트엔 모델 목록이 없다 → 글로벌 사이트맵의 냉장 · 와인 제품을 쓴다. 없으면 영국 · 독일 · 미국 순.
+GG_LOCALES = ("en-ZZ", "en-GB", "de-DE", "en-US")
+
+
+def gg_pdf_text(f, url):
+    """PDF 를 받아 pdftotext 로 글자만 뽑아 캐시한다 (Fetcher 캐시는 utf-8 글자라 PDF 원본은 담지 않는다).
+    → (status, text). 리다이렉트 끝이 PDF 가 아니면 (BSH 는 없는 시트를 404 png 로 돌린다) text = ''."""
+    cp = f._cache_path("PDFTEXT", url, None)
+    if os.path.exists(cp):
+        with open(cp, encoding="utf-8") as fp:
+            c = json.load(fp)
+        f.cache_hits += 1
+        return c["status"], c["body"]
+    if f.offline:
+        raise RuntimeError(f"offline and not cached: {url}")
+    if not f.allowed(url):
+        raise PermissionError(f"robots.txt disallows {url}")
+    f._sleep()
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    try:
+        with urllib.request.urlopen(req, timeout=90) as r:
+            status, raw, ctype = r.status, r.read(), r.headers.get("Content-Type", "")
+    except urllib.error.HTTPError as e:
+        status, raw, ctype = e.code, b"", ""
+    f.net_count += 1
+    text = ""
+    if status == 200 and raw[:5] == b"%PDF-":
+        text = pdf_to_text(raw)
+    elif status == 200:
+        status = 415  # PDF 가 아닌 응답
+    if f.verbose:
+        print(f"  [net {status}] PDF {url[:110]} ({len(raw)} B {ctype})", file=sys.stderr)
+    with open(cp, "w", encoding="utf-8") as fp:
+        json.dump({"url": url, "method": "PDFTEXT", "status": status, "bytes": len(raw),
+                   "fetched_at": dt.datetime.now().isoformat(timespec="seconds"), "body": text}, fp, ensure_ascii=False)
+    return status, text
+
+
+def pdf_to_text(raw):
+    """pdftotext(poppler, Git for Windows 에 들어 있다) 가 있으면 그것, 없으면 아주 단순한 대체
+    (Flate 스트림의 Tj/TJ 문자열만 — 글꼴 인코딩이 특수하면 깨진다)."""
+    import shutil
+    import subprocess
+    import tempfile
+    import zlib
+    exe = shutil.which("pdftotext")
+    if exe:
+        with tempfile.TemporaryDirectory() as td:
+            src = os.path.join(td, "in.pdf")
+            with open(src, "wb") as fp:
+                fp.write(raw)
+            subprocess.run([exe, "-enc", "UTF-8", src, os.path.join(td, "out.txt")], check=False,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            out = os.path.join(td, "out.txt")
+            if os.path.exists(out):
+                with open(out, encoding="utf-8", errors="replace") as fp:
+                    return fp.read()
+        return ""
+    chunks = []
+    for m in re.finditer(rb"stream\r?\n(.*?)\r?\nendstream", raw, re.S):
+        try:
+            s = zlib.decompress(m.group(1))
+        except zlib.error:
+            continue
+        for t in re.findall(rb"\[(.*?)\]\s*TJ|\((.*?)\)\s*Tj", s, re.S):
+            seg = t[0] or t[1]
+            chunks.append(b"".join(re.findall(rb"\(((?:\\.|[^\\)])*)\)", seg)) if t[0] else seg)
+        chunks.append(b"\n")
+    return b" ".join(chunks).decode("latin-1", errors="replace")
+
+
+def gg_models(f):
+    """글로벌 사이트맵(/global/sitemap.xml) 의 /global/en/mkt-product/ 중 냉장(refrigeration) · 와인(wine-climate-cabinets).
+    → [(code, page_url, category_path)] (코드 = 경로 끝 'RC472305')."""
+    st, xml = f.get(f"{GG}/global/sitemap.xml")
+    out, seen = [], set()
+    for u in re.findall(r"<loc>([^<]+)</loc>", xml):
+        m = re.match(rf"{re.escape(GG)}/global/en/mkt-product/((?:refrigeration|wine-climate-cabinets)/.*)/(R[A-Z]{{1,2}}\d{{6}})$",
+                     u)
+        if m and m.group(2) not in seen:
+            seen.add(m.group(2))
+            out.append((m.group(2), u, m.group(1)))
+    return out
+
+
+def gg_inch(s):
+    """'84"' · '24 3/4"' · '83 3/4 "' → mm (25.4 배, 반올림)."""
+    m = re.match(r"\s*(\d+)(?:\s+(\d+)/(\d+))?", s or "")
+    if not m:
+        return None
+    v = int(m.group(1)) + (int(m.group(2)) / int(m.group(3)) if m.group(2) else 0)
+    return int(round(v * 25.4))
+
+
+# 가게나우 공식 치수도(Line_Drawings, media3.bsh-group.com/Line_Drawings/1400x/{id}_en-ZZ.jpg) 를 사람이 읽어 옮긴 값.
+# 2024~ 스펙시트는 치수 · 니치가 그림뿐이라 글자로 뽑을 수 없다 (옛 스펙시트의 'Required niche size' 표가 없어졌다).
+# 키 = 그림 ID (제품 페이지 images[] 의 Line_Drawings). widths = {니치 폭: 외형 폭} — 한 그림이 여러 폭을 함께 적는다.
+# niche_* = (min, max) — max 는 그림에 범위가 있을 때만. 값을 지어내지 않는다: 그림에 없는 칸은 None.
+# 표 순서 = 우선순위 (한 제품 페이지에 여러 그림이 있으면 위에 있는 것을 쓴다).
+GG_DRAWINGS = {
+    # Vario 400 냉장 (RC46x/47x/49x) — 니치 높이 범위 2134…2164 는 설치설명서 8001175804_B 글자 (RC…305/504/304/904 명시)
+    "MCZ_02314370_1718456_RC492304": {"widths": {610: 603, 762: 756, 914: 908}, "h": (2134, 2164), "d": (610, None),
+                                      "ext_h": 2125, "ext_d": 608,
+                                      "note": "외형 높이 2125 (+35/-13 조절) · 니치 높이 2134~2164 (설치설명서 8001175804_B)"},
+    # Vario 400 냉장냉동 (RB47x/49x)
+    "MCZ_02315580_1719576_RB472304": {"widths": {762: 756, 914: 908}, "h": (2134, None), "d": (610, None),
+                                      "ext_h": 2125, "ext_d": 608, "note": "외형 높이 2125 (+35/-13 조절)"},
+    # Vario 400 냉동 (RF41x/46x/47x)
+    "MCZ_02314775_1718814_RF471304": {"widths": {457: 451, 610: 603, 762: 756}, "h": (2134, None), "d": (610, None),
+                                      "ext_h": 2125, "ext_d": 608, "note": "외형 높이 2125 (+35/-13 조절)"},
+    "8108881_2636565_RF471304": {"widths": {457: 451}, "h": (2134, None), "d": (610, None),
+                                 "ext_h": 2125, "ext_d": 608, "note": "외형 높이 2125 (+35/-13 조절)"},
+    # Vario 400 와인 (RW41x/46x)
+    "MCZ_02314905_1718943_RW414304": {"widths": {457: 451, 610: 603}, "h": (2134, None), "d": (610, None),
+                                      "ext_h": 2125, "ext_d": 608, "note": "외형 높이 2125 (+35/-13 조절)"},
+    "MCZ_02315605_1719608_RW414364": {"widths": {457: 451}, "h": (2134, None), "d": (610, None),
+                                      "ext_h": 2125, "ext_d": 608, "note": "외형 높이 2125 (+35/-13 조절)"},
+    "MCZ_02316269_1720226_RW466364": {"widths": {610: 603}, "h": (2134, None), "d": (610, None),
+                                      "ext_h": 2125, "ext_d": 608, "note": "외형 높이 2125 (+35/-13 조절)"},
+    # Vario cooling Expressive — 냉장냉동 그림(762/900)에 외형 높이 · 깊이가 있고, 공통 니치 그림엔 폭 표만 있다
+    "22199203_RVB477190": {"widths": {762: 756, 900: 894}, "h": (2134, None), "d": (610, None),
+                           "ext_h": 2130, "ext_d": 608, "note": "외형 높이 2130 (+41 조절)"},
+    "26098337_RVF497190": {"widths": {457: 451, 610: 603, 762: 756, 900: 894}, "h": (2134, None), "d": (610, None),
+                           "ext_h": 2130, "ext_d": 608, "note": "외형 높이 2130 (+41 조절)"},
+    "26083083_RVC497190": {"widths": {610: 603, 762: 756, 900: 894}, "h": (2134, None), "d": (610, None),
+                           "ext_h": 2130, "ext_d": 608, "note": "외형 높이 2130 (+41 조절)"},
+    "26099363_26099363_RVW467170": {"widths": {457: 451, 610: 603}, "h": (2134, None), "d": (610, None),
+                                    "ext_h": 2130, "ext_d": 608, "note": "외형 높이 2130 (+41 조절)"},
+    "22956224_RVY497190": {"widths": {457: 451, 610: 603, 762: 756, 900: 894}, "h": (2134, None), "d": (610, None),
+                           "ext_h": None, "ext_d": None,
+                           "note": "'Installation niche for an individual appliance' 표 (외형 폭 · 니치 폭) — 외형 높이 · 깊이 없음"},
+    # 200 시리즈 · Vario 200 통합형 177.2 (RC/RT/RB/RF 28x)
+    "MCZ_00478700_102020_RC282203": {"widths": {560: 558}, "w_max": None, "h": (1772, 1780), "d": (550, None),
+                                     "ext_h": 1772, "ext_d": 545, "note": "니치 높이 1772+8 · 깊이 min 550 (권장 560) · 상하 환기 200 cm²"},
+    "MCZ_02596276_1956888_RB2802305": {"widths": {560: 558}, "h": (1772, 1780), "d": (550, None),
+                                       "ext_h": 1772, "ext_d": 545, "note": "니치 높이 1772+8 · 깊이 min 550 (권장 560) · 상하 환기 200 cm²"},
+    "MCZ_00478694_102019_RB282203": {"widths": {560: 558}, "h": (1772, 1780), "d": (550, None),
+                                     "ext_h": 1772, "ext_d": 545, "note": "니치 높이 1772+8 · 깊이 min 550 (권장 560) · 상하 환기 200 cm²"},
+    # 200 시리즈 빌트언더 82 (RC/RT/RF 202)
+    "22868985_RC202180": {"widths": {600: 598}, "h": (822, 900), "d": (550, None), "ext_h": 820, "ext_d": 548,
+                          "note": "외형 높이 820~900 (받침 100~180) · 니치 높이 822~900"},
+    # 와인 200 시리즈
+    "MCZ_02152100_1550503_RW222260": {"widths": {560: 557}, "w_max": 570, "h": (1220, 1236), "d": (550, None),
+                                      "ext_h": 1218, "ext_d": 553, "note": "니치 깊이 min 550 (권장 560)"},
+    "MCZ_02152095_1550500_RW282860": {"widths": {560: 557}, "w_max": 570, "h": (1772, 1788), "d": (550, None),
+                                      "ext_h": 1770, "ext_d": 553, "note": "니치 깊이 min 550 (권장 560)"},
+    "MCZ_00722381_375622_RW404261": {"widths": {600: 597}, "h": (820, 870), "d": (555, None), "ext_h": 816, "ext_d": None,
+                                     "note": "외형 높이 816~866 · 깊이 표기가 둘(456/540)이라 비움"},
+    "27184643_27184643_RW204070": {"widths": {600: 597}, "h": (860, 920), "d": (565, None), "ext_h": 859, "ext_d": 564,
+                                   "note": "외형 높이 859 (+60) · 니치 높이 860~920"},
+    # 프리스탠딩 프렌치도어 (니치 설치 그림 + 외형 그림)
+    "16217099_RY295350_LD_niche_instalation_3D_view": {"widths": {914: 905}, "h": (1830, None), "d": (635, None),
+                                                       "ext_h": 1830, "ext_d": 731,
+                                                       "note": "외형 그림 16355302: 높이 1830 (앞 1830~1847 조절) · 깊이 731 (뒤 스페이서 +25)"},
+}
+
+
+def gg_drawing(page_html, nominal_w):
+    """제품 페이지의 Line_Drawings ID 중 GG_DRAWINGS 에 있고 폭이 맞는 것 (표 순서 우선) → (id, entry, 니치 폭)."""
+    h = page_html.replace('\\"', '"')
+    ids = []
+    for m in re.finditer(r'"images":\[(.*?)\]', h):
+        ids = [i for i in re.findall(r'"id":"([^"]+)","mediaType":"Line_Drawings"', m.group(1))]
+        if ids:
+            break
+    ids = [re.sub(r"_[a-z]{2}-[A-Z]{2}$", "", i) for i in ids]
+    best = None
+    for i in ids:
+        e = GG_DRAWINGS.get(i)
+        if not e:
+            continue
+        nw = nominal_w if nominal_w in e["widths"] else next((k for k, v in e["widths"].items() if v == nominal_w), None)
+        if nw is None and len(e["widths"]) == 1 and nominal_w is None:
+            nw = next(iter(e["widths"]))
+        if nw is None:
+            continue
+        rank = list(GG_DRAWINGS).index(i)
+        if best is None or rank < best[3]:
+            best = (i, e, nw, rank)
+    return best[:3] if best else None
+
+
+def gg_parse(t, code):
+    """스펙시트 글자 → 제품명 · 경첩 · 용량 (+ 옛 꼴 / 미국 꼴이면 치수 · 니치).
+      옛 꼴 (RC472301): 'Height (mm) 2125 Width of the product (mm) 756 Depth of the product 608
+                         Required niche size for installation (HxWxD) 2134.0 x 762.0 x 610'
+      미국 꼴 (RC472705 en-US): 'Required cutout size (HxWxD) (in) 84" x 30" x 24 3/4" Appliance Width (in) …'
+      새 꼴 (2024~): 제품명 '… 213.4 x 76.2 cm' 뿐 (치수도는 그림) → 치수 · 니치는 GG_DRAWINGS 로."""
+    one = re.sub(r"\s+", " ", t)
+    out = {"name": None, "name_hw": None, "dims": None, "niche": {}, "niche_raw": None, "size_raw": None, "fmt": None,
+           "na": False}
+    for line in t.splitlines():
+        line = line.strip()
+        if not line.endswith(code) or line == code:
+            continue
+        m = re.match(r"(.*?\S)\s+(\d{2,3}(?:\.\d)?) x (\d{2,3}(?:\.\d)?) cm(?:,\s*(.*?))?\s+" + code + "$", line)
+        if m:
+            out["name"] = f"{m.group(1)} {m.group(2)} x {m.group(3)} cm" + (f", {m.group(4)}" if m.group(4) else "")
+            out["name_hw"] = (m.group(2), m.group(3))
+            break
+        # '… 400 series 30_IN RC472705' · "… 400 series 24'' RC462705" — 북미(인치) 모델
+        if re.search(r"\d+_IN\b|\d+(?:''|\")\s", line):
+            out["name"], out["na"] = line[:-len(code)].strip(), True
+            break
+    old = re.search(r"Required niche size for installation \(HxWxD\) ([\d.]+) x ([\d.]+) x ([\d.]+)", one)
+    us = re.search(r'Required cutout size \(HxWxD\) \(in\) ([\d /]+)" x ([\d /]+)" x ([\d /]+)"', one)
+    if old:
+        h, w, d = (to_num(x) for x in old.groups())
+        out["niche"] = {"niche_min_h_mm": h, "niche_min_w_mm": w, "niche_min_d_mm": d}
+        out["niche_raw"] = old.group(0)
+        hh, ww, dd = rx(r"Height \(mm\) (\d+)", one), rx(r"Width of the product \(mm\) (\d+)", one), \
+            rx(r"Depth of the product (?:\(mm\) )?(\d+)", one)
+        out["dims"] = (ww, hh, dd) if hh and ww and dd else None
+        out["size_raw"] = f"Height (mm) {hh} / Width of the product (mm) {ww} / Depth of the product {dd}"
+        out["fmt"] = "옛 꼴(Characteristics 표)"
+    elif us:
+        h, w, d = (gg_inch(x) for x in us.groups())
+        out["niche"] = {"niche_min_h_mm": h, "niche_min_w_mm": w, "niche_min_d_mm": d}
+        out["niche_raw"] = us.group(0)
+        out["fmt"] = "미국 꼴(인치 → mm)"
+        out["na"] = True
+    hinge = [h for h in ("Flat hinge", "Sliding hinge", "Flachscharnier", "Schleppscharnier") if h.lower() in one.lower()]
+    out["hinge"] = hinge[0] if hinge else None
+    door = re.search(r"(Door hinge [^.]*)\.", one)
+    angle = re.search(r"Door opening angle (?:of )?(\d+) ?°", one)
+    panel_w = re.search(r"Max\. door panel weight[^.]*?(\d+) ?kg", one)
+    out["door"] = door.group(1) if door else None
+    out["angle"] = angle.group(1) if angle else None
+    out["panel_weight"] = panel_w.group(1) if panel_w else None
+    out["integrated"] = bool(re.search(r"(?i)fully integrated|panel ready|vollintegriert", one))
+    out["volume"] = rx(r"(?:Total (?:net )?volume|Net volume)\s*:?\s*(\d+(?:\.\d+)?) ?(?:litres|liters)", one)
+    out["bottles"] = rx(r"(\d+) (?:Bordeaux |bordeaux |standard )?(?:wine )?bottles", one)
+    return out
+
+
+def gaggenau_collect(f, sample=None, guides=True):
+    """가게나우 (Gaggenau, BSH). 국내: 쇼룸 · 백화점 · 한샘 키친바흐 협업 — 한국 모델 목록은 공개된 곳이 없다
+    (gaggenau.com/kr → gaggenau-asia.com, 모델 목록 없음). 그래서 글로벌 사이트 /global 의 냉장 · 와인 제품을
+    '국내판매미확인' 으로 싣는다 (북미 전용 인치 모델 …705 는 뺀다).
+    제품명 · 경첩 · 용량: media3.bsh-group.com 스펙시트 PDF (robots.txt 없음, pdftotext).
+    외형 · 니치: 새 스펙시트엔 글자가 없어 제품 페이지(/global/en/mkt-product, robots 허용)의 치수도 ID 로
+    GG_DRAWINGS (공식 치수도를 읽어 옮긴 표) 를 찾는다. 설치 가이드 글은 없다 → guides 는 쓰지 않는다."""
+    models = gg_models(f)
+    print(f"[gaggenau] global refrigeration/wine products={len(models)}", file=sys.stderr)
+    if sample:
+        models = pick_sample(models, lambda m: m[2].split("/")[1] if "/" in m[2] else m[2], sample)
+    rows = []
+    for code, page, cat_path in models:
+        text, sheet, loc_used = "", None, None
+        for loc in GG_LOCALES:
+            url = GG_SHEET.format(loc=loc, code=code)
+            st, text = gg_pdf_text(f, url)
+            if st == 200 and code in text:
+                sheet, loc_used = url, loc
+                break
+        if not sheet:
+            print(f"  [gaggenau] {code}: no spec sheet in {GG_LOCALES}", file=sys.stderr)
+            continue
+        p = gg_parse(text, code)
+        if p["na"]:
+            print(f"  [gaggenau] {code}: 북미 전용(인치 규격 '{p['name']}') - skipped", file=sys.stderr)
+            continue
+        free = cat_path.endswith("fridgefreezers") and code.startswith("RY")  # RY295350 = 프리스탠딩 프렌치도어
+        nominal_w = None
+        if p["name_hw"]:
+            v = to_num(p["name_hw"][1])
+            nominal_w = int(round(v * 10)) if v is not None else None
+        st, ph = f.get(page)
+        drw = gg_drawing(ph, nominal_w) if st == 200 else None
+        dims, niche, niche_raw, size_raw = p["dims"], dict(p["niche"]), p["niche_raw"], p["size_raw"]
+        if drw and not niche:
+            did, e, nw = drw
+            ew = e["widths"][nw]
+            niche = {"niche_min_w_mm": nw, "niche_min_h_mm": e["h"][0], "niche_min_d_mm": e["d"][0]}
+            if e.get("w_max"):
+                niche["niche_max_w_mm"] = e["w_max"]
+            if e["h"][1]:
+                niche["niche_max_h_mm"] = e["h"][1]
+            if e["d"][1]:
+                niche["niche_max_d_mm"] = e["d"][1]
+            if did == "MCZ_02314370_1718456_RC492304" and not code.startswith("RC"):
+                niche.pop("niche_max_h_mm", None)
+            dims = (ew, e["ext_h"], e["ext_d"])
+            ref = f"공식 치수도 {did} (media3.bsh-group.com/Line_Drawings) 판독"
+            niche_raw = (f"{ref}: 니치 W {nw}{'~' + str(e['w_max']) if e.get('w_max') else ''} x "
+                         f"H {e['h'][0]}{'~' + str(niche.get('niche_max_h_mm')) if niche.get('niche_max_h_mm') else ''}"
+                         f" x D ≥{e['d'][0]} — {e['note']}")
+            size_raw = f"{ref}: 외형 W {ew} x H {e['ext_h']} x D {e['ext_d']}"
+        elif not niche:
+            print(f"  [gaggenau] {code}: no known line drawing (nominal width {nominal_w}) - niche left empty",
+                  file=sys.stderr)
+        series = "Vario cooling Expressive" if "expressive" in cat_path.lower() else \
+            "Vario 400" if "400" in cat_path else \
+            "Vario 200" if re.search(r"vario(?:-serie)?-?200|200vario", cat_path.lower()) else \
+            "200" if "200" in cat_path else "일반"
+        panel = bool(p["panel_weight"] or p["integrated"]) and not free
+        if "wine" in cat_path:
+            sub = "wine"  # 유리 도어 와인 — 패널 여부와 상관없이 (데이코 · 리페르와 같은 기준)
+        elif free:
+            sub = "french_4door"  # 'French Door Bottom freezer, multi door' — 3도어 이상은 LG 와 같이 french_4door
+        elif panel:
+            sub = "built_in"  # 가구 도어(또는 가게나우 도어 액세서리)를 붙이는 완전 통합형
+        elif code.startswith(("RB", "RT", "RVB", "RVY")):
+            sub = "two_door"
+        else:
+            sub = "one_door"
+        tags = ["국내판매미확인"] + (["패널레디"] if panel else [])
+        row = {
+            "brand": "Gaggenau",
+            "category_subtype": sub,
+            "line": series,
+            "tags": tags,
+            "model_name": f"가게나우 {p['name'] or code}",
+            "model_codes": [code],
+            "width_mm": dims[0] if dims else None,
+            "height_mm": dims[1] if dims else None,
+            "depth_mm": dims[2] if dims else None,
+            "capacity_l": p["volume"],
+            "wine_bottles": p["bottles"],
+            "install_type": "freestanding" if free else "built_in",
+            "panel_ready": panel,
+            "niche_raw": niche_raw,
+            "product_type_raw": " / ".join(x for x in [
+                cat_path, p["hinge"] and f"경첩: {p['hinge']}", p["door"], p["angle"] and f"열림 {p['angle']}°",
+                p["panel_weight"] and f"도어 패널 최대 {p['panel_weight']} kg",
+                f"스펙시트 {loc_used}" + (f" · {p['fmt']}" if p["fmt"] else "")] if x),
+            "size_raw": size_raw,
+            "source_url": sheet,
+            "page_url": page,
+            "sale_status": None,
+            "collected_at": now_iso(),
+        }
+        row.update(niche)
+        rows.append(row)
+    return rows
+
+
 # --------------------------------------------------------------------------- merge / output
 
 GAP_KEYS = ["side_gap_mm", "door_side_gap_mm", "top_gap_mm", "back_gap_mm", "niche_min_w_mm", "niche_min_h_mm",
@@ -1686,6 +2029,8 @@ def main():
         rows += midea_collect(f, a.sample or None, not a.no_guides)
     if "smeg" in brands:
         rows += smeg_collect(f, a.sample or None, not a.no_guides)
+    if "gaggenau" in brands:
+        rows += gaggenau_collect(f, a.sample or None, not a.no_guides)
     merged = merge(rows)
     base = os.path.join(HERE, a.out or ("sample" if a.sample else "fridges"))
     write(merged, base)
