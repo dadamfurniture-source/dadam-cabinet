@@ -9,7 +9,7 @@
  *
  * 2026-09-17: 붙박이장 차단을 풀었다 — 브리지가 통을 pos 'wardrobe' 로 보내고 통 구조까지 옮긴다
  * (planner-to-bom-wardrobe.test.js). 그 사고를 막던 자리는 **"붙박이장 통이 0개면 거부"** 로 바뀌었다.
- * 냉장고장은 그대로 막혀 있다.
+ * 2026-10-20: 냉장고장도 풀었다 — 플래너 모듈은 싱크대 규칙으로 산출한다 (planner-fridge-in-planner.test.js).
  */
 const fs = require('fs');
 const path = require('path');
@@ -28,7 +28,7 @@ const { _convertPlannerModules } = loadConverter();
 
 const SPECS = { moldingH: 60, sinkLegHeight: 150, topThickness: 12, wardrobePedestal: 60 };
 
-describe('붙박이장·냉장고장에 플래너 결과를 적용하지 않는다', () => {
+describe('플래너 결과 적용 가드 — 붙박이장 통 0개는 거부', () => {
   const applyFn = () => UI.slice(UI.indexOf('function _applyPlannerResult'), UI.indexOf('function _showPlannerSummary'));
 
   test('_applyPlannerResult 가 결과를 못 받는 카테고리를 막는다', () => {
@@ -39,7 +39,7 @@ describe('붙박이장·냉장고장에 플래너 결과를 적용하지 않는�
   });
 
   test('막는 이유를 사용자에게 설명한다', () => {
-    expect(applyFn()).toMatch(/냉장고장은 전용 화면/);
+    expect(applyFn()).toMatch(/전용 화면에서 모듈을 구성해/);
   });
 
   test('붙박이장은 통이 0개일 때만 거부한다 — 그 사고를 막던 자리', () => {
@@ -50,10 +50,10 @@ describe('붙박이장·냉장고장에 플래너 결과를 적용하지 않는�
     expect(fn.indexOf('붙박이장 통이 없습니다')).toBeLessThan(fn.indexOf('item.modules = modules'));
   });
 
-  test('결과를 못 받는 목록·화면 예외 목록 모두 냉장고장만 남았다', () => {
-    expect(UI).toMatch(/PLANNER_RESULT_BLOCKED = \['fridge'\]/);
-    // 2026-09-17: 화면도 옮겼다 — 붙박이장은 싱크대와 같은 플래너 화면이다
-    expect(UI).toMatch(/NATIVE_ONLY_CATEGORIES = \['fridge'\]/);
+  test('결과를 못 받는 목록·화면 예외 목록 모두 비었다 (2026-10-20 냉장고장도 플래너)', () => {
+    expect(UI).toMatch(/PLANNER_RESULT_BLOCKED = \[\]/);
+    // 2026-09-17 붙박이장, 2026-10-20 냉장고장 — 싱크대와 같은 플래너 화면이다
+    expect(UI).toMatch(/NATIVE_ONLY_CATEGORIES = \[\]/);
   });
 });
 

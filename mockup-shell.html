@@ -108,6 +108,12 @@
   .tool-btn .badge{position:absolute;top:2px;right:2px;background:var(--brand-deep);color:#fff;font-size:9px;font-weight:700;min-width:14px;height:14px;border-radius:7px;padding:0 3px;display:flex;align-items:center;justify-content:center}
   .tool-sep{width:28px;height:1px;background:var(--line);margin:4px 0}
   /* W12-2: 품목 아이콘 그룹 (Step1 카테고리 페이지 대체) */
+  /* 2026-10-20 빠른 배치 — 글자 버튼 (아이콘만으로는 무엇인지 몰랐다) */
+  .tool-btn.preset-btn{font-size:12px;font-weight:700;color:var(--brand-deep)}
+  .preset-hint{position:absolute;top:18px;left:50%;transform:translateX(-50%);z-index:40;background:#fff;border:1px solid var(--brand-mid);border-radius:10px;padding:12px 16px;box-shadow:0 4px 14px rgba(0,0,0,.08);color:var(--text-dim);font-size:13px;text-align:center;max-width:90%}
+  .preset-hint[hidden]{display:none}
+  .preset-hint .ph-row{display:flex;gap:8px;justify-content:center;margin-top:8px}
+  .preset-hint button{border:1px solid var(--brand-mid);background:var(--brand-soft);color:var(--brand-deep);border-radius:6px;padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer}
   .tool-group-label{font-size:8px;color:var(--text-dim);letter-spacing:.5px;line-height:1;margin:3px 0 2px;user-select:none}
 
   /* ── Main canvas ───────────────────────────────────── */
@@ -294,6 +300,13 @@
     <div class="left-tools" id="leftTools">
       <!-- W12-3: 품목은 상단 '기본 정보' 그룹의 드롭다운(#catPicker)으로 옮겼다.
            아이콘 10개가 세로로 쌓여 좌측 폭을 크게 먹었기 때문이다. -->
+      <!-- 2026-10-20 플래너 점검: 빠른 배치 — 일자·ㄱ자·ㄷ자를 한 번에 놓는다 (js/planner/planner-presets.js).
+           품목에 없는 모양은 숨긴다 (붙박이장·TV장·아일랜드는 일자만). -->
+      <div class="tool-group-label" title="일자·ㄱ자·ㄷ자를 한 번에 놓습니다">빠른 배치</div>
+      <button type="button" class="tool-btn preset-btn" data-preset="I" title="일자 배치 — 한 줄로 놓습니다">일자</button>
+      <button type="button" class="tool-btn preset-btn" data-preset="L" title="ㄱ자 배치 — 본 줄 + 오른쪽 옆 줄">ㄱ자</button>
+      <button type="button" class="tool-btn preset-btn" data-preset="U" title="ㄷ자 배치 — 본 줄 + 양쪽 옆 줄">ㄷ자</button>
+      <div class="tool-sep"></div>
       <div class="tool-group-label" title="도면에 배치할 요소">배치</div>
       <button class="tool-btn rect-btn" title="분배기 (W900×D600 · 도면 배치)" data-section="sink">🚰</button>
       <button class="tool-btn rect-btn" title="후드 (W900×D500 · 도면 배치)" data-section="hood">💨</button>
@@ -350,6 +363,12 @@
     <div class="canvas-wrap">
       <!-- W9-53: dimPopup 제거 — 우측 패널 '선택 사각형 설정' 섹션으로 이동 -->
       <!-- W9-53: rubber-band 선택 영역 SVG (드래그 중 임시 표시) -->
+      <!-- 2026-10-20: 빈 캔버스 안내 — 사각형이 하나도 없을 때만 보인다 -->
+      <div class="preset-hint" id="presetHint" hidden>
+        <div><b>배치를 시작하세요.</b> 모양을 고르면 한 번에 놓입니다. 치수는 놓은 뒤 고칩니다.</div>
+        <div class="ph-row" id="presetHintRow"></div>
+        <div style="font-size:11px;margin-top:6px">하나씩 놓으려면 왼쪽 장 버튼을 누르세요.</div>
+      </div>
       <svg id="rubberBand" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:none;z-index:50"><rect id="rubberRect" fill="none"/></svg>
       <div class="canvas-placeholder">
         <div class="big">🧊</div>
@@ -457,6 +476,8 @@
 <script src="js/planner/planner-sections.js?v=42.8"></script>
 <!-- 2026-10-20: 품목 깊이로 배치 깊이를 잡을 때 몸통 앞 여유(MASTER_RULES)를 구조 단계와 같은 값으로 쓴다. -->
 <script src="js/planner/planner-engine.js?v=42.8"></script>
+<!-- 2026-10-20: 빠른 배치 (일자·ㄱ자·ㄷ자) — 배치 단계 전용 -->
+<script src="js/planner/planner-presets.js?v=42.8"></script>
 <!-- W12-71: 배치 도면을 계정에도 한 벌 남긴다. 불러오기 UI 는 구조 단계에 있다.
      셋이 없어도 배치는 그대로 돈다 — PlannerStore 가 localStorage 로 물러난다. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
@@ -922,6 +943,50 @@
     // W9-18: Reset = 기본 view (가로 7000mm fit)
     setInitialView();
   }
+  /**
+   * 2026-10-20: 장 버튼으로 놓는 캐비닛 사각형의 자리 — 같은 층(바닥 장 / 벽 상부장) 줄의 오른쪽 끝에 붙인다.
+   * 뒷선(y)은 놓인 사각형 중 가장 위. 돌린 사각형이 하나라도 있으면(ㄱ자·ㄷ자) 줄을 알 수 없어 null — 예전 자동 위치.
+   */
+  const ROW_LAYER_OF = { lower: 'floor', tall: 'floor', fridge: 'floor', wardrobe: 'floor', upper: 'wall' };
+  let lastAutoRow = null;
+  function rowSlotFor(section) {
+    const layer = ROW_LAYER_OF[section];
+    if (!layer) return null;
+    const content = getContent();
+    if (!content) return null;
+    const placed = [];
+    for (const g of content.querySelectorAll(':scope > g.sect-rect')) {
+      const r = g.querySelector(':scope > rect:not(.resize-handle)');
+      if (!r) continue;
+      if ((rotations.get(g) || 0) !== 0) return null;
+      const sec = Array.from(g.classList).find((c) => SECTION_CONFIG[c]);
+      placed.push({ layer: ROW_LAYER_OF[sec], x: parseFloat(r.getAttribute('x')), y: parseFloat(r.getAttribute('y')),
+        w: parseFloat(r.getAttribute('width')), h: parseFloat(r.getAttribute('height')) });
+    }
+    if (!placed.length) return { x: 80, y: 80 };
+    const same = placed.filter((p) => p.layer === layer);
+    return {
+      x: same.length ? Math.max(...same.map((p) => p.x + p.w)) : Math.min(...placed.map((p) => p.x)),
+      y: Math.min(...placed.map((p) => p.y)),
+    };
+  }
+  /** 줄 사각형 가운데 앞에 사람을 세운다 — 모두 정면(회전 0)이 사람을 본다. 거리 900 은 빠른 배치와 같다. */
+  function personInFrontOfRow() {
+    const content = getContent();
+    if (!content) return;
+    const rs = Array.from(content.querySelectorAll(':scope > g.sect-rect > rect:not(.resize-handle)'));
+    if (!rs.length) return;
+    const n = (r, a) => parseFloat(r.getAttribute(a));
+    const x0 = Math.min(...rs.map((r) => n(r, 'x')));
+    const x1 = Math.max(...rs.map((r) => n(r, 'x') + n(r, 'width')));
+    const y1 = Math.max(...rs.map((r) => n(r, 'y') + n(r, 'height')));
+    const cx = (x0 + x1) / 2, cy = y1 + 900;
+    const c = content.querySelector('g.person circle');
+    const t = content.querySelector('g.person text');
+    if (c) { c.setAttribute('cx', cx); c.setAttribute('cy', cy); }
+    if (t) { t.setAttribute('x', cx); t.setAttribute('y', cy); }
+  }
+
   function addSectionRect(section, override) {
     override = override || {};
     const cfg = SECTION_CONFIG[section];
@@ -944,8 +1009,14 @@
     }
     // W9-29: override.x/y 있으면 명시 위치, 아니면 자동
     const baseX = 80, baseY = 80;
-    const offsetX = override.x !== undefined ? override.x : baseX + (rectIdx % 3) * (useW + 100);
-    const offsetY = override.y !== undefined ? override.y : baseY + Math.floor(rectIdx / 3) * (useH + 100);
+    // 2026-10-20: 장 버튼은 줄 끝에 이어 붙인다 (rowSlotFor). 예전 자동 위치는 새 사각형 폭으로 칸을 띄워
+    //   2400 하부장 옆 키큰장이 1620 겹쳤고(구조 단계가 겹침으로 막는다), 사람과 먼 첫 사각형은 옆으로 돌았다.
+    lastAutoRow = (override.x === undefined && override.y === undefined && !override.parentG)
+      ? rowSlotFor(section) : null;
+    const offsetX = override.x !== undefined ? override.x
+      : lastAutoRow ? lastAutoRow.x : baseX + (rectIdx % 3) * (useW + 100);
+    const offsetY = override.y !== undefined ? override.y
+      : lastAutoRow ? lastAutoRow.y : baseY + Math.floor(rectIdx / 3) * (useH + 100);
     const g = document.createElementNS(ns, 'g');
     g.setAttribute('class', 'sect-rect ' + section);
     g.setAttribute('data-module-h', useModuleH);
@@ -2404,7 +2475,10 @@
       // W9-60: forceRotation override 있으면 alignToPerson 건너뜀 (복원 시 저장된 회전 유지)
       const isFinishing = last.classList.contains('finishing');
       if (!isFinishing) {
-        if (!override || override.forceRotation === undefined) {
+        if (lastAutoRow) {
+          // 2026-10-20: 줄 끝에 붙인 장은 정면 그대로(회전 0) — 사람을 줄 앞으로 옮긴다
+          personInFrontOfRow();
+        } else if (!override || override.forceRotation === undefined) {
           alignToPerson(last);
         }
         if (!override || !override.suppressSelect) {
@@ -2915,6 +2989,54 @@
   // ─────────────────────────────────────────────────────────────
 
   // W9-75: mockup section → V2 moduleType enum ('storage'|'sink'|'cook'|'hood'|'drawer')
+  // 2026-10-20 플래너 점검: 빠른 배치 (일자·ㄱ자·ㄷ자) + 빈 캔버스 안내.
+  //   품목을 골라도 빈 캔버스만 떠서 무엇을 눌러야 할지 몰랐고, ㄱ자는 회전·끌기를 여러 번 해야 했다.
+  //   레이아웃은 js/planner/planner-presets.js 가 만들고, 놓기는 저장본 복원(restoreLayout)과 같은 길이다.
+  const PRESET_LABEL = { I: '일자', L: 'ㄱ자', U: 'ㄷ자' };
+  function presetQuery() {
+    const q = new URLSearchParams(location.search);
+    return { categoryId: q.get('preset'), itemW: q.get('w') };
+  }
+  function hasPlacedRects() {
+    const content = getContent();
+    return !!(content && content.querySelector(':scope > g.sect-rect'));
+  }
+  function applyPreset(kind) {
+    const q = presetQuery();
+    const layout = plannerPresetLayout(kind, { config: SECTION_CONFIG, categoryId: q.categoryId, itemW: q.itemW });
+    if (!layout) return false;
+    if (hasPlacedRects() && !window.confirm(`지금 배치를 지우고 ${PRESET_LABEL[kind]} 배치로 바꿀까요?`)) return false;
+    restoreLayout(layout);
+    saveLayoutNow();
+    renderPresetHint();
+    showFlash(`✓ ${PRESET_LABEL[kind]} 배치 — 사각형을 골라 치수를 고치세요`);
+    return true;
+  }
+  function renderPresetHint() {
+    const hint = document.getElementById('presetHint');
+    if (hint) hint.hidden = hasPlacedRects();
+  }
+  (function initPresets() {
+    const plan = plannerPresetPlanOf(presetQuery().categoryId);
+    const kinds = plan ? plan.kinds : [];
+    document.querySelectorAll('.preset-btn').forEach((b) => {
+      b.style.display = kinds.indexOf(b.dataset.preset) >= 0 ? '' : 'none';
+      b.onclick = () => applyPreset(b.dataset.preset);
+    });
+    const row = document.getElementById('presetHintRow');
+    if (row) {
+      row.innerHTML = kinds.map((k) => `<button type="button" data-preset="${k}">${PRESET_LABEL[k]}</button>`).join('');
+      row.querySelectorAll('button').forEach((b) => { b.onclick = () => applyPreset(b.dataset.preset); });
+    }
+    if (!kinds.length) return;
+    renderPresetHint();
+    // 사각형이 생기거나 사라지면 안내를 다시 정한다 (버튼·복원·삭제·되돌리기 어느 길이든)
+    const content = getContent();
+    if (content && typeof MutationObserver !== 'undefined') {
+      new MutationObserver(renderPresetHint).observe(content, { childList: true });
+    }
+  })();
+
   function sectionToModuleType(section) {
     if (section === 'sink') return 'sink';
     if (section === 'hood') return 'hood';

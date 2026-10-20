@@ -289,11 +289,11 @@ describe('거울 · 커튼박스 — 값이 상세설계까지', () => {
 });
 
 describe('차단(CD-3) — 풀었지만 사고는 막는다', () => {
-  test('결과를 못 받는 카테고리는 냉장고장만 남았다', () => {
-    expect(SRC).toContain("const PLANNER_RESULT_BLOCKED = ['fridge'];");
+  test('결과를 못 받는 카테고리가 없다 — 2026-10-20 냉장고장도 풀었다', () => {
+    expect(SRC).toContain('const PLANNER_RESULT_BLOCKED = [];');
     expect(SRC).toContain('function _plannerResultBlocked(item)');
-    // 2026-09-17: 화면도 플래너로 옮겼다 — 예외 목록에 냉장고장만 남았다
-    expect(SRC).toContain("const NATIVE_ONLY_CATEGORIES = ['fridge'];");
+    // 2026-09-17 붙박이장, 2026-10-20 냉장고장 — 화면 예외 목록도 비었다
+    expect(SRC).toContain('const NATIVE_ONLY_CATEGORIES = [];');
   });
 
   test('붙박이장 통이 없는 결과는 거부한다 — 옛 사고(자재표 0건)를 막는 새 안전장치', () => {
