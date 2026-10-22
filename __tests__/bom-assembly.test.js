@@ -177,10 +177,13 @@ describe('sink15 자리 (확정 사실)', () => {
     ]);
     expect(part(m, '밴드(처짐방지)').box.max[1]).toBe(bands[0].box.min[1]);   // 처짐방지목 윗끝 = 앞 밴드 아랫면
     expect(spec.unplaced.filter((u) => u.part === '밴드')).toEqual([]);
-    // 목찬넬이 없는 하부장(신발장) — 앞 밴드도 윗면 = 몸통 상단
+    // 목찬넬이 없는 하부장(화장대 — 찬넬, 18T) — 앞 밴드도 윗면 = 몸통 상단. 목찬넬 신발장 하부장은 싱크처럼 따내기 아래 (2026-10-22 싱크 규칙 통일)
+    const va = specOf('vanity').spec.items[0].modules.find((x) => x.moduleId === 'l2');
+    expect(va.parts.filter((p) => p.part === '밴드').map((p) => [p.box.min[1], p.box.max[1], p.box.min[2], p.box.max[2]]))
+      .toEqual([[690, 708, 180, 250], [690, 708, -250, -180]]);
     const sh = specOf('shoerack').spec.items[0].modules.find((x) => x.moduleId === 'l1');
     expect(sh.parts.filter((p) => p.part === '밴드').map((p) => [p.box.min[1], p.box.max[1], p.box.min[2], p.box.max[2]]))
-      .toEqual([[693, 708, 105, 175], [693, 708, -175, -105]]);
+      .toEqual([[623, 638, 105, 175], [693, 708, -175, -105]]);
   });
 
   test('미정은 unplaced 에 이유와 함께 — 서랍장 처짐방지목(D2)', () => {
