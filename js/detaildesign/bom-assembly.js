@@ -44,7 +44,7 @@
  *            상몰딩 상부 라인(후드 뺀 상부장) 위 띠 — 키큰장 상몰딩과 같은 자리 (2026-10-20 카드 "도어 앞면 맞춤")
  *            목찬넬 EP (전면 52 · 지면 40 × 라인 폭) — 하부 라인 측판 따내기 70×40 자리의 ㄴ자, 키큰장 단 ㄴ자와 같은 자리
  *            걸레받이 (벽 길이 × 다리발−5) — 벽마다 하부 라인 폭 한 장, 바닥 +5 ~ 몸통 바닥, 앞면 = 몸통 앞선 − 32 (2026-10-22 카드 "몸통 앞선에서 32 안쪽").
- *                   2440 넘어 나눈 벽은 조각 순서 미정 → 'kick-cut-order-pending'
+ *                   2440 넘는 벽은 2440 조각을 왼쪽부터, 남는 조각은 오른쪽 끝 (카드 "1")
  *            좌우 마감재 (휠라·몰딩·EP, 폭 × 품목H−다리발) — 하부 라인 양 끝 밖 세로, 밑단 = 하부 몸통 바닥, 앞면 = 도어 앞면 (2026-10-22 카드)
  *
  * 미정 (지금 BOM 동작을 그대로 두고 결과에 적는다):
@@ -1110,20 +1110,26 @@
           return;
         }
         case 'kick': {
-          // 하부장 걸레받이 — 벽마다 하부 라인(쿡탑장 포함, 키큰장 단 제외) 폭 한 장, 바닥에서 5 띄워 몸통 바닥까지 (행 h = 다리발 − 5,
-          //   바닥 = 몸통 바닥 − 다리발 → 밑단 y = −h, 3D KICK_FLOOR_GAP), 앞면 = 몸통 앞선 − 32 (2026-10-22 사장님 카드 "몸통 앞선에서 32 안쪽" — 좌대 걸레받이와 같은 자리).
-          //   같은 길이 벽은 한 행(qty)이다. 2440 을 넘어 나눈 벽은 조각 순서가 정해지지 않았다 → 'kick-cut-order-pending'.
+          // 하부장 걸레받이 — 벽마다 하부 라인(쿡탑장·키큰장 단 제외) 폭 한 장, 바닥에서 5 띄워 몸통 바닥까지 (행 h = 다리발 − 5,
+          //   바닥 = 몸통 바닥 − 다리발 → 밑단 y = −h, 3D KICK_FLOOR_GAP), 앞면 = 몸통 앞선 − 32 (2026-10-22 사장님 카드 "몸통 앞선에서 32 안쪽" —
+          //   좌대 걸레받이와 같은 자리). 2440 을 넘는 벽은 2440 단위 조각 (extractors.js bomKickPiecesOf) — 왼쪽부터 2440, 남는 조각은
+          //   오른쪽 끝 (2026-10-22 사장님 카드 "1"). BOM 행은 길이별 수량이라, 모든 벽의 조각 중 행 길이와 같은 것이 행 수량만큼이어야 한다.
           if (row.part !== '걸레받이' || row.thickness !== C.KICK_T) { skip(row, 'run-cut-blank'); return; }
-          const spans = lineList.map((ln) => spanOf(ln, lowerLine)).filter((sp) => sp && !sp.bad && sp.x1 - sp.x0 === row.w);
-          if (spans.length !== row.qty) {
-            skip(row, lineList.some((ln) => { const sp = spanOf(ln, lowerLine); return sp && !sp.bad && sp.x1 - sp.x0 > C.KICK_CUT_UNIT; }) ? 'kick-cut-order-pending' : 'run-layout-unknown');
-            return;
-          }
-          spans.forEach((span, k) => {
-            const b = span.host.spec.box;
+          const pieces = [];
+          lineList.forEach((ln) => {
+            const span = spanOf(ln, (mod) => lowerLine(mod) && mod.type !== 'cook');   // BOM 벽 길이는 쿡탑장을 뺀다 (extractSink lowerModules)
+            if (!span || span.bad) return;
+            let x = span.x0, rest = span.x1 - span.x0;
+            while (rest > C.KICK_CUT_UNIT) { pieces.push({ span, x, len: C.KICK_CUT_UNIT }); x += C.KICK_CUT_UNIT; rest -= C.KICK_CUT_UNIT; }
+            if (rest > 0) pieces.push({ span, x, len: rest });
+          });
+          const mine = pieces.filter((pc) => pc.len === row.w);
+          if (mine.length !== row.qty) { skip(row, 'run-layout-unknown'); return; }
+          mine.forEach((pc, k) => {
+            const b = pc.span.host.spec.box;
             runs.push({
-              key: row.partId, lineKey: span.line.key, hostModuleKey: span.host.mk,
-              parts: [makePart(row, k, { o: [xOf(span, span.x0), -row.h, b.D / 2 - C.KICK_SETBACK - row.thickness], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { run: 'kick' })],
+              key: row.partId, lineKey: pc.span.line.key, hostModuleKey: pc.span.host.mk,
+              parts: [makePart(row, k, { o: [xOf(pc.span, pc.x), -row.h, b.D / 2 - C.KICK_SETBACK - row.thickness], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { run: 'kick' })],
             });
           });
           return;
