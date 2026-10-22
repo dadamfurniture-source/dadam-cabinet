@@ -46,6 +46,8 @@
  *            걸레받이 (벽 길이 × 다리발−5) — 벽마다 하부 라인 폭 한 장, 바닥에 붙여 (틈 5 는 위, 캐쳐), 앞면 = 몸통 앞선 − 32 (2026-10-22 카드 "몸통 앞선에서 32 안쪽").
  *                   2440 넘는 벽은 2440 조각을 왼쪽부터, 남는 조각은 오른쪽 끝 (카드 "1")
  *            좌우 마감재 (휠라·몰딩·EP, 폭 × 품목H−다리발) — 하부 라인 양 끝 밖 세로, 밑단 = 하부 몸통 바닥, 앞면 = 도어 앞면 (2026-10-22 카드)
+ *   철물 (modules[].hardware[], 2026-10-22, hardwareOf) — 다리발 4 코너(플래너 3D 자리) · 레일(언더레일, 박스 밑 여유 30) 은 자리를 놓고,
+ *            경첩은 도어·변·컵 높이만 (백셋 D5 미정 → at null), 가운데 다리·볼레일·외짝 경첩 방향은 pending.
  *
  * 미정 (지금 BOM 동작을 그대로 두고 결과에 적는다):
  *   하부장·키큰장 단·붙박이장 서랍모듈·내부 서랍장 밴드 2장 — 2026-10-20 사장님 "뒤 눕힘": 천판 대신 상단 앞·뒤에
@@ -559,6 +561,8 @@
         blind: bl ? { zoneW: bl.zoneW, doorW: bl.doorW, doorRight: bl.doorRight } : null,
         place: (opts.place && opts.place[mk]) || null,
         parts,
+        // 서랍 박스 자리 (레일 철물이 쓴다) — x0 = 박스 왼쪽 끝, y0 = 측판 밑단, zf·z0 = 앞·뒤끝
+        drawerBoxes: boxes ? boxes.map((b) => ({ x0: b.x0, y0: b.y0, zf: b.zf, z0: b.z0, outerW: b.dims.outerW, railLength: b.dims.railLength, rail: layout.rail })) : [],
         pending,
       },
       unplaced,
@@ -1166,6 +1170,79 @@
   }
 
   /**
+   * 철물 자리 — 철물 행(HardwareExtractor)을 모듈마다 hardware[] 로 놓는다. 자리를 정할 근거가 없는 것은 at: null 에 pending 이유.
+   *   다리발  하부 모듈마다 폭으로 4·6·8 (extractLegs 와 같은 셈). 4 코너 = 플래너 3D addLegs 자리 (외곽에서 25 안쪽, 42 각, 앞줄은 걸레받이 뒤),
+   *           밑면 = 바닥 (y −다리발). 5·6번째부터(가운데)는 자리 미정 → 'leg-mid-position'.
+   *   경첩    도어마다 (행 boring[] = 도어 상단에서 컵 중심까지, hardware.md §1 끝 110). 경첩 변 — 양문은 왼 도어 왼쪽·오른 도어 오른쪽,
+   *           멍장 도어는 목대 쪽, 플랩은 윗변. 외짝 여닫이의 경첩 방향은 설계에 없다 → 'hinge-side-unknown'.
+   *           컵 중심의 변에서 거리(백셋)·깊이는 결정 D5 미정 → at: null, 'hinge-backset-pending'.
+   *   레일    서랍 박스마다 2개 (왼·오). 언더레일은 박스 측판 밑 여유 30 (bom-drawer-rules RAIL_CLEARANCE.under.below) 에, 앞끝 = 박스 앞끝,
+   *           길이 = 규격. 볼레일은 측판 옆 두께 14 — 높이 자리가 정해지지 않았다 → 'rail-ball-position'. 박스 자리를 안 넘기는 몸통(붙박이장) → 'rail-box-unknown'.
+   *   수량이 모듈·도어·박스 수와 맞지 않는 행은 전부 'hardware-count-mismatch'.
+   */
+  function hardwareOf(itemIdx, item, hwRows, modules, label) {
+    const byKey = new Map(modules.map((m) => [m.moduleKey, m]));
+    modules.forEach((m) => { m.hardware = m.hardware || []; });
+    const specs = (item && item.specs) || {};
+    const legH = parseFloat(specs.sinkLegHeight) || 150;
+    const rawOf = (moduleKey) => { const mm = String(moduleKey).match(/^\d+-(.*)$/); return mm ? (item.modules || []).find((x) => String(x.id) === mm[1]) : null; };
+    const isTallTier = (mod) => !!mod && (mod.type === 'tall' || mod.blindKind === 'tall');
+    hwRows.forEach((row, hwIdx) => {
+      const base = { hwIdx, category: row.category, item: row.item, spec: row.spec };
+      const push = (m, e) => m.hardware.push(Object.assign({}, base, e));
+      if (row.category === '다리발') {
+        // 품목 단위 행 — 라벨로 품목을 찾는다 (extractLegs: pos lower, 단순 카테고리는 키큰장 단 제외)
+        if (row.moduleKey || (row.itemLabel && label && row.itemLabel !== label)) return;
+        const simple = !['sink', 'island', 'custom', 'wardrobe', 'fridge'].includes(String(item.categoryId || item.category));
+        const lowers = (item.modules || []).filter((mod) => mod.pos === 'lower' && !(simple && isTallTier(mod)));
+        const countOf = (mod) => { const w = parseFloat(mod.w) || 600; return w <= 600 ? 4 : w <= 900 ? 6 : 8; };
+        const total = lowers.reduce((a, mod) => a + countOf(mod), 0);
+        lowers.forEach((mod) => {
+          const m = byKey.get(`${itemIdx}-${mod.id}`);
+          if (!m) return;
+          const n = countOf(mod);
+          if (total !== row.qty) { push(m, { kind: 'leg', qty: n, at: null, pending: 'hardware-count-mismatch' }); return; }
+          if (isTallTier(mod) || m.kind !== 'lower') { push(m, { kind: 'leg', qty: n, at: null, pending: 'leg-tall-tier' }); return; }
+          const b = m.box, half = C.LEG_SIZE / 2;
+          const xs = [-b.W / 2 + C.LEG_INSET + half, b.W / 2 - C.LEG_INSET - half];
+          const zFront = b.D / 2 - C.KICK_SETBACK - C.KICK_T - half, zBack = -b.D / 2 + C.LEG_INSET + half;
+          [[xs[0], zFront, 'leftFront'], [xs[0], zBack, 'leftBack'], [xs[1], zFront, 'rightFront'], [xs[1], zBack, 'rightBack']]
+            .forEach(([x, z, side]) => push(m, { kind: 'leg', at: [x, -legH, z], size: [C.LEG_SIZE, legH, C.LEG_SIZE], tags: { side } }));
+          if (n > 4) push(m, { kind: 'leg', qty: n - 4, at: null, pending: 'leg-mid-position' });
+        });
+        return;
+      }
+      const m = row.moduleKey ? byKey.get(String(row.moduleKey)) : null;
+      if (!m) return;
+      if (row.category === '경첩') {
+        const doors = m.parts.filter((p) => p.tags && p.tags.doorIdx !== undefined && /도어$/.test(p.part));
+        const cups = Array.isArray(row.boring) ? row.boring.slice() : [];
+        if (!doors.length || !cups.length || doors.length * cups.length !== row.qty) { push(m, { kind: 'hinge', qty: row.qty, at: null, pending: 'hardware-count-mismatch' }); return; }
+        doors.forEach((d, k) => {
+          let edge = null;
+          if (row.boringSide === 'top') edge = 'top';
+          else if (doors.length === 2) edge = k === 0 ? 'left' : 'right';
+          else if (d.tags.blind && m.blind) edge = m.blind.doorRight ? 'left' : 'right';
+          push(m, { kind: 'hinge', partId: d.id, doorIdx: d.tags.doorIdx, edge, cups, cupD: C.HINGE_CUP_D, at: null, pending: edge ? 'hinge-backset-pending' : 'hinge-side-unknown' });
+        });
+        return;
+      }
+      if (row.category === '레일') {
+        const boxes = m.drawerBoxes || [];
+        const len = parseFloat(row.spec);
+        if (!boxes.length) { push(m, { kind: 'rail', qty: row.qty, at: null, pending: 'rail-box-unknown' }); return; }   // 붙박이장 서랍 등 — 박스 자리를 안 넘긴다
+        if (boxes.length !== row.qty || !boxes.every((b) => b.railLength === len)) { push(m, { kind: 'rail', qty: row.qty, at: null, pending: 'hardware-count-mismatch' }); return; }
+        boxes.forEach((b, bi) => {
+          if (b.rail !== 'under') { push(m, { kind: 'rail', qty: 2, at: null, pending: 'rail-ball-position', tags: { box: bi } }); return; }
+          const y = b.y0 - DR.RAIL_CLEARANCE.under.below;
+          push(m, { kind: 'rail', at: [-b.outerW / 2, y, b.zf - len], len, tags: { box: bi, side: 'left' } });
+          push(m, { kind: 'rail', at: [b.outerW / 2, y, b.zf - len], len, tags: { box: bi, side: 'right' } });
+        });
+      }
+    });
+  }
+
+  /**
    * 조립 명세를 만든다.
    * @param {{items:Array}} design   MaterialExtractor 에 넣는 것과 같은 설계
    * @param {object} [opts]
@@ -1173,6 +1250,7 @@
    *   shelfY      { [moduleKey]: number[] } 선반 중심 높이 (몸통 바닥에서, mm)
    *   place       { [moduleKey]: {...} } 모듈을 세우는 자리 — 그대로 싣는다
    *   lines       { [itemIdx]: [{ key, D, modules: [{ moduleKey, x0 }] }] } 벽(배치 공간)마다 모듈 왼쪽 끝 x0 — 라인 부재(runsOf) 자리
+   *   hardware    이미 뽑은 철물 행 (없으면 HardwareExtractor 로 뽑는다; 추출기가 없으면 hardware[] 는 빈다)
    */
   function of(design, opts) {
     const o = opts || {};
@@ -1181,6 +1259,12 @@
       const ME = root.MaterialExtractor
         || (typeof require === 'function' ? require('./extractors.js').MaterialExtractor : null);
       materials = new ME().extract(design).materials;
+    }
+    let hardware = o.hardware;
+    if (!hardware) {
+      const HE = o.HardwareExtractor || root.HardwareExtractor
+        || (typeof require === 'function' ? require('./extractors.js').HardwareExtractor : null);
+      hardware = HE ? new HE().extract(design).hardware : [];
     }
     const items = (design && design.items) || [];
     const byModule = new Map();
@@ -1221,6 +1305,10 @@
       const r = runsOf(itemIdx, rows, o.lines && o.lines[itemIdx], outItems[itemIdx].modules, items[itemIdx]);
       outItems[itemIdx].runs = r.runs;
       r.unplaced.forEach((u) => unplaced.push(u));
+    });
+    outItems.forEach((it) => {
+      const mine = (hardware || []).filter((h) => (h.moduleKey ? String(h.moduleKey).indexOf(it.itemIdx + '-') === 0 : h.itemLabel === it.label));
+      hardwareOf(it.itemIdx, items[it.itemIdx], mine, it.modules, it.label);
     });
 
     return {

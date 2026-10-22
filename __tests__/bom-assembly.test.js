@@ -854,3 +854,64 @@ describe('멍장 자리 — corner.md §3.5 (멍가림판 · 마감재 · 도어
     expect(require('../js/detaildesign/assembly-check.js').check(r).issues.filter((i) => i.level === 'error')).toEqual([]);
   });
 });
+
+describe('철물 hardware[] — 다리발 · 레일 자리, 경첩은 변·컵 높이 (백셋 D5 미정)', () => {
+  const specOf = (name) => { const design = { items: [FIXTURES[name]] }; return Asm.of(design, { materials: new MaterialExtractor().extract(design).materials }); };
+  const hwOf = (s, mk, kind) => s.items[0].modules.find((m) => m.moduleKey === mk).hardware.filter((h) => h.kind === kind);
+
+  test('신발장 하부 900 (6개): 4 코너 다리발 — 외곽에서 25 안쪽 42 각, 앞줄은 걸레받이(앞선 −50) 뒤, 밑면 = 바닥 −150. 가운데 2개는 자리 미정', () => {
+    const s = specOf('shoerack');
+    const legs = hwOf(s, '0-l1', 'leg');
+    expect(legs.filter((h) => h.at).map((h) => [h.tags.side, h.at])).toEqual([
+      ['leftFront', [-404, -150, 104]], ['leftBack', [-404, -150, -129]], ['rightFront', [404, -150, 104]], ['rightBack', [404, -150, -129]]]);
+    expect(legs.filter((h) => !h.at)).toEqual([expect.objectContaining({ kind: 'leg', qty: 2, pending: 'leg-mid-position', spec: '150mm' })]);
+    // 500 · 400 은 4개씩 — 전부 자리
+    expect(hwOf(s, '0-l2', 'leg').map((h) => !!h.at)).toEqual([true, true, true, true]);
+    expect(hwOf(s, '0-l3', 'leg')).toHaveLength(4);
+    // 상부장엔 다리발 없음
+    expect(hwOf(s, '0-u1', 'leg')).toEqual([]);
+  });
+
+  test('신발장 서랍장 500 (2단, 언더레일 300): 박스마다 왼·오 — 박스 측판 밑 30 여유에, 앞끝 = 박스 앞끝, 길이 300', () => {
+    const s = specOf('shoerack');
+    const m = s.items[0].modules.find((x) => x.moduleKey === '0-l2');
+    expect(m.drawerBoxes).toHaveLength(2);
+    const rails = hwOf(s, '0-l2', 'rail');
+    expect(rails.map((h) => [h.tags.box, h.tags.side, h.at, h.len])).toEqual([
+      [0, 'left', [-m.drawerBoxes[0].outerW / 2, m.drawerBoxes[0].y0 - 30, m.drawerBoxes[0].zf - 300], 300],
+      [0, 'right', [m.drawerBoxes[0].outerW / 2, m.drawerBoxes[0].y0 - 30, m.drawerBoxes[0].zf - 300], 300],
+      [1, 'left', [-m.drawerBoxes[1].outerW / 2, m.drawerBoxes[1].y0 - 30, m.drawerBoxes[1].zf - 300], 300],
+      [1, 'right', [m.drawerBoxes[1].outerW / 2, m.drawerBoxes[1].y0 - 30, m.drawerBoxes[1].zf - 300], 300]]);
+    expect(rails[0].at).toEqual([-229, 374, -125]);
+  });
+
+  test('경첩: 양문은 왼 도어 왼쪽·오른 도어 오른쪽 변, 컵 높이 = 행 boring (도어 상단에서), 백셋 미정 → at null. 외짝은 방향 미정', () => {
+    const s = specOf('shoerack');
+    const h = hwOf(s, '0-l1', 'hinge');
+    expect(h.map((x) => [x.doorIdx, x.edge, x.cups, x.cupD, x.at, x.pending])).toEqual([
+      [0, 'left', [110, 568], 35, null, 'hinge-backset-pending'], [1, 'right', [110, 568], 35, null, 'hinge-backset-pending']]);
+    expect(h[0].partId).toBe(s.items[0].modules.find((m) => m.moduleKey === '0-l1').parts.find((p) => p.tags.doorIdx === 0).id);
+    expect(hwOf(s, '0-u2', 'hinge')).toEqual([expect.objectContaining({ edge: null, pending: 'hinge-side-unknown', cups: [110, 610] })]);
+  });
+
+  test('멍장 도어 경첩은 목대 쪽 변 (도어가 멍 오른쪽이면 왼쪽 변)', () => {
+    const s = specOf('sinkCorner');
+    const m = s.items[0].modules.find((x) => x.moduleKey === '0-corner-blind-lower');
+    expect(m.blind.doorRight).toBe(true);
+    expect(hwOf(s, '0-corner-blind-lower', 'hinge').map((h) => [h.edge, h.pending])).toEqual([['left', 'hinge-backset-pending']]);
+  });
+
+  test('붙박이장 외부 서랍 레일은 박스 자리를 안 넘겨 rail-box-unknown, 철물 행이 없으면 hardware[] 는 빈다', () => {
+    const s = specOf('wardrobe');
+    expect(hwOf(s, '0-w2', 'rail')).toEqual([expect.objectContaining({ pending: 'rail-box-unknown', qty: 2 })]);
+    const design = { items: [FIXTURES.shoerack] };
+    const bare = Asm.of(design, { materials: new MaterialExtractor().extract(design).materials, hardware: [] });
+    expect(bare.items[0].modules.every((m) => m.hardware.length === 0)).toBe(true);
+  });
+
+  test('다리발 상수는 플래너 MASTER_RULES 와 같다 (drift 금지)', () => {
+    const MR = require('../js/planner/planner-engine.js').MASTER_RULES;
+    expect([Asm.CARCASS ? Asm.CARCASS.LEG_SIZE : require('../js/detaildesign/assembly-rules.js').CARCASS.LEG_SIZE,
+      require('../js/detaildesign/assembly-rules.js').CARCASS.LEG_INSET]).toEqual([MR.LEG_SIZE, MR.LEG_INSET]);
+  });
+});
