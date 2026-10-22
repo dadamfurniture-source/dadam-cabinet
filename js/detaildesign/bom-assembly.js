@@ -43,7 +43,9 @@
  *            상판   하부 라인(키큰장 단 뺀 하부장 + 좌우 마감 폭) 위 한 장, 뒤 = 벽, 깊이 = 행 h (2026-10-18 사장님: 배치 깊이, 오버행 없음)
  *            상몰딩 상부 라인(후드 뺀 상부장) 위 띠 — 키큰장 상몰딩과 같은 자리 (2026-10-20 카드 "도어 앞면 맞춤")
  *            목찬넬 EP (전면 52 · 지면 40 × 라인 폭) — 하부 라인 측판 따내기 70×40 자리의 ㄴ자, 키큰장 단 ㄴ자와 같은 자리
- *            걸레받이 · 좌우 마감재(휠라·몰딩·EP) 는 앞뒤 자리 미정 (2026-10-22 카드) → 'kick-position-pending' · 'finish-position-pending'
+ *            걸레받이 (벽 길이 × 다리발−5) — 벽마다 하부 라인 폭 한 장, 바닥 +5 ~ 몸통 바닥, 앞면 = 몸통 앞선 − 32 (2026-10-22 카드 "몸통 앞선에서 32 안쪽").
+ *                   2440 넘는 벽은 2440 조각을 왼쪽부터, 남는 조각은 오른쪽 끝 (카드 "1")
+ *            좌우 마감재 (휠라·몰딩·EP, 폭 × 품목H−다리발) — 하부 라인 양 끝 밖 세로, 밑단 = 하부 몸통 바닥, 앞면 = 도어 앞면 (2026-10-22 카드)
  *
  * 미정 (지금 BOM 동작을 그대로 두고 결과에 적는다):
  *   하부장·키큰장 단·붙박이장 서랍모듈·내부 서랍장 밴드 2장 — 2026-10-20 사장님 "뒤 눕힘": 천판 대신 상단 앞·뒤에
@@ -1107,11 +1109,57 @@
             : { o: [xL, yb, z0], u: '+z', v: '+x', n: '+y' }, 'exterior', { run: 'channel', channel: 'top' });
           return;
         }
-        case 'kick':
-          skip(row, row.qty === 1 && row.part === '걸레받이' ? 'kick-position-pending' : 'run-cut-blank');
+        case 'kick': {
+          // 하부장 걸레받이 — 벽마다 하부 라인(쿡탑장·키큰장 단 제외) 폭 한 장, 바닥에서 5 띄워 몸통 바닥까지 (행 h = 다리발 − 5,
+          //   바닥 = 몸통 바닥 − 다리발 → 밑단 y = −h, 3D KICK_FLOOR_GAP), 앞면 = 몸통 앞선 − 32 (2026-10-22 사장님 카드 "몸통 앞선에서 32 안쪽" —
+          //   좌대 걸레받이와 같은 자리). 2440 을 넘는 벽은 2440 단위 조각 (extractors.js bomKickPiecesOf) — 왼쪽부터 2440, 남는 조각은
+          //   오른쪽 끝 (2026-10-22 사장님 카드 "1"). BOM 행은 길이별 수량이라, 모든 벽의 조각 중 행 길이와 같은 것이 행 수량만큼이어야 한다.
+          if (row.part !== '걸레받이' || row.thickness !== C.KICK_T) { skip(row, 'run-cut-blank'); return; }
+          const pieces = [];
+          lineList.forEach((ln) => {
+            const span = spanOf(ln, (mod) => lowerLine(mod) && mod.type !== 'cook');   // BOM 벽 길이는 쿡탑장을 뺀다 (extractSink lowerModules)
+            if (!span || span.bad) return;
+            let x = span.x0, rest = span.x1 - span.x0;
+            while (rest > C.KICK_CUT_UNIT) { pieces.push({ span, x, len: C.KICK_CUT_UNIT }); x += C.KICK_CUT_UNIT; rest -= C.KICK_CUT_UNIT; }
+            if (rest > 0) pieces.push({ span, x, len: rest });
+          });
+          const mine = pieces.filter((pc) => pc.len === row.w);
+          if (mine.length !== row.qty) { skip(row, 'run-layout-unknown'); return; }
+          mine.forEach((pc, k) => {
+            const b = pc.span.host.spec.box;
+            runs.push({
+              key: row.partId, lineKey: pc.span.line.key, hostModuleKey: pc.span.host.mk,
+              parts: [makePart(row, k, { o: [xOf(pc.span, pc.x), -row.h, b.D / 2 - C.KICK_SETBACK - row.thickness], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { run: 'kick' })],
+            });
+          });
           return;
+        }
+        case 'filler:left':
+        case 'filler:right':
+        case 'molding:left':
+        case 'molding:right':
+        case 'ep:left':
+        case 'ep:right': {
+          // 라인 좌·우 마감재 (휠라·몰딩·EP, MDF 18T · 폭 × (품목 H − 다리발)) — 하부 라인 양 끝 밖에 세로로 선다. 밑단 = 하부 몸통 바닥,
+          //   앞면 = 도어 앞면 (2026-10-22 사장님 카드 "앞면 = 도어 앞면"). 상부 라인이 하부보다 밖으로 나가면 자리를 모른다.
+          const left = /:left$/.test(key.family);
+          const span = onlySpan(lowerLine);
+          if (!span || row.qty !== 1) { skip(row, 'run-layout-unknown'); return; }
+          const beyond = span.line.entries.some((e) => (left ? e.x0 < span.x0 - 1 : e.x0 + e.W > span.x1 + 1));
+          // 도어 앞면 z = 하부 라인 도어(여닫이·서랍도어) 상자 앞 (호스트와 같은 깊이의 모듈만 — 깊이가 다르면 앞면이 다르다)
+          const b = span.host.spec.box;
+          const zDoor = (() => {
+            const lowers = span.line.entries.filter((e) => lowerLine(e.mod) && e.spec && e.spec.box.D === b.D);
+            const door = lowers.map((e) => e.spec.parts.find((p) => /도어$/.test(p.part))).find(Boolean);
+            return door ? door.box.max[2] : null;
+          })();
+          if (beyond || zDoor == null) { skip(row, 'run-layout-unknown'); return; }
+          put(row, span, { o: [xOf(span, left ? span.x0 - row.w : span.x1), 0, zDoor - row.thickness], u: '+x', v: '+y', n: '+z' }, 'exterior', { run: 'finish', side: left ? 'left' : 'right' });
+          return;
+        }
         default:
-          skip(row, /^(filler|molding|ep):/.test(key.family) ? 'finish-position-pending' : 'run-part');
+          // 코너 마감재(휠라·몰딩 코너1·2)는 꺾임 자리가 정해지지 않았다
+          skip(row, /:corner\d$/.test(key.family) ? 'finish-position-pending' : 'run-part');
       }
     });
     return { runs, unplaced };
