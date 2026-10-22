@@ -257,6 +257,26 @@
   }
 
   /**
+   * 멍장 정면 자리 (corner.md §3.3·§3.5·§3.5.1). 벽(코너) 쪽 0 → 도어 쪽으로 u 를 잰다:
+   *   [멍가림판 0 … 멍W−15][도어 자리 멍W−15 … 멍W+doorW] — 목대 15 는 도어 자리 안쪽 구조재라 도어가 덮는다.
+   *   멍장이 라인의 어느 끝인지는 specs.secondaryStartSide (corner-engine seedCornerModules: 'left' 면 멍장이 맨 앞 =
+   *   벽이 왼쪽, 도어가 오른쪽). 멍 W + doorW 가 몸통 W 와 다르면 null (놓지 않는다).
+   * @returns {{zoneW:number, doorW:number, doorRight:boolean, coverEnd:number, xOf:function}|null} xOf(u0,u1) = 그 구간의 왼쪽 x
+   */
+  function blindGeomOf(mod, W, item) {
+    const zoneW = Number(mod.blindZoneW) || 0, doorW = Number(mod.doorW) || 0;
+    if (!(zoneW > 0) || !(doorW > 0) || zoneW + doorW !== W) return null;
+    const startSide = (item && item.specs && item.specs.secondaryStartSide) || 'left';
+    const doorRight = startSide !== 'right';
+    const xw = doorRight ? -W / 2 : W / 2, s = doorRight ? 1 : -1;
+    return {
+      zoneW, doorW, doorRight,
+      coverEnd: zoneW - C.BLIND_BATTEN_T,
+      xOf: (u0, u1) => Math.min(xw + s * u0, xw + s * u1),
+    };
+  }
+
+  /**
    * 좌대 상자 — 몸통 아래 (y −h … 0). 2026-10-20 사장님 카드 "뒤 맞춤" (붙박이장·키큰장 좌대 상자):
    *   상자 뒷면 = 몸통 뒷면, 앞이 50 들어간다 (그 자리에 걸레받이 18T, 32 남음). 측판은 전후판 사이, 중간보강은 폭 가운데.
    *   tags.side 를 쓰지 않는다 — 검사가 몸통 측판(side)으로 읽는다.
@@ -285,7 +305,7 @@
    * 한 모듈의 몸통. 지원하지 못하면 null (행은 모두 unplaced 로).
    * @returns {{module:object, unplaced:Array}|null}
    */
-  function shellOf(mk, mod, rows, opts) {
+  function shellOf(mk, mod, rows, opts, item) {
     const keyed = rows.map((r) => ({ row: r, key: keyOfRow(r) }));
     const one = (fam) => keyed.filter((x) => x.key && x.key.family === fam);
     const sides = one('body:side'), bottoms = one('body:bottom');
@@ -298,6 +318,8 @@
     const sakuri = /sakuri/.test(String(side.note || ''));
     const chanTop = /목찬넬 따내기 상단/.test(String(side.note || ''));   // 측판 앞 위 70×40 따내기 (목찬넬 손잡이)
     const zBack = -D / 2, zFront = D / 2;
+    const blind = String(mod.id).indexOf('corner-blind-') === 0;   // 멍장 — 정면은 멍가림판·마감재·도어, 안쪽에 ㄱ자 목대
+    const bl = blind ? blindGeomOf(mod, W, item) : null;
     const panelZ0 = sakuri ? zBack + C.SAKURI_PANEL_D_MINUS : zBack;   // 천지판 뒤끝 (앞선 맞춤)
     const shelfZ0 = sakuri ? zBack + C.SAKURI_PANEL_D_MINUS : zBack;   // 선반은 뒤로 붙인다
     const parts = [], unplaced = [], pending = [];
@@ -373,6 +395,14 @@
         case 'door': {
           // 여닫이 도어 — 플래너 addFrontPanel 과 같은 자리 (mockup-structure.html, 3D 장면과 대조 시험).
           //   앞뒤: 측판 앞선에 붙어 밖으로 (z = D/2 … D/2 + 두께). 서랍장 도어는 서랍 레이아웃 몫 (PR9 다음).
+          if (blind) {
+            // 멍장 도어 — 목대를 덮는다 (corner.md §3.5.2): 자리 = doorW + 15, 재단 = 자리 − 4, 갭 좌우 2. 높이는 보통 도어와 같다.
+            const yb = doorYOf(mod.pos, H, row.h);
+            if (!bl || row.qty !== 1 || row.w !== bl.doorW + C.BLIND_BATTEN_T - C.DOOR_GAP || yb == null) { skip(row, 'blind-layout-unknown'); return; }
+            const u0 = bl.coverEnd + C.DOOR_GAP / 2;
+            parts.push(makePart(row, 0, { o: [bl.xOf(u0, u0 + row.w), yb, zFront], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { doorIdx: 0, blind: 'door' }));
+            return;
+          }
           const xs = doorXsOf(W, row);
           let y0 = doorYOf(mod.pos, H, row.h);
           if (mod.isDrawer) {
@@ -430,6 +460,24 @@
         case 'pedestal:brace':
         case 'kick':
           return;   // 아래에서 좌대 상자를 한꺼번에
+        case 'blind': {
+          // 멍가림판 MDF 2.7T — 멍 W − 목대 15 × 몸통 H, 벽 쪽 끝부터 앞선에 붙어 밖으로 (z D/2 … D/2 + 2.7)
+          if (!bl || row.qty !== 1 || row.w !== bl.coverEnd || row.h !== H) { skip(row, 'blind-layout-unknown'); return; }
+          parts.push(makePart(row, 0, { o: [bl.xOf(0, bl.coverEnd), 0, zFront], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { blind: 'cover' }));
+          return;
+        }
+        case 'blindfin': {
+          // 멍판 마감재 (휠라·몰딩) 150 × H × 18 — 멍가림판 위에 겹쳐 붙는다, 도어 쪽 끝 맞춤 (자리 60 + 겹침 90, §3.3.1·§3.5.1)
+          if (!bl || row.qty !== 1 || row.w !== C.BLIND_FINISH_W || row.h !== H) { skip(row, 'blind-layout-unknown'); return; }
+          parts.push(makePart(row, 0, { o: [bl.xOf(bl.coverEnd - row.w, bl.coverEnd), 0, zFront + C.BLIND_COVER_T], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { blind: 'finish' }));
+          return;
+        }
+        case 'body:batten-front':
+        case 'body:batten-side':
+          // ㄱ자 경첩목대 (corner.md §3.5.0) — BOM 재단 높이가 몸통 H 라 지판 위·천판(밴드) 아래 사이(H − 2T)에 들어가지 않는다.
+          //   높이(H 그대로 겹침 / H − 2T) 가 정해질 때까지 놓지 않는다 (사장님 카드 대기).
+          skip(row, 'batten-height-pending');
+          return;
         case 'molding': {
           // 키큰장 상부단 상몰딩 띠 (MDF 18T, 몰딩H × W) — 2026-10-20 카드 "도어 앞면 맞춤":
           //   몸통 위에 올라서고(y H…H+몰딩H), 띠 앞면 = 도어 앞면(z D/2+18), 띠 뒷면 = 몸통 앞선(z D/2).
@@ -482,6 +530,7 @@
         kind,
         box: { W, H, D, T },
         sakuri,
+        blind: bl ? { zoneW: bl.zoneW, doorW: bl.doorW, doorRight: bl.doorRight } : null,
         place: (opts.place && opts.place[mk]) || null,
         parts,
         pending,
@@ -967,9 +1016,9 @@
       const openBox = mod && ((OpenRules && OpenRules.isOpenCabinet(mod)) || (RiceRules && RiceRules.isRiceCabinet(mod)));
       const res = openBox ? openBoxOf(mk, mod, rows, o)
         : wardrobe ? wardrobeOf(mk, mod, rows, o, item)
-        : (mod && SHELL_POS.indexOf(mod.pos) >= 0 && !blind) ? shellOf(mk, mod, rows, o) : null;
+        : (mod && SHELL_POS.indexOf(mod.pos) >= 0) ? shellOf(mk, mod, rows, o, item) : null;
       if (!res) {
-        const reason = !mod ? (m && m[2] === 'ep' ? 'run-part' : 'no-module') : blind ? 'blind-pending' : 'module-not-yet';
+        const reason = !mod ? (m && m[2] === 'ep' ? 'run-part' : 'no-module') : blind ? 'blind-layout-unknown' : 'module-not-yet';
         rows.forEach((r) => unplaced.push({ rowPartId: r.partId, moduleKey: mk, part: r.part, qty: r.qty, reason }));
         return;
       }
