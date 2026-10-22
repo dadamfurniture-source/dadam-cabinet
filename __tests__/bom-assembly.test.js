@@ -588,6 +588,54 @@ describe('오픈장·밥솥장 자리 — 18T 상자', () => {
   });
 });
 
+describe('옛 냉장고장 화면 모듈 (type, pos 없음) — 2026-10-22 사장님: 상부장 15T 사쿠리 + 보강목, 도어 H+20 아래로 20', () => {
+  const { spec: s } = specOf('fridge');
+  const modOf = (id) => s.items[0].modules.find((m) => m.moduleId === id);
+  const box = (m, part, k) => m.parts.filter((p) => p.part === part)[k || 0].box;
+
+  test('냉장고상부장(r4 700×400×700): 사쿠리 몸통 + 보강목 2장 홈 뒤 위·아래 + 도어 윗변 = 몸통 상단, 밑단 −20', () => {
+    const m = modOf('r4');
+    expect(m.sakuri).toBe(true);
+    expect(box(m, '밴드(보강목)', 0)).toEqual({ min: [-335, 15, -350], max: [335, 75, -335] });
+    expect(box(m, '밴드(보강목)', 1)).toEqual({ min: [-335, 325, -350], max: [335, 385, -335] });
+    expect(box(m, '뒷판')).toEqual({ min: [-340, 0.5, -335], max: [340, 399.5, -332] });
+    expect(box(m, '도어')).toEqual({ min: [-348, -20, 350], max: [348, 400, 368] });
+  });
+
+  test('키큰장(r2)·EL장(r6)은 사쿠리 몸통에 천판, 보강목 없음 — 키큰장 도어도 아래로 20, 선반은 높이 모름', () => {
+    const tall = modOf('r2'), el = modOf('r6');
+    expect(tall.parts.filter((p) => p.part !== '선반').map((p) => p.part)).toEqual(['측판', '측판', '천판', '지판', '뒷판', '도어']);
+    expect(box(tall, '도어')).toEqual({ min: [-298, -20, 350], max: [298, 2290, 368] });
+    expect(el.parts.map((p) => p.part)).toEqual(['측판', '측판', '천판', '지판', '뒷판']);
+    expect(tall.parts.filter((p) => p.part === '선반')).toHaveLength(3);   // specOf 가 선반 높이를 넘긴다
+  });
+
+  test('냉장고하부장(r5 500×797): 뒤 덮음 뒷판 + 천판, 도어 H−30 밑단 = 몸통 바닥', () => {
+    const m = modOf('r5');
+    expect(m.sakuri).toBe(false);
+    expect(box(m, '천판')).toEqual({ min: [-235, 782, -350], max: [235, 797, 350] });
+    expect(m.parts.find((p) => p.part === '뒷판').tags).toEqual({ mount: 'behind-sides' });
+    expect(box(m, '도어')).toEqual({ min: [-248, 0, 350], max: [248, 767, 368] });
+  });
+
+  test('홈카페장(r3 900×2290×700): 18T 상자 — 측판 D+20, 천지판 앞선 맞춤, 18T 뒷판 측판 사이 뒤끝, 도어 2장 아래로 20', () => {
+    const m = modOf('r3');
+    expect(m.kind).toBe('homecafe');
+    expect(m.box).toEqual({ W: 900, H: 2290, D: 720, T: 18 });
+    expect(box(m, '지판')).toEqual({ min: [-432, 0, -340], max: [432, 18, 360] });
+    expect(box(m, '뒷판')).toEqual({ min: [-432, 0, -360], max: [432, 2290, -342] });
+    expect(box(m, '도어', 0)).toEqual({ min: [-448, -20, 360], max: [-2, 2290, 378] });
+    expect(box(m, '도어', 1)).toEqual({ min: [2, -20, 360], max: [448, 2290, 378] });
+  });
+
+  test('냉장고 자체(r1)는 모듈이 없고, 선반 말고 못 놓은 행 없음 · 조립 검사 오류 없음', () => {
+    expect(modOf('r1')).toBeUndefined();
+    expect(s.unplaced.filter((u) => u.part !== '선반')).toEqual([]);   // 홈카페장 선반은 높이 모름(shelf-height-unknown)
+    const issues = require('../js/detaildesign/assembly-check.js').check(s).issues;
+    expect(issues.filter((i) => i.level === 'error')).toEqual([]);
+  });
+});
+
 describe('키큰장 단 자리 — 좌대 뒤 맞춤 · 걸레받이 · 목찬넬 ㄴ자 (2026-10-20 카드)', () => {
   const st = specOf('storage').spec;
   const wh = specOf('warehouse').spec;
