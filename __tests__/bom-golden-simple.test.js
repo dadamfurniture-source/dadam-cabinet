@@ -132,11 +132,13 @@ describe('신발장 (shoerack) — 얕은 깊이 350 · 선반 분배 · 서랍 
     expect(rowOf(snap, '하부장-서랍장', '서랍밑판')).toMatchObject({ thickness: 3, h: 289 });
     expect(rowOf(snap, '하부장-서랍장', '서랍전후판').w).toBe(500 - 30 - 12 - 30);
     expect(partsOf(snap, '하부장-서랍장')).not.toContain('서랍 하단보강');
-    expect(rowOf(snap, '하부장-서랍장', '서랍측판').note).toMatch(/댐핑 언더레일 300 \(D350 − 50 이하\)/);
-    // 서랍 2 → 서랍도어 2장 (440−20)/2 = 210, 여닫이 도어 708−440−30 = 238 → 1장
-    expect(rowOf(snap, '하부장-서랍장', '서랍도어')).toMatchObject({ qty: 2, h: 210, w: 496 });
-    expect(rowOf(snap, '하부장-서랍장', '도어')).toMatchObject({ qty: 1, h: 238 });
-    expect(partsOf(snap, '하부장-서랍장')).toContain('목찬넬');
+    expect(rowOf(snap, '하부장-서랍장', '서랍측판').note).toMatch(/대 박스 · 댐핑 언더레일 300/);
+    // 2026-10-22 싱크 규칙으로 통일: 서랍 2 → 전면 합 = 708 − 목찬넬 2×30, 서랍도어 324 ×2, 도어 없음, 중간 목찬넬 ㄴ자 (72·40 × W)
+    expect(rowOf(snap, '하부장-서랍장', '서랍도어')).toMatchObject({ qty: 2, h: 324, w: 496 });
+    expect(partsOf(snap, '하부장-서랍장')).not.toContain('도어');
+    expect(partsOf(snap, '하부장-서랍장')).not.toContain('목찬넬');
+    expect(rowOf(snap, '하부장-서랍장', '목찬넬(중간 전면)')).toMatchObject({ w: 72, h: 500, qty: 1 });
+    expect(rowOf(snap, '하부장-서랍장', '측판').note).toBe('목찬넬 따내기 상단 70×40 + 중간 90×40 ×1');
   });
 
   test('오픈선반(doorCount 0 · isOpen) 은 도어 없이 명시 선반 3', () => {
@@ -161,19 +163,23 @@ describe('화장대 (vanity) — 18T · 찬넬(목찬넬 아님) · 우측 None'
     expect(rowOf(snap, '하부장-하부장', '도어')).toMatchObject({ thickness: 18, w: 596, h: 678 });
   });
 
-  test('목찬넬이 아니면 처짐방지 −70 없음, EP 목찬넬 없음 (서랍장 목찬넬 120 은 서랍 규칙이라 남는다)', () => {
+  test('목찬넬이 아니면 처짐방지 −70 없음, EP 목찬넬 없음, 측판 따내기 비고 없음 (싱크 서랍 규칙의 중간 목찬넬 행은 그대로 — 사장님 확인 대기)', () => {
     // 서랍장(W 800 ≥ 800)에만 처짐방지가 있다 — 하부장(600)은 문턱 미만이라 부재가 없다 (2026-09-19)
     expect(rowOf(snap, '하부장-서랍장', '밴드(처짐방지)').h).toBe(708 - 36);
     expect(partsOf(snap, '하부장-하부장')).not.toContain('밴드(처짐방지)');
     expect(partsOf(snap, 'EP')).toEqual(['상몰딩', '걸레받이', '휠라(좌)']);
-    expect(partsOf(snap, '하부장-서랍장')).toContain('목찬넬');
+    expect(partsOf(snap, '하부장-서랍장')).not.toContain('목찬넬');
+    expect(rowOf(snap, '하부장-서랍장', '측판').note).toBe('');
+    expect(rowOf(snap, '하부장-서랍장', '목찬넬(중간 전면)')).toMatchObject({ w: 72, h: 800, qty: 1 });
   });
 
   test('서랍 3(D500 → 레일 450, 측판 440 · 밑판 439) — 하단보강 있음, 여닫이 도어 없음(18 ≤ 50)', () => {
     expect(rowOf(snap, '하부장-서랍장', '서랍측판').w).toBe(440);
     expect(rowOf(snap, '하부장-서랍장', '서랍밑판')).toMatchObject({ thickness: 3, h: 439 });
     expect(rowOf(snap, '하부장-서랍장', '서랍 하단보강')).toMatchObject({ w: 440, h: 60, qty: 3 });
-    expect(rowOf(snap, '하부장-서랍장', '서랍도어')).toMatchObject({ qty: 3, h: Math.floor((660 - 20) / 3) });
+    // 2026-10-22 싱크 규칙: 전면 합 = 708 − 목찬넬 2×30 = 648 → 214·214·216 (같은 높이끼리 한 행), 박스는 존에 맞는 중·소
+    const fronts = snap.materials.filter((m) => m.partId.startsWith('0-l1-') && m.part === '서랍도어');
+    expect(fronts.map((m) => [m.h, m.qty])).toEqual([[214, 2], [216, 1]]);
     expect(partsOf(snap, '하부장-서랍장')).not.toContain('도어');
     expect(snap.hardware.find((h) => h.category === '레일')).toMatchObject({ spec: '450mm', qty: 3 });
   });
@@ -208,11 +214,11 @@ describe('수납장 (storage) — 통짜 키큰장 · 깊이 400 · 서랍 1', (
   });
 
   // 2026-10-13: 레일은 싱크와 같은 "깊이 − 50 이하 최대" — D400 → 350 (예전 450 은 몸통보다 긴 레일이었다)
-  test('서랍 1(D400 → 레일 350, 측판 340 · 밑판 339) — 전판 250, 여닫이 도어 458 ×2, 하단보강(828 > 600)', () => {
+  test('서랍 1(D400 → 레일 350, 측판 340 · 밑판 339) — 싱크 규칙: 전면 한 장 H−30, 여닫이 도어 없음, 하단보강(828 > 600)', () => {
     expect(rowOf(snap, '하부장-서랍장', '서랍측판').w).toBe(340);
     expect(rowOf(snap, '하부장-서랍장', '서랍밑판')).toMatchObject({ thickness: 3, h: 339 });
-    expect(rowOf(snap, '하부장-서랍장', '서랍도어')).toMatchObject({ qty: 1, h: 250, w: 896 });
-    expect(rowOf(snap, '하부장-서랍장', '도어')).toMatchObject({ qty: 2, h: 708 - 220 - 30, w: 446 });
+    expect(rowOf(snap, '하부장-서랍장', '서랍도어')).toMatchObject({ qty: 1, h: 678, w: 896 });
+    expect(partsOf(snap, '하부장-서랍장')).not.toContain('도어');
     expect(rowOf(snap, '하부장-서랍장', '서랍 하단보강')).toMatchObject({ w: 340, qty: 1 });
     expect(snap.hardware.find((h) => h.category === '레일')).toMatchObject({ spec: '350mm', qty: 1 });
   });

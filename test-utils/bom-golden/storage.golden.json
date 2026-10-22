@@ -709,7 +709,7 @@
       "h": 708,
       "qty": 2,
       "edge": "3면",
-      "note": "",
+      "note": "목찬넬 따내기 상단 70×40",
       "finishCode": "",
       "partId": "0-l1-body:side-0",
       "slot": "body",
@@ -884,7 +884,7 @@
       "h": 708,
       "qty": 2,
       "edge": "3면",
-      "note": "",
+      "note": "목찬넬 따내기 상단 70×40",
       "finishCode": "",
       "partId": "0-l2-body:side-0",
       "slot": "body",
@@ -1002,6 +1002,31 @@
     },
     {
       "module": "하부장-서랍장",
+      "part": "서랍도어",
+      "material": "MDF",
+      "thickness": 18,
+      "w": 896,
+      "h": 678,
+      "qty": 1,
+      "edge": "4면",
+      "note": "",
+      "finishCode": "",
+      "partId": "0-l2-drawer#0-0",
+      "slot": "drawerFront",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 3148,
+      "edgeT": 1,
+      "edgeCode": null,
+      "moduleKey": "0-l2",
+      "itemLabel": "수납장"
+    },
+    {
+      "module": "하부장-서랍장",
       "part": "서랍전후판",
       "material": "PB",
       "thickness": 15,
@@ -1009,7 +1034,7 @@
       "h": 180,
       "qty": 2,
       "edge": "1면(장)",
-      "note": "대 박스 · 댐핑 언더레일 350 (D400 − 50 이하)",
+      "note": "대 박스",
       "finishCode": "",
       "partId": "0-l2-drawerbox:fb-0",
       "slot": "body",
@@ -1034,7 +1059,7 @@
       "h": 180,
       "qty": 2,
       "edge": "1면(장)",
-      "note": "대 박스 · 댐핑 언더레일 350 (D400 − 50 이하)",
+      "note": "대 박스 · 댐핑 언더레일 350",
       "finishCode": "",
       "partId": "0-l2-drawerbox:side-0",
       "slot": "body",
@@ -1095,81 +1120,6 @@
         "B": true
       },
       "edgeLen": 680,
-      "edgeT": 0.6,
-      "edgeCode": null,
-      "moduleKey": "0-l2",
-      "itemLabel": "수납장"
-    },
-    {
-      "module": "하부장-서랍장",
-      "part": "서랍도어",
-      "material": "MDF",
-      "thickness": 18,
-      "w": 896,
-      "h": 250,
-      "qty": 1,
-      "edge": "4면",
-      "note": "",
-      "finishCode": "",
-      "partId": "0-l2-drawer#0-0",
-      "slot": "drawerFront",
-      "edges": {
-        "L": true,
-        "R": true,
-        "T": true,
-        "B": true
-      },
-      "edgeLen": 2292,
-      "edgeT": 1,
-      "edgeCode": null,
-      "moduleKey": "0-l2",
-      "itemLabel": "수납장"
-    },
-    {
-      "module": "하부장-서랍장",
-      "part": "도어",
-      "material": "MDF",
-      "thickness": 18,
-      "w": 446,
-      "h": 458,
-      "qty": 2,
-      "edge": "4면",
-      "note": "",
-      "finishCode": "",
-      "partId": "0-l2-door#0-0",
-      "slot": "door",
-      "edges": {
-        "L": true,
-        "R": true,
-        "T": true,
-        "B": true
-      },
-      "edgeLen": 1808,
-      "edgeT": 1,
-      "edgeCode": null,
-      "moduleKey": "0-l2",
-      "itemLabel": "수납장"
-    },
-    {
-      "module": "하부장-서랍장",
-      "part": "목찬넬",
-      "material": "MDF",
-      "thickness": 18,
-      "w": 120,
-      "h": 900,
-      "qty": 1,
-      "edge": "2면(장)",
-      "note": "",
-      "finishCode": "",
-      "partId": "0-l2-channel:front-0",
-      "slot": "handle",
-      "edges": {
-        "L": true,
-        "R": true,
-        "T": false,
-        "B": false
-      },
-      "edgeLen": 1800,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-l2",
@@ -1342,13 +1292,13 @@
     "MDF_18": {
       "material": "MDF",
       "thickness": 18,
-      "totalArea": 4829512,
+      "totalArea": 4696464,
       "panelCount": 2
     }
   },
   "edgeBanding": {
-    "1": 29556,
-    "0.6": 85920
+    "1": 26796,
+    "0.6": 84120
   },
   "hardware": [
     {
@@ -1434,7 +1384,7 @@
       "item": "목찬넬",
       "manufacturer": "-",
       "spec": "-",
-      "qty": 10,
+      "qty": 8,
       "unit": "EA",
       "itemLabel": "수납장"
     },
@@ -1472,7 +1422,7 @@
   "hardwareSummary": {
     "경첩": 20,
     "레일": 1,
-    "손잡이": 10,
+    "손잡이": 8,
     "다리발": 12,
     "브라켓": 36,
     "걸레받이카바": 1
