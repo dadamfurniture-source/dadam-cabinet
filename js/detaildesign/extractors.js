@@ -1063,7 +1063,7 @@
          *   측판 길이 = 레일 규격(≤ D − 50 최대) (언더는 −10), 사쿠리면 앞뒷판 높이 −18, 우라 = 외경 −1 (사쿠리면 앞뒷판 + 20).
          *   mod.drawerBoxT 서랍 자재 두께(기본 몸통 T) · mod.drawerSakuri 측판 사쿠리 여부.
          */
-        addDrawerModuleParts(materials, modLabel, mod, W, T, doorCount, L, modD) {
+        addDrawerModuleParts(materials, modLabel, mod, W, T, doorCount, L, modD, woodChannel) {
           const R = DrawerRules.DRAWER_RULES;
           // 전면 — 위에서 아래로. 도어는 doorCount 장이 가로로 나뉜다. 같은 높이의 서랍도어는 한 행(수량)으로 묶는다.
           const drawerFrontRows = [];
@@ -1112,8 +1112,10 @@
               this.add(materials, modLabel, '서랍 하단보강', 'PB', drawerT, sideL, R.BOX_BRACE_H, n, '2면(장)');
             }
           }
-          // 중간 목찬넬 — 따내기 90×40 자리를 채우는 ㄴ자 두 장, 모듈 폭
-          if (L.midCount > 0) {
+          // 중간 목찬넬 — 따내기 90×40 자리를 채우는 ㄴ자 두 장, 모듈 폭.
+          // 2026-10-22 사장님 "도어는 재단 규칙이 같음. 그러나 따내기, ㄴ자 목찬넬은 없음": 찬넬(알루미늄) 손잡이면
+          //   전면 치수는 그대로 두고 측판 따내기(호출자 sideNote)와 ㄴ자 목찬넬 행은 내지 않는다.
+          if (L.midCount > 0 && woodChannel !== false) {
             this.add(materials, modLabel, '목찬넬(중간 전면)', 'MDF', R.CHANNEL_T, R.CHANNEL_MID_FACE_H, W, L.midCount, '2면(장)',
               `중간 따내기 ${R.CHANNEL_MID_NOTCH_H}×${R.CHANNEL_BASE_W}`);
             this.add(materials, modLabel, '목찬넬(중간 지면)', 'MDF', R.CHANNEL_T, R.CHANNEL_BASE_W, W, L.midCount, '2면(장)');
@@ -1144,7 +1146,7 @@
           return doorW + battenT - 4;
         }
 
-        addBlindFrontParts(materials, modLabel, mod, H) {
+        addBlindFrontParts(materials, modLabel, mod, H, battenH) {
           const coverT = typeof CORNER_BLIND_COVER_T !== 'undefined' ? CORNER_BLIND_COVER_T : 2.7;
           const battenT = typeof CORNER_HINGE_BATTEN_T !== 'undefined' ? CORNER_HINGE_BATTEN_T : 15;
           const battenLeg = typeof CORNER_HINGE_BATTEN_LEG !== 'undefined' ? CORNER_HINGE_BATTEN_LEG : 60;
@@ -1174,13 +1176,17 @@
           }
           // W12-54: 경첩 목대 — 멍 폭에 15T 가 들어가 있으므로 자재표에도 나온다.
           // 2026-09-13: **ㄱ자** 목대 — 앞다리 60(정면과 나란히, 멍판 뒤) + 옆다리 60(도어 쪽 끝,
-          //   깊이 방향) 모두 15T × 몸통 H. 앞선에서 15 + 60 = 75 만 들어간다 (corner.md §3.5).
+          //   깊이 방향) 모두 15T. 앞선에서 15 + 60 = 75 만 들어간다 (corner.md §3.5).
           //   멍장 하나에 한 벌 — 하부·상부·키큰장 단 모두 같다.
+          // 2026-10-22 사장님: 목대는 **천판과 지판 사이**에 들어간다 (높이 H − 2T). 목찬넬 몸통은 따내기 70 아래에
+          //   밴드가 들어가므로 그 밴드 밑까지 — H − 2T − 70 (15T 기준 H−30 / 목찬넬 H−100). 호출자가 밴드 높이와
+          //   같은 battenH 를 넘긴다 (corner.md §3.5.0).
           const battenQty = 1;
-          this.add(materials, modLabel, '경첩목대(앞다리)', 'PB', battenT, battenLeg, H, battenQty, '-',
-                   'ㄱ자 경첩목대 앞다리 60×15T — 멍판 바로 뒤 (corner.md §3.5)');
-          this.add(materials, modLabel, '경첩목대(옆다리)', 'PB', battenT, battenLeg, H, battenQty, '-',
-                   'ㄱ자 경첩목대 옆다리 60×15T — 도어 쪽 끝, 앞선에서 75 (corner.md §3.5)');
+          const legH = Number.isFinite(battenH) ? battenH : H;
+          this.add(materials, modLabel, '경첩목대(앞다리)', 'PB', battenT, battenLeg, legH, battenQty, '-',
+                   'ㄱ자 경첩목대 앞다리 60×15T — 멍판 바로 뒤, 지판·천판(밴드) 사이 (corner.md §3.5.0)');
+          this.add(materials, modLabel, '경첩목대(옆다리)', 'PB', battenT, battenLeg, legH, battenQty, '-',
+                   'ㄱ자 경첩목대 옆다리 60×15T — 도어 쪽 끝, 앞선에서 75, 지판·천판(밴드) 사이 (corner.md §3.5.0)');
           // W12-61: 멍판 마감재 — 멍장 도어 바로 옆, 멍가림판 위에 붙는다.
           //   'None' 을 명시한 경우에만 뺀다. 미지정이면 휠라로 떨어진다(§3.3) —
           //   자리 60 은 이미 멍 폭에 있어서, 안 내면 그 자리가 MDF 로 발주된다.
@@ -1258,7 +1264,7 @@
           if (isBlindModule(mod, 'lower')) {
             const blindDoorW = this.blindDoorPartW(mod, W); // doorW + 11 — 도어가 목대를 덮는다 (corner.md §3.5.1)
             this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, doorH, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준) — 목대를 덮는다: doorW + 15 − 4 (corner.md §3.5.1)', mod);
-            this.addBlindFrontParts(materials, modLabel, mod, H);
+            this.addBlindFrontParts(materials, modLabel, mod, H, bandH);
           } else {
             const doorCount = mod.doorCount || 0;
             if (doorCount > 0) {
@@ -1503,7 +1509,7 @@
               const overlap = parseFloat(specs.upperDoorOverlap) || 15;
               const blindDoorW = this.blindDoorPartW(mod, W); // doorW + 11 — 도어가 목대를 덮는다 (corner.md §3.5.1)
               this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H + overlap, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준) — 목대를 덮는다: doorW + 15 − 4 (corner.md §3.5.1)', mod);
-              this.addBlindFrontParts(materials, modLabel, mod, H);
+              this.addBlindFrontParts(materials, modLabel, mod, H, H - T * 2);
             } else if (doorCount > 0) {
               const overlap = parseFloat(specs.upperDoorOverlap) || 15;
               const doorW = Math.floor(W / doorCount) - 4;
@@ -1565,7 +1571,7 @@
               // W10-4: 하부 멍장 — 도어는 doorW 기준 (카카스 W면 오발주), 멍 가림판 신규 (design §6)
               const blindDoorW = this.blindDoorPartW(mod, W); // doorW + 11 — 도어가 목대를 덮는다 (corner.md §3.5.1)
               this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H - 30, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준) — 목대를 덮는다: doorW + 15 − 4 (corner.md §3.5.1)', mod);
-              this.addBlindFrontParts(materials, modLabel, mod, H);
+              this.addBlindFrontParts(materials, modLabel, mod, H, bandH);
             } else if (isDrawer) {
               // ★ 2026-09-15: 서랍장 — 규칙은 bom-drawer-rules.js (도면 "서랍장 목찬넬 구조 도면").
               //   전면(위→아래): doorCount>0 이면 [도어, 서랍×n] — 플래너 doorTopDrawerBottom 과 같은 그림.
@@ -1574,7 +1580,7 @@
               //   서랍 박스는 존(위·아래 따내기 사이)에 레일 여유를 빼고 들어가는 가장 큰 크기(대·중·소).
               //   목찬넬은 전면과 1:1 이 아니라 최소 수 — 중간 목찬넬만 모듈 부재(전면판 72·지면판 40 × W).
               //   상단 목찬넬은 그대로 EP(effectiveW 연속).
-              this.addDrawerModuleParts(materials, modLabel, mod, W, T, doorCount, drawerLayout, modD);
+              this.addDrawerModuleParts(materials, modLabel, mod, W, T, doorCount, drawerLayout, modD, isWoodChannel);
             } else if (doorCount > 0) {
               const doorW = Math.floor(W / doorCount) - 4;
               this.add(materials, modLabel, '도어', 'MDF', 18, doorW, H - 30, doorCount, '4면', '', mod);
@@ -2227,7 +2233,7 @@
               // 서랍장 — 싱크 하부장 서랍 규칙 그대로 (bom-drawer-rules.js): 전면 합 = H, 목찬넬 ㄴ자(중간은 모듈 부재, 상단은 EP),
               //   박스는 존에 맞는 크기. 2026-10-22 사장님 카드 "싱크 규칙으로 통일" — 예전 옛 식(서랍도어 220 피치 · 1개면 250 ·
               //   남는 높이 아래 여닫이 · 목찬넬 120×W 한 장)은 전면 합이 몸통보다 50 짧아 자리를 정할 수 없었다.
-              this.addDrawerModuleParts(materials, modLabel, mod, W, T, mod.doorCount || 0, drawerLayout, modD);
+              this.addDrawerModuleParts(materials, modLabel, mod, W, T, mod.doorCount || 0, drawerLayout, modD, isWoodChannel);
             } else if (door.count > 0) {
               const doorW = Math.floor(W / door.count) - 4;
               this.add(materials, modLabel, '도어', 'MDF', 18, doorW, H - 30, door.count, '4면', door.defaulted ? doorNote : '', mod);
