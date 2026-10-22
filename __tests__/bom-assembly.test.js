@@ -644,8 +644,10 @@ describe('라인 부재 runs[] — 상판 · 상몰딩 · 목찬넬 EP · 걸레
     expect(top.parts[0].tags).toEqual({ run: 'top' });
     expect(runOf(s, '목찬넬(전면)').parts[0].box).toEqual({ min: [-500, 656, 235], max: [3000, 708, 253] });   // 쿡탑장 600 은 뺀 3500
     expect(epOf(s)).toContainEqual(['상몰딩', 'run-layout-unknown']);
-    // 걸레받이 4100 은 2440 + 1660 두 조각 — 조각 순서 미정
-    expect(epOf(s).filter((e) => e[0] === '걸레받이')).toEqual([['걸레받이', 'kick-cut-order-pending'], ['걸레받이', 'kick-cut-order-pending']]);
+    // 걸레받이 — BOM 벽 길이는 쿡탑장 600 을 뺀 3500 = 2440 + 1060 두 조각, 왼쪽부터 2440, 남는 1060 은 오른쪽 끝 (카드 "1"). 호스트 l1 1000 가운데 → 왼쪽 끝 x −500
+    const kicks = s.items[0].runs.filter((r) => r.parts[0].part === '걸레받이').map((r) => [r.parts[0].cut.w, r.parts[0].box.min[0], r.parts[0].box.max[0]]);
+    expect(kicks).toEqual([[2440, -500, 1940], [1060, 1940, 3000]]);
+    expect(epOf(s).filter((e) => e[0] === '걸레받이')).toEqual([]);
     expect(runOf(s, '휠라(좌)').parts[0].box).toEqual({ min: [-530, 0, 275], max: [-500, 2160, 293] });   // 좌 휠라 30, 앞면 = 도어 앞면 275 + 18
   });
 
