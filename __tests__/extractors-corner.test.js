@@ -220,13 +220,13 @@ describe('W12-53: 멍장이 둘일 때도 둘 다 알아본다 (ㄷ자)', () => 
   });
 });
 
-describe('W12-54 / 2026-09-13: 경첩 목대는 ㄱ자 — 앞다리 60 + 옆다리 60, 15T × 몸통H', () => {
+describe('W12-54 / 2026-09-13: 경첩 목대는 ㄱ자 — 앞다리 60 + 옆다리 60, 15T × (몸통H − 2T) (2026-10-22 사장님: 천판과 지판 사이)', () => {
   const materials = extractMaterials(makeLItem());
   const lower = materials.filter((m) => m.module === '하부장-LT망장');
   const upper = materials.filter((m) => m.module === '상부장-LT망장');
   const isBatten = (m) => /^경첩목대\((앞|옆)다리\)$/.test(m.part);
 
-  test('하부 멍장에 앞다리·옆다리가 1개씩 — 15T PB · 60 × 몸통H', () => {
+  test('하부 멍장에 앞다리·옆다리가 1개씩 — 15T PB · 60 × (몸통H − 2T)', () => {
     const legs = lower.filter(isBatten);
     expect(legs.map((m) => m.part).sort()).toEqual(['경첩목대(앞다리)', '경첩목대(옆다리)']);
     legs.forEach((b) => {
@@ -234,8 +234,9 @@ describe('W12-54 / 2026-09-13: 경첩 목대는 ㄱ자 — 앞다리 60 + 옆다
       expect(b.thickness).toBe(15);
       expect(b.w).toBe(60);
       expect(b.qty).toBe(1);
-      // 세로는 멍가림판과 같은 몸통 높이다
-      expect(b.h).toBe(lower.find((m) => m.part === '멍가림판').h);
+      // 세로는 지판·천판 사이 — 멍가림판(몸통 H)보다 2T 짧다. 찬넬 손잡이라 따내기 70 은 없다
+      const side = lower.find((m) => m.part === '측판');
+      expect(b.h).toBe(lower.find((m) => m.part === '멍가림판').h - side.thickness * 2);
     });
   });
 

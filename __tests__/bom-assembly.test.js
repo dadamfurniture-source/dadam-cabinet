@@ -706,12 +706,31 @@ describe('멍장 자리 — corner.md §3.5 (멍가림판 · 마감재 · 도어
     expect(box(m, '도어')).toEqual({ min: [-536, 0, 325], max: [-114, 678, 343] });
   });
 
-  test('경첩목대만 높이 결정 대기(batten-height-pending), 그 밖에 못 놓은 행 없음 · 조립 검사 오류 없음', () => {
-    expect(s.unplaced.filter((u) => /blind/.test(u.moduleKey)).map((u) => [u.part, u.reason]).sort())
-      .toEqual([['경첩목대(앞다리)', 'batten-height-pending'], ['경첩목대(앞다리)', 'batten-height-pending'],
-        ['경첩목대(옆다리)', 'batten-height-pending'], ['경첩목대(옆다리)', 'batten-height-pending']]);
+  test('ㄱ자 경첩목대 — 지판 위·천판 아래(H−2T), 앞다리 멍판 뒤 60×15, 옆다리 도어 쪽 끝 깊이 60 (2026-10-22 사장님) · 못 놓은 행 없음 · 조립 검사 오류 없음', () => {
+    expect(s.unplaced.filter((u) => /blind/.test(u.moduleKey)).map((u) => [u.part, u.reason])).toEqual([]);
+    const lo = modOf('corner-blind-lower'), up = modOf('corner-blind-upper');
+    // 하부 멍장 708 · 15T · 찬넬 손잡이(따내기 없음): y 15…693. 멍 끝(coverEnd) u 650 → x 112, 옆다리 112…127, 앞다리 67…127 멍판 바로 뒤
+    expect(box(lo, '경첩목대(앞다리)')).toEqual({ min: [67, 15, 310], max: [127, 693, 325] });
+    expect(box(lo, '경첩목대(옆다리)')).toEqual({ min: [112, 15, 250], max: [127, 693, 310] });
+    expect(lo.parts.find((p) => p.part === '경첩목대(옆다리)').tags).toEqual({ blind: 'batten-side' });
+    // 상부 멍장 720: y 15…705, 도어가 왼쪽이 아니라 오른쪽 — 멍 끝 x −65
+    expect(box(up, '경첩목대(앞다리)')).toEqual({ min: [-110, 15, 132.5], max: [-50, 705, 147.5] });
+    expect(box(up, '경첩목대(옆다리)')).toEqual({ min: [-65, 15, 72.5], max: [-50, 705, 132.5] });
     expect(modOf('corner-blind-lower').parts.find((p) => p.part === '선반').box.max[2]).toBe(235);   // 선반 D−T−75 는 뒤 맞춤 — 앞끝이 앞선에서 90 (목대 75 + T) 뒤
     const issues = require('../js/detaildesign/assembly-check.js').check(s).issues;
     expect(issues.filter((i) => i.level === 'error')).toEqual([]);
+  });
+
+  test('목찬넬 손잡이면 경첩목대는 따내기 70 아래 앞 밴드 밑까지 — 높이 H−2T−70 (사장님 "목찬넬일 경우 몸통 높이 −100")', () => {
+    const item = JSON.parse(JSON.stringify(FIXTURES.sinkCorner));
+    item.specs.handle = '목찬넬';
+    const design = { items: [item] };
+    const r = Asm.of(design, { materials: new MaterialExtractor().extract(design).materials });
+    const m = r.items[0].modules.find((x) => x.moduleId === 'corner-blind-lower');
+    expect(m.parts.find((p) => p.part === '밴드' && p.tags.end === 'front').box.min[1]).toBe(623);   // 708 − 70 − 15
+    expect(box(m, '경첩목대(앞다리)')).toEqual({ min: [67, 15, 310], max: [127, 623, 325] });
+    expect(box(m, '경첩목대(옆다리)')).toEqual({ min: [112, 15, 250], max: [127, 623, 310] });
+    expect(r.unplaced.filter((u) => /blind/.test(u.moduleKey) && u.part !== '선반')).toEqual([]);
+    expect(require('../js/detaildesign/assembly-check.js').check(r).issues.filter((i) => i.level === 'error')).toEqual([]);
   });
 });
