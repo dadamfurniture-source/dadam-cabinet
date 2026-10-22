@@ -100,15 +100,22 @@ describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
     const runs = it.runs.map((r) => [r.parts[0].part, r.lineKey, r.hostModuleKey]);
     const ep = cad.spec.unplaced.filter((u) => /-ep$/.test(u.moduleKey)).map((u) => [u.part, u.reason]);
     expect(built.runs).toBe(it.runs.length);
-    // 걸레받이·좌우 휠라는 앞뒤 자리 미정 (2026-10-22 카드)
-    expect(ep.filter((e) => e[0] === '걸레받이').every((e) => e[1] === 'kick-position-pending')).toBe(true);
-    expect(ep.filter((e) => /^휠라/.test(e[0])).every((e) => e[1] === 'finish-position-pending')).toBe(true);
+    // 걸레받이 — 2440 넘는 벽은 조각 순서 미정 (kick-cut-order-pending), 2440 이하 벽은 바닥 +5 · 앞면 = 몸통 앞선 −32 (2026-10-22 카드)
+    expect(ep.filter((e) => e[0] === '걸레받이').every((e) => e[1] === 'kick-cut-order-pending')).toBe(true);
+    it.runs.filter((r) => r.parts[0].part === '걸레받이').forEach((r) => {
+      const b = r.parts[0].box;
+      expect([b.min[1], b.max[1], b.min[2], b.max[2]]).toEqual([-145, 0, 550 / 2 - 32 - 18, 550 / 2 - 32]);
+    });
     if (/^(straight|drawer)/.test(name)) {
       // 한 벽: 하부 1200·1000·1400 + 개수대 — 목찬넬 EP 두 장과 상판이 첫 하부 칸 아래에, 상몰딩은 상부 1800 과 1200 사이가 비어 못 놓는다
+      //   좌 휠라 60 은 하부 왼쪽 끝 밖, 앞면 = 도어 앞면 (550/2 + 18); 우 휠라는 상부(3600)가 하부(3598)보다 2 나가 못 놓는다
       expect(runs).toEqual([
         ['목찬넬(전면)', 'area-lower-0', '0-planner-lower-0-0'], ['목찬넬(지면)', 'area-lower-0', '0-planner-lower-0-0'],
-        ['상판', 'area-lower-0', '0-planner-lower-0-0']]);
+        ['상판', 'area-lower-0', '0-planner-lower-0-0'], ['휠라(좌)', 'area-lower-0', '0-planner-lower-0-0']]);
+      expect(it.runs.find((r) => r.parts[0].part === '휠라(좌)').parts[0].box).toEqual({ min: [-460, 0, 275], max: [-400, 2160, 293] });
       expect(ep).toContainEqual(['상몰딩', 'run-layout-unknown']);
+      expect(ep).toContainEqual(['걸레받이', 'kick-cut-order-pending']);
+      expect(ep).toContainEqual(['휠라(우)', 'run-layout-unknown']);
       const top = it.runs.find((r) => r.parts[0].part === '상판').parts[0];
       expect(top.box.min[1]).toBe(708);   // 하부장 몸통 위
       expect(top.box.max[1]).toBe(720);
@@ -119,9 +126,12 @@ describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
       const host = gltf.nodes.find((n) => n.name === 'module·0-planner-lower-0-0');
       expect(host.children.map((c) => gltf.nodes[c].name)).toContain(top.id);
     } else {
-      // ㄱ자·사선: 하부가 두 벽에 걸쳐 한 장 상판·목찬넬 EP 를 못 놓고, 상부장 한 벽의 상몰딩만 놓는다
-      expect(runs).toEqual([['상몰딩', 'area-lower-0', '0-planner-upper-0-0']]);
+      // ㄱ자·사선: 하부가 두 벽에 걸쳐 한 장 상판·목찬넬 EP·좌우 휠라를 못 놓고, 상부장 한 벽의 상몰딩과 2440 이하 벽의 걸레받이만 놓는다
+      expect(runs[0]).toEqual(['상몰딩', 'area-lower-0', '0-planner-upper-0-0']);
+      expect(runs.slice(1).every((r) => r[0] === '걸레받이')).toBe(true);
+      expect(runs.length).toBeGreaterThan(1);
       expect(ep).toContainEqual(['상판', 'run-layout-unknown']);
+      expect(ep).toContainEqual(['휠라(좌)', 'run-layout-unknown']);
     }
   });
 
