@@ -662,3 +662,53 @@ describe('키큰장 단 자리 — 좌대 뒤 맞춤 · 걸레받이 · 목찬�
     expect(Check.check(wh).issues.filter((i) => i.level === 'error')).toEqual([]);
   });
 });
+
+describe('멍장 자리 — corner.md §3.5 (멍가림판 · 마감재 · 도어가 목대를 덮음)', () => {
+  const { spec: s } = specOf('sinkCorner');
+  const modOf = (id) => s.items[0].modules.find((m) => m.moduleId === id);
+  const box = (m, part) => m.parts.find((p) => p.part === part).box;
+
+  test('하부 멍장 1076 = 멍 665 + 도어 411, 벽이 왼쪽(secondaryStartSide 기본 left) — 멍가림판 650 앞선 밖, 마감재 150 그 위 도어 쪽 끝, 도어 422 갭 2 부터', () => {
+    const m = modOf('corner-blind-lower');
+    expect(m.box).toEqual({ W: 1076, H: 708, D: 650, T: 15 });
+    expect(m.blind).toEqual({ zoneW: 665, doorW: 411, doorRight: true });
+    expect(box(m, '멍가림판')).toEqual({ min: [-538, 0, 325], max: [112, 708, 327.7] });
+    expect(box(m, '휠라(멍판)')).toEqual({ min: [-38, 0, 327.7], max: [112, 708, 345.7] });
+    expect(box(m, '도어')).toEqual({ min: [114, 0, 325], max: [536, 678, 343] });
+    expect(m.parts.find((p) => p.part === '도어').tags).toEqual({ doorIdx: 0, blind: 'door' });
+    // 몸통은 하부장 짜임 그대로 — 밴드 두 장 눕힘, 처짐방지목 가운데
+    expect(box(m, '밴드')).toEqual({ min: [-523, 693, 255], max: [523, 708, 325] });
+    expect(box(m, '밴드(처짐방지)')).toEqual({ min: [-35, 15, 310], max: [35, 693, 325] });
+  });
+
+  test('상부 멍장 790 = 멍 345 + 도어 445 — 사쿠리 몸통, 멍가림판 330, 몰딩(멍판) 150, 도어 456 × H+15', () => {
+    const m = modOf('corner-blind-upper');
+    expect(m.box).toEqual({ W: 790, H: 720, D: 295, T: 15 });
+    expect(box(m, '멍가림판')).toEqual({ min: [-395, 0, 147.5], max: [-65, 720, 150.2] });
+    expect(box(m, '몰딩(멍판)')).toEqual({ min: [-215, 0, 150.2], max: [-65, 720, 168.2] });
+    expect(box(m, '도어')).toEqual({ min: [-63, -15, 147.5], max: [393, 720, 165.5] });
+    expect(box(m, '뒷판').tags).toBeUndefined();
+    expect(m.parts.find((p) => p.part === '뒷판').tags).toEqual({ mount: 'groove' });
+  });
+
+  test('멍장이 라인 오른쪽 끝(secondaryStartSide right)이면 좌우가 뒤집힌다', () => {
+    const item = JSON.parse(JSON.stringify(FIXTURES.sinkCorner));
+    item.specs.secondaryStartSide = 'right';
+    const design = { items: [item] };
+    const r = Asm.of(design, { materials: new MaterialExtractor().extract(design).materials });
+    const m = r.items[0].modules.find((x) => x.moduleId === 'corner-blind-lower');
+    expect(m.blind.doorRight).toBe(false);
+    expect(box(m, '멍가림판')).toEqual({ min: [-112, 0, 325], max: [538, 708, 327.7] });
+    expect(box(m, '휠라(멍판)')).toEqual({ min: [-112, 0, 327.7], max: [38, 708, 345.7] });
+    expect(box(m, '도어')).toEqual({ min: [-536, 0, 325], max: [-114, 678, 343] });
+  });
+
+  test('경첩목대만 높이 결정 대기(batten-height-pending), 그 밖에 못 놓은 행 없음 · 조립 검사 오류 없음', () => {
+    expect(s.unplaced.filter((u) => /blind/.test(u.moduleKey)).map((u) => [u.part, u.reason]).sort())
+      .toEqual([['경첩목대(앞다리)', 'batten-height-pending'], ['경첩목대(앞다리)', 'batten-height-pending'],
+        ['경첩목대(옆다리)', 'batten-height-pending'], ['경첩목대(옆다리)', 'batten-height-pending']]);
+    expect(modOf('corner-blind-lower').parts.find((p) => p.part === '선반').box.max[2]).toBe(235);   // 선반 D−T−75 는 뒤 맞춤 — 앞끝이 앞선에서 90 (목대 75 + T) 뒤
+    const issues = require('../js/detaildesign/assembly-check.js').check(s).issues;
+    expect(issues.filter((i) => i.level === 'error')).toEqual([]);
+  });
+});
