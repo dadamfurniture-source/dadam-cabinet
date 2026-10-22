@@ -68,6 +68,8 @@
     || (typeof require === 'function' ? require('./bom-open-cabinet-rules.js') : null);
   const RiceRules = root.DadamRiceCabinetRules
     || (typeof require === 'function' ? require('./bom-rice-cabinet-rules.js') : null);
+  const HomecafeRules = root.DadamHomecafeRules
+    || (typeof require === 'function' ? require('./bom-homecafe-rules.js') : null);
   const C = AsmRules.CARCASS;
   const DR = DrawerRules.DRAWER_RULES;
 
@@ -75,6 +77,10 @@
 
   /** 이번 단계에서 자리를 정하는 모듈 — 상세설계 모듈 pos. */
   const SHELL_POS = ['upper', 'lower'];
+  // 옛 냉장고장 화면 모듈(type, pos 없음 — extractFridge)을 몸통 짜임으로 읽는 자리. 2026-10-22 사장님: 냉장고상부장은 15T 사쿠리
+  //   + 보강목(싱크 상부장과 같다), 도어 H+20 은 아래로 20(윗변 = 몸통 상단). 키큰장·EL장도 사쿠리 몸통에 천판 — 상부장 짜임,
+  //   냉장고하부장은 뒤 덮음 뒷판 + 천판, 도어 H−30 은 밑단 = 몸통 바닥 — 하부장 짜임. 홈카페장은 18T 상자(openBoxOf).
+  const FRIDGE_TYPE_POS = { upper: 'upper', tall: 'upper', el: 'upper', lower: 'lower' };
 
   const AXES = { '+x': [1, 0, 0], '-x': [-1, 0, 0], '+y': [0, 1, 0], '-y': [0, -1, 0], '+z': [0, 0, 1], '-z': [0, 0, -1] };
 
@@ -950,10 +956,15 @@
     const keyed = rows.map((r) => ({ row: r, key: keyOfRow(r) }));
     const fam = (f) => keyed.filter((x) => x.key && x.key.family === f).map((x) => x.row);
     const sides = fam('body:side'), tbs = fam('part:천지판'), backs = fam('back');
-    if (sides.length !== 1 || tbs.length !== 1 || backs.length !== 1) return null;
-    const side = sides[0], tb = tbs[0], back = backs[0];
+    // 홈카페장(fridge.md §11)은 천판·지판이 따로 한 장씩 — 같은 치수면 천지판 2장과 같은 상자 (측판 D+20 · 천지판 D · 18T 뒷판 측판 사이)
+    const tops = fam('body:top'), bottoms = fam('body:bottom');
+    const homecafe = !!(HomecafeRules && HomecafeRules.isHomecafe(mod));
+    const split = tbs.length === 0 && tops.length === 1 && bottoms.length === 1 && tops[0].qty === 1 && bottoms[0].qty === 1
+      && tops[0].w === bottoms[0].w && tops[0].h === bottoms[0].h && tops[0].thickness === bottoms[0].thickness;
+    if (sides.length !== 1 || backs.length !== 1 || !(tbs.length === 1 || split)) return null;
+    const side = sides[0], tb = split ? bottoms[0] : tbs[0], top = split ? tops[0] : tb, back = backs[0];
     const T = side.thickness, D = side.w, H = side.h, W = tb.w + 2 * T;
-    if (side.qty !== 2 || tb.qty !== 2 || tb.thickness !== T || tb.h >= D
+    if (side.qty !== 2 || (!split && tb.qty !== 2) || tb.thickness !== T || tb.h >= D
       || back.qty !== 1 || back.thickness !== T || back.w !== tb.w || back.h !== H) return null;
     const zBack = -D / 2, zFront = D / 2;
     const parts = [], unplaced = [];
@@ -962,26 +973,34 @@
     parts.push(makePart(side, 1, { o: [W / 2, 0, zBack], u: '+z', v: '+y', n: '-x' }, [], 'exterior', { side: 'right' }));
     // 천판·지판 — 측판 사이, 앞선 맞춤 (뒤에 뒷판 자리)
     parts.push(makePart(tb, 0, { o: [-W / 2 + T, 0, zFront - tb.h], u: '+x', v: '+z', n: '+y' }, [], 'interior', { panel: 'bottom' }));
-    parts.push(makePart(tb, 1, { o: [-W / 2 + T, H - T, zFront - tb.h], u: '+x', v: '+z', n: '+y' }, [], 'interior', { panel: 'top' }));
+    parts.push(makePart(top, split ? 0 : 1, { o: [-W / 2 + T, H - T, zFront - tb.h], u: '+x', v: '+z', n: '+y' }, [], 'interior', { panel: 'top' }));
     // 뒷판 — 18T 통판, 측판 사이 뒤끝 맞춤, 몸통 높이 전체
     parts.push(makePart(back, 0, { o: [-W / 2 + T, 0, zBack], u: '+x', v: '+y', n: '+z' }, [], 'interior', { mount: 'between-sides' }));
     keyed.forEach(({ row, key }) => {
-      if (row === side || row === tb || row === back) return;
+      if (row === side || row === tb || row === top || row === back) return;
       if (!key) { skip(row, 'no-part-key'); return; }
       if (key.family === 'door') {
         const xs = doorXsOf(W, row);
+        if (homecafe) {
+          // 홈카페장 도어 (W−4)/n × (H+20) — 2026-10-22 사장님 카드 "아래로 20": 윗변 = 몸통 상단, 밑단이 20 아래
+          const y0 = row.h > H ? H - row.h : null;
+          if (!xs || y0 == null) { skip(row, 'door-layout-unknown'); return; }
+          xs.forEach((x0, k) => parts.push(makePart(row, k, { o: [x0, y0, zFront], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { doorIdx: k })));
+          return;
+        }
         const y0 = doorYOf(mod.pos, H, row.h);
         if (!xs || xs.length !== 1 || y0 == null || row.h !== H - C.DOOR_GAP) { skip(row, 'door-layout-unknown'); return; }
         parts.push(makePart(row, 0, { o: [xs[0], y0, zFront], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { doorIdx: 0 }));
         return;
       }
+      if (key.family === 'shelf') { skip(row, 'shelf-height-unknown'); return; }
       skip(row, 'not-yet');
     });
     return {
       module: {
         moduleKey: mk,
         moduleId: String(mod.id),
-        kind: 'open',
+        kind: homecafe ? 'homecafe' : 'open',
         box: { W, H, D, T },
         sakuri: false,
         place: (opts.place && opts.place[mk]) || null,
@@ -1025,10 +1044,14 @@
       const mod = item && (item.modules || []).find((x) => String(x.id) === m[2]);
       const blind = mod && String(mod.id).indexOf('corner-blind-') === 0;
       const wardrobe = mod && (item.categoryId || item.category) === 'wardrobe' && (mod.pos === 'wardrobe' || mod.pos === 'tall');
-      const openBox = mod && ((OpenRules && OpenRules.isOpenCabinet(mod)) || (RiceRules && RiceRules.isRiceCabinet(mod)));
+      const openBox = mod && ((OpenRules && OpenRules.isOpenCabinet(mod)) || (RiceRules && RiceRules.isRiceCabinet(mod))
+        || (HomecafeRules && HomecafeRules.isHomecafe(mod)));
+      // 옛 냉장고장 화면 모듈(pos 없음, type) — 짜임 자리를 FRIDGE_TYPE_POS 로 읽는다 (상부장·하부장 짜임). 플래너 냉장고장은 pos 가 있다.
+      const fridgePos = mod && !mod.pos && (item.categoryId || item.category) === 'fridge' ? FRIDGE_TYPE_POS[String(mod.type || '')] : null;
+      const shellMod = fridgePos ? Object.assign({}, mod, { pos: fridgePos }) : mod;
       const res = openBox ? openBoxOf(mk, mod, rows, o)
         : wardrobe ? wardrobeOf(mk, mod, rows, o, item)
-        : (mod && SHELL_POS.indexOf(mod.pos) >= 0) ? shellOf(mk, mod, rows, o, item) : null;
+        : (shellMod && SHELL_POS.indexOf(shellMod.pos) >= 0) ? shellOf(mk, shellMod, rows, o, item) : null;
       if (!res) {
         const reason = !mod ? (m && m[2] === 'ep' ? 'run-part' : 'no-module') : blind ? 'blind-layout-unknown' : 'module-not-yet';
         rows.forEach((r) => unplaced.push({ rowPartId: r.partId, moduleKey: mk, part: r.part, qty: r.qty, reason }));

@@ -37,7 +37,9 @@ describe('BOM 골든 — 냉장고장 (fridge)', () => {
     expect(cafe.map((m) => m.part)).toEqual(['측판', '천판', '지판', '뒷판', '선반', '도어']);
     cafe.forEach((m) => { expect(m.material).toBe('MDF'); expect(m.thickness).toBe(18); });
     expect(cafe.find((m) => m.part === '측판').w).toBe(700 + 20);
-    expect(parts('냉장고상부장')).toEqual(['측판', '천판', '지판', '뒷판', '도어']);
+    // 2026-10-22 사장님: 냉장고상부장은 15T 사쿠리 + 보강목 (냉장고 상부장에만) — 키큰장·EL장은 없다
+    expect(parts('냉장고상부장')).toEqual(['측판', '천판', '지판', '뒷판', '밴드(보강목)', '도어']);
+    expect(snap.materials.find((m) => m.module === '냉장고상부장' && m.part === '밴드(보강목)')).toMatchObject({ thickness: 15, w: 670, h: 60, qty: 2 });
     expect(parts('냉장고하부장')).toEqual(['측판', '천판', '지판', '뒷판', '도어']);
     expect(parts('EL장')).toEqual(['측판', '천판', '지판', '뒷판']);
     // 좌대·EP·마감재는 아직 없다 (계획 B2 항목)
