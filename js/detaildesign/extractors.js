@@ -2111,6 +2111,9 @@
               this.add(materials, `${pf}냉장고상부장`, '천판', 'PB', T, W - T * 2, D - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
               this.add(materials, `${pf}냉장고상부장`, '지판', 'PB', T, W - T * 2, D - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
               this.addBackPanel(materials, `${pf}냉장고상부장`, W, H, true);
+              // 2026-10-22 사장님: "냉장고장 몸통은 상부장 … 15T 이고 사쿠리 홈에 끼워서 보강목까지 붙는 형식", "냉장고 상부장에만 넣음"
+              //   — 싱크 상부장과 같은 보강목 2장 (15T · 60 × W−2T, 홈 뒤 맨 뒤 위·아래). 키큰장·EL장은 없다.
+              this.add(materials, `${pf}냉장고상부장`, '밴드(보강목)', 'PB', ASM.UPPER_BAND_T, W - T * 2, ASM.UPPER_BAND_W, 2, '2면(장)');
               const doorCount = mod.doorCount || 1;
               if (doorCount > 0) {
                 const doorW = Math.floor(W / doorCount) - 4;

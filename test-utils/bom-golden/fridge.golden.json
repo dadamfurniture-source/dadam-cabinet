@@ -402,6 +402,31 @@
     },
     {
       "module": "냉장고상부장",
+      "part": "밴드(보강목)",
+      "material": "PB",
+      "thickness": 15,
+      "w": 670,
+      "h": 60,
+      "qty": 2,
+      "edge": "2면(장)",
+      "note": "",
+      "finishCode": "",
+      "partId": "0-r4-body:band#0-0",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 1340,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "moduleKey": "0-r4",
+      "itemLabel": "냉장고장"
+    },
+    {
+      "module": "냉장고상부장",
       "part": "도어",
       "material": "MDF",
       "thickness": 18,
@@ -655,7 +680,7 @@
     "PB_15": {
       "material": "PB",
       "thickness": 15,
-      "totalArea": 10509700,
+      "totalArea": 10590100,
       "panelCount": 4
     },
     "MDF_3": {
@@ -673,7 +698,7 @@
   },
   "edgeBanding": {
     "1": 21594,
-    "0.6": 41382
+    "0.6": 44062
   },
   "hardware": [
     {
