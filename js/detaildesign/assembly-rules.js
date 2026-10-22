@@ -58,6 +58,13 @@
     // 모듈 깊이 폴백 — 모듈에 d 가 없을 때 (싱크대 extractSink)
     // 도어 갭 — 도어 가로 = 칸 폭 − 4 (extractors.js floor(W/n) − 4 · 플래너 MASTER_RULES.DOOR_GAP). 좌우 2 씩, 양문 가운데 4.
     DOOR_GAP: 4,
+    // 멍장 (corner.md §3.3·§3.5) — data-constants.js CORNER_* 와 같은 값 (drift 금지).
+    //   멍가림판 MDF 2.7T 는 멍 W − 목대 15, 마감재(휠라·몰딩) 150 은 멍판 위에 겹쳐 붙는다 (자리 60 + 겹침 90).
+    //   ㄱ자 경첩목대 15T: 옆다리 깊이 60 이 멍·도어 경계에서 도어 쪽으로 15, 앞다리 가로 60 이 멍판 바로 뒤 — 앞선에서 75.
+    BLIND_COVER_T: 2.7,
+    BLIND_BATTEN_T: 15,
+    BLIND_BATTEN_LEG: 60,
+    BLIND_FINISH_W: 150,
     UPPER_D_DEFAULT: 295,
     LOWER_D_DEFAULT: 550,
   });
