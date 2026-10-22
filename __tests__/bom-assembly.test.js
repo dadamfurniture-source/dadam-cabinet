@@ -588,7 +588,7 @@ describe('오픈장·밥솥장 자리 — 18T 상자', () => {
   });
 });
 
-describe('라인 부재 runs[] — 상판 · 상몰딩 · 목찬넬 EP (opts.lines 로 벽마다 모듈 x 를 넘긴다)', () => {
+describe('라인 부재 runs[] — 상판 · 상몰딩 · 목찬넬 EP · 걸레받이 · 좌우 휠라 (opts.lines 로 벽마다 모듈 x 를 넘긴다)', () => {
   /** 픽스처 모듈을 pos 순서대로 한 벽에 붙여 세운다 (하부·상부 각각 x 0 부터) */
   const linesOf = (item) => {
     const mods = [];
@@ -623,7 +623,16 @@ describe('라인 부재 runs[] — 상판 · 상몰딩 · 목찬넬 EP (opts.lin
     // 하부 708 · D 270 → 따내기 바닥 y 638, 앞선 z 135: 지면판 40 × 1800 바닥에, 전면판 52 그 위 안쪽 끝 (키큰장 단 ㄴ자와 같다)
     expect(base.parts[0].box).toEqual({ min: [-450, 638, 135], max: [1350, 656, 175] });
     expect(face.parts[0].box).toEqual({ min: [-450, 656, 135], max: [1350, 708, 153] });
-    expect(epOf(s).sort()).toEqual([['걸레받이', 'kick-position-pending'], ['휠라(우)', 'finish-position-pending'], ['휠라(좌)', 'finish-position-pending']]);
+    // 걸레받이 1800 × 145: 바닥 +5 → 밑단 y −145, 윗단 = 몸통 바닥, 앞면 = 몸통 앞선 175 − 32 (2026-10-22 카드 "몸통 앞선에서 32 안쪽")
+    const kick = runOf(s, '걸레받이');
+    expect(kick.hostModuleKey).toBe('0-l1');
+    expect(kick.parts[0].box).toEqual({ min: [-450, -145, 125], max: [1350, 0, 143] });
+    expect(kick.parts[0].tags).toEqual({ run: 'kick' });
+    // 좌우 휠라 60 × 2160: 하부 라인 양 끝 밖, 밑단 = 하부 몸통 바닥, 앞면 = 도어 앞면 175 + 18 (카드 "앞면 = 도어 앞면")
+    expect(runOf(s, '휠라(좌)').parts[0].box).toEqual({ min: [-510, 0, 175], max: [-450, 2160, 193] });
+    expect(runOf(s, '휠라(우)').parts[0].box).toEqual({ min: [1350, 0, 175], max: [1410, 2160, 193] });
+    expect(runOf(s, '휠라(좌)').parts[0].tags).toEqual({ run: 'finish', side: 'left' });
+    expect(epOf(s)).toEqual([]);
   });
 
   test('싱크 15T (하부 6 모듈 4100 + 좌 휠라 30, 후드가 상부 가운데): 상판은 하부 라인 위 한 장 (뒤 = 벽, 깊이 650), 상몰딩은 후드 때문에 못 놓는다', () => {
@@ -635,7 +644,9 @@ describe('라인 부재 runs[] — 상판 · 상몰딩 · 목찬넬 EP (opts.lin
     expect(top.parts[0].tags).toEqual({ run: 'top' });
     expect(runOf(s, '목찬넬(전면)').parts[0].box).toEqual({ min: [-500, 656, 235], max: [3000, 708, 253] });   // 쿡탑장 600 은 뺀 3500
     expect(epOf(s)).toContainEqual(['상몰딩', 'run-layout-unknown']);
-    expect(epOf(s).filter((e) => e[0] === '걸레받이')).toHaveLength(2);
+    // 걸레받이 4100 은 2440 + 1660 두 조각 — 조각 순서 미정
+    expect(epOf(s).filter((e) => e[0] === '걸레받이')).toEqual([['걸레받이', 'kick-cut-order-pending'], ['걸레받이', 'kick-cut-order-pending']]);
+    expect(runOf(s, '휠라(좌)').parts[0].box).toEqual({ min: [-530, 0, 275], max: [-500, 2160, 293] });   // 좌 휠라 30, 앞면 = 도어 앞면 275 + 18
   });
 
   test('하부 모듈이 두 벽에 걸치면 한 장 상판은 못 놓는다 (run-layout-unknown)', () => {

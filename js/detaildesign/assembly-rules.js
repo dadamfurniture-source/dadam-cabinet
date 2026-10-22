@@ -67,6 +67,12 @@
     BLIND_FINISH_W: 150,
     UPPER_D_DEFAULT: 295,
     LOWER_D_DEFAULT: 550,
+    // 하부장 걸레받이 MDF 18T (sink.md 자재표: 벽 길이 × (다리발 − 5), 2440 넘으면 2440 단위로 나눔) — 바닥에서 5 띄움 (3D KICK_FLOOR_GAP),
+    //   앞면 = 몸통 앞선 − 32 (2026-10-22 사장님 카드 "몸통 앞선에서 32 안쪽" — 좌대 걸레받이가 앞 50 들어간 상자 앞면에 붙어 32 남는 것과 같다)
+    KICK_T: 18,
+    KICK_FLOOR_GAP: 5,
+    KICK_SETBACK: 32,
+    KICK_CUT_UNIT: 2440,
   });
 
   /** 뒷판 재단 크기 — 사쿠리 여부로 (모든 모듈 공통). */
