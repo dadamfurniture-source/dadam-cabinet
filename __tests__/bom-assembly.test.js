@@ -588,6 +588,65 @@ describe('오픈장·밥솥장 자리 — 18T 상자', () => {
   });
 });
 
+describe('라인 부재 runs[] — 상판 · 상몰딩 · 목찬넬 EP (opts.lines 로 벽마다 모듈 x 를 넘긴다)', () => {
+  /** 픽스처 모듈을 pos 순서대로 한 벽에 붙여 세운다 (하부·상부 각각 x 0 부터) */
+  const linesOf = (item) => {
+    const mods = [];
+    ['lower', 'upper'].forEach((pos) => {
+      let x = 0;
+      item.modules.filter((m) => m.pos === pos).forEach((m) => { mods.push({ moduleKey: `0-${m.id}`, x0: x }); x += Number(m.w) || 0; });
+    });
+    return [{ key: 'wall', D: item.d, modules: mods }];
+  };
+  const specWith = (name, lines) => {
+    const design = { items: [FIXTURES[name]] };
+    return Asm.of(design, { materials: new MaterialExtractor().extract(design).materials, lines });
+  };
+  const epOf = (s) => s.unplaced.filter((u) => /-ep$/.test(u.moduleKey)).map((u) => [u.part, u.reason]);
+  const runOf = (s, part) => s.items[0].runs.find((r) => r.parts[0].part === part);
+
+  test('lines 가 없으면 품목 단위 행은 전부 run-part 로 남는다 (전과 같다)', () => {
+    const s = specWith('shoerack');
+    expect(s.items[0].runs).toEqual([]);
+    expect(epOf(s).every((e) => e[1] === 'run-part')).toBe(true);
+  });
+
+  test('신발장 (하부 900 · 500 서랍 · 400, 상부 900 · 600, 목찬넬 · 휠라 60 양쪽): 상몰딩은 상부 첫 모듈 위 띠, 목찬넬 EP 는 하부 따내기 자리', () => {
+    const s = specWith('shoerack', { 0: linesOf(FIXTURES.shoerack) });
+    const mold = runOf(s, '상몰딩');
+    expect([mold.lineKey, mold.hostModuleKey]).toEqual(['wall', '0-u1']);
+    // 상부장 900×720, 앞선 z 147.5 (D 295): 몸통 위 y 720…780 … 이 픽스처는 상부 H 705 — 띠 앞면 = 도어 앞면
+    expect(mold.parts[0].box).toEqual({ min: [-450, 705, 147.5], max: [1050, 765, 165.5] });
+    expect(mold.parts[0].tags).toEqual({ run: 'molding' });
+    const face = runOf(s, '목찬넬(전면)'), base = runOf(s, '목찬넬(지면)');
+    expect(face.hostModuleKey).toBe('0-l1');
+    // 하부 708 · D 270 → 따내기 바닥 y 638, 앞선 z 135: 지면판 40 × 1800 바닥에, 전면판 52 그 위 안쪽 끝 (키큰장 단 ㄴ자와 같다)
+    expect(base.parts[0].box).toEqual({ min: [-450, 638, 135], max: [1350, 656, 175] });
+    expect(face.parts[0].box).toEqual({ min: [-450, 656, 135], max: [1350, 708, 153] });
+    expect(epOf(s).sort()).toEqual([['걸레받이', 'kick-position-pending'], ['휠라(우)', 'finish-position-pending'], ['휠라(좌)', 'finish-position-pending']]);
+  });
+
+  test('싱크 15T (하부 6 모듈 4100 + 좌 휠라 30, 후드가 상부 가운데): 상판은 하부 라인 위 한 장 (뒤 = 벽, 깊이 650), 상몰딩은 후드 때문에 못 놓는다', () => {
+    const s = specWith('sink15', { 0: linesOf(FIXTURES.sink15) });
+    const top = runOf(s, '상판');
+    expect(top.hostModuleKey).toBe('0-l1');
+    expect(top.parts[0].cut).toEqual({ w: 4130, h: 650 });
+    expect(top.parts[0].box).toEqual({ min: [-530, 708, -275], max: [3600, 720, 375] });   // 호스트 l1 1000 가운데, 좌 휠라 30 만큼 왼쪽으로
+    expect(top.parts[0].tags).toEqual({ run: 'top' });
+    expect(runOf(s, '목찬넬(전면)').parts[0].box).toEqual({ min: [-500, 656, 235], max: [3000, 708, 253] });   // 쿡탑장 600 은 뺀 3500
+    expect(epOf(s)).toContainEqual(['상몰딩', 'run-layout-unknown']);
+    expect(epOf(s).filter((e) => e[0] === '걸레받이')).toHaveLength(2);
+  });
+
+  test('하부 모듈이 두 벽에 걸치면 한 장 상판은 못 놓는다 (run-layout-unknown)', () => {
+    const ln = linesOf(FIXTURES.sink15)[0];
+    const lines = [{ key: 'a', D: 650, modules: ln.modules.slice(0, 3) }, { key: 'b', D: 650, modules: ln.modules.slice(3) }];
+    const s = specWith('sink15', { 0: lines });
+    expect(runOf(s, '상판')).toBeUndefined();
+    expect(epOf(s)).toContainEqual(['상판', 'run-layout-unknown']);
+  });
+});
+
 describe('옛 냉장고장 화면 모듈 (type, pos 없음) — 2026-10-22 사장님: 상부장 15T 사쿠리 + 보강목, 도어 H+20 아래로 20', () => {
   const { spec: s } = specOf('fridge');
   const modOf = (id) => s.items[0].modules.find((m) => m.moduleId === id);
