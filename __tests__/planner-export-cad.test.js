@@ -260,9 +260,32 @@ describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
       expect(pt).toBeDefined();
       expect(n.extras).toMatchObject({ rowPartId: pt.rowPartId, part: pt.part, t: pt.t, cutW: pt.cut.w, cutH: pt.cut.h });
     });
-    // 따낸 판은 상자 여럿 — 메시 수 = 부재마다 solidsOf 의 상자 수
+    // 따낸 판은 상자 여럿 — 메시 수 = 부재마다 solidsOf 의 상자 수 + 철물 상자(다리발)
     const solids = [...rows.values()].reduce((s, pt) => s + Asm.solidsOf(pt).length, 0);
-    expect(gltf.nodes.filter((n) => n.mesh != null)).toHaveLength(solids);
+    expect(gltf.nodes.filter((n) => n.mesh != null)).toHaveLength(solids + built.hardware);
+  });
+
+  test('GLB — 철물은 자리·치수가 있는 다리발만 상자로, 모듈 노드 아래 (extras.hardware), 레일·경첩은 싣지 않는다', () => {
+    const placed = cad.spec.items.flatMap((it) => (it ? it.modules.flatMap((m) => m.hardware.filter((h) => h.at && h.size).map((h) => [m.moduleKey, h])) : []));
+    expect(placed.length).toBeGreaterThan(0);
+    expect(placed.every(([, h]) => h.kind === 'leg')).toBe(true);
+    expect(built.hardware).toBe(placed.length);
+    const hwNodes = gltf.nodes.filter((n) => n.extras && typeof n.extras.hardware === 'string');
+    expect(hwNodes).toHaveLength(placed.length);
+    expect(hwNodes.every((n) => n.extras.hardware === 'leg' && n.mesh != null)).toBe(true);
+    // 다리발 상자 가운데 = at + 높이/2 (at 는 밑면 가운데) — 모듈 노드 로컬 (mm)
+    const nodeOf = new Map(gltf.nodes.map((n) => [n.name, n]));
+    placed.forEach(([mk, h]) => {
+      const k = cad.spec.items.flatMap((it) => (it ? it.modules : [])).find((m) => m.moduleKey === mk).hardware.indexOf(h);
+      const n = nodeOf.get(`${mk}·leg#${k}`);
+      expect(n).toBeDefined();
+      expect(n.translation.map(Math.round)).toEqual([h.at[0], h.at[1] + h.size[1] / 2, h.at[2]].map(Math.round));
+      expect(n.extras).toMatchObject({ moduleKey: mk, category: '다리발' });
+      const parent = gltf.nodes.find((x) => x.children && x.children.includes(gltf.nodes.indexOf(n)));
+      expect(parent.name).toBe(`module·${mk}`);
+    });
+    // 레일·경첩은 메시가 없다
+    expect(gltf.nodes.filter((n) => n.extras && /rail|hinge/.test(String(n.extras.hardware)))).toEqual([]);
   });
 });
 
