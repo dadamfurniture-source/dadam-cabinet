@@ -100,11 +100,11 @@ describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
     const runs = it.runs.map((r) => [r.parts[0].part, r.lineKey, r.hostModuleKey]);
     const ep = cad.spec.unplaced.filter((u) => /-ep$/.test(u.moduleKey)).map((u) => [u.part, u.reason]);
     expect(built.runs).toBe(it.runs.length);
-    // 걸레받이 — 벽마다 바닥 +5 · 앞면 = 몸통 앞선 −32, 2440 넘는 벽은 왼쪽부터 2440 조각 (2026-10-22 카드)
+    // 걸레받이 — 벽마다 바닥에 붙여(다리발 150 아래, 윗단 −5) · 앞면 = 몸통 앞선 −32, 2440 넘는 벽은 왼쪽부터 2440 조각 (2026-10-22 카드·사장님 글)
     expect(ep.filter((e) => e[0] === '걸레받이')).toEqual([]);
     it.runs.filter((r) => r.parts[0].part === '걸레받이').forEach((r) => {
       const b = r.parts[0].box;
-      expect([b.min[1], b.max[1], b.min[2], b.max[2]]).toEqual([-145, 0, 550 / 2 - 32 - 18, 550 / 2 - 32]);
+      expect([b.min[1], b.max[1], b.min[2], b.max[2]]).toEqual([-150, -5, 550 / 2 - 32 - 18, 550 / 2 - 32]);
     });
     if (/^(straight|drawer)/.test(name)) {
       // 한 벽: 하부 1200·1000·1400 + 개수대 — 목찬넬 EP 두 장과 상판이 첫 하부 칸 아래에, 상몰딩은 상부 1800 과 1200 사이가 비어 못 놓는다
