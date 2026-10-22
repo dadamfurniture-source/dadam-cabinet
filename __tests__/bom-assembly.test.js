@@ -12,7 +12,7 @@
 global.dlog = global.dlog || (() => {});
 const Asm = require('../js/detaildesign/bom-assembly.js');
 const Rules = require('../js/detaildesign/assembly-rules.js');
-const { MaterialExtractor } = require('../js/detaildesign/extractors.js');
+const { MaterialExtractor, HardwareExtractor } = require('../js/detaildesign/extractors.js');
 const engine = require('../js/planner/planner-engine.js');
 const { FIXTURES } = require('../test-utils/bom-golden/fixtures.js');
 const { findOverlaps, IDENTITY } = require('../test-utils/box-overlap.js');
@@ -901,12 +901,35 @@ describe('철물 hardware[] — 다리발 · 레일 자리, 경첩은 변·컵 �
     expect(hwOf(s, '0-corner-blind-lower', 'hinge').map((h) => [h.edge, h.pending])).toEqual([['left', 'hinge-backset-pending']]);
   });
 
-  test('붙박이장 외부 서랍 레일은 박스 자리를 안 넘겨 rail-box-unknown, 철물 행이 없으면 hardware[] 는 빈다', () => {
+  test('붙박이장 외부 서랍 레일 — 서랍모듈 박스마다 왼·오, 박스 밑 30 (싱크 규칙); 구조 블록 없는 옛 설계(w3)는 박스가 없어 rail-box-unknown; 철물 행이 없으면 hardware[] 는 빈다', () => {
     const s = specOf('wardrobe');
-    expect(hwOf(s, '0-w2', 'rail')).toEqual([expect.objectContaining({ pending: 'rail-box-unknown', qty: 2 })]);
+    const w2 = s.items[0].modules.find((m) => m.moduleKey === '0-w2');
+    expect(w2.drawerBoxes).toEqual([
+      { x0: -429, y0: 380, zf: 300, z0: -190, outerW: 858, railLength: 500, rail: 'under' },
+      { x0: -429, y0: 45, zf: 300, z0: -190, outerW: 858, railLength: 500, rail: 'under' },
+    ]);
+    expect(hwOf(s, '0-w2', 'rail').map((h) => [h.at, h.len, h.tags.box, h.tags.side])).toEqual([
+      [[-429, 350, -200], 500, 0, 'left'], [[429, 350, -200], 500, 0, 'right'],
+      [[-429, 15, -200], 500, 1, 'left'], [[429, 15, -200], 500, 1, 'right'],
+    ]);
+    expect(hwOf(s, '0-w3', 'rail')).toEqual([expect.objectContaining({ pending: 'rail-box-unknown', qty: 1 })]);
     const design = { items: [FIXTURES.shoerack] };
     const bare = Asm.of(design, { materials: new MaterialExtractor().extract(design).materials, hardware: [] });
     expect(bare.items[0].modules.every((m) => m.hardware.length === 0)).toBe(true);
+  });
+
+  test.each([1, 2, 3])('붙박이장 내부 서랍장 %i단 레일 — 모듈 박스마다 왼·오 (innerDrawer), 박스 밑 30, 길이 450', (n) => {
+    const item = JSON.parse(JSON.stringify(FIXTURES.wardrobe));
+    Object.assign(item.modules.find((x) => x.id === 'w2'), { isExternalDrawer: false, drawerCount: n, wardrobe: { preset: 'longDrawer', drawers: n } });
+    const design = { items: [item] };
+    const s = Asm.of(design, { materials: new MaterialExtractor().extract(design).materials, hardware: new HardwareExtractor().extract(design).hardware });
+    const w2 = s.items[0].modules.find((m) => m.moduleKey === '0-w2');
+    const boxes = w2.parts.filter((p) => p.part === '서랍측판' && p.tags.side === 'left').map((p) => p.box);
+    expect(boxes).toHaveLength(n);
+    expect(w2.drawerBoxes.map((b) => [b.innerDrawer, b.rail, b.railLength, b.outerW, b.x0, b.zf, b.z0])).toEqual(boxes.map(() => [true, 'under', 450, 708, -354, 215, -225]));
+    expect(hwOf(s, '0-w2', 'rail').map((h) => [h.at, h.len, h.pending])).toEqual(boxes.flatMap((b, i) => [
+      [[-354, b.min[1] - 30, -235], 450, undefined], [[354, b.min[1] - 30, -235], 450, undefined],
+    ]));
   });
 
   test('다리발 상수는 플래너 MASTER_RULES 와 같다 (drift 금지)', () => {
