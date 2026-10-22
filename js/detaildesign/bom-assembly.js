@@ -829,6 +829,7 @@
     //   아래는 중간 따낸 윗선 · 전면 사이 틈 가운데 · 지판 윗면. 박스 측판 밑단 = 존 바닥 + 레일 아래 여유, 가로 가운데, 앞끝 = 몸통 앞선.
     //   박스가 존에 들어가지 않으면 놓지 않는다.
     const boxRows = new Set();
+    const drawerBoxes = [];   // 레일 철물 자리(hardwareOf) — 박스 외경 밑단·앞끝 (외부 서랍 + 내부 서랍장)
     if (extFronts && drawerCar) {
       const { row: frontRow, ys, midBelow } = extFronts;
       const n = ys.length;
@@ -852,6 +853,7 @@
       mineBox.forEach(({ row, key }) => {
         if (boxes.length && placeBoxRow(parts, row, key, boxes, false, boxRowsOf)) boxRows.add(row);
       });
+      if (boxRows.size) boxes.forEach((b) => drawerBoxes.push({ x0: b.x0, y0: b.y0, zf: b.zf, z0: b.z0, outerW: b.dims.outerW, railLength: b.dims.railLength, rail: 'under' }));
     }
 
     // 내부 서랍장 — 규칙 파일 배치(innerDrawerLayout)의 모듈. 2026-10-20 사장님 카드 "도어 앞선−70":
@@ -930,6 +932,7 @@
             return true;
           });
           placedBox.forEach((x) => innerRows.add(x.row));
+          if (placedBox.length) boxes.forEach((b) => drawerBoxes.push({ x0: b.x0, y0: b.y0, zf: b.zf, z0: b.z0, outerW: b.dims.outerW, railLength: b.dims.railLength, rail: b.dims.rail, innerDrawer: true }));
         }
       }
     }
@@ -956,6 +959,7 @@
         place: (opts.place && opts.place[mk]) || null,
         parts,
         pending,
+        drawerBoxes,
       },
       unplaced,
     };
@@ -1177,7 +1181,7 @@
    *           멍장 도어는 목대 쪽, 플랩은 윗변. 외짝 여닫이의 경첩 방향은 설계에 없다 → 'hinge-side-unknown'.
    *           컵 중심의 변에서 거리(백셋)·깊이는 결정 D5 미정 → at: null, 'hinge-backset-pending'.
    *   레일    서랍 박스마다 2개 (왼·오). 언더레일은 박스 측판 밑 여유 30 (bom-drawer-rules RAIL_CLEARANCE.under.below) 에, 앞끝 = 박스 앞끝,
-   *           길이 = 규격. 볼레일은 측판 옆 두께 14 — 높이 자리가 정해지지 않았다 → 'rail-ball-position'. 박스 자리를 안 넘기는 몸통(붙박이장) → 'rail-box-unknown'.
+   *           길이 = 규격. 볼레일은 측판 옆 두께 14 — 높이 자리가 정해지지 않았다 → 'rail-ball-position'. 박스를 못 놓아 자리가 없는 몸통 → 'rail-box-unknown'.
    *   수량이 모듈·도어·박스 수와 맞지 않는 행은 전부 'hardware-count-mismatch'.
    */
   function hardwareOf(itemIdx, item, hwRows, modules, label) {
@@ -1230,7 +1234,7 @@
       if (row.category === '레일') {
         const boxes = m.drawerBoxes || [];
         const len = parseFloat(row.spec);
-        if (!boxes.length) { push(m, { kind: 'rail', qty: row.qty, at: null, pending: 'rail-box-unknown' }); return; }   // 붙박이장 서랍 등 — 박스 자리를 안 넘긴다
+        if (!boxes.length) { push(m, { kind: 'rail', qty: row.qty, at: null, pending: 'rail-box-unknown' }); return; }   // 박스를 못 놓은 몸통 — 박스 자리가 없다
         if (boxes.length !== row.qty || !boxes.every((b) => b.railLength === len)) { push(m, { kind: 'rail', qty: row.qty, at: null, pending: 'hardware-count-mismatch' }); return; }
         boxes.forEach((b, bi) => {
           if (b.rail !== 'under') { push(m, { kind: 'rail', qty: 2, at: null, pending: 'rail-ball-position', tags: { box: bi } }); return; }

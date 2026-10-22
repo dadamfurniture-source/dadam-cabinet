@@ -184,7 +184,7 @@ function plannerExportFileName(now, kind) {
 // 부모 창이 상세설계(detaildesign.html)일 때만 된다 — 변환·BOM 이 그쪽에 있다.
 // ============================================================
 const PLANNER_EXPORT_CAD_ROOT_NAME = 'dadam-planner-cad';
-const PLANNER_EXPORT_CAD_COLORS = { PB: 0xd9c4a3, MDF: 0xbdb5a8 };
+const PLANNER_EXPORT_CAD_COLORS = { PB: 0xd9c4a3, MDF: 0xbdb5a8, hardware: 0x6b6b6b };
 const PLANNER_EXPORT_CELL_RE = /^planner-(.+)-(\d+|open)$/;
 
 /**
@@ -265,7 +265,17 @@ function plannerExportCadScene(THREE, spec, frameOf, opts) {
     }
     return mats[key];
   };
-  let parts = 0, modules = 0, skipped = 0, runs = 0;
+  let parts = 0, modules = 0, skipped = 0, runs = 0, hardware = 0;
+  // 철물 — 자리(at)와 치수(size)가 둘 다 있는 것만 상자로 싣는다 (다리발: at = 밑면 가운데, size = [가로, 높이, 깊이]).
+  //   레일·경첩은 자리만 있거나 치수가 규칙에 없어(언더레일 두께 0, 경첩 컵 자리 미정) 싣지 않는다 — 명세(hardware[])에는 그대로 있다.
+  const hardwareNodeOf = (h, k, moduleKey) => {
+    const geo = new THREE.BoxGeometry(h.size[0], h.size[1], h.size[2]);
+    const mesh = new THREE.Mesh(geo, matOf('hardware'));
+    mesh.position.set(h.at[0], h.at[1] + h.size[1] / 2, h.at[2]);
+    mesh.name = `${moduleKey}·${h.kind}#${k}`;
+    mesh.userData = { hardware: h.kind, category: h.category, item: h.item, spec: h.spec, hwIdx: h.hwIdx, moduleKey, tags: h.tags || null };
+    return mesh;
+  };
   const partNodeOf = (p, moduleKey) => {
     const solids = o.solidsOf(p);
     const meshOf = (b, name) => {
@@ -300,6 +310,7 @@ function plannerExportCadScene(THREE, spec, frameOf, opts) {
       node.userData = { moduleKey: m.moduleKey, moduleId: m.moduleId, kind: m.kind, box: m.box };
       mat.decompose(node.position, node.quaternion, node.scale);
       m.parts.forEach((p) => { node.add(partNodeOf(p, m.moduleKey)); parts++; });
+      (m.hardware || []).forEach((h, k) => { if (h.at && h.size) { node.add(hardwareNodeOf(h, k, m.moduleKey)); hardware++; } });
       root.add(node);
       nodeOf.set(m.moduleKey, node);
       modules++;
@@ -323,10 +334,11 @@ function plannerExportCadScene(THREE, spec, frameOf, opts) {
     units: 'mm (root scale 0.001 → m)',
     unplaced: (spec.unplaced || []).length,
     skippedModules: skipped,
+    hardware,
     source: 'dadam.assembly',
     exportedAt: o.exportedAt || new Date().toISOString(),
   };
-  return { root, parts, modules, runs, skipped, unplaced: (spec.unplaced || []).length };
+  return { root, parts, modules, runs, hardware, skipped, unplaced: (spec.unplaced || []).length };
 }
 
 async function plannerExportCadGlb(THREE, GLTFExporter, spec, frameOf, opts) {
