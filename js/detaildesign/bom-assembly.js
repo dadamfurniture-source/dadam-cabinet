@@ -38,6 +38,12 @@
  *   오픈장·밥솥장 — 18T MDF 상자 (bom-open-cabinet-rules.js, 플래너 buildOpenCabinetMesh): 측판 양 끝 깊이 전체,
  *            천지판 측판 사이 앞선 맞춤 (뒤에 뒷판 자리 20), 18T 뒷판 측판 사이 뒤끝 맞춤 몸통 높이 전체.
  *            밥솥장 도어 (W − 4) × (H − 4) 는 측판 앞선에 붙어 가운데 (openBoxOf)
+ *   라인 부재 (품목 단위 행 `<품목>-ep`, 2026-10-22) — items[].runs[] 에 호스트 모듈(라인 첫 모듈) 좌표로 낸다 (runsOf).
+ *            부르는 쪽이 벽(배치 공간)마다 모듈의 x 를 넘긴다 (opts.lines) — 없으면 전부 unplaced 'run-part'.
+ *            상판   하부 라인(키큰장 단 뺀 하부장 + 좌우 마감 폭) 위 한 장, 뒤 = 벽, 깊이 = 행 h (2026-10-18 사장님: 배치 깊이, 오버행 없음)
+ *            상몰딩 상부 라인(후드 뺀 상부장) 위 띠 — 키큰장 상몰딩과 같은 자리 (2026-10-20 카드 "도어 앞면 맞춤")
+ *            목찬넬 EP (전면 52 · 지면 40 × 라인 폭) — 하부 라인 측판 따내기 70×40 자리의 ㄴ자, 키큰장 단 ㄴ자와 같은 자리
+ *            걸레받이 · 좌우 마감재(휠라·몰딩·EP) 는 앞뒤 자리 미정 (2026-10-22 카드) → 'kick-position-pending' · 'finish-position-pending'
  *
  * 미정 (지금 BOM 동작을 그대로 두고 결과에 적는다):
  *   하부장·키큰장 단·붙박이장 서랍모듈·내부 서랍장 밴드 2장 — 2026-10-20 사장님 "뒤 눕힘": 천판 대신 상단 앞·뒤에
@@ -1012,12 +1018,113 @@
   }
 
   /**
+   * 라인 부재 — 품목 단위 행(moduleKey `<품목>-ep`)을 호스트 모듈 좌표로 놓는다.
+   *   lines = [{ key, D, modules: [{ moduleKey, x0 }] }] — 벽(배치 공간)마다, x0 = 모듈 왼쪽 끝 (벽 시작 기준 mm). 모듈 뒷면은 벽.
+   *   구간(span) = 그 행이 세는 모듈들 — 라인 안에서 붙어 있어야 하고(사이에 안 세는 모듈이 없음), 높이가 같아야 한다.
+   *   행 치수가 구간과 다르면 'run-layout-unknown' (ㄱ·ㄷ자 한 장 상판, 후드가 가운데인 상몰딩 등).
+   * @returns {{runs:Array, unplaced:Array}}
+   */
+  function runsOf(itemIdx, rows, lines, specMods, item) {
+    const mk = `${itemIdx}-ep`;
+    const runs = [], unplaced = [];
+    const skip = (row, reason) => unplaced.push({ rowPartId: row.partId, moduleKey: mk, part: row.part, qty: row.qty, reason });
+    const specs = (item && item.specs) || {};
+    const byKey = new Map(specMods.map((m) => [m.moduleKey, m]));
+    const rawOf = (moduleKey) => {
+      const m = String(moduleKey).match(/^\d+-(.*)$/);
+      return m && item ? (item.modules || []).find((x) => String(x.id) === m[1]) : null;
+    };
+    const isTallTier = (mod) => !!mod && (mod.type === 'tall' || mod.blindKind === 'tall');
+    const lineList = (Array.isArray(lines) ? lines : []).map((ln) => ({
+      key: ln.key, D: Number(ln.D) || 0,
+      // 명세 모듈이 없는 모듈(쿡탑장처럼 BOM 행이 없는 것)도 폭은 센다 — 상판이 그 위를 지난다. 호스트는 될 수 없다
+      entries: (ln.modules || []).map((e) => ({ mk: String(e.moduleKey), x0: Number(e.x0) || 0, spec: byKey.get(String(e.moduleKey)) || null, mod: rawOf(e.moduleKey) }))
+        .filter((e) => e.mod).map((e) => Object.assign(e, { W: e.spec ? e.spec.box.W : (Number(e.mod.w) || 0) })).sort((a, b) => a.x0 - b.x0),
+    }));
+    /** 한 라인에서 pred 가 세는 모듈 구간. 라인에 세는 모듈이 없으면 null. 같은 pos(하부/상부) 줄 안에서 사이에 안 세는 모듈이 있거나
+     *  모듈 사이가 떨어져 있거나(빈 자리) 높이가 다르거나 첫 모듈에 명세가 없으면 { bad } — 한 장이 지나갈 수 없다 */
+    const spanOf = (ln, pred) => {
+      const counted = ln.entries.filter((e) => pred(e.mod));
+      if (!counted.length) return null;
+      const host = counted[0], last = counted[counted.length - 1];
+      const lane = ln.entries.filter((e) => e.mod.pos === host.mod.pos);
+      const i0 = lane.indexOf(host), i1 = lane.indexOf(last);
+      const contiguous = i1 - i0 === counted.length - 1 && lane.slice(i0, i1 + 1).every((e) => pred(e.mod));
+      const touching = counted.every((e, k) => k === 0 || Math.abs(counted[k - 1].x0 + counted[k - 1].W - e.x0) <= 1);
+      const sameH = !!host.spec && counted.every((e) => !e.spec || e.spec.box.H === host.spec.box.H);
+      return { bad: !contiguous || !touching || !sameH, host, x0: host.x0, x1: last.x0 + last.W, line: ln };
+    };
+    /** 품목에서 pred 구간이 꼭 한 라인에만 있어야 한다 (행이 한 장이다) */
+    const onlySpan = (pred) => {
+      const spans = lineList.map((ln) => spanOf(ln, pred)).filter(Boolean);
+      return spans.length === 1 && !spans[0].bad ? spans[0] : null;
+    };
+    const finW = (type, w) => (type && type !== 'None' ? (Number(w) || 0) : 0);
+    const put = (row, span, frame, vis, tags) => runs.push({
+      key: row.partId, lineKey: span.line.key, hostModuleKey: span.host.mk,
+      parts: [makePart(row, 0, frame, [], vis, tags)],
+    });
+    const xOf = (span, x) => x - (span.host.x0 + span.host.spec.box.W / 2);   // 벽 x → 호스트 모듈 로컬 x
+    const lowerLine = (mod) => mod.pos === 'lower' && !isTallTier(mod);
+    const hasTopNotch = (e) => !!e.spec && e.spec.parts.some((p) => p.part === '측판' && (p.features || []).some((f) => f.src === 'channel-top'));
+
+    rows.forEach((row) => {
+      const key = keyOfRow(row);
+      if (!key) { skip(row, 'no-part-key'); return; }
+      if (!lineList.length) { skip(row, 'run-part'); return; }
+      switch (key.family) {
+        case 'top': {
+          // 상판 — 하부 라인(쿡탑장 포함, 키큰장 단 제외) 폭 합 + 좌·우 마감 폭 한 장, 뒤 = 벽, 깊이 = 행 h, 몸통 위
+          const span = onlySpan(lowerLine);
+          const finL = finW(specs.finishLeftType, specs.finishLeftWidth), finR = finW(specs.finishRightType, specs.finishRightWidth);
+          if (!span || row.qty !== 1 || row.w !== span.x1 - span.x0 + finL + finR) { skip(row, 'run-layout-unknown'); return; }
+          const b = span.host.spec.box;
+          put(row, span, { o: [xOf(span, span.x0 - finL), b.H, -b.D / 2], u: '+x', v: '+z', n: '+y' }, 'exterior', { run: 'top' });
+          return;
+        }
+        case 'molding': {
+          // 상몰딩 — 상부 라인(후드 제외) 위 띠, 앞면 = 도어 앞면 (키큰장 상몰딩과 같다). 2440 재단 장수 행(qty > 1)은 설치 길이가 아니다
+          if (row.qty !== 1) { skip(row, 'run-cut-blank'); return; }
+          const span = onlySpan((mod) => mod.pos === 'upper' && mod.type !== 'hood');
+          if (!span || row.h !== span.x1 - span.x0) { skip(row, 'run-layout-unknown'); return; }
+          const b = span.host.spec.box;
+          put(row, span, { o: [xOf(span, span.x0), b.H, b.D / 2], u: '+y', v: '+x', n: '+z' }, 'exterior', { run: 'molding' });
+          return;
+        }
+        case 'channel:front':
+        case 'channel:back': {
+          // 목찬넬 EP ㄴ자 — 하부 라인(쿡탑장·키큰장 단 제외) 측판 따내기 70×40 자리, 키큰장 단 ㄴ자와 같다
+          const face = key.family === 'channel:front';
+          const span = onlySpan((mod) => lowerLine(mod) && mod.type !== 'cook');
+          if (!span || row.qty !== 1 || row.h !== span.x1 - span.x0 || row.w !== (face ? DR.CHANNEL_TOP_FACE_H : DR.CHANNEL_BASE_W)
+            || row.thickness !== DR.CHANNEL_T || !span.line.entries.filter((e) => lowerLine(e.mod) && e.mod.type !== 'cook').every(hasTopNotch)) {
+            skip(row, 'run-layout-unknown'); return;
+          }
+          const b = span.host.spec.box;
+          const yb = b.H - DR.CHANNEL_TOP_NOTCH_H, z0 = b.D / 2 - DR.CHANNEL_BASE_W, xL = xOf(span, span.x0);
+          put(row, span, face
+            ? { o: [xL, yb + row.thickness, z0], u: '+y', v: '+x', n: '+z' }
+            : { o: [xL, yb, z0], u: '+z', v: '+x', n: '+y' }, 'exterior', { run: 'channel', channel: 'top' });
+          return;
+        }
+        case 'kick':
+          skip(row, row.qty === 1 && row.part === '걸레받이' ? 'kick-position-pending' : 'run-cut-blank');
+          return;
+        default:
+          skip(row, /^(filler|molding|ep):/.test(key.family) ? 'finish-position-pending' : 'run-part');
+      }
+    });
+    return { runs, unplaced };
+  }
+
+  /**
    * 조립 명세를 만든다.
    * @param {{items:Array}} design   MaterialExtractor 에 넣는 것과 같은 설계
    * @param {object} [opts]
    *   materials   이미 뽑은 BOM 행 (없으면 MaterialExtractor 로 뽑는다)
    *   shelfY      { [moduleKey]: number[] } 선반 중심 높이 (몸통 바닥에서, mm)
    *   place       { [moduleKey]: {...} } 모듈을 세우는 자리 — 그대로 싣는다
+   *   lines       { [itemIdx]: [{ key, D, modules: [{ moduleKey, x0 }] }] } 벽(배치 공간)마다 모듈 왼쪽 끝 x0 — 라인 부재(runsOf) 자리
    */
   function of(design, opts) {
     const o = opts || {};
@@ -1035,12 +1142,14 @@
       byModule.get(mk).push(r);
     });
 
-    const outItems = items.map((item, itemIdx) => ({ itemIdx, label: (materials.find((r) => String(r.moduleKey || '').indexOf(itemIdx + '-') === 0) || {}).itemLabel || '', modules: [] }));
+    const outItems = items.map((item, itemIdx) => ({ itemIdx, label: (materials.find((r) => String(r.moduleKey || '').indexOf(itemIdx + '-') === 0) || {}).itemLabel || '', modules: [], runs: [] }));
     const unplaced = [];
+    const epRows = new Map();   // itemIdx → 품목 단위 행 — 모듈이 다 선 뒤 runsOf
     byModule.forEach((rows, mk) => {
       const m = mk.match(/^(\d+)-(.*)$/);
       const itemIdx = m ? Number(m[1]) : -1;
       const item = items[itemIdx];
+      if (m && m[2] === 'ep' && item) { epRows.set(itemIdx, rows); return; }
       const mod = item && (item.modules || []).find((x) => String(x.id) === m[2]);
       const blind = mod && String(mod.id).indexOf('corner-blind-') === 0;
       const wardrobe = mod && (item.categoryId || item.category) === 'wardrobe' && (mod.pos === 'wardrobe' || mod.pos === 'tall');
@@ -1059,6 +1168,11 @@
       }
       outItems[itemIdx].modules.push(res.module);
       res.unplaced.forEach((u) => unplaced.push(u));
+    });
+    epRows.forEach((rows, itemIdx) => {
+      const r = runsOf(itemIdx, rows, o.lines && o.lines[itemIdx], outItems[itemIdx].modules, items[itemIdx]);
+      outItems[itemIdx].runs = r.runs;
+      r.unplaced.forEach((u) => unplaced.push(u));
     });
 
     return {
