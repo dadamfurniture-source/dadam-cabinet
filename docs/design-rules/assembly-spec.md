@@ -75,6 +75,18 @@ BOM 행마다 판재 조각의 **자리**를 붙인다. 재단 치수는 BOM 행
 
 `Asm.of(design, { MaterialExtractor })` — 서랍 레이아웃을 BOM 과 같은 추출기로 구한다. 플래너 iframe 은 추출기가 부모 창에 있어 넘겨 준다.
 
+## 철물 (`modules[].hardware[]`, 2026-10-22)
+
+철물 행(`HardwareExtractor`)을 모듈마다 `hardware[]` 로 놓는다. 항목은 `{ hwIdx, category, item, spec, kind, at, … }` — `at` 는 모듈 로컬 [x, y, z], 근거가 없으면 `at: null` 에 `pending` 이유. 부르는 쪽이 `opts.hardware` 로 철물 행을 넘기거나 추출기를 두면 되고, 없으면 `hardware[]` 는 빈다 (플래너는 부모 창 `HardwareExtractor`).
+
+| 철물 | 자리 | 근거 |
+|---|---|---|
+| 다리발 (`leg`) | 하부 모듈마다 폭으로 4·6·8 (`extractLegs` 와 같은 셈, 품목 행 수량과 맞아야 한다). **4 코너** = 플래너 3D `addLegs` 자리 — 모듈 외곽에서 25 안쪽, 42 각 (`LEG_INSET` · `LEG_SIZE`, planner-engine `MASTER_RULES` 와 같은 값), 앞줄은 걸레받이 바로 뒤 (z D/2 − 32 − 18 − 21), 뒷줄 z −D/2 + 46. `at` = 밑면 가운데 (y −다리발), `size` [42, 다리발, 42]. 5·6번째부터(가운데 다리)는 자리가 정해진 데가 없다 → `leg-mid-position`. 키큰장 단은 `leg-tall-tier` | planner-engine.js `LEG_SIZE`·`LEG_INSET`, mockup-structure.html `addLegs` (3D 의 앞줄은 제 걸레받이 −40 뒤라 다르다) |
+| 레일 (`rail`) | 서랍 박스마다 왼·오 2개 (`tags.box`·`side`). 언더레일 — 박스 측판 밑 여유 30 (`RAIL_CLEARANCE.under.below`) 에, x = 박스 바깥면, 앞끝 = 박스 앞끝, `len` = 규격. 볼레일은 측판 옆(두께 14)이지만 높이 자리가 없다 → `rail-ball-position`. 박스 자리를 안 넘기는 몸통(붙박이장) → `rail-box-unknown` | bom-drawer-rules.js `RAIL_CLEARANCE`, 서랍 박스 자리(`drawerBoxes`) |
+| 경첩 (`hinge`) | 도어마다 (`partId`·`doorIdx`): `edge` 경첩 변 — 양문은 왼 도어 왼쪽·오른 도어 오른쪽, 멍장 도어는 목대 쪽, 플랩은 윗변; 외짝 여닫이는 설계에 방향이 없다 → `hinge-side-unknown`. `cups` = 행 `boring[]` (도어 상단에서 컵 중심, hardware.md §1 끝 110), `cupD` 35. 변에서 컵 중심까지(백셋)·깊이는 결정 D5 미정 → `at: null`, `hinge-backset-pending` | hardware.md §1, 결정 D5 |
+
+수량이 모듈·도어·박스 수와 맞지 않는 행은 `hardware-count-mismatch`. 서랍장(마이다 전면)은 BOM 이 경첩 행을 안 내므로 위 도어가 있어도 경첩 항목이 없다. GLB 에는 아직 싣지 않는다.
+
 ## 알려진 겹침
 
 - **18T 상부장 선반 ↔ 처짐방지목 2mm.** 상부 선반 깊이가 상수 D−34 라, 18T 에서는 홈 앞 18 + 선반 + 처짐방지목 18 = D + 2.

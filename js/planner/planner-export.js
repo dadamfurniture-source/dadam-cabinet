@@ -238,6 +238,8 @@ function plannerExportCadSpec(P, deps) {
   });
   // 서랍장 레이아웃도 BOM 과 같은 추출기로 (부모 창 전역 — iframe 에는 없다)
   const opts = { materials, shelfY, MaterialExtractor: P.MaterialExtractor };
+  // 철물 자리 (다리발·레일·경첩) — 같은 부모 창 추출기. 없으면 명세 hardware[] 는 빈다
+  if (typeof P.HardwareExtractor === 'function') opts.hardware = new P.HardwareExtractor().extract(design).hardware;
   if (lines.length) opts.lines = { [itemIdx]: lines };
   return { spec: deps.Assembly.of(design, opts), cells };
 }
