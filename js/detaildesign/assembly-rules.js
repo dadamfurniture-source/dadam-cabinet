@@ -74,6 +74,12 @@
     KICK_H_MINUS: 5,
     KICK_SETBACK: 32,
     KICK_CUT_UNIT: 2440,
+    // 다리발 — 플래너 MASTER_RULES.LEG_SIZE·LEG_INSET (js/planner/planner-engine.js, OBJ 실측) 과 같은 값 (drift 금지).
+    //   4 코너, 모듈 외곽에서 25 안쪽, 앞줄은 걸레받이 뒤 (3D addLegs). 6·8개일 때 가운데 다리 자리는 정한 데가 없다.
+    LEG_SIZE: 42,
+    LEG_INSET: 25,
+    // 경첩 컵 지름 (hardware.md §1, H052W). 백셋·깊이는 결정 D5 미정.
+    HINGE_CUP_D: 35,
   });
 
   /** 뒷판 재단 크기 — 사쿠리 여부로 (모든 모듈 공통). */
