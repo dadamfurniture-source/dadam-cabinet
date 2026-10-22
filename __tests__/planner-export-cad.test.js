@@ -36,6 +36,7 @@ function fakeParent(p) {
   Object.assign(p.window.parent, {
     _convertPlannerModules: loadConverter()._convertPlannerModules,
     MaterialExtractor: loadExtractors().MaterialExtractor,
+    HardwareExtractor: loadExtractors().HardwareExtractor,
     _currentStep2Item: () => item,
     selectedItems: [item],
   });
@@ -137,6 +138,42 @@ describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
       expect(ep).toContainEqual(['상판', 'run-layout-unknown']);
       expect(ep).toContainEqual(['휠라(좌)', 'run-layout-unknown']);
     }
+  });
+
+  test('철물 — 하부 모듈마다 다리발 4 코너가 3D 장면 다리발(entityKind leg)과 같은 자리, 경첩은 도어마다 변·컵 높이', () => {
+    const it = cad.spec.items.find(Boolean);
+    const lowers = it.modules.filter((m) => m.kind === 'lower');
+    expect(lowers.length).toBeGreaterThan(0);
+    lowers.forEach((m) => {
+      const legs = m.hardware.filter((h) => h.kind === 'leg' && h.at);
+      expect(legs.map((h) => h.tags.side)).toEqual(['leftFront', 'leftBack', 'rightFront', 'rightBack']);
+      // 3D addLegs 의 다리발 mesh (모듈 그룹 로컬 x·z — 3D 는 바닥이 y 0, 명세는 몸통 바닥이 y 0 이라 y 는 비교하지 않는다)
+      const scene = [];
+      const plannerId = cad.cells[m.moduleKey].plannerId;
+      (p.three || p.g('three')).moduleGroup.traverse((o) => {
+        // 3D addLegs 의 side 이름은 앞뒤가 바뀌어 있다 ("이름과 달리 zBack 이 월드 앞쪽") — 자리로 맞춘다
+        if (o.isMesh && o.userData && o.userData.entityKind === 'leg' && String(o.userData.moduleId) === plannerId) {
+          scene.push([o.userData.side.replace(/(Front|Back)$/, (w) => (w === 'Front' ? 'Back' : 'Front')), Math.round(o.position.x), Math.round(o.position.z)]);
+        }
+      });
+      expect(scene).toHaveLength(4);
+      // x 와 뒷줄 z 는 3D 와 같다. 앞줄은 3D 가 제 걸레받이(앞선 −40) 뒤에 두어 다르다 — 명세는 명세 걸레받이(앞선 −32, 18T) 바로 뒤
+      const back = (a) => a.filter((r) => /Back$/.test(r[0])).sort();
+      expect(back(legs.map((h) => [h.tags.side, Math.round(h.at[0]), Math.round(h.at[2])]))).toEqual(back(scene));
+      expect(legs.map((h) => Math.round(h.at[0])).sort()).toEqual(scene.map((r) => r[1]).sort());
+      legs.filter((h) => /Front$/.test(h.tags.side)).forEach((h) => expect(h.at[2] + 21).toBe(m.box.D / 2 - 32 - 18));
+      expect(legs.every((h) => h.at[1] === -150)).toBe(true);
+    });
+    // 서랍장(마이다 전면)은 BOM 이 경첩 행을 안 낸다 (extractHinges bomIsMaidaModule) — 위 도어가 있어도 철물이 없으니 뺀다
+    const doors = it.modules.filter((m) => m.hardware.some((h) => h.kind === 'hinge'))
+      .flatMap((m) => m.parts.filter((p) => p.tags.doorIdx !== undefined && /도어$/.test(p.part)).map((p) => [m, p]));
+    expect(doors.length).toBeGreaterThan(0);
+    doors.forEach(([m, p]) => {
+      const h = m.hardware.find((x) => x.kind === 'hinge' && x.partId === p.id);
+      expect(h).toBeDefined();
+      expect(h.cups.length).toBeGreaterThanOrEqual(2);
+      expect(h.at).toBeNull();
+    });
   });
 
   test('서랍 박스 — 측판·앞뒷판을 합친 상자가 3D 장면의 서랍 박스 외경과 같다', () => {
