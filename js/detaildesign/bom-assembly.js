@@ -426,6 +426,8 @@
           // 서랍장 중간 목찬넬 ㄴ자 — 따낸 자리 바닥에 지면판, 그 위 따낸 자리 안쪽 끝에 전면판 (플래너 addMidChannels)
           const mids = layout ? layout.channels.filter((c) => c.kind === 'mid') : [];
           if (mids.length !== row.qty || row.h !== W) { skip(row, 'drawer-layout-unknown'); return; }
+          // 측판에 중간 따내기 비고가 없으면(찬넬·손잡이 등 목찬넬이 아닌 서랍장) ㄴ자를 놓을 자리가 없다 — 측판에 파고든다.
+          if (!/중간/.test(String(side.note || ''))) { skip(row, 'channel-layout-unknown'); return; }
           const face = key.family === 'channel:mid-front';
           mids.forEach((c, k) => {
             const yb = H - c.y - c.notchH;   // 따낸 자리 바닥

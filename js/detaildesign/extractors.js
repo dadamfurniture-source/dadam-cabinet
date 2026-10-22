@@ -442,8 +442,9 @@
         }
         const H = parseFloat(m.h) || (parseFloat(s.lowerH) || 870) - (parseFloat(s.topThickness) || 12) - (parseFloat(s.sinkLegHeight) || 150);
         if (m.isDrawer) {
-          const hingeDoorH = H - 220 * (m.drawerCount || 1) - 30;
-          return { count: hingeDoorH > 50 ? bomDoorCountByWidth(W) : 0, doorH: hingeDoorH };
+          // 2026-10-22: 싱크 서랍 규칙 — 도어는 doorCount 가 있을 때만 그 수 (레이아웃 [도어, 서랍×n]). 서랍장 전면은 마이다라
+          //   경첩은 bomIsMaidaModule 이 먼저 거르고, 손잡이 수만 여기서 센다 (싱크 extractHandles 의 mod.doorCount 와 같다).
+          return { count: m.doorCount || 0, doorH: null };
         }
         return { count: bomSimpleDoorCountOf(m, W).count, doorH: H - 30 };
       }
@@ -2204,8 +2205,13 @@
             const name = mod.name || `${W}/${door.count}도어`;
             const modLabel = `${prefix}하부장-${name}`;
             const isDrawer = !!mod.isDrawer;
+            // 2026-10-22 사장님 카드 "싱크 규칙으로 통일": 서랍장은 전면·목찬넬·박스 모두 싱크 하부장 서랍 규칙 (drawerLayoutOf ·
+            //   addDrawerModuleParts). 측판 비고(따내기)도 싱크처럼 레이아웃에서 나온다.
+            const drawerLayout = isDrawer ? this.drawerLayoutOf(mod, H, T) : null;
+            if (drawerLayout && drawerLayout.warnings.length) dlog(`[Drawer] ${modLabel}: ${drawerLayout.warnings.join(' / ')}`);
+            const sideNote = (isWoodChannel && DrawerRules) ? DrawerRules.notchNote(drawerLayout) : '';
 
-            this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면');
+            this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면', sideNote);
             this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
             this.add(materials, modLabel, '밴드', 'PB', T, ASM.BAND_W, W - T * 2, 2, '2면(장)');
             this.addBackPanel(materials, modLabel, W, H, false);
@@ -2218,34 +2224,10 @@
             }
 
             if (isDrawer) {
-              // 서랍장 — 싱크 하부장 서랍 규칙(서랍 220 · 상자 180 · 1개면 전판 250 · 아래 여닫이 도어 · 목찬넬 120)을 깊이만 환산해 준용
-              const drawerCount = mod.drawerCount || 1;
-              const drawerH = 220;
-              const totalDrawerH = drawerH * drawerCount;
-              const hingeDoorH = H - totalDrawerH - 30;
-              // 2026-10-13 사장님: 박스는 싱크와 같은 서랍 규칙 (bom-drawer-rules.js drawerBoxDims) — 레일 종류별 여유,
-              //   측판 = 레일 규격(깊이 − 50 이하 최대, 언더 −10), 밑판 우라 MDF 3T. 박스 높이는 대(180) 그대로.
-              //   (예전: 앞뒷판 W − 72 · 측판 레일 − 60 · 밑판 MDF 2.7T 를 싱크에서 빌림)
-              const DR = DrawerRules.DRAWER_RULES;
-              const drRules = this.drawerRulesOf(mod, T);
-              const box = DrawerRules.drawerBoxDims({ W, D: modD, bodyT: T, drawerT: drRules.boxT, rail: drRules.rail, boxH: 180, sakuri: drRules.sakuri });
-              if (box.warnings.length) dlog(`[Drawer] ${modLabel}: ${box.warnings.join(' / ')}`);
-              const boxNote = `대 박스 · ${DR.RAIL_CLEARANCE[drRules.rail].name} ${box.railLength} (D${modD} − 50 이하)`;
-              this.add(materials, modLabel, '서랍전후판', 'PB', drRules.boxT, box.fbW, box.fbH, drawerCount * 2, '1면(장)', boxNote);
-              this.add(materials, modLabel, '서랍측판', 'PB', drRules.boxT, box.sideL, box.sideH, drawerCount * 2, '1면(장)', boxNote);
-              this.add(materials, modLabel, '서랍밑판', 'MDF', BOM_DRAWER_BOTTOM_T, box.bottomW, box.bottomD, drawerCount, '-', '우라');
-              if (box.brace) {
-                this.add(materials, modLabel, '서랍 하단보강', 'PB', drRules.boxT, box.sideL, DR.BOX_BRACE_H, drawerCount, '2면(장)');
-              }
-              const drawerDoorW = W - 4;
-              const drawerDoorH = drawerCount === 1 ? 250 : Math.floor((totalDrawerH - 20) / drawerCount);
-              this.add(materials, modLabel, '서랍도어', 'MDF', 18, drawerDoorW, drawerDoorH, drawerCount, '4면', '', mod);
-              if (hingeDoorH > 50) {
-                const hingeDoorCount = bomDoorCountByWidth(W);
-                const hingeDoorW = Math.floor(W / hingeDoorCount) - 4;
-                this.add(materials, modLabel, '도어', 'MDF', 18, hingeDoorW, hingeDoorH, hingeDoorCount, '4면', '', mod);
-              }
-              this.add(materials, modLabel, '목찬넬', 'MDF', 18, 120, W, 1, '2면(장)');
+              // 서랍장 — 싱크 하부장 서랍 규칙 그대로 (bom-drawer-rules.js): 전면 합 = H, 목찬넬 ㄴ자(중간은 모듈 부재, 상단은 EP),
+              //   박스는 존에 맞는 크기. 2026-10-22 사장님 카드 "싱크 규칙으로 통일" — 예전 옛 식(서랍도어 220 피치 · 1개면 250 ·
+              //   남는 높이 아래 여닫이 · 목찬넬 120×W 한 장)은 전면 합이 몸통보다 50 짧아 자리를 정할 수 없었다.
+              this.addDrawerModuleParts(materials, modLabel, mod, W, T, mod.doorCount || 0, drawerLayout, modD);
             } else if (door.count > 0) {
               const doorW = Math.floor(W / door.count) - 4;
               this.add(materials, modLabel, '도어', 'MDF', 18, doorW, H - 30, door.count, '4면', door.defaulted ? doorNote : '', mod);
