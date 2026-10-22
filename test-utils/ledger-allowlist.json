@@ -45,6 +45,30 @@
       "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
     },
     {
+      "id": "cornerL|corner-blind-area-lower-1--area-lower-0|body:batten-front|dims",
+      "kind": "dims",
+      "fixture": "cornerL",
+      "moduleId": "corner-blind-area-lower-1--area-lower-0",
+      "family": "body:batten-front",
+      "scene": "708×60×15 ×1",
+      "bom": "608×60×15 ×1",
+      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
+      "cause": "경첩목대 높이",
+      "reason": "3D(addBlindBatten)는 목대를 몸통 H 통으로 그린다. BOM 은 2026-10-22 사장님 결정 \"천판과 지판 사이\" — H−2T, 목찬넬 몸통은 −70 (corner.md §3.5.0). 3D 는 BOM 과 다른 그림"
+    },
+    {
+      "id": "cornerL|corner-blind-area-lower-1--area-lower-0|body:batten-side|dims",
+      "kind": "dims",
+      "fixture": "cornerL",
+      "moduleId": "corner-blind-area-lower-1--area-lower-0",
+      "family": "body:batten-side",
+      "scene": "708×60×15 ×1",
+      "bom": "608×60×15 ×1",
+      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
+      "cause": "경첩목대 높이",
+      "reason": "3D(addBlindBatten)는 목대를 몸통 H 통으로 그린다. BOM 은 2026-10-22 사장님 결정 \"천판과 지판 사이\" — H−2T, 목찬넬 몸통은 −70 (corner.md §3.5.0). 3D 는 BOM 과 다른 그림"
+    },
+    {
       "id": "cornerL|corner-blind-area-lower-1--area-lower-0|body:top|only3d",
       "kind": "only3d",
       "fixture": "cornerL",

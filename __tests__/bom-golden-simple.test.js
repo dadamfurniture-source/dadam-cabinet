@@ -163,14 +163,17 @@ describe('화장대 (vanity) — 18T · 찬넬(목찬넬 아님) · 우측 None'
     expect(rowOf(snap, '하부장-하부장', '도어')).toMatchObject({ thickness: 18, w: 596, h: 678 });
   });
 
-  test('목찬넬이 아니면 처짐방지 −70 없음, EP 목찬넬 없음, 측판 따내기 비고 없음 (싱크 서랍 규칙의 중간 목찬넬 행은 그대로 — 사장님 확인 대기)', () => {
+  test('목찬넬이 아니면 처짐방지 −70 없음, EP 목찬넬 없음, 측판 따내기 비고 없음, 중간 목찬넬 ㄴ자 없음 (2026-10-22 사장님 "따내기, ㄴ자 목찬넬은 없음")', () => {
     // 서랍장(W 800 ≥ 800)에만 처짐방지가 있다 — 하부장(600)은 문턱 미만이라 부재가 없다 (2026-09-19)
     expect(rowOf(snap, '하부장-서랍장', '밴드(처짐방지)').h).toBe(708 - 36);
     expect(partsOf(snap, '하부장-하부장')).not.toContain('밴드(처짐방지)');
     expect(partsOf(snap, 'EP')).toEqual(['상몰딩', '걸레받이', '휠라(좌)']);
     expect(partsOf(snap, '하부장-서랍장')).not.toContain('목찬넬');
     expect(rowOf(snap, '하부장-서랍장', '측판').note).toBe('');
-    expect(rowOf(snap, '하부장-서랍장', '목찬넬(중간 전면)')).toMatchObject({ w: 72, h: 800, qty: 1 });
+    expect(rowOf(snap, '하부장-서랍장', '목찬넬(중간 전면)')).toBeUndefined();
+    expect(rowOf(snap, '하부장-서랍장', '목찬넬(중간 지면)')).toBeUndefined();
+    // 전면 재단은 싱크 규칙 그대로 ("도어는 재단 규칙이 같음") — 3단 전면 합 = 708 − 상단 30 − 중간 30 − 갭 4 (214·214·216)
+    expect(snap.materials.filter((m) => m.module === '하부장-서랍장' && m.part === '서랍도어').reduce((a, m) => a + m.h * m.qty, 0)).toBe(708 - 64);
   });
 
   test('서랍 3(D500 → 레일 450, 측판 440 · 밑판 439) — 하단보강 있음, 여닫이 도어 없음(18 ≤ 50)', () => {

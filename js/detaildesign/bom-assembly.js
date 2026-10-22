@@ -475,11 +475,21 @@
           return;
         }
         case 'body:batten-front':
-        case 'body:batten-side':
-          // ㄱ자 경첩목대 (corner.md §3.5.0) — BOM 재단 높이가 몸통 H 라 지판 위·천판(밴드) 아래 사이(H − 2T)에 들어가지 않는다.
-          //   높이(H 그대로 겹침 / H − 2T) 가 정해질 때까지 놓지 않는다 (사장님 카드 대기).
-          skip(row, 'batten-height-pending');
+        case 'body:batten-side': {
+          // ㄱ자 경첩목대 (corner.md §3.5.0) — 2026-10-22 사장님 "천판과 지판 사이에 들어감 … 목찬넬이면 따내기 70 + 밴드 = 상단에서
+          //   빠진 높이": 지판 윗면(y T)에서 천판 밑(H−T), 목찬넬 몸통은 따내기 아래 앞 밴드 밑(H−T−70)까지 — 높이 = 밴드와 같다.
+          //   앞다리 60×15T 는 멍판 바로 뒤(z D/2−15…D/2) 정면과 나란히, 도어 쪽 끝이 옆다리 바깥면(u coverEnd+15) 에서 멍 쪽으로 60.
+          //   옆다리 60×15T 는 도어 쪽 끝(u coverEnd…coverEnd+15) 깊이 방향, 앞다리 뒤(z D/2−75…D/2−15). 앞선에서 75 (§3.5.0).
+          const legH = H - 2 * T - (chanTop ? DR.CHANNEL_TOP_NOTCH_H : 0);
+          if (!bl || row.qty !== 1 || row.w !== C.BLIND_BATTEN_LEG || row.thickness !== C.BLIND_BATTEN_T || row.h !== legH) { skip(row, 'blind-layout-unknown'); return; }
+          const uEnd = bl.coverEnd + C.BLIND_BATTEN_T;
+          if (key.family === 'body:batten-front') {
+            parts.push(makePart(row, 0, { o: [bl.xOf(uEnd - row.w, uEnd), T, zFront - row.thickness], u: '+x', v: '+y', n: '+z' }, [], 'interior', { blind: 'batten-front' }));
+          } else {
+            parts.push(makePart(row, 0, { o: [bl.xOf(bl.coverEnd, uEnd), T, zFront - row.thickness - row.w], u: '+z', v: '+y', n: '+x' }, [], 'interior', { blind: 'batten-side' }));
+          }
           return;
+        }
         case 'molding': {
           // 키큰장 상부단 상몰딩 띠 (MDF 18T, 몰딩H × W) — 2026-10-20 카드 "도어 앞면 맞춤":
           //   몸통 위에 올라서고(y H…H+몰딩H), 띠 앞면 = 도어 앞면(z D/2+18), 띠 뒷면 = 몸통 앞선(z D/2).

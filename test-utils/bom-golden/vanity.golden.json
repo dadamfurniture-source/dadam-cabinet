@@ -676,56 +676,6 @@
       "itemLabel": "화장대"
     },
     {
-      "module": "하부장-서랍장",
-      "part": "목찬넬(중간 전면)",
-      "material": "MDF",
-      "thickness": 18,
-      "w": 72,
-      "h": 800,
-      "qty": 1,
-      "edge": "2면(장)",
-      "note": "중간 따내기 90×40",
-      "finishCode": "",
-      "partId": "0-l1-channel:mid-front-0",
-      "slot": "handle",
-      "edges": {
-        "L": true,
-        "R": true,
-        "T": false,
-        "B": false
-      },
-      "edgeLen": 1600,
-      "edgeT": 0.6,
-      "edgeCode": null,
-      "moduleKey": "0-l1",
-      "itemLabel": "화장대"
-    },
-    {
-      "module": "하부장-서랍장",
-      "part": "목찬넬(중간 지면)",
-      "material": "MDF",
-      "thickness": 18,
-      "w": 40,
-      "h": 800,
-      "qty": 1,
-      "edge": "2면(장)",
-      "note": "",
-      "finishCode": "",
-      "partId": "0-l1-channel:mid-back-0",
-      "slot": "handle",
-      "edges": {
-        "L": true,
-        "R": true,
-        "T": false,
-        "B": false
-      },
-      "edgeLen": 1600,
-      "edgeT": 0.6,
-      "edgeCode": null,
-      "moduleKey": "0-l1",
-      "itemLabel": "화장대"
-    },
-    {
       "module": "하부장-하부장",
       "part": "측판",
       "material": "PB",
@@ -973,13 +923,13 @@
     "MDF_18": {
       "material": "MDF",
       "thickness": 18,
-      "totalArea": 2422272,
+      "totalArea": 2332672,
       "panelCount": 1
     }
   },
   "edgeBanding": {
     "1": 15708,
-    "0.6": 54330
+    "0.6": 51130
   },
   "hardware": [
     {

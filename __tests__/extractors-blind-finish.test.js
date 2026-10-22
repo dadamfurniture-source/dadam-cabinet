@@ -65,7 +65,8 @@ describe('멍가림판 — 목대는 빼고 마감재는 안 뺀다', () => {
     const b = parts.find((m) => m.part === '경첩목대(옆다리)');
     expect(b).toBeDefined();
     expect(b.thickness).toBe(BATTEN_T);
-    expect(b.h).toBe(parts.find((m) => m.part === '멍가림판').h);
+    // 2026-10-22 사장님: 목대는 천판과 지판 사이 — 멍가림판(몸통 H)보다 2T 짧다
+    expect(b.h).toBe(parts.find((m) => m.part === '멍가림판').h - parts.find((m) => m.part === '측판').thickness * 2);
   });
 });
 
