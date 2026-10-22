@@ -190,7 +190,9 @@ const PLANNER_EXPORT_CELL_RE = /^planner-(.+)-(\d+|open)$/;
 /**
  * 조립 명세와 모듈별 자리 단서를 만든다.
  * @param {Window} P  부모 창 — _currentStep2Item · _convertPlannerModules · MaterialExtractor · selectedItems
- * @param {{ payload: object, structureOf: Function, Assembly: object }} deps
+ * @param {{ payload: object, structureOf: Function, Assembly: object, lines?: Function }} deps
+ *   lines() → [{ key, D, modules: [{ plannerId, x }] }] 벽(같은 각·같은 뒷선의 배치 공간 묶음)마다 플래너 모듈 왼쪽 끝 x (벽 시작 기준).
+ *   라인 부재(상판·상몰딩·목찬넬 EP)를 호스트 모듈 좌표로 놓는 데 쓴다 — 없으면 라인 부재는 자리 미정.
  * @returns {{ spec: object, cells: Object<string, {plannerId: string, dx: number}> }}
  */
 function plannerExportCadSpec(P, deps) {
@@ -215,6 +217,11 @@ function plannerExportCadSpec(P, deps) {
   const byId = new Map((payload.modules || []).map((m) => [String(m.id), m]));
   const cells = {};
   const shelfY = {};
+  // 라인(벽)마다 변환 모듈의 왼쪽 끝 x0 — 플래너 모듈 x 에 칸 오프셋(mod._x − pm.x)을 더한다
+  const lineOf = new Map();
+  const lineDefs = typeof deps.lines === 'function' ? (deps.lines() || []) : [];
+  lineDefs.forEach((ln) => (ln.modules || []).forEach((e) => lineOf.set(String(e.plannerId), { ln, x: Number(e.x) || 0 })));
+  const lines = lineDefs.map((ln) => ({ key: ln.key, D: ln.D, modules: [] }));
   conv.modules.forEach((mod) => {
     const hit = String(mod.id).match(PLANNER_EXPORT_CELL_RE);
     if (!hit) return;
@@ -226,9 +233,13 @@ function plannerExportCadSpec(P, deps) {
     cells[mk] = { plannerId: hit[1], dx };
     const s = typeof deps.structureOf === 'function' ? deps.structureOf(pm.id) : null;
     if (s && Array.isArray(s.shelves)) shelfY[mk] = s.shelves.map(Number).filter(Number.isFinite);
+    const at = lineOf.get(hit[1]);
+    if (at) lines[lineDefs.indexOf(at.ln)].modules.push({ moduleKey: mk, x0: at.x + (hit[2] === 'open' ? 0 : (Number(mod._x) || 0) - (Number(pm.x) || 0)) });
   });
   // 서랍장 레이아웃도 BOM 과 같은 추출기로 (부모 창 전역 — iframe 에는 없다)
-  return { spec: deps.Assembly.of(design, { materials, shelfY, MaterialExtractor: P.MaterialExtractor }), cells };
+  const opts = { materials, shelfY, MaterialExtractor: P.MaterialExtractor };
+  if (lines.length) opts.lines = { [itemIdx]: lines };
+  return { spec: deps.Assembly.of(design, opts), cells };
 }
 
 /**
@@ -252,9 +263,33 @@ function plannerExportCadScene(THREE, spec, frameOf, opts) {
     }
     return mats[key];
   };
-  let parts = 0, modules = 0, skipped = 0;
+  let parts = 0, modules = 0, skipped = 0, runs = 0;
+  const partNodeOf = (p, moduleKey) => {
+    const solids = o.solidsOf(p);
+    const meshOf = (b, name) => {
+      const geo = new THREE.BoxGeometry(b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]);
+      const mesh = new THREE.Mesh(geo, matOf(p.material));
+      mesh.position.set((b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2);
+      mesh.name = name;
+      return mesh;
+    };
+    let part;
+    if (solids.length === 1) {
+      part = meshOf(solids[0], p.id);
+    } else {
+      part = new THREE.Group();
+      part.name = p.id;
+      solids.forEach((b, i) => part.add(meshOf(b, `${p.id}/${i}`)));
+    }
+    part.userData = {
+      rowPartId: p.rowPartId, part: p.part, material: p.material, t: p.t,
+      cutW: p.cut.w, cutH: p.cut.h, moduleKey, vis: p.vis,
+    };
+    return part;
+  };
   (spec.items || []).forEach((it) => {
     if (!it) return;
+    const nodeOf = new Map();
     it.modules.forEach((m) => {
       const mat = frameOf(m);
       if (!mat) { skipped++; return; }
@@ -262,32 +297,22 @@ function plannerExportCadScene(THREE, spec, frameOf, opts) {
       node.name = `module·${m.moduleKey}`;
       node.userData = { moduleKey: m.moduleKey, moduleId: m.moduleId, kind: m.kind, box: m.box };
       mat.decompose(node.position, node.quaternion, node.scale);
-      m.parts.forEach((p) => {
-        const solids = o.solidsOf(p);
-        const meshOf = (b, name) => {
-          const geo = new THREE.BoxGeometry(b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]);
-          const mesh = new THREE.Mesh(geo, matOf(p.material));
-          mesh.position.set((b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2);
-          mesh.name = name;
-          return mesh;
-        };
-        let part;
-        if (solids.length === 1) {
-          part = meshOf(solids[0], p.id);
-        } else {
-          part = new THREE.Group();
-          part.name = p.id;
-          solids.forEach((b, i) => part.add(meshOf(b, `${p.id}/${i}`)));
-        }
-        part.userData = {
-          rowPartId: p.rowPartId, part: p.part, material: p.material, t: p.t,
-          cutW: p.cut.w, cutH: p.cut.h, moduleKey: m.moduleKey, vis: p.vis,
-        };
-        node.add(part);
+      m.parts.forEach((p) => { node.add(partNodeOf(p, m.moduleKey)); parts++; });
+      root.add(node);
+      nodeOf.set(m.moduleKey, node);
+      modules++;
+    });
+    // 라인 부재(상판·상몰딩·목찬넬 EP) — 호스트 모듈 좌표라 그 모듈 노드 아래에 싣는다 (extras.run 에 라인 키)
+    (it.runs || []).forEach((r) => {
+      const host = nodeOf.get(r.hostModuleKey);
+      if (!host) { skipped++; return; }
+      r.parts.forEach((p) => {
+        const part = partNodeOf(p, `${it.itemIdx}-ep`);
+        part.userData.run = r.lineKey;
+        host.add(part);
         parts++;
       });
-      root.add(node);
-      modules++;
+      runs++;
     });
   });
   root.userData = {
@@ -299,7 +324,7 @@ function plannerExportCadScene(THREE, spec, frameOf, opts) {
     source: 'dadam.assembly',
     exportedAt: o.exportedAt || new Date().toISOString(),
   };
-  return { root, parts, modules, skipped, unplaced: (spec.unplaced || []).length };
+  return { root, parts, modules, runs, skipped, unplaced: (spec.unplaced || []).length };
 }
 
 async function plannerExportCadGlb(THREE, GLTFExporter, spec, frameOf, opts) {
