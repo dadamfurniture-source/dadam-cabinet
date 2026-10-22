@@ -91,8 +91,38 @@ describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
     expect(cad.spec.schema).toBe('dadam.assembly/1');
     expect(built.modules).toBeGreaterThan(3);
     expect(built.skipped).toBe(0);
-    expect(built.parts).toBe(cad.spec.items.reduce((s, it) => s + (it ? it.modules.reduce((a, m) => a + m.parts.length, 0) : 0), 0));
+    expect(built.parts).toBe(cad.spec.items.reduce((s, it) => s + (it ? it.modules.reduce((a, m) => a + m.parts.length, 0) + it.runs.reduce((a, r) => a + r.parts.length, 0) : 0), 0));
     expect(built.unplaced).toBe(cad.spec.unplaced.length);
+  });
+
+  test('라인 부재 — 상판·목찬넬 EP·상몰딩이 벽(배치 공간 묶음) 단위로 호스트 모듈 노드 아래에 실린다', () => {
+    const it = cad.spec.items.find(Boolean);
+    const runs = it.runs.map((r) => [r.parts[0].part, r.lineKey, r.hostModuleKey]);
+    const ep = cad.spec.unplaced.filter((u) => /-ep$/.test(u.moduleKey)).map((u) => [u.part, u.reason]);
+    expect(built.runs).toBe(it.runs.length);
+    // 걸레받이·좌우 휠라는 앞뒤 자리 미정 (2026-10-22 카드)
+    expect(ep.filter((e) => e[0] === '걸레받이').every((e) => e[1] === 'kick-position-pending')).toBe(true);
+    expect(ep.filter((e) => /^휠라/.test(e[0])).every((e) => e[1] === 'finish-position-pending')).toBe(true);
+    if (/^(straight|drawer)/.test(name)) {
+      // 한 벽: 하부 1200·1000·1400 + 개수대 — 목찬넬 EP 두 장과 상판이 첫 하부 칸 아래에, 상몰딩은 상부 1800 과 1200 사이가 비어 못 놓는다
+      expect(runs).toEqual([
+        ['목찬넬(전면)', 'area-lower-0', '0-planner-lower-0-0'], ['목찬넬(지면)', 'area-lower-0', '0-planner-lower-0-0'],
+        ['상판', 'area-lower-0', '0-planner-lower-0-0']]);
+      expect(ep).toContainEqual(['상몰딩', 'run-layout-unknown']);
+      const top = it.runs.find((r) => r.parts[0].part === '상판').parts[0];
+      expect(top.box.min[1]).toBe(708);   // 하부장 몸통 위
+      expect(top.box.max[1]).toBe(720);
+      expect(top.box.max[0] - top.box.min[0]).toBe(top.cut.w);   // 하부 폭 합 + 좌우 휠라
+      // GLB: 라인 부재는 호스트 모듈 노드 아래, extras.run 에 벽 키
+      const node = gltf.nodes.find((n) => n.name === top.id);
+      expect(node.extras).toMatchObject({ part: '상판', run: 'area-lower-0', moduleKey: '0-ep' });
+      const host = gltf.nodes.find((n) => n.name === 'module·0-planner-lower-0-0');
+      expect(host.children.map((c) => gltf.nodes[c].name)).toContain(top.id);
+    } else {
+      // ㄱ자·사선: 하부가 두 벽에 걸쳐 한 장 상판·목찬넬 EP 를 못 놓고, 상부장 한 벽의 상몰딩만 놓는다
+      expect(runs).toEqual([['상몰딩', 'area-lower-0', '0-planner-upper-0-0']]);
+      expect(ep).toContainEqual(['상판', 'run-layout-unknown']);
+    }
   });
 
   test('서랍 박스 — 측판·앞뒷판을 합친 상자가 3D 장면의 서랍 박스 외경과 같다', () => {
@@ -173,7 +203,7 @@ describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
     expect(root.extras).toMatchObject({ schema: 'dadam.assembly/1', source: 'dadam.assembly', unplaced: cad.spec.unplaced.length, skippedModules: 0 });
     const partNodes = gltf.nodes.filter((n) => n.extras && n.extras.rowPartId);
     expect(partNodes).toHaveLength(built.parts);
-    const rows = new Map(cad.spec.items.flatMap((it) => (it ? it.modules.flatMap((m) => m.parts) : [])).map((pt) => [pt.id, pt]));
+    const rows = new Map(cad.spec.items.flatMap((it) => (it ? it.modules.flatMap((m) => m.parts).concat(it.runs.flatMap((r) => r.parts)) : [])).map((pt) => [pt.id, pt]));
     partNodes.forEach((n) => {
       const pt = rows.get(n.name);
       expect(pt).toBeDefined();
