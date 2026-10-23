@@ -167,3 +167,6 @@ design-system/dist/
 
 # wrangler dev 로컬 상태
 .wrangler/
+
+# CAD 검산기 로컬 실행 산출물 (tools/cad, CI 는 Actions 산출물로 올린다)
+cad-oracle/

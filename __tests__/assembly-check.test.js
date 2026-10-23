@@ -14,36 +14,10 @@ const Asm = require('../js/detaildesign/bom-assembly.js');
 const Check = require('../js/detaildesign/assembly-check.js');
 const BoxOverlap = require('../test-utils/box-overlap.js');
 const BomPreflight = require('../js/detaildesign/bom-preflight.js');
-const { MaterialExtractor } = require('../js/detaildesign/extractors.js');
-const engine = require('../js/planner/planner-engine.js');
-const { FIXTURES } = require('../test-utils/bom-golden/fixtures.js');
 const ALLOW = require('../test-utils/assembly-allowlist.json');
 
-const NAMES = ['sink15', 'sink18', 'sinkCorner', 'shoerack', 'vanity', 'storage', 'warehouse', 'wardrobe', 'fridge'];
-
-/** 플래너 기본 선반 높이 — __tests__/bom-assembly.test.js 와 같다. */
-function shelfYOf(materials) {
-  const out = {};
-  const byMk = {};
-  materials.forEach((r) => { (byMk[r.moduleKey] = byMk[r.moduleKey] || []).push(r); });
-  Object.keys(byMk).forEach((mk) => {
-    const rows = byMk[mk];
-    const side = rows.find((r) => r.part === '측판');
-    const n = rows.filter((r) => r.part === '선반').reduce((s, r) => s + r.qty, 0);
-    if (!side || !n) return;
-    const H = side.h, T = side.thickness;
-    out[mk] = /sakuri/.test(side.note || '')
-      ? engine.shelvesEvenInner(H, n, T)
-      : Array.from({ length: n }, (_, i) => Math.round((H / (n + 1)) * (i + 1)));
-  });
-  return out;
-}
-
-function specOf(name) {
-  const design = { items: [FIXTURES[name]] };
-  const materials = new MaterialExtractor().extract(design).materials;
-  return { design, materials, spec: Asm.of(design, { materials, shelfY: shelfYOf(materials) }) };
-}
+// 골든 픽스처 → 명세 (CAD 검산기 덤프와 같은 입력)
+const { NAMES, specOf } = require('../test-utils/assembly-fixtures.js');
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const modOf = (spec, id) => spec.items[0].modules.find((m) => m.moduleId === id);

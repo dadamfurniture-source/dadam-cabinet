@@ -89,4 +89,4 @@
 - 사장님 PC 에만 있는 것: `D:\ohouse` 데이터, OneDrive 견적서·거래명세서, MCP 서버 localhost:3200.
 - 로컬 스레드는 프로젝트 메모리를 싣지 않는다 — 필요한 결정은 메시지에 적어 준다. 폴더 허용 카드에서 **Worktree** 옵션을 켜고 그 안에서 `npm ci` (node_modules 정션 금지 — 재귀 삭제가 메인 node_modules 를 지운 사고).
 - Windows 에서 cadgen 모델 러너는 import 오류로 안 돈다 — 평범한 build123d 스크립트 + `bd.export_step/export_gltf` 로 우회, 소스는 ASCII 만(cadgen 이 cp949 로 읽음), `UV_CACHE_DIR=%USERPROFILE%\.cache\uv`.
-- 참고 프로토타입: `docs/01-plan/cad-beta/cad-prototype/` (숫자가 들어 있어 규칙 정본이 아니다 — PR8 에서 명세 기반 스크립트로 대체).
+- 옛 참고 프로토타입 `cad-prototype/` 은 PR8 검산기(`tools/cad/**`, 명세 JSON 만 읽음)로 대체하고 지웠다.
