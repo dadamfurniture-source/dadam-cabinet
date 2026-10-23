@@ -129,6 +129,17 @@ JS 조립 검사가 맞는지 실제 CAD 커널(build123d / OCC)로 따로 확�
 - 파이썬은 ASCII 만, 숫자 리터럴은 축 번호 0·1·2 만 — 규칙 숫자는 명세 JSON 에서만 온다. `__tests__/cad-oracle-source.test.js` 가 지킨다 (옛 `cad-prototype/` 은 걸레받이 들임 50 · 상판 600 을 파이썬에 적어 규칙과 어긋났다 — 이 PR 로 지웠다).
 - 2026-10-23 첫 실행: 골든 9종 불일치 0 (솔리드 수 · 부피 · 겹침 쌍).
 
+## 동결 (PR10, `workers/workflow-api/src/snapshots.js` `validateAssembly`)
+
+스냅샷 동결(`POST /designs/:id/snapshots`) 때 클라이언트가 `bom.assembly` 에 명세를 실어 보내면 워커가 형태와 BOM 정합만 본다 (다시 계산하지 않는다 — 규칙 파일은 브라우저에 있다). 어긋나면 422, INSERT 전에 멈춘다.
+
+- 머리: `schema = dadam.assembly/1`, `rulesVersion`, `items[]`, `unplaced[]` · 크기 ≤ 1MiB (계획 §7 추정 아파트 한 채 150~300KB 의 3배 남짓)
+- 판재(`items[].modules[].parts[]` · `items[].runs[].parts[]`)마다 `rowPartId` 가 `bom.materials` 에 있고 `id` 가 겹치지 않는다
+- 놓인 행은 판재 수 = qty, `unplaced[].rowPartId` 도 `bom.materials` 에 있다
+- `bom.assembly` 가 없으면(옛 클라이언트) 그냥 받는다. 명세는 `bom_payload` 에 실려 `content_hash` 에 든다 — 명세가 결정적이라 바뀌지 않은 설계를 다시 동결하면 같은 rev
+- 실측 (2026-10-23, 로컬): 싱크 세트 8벌 314KB · 판재 712 장 검증 4.4ms
+- 클라이언트(`workflow-client.js` `createSnapshot`)가 명세를 보내는 것은 다음 PR — 워커를 먼저 배포한다 (개정 #12)
+
 ## CAD GLB (관리자 전용)
 
 - 코드: `js/planner/planner-export.js` (`plannerExportCadSpec` · `plannerExportCadScene`), 버튼: `mockup-structure.html` 🧊 CAD GLB
