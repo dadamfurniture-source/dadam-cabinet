@@ -1647,6 +1647,9 @@
             //   플랩이 아닌 칸은 필드를 붙이지 않는다 — 예전 payload 와 같다.
             const dirs = s && Array.isArray(s.areaDirections) ? s.areaDirections : [];
             if (pos === 'upper' && !isOpen && !c.is2D && dirs[i] === 'up') out[out.length - 1].doorOpen = 'up';
+            // 2026-10-23 사장님 4-1 C: 외짝 도어 경첩 방향 = 칸 열림 방향 좌 ◀ / 우 ▶ (정면도 화살표가 그 변 — 양문의 왼 도어 ◀ = 왼쪽 경첩과 같다).
+            //   조립 명세(bom-assembly.js hardwareOf)가 경첩 컵 자리를 그 변에 놓는다. 양문·오픈·플랩 칸엔 붙이지 않는다.
+            else if (!isOpen && !c.is2D && (dirs[i] === 'left' || dirs[i] === 'right')) out[out.length - 1].hingeSide = dirs[i];
             // 2026-09-16: 전면 배분식의 기준높이는 **배치(영역) 높이**다 — 플래너가 payload 에 실어 보낸다.
             //   없으면 BOM 이 totalH(모듈 전체 높이) 로 떨어진다. 옛 저장 설계가 그 경우다.
             if (Number(m.areaH) > 0) out[out.length - 1].areaH = Number(m.areaH);
