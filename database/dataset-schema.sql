@@ -30,6 +30,8 @@ CREATE INDEX IF NOT EXISTS idx_collection_posts_design ON collection_posts (desi
 --    NULL 과 FALSE 는 둘 다 "내보내지 않는다" 다 — 구분은 통계용이다.
 ALTER TABLE collection_posts ADD COLUMN IF NOT EXISTS consent_training BOOLEAN;
 ALTER TABLE generations      ADD COLUMN IF NOT EXISTS consent_training BOOLEAN;
+-- generations 는 컬럼 단위 권한이라 새 컬럼은 따로 줘야 한다 (generations-schema.sql 목록에도 있음).
+GRANT SELECT (consent_training), UPDATE (consent_training) ON public.generations TO authenticated;
 
 -- ③ collection_posts 에 updated_at 자동 갱신을 붙인다.
 --    지금까지는 INSERT 기본값뿐이라 UPDATE 를 해도 값이 그대로였다. Worker 는
