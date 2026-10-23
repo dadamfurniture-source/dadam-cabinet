@@ -112,19 +112,27 @@ function familyOfBomKey(partKey) {
  * @param {object} p       scene-parts.js bootPlanner3D 가 돌려준 하네스
  * @param {{ specs?: object, category?: string }} [opts]
  */
-function collectBomParts(p, opts = {}) {
-  const payload = p.g('buildPlannerPayload')('PLANNER_DONE');
-  const specs = Object.assign({}, LEDGER_SPECS, opts.specs || {});
-  const { modules, warnings } = loadConverter()._convertPlannerModules(payload, specs);
+/**
+ * 원장 품목 (모듈 없이) — 상세설계 Step 2 의 품목 자리. 플래너가 3D 를 조립 명세로 그릴 때(PR12)
+ * 부모 창 `_currentStep2Item` 도 같은 품목을 준다 (scene-parts.js bootPlanner3D opts.assembly).
+ */
+function ledgerItemOf(p, opts = {}) {
   const areas = (p.g('areas') || []).filter((a) => !a.isFinishing);
-  const item = {
+  return {
     categoryId: opts.category || 'sink',
     w: Math.round(areas.reduce((s, a) => Math.max(s, (a.x || 0) + (a.W || 0)), 0)),
     h: 2310,
     d: Math.round(areas.reduce((s, a) => Math.max(s, a.D || 0), 0)) || 650,
-    specs,
-    modules,
+    specs: Object.assign({}, LEDGER_SPECS, opts.specs || {}),
   };
+}
+
+function collectBomParts(p, opts = {}) {
+  const payload = p.g('buildPlannerPayload')('PLANNER_DONE');
+  const base = ledgerItemOf(p, opts);
+  const specs = base.specs;
+  const { modules, warnings } = loadConverter()._convertPlannerModules(payload, specs);
+  const item = Object.assign(base, { modules });
   const { MaterialExtractor } = loadExtractors();
   const out = new MaterialExtractor().extract({ appVersion: 'ledger', items: [item] });
 
@@ -168,6 +176,7 @@ function collectBomParts(p, opts = {}) {
 
 module.exports = {
   LEDGER_SPECS,
+  ledgerItemOf,
   loadConverter,
   bomModuleMapOf,
   partKeyOfPartId,

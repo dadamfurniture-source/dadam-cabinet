@@ -73,9 +73,12 @@ function threeShim() {
  * 3D 가 켜진 플래너를 부팅한다.
  *
  * @param {object} layout  `dadam_layout_v1` 배치 JSON (planner-golden.js FIXTURES 모양)
- * @param {{ autoCalc?: boolean, design?: string, item?: string }} [opts]
+ * @param {{ autoCalc?: boolean, design?: string, item?: string, assembly?: boolean }} [opts]
  *   autoCalc  기본 true — 전체 자동계산(autoCalcAllAreas) 뒤 renderAll3D 를 **직접** 부른다.
  *             (autoCalcAllAreas 안의 renderAll3D 는 try/catch 로 삼키므로 오류가 숨는다)
+ *   assembly  true 면 상세설계 부모 창이 하는 일을 window 에 올린다 — 변환(`_convertPlannerModules`) · 추출기 ·
+ *             품목(`_currentStep2Item`, bom-parts.js ledgerItemOf). 그러면 플래너가 몸통·선반을 조립 명세로 그린다 (PR12).
+ *             하네스의 부모 창 자리(planner-harness.js parent)에 둔다. 기본 false — 플래너를 따로 연 것과 같다.
  * @returns 플래너 하네스 객체 + `three`
  */
 function bootPlanner3D(layout, opts = {}) {
@@ -90,8 +93,18 @@ function bootPlanner3D(layout, opts = {}) {
   const seed = seedFor(layout, { design: opts.design || 'ledger', item: opts.item || '1', modules: false });
   const search = seed._search;
   delete seed._search;
-  const p = bootPlanner('mockup-structure.html', { search, storage: seed });
+  const p = bootPlanner('mockup-structure.html', { search: search + (opts.searchExtra || ''), storage: seed });
   if (p.errors.length) throw new Error('부팅 오류: ' + p.errors.map((e) => e.message).join(' | '));
+  if (opts.assembly) {
+    const { loadConverter, ledgerItemOf } = require('./bom-parts');
+    const { loadExtractors } = require('./bom-golden/golden');
+    const ex = loadExtractors();
+    const P = p.parent;
+    P._convertPlannerModules = loadConverter()._convertPlannerModules;
+    P.MaterialExtractor = ex.MaterialExtractor;
+    if (ex.HardwareExtractor) P.HardwareExtractor = ex.HardwareExtractor;
+    P._currentStep2Item = () => ledgerItemOf(p, opts.ledger || {});
+  }
   const three = p.g('three');
   if (!three || !three.moduleGroup) throw new Error('3D 가 초기화되지 않았습니다 — window.THREE 주입이 실패했습니다');
   if (opts.autoCalc !== false) p.g('autoCalcAllAreas')();
