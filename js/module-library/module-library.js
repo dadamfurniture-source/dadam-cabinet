@@ -54,7 +54,59 @@
    *   ruleRefs  선택값이 기대는 정본 (규칙 파일 · 함수)
    *   status    'verified' | 'needs-rule:<사유>'
    */
-  const ENTRIES = Object.freeze([]);
+  const DOOR_REFS = Object.freeze([
+    'extractors.js extractSink (몸통·도어 재단)',
+    'assembly-rules.js CARCASS (뒷판·밴드·처짐방지목 자리)',
+    'planner-engine.js distributeModules (도어 폭 350~600)',
+  ]);
+  const UPPER_REFS = Object.freeze(DOOR_REFS.concat(['assembly-rules.js 상부장 사쿠리 · 보강목 2장 · 선반 2 (D−34)']));
+  const HINGE_REF = 'bom-assembly.js 외짝 경첩 방향 hingeSide = 칸 열림 방향 (2026-10-23 4-1 C)';
+
+  const ENTRIES = Object.freeze([
+    // ── 1회차: 도어장 (2026-10-24) ──────────────────────────────
+    {
+      id: 'LB-D1-450-L', rev: 1, group: 'lower-door', section: 'lower', W: 450,
+      name: '여닫이 1도어 하부장 (좌경첩)',
+      choice: { doors: 1, hinge: 'left' },
+      ruleRefs: DOOR_REFS.concat([HINGE_REF]), status: 'verified',
+    },
+    {
+      id: 'LB-D1-450-R', rev: 1, group: 'lower-door', section: 'lower', W: 450,
+      name: '여닫이 1도어 하부장 (우경첩)',
+      choice: { doors: 1, hinge: 'right' },
+      ruleRefs: DOOR_REFS.concat([HINGE_REF]), status: 'verified',
+    },
+    {
+      id: 'LB-D2-900', rev: 1, group: 'lower-door', section: 'lower', W: 900,
+      name: '여닫이 2도어 하부장',
+      choice: { doors: 2 },
+      ruleRefs: DOOR_REFS.concat(['assembly-rules.js 처짐방지목 하부 W ≥ 800 1장']), status: 'verified',
+    },
+    {
+      id: 'UB-D1-450-L', rev: 1, group: 'upper-door', section: 'upper', W: 450,
+      name: '여닫이 1도어 상부장 (좌경첩)',
+      choice: { doors: 1, hinge: 'left' },
+      ruleRefs: UPPER_REFS.concat([HINGE_REF]), status: 'verified',
+    },
+    {
+      id: 'UB-D1-450-R', rev: 1, group: 'upper-door', section: 'upper', W: 450,
+      name: '여닫이 1도어 상부장 (우경첩)',
+      choice: { doors: 1, hinge: 'right' },
+      ruleRefs: UPPER_REFS.concat([HINGE_REF]), status: 'verified',
+    },
+    {
+      id: 'UB-D2-900', rev: 1, group: 'upper-door', section: 'upper', W: 900,
+      name: '여닫이 2도어 상부장',
+      choice: { doors: 2 },
+      ruleRefs: UPPER_REFS.concat(['assembly-rules.js 처짐방지목 상부 W ≥ 700 1장']), status: 'verified',
+    },
+    {
+      id: 'UB-FLAP-450', rev: 1, group: 'upper-door', section: 'upper', W: 450,
+      name: '플랩 상부장 (위로 열림)',
+      choice: { doors: 1, hinge: 'up' },
+      ruleRefs: UPPER_REFS.concat(['mockup-structure.html 칸 열림 방향 up → 브리지 doorOpen up (윗변 경첩 · 가스쇼바)']), status: 'verified',
+    },
+  ]);
 
   /** 모듈 정의가 쓰는 기본 폭 이름 (APPROVED_WIDTHS 의 키). */
   function widthKeyOf(entry) {

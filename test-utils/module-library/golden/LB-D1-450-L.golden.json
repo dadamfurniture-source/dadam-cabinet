@@ -1,0 +1,363 @@
+{
+  "materials": [
+    {
+      "module": "하부장-하부장",
+      "part": "측판",
+      "material": "PB",
+      "thickness": 15,
+      "w": 550,
+      "h": 708,
+      "qty": 2,
+      "edge": "3면",
+      "note": "목찬넬 따내기 상단 70×40",
+      "finishCode": "",
+      "partId": "0-planner-lower-0-0-body:side-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 1808,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "moduleKey": "0-planner-lower-0-0",
+      "itemLabel": "싱크대"
+    },
+    {
+      "module": "하부장-하부장",
+      "part": "지판",
+      "material": "PB",
+      "thickness": 15,
+      "w": 420,
+      "h": 550,
+      "qty": 1,
+      "edge": "1면(전)",
+      "note": "",
+      "finishCode": "",
+      "partId": "0-planner-lower-0-0-body:bottom-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 550,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "moduleKey": "0-planner-lower-0-0",
+      "itemLabel": "싱크대"
+    },
+    {
+      "module": "하부장-하부장",
+      "part": "밴드",
+      "material": "PB",
+      "thickness": 15,
+      "w": 70,
+      "h": 420,
+      "qty": 2,
+      "edge": "2면(장)",
+      "note": "",
+      "finishCode": "",
+      "partId": "0-planner-lower-0-0-body:band#0-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 840,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "moduleKey": "0-planner-lower-0-0",
+      "itemLabel": "싱크대"
+    },
+    {
+      "module": "하부장-하부장",
+      "part": "뒷판",
+      "material": "MDF",
+      "thickness": 3,
+      "w": 449,
+      "h": 707,
+      "qty": 1,
+      "edge": "-",
+      "note": "측판 뒤 덮음",
+      "finishCode": "",
+      "partId": "0-planner-lower-0-0-back-0",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "moduleKey": "0-planner-lower-0-0",
+      "itemLabel": "싱크대"
+    },
+    {
+      "module": "하부장-하부장",
+      "part": "선반",
+      "material": "PB",
+      "thickness": 15,
+      "w": 420,
+      "h": 535,
+      "qty": 1,
+      "edge": "1면(전)",
+      "note": "",
+      "finishCode": "",
+      "partId": "0-planner-lower-0-0-shelf#0-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 535,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "moduleKey": "0-planner-lower-0-0",
+      "itemLabel": "싱크대"
+    },
+    {
+      "module": "하부장-하부장",
+      "part": "도어",
+      "material": "MDF",
+      "thickness": 18,
+      "w": 446,
+      "h": 678,
+      "qty": 1,
+      "edge": "4면",
+      "note": "",
+      "finishCode": "",
+      "partId": "0-planner-lower-0-0-door#0-0",
+      "slot": "door",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 2248,
+      "edgeT": 1,
+      "edgeCode": null,
+      "moduleKey": "0-planner-lower-0-0",
+      "itemLabel": "싱크대"
+    },
+    {
+      "module": "EP",
+      "part": "걸레받이",
+      "material": "MDF",
+      "thickness": 18,
+      "w": 450,
+      "h": 145,
+      "qty": 1,
+      "edge": "2면(장)",
+      "note": "",
+      "finishCode": "",
+      "partId": "0-ep-kick-0",
+      "slot": "kick",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": true,
+        "B": true
+      },
+      "edgeLen": 900,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "moduleKey": "0-ep",
+      "itemLabel": "싱크대"
+    },
+    {
+      "module": "EP",
+      "part": "목찬넬(전면)",
+      "material": "MDF",
+      "thickness": 18,
+      "w": 52,
+      "h": 450,
+      "qty": 1,
+      "edge": "2면(장)",
+      "note": "",
+      "finishCode": "",
+      "partId": "0-ep-channel:front-0",
+      "slot": "handle",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 900,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "moduleKey": "0-ep",
+      "itemLabel": "싱크대"
+    },
+    {
+      "module": "EP",
+      "part": "목찬넬(지면)",
+      "material": "MDF",
+      "thickness": 18,
+      "w": 40,
+      "h": 450,
+      "qty": 1,
+      "edge": "2면(장)",
+      "note": "",
+      "finishCode": "",
+      "partId": "0-ep-channel:back-0",
+      "slot": "handle",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 900,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "moduleKey": "0-ep",
+      "itemLabel": "싱크대"
+    },
+    {
+      "module": "상판",
+      "part": "상판",
+      "material": "인조대리석",
+      "thickness": 12,
+      "w": 450,
+      "h": 650,
+      "qty": 1,
+      "edge": "-",
+      "note": "하부 라인 한 장(좌·우 마감 폭 포함) · 깊이 = 도면 · 이음은 상판 업체 판단",
+      "finishCode": "",
+      "partId": "0-ep-top-0",
+      "slot": "top",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "moduleKey": "0-ep",
+      "itemLabel": "싱크대"
+    }
+  ],
+  "summary": {
+    "PB_15": {
+      "material": "PB",
+      "thickness": 15,
+      "totalArea": 1293300,
+      "panelCount": 1
+    },
+    "MDF_3": {
+      "material": "MDF",
+      "thickness": 3,
+      "totalArea": 317443,
+      "panelCount": 1
+    },
+    "MDF_18": {
+      "material": "MDF",
+      "thickness": 18,
+      "totalArea": 409038,
+      "panelCount": 1
+    },
+    "인조대리석_12": {
+      "material": "인조대리석",
+      "thickness": 12,
+      "totalArea": 292500,
+      "panelCount": 1
+    }
+  },
+  "edgeBanding": {
+    "1": 2248,
+    "0.6": 9081
+  },
+  "hardware": [
+    {
+      "category": "경첩",
+      "item": "H052W-5 105도 저압 경첩",
+      "manufacturer": "문주",
+      "spec": "2구",
+      "qty": 2,
+      "unit": "EA",
+      "note": "하부장 (보링: 110, 568)",
+      "module": "하부장",
+      "moduleKey": "0-planner-lower-0-0",
+      "boring": [
+        110,
+        568
+      ],
+      "itemLabel": "싱크대"
+    },
+    {
+      "category": "손잡이",
+      "item": "목찬넬",
+      "manufacturer": "-",
+      "spec": "-",
+      "qty": 1,
+      "unit": "EA",
+      "itemLabel": "싱크대"
+    },
+    {
+      "category": "다리발",
+      "item": "조절 다리발",
+      "manufacturer": "-",
+      "spec": "150mm",
+      "qty": 4,
+      "unit": "EA",
+      "note": "하부장",
+      "itemLabel": "싱크대"
+    },
+    {
+      "category": "브라켓",
+      "item": "선반 브라켓 (핀타입)",
+      "manufacturer": "-",
+      "spec": "Φ5mm",
+      "qty": 4,
+      "unit": "EA",
+      "note": "선반 1개 × 4",
+      "itemLabel": "싱크대"
+    },
+    {
+      "category": "걸레받이카바",
+      "item": "걸레받이카바(18T) 투명",
+      "manufacturer": "-",
+      "spec": "2400mm",
+      "qty": 1,
+      "unit": "EA",
+      "note": "걸레받이 450mm ÷ 2400",
+      "itemLabel": "싱크대"
+    }
+  ],
+  "hardwareSummary": {
+    "경첩": 2,
+    "손잡이": 1,
+    "다리발": 4,
+    "브라켓": 4,
+    "걸레받이카바": 1
+  },
+  "csvHead": [
+    "모듈,부품,자재,두께,가로,세로,수량,엣지,비고",
+    "하부장-하부장,측판,PB,15,550,708,2,3면,목찬넬 따내기 상단 70×40",
+    "하부장-하부장,지판,PB,15,420,550,1,1면(전),"
+  ],
+  "cncHead": [
+    "품목,자재,두께,가로,세로,수량,엣지L,엣지R,엣지T,엣지B",
+    "측판,PB,15,550,708,2,1,0,1,1",
+    "지판,PB,15,420,550,1,1,0,0,0"
+  ],
+  "hardwareCsvHead": [
+    "분류,품목,제조사,스펙,수량,단위,비고",
+    "경첩,H052W-5 105도 저압 경첩,문주,2구,2,EA,하부장 (보링: 110, 568)",
+    "손잡이,목찬넬,-,-,1,EA,undefined"
+  ]
+}
