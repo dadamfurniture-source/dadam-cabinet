@@ -1,0 +1,86 @@
+name: CAD Oracle
+
+# 다담 CAD 베타 PR8 — 조립 명세를 build123d(OCC)로 실제 솔리드로 지어 JS 조립 검사와 대조한다.
+#   docs/01-plan/planner-cad.plan.md §PR8 · docs/design-rules/assembly-spec.md "CAD 검산기"
+#
+# 처음엔 보고만 한다: 불일치가 있어도 실패하지 않고 요약(Step Summary)과 report.json 에 남긴다.
+#   2주 동안 계속 불일치 0 이면 build_from_spec.py 에 --strict 를 붙여 게이트로 올린다.
+# 입력은 합성 골든 픽스처만 (test-utils/bom-golden/fixtures.js) — 저장소가 공개라 실제 주문 설계는 넣지 않는다.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/detaildesign/bom-assembly.js'
+      - 'js/detaildesign/assembly-rules.js'
+      - 'js/detaildesign/assembly-check.js'
+      - 'js/detaildesign/extractors.js'
+      - 'js/detaildesign/bom-*-rules.js'
+      - 'js/detaildesign/data-constants.js'
+      - 'test-utils/bom-golden/**'
+      - 'test-utils/assembly-fixtures.js'
+      - 'tools/cad/**'
+      - '.github/workflows/cad-oracle.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/detaildesign/bom-assembly.js'
+      - 'js/detaildesign/assembly-rules.js'
+      - 'js/detaildesign/assembly-check.js'
+      - 'js/detaildesign/extractors.js'
+      - 'js/detaildesign/bom-*-rules.js'
+      - 'js/detaildesign/data-constants.js'
+      - 'test-utils/bom-golden/**'
+      - 'test-utils/assembly-fixtures.js'
+      - 'tools/cad/**'
+      - '.github/workflows/cad-oracle.yml'
+  schedule:
+    # 매일 02:30 KST (17:30 UTC)
+    - cron: '30 17 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24'
+  UV_VERSION: '0.13.1'
+
+jobs:
+  oracle:
+    name: CAD Oracle (report only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Dump assembly specs (synthetic golden fixtures)
+        run: node tools/cad/dump-assembly.js cad-oracle/dump
+
+      - name: Install uv
+        run: pipx install "uv==${UV_VERSION}"
+
+      - name: Build solids and cross-check (build123d / OCC)
+        run: >-
+          uv run --no-project --python 3.13
+          --with build123d==0.11.1 --with cadquery-ocp-novtk==7.9.3.1.1
+          python -I tools/cad/build_from_spec.py cad-oracle/dump --out cad-oracle/out
+
+      - name: Upload STEP / GLB / report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cad-oracle-${{ github.sha }}
+          path: |
+            cad-oracle/out/
+            cad-oracle/dump/
+          retention-days: 14

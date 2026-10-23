@@ -135,7 +135,7 @@
 - T1 보고서의 플래너 3D 버그 3건.
 - 작업지시서 발행 API 가 플랜(요금제)을 확인하지 않음 (워크플로 도메인).
 - 플래너 3D 는 BOM 과 아직 184건 다르다 (`test-utils/ledger-allowlist.json`). **3D 를 근거로 BOM 을 고치지 않는다.**
-- 다음 계획 단계: PR8 CI 검산기(`tools/cad/**`, 합성 골든만), 판재 도면 Worker SVG, 3D 를 명세로 (`?asm=0` 되돌리기).
+- 다음 계획 단계: ~~PR8 CI 검산기~~ (보고만 단계로 시작, 2주 초록이면 게이트), 판재 도면 Worker SVG, 3D 를 명세로 (`?asm=0` 되돌리기).
 
 ---
 
@@ -191,7 +191,7 @@ cd workers/generate-api && npm ci && node --test "test/*.test.js"
 # MCP 서버 (vitest)
 cd mcp-server && npm ci && npm test
 ```
-CAD 검산기(만들어진 뒤): `uv run --no-project --python 3.13 --with build123d==0.11.1 --with cadquery-ocp-novtk==7.9.3.1.1 python tools/cad/build_from_spec.py ...` — 파이썬 소스는 ASCII 만, 도메인 숫자 리터럴 금지(명세 JSON 만 읽는다).
+CAD 검산기 (PR8, 보고만): `node tools/cad/dump-assembly.js cad-oracle/dump` 다음 `uv run --no-project --python 3.13 --with build123d==0.11.1 --with cadquery-ocp-novtk==7.9.3.1.1 python -I tools/cad/build_from_spec.py cad-oracle/dump --out cad-oracle/out` — 파이썬 소스는 ASCII 만, 도메인 숫자 리터럴 금지(명세 JSON 만 읽는다). 설명은 `docs/design-rules/assembly-spec.md` "CAD 검산기".
 
 ### 5-6. 보안·공개
 - **저장소는 공개다.** 고객 이름·주소·전화·실제 주문 설계, 개인 PC 경로를 커밋·Actions 로그·산출물·PR 본문에 넣지 않는다. 시험 픽스처는 합성 데이터만.
@@ -205,7 +205,7 @@ CAD 검산기(만들어진 뒤): `uv run --no-project --python 3.13 --with build
 - 줄바꿈은 LF (`.gitattributes` 고정). 에디터가 CRLF 로 바꾸지 않게 한다.
 - cadgen 모델 러너는 Windows 에서 import 오류로 안 돈다 → 평범한 build123d 스크립트 + `bd.export_step/export_gltf` 로 우회. 소스는 ASCII 만(cadgen 이 cp949 로 읽음), `UV_CACHE_DIR=%USERPROFILE%\.cache\uv`.
 - 로컬 MCP 서버(`localhost:3200`)와 사장님 PC 의 자료(견적서·거래명세서 등)는 터미널에서 쓸 수 있지만 내용을 저장소에 커밋하지 않는다.
-- 참고 프로토타입 `docs/01-plan/cad-beta/cad-prototype/` 은 숫자가 들어 있어 규칙 정본이 아니다.
+- 옛 참고 프로토타입 `cad-prototype/` 은 PR8 검산기로 대체하고 지웠다 (숫자가 들어 있어 규칙 정본이 아니었다). 결과를 뷰어로 보려면 Actions 산출물 `cad-oracle-<sha>` 의 STEP 을 받아 text-to-cad `cad_show` 로 연다.
 
 ---
 

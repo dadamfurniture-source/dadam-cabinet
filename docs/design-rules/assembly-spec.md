@@ -111,6 +111,24 @@ BOM 행마다 판재 조각의 **자리**를 붙인다. 재단 치수는 BOM 행
 - 시험 허용 목록 `test-utils/assembly-allowlist.json` — 사장님 미결 질문만 (지금은 위 18T 선반 겹침). 운영 검사는 그대로 error.
 - 겹침 판정 핵심(옛 `test-utils/box-overlap.js`)은 이 파일로 옮겼고, test-utils 는 같은 함수를 다시 내보낸다.
 
+## CAD 검산기 (PR8, `tools/cad/**` · `.github/workflows/cad-oracle.yml`)
+
+JS 조립 검사가 맞는지 실제 CAD 커널(build123d / OCC)로 따로 확인한다. **처음엔 보고만 한다** — 불일치가 있어도 CI 를 막지 않고 Actions 요약과 `report.json` 에 남긴다. 2주 동안 불일치 0 이면 `--strict` 를 붙여 게이트로 올린다.
+
+1. `node tools/cad/dump-assembly.js <dir> [fixture…]` — 골든 픽스처(합성만, 저장소가 공개)마다 명세를 JSON 으로 쓴다 (스키마 `dadam.cad-oracle/1`). 부재마다 `frame · cut · t · notches · volume`, 모듈마다 JS `findOverlaps` 쌍 (홈 끼움 제외 **전**), 그리고 축 벡터(`AXES`) · 겹침 문턱(`DEFAULT_LIMITS`) · 부피 허용 오차(±0.1%)를 함께 싣는다. 입력 만들기는 `test-utils/assembly-fixtures.js` (조립 검사 시험과 같다).
+2. `uv run --no-project --python 3.13 --with build123d==0.11.1 --with cadquery-ocp-novtk==7.9.3.1.1 python -I tools/cad/build_from_spec.py <dir> --out <out> [--strict] [--no-export]` — JSON 만 읽어 판재를 솔리드로 짓고(관통 따내기를 뺀다, 홈은 깊이 미정이라 안 뺀다) 대조한다.
+
+| code | 뜻 |
+|---|---|
+| `solid-count` | 판 하나가 솔리드 하나가 아니다 (따내기가 판을 갈랐다) |
+| `volume` | OCC 부피 ≠ JS 부피 (±0.1% 밖) |
+| `overlap-occ-only` · `overlap-js-only` | 겹침 쌍(부피 > 1mm³ · 깊이 > 0.1mm) 이 한쪽에만 있다 |
+| `overlap-volume` | 같은 쌍인데 겹침 부피가 다르다 |
+
+- 산출물: 픽스처마다 `<fixture>.step` · `.glb` (모듈을 x 로 나란히), `report.json`, 덤프 JSON — Actions 산출물 `cad-oracle-<sha>` (14일).
+- 파이썬은 ASCII 만, 숫자 리터럴은 축 번호 0·1·2 만 — 규칙 숫자는 명세 JSON 에서만 온다. `__tests__/cad-oracle-source.test.js` 가 지킨다 (옛 `cad-prototype/` 은 걸레받이 들임 50 · 상판 600 을 파이썬에 적어 규칙과 어긋났다 — 이 PR 로 지웠다).
+- 2026-10-23 첫 실행: 골든 9종 불일치 0 (솔리드 수 · 부피 · 겹침 쌍).
+
 ## CAD GLB (관리자 전용)
 
 - 코드: `js/planner/planner-export.js` (`plannerExportCadSpec` · `plannerExportCadScene`), 버튼: `mockup-structure.html` 🧊 CAD GLB

@@ -1350,5 +1350,5 @@
     };
   }
 
-  return { SCHEMA, of, solidsOf, boxOfFrame, keyOfRow };
+  return { SCHEMA, AXES, of, solidsOf, boxOfFrame, keyOfRow };
 });
