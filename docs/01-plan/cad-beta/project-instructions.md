@@ -52,7 +52,7 @@
 - 플래너는 `mockup-shell.html`(배치) + `mockup-structure.html`(구조·디테일) + `js/planner/*` 가 활성이다. `planner-vite/` 는 레거시 — 수정 금지.
 - 모듈의 영역 소속은 `areaIdOfModule` 이 정본 (m.areaId 직접 비교 금지).
 - BOM 정본은 `js/detaildesign/extractors.js` 와 규칙 파일들(`bom-drawer-rules.js`, `bom-wardrobe-rules.js`, `bom-open-cabinet-rules.js`). 품목이 0개면 BOM 단계로 못 간다.
-- 플래너 3D 는 아직 BOM 과 **184건 다르다** (`test-utils/ledger-allowlist.json` — 예: 3D 는 천판, BOM 은 밴드 2장). 3D 를 근거로 BOM 을 고치지 않는다.
+- 플래너 3D 원장 (PR15): 명세로 그린 판재는 id 로 맞고, 예전 그리기와 BOM 은 아직 **213건 다르다** (`test-utils/ledger-baseline.json` 래칫 — 예: 라인 부재, 붙박이장 통). 3D 를 근거로 BOM 을 고치지 않는다.
 - **뒷판 크기는 측판 사쿠리가 정한다** (2026-10-19, PR #832, `bomBackPanelSize`). 뒷판은 우라 MDF 3T. 홈카페장·오픈장 18T 통판은 규칙 밖.
   - 사쿠리 있음 — 측판 홈(뒤끝에서 15, 폭 3)에 끼움 (W−20)×(H−1), 천지판 D−18: 상부장·키큰장·EL장·냉장고 상부/키큰장(선반 D−34), **붙박이장 통·붙박이장 외부 서랍모듈**(선반 D−18−70 = D−88).
   - 사쿠리 없음 — **측판 뒤끝에 덮어 붙임** (W−1)×(H−1), 측판 깊이를 먹지 않음: 싱크 하부장(**서랍장 포함**)·키큰장 단·단순 하부장·냉장고 하부장·붙박이장 내부 서랍장.
