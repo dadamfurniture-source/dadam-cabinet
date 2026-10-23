@@ -226,6 +226,8 @@ function bootPlanner(file, opts = {}) {
 
   return {
     window: winProxy, document: doc, storage, session, messages, errors, location,
+    /** 부모 창 자리 (postMessage 를 모은다). 상세설계 부모가 주는 함수를 시험이 여기 올린다 (scene-parts.js opts.assembly). */
+    parent: parentStub,
     /** 인라인 스크립트의 최상위 선언. window 전역도 폴백으로 본다. */
     g: (name) => (name in exported ? exported[name] : win[name]),
     exported,

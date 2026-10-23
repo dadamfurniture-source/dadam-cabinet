@@ -151,6 +151,17 @@ JS 조립 검사가 맞는지 실제 CAD 커널(build123d / OCC)로 따로 확�
 - 상세설계 밖에서 연 플래너처럼 명세를 못 만들면 오류 칸에 이유만 적는다
 - 3D 그리기는 아직 바꾸지 않는다 (PR12~)
 
+## 플래너 3D 몸통 (PR12, `js/planner/planner-assembly-mesh.js`)
+
+플래너 구조 화면이 몸통 · 처짐방지목 · 선반을 플래너가 따로 셈하지 않고 명세 판재로 그린다 (BOM 재단 치수 · 명세 자리).
+
+- 명세는 CAD GLB · 검사 배지와 같은 `plannerCadSpec()` (부모 창 변환·추출기). `renderAll3D` 마다 배치·구조·품목 스펙이 같으면 다시 만들지 않는다
+- 명세로 그리는 모듈: 한 칸 · 멍장 아님 · 붙박이장 통·오픈장·밥솥장 아님 · 기둥 따내기 없음 · 그 모듈의 몸통·처짐방지목·선반 행이 unplaced 에 없음. 아니면 예전 그리기 (다칸은 결정 D1 전까지)
+- 판재: 따내기 없으면 box 크기 BoxGeometry, 따내기(notch)는 윤곽에서 빼고 frame 으로 누른다. 홈(groove)은 깊이 미정(D5)이라 안 그린다
+- 메시 userData: `partId · rowPartId · key3d · assembly:true` + 원장 이름(측판 left/right · `band#k` · back · brace · shelf). 테두리 선은 `display:true`
+- 도어 · 서랍 · 목찬넬 · 서랍 박스는 아직 예전 그리기 (PR13)
+- 되돌리기: `mockup-structure.html?…&asm=0`. 부모 창이 없거나(플래너만 연 것) 명세를 못 만들면 예전 그리기
+
 ## CAD GLB (관리자 전용)
 
 - 코드: `js/planner/planner-export.js` (`plannerExportCadSpec` · `plannerExportCadScene`), 버튼: `mockup-structure.html` 🧊 CAD GLB

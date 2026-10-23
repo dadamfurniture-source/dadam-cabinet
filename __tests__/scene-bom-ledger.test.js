@@ -52,7 +52,8 @@ const LEDGER_FIXTURES = {
 
 /** 픽스처 하나를 부팅 → 자동계산 → 3D 순회 → BOM 추출. */
 function ledgerOf(name) {
-  const p = bootPlanner3D(LEDGER_FIXTURES[name], { design: 'ledger', item: name });
+  // PR12: 상세설계 부모 창처럼 변환·추출기를 올려 몸통·선반을 조립 명세로 그린다 (브라우저와 같은 길)
+  const p = bootPlanner3D(LEDGER_FIXTURES[name], { design: 'ledger', item: name, assembly: true });
   const scene = collectSceneParts(p);
   const bom = collectBomParts(p);
   return { name, planner: p, scene, bom: bom.parts, warnings: bom.warnings, modules: bom.modules };

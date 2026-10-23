@@ -135,7 +135,7 @@
 - T1 보고서의 플래너 3D 버그 3건.
 - 작업지시서 발행 API 가 플랜(요금제)을 확인하지 않음 (워크플로 도메인).
 - 플래너 3D 는 BOM 과 아직 184건 다르다 (`test-utils/ledger-allowlist.json`). **3D 를 근거로 BOM 을 고치지 않는다.**
-- 다음 계획 단계: ~~PR8 CI 검산기~~ (보고만 단계로 시작, 2주 초록이면 게이트), ~~PR10 동결~~ (워커 `validateAssembly` #1006 → 클라이언트 `createSnapshot` 이 `bom.assembly` 를 보냄), ~~PR11 플래너 검사 배지~~ (관리자 전용, `planner-cad-check.js`), 판재 도면 Worker SVG, 3D 를 명세로 (`?asm=0` 되돌리기).
+- 다음 계획 단계: ~~PR8 CI 검산기~~ (보고만 단계로 시작, 2주 초록이면 게이트), ~~PR10 동결~~ (워커 `validateAssembly` #1006 → 클라이언트 `createSnapshot` 이 `bom.assembly` 를 보냄), ~~PR11 플래너 검사 배지~~ (관리자 전용, `planner-cad-check.js`), ~~PR12 3D 몸통을 명세로~~ (원장 186→105, `?asm=0` 되돌리기) → PR13 목찬넬·앞판·서랍통, 판재 도면 Worker SVG, 3D 를 명세로 (`?asm=0` 되돌리기).
 
 ---
 

@@ -184,7 +184,7 @@ describe('구조 페이지에 걸렸다', () => {
     expect(at('planner/planner-cad-check.js')).toBeGreaterThan(at('detaildesign/assembly-check.js'));
   });
   test('명세는 CAD GLB 와 같은 함수, 역할은 PlannerExport onAdmin, 3D 재구성 때 schedule, 목록 그린 뒤 decorate', () => {
-    expect(html).toMatch(/function plannerCadSpec\(\)/);
+    expect(html).toMatch(/function plannerCadSpec\(payload\)/);
     expect(html).toMatch(/compute: plannerCadSpec/);
     expect(html).toMatch(/const r = plannerCadSpec\(\);/);
     expect(html).toMatch(/onAdmin: \(on\) => PlannerCadCheck\.setAdmin\(on\)/);

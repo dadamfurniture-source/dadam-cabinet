@@ -213,30 +213,6 @@
       "reason": "BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 60×2, 12T 인조대리석 — P1-3)으로 확정 — 사용자 결정 2026-09-15. 3D 가 배치 공간(런)마다 한 장 그리는 것은 표시용 단순화. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
     },
     {
-      "id": "cornerL|lower-0|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "cornerL",
-      "moduleId": "lower-0",
-      "family": "body:band",
-      "scene": "",
-      "bom": "812×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "cornerL|lower-0|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "cornerL",
-      "moduleId": "lower-0",
-      "family": "body:top",
-      "scene": "812×510×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
-    },
-    {
       "id": "cornerL|lower-0|channel:back|only3d",
       "kind": "only3d",
       "fixture": "cornerL",
@@ -273,18 +249,6 @@
       "reason": "3D 걸레받이는 배치 공간(런)의 첫 모듈에 그 런 폭으로 한 장. BOM 은 품목 단위 ep 한 장(하부 모듈 폭 합)"
     },
     {
-      "id": "cornerL|lower-0|shelf|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "lower-0",
-      "family": "shelf",
-      "scene": "808×531×15 ×1",
-      "bom": "812×535×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
       "id": "cornerL|lower-0|top|only3d",
       "kind": "only3d",
       "fixture": "cornerL",
@@ -295,30 +259,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 상판은 배치 공간(런)마다 그 런 폭(영역 전폭)으로 한 장 — 표시용 단순화. BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 × 품목 D, specs.topThickness)으로 확정 — 사용자 결정 2026-09-15. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
-    },
-    {
-      "id": "cornerL|lower-1|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "cornerL",
-      "moduleId": "lower-1",
-      "family": "body:band",
-      "scene": "",
-      "bom": "812×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "cornerL|lower-1|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "cornerL",
-      "moduleId": "lower-1",
-      "family": "body:top",
-      "scene": "812×510×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
     },
     {
       "id": "cornerL|lower-1|channel:back|only3d",
@@ -345,42 +285,6 @@
       "reason": "3D 목찬넬(전면 52·지면 40)은 목찬넬 모듈마다 모듈 폭으로. BOM 은 품목 단위 ep 한 장(하부 폭 합)"
     },
     {
-      "id": "cornerL|lower-1|shelf|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "lower-1",
-      "family": "shelf",
-      "scene": "808×531×15 ×1",
-      "bom": "812×535×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
-      "id": "cornerL|lower-2|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "cornerL",
-      "moduleId": "lower-2",
-      "family": "body:band",
-      "scene": "",
-      "bom": "812×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "cornerL|lower-2|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "cornerL",
-      "moduleId": "lower-2",
-      "family": "body:top",
-      "scene": "812×510×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
-    },
-    {
       "id": "cornerL|lower-2|channel:back|only3d",
       "kind": "only3d",
       "fixture": "cornerL",
@@ -403,42 +307,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 목찬넬(전면 52·지면 40)은 목찬넬 모듈마다 모듈 폭으로. BOM 은 품목 단위 ep 한 장(하부 폭 합)"
-    },
-    {
-      "id": "cornerL|lower-2|shelf|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "lower-2",
-      "family": "shelf",
-      "scene": "808×531×15 ×1",
-      "bom": "812×535×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
-      "id": "cornerL|lower-3|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "cornerL",
-      "moduleId": "lower-3",
-      "family": "body:band",
-      "scene": "",
-      "bom": "391×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "cornerL|lower-3|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "cornerL",
-      "moduleId": "lower-3",
-      "family": "body:top",
-      "scene": "510×391×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
     },
     {
       "id": "cornerL|lower-3|channel:back|only3d",
@@ -465,42 +333,6 @@
       "reason": "3D 목찬넬(전면 52·지면 40)은 목찬넬 모듈마다 모듈 폭으로. BOM 은 품목 단위 ep 한 장(하부 폭 합)"
     },
     {
-      "id": "cornerL|lower-3|shelf|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "lower-3",
-      "family": "shelf",
-      "scene": "531×387×15 ×1",
-      "bom": "535×391×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
-      "id": "cornerL|lower-4|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "cornerL",
-      "moduleId": "lower-4",
-      "family": "body:band",
-      "scene": "",
-      "bom": "806×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "cornerL|lower-4|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "cornerL",
-      "moduleId": "lower-4",
-      "family": "body:top",
-      "scene": "806×510×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
-    },
-    {
       "id": "cornerL|lower-4|channel:back|only3d",
       "kind": "only3d",
       "fixture": "cornerL",
@@ -523,18 +355,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 목찬넬(전면 52·지면 40)은 목찬넬 모듈마다 모듈 폭으로. BOM 은 품목 단위 ep 한 장(하부 폭 합)"
-    },
-    {
-      "id": "cornerL|lower-4|shelf|dims",
-      "kind": "dims",
-      "fixture": "cornerL",
-      "moduleId": "lower-4",
-      "family": "shelf",
-      "scene": "802×531×15 ×1",
-      "bom": "806×535×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
     },
     {
       "id": "lShape|ep|channel:back|onlyBom",
@@ -621,30 +441,6 @@
       "reason": "BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 60×2, 12T 인조대리석 — P1-3)으로 확정 — 사용자 결정 2026-09-15. 3D 가 배치 공간(런)마다 한 장 그리는 것은 표시용 단순화. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
     },
     {
-      "id": "lShape|lower-0|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "lShape",
-      "moduleId": "lower-0",
-      "family": "body:band",
-      "scene": "",
-      "bom": "870×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "lShape|lower-0|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "lShape",
-      "moduleId": "lower-0",
-      "family": "body:top",
-      "scene": "870×510×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
-    },
-    {
       "id": "lShape|lower-0|channel:back|only3d",
       "kind": "only3d",
       "fixture": "lShape",
@@ -681,18 +477,6 @@
       "reason": "3D 걸레받이는 배치 공간(런)의 첫 모듈에 그 런 폭으로 한 장. BOM 은 품목 단위 ep 한 장(하부 모듈 폭 합)"
     },
     {
-      "id": "lShape|lower-0|shelf|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "lower-0",
-      "family": "shelf",
-      "scene": "866×531×15 ×1",
-      "bom": "870×535×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
       "id": "lShape|lower-0|top|only3d",
       "kind": "only3d",
       "fixture": "lShape",
@@ -703,30 +487,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 상판은 배치 공간(런)마다 그 런 폭(영역 전폭)으로 한 장 — 표시용 단순화. BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 × 품목 D, specs.topThickness)으로 확정 — 사용자 결정 2026-09-15. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
-    },
-    {
-      "id": "lShape|lower-1|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "lShape",
-      "moduleId": "lower-1",
-      "family": "body:band",
-      "scene": "",
-      "bom": "870×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "lShape|lower-1|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "lShape",
-      "moduleId": "lower-1",
-      "family": "body:top",
-      "scene": "870×510×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
     },
     {
       "id": "lShape|lower-1|channel:back|only3d",
@@ -751,42 +511,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 목찬넬(전면 52·지면 40)은 목찬넬 모듈마다 모듈 폭으로. BOM 은 품목 단위 ep 한 장(하부 폭 합)"
-    },
-    {
-      "id": "lShape|lower-1|shelf|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "lower-1",
-      "family": "shelf",
-      "scene": "866×531×15 ×1",
-      "bom": "870×535×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
-      "id": "lShape|lower-2|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "lShape",
-      "moduleId": "lower-2",
-      "family": "body:band",
-      "scene": "",
-      "bom": "870×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "lShape|lower-2|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "lShape",
-      "moduleId": "lower-2",
-      "family": "body:top",
-      "scene": "870×510×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
     },
     {
       "id": "lShape|lower-2|channel:back|only3d",
@@ -825,18 +549,6 @@
       "reason": "3D 걸레받이는 배치 공간(런)의 첫 모듈에 그 런 폭으로 한 장. BOM 은 품목 단위 ep 한 장(하부 모듈 폭 합)"
     },
     {
-      "id": "lShape|lower-2|shelf|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "lower-2",
-      "family": "shelf",
-      "scene": "866×531×15 ×1",
-      "bom": "870×535×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
       "id": "lShape|lower-2|top|only3d",
       "kind": "only3d",
       "fixture": "lShape",
@@ -847,30 +559,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 상판은 배치 공간(런)마다 그 런 폭(영역 전폭)으로 한 장 — 표시용 단순화. BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 × 품목 D, specs.topThickness)으로 확정 — 사용자 결정 2026-09-15. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
-    },
-    {
-      "id": "lShape|lower-3|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "lShape",
-      "moduleId": "lower-3",
-      "family": "body:band",
-      "scene": "",
-      "bom": "970×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "lShape|lower-3|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "lShape",
-      "moduleId": "lower-3",
-      "family": "body:top",
-      "scene": "970×510×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
     },
     {
       "id": "lShape|lower-3|channel:back|only3d",
@@ -909,18 +597,6 @@
       "reason": "3D 걸레받이는 배치 공간(런)의 첫 모듈에 그 런 폭으로 한 장. BOM 은 품목 단위 ep 한 장(하부 모듈 폭 합)"
     },
     {
-      "id": "lShape|lower-3|shelf|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "lower-3",
-      "family": "shelf",
-      "scene": "966×531×15 ×1",
-      "bom": "970×535×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
       "id": "lShape|lower-3|top|only3d",
       "kind": "only3d",
       "fixture": "lShape",
@@ -931,30 +607,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 상판은 배치 공간(런)마다 그 런 폭(영역 전폭)으로 한 장 — 표시용 단순화. BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 × 품목 D, specs.topThickness)으로 확정 — 사용자 결정 2026-09-15. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
-    },
-    {
-      "id": "lShape|lower-4|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "lShape",
-      "moduleId": "lower-4",
-      "family": "body:band",
-      "scene": "",
-      "bom": "470×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "lShape|lower-4|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "lShape",
-      "moduleId": "lower-4",
-      "family": "body:top",
-      "scene": "510×470×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
     },
     {
       "id": "lShape|lower-4|channel:back|only3d",
@@ -979,42 +631,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 목찬넬(전면 52·지면 40)은 목찬넬 모듈마다 모듈 폭으로. BOM 은 품목 단위 ep 한 장(하부 폭 합)"
-    },
-    {
-      "id": "lShape|lower-4|shelf|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "lower-4",
-      "family": "shelf",
-      "scene": "531×466×15 ×1",
-      "bom": "535×470×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
-      "id": "lShape|tall-0|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "lShape",
-      "moduleId": "tall-0",
-      "family": "body:band",
-      "scene": "",
-      "bom": "570×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "lShape|tall-0|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "lShape",
-      "moduleId": "tall-0",
-      "family": "body:top",
-      "scene": "580×570×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
     },
     {
       "id": "lShape|tall-0|kick|onlyBom",
@@ -1065,78 +681,6 @@
       "reason": "키큰장 좌대 상자 — BOM 은 좌대 규칙(전후 W · 측·중간보강 D−80 · 좌대 걸레받이 MDF 18T, 2026-10-13 사장님 확정)으로 낸다. 3D 는 통짜 블록 하나라 상자 부재가 없다"
     },
     {
-      "id": "lShape|tall-0|shelf|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "tall-0",
-      "family": "shelf",
-      "scene": "601×566×15 ×1",
-      "bom": "605×570×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
-      "id": "lShape|tall-1|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "lShape",
-      "moduleId": "tall-1",
-      "family": "body:band",
-      "scene": "",
-      "bom": "570×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "lShape|tall-1|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "lShape",
-      "moduleId": "tall-1",
-      "family": "body:top",
-      "scene": "620×570×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
-    },
-    {
-      "id": "lShape|tall-1|shelf|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "tall-1",
-      "family": "shelf",
-      "scene": "601×566×15 ×2",
-      "bom": "605×570×15 ×2",
-      "note": "짝 안 맞음 — 3D 2장 · BOM 2장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
-      "id": "lShape|tall-2|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "lShape",
-      "moduleId": "tall-2",
-      "family": "body:band",
-      "scene": "",
-      "bom": "570×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "lShape|tall-2|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "lShape",
-      "moduleId": "tall-2",
-      "family": "body:top",
-      "scene": "620×570×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
-    },
-    {
       "id": "lShape|tall-2|molding|dims",
       "kind": "dims",
       "fixture": "lShape",
@@ -1147,18 +691,6 @@
       "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
       "cause": "몰딩 블록 모델",
       "reason": "키큰장 상부단 상몰딩 — BOM 은 P1-1 부터 MDF 18T 면판 60×W 를 그 단에 낸다. 3D 는 W×60×(D+18) 통짜 블록(단순화)이라 치수가 안 맞는다"
-    },
-    {
-      "id": "lShape|upper-0|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "lShape",
-      "moduleId": "upper-0",
-      "family": "body:band",
-      "scene": "",
-      "bom": "870×60×15 ×2",
-      "note": "",
-      "cause": "밴드 미표현",
-      "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
     },
     {
       "id": "lShape|upper-0|molding|only3d",
@@ -1173,30 +705,6 @@
       "reason": "3D 상몰딩은 상부 모듈마다 한 장(W × 60 × D+18). BOM 은 품목 단위 ep 한 장(상부 폭 합)"
     },
     {
-      "id": "lShape|upper-0|shelf|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "upper-0",
-      "family": "shelf",
-      "scene": "866×271×15 ×2",
-      "bom": "870×256×15 ×2",
-      "note": "짝 안 맞음 — 3D 2장 · BOM 2장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 상부 선반은 W−2T × D−34(사쿠리)"
-    },
-    {
-      "id": "lShape|upper-1|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "lShape",
-      "moduleId": "upper-1",
-      "family": "body:band",
-      "scene": "",
-      "bom": "870×60×15 ×2",
-      "note": "",
-      "cause": "밴드 미표현",
-      "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
-    },
-    {
       "id": "lShape|upper-1|molding|only3d",
       "kind": "only3d",
       "fixture": "lShape",
@@ -1207,18 +715,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 상몰딩은 상부 모듈마다 한 장(W × 60 × D+18). BOM 은 품목 단위 ep 한 장(상부 폭 합)"
-    },
-    {
-      "id": "lShape|upper-1|shelf|dims",
-      "kind": "dims",
-      "fixture": "lShape",
-      "moduleId": "upper-1",
-      "family": "shelf",
-      "scene": "866×271×15 ×2",
-      "bom": "870×256×15 ×2",
-      "note": "짝 안 맞음 — 3D 2장 · BOM 2장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 상부 선반은 W−2T × D−34(사쿠리)"
     },
     {
       "id": "oblique|ep|channel:back|onlyBom",
@@ -1305,30 +801,6 @@
       "reason": "BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 60×2, 12T 인조대리석 — P1-3)으로 확정 — 사용자 결정 2026-09-15. 3D 가 배치 공간(런)마다 한 장 그리는 것은 표시용 단순화. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
     },
     {
-      "id": "oblique|lower-0|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "oblique",
-      "moduleId": "lower-0",
-      "family": "body:band",
-      "scene": "",
-      "bom": "870×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "oblique|lower-0|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "oblique",
-      "moduleId": "lower-0",
-      "family": "body:top",
-      "scene": "870×510×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
-    },
-    {
       "id": "oblique|lower-0|channel:back|only3d",
       "kind": "only3d",
       "fixture": "oblique",
@@ -1365,18 +837,6 @@
       "reason": "3D 걸레받이는 배치 공간(런)의 첫 모듈에 그 런 폭으로 한 장. BOM 은 품목 단위 ep 한 장(하부 모듈 폭 합)"
     },
     {
-      "id": "oblique|lower-0|shelf|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "lower-0",
-      "family": "shelf",
-      "scene": "866×531×15 ×1",
-      "bom": "870×535×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
       "id": "oblique|lower-0|top|only3d",
       "kind": "only3d",
       "fixture": "oblique",
@@ -1387,30 +847,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 상판은 배치 공간(런)마다 그 런 폭(영역 전폭)으로 한 장 — 표시용 단순화. BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 × 품목 D, specs.topThickness)으로 확정 — 사용자 결정 2026-09-15. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
-    },
-    {
-      "id": "oblique|lower-1|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "oblique",
-      "moduleId": "lower-1",
-      "family": "body:band",
-      "scene": "",
-      "bom": "870×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "oblique|lower-1|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "oblique",
-      "moduleId": "lower-1",
-      "family": "body:top",
-      "scene": "870×510×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
     },
     {
       "id": "oblique|lower-1|channel:back|only3d",
@@ -1435,42 +871,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 목찬넬(전면 52·지면 40)은 목찬넬 모듈마다 모듈 폭으로. BOM 은 품목 단위 ep 한 장(하부 폭 합)"
-    },
-    {
-      "id": "oblique|lower-1|shelf|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "lower-1",
-      "family": "shelf",
-      "scene": "866×531×15 ×1",
-      "bom": "870×535×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
-      "id": "oblique|lower-2|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "oblique",
-      "moduleId": "lower-2",
-      "family": "body:band",
-      "scene": "",
-      "bom": "770×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "oblique|lower-2|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "oblique",
-      "moduleId": "lower-2",
-      "family": "body:top",
-      "scene": "770×510×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
     },
     {
       "id": "oblique|lower-2|channel:back|only3d",
@@ -1509,18 +909,6 @@
       "reason": "3D 걸레받이는 배치 공간(런)의 첫 모듈에 그 런 폭으로 한 장. BOM 은 품목 단위 ep 한 장(하부 모듈 폭 합)"
     },
     {
-      "id": "oblique|lower-2|shelf|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "lower-2",
-      "family": "shelf",
-      "scene": "766×531×15 ×1",
-      "bom": "770×535×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
       "id": "oblique|lower-2|top|only3d",
       "kind": "only3d",
       "fixture": "oblique",
@@ -1531,30 +919,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 상판은 배치 공간(런)마다 그 런 폭(영역 전폭)으로 한 장 — 표시용 단순화. BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 × 품목 D, specs.topThickness)으로 확정 — 사용자 결정 2026-09-15. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
-    },
-    {
-      "id": "oblique|lower-3|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "oblique",
-      "moduleId": "lower-3",
-      "family": "body:band",
-      "scene": "",
-      "bom": "370×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "oblique|lower-3|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "oblique",
-      "moduleId": "lower-3",
-      "family": "body:top",
-      "scene": "510×370×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
     },
     {
       "id": "oblique|lower-3|channel:back|only3d",
@@ -1581,30 +945,6 @@
       "reason": "3D 목찬넬(전면 52·지면 40)은 목찬넬 모듈마다 모듈 폭으로. BOM 은 품목 단위 ep 한 장(하부 폭 합)"
     },
     {
-      "id": "oblique|lower-3|shelf|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "lower-3",
-      "family": "shelf",
-      "scene": "531×366×15 ×1",
-      "bom": "535×370×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
-      "id": "oblique|upper-0|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "oblique",
-      "moduleId": "upper-0",
-      "family": "body:band",
-      "scene": "",
-      "bom": "870×60×15 ×2",
-      "note": "",
-      "cause": "밴드 미표현",
-      "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
-    },
-    {
       "id": "oblique|upper-0|molding|only3d",
       "kind": "only3d",
       "fixture": "oblique",
@@ -1617,30 +957,6 @@
       "reason": "3D 상몰딩은 상부 모듈마다 한 장(W × 60 × D+18). BOM 은 품목 단위 ep 한 장(상부 폭 합)"
     },
     {
-      "id": "oblique|upper-0|shelf|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "upper-0",
-      "family": "shelf",
-      "scene": "866×271×15 ×2",
-      "bom": "870×256×15 ×2",
-      "note": "짝 안 맞음 — 3D 2장 · BOM 2장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 상부 선반은 W−2T × D−34(사쿠리)"
-    },
-    {
-      "id": "oblique|upper-1|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "oblique",
-      "moduleId": "upper-1",
-      "family": "body:band",
-      "scene": "",
-      "bom": "870×60×15 ×2",
-      "note": "",
-      "cause": "밴드 미표현",
-      "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
-    },
-    {
       "id": "oblique|upper-1|molding|only3d",
       "kind": "only3d",
       "fixture": "oblique",
@@ -1651,18 +967,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 상몰딩은 상부 모듈마다 한 장(W × 60 × D+18). BOM 은 품목 단위 ep 한 장(상부 폭 합)"
-    },
-    {
-      "id": "oblique|upper-1|shelf|dims",
-      "kind": "dims",
-      "fixture": "oblique",
-      "moduleId": "upper-1",
-      "family": "shelf",
-      "scene": "866×271×15 ×2",
-      "bom": "870×256×15 ×2",
-      "note": "짝 안 맞음 — 3D 2장 · BOM 2장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 상부 선반은 W−2T × D−34(사쿠리)"
     },
     {
       "id": "straight|ep|channel:back|onlyBom",
@@ -1749,30 +1053,6 @@
       "reason": "BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 60×2, 12T 인조대리석 — P1-3)으로 확정 — 사용자 결정 2026-09-15. 3D 가 배치 공간(런)마다 한 장 그리는 것은 표시용 단순화. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
     },
     {
-      "id": "straight|lower-0|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "straight",
-      "moduleId": "lower-0",
-      "family": "body:band",
-      "scene": "",
-      "bom": "770×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "straight|lower-0|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "straight",
-      "moduleId": "lower-0",
-      "family": "body:top",
-      "scene": "770×510×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
-    },
-    {
       "id": "straight|lower-0|channel:back|only3d",
       "kind": "only3d",
       "fixture": "straight",
@@ -1809,18 +1089,6 @@
       "reason": "3D 걸레받이는 배치 공간(런)의 첫 모듈에 그 런 폭으로 한 장. BOM 은 품목 단위 ep 한 장(하부 모듈 폭 합)"
     },
     {
-      "id": "straight|lower-0|shelf|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "lower-0",
-      "family": "shelf",
-      "scene": "766×531×15 ×1",
-      "bom": "770×535×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
       "id": "straight|lower-0|top|only3d",
       "kind": "only3d",
       "fixture": "straight",
@@ -1831,30 +1099,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 상판은 배치 공간(런)마다 그 런 폭(영역 전폭)으로 한 장 — 표시용 단순화. BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 × 품목 D, specs.topThickness)으로 확정 — 사용자 결정 2026-09-15. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
-    },
-    {
-      "id": "straight|lower-1|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "straight",
-      "moduleId": "lower-1",
-      "family": "body:band",
-      "scene": "",
-      "bom": "370×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "straight|lower-1|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "straight",
-      "moduleId": "lower-1",
-      "family": "body:top",
-      "scene": "510×370×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
     },
     {
       "id": "straight|lower-1|channel:back|only3d",
@@ -1879,42 +1123,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 목찬넬(전면 52·지면 40)은 목찬넬 모듈마다 모듈 폭으로. BOM 은 품목 단위 ep 한 장(하부 폭 합)"
-    },
-    {
-      "id": "straight|lower-1|shelf|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "lower-1",
-      "family": "shelf",
-      "scene": "531×366×15 ×1",
-      "bom": "535×370×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
-      "id": "straight|lower-2|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "straight",
-      "moduleId": "lower-2",
-      "family": "body:band",
-      "scene": "",
-      "bom": "970×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "straight|lower-2|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "straight",
-      "moduleId": "lower-2",
-      "family": "body:top",
-      "scene": "970×510×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
     },
     {
       "id": "straight|lower-2|channel:back|only3d",
@@ -1953,18 +1161,6 @@
       "reason": "3D 걸레받이는 배치 공간(런)의 첫 모듈에 그 런 폭으로 한 장. BOM 은 품목 단위 ep 한 장(하부 모듈 폭 합)"
     },
     {
-      "id": "straight|lower-2|shelf|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "lower-2",
-      "family": "shelf",
-      "scene": "966×531×15 ×1",
-      "bom": "970×535×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
       "id": "straight|lower-2|top|only3d",
       "kind": "only3d",
       "fixture": "straight",
@@ -1975,30 +1171,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 상판은 배치 공간(런)마다 그 런 폭(영역 전폭)으로 한 장 — 표시용 단순화. BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 × 품목 D, specs.topThickness)으로 확정 — 사용자 결정 2026-09-15. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
-    },
-    {
-      "id": "straight|lower-3|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "straight",
-      "moduleId": "lower-3",
-      "family": "body:band",
-      "scene": "",
-      "bom": "902×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "straight|lower-3|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "straight",
-      "moduleId": "lower-3",
-      "family": "body:top",
-      "scene": "902×510×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
     },
     {
       "id": "straight|lower-3|channel:back|only3d",
@@ -2037,18 +1209,6 @@
       "reason": "3D 걸레받이는 배치 공간(런)의 첫 모듈에 그 런 폭으로 한 장. BOM 은 품목 단위 ep 한 장(하부 모듈 폭 합)"
     },
     {
-      "id": "straight|lower-3|shelf|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "lower-3",
-      "family": "shelf",
-      "scene": "898×531×15 ×1",
-      "bom": "902×535×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
       "id": "straight|lower-3|top|only3d",
       "kind": "only3d",
       "fixture": "straight",
@@ -2059,30 +1219,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 상판은 배치 공간(런)마다 그 런 폭(영역 전폭)으로 한 장 — 표시용 단순화. BOM 상판은 품목당 한 장(하부 라인 폭 합 + 좌·우 마감 폭 × 품목 D, specs.topThickness)으로 확정 — 사용자 결정 2026-09-15. 의도된 묶음 차이라 코드로 지우지 않는다 (scene-bom-ledger.md §4 항목 3)"
-    },
-    {
-      "id": "straight|lower-4|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "straight",
-      "moduleId": "lower-4",
-      "family": "body:band",
-      "scene": "",
-      "bom": "436×70×15 ×2",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 밴드 2장(70 × W−2T)은 3D 에 없다 — 3D 는 그 자리에 천판 통짜를 그린다"
-    },
-    {
-      "id": "straight|lower-4|body:top|only3d",
-      "kind": "only3d",
-      "fixture": "straight",
-      "moduleId": "lower-4",
-      "family": "body:top",
-      "scene": "510×436×15 ×1",
-      "bom": "",
-      "note": "",
-      "cause": "천판↔밴드",
-      "reason": "하부장·키큰장·멍장 몸통은 천판이 없고 밴드 2장(70 × W−2T)이다 (sink.md) — 3D 는 천판 통짜(W−2T × D−T)를 그린다"
     },
     {
       "id": "straight|lower-4|channel:back|only3d",
@@ -2109,30 +1245,6 @@
       "reason": "3D 목찬넬(전면 52·지면 40)은 목찬넬 모듈마다 모듈 폭으로. BOM 은 품목 단위 ep 한 장(하부 폭 합)"
     },
     {
-      "id": "straight|lower-4|shelf|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "lower-4",
-      "family": "shelf",
-      "scene": "531×432×15 ×1",
-      "bom": "535×436×15 ×1",
-      "note": "짝 안 맞음 — 3D 1장 · BOM 1장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 하부 선반은 W−2T × D−T (멍장은 −목대 75)"
-    },
-    {
-      "id": "straight|upper-0|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "straight",
-      "moduleId": "upper-0",
-      "family": "body:band",
-      "scene": "",
-      "bom": "870×60×15 ×2",
-      "note": "",
-      "cause": "밴드 미표현",
-      "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
-    },
-    {
       "id": "straight|upper-0|molding|only3d",
       "kind": "only3d",
       "fixture": "straight",
@@ -2143,30 +1255,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 상몰딩은 상부 모듈마다 한 장(W × 60 × D+18). BOM 은 품목 단위 ep 한 장(상부 폭 합)"
-    },
-    {
-      "id": "straight|upper-0|shelf|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-0",
-      "family": "shelf",
-      "scene": "866×271×15 ×2",
-      "bom": "870×256×15 ×2",
-      "note": "짝 안 맞음 — 3D 2장 · BOM 2장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 상부 선반은 W−2T × D−34(사쿠리)"
-    },
-    {
-      "id": "straight|upper-1|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "straight",
-      "moduleId": "upper-1",
-      "family": "body:band",
-      "scene": "",
-      "bom": "870×60×15 ×2",
-      "note": "",
-      "cause": "밴드 미표현",
-      "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
     },
     {
       "id": "straight|upper-1|molding|only3d",
@@ -2181,30 +1269,6 @@
       "reason": "3D 상몰딩은 상부 모듈마다 한 장(W × 60 × D+18). BOM 은 품목 단위 ep 한 장(상부 폭 합)"
     },
     {
-      "id": "straight|upper-1|shelf|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-1",
-      "family": "shelf",
-      "scene": "866×271×15 ×2",
-      "bom": "870×256×15 ×2",
-      "note": "짝 안 맞음 — 3D 2장 · BOM 2장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 상부 선반은 W−2T × D−34(사쿠리)"
-    },
-    {
-      "id": "straight|upper-2|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "straight",
-      "moduleId": "upper-2",
-      "family": "body:band",
-      "scene": "",
-      "bom": "770×60×15 ×2",
-      "note": "",
-      "cause": "밴드 미표현",
-      "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
-    },
-    {
       "id": "straight|upper-2|molding|only3d",
       "kind": "only3d",
       "fixture": "straight",
@@ -2217,30 +1281,6 @@
       "reason": "3D 상몰딩은 상부 모듈마다 한 장(W × 60 × D+18). BOM 은 품목 단위 ep 한 장(상부 폭 합)"
     },
     {
-      "id": "straight|upper-2|shelf|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-2",
-      "family": "shelf",
-      "scene": "766×271×15 ×2",
-      "bom": "770×256×15 ×2",
-      "note": "짝 안 맞음 — 3D 2장 · BOM 2장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 상부 선반은 W−2T × D−34(사쿠리)"
-    },
-    {
-      "id": "straight|upper-3|body:band|onlyBom",
-      "kind": "onlyBom",
-      "fixture": "straight",
-      "moduleId": "upper-3",
-      "family": "body:band",
-      "scene": "",
-      "bom": "370×60×15 ×2",
-      "note": "",
-      "cause": "밴드 미표현",
-      "reason": "상부장 밴드(보강목) 2장(W−2T × 70)은 3D 가 그리지 않는다"
-    },
-    {
       "id": "straight|upper-3|molding|only3d",
       "kind": "only3d",
       "fixture": "straight",
@@ -2251,18 +1291,6 @@
       "note": "",
       "cause": "라인 단위 부재",
       "reason": "3D 상몰딩은 상부 모듈마다 한 장(W × 60 × D+18). BOM 은 품목 단위 ep 한 장(상부 폭 합)"
-    },
-    {
-      "id": "straight|upper-3|shelf|dims",
-      "kind": "dims",
-      "fixture": "straight",
-      "moduleId": "upper-3",
-      "family": "shelf",
-      "scene": "366×271×15 ×2",
-      "bom": "370×256×15 ×2",
-      "note": "짝 안 맞음 — 3D 2장 · BOM 2장",
-      "cause": "선반 치수",
-      "reason": "3D 선반은 폭·깊이 4mm 시각 여유(W−2T−4 × D−T−4). BOM 상부 선반은 W−2T × D−34(사쿠리)"
     }
   ]
 }
