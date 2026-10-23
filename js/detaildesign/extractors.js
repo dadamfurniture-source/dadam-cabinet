@@ -3120,6 +3120,13 @@
           return drawingVisualizer.generateCuttingLayout(matResult.materials, mode);
         };
       }
+      // 2026-10-23: 추출기를 window 에 올린다. `class` 선언은 고전 스크립트 최상위여도 window 속성이 되지 않는다 —
+      //   그래서 플래너 iframe 이 부모 창 추출기를 찾는 길(planner-export.js plannerExportCadSpec: CAD GLB · 조립 검사 배지)과
+      //   브라우저의 조립 명세(bom-assembly.js root.MaterialExtractor — 서랍장 레이아웃 · 철물 자리)가 추출기를 못 찾았다.
+      if (typeof window !== 'undefined') {
+        window.MaterialExtractor = MaterialExtractor;
+        window.HardwareExtractor = HardwareExtractor;
+      }
       // W10-4: Jest 단위 테스트용 CommonJS 이중 노출 (__tests__/extractors-corner.test.js)
       // B1: HardwareExtractor·DrawingVisualizer 도 내보낸다 — 골든 도우미(test-utils/bom-golden/golden.js)가
       //     이 둘을 얻으려고 소스를 Function 으로 평가하던 우회를 없앨 수 있다.
