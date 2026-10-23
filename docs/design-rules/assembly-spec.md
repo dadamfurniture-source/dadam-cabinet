@@ -141,6 +141,16 @@ JS 조립 검사가 맞는지 실제 CAD 커널(build123d / OCC)로 따로 확�
 - 클라이언트(`workflow-client.js` `createSnapshot`, PR10b)는 조립 검사에 쓰는 명세(`DadamAssembly.of(design, { materials })`)를 그대로 `bom.assembly` 로 보낸다. 명세를 못 만들면(옛 캐시, 생성 실패) 명세 없이 동결한다. 워커(#1006)를 먼저 배포했다 (개정 #12)
 - 명세가 해시에 들어가므로 기존 설계는 PR10b 뒤 처음 동결할 때 한 번 새 rev 가 생긴다. 규칙 버전(`rulesVersion`)이 바뀌어도 새 rev
 
+## 플래너 검사 배지 (PR11, `js/planner/planner-cad-check.js`, 관리자 전용)
+
+구조 화면(`mockup-structure.html`) 좌측 모듈 목록에 모듈마다 조립 검사 배지를 단다 — `✓` 정상, `⚠ n` 오류 n건 (자리 미정 경고 수는 배지 제목에). 목록 아래 오류 칸의 줄을 누르면 그 모듈을 고른다.
+
+- 명세는 CAD GLB 와 같은 함수 `plannerCadSpec()` (부모 창 변환·BOM → `plannerExportCadSpec`), 판정은 `assembly-check.js` 그대로 — 새 규칙 없음
+- 3D 를 다시 지을 때(`renderAll3D`) 400ms 디바운스로 다시 돈다. 싱크 한 세트 추출 + 명세 + 검사 약 3ms (로컬)
+- 관리자만 — 역할은 `PlannerExport` 가 부모 창에서 받아 `onAdmin` 으로 넘긴다. 관리자가 아니면 검사도 돌지 않는다
+- 상세설계 밖에서 연 플래너처럼 명세를 못 만들면 오류 칸에 이유만 적는다
+- 3D 그리기는 아직 바꾸지 않는다 (PR12~)
+
 ## CAD GLB (관리자 전용)
 
 - 코드: `js/planner/planner-export.js` (`plannerExportCadSpec` · `plannerExportCadScene`), 버튼: `mockup-structure.html` 🧊 CAD GLB
