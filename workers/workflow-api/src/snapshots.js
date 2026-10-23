@@ -245,6 +245,104 @@ export function validateCutPlan(cutPlan, bom) {
   return { cutPlan, sheetCount: cutPlan.sheets.length };
 }
 
+/** 조립 명세 스키마 (js/detaildesign/bom-assembly.js SCHEMA) */
+export const ASSEMBLY_SCHEMA = 'dadam.assembly/1';
+
+/**
+ * 조립 명세 크기 상한 (UTF-8 바이트).
+ * 계획(planner-cad.plan.md §7)의 추정이 싱크 한 세트 약 45KB, 아파트 한 채 150~300KB 라
+ * 그 위쪽 추정의 3배 남짓을 둔다. 넘으면 명세 생성 쪽 버그(중복 부재 등)로 본다.
+ */
+export const MAX_ASSEMBLY_BYTES = 1024 * 1024;
+
+/** 명세의 판재 — 모듈 부재(items[].modules[].parts[])와 라인 부재(items[].runs[].parts[]). */
+function assemblyPartsOf(assembly, problems) {
+  const out = [];
+  assembly.items.forEach((it, ii) => {
+    const tag = `items[${ii}]`;
+    if (!it || typeof it !== 'object') { problems.push(`${tag}: 객체가 아님`); return; }
+    [['modules', it.modules], ['runs', it.runs]].forEach(([key, list]) => {
+      if (list === undefined && key === 'runs') return;
+      if (!Array.isArray(list)) { problems.push(`${tag}.${key}: 배열이 아님`); return; }
+      list.forEach((g, gi) => {
+        const gtag = `${tag}.${key}[${gi}]`;
+        if (!g || typeof g !== 'object' || !Array.isArray(g.parts)) { problems.push(`${gtag}: parts 배열이 없음`); return; }
+        g.parts.forEach((p, pi) => out.push({ p, tag: `${gtag}.parts[${pi}]` }));
+      });
+    });
+  });
+  return out;
+}
+
+/**
+ * PR10: 클라이언트가 보낸 조립 명세(bom.assembly, bom-assembly.js 산출)를 검증한다.
+ * 없으면 null — 명세를 보내지 않는 옛 클라이언트도 받는다.
+ *
+ * 서버는 명세를 다시 계산하지 않는다(규칙 파일이 브라우저에 있다). 형태와 BOM 과의 정합만 본다:
+ *   - 머리: schema = dadam.assembly/1, rulesVersion, items[], unplaced[] · 크기 ≤ MAX_ASSEMBLY_BYTES
+ *   - 판재마다 rowPartId 가 bom.materials 에 있고, id 가 겹치지 않는다
+ *   - 놓인 행은 판재 수 = qty, unplaced 의 rowPartId 도 bom.materials 에 있다
+ * 통과하면 { assembly, partCount } 를 돌려준다.
+ */
+export function validateAssembly(assembly, bom) {
+  if (assembly === undefined || assembly === null) return null;
+  if (typeof assembly !== 'object' || Array.isArray(assembly)) {
+    throw new ValidationError('bom.assembly 는 객체여야 합니다');
+  }
+  const bytes = new TextEncoder().encode(JSON.stringify(assembly)).length;
+  if (bytes > MAX_ASSEMBLY_BYTES) {
+    throw new ValidationError('조립 명세가 너무 큽니다', { bytes, max: MAX_ASSEMBLY_BYTES });
+  }
+  if (assembly.schema !== ASSEMBLY_SCHEMA) {
+    throw new ValidationError(`bom.assembly.schema 는 ${ASSEMBLY_SCHEMA} 이어야 합니다`, { schema: assembly.schema });
+  }
+  if (typeof assembly.rulesVersion !== 'string' || !assembly.rulesVersion) {
+    throw new ValidationError('bom.assembly.rulesVersion 이 비어 있습니다');
+  }
+  if (!Array.isArray(assembly.items)) throw new ValidationError('bom.assembly.items 배열이 필요합니다');
+  if (!Array.isArray(assembly.unplaced)) throw new ValidationError('bom.assembly.unplaced 배열이 필요합니다');
+
+  // 자재 행 partId → qty (validateCutPlan 과 같은 규약)
+  const materials = bom && Array.isArray(bom.materials) ? bom.materials : [];
+  const qtyById = new Map();
+  materials.forEach((m, i) => {
+    if (!m || typeof m !== 'object') return;
+    const id = m.partId != null && m.partId !== '' ? String(m.partId) : `row-${i}`;
+    qtyById.set(id, (qtyById.get(id) || 0) + Math.round(positiveNumber(m.qty) || 0));
+  });
+
+  const problems = [];
+  const seenId = new Set();
+  const placed = new Map();
+  const parts = assemblyPartsOf(assembly, problems);
+  parts.forEach(({ p, tag }) => {
+    if (!p || typeof p !== 'object') { problems.push(`${tag}: 객체가 아님`); return; }
+    if (typeof p.rowPartId !== 'string' || !p.rowPartId) { problems.push(`${tag}: rowPartId 가 비어 있음`); return; }
+    if (!qtyById.has(p.rowPartId)) { problems.push(`${tag}: rowPartId ${p.rowPartId} 가 bom.materials 에 없음`); return; }
+    if (typeof p.id !== 'string' || !p.id) problems.push(`${tag}: id 가 비어 있음`);
+    else if (seenId.has(p.id)) problems.push(`${tag}: id ${p.id} 가 중복`);
+    seenId.add(p.id);
+    placed.set(p.rowPartId, (placed.get(p.rowPartId) || 0) + 1);
+  });
+
+  placed.forEach((n, id) => {
+    const qty = qtyById.get(id) || 0;
+    if (n !== qty) problems.push(`rowPartId ${id}: 판재 ${n}개 ≠ 수량 ${qty}`);
+  });
+
+  assembly.unplaced.forEach((u, i) => {
+    const tag = `unplaced[${i}]`;
+    if (!u || typeof u !== 'object') { problems.push(`${tag}: 객체가 아님`); return; }
+    if (!qtyById.has(String(u.rowPartId))) problems.push(`${tag}: rowPartId ${u.rowPartId} 가 bom.materials 에 없음`);
+  });
+
+  if (problems.length) {
+    throw new ValidationError('조립 명세가 BOM 과 맞지 않습니다', problems.slice(0, 20));
+  }
+
+  return { assembly, partCount: parts.length };
+}
+
 /** materials 로부터 파생값을 서버가 다시 계산한다. */
 export function deriveCounts(design, bom) {
   const itemCount = design.items.length;
@@ -368,6 +466,9 @@ export async function createSnapshot(env, { designId, user, body }) {
 
   // B4: 재단 배치 — 선택 사항. 있으면 BOM 과 맞는지 본다 (cutPlan 또는 cut_plan 키).
   const cut = validateCutPlan(body.cutPlan !== undefined ? body.cutPlan : body.cut_plan, bom);
+
+  // PR10: 조립 명세 — 선택 사항. 있으면 BOM 과 맞는지 본다. bom_payload 에 그대로 실려 content_hash 에 든다.
+  validateAssembly(bom.assembly, bom);
 
   const contentHash = await snapshotHash(designPayload, bom);
 
