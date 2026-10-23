@@ -6,6 +6,7 @@ Claude 데스크톱 앱 Code 탭 왼쪽 패널 위의 **프로젝트(베타)** �
 
 | 파일 | 쓰는 곳 |
 |---|---|
+| `handoff.md` | **터미널(Claude Code CLI)로 이어 갈 때 읽을 인수인계 문서** (2026-10-23) |
 | `project-instructions.md` | Project settings > Memory > **Project instructions** 에 붙여넣기 (16,000자 제한, 지금 약 7,200자) |
 | `setup.sh` | 클라우드 환경 `dadam-cad` 의 **Setup script** 에 붙여넣기 (2단계) |
 | `threads.md` | 프로젝트 대화에 보낼 **첫 메시지**와 스레드 묶음 |
