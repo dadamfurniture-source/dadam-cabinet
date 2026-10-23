@@ -9,7 +9,7 @@
 - docs/01-plan/module-library.plan.md (백로그·질문)
 
 ## Review Checklist
-- id 규칙: `{LB|UB|TL}-{D1|D2|FLAP|DR<n>|OPEN}-{W}[-변형]` — 같은 구조·같은 폭 중복 없음
+- id 규칙: `{LB|UB|TL}-{D1|D2|FLAP|DR<n>|OPEN|SHELF}-{W}[-변형]` (OPEN = 오픈장 상자, SHELF = 오픈 칸) — 같은 구조·같은 폭 중복 없음
 - 이름: 사장님 용어 (여닫이 1도어 하부장, 서랍 3단 …) · 서랍 "N단" = 전면 장수
 - 폭이 승인된 기본 폭(계획 1절)인지
 - 정면도: 도어 갈라짐(도어 4 간격) · 서랍 전면 비율 · 경첩 방향 표시가 선택값과 맞는지

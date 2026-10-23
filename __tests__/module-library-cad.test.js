@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-/* global require, describe, test, expect, __dirname, process */
+/* global require, describe, test, expect, __dirname, process, Buffer */
 /**
  * 모듈 라이브러리 게이트 7 의 JS 쪽 (docs/01-plan/module-library.plan.md §4) — Text-to-CAD 입력 덤프 · 모듈 카드 보고서 · CI.
  * OCC 대조 자체는 CI module-library-cad.yml (build123d) 이 한다.
@@ -77,7 +77,7 @@ describe('report.js — 모듈 카드 보고서', () => {
 
   test('index.html: 이름 · 카드 수 · OCC 결과 · GLB 단추 · three 고정 버전', () => {
     const dir = tmpDir();
-    fs.writeFileSync(path.join(dir, `sample-${SAMPLES[0].id}.glb`), '');
+    fs.writeFileSync(path.join(dir, `sample-${SAMPLES[0].id}.glb`), 'glTF');
     fs.writeFileSync(path.join(dir, 'report.json'), JSON.stringify({
       schema: 'dadam.cad-oracle-report/1',
       results: [{ fixture: `sample-${SAMPLES[0].id}`, rulesVersion: 'x', modules: 1, parts: 8, overlaps: 0, problems: [] }],
@@ -90,6 +90,9 @@ describe('report.js — 모듈 카드 보고서', () => {
     expect(html).toMatch(/chip-ok"[^>]*><b>G7<\/b>/);                      // OCC 결과가 있는 모듈
     expect(html).toMatch(/chip-none"[^>]*><b>G7<\/b>/);                    // 미실행
     expect(html).toMatch(/three@\d+\.\d+\.\d+\/build\/three\.module\.js/);
+    // GLB 는 페이지 안에 base64 로 — 파일 하나로 열린다 (file:// · 아티팩트)
+    const glb = JSON.parse(html.match(/<script type="application\/json" id="glb-data">([^<]*)<\/script>/)[1]);
+    expect(glb).toEqual({ [`sample-${SAMPLES[0].id}`]: Buffer.from('glTF').toString('base64') });
     fs.rmSync(dir, { recursive: true, force: true });
   });
 });

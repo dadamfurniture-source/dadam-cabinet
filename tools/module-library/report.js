@@ -6,9 +6,10 @@
  *
  * 모듈마다 정면도(조립 명세 판재를 앞에서 본 x-y 투영, 치수선) · 3D(build123d GLB) · 게이트 · 자재표 · 철물을 한 장에 싣는다.
  * GLB 와 OCC 대조 결과(report.json)는 tools/cad/build_from_spec.py 가 같은 폴더에 쓴 것을 읽는다 — 없으면 "미실행".
+ * GLB 는 base64 로 페이지 안에 싣는다 — 파일 하나로 열리고(file:// · 아티팩트 모두), 따로 내려받을 것이 없다.
  *
  *   node tools/module-library/report.js <outDir> [id…] [--samples] [--label 1회차]
- *     → <outDir>/index.html  (같은 폴더의 <id>.glb 를 상대 경로로 읽는다)
+ *     → <outDir>/index.html
  *
  * **내부용** — 뒷판·처짐방지목·따내기·밴드 같은 내부 구조가 보인다. Pages·고객 화면에 올리지 않는다 (handoff 5-6).
  */
@@ -151,7 +152,7 @@ function cardHtml(t, r, occ, hasGlb) {
   <div class="views">
     <figure class="fig-elev">${el.svg}<figcaption>정면도 · 판재 ${parts}장 · 경첩 컵은 점선 원</figcaption></figure>
     <figure class="fig-3d">
-      <div class="stage" data-glb="${hasGlb ? esc(`${t.name}.glb`) : ''}">
+      <div class="stage" data-glb="${hasGlb ? esc(t.name) : ''}">
         ${hasGlb ? `<button type="button" class="load3d" id="btn-${esc(anchor)}">3D 보기</button>` : '<p class="no3d">GLB 없음 — Text-to-CAD(build_from_spec.py)를 먼저 돌린다</p>'}
       </div>
       <figcaption>build123d · ${hasGlb ? esc(`${t.name}.glb`) : '—'} · 끌어서 돌리기</figcaption>
@@ -277,6 +278,7 @@ ${rows.map(({ t, r, occ, hasGlb }) => cardHtml(t, r, occ, hasGlb)).join('\n')}
     <p>3D는 판재만 지었습니다 (철물·라인 부재 없음). 내부 구조가 보이는 내부용 자료라 고객 화면에는 올리지 않습니다.</p>
   </footer>
 </div>
+<script type="application/json" id="glb-data">${JSON.stringify(meta.glb || {})}</script>
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@${THREE_VER}/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@${THREE_VER}/examples/jsm/" } }</script>
 <script type="module">
 import * as THREE from 'three';
@@ -285,8 +287,11 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // build_from_spec.py 의 GLB 는 판재를 메시 하나로 합친다 — 판재 색 하나 + 모서리 선으로 그린다
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';
+// GLB 는 페이지 안에 base64 로 실려 있다 — 파일 하나로 열리고(file:// 포함) 따로 내려받을 것이 없다
+const GLB = JSON.parse(document.getElementById('glb-data').textContent || '{}');
+const bytesOf = (b64) => Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0)).buffer;
 
-function view(stage, url) {
+function view(stage, name) {
   stage.textContent = '';
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
@@ -307,7 +312,7 @@ function view(stage, url) {
   };
   new ResizeObserver(size).observe(stage);
   size();
-  new GLTFLoader().load(url, (gltf) => {
+  new GLTFLoader().parse(bytesOf(GLB[name] || ''), '', (gltf) => {
     const root = gltf.scene;
     root.traverse((o) => {
       if (!o.isMesh) return;
@@ -323,7 +328,7 @@ function view(stage, url) {
     camera.position.set(c.x + r * 0.55, c.y + r * 0.35, c.z + r * 1.25);
     camera.near = r / 100; camera.far = r * 20; camera.updateProjectionMatrix();
     controls.update();
-  }, undefined, () => { stage.innerHTML = '<p class="no3d">GLB 를 읽지 못했습니다 — 보고서와 같은 폴더에 있는지 확인하세요</p>'; });
+  }, () => { stage.innerHTML = '<p class="no3d">GLB 를 읽지 못했습니다 — build_from_spec.py 출력을 다시 만드세요</p>'; });
   const loop = () => { controls.update(); renderer.render(scene, camera); requestAnimationFrame(loop); };
   loop();
 }
@@ -358,11 +363,14 @@ function main(argv) {
     occ: occ.find((o) => o.fixture === t.name) || null,
     hasGlb: fs.existsSync(path.join(outDir, `${t.name}.glb`)),
   }));
+  const glb = {};
+  rows.filter((x) => x.hasGlb).forEach(({ t }) => { glb[t.name] = fs.readFileSync(path.join(outDir, `${t.name}.glb`)).toString('base64'); });
   const meta = {
     label,
     rulesVersion: rows.length ? rows[0].r.spec.rulesVersion : '-',
     sha: gitShort(),
     date: new Date().toISOString().slice(0, 10),
+    glb,
   };
   fs.mkdirSync(outDir, { recursive: true });
   const file = path.join(outDir, 'index.html');
