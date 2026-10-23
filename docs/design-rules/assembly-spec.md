@@ -171,6 +171,16 @@ JS 조립 검사가 맞는지 실제 CAD 커널(build123d / OCC)로 따로 확�
 - 원장 시험 `collectSceneParts` 행에 `partIds` (명세 판재 id)
 - 되돌리기: `mockup-structure.html?…&asm=0`. 부모 창이 없거나(플래너만 연 것) 명세를 못 만들면 예전 그리기
 
+## 판재 도면 (PR17, `workers/workflow-api/src/templates/part-drawing.js`)
+
+작업지시서 재단 묶음(`?pack=cut`)과 전체 묶음에 **③-2 판재 도면** 쪽 — 동결 명세 `bom_payload.assembly` 에서 따내기 · 홈이 있는 판재만 (사내 재단 행).
+
+- 같은 판(크기 · 특징 · 끝 방향)은 한 도면, 장수와 partId 를 적는다. 끝 이름은 명세 frame 축 (u `+z` = 앞 …)
+- 윤곽 = 사각형 − 따내기(관통), 홈은 회색 점선 + "깊이 미정 (D5)". 특징마다 크기와 가까운 끝에서의 자리
+- 도면마다 `rev · content_hash · 규칙 버전` — 발행 때 `render_payload.cad` 에 굳힌 값 (그 전 문서면 스냅샷 값)
+- 명세 없는 옛 스냅샷이면 쪽이 없다 — 묶음 HTML 은 바이트 그대로 (`test/work-order-golden.test.js`)
+- 도어 보링은 아직 ⑩ 도어재 발주서 표 그대로 (도어는 외주). 모듈 단면도(조립 묶음)는 다음 PR
+
 ## CAD GLB (관리자 전용)
 
 - 코드: `js/planner/planner-export.js` (`plannerExportCadSpec` · `plannerExportCadScene`), 버튼: `mockup-structure.html` 🧊 CAD GLB
