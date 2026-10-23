@@ -115,22 +115,36 @@ describe('plannerAssemblyModuleFor — 어느 모듈을 명세로', () => {
   });
   const cells = { '0-a': { plannerId: 'A', dx: 0 }, '0-b0': { plannerId: 'B', dx: -100 }, '0-b1': { plannerId: 'B', dx: 100 } };
 
-  test('한 칸 모듈 → 몸통 판만 (도어는 PR13)', () => {
+  test('한 칸 모듈 → 묶음별 판재 (몸통 · 앞판 …)', () => {
     const hit = Mesh.plannerAssemblyModuleFor({ spec: spec(), cells }, 'A');
-    expect(hit.parts.map((p) => p.rowPartId)).toEqual(['0-a-body:side-0']);
+    expect(hit.groups.shell.map((p) => p.rowPartId)).toEqual(['0-a-body:side-0']);
+    expect(hit.groups.front.map((p) => p.rowPartId)).toEqual(['0-a-door#0-0']);
+    expect(hit.groups.shelf).toEqual([]);
   });
   test('다칸 모듈(명세 모듈 둘) → null (D1 전까지 예전 그리기)', () => {
     expect(Mesh.plannerAssemblyModuleFor({ spec: spec(), cells }, 'B')).toBeNull();
   });
-  test('몸통·선반 행이 하나라도 자리 미정이면 null — 지어내지 않는다', () => {
-    expect(Mesh.plannerAssemblyModuleFor({ spec: spec([{ moduleKey: '0-a', rowPartId: '0-a-shelf#0-0', reason: 'shelf-height-unknown' }]), cells }, 'A')).toBeNull();
-    // 이 단계 밖 부재(도어)의 자리 미정은 몸통 그리기를 막지 않는다
-    expect(Mesh.plannerAssemblyModuleFor({ spec: spec([{ moduleKey: '0-a', rowPartId: '0-a-door#1-0', reason: 'x' }]), cells }, 'A')).not.toBeNull();
+  test('묶음 행이 하나라도 자리 미정이면 그 묶음만 null (예전 그리기) — 지어내지 않는다', () => {
+    const shelfPending = Mesh.plannerAssemblyModuleFor({ spec: spec([{ moduleKey: '0-a', rowPartId: '0-a-shelf#0-0', reason: 'shelf-height-unknown' }]), cells }, 'A');
+    expect(shelfPending.groups.shelf).toBeNull();
+    expect(shelfPending.groups.shell).toHaveLength(1);
+    const frontPending = Mesh.plannerAssemblyModuleFor({ spec: spec([{ moduleKey: '0-a', rowPartId: '0-a-door#1-0', reason: 'x' }]), cells }, 'A');
+    expect(frontPending.groups.front).toBeNull();
+    // 서랍장 처짐방지목 (D2) — 처짐방지목만 예전 그리기
+    const brace = Mesh.plannerAssemblyModuleFor({ spec: spec([{ moduleKey: '0-a', rowPartId: '0-a-body:brace#0-0', reason: 'pending-owner D2' }]), cells }, 'A');
+    expect(brace.groups.brace).toBeNull();
+    expect(brace.groups.front).toHaveLength(1);
   });
-  test('서랍 박스 판(tags.box)은 빼고 그린다 (PR13)', () => {
+  test('몸통이 자리 미정이거나 이름을 못 읽는 행이 있으면 모듈 전체가 예전 그리기', () => {
+    expect(Mesh.plannerAssemblyModuleFor({ spec: spec([{ moduleKey: '0-a', rowPartId: '0-a-back-0', reason: 'x' }]), cells }, 'A')).toBeNull();
+    expect(Mesh.plannerAssemblyModuleFor({ spec: spec([{ moduleKey: '0-a', rowPartId: 'weird', reason: 'x' }]), cells }, 'A')).toBeNull();
+  });
+  test('서랍 박스 판(tags.box)은 family 와 상관없이 drawer 묶음', () => {
     const s = spec();
     s.items[0].modules[0].parts.push(Object.assign(part('0-a', 'body:side'), { tags: { box: 0 } }));
-    expect(Mesh.plannerAssemblyModuleFor({ spec: s, cells }, 'A').parts).toHaveLength(1);
+    const hit = Mesh.plannerAssemblyModuleFor({ spec: s, cells }, 'A');
+    expect(hit.groups.shell).toHaveLength(1);
+    expect(hit.groups.drawer).toHaveLength(1);
   });
 });
 
