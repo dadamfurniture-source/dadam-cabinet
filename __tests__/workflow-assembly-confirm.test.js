@@ -31,9 +31,10 @@ function setup() {
   global.SupabaseUtils = window.SupabaseUtils;
 
   const posts = [];
+  const bodies = [];
   window.fetch = global.fetch = jest.fn(async (url, opts) => {
     const method = (opts && opts.method) || 'GET';
-    if (method === 'POST') posts.push(String(url));
+    if (method === 'POST') { posts.push(String(url)); bodies.push(opts.body ? JSON.parse(opts.body) : null); }
     let data = { items: [] };
     if (/\/snapshots$/.test(url)) data = { snapshot_id: 'snap-' + posts.length, rev: posts.length, reused: false };
     if (/\/documents$/.test(url) && method === 'POST') data = { doc_no: 'WO-1' };
@@ -58,6 +59,7 @@ function setup() {
   new Function(SRC)();
   return {
     posts,
+    bodies,
     calls,
     fail() {
       result = {
@@ -89,6 +91,35 @@ describe('workflow-client — 조립 검사를 발행 확인창에 잇는다 (D8
     delete window.DadamAssembly;
     await flush();
     await click('wfSnapshot');
+    expect(t.calls[0].assembly).toBeNull();
+  });
+
+  test('PR10: 같은 명세를 bom.assembly 로 함께 동결한다 (BOM 자재는 그대로)', async () => {
+    const t = setup();
+    await flush();
+    await click('wfSnapshot');
+    const body = t.bodies[t.posts.findIndex((u) => /\/snapshots$/.test(u))];
+    expect(body.bom.assembly).toEqual(SPEC);
+    expect(body.bom.materials).toEqual(MATERIALS);
+    expect(window._reportData.materials.assembly).toBeUndefined();
+  });
+
+  test('PR10: 명세가 없거나(옛 캐시) 만들다 실패하면 명세 없이 동결한다', async () => {
+    let t = setup();
+    delete window.DadamAssembly;
+    await flush();
+    await click('wfSnapshot');
+    let body = t.bodies[t.posts.findIndex((u) => /\/snapshots$/.test(u))];
+    expect(body.bom).not.toHaveProperty('assembly');
+
+    t = setup();
+    window.DadamAssembly = { of: jest.fn(() => { throw new Error('boom'); }) };
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    await flush();
+    await click('wfSnapshot');
+    warn.mockRestore();
+    body = t.bodies[t.posts.findIndex((u) => /\/snapshots$/.test(u))];
+    expect(body.bom).not.toHaveProperty('assembly');
     expect(t.calls[0].assembly).toBeNull();
   });
 
