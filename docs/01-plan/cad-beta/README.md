@@ -10,7 +10,6 @@ Claude 데스크톱 앱 Code 탭 왼쪽 패널 위의 **프로젝트(베타)** �
 | `project-instructions.md` | Project settings > Memory > **Project instructions** 에 붙여넣기 (16,000자 제한, 지금 약 7,200자) |
 | `setup.sh` | 클라우드 환경 `dadam-cad` 의 **Setup script** 에 붙여넣기 (2단계) |
 | `threads.md` | 프로젝트 대화에 보낼 **첫 메시지**와 스레드 묶음 |
-| `cad-prototype/` | 2026-10-19 에 만든 build123d 모델 (참고용, 규칙 정본 아님) |
 | `../planner-cad.plan.md` | 정본 계획 (맨 위 개정 사항 16건이 본문보다 우선) |
 
 ## 준비 순서 (사장님이 앱에서 할 일)

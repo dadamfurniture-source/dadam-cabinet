@@ -66,6 +66,6 @@ PR2 브리지 분리(`agent/designui-bridge-extract`) ∥ PR3 규칙 표(`agent/
 | 일 | 이유 |
 |---|---|
 | CAD 뷰어로 모델 보여 주기, text-to-cad 플러그인 | 뷰어가 127.0.0.1 에서만 열린다 |
-| `docs/01-plan/cad-beta/cad-prototype` 실행해 비교 그림 만들기 | 클라우드도 되지만 결과를 뷰어로 보려면 로컬 |
+| CAD 검산기 산출물(STEP) 뷰어로 보기 | 검산기는 CI 가 돌리지만 뷰어는 로컬에서만 열린다 |
 | Supabase SQL 실행 | 사장님이 직접 (스레드는 SQL 파일과 전문만) |
 | OneDrive 견적서·거래명세서, `D:\ohouse` | 사장님 PC 에만 있다 |
