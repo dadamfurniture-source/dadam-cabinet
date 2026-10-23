@@ -21,12 +21,13 @@
  *   (plannerFinishPartKeyOf 가 null 을 준다). 나머지 mesh 는 전부 센다 — 먹장(blank)·멍판·목찬넬·좌대 포함.
  *
  * 정규화 행:
- *   { moduleId, section, entityKind, slot, partKey, family, x, y, z, a, b, t, qty }
+ *   { moduleId, section, entityKind, slot, partKey, family, x, y, z, a, b, t, qty, partIds }
  *     x·y·z  기하 크기(mm, 반올림) — X 가로 · Y 세로 · Z 깊이 (모듈 로컬)
  *     a ≥ b  판의 두 변 (t 를 뺀 나머지 둘, 큰 순). BOM 이 w/h 를 어느 쪽으로 적든 비교되게 순서 없는 쌍으로 둔다
  *     t      가장 짧은 변 = 판 두께
  *     family partKey 에서 순번(`#…`)을 뗀 종류 이름. BOM 의 BOM_PART_DEFS key 와 같은 이름을 쓴다
  *   같은 (moduleId, family, a, b, t) 는 qty 로 합친다.
+ *   partIds  조립 명세로 그린 판재(PR12~)의 `userData.partId` — 명세 판재 id (`${rowPartId}#k`). 예전 그리기 판재는 없다.
  */
 const { bootPlanner } = require('./planner-harness');
 const { seedFor } = require('./planner-golden');
@@ -173,7 +174,13 @@ function collectSceneParts(p) {
     const family = familyOfPartKey(partKey);
     const moduleId = ud.moduleId == null ? '?' : String(ud.moduleId);
     const key = `${moduleId}|${family}|${d.a}|${d.b}|${d.t}`;
-    if (merged.has(key)) { merged.get(key).qty += 1; merged.get(key).partKeys.push(partKey); return; }
+    if (merged.has(key)) {
+      const r = merged.get(key);
+      r.qty += 1;
+      r.partKeys.push(partKey);
+      if (ud.partId) r.partIds.push(ud.partId);
+      return;
+    }
     const row = {
       moduleId,
       section: sectionOf[moduleId] || null,
@@ -181,6 +188,7 @@ function collectSceneParts(p) {
       slot: slotOf(ud),
       partKey,
       partKeys: [partKey],
+      partIds: ud.partId ? [ud.partId] : [],
       family,
       x: d.x, y: d.y, z: d.z,
       a: d.a, b: d.b, t: d.t,
