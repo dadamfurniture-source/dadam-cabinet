@@ -1,0 +1,93 @@
+name: Module Library CAD
+
+# 모듈 라이브러리 게이트 7 (docs/01-plan/module-library.plan.md §3·§4) — Text-to-CAD.
+#   모듈마다 조립 명세를 build123d(OCC)로 실제 솔리드로 지어 JS 조립 검사와 대조하고, STEP · GLB · 모듈 카드 보고서를 올린다.
+#   덤프는 tools/module-library/dump-library.js (형식은 tools/cad/dump-assembly.js dumpSpecOf), 짓기는 tools/cad/build_from_spec.py 그대로.
+#
+# 처음엔 보고만 한다 (cad-oracle.yml 과 같이). 2주 동안 불일치 0 이면 build_from_spec.py 에 --strict 를 붙여 게이트로 올린다.
+# 입력은 라이브러리 모듈과 시험 견본뿐 (합성) — 저장소가 공개라 실제 주문 설계는 넣지 않는다.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/module-library/**'
+      - 'test-utils/module-library/**'
+      - 'tools/module-library/**'
+      - 'tools/cad/**'
+      - 'js/detaildesign/bom-assembly.js'
+      - 'js/detaildesign/assembly-rules.js'
+      - 'js/detaildesign/assembly-check.js'
+      - 'js/detaildesign/extractors.js'
+      - 'js/detaildesign/bom-*-rules.js'
+      - 'js/detaildesign/ui-step1.js'
+      - 'js/planner/planner-export.js'
+      - 'js/planner/planner-engine.js'
+      - '.github/workflows/module-library-cad.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/module-library/**'
+      - 'test-utils/module-library/**'
+      - 'tools/module-library/**'
+      - 'tools/cad/**'
+      - 'js/detaildesign/bom-assembly.js'
+      - 'js/detaildesign/assembly-rules.js'
+      - 'js/detaildesign/assembly-check.js'
+      - 'js/detaildesign/extractors.js'
+      - 'js/detaildesign/bom-*-rules.js'
+      - 'js/detaildesign/ui-step1.js'
+      - 'js/planner/planner-export.js'
+      - 'js/planner/planner-engine.js'
+      - '.github/workflows/module-library-cad.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24'
+  UV_VERSION: '0.13.1'
+
+jobs:
+  cad:
+    name: Module Library CAD (report only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Dump module specs (verified modules + samples)
+        run: node tools/module-library/dump-library.js modlib-cad/dump --with-samples
+
+      - name: Install uv
+        run: pipx install "uv==${UV_VERSION}"
+
+      - name: Build solids and cross-check (build123d / OCC)
+        run: >-
+          uv run --no-project --python 3.13
+          --with build123d==0.11.1 --with cadquery-ocp-novtk==7.9.3.1.1
+          python -I tools/cad/build_from_spec.py modlib-cad/dump --out modlib-cad/out
+
+      - name: Module card report
+        if: always()
+        run: node tools/module-library/report.js modlib-cad/out --with-samples --label "CI ${GITHUB_SHA::7}"
+
+      - name: Upload STEP / GLB / report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: modlib-cad-${{ github.sha }}
+          path: |
+            modlib-cad/out/
+            modlib-cad/dump/
+          retention-days: 14
