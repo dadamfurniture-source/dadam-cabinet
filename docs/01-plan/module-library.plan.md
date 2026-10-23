@@ -87,7 +87,7 @@ plannerExportCadSpec (planner-export.js) → DadamAssembly.of → dadam.assembly
 |---|---|---|---|
 | 0 | `agent/docs-modlib` | 문서 | 이 문서, CLAUDE.md 도메인 행, 역할 파일, 에이전트 정의 |
 | 1 | `agent/bom-cad-dump-spec` | BOM | `tools/cad/dump-assembly.js` 의 `dumpOf(name)` 에서 `dumpSpecOf(name, spec)` 분리 (동작 같음) |
-| 2 | `agent/modlib-foundation` | modlib | 라이브러리 파일 · `test-utils/module-library/*` · 게이트 시험 |
+| 2 | `agent/modlib-foundation` | modlib | 라이브러리 파일 · `test-utils/module-library/{pipeline,harness,golden,samples}.js` · 게이트 시험 `__tests__/module-library{,-roundtrip}.test.js` |
 | 3 | `agent/modlib-cad` | modlib | `tools/module-library/*` · `module-library-cad.yml` |
 | 4~ | `agent/modlib-round-N` | modlib | 모듈 회차 (6절) — 회차마다 PR 하나 · 보고서 하나 |
 
@@ -125,7 +125,7 @@ plannerExportCadSpec (planner-export.js) → DadamAssembly.of → dadam.assembly
 | 모듈 | 막힌 이유 |
 |---|---|
 | 키큰장 600×2300 3단 | 단 높이 계산이 mockup-structure.html 안(`tallTiers`)에 있어 순수 경로가 없다 — 왕복(하네스) 경로로만 검증하거나 플래너 도메인이 계산을 엔진으로 옮긴 뒤 |
-| 홈카페장 · EL장 600 | `PLANNER_EXPORT_CELL_RE` (planner-export.js) 가 `-homecafe` · `-el` id 를 못 잡아 선반 자리가 빈다 (플래너 도메인 버그). EL 크기 `[확인 필요]` |
+| 홈카페장 · EL장 600 | ~~`PLANNER_EXPORT_CELL_RE` 가 `-homecafe` · `-el` id 를 못 잡음~~ — #1018 (PR14b) 에서 풀림. 홈카페장은 냉장고장 전용 모듈(extractFridge)이라 싱크대 품목에서 되는지 확인 필요, EL 크기 `[확인 필요]` |
 | 밥솥장 450 | 바로 밑에 서랍이 있어야 한다(경고) — 단독 모듈이 아니라 묶음. 자리·높이 미정, 선반 규격 `[확인 필요]` |
 
 ### 보류 — 규칙 없음
