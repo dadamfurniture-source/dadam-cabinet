@@ -126,10 +126,14 @@ plannerExportCadSpec (planner-export.js) → DadamAssembly.of → dadam.assembly
 중간 목찬넬(전면·지면)이 그 아래 서랍 박스의 측판·전후판에 1~7mm 파고든다. 전면이 123 안팎일 때만 생긴다.
 
 ### 3회차 — 오픈장 450
-| id | 모듈 | 시제품 |
+| id | 모듈 | 결과 |
 |---|---|---|
-| UB-OPEN-450 | 상부 오픈 칸 (`areaTypes:['open']`) | 통과 (판 9) |
-| LB-OPEN-450 | 하부 오픈장 (`moduleKind:'open'`, MDF 18T) | **막힘** — 조립 명세가 오픈장 다리발 자리를 아직 안 정한다(`leg-tall-tier`), BOM 라인 폭에서도 빠진다 → Q2 |
+| UB-OPEN-450 | 오픈장 상부 (MDF 18T 상자, `moduleKind:'open'`) | verified (판 5) |
+| UB-SHELF-450 | 오픈 칸 상부장 (`areaTypes:['open']`, 선반 2) | verified (판 9) |
+| LB-SHELF-450 | 오픈 칸 하부장 (도어 없음, 선반 없음) | verified |
+| LB-OPEN-450 | 오픈장 하부 (MDF 18T 상자) | **needs-rule:Q2** — 조립 명세가 오픈장 다리발 자리를 아직 안 정한다(`leg-tall-tier`) |
+
+오픈장 상자는 플래너 모듈 타입 선택에 섹션 제한이 없어 상부에도 둔다 (처음 계획의 "하부만"은 정본에 없는 제한이라 뺐다).
 
 ### 4회차 — 키큰장·EL·홈카페·밥솥장 (선행 조건)
 | 모듈 | 막힌 이유 |
