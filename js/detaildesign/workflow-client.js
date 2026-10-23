@@ -703,12 +703,20 @@
     //   오류가 있으면 확인을 받고, 경고는 동결 후 상태줄에 남긴다. 검사기가 없으면(옛 캐시) 그냥 동결한다.
     //   2026-10-20 결정 D8: 조립 명세(bom-assembly.js)도 함께 넘겨 조립 검사(assembly-check.js) 오류를 같은 확인창에 띄운다.
     //   상세설계에는 플래너 선반 높이가 없어 선반은 "자리 미정" 경고로만 나온다.
+    //   PR10 (2026-10-23): 같은 명세를 bom.assembly 로 함께 동결한다 — 워커 validateAssembly 가 BOM 과 맞는지 본다.
+    //   명세를 못 만들면(옛 캐시, 생성 실패) 명세 없이 동결한다. 명세가 해시에 들어가 기존 설계는 한 번 새 rev 가 생긴다.
+    let assembly = null;
+    if (window.DadamAssembly && Array.isArray(materials)) {
+      try {
+        assembly = window.DadamAssembly.of(report.design, { materials: materials });
+      } catch (e) {
+        console.warn('[Workflow] 조립 명세 생성 실패 — 명세 없이 동결합니다:', e);
+        assembly = null;
+      }
+    }
     let preflight = null;
     if (window.BomPreflight && Array.isArray(materials)) {
       try {
-        const assembly = window.DadamAssembly
-          ? window.DadamAssembly.of(report.design, { materials: materials })
-          : null;
         preflight = window.BomPreflight.check(materials, report.hardware || [], {
           cutPlan: cutPlan,
           assembly: assembly,
@@ -739,7 +747,7 @@
     setStatus('설계와 BOM 을 동결하는 중…');
     const body = {
       design: report.design,
-      bom: report.materials,
+      bom: assembly ? Object.assign({}, report.materials, { assembly: assembly }) : report.materials,
       hardware: report.hardware || {},
     };
     if (cutPlan) body.cutPlan = cutPlan;
