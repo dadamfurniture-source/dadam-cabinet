@@ -106,7 +106,38 @@
       choice: { doors: 1, hinge: 'up' },
       ruleRefs: UPPER_REFS.concat(['mockup-structure.html 칸 열림 방향 up → 브리지 doorOpen up (윗변 경첩 · 가스쇼바)']), status: 'verified',
     },
+
+    // ── 2회차: 서랍장 600 — "N단" = 전면 장수 (2026-10-24) ─────────
+    //   전면 비율은 플래너 입력 그대로 (위 칸 : 서랍 …, 1 = 소 · 2 = 기본). 전면이 모두 마이다 — 경첩·보링 없음.
+    drawer('LB-DR2-600', '서랍 2단', '2:2'),
+    drawer('LB-DR2-600-12', '서랍 2단 (작은 위 칸)', '1:2'),
+    drawer('LB-DR3-600', '서랍 3단', '2:2:2'),
+    drawer('LB-DR3-600-211', '서랍 3단 (큰 위 칸)', '2:1:1'),
+    drawer('LB-DR3-600-122', '서랍 3단 (작은 위 칸)', '1:2:2'),
+    drawer('LB-DR4-600', '서랍 4단', '2:2:2:2'),
+    drawer('LB-DR4-600-1222', '서랍 4단 (작은 위 칸)', '1:2:2:2'),
+    drawer('LB-DR3-600-BALL', '서랍 3단 볼레일', '2:2:2', { rail: 'ball' }),
+    drawer('LB-DR3-600-SAKURI', '서랍 3단 사쿠리 서랍', '2:2:2', { sakuri: true }),
+    // 전면이 123 안팎으로 낮아지면 중간 목찬넬 따내기와 서랍 박스가 1~2mm 겹친다 (조립 검사 part-overlap) — 계획 Q1
+    drawer('LB-DR5-600', '서랍 5단', '2:2:2:2:2', {}, 'needs-rule:Q1'),
+    drawer('LB-DR4-600-2111', '서랍 4단 (큰 위 칸)', '2:1:1:1', {}, 'needs-rule:Q1'),
   ]);
+
+  /** 서랍장 모듈 정의 — 폭은 승인된 서랍장 폭, 선택값은 전면 비율 · 레일 · 사쿠리뿐. */
+  function drawer(id, name, ratio, extra, status) {
+    return {
+      id, rev: 1, group: 'lower-drawer', section: 'lower', W: APPROVED_WIDTHS.drawer,
+      name,
+      choice: { drawer: Object.assign({ ratio }, extra || {}) },
+      ruleRefs: [
+        'bom-drawer-rules.js gradesFromRatio · distributeFronts (전면 배분) · 박스 높이 60/120/180',
+        'extractors.js drawerLayoutOf · bomIsMaidaModule (전면 마이다)',
+        'assembly-rules.js 목찬넬 상단 70×40 · 중간 90×40 따내기',
+        'planner-engine.js distributeModules (한 칸 600)',
+      ],
+      status: status || 'verified',
+    };
+  }
 
   /** 모듈 정의가 쓰는 기본 폭 이름 (APPROVED_WIDTHS 의 키). */
   function widthKeyOf(entry) {
