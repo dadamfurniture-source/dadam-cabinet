@@ -14,7 +14,7 @@
  *      (PowerShell: $env:UPDATE_LEDGER_BASELINE=1; npx jest __tests__/scene-bom-ledger.test.js). 늘어난 기준은 쓰지 않는다.
  *
  * 픽스처 (합성): 골든 3벌(planner-golden.js straight · lShape · oblique) + ㄱ자 코너(멍장) +
- *   PR15 에 더한 셋 — 다칸(한 모듈 2칸, D1 전까지 예전 그리기) · 서랍장(도어 + 서랍 2단, 명세 그리기) · 붙박이장(통 셋, 예전 그리기).
+ *   PR15 에 더한 셋 — 다칸(한 모듈 2칸, D1 전까지 예전 그리기) · 서랍장(도어 + 서랍 2단, 명세 그리기) · 붙박이장(통 셋, PR14b 부터 명세).
  * 부팅은 상세설계 부모 창처럼 변환·추출기를 올린다 (bootPlanner3D assembly: true — 브라우저와 같은 길).
  */
 const fs = require('fs');
@@ -70,7 +70,7 @@ const LEDGER_FIXTURES = {
     layout: FIXTURES.straight,
     prepare: restructure('lower-2', { horizontalLayout: 'doorTopDrawerBottom', bottomType: 'drawer', drawerHeight: 200, drawerCount: 2 }),
   },
-  // PR15: 붙박이장 — 통 셋 (붙박이장 통은 예전 그리기 · PR14). 붙박이장 품목 스펙(빈 값 = 규칙 기본값)
+  // PR15: 붙박이장 — 통 셋 (PR14b 부터 통째로 명세). 붙박이장 품목 스펙(빈 값 = 규칙 기본값)
   wardrobe: { layout: wardrobeLayout, ledger: { category: 'wardrobe', specsExact: {} } },
 };
 
@@ -144,11 +144,10 @@ describe(`1단계 — id 대조 (명세 판재 ↔ BOM 낱장, AABB ±${ID_AABB_
     expect(issues).toEqual([]);
   });
 
-  test('명세로 그리는 픽스처는 id 로 맞춘 판재가 있다 (붙박이장 통은 아직 예전 그리기)', () => {
-    ['straight', 'lShape', 'oblique', 'cornerL', 'multiCell', 'drawer'].forEach((name) => {
+  test('명세로 그리는 픽스처는 id 로 맞춘 판재가 있다 (붙박이장 통은 PR14b 부터)', () => {
+    Object.keys(LEDGER_FIXTURES).forEach((name) => {
       expect(ledgers[name].byId.matched).toBeGreaterThan(20);
     });
-    expect(ledgers.wardrobe.byId.matched).toBe(0);
   });
 
   test('표준 하부장 도어는 id 로 맞는다 — 대조 장치가 실제로 짝을 짓는다', () => {

@@ -185,7 +185,8 @@ function plannerExportFileName(now, kind) {
 // ============================================================
 const PLANNER_EXPORT_CAD_ROOT_NAME = 'dadam-planner-cad';
 const PLANNER_EXPORT_CAD_COLORS = { PB: 0xd9c4a3, MDF: 0xbdb5a8, hardware: 0x6b6b6b };
-const PLANNER_EXPORT_CELL_RE = /^planner-(.+)-(\d+|open)$/;
+// 칸 모듈 `planner-<id>-<칸>` · 상자 하나짜리 모듈 `-open` · `-rice` · `-homecafe` · `-el` (ui-step1.js _convertPlannerModules)
+const PLANNER_EXPORT_CELL_RE = /^planner-(.+)-(\d+|open|rice|homecafe|el)$/;
 
 /**
  * 조립 명세와 모듈별 자리 단서를 만든다.
@@ -228,13 +229,14 @@ function plannerExportCadSpec(P, deps) {
     const pm = byId.get(hit[1]);
     if (!pm) return;
     const mk = `${itemIdx}-${mod.id}`;
-    const dx = hit[2] === 'open' ? 0
+    const box = !/^\d+$/.test(hit[2]);   // 상자 하나짜리 — 플래너 모듈 그대로
+    const dx = box ? 0
       : ((Number(mod._x) || 0) + (Number(mod.w) || 0) / 2) - ((Number(pm.x) || 0) + (Number(pm.W) || 0) / 2);
     cells[mk] = { plannerId: hit[1], dx };
     const s = typeof deps.structureOf === 'function' ? deps.structureOf(pm.id) : null;
     if (s && Array.isArray(s.shelves)) shelfY[mk] = s.shelves.map(Number).filter(Number.isFinite);
     const at = lineOf.get(hit[1]);
-    if (at) lines[lineDefs.indexOf(at.ln)].modules.push({ moduleKey: mk, x0: at.x + (hit[2] === 'open' ? 0 : (Number(mod._x) || 0) - (Number(pm.x) || 0)) });
+    if (at) lines[lineDefs.indexOf(at.ln)].modules.push({ moduleKey: mk, x0: at.x + (box ? 0 : (Number(mod._x) || 0) - (Number(pm.x) || 0)) });
   });
   // 서랍장 레이아웃도 BOM 과 같은 추출기로 (부모 창 전역 — iframe 에는 없다)
   const opts = { materials, shelfY, MaterialExtractor: P.MaterialExtractor };
