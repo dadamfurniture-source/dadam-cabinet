@@ -79,8 +79,10 @@
 | Workflow Worker | `workers/workflow-api/**` (작업지시서·스냅샷·견적, `part-drawing.js`·`module-section.js`·`dxf-writer.js` 포함), `js/detaildesign/workflow-client.js` | `agent/workflow-*` |
 | Worker Portal | `worker.html`, `js/worker-portal.js`, `js/mypage-work.js`, `admin/work-jobs.html`, `mypage.html` 의 `#myWorkSection` 부분, `database/work-jobs*.sql` | `agent/worker-*` |
 | Site Auth | `login.html`, `signup.html` (리다이렉트·OAuth·로그인 수단) | `agent/auth-*` |
+| Module Library | `js/module-library/**`, `test-utils/module-library/**`, `tools/module-library/**`, `__tests__/module-library*.test.js`, `.github/workflows/module-library-cad.yml`, `docs/01-plan/module-library.plan.md`, `.claude/skills/agents/modlib/*`, `.claude/agents/module-library.md` | `agent/modlib-*` |
 
 CAD 베타 파일 소유는 결정 D11 (2026-10-18 승인, `docs/01-plan/planner-cad.plan.md`).
+모듈 라이브러리 소유는 2026-10-24 사장님 계획 승인 (`docs/01-plan/module-library.plan.md`). 라이브러리는 선택값만 담고, 플래너·BOM·CAD 파일은 각 도메인이 고친다.
 작업자 포털 소유는 2026-10-20 사장님 결정 16 (`docs/01-plan/worker-portal.plan.md`). 서버 `workers/workflow-api/src/work/**` 는 Workflow Worker 영역.
 
 ### 역할별 실행 순서
