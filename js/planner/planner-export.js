@@ -402,6 +402,8 @@ const PlannerExport = {
     if (btn) btn.hidden = !this.admin;
     const cadBtn = this._o && this._o.cadButton;
     if (cadBtn) cadBtn.hidden = !this.admin;
+    // PR11: 같은 역할을 조립 검사 배지(planner-cad-check.js)도 쓴다
+    if (this._o && typeof this._o.onAdmin === 'function') this._o.onAdmin(this.admin);
   },
 
   async loadExporter() {
