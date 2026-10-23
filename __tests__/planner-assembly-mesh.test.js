@@ -16,6 +16,7 @@ const Mesh = require('../js/planner/planner-assembly-mesh.js');
 const { plannerPanelOutline } = require('../js/planner/planner-cutout.js');
 const { FIXTURES } = require('../test-utils/planner-golden');
 const { bootPlanner3D } = require('../test-utils/scene-parts');
+const { specPartsOf } = require('../test-utils/ledger-diff');
 
 const EPS = 0.01;
 
@@ -152,23 +153,24 @@ describe.each(['straight', 'lShape', 'oblique'])('플래너 %s — 명세로 그
   let p;
   beforeAll(() => { p = bootPlanner3D(FIXTURES[name], { design: 'ledger', item: name, assembly: true }); });
 
-  test('명세 판재 메시가 있고, 메시 AABB = 부재 AABB (±0.01mm, 모듈 로컬)', () => {
+  test('명세 판재 메시가 있고, 메시 AABB = 부재 AABB (±0.01mm, 명세 좌표 = 홀더 로컬)', () => {
     const meshes = asmMeshes(p);
     expect(meshes.length).toBeGreaterThan(20);
-    // 같은 명세를 다시 만들어 판재 box 와 대조 — 홀더는 (dx, 몸통 바닥 높이, 0) 에 있다
+    // 같은 명세를 다시 만들어 판재 box 와 대조 — 모듈 부재와 라인 부재(runs, PR14) 모두
     const spec = p.g('plannerCadSpec')();
-    const byId = new Map();
-    spec.spec.items.forEach((it) => it.modules.forEach((m) => m.parts.forEach((pt) => byId.set(pt.id, { pt, mk: m.moduleKey }))));
+    const byId = new Map(specPartsOf(spec.spec).map((pt) => [pt.id, pt]));
+    const hostDx = new Map();
+    spec.spec.items.forEach((it) => (it.runs || []).forEach((r) => r.parts.forEach((pt) => hostDx.set(pt.id, spec.cells[r.hostModuleKey].dx))));
     meshes.forEach((mesh) => {
-      const hit = byId.get(mesh.userData.partId);
-      expect(hit).toBeTruthy();
+      const pt = byId.get(mesh.userData.partId);
+      expect(pt).toBeTruthy();
       const holder = mesh.parent;
-      const off = holder.position.toArray();
-      expect(off[0]).toBeCloseTo(spec.cells[hit.mk].dx, 6);
-      const bb = localBoxOf(mesh, moduleGroupOf(p, mesh.userData.moduleId));
+      const mk = Object.keys(spec.cells).find((k) => mesh.userData.partId.indexOf(k + '-') === 0);
+      expect(holder.position.x).toBeCloseTo(mk ? spec.cells[mk].dx : hostDx.get(pt.id), 6);
+      const bb = localBoxOf(mesh, holder);
       [0, 1, 2].forEach((i) => {
-        expect(Math.abs(bb.min.getComponent(i) - (hit.pt.box.min[i] + off[i]))).toBeLessThan(EPS);
-        expect(Math.abs(bb.max.getComponent(i) - (hit.pt.box.max[i] + off[i]))).toBeLessThan(EPS);
+        expect(Math.abs(bb.min.getComponent(i) - pt.box.min[i])).toBeLessThan(EPS);
+        expect(Math.abs(bb.max.getComponent(i) - pt.box.max[i])).toBeLessThan(EPS);
       });
     });
   });
