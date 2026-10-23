@@ -93,6 +93,11 @@ describe('dump-assembly.js — 검산기 입력', () => {
     ALLOW.entries.filter((e) => e.id.startsWith('sink18|')).forEach((e) => expect(raw.has(e.id)).toBe(true));
   });
 
+  // 모듈 라이브러리(docs/01-plan/module-library.plan.md §4)가 골든 픽스처 밖의 명세를 같은 형식으로 덤프한다
+  test.each(NAMES)('%s — dumpSpecOf(name, spec) 는 dumpOf(name) 과 같다', (n) => {
+    expect(Dump.dumpSpecOf(n, specOf(n).spec)).toEqual(dumps[n]);
+  });
+
   test('명령줄: 모르는 픽스처는 거절, 출력 파일은 픽스처마다', () => {
     const os = require('os');
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cad-oracle-'));
