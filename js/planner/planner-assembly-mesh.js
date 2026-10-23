@@ -50,6 +50,49 @@ const PLANNER_ASM_RUN_GROUPS = {
   finish: ['filler:left', 'filler:right', 'molding:left', 'molding:right', 'ep:left', 'ep:right'],
 };
 
+/**
+ * 붙박이장 통 (PR14b) — 통 하나는 몸통 여럿 · 좌대 상자 · 도어 · 외부/내부 서랍 · 칸막이 · 선반이 한 묶음으로 짜인다.
+ * 그래서 묶음별이 아니라 **통 전체**로 고른다: 그 통의 행이 하나도 unplaced 가 아니고, 판재 종류가 모두 아래 목록일 때만
+ * 명세로 그린다 (아니면 통 전체 예전 그리기). 옷봉(철물) · 상단 몰딩(BOM 행 없음)은 예전 그리기 그대로.
+ */
+const PLANNER_ASM_WARDROBE_FAMILIES = [
+  'body:side', 'body:bottom', 'body:top', 'back', 'body:band',
+  'pedestal:fb', 'pedestal:side', 'pedestal:brace',
+  'door', 'drawer', 'innerdrawer:front', 'innerdrawer:molding',
+  'drawerbox:fb', 'drawerbox:side', 'drawerbox:bottom', 'drawerbox:brace',
+  'divider:v', 'divider:h', 'shelf',
+  'top',   // 내부 서랍모듈 천판 (통 안의 모듈 행 — 라인 상판 아님)
+  'channel:front', 'channel:back', 'channel:mid-front', 'channel:mid-back',   // 외부 서랍 몸통 목찬넬
+];
+
+/** 오픈장 · 밥솥장 · 홈카페장 (PR14b) — 18T 상자 판 다섯 장 (+ 밥솥장 도어). 통째로 고른다. */
+const PLANNER_ASM_OPEN_FAMILIES = ['body:side', 'part:천지판', 'back', 'door'];
+
+/**
+ * 플래너 모듈 → 명세 모듈 판재 전부 (통째로 그릴 수 있을 때만).
+ * @param {{spec, cells}} asm
+ * @param {string} plannerId
+ * @param {string[]} families  허용 종류
+ * @returns {{module, dx, parts}|null}
+ */
+function plannerAssemblyWholeModuleFor(asm, plannerId, families) {
+  if (!asm || !asm.spec || !asm.cells) return null;
+  const id = String(plannerId);
+  const keys = Object.keys(asm.cells).filter((mk) => String(asm.cells[mk].plannerId) === id);
+  if (keys.length !== 1) return null;
+  const mk = keys[0];
+  let mod = null;
+  (asm.spec.items || []).forEach((it) => (it && it.modules || []).forEach((m) => { if (m.moduleKey === mk) mod = m; }));
+  if (!mod || !(mod.parts || []).length) return null;
+  if ((asm.spec.unplaced || []).some((u) => u.moduleKey === mk)) return null;
+  const ok = mod.parts.every((pt) => {
+    const k = plannerAssemblyKeyOf(pt.rowPartId, mk);
+    return k && families.indexOf(k.family) >= 0;
+  });
+  if (!ok) return null;
+  return { module: mod, dx: Number(asm.cells[mk].dx) || 0, parts: mod.parts.slice() };
+}
+
 function plannerAssemblyRunGroupOf(family) {
   const ks = Object.keys(PLANNER_ASM_RUN_GROUPS);
   for (let i = 0; i < ks.length; i++) if (PLANNER_ASM_RUN_GROUPS[ks[i]].indexOf(family) >= 0) return ks[i];
@@ -186,6 +229,24 @@ function plannerAssemblyUserData(part, moduleKey, plannerId, ctx) {
   const tags = part.tags || {};
   const base = { moduleId: plannerId, partId: part.id, rowPartId: part.rowPartId, key3d: moduleKey + '|' + part.id, assembly: true };
   if (k.family === 'body:brace') return Object.assign({ entityKind: 'brace', braceIdx: k3 }, base);
+  // 오픈장 상자 (PR14b) — 예전 buildOpenCabinetMesh · buildRiceCabinetMesh 와 같은 entityKind
+  if (ctx && ctx.open) {
+    if (k.family === 'door') return Object.assign({ entityKind: 'riceDoor' }, base);
+    return Object.assign({ entityKind: 'openCabinet', openPart: k.family, panel: tags.panel || tags.side || null }, base);
+  }
+  // 붙박이장 통 (PR14b) — 예전 addWardrobeCarcasses · addWardrobeInterior · addPedestal 과 같은 entityKind
+  if (ctx && ctx.wardrobe) {
+    if (k.family === 'shelf') return Object.assign({ entityKind: 'shelf', shelfIdx: k3, wardrobe: true }, base);
+    if (/^divider:/.test(k.family)) return Object.assign({ entityKind: 'wardrobeDivider', dividerIdx: k3, axis: k.family.slice(8) }, base);
+    if (/^pedestal:/.test(k.family)) return Object.assign({ entityKind: 'pedestal', pedestalPart: k.family.slice(9), end: tags.end || null }, base);
+    if (k.family === 'top') return Object.assign({ entityKind: 'wardrobeInnerTop' }, base);
+    if (k.family === 'innerdrawer:molding') return Object.assign({ entityKind: 'wardrobeInnerMolding', side: tags.side || null }, base);
+    if (k.family === 'innerdrawer:front' || k.family === 'drawer') {
+      return Object.assign({ entityKind: 'wardrobeDrawerFront', drawerIdx: tags.drawerIdx != null ? tags.drawerIdx : k3,
+        external: k.family === 'drawer' }, base);
+    }
+    if (tags.carcass != null && tags.box == null) base.carcassIdx = Number(tags.carcass);
+  }
   if (k.family === 'shelf') return Object.assign({ entityKind: 'shelf', shelfIdx: k3, cellIdx: 0 }, base);
   if (tags.box != null) {
     return Object.assign({ entityKind: 'drawerBox', drawerIdx: Number(tags.box) + 1, boxPart: k.family.replace(/^drawerbox:/, ''),
@@ -315,9 +376,11 @@ function plannerAssemblyAddParts(THREE, parent, hit, parts, o) {
   const looks = o.looks || {};
   const doorCount = parts.filter((p) => (plannerAssemblyKeyOf(p.rowPartId, hit.module.moduleKey) || {}).family === 'door').length;
   parts.forEach((p) => {
-    const ud = plannerAssemblyUserData(p, hit.module.moduleKey, o.plannerId, { doorCount });
+    const ud = plannerAssemblyUserData(p, hit.module.moduleKey, o.plannerId, { doorCount, wardrobe: !!o.wardrobe, open: !!o.open });
     const front = ud.side === 'front';
     const key = ud.entityKind === 'shelf' ? 'shelf' : ud.entityKind === 'brace' ? 'brace'
+      : ud.entityKind === 'pedestal' ? 'pedestal' : ud.entityKind === 'wardrobeDrawerFront' ? 'wardrobeDrawerFront'
+        : ud.entityKind === 'riceDoor' ? 'riceDoor'
       : ud.entityKind === 'drawerBox' ? 'drawerBox' : front ? ud.areaType
         : ud.entityKind === 'top-panel' ? 'top' : ud.entityKind === 'toe-kick' ? 'kick' : ud.entityKind === 'molding' ? 'molding'
           : ud.entityKind === 'finishing' ? 'finish:' + ud.finishingSection
@@ -337,6 +400,9 @@ if (typeof window !== 'undefined') {
   window.PLANNER_ASM_GROUPS = PLANNER_ASM_GROUPS;
   window.PLANNER_ASM_RUN_GROUPS = PLANNER_ASM_RUN_GROUPS;
   window.plannerAssemblyRunsFor = plannerAssemblyRunsFor;
+  window.PLANNER_ASM_WARDROBE_FAMILIES = PLANNER_ASM_WARDROBE_FAMILIES;
+  window.PLANNER_ASM_OPEN_FAMILIES = PLANNER_ASM_OPEN_FAMILIES;
+  window.plannerAssemblyWholeModuleFor = plannerAssemblyWholeModuleFor;
   window.plannerAssemblyKeyOf = plannerAssemblyKeyOf;
   window.plannerAssemblyModuleFor = plannerAssemblyModuleFor;
   window.plannerAssemblyMeshOf = plannerAssemblyMeshOf;
@@ -350,6 +416,9 @@ if (typeof module !== 'undefined' && module.exports) {
     PLANNER_ASM_RUN_GROUPS,
     plannerAssemblyRunGroupOf,
     plannerAssemblyRunsFor,
+    PLANNER_ASM_WARDROBE_FAMILIES,
+    PLANNER_ASM_OPEN_FAMILIES,
+    plannerAssemblyWholeModuleFor,
     plannerAssemblyGroupOf,
     plannerAssemblyPartGroup,
     plannerAssemblyKeyOf,

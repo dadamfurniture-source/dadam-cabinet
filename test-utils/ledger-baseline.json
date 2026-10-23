@@ -32,7 +32,7 @@
     "finishCorner2Width": 60,
     "upperDoorOverlap": 15
   },
-  "total": 152,
+  "total": 114,
   "counts": {
     "cornerL|body:band|onlyBom": 1,
     "cornerL|body:batten-front|dims": 1,
@@ -96,30 +96,11 @@
     "straight|molding|onlyBom": 1,
     "straight|top|only3d": 3,
     "straight|top|onlyBom": 1,
-    "wardrobe|back|onlyBom": 3,
-    "wardrobe|body:band|onlyBom": 1,
-    "wardrobe|body:bottom|onlyBom": 3,
-    "wardrobe|body:panel|only3d": 3,
-    "wardrobe|body:side|onlyBom": 3,
-    "wardrobe|body:top|onlyBom": 3,
-    "wardrobe|divider:v|onlyBom": 1,
-    "wardrobe|door|dims": 3,
-    "wardrobe|drawerbox:bottom|onlyBom": 1,
-    "wardrobe|drawerbox:brace|onlyBom": 1,
-    "wardrobe|drawerbox:fb|onlyBom": 1,
-    "wardrobe|drawerbox:side|onlyBom": 1,
-    "wardrobe|innerdrawer:front|onlyBom": 1,
-    "wardrobe|innerdrawer:molding|onlyBom": 1,
     "wardrobe|kick|onlyBom": 1,
     "wardrobe|molding:left-pad|onlyBom": 1,
     "wardrobe|molding:left|onlyBom": 1,
     "wardrobe|molding:right-pad|onlyBom": 1,
     "wardrobe|molding:right|onlyBom": 1,
-    "wardrobe|molding|only3d": 3,
-    "wardrobe|pedestal:brace|onlyBom": 2,
-    "wardrobe|pedestal:fb|onlyBom": 3,
-    "wardrobe|pedestal:side|onlyBom": 3,
-    "wardrobe|pedestal|only3d": 3,
-    "wardrobe|top|onlyBom": 1
+    "wardrobe|molding|only3d": 3
   }
 }
