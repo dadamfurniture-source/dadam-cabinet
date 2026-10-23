@@ -75,15 +75,15 @@ BOM 행마다 판재 조각의 **자리**를 붙인다. 재단 치수는 BOM 행
 
 `Asm.of(design, { MaterialExtractor })` — 서랍 레이아웃을 BOM 과 같은 추출기로 구한다. 플래너 iframe 은 추출기가 부모 창에 있어 넘겨 준다.
 
-## 철물 (`modules[].hardware[]`, 2026-10-22)
+## 철물 (`modules[].hardware[]`, 2026-10-22 · 4-1 A~D 반영 2026-10-23)
 
 철물 행(`HardwareExtractor`)을 모듈마다 `hardware[]` 로 놓는다. 항목은 `{ hwIdx, category, item, spec, kind, at, … }` — `at` 는 모듈 로컬 [x, y, z], 근거가 없으면 `at: null` 에 `pending` 이유. 부르는 쪽이 `opts.hardware` 로 철물 행을 넘기거나 추출기를 두면 되고, 없으면 `hardware[]` 는 빈다 (플래너는 부모 창 `HardwareExtractor`).
 
 | 철물 | 자리 | 근거 |
 |---|---|---|
-| 다리발 (`leg`) | 하부 모듈마다 폭으로 4·6·8 (`extractLegs` 와 같은 셈, 품목 행 수량과 맞아야 한다). **4 코너** = 플래너 3D `addLegs` 자리 — 모듈 외곽에서 25 안쪽, 42 각 (`LEG_INSET` · `LEG_SIZE`, planner-engine `MASTER_RULES` 와 같은 값), 앞줄은 걸레받이 바로 뒤 (z D/2 − 32 − 18 − 21), 뒷줄 z −D/2 + 46. `at` = 밑면 가운데 (y −다리발), `size` [42, 다리발, 42]. 5·6번째부터(가운데 다리)는 자리가 정해진 데가 없다 → `leg-mid-position`. 키큰장 단은 `leg-tall-tier` | planner-engine.js `LEG_SIZE`·`LEG_INSET`, mockup-structure.html `addLegs` (3D 의 앞줄은 제 걸레받이 −40 뒤라 다르다) |
-| 레일 (`rail`) | 서랍 박스마다 왼·오 2개 (`tags.box`·`side`). 언더레일 — 박스 측판 밑 여유 30 (`RAIL_CLEARANCE.under.below`) 에, x = 박스 바깥면, 앞끝 = 박스 앞끝, `len` = 규격. 볼레일은 측판 옆(두께 14)이지만 높이 자리가 없다 → `rail-ball-position`. 붙박이장은 서랍모듈 박스(외부 서랍)와 내부 서랍장 박스(`innerDrawer`) 둘 다 `drawerBoxes` 로 넘긴다. 박스를 못 놓은 몸통(구조 블록 없는 옛 설계 등) → `rail-box-unknown` | bom-drawer-rules.js `RAIL_CLEARANCE`, 서랍 박스 자리(`drawerBoxes`) |
-| 경첩 (`hinge`) | 도어마다 (`partId`·`doorIdx`): `edge` 경첩 변 — 양문은 왼 도어 왼쪽·오른 도어 오른쪽, 멍장 도어는 목대 쪽, 플랩은 윗변; 외짝 여닫이는 설계에 방향이 없다 → `hinge-side-unknown`. `cups` = 행 `boring[]` (도어 상단에서 컵 중심, hardware.md §1 끝 110), `cupD` 35. 변에서 컵 중심까지(백셋)·깊이는 결정 D5 미정 → `at: null`, `hinge-backset-pending` | hardware.md §1, 결정 D5 |
+| 다리발 (`leg`) | 하부 모듈마다 폭으로 4·6·8 (`extractLegs` 와 같은 셈, 품목 행 수량과 맞아야 한다). **4 코너** = 플래너 3D `addLegs` 자리 — 모듈 외곽에서 25 안쪽, 42 각 (`LEG_INSET` · `LEG_SIZE`, planner-engine `MASTER_RULES` 와 같은 값), 앞줄은 걸레받이 바로 뒤 (z D/2 − 32 − 18 − 21), 뒷줄 z −D/2 + 46. `at` = 밑면 가운데 (y −다리발), `size` [42, 다리발, 42]. 6·8개면 가운데 다리를 앞줄·뒷줄마다 두 코너 다리 중심 사이에 균등 분할 (`tags.side` `midFront`·`midBack`, `tags.mid` 1…; 2026-10-23 사장님 4-1 B). 키큰장 단은 `leg-tall-tier` | planner-engine.js `LEG_SIZE`·`LEG_INSET`, mockup-structure.html `addLegs` (3D 의 앞줄은 제 걸레받이 −40 뒤라 다르다) |
+| 레일 (`rail`) | 서랍 박스마다 왼·오 2개 (`tags.box`·`side`). 언더레일 — 박스 측판 밑 여유 30 (`RAIL_CLEARANCE.under.below`) 에, x = 박스 바깥면, 앞끝 = 박스 앞끝, `len` = 규격. 볼레일 — 박스 측판 바깥면(x = ±박스 외폭/2)에서 밖으로 `thickness` 14, 밑단 = 박스 측판 밑단 (`at[1]` = 박스 `y0`), 앞끝 = 박스 앞끝 (2026-10-23 사장님 4-1 D, `tags.rail` `ball`). 붙박이장은 서랍모듈 박스(외부 서랍)와 내부 서랍장 박스(`innerDrawer`) 둘 다 `drawerBoxes` 로 넘긴다. 박스를 못 놓은 몸통(구조 블록 없는 옛 설계 등) → `rail-box-unknown` | bom-drawer-rules.js `RAIL_CLEARANCE`, 서랍 박스 자리(`drawerBoxes`) |
+| 경첩 (`hinge`) | 도어마다 (`partId`·`doorIdx`): `edge` 경첩 변 — 양문은 왼 도어 왼쪽·오른 도어 오른쪽, 멍장 도어는 목대 쪽, 플랩은 윗변; 외짝 여닫이는 설계 모듈의 `hingeSide` `'left'`·`'right'` (좌개·우개, 2026-10-23 사장님 4-1 C) — 없거나 다른 값이면 도어마다 한 항목 `at: null`, `hinge-side-unknown` (`cups`·`qty`). 변이 정해지면 **컵마다 한 항목** (`cupIdx`·`cup` = 행 `boring[]` 값 — 옆 변은 도어 상단에서, 플랩 윗변은 도어 왼쪽 끝에서, hardware.md §1 끝 110): `at` = 컵 중심, 도어 뒷면 위 (z = 도어 `box.min[2]`), 변에서 `backset` 21.5 (컵 가장자리 4 + 반지름 17.5), `depth` 12.5 (뒷면에서 앞으로), `cupD` 35 (2026-10-23 사장님 4-1 A) | hardware.md §1, assembly-rules `HINGE_CUP_EDGE`·`HINGE_CUP_DEPTH` (결정 D5 의 경첩 부분 — 실측이 오면 두 값만 고친다) |
 
 수량이 모듈·도어·박스 수와 맞지 않는 행은 `hardware-count-mismatch`. 서랍장(마이다 전면)은 BOM 이 경첩 행을 안 내므로 위 도어가 있어도 경첩 항목이 없다. GLB 에는 자리(`at`)와 치수(`size`)가 둘 다 있는 다리발만 상자로 싣는다 (아래 CAD GLB).
 
@@ -122,6 +122,6 @@ BOM 행마다 판재 조각의 **자리**를 붙인다. 재단 치수는 BOM 행
 - 노드: 루트 `dadam-planner-cad`(배율 0.001, mm → m) ▸ `module·<moduleKey>` ▸ 판재 `<partId>#k`. 따낸 판은 상자 여럿.
 - 판재 extras: `rowPartId · part · material · t · cutW · cutH · moduleKey · vis`. 루트 extras: `schema · rulesVersion · unplaced`(자리 미정 행 수).
 - `unplaced` 행(도어·서랍·밴드 자리 등)은 GLB 에 없다.
-- 철물(2026-10-22): `hardware[]` 중 `at`·`size` 가 있는 다리발을 모듈 노드 아래 상자(`<moduleKey>·leg#k`, extras `hardware: 'leg'`·`category`·`item`·`spec`·`tags`)로 싣는다. `at` 은 밑면 가운데라 상자 가운데 y = `at[1] + size[1]/2`. 레일(언더레일 두께 0)·경첩(컵 자리 미정)은 치수가 없어 싣지 않는다 — 루트 extras `hardware` 에 실은 수.
+- 철물(2026-10-22): `hardware[]` 중 `at`·`size` 가 있는 다리발을 모듈 노드 아래 상자(`<moduleKey>·leg#k`, extras `hardware: 'leg'`·`category`·`item`·`spec`·`tags`)로 싣는다. `at` 은 밑면 가운데라 상자 가운데 y = `at[1] + size[1]/2`. 레일(언더레일 두께 0, 볼레일은 높이 치수가 규칙에 없음)·경첩(컵 자리만, 철물 치수 없음)은 상자 치수가 없어 싣지 않는다 — 루트 extras `hardware` 에 실은 수.
 - 라인 부재(`items[].runs[]`, 2026-10-22): 플래너가 벽(같은 각·같은 뒷선 y 의 배치 공간 묶음)마다 모듈 x 를 `lines` 로 넘기고, 명세는 상판·상몰딩·목찬넬 EP·걸레받이·좌우 마감재를 호스트 모듈(구간 첫 모듈) 좌표로 낸다 (걸레받이는 벽마다 run 하나). GLB 는 그 판을 호스트 모듈 노드 아래에 싣고 extras `run` 에 벽 키, `moduleKey` 는 `<품목>-ep`.
 - 선반 높이는 플래너 구조의 `s.shelves`. BOM 선반 장수와 다르면 선반은 놓지 않는다.

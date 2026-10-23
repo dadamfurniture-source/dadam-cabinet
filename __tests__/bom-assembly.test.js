@@ -855,21 +855,36 @@ describe('멍장 자리 — corner.md §3.5 (멍가림판 · 마감재 · 도어
   });
 });
 
-describe('철물 hardware[] — 다리발 · 레일 자리, 경첩은 변·컵 높이 (백셋 D5 미정)', () => {
+describe('철물 hardware[] — 다리발 · 레일 · 경첩 컵 자리 (2026-10-23 4-1 A~D)', () => {
   const specOf = (name) => { const design = { items: [FIXTURES[name]] }; return Asm.of(design, { materials: new MaterialExtractor().extract(design).materials }); };
   const hwOf = (s, mk, kind) => s.items[0].modules.find((m) => m.moduleKey === mk).hardware.filter((h) => h.kind === kind);
+  const specWith = (name, id, patch) => {
+    const item = JSON.parse(JSON.stringify(FIXTURES[name]));
+    Object.assign(item.modules.find((x) => x.id === id), patch);
+    const design = { items: [item] };
+    return Asm.of(design, { materials: new MaterialExtractor().extract(design).materials, hardware: new HardwareExtractor().extract(design).hardware });
+  };
 
-  test('신발장 하부 900 (6개): 4 코너 다리발 — 외곽에서 25 안쪽 42 각, 앞줄은 걸레받이(앞선 −50) 뒤, 밑면 = 바닥 −150. 가운데 2개는 자리 미정', () => {
+  test('신발장 하부 900 (6개): 4 코너 다리발 — 외곽에서 25 안쪽 42 각, 앞줄은 걸레받이(앞선 −50) 뒤, 밑면 = 바닥 −150. 가운데 2개는 앞·뒷줄 균등 분할 (4-1 B)', () => {
     const s = specOf('shoerack');
     const legs = hwOf(s, '0-l1', 'leg');
-    expect(legs.filter((h) => h.at).map((h) => [h.tags.side, h.at])).toEqual([
-      ['leftFront', [-404, -150, 104]], ['leftBack', [-404, -150, -129]], ['rightFront', [404, -150, 104]], ['rightBack', [404, -150, -129]]]);
-    expect(legs.filter((h) => !h.at)).toEqual([expect.objectContaining({ kind: 'leg', qty: 2, pending: 'leg-mid-position', spec: '150mm' })]);
+    expect(legs.map((h) => [h.tags.side, h.at])).toEqual([
+      ['leftFront', [-404, -150, 104]], ['leftBack', [-404, -150, -129]], ['rightFront', [404, -150, 104]], ['rightBack', [404, -150, -129]],
+      ['midFront', [0, -150, 104]], ['midBack', [0, -150, -129]]]);
+    expect(legs.every((h) => h.size && h.size[0] === 42 && h.size[1] === 150 && !h.pending)).toBe(true);
     // 500 · 400 은 4개씩 — 전부 자리
     expect(hwOf(s, '0-l2', 'leg').map((h) => !!h.at)).toEqual([true, true, true, true]);
     expect(hwOf(s, '0-l3', 'leg')).toHaveLength(4);
     // 상부장엔 다리발 없음
     expect(hwOf(s, '0-u1', 'leg')).toEqual([]);
+  });
+
+  test('폭 1000 (8개): 줄마다 4개 — 코너 ±454 사이 3등분', () => {
+    const legs = hwOf(specWith('shoerack', 'l1', { w: 1000 }), '0-l1', 'leg');
+    expect(legs).toHaveLength(8);
+    const front = legs.filter((h) => /Front$/.test(h.tags.side)).map((h) => h.at[0]).sort((a, b) => a - b);
+    expect(front.map((x) => Math.round(x * 100) / 100)).toEqual([-454, -151.33, 151.33, 454]);
+    expect(legs.filter((h) => h.tags.side === 'midBack').map((h) => h.tags.mid)).toEqual([1, 2]);
   });
 
   test('신발장 서랍장 500 (2단, 언더레일 300): 박스마다 왼·오 — 박스 측판 밑 30 여유에, 앞끝 = 박스 앞끝, 길이 300', () => {
@@ -885,20 +900,57 @@ describe('철물 hardware[] — 다리발 · 레일 자리, 경첩은 변·컵 �
     expect(rails[0].at).toEqual([-229, 374, -125]);
   });
 
-  test('경첩: 양문은 왼 도어 왼쪽·오른 도어 오른쪽 변, 컵 높이 = 행 boring (도어 상단에서), 백셋 미정 → at null. 외짝은 방향 미정', () => {
+  test('경첩: 양문은 왼 도어 왼쪽·오른 도어 오른쪽 변. 컵마다 한 항목 — 컵 중심 = 변에서 21.5 (가장자리 4), 도어 상단에서 행 boring, 도어 뒷면, 깊이 12.5 (4-1 A)', () => {
     const s = specOf('shoerack');
+    const m = s.items[0].modules.find((x) => x.moduleKey === '0-l1');
     const h = hwOf(s, '0-l1', 'hinge');
-    expect(h.map((x) => [x.doorIdx, x.edge, x.cups, x.cupD, x.at, x.pending])).toEqual([
-      [0, 'left', [110, 568], 35, null, 'hinge-backset-pending'], [1, 'right', [110, 568], 35, null, 'hinge-backset-pending']]);
-    expect(h[0].partId).toBe(s.items[0].modules.find((m) => m.moduleKey === '0-l1').parts.find((p) => p.tags.doorIdx === 0).id);
-    expect(hwOf(s, '0-u2', 'hinge')).toEqual([expect.objectContaining({ edge: null, pending: 'hinge-side-unknown', cups: [110, 610] })]);
+    const door = (k) => m.parts.find((p) => p.tags.doorIdx === k && /도어$/.test(p.part)).box;
+    expect(h.map((x) => [x.doorIdx, x.edge, x.cupIdx, x.cup, x.cupD, x.backset, x.depth, x.pending])).toEqual([
+      [0, 'left', 0, 110, 35, 21.5, 12.5, undefined], [0, 'left', 1, 568, 35, 21.5, 12.5, undefined],
+      [1, 'right', 0, 110, 35, 21.5, 12.5, undefined], [1, 'right', 1, 568, 35, 21.5, 12.5, undefined]]);
+    expect(h.map((x) => x.at)).toEqual([
+      [door(0).min[0] + 21.5, door(0).max[1] - 110, door(0).min[2]], [door(0).min[0] + 21.5, door(0).max[1] - 568, door(0).min[2]],
+      [door(1).max[0] - 21.5, door(1).max[1] - 110, door(1).min[2]], [door(1).max[0] - 21.5, door(1).max[1] - 568, door(1).min[2]]]);
+    expect(h[0].at).toEqual([-426.5, 568, 175]);
+    expect(h[0].partId).toBe(m.parts.find((p) => p.tags.doorIdx === 0).id);
+    // 경첩 행 수량 = 컵 항목 수
+    expect(h).toHaveLength(4);
+  });
+
+  test('외짝 도어: 설계에 hingeSide 가 없으면 방향 미정, left·right 면 그 변에 컵 (4-1 C)', () => {
+    expect(hwOf(specOf('shoerack'), '0-u2', 'hinge')).toEqual([expect.objectContaining({ edge: null, at: null, qty: 2, pending: 'hinge-side-unknown', cups: [110, 610] })]);
+    ['left', 'right'].forEach((side) => {
+      const s = specWith('shoerack', 'u2', { hingeSide: side });
+      const d = s.items[0].modules.find((x) => x.moduleKey === '0-u2').parts.find((p) => p.tags.doorIdx === 0 && /도어$/.test(p.part)).box;
+      const h = hwOf(s, '0-u2', 'hinge');
+      const x = side === 'left' ? d.min[0] + 21.5 : d.max[0] - 21.5;
+      expect(h.map((e) => [e.edge, e.at, e.pending])).toEqual([[side, [x, d.max[1] - 110, d.min[2]], undefined], [side, [x, d.max[1] - 610, d.min[2]], undefined]]);
+    });
+    // 모르는 값은 방향 미정 그대로 (지어내지 않는다)
+    expect(hwOf(specWith('shoerack', 'u2', { hingeSide: 'up' }), '0-u2', 'hinge')[0].pending).toBe('hinge-side-unknown');
   });
 
   test('멍장 도어 경첩은 목대 쪽 변 (도어가 멍 오른쪽이면 왼쪽 변)', () => {
     const s = specOf('sinkCorner');
     const m = s.items[0].modules.find((x) => x.moduleKey === '0-corner-blind-lower');
     expect(m.blind.doorRight).toBe(true);
-    expect(hwOf(s, '0-corner-blind-lower', 'hinge').map((h) => [h.edge, h.pending])).toEqual([['left', 'hinge-backset-pending']]);
+    const h = hwOf(s, '0-corner-blind-lower', 'hinge');
+    expect(h.length).toBeGreaterThan(0);
+    expect(h.every((e) => e.edge === 'left' && e.at && !e.pending)).toBe(true);
+  });
+
+  test('볼레일: 박스마다 왼·오, 측판 바깥면에 두께 14, 밑단 = 박스 측판 밑단, 앞끝 = 박스 앞끝 (4-1 D)', () => {
+    const s = specWith('shoerack', 'l2', { drawer: { rail: 'ball' } });
+    const m = s.items[0].modules.find((x) => x.moduleKey === '0-l2');
+    expect(m.drawerBoxes.length).toBe(2);
+    expect(m.drawerBoxes.every((b) => b.rail === 'ball')).toBe(true);
+    const rails = hwOf(s, '0-l2', 'rail');
+    expect(rails.map((h) => [h.tags.box, h.tags.side, h.at, h.len, h.thickness, h.pending])).toEqual(m.drawerBoxes.flatMap((b, bi) => [
+      [bi, 'left', [-b.outerW / 2, b.y0, b.zf - b.railLength], b.railLength, 14, undefined],
+      [bi, 'right', [b.outerW / 2, b.y0, b.zf - b.railLength], b.railLength, 14, undefined]]));
+    // 밑단 = 박스 왼 측판 밑단
+    const sides = m.parts.filter((p) => p.part === '서랍측판' && p.tags.side === 'left').map((p) => p.box.min[1]);
+    expect(rails.filter((h) => h.tags.side === 'left').map((h) => h.at[1])).toEqual(sides);
   });
 
   test('붙박이장 외부 서랍 레일 — 서랍모듈 박스마다 왼·오, 박스 밑 30 (싱크 규칙); 구조 블록 없는 옛 설계(w3)는 박스가 없어 rail-box-unknown; 철물 행이 없으면 hardware[] 는 빈다', () => {
