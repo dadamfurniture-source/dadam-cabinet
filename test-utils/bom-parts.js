@@ -110,7 +110,8 @@ function familyOfBomKey(partKey) {
 /**
  * 부팅된 플래너 상태를 BOM 까지 흘려 정규화 부재 목록을 낸다.
  * @param {object} p       scene-parts.js bootPlanner3D 가 돌려준 하네스
- * @param {{ specs?: object, category?: string }} [opts]
+ * @param {{ specs?: object, specsExact?: object, category?: string, excludeRows?: Set<string> }} [opts]
+ *   excludeRows  이 partId 의 자재 행은 접지 않는다 — 원장 id 대조(PR15)가 이미 맞춘 행 (materials 에는 남는다)
  */
 /**
  * 원장 품목 (모듈 없이) — 상세설계 Step 2 의 품목 자리. 플래너가 3D 를 조립 명세로 그릴 때(PR12)
@@ -123,7 +124,8 @@ function ledgerItemOf(p, opts = {}) {
     w: Math.round(areas.reduce((s, a) => Math.max(s, (a.x || 0) + (a.W || 0)), 0)),
     h: 2310,
     d: Math.round(areas.reduce((s, a) => Math.max(s, a.D || 0), 0)) || 650,
-    specs: Object.assign({}, LEDGER_SPECS, opts.specs || {}),
+    // specsExact — 싱크 기본 스펙을 섞지 않는다 (붙박이장 픽스처는 붙박이장 스펙만)
+    specs: opts.specsExact ? Object.assign({}, opts.specsExact) : Object.assign({}, LEDGER_SPECS, opts.specs || {}),
   };
 }
 
@@ -140,7 +142,9 @@ function collectBomParts(p, opts = {}) {
   const knownIds = Object.keys(idMap).concat(modules.map((m) => String(m.id)));
   const merged = new Map();
   const order = [];
+  const exclude = opts.excludeRows || null;
   out.materials.forEach((row) => {
+    if (exclude && exclude.has(String(row.partId))) return;
     const pk = partKeyOfPartId(row.partId, 0, knownIds);
     if (!pk) throw new Error(`partId 를 해석하지 못했습니다: ${row.partId} (${row.module} · ${row.part})`);
     const src = idMap[pk.moduleId] || { moduleId: pk.moduleId, cell: null };

@@ -4,7 +4,7 @@
 // CAD 베타 1주차 T4 · PR1b (docs/01-plan/planner-cad.plan.md 단계 0, 개정 #11).
 // 지금 플래너 3D 장면(three.moduleGroup)을 그대로 GLB 로 내려받는다. **근사**다 — 조립 명세
 // (bom-assembly.js, PR6~)가 생기기 전이라 판재 위치는 3D 빌더가 그린 그대로이고, BOM 과 184건
-// 다르다(test-utils/ledger-allowlist.json). 그래서 루트 노드 이름과 extras 에 "근사"를 박는다.
+// 다르다(test-utils/ledger-baseline.json). 그래서 루트 노드 이름과 extras 에 "근사"를 박는다.
 //
 // 무엇을 넣는가 — T1 겹침 목록(test-utils/scene-parts.js collectScenePieces)과 **같은 부재**:
 //   · 화면용 메시는 뺀다: PLANNER_FINISH_PAINT_SKIP(테두리·그림자판·선택 상자·배치 상자·다리발·가전 표시)

@@ -1,7 +1,7 @@
 # 도면↔BOM 원장 (C1a) — 3D 부재와 BOM 행의 1:1 대조 보고
 
 > 계획: `docs/01-plan/detail-bom-deepening.plan.md` §4.5 (BOM 은 부재 모델로 수렴한다) · §5 C1a
-> 시험: `__tests__/scene-bom-ledger.test.js` · 허용 목록: `test-utils/ledger-allowlist.json`
+> 시험: `__tests__/scene-bom-ledger.test.js` · 래칫 기준: `test-utils/ledger-baseline.json` (PR15 전엔 허용 목록 `ledger-allowlist.json`)
 > 유틸: `test-utils/scene-parts.js` (3D) · `test-utils/bom-parts.js` (BOM) · `test-utils/ledger-diff.js` (대조)
 > 이 문서는 C1b(`js/planner/part-model.js`)가 **무엇을 먼저 옮길지** 정하는 입력이다.
 
@@ -62,6 +62,10 @@ P2-5 그대로. 2D 정면도(`renderFrontView`)의 도어 rect 는 원래 `칸 �
 −84 중 ㄱ자 멍장 1모듈 3건(밴드·천판·선반)은 명세가 멍장 자리를 아직 모르므로(`blind-layout-unknown`) 예전 그리기로 남는다.
 원장 시험은 이제 상세설계 부모 창처럼 변환·추출기를 올려 부팅한다 (`bootPlanner3D(…, { assembly: true })`). 새 차이 0.
 측판·지판·뒷판 자리는 예전 그리기와 같다 (straight 36 · lShape 40 판 AABB 일치). `?asm=0` 이면 예전 그리기.
+
+**CAD 베타 PR15 (2026-10-23, `agent/bom-ledger-partid`) 뒤**: 원장이 **두 단계**다 — 명세로 그린 판재는 id 로(±0.5mm), 나머지는
+치수로. 허용 목록(항목마다 이유)을 **래칫** `ledger-baseline.json`((픽스처, 종류, 차이) 개수, 늘면 실패)으로 바꿨다. 픽스처에
+다칸 · 서랍장 · 붙박이장을 더해 7벌 — id 로 맞춘 판재 486장, 치수 차이 213건 (골든 4벌 105 는 PR12 뒤 값과 같다). §3.
 
 ## 1. 방법
 
@@ -154,7 +158,37 @@ BOM 행이 는 것은 상판(픽스처마다 1)·키큰장 좌대 상자·목찬
 즉 몸통 폭·높이와 도어 공식은 두 쪽이 같은 값을 낸다 — 대조 장치가 실제로 짝을 짓는다는 증거이기도 하다
 (시험 "표준 하부장의 도어는 이미 맞는다").
 
-## 3. 허용 목록 — 원인별
+## 3. 원장 — 두 단계 대조와 래칫 (CAD 베타 PR15, 2026-10-23)
+
+PR12·13 뒤 플래너는 한 칸 모듈의 몸통 · 처짐방지목 · 선반 · 앞판 · 서랍장 중간 목찬넬 · 서랍 박스 판을 **조립 명세 판재**로
+그린다 (메시 `userData.partId = ${rowPartId}#k`). 그래서 원장은 두 단계로 맞춘다 (`test-utils/ledger-diff.js`):
+
+1. **id 대조** (`diffById`) — 명세 판재를 BOM 행 낱장 id 와 1:1 로 맞춘다. 3D AABB 가 명세 상자와 **±0.5mm** 안이어야 한다.
+   모르는 id · 겹친 id · 행 일부만 그림 · 자리 어긋남은 **허용 없이 곧장 실패**한다. 낱장이 다 그려진 BOM 행은 2단계에서 뺀다.
+2. **치수 대조** (`diffLedger`, 예전 방식) — 남은 것(예전 그리기 판재 ↔ id 로 안 맞춘 BOM 행)을 (모듈, 종류) 치수 다중집합으로.
+   차이 개수는 **래칫** `test-utils/ledger-baseline.json` 이 (픽스처, 종류, 차이) 마다 지킨다 — **늘면 실패**, 줄면 통과하고
+   기준을 낮추라고 알린다 (`UPDATE_LEDGER_BASELINE=1`, 올려 쓰지는 않는다). 옛 `ledger-allowlist.json`(항목마다 이유)은 지웠다 —
+   원인 설명은 이 표가 맡는다.
+
+픽스처 7벌 — 골든 3벌 + ㄱ자 코너 + **PR15 에 더한 다칸 · 서랍장 · 붙박이장** (§6 의 한계 셋을 덮는다).
+id 로 맞춘 판재 **486장**, 치수 대조 차이 **213건** (골든 4벌 105 — PR12 뒤 허용 목록 105 와 열쇠마다 같다 · 다칸 35 · 서랍장 27 · 붙박이장 46).
+
+| 원인 | 건 | kind | 픽스처 | 무엇이 다른가 · 언제 줄어드나 |
+|---|---|---|---|---|
+| 라인 단위 부재 | 138 | only3d 108 / onlyBom 30 | 싱크 6벌 각 19~25 | 걸레받이 · 상몰딩 · 상단 목찬넬(전면·지면) · 상판. BOM 은 품목 `ep` 한 장(라인 폭), 3D 는 런·모듈마다. 명세는 이미 `items[].runs` 에 라인 한 장으로 놓는다 — **PR14** 에서 명세로 그리면 id 대조로 옮겨 간다 (D4 재단 단위가 남은 것만 예전) |
+| 붙박이장 통 | 46 | onlyBom 34 / only3d 9 / dims 3 | 붙박이장 | 붙박이장 통은 아직 예전 그리기 — 몸통 판 이름(3D `body:panel` vs BOM `body:side/top/bottom`), 좌대 상자, 내부 서랍장, 좌우 몰딩·패드, 뒷판. **PR14** |
+| 스펙 마감재 | 12 | onlyBom | 싱크 6벌 각 2 | 좌·우 휠라 60 은 스펙 `finishLeft/RightType` 에서 나오고 도면에는 없다 (결정 D9) |
+| 다칸 모듈 | 8 | dims 4 / only3d 3 / onlyBom 1 | 다칸 | BOM 은 칸마다 통, 3D 는 한 통 + 칸막이 (결정 **D1** 전까지 예전 그리기) |
+| 좌대 블록 모델 | 3 | onlyBom 2 / only3d 1 | lShape | 키큰장 좌대 — BOM 상자, 3D 통짜 블록. PR14 |
+| 멍장 몸통 | 5 | onlyBom 1 / only3d 1 / dims 3 | cornerL | 명세가 멍장 자리를 아직 모른다(`blind-layout-unknown`) — 천판↔밴드 2 · 경첩목대 높이 2 · 선반 1 |
+| 몰딩 블록 모델 | 1 | dims | lShape | 키큰장 상부단 상몰딩 — BOM 면판 60×W, 3D 블록 |
+
+**지금 id 로 맞는 것**: 모든 한 칸 모듈의 측판 · 지판 · 천판 · 밴드 · 뒷판 · 처짐방지목 · 선반 · 도어, 서랍장 서랍 전면 · 중간 목찬넬 ·
+서랍 박스 6판 — 3D 가 BOM 재단 치수 그대로이고 자리는 명세 ±0.5mm.
+
+### PR15 이전 허용 목록 (기록)
+
+#### 허용 목록 — 원인별 (C1a ~ P2, PR12 전)
 
 **254 건, 원인 10 묶음** (플래너 후속 멍장 도어 폭 뒤 — 2026-09-15 멍장 도어 결정 뒤는 255 건 11 묶음, P2 뒤는 254 건 10 묶음, P1 + 분배기 결정 뒤는 296 건 13 묶음, 첫 보고는 309 건 15 묶음). 판정: **BOM 버그**(발주가 틀린다) ·
 **3D 오류**(도면이 규칙과 다르다) · **단순화**(3D 가 일부러 안 그리거나 어림한 것 — 부재 모델이 정리) · **확인 필요**(규칙 자체를 정해야 한다).
@@ -273,21 +307,19 @@ P1·P2 로 지워진 원인은 취소선 없이 "0 (P1)" / "0 (P2)" 로 남겨 �
 못 잡았으므로, 픽스처에서 읽은 **정답값(1200 · 1000 · 1400)** 을 박은 시험을 따로 두었다.
 그리기만 바뀌므로 `buildPlannerPayload` 골든은 바이트 그대로다.
 
-## 5. C1b 로 넘기는 것
+## 5. 남은 이전 (PR15 뒤)
 
-- 부재 모델 `part-model.js` 는 modules + structures + detail 에서 **이 문서의 family 이름**으로 부재를 내야 한다
-  (`body:side` `body:top` `body:bottom` `back` `shelf` `body:band` `body:brace` `door` `drawer` `blind` `blindfin`
-  `body:batten-*` `channel:front/back` `top` `kick` `pedestal` `molding` …). 이름 표는 `ledger-diff.js KNOWN_FAMILIES`
-  와 `bom-protocol.md §7-1` 이 정본이다.
-- 이전 순서 제안: 코너/멍장(P2-5) → 몸통 뒷면(P3-7, 70 건) → 천판/밴드(P3-8, 54 건) → 라인 단위 부재(P3-10, 75 건)
-  → 전면(P2-4·6). 각 이전 PR 은 허용 목록에서 항목을 지우는 diff 를 동반해야 한다.
+- 부재 모델은 `part-model.js` 대신 **조립 명세**(`js/detaildesign/bom-assembly.js`)가 맡았다 — 3D 가 명세 판재를 그리면
+  그 판재는 원장 1단계(id)로 옮겨 간다. family 이름 표는 `ledger-diff.js KNOWN_FAMILIES` 와 `bom-protocol.md §7-1` 이 정본.
+- 남은 순서: 라인 단위 부재(PR14, 138건) → 붙박이장 통 · 좌대 · 몰딩 블록(PR14, 50건) → 멍장 몸통(명세가 멍장 배치를 정한 뒤, 5건)
+  → 다칸(결정 D1, 8건). 스펙 마감재 12건은 결정 D9.
+- 각 이전 PR 은 `ledger-baseline.json` 의 개수를 낮추는 diff 를 동반한다 (`UPDATE_LEDGER_BASELINE=1`). 늘리는 PR 은 실패한다.
 - P1 은 부재 모델을 기다리지 않는다 — `extractors.js`/`ui-step1.js` 에서 바로 고친다 (BOM 도메인, 별도 PR).
 
 ## 6. 한계 (이 시험이 아직 안 보는 것)
 
-- 붙박이장·냉장고장: 플래너가 그 구조를 만들지 않아(`_isNativeOnly`) 브리지가 막는다. 골든 BOM 시험이 따로 있다.
-- 서랍: 자동계산이 `horizontalLayout:'doorOnly'` 로 만들어 픽스처에 서랍 셀이 없다 → `drawer`·`drawerbox:*` 는 대조 안 됨.
-- 도면에 놓은 마감재(EP·몰딩·휠라 모듈)와 두 칸 이상 셀 모듈, 알루미늄 찬넬, 도어 내림이 실제로 그려지는 배치.
+- 냉장고장: 원장 픽스처가 없다. 골든 BOM 시험이 따로 있다. (붙박이장 · 서랍장 · 다칸은 PR15 에서 픽스처로 들어왔다)
+- 도면에 놓은 마감재(EP·몰딩·휠라 모듈), 알루미늄 찬넬, 도어 내림이 실제로 그려지는 배치.
 - 철물(다리발·경첩·레일)은 자재 원장 밖이다 (`HardwareExtractor`).
 - `thickness` 종류는 정의돼 있지만 지금은 0 건 — 두께가 다른 판은 치수도 달라 `dims` 로 잡힌다.
 - **옛 설계(`areaId` 없는 모듈)**: `bootPlanner3D` 는 `modules:false` + 전체 자동계산으로 부팅하므로 픽스처의 모듈에는
