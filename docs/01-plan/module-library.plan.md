@@ -76,7 +76,10 @@ plannerExportCadSpec (planner-export.js) → DadamAssembly.of → dadam.assembly
 - 로컬: `node tools/module-library/dump-library.js tmp/modlib/dump [id…]` →
   `uv run --no-project --python 3.13 --with build123d==0.11.1 --with cadquery-ocp-novtk==7.9.3.1.1 python -I tools/cad/build_from_spec.py tmp/modlib/dump --out tmp/modlib/out`.
   Windows 는 `UV_CACHE_DIR=%USERPROFILE%\.cache\uv`. build_from_spec.py 는 평범한 build123d 스크립트라 cadgen 러너 문제를 피한다.
-- CI: `.github/workflows/module-library-cad.yml` (보고만, 산출물 `modlib-cad-<sha>`). 2주 초록이면 게이트로 올린다.
+- 보고서: `node tools/module-library/report.js tmp/modlib/out [id…] [--label 1회차]` → `tmp/modlib/out/index.html`
+  (정면도 · 같은 폴더 GLB 3D · 게이트 칩 · 자재표 · 철물). 견본은 `--samples`, CI 는 `--with-samples` (verified + 견본).
+- CI: `.github/workflows/module-library-cad.yml` (보고만, 산출물 `modlib-cad-<sha>` — STEP · GLB · report.json · index.html). 2주 초록이면 게이트로 올린다.
+- build123d GLB 는 판재를 메시 하나로 합친다 — 보고서 3D 는 판재 색 하나 + 모서리 선. 판재별 색은 정면도가 맡는다.
 - 새 파이썬은 만들지 않는다. 덤프는 판재만 싣는다 (런 부재·철물 없음 — dump-assembly.js 와 같다).
 - 보기: 회차마다 모듈 카드 보고서. STEP 은 데스크톱 앱 text-to-cad 플러그인 `cad_show` 로도 연다.
   내부 구조(뒷판·처짐방지목·따내기)가 보이므로 Pages·고객 화면에는 올리지 않는다.
