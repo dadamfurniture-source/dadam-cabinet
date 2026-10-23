@@ -403,6 +403,11 @@ export async function gatherWorkOrderPayload(env, { designId, snapshot }) {
   ]);
 
   const cutPlan = snapshot && snapshot.cut_plan_payload ? snapshot.cut_plan_payload : null;
+  // CAD 베타 PR17: 판재 도면 도장 — 발행 때의 스냅샷 rev · content_hash · 규칙 버전 (명세가 있는 스냅샷만)
+  const asm = snapshot && snapshot.bom_payload && snapshot.bom_payload.assembly;
+  const cad = asm && typeof asm === 'object'
+    ? { schema: asm.schema || null, rules_version: asm.rulesVersion || null, snapshot_rev: snapshot.rev ?? null, content_hash: snapshot.content_hash || null }
+    : null;
 
   return {
     work_order_version: WORK_ORDER_VERSION,
@@ -412,6 +417,7 @@ export async function gatherWorkOrderPayload(env, { designId, snapshot }) {
     parts_digest: digest,
     prev_rev: prevRev,
     labor: { ...LABOR_STANDARDS },
+    ...(cad ? { cad } : {}),
   };
 }
 
