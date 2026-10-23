@@ -46,8 +46,8 @@
  *            걸레받이 (벽 길이 × 다리발−5) — 벽마다 하부 라인 폭 한 장, 바닥에 붙여 (틈 5 는 위, 캐쳐), 앞면 = 몸통 앞선 − 32 (2026-10-22 카드 "몸통 앞선에서 32 안쪽").
  *                   2440 넘는 벽은 2440 조각을 왼쪽부터, 남는 조각은 오른쪽 끝 (카드 "1")
  *            좌우 마감재 (휠라·몰딩·EP, 폭 × 품목H−다리발) — 하부 라인 양 끝 밖 세로, 밑단 = 하부 몸통 바닥, 앞면 = 도어 앞면 (2026-10-22 카드)
- *   철물 (modules[].hardware[], 2026-10-22, hardwareOf) — 다리발 4 코너(플래너 3D 자리) · 레일(언더레일, 박스 밑 여유 30) 은 자리를 놓고,
- *            경첩은 도어·변·컵 높이만 (백셋 D5 미정 → at null), 가운데 다리·볼레일·외짝 경첩 방향은 pending.
+ *   철물 (modules[].hardware[], 2026-10-22, hardwareOf) — 다리발 4 코너(플래너 3D 자리) + 가운데 균등 분할 · 레일(언더레일 박스 밑 여유 30,
+ *            볼레일 측판 밑단) · 경첩 컵 자리(변에서 21.5, 깊이 12.5)를 놓는다 (2026-10-23 4-1 A~D). 외짝 경첩 방향이 설계에 없으면 pending.
  *
  * 미정 (지금 BOM 동작을 그대로 두고 결과에 적는다):
  *   하부장·키큰장 단·붙박이장 서랍모듈·내부 서랍장 밴드 2장 — 2026-10-20 사장님 "뒤 눕힘": 천판 대신 상단 앞·뒤에
@@ -1176,12 +1176,12 @@
   /**
    * 철물 자리 — 철물 행(HardwareExtractor)을 모듈마다 hardware[] 로 놓는다. 자리를 정할 근거가 없는 것은 at: null 에 pending 이유.
    *   다리발  하부 모듈마다 폭으로 4·6·8 (extractLegs 와 같은 셈). 4 코너 = 플래너 3D addLegs 자리 (외곽에서 25 안쪽, 42 각, 앞줄은 걸레받이 뒤),
-   *           밑면 = 바닥 (y −다리발). 5·6번째부터(가운데)는 자리 미정 → 'leg-mid-position'.
+   *           밑면 = 바닥 (y −다리발). 6·8개면 가운데 다리를 앞줄·뒷줄마다 두 코너 사이 균등 분할 (2026-10-23 4-1 B, tags.side midFront·midBack).
    *   경첩    도어마다 (행 boring[] = 도어 상단에서 컵 중심까지, hardware.md §1 끝 110). 경첩 변 — 양문은 왼 도어 왼쪽·오른 도어 오른쪽,
-   *           멍장 도어는 목대 쪽, 플랩은 윗변. 외짝 여닫이의 경첩 방향은 설계에 없다 → 'hinge-side-unknown'.
-   *           컵 중심의 변에서 거리(백셋)·깊이는 결정 D5 미정 → at: null, 'hinge-backset-pending'.
+   *           멍장 도어는 목대 쪽, 플랩은 윗변, 외짝 여닫이는 설계 mod.hingeSide 'left'|'right' (2026-10-23 4-1 C) — 없으면 'hinge-side-unknown'.
+   *           변이 정해지면 컵마다 한 항목: at = 컵 중심 (도어 뒷면), 변에서 backset 21.5 (가장자리 4), 깊이 12.5 (2026-10-23 4-1 A).
    *   레일    서랍 박스마다 2개 (왼·오). 언더레일은 박스 측판 밑 여유 30 (bom-drawer-rules RAIL_CLEARANCE.under.below) 에, 앞끝 = 박스 앞끝,
-   *           길이 = 규격. 볼레일은 측판 옆 두께 14 — 높이 자리가 정해지지 않았다 → 'rail-ball-position'. 박스를 못 놓아 자리가 없는 몸통 → 'rail-box-unknown'.
+   *           길이 = 규격. 볼레일은 측판 옆 두께 14, 밑단 = 박스 측판 밑단 (2026-10-23 4-1 D). 박스를 못 놓아 자리가 없는 몸통 → 'rail-box-unknown'.
    *   수량이 모듈·도어·박스 수와 맞지 않는 행은 전부 'hardware-count-mismatch'.
    */
   function hardwareOf(itemIdx, item, hwRows, modules, label) {
@@ -1210,9 +1210,16 @@
           const b = m.box, half = C.LEG_SIZE / 2;
           const xs = [-b.W / 2 + C.LEG_INSET + half, b.W / 2 - C.LEG_INSET - half];
           const zFront = b.D / 2 - C.KICK_SETBACK - C.KICK_T - half, zBack = -b.D / 2 + C.LEG_INSET + half;
+          const leg = (x, z, tags) => push(m, { kind: 'leg', at: [x, -legH, z], size: [C.LEG_SIZE, legH, C.LEG_SIZE], tags });
           [[xs[0], zFront, 'leftFront'], [xs[0], zBack, 'leftBack'], [xs[1], zFront, 'rightFront'], [xs[1], zBack, 'rightBack']]
-            .forEach(([x, z, side]) => push(m, { kind: 'leg', at: [x, -legH, z], size: [C.LEG_SIZE, legH, C.LEG_SIZE], tags: { side } }));
-          if (n > 4) push(m, { kind: 'leg', qty: n - 4, at: null, pending: 'leg-mid-position' });
+            .forEach(([x, z, side]) => leg(x, z, { side }));
+          // 가운데 다리발 (6·8개) — 앞줄·뒷줄마다 두 코너 다리 중심 사이를 균등 분할 (2026-10-23 사장님 4-1 B)
+          const perRow = n / 2;
+          for (let i = 1; i < perRow - 1; i++) {
+            const x = xs[0] + ((xs[1] - xs[0]) * i) / (perRow - 1);
+            leg(x, zFront, { side: 'midFront', mid: i });
+            leg(x, zBack, { side: 'midBack', mid: i });
+          }
         });
         return;
       }
@@ -1222,12 +1229,25 @@
         const doors = m.parts.filter((p) => p.tags && p.tags.doorIdx !== undefined && /도어$/.test(p.part));
         const cups = Array.isArray(row.boring) ? row.boring.slice() : [];
         if (!doors.length || !cups.length || doors.length * cups.length !== row.qty) { push(m, { kind: 'hinge', qty: row.qty, at: null, pending: 'hardware-count-mismatch' }); return; }
+        const mod = rawOf(m.moduleKey);
+        const hingeSide = mod && ['left', 'right'].includes(mod.hingeSide) ? mod.hingeSide : null;
+        const backset = C.HINGE_CUP_EDGE + C.HINGE_CUP_D / 2;
         doors.forEach((d, k) => {
           let edge = null;
           if (row.boringSide === 'top') edge = 'top';
           else if (doors.length === 2) edge = k === 0 ? 'left' : 'right';
           else if (d.tags.blind && m.blind) edge = m.blind.doorRight ? 'left' : 'right';
-          push(m, { kind: 'hinge', partId: d.id, doorIdx: d.tags.doorIdx, edge, cups, cupD: C.HINGE_CUP_D, at: null, pending: edge ? 'hinge-backset-pending' : 'hinge-side-unknown' });
+          else if (doors.length === 1) edge = hingeSide;   // 외짝 — 설계의 좌개/우개 (2026-10-23 사장님 4-1 C)
+          const hinge = { kind: 'hinge', partId: d.id, doorIdx: d.tags.doorIdx, edge, cupD: C.HINGE_CUP_D };
+          if (!edge) { push(m, Object.assign(hinge, { qty: cups.length, cups, at: null, pending: 'hinge-side-unknown' })); return; }
+          // 컵마다 한 항목 — at = 컵 중심, 도어 뒷면 위 (컵은 거기서 앞으로 depth 만큼 판다). 컵 중심은 경첩 변에서 backset (2026-10-23 4-1 A).
+          //   cup = 행 boring 값 — 옆 변이면 도어 상단에서, 윗변(플랩)이면 도어 왼쪽 끝에서.
+          const bx = d.box;
+          cups.forEach((c, ci) => {
+            const at = edge === 'top' ? [bx.min[0] + c, bx.max[1] - backset, bx.min[2]]
+              : [edge === 'left' ? bx.min[0] + backset : bx.max[0] - backset, bx.max[1] - c, bx.min[2]];
+            push(m, Object.assign({}, hinge, { cupIdx: ci, cup: c, backset, depth: C.HINGE_CUP_DEPTH, at }));
+          });
         });
         return;
       }
@@ -1237,7 +1257,13 @@
         if (!boxes.length) { push(m, { kind: 'rail', qty: row.qty, at: null, pending: 'rail-box-unknown' }); return; }   // 박스를 못 놓은 몸통 — 박스 자리가 없다
         if (boxes.length !== row.qty || !boxes.every((b) => b.railLength === len)) { push(m, { kind: 'rail', qty: row.qty, at: null, pending: 'hardware-count-mismatch' }); return; }
         boxes.forEach((b, bi) => {
-          if (b.rail !== 'under') { push(m, { kind: 'rail', qty: 2, at: null, pending: 'rail-ball-position', tags: { box: bi } }); return; }
+          if (b.rail === 'ball') {
+            // 볼레일 — 박스 측판 바깥 옆에 두께 14, 밑단 = 박스 측판 밑단 (2026-10-23 사장님 4-1 D). at x = 측판 바깥면 (레일은 거기서 밖으로 thickness)
+            const t = DR.RAIL_CLEARANCE.ball.thickness;
+            push(m, { kind: 'rail', at: [-b.outerW / 2, b.y0, b.zf - len], len, thickness: t, tags: { box: bi, side: 'left', rail: 'ball' } });
+            push(m, { kind: 'rail', at: [b.outerW / 2, b.y0, b.zf - len], len, thickness: t, tags: { box: bi, side: 'right', rail: 'ball' } });
+            return;
+          }
           const y = b.y0 - DR.RAIL_CLEARANCE.under.below;
           push(m, { kind: 'rail', at: [-b.outerW / 2, y, b.zf - len], len, tags: { box: bi, side: 'left' } });
           push(m, { kind: 'rail', at: [b.outerW / 2, y, b.zf - len], len, tags: { box: bi, side: 'right' } });

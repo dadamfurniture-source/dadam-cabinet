@@ -140,12 +140,17 @@ describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
     }
   });
 
-  test('철물 — 하부 모듈마다 다리발 4 코너가 3D 장면 다리발(entityKind leg)과 같은 자리, 경첩은 도어마다 변·컵 높이', () => {
+  test('철물 — 하부 모듈마다 다리발 4 코너가 3D 장면 다리발(entityKind leg)과 같은 자리, 가운데 다리는 명세만 (3D 는 4 코너), 경첩은 도어마다 변·컵 자리', () => {
     const it = cad.spec.items.find(Boolean);
     const lowers = it.modules.filter((m) => m.kind === 'lower');
     expect(lowers.length).toBeGreaterThan(0);
     lowers.forEach((m) => {
-      const legs = m.hardware.filter((h) => h.kind === 'leg' && h.at);
+      const all = m.hardware.filter((h) => h.kind === 'leg');
+      expect(all.every((h) => h.at && h.size)).toBe(true);
+      // 가운데 다리 (6·8개, 2026-10-23 4-1 B) — 3D addLegs 는 4 코너만 그린다. 3D 를 근거로 명세를 고치지 않는다
+      const mids = all.filter((h) => /^mid/.test(h.tags.side));
+      expect(all.length - mids.length).toBe(4);
+      const legs = all.filter((h) => !/^mid/.test(h.tags.side));
       expect(legs.map((h) => h.tags.side)).toEqual(['leftFront', 'leftBack', 'rightFront', 'rightBack']);
       // 3D addLegs 의 다리발 mesh (모듈 그룹 로컬 x·z — 3D 는 바닥이 y 0, 명세는 몸통 바닥이 y 0 이라 y 는 비교하지 않는다)
       const scene = [];
@@ -169,10 +174,14 @@ describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
       .flatMap((m) => m.parts.filter((p) => p.tags.doorIdx !== undefined && /도어$/.test(p.part)).map((p) => [m, p]));
     expect(doors.length).toBeGreaterThan(0);
     doors.forEach(([m, p]) => {
-      const h = m.hardware.find((x) => x.kind === 'hinge' && x.partId === p.id);
-      expect(h).toBeDefined();
-      expect(h.cups.length).toBeGreaterThanOrEqual(2);
-      expect(h.at).toBeNull();
+      const hs = m.hardware.filter((x) => x.kind === 'hinge' && x.partId === p.id);
+      expect(hs.length).toBeGreaterThan(0);
+      // 변이 정해진 도어는 컵마다 자리 (2개 이상), 외짝인데 설계에 hingeSide 가 없으면 한 항목에 방향 미정
+      if (hs[0].pending) expect(hs).toEqual([expect.objectContaining({ at: null, pending: 'hinge-side-unknown' })]);
+      else {
+        expect(hs.length).toBeGreaterThanOrEqual(2);
+        expect(hs.every((h) => h.at && h.at[2] === p.box.min[2] && h.backset === 21.5 && h.depth === 12.5)).toBe(true);
+      }
     });
   });
 

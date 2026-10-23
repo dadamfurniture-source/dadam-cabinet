@@ -16,7 +16,7 @@
  *
  * 아직 정하지 않은 것 (사장님 결정 대기 — 지금 BOM 동작을 그대로 둔다):
  *   D12  하부 선반 "D − 15" 가 상수인가 몸통 T 인가 — 지금 BOM 은 D − T (15T 에서 −15, 18T 에서 −18)
- *   D5   사쿠리 홈 깊이 — 뒷판이 W − 20 이고 안쪽 폭이 W − 2T 라 15T 에서 한쪽 5mm 씩 홈에 든다. 정확한 깊이는 실측 대기
+ *   D5   (경첩 컵 자리는 2026-10-23 추천값으로 정함 — HINGE_CUP_EDGE·HINGE_CUP_DEPTH) 사쿠리 홈 깊이 —뒷판이 W − 20 이고 안쪽 폭이 W − 2T 라 15T 에서 한쪽 5mm 씩 홈에 든다. 정확한 깊이는 실측 대기
  *   D2   서랍장에서 처짐방지목 위치
  */
 (function (root, factory) {
@@ -25,7 +25,7 @@
   root.DadamAssemblyRules = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   /** 규칙 판 — 이 표의 숫자가 바뀌면 올린다. 조립 명세·동결 스냅샷에 실려 어느 규칙으로 계산했는지 남긴다. */
-  const RULES_VERSION = 'asm-2026.10.1';
+  const RULES_VERSION = 'asm-2026.10.2';
 
   const CARCASS = Object.freeze({
     // 뒷판 — 2026-10-18 사장님: 우라 MDF 3T. 2026-10-19 (PR #832): 크기는 측판 사쿠리가 정한다.
@@ -75,11 +75,15 @@
     KICK_SETBACK: 32,
     KICK_CUT_UNIT: 2440,
     // 다리발 — 플래너 MASTER_RULES.LEG_SIZE·LEG_INSET (js/planner/planner-engine.js, OBJ 실측) 과 같은 값 (drift 금지).
-    //   4 코너, 모듈 외곽에서 25 안쪽, 앞줄은 걸레받이 뒤 (3D addLegs). 6·8개일 때 가운데 다리 자리는 정한 데가 없다.
+    //   4 코너, 모듈 외곽에서 25 안쪽, 앞줄은 걸레받이 뒤 (3D addLegs). 6·8개면 앞줄·뒷줄마다 두 코너 사이를 균등 분할 (2026-10-23 사장님 4-1 B).
     LEG_SIZE: 42,
     LEG_INSET: 25,
-    // 경첩 컵 지름 (hardware.md §1, H052W). 백셋·깊이는 결정 D5 미정.
+    // 경첩 컵 지름 (hardware.md §1, H052W).
     HINGE_CUP_D: 35,
+    // 경첩 컵 자리 — 2026-10-23 사장님 4-1 A (추천대로): 도어 변에서 컵 가장자리까지 4 → 컵 중심 4 + 35/2 = 21.5, 컵 깊이 12.5.
+    //   결정 D5 의 경첩 부분. 실측 값이 오면 이 두 숫자만 고친다.
+    HINGE_CUP_EDGE: 4,
+    HINGE_CUP_DEPTH: 12.5,
   });
 
   /** 뒷판 재단 크기 — 사쿠리 여부로 (모든 모듈 공통). */
