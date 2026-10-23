@@ -32,8 +32,17 @@ const VOLUME_REL = 0.001;
 
 const boxVolume = (s) => [0, 1, 2].reduce((v, k) => v * (s.max[k] - s.min[k]), 1);
 
+/** 골든 픽스처 하나의 덤프. */
 function dumpOf(name) {
-  const { spec } = specOf(name);
+  return dumpSpecOf(name, specOf(name).spec);
+}
+
+/**
+ * 조립 명세 하나의 덤프 — 골든 픽스처 밖의 명세(모듈 라이브러리, docs/01-plan/module-library.plan.md §4)도 같은 형식으로 쓴다.
+ * @param {string} name  덤프의 fixture 이름 (출력 파일 이름)
+ * @param {object} spec  dadam.assembly/1
+ */
+function dumpSpecOf(name, spec) {
   const modules = [];
   (spec.items || []).forEach((it) => (it.modules || []).forEach((m) => {
     const parts = (m.parts || []).map((p) => {
@@ -88,4 +97,4 @@ function main(argv) {
 
 if (require.main === module) process.exitCode = main(process.argv.slice(2));
 
-module.exports = { SCHEMA, VOLUME_REL, dumpOf, main };
+module.exports = { SCHEMA, VOLUME_REL, dumpOf, dumpSpecOf, main };
