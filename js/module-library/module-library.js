@@ -121,6 +121,39 @@
     // 전면이 123 안팎으로 낮아지면 중간 목찬넬 따내기와 서랍 박스가 1~2mm 겹친다 (조립 검사 part-overlap) — 계획 Q1
     drawer('LB-DR5-600', '서랍 5단', '2:2:2:2:2', {}, 'needs-rule:Q1'),
     drawer('LB-DR4-600-2111', '서랍 4단 (큰 위 칸)', '2:1:1:1', {}, 'needs-rule:Q1'),
+
+    // ── 3회차: 오픈장 450 (2026-10-24) ───────────────────────────
+    //   오픈장 상자 = 플래너 모듈 타입 '오픈장' (bom-open-cabinet-rules — MDF 18T 상자, 뒷판 18T 통판)
+    //   오픈 칸     = 일반 몸통에서 칸 타입 '오픈' (도어 없음 — 상부는 선반 2, 하부는 선반 없음)
+    {
+      id: 'UB-OPEN-450', rev: 1, group: 'upper-open', section: 'upper', W: APPROVED_WIDTHS.open,
+      name: '오픈장 상부 (MDF 18T 상자)',
+      choice: { kind: 'open' },
+      ruleRefs: ['bom-open-cabinet-rules.js partsOf (측판 D×H · 천지판 (W−36)×(D−20) · 뒷판 18T (W−36)×H)', 'mockup-structure.html 모듈 타입 선택'],
+      status: 'verified',
+    },
+    {
+      id: 'UB-SHELF-450', rev: 1, group: 'upper-open', section: 'upper', W: APPROVED_WIDTHS.open,
+      name: '오픈 칸 상부장 (도어 없음 · 선반 2)',
+      choice: { cell: 'open' },
+      ruleRefs: UPPER_REFS.concat(['mockup-structure.html 칸 타입 오픈 (areaTypes open)']),
+      status: 'verified',
+    },
+    {
+      id: 'LB-SHELF-450', rev: 1, group: 'lower-open', section: 'lower', W: APPROVED_WIDTHS.open,
+      name: '오픈 칸 하부장 (도어 없음)',
+      choice: { cell: 'open' },
+      ruleRefs: DOOR_REFS.concat(['mockup-structure.html 칸 타입 오픈 (areaTypes open)', 'extractors.js 하부 오픈 칸은 선반을 내지 않는다']),
+      status: 'verified',
+    },
+    // 조립 명세가 하부 오픈장 상자의 다리발 자리를 아직 안 정한다 (bom-assembly.js leg-tall-tier) — 계획 Q2
+    {
+      id: 'LB-OPEN-450', rev: 1, group: 'lower-open', section: 'lower', W: APPROVED_WIDTHS.open,
+      name: '오픈장 하부 (MDF 18T 상자)',
+      choice: { kind: 'open' },
+      ruleRefs: ['bom-open-cabinet-rules.js partsOf', 'mockup-structure.html 모듈 타입 선택'],
+      status: 'needs-rule:Q2',
+    },
   ]);
 
   /** 서랍장 모듈 정의 — 폭은 승인된 서랍장 폭, 선택값은 전면 비율 · 레일 · 사쿠리뿐. */
@@ -180,10 +213,10 @@
         const r = DrawerRules.gradesFromRatio(d.ratio);
         if (r.error) out.push(`ratio: ${r.error}`);
       }
-    } else if (c.kind === 'open') {
-      if (e.section !== 'lower') out.push('오픈장(moduleKind open)은 하부만 — 상부는 오픈 칸(cell open)');
-    } else if (c.cell === 'open') {
-      if (c.doors != null || c.hinge != null) out.push('오픈 칸에는 도어·경첩이 없다');
+    } else if (c.kind === 'open' || c.cell === 'open') {
+      // 오픈장 상자(moduleKind open)는 플래너 타입 선택에 섹션 제한이 없다 — 하부·상부 모두 (bom-open-cabinet-rules: 카테고리와 무관)
+      if (c.doors != null || c.hinge != null) out.push('오픈장·오픈 칸에는 도어·경첩이 없다');
+      if (c.kind != null && c.cell != null) out.push('오픈장 상자(kind)와 오픈 칸(cell) 중 하나만');
     } else {
       if (c.doors !== 1 && c.doors !== 2) out.push(`doors: ${c.doors}`);
       if (c.doors === 1 && HINGES.indexOf(c.hinge) < 0) out.push(`hinge: ${c.hinge}`);

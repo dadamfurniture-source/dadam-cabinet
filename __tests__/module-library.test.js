@@ -48,11 +48,17 @@ describe('problemsOf — 선택값만, 승인된 폭만', () => {
     ['서랍 비율에 mm', sample({ W: 600, choice: { drawer: { ratio: '2:150' } } }), /ratio/],
     ['서랍 6장', sample({ W: 600, choice: { drawer: { ratio: '2:2:2:2:2:2' } } }), /ratio/],
     ['레일 이름', sample({ W: 600, choice: { drawer: { ratio: '2:2', rail: 'side' } } }), /rail/],
-    ['상부 오픈장 상자', sample({ section: 'upper', choice: { kind: 'open' } }), /오픈 칸/],
+    ['오픈장에 도어', sample({ choice: { kind: 'open', doors: 1, hinge: 'left' } }), /도어·경첩이 없다/],
+    ['오픈장 상자 + 오픈 칸', sample({ choice: { kind: 'open', cell: 'open' } }), /하나만/],
     ['id 형식', sample({ id: 'lower-1' }), /id 형식/],
     ['status', sample({ status: 'draft' }), /status/],
   ])('%s → 거절', (_, e, re) => {
     expect(Lib.problemsOf(e).join(' · ')).toMatch(re);
+  });
+
+  test('오픈장 상자는 하부·상부 모두 받는다 (플래너 타입 선택에 섹션 제한 없음)', () => {
+    expect(Lib.problemsOf(sample({ section: 'upper', choice: { kind: 'open' } }))).toEqual([]);
+    expect(Lib.problemsOf(sample({ choice: { kind: 'open' } }))).toEqual([]);
   });
 
   test('needs-rule:<사유> 는 받는다', () => {
