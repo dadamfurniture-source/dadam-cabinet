@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS public.generations (
   share_token_hash TEXT,
   share_expires_at TIMESTAMPTZ,
   share_revoked_at TIMESTAMPTZ,
+  consent_training BOOLEAN,             -- 학습 사용 동의 (dataset-schema.sql, my-designs 토글)
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   completed_at TIMESTAMPTZ
@@ -82,9 +83,12 @@ REVOKE ALL ON public.generations FROM anon, authenticated;
 GRANT SELECT (
   id, user_id, parent_id, status, progress, step_label, error, category, title,
   options, inputs, wall_analysis, quote, images, layout, model, elapsed_ms, credit_cost,
-  is_favorite, share_expires_at, share_revoked_at, created_at, updated_at, completed_at
+  is_favorite, share_expires_at, share_revoked_at, consent_training,
+  created_at, updated_at, completed_at
 ) ON public.generations TO authenticated;
-GRANT UPDATE (is_favorite, title) ON public.generations TO authenticated;
+-- consent_training 이 빠지면 my-designs 목록 전체가 "permission denied for table generations" 로 막힌다
+-- (목록 SELECT 가 이 컬럼을 읽는다). 이 파일을 다시 돌리면 REVOKE ALL 이 다른 파일의 GRANT 까지 걷으므로 여기 둔다.
+GRANT UPDATE (is_favorite, title, consent_training) ON public.generations TO authenticated;
 
 -- 3. 버킷 — public 읽기, 쓰기는 service_role (RLS 우회) 만.
 INSERT INTO storage.buckets (id, name, public)
