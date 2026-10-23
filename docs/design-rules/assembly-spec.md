@@ -162,7 +162,10 @@ JS 조립 검사가 맞는지 실제 CAD 커널(build123d / OCC)로 따로 확�
 - 서랍 박스는 예전 반투명 덩어리 대신 박스마다 6판 (앞·뒤 · 좌·우 · 바닥 · 박스 처짐방지, 2026-10-20 짜임). 서랍장에 BOM 선반 행이 없으면 선반을 그리지 않는다
 - 판재: 따내기 없으면 box 크기 BoxGeometry, 따내기(notch)는 윤곽에서 빼고 frame 으로 누른다. 홈(groove)은 깊이 미정(D5)이라 안 그린다
 - 메시 userData: `partId · rowPartId · key3d · assembly:true` + 원장 이름(측판 left/right · `band#k` · back · brace · shelf). 테두리 선은 `display:true`
-- 상단 목찬넬 판 · 상판 · 걸레받이 · 마감재 같은 라인 부재(`items[].runs`)는 아직 예전 그리기 (PR14)
+- 라인 부재 (PR14 정해진 것만, `plannerAssemblyRunsFor`): 걸레받이 · 상단 목찬넬 · 상몰딩을 명세 판재로 — 품목에서 그 묶음 행이 전부 놓였을 때만, 그때 예전 그리기(addToeKick · addWoodChannel(하부장) · addCrownMolding(상부장))를 끈다. 호스트 모듈과 같은 자리·회전의 형제 그룹 `assembly-runs` 에 둔다
+  - **상판은 아직 예전 그리기**: 명세 `runsOf 'top'` 은 상판 뒤를 몸통 뒤끝(=벽으로 본다)에 두고 배치 깊이만큼 내 도어 앞으로 82 나온다. 플래너는 몸통을 벽에서 70 띄운다(배치 650 = 뒤 70 + 몸통 550 + 앞 30) — 2026-10-18 "배치 깊이, 오버행 없음" 과 어긋나 확인 필요
+  - **좌우 마감재(스펙 휠라·몰딩·EP)는 그리지 않는다**: 결정 D9 전. BOM 행 높이(품목 H − 다리발)가 키큰장 없는 싱크에서 기둥처럼 선다
+  - 붙박이장 통 · 오픈장 · 좌대는 PR14b
 - 원장 시험 `collectSceneParts` 행에 `partIds` (명세 판재 id)
 - 되돌리기: `mockup-structure.html?…&asm=0`. 부모 창이 없거나(플래너만 연 것) 명세를 못 만들면 예전 그리기
 

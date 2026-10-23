@@ -2,7 +2,8 @@
 // 조립 명세 → 3D 판재 — planner-assembly-mesh.js (구조 페이지, 다담 CAD 베타 PR12)
 //
 // 몸통(측판·지판·천판·밴드·뒷판) · 처짐방지목 · 선반 (PR12), 앞판(도어·서랍 전면) · 서랍장 중간 목찬넬 ·
-// 서랍 박스 판 (PR13) 을 플래너가 따로 셈하지 않고 조립 명세(bom-assembly.js) 판재 그대로 그린다 —
+// 서랍 박스 판 (PR13), 라인 부재(상판 · 걸레받이 · 상단 목찬넬 · 상몰딩 · 좌우 마감재, PR14) 를
+// 플래너가 따로 셈하지 않고 조립 명세(bom-assembly.js) 판재 그대로 그린다 —
 // BOM 재단 치수 · 명세 자리. 그래서 3D 와 BOM 이 같은 목록이 된다 (원장 시험).
 //
 // 규칙을 새로 두지 않는다. 판재 하나 = frame { o, u, v, n } 에서 u 로 cut.w, v 로 cut.h, n 으로 t.
@@ -21,7 +22,7 @@
 
 /**
  * 명세로 그리는 부재 묶음 — BOM partKey 의 `#` 앞(family). 서랍 박스 판은 family `drawerbox:*` (tags.box).
- * 라인 부재(상판·걸레받이·상단 목찬넬·마감재, items[].runs)는 PR14.
+ * 라인 부재는 아래 PLANNER_ASM_RUN_GROUPS (items[].runs, 품목 `ep` 행).
  */
 const PLANNER_ASM_GROUPS = {
   shell: ['body:side', 'body:bottom', 'body:top', 'body:band', 'back'],
@@ -31,6 +32,65 @@ const PLANNER_ASM_GROUPS = {
   drawer: ['channel:mid-front', 'channel:mid-back', 'drawerbox:fb', 'drawerbox:side', 'drawerbox:bottom', 'drawerbox:brace'],
 };
 const PLANNER_ASM_FAMILIES = Object.keys(PLANNER_ASM_GROUPS).reduce((a, k) => a.concat(PLANNER_ASM_GROUPS[k]), []);
+
+/**
+ * 라인 부재 묶음 (PR14) — 명세 items[].runs. 품목 하나에서 그 묶음 행이 **전부** 놓였을 때만 명세로 그리고,
+ * 그때 예전 그리기(addTopPanel · addToeKick · addWoodChannel · addCrownMolding)를 끈다 (두 번 그리지 않는다).
+ * 좌우 마감재(finish — 스펙의 휠라 · 몰딩 · EP)는 아직 그리지 않는다: 결정 D9(스펙 마감재를 도면 없이 낼지) 전이고,
+ *   BOM 행 높이(품목 H − 다리발)가 키큰장 없는 싱크에서는 기둥처럼 선다. groups.finish 는 늘 drawn:false.
+ * 상판(top)도 아직 그리지 않는다: 명세는 상판 뒤를 몸통 뒤끝(벽이라고 본다)에 두고 배치 깊이만큼 내 도어 앞으로 82 나온다.
+ *   플래너는 몸통을 벽에서 70 띄워 두므로(배치 깊이 650 = 뒤 70 + 몸통 550 + 앞 30) 2026-10-18 결정 "배치 깊이, 오버행 없음" 과
+ *   어긋난다 — 명세(bom-assembly.js runsOf 'top') 자리를 확인할 때까지 예전 그리기. groups.top 은 늘 drawn:false.
+ */
+const PLANNER_ASM_RUN_GROUPS = {
+  top: ['top'],
+  kick: ['kick'],
+  channel: ['channel:front', 'channel:back'],
+  molding: ['molding'],
+  finish: ['filler:left', 'filler:right', 'molding:left', 'molding:right', 'ep:left', 'ep:right'],
+};
+
+function plannerAssemblyRunGroupOf(family) {
+  const ks = Object.keys(PLANNER_ASM_RUN_GROUPS);
+  for (let i = 0; i < ks.length; i++) if (PLANNER_ASM_RUN_GROUPS[ks[i]].indexOf(family) >= 0) return ks[i];
+  return null;
+}
+
+/**
+ * 명세 라인 부재 → 묶음별 { drawn, parts:[{ part, host, dx }] }.
+ * @param {{spec, cells}} asm
+ * @returns {{ groups: Object<string,{drawn:boolean, parts:Array}>, epKey:string }|null}
+ *   drawn — 명세로 그린다 (예전 그리기를 끈다). 놓이지 않은 행이 있거나 호스트 모듈을 못 찾으면 false
+ */
+function plannerAssemblyRunsFor(asm) {
+  if (!asm || !asm.spec || !asm.cells) return null;
+  const items = asm.spec.items || [];
+  const it = items.filter(Boolean).find((x) => (x.runs || []).length || (x.modules || []).length);
+  if (!it) return null;
+  const epKey = it.itemIdx + '-ep';
+  const groups = {};
+  Object.keys(PLANNER_ASM_RUN_GROUPS).forEach((g) => { groups[g] = { drawn: true, parts: [] }; });
+  (asm.spec.unplaced || []).forEach((u) => {
+    if (u.moduleKey !== epKey) return;
+    const k = plannerAssemblyKeyOf(u.rowPartId, epKey);
+    const g = k && plannerAssemblyRunGroupOf(k.family);
+    if (g && g !== 'finish') groups[g].drawn = false;
+  });
+  (it.runs || []).forEach((run) => {
+    const cell = asm.cells[run.hostModuleKey];
+    (run.parts || []).forEach((pt) => {
+      const k = plannerAssemblyKeyOf(pt.rowPartId, epKey);
+      const g = k && plannerAssemblyRunGroupOf(k.family);
+      if (!g) return;
+      if (!cell) { if (g !== 'finish') groups[g].drawn = false; return; }
+      groups[g].parts.push({ part: pt, host: String(cell.plannerId), dx: Number(cell.dx) || 0, hostModuleKey: run.hostModuleKey });
+    });
+  });
+  Object.keys(groups).forEach((g) => { if (!groups[g].parts.length) groups[g].drawn = false; });
+  groups.finish.drawn = false;   // 결정 D9 전 — 위 설명
+  groups.top.drawn = false;      // 상판 뒤 기준(벽) 확인 전 — 위 설명
+  return { groups, epKey };
+}
 const PLANNER_ASM_SHELF_COLOR = '#e8d8b8';
 
 /** family → 묶음 이름 (모르는 family 는 null) */
@@ -140,6 +200,17 @@ function plannerAssemblyUserData(part, moduleKey, plannerId, ctx) {
     return Object.assign({ entityKind: 'carcass', side: 'front', areaType: 'drawer', areaIdx: -1, areaPos: 'bottom', cellIdx: 0,
       drawerIdx: (tags.drawerIdx != null ? Number(tags.drawerIdx) : k3 + 1) - 1 }, base);
   }
+  // 라인 부재 (PR14) — 예전 그리기와 같은 entityKind (마감 칠하기 · 원장이 같은 이름을 읽는다)
+  if (k.family === 'top') return Object.assign({ entityKind: 'top-panel' }, base);
+  if (k.family === 'kick') return Object.assign({ entityKind: 'toe-kick' }, base);
+  if (k.family === 'molding') return Object.assign({ entityKind: 'molding' }, base);
+  if (k.family === 'channel:front' || k.family === 'channel:back') {
+    return Object.assign({ entityKind: 'carcass', side: k.family === 'channel:front' ? 'channelFace' : 'channelBase' }, base);
+  }
+  if (plannerAssemblyRunGroupOf(k.family) === 'finish') {
+    const side = /left$/.test(k.family) ? 'left' : 'right';
+    return Object.assign({ entityKind: 'finishing', finishingSection: k.family.split(':')[0], finishingIdx: 'run-' + side, runSide: side }, base);
+  }
   if (k.family === 'channel:mid-front' || k.family === 'channel:mid-back') {
     return Object.assign({ entityKind: 'carcass', side: k.family === 'channel:mid-front' ? 'channelFace' : 'channelBase',
       mid: tags.mid != null ? tags.mid : 0 }, base);
@@ -248,7 +319,9 @@ function plannerAssemblyAddParts(THREE, parent, hit, parts, o) {
     const front = ud.side === 'front';
     const key = ud.entityKind === 'shelf' ? 'shelf' : ud.entityKind === 'brace' ? 'brace'
       : ud.entityKind === 'drawerBox' ? 'drawerBox' : front ? ud.areaType
-        : (ud.side === 'channelFace' || ud.side === 'channelBase') ? 'channel' : 'body';
+        : ud.entityKind === 'top-panel' ? 'top' : ud.entityKind === 'toe-kick' ? 'kick' : ud.entityKind === 'molding' ? 'molding'
+          : ud.entityKind === 'finishing' ? 'finish:' + ud.finishingSection
+            : (ud.side === 'channelFace' || ud.side === 'channelBase') ? 'channel' : 'body';
     const color = colors[key] || (key === 'shelf' ? PLANNER_ASM_SHELF_COLOR : o.color);
     const mesh = plannerAssemblyMeshOf(THREE, p, color, o.outline, looks[key]);
     mesh.userData = ud;
@@ -262,6 +335,8 @@ function plannerAssemblyAddParts(THREE, parent, hit, parts, o) {
 if (typeof window !== 'undefined') {
   window.PLANNER_ASM_FAMILIES = PLANNER_ASM_FAMILIES;
   window.PLANNER_ASM_GROUPS = PLANNER_ASM_GROUPS;
+  window.PLANNER_ASM_RUN_GROUPS = PLANNER_ASM_RUN_GROUPS;
+  window.plannerAssemblyRunsFor = plannerAssemblyRunsFor;
   window.plannerAssemblyKeyOf = plannerAssemblyKeyOf;
   window.plannerAssemblyModuleFor = plannerAssemblyModuleFor;
   window.plannerAssemblyMeshOf = plannerAssemblyMeshOf;
@@ -272,6 +347,9 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     PLANNER_ASM_FAMILIES,
     PLANNER_ASM_GROUPS,
+    PLANNER_ASM_RUN_GROUPS,
+    plannerAssemblyRunGroupOf,
+    plannerAssemblyRunsFor,
     plannerAssemblyGroupOf,
     plannerAssemblyPartGroup,
     plannerAssemblyKeyOf,
