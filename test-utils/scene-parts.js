@@ -173,7 +173,8 @@ function collectSceneParts(p) {
     const d = normalizeDims(geometrySize(THREE, o.geometry));
     const family = familyOfPartKey(partKey);
     const moduleId = ud.moduleId == null ? '?' : String(ud.moduleId);
-    const key = `${moduleId}|${family}|${d.a}|${d.b}|${d.t}`;
+    // 명세 판재(partId)와 예전 그리기 판재는 치수가 같아도 따로 센다 — 원장 1단계(id)·2단계(치수)가 나눠 본다
+    const key = `${moduleId}|${family}|${d.a}|${d.b}|${d.t}|${ud.partId ? 'id' : ''}`;
     if (merged.has(key)) {
       const r = merged.get(key);
       r.qty += 1;
@@ -333,6 +334,31 @@ function collectScenePieces(p) {
 }
 
 /** 부팅 + 순회 한 번에. */
+/**
+ * PR15: 조립 명세로 그린 판재 낱장 — `userData.partId` 가 있는 메시. 원장 id 대조(ledger-diff.js diffById)의 3D 쪽.
+ *   AABB 는 **명세 좌표** (명세 판재 홀더 로컬 = 몸통 바닥 가운데) — 명세 part.box 와 바로 견준다.
+ * @returns {Array<{ partId, rowPartId, moduleId, min:number[], max:number[] }>}
+ */
+function collectSceneIdPieces(p) {
+  const three = p.three || p.g('three');
+  const THREE = threeShim();
+  const out = [];
+  three.moduleGroup.updateMatrixWorld(true);
+  three.moduleGroup.traverse((o) => {
+    if (!o.isMesh || !o.geometry || !o.userData || !o.userData.partId) return;
+    const holder = o.parent;
+    const inv = new THREE.Matrix4().copy(holder.matrixWorld).invert();
+    const g = o.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+    g.computeBoundingBox();
+    out.push({
+      partId: o.userData.partId, rowPartId: o.userData.rowPartId, moduleId: String(o.userData.moduleId),
+      min: g.boundingBox.min.toArray(), max: g.boundingBox.max.toArray(),
+    });
+    g.dispose();
+  });
+  return out;
+}
+
 function scenePartsOf(layout, opts) {
   const p = bootPlanner3D(layout, opts);
   return { planner: p, parts: collectSceneParts(p) };
@@ -342,6 +368,7 @@ module.exports = {
   bootPlanner3D,
   collectSceneParts,
   collectScenePieces,
+  collectSceneIdPieces,
   scenePartsOf,
   familyOfPartKey,
   normalizeDims,
