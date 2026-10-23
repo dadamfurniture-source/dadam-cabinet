@@ -138,7 +138,8 @@ JS 조립 검사가 맞는지 실제 CAD 커널(build123d / OCC)로 따로 확�
 - 놓인 행은 판재 수 = qty, `unplaced[].rowPartId` 도 `bom.materials` 에 있다
 - `bom.assembly` 가 없으면(옛 클라이언트) 그냥 받는다. 명세는 `bom_payload` 에 실려 `content_hash` 에 든다 — 명세가 결정적이라 바뀌지 않은 설계를 다시 동결하면 같은 rev
 - 실측 (2026-10-23, 로컬): 싱크 세트 8벌 314KB · 판재 712 장 검증 4.4ms
-- 클라이언트(`workflow-client.js` `createSnapshot`)가 명세를 보내는 것은 다음 PR — 워커를 먼저 배포한다 (개정 #12)
+- 클라이언트(`workflow-client.js` `createSnapshot`, PR10b)는 조립 검사에 쓰는 명세(`DadamAssembly.of(design, { materials })`)를 그대로 `bom.assembly` 로 보낸다. 명세를 못 만들면(옛 캐시, 생성 실패) 명세 없이 동결한다. 워커(#1006)를 먼저 배포했다 (개정 #12)
+- 명세가 해시에 들어가므로 기존 설계는 PR10b 뒤 처음 동결할 때 한 번 새 rev 가 생긴다. 규칙 버전(`rulesVersion`)이 바뀌어도 새 rev
 
 ## CAD GLB (관리자 전용)
 
