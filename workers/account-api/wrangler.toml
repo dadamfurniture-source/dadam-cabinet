@@ -6,7 +6,7 @@ account_id = "8bd8e054dfc7bcdc577f9bb79edd3284"
 [vars]
 # 공개값이라 vars 로 둔다 (js/config.js 에 이미 들어 있다)
 SUPABASE_URL = "https://vvqrvgcgnlfpiqqndsve.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2cXJ2Z2NnbmxmcGlxcW5kc3ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4NTYyMjYsImV4cCI6MjA4MzQzMjIyNn0.WvMdB2bojqRUjYWdljAcxP1yHqQZJwuyv2equltyWWQ"
+SUPABASE_ANON_KEY = "sb_publishable_OV4D2-LwhTMj8YJ711HTvA_lA2jk_PW"
 
 # CORS 허용 오리진
 CORS_ORIGINS = "https://dadamfurniture.com,https://www.dadamfurniture.com,http://127.0.0.1:8899,http://localhost:8899"
