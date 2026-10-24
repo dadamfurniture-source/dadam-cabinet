@@ -670,6 +670,7 @@ describe('멍장 → BOM 변환', () => {
       src.forEach((m, i) => {
         const t = pay.structures[m.id].areaTypes;
         expect(out[i].blindDoorRight).toBe(t[0] === 'blind');
+        expect(out[i]._plannerId).toBe(String(m.id));   // 플래너 3D 가 명세 멍장을 제 모듈에 잇는다
       });
     }
   });

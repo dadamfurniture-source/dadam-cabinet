@@ -1571,6 +1571,8 @@
             });
             const blindDoorRight = _blindDoorRightOf(s);
             if (blindDoorRight != null) out[out.length - 1].blindDoorRight = blindDoorRight;
+            // 2026-10-25: 출처 플래너 모듈 — 멍장 id(corner-blind-{pos}[-k])에는 플래너 id 가 없다. 플래너 3D 가 명세 멍장을 제 모듈에 잇는다
+            out[out.length - 1]._plannerId = String(m.id);
             placeLast(m, 0, Number(m.W) || 0);
             _attachCutouts(out.slice(-1), m, s);   // 2026-10-19: 멍장도 몸통 한 벌
             return;
