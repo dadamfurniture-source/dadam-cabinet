@@ -280,6 +280,8 @@ async function plannerExportAssemblyHash(spec, subtle) {
  *   vis: 'exterior' 면 명세 vis 가 exterior 인 판재만 (외관 GLB — 철물 · 속 판재 없음). 판재가 하나도 없는 모듈은 노드도 없다.
  *     외관 GLB 는 고객 확인서에 싣는다 — 노드 이름은 `module-N` · `part-N`, 판재 · 모듈 extras 는 비운다
  *     (고객 화면에 partId 를 보이지 않는다). 따낸 판의 모양은 그대로 (사장님 2026-10-24).
+ *   finishOf(p) → { code, hex, roughness?, metalness? } | null: 마감 색 (BOM 행 finishCode → 플래너 카탈로그).
+ *     null 이면 자재 기본색 (PB · MDF). 재질 이름은 마감 코드 — 같은 코드는 재질 하나를 나눠 쓴다. 텍스처는 싣지 않는다 (외관 1MB).
  */
 function plannerExportCadScene(THREE, spec, frameOf, opts) {
   const o = opts || {};
@@ -294,6 +296,21 @@ function plannerExportCadScene(THREE, spec, frameOf, opts) {
       mats[key].name = key;
     }
     return mats[key];
+  };
+  const finishMats = {};
+  const finishMatOf = (p) => {
+    const f = typeof o.finishOf === 'function' ? o.finishOf(p) : null;
+    if (!f || !f.code || !/^#[0-9a-f]{6}$/i.test(String(f.hex || ''))) return matOf(p.material);
+    if (!finishMats[f.code]) {
+      const m = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(f.hex),
+        roughness: Number.isFinite(f.roughness) ? f.roughness : 0.8,
+        metalness: Number.isFinite(f.metalness) ? f.metalness : 0,
+      });
+      m.name = f.code;
+      finishMats[f.code] = m;
+    }
+    return finishMats[f.code];
   };
   let parts = 0, modules = 0, skipped = 0, runs = 0, hardware = 0;
   const keep = o.vis ? (p) => p.vis === o.vis : () => true;
@@ -312,7 +329,7 @@ function plannerExportCadScene(THREE, spec, frameOf, opts) {
     const solids = o.solidsOf(p);
     const meshOf = (b, name) => {
       const geo = new THREE.BoxGeometry(b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]);
-      const mesh = new THREE.Mesh(geo, matOf(p.material));
+      const mesh = new THREE.Mesh(geo, finishMatOf(p));
       mesh.position.set((b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2);
       mesh.name = name;
       return mesh;
@@ -526,9 +543,18 @@ const PlannerExport = {
       const frozen = await W.frozenAssembly();
       const { frameOf, solidsOf } = o.cad();
       const GLTFExporter = await this.loadExporter();
+      // 마감 색 — 동결 BOM 행의 finishCode(워커 finish_codes) → 플래너 카탈로그(PlannerCatalog, 디테일 모드와 같은 표)
+      const catalog = typeof o.finishCatalog === 'function' ? await o.finishCatalog() : null;
+      const byCode = (catalog && catalog.byCode) || {};
+      const codes = frozen.finish_codes || {};
+      const finishOf = (p) => {
+        const code = codes[p.rowPartId];
+        const e = code ? byCode[code] : null;
+        return e && e.hex ? { code, hex: e.hex, roughness: e.roughness, metalness: e.metalness } : null;
+      };
       const out = {};
       for (const kind of ['cad', 'exterior']) {
-        const r = await plannerExportCadGlb(window.THREE, GLTFExporter, frozen.assembly, frameOf, { solidsOf, vis: kind === 'exterior' ? 'exterior' : undefined, subtle: o.subtle });
+        const r = await plannerExportCadGlb(window.THREE, GLTFExporter, frozen.assembly, frameOf, { solidsOf, finishOf, vis: kind === 'exterior' ? 'exterior' : undefined, subtle: o.subtle });
         if (r.root.userData.assemblyHash !== frozen.assembly_hash) throw new Error('명세 해시가 동결본과 다릅니다 — 새로 고친 뒤 다시 시도해 주세요');
         if (!r.parts) throw new Error('동결 명세에서 플래너 자리를 찾은 판재가 없습니다 — 이 품목을 동결했는지 확인해 주세요');
         const up = await W.upload(frozen.snapshot_id, kind, r.glb);
