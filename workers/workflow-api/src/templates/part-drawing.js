@@ -5,7 +5,8 @@
  * 워커는 명세를 다시 계산하지 않는다 (snapshots.js 헤더 원칙). 명세가 없는 옛 스냅샷이면 이 쪽은 통째로 빠진다.
  *
  * 판재 좌표 (명세 frame): 재단면에서 u 로 cut.w, v 로 cut.h. 따내기(notch)는 관통 — (u0..u1 × v0..v1) 을 판에서 뺀다.
- *   홈(groove)은 깊이가 미정(결정 D5)이라 자리 · 폭만 점선으로 그리고 "깊이 미정" 을 적는다.
+ *   홈(groove)은 자리 · 폭을 점선으로 그리고 목록에 깊이를 적는다 (2026-10-25 D5 — 몸통 15T 6 · 18T 9, 서랍 측판 10).
+ *   그 전에 동결한 명세는 depth 가 null 이라 "깊이 미정 (D5)" 그대로 (동결본은 그때 규칙판을 따른다).
  *   끝 이름은 frame 축으로 — u 가 '+z' 면 u 끝이 앞, '-z' 면 뒤 (플래너 좌표: x 오른쪽 · y 위 · z 앞).
  * 같은 판(크기 · 특징 · 끝 방향이 같은 것)은 한 도면에 모아 장수를 적는다.
  * 숫자는 명세 값 그대로 — 새 규칙을 두지 않는다.
@@ -185,7 +186,7 @@ export function partDrawingsSheet(o) {
 <div class="sheet">
   <style>${PART_DRAWING_CSS}</style>
   <div class="section-title">${esc(o.title || '③-2 판재 도면')} <span class="muted">따내기 · 홈이 있는 판재 ${num(groups.length)}종 ${num(pieces)}장 — 조립 명세 그대로</span></div>
-  <div class="muted">굵은 선 = 판 윤곽 · 점선 칸 = 따낸 자리(관통) · 회색 점선 = 홈 (깊이 미정 D5). 치수 mm. 끝 이름은 장에 세웠을 때 기준. ${stamp}</div>
+  <div class="muted">굵은 선 = 판 윤곽 · 점선 칸 = 따낸 자리(관통) · 회색 점선 = 홈 (깊이는 목록). 치수 mm. 끝 이름은 장에 세웠을 때 기준. ${stamp}</div>
   <div class="part-drawings">${cards}</div>
 </div>`;
 }
