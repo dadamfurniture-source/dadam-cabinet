@@ -121,7 +121,7 @@
     <div class="main-content" id="mainContent">
       <div class="header">
         <h1>가전 모델 관리</h1>
-        <div style="font-size: 13px; color: #666">refrigerator · hood · dishwasher · sink · cooktop</div>
+        <div style="font-size: 13px; color: #666">refrigerator · hood · dishwasher · sink · cooktop · microwave</div>
       </div>
 
       <div class="tabs">
@@ -130,6 +130,8 @@
         <button data-cat="dishwasher">🍽️ 식기세척기</button>
         <button data-cat="sink">🚰 싱크볼</button>
         <button type="button" data-cat="cooktop">🔥 쿡탑</button>
+        <!-- 2026-10-25 사장님: 전자레인지 외경 + 20 = 오픈장(가전 칸) 내경 최솟값 — database/appliance-models-microwave.sql 을 먼저 실행 -->
+        <button type="button" data-cat="microwave">📻 전자레인지</button>
       </div>
 
       <div class="toolbar">
@@ -193,6 +195,7 @@
               <option value="oven">🔥 오븐</option>
               <option value="cooktop">🔥 쿡탑</option>
               <option value="washing_machine">🧺 세탁기</option>
+              <option value="microwave">📻 전자레인지</option>
             </select>
           </div>
           <div class="field">
