@@ -887,6 +887,21 @@ describe('철물 hardware[] — 다리발 · 레일 · 경첩 컵 자리 (2026-1
     expect(legs.filter((h) => h.tags.side === 'midBack').map((h) => h.tags.mid)).toEqual([1, 2]);
   });
 
+  // 2026-10-24 사장님 (모듈 라이브러리 Q2 "BOM 먼저"): 하부 섹션 상자 모듈도 바닥 다리발로 선다
+  test('하부 오픈장 상자 400 (하부 섹션, 다리발 150): 일반 하부장과 같은 4모서리 다리발 — 키큰장 단 상자는 그대로 보류', () => {
+    const open = specWith('sink15', 'l4', { moduleKind: 'open', isOpen: true, doorCount: 0, heightParts: { legH: 150, topT: 12 } });
+    const m = open.items[0].modules.find((x) => x.moduleKey === '0-l4');
+    expect(m.kind).toBe('open');
+    const legs = hwOf(open, '0-l4', 'leg');
+    expect(legs.map((h) => h.tags.side)).toEqual(['leftFront', 'leftBack', 'rightFront', 'rightBack']);
+    expect(legs.every((h) => !h.pending && h.at[1] === -150 && h.size[1] === 150)).toBe(true);
+    // 자리 = 같은 폭·깊이 일반 하부장 (l5 400 · 도어 0) 과 같다
+    expect(legs.map((h) => h.at)).toEqual(hwOf(open, '0-l5', 'leg').map((h) => h.at));
+    // 키큰장 단으로 쓰인 상자(하부 섹션 다리발 없음 — 좌대 · 몰딩)는 자리 보류
+    const tier = specWith('sink15', 'l4', { moduleKind: 'open', isOpen: true, doorCount: 0, heightParts: { pedestalH: 60, moldingH: 60 } });
+    expect(hwOf(tier, '0-l4', 'leg').every((h) => h.pending === 'leg-tall-tier')).toBe(true);
+  });
+
   test('신발장 서랍장 500 (2단, 언더레일 300): 박스마다 왼·오 — 박스 측판 밑 30 여유에, 앞끝 = 박스 앞끝, 길이 300', () => {
     const s = specOf('shoerack');
     const m = s.items[0].modules.find((x) => x.moduleKey === '0-l2');
