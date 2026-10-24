@@ -137,3 +137,18 @@ describe('사쿠리 서랍 홈 (2026-10-20 사장님 15mm)', () => {
     expect(DRAWER_RULES.BOX_SAKURI_GROOVE_Y + 3).toBe(DRAWER_RULES.BOX_SAKURI_FB_MINUS);
   });
 });
+
+describe('사쿠리 홈 깊이 (2026-10-25 사장님 D5)', () => {
+  test('몸통: 뒷판이 드는 T − 10 + 여유 1 — 15T 6 · 18T 9', () => {
+    expect(R.sakuriGrooveDepth(15)).toBe(6);
+    expect(R.sakuriGrooveDepth(18)).toBe(9);
+    // 드는 만큼 = (뒷판 W − 20 − 안쪽 W − 2T) / 2
+    const W = 600, T = 15;
+    expect((R.backPanelSize(W, 720, true).w - (W - 2 * T)) / 2 + R.CARCASS.SAKURI_DEPTH_CLEARANCE).toBe(R.sakuriGrooveDepth(T));
+  });
+  test('서랍 측판: 우라가 한쪽 10 든다 (우라 = 앞뒷판 + 20) — 홈 깊이 10', () => {
+    const { DRAWER_RULES } = require('../js/detaildesign/bom-drawer-rules.js');
+    expect(DRAWER_RULES.BOX_SAKURI_GROOVE_DEPTH).toBe(10);
+    expect(DRAWER_RULES.BOTTOM_SAKURI_PLUS_W / 2).toBe(DRAWER_RULES.BOX_SAKURI_GROOVE_DEPTH);
+  });
+});

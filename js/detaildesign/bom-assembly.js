@@ -18,7 +18,8 @@
  *   frame      { o:[x,y,z], u, v, n } — 재단면 꼭짓점 o 에서 u 축으로 cut.w, v 축으로 cut.h, n 축으로 t.
  *              u·v·n 은 부호 있는 축 ('+x' '-z' …). 회전은 없다.
  *   box        { min, max } — frame 이 덮는 상자 (조회용)
- *   features   따내기·홈. notch 는 관통(u0..u1 × v0..v1), groove 는 깊이 미정(D5) 이라 depth null
+ *   features   따내기·홈. notch 는 관통(u0..u1 × v0..v1), groove 는 face 쪽 면에서 depth 만큼 (2026-10-25 D5 — 몸통 사쿠리
+ *              assembly-rules sakuriGrooveDepth(T) · 서랍 측판 bom-drawer-rules BOX_SAKURI_GROOVE_DEPTH)
  *
  * 이 단계(PR6)에서 자리를 정하는 부재 — 싱크 라인(상부장 · 하부장 · 키큰장 단)의 몸통:
  *   측판 · 지판 · 천판 · 뒷판 · 선반 · 처짐방지목 · 상부장 보강목 · 여닫이 도어 · 서랍장 전면 · 중간 목찬넬. 나머지 행은 `unplaced` 에 이유와 함께 남는다 (조용히 빠지지 않는다).
@@ -59,7 +60,7 @@
  *   D2 서랍장 처짐방지목 자리 → unplaced 'pending-owner D2'
  *   D1 다칸 모듈 — BOM 대로 칸마다 통 (BOM 행이 칸마다 있으면 칸마다 명세)
  *   D12 하부 선반 −15 = T — BOM 대로
- *   D5 사쿠리 홈 깊이 — groove.depth null
+ *   D5 사쿠리 홈 깊이 — 2026-10-25 정함 (몸통 T − 10 + 1 · 서랍 측판 10)
  *
  * 브라우저는 전역 `DadamAssembly`, Node(Jest)는 module.exports. DOM 없음.
  */
@@ -226,8 +227,8 @@
       // 우라 밑면 높이 — 일반은 박스 바닥 바로 아래, 사쿠리는 측판 홈 속
       const yBottom = sakuri ? b.y0 + DR.BOX_SAKURI_GROOVE_Y : b.y0 - bottomT;
       if (key.family === 'drawerbox:side') {
-        // 왼 · 오 — 서서 앞뒤로 (u = 뒤→앞). 사쿠리면 안쪽 면에 우라 홈 (깊이 미정)
-        const feats = sakuri ? [{ type: 'groove', face: 'inner', u0: 0, u1: d.sideL, v0: DR.BOX_SAKURI_GROOVE_Y, v1: DR.BOX_SAKURI_GROOVE_Y + bottomT, depth: null, src: 'drawer-sakuri' }] : [];
+        // 왼 · 오 — 서서 앞뒤로 (u = 뒤→앞). 사쿠리면 안쪽 면에 우라 홈 (깊이 10, D5)
+        const feats = sakuri ? [{ type: 'groove', face: 'inner', u0: 0, u1: d.sideL, v0: DR.BOX_SAKURI_GROOVE_Y, v1: DR.BOX_SAKURI_GROOVE_Y + bottomT, depth: DR.BOX_SAKURI_GROOVE_DEPTH, src: 'drawer-sakuri' }] : [];
         parts.push(makePart(row, k++, { o: [b.x0, b.y0, b.z0], u: '+z', v: '+y', n: '+x' }, feats, 'interior', Object.assign({ side: 'left' }, tag)));
         parts.push(makePart(row, k++, { o: [-b.x0, b.y0, b.z0], u: '+z', v: '+y', n: '-x' }, feats, 'interior', Object.assign({ side: 'right' }, tag)));
       } else if (key.family === 'drawerbox:fb') {
@@ -353,7 +354,7 @@
       switch (key.family) {
         case 'body:side': {
           const feats = [];
-          if (sakuri) feats.push({ type: 'groove', face: 'inner', u0: C.SAKURI_FROM_BACK, u1: C.SAKURI_FROM_BACK + C.SAKURI_W, v0: 0, v1: H, depth: null, src: 'sakuri' });
+          if (sakuri) feats.push({ type: 'groove', face: 'inner', u0: C.SAKURI_FROM_BACK, u1: C.SAKURI_FROM_BACK + C.SAKURI_W, v0: 0, v1: H, depth: AsmRules.sakuriGrooveDepth(T), src: 'sakuri' });
           if (/목찬넬 따내기 상단/.test(String(row.note || ''))) {
             feats.push({ type: 'notch', u0: D - DR.CHANNEL_BASE_W, u1: D, v0: H - DR.CHANNEL_TOP_NOTCH_H, v1: H, src: 'channel-top' });
           }
@@ -668,7 +669,7 @@
       const zBack = -D / 2;
       const panelZ0 = c.sakuri ? zBack + C.SAKURI_PANEL_D_MINUS : zBack;
       const tag = (t) => Object.assign({ carcass: ci }, t || {});
-      const feats = c.sakuri ? [{ type: 'groove', face: 'inner', u0: C.SAKURI_FROM_BACK, u1: C.SAKURI_FROM_BACK + C.SAKURI_W, v0: 0, v1: c.H, depth: null, src: 'sakuri' }] : [];
+      const feats = c.sakuri ? [{ type: 'groove', face: 'inner', u0: C.SAKURI_FROM_BACK, u1: C.SAKURI_FROM_BACK + C.SAKURI_W, v0: 0, v1: c.H, depth: AsmRules.sakuriGrooveDepth(c.T), src: 'sakuri' }] : [];
       if (c === drawerCar && /목찬넬 따내기 상단/.test(String(c.side.note || ''))) {
         // 2026-10-20 사장님 카드 "싱크처럼 따냄": 측판 앞선 따내기 — 싱크 서랍장과 같은 짜임.
         //   상단 70×40 은 몸통 상단에서, 중간 90×40 은 위 전면 아랫단에서 20 위가 따내기 윗선 (UPPER_DROP).

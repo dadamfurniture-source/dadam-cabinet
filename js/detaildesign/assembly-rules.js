@@ -16,7 +16,8 @@
  *
  * 아직 정하지 않은 것 (사장님 결정 대기 — 지금 BOM 동작을 그대로 둔다):
  *   D12  하부 선반 "D − 15" 가 상수인가 몸통 T 인가 — 지금 BOM 은 D − T (15T 에서 −15, 18T 에서 −18)
- *   D5   (경첩 컵 자리는 2026-10-23 추천값으로 정함 — HINGE_CUP_EDGE·HINGE_CUP_DEPTH) 사쿠리 홈 깊이 —뒷판이 W − 20 이고 안쪽 폭이 W − 2T 라 15T 에서 한쪽 5mm 씩 홈에 든다. 정확한 깊이는 실측 대기
+ *   D5   경첩 컵 자리(2026-10-23 추천값 — HINGE_CUP_EDGE·HINGE_CUP_DEPTH) · 사쿠리 홈 깊이(2026-10-25 — sakuriGrooveDepth)는
+ *        정했다. 둘 다 실측이 오면 숫자만 고친다
  *   D2   서랍장에서 처짐방지목 위치
  */
 (function (root, factory) {
@@ -25,7 +26,7 @@
   root.DadamAssemblyRules = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   /** 규칙 판 — 이 표의 숫자가 바뀌면 올린다. 조립 명세·동결 스냅샷에 실려 어느 규칙으로 계산했는지 남긴다. */
-  const RULES_VERSION = 'asm-2026.10.2';
+  const RULES_VERSION = 'asm-2026.10.3';
 
   const CARCASS = Object.freeze({
     // 뒷판 — 2026-10-18 사장님: 우라 MDF 3T. 2026-10-19 (PR #832): 크기는 측판 사쿠리가 정한다.
@@ -38,6 +39,9 @@
     // 사쿠리 홈 — 측판 뒤끝에서 15 들어와 폭 3 (BOM 측판 비고 'sakuri(15→3mm)'). 폭 = 뒷판 두께.
     SAKURI_FROM_BACK: 15,
     SAKURI_W: 3,
+    // 사쿠리 홈 깊이 — 2026-10-25 사장님 D5 (A 추천대로): 뒷판이 홈에 드는 만큼 + 여유 1.
+    //   뒷판 W − 20 · 측판 사이 W − 2T 라 한쪽에 T − 10 이 든다 → 15T 6 · 18T 9 (sakuriGrooveDepth). 실측이 오면 여유만 고친다
+    SAKURI_DEPTH_CLEARANCE: 1,
     // 사쿠리 측판 사이의 천판·지판 깊이 D − 18 (= 홈 앞까지 15 + 3)
     SAKURI_PANEL_D_MINUS: 18,
     // 상부장·키큰장(사쿠리) 선반 D − 34
@@ -92,11 +96,17 @@
     return { w: W - (sakuri ? C.BACK_SAKURI_W_MINUS : C.BACK_FLAT_W_MINUS), h: H - C.BACK_H_MINUS };
   }
 
+  /** 몸통 측판 사쿠리 홈 깊이 (mm) — 뒷판이 한쪽에 드는 만큼 (W−20 − (W−2T)) / 2 = T − 10, 더하기 여유 (2026-10-25 D5). */
+  function sakuriGrooveDepth(T) {
+    const C = CARCASS;
+    return (2 * (parseFloat(T) || 0) - C.BACK_SAKURI_W_MINUS) / 2 + C.SAKURI_DEPTH_CLEARANCE;
+  }
+
   /** 처짐방지목 장수 — 문턱 이상이면 1, 아니면 0. pos 'upper' 는 상부장 문턱, 그 밖은 하부장 문턱. */
   function braceQtyOf(W, pos) {
     const min = pos === 'upper' ? CARCASS.BRACE_W_MIN_UPPER : CARCASS.BRACE_W_MIN_LOWER;
     return (parseFloat(W) || 0) >= min ? 1 : 0;
   }
 
-  return { RULES_VERSION, CARCASS, backPanelSize, braceQtyOf };
+  return { RULES_VERSION, CARCASS, backPanelSize, braceQtyOf, sakuriGrooveDepth };
 });

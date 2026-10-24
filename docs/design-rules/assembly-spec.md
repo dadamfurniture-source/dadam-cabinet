@@ -22,7 +22,7 @@ BOM 행마다 판재 조각의 **자리**를 붙인다. 재단 치수는 BOM 행
 | `t` | 두께 |
 | `frame` | `{o, u, v, n}` — 꼭짓점 o 에서 u 로 cut.w, v 로 cut.h, n 으로 t. 축은 `'+x'` 같은 부호 있는 축 |
 | `box` | frame 이 덮는 상자 |
-| `features` | `notch`(관통 따내기), `groove`(홈, 깊이 미정) |
+| `features` | `notch`(관통 따내기), `groove`(홈 — `face` 면에서 `depth` 만큼. 2026-10-25 사장님 D5: 몸통 사쿠리 = 뒷판이 드는 T − 10 + 여유 1 → 15T **6** · 18T **9** (`assembly-rules sakuriGrooveDepth`), 서랍 측판 = 우라가 드는 **10** (`bom-drawer-rules BOX_SAKURI_GROOVE_DEPTH`). 실측이 오면 숫자만 고친다) |
 
 ## 지금 자리를 정하는 부재 (PR6)
 
@@ -102,6 +102,7 @@ BOM 행마다 판재 조각의 **자리**를 붙인다. 재단 치수는 BOM 행
 | `part-overlap` | error | 두 판재가 파고든다 — 부피 > 1mm³ **이고** 깊이 > 0.1mm (T1 기준). 사쿠리 뒷판이 측판 홈 자리 안에서만 겹치는 것은 뺀다 |
 | `back-cover` | error | 뒷판이 양쪽 측판 안쪽 면을 넘지 않는다 (#832 이전 옛 크기 W−2T). 붙박이장은 몸통(`tags.carcass`)마다 본다 |
 | `back-contact` | error | 뒷판이 홈 안(`mount: groove`) 또는 측판 뒤끝 면(`behind-sides`)에 있지 않다 |
+| (`part-overlap` 의 홈 예외) | — | 홈에 끼운 판이 측판 두께 방향으로 홈 깊이보다 깊이 들면 끼운 것이 아니라 겹침이다 (2026-10-25 D5) |
 | `part-detached` | error | 어느 판재에도 닿지 않는 판재 |
 | `assembly-unplaced` | warning | 자리 못 정한 행 — 모듈마다 한 줄, 사유별 개수 |
 
