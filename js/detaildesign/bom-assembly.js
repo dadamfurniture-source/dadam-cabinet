@@ -57,7 +57,7 @@
  *     행이 이 짜임(2장 · 70 × W−2T · T)과 다르면 unplaced 'band-position-pending'
  *   상부장 보강목 2장 — 2026-10-20 사장님: 사쿠리 홈 뒤 장의 맨 뒤, 지판 바로 위 · 천판 바로 아래.
  *     판은 몸통이 18T 여도 15T (assembly-rules UPPER_BAND_T).
- *   D2 서랍장 처짐방지목 자리 → unplaced 'pending-owner D2'
+ *   D2 위 도어 + 아래 서랍 모듈의 처짐방지목 자리 → unplaced 'pending-owner D2' (전부 서랍인 서랍장은 행이 없다 — 2026-10-25 D2 (b))
  *   D1 다칸 모듈 — BOM 대로 칸마다 통 (BOM 행이 칸마다 있으면 칸마다 명세)
  *   D12 하부 선반 −15 = T — BOM 대로
  *   D5 사쿠리 홈 깊이 — 2026-10-25 정함 (몸통 T − 10 + 1 · 서랍 측판 10)
