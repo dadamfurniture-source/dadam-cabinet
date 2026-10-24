@@ -597,8 +597,9 @@
         if (lShape === 'I') return;
         if (!specs.lowerSecondaryW) specs.lowerSecondaryW = '1800';
         const secW = parseFloat(specs.lowerSecondaryW) || 600;
-        const secD = parseFloat(specs.lowerSecondaryD) || parseFloat(itemD) || 600;
-        const primeD = parseFloat(itemD) || 600;
+        const secD = parseFloat(specs.lowerSecondaryD) || parseFloat(itemD) || 650;
+        // 2026-10-24 사장님 D3: 깊이가 빠졌을 때 기본은 650 (BOM 상판 extractors.js 와 같다)
+        const primeD = parseFloat(itemD) || 650;
         const startSide = specs.secondaryStartSide || 'left';
         // W10-1: 영속화된 secondary 모듈(item.modules)이 있으면 그것을 payload로 파생 — 데이터 모델이 SSOT
         // id 체계(blind-corner-auto / sec-auto-*)는 W9 정면도 호환을 위해 유지
@@ -825,7 +826,7 @@
           presetId: item.categoryId || 'sink',
           width: parseFloat(item.w) || 3000,
           height: parseFloat(item.h) || 2310,
-          depth: parseFloat(item.d) || 600,
+          depth: parseFloat(item.d) || 650,   // D3 (2026-10-24): 기본 650 — BOM 상판과 같다
           lowerCount: lowerMods.length,
           upperCount: upperMods.length,
           lowerModules: lowerMods.map(m => ({
@@ -2656,7 +2657,7 @@
           presetId: item.categoryId || 'sink',
           width: parseFloat(item.w) || 3000,
           height: parseFloat(item.h) || 2310,
-          depth: parseFloat(item.d) || 600,
+          depth: parseFloat(item.d) || 650,   // D3 (2026-10-24): 기본 650 — BOM 상판과 같다
           lowerCount: lowerMods.length,
           upperCount: upperMods.length,
           lowerModules: toLowerModules,
