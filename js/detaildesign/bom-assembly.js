@@ -968,6 +968,7 @@
 
   /**
    * 오픈장·밥솥장 상자 — 판 다섯 장 (+ 밥솥장 도어 한 장). 행 치수가 규칙 파일 모양이 아니면 null.
+   * 키큰장 단을 상자로 바꾼 모듈이면 그 단의 좌대(바닥 단) · 상몰딩(맨 위 단)도 몸통 단과 같은 자리에 놓는다.
    */
   function openBoxOf(mk, mod, rows, opts) {
     const keyed = rows.map((r) => ({ row: r, key: keyOfRow(r) }));
@@ -1011,7 +1012,25 @@
         return;
       }
       if (key.family === 'shelf') { skip(row, 'shelf-height-unknown'); return; }
+      if (/^pedestal:/.test(key.family) || key.family === 'kick') return;   // 아래에서 좌대 상자를 한꺼번에
+      if (key.family === 'molding') {
+        // 2026-10-24 (키큰장 조합): 키큰장 맨 위 단을 상자로 바꿔도 상몰딩은 그 단이 낸다 — 몸통 단과 같은 자리
+        //   (몸통 위 y H…H+몰딩H, 앞면 = 도어 앞면 z D/2+18, 뒷면 = 몸통 앞선 — shellOf 'molding')
+        if (row.qty !== 1 || row.h !== W) { skip(row, 'molding-layout-unknown'); return; }
+        parts.push(makePart(row, 0, { o: [-W / 2, H, zFront], u: '+y', v: '+x', n: '+z' }, [], 'exterior', { molding: true }));
+        return;
+      }
       skip(row, 'not-yet');
+    });
+    // 2026-10-24 (키큰장 조합): 키큰장 바닥 단을 상자로 바꿔도 좌대 상자 + 걸레받이는 그 단이 낸다 — 몸통 단과 같은 자리
+    //   (sink.md §5.1 · 2026-10-20 카드 "뒤 맞춤": 상자 뒷면 = 몸통 뒷면, 앞 50 들어간 자리에 걸레받이 18T)
+    const ped = keyed.filter((x) => x.key && /^pedestal:/.test(x.key.family));
+    const kicks = keyed.filter((x) => x.key && x.key.family === 'kick');
+    const pd = ped.length ? placePedestal(parts, ped, W, D) : null;
+    if (ped.length && !pd) ped.forEach((x) => skip(x.row, 'pedestal-layout-unknown'));
+    kicks.forEach(({ row }) => {
+      if (!pd || row.qty !== 1 || row.h !== W || row.w !== pd.h) { skip(row, 'pedestal-layout-unknown'); return; }
+      parts.push(makePart(row, 0, { o: [-W / 2, -pd.h, pd.zFront], u: '+y', v: '+x', n: '+z' }, [], 'exterior', { pedestal: true, kick: true }));
     });
     return {
       module: {
