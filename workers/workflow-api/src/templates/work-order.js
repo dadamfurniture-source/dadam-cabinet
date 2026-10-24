@@ -54,6 +54,7 @@ import {
 import { laborEstimate, fmtMinutes } from '../labor-standards.js';
 import { elevationSvg, elevationModel, moduleDrawingSvg } from './elevation.js';
 import { partDrawingsSheet } from './part-drawing.js';
+import { moduleSectionsSheet } from './module-section.js';
 import { isCornerItem, isoSvg, runLengths } from './isometric.js';
 
 const CATEGORY_NAMES = {
@@ -1326,24 +1327,34 @@ function packHeader(ctx, pack) {
  * CAD 베타 PR17: 판재 도면 — 동결 명세(bom_payload.assembly)의 따내기 · 홈 판재. 사내 재단 행만.
  *   도장은 발행 때 굳힌 render_payload.cad (rev · content_hash), 없으면(그 전 발행) 스냅샷 값. 명세가 없으면 쪽이 없다.
  */
-function partDrawingsSection(ctx) {
+function cadStampOf(ctx) {
   const snap = ctx.snapshot || {};
-  const asm = snap.bom_payload && snap.bom_payload.assembly;
   const cad = ctx.doc && ctx.doc.render_payload && ctx.doc.render_payload.cad;
-  return partDrawingsSheet({
-    assembly: asm, materials: ctx.materials, include: isInHouseRow,
+  return {
+    assembly: snap.bom_payload && snap.bom_payload.assembly,
+    materials: ctx.materials,
     rev: cad && cad.snapshot_rev != null ? cad.snapshot_rev : snap.rev,
     contentHash: (cad && cad.content_hash) || snap.content_hash,
-  });
+  };
+}
+
+function partDrawingsSection(ctx) {
+  return partDrawingsSheet(Object.assign(cadStampOf(ctx), { include: isInHouseRow }));
+}
+
+/** CAD 베타 PR17b: 모듈 단면도 — 동결 명세의 모듈마다 옆 단면. 도장은 판재 도면과 같다. 명세가 없으면 쪽이 없다. */
+function moduleSectionsSection(ctx) {
+  return moduleSectionsSheet(cadStampOf(ctx));
 }
 
 const PACK_SECTIONS = {
-  all: [coverSheet, moduleSheets, moduleDrawingsSheet, kittingSheets, (ctx) => cutSheets(ctx) + partDrawingsSection(ctx), hardwareSheet, assemblySheet, diffSheet, doorOrderSheet, labelSheets, (ctx) => (hasCountertop(ctx.snapshot && ctx.snapshot.bom_payload) ? countertopSheets(ctx) : '')],
+  all: [coverSheet, moduleSheets, (ctx) => moduleDrawingsSheet(ctx) + moduleSectionsSection(ctx), kittingSheets, (ctx) => cutSheets(ctx) + partDrawingsSection(ctx), hardwareSheet, assemblySheet, diffSheet, doorOrderSheet, labelSheets, (ctx) => (hasCountertop(ctx.snapshot && ctx.snapshot.bom_payload) ? countertopSheets(ctx) : '')],
   // 판재 도면은 재단 쪽 바로 뒤에 붙인다 (없으면 '' — 옛 스냅샷의 묶음은 바이트 그대로)
   cut: [(ctx) => packHeader(ctx, 'cut'), (ctx) => cutSheets(ctx) + partDrawingsSection(ctx)],
   // 외주처 종이 — 고객 이름·설계 제목·특기사항·정면도·시간 없음 (door 와 같은 원칙)
   'cut-vendor': [(ctx) => packHeader(ctx, 'cut-vendor'), (ctx) => cutSheets(ctx, { vendor: true })],
-  assembly: [(ctx) => packHeader(ctx, 'assembly'), moduleSheets, moduleDrawingsSheet, kittingSheets, hardwareSheet, assemblySheet, diffSheet],
+  // 모듈 단면도는 치수도 바로 뒤에 붙인다 (없으면 '' — 옛 스냅샷의 묶음은 바이트 그대로)
+  assembly: [(ctx) => packHeader(ctx, 'assembly'), moduleSheets, (ctx) => moduleDrawingsSheet(ctx) + moduleSectionsSection(ctx), kittingSheets, hardwareSheet, assemblySheet, diffSheet],
   door: [doorOrderSheet], // 외주처 종이 — 고객 정보가 든 머리를 붙이지 않는다
   top: [countertopSheets], // 상판 업체 종이 — 도어재 발주서와 같은 원칙
   labels: [(ctx) => packHeader(ctx, 'labels'), labelSheets],
