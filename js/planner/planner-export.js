@@ -228,7 +228,9 @@ function plannerExportCadSpec(P, deps) {
   lineDefs.forEach((ln) => (ln.modules || []).forEach((e) => lineOf.set(String(e.plannerId), { ln, x: Number(e.x) || 0, back: Number(e.back) || 0 })));
   const lines = lineDefs.map((ln) => ({ key: ln.key, D: ln.D, modules: [] }));
   conv.modules.forEach((mod) => {
-    const hit = String(mod.id).match(PLANNER_EXPORT_CELL_RE);
+    // 멍장 corner-blind-{pos}[-k] 은 id 에 플래너 id 가 없다 — 브리지가 실은 출처(_plannerId)로 잇는다 (2026-10-25). 상자 하나
+    const hit = String(mod.id).match(PLANNER_EXPORT_CELL_RE)
+      || (/^corner-blind-/.test(String(mod.id)) && mod._plannerId != null ? [mod.id, String(mod._plannerId), 'blind'] : null);
     if (!hit) return;
     const pm = byId.get(hit[1]);
     if (!pm) return;
