@@ -1191,6 +1191,10 @@
     const legH = parseFloat(specs.sinkLegHeight) || 150;
     const rawOf = (moduleKey) => { const mm = String(moduleKey).match(/^\d+-(.*)$/); return mm ? (item.modules || []).find((x) => String(x.id) === mm[1]) : null; };
     const isTallTier = (mod) => !!mod && (mod.type === 'tall' || mod.blindKind === 'tall');
+    // 2026-10-24 사장님 (모듈 라이브러리 Q2 "BOM 먼저"): 하부 섹션에 바닥 다리발로 서는 상자 모듈(오픈장 · 홈카페)도
+    //   일반 하부장과 같은 4모서리 다리발. 브리지가 하부 섹션 모듈에만 heightParts.legH 를 준다 — 키큰장 단의 상자는 좌대가 받친다.
+    const boxOnLegs = (m, mod) => (m.kind === 'open' || m.kind === 'homecafe')
+      && !!(mod && mod.heightParts && Number(mod.heightParts.legH) > 0);
     hwRows.forEach((row, hwIdx) => {
       const base = { hwIdx, category: row.category, item: row.item, spec: row.spec };
       const push = (m, e) => m.hardware.push(Object.assign({}, base, e));
@@ -1206,7 +1210,7 @@
           if (!m) return;
           const n = countOf(mod);
           if (total !== row.qty) { push(m, { kind: 'leg', qty: n, at: null, pending: 'hardware-count-mismatch' }); return; }
-          if (isTallTier(mod) || m.kind !== 'lower') { push(m, { kind: 'leg', qty: n, at: null, pending: 'leg-tall-tier' }); return; }
+          if (isTallTier(mod) || (m.kind !== 'lower' && !boxOnLegs(m, mod))) { push(m, { kind: 'leg', qty: n, at: null, pending: 'leg-tall-tier' }); return; }
           const b = m.box, half = C.LEG_SIZE / 2;
           const xs = [-b.W / 2 + C.LEG_INSET + half, b.W / 2 - C.LEG_INSET - half];
           const zFront = b.D / 2 - C.KICK_SETBACK - C.KICK_T - half, zBack = -b.D / 2 + C.LEG_INSET + half;
