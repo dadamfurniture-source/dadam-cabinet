@@ -40,7 +40,8 @@
  *            밥솥장 도어 (W − 4) × (H − 4) 는 측판 앞선에 붙어 가운데 (openBoxOf)
  *   라인 부재 (품목 단위 행 `<품목>-ep`, 2026-10-22) — items[].runs[] 에 호스트 모듈(라인 첫 모듈) 좌표로 낸다 (runsOf).
  *            부르는 쪽이 벽(배치 공간)마다 모듈의 x 를 넘긴다 (opts.lines) — 없으면 전부 unplaced 'run-part'.
- *            상판   하부 라인(키큰장 단 뺀 하부장 + 좌우 마감 폭) 위 한 장, 뒤 = 벽, 깊이 = 행 h (2026-10-18 사장님: 배치 깊이, 오버행 없음)
+ *            상판   하부 라인(키큰장 단 뺀 하부장 + 좌우 마감 폭) 위 한 장, 뒤 = 벽, 깊이 = 행 h (2026-10-18 사장님: 배치 깊이, 오버행 없음).
+ *                   벽은 호스트 몸통 뒷면에서 lines 의 back 만큼 뒤 (2026-10-24 사장님 D3: 몸통 뒤를 벽에서 띄워 설치 — 배관 자리)
  *            상몰딩 상부 라인(후드 뺀 상부장) 위 띠 — 키큰장 상몰딩과 같은 자리 (2026-10-20 카드 "도어 앞면 맞춤")
  *            목찬넬 EP (전면 52 · 지면 40 × 라인 폭) — 하부 라인 측판 따내기 70×40 자리의 ㄴ자, 키큰장 단 ㄴ자와 같은 자리
  *            걸레받이 (벽 길이 × 다리발−5) — 벽마다 하부 라인 폭 한 장, 바닥에 붙여 (틈 5 는 위, 캐쳐), 앞면 = 몸통 앞선 − 32 (2026-10-22 카드 "몸통 앞선에서 32 안쪽").
@@ -1029,7 +1030,8 @@
 
   /**
    * 라인 부재 — 품목 단위 행(moduleKey `<품목>-ep`)을 호스트 모듈 좌표로 놓는다.
-   *   lines = [{ key, D, modules: [{ moduleKey, x0 }] }] — 벽(배치 공간)마다, x0 = 모듈 왼쪽 끝 (벽 시작 기준 mm). 모듈 뒷면은 벽.
+   *   lines = [{ key, D, modules: [{ moduleKey, x0, back? }] }] — 벽(배치 공간)마다, x0 = 모듈 왼쪽 끝 (벽 시작 기준 mm).
+   *     back = 모듈 몸통 뒷면에서 벽까지 (mm, 배치가 정한 뒤 여유). 없으면 0 — 몸통 뒷면이 벽.
    *   구간(span) = 그 행이 세는 모듈들 — 라인 안에서 붙어 있어야 하고(사이에 안 세는 모듈이 없음), 높이가 같아야 한다.
    *   행 치수가 구간과 다르면 'run-layout-unknown' (ㄱ·ㄷ자 한 장 상판, 후드가 가운데인 상몰딩 등).
    * @returns {{runs:Array, unplaced:Array}}
@@ -1048,7 +1050,7 @@
     const lineList = (Array.isArray(lines) ? lines : []).map((ln) => ({
       key: ln.key, D: Number(ln.D) || 0,
       // 명세 모듈이 없는 모듈(쿡탑장처럼 BOM 행이 없는 것)도 폭은 센다 — 상판이 그 위를 지난다. 호스트는 될 수 없다
-      entries: (ln.modules || []).map((e) => ({ mk: String(e.moduleKey), x0: Number(e.x0) || 0, spec: byKey.get(String(e.moduleKey)) || null, mod: rawOf(e.moduleKey) }))
+      entries: (ln.modules || []).map((e) => ({ mk: String(e.moduleKey), x0: Number(e.x0) || 0, back: Math.max(0, Number(e.back) || 0), spec: byKey.get(String(e.moduleKey)) || null, mod: rawOf(e.moduleKey) }))
         .filter((e) => e.mod).map((e) => Object.assign(e, { W: e.spec ? e.spec.box.W : (Number(e.mod.w) || 0) })).sort((a, b) => a.x0 - b.x0),
     }));
     /** 한 라인에서 pred 가 세는 모듈 구간. 라인에 세는 모듈이 없으면 null. 같은 pos(하부/상부) 줄 안에서 사이에 안 세는 모듈이 있거나
@@ -1084,12 +1086,13 @@
       if (!lineList.length) { skip(row, 'run-part'); return; }
       switch (key.family) {
         case 'top': {
-          // 상판 — 하부 라인(쿡탑장 포함, 키큰장 단 제외) 폭 합 + 좌·우 마감 폭 한 장, 뒤 = 벽, 깊이 = 행 h, 몸통 위
+          // 상판 — 하부 라인(쿡탑장 포함, 키큰장 단 제외) 폭 합 + 좌·우 마감 폭 한 장, 뒤 = 벽, 깊이 = 행 h, 몸통 위.
+          //   벽 = 호스트 몸통 뒷면 − back (2026-10-24 D3: 몸통은 벽에서 뒤 여유만큼 떠 있다, 상판은 벽까지)
           const span = onlySpan(lowerLine);
           const finL = finW(specs.finishLeftType, specs.finishLeftWidth), finR = finW(specs.finishRightType, specs.finishRightWidth);
           if (!span || row.qty !== 1 || row.w !== span.x1 - span.x0 + finL + finR) { skip(row, 'run-layout-unknown'); return; }
           const b = span.host.spec.box;
-          put(row, span, { o: [xOf(span, span.x0 - finL), b.H, -b.D / 2], u: '+x', v: '+z', n: '+y' }, 'exterior', { run: 'top' });
+          put(row, span, { o: [xOf(span, span.x0 - finL), b.H, -b.D / 2 - span.host.back], u: '+x', v: '+z', n: '+y' }, 'exterior', { run: 'top' });
           return;
         }
         case 'molding': {
@@ -1283,7 +1286,7 @@
    *   materials   이미 뽑은 BOM 행 (없으면 MaterialExtractor 로 뽑는다)
    *   shelfY      { [moduleKey]: number[] } 선반 중심 높이 (몸통 바닥에서, mm)
    *   place       { [moduleKey]: {...} } 모듈을 세우는 자리 — 그대로 싣는다
-   *   lines       { [itemIdx]: [{ key, D, modules: [{ moduleKey, x0 }] }] } 벽(배치 공간)마다 모듈 왼쪽 끝 x0 — 라인 부재(runsOf) 자리
+   *   lines       { [itemIdx]: [{ key, D, modules: [{ moduleKey, x0, back? }] }] } 벽(배치 공간)마다 모듈 왼쪽 끝 x0 · 몸통 뒤 여유 back — 라인 부재(runsOf) 자리
    *   hardware    이미 뽑은 철물 행 (없으면 HardwareExtractor 로 뽑는다; 추출기가 없으면 hardware[] 는 빈다)
    */
   function of(design, opts) {
