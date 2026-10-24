@@ -36,6 +36,7 @@ build123d·cadgen 을 사이트에 올리지 않는다. 오늘 CAD 로 실제로
 |---|---|---|---|
 | D6 (일부) | 2026-10-18 · 10-19 보충 | 상세설계 화면은 **로그인한 모든 회원**(무료 standard 포함)에게 열림. 비로그인만 막힘, 관리자는 항상 열림 (10-18 의 "standard 이상"은 standard 가 무료 가입 등급이라 10-19 에 "모든 회원"으로 확인) | PR0a(#860) 게이트 기준은 "로그인 여부". 파트너 접근은 미정 |
 | D6 (일부) | 2026-10-19 | 고객 확인서에 **외관 정면도·아이소를 넣음**, 3D 는 나중 | PR0b 시작 가능. 내부 부재(뒷판·처짐방지목·따내기·밴드)는 그리지 않음. 고객용 외관 GLB 는 PR16 뒤 |
+| D6 (일부) | 2026-10-24 | 고객 확인서에 **외관 3D 미리보기**를 넣음 (따낸 판 모양은 그대로, partId 는 숨김) | 관리자가 지은 동결본 외관 GLB 가 있을 때만 |
 | D6 (남음) | — | 파트너의 상세설계 접근, 파트너 외관 파일 제공 | 미정 |
 | D11 | 2026-10-18 | 승인: BOM = `assembly-rules.js` · `bom-assembly.js` · `assembly-check.js` · `tools/cad/**` · `cad-oracle.yml` / 플래너 = `planner-assembly-mesh.js` · `planner-export.js` / 워크플로 = `part-drawing.js` · `module-section.js` · `dxf-writer.js` · `js/detaildesign/workflow-client.js` | CLAUDE.md 도메인 표에 반영. 이 PR 머지 뒤부터 PR2·PR3 시작 가능. `planner-bridge.js` 는 D11 목록에 없어 아직 소유자 없음 |
 | D12 | 2026-10-20 | 하부 선반 = 측판 깊이 − **T** (몸통 판 두께: 15T −15, 18T −18). 상부 D−34 는 그대로 | 규칙 표·명세의 하부 선반 깊이는 T 로 계산 |
