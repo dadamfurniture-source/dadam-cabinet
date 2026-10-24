@@ -34,7 +34,9 @@ const convertFull = (p) => raw._convertPlannerModules(p);
 function payload(overrides = {}) {
   return {
     modules: [
-      { id: 'lower-0', section: 'lower', W: 1800, H: 870, D: 650, x: 0, y: 0 },
+      // 2026-10-24 D9: 도면 마감재(우 휠라) — 없으면 '마감재를 발주하지 않습니다' 경고가 붙는다
+      { id: 'lower-0', section: 'lower', W: 1800, H: 870, D: 650, x: 0, y: 0,
+        finishings: [{ section: 'filler', W: 60, H: 678, D: 650, x: 1800, y: 0, side: 'right', edge: 'right', baseY: 150, area: 'lower', partW: 60 }] },
       // H 는 **전체 높이**다 (상부 780 = 몸통 720 + 상몰딩 60).
       // 예전엔 720(몸통값)이 박혀 있어 전체→몸통 변환 누락이 가려져 있었다.
       { id: 'upper-0', section: 'upper', W: 1800, H: 780, D: 320, x: 0, y: 1000 },

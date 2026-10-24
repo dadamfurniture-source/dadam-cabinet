@@ -41,15 +41,18 @@ function loadBanner() {
 const convert = loadConverter()._convertPlannerModules;
 
 /** 자동계산을 안 돌린 하부장 하나 — '자동계산 전 … 통짜' 경고 1건 */
+/** 2026-10-24 D9: 도면 마감재 한 장 — 없으면 '마감재를 발주하지 않습니다' 경고가 따로 붙는다 (아래 시험) */
+const FIN = [{ section: 'filler', W: 60, H: 678, D: 650, x: 0, y: 0, side: 'left', edge: 'left', baseY: 150, area: 'lower', partW: 60 }];
+
 const NO_AUTOCALC = {
-  modules: [{ id: 'lower-0', section: 'lower', W: 1200, H: 870, D: 650, x: 0, y: 0 }],
+  modules: [{ id: 'lower-0', section: 'lower', W: 1200, H: 870, D: 650, x: 0, y: 0, finishings: FIN }],
   structures: {},
   hasStructures: false,
 };
 
 /** 자동계산은 했지만 350mm 미만 잔여(blank) 칸이 남은 하부장 — 안내 1건 */
 const WITH_BLANK = {
-  modules: [{ id: 'lower-0', section: 'lower', W: 800, H: 870, D: 650, x: 0, y: 0 }],
+  modules: [{ id: 'lower-0', section: 'lower', W: 800, H: 870, D: 650, x: 0, y: 0, finishings: FIN }],
   structures: {
     'lower-0': { areaTypes: ['door', 'blank'], areaWidths: [600, 200], areaIs2D: [false, false], shelves: [] },
   },
@@ -244,9 +247,16 @@ describe('닫기 (✕) — 설계+품목 단위로 sessionStorage 에 기억', (
 });
 
 describe('0건 · 품목 전환', () => {
+  test('D9: 도면에 좌·우 마감재가 없으면 경고 (붙박이장 통만이면 없음)', () => {
+    const struct = { 'lower-0': { areaTypes: ['door'], areaWidths: [1200], areaIs2D: [false], shelves: [] } };
+    const { warnings } = convert({ modules: [{ id: 'lower-0', section: 'lower', W: 1200, H: 870, D: 650, x: 0, y: 0 }], structures: struct, hasStructures: true });
+    expect(warnings).toEqual(['도면에 좌·우 마감재(휠라 · 몰딩 · EP)가 없어 마감재를 발주하지 않습니다 — 필요하면 구조 화면에서 영역 끝 마감을 넣어 주세요']);
+    expect(api._pbwSeverity(warnings[0])).toBe('warn');
+  });
+
   test('경고가 없으면 배너도 배지도 없다', () => {
     const { warnings } = convert({
-      modules: [{ id: 'lower-0', section: 'lower', W: 1200, H: 870, D: 650, x: 0, y: 0 }],
+      modules: [{ id: 'lower-0', section: 'lower', W: 1200, H: 870, D: 650, x: 0, y: 0, finishings: FIN }],
       structures: {
         'lower-0': { areaTypes: ['door', 'door'], areaWidths: [600, 600], areaIs2D: [false, false], shelves: [] },
       },
