@@ -44,9 +44,12 @@ describe('BOM 골든 — 싱크대 15T (sink15)', () => {
     expect(parts('하부장-하부장(2D)')).toContain('선반');
     // 서랍장 800×2 (도어 1 + 서랍 2단): 서랍 부재 + 하단보강(전후판 728>600) + 서랍도어 + 도어
     //   + 중간 목찬넬(전면판 72·지면판 40) — 2026-09-15 서랍장 규칙 (bom-drawer-rules.js). 옛 '목찬넬 120×W' 는 없다.
-    expect(parts('하부장-서랍장')).toEqual(expect.arrayContaining([
-      '서랍전후판', '서랍측판', '서랍밑판', '서랍 하단보강', '서랍도어', '도어', '목찬넬(중간 전면)', '목찬넬(중간 지면)',
+    //   2026-10-25 사장님: 위 도어 + 아래 서랍은 두 몸통 — 도어 모듈(도어 · 처짐방지목) + 서랍 모듈(`-서랍모듈`: 서랍 부재 · 중간 목찬넬)
+    expect(parts('하부장-서랍장')).toEqual(expect.arrayContaining(['측판', '지판', '밴드', '뒷판', '밴드(처짐방지)', '도어']));
+    expect(parts('하부장-서랍장-서랍모듈')).toEqual(expect.arrayContaining([
+      '측판', '지판', '밴드', '뒷판', '서랍전후판', '서랍측판', '서랍밑판', '서랍 하단보강', '서랍도어', '목찬넬(중간 전면)', '목찬넬(중간 지면)',
     ]));
+    expect(parts('하부장-서랍장-서랍모듈')).not.toContain('밴드(처짐방지)');
     expect(parts('하부장-서랍장')).not.toContain('목찬넬');
     // 가스대는 몸통 없음
     expect(snap.materials.some((m) => /가스대/.test(m.module))).toBe(false);

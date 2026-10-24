@@ -186,10 +186,13 @@ describe('sink15 자리 (확정 사실)', () => {
       .toEqual([[623, 638, 105, 175], [693, 708, -175, -105]]);
   });
 
-  test('미정은 unplaced 에 이유와 함께 — 서랍장 처짐방지목(D2)', () => {
+  test('위 도어 + 아래 서랍 처짐방지목은 도어 모듈 안 — 지판 위 ~ 앞 밴드 아래 (2026-10-25 D2, 두 몸통)', () => {
     const reasons = (id) => spec.unplaced.filter((u) => u.rowPartId.indexOf(`0-${id}-`) === 0);
     expect(reasons('u1').filter((u) => u.part === '밴드(보강목)')).toEqual([]);
-    expect(reasons('l2').find((u) => u.part === '밴드(처짐방지)').reason).toBe('pending-owner D2');
+    expect(reasons('l2')).toEqual([]);
+    // l2 (800 · 708, 도어 + 서랍 2단): 도어 모듈 276 이 서랍 모듈 432 위 — 처짐방지목 y 432 + 15 … 708 − 70 − 15, 앞선 가운데
+    const br = mod('l2').parts.filter((p) => p.part === '밴드(처짐방지)');
+    expect(br.map((p) => p.box)).toEqual([{ min: [-35, 447, 260], max: [35, 623, 275] }]);
     // 중간 따내기는 서랍 레이아웃이 자리를 정한다 (아래 l2 시험) — 더는 pending 이 아니다
     expect(mod('l2').pending).not.toContain('channel-mid-notch');
   });
@@ -248,7 +251,18 @@ describe('sink15 자리 (확정 사실)', () => {
     // 중간 목찬넬 ㄴ자 — 따낸 자리(90×40) 바닥 160 에 지면판, 그 위 안쪽 끝에 전면판 72 (앞 22 가 손 자리)
     expect(box('목찬넬(중간 지면)')).toEqual({ min: [-400, 160, 235], max: [400, 178, 275] });
     expect(box('목찬넬(중간 전면)')).toEqual({ min: [-400, 178, 235], max: [400, 250, 253] });
-    expect(part(m, '측판').features.filter((f) => f.type === 'notch').map((f) => [f.src, f.v0, f.v1])).toEqual([['channel-top', 638, 708], ['channel-mid', 160, 250]]);
+    // 2026-10-25 두 몸통: 도어 모듈 측판(276, y 432 부터)은 상단 따내기, 서랍 모듈 측판(432, 바닥부터)은 중간 따내기
+    const sides = m.parts.filter((p) => p.part === '측판' && p.tags.side === 'left');
+    expect(sides.map((p) => [p.box.min[1], p.box.max[1], p.features.filter((f) => f.type === 'notch').map((f) => [f.src, f.v0, f.v1])])).toEqual([
+      [432, 708, [['channel-top', 206, 276]]],
+      [0, 432, [['channel-mid', 160, 250]]],
+    ]);
+    // 몸통마다 지판 · 밴드 2 · 뒷판 — 도어 모듈 지판이 서랍 모듈 뒤 밴드 바로 위
+    expect(m.parts.filter((p) => p.part === '지판').map((p) => [p.box.min[1], p.box.max[1]])).toEqual([[432, 447], [0, 15]]);
+    expect(m.parts.filter((p) => p.part === '밴드').map((p) => [p.tags.end, p.box.min[1], p.box.max[1]])).toEqual([
+      ['front', 623, 638], ['back', 693, 708], ['front', 417, 432], ['back', 417, 432],
+    ]);
+    expect(m.parts.filter((p) => p.part === '뒷판').map((p) => [p.box.min[1], p.box.max[1]])).toEqual([[432.5, 707.5], [0.5, 431.5]]);
     expect(m.pending).toEqual([]);
   });
 
@@ -298,7 +312,8 @@ describe('sink15 자리 (확정 사실)', () => {
     const materials = new MaterialExtractor().extract(design).materials;
     const s = Asm.of(design, { materials, MaterialExtractor: function () { return { drawerLayoutOf: () => null }; } });
     const un = s.unplaced.filter((u) => u.moduleKey === '0-l2').map((u) => [u.part, u.reason]);
-    expect(un).toEqual(expect.arrayContaining([['도어', 'door-layout-unknown'], ['서랍도어', 'drawer-layout-unknown'], ['목찬넬(중간 전면)', 'drawer-layout-unknown']]));
+    // 2026-10-25 두 몸통: 레이아웃이 없으면 나눈 자리도 모른다 — 몸통째 놓지 않는다
+    expect(un).toEqual(expect.arrayContaining([['측판', 'drawer-layout-unknown'], ['도어', 'drawer-layout-unknown'], ['서랍도어', 'drawer-layout-unknown'], ['목찬넬(중간 전면)', 'drawer-layout-unknown']]));
   });
 
   test('도어 장수·폭이 플래너 칸 규칙과 다르면 놓지 않는다 (door-layout-unknown)', () => {

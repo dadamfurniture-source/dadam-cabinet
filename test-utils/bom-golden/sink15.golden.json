@@ -731,20 +731,20 @@
       "material": "PB",
       "thickness": 15,
       "w": 550,
-      "h": 708,
+      "h": 276,
       "qty": 2,
       "edge": "3면",
-      "note": "목찬넬 따내기 상단 70×40 + 중간 90×40 ×1",
+      "note": "목찬넬 따내기 상단 70×40",
       "finishCode": "",
       "partId": "0-l2-body:side-0",
       "slot": "body",
       "edges": {
         "L": true,
-        "R": false,
+        "R": true,
         "T": true,
-        "B": true
+        "B": false
       },
-      "edgeLen": 1808,
+      "edgeLen": 1102,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-l2",
@@ -806,7 +806,7 @@
       "material": "MDF",
       "thickness": 3,
       "w": 799,
-      "h": 707,
+      "h": 275,
       "qty": 1,
       "edge": "-",
       "note": "측판 뒤 덮음",
@@ -831,7 +831,7 @@
       "material": "PB",
       "thickness": 15,
       "w": 70,
-      "h": 608,
+      "h": 176,
       "qty": 1,
       "edge": "2면(장)",
       "note": "",
@@ -844,7 +844,107 @@
         "T": false,
         "B": false
       },
-      "edgeLen": 1216,
+      "edgeLen": 352,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "moduleKey": "0-l2",
+      "itemLabel": "싱크대"
+    },
+    {
+      "module": "하부장-서랍장-서랍모듈",
+      "part": "측판",
+      "material": "PB",
+      "thickness": 15,
+      "w": 550,
+      "h": 432,
+      "qty": 2,
+      "edge": "3면",
+      "note": "목찬넬 따내기 중간 90×40 ×1",
+      "finishCode": "",
+      "partId": "0-l2-body:side-1",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": true,
+        "B": false
+      },
+      "edgeLen": 1414,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "moduleKey": "0-l2",
+      "itemLabel": "싱크대"
+    },
+    {
+      "module": "하부장-서랍장-서랍모듈",
+      "part": "지판",
+      "material": "PB",
+      "thickness": 15,
+      "w": 770,
+      "h": 550,
+      "qty": 1,
+      "edge": "1면(전)",
+      "note": "",
+      "finishCode": "",
+      "partId": "0-l2-body:bottom-1",
+      "slot": "body",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": true
+      },
+      "edgeLen": 770,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "moduleKey": "0-l2",
+      "itemLabel": "싱크대"
+    },
+    {
+      "module": "하부장-서랍장-서랍모듈",
+      "part": "밴드",
+      "material": "PB",
+      "thickness": 15,
+      "w": 70,
+      "h": 770,
+      "qty": 2,
+      "edge": "2면(장)",
+      "note": "",
+      "finishCode": "",
+      "partId": "0-l2-body:band#1-0",
+      "slot": "body",
+      "edges": {
+        "L": true,
+        "R": true,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 1540,
+      "edgeT": 0.6,
+      "edgeCode": null,
+      "moduleKey": "0-l2",
+      "itemLabel": "싱크대"
+    },
+    {
+      "module": "하부장-서랍장-서랍모듈",
+      "part": "뒷판",
+      "material": "MDF",
+      "thickness": 3,
+      "w": 799,
+      "h": 431,
+      "qty": 1,
+      "edge": "-",
+      "note": "측판 뒤 덮음",
+      "finishCode": "",
+      "partId": "0-l2-back-1",
+      "slot": "back",
+      "edges": {
+        "L": false,
+        "R": false,
+        "T": false,
+        "B": false
+      },
+      "edgeLen": 0,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-l2",
@@ -876,7 +976,7 @@
       "itemLabel": "싱크대"
     },
     {
-      "module": "하부장-서랍장",
+      "module": "하부장-서랍장-서랍모듈",
       "part": "서랍도어",
       "material": "MDF",
       "thickness": 18,
@@ -901,7 +1001,7 @@
       "itemLabel": "싱크대"
     },
     {
-      "module": "하부장-서랍장",
+      "module": "하부장-서랍장-서랍모듈",
       "part": "서랍전후판",
       "material": "PB",
       "thickness": 15,
@@ -926,7 +1026,7 @@
       "itemLabel": "싱크대"
     },
     {
-      "module": "하부장-서랍장",
+      "module": "하부장-서랍장-서랍모듈",
       "part": "서랍측판",
       "material": "PB",
       "thickness": 15,
@@ -951,7 +1051,7 @@
       "itemLabel": "싱크대"
     },
     {
-      "module": "하부장-서랍장",
+      "module": "하부장-서랍장-서랍모듈",
       "part": "서랍전후판",
       "material": "PB",
       "thickness": 15,
@@ -976,7 +1076,7 @@
       "itemLabel": "싱크대"
     },
     {
-      "module": "하부장-서랍장",
+      "module": "하부장-서랍장-서랍모듈",
       "part": "서랍측판",
       "material": "PB",
       "thickness": 15,
@@ -1001,7 +1101,7 @@
       "itemLabel": "싱크대"
     },
     {
-      "module": "하부장-서랍장",
+      "module": "하부장-서랍장-서랍모듈",
       "part": "서랍밑판",
       "material": "MDF",
       "thickness": 3,
@@ -1026,7 +1126,7 @@
       "itemLabel": "싱크대"
     },
     {
-      "module": "하부장-서랍장",
+      "module": "하부장-서랍장-서랍모듈",
       "part": "서랍 하단보강",
       "material": "PB",
       "thickness": 15,
@@ -1051,7 +1151,7 @@
       "itemLabel": "싱크대"
     },
     {
-      "module": "하부장-서랍장",
+      "module": "하부장-서랍장-서랍모듈",
       "part": "목찬넬(중간 전면)",
       "material": "MDF",
       "thickness": 18,
@@ -1076,7 +1176,7 @@
       "itemLabel": "싱크대"
     },
     {
-      "module": "하부장-서랍장",
+      "module": "하부장-서랍장-서랍모듈",
       "part": "목찬넬(중간 지면)",
       "material": "MDF",
       "thickness": 18,
@@ -1680,13 +1780,13 @@
     "PB_15": {
       "material": "PB",
       "thickness": 15,
-      "totalArea": 11825010,
-      "panelCount": 4
+      "totalArea": 12326070,
+      "panelCount": 5
     },
     "MDF_3": {
       "material": "MDF",
       "thickness": 3,
-      "totalArea": 5109471,
+      "totalArea": 5108672,
       "panelCount": 2
     },
     "MDF_18": {
@@ -1704,7 +1804,7 @@
   },
   "edgeBanding": {
     "1": 30114,
-    "0.6": 109116
+    "0.6": 113518
   },
   "hardware": [
     {
