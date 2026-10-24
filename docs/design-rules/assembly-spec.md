@@ -206,3 +206,8 @@ JS 조립 검사가 맞는지 실제 CAD 커널(build123d / OCC)로 따로 확�
 - 철물(2026-10-22): `hardware[]` 중 `at`·`size` 가 있는 다리발을 모듈 노드 아래 상자(`<moduleKey>·leg#k`, extras `hardware: 'leg'`·`category`·`item`·`spec`·`tags`)로 싣는다. `at` 은 밑면 가운데라 상자 가운데 y = `at[1] + size[1]/2`. 레일(언더레일 두께 0, 볼레일은 높이 치수가 규칙에 없음)·경첩(컵 자리만, 철물 치수 없음)은 상자 치수가 없어 싣지 않는다 — 루트 extras `hardware` 에 실은 수.
 - 라인 부재(`items[].runs[]`, 2026-10-22): 플래너가 벽(같은 각·같은 뒷선 y 의 배치 공간 묶음)마다 모듈 x 를 `lines` 로 넘기고, 명세는 상판·상몰딩·목찬넬 EP·걸레받이·좌우 마감재를 호스트 모듈(구간 첫 모듈) 좌표로 낸다 (걸레받이는 벽마다 run 하나). GLB 는 그 판을 호스트 모듈 노드 아래에 싣고 extras `run` 에 벽 키, `moduleKey` 는 `<품목>-ep`.
 - 선반 높이는 플래너 구조의 `s.shelves`. BOM 선반 장수와 다르면 선반은 놓지 않는다.
+- PR16a (2026-10-24): 루트 extras 에 `assemblyHash` (명세의 SHA-256, 키 정렬 직렬화 `plannerExportStableJson`) · `generator` (`planner-export-cad/1`) · `vis`.
+  `plannerExportCadScene(…, { vis: 'exterior' })` 는 명세 `vis` 가 exterior 인 판재만 싣는다 (철물 · 속 판재 없음, 판재 없는 모듈 노드도 없음) — 외관 GLB, 1MB 이하 시험
+- 보관 (PR16): 표 `design_cad_artifacts` + 비공개 버킷 `cad` (`database/design-cad-artifacts.sql`, 되돌리기 `-rollback.sql`). 쓰기는 워커(service_role)만 — 브라우저가 보낸 GLB 의 `assemblyHash` 가
+  동결 스냅샷 `bom_payload.assembly` 의 해시와 같아야 동결본으로 남긴다. 그래서 동결본 GLB 는 **동결된 명세 그대로**에 플래너 자리(frameOf)만 입혀 만든다
+  (플래너 실시간 명세는 선반 높이 · 벽 라인 · 철물을 더 넣어 해시가 다르다). 관리자 읽기 정책만, 고객용은 `exterior/` 접두사 + 워커 서명 URL (PR16b)
