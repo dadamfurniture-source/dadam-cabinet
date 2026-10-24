@@ -651,6 +651,22 @@ describe('라인 부재 runs[] — 상판 · 상몰딩 · 목찬넬 EP · 걸레
     expect(runOf(s, '휠라(좌)').parts[0].box).toEqual({ min: [-530, 0, 275], max: [-500, 2160, 293] });   // 좌 휠라 30, 앞면 = 도어 앞면 275 + 18
   });
 
+  test('2026-10-24 D3: 몸통이 벽에서 back 만큼 떠 있으면 상판 뒤 = 벽 (호스트 back), 앞선 = 도어 앞면 + 12 — 다른 라인 부재는 그대로', () => {
+    // 플래너 배치 650 = 물끊기 10 + 도어 자리 20 + 몸통 550 + 뒤 여유 70 (seatModuleDepth)
+    const ln = linesOf(FIXTURES.sink15)[0];
+    const back = 650 - 10 - 20 - 550;
+    const s = specWith('sink15', { 0: [Object.assign({}, ln, { modules: ln.modules.map((e) => Object.assign({ back }, e)) })] });
+    const plain = specWith('sink15', { 0: linesOf(FIXTURES.sink15) });
+    const top = runOf(s, '상판');
+    expect(top.parts[0].cut).toEqual({ w: 4130, h: 650 });
+    expect(top.parts[0].box).toEqual({ min: [-530, 708, -345], max: [3600, 720, 305] });
+    const doorFront = Math.max(...s.items[0].modules.find((m) => m.moduleKey === top.hostModuleKey).parts.filter((p) => p.tags && (p.tags.doorIdx != null || p.tags.drawerIdx != null)).map((p) => p.box.max[2]));
+    expect(top.parts[0].box.max[2] - doorFront).toBe(12);   // 물끊기 10 + 도어 자리 20 − 도어 18
+    const others = (x) => x.items[0].runs.filter((r) => r.parts[0].part !== '상판').map((r) => r.parts[0].box);
+    expect(others(s)).toEqual(others(plain));
+    expect(epOf(s)).toEqual(epOf(plain));
+  });
+
   test('하부 모듈이 두 벽에 걸치면 한 장 상판은 못 놓는다 (run-layout-unknown)', () => {
     const ln = linesOf(FIXTURES.sink15)[0];
     const lines = [{ key: 'a', D: 650, modules: ln.modules.slice(0, 3) }, { key: 'b', D: 650, modules: ln.modules.slice(3) }];
