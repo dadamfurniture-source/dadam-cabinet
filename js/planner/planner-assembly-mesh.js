@@ -38,9 +38,8 @@ const PLANNER_ASM_FAMILIES = Object.keys(PLANNER_ASM_GROUPS).reduce((a, k) => a.
  * 그때 예전 그리기(addTopPanel · addToeKick · addWoodChannel · addCrownMolding)를 끈다 (두 번 그리지 않는다).
  * 좌우 마감재(finish — 스펙의 휠라 · 몰딩 · EP)는 아직 그리지 않는다: 결정 D9(스펙 마감재를 도면 없이 낼지) 전이고,
  *   BOM 행 높이(품목 H − 다리발)가 키큰장 없는 싱크에서는 기둥처럼 선다. groups.finish 는 늘 drawn:false.
- * 상판(top)도 아직 그리지 않는다: 명세는 상판 뒤를 몸통 뒤끝(벽이라고 본다)에 두고 배치 깊이만큼 내 도어 앞으로 82 나온다.
- *   플래너는 몸통을 벽에서 70 띄워 두므로(배치 깊이 650 = 뒤 70 + 몸통 550 + 앞 30) 2026-10-18 결정 "배치 깊이, 오버행 없음" 과
- *   어긋난다 — 명세(bom-assembly.js runsOf 'top') 자리를 확인할 때까지 예전 그리기. groups.top 은 늘 drawn:false.
+ * 상판(top)은 2026-10-24 사장님 D3 부터 명세로: 몸통은 벽에서 뒤 여유만큼 떠 있고(배치 650 = 뒤 70 + 몸통 550 + 앞 30),
+ *   상판은 벽까지 — 플래너가 lines 에 모듈 back(몸통 뒷면 → 벽)을 넘겨 명세 상판 뒤 = 벽 (bom-assembly.js runsOf 'top').
  */
 const PLANNER_ASM_RUN_GROUPS = {
   top: ['top'],
@@ -131,7 +130,6 @@ function plannerAssemblyRunsFor(asm) {
   });
   Object.keys(groups).forEach((g) => { if (!groups[g].parts.length) groups[g].drawn = false; });
   groups.finish.drawn = false;   // 결정 D9 전 — 위 설명
-  groups.top.drawn = false;      // 상판 뒤 기준(벽) 확인 전 — 위 설명
   return { groups, epKey };
 }
 const PLANNER_ASM_SHELF_COLOR = '#e8d8b8';

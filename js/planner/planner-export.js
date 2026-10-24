@@ -195,7 +195,8 @@ const PLANNER_EXPORT_CELL_RE = /^planner-(.+)-(\d+|open|rice|homecafe|el)$/;
  * 조립 명세와 모듈별 자리 단서를 만든다.
  * @param {Window} P  부모 창 — _currentStep2Item · _convertPlannerModules · MaterialExtractor · selectedItems
  * @param {{ payload: object, structureOf: Function, Assembly: object, lines?: Function }} deps
- *   lines() → [{ key, D, modules: [{ plannerId, x }] }] 벽(같은 각·같은 뒷선의 배치 공간 묶음)마다 플래너 모듈 왼쪽 끝 x (벽 시작 기준).
+ *   lines() → [{ key, D, modules: [{ plannerId, x, back? }] }] 벽(같은 각·같은 뒷선의 배치 공간 묶음)마다 플래너 모듈 왼쪽 끝 x (벽 시작 기준),
+ *     back = 몸통 뒷면 → 벽 (mm) — 명세 상판 뒤 = 벽 (2026-10-24 D3).
  *   라인 부재(상판·상몰딩·목찬넬 EP)를 호스트 모듈 좌표로 놓는 데 쓴다 — 없으면 라인 부재는 자리 미정.
  * @returns {{ spec: object, cells: Object<string, {plannerId: string, dx: number}> }}
  */
@@ -224,7 +225,7 @@ function plannerExportCadSpec(P, deps) {
   // 라인(벽)마다 변환 모듈의 왼쪽 끝 x0 — 플래너 모듈 x 에 칸 오프셋(mod._x − pm.x)을 더한다
   const lineOf = new Map();
   const lineDefs = typeof deps.lines === 'function' ? (deps.lines() || []) : [];
-  lineDefs.forEach((ln) => (ln.modules || []).forEach((e) => lineOf.set(String(e.plannerId), { ln, x: Number(e.x) || 0 })));
+  lineDefs.forEach((ln) => (ln.modules || []).forEach((e) => lineOf.set(String(e.plannerId), { ln, x: Number(e.x) || 0, back: Number(e.back) || 0 })));
   const lines = lineDefs.map((ln) => ({ key: ln.key, D: ln.D, modules: [] }));
   conv.modules.forEach((mod) => {
     const hit = String(mod.id).match(PLANNER_EXPORT_CELL_RE);
@@ -239,7 +240,7 @@ function plannerExportCadSpec(P, deps) {
     const s = typeof deps.structureOf === 'function' ? deps.structureOf(pm.id) : null;
     if (s && Array.isArray(s.shelves)) shelfY[mk] = s.shelves.map(Number).filter(Number.isFinite);
     const at = lineOf.get(hit[1]);
-    if (at) lines[lineDefs.indexOf(at.ln)].modules.push({ moduleKey: mk, x0: at.x + (box ? 0 : (Number(mod._x) || 0) - (Number(pm.x) || 0)) });
+    if (at) lines[lineDefs.indexOf(at.ln)].modules.push({ moduleKey: mk, x0: at.x + (box ? 0 : (Number(mod._x) || 0) - (Number(pm.x) || 0)), back: at.back });
   });
   // 서랍장 레이아웃도 BOM 과 같은 추출기로 (부모 창 전역 — iframe 에는 없다)
   const opts = { materials, shelfY, MaterialExtractor: P.MaterialExtractor };

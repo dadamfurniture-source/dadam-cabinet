@@ -179,6 +179,9 @@ describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
       expect(top.box.min[1]).toBe(708);   // 하부장 몸통 위
       expect(top.box.max[1]).toBe(720);
       expect(top.box.max[0] - top.box.min[0]).toBe(top.cut.w);   // 하부 폭 합 + 좌우 휠라
+      // D3 (2026-10-24): 뒤 = 벽 (몸통 뒤 여유만큼 뒤), 깊이 = 행 h → 앞선 = 도어 앞면(550/2 + 18) + 12 — 오버행 없음
+      expect(top.box.max[2] - top.box.min[2]).toBe(top.cut.h);
+      expect(top.box.max[2]).toBe(550 / 2 + 18 + 12);
       // GLB: 라인 부재는 호스트 모듈 노드 아래, extras.run 에 벽 키
       const node = gltf.nodes.find((n) => n.name === top.id);
       expect(node.extras).toMatchObject({ part: '상판', run: 'area-lower-0', moduleKey: '0-ep' });
