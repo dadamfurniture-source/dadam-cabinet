@@ -1,7 +1,8 @@
 # 모듈 라이브러리 — 계획·백로그·질문
 
-> 상태: 1단계 진행 (2026-10-24 사장님 승인). 도메인 **Module Library** (`agent/modlib-*`, CLAUDE.md 도메인 표).
-> 에이전트: `.claude/agents/module-library.md` · 역할 파일 `.claude/skills/agents/modlib/{engineer,designer,qa}.md`.
+> 상태: **별도 저장소로 옮김 (2026-10-24)** — 이 문서는 1단계 기록이다. 이 저장소의 `js/module-library` · `test-utils/module-library` · `tools/module-library` 는 지웠다 (§9).
+> 1단계 승인: 2026-10-24 사장님. 도메인 **Module Library** (`agent/modlib-*`, CLAUDE.md 도메인 표).
+> 에이전트: 새 저장소의 `.claude/agents/module-library.md` · `CLAUDE.md` (이 저장소의 에이전트 · 역할 파일은 옮기며 지웠다).
 > **2026-10-24 사장님: 라이브러리를 별도 저장소로** — 모듈 정의 정본은 `dadamfurniture-source/dadam-module-library` (비공개, 50종). §9.
 
 ## 0. 왜
@@ -172,6 +173,6 @@ plannerExportCadSpec (planner-export.js) → DadamAssembly.of → dadam.assembly
 | 모듈 | `modules/<묶음>/<id>/module.json` (선택값만, 이 문서 §2 형식) + 골든 · 정면도 · cad.json · STEP · GLB |
 | 50종 | 도어장 7 · 오픈 3 · 서랍장 40 (모든 레일 · 사쿠리 · 서랍 자재 · 손잡이에서 겹침 없는 전면 배치 13 × 언더레일 · 볼레일 · 사쿠리 + 18T 서랍 자재 1). 보류 1 (하부 오픈장 상자, Q2) |
 | 게이트 | 이 문서 §3 의 1~9 그대로 + 싱크대 손잡이 4종 |
-| 이 저장소의 `js/module-library` 등 | 그대로 둔다 (20종, 정본 아님). 2단계 "라이브러리에서 추가" 버튼 때 새 저장소 것을 가져오도록 정한다 |
+| 이 저장소의 `js/module-library` 등 | 2026-10-24 지웠다 (2차 서랍 규칙 변경 때 옛 골든을 같이 고치지 않게). 2단계 "라이브러리에서 추가" 버튼 때 새 저장소에서 데이터를 가져오는 길을 정한다 |
 
 엔진 규칙이 바뀌면(예: Q4 위 칸 서랍 박스) 새 저장소에서 서브모듈을 올리고 골든 · STEP 을 다시 만든다.
