@@ -99,9 +99,7 @@ describe('마감재(EP·몰딩·휠라) 전달', () => {
     expect(fn).toMatch(/isFixed:/);
   });
 
-  test('도면에 마감재가 있는데 스펙이 없음이면 경고한다', () => {
-    // EP·몰딩 자재는 모듈이 아니라 specs.finishLeft/RightType 에서 나온다.
-    // 플래너에 그리기만 해선 발주되지 않으므로 조용히 빠지면 안 된다.
+  test('2026-10-24 D9: 도면에 마감재가 있으면 스펙이 없음이어도 경고하지 않는다 (도면이 정본 — 그대로 발주)', () => {
     const payload = {
       modules: [{
         id: 'lower-0', section: 'lower', W: 900, H: 870, D: 550, x: 0, y: 0,
@@ -111,8 +109,10 @@ describe('마감재(EP·몰딩·휠라) 전달', () => {
         'lower-0': { horizontalLayout: 'doorOnly', areaTypes: ['door'], areaWidths: [900], areaIs2D: [true], shelves: [] },
       },
     };
-    const { warnings } = _convertPlannerModules(payload, { ...SPECS, finishLeftType: 'None', finishRightType: 'None' });
-    expect(warnings.join('\n')).toMatch(/마감재 1개/);
+    const specs = { ...SPECS, finishLeftType: 'None', finishRightType: 'None' };
+    const { warnings } = _convertPlannerModules(payload, specs);
+    expect(warnings.join('\n')).not.toMatch(/마감재/);
+    expect(specs.drawnFinishes.map((f) => f.section)).toEqual(['molding']);
   });
 
   test('스펙에 마감이 지정돼 있으면 경고하지 않는다', () => {
@@ -129,7 +129,7 @@ describe('마감재(EP·몰딩·휠라) 전달', () => {
     expect(warnings.join('\n')).not.toMatch(/마감재/);
   });
 
-  test('마감재가 없으면 경고도 없다', () => {
+  test('2026-10-24 D9: 도면에 마감재가 없으면 "발주하지 않습니다" 경고', () => {
     const payload = {
       modules: [{ id: 'lower-0', section: 'lower', W: 900, H: 870, D: 550, x: 0, y: 0 }],
       structures: {
@@ -137,6 +137,6 @@ describe('마감재(EP·몰딩·휠라) 전달', () => {
       },
     };
     const { warnings } = _convertPlannerModules(payload, SPECS);
-    expect(warnings.join('\n')).not.toMatch(/마감재/);
+    expect(warnings.join('\n')).toMatch(/마감재를 발주하지 않습니다/);
   });
 });

@@ -1688,23 +1688,13 @@
           warnings.push(`350mm 미만 잔여 ${blankDropped}칸은 캐비닛에서 제외했습니다 (휠라/마감 처리)`);
         }
 
-        // CD-3: 도면에 마감재를 붙였는데 스펙엔 '없음' 이면 BOM 에 안 잡힌다.
-        // EP·몰딩·휠라 자재는 모듈이 아니라 specs.finishLeft/RightType 에서 나오므로,
-        // 플래너에 그린 것만으로는 발주되지 않는다. 조용히 빠지지 않게 알린다.
-        // W12-62: 비움은 자재가 아니다 — 자리만 비워 둔 것이라 스펙과 무관하다.
-        //   세면 "마감재를 그렸는데 발주가 안 된다" 는 헛경고가 뜬다.
-        const plannerFinishings = src.reduce(
-          (n, m) => n + (m.finishings || []).filter((f) => (f && f.section) !== 'gap').length, 0);
-        if (plannerFinishings > 0) {
-          const sp = specs || {};
-          const noneL = !sp.finishLeftType || sp.finishLeftType === 'None';
-          const noneR = !sp.finishRightType || sp.finishRightType === 'None';
-          if (noneL && noneR) {
-            warnings.push(
-              `도면에 마감재 ${plannerFinishings}개가 있지만 좌·우 마감이 '없음' 으로 설정돼 ` +
-                `자재에 반영되지 않습니다 — 스펙에서 몰딩/휠라/EP 를 지정하세요`
-            );
-          }
+        // 2026-10-24 사장님 D9: 좌·우 마감재는 도면이 정본 — BOM 이 플래너에 놓은 마감재(specs.drawnFinishes, 아래)로 발주한다.
+        //   (예전 CD-3 경고 "도면 마감재가 스펙 '없음' 이라 반영 안 됨" 은 더는 맞지 않아 뺐다.)
+        //   도면에 마감재가 하나도 없으면(비움 포함) BOM 이 마감재를 내지 않는다 — 여기서 먼저 알린다. 발행 전 확인창에도 뜬다.
+        //   붙박이장 통만 있는 결과는 wardrobe.md 규칙(스펙 몰딩)이라 알리지 않는다.
+        const drawnCount = src.reduce((n, m) => n + (m.finishings || []).filter((f) => f && f.section).length, 0);
+        if (!drawnCount && out.some((m) => m.pos === 'lower' || m.pos === 'upper')) {
+          warnings.push('도면에 좌·우 마감재(휠라 · 몰딩 · EP)가 없어 마감재를 발주하지 않습니다 — 필요하면 구조 화면에서 영역 끝 마감을 넣어 주세요');
         }
 
         // 2026-10-24 사장님 D9: 좌·우 마감재(휠라 · 몰딩 · EP · 비움)는 **도면이 정본** — 플래너에 놓은 그대로 specs 에 적는다.
@@ -1948,9 +1938,9 @@
       const PBW_STYLE_ID = 'pbw-style';
       const PBW_STORAGE_PREFIX = 'pbw:dismissed:';
       /** 자동계산을 다시 돌려야 없어지는 경고 — 그 밖은 안내 */
-      const PBW_WARN_PATTERNS = ['자동계산 전', '멍 구간', '멍장 폭', '셀 폭 합'];
+      const PBW_WARN_PATTERNS = ['자동계산 전', '멍 구간', '멍장 폭', '셀 폭 합', '마감재를 발주하지 않습니다'];
       const PBW_HINT_WARN = '구조 단계에서 ⚡ 전체 자동계산 후 다시 넘기기 — 🎨 배치를 고쳤다면 구조에서 ⚡ 를 다시 돌려야 셀이 맞습니다';
-      const PBW_HINT_INFO = '안내만 있습니다 — 그대로 산출해도 됩니다. 잔여 구간·마감재는 사양(스펙)에서 확인하세요';
+      const PBW_HINT_INFO = '안내만 있습니다 — 그대로 산출해도 됩니다. 잔여 구간은 사양에서, 좌·우 마감재는 플래너 도면에서 확인하세요';
       /** 품목(scope)별 마지막 경고 묶음 — 품목을 바꾸면 그 품목 것으로 다시 그린다 */
       const _pbwByScope = {};
 
@@ -3588,6 +3578,7 @@
         </div>
         <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:6px;">
           <div style="font-size:10px;font-weight:700;color:#666;margin-bottom:4px;">마감</div>
+          <div style="font-size:9px;color:#888;margin-bottom:4px;">좌·우 마감재 발주는 플래너 도면 기준 (아래 좌측·우측은 미리보기용)</div>
           <div style="display:flex;flex-direction:column;gap:3px;">
             <div><label style="font-size:9px;color:#666;">상몰딩</label><input type="number" style="width:100%;font-size:11px;padding:2px 4px;" value="${item.specs.moldingH}" onchange="updateSpecValue(${item.uniqueId}, 'moldingH', this.value)"></div>
             <div><label style="font-size:9px;color:#666;">좌측</label><div style="display:flex;gap:2px;"><select style="flex:1;font-size:10px;" onchange="updateFinishType(${item.uniqueId}, 'Left', this.value)"><option value="Molding" ${item.specs.finishLeftType === 'Molding' ? 'selected' : ''}>몰딩</option><option value="Filler" ${item.specs.finishLeftType === 'Filler' ? 'selected' : ''}>휠라</option><option value="EP" ${item.specs.finishLeftType === 'EP' ? 'selected' : ''}>EP</option><option value="None" ${item.specs.finishLeftType === 'None' ? 'selected' : ''}>없음</option></select><input type="number" style="width:40px;font-size:10px;padding:1px;" value="${item.specs.finishLeftWidth}" onchange="updateSpecValue(${item.uniqueId}, 'finishLeftWidth', this.value)"></div></div>
