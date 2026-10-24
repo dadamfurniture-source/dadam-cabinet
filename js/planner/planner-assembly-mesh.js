@@ -11,7 +11,8 @@
 //   홈(groove)은 깊이가 미정(D5)이라 그리지 않는다.
 //
 // 어느 모듈을 명세로 그리나 (plannerAssemblyModuleFor):
-//   · 플래너 모듈이 명세 모듈 **하나**로만 간다 (다칸 모듈은 결정 D1 전까지 예전 그대로)
+//   · 플래너 모듈이 명세 모듈 **하나**로 간다 (plannerAssemblyModuleFor)
+//   · 다칸 모듈 — 2026-10-24 사장님 D1 (a): **칸마다 별도 상자** (BOM 과 같다). 칸마다 명세 모듈 하나 (plannerAssemblyCellsFor)
 //   · 부재 묶음(PLANNER_ASM_GROUPS)마다 따로 — 그 묶음의 행이 **전부** 놓였을 때만 그 묶음을 명세로 그린다.
 //     하나라도 unplaced 면 그 묶음은 예전 그리기 (자리를 모르는 부재를 지어내지 않는다. 예: 서랍장 처짐방지목 D2)
 //   · 몸통(shell)이 예전 그리기면 나머지 묶음도 예전 그리기 (예전 몸통이 목찬넬·서랍 박스를 같이 그린다)
@@ -36,8 +37,8 @@ const PLANNER_ASM_FAMILIES = Object.keys(PLANNER_ASM_GROUPS).reduce((a, k) => a.
 /**
  * 라인 부재 묶음 (PR14) — 명세 items[].runs. 품목 하나에서 그 묶음 행이 **전부** 놓였을 때만 명세로 그리고,
  * 그때 예전 그리기(addTopPanel · addToeKick · addWoodChannel · addCrownMolding)를 끈다 (두 번 그리지 않는다).
- * 좌우 마감재(finish — 스펙의 휠라 · 몰딩 · EP)는 아직 그리지 않는다: 결정 D9(스펙 마감재를 도면 없이 낼지) 전이고,
- *   BOM 행 높이(품목 H − 다리발)가 키큰장 없는 싱크에서는 기둥처럼 선다. groups.finish 는 늘 drawn:false.
+ * 좌우 마감재(finish — 휠라 · 몰딩 · EP)는 명세로 그리지 않는다: 2026-10-24 D9 부터 도면(플래너에 놓은 마감재)이 정본이고
+ *   플래너가 그 마감재를 그대로 그린다. 명세 자리는 아직 미정(finish-drawn-pending). groups.finish 는 늘 drawn:false.
  * 상판(top)은 2026-10-24 사장님 D3 부터 명세로: 몸통은 벽에서 뒤 여유만큼 떠 있고(배치 650 = 뒤 70 + 몸통 550 + 앞 30),
  *   상판은 벽까지 — 플래너가 lines 에 모듈 back(몸통 뒷면 → 벽)을 넘겨 명세 상판 뒤 = 벽 (bom-assembly.js runsOf 'top').
  */
@@ -129,7 +130,7 @@ function plannerAssemblyRunsFor(asm) {
     });
   });
   Object.keys(groups).forEach((g) => { if (!groups[g].parts.length) groups[g].drawn = false; });
-  groups.finish.drawn = false;   // 결정 D9 전 — 위 설명
+  groups.finish.drawn = false;   // D9: 도면 마감재는 플래너가 그린다 — 위 설명
   return { groups, epKey };
 }
 const PLANNER_ASM_SHELF_COLOR = '#e8d8b8';
@@ -174,11 +175,33 @@ function plannerAssemblyInScope(part, moduleKey) {
  *   몸통(shell)이 null 이면 모듈 전체가 null.
  */
 function plannerAssemblyModuleFor(asm, plannerId) {
-  if (!asm || !asm.spec || !asm.cells) return null;
+  const keys = plannerAssemblyCellKeysOf(asm, plannerId);
+  if (keys.length !== 1) return null;                       // 다칸(plannerAssemblyCellsFor) · 못 찾음
+  return plannerAssemblyHitOf(asm, keys[0]);
+}
+
+/** 플래너 모듈이 간 명세 모듈 키들 (칸 모듈 `planner-<id>-<칸>` 이면 칸마다 하나) */
+function plannerAssemblyCellKeysOf(asm, plannerId) {
+  if (!asm || !asm.spec || !asm.cells) return [];
   const id = String(plannerId);
-  const keys = Object.keys(asm.cells).filter((mk) => String(asm.cells[mk].plannerId) === id);
-  if (keys.length !== 1) return null;                       // 다칸 · 못 찾음
-  const mk = keys[0];
+  return Object.keys(asm.cells).filter((mk) => String(asm.cells[mk].plannerId) === id);
+}
+
+/**
+ * 다칸 모듈 → 칸마다 명세 모듈 (2026-10-24 사장님 D1 (a): 칸마다 별도 상자 — 지금 BOM 그대로).
+ * @param {number} [count]  플래너 칸 수 — 명세 칸 수가 다르면(잔여 칸을 뺐다 등) null (예전 그리기)
+ * @returns {Array|null}  왼쪽→오른쪽(dx 순) hit 목록 (plannerAssemblyModuleFor 와 같은 모양). 칸 하나라도 못 그리면 null
+ */
+function plannerAssemblyCellsFor(asm, plannerId, count) {
+  const keys = plannerAssemblyCellKeysOf(asm, plannerId);
+  if (keys.length < 2 || (count != null && keys.length !== count)) return null;
+  const hits = keys.map((mk) => plannerAssemblyHitOf(asm, mk));
+  if (hits.some((h) => !h)) return null;
+  return hits.sort((a, b) => a.dx - b.dx);
+}
+
+/** 명세 모듈 키 하나 → hit (묶음별 판재). 몸통이 자리 미정이면 null */
+function plannerAssemblyHitOf(asm, mk) {
   let mod = null;
   (asm.spec.items || []).forEach((it) => (it.modules || []).forEach((m) => { if (m.moduleKey === mk) mod = m; }));
   if (!mod) return null;
@@ -223,6 +246,8 @@ function plannerAssemblyAxis(a) {
  */
 function plannerAssemblyUserData(part, moduleKey, plannerId, ctx) {
   const k = plannerAssemblyKeyOf(part.rowPartId, moduleKey) || { partKey: '', family: '', n: 0 };
+  // 다칸 모듈의 칸 번호 (D1 (a)) — 예전 그리기의 칸 번호(areaIdx · cellIdx)와 같게. 한 칸이면 0
+  const cell = (ctx && Number.isFinite(ctx.cellIdx)) ? ctx.cellIdx : 0;
   const k3 = Number(String(part.id).split('#').pop()) || 0;
   const tags = part.tags || {};
   const base = { moduleId: plannerId, partId: part.id, rowPartId: part.rowPartId, key3d: moduleKey + '|' + part.id, assembly: true };
@@ -245,18 +270,18 @@ function plannerAssemblyUserData(part, moduleKey, plannerId, ctx) {
     }
     if (tags.carcass != null && tags.box == null) base.carcassIdx = Number(tags.carcass);
   }
-  if (k.family === 'shelf') return Object.assign({ entityKind: 'shelf', shelfIdx: k3, cellIdx: 0 }, base);
+  if (k.family === 'shelf') return Object.assign({ entityKind: 'shelf', shelfIdx: k3, cellIdx: cell }, base);
   if (tags.box != null) {
     return Object.assign({ entityKind: 'drawerBox', drawerIdx: Number(tags.box) + 1, boxPart: k.family.replace(/^drawerbox:/, ''),
       side: tags.side || null, end: tags.end || null }, base);
   }
   if (k.family === 'door') {
-    const ud = { entityKind: 'carcass', side: 'front', areaType: 'door', areaIdx: 0, areaPos: 'top' };
+    const ud = { entityKind: 'carcass', side: 'front', areaType: 'door', areaIdx: cell, areaPos: 'top' };
     if (ctx && ctx.doorCount > 1) ud.doorIdx = tags.doorIdx != null ? tags.doorIdx : k3;
     return Object.assign(ud, base);
   }
   if (k.family === 'drawer') {
-    return Object.assign({ entityKind: 'carcass', side: 'front', areaType: 'drawer', areaIdx: -1, areaPos: 'bottom', cellIdx: 0,
+    return Object.assign({ entityKind: 'carcass', side: 'front', areaType: 'drawer', areaIdx: -1, areaPos: 'bottom', cellIdx: cell,
       drawerIdx: (tags.drawerIdx != null ? Number(tags.drawerIdx) : k3 + 1) - 1 }, base);
   }
   // 라인 부재 (PR14) — 예전 그리기와 같은 entityKind (마감 칠하기 · 원장이 같은 이름을 읽는다)
@@ -374,7 +399,7 @@ function plannerAssemblyAddParts(THREE, parent, hit, parts, o) {
   const looks = o.looks || {};
   const doorCount = parts.filter((p) => (plannerAssemblyKeyOf(p.rowPartId, hit.module.moduleKey) || {}).family === 'door').length;
   parts.forEach((p) => {
-    const ud = plannerAssemblyUserData(p, hit.module.moduleKey, o.plannerId, { doorCount, wardrobe: !!o.wardrobe, open: !!o.open });
+    const ud = plannerAssemblyUserData(p, hit.module.moduleKey, o.plannerId, { doorCount, wardrobe: !!o.wardrobe, open: !!o.open, cellIdx: o.cellIdx });
     const front = ud.side === 'front';
     const key = ud.entityKind === 'shelf' ? 'shelf' : ud.entityKind === 'brace' ? 'brace'
       : ud.entityKind === 'pedestal' ? 'pedestal' : ud.entityKind === 'wardrobeDrawerFront' ? 'wardrobeDrawerFront'
@@ -403,6 +428,7 @@ if (typeof window !== 'undefined') {
   window.plannerAssemblyWholeModuleFor = plannerAssemblyWholeModuleFor;
   window.plannerAssemblyKeyOf = plannerAssemblyKeyOf;
   window.plannerAssemblyModuleFor = plannerAssemblyModuleFor;
+  window.plannerAssemblyCellsFor = plannerAssemblyCellsFor;
   window.plannerAssemblyMeshOf = plannerAssemblyMeshOf;
   window.plannerAssemblyAddParts = plannerAssemblyAddParts;
   window.plannerAssemblyUserData = plannerAssemblyUserData;
@@ -422,6 +448,7 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerAssemblyKeyOf,
     plannerAssemblyInScope,
     plannerAssemblyModuleFor,
+    plannerAssemblyCellsFor,
     plannerAssemblyUserData,
     plannerAssemblyMeshOf,
     plannerAssemblyAddParts,
