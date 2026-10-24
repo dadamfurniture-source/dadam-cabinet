@@ -552,7 +552,7 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
 describe('오픈장·밥솥장 자리 — 18T 상자', () => {
   const item = JSON.parse(JSON.stringify(FIXTURES.sink15));
   item.modules.push({ id: 'oc1', moduleKind: 'open', pos: 'upper', w: 500, h: 450, d: 570 });
-  item.modules.push({ id: 'rc1', moduleKind: 'rice', pos: 'lower', w: 600, h: 700, d: 550, doorType: 'swing' });
+  item.modules.push({ id: 'rc1', moduleKind: 'rice', pos: 'lower', w: 600, h: 700, d: 550, doorType: 'swing', hingeSide: 'left' });
   const design = { items: [item] };
   const materials = new MaterialExtractor().extract(design).materials;
   const s = Asm.of(design, { materials });
@@ -561,7 +561,7 @@ describe('오픈장·밥솥장 자리 — 18T 상자', () => {
 
   test('BOM 행이 제 모듈을 가리킨다 (0-none 이 아니다)', () => {
     expect(materials.filter((r) => /^(오픈장|밥솥장)$/.test(r.module)).map((r) => r.moduleKey).sort())
-      .toEqual(['0-oc1', '0-oc1', '0-oc1', '0-rc1', '0-rc1', '0-rc1', '0-rc1']);
+      .toEqual(['0-oc1', '0-oc1', '0-oc1'].concat(Array(9).fill('0-rc1')));
   });
 
   test('오픈장 — 측판 깊이 전체, 천지판 측판 사이 앞선 맞춤, 뒷판 측판 사이 뒤끝 맞춤 몸통 높이 전체', () => {
@@ -575,10 +575,24 @@ describe('오픈장·밥솥장 자리 — 18T 상자', () => {
     expect(box(m, '뒷판', 0)).toEqual({ min: [-232, 0, -285], max: [232, 450, -267] });
   });
 
-  test('밥솥장 — 같은 상자 + 도어 (W−4)×(H−4) 가 측판 앞선에 붙어 가운데', () => {
+  test('밥솥장 여닫이 — 일반 장 몸통 (2026-10-25) + 도어 (W−4)×(H−4) 가 측판 앞선에 붙어 가운데', () => {
     const m = mod('rc1');
-    expect(m.parts).toHaveLength(6);
+    expect(m.parts.map((p) => p.part)).toEqual(['측판', '측판', '지판', '밴드', '밴드', '뒷판', '도어',
+      '밥솥장 보강목', '밥솥장 보강목', '밥솥장 추가 목대', '밥솥장 선반', '밥솥장 마이다']);
     expect(box(m, '도어', 0)).toEqual({ min: [-298, 2, 275], max: [298, 698, 293] });
+  });
+
+  test('밥솥장 슬라이딩 선반 자리 (2026-10-25 사장님 카드): 보강목 바닥판 위 양옆 · 경첩 쪽 추가 목대 · 선반은 목대 위 · 마이다 앞면 = 몸통 앞선', () => {
+    const m = mod('rc1');
+    // 경첩 왼쪽 — 추가 목대 15T 가 왼쪽 측판 안면에 서고 (높이 100, 깊이 레일 500 + 30, 앞끝 = 몸통 앞선), 왼쪽 보강목은 그만큼 안쪽
+    expect(box(m, '밥솥장 추가 목대', 0)).toEqual({ min: [-285, 15, -255], max: [-270, 115, 275] });
+    expect(box(m, '밥솥장 보강목', 0)).toEqual({ min: [-270, 15, -230], max: [-190, 30, 260] });
+    expect(box(m, '밥솥장 보강목', 1)).toEqual({ min: [205, 15, -230], max: [285, 30, 260] });
+    // 선반 558 (내경 570 − 42 + 30) × 490 — 목대 위, 앞끝 = 마이다 뒷면
+    expect(box(m, '밥솥장 선반', 0)).toEqual({ min: [-279, 115, -230], max: [279, 130, 260] });
+    expect(box(m, '밥솥장 마이다', 0)).toEqual({ min: [-282.5, 115, 260], max: [282.5, 210, 275] });
+    // 언더레일 자리 — 선반 밑 30, 왼·오
+    expect(m.drawerBoxes).toEqual([{ x0: -279, y0: 115, zf: 260, z0: -230, outerW: 558, railLength: 500, rail: 'under' }]);
   });
 
   test('못 놓은 행 없음 · 조립 검사 오류 없음', () => {

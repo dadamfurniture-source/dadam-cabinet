@@ -122,14 +122,20 @@ describe.each(['open', 'rice'])('%s 상자 — 명세 판재 다섯 장, 자리�
   let asm, old;
   beforeAll(() => { asm = boot(); old = boot('&asm=0'); });
 
+  // 상자 판 다섯 장 — 밥솥장은 그 위에 슬라이딩 선반 판 (2026-10-25 사장님: 보강목 2 · 선반 · 마이다)
+  const BOX = ['body:side', 'part:천지판', 'back'];
+  const boxOf = (l) => l.filter((x) => x.ud.entityKind === 'openCabinet' && (!x.ud.assembly || BOX.includes(x.ud.openPart)));
+
   test('판재 다섯 장 전부 명세 (openCabinet · partId)', () => {
     const list = partsOf(asm, 'lower-1').filter((x) => x.ud.entityKind === 'openCabinet');
-    expect(list).toHaveLength(5);
+    expect(boxOf(list)).toHaveLength(5);
+    expect(list.filter((x) => !BOX.includes(x.ud.openPart)).map((x) => x.ud.openPart).sort())
+      .toEqual(kind === 'rice' ? ['rice:batten', 'rice:batten', 'rice:front', 'rice:shelf'] : []);
     list.forEach((x) => { expect(x.ud.assembly).toBe(true); expect(typeof x.ud.partId).toBe('string'); });
   });
 
   test('AABB = 예전 그리기 (같은 규칙 파일)', () => {
-    const sort = (l) => l.filter((x) => x.ud.entityKind === 'openCabinet').sort((a, b) => a.min[0] - b.min[0] || a.min[1] - b.min[1] || a.min[2] - b.min[2]);
+    const sort = (l) => boxOf(l).sort((a, b) => a.min[0] - b.min[0] || a.min[1] - b.min[1] || a.min[2] - b.min[2]);
     const a = sort(partsOf(asm, 'lower-1'));
     const o = sort(partsOf(old, 'lower-1'));
     expect(a).toHaveLength(o.length);

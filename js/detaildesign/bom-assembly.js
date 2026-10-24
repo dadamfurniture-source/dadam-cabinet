@@ -482,6 +482,11 @@
         case 'pedestal:brace':
         case 'kick':
           return;   // 아래에서 좌대 상자를 한꺼번에
+        case 'rice:shelf':
+        case 'rice:batten':
+        case 'rice:front':
+        case 'rice:hinge-batten':
+          return;   // 아래에서 밥솥장 슬라이딩 선반을 한꺼번에 (도어가 달린 밥솥장 — 일반 장 몸통)
         case 'blind': {
           // 멍가림판 MDF 2.7T — 멍 W − 목대 15 × 몸통 H, 벽 쪽 끝부터 앞선에 붙어 밖으로 (z D/2 … D/2 + 2.7)
           if (!bl || row.qty !== 1 || row.w !== bl.coverEnd || row.h !== H) { skip(row, 'blind-layout-unknown'); return; }
@@ -534,6 +539,8 @@
       if (!pd || row.qty !== 1 || row.h !== W || row.w !== pd.h) { skip(row, 'pedestal-layout-unknown'); return; }
       parts.push(makePart(row, 0, { o: [-W / 2, -pd.h, pd.zFront], u: '+y', v: '+x', n: '+z' }, [], 'exterior', { pedestal: true, kick: true }));
     });
+    // 2026-10-25 사장님: 도어가 달린 밥솥장 슬라이딩 선반 — 지판 윗면 = T, 몸통 앞선 = 측판 앞끝
+    const rice = placeRiceShelf(parts, keyed, { W, D, T, floorY: T, zFront }, mod, skip);
 
     // 선반 — 높이는 부르는 쪽(플래너 구조 s.shelves)이 넘긴다. 개수가 BOM 과 다르면 놓지 않는다.
     const shelfRows = one('shelf').map((x) => x.row);
@@ -566,7 +573,8 @@
         place: (opts.place && opts.place[mk]) || null,
         parts,
         // 서랍 박스 자리 (레일 철물이 쓴다) — x0 = 박스 왼쪽 끝, y0 = 측판 밑단, zf·z0 = 앞·뒤끝
-        drawerBoxes: boxes ? boxes.map((b) => ({ x0: b.x0, y0: b.y0, zf: b.zf, z0: b.z0, outerW: b.dims.outerW, railLength: b.dims.railLength, rail: layout.rail })) : [],
+        drawerBoxes: boxes ? boxes.map((b) => ({ x0: b.x0, y0: b.y0, zf: b.zf, z0: b.z0, outerW: b.dims.outerW, railLength: b.dims.railLength, rail: layout.rail }))
+          : rice.box ? [rice.box] : [],
         pending,
       },
       unplaced,
@@ -969,6 +977,56 @@
     };
   }
 
+  /** 밥솥장 슬라이딩 선반 부재 — 행 키 묶음 (BOM_PART_DEFS '밥솥장 …', bom-rice-cabinet-rules shelfPartsOf). */
+  const RICE_SHELF_FAMILIES = ['rice:shelf', 'rice:batten', 'rice:front', 'rice:hinge-batten'];
+
+  /**
+   * 밥솥장 슬라이딩 선반 자리 — 2026-10-25 사장님 카드 (오픈 상자 · 도어 몸통 같은 자리):
+   *   보강목 2   바닥판 위 양옆 측판에 붙여 눕는다 (폭 80 · 깊이 = 선반 D)
+   *   선반       밑면 = 보강목 윗면 + 언더레일 아래 여유 30 (서랍 RAIL_CLEARANCE.under.below), 가로 가운데
+   *   마이다     앞면 = 몸통 앞선, 밑단 = 선반 밑면, 가로 가운데 — 선반 · 보강목 앞끝 = 마이다 뒷면
+   *   추가 목대  (여닫이) 경첩 쪽 측판에 붙여 세운다 (높이 100, 바닥판 위, 앞끝 = 몸통 앞선). 그쪽 보강목은 목대 두께만큼 안쪽,
+   *              선반은 목대 위 (밑면 = 바닥판 + 100) — 선반 폭 그대로라 목대와 겹치지 않게
+   * @param g {W, D, T, floorY, zFront}  몸통 바깥 폭 · 깊이 · 측판 두께 · 바닥판 윗면 · 몸통 앞선
+   * @returns {{ rows: Set, box: object|null }} 놓은 행 · 레일 자리 (drawerBoxes 모양 — 언더레일은 선반 밑면 − 30)
+   */
+  function placeRiceShelf(parts, keyed, g, mod, skip) {
+    const rowsOf = (f) => keyed.filter((x) => x.key && x.key.family === f).map((x) => x.row);
+    const shelf = rowsOf('rice:shelf'), battens = rowsOf('rice:batten'), fronts = rowsOf('rice:front'), hinge = rowsOf('rice:hinge-batten');
+    const all = shelf.concat(battens, fronts, hinge);
+    const out = { rows: new Set(all), box: null };
+    if (!all.length) return out;
+    const fail = (reason) => { all.forEach((r) => skip(r, reason)); return out; };
+    if (shelf.length !== 1 || battens.length !== 1 || fronts.length !== 1 || hinge.length > 1
+      || shelf[0].qty !== 1 || battens[0].qty !== 2 || fronts[0].qty !== 1 || (hinge[0] && hinge[0].qty !== 1)) return fail('rice-shelf-layout-unknown');
+    const S = shelf[0], B = battens[0], F = fronts[0], HB = hinge[0] || null;
+    const xIn0 = -g.W / 2 + g.T, xIn1 = g.W / 2 - g.T;
+    const hingeSide = HB ? (mod && ['left', 'right'].includes(mod.hingeSide) ? mod.hingeSide : null) : null;
+    const zf = g.zFront - F.thickness;          // 선반 · 보강목 앞끝 = 마이다 뒷면
+    const hbT = HB ? HB.thickness : 0;
+    if (HB && !hingeSide) {
+      // 경첩 쪽을 모르면 추가 목대 · 보강목(경첩 쪽이 안쪽으로 든다) 자리를 모른다 — 선반 · 마이다는 놓는다 (높이는 목대로 정해진다)
+      [B, HB].forEach((r) => skip(r, 'rice-hinge-side-unknown'));
+    } else {
+      // 보강목 — 바닥판 위 양옆에 눕는다 (경첩 쪽은 추가 목대 두께만큼 안쪽)
+      const bx0 = xIn0 + (hingeSide === 'left' ? hbT : 0);
+      const bx1 = xIn1 - B.w - (hingeSide === 'right' ? hbT : 0);
+      [bx0, bx1].forEach((x0, k) => parts.push(makePart(B, k, { o: [x0, g.floorY, zf - B.h], u: '+x', v: '+z', n: '+y' }, [], 'interior', { rice: 'batten', side: k ? 'right' : 'left' })));
+      // 추가 목대 — 경첩 쪽 측판 안면에 세운다
+      if (HB) {
+        const x0 = hingeSide === 'left' ? xIn0 : xIn1 - HB.thickness;
+        parts.push(makePart(HB, 0, { o: [x0, g.floorY, g.zFront - HB.w], u: '+z', v: '+y', n: '+x' }, [], 'interior', { rice: 'hinge-batten', side: hingeSide }));
+      }
+    }
+    // 선반 — 언더레일 위 (추가 목대가 있으면 그 위)
+    const shelfY = HB ? g.floorY + HB.h : g.floorY + B.thickness + DR.RAIL_CLEARANCE.under.below;
+    parts.push(makePart(S, 0, { o: [-S.w / 2, shelfY, zf - S.h], u: '+x', v: '+z', n: '+y' }, [], 'interior', { rice: 'shelf' }));
+    // 마이다 — 앞면 = 몸통 앞선, 밑단 = 선반 밑면
+    parts.push(makePart(F, 0, { o: [-F.w / 2, shelfY, zf], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { rice: 'front' }));
+    out.box = { x0: -S.w / 2, y0: shelfY, zf, z0: zf - S.h, outerW: S.w, railLength: S.h + RiceRules.RULES.SHELF.D_RAIL_MINUS, rail: 'under' };
+    return out;
+  }
+
   /**
    * 오픈장·밥솥장 상자 — 판 다섯 장 (+ 밥솥장 도어 한 장). 행 치수가 규칙 파일 모양이 아니면 null.
    * 키큰장 단을 상자로 바꾼 모듈이면 그 단의 좌대(바닥 단) · 상몰딩(맨 위 단)도 몸통 단과 같은 자리에 놓는다.
@@ -1016,6 +1074,7 @@
       }
       if (key.family === 'shelf') { skip(row, 'shelf-height-unknown'); return; }
       if (/^pedestal:/.test(key.family) || key.family === 'kick') return;   // 아래에서 좌대 상자를 한꺼번에
+      if (RICE_SHELF_FAMILIES.includes(key.family)) return;                 // 아래에서 밥솥장 슬라이딩 선반을 한꺼번에
       if (key.family === 'molding') {
         // 2026-10-24 (키큰장 조합): 키큰장 맨 위 단을 상자로 바꿔도 상몰딩은 그 단이 낸다 — 몸통 단과 같은 자리
         //   (몸통 위 y H…H+몰딩H, 앞면 = 도어 앞면 z D/2+18, 뒷면 = 몸통 앞선 — shellOf 'molding')
@@ -1035,6 +1094,8 @@
       if (!pd || row.qty !== 1 || row.h !== W || row.w !== pd.h) { skip(row, 'pedestal-layout-unknown'); return; }
       parts.push(makePart(row, 0, { o: [-W / 2, -pd.h, pd.zFront], u: '+y', v: '+x', n: '+z' }, [], 'exterior', { pedestal: true, kick: true }));
     });
+    // 2026-10-25 사장님: 오픈 밥솥장 슬라이딩 선반 — 바닥판(천지판) 윗면 = T, 몸통 앞선 = 측판 앞끝
+    const rice = placeRiceShelf(parts, keyed, { W, D, T, floorY: T, zFront }, mod, skip);
     return {
       module: {
         moduleKey: mk,
@@ -1045,6 +1106,8 @@
         place: (opts.place && opts.place[mk]) || null,
         parts,
         pending: [],
+        // 레일 자리 (hardwareOf 레일) — 밥솥장 슬라이딩 선반 언더레일
+        drawerBoxes: rice.box ? [rice.box] : [],
       },
       unplaced,
     };
@@ -1333,7 +1396,9 @@
       const mod = item && (item.modules || []).find((x) => String(x.id) === m[2]);
       const blind = mod && String(mod.id).indexOf('corner-blind-') === 0;
       const wardrobe = mod && (item.categoryId || item.category) === 'wardrobe' && (mod.pos === 'wardrobe' || mod.pos === 'tall');
-      const openBox = mod && ((OpenRules && OpenRules.isOpenCabinet(mod)) || (RiceRules && RiceRules.isRiceCabinet(mod))
+      // 2026-10-25 사장님: 도어가 달린 밥솥장은 일반 장 몸통이라 몸통 짜임(shellOf)으로 — 오픈 밥솥장만 18T 상자
+      const riceDoorBody = !!(mod && RiceRules && RiceRules.isRiceCabinet(mod) && RiceRules.hasDoorBody(mod.doorType));
+      const openBox = mod && !riceDoorBody && ((OpenRules && OpenRules.isOpenCabinet(mod)) || (RiceRules && RiceRules.isRiceCabinet(mod))
         || (HomecafeRules && HomecafeRules.isHomecafe(mod)));
       // 옛 냉장고장 화면 모듈(pos 없음, type) — 짜임 자리를 FRIDGE_TYPE_POS 로 읽는다 (상부장·하부장 짜임). 플래너 냉장고장은 pos 가 있다.
       const fridgePos = mod && !mod.pos && (item.categoryId || item.category) === 'fridge' ? FRIDGE_TYPE_POS[String(mod.type || '')] : null;
