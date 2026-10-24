@@ -1354,6 +1354,10 @@
             ? Math.min(4, rawDrawerCount)
             : 1;
           const shelfCount = s && Array.isArray(s.shelves) ? s.shelves.length : 0;
+          // 2026-10-24 (키큰장 조합): 키큰장 섹션의 상자 모듈(오픈장 · 밥솥장 · 홈카페장 · EL장)도 **키큰장 단**이다 —
+          //   type 'tall' + heightParts 로 보내 BOM 이 그 단의 좌대(맨 아래) · 상몰딩(맨 위)을 내고 다리발 · 라인 폭에서 뺀다 (sink.md §5.1).
+          //   예전엔 'storage' 라 일반 하부장으로 보여 맨 아래 단이면 좌대 대신 다리발 4개가 나갔다.
+          const boxType = m.section === 'tall' ? 'tall' : 'storage';
 
           // 2026-09-19: 오픈장은 셀로 쪼개지 않는다 — 도어가 없어 나눌 것이 없다.
           //   모듈 하나 = 상자 하나이고, 부재는 규칙 파일(bom-open-cabinet-rules.js)이 통째로 낸다.
@@ -1367,7 +1371,7 @@
             (OC.warningsOf({ W: w, H: h, D: d }) || []).forEach((t) => warnings.push(`${m.id}: ${t}`));
             out.push({
               id: `planner-${m.id}-open`,
-              type: 'storage',            // 'hood' 처럼 BOM 에서 제외되는 type 이면 안 된다
+              type: boxType,              // 'hood' 처럼 BOM 에서 제외되는 type 이면 안 된다
               moduleKind: OC.RULES.KIND,  // extractors 가 이 값 하나로 오픈장 규칙을 탄다
               name: OC.RULES.LABEL,
               pos,
@@ -1402,9 +1406,13 @@
             const door = RC.doorTypeOf(s);
             const ctx = m.riceBelow ? { below: m.riceBelow } : {};
             (RC.warningsOf({ W: w, H: h, D: d }, ctx) || []).forEach((t) => warnings.push(`${m.id}: ${t}`));
+            // 2026-10-24: 경첩으로 세는 도어(여닫이 · 포켓)는 외짝 — 경첩 방향 = 칸 열림 방향 좌 ◀ / 우 ▶ (2026-10-23 사장님 4-1 C, 셀 모듈과 같다).
+            //   조립 명세가 경첩 컵 자리를 그 변에 놓는다. 방향을 모르면 붙이지 않는다 (지어내지 않는다).
+            const dir0 = s && Array.isArray(s.areaDirections) ? s.areaDirections[0] : null;
+            const riceHinge = (door === 'swing' || door === 'pocket') && (dir0 === 'left' || dir0 === 'right') ? dir0 : null;
             out.push({
               id: `planner-${m.id}-rice`,
-              type: 'storage',
+              type: boxType,
               moduleKind: RC.RULES.KIND,
               name: RC.RULES.LABEL,
               pos,
@@ -1415,6 +1423,7 @@
               d,
               doorCount: door === 'none' ? 0 : 1,
               doorType: door === 'none' ? null : door,
+              ...(riceHinge ? { hingeSide: riceHinge } : {}),
               is2door: false,
               isDrawer: false,
               drawerCount: 0,
@@ -1439,7 +1448,7 @@
             for (let i = 0; i < cells; i++) doors += is2[i] ? 2 : 1;
             out.push({
               id: `planner-${m.id}-homecafe`,
-              type: 'storage',
+              type: boxType,
               moduleKind: HC.RULES.KIND,
               name: HC.RULES.LABEL,
               pos,
@@ -1469,7 +1478,7 @@
             const w = Number(m.W) || 0;
             out.push({
               id: `planner-${m.id}-el`,
-              type: 'storage',
+              type: boxType,
               moduleKind: EL.RULES.KIND,
               name: EL.RULES.LABEL,
               pos,
@@ -1653,8 +1662,12 @@
             // 2026-10-13: 위로 여는 도어(플랩) — 칸 열림 방향 'up'. 상부장 단문 칸에만 뜻이 있다.
             //   BOM 은 경첩을 천판 쪽(도어 폭 기준)으로 보링하고 가스쇼바 2 를 낸다 (extractors.js flapHardwareOf).
             //   플랩이 아닌 칸은 필드를 붙이지 않는다 — 예전 payload 와 같다.
+            // 2026-10-24 사장님 (키큰장 조합 "플랩도어"): 키큰장 **맨 위 단**(상몰딩을 짊어진 단, 좌대 없음)도 같은 플랩 —
+            //   철물 · 보링은 상부장 플랩 규칙 그대로, 도어는 그 단 규칙(푸쉬 H − 4).
             const dirs = s && Array.isArray(s.areaDirections) ? s.areaDirections : [];
-            if (pos === 'upper' && !isOpen && !c.is2D && dirs[i] === 'up') out[out.length - 1].doorOpen = 'up';
+            const hpCell = out[out.length - 1].heightParts || {};
+            const tallTop = isTall && Number(hpCell.moldingH) > 0 && !(Number(hpCell.pedestalH) > 0);
+            if ((pos === 'upper' || (tallTop && !drawerAtBottom)) && !isOpen && !c.is2D && dirs[i] === 'up') out[out.length - 1].doorOpen = 'up';
             // 2026-10-23 사장님 4-1 C: 외짝 도어 경첩 방향 = 칸 열림 방향 좌 ◀ / 우 ▶ (정면도 화살표가 그 변 — 양문의 왼 도어 ◀ = 왼쪽 경첩과 같다).
             //   조립 명세(bom-assembly.js hardwareOf)가 경첩 컵 자리를 그 변에 놓는다. 양문·오픈·플랩 칸엔 붙이지 않는다.
             else if (!isOpen && !topDrawer && !c.is2D && (dirs[i] === 'left' || dirs[i] === 'right')) out[out.length - 1].hingeSide = dirs[i];
