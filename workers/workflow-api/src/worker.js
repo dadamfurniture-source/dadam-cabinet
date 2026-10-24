@@ -59,7 +59,7 @@ import { getManagementSummary } from './management/service.js';
 import { createOutsourceOrder, listOutsourceOrders, loadCountertopContext } from './reports/outsource.js';
 import { renderReportPrint } from './templates/report-print.js';
 import { createSnapshot, listSnapshots, getSnapshot, previewQuote } from './snapshots.js';
-import { getFrozenAssembly, uploadCadArtifact, listCadArtifacts } from './cad-artifacts.js';
+import { getFrozenAssembly, uploadCadArtifact, listCadArtifacts, customerExteriorUrl } from './cad-artifacts.js';
 import {
   issueDocument,
   listDocuments,
@@ -355,12 +355,23 @@ function shareCredentials(request) {
 async function handlePublicConfirm(request, env) {
   const { token, pin } = shareCredentials(request);
   const { doc, snapshot } = await openSharedDocument(env, request, { token, pin });
+  // CAD 베타: 고객용 외관 GLB (관리자가 동결본 GLB 를 지었을 때만). 3D 는 덤이라 실패해도 확인서는 연다
+  let exteriorGlbUrl = null;
+  if (doc.doc_type === 'customer_confirmation') {
+    try {
+      exteriorGlbUrl = await customerExteriorUrl(env, doc.snapshot_id);
+    } catch (err) {
+      console.error('exterior glb url failed:', err && err.message);
+    }
+  }
 
   return jsonResponse(request, env, {
     success: true,
     data: {
       // 문서 본문만. 승인 폼은 confirm.html 이 iframe 바깥에 그린다.
       html: renderDocument(doc, snapshot, { toolbar: false }),
+      // 외관 3D (서명 URL 1시간) — confirm.html 이 iframe 바깥에 뷰어로 그린다. 없으면 null
+      exterior_glb_url: exteriorGlbUrl,
       doc_no: doc.doc_no,
       title: doc.title,
       decision: doc.decision,

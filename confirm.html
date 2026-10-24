@@ -223,6 +223,14 @@
       <!-- 문서 -->
       <iframe id="docFrame" title="설계 확인서"></iframe>
 
+      <!-- CAD 베타: 외관 3D (담당자가 지어 둔 경우만, 워커 exterior_glb_url). 문서 iframe 바깥 -->
+      <div class="card stack" id="glbCard" hidden>
+        <h2>3D 미리보기</h2>
+        <p class="muted">끌어서 돌리고, 휠·두 손가락으로 확대할 수 있습니다. 겉모양만 보여 드리며, 색은 실제 마감과 다릅니다.</p>
+        <div id="glbView" style="width:100%;height:420px;border-radius:8px;background:#f3f1ec;touch-action:none"></div>
+        <p class="muted" id="glbError" hidden>3D 미리보기를 불러오지 못했습니다. 위 확인서 도면으로 확인해 주세요.</p>
+      </div>
+
       <!-- 승인 -->
       <div class="card stack" id="decisionCard" hidden>
         <h2>확인</h2>
@@ -387,6 +395,11 @@
           hide(el('loadingCard'));
           hide(el('pinCard'));
           renderDoc(body.data.html);
+          // 외관 3D — 아래 모듈 스크립트(three.js)가 그린다. 순서가 바뀌어도 되게 값과 이벤트를 둘 다 남긴다
+          if (body.data.exterior_glb_url) {
+            window.__dadamExteriorGlb = body.data.exterior_glb_url;
+            document.dispatchEvent(new Event('dadam-exterior-glb'));
+          }
 
           if (body.data.decision) {
             el('doneTitle').textContent =
@@ -506,5 +519,71 @@
         load();
       })();
     </script>
-  </body>
+  <!-- CAD 베타: 외관 3D 뷰어 — 플래너와 같은 three 판 (mockup-structure.html importmap) -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.183.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.183.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+  let started = false;
+  async function showGlb() {
+    const url = window.__dadamExteriorGlb;
+    if (!url || started) return;
+    started = true;
+    const card = document.getElementById('glbCard');
+    const box = document.getElementById('glbView');
+    card.hidden = false;
+    try {
+      const THREE = await import('three');
+      const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+      const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setClearColor(0xf3f1ec);
+      box.appendChild(renderer.domElement);
+      const scene = new THREE.Scene();
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8170, 1.6));
+      const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+      sun.position.set(2, 4, 3);
+      scene.add(sun);
+      const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 100);
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      const gltf = await new GLTFLoader().loadAsync(url);
+      scene.add(gltf.scene);
+      // 모델 크기에 맞춰 앞쪽 위에서 본다 (GLB 는 m 단위, +z 가 앞)
+      const bb = new THREE.Box3().setFromObject(gltf.scene);
+      const c = bb.getCenter(new THREE.Vector3());
+      const r = bb.getSize(new THREE.Vector3()).length() / 2 || 1;
+      const dist = r / Math.sin((camera.fov * Math.PI) / 360) * 0.8;
+      camera.position.set(c.x + dist * 0.35, c.y + dist * 0.25, c.z + dist * 0.9);
+      camera.near = dist / 100;
+      camera.far = dist * 10;
+      controls.target.copy(c);
+      controls.update();
+      const resize = () => {
+        const w = box.clientWidth || 600, h = box.clientHeight || 420;
+        renderer.setSize(w, h, false);
+        renderer.domElement.style.width = '100%';
+        renderer.domElement.style.height = '100%';
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+      };
+      resize();
+      window.addEventListener('resize', resize);
+      renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+    } catch (e) {
+      console.warn('[3D] 외관 GLB 를 못 그렸습니다:', e && e.message);
+      box.hidden = true;
+      document.getElementById('glbError').hidden = false;
+    }
+  }
+  document.addEventListener('dadam-exterior-glb', showGlb);
+  showGlb();
+</script>
+</body>
 </html>
