@@ -1707,6 +1707,26 @@
           }
         }
 
+        // 2026-10-24 사장님 D9: 좌·우 마감재(휠라 · 몰딩 · EP · 비움)는 **도면이 정본** — 플래너에 놓은 그대로 specs 에 적는다.
+        //   BOM(extractors.js)이 이 목록으로 마감재를 발주하고, 목록이 비면 발주하지 않고 발행 전 확인창에 알린다.
+        //   커튼박스처럼 변환이 specs 에 적는 값이다 (플래너 결과를 적용할 때마다 새로 쓴다).
+        //   값은 플래너 payload 그대로 (planner buildPlannerPayload finMeta): 공간 폭 W · 부재 폭 partW · 높이 H · 깊이 D ·
+        //   바닥 baseY · 붙은 쪽 side · 배치 공간 끝 edge · 배치 공간 종류 area. 옛 payload(메타 없음)면 그 값은 null.
+        if (specs) {
+          const num = (v) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Number(v) : null);
+          specs.drawnFinishes = src
+            .flatMap((m) => (m.finishings || []))
+            .filter((f) => f && ['filler', 'molding', 'ep', 'gap'].includes(f.section))
+            .map((f) => ({
+              section: f.section,
+              side: f.side === 'left' || f.side === 'right' ? f.side : null,
+              edge: f.edge === 'left' || f.edge === 'right' ? f.edge : null,
+              area: f.area || null,
+              W: num(f.W), partW: num(f.partW), H: num(f.H), D: num(f.D), baseY: num(f.baseY), x: num(f.x),
+            }))
+            .sort((a, b) => (a.x || 0) - (b.x || 0));
+        }
+
         // 배치 순서(x)대로 정렬 — 정면도/BOM 라벨 순서를 도면과 맞춘다
         out.sort((a, b) => (a.pos === b.pos ? a._x - b._x : a.pos === 'upper' ? -1 : 1));
         return { modules: out, warnings };
