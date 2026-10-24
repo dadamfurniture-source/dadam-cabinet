@@ -628,19 +628,17 @@ describe('라인 부재 runs[] — 상판 · 상몰딩 · 목찬넬 EP · 걸레
     expect(kick.hostModuleKey).toBe('0-l1');
     expect(kick.parts[0].box).toEqual({ min: [-450, -150, 125], max: [1350, -5, 143] });
     expect(kick.parts[0].tags).toEqual({ run: 'kick' });
-    // 좌우 휠라 60 × 2160: 하부 라인 양 끝 밖, 밑단 = 하부 몸통 바닥, 앞면 = 도어 앞면 175 + 18 (카드 "앞면 = 도어 앞면")
-    expect(runOf(s, '휠라(좌)').parts[0].box).toEqual({ min: [-510, 0, 175], max: [-450, 2160, 193] });
-    expect(runOf(s, '휠라(우)').parts[0].box).toEqual({ min: [1350, 0, 175], max: [1410, 2160, 193] });
-    expect(runOf(s, '휠라(좌)').parts[0].tags).toEqual({ run: 'finish', side: 'left' });
-    expect(epOf(s)).toEqual([]);
+    // 좌우 휠라 — 2026-10-24 D9 부터 도면 마감재로 발주한다. 자리는 플래너가 알고 3D 도 플래너가 그린다 → 명세는 자리 미정
+    expect(runOf(s, '휠라(좌)')).toBeUndefined();
+    expect(epOf(s)).toEqual([['휠라(좌)', 'finish-drawn-pending'], ['휠라(우)', 'finish-drawn-pending']]);
   });
 
-  test('싱크 15T (하부 6 모듈 4100 + 좌 휠라 30, 후드가 상부 가운데): 상판은 하부 라인 위 한 장 (뒤 = 벽, 깊이 650), 상몰딩은 후드 때문에 못 놓는다', () => {
+  test('싱크 15T (하부 6 모듈 4100 + 도면 좌 휠라 60, 후드가 상부 가운데): 상판은 하부 라인 위 한 장 (뒤 = 벽, 깊이 650), 상몰딩은 후드 때문에 못 놓는다', () => {
     const s = specWith('sink15', { 0: linesOf(FIXTURES.sink15) });
     const top = runOf(s, '상판');
     expect(top.hostModuleKey).toBe('0-l1');
-    expect(top.parts[0].cut).toEqual({ w: 4130, h: 650 });
-    expect(top.parts[0].box).toEqual({ min: [-530, 708, -275], max: [3600, 720, 375] });   // 호스트 l1 1000 가운데, 좌 휠라 30 만큼 왼쪽으로
+    expect(top.parts[0].cut).toEqual({ w: 4160, h: 650 });
+    expect(top.parts[0].box).toEqual({ min: [-560, 708, -275], max: [3600, 720, 375] });   // 호스트 l1 1000 가운데, 도면 좌 끝 휠라 60 만큼 왼쪽으로 (D9)
     expect(top.parts[0].tags).toEqual({ run: 'top' });
     expect(runOf(s, '목찬넬(전면)').parts[0].box).toEqual({ min: [-500, 656, 235], max: [3000, 708, 253] });   // 쿡탑장 600 은 뺀 3500
     expect(epOf(s)).toContainEqual(['상몰딩', 'run-layout-unknown']);
@@ -648,7 +646,7 @@ describe('라인 부재 runs[] — 상판 · 상몰딩 · 목찬넬 EP · 걸레
     const kicks = s.items[0].runs.filter((r) => r.parts[0].part === '걸레받이').map((r) => [r.parts[0].cut.w, r.parts[0].box.min[0], r.parts[0].box.max[0]]);
     expect(kicks).toEqual([[2440, -500, 1940], [1060, 1940, 3000]]);
     expect(epOf(s).filter((e) => e[0] === '걸레받이')).toEqual([]);
-    expect(runOf(s, '휠라(좌)').parts[0].box).toEqual({ min: [-530, 0, 275], max: [-500, 2160, 293] });   // 좌 휠라 30, 앞면 = 도어 앞면 275 + 18
+    expect(epOf(s)).toContainEqual(['휠라(좌)', 'finish-drawn-pending']);   // D9: 도면 마감재 — 명세 자리는 다음 단계
   });
 
   test('2026-10-24 D3: 몸통이 벽에서 back 만큼 떠 있으면 상판 뒤 = 벽 (호스트 back), 앞선 = 도어 앞면 + 12 — 다른 라인 부재는 그대로', () => {
@@ -658,8 +656,8 @@ describe('라인 부재 runs[] — 상판 · 상몰딩 · 목찬넬 EP · 걸레
     const s = specWith('sink15', { 0: [Object.assign({}, ln, { modules: ln.modules.map((e) => Object.assign({ back }, e)) })] });
     const plain = specWith('sink15', { 0: linesOf(FIXTURES.sink15) });
     const top = runOf(s, '상판');
-    expect(top.parts[0].cut).toEqual({ w: 4130, h: 650 });
-    expect(top.parts[0].box).toEqual({ min: [-530, 708, -345], max: [3600, 720, 305] });
+    expect(top.parts[0].cut).toEqual({ w: 4160, h: 650 });
+    expect(top.parts[0].box).toEqual({ min: [-560, 708, -345], max: [3600, 720, 305] });
     const doorFront = Math.max(...s.items[0].modules.find((m) => m.moduleKey === top.hostModuleKey).parts.filter((p) => p.tags && (p.tags.doorIdx != null || p.tags.drawerIdx != null)).map((p) => p.box.max[2]));
     expect(top.parts[0].box.max[2] - doorFront).toBe(12);   // 물끊기 10 + 도어 자리 20 − 도어 18
     const others = (x) => x.items[0].runs.filter((r) => r.parts[0].part !== '상판').map((r) => r.parts[0].box);

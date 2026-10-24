@@ -14,6 +14,7 @@
  *       hardware  = HardwareExtractor.extract() 결과 또는 그 .hardware 배열
  *       opts.cutPlan = 이미 계산한 NestingEngine.plan 결과 (없으면 여기서 계산, 엔진도 없으면 원판 검사 생략)
  *       opts.hingeMinGap = 컵 간격 문턱 (없으면 extractors 전역/모듈에서 읽는다)
+ *       opts.notices = MaterialExtractor.extract().notices — 추출기 알림 (오류로 올린다, 2026-10-24 D9)
  *       opts.assembly = 조립 명세 DadamAssembly.of() 결과 — 있으면 assembly-check.js 이슈를 더한다
  *                       (part-overlap · back-cover · back-contact · part-detached = error, assembly-unplaced = warning)
  * 출력: { version, ok, counts: {error, warning, info}, issues: [{code, level, message, partId?, moduleKey?, module?, part?}] }
@@ -32,6 +33,8 @@
  *   door-edge          warning  도어·서랍도어 엣지가 4면이 아님
  *   small-part         info     한 변 ≤ 소부품 문턱 — 원판 배치에서 빠지고 잔재에서 따로 재단
  *   unkeyed            info     moduleKey 가 없는 옛 행 — 도어·경첩 대조를 건너뜀
+ *   (추출기 알림)      error    opts.notices = MaterialExtractor.extract().notices — 2026-10-24 D9 finish-none(도면 마감재 없음 → 발주 안 함) ·
+ *                                finish-unknown(도면 마감재 쪽·치수 모름). 발행 전 확인창에 띄우려고 오류로 올린다
  *
  * 전역 스크립트(detaildesign.html → window.BomPreflight) + CommonJS 이중 노출(Jest). nesting-engine.js 와 같은 방식.
  */
@@ -347,6 +350,11 @@
         `모듈 키가 없는 옛 행 (자재 ${unkeyedRows} · 철물 ${unkeyedHw}) — 도어·경첩 대조를 일부 건너뛰었습니다`
       );
     }
+
+    // ── 추출기 알림 (2026-10-24 사장님 D9 B-1) — 도면에 마감재가 없어 발주하지 않은 품목 등. 확인창에 뜨도록 오류로 ──
+    (Array.isArray(opts.notices) ? opts.notices : []).forEach((n) => {
+      if (n && n.code && n.message) push('error', String(n.code), String(n.message), n.itemIdx != null ? { itemIdx: n.itemIdx } : undefined);
+    });
 
     // ── 조립 검사 (CAD 베타 PR7) — 조립 명세(DadamAssembly.of)를 넘겼을 때만. 판정은 assembly-check.js 한 곳 ──
     if (opts.assembly) {

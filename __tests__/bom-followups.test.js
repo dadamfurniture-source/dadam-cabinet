@@ -23,6 +23,8 @@ const SPECS = {
   handle: '찬넬 (목찬넬)',
   finishLeftType: 'Filler', finishLeftWidth: 60,
   finishRightType: 'Filler', finishRightWidth: 60,
+  // 2026-10-24 D9: 좌·우 마감재는 도면이 정본 — 플래너에 놓은 휠라 60 양쪽 (브리지 specs.drawnFinishes, 합성 값)
+  drawnFinishes: ['left', 'right'].map((side) => ({ section: 'filler', side, edge: side, area: 'lower', W: 60, partW: 60, H: 678, D: 650, baseY: 150, x: null })),
   upperDoorOverlap: 15,
   wardrobePedestal: 60,
 };

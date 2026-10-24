@@ -688,6 +688,8 @@
         extract(designData) {
           const materials = [];
           const items = designData.items || [];
+          // 2026-10-24 D9: 발행 전 확인창에 띄울 알림 (마감재 없음 등) — bom-preflight.js opts.notices 가 오류로 올린다
+          this._notices = [];
 
           // ★ 같은 카테고리 아이템 카운트 (싱크대 2개 등)
           const categoryCounts = {};
@@ -754,7 +756,9 @@
               //   싱크대 규칙으로 모듈을 풀어 도어·서랍 전면 판만 남긴다 — 도어 치수 규칙을 따로 두지 않는다. 철물은 경첩만 (HardwareExtractor).
               case 'door': {
                 const tmp = [];
+                const noticeLen = this._notices.length;
                 this.extractSink(catItem, tmp, prefix);
+                this._notices.length = noticeLen;   // 2026-10-24 D9: 도어 판만 내므로 마감재 알림은 뜻이 없다
                 tmp.forEach((m) => { if (BOM_DOOR_ONLY_SLOTS.indexOf(m.slot) >= 0) materials.push(m); });
                 break;
               }
@@ -788,6 +792,7 @@
 
           return {
             materials,
+            notices: this._notices.slice(),
             summary: this.calculateSummary(materials),
             // B1: 엣지밴딩 총길이 — 두께별 { '1': mm, '0.6': mm }. summary 옆에 두는 이유는 calculateEdgeBanding 주석.
             edgeBanding: this.calculateEdgeBanding(materials),
@@ -820,6 +825,41 @@
         //   add() 는 이 문맥으로 partId·slot 을 만든다. 문맥 없이 add() 를 부르면(외부 직접 호출)
         //   품목 0 · 모듈 'none' 으로 떨어져 행은 나오되 식별자만 밋밋하다.
         // ========================================
+        /**
+         * 2026-10-24 사장님 D9: 좌·우 마감재(휠라 · 몰딩 · EP)는 **도면이 정본** — 플래너에 놓은 마감재(specs.drawnFinishes,
+         *   브리지 ui-step1.js 가 적는다)를 그대로 발주한다. 스펙 finishLeft/Right 는 발주에 쓰지 않는다.
+         *   휠라 · 몰딩 = MDF 18T, 부재 폭(partW, 60) × 높이(H) / EP = MDF partW(18)T, 깊이(D) × 높이(H) — 플래너가 그린 치수 그대로.
+         *   높이는 플래너 규칙(W12-42) 그대로: 휠라 = 옆 도어, 몰딩 · EP = 상판 아래, 상부장 옆은 상부 영역 높이 (하부 · 상부 따로).
+         *   비움(gap)은 판이 없다. 쪽(좌/우)은 붙은 모듈의 쪽(side), 없으면 배치 공간 끝(edge).
+         *   도면에 마감재가 하나도 없으면 발주하지 않고 발행 전 확인창에 알린다 (사장님 D9 B-1). 치수를 모르는 옛 값도 알린다.
+         */
+        addDrawnFinishes(materials, epLabel, item) {
+          const list = Array.isArray(item && item.specs && item.specs.drawnFinishes) ? item.specs.drawnFinishes : [];
+          const ctx = this._ctx || this.beginItem(item, 0);
+          const label = (item && item.labelName) || epLabel.replace(/EP$/, '').trim() || '품목';
+          const notice = (code, message) => this._notices && this._notices.push({ itemIdx: ctx.itemIdx, code, message });
+          if (!list.length) {
+            notice('finish-none', `${label}: 도면에 좌·우 마감재(휠라 · 몰딩 · EP)가 없어 마감재를 발주하지 않습니다 — 플래너에서 마감재를 넣었는지 확인해 주세요`);
+            return;
+          }
+          const NAME = { filler: '휠라', molding: '몰딩', ep: 'EP' };
+          const pos = (n) => (Number.isFinite(n) && n > 0 ? n : 0);
+          let unknown = 0;
+          list.forEach((f) => {
+            if (!f || !NAME[f.section]) return;   // 비움(gap) — 판이 없다
+            const side = f.side || f.edge;
+            const partW = pos(f.partW), H = pos(f.H), D = pos(f.D);
+            const w = f.section === 'ep' ? D : partW;
+            const t = f.section === 'ep' ? partW : 18;
+            if (!side || !partW || !H || !w) { unknown++; return; }
+            this.beginItemLevel(f.area === 'upper' ? 'upper' : 'lower');
+            this.add(materials, epLabel, `${NAME[f.section]}(${side === 'left' ? '좌' : '우'})`, 'MDF', t, w, H, 1, '4면', '도면 마감재');
+          });
+          if (unknown) {
+            notice('finish-unknown', `${label}: 도면 마감재 ${unknown}개의 쪽·치수를 몰라 발주하지 않았습니다 — 플래너를 새로 고친 뒤 결과를 다시 적용해 주세요`);
+          }
+        }
+
         beginItem(item, itemIdx) {
           this._ctx = {
             itemIdx: itemIdx | 0,
@@ -1637,8 +1677,9 @@
           if (topLineW > 0) {
             const topT = parseFloat(specs.topThickness) || 12;
             const topD = parseFloat(item.d) || 650;
-            const finW = (type, w) => (type && type !== 'None' ? (parseFloat(w) || 0) : 0);
-            const topW = topLineW + finW(specs.finishLeftType, specs.finishLeftWidth) + finW(specs.finishRightType, specs.finishRightWidth);
+            // 2026-10-24 D9: 상판은 하부 배치 공간의 도면 마감재(비움 포함) 위도 지나간다 — 그 공간 폭(W)을 더한다 (3D addTopPanel = 영역 전폭)
+            const topW = topLineW + (Array.isArray(specs.drawnFinishes) ? specs.drawnFinishes : [])
+              .filter((f) => f && f.area === 'lower').reduce((s, f) => s + (Number(f.W) > 0 ? Number(f.W) : 0), 0);
             // 2026-10-18 사장님: 두께 12 · 50T 인조대리석, 깊이는 도면 그대로(배치 깊이 — 오버행 없음), 이음은 상판 업체 판단.
             //   목록 밖의 옛 값(18 도어자재 상판 등)은 그대로 내되 비고로 알린다 — 재질은 인조대리석 하나다.
             //   재질은 사양 topMaterial (인조대리석 · 엔지니어드 스톤 · 세라믹, 없으면 인조대리석) — 두께 선택지가 재질마다 다르다.
@@ -1646,20 +1687,13 @@
             const topTs = BOM_TOP_MATERIALS[topMat];
             const topOk = topTs.includes(topT);
             this.add(materials, `${prefix}상판`, '상판', topMat, topT, topW, topD, 1, '-',
-                     '하부 라인 한 장(좌·우 마감 폭 포함) · 깊이 = 도면 · 이음은 상판 업체 판단'
+                     '하부 라인 한 장(도면 마감재 폭 포함) · 깊이 = 도면 · 이음은 상판 업체 판단'
                      + (topOk ? '' : ` [확인 필요] ${topMat} 상판 두께는 ${topTs.join(' · ')}T — 지정 값 ${topT}`));
           }
 
-          // 좌측 마감 (몰딩/휠라/EP)
-          if (specs.finishLeftType !== 'None' && specs.finishLeftWidth > 0) {
-            const finishName = specs.finishLeftType === 'Filler' ? '휠라(좌)' : specs.finishLeftType === 'EP' ? 'EP(좌)' : '몰딩(좌)';
-            this.add(materials, epLabel, finishName, 'MDF', 18, specs.finishLeftWidth, totalH - legH, 1, '4면');
-          }
-          // 우측 마감 (몰딩/휠라/EP)
-          if (specs.finishRightType !== 'None' && specs.finishRightWidth > 0) {
-            const finishName = specs.finishRightType === 'Filler' ? '휠라(우)' : specs.finishRightType === 'EP' ? 'EP(우)' : '몰딩(우)';
-            this.add(materials, epLabel, finishName, 'MDF', 18, specs.finishRightWidth, totalH - legH, 1, '4면');
-          }
+          // 좌·우 마감 (휠라/몰딩/EP) — 2026-10-24 D9: 도면 마감재 그대로 (addDrawnFinishes)
+          this.addDrawnFinishes(materials, epLabel, item);
+          this.beginItemLevel('lower');
 
           // W10-4: 코너 마감 (몰딩/휠라) — ㄱ자/ㄷ자, 기존 finish 체계 (design §6)
           const layoutShape = specs.lowerLayoutShape || specs.layoutShape || 'I';
@@ -2249,7 +2283,6 @@
           const effectiveW = lineLowerModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
           const totalUpperW = upperModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
           const moldingH = parseFloat(specs.moldingH) || 60;
-          const totalH = parseFloat(item.h) || 2310;
 
           // 상몰딩 — 상부장이 있을 때만 (P1-2 와 같다). 키큰장 상부단 상몰딩은 그 단이 낸다.
           this.beginItemLevel('upper');
@@ -2267,22 +2300,8 @@
             this.add(materials, epLabel, '목찬넬(지면)', 'MDF', 18, 40, effectiveW, 1, '2면(장)');
           }
 
-          // 좌·우 마감 — simple-categories.md §2: 기본 좌/우 모두 Filler 60. 타입·폭이 비어 있으면 그 기본값.
-          const finishOf = (type, width) => {
-            const t = type || 'Filler';
-            const w = parseFloat(width);
-            return { type: t, w: Number.isFinite(w) ? w : 60 };
-          };
-          const left = finishOf(specs.finishLeftType, specs.finishLeftWidth);
-          if (left.type !== 'None' && left.w > 0) {
-            const finishName = left.type === 'Filler' ? '휠라(좌)' : left.type === 'EP' ? 'EP(좌)' : '몰딩(좌)';
-            this.add(materials, epLabel, finishName, 'MDF', 18, left.w, totalH - legH, 1, '4면');
-          }
-          const right = finishOf(specs.finishRightType, specs.finishRightWidth);
-          if (right.type !== 'None' && right.w > 0) {
-            const finishName = right.type === 'Filler' ? '휠라(우)' : right.type === 'EP' ? 'EP(우)' : '몰딩(우)';
-            this.add(materials, epLabel, finishName, 'MDF', 18, right.w, totalH - legH, 1, '4면');
-          }
+          // 좌·우 마감 — 2026-10-24 사장님 D9: 도면 마감재 그대로 (addDrawnFinishes). simple-categories.md §2 의 스펙 기본(Filler 60)은 발주에 쓰지 않는다.
+          this.addDrawnFinishes(materials, epLabel, item);
         }
 
         // ========================================

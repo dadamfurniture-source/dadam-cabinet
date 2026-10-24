@@ -19,6 +19,15 @@
  */
 
 /**
+ * 2026-10-24 사장님 D9: 좌·우 마감재는 도면이 정본 — 플래너에 놓은 마감재(브리지가 specs.drawnFinishes 로 적는 꼴, 합성 값).
+ *   공간 폭 W · 부재 폭 partW (휠라·몰딩 60, EP 20 자리에 18T) · 높이 H (휠라 = 옆 도어, 몰딩·EP = 상판 아래) · 깊이 D · 바닥 baseY.
+ */
+const drawn = (section, side, o) => Object.assign({
+  section, side, edge: side, area: 'lower',
+  W: section === 'ep' ? 20 : 60, partW: section === 'ep' ? 18 : 60, x: null,
+}, o);
+
+/**
  * 싱크대 — 상부 3(2D·1D·후드) + 하부 6(개수대·서랍장·2D·EL·오픈·가스대), 목찬넬 손잡이, 좌측 휠라.
  *
  * 걸리는 가지:
@@ -39,6 +48,7 @@ const sink15 = {
     handle: '찬넬 (목찬넬)',
     finishLeftType: 'Filler', finishLeftWidth: 30,
     finishRightType: 'None', finishRightWidth: 0,
+    drawnFinishes: [drawn('filler', 'left', { H: 678, D: 650, baseY: 150 })],
     doorColorUpper: '화이트', doorFinishUpper: '무광',
     doorColorLower: '화이트', doorFinishLower: '무광',
   },
@@ -141,6 +151,7 @@ const sinkCorner = {
     upperDoorOverlap: 15,
     handle: '찬넬',
     finishLeftType: 'None', finishRightType: 'None',
+    drawnFinishes: [],
     finishCorner1Type: 'Molding', finishCorner1Width: 60,
   },
   modules: [
@@ -183,6 +194,7 @@ const shoerack = {
     handle: '찬넬 (목찬넬)',
     finishLeftType: 'Filler', finishLeftWidth: 60,
     finishRightType: 'Filler', finishRightWidth: 60,
+    drawnFinishes: [drawn('filler', 'left', { H: 678, D: 350, baseY: 150 }), drawn('filler', 'right', { H: 678, D: 350, baseY: 150 })],
     doorColorUpper: '화이트', doorFinishUpper: '무광',
     doorColorLower: '화이트', doorFinishLower: '무광',
   },
@@ -219,6 +231,7 @@ const vanity = {
     handle: '찬넬',
     finishLeftType: 'Filler', finishLeftWidth: 60,
     finishRightType: 'None', finishRightWidth: 0,
+    drawnFinishes: [drawn('filler', 'left', { H: 708, D: 500, baseY: 150 })],
     doorColorUpper: '화이트', doorFinishUpper: '무광',
     doorColorLower: '화이트', doorFinishLower: '무광',
   },
@@ -253,6 +266,7 @@ const storage = {
     handle: '찬넬 (목찬넬)',
     finishLeftType: 'Filler', finishLeftWidth: 60,
     finishRightType: 'Filler', finishRightWidth: 60,
+    drawnFinishes: [drawn('filler', 'left', { H: 678, D: 400, baseY: 150 }), drawn('filler', 'right', { H: 678, D: 400, baseY: 150 })],
     doorColorUpper: '화이트', doorFinishUpper: '무광',
     doorColorLower: '화이트', doorFinishLower: '무광',
   },
@@ -287,6 +301,7 @@ const warehouse = {
     handle: '찬넬 (목찬넬)',
     finishLeftType: 'Molding', finishLeftWidth: 60,
     finishRightType: 'EP', finishRightWidth: 20,
+    drawnFinishes: [drawn('molding', 'left', { H: 858, D: 450, baseY: 0 }), drawn('ep', 'right', { H: 858, D: 450, baseY: 0 })],
     doorColorUpper: '화이트', doorFinishUpper: '무광',
     doorColorLower: '화이트', doorFinishLower: '무광',
   },
