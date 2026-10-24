@@ -59,13 +59,13 @@ const SCENE_OF = {
   '목찬넬(중간 지면)': () => ({ entityKind: 'carcass', side: 'channelBase' }),
 };
 
-/** 하부장을 서랍장(도어 위 · 서랍 3단)으로 — __tests__/scene-overlap.test.js 의 drawer 장면과 같다. */
+/** 하부장을 서랍장(도어 위 · 서랍 2단)으로 — __tests__/scene-overlap.test.js 의 drawer 장면과 같다 (3단은 소 75 가 안 들어간다, 2026-10-24). */
 function toDrawer(p, drawer) {
   p.g('modules').filter((m) => m.section === 'lower').forEach((m) => {
     const s = p.g('getStructure')(m.id);
     s.horizontalLayout = 'doorTopDrawerBottom';
     s.bottomType = 'drawer';
-    s.drawerCount = 3;
+    s.drawerCount = 2;
     if (drawer) s.drawer = drawer;
   });
   p.g('renderAll3D')({ fit: false });

@@ -21,35 +21,12 @@
       "region": {
         "min": [
           -35,
-          604,
+          326,
           260
         ],
         "max": [
           35,
-          622,
-          275
-        ]
-      },
-      "cause": "pending-owner D2",
-      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
-    },
-    {
-      "id": "drawer18|lower-0|brace#0×lower-0|channel:channelBase~3",
-      "fixture": "drawer18",
-      "kind": "solid",
-      "a": "lower-0|brace#0",
-      "b": "lower-0|channel:channelBase~3",
-      "volume": 18900,
-      "depth": 15,
-      "region": {
-        "min": [
-          -35,
-          266,
-          260
-        ],
-        "max": [
-          35,
-          284,
+          344,
           275
         ]
       },
@@ -62,17 +39,17 @@
       "kind": "envelope",
       "a": "lower-0|brace#0",
       "b": "lower-0|drawerBox#drawer1",
-      "volume": 63000,
+      "volume": 126000,
       "depth": 15,
       "region": {
         "min": [
           -35,
-          500,
+          426,
           260
         ],
         "max": [
           35,
-          560,
+          546,
           275
         ]
       },
@@ -85,30 +62,7 @@
       "kind": "envelope",
       "a": "lower-0|brace#0",
       "b": "lower-0|drawerBox#drawer2",
-      "volume": 63000,
-      "depth": 15,
-      "region": {
-        "min": [
-          -35,
-          366,
-          260
-        ],
-        "max": [
-          35,
-          426,
-          275
-        ]
-      },
-      "cause": "pending-owner D2",
-      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
-    },
-    {
-      "id": "drawer18|lower-0|brace#0×lower-0|drawerBox#drawer3",
-      "fixture": "drawer18",
-      "kind": "envelope",
-      "a": "lower-0|brace#0",
-      "b": "lower-0|drawerBox#drawer3",
-      "volume": 63000,
+      "volume": 126000,
       "depth": 15,
       "region": {
         "min": [
@@ -118,7 +72,7 @@
         ],
         "max": [
           35,
-          235,
+          295,
           275
         ]
       },
@@ -154,12 +108,12 @@
       "kind": "envelope",
       "a": "lower-0|drawerBox#drawer1",
       "b": "lower-0|shelf#0-0",
-      "volume": 4249434,
-      "depth": 11.5,
+      "volume": 5542740,
+      "depth": 15,
       "region": {
         "min": [
           -371,
-          500,
+          496.5,
           -225
         ],
         "max": [
@@ -177,12 +131,12 @@
       "kind": "envelope",
       "a": "lower-1|drawerBox#drawer1",
       "b": "lower-1|shelf#0-0",
-      "volume": 1958634,
-      "depth": 11.5,
+      "volume": 2554740,
+      "depth": 15,
       "region": {
         "min": [
           -171,
-          500,
+          496.5,
           -225
         ],
         "max": [
@@ -205,35 +159,12 @@
       "region": {
         "min": [
           -35,
-          604,
+          326,
           260
         ],
         "max": [
           35,
-          622,
-          275
-        ]
-      },
-      "cause": "pending-owner D2",
-      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
-    },
-    {
-      "id": "drawer18|lower-2|brace#0×lower-2|channel:channelBase~3",
-      "fixture": "drawer18",
-      "kind": "solid",
-      "a": "lower-2|brace#0",
-      "b": "lower-2|channel:channelBase~3",
-      "volume": 18900,
-      "depth": 15,
-      "region": {
-        "min": [
-          -35,
-          266,
-          260
-        ],
-        "max": [
-          35,
-          284,
+          344,
           275
         ]
       },
@@ -246,17 +177,17 @@
       "kind": "envelope",
       "a": "lower-2|brace#0",
       "b": "lower-2|drawerBox#drawer1",
-      "volume": 63000,
+      "volume": 126000,
       "depth": 15,
       "region": {
         "min": [
           -35,
-          500,
+          426,
           260
         ],
         "max": [
           35,
-          560,
+          546,
           275
         ]
       },
@@ -269,30 +200,7 @@
       "kind": "envelope",
       "a": "lower-2|brace#0",
       "b": "lower-2|drawerBox#drawer2",
-      "volume": 63000,
-      "depth": 15,
-      "region": {
-        "min": [
-          -35,
-          366,
-          260
-        ],
-        "max": [
-          35,
-          426,
-          275
-        ]
-      },
-      "cause": "pending-owner D2",
-      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
-    },
-    {
-      "id": "drawer18|lower-2|brace#0×lower-2|drawerBox#drawer3",
-      "fixture": "drawer18",
-      "kind": "envelope",
-      "a": "lower-2|brace#0",
-      "b": "lower-2|drawerBox#drawer3",
-      "volume": 63000,
+      "volume": 126000,
       "depth": 15,
       "region": {
         "min": [
@@ -302,7 +210,7 @@
         ],
         "max": [
           35,
-          235,
+          295,
           275
         ]
       },
@@ -338,12 +246,12 @@
       "kind": "envelope",
       "a": "lower-2|drawerBox#drawer1",
       "b": "lower-2|shelf#0-0",
-      "volume": 5394834,
-      "depth": 11.5,
+      "volume": 7036740,
+      "depth": 15,
       "region": {
         "min": [
           -471,
-          500,
+          496.5,
           -225
         ],
         "max": [
@@ -366,35 +274,12 @@
       "region": {
         "min": [
           -35,
-          604,
+          326,
           260
         ],
         "max": [
           35,
-          622,
-          275
-        ]
-      },
-      "cause": "pending-owner D2",
-      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
-    },
-    {
-      "id": "drawer18|lower-3|brace#0×lower-3|channel:channelBase~3",
-      "fixture": "drawer18",
-      "kind": "solid",
-      "a": "lower-3|brace#0",
-      "b": "lower-3|channel:channelBase~3",
-      "volume": 18900,
-      "depth": 15,
-      "region": {
-        "min": [
-          -35,
-          266,
-          260
-        ],
-        "max": [
-          35,
-          284,
+          344,
           275
         ]
       },
@@ -407,17 +292,17 @@
       "kind": "envelope",
       "a": "lower-3|brace#0",
       "b": "lower-3|drawerBox#drawer1",
-      "volume": 63000,
+      "volume": 126000,
       "depth": 15,
       "region": {
         "min": [
           -35,
-          500,
+          426,
           260
         ],
         "max": [
           35,
-          560,
+          546,
           275
         ]
       },
@@ -430,30 +315,7 @@
       "kind": "envelope",
       "a": "lower-3|brace#0",
       "b": "lower-3|drawerBox#drawer2",
-      "volume": 63000,
-      "depth": 15,
-      "region": {
-        "min": [
-          -35,
-          366,
-          260
-        ],
-        "max": [
-          35,
-          426,
-          275
-        ]
-      },
-      "cause": "pending-owner D2",
-      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
-    },
-    {
-      "id": "drawer18|lower-3|brace#0×lower-3|drawerBox#drawer3",
-      "fixture": "drawer18",
-      "kind": "envelope",
-      "a": "lower-3|brace#0",
-      "b": "lower-3|drawerBox#drawer3",
-      "volume": 63000,
+      "volume": 126000,
       "depth": 15,
       "region": {
         "min": [
@@ -463,7 +325,7 @@
         ],
         "max": [
           35,
-          235,
+          295,
           275
         ]
       },
@@ -499,12 +361,12 @@
       "kind": "envelope",
       "a": "lower-3|drawerBox#drawer1",
       "b": "lower-3|shelf#0-0",
-      "volume": 5005398,
-      "depth": 11.5,
+      "volume": 6528780,
+      "depth": 15,
       "region": {
         "min": [
           -437,
-          500,
+          496.5,
           -225
         ],
         "max": [
@@ -522,12 +384,12 @@
       "kind": "envelope",
       "a": "lower-4|drawerBox#drawer1",
       "b": "lower-4|shelf#0-0",
-      "volume": 2336616,
-      "depth": 11.5,
+      "volume": 3047760,
+      "depth": 15,
       "region": {
         "min": [
           -204,
-          500,
+          496.5,
           -225
         ],
         "max": [
@@ -1056,35 +918,12 @@
       "region": {
         "min": [
           -35,
-          604,
+          326,
           260
         ],
         "max": [
           35,
-          622,
-          275
-        ]
-      },
-      "cause": "pending-owner D2",
-      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
-    },
-    {
-      "id": "drawer|lower-0|brace#0×lower-0|channel:channelBase~3",
-      "fixture": "drawer",
-      "kind": "solid",
-      "a": "lower-0|brace#0",
-      "b": "lower-0|channel:channelBase~3",
-      "volume": 18900,
-      "depth": 15,
-      "region": {
-        "min": [
-          -35,
-          266,
-          260
-        ],
-        "max": [
-          35,
-          284,
+          344,
           275
         ]
       },
@@ -1097,17 +936,17 @@
       "kind": "envelope",
       "a": "lower-0|brace#0",
       "b": "lower-0|drawerBox#drawer1",
-      "volume": 63000,
+      "volume": 126000,
       "depth": 15,
       "region": {
         "min": [
           -35,
-          520,
+          446,
           260
         ],
         "max": [
           35,
-          580,
+          566,
           275
         ]
       },
@@ -1120,30 +959,7 @@
       "kind": "envelope",
       "a": "lower-0|brace#0",
       "b": "lower-0|drawerBox#drawer2",
-      "volume": 63000,
-      "depth": 15,
-      "region": {
-        "min": [
-          -35,
-          386,
-          260
-        ],
-        "max": [
-          35,
-          446,
-          275
-        ]
-      },
-      "cause": "pending-owner D2",
-      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
-    },
-    {
-      "id": "drawer|lower-0|brace#0×lower-0|drawerBox#drawer3",
-      "fixture": "drawer",
-      "kind": "envelope",
-      "a": "lower-0|brace#0",
-      "b": "lower-0|drawerBox#drawer3",
-      "volume": 63000,
+      "volume": 126000,
       "depth": 15,
       "region": {
         "min": [
@@ -1153,7 +969,7 @@
         ],
         "max": [
           35,
-          255,
+          315,
           275
         ]
       },
@@ -1184,6 +1000,52 @@
       "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
     },
     {
+      "id": "drawer|lower-0|drawerBox#drawer1×lower-0|shelf#0-0",
+      "fixture": "drawer",
+      "kind": "envelope",
+      "a": "lower-0|drawerBox#drawer1",
+      "b": "lower-0|shelf#0-0",
+      "volume": 5548560,
+      "depth": 15,
+      "region": {
+        "min": [
+          -379,
+          496.5,
+          -215
+        ],
+        "max": [
+          379,
+          511.5,
+          273
+        ]
+      },
+      "cause": "drawer-shelf-kept",
+      "reason": "하부장을 서랍장으로 바꿔도 예전 선반 높이(s.shelves)가 그대로 남아 맨 위 서랍 박스 자리를 지나간다 (볼레일·18T 서랍 · 2026-10-24 소 75 뒤 2단 언더레일에서도 드러남) — UI 가 서랍 구성으로 바꿀 때 선반을 다시 잡지 않는다"
+    },
+    {
+      "id": "drawer|lower-1|drawerBox#drawer1×lower-1|shelf#0-0",
+      "fixture": "drawer",
+      "kind": "envelope",
+      "a": "lower-1|drawerBox#drawer1",
+      "b": "lower-1|shelf#0-0",
+      "volume": 2620560,
+      "depth": 15,
+      "region": {
+        "min": [
+          -179,
+          496.5,
+          -215
+        ],
+        "max": [
+          179,
+          511.5,
+          273
+        ]
+      },
+      "cause": "drawer-shelf-kept",
+      "reason": "하부장을 서랍장으로 바꿔도 예전 선반 높이(s.shelves)가 그대로 남아 맨 위 서랍 박스 자리를 지나간다 (볼레일·18T 서랍 · 2026-10-24 소 75 뒤 2단 언더레일에서도 드러남) — UI 가 서랍 구성으로 바꿀 때 선반을 다시 잡지 않는다"
+    },
+    {
       "id": "drawer|lower-2|brace#0×lower-2|channel:channelBase~2",
       "fixture": "drawer",
       "kind": "solid",
@@ -1194,35 +1056,12 @@
       "region": {
         "min": [
           -35,
-          604,
+          326,
           260
         ],
         "max": [
           35,
-          622,
-          275
-        ]
-      },
-      "cause": "pending-owner D2",
-      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
-    },
-    {
-      "id": "drawer|lower-2|brace#0×lower-2|channel:channelBase~3",
-      "fixture": "drawer",
-      "kind": "solid",
-      "a": "lower-2|brace#0",
-      "b": "lower-2|channel:channelBase~3",
-      "volume": 18900,
-      "depth": 15,
-      "region": {
-        "min": [
-          -35,
-          266,
-          260
-        ],
-        "max": [
-          35,
-          284,
+          344,
           275
         ]
       },
@@ -1235,17 +1074,17 @@
       "kind": "envelope",
       "a": "lower-2|brace#0",
       "b": "lower-2|drawerBox#drawer1",
-      "volume": 63000,
+      "volume": 126000,
       "depth": 15,
       "region": {
         "min": [
           -35,
-          520,
+          446,
           260
         ],
         "max": [
           35,
-          580,
+          566,
           275
         ]
       },
@@ -1258,30 +1097,7 @@
       "kind": "envelope",
       "a": "lower-2|brace#0",
       "b": "lower-2|drawerBox#drawer2",
-      "volume": 63000,
-      "depth": 15,
-      "region": {
-        "min": [
-          -35,
-          386,
-          260
-        ],
-        "max": [
-          35,
-          446,
-          275
-        ]
-      },
-      "cause": "pending-owner D2",
-      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
-    },
-    {
-      "id": "drawer|lower-2|brace#0×lower-2|drawerBox#drawer3",
-      "fixture": "drawer",
-      "kind": "envelope",
-      "a": "lower-2|brace#0",
-      "b": "lower-2|drawerBox#drawer3",
-      "volume": 63000,
+      "volume": 126000,
       "depth": 15,
       "region": {
         "min": [
@@ -1291,7 +1107,7 @@
         ],
         "max": [
           35,
-          255,
+          315,
           275
         ]
       },
@@ -1322,6 +1138,29 @@
       "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
     },
     {
+      "id": "drawer|lower-2|drawerBox#drawer1×lower-2|shelf#0-0",
+      "fixture": "drawer",
+      "kind": "envelope",
+      "a": "lower-2|drawerBox#drawer1",
+      "b": "lower-2|shelf#0-0",
+      "volume": 7012560,
+      "depth": 15,
+      "region": {
+        "min": [
+          -479,
+          496.5,
+          -215
+        ],
+        "max": [
+          479,
+          511.5,
+          273
+        ]
+      },
+      "cause": "drawer-shelf-kept",
+      "reason": "하부장을 서랍장으로 바꿔도 예전 선반 높이(s.shelves)가 그대로 남아 맨 위 서랍 박스 자리를 지나간다 (볼레일·18T 서랍 · 2026-10-24 소 75 뒤 2단 언더레일에서도 드러남) — UI 가 서랍 구성으로 바꿀 때 선반을 다시 잡지 않는다"
+    },
+    {
       "id": "drawer|lower-3|brace#0×lower-3|channel:channelBase~2",
       "fixture": "drawer",
       "kind": "solid",
@@ -1332,35 +1171,12 @@
       "region": {
         "min": [
           -35,
-          604,
+          326,
           260
         ],
         "max": [
           35,
-          622,
-          275
-        ]
-      },
-      "cause": "pending-owner D2",
-      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
-    },
-    {
-      "id": "drawer|lower-3|brace#0×lower-3|channel:channelBase~3",
-      "fixture": "drawer",
-      "kind": "solid",
-      "a": "lower-3|brace#0",
-      "b": "lower-3|channel:channelBase~3",
-      "volume": 18900,
-      "depth": 15,
-      "region": {
-        "min": [
-          -35,
-          266,
-          260
-        ],
-        "max": [
-          35,
-          284,
+          344,
           275
         ]
       },
@@ -1373,17 +1189,17 @@
       "kind": "envelope",
       "a": "lower-3|brace#0",
       "b": "lower-3|drawerBox#drawer1",
-      "volume": 63000,
+      "volume": 126000,
       "depth": 15,
       "region": {
         "min": [
           -35,
-          520,
+          446,
           260
         ],
         "max": [
           35,
-          580,
+          566,
           275
         ]
       },
@@ -1396,30 +1212,7 @@
       "kind": "envelope",
       "a": "lower-3|brace#0",
       "b": "lower-3|drawerBox#drawer2",
-      "volume": 63000,
-      "depth": 15,
-      "region": {
-        "min": [
-          -35,
-          386,
-          260
-        ],
-        "max": [
-          35,
-          446,
-          275
-        ]
-      },
-      "cause": "pending-owner D2",
-      "reason": "서랍장 처짐방지목이 몸통 높이 그대로 서서 서랍 박스·중간 목찬넬 지면판을 관통한다 — 서랍장에서의 처짐방지목 위치는 결정 D2 대기"
-    },
-    {
-      "id": "drawer|lower-3|brace#0×lower-3|drawerBox#drawer3",
-      "fixture": "drawer",
-      "kind": "envelope",
-      "a": "lower-3|brace#0",
-      "b": "lower-3|drawerBox#drawer3",
-      "volume": 63000,
+      "volume": 126000,
       "depth": 15,
       "region": {
         "min": [
@@ -1429,7 +1222,7 @@
         ],
         "max": [
           35,
-          255,
+          315,
           275
         ]
       },
@@ -1458,6 +1251,52 @@
       },
       "cause": "shelf-depth-3d",
       "reason": "3D 선반 깊이가 D−T−4 로 앞선 2mm 까지 와서 처짐방지목(측판 앞선에 맞댐, 15T)을 13mm 파고든다 — 규칙은 하부 선반 D−15(처짐방지목 몫)·상부 D−34"
+    },
+    {
+      "id": "drawer|lower-3|drawerBox#drawer1×lower-3|shelf#0-0",
+      "fixture": "drawer",
+      "kind": "envelope",
+      "a": "lower-3|drawerBox#drawer1",
+      "b": "lower-3|shelf#0-0",
+      "volume": 6514800,
+      "depth": 15,
+      "region": {
+        "min": [
+          -445,
+          496.5,
+          -215
+        ],
+        "max": [
+          445,
+          511.5,
+          273
+        ]
+      },
+      "cause": "drawer-shelf-kept",
+      "reason": "하부장을 서랍장으로 바꿔도 예전 선반 높이(s.shelves)가 그대로 남아 맨 위 서랍 박스 자리를 지나간다 (볼레일·18T 서랍 · 2026-10-24 소 75 뒤 2단 언더레일에서도 드러남) — UI 가 서랍 구성으로 바꿀 때 선반을 다시 잡지 않는다"
+    },
+    {
+      "id": "drawer|lower-4|drawerBox#drawer1×lower-4|shelf#0-0",
+      "fixture": "drawer",
+      "kind": "envelope",
+      "a": "lower-4|drawerBox#drawer1",
+      "b": "lower-4|shelf#0-0",
+      "volume": 3103680,
+      "depth": 15,
+      "region": {
+        "min": [
+          -212,
+          496.5,
+          -215
+        ],
+        "max": [
+          212,
+          511.5,
+          273
+        ]
+      },
+      "cause": "drawer-shelf-kept",
+      "reason": "하부장을 서랍장으로 바꿔도 예전 선반 높이(s.shelves)가 그대로 남아 맨 위 서랍 박스 자리를 지나간다 (볼레일·18T 서랍 · 2026-10-24 소 75 뒤 2단 언더레일에서도 드러남) — UI 가 서랍 구성으로 바꿀 때 선반을 다시 잡지 않는다"
     },
     {
       "id": "drawer|upper-0|body:back×upper-0|body:left",

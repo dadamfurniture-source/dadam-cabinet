@@ -12,10 +12,11 @@
  *   · 목찬넬 수: 전면과 1:1 이 아니다. 중간 목찬넬 하나가 위·아래 두 전면을 연다. 상단 목찬넬은 항상 있고(연속 EP),
  *     나머지는 "모든 전면이 슬롯 하나에 닿는 최소 수" — 아래에서 위로 짝지어 놓는다 (2단 1 · 3단 1 · 4단 2).
  *   · 목찬넬 없는 전면 사이는 도어 갭 4.
- *   · 서랍 최대 4단. 서랍 박스 높이 소 60 · 중 120 · 대 180.
+ *   · 서랍 최대 4단. 서랍 박스 높이 소 75 · 중 120 · 대 180 (2026-10-24 사장님 — 소 60 → 75).
  *   · 레일 여유: 댐핑 볼레일 = 박스 + 20 (아래 10 · 위 10), 댐핑 언더레일 = 박스 + 40 (아래 30 · 위 10).
  *   · 존(박스 자리): 위 따내기 바닥(또는 전면 경계) ~ 아래 따내기 윗선(또는 전면 경계, 마지막은 지판 윗면).
- *     존 안에 박스 + 여유가 들어가는 가장 큰 박스를 고른다.
+ *     존 안에 박스 + 여유가 들어가는 가장 큰 박스를 고른다 (2026-10-24 사장님 "설치 가능한 공간에 큰 서랍 우선").
+ *     맨 위 전면이 서랍이면(서랍장 — 위 칸도 서랍) 존은 상단 따내기 아래 **앞 밴드 아래**부터다: 따내기 70 + 몸통 두께.
  *   · 박스 치수 (2026-09-15 철물 규격, drawerBoxDims):
  *       레일 길이 = 250·300·350·400·450·500 중 모듈 깊이 − 50 이하의 최대.
  *       댐핑 볼레일  앞뒷판 가로 = W − 2×몸통T − 2×레일 두께 14 − 2×서랍T, 측판 길이 = 레일 길이
@@ -27,11 +28,15 @@
  *       각 전면   = 전면 영역 × 버줌 ÷ Σ버줌          버줌: 소 1 · 중 2 · 대 2
  *       받침보정  = 좌대가 있으면 20 (도어가 다리발·좌대를 40 덮고 바닥에서 20 뜬다), 없으면 다리발 높이
  *     기준은 **모듈 높이가 아니라 배치(영역) 높이**다 — 한 런의 도어가 모듈 높이와 무관하게 줄을 맞춘다.
- *     소·중·대는 **전면 등급**이고 박스 60·120·180 과 다른 축이다 (중·대는 전면 높이가 같고 박스만 다르다).
- *   · 자동 등급 (2026-10-19 사장님 확정, autoGradeFor):
- *       비율 문자열(예 "2:1:1")의 서랍 "2" 는 등급 'auto' — 버줌 2 로 전면을 나눈 뒤, 목찬넬 자리를 뺀 존 높이가
- *       250 이상이면 대, 아니면 들어가는 박스에 따라 중 또는 소. 박스도 그 등급 박스다 (대 180 · 중 120 · 소 60).
+ *     소·중·대는 **전면 등급**이고 박스 75·120·180 과 다른 축이다 (중·대는 전면 높이가 같고 박스만 다르다).
+ *   · 자동 등급 (2026-10-19 사장님 확정, 2026-10-24 바뀜, autoGradeFor):
+ *       비율 문자열(예 "2:1:1")의 서랍 "2" 는 등급 'auto' — 버줌 2 로 전면을 나눈 뒤, 목찬넬 자리를 뺀 존에
+ *       들어가는 가장 큰 박스 (대 180 · 중 120 · 소 75). 박스도 그 등급 박스다.
+ *       2026-10-19 의 "존 250 이상이면 대" 기준은 2026-10-24 사장님 "큰 서랍 우선" 으로 없앴다.
  *       비율은 1 · 2 만 받는다 — 고정 mm 전면(1:200:1)은 받지 않는다.
+ *   · 서랍장 위 칸 (2026-10-24 사장님 "서랍장 맨 위 칸도 서랍"): 플래너가 서랍장에 drawer.topDrawer 를 단다.
+ *       그러면 비율의 첫 칸도 서랍이고(gradesFromRatio topDrawer), 전면은 모두 서랍이다(BOM drawerLayout 'all').
+ *       자동계산 하부장(도어 + 아래 서랍)은 그대로 위 칸 도어다.
  */
 (function (root, factory) {
   const api = factory();
@@ -42,7 +47,8 @@
 
   const DRAWER_RULES = Object.freeze({
     MAX_COUNT: 4,
-    BOX_H: Object.freeze({ small: 60, medium: 120, large: 180 }),
+    // 2026-10-24 사장님: 소 75 · 중 120 · 대 180 (소 60 → 75). 하단보강 BOX_BRACE_H 60 은 다른 값이다.
+    BOX_H: Object.freeze({ small: 75, medium: 120, large: 180 }),
     BOX_LABEL: Object.freeze({ small: '소', medium: '중', large: '대' }),
     BOX_BRACE_OVER_W: 600,        // 전후판 가로가 이보다 크면 하단보강 (측판 길이 × 60)
     BOX_BRACE_H: 60,
@@ -69,7 +75,8 @@
     //   중·대 버줌이 둘 다 2 인 것은 사장님 확인값이다: 전면 높이는 같고 속 박스만 120 · 180 으로 다르다.
     FRONT_WEIGHT: Object.freeze({ small: 1, medium: 2, large: 2, auto: 2 }),
     FRONT_GRADE_LABEL: Object.freeze({ small: '소', medium: '중', large: '대', auto: '자동' }),
-    // 2026-10-19 사장님: 비율 2 서랍은 목찬넬 자리를 뺀 서랍 자리(존)가 250 이상이면 대, 아니면 중이나 소.
+    // 2026-10-19 사장님: 비율 2 서랍은 존이 250 이상이면 대 — 2026-10-24 사장님 "큰 서랍 우선" 으로 규칙에서는 쓰지 않는다.
+    //   플래너 등급 안내 문구(mockup-structure.html)가 아직 읽어서 남겨 둔다 — 플래너 PR 이 문구를 고치면 지운다.
     AUTO_LARGE_ZONE_MIN: 250,
     RATIO_GRADE: Object.freeze({ 1: 'small', 2: 'auto' }),   // 서랍 비율 → 등급 (도어 2 는 도어 기본 등급)
     FRONT_GRADE_DEFAULT: 'medium',
@@ -125,42 +132,54 @@
 
   /**
    * 2026-10-19: 자동 등급 — 존 높이로 대·중·소를 정하고 그 등급 박스를 쓴다.
-   *   존 ≥ AUTO_LARGE_ZONE_MIN(250) 이고 대 박스가 들어가면 대, 아니면 중 박스가 들어가면 중, 아니면 소.
+   *   2026-10-24 사장님 "설치 가능한 공간에 큰 서랍 우선": 존에 들어가는 가장 큰 박스 (pickBox 와 같은 답).
+   *   예전의 "존 250 이상이면 대" 기준은 없앴다.
    */
   function autoGradeFor(zoneH, rail) {
-    const R = DRAWER_RULES;
-    const c = railOf(rail);
-    const fit = (size) => R.BOX_H[size] + c.below + c.above <= zoneH;
-    let size = 'small';
-    if (zoneH >= R.AUTO_LARGE_ZONE_MIN && fit('large')) size = 'large';
-    else if (fit('medium')) size = 'medium';
-    return { size, h: R.BOX_H[size], fits: fit(size) };
+    return pickBox(zoneH, rail);
   }
 
   /**
    * 2026-10-19: 비율 문자열 → 전면 등급. 위→아래, 첫 칸은 도어 ("2:1:1" = 도어 2 · 서랍 1 · 서랍 1).
    *   1 = 소, 2 = 서랍이면 자동(대·중·소), 도어면 도어 기본 등급. 다른 수(고정 mm 포함)는 받지 않는다.
+   *   2026-10-24: opts.topDrawer (서랍장 — 위 칸도 서랍) 이면 첫 칸도 서랍이다 — 모든 칸이 서랍 등급, 도어 등급 없음,
+   *   서랍은 최대 MAX_COUNT 장 ("2:1:1" = 서랍 2 · 1 · 1).
+   * @param {{topDrawer?: boolean}} [opts]
    * @returns {{doorGrade, grades, drawerCount} | {error}}
    */
-  function gradesFromRatio(str) {
+  function gradesFromRatio(str, opts) {
     const R = DRAWER_RULES;
+    const topDrawer = !!(opts && opts.topDrawer);
     const parts = String(str == null ? '' : str).split(':').map((x) => x.trim());
-    if (parts.length < 2 || parts.length > R.MAX_COUNT + 1) {
-      return { error: `도어 1 + 서랍 1~${R.MAX_COUNT} 칸을 : 로 이어 적습니다 (예 2:1:1)` };
+    const max = topDrawer ? R.MAX_COUNT : R.MAX_COUNT + 1;
+    if (parts.length < 2 || parts.length > max) {
+      return {
+        error: topDrawer
+          ? `서랍 2~${R.MAX_COUNT} 칸을 : 로 이어 적습니다 (예 2:1:1)`
+          : `도어 1 + 서랍 1~${R.MAX_COUNT} 칸을 : 로 이어 적습니다 (예 2:1:1)`,
+      };
     }
     if (parts.some((x) => x !== '1' && x !== '2')) {
       return { error: '비율은 1 또는 2 만 적습니다 (mm 고정은 받지 않습니다)' };
+    }
+    if (topDrawer) {
+      const grades = parts.map((x) => R.RATIO_GRADE[x]);
+      return { doorGrade: '', grades, drawerCount: grades.length };
     }
     const doorGrade = parts[0] === '1' ? 'small' : R.DOOR_GRADE_DEFAULT;
     const grades = parts.slice(1).map((x) => R.RATIO_GRADE[x]);
     return { doorGrade, grades, drawerCount: grades.length };
   }
 
-  /** 등급 → 비율 문자열 (입력칸 표시용). 소 1, 나머지 2. */
-  function ratioOf(doorGrade, grades) {
+  /**
+   * 등급 → 비율 문자열 (입력칸 표시용). 소 1, 나머지 2.
+   *   opts.topDrawer 이면 도어 칸 없이 서랍 등급만 잇는다.
+   */
+  function ratioOf(doorGrade, grades, opts) {
     const R = DRAWER_RULES;
     const w = (g, kind) => R.FRONT_WEIGHT[gradeOf(g, kind)];
-    return [w(doorGrade, 'door')].concat((grades || []).map((g) => w(g, 'drawer'))).join(':');
+    const drawers = (grades || []).map((g) => w(g, 'drawer'));
+    return (opts && opts.topDrawer ? drawers : [w(doorGrade, 'door')].concat(drawers)).join(':');
   }
 
   /** 전면 n 장에 필요한 목찬넬 개수 — 상단 1 + 중간 최소 수. */
@@ -321,7 +340,8 @@
     fronts.forEach((f, i) => {
       if (f.kind !== 'drawer') return;
       let top;
-      if (f.channelAbove === 'top') top = R.CHANNEL_TOP_NOTCH_H;
+      // 2026-10-24: 맨 위 서랍은 상단 따내기 아래 앞 밴드(몸통 두께) 밑부터 — 박스가 밴드와 겹치지 않는다 (사장님 "설치 가능한 공간")
+      if (f.channelAbove === 'top') top = R.CHANNEL_TOP_NOTCH_H + T;
       else if (f.channelAbove === 'mid') top = (f.y0 - R.MID_SLOT - R.UPPER_DROP) + R.CHANNEL_MID_NOTCH_H;
       else top = f.y0 - frontGap / 2;
       let bottom;
