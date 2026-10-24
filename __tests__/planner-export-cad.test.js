@@ -18,7 +18,10 @@ const Asm = require('../js/detaildesign/bom-assembly.js');
 const AssemblyCheck = require('../js/detaildesign/assembly-check.js');
 const {
   plannerExportCadSpec, plannerExportCadGlb, PLANNER_EXPORT_SCALE, PLANNER_EXPORT_CAD_ROOT_NAME,
+  plannerExportStableJson, plannerExportAssemblyHash, PLANNER_EXPORT_CAD_VERSION,
 } = require('../js/planner/planner-export.js');
+const nodeCrypto = require('crypto');
+const subtle = nodeCrypto.webcrypto.subtle;
 const { GLTFExporter } = require('three/examples/jsm/exporters/GLTFExporter.js');
 
 if (typeof global.TextEncoder === 'undefined') global.TextEncoder = require('util').TextEncoder;
@@ -75,7 +78,7 @@ const SCENES = Object.assign({}, ...Object.keys(FIXTURES).map((k) => ({ [k]: (o)
 });
 
 describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
-  let p, THREE, cad, item, itemJson, pieces, built, gltf;
+  let p, THREE, cad, item, itemJson, pieces, built, gltf, ext, extGltf;
   beforeAll(async () => {
     p = SCENES[name]({ design: 'cad', item: name });
     await new Promise((r) => setTimeout(r, 150));
@@ -84,8 +87,47 @@ describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
     itemJson = JSON.stringify(item);
     cad = p.g('PlannerExport')._o.cad();
     pieces = collectScenePieces(p);
-    built = await plannerExportCadGlb(THREE, GLTFExporter, cad.spec, cad.frameOf, { solidsOf: cad.solidsOf, exportedAt: '2026-10-20T00:00:00Z' });
+    built = await plannerExportCadGlb(THREE, GLTFExporter, cad.spec, cad.frameOf, { solidsOf: cad.solidsOf, exportedAt: '2026-10-20T00:00:00Z', subtle });
     gltf = glbJson(built.glb);
+    ext = await plannerExportCadGlb(THREE, GLTFExporter, cad.spec, cad.frameOf, { solidsOf: cad.solidsOf, exportedAt: '2026-10-20T00:00:00Z', subtle, vis: 'exterior' });
+    extGltf = glbJson(ext.glb);
+  });
+
+  // PR16 완료 기준 — 노드 수 = 명세 부재 수 · 화면용 메시 0 · 배율 0.001 · 외관 거름망 1MB 이하
+  test('PR16 — 판재 노드 수 = 명세 부재 수 (모듈 부재 + 라인 부재), 화면용 메시 0', () => {
+    const specParts = cad.spec.items.reduce((n, it) => n + (it ? it.modules.reduce((k, m) => k + m.parts.length, 0) + it.runs.reduce((k, r) => k + r.parts.length, 0) : 0), 0);
+    expect(built.skipped).toBe(0);
+    expect(built.parts).toBe(specParts);
+    expect(gltf.nodes.filter((n) => n.extras && n.extras.rowPartId)).toHaveLength(specParts);
+    // 메시는 모두 판재(이름 partId#k 또는 따낸 판의 partId#k/i)이거나 철물 상자 — 3D 화면의 메시는 하나도 없다
+    const ids = new Set(cad.spec.items.flatMap((it) => (it ? it.modules.flatMap((m) => m.parts).concat(it.runs.flatMap((r) => r.parts)) : [])).map((pt) => pt.id));
+    const meshes = gltf.nodes.filter((n) => n.mesh != null);
+    expect(meshes.filter((n) => !(ids.has(n.name) || ids.has(String(n.name).replace(/\/\d+$/, '')) || (n.extras && n.extras.hardware)))).toEqual([]);
+  });
+
+  test('PR16 — 루트 extras: 명세 해시(assemblyHash) = SHA-256(키 정렬 직렬화) · 만든 쪽 버전', async () => {
+    const root = gltf.nodes[gltf.scenes[gltf.scene || 0].nodes[0]];
+    const want = nodeCrypto.createHash('sha256').update(plannerExportStableJson(cad.spec), 'utf8').digest('hex');
+    expect(root.extras.assemblyHash).toBe(want);
+    expect(await plannerExportAssemblyHash(JSON.parse(JSON.stringify(cad.spec)), subtle)).toBe(want);
+    expect(root.extras).toMatchObject({ generator: PLANNER_EXPORT_CAD_VERSION, vis: 'all' });
+  });
+
+  test('PR16 — 외관 거름망(vis exterior): 외관 판재만 · 철물 없음 · 1MB 이하 · 배율 0.001', () => {
+    const want = cad.spec.items.reduce((n, it) => n + (it ? it.modules.reduce((k, m) => k + m.parts.filter((pt) => pt.vis === 'exterior').length, 0) + it.runs.reduce((k, r) => k + r.parts.filter((pt) => pt.vis === 'exterior').length, 0) : 0), 0);
+    expect(want).toBeGreaterThan(0);
+    expect(ext.parts).toBe(want);
+    expect(ext.hardware).toBe(0);
+    const partNodes = extGltf.nodes.filter((n) => n.extras && n.extras.rowPartId);
+    expect(partNodes).toHaveLength(want);
+    expect(partNodes.every((n) => n.extras.vis === 'exterior')).toBe(true);
+    expect(extGltf.nodes.filter((n) => n.extras && n.extras.hardware)).toEqual([]);
+    const root = extGltf.nodes[extGltf.scenes[extGltf.scene || 0].nodes[0]];
+    expect(root.scale).toEqual([PLANNER_EXPORT_SCALE, PLANNER_EXPORT_SCALE, PLANNER_EXPORT_SCALE]);
+    expect(root.extras).toMatchObject({ vis: 'exterior', assemblyHash: gltf.nodes[gltf.scenes[gltf.scene || 0].nodes[0]].extras.assemblyHash });
+    expect(ext.glb.byteLength).toBeLessThanOrEqual(1024 * 1024);
+    // 판재가 없는 모듈 노드는 싣지 않는다
+    extGltf.nodes.filter((n) => /^module·/.test(n.name)).forEach((n) => expect((n.children || []).length).toBeGreaterThan(0));
   });
 
   test('명세가 플래너 모듈마다 판재를 놓는다 — 자리 못 찾은 모듈 0', () => {
@@ -393,6 +435,11 @@ describe('관리자만 · 부모 창', () => {
     expect(btn.hidden).toBe(false);
     PE.setAdmin(false);
     expect(btn.hidden).toBe(true);
+  });
+
+  test('plannerExportStableJson — 키 순서와 무관 · undefined 키는 뺀다 (워커 해시와 같은 규칙)', () => {
+    expect(plannerExportStableJson({ b: 1, a: [1, { d: 'x', c: null }], e: undefined })).toBe('{"a":[1,{"c":null,"d":"x"}],"b":1}');
+    expect(plannerExportStableJson({ a: 1, b: 2 })).toBe(plannerExportStableJson({ b: 2, a: 1 }));
   });
 
   test('관리자가 아니면 downloadCad 는 아무것도 하지 않는다', async () => {
