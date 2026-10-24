@@ -277,14 +277,16 @@
    * 멍장 정면 자리 (corner.md §3.3·§3.5·§3.5.1). 벽(코너) 쪽 0 → 도어 쪽으로 u 를 잰다:
    *   [멍가림판 0 … 멍W−15][도어 자리 멍W−15 … 멍W+doorW] — 목대 15 는 도어 자리 안쪽 구조재라 도어가 덮는다.
    *   멍장이 라인의 어느 끝인지는 specs.secondaryStartSide (corner-engine seedCornerModules: 'left' 면 멍장이 맨 앞 =
-   *   벽이 왼쪽, 도어가 오른쪽). 멍 W + doorW 가 몸통 W 와 다르면 null (놓지 않는다).
+   *   벽이 왼쪽, 도어가 오른쪽). 플래너 멍장은 모듈마다 `blindDoorRight` 를 싣는다 (2026-10-25 — 플래너가 아는 벽 쪽,
+   *   구조 칸 순서 [멍][도어] 면 true). 실려 있으면 그것을 쓴다 — 품목 설정 하나로는 ㄷ자 두 멍장 · 벽이 오른쪽인 멍장을 못 적는다.
+   *   멍 W + doorW 가 몸통 W 와 다르면 null (놓지 않는다).
    * @returns {{zoneW:number, doorW:number, doorRight:boolean, coverEnd:number, xOf:function}|null} xOf(u0,u1) = 그 구간의 왼쪽 x
    */
   function blindGeomOf(mod, W, item) {
     const zoneW = Number(mod.blindZoneW) || 0, doorW = Number(mod.doorW) || 0;
     if (!(zoneW > 0) || !(doorW > 0) || zoneW + doorW !== W) return null;
     const startSide = (item && item.specs && item.specs.secondaryStartSide) || 'left';
-    const doorRight = startSide !== 'right';
+    const doorRight = typeof mod.blindDoorRight === 'boolean' ? mod.blindDoorRight : startSide !== 'right';
     const xw = doorRight ? -W / 2 : W / 2, s = doorRight ? 1 : -1;
     return {
       zoneW, doorW, doorRight,
