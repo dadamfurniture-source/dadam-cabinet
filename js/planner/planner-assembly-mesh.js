@@ -16,7 +16,8 @@
 //   · 부재 묶음(PLANNER_ASM_GROUPS)마다 따로 — 그 묶음의 행이 **전부** 놓였을 때만 그 묶음을 명세로 그린다.
 //     하나라도 unplaced 면 그 묶음은 예전 그리기 (자리를 모르는 부재를 지어내지 않는다. 예: 서랍장 처짐방지목 D2)
 //   · 몸통(shell)이 예전 그리기면 나머지 묶음도 예전 그리기 (예전 몸통이 목찬넬·서랍 박스를 같이 그린다)
-//   · 부르는 쪽이 따로 거르는 것: 마감재 · 가전 자리 · 오픈장 · 밥솥장 · 붙박이장 통 · 멍장 · 기둥 따내기
+//   · 멍장 — 명세 모듈 하나 (2026-10-25). 몸통 · ㄱ자 경첩목대 · 처짐방지목 · 선반을 명세로, 정면(멍가림판 · 멍판 마감재 · 도어)은 예전 그리기
+//   · 부르는 쪽이 따로 거르는 것: 마감재 · 가전 자리 · 오픈장 · 밥솥장 · 붙박이장 통 · 기둥 따내기
 //
 // ⚠ 클래식 스크립트 — 최상위 이름은 전부 PLANNER_ASM_ / plannerAssembly / PlannerAssembly 접두.
 // ============================================================
@@ -26,7 +27,7 @@
  * 라인 부재는 아래 PLANNER_ASM_RUN_GROUPS (items[].runs, 품목 `ep` 행).
  */
 const PLANNER_ASM_GROUPS = {
-  shell: ['body:side', 'body:bottom', 'body:top', 'body:band', 'back'],
+  shell: ['body:side', 'body:bottom', 'body:top', 'body:band', 'back', 'body:batten-front', 'body:batten-side'],   // 목대 = 멍장 ㄱ자 경첩목대
   brace: ['body:brace'],
   shelf: ['shelf'],
   front: ['door', 'drawer'],
@@ -298,6 +299,10 @@ function plannerAssemblyUserData(part, moduleKey, plannerId, ctx) {
   if (k.family === 'channel:mid-front' || k.family === 'channel:mid-back') {
     return Object.assign({ entityKind: 'carcass', side: k.family === 'channel:mid-front' ? 'channelFace' : 'channelBase',
       mid: tags.mid != null ? tags.mid : 0 }, base);
+  }
+  // 멍장 ㄱ자 경첩목대 — 예전 그리기(addBlindBatten)와 같은 이름 (planner-finish.js 'body:batten-' + leg)
+  if (k.family === 'body:batten-front' || k.family === 'body:batten-side') {
+    return Object.assign({ entityKind: 'carcass', side: 'batten', leg: k.family === 'body:batten-front' ? 'front' : 'side' }, base);
   }
   let side;
   if (k.family === 'body:side') side = (part.tags && part.tags.side) || 'side';
