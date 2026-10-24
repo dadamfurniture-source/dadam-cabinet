@@ -1187,13 +1187,21 @@ function labelSheets(ctx) {
  * 서랍도어 행이거나, 같은 모듈(moduleKey **와** 모듈 라벨)에 서랍도어가 있는 도어 행 — 싱크·단순 카테고리 서랍장.
  * 붙박이장 외부 서랍은 서랍도어 라벨이 `…-서랍모듈` 로 따로라, 그 위 긴 여닫이 도어는 마이다가 아니다 (경첩 있음).
  * BOM 도 서랍장 모듈에는 경첩을 내지 않는다 (extractors.js bomIsMaidaModule). (순수, 시험용으로 노출)
+ * 2026-10-25: 위 도어 + 아래 서랍은 두 몸통이라 서랍 전면 행이 `…-서랍모듈` 로 갈린다 (붙박이장과 같은 꼴). 그래서 철물을 함께 보면
+ *   같은 모듈(moduleKey)에 서랍도어가 있고 **경첩이 하나도 없는** 도어 행도 마이다다 — 붙박이장 긴 도어는 경첩이 있어 빠진다.
+ *   철물에 moduleKey 가 없는 옛 스냅샷은 라벨 규칙만.
+ * @param {Array} [hardware]  철물 행 (경첩 category '경첩', moduleKey)
  */
-export function isMaidaRow(materials, row) {
+export function isMaidaRow(materials, row, hardware) {
   if (!row) return false;
   if (row.slot === 'drawerFront' || row.part === '서랍도어') return true;
   if (!(row.slot === 'door' || row.part === '도어') || !row.moduleKey) return false;
-  return (materials || []).some((m) => m && m.moduleKey === row.moduleKey && m.module === row.module
+  const drawerHere = (sameLabel) => (materials || []).some((m) => m && m.moduleKey === row.moduleKey && (!sameLabel || m.module === row.module)
     && (m.slot === 'drawerFront' || m.part === '서랍도어'));
+  if (drawerHere(true)) return true;
+  const hw = Array.isArray(hardware) ? hardware : [];
+  if (!hw.some((h) => h && h.moduleKey)) return false;
+  return drawerHere(false) && !hw.some((h) => h && h.category === '경첩' && h.moduleKey === row.moduleKey);
 }
 
 /**
@@ -1241,7 +1249,7 @@ function doorOrderSheet(ctx) {
               num(m.qty),
               `${edgeSvg(rowEdges(m))}${edgeText(m)}`,
               b ? `${num(b.count)}구 · ${esc(b.positions.join(', '))}${b.side === 'top' ? ' <span class="muted">(플랩 — 천판 쪽 폭 변)</span>' : ''}${b.warn ? ` <span class="warn">${esc(b.warn)}</span>` : ''}`
-                : isMaidaRow(ctx.materials, m) ? '<span class="muted">마이다 — 보링 없음</span>' : '',
+                : isMaidaRow(ctx.materials, m, ctx.hardware) ? '<span class="muted">마이다 — 보링 없음</span>' : '',
             ],
             ['', '', '', 'num', 'num', '', ''],
           );

@@ -49,14 +49,14 @@ test('featureLabel — 크기 · 가까운 끝에서의 자리 · 홈은 깊이 
 test('sink15 — 따내기 · 홈 판재만 같은 도면끼리 (도어 행은 뺀다)', () => {
   const { materials, spec } = specOf('sink15');
   const groups = partDrawingGroups(spec, materials, { include: notDoor });
-  assert.equal(groups.length, 3);
+  assert.equal(groups.length, 4);   // 2026-10-25 서랍장 l2 두 몸통 — 도어 모듈 측판(상단 따내기)과 서랍 모듈 측판(중간 따내기)이 다른 도면
   const all = specParts(spec).filter(({ p }) => featuresOf(p).length);
   assert.equal(groups.reduce((s, g) => s + g.pieces.length, 0), all.length, '특징 있는 판재는 전부 어느 도면엔가 든다');
   groups.forEach((g) => {
     assert.equal(g.part, '측판');
     assert.equal(new Set(g.pieces.map((x) => x.id)).size, g.pieces.length);
   });
-  assert.deepEqual(groups.map((g) => g.features.map((f) => f.type).join('+')).sort(), ['groove', 'notch', 'notch+notch']);
+  assert.deepEqual(groups.map((g) => g.features.map((f) => f.type).join('+')).sort(), ['groove', 'notch', 'notch', 'notch']);
 });
 
 test('명세 없음 · 다른 스키마 · 그릴 판재 없음 → 쪽이 없다', () => {
@@ -72,8 +72,8 @@ test('재단 묶음 — 판재 도면 쪽이 재단 쪽 뒤에, 도면마다 rev
   const at = html.indexOf('③-2 판재 도면');
   assert.ok(at > html.indexOf('③ 재단·엣지 지시서'), '재단 쪽 다음');
   const cards = html.split('class="part-drawing-card"').length - 1;
-  assert.equal(cards, 3);
-  assert.equal(html.split('<svg class="part-drawing"').length - 1, 3);
+  assert.equal(cards, 4);   // 2026-10-25 서랍장 두 몸통 — 도어 모듈 · 서랍 모듈 측판이 다른 도면
+  assert.equal(html.split('<svg class="part-drawing"').length - 1, 4);
   const stamp = `rev 3 · ${snap.content_hash.slice(0, 12)} · 규칙 ${snap.bom_payload.assembly.rulesVersion}`;
   assert.equal(html.split(stamp).length - 1, cards + 1, '쪽 머리 + 도면마다');
   // 전체 묶음에도 같은 쪽

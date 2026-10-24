@@ -75,7 +75,7 @@ describe('partId — 모든 자재 행에, 설계 안에서 유일, 두 번 돌�
     item.modules.forEach((m) => { delete m.id; });
     const r = extractRows({ items: [item] });
     expect(oneRow(r, '상부장-상부장(1D)', '도어').partId).toBe('0-upper-1-door#0-0');
-    expect(oneRow(r, '하부장-서랍장', '서랍도어').partId).toBe('0-lower-1-drawer#0-0');
+    expect(oneRow(r, '하부장-서랍장-서랍모듈', '서랍도어').partId).toBe('0-lower-1-drawer#0-0');
   });
 });
 
@@ -98,13 +98,13 @@ describe('slot — planner-finish 7 슬롯 + back', () => {
 
   test('전면 → door/drawerFront, 몸통 → body, 2.7T 판 → back, 목찬넬 → handle, EP → finishing, 바닥 → kick', () => {
     expect(slotOf('#1 하부장-서랍장', '도어')).toBe('door');
-    expect(slotOf('#1 하부장-서랍장', '서랍도어')).toBe('drawerFront');
+    expect(slotOf('#1 하부장-서랍장-서랍모듈', '서랍도어')).toBe('drawerFront');
     expect(slotOf('#1 하부장-서랍장', '측판')).toBe('body');
     expect(slotOf('#1 하부장-서랍장', '뒷판')).toBe('back');
-    expect(slotOf('#1 하부장-서랍장', '서랍밑판')).toBe('back');
+    expect(slotOf('#1 하부장-서랍장-서랍모듈', '서랍밑판')).toBe('back');
     // 2026-09-15: 서랍장 모듈 목찬넬은 중간 목찬넬(전면·지면) 두 부재 — 둘 다 손잡이 슬롯
-    expect(slotOf('#1 하부장-서랍장', '목찬넬(중간 전면)')).toBe('handle');
-    expect(slotOf('#1 하부장-서랍장', '목찬넬(중간 지면)')).toBe('handle');
+    expect(slotOf('#1 하부장-서랍장-서랍모듈', '목찬넬(중간 전면)')).toBe('handle');
+    expect(slotOf('#1 하부장-서랍장-서랍모듈', '목찬넬(중간 지면)')).toBe('handle');
     expect(slotOf('#1 EP', '상몰딩')).toBe('finishing');
     expect(slotOf('#1 EP', '휠라(좌)')).toBe('finishing');
     expect(rowsOf(rows, '#1 EP', '걸레받이').map((r) => r.slot)).toEqual(['kick', 'kick']); // 2440 넘는 벽은 나뉜다
@@ -199,7 +199,7 @@ describe('finishCode — 디테일 모델(부재 > 모듈 > 섹션 > 품목) > �
   test('품목 door → 모든 도어·서랍도어 행 (지정 없는 모듈)', () => {
     expect(rowsOf(rows, '상부장-상부장(2D)', '도어').map((m) => m.finishCode)).toEqual(['PNT-WHT-M', 'PNT-WHT-M']); // 섹션 upper 가 품목을 덮는다
     expect(code('하부장-EL장', '도어')).toBe('PET-OAK-M');
-    expect(code('하부장-서랍장', '서랍도어')).toBe('');            // drawerFront 슬롯엔 지정이 없다 — door 를 빌려 쓰지 않는다
+    expect(code('하부장-서랍장-서랍모듈', '서랍도어')).toBe('');            // drawerFront 슬롯엔 지정이 없다 — door 를 빌려 쓰지 않는다
   });
   test('모듈 door 는 섹션·품목보다, 부재 door#0 은 모듈보다 세다 — 그 행에만', () => {
     expect(code('하부장-하부장(2D)', '도어')).toBe('VNR-WNT');    // l3 모듈
@@ -212,7 +212,7 @@ describe('finishCode — 디테일 모델(부재 > 모듈 > 섹션 > 품목) > �
     expect(code('하부장-EL장', '지판')).toBe('MFB-WHT');          // 품목 body (부재 별칭은 측판 행에만)
     expect(oneRow(rows, '하부장-EL장', '측판').material).toBe('PB');
     expect(code('하부장-EL장', '뒷판')).toBe('');
-    expect(code('하부장-서랍장', '서랍밑판')).toBe('');
+    expect(code('하부장-서랍장-서랍모듈', '서랍밑판')).toBe('');
     expect(rowsOf(rows, 'EP', '걸레받이').map((r) => r.finishCode)).toEqual(['PNT-BLK-M', 'PNT-BLK-M']); // 2440 넘는 벽은 나뉜다             // 품목 kick
     expect(code('EP', '상몰딩')).toBe('');                        // finishing 지정 없음
   });
@@ -280,7 +280,7 @@ describe('finishCode — 디테일 모델(부재 > 모듈 > 섹션 > 품목) > �
         item.modules.find((m) => m.id === 'u2').doorFinish = 'mfb'; item.modules.find((m) => m.id === 'u2').doorColor = 'black';
       }));
       r2.filter((m) => m.slot === 'door').forEach((m) => expect(m.finishCode).toBe('PNT-GRP-G'));
-      expect(oneRow(r2, '하부장-서랍장', '서랍도어').finishCode).toBe('');   // drawerFront 는 door 지정을 빌리지 않는다
+      expect(oneRow(r2, '하부장-서랍장-서랍모듈', '서랍도어').finishCode).toBe('');   // drawerFront 는 door 지정을 빌리지 않는다
     });
     test('골든 픽스처(한글 사양)는 카탈로그가 있어도 코드가 비어 있다 — 골든 add-only 의 근거', () => {
       const r = extractRows(fullDesign());
@@ -392,12 +392,12 @@ describe('엣지밴딩 — edges/edgeLen/edgeT/edgeCode + 요약 edgeBanding', (
     item.detail = d;
     const rows = extractRows({ items: [item] });
     expect(oneRow(rows, '하부장-서랍장', '도어').edgeCode).toBe('PET-OAK-M');
-    expect(oneRow(rows, '하부장-서랍장', '서랍도어').edgeCode).toBe('PET-OAK-G');
+    expect(oneRow(rows, '하부장-서랍장-서랍모듈', '서랍도어').edgeCode).toBe('PET-OAK-G');
     expect(oneRow(rows, 'EP', '휠라(좌)').edgeCode).toBe('PNT-WHT-M');
     expect(oneRow(rows, '하부장-서랍장', '측판').finishCode).toBe('MFB-WHT');
     expect(oneRow(rows, '하부장-서랍장', '측판').edgeCode).toBeNull();
     expect(rowsOf(rows, 'EP', '걸레받이').map((r) => r.edgeCode)).toEqual([null, null]); // 2440 넘는 벽은 나뉜다
-    expect(oneRow(rows, '하부장-서랍장', '목찬넬(중간 전면)').edgeCode).toBeNull();
+    expect(oneRow(rows, '하부장-서랍장-서랍모듈', '목찬넬(중간 전면)').edgeCode).toBeNull();
   });
 
   test('요약 edgeBanding = 두께별 Σ edgeLen × qty, summary 옆(형제 키)에 둔다', () => {

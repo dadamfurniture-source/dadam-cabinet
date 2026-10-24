@@ -43,7 +43,9 @@ test('상부장 — 가운데 면에 걸리는 판재: 지판 · 밴드 2 · 선
 test('서랍장 — 측판 목찬넬 따내기는 앞 끝 40, 위 끝 · 중간 (명세 frame 그대로 z · y 로)', () => {
   const { materials, spec } = specOf('sink15');
   const s = moduleSectionOf(modOf(spec, '0-l2'), rowMap(materials));
-  const notches = s.sides[0].features.filter((f) => f.type === 'notch').map((f) => [s.front - f.z1, f.z1 - f.z0, f.y0, f.y1]);
+  // 2026-10-25 위 도어 + 아래 서랍은 두 몸통 — 서랍 모듈 측판에 중간 따내기, 도어 모듈 측판에 상단 따내기 (좌우 같은 자리)
+  const key = (f) => [s.front - f.z1, f.z1 - f.z0, f.y0, f.y1];
+  const notches = [...new Set(s.sides.flatMap((sd) => sd.features.filter((f) => f.type === 'notch').map((f) => JSON.stringify(key(f)))))].map((x) => JSON.parse(x));
   assert.deepEqual(notches.sort((a, b) => a[2] - b[2]), [[0, 40, 160, 250], [0, 40, 638, 708]]);
   assert.ok(s.cut.some((r) => r.part === '서랍밑판'));
   assert.ok(s.cut.some((r) => /목찬넬/.test(r.part)));

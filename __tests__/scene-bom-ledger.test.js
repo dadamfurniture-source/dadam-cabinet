@@ -65,7 +65,7 @@ const LEDGER_FIXTURES = {
     prepare: restructure('lower-2', { verticalCount: 2, areaWidths: [500, 500], areaTypes: ['door', 'door'],
       areaDirections: ['left', 'right'], areaIs2D: [false, false] }),
   },
-  // PR15: 서랍장 — 1000 하부장을 도어 + 서랍 2단 (목찬넬 레이아웃). 몸통·앞판·서랍 박스는 명세, 처짐방지목(D2)은 예전 그리기
+  // PR15: 서랍장 — 1000 하부장을 도어 + 서랍 2단 (목찬넬 레이아웃). 2026-10-25 두 몸통 — 몸통·처짐방지목·앞판·서랍 박스 모두 명세
   drawer: {
     layout: FIXTURES.straight,
     prepare: restructure('lower-2', { horizontalLayout: 'doorTopDrawerBottom', bottomType: 'drawer', drawerHeight: 200, drawerCount: 2 }),
@@ -159,16 +159,16 @@ describe(`1단계 — id 대조 (명세 판재 ↔ BOM 낱장, AABB ±${ID_AABB_
     expect(discrepancies.filter((d) => d.fixture === 'straight' && d.family === 'door')).toEqual([]);
   });
 
-  test('서랍장 — 서랍 전면 · 서랍 박스 판이 id 로 맞고, 처짐방지목(D2)만 예전 그리기로 남는다', () => {
+  test('서랍장 — 두 몸통(도어 모듈 · 서랍 모듈) · 서랍 전면 · 서랍 박스 · 처짐방지목이 id 로 맞는다 (2026-10-25 D2)', () => {
     const L = ledgers.drawer;
     const mk = '0-planner-lower-2-0';
     const of = (re) => L.materials.filter((m) => m.partId.indexOf(mk + '-') === 0 && re.test(m.partId.slice(mk.length + 1)));
-    [/^drawer#/, /^drawerbox:/, /^channel:mid-/, /^door#/, /^body:side/].forEach((re) => {
+    [/^drawer#/, /^drawerbox:/, /^channel:mid-/, /^door#/, /^body:side/, /^body:brace/].forEach((re) => {
       const rows = of(re);
       expect(rows.length).toBeGreaterThan(0);
       rows.forEach((m) => expect(L.byId.matchedRows.has(m.partId)).toBe(true));
     });
-    of(/^body:brace/).forEach((m) => expect(L.byId.matchedRows.has(m.partId)).toBe(false));
+    expect(of(/^body:side/)).toHaveLength(2);   // 몸통 둘 — 측판 행 둘
     // 서랍 전면마다 id 가 다르다
     const fronts = L.pieces.filter((pc) => /-drawer#/.test(pc.partId));
     expect(fronts).toHaveLength(2);

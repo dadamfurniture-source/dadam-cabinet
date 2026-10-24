@@ -260,6 +260,8 @@
        * @param {object|null} layout  drawerLayoutOf 결과
        */
       const bomAllDrawers = (layout) => !!(layout && layout.fronts && layout.fronts.length && layout.fronts[0].kind === 'drawer');
+      /** 2026-10-25 사장님: 위 도어 + 아래 서랍은 두 몸통 — 서랍 모듈 행의 module 이름 (붙박이장 `-서랍모듈` 과 같은 꼴) */
+      const bomDrawerModLabel = (modLabel, layout) => (layout && layout.split ? `${modLabel}-서랍모듈` : modLabel);
 
       // 2026-10-19: 기둥·배관 따내기 비고 — "따내기 좌측판 80×350 뒤·아래". 위치 말은 플래너 따내기 칸
       //   (js/planner/planner-cutout.js PLANNER_CUTOUT_PANELS) 과 같다. 판에서 본 격자 열·행이다.
@@ -1140,8 +1142,43 @@
          *   측판 길이 = 레일 규격(≤ D − 50 최대) (언더는 −10), 사쿠리면 앞뒷판 높이 −18, 우라 = 외경 −1 (사쿠리면 앞뒷판 + 20).
          *   mod.drawerBoxT 서랍 자재 두께(기본 몸통 T) · mod.drawerSakuri 측판 사쿠리 여부.
          */
+        /**
+         * 하부장 · 키큰장 단 몸통 (측판 · 지판 · 밴드 2 · 뒷판 · 처짐방지목) — 사쿠리 없음.
+         *   보통은 몸통 하나. 2026-10-25 사장님: 위 도어 + 아래 서랍(L.split)은 **도어 모듈 · 서랍 모듈 두 몸통**으로 나누어 만든다 —
+         *   몸통마다 같은 짜임, 서랍 모듈 행은 `-서랍모듈`. 처짐방지목은 도어 모듈에만 (서랍 모듈은 전부 서랍이라 없다, D2 (b)).
+         * @param {boolean} channel  목찬넬 손잡이 — 측판 따내기 비고 · 처짐방지목 −70
+         * @param {string} [extraNote]  측판 비고 뒤에 붙일 말 (키큰장 서랍 단 규칙 없음)
+         */
+        addLowerCarcassRows(materials, modLabel, W, H, T, modD, L, channel, extraNote) {
+          const notchH = DrawerRules ? DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : 0;
+          const carcass = (label, h, note, brace) => {
+            this.add(materials, label, '측판', 'PB', T, modD, h, 2, '3면', note);
+            this.add(materials, label, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
+            this.add(materials, label, '밴드', 'PB', T, ASM.BAND_W, W - T * 2, 2, '2면(장)');
+            this.addBackPanel(materials, label, W, h, false);
+            // 밴드(처짐방지목) — 목찬넬이면 −70. W ≥ 800 이면 1장, 모듈 중앙 (bomBraceQtyOf)
+            const bandH = channel ? h - T * 2 - notchH : h - T * 2;
+            const braceQty = brace ? bomBraceQtyOf(W, 'lower') : 0;
+            if (braceQty > 0) this.add(materials, label, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, bandH, braceQty, '2면(장)');
+          };
+          const sp = L && L.split;
+          if (!sp) {
+            const notes = [];
+            if (channel && DrawerRules) notes.push(DrawerRules.notchNote(L));
+            if (extraNote) notes.push(extraNote);
+            carcass(modLabel, H, notes.join(' · '), !bomAllDrawers(L));   // 전부 서랍이면 처짐방지목 없음 (D2)
+            return;
+          }
+          const nn = channel ? DrawerRules.splitNotchNotes(L) : null;
+          carcass(modLabel, sp.doorH, nn ? nn.door : '', true);
+          carcass(bomDrawerModLabel(modLabel, L), sp.drawerH, nn ? nn.drawer : '', false);
+        }
+
         addDrawerModuleParts(materials, modLabel, mod, W, T, doorCount, L, modD, woodChannel) {
           const R = DrawerRules.DRAWER_RULES;
+          const doorLabel = modLabel;
+          // 2026-10-25: 위 도어 + 아래 서랍은 두 몸통 — 서랍 전면 · 박스 · 중간 목찬넬은 서랍 모듈 행
+          modLabel = bomDrawerModLabel(modLabel, L);
           // 전면 — 위에서 아래로. 도어는 doorCount 장이 가로로 나뉜다. 같은 높이의 서랍도어는 한 행(수량)으로 묶는다.
           const drawerFrontRows = [];
           L.fronts.forEach((f) => {
@@ -1149,7 +1186,7 @@
             if (f.h < R.MIN_FRONT_H) return;
             if (f.kind === 'door') {
               const dc = Math.max(1, doorCount || 1);
-              this.add(materials, modLabel, '도어', 'MDF', 18, Math.floor(W / dc) - 4, f.h, dc, '4면', '', mod);
+              this.add(materials, doorLabel, '도어', 'MDF', 18, Math.floor(W / dc) - 4, f.h, dc, '4면', '', mod);
             } else {
               const row = drawerFrontRows.find((r) => r.h === f.h);
               if (row) row.qty += 1; else drawerFrontRows.push({ h: f.h, qty: 1 });
@@ -1326,16 +1363,10 @@
 
           // 몸통 — 하부장과 같다 (사쿠리 없음). 목찬넬 단은 하부장처럼 측판 앞 위를 70×40 따낸다 (sink.md §5.1, 비고는 하부장과 같은 글).
           //   서랍 단이면 중간 따내기도 (하부장 서랍장과 같은 notchNote). 서랍을 고른 중간 · 상부 단은 규칙이 없다고 남긴다.
-          const sideNotes = [];
-          if (channelHere && DrawerRules) sideNotes.push(DrawerRules.notchNote(drawerLayout));
-          if (mod.isDrawer && !drawerLayout) sideNotes.push(BOM_TALL_DRAWER_TIER_NOTE);
-          this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면', sideNotes.join(' · '));
-          this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
-          this.add(materials, modLabel, '밴드', 'PB', T, ASM.BAND_W, W - T * 2, 2, '2면(장)');
-          this.addBackPanel(materials, modLabel, W, H, false);
+          //   키큰장 단은 하부장 문턱(800) · 전부 서랍이면 처짐방지목 없음 · 위 도어 + 아래 서랍은 두 몸통 (addLowerCarcassRows)
+          this.addLowerCarcassRows(materials, modLabel, W, H, T, modD, drawerLayout, !!(channelHere && DrawerRules),
+            mod.isDrawer && !drawerLayout ? BOM_TALL_DRAWER_TIER_NOTE : '');
           const bandH = channelHere ? H - T * 2 - DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : H - T * 2;
-          const braceQty = bomAllDrawers(drawerLayout) ? 0 : bomBraceQtyOf(W, 'lower');   // 키큰장 단은 하부장 문턱(800) · 전부 서랍이면 없음 (D2)
-          if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, bandH, braceQty, '2면(장)');
           // 선반 — 단이 가진 만큼 (하부장 규칙 "서랍·EL·오픈 아니면 1" 을 타지 않는다). 서랍 단에는 없다 (하부장 서랍장과 같다)
           const rawShelf = Number(mod.shelfCount);
           const shelfQty = drawerLayout ? 0 : (Number.isFinite(rawShelf) ? Math.max(0, Math.round(rawShelf)) : 1);
@@ -1691,19 +1722,10 @@
               dlog(`[Drawer] ${modLabel}: ${drawerLayout.warnings.join(' / ')}`);
             }
 
-            // 측판 2개 (하부장: 사쿠리 없음). 목찬넬이면 따내기 가공을 비고로 적는다 (치수는 그대로 — 따냄은 가공).
-            const sideNote = (isWoodChannel && DrawerRules) ? DrawerRules.notchNote(drawerLayout) : '';
-            this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면', sideNote);
-            // 지판 (하부장: 사쿠리 없음, D 그대로)
-            this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
-            // 밴드 2개
-            this.add(materials, modLabel, '밴드', 'PB', T, ASM.BAND_W, W - T * 2, 2, '2면(장)');
-            // 뒷판 (하부장: 사쿠리 없음 → 측판 뒤 덮음, bomBackPanelSize)
-            this.addBackPanel(materials, modLabel, W, H, false);
-            // 밴드(처짐방지목) — 목찬넬이면 −70. W ≥ 800 이면 1장, 모듈 중앙 (bomBraceQtyOf)
+            // 몸통 — 측판 2 (하부장: 사쿠리 없음, 목찬넬이면 따내기 비고) · 지판 · 밴드 2 · 뒷판(측판 뒤 덮음) · 처짐방지목.
+            //   위 도어 + 아래 서랍은 두 몸통 (2026-10-25, addLowerCarcassRows)
+            this.addLowerCarcassRows(materials, modLabel, W, H, T, modD, drawerLayout, !!(isWoodChannel && DrawerRules));
             const bandH = isWoodChannel ? H - T * 2 - DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : H - T * 2;
-            const braceQty = bomAllDrawers(drawerLayout) ? 0 : bomBraceQtyOf(W, 'lower');   // 전부 서랍이면 없음 (D2)
-            if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, bandH, braceQty, '2면(장)');
             // 선반 (서랍/EL/오픈장 없으면 1개, 하부장: 사쿠리 없음)
             if (!isDrawer && !isEL && !isOpen && mod.type !== 'sink') {
               // 2026-09-13: 멍장은 ㄱ자 목대 깊이 75 만큼 짧다 (corner.md §3.5)
@@ -2356,15 +2378,8 @@
             //   addDrawerModuleParts). 측판 비고(따내기)도 싱크처럼 레이아웃에서 나온다.
             const drawerLayout = isDrawer ? this.drawerLayoutOf(mod, H, T) : null;
             if (drawerLayout && drawerLayout.warnings.length) dlog(`[Drawer] ${modLabel}: ${drawerLayout.warnings.join(' / ')}`);
-            const sideNote = (isWoodChannel && DrawerRules) ? DrawerRules.notchNote(drawerLayout) : '';
-
-            this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면', sideNote);
-            this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
-            this.add(materials, modLabel, '밴드', 'PB', T, ASM.BAND_W, W - T * 2, 2, '2면(장)');
-            this.addBackPanel(materials, modLabel, W, H, false);
-            const bandH = isWoodChannel ? H - T * 2 - DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : H - T * 2;
-            const braceQty = bomAllDrawers(drawerLayout) ? 0 : bomBraceQtyOf(W, 'lower');   // 전부 서랍이면 없음 (D2)
-            if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, bandH, braceQty, '2면(장)');
+            // 몸통 — 위 도어 + 아래 서랍은 두 몸통 (2026-10-25, addLowerCarcassRows)
+            this.addLowerCarcassRows(materials, modLabel, W, H, T, modD, drawerLayout, !!(isWoodChannel && DrawerRules));
             const shelf = bomSimpleShelfQtyOf(mod, rules);
             if (shelf.qty > 0) {
               this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - T, shelf.qty, '1면(전)', shelf.defaulted ? shelfNote : '');

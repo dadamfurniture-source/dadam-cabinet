@@ -457,8 +457,8 @@ describe('도어 갯수를 늘려도 수납장은 하나다', () => {
     .split('\r\n').join('\n');
 
   test('몸통 껍데기는 셀 루프 밖에서 한 번만 만든다', () => {
-    // W12-75: 3D 경로가 하나가 됐다 — 정의 1 + 호출 1 = 2회 등장
-    expect((src.match(/addCarcassShell\(/g) || [])).toHaveLength(2);
+    // W12-75: 3D 경로가 하나가 됐다 — 정의 1 + 호출 1. 2026-10-25 위 도어 + 아래 서랍 두 몸통은 함수 안에서 몸통마다 한 번 (+2)
+    expect((src.match(/addCarcassShell\(/g) || [])).toHaveLength(4);
     expect((src.match(/addCellDividers\(/g) || [])).toHaveLength(2);
   });
 

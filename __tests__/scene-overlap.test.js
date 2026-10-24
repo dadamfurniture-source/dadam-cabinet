@@ -326,10 +326,11 @@ describe('3D 장면 겹침 — 허용 목록과 정확히 같아야 한다', () 
     expect(prev.limits).toEqual(DEFAULT_LIMITS);
   });
 
-  test('서랍장 처짐방지목 ↔ 서랍은 D2 결정 대기로만 허용된다', () => {
+  // 2026-10-25 D2 결정: 위 도어 + 아래 서랍은 두 몸통 — 처짐방지목이 도어 모듈 안에 서서 서랍 · 중간 목찬넬과 겹치지 않는다
+  test('서랍장 처짐방지목 ↔ 서랍 겹침은 더 없다 (D2 결정, 허용 목록에서 지웠다)', () => {
     const prev = readAllowlist();
-    const braceDrawer = (prev.entries || []).filter((e) => /\|brace#/.test(e.a + '|' + e.b) && e.kind === 'envelope');
-    expect(braceDrawer.length).toBeGreaterThan(0);
-    braceDrawer.forEach((e) => expect(e.cause).toBe('pending-owner D2'));
+    const braceDrawer = (prev.entries || []).filter((e) => /\|brace#/.test(e.a + '|' + e.b) && /drawer/.test(e.a + '|' + e.b));
+    expect(braceDrawer).toEqual([]);
+    expect((prev.entries || []).filter((e) => e.cause === 'pending-owner D2')).toEqual([]);
   });
 });

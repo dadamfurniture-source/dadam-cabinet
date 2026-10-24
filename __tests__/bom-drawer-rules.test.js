@@ -104,11 +104,13 @@ describe('도어 + 하부 서랍 (플래너 doorTopDrawerBottom 기본형)', () 
     const L = layoutDrawerModule({ H: 758, T: 15, fronts: [{ kind: 'door' }, { kind: 'drawer', h: 200 }], rail: 'under' });
     expect(L.fronts.map((f) => [f.kind, f.h])).toEqual([['door', 498], ['drawer', 200]]);
     expect(L.midCount).toBe(1);
-    // 존 = 중간 따내기 바닥(S+90) ~ 지판 윗면(743): S = 528−20 = 508 → 598..743 = 145 → 언더 소 / 볼 중
-    expect(L.fronts[1].zone).toEqual({ top: 598, bottom: 743, h: 145 });
+    // 2026-10-25 두 몸통: 중간 목찬넬 따내기 윗선 S = 528−20 = 508 에서 나눈다 (도어 모듈 508 · 서랍 모듈 250).
+    //   존 = 중간 따내기 바닥(S+90) 아래 서랍 모듈 앞 밴드(15) 밑 ~ 지판 윗면(743) → 613..743 = 130 → 언더 소 / 볼 중
+    expect(L.split).toEqual({ y: 508, viaMid: true, doorH: 508, drawerH: 250 });
+    expect(L.fronts[1].zone).toEqual({ top: 613, bottom: 743, h: 130 });
     expect(L.boxes[0]).toMatchObject({ size: 'small', h: 75, fits: true });
     const B = layoutDrawerModule({ H: 758, T: 15, fronts: [{ kind: 'door' }, { kind: 'drawer', h: 200 }], rail: 'ball' });
-    expect(B.boxes[0]).toMatchObject({ size: 'medium', h: 120 });
+    expect(B.boxes[0]).toMatchObject({ size: 'small', h: 75 });   // 두 몸통 앞 밴드 15 로 존 130 — 볼레일 중(120 + 여유)은 안 들어간다 (예전 145 에서는 중)
   });
 
   test('서랍이 4단을 넘으면 4단으로 자르고 경고한다', () => {
@@ -269,7 +271,8 @@ describe('BOM 적용 (extractors.js)', () => {
     upperDoorOverlap: 15, handle: '찬넬 (목찬넬)', topSizes: [{ w: '2400', d: '650' }],
   };
   const itemOf = (modules) => ({ uniqueId: 1, categoryId: 'sink', name: '싱크대', w: 2400, h: 2310, d: 650, specs, modules });
-  const rowsOf = (modules, label) => new MaterialExtractor().extract({ items: [itemOf(modules)] }).materials.filter((m) => m.module === label);
+  // 2026-10-25: 위 도어 + 아래 서랍은 두 몸통 — 서랍 모듈 행은 `${label}-서랍모듈`
+  const rowsOf = (modules, label) => new MaterialExtractor().extract({ items: [itemOf(modules)] }).materials.filter((m) => m.module === label || m.module === label + '-서랍모듈');
 
   test('도어 1 + 서랍 2단 (W800·H708): 전면 3장, 박스 중·소, 중간 목찬넬 1, 하단보강', () => {
     const rows = rowsOf([{ id: 'l2', type: 'storage', name: '서랍장', pos: 'lower', w: 800, h: 708, d: 550, doorCount: 1, isDrawer: true, drawerCount: 2 }], '하부장-서랍장');
@@ -290,7 +293,12 @@ describe('BOM 적용 (extractors.js)', () => {
     expect(pick('목찬넬(중간 지면)')).toEqual([[40, 800, 1]]);
     expect(rows.some((r) => r.part === '목찬넬')).toBe(false);
     // 측판 비고에 따내기 가공
-    expect(rows.find((r) => r.part === '측판').note).toBe('목찬넬 따내기 상단 70×40 + 중간 90×40 ×1');
+    // 2026-10-25 두 몸통: 도어와 첫 서랍 사이에 목찬넬이 없어(서랍 2단) 전면 경계에서 나눈다 — 도어 모듈 276 · 서랍 모듈 432.
+    //   도어 모듈 측판은 상단 따내기만, 서랍 모듈 측판은 서랍 1–2 사이 중간 따내기
+    expect(rows.filter((r) => r.part === '측판').map((r) => [r.module, r.h, r.note])).toEqual([
+      ['하부장-서랍장', 276, '목찬넬 따내기 상단 70×40'],
+      ['하부장-서랍장-서랍모듈', 432, '목찬넬 따내기 중간 90×40 ×1'],
+    ]);
   });
 
   test('서랍만 4단 (doorCount 0): 서랍도어 4, 중간 목찬넬 2, 소 박스 8장', () => {

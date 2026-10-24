@@ -338,6 +338,20 @@
       }
     });
 
+    // 2026-10-25 사장님: 위 도어 + 아래 서랍은 **도어 모듈 · 서랍 모듈 두 몸통**으로 나누어 만든다 (붙박이장 "서랍 모듈 별도 제작" 과 같다).
+    //   나누는 자리 (몸통 상단에서 아래로 잰 y) — 전면 치수는 그대로:
+    //     도어 밑에 중간 목찬넬이 있으면 (서랍 1 · 3단) 그 따내기 윗선. 옛 중간 따내기 90 은 서랍 모듈의 위 손잡이 홈이 되고
+    //       도어는 지금처럼 UPPER_DROP 20 내려와 그 위를 덮는다.
+    //     없으면 (서랍 2 · 4단) 도어와 첫 서랍 사이 (전면 갭 가운데).
+    //   서랍 모듈은 위에 앞 밴드(몸통 T)가 생겨 첫 서랍 존이 T 만큼 내려간다.
+    let split = null;
+    if (n >= 2 && fronts[0].kind === 'door' && fronts[1].kind === 'drawer') {
+      const f0 = fronts[0], f1 = fronts[1];
+      const viaMid = f0.channelBelow === 'mid';
+      const y = viaMid ? f0.y1 - R.UPPER_DROP : f0.y1 + (f1.y0 - f0.y1) / 2;
+      split = { y, viaMid, doorH: y, drawerH: H - y };
+    }
+
     // 존 · 박스 (서랍 전면만)
     const boxes = [];
     fronts.forEach((f, i) => {
@@ -347,6 +361,7 @@
       if (f.channelAbove === 'top') top = R.CHANNEL_TOP_NOTCH_H + T;
       else if (f.channelAbove === 'mid') top = (f.y0 - R.MID_SLOT - R.UPPER_DROP) + R.CHANNEL_MID_NOTCH_H;
       else top = f.y0 - frontGap / 2;
+      if (split && i === 1) top += T;   // 서랍 모듈 위 앞 밴드 밑부터 (2026-10-25 두 몸통)
       let bottom;
       if (f.channelBelow === 'mid') bottom = f.y1 - R.UPPER_DROP;
       else if (i < n - 1) bottom = f.y1 + frontGap / 2;
@@ -362,7 +377,7 @@
       boxes.push({ frontIndex: i, size: box.size, h: box.h, fits: box.fits, zoneH, rail });
     });
 
-    return { fronts, channels, midCount, boxes, warnings, rail };
+    return { fronts, channels, midCount, boxes, warnings, rail, split };
   }
 
   /** 레일 길이 — 규격 중 모듈 깊이 − 50 이하의 최대. 가장 짧은 규격도 안 들어가면 null. */
@@ -417,6 +432,26 @@
     return s;
   }
 
-  return { DRAWER_RULES, layoutDrawerModule, layoutByGrades, distributeFronts, frontAreaOf, channelCountFor, gradeOf,
+  /**
+   * 2026-10-25: 두 몸통(위 도어 모듈 · 아래 서랍 모듈)의 측판 따내기 비고 — 목찬넬 손잡이일 때.
+   *   도어 모듈  상단 70×40 (보통 하부장과 같다)
+   *   서랍 모듈  도어 밑 중간 목찬넬로 나눴으면 그 따내기 90×40 이 서랍 모듈 상단, 남은 중간 목찬넬은 그대로
+   * @returns {{door:string, drawer:string}|null}  layout.split 이 없으면 null
+   */
+  function splitNotchNotes(layout) {
+    const R = DRAWER_RULES;
+    const sp = layout && layout.split;
+    if (!sp) return null;
+    const rest = (layout.midCount || 0) - (sp.viaMid ? 1 : 0);
+    const parts = [];
+    if (sp.viaMid) parts.push(`상단 ${R.CHANNEL_MID_NOTCH_H}×${R.CHANNEL_BASE_W}`);
+    if (rest > 0) parts.push(`중간 ${R.CHANNEL_MID_NOTCH_H}×${R.CHANNEL_BASE_W} ×${rest}`);
+    return {
+      door: `목찬넬 따내기 상단 ${R.CHANNEL_TOP_NOTCH_H}×${R.CHANNEL_BASE_W}`,
+      drawer: parts.length ? `목찬넬 따내기 ${parts.join(' + ')}` : '',
+    };
+  }
+
+  return { DRAWER_RULES, layoutDrawerModule, splitNotchNotes, layoutByGrades, distributeFronts, frontAreaOf, channelCountFor, gradeOf,
     assignChannels, pickBox, autoGradeFor, gradesFromRatio, ratioOf, railOf, railKeyOf, notchNote, railLengthFor, drawerBoxDims };
 });
