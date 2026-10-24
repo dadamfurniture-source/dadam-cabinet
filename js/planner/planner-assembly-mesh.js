@@ -8,7 +8,7 @@
 //
 // 규칙을 새로 두지 않는다. 판재 하나 = frame { o, u, v, n } 에서 u 로 cut.w, v 로 cut.h, n 으로 t.
 //   따내기(notch, 관통)는 판 윤곽에서 뺀다 — plannerPanelOutline (planner-cutout.js) 과 같은 윤곽.
-//   홈(groove)은 깊이가 미정(D5)이라 그리지 않는다.
+//   홈(groove)은 그리지 않는다 — 깊이는 2026-10-25 D5 로 정했지만(몸통 15T 6 · 18T 9, 서랍 측판 10) 폭 3 홈이 뒷판 · 우라에 가려 보이지 않는다
 //
 // 어느 모듈을 명세로 그리나 (plannerAssemblyModuleFor):
 //   · 플래너 모듈이 명세 모듈 **하나**로 간다 (plannerAssemblyModuleFor)
