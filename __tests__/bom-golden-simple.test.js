@@ -164,8 +164,8 @@ describe('화장대 (vanity) — 18T · 찬넬(목찬넬 아님) · 우측 None'
   });
 
   test('목찬넬이 아니면 처짐방지 −70 없음, EP 목찬넬 없음, 측판 따내기 비고 없음, 중간 목찬넬 ㄴ자 없음 (2026-10-22 사장님 "따내기, ㄴ자 목찬넬은 없음")', () => {
-    // 서랍장(W 800 ≥ 800)에만 처짐방지가 있다 — 하부장(600)은 문턱 미만이라 부재가 없다 (2026-09-19)
-    expect(rowOf(snap, '하부장-서랍장', '밴드(처짐방지)').h).toBe(708 - 36);
+    // 서랍장(W 800)은 전부 서랍이라 처짐방지가 없다 (2026-10-25 사장님 D2 (b)) — 하부장(600)은 문턱 미만이라 없다 (2026-09-19)
+    expect(rowOf(snap, '하부장-서랍장', '밴드(처짐방지)')).toBeUndefined();
     expect(partsOf(snap, '하부장-하부장')).not.toContain('밴드(처짐방지)');
     expect(partsOf(snap, 'EP')).toEqual(['상몰딩', '걸레받이', '휠라(좌)']);
     expect(partsOf(snap, '하부장-서랍장')).not.toContain('목찬넬');
@@ -330,5 +330,26 @@ describe('규칙표·도우미 (BOM_SIMPLE_CATEGORY_RULES)', () => {
       expect(rows.filter((m) => m.itemLabel === LABELS[n]).every((m) => m.partId.startsWith(`${i}-`))).toBe(true);
     });
     expect(new Set(rows.map((m) => m.partId)).size).toBe(rows.length);
+  });
+});
+
+describe('처짐방지목 — 서랍 모듈 (2026-10-25 사장님 D2)', () => {
+  global.dlog = global.dlog || (() => {});
+  const { MaterialExtractor } = require('../js/detaildesign/extractors.js');
+  const { FIXTURES } = require('../test-utils/bom-golden/fixtures.js');
+  const rowsOf = (patch) => {
+    const item = JSON.parse(JSON.stringify(FIXTURES.sink15));
+    const m = item.modules.find((x) => x.pos === 'lower' && !x.isDrawer && x.type === 'storage');
+    Object.assign(m, { w: 900, doorCount: 2, is2door: true }, patch);
+    return new MaterialExtractor().extract({ items: [item] }).materials.filter((r) => r.moduleKey === '0-' + m.id && r.part === '밴드(처짐방지)');
+  };
+  test('전부 서랍인 서랍장 900 — 없음 (b)', () => {
+    expect(rowsOf({ isDrawer: true, drawerLayout: 'all', drawerCount: 3, doorCount: 0 })).toEqual([]);
+  });
+  test('위 도어 + 아래 서랍 900 — 그대로 1장 (자리는 D2 남은 질문)', () => {
+    expect(rowsOf({ isDrawer: true, drawerLayout: 'doorTop', drawerCount: 1 })).toHaveLength(1);
+  });
+  test('일반 양문 하부장 900 — 그대로 1장', () => {
+    expect(rowsOf({})).toHaveLength(1);
   });
 });

@@ -977,31 +977,6 @@
     },
     {
       "module": "하부장-서랍장",
-      "part": "밴드(처짐방지)",
-      "material": "PB",
-      "thickness": 15,
-      "w": 70,
-      "h": 608,
-      "qty": 1,
-      "edge": "2면(장)",
-      "note": "",
-      "finishCode": "",
-      "partId": "0-l2-body:brace#0-0",
-      "slot": "body",
-      "edges": {
-        "L": true,
-        "R": true,
-        "T": false,
-        "B": false
-      },
-      "edgeLen": 1216,
-      "edgeT": 0.6,
-      "edgeCode": null,
-      "moduleKey": "0-l2",
-      "itemLabel": "수납장"
-    },
-    {
-      "module": "하부장-서랍장",
       "part": "서랍도어",
       "material": "MDF",
       "thickness": 18,
@@ -1280,7 +1255,7 @@
     "PB_15": {
       "material": "PB",
       "thickness": 15,
-      "totalArea": 8988790,
+      "totalArea": 8946230,
       "panelCount": 4
     },
     "MDF_3": {
@@ -1298,7 +1273,7 @@
   },
   "edgeBanding": {
     "1": 26796,
-    "0.6": 78192
+    "0.6": 76976
   },
   "hardware": [
     {

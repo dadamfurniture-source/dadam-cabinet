@@ -239,6 +239,13 @@
        */
       // 문턱(상부 700 · 하부 800)과 판정은 assembly-rules.js (CARCASS.BRACE_W_MIN_*, braceQtyOf).
       const bomBraceQtyOf = AsmRules.braceQtyOf;
+      /**
+       * 2026-10-25 사장님 D2 (b): **전부 서랍인 서랍장**(위 칸도 서랍)에는 처짐방지목을 넣지 않는다.
+       *   처짐방지목은 양문 두 장이 맞닿는 가운데 뒤에 서는 부재인데, 서랍장에는 맞닿는 도어가 없고 앞선 가운데에
+       *   세우면 서랍 박스를 막는다. 위 도어 + 아래 서랍은 그대로 (자리는 D2 의 남은 질문).
+       * @param {object|null} layout  drawerLayoutOf 결과
+       */
+      const bomAllDrawers = (layout) => !!(layout && layout.fronts && layout.fronts.length && layout.fronts[0].kind === 'drawer');
 
       // 2026-10-19: 기둥·배관 따내기 비고 — "따내기 좌측판 80×350 뒤·아래". 위치 말은 플래너 따내기 칸
       //   (js/planner/planner-cutout.js PLANNER_CUTOUT_PANELS) 과 같다. 판에서 본 격자 열·행이다.
@@ -1313,7 +1320,7 @@
           this.add(materials, modLabel, '밴드', 'PB', T, ASM.BAND_W, W - T * 2, 2, '2면(장)');
           this.addBackPanel(materials, modLabel, W, H, false);
           const bandH = channelHere ? H - T * 2 - DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : H - T * 2;
-          const braceQty = bomBraceQtyOf(W, 'lower');   // 키큰장 단은 하부장 문턱(800)
+          const braceQty = bomAllDrawers(drawerLayout) ? 0 : bomBraceQtyOf(W, 'lower');   // 키큰장 단은 하부장 문턱(800) · 전부 서랍이면 없음 (D2)
           if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, bandH, braceQty, '2면(장)');
           // 선반 — 단이 가진 만큼 (하부장 규칙 "서랍·EL·오픈 아니면 1" 을 타지 않는다). 서랍 단에는 없다 (하부장 서랍장과 같다)
           const rawShelf = Number(mod.shelfCount);
@@ -1654,7 +1661,7 @@
             this.addBackPanel(materials, modLabel, W, H, false);
             // 밴드(처짐방지목) — 목찬넬이면 −70. W ≥ 800 이면 1장, 모듈 중앙 (bomBraceQtyOf)
             const bandH = isWoodChannel ? H - T * 2 - DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : H - T * 2;
-            const braceQty = bomBraceQtyOf(W, 'lower');
+            const braceQty = bomAllDrawers(drawerLayout) ? 0 : bomBraceQtyOf(W, 'lower');   // 전부 서랍이면 없음 (D2)
             if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, bandH, braceQty, '2면(장)');
             // 선반 (서랍/EL/오픈장 없으면 1개, 하부장: 사쿠리 없음)
             if (!isDrawer && !isEL && !isOpen && mod.type !== 'sink') {
@@ -2315,7 +2322,7 @@
             this.add(materials, modLabel, '밴드', 'PB', T, ASM.BAND_W, W - T * 2, 2, '2면(장)');
             this.addBackPanel(materials, modLabel, W, H, false);
             const bandH = isWoodChannel ? H - T * 2 - DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : H - T * 2;
-            const braceQty = bomBraceQtyOf(W, 'lower');
+            const braceQty = bomAllDrawers(drawerLayout) ? 0 : bomBraceQtyOf(W, 'lower');   // 전부 서랍이면 없음 (D2)
             if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, bandH, braceQty, '2면(장)');
             const shelf = bomSimpleShelfQtyOf(mod, rules);
             if (shelf.qty > 0) {
