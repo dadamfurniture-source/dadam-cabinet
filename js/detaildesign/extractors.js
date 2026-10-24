@@ -650,7 +650,9 @@
        */
       function bomFridgeDoorOf(item, mod) {
         const category = item && (item.categoryId || item.category);
-        if (category !== 'fridge' || !mod) return null;
+        // 2026-10-24: 플래너 모듈(pos 있음)은 싱크대 규칙이다 (fridge.md 머리 — 자재 행도 extractSink). 이 표는 예전 화면의 type 모듈만.
+        //   예전엔 플래너 냉장고장 품목의 키큰장 단(type 'tall', pos 'lower')도 여기서 H + 20 으로 셈해 자재 행(단 규칙 H − 4)과 어긋났다.
+        if (category !== 'fridge' || !mod || mod.pos) return null;
         const t = mod.type || '';
         if (t !== 'tall' && t !== 'homecafe' && t !== 'upper' && t !== 'lower') return null;
         const H = parseFloat(mod.h) || 2000;
