@@ -1047,8 +1047,46 @@
     init();
   }
 
+  /**
+   * CAD 베타 PR16b: 동결본 GLB — 플래너(iframe)가 부모 창의 이 창구로 워커를 부른다 (관리자만 — 워커가 다시 본다).
+   *   frozenAssembly(): 최신 동결 스냅샷의 명세 그대로 + 해시. 플래너는 이 명세로 GLB 를 짓는다 (실시간 명세는 해시가 다르다)
+   *   upload(snapshotId, kind, glb): GLB 본문을 그대로 보낸다. kind = cad | exterior
+   */
+  async function uploadCadGlb(snapshotId, kind, glb) {
+    const t = await token();
+    if (!t) throw new Error('로그인이 필요합니다.');
+    const res = await fetch(API + '/snapshots/' + encodeURIComponent(snapshotId) + '/cad-artifacts?kind=' + encodeURIComponent(kind), {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'model/gltf-binary' },
+      body: glb,
+    });
+    let body = null;
+    try {
+      body = await res.json();
+    } catch (e) {
+      body = null;
+    }
+    if (!res.ok || !body || !body.success) {
+      const err = new Error((body && body.message) || '요청에 실패했습니다 (' + res.status + ')');
+      err.status = res.status;
+      throw err;
+    }
+    return body.data;
+  }
+
+  const cad = {
+    designId: designId,
+    frozenAssembly: function () {
+      const id = designId();
+      if (!id) return Promise.reject(new Error('설계를 먼저 저장해 주세요.'));
+      return api('/designs/' + encodeURIComponent(id) + '/cad-assembly');
+    },
+    upload: uploadCadGlb,
+  };
+
   // 외부에서 갱신할 수 있게 최소 인터페이스만 노출한다
   window.DadamWorkflow = {
+    cad: cad,
     refresh: function () {
       return guard(refresh);
     },

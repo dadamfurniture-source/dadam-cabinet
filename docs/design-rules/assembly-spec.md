@@ -210,4 +210,8 @@ JS 조립 검사가 맞는지 실제 CAD 커널(build123d / OCC)로 따로 확�
   `plannerExportCadScene(…, { vis: 'exterior' })` 는 명세 `vis` 가 exterior 인 판재만 싣는다 (철물 · 속 판재 없음, 판재 없는 모듈 노드도 없음) — 외관 GLB, 1MB 이하 시험
 - 보관 (PR16): 표 `design_cad_artifacts` + 비공개 버킷 `cad` (`database/design-cad-artifacts.sql`, 되돌리기 `-rollback.sql`). 쓰기는 워커(service_role)만 — 브라우저가 보낸 GLB 의 `assemblyHash` 가
   동결 스냅샷 `bom_payload.assembly` 의 해시와 같아야 동결본으로 남긴다. 그래서 동결본 GLB 는 **동결된 명세 그대로**에 플래너 자리(frameOf)만 입혀 만든다
-  (플래너 실시간 명세는 선반 높이 · 벽 라인 · 철물을 더 넣어 해시가 다르다). 관리자 읽기 정책만, 고객용은 `exterior/` 접두사 + 워커 서명 URL (PR16b)
+  (플래너 실시간 명세는 선반 높이 · 벽 라인 · 철물을 더 넣어 해시가 다르다). 관리자 읽기 정책만, 고객용은 `exterior/` 접두사
+- PR16b (2026-10-24): 플래너 📤 동결본 GLB (관리자) → 부모 창 `DadamWorkflow.cad.frozenAssembly()` 로 최신 동결 명세를 받아 그대로 전체 · 외관 두 벌을 짓고 `upload()`.
+  워커 `src/cad-artifacts.js`: `GET /designs/:designId/cad-assembly` (최신 동결 명세 + 해시) · `POST /snapshots/:snapshotId/cad-artifacts?kind=cad|exterior` (GLB 본문, 루트 extras `assemblyHash` · `vis` 대조 → 버킷 `cad` + 행, 같은 파일은 한 번만) ·
+  `GET /snapshots/:snapshotId/cad-artifacts` (목록 + 1시간 서명 URL). 모두 관리자만. 크기 한도 외관 1MB · 전체 20MB.
+  동결 명세에는 플래너 선반 높이 · 벽 라인이 없어 동결본 GLB 에는 라인 부재(상판 · 몰딩 · 걸레받이)와 자리 못 받은 선반이 빠진다 (2026-10-24 사장님 승인). 고객 화면에 외관 GLB 를 싣는 건 다음 PR
