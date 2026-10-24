@@ -11,8 +11,13 @@
  *   직렬화는 js/planner/planner-export.js plannerExportStableJson 과 같은 규칙 (stableJson) — 시험이 둘을 맞춰 본다.
  *   kind 와 GLB extras.vis 도 맞아야 한다 (cad ↔ 'all', exterior ↔ 'exterior').
  * 같은 스냅샷 · 같은 종류 · 같은 파일(sha256)은 한 번만 — 다시 올리면 기존 행을 돌려준다.
+ *
+ * 외관(exterior)은 고객 확인서 3D 보기에 싣는다 (2026-10-24 사장님) — 고객 화면에 partId 를 보이지 않으므로
+ *   planner-export-cad/2 이상 (노드 part-N · module-N, extras 없음) 만 받는다. 따낸 판의 모양은 그대로.
+ *   공개 확인서(GET /public/confirm)는 customerExteriorUrl 로 그 스냅샷의 최신 외관 GLB 서명 URL 을 싣는다.
  */
 import { ForbiddenError, NotFoundError, ValidationError, ConflictError, DbError, selectOne, selectMany, insertOneIgnoreConflict } from './supabase.js';
+import { isMissingRelation } from './work-order-data.js';
 import { isAdmin } from './reports/admin.js';
 import { sha256Hex } from './util/hash.js';
 import { createSignedUrls, SIGNED_URL_TTL_SEC } from './storage.js';
@@ -21,6 +26,8 @@ export const CAD_BUCKET = 'cad';
 export const CAD_KINDS = Object.freeze({ cad: 'all', exterior: 'exterior' });
 // 크기 한도 — 외관 1MB 는 계획(PR16 완료 기준). 전체는 워커 요청 보호용 (지금 픽스처 GLB 는 수백 KB)
 export const CAD_MAX_BYTES = Object.freeze({ cad: 20 * 1024 * 1024, exterior: 1024 * 1024 });
+// 고객용 외관 GLB 를 내는 만든 쪽 버전 (planner-export.js PLANNER_EXPORT_CAD_VERSION). /1 외관은 partId 가 들어 있다
+export const CUSTOMER_EXTERIOR_GENERATORS = Object.freeze(['planner-export-cad/2']);
 
 const GLB_MAGIC = 0x46546c67; // 'glTF'
 const CHUNK_JSON = 0x4e4f534a; // 'JSON'
@@ -89,6 +96,18 @@ export async function verifyCadGlb(bytes, assembly, kind) {
   const want = await assemblyHashOf(assembly);
   if (extras.assemblyHash !== want) {
     throw new ConflictError('GLB 의 명세 해시가 동결 스냅샷과 다릅니다 — 동결 명세로 다시 지어 주세요', { expected: want, got: extras.assemblyHash || null });
+  }
+  if (kind === 'exterior') {
+    // 고객용 — 만든 쪽 버전 · 루트 밖 extras 없음 · 이름에 partId 없음
+    if (!CUSTOMER_EXTERIOR_GENERATORS.includes(extras.generator)) {
+      throw new ValidationError(`고객용 외관 GLB 가 아닙니다 (generator ${extras.generator || '-'}) — 플래너를 새로 고친 뒤 다시 지어 주세요`);
+    }
+    const root = json.nodes[json.scenes[json.scene || 0].nodes[0]];
+    const leak = (json.nodes || []).some((n) => n && n !== root && ((n.extras && Object.keys(n.extras).length) || !/^(module|part)-\d+(\/\d+)?$/.test(String(n.name || ''))));
+    if (leak) throw new ValidationError('외관 GLB 에 내부 이름 · extras 가 있습니다 — 고객 화면에 실을 수 없습니다');
+    const parts = (json.nodes || []).filter((n) => /^part-\d+$/.test(String(n.name || ''))).length;
+    const modules = (json.nodes || []).filter((n) => /^module-\d+$/.test(String(n.name || ''))).length;
+    return { extras, parts, modules, assemblyHash: want };
   }
   const parts = (json.nodes || []).filter((n) => n && n.extras && n.extras.rowPartId).length;
   const modules = (json.nodes || []).filter((n) => n && /^module·/.test(String(n.name || ''))).length;
@@ -178,6 +197,27 @@ export async function uploadCadArtifact(env, { snapshotId, user, kind, bytes }) 
   // 동시에 같은 파일을 올렸으면 먼저 들어간 행을 돌려준다
   const saved = inserted || (await selectOne(env, 'design_cad_artifacts', { snapshot_id: `eq.${snap.id}`, kind: `eq.${kind}`, sha256: `eq.${sha256}`, select: '*' }));
   return { artifact: await withUrl(env, saved || row), reused: !inserted };
+}
+
+/**
+ * 고객 확인서 3D 보기 — 그 스냅샷의 최신 고객용 외관 GLB 서명 URL (1시간). 없으면 null.
+ *   표가 없는 DB(SQL 전)도 null. 관리자가 플래너에서 📤 동결본 GLB 를 눌러야 생긴다.
+ */
+export async function customerExteriorUrl(env, snapshotId) {
+  let row;
+  try {
+    row = await selectOne(env, 'design_cad_artifacts', {
+      snapshot_id: `eq.${snapshotId}`, kind: 'eq.exterior',
+      generator_version: `in.(${CUSTOMER_EXTERIOR_GENERATORS.join(',')})`,
+      select: 'path,created_at', order: 'created_at.desc',
+    });
+  } catch (err) {
+    if (isMissingRelation(err)) return null;
+    throw err;
+  }
+  if (!row) return null;
+  const urls = await createSignedUrls(env, CAD_BUCKET, [row.path]);
+  return urls.get(row.path) || null;
 }
 
 /** 목록 + 서명 URL (관리자). 최신 순. */

@@ -11,7 +11,7 @@ import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import {
   stableJson, assemblyHashOf, glbJson, glbRootExtras, verifyCadGlb, cadPathOf,
-  uploadCadArtifact, listCadArtifacts, getFrozenAssembly, CAD_MAX_BYTES,
+  uploadCadArtifact, listCadArtifacts, getFrozenAssembly, customerExteriorUrl, CAD_MAX_BYTES,
 } from '../src/cad-artifacts.js';
 import { ConflictError, ForbiddenError, ValidationError, NotFoundError } from '../src/supabase.js';
 import { clearAdminCache } from '../src/reports/admin.js';
@@ -22,9 +22,13 @@ const { specOf } = require('../../../test-utils/assembly-fixtures.js');
 const { plannerExportStableJson } = require('../../../js/planner/planner-export.js');
 
 /** 손으로 짓는 최소 GLB — 루트 extras 와 판재 노드 n 개 (planner-export.js plannerExportCadScene 모양) */
-function makeGlb(extras, { parts = 2, pad = 0 } = {}) {
-  const nodes = [{ name: 'dadam-planner-cad', extras, children: [1] }, { name: 'module·0-u1', children: [] }];
-  for (let i = 0; i < parts; i++) { nodes[1].children.push(nodes.length); nodes.push({ name: `p#${i}`, extras: { rowPartId: `r${i}` } }); }
+function makeGlb(extras, { parts = 2, pad = 0, anon = extras && extras.vis === 'exterior', leak = false } = {}) {
+  // anon: 고객용 외관 (planner-export-cad/2) — 노드 module-N · part-N, extras 없음
+  const nodes = [{ name: 'dadam-planner-cad', extras, children: [1] }, { name: anon ? 'module-1' : 'module·0-u1', children: [] }];
+  for (let i = 0; i < parts; i++) {
+    nodes[1].children.push(nodes.length);
+    nodes.push(anon ? Object.assign({ name: `part-${i + 1}` }, leak ? { extras: { rowPartId: `r${i}` } } : {}) : { name: `p#${i}`, extras: { rowPartId: `r${i}` } });
+  }
   const json = { asset: { version: '2.0' }, scene: 0, scenes: [{ nodes: [0] }], nodes, extrasPad: 'x'.repeat(pad) };
   let txt = Buffer.from(JSON.stringify(json), 'utf8');
   const padLen = (4 - (txt.length % 4)) % 4;
@@ -37,7 +41,7 @@ function makeGlb(extras, { parts = 2, pad = 0 } = {}) {
 
 const spec = specOf('sink15').spec;
 const sha = (s) => createHash('sha256').update(s, 'utf8').digest('hex');
-const extrasFor = async (o = {}) => Object.assign({ schema: 'dadam.assembly/1', source: 'dadam.assembly', rulesVersion: spec.rulesVersion, generator: 'planner-export-cad/1', vis: 'all', assemblyHash: await assemblyHashOf(spec) }, o);
+const extrasFor = async (o = {}) => Object.assign({ schema: 'dadam.assembly/1', source: 'dadam.assembly', rulesVersion: spec.rulesVersion, generator: 'planner-export-cad/2', vis: 'all', assemblyHash: await assemblyHashOf(spec) }, o);
 
 test('stableJson = 플래너 plannerExportStableJson (골든 명세 9종) · 해시 = SHA-256', async () => {
   ['sink15', 'sink18', 'sinkCorner', 'shoerack', 'vanity', 'storage', 'warehouse', 'wardrobe', 'fridge'].forEach((n) => {
@@ -70,6 +74,10 @@ test('verifyCadGlb — 해시가 맞으면 통과 (판재 · 모듈 수), 다르
   await assert.rejects(verifyCadGlb(makeGlb(await extrasFor()), spec, 'exterior'), ValidationError);
   await assert.rejects(verifyCadGlb(makeGlb(await extrasFor({ vis: 'exterior' })), spec, 'cad'), ValidationError);
   assert.equal((await verifyCadGlb(makeGlb(await extrasFor({ vis: 'exterior' })), spec, 'exterior')).parts, 2);
+  // 고객용 외관 — partId 가 남았거나(extras · 이름) 예전 만든 쪽(/1)이면 422
+  await assert.rejects(verifyCadGlb(makeGlb(await extrasFor({ vis: 'exterior' }), { leak: true }), spec, 'exterior'), ValidationError);
+  await assert.rejects(verifyCadGlb(makeGlb(await extrasFor({ vis: 'exterior' }), { anon: false }), spec, 'exterior'), ValidationError);
+  await assert.rejects(verifyCadGlb(makeGlb(await extrasFor({ vis: 'exterior', generator: 'planner-export-cad/1' })), spec, 'exterior'), ValidationError);
   await assert.rejects(verifyCadGlb(makeGlb({ foo: 1 }), spec, 'cad'), ValidationError);
 });
 
@@ -106,8 +114,10 @@ beforeEach(() => {
       return respond(hit ? [db.snap] : []);
     }
     if (u.pathname === '/rest/v1/design_cad_artifacts') {
+      if (db.noTable) return new Response('{"code":"42P01","message":"relation does not exist"}', { status: 404 });
       if (method === 'POST') { const row = Object.assign({ id: `A${db.artifacts.length + 1}`, created_at: 't' }, JSON.parse(init.body)); db.artifacts.push(row); return respond([row], 201); }
-      const rows = db.artifacts.filter((r) => (!q.snapshot_id || q.snapshot_id === `eq.${r.snapshot_id}`) && (!q.kind || q.kind === `eq.${r.kind}`) && (!q.sha256 || q.sha256 === `eq.${r.sha256}`));
+      const inList = (f, v) => !f || f.slice(4, -1).split(',').includes(v);
+      const rows = db.artifacts.filter((r) => (!q.snapshot_id || q.snapshot_id === `eq.${r.snapshot_id}`) && (!q.kind || q.kind === `eq.${r.kind}`) && (!q.sha256 || q.sha256 === `eq.${r.sha256}`) && inList(q.generator_version, r.generator_version));
       return respond(rows);
     }
     if (u.pathname.startsWith('/storage/v1/object/sign/cad')) {
@@ -166,4 +176,19 @@ test('동결 명세 — 최신 스냅샷 명세와 해시 (관리자), 명세 �
   await assert.rejects(getFrozenAssembly(env, { designId: 'D1', user: admin }), ConflictError);
   db.snap = null;
   await assert.rejects(getFrozenAssembly(env, { designId: 'D1', user: admin }), NotFoundError);
+});
+
+test('고객 확인서 3D — 그 스냅샷 최신 고객용 외관 GLB 서명 URL, 없거나 표가 없으면 null', async () => {
+  assert.equal(await customerExteriorUrl(env, 'S1'), null);
+  await uploadCadArtifact(env, { snapshotId: 'S1', user: admin, kind: 'cad', bytes: makeGlb(await extrasFor()) });
+  assert.equal(await customerExteriorUrl(env, 'S1'), null, '전체(cad) GLB 는 고객에게 주지 않는다');
+  const ex = await uploadCadArtifact(env, { snapshotId: 'S1', user: admin, kind: 'exterior', bytes: makeGlb(await extrasFor({ vis: 'exterior' })) });
+  const url = await customerExteriorUrl(env, 'S1');
+  assert.equal(url, `https://sb.test/storage/v1/object/sign/cad/${ex.artifact.path}?token=t`);
+  assert.match(url, /\/cad\/exterior\//);
+  // 예전 만든 쪽(/1) 외관 행은 싣지 않는다 (partId 가 들어 있다)
+  db.artifacts.forEach((r) => { r.generator_version = 'planner-export-cad/1'; });
+  assert.equal(await customerExteriorUrl(env, 'S1'), null);
+  db.noTable = true;
+  assert.equal(await customerExteriorUrl(env, 'S1'), null);
 });

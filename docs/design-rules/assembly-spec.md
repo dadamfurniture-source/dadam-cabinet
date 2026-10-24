@@ -214,4 +214,8 @@ JS 조립 검사가 맞는지 실제 CAD 커널(build123d / OCC)로 따로 확�
 - PR16b (2026-10-24): 플래너 📤 동결본 GLB (관리자) → 부모 창 `DadamWorkflow.cad.frozenAssembly()` 로 최신 동결 명세를 받아 그대로 전체 · 외관 두 벌을 짓고 `upload()`.
   워커 `src/cad-artifacts.js`: `GET /designs/:designId/cad-assembly` (최신 동결 명세 + 해시) · `POST /snapshots/:snapshotId/cad-artifacts?kind=cad|exterior` (GLB 본문, 루트 extras `assemblyHash` · `vis` 대조 → 버킷 `cad` + 행, 같은 파일은 한 번만) ·
   `GET /snapshots/:snapshotId/cad-artifacts` (목록 + 1시간 서명 URL). 모두 관리자만. 크기 한도 외관 1MB · 전체 20MB.
-  동결 명세에는 플래너 선반 높이 · 벽 라인이 없어 동결본 GLB 에는 라인 부재(상판 · 몰딩 · 걸레받이)와 자리 못 받은 선반이 빠진다 (2026-10-24 사장님 승인). 고객 화면에 외관 GLB 를 싣는 건 다음 PR
+  동결 명세에는 플래너 선반 높이 · 벽 라인이 없어 동결본 GLB 에는 라인 부재(상판 · 몰딩 · 걸레받이)와 자리 못 받은 선반이 빠진다 (2026-10-24 사장님 승인)
+- 고객 외관 3D (2026-10-24 사장님 결정 — D6 의 "3D 는 나중"을 이날 풀었다): 고객 확인서(`confirm.html`)에 3D 미리보기. 공개 열람 `GET /public/confirm` 이
+  그 문서 스냅샷의 최신 외관 GLB 서명 URL(1시간)을 `exterior_glb_url` 로 싣고, 페이지가 three.js(플래너와 같은 0.183.0) 로 돌려 보게 그린다. 없으면 카드가 없다 (지금처럼 정면도 · 아이소만).
+  외관 GLB 는 고객용 — `planner-export-cad/2`: 노드 `module-N` · `part-N`, 판재 · 모듈 extras 없음(고객 화면에 partId 를 보이지 않는다), 따낸 판 모양은 그대로(사장님 선택).
+  워커는 외관에 /2 만 받고 내부 이름 · extras 가 남은 GLB 는 422. 관리자가 📤 동결본 GLB 를 눌러야 생긴다

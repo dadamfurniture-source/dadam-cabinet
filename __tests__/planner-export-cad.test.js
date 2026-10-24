@@ -118,16 +118,27 @@ describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
     expect(want).toBeGreaterThan(0);
     expect(ext.parts).toBe(want);
     expect(ext.hardware).toBe(0);
-    const partNodes = extGltf.nodes.filter((n) => n.extras && n.extras.rowPartId);
+    // 고객용 — 판재 노드는 part-N, 모듈은 module-N, extras 없음
+    const partNodes = extGltf.nodes.filter((n) => /^part-\d+$/.test(n.name));
     expect(partNodes).toHaveLength(want);
-    expect(partNodes.every((n) => n.extras.vis === 'exterior')).toBe(true);
-    expect(extGltf.nodes.filter((n) => n.extras && n.extras.hardware)).toEqual([]);
+    expect(extGltf.nodes.filter((n) => n.extras && Object.keys(n.extras).length && n !== extGltf.nodes[extGltf.scenes[extGltf.scene || 0].nodes[0]])).toEqual([]);
     const root = extGltf.nodes[extGltf.scenes[extGltf.scene || 0].nodes[0]];
     expect(root.scale).toEqual([PLANNER_EXPORT_SCALE, PLANNER_EXPORT_SCALE, PLANNER_EXPORT_SCALE]);
-    expect(root.extras).toMatchObject({ vis: 'exterior', assemblyHash: gltf.nodes[gltf.scenes[gltf.scene || 0].nodes[0]].extras.assemblyHash });
+    expect(root.extras).toMatchObject({ vis: 'exterior', generator: PLANNER_EXPORT_CAD_VERSION, assemblyHash: gltf.nodes[gltf.scenes[gltf.scene || 0].nodes[0]].extras.assemblyHash });
+    expect(Object.keys(root.extras).sort()).toEqual(['assemblyHash', 'exportedAt', 'generator', 'schema', 'source', 'units', 'vis']);
     expect(ext.glb.byteLength).toBeLessThanOrEqual(1024 * 1024);
     // 판재가 없는 모듈 노드는 싣지 않는다
-    extGltf.nodes.filter((n) => /^module·/.test(n.name)).forEach((n) => expect((n.children || []).length).toBeGreaterThan(0));
+    const mods = extGltf.nodes.filter((n) => /^module-\d+$/.test(n.name));
+    expect(mods.length).toBeGreaterThan(0);
+    mods.forEach((n) => expect((n.children || []).length).toBeGreaterThan(0));
+    // 고객 화면 규칙 — GLB JSON 어디에도 partId · moduleKey · 행 id 가 없다
+    const txt = JSON.stringify(extGltf);
+    const ids = cad.spec.items.flatMap((it) => (it ? it.modules.flatMap((m) => [m.moduleKey].concat(m.parts.map((pt) => pt.rowPartId))) : []));
+    expect(ids.filter((id) => txt.includes(id))).toEqual([]);
+    expect(/rowPartId|moduleKey|partId/.test(txt)).toBe(false);
+    // 따낸 판은 모양 그대로 (상자 여럿) — 메시 수 = 외관 판재 solidsOf 합
+    const solids = cad.spec.items.flatMap((it) => (it ? it.modules.flatMap((m) => m.parts).concat(it.runs.flatMap((r) => r.parts)) : [])).filter((pt) => pt.vis === 'exterior').reduce((n, pt) => n + Asm.solidsOf(pt).length, 0);
+    expect(extGltf.nodes.filter((n) => n.mesh != null)).toHaveLength(solids);
   });
 
   test('명세가 플래너 모듈마다 판재를 놓는다 — 자리 못 찾은 모듈 0', () => {
