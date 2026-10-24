@@ -186,3 +186,26 @@ describe('속도', () => {
     expect(runs[2]).toBeLessThan(50);
   });
 });
+
+describe('홈 깊이 (2026-10-25 D5) — 뒷판이 홈보다 깊이 들면 겹침', () => {
+  const pick = () => {
+    for (const name of NAMES) {
+      const spec = clone(specOf(name).spec);
+      for (const it of spec.items) for (const m of (it.modules || [])) {
+        const back = m.parts.find((p) => p.tags && p.tags.mount === 'groove' && !('box' in p.tags));
+        const side = m.parts.find((p) => (p.features || []).some((f) => f.type === 'groove' && f.src === 'sakuri'));
+        if (back && side) return { spec, m, side };
+      }
+    }
+    return null;
+  };
+  test('명세 그대로면 끼운 것 (15T 뒷판 5 가 홈 6 안)', () => {
+    const { spec, m } = pick();
+    expect(Check.check(spec).issues.filter((x) => x.level === 'error' && x.code === 'part-overlap' && x.moduleKey === m.moduleKey)).toEqual([]);
+  });
+  test('홈을 4 로 얕게 하면 part-overlap', () => {
+    const { spec, m } = pick();
+    m.parts.forEach((p) => (p.features || []).forEach((f) => { if (f.type === 'groove' && f.src === 'sakuri') f.depth = 4; }));
+    expect(Check.check(spec).issues.some((x) => x.level === 'error' && x.code === 'part-overlap' && x.moduleKey === m.moduleKey)).toBe(true);
+  });
+});
