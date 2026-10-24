@@ -219,3 +219,6 @@ JS 조립 검사가 맞는지 실제 CAD 커널(build123d / OCC)로 따로 확�
   그 문서 스냅샷의 최신 외관 GLB 서명 URL(1시간)을 `exterior_glb_url` 로 싣고, 페이지가 three.js(플래너와 같은 0.183.0) 로 돌려 보게 그린다. 없으면 카드가 없다 (지금처럼 정면도 · 아이소만).
   외관 GLB 는 고객용 — `planner-export-cad/2`: 노드 `module-N` · `part-N`, 판재 · 모듈 extras 없음(고객 화면에 partId 를 보이지 않는다), 따낸 판 모양은 그대로(사장님 선택).
   워커는 외관에 /2 만 받고 내부 이름 · extras 가 남은 GLB 는 422. 관리자가 📤 동결본 GLB 를 눌러야 생긴다
+- 마감 색 (2026-10-24): 동결 BOM 행의 `finishCode` (워커 `cad-assembly` 의 `finish_codes`, partId → 코드) 를 디테일 모드와 같은 카탈로그
+  (`PlannerCatalog.load()`, 못 읽으면 로컬 정본 `bom-finish-color.js`) 에서 찾아 판재 재질 색 · 거칠기 · 금속성으로. 재질 이름 = 마감 코드.
+  코드가 없거나 카탈로그가 모르는 판재는 자재 기본색 (PB · MDF). 텍스처는 싣지 않는다 (외관 1MB). 명세 해시에는 들지 않는다
