@@ -70,3 +70,22 @@ describe('오픈장 — 규칙 자체', () => {
     expect(R.warningsOf({ W: 500, H: 450, D: 15 }).join()).toMatch(/얕아/);
   });
 });
+
+describe('가전 칸 (전자레인지) — 2026-10-25 사장님: 오픈장 내경 ≥ 가전 외경 + 20', () => {
+  const R = require('../js/detaildesign/bom-open-cabinet-rules.js');
+  // 키큰장 가운데 단 가전 칸 600 × 500 × 620 — 내경 564 × 464 × 600
+  const niche = { W: 600, H: 500, D: 620 };
+  test('여유가 20 이상이면 경고 없음 (딱 20 도 된다)', () => {
+    expect(R.RULES.APPLIANCE_CLEARANCE).toBe(20);
+    expect(R.applianceWarningsOf(niche, { W: 544, H: 444, D: 580 }, '전자레인지')).toEqual([]);
+  });
+  test('모자라는 치수마다 한 줄', () => {
+    expect(R.applianceWarningsOf(niche, { W: 545, H: 300, D: 581 }, '전자레인지')).toEqual([
+      '오픈장 내경 폭 564 가 전자레인지 폭 545 + 20 = 565 보다 작습니다',
+      '오픈장 내경 깊이 600 가 전자레인지 깊이 581 + 20 = 601 보다 작습니다',
+    ]);
+  });
+  test('외경을 모르면 검사하지 않는다', () => {
+    expect(R.applianceWarningsOf(niche, null)).toEqual([]);
+  });
+});
