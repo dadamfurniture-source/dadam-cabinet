@@ -246,6 +246,37 @@ describe('서랍 규칙 블록 — 레일·사쿠리·서랍 자재 두께가 BO
     expect(rows.find((r) => r.part === '서랍도어')).toMatchObject({ h: 162, qty: 2 });
   });
 
+  // 2026-10-24 사장님 "서랍장 맨 위 칸도 서랍"
+  test('서랍장 표시(drawer.topDrawer) → drawerLayout all · 도어 0 · 위 칸도 서랍 — BOM 서랍도어 3 · 박스 3 · 레일 3', () => {
+    global.dlog = () => {};
+    const { MaterialExtractor, HardwareExtractor } = require('../js/detaildesign/extractors.js');
+    const pl = payloadWith({ topDrawer: true, grades: ['auto', 'small', 'small'], doorGrade: '' });
+    pl.structures[pl.modules[0].id].drawerCount = 3;
+    pl.structures[pl.modules[0].id].areaDirections = ['right'];
+    pl.modules[0].areaH = 870;
+    const modules = _convertPlannerModules(pl, SPECS).modules;
+    expect(modules[0]).toMatchObject({ drawerLayout: 'all', doorCount: 0, isDrawer: true, drawerCount: 3 });
+    expect(modules[0].drawer).toMatchObject({ topDrawer: true, grades: ['auto', 'small', 'small'] });
+    expect('hingeSide' in modules[0]).toBe(false);          // 도어가 없다
+    const item = { uniqueId: 1, categoryId: 'sink', name: '싱크대', w: 900, h: 2310, d: 650,
+      specs: Object.assign({}, SPECS, { handle: '찬넬 (목찬넬)', topSizes: [{ w: '900', d: '650' }] }), modules };
+    const rows = new MaterialExtractor().extract({ items: [item] }).materials;
+    expect(rows.some((r) => r.part === '도어')).toBe(false);
+    // 영역 648 · 버줌 2 + 1 + 1 → 324 · 162 · 162 — 모두 서랍도어
+    expect(rows.filter((r) => r.part === '서랍도어').map((r) => [r.h, r.qty])).toEqual([[324, 1], [162, 2]]);
+    expect(rows.filter((r) => r.part === '서랍측판').reduce((n, r) => n + r.qty, 0)).toBe(6);
+    const rails = new HardwareExtractor().extract({ items: [item] }).hardware.filter((h) => /레일/.test(h.item));
+    expect(rails.reduce((n, h) => n + h.qty, 0)).toBe(3);
+  });
+
+  test('서랍장 표시가 없으면(자동계산 하부장) 예전 그대로 — 위 칸 도어, drawerLayout · topDrawer 키 없음', () => {
+    const m = mod(payloadWith({ grades: ['small'] }));
+    expect(m.doorCount).toBe(1);
+    expect('drawerLayout' in m).toBe(false);
+    expect('topDrawer' in m.drawer).toBe(false);
+    expect(mod(payloadWith({ topDrawer: 'yes' })).drawer.topDrawer).toBeUndefined();
+  });
+
   test('배치 높이를 안 싣는 옛 설계는 areaH 키가 없다', () => {
     expect('areaH' in mod(payloadWith(undefined))).toBe(false);
   });
