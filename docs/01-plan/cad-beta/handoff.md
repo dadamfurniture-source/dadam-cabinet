@@ -141,7 +141,7 @@
   - 플래너: 상부 기본 배치에서 몸통 295 (Q3), 홈카페장 선반 자리 (Q5 — 플래너 선반 1 · 규칙 2)
 - 작업지시서 발행 API 가 플랜(요금제)을 확인하지 않음 (워크플로 도메인).
 - 플래너 3D 원장 (PR15): 명세로 그린 판재 486장은 id 로 맞고(±0.5mm), 예전 그리기와 BOM 은 213건 다르다 (`test-utils/ledger-baseline.json` 래칫, 픽스처 7벌). **3D 를 근거로 BOM 을 고치지 않는다.**
-- 다음 계획 단계: ~~PR8 CI 검산기~~ (보고만 단계로 시작, 2주 초록이면 게이트), ~~PR10 동결~~ (워커 `validateAssembly` #1006 → 클라이언트 `createSnapshot` 이 `bom.assembly` 를 보냄), ~~PR11 플래너 검사 배지~~ (관리자 전용, `planner-cad-check.js`), ~~PR12 3D 몸통을 명세로~~ (원장 186→105, `?asm=0` 되돌리기) → ~~PR13 앞판·중간 목찬넬·서랍통~~ (서랍 전면 id 별도, 상단 목찬넬은 라인 부재라 PR14) → ~~PR15 원장 id 대조 + 래칫~~ → ~~PR14a 걸레받이·상단 목찬넬·상몰딩~~ (상판 뒤 기준·스펙 마감재 D9 는 확인 대기) → ~~PR14b 붙박이장·오픈장·밥솥장~~ (원장 114) → ~~PR17a 판재 도면~~ (재단 묶음) → ~~PR17b 모듈 단면도~~ (조립 묶음 ⑪-2) → ~~PR16a GLB 외관 거름망 · 명세 해시 · SQL~~ (2026-10-24 사장님 실행) → ~~PR16b 동결본 GLB 보관~~ (워커 `cad-artifacts.js`, 플래너 📤 동결본 GLB) → ~~고객 외관 GLB~~ (확인서 3D 미리보기, `confirm.html` · `/public/confirm` `exterior_glb_url`) → CAD 검산기 `--strict` 승격 (2026-11-06 무렵).
+- 다음 계획 단계: ~~PR8 CI 검산기~~ (보고만 단계로 시작, 2주 초록이면 게이트), ~~PR10 동결~~ (워커 `validateAssembly` #1006 → 클라이언트 `createSnapshot` 이 `bom.assembly` 를 보냄), ~~PR11 플래너 검사 배지~~ (관리자 전용, `planner-cad-check.js`), ~~PR12 3D 몸통을 명세로~~ (원장 186→105, `?asm=0` 되돌리기) → ~~PR13 앞판·중간 목찬넬·서랍통~~ (서랍 전면 id 별도, 상단 목찬넬은 라인 부재라 PR14) → ~~PR15 원장 id 대조 + 래칫~~ → ~~PR14a 걸레받이·상단 목찬넬·상몰딩~~ (상판 뒤 기준·스펙 마감재 D9 는 확인 대기) → ~~PR14b 붙박이장·오픈장·밥솥장~~ (원장 114) → ~~PR17a 판재 도면~~ (재단 묶음) → ~~PR17b 모듈 단면도~~ (조립 묶음 ⑪-2) → ~~PR16a GLB 외관 거름망 · 명세 해시 · SQL~~ (2026-10-24 사장님 실행) → ~~PR16b 동결본 GLB 보관~~ (워커 `cad-artifacts.js`, 플래너 📤 동결본 GLB) → ~~고객 외관 GLB~~ (확인서 3D 미리보기, `confirm.html` · `/public/confirm` `exterior_glb_url`) → ~~CAD 검산기 `--strict` 승격~~ (2026-10-24, 게이트).
 
 ---
 
@@ -197,7 +197,7 @@ cd workers/generate-api && npm ci && node --test "test/*.test.js"
 # MCP 서버 (vitest)
 cd mcp-server && npm ci && npm test
 ```
-CAD 검산기 (PR8, 보고만): `node tools/cad/dump-assembly.js cad-oracle/dump` 다음 `uv run --no-project --python 3.13 --with build123d==0.11.1 --with cadquery-ocp-novtk==7.9.3.1.1 python -I tools/cad/build_from_spec.py cad-oracle/dump --out cad-oracle/out` — 파이썬 소스는 ASCII 만, 도메인 숫자 리터럴 금지(명세 JSON 만 읽는다). 설명은 `docs/design-rules/assembly-spec.md` "CAD 검산기".
+CAD 검산기 (PR8, `--strict` 게이트): `node tools/cad/dump-assembly.js cad-oracle/dump` 다음 `uv run --no-project --python 3.13 --with build123d==0.11.1 --with cadquery-ocp-novtk==7.9.3.1.1 python -I tools/cad/build_from_spec.py cad-oracle/dump --out cad-oracle/out` — 파이썬 소스는 ASCII 만, 도메인 숫자 리터럴 금지(명세 JSON 만 읽는다). 설명은 `docs/design-rules/assembly-spec.md` "CAD 검산기".
 
 ### 5-6. 보안·공개
 - **저장소는 공개다.** 고객 이름·주소·전화·실제 주문 설계, 개인 PC 경로를 커밋·Actions 로그·산출물·PR 본문에 넣지 않는다. 시험 픽스처는 합성 데이터만.

@@ -126,9 +126,9 @@ describe('.github/workflows/cad-oracle.yml', () => {
       expect(doc).toContain(pin);
     });
   });
-  test('처음엔 보고만 한다 (--strict 없음), 산출물을 올린다', () => {
-    // 주석(게이트로 올리는 방법 안내)은 빼고 본다
-    expect(yml.replace(/#.*$/gm, '')).not.toMatch(/--strict/);
-    expect(yml).toMatch(/upload-artifact/);
+  test('게이트로 돈다 (--strict), 실패해도 산출물을 올린다', () => {
+    // 주석은 빼고 본다 — 실행 줄에 --strict 가 있어야 한다
+    expect(yml.replace(/#.*$/gm, '')).toMatch(/build_from_spec\.py[^\n]*--strict/);
+    expect(yml).toMatch(/if: always\(\)\s*\n\s*uses: actions\/upload-artifact/);
   });
 });

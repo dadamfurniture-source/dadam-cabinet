@@ -16,7 +16,7 @@ __tests__/cad-oracle-source.test.js.
     python tools/cad/build_from_spec.py <dumpDir> --out <outDir> [--strict] [--no-export]
 
 Writes <outDir>/report.json, <outDir>/<fixture>.step and .glb. Exit code is non-zero only on
-a crash, or on a mismatch with --strict (the CI job is report-only for now).
+a crash, or on a mismatch with --strict (the CI job runs with --strict since 2026-10-24).
 """
 
 import argparse

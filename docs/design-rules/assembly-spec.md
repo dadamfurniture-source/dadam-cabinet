@@ -113,7 +113,7 @@ BOM 행마다 판재 조각의 **자리**를 붙인다. 재단 치수는 BOM 행
 
 ## CAD 검산기 (PR8, `tools/cad/**` · `.github/workflows/cad-oracle.yml`)
 
-JS 조립 검사가 맞는지 실제 CAD 커널(build123d / OCC)로 따로 확인한다. **처음엔 보고만 한다** — 불일치가 있어도 CI 를 막지 않고 Actions 요약과 `report.json` 에 남긴다. 2주 동안 불일치 0 이면 `--strict` 를 붙여 게이트로 올린다.
+JS 조립 검사가 맞는지 실제 CAD 커널(build123d / OCC)로 따로 확인한다. **게이트 (`--strict`, 2026-10-24 승격)** — 불일치가 하나라도 있으면 CI 가 실패한다. 결과는 그대로 Actions 요약과 `report.json` 에 남는다. 보고만 하던 단계(#1005 ~)에서 PR · main · 야간 실행이 모두 골든 9종 불일치 0 이었다. 불일치가 나면 BOM 을 3D · CAD 에 맞춰 고치지 말고 JS 조립 검사와 OCC 중 어느 쪽이 틀렸는지 먼저 본다.
 
 1. `node tools/cad/dump-assembly.js <dir> [fixture…]` — 골든 픽스처(합성만, 저장소가 공개)마다 명세를 JSON 으로 쓴다 (스키마 `dadam.cad-oracle/1`). 부재마다 `frame · cut · t · notches · volume`, 모듈마다 JS `findOverlaps` 쌍 (홈 끼움 제외 **전**), 그리고 축 벡터(`AXES`) · 겹침 문턱(`DEFAULT_LIMITS`) · 부피 허용 오차(±0.1%)를 함께 싣는다. 입력 만들기는 `test-utils/assembly-fixtures.js` (조립 검사 시험과 같다).
 2. `uv run --no-project --python 3.13 --with build123d==0.11.1 --with cadquery-ocp-novtk==7.9.3.1.1 python -I tools/cad/build_from_spec.py <dir> --out <out> [--strict] [--no-export]` — JSON 만 읽어 판재를 솔리드로 짓고(관통 따내기를 뺀다, 홈은 깊이 미정이라 안 뺀다) 대조한다.
