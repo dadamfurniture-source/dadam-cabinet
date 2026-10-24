@@ -3,8 +3,9 @@ name: CAD Oracle
 # 다담 CAD 베타 PR8 — 조립 명세를 build123d(OCC)로 실제 솔리드로 지어 JS 조립 검사와 대조한다.
 #   docs/01-plan/planner-cad.plan.md §PR8 · docs/design-rules/assembly-spec.md "CAD 검산기"
 #
-# 처음엔 보고만 한다: 불일치가 있어도 실패하지 않고 요약(Step Summary)과 report.json 에 남긴다.
-#   2주 동안 계속 불일치 0 이면 build_from_spec.py 에 --strict 를 붙여 게이트로 올린다.
+# 게이트 (--strict, 2026-10-24 승격): 불일치가 하나라도 있으면 실패한다. 요약(Step Summary)과 report.json 은 그대로 남긴다.
+#   보고만 하던 단계(#1005 ~)의 PR · main · 야간 실행이 모두 골든 9종 불일치 0 이었다.
+#   불일치가 나면 3D · CAD 를 근거로 BOM 을 고치지 말고, JS 조립 검사와 OCC 중 어느 쪽이 틀렸는지 먼저 본다.
 # 입력은 합성 골든 픽스처만 (test-utils/bom-golden/fixtures.js) — 저장소가 공개라 실제 주문 설계는 넣지 않는다.
 on:
   pull_request:
@@ -47,7 +48,7 @@ env:
 
 jobs:
   oracle:
-    name: CAD Oracle (report only)
+    name: CAD Oracle
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -73,7 +74,7 @@ jobs:
         run: >-
           uv run --no-project --python 3.13
           --with build123d==0.11.1 --with cadquery-ocp-novtk==7.9.3.1.1
-          python -I tools/cad/build_from_spec.py cad-oracle/dump --out cad-oracle/out
+          python -I tools/cad/build_from_spec.py cad-oracle/dump --out cad-oracle/out --strict
 
       - name: Upload STEP / GLB / report
         if: always()
