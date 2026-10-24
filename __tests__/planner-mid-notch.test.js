@@ -232,7 +232,9 @@ describe('렌더 경로 — 전면 배치를 레이아웃이 정한다', () => {
 
   test('서랍 전면은 단마다 한 장, 레이아웃이 없으면 예전 경로', () => {
     expect(fn).toContain("if (f.kind !== 'drawer') return;");
-    expect(fn).toContain("drawerIdx: k - 1");
+    // 2026-10-24: 서랍장(위 칸도 서랍)은 첫 전면부터 서랍 0 — 위 칸 도어가 없다
+    expect(fn).toContain('drawerIdx: topIsDrawer ? k : k - 1');
+    expect(fn).toContain("const topIsDrawer = !!(drawerLayout && drawerLayout.fronts[0] && drawerLayout.fronts[0].kind === 'drawer');");
     expect(fn).toContain('} else if (drawerH > 0) {');
   });
 
@@ -320,7 +322,7 @@ describe('우측 패널 — 서랍 레일 선택, 최대 4단', () => {
   });
 
   test('새 구조는 서랍 규칙 블록 {언더레일, 사쿠리 없음, 몸통 두께, 등급 미지정} 로 시작한다', () => {
-    expect(SRC).toMatch(/drawer: \{ rail: 'under', sakuri: false, boxT: 0, grades: \[\], doorGrade: '' \}/);
+    expect(SRC).toMatch(/drawer: \{ rail: 'under', sakuri: false, boxT: 0, grades: \[\], doorGrade: '', topDrawer: false \}/);
   });
 
   test('서랍 전면 H 입력은 없어졌다 — 배분식이 정한다', () => {
