@@ -6,7 +6,7 @@
  *   걸레받이 · 상단 목찬넬 · 상몰딩 — 품목에서 그 묶음 행이 **전부** 놓였을 때만 명세 판재로 그리고 예전 그리기를 끈다.
  *     하나라도 놓이지 않으면(run-layout-unknown) 그 묶음은 예전 그리기 그대로 (두 번 그리지도, 지어내지도 않는다).
  *   좌우 마감재(휠라 · 몰딩 · EP) — 결정 D9 전이라 아직 그리지 않는다.
- *   상판 — 명세 상판 뒤 기준(벽 = 몸통 뒤끝)이 플래너(몸통이 벽에서 70)와 달라 확인 전까지 그리지 않는다.
+ *   상판 — 2026-10-24 사장님 D3 부터 명세로 (몸통 뒤 여유 back 을 넘겨 상판 뒤 = 벽). 예전 그리기와 같은 자리여야 한다.
  *   라인 부재는 호스트 모듈(라인 첫 모듈) 그룹과 같은 자리·회전의 형제 그룹에 — 모듈 선택 상자가 라인 폭으로 커지지 않게.
  * 합성 데이터만 (planner-golden.js 배치).
  */
@@ -45,7 +45,7 @@ describe('plannerAssemblyRunsFor — 묶음마다 다 놓였을 때만', () => {
     expect(r.groups.kick).toMatchObject({ drawn: true });
     expect(r.groups.kick.parts[0]).toMatchObject({ host: 'A', dx: 5 });
     expect(r.groups.top.parts).toHaveLength(1);
-    expect(r.groups.top.drawn).toBe(false);   // 상판은 확인 전까지 늘 예전 그리기
+    expect(r.groups.top.drawn).toBe(true);   // D3 (2026-10-24) 부터 상판도 명세
     expect(r.groups.molding.drawn).toBe(false);   // 판재가 없다
   });
   test('그 묶음 행이 하나라도 unplaced 면 drawn 아님 (예전 그리기)', () => {
@@ -64,9 +64,9 @@ describe('plannerAssemblyRunsFor — 묶음마다 다 놓였을 때만', () => {
 });
 
 describe.each([
-  // straight: 걸레받이 · 상단 목찬넬은 명세 (상몰딩은 상부 라인이 끊겨 run-layout-unknown → 예전, 상판은 늘 예전)
-  ['straight', ['kick', 'channel'], ['molding', 'top']],
-  // lShape: 상몰딩 · 걸레받이는 명세 (목찬넬은 하부 라인이 둘이라 → 예전, 상판은 늘 예전)
+  // straight: 걸레받이 · 상단 목찬넬 · 상판은 명세 (상몰딩은 상부 라인이 끊겨 run-layout-unknown → 예전)
+  ['straight', ['kick', 'channel', 'top'], ['molding']],
+  // lShape: 상몰딩 · 걸레받이는 명세 (목찬넬 · 상판은 하부 라인이 둘이라 run-layout-unknown → 예전)
   ['lShape', ['kick', 'molding'], ['top', 'channel']],
 ])('%s', (name, specKinds, oldKinds) => {
   let p;
@@ -100,6 +100,30 @@ describe.each([
       const host = p.three.moduleGroup.children.find((c) => c.userData.entityKind === 'module' && String(c.userData.moduleId) === String(g.userData.moduleId));
       expect(g.position.toArray()).toEqual(host.position.toArray());
       expect(g.rotation.y).toBe(host.rotation.y);
+    });
+  });
+});
+
+describe('상판 — 명세 판재가 예전 그리기(addTopPanel)와 같은 자리 (D3: 뒤 = 벽, 앞 = 배치 앞선)', () => {
+  const worldBox = (o) => {
+    o.updateWorldMatrix(true, false);
+    const THREE = require('three');
+    return new THREE.Box3().setFromObject(o);
+  };
+  const round = (b) => [b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z].map((v) => Math.round(v));
+  test('straight — 앞뒤 · 높이가 ?asm=0 의 상판과 같고, 가로는 예전 모듈 상판들을 다 덮는다 (+ 좌 휠라)', () => {
+    const p = bootPlanner3D(FIXTURES.straight, { design: 'ledger', item: 'straight', assembly: true });
+    const q = bootPlanner3D(FIXTURES.straight, { design: 'ledger', item: 'straight', assembly: true, searchExtra: '&asm=0' });
+    const a = meshes(p, KIND.top), b = meshes(q, KIND.top);
+    expect(a).toHaveLength(1);   // 명세 — 하부 라인 한 장
+    expect(b.length).toBeGreaterThan(0);   // 예전 — 이 배치에서는 모듈마다
+    expect(a[0].userData.assembly).toBe(true);
+    const n = round(worldBox(a[0]));
+    const olds = b.map((o) => round(worldBox(o)));
+    olds.forEach((o) => {
+      expect([n[1], n[2], n[4], n[5]]).toEqual([o[1], o[2], o[4], o[5]]);   // y · z (뒤 = 벽, 앞 = 배치 앞선)
+      expect(n[0]).toBeLessThanOrEqual(o[0]);
+      expect(n[3]).toBeGreaterThanOrEqual(o[3]);
     });
   });
 });

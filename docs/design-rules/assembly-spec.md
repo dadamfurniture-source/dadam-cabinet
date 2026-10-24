@@ -163,7 +163,7 @@ JS 조립 검사가 맞는지 실제 CAD 커널(build123d / OCC)로 따로 확�
 - 판재: 따내기 없으면 box 크기 BoxGeometry, 따내기(notch)는 윤곽에서 빼고 frame 으로 누른다. 홈(groove)은 깊이 미정(D5)이라 안 그린다
 - 메시 userData: `partId · rowPartId · key3d · assembly:true` + 원장 이름(측판 left/right · `band#k` · back · brace · shelf). 테두리 선은 `display:true`
 - 라인 부재 (PR14 정해진 것만, `plannerAssemblyRunsFor`): 걸레받이 · 상단 목찬넬 · 상몰딩을 명세 판재로 — 품목에서 그 묶음 행이 전부 놓였을 때만, 그때 예전 그리기(addToeKick · addWoodChannel(하부장) · addCrownMolding(상부장))를 끈다. 호스트 모듈과 같은 자리·회전의 형제 그룹 `assembly-runs` 에 둔다
-  - **상판은 아직 예전 그리기**: 명세 `runsOf 'top'` 은 상판 뒤를 몸통 뒤끝(=벽으로 본다)에 두고 배치 깊이만큼 내 도어 앞으로 82 나온다. 플래너는 몸통을 벽에서 70 띄운다(배치 650 = 뒤 70 + 몸통 550 + 앞 30) — 2026-10-18 "배치 깊이, 오버행 없음" 과 어긋나 확인 필요
+  - **상판도 명세로** (2026-10-24 사장님 D3 "몸통 뒤를 벽에서 띄워 설치"): 플래너 `lines` 가 모듈마다 `back` (몸통 뒷면 → 벽, `seatModuleDepth` 가 남긴 뒤 여유)을 넘기고, 명세 상판 뒤 = 벽 · 깊이 = 행 h. 배치 650 = 물끊기 10 + 도어 자리 20 + 몸통 550 + 뒤 70 이면 앞선 = 도어 앞면 + 12 — 예전 그리기(`addTopPanel`, 배치 공간 전체)와 앞뒤 · 높이가 같다 (`__tests__/planner-assembly-runs.test.js`). 하부 라인이 두 벽에 걸치면(ㄱ·ㄷ자) 한 장 상판을 못 놓아 예전 그리기
   - **좌우 마감재(스펙 휠라·몰딩·EP)는 그리지 않는다**: 결정 D9 전. BOM 행 높이(품목 H − 다리발)가 키큰장 없는 싱크에서 기둥처럼 선다
 - 붙박이장 통 · 오픈장 · 밥솥장 (PR14b, `plannerAssemblyWholeModuleFor`): 모듈 **통째로** — 그 모듈 행이 하나도 unplaced 가 아니고 판재 종류가 모두 `PLANNER_ASM_WARDROBE_FAMILIES` / `PLANNER_ASM_OPEN_FAMILIES` 일 때만 명세, 아니면 모듈 전체 예전 그리기
   - 붙박이장: 몸통 여럿 · 좌대 상자(앞·뒤 · 좌·우 · 보강) · 도어(2026-10-20 카드 "바닥 20 띄움") · 내부/외부 서랍 · 칸막이 · 선반. 뒷판은 BOM 처럼 3T (예전 3D 는 15T 통판). 옷봉(철물) · 상단 몰딩(BOM 행 없음)은 예전 그리기. 도어 끄기면 도어만 뺀다
