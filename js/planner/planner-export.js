@@ -184,6 +184,8 @@ function plannerExportFileName(now, kind) {
 // 부모 창이 상세설계(detaildesign.html)일 때만 된다 — 변환·BOM 이 그쪽에 있다.
 // ============================================================
 const PLANNER_EXPORT_CAD_ROOT_NAME = 'dadam-planner-cad';
+// 만든 쪽 버전 — design_cad_artifacts.generator_version (PR16). GLB 노드 · extras 모양이 바뀌면 올린다.
+const PLANNER_EXPORT_CAD_VERSION = 'planner-export-cad/1';
 const PLANNER_EXPORT_CAD_COLORS = { PB: 0xd9c4a3, MDF: 0xbdb5a8, hardware: 0x6b6b6b };
 // 칸 모듈 `planner-<id>-<칸>` · 상자 하나짜리 모듈 `-open` · `-rice` · `-homecafe` · `-el` (ui-step1.js _convertPlannerModules)
 const PLANNER_EXPORT_CELL_RE = /^planner-(.+)-(\d+|open|rice|homecafe|el)$/;
@@ -246,12 +248,35 @@ function plannerExportCadSpec(P, deps) {
   return { spec: deps.Assembly.of(design, opts), cells };
 }
 
+/** 키 정렬 직렬화 — 같은 명세면 같은 문자열 (planner-capture.js plannerCaptureStableJson 과 같은 규칙). */
+function plannerExportStableJson(v) {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v === undefined ? null : v);
+  if (Array.isArray(v)) return '[' + v.map((x) => (x === undefined ? 'null' : plannerExportStableJson(x))).join(',') + ']';
+  const keys = Object.keys(v).filter((k) => v[k] !== undefined).sort();
+  return '{' + keys.map((k) => JSON.stringify(k) + ':' + plannerExportStableJson(v[k])).join(',') + '}';
+}
+
+/**
+ * 명세 해시 — SHA-256(키 정렬 직렬화) 16진수. GLB 루트 extras.assemblyHash.
+ *   워커가 동결 스냅샷 bom_payload.assembly 로 같은 값을 내 맞춰 본다 (PR16 — 맞아야 동결본으로 인정).
+ * @param {object} spec
+ * @param {SubtleCrypto} [subtle]  없으면 window.crypto.subtle
+ */
+async function plannerExportAssemblyHash(spec, subtle) {
+  const sc = subtle || (typeof crypto !== 'undefined' && crypto.subtle);
+  if (!sc) throw new Error('이 브라우저는 SHA-256 을 계산하지 못합니다');
+  const bytes = new TextEncoder().encode(plannerExportStableJson(spec));
+  const digest = new Uint8Array(await sc.digest('SHA-256', bytes));
+  return Array.from(digest, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 /**
  * 명세 → three 장면.
  * @param {object} THREE
  * @param {object} spec        dadam.assembly/1
  * @param {(module) => object|null} frameOf  모듈 → 몸통 바닥 가운데의 월드 행렬(mm, THREE.Matrix4). null 이면 뺀다
- * @param {{ solidsOf: Function, exportedAt?: string }} opts
+ * @param {{ solidsOf: Function, exportedAt?: string, vis?: 'exterior', assemblyHash?: string }} opts
+ *   vis: 'exterior' 면 명세 vis 가 exterior 인 판재만 (외관 GLB — 철물 · 속 판재 없음). 판재가 하나도 없는 모듈은 노드도 없다.
  */
 function plannerExportCadScene(THREE, spec, frameOf, opts) {
   const o = opts || {};
@@ -268,6 +293,7 @@ function plannerExportCadScene(THREE, spec, frameOf, opts) {
     return mats[key];
   };
   let parts = 0, modules = 0, skipped = 0, runs = 0, hardware = 0;
+  const keep = o.vis ? (p) => p.vis === o.vis : () => true;
   // 철물 — 자리(at)와 치수(size)가 둘 다 있는 것만 상자로 싣는다 (다리발: at = 밑면 가운데, size = [가로, 높이, 깊이]).
   //   레일·경첩은 자리만 있거나 치수가 규칙에 없어(언더레일 두께 0, 경첩 컵 자리 미정) 싣지 않는다 — 명세(hardware[])에는 그대로 있다.
   const hardwareNodeOf = (h, k, moduleKey) => {
@@ -311,22 +337,27 @@ function plannerExportCadScene(THREE, spec, frameOf, opts) {
       node.name = `module·${m.moduleKey}`;
       node.userData = { moduleKey: m.moduleKey, moduleId: m.moduleId, kind: m.kind, box: m.box };
       mat.decompose(node.position, node.quaternion, node.scale);
-      m.parts.forEach((p) => { node.add(partNodeOf(p, m.moduleKey)); parts++; });
-      (m.hardware || []).forEach((h, k) => { if (h.at && h.size) { node.add(hardwareNodeOf(h, k, m.moduleKey)); hardware++; } });
-      root.add(node);
+      m.parts.filter(keep).forEach((p) => { node.add(partNodeOf(p, m.moduleKey)); parts++; });
+      if (!o.vis) (m.hardware || []).forEach((h, k) => { if (h.at && h.size) { node.add(hardwareNodeOf(h, k, m.moduleKey)); hardware++; } });
       nodeOf.set(m.moduleKey, node);
+      if (!node.children.length && o.vis) return;
+      root.add(node);
       modules++;
     });
     // 라인 부재(상판·상몰딩·목찬넬 EP) — 호스트 모듈 좌표라 그 모듈 노드 아래에 싣는다 (extras.run 에 라인 키)
     (it.runs || []).forEach((r) => {
       const host = nodeOf.get(r.hostModuleKey);
       if (!host) { skipped++; return; }
-      r.parts.forEach((p) => {
+      const kept = r.parts.filter(keep);
+      if (!kept.length) return;
+      kept.forEach((p) => {
         const part = partNodeOf(p, `${it.itemIdx}-ep`);
         part.userData.run = r.lineKey;
         host.add(part);
         parts++;
       });
+      // 외관 GLB 에서 판재가 없어 빠졌던 호스트 모듈도 라인 판재가 붙으면 싣는다
+      if (!host.parent) { root.add(host); modules++; }
       runs++;
     });
   });
@@ -338,13 +369,18 @@ function plannerExportCadScene(THREE, spec, frameOf, opts) {
     skippedModules: skipped,
     hardware,
     source: 'dadam.assembly',
+    generator: PLANNER_EXPORT_CAD_VERSION,
+    vis: o.vis || 'all',
+    assemblyHash: o.assemblyHash || null,
     exportedAt: o.exportedAt || new Date().toISOString(),
   };
   return { root, parts, modules, runs, hardware, skipped, unplaced: (spec.unplaced || []).length };
 }
 
 async function plannerExportCadGlb(THREE, GLTFExporter, spec, frameOf, opts) {
-  const built = plannerExportCadScene(THREE, spec, frameOf, opts);
+  const o = Object.assign({}, opts);
+  if (!o.assemblyHash) o.assemblyHash = await plannerExportAssemblyHash(spec, o.subtle);
+  const built = plannerExportCadScene(THREE, spec, frameOf, o);
   const exporter = new GLTFExporter();
   const glb = await new Promise((resolve, reject) => {
     exporter.parse(built.root, resolve, reject, { binary: true, onlyVisible: true, trs: true });
@@ -512,6 +548,9 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerExportCadSpec,
     plannerExportCadScene,
     plannerExportCadGlb,
+    plannerExportStableJson,
+    plannerExportAssemblyHash,
+    PLANNER_EXPORT_CAD_VERSION,
     PLANNER_EXPORT_SCALE,
     PLANNER_EXPORT_CAD_ROOT_NAME,
     PLANNER_EXPORT_ROOT_NAME,
