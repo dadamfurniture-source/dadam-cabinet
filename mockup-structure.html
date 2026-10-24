@@ -4884,7 +4884,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 2026-10-24: 경첩으로 세는 도어(여닫이 · 포켓)는 외짝 — 경첩 방향 = 칸 열림 방향 (2026-10-23 사장님 4-1 C, 브리지 hingeSide)
     const hinge = (Array.isArray(s.areaDirections) && s.areaDirections[0] === 'right') ? 'right' : 'left';
     const g = RR.innerOf(dims) || {};
-    const parts = RR.partsOf(dims);
+    // 2026-10-25 사장님: 도어가 달리면 몸통은 일반 장(PB 몸통 두께) · 슬라이딩 선반 부재는 규칙 파일 shelfPartsOf (BOM 과 같은 함수)
+    const doorBody = typeof RR.hasDoorBody === 'function' && RR.hasDoorBody(door);
+    const parts = doorBody ? [] : RR.partsOf(dims);
+    const DRr = (typeof DadamDrawerRules !== 'undefined') ? DadamDrawerRules : (window.DadamDrawerRules || null);
+    const railL = DRr ? (DRr.railLengthFor(Number(m.D) || 0) || DRr.DRAWER_RULES.RAIL_LENGTHS[0]) : 0;
+    const shelfParts = typeof RR.shelfPartsOf === 'function' ? RR.shelfPartsOf(dims, door, BODY_T, railL) : [];
     const d = RR.doorOf(dims, door);
     const warns = RR.warningsOf(dims, { below: riceBelowOf(m) });
     const MI = RR.RULES.MIN_INNER, DO = RR.RULES.DEFAULT_OUTER;
@@ -4904,16 +4909,19 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         </select>
       </div>` : ''}
       <div style="font-size:10px;color:var(--text-dim);line-height:1.6;margin-top:4px">
-        오픈장 상자(18T MDF) 안 바닥에 <b>슬라이딩 선반</b>이 들어갑니다. 밑에는 무조건 서랍입니다.<br>
+        ${doorBody
+          ? '도어가 달리면 몸통은 <b>일반 장 몸통</b>(측판 · 지판 · 밴드 · 3T 뒷판, PB 몸통 두께)이고 슬라이딩 선반도 같은 PB 입니다.'
+          : '오픈장 상자(18T MDF) 안 바닥에 <b>슬라이딩 선반</b>(18T MDF)이 들어갑니다.'} 밑에는 무조건 서랍입니다.<br>
         내경 <b>${g.innerW || 0}×${g.innerH || 0}</b> (최소 ${MI.W}×${MI.H}) · 기본 외경 ${DO.W}×${DO.H} · 지금 ${m.W}×${dims.H}
       </div>
       ${warns.length
         ? `<div id="riceWarn" style="font-size:10px;color:#b4452e;line-height:1.5;margin-top:4px">⚠ ${warns.join('<br>⚠ ')}</div>`
         : ''}
       <div style="font-size:10px;color:#888;font-family:monospace;line-height:1.7;margin-top:4px">
-        ${parts.map((p) => `${p.part} ${p.w}×${p.h} · ${p.qty}장`).join('<br>')}
+        ${doorBody ? '몸통 — 일반 장 (측판 · 지판 · 밴드 · 뒷판)' : parts.map((p) => `${p.part} ${p.w}×${p.h} · ${p.qty}장`).join('<br>')}
+        ${shelfParts.map((p) => `<br>${p.part} ${p.material} ${p.t}T ${p.w}×${p.h} · ${p.qty}장`).join('')}
         ${d ? `<br>도어(${d.name}) ${d.w}×${d.h} · ${d.qty}장` : ''}
-        <br>${RR.RULES.SHELF_NOTE}${door === 'pocket' ? `<br>${RR.RULES.POCKET_NOTE}` : ''}
+        ${shelfParts.length ? (railL ? `<br>언더레일 ${railL} · 1조` : '') : `<br>${RR.RULES.SHELF_NOTE}`}${door === 'pocket' ? `<br>${RR.RULES.POCKET_NOTE}` : ''}
       </div>
     `;
   }
@@ -10167,7 +10175,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
   /**
    * 2026-10-20: 밥솥장 3D — 오픈장 판 다섯 장 위에 도어(규칙 파일 doorOf 치수, 18T)를 앞면에 세운다.
-   *   슬라이딩 선반은 판 치수가 규칙에 없어 [확인 필요] — 3D 에 세우지 않는다 (정면도에 자리만 점선).
+   *   예전 그리기 (조립 명세가 없을 때) — 슬라이딩 선반 · 도어 달린 일반 장 몸통(2026-10-25)은 명세 그리기(addAssemblyOpenBox)가 그린다.
    */
   function buildRiceCabinetMesh(g, m, s, cfg) {
     buildOpenCabinetMesh(g, m, s, cfg);
@@ -10187,7 +10195,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 
   /** PR14b: 오픈장 · 밥솥장 상자를 명세 판재로. 그렸으면 true (색 · 테두리는 예전 buildOpenCabinetMesh 와 같다). */
   function addAssemblyOpenBox(g, m, s, cfg) {
-    const hit = asmFrame ? plannerAssemblyWholeModuleFor(asmFrame, m.id, PLANNER_ASM_OPEN_FAMILIES) : null;
+    // 2026-10-25 사장님: 밥솥장은 슬라이딩 선반 · (도어가 달리면) 일반 장 몸통 판까지 (PLANNER_ASM_RICE_FAMILIES)
+    const families = isRiceCabinet(s) ? PLANNER_ASM_RICE_FAMILIES : PLANNER_ASM_OPEN_FAMILIES;
+    const hit = asmFrame ? plannerAssemblyWholeModuleFor(asmFrame, m.id, families) : null;
     if (!hit) return false;
     plannerAssemblyAddParts(THREE, g, hit, hit.parts, {
       open: true, plannerId: m.id, baseY: baseOffsetOf(m, s), color: darken3(cfg.fill, 0.05),
