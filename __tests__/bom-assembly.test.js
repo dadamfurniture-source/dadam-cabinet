@@ -267,8 +267,8 @@ describe('sink15 자리 (확정 사실)', () => {
     ]);
     expect(of('서랍밑판', 0)).toEqual([{ min: [-378.5, 277, -214.5], max: [378.5, 280, 274.5] }]);
     expect(of('서랍 하단보강', 0)).toEqual([{ min: [-30, 262, -215], max: [30, 277, 275] }]);
-    // 아래 서랍 (소 박스 60)
-    expect(of('서랍측판', 1)[0]).toEqual({ min: [-379, 45, -215], max: [-364, 105, 275] });
+    // 아래 서랍 (소 박스 75 — 2026-10-24 소 60 → 75)
+    expect(of('서랍측판', 1)[0]).toEqual({ min: [-379, 45, -215], max: [-364, 120, 275] });
     expect(spec.unplaced.filter((u) => u.moduleKey === '0-l2' && /^서랍/.test(u.part))).toEqual([]);
   });
 

@@ -58,33 +58,40 @@ describe('전면 높이 · 존 · 박스 (도면과 같은 숫자)', () => {
     });
   });
 
-  test('존 높이: 673 · 289/294 · 193/213/177 · 106/128/148/111', () => {
+  // 2026-10-24: 맨 위 서랍 존은 상단 따내기 70 아래 앞 밴드(몸통 T 15) 밑부터 — 첫 존이 15 줄었다 (사장님 "설치 가능한 공간")
+  test('존 높이: 658 · 274/294 · 178/213/177 · 91/128/148/111', () => {
     const zones = (n) => lay(n).fronts.map((f) => f.zone.h);
-    expect(zones(1)).toEqual([673]);
-    expect(zones(2)).toEqual([289, 294]);
-    expect(zones(3)).toEqual([193, 213, 177]);
-    expect(zones(4)).toEqual([106, 128, 148, 111]);
+    expect(zones(1)).toEqual([658]);
+    expect(zones(2)).toEqual([274, 294]);
+    expect(zones(3)).toEqual([178, 213, 177]);
+    expect(zones(4)).toEqual([91, 128, 148, 111]);
+    expect(lay(2).fronts[0].zone.top).toBe(DRAWER_RULES.CHANNEL_TOP_NOTCH_H + 15);
   });
 
-  test('언더레일(+40) 박스: 대 · 대대 · 중중중 · 소소소소', () => {
+  // 2026-10-24 사장님: 소 75 · 중 120 · 대 180
+  test('언더레일(+40) 박스: 대 · 대대 · 중중중 · 소소소소 — 4단은 첫째·넷째 존(91·111)에 소 75 + 40 이 안 들어간다', () => {
     const boxes = (n) => lay(n, 'under').boxes.map((b) => b.h);
     expect(boxes(1)).toEqual([180]);
     expect(boxes(2)).toEqual([180, 180]);
     expect(boxes(3)).toEqual([120, 120, 120]);
-    expect(boxes(4)).toEqual([60, 60, 60, 60]);
+    expect(boxes(4)).toEqual([75, 75, 75, 75]);
+    expect(lay(4, 'under').boxes.map((b) => b.fits)).toEqual([false, true, true, false]);
+    expect(lay(4, 'under').warnings.filter((w) => /소 박스\(75\+40\)도 안 들어간다/.test(w))).toHaveLength(2);
   });
 
   test('볼레일(+20) 박스: 3단 가운데가 대, 4단 셋째가 중', () => {
     expect(lay(3, 'ball').boxes.map((b) => b.h)).toEqual([120, 180, 120]);
-    expect(lay(4, 'ball').boxes.map((b) => b.h)).toEqual([60, 60, 120, 60]);
+    expect(lay(4, 'ball').boxes.map((b) => b.h)).toEqual([75, 75, 120, 75]);
+    expect(lay(4, 'ball').boxes.map((b) => b.fits)).toEqual([false, true, true, true]);
   });
 
   test('pickBox 는 존에 박스+여유가 들어가는 가장 큰 것, 없으면 소 + fits:false', () => {
     expect(pickBox(220, 'under')).toMatchObject({ size: 'large', fits: true });
     expect(pickBox(219, 'under')).toMatchObject({ size: 'medium', fits: true });
     expect(pickBox(200, 'ball')).toMatchObject({ size: 'large', fits: true });
-    expect(pickBox(99, 'under')).toMatchObject({ size: 'small', fits: false });
-    expect(pickBox(100, 'under')).toMatchObject({ size: 'small', fits: true });
+    expect(pickBox(114, 'under')).toMatchObject({ size: 'small', h: 75, fits: false });
+    expect(pickBox(115, 'under')).toMatchObject({ size: 'small', h: 75, fits: true });
+    expect(pickBox(95, 'ball')).toMatchObject({ size: 'small', h: 75, fits: true });
   });
 
   test('모르는 레일 값은 기본(언더레일)', () => {
@@ -99,7 +106,7 @@ describe('도어 + 하부 서랍 (플래너 doorTopDrawerBottom 기본형)', () 
     expect(L.midCount).toBe(1);
     // 존 = 중간 따내기 바닥(S+90) ~ 지판 윗면(743): S = 528−20 = 508 → 598..743 = 145 → 언더 소 / 볼 중
     expect(L.fronts[1].zone).toEqual({ top: 598, bottom: 743, h: 145 });
-    expect(L.boxes[0]).toMatchObject({ size: 'small', h: 60, fits: true });
+    expect(L.boxes[0]).toMatchObject({ size: 'small', h: 75, fits: true });
     const B = layoutDrawerModule({ H: 758, T: 15, fronts: [{ kind: 'door' }, { kind: 'drawer', h: 200 }], rail: 'ball' });
     expect(B.boxes[0]).toMatchObject({ size: 'medium', h: 120 });
   });
@@ -271,10 +278,10 @@ describe('BOM 적용 (extractors.js)', () => {
     expect(pick('도어')).toEqual([[796, 244, 1]]);
     expect(pick('서랍도어')).toEqual([[796, 200, 2]]); // 같은 높이는 한 행
     expect(30 + 244 + 4 + 200 + 30 + 200).toBe(708);
-    // 박스: 서랍 1 은 존 (경계~중간 따내기 윗선) 중 120, 서랍 2 는 존 (따내기 바닥~지판) 소 60
-    // 언더레일 D550: 레일 500 → 측판 490, 앞뒷판 W − 30 − 30 − 12 = 728, 우라 757 × 489, 하단보강 (728 > 600)
-    expect(pick('서랍전후판')).toEqual([[728, 120, 2], [728, 60, 2]]);
-    expect(pick('서랍측판')).toEqual([[490, 120, 2], [490, 60, 2]]);
+    // 박스: 서랍 1 은 존 (경계~중간 따내기 윗선) 중 120, 서랍 2 는 존 (따내기 바닥~지판) 소 75 (2026-10-24 소 60 → 75)
+    // 언더레일 D550: 레일 500 → 측판 490, 앞뒷판 W − 30 − 30 − 12 = 728, 우라 757 × 489, 하단보강 (728 > 600, 높이 60 은 박스와 다른 값)
+    expect(pick('서랍전후판')).toEqual([[728, 120, 2], [728, 75, 2]]);
+    expect(pick('서랍측판')).toEqual([[490, 120, 2], [490, 75, 2]]);
     expect(pick('서랍밑판')).toEqual([[757, 489, 2]]);
     expect(pick('서랍 하단보강')).toEqual([[490, 60, 2]]);
     expect(rows.find((r) => r.part === '서랍측판').note).toMatch(/댐핑 언더레일 500/);
@@ -291,15 +298,42 @@ describe('BOM 적용 (extractors.js)', () => {
     expect(rows.filter((r) => r.part === '서랍도어').reduce((n, r) => n + r.qty, 0)).toBe(4);
     expect(rows.some((r) => r.part === '도어')).toBe(false);
     expect(rows.find((r) => r.part === '목찬넬(중간 전면)').qty).toBe(2);
-    expect(rows.find((r) => r.part === '서랍전후판')).toMatchObject({ h: 60, qty: 8 });
+    expect(rows.find((r) => r.part === '서랍전후판')).toMatchObject({ h: 75, qty: 8 });
     expect(rows.find((r) => r.part === '측판').note).toMatch(/중간 90×40 ×2/);
+  });
+
+  // 2026-10-24 사장님 "서랍장 맨 위 칸도 서랍": 플래너 서랍장(drawer.topDrawer)은 브리지가 drawerLayout 'all' 로 넘긴다
+  test('서랍장 위 칸도 서랍 (drawerLayout all, 배치 870, 2:2:2): 서랍도어 3 · 박스 3 · 레일 3 · 맨 위 박스는 앞 밴드 밑 · 조립 오류 0', () => {
+    const Asm = require(path.join(ROOT, 'js/detaildesign/bom-assembly.js'));
+    const Check = require(path.join(ROOT, 'js/detaildesign/assembly-check.js'));
+    const mod = {
+      id: 'lt', type: 'storage', name: '서랍장T', pos: 'lower', w: 600, h: 708, d: 550, doorCount: 0, isDrawer: true,
+      drawerLayout: 'all', drawerCount: 3, areaH: 870, totalH: 870, heightParts: { legH: 150, topT: 12 },
+      drawer: { grades: ['auto', 'auto', 'auto'], doorGrade: '' },
+    };
+    const rows = rowsOf([mod], '하부장-서랍장T');
+    expect(rows.some((r) => r.part === '도어')).toBe(false);
+    expect(rows.filter((r) => r.part === '서랍도어').map((r) => [r.h, r.qty])).toEqual([[216, 3]]);
+    expect(rows.filter((r) => r.part === '서랍측판').reduce((n, r) => n + r.qty, 0)).toBe(6);
+    const design = { items: [itemOf([mod])] };
+    const rails = new HardwareExtractor().extract(design).hardware.filter((h) => /레일/.test(h.item));
+    expect(rails.reduce((n, h) => n + h.qty, 0)).toBe(3);
+    const spec = Asm.of(design);
+    const m = spec.items[0].modules.find((x) => x.moduleId === 'lt');
+    expect(m.drawerBoxes).toHaveLength(3);
+    // 맨 위 박스 윗면 ≤ 몸통 위 − (따내기 70 + 앞 밴드 15) − 레일 위 여유 10
+    const top = m.parts.filter((p) => p.part === '서랍측판' && p.tags.box === 0).map((p) => p.box.max[1]);
+    expect(Math.max(...top)).toBeLessThanOrEqual(708 - DRAWER_RULES.CHANNEL_TOP_NOTCH_H - 15 - DRAWER_RULES.RAIL_CLEARANCE.under.above);
+    expect(Check.check(spec).issues.filter((i) => i.level === 'error' && i.moduleKey === m.moduleKey)).toEqual([]);
+    expect(m.pending).toEqual([]);
+    expect(m.hardware.filter((h) => h.pending)).toEqual([]);
   });
 
   test('볼레일 + 사쿠리 + 서랍 18T: 앞뒷판 가로·높이, 측판 500, 우라가 규격대로', () => {
     const rows = rowsOf([{ id: 'l5', type: 'storage', name: '서랍장B', pos: 'lower', w: 600, h: 758, d: 550, doorCount: 0, isDrawer: true, drawerCount: 2,
       drawerRail: 'ball', drawerBoxT: 18, drawerSakuri: true, drawerFronts: [241, 483] }], '하부장-서랍장B');
     const pick = (part) => rows.filter((r) => r.part === part).map((r) => [r.w, r.h, r.qty, r.thickness]);
-    // 윗칸 존 = 상단 따내기 바닥 70 ~ 중간 따내기 윗선 251 = 181 → 볼레일 +20: 중 120 ; 아랫칸 존 294 → 대 180
+    // 윗칸 존 = 상단 따내기 70 + 앞 밴드 15 = 85 ~ 중간 따내기 윗선 251 = 166 → 볼레일 +20: 중 120 ; 아랫칸 존 294 → 대 180
     expect(pick('서랍측판')).toEqual([[500, 120, 2, 18], [500, 180, 2, 18]]);
     expect(pick('서랍전후판')).toEqual([[600 - 30 - 28 - 36, 102, 2, 18], [600 - 30 - 28 - 36, 162, 2, 18]]);
     expect(pick('서랍밑판')).toEqual([[600 - 30 - 28 - 36 + 20, 499, 2, 3]]);   // 2026-10-13 서랍 밑판 우라 3T (예전 MDF 2.7T)
