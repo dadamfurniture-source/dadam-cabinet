@@ -840,6 +840,26 @@ describe('멍장 자리 — corner.md §3.5 (멍가림판 · 마감재 · 도어
     expect(box(m, '도어')).toEqual({ min: [-536, 0, 325], max: [-114, 678, 343] });
   });
 
+  test('플래너 멍장은 모듈의 blindDoorRight 가 품목 설정보다 먼저다 — 벽이 오른쪽인 멍장 · 멍장마다 따로 (2026-10-25)', () => {
+    const item = JSON.parse(JSON.stringify(FIXTURES.sinkCorner));
+    const lo = item.modules.find((x) => x.id === 'corner-blind-lower');
+    const up = item.modules.find((x) => x.id === 'corner-blind-upper');
+    lo.blindDoorRight = false;    // 이 멍장은 벽이 오른쪽
+    up.blindDoorRight = true;     // 이 멍장은 벽이 왼쪽 — 품목 설정(right)을 따르지 않는다
+    item.specs.secondaryStartSide = 'right';
+    const design = { items: [item] };
+    const r = Asm.of(design, { materials: new MaterialExtractor().extract(design).materials });
+    const m = (id) => r.items[0].modules.find((x) => x.moduleId === id);
+    expect(m('corner-blind-lower').blind.doorRight).toBe(false);
+    expect(box(m('corner-blind-lower'), '도어')).toEqual({ min: [-536, 0, 325], max: [-114, 678, 343] });
+    expect(m('corner-blind-upper').blind.doorRight).toBe(true);
+    expect(box(m('corner-blind-upper'), '멍가림판')).toEqual({ min: [-395, 0, 147.5], max: [-65, 720, 150.2] });
+    // 경첩은 목대 쪽 — 벽이 오른쪽이면 도어 오른 변
+    const hinge = (key) => r.items[0].modules.find((x) => x.moduleKey === key).hardware.filter((h) => h.kind === 'hinge');
+    expect(new Set(hinge('0-corner-blind-lower').map((h) => h.edge))).toEqual(new Set(['right']));
+    expect(new Set(hinge('0-corner-blind-upper').map((h) => h.edge))).toEqual(new Set(['left']));
+  });
+
   test('ㄱ자 경첩목대 — 지판 위·천판 아래(H−2T), 앞다리 멍판 뒤 60×15, 옆다리 도어 쪽 끝 깊이 60 (2026-10-22 사장님) · 못 놓은 행 없음 · 조립 검사 오류 없음', () => {
     expect(s.unplaced.filter((u) => /blind/.test(u.moduleKey)).map((u) => [u.part, u.reason])).toEqual([]);
     const lo = modOf('corner-blind-lower'), up = modOf('corner-blind-upper');
