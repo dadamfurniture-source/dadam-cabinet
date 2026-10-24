@@ -720,6 +720,8 @@
         preflight = window.BomPreflight.check(materials, report.hardware || [], {
           cutPlan: cutPlan,
           assembly: assembly,
+          // 2026-10-24 사장님 D9 B-1: 추출기 알림(도면 마감재 없음 → 마감재 발주 안 함 등)을 같은 확인창에 띄운다
+          notices: (report.materials && report.materials.notices) || [],
         });
       } catch (e) {
         console.warn('[Workflow] 사전 검사 실패 — 검사 없이 진행합니다:', e);
