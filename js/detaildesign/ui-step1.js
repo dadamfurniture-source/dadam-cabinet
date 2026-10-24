@@ -1168,6 +1168,8 @@
         };
         if (grades.length) out.grades = grades;
         if (GRADES.includes(d.doorGrade)) out.doorGrade = d.doorGrade;
+        // 2026-10-24 사장님 "서랍장 맨 위 칸도 서랍": 플래너 서랍장 표시 — 있을 때만 싣는다 (없는 모듈의 payload 는 예전과 같다)
+        if (d.topDrawer === true) out.topDrawer = true;
         return out;
       }
 
@@ -1642,6 +1644,11 @@
             placeLast(m, (Number(c.x) || 0) - (Number(m.x) || 0), c.w);
             // 2026-09-15: 서랍 규칙(레일·사쿠리·서랍 자재 두께·전면 등급)은 서랍이 있는 셀에만 — 없는 모듈의 payload 는 예전과 같다.
             if (!isOpen && drawerAtBottom) out[out.length - 1].drawer = _drawerRulesOf(s);
+            // 2026-10-24 사장님 "서랍장 맨 위 칸도 서랍": 플래너 서랍장(drawer.topDrawer)은 전면이 모두 서랍이다 —
+            //   BOM drawerLayout 'all' (위 칸도 박스 · 레일, 도어 없음). 단수는 플래너가 위 칸까지 센다 (전면 비율 = 서랍 비율).
+            //   자동계산 하부장(도어 + 아래 서랍)에는 표시가 없어 예전 그대로 위 칸 도어다.
+            const topDrawer = !isOpen && drawerAtBottom && out[out.length - 1].drawer.topDrawer === true;
+            if (topDrawer) Object.assign(out[out.length - 1], { drawerLayout: 'all', doorCount: 0 });
             // 2026-10-13: 위로 여는 도어(플랩) — 칸 열림 방향 'up'. 상부장 단문 칸에만 뜻이 있다.
             //   BOM 은 경첩을 천판 쪽(도어 폭 기준)으로 보링하고 가스쇼바 2 를 낸다 (extractors.js flapHardwareOf).
             //   플랩이 아닌 칸은 필드를 붙이지 않는다 — 예전 payload 와 같다.
@@ -1649,7 +1656,7 @@
             if (pos === 'upper' && !isOpen && !c.is2D && dirs[i] === 'up') out[out.length - 1].doorOpen = 'up';
             // 2026-10-23 사장님 4-1 C: 외짝 도어 경첩 방향 = 칸 열림 방향 좌 ◀ / 우 ▶ (정면도 화살표가 그 변 — 양문의 왼 도어 ◀ = 왼쪽 경첩과 같다).
             //   조립 명세(bom-assembly.js hardwareOf)가 경첩 컵 자리를 그 변에 놓는다. 양문·오픈·플랩 칸엔 붙이지 않는다.
-            else if (!isOpen && !c.is2D && (dirs[i] === 'left' || dirs[i] === 'right')) out[out.length - 1].hingeSide = dirs[i];
+            else if (!isOpen && !topDrawer && !c.is2D && (dirs[i] === 'left' || dirs[i] === 'right')) out[out.length - 1].hingeSide = dirs[i];
             // 2026-09-16: 전면 배분식의 기준높이는 **배치(영역) 높이**다 — 플래너가 payload 에 실어 보낸다.
             //   없으면 BOM 이 totalH(모듈 전체 높이) 로 떨어진다. 옛 저장 설계가 그 경우다.
             if (Number(m.areaH) > 0) out[out.length - 1].areaH = Number(m.areaH);
