@@ -164,17 +164,16 @@ describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
     });
     if (/^(straight|drawer)/.test(name)) {
       // 한 벽: 하부 1200·1000·1400 + 개수대 — 목찬넬 EP 두 장과 상판이 첫 하부 칸 아래에, 상몰딩은 상부 1800 과 1200 사이가 비어 못 놓는다
-      //   좌 휠라 60 은 하부 왼쪽 끝 밖, 앞면 = 도어 앞면 (550/2 + 18); 우 휠라는 상부(3600)가 하부(3598)보다 2 나가 못 놓는다
+      //   좌우 휠라 — 2026-10-24 D9: 도면(플래너에 놓은 마감재)이 정본인데 이 배치에는 마감재가 없다 → 행이 없다 (스펙 휠라 60 은 발주 안 함)
       expect(runs).toEqual([
         ['걸레받이', 'area-lower-0', '0-planner-lower-0-0'], ['걸레받이', 'area-lower-0', '0-planner-lower-0-0'],
         ['목찬넬(전면)', 'area-lower-0', '0-planner-lower-0-0'], ['목찬넬(지면)', 'area-lower-0', '0-planner-lower-0-0'],
-        ['상판', 'area-lower-0', '0-planner-lower-0-0'], ['휠라(좌)', 'area-lower-0', '0-planner-lower-0-0']]);
+        ['상판', 'area-lower-0', '0-planner-lower-0-0']]);
       // 하부 3598 → 2440 왼쪽부터, 1158 오른쪽 끝 (호스트 800 가운데 → 왼쪽 끝 x −400)
       expect(it.runs.filter((r) => r.parts[0].part === '걸레받이').map((r) => [r.parts[0].cut.w, r.parts[0].box.min[0], r.parts[0].box.max[0]]))
         .toEqual([[2440, -400, 2040], [1158, 2040, 3198]]);
-      expect(it.runs.find((r) => r.parts[0].part === '휠라(좌)').parts[0].box).toEqual({ min: [-460, 0, 275], max: [-400, 2160, 293] });
       expect(ep).toContainEqual(['상몰딩', 'run-layout-unknown']);
-      expect(ep).toContainEqual(['휠라(우)', 'run-layout-unknown']);
+      expect(ep.filter((e) => /휠라|몰딩\(|EP\(/.test(e[0]))).toEqual([]);
       const top = it.runs.find((r) => r.parts[0].part === '상판').parts[0];
       expect(top.box.min[1]).toBe(708);   // 하부장 몸통 위
       expect(top.box.max[1]).toBe(720);
@@ -188,13 +187,13 @@ describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
       const host = gltf.nodes.find((n) => n.name === 'module·0-planner-lower-0-0');
       expect(host.children.map((c) => gltf.nodes[c].name)).toContain(top.id);
     } else {
-      // ㄱ자·사선: 하부가 두 벽에 걸쳐 한 장 상판·목찬넬 EP·좌우 휠라를 못 놓고, 상부장 한 벽의 상몰딩과 벽마다 걸레받이를 놓는다
+      // ㄱ자·사선: 하부가 두 벽에 걸쳐 한 장 상판·목찬넬 EP 를 못 놓고, 상부장 한 벽의 상몰딩과 벽마다 걸레받이를 놓는다 (도면 마감재 없음 → 휠라 행 없음, D9)
       expect(runs[0]).toEqual(['상몰딩', 'area-lower-0', '0-planner-upper-0-0']);
       expect(runs.slice(1).every((r) => r[0] === '걸레받이')).toBe(true);
       expect(runs.length).toBeGreaterThan(1);
       expect(ep.filter((e) => e[0] === '걸레받이')).toEqual([]);
       expect(ep).toContainEqual(['상판', 'run-layout-unknown']);
-      expect(ep).toContainEqual(['휠라(좌)', 'run-layout-unknown']);
+      expect(ep.filter((e) => /휠라/.test(e[0]))).toEqual([]);
     }
   });
 

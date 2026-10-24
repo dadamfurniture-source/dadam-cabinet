@@ -111,7 +111,7 @@ describe('상판 — 명세 판재가 예전 그리기(addTopPanel)와 같은 �
     return new THREE.Box3().setFromObject(o);
   };
   const round = (b) => [b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z].map((v) => Math.round(v));
-  test('straight — 앞뒤 · 높이가 ?asm=0 의 상판과 같고, 가로는 예전 모듈 상판들을 다 덮는다 (+ 좌 휠라)', () => {
+  test('straight — 앞뒤 · 높이가 ?asm=0 의 상판과 같고, 가로는 예전 모듈 상판들을 덮는다 (이 배치는 도면 마감재 없음)', () => {
     const p = bootPlanner3D(FIXTURES.straight, { design: 'ledger', item: 'straight', assembly: true });
     const q = bootPlanner3D(FIXTURES.straight, { design: 'ledger', item: 'straight', assembly: true, searchExtra: '&asm=0' });
     const a = meshes(p, KIND.top), b = meshes(q, KIND.top);
@@ -122,16 +122,19 @@ describe('상판 — 명세 판재가 예전 그리기(addTopPanel)와 같은 �
     const olds = b.map((o) => round(worldBox(o)));
     olds.forEach((o) => {
       expect([n[1], n[2], n[4], n[5]]).toEqual([o[1], o[2], o[4], o[5]]);   // y · z (뒤 = 벽, 앞 = 배치 앞선)
-      expect(n[0]).toBeLessThanOrEqual(o[0]);
-      expect(n[3]).toBeGreaterThanOrEqual(o[3]);
+      // 하부 폭 합 3598 vs 도면 3600 — 원장의 기존 2mm 차이 (planner-export-cad 시험 주석)
+      expect(n[0]).toBeLessThanOrEqual(o[0] + 2);
+      expect(n[3]).toBeGreaterThanOrEqual(o[3] - 2);
     });
   });
 });
 
 describe('좌우 마감재 · 되돌리기', () => {
-  test('straight 왼쪽 휠라 — 명세가 놓았지만 결정 D9 전이라 그리지 않는다', () => {
+  test('straight — 도면에 마감재가 없으면 좌우 마감재 행도 그림도 없다 (D9: 도면이 정본, 스펙 휠라 60 은 발주 안 함)', () => {
     const p = bootPlanner3D(FIXTURES.straight, { design: 'ledger', item: 'straight', assembly: true });
-    expect(p.g('plannerCadSpec')().spec.items[0].runs.some((r) => /filler:left/.test(r.key))).toBe(true);
+    const spec = p.g('plannerCadSpec')().spec;
+    expect(spec.items[0].runs.some((r) => /filler:|molding:(left|right)|ep:/.test(r.key))).toBe(false);
+    expect(spec.unplaced.some((u) => /filler:|ep:/.test(u.rowPartId))).toBe(false);
     expect(meshes(p, (ud) => ud.entityKind === 'finishing')).toHaveLength(0);
   });
 

@@ -146,11 +146,11 @@ describe('신발장 (shoerack) — 얕은 깊이 350 · 선반 분배 · 서랍 
     expect(rowOf(snap, '하부장-오픈선반', '선반').qty).toBe(3);
   });
 
-  test('EP: 상몰딩 1500(4면) · 걸레받이 1800×145 · 목찬넬 전면·지면 · 휠라 좌·우 60×2160', () => {
+  test('EP: 상몰딩 1500(4면) · 걸레받이 1800×145 · 목찬넬 전면·지면 · 휠라 좌·우 60 × 도면 높이 (D9: 옆 도어 678)', () => {
     expect(partsOf(snap, 'EP')).toEqual(['상몰딩', '걸레받이', '목찬넬(전면)', '목찬넬(지면)', '휠라(좌)', '휠라(우)']);
     expect(rowOf(snap, 'EP', '상몰딩')).toMatchObject({ w: 60, h: 1500, edge: '4면' });
     expect(rowOf(snap, 'EP', '걸레받이')).toMatchObject({ w: 1800, h: 145 });
-    expect(rowOf(snap, 'EP', '휠라(좌)')).toMatchObject({ w: 60, h: 2310 - 150 });
+    expect(rowOf(snap, 'EP', '휠라(좌)')).toMatchObject({ w: 60, h: 678, thickness: 18, note: '도면 마감재' });
   });
 });
 
@@ -251,10 +251,10 @@ describe('창고장 (warehouse) — 플래너 3단 스택 · 몰딩(좌)·EP(우
     expect(rowOf(snap, '하부장-하부장', '선반').note).toMatch(/^선반 수 미지정/);
   });
 
-  test('EP: 몰딩(좌) 60 · EP(우) 20 · 걸레받이 1200(스택 800 제외) · 상몰딩 1200', () => {
+  test('EP: 몰딩(좌) 60 · EP(우) 18T × 깊이 450 (D9 도면) · 걸레받이 1200(스택 800 제외) · 상몰딩 1200', () => {
     expect(partsOf(snap, 'EP')).toEqual(['상몰딩', '걸레받이', '목찬넬(전면)', '목찬넬(지면)', '몰딩(좌)', 'EP(우)']);
     expect(rowOf(snap, 'EP', '걸레받이').w).toBe(1200);
-    expect(rowOf(snap, 'EP', 'EP(우)').w).toBe(20);
+    expect(rowOf(snap, 'EP', 'EP(우)')).toMatchObject({ thickness: 18, w: 450, h: 858 });
     expect(snap.hardwareSummary['다리발']).toBe(8);
   });
 });
