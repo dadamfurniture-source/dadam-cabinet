@@ -956,7 +956,7 @@
       "material": "PB",
       "thickness": 18,
       "w": 716,
-      "h": 60,
+      "h": 75,
       "qty": 2,
       "edge": "1면(장)",
       "note": "소 박스",
@@ -981,7 +981,7 @@
       "material": "PB",
       "thickness": 18,
       "w": 490,
-      "h": 60,
+      "h": 75,
       "qty": 2,
       "edge": "1면(장)",
       "note": "소 박스 · 댐핑 언더레일 500",
@@ -1680,7 +1680,7 @@
     "PB_18": {
       "material": "PB",
       "thickness": 18,
-      "totalArea": 11422980,
+      "totalArea": 11459160,
       "panelCount": 4
     },
     "MDF_3": {

@@ -20,7 +20,9 @@
  *
  * 픽스처 (개정 #8 — 골든 3벌만으로는 서랍장 처짐방지목 충돌을 못 찾는다):
  *   straight · lShape · oblique  planner-golden.js 그대로
- *   drawer      straight 의 하부장 전부를 "도어 + 서랍 3단" 서랍장으로 (목찬넬 — 중간 따내기·서랍 박스가 선다)
+ *   drawer      straight 의 하부장 전부를 "도어 + 서랍 2단" 서랍장으로 (목찬넬 — 중간 따내기·서랍 박스가 선다)
+ *               2026-10-24: 소 박스 75 (사장님) 부터 "도어 + 서랍 3단"(전면 4장)은 언더레일 셋째 서랍 존 111 에 75 + 여유 40 이
+ *               안 들어간다 (레일 여유 부족 — __tests__/drawer-ratio.test.js) — 박스가 들어가는 2단으로 본다
  *   drawer18    drawer 에 서랍 자재 18T · 볼레일 · 서랍 사쿠리. **몸통 18T 는 플래너 3D 에 없다**
  *               (mockup-structure.html BODY_T = 15 상수) — 서랍 쪽 18T 만 여기서 볼 수 있다
  *   multiCell   straight 의 하부 1000 · 상부 900 을 3칸으로 (칸막이가 선다)
@@ -153,7 +155,7 @@ function restructure(p, pick, edit) {
 const toDrawer = (s) => {
   s.horizontalLayout = 'doorTopDrawerBottom';
   s.bottomType = 'drawer';
-  s.drawerCount = 3;
+  s.drawerCount = 2;
 };
 const isLower = (m) => m.section === 'lower';
 
