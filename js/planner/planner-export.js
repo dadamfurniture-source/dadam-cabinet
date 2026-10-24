@@ -185,7 +185,8 @@ function plannerExportFileName(now, kind) {
 // ============================================================
 const PLANNER_EXPORT_CAD_ROOT_NAME = 'dadam-planner-cad';
 // 만든 쪽 버전 — design_cad_artifacts.generator_version (PR16). GLB 노드 · extras 모양이 바뀌면 올린다.
-const PLANNER_EXPORT_CAD_VERSION = 'planner-export-cad/1';
+//   /2 (2026-10-24): 외관 GLB 는 고객용 — 노드 이름 · extras 에 partId · moduleKey 가 없다 (고객 확인서 3D 보기)
+const PLANNER_EXPORT_CAD_VERSION = 'planner-export-cad/2';
 const PLANNER_EXPORT_CAD_COLORS = { PB: 0xd9c4a3, MDF: 0xbdb5a8, hardware: 0x6b6b6b };
 // 칸 모듈 `planner-<id>-<칸>` · 상자 하나짜리 모듈 `-open` · `-rice` · `-homecafe` · `-el` (ui-step1.js _convertPlannerModules)
 const PLANNER_EXPORT_CELL_RE = /^planner-(.+)-(\d+|open|rice|homecafe|el)$/;
@@ -277,6 +278,8 @@ async function plannerExportAssemblyHash(spec, subtle) {
  * @param {(module) => object|null} frameOf  모듈 → 몸통 바닥 가운데의 월드 행렬(mm, THREE.Matrix4). null 이면 뺀다
  * @param {{ solidsOf: Function, exportedAt?: string, vis?: 'exterior', assemblyHash?: string }} opts
  *   vis: 'exterior' 면 명세 vis 가 exterior 인 판재만 (외관 GLB — 철물 · 속 판재 없음). 판재가 하나도 없는 모듈은 노드도 없다.
+ *     외관 GLB 는 고객 확인서에 싣는다 — 노드 이름은 `module-N` · `part-N`, 판재 · 모듈 extras 는 비운다
+ *     (고객 화면에 partId 를 보이지 않는다). 따낸 판의 모양은 그대로 (사장님 2026-10-24).
  */
 function plannerExportCadScene(THREE, spec, frameOf, opts) {
   const o = opts || {};
@@ -294,6 +297,7 @@ function plannerExportCadScene(THREE, spec, frameOf, opts) {
   };
   let parts = 0, modules = 0, skipped = 0, runs = 0, hardware = 0;
   const keep = o.vis ? (p) => p.vis === o.vis : () => true;
+  const anon = o.vis === 'exterior';
   // 철물 — 자리(at)와 치수(size)가 둘 다 있는 것만 상자로 싣는다 (다리발: at = 밑면 가운데, size = [가로, 높이, 깊이]).
   //   레일·경첩은 자리만 있거나 치수가 규칙에 없어(언더레일 두께 0, 경첩 컵 자리 미정) 싣지 않는다 — 명세(hardware[])에는 그대로 있다.
   const hardwareNodeOf = (h, k, moduleKey) => {
@@ -313,15 +317,16 @@ function plannerExportCadScene(THREE, spec, frameOf, opts) {
       mesh.name = name;
       return mesh;
     };
+    const name = anon ? `part-${parts + 1}` : p.id;
     let part;
     if (solids.length === 1) {
-      part = meshOf(solids[0], p.id);
+      part = meshOf(solids[0], name);
     } else {
       part = new THREE.Group();
-      part.name = p.id;
-      solids.forEach((b, i) => part.add(meshOf(b, `${p.id}/${i}`)));
+      part.name = name;
+      solids.forEach((b, i) => part.add(meshOf(b, `${name}/${i}`)));
     }
-    part.userData = {
+    part.userData = anon ? {} : {
       rowPartId: p.rowPartId, part: p.part, material: p.material, t: p.t,
       cutW: p.cut.w, cutH: p.cut.h, moduleKey, vis: p.vis,
     };
@@ -334,8 +339,8 @@ function plannerExportCadScene(THREE, spec, frameOf, opts) {
       const mat = frameOf(m);
       if (!mat) { skipped++; return; }
       const node = new THREE.Group();
-      node.name = `module·${m.moduleKey}`;
-      node.userData = { moduleKey: m.moduleKey, moduleId: m.moduleId, kind: m.kind, box: m.box };
+      node.name = anon ? `module-${nodeOf.size + 1}` : `module·${m.moduleKey}`;
+      node.userData = anon ? {} : { moduleKey: m.moduleKey, moduleId: m.moduleId, kind: m.kind, box: m.box };
       mat.decompose(node.position, node.quaternion, node.scale);
       m.parts.filter(keep).forEach((p) => { node.add(partNodeOf(p, m.moduleKey)); parts++; });
       if (!o.vis) (m.hardware || []).forEach((h, k) => { if (h.at && h.size) { node.add(hardwareNodeOf(h, k, m.moduleKey)); hardware++; } });
@@ -352,7 +357,7 @@ function plannerExportCadScene(THREE, spec, frameOf, opts) {
       if (!kept.length) return;
       kept.forEach((p) => {
         const part = partNodeOf(p, `${it.itemIdx}-ep`);
-        part.userData.run = r.lineKey;
+        if (!anon) part.userData.run = r.lineKey;
         host.add(part);
         parts++;
       });
@@ -361,7 +366,15 @@ function plannerExportCadScene(THREE, spec, frameOf, opts) {
       runs++;
     });
   });
-  root.userData = {
+  root.userData = anon ? {
+    schema: spec.schema,
+    units: 'mm (root scale 0.001 → m)',
+    source: 'dadam.assembly',
+    generator: PLANNER_EXPORT_CAD_VERSION,
+    vis: o.vis,
+    assemblyHash: o.assemblyHash || null,
+    exportedAt: o.exportedAt || new Date().toISOString(),
+  } : {
     schema: spec.schema,
     rulesVersion: spec.rulesVersion,
     units: 'mm (root scale 0.001 → m)',
