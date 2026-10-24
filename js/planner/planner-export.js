@@ -419,6 +419,11 @@ const PlannerExport = {
       cadBtn.hidden = true;
       cadBtn.onclick = () => this.downloadCad();
     }
+    const frozenBtn = this._o.frozenButton;
+    if (frozenBtn) {
+      frozenBtn.hidden = true;
+      frozenBtn.onclick = () => this.uploadFrozen();
+    }
     try {
       window.addEventListener('message', (e) => {
         if (!e.data || e.data.type !== PLANNER_EXPORT_ROLE) return;
@@ -440,6 +445,8 @@ const PlannerExport = {
     if (btn) btn.hidden = !this.admin;
     const cadBtn = this._o && this._o.cadButton;
     if (cadBtn) cadBtn.hidden = !this.admin;
+    const frozenBtn = this._o && this._o.frozenButton;
+    if (frozenBtn) frozenBtn.hidden = !this.admin;
     // PR11: 같은 역할을 조립 검사 배지(planner-cad-check.js)도 쓴다
     if (this._o && typeof this._o.onAdmin === 'function') this._o.onAdmin(this.admin);
   },
@@ -485,6 +492,40 @@ const PlannerExport = {
       return r;
     } catch (e) {
       toast('CAD GLB 내보내기 실패: ' + ((e && e.message) || e));
+      return null;
+    }
+  },
+
+  /**
+   * PR16b 동결본 GLB 올리기 — 최신 동결 스냅샷의 명세 **그대로**에 플래너 자리(frameOf)만 입혀 전체 · 외관 두 벌을 짓고
+   *   워커(부모 창 DadamWorkflow.cad)에 보낸다. 워커는 명세 해시가 동결본과 같을 때만 버킷 `cad` 에 보관한다.
+   *   동결 명세에는 플래너 선반 높이 · 벽 라인이 없어 라인 부재(상판 · 몰딩 · 걸레받이)와 자리 못 받은 선반은 빠진다.
+   */
+  async uploadFrozen() {
+    const o = this._o || {};
+    const toast = typeof o.toast === 'function' ? o.toast : () => {};
+    if (!this.admin) return null;
+    let W = null;
+    try { W = o.workflow || (window.parent && window.parent.DadamWorkflow && window.parent.DadamWorkflow.cad) || null; } catch (e) { W = null; }
+    if (!W || typeof W.frozenAssembly !== 'function') { toast('상세설계 화면에서 연 플래너에서만 동결본 GLB 를 올릴 수 있습니다'); return null; }
+    if (!window.THREE || typeof o.cad !== 'function') { toast('3D 장면이 아직 없습니다'); return null; }
+    try {
+      const frozen = await W.frozenAssembly();
+      const { frameOf, solidsOf } = o.cad();
+      const GLTFExporter = await this.loadExporter();
+      const out = {};
+      for (const kind of ['cad', 'exterior']) {
+        const r = await plannerExportCadGlb(window.THREE, GLTFExporter, frozen.assembly, frameOf, { solidsOf, vis: kind === 'exterior' ? 'exterior' : undefined, subtle: o.subtle });
+        if (r.root.userData.assemblyHash !== frozen.assembly_hash) throw new Error('명세 해시가 동결본과 다릅니다 — 새로 고친 뒤 다시 시도해 주세요');
+        if (!r.parts) throw new Error('동결 명세에서 플래너 자리를 찾은 판재가 없습니다 — 이 품목을 동결했는지 확인해 주세요');
+        const up = await W.upload(frozen.snapshot_id, kind, r.glb);
+        out[kind] = { parts: r.parts, skipped: r.skipped, reused: !!(up && up.reused), artifact: up && up.artifact };
+      }
+      const skip = out.cad.skipped ? ` · 자리 못 찾은 모듈 ${out.cad.skipped}` : '';
+      toast(`동결본 GLB 보관 — rev ${frozen.rev} · 판재 ${out.cad.parts} (외관 ${out.exterior.parts})${skip}${out.cad.reused ? ' · 이미 있던 파일' : ''}`);
+      return Object.assign({ frozen }, out);
+    } catch (e) {
+      toast('동결본 GLB 올리기 실패: ' + ((e && e.message) || e));
       return null;
     }
   },

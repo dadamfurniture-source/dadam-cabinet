@@ -9,6 +9,9 @@
  *   GET  /designs/:designId/snapshots   — 스냅샷 목록
  *   GET  /snapshots/:snapshotId         — 스냅샷 단건 (payload 포함)
  *   POST /snapshots/:snapshotId/quote   — 견적 재계산 미리보기 (저장 안 함)
+ *   GET  /designs/:designId/cad-assembly   — 최신 동결 명세 + 해시 (관리자, CAD 베타 PR16b)
+ *   POST /snapshots/:snapshotId/cad-artifacts?kind=cad|exterior — 동결본 GLB 보관 (관리자, 명세 해시 대조)
+ *   GET  /snapshots/:snapshotId/cad-artifacts — 보관 GLB 목록 + 서명 URL (관리자)
  *
  *   POST /snapshots/:snapshotId/documents  — 문서 발행 (평문 토큰은 여기서만 반환)
  *   GET  /designs/:designId/documents      — 목록 (stale 배지 포함)
@@ -56,6 +59,7 @@ import { getManagementSummary } from './management/service.js';
 import { createOutsourceOrder, listOutsourceOrders, loadCountertopContext } from './reports/outsource.js';
 import { renderReportPrint } from './templates/report-print.js';
 import { createSnapshot, listSnapshots, getSnapshot, previewQuote } from './snapshots.js';
+import { getFrozenAssembly, uploadCadArtifact, listCadArtifacts } from './cad-artifacts.js';
 import {
   issueDocument,
   listDocuments,
@@ -226,6 +230,25 @@ async function handleQuotePreview(request, env, { params, user }) {
     grade: body.grade,
     useActiveRules: body.use_active_rules === true,
   });
+  return jsonResponse(request, env, { success: true, data });
+}
+
+// ===== CAD 산출물 (PR16b, cad-artifacts.js) =====
+
+async function handleGetCadAssembly(request, env, { params, user }) {
+  const data = await getFrozenAssembly(env, { designId: params.designId, user });
+  return jsonResponse(request, env, { success: true, data });
+}
+
+async function handleUploadCadArtifact(request, env, { params, user }) {
+  const kind = new URL(request.url).searchParams.get('kind') || 'cad';
+  const bytes = new Uint8Array(await request.arrayBuffer());
+  const { artifact, reused } = await uploadCadArtifact(env, { snapshotId: params.snapshotId, user, kind, bytes });
+  return jsonResponse(request, env, { success: true, data: { artifact, reused } }, reused ? 200 : 201);
+}
+
+async function handleListCadArtifacts(request, env, { params, user }) {
+  const data = await listCadArtifacts(env, { snapshotId: params.snapshotId, user });
   return jsonResponse(request, env, { success: true, data });
 }
 
@@ -752,6 +775,9 @@ const router = createRouter([
   { method: 'GET', path: '/designs/:designId/snapshots', auth: 'jwt', handler: handleListSnapshots },
   { method: 'GET', path: '/snapshots/:snapshotId', auth: 'jwt', handler: handleGetSnapshot },
   { method: 'POST', path: '/snapshots/:snapshotId/quote', auth: 'jwt', handler: handleQuotePreview },
+  { method: 'GET', path: '/designs/:designId/cad-assembly', auth: 'jwt', handler: handleGetCadAssembly },
+  { method: 'POST', path: '/snapshots/:snapshotId/cad-artifacts', auth: 'jwt', handler: handleUploadCadArtifact },
+  { method: 'GET', path: '/snapshots/:snapshotId/cad-artifacts', auth: 'jwt', handler: handleListCadArtifacts },
 
   { method: 'POST', path: '/snapshots/:snapshotId/documents', auth: 'jwt', handler: handleIssueDocument },
   { method: 'GET', path: '/designs/:designId/documents', auth: 'jwt', handler: handleListDocuments },

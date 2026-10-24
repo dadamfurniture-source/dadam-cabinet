@@ -424,6 +424,74 @@ describe.each(Object.keys(WARDROBE_SCENES))('%s 장면 → CAD 명세 (붙박이
   });
 });
 
+/**
+ * PR16b 동결본 GLB — 동결 때(workflow-client.js createSnapshot)처럼 `DadamAssembly.of(design, { materials })` 로 만든 명세에
+ *   플래너 자리(frameOf)만 입혀 전체 · 외관 두 벌을 짓고 워커 창구(DadamWorkflow.cad)로 보낸다.
+ *   moduleKey 가 플래너 칸(cells)과 맞아야 자리를 받는다 — 자리 못 찾은 모듈 0 이어야 한다.
+ */
+describe.each(['straight', 'drawer'])('%s 장면 → 동결본 GLB 올리기', (name) => {
+  let p, PE, frozen, sent;
+  beforeAll(async () => {
+    p = SCENES[name]({ design: 'frozen', item: name });
+    await new Promise((r) => setTimeout(r, 150));
+    const item = fakeParent(p);
+    // 동결 명세 — 상세설계가 플래너 결과를 품목에 적용한 뒤(ui-step1.js) createSnapshot 이 내는 것과 같은 모양
+    const P = p.window.parent;
+    const payload = p.g('buildPlannerPayload')('PLANNER_STATE');
+    const specs = JSON.parse(JSON.stringify(item.specs || {}));
+    const conv = P._convertPlannerModules(payload, specs);
+    const design = { items: [Object.assign({}, item, { specs, modules: conv.modules })] };
+    const materials = new P.MaterialExtractor().extract(design).materials;
+    const assembly = JSON.parse(JSON.stringify(Asm.of(design, { materials })));   // JSONB 왕복
+    frozen = {
+      snapshot_id: 'S-frozen', rev: 4, assembly,
+      assembly_hash: nodeCrypto.createHash('sha256').update(plannerExportStableJson(assembly), 'utf8').digest('hex'),
+    };
+    sent = [];
+    PE = p.g('PlannerExport');
+    PE._o.workflow = {
+      frozenAssembly: async () => frozen,
+      upload: async (snapshotId, kind, glb) => { sent.push({ snapshotId, kind, glb }); return { artifact: { kind }, reused: false }; },
+    };
+    PE._o.subtle = subtle;
+    PE._o.GLTFExporter = GLTFExporter;
+    PE.setAdmin(true);
+  });
+
+  test('전체 · 외관 두 벌 — 루트 assemblyHash = 동결 명세 해시, 자리 못 찾은 모듈 0, 외관 1MB 이하', async () => {
+    const r = await PE.uploadFrozen();
+    expect(r).not.toBeNull();
+    expect(sent.map((x) => [x.snapshotId, x.kind])).toEqual([['S-frozen', 'cad'], ['S-frozen', 'exterior']]);
+    sent.forEach((x) => {
+      const root = glbJson(x.glb).nodes[0];
+      expect(root.extras).toMatchObject({ assemblyHash: frozen.assembly_hash, vis: x.kind === 'exterior' ? 'exterior' : 'all', schema: 'dadam.assembly/1' });
+    });
+    expect(r.cad.skipped).toBe(0);
+    expect(r.cad.parts).toBe(frozen.assembly.items.reduce((n, it) => n + (it ? it.modules.reduce((k, m) => k + m.parts.length, 0) + it.runs.reduce((k, x) => k + x.parts.length, 0) : 0), 0));
+    expect(r.exterior.parts).toBeGreaterThan(0);
+    expect(sent[1].glb.byteLength).toBeLessThanOrEqual(1024 * 1024);
+  });
+
+  test('관리자가 아니면 아무것도 보내지 않는다 · 버튼도 숨긴다', async () => {
+    sent.length = 0;
+    PE.setAdmin(false);
+    expect(p.document.getElementById('glbFrozenBtn').hidden).toBe(true);
+    await expect(PE.uploadFrozen()).resolves.toBeNull();
+    expect(sent).toEqual([]);
+    PE.setAdmin(true);
+    expect(p.document.getElementById('glbFrozenBtn').hidden).toBe(false);
+  });
+
+  test('해시가 동결본과 다르면 올리지 않는다', async () => {
+    sent.length = 0;
+    const keep = frozen.assembly_hash;
+    frozen.assembly_hash = '0'.repeat(64);
+    await expect(PE.uploadFrozen()).resolves.toBeNull();
+    frozen.assembly_hash = keep;
+    expect(sent).toEqual([]);
+  });
+});
+
 describe('관리자만 · 부모 창', () => {
   test('구조 페이지: CAD 버튼은 숨김으로 실리고, 관리자일 때만 보인다', () => {
     const p = bootPlanner3D(FIXTURES.straight, { design: 'cad-btn', item: 'x' });
