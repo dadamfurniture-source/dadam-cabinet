@@ -661,6 +661,33 @@ describe('멍장 → BOM 변환', () => {
     expect(blinds.map((m) => m.id)).toContain('corner-blind-lower');
   });
 
+  test('멍장마다 벽 쪽(blindDoorRight)을 싣는다 — 플래너 구조 칸 순서 [멍][도어] = true (2026-10-25)', () => {
+    for (const lay of [lShapeLayout(false), layoutOf(upperLShapeLayout(2000)), uShapeLayout(2800)]) {
+      const pay = payloadOf(lay);
+      const out = convert(pay, {}).modules.filter((m) => m.name === 'LT망장');
+      const src = pay.modules.filter((m) => m.blind);
+      expect(out.length).toBe(src.length);
+      src.forEach((m, i) => {
+        const t = pay.structures[m.id].areaTypes;
+        expect(out[i].blindDoorRight).toBe(t[0] === 'blind');
+        expect(out[i]._plannerId).toBe(String(m.id));   // 플래너 3D 가 명세 멍장을 제 모듈에 잇는다
+      });
+    }
+  });
+
+  test('ㄷ자 두 멍장은 벽 쪽이 서로 반대다 — 품목 설정 하나로는 못 적는다', () => {
+    const out = convert(payloadOf(uShapeLayout(2800)), {}).modules.filter((m) => m.name === 'LT망장');
+    expect(out.map((m) => m.blindDoorRight).sort()).toEqual([false, true]);
+  });
+
+  test('구조 칸이 [멍][도어] 모양이 아니면 싣지 않는다', () => {
+    const pay = payloadOf(lShapeLayout(false));
+    const src = pay.modules.find((m) => m.blind);
+    pay.structures[src.id].areaTypes = ['door'];
+    const blind = convert(pay, {}).modules.find((m) => m.name === 'LT망장');
+    expect('blindDoorRight' in blind).toBe(false);
+  });
+
   test('코너가 없으면 LT망장이 나오지 않는다 (회귀)', () => {
     const straight = layoutOf([
       { section: 'lower', x: 0, y: 0, w: 2400, h: LOWER_D, moduleH: 870, rotation: 0, finishings: [] },
