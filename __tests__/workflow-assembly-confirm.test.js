@@ -86,6 +86,19 @@ describe('workflow-client — 조립 검사를 발행 확인창에 잇는다 (D8
     expect(t.posts.some((u) => /\/snapshots$/.test(u))).toBe(true);
   });
 
+  test('D9: 추출기 알림(도면 마감재 없음)을 opts.notices 로 넘긴다 — 없으면 빈 목록', async () => {
+    let t = setup();
+    const notices = [{ itemIdx: 0, code: 'finish-none', message: '마감재를 발주하지 않습니다' }];
+    window._reportData.materials.notices = notices;
+    await flush();
+    await click('wfSnapshot');
+    expect(t.calls[0].notices).toBe(notices);
+    t = setup();
+    await flush();
+    await click('wfSnapshot');
+    expect(t.calls[0].notices).toEqual([]);
+  });
+
   test('조립 명세가 없으면(옛 캐시) assembly 없이 검사한다', async () => {
     const t = setup();
     delete window.DadamAssembly;
