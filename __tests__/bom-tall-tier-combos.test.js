@@ -84,6 +84,16 @@ describe('키큰장 맨 아래 단 서랍 — 싱크 서랍장 규칙 그대로 
   });
 });
 
+describe('냉장고장 품목의 플래너 키큰장 단 — 경첩도 단 규칙 (fridge.md: pos 있는 모듈은 싱크대 규칙)', () => {
+  test('중간 단 도어 979 − 4 = 975 로 보링 (예전엔 옛 화면 표로 H + 20 = 999)', () => {
+    const design = { items: [{ categoryId: 'fridge', w: 1900, h: 2310, d: 700, specs: Object.assign({}, SPECS), modules: [tier(1, 979, MIDDLE)] }] };
+    const door = new MaterialExtractor().extract(design).materials.find((m) => m.part === '도어');
+    const hinge = new HardwareExtractor().extract(design).hardware.find((h) => h.category === '경첩');
+    expect(door.h).toBe(975);
+    expect(hinge.boring[hinge.boring.length - 1]).toBe(975 - 110);
+  });
+});
+
 describe('중간 · 상부 단 서랍은 규칙이 없다', () => {
   test('부재 · 레일을 내지 않고 측판 비고에 [확인 필요]', () => {
     const r = run([tier(0, 801, BOTTOM), tier(1, 979, MIDDLE, DRAWER), tier(2, 400, TOP)]);
