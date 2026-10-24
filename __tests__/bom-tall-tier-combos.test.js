@@ -141,7 +141,9 @@ describe('상자 단 — 오픈장 · 밥솥장으로 바꾼 단도 그 단의 �
     const rice = { id: 'planner-tall-1-rice', moduleKind: 'rice', name: '밥솥장', doorCount: 1, doorType: 'swing', isOpen: false, hingeSide: 'left' };
     const flap = { doorOpen: 'up', hingeSide: undefined };
     const r = run([tier(0, 801, BOTTOM, DRAWER), tier(1, 500, MIDDLE, rice), tier(2, 879, TOP, flap)]);
-    expect(cut(rowsOf(r, 'planner-tall-1-rice'))).toEqual(['측판 620×500×2', '천지판 564×600×2', '뒷판 564×500×1', '도어 596×496×1']);
+    // 2026-10-25 사장님: 도어가 달린 밥솥장 = 일반 장 몸통 (PB 몸통 두께) + 같은 PB 슬라이딩 선반 + 여닫이 추가 목대
+    expect(cut(rowsOf(r, 'planner-tall-1-rice'))).toEqual(['측판 620×500×2', '지판 570×620×1', '밴드 70×570×2', '뒷판 599×499×1',
+      '밥솥장 선반 558×490×1', '밥솥장 보강목 80×490×2', '밥솥장 마이다 565×95×1', '밥솥장 추가 목대 530×100×1', '도어 596×496×1']);
     // 가운데 단이라 좌대 · 상몰딩이 없다
     expect(rowsOf(r, 'planner-tall-1-rice').filter((m) => /좌대|상몰딩/.test(m.part))).toEqual([]);
     // 플랩 — 상부장 플랩과 같은 철물: 천판 쪽 경첩(도어 폭 변 보링) + 가스쇼바 2 (도어 596×875 ≈ 7kg → 9kg)

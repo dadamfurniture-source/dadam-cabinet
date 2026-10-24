@@ -196,20 +196,24 @@ describe('브리지 — 밥솥장 모듈 하나가 도어 종류를 달고 간�
 });
 
 describe('BOM — 밥솥장', () => {
-  test('오픈이면 오픈장 세 줄(18T MDF)만, 천지판 비고에 슬라이딩 선반 [확인 필요]', () => {
+  test('오픈이면 오픈장 세 줄(18T MDF) + 슬라이딩 선반 (18T MDF, 2026-10-25 사장님) · 문주 언더레일 1 SET', () => {
     const { item, dispatch } = setup();
     dispatch(plannerMessage(null, 'drawer'));
     const mod = item.modules.find((m) => m.moduleKind === 'rice');
     const expected = OC.partsOf({ W: mod.w, H: mod.h, D: mod.d });
     const { materials, hardware } = extract(item);
     const rows = materials.filter((r) => String(r.module).includes('밥솥장'));
-    expect(rows.map((r) => r.part)).toEqual(['측판', '천지판', '뒷판']);
-    rows.forEach((r, i) => {
-      expect(r.material).toBe('MDF');
+    expect(rows.map((r) => r.part)).toEqual(['측판', '천지판', '뒷판', '밥솥장 선반', '밥솥장 보강목', '밥솥장 마이다']);
+    rows.slice(0, 3).forEach((r, i) => {
       expect([Number(r.w), Number(r.h), Number(r.qty)]).toEqual([expected[i].w, expected[i].h, expected[i].qty]);
+      expect(r.note || '').not.toMatch(/확인 필요/);
     });
-    expect(rows[1].note).toMatch(/슬라이딩 선반 \[확인 필요\]/);
-    expect(hardware.some((h) => String(h.note || h.module || '').includes('밥솥장'))).toBe(false);
+    expect(rows.every((r) => r.material === 'MDF' && Number(r.thickness) === 18)).toBe(true);
+    // 내경 414 (450 − 36) · 레일 500 (깊이 570 − 50 이하 최대)
+    expect(rows.slice(3).map((r) => [r.part, Number(r.w), Number(r.h), Number(r.qty)])).toEqual([
+      ['밥솥장 선반', 414 - 42 + 30, 490, 1], ['밥솥장 보강목', 80, 490, 2], ['밥솥장 마이다', 414 - 5, 95, 1]]);
+    const mine = hardware.filter((h) => h.module === '밥솥장');
+    expect(mine.map((h) => `${h.category} ${h.item} ${h.spec} ×${h.qty}`)).toEqual(['레일 문주 언더레일 500mm ×1']);
   });
 
   test('여닫이면 도어 (W−4)×(H−4) 한 장과 그 높이로 센 경첩, 카테고리 추출기는 두 벌 내지 않는다', () => {
@@ -218,8 +222,13 @@ describe('BOM — 밥솥장', () => {
     const mod = item.modules.find((m) => m.moduleKind === 'rice');
     const { materials, hardware } = extract(item);
     const rows = materials.filter((r) => String(r.module).includes('밥솥장'));
-    expect(rows.map((r) => r.part)).toEqual(['측판', '천지판', '뒷판', '도어']);
-    const door = rows[3];
+    // 2026-10-25 사장님: 도어가 달리면 일반 장 몸통 (PB 몸통 두께) + 같은 PB 슬라이딩 선반 + 여닫이 추가 목대
+    expect(rows.map((r) => r.part)).toEqual(['측판', '지판', '밴드', '뒷판', '밥솥장 선반', '밥솥장 보강목', '밥솥장 마이다', '밥솥장 추가 목대', '도어']);
+    expect(rows.slice(0, 3).concat(rows.slice(4, 8)).every((r) => r.material === 'PB' && Number(r.thickness) === 15)).toBe(true);
+    const inner = mod.w - 30;
+    expect(rows.slice(4, 8).map((r) => [Number(r.w), Number(r.h), Number(r.qty)])).toEqual([
+      [inner - 42 + 30, 490, 1], [80, 490, 2], [inner - 5, 95, 1], [500 + 30, 100, 1]]);
+    const door = rows[8];
     expect([Number(door.w), Number(door.h), Number(door.qty)]).toEqual([mod.w - 4, mod.h - 4, 1]);
     expect(door.note).toMatch(/여닫이/);
 
@@ -230,14 +239,14 @@ describe('BOM — 밥솥장', () => {
 
     const without = new (require(path.join(ROOT, 'js/detaildesign/extractors.js')).MaterialExtractor)()
       .extract({ items: [Object.assign({}, item, { modules: item.modules.filter((m) => m.moduleKind !== 'rice') })] });
-    expect(materials.length - without.materials.length).toBe(4);
+    expect(materials.length - without.materials.length).toBe(9);
   });
 
   test('리프트면 경첩 대신 가변철물 1 SET, 포켓은 도어 비고에 철물 [확인 필요]', () => {
     const a = setup();
     a.dispatch(plannerMessage('liftup', 'drawer'));
     const ha = extract(a.item).hardware.filter((h) => h.module === '밥솥장');
-    expect(ha.map((h) => h.category)).toEqual(['리프트업']);
+    expect(ha.map((h) => h.category)).toEqual(['리프트업', '레일']);
     expect(ha[0].qty).toBe(1);
 
     const b = setup();

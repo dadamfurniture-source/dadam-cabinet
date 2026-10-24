@@ -41,6 +41,8 @@
     // 엣지는 냉장고장 홈카페장(= 같은 "오픈장 규칙")과 같은 면을 쓴다. 오픈장은 앞이 트여 있어
     // 확정이 필요하면 여기만 고치면 BOM·도면이 함께 따라온다.
     EDGE: Object.freeze({ side: '3면', topBottom: '2면(가로)', back: '2면(가로)' }),
+    // 2026-10-25 사장님: 가전 칸(전자레인지) — DB 에 저장된 가전 외경 + 20 이 오픈장 내경의 최솟값이면 된다. 그 이상은 크게 관계없다.
+    APPLIANCE_CLEARANCE: 20,
   });
 
   const R = OPEN_CABINET_RULES;
@@ -106,5 +108,25 @@
     return out;
   }
 
-  return { RULES: OPEN_CABINET_RULES, isOpenCabinet, innerOf, partsOf, warningsOf };
+  /**
+   * 2026-10-25 사장님: 가전 칸 — 오픈장 내경(폭 · 높이 · 깊이)이 가전 외경 + 20 이상인가. 모자라는 치수마다 경고 한 줄.
+   *   가전 외경은 가전 DB(appliance_models — 전자레인지 category 'microwave')의 width_mm · height_mm · depth_mm.
+   * @param o      {W,H,D} 오픈장 몸통 외경
+   * @param outer  {W,H,D} 가전 외경
+   * @param label  가전 이름 (경고 문구, 기본 '가전')
+   * @returns {string[]}
+   */
+  function applianceWarningsOf(o, outer, label) {
+    const g = innerOf(o);
+    const c = R.APPLIANCE_CLEARANCE;
+    const name = label || '가전';
+    const out = [];
+    [['innerW', 'W', '폭'], ['innerH', 'H', '높이'], ['innerD', 'D', '깊이']].forEach(([ik, ok, word]) => {
+      const need = dim(outer && outer[ok]);
+      if (need > 0 && g[ik] < need + c) out.push(`${R.LABEL} 내경 ${word} ${g[ik]} 가 ${name} ${word} ${need} + ${c} = ${need + c} 보다 작습니다`);
+    });
+    return out;
+  }
+
+  return { RULES: OPEN_CABINET_RULES, isOpenCabinet, innerOf, partsOf, warningsOf, applianceWarningsOf };
 });

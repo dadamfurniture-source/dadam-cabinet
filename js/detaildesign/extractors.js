@@ -79,6 +79,11 @@
         '밴드(처짐방지)':  { key: 'body:brace',       slot: 'body', indexed: true },
         '경첩목대(앞다리)': { key: 'body:batten-front', slot: 'body' },
         '경첩목대(옆다리)': { key: 'body:batten-side',  slot: 'body' },
+        // 2026-10-25 사장님: 밥솥장 슬라이딩 선반 (bom-rice-cabinet-rules.js shelfPartsOf) — 몸통 · 오픈장과 같은 색
+        '밥솥장 선반':      { key: 'rice:shelf',        slot: 'body' },
+        '밥솥장 보강목':    { key: 'rice:batten',       slot: 'body' },
+        '밥솥장 마이다':    { key: 'rice:front',        slot: 'body' },
+        '밥솥장 추가 목대': { key: 'rice:hinge-batten', slot: 'body' },
         // 전면 (MDF 18T)
         '도어':            { key: 'door',             slot: 'door', indexed: true },
         '서랍도어':        { key: 'drawer',           slot: 'drawerFront', indexed: true },
@@ -185,6 +190,15 @@
         return !!(mod && mod.isDrawer && (tier === 'bottom' || tier === 'single'));
       }
       const BOM_TALL_DRAWER_TIER_NOTE = '[확인 필요] 키큰장 서랍은 맨 아래 단만 — 이 단의 서랍 전면·박스는 내지 않는다 (sink.md §5.1)';
+
+      // 2026-10-25 사장님: 밥솥장 슬라이딩 선반 언더레일 길이 — 서랍과 같은 규칙 (모듈 깊이 − 50 이하의 최대 규격, 모자라면 가장 짧은 규격).
+      //   자재 행(선반 D = 레일 − 10)과 철물 행(레일 1 SET)이 같은 함수를 쓴다.
+      function bomRiceRailLengthOf(mod) {
+        const D = parseFloat(mod && mod.d) || 0;
+        const len = DrawerRules ? DrawerRules.railLengthFor(D) : null;
+        if (len !== null && len !== undefined) return len;
+        return DrawerRules ? DrawerRules.DRAWER_RULES.RAIL_LENGTHS[0] : 250;
+      }
 
       // ============================================================
       // 걸레받이 나누기 — 2026-10-20 사장님 카드 「꺾임에서 나누기」.
@@ -1441,7 +1455,9 @@
 
         // ========================================
         // 2026-10-20: 밥솥장 (bom-rice-cabinet-rules.js — 사장님 확정: 오픈장 + 슬라이딩 선반, 도어 여닫이·포켓·리프트)
-        //   상자 = 오픈장 부재 그대로 (18T MDF 측판 2 · 천지판 2 · 뒷판 1). 천지판 비고에 슬라이딩 선반 [확인 필요].
+        //   몸통 (2026-10-25 사장님) — 오픈이면 오픈장 부재 그대로 (18T MDF 측판 2 · 천지판 2 · 뒷판 1),
+        //     도어가 달리면 일반 장 몸통 (addRiceCarcassParts — 측판 · 지판 · 밴드 2 · 3T 뒷판, PB 품목 몸통 두께 15 · 18).
+        //   슬라이딩 선반 = 규칙 파일 shelfPartsOf (선반 · 보강목 2 · 마이다 · 여닫이면 추가 목대), 레일 길이는 서랍 규칙 (railLengthFor).
         //   도어 = 규칙 파일 doorOf (W − 4) × (H − 4), 도어 종류를 비고에 적는다. 철물은 HardwareExtractor 가 doorType 으로 낸다.
         //   밥솥장 모듈을 뺀 item 을 돌려준다 (extractOpenCabinets 와 같은 이유).
         // ========================================
@@ -1457,23 +1473,48 @@
             this.beginModule(mod, i, mod.pos);
             const dims = { W: Number(mod.w) || 0, H: Number(mod.h) || 0, D: Number(mod.d) || 0 };
             const name = `${prefix}${R.RULES.LABEL}${rice.length > 1 ? ` ${i + 1}` : ''}`;
-            const parts = R.partsOf(dims);
-            if (!parts.length) {
-              dlog(`[BOM] 밥솥장 ${mod.id || name} 치수가 규칙을 못 채운다:`, dims, R.warningsOf(dims));
-              return;
+            const specs = (item && item.specs) || {};
+            const bodyT = this.thicknessFor(specs);
+            const doorType = mod.doorType || 'none';
+            if (R.hasDoorBody(doorType)) {
+              if (!dims.W || !dims.H || !dims.D) return;
+              this.addRiceCarcassParts(materials, name, dims, bodyT);
+            } else {
+              const parts = R.partsOf(dims);
+              if (!parts.length) {
+                dlog(`[BOM] 밥솥장 ${mod.id || name} 치수가 규칙을 못 채운다:`, dims, R.warningsOf(dims));
+                return;
+              }
+              parts.forEach((p) => {
+                this.add(materials, name, p.part, p.material, p.t, p.w, p.h, p.qty, p.edge, p.note || '', mod);
+              });
             }
-            parts.forEach((p) => {
+            R.shelfPartsOf(dims, doorType, bodyT, bomRiceRailLengthOf(mod)).forEach((p) => {
               this.add(materials, name, p.part, p.material, p.t, p.w, p.h, p.qty, p.edge, p.note || '', mod);
             });
-            const door = R.doorOf(dims, mod.doorType || 'none');
+            const door = R.doorOf(dims, doorType);
             if (door) {
               const note = `밥솥장 ${door.name} 도어` + (door.note ? ` — ${door.note}` : '');
               this.add(materials, name, '도어', 'MDF', 18, door.w, door.h, door.qty, '4면', note, mod);
             }
-            this.addTallStackParts(materials, name, mod, (item && item.specs) || {});
+            this.addTallStackParts(materials, name, mod, specs);
           });
 
           return Object.assign({}, item, { modules: mods.filter((m) => !R.isRiceCabinet(m)) });
+        }
+
+        /**
+         * 2026-10-25 사장님: 도어가 달린 밥솥장 몸통 = **일반 장 몸통** — 하부장 · 키큰장 단과 같은 짜임 (사쿠리 없음, 목찬넬 따내기 없음):
+         *   측판 3면 D×H 2 · 지판 (W−2T)×D · 밴드 70×(W−2T) 2 · 뒷판 3T 측판 뒤 덮음 · 처짐방지 (W ≥ 800). PB, 품목 몸통 두께 (기본 15 · 18 옵션).
+         */
+        addRiceCarcassParts(materials, name, dims, T) {
+          const { W, H, D } = dims;
+          this.add(materials, name, '측판', 'PB', T, D, H, 2, '3면');
+          this.add(materials, name, '지판', 'PB', T, W - T * 2, D, 1, '1면(전)');
+          this.add(materials, name, '밴드', 'PB', T, ASM.BAND_W, W - T * 2, 2, '2면(장)');
+          this.addBackPanel(materials, name, W, H, false);
+          const braceQty = bomBraceQtyOf(W, 'lower');
+          if (braceQty > 0) this.add(materials, name, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, H - T * 2, braceQty, '2면(장)');
         }
 
         /** EL장 몸통 — PB 측판(사쿠리)·천판·지판 + 뒷판, 도어 없음 (extractFridge 'el' 가지 그대로). sideNote 는 측판 비고에 덧붙인다. */
@@ -2764,6 +2805,21 @@
         // 레일 추출
         extractRails(item, hardware) {
           const category = item.categoryId || item.category;
+          // 2026-10-25 사장님: 밥솥장 슬라이딩 선반 — 문주 언더레일 1 SET (모듈 타입이라 카테고리와 무관)
+          if (RiceRules) {
+            (item.modules || []).filter((m) => RiceRules.isRiceCabinet(m)).forEach((mod) => {
+              hardware.push({
+                category: '레일',
+                item: '문주 언더레일',
+                manufacturer: '문주',
+                spec: `${bomRiceRailLengthOf(mod)}mm`,
+                qty: 1,
+                unit: 'SET',
+                note: `${mod.name || '밥솥장'} 슬라이딩 선반`,
+                ...this.moduleTagOf(mod),
+              });
+            });
+          }
 
           // 붙박이장: 모듈별 drawerCount 기준
           if (category === 'wardrobe') {
