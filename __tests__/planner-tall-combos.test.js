@@ -87,3 +87,13 @@ describe('밥솥장 — 여닫이 도어 경첩 방향', () => {
     expect(p.errors).toEqual([]);
   });
 });
+
+describe('밥솥장 — 조립 명세로 그리는 판 종류 (2026-10-25 사장님 슬라이딩 선반)', () => {
+  test('오픈 상자 판 + 일반 장 몸통(도어) + 슬라이딩 선반 부재를 통째로 받는다', () => {
+    const M = require('../js/planner/planner-assembly-mesh.js');
+    expect(M.PLANNER_ASM_RICE_FAMILIES).toEqual(expect.arrayContaining(M.PLANNER_ASM_OPEN_FAMILIES.concat([
+      'body:bottom', 'body:band', 'body:brace', 'rice:shelf', 'rice:batten', 'rice:front', 'rice:hinge-batten'])));
+    // 오픈장 · 홈카페장은 예전 그대로
+    expect(M.PLANNER_ASM_OPEN_FAMILIES).toEqual(['body:side', 'part:천지판', 'back', 'door']);
+  });
+});

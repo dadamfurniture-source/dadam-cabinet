@@ -70,6 +70,15 @@ const PLANNER_ASM_WARDROBE_FAMILIES = [
 const PLANNER_ASM_OPEN_FAMILIES = ['body:side', 'part:천지판', 'back', 'door'];
 
 /**
+ * 2026-10-25 사장님: 밥솥장 — 오픈이면 18T 상자, 도어가 달리면 일반 장 몸통(측판 · 지판 · 밴드 · 3T 뒷판 · 처짐방지) +
+ *   슬라이딩 선반 (선반 · 보강목 · 마이다 · 여닫이면 추가 목대 — BOM '밥솥장 …', bom-rice-cabinet-rules shelfPartsOf).
+ */
+const PLANNER_ASM_RICE_FAMILIES = PLANNER_ASM_OPEN_FAMILIES.concat([
+  'body:bottom', 'body:band', 'body:brace',
+  'rice:shelf', 'rice:batten', 'rice:front', 'rice:hinge-batten',
+]);
+
+/**
  * 플래너 모듈 → 명세 모듈 판재 전부 (통째로 그릴 수 있을 때만).
  * @param {{spec, cells}} asm
  * @param {string} plannerId
@@ -430,6 +439,7 @@ if (typeof window !== 'undefined') {
   window.plannerAssemblyRunsFor = plannerAssemblyRunsFor;
   window.PLANNER_ASM_WARDROBE_FAMILIES = PLANNER_ASM_WARDROBE_FAMILIES;
   window.PLANNER_ASM_OPEN_FAMILIES = PLANNER_ASM_OPEN_FAMILIES;
+  window.PLANNER_ASM_RICE_FAMILIES = PLANNER_ASM_RICE_FAMILIES;
   window.plannerAssemblyWholeModuleFor = plannerAssemblyWholeModuleFor;
   window.plannerAssemblyKeyOf = plannerAssemblyKeyOf;
   window.plannerAssemblyModuleFor = plannerAssemblyModuleFor;
@@ -447,6 +457,7 @@ if (typeof module !== 'undefined' && module.exports) {
     plannerAssemblyRunsFor,
     PLANNER_ASM_WARDROBE_FAMILIES,
     PLANNER_ASM_OPEN_FAMILIES,
+    PLANNER_ASM_RICE_FAMILIES,
     plannerAssemblyWholeModuleFor,
     plannerAssemblyGroupOf,
     plannerAssemblyPartGroup,
