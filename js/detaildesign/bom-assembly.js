@@ -1202,10 +1202,10 @@
       const base = { hwIdx, category: row.category, item: row.item, spec: row.spec };
       const push = (m, e) => m.hardware.push(Object.assign({}, base, e));
       if (row.category === '다리발') {
-        // 품목 단위 행 — 라벨로 품목을 찾는다 (extractLegs: pos lower, 단순 카테고리는 키큰장 단 제외)
+        // 품목 단위 행 — 라벨로 품목을 찾는다 (extractLegs: pos lower, 키큰장 단 제외 — 좌대가 받친다, sink.md §5)
+        //   2026-10-24: 싱크도 키큰장 단을 세지 않는다 (예전엔 단순 카테고리만 뺐다)
         if (row.moduleKey || (row.itemLabel && label && row.itemLabel !== label)) return;
-        const simple = !['sink', 'island', 'custom', 'wardrobe', 'fridge'].includes(String(item.categoryId || item.category));
-        const lowers = (item.modules || []).filter((mod) => mod.pos === 'lower' && !(simple && isTallTier(mod)));
+        const lowers = (item.modules || []).filter((mod) => mod.pos === 'lower' && !isTallTier(mod));
         const countOf = (mod) => { const w = parseFloat(mod.w) || 600; return w <= 600 ? 4 : w <= 900 ? 6 : 8; };
         const total = lowers.reduce((a, mod) => a + countOf(mod), 0);
         lowers.forEach((mod) => {

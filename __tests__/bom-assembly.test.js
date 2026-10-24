@@ -918,6 +918,21 @@ describe('철물 hardware[] — 다리발 · 레일 · 경첩 컵 자리 (2026-1
     expect(hwOf(tier, '0-l4', 'leg').every((h) => h.pending === 'leg-tall-tier')).toBe(true);
   });
 
+  // 2026-10-24: 싱크도 키큰장 단에는 다리발이 없다 — sink.md §5 "다리발 대신 좌대(60)" (예전엔 싱크만 옛 셈으로 단도 셌다)
+  test('싱크 키큰장 3단 (하부 · 중간 · 상부 단): 다리발 행에 단이 없고 단마다 보류도 없다 · 일반 하부장은 그대로', () => {
+    const item = JSON.parse(JSON.stringify(FIXTURES.sink15));
+    const tier = (id, part, h, hp) => ({ id, type: 'tall', name: `키큰장 ${part}`, part, pos: 'lower', w: 600, h, d: 550, doorCount: 1, heightParts: hp });
+    item.modules.push(tier('t0', '하부장', 801, { pedestalH: 60, moldingH: 0 }), tier('t1', '중간장', 979, { pedestalH: 0, moldingH: 0 }),
+      tier('t2', '상부장', 400, { pedestalH: 0, moldingH: 60 }));
+    const design = { items: [item] };
+    const legsRow = new HardwareExtractor().extract(design).hardware.find((h) => h.category === '다리발');
+    const plain = new HardwareExtractor().extract({ items: [FIXTURES.sink15] }).hardware.find((h) => h.category === '다리발');
+    expect(legsRow.qty).toBe(plain.qty);                 // 키큰장 단 3개는 세지 않는다
+    const s = Asm.of(design, { materials: new MaterialExtractor().extract(design).materials, hardware: new HardwareExtractor().extract(design).hardware });
+    ['0-t0', '0-t1', '0-t2'].forEach((mk) => expect([mk, hwOf(s, mk, 'leg')]).toEqual([mk, []]));
+    expect(hwOf(s, '0-l2', 'leg').every((h) => h.at && !h.pending)).toBe(true);
+  });
+
   test('신발장 서랍장 500 (2단, 언더레일 300): 박스마다 왼·오 — 박스 측판 밑 30 여유에, 앞끝 = 박스 앞끝, 길이 300', () => {
     const s = specOf('shoerack');
     const m = s.items[0].modules.find((x) => x.moduleKey === '0-l2');

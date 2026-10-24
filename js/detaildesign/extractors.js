@@ -2806,8 +2806,9 @@
         // 다리발 추출
         extractLegs(item, hardware) {
           const category = item.categoryId || item.category;
-          // B3: 단순 카테고리도 다리발 150 위에 선다 (simple-categories.md §2). 키큰장 단은 좌대가 받치므로 뺀다
-          //   (싱크는 골든에 묶여 있어 그대로 — 키큰장 단도 세는 옛 셈이 남아 있다).
+          // B3: 단순 카테고리도 다리발 150 위에 선다 (simple-categories.md §2). 키큰장 단은 좌대가 받치므로 뺀다.
+          //   2026-10-24: 싱크 · 아일랜드 · 비규격장도 같다 — sink.md §5 "키큰장은 하부장이 아니다, 다리발 대신 좌대(60)".
+          //   예전엔 싱크만 골든에 묶여 키큰장 단도 세는 옛 셈이 남아, 조립 명세의 단마다 다리발 자리가 보류(leg-tall-tier)였다.
           const simple = !!BOM_SIMPLE_CATEGORY_RULES[category];
           // 2026-10-20: 아일랜드도 다리발 150 (sink.md §1 표). 비규격장은 싱크대 규칙 (2026-10-20 카드).
           if (category !== 'sink' && category !== 'island' && category !== 'custom' && !simple) return;
@@ -2816,7 +2817,7 @@
           let totalLegs = 0;
 
           (item.modules || [])
-            .filter((m) => m.pos === 'lower' && !(simple && bomTallTierOf(m)))
+            .filter((m) => m.pos === 'lower' && !bomTallTierOf(m))
             .forEach((mod) => {
               const w = mod.w || 600;
               if (w <= 600) totalLegs += 4;
