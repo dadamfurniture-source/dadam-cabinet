@@ -24,6 +24,8 @@ const SPECS = {
   handle: '찬넬 (목찬넬)',
   finishLeftType: 'Filler', finishLeftWidth: 60,
   finishRightType: 'Filler', finishRightWidth: 60,
+  // 2026-10-24 D9: 좌·우 마감재는 도면이 정본 — 플래너에 놓은 휠라 60 양쪽 (브리지 specs.drawnFinishes, 합성 값)
+  drawnFinishes: ['left', 'right'].map((side) => ({ section: 'filler', side, edge: side, area: 'lower', W: 60, partW: 60, H: 678, D: 650, baseY: 150, x: null })),
   upperDoorOverlap: 15,
   wardrobePedestal: 60,
 };
@@ -183,7 +185,7 @@ describe('P1-3 상판·좌대 산출', () => {
       slot: 'top', partId: '0-ep-top-0', finishCode: 'TOP-SNW', edgeCode: null,
     });
     // 2026-10-18 사장님: 깊이 = 도면 그대로, 이음은 상판 업체 판단 — 12T 는 목록 안이라 [확인 필요] 가 없다
-    expect(top.note).toBe('하부 라인 한 장(좌·우 마감 폭 포함) · 깊이 = 도면 · 이음은 상판 업체 판단');
+    expect(top.note).toBe('하부 라인 한 장(도면 마감재 폭 포함) · 깊이 = 도면 · 이음은 상판 업체 판단');
     expect(top.edgeLen).toBe(0);
   });
 
@@ -198,7 +200,7 @@ describe('P1-3 상판·좌대 산출', () => {
 
   test('상판 두께 50 · 마감 없음 → 인조대리석 50, 폭 = 하부 폭 합만', () => {
     const rows = extract(sinkItem([...LOWERS], {
-      specs: Object.assign({}, SPECS, { topThickness: 50, finishLeftType: 'None', finishRightType: 'None' }),
+      specs: Object.assign({}, SPECS, { topThickness: 50, finishLeftType: 'None', finishRightType: 'None', drawnFinishes: [] }),
     }));
     expect(one(rows, 'ep', '상판')).toMatchObject({ material: '인조대리석', thickness: 50, w: 1900 });
   });

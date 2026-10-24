@@ -1071,7 +1071,9 @@
       const spans = lineList.map((ln) => spanOf(ln, pred)).filter(Boolean);
       return spans.length === 1 && !spans[0].bad ? spans[0] : null;
     };
-    const finW = (type, w) => (type && type !== 'None' ? (Number(w) || 0) : 0);
+    // 2026-10-24 D9: 하부 배치 공간 끝의 도면 마감재(비움 포함) 폭 — 상판이 그 위를 지나간다 (BOM 상판 폭과 같은 값)
+    const drawnEdgeW = (edge) => (Array.isArray(specs.drawnFinishes) ? specs.drawnFinishes : [])
+      .filter((f) => f && f.area === 'lower' && f.edge === edge).reduce((s, f) => s + (Number(f.W) > 0 ? Number(f.W) : 0), 0);
     const put = (row, span, frame, vis, tags) => runs.push({
       key: row.partId, lineKey: span.line.key, hostModuleKey: span.host.mk,
       parts: [makePart(row, 0, frame, [], vis, tags)],
@@ -1086,10 +1088,10 @@
       if (!lineList.length) { skip(row, 'run-part'); return; }
       switch (key.family) {
         case 'top': {
-          // 상판 — 하부 라인(쿡탑장 포함, 키큰장 단 제외) 폭 합 + 좌·우 마감 폭 한 장, 뒤 = 벽, 깊이 = 행 h, 몸통 위.
+          // 상판 — 하부 라인(쿡탑장 포함, 키큰장 단 제외) 폭 합 + 좌·우 끝 도면 마감재 폭 한 장, 뒤 = 벽, 깊이 = 행 h, 몸통 위.
           //   벽 = 호스트 몸통 뒷면 − back (2026-10-24 D3: 몸통은 벽에서 뒤 여유만큼 떠 있다, 상판은 벽까지)
           const span = onlySpan(lowerLine);
-          const finL = finW(specs.finishLeftType, specs.finishLeftWidth), finR = finW(specs.finishRightType, specs.finishRightWidth);
+          const finL = drawnEdgeW('left'), finR = drawnEdgeW('right');
           if (!span || row.qty !== 1 || row.w !== span.x1 - span.x0 + finL + finR) { skip(row, 'run-layout-unknown'); return; }
           const b = span.host.spec.box;
           put(row, span, { o: [xOf(span, span.x0 - finL), b.H, -b.D / 2 - span.host.back], u: '+x', v: '+z', n: '+y' }, 'exterior', { run: 'top' });
@@ -1150,24 +1152,11 @@
         case 'molding:left':
         case 'molding:right':
         case 'ep:left':
-        case 'ep:right': {
-          // 라인 좌·우 마감재 (휠라·몰딩·EP, MDF 18T · 폭 × (품목 H − 다리발)) — 하부 라인 양 끝 밖에 세로로 선다. 밑단 = 하부 몸통 바닥,
-          //   앞면 = 도어 앞면 (2026-10-22 사장님 카드 "앞면 = 도어 앞면"). 상부 라인이 하부보다 밖으로 나가면 자리를 모른다.
-          const left = /:left$/.test(key.family);
-          const span = onlySpan(lowerLine);
-          if (!span || row.qty !== 1) { skip(row, 'run-layout-unknown'); return; }
-          const beyond = span.line.entries.some((e) => (left ? e.x0 < span.x0 - 1 : e.x0 + e.W > span.x1 + 1));
-          // 도어 앞면 z = 하부 라인 도어(여닫이·서랍도어) 상자 앞 (호스트와 같은 깊이의 모듈만 — 깊이가 다르면 앞면이 다르다)
-          const b = span.host.spec.box;
-          const zDoor = (() => {
-            const lowers = span.line.entries.filter((e) => lowerLine(e.mod) && e.spec && e.spec.box.D === b.D);
-            const door = lowers.map((e) => e.spec.parts.find((p) => /도어$/.test(p.part))).find(Boolean);
-            return door ? door.box.max[2] : null;
-          })();
-          if (beyond || zDoor == null) { skip(row, 'run-layout-unknown'); return; }
-          put(row, span, { o: [xOf(span, left ? span.x0 - row.w : span.x1), 0, zDoor - row.thickness], u: '+x', v: '+y', n: '+z' }, 'exterior', { run: 'finish', side: left ? 'left' : 'right' });
+        case 'ep:right':
+          // 라인 좌·우 마감재 (휠라·몰딩·EP) — 2026-10-24 사장님 D9 부터 도면(플래너에 놓은 마감재)이 정본이고 자리도 플래너가 안다.
+          //   플래너 3D 는 도면 마감재를 그대로 그린다. 명세 자리(lines 에 마감재 x 를 싣는 것)는 다음 단계 — 그때까지 자리 미정.
+          skip(row, 'finish-drawn-pending');
           return;
-        }
         default:
           // 코너 마감재(휠라·몰딩 코너1·2)는 꺾임 자리가 정해지지 않았다
           skip(row, /:corner\d$/.test(key.family) ? 'finish-position-pending' : 'run-part');

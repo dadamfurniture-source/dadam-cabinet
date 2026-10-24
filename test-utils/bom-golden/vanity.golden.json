@@ -881,10 +881,10 @@
       "material": "MDF",
       "thickness": 18,
       "w": 60,
-      "h": 2160,
+      "h": 708,
       "qty": 1,
       "edge": "4면",
-      "note": "",
+      "note": "도면 마감재",
       "finishCode": "",
       "partId": "0-ep-filler:left-0",
       "slot": "finishing",
@@ -894,7 +894,7 @@
         "T": true,
         "B": true
       },
-      "edgeLen": 4440,
+      "edgeLen": 1536,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-ep",
@@ -923,13 +923,13 @@
     "MDF_18": {
       "material": "MDF",
       "thickness": 18,
-      "totalArea": 2332672,
+      "totalArea": 2245552,
       "panelCount": 1
     }
   },
   "edgeBanding": {
     "1": 15708,
-    "0.6": 51130
+    "0.6": 48226
   },
   "hardware": [
     {

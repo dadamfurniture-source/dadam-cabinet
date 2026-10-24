@@ -1630,11 +1630,11 @@
       "part": "상판",
       "material": "인조대리석",
       "thickness": 12,
-      "w": 4130,
+      "w": 4160,
       "h": 650,
       "qty": 1,
       "edge": "-",
-      "note": "하부 라인 한 장(좌·우 마감 폭 포함) · 깊이 = 도면 · 이음은 상판 업체 판단",
+      "note": "하부 라인 한 장(도면 마감재 폭 포함) · 깊이 = 도면 · 이음은 상판 업체 판단",
       "finishCode": "",
       "partId": "0-ep-top-0",
       "slot": "top",
@@ -1655,11 +1655,11 @@
       "part": "휠라(좌)",
       "material": "MDF",
       "thickness": 18,
-      "w": 30,
-      "h": 2160,
+      "w": 60,
+      "h": 678,
       "qty": 1,
       "edge": "4면",
-      "note": "",
+      "note": "도면 마감재",
       "finishCode": "",
       "partId": "0-ep-filler:left-0",
       "slot": "finishing",
@@ -1669,7 +1669,7 @@
         "T": true,
         "B": true
       },
-      "edgeLen": 4380,
+      "edgeLen": 1476,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-ep",
@@ -1698,19 +1698,19 @@
     "MDF_18": {
       "material": "MDF",
       "thickness": 18,
-      "totalArea": 5174164,
+      "totalArea": 5150044,
       "panelCount": 2
     },
     "인조대리석_12": {
       "material": "인조대리석",
       "thickness": 12,
-      "totalArea": 2684500,
+      "totalArea": 2704000,
       "panelCount": 1
     }
   },
   "edgeBanding": {
     "1": 30114,
-    "0.6": 111624
+    "0.6": 108720
   },
   "hardware": [
     {
