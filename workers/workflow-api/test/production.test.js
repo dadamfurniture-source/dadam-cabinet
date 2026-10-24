@@ -27,8 +27,8 @@ test('작업량: 싱크대 3m (8통) 은 재단 4,140 · 엣지 2,240 (112면 ×
 test('작업 수: 골든 싱크대 BOM 에서 통·서랍·도어·다리발을 센다 (cutPlan 없으면 면적으로 원판 추정)', () => {
   const golden = JSON.parse(readFileSync(fileURLToPath(new URL('../../../test-utils/bom-golden/sink15.golden.json', import.meta.url)), 'utf8'));
   const c = countWork({ materials: golden.materials, hardware: golden.hardware }, null);
-  // 상부 3통(후드 제외) + 하부 5통(가스대 제외)
-  assert.equal(c.boxes, 8);
+  // 상부 3통(후드 제외) + 하부 5통(가스대 제외) + 서랍장 l2 의 서랍 모듈 1통 (2026-10-25 위 도어 + 아래 서랍은 두 몸통)
+  assert.equal(c.boxes, 9);
   assert.equal(c.drawers, golden.hardwareSummary['레일']);
   assert.equal(c.legs, golden.hardwareSummary['다리발']);
   assert.ok(c.doors > 0);

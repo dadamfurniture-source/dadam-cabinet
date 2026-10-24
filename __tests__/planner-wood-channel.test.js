@@ -193,7 +193,7 @@ describe('렌더 경로에 배선됐다', () => {
   // W12-75: 3D 경로가 **하나**다 (renderModule3D 삭제) — 갈라질 두 벌이 없어졌다.
   test('createModuleMesh 가 woodChannel 을 넘긴다', () => {
     const calls = SRC.match(/(?<!function )addCarcassShell\([^)]*\)/g) || [];
-    expect(calls.length).toBe(1);
+    expect(calls.length).toBe(3);   // createModuleMesh 1 + 두 몸통(2026-10-25 위 도어 + 아래 서랍) 안의 몸통마다 2
     calls.forEach((c) => expect(c).toContain('woodChannel'));
     const divs = SRC.match(/(?<!function )addCellDividers\([^)]*\)/g) || [];
     expect(divs.length).toBe(1);

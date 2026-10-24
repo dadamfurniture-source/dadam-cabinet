@@ -50,7 +50,8 @@ function fakeParent(p) {
 
 /** 명세 부재 → 3D 장면의 같은 판 (entityKind · side). */
 const SCENE_OF = {
-  '측판': (k) => ({ entityKind: 'carcass', side: k === 0 ? 'left' : 'right' }),
+  // 좌·우는 명세 판의 tags.side 로 (2026-10-25 위 도어 + 아래 서랍은 두 몸통이라 측판이 넷)
+  '측판': (k, pt) => ({ entityKind: 'carcass', side: (pt.tags && pt.tags.side) || (k === 0 ? 'left' : 'right') }),
   '지판': () => ({ entityKind: 'carcass', side: 'bottom' }),
   '천판': () => ({ entityKind: 'carcass', side: 'top' }),
   '뒷판': () => ({ entityKind: 'carcass', side: 'back' }),
@@ -296,7 +297,7 @@ describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
         const want = SCENE_OF[pt.part];
         if (!want) return;
         const n = (k[pt.part] = (k[pt.part] || 0) + 1) - 1;
-        const w = want(n);
+        const w = want(n, pt);
         const b = new THREE.Box3(new THREE.Vector3(...pt.box.min), new THREE.Vector3(...pt.box.max)).applyMatrix4(M);
         const hits = pieces.filter((r) => r.moduleId === plannerId && r.entityKind === w.entityKind && (w.side == null || r.side === w.side))
           .map((r) => box3(r.solids))

@@ -149,10 +149,10 @@ describe('서랍장 (도어 + 서랍 2단, 목찬넬) — 서랍 전면 · 중�
     });
   });
 
-  test('명세가 못 놓은 처짐방지목(D2)은 예전 그리기로 남는다', () => {
+  test('처짐방지목은 명세 판재 — 위 도어 + 아래 서랍은 두 몸통이라 도어 모듈 안에 선다 (2026-10-25 D2)', () => {
     const braces = partsOf(asm, ID).filter((x) => x.ud.entityKind === 'brace');
     expect(braces).toHaveLength(1);
-    expect(braces[0].ud.assembly).toBeUndefined();
+    expect(braces[0].ud.assembly).toBe(true);
   });
 
   test('서랍장 선반 — BOM 에 행이 없어 그리지 않는다 (예전 그리기는 s.shelves 로 그렸다)', () => {

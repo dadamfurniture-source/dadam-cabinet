@@ -93,33 +93,35 @@ describe('gradesFromRatio · ratioOf', () => {
 });
 
 describe('layoutByGrades — 자동 등급', () => {
-  test('배치 870, 1:2 — 서랍 존 377 → 대 180', () => {
+  // 2026-10-25 사장님: 위 도어 + 아래 서랍은 두 몸통 — 서랍 모듈 위 앞 밴드(T 15)만큼 첫 서랍 존이 줄어든다 (bom-drawer-rules split)
+  test('배치 870, 1:2 — 서랍 존 362 (= 377 − 서랍 모듈 앞 밴드 15) → 대 180', () => {
     const L = layoutByGrades(
       Object.assign({ areaH: 870, fronts: frontsOf(gradesFromRatio('1:2')) }, SINK)
     );
     const [d] = drawersOf(L);
     expect(d).toMatchObject({ h: 432, grade: 'large', gradeAuto: true });
-    expect(d.zone.h).toBe(377);
+    expect(d.zone.h).toBe(362);
+    expect(L.split).toEqual({ y: 226, viaMid: true, doorH: 226, drawerH: 482 });
     expect(L.boxes).toEqual([expect.objectContaining({ size: 'large', h: 180, fits: true })]);
   });
 
-  test('배치 780, 2:2 — 존 224 에 대 박스(180 + 40)가 들어가서 대 180 (2026-10-24 큰 서랍 우선)', () => {
+  test('배치 780, 2:2 — 존 209 (224 − 앞 밴드 15) 에는 대 박스(180 + 40)가 안 들어가 중 120 (두 몸통, 2026-10-25)', () => {
     const L = layoutByGrades(
       Object.assign({ areaH: 780, fronts: frontsOf(gradesFromRatio('2:2')) }, SINK)
     );
     const [d] = drawersOf(L);
-    expect(d.zone.h).toBe(224);
-    expect(d).toMatchObject({ grade: 'large', gradeAuto: true });
-    expect(d.box.h).toBe(180);
+    expect(d.zone.h).toBe(209);
+    expect(d).toMatchObject({ grade: 'medium', gradeAuto: true });
+    expect(d.box.h).toBe(120);
   });
 
-  test('배치 780, 2:2:2 — 위 서랍 중, 아래 서랍 소 75 (존 131 은 중 박스 160 이 안 들어간다)', () => {
+  test('배치 780, 2:2:2 — 두 서랍 모두 소 75 (첫 존 151 = 166 − 앞 밴드 15, 둘째 131 — 중 박스 160 이 안 들어간다)', () => {
     const L = layoutByGrades(
       Object.assign({ areaH: 780, fronts: frontsOf(gradesFromRatio('2:2:2')) }, SINK)
     );
     const ds = drawersOf(L);
     expect(ds.map((f) => [f.zone.h, f.grade, f.box.h])).toEqual([
-      [166, 'medium', 120],
+      [151, 'small', 75],
       [131, 'small', 75],
     ]);
     // 전면 높이는 버줌 2 그대로 — 자동 등급이 소가 돼도 전면은 바뀌지 않는다
@@ -147,7 +149,7 @@ describe('layoutByGrades — 자동 등급', () => {
     const [d] = drawersOf(L);
     expect(d.gradeAuto).toBeUndefined();
     expect(d.grade).toBe('medium');
-    expect(d.box.size).toBe('large');
+    expect(d.box.size).toBe('medium');   // 존 209 (두 몸통 앞 밴드 15 뒤) — 대 220 이 안 들어간다
   });
 });
 
@@ -166,7 +168,7 @@ describe('BOM 이 자동 등급을 그대로 쓴다 (extractors.js)', () => {
     handle: '찬넬 (목찬넬)',
     topSizes: [{ w: '2400', d: '650' }],
   };
-  test('배치 780, 도어 + 서랍 1 (자동) → 대 박스 180 (존 224 에 180 + 40 이 들어간다, 2026-10-24 큰 서랍 우선)', () => {
+  test('배치 780, 도어 + 서랍 1 (자동) → 두 몸통 (도어 모듈 289 · 서랍 모듈 329), 존 209 라 중 박스 120 (2026-10-25)', () => {
     const mod = {
       id: 'la',
       type: 'storage',
@@ -195,9 +197,25 @@ describe('BOM 이 자동 등급을 그대로 쓴다 (extractors.js)', () => {
     };
     const rows = new MaterialExtractor()
       .extract({ items: [item] })
-      .materials.filter((m) => m.module === '하부장-자동');
-    expect(rows.filter((r) => r.part === '서랍측판').map((r) => r.h)).toEqual([180]);
-    expect(rows.find((r) => r.part === '서랍측판').note).toMatch(/^대 박스/);
+      .materials.filter((m) => m.module === '하부장-자동' || m.module === '하부장-자동-서랍모듈');
+    expect(rows.filter((r) => r.part === '서랍측판').map((r) => r.h)).toEqual([120]);
+    expect(rows.find((r) => r.part === '서랍측판').note).toMatch(/^중 박스/);
+    // 몸통 둘 — 측판 289 + 329 = 618, 따내기는 도어 모듈 상단 70 · 서랍 모듈 상단 90 (옛 중간 목찬넬)
+    const of = (mod, part) => rows.filter((r) => r.module === mod && r.part === part);
+    expect(of('하부장-자동', '측판').map((r) => [r.h, r.note])).toEqual([[289, '목찬넬 따내기 상단 70×40']]);
+    expect(of('하부장-자동-서랍모듈', '측판').map((r) => [r.h, r.note])).toEqual([[329, '목찬넬 따내기 상단 90×40']]);
+    expect(of('하부장-자동', '지판')).toHaveLength(1);
+    expect(of('하부장-자동-서랍모듈', '지판')).toHaveLength(1);
+    expect(of('하부장-자동-서랍모듈', '밴드').map((r) => r.qty)).toEqual([2]);
+    expect(of('하부장-자동', '뒷판').map((r) => r.h)).toEqual([288]);
+    expect(of('하부장-자동-서랍모듈', '뒷판').map((r) => r.h)).toEqual([328]);
+    // 처짐방지목은 도어 모듈에만 — 지판 위 ~ 앞 밴드 아래 (289 − 30 − 70)
+    expect(of('하부장-자동', '밴드(처짐방지)').map((r) => r.h)).toEqual([189]);
+    expect(of('하부장-자동-서랍모듈', '밴드(처짐방지)')).toEqual([]);
+    // 도어는 도어 모듈, 서랍 전면 · 박스 · 중간 목찬넬은 서랍 모듈
+    expect(of('하부장-자동', '도어')).toHaveLength(1);
+    expect(of('하부장-자동-서랍모듈', '서랍도어')).toHaveLength(1);
+    expect(of('하부장-자동-서랍모듈', '목찬넬(중간 전면)')).toHaveLength(1);
   });
 });
 

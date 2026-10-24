@@ -76,9 +76,9 @@ test('서랍장 = 마이다 — 서랍장 모듈은 맨 위 칸 전면까지 경
   assert.ok(hardware.filter((h) => h.category === '경첩').every((h) => !drawerKeys.has(h.moduleKey)), '서랍장 모듈에 경첩 없음');
   const topFront = materials.find((m) => m.slot === 'door' && drawerKeys.has(m.moduleKey));
   assert.equal(topFront.h, 244, '서랍 2단 위 244 전면 — 예전엔 [110, 568] 로 보링했다');
-  assert.equal(isMaidaRow(materials, topFront), true);
-  assert.equal(isMaidaRow(materials, materials.find((m) => m.slot === 'drawerFront')), true);
-  assert.equal(isMaidaRow(materials, materials.find((m) => m.slot === 'door' && !drawerKeys.has(m.moduleKey))), false);
+  assert.equal(isMaidaRow(materials, topFront, hardware), true);
+  assert.equal(isMaidaRow(materials, materials.find((m) => m.slot === 'drawerFront'), hardware), true);
+  assert.equal(isMaidaRow(materials, materials.find((m) => m.slot === 'door' && !drawerKeys.has(m.moduleKey)), hardware), false);
 
   const mats = materials.map((m) => ({ ...m, itemLabel: '싱크대' }));
   const hw = hardware.map((h) => ({ ...h, itemLabel: '싱크대' }));
@@ -112,7 +112,7 @@ test('작업지시서 — 실제 BOM 으로 도어재 발주서의 모든 여닫
   const mats = materials.map((m) => ({ ...m, itemLabel: m.itemLabel || itemLabel }));
   const hw = hardware.map((h) => ({ ...h, itemLabel: h.itemLabel || itemLabel }));
   const rows = boringRows(mats, hw);
-  const doorIds = new Set(mats.map((m, i) => [m, i]).filter(([m]) => m.slot === 'door' && !isMaidaRow(mats, m)).map(([m, i]) => partIdOf(m, i)));
+  const doorIds = new Set(mats.map((m, i) => [m, i]).filter(([m]) => m.slot === 'door' && !isMaidaRow(mats, m, hw)).map(([m, i]) => partIdOf(m, i)));
   const withBoring = new Set(rows.filter((r) => r.partId).map((r) => r.partId));
   for (const id of doorIds) assert.ok(withBoring.has(id), `${id} 컵 위치 없음`);
   assert.ok(rows.every((r) => r.partId), '도어 행을 못 찾은 경첩 없음');
@@ -134,7 +134,7 @@ test('모든 BOM 골든 설계 — 여닫이 도어 행마다(마이다 제외) 
     materials.forEach((m, i) => {
       if (m.slot !== 'door' || special.has(m.moduleKey)) return;
       const id = partIdOf(m, i);
-      if (isMaidaRow(materials, m)) {
+      if (isMaidaRow(materials, m, hardware)) {
         if (covered.has(id)) missing.push(`${name} ${id} 마이다인데 보링이 있다`);
         return;
       }
@@ -142,4 +142,18 @@ test('모든 BOM 골든 설계 — 여닫이 도어 행마다(마이다 제외) 
     });
   }
   assert.deepEqual(missing, []);
+});
+
+test('두 몸통 서랍장 — 도어 행과 서랍 전면 행의 라벨이 달라도 경첩이 없으면 마이다, 붙박이장 긴 도어(경첩 있음)는 아니다 (2026-10-25)', () => {
+  const mats = [
+    { part: '도어', slot: 'door', module: '하부장-서랍장', moduleKey: '0-l2' },
+    { part: '서랍도어', slot: 'drawerFront', module: '하부장-서랍장-서랍모듈', moduleKey: '0-l2' },
+    { part: '도어', slot: 'door', module: '긴옷', moduleKey: '0-w1' },
+    { part: '서랍도어', slot: 'drawerFront', module: '긴옷-서랍모듈', moduleKey: '0-w1' },
+  ];
+  const hw = [{ category: '경첩', moduleKey: '0-w1', qty: 4 }, { category: '레일', moduleKey: '0-l2', qty: 2 }];
+  assert.equal(isMaidaRow(mats, mats[0], hw), true);
+  assert.equal(isMaidaRow(mats, mats[2], hw), false);
+  // 철물에 moduleKey 가 없는 옛 스냅샷은 라벨 규칙만 — 라벨이 다르면 마이다로 보지 않는다
+  assert.equal(isMaidaRow(mats, mats[0], [{ category: '레일', qty: 2 }]), false);
 });
