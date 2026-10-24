@@ -159,7 +159,7 @@ describe('sink15 자리 (확정 사실)', () => {
     const back = part(m, '뒷판');
     expect(back.box.min[2]).toBe(-147.5 + 15);
     expect(back.box.max[2]).toBe(-147.5 + 18);
-    expect(part(m, '측판').features).toContainEqual(expect.objectContaining({ type: 'groove', u0: 15, u1: 18, depth: null }));
+    expect(part(m, '측판').features).toContainEqual(expect.objectContaining({ type: 'groove', u0: 15, u1: 18, depth: 6 }));   // 15T: 뒷판이 드는 5 + 여유 1 (D5)
     // 선반 2장 — 아래→위
     const s0 = part(m, '선반', 0), s1 = part(m, '선반', 1);
     expect(s0.id.endsWith('#0')).toBe(true);
@@ -281,7 +281,7 @@ describe('sink15 자리 (확정 사실)', () => {
     const of = (name) => m.parts.filter((p) => p.part === name && p.tags.box === 0);
     const side = of('서랍측판')[0], fb = of('서랍전후판')[0], bottom = of('서랍밑판')[0];
     const y0 = side.box.min[1];
-    expect(side.features).toEqual([{ type: 'groove', face: 'inner', u0: 0, u1: side.cut.w, v0: 15, v1: 18, depth: null, src: 'drawer-sakuri' }]);
+    expect(side.features).toEqual([{ type: 'groove', face: 'inner', u0: 0, u1: side.cut.w, v0: 15, v1: 18, depth: 10, src: 'drawer-sakuri' }]);   // D5 B: 우라가 한쪽 10 든다
     expect([bottom.box.min[1] - y0, bottom.box.max[1] - y0]).toEqual([15, 18]);
     expect(bottom.tags.mount).toBe('groove');
     expect(fb.box.min[1] - y0).toBe(18);

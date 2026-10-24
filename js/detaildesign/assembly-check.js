@@ -7,7 +7,8 @@
  * 검사 (code → 수준):
  *   part-overlap       error    한 모듈 안 두 판재가 파고든다 — 부피 > 1mm³ 이고 깊이 > 0.1mm (T1 기준).
  *                               면 접촉(맞대기)은 부피 0 이라 겹침이 아니다. 사쿠리 뒷판이 측판 홈(groove) 자리 안에서만
- *                               측판과 겹치는 것은 홈에 끼운 것이라 뺀다 (홈 깊이 D5 미정이라 명세가 측판에서 홈을 빼지 않았다).
+ *                               측판과 겹치는 것은 홈에 끼운 것이라 뺀다 (명세는 판 상자에서 홈을 빼지 않는다). 2026-10-25 D5 부터
+ *                               홈 깊이가 있으면 측판 두께 방향으로 홈 깊이보다 깊이 든 것은 끼운 것이 아니다 (겹침).
  *   back-cover         error    뒷판이 양쪽 측판에 걸치지 않는다 — 뒷판 가로 범위가 두 측판 안쪽 면을 모두 넘어야 한다
  *                               (홈에 끼우든 뒤에 덮든). #832 이전처럼 측판 사이에 끼운 옛 크기 (W−2T) 뒷판을 잡는다.
  *   back-contact       error    뒷판이 붙을 자리에 없다 — mount 'groove' 면 측판 홈의 깊이 방향 범위 안,
@@ -309,21 +310,27 @@
 
   const AXES = { '+x': [1, 0, 0], '-x': [-1, 0, 0], '+y': [0, 1, 0], '-y': [0, -1, 0], '+z': [0, 0, 1], '-z': [0, 0, -1] };
 
-  /** 판재의 홈(groove) 자리 — 재단면 u0..u1 × v0..v1, 두께 전체 (홈 깊이 D5 미정). 모듈 로컬 상자. */
+  /**
+   * 판재의 홈(groove) 자리 — 재단면 u0..u1 × v0..v1, 두께 전체. 모듈 로컬 상자.
+   *   depth 는 홈 깊이(2026-10-25 D5, 없으면 null), nAxis 는 판 두께 방향 축 번호 (0 x · 1 y · 2 z).
+   */
   function grooveBoxesOf(Asm, part) {
-    const U = AXES[part.frame.u], V = AXES[part.frame.v];
+    const U = AXES[part.frame.u], V = AXES[part.frame.v], N = AXES[part.frame.n];
+    const nAxis = N.findIndex((c) => c !== 0);
     return (part.features || []).filter((f) => f.type === 'groove').map((f) => {
       const o = [0, 1, 2].map((i) => part.frame.o[i] + U[i] * f.u0 + V[i] * f.v0);
-      return Asm.boxOfFrame(Object.assign({}, part.frame, { o }), f.u1 - f.u0, f.v1 - f.v0, part.t);
+      return Object.assign(Asm.boxOfFrame(Object.assign({}, part.frame, { o }), f.u1 - f.u0, f.v1 - f.v0, part.t),
+        { depth: f.depth == null ? null : Number(f.depth), nAxis });
     });
   }
 
-  /** 뒷판이 측판 홈 자리 안에서만 측판과 겹치는가. */
+  /** 뒷판이 측판 홈 자리 안에서만, 홈 깊이 안으로만 측판과 겹치는가. */
   function seatedInGroove(Asm, back, side) {
     if (!back.tags || back.tags.mount !== 'groove') return false;
     const both = boxAnd(back.box, side.box);
     if (!both) return false;
-    return grooveBoxesOf(Asm, side).some((g) => boxInside(both, g, EPS));
+    return grooveBoxesOf(Asm, side).some((g) => boxInside(both, g, EPS)
+      && (g.depth == null || both.max[g.nAxis] - both.min[g.nAxis] <= g.depth + EPS));
   }
 
   /**
