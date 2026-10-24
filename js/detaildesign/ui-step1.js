@@ -1149,6 +1149,20 @@
       }
 
       /**
+       * 2026-10-25: 멍장의 벽 쪽 — 플래너 구조 칸 순서가 [멍][도어] 면 벽이 왼쪽(도어 오른쪽) = true, [도어][멍] 이면 false.
+       *   플래너 3D 와 같은 읽기다 (mockup-structure.html `doorRight = areaTypes[i + 1] === 'door'`).
+       *   명세(bom-assembly.js blindGeomOf)가 품목 secondaryStartSide 보다 먼저 쓴다 — ㄷ자 두 멍장 · 벽이 오른쪽인 멍장.
+       *   칸이 그 두 모양이 아니면 null (싣지 않는다).
+       */
+      function _blindDoorRightOf(s) {
+        const t = (s && Array.isArray(s.areaTypes)) ? s.areaTypes : [];
+        if (t.length !== 2) return null;
+        if (t[0] === 'blind' && t[1] === 'door') return true;
+        if (t[0] === 'door' && t[1] === 'blind') return false;
+        return null;
+      }
+
+      /**
        * 2026-09-15: 서랍 규칙 블록 — 플래너 구조 `s.drawer` {rail, sakuri, boxT} 를 정규화해 BOM 모듈 `drawer` 로 넘긴다.
        *   rail 'under'(댐핑 언더레일) | 'ball'(댐핑 볼레일) · sakuri 측판 사쿠리 · boxT 서랍 자재 두께 15/18 (0 = 몸통 두께).
        *   옛 평면 필드 s.drawerRail 도 읽는다. extractors.js drawerRulesOf 가 같은 모양을 받는다.
@@ -1555,6 +1569,8 @@
               isFixed: !!m.isFixed,
               _x: Number(m.x) || 0,
             });
+            const blindDoorRight = _blindDoorRightOf(s);
+            if (blindDoorRight != null) out[out.length - 1].blindDoorRight = blindDoorRight;
             placeLast(m, 0, Number(m.W) || 0);
             _attachCutouts(out.slice(-1), m, s);   // 2026-10-19: 멍장도 몸통 한 벌
             return;
