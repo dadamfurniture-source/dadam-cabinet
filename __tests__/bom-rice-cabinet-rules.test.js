@@ -30,15 +30,15 @@ describe('밥솥장 규칙 숫자', () => {
   });
 });
 
-describe('밥솥장 부재 — 상자는 오픈장 규칙 그대로', () => {
+describe('밥솥장 부재 — 오픈 상자는 오픈장 규칙 그대로', () => {
   const dims = { W: 450, H: 500, D: 570 };
 
-  test('측판·천지판·뒷판 치수가 오픈장 partsOf 와 같고, 천지판 비고에 슬라이딩 선반 [확인 필요]', () => {
+  test('측판·천지판·뒷판 치수가 오픈장 partsOf 와 같다 (슬라이딩 선반은 shelfPartsOf — 비고 [확인 필요] 없음)', () => {
     const parts = R.partsOf(dims);
     const open = OC.partsOf(dims);
     expect(parts.map((p) => [p.part, p.material, p.t, p.w, p.h, p.qty]))
       .toEqual(open.map((p) => [p.part, p.material, p.t, p.w, p.h, p.qty]));
-    expect(parts.find((p) => p.part === '천지판').note).toMatch(/슬라이딩 선반 \[확인 필요\]/);
+    expect(parts.every((p) => !p.note)).toBe(true);
     // 기본 외경 450×500 의 내경은 최소 내경을 넘는다
     const g = R.innerOf(dims);
     expect([g.innerW, g.innerH]).toEqual([414, 464]);
@@ -49,6 +49,43 @@ describe('밥솥장 부재 — 상자는 오픈장 규칙 그대로', () => {
     expect(R.doorOf(dims, 'swing')).toMatchObject({ type: 'swing', w: 446, h: 496, qty: 1, note: '' });
     expect(R.doorOf(dims, 'liftup')).toMatchObject({ type: 'liftup', w: 446, h: 496 });
     expect(R.doorOf(dims, 'pocket').note).toMatch(/\[확인 필요\]/);
+  });
+});
+
+describe('밥솥장 슬라이딩 선반 — 2026-10-25 사장님', () => {
+  const tall = { W: 600, H: 500, D: 620 };   // 키큰장 가운데 단 가전 칸 (레일 500)
+  const rows = (door, T) => R.shelfPartsOf(tall, door, T, 500).map((p) => [p.part, p.material, p.t, p.w, p.h, p.qty]);
+
+  test('오픈 — 18T MDF: 선반 (내경 564 − 42 + 30) × (레일 − 10) · 보강목 80 × 2 · 마이다 (내경 − 5) × 95', () => {
+    expect(R.hasDoorBody('none')).toBe(false);
+    expect(rows('none', 15)).toEqual([
+      ['밥솥장 선반', 'MDF', 18, 552, 490, 1],
+      ['밥솥장 보강목', 'MDF', 18, 80, 490, 2],
+      ['밥솥장 마이다', 'MDF', 18, 559, 95, 1],
+    ]);
+  });
+
+  test('여닫이 — 몸통 PB 두께, 내경 570 · 경첩 쪽 추가 목대 (레일 + 30) × 100', () => {
+    expect(R.hasDoorBody('swing')).toBe(true);
+    expect(rows('swing', 15)).toEqual([
+      ['밥솥장 선반', 'PB', 15, 558, 490, 1],
+      ['밥솥장 보강목', 'PB', 15, 80, 490, 2],
+      ['밥솥장 마이다', 'PB', 15, 565, 95, 1],
+      ['밥솥장 추가 목대', 'PB', 15, 530, 100, 1],
+    ]);
+  });
+
+  test('리프트 · 포켓 — 도어 몸통이지만 추가 목대는 여닫이만 · 18T 몸통 옵션이면 18T PB', () => {
+    expect(rows('liftup', 15).map((r) => r[0])).toEqual(['밥솥장 선반', '밥솥장 보강목', '밥솥장 마이다']);
+    expect(rows('pocket', 18)).toEqual([
+      ['밥솥장 선반', 'PB', 18, 552, 490, 1],
+      ['밥솥장 보강목', 'PB', 18, 80, 490, 2],
+      ['밥솥장 마이다', 'PB', 18, 559, 95, 1],
+    ]);
+  });
+
+  test('레일 길이를 모르면 내지 않는다', () => {
+    expect(R.shelfPartsOf(tall, 'none', 15, 0)).toEqual([]);
   });
 });
 
