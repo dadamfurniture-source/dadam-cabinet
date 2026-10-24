@@ -21,6 +21,8 @@ const {
   plannerExportStableJson, plannerExportAssemblyHash, PLANNER_EXPORT_CAD_VERSION,
 } = require('../js/planner/planner-export.js');
 const nodeCrypto = require('crypto');
+const { plannerFinishCatalog } = require('../js/planner/planner-finish.js');
+const FinishColor = require('../js/detaildesign/bom-finish-color.js');
 const subtle = nodeCrypto.webcrypto.subtle;
 const { GLTFExporter } = require('three/examples/jsm/exporters/GLTFExporter.js');
 
@@ -441,7 +443,7 @@ describe.each(Object.keys(WARDROBE_SCENES))('%s 장면 → CAD 명세 (붙박이
  *   moduleKey 가 플래너 칸(cells)과 맞아야 자리를 받는다 — 자리 못 찾은 모듈 0 이어야 한다.
  */
 describe.each(['straight', 'drawer'])('%s 장면 → 동결본 GLB 올리기', (name) => {
-  let p, PE, frozen, sent;
+  let p, PE, frozen, sent, catalog;
   beforeAll(async () => {
     p = SCENES[name]({ design: 'frozen', item: name });
     await new Promise((r) => setTimeout(r, 150));
@@ -451,13 +453,21 @@ describe.each(['straight', 'drawer'])('%s 장면 → 동결본 GLB 올리기', (
     const payload = p.g('buildPlannerPayload')('PLANNER_STATE');
     const specs = JSON.parse(JSON.stringify(item.specs || {}));
     const conv = P._convertPlannerModules(payload, specs);
-    const design = { items: [Object.assign({}, item, { specs, modules: conv.modules })] };
+    // 디테일 마감 모델(planner-finish.js) — 품목 도어 · 서랍 앞판 · 몸통 코드. 추출기가 BOM 행 finishCode 로 낸다
+    const detail = { version: 1, item: { door: { code: 'PET-OAK-M' }, drawerFront: { code: 'PET-WNT-M' }, body: { code: 'MFB-WHT' } }, sections: {}, modules: {}, parts: {} };
+    const design = { items: [Object.assign({}, item, { specs, detail, modules: conv.modules })] };
     const materials = new P.MaterialExtractor().extract(design).materials;
     const assembly = JSON.parse(JSON.stringify(Asm.of(design, { materials })));   // JSONB 왕복
+    // 마감 코드 — 워커 finishCodesOf 와 같은 규칙 (BOM 행 partId → finishCode, 빈 코드는 뺀다)
+    const finishCodes = {};
+    materials.forEach((m) => { if (m.partId && m.finishCode) finishCodes[String(m.partId)] = String(m.finishCode); });
     frozen = {
-      snapshot_id: 'S-frozen', rev: 4, assembly,
+      snapshot_id: 'S-frozen', rev: 4, assembly, finish_codes: finishCodes,
       assembly_hash: nodeCrypto.createHash('sha256').update(plannerExportStableJson(assembly), 'utf8').digest('hex'),
     };
+    // 카탈로그 — 디테일 모드 로컬 정본 (PlannerCatalog 가 DB 를 못 읽을 때와 같은 표)
+    const cat = plannerFinishCatalog(FinishColor);
+    catalog = { byCode: Object.fromEntries(cat.entries.map((e) => [e.code, e])) };
     sent = [];
     PE = p.g('PlannerExport');
     PE._o.workflow = {
@@ -466,10 +476,40 @@ describe.each(['straight', 'drawer'])('%s 장면 → 동결본 GLB 올리기', (
     };
     PE._o.subtle = subtle;
     PE._o.GLTFExporter = GLTFExporter;
+    PE._o.finishCatalog = async () => catalog;
     PE.setAdmin(true);
   });
 
+  test('마감 색 — 도어 · 서랍 전면 판재는 BOM 마감 코드의 카탈로그 색, 재질 이름 = 마감 코드', async () => {
+    sent.length = 0;
+    await PE.uploadFrozen();
+    const ext = glbJson(sent.find((x) => x.kind === 'exterior').glb);
+    const want = [...new Set(Object.values(frozen.finish_codes))].filter((c) => catalog.byCode[c]);
+    expect(want.length).toBeGreaterThan(0);
+    const mats = new Map((ext.materials || []).map((m) => [m.name, m]));
+    const used = want.filter((c) => mats.has(c));
+    expect(used.length).toBeGreaterThan(0);
+    // sRGB hex → 선형 baseColorFactor (three ColorManagement)
+    const lin = (v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+    used.forEach((c) => {
+      const hex = catalog.byCode[c].hex.replace('#', '');
+      const rgb = [0, 2, 4].map((i) => lin(parseInt(hex.slice(i, i + 2), 16) / 255));
+      const f = (mats.get(c).pbrMetallicRoughness || {}).baseColorFactor || [1, 1, 1, 1];   // 흰색은 glTF 기본값이라 빠진다
+      rgb.forEach((v, i) => expect(f[i]).toBeCloseTo(v, 3));
+    });
+    // 도어 메시는 마감 재질을 쓴다
+    const doorParts = frozen.assembly.items[0].modules.flatMap((m) => m.parts).filter((pt) => pt.vis === 'exterior' && frozen.finish_codes[pt.rowPartId] && catalog.byCode[frozen.finish_codes[pt.rowPartId]]);
+    expect(doorParts.length).toBeGreaterThan(0);
+    const finishMatIdx = new Set((ext.materials || []).map((m, i) => (want.includes(m.name) ? i : -1)).filter((i) => i >= 0));
+    const finishedMeshes = (ext.meshes || []).filter((m) => m.primitives.some((pr) => finishMatIdx.has(pr.material)));
+    expect(finishedMeshes.length).toBeGreaterThan(0);
+    // 고객용 규칙은 그대로 — 마감 코드 말고는 partId · moduleKey 가 없다
+    const txt = JSON.stringify(ext);
+    expect(/rowPartId|moduleKey|partId/.test(txt)).toBe(false);
+  });
+
   test('전체 · 외관 두 벌 — 루트 assemblyHash = 동결 명세 해시, 자리 못 찾은 모듈 0, 외관 1MB 이하', async () => {
+    sent.length = 0;
     const r = await PE.uploadFrozen();
     expect(r).not.toBeNull();
     expect(sent.map((x) => [x.snapshotId, x.kind])).toEqual([['S-frozen', 'cad'], ['S-frozen', 'exterior']]);

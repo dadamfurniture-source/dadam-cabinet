@@ -91,7 +91,7 @@ test('cadPathOf — 고객용은 exterior/ 접두사, 파일 이름에 sha256 �
 
 const env = { SUPABASE_URL: 'https://sb.test', SUPABASE_SERVICE_ROLE_KEY: 'svc' };
 const admin = { id: 'u-admin' };
-const SNAP = { id: 'S1', design_id: 'D1', rev: 3, content_hash: 'c'.repeat(64), bom_payload: { materials: [], assembly: spec } };
+const SNAP = { id: 'S1', design_id: 'D1', rev: 3, content_hash: 'c'.repeat(64), bom_payload: { materials: [{ partId: '0-u1-door#0-0', finishCode: 'PET-OAK-M' }, { partId: '0-u1-body:side-0', finishCode: '' }], assembly: spec } };
 let realFetch, calls, db;
 
 function respond(body, status = 200) {
@@ -171,6 +171,8 @@ test('동결 명세 — 최신 스냅샷 명세와 해시 (관리자), 명세 �
   assert.equal(r.snapshot_id, 'S1');
   assert.equal(r.assembly_hash, sha(plannerExportStableJson(spec)));
   assert.deepEqual(r.assembly, spec);
+  // 마감 코드 — 빈 코드는 뺀다 (GLB 마감 색)
+  assert.deepEqual(r.finish_codes, { '0-u1-door#0-0': 'PET-OAK-M' });
   await assert.rejects(getFrozenAssembly(env, { designId: 'D1', user: { id: 'u-x' } }), ForbiddenError);
   db.snap = Object.assign({}, SNAP, { bom_payload: { materials: [] } });
   await assert.rejects(getFrozenAssembly(env, { designId: 'D1', user: admin }), ConflictError);

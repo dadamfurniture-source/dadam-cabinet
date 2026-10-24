@@ -134,7 +134,16 @@ async function frozenSnapshot(env, snapshotId) {
   return { snap, assembly };
 }
 
-/** 최신 동결 스냅샷(rev 가 가장 큰 것)의 명세 + 해시 (관리자 — 남의 설계도 연다) */
+/** 동결 BOM 행의 마감 코드 { partId: finishCode } — 빈 코드는 뺀다 (GLB 마감 색, 플래너가 카탈로그로 색을 찾는다) */
+export function finishCodesOf(materials) {
+  const out = {};
+  (Array.isArray(materials) ? materials : []).forEach((m) => {
+    if (m && m.partId && m.finishCode) out[String(m.partId)] = String(m.finishCode);
+  });
+  return out;
+}
+
+/** 최신 동결 스냅샷(rev 가 가장 큰 것)의 명세 + 해시 + 마감 코드 (관리자 — 남의 설계도 연다) */
 export async function getFrozenAssembly(env, { designId, user }) {
   await assertAdmin(env, user);
   const latest = await selectOne(env, 'design_snapshots', { design_id: `eq.${designId}`, select: 'id', order: 'rev.desc' });
@@ -143,6 +152,7 @@ export async function getFrozenAssembly(env, { designId, user }) {
   return {
     snapshot_id: snap.id, design_id: snap.design_id, rev: snap.rev, content_hash: snap.content_hash,
     assembly, assembly_hash: await assemblyHashOf(assembly),
+    finish_codes: finishCodesOf(snap.bom_payload && snap.bom_payload.materials),
   };
 }
 
