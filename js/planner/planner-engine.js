@@ -580,6 +580,8 @@ function autoCalcModule(m, s, applianceRanges) {
     s.drawerHeight = 200;
     s.bottomType = 'drawer';
     s.bottomDirection = 'left';
+    // 2026-10-24: 자동계산 하부장은 "도어 + 아래 서랍" 이다 — 서랍장 표시(위 칸도 서랍)는 끈다
+    if (s.drawer && s.drawer.topDrawer) s.drawer = Object.assign({}, s.drawer, { topDrawer: false });
   } else {
     s.horizontalLayout = 'doorOnly';
   }
