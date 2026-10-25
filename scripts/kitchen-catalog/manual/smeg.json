@@ -1,0 +1,29 @@
+{
+ "_설명": "스메그 보충값 — brands/smeg.py 가 읽어 같은 모델 코드 행의 빈 칸만 채운다 (to_sql 에 따로 넘기는 행 파일이 아니다. 넘겨도 'rows' 가 없어 0행). 설치 공간 숫자가 공식 도면 그림에만 있어 눈으로 읽어 옮겼다 → 태그 '이미지판독' (미검증, 사장님 확인 필요). 도면: 스메그 제조사 제품 시트 PDF (https://pi-exchange.smeg.it/catalog/<코드>/en-ZW 4쪽 — smeg.com 제품 페이지 'Product sheet' 링크, robots.txt 없음) · 수입사 상세 페이지 설치 그림 (2026-10-25).",
+ "models": {
+  "SO6102TB3": {"tag": "이미지판독", "source": "https://pi-exchange.smeg.it/catalog/SO6102TB3/en-ZW 4쪽 설치 도면",
+   "niche_min_w_mm": 560, "niche_max_w_mm": 568, "niche_min_h_mm": 583, "niche_max_h_mm": 585, "niche_min_d_mm": 560,
+   "niche_raw": "도면(그림): 너비 560-568 · 높이 583-585 · 깊이 min.560 · 그 밖 그림 표기 490-500 (바닥 깊이 방향) · min.15 (하부장 설치 그림, 상판 아래) · 35-40 · 400-554 (장 윗면 뒤쪽)"},
+  "SO6102TG": {"tag": "이미지판독", "source": "https://pi-exchange.smeg.it/catalog/SO6102TB3/en-ZW 4쪽 설치 도면 (같은 리니아 SO6102 — TG 는 색상 변형)",
+   "niche_min_w_mm": 560, "niche_max_w_mm": 568, "niche_min_h_mm": 583, "niche_max_h_mm": 585, "niche_min_d_mm": 560,
+   "niche_raw": "도면(그림): 너비 560-568 · 높이 583-585 · 깊이 min.560 · 그 밖 그림 표기 490-500 (바닥 깊이 방향) · min.15 (하부장 설치 그림, 상판 아래) · 35-40 · 400-554 (장 윗면 뒤쪽)"},
+  "SOP6902S2PP": {"tag": "이미지판독", "source": "https://pi-exchange.smeg.it/catalog/SOP6902S2PP/en-ZW 4쪽 설치 도면",
+   "niche_min_w_mm": 560, "niche_max_w_mm": 568, "niche_min_h_mm": 583, "niche_max_h_mm": 585, "niche_min_d_mm": 560,
+   "niche_raw": "도면(그림): 너비 560-568 · 높이 583-585 · 깊이 min.560 · 그 밖 그림 표기 490-500 (바닥 깊이 방향) · min.15 (하부장 설치 그림, 상판 아래) · 35-40 · 400-554 (장 윗면 뒤쪽)"},
+  "SOP6902S2PN": {"tag": "이미지판독", "source": "https://pi-exchange.smeg.it/catalog/SOP6902S2PP/en-ZW 4쪽 설치 도면 (같은 빅토리아 SOP6902 — PN 은 색상 변형, 제품 시트의 'Alternative products')",
+   "niche_min_w_mm": 560, "niche_max_w_mm": 568, "niche_min_h_mm": 583, "niche_max_h_mm": 585, "niche_min_d_mm": 560,
+   "niche_raw": "도면(그림): 너비 560-568 · 높이 583-585 · 깊이 min.560 · 그 밖 그림 표기 490-500 (바닥 깊이 방향) · min.15 (하부장 설치 그림, 상판 아래) · 35-40 · 400-554 (장 윗면 뒤쪽)"},
+  "SOP6902S2PX": {"tag": "이미지판독", "source": "https://pi-exchange.smeg.it/catalog/SOP6902S2PP/en-ZW 4쪽 설치 도면 (같은 빅토리아 SOP6902 — PX 는 색상 변형, 제품 시트의 'Alternative products')",
+   "niche_min_w_mm": 560, "niche_max_w_mm": 568, "niche_min_h_mm": 583, "niche_max_h_mm": 585, "niche_min_d_mm": 560,
+   "niche_raw": "도면(그림): 너비 560-568 · 높이 583-585 · 깊이 min.560 · 그 밖 그림 표기 490-500 (바닥 깊이 방향) · min.15 (하부장 설치 그림, 상판 아래) · 35-40 · 400-554 (장 윗면 뒤쪽)"},
+  "SO6104APB3": {"tag": "이미지판독", "source": "https://pi-exchange.smeg.it/catalog/SO6104APB3/en-ZW 4쪽 설치 도면",
+   "niche_min_w_mm": 560, "niche_max_w_mm": 568, "niche_min_h_mm": 583, "niche_max_h_mm": 585, "niche_min_d_mm": 560,
+   "niche_raw": "도면(그림): 너비 560-568 · 높이 583-585 · 깊이 min.560 · 그 밖 그림 표기 490-500 (바닥 깊이 방향) · min.15 (하부장 설치 그림, 상판 아래) · 35-40 · 400-554 (장 윗면 뒤쪽)"},
+  "SO6302TX": {"tag": "이미지판독", "source": "https://pi-exchange.smeg.it/catalog/SO6302TX/en-ZW 4쪽 설치 도면",
+   "niche_min_w_mm": 560, "niche_max_w_mm": 568, "niche_min_h_mm": 583, "niche_max_h_mm": 585, "niche_min_d_mm": 560,
+   "niche_raw": "도면(그림): 너비 560-568 · 높이 583-585 · 깊이 min.560 · 그 밖 그림 표기 490-500 (바닥 깊이 방향) · min.15 (하부장 설치 그림, 상판 아래) · 35-40 · 400-554 (장 윗면 뒤쪽)"},
+  "ST2FABCRK2": {"tag": "이미지판독", "source": "https://www.j-collection.co.kr/images/product_detail/ST2FAB2/st2fab2_img_15.png (수입사 상세 페이지 설치 그림)",
+   "niche_min_w_mm": 600, "niche_min_h_mm": 820, "niche_min_d_mm": 575,
+   "niche_raw": "그림: 하부장 폭 600 · 높이 820 min · 깊이 575 min / 제품 598 · 깊이 584 (핸들 포함 630) · 높이 818 - 888 · 도어 720 · 걸레받이 120-190"}
+ }
+}
