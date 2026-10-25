@@ -80,6 +80,8 @@
       .modal-body { padding: 18px; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
       .modal-body .field { display: flex; flex-direction: column; gap: 4px; }
       .modal-body .field.full { grid-column: 1/-1; }
+      .modal-body .gas-field label { display: flex; align-items: center; gap: 6px; font-weight: normal; }
+      .modal-body .gas-field .label-like { font-size: 12px; color: #666; font-weight: 500; }
       .modal-body label { font-size: 12px; color: #666; font-weight: 500; }
       .modal-body input, .modal-body select, .modal-body textarea { padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; font-family: inherit; }
       .modal-body input:focus, .modal-body select:focus, .modal-body textarea:focus { outline: none; border-color: #007bff; }
@@ -121,7 +123,7 @@
     <div class="main-content" id="mainContent">
       <div class="header">
         <h1>가전 모델 관리</h1>
-        <div style="font-size: 13px; color: #666">refrigerator · hood · dishwasher · sink · cooktop · oven · microwave · rice_cooker</div>
+        <div style="font-size: 13px; color: #666">refrigerator · hood · dishwasher · sink · cooktop · oven · microwave · rice_cooker · range · faucet</div>
       </div>
 
       <div class="tabs">
@@ -135,6 +137,9 @@
         <!-- 2026-10-25 주방가전 수집 (scripts/kitchen-catalog) — 밥솥 종류는 database/appliance-models-kitchen.sql 을 먼저 실행 -->
         <button type="button" data-cat="oven">🍳 오븐</button>
         <button type="button" data-cat="rice_cooker">🍚 밥솥</button>
+        <!-- 2026-10-25 사장님 답: 빌트인 가스오븐레인지는 따로 종류 · 수전 구멍은 수전 기준 -->
+        <button type="button" data-cat="range">🔥 가스오븐레인지</button>
+        <button type="button" data-cat="faucet">🚰 수전</button>
       </div>
 
       <div class="toolbar">
@@ -200,6 +205,8 @@
               <option value="washing_machine">🧺 세탁기</option>
               <option value="microwave">📻 전자레인지</option>
               <option value="rice_cooker">🍚 밥솥</option>
+              <option value="range">🔥 가스오븐레인지</option>
+              <option value="faucet">🚰 수전</option>
             </select>
           </div>
           <div class="field">
@@ -316,6 +323,12 @@
             <label for="f-fh">수전 타공 지름 (mm)</label>
             <input type="number" id="f-fh" min="1" />
           </div>
+          <!-- 가스 쿡탑 · 가스오븐레인지가 쓸 수 있는 가스 (database/appliance-models-kitchen.sql gas_types) -->
+          <div class="field gas-field">
+            <span class="label-like">쓸 수 있는 가스</span>
+            <label><input type="checkbox" id="f-gas-lng" /> LNG (도시가스)</label>
+            <label><input type="checkbox" id="f-gas-lpg" /> LPG</label>
+          </div>
           <div class="field full">
             <label>비고</label>
             <textarea id="f-notes" placeholder="추가 메모"></textarea>
@@ -333,7 +346,9 @@
       let currentCategory = 'refrigerator';
       let currentRows = [];
       let canEdit = false; // admin · super_admin 만 추가·수정·삭제 (init 에서 정한다)
-      const CUTOUT_CATS = ['sink', 'cooktop'];
+      const CUTOUT_CATS = ['sink', 'cooktop', 'range'];   // 상판 타공 W · D · R
+      const FAUCET_CATS = ['sink', 'faucet'];             // 수전 타공 지름 (2026-10-25 — 수전 기준으로 모은다)
+      const GAS_CATS = ['cooktop', 'range'];              // 쓸 수 있는 가스 LNG · LPG
 
       // 냉장고 세부 구분 (appliance_models.subtype — database/appliance-models-catalog.sql)
       const FRIDGE_SUBTYPES = {
@@ -349,9 +364,10 @@
         cooktop: { induction: '인덕션', highlight: '하이라이트', hybrid: '하이브리드', gas: '가스' },
         hood: { chimney: '침니형', slim: '슬림형', built_in: '빌트인', island: '아일랜드' },
         rice_cooker: { pressure_ih: 'IH 압력', ih: 'IH', pressure: '압력', electric: '전기 (마이컴)' },
+        range: { gas: '가스', induction: '인덕션', hybrid: '하이브리드', highlight: '하이라이트' },
       };
       // 대량 수집 칸(구분 · 설치 방식 · 라인 · 코드 · 니치 · 뒤 여유 · 사진 원본)을 쓰는 종류 — 수집기가 모으는 종류
-      const COLLECTED_CATS = Object.keys(SUBTYPES);
+      const COLLECTED_CATS = [...Object.keys(SUBTYPES), 'faucet'];   // 수전은 세부 구분 없이 수집 칸만
       const subtypeOptions = (cat) => Object.entries(SUBTYPES[cat] || {}).map(([k, v]) => `<option value="${k}">${escHtml(v)}</option>`).join('');
       const INSTALL_LABEL = { freestanding: '일반', kitchen_fit: '키친핏', built_in: '빌트인' };
       const escHtml = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -421,7 +437,8 @@
       function toggleCutoutFields() {
         const cat = document.getElementById('f-category').value;
         document.querySelectorAll('.cutout-field').forEach((el) => { el.style.display = CUTOUT_CATS.includes(cat) ? '' : 'none'; });
-        document.querySelectorAll('.faucet-field').forEach((el) => { el.style.display = cat === 'sink' ? '' : 'none'; });
+        document.querySelectorAll('.faucet-field').forEach((el) => { el.style.display = FAUCET_CATS.includes(cat) ? '' : 'none'; });
+        document.querySelectorAll('.gas-field').forEach((el) => { el.style.display = GAS_CATS.includes(cat) ? '' : 'none'; });
         document.querySelectorAll('.collected-field').forEach((el) => { el.style.display = COLLECTED_CATS.includes(cat) ? '' : 'none'; });
         const sel = document.getElementById('f-subtype');
         const keep = sel.value;
@@ -532,7 +549,7 @@
           <tr>
             <td class="photo">${photoCell(r)}</td>
             <td>${escHtml(r.brand)}</td>
-            <td>${escHtml(r.model_name)}${r.subtype || r.line || r.install_type ? `<small class="sub">${escHtml([(SUBTYPES[r.category] || {})[r.subtype], r.line, INSTALL_LABEL[r.install_type]].filter(Boolean).join(' · '))}</small>` : ''}</td>
+            <td>${escHtml(r.model_name)}${r.subtype || r.line || r.install_type || (r.gas_types || []).length ? `<small class="sub">${escHtml([(SUBTYPES[r.category] || {})[r.subtype], r.line, INSTALL_LABEL[r.install_type], (r.gas_types || []).join('/')].filter(Boolean).join(' · '))}</small>` : ''}</td>
             <td>${escHtml(r.model_code)}${(r.model_codes || []).length > 1 ? `<small class="sub" title="${escHtml(r.model_codes.join(', '))}">외 ${r.model_codes.length - 1}개</small>` : ''}</td>
             <td class="right">${r.width_mm}</td>
             <td class="right">${r.depth_mm}</td>
@@ -580,6 +597,8 @@
         document.getElementById('f-cd').value         = row?.cutout_d_mm ?? '';
         document.getElementById('f-cr').value         = row?.cutout_r_mm ?? '';
         document.getElementById('f-fh').value         = row?.faucet_hole_mm ?? '';
+        document.getElementById('f-gas-lng').checked  = (row?.gas_types || []).includes('LNG');
+        document.getElementById('f-gas-lpg').checked  = (row?.gas_types || []).includes('LPG');
         document.getElementById('f-bg').value         = row?.back_gap_mm ?? '';
         [['f-nw', 'niche_min_w_mm'], ['f-nh', 'niche_min_h_mm'], ['f-nd', 'niche_min_d_mm'],
          ['f-nw2', 'niche_max_w_mm'], ['f-nh2', 'niche_max_h_mm'], ['f-nd2', 'niche_max_d_mm']]
@@ -634,13 +653,18 @@
             payload.image_source_url = src || null;
           }
         }
-        // 타공 칸은 싱크볼 · 쿡탑만 보낸다 — 다른 가전은 칼럼(work-reports.sql) 유무와 상관없이 저장되게
+        // 타공 칸은 싱크볼 · 쿡탑 · 가스오븐레인지, 수전 지름은 싱크볼 · 수전, 가스는 쿡탑 · 가스오븐레인지만 보낸다 —
+        //   다른 가전은 칼럼(work-reports.sql · appliance-models-kitchen.sql) 유무와 상관없이 저장되게
+        const int = (id) => { const v = document.getElementById(id).value; return v === '' ? null : parseInt(v, 10); };
         if (CUTOUT_CATS.includes(payload.category)) {
-          const int = (id) => { const v = document.getElementById(id).value; return v === '' ? null : parseInt(v, 10); };
           payload.cutout_w_mm = int('f-cw');
           payload.cutout_d_mm = int('f-cd');
           payload.cutout_r_mm = int('f-cr');
-          payload.faucet_hole_mm = payload.category === 'sink' ? int('f-fh') : null;
+        }
+        if (FAUCET_CATS.includes(payload.category)) payload.faucet_hole_mm = int('f-fh');
+        if (GAS_CATS.includes(payload.category)) {
+          const gas = [['f-gas-lng', 'LNG'], ['f-gas-lpg', 'LPG']].filter(([id]) => document.getElementById(id).checked).map(([, g]) => g);
+          payload.gas_types = gas.length ? gas : null;
         }
         if (!payload.brand || !payload.model_name || !payload.width_mm || !payload.depth_mm || !payload.height_mm) {
           alert('필수값: 브랜드 / 모델명 / W / D / H');
@@ -653,7 +677,7 @@
         if (error) {
           // 타공 칼럼이 없으면 database/work-reports.sql 을 아직 실행하지 않은 것
           alert('저장 실패: ' + error.message + (/cutout|faucet/.test(error.message) ? '\n\n타공 칸은 database/work-reports.sql 을 Supabase 에서 실행해야 저장됩니다.' : '')
-            + (/subtype_chk|category_check/.test(error.message) ? '\n\n주방가전 종류 · 세부 구분은 database/appliance-models-kitchen.sql 을 Supabase 에서 실행해야 저장됩니다.' : '')
+            + (/subtype_chk|category_check|gas_types/.test(error.message) ? '\n\n주방가전 종류 · 세부 구분 · 가스 칸은 database/appliance-models-kitchen.sql 을 Supabase 에서 실행해야 저장됩니다.' : '')
             + (/subtype|model_codes|back_gap|install_type|"line"/.test(error.message) && !/subtype_chk/.test(error.message) ? '\n\n수집 칸은 database/appliance-models-catalog.sql 을 Supabase 에서 실행해야 저장됩니다.' : '')
             + (/niche_/.test(error.message) ? '\n\n장 안쪽 치수 칸은 database/appliance-models-niche.sql 을 Supabase 에서 실행해야 저장됩니다.' : ''));
           return;
