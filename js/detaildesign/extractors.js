@@ -228,6 +228,20 @@
         return out;
       }
 
+      /**
+       * 벽 길이들 → [[길이, 벽 수]] 긴 것부터 — 같은 길이의 벽은 한 행에 수량으로 (걸레받이 addKickBoards 와 같은 꼴).
+       *   2026-10-25 사장님 확정 (ㄱ자 하부 목찬넬): "보통 벽마다 한장씩, 두장으로 나뉨." — 상판은 아직 품목당 한 장 (extractSink 상판 주석).
+       *   벽은 걸레받이와 같다 (bomKickWallLensOf — 하부 모듈 앞면 방향 _place.front, 자리가 없는 옛 설계는 한 벽).
+       */
+      function bomWallLenQtyOf(lens) {
+        const qty = new Map();
+        (lens || []).forEach((len) => {
+          const k = Math.round(Number(len) || 0);
+          if (k > 0) qty.set(k, (qty.get(k) || 0) + 1);
+        });
+        return [...qty.entries()].sort((a, b) => b[0] - a[0]);
+      }
+
       /** 키큰장 단이 목찬넬을 짊어지는가 — 바닥 단(하부단·통짜) + 목찬넬 손잡이 스펙. 도어 H·처짐방지·목찬넬 부재가 이걸 본다. */
       function bomTallTierHasChannel(tier, specs) {
         const grounded = tier === 'bottom' || tier === 'single';
@@ -1759,7 +1773,6 @@
           //   키큰장은 좌대가 받치므로 걸레받이 구간이 아니고, 목찬넬은 하부단이 제 폭으로 따로 낸다 (addTallTierParts).
           const lineLowerModules = lowerModules.filter((m) => !bomTallTierOf(m));
           const totalLowerW = lineLowerModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
-          const totalUpperW = upperModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
           // 하부 모듈이 하나도 없는 옛 저장 설계만 품목 폭 − 좌우 마감 120 으로 떨어진다. 키큰장만 있는 라인은 0 — 걸레받이가 없다.
           const effectiveW = lowerModules.length ? totalLowerW : item.w - 120;
           const moldingH = parseFloat(specs.moldingH) || 60;
@@ -1767,11 +1780,13 @@
           const totalH = parseFloat(item.h) || 2310;
 
           // 상몰딩 (moldingH >= 20이면 산출) — 상부 라인 위에 얹히므로 섹션 'upper'
-          // P1-2: 상부장이 없으면 없다. 예전엔 `totalUpperW || effectiveW` 로 하부 폭에 떨어져 없는 상몰딩이 나갔다.
+          // P1-2: 상부장이 없으면 없다. 예전엔 상부 폭 합이 0 이면 하부 폭(effectiveW)에 떨어져 없는 상몰딩이 나갔다.
           //   키큰장 상부단의 상몰딩은 그 단이 따로 낸다 (addTallTierParts).
+          // 2026-10-25 사장님 확정: "상몰딩은 후드라고 해서 구별 하지 않음" — 후드 자리(type hood, 몸통은 없다)도 상부 라인 폭에 넣는다.
+          //   상몰딩 한 장이 후드 위를 끊기지 않고 지난다 (조립 명세 runsOf 'molding' 도 후드를 구간에 넣는다).
+          const moldingW = (item.modules || []).filter((m) => m.pos === 'upper').reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
           this.beginItemLevel('upper');
-          if (moldingH >= 20 && totalUpperW > 0) {
-            const moldingW = totalUpperW;
+          if (moldingH >= 20 && moldingW > 0) {
             const moldingEdge = moldingW > 2000 ? '2면(장)' : '4면';
             this.add(materials, epLabel, '상몰딩', 'MDF', 18, moldingH, moldingW, 1, moldingEdge);
           }
@@ -1782,10 +1797,15 @@
             this.addKickBoards(materials, epLabel, lowerModules.length ? bomKickWallLensOf(lineLowerModules) : [effectiveW], legH - 5);
           }
 
-          // 목찬넬
+          // 목찬넬 — 벽마다 한 장 (2026-10-25 사장님 확정 "보통 벽마다 한장씩, 두장으로 나뉨").
+          //   벽 = 걸레받이와 같다 (하부 모듈 앞면 방향, 쿡탑장 · 키큰장 단 제외 — bomKickWallLensOf). 같은 길이의 벽은 한 행에 수량으로.
+          //   자리가 없는 옛 설계 · 일자는 한 벽 — 예전처럼 한 장. 모서리는 그 자리에 선 모듈의 벽 몫이다 (벽 길이 = 그 벽 모듈 폭 합).
           if (isWoodChannel && effectiveW > 0) {
-            this.add(materials, epLabel, '목찬넬(전면)', 'MDF', 18, 52, effectiveW, 1, '2면(장)');
-            this.add(materials, epLabel, '목찬넬(지면)', 'MDF', 18, 40, effectiveW, 1, '2면(장)');
+            const chRows = bomWallLenQtyOf(lowerModules.length ? bomKickWallLensOf(lineLowerModules) : [effectiveW]);
+            const chWalls = chRows.reduce((a, r) => a + r[1], 0);
+            const chNote = chWalls > 1 ? `벽 ${chWalls}개 · 벽마다 한 장` : '';
+            chRows.forEach(([len, n]) => this.add(materials, epLabel, '목찬넬(전면)', 'MDF', 18, 52, len, n, '2면(장)', chNote));
+            chRows.forEach(([len, n]) => this.add(materials, epLabel, '목찬넬(지면)', 'MDF', 18, 40, len, n, '2면(장)', chNote));
           }
 
           // P1-3: 상판 — 하부 라인에 한 장 (3D addTopPanel 도 배치 공간 단위 한 장이다 · W12-38).
@@ -1795,6 +1815,10 @@
           //   이음·타공은 상판 업체가 판단한다 — BOM 은 한 장으로 낸다.
           //   **품목당 한 장**이다 — 사용자 결정 2026-09-15. 3D 가 배치 공간(런)마다 한 장 그리는 것은 표시용 단순화이고,
           //   ㄱ·ㄷ자도 발주는 폭 합 한 장이다 (scene-bom-ledger.md §4 항목 3 · 허용 목록 `ep|top` 은 의도된 차이로 남는다).
+          //   2026-10-25 사장님 확정 "보통 벽마다 한장씩, 두장으로 나뉨. 상판 외주업체에서 결정." 은 **아직 반영하지 않았다** —
+          //   상판 발주 요청서(workers/workflow-api/src/countertop.js)가 상판 행마다 요청 한 장을 만들고, ㄱ자는 그 한 장에
+          //   평면 · 벽 길이 · 타공 전부를 싣는다 (2026-10-18 양식). 행을 벽마다 나누면 요청서가 두 장이 되고 타공이 두 번 적힌다.
+          //   요청서를 어떻게 낼지 정해지면 목찬넬처럼 벽마다로 바꾼다.
           //   쿡탑장(type cook)은 몸통을 안 내지만 상판은 그 위를 지나가므로 폭에 넣는다 (걸레받이 effectiveW 는 예전대로 뺀다).
           const topLineW = (item.modules || [])
             .filter((m) => m.pos === 'lower' && !bomTallTierOf(m))

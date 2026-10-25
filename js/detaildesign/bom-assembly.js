@@ -1157,7 +1157,9 @@
    *   lines = [{ key, D, modules: [{ moduleKey, x0, back? }] }] — 벽(배치 공간)마다, x0 = 모듈 왼쪽 끝 (벽 시작 기준 mm).
    *     back = 모듈 몸통 뒷면에서 벽까지 (mm, 배치가 정한 뒤 여유). 없으면 0 — 몸통 뒷면이 벽.
    *   구간(span) = 그 행이 세는 모듈들 — 라인 안에서 붙어 있어야 하고(사이에 안 세는 모듈이 없음), 높이가 같아야 한다.
-   *   행 치수가 구간과 다르면 'run-layout-unknown' (ㄱ·ㄷ자 한 장 상판, 후드가 가운데인 상몰딩 등).
+   *   목찬넬 · 걸레받이는 벽마다 한 장 (목찬넬 2026-10-25 사장님 확정 — 걸레받이처럼): 행은 길이별 수량이고,
+   *   라인마다 구간 하나 — 길이가 행과 같은 구간이 행 수량만큼이어야 한다. 상판 · 상몰딩은 한 라인에만 있을 때 한 장 (상몰딩은 후드도 구간에 넣는다).
+   *   행 치수가 구간과 다르면 'run-layout-unknown' (ㄱ·ㄷ자 한 장 상판, 상부장 사이가 빈 상몰딩 등).
    * @returns {{runs:Array, unplaced:Array}}
    */
   function runsOf(itemIdx, rows, lines, specMods, item) {
@@ -1190,17 +1192,27 @@
       const sameH = !!host.spec && counted.every((e) => !e.spec || e.spec.box.H === host.spec.box.H);
       return { bad: !contiguous || !touching || !sameH, host, x0: host.x0, x1: last.x0 + last.W, line: ln };
     };
+    /** 라인마다 pred 구간 (세는 모듈이 없는 라인은 뺀다) */
+    const spansOf = (pred) => lineList.map((ln) => spanOf(ln, pred)).filter(Boolean);
     /** 품목에서 pred 구간이 꼭 한 라인에만 있어야 한다 (행이 한 장이다) */
     const onlySpan = (pred) => {
-      const spans = lineList.map((ln) => spanOf(ln, pred)).filter(Boolean);
+      const spans = spansOf(pred);
       return spans.length === 1 && !spans[0].bad ? spans[0] : null;
+    };
+    /**
+     * 벽마다 한 장인 행 (2026-10-25 사장님 확정 — 목찬넬, 걸레받이와 같은 꼴): 행은 길이별 수량 (extractors.js bomWallLenQtyOf).
+     *   놓을 수 있는 구간(붙어 있고 높이가 같은) 중 길이가 행 길이와 같은 것이 행 수량만큼이어야 한다. 아니면 null.
+     */
+    const wallSpansFor = (spans, len, qty) => {
+      const mine = spans.filter((sp) => !sp.bad && sp.x1 - sp.x0 === len);
+      return mine.length === qty ? mine : null;
     };
     // 2026-10-24 D9: 하부 배치 공간 끝의 도면 마감재(비움 포함) 폭 — 상판이 그 위를 지나간다 (BOM 상판 폭과 같은 값)
     const drawnEdgeW = (edge) => (Array.isArray(specs.drawnFinishes) ? specs.drawnFinishes : [])
       .filter((f) => f && f.area === 'lower' && f.edge === edge).reduce((s, f) => s + (Number(f.W) > 0 ? Number(f.W) : 0), 0);
-    const put = (row, span, frame, vis, tags) => runs.push({
+    const put = (row, span, frame, vis, tags, k) => runs.push({
       key: row.partId, lineKey: span.line.key, hostModuleKey: span.host.mk,
-      parts: [makePart(row, 0, frame, [], vis, tags)],
+      parts: [makePart(row, k || 0, frame, [], vis, tags)],
     });
     const xOf = (span, x) => x - (span.host.x0 + span.host.spec.box.W / 2);   // 벽 x → 호스트 모듈 로컬 x
     const lowerLine = (mod) => mod.pos === 'lower' && !isTallTier(mod);
@@ -1214,6 +1226,7 @@
         case 'top': {
           // 상판 — 하부 라인(쿡탑장 포함, 키큰장 단 제외) 폭 합 + 좌·우 끝 도면 마감재 폭 한 장, 뒤 = 벽, 깊이 = 행 h, 몸통 위.
           //   벽 = 호스트 몸통 뒷면 − back (2026-10-24 D3: 몸통은 벽에서 뒤 여유만큼 떠 있다, 상판은 벽까지)
+          //   BOM 상판은 아직 품목당 한 장이라 두 벽(ㄱ자)이면 못 놓는다 — 2026-10-25 "벽마다 한 장"은 상판 발주 요청서 양식이 정해지면 (extractors.js)
           const span = onlySpan(lowerLine);
           const finL = drawnEdgeW('left'), finR = drawnEdgeW('right');
           if (!span || row.qty !== 1 || row.w !== span.x1 - span.x0 + finL + finR) { skip(row, 'run-layout-unknown'); return; }
@@ -1222,9 +1235,11 @@
           return;
         }
         case 'molding': {
-          // 상몰딩 — 상부 라인(후드 제외) 위 띠, 앞면 = 도어 앞면 (키큰장 상몰딩과 같다). 2440 재단 장수 행(qty > 1)은 설치 길이가 아니다
+          // 상몰딩 — 상부 라인 위 띠, 앞면 = 도어 앞면 (키큰장 상몰딩과 같다). 2440 재단 장수 행(qty > 1)은 설치 길이가 아니다
+          //   2026-10-25 사장님 확정: "상몰딩은 후드라고 해서 구별 하지 않음" — 후드 자리(type hood, 명세 모듈 없음)도 구간에 넣는다.
+          //   한 장이 후드 위를 지난다 (BOM 상몰딩 폭도 후드를 넣는다). 구간 첫 모듈(호스트)은 명세가 있어야 한다 (spanOf)
           if (row.qty !== 1) { skip(row, 'run-cut-blank'); return; }
-          const span = onlySpan((mod) => mod.pos === 'upper' && mod.type !== 'hood');
+          const span = onlySpan((mod) => mod.pos === 'upper');
           if (!span || row.h !== span.x1 - span.x0) { skip(row, 'run-layout-unknown'); return; }
           const b = span.host.spec.box;
           put(row, span, { o: [xOf(span, span.x0), b.H, b.D / 2], u: '+y', v: '+x', n: '+z' }, 'exterior', { run: 'molding' });
@@ -1232,18 +1247,21 @@
         }
         case 'channel:front':
         case 'channel:back': {
-          // 목찬넬 EP ㄴ자 — 하부 라인(쿡탑장·키큰장 단 제외) 측판 따내기 70×40 자리, 키큰장 단 ㄴ자와 같다
+          // 목찬넬 EP ㄴ자 — 벽마다 하부 라인(쿡탑장·키큰장 단 제외) 한 장 (2026-10-25 사장님 확정 "보통 벽마다 한장씩, 두장으로 나뉨"),
+          //   측판 따내기 70×40 자리, 키큰장 단 ㄴ자와 같다. 그 라인의 모든 하부 측판에 따내기가 있어야 한다
           const face = key.family === 'channel:front';
-          const span = onlySpan((mod) => lowerLine(mod) && mod.type !== 'cook');
-          if (!span || row.qty !== 1 || row.h !== span.x1 - span.x0 || row.w !== (face ? DR.CHANNEL_TOP_FACE_H : DR.CHANNEL_BASE_W)
-            || row.thickness !== DR.CHANNEL_T || !span.line.entries.filter((e) => lowerLine(e.mod) && e.mod.type !== 'cook').every(hasTopNotch)) {
-            skip(row, 'run-layout-unknown'); return;
-          }
-          const b = span.host.spec.box;
-          const yb = b.H - DR.CHANNEL_TOP_NOTCH_H, z0 = b.D / 2 - DR.CHANNEL_BASE_W, xL = xOf(span, span.x0);
-          put(row, span, face
-            ? { o: [xL, yb + row.thickness, z0], u: '+y', v: '+x', n: '+z' }
-            : { o: [xL, yb, z0], u: '+z', v: '+x', n: '+y' }, 'exterior', { run: 'channel', channel: 'top' });
+          const counts = (mod) => lowerLine(mod) && mod.type !== 'cook';
+          const notched = spansOf(counts).filter((sp) => sp.line.entries.filter((e) => counts(e.mod)).every(hasTopNotch));
+          const mine = row.w === (face ? DR.CHANNEL_TOP_FACE_H : DR.CHANNEL_BASE_W) && row.thickness === DR.CHANNEL_T
+            ? wallSpansFor(notched, row.h, row.qty) : null;
+          if (!mine) { skip(row, 'run-layout-unknown'); return; }
+          mine.forEach((span, k) => {
+            const b = span.host.spec.box;
+            const yb = b.H - DR.CHANNEL_TOP_NOTCH_H, z0 = b.D / 2 - DR.CHANNEL_BASE_W, xL = xOf(span, span.x0);
+            put(row, span, face
+              ? { o: [xL, yb + row.thickness, z0], u: '+y', v: '+x', n: '+z' }
+              : { o: [xL, yb, z0], u: '+z', v: '+x', n: '+y' }, 'exterior', { run: 'channel', channel: 'top' }, k);
+          });
           return;
         }
         case 'kick': {

@@ -168,6 +168,13 @@ describe('P1-2 상부장 없는 배치에는 상몰딩을 내지 않는다', () 
     expect(one(rows, 'ep', '상몰딩')).toMatchObject({ w: 60, h: 900, qty: 1, edge: '4면' });
   });
 
+  test('2026-10-25 사장님 확정 "상몰딩은 후드라고 해서 구별 하지 않음" — 후드 자리(type hood)도 상몰딩 폭에 든다 (한 장), 후드 몸통은 여전히 없다', () => {
+    const hood = { id: 'hood-1', type: 'hood', name: '후드장', pos: 'upper', w: 800, h: 720, d: 290, isFixed: true };
+    const rows = extract(sinkItem([...LOWERS, UPPER, hood]));
+    expect(one(rows, 'ep', '상몰딩')).toMatchObject({ w: 60, h: 900 + 800, qty: 1, edge: '4면' });
+    expect(rowsOf(rows, 'hood-1')).toHaveLength(0);
+  });
+
   test('하부 모듈이 하나도 없는 옛 저장 설계 — 상몰딩은 여전히 없고 걸레받이만 품목 폭 − 120 으로 떨어진다', () => {
     const rows = extract(sinkItem([]));
     expect(rowsOf(rows, 'ep', '상몰딩')).toHaveLength(0);
@@ -226,6 +233,15 @@ describe('P1-3 상판·좌대 산출', () => {
     const out = new MaterialExtractor().extract({ appVersion: 'p1-test', items: [sinkItem([...LOWERS])] });
     expect(out.materials.filter((r) => r.part === '상판')).toHaveLength(1);
     expect(out.summary['인조대리석_12']).toMatchObject({ material: '인조대리석', thickness: 12, panelCount: 1 });
+  });
+
+  test('2026-10-25 사장님 확정 "붙박이장 상단 몰딩 발주 여부는 옵션 선택에 따름" — 상몰딩 20 이면 옵션(specs.wardrobeMoldingFinish)을 켤 때만 행, 60 이상은 늘', () => {
+    const molding = (over) => extract(Object.assign({}, wardrobe, { specs: Object.assign({}, wardrobe.specs, over) }))
+      .filter((r) => r.part === '상몰딩').map((r) => [r.partId, r.w, r.thickness, r.qty]);
+    expect(molding({ wardrobeMoldingH: 20, wardrobeMoldingFinish: 'none' })).toEqual([]);
+    expect(molding({ wardrobeMoldingH: 20 })).toEqual([]);
+    expect(molding({ wardrobeMoldingH: 20, wardrobeMoldingFinish: 'ep60' })).toEqual([['0-ep-molding-0', 60, 18, 2]]);   // 2700 > 2440 → 2장
+    expect(molding({ wardrobeMoldingH: 60 })).toEqual([['0-ep-molding-0', 60, 18, 2]]);
   });
 
   test('붙박이장 좌대 — 모듈마다 상자(전후·측·중간보강) + 품목 좌대 걸레받이 (wardrobe.md, 이미 산출 — 여기서 잠근다)', () => {

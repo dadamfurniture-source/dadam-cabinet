@@ -42,6 +42,7 @@ const PLANNER_ASM_FAMILIES = Object.keys(PLANNER_ASM_GROUPS).reduce((a, k) => a.
  *   플래너가 그 마감재를 그대로 그린다. 명세 자리는 아직 미정(finish-drawn-pending). groups.finish 는 늘 drawn:false.
  * 상판(top)은 2026-10-24 사장님 D3 부터 명세로: 몸통은 벽에서 뒤 여유만큼 떠 있고(배치 650 = 뒤 70 + 몸통 550 + 앞 30),
  *   상판은 벽까지 — 플래너가 lines 에 모듈 back(몸통 뒷면 → 벽)을 넘겨 명세 상판 뒤 = 벽 (bom-assembly.js runsOf 'top').
+ * 상판 · 상단 목찬넬은 벽(라인)마다 한 장 — 2026-10-25 사장님 확정 "보통 벽마다 한장씩, 두장으로 나뉨" (ㄱ자면 두 장, 각 벽 첫 하부 모듈이 호스트).
  */
 const PLANNER_ASM_RUN_GROUPS = {
   top: ['top'],
@@ -54,7 +55,9 @@ const PLANNER_ASM_RUN_GROUPS = {
 /**
  * 붙박이장 통 (PR14b) — 통 하나는 몸통 여럿 · 좌대 상자 · 도어 · 외부/내부 서랍 · 칸막이 · 선반이 한 묶음으로 짜인다.
  * 그래서 묶음별이 아니라 **통 전체**로 고른다: 그 통의 행이 하나도 unplaced 가 아니고, 판재 종류가 모두 아래 목록일 때만
- * 명세로 그린다 (아니면 통 전체 예전 그리기). 옷봉(철물) · 상단 몰딩(BOM 행 없음)은 예전 그리기 그대로.
+ * 명세로 그린다 (아니면 통 전체 예전 그리기). 옷봉(철물) · 상단 몰딩은 예전 그리기 그대로.
+ *   상단 몰딩 BOM 행: 2026-10-25 사장님 확정 "붙박이장 상단 몰딩 발주 여부는 옵션 선택에 따름" — 상몰딩 60 이상이거나
+ *   옵션(specs.wardrobeMoldingFinish)을 켰을 때만 나오고, 2440 재단 장수 행이라 명세 자리가 없다 (bom-wardrobe-rules moldingPartFor).
  */
 const PLANNER_ASM_WARDROBE_FAMILIES = [
   'body:side', 'body:bottom', 'body:top', 'back', 'body:band',

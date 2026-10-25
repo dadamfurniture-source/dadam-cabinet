@@ -28,6 +28,8 @@ const KIND = {
   molding: (ud) => ud.entityKind === 'molding',
 };
 const isUpperModule = (p, id) => (p.g('modules').find((m) => String(m.id) === String(id)) || {}).section === 'upper';
+/** 키큰장 단이 제 폭으로 내는 상단 목찬넬 (모듈 행 — 라인 부재가 아니다, addTallTierParts) */
+const isTallModule = (p, id) => (p.g('modules').find((m) => String(m.id) === String(id)) || {}).section === 'tall';
 
 describe('plannerAssemblyRunsFor — 묶음마다 다 놓였을 때만', () => {
   const part = (fam, n) => ({ id: `0-ep-${fam}-${n}#0`, rowPartId: `0-ep-${fam}-${n}`, box: { min: [0, 0, 0], max: [1, 1, 1] } });
@@ -66,14 +68,16 @@ describe('plannerAssemblyRunsFor — 묶음마다 다 놓였을 때만', () => {
 describe.each([
   // straight: 걸레받이 · 상단 목찬넬 · 상판은 명세 (상몰딩은 상부 라인이 끊겨 run-layout-unknown → 예전)
   ['straight', ['kick', 'channel', 'top'], ['molding']],
-  // lShape: 상몰딩 · 걸레받이는 명세 (목찬넬 · 상판은 하부 라인이 둘이라 run-layout-unknown → 예전)
-  ['lShape', ['kick', 'molding'], ['top', 'channel']],
+  // lShape: 상몰딩 · 걸레받이 · 목찬넬은 명세 — 목찬넬은 2026-10-25 사장님 확정으로 벽마다 한 장.
+  //   상판은 BOM 이 아직 품목당 한 장이라 하부 라인이 둘이면 run-layout-unknown → 예전 (상판 발주 요청서 양식 확인 전)
+  ['lShape', ['kick', 'molding', 'channel'], ['top']],
 ])('%s', (name, specKinds, oldKinds) => {
   let p;
   beforeAll(() => { p = bootPlanner3D(FIXTURES[name], { design: 'ledger', item: name, assembly: true }); });
 
   test.each(specKinds)('%s — 명세 판재만 (예전 그리기 없음)', (k) => {
-    const list = meshes(p, (ud) => KIND[k](ud) && !(k === 'molding' && !isUpperModule(p, ud.moduleId) && !ud.assembly));
+    const list = meshes(p, (ud) => KIND[k](ud) && !(k === 'molding' && !isUpperModule(p, ud.moduleId) && !ud.assembly)
+      && !(k === 'channel' && isTallModule(p, ud.moduleId) && !ud.assembly));
     expect(list.length).toBeGreaterThan(0);
     list.forEach((o) => {
       expect(o.userData.assembly).toBe(true);
@@ -86,6 +90,18 @@ describe.each([
     expect(list.length).toBeGreaterThan(0);
     list.forEach((o) => expect(o.userData.assembly).toBeUndefined());
   });
+
+  if (name === 'lShape') {
+    test('ㄱ자 상단 목찬넬은 벽마다 한 장 (2026-10-25 사장님 확정) — 본 줄 2700 · 옆 줄 1500, 모듈마다가 아니다', () => {
+      // 명세 판재는 따내기가 없으면 BoxGeometry (plannerAssemblyMeshOf) — 긴 변 = 재단 길이
+      const lens = (pred) => meshes(p, (ud) => pred(ud) && /^0-ep-/.test(ud.rowPartId || '')).map((o) => {
+        const g = o.geometry.parameters;
+        return [o.userData.rowPartId, Math.round(Math.max(g.width, g.height, g.depth))];
+      });
+      expect(lens((ud) => topChannel(ud) && ud.side === 'channelFace')).toEqual([['0-ep-channel:front-0', 2700], ['0-ep-channel:front-1', 1500]]);
+      expect(lens((ud) => topChannel(ud) && ud.side === 'channelBase')).toEqual([['0-ep-channel:back-0', 2700], ['0-ep-channel:back-1', 1500]]);
+    });
+  }
 
   test('라인 부재는 호스트 모듈 그룹 밖 (같은 자리·회전의 형제 그룹)', () => {
     const runs = meshes(p, (ud) => ud.assembly && /^0-ep-/.test(ud.rowPartId || ''));

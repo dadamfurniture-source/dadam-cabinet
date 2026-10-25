@@ -680,7 +680,7 @@ describe('라인 부재 runs[] — 상판 · 상몰딩 · 목찬넬 EP · 걸레
     expect(epOf(s)).toEqual([['휠라(좌)', 'finish-drawn-pending'], ['휠라(우)', 'finish-drawn-pending']]);
   });
 
-  test('싱크 15T (하부 6 모듈 4100 + 도면 좌 휠라 60, 후드가 상부 가운데): 상판은 하부 라인 위 한 장 (뒤 = 벽, 깊이 650), 상몰딩은 후드 때문에 못 놓는다', () => {
+  test('싱크 15T (하부 6 모듈 4100 + 도면 좌 휠라 60, 후드가 상부 가운데): 상판은 하부 라인 위 한 장 (뒤 = 벽, 깊이 650), 상몰딩은 후드 위를 지나 한 장', () => {
     const s = specWith('sink15', { 0: linesOf(FIXTURES.sink15) });
     const top = runOf(s, '상판');
     expect(top.hostModuleKey).toBe('0-l1');
@@ -688,7 +688,13 @@ describe('라인 부재 runs[] — 상판 · 상몰딩 · 목찬넬 EP · 걸레
     expect(top.parts[0].box).toEqual({ min: [-560, 708, -275], max: [3600, 720, 375] });   // 호스트 l1 1000 가운데, 도면 좌 끝 휠라 60 만큼 왼쪽으로 (D9)
     expect(top.parts[0].tags).toEqual({ run: 'top' });
     expect(runOf(s, '목찬넬(전면)').parts[0].box).toEqual({ min: [-500, 656, 235], max: [3000, 708, 253] });   // 쿡탑장 600 은 뺀 3500
-    expect(epOf(s)).toContainEqual(['상몰딩', 'run-layout-unknown']);
+    // 2026-10-25 사장님 확정 "상몰딩은 후드라고 해서 구별 하지 않음": 상부 900 · 600 · 후드 800 · 1200 = 3500 한 장, 호스트 u1 900 가운데
+    //   (몸통 위 y 720…780, 앞면 = 도어 앞면 z 147.5…165.5). 후드에는 명세 모듈이 없지만 구간에 든다
+    const mold = runOf(s, '상몰딩');
+    expect([mold.lineKey, mold.hostModuleKey]).toEqual(['wall', '0-u1']);
+    expect(mold.parts[0].cut).toEqual({ w: 60, h: 3500 });
+    expect(mold.parts[0].box).toEqual({ min: [-450, 720, 147.5], max: [3050, 780, 165.5] });
+    expect(epOf(s).filter((e) => e[0] === '상몰딩')).toEqual([]);
     // 걸레받이 — BOM 벽 길이는 쿡탑장 600 을 뺀 3500 = 2440 + 1060 두 조각, 왼쪽부터 2440, 남는 1060 은 오른쪽 끝 (카드 "1"). 호스트 l1 1000 가운데 → 왼쪽 끝 x −500
     const kicks = s.items[0].runs.filter((r) => r.parts[0].part === '걸레받이').map((r) => [r.parts[0].cut.w, r.parts[0].box.min[0], r.parts[0].box.max[0]]);
     expect(kicks).toEqual([[2440, -500, 1940], [1060, 1940, 3000]]);
@@ -718,6 +724,59 @@ describe('라인 부재 runs[] — 상판 · 상몰딩 · 목찬넬 EP · 걸레
     const s = specWith('sink15', { 0: lines });
     expect(runOf(s, '상판')).toBeUndefined();
     expect(epOf(s)).toContainEqual(['상판', 'run-layout-unknown']);
+  });
+
+  describe('2026-10-25 사장님 확정 — ㄱ자 하부 목찬넬은 벽마다 한 장 ("보통 벽마다 한장씩, 두장으로 나뉨")', () => {
+    // sink15 하부를 두 벽에: 본 줄 l1 · l2 · l3 (1000 · 800 · 900), 옆 줄 l4 · l5 · 쿡탑 l6 (400 · 400 · 600). 벽 = 앞면 방향 (걸레받이와 같다)
+    const FRONT = { l1: [0, 1], l2: [0, 1], l3: [0, 1], l4: [-1, 0], l5: [-1, 0], l6: [-1, 0] };
+    const lShaped = () => {
+      const item = JSON.parse(JSON.stringify(FIXTURES.sink15));
+      item.modules.forEach((m) => { if (FRONT[m.id]) m._place = { cx: 0, cy: 0, w: m.w, d: m.d, run: [FRONT[m.id][1], -FRONT[m.id][0]], front: FRONT[m.id], z0: 0, h: 870 }; });
+      return item;
+    };
+    /** 라인 a = 본 줄 하부 + 상부, 라인 b = 옆 줄 하부 (x 는 그 라인 첫 모듈부터) */
+    const wallLines = (item) => {
+      const ln = linesOf(item)[0];
+      const side = (e) => (FRONT[e.moduleKey.slice(2)] || [0, 1])[0] !== 0;
+      const b = ln.modules.filter(side);
+      const x0 = Math.min(...b.map((e) => e.x0));
+      return [{ key: 'a', D: 650, modules: ln.modules.filter((e) => !side(e)) },
+        { key: 'b', D: 650, modules: b.map((e) => Object.assign({}, e, { x0: e.x0 - x0 })) }];
+    };
+    const specOfItem = (item) => {
+      const design = { items: [item] };
+      const materials = new MaterialExtractor().extract(design).materials;
+      return { materials, s: Asm.of(design, { materials, lines: { 0: wallLines(item) } }) };
+    };
+    const rowsOf = (materials, part) => materials.filter((r) => r.part === part).map((r) => [r.partId, r.w, r.h, r.qty, r.note]);
+    const at = (s, part) => s.items[0].runs.filter((r) => r.parts[0].part === part)
+      .map((r) => [r.parts[0].id, r.lineKey, r.hostModuleKey, r.parts[0].box.min[0], r.parts[0].box.max[0]]);
+    const WALLS = '벽 2개 · 벽마다 한 장';
+
+    test('목찬넬 BOM 행이 벽마다 (본 줄 2700, 옆 줄은 쿡탑 뺀 800) — 명세가 라인마다 그 라인 첫 하부 모듈 좌표에 놓는다', () => {
+      const { materials, s } = specOfItem(lShaped());
+      expect(rowsOf(materials, '목찬넬(전면)')).toEqual([['0-ep-channel:front-0', 52, 2700, 1, WALLS], ['0-ep-channel:front-1', 52, 800, 1, WALLS]]);
+      expect(rowsOf(materials, '목찬넬(지면)')).toEqual([['0-ep-channel:back-0', 40, 2700, 1, WALLS], ['0-ep-channel:back-1', 40, 800, 1, WALLS]]);
+      // 호스트 = 그 라인 첫 하부 모듈 (l1 1000 · l4 400 가운데 기준)
+      expect(at(s, '목찬넬(전면)')).toEqual([['0-ep-channel:front-0#0', 'a', '0-l1', -500, 2200], ['0-ep-channel:front-1#0', 'b', '0-l4', -200, 600]]);
+      expect(at(s, '목찬넬(지면)')).toEqual([['0-ep-channel:back-0#0', 'a', '0-l1', -500, 2200], ['0-ep-channel:back-1#0', 'b', '0-l4', -200, 600]]);
+      expect(epOf(s).filter((e) => /목찬넬/.test(e[0]))).toEqual([]);
+    });
+
+    test('같은 길이의 벽은 한 행에 수량 — 명세는 그 길이의 라인마다 한 장씩 (#0 · #1)', () => {
+      const item = lShaped();
+      item.modules = item.modules.filter((m) => !['l2', 'l3', 'l6'].includes(m.id));   // 본 줄 l1 만 800 으로, 옆 줄 400 · 400
+      item.modules.find((m) => m.id === 'l1').w = 800;
+      const { materials, s } = specOfItem(item);
+      expect(rowsOf(materials, '목찬넬(전면)').map((r) => r.slice(0, 4))).toEqual([['0-ep-channel:front-0', 52, 800, 2]]);
+      expect(at(s, '목찬넬(전면)').map((r) => [r[0], r[1]])).toEqual([['0-ep-channel:front-0#0', 'a'], ['0-ep-channel:front-0#1', 'b']]);
+    });
+
+    test('상판은 아직 품목당 한 장 (상판 발주 요청서 양식 확인 전) — 두 라인이면 명세가 못 놓는다', () => {
+      const { materials, s } = specOfItem(lShaped());
+      expect(rowsOf(materials, '상판').map((r) => r.slice(0, 4))).toEqual([['0-ep-top-0', 4160, 650, 1]]);
+      expect(epOf(s)).toContainEqual(['상판', 'run-layout-unknown']);
+    });
   });
 });
 
