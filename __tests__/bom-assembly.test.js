@@ -772,10 +772,71 @@ describe('라인 부재 runs[] — 상판 · 상몰딩 · 목찬넬 EP · 걸레
       expect(at(s, '목찬넬(전면)').map((r) => [r[0], r[1]])).toEqual([['0-ep-channel:front-0#0', 'a'], ['0-ep-channel:front-0#1', 'b']]);
     });
 
-    test('상판은 아직 품목당 한 장 (상판 발주 요청서 양식 확인 전) — 두 라인이면 명세가 못 놓는다', () => {
+    test('상판은 ㄱ자도 품목당 한 장 (2026-10-26 사장님 확정 "ㄱ자 한 장으로 보내면 업체에서 알아서 나눔") — 두 라인이면 명세가 놓지 않는다', () => {
       const { materials, s } = specOfItem(lShaped());
       expect(rowsOf(materials, '상판').map((r) => r.slice(0, 4))).toEqual([['0-ep-top-0', 4160, 650, 1]]);
       expect(epOf(s)).toContainEqual(['상판', 'run-layout-unknown']);
+    });
+  });
+
+  describe('2026-10-26 사장님 확정 — 상몰딩은 상부장 사이 빈 자리도 건너 한 장 ("상부장이 있다면 위에는 상몰딩이 있다고 보면됨. 가능한 이어지게.")', () => {
+    // sink15 상부 u1 900 · u2 600 · 후드 자리 u3 800 · u4 1200 (폭 합 3500). u4 를 400 띄운다 (빈 벽 · 창문) → 0 … 2300 · 빈 자리 · 2700 … 3900.
+    //   자리(_place)는 브리지(ui-step1 _plannerPlaceOf)처럼 평면 중심 · 진행 방향 · 앞면 방향
+    const GAP = 400;
+    const placedItem = (shift) => {
+      const item = JSON.parse(JSON.stringify(FIXTURES.sink15));
+      let x = shift || 0;
+      item.modules.filter((m) => m.pos === 'upper').forEach((m) => {
+        if (m.id === 'u4') x += GAP;
+        m._place = { cx: x + m.w / 2, cy: 0, w: m.w, d: m.d, run: [1, 0], front: [0, 1], z0: 1530, h: 780 };
+        x += m.w;
+      });
+      return item;
+    };
+    /** linesOf 와 같되 u4 를 GAP 만큼 띄운다 */
+    const gapLines = (item) => {
+      const ln = linesOf(item)[0];
+      return [Object.assign({}, ln, { modules: ln.modules.map((e) => (e.moduleKey === '0-u4' ? Object.assign({}, e, { x0: e.x0 + GAP }) : e)) })];
+    };
+    const specOn = (item, lines) => {
+      const design = { items: [item] };
+      const materials = new MaterialExtractor().extract(design).materials;
+      return { materials, s: Asm.of(design, { materials, lines: { 0: lines } }) };
+    };
+    const epMold = (materials) => materials.filter((r) => r.part === '상몰딩' && /^0-ep-/.test(r.partId)).map((r) => [r.partId, r.w, r.h, r.qty]);
+
+    test('BOM 한 행 = 가장 바깥 상부장 두 끝 사이 (폭 합 3500 + 빈 자리 400 = 3900) — 명세가 그 한 장을 u1 위에 놓는다', () => {
+      const { materials, s } = specOn(placedItem(), gapLines(FIXTURES.sink15));
+      expect(epMold(materials)).toEqual([['0-ep-molding-0', 60, 3900, 1]]);
+      const mold = runOf(s, '상몰딩');
+      expect([mold.lineKey, mold.hostModuleKey]).toEqual(['wall', '0-u1']);
+      expect(mold.parts[0].cut).toEqual({ w: 60, h: 3900 });
+      expect(mold.parts[0].box).toEqual({ min: [-450, 720, 147.5], max: [3450, 780, 165.5] });   // 호스트 u1 900 가운데
+      expect(epOf(s).filter((e) => e[0] === '상몰딩')).toEqual([]);
+    });
+
+    test('바깥 상부장 밖으로는 늘리지 않는다 — 벽 시작에서 띄워 세워도 같은 3900', () => {
+      expect(epMold(new MaterialExtractor().extract({ items: [placedItem(500)] }).materials)).toEqual([['0-ep-molding-0', 60, 3900, 1]]);
+    });
+
+    test('자리(_place)가 하나라도 없으면 사이를 몰라 폭 합 그대로 (상세설계 화면 · 옛 payload) — 명세는 빈 자리를 보고 못 놓는다', () => {
+      const item = placedItem();
+      delete item.modules.find((m) => m.id === 'u2')._place;
+      const { materials, s } = specOn(item, gapLines(FIXTURES.sink15));
+      expect(epMold(materials)).toEqual([['0-ep-molding-0', 60, 3500, 1]]);
+      expect(epOf(s)).toContainEqual(['상몰딩', 'run-layout-unknown']);
+    });
+
+    test('빈 자리에 키큰장 단이 서 있으면 잇지 않는다 — 그 단이 제 상몰딩을 낸다 (sink.md §5.1). BOM 은 폭 합 그대로, 명세는 못 놓는다', () => {
+      const item = placedItem();
+      item.modules.push({ id: 't1', type: 'tall', name: '키큰장', pos: 'lower', w: GAP, h: 2190, d: 550, doorCount: 1, isDrawer: false, isEL: false,
+        _place: { cx: 2300 + GAP / 2, cy: 0, w: GAP, d: 550, run: [1, 0], front: [0, 1], z0: 0, h: 2310 } });
+      const lines = gapLines(item);
+      lines[0].modules.find((e) => e.moduleKey === '0-t1').x0 = 2300;   // 빈 자리 2300 … 2700
+      const { materials, s } = specOn(item, lines);
+      expect(epMold(materials)).toEqual([['0-ep-molding-0', 60, 3500, 1]]);
+      expect(materials.filter((r) => r.part === '상몰딩' && /^0-t1-/.test(r.partId)).map((r) => [r.w, r.h])).toEqual([[60, GAP]]);   // 키큰장 제 상몰딩
+      expect(epOf(s)).toContainEqual(['상몰딩', 'run-layout-unknown']);
     });
   });
 });

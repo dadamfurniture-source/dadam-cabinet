@@ -66,10 +66,12 @@ describe('plannerAssemblyRunsFor — 묶음마다 다 놓였을 때만', () => {
 });
 
 describe.each([
-  // straight: 걸레받이 · 상단 목찬넬 · 상판은 명세 (상몰딩은 상부 라인이 끊겨 run-layout-unknown → 예전)
-  ['straight', ['kick', 'channel', 'top'], ['molding']],
+  // straight: 걸레받이 · 상단 목찬넬 · 상판 · 상몰딩 모두 명세 — 상몰딩은 상부 1800 과 1200 사이 빈 자리를 건너 한 장
+  //   (2026-10-26 사장님 확정 "상부장이 있다면 위에는 상몰딩이 있다고 보면됨. 가능한 이어지게.")
+  ['straight', ['kick', 'channel', 'top', 'molding'], []],
   // lShape: 상몰딩 · 걸레받이 · 목찬넬은 명세 — 목찬넬은 2026-10-25 사장님 확정으로 벽마다 한 장.
-  //   상판은 BOM 이 아직 품목당 한 장이라 하부 라인이 둘이면 run-layout-unknown → 예전 (상판 발주 요청서 양식 확인 전)
+  //   상판은 품목당 한 장(2026-10-26 사장님 확정 "ㄱ자 한 장으로 보내면 업체에서 알아서 나눔")이라 하부 라인이 둘이면
+  //   명세가 놓지 않고(run-layout-unknown) 3D 는 배치 공간마다 예전 그리기 — 그림일 뿐, 발주는 ㄱ자 한 장
   ['lShape', ['kick', 'molding', 'channel'], ['top']],
 ])('%s', (name, specKinds, oldKinds) => {
   let p;
@@ -85,11 +87,23 @@ describe.each([
     });
   });
 
-  test.each(oldKinds)('%s — 명세가 다 못 놓아 예전 그리기 그대로', (k) => {
-    const list = meshes(p, (ud) => KIND[k](ud));
-    expect(list.length).toBeGreaterThan(0);
-    list.forEach((o) => expect(o.userData.assembly).toBeUndefined());
-  });
+  if (oldKinds.length) {
+    test.each(oldKinds)('%s — 명세가 다 못 놓아 예전 그리기 그대로', (k) => {
+      const list = meshes(p, (ud) => KIND[k](ud));
+      expect(list.length).toBeGreaterThan(0);
+      list.forEach((o) => expect(o.userData.assembly).toBeUndefined());
+    });
+  }
+
+  if (name === 'straight') {
+    test('상몰딩은 상부장 사이 빈 자리를 건너 한 장 (2026-10-26 사장님 확정) — 0 ~ 3600, 상부 모듈마다가 아니다', () => {
+      const list = meshes(p, (ud) => KIND.molding(ud));
+      expect(list.map((o) => {
+        const g = o.geometry.parameters;
+        return [o.userData.rowPartId, Math.round(Math.max(g.width, g.height, g.depth))];
+      })).toEqual([['0-ep-molding-0', 3600]]);
+    });
+  }
 
   if (name === 'lShape') {
     test('ㄱ자 상단 목찬넬은 벽마다 한 장 (2026-10-25 사장님 확정) — 본 줄 2700 · 옆 줄 1500, 모듈마다가 아니다', () => {

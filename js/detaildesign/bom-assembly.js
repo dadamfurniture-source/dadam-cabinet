@@ -1158,8 +1158,9 @@
    *     back = 모듈 몸통 뒷면에서 벽까지 (mm, 배치가 정한 뒤 여유). 없으면 0 — 몸통 뒷면이 벽.
    *   구간(span) = 그 행이 세는 모듈들 — 라인 안에서 붙어 있어야 하고(사이에 안 세는 모듈이 없음), 높이가 같아야 한다.
    *   목찬넬 · 걸레받이는 벽마다 한 장 (목찬넬 2026-10-25 사장님 확정 — 걸레받이처럼): 행은 길이별 수량이고,
-   *   라인마다 구간 하나 — 길이가 행과 같은 구간이 행 수량만큼이어야 한다. 상판 · 상몰딩은 한 라인에만 있을 때 한 장 (상몰딩은 후드도 구간에 넣는다).
-   *   행 치수가 구간과 다르면 'run-layout-unknown' (ㄱ·ㄷ자 한 장 상판, 상부장 사이가 빈 상몰딩 등).
+   *   라인마다 구간 하나 — 길이가 행과 같은 구간이 행 수량만큼이어야 한다. 상판 · 상몰딩은 한 라인에만 있을 때 한 장 (상몰딩은 후드도 구간에 넣고
+   *   상부장 사이 빈 자리도 건너간다 — 2026-10-25 · 2026-10-26 사장님 확정).
+   *   행 치수가 구간과 다르면 'run-layout-unknown' (ㄱ·ㄷ자 한 장 상판, 키큰장 단을 사이에 둔 상몰딩 등).
    * @returns {{runs:Array, unplaced:Array}}
    */
   function runsOf(itemIdx, rows, lines, specMods, item) {
@@ -1180,23 +1181,28 @@
         .filter((e) => e.mod).map((e) => Object.assign(e, { W: e.spec ? e.spec.box.W : (Number(e.mod.w) || 0) })).sort((a, b) => a.x0 - b.x0),
     }));
     /** 한 라인에서 pred 가 세는 모듈 구간. 라인에 세는 모듈이 없으면 null. 같은 pos(하부/상부) 줄 안에서 사이에 안 세는 모듈이 있거나
-     *  모듈 사이가 떨어져 있거나(빈 자리) 높이가 다르거나 첫 모듈에 명세가 없으면 { bad } — 한 장이 지나갈 수 없다 */
-    const spanOf = (ln, pred) => {
+     *  모듈 사이가 떨어져 있거나(빈 자리) 높이가 다르거나 첫 모듈에 명세가 없으면 { bad } — 한 장이 지나갈 수 없다.
+     *  bridge(ln, a, b) 가 참이면 그 빈 자리(벽 x a…b)는 건너간다 (상몰딩 — 2026-10-26) */
+    const spanOf = (ln, pred, bridge) => {
       const counted = ln.entries.filter((e) => pred(e.mod));
       if (!counted.length) return null;
       const host = counted[0], last = counted[counted.length - 1];
       const lane = ln.entries.filter((e) => e.mod.pos === host.mod.pos);
       const i0 = lane.indexOf(host), i1 = lane.indexOf(last);
       const contiguous = i1 - i0 === counted.length - 1 && lane.slice(i0, i1 + 1).every((e) => pred(e.mod));
-      const touching = counted.every((e, k) => k === 0 || Math.abs(counted[k - 1].x0 + counted[k - 1].W - e.x0) <= 1);
+      const touching = counted.every((e, k) => {
+        if (k === 0) return true;
+        const end = counted[k - 1].x0 + counted[k - 1].W;
+        return Math.abs(end - e.x0) <= 1 || (!!bridge && e.x0 - end > 1 && bridge(ln, end, e.x0));
+      });
       const sameH = !!host.spec && counted.every((e) => !e.spec || e.spec.box.H === host.spec.box.H);
       return { bad: !contiguous || !touching || !sameH, host, x0: host.x0, x1: last.x0 + last.W, line: ln };
     };
     /** 라인마다 pred 구간 (세는 모듈이 없는 라인은 뺀다) */
-    const spansOf = (pred) => lineList.map((ln) => spanOf(ln, pred)).filter(Boolean);
+    const spansOf = (pred, bridge) => lineList.map((ln) => spanOf(ln, pred, bridge)).filter(Boolean);
     /** 품목에서 pred 구간이 꼭 한 라인에만 있어야 한다 (행이 한 장이다) */
-    const onlySpan = (pred) => {
-      const spans = spansOf(pred);
+    const onlySpan = (pred, bridge) => {
+      const spans = spansOf(pred, bridge);
       return spans.length === 1 && !spans[0].bad ? spans[0] : null;
     };
     /**
@@ -1226,7 +1232,8 @@
         case 'top': {
           // 상판 — 하부 라인(쿡탑장 포함, 키큰장 단 제외) 폭 합 + 좌·우 끝 도면 마감재 폭 한 장, 뒤 = 벽, 깊이 = 행 h, 몸통 위.
           //   벽 = 호스트 몸통 뒷면 − back (2026-10-24 D3: 몸통은 벽에서 뒤 여유만큼 떠 있다, 상판은 벽까지)
-          //   BOM 상판은 아직 품목당 한 장이라 두 벽(ㄱ자)이면 못 놓는다 — 2026-10-25 "벽마다 한 장"은 상판 발주 요청서 양식이 정해지면 (extractors.js)
+          //   BOM 상판은 품목당 한 장이라 두 벽(ㄱ자)이면 놓지 않는다 — 2026-10-26 사장님 확정 "ㄱ자 한 장으로 보내면 업체에서 알아서 나눔":
+          //   발주(BOM 행 · 상판 발주 요청서)는 ㄱ자 한 장이 정본이고 벽마다 나누는 것은 상판 업체 몫이다. 3D 가 배치 공간마다 그리는 것은 그림일 뿐
           const span = onlySpan(lowerLine);
           const finL = drawnEdgeW('left'), finR = drawnEdgeW('right');
           if (!span || row.qty !== 1 || row.w !== span.x1 - span.x0 + finL + finR) { skip(row, 'run-layout-unknown'); return; }
@@ -1238,8 +1245,12 @@
           // 상몰딩 — 상부 라인 위 띠, 앞면 = 도어 앞면 (키큰장 상몰딩과 같다). 2440 재단 장수 행(qty > 1)은 설치 길이가 아니다
           //   2026-10-25 사장님 확정: "상몰딩은 후드라고 해서 구별 하지 않음" — 후드 자리(type hood, 명세 모듈 없음)도 구간에 넣는다.
           //   한 장이 후드 위를 지난다 (BOM 상몰딩 폭도 후드를 넣는다). 구간 첫 모듈(호스트)은 명세가 있어야 한다 (spanOf)
+          //   2026-10-26 사장님 확정: "상부장이 있다면 위에는 상몰딩이 있다고 보면됨. 가능한 이어지게." — 상부장 사이 빈 자리(빈 벽 · 창문)도
+          //   건너 가장 바깥 상부장 두 끝 사이 한 장 (BOM extractors.js bomSinkMoldingLenOf 와 같은 길이). 빈 자리에 키큰장 단이 서 있으면
+          //   잇지 않는다 — 그 단이 제 상몰딩을 따로 낸다 (sink.md §5.1). 높이가 다른 구간 · 두 벽은 예전처럼 못 놓는다
           if (row.qty !== 1) { skip(row, 'run-cut-blank'); return; }
-          const span = onlySpan((mod) => mod.pos === 'upper');
+          const overTall = (ln, a, b) => ln.entries.some((e) => isTallTier(e.mod) && e.x0 < b - 1 && e.x0 + e.W > a + 1);
+          const span = onlySpan((mod) => mod.pos === 'upper', (ln, a, b) => !overTall(ln, a, b));
           if (!span || row.h !== span.x1 - span.x0) { skip(row, 'run-layout-unknown'); return; }
           const b = span.host.spec.box;
           put(row, span, { o: [xOf(span, span.x0), b.H, b.D / 2], u: '+y', v: '+x', n: '+z' }, 'exterior', { run: 'molding' });

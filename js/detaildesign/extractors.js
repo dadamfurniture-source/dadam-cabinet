@@ -230,7 +230,7 @@
 
       /**
        * 벽 길이들 → [[길이, 벽 수]] 긴 것부터 — 같은 길이의 벽은 한 행에 수량으로 (걸레받이 addKickBoards 와 같은 꼴).
-       *   2026-10-25 사장님 확정 (ㄱ자 하부 목찬넬): "보통 벽마다 한장씩, 두장으로 나뉨." — 상판은 아직 품목당 한 장 (extractSink 상판 주석).
+       *   2026-10-25 사장님 확정 (ㄱ자 하부 목찬넬): "보통 벽마다 한장씩, 두장으로 나뉨." — 상판은 품목당 한 장 (2026-10-26, extractSink 상판 주석).
        *   벽은 걸레받이와 같다 (bomKickWallLensOf — 하부 모듈 앞면 방향 _place.front, 자리가 없는 옛 설계는 한 벽).
        */
       function bomWallLenQtyOf(lens) {
@@ -240,6 +240,51 @@
           if (k > 0) qty.set(k, (qty.get(k) || 0) + 1);
         });
         return [...qty.entries()].sort((a, b) => b[0] - a[0]);
+      }
+
+      /**
+       * 싱크 상몰딩 길이 — 2026-10-26 사장님 확정 "상부장이 있다면 위에는 상몰딩이 있다고 보면됨. 가능한 이어지게."
+       *   상부 모듈 폭 합(후드 자리 type hood 포함 — 2026-10-25 "후드라고 해서 구별 하지 않음")에, 같은 벽의 상부장 사이 빈 자리
+       *   (빈 벽 · 창문 등)를 더한다 — 한 벽의 가장 바깥 상부장 두 끝 사이가 한 장이다. 바깥 상부장 밖으로는 늘리지 않는다.
+       *   벽 = 걸레받이 · 목찬넬과 같다 (모듈 앞면 방향 _place.front — bomKickWallLensOf). 벽 위 자리 = _place 중심을 진행 방향(run)에 투영.
+       *   잇지 않는 자리: 빈 자리에 키큰장 단이 서 있으면 — 그 단이 제 상몰딩을 따로 낸다 (addTallTierParts, sink.md §5.1).
+       *   모듈 하나라도 자리(_place)가 없으면(상세설계 화면 · 옛 payload) 사이를 알 수 없어 폭 합 그대로 (예전과 같다).
+       *   벽이 둘 이상이어도 행은 지금처럼 한 장(길이 합)이다 — 벽마다 나누는지는 정해지지 않았다.
+       * @param {object[]} uppers  상부 라인 모듈 (pos upper, 후드 자리 포함)
+       * @param {object[]} talls   키큰장 단 모듈 (bomTallTierOf)
+       * @returns {number}
+       */
+      function bomSinkMoldingLenOf(uppers, talls) {
+        const widthOf = (m) => parseFloat(m && m.w) || 0;
+        const sum = (uppers || []).reduce((s, m) => s + widthOf(m), 0);
+        const placed = (m) => {
+          const p = m && m._place;
+          return !!p && Array.isArray(p.run) && Array.isArray(p.front)
+            && Number.isFinite(Number(p.cx)) && Number.isFinite(Number(p.cy));
+        };
+        if (!(uppers || []).length || !uppers.every(placed)) return sum;
+        const wallOf = (m) => m._place.front.join(',');
+        const extentOf = (m) => {
+          const c = Number(m._place.cx) * Number(m._place.run[0]) + Number(m._place.cy) * Number(m._place.run[1]);
+          return [c - widthOf(m) / 2, c + widthOf(m) / 2];
+        };
+        const walls = new Map();
+        uppers.forEach((m) => {
+          if (!walls.has(wallOf(m))) walls.set(wallOf(m), []);
+          walls.get(wallOf(m)).push(extentOf(m));
+        });
+        let gaps = 0;
+        walls.forEach((segs, wall) => {
+          const tallSegs = (talls || []).filter((t) => placed(t) && wallOf(t) === wall).map(extentOf);
+          segs.sort((a, b) => a[0] - b[0]);
+          let end = segs[0][1];
+          segs.slice(1).forEach(([s0, s1]) => {
+            // 1mm 안은 붙은 것 (조립 명세 runsOf 의 '붙어 있다'와 같은 허용)
+            if (s0 - end > 1 && !tallSegs.some(([t0, t1]) => t0 < s0 - 1 && t1 > end + 1)) gaps += s0 - end;
+            end = Math.max(end, s1);
+          });
+        });
+        return Math.round(sum + gaps);
       }
 
       /** 키큰장 단이 목찬넬을 짊어지는가 — 바닥 단(하부단·통짜) + 목찬넬 손잡이 스펙. 도어 H·처짐방지·목찬넬 부재가 이걸 본다. */
@@ -1784,7 +1829,9 @@
           //   키큰장 상부단의 상몰딩은 그 단이 따로 낸다 (addTallTierParts).
           // 2026-10-25 사장님 확정: "상몰딩은 후드라고 해서 구별 하지 않음" — 후드 자리(type hood, 몸통은 없다)도 상부 라인 폭에 넣는다.
           //   상몰딩 한 장이 후드 위를 끊기지 않고 지난다 (조립 명세 runsOf 'molding' 도 후드를 구간에 넣는다).
-          const moldingW = (item.modules || []).filter((m) => m.pos === 'upper').reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
+          // 2026-10-26 사장님 확정: "상부장이 있다면 위에는 상몰딩이 있다고 보면됨. 가능한 이어지게." — 같은 벽 상부장 사이
+          //   빈 자리(빈 벽 · 창문)도 건너 한 장 (bomSinkMoldingLenOf — 키큰장 단이 선 자리는 그 단의 상몰딩이라 잇지 않는다).
+          const moldingW = bomSinkMoldingLenOf((item.modules || []).filter((m) => m.pos === 'upper'), lowerModules.filter((m) => bomTallTierOf(m)));
           this.beginItemLevel('upper');
           if (moldingH >= 20 && moldingW > 0) {
             const moldingEdge = moldingW > 2000 ? '2면(장)' : '4면';
@@ -1814,11 +1861,10 @@
           //   폭 = 하부 라인 폭 + 좌·우 마감 폭 (상판은 마감재 위를 지나간다 — 3D 는 영역 전폭 그대로). 깊이 = 품목 깊이(도면 그대로).
           //   이음·타공은 상판 업체가 판단한다 — BOM 은 한 장으로 낸다.
           //   **품목당 한 장**이다 — 사용자 결정 2026-09-15. 3D 가 배치 공간(런)마다 한 장 그리는 것은 표시용 단순화이고,
-          //   ㄱ·ㄷ자도 발주는 폭 합 한 장이다 (scene-bom-ledger.md §4 항목 3 · 허용 목록 `ep|top` 은 의도된 차이로 남는다).
-          //   2026-10-25 사장님 확정 "보통 벽마다 한장씩, 두장으로 나뉨. 상판 외주업체에서 결정." 은 **아직 반영하지 않았다** —
-          //   상판 발주 요청서(workers/workflow-api/src/countertop.js)가 상판 행마다 요청 한 장을 만들고, ㄱ자는 그 한 장에
-          //   평면 · 벽 길이 · 타공 전부를 싣는다 (2026-10-18 양식). 행을 벽마다 나누면 요청서가 두 장이 되고 타공이 두 번 적힌다.
-          //   요청서를 어떻게 낼지 정해지면 목찬넬처럼 벽마다로 바꾼다.
+          //   ㄱ·ㄷ자도 발주는 폭 합 한 장이다 (scene-bom-ledger.md §3 — 원장은 3D 조각의 합으로 맞춘다, test-utils/ledger-diff.js splitDeclaredTop).
+          //   2026-10-26 사장님 확정 "ㄱ자 한 장으로 보내면 업체에서 알아서 나눔." — ㄱ·ㄷ자도 **발주는 한 장**이다 (2026-10-25
+          //   "보통 벽마다 한장씩, 두장으로 나뉨. 상판 외주업체에서 결정." 의 나누기는 상판 업체가 한다). 상판 발주 요청서
+          //   (workers/workflow-api/src/countertop.js)도 이 한 행으로 요청 한 장(평면 · 벽 길이 · 타공)을 만든다. 벽마다 나누지 않는다.
           //   쿡탑장(type cook)은 몸통을 안 내지만 상판은 그 위를 지나가므로 폭에 넣는다 (걸레받이 effectiveW 는 예전대로 뺀다).
           const topLineW = (item.modules || [])
             .filter((m) => m.pos === 'lower' && !bomTallTierOf(m))
@@ -3327,6 +3373,8 @@
           BOM_HINGE_MIN_GAP,
           // 2026-10-20 걸레받이 꺾임에서 나누기
           bomKickWallLensOf, bomKickPiecesOf,
+          // 2026-10-26 상몰딩은 같은 벽 상부장 사이 빈 자리도 건너 한 장
+          bomSinkMoldingLenOf,
         };
       }
 
