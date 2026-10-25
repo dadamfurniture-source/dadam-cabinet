@@ -187,7 +187,8 @@ describe('구조 페이지에 걸렸다', () => {
     expect(html).toMatch(/function plannerCadSpec\(payload\)/);
     expect(html).toMatch(/compute: plannerCadSpec/);
     expect(html).toMatch(/const r = plannerCadSpec\(\);/);
-    expect(html).toMatch(/onAdmin: \(on\) => PlannerCadCheck\.setAdmin\(on\)/);
+    // 2026-10-25: 같은 역할을 씨앗 패널(planner-seed.js)도 받는다 — 화살표 몸통이 블록이 됐다
+    expect(html).toMatch(/onAdmin: \(on\) => \{ PlannerCadCheck\.setAdmin\(on\);/);
     expect(html).toMatch(/function renderAll3D\(opts\) \{\s*\/\/[^\n]*\n\s*if \(typeof PlannerCadCheck !== 'undefined'\) PlannerCadCheck\.schedule\(\);/);
     expect(html).toMatch(/PlannerCadCheck\.decorate\(\);\s*\}/);
     expect(html).toMatch(/id="mlCadCheck" hidden/);
