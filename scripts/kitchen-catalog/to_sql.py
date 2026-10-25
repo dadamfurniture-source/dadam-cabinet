@@ -26,7 +26,8 @@ BATCH = 100
 #   이미지판독 공식 이미지를 눈으로 읽은 값 · 요약문 사양표가 아닌 요약 글 · 고시불일치 판매 코드와 상품정보고시 코드가 다름
 #   치수순서추정 W · D · H 순서 표시가 없음 · 치수순서의심 같은 모델 다른 색상 페이지끼리 순서가 다름
 #   출처불일치 같은 회사의 웹 페이지 · 카탈로그 값이 서로 다름
-UNVERIFIED_TAGS = {'이미지판독', '요약문', '고시불일치', '치수순서추정', '치수순서의심', '국내판매미확인', '출처불일치'}
+#   구멍범위 수전 구멍이 범위로 적혀 작은 값을 넣었다 (백조 'Φ33~38' — 상세 이미지는 38Ø) — 상판 타공 전에 확인
+UNVERIFIED_TAGS = {'이미지판독', '요약문', '고시불일치', '치수순서추정', '치수순서의심', '국내판매미확인', '출처불일치', '구멍범위'}
 # 브랜드 파일이 한쪽 값을 골라 넣었지만 공식 출처끼리 값이 다른 모델 (2026-10-25 각 brands/<key>.md) — '출처불일치' 로 미검증
 SOURCE_CONFLICT = {
     'SI364BM': '스메그 고시 높이 50 · smeg.com 60', 'KT90PE': '스메그 900×740×480 · 비교표 · smeg.com 895×740×530',
@@ -41,14 +42,23 @@ SOURCE_CONFLICT = {
     'CRM-H0640FPW': '쿠첸 페이지 417×300×290 · 설명서 313×251×233 (설명서 값)', 'CRM-H0640FCY': '쿠첸 페이지 417×300×290 · 설명서 313×251×233 (설명서 값)',
     'CRT-PMWS0640KFI': '쿠첸 페이지 높이 361 · 설명서 270 (설명서 값)', 'CRE-D0601W': '쿠첸 페이지 302(W) · 설명서 302(길이) — W · D 를 설명서로 바꿈',
 }
+# 사장님 2026-10-25 '국내 판매처를 확인한 뒤' — 확인 전까지 가져오기 SQL 에서 뺀다 (수집 결과에는 남는다)
+HOLD_BRANDS = {'보쉬', '지멘스'}
 # 이 태그가 붙은 행은 SQL 에 넣지 않는다 — 종류별 치수 범위를 벗어났다 (collect.py BOUNDS)
 SKIP_TAGS = {'치수확인필요'}
 CAT_LABEL = {'microwave': '전자레인지', 'oven': '오븐', 'dishwasher': '식기세척기', 'cooktop': '쿡탑', 'hood': '후드',
-             'rice_cooker': '밥솥', 'sink': '싱크볼'}
+             'rice_cooker': '밥솥', 'sink': '싱크볼', 'range': '가스오븐레인지', 'faucet': '수전'}
+
+
+def is_faucet_only(r):
+    """수전 — 치수 없이 수전 구멍만 있는 행 (DB appliance_models_dims_chk 가 받는다). 범위 밖 치수도 칸은 비운다."""
+    return r.get('category') == 'faucet' and (T.num(r.get('faucet_hole_mm')) or 0) > 0
 
 
 def tags_of(r):
     tags = list(r.get('tags') or [])
+    if r.get('category') == 'faucet' and '치수범위' in tags and '구멍범위' not in tags:
+        tags.append('구멍범위')
     if any(str(c).strip() in SOURCE_CONFLICT for c in (r.get('model_codes') or [])) and '출처불일치' not in tags:
         tags.append('출처불일치')
     return tags
@@ -82,10 +92,14 @@ def notes_of(r):
 def skip_reason(row, r):
     if not row['model_codes']:
         return '모델 코드 없음'
+    if is_faucet_only(r):   # 수전은 구멍만 있으면 된다 — 치수는 row_of 가 비운다
+        return '국내 판매처 확인 전' if row['brand'] in HOLD_BRANDS else None
     if not all((row[k] or 0) > 0 for k in ('width_mm', 'depth_mm', 'height_mm')):
         return '치수 없음'
     if set(r.get('tags') or []) & SKIP_TAGS:
         return '치수 범위 밖'
+    if row['brand'] in HOLD_BRANDS:
+        return '국내 판매처 확인 전'
     if row['cutout_w_mm'] and row['cutout_d_mm'] and (row['cutout_w_mm'] >= row['width_mm'] or row['cutout_d_mm'] >= row['depth_mm']):
         return '타공이 외경보다 크다'
     return None
@@ -99,13 +113,15 @@ def row_of(r):
         'model_name': T.clean_name(r.get('model_name')),
         'model_code': codes[0] if codes else None,
         'model_codes': codes,
-        'width_mm': T.num(r.get('width_mm')),
-        'depth_mm': T.num(r.get('depth_mm')),
-        'height_mm': T.num(r.get('height_mm')),
+        # 수전: 치수가 범위 밖이거나 일부만 있으면 칸을 비운다 (구멍만으로 들어간다)
+        **({'width_mm': None, 'depth_mm': None, 'height_mm': None} if is_faucet_only(r) and (set(r.get('tags') or []) & SKIP_TAGS
+           or not all((T.num(r.get(k)) or 0) > 0 for k in ('width_mm', 'depth_mm', 'height_mm')))
+           else {'width_mm': T.num(r.get('width_mm')), 'depth_mm': T.num(r.get('depth_mm')), 'height_mm': T.num(r.get('height_mm'))}),
         'capacity_l': T.num(r.get('capacity_l')),
         'subtype': r.get('category_subtype'),
         'line': r.get('line'),
         'install_type': r.get('install_type'),
+        'gas_types': sorted(set(r['gas_types'])) if r.get('gas_types') else None,   # 가스 종류 (DB 칸 gas_types)
         'side_gap_mm': T.num(r.get('side_gap_mm'), up=True),
         'top_gap_mm': T.num(r.get('top_gap_mm'), up=True),
         'back_gap_mm': T.num(r.get('back_gap_mm'), up=True),
@@ -148,7 +164,7 @@ def main(paths):
         lines.append(f'SELECT import_appliance_models($kitchen${chunk}$kitchen$::jsonb);')
     lines.append('')
     lines.append("SELECT category, subtype, brand, count(*), count(*) FILTER (WHERE verified) AS verified FROM appliance_models"
-                 " WHERE category IN ('microwave', 'oven', 'dishwasher', 'cooktop', 'hood', 'rice_cooker', 'sink') GROUP BY 1, 2, 3 ORDER BY 1, 2, 3;")
+                 " WHERE category IN ('microwave', 'oven', 'dishwasher', 'cooktop', 'hood', 'rice_cooker', 'sink', 'range', 'faucet') GROUP BY 1, 2, 3 ORDER BY 1, 2, 3;")
     sys.stdout.reconfigure(encoding='utf-8')
     print('\n'.join(lines))
 

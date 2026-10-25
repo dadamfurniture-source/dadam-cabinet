@@ -40,6 +40,9 @@ BOUNDS = {
     "hood":        {"w": (250, 1900), "h": (50, 1600), "d": (100, 800)},
     "rice_cooker": {"w": (150, 500), "h": (150, 500), "d": (150, 550)},
     "sink":        {"w": (200, 2000), "h": (100, 350), "d": (300, 650)},   # 싱크볼 — H = 볼 깊이 (소형 바 볼 220 · 1800 일체형)
+    # 2026-10-25 3차 (사장님 답: 수전 기준 · 가스오븐레인지 따로)
+    "range":       {"w": (400, 1000), "h": (300, 1000), "d": (400, 750)},  # 빌트인 가스오븐레인지 (위 버너 + 아래 오븐)
+    "faucet":      {"w": (20, 400), "h": (50, 1200), "d": (50, 600)},       # 수전 — W 본체 폭(지름) · H 높이 · D 토수구 길이
 }
 NICHE_KEYS = ("niche_min_w_mm", "niche_min_h_mm", "niche_min_d_mm", "niche_max_w_mm", "niche_max_h_mm", "niche_max_d_mm")
 CUTOUT_KEYS = ("cutout_w_mm", "cutout_d_mm", "cutout_r_mm", "faucet_hole_mm")
@@ -133,7 +136,8 @@ def base_row(**kw):
                              "depth_mm", "capacity_l", "place_count", "install_type", "size_raw", "niche_raw",
                              "cutout_raw", "product_type_raw", "install_notes", "source_url", "image_source_url",
                              "page_url", "sale_status") + NICHE_KEYS + CUTOUT_KEYS + GAP_KEYS}
-    row.update({"model_codes": [], "tags": [], "collected_at": F.now_iso()})
+    # gas_types: 가스 쿡탑 · 가스오븐레인지가 쓸 수 있는 가스 ['LNG'] · ['LPG'] · ['LNG', 'LPG'] (모르면 None)
+    row.update({"model_codes": [], "tags": [], "gas_types": None, "collected_at": F.now_iso()})
     row.update(kw)
     return row
 
@@ -410,7 +414,7 @@ def is_rice_cooker(name):
 # --------------------------------------------------------------------------- 묶기 · 쓰기
 
 COLS = ["brand", "category", "category_subtype", "line", "tags", "model_name", "model_codes", "width_mm", "height_mm",
-        "depth_mm", "capacity_l", "place_count", "install_type", *NICHE_KEYS, *CUTOUT_KEYS, *GAP_KEYS, "size_raw",
+        "depth_mm", "capacity_l", "place_count", "install_type", "gas_types", *NICHE_KEYS, *CUTOUT_KEYS, *GAP_KEYS, "size_raw",
         "niche_raw", "cutout_raw", "product_type_raw", "install_notes", "source_url", "page_url", "source_urls",
         "image_source_url", "sale_status", "collected_at"]
 
@@ -424,7 +428,7 @@ def merge(rows):
         else:
             key = (r["brand"], r["category"], r["category_subtype"], r["line"], r["width_mm"], r["height_mm"], r["depth_mm"],
                    r["capacity_l"], r["place_count"], r["install_type"], r["cutout_w_mm"], r["cutout_d_mm"],
-                   r["niche_min_w_mm"], r["niche_min_h_mm"], r["niche_min_d_mm"])
+                   r["niche_min_w_mm"], r["niche_min_h_mm"], r["niche_min_d_mm"], tuple(r.get("gas_types") or ()))
         if key not in out:
             r = dict(r)
             r["model_codes"] = list(r["model_codes"])
@@ -471,7 +475,7 @@ def write(rows, base):
         w.writeheader()
         for r in rows:
             rr = dict(r)
-            for k in ("model_codes", "tags", "source_urls"):
+            for k in ("model_codes", "tags", "source_urls", "gas_types"):
                 if isinstance(rr.get(k), list):
                     rr[k] = ";".join(str(x) for x in rr[k])
             w.writerow(rr)

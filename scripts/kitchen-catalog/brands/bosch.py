@@ -104,6 +104,51 @@ def rng(s):
     return nums[0], (nums[1] if len(nums) > 1 else nums[0])
 
 
+# 가스 종류 (2026-10-25 3차) — BSH 사양 칸. 같은 helper 가 gaggenau.py · siemens.py 에도 있다
+GAS_PROPS = ("Gas type preset", "Gas type", "Certified gas types", "Other certified gas types",
+             "Nozzle set included for alternative gas type", "Nozzle set included")
+
+
+def gas_kinds(v):
+    """'Nat gas H/E/(L) 20 (25) mbar, Liquid gas G30,31 28-30/37mbar' → ({'LNG', 'LPG'}, [모르는 이름]).
+    천연가스(Natural gas · Nat gas · NG · G20 · G25) = LNG, 액화가스(Liquid gas · LPG · G30 · G31 · 프로판 · 부탄) = LPG.
+    Town gas · Towngas (싱가포르 · 홍콩 제조가스, G110) 는 LNG 도 LPG 도 아니다 — 모르는 이름으로 남긴다."""
+    out, other = set(), []
+    for part in re.split(r",\s*(?=[A-Za-z])", v or ""):          # 'G30,31' 의 쉼표는 나누지 않는다
+        p = part.lower()
+        if re.search(r"nat(?:ural)?\.?\s*gas|\bng\b|\bg2[05]\b", p):
+            out.add("LNG")
+        elif re.search(r"liquid\s*gas|liquidgas|\blpg\b|\bg3[01]\b|propan|butan", p):
+            out.add("LPG")
+        elif part.strip():
+            other.append(part.strip())
+    return out, other
+
+
+def gas_of(row, p):
+    """가스 쿡탑 → gas_types. 기본 가스(Gas type / preset) + 인증 가스 · 동봉 노즐 세트로 바꿔 쓸 수 있는 가스를 모두 넣고
+    원문은 install_notes 에. Town gas 뿐이면 None (LNG · LPG 가 아니다)."""
+    raw, kinds, other = [], set(), []
+    for n in GAS_PROPS:
+        v = prop(p, n)
+        if v:
+            raw.append(f"{n}: {v}")
+            k, o = gas_kinds(v)
+            kinds |= k
+            other += o
+    if not raw:
+        return None
+    row["gas_types"] = [g for g in ("LNG", "LPG") if g in kinds] or None
+    note = "가스 원문 " + " · ".join(raw)
+    if len(kinds) > 1 and any(r.startswith("Nozzle set") for r in raw):
+        note += " — 다른 가스는 동봉 노즐 세트로 바꿔 쓴다"
+    elif len(kinds) > 1:
+        note += " — 다른 가스는 인증 가스(바꾸는 방법은 설치설명서 확인)"
+    if other and not kinds:
+        note += " — Town gas(제조가스)는 LNG · LPG 가 아니라 gas_types 를 비움"
+    return note
+
+
 def put_niche(row, wmin, wmax, hmin, hmax, dmin, dmax, raw):
     """니치 — 한 값이면 min 만, 범위면 min · max (냉장고 수집기와 같은 규칙)."""
     for k, lo, hi in (("w", wmin, wmax), ("h", hmin, hmax), ("d", dmin, dmax)):
@@ -316,6 +361,10 @@ def build_row(code, url, path, p, f=None):
     hinge = prop(p, "Door hinge", "Door hinge position")
     if hinge:
         notes.append(f"도어 경첩 {hinge}")
+    if cat == "cooktop" and sub == "gas":
+        gn = gas_of(row, p)
+        if gn:
+            notes.append(gn)
     if notes:
         row["install_notes"] = " · ".join(notes)
     dids = drawing_ids(p)

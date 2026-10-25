@@ -25,13 +25,14 @@ def collect(f, K_, sample=None):
 | 칸 | 값 |
 |---|---|
 | `brand` | 한글 브랜드 이름 그대로 (`하츠` · `SK매직` · `린나이` · `백조` · `보쉬` …) |
-| `category` | `microwave` · `oven` · `dishwasher` · `cooktop` · `hood` · `rice_cooker` · `sink` |
+| `category` | `microwave` · `oven` · `dishwasher` · `cooktop` · `hood` · `rice_cooker` · `sink` · `range` (빌트인 가스오븐레인지 — 위 버너 + 아래 오븐) · `faucet` (주방 수전) |
 | `category_subtype` | 아래 목록 안의 값만. 맞는 값이 없으면 `None` 으로 두고 `product_type_raw` 에 원문 |
 | `install_type` | `freestanding` · `built_in` · `None` |
-| `width_mm` · `height_mm` · `depth_mm` | `K.put_dims` 로만 넣는다 (외경). 싱크볼 H = 볼 깊이 |
+| `width_mm` · `height_mm` · `depth_mm` | `K.put_dims` 로만 넣는다 (외경). 싱크볼 H = 볼 깊이 · 수전 W = 본체 폭(지름) · H = 전체 높이 · D = 토수구 길이 |
 | `niche_min/max_{w,h,d}_mm` | 빌트인 설치 공간 (제조사가 적은 값) · 원문은 `niche_raw` |
 | `cutout_w_mm` · `cutout_d_mm` · `cutout_r_mm` | 상판 타공 (쿡탑 · 싱크볼) · 원문은 `cutout_raw` |
-| `faucet_hole_mm` | 싱크볼 수전 구멍 지름 |
+| `faucet_hole_mm` | 수전 타공(상판 · 싱크볼 구멍) 지름. 범위로 적혀 있으면(Φ33~38) 작은 값 + `치수범위` 태그, 원문은 `cutout_raw` |
+| `gas_types` | 가스 쿡탑 · 가스오븐레인지가 쓸 수 있는 가스 — `['LNG']` · `['LPG']` · `['LNG', 'LPG']`. 제조사가 적은 것만, 모르면 `None`. 가스마다 모델 코드가 다르면 행을 나눈다 |
 | `side_gap_mm` · `top_gap_mm` · `back_gap_mm` | 제조사가 적은 설치 여유 · 원문은 `install_notes` |
 | `capacity_l` · `place_count` | 용량 L · 인용 (식기세척기 · 밥솥) |
 | `model_codes` | 판매 모델 코드 (색상 변형 모두) |
@@ -48,6 +49,8 @@ def collect(f, K_, sample=None):
 | hood | `chimney` · `slim` · `built_in` · `island` |
 | rice_cooker | `pressure_ih` · `ih` · `pressure` · `electric` |
 | sink | (아직 없음 — `None`. 제조사 구분 원문은 `product_type_raw`) |
+| range | `gas` · `induction` · `hybrid` · `highlight` (위 화구 방식 — 쿡탑과 같은 목록) |
+| faucet | (없음 — `None`. 원홀 · 투홀 · 벽부형 · 풀아웃 같은 원문은 `product_type_raw`) |
 
 ## 검증 태그 (`tags`) — 하나라도 붙으면 미검증
 
