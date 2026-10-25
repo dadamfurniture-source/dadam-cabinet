@@ -8,6 +8,8 @@
 --   2. 세부 구분(subtype) 검사를 종류별로 — 냉장고 9가지는 그대로, 주방가전 종류마다 따로
 --   3. 가져오기 함수 import_appliance_models() 가 쿡탑 · 싱크볼 타공(cutout_w/d/r_mm)과 싱크볼 수전 구멍(faucet_hole_mm)도 넣는다
 --      (2026-10-25 사장님 "하츠나, 백조 등등도" — 싱크볼 수집)
+--   4. 2026-10-25 사장님 답: 종류 'range'(빌트인 가스오븐레인지 — 위 버너 + 아래 오븐)와 'faucet'(주방 수전 — 수전 구멍은 수전 기준),
+--      가스 쿡탑 · 가스오븐레인지가 쓸 수 있는 가스 gas_types ('LNG' · 'LPG', "가스레인지는 LPG, LNG(도시가스) 두 가지로 나눠야함")
 --
 -- 적용: Supabase SQL 편집기에서 이 파일 한 번 → 그 뒤 수집기가 만든 import-kitchen.sql.
 --   이 파일만 돌려도 되도록 함수가 쓰는 칸을 모두 IF NOT EXISTS 로 둔다 (먼저 돌린 다른 파일과 같은 정의).
@@ -17,9 +19,9 @@
 -- ── 1. 종류 ───────────────────────────────────────────────
 ALTER TABLE appliance_models DROP CONSTRAINT IF EXISTS appliance_models_category_check;
 ALTER TABLE appliance_models ADD CONSTRAINT appliance_models_category_check CHECK (
-  category IN ('refrigerator', 'hood', 'dishwasher', 'sink', 'oven', 'cooktop', 'washing_machine', 'microwave', 'rice_cooker')
+  category IN ('refrigerator', 'hood', 'dishwasher', 'sink', 'oven', 'cooktop', 'washing_machine', 'microwave', 'rice_cooker', 'range', 'faucet')
 );
-COMMENT ON COLUMN appliance_models.category IS 'refrigerator | hood | dishwasher | sink | oven | cooktop | washing_machine | microwave | rice_cooker';
+COMMENT ON COLUMN appliance_models.category IS 'refrigerator | hood | dishwasher | sink | oven | cooktop | washing_machine | microwave | rice_cooker | range | faucet';
 
 -- ── 칸 (먼저 돌린 파일이 있으면 그대로 둔다) ─────────────────
 ALTER TABLE appliance_models
@@ -47,7 +49,10 @@ ALTER TABLE appliance_models
   ADD COLUMN IF NOT EXISTS cutout_w_mm INT CHECK (cutout_w_mm IS NULL OR cutout_w_mm > 0),
   ADD COLUMN IF NOT EXISTS cutout_d_mm INT CHECK (cutout_d_mm IS NULL OR cutout_d_mm > 0),
   ADD COLUMN IF NOT EXISTS cutout_r_mm INT CHECK (cutout_r_mm IS NULL OR cutout_r_mm >= 0),
-  ADD COLUMN IF NOT EXISTS faucet_hole_mm INT CHECK (faucet_hole_mm IS NULL OR faucet_hole_mm > 0);
+  ADD COLUMN IF NOT EXISTS faucet_hole_mm INT CHECK (faucet_hole_mm IS NULL OR faucet_hole_mm > 0),
+  ADD COLUMN IF NOT EXISTS gas_types TEXT[] CHECK (gas_types IS NULL OR gas_types <@ ARRAY['LNG', 'LPG']::TEXT[]);
+
+COMMENT ON COLUMN appliance_models.gas_types IS '가스 쿡탑 · 가스오븐레인지가 쓸 수 있는 가스 — LNG(도시가스) · LPG. 제조사가 적은 것만';
 
 ALTER TABLE appliance_models DROP CONSTRAINT IF EXISTS appliance_models_install_type_chk;
 ALTER TABLE appliance_models ADD CONSTRAINT appliance_models_install_type_chk CHECK (
@@ -98,6 +103,11 @@ ALTER TABLE appliance_models ADD CONSTRAINT appliance_models_subtype_chk CHECK (
     'ih',             -- IH
     'pressure',       -- 열판 압력
     'electric')       -- 일반 전기 (마이컴)
+  WHEN 'range' THEN subtype IN (   -- 빌트인 가스오븐레인지 — 위 화구 방식 (쿡탑과 같은 목록)
+    'gas',
+    'induction',
+    'hybrid',
+    'highlight')
   ELSE false END);
 
 COMMENT ON COLUMN appliance_models.subtype IS '세부 구분 — 종류별 목록은 appliance_models_subtype_chk (database/appliance-models-kitchen.sql)';
@@ -148,7 +158,7 @@ BEGIN
         category, brand, model_name, model_code, model_codes, width_mm, depth_mm, height_mm, capacity_l,
         subtype, line, install_type, side_gap_mm, top_gap_mm, back_gap_mm,
         niche_min_w_mm, niche_min_h_mm, niche_min_d_mm, niche_max_w_mm, niche_max_h_mm, niche_max_d_mm,
-        cutout_w_mm, cutout_d_mm, cutout_r_mm, faucet_hole_mm,
+        cutout_w_mm, cutout_d_mm, cutout_r_mm, faucet_hole_mm, gas_types,
         verified, source_url, image_source_url, notes, collected_at
       ) VALUES (
         COALESCE(r->>'category', 'refrigerator'), r->>'brand', r->>'model_name', codes[1], codes,
@@ -159,6 +169,7 @@ BEGIN
         NULLIF(r->>'niche_max_w_mm', '')::INT, NULLIF(r->>'niche_max_h_mm', '')::INT, NULLIF(r->>'niche_max_d_mm', '')::INT,
         NULLIF(r->>'cutout_w_mm', '')::INT, NULLIF(r->>'cutout_d_mm', '')::INT, NULLIF(r->>'cutout_r_mm', '')::INT,
         NULLIF(r->>'faucet_hole_mm', '')::INT,
+        NULLIF(ARRAY(SELECT jsonb_array_elements_text(COALESCE(r->'gas_types', '[]'::jsonb))), '{}'),
         COALESCE((r->>'verified')::BOOLEAN, false), r->>'source_url', NULLIF(r->>'image_source_url', ''), r->>'notes', NOW()
       );
       n_ins := n_ins + 1;
@@ -186,6 +197,7 @@ BEGIN
         cutout_d_mm      = COALESCE(cutout_d_mm, NULLIF(r->>'cutout_d_mm', '')::INT),
         cutout_r_mm      = COALESCE(cutout_r_mm, NULLIF(r->>'cutout_r_mm', '')::INT),
         faucet_hole_mm   = COALESCE(faucet_hole_mm, NULLIF(r->>'faucet_hole_mm', '')::INT),
+        gas_types        = COALESCE(NULLIF(ARRAY(SELECT jsonb_array_elements_text(COALESCE(r->'gas_types', '[]'::jsonb))), '{}'), gas_types),
         verified         = verified OR COALESCE((r->>'verified')::BOOLEAN, false),
         source_url       = COALESCE(r->>'source_url', source_url),
         image_source_url = COALESCE(NULLIF(r->>'image_source_url', ''), image_source_url),

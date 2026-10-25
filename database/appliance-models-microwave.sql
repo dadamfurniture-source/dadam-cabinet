@@ -17,7 +17,7 @@
 -- 첫 스키마(appliance-models-schema.sql)의 열 CHECK 은 Postgres 기본 이름 appliance_models_category_check 로 붙어 있다
 ALTER TABLE appliance_models DROP CONSTRAINT IF EXISTS appliance_models_category_check;
 ALTER TABLE appliance_models ADD CONSTRAINT appliance_models_category_check CHECK (
-  category IN ('refrigerator', 'hood', 'dishwasher', 'sink', 'oven', 'cooktop', 'washing_machine', 'microwave', 'rice_cooker')
+  category IN ('refrigerator', 'hood', 'dishwasher', 'sink', 'oven', 'cooktop', 'washing_machine', 'microwave', 'rice_cooker', 'range', 'faucet')
 );
 
-COMMENT ON COLUMN appliance_models.category IS 'refrigerator | hood | dishwasher | sink | oven | cooktop | washing_machine | microwave | rice_cooker';
+COMMENT ON COLUMN appliance_models.category IS 'refrigerator | hood | dishwasher | sink | oven | cooktop | washing_machine | microwave | rice_cooker | range | faucet';
