@@ -38,10 +38,14 @@ function subtypeCheckOf(sql) {
 }
 
 describe('DB — appliance-models-kitchen.sql', () => {
-  test('종류에 밥솥(rice_cooker)을 더한다 · 첫 스키마와 같은 목록', () => {
+  test('종류에 밥솥(rice_cooker)을 더한다 · 첫 스키마 · 전자레인지 SQL 과 같은 목록', () => {
     const chk = KITCHEN.slice(KITCHEN.indexOf('ADD CONSTRAINT appliance_models_category_check'), KITCHEN.indexOf(');', KITCHEN.indexOf('ADD CONSTRAINT appliance_models_category_check')));
     expect([...chk.matchAll(/'([a-z_]+)'/g)].map((m) => m[1])).toEqual(CATEGORIES);
     expect(KITCHEN).toContain('DROP CONSTRAINT IF EXISTS appliance_models_category_check');
+    // appliance-models-microwave.sql 도 같은 목록 — kitchen.sql 뒤에 다시 돌려도 밥솥 행이 걸리지 않게
+    const MW = read('database/appliance-models-microwave.sql');
+    const mw = MW.slice(MW.indexOf('ADD CONSTRAINT appliance_models_category_check'), MW.indexOf(');', MW.indexOf('ADD CONSTRAINT appliance_models_category_check')));
+    expect([...mw.matchAll(/'([a-z_]+)'/g)].map((m) => m[1])).toEqual(CATEGORIES);
     const first = SCHEMA.slice(SCHEMA.indexOf('category    TEXT NOT NULL CHECK'), SCHEMA.indexOf('\n', SCHEMA.indexOf('category    TEXT NOT NULL CHECK')));
     expect([...first.matchAll(/'([a-z_]+)'/g)].map((m) => m[1])).toEqual(CATEGORIES);
   });
@@ -60,15 +64,16 @@ describe('DB — appliance-models-kitchen.sql', () => {
   test('이 파일만 돌려도 되게 함수가 쓰는 칸은 모두 IF NOT EXISTS', () => {
     for (const col of ['subtype', 'line', 'install_type', 'model_codes', 'back_gap_mm', 'discontinued', 'collected_at', 'side_gap_mm', 'top_gap_mm',
       'niche_min_w_mm', 'niche_min_h_mm', 'niche_min_d_mm', 'niche_max_w_mm', 'niche_max_h_mm', 'niche_max_d_mm', 'image_source_url',
-      'cutout_w_mm', 'cutout_d_mm', 'cutout_r_mm']) {
+      'cutout_w_mm', 'cutout_d_mm', 'cutout_r_mm', 'faucet_hole_mm']) {
       expect([col, new RegExp(`ADD COLUMN IF NOT EXISTS ${col}\\b`).test(KITCHEN)]).toEqual([col, true]);
     }
   });
 
-  test('가져오기 함수 — 쿡탑 타공을 넣고, 다시 가져올 때는 기존 값(관리 화면에서 고친 값) 우선', () => {
+  test('가져오기 함수 — 쿡탑 · 싱크볼 타공과 수전 구멍을 넣고, 다시 가져올 때는 기존 값(관리 화면에서 고친 값) 우선', () => {
     expect(KITCHEN).toContain('CREATE OR REPLACE FUNCTION import_appliance_models(rows JSONB)');
-    expect(KITCHEN).toMatch(/cutout_w_mm, cutout_d_mm, cutout_r_mm,\s+verified, source_url/);
-    for (const k of ['cutout_w_mm', 'cutout_d_mm', 'cutout_r_mm']) {
+    expect(KITCHEN).toMatch(/cutout_w_mm, cutout_d_mm, cutout_r_mm, faucet_hole_mm,\s+verified, source_url/);
+    expect(KITCHEN).toContain("NULLIF(r->>'faucet_hole_mm', '')::INT,");
+    for (const k of ['cutout_w_mm', 'cutout_d_mm', 'cutout_r_mm', 'faucet_hole_mm']) {
       expect(KITCHEN).toMatch(new RegExp(`${k}\\s+= COALESCE\\(${k}, NULLIF\\(r->>'${k}', ''\\)::INT\\)`));
     }
     // 냉장고 가져오기 규칙은 그대로 (여유 · 니치 기존 값 우선, 코드 합집합, 검증 OR)
