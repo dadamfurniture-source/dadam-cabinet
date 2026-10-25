@@ -61,6 +61,11 @@ ALTER TABLE appliance_models ADD CONSTRAINT appliance_models_subtype_chk CHECK (
     'ih',             -- IH
     'pressure',       -- 열판 압력
     'electric')       -- 일반 전기 (마이컴)
+  WHEN 'range' THEN subtype IN (   -- 빌트인 가스오븐레인지 — 위 화구 방식 (쿡탑과 같은 목록)
+    'gas',
+    'induction',
+    'hybrid',
+    'highlight')
   ELSE false END);
 
 ALTER TABLE appliance_models DROP CONSTRAINT IF EXISTS appliance_models_install_type_chk;

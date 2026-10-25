@@ -88,10 +88,11 @@ describe('관리자 가전 모델 — 싱크볼 · 쿡탑 타공 칸', () => {
     expect(AP).not.toMatch(/분배기/);
   });
 
-  test('타공 W · D · R · 수전 지름 칸, 싱크볼 · 쿡탑만 보낸다 (수전은 싱크볼만)', () => {
+  test('타공 W · D · R 칸은 싱크볼 · 쿡탑 · 가스오븐레인지, 수전 지름은 싱크볼 · 수전만 보낸다 (2026-10-25 수전 기준)', () => {
     for (const id of ['f-cw', 'f-cd', 'f-cr', 'f-fh']) expect(AP).toContain(`id="${id}"`);
-    expect(AP).toContain("const CUTOUT_CATS = ['sink', 'cooktop'];");
-    expect(AP).toMatch(/if \(CUTOUT_CATS\.includes\(payload\.category\)\) \{[\s\S]*payload\.cutout_w_mm = int\('f-cw'\);[\s\S]*payload\.faucet_hole_mm = payload\.category === 'sink' \? int\('f-fh'\) : null;/);
+    expect(AP).toContain("const CUTOUT_CATS = ['sink', 'cooktop', 'range'];");
+    expect(AP).toContain("const FAUCET_CATS = ['sink', 'faucet'];");
+    expect(AP).toMatch(/if \(CUTOUT_CATS\.includes\(payload\.category\)\) \{[\s\S]*payload\.cutout_w_mm = int\('f-cw'\);[\s\S]*if \(FAUCET_CATS\.includes\(payload\.category\)\) payload\.faucet_hole_mm = int\('f-fh'\);/);
     expect(AP).toContain("document.getElementById('f-category').addEventListener('change', toggleCutoutFields);");
     expect(AP).toContain("? '\\n\\n타공 칸은 database/work-reports.sql");
   });
