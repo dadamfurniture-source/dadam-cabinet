@@ -170,3 +170,8 @@ design-system/dist/
 
 # CAD 검산기 로컬 실행 산출물 (tools/cad, CI 는 Actions 산출물로 올린다)
 cad-oracle/
+
+# 정부 신청서·사업 문서는 공개 저장소에 올리지 않는다
+cowork/*.docx
+cowork/*.hwp
+cowork/*.pdf
