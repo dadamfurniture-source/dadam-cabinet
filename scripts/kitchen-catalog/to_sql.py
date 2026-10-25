@@ -64,6 +64,45 @@ def tags_of(r):
     return tags
 
 
+REVIEW_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'owner_review.json')   # owner_sync.py 가 만든다 (이 PC 에만)
+
+
+def load_reviews():
+    """검토 페이지 사장님 기록 — 제품 키(브랜드 | 첫 모델 코드) → 기록. 없으면 빈 dict."""
+    if not os.path.exists(REVIEW_FILE):
+        return {}
+    return {e['key']: e for e in json.load(open(REVIEW_FILE, encoding='utf-8')).get('reviews', [])}
+
+
+def apply_review(row, o):
+    """사장님 기록을 행에 반영한다. 맞음 → 검증, 틀림 + 올바른 값 → 그 값 + 검증, 모르겠음 · 값 없는 틀림 → 미검증.
+    set = 메모에서 Claude 가 칸으로 옮긴 값 (owner_review.json). 치수를 고쳤으면 True."""
+    if not o:
+        return False
+    st = o.get('set') or {}
+    for k, v in st.items():
+        row[k] = v
+    fixed = any(k in st for k in ('width_mm', 'height_mm', 'depth_mm'))
+    v = o.get('verdict')
+    if v == 'wrong' and all(o.get(x) for x in ('w', 'h', 'd')):
+        row['width_mm'], row['height_mm'], row['depth_mm'] = int(o['w']), int(o['h']), int(o['d'])
+        fixed = True
+    confirmed = v == 'ok' or (v == 'wrong' and (fixed or bool(st)))
+    if confirmed:
+        row['verified'] = True
+    elif v in ('wrong', 'unsure'):
+        row['verified'] = False
+    parts = []
+    if v:
+        parts.append({'ok': '사장님 확인: 맞음', 'unsure': '사장님 확인: 모르겠음'}.get(v) or ('사장님 확인: 틀림 → 고침' if confirmed else '사장님 확인: 틀림 (고칠 값 없음)'))
+    for t in (o.get('memo'), o.get('note')):
+        if t:
+            parts.append('사장님 메모: ' + t)
+    if parts:
+        row['notes'] = (' · '.join(parts) + (' · ' + row['notes'] if row['notes'] else ''))[:T.NOTES_MAX]
+    return fixed
+
+
 def notes_of(r):
     parts = []
     tags = tags_of(r)
@@ -89,14 +128,14 @@ def notes_of(r):
     return text[:T.NOTES_MAX] or None
 
 
-def skip_reason(row, r):
+def skip_reason(row, r, dims_fixed=False):
     if not row['model_codes']:
         return '모델 코드 없음'
     if is_faucet_only(r):   # 수전은 구멍만 있으면 된다 — 치수는 row_of 가 비운다
         return '국내 판매처 확인 전' if row['brand'] in HOLD_BRANDS else None
     if not all((row[k] or 0) > 0 for k in ('width_mm', 'depth_mm', 'height_mm')):
         return '치수 없음'
-    if set(r.get('tags') or []) & SKIP_TAGS:
+    if set(r.get('tags') or []) & SKIP_TAGS and not dims_fixed:   # 사장님이 치수를 고쳐 주셨으면 넣는다
         return '치수 범위 밖'
     if row['brand'] in HOLD_BRANDS:
         return '국내 판매처 확인 전'
@@ -135,20 +174,33 @@ def row_of(r):
 
 
 def build(raw_rows):
+    reviews = load_reviews()
     ok, skipped = [], []
     for r in raw_rows:
         row = row_of(r)
-        why = skip_reason(row, r)
+        key = f"{row['brand']}|{row['model_codes'][0] if row['model_codes'] else row['model_name']}"
+        fixed = apply_review(row, reviews.get(key))
+        why = skip_reason(row, r, fixed)
         (skipped if why else ok).append((row, why))
     return [x for x, _ in ok], [(x, why) for x, why in skipped]
 
 
 def main(paths):
+    # --json <파일>: SQL 대신 가져올 행(사장님 기록 반영 뒤)을 JSON 으로 — 모듈 라이브러리 data/microwaves.json 이 쓴다
+    json_out = None
+    if '--json' in paths:
+        i = paths.index('--json')
+        json_out = paths[i + 1]
+        paths = paths[:i] + paths[i + 2:]
     rows = []
     for path in paths:
         data = json.load(open(path, encoding='utf-8'))
         rows += data if isinstance(data, list) else data.get('rows', [])
     ok, skipped = build(rows)
+    if json_out:
+        json.dump(ok, open(json_out, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+        print(f'{json_out}: 행 {len(ok)}', file=sys.stderr)
+        return
     lines = [
         '-- 주방가전 모델 가져오기 — scripts/kitchen-catalog/to_sql.py 가 만든 파일',
         f'-- 행 {len(ok)}개 (검증 {sum(1 for r in ok if r["verified"])} · 미검증 {sum(1 for r in ok if not r["verified"])}) · 건너뜀 {len(skipped)}개',
