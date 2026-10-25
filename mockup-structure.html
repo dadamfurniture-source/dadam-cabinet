@@ -5235,10 +5235,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // 영역 — 배치에서 온 사각형. 모듈을 담는 그릇.
   // ─────────────────────────────────────────────────────────────
 
-  /** 새 모듈 기본값. 상판은 옵션이라 기본이 없다(topT 0) —
-   *  그래야 H850 = 다리발 150 + 몸통 700 이 그대로 성립한다.
+  /** 새 모듈 기본값. 2026-10-25 사장님 확정 — 하부장 H 870 (data-constants.js TOTAL_H_LOWER ·
+   *  planner-sections.js lower.moduleH 와 같다): 870 = 다리발 150 + 몸통 708 + 상판 12.
+   *  상판 12 는 heightPartsOf 기본값이다 — addModuleToArea 가 s.topT 를 지워 그 값을 쓴다 (W12-39).
+   *  예전 H 850 · topT 0 (다리발 150 + 몸통 700) — W12-39 뒤로 topT 0 은 읽히지 않아,
+   *  배치 공간 높이를 못 받을 때(영역 H 없음 · 다른 섹션) 몸통 688 로 섰다.
    *  선반은 지어내지 않고 calcDefaultShelves 가 내는 값을 쓴다(이 크기에선 1개). */
-  const NEW_MODULE = { W: 600, H: 850, D: 550, legH: 150, topT: 0 };
+  const NEW_MODULE = { W: 600, H: 870, D: 550, legH: 150 };
 
   // W12-5: 목찬넬 부재 색 — 몸통은 PB, 목찬넬은 18T MDF 로 BOM 상 EP(마감재)다.
   // 3D 에서 몸통과 구분되도록 마감재와 같은 진한 우드 톤을 쓴다.
@@ -5926,7 +5929,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       return null;
     }
     const cfg = SECTION_CONFIG[section] || {};
-    // 하부장은 요청 스펙(600·850·550), 나머지는 그 섹션의 배치 기본값을 쓴다.
+    // 하부장은 요청 스펙(600·870·550), 나머지는 그 섹션의 배치 기본값을 쓴다.
     const base = section === 'lower'
       ? { W: NEW_MODULE.W, H: NEW_MODULE.H, D: NEW_MODULE.D }
       : { W: cfg.w || NEW_MODULE.W, H: cfg.moduleH || NEW_MODULE.H, D: cfg.h || NEW_MODULE.D };
