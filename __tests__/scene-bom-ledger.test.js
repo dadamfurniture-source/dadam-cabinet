@@ -9,6 +9,7 @@
  *   1. id 대조 — 플래너가 조립 명세로 그린 판재(PR12·13, userData.partId)를 BOM 행 낱장 id(`${partId}#k`)와 맞춘다.
  *      명세 상자와 ±0.5mm 안이어야 하고, 모르는 id · 겹친 id · 행 일부만 그림은 **곧장 실패**한다 (허용 없음).
  *   2. 치수 대조 — 남은 것(예전 그리기 판재 ↔ id 로 안 맞춘 BOM 행)을 (모듈, 종류) 치수 다중집합으로.
+ *      그 전에 정한 그림 차이(2026-10-26 상판 — BOM 한 장 ↔ 3D 배치 공간마다 조각)는 합이 맞을 때만 뺀다 (splitDeclaredTop).
  *      차이 개수는 래칫(test-utils/ledger-baseline.json)이 지킨다 — (픽스처, 종류, 차이) 마다 **늘면 실패**.
  *      줄면 통과하고 기준을 낮추라고 알린다:  UPDATE_LEDGER_BASELINE=1 npx jest __tests__/scene-bom-ledger.test.js
  *      (PowerShell: $env:UPDATE_LEDGER_BASELINE=1; npx jest __tests__/scene-bom-ledger.test.js). 늘어난 기준은 쓰지 않는다.
@@ -23,7 +24,7 @@ const { FIXTURES } = require('../test-utils/planner-golden');
 const { bootPlanner3D, collectSceneParts, collectSceneIdPieces } = require('../test-utils/scene-parts');
 const { collectBomParts, LEDGER_SPECS } = require('../test-utils/bom-parts');
 const {
-  diffLedger, diffById, sortEntries, formatTable, countBy, ratchetCounts, compareRatchet, KNOWN_FAMILIES, TOLERANCE_MM, ID_AABB_TOLERANCE_MM,
+  diffLedger, diffById, splitDeclaredTop, sortEntries, formatTable, countBy, ratchetCounts, compareRatchet, KNOWN_FAMILIES, TOLERANCE_MM, ID_AABB_TOLERANCE_MM,
 } = require('../test-utils/ledger-diff');
 
 const BASELINE_PATH = path.join(__dirname, '..', 'test-utils', 'ledger-baseline.json');
@@ -85,11 +86,13 @@ function ledgerOf(name) {
   const pieces = collectSceneIdPieces(p);
   const byId = diffById(name, pieces, asm.spec, full.materials);
   const sceneAll = collectSceneParts(p);
-  const scene = sceneAll.filter((r) => !r.partIds.length);
   const bom = collectBomParts(p, Object.assign({}, ledger, { excludeRows: byId.matchedRows }));
+  // 정한 그림 차이 — 2026-10-26 사장님 확정 "ㄱ자 한 장으로 보내면 업체에서 알아서 나눔": 상판은 BOM 한 장(발주 정본) ↔ 3D 배치 공간마다 조각.
+  //   합(두께 · 깊이 · 길이 합)이 맞을 때만 치수 대조 전에 뺀다 (ledger-diff.js splitDeclaredTop). 아래 '정한 그림 차이' 시험이 어느 픽스처인지 잠근다
+  const top = splitDeclaredTop(sceneAll.filter((r) => !r.partIds.length), bom.parts);
   return {
-    name, planner: p, spec: asm.spec, pieces, byId, sceneAll, scene,
-    bom: bom.parts, bomAll: full.parts, materials: full.materials, warnings: full.warnings,
+    name, planner: p, spec: asm.spec, pieces, byId, sceneAll, scene: top.scene, declaredTop: top.declared,
+    bom: top.bom, bomAll: full.parts, materials: full.materials, warnings: full.warnings,
   };
 }
 
@@ -176,6 +179,22 @@ describe(`1단계 — id 대조 (명세 판재 ↔ BOM 낱장, AABB ±${ID_AABB_
   });
 });
 
+describe('정한 그림 차이 — 치수 대조 전에 합으로 맞춰 뺀다 (ledger-diff.js splitDeclaredTop)', () => {
+  test('상판: BOM 한 장(발주 정본) = 3D 배치 공간마다 조각의 합 — 2026-10-26 사장님 확정 "ㄱ자 한 장으로 보내면 업체에서 알아서 나눔"', () => {
+    const got = Object.keys(LEDGER_FIXTURES).filter((n) => ledgers[n].declaredTop)
+      .map((n) => [n, ledgers[n].declaredTop.bom, ledgers[n].declaredTop.pieces.map((pc) => pc.len).sort((a, b) => b - a)]);
+    expect(got).toEqual([
+      ['lShape', { a: 4200, b: 650, t: 12 }, [1800, 1500, 900]],   // ㄱ자 — 본 벽 1800 + 900, 옆 벽 1500
+      ['oblique', { a: 3000, b: 650, t: 12 }, [1800, 1200]],       // 사선 — 두 벽
+    ]);
+    // cornerL 은 빼지 않는다 — 3D 가 배치 공간 전폭(3600 · 1970)을 코너에서 겹쳐 그려 합 5570 ≠ BOM 4866(모듈 폭 합). 치수 대조가 차이로 센다
+    expect(ledgers.cornerL.declaredTop).toBeNull();
+    expect(discrepancies.filter((d) => d.fixture === 'cornerL' && d.family === 'top').map((d) => d.kind).sort()).toEqual(['only3d', 'only3d', 'onlyBom']);
+    // 뺀 픽스처에는 상판 차이가 남지 않는다
+    expect(discrepancies.filter((d) => ['lShape', 'oblique'].includes(d.fixture) && d.family === 'top')).toEqual([]);
+  });
+});
+
 describe('2단계 — 치수 대조 (예전 그리기 ↔ 남은 BOM 행) · 래칫', () => {
   test('(픽스처, 종류, 차이) 마다 개수가 기준(ledger-baseline.json)보다 늘지 않는다', () => {
     const now = ratchetCounts(discrepancies);
@@ -190,6 +209,7 @@ describe('2단계 — 치수 대조 (예전 그리기 ↔ 남은 BOM 행) · 래
           '열쇠 = fixture|family|kind. kind: only3d(3D 에만) · onlyBom(BOM 에만) · dims(치수/수량, ±1mm) · thickness(두께만 다름).',
           '늘면 실패, 줄면 통과 — 줄었으면 UPDATE_LEDGER_BASELINE=1 npx jest __tests__/scene-bom-ledger.test.js 로 낮춘다 (올려 쓰지 않는다).',
           '원인별 설명은 docs/02-design/features/scene-bom-ledger.md §3.',
+          '정한 그림 차이(2026-10-26 사장님 확정 — 상판은 BOM 한 장 ↔ 3D 배치 공간마다 조각, 합이 맞을 때)는 치수 대조 전에 뺀다 (ledger-diff.js splitDeclaredTop).',
         ],
         toleranceMm: TOLERANCE_MM,
         idAabbToleranceMm: ID_AABB_TOLERANCE_MM,
@@ -227,7 +247,8 @@ describe('2단계 — 치수 대조 (예전 그리기 ↔ 남은 BOM 행) · 래
     console.log(
       `도면↔BOM 원장 — id 로 맞춘 판재 ${ids}장 · 치수 대조 차이 ${discrepancies.length}건\n` +
       `픽스처별: ${byFixture.map(([k, n]) => `${k} ${n}`).join(' · ')}\n` +
-      `종류별: ${byKind.map(([k, n]) => `${k} ${n}`).join(' · ')}`,
+      `종류별: ${byKind.map(([k, n]) => `${k} ${n}`).join(' · ')}\n` +
+      `정한 그림 차이로 뺀 상판 (2026-10-26): ${Object.values(ledgers).filter((L) => L.declaredTop).map((L) => L.name).join(' · ') || '없음'}`,
     );
     expect(ids).toBeGreaterThan(0);
   });

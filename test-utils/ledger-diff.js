@@ -18,6 +18,7 @@
  *      3D AABB 가 명세 part.box 와 ±0.5mm 안이어야 한다. 모르는 id · 겹친 id · 행 일부만 그림 · 자리 어긋남은 곧장 실패.
  *      id 로 다 맞춘 BOM 행은 아래 치수 대조에서 뺀다.
  *   2. 치수 대조 (diffLedger) — 남은 것(예전 그리기 판재 ↔ id 로 안 맞춘 BOM 행)을 지금처럼 (모듈, 종류) 다중집합으로.
+ *      그 전에 사장님이 발주 표현을 정한 묶음(splitDeclaredTop — 2026-10-26 상판 한 장)은 합으로 맞춰 보고 맞으면 뺀다.
  */
 
 const TOLERANCE_MM = 1;
@@ -120,6 +121,43 @@ function diffLedger(fixture, sceneRows, bomRows, opts = {}) {
     if (tMismatch) push(s, 'thickness', `두께만 다른 판 ${tMismatch}장`);
   });
   return out;
+}
+
+/**
+ * 정한 그림 차이 — 상판 (2026-10-26 사장님 확정). 치수 대조(diffLedger) **전에** 뺀다.
+ *   "ㄱ자 한 장으로 보내면 업체에서 알아서 나눔." — 상판 발주는 품목 한 장(BOM `ep|top` 한 행, ㄱ·ㄷ자는 벽 길이 합)이 정본이고
+ *   벽마다 나누는 것은 상판 업체 몫이다. 명세는 두 벽에 걸친 한 장을 놓지 않으므로 3D 는 배치 공간마다 한 장씩 그린다(예전 그리기
+ *   addTopPanel) — 그림일 뿐이다. 그래서 낱장이 아니라 **합**으로 맞춘다:
+ *     BOM 상판이 한 행 · 수량 1 이고, 3D 상판 조각이 둘 이상이며, 조각마다 두께가 같고(±0.5) 한 변이 BOM 깊이(±tol)이고,
+ *     나머지 변(길이)의 합이 BOM 길이와 같을 때(±tol × 조각 수) — 그 조각들과 BOM 행을 빼고 declared 로 돌려준다.
+ *   하나라도 어긋나면(코너에서 겹쳐 그림 · 빈 자리까지 그림 · 두께 다름) 아무것도 빼지 않는다 — 치수 대조가 차이로 센다.
+ *   조각끼리 겹치지 않는지는 scene-overlap.test.js 가 따로 본다 (straight · lShape · oblique).
+ * @param {Array} sceneRows  예전 그리기 3D 행 (id 로 안 맞춘 것)
+ * @param {Array} bomRows    id 로 안 맞춘 BOM 행
+ * @returns {{ scene: Array, bom: Array, declared: null | { bom: {a, b, t}, pieces: Array<{moduleId, len}> } }}
+ */
+function splitDeclaredTop(sceneRows, bomRows, opts = {}) {
+  const tol = opts.tolerance == null ? TOLERANCE_MM : opts.tolerance;
+  const none = { scene: sceneRows, bom: bomRows, declared: null };
+  const bomTops = bomRows.filter((r) => r.family === 'top' && r.moduleId === 'ep');
+  if (bomTops.length !== 1 || bomTops[0].qty !== 1) return none;
+  const B = bomTops[0];
+  const pieces = [];
+  sceneRows.filter((r) => r.family === 'top').forEach((r) => { for (let k = 0; k < r.qty; k++) pieces.push(r); });
+  if (pieces.length < 2) return none;
+  const lens = pieces.map((r) => {
+    if (!near(r.t, B.t, 0.5)) return null;
+    if (near(r.b, B.b, tol)) return r.a;
+    if (near(r.a, B.b, tol)) return r.b;
+    return null;
+  });
+  if (lens.some((x) => x === null)) return none;
+  if (!near(lens.reduce((s, x) => s + x, 0), B.a, tol * pieces.length)) return none;
+  return {
+    scene: sceneRows.filter((r) => r.family !== 'top'),
+    bom: bomRows.filter((r) => r !== B),
+    declared: { bom: { a: B.a, b: B.b, t: B.t }, pieces: pieces.map((r, i) => ({ moduleId: r.moduleId, len: lens[i] })) },
+  };
 }
 
 /** 명세의 판재 전부 — 모듈 부재와 라인 부재 */
@@ -233,6 +271,7 @@ module.exports = {
   KNOWN_FAMILIES,
   diffLedger,
   diffById,
+  splitDeclaredTop,
   specPartsOf,
   ratchetCounts,
   compareRatchet,
