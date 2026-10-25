@@ -185,7 +185,7 @@ BEGIN
         NULLIF(r->>'niche_max_w_mm', '')::INT, NULLIF(r->>'niche_max_h_mm', '')::INT, NULLIF(r->>'niche_max_d_mm', '')::INT,
         NULLIF(r->>'cutout_w_mm', '')::INT, NULLIF(r->>'cutout_d_mm', '')::INT, NULLIF(r->>'cutout_r_mm', '')::INT,
         NULLIF(r->>'faucet_hole_mm', '')::INT,
-        NULLIF(ARRAY(SELECT jsonb_array_elements_text(COALESCE(r->'gas_types', '[]'::jsonb))), '{}'),
+        CASE WHEN jsonb_typeof(r->'gas_types') = 'array' THEN NULLIF(ARRAY(SELECT jsonb_array_elements_text(r->'gas_types')), '{}') END,
         COALESCE((r->>'verified')::BOOLEAN, false), r->>'source_url', NULLIF(r->>'image_source_url', ''), r->>'notes', NOW()
       );
       n_ins := n_ins + 1;
@@ -213,7 +213,8 @@ BEGIN
         cutout_d_mm      = COALESCE(cutout_d_mm, NULLIF(r->>'cutout_d_mm', '')::INT),
         cutout_r_mm      = COALESCE(cutout_r_mm, NULLIF(r->>'cutout_r_mm', '')::INT),
         faucet_hole_mm   = COALESCE(faucet_hole_mm, NULLIF(r->>'faucet_hole_mm', '')::INT),
-        gas_types        = COALESCE(NULLIF(ARRAY(SELECT jsonb_array_elements_text(COALESCE(r->'gas_types', '[]'::jsonb))), '{}'), gas_types),
+        -- 가스 종류가 없는 행은 JSON null 로 온다 (배열이 아니면 풀지 않는다 — jsonb_array_elements_text 는 null 을 못 푼다)
+        gas_types        = COALESCE(CASE WHEN jsonb_typeof(r->'gas_types') = 'array' THEN NULLIF(ARRAY(SELECT jsonb_array_elements_text(r->'gas_types')), '{}') END, gas_types),
         verified         = verified OR COALESCE((r->>'verified')::BOOLEAN, false),
         source_url       = COALESCE(r->>'source_url', source_url),
         image_source_url = COALESCE(NULLIF(r->>'image_source_url', ''), image_source_url),
