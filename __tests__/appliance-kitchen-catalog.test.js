@@ -15,7 +15,7 @@ const CATALOG = read('database/appliance-models-catalog.sql');
 const SCHEMA = read('database/appliance-models-schema.sql');
 const AP = read('admin/appliances.html');
 
-const CATEGORIES = ['refrigerator', 'hood', 'dishwasher', 'sink', 'oven', 'cooktop', 'washing_machine', 'microwave', 'rice_cooker'];
+const CATEGORIES = ['refrigerator', 'hood', 'dishwasher', 'sink', 'oven', 'cooktop', 'washing_machine', 'microwave', 'rice_cooker', 'range', 'faucet'];
 const KITCHEN_SUBTYPES = {
   microwave: ['solo', 'combi'],
   oven: ['oven', 'steam_oven', 'combi'],
@@ -23,6 +23,7 @@ const KITCHEN_SUBTYPES = {
   cooktop: ['induction', 'highlight', 'hybrid', 'gas'],
   hood: ['chimney', 'slim', 'built_in', 'island'],
   rice_cooker: ['pressure_ih', 'ih', 'pressure', 'electric'],
+  range: ['gas', 'induction', 'hybrid', 'highlight'],
 };
 
 /** CHECK (… CASE category WHEN 'x' THEN subtype IN (…) …) → { x: [...] } */
@@ -71,7 +72,7 @@ describe('DB — appliance-models-kitchen.sql', () => {
 
   test('가져오기 함수 — 쿡탑 · 싱크볼 타공과 수전 구멍을 넣고, 다시 가져올 때는 기존 값(관리 화면에서 고친 값) 우선', () => {
     expect(KITCHEN).toContain('CREATE OR REPLACE FUNCTION import_appliance_models(rows JSONB)');
-    expect(KITCHEN).toMatch(/cutout_w_mm, cutout_d_mm, cutout_r_mm, faucet_hole_mm,\s+verified, source_url/);
+    expect(KITCHEN).toMatch(/cutout_w_mm, cutout_d_mm, cutout_r_mm, faucet_hole_mm, gas_types,\s+verified, source_url/);
     expect(KITCHEN).toContain("NULLIF(r->>'faucet_hole_mm', '')::INT,");
     for (const k of ['cutout_w_mm', 'cutout_d_mm', 'cutout_r_mm', 'faucet_hole_mm']) {
       expect(KITCHEN).toMatch(new RegExp(`${k}\\s+= COALESCE\\(${k}, NULLIF\\(r->>'${k}', ''\\)::INT\\)`));
@@ -82,6 +83,12 @@ describe('DB — appliance-models-kitchen.sql', () => {
     expect(KITCHEN).toMatch(/model_codes\s+= ARRAY\(SELECT DISTINCT unnest\(model_codes \|\| codes\)\)/);
     expect(KITCHEN).toMatch(/verified\s+= verified OR COALESCE/);
     expect(KITCHEN).toContain("COALESCE(r->>'category', 'refrigerator')");
+  });
+
+  test('가스 쿡탑 · 가스오븐레인지 gas_types (LNG · LPG만) — 넣고, 다시 가져올 때는 수집값이 있으면 그 값', () => {
+    expect(KITCHEN).toContain("ADD COLUMN IF NOT EXISTS gas_types TEXT[] CHECK (gas_types IS NULL OR gas_types <@ ARRAY['LNG', 'LPG']::TEXT[])");
+    expect(KITCHEN).toMatch(/cutout_r_mm, faucet_hole_mm, gas_types,\s+verified/);
+    expect(KITCHEN).toContain("gas_types        = COALESCE(NULLIF(ARRAY(SELECT jsonb_array_elements_text(COALESCE(r->'gas_types', '[]'::jsonb))), '{}'), gas_types),");
   });
 
   test('웹 · 익명은 가져오기 함수를 못 부른다', () => {
@@ -96,7 +103,11 @@ describe('관리 화면 — admin/appliances.html', () => {
     return s.slice(0, s.indexOf('\n      };') + 9);
   };
 
-  test('오븐 · 밥솥 탭과 종류 옵션', () => {
+  test('오븐 · 밥솥 · 가스오븐레인지 · 수전 탭과 종류 옵션', () => {
+    for (const c of ['range', 'faucet']) {
+      expect(AP).toContain(`data-cat="${c}"`);
+      expect(AP).toContain(`<option value="${c}">`);
+    }
     expect(AP).toContain('data-cat="oven"');
     expect(AP).toContain('data-cat="rice_cooker"');
     expect(AP).toContain('<option value="rice_cooker">');
@@ -109,7 +120,14 @@ describe('관리 화면 — admin/appliances.html', () => {
       expect([cat, [...line.matchAll(/([a-z_0-9]+):\s*'/g)].map((m) => m[1])]).toEqual([cat, list]);
     }
     expect(sub).toContain('refrigerator: FRIDGE_SUBTYPES');
-    expect(AP).toContain('const COLLECTED_CATS = Object.keys(SUBTYPES);');
+    expect(AP).toContain("const COLLECTED_CATS = [...Object.keys(SUBTYPES), 'faucet'];");
+  });
+
+  test('수전 구멍은 싱크볼 · 수전, 가스 종류는 쿡탑 · 가스오븐레인지에서만 보이고 저장된다', () => {
+    expect(AP).toContain("const FAUCET_CATS = ['sink', 'faucet'];");
+    expect(AP).toContain("const GAS_CATS = ['cooktop', 'range'];");
+    expect(AP).toContain("if (FAUCET_CATS.includes(payload.category)) payload.faucet_hole_mm = int('f-fh');");
+    expect(AP).toMatch(/if \(GAS_CATS\.includes\(payload\.category\)\) \{[\s\S]*payload\.gas_types = gas\.length \? gas : null;/);
   });
 
   test('목록 · 필터 · 입력이 그 종류의 이름표를 쓴다', () => {
