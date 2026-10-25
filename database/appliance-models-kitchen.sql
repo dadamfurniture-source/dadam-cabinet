@@ -6,7 +6,8 @@
 --
 --   1. 종류에 'rice_cooker'(밥솥)를 더한다 (appliance-models-microwave.sql 의 'microwave' 도 함께 들어 있다)
 --   2. 세부 구분(subtype) 검사를 종류별로 — 냉장고 9가지는 그대로, 주방가전 종류마다 따로
---   3. 가져오기 함수 import_appliance_models() 가 쿡탑 타공(cutout_w/d/r_mm)도 넣는다
+--   3. 가져오기 함수 import_appliance_models() 가 쿡탑 · 싱크볼 타공(cutout_w/d/r_mm)과 싱크볼 수전 구멍(faucet_hole_mm)도 넣는다
+--      (2026-10-25 사장님 "하츠나, 백조 등등도" — 싱크볼 수집)
 --
 -- 적용: Supabase SQL 편집기에서 이 파일 한 번 → 그 뒤 수집기가 만든 import-kitchen.sql.
 --   이 파일만 돌려도 되도록 함수가 쓰는 칸을 모두 IF NOT EXISTS 로 둔다 (먼저 돌린 다른 파일과 같은 정의).
@@ -45,7 +46,8 @@ ALTER TABLE appliance_models
   -- work-reports.sql (상판 발주 요청서 타공 규격)
   ADD COLUMN IF NOT EXISTS cutout_w_mm INT CHECK (cutout_w_mm IS NULL OR cutout_w_mm > 0),
   ADD COLUMN IF NOT EXISTS cutout_d_mm INT CHECK (cutout_d_mm IS NULL OR cutout_d_mm > 0),
-  ADD COLUMN IF NOT EXISTS cutout_r_mm INT CHECK (cutout_r_mm IS NULL OR cutout_r_mm >= 0);
+  ADD COLUMN IF NOT EXISTS cutout_r_mm INT CHECK (cutout_r_mm IS NULL OR cutout_r_mm >= 0),
+  ADD COLUMN IF NOT EXISTS faucet_hole_mm INT CHECK (faucet_hole_mm IS NULL OR faucet_hole_mm > 0);
 
 ALTER TABLE appliance_models DROP CONSTRAINT IF EXISTS appliance_models_install_type_chk;
 ALTER TABLE appliance_models ADD CONSTRAINT appliance_models_install_type_chk CHECK (
@@ -107,7 +109,7 @@ COMMENT ON COLUMN appliance_models.subtype IS '세부 구분 — 종류별 목�
 -- 갱신 규칙 (appliance-models-images.sql 의 정의 + 타공):
 --   치수 · 용량 · 이름 · 구분 · 라인 · 출처            ← 수집값 (제조사 공식)
 --   모델 코드                                          ← 합집합
---   설치 여유 · 니치 · 타공                             ← 기존 값 우선 — 관리 화면에서 고친 값을 덮지 않는다
+--   설치 여유 · 니치 · 타공 · 수전 구멍                  ← 기존 값 우선 — 관리 화면에서 고친 값을 덮지 않는다
 --   verified                                          ← 기존 OR 수집
 -- 반환: { inserted, updated, skipped }
 CREATE OR REPLACE FUNCTION import_appliance_models(rows JSONB)
@@ -146,7 +148,7 @@ BEGIN
         category, brand, model_name, model_code, model_codes, width_mm, depth_mm, height_mm, capacity_l,
         subtype, line, install_type, side_gap_mm, top_gap_mm, back_gap_mm,
         niche_min_w_mm, niche_min_h_mm, niche_min_d_mm, niche_max_w_mm, niche_max_h_mm, niche_max_d_mm,
-        cutout_w_mm, cutout_d_mm, cutout_r_mm,
+        cutout_w_mm, cutout_d_mm, cutout_r_mm, faucet_hole_mm,
         verified, source_url, image_source_url, notes, collected_at
       ) VALUES (
         COALESCE(r->>'category', 'refrigerator'), r->>'brand', r->>'model_name', codes[1], codes,
@@ -156,6 +158,7 @@ BEGIN
         NULLIF(r->>'niche_min_w_mm', '')::INT, NULLIF(r->>'niche_min_h_mm', '')::INT, NULLIF(r->>'niche_min_d_mm', '')::INT,
         NULLIF(r->>'niche_max_w_mm', '')::INT, NULLIF(r->>'niche_max_h_mm', '')::INT, NULLIF(r->>'niche_max_d_mm', '')::INT,
         NULLIF(r->>'cutout_w_mm', '')::INT, NULLIF(r->>'cutout_d_mm', '')::INT, NULLIF(r->>'cutout_r_mm', '')::INT,
+        NULLIF(r->>'faucet_hole_mm', '')::INT,
         COALESCE((r->>'verified')::BOOLEAN, false), r->>'source_url', NULLIF(r->>'image_source_url', ''), r->>'notes', NOW()
       );
       n_ins := n_ins + 1;
@@ -182,6 +185,7 @@ BEGIN
         cutout_w_mm      = COALESCE(cutout_w_mm, NULLIF(r->>'cutout_w_mm', '')::INT),
         cutout_d_mm      = COALESCE(cutout_d_mm, NULLIF(r->>'cutout_d_mm', '')::INT),
         cutout_r_mm      = COALESCE(cutout_r_mm, NULLIF(r->>'cutout_r_mm', '')::INT),
+        faucet_hole_mm   = COALESCE(faucet_hole_mm, NULLIF(r->>'faucet_hole_mm', '')::INT),
         verified         = verified OR COALESCE((r->>'verified')::BOOLEAN, false),
         source_url       = COALESCE(r->>'source_url', source_url),
         image_source_url = COALESCE(NULLIF(r->>'image_source_url', ''), image_source_url),
