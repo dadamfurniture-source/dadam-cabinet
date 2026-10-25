@@ -63,6 +63,20 @@ ALTER TABLE appliance_models ADD CONSTRAINT appliance_models_image_source_url_ch
   image_source_url IS NULL OR image_source_url ~ '^https?://'
 );
 
+-- 수전은 치수 없이 수전 구멍 지름만으로도 받는다 (2026-10-25 — 수전 회사 대부분이 본체 폭을 공개하지 않는다).
+--   다른 종류는 지금처럼 W · H · D 필수. 첫 스키마의 열 CHECK(Postgres 기본 이름 appliance_models_<칸>_check)와 NOT NULL 을
+--   종류 조건 하나로 바꾼다. 수전은 수전 구멍이 있거나 W · H · D 가 다 있어야 한다.
+ALTER TABLE appliance_models ALTER COLUMN width_mm DROP NOT NULL, ALTER COLUMN depth_mm DROP NOT NULL, ALTER COLUMN height_mm DROP NOT NULL;
+ALTER TABLE appliance_models DROP CONSTRAINT IF EXISTS appliance_models_width_mm_check;
+ALTER TABLE appliance_models DROP CONSTRAINT IF EXISTS appliance_models_depth_mm_check;
+ALTER TABLE appliance_models DROP CONSTRAINT IF EXISTS appliance_models_height_mm_check;
+ALTER TABLE appliance_models DROP CONSTRAINT IF EXISTS appliance_models_dims_chk;
+ALTER TABLE appliance_models ADD CONSTRAINT appliance_models_dims_chk CHECK (
+  (width_mm IS NULL OR width_mm > 0) AND (depth_mm IS NULL OR depth_mm > 0) AND (height_mm IS NULL OR height_mm > 0)
+  AND (category = 'faucet' OR (width_mm IS NOT NULL AND depth_mm IS NOT NULL AND height_mm IS NOT NULL))
+  AND (category <> 'faucet' OR faucet_hole_mm IS NOT NULL OR (width_mm IS NOT NULL AND depth_mm IS NOT NULL AND height_mm IS NOT NULL))
+);
+
 -- ── 2. 세부 구분 — 종류별 (appliance-models-catalog.sql 과 같은 정의) ──
 -- 종류는 제조사 메뉴가 정한다 (전자레인지 · 광파오븐 메뉴 → microwave, 오븐 메뉴 → oven).
 ALTER TABLE appliance_models DROP CONSTRAINT IF EXISTS appliance_models_subtype_chk;
@@ -139,10 +153,12 @@ BEGIN
     IF (r->>'model_code') IS NOT NULL AND NOT ((r->>'model_code') = ANY(codes)) THEN
       codes := array_prepend(r->>'model_code', codes);
     END IF;
+    -- W · H · D 필수 — 수전만 수전 구멍 지름이 있으면 치수 없이도 (appliance_models_dims_chk 와 같은 조건)
     IF array_length(codes, 1) IS NULL
-       OR COALESCE((r->>'width_mm')::INT, 0) <= 0
-       OR COALESCE((r->>'depth_mm')::INT, 0) <= 0
-       OR COALESCE((r->>'height_mm')::INT, 0) <= 0 THEN
+       OR ((COALESCE((r->>'width_mm')::INT, 0) <= 0
+            OR COALESCE((r->>'depth_mm')::INT, 0) <= 0
+            OR COALESCE((r->>'height_mm')::INT, 0) <= 0)
+           AND NOT (r->>'category' = 'faucet' AND COALESCE(NULLIF(r->>'faucet_hole_mm', '')::INT, 0) > 0)) THEN
       n_skip := n_skip + 1;
       CONTINUE;
     END IF;
@@ -162,7 +178,7 @@ BEGIN
         verified, source_url, image_source_url, notes, collected_at
       ) VALUES (
         COALESCE(r->>'category', 'refrigerator'), r->>'brand', r->>'model_name', codes[1], codes,
-        (r->>'width_mm')::INT, (r->>'depth_mm')::INT, (r->>'height_mm')::INT, NULLIF(r->>'capacity_l', '')::INT,
+        NULLIF(r->>'width_mm', '')::INT, NULLIF(r->>'depth_mm', '')::INT, NULLIF(r->>'height_mm', '')::INT, NULLIF(r->>'capacity_l', '')::INT,
         r->>'subtype', r->>'line', r->>'install_type',
         NULLIF(r->>'side_gap_mm', '')::INT, NULLIF(r->>'top_gap_mm', '')::INT, NULLIF(r->>'back_gap_mm', '')::INT,
         NULLIF(r->>'niche_min_w_mm', '')::INT, NULLIF(r->>'niche_min_h_mm', '')::INT, NULLIF(r->>'niche_min_d_mm', '')::INT,
@@ -177,9 +193,9 @@ BEGIN
       UPDATE appliance_models SET
         model_name       = COALESCE(r->>'model_name', model_name),
         model_codes      = ARRAY(SELECT DISTINCT unnest(model_codes || codes)),
-        width_mm         = (r->>'width_mm')::INT,
-        depth_mm         = (r->>'depth_mm')::INT,
-        height_mm        = (r->>'height_mm')::INT,
+        width_mm         = COALESCE(NULLIF(r->>'width_mm', '')::INT, width_mm),     -- 수전은 치수가 비어 올 수 있다
+        depth_mm         = COALESCE(NULLIF(r->>'depth_mm', '')::INT, depth_mm),
+        height_mm        = COALESCE(NULLIF(r->>'height_mm', '')::INT, height_mm),
         capacity_l       = COALESCE(NULLIF(r->>'capacity_l', '')::INT, capacity_l),
         subtype          = COALESCE(r->>'subtype', subtype),
         line             = COALESCE(r->>'line', line),

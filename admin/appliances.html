@@ -551,9 +551,9 @@
             <td>${escHtml(r.brand)}</td>
             <td>${escHtml(r.model_name)}${r.subtype || r.line || r.install_type || (r.gas_types || []).length ? `<small class="sub">${escHtml([(SUBTYPES[r.category] || {})[r.subtype], r.line, INSTALL_LABEL[r.install_type], (r.gas_types || []).join('/')].filter(Boolean).join(' · '))}</small>` : ''}</td>
             <td>${escHtml(r.model_code)}${(r.model_codes || []).length > 1 ? `<small class="sub" title="${escHtml(r.model_codes.join(', '))}">외 ${r.model_codes.length - 1}개</small>` : ''}</td>
-            <td class="right">${r.width_mm}</td>
-            <td class="right">${r.depth_mm}</td>
-            <td class="right">${r.height_mm}</td>
+            <td class="right">${r.width_mm ?? ''}</td>
+            <td class="right">${r.depth_mm ?? ''}</td>
+            <td class="right">${r.height_mm ?? ''}</td>
             <td class="right">${r.capacity_l ?? ''}</td>
             <td class="right gap">${gapCell(r)}</td>
             <td class="center"><span class="badge ${r.verified ? 'verified' : 'unverified'}">${r.verified ? '✓ 검증' : '⚠ 표준'}</span></td>
@@ -625,9 +625,9 @@
           brand:      document.getElementById('f-brand').value.trim(),
           model_name: document.getElementById('f-name').value.trim(),
           model_code: document.getElementById('f-code').value.trim() || null,
-          width_mm:   parseInt(document.getElementById('f-w').value, 10),
-          depth_mm:   parseInt(document.getElementById('f-d').value, 10),
-          height_mm:  parseInt(document.getElementById('f-h').value, 10),
+          width_mm:   parseInt(document.getElementById('f-w').value, 10) || null,
+          depth_mm:   parseInt(document.getElementById('f-d').value, 10) || null,
+          height_mm:  parseInt(document.getElementById('f-h').value, 10) || null,
           capacity_l: document.getElementById('f-cap').value ? parseInt(document.getElementById('f-cap').value, 10) : null,
           side_gap_mm: document.getElementById('f-sg').value === '' ? null : parseInt(document.getElementById('f-sg').value, 10),
           top_gap_mm:  document.getElementById('f-tg').value === '' ? null : parseInt(document.getElementById('f-tg').value, 10),
@@ -666,8 +666,10 @@
           const gas = [['f-gas-lng', 'LNG'], ['f-gas-lpg', 'LPG']].filter(([id]) => document.getElementById(id).checked).map(([, g]) => g);
           payload.gas_types = gas.length ? gas : null;
         }
-        if (!payload.brand || !payload.model_name || !payload.width_mm || !payload.depth_mm || !payload.height_mm) {
-          alert('필수값: 브랜드 / 모델명 / W / D / H');
+        // 수전은 치수 없이 수전 구멍만으로도 (database/appliance-models-kitchen.sql appliance_models_dims_chk)
+        const hasDims = payload.width_mm && payload.depth_mm && payload.height_mm;
+        if (!payload.brand || !payload.model_name || !(hasDims || (payload.category === 'faucet' && payload.faucet_hole_mm))) {
+          alert(payload.category === 'faucet' ? '필수값: 브랜드 / 모델명 / 수전 타공 지름 (또는 W / D / H)' : '필수값: 브랜드 / 모델명 / W / D / H');
           return;
         }
         let q;
