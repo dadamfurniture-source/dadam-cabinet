@@ -89,3 +89,31 @@ python -I to_sql.py out_gaggenau.json > import-gaggenau.sql               # 브�
 - SQL 에서 빠짐 8행: 테이블 환기 AL200180 · AL200190 (깊이 140 — 범위 밖), AL400122 · AL400192 (JSON 외형 없음), Vario 다운드래프트 VL200120 · VL414115 (외형 없음), AW442120 (높이 1500 범위 밖), CG492111 계열 (폭 1002 범위 밖).
 - 수집하지 않음: 워밍 드로어 · 진공 드로어 · 커피머신 · 노브 · 냉장/와인 (수입사 목록의 워머드로워 · 커피머신 · 냉장고/냉동고 · 와인냉장고 포함), 북미 전용 CG280212CA · GS460720.
 - 설치 여유(위 · 뒤)는 글자 출처가 없어 비워 두었다.
+
+## 가스 종류 (2026-10-25 3차)
+
+사장님 "가스레인지는 LPG, LNG(도시가스) 두 가지로 나눠야함" → 가스 쿡탑 행에 `gas_types`.
+
+- 근거: 글로벌 제품 페이지 사양 칸 `Gas type` (예 `Natural gas 20 mbar` · `Liquid gas 50 mbar`) 과 `Nozzle set included` (`gas_of`). Natural gas = LNG, Liquid gas = LPG. 노즐 세트가 동봉된 것은 그 가스도 넣고 비고에 '동봉 노즐 세트로 바꿔 쓴다'.
+- 가게나우는 **가스마다 모델 코드가 다르다** (같은 크기의 LPG · LNG 판). 전에는 크기가 같아 한 행으로 묶였는데, `collect.py merge` 키에 `gas_types` 가 들어가 가스별로 나뉘었다 → **행 97 → 103** (가스 쿡탑 8 → 14행).
+
+| 행 (모델 코드) | gas_types | 원문 |
+|---|---|---|
+| CG291210 | LNG · LPG | `Gas type: Natural gas 20 mbar` · `Nozzle set included: Liquid gas 28-37 mbar` (노즐 세트로 전환) |
+| CG492111 · CG492111F | LPG | `Liquid gas 50 mbar` |
+| CG492211 | LNG | `Natural gas 20 mbar` |
+| VG231120F · VG232120F | LPG | `Liquid gas 28-37 mbar` |
+| VG231220 | LNG | `Natural gas 20 mbar` |
+| VG232220 | LNG | `Natural gas 20 mbar` |
+| VG264120F | LPG | `Liquid gas 28-37 mbar` |
+| VG264220 | LNG | `Natural gas 20 mbar` |
+| VG295150F | LPG | `Liquid gas 28-37 mbar` |
+| VG295250 | LNG | `Natural gas 20 mbar` |
+| VG415115 · VG415115F · VG425115 · VG425115F | LPG | `Liquid gas 50 mbar` |
+| VG415215 · VG425215 | LNG | `Natural gas 20 mbar` |
+| VG491115 · VG491115F | LPG | `Liquid gas 50 mbar` |
+| VG491215 | LNG | `Natural gas 20 mbar` |
+
+- 가스 종류를 모르는 가스 행: 없음 (14행 모두 사양 칸에 가스가 있다). 모두 `국내판매미확인` — 국내에 LPG 판 · LNG 판 중 무엇이 들어오는지는 수입사 확인 필요.
+- 북미 전용 CG280212CA (`Natural gas 15 mbar`, 노즐 `Liquid gas 27.5 mbar`) 는 전처럼 뺐다.
+

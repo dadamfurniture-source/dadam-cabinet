@@ -499,4 +499,50 @@ def collect(f, K_, sample=None):
                              page_url=p["url"], image_source_url=p["img"], product_type_raw="카타로그에서 치수를 찾지 못함")
             K.put_dims(row, None, None)
             rows.append(row)
+    add_gas_types(f, rows)
     return rows
+
+
+# --------------------------------------------------------------------------- 가스 종류 (2026-10-25 3차)
+# 카타로그에는 사용 가스(LNG · LPG)가 없다. 고객지원 > 사용설명서 > 쿡탑 탭(/kor/support/manuals.html?depth1=28, 4쪽 — 허용)의
+# '[가스쿡탑]' 설명서 PDF(/upload/manual/ — 허용)는 글꼴 인코딩이 깨져 pdftotext · PyMuPDF 모두 글자로 읽히지 않는다 →
+# 쪽 그림을 눈으로 읽어 옮겼다 (값을 지어내지 않는다). 설명서의 모델 코드와 같은 행에만 넣는다.
+HZ_MANUAL_PAGES = [HZ + "/kor/support/manuals.html?depth1=28"] + [HZ + f"/kor/support/manuals.html?page={n}&depth1=28&" for n in (2, 3, 4)]
+HZ_GAS_MANUALS = {
+    "/upload/manual/202601/1767614498_m0120896_20260105210138.pdf": {
+        "title": "[가스쿡탑] GC-3605SDSH_160812",
+        "models": ["GC-3605SDSH", "GC-3605EDSH", "GC-3605SASH", "GC-3605EASH"],
+        "gas": ["LNG", "LPG"],
+        "note": ("사용설명서 PDF 4쪽(인쇄 5쪽) '사용가스 임의 변경금지 — 본 제품은 L.P.G와 L.N.G제품이 따로 있습니다' · "
+                 "PDF 9쪽(인쇄 15쪽) 제품규격 가스소비량 표 LNG 전체 9.1 kW · LPG 7.0 kW (그림을 눈으로 읽음)")},
+}
+
+
+def add_gas_types(f, rows):
+    """가스 · 가스 하이브리드 쿡탑 행 → gas_types (HZ_GAS_MANUALS 의 모델 코드와 같은 행만). 목록에 새 가스쿡탑 설명서가 있으면 알린다."""
+    gas_rows = [r for r in rows if r["category"] == "cooktop" and ("가스" in (r["model_name"] or "") or r["category_subtype"] == "gas")]
+    if not gas_rows:
+        return
+    listed = {}
+    for u in HZ_MANUAL_PAGES:
+        try:
+            st, h = f.get(u)
+        except RuntimeError:          # --offline 인데 캐시 없음
+            break
+        if st != 200:
+            break
+        for t, href in re.findall(r'<div class="product-name[^"]*">\s*(.*?)\s*</div>\s*<div class="btn-bx">\s*<a href="(/upload/manual/[^"]+)"', h, re.S):
+            t = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", t)).strip()
+            if "가스" in t:
+                listed[href] = t
+    new = [f"{t} ({u})" for u, t in listed.items() if u not in HZ_GAS_MANUALS]
+    if new:
+        print(f"[haatz] 아직 읽지 않은 가스 설명서: {new}", file=sys.stderr)
+    for r in gas_rows:
+        for url, m in HZ_GAS_MANUALS.items():
+            hit = [c for c in r["model_codes"] if c in m["models"]]
+            if hit:
+                r["gas_types"] = list(m["gas"])
+                note = f"가스 종류 {'/'.join(m['gas'])}: {m['title']} {HZ}{url} — {m['note']}"
+                r["install_notes"] = "; ".join(x for x in [r["install_notes"], note] if x)
+                break

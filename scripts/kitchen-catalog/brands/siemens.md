@@ -72,3 +72,22 @@ python -I to_sql.py out_siemens.json > import-siemens.sql               # 브랜
 
 - SQL 에서 빠짐 2행: LC532VC9HK · LC53BVB9HK (외형 높이 없음 — 위).
 - 수집하지 않음: 워밍 드로어 BI710C1B1W · BI710D1B1B, 식기세척기 액세서리 SZ73300, 오븐 · 후드 액세서리, 냉장고 · 세탁기 · 커피머신.
+
+## 가스 종류 (2026-10-25 3차)
+
+사장님 "가스레인지는 LPG, LNG(도시가스) 두 가지로 나눠야함" → 가스 쿡탑 행에 `gas_types`.
+
+- 근거: 홍콩 제품 페이지 사양 칸 `Gas type` (`gas_of`, 보쉬와 같은 코드). 스펙시트 `media3.bsh-group.com/Documents/specsheet/en-HK/ER3A6AB70X.pdf` 도 '(gas type: Towngas)' 로 같다.
+- **Towngas (홍콩 제조가스)** 는 한국 도시가스(LNG)와 다른 가스라 옮기지 않았다 → `gas_types` 비움, 비고에 원문.
+- 크기가 같아 묶였던 도미노 행이 가스별로 나뉘었다 → **행 36 → 38** (가스 쿡탑 3 → 5행).
+
+| 행 | gas_types | 원문 |
+|---|---|---|
+| ER3A6AD70L | LPG | `Liquidgas G30,31 28-30/37 mbar` |
+| ER3A6BD70L | LPG | `Liquidgas G30,31 28-30/37 mbar` |
+| ER3A6AB70X | **None** | `Towngas 15 mbar (HK)` |
+| ER3A6BB70X | **None** | `Towngas 15 mbar (HK)` |
+| ER7EA233HK | **None** | `Towngas 15 mbar (HK)` (홍콩 전용 코드) |
+
+- 가스 종류를 모르는(Towngas 전용) 가스 행 **3행**. 모두 `국내판매미확인`.
+

@@ -7,6 +7,14 @@ catImage/<번호>/coords.xml 에 쪽마다 '글자:x0 y0 x1 y1' 이 들어 있�
   ① 표 (행) — 카탈로그 끝 '제품제원' 쪽: 모델명 · 규격 W×D×H · 상판가공치수 W×D · 매립깊이가 한 줄 (2026 종합카탈로그 70~71쪽)
   ② 표 (열) — 제품 쪽: '모델명' 줄에 모델이 열로 놓이고 아래로 구성 · 크기 · 상판가공치수 · 적용가능한 장 SIZE (2024 카탈로그)
 최신 카탈로그가 우선이고, 옛 카탈로그에만 있는 모델은 그 카탈로그 값으로 넣는다 (product_type_raw 에 카탈로그 이름 · 쪽).
+
+가스 종류 (2026-10-25 3차, 사장님 "가스레인지는 LPG, LNG(도시가스) 두 가지로 나눠야함"):
+  카탈로그 표는 '열량 (LNG, kW)' 만 적는다 (LNG 기준 값 — LPG 를 못 쓴다는 뜻이 아니다). 그래서 같은 e-카탈로그의
+  사용설명서(쥬벨 0201 · 가스레인지 0202 · 빌트인 0205)에서 모델 코드와 이름이 같은 설명서를 찾아 '가스소비량' 표의 줄 머리
+  '도시가스' · 'LP가스' 를 읽는다 → gas_types. 설명서는 한 모델 코드에 두 가스를 함께 적는다 (가스마다 코드가 나뉘지 않는다).
+  글자 없는(그림만 있는) 설명서는 쪽 그림(catImage/<번호>/<쪽>.jpg)을 눈으로 읽은 값을 RN_IMG_GAS 에 옮겼다.
+빌트인 가스오븐레인지(RBO-618SE · 619SM)는 종류 'range' (위 가스 버너 + 아래 오븐) — 상판가공치수 = cutout. 설치 공간(니치)은
+  카탈로그 · 사용설명서에 없다.
 """
 import re
 import sys
@@ -247,7 +255,8 @@ def kind_of(code, section, burner, hood_head, gubun=None):
                else "built_in" if "빌트인" in hood_head else None)
         return "hood", sub, None, hood_head.replace("I ", "").strip() or None
     if "오븐" in section and "빌트인" in section:
-        return "oven", "oven", "built_in", "빌트인 가스오븐레인지 (상판 가스쿡탑 + 오븐, 카탈로그 '빌트인 오븐')"
+        # 2026-10-25 3차 — 빌트인 가스오븐레인지는 종류 'range' (subtype = 위 화구 방식). 전에는 oven/oven 이었다
+        return "range", "gas", "built_in", "빌트인 가스오븐레인지 (상판 가스쿡탑 + 오븐, 카탈로그 '빌트인 오븐')"
     if "전기오븐" in section or code.startswith("RCD"):
         return "microwave", "combi", "freestanding", "전기 복합오븐 (전자레인지 겸용)"
     b = burner or ""
@@ -366,7 +375,7 @@ def collect(f, K_, sample=None):
             row["tags"].append("치수순서추정")
         K.put_dims(row, d, f"{dims} ({(m['order'] or '(W×D×H)').strip('()')}{' · ' + m['qual'] if m['qual'] else ''})")
         row["tags"].append("매뉴얼")
-        if m["cut"] and cat in ("cooktop", "oven"):
+        if m["cut"] and cat in ("cooktop", "oven", "range"):
             cw, cd = map(int, re.findall(r"\d+", m["cut"])[:2])
             row["cutout_w_mm"], row["cutout_d_mm"], row["cutout_raw"] = cw, cd, f"상판가공치수 {m['cut']}"
             if cat == "cooktop":
@@ -379,6 +388,108 @@ def collect(f, K_, sample=None):
             notes.append(f"표 머리 '{m['qual']}'")
         if m["fit"]:
             notes.append(f"적용가능한 장 SIZE {m['fit']}mm")
+        if cat == "range":
+            notes.append("설치 공간(니치)은 카탈로그 · 사용설명서에 없다 (설명서 부속품 '공사설명서' 는 e-카탈로그에 없음)")
         row["install_notes"] = " · ".join(notes) or None
         out.append(row)
+    add_gas_types(f, out)
     return out
+
+
+# --------------------------------------------------------------------------- 가스 종류 (2026-10-25 3차)
+
+MANUAL_LIST = EB + "/include/catalistc.asp?Dir={}000000&cimg="
+MANUAL_DIRS = ("0201", "0202", "0205")          # 사용설명서 > 쥬벨 · 가스레인지 · 빌트인
+GAS_HEAD = {"LNG": re.compile(r"^(?:도시가스|LNG)$"), "LPG": re.compile(r"^(?:LP가스|LPG)$")}
+# 글자 없는(그림만 있는) 설명서 — 가스소비량 표를 쪽 그림 https://ebook.rinnai.co.kr/catImage/<번호>/<쪽 3자리>.jpg 에서
+#   눈으로 읽었다 (2026-10-25). 설명서 번호 → (쪽, 가스). 모두 '가스소비량' 표에 '도시가스' · 'LP가스' 두 줄이 있다
+RN_IMG_GAS = {
+    6: (27, ("LNG", "LPG")),      # RBR-GF3000 쥬벨 — 제품 규격 표 (도시가스 8.2 kW · LP 가스 6.8 kW)
+    7: (33, ("LNG", "LPG")),      # RBR-GF7500 — 제품 규격 표 (도시가스 9.6 kW · LP 가스 7.81 kW)
+    10: (34, ("LNG", "LPG")),     # RBR-IG300 가스 하이브리드 — 가스소비량 도시가스 3.5 kW · LP가스 2.79 kW
+    281: (33, ("LNG", "LPG")),    # RBO-618SE · 618SE(B) 빌트인 가스 오븐레인지 — 도시가스 15.2 kW · LP 가스 13.4 kW
+    282: (27, ("LNG", "LPG")),    # RBO-619SM — 도시가스 15.20 kW · LP 가스 13.40 kW
+    283: (26, ("LNG", "LPG")),    # RBR-45D · 46D 빌트인 그릴 — 도시가스 11.50 kW · LP가스 9.77 kW
+    394: (3, ("LNG", "LPG")),     # RT-1070J (395 RT-1080IJ · 396 RTR-A2400J 와 같은 그림) — 도시가스 8.14 kW · LP가스 6.80 kW
+    395: (3, ("LNG", "LPG")),
+    396: (3, ("LNG", "LPG")),
+    451: (3, ("LNG", "LPG")),     # RTR-W2200 (452 RT-1610 · 453 RT-1620I 와 같은 그림) — 도시가스 8.14 kW · LP가스 6.80 kW
+    452: (3, ("LNG", "LPG")),
+    453: (3, ("LNG", "LPG")),
+    512: (3, ("LNG", "LPG")),     # RBR-NS300DJ (513 NS301DIJ · 517 NC310DJ · 587 NS306JAC 와 같은 그림) — 도시가스 9.25 kW · LP가스 7.92 kW
+    513: (3, ("LNG", "LPG")),
+    517: (3, ("LNG", "LPG")),
+    587: (3, ("LNG", "LPG")),
+    584: (3, ("LNG", "LPG")),     # RBR-NS200DJ (585 NS206JAC 와 같은 그림) — 도시가스 8.14 kW · LP가스 6.80 kW
+    585: (3, ("LNG", "LPG")),
+    641: (4, ("LNG", "LPG")),     # RBR-G3010N 쥬벨 — 도시가스 8.2 kW · LP가스 6.80 kW
+}
+
+
+def manual_index(f):
+    """사용설명서 목록 → {모델 코드: 설명서 번호(가장 새 것)}. 목록 이름 'RT-1050l' 처럼 끝 I 를 소문자 l 로 적은 것도 맞춘다."""
+    out = {}
+    for d in MANUAL_DIRS:
+        st, h = f.get(MANUAL_LIST.format(d))
+        if st != 200:
+            continue
+        for i, t in re.findall(r"link_click\('(\d+)&amp;catimage=[^']*'\);\"><img[^>]*><p><span>([^<]+)</span>", h):
+            code = re.sub(r"l$", "I", t.strip()).upper()
+            if CODE.match(code):
+                out[code] = max(out.get(code, 0), int(i))
+    return out
+
+
+def manual_gases(xml):
+    """사용설명서 coords.xml → (가스 집합, 쪽). '가스소비량' 이 있는 쪽에서 줄 머리 낱말이 '도시가스' · 'LP가스' 이고
+    바로 옆 줄(±16)에 kW · kcal/h 숫자가 있는 것만 (고장 안내 'LP가스의 경우' · '지역 도시가스나' 는 낱말이 달라 빠진다)."""
+    for no, words in pages_of(xml):
+        if not any(w[4] == "가스소비량" for w in words):
+            continue
+        ls = lines_of(words)
+        found = set()
+        for y, ws in ls:
+            for w in ws:
+                for g, rx in GAS_HEAD.items():
+                    if rx.match(w[4]):
+                        near = [x[4] for yy, xs in ls if abs(yy - y) <= 16 for x in xs]
+                        if any(re.search(r"\d\s*(?:kW|kcal/h)", x) for x in near):
+                            found.add(g)
+        if found:
+            return found, no
+    return set(), None
+
+
+def add_gas_types(f, rows):
+    """가스 쿡탑 · 가스오븐레인지 행 → gas_types (모델 코드와 이름이 같은 사용설명서의 가스소비량 표). 설명서가 없으면 None."""
+    gas_rows = [r for r in rows if r["category"] in ("cooktop", "range")
+                and (r["category_subtype"] == "gas" or "가스" in (r["product_type_raw"] or ""))]
+    if not gas_rows:
+        return
+    idx = manual_index(f)
+    for r in gas_rows:
+        got = {}
+        for code in r["model_codes"]:
+            mid = idx.get(code.upper())
+            if not mid:
+                continue
+            st, xml = f.get(f"{EB}/catImage/{mid}/coords.xml")
+            gases, page = manual_gases(xml) if st == 200 else (set(), None)
+            how = "글자"
+            if not gases and mid in RN_IMG_GAS:
+                page, g = RN_IMG_GAS[mid]
+                gases, how = set(g), "그림을 눈으로 읽음"
+            if gases:
+                got[code] = (tuple(sorted(gases)), mid, page, how)
+        kinds = {v[0] for v in got.values()}
+        if len(kinds) != 1:
+            if len(kinds) > 1:
+                r["install_notes"] = "; ".join(x for x in [r["install_notes"], f"가스 종류가 코드마다 다름 {got} — 비움"] if x)
+            continue
+        r["gas_types"] = list(next(iter(kinds)))
+        ev = " · ".join(f"{c} 설명서 {mid} {page}쪽({how})" for c, (_, mid, page, how) in got.items())
+        miss = [c for c in r["model_codes"] if c not in got]
+        heads = " · ".join({"LNG": "'도시가스'", "LPG": "'LP가스'"}[g] for g in r["gas_types"])
+        note = (f"가스 종류 {'/'.join(r['gas_types'])}: 사용설명서 가스소비량 표 줄 {heads} ({ev})"
+                + (f", 설명서 없음: {', '.join(miss)}" if miss else ""))
+        r["install_notes"] = "; ".join(x for x in [r["install_notes"], note] if x)
