@@ -98,8 +98,7 @@ with sync_playwright() as p:
 ## 다담 저장소에서 쓸 때 (다담가구 추가분)
 
 - 플래너는 정적 HTML 이다. 실제 플래너는 `mockup-shell.html` ·
-  `mockup-structure.html` · `js/planner/*` (레거시 `planner-vite/**` 는 보지
-  않는다). 저장소 루트에서 정적 서버를 띄워 연다:
+  `mockup-structure.html` · `js/planner/*` 이다. 저장소 루트에서 정적 서버를 띄워 연다:
   ```bash
   python3 .claude/skills/webapp-testing/scripts/with_server.py \
     --server "python3 -m http.server 3050" --port 3050 -- python3 your_check.py

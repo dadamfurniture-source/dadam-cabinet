@@ -8,7 +8,6 @@
 - **HTML**: 브라우저 로드 에러 없는지 확인
 
 ### 2. 빌드 검증
-- **Next.js**: `NEXT_PUBLIC_SUPABASE_URL=https://placeholder.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder npm run build`
 - **MCP Server**: `cd mcp-server && npm run build`
 
 ### 3. 테스트 검증
@@ -25,7 +24,6 @@ gh pr comment {PR번호} --body "## QA 검증 결과
 - [x] TypeScript 타입 통과
 
 ### 빌드 검증
-- [x] Next.js 빌드 성공
 - [x] MCP Server 빌드 성공
 
 ### 테스트
@@ -45,7 +43,7 @@ gh pr comment {PR번호} --body "## QA 검증 결과
 
 | 도메인 | 필수 검증 |
 |--------|----------|
-| 3D Planner | tsc --noEmit + Next.js build |
+| 3D Planner | tsc --noEmit |
 | Image Gen | HTML 문법 + JS 문법 |
 | BOM | node -c + vitest (bom 테스트) |
 | Design UI | node -c (3파일) |

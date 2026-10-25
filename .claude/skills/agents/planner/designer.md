@@ -5,8 +5,6 @@ Planner 도메인의 UI/UX 품질, 디자인 일관성, 접근성을 리뷰합�
 
 ## Review Scope
 - lib/planner.ts
-- components/planner/DadamPlanner.tsx
-- components/planner/EmbedCanvas.tsx
 
 ## Review Checklist
 - Three.js 렌더링 품질

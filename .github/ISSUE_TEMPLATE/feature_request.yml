@@ -29,11 +29,10 @@ body:
       label: 영역
       options:
         - 웹사이트 (정적 HTML)
-        - Next.js 앱 (app/)
         - 관리자 (admin/)
         - 결제 API (workers/payments-api)
         - MCP 서버 (mcp-server)
-        - 플래너 (planner-vite)
+        - 플래너
         - 기타 / 모름
     validations:
       required: true

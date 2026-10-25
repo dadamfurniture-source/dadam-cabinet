@@ -86,10 +86,6 @@ dadamagent/
 ├── lib/                           # 공유 라이브러리
 ├── sql/                           # SQL 스크립트
 ├── types/                         # 공유 타입
-├── workflows/                     # n8n 워크플로우 JSON
-│   ├── v8-claude-analysis.json    # 운영 버전
-│   ├── v1-fast-generation.json    # Design Data 워크플로우
-│   └── archive/                   # 이전 버전 (v5, v6, v7)
 ├── __tests__/                     # 테스트
 ├── [HTML 페이지들]                 # 프론트엔드 (index, ai-design, detaildesign 등)
 └── [설정 파일들]                    # package.json, tsconfig 등

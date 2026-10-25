@@ -14,11 +14,6 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
     "paths": {
       "@/*": ["./*"],
       "@/types/*": ["./types/*"],
@@ -27,13 +22,6 @@
     },
     "typeRoots": ["./node_modules/@types", "./types"]
   },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    "types/**/*.d.ts",
-    "lib/**/*.ts"
-  ],
-  "exclude": ["node_modules", "out", ".next", "js", "mcp-server", "planner-vite"]
+  "include": ["**/*.ts", "**/*.tsx", "types/**/*.d.ts", "lib/**/*.ts"],
+  "exclude": ["node_modules", "js", "mcp-server"]
 }
