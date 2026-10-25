@@ -91,6 +91,15 @@ describe('DB — appliance-models-kitchen.sql', () => {
     expect(KITCHEN).toContain("gas_types        = COALESCE(NULLIF(ARRAY(SELECT jsonb_array_elements_text(COALESCE(r->'gas_types', '[]'::jsonb))), '{}'), gas_types),");
   });
 
+  test('수전은 치수 없이 수전 구멍만으로도 — 다른 종류는 W · H · D 필수 (검사 · 가져오기 같은 조건)', () => {
+    expect(KITCHEN).toContain('ALTER TABLE appliance_models ALTER COLUMN width_mm DROP NOT NULL, ALTER COLUMN depth_mm DROP NOT NULL, ALTER COLUMN height_mm DROP NOT NULL;');
+    for (const c of ['width', 'depth', 'height']) expect(KITCHEN).toContain(`DROP CONSTRAINT IF EXISTS appliance_models_${c}_mm_check;`);
+    expect(KITCHEN).toContain("AND (category = 'faucet' OR (width_mm IS NOT NULL AND depth_mm IS NOT NULL AND height_mm IS NOT NULL))");
+    expect(KITCHEN).toContain("AND NOT (r->>'category' = 'faucet' AND COALESCE(NULLIF(r->>'faucet_hole_mm', '')::INT, 0) > 0)) THEN");
+    expect(KITCHEN).toContain("width_mm         = COALESCE(NULLIF(r->>'width_mm', '')::INT, width_mm),");
+    expect(AP).toContain("if (!payload.brand || !payload.model_name || !(hasDims || (payload.category === 'faucet' && payload.faucet_hole_mm))) {");
+  });
+
   test('웹 · 익명은 가져오기 함수를 못 부른다', () => {
     expect(KITCHEN).toContain('REVOKE ALL ON FUNCTION import_appliance_models(JSONB) FROM PUBLIC;');
     expect(KITCHEN).toContain('REVOKE ALL ON FUNCTION import_appliance_models(JSONB) FROM anon, authenticated;');
