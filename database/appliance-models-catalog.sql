@@ -23,17 +23,45 @@ ALTER TABLE appliance_models
   ADD COLUMN IF NOT EXISTS collected_at TIMESTAMPTZ;
 
 ALTER TABLE appliance_models DROP CONSTRAINT IF EXISTS appliance_models_subtype_chk;
-ALTER TABLE appliance_models ADD CONSTRAINT appliance_models_subtype_chk CHECK (subtype IS NULL OR subtype IN (
-  'french_4door',   -- 4도어 (상냉장 하냉동 · 비스포크 4도어 등)
-  'side_by_side',   -- 양문형
-  'two_door',       -- 일반 2도어 (상냉동 하냉장)
-  'one_door',       -- 1도어 (냉장 · 냉동 · 김치 단품, 키친핏 1도어)
-  'built_in',       -- 완전 빌트인 (가구 도어 부착형)
-  'kimchi_stand',   -- 김치냉장고 스탠드형
-  'kimchi_lid',     -- 김치냉장고 뚜껑형
-  'wine',           -- 와인셀러
-  'small'           -- 소형 · 미니 냉장고
-));
+-- 2026-10-25: 종류별 정의 — database/appliance-models-kitchen.sql 과 같다 (주방가전 행이 있어도 다시 돌릴 수 있게)
+ALTER TABLE appliance_models ADD CONSTRAINT appliance_models_subtype_chk CHECK (subtype IS NULL OR CASE category
+  WHEN 'refrigerator' THEN subtype IN (
+    'french_4door',   -- 4도어 (상냉장 하냉동 · 비스포크 4도어 등)
+    'side_by_side',   -- 양문형
+    'two_door',       -- 일반 2도어 (상냉동 하냉장)
+    'one_door',       -- 1도어 (냉장 · 냉동 · 김치 단품, 키친핏 1도어)
+    'built_in',       -- 완전 빌트인 (가구 도어 부착형)
+    'kimchi_stand',   -- 김치냉장고 스탠드형
+    'kimchi_lid',     -- 김치냉장고 뚜껑형
+    'wine',           -- 와인셀러
+    'small')          -- 소형 · 미니 냉장고
+  WHEN 'microwave' THEN subtype IN (
+    'solo',           -- 전자레인지
+    'combi')          -- 광파 · 오븐 겸용 (큐커 포함)
+  WHEN 'oven' THEN subtype IN (
+    'oven',           -- 오븐
+    'steam_oven',     -- 스팀오븐
+    'combi')          -- 빌트인 복합오븐 (전자레인지 겸용)
+  WHEN 'dishwasher' THEN subtype IN (
+    'built_in',       -- 빌트인
+    'freestanding',   -- 프리스탠딩
+    'countertop')     -- 카운터탑 (식탁 위)
+  WHEN 'cooktop' THEN subtype IN (
+    'induction',      -- 인덕션
+    'highlight',      -- 하이라이트
+    'hybrid',         -- 하이브리드 (인덕션 + 하이라이트)
+    'gas')            -- 가스
+  WHEN 'hood' THEN subtype IN (
+    'chimney',        -- 침니형
+    'slim',           -- 슬림형
+    'built_in',       -- 빌트인 (매립)
+    'island')         -- 아일랜드
+  WHEN 'rice_cooker' THEN subtype IN (
+    'pressure_ih',    -- IH 압력
+    'ih',             -- IH
+    'pressure',       -- 열판 압력
+    'electric')       -- 일반 전기 (마이컴)
+  ELSE false END);
 
 ALTER TABLE appliance_models DROP CONSTRAINT IF EXISTS appliance_models_install_type_chk;
 ALTER TABLE appliance_models ADD CONSTRAINT appliance_models_install_type_chk CHECK (
