@@ -566,7 +566,9 @@ BOM 행은 `목찬넬(전면)`·`목찬넬(지면)` (상단), `목찬넬(중간 
 | 뒷판 | MDF | 3T | (W-1) x (bodyH-1) | 1 | - |
 | 중간칸막이 | PB | 18T | (W-36) x D | 1 (짧은옷만) | 1면(전) |
 | 선반 | PB | 18T | (W-36) x (천저판D - 70) | 선반형=4개, 기타=1개 | 1면(전) |
-| 도어 | MDF | 18T | ((W-4)/doorCount) x (bodyH+20) | doorCount | 4면 |
+| 도어 | MDF | 18T | (floor(W/doorCount)-4) x (bodyH+20) | doorCount | 4면 |
+
+> 도어 폭 = `floor(W / doorCount) − 4` — 도어마다 −4 (2짝이면 한 짝 = 몸통 W ÷ 2 − 4). 2026-10-25 사장님 확정, 예전 표기 `((W-4)/doorCount)` 정정.
 
 ### EP (마감재)
 
