@@ -5,7 +5,7 @@
 
 CREATE TABLE IF NOT EXISTS appliance_models (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  category    TEXT NOT NULL CHECK (category IN ('refrigerator', 'hood', 'dishwasher', 'sink', 'oven', 'cooktop', 'washing_machine', 'microwave')),
+  category    TEXT NOT NULL CHECK (category IN ('refrigerator', 'hood', 'dishwasher', 'sink', 'oven', 'cooktop', 'washing_machine', 'microwave', 'rice_cooker')),
   brand       TEXT NOT NULL,
   model_name  TEXT NOT NULL,
   model_code  TEXT,
@@ -66,8 +66,8 @@ CREATE POLICY "appliance_models_admin_delete" ON appliance_models
   );
 
 -- ── 코멘트 ─────────────────────────────────────────────────────
-COMMENT ON TABLE  appliance_models IS '가전 모델 카탈로그 (냉장고/후드/식세기/싱크볼/쿡탑) — 도면 배치 W/D/H · 상판 타공 참조';
-COMMENT ON COLUMN appliance_models.category   IS 'refrigerator | hood | dishwasher | sink | oven | cooktop | washing_machine | microwave';
+COMMENT ON TABLE  appliance_models IS '가전 모델 카탈로그 (냉장고/후드/식세기/싱크볼/쿡탑/오븐/전자레인지/밥솥) — 도면 배치 W/D/H · 상판 타공 참조';
+COMMENT ON COLUMN appliance_models.category   IS 'refrigerator | hood | dishwasher | sink | oven | cooktop | washing_machine | microwave | rice_cooker';
 COMMENT ON COLUMN appliance_models.width_mm   IS '도면 가로 (mm)';
 COMMENT ON COLUMN appliance_models.depth_mm   IS '도면 깊이 = 평면도 세로 (mm), 후면 핸들 포함';
 COMMENT ON COLUMN appliance_models.height_mm  IS '3D 모듈 높이 (mm)';
