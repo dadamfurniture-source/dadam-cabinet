@@ -42,6 +42,7 @@
     // 확정이 필요하면 여기만 고치면 BOM·도면이 함께 따라온다.
     EDGE: Object.freeze({ side: '3면', topBottom: '2면(가로)', back: '2면(가로)' }),
     // 2026-10-25 사장님: 가전 칸(전자레인지) — DB 에 저장된 가전 외경 + 20 이 오픈장 내경의 최솟값이면 된다. 그 이상은 크게 관계없다.
+    //   같은 날 검토 페이지 답 "제조사가 적은 여유가 있으면 그 값" — 모델에 설치 여유(위 · 옆 · 뒤)가 있으면 그 치수는 그 값 (applianceWarningsOf)
     APPLIANCE_CLEARANCE: 20,
   });
 
@@ -109,10 +110,14 @@
   }
 
   /**
-   * 2026-10-25 사장님: 가전 칸 — 오픈장 내경(폭 · 높이 · 깊이)이 가전 외경 + 20 이상인가. 모자라는 치수마다 경고 한 줄.
-   *   가전 외경은 가전 DB(appliance_models — 전자레인지 category 'microwave')의 width_mm · height_mm · depth_mm.
+   * 2026-10-25 사장님: 가전 칸 — 오픈장 내경(폭 · 높이 · 깊이)이 가전 외경 + 여유 이상인가. 모자라는 치수마다 경고 한 줄.
+   *   여유 = 제조사가 적은 설치 여유가 있으면 그 값, 없으면 + 20 (같은 날 검토 페이지 답 "제조사가 적은 여유가 있으면 그 값"):
+   *     폭   옆 여유(sideGap)가 있으면 + 옆 × 2 (양옆 — LG '측면/뒷면은 벽과 10cm 이상 띄움'), 없으면 + 20
+   *     높이 위 여유(topGap)가 있으면 + 위, 없으면 + 20
+   *     깊이 뒤 여유(backGap)가 있으면 + 뒤, 없으면 + 20
+   *   가전 외경 · 여유는 가전 DB(appliance_models — width/height/depth_mm · side/top/back_gap_mm).
    * @param o      {W,H,D} 오픈장 몸통 외경
-   * @param outer  {W,H,D} 가전 외경
+   * @param outer  {W,H,D, sideGap?, topGap?, backGap?} 가전 외경과 제조사 설치 여유
    * @param label  가전 이름 (경고 문구, 기본 '가전')
    * @returns {string[]}
    */
@@ -120,11 +125,17 @@
     const g = innerOf(o);
     const c = R.APPLIANCE_CLEARANCE;
     const name = label || '가전';
+    const gap = (k) => (outer && outer[k] != null && Number.isFinite(Number(outer[k])) && Number(outer[k]) >= 0 ? Number(outer[k]) : null);
     const out = [];
-    [['innerW', 'W', '폭'], ['innerH', 'H', '높이'], ['innerD', 'D', '깊이']].forEach(([ik, ok, word]) => {
-      const need = dim(outer && outer[ok]);
-      if (need > 0 && g[ik] < need + c) out.push(`${R.LABEL} 내경 ${word} ${g[ik]} 가 ${name} ${word} ${need} + ${c} = ${need + c} 보다 작습니다`);
-    });
+    [['innerW', 'W', '폭', 'sideGap', 2, '옆 여유'], ['innerH', 'H', '높이', 'topGap', 1, '위 여유'], ['innerD', 'D', '깊이', 'backGap', 1, '뒤 여유']]
+      .forEach(([ik, ok, word, gk, times, gword]) => {
+        const need = dim(outer && outer[ok]);
+        if (!(need > 0)) return;
+        const mg = gap(gk);
+        const add = mg == null ? c : mg * times;
+        const how = mg == null ? `${c}` : `${gword} ${mg}${times > 1 ? ` × ${times}` : ''}`;
+        if (g[ik] < need + add) out.push(`${R.LABEL} 내경 ${word} ${g[ik]} 가 ${name} ${word} ${need} + ${how} = ${need + add} 보다 작습니다`);
+      });
     return out;
   }
 
