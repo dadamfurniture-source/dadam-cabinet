@@ -42,7 +42,7 @@
   .cat-menu{position:absolute;top:calc(100% + 5px);left:0;z-index:200;min-width:196px;padding:4px;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(58,42,24,.18)}
   .cat-menu[hidden]{display:none}
   /* T4: .pdm-btn 은 display:inline-flex 라 [hidden] 이 이기지 못한다 — 관리자 GLB 버튼을 숨기려면 필요하다 */
-  #glbExportBtn[hidden],#glbCadBtn[hidden],#glbFrozenBtn[hidden]{display:none}
+  #glbExportBtn[hidden],#glbCadBtn[hidden],#glbFrozenBtn[hidden],#seedSaveBtn[hidden],#seedMenuBtn[hidden]{display:none}
   .cat-menu-row{display:flex;align-items:center;gap:2px;border-radius:5px}
   .cat-menu-row:hover{background:var(--brand-soft)}
   .cat-menu-add{flex:1;display:flex;align-items:center;gap:8px;padding:6px;border:none;background:transparent;border-radius:5px;cursor:pointer;font-size:12px;color:var(--text);text-align:left;font-weight:500}
@@ -402,6 +402,10 @@
     <button type="button" class="pdm-btn" id="glbCadBtn" hidden title="관리자 전용 — 조립 명세로 판재를 BOM 재단 치수 그대로 놓은 GLB 를 내려받습니다. 자리가 아직 정해지지 않은 부재(도어·서랍·밴드 등)는 빠집니다">🧊 CAD GLB</button>
     <!-- CAD 베타 PR16b: 최신 동결 스냅샷의 명세 그대로 GLB(전체 · 외관)를 지어 워커에 보관. 관리자만. -->
     <button type="button" class="pdm-btn" id="glbFrozenBtn" hidden title="관리자 전용 — 최신 동결 스냅샷의 조립 명세 그대로 CAD GLB(전체 · 외관)를 지어 보관합니다. 동결 뒤 바꾼 설계는 반영되지 않습니다. 상판 · 몰딩 · 걸레받이는 빠집니다">📤 동결본 GLB</button>
+    <!-- 설계 유전체: 씨앗 패널 — 사장님이 자주 하는 구성을 자동완성의 첫 패널로 저장한다 (js/planner/planner-seed.js). 관리자만. -->
+    <button type="button" class="pdm-btn" id="seedSaveBtn" hidden title="관리자 전용 — 지금 구조를 자주 하는 구성(씨앗)으로 저장합니다. 자동완성이 아직 설계가 없는 계정에 처음 제안할 때 참고합니다">🌱 씨앗 저장</button>
+    <button type="button" class="pdm-btn" id="seedMenuBtn" hidden title="저장한 씨앗 목록 · 지우기">🌱 <span class="pdm-caret">▾</span></button>
+    <div class="pdm-menu" id="seedMenu" hidden></div>
     <button type="button" class="load-btn" id="autoSaveToggle" title="자동 저장 — 끄면 계정에 올리지 않습니다 (이 브라우저 저장은 계속됩니다)">자동저장</button>
   </div>
   <!-- 2026-09-19: ⚙ 설정 — 치수를 바꿀 때 어느 쪽을 그대로 둘지(기준)를 정한다.
@@ -733,6 +737,9 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <script src="js/planner/planner-preflight.js?v=46.7"></script>
 <script src="js/planner/planner-measure.js?v=46.7"></script>
 <script src="js/planner/planner-combo.js?v=46.7"></script>
+<!-- 설계 유전체: 구조 → 서명 (planner-genome.js) · 씨앗 패널 저장 (planner-seed.js, planner-store.js 뒤) -->
+<script src="js/planner/planner-genome.js?v=46.7"></script>
+<script src="js/planner/planner-seed.js?v=46.7"></script>
 <script src="js/planner/planner-cutout.js?v=46.7"></script>
 <!-- CAD 베타 T4 (PR1b): 관리자 근사 GLB 내보내기 — 역할은 부모 창이 postMessage 로 알려 준다 -->
 <!-- CAD GLB: 조립 명세 — BOM 과 같은 파일. 전역 DadamAssemblyRules · DadamAssembly (bom-drawer-rules.js 뒤) -->
@@ -10762,6 +10769,16 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       if (activeId !== m.id) setActiveModule(m.id);
     },
   });
+  // 설계 유전체: 🌱 씨앗 패널 (js/planner/planner-seed.js) — 관리자만. 역할은 아래 PlannerExport 의 onAdmin 이 같이 넘긴다.
+  //   그래서 PlannerExport.mount (역할 요청) 보다 먼저 붙인다.
+  PlannerSeed.mount({
+    saveButton: document.getElementById('seedSaveBtn'),
+    menuButton: document.getElementById('seedMenuBtn'),
+    menu: document.getElementById('seedMenu'),
+    state: () => ({ modules, structures }),
+    doorWMax: MASTER_RULES.DOOR_W_MAX,
+    toast: showToast,
+  });
   // CAD 베타 T4: 🧊 근사 GLB (js/planner/planner-export.js) — 관리자만. 버튼은 부모가 관리자라고 답하면 보인다.
   PlannerExport.mount({
     three: () => three,
@@ -10788,7 +10805,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       return { spec: r.spec, cells: r.cells, frameOf, solidsOf: window.DadamAssembly.solidsOf };
     },
     sectionOf: (id) => { const m = modules.find((x) => String(x.id) === String(id)); return m ? m.section : null; },
-    onAdmin: (on) => PlannerCadCheck.setAdmin(on),
+    onAdmin: (on) => { PlannerCadCheck.setAdmin(on); PlannerSeed.setAdmin(on); },
   });
   // D3: 📷 렌더 저장 (js/planner/planner-capture.js) — 오프스크린 렌더타깃에 정면·3/4·평면을 찍어 계정에 올린다.
   //   구조 모드에서 눌러도 디테일 룩으로 찍고 되돌린다 (PlannerDetail.pushLook/popLook). 버튼은 디테일 모드에서만 보인다.

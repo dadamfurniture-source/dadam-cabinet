@@ -73,6 +73,9 @@ const STRUCTURE_ONLY = [
   'js/planner/ai-photo.js',
   // CAD 베타 T4: 관리자 근사 GLB 내보내기. 배치 단계에는 3D 장면이 없다.
   'js/planner/planner-export.js',
+  // 설계 유전체 (2026-10-25): 구조 → 서명, 씨앗 패널 저장(관리자). 구조 단계의 modules·structures 를 읽는다.
+  'js/planner/planner-genome.js',
+  'js/planner/planner-seed.js',
 ];
 
 // D0: 마감 카탈로그 정본. IIFE 라 최상위 이름이 없고 window.DadamBomFinishColor 만 남긴다 —
