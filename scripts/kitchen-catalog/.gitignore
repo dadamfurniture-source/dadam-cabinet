@@ -7,3 +7,4 @@ import-*.sql
 __pycache__/
 !manual/
 !manual/*.json
+owner_review.json
