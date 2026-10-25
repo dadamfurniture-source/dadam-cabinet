@@ -88,7 +88,9 @@ describe('DB — appliance-models-kitchen.sql', () => {
   test('가스 쿡탑 · 가스오븐레인지 gas_types (LNG · LPG만) — 넣고, 다시 가져올 때는 수집값이 있으면 그 값', () => {
     expect(KITCHEN).toContain("ADD COLUMN IF NOT EXISTS gas_types TEXT[] CHECK (gas_types IS NULL OR gas_types <@ ARRAY['LNG', 'LPG']::TEXT[])");
     expect(KITCHEN).toMatch(/cutout_r_mm, faucet_hole_mm, gas_types,\s+verified/);
-    expect(KITCHEN).toContain("gas_types        = COALESCE(NULLIF(ARRAY(SELECT jsonb_array_elements_text(COALESCE(r->'gas_types', '[]'::jsonb))), '{}'), gas_types),");
+    expect(KITCHEN).toContain("gas_types        = COALESCE(CASE WHEN jsonb_typeof(r->'gas_types') = 'array' THEN NULLIF(ARRAY(SELECT jsonb_array_elements_text(r->'gas_types')), '{}') END, gas_types),");
+    // 가스 종류가 없는 행은 JSON null — 배열일 때만 푼다 (2026-10-25 Supabase 시험 실행에서 'cannot extract elements from a scalar')
+    expect(KITCHEN).not.toContain("COALESCE(r->'gas_types', '[]'::jsonb)");
   });
 
   test('수전은 치수 없이 수전 구멍만으로도 — 다른 종류는 W · H · D 필수 (검사 · 가져오기 같은 조건)', () => {
