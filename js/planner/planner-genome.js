@@ -708,6 +708,21 @@ function plannerGenomeSuggestGlobals(ownGenomes, allGenomes, F) {
   return out;
 }
 
+// 구조 페이지에서는 planner-seed.js 가 맨이름으로 쓴다. 시험 하네스(test-utils/planner-harness.js)는
+//   스크립트마다 함수 스코프로 돌리므로 window 노출이 있어야 다음 스크립트가 찾는다.
+if (typeof window !== 'undefined') {
+  window.PLANNER_GENOME_VERSION = PLANNER_GENOME_VERSION;
+  window.plannerGenomeOf = plannerGenomeOf;
+  window.plannerGenomeImpute = plannerGenomeImpute;
+  window.PlannerGenome = {
+    VERSION: PLANNER_GENOME_VERSION,
+    of: plannerGenomeOf,
+    alleleOf: plannerGenomeAlleleOf,
+    impute: plannerGenomeImpute,
+    suggestAttrs: plannerGenomeSuggestAttrs,
+    suggestGlobals: plannerGenomeSuggestGlobals,
+  };
+}
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     PLANNER_GENOME_VERSION,
