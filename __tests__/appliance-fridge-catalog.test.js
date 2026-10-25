@@ -25,7 +25,10 @@ describe('DB — 칸 · 구분 · 가져오기 함수', () => {
   });
 
   test('세부 구분 9가지 — DB 검사 · 관리 화면 · 플래너가 같은 목록', () => {
-    const chk = SQL.slice(SQL.indexOf('appliance_models_subtype_chk CHECK'), SQL.indexOf('));', SQL.indexOf('appliance_models_subtype_chk CHECK')));
+    // 2026-10-25: 검사가 종류별(CASE category)이 됐다 — 냉장고 가지만 읽는다 (주방가전은 appliance-kitchen-catalog.test.js)
+    const head = "WHEN 'refrigerator' THEN subtype IN (";
+    const from = SQL.indexOf(head) + head.length;
+    const chk = SQL.slice(from, SQL.indexOf('WHEN ', from)).replace(/--[^\n]*/g, '');
     const inDb = [...chk.matchAll(/'([a-z_0-9]+)'/g)].map((m) => m[1]);
     expect(inDb).toEqual(SUBTYPES);
     for (const src of [AP.slice(AP.indexOf('const FRIDGE_SUBTYPES')), SHELL.slice(SHELL.indexOf('const FRIDGE_SUBTYPE_LABEL'))]) {
@@ -67,10 +70,10 @@ describe('관리 화면 — admin/appliances.html', () => {
     expect(AP).toContain('id="rowCount"');
   });
 
-  test('냉장고 칸은 냉장고일 때만 보이고 저장된다', () => {
+  test('수집 칸은 수집하는 종류(냉장고 · 주방가전)일 때만 보이고 저장된다', () => {
     for (const id of ['f-bg', 'f-subtype', 'f-install', 'f-line', 'f-codes']) expect(AP).toContain(`id="${id}"`);
-    expect(AP).toContain("el.style.display = cat === 'refrigerator' ? '' : 'none'");
-    expect(AP).toMatch(/if \(payload\.category === 'refrigerator'\) \{[\s\S]*payload\.model_codes = parseCodes\(/);
+    expect(AP).toContain("el.style.display = COLLECTED_CATS.includes(cat) ? '' : 'none'");
+    expect(AP).toMatch(/if \(COLLECTED_CATS\.includes\(payload\.category\)\) \{[\s\S]*payload\.model_codes = parseCodes\(/);
   });
 
   test('모델 이름 · 코드는 escape 한다 (수집한 글자가 들어온다)', () => {
