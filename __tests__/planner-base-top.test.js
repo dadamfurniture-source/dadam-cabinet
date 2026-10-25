@@ -228,14 +228,17 @@ describe('천판은 몸통 상단에서 끝난다 (W12-40)', () => {
 });
 
 describe('걸레받이 (W12-41)', () => {
-  // 치수는 BOM(extractors.js)이 정본이다 — MDF 18T · 폭 = 런 전폭 · 높이 = 다리발 − 5.
-  // 앞선에서 40mm 물러선다 (발끝 자리).
+  // 치수·자리는 조립 규칙(assembly-rules.js CARCASS — BOM 과 같은 표)이 정본이다 — MDF 18T · 폭 = 런 전폭 · 높이 = 다리발 − 5.
+  // 2026-10-25 사장님 확정: 바닥에 붙여 세우고 5 틈은 위, 앞면 = 몸통 앞선 − 32 (예전 3D: 바닥 5 띄움 · 배치 공간 앞선 − 40).
   const fn = SRC.slice(SRC.indexOf('function addToeKick'), SRC.indexOf('function addPedestal'));
 
-  test('상수가 BOM 과 같다', () => {
-    expect(SRC).toContain('const KICK_T = 18;');
-    expect(SRC).toContain('const KICK_SETBACK = 40;');
-    expect(SRC).toContain('const KICK_FLOOR_GAP = 5;');
+  test('상수는 조립 규칙 표를 읽는다 — 숫자를 옮겨 적지 않는다', () => {
+    expect(SRC).toContain('const KICK_T = DadamAssemblyRules.CARCASS.KICK_T;');
+    expect(SRC).toContain('const KICK_SETBACK = DadamAssemblyRules.CARCASS.KICK_SETBACK;');
+    expect(SRC).toContain('const KICK_H_MINUS = DadamAssemblyRules.CARCASS.KICK_H_MINUS;');
+    expect(SRC).not.toContain('KICK_FLOOR_GAP');
+    const { CARCASS } = require('../js/detaildesign/assembly-rules.js');
+    expect([CARCASS.KICK_T, CARCASS.KICK_SETBACK, CARCASS.KICK_H_MINUS]).toEqual([18, 32, 5]);
   });
 
   test('하부장에만 선다', () => {
@@ -244,7 +247,7 @@ describe('걸레받이 (W12-41)', () => {
 
   test('좌대를 고르면 서지 않는다 — 다리발이 없다', () => {
     expect(fn).toContain('const legPartH = legHOf(m, s);');
-    expect(fn).toContain('if (legPartH <= KICK_FLOOR_GAP) return;');
+    expect(fn).toContain('if (legPartH <= KICK_H_MINUS) return;');
   });
 
   test('런에 한 장 — 폭은 모듈 구간이다 (W12-43)', () => {
@@ -261,24 +264,36 @@ describe('걸레받이 (W12-41)', () => {
     expect(fn).toContain('W = x1 - x0;');
     expect(fn).not.toContain('W = area.W;');
     // 상판은 그대로 영역 전폭
-    const top = SRC.slice(SRC.indexOf('function addTopPanel'), SRC.indexOf('function frontLineLocal'));
+    const top = SRC.slice(SRC.indexOf('function addTopPanel'), SRC.indexOf('function toeKickBackZ'));
     expect(top).toContain('W = area.W; D = area.D;');
   });
 
-  test('높이는 다리발 − 5 이고 바닥에 안 닿는다', () => {
-    expect(fn).toContain('const h = legPartH - KICK_FLOOR_GAP;');
-    expect(fn).toContain('KICK_FLOOR_GAP + h / 2');
+  test('높이는 다리발 − 5 이고 바닥에 붙는다 — 5 틈은 위 (2026-10-25)', () => {
+    expect(fn).toContain('const h = legPartH - KICK_H_MINUS;');
+    expect(fn).toContain('kick.position.set(dx, h / 2, ');
   });
 
-  test('앞선에서 40 물러선 자리다', () => {
+  test('몸통 앞선에서 32 물러선 자리다 (2026-10-25)', () => {
     const zf = SRC.slice(SRC.indexOf('function toeKickBackZ'), SRC.indexOf('function addToeKick'));
-    expect(zf).toContain('frontLineLocal(m) - KICK_SETBACK - KICK_T;');
+    expect(zf).toContain('return m.D / 2 - KICK_SETBACK - KICK_T;');
     expect(fn).toContain('toeKickBackZ(m, s) + KICK_T / 2');
+    expect(SRC).not.toContain('function frontLineLocal');
   });
 
-  test('앞선은 배치 공간 앞면이다 — 도어 앞면과 같은 평면', () => {
-    const fl = SRC.slice(SRC.indexOf('function frontLineLocal'), SRC.indexOf('function toeKickBackZ'));
-    expect(fl).toContain("((area.y || 0) + area.D) - ((m.y || 0) + m.D / 2)");
+  test('3D 걸레받이가 BOM 조립 명세와 같은 자리에 선다 — 바닥 0 ~ 다리발 − 5, 앞면 = 몸통 앞선 − 32', () => {
+    const { bootPlanner3D } = require('../test-utils/scene-parts');
+    const p = bootPlanner3D(FIXTURES.straight, { design: 'kick-seat', item: 'kick' });
+    const kicks = [];
+    p.three.scene.traverse((o) => { if (o.userData && o.userData.entityKind === 'toe-kick') kicks.push(o); });
+    expect(kicks.length).toBeGreaterThan(0);
+    kicks.forEach((k) => {
+      const m = p.g('modules').find((x) => x.id === k.userData.moduleId);
+      const legH = p.g('legHOf')(m, p.g('getStructure')(m.id));
+      const { height, depth } = k.geometry.parameters;
+      expect(k.position.y - height / 2).toBeCloseTo(0, 6);
+      expect(k.position.y + height / 2).toBeCloseTo(legH - 5, 6);
+      expect(k.position.z + depth / 2).toBeCloseTo(m.D / 2 - 32, 6);
+    });
   });
 
   test('앞줄 다리발이 걸레받이 뒤로 물러난다', () => {
