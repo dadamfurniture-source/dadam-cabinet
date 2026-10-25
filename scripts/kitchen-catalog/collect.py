@@ -33,13 +33,16 @@ _spec.loader.exec_module(F)
 BOUNDS = {
     "microwave":   {"w": (300, 800), "h": (200, 600), "d": (250, 700)},
     "oven":        {"w": (400, 1000), "h": (300, 1000), "d": (300, 750)},
-    "dishwasher":  {"w": (400, 700), "h": (400, 900), "d": (400, 700)},
-    "cooktop":     {"w": (250, 1000), "h": (20, 300), "d": (250, 650)},
-    "hood":        {"w": (400, 1300), "h": (50, 1300), "d": (250, 700)},
+    # 2026-10-25 넓힘 — 공식 카탈로그의 실제 제품이 걸렸다: 3인용 식기세척기 412×378×422 · 슬림 깊이 345,
+    #   1002 폭 가스쿡탑, 원형 후드 지름 332 · 더블 아일랜드 1748 · 벽부착 높이 1500 · 테이블 환기 깊이 140
+    "dishwasher":  {"w": (380, 700), "h": (300, 900), "d": (300, 700)},
+    "cooktop":     {"w": (250, 1200), "h": (20, 300), "d": (250, 650)},
+    "hood":        {"w": (250, 1900), "h": (50, 1600), "d": (100, 800)},
     "rice_cooker": {"w": (150, 500), "h": (150, 500), "d": (150, 550)},
+    "sink":        {"w": (200, 2000), "h": (100, 350), "d": (300, 650)},   # 싱크볼 — H = 볼 깊이 (소형 바 볼 220 · 1800 일체형)
 }
 NICHE_KEYS = ("niche_min_w_mm", "niche_min_h_mm", "niche_min_d_mm", "niche_max_w_mm", "niche_max_h_mm", "niche_max_d_mm")
-CUTOUT_KEYS = ("cutout_w_mm", "cutout_d_mm", "cutout_r_mm")
+CUTOUT_KEYS = ("cutout_w_mm", "cutout_d_mm", "cutout_r_mm", "faucet_hole_mm")
 GAP_KEYS = ("side_gap_mm", "top_gap_mm", "back_gap_mm")
 
 # --------------------------------------------------------------------------- 치수 글자
@@ -238,7 +241,42 @@ def samsung_collect(f, sample=None):
                 spec = F.ss_spec(f, gid)
                 if spec:
                     rows.append(ss_row(p, menu, mdl, gid, spec))
+    ss_dishwasher_guide(f, rows)
     return rows
+
+
+SS_DW_GUIDE = f"{F.SS}/sec/dishwashers/dishwashers-install-guide/"
+
+
+def ss_dishwasher_guide(f, rows):
+    """삼성 식기세척기 — 공식 안내 글에서 장 크기에 쓰는 값만 옮긴다 (2026-10-25).
+      설치가이드 '도어 패널' 권장 치수 (트루빌트인 · 세미빌트인 — 가구 도어를 붙이는 모델) → install_notes
+      상품 페이지 설치 안내 '설치공간이 확보되지 않으면 설치가 어렵습니다. (가로 55.5 cm, 깊이 51 cm, 높이 47 cm)'
+        — 모든 식기세척기 페이지에 같이 붙은 카운터탑 안내라 카운터탑 행에만 니치로 넣는다
+      빌트인 설치 공간은 공개 글에 없다 (사용설명서 서버 downloadcenter.samsung.com 은 robots.txt 가 막는다)"""
+    dws = [r for r in rows if r["category"] == "dishwasher"]
+    if not dws:
+        return
+    st, h = f.get(SS_DW_GUIDE)
+    t = re.sub(r"\s+", " ", F.html_to_text(h)) if st == 200 else ""
+    panels = {}
+    for m in re.finditer(r"(\d+)인용(?:/(\d+)인용)? (트루빌트인|세미빌트인|풀빌트인|빌트인) 패널 : ([^-/]+?)(?= - |\s*/|\s*\*|$)", t):
+        for n in [m.group(1), m.group(2)]:
+            if n:
+                panels.setdefault((int(n), m.group(3)), f"{m.group(0).split(' 패널')[0]} 도어 패널 권장: {m.group(4).strip()} (삼성 식기세척기 설치가이드)")
+    for r in dws:
+        kind = "트루빌트인" if re.search(r"트루 ?빌트인", r["model_name"]) else "세미빌트인" if re.search(r"세미 ?빌트인", r["model_name"]) else None
+        note = panels.get((r.get("place_count"), kind)) if kind else None
+        if note:
+            r["install_notes"] = "; ".join(x for x in [r.get("install_notes"), note] if x)
+        if r["category_subtype"] == "countertop":
+            st, ph = f.get(r["page_url"])
+            m = re.search(r"설치공간이 확보되지 않으면 설치가 어렵습니다\. ?\(가로 ([\d.]+) ?cm, 깊이 ([\d.]+) ?cm, 높이 ([\d.]+) ?cm\)",
+                          re.sub(r"\s+", " ", F.html_to_text(ph)) if st == 200 else "")
+            if m:
+                w, d_, hh = (int(round(float(x) * 10)) for x in m.groups())
+                r["niche_min_w_mm"], r["niche_min_d_mm"], r["niche_min_h_mm"] = w, d_, hh
+                r["niche_raw"] = m.group(0)
 
 
 # --------------------------------------------------------------------------- LG
@@ -318,7 +356,37 @@ def lg_collect(f, sample=None):
                 spec = F.lg_spec(f, vid)
                 if spec:
                     rows.append(lg_row(m, menu, vid, spec))
+    lg_guides(f, rows)
     return rows
+
+
+LG_GUIDES = {
+    "cooktop": f"{F.LG_WWW}/story/buying-guide/lg-electric-ranges-guide",
+    "dishwasher": f"{F.LG_WWW}/story/useful-tip/dishwashers-faq",
+}
+
+
+def lg_guides(f, rows):
+    """LG 공식 구매가이드 · FAQ 글에서 장 크기에 쓰는 문장만 install_notes 로 (2026-10-25). 숫자를 칸으로 만들지 않는다 —
+    모델별 값이 아니라 종류 공통 안내다.
+      전기레인지 '설치장 깊이 최소 65mm 공간 확보' · '식기세척기와 직렬 설치 시 전기레인지 밑부분부터 식기세척기와의 간격 75mm'
+      식기세척기 '규격장(폭 600mm)' · '걸레받이 10cm 또는 15cm 전용 모델'"""
+    want = {
+        "cooktop": [r"설치장 깊이 최소 \d+ ?mm 공간 확보 필요합니다", r"전기레인지 밑부분부터 식기세척기와의 간격 \d+ ?mm ?공간 확보"],
+        "dishwasher": [r"가구장이 규격장\(폭 \d+ ?mm\)인 경우", r"싱크대 걸레받이 높이에 맞춰 \d+ ?cm 또는 \d+ ?cm 전용 모델을 선택할 수 있습니다"],
+    }
+    for cat, url in LG_GUIDES.items():
+        if not any(r["category"] == cat for r in rows):
+            continue
+        st, h = f.get(url)
+        t = re.sub(r"\s+", " ", F.html_to_text(h)) if st == 200 else ""
+        found = [m.group(0) for p in want[cat] for m in [re.search(p, t)] if m]
+        if not found:
+            continue
+        note = " · ".join(found) + f" (LG {url.rsplit('/', 1)[-1]})"
+        for r in rows:
+            if r["category"] == cat and r.get("install_type") == "built_in":
+                r["install_notes"] = "; ".join(x for x in [r.get("install_notes"), note] if x)
 
 
 # --------------------------------------------------------------------------- 밥솥 (쿠첸 · 쿠쿠)
@@ -337,99 +405,6 @@ def rice_subtype(name):
 
 def is_rice_cooker(name):
     return "밥솥" in name and not re.search(r"패키지|내솥|패킹|부품|커버|증기|세트|\+|&", name)
-
-
-CM = "https://www.cuchenmall.co.kr"
-
-
-def cuchen_collect(f, sample=None):
-    st, x = f.get(CM + "/sitemap-geo.xml")
-    urls = [u.replace("&amp;", "&") for u in re.findall(r"<loc>([^<]+)</loc>", x) if "detail.php" in u]
-    print(f"[cuchen] sitemap detail pages={len(urls)}", file=sys.stderr)
-    rows = []
-    for u in urls:
-        st, h = f.get(u)
-        if st != 200:
-            continue
-        title = re.search(r"<title>([^<|]*)", h)
-        name = F.html.unescape(title.group(1)).strip() if title else ""
-        if not is_rice_cooker(name):
-            continue
-        t = F.html_to_text(h)
-        # '기본사양 · 사이즈' 다음 줄 — '298(W)*408(D)*307(H)(mm)' · '215*258*208 (W*D*H)' · '368*264*268(mm)' (순서 표시 없음)
-        size = re.search(r"사이즈\s*\n\s*(\d[^\n]{4,60})", t)
-        # 판매 코드 = 상품 이름 바로 다음 줄. 상품정보고시 '품명 및 모델명' 이 다른 상품에서 복사된 곳이 있다
-        #   (미니밥솥 더 동글: 판매 CRE-D0401W · 고시 CRM-E0101W) — 판매 코드만 모델 코드로, 다르면 미검증
-        shown = re.search(re.escape(name) + r"\s*\n\s*([A-Z]{2,4}-[A-Z0-9]{3,})", t)
-        notice = re.search(r"품명 및 모델명\s*\n?\s*([A-Z]{2,4}-[A-Z0-9]{3,})", t)
-        code = (shown or notice).group(1) if (shown or notice) else None
-        img = re.search(r'<meta property="og:image" content="([^"]+)"', h)
-        row = base_row(brand="Cuchen", category="rice_cooker", category_subtype=rice_subtype(name), install_type="freestanding",
-                       model_name=name, model_codes=[code] if code else [], line="쿠첸",
-                       source_url=u, page_url=u, image_source_url=F.abs_url(img.group(1), CM) if img else None,
-                       place_count=place_count(name))
-        if shown and notice and shown.group(1) != notice.group(1):
-            row["tags"].append("고시불일치")
-            row["product_type_raw"] = f"상품정보고시 모델명 {notice.group(1)}"
-        raw = size.group(1).strip() if size else None
-        seq = "".join(re.findall(r"[WDH]", raw or ""))
-        if raw and sorted(seq) != ["D", "H", "W"]:
-            row["tags"].append("치수순서추정")   # 순서 표시가 없다 — 쿠첸이 표시한 곳의 순서(가로*깊이*높이)로 읽고 미검증
-        d, _ = dims_of(f"({'x'.join(seq)})", raw, "wdh") if raw else (None, None)
-        put_dims(row, d, raw)
-        rows.append(row)
-        if sample and len(rows) >= sample:
-            break
-    return rows
-
-
-CK = "https://www.cuckoo.co.kr"
-
-
-def cuckoo_collect(f, sample=None):
-    """홈 화면에 걸린 상품 페이지만 (목록 API /rest/ 는 robots.txt 금지). 전체 목록이 아니다."""
-    st, h = f.get(CK + "/")
-    nos = list(dict.fromkeys(re.findall(r"/mall/productView\?productNo=(\d+)", h)))
-    print(f"[cuckoo] home product links={len(nos)}", file=sys.stderr)
-    rows = []
-    for no in nos:
-        u = f"{CK}/mall/productView?productNo={no}"
-        st, ph = f.get(u)
-        if st != 200:
-            continue
-        # 이름 · 판매 코드 = 상품 이름 칸 두 개 (첫째 이름, 둘째 코드). og:title 은 없다
-        names = [re.sub(r"^\([^)]*\)\s*", "", F.html.unescape(x).strip())   # '(타임딜)' · '(특가판매)' 앞말은 뗀다
-                 for x in re.findall(r'class="[^"]*prd[^"]*name[^"]*"[^>]*>([^<]+)<', ph)]
-        name = names[0] if names else ""
-        if not is_rice_cooker(name):
-            continue
-        code = next((x for x in names[1:] if re.fullmatch(r"[A-Z]{2,4}-[A-Z0-9]{3,}", x)), None)
-        t = F.html_to_text(ph)
-        i = t.find("핵심 사양")
-        summary = t[i:i + 300] if i >= 0 else ""
-        img = re.search(r'<meta property="og:image" content="([^"]+)"', ph)
-        row = base_row(brand="Cuckoo", category="rice_cooker", category_subtype=rice_subtype(name + " " + summary[:120]),
-                       install_type="freestanding", model_name=name, model_codes=[code] if code else [], line="쿠쿠",
-                       source_url=u, page_url=u, image_source_url=F.abs_url(img.group(1), CK) if img else None,
-                       place_count=place_count(name))
-        # 정본 = 상품정보고시 '크기(길이,폭,높이) 392x269x265(mm)' (길이 = 깊이). '핵심 사양' 요약 글은 폭 · 깊이가
-        #   뒤바뀐 곳이 있다 (트윈프레셔 6인용: 요약 'W383 x D262' · 고시 없음) — 고시가 없을 때만 쓰고 미검증
-        notice = re.search(r"크기\(길이,\s*폭,\s*높이\)\s*\n?\s*([\d.]+\s*[xX×*]\s*[\d.]+\s*[xX×*]\s*[\d.]+)", t)
-        if notice:
-            raw = notice.group(1)
-            d, _ = dims_of("(DxWxH)", raw, "dwh")
-        else:
-            size = (re.search(r"([WDH]\s*\d{2,3}(?:\.\d+)?\s*[xX×*]\s*[WDH]\s*\d{2,3}(?:\.\d+)?\s*[xX×*]\s*[WDH]\s*\d{2,3}(?:\.\d+)?)\s*mm", summary)
-                    or re.search(r"(\d{2,3}(?:\.\d+)?\s*\([WDH]\)\s*[xX×*]\s*\d{2,3}(?:\.\d+)?\s*\([WDH]\)\s*[xX×*]\s*\d{2,3}(?:\.\d+)?\s*\([WDH]\))\s*mm", summary))
-            raw = size.group(1) if size else None
-            seq = "".join(re.findall(r"[WDH]", raw or ""))
-            d, _ = dims_of(f"({'x'.join(seq)})", raw, "wdh") if raw else (None, None)
-            row["tags"].append("요약문")   # 사양표가 아니라 요약 글 — 사람이 확인하기 전까지 미검증
-        put_dims(row, d, raw)
-        rows.append(row)
-        if sample and len(rows) >= sample:
-            break
-    return rows
 
 
 # --------------------------------------------------------------------------- 묶기 · 쓰기
@@ -502,9 +477,33 @@ def write(rows, base):
             w.writerow(rr)
 
 
+BRANDS_DIR = os.path.join(HERE, "brands")
+
+
+def plugin_brands():
+    """brands/*.py — 브랜드 하나 = 파일 하나. 파일마다 BRAND_KEY (예 'haatz') 와 collect(f, K, sample) 를 둔다.
+    K 는 이 모듈 (split_dims · dims_of · base_row · put_dims · gaps_of · F …). 돌려주는 행 모양은 base_row 와 같다."""
+    out = {}
+    if not os.path.isdir(BRANDS_DIR):
+        return out
+    for fn in sorted(os.listdir(BRANDS_DIR)):
+        if not fn.endswith(".py") or fn.startswith("_"):
+            continue
+        spec = importlib.util.spec_from_file_location(f"kitchen_brand_{fn[:-3]}", os.path.join(BRANDS_DIR, fn))
+        m = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(m)
+        except Exception as e:  # 다른 브랜드 파일을 고치는 중이어도 나머지는 돈다 — 그 브랜드만 빠진다고 알린다
+            print(f"[plugin] {fn} 을 싣지 못했다 — 건너뜀: {e}", file=sys.stderr)
+            continue
+        out[m.BRAND_KEY] = m
+    return out
+
+
 def main():
+    plugins = plugin_brands()
     ap = argparse.ArgumentParser()
-    ap.add_argument("--brands", default="samsung,lg,cuchen,cuckoo")
+    ap.add_argument("--brands", default=",".join(["samsung", "lg"] + list(plugins)))
     ap.add_argument("--sample", type=int, default=0, help="menu items per category (0 = all)")
     ap.add_argument("--out", default=None)
     ap.add_argument("--delay", type=float, default=1.2)
@@ -518,10 +517,12 @@ def main():
         rows += samsung_collect(f, a.sample or None)
     if "lg" in brands:
         rows += lg_collect(f, a.sample or None)
-    if "cuchen" in brands:
-        rows += cuchen_collect(f, a.sample or None)
-    if "cuckoo" in brands:
-        rows += cuckoo_collect(f, a.sample or None)
+    K = sys.modules[__name__]
+    for key, m in plugins.items():
+        if key in brands:
+            got = m.collect(f, K, a.sample or None)
+            print(f"[{key}] rows={len(got)}", file=sys.stderr)
+            rows += got
     merged = flag_permuted(merge(rows))
     base = os.path.join(HERE, a.out or ("sample" if a.sample else "kitchen"))
     write(merged, base)
