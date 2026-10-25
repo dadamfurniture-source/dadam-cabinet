@@ -1,0 +1,35 @@
+{
+ "_설명": "데이코 보충값 — brands/dacor.py 가 읽어 같은 모델 코드 행의 빈 칸만 채운다 (to_sql 에 따로 넘기는 행 파일이 아니다. 넘겨도 'rows' 가 없어 0행). 값은 공식 PDF 글자(태그 '매뉴얼'). PDF 는 curl 로 받아 pdftotext 로 읽었다 (2026-10-25).",
+ "models": {
+  "DOB24M977SD": {
+   "tag": "매뉴얼",
+   "source": "https://www.dacorkorea.com/downloads/singleWallOvenUserManual_75L.pdf 15~16쪽 '설치에 필요한 치수'",
+   "niche_min_w_mm": 560,
+   "niche_min_h_mm": 590,
+   "niche_max_h_mm": 600,
+   "niche_min_d_mm": 550,
+   "back_gap_mm": 50,
+   "niche_raw": "설명서 상부장(키큰장) (mm): A 깊이 최소 550 · B 너비 최소 560 · C 최소 50(뒤) · D 높이 최소 590 - 최대 600 · E 환기 구멍 최소 460 x 50 / 하부장: 깊이 최소 550 · 너비 최소 560 · 높이 최소 600 · 환기 구멍 최소 460 x 최소 50 (스펙시트 'Dacor-Single-Wall-oven-spec-sheet(50L, 75L).pdf' 그림의 Min.560 · Min.590~Max.600 · Min.550 과 같다)",
+   "install_notes": "전기오븐장 뒷판과 뒷벽면 5 cm 이상 간격 · 오븐과 빌트인장 내벽 사이 5 mm 이상 · 문 쪽 3 mm 이상 · 오븐장 재질 90 °C · 인접 가구 75 °C 이상"
+  },
+  "DOC24M977SD": {
+   "tag": "매뉴얼",
+   "source": "https://www.dacorkorea.com/downloads/singleWallSmartOvenUserManual_50L.pdf 16쪽 '설치 규격'",
+   "niche_min_w_mm": 564,
+   "niche_max_w_mm": 568,
+   "niche_min_h_mm": 446,
+   "niche_max_h_mm": 450,
+   "niche_min_d_mm": 550,
+   "back_gap_mm": 50,
+   "niche_raw": "설명서 상부장 (mm): A 600(장 폭) · B 너비 최소 564 / 최대 568 · C 깊이 최소 550 · D 높이 최소 446 / 최대 450 · E 최소 50(뒤) · F·G 통풍 200 cm2 · H 전원 콘센트 30 Ø 홈 / 하부장: 깊이 최소 550 · 너비 최소 564 / 최대 568 · 높이 최소 446 / 최대 450 · 50",
+   "install_notes": "통풍 구멍 위 · 아래 각 200 cm2"
+  },
+  "DTI30M977BB": {
+   "tag": "매뉴얼",
+   "source": "https://www.dacorkorea.com/downloads/inductionCooktopUserManual.pdf 7~8쪽 '타공'",
+   "cutout_r_mm": 3,
+   "cutout_raw": "설명서 타공 표: 08 724 mm – 728 mm · 09 498 mm – 499 mm · 10 R3",
+   "install_notes": "전면 통풍구 최소 2 mm · 벽면 및 바닥면 통풍 공간 최소 40 mm · 제품 너비 최소 724 · 후면 공기 흡입 공간 최소 20 · 하부 가구와 최소 40 mm 이격 · 설치 상판 깊이 최소 600 mm(표 13) · 표준 하부장에서는 쿡탑 아래 오븐 설치 불가 (설명서)"
+  }
+ }
+}

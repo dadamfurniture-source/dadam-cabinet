@@ -1,0 +1,80 @@
+{
+ "_설명": "일렉트로룩스 보충값 — brands/electrolux.py 가 읽어 같은 모델 코드 행의 빈 칸만 채운다 (페이지에 치수가 없을 때만 dims 를 쓴다). to_sql 에 따로 넘기는 행 파일이 아니다 (넘겨도 'rows' 가 없어 0행). 값은 electrolux.co.kr 상품 페이지에 걸린 공식 PDF — 글자로 읽은 값은 '매뉴얼', 그림 속 숫자를 눈으로 읽은 값은 '이미지판독' (미검증). curl 로 받아 pdftotext · PyMuPDF 로 읽었다 (2026-10-25).",
+ "models": {
+  "KOBAS31X": {
+   "tag": "매뉴얼",
+   "source": "https://www.electrolux.co.kr/globalassets/appliances/ovens/kobas31x/e-kobas31x-um-kr-dec22.pdf 5쪽 '2.1 설치' 표 · Dimension Guide e-kobas31x-dim-apr21.pdf",
+   "niche_min_w_mm": 560,
+   "niche_min_h_mm": 578,
+   "niche_min_d_mm": 550,
+   "niche_raw": "설명서 2.1 설치: 캐비닛 최소 높이 (작업대 하부 캐비닛 최소 높이) 578 (600) mm · 캐비닛 너비 560 mm · 캐비닛 깊이 550 (550) mm · 기기 전면 높이 594 · 기기 후면 높이 576 · 기기 전면 너비 595 · 기기 후면 너비 559 · 기기 깊이 567 · 오븐의 빌트인 깊이 546 · 도어를 연 상태에서의 깊이 1027 · 환기구 최소 크기 (후면 하단 개구부) 560x20 mm",
+   "install_notes": "Dimension Guide 그림: Wall Mount 590 · Underbench 600 (높이) · min. 560 · min. 550"
+  },
+  "KVLBE00X": {
+   "tag": "매뉴얼",
+   "source": "https://www.electrolux.co.kr/globalassets/appliances/microwave-oven/kvlbe00x/e-kvlbe00x-um-kr-dec22.pdf 5쪽 '2.1 설치' 표 (상품 페이지에 사양 없음 · 단종)",
+   "dims": {
+    "w": 595,
+    "h": 455,
+    "d": 567,
+    "raw": "설명서 2.1 설치: 기기 전면 너비 595 · 기기 전면 높이 455 · 기기 깊이 567 mm (후면 높이 440 · 후면 너비 559 · 빌트인 깊이 546 · 도어 연 깊이 882)"
+   },
+   "niche_min_w_mm": 560,
+   "niche_min_h_mm": 444,
+   "niche_min_d_mm": 550,
+   "niche_raw": "설명서 2.1 설치: 캐비닛 최소 높이 (작업대 하부 캐비닛 최소 높이) 444 (460) mm · 캐비닛 너비 560 mm · 캐비닛 깊이 550 (550) mm · 환기구 최소 크기 (후면 하단 개구부) 560x20 mm",
+   "install_notes": "설명서 표지: 전자레인지 콤비 오븐 KVLBE00X · 43L (상품 페이지 제목)"
+  },
+  "EIS84041": {
+   "tag": "매뉴얼",
+   "source": "https://www.electrolux.co.kr/globalassets/appliances/hob/eis84041/eis84041-dim-oct22.pdf (Dimension Guide)",
+   "cutout_r_mm": 5,
+   "cutout_raw": "Dimension Guide: Cut-out (mm) 750 · 490 / 750+1 · 490+1 · max R5 · min. 55 · min. 1500 (전원선) · min. 12 · 55 · 28 / Product (mm) 780 · 520 · 그림 높이 44 (상품 페이지 높이 51 과 다르다)"
+  },
+  "CIV60334": {
+   "tag": "이미지판독",
+   "source": "https://www.electrolux.co.kr/globalassets/user-manual/e-civ60334-um.pdf 7쪽 3.4 Assembly 그림 (상품 페이지에 사양 없음 · 단종)",
+   "dims": {
+    "w": 590,
+    "h": 44,
+    "d": 520,
+    "raw": "설명서 그림: 590 · 520 · 44"
+   },
+   "cutout_raw": "설명서 그림(이미지판독): 560+1 · 490+1 · max. R5 · 뒤 min. 55 — 숫자 칸에는 넣지 않았다 (같은 크기의 검증 행 EIV63344 와 한 행으로 묶이지 않게)",
+   "install_notes": "설명서 그림: 후드까지 min. 500 mm · 옆 벽 min. 50 mm · 하부 min. 12 / 60 · 오븐 위 min. 28 · 전원선 min. 1500"
+  },
+  "CIV60344": {
+   "tag": "이미지판독",
+   "source": "https://www.electrolux.co.kr/globalassets/user-manual/e-civ60344-um.pdf 7쪽 3.4 Assembly 그림 (상품 페이지에 사양 없음 · 단종)",
+   "dims": {
+    "w": 590,
+    "h": 44,
+    "d": 520,
+    "raw": "설명서 그림: 590 · 520 · 44"
+   },
+   "cutout_raw": "설명서 그림(이미지판독): 560+1 · 490+1 · max. R5 · 뒤 min. 55 — 숫자 칸에는 넣지 않았다 (같은 크기의 검증 행 EIV63344 와 한 행으로 묶이지 않게)",
+   "install_notes": "설명서 그림: 후드까지 min. 500 mm · 옆 벽 min. 50 mm · 하부 min. 12 / 60 · 오븐 위 min. 28 · 전원선 min. 1500"
+  },
+  "LIV63344": {
+   "tag": "이미지판독",
+   "source": "https://www.electrolux.co.kr/globalassets/user-manual/induction/e-liv63344-um.pdf 7쪽 3.4 Assembly 그림 (상품 페이지에 사양 없음 · 단종)",
+   "dims": {
+    "w": 590,
+    "h": 44,
+    "d": 520,
+    "raw": "설명서 그림: 590 · 520 · 44"
+   },
+   "cutout_raw": "설명서 그림(이미지판독): 560+1 · 490+1 · max. R5 · 뒤 min. 55 — 숫자 칸에는 넣지 않았다 (같은 크기의 검증 행 EIV63344 와 한 행으로 묶이지 않게)",
+   "install_notes": "설명서 그림: 후드까지 min. 500 mm · 옆 벽 min. 50 mm · 하부 min. 12 / 60 · 오븐 위 min. 28 · 전원선 min. 1500"
+  },
+  "ECI6300S": {
+   "source": "https://www.electrolux.co.kr/globalassets/appliances/hoods/eci6300s/kr-eci6300s-dm.pdf (Dimension Guide)",
+   "size_raw": "Dimension Guide: Product (mm) width 598 · height 750-1200 · depth 483 (상품 페이지 높이 770-1200 과 다르다)"
+  },
+  "ESF7552ROX": {
+   "source": "https://www.electrolux.co.kr/globalassets/e-esf7552rox-um-jan21.pdf 13. TECHNICAL INFORMATION (영문)",
+   "size_raw": "설명서 Width / height / depth (mm) 596 / 850 / 610 (상품 페이지 너비 600 과 다르다)",
+   "install_notes": "상품 페이지 · 설명서 모두 설치 방식(프리스탠딩/빌트인) 글이 없다 — 설명서 제품 설명에 '1 Worktop'(상판)이 있어 프리스탠딩형으로 보이나 확인 필요"
+  }
+ }
+}
