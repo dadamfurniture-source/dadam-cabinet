@@ -88,4 +88,17 @@ describe('가전 칸 (전자레인지) — 2026-10-25 사장님: 오픈장 내�
   test('외경을 모르면 검사하지 않는다', () => {
     expect(R.applianceWarningsOf(niche, null)).toEqual([]);
   });
+  test('같은 날 "제조사가 적은 여유가 있으면 그 값" — 폭은 옆 × 2, 높이는 위, 깊이는 뒤. 없는 치수만 + 20', () => {
+    // LG 전자레인지 MW23FDI 476 × 272 × 369, 설치환경 위 200 · 옆 100 · 뒤 100 — 키큰장 가전 칸 564 × 464 × 600 에 폭이 모자란다
+    expect(R.applianceWarningsOf(niche, { W: 476, H: 272, D: 369, sideGap: 100, topGap: 200, backGap: 100 }, '전자레인지')).toEqual([
+      '오픈장 내경 폭 564 가 전자레인지 폭 476 + 옆 여유 100 × 2 = 676 보다 작습니다',
+      '오픈장 내경 높이 464 가 전자레인지 높이 272 + 위 여유 200 = 472 보다 작습니다',
+    ]);
+    // 위 여유만 있으면 폭 · 깊이는 + 20 그대로
+    expect(R.applianceWarningsOf(niche, { W: 544, H: 300, D: 580, topGap: 170 }, '전자레인지')).toEqual([
+      '오픈장 내경 높이 464 가 전자레인지 높이 300 + 위 여유 170 = 470 보다 작습니다',
+    ]);
+    // 여유 0 은 0 (제조사가 0 이라 적은 것)
+    expect(R.applianceWarningsOf(niche, { W: 564, H: 464, D: 600, sideGap: 0, topGap: 0, backGap: 0 })).toEqual([]);
+  });
 });
