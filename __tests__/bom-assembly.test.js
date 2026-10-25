@@ -597,17 +597,35 @@ describe('오픈장·밥솥장 자리 — 18T 상자', () => {
     expect(box(m, '도어', 0)).toEqual({ min: [-298, 2, 275], max: [298, 698, 293] });
   });
 
-  test('밥솥장 슬라이딩 선반 자리 (2026-10-25 사장님 카드): 보강목 바닥판 위 양옆 · 경첩 쪽 추가 목대 · 선반은 목대 위 · 마이다 앞면 = 몸통 앞선', () => {
+  test('밥솥장 슬라이딩 선반 자리 (2026-10-25 사장님): 선반은 언더레일 바로 위 · 보강목은 선반 밑면에 딱 · 마이다 밑단 = 지판 + 3 · 여닫이 레일은 추가 목대에', () => {
     const m = mod('rc1');
-    // 경첩 왼쪽 — 추가 목대 15T 가 왼쪽 측판 안면에 서고 (높이 100, 깊이 레일 500 + 30, 앞끝 = 몸통 앞선), 왼쪽 보강목은 그만큼 안쪽
+    // 경첩 왼쪽 — 추가 목대 15T 가 왼쪽 측판 안면에 서서 지판에 닿는다 (높이 100, 깊이 레일 500 + 30, 앞끝 = 몸통 앞선)
     expect(box(m, '밥솥장 추가 목대', 0)).toEqual({ min: [-285, 15, -255], max: [-270, 115, 275] });
-    expect(box(m, '밥솥장 보강목', 0)).toEqual({ min: [-270, 15, -230], max: [-190, 30, 260] });
-    expect(box(m, '밥솥장 보강목', 1)).toEqual({ min: [205, 15, -230], max: [285, 30, 260] });
-    // 선반 558 (내경 570 − 42 + 30) × 490 — 목대 위, 앞끝 = 마이다 뒷면
-    expect(box(m, '밥솥장 선반', 0)).toEqual({ min: [-279, 115, -230], max: [279, 130, 260] });
-    expect(box(m, '밥솥장 마이다', 0)).toEqual({ min: [-282.5, 115, 260], max: [282.5, 210, 275] });
-    // 언더레일 자리 — 선반 밑 30, 왼·오
-    expect(m.drawerBoxes).toEqual([{ x0: -279, y0: 115, zf: 260, z0: -230, outerW: 558, railLength: 500, rail: 'under' }]);
+    // 레일 사이 = 목대 면 −270 ~ 오른쪽 측판 안면 285 → 가운데 7.5. 선반 543 (555 − 42 + 30) × 490 — 밑면 = 지판 15 + 언더레일 30
+    expect(box(m, '밥솥장 선반', 0)).toEqual({ min: [-264, 45, -230], max: [279, 60, 260] });
+    // 보강목 — 선반 밑면에 딱, 레일 바로 안쪽 (선반 끝에서 15)
+    expect(box(m, '밥솥장 보강목', 0)).toEqual({ min: [-249, 30, -230], max: [-169, 45, 260] });
+    expect(box(m, '밥솥장 보강목', 1)).toEqual({ min: [184, 30, -230], max: [264, 45, 260] });
+    // 마이다 550 (555 − 5) × 95 — 밑단 = 지판 + 3, 앞면 = 몸통 앞선, 선반 앞끝 = 마이다 뒷면
+    expect(box(m, '밥솥장 마이다', 0)).toEqual({ min: [-267.5, 18, 260], max: [282.5, 113, 275] });
+    // 언더레일 자리 — 선반 밑 30, 선반 양끝
+    expect(m.drawerBoxes).toEqual([{ x0: -264, y0: 45, zf: 260, z0: -230, outerW: 543, railLength: 500, rail: 'under' }]);
+  });
+
+  test('밥솥장 언더레일 철물 자리 = 선반 양끝 (목대만큼 비켜 있어도)', () => {
+    const sh = Asm.of(design, { materials, hardware: new HardwareExtractor().extract(design).hardware });
+    const rails = sh.items[0].modules.find((m) => m.moduleId === 'rc1').hardware.filter((h) => h.kind === 'rail');
+    expect(rails.map((h) => [h.tags.side, h.at])).toEqual([['left', [-264, 15, -240]], ['right', [279, 15, -240]]]);
+  });
+
+  test('경첩 쪽을 모르는 여닫이 선반은 놓지 않는다 (목대 · 레일 사이를 모른다)', () => {
+    const it2 = JSON.parse(JSON.stringify(FIXTURES.sink15));
+    it2.modules.push({ id: 'rc2', moduleKind: 'rice', pos: 'lower', w: 600, h: 700, d: 550, doorType: 'swing' });
+    const d2 = { items: [it2] };
+    const s2 = Asm.of(d2, { materials: new MaterialExtractor().extract(d2).materials });
+    expect(s2.unplaced.filter((u) => u.moduleKey === '0-rc2').map((u) => [u.part, u.reason])).toEqual([
+      ['밥솥장 선반', 'rice-hinge-side-unknown'], ['밥솥장 보강목', 'rice-hinge-side-unknown'],
+      ['밥솥장 마이다', 'rice-hinge-side-unknown'], ['밥솥장 추가 목대', 'rice-hinge-side-unknown']]);
   });
 
   test('못 놓은 행 없음 · 조립 검사 오류 없음', () => {

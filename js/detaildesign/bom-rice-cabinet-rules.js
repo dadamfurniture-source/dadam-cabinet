@@ -14,11 +14,13 @@
  * ── 슬라이딩 선반 (2026-10-25 사장님) ─────────────────
  *   재질  오픈이면 18T MDF (오픈장과 같은 색), 도어가 달리면 PB 몸통 두께 (몸통과 같은 색). 두께 말고 크기 식은 같다.
  *   선반      D = 레일 길이 − 10 · W = 내경 − 42 + 30 (문주 언더레일 서랍 설치 방식: 가구 내경 − 42 + 측판 15T × 2)
- *   보강목    레일 부속품 설치 — D = 선반 D · W = 80 · 2개 (바닥판 위 양옆에 눕힌다)
- *   마이다    W = 내경 − 5 · H = 95 (앞면 = 몸통 앞선, 밑단 = 선반 밑면)
- *   추가 목대 여닫이 도어일 때만 — 경첩에 서랍레일이 빠져나올 때 걸리지 않게. W = 레일 길이 + 30 · H = 100 · 1개 (경첩 쪽 측판에 세운다)
+ *   보강목    레일 부속품 설치 — D = 선반 D · W = 80 · 2개 (선반 밑면에 딱 붙인다)
+ *   마이다    W = 내경 − 5 · H = 95 (앞면 = 몸통 앞선, 밑단 = 지판 윗면 + 3 — 선반 앞에 단다)
+ *   추가 목대 여닫이 도어일 때만 — 경첩에 서랍레일이 빠져나올 때 걸리지 않게. W = 레일 길이 + 30 · H = 100 · 1개
+ *             (경첩 쪽 측판에 세워 지판에 닿게). 그쪽 레일은 목대에 붙인다 — 선반 · 마이다의 내경은 목대 두께만큼 더 뺀다.
  *   레일      언더레일 1 SET. 길이는 서랍과 같은 규칙(모듈 깊이 − 50 이하의 최대 규격, bom-drawer-rules railLengthFor) — 부르는 쪽이 넘긴다.
- *   내경 = 몸통 안쪽 폭 (오픈 W − 2 × 18, 도어 W − 2 × 몸통 두께).
+ *             선반은 언더레일 바로 위에 얹는다.
+ *   내경 = 몸통 안쪽 폭 (오픈 W − 2 × 18, 도어 W − 2 × 몸통 두께. 여닫이 선반 · 마이다는 거기서 추가 목대 두께를 더 뺀다).
  *
  * 순수 함수만 있다 — DOM·전역 상태 없음. 브라우저는 전역 `DadamRiceCabinetRules`, Node(Jest)는 module.exports.
  * BOM(extractors.js)과 플래너(mockup-structure)가 **같은 이 파일**을 읽는다. 오픈장 규칙 파일을 먼저 싣는다.
@@ -63,6 +65,7 @@
       BATTEN_QTY: 2,
       FRONT_W_MINUS: 5,           // 마이다 W = 내경 − 5
       FRONT_H: 95,
+      FRONT_LIFT: 3,              // 마이다 밑단 = 지판 윗면 + 3
       HINGE_BATTEN_PLUS: 30,      // 추가 목대 W = 레일 길이 + 30 (여닫이 도어일 때만)
       HINGE_BATTEN_H: 100,
       OPEN_MATERIAL: 'MDF',       // 오픈 — 18T MDF (오픈장과 같은 색)
@@ -151,13 +154,16 @@
     const S = R.SHELF;
     if (!(g.innerW > 0) || !(L > 0)) return [];
     const shelfD = L - S.D_RAIL_MINUS;
+    const swing = doorTypeOf(doorType) === 'swing';
+    // 여닫이 — 경첩 쪽 레일이 추가 목대(두께 = 선반 몫 두께)에 붙는다: 선반 · 마이다의 내경은 목대 면부터
+    const innerW = g.innerW - (swing ? g.t : 0);
     const base = { material: g.material, t: g.t, note: '' };
     const out = [
-      Object.assign({}, base, { part: '밥솥장 선반', w: g.innerW - S.W_RAIL_MINUS + S.W_SIDES_PLUS, h: shelfD, qty: 1, edge: '1면(전)' }),
+      Object.assign({}, base, { part: '밥솥장 선반', w: innerW - S.W_RAIL_MINUS + S.W_SIDES_PLUS, h: shelfD, qty: 1, edge: '1면(전)' }),
       Object.assign({}, base, { part: '밥솥장 보강목', w: S.BATTEN_W, h: shelfD, qty: S.BATTEN_QTY, edge: '-' }),
-      Object.assign({}, base, { part: '밥솥장 마이다', w: g.innerW - S.FRONT_W_MINUS, h: S.FRONT_H, qty: 1, edge: '4면' }),
+      Object.assign({}, base, { part: '밥솥장 마이다', w: innerW - S.FRONT_W_MINUS, h: S.FRONT_H, qty: 1, edge: '4면' }),
     ];
-    if (doorTypeOf(doorType) === 'swing') {
+    if (swing) {
       out.push(Object.assign({}, base, { part: '밥솥장 추가 목대', w: L + S.HINGE_BATTEN_PLUS, h: S.HINGE_BATTEN_H, qty: 1, edge: '-',
         note: '여닫이 — 경첩에 서랍레일이 걸리지 않게 경첩 쪽 측판에' }));
     }
