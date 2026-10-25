@@ -74,6 +74,12 @@ describe('플래너 기본값과 제조 표준이 어긋나지 않는다', () =>
     expect(CONSTANTS).toMatch(/upperTotalH:\s*780/);
   });
 
+  test('냉장고 상부장 기본 높이 = 최대 400 (2026-10-25 사장님 확정, 예전 기본 415)', () => {
+    // ui-fridge-el.js 는 fridgeUpperH 를 계산값 min(MAX_UPPER_H, …) 과 같은 자리(상부장H)에 쓴다
+    expect(CONSTANTS).toMatch(/fridgeUpperH:\s*400\b/);
+    expect(CONSTANTS).toMatch(/MAX_UPPER_H:\s*400\b/);
+  });
+
   test('플래너 moduleH 가 전체 높이임을 주석으로 못박는다', () => {
     // 정본 옆에 있어야 의미가 있다 — 값과 설명이 떨어지면 설명이 먼저 썩는다
     const SECTIONS = fs.readFileSync(path.join(__dirname, '../js/planner/planner-sections.js'), 'utf8');
