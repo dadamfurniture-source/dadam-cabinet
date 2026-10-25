@@ -82,3 +82,25 @@ python -I to_sql.py out_bosch.json > import-bosch.sql               # 브랜드 
 
 - 싱가포르 사이트의 액세서리(오븐 트레이 · 후드 필터 · 가스 받침), 세정제, 냉장고 · 세탁기 · 커피머신 · 소형가전.
 - 보쉬 한국 사이트 · 수입사 사이트는 모델 값이 없어 쓰지 않았다 (위 표).
+
+## 가스 종류 (2026-10-25 3차)
+
+사장님 "가스레인지는 LPG, LNG(도시가스) 두 가지로 나눠야함" → 가스 쿡탑 행에 `gas_types`.
+
+- 근거: 싱가포르 제품 페이지 사양 칸 `Gas type preset` · `Certified gas types` · `Other certified gas types` · `Nozzle set included for alternative gas type` (`gas_of`). Nat(ural) gas = LNG, Liquid gas (G30 · G31) = LPG. 인증 · 노즐 세트로 바꿔 쓸 수 있는 가스도 넣고 원문은 비고. 스펙시트 PDF(`media3.bsh-group.com/Documents/specsheet/en-SG/…`)도 같은 값이다 (PCC6A5B90K · PMD83D31AF 대조: 'Preset nozzle: town gas (10mbar)').
+- **Town gas (싱가포르 도시가스, G110 = 제조가스)** 는 한국 도시가스(LNG, 천연가스)와 다른 가스라 LNG 로 옮기지 않았다 → `gas_types` 비움, 비고에 원문.
+- 크기가 같아 묶였던 행이 가스별로 나뉘었다 → **행 61 → 65** (가스 쿡탑 8 → 12행).
+
+| 행 (모델 코드) | gas_types | 원문 |
+|---|---|---|
+| PCC6A5B90 · PCC6A5I90 | LNG · LPG | preset `Nat gas H/E/(L) 20 (25) mbar`, 노즐 세트 `Liquid gas G30,31 28-30/37mbar` (I90 은 인증 가스 목록도) |
+| PRA3A6I10L | LNG · LPG | preset `Liquidgas G30,31 28-30/37 mbar`, 인증 `Nat gas H/E/(L) 20 (25) mbar` (바꾸는 방법은 설치설명서) |
+| PRB3A6I40L | LNG · LPG | 위와 같음 |
+| PMD83D31AX | LPG | preset `Liquidgas G30,31 28-30/37 mbar` |
+| PCC6A5B90K | **None** | preset `Town gas 10 mbar`, 인증 `Town gas G110` |
+| PMD82D31AF · PMD83D31AF | **None** | `Town gas 10 mbar` |
+| PMD83D33AF · PMD93D31AF · PRA3A6B70K · PRB3A6B70K | **None** (각 1행) | `Town gas 10 mbar` |
+| PRA3A6I10X · PRB3A6I40X | **None** (각 1행) | `Town gas 15 mbar` |
+
+- 가스 종류를 모르는(Town gas 전용) 가스 행 **8행** — 국내 LNG 에 쓰려면 노즐 전환 가능 여부를 BSH 에 확인해야 한다. 모두 `국내판매미확인`.
+

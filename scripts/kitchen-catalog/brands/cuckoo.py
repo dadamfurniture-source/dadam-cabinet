@@ -350,7 +350,25 @@ def make_row(no, u, ph):
         row["product_type_raw"] = " · ".join(x for x in [row["product_type_raw"], "사용설명서 " + mans[0]] if x)
     d, raw = apply_manual(row, d, raw, mans)
     K.put_dims(row, d, raw)
+    if cat == "cooktop" and sub == "gas":
+        gas_of(row, name, geo)
     return row, crumb
+
+
+def gas_of(row, name, geo):
+    """가스레인지 → gas_types (2026-10-25 3차). 공식 상품 이름이 가스를 적는다 ('2구 스탠드 LNG 가스레인지'),
+    핵심 사양 글은 'LNG 가스 전용' · 'LNG 전용 모델'. 이름 · 글에 'LNG' · 'LPG' 낱말이 없으면 None."""
+    found = [g for g in ("LNG", "LPG") if re.search(rf"\b{g}\b", name or "")]
+    src = "상품 이름"
+    if not found:
+        found = [g for g in ("LNG", "LPG") if re.search(rf"\b{g}\b", geo or "")]
+        src = "핵심 사양 글"
+    if not found:
+        return
+    row["gas_types"] = found
+    only = re.search(r"(?:LNG|LPG)\s*(?:가스\s*)?전용", geo or "")
+    note = f"가스 종류: {src} '{'/'.join(found)}'" + (f" · 핵심 사양 '{only.group(0)}'" if only else "")
+    row["install_notes"] = "; ".join(x for x in [row.get("install_notes"), note] if x)
 
 
 def apply_manual(row, d, raw, mans):
