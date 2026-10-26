@@ -2,14 +2,13 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
-import next from '@next/eslint-plugin-next';
 import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    ignores: ['node_modules/', '.next/', 'out/', '*.min.js', 'js/**/*'],
+    ignores: ['node_modules/', '*.min.js', 'js/**/*'],
   },
   {
     files: ['**/*.{ts,tsx}'],
@@ -65,13 +64,10 @@ export default tseslint.config(
     plugins: {
       react: react,
       'react-hooks': reactHooks,
-      '@next/next': next,
     },
     rules: {
       ...react.configs.recommended.rules,
       ...reactHooks.configs.recommended.rules,
-      ...next.configs.recommended.rules,
-      ...next.configs['core-web-vitals'].rules,
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'warn',

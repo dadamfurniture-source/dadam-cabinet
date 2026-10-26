@@ -35,7 +35,6 @@
 - `js/detaildesign/` — 상세 설계 프론트엔드
 - `css/detaildesign/` — 상세 설계 스타일
 - `mcp-server/` — TypeScript MCP 서버 (Express)
-- `workflows/` — n8n 워크플로우 JSON (레거시)
 
 ## 기술 스택
 
@@ -69,7 +68,7 @@
 
 | 도메인 | Engineer 소유 파일 | 브랜치 prefix |
 |--------|-------------------|--------------|
-| 3D Planner (레거시, 정지) | `lib/planner.ts`, `components/planner/*`, `planner-vite/**` | 수정 금지 (참고용) |
+| 3D Planner (레거시, 정지) | `lib/planner.ts` | 수정 금지 (참고용) |
 | Image Gen | `ai-design.html`, `js/detaildesign/ai-design-report.js` | `agent/imggen-*` |
 | BOM/Materials | `calc-engine.js`, `extractors.js`, `bom.service.ts`, `bom.tool.ts`, `bom-rules.*`, `assembly-rules.js`, `bom-assembly.js`, `assembly-check.js`, `tools/cad/**`, `.github/workflows/cad-oracle.yml` | `agent/bom-*` |
 | Design UI | `ui-step1.js`, `ui-workspace.js`, `ui-fridge-el.js` | `agent/designui-*` |
