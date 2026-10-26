@@ -26,11 +26,11 @@ function authHeader(env) {
   };
 }
 
-async function postJson(env, path, payload) {
+async function requestJson(env, method, path, payload) {
   const res = await fetch(`${TOSS_API_BASE}${path}`, {
-    method: 'POST',
+    method,
     headers: authHeader(env),
-    body: JSON.stringify(payload),
+    body: payload === undefined ? undefined : JSON.stringify(payload),
   });
 
   let body;
@@ -44,6 +44,10 @@ async function postJson(env, path, payload) {
     throw new TossError(body.code || 'UNKNOWN', body.message || 'Toss API error', res.status);
   }
   return body;
+}
+
+function postJson(env, path, payload) {
+  return requestJson(env, 'POST', path, payload);
 }
 
 /** 프론트 위젯이 반환한 authKey 를 billingKey 로 교환. */
@@ -69,4 +73,9 @@ export async function chargeBillingKey(env, {
   if (customerEmail) payload.customerEmail = customerEmail;
   if (customerName) payload.customerName = customerName;
   return postJson(env, `/v1/billing/${billingKey}`, payload);
+}
+
+/** paymentKey 로 결제 조회. 웹훅 본문 대신 이 응답을 믿는다. */
+export async function getPayment(env, paymentKey) {
+  return requestJson(env, 'GET', `/v1/payments/${encodeURIComponent(paymentKey)}`);
 }

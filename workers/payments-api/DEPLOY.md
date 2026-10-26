@@ -67,7 +67,7 @@ curl https://dadam-payments-api.dadamfurniture.workers.dev/plans
 | POST | `/issue-billing-key` | Bearer | authKey → billingKey + 첫 과금 |
 | POST | `/charge` | Bearer | 수동 재시도 |
 | POST | `/cancel` | Bearer | 구독 취소 |
-| POST | `/webhook` | 없음 | Toss 웹훅 (가상계좌 입금 등) |
+| POST | `/webhook` | 없음 | Toss 웹훅 — `PAYMENT_STATUS_CHANGED` 만 기록 (아래) |
 
 ## 토스 웹훅 등록
 
@@ -78,6 +78,13 @@ https://dadam-payments-api.dadamfurniture.workers.dev/webhook
 ```
 
 또는 커스텀 도메인 연결 후 `https://api.dadam.kr/webhook`.
+
+이벤트는 **`PAYMENT_STATUS_CHANGED`** 를 고른다. 워커는 이 이벤트만 기록하고 나머지는 200 으로 넘긴다.
+
+- 이 이벤트에는 서명 헤더가 없다. 워커가 본문의 `paymentKey` 로 결제 조회 API(`GET /v1/payments/{paymentKey}`)를 `TOSS_SECRET_KEY` 로 다시 불러, 그 응답만 `payment_events` 에 남긴다. 토스에 없는 결제거나 주문번호·금액이 다르면 401.
+- 본문은 64KB 까지만 받는다 (넘으면 413).
+- 새 시크릿·환경변수는 없다 — 이미 있는 `TOSS_SECRET_KEY` 를 쓴다.
+- 문서: https://docs.tosspayments.com/reference/using-api/webhook-events
 
 ## 프론트엔드 연결
 
