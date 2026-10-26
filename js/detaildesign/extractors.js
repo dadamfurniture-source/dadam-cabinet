@@ -263,6 +263,10 @@
        *     제 상몰딩을 따로 낸다 (addTallTierParts, sink.md §5.1). 깊이가 같으면 그 키큰장 위까지 이어 한 장이고, 그 키큰장 상부단은
        *     상몰딩을 따로 내지 않는다 (addTallMoldingPart). 한 장이 곧게 지나가야 하므로 앞면 · 윗면 높이 · 몰딩 높이도 같을 때만 잇는다 —
        *     깊이만 같고 이 셋 중 하나가 다르면 정해지지 않았으므로 예전처럼 따로 (사장님께 여쭐 것).
+       *   2026-10-26 사장님 확정 — "깊이가 같은 키큰장이 상부장 사이가 아니라 줄 끝에 붙어 있으면, 상몰딩을 그 키큰장 위까지 이을까요?"
+       *     "잇는다." — 가장 바깥 상부장의 시작 · 끝에 붙은(1mm 안) 키큰장 스택도 같은 검사(깊이 · 앞면 · 윗면 높이 · 몰딩 높이)를 지나면
+       *     그 폭만큼 늘려 한 장이고 joinedTalls 에 든다. 그 스택에 또 붙은 스택도 같은 검사로 이어간다.
+       *     줄 끝에서 떨어져 선 스택 · 다른 벽 · 깊이가 다른 스택은 잇지 않는다 (예전과 같다). 상부장이 없는 벽은 그대로 (상몰딩이 없다).
        *   벽 위 자리 = _place 중심을 진행 방향(run)에 투영, 앞면 = 중심을 앞면 방향에 투영 + 깊이 / 2, 윗면 = z0 + h.
        *   키큰장 단은 브리지가 스택 바닥(z0 0)에 싣는다 — 스택 윗면 = 같은 자리 단 높이 합. 1mm 안은 같다 (조립 명세 runsOf 의 '붙어 있다'와 같은 허용).
        *   모듈 하나라도 자리(_place)가 없으면(상세설계 화면 · 옛 payload) 벽 · 사이를 알 수 없어 폭 합 한 장 (예전과 같다).
@@ -308,14 +312,18 @@
             const st = stacks.find((x) => same(x.a, t.a) && same(x.b, t.b));
             if (st) st.tiers.push(t); else stacks.push({ a: t.a, b: t.b, tiers: [t] });
           });
-          /** 깊이가 같은 키큰장 스택을 이어 한 장으로 — 앞면 · 윗면 높이 · 몰딩 높이도 양옆 상부장과 같고, 스택이 빈 자리 안에 있을 때만 */
-          const joinable = (st, left, right, g0, g1) => {
+          /** 키큰장 스택이 상부장들(us)과 한 장으로 곧게 이어지는가 — 깊이 · 앞면 · 윗면 높이 · 몰딩 높이가 모두 같다 */
+          const matches = (st, us) => {
             const crown = st.tiers.find((t) => { const tier = bomTallTierOf(t.m); return tier === 'top' || tier === 'single'; });
-            if (!crown || st.a < g0 - 1 || st.b > g1 + 1) return false;
+            if (!crown) return false;
             const stackTop = st.tiers.reduce((s, t) => s + (Number(t.m._place.h) || 0), 0);
-            return [left, right].every((u) => same(crown.d, u.d) && same(crown.front, u.front) && same(stackTop, u.top))
+            return us.every((u) => same(crown.d, u.d) && same(crown.front, u.front) && same(stackTop, u.top))
+              // 몰딩 높이 — 2026-10-26 사장님 "하나의 품목에 상몰딩의 높이가 다른 경우는 없음." 검사는 그대로 둔다 (다른 값이 오면 예전처럼 따로)
               && epH >= 20 && Math.abs(bomTallMoldingHOf(crown.m, specs) - epH) < 0.5;
           };
+          /** 깊이가 같은 키큰장 스택을 이어 한 장으로 — 양옆 상부장과 맞고(matches), 스택이 빈 자리 안에 있을 때만 */
+          const joinable = (st, left, right, g0, g1) => !(st.a < g0 - 1 || st.b > g1 + 1) && matches(st, [left, right]);
+          const join = (st) => st.tiers.forEach((t) => joinedTalls.push(String(t.m.id)));
           segs.sort((x, y) => x.a - y.a);
           let len = segs.reduce((s, g) => s + widthOf(g.m), 0);
           let last = segs[0];
@@ -325,10 +333,23 @@
               const inGap = stacks.filter((st) => st.a < g1 - 1 && st.b > g0 + 1);
               if (inGap.every((st) => joinable(st, last, g, g0, g1))) {
                 len += g1 - g0;
-                inGap.forEach((st) => st.tiers.forEach((t) => joinedTalls.push(String(t.m.id))));
+                inGap.forEach(join);
               }
             }
             if (g.b > last.b) last = g;
+          });
+          // 2026-10-26 사장님 확정 "잇는다." — 줄 끝(가장 바깥 상부장의 끝 · 시작)에 붙은 키큰장 스택도 그 폭만큼 잇는다.
+          //   비교는 그 끝 상부장과 (빈 자리와 같은 matches). 이은 스택 끝에 또 붙은 스택도 이어간다 (dir +1 = 끝 쪽, −1 = 시작 쪽)
+          const used = new Set();
+          const touchingAt = (at, dir, ref) => stacks.find((s) => !used.has(s) && same(dir > 0 ? s.a : s.b, at) && matches(s, [ref])) || null;
+          [[last, 1], [segs[0], -1]].forEach(([ref, dir]) => {
+            let at = dir > 0 ? ref.b : ref.a;
+            for (let st = touchingAt(at, dir, ref); st; st = touchingAt(at, dir, ref)) {
+              used.add(st);
+              len += st.b - st.a;
+              at = dir > 0 ? st.b : st.a;
+              join(st);
+            }
           });
           lens.push(Math.round(len));
         });
@@ -1459,7 +1480,8 @@
         //   좌대     하부단·통짜 — wardrobe.md 좌대 상자(전후 2 · 측 2 · W≥700 중간보강 1) + 좌대 걸레받이 MDF 18T
         //            [확인 필요] sink.md §5 는 높이 60 만 정한다. 상자 구성은 붙박이장 규칙을 빌렸다
         //   상몰딩   상부단·통짜 — MDF 18T · moldingH × W 를 그 단에 (상부 라인 상몰딩과 별개 — 높이가 다르다).
-        //            2026-10-26 사장님 확정 "깊이가 다르면 따로 함." — 상부장 사이에 서서 깊이가 같으면 상부 라인 상몰딩이 이어 한 장이라 내지 않는다 (addTallMoldingPart)
+        //            2026-10-26 사장님 확정 "깊이가 다르면 따로 함." — 상부장 사이에 서서 깊이가 같으면 상부 라인 상몰딩이 이어 한 장이라 내지 않는다 (addTallMoldingPart).
+        //            줄 끝에 붙어 깊이가 같아도 같다 (2026-10-26 사장님 확정 "잇는다.")
         // 걸레받이는 없다 — 다리발이 아니라 좌대가 받친다.
         // ========================================
         addTallTierParts(materials, prefix, mod, tier, specs) {
@@ -1556,6 +1578,7 @@
          * 키큰장 상몰딩 — 스택 맨 위 단에 한 장 (sink.md §5 상몰딩 60, MDF 18T · moldingH × W).
          *   2026-10-26 사장님 확정 "깊이가 다르면 따로 함." — 상부장 사이에 선 키큰장의 깊이가 상부장과 같아 상부 라인 상몰딩이
          *   그 위까지 이어 한 장이면(bomSinkMoldingPlanOf joinedTalls) 이 단은 상몰딩을 따로 내지 않는다 — 그 길이는 EP 상몰딩에 들어 있다.
+         *   줄 끝(가장 바깥 상부장 시작 · 끝)에 붙은 키큰장도 같다 — 2026-10-26 사장님 확정 "잇는다."
          */
         addTallMoldingPart(materials, modLabel, mod, W, specs) {
           const plan = this._ctx && this._ctx.sinkMolding;
@@ -1911,6 +1934,7 @@
           //   빈 자리(빈 벽 · 창문)도 건너 한 장. "벽을 기준으로 나눠야함." — 두 벽(ㄱ자 상부)이면 목찬넬처럼 벽마다 한 장,
           //   같은 길이의 벽은 한 행에 수량으로. "깊이가 다르면 따로 함." — 빈 자리에 선 키큰장은 깊이가 다르면 그 단이 제 상몰딩을 따로 내고,
           //   깊이가 같으면(앞면 · 윗면 · 몰딩 높이도 같을 때) 그 위까지 이어 한 장 (bomSinkMoldingPlanOf · sinkMoldingPlanOf).
+          //   줄 끝에 붙은 키큰장도 같은 검사로 그 폭만큼 잇는다 — "잇는다." (2026-10-26 사장님 확정, 줄 끝 키큰장)
           //   계획은 extract() 가 상자 모듈을 걷어내기 전 모듈로 세운 것 (이 item 은 걷어낸 뒤라 상자 모듈 키큰장 단이 없다).
           const moldingPlan = (this._ctx && this._ctx.sinkMolding)
             || bomSinkMoldingPlanOf((item.modules || []).filter((m) => m.pos === 'upper'), lowerModules.filter((m) => bomTallTierOf(m)), specs);

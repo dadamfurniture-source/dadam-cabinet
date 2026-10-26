@@ -44,7 +44,7 @@
  *            상판   하부 라인(키큰장 단 뺀 하부장 + 좌우 마감 폭) 위 한 장, 뒤 = 벽, 깊이 = 행 h (2026-10-18 사장님: 배치 깊이, 오버행 없음).
  *                   벽은 호스트 몸통 뒷면에서 lines 의 back 만큼 뒤 (2026-10-24 사장님 D3: 몸통 뒤를 벽에서 띄워 설치 — 배관 자리)
  *            상몰딩 상부 라인 위 띠 — 키큰장 상몰딩과 같은 자리 (2026-10-20 카드 "도어 앞면 맞춤"). 후드 자리를 넣고(2026-10-25)
- *                   상부장 사이 빈 자리 · 깊이가 같은 키큰장 자리를 건너 벽마다 한 장 (2026-10-26 사장님 확정)
+ *                   상부장 사이 빈 자리 · 깊이가 같은 키큰장 자리를 건너 벽마다 한 장, 줄 끝에 붙은 깊이가 같은 키큰장 위까지 (2026-10-26 사장님 확정)
  *            목찬넬 EP (전면 52 · 지면 40 × 라인 폭) — 하부 라인 측판 따내기 70×40 자리의 ㄴ자, 키큰장 단 ㄴ자와 같은 자리
  *            걸레받이 (벽 길이 × 다리발−5) — 벽마다 하부 라인 폭 한 장, 바닥에 붙여 (틈 5 는 위, 캐쳐), 앞면 = 몸통 앞선 − 32 (2026-10-22 카드 "몸통 앞선에서 32 안쪽").
  *                   2440 넘는 벽은 2440 조각을 왼쪽부터, 남는 조각은 오른쪽 끝 (카드 "1")
@@ -1160,7 +1160,7 @@
    *   구간(span) = 그 행이 세는 모듈들 — 라인 안에서 붙어 있어야 하고(사이에 안 세는 모듈이 없음), 높이가 같아야 한다.
    *   목찬넬 · 걸레받이 · 상몰딩은 벽마다 한 장 (목찬넬 2026-10-25 · 상몰딩 2026-10-26 사장님 확정 — 걸레받이처럼): 행은 길이별 수량이고,
    *   라인마다 구간 하나 — 길이가 행과 같은 구간이 행 수량만큼이어야 한다. 상판은 한 라인에만 있을 때 한 장.
-   *   상몰딩은 후드도 구간에 넣고 상부장 사이 빈 자리도 건너간다 — 깊이가 같은 키큰장이 선 자리도 (2026-10-25 · 2026-10-26 사장님 확정).
+   *   상몰딩은 후드도 구간에 넣고 상부장 사이 빈 자리도 건너간다 — 깊이가 같은 키큰장이 선 자리도, 줄 끝에 붙은 그 키큰장 위까지도 (2026-10-25 · 2026-10-26 사장님 확정).
    *   행 치수가 구간과 다르면 'run-layout-unknown' (ㄱ·ㄷ자 한 장 상판, 깊이가 다른 키큰장 단을 사이에 둔 상몰딩 등).
    * @param {object} [o]  of() 의 opts — o.MaterialExtractor (플래너 iframe 은 부모 창 추출기, 상몰딩 계획 sinkMoldingPlanOf)
    * @returns {{runs:Array, unplaced:Array}}
@@ -1264,9 +1264,19 @@
           //   (깊이 같음 — sinkMoldingPlanOf joinedTalls)만 건너고, 아니면 잇지 않는다 (그 단이 제 상몰딩을 따로 낸다, sink.md §5.1).
           //   "벽을 기준으로 나눠야함." — 두 벽(ㄱ자 상부)이면 목찬넬처럼 라인마다 한 장, 각 라인 첫 상부 모듈이 호스트 (BOM 행은 길이별 수량).
           //   길이 = BOM extractors.js bomSinkMoldingPlanOf 와 같다. 높이가 다른 구간은 예전처럼 못 놓는다
+          //   2026-10-26 사장님 확정 "잇는다." (깊이가 같은 키큰장이 줄 끝에 붙어 있을 때) — BOM 이 이은 키큰장(joinedTalls)이 구간 끝 ·
+          //   시작에 붙어(1mm 안) 있으면 구간을 그 키큰장 끝까지 늘린다 (이어 붙은 키큰장도). 호스트는 그대로 라인 첫 상부 모듈
+          const overEnds = (sp) => {
+            // 폭이 있는 단만 (같은 스택의 단은 x0 · 폭이 같아 한 번 늘리면 다시 붙지 않는다)
+            const talls = sp.line.entries.filter((e) => isTallTier(e.mod) && e.W > 1 && joinedTalls().has(String(e.mod.id)));
+            let x0 = sp.x0, x1 = sp.x1, e;
+            while ((e = talls.find((t) => Math.abs(t.x0 - x1) <= 1))) x1 = e.x0 + e.W;
+            while ((e = talls.find((t) => Math.abs(t.x0 + t.W - x0) <= 1))) x0 = e.x0;
+            return Object.assign({}, sp, { x0, x1 });
+          };
           const upperSpans = spansOf((mod) => mod.pos === 'upper', (ln, a, b) => ln.entries
             .filter((e) => isTallTier(e.mod) && e.x0 < b - 1 && e.x0 + e.W > a + 1)
-            .every((e) => joinedTalls().has(String(e.mod.id))));
+            .every((e) => joinedTalls().has(String(e.mod.id)))).map(overEnds);
           if (!upperSpans.length && row.qty !== 1) { skip(row, 'run-cut-blank'); return; }   // 붙박이장 2440 재단 장수 행 — 상부 라인이 없다
           const mine = wallSpansFor(upperSpans, row.h, row.qty);
           if (!mine) { skip(row, 'run-layout-unknown'); return; }

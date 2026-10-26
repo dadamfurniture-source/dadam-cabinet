@@ -905,20 +905,26 @@ describe('라인 부재 runs[] — 상판 · 상몰딩 · 목찬넬 EP · 걸레
 
     // 한 벽: 상부 u1 900 · u2 600 (0 … 1500) | 키큰장 스택 600 (1500 … 2100) | u4 1200 (2100 … 3300). 후드 u3 는 뺀다.
     //   스택 = 하부단(좌대 60) · 중간단 · 상부단(상몰딩) — 브리지처럼 단마다 모듈, 자리 z0 0 (스택 바닥) · h = 단 높이 (합 2310)
-    const tallItem = (o) => {
-      const t = Object.assign({ d: 295, frontShift: 0, hs: [870, 980, 460], molding: 60, at: 1500, u4: 2100, top: null }, o || {});
-      const item = sink(['u3']);
-      placeOn(byId(item, 'u1'), 'A', 0); placeOn(byId(item, 'u2'), 'A', 900); placeOn(byId(item, 'u4'), 'A', t.u4);
-      [{ id: 't1', heightParts: { pedestalH: 60, moldingH: 0 } }, { id: 't2', heightParts: { pedestalH: 0, moldingH: 0 } },
-        { id: 't3', heightParts: { pedestalH: 0, moldingH: t.molding } }].forEach((tier, k) => {
+    /** 키큰장 스택 한 벌 (단 `${idp}1` · `${idp}2` · `${idp}3`)을 벽 o.wall(기본 A)의 at 에 세운다. 단 id 를 돌려준다 */
+    const addStack = (item, idp, at, o) => {
+      const t = Object.assign({ d: 295, frontShift: 0, hs: [870, 980, 460], molding: 60, top: null, wall: 'A' }, o || {});
+      return [{ id: `${idp}1`, heightParts: { pedestalH: 60, moldingH: 0 } }, { id: `${idp}2`, heightParts: { pedestalH: 0, moldingH: 0 } },
+        { id: `${idp}3`, heightParts: { pedestalH: 0, moldingH: t.molding } }].map((tier, k) => {
         const hp = tier.heightParts;
         const m = Object.assign({ type: 'tall', name: '키큰장', pos: 'lower', w: 600, h: t.hs[k] - hp.pedestalH - hp.moldingH, d: t.d,
           doorCount: 1, shelfCount: 0, isDrawer: false, isEL: false, hingeSide: 'left' }, tier, k === 2 && t.top ? t.top : {});
-        placeOn(m, 'A', t.at, { z0: 0, h: t.hs[k] });
+        placeOn(m, t.wall, at, { z0: 0, h: t.hs[k] });
         m._place.cy += t.frontShift;
         item.modules.push(m);
+        return m.id;
       });
-      const lines = [{ key: 'wall', D: 650, modules: lowerEntries(item).concat(entries([['u1', 0], ['u2', 900], ['u4', t.u4], ['t1', t.at], ['t2', t.at], ['t3', t.at]])) }];
+    };
+    const tallItem = (o) => {
+      const t = Object.assign({ at: 1500, u4: 2100 }, o || {});
+      const item = sink(['u3']);
+      placeOn(byId(item, 'u1'), 'A', 0); placeOn(byId(item, 'u2'), 'A', 900); placeOn(byId(item, 'u4'), 'A', t.u4);
+      const tiers = addStack(item, 't', t.at, t);
+      const lines = [{ key: 'wall', D: 650, modules: lowerEntries(item).concat(entries([['u1', 0], ['u2', 900], ['u4', t.u4]].concat(tiers.map((id) => [id, t.at])))) }];
       return specOn(item, lines);
     };
 
@@ -952,8 +958,57 @@ describe('라인 부재 runs[] — 상판 · 상몰딩 · 목찬넬 EP · 걸레
       expect(epOf(s)).toContainEqual(['상몰딩', 'run-layout-unknown']);
     });
 
-    test('키큰장이 상부장 사이가 아니라 끝에 서 있으면 (u4 1500 … 2700, 키큰장 2700 … 3300) 잇지 않는다 — 바깥 상부장 밖으로는 늘리지 않는다', () => {
-      const { materials, s } = tallItem({ u4: 1500, at: 2700 });
+    // 2026-10-26 사장님 확정 — "깊이가 같은 키큰장이 상부장 사이가 아니라 줄 끝에 붙어 있으면, 상몰딩을 그 키큰장 위까지 이을까요?" "잇는다."
+    //   상부 u1 900 · u2 600 · u4 1200 를 x0 부터 붙인 줄 (2700) + 키큰장 스택들 stacks [[idp, at, o]] (wall B 스택은 라인 b)
+    const endItem = (x0, stacks) => {
+      const item = sink(['u3']);
+      const ups = [['u1', x0], ['u2', x0 + 900], ['u4', x0 + 1500]];
+      ups.forEach(([id, x]) => placeOn(byId(item, id), 'A', x));
+      const onA = [], onB = [];
+      stacks.forEach(([idp, at, o]) => addStack(item, idp, at, o).forEach((id) => ((o && o.wall === 'B') ? onB : onA).push([id, at])));
+      const lines = [{ key: 'wall', D: 650, modules: lowerEntries(item).concat(entries(ups.concat(onA))) }];
+      if (onB.length) lines.push({ key: 'b', D: 650, modules: entries(onB) });
+      return specOn(item, lines);
+    };
+
+    test('줄 끝에 붙은 깊이가 같은 키큰장 (u4 1500 … 2700, 키큰장 2700 … 3300) — 그 위까지 이어 한 장 3300 (상부 2700 + 600). 키큰장 상부단 상몰딩은 없고, 명세 구간이 키큰장 끝까지', () => {
+      const { materials, s } = endItem(0, [['t', 2700]]);
+      expect(epMold(materials)).toEqual([['0-ep-molding-0', 60, 3300, 1, JOINED]]);
+      expect(tallMold(materials, 't3')).toEqual([]);
+      expect(moldRuns(s)).toEqual([['0-ep-molding-0#0', 'wall', '0-u1', 3300, -450, 2850]]);   // 호스트 u1 900 가운데 450 → 0 … 3300
+      expect(epOf(s).filter((e) => e[0] === '상몰딩')).toEqual([]);
+    });
+
+    test('줄 시작에 붙은 깊이가 같은 키큰장 (키큰장 0 … 600, 상부 600 … 3300) — 3300 한 장, 명세 구간은 호스트 u1 왼쪽으로 키큰장까지', () => {
+      const { materials, s } = endItem(600, [['t', 0]]);
+      expect(epMold(materials)).toEqual([['0-ep-molding-0', 60, 3300, 1, JOINED]]);
+      expect(tallMold(materials, 't3')).toEqual([]);
+      expect(moldRuns(s)).toEqual([['0-ep-molding-0#0', 'wall', '0-u1', 3300, -1050, 2250]]);   // 호스트 u1 가운데 1050 → 0 … 3300
+    });
+
+    test('줄 끝 키큰장 두 벌이 이어 붙으면 (2700 … 3300 · 3300 … 3900) 둘 다 잇는다 — 3900 한 장, 두 키큰장 모두 제 상몰딩 없음', () => {
+      const { materials, s } = endItem(0, [['t', 2700], ['s', 3300]]);
+      expect(epMold(materials)).toEqual([['0-ep-molding-0', 60, 3900, 1, JOINED]]);
+      expect(tallMold(materials, 't3')).toEqual([]);
+      expect(tallMold(materials, 's3')).toEqual([]);
+      expect(moldRuns(s)).toEqual([['0-ep-molding-0#0', 'wall', '0-u1', 3900, -450, 3450]]);
+    });
+
+    test('이어 붙은 두 번째 키큰장의 깊이가 다르면 (550) 첫 키큰장까지만 — 3300 한 장 + 두 번째 키큰장 제 상몰딩 60 × 600', () => {
+      const { materials, s } = endItem(0, [['t', 2700], ['s', 3300, { d: 550 }]]);
+      expect(epMold(materials)).toEqual([['0-ep-molding-0', 60, 3300, 1, JOINED]]);
+      expect(tallMold(materials, 't3')).toEqual([]);
+      expect(tallMold(materials, 's3')).toEqual([[60, 600, 1]]);
+      expect(moldRuns(s).map((r) => r.slice(0, 4))).toEqual([['0-ep-molding-0#0', 'wall', '0-u1', 3300]]);
+    });
+
+    // 잇지 않는 줄 끝 키큰장 — 예전과 같다: 상부 라인 2700 한 장 (명세가 놓는다) + 키큰장 상부단이 제 상몰딩
+    test.each([
+      ['깊이가 다르면 (키큰장 550 · 상부장 295)', [['t', 2700, { d: 550 }]]],
+      ['줄 끝에서 떨어져 서면 (키큰장 2750 … 3350, 사이 50)', [['t', 2750]]],
+      ['다른 벽에 서면 (벽 B 키큰장 — 진행 방향 자리는 2700 에 닿는다)', [['t', 2700, { wall: 'B' }]]],
+    ])('줄 끝 키큰장이 %s 잇지 않는다 — 2700 한 장 + 키큰장 제 상몰딩 60 × 600', (_, stacks) => {
+      const { materials, s } = endItem(0, stacks);
       expect(epMold(materials)).toEqual([['0-ep-molding-0', 60, 2700, 1, '']]);
       expect(tallMold(materials, 't3')).toEqual([[60, 600, 1]]);
       expect(moldRuns(s).map((r) => r.slice(0, 4))).toEqual([['0-ep-molding-0#0', 'wall', '0-u1', 2700]]);
