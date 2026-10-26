@@ -265,7 +265,7 @@ describe('BOM 끝단 — 키큰장 멍장 부재', () => {
     expect(ep[0].w).toBe(675 - 15);
     expect(ep[0].h).toBe(TH);
   });
-  test('멍가림판 2.7T 와 멍판 마감재 100 은 없다', () => {
+  test('멍가림판 3T 와 멍판 마감재는 없다', () => {
     const { mats } = bom();
     expect(mats.filter((m) => m.part === '멍가림판')).toEqual([]);
     expect(mats.filter((m) => /멍판\)$/.test(m.part))).toEqual([]);
@@ -273,10 +273,12 @@ describe('BOM 끝단 — 키큰장 멍장 부재', () => {
   test('도어와 경첩목대는 단마다 — 셋씩', () => {
     const { mats } = bom();
     expect(mats.filter((m) => m.part === '도어').length).toBe(3);
-    // 2026-09-13: ㄱ자 — 단마다 앞다리·옆다리 한 벌 (키큰장 단은 상부장이 아니라 1벌)
-    expect(mats.filter((m) => m.part === '경첩목대(옆다리)').length).toBe(3);
-    expect(mats.filter((m) => m.part === '경첩목대(앞다리)').length).toBe(3);
-    mats.filter((m) => /^경첩목대\(/.test(m.part)).forEach((m) => expect(m.qty).toBe(1));
+    // 2026-09-13: ㄱ자 — 단마다 한 벌 (키큰장 단은 상부장이 아니라 1벌). 2026-10-26: 앞판 = 처짐방지 밴드, 뒤판 = 경첩목대
+    expect(mats.filter((m) => m.part === '경첩목대').length).toBe(3);
+    expect(mats.filter((m) => m.part === '밴드(처짐방지·멍장)').length).toBe(3);
+    mats.filter((m) => m.part === '경첩목대' || m.part === '밴드(처짐방지·멍장)').forEach((m) => expect(m.qty).toBe(1));
+    // 멍장 단에는 가운데 처짐방지 밴드(70)가 따로 없다
+    expect(mats.filter((m) => m.part === '밴드(처짐방지)' && /LT망장|멍장/.test(m.module))).toEqual([]);
   });
   test('멍장 폭 정합성 경고가 없다', () => {
     const { warnings } = bom();

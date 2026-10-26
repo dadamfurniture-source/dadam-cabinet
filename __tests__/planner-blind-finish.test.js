@@ -92,7 +92,7 @@ describe('멍판 마감재가 자동으로 선다', () => {
     // 마감재는 멍판 범위 **안**에 있다 — 옆이 아니다
     expect(lay.finish[0]).toBeGreaterThanOrEqual(lay.cover[0]);
     expect(lay.finish[1]).toBeLessThanOrEqual(lay.cover[1]);
-    expect(lay.coverT).toBe(2.7);
+    expect(lay.coverT).toBe(3);   // 2026-10-26 사장님 3T
   });
 });
 

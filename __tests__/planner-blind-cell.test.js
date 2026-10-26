@@ -70,7 +70,7 @@ describe('멍과 먹장을 가른다', () => {
 
   test('멍가림판 두께가 2.7T 다', () => {
     const p = boot();
-    expect(p.g('BLIND_COVER_T')).toBe(2.7);
+    expect(p.g('BLIND_COVER_T')).toBe(3);   // 2026-10-26 사장님 3T (예전 2.7T)
   });
 
   test('먹장은 그대로 남아 있다 — 좁은 칸에는 여전히 먹장이 붙는다', () => {

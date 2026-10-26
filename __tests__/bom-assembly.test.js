@@ -1172,20 +1172,21 @@ describe('멍장 자리 — corner.md §3.5 (멍가림판 · 마감재 · 도어
     const m = modOf('corner-blind-lower');
     expect(m.box).toEqual({ W: 1076, H: 708, D: 650, T: 15 });
     expect(m.blind).toEqual({ zoneW: 665, doorW: 411, doorRight: true });
-    expect(box(m, '멍가림판')).toEqual({ min: [-538, 0, 325], max: [112, 708, 327.7] });
-    expect(box(m, '휠라(멍판)')).toEqual({ min: [-38, 0, 327.7], max: [112, 708, 345.7] });
+    expect(box(m, '멍가림판')).toEqual({ min: [-538, 0, 325], max: [112, 708, 328] });
+    expect(box(m, '휠라(멍판)')).toEqual({ min: [-38, 0, 328], max: [112, 708, 346] });
     expect(box(m, '도어')).toEqual({ min: [114, 0, 325], max: [536, 678, 343] });
     expect(m.parts.find((p) => p.part === '도어').tags).toEqual({ doorIdx: 0, blind: 'door' });
-    // 몸통은 하부장 짜임 그대로 — 밴드 두 장 눕힘, 처짐방지목 가운데
+    // 몸통은 하부장 짜임 그대로 — 밴드 두 장 눕힘. 2026-10-26 사장님: 가운데 처짐방지목은 없다 — ㄱ자 기둥 앞판이 처짐방지 밴드
     expect(box(m, '밴드')).toEqual({ min: [-523, 693, 255], max: [523, 708, 325] });
-    expect(box(m, '밴드(처짐방지)')).toEqual({ min: [-35, 15, 310], max: [35, 693, 325] });
+    expect(m.parts.find((p) => p.part === '밴드(처짐방지)')).toBeUndefined();
+    expect(box(m, '밴드(처짐방지·멍장)')).toEqual({ min: [67, 15, 310], max: [127, 693, 325] });
   });
 
   test('상부 멍장 790 = 멍 345 + 도어 445 — 사쿠리 몸통, 멍가림판 330, 몰딩(멍판) 150, 도어 456 × H+15', () => {
     const m = modOf('corner-blind-upper');
     expect(m.box).toEqual({ W: 790, H: 720, D: 295, T: 15 });
-    expect(box(m, '멍가림판')).toEqual({ min: [-395, 0, 147.5], max: [-65, 720, 150.2] });
-    expect(box(m, '몰딩(멍판)')).toEqual({ min: [-215, 0, 150.2], max: [-65, 720, 168.2] });
+    expect(box(m, '멍가림판')).toEqual({ min: [-395, 0, 147.5], max: [-65, 720, 150.5] });
+    expect(box(m, '몰딩(멍판)')).toEqual({ min: [-215, 0, 150.5], max: [-65, 720, 168.5] });
     expect(box(m, '도어')).toEqual({ min: [-63, -15, 147.5], max: [393, 720, 165.5] });
     expect(box(m, '뒷판').tags).toBeUndefined();
     expect(m.parts.find((p) => p.part === '뒷판').tags).toEqual({ mount: 'groove' });
@@ -1198,8 +1199,8 @@ describe('멍장 자리 — corner.md §3.5 (멍가림판 · 마감재 · 도어
     const r = Asm.of(design, { materials: new MaterialExtractor().extract(design).materials });
     const m = r.items[0].modules.find((x) => x.moduleId === 'corner-blind-lower');
     expect(m.blind.doorRight).toBe(false);
-    expect(box(m, '멍가림판')).toEqual({ min: [-112, 0, 325], max: [538, 708, 327.7] });
-    expect(box(m, '휠라(멍판)')).toEqual({ min: [-112, 0, 327.7], max: [38, 708, 345.7] });
+    expect(box(m, '멍가림판')).toEqual({ min: [-112, 0, 325], max: [538, 708, 328] });
+    expect(box(m, '휠라(멍판)')).toEqual({ min: [-112, 0, 328], max: [38, 708, 346] });
     expect(box(m, '도어')).toEqual({ min: [-536, 0, 325], max: [-114, 678, 343] });
   });
 
@@ -1216,23 +1217,23 @@ describe('멍장 자리 — corner.md §3.5 (멍가림판 · 마감재 · 도어
     expect(m('corner-blind-lower').blind.doorRight).toBe(false);
     expect(box(m('corner-blind-lower'), '도어')).toEqual({ min: [-536, 0, 325], max: [-114, 678, 343] });
     expect(m('corner-blind-upper').blind.doorRight).toBe(true);
-    expect(box(m('corner-blind-upper'), '멍가림판')).toEqual({ min: [-395, 0, 147.5], max: [-65, 720, 150.2] });
+    expect(box(m('corner-blind-upper'), '멍가림판')).toEqual({ min: [-395, 0, 147.5], max: [-65, 720, 150.5] });
     // 경첩은 목대 쪽 — 벽이 오른쪽이면 도어 오른 변
     const hinge = (key) => r.items[0].modules.find((x) => x.moduleKey === key).hardware.filter((h) => h.kind === 'hinge');
     expect(new Set(hinge('0-corner-blind-lower').map((h) => h.edge))).toEqual(new Set(['right']));
     expect(new Set(hinge('0-corner-blind-upper').map((h) => h.edge))).toEqual(new Set(['left']));
   });
 
-  test('ㄱ자 경첩목대 — 지판 위·천판 아래(H−2T), 앞다리 멍판 뒤 60×15, 옆다리 도어 쪽 끝 깊이 60 (2026-10-22 사장님) · 못 놓은 행 없음 · 조립 검사 오류 없음', () => {
+  test('ㄱ자 경첩목대 — 지판 위·천판 아래(H−2T), 앞판 = 처짐방지 밴드 멍판 뒤 60×15, 그 뒤 경첩목대 도어 쪽 끝 깊이 60 (2026-10-22 · 2026-10-26 사장님) · 못 놓은 행 없음 · 조립 검사 오류 없음', () => {
     expect(s.unplaced.filter((u) => /blind/.test(u.moduleKey)).map((u) => [u.part, u.reason])).toEqual([]);
     const lo = modOf('corner-blind-lower'), up = modOf('corner-blind-upper');
     // 하부 멍장 708 · 15T · 찬넬 손잡이(따내기 없음): y 15…693. 멍 끝(coverEnd) u 650 → x 112, 옆다리 112…127, 앞다리 67…127 멍판 바로 뒤
-    expect(box(lo, '경첩목대(앞다리)')).toEqual({ min: [67, 15, 310], max: [127, 693, 325] });
-    expect(box(lo, '경첩목대(옆다리)')).toEqual({ min: [112, 15, 250], max: [127, 693, 310] });
-    expect(lo.parts.find((p) => p.part === '경첩목대(옆다리)').tags).toEqual({ blind: 'batten-side' });
+    expect(box(lo, '밴드(처짐방지·멍장)')).toEqual({ min: [67, 15, 310], max: [127, 693, 325] });
+    expect(box(lo, '경첩목대')).toEqual({ min: [112, 15, 250], max: [127, 693, 310] });
+    expect(lo.parts.find((p) => p.part === '경첩목대').tags).toEqual({ blind: 'batten-side' });
     // 상부 멍장 720: y 15…705, 도어가 왼쪽이 아니라 오른쪽 — 멍 끝 x −65
-    expect(box(up, '경첩목대(앞다리)')).toEqual({ min: [-110, 15, 132.5], max: [-50, 705, 147.5] });
-    expect(box(up, '경첩목대(옆다리)')).toEqual({ min: [-65, 15, 72.5], max: [-50, 705, 132.5] });
+    expect(box(up, '밴드(처짐방지·멍장)')).toEqual({ min: [-110, 15, 132.5], max: [-50, 705, 147.5] });
+    expect(box(up, '경첩목대')).toEqual({ min: [-65, 15, 72.5], max: [-50, 705, 132.5] });
     expect(modOf('corner-blind-lower').parts.find((p) => p.part === '선반').box.max[2]).toBe(235);   // 선반 D−T−75 는 뒤 맞춤 — 앞끝이 앞선에서 90 (목대 75 + T) 뒤
     const issues = require('../js/detaildesign/assembly-check.js').check(s).issues;
     expect(issues.filter((i) => i.level === 'error')).toEqual([]);
@@ -1245,8 +1246,8 @@ describe('멍장 자리 — corner.md §3.5 (멍가림판 · 마감재 · 도어
     const r = Asm.of(design, { materials: new MaterialExtractor().extract(design).materials });
     const m = r.items[0].modules.find((x) => x.moduleId === 'corner-blind-lower');
     expect(m.parts.find((p) => p.part === '밴드' && p.tags.end === 'front').box.min[1]).toBe(623);   // 708 − 70 − 15
-    expect(box(m, '경첩목대(앞다리)')).toEqual({ min: [67, 15, 310], max: [127, 623, 325] });
-    expect(box(m, '경첩목대(옆다리)')).toEqual({ min: [112, 15, 250], max: [127, 623, 310] });
+    expect(box(m, '밴드(처짐방지·멍장)')).toEqual({ min: [67, 15, 310], max: [127, 623, 325] });
+    expect(box(m, '경첩목대')).toEqual({ min: [112, 15, 250], max: [127, 623, 310] });
     expect(r.unplaced.filter((u) => /blind/.test(u.moduleKey) && u.part !== '선반')).toEqual([]);
     expect(require('../js/detaildesign/assembly-check.js').check(r).issues.filter((i) => i.level === 'error')).toEqual([]);
   });

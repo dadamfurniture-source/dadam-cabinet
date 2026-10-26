@@ -528,7 +528,7 @@
         case 'rice:hinge-batten':
           return;   // 아래에서 밥솥장 슬라이딩 선반을 한꺼번에 (도어가 달린 밥솥장 — 일반 장 몸통)
         case 'blind': {
-          // 멍가림판 MDF 2.7T — 멍 W − 목대 15 × 몸통 H, 벽 쪽 끝부터 앞선에 붙어 밖으로 (z D/2 … D/2 + 2.7)
+          // 멍가림판 MDF 3T — 멍 W − 목대 15 × 몸통 H, 벽 쪽 끝부터 앞선에 붙어 밖으로 (z D/2 … D/2 + 3)
           if (!bl || row.qty !== 1 || row.w !== bl.coverEnd || row.h !== H) { skip(row, 'blind-layout-unknown'); return; }
           parts.push(makePart(row, 0, { o: [bl.xOf(0, bl.coverEnd), 0, zFront], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { blind: 'cover' }));
           return;

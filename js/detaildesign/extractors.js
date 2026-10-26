@@ -77,8 +77,9 @@
         '밴드':            { key: 'body:band',        slot: 'body', indexed: true },
         '밴드(보강목)':    { key: 'body:band',        slot: 'body', indexed: true },
         '밴드(처짐방지)':  { key: 'body:brace',       slot: 'body', indexed: true },
-        '경첩목대(앞다리)': { key: 'body:batten-front', slot: 'body' },
-        '경첩목대(옆다리)': { key: 'body:batten-side',  slot: 'body' },
+        // 멍장 ㄱ자 기둥 (corner.md §3.5.0) — 앞판 = 처짐방지 밴드 60, 그 뒤에 경첩목대 (2026-10-26 사장님)
+        '밴드(처짐방지·멍장)': { key: 'body:batten-front', slot: 'body' },
+        '경첩목대':          { key: 'body:batten-side',  slot: 'body' },
         // 2026-10-25 사장님: 밥솥장 슬라이딩 선반 (bom-rice-cabinet-rules.js shelfPartsOf) — 몸통 · 오픈장과 같은 색
         '밥솥장 선반':      { key: 'rice:shelf',        slot: 'body' },
         '밥솥장 보강목':    { key: 'rice:batten',       slot: 'body' },
@@ -1285,8 +1286,9 @@
          *   몸통마다 같은 짜임, 서랍 모듈 행은 `-서랍모듈`. 처짐방지목은 도어 모듈에만 (서랍 모듈은 전부 서랍이라 없다, D2 (b)).
          * @param {boolean} channel  목찬넬 손잡이 — 측판 따내기 비고 · 처짐방지목 −70
          * @param {string} [extraNote]  측판 비고 뒤에 붙일 말 (키큰장 서랍 단 규칙 없음)
+         * @param {boolean} [blind]  멍장 — 가운데 처짐방지목을 내지 않는다. ㄱ자 기둥 앞판이 처짐방지 밴드다 (addBlindFrontParts, 2026-10-26 사장님)
          */
-        addLowerCarcassRows(materials, modLabel, W, H, T, modD, L, channel, extraNote) {
+        addLowerCarcassRows(materials, modLabel, W, H, T, modD, L, channel, extraNote, blind) {
           const notchH = DrawerRules ? DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : 0;
           const carcass = (label, h, note, brace) => {
             this.add(materials, label, '측판', 'PB', T, modD, h, 2, '3면', note);
@@ -1303,7 +1305,7 @@
             const notes = [];
             if (channel && DrawerRules) notes.push(DrawerRules.notchNote(L));
             if (extraNote) notes.push(extraNote);
-            carcass(modLabel, H, notes.join(' · '), !bomAllDrawers(L));   // 전부 서랍이면 처짐방지목 없음 (D2)
+            carcass(modLabel, H, notes.join(' · '), !bomAllDrawers(L) && !blind);   // 전부 서랍이면 처짐방지목 없음 (D2) · 멍장은 ㄱ자 기둥이 대신
             return;
           }
           const nn = channel ? DrawerRules.splitNotchNotes(L) : null;
@@ -1398,7 +1400,7 @@
         }
 
         addBlindFrontParts(materials, modLabel, mod, H, battenH) {
-          const coverT = typeof CORNER_BLIND_COVER_T !== 'undefined' ? CORNER_BLIND_COVER_T : 2.7;
+          const coverT = typeof CORNER_BLIND_COVER_T !== 'undefined' ? CORNER_BLIND_COVER_T : 3;
           const battenT = typeof CORNER_HINGE_BATTEN_T !== 'undefined' ? CORNER_HINGE_BATTEN_T : 15;
           const battenLeg = typeof CORNER_HINGE_BATTEN_LEG !== 'undefined' ? CORNER_HINGE_BATTEN_LEG : 60;
           // W12-72: 정본 data-constants.js CORNER_FINISH_PART_W = 150. 폴백이 100 에 남아 있어
@@ -1409,7 +1411,7 @@
           const zoneW = parseFloat(mod.blindZoneW) || 0;
           const coverW = Math.max(0, zoneW - battenT);
           // W12-65: 키큰장 멍장 — 멍 구간이 바닥부터 천장까지 통으로 드러나는 큰 면이라
-          //   2.7T 가림판 대신 **멍판 EP 18T** 로 덮는다. 폭은 가림판과 같은 규칙
+          //   3T 가림판 대신 **멍판 EP 18T** 로 덮는다. 폭은 가림판과 같은 규칙
           //   (멍 − 목대 15: 경첩이 목대에 물려야 한다), 높이는 장 전체(좌대 포함),
           //   단이 셋이라도 가리는 면은 하나라 **한 번만** 낸다. EP 는 이미 마감된 판이라
           //   멍판 마감재 150 도 없다. 경첩목대는 단마다 나온다 (아래 공통).
@@ -1426,18 +1428,20 @@
                      '멍 가림 MDF — 멍 폭 − 목대 (corner.md §3.5)');
           }
           // W12-54: 경첩 목대 — 멍 폭에 15T 가 들어가 있으므로 자재표에도 나온다.
-          // 2026-09-13: **ㄱ자** 목대 — 앞다리 60(정면과 나란히, 멍판 뒤) + 옆다리 60(도어 쪽 끝,
+          // 2026-09-13: **ㄱ자** — 앞판 60(정면과 나란히, 멍판 뒤) + 옆판 60(도어 쪽 끝,
           //   깊이 방향) 모두 15T. 앞선에서 15 + 60 = 75 만 들어간다 (corner.md §3.5).
           //   멍장 하나에 한 벌 — 하부·상부·키큰장 단 모두 같다.
+          // 2026-10-26 사장님: 앞판이 **처짐방지 밴드**(60)이고 그 뒷면에 경첩목대가 ㄱ자로 붙어 한 기둥으로 선다.
+          //   그래서 멍장 몸통에는 가운데 처짐방지목(70)을 따로 내지 않는다 (addLowerCarcassRows · 상부 braceQty).
           // 2026-10-22 사장님: 목대는 **천판과 지판 사이**에 들어간다 (높이 H − 2T). 목찬넬 몸통은 따내기 70 아래에
           //   밴드가 들어가므로 그 밴드 밑까지 — H − 2T − 70 (15T 기준 H−30 / 목찬넬 H−100). 호출자가 밴드 높이와
           //   같은 battenH 를 넘긴다 (corner.md §3.5.0).
           const battenQty = 1;
           const legH = Number.isFinite(battenH) ? battenH : H;
-          this.add(materials, modLabel, '경첩목대(앞다리)', 'PB', battenT, battenLeg, legH, battenQty, '-',
-                   'ㄱ자 경첩목대 앞다리 60×15T — 멍판 바로 뒤, 지판·천판(밴드) 사이 (corner.md §3.5.0)');
-          this.add(materials, modLabel, '경첩목대(옆다리)', 'PB', battenT, battenLeg, legH, battenQty, '-',
-                   'ㄱ자 경첩목대 옆다리 60×15T — 도어 쪽 끝, 앞선에서 75, 지판·천판(밴드) 사이 (corner.md §3.5.0)');
+          this.add(materials, modLabel, '밴드(처짐방지·멍장)', 'PB', battenT, battenLeg, legH, battenQty, '-',
+                   'ㄱ자 기둥 앞판 = 처짐방지 밴드 60×15T — 멍판 바로 뒤, 지판·천판(밴드) 사이 (corner.md §3.5.0)');
+          this.add(materials, modLabel, '경첩목대', 'PB', battenT, battenLeg, legH, battenQty, '-',
+                   'ㄱ자 기둥 뒤판 = 경첩목대 60×15T — 처짐방지 밴드 뒷면, 도어 쪽 끝, 앞선에서 75 (corner.md §3.5.0)');
           // W12-61: 멍판 마감재 — 멍장 도어 바로 옆, 멍가림판 위에 붙는다.
           //   'None' 을 명시한 경우에만 뺀다. 미지정이면 휠라로 떨어진다(§3.3) —
           //   자리 60 은 이미 멍 폭에 있어서, 안 내면 그 자리가 MDF 로 발주된다.
@@ -1504,7 +1508,7 @@
           //   서랍 단이면 중간 따내기도 (하부장 서랍장과 같은 notchNote). 서랍을 고른 중간 · 상부 단은 규칙이 없다고 남긴다.
           //   키큰장 단은 하부장 문턱(800) · 전부 서랍이면 처짐방지목 없음 · 위 도어 + 아래 서랍은 두 몸통 (addLowerCarcassRows)
           this.addLowerCarcassRows(materials, modLabel, W, H, T, modD, drawerLayout, !!(channelHere && DrawerRules),
-            mod.isDrawer && !drawerLayout ? BOM_TALL_DRAWER_TIER_NOTE : '');
+            mod.isDrawer && !drawerLayout ? BOM_TALL_DRAWER_TIER_NOTE : '', isBlindModule(mod, 'lower'));
           const bandH = channelHere ? H - T * 2 - DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : H - T * 2;
           // 선반 — 단이 가진 만큼 (하부장 규칙 "서랍·EL·오픈 아니면 1" 을 타지 않는다). 서랍 단에는 없다 (하부장 서랍장과 같다)
           const rawShelf = Number(mod.shelfCount);
@@ -1826,8 +1830,8 @@
             this.addBackPanel(materials, modLabel, W, H, true);
             // 밴드(보강목) 2개
             this.add(materials, modLabel, '밴드(보강목)', 'PB', ASM.UPPER_BAND_T, W - T * 2, ASM.UPPER_BAND_W, 2, '2면(장)');
-            // 밴드(처짐방지목) — W ≥ 700 이면 1장, 모듈 중앙 (bomBraceQtyOf)
-            const braceQty = bomBraceQtyOf(W, 'upper');
+            // 밴드(처짐방지목) — W ≥ 700 이면 1장, 모듈 중앙 (bomBraceQtyOf). 멍장은 ㄱ자 기둥 앞판이 처짐방지 밴드라 따로 없다 (2026-10-26)
+            const braceQty = isBlindModule(mod, 'upper') ? 0 : bomBraceQtyOf(W, 'upper');
             if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, H - T * 2, braceQty, '2면(장)');
             // 선반 2개 (사쿠리 반영 D-34). 2026-09-13: 멍장은 ㄱ자 목대 깊이 75 만큼 짧다 (corner.md §3.5)
             this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - ASM.SAKURI_SHELF_D_MINUS - this.blindShelfCut(mod, 'upper'), 2, '1면(전)');
@@ -1883,8 +1887,8 @@
             }
 
             // 몸통 — 측판 2 (하부장: 사쿠리 없음, 목찬넬이면 따내기 비고) · 지판 · 밴드 2 · 뒷판(측판 뒤 덮음) · 처짐방지목.
-            //   위 도어 + 아래 서랍은 두 몸통 (2026-10-25, addLowerCarcassRows)
-            this.addLowerCarcassRows(materials, modLabel, W, H, T, modD, drawerLayout, !!(isWoodChannel && DrawerRules));
+            //   위 도어 + 아래 서랍은 두 몸통 (2026-10-25, addLowerCarcassRows). 멍장은 가운데 처짐방지목 대신 ㄱ자 기둥 (2026-10-26)
+            this.addLowerCarcassRows(materials, modLabel, W, H, T, modD, drawerLayout, !!(isWoodChannel && DrawerRules), '', isBlindModule(mod, 'lower'));
             const bandH = isWoodChannel ? H - T * 2 - DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : H - T * 2;
             // 선반 (서랍/EL/오픈장 없으면 1개, 하부장: 사쿠리 없음)
             if (!isDrawer && !isEL && !isOpen && mod.type !== 'sink') {
