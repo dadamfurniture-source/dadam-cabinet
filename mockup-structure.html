@@ -2748,7 +2748,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       }
       // W9-95: 먹장 (blank) 표시
       if (type === 'blind') {
-        // W12-58: 멍 — 옆 라인에 가려 도어를 못 다는 구간. 2.7T MDF 로 가린다.
+        // W12-58: 멍 — 옆 라인에 가려 도어를 못 다는 구간. 3T MDF 로 가린다.
         // W12-66/67: 멍 칸(= 멍가림판 폭) 위에 마감재가 포개어진다. 좌표는 blindFrontLayout —
         //   칸 폭은 목대를 뺀 값이므로 목대를 되더해 넘긴다. 마감재 다음은 바로 도어 칸.
         //   멍장이 오른쪽 끝(도어가 먼저)이면 벽 쪽이 오른쪽이라 좌우를 뒤집는다.
@@ -5253,7 +5253,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   const DOOR_T = 18;
   // W12-58: 멍가림판 두께 — data-constants.js CORNER_BLIND_COVER_T 와 같은 값이다.
   //   플래너는 그 파일을 로드하지 않아 옮겨 적는다 (corner.md §3.5).
-  const BLIND_COVER_T = 2.7;
+  const BLIND_COVER_T = 3;   // 2026-10-26 사장님 3T (예전 2.7T)
 
   const CHANNEL_COLOR = '#7a6a45';
   const DRAWER_BOX_COLOR = '#d9c9a3';   // 2026-09-15: 서랍 박스 (PB, 반투명)
@@ -6575,8 +6575,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     //   물끊기+도어 자리만큼 물러나 앉는다(seatModuleDepth). 그래서 상판끼리
     //   맞닿아도 몸통은 그만큼(12) 떠 보였다 — 하부장도 상부장도 같은 이유다.
     //   그 12 를 빼서, 옆 라인 끝판이 주인 도어 면에 닿게 한다.
-    const air = (typeof cornerFrontAir === 'function' && ownerFrontsAdj(pair.owner, area))
-      ? cornerFrontAir() : 0;
+    // 2026-10-26 사장님: 옆 라인 측판은 멍판 **마감재 앞면**(휠라 · 몰딩)에 닿는다 — 멍가림판 3T 위 마감재 18T 라
+    //   도어 면보다 3 앞이다 (앞선에서 9). 키큰장 멍장은 멍판 EP 18T 가 도어 면과 같다 (12). planner-engine cornerAdjAir.
+    const air = (typeof cornerAdjAir === 'function' && ownerFrontsAdj(pair.owner, area))
+      ? cornerAdjAir({ ep: pair.owner.section === 'tall' }) : 0;
     const need = owner.plan.adjStartOffset - air;
     const already = adjRetreat(pair.owner, area);
     // 음수는 **배치 공간 밖으로 나간다**는 뜻이다. 상판은 그대로 두고 몸통만
@@ -6639,7 +6641,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const gap = MASTER_RULES.CORNER_WALL_GAP;
     // W12-65: 키큰장은 스택이다 — 단(하부·중간·상부)이 각각 별개 모듈이라 멍장도
     //   **단마다 하나씩** 세운다. 셋이 같은 x·W 를 쓰고(W12-22) 도어만 층으로 나뉜다.
-    //   멍 구간은 2.7T 가림판이 아니라 **멍판 EP 18T 한 장**이라 마감재 칸이 없다.
+    //   멍 구간은 3T 가림판이 아니라 **멍판 EP 18T 한 장**이라 마감재 칸이 없다.
     // 2026-10-08: 멍장은 **제 통**이다 — 수납 통에 건 보존은 보지 않는다 (빈 목록).
     //   옆 통에서 단을 줄였다고 멍장 단까지 따라 줄면 코너 면이 어긋난다.
     const stack = stackForArea(area, []);
@@ -6702,7 +6704,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         // 도어 폭을 카카스 폭으로 기록하면 BOM 이 멍만큼 큰 도어를 발주한다.
         // W12-58: 멍은 **먹장이 아니다.** 먹장(blank)은 폭이 도어 최소보다 좁아
         //   도어 대신 막는 18T 판이고, 멍(blind)은 옆 라인에 가려 도어를 못 다는
-        //   구간을 2.7T MDF 로 가린 것이다 (corner.md §3.5). 자재도 이유도 다르다.
+        //   구간을 3T MDF 로 가린 것이다 (corner.md §3.5). 자재도 이유도 다르다.
         // W12-66: 멍판 마감재는 **칸이 아니다.** 멍가림판 위에 포개어지는 덮개라(§3.3)
         //   나란한 칸으로 넣으면 멍판이 짧아지고 마감재가 옆에 따로 선다. 종류·재단
         //   (m.blind.finish)은 그대로 두고 멍 칸 안에서 겹쳐 그린다 (blindFrontLayout).
@@ -8602,7 +8604,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     if (ud.entityKind === 'finishing') {
       msg = '🎯 마감재: ' + (SECTION_CONFIG[ud.finishingSection] && SECTION_CONFIG[ud.finishingSection].label || ud.finishingSection);
     } else if (ud.entityKind === 'blind') {
-      msg = ud.ep ? '🎯 멍 — 멍판 EP 18T (키큰장 · 장 높이 전체)' : '🎯 멍 — 멍가림판 2.7T MDF (corner.md §3.5)';
+      msg = ud.ep ? '🎯 멍 — 멍판 EP 18T (키큰장 · 장 높이 전체)' : '🎯 멍 — 멍가림판 3T MDF (corner.md §3.5)';
     } else if (ud.entityKind === 'blindfin') {
       const fl = (SECTION_CONFIG[ud.finishingSection] || {}).label || ud.finishingSection;
       msg = '🎯 멍판 마감재 — ' + fl + ' 18T · 재단 '
@@ -9562,7 +9564,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       return;
     }
     if (type === 'blind') {
-      // W12-58: 멍가림판 — 2.7T MDF (corner.md §3.5). 먹장과 두께도 색도 다르다.
+      // W12-58: 멍가림판 — 3T MDF (corner.md §3.5). 먹장과 두께도 색도 다르다.
       // W12-66/67: 멍 칸(= 멍가림판) 위에 마감재 18T 가 포개어진다(z 한 겹 앞). 목대는
       //   모듈 안쪽 구조재라 그리지 않는다 — 도어 칸이 그 위를 덮는다. 좌표는
       //   blindFrontLayout 이 벽 쪽 0 기준으로 주고, 도어가 오른쪽인지로 x 를 뒤집는다.
@@ -10414,7 +10416,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const topDoorY = legH + drawerH + topH / 2;   // W9-114: 본체 안 도어 Y
       const type = (s.areaTypes && s.areaTypes[i]) || 'door';
       // P2-5 (scene-bom-ledger.md §4 · corner.md §3.5): 멍장 정면 — 멍 칸은 도어 갭 규칙을 타지 않는다.
-      //   멍 칸  — 멍가림판(2.7T MDF, 키큰장은 EP 18T)은 칸 폭 = 멍 W − 목대 15 를 **그대로**, 높이는 **몸통 H**
+      //   멍 칸  — 멍가림판(3T MDF, 키큰장은 EP 18T)은 칸 폭 = 멍 W − 목대 15 를 **그대로**, 높이는 **몸통 H**
       //           로 재단한다. 도어가 아니라 갭 4 가 없다 (BOM 멍가림판 650 × 708, 예전 3D 646 × 704).
       //   도어 칸 — corner.md §3.5.2 (2026-09-15 결정): **멍장 도어는 목대를 덮는다.** 정면 셀은
       //           `[멍 = 멍W−15][도어 = doorW+15]` 두 칸이고 목대 15 는 도어 칸 **안쪽**에 서는 구조재라 정면에

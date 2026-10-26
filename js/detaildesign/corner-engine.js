@@ -204,7 +204,7 @@ function seedCornerModules(item) {
   blind.w = d.blindW;
   blind.h = bodyH;
   blind.d = bodyD;
-  blind.blindZoneW = d.blindZoneW; // BOM: 2.7T MDF 가림판 폭
+  blind.blindZoneW = d.blindZoneW; // BOM: 3T MDF 가림판 폭
   blind.doorW = d.doorW;           // BOM: 도어 부재 폭 (카카스 W 아님)
   blind.doorCount = 1;
 

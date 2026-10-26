@@ -76,13 +76,14 @@ describe('겹친 ㄱ자 — 예전 동작 그대로', () => {
     expect(isHoriz(c.owner)).toBe(false);   // 회전한 세로가 주인 (기존 규칙)
   });
 
-  test('인접 밀림은 주인 도어 면까지 688 이다 (700 − 공기층 12)', () => {
+  test('인접 밀림은 주인 멍판 마감재 앞면까지 691 이다 (700 − 9, 2026-10-26)', () => {
     const p = boot([horiz(0), vertOverlap(270)]);
     p.g('autoCalcAllAreas')();
     const c = p.g('cornerPairs')()[0];
     const off = p.g('adjCornerOffsetOf')(c.adj.id);
     expect(off.already).toBe(0);
-    expect(off.offset).toBe(688);   // W12-72: 700 − 앞선 공기층 12
+    // 2026-10-26 사장님: 옆 라인 측판은 멍판 마감재(멍가림판 3T 위 18T) 앞면에 닿는다 — 앞선에서 9 (예전 도어 면 12)
+    expect(off.offset).toBe(691);
   });
 });
 
