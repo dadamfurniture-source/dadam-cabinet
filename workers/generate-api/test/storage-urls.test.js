@@ -7,10 +7,12 @@
  *   3) signImageUrls: path(없으면 url)로 서명해 url 만 바꾼다. 다른 버킷·외부 주소는 그대로, 실패하면 저장된 URL 그대로
  *   4) shareSignedTtl: 링크가 남은 시간, 최대 1시간
  *   5) 경로: GET /api/share 는 링크 남은 시간으로, GET /api/generate/:id 는 1시간으로 서명한 url 을 싣는다
+ *   6) generations 버킷 업로드는 Cache-Control: private, max-age=3600 (예전 public · 1년 · immutable)
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/worker.js';
+import { OBJECT_CACHE_CONTROL, uploadObject } from '../src/supabase.js';
 import {
   OWNER_SIGNED_TTL_SEC,
   SHARE_SIGNED_MAX_SEC,
@@ -265,4 +267,21 @@ test('GET /api/generate/:id: 본인 조회는 1시간짜리 서명 URL, path 는
   assert.equal(generation.images[0].path, `${PREFIX}/base.png`);
   assert.deepEqual(generation.images[0].qc, { ok: true });
   assert.equal(generation.images[1].url, signedOf(`${PREFIX}/v2.jpg`, 3600));
+});
+
+// ─── 6) 업로드 캐시 ───
+
+test('uploadObject: generations 버킷 업로드는 Cache-Control: private, max-age=3600', async () => {
+  const seen = [];
+  globalThis.fetch = async (url, init) => {
+    seen.push({ url: String(url), init });
+    return jsonRes({ Key: 'ok' });
+  };
+  const up = await uploadObject(ENV, `${PREFIX}/base.png`, Buffer.from('IMG').toString('base64'), 'image/png');
+  assert.equal(OBJECT_CACHE_CONTROL, 'private, max-age=3600');
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].url, `${SB}/storage/v1/object/generations/${PREFIX}/base.png`);
+  assert.equal(seen[0].init.headers['Cache-Control'], 'private, max-age=3600');
+  assert.equal(seen[0].init.headers['Content-Type'], 'image/png');
+  assert.equal(up.url, pub(`${PREFIX}/base.png`), '행에 저장하는 주소는 예전 모양 그대로');
 });

@@ -9,6 +9,7 @@
  *   2) signUrls — 고객 사진 버킷만, 버킷마다 한 번(100개씩), 들어온 순서 그대로. 못 하면 저장된 값 그대로
  *   3) 같은 경로는 수명이 절반 넘게 남은 동안 다시 서명하지 않는다 (폴링에도 이미지를 다시 받지 않게)
  *   4) 화면이 이 파일을 불러 쓴다 · SQL 이 정책을 이름 그대로 지우고 본인·관리자 읽기를 더한다
+ *   5) design-images 업로드는 바이트로 보내고 cache-control: private, max-age=3600 (supabase-utils · supabase-service)
  */
 
 const fs = require('fs');
@@ -232,5 +233,123 @@ describe('화면 · SQL', () => {
     }
     // 누구에게나(TO public / anon) 여는 SELECT 는 새로 만들지 않는다
     expect(body).not.toMatch(/FOR SELECT\s+TO (public|anon)/);
+  });
+
+  test('옛 스키마 파일도 비공개 + 본인·관리자 읽기 — 다시 돌려도 공개로 돌아가지 않는다', () => {
+    const code = (f) =>
+      read(f)
+        .split(/\r?\n/)
+        .filter((l) => !l.trim().startsWith('--'))
+        .join('\n');
+    const gen = code('database/generations-schema.sql');
+    expect(gen).toMatch(/VALUES \('generations', 'generations', FALSE\)\s+ON CONFLICT \(id\) DO UPDATE SET public = FALSE;/);
+    expect(gen).not.toMatch(/CREATE POLICY "generations_objects_select_public"/);
+    expect(gen).toMatch(/CREATE POLICY "generations_objects_select_own"[\s\S]*?\(storage\.foldername\(name\)\)\[1\] = auth\.uid\(\)::text\);/);
+    expect(gen).toMatch(/CREATE POLICY "generations_objects_select_admin"[\s\S]*?bucket_id = 'generations' AND public\.is_admin\(\)\);/);
+
+    const di = code('database/storage-policies.sql');
+    expect(di).toMatch(/VALUES \('design-images', 'design-images', false\)\s+ON CONFLICT \(id\) DO UPDATE SET public = false;/);
+    expect(di).not.toMatch(/CREATE POLICY "design-images_select_public"/);
+    expect(di).toMatch(/CREATE POLICY "design-images_select_own"/);
+    expect(di).toMatch(/CREATE POLICY "design-images_select_admin"[\s\S]*?public\.is_admin\(\)/);
+    for (const sql of [gen, di]) expect(sql).not.toMatch(/FOR SELECT\s+TO (public|anon)/);
+  });
+});
+
+describe('design-images 업로드 — Cache-Control: private, max-age=3600', () => {
+  const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, '\n');
+
+  /** supabase-js 흉내 — upload 인자를 기록한다. user_images insert 체인도 받는다 */
+  function uploadClient() {
+    const uploads = [];
+    return {
+      uploads,
+      storage: {
+        from(bucket) {
+          return {
+            async upload(p, body, opts) {
+              uploads.push({ bucket, path: p, body, opts });
+              return { data: { path: p }, error: null };
+            },
+            getPublicUrl(p) {
+              return { data: { publicUrl: `${SB}/storage/v1/object/public/${bucket}/${p}` } };
+            },
+          };
+        },
+      },
+      from() {
+        return { insert: () => ({ select: () => ({ single: async () => ({ data: { id: 'img1' }, error: null }) }) }) };
+      },
+    };
+  }
+
+  function loadSupabaseUtils() {
+    // 브라우저 전역(window)만 넣어 평가한다 — 파일 끝에서 window.SupabaseUtils 로 내보낸다
+    const win = { DADAM_CONFIG: { supabase: { url: SB, anonKey: 'anon' } } };
+    new Function('window', read('js/supabase-utils.js'))(win);
+    const S = win.SupabaseUtils;
+    S.ensureImageLimit = async () => {};
+    return S;
+  }
+
+  const fakeFile = (name, type) => ({
+    name,
+    type,
+    size: 3,
+    arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+  });
+
+  test('SupabaseUtils.uploadImageWithType: ArrayBuffer 로 · private 헤더 · 파일 형식', async () => {
+    const S = loadSupabaseUtils();
+    const c = uploadClient();
+    S.client = c;
+    const out = await S.uploadImageWithType(fakeFile('room.jpg', 'image/jpeg'), UID, 'site_photo');
+    expect(c.uploads).toHaveLength(1);
+    const u = c.uploads[0];
+    expect(u.bucket).toBe('design-images');
+    expect(u.path).toMatch(new RegExp(`^${UID}/site_photo/\\d+\\.jpg$`));
+    expect(u.body).toBeInstanceOf(ArrayBuffer); // Blob·File 이면 multipart 로 가서 private 이 빠진다
+    expect(u.opts).toEqual({ upsert: false, contentType: 'image/jpeg', headers: { 'cache-control': 'private, max-age=3600' } });
+    expect(out.publicUrl).toBe(`${SB}/storage/v1/object/public/design-images/${u.path}`); // 저장하는 주소는 예전 모양
+  });
+
+  test('SupabaseUtils.uploadImageWithType: 형식이 비면 multipart 때와 같은 application/octet-stream', async () => {
+    const S = loadSupabaseUtils();
+    const c = uploadClient();
+    S.client = c;
+    await S.uploadImageWithType(fakeFile('x.heic', ''), UID, 'site_photo');
+    expect(c.uploads[0].opts.contentType).toBe('application/octet-stream');
+  });
+
+  test('SupabaseUtils.saveAIGeneratedImage: Uint8Array 로 · image/png · private 헤더', async () => {
+    const S = loadSupabaseUtils();
+    const c = uploadClient();
+    S.client = c;
+    await S.saveAIGeneratedImage(Buffer.from('PNG').toString('base64'), UID);
+    const u = c.uploads[0];
+    expect(u.bucket).toBe('design-images');
+    expect(u.body).toBeInstanceOf(Uint8Array);
+    expect(Buffer.from(u.body).toString()).toBe('PNG');
+    expect(u.opts).toEqual({ upsert: false, contentType: 'image/png', headers: { 'cache-control': 'private, max-age=3600' } });
+  });
+
+  test('SupabaseService.uploadImage (js/modules): ArrayBuffer 로 · private 헤더', async () => {
+    const src = read('js/modules/services/supabase-service.js')
+      .replace(/^import [\s\S]*?;\n/gm, '')
+      .replace(/^export [\s\S]*?;\n/gm, '');
+    const { SupabaseService } = new Function('eventBus', 'Events', 'API_ENDPOINTS', src + '\nreturn { SupabaseService };')(
+      { emit() {} },
+      {},
+      {}
+    );
+    const svc = new SupabaseService();
+    const c = uploadClient();
+    svc.client = c;
+    const r = await svc.uploadImage(fakeFile('a.png', 'image/png'), UID);
+    expect(r.error).toBeNull();
+    const u = c.uploads[0];
+    expect(u.bucket).toBe('design-images');
+    expect(u.body).toBeInstanceOf(ArrayBuffer);
+    expect(u.opts).toEqual({ upsert: false, contentType: 'image/png', headers: { 'cache-control': 'private, max-age=3600' } });
   });
 });

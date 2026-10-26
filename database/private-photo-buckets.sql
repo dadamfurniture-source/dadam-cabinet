@@ -31,9 +31,8 @@
 --   SQL Editor 역할이 storage.buckets 를 못 고치는 프로젝트면(권한 오류) 대시보드 Storage 에서
 --   세 버킷의 Public 을 끄고, 아래 1) 의 UPDATE 를 지운 뒤 나머지를 실행한다.
 --
--- 주의: database/generations-schema.sql · database/storage-policies.sql 을 다시 돌리면
---   두 버킷이 public = TRUE 와 공개 SELECT 정책으로 돌아간다. 이 파일을 적용한 뒤에는 그 두 파일의
---   버킷 부분을 돌리지 않는다.
+-- 같은 내용: database/generations-schema.sql(3. 버킷) · database/storage-policies.sql 도 이제 두 버킷을
+--   비공개 + 본인·관리자 읽기로 만든다 — 다시 돌려도 공개로 돌아가지 않는다.
 -- =============================================
 
 BEGIN;
