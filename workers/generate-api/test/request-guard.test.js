@@ -195,7 +195,7 @@ test('한도: /api/chat 은 CHAT_LIMIT 이 막으면 429 — 사용자 id 로 �
   assert.equal(calls.gemini, 0);
 });
 
-test('한도: 한도기가 실패하면 요청은 그대로 간다 (손님 요청을 한도기 고장으로 막지 않는다)', async () => {
+test('한도: 한도기가 실패하면 요청은 그대로 간다 (고객 요청을 한도기 고장으로 막지 않는다)', async () => {
   install();
   const CHAT_LIMIT = limiter({ throws: true });
   const res = await post('/api/chat', { category: 'sink', messages: [{ role: 'me', text: '무광 화이트' }] }, { CHAT_LIMIT });

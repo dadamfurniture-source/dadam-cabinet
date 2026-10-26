@@ -5,7 +5,7 @@
  *         브라우저가 막는다. '*' 는 한 칸만 받는다: 서브도메인 한 단계(https://*.dadam-cabinet.pages.dev) 또는 포트(http://localhost:*).
  *         CORS_ORIGINS 가 비어 있으면 아무 Origin 도 열지 않는다.
  *   한도: Workers Rate Limiting 바인딩(wrangler.toml [[ratelimits]]). 키는 사용자 id. 바인딩이 없으면(시험·로컬) 세지 않고,
- *         한도기 자체가 실패해도 요청은 그대로 보낸다 — 손님 요청을 한도기 고장으로 막지 않는다.
+ *         한도기 자체가 실패해도 요청은 그대로 보낸다 — 고객 요청을 한도기 고장으로 막지 않는다.
  *   본문: Content-Length 를 먼저 보고, 없으면 읽으면서 센다. 넘으면 413.
  */
 
