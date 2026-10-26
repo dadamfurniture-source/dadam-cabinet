@@ -63,11 +63,11 @@ describe('W10-4: 멍장 BOM — 도어는 doorW 기준 (§6)', () => {
     expect(cover.w + door.w + 4).toBe(1076);
   });
 
-  test('하부 멍 가림판 = 2.7T MDF, 멍 폭(665) − 목대 15 = 650 (§3.5)', () => {
+  test('하부 멍 가림판 = 3T MDF (2026-10-26, 예전 2.7T), 멍 폭(665) − 목대 15 = 650 (§3.5)', () => {
     const cover = blindLowerParts.find((m) => m.part === '멍가림판');
     expect(cover).toBeDefined();
     expect(cover.material).toBe('MDF');
-    expect(cover.thickness).toBe(2.7);
+    expect(cover.thickness).toBe(3);
     // W12-61: 멍판은 목대 앞에서 끝난다. 마감재 60 은 안 뺀다 — 그 위를 덮기 때문이다.
     expect(cover.w).toBe(650);
     expect(cover.h).toBe(708);
@@ -91,7 +91,7 @@ describe('W10-4: 멍장 BOM — 도어는 doorW 기준 (§6)', () => {
     const cover = blindUpperParts.find((m) => m.part === '멍가림판');
     expect(cover.w).toBe(330);
     expect(cover.h).toBe(720);
-    expect(cover.thickness).toBe(2.7);
+    expect(cover.thickness).toBe(3);
   });
 });
 
@@ -192,11 +192,11 @@ describe('W12-53: 멍장이 둘일 때도 둘 다 알아본다 (ㄷ자)', () => 
     doors.forEach((d) => expect(d.w).toBe(423 + 11));   // 옛 doorW − 4 = 419 가 나오면 회귀
   });
 
-  test('멍가림판이 둘 다 나온다 — 하나만 나오면 2.7T 한 장이 누락된다', () => {
+  test('멍가림판이 둘 다 나온다 — 하나만 나오면 3T 한 장이 누락된다', () => {
     expect(covers.length).toBe(2);
     covers.forEach((c) => {
       expect(c.material).toBe('MDF');
-      expect(c.thickness).toBe(2.7);
+      expect(c.thickness).toBe(3);
       expect(c.w).toBe(650);   // W12-69: 멍 665 − 목대 15
     });
   });
@@ -220,15 +220,15 @@ describe('W12-53: 멍장이 둘일 때도 둘 다 알아본다 (ㄷ자)', () => 
   });
 });
 
-describe('W12-54 / 2026-09-13: 경첩 목대는 ㄱ자 — 앞다리 60 + 옆다리 60, 15T × (몸통H − 2T) (2026-10-22 사장님: 천판과 지판 사이)', () => {
+describe('W12-54 / 2026-09-13 · 2026-10-26: ㄱ자 기둥 — 처짐방지 밴드 60 + 그 뒤 경첩목대 60, 15T × (몸통H − 2T) (2026-10-22 사장님: 천판과 지판 사이)', () => {
   const materials = extractMaterials(makeLItem());
   const lower = materials.filter((m) => m.module === '하부장-LT망장');
   const upper = materials.filter((m) => m.module === '상부장-LT망장');
-  const isBatten = (m) => /^경첩목대\((앞|옆)다리\)$/.test(m.part);
+  const isBatten = (m) => m.part === '밴드(처짐방지·멍장)' || m.part === '경첩목대';
 
-  test('하부 멍장에 앞다리·옆다리가 1개씩 — 15T PB · 60 × (몸통H − 2T)', () => {
+  test('하부 멍장에 처짐방지 밴드 · 경첩목대가 1개씩 — 15T PB · 60 × (몸통H − 2T)', () => {
     const legs = lower.filter(isBatten);
-    expect(legs.map((m) => m.part).sort()).toEqual(['경첩목대(앞다리)', '경첩목대(옆다리)']);
+    expect(legs.map((m) => m.part).sort()).toEqual(['경첩목대', '밴드(처짐방지·멍장)']);
     legs.forEach((b) => {
       expect(b.material).toBe('PB');
       expect(b.thickness).toBe(15);
@@ -240,7 +240,12 @@ describe('W12-54 / 2026-09-13: 경첩 목대는 ㄱ자 — 앞다리 60 + 옆다
     });
   });
 
-  test('상부 멍장도 한 벌 — 앞·옆다리 수량 1 (2026-09-13 정정: 2개는 선반이었다)', () => {
+  test('2026-10-26 사장님: 멍장에는 가운데 처짐방지 밴드(70)가 따로 없다 — ㄱ자 기둥 앞판이 처짐방지 밴드다', () => {
+    expect(lower.filter((m) => m.part === '밴드(처짐방지)')).toEqual([]);
+    expect(upper.filter((m) => m.part === '밴드(처짐방지)')).toEqual([]);
+  });
+
+  test('상부 멍장도 한 벌 — 처짐방지 밴드 · 경첩목대 수량 1 (2026-09-13 정정: 2개는 선반이었다)', () => {
     const legs = upper.filter(isBatten);
     expect(legs).toHaveLength(2);
     legs.forEach((b) => {
@@ -265,8 +270,8 @@ describe('W12-54 / 2026-09-13: 경첩 목대는 ㄱ자 — 앞다리 60 + 옆다
     if (plainUpper) expect(upperShelf.h).toBe(plainUpper.h - 75);
   });
 
-  test('옛 단일 목대(70 × H) 는 더 나오지 않는다', () => {
-    expect(materials.find((m) => m.part === '경첩목대')).toBeUndefined();
+  test('옛 단일 목대(70 × H) 는 더 나오지 않는다 — 경첩목대는 모두 60', () => {
+    expect(materials.filter((m) => m.part === '경첩목대').map((m) => m.w)).toEqual([60, 60]);
   });
 
   test('멍장이 아닌 모듈에는 안 나온다', () => {
@@ -274,8 +279,8 @@ describe('W12-54 / 2026-09-13: 경첩 목대는 ㄱ자 — 앞다리 60 + 옆다
     expect(others).toEqual([]);
   });
 
-  test('멍장이 둘이면 목대도 둘이다 (ㄷ자) — 앞·옆다리 각 2벌', () => {
-    const b = extractMaterials(makeUItem()).filter((m) => m.part === '경첩목대(옆다리)');
+  test('멍장이 둘이면 목대도 둘이다 (ㄷ자) — 처짐방지 밴드 · 경첩목대 각 2벌', () => {
+    const b = extractMaterials(makeUItem()).filter((m) => m.part === '경첩목대');
     expect(b).toHaveLength(2);
   });
 });

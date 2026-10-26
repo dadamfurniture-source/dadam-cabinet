@@ -8,6 +8,9 @@
  *   그래서 상판끼리 맞닿아도 몸통은 12 떠 보였다 — 하부장도 상부장도 같은 이유.
  *   이제 옆 라인이 그 12 를 메운다. 상판(배치 공간)은 그대로 두고 몸통만
  *   앞으로 내미는 것이라, 배치 공간 밖으로 나가는 것을 허용하되 20 을 넘지 않는다.
+ *
+ *   2026-10-26 사장님: 옆 라인 측판은 멍판 **마감재 앞면**에 닿는다. 멍 구간은 멍가림판 3T 위에
+ *   마감재 18T 가 포개져 도어 면보다 3 앞이다 → 앞선에서 9 (cornerAdjAir). 키큰장 멍판 EP 18T 는 도어 면과 같다 (12).
  */
 const { bootPlanner } = require('../test-utils/planner-harness');
 const engine = require('../js/planner/planner-engine.js');
@@ -51,18 +54,31 @@ describe('앞선 공기층은 12 다', () => {
   });
 });
 
+describe('옆 라인이 닿는 면은 멍판 마감재 앞면이다 (2026-10-26)', () => {
+  test('하부 · 상부 = 30 − (멍가림판 3 + 마감재 18) = 9 — 도어 면보다 3 앞', () => {
+    expect(R.CORNER_BLIND_COVER_T).toBe(3);
+    expect(engine.cornerAdjAir()).toBe(R.CORNER_DRIP + R.DOOR_SEAT_D - R.CORNER_BLIND_COVER_T - R.CORNER_FINISH_T);
+    expect(engine.cornerAdjAir()).toBe(9);
+    expect(engine.cornerFrontAir() - engine.cornerAdjAir()).toBe(R.CORNER_BLIND_COVER_T);
+  });
+
+  test('키큰장 멍장 = 멍판 EP 18T 한 장 → 도어 면과 같은 12', () => {
+    expect(engine.cornerAdjAir({ ep: true })).toBe(engine.cornerFrontAir());
+  });
+});
+
 describe('하부장 ㄱ자 — 몸통끼리 붙는다', () => {
   const mods = () => LSHAPE('lower', 700, 870);
 
-  test('트리밍 라인이 프라임 도어 면(688)에서 시작한다 — 예전엔 700', () => {
+  test('트리밍 라인이 프라임 멍판 마감재 앞면(691)에서 시작한다 — 예전엔 700, 도어 면 688 은 2.7 파고들었다', () => {
     const p = boot(mods()); p.g('autoCalcAllAreas')();
-    expect(adjHeadY(p)).toBe(700 - 12);
+    expect(adjHeadY(p)).toBe(700 - 9);
   });
 
-  test('밀림은 음수 — 배치 공간 밖으로 12 나간다', () => {
+  test('밀림은 음수 — 배치 공간 밖으로 9 나간다', () => {
     const p = boot(mods()); p.g('autoCalcAllAreas')();
     const off = p.g('adjCornerOffsetOf')(p.g('cornerPairs')()[0].adj.id);
-    expect(off).toMatchObject({ air: 12, need: 688, already: 700, offset: -12 });
+    expect(off).toMatchObject({ air: 9, need: 691, already: 700, offset: -9 });
   });
 
   test('원장이 맞는다 — 나간 만큼이 예약에서 빠진다', () => {
@@ -98,21 +114,21 @@ describe('민 만큼은 도어 분배가 먹는다 — 반대편이 비지 않�
     expect(farEndGap(p)).toBe(0);
   });
 
-  test('나간 12 가 모듈 폭 합에 들어간다 — 원장이 그것을 말한다', () => {
+  test('나간 9 가 모듈 폭 합에 들어간다 — 원장이 그것을 말한다', () => {
     const p = boot(mods()); p.g('autoCalcAllAreas')();
     const pair = p.g('cornerPairs')()[0];
     const L = p.g('cornerLedger')(pair.adj.id);
-    expect(L.reserved).toBe(-12);          // 예약이 음수 = 밖으로 나간 만큼
-    expect(L.sum).toBe(L.areaW + 12);      // 모듈 합이 배치 공간보다 12 크다
+    expect(L.reserved).toBe(-9);           // 예약이 음수 = 밖으로 나간 만큼
+    expect(L.sum).toBe(L.areaW + 9);       // 모듈 합이 배치 공간보다 9 크다
     expect(L.diff).toBe(0);
   });
 
   test('도어 폭이 그만큼 커진다 — 잔여로 남지 않는다', () => {
-    // 분배는 넓어진 room 을 그대로 받는다. 1500 → [1000, 500], 1512 → [1008, 504].
+    // 분배는 넓어진 room 을 그대로 받는다. 1500 → [1000, 500], 1509 → [1006, 503].
     const bare = engine.distributeModules(1500);
-    const wide = engine.distributeModules(1500 + engine.cornerFrontAir());
+    const wide = engine.distributeModules(1500 + engine.cornerAdjAir());
     expect(bare.modules.map((m) => m.w)).toEqual([1000, 500]);
-    expect(wide.modules.map((m) => m.w)).toEqual([1008, 504]);
+    expect(wide.modules.map((m) => m.w)).toEqual([1006, 503]);
     expect(bare.gap).toBe(0);
     expect(wide.gap).toBe(0);
 
@@ -120,16 +136,16 @@ describe('민 만큼은 도어 분배가 먹는다 — 반대편이 비지 않�
     const pair = p.g('cornerPairs')()[0];
     const ws = p.g('modules').filter((m) => m.areaId === pair.adj.id && !m.isFinishing)
       .map((m) => Math.round(m.W)).sort((x, y) => y - x);
-    expect(ws).toEqual([1008, 504]);
+    expect(ws).toEqual([1006, 503]);
   });
 });
 
 describe('상부장도 같은 이유로 떠 있었다 — 같이 붙는다', () => {
   const mods = () => LSHAPE('upper', 320, 780);
 
-  test('트리밍 라인이 프라임 도어 면(308)에서 시작한다', () => {
+  test('트리밍 라인이 프라임 멍판 마감재 앞면(311)에서 시작한다', () => {
     const p = boot(mods()); p.g('autoCalcAllAreas')();
-    expect(adjHeadY(p)).toBe(320 - 12);
+    expect(adjHeadY(p)).toBe(320 - 9);
   });
 
   test('겹치지 않는다', () => {

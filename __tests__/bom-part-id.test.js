@@ -110,7 +110,8 @@ describe('slot — planner-finish 7 슬롯 + back', () => {
     expect(rowsOf(rows, '#1 EP', '걸레받이').map((r) => r.slot)).toEqual(['kick', 'kick']); // 2440 넘는 벽은 나뉜다
     expect(slotOf('긴옷-좌대', '좌대 측')).toBe('kick');
     expect(slotOf('#2 하부장-LT망장', '멍가림판')).toBe('finishing');
-    expect(slotOf('#2 하부장-LT망장', '경첩목대(앞다리)')).toBe('body');
+    expect(slotOf('#2 하부장-LT망장', '밴드(처짐방지·멍장)')).toBe('body');
+    expect(slotOf('#2 하부장-LT망장', '경첩목대')).toBe('body');
     expect(slotOf('선반형', '내부서랍 전면판')).toBe('body'); // PB 내부 서랍 — 도어 뒤에 숨는다
   });
 });
