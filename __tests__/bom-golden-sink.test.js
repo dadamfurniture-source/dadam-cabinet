@@ -114,8 +114,11 @@ describe('BOM 골든 — ㄱ자 멍장 (sinkCorner)', () => {
 
   test('멍장 정면 부재가 상·하 둘 다 나오고, 마감재는 라인 마감(휠라/몰딩)을 따른다', () => {
     expect(parts('하부장-LT망장')).toEqual(expect.arrayContaining([
-      '도어', '멍가림판', '경첩목대(앞다리)', '경첩목대(옆다리)', '휠라(멍판)',
+      '도어', '멍가림판', '밴드(처짐방지·멍장)', '경첩목대', '휠라(멍판)',
     ]));
+    // 2026-10-26 사장님: 멍장에는 가운데 처짐방지 밴드가 따로 없다 — ㄱ자 기둥 앞판이 처짐방지 밴드
+    expect(parts('하부장-LT망장')).not.toContain('밴드(처짐방지)');
+    expect(parts('상부장-LT망장')).not.toContain('밴드(처짐방지)');
     expect(parts('상부장-LT망장')).toEqual(expect.arrayContaining(['도어', '멍가림판', '몰딩(멍판)']));
     expect(parts('EP')).toContain('몰딩(코너1)');
     // 멍장 도어는 doorW 기준(카카스 W 면 오발주) — 2026-09-15 결정: 목대를 덮으므로 doorW + 15 − 4 = doorW + 11

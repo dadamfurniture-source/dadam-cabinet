@@ -127,31 +127,6 @@
     },
     {
       "module": "상부장-LT망장",
-      "part": "밴드(처짐방지)",
-      "material": "PB",
-      "thickness": 15,
-      "w": 70,
-      "h": 690,
-      "qty": 1,
-      "edge": "2면(장)",
-      "note": "",
-      "finishCode": "",
-      "partId": "0-corner-blind-upper-body:brace#0-0",
-      "slot": "body",
-      "edges": {
-        "L": true,
-        "R": true,
-        "T": false,
-        "B": false
-      },
-      "edgeLen": 1380,
-      "edgeT": 0.6,
-      "edgeCode": null,
-      "moduleKey": "0-corner-blind-upper",
-      "itemLabel": "싱크대"
-    },
-    {
-      "module": "상부장-LT망장",
       "part": "선반",
       "material": "PB",
       "thickness": 15,
@@ -204,7 +179,7 @@
       "module": "상부장-LT망장",
       "part": "멍가림판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 330,
       "h": 720,
       "qty": 1,
@@ -227,14 +202,14 @@
     },
     {
       "module": "상부장-LT망장",
-      "part": "경첩목대(앞다리)",
+      "part": "밴드(처짐방지·멍장)",
       "material": "PB",
       "thickness": 15,
       "w": 60,
       "h": 690,
       "qty": 1,
       "edge": "-",
-      "note": "ㄱ자 경첩목대 앞다리 60×15T — 멍판 바로 뒤, 지판·천판(밴드) 사이 (corner.md §3.5.0)",
+      "note": "ㄱ자 기둥 앞판 = 처짐방지 밴드 60×15T — 멍판 바로 뒤, 지판·천판(밴드) 사이 (corner.md §3.5.0)",
       "finishCode": "",
       "partId": "0-corner-blind-upper-body:batten-front-0",
       "slot": "body",
@@ -252,14 +227,14 @@
     },
     {
       "module": "상부장-LT망장",
-      "part": "경첩목대(옆다리)",
+      "part": "경첩목대",
       "material": "PB",
       "thickness": 15,
       "w": 60,
       "h": 690,
       "qty": 1,
       "edge": "-",
-      "note": "ㄱ자 경첩목대 옆다리 60×15T — 도어 쪽 끝, 앞선에서 75, 지판·천판(밴드) 사이 (corner.md §3.5.0)",
+      "note": "ㄱ자 기둥 뒤판 = 경첩목대 60×15T — 처짐방지 밴드 뒷면, 도어 쪽 끝, 앞선에서 75 (corner.md §3.5.0)",
       "finishCode": "",
       "partId": "0-corner-blind-upper-body:batten-side-0",
       "slot": "body",
@@ -577,31 +552,6 @@
     },
     {
       "module": "하부장-LT망장",
-      "part": "밴드(처짐방지)",
-      "material": "PB",
-      "thickness": 15,
-      "w": 70,
-      "h": 678,
-      "qty": 1,
-      "edge": "2면(장)",
-      "note": "",
-      "finishCode": "",
-      "partId": "0-corner-blind-lower-body:brace#0-0",
-      "slot": "body",
-      "edges": {
-        "L": true,
-        "R": true,
-        "T": false,
-        "B": false
-      },
-      "edgeLen": 1356,
-      "edgeT": 0.6,
-      "edgeCode": null,
-      "moduleKey": "0-corner-blind-lower",
-      "itemLabel": "싱크대"
-    },
-    {
-      "module": "하부장-LT망장",
       "part": "선반",
       "material": "PB",
       "thickness": 15,
@@ -654,7 +604,7 @@
       "module": "하부장-LT망장",
       "part": "멍가림판",
       "material": "MDF",
-      "thickness": 2.7,
+      "thickness": 3,
       "w": 650,
       "h": 708,
       "qty": 1,
@@ -677,14 +627,14 @@
     },
     {
       "module": "하부장-LT망장",
-      "part": "경첩목대(앞다리)",
+      "part": "밴드(처짐방지·멍장)",
       "material": "PB",
       "thickness": 15,
       "w": 60,
       "h": 678,
       "qty": 1,
       "edge": "-",
-      "note": "ㄱ자 경첩목대 앞다리 60×15T — 멍판 바로 뒤, 지판·천판(밴드) 사이 (corner.md §3.5.0)",
+      "note": "ㄱ자 기둥 앞판 = 처짐방지 밴드 60×15T — 멍판 바로 뒤, 지판·천판(밴드) 사이 (corner.md §3.5.0)",
       "finishCode": "",
       "partId": "0-corner-blind-lower-body:batten-front-0",
       "slot": "body",
@@ -702,14 +652,14 @@
     },
     {
       "module": "하부장-LT망장",
-      "part": "경첩목대(옆다리)",
+      "part": "경첩목대",
       "material": "PB",
       "thickness": 15,
       "w": 60,
       "h": 678,
       "qty": 1,
       "edge": "-",
-      "note": "ㄱ자 경첩목대 옆다리 60×15T — 도어 쪽 끝, 앞선에서 75, 지판·천판(밴드) 사이 (corner.md §3.5.0)",
+      "note": "ㄱ자 기둥 뒤판 = 경첩목대 60×15T — 처짐방지 밴드 뒷면, 도어 쪽 끝, 앞선에서 75 (corner.md §3.5.0)",
       "finishCode": "",
       "partId": "0-corner-blind-lower-body:batten-side-0",
       "slot": "body",
@@ -1180,25 +1130,19 @@
     "PB_15": {
       "material": "PB",
       "thickness": 15,
-      "totalArea": 8116185,
+      "totalArea": 8020425,
       "panelCount": 3
     },
     "MDF_3": {
       "material": "MDF",
       "thickness": 3,
-      "totalArea": 2726838,
-      "panelCount": 1
+      "totalArea": 3424638,
+      "panelCount": 2
     },
     "MDF_18": {
       "material": "MDF",
       "thickness": 18,
       "totalArea": 2795673,
-      "panelCount": 1
-    },
-    "MDF_2.7": {
-      "material": "MDF",
-      "thickness": 2.7,
-      "totalArea": 697800,
       "panelCount": 1
     },
     "인조대리석_12": {
@@ -1210,7 +1154,7 @@
   },
   "edgeBanding": {
     "1": 14110,
-    "0.6": 61921
+    "0.6": 59185
   },
   "hardware": [
     {

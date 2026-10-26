@@ -103,11 +103,15 @@ const MASTER_RULES = {
   CORNER_WALL_GAP: 50,          // 멍장 측판 ↔ 코너 벽 여유 (§3.4)
   CORNER_MOLDING: 60,           // 코너 접합부 몰딩 기본값 (§3.3) — **자리**다
   // W12-61/72: 그 마감재의 **재단 폭**. 자리(60)와 다르다.
-  //   마감재는 멍가림판 2.7T MDF 를 **덮고** 붙으므로 접착면을 더 물어야 한다.
+  //   마감재는 멍가림판 3T MDF 를 **덮고** 붙으므로 접착면을 더 물어야 한다.
   //     150 = 겹침 90 + 자리 60      (W12-72: 100 → 150, 겹침 40 → 90)
   //   공식(멍 W)에는 여전히 60 만 들어간다 — 150 은 BOM 재단과 화면 표현에만 쓴다.
   //   여기를 공식에 섞으면 멍장 폭이 늘어나 원장이 깨진다.
   CORNER_FINISH_PART_W: 150,    // 멍판 마감재 재단 폭 (§3.3)
+  // 2026-10-26 사장님: 멍가림판은 **3T** (예전 2.7T). data-constants.js CORNER_BLIND_COVER_T 와 같은 값.
+  CORNER_BLIND_COVER_T: 3,      // 멍가림판 MDF 두께 (§3.5)
+  CORNER_BLIND_EP_T: 18,        // 키큰장 멍판 EP 두께 (§3.9) — 가림판 대신 EP 한 장
+  CORNER_FINISH_T: 18,          // 멍판 마감재(휠라 · 몰딩) 두께 — 멍가림판 위에 포개진다 (§3.5.1)
   // W12-68: 상부 배치 공간의 **기본** 깊이. 멍 폭은 이제 실제 배치 공간 깊이로 재므로
   //   규칙이 아니라 기본값이다 — 플래너 상부 사각형 기본 h 와 같은 320, 그리고 배치
   //   공간 개념이 없는 레거시가 상부에 쓰는 값이다 (§3.6).
@@ -294,7 +298,7 @@ function distributeModules(totalSpace) {
 // W12-66/67: 멍 구간의 **정면**에서 보이는 것 — 칸이 아니라 겹침이다.
 //
 //   벽 쪽 0 ─────────────────────────────── 도어 쪽 zoneW
-//   [ 멍가림판 2.7T (EP 면 18T)   0 .. zoneW−15 ]         ← 목대 앞에서 끝난다
+//   [ 멍가림판 3T (EP 면 18T)     0 .. zoneW−15 ]         ← 목대 앞에서 끝난다
 //                  [ 마감재 18T   zoneW−115 .. zoneW−15 ]  ← 멍판 위 · 이어서 바로 도어
 //   (목대 15 는 zoneW−15 .. zoneW 에 **모듈 안쪽**에 서는 구조재 — 도어가 그 위를 덮는다)
 //
@@ -322,6 +326,24 @@ function cornerFrontAir() {
   return Math.max(0, R.CORNER_DRIP + R.DOOR_SEAT_D - R.DOOR_T);
 }
 
+/**
+ * 배치 공간 **앞선**에서 멍장 **멍판 앞면**(마감재 · 키큰장은 EP)까지의 거리 — 옆 라인 끝판이 닿는 면.
+ * 2026-10-26 사장님 결정: 옆(트리밍된) 라인의 측판은 멍판 마감재(휠라 · 몰딩) **앞면에 닿는다**.
+ *
+ *   앞선 → 몸통 앞선 = 물끊기 10 + 도어 자리 20 = 30
+ *   하부 · 상부  멍가림판 3T + 마감재 18T = 21 앞으로  → 30 − 21 = 9   (도어 앞면보다 3 앞)
+ *   키큰장       멍판 EP 18T 한 장 (마감재 없음)      → 30 − 18 = 12  (= 도어 앞면, cornerFrontAir)
+ *
+ * 예전(W12-72)엔 도어 앞면(12)까지만 밀어 마감재가 옆 라인 측판을 2.7 파고들었다 (CAD 검산 겹침).
+ * @param {object} [o]
+ * @param {boolean} [o.ep=false]  주인이 키큰장 멍장 — 멍판이 EP 18T
+ */
+function cornerAdjAir(o) {
+  const R = MASTER_RULES;
+  const face = o && o.ep ? R.CORNER_BLIND_EP_T : R.CORNER_BLIND_COVER_T + R.CORNER_FINISH_T;
+  return Math.max(0, R.CORNER_DRIP + R.DOOR_SEAT_D - face);
+}
+
 function blindFrontLayout(zoneW, o) {
   const R = MASTER_RULES;
   const z = Math.max(0, Number(zoneW) || 0);
@@ -332,7 +354,7 @@ function blindFrontLayout(zoneW, o) {
     cover: [0, coverEnd],
     finish: ep || finW <= 0 ? null : [coverEnd - finW, coverEnd],
     doorFrom: coverEnd,            // 도어는 마감재 바로 다음부터 보인다 — 목대는 그 뒤에 숨는다
-    coverT: ep ? 18 : 2.7,
+    coverT: ep ? R.CORNER_BLIND_EP_T : R.CORNER_BLIND_COVER_T,
   };
 }
 
@@ -688,6 +710,7 @@ if (typeof window !== 'undefined') {
   window.distributeByDoorW = distributeByDoorW;
   window.blindFrontLayout = blindFrontLayout;
   window.cornerFrontAir = cornerFrontAir;   // W12-66 — 2D·3D 가 같은 좌표를 쓴다
+  window.cornerAdjAir = cornerAdjAir;       // 2026-10-26 — 옆 라인 끝판이 닿는 멍판 앞면
   window.jointSlack = jointSlack;           // W12-73
   window.spreadGapEqually = spreadGapEqually;
 }
@@ -695,6 +718,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     blindFrontLayout,
     cornerFrontAir,
+    cornerAdjAir,
     MASTER_RULES,
     getMoldingH, effectiveLegH, effectiveMoldingH,
     calcDoorCount, distributeModules, calcDefaultShelves, shelvesEvenInner,
