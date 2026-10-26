@@ -46,6 +46,8 @@ const PLANNER_ASM_FAMILIES = Object.keys(PLANNER_ASM_GROUPS).reduce((a, k) => a.
  * 상판은 ㄱ자도 품목당 한 장 발주 — 2026-10-26 사장님 확정 "ㄱ자 한 장으로 보내면 업체에서 알아서 나눔". 명세는 두 벽에 걸친 한 장을
  *   놓지 않으므로 ㄱ자 상판은 예전 그리기(배치 공간마다 한 장) 그대로 — 그림일 뿐이다 (원장은 합으로 맞춘다, ledger-diff.js splitDeclaredTop).
  * 상몰딩은 상부장 사이 빈 자리도 건너 한 장 — 2026-10-26 사장님 확정 "상부장이 있다면 위에는 상몰딩이 있다고 보면됨. 가능한 이어지게."
+ *   깊이가 같은 키큰장도 이어 덮는다 — 상부장 사이 ("깊이가 다르면 따로 함.") · 줄 끝에 붙은 것 ("잇는다.", 둘 다 2026-10-26 사장님 확정).
+ *   그 키큰장 단은 BOM 에 제 상몰딩 행이 없으므로, 상몰딩 묶음을 명세로 그릴 때 그 단의 예전 상몰딩도 끈다 (groups.molding.joined).
  */
 const PLANNER_ASM_RUN_GROUPS = {
   top: ['top'],
@@ -120,6 +122,7 @@ function plannerAssemblyRunGroupOf(family) {
  * @param {{spec, cells}} asm
  * @returns {{ groups: Object<string,{drawn:boolean, parts:Array}>, epKey:string }|null}
  *   drawn — 명세로 그린다 (예전 그리기를 끈다). 놓이지 않은 행이 있거나 호스트 모듈을 못 찾으면 false
+ *   groups.molding.joined — 상부 라인 상몰딩이 이어 덮은 키큰장 단의 플래너 id (asm.moldingJoined, 아래)
  */
 function plannerAssemblyRunsFor(asm) {
   if (!asm || !asm.spec || !asm.cells) return null;
@@ -147,6 +150,15 @@ function plannerAssemblyRunsFor(asm) {
   });
   Object.keys(groups).forEach((g) => { if (!groups[g].parts.length) groups[g].drawn = false; });
   groups.finish.drawn = false;   // D9: 도면 마감재는 플래너가 그린다 — 위 설명
+  // 2026-10-26: 상몰딩이 이어 덮은 키큰장 단 — asm.moldingJoined (plannerExportCadSpec, BOM 계획 MaterialExtractor sinkMoldingPlanOf joinedTalls).
+  //   플래너 모듈의 명세 모듈(칸)이 **모두** 이어졌을 때만 넣는다 — BOM 이 아직 상몰딩을 내는 칸이 있으면 예전 그리기를 남긴다
+  const joinedKeys = new Set(asm.moldingJoined || []);
+  const cellsOf = {};
+  Object.keys(asm.cells).forEach((mk) => {
+    const id = String(asm.cells[mk].plannerId);
+    (cellsOf[id] = cellsOf[id] || []).push(joinedKeys.has(mk));
+  });
+  groups.molding.joined = Object.keys(cellsOf).filter((id) => cellsOf[id].every(Boolean));
   return { groups, epKey };
 }
 const PLANNER_ASM_SHELF_COLOR = '#e8d8b8';

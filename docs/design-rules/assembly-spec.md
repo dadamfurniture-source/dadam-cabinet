@@ -96,8 +96,9 @@ BOM 행마다 판재 조각의 **자리**를 붙인다. 재단 치수는 BOM 행
   그 키큰장 위까지 이을까요?" "잇는다."). BOM 계획이 가장 바깥 상부장 끝 · 시작에 붙은(1mm 안) 키큰장을 같은 검사로 이으면(`joinedTalls`),
   명세는 그 라인 상부 구간을 그 키큰장 끝까지 늘린다 (이어 붙은 키큰장도). 호스트는 그대로 라인 첫 상부 모듈 — 줄 시작 키큰장이면 판재가 호스트 왼쪽으로 나간다.
   예) 상부 0 … 2700 + 키큰장 2700 … 3300 → 한 장 3300. 떨어져 선 · 다른 벽 · 깊이가 다른 키큰장은 예전처럼 건너지 않는다.
-  **플래너 3D 주의**: 키큰장 상몰딩은 모듈 행이라 늘 예전 그리기(`addCrownMolding`)다 — 이어진 키큰장(상부장 사이 · 줄 끝) 위에 명세 띠와 예전 블록이 겹쳐 그려진다.
-  이어진 키큰장의 예전 상몰딩을 끄는 것은 플래너 도메인(`mockup-structure.html`) 몫이다.
+  **플래너 3D**: 키큰장 상몰딩은 모듈 행이라 예전 그리기(`addCrownMolding`)지만, 이어진 키큰장(상부장 사이 · 줄 끝)은 그 단의 예전 블록을 끈다 —
+  상몰딩 묶음이 명세로 그려질 때 `plannerAssemblyRunsFor` 의 `groups.molding.joined`(플래너 `plannerExportCadSpec` 이 같은 계획 `sinkMoldingPlanOf` 로 낸
+  `moldingJoined`)에 든 단만. 명세 띠 한 장 = BOM 한 행, 겹쳐 그리지 않는다.
 
 모듈 `pending` 에는 자리는 정했지만 특징이 빠진 것(예: 레이아웃을 못 구한 서랍장 중간 따내기 `channel-mid-notch`)을 적는다.
 
@@ -191,7 +192,7 @@ JS 조립 검사가 맞는지 실제 CAD 커널(build123d / OCC)로 따로 확�
 - 서랍 박스는 예전 반투명 덩어리 대신 박스마다 6판 (앞·뒤 · 좌·우 · 바닥 · 박스 처짐방지, 2026-10-20 짜임). 서랍장에 BOM 선반 행이 없으면 선반을 그리지 않는다
 - 판재: 따내기 없으면 box 크기 BoxGeometry, 따내기(notch)는 윤곽에서 빼고 frame 으로 누른다. 홈(groove)은 깊이 미정(D5)이라 안 그린다
 - 메시 userData: `partId · rowPartId · key3d · assembly:true` + 원장 이름(측판 left/right · `band#k` · back · brace · shelf). 테두리 선은 `display:true`
-- 라인 부재 (PR14 정해진 것만, `plannerAssemblyRunsFor`): 걸레받이 · 상단 목찬넬 · 상몰딩을 명세 판재로 — 품목에서 그 묶음 행이 전부 놓였을 때만, 그때 예전 그리기(addToeKick · addWoodChannel(하부장) · addCrownMolding(상부장))를 끈다. 호스트 모듈과 같은 자리·회전의 형제 그룹 `assembly-runs` 에 둔다
+- 라인 부재 (PR14 정해진 것만, `plannerAssemblyRunsFor`): 걸레받이 · 상단 목찬넬 · 상몰딩을 명세 판재로 — 품목에서 그 묶음 행이 전부 놓였을 때만, 그때 예전 그리기(addToeKick · addWoodChannel(하부장) · addCrownMolding(상부장 · 상부 라인 상몰딩이 이어 덮은 키큰장 단))를 끈다. 호스트 모듈과 같은 자리·회전의 형제 그룹 `assembly-runs` 에 둔다
   - **상판도 명세로** (2026-10-24 사장님 D3 "몸통 뒤를 벽에서 띄워 설치"): 플래너 `lines` 가 모듈마다 `back` (몸통 뒷면 → 벽, `seatModuleDepth` 가 남긴 뒤 여유)을 넘기고, 명세 상판 뒤 = 벽 · 깊이 = 행 h. 배치 650 = 물끊기 10 + 도어 자리 20 + 몸통 550 + 뒤 70 이면 앞선 = 도어 앞면 + 12 — 예전 그리기(`addTopPanel`, 배치 공간 전체)와 앞뒤 · 높이가 같다 (`__tests__/planner-assembly-runs.test.js`). 하부 라인이 두 벽에 걸치면(ㄱ·ㄷ자) 한 장 상판을 못 놓아 예전 그리기
   - **좌우 마감재(휠라·몰딩·EP)는 플래너가 도면 그대로 그린다**: 2026-10-24 D9 부터 BOM 도 도면 마감재(`specs.drawnFinishes`)로 발주하므로 3D 와 발주가 같다. 명세 자리는 다음 단계(`finish-drawn-pending`)
 - 붙박이장 통 · 오픈장 · 밥솥장 (PR14b, `plannerAssemblyWholeModuleFor`): 모듈 **통째로** — 그 모듈 행이 하나도 unplaced 가 아니고 판재 종류가 모두 `PLANNER_ASM_WARDROBE_FAMILIES` / `PLANNER_ASM_OPEN_FAMILIES` 일 때만 명세, 아니면 모듈 전체 예전 그리기
