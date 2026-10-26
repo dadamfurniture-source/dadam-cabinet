@@ -8,14 +8,14 @@
  *   POST /issue-billing-key      — authKey → billingKey + 첫 과금 (인증)
  *   POST /charge                 — 수동 재시도 (인증)
  *   POST /cancel                 — 구독 취소 (인증)
- *   POST /webhook                — Toss 웹훅 (공개)
+ *   POST /webhook                — Toss 웹훅 (공개, 결제 조회 API 로 재확인)
  *
  * customerKey 규칙: `dadam-${supabase_user.id}`
  * 첫 과금: 빌링키 발급 즉시 1회차 + next_charge_at = now+30d
  */
 
 import { handleOptions, jsonResponse, corsHeaders } from './cors.js';
-import { issueBillingKey, chargeBillingKey, TossError } from './toss.js';
+import { issueBillingKey, chargeBillingKey, getPayment, TossError } from './toss.js';
 import {
   AuthError,
   DbError,
@@ -35,6 +35,21 @@ const PLAN_NAMES = {
 };
 
 const PAID_PLANS = ['expert', 'agent'];
+
+// GET /subscription 이 브라우저에 돌려주는 칸. billing.html 이 쓰는 것만 둔다.
+// billing_key 는 서버 안에서만 쓰는 값이라 넣지 않는다.
+const SUBSCRIPTION_COLUMNS = [
+  'plan',
+  'status',
+  'amount_krw',
+  'current_period_start',
+  'current_period_end',
+  'next_charge_at',
+  'cancel_at',
+].join(',');
+
+// 웹훅 본문 상한. 결제 객체 하나는 몇 KB 라 넉넉하다.
+const WEBHOOK_MAX_BYTES = 64 * 1024;
 
 function priceFor(env, plan) {
   const map = {
@@ -71,6 +86,33 @@ async function readJson(request) {
   }
 }
 
+/** 본문을 maxBytes 까지만 읽는다. 넘으면 null. */
+async function readTextLimited(request, maxBytes) {
+  const declared = parseInt(request.headers.get('Content-Length') || '0', 10);
+  if (declared > maxBytes) return null;
+  if (!request.body) return '';
+  const reader = request.body.getReader();
+  const chunks = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const buf = new Uint8Array(size);
+  let offset = 0;
+  for (const c of chunks) {
+    buf.set(c, offset);
+    offset += c.byteLength;
+  }
+  return new TextDecoder().decode(buf);
+}
+
 // ===== 핸들러 =====
 
 async function handlePlans(request, env) {
@@ -92,7 +134,7 @@ async function handleSubscription(request, env) {
   const user = await verifyJwt(request, env);
   const sub = await selectOne(env, 'subscriptions', {
     user_id: `eq.${user.id}`,
-    select: '*',
+    select: SUBSCRIPTION_COLUMNS,
     order: 'created_at.desc',
   });
   if (!sub) {
@@ -320,13 +362,66 @@ async function handleCancel(request, env) {
   });
 }
 
+// 토스 웹훅.
+//
+// 이 워커가 받는 이벤트는 PAYMENT_STATUS_CHANGED 하나다 (자동결제는 승인 때는 오지 않고,
+// 취소처럼 결제 상태가 바뀔 때 온다). 이 이벤트에는 서명 헤더가 없다
+// (tosspayments-webhook-signature 는 지급대행 payout.changed · seller.changed 에만 붙는다).
+// 그래서 본문은 믿지 않고, 본문의 paymentKey 로 결제 조회 API 를 시크릿 키로 다시 불러
+// 그 응답만 기록한다. 토스에 없는 결제거나 주문번호·금액이 다르면 401.
+//   https://docs.tosspayments.com/reference/using-api/webhook-events
+//   https://docs.tosspayments.com/guides/v2/get-started/llms-quick-reference
+//
+// 그 밖의 이벤트는 기록하지 않고 200 으로 넘긴다 — 2xx 가 아니면 토스가 최대 7회 다시 보낸다.
 async function handleWebhook(request, env) {
-  const payload = await readJson(request);
-  if (!payload) {
+  const text = await readTextLimited(request, WEBHOOK_MAX_BYTES);
+  if (text === null) {
+    return jsonResponse(request, env, { status: 'payload_too_large' }, 413);
+  }
+  let payload = null;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    payload = null;
+  }
+  if (!payload || typeof payload !== 'object') {
     return jsonResponse(request, env, { status: 'invalid_payload' }, 400);
   }
-  const eventId = payload.eventId || payload.transactionKey || crypto.randomUUID();
-  const eventType = payload.eventType || payload.status || 'unknown';
+
+  const eventType = payload.eventType;
+  if (eventType !== 'PAYMENT_STATUS_CHANGED') {
+    console.log(`Toss webhook ignored: type=${String(eventType || '-').slice(0, 64)}`);
+    return jsonResponse(request, env, { status: 'ignored' });
+  }
+
+  const posted = payload.data || {};
+  const paymentKey = posted.paymentKey;
+  if (typeof paymentKey !== 'string' || !paymentKey || paymentKey.length > 200) {
+    return jsonResponse(request, env, { status: 'invalid_payload' }, 400);
+  }
+
+  let payment;
+  try {
+    payment = await getPayment(env, paymentKey);
+  } catch (e) {
+    // 토스에 없는 결제 = 토스가 보낸 웹훅이 아니다.
+    // 그 밖의 오류(토스 장애 등)는 그대로 던져 2xx 가 아니게 한다 → 토스가 다시 보낸다.
+    if (e instanceof TossError && e.statusCode === 404) {
+      return jsonResponse(request, env, { status: 'unverified' }, 401);
+    }
+    throw e;
+  }
+  if (
+    !payment ||
+    payment.paymentKey !== paymentKey ||
+    payment.orderId !== posted.orderId ||
+    payment.totalAmount !== posted.totalAmount
+  ) {
+    return jsonResponse(request, env, { status: 'unverified' }, 401);
+  }
+
+  // 같은 결제의 같은 상태는 한 번만 남긴다. 조회한 값으로 만든다 (본문 값이 아니라).
+  const eventId = `${payment.paymentKey}:${payment.status}:${payment.lastTransactionKey || '-'}`;
 
   const existing = await selectOne(env, 'payment_events', {
     provider: 'eq.toss',
@@ -340,7 +435,7 @@ async function handleWebhook(request, env) {
     provider: 'toss',
     event_id: eventId,
     event_type: eventType,
-    payload,
+    payload: { eventType, data: payment },
   });
   console.log(`Toss webhook: type=${eventType} id=${eventId}`);
   return jsonResponse(request, env, { status: 'ok' });
