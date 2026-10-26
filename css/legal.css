@@ -1,0 +1,232 @@
+/* ============================================================
+   legal.css — 이용약관 · 개인정보처리방침 (terms.html · privacy.html)
+   v5 토큰(css/dadam-v5.css)만 쓴다. 라운드·섀도 없음, 헤어라인만.
+
+   두 페이지가 같은 모양이라 한 파일에 둔다 — 페이지마다 <style> 을 두면
+   한쪽만 고치는 날이 온다.
+   ============================================================ */
+
+/* ── 머리 ── */
+.lg-hero {
+  text-align: center;
+  padding: 56px var(--v5-px) 0;
+  background: var(--v5-paper);
+  border-bottom: 1px solid var(--v5-line-12);
+}
+.lg-eyebrow {
+  margin: 0;
+  font-weight: 300;
+  font-size: 11px;
+  letter-spacing: 0.34em;
+  padding-left: 0.34em; /* 자간이 오른쪽에만 붙어 생기는 쏠림 보정 */
+  color: var(--v5-tan);
+}
+.lg-title {
+  font-family: var(--v5-display);
+  font-weight: 300;
+  font-size: 34px;
+  margin: 14px 0 28px;
+}
+
+/* 두 문서 사이를 오가는 탭 — v5 탭과 같은 밑줄 */
+.lg-switch {
+  display: flex;
+  justify-content: center;
+  gap: 28px;
+}
+.lg-switch a {
+  padding: 0 0 14px;
+  font-weight: 400;
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  color: var(--v5-ink-55);
+  text-decoration: none;
+  transition: color 140ms ease;
+}
+.lg-switch a:hover {
+  color: var(--v5-ink);
+}
+.lg-switch a[aria-current='page'] {
+  color: var(--v5-ink);
+  box-shadow: inset 0 -1px 0 var(--v5-ink);
+}
+
+/* ── 본문 ── */
+.lg-main {
+  background: var(--v5-work);
+  padding: 48px var(--v5-px) 96px;
+}
+.lg-doc {
+  max-width: 820px;
+  margin: 0 auto;
+  background: var(--v5-card);
+  border: 1px solid var(--v5-line-card);
+  padding: 44px 48px 52px;
+  font-size: 14px;
+  line-height: 1.95;
+  color: var(--v5-ink);
+}
+
+/* 목차 */
+.lg-toc {
+  padding-bottom: 28px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--v5-line);
+}
+.lg-toc-title {
+  margin: 0 0 14px;
+  font-weight: 300;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--v5-ink-55);
+}
+.lg-toc ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px 24px;
+}
+.lg-toc a {
+  font-size: 13px;
+  color: var(--v5-ink-62);
+  text-decoration: none;
+}
+.lg-toc a:hover {
+  color: var(--v5-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 조·항목 */
+.lg-sec {
+  padding-top: 32px;
+  /* 목차에서 눌렀을 때 붙박이 헤더 밑으로 숨지 않게 */
+  scroll-margin-top: calc(var(--v5-header) + 24px);
+}
+.lg-sec h2 {
+  margin: 0 0 12px;
+  font-weight: 400;
+  font-size: 16px;
+  letter-spacing: 0.02em;
+  line-height: 1.6;
+}
+.lg-sec p {
+  margin: 0 0 10px;
+}
+.lg-sec ul,
+.lg-sec ol {
+  margin: 0 0 10px;
+  padding-left: 22px;
+}
+.lg-sec li + li {
+  margin-top: 4px;
+}
+.lg-sec a {
+  color: var(--v5-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--v5-line-25);
+  text-underline-offset: 3px;
+}
+.lg-sec a:hover {
+  text-decoration-color: currentColor;
+}
+
+/* 표 — 폰에서는 표만 옆으로 밀린다. 본문 전체가 가로로 흔들리지 않게. */
+.lg-scroll {
+  margin: 4px 0 14px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--v5-line);
+}
+.lg-scroll:focus-visible {
+  outline: 1px solid var(--v5-tan);
+  outline-offset: 2px;
+}
+.lg-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.lg-table th,
+.lg-table td {
+  padding: 10px 14px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--v5-line);
+}
+.lg-table tr:last-child td {
+  border-bottom: 0;
+}
+.lg-table th {
+  font-weight: 400;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--v5-ink-62);
+  background: var(--v5-well);
+  white-space: nowrap;
+}
+.lg-table tbody th {
+  background: none;
+  color: var(--v5-ink);
+  font-size: 13px;
+  letter-spacing: 0;
+  white-space: normal;
+}
+
+/* 회사 정보 */
+.lg-info {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 20px;
+  font-size: 13.5px;
+}
+.lg-info dt {
+  color: var(--v5-ink-62);
+}
+.lg-info dd {
+  margin: 0;
+}
+
+/* 아직 정해지지 않은 값 — 본문과 섞이지 않게 점선 상자로 표시한다 */
+.lg-blank {
+  display: inline-block;
+  padding: 0 8px;
+  border: 1px dashed var(--v5-tan);
+  background: var(--v5-well);
+  color: var(--v5-tan);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+@media (max-width: 700px) {
+  .lg-hero {
+    padding-top: 40px;
+  }
+  .lg-title {
+    font-size: 28px;
+    margin-bottom: 22px;
+  }
+  .lg-main {
+    padding: 24px 12px 64px;
+  }
+  .lg-doc {
+    padding: 28px 20px 36px;
+    font-size: 13.5px;
+  }
+  .lg-sec {
+    /* 폰 헤더는 두 줄로 접혀 더 높다 */
+    scroll-margin-top: 140px;
+  }
+  .lg-info {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .lg-info dd {
+    margin-bottom: 8px;
+  }
+}

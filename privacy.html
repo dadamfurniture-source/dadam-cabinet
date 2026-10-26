@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2D2A26" />
+    <title>개인정보처리방침 — 다담가구</title>
+    <meta name="description" content="다담가구 개인정보처리방침. 처리 목적, 항목, 보유 기간, 위탁, 이용자의 권리." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@200;300;400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/dadam-v5.css" />
+    <link rel="stylesheet" href="css/legal.css" />
+    <script src="js/config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="js/admin-access.js"></script>
+  </head>
+  <body class="v5-page">
+    <div data-site-shell="header" data-nav=""></div>
+
+    <section class="lg-hero">
+      <p class="lg-eyebrow">PRIVACY POLICY</p>
+      <h1 class="lg-title">개인정보처리방침</h1>
+      <nav class="lg-switch" aria-label="약관 문서">
+        <a href="terms.html">이용약관</a>
+        <a href="privacy.html" aria-current="page">개인정보처리방침</a>
+      </nav>
+    </section>
+
+    <main class="lg-main">
+      <article class="lg-doc">
+        <nav class="lg-toc" aria-labelledby="tocTitle">
+          <h2 class="lg-toc-title" id="tocTitle">목차</h2>
+          <ol>
+            <li><a href="#p1">1. 처리 목적</a></li>
+            <li><a href="#p2">2. 처리하는 개인정보 항목</a></li>
+            <li><a href="#p3">3. 보유 기간</a></li>
+            <li><a href="#p4">4. 파기</a></li>
+            <li><a href="#p5">5. 제3자 제공</a></li>
+            <li><a href="#p6">6. 처리 위탁과 국외 이전</a></li>
+            <li><a href="#p7">7. 이용자의 권리</a></li>
+            <li><a href="#p8">8. 만 14세 미만</a></li>
+            <li><a href="#p9">9. 안전성 확보 조치</a></li>
+            <li><a href="#p10">10. 자동으로 수집하는 정보</a></li>
+            <li><a href="#p11">11. 개인정보 보호책임자</a></li>
+            <li><a href="#p12">12. 권익 침해 구제</a></li>
+            <li><a href="#p13">13. 처리방침의 변경</a></li>
+          </ol>
+        </nav>
+
+        <section class="lg-sec" id="p1">
+          <h2>1. 처리 목적</h2>
+          <ul>
+            <li>회원 가입·로그인·본인 확인, 등급·크레딧 관리</li>
+            <li>AI 연출컷·예상 견적·상세설계 제공</li>
+            <li>상담 신청 처리와 협력업체 연결</li>
+            <li>유료 구독 결제와 정산</li>
+            <li>시공 일정·작업 관리와 확인서 발행</li>
+            <li>동의한 경우에 한해 AI 학습, 마케팅 안내</li>
+          </ul>
+        </section>
+
+        <section class="lg-sec" id="p2">
+          <h2>2. 처리하는 개인정보 항목</h2>
+          <section class="lg-scroll" tabindex="0" aria-label="처리하는 개인정보 항목">
+            <table class="lg-table">
+              <thead>
+                <tr>
+                  <th scope="col">언제</th>
+                  <th scope="col">필수 항목</th>
+                  <th scope="col">선택 항목</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">이메일 가입</th>
+                  <td>이름, 이메일, 비밀번호</td>
+                  <td>전화번호, 지역(시·도, 구·군), 알게 된 경로, 마케팅 수신 동의</td>
+                </tr>
+                <tr>
+                  <th scope="row">카카오·Google 가입</th>
+                  <td>이름, 이메일, 프로필 사진 주소, 로그인 제공자</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <th scope="row">AI 연출컷</th>
+                  <td>공간 사진</td>
+                  <td>참고 이미지, 요청 문구</td>
+                </tr>
+                <tr>
+                  <th scope="row">상담 신청</th>
+                  <td>이름, 전화번호, 이메일, 상담 제목</td>
+                  <td>상담 내용, 가구 종류, 공간, 치수, 예산, 스타일, 희망 일시</td>
+                </tr>
+                <tr>
+                  <th scope="row">시공사례 올리기</th>
+                  <td>사진</td>
+                  <td>지역, 구분, 연결할 설계</td>
+                </tr>
+                <tr>
+                  <th scope="row">유료 구독</th>
+                  <td>결제 키(토스페이먼츠 발급), 결제 기록, 이메일, 이름</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <th scope="row">업체(Expert·Agent)</th>
+                  <td>상호, 사업자등록번호</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <th scope="row">작업자 등록</th>
+                  <td>이름, 작업 종류, 지역, 동의 기록</td>
+                  <td>전화번호, 사진 촬영 동의</td>
+                </tr>
+                <tr>
+                  <th scope="row">확인서 열람·서명</th>
+                  <td>서명자 이름, 접속 IP(되돌릴 수 없게 변환해 저장), 브라우저 정보</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <th scope="row">시공 후 의견</th>
+                  <td>—</td>
+                  <td>점수, 의견</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+          <p>
+            카드 번호는 다담가구가 받거나 보관하지 않습니다. 공간 사진은 올릴 때 촬영 위치 등 사진 속 부가 정보(EXIF)를
+            지웁니다.
+          </p>
+        </section>
+
+        <section class="lg-sec" id="p3">
+          <h2>3. 보유 기간</h2>
+          <section class="lg-scroll" tabindex="0" aria-label="보유 기간">
+            <table class="lg-table">
+              <thead>
+                <tr>
+                  <th scope="col">정보</th>
+                  <th scope="col">기간</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">회원 정보, 연출컷, 공간 사진</th>
+                  <td>탈퇴하거나 회원이 지울 때까지</td>
+                </tr>
+                <tr>
+                  <th scope="row">공유 링크</th>
+                  <td>기본 30일(최대 365일), 회원이 끄면 바로</td>
+                </tr>
+                <tr>
+                  <th scope="row">확인서 링크</th>
+                  <td>14일</td>
+                </tr>
+                <tr>
+                  <th scope="row">상담 신청</th>
+                  <td>상담이 끝난 뒤 3년</td>
+                </tr>
+                <tr>
+                  <th scope="row">작업자 정보</th>
+                  <td>마지막 작업이 끝난 뒤 3년</td>
+                </tr>
+                <tr>
+                  <th scope="row">계약·청약철회, 대금 결제 기록</th>
+                  <td>5년 (전자상거래법)</td>
+                </tr>
+                <tr>
+                  <th scope="row">소비자 불만·분쟁 처리 기록</th>
+                  <td>3년 (전자상거래법)</td>
+                </tr>
+                <tr>
+                  <th scope="row">접속 기록</th>
+                  <td>3개월 (통신비밀보호법)</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+        </section>
+
+        <section class="lg-sec" id="p4">
+          <h2>4. 파기</h2>
+          <p>
+            보유 기간이 끝나거나 목적을 이루면 지체 없이 지웁니다. 전자 파일은 되살릴 수 없게 지우고, 종이 문서는
+            분쇄합니다. 법령에 따라 보관하는 정보는 따로 떼어 그 기간만 보관합니다.
+          </p>
+        </section>
+
+        <section class="lg-sec" id="p5">
+          <h2>5. 제3자 제공</h2>
+          <p>
+            다담가구는 고객 정보를 다른 회사에 자동으로 넘기지 않습니다. 상담 신청에서 「가까운 협력업체」를 고르면,
+            그때 동의를 받고 다음을 그 업체에 제공합니다.
+          </p>
+          <section class="lg-scroll" tabindex="0" aria-label="제3자 제공">
+            <table class="lg-table">
+              <thead>
+                <tr>
+                  <th scope="col">받는 곳</th>
+                  <th scope="col">목적</th>
+                  <th scope="col">항목</th>
+                  <th scope="col">보유 기간</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">고객이 고른 협력업체 (업체 이름은 연결할 때 안내)</th>
+                  <td>상담·견적·시공</td>
+                  <td>이름, 전화번호, 상담 내용, 연출컷, 예상 견적</td>
+                  <td>상담 목적을 이룰 때까지</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+        </section>
+
+        <section class="lg-sec" id="p6">
+          <h2>6. 처리 위탁과 국외 이전</h2>
+          <p>
+            서비스를 운영하려고 아래 회사에 처리를 맡깁니다. 국외 회사로는 서비스를 쓸 때마다 네트워크로 전송됩니다.
+            연출컷을 만들지 않으면 AI 회사로는 전송되지 않지만, 그 경우 연출컷 기능을 쓸 수 없습니다.
+          </p>
+          <section class="lg-scroll" tabindex="0" aria-label="처리 위탁과 국외 이전">
+            <table class="lg-table">
+              <thead>
+                <tr>
+                  <th scope="col">받는 곳</th>
+                  <th scope="col">맡기는 일</th>
+                  <th scope="col">넘어가는 정보</th>
+                  <th scope="col">나라</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Supabase</th>
+                  <td>회원 정보·사진 저장, 로그인</td>
+                  <td>회원 정보, 사진, 설계·견적</td>
+                  <td>저장 위치 대한민국(서울), 회사 미국</td>
+                </tr>
+                <tr>
+                  <th scope="row">Cloudflare</th>
+                  <td>서버 운영, 데이터 전송</td>
+                  <td>요청에 담긴 정보 전체</td>
+                  <td>미국 등</td>
+                </tr>
+                <tr>
+                  <th scope="row">Google (Gemini)</th>
+                  <td>연출컷 생성, 사진 분석, AI 채팅</td>
+                  <td>공간 사진, 참고 이미지, 요청 문구</td>
+                  <td>미국</td>
+                </tr>
+                <tr>
+                  <th scope="row">OpenAI</th>
+                  <td>연출컷 생성</td>
+                  <td>공간 사진, 참고 이미지</td>
+                  <td>미국</td>
+                </tr>
+                <tr>
+                  <th scope="row">Anthropic</th>
+                  <td>배치 분석, 안내선 생성</td>
+                  <td>공간 사진, 설계 정보</td>
+                  <td>미국</td>
+                </tr>
+                <tr>
+                  <th scope="row">토스페이먼츠</th>
+                  <td>카드 자동결제</td>
+                  <td>이름, 이메일, 결제 정보</td>
+                  <td>대한민국</td>
+                </tr>
+                <tr>
+                  <th scope="row">카카오, Google</th>
+                  <td>간편 로그인</td>
+                  <td>로그인 계정 정보</td>
+                  <td>대한민국, 미국</td>
+                </tr>
+                <tr>
+                  <th scope="row">Slack</th>
+                  <td>내부 업무 알림</td>
+                  <td>고객 이름, 설계 이름, 시공 위치, 견적 금액</td>
+                  <td>미국</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+          <p>각 회사의 보유 기간은 위탁 계약이 끝날 때까지입니다.</p>
+        </section>
+
+        <section class="lg-sec" id="p7">
+          <h2>7. 이용자의 권리</h2>
+          <ul>
+            <li>언제든 자기 정보의 열람·정정·삭제·처리 정지를 요청할 수 있습니다.</li>
+            <li>
+              <a href="mypage.html">마이페이지</a>에서 정보를 고치고 탈퇴할 수 있습니다. AI 학습 동의도 마이페이지와 내
+              연출컷에서 끌 수 있습니다.
+            </li>
+            <li>그 밖의 요청은 <a href="#p11">개인정보 보호책임자</a>에게 하시면 10일 안에 답합니다.</li>
+          </ul>
+        </section>
+
+        <section class="lg-sec" id="p8">
+          <h2>8. 만 14세 미만</h2>
+          <p>만 14세 미만 아동은 가입할 수 없습니다.</p>
+        </section>
+
+        <section class="lg-sec" id="p9">
+          <h2>9. 안전성 확보 조치</h2>
+          <ul>
+            <li>모든 전송 구간을 암호화(HTTPS)합니다.</li>
+            <li>데이터베이스의 모든 표에 행 단위 접근 제한을 켜, 회원은 자기 정보만 봅니다.</li>
+            <li>관리자 화면은 관리자 계정만 엽니다.</li>
+            <li>공유 링크 열쇠는 되돌릴 수 없게 변환해 저장합니다.</li>
+          </ul>
+        </section>
+
+        <section class="lg-sec" id="p10">
+          <h2>10. 자동으로 수집하는 정보</h2>
+          <p>
+            쿠키를 쓰지 않습니다. 로그인 유지와 화면 설정에만 브라우저 저장소를 씁니다. 확인서를 열 때는 위
+            <a href="#p2">2번</a>의 접속 정보를 남깁니다.
+          </p>
+        </section>
+
+        <section class="lg-sec" id="p11">
+          <h2>11. 개인정보 보호책임자</h2>
+          <ul>
+            <li>이름·직책: 홍찬호 · 대표</li>
+            <li>
+              연락처: <a href="tel:010-7738-6822">010&#8209;7738&#8209;6822</a> ·
+              <a href="mailto:dadamfurniture@gmail.com">dadamfurniture@gmail.com</a>
+            </li>
+          </ul>
+        </section>
+
+        <section class="lg-sec" id="p12">
+          <h2>12. 권익 침해 구제</h2>
+          <p>아래 기관에 상담이나 신고를 할 수 있습니다.</p>
+          <ul>
+            <li>개인정보분쟁조정위원회: 1833-6972</li>
+            <li>개인정보침해신고센터: 118</li>
+            <li>대검찰청 사이버수사과: 1301</li>
+            <li>경찰청 사이버수사국: 182</li>
+          </ul>
+        </section>
+
+        <section class="lg-sec" id="p13">
+          <h2>13. 처리방침의 변경</h2>
+          <p>이 방침은 아래 시행일부터 적용합니다. 바뀌면 시행 7일 전에 서비스 화면에 알립니다.</p>
+          <p><span class="lg-blank">시행일: 공개일에 정합니다</span></p>
+        </section>
+      </article>
+    </main>
+
+    <div data-site-shell="footer"></div>
+    <script src="js/site-shell.js" defer></script>
+  </body>
+</html>
