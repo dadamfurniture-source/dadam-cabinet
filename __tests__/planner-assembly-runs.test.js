@@ -134,6 +134,39 @@ describe.each([
   });
 });
 
+describe('ㄱ자 상부 — 상몰딩은 벽마다 한 장 (2026-10-26 사장님 확정 "벽을 기준으로 나눠야함.")', () => {
+  // cornerL 과 같은 ㄱ자 하부(가로 3600 · 세로 1970) 위에 상부 두 다리 — 가로 2400, 세로 1200 (회전 90). 겹친 코너에 상부 멍장이 선다
+  const layout = {
+    version: 1, savedAt: '2026-08-31T00:00:00.000Z', person: null,
+    modules: [
+      { section: 'lower', x: 0, y: 0, w: 3600, h: 650, moduleH: 870, rotation: 0, finishings: [] },
+      { section: 'lower', x: 325 - 1970 / 2, y: 1970 / 2 - 325, w: 1970, h: 650, moduleH: 870, rotation: 90, finishings: [] },
+      { section: 'upper', x: 0, y: 0, w: 2400, h: 320, moduleH: 780, rotation: 0, finishings: [] },
+      { section: 'upper', x: 160 - 1200 / 2, y: 1200 / 2 - 160, w: 1200, h: 320, moduleH: 780, rotation: 90, finishings: [] },
+    ],
+  };
+  let p, spec;
+  beforeAll(() => {
+    p = bootPlanner3D(layout, { design: 'ledger', item: 'lUpper', assembly: true });
+    spec = p.g('plannerCadSpec')().spec;
+  });
+
+  test('BOM 상몰딩 두 행 — 가로 벽 2080 (832 · 832 · 416), 세로 벽 1149 (멍장 747 + 402, 모서리는 멍장 벽 몫). 예전엔 합 3229 한 행이라 명세가 못 놓았다', () => {
+    const it = spec.items[0];
+    expect(it.runs.filter((r) => r.parts[0].part === '상몰딩').map((r) => [r.key, r.parts[0].cut.h, r.hostModuleKey]))
+      .toEqual([['0-ep-molding-0', 2080, '0-planner-upper-0-0'], ['0-ep-molding-1', 1149, '0-corner-blind-upper']]);
+    expect(spec.unplaced.filter((u) => u.part === '상몰딩')).toEqual([]);
+  });
+
+  test('3D 는 명세 판재 두 장만 그린다 — 상부 모듈마다 예전 그리기 없음 (3D = BOM)', () => {
+    const list = meshes(p, (ud) => KIND.molding(ud));
+    expect(list.map((o) => {
+      const g = o.geometry.parameters;
+      return [o.userData.rowPartId, !!o.userData.assembly, Math.round(Math.max(g.width, g.height, g.depth))];
+    })).toEqual([['0-ep-molding-0', true, 2080], ['0-ep-molding-1', true, 1149]]);
+  });
+});
+
 describe('상판 — 명세 판재가 예전 그리기(addTopPanel)와 같은 자리 (D3: 뒤 = 벽, 앞 = 배치 앞선)', () => {
   const worldBox = (o) => {
     o.updateWorldMatrix(true, false);

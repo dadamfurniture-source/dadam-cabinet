@@ -827,7 +827,7 @@ describe('라인 부재 runs[] — 상판 · 상몰딩 · 목찬넬 EP · 걸레
       expect(epOf(s)).toContainEqual(['상몰딩', 'run-layout-unknown']);
     });
 
-    test('빈 자리에 키큰장 단이 서 있으면 잇지 않는다 — 그 단이 제 상몰딩을 낸다 (sink.md §5.1). BOM 은 폭 합 그대로, 명세는 못 놓는다', () => {
+    test('빈 자리에 깊이가 다른 키큰장(550 · 상부장 295)이 서 있으면 잇지 않는다 — 그 단이 제 상몰딩을 낸다 (2026-10-26 "깊이가 다르면 따로 함.", sink.md §5.1). BOM 은 폭 합 그대로, 명세는 못 놓는다', () => {
       const item = placedItem();
       item.modules.push({ id: 't1', type: 'tall', name: '키큰장', pos: 'lower', w: GAP, h: 2190, d: 550, doorCount: 1, isDrawer: false, isEL: false,
         _place: { cx: 2300 + GAP / 2, cy: 0, w: GAP, d: 550, run: [1, 0], front: [0, 1], z0: 0, h: 2310 } });
@@ -837,6 +837,134 @@ describe('라인 부재 runs[] — 상판 · 상몰딩 · 목찬넬 EP · 걸레
       expect(epMold(materials)).toEqual([['0-ep-molding-0', 60, 3500, 1]]);
       expect(materials.filter((r) => r.part === '상몰딩' && /^0-t1-/.test(r.partId)).map((r) => [r.w, r.h])).toEqual([[60, GAP]]);   // 키큰장 제 상몰딩
       expect(epOf(s)).toContainEqual(['상몰딩', 'run-layout-unknown']);
+    });
+  });
+
+  describe('2026-10-26 사장님 확정 — 상몰딩은 벽을 기준으로 나누고 ("벽을 기준으로 나눠야함."), 상부장 사이 키큰장은 깊이가 같을 때만 잇는다 ("깊이가 다르면 따로 함.")', () => {
+    // 자리(_place)는 브리지(ui-step1 _plannerPlaceOf)처럼 평면 중심 · 진행 방향 · 앞면 방향. 몸통 뒷면이 벽이라 앞면 = 깊이.
+    //   벽 A = 앞면 [0, 1] (x 로 뻗는다), 벽 B = 앞면 [−1, 0] (y 로 뻗는다). 상부장은 z0 1530 + h 780 → 윗면 2310 (sink15 높이)
+    const placeOn = (m, wall, x, extra) => {
+      const d = Number(m.d) || 0;
+      const c = x + m.w / 2;
+      m._place = Object.assign(wall === 'B' ? { cx: -d / 2, cy: c, run: [0, 1], front: [-1, 0] } : { cx: c, cy: d / 2, run: [1, 0], front: [0, 1] },
+        { w: m.w, d, z0: 1530, h: 780 }, extra || {});
+    };
+    const sink = (drop) => {
+      const item = JSON.parse(JSON.stringify(FIXTURES.sink15));
+      item.modules = item.modules.filter((m) => (drop || []).indexOf(m.id) < 0);
+      return item;
+    };
+    const byId = (item, id) => item.modules.find((m) => m.id === id);
+    /** 하부 라인 — sink15 하부(키큰장 단 제외)를 x 0 부터 (상몰딩만 보는 시험) */
+    const lowerEntries = (item) => {
+      let x = 0;
+      return item.modules.filter((m) => m.pos === 'lower' && m.type !== 'tall').map((m) => { const e = { moduleKey: `0-${m.id}`, x0: x }; x += m.w; return e; });
+    };
+    const entries = (pairs) => pairs.map(([id, x0]) => ({ moduleKey: `0-${id}`, x0 }));
+    const specOn = (item, lines) => {
+      const design = { items: [item] };
+      const materials = new MaterialExtractor().extract(design).materials;
+      return { materials, s: Asm.of(design, { materials, lines: { 0: lines } }) };
+    };
+    const epMold = (materials) => materials.filter((r) => r.part === '상몰딩' && /^0-ep-/.test(r.partId)).map((r) => [r.partId, r.w, r.h, r.qty, r.note]);
+    const tallMold = (materials, id) => materials.filter((r) => r.part === '상몰딩' && r.moduleKey === `0-${id}`).map((r) => [r.w, r.h, r.qty]);
+    const moldRuns = (s) => s.items[0].runs.filter((r) => r.parts[0].part === '상몰딩')
+      .map((r) => [r.parts[0].id, r.lineKey, r.hostModuleKey, r.parts[0].cut.h, r.parts[0].box.min[0], r.parts[0].box.max[0]]);
+    const WALLS = '벽 2개 · 벽마다 한 장';
+    const JOINED = '키큰장 위도 이어 한 장 (깊이 같음)';
+
+    test('ㄱ자 상부 — 벽마다 한 행 (벽 A u1 900 + 후드 800 = 1700, 벽 B u2 600 + u4 1200 = 1800). 명세가 라인마다 그 라인 첫 상부장 위에 놓는다', () => {
+      const item = sink();
+      placeOn(byId(item, 'u1'), 'A', 0); placeOn(byId(item, 'u3'), 'A', 900);
+      placeOn(byId(item, 'u2'), 'B', 0); placeOn(byId(item, 'u4'), 'B', 600);
+      const { materials, s } = specOn(item, [
+        { key: 'a', D: 650, modules: lowerEntries(item).concat(entries([['u1', 0], ['u3', 900]])) },
+        { key: 'b', D: 320, modules: entries([['u2', 0], ['u4', 600]]) },
+      ]);
+      expect(epMold(materials)).toEqual([['0-ep-molding-0', 60, 1800, 1, WALLS], ['0-ep-molding-1', 60, 1700, 1, WALLS]]);
+      // 발주 길이 합은 예전 한 행(3500)과 같다 — 장 수만 벽마다
+      expect(epMold(materials).reduce((a, r) => a + r[2] * r[3], 0)).toBe(3500);
+      expect(moldRuns(s)).toEqual([
+        ['0-ep-molding-0#0', 'b', '0-u2', 1800, -300, 1500],   // 호스트 u2 600 가운데
+        ['0-ep-molding-1#0', 'a', '0-u1', 1700, -450, 1250],   // 호스트 u1 900 가운데 — 후드 800 위를 지난다
+      ]);
+      expect(epOf(s).filter((e) => e[0] === '상몰딩')).toEqual([]);
+    });
+
+    test('같은 길이의 벽은 한 행에 수량 (벽 A u1 900 + u2 600 = 1500 · 벽 B u4 1500) — 명세는 라인마다 한 장씩 (#0 · #1)', () => {
+      const item = sink(['u3']);
+      byId(item, 'u4').w = 1500;
+      placeOn(byId(item, 'u1'), 'A', 0); placeOn(byId(item, 'u2'), 'A', 900); placeOn(byId(item, 'u4'), 'B', 0);
+      const { materials, s } = specOn(item, [
+        { key: 'a', D: 650, modules: lowerEntries(item).concat(entries([['u1', 0], ['u2', 900]])) },
+        { key: 'b', D: 320, modules: entries([['u4', 0]]) },
+      ]);
+      expect(epMold(materials)).toEqual([['0-ep-molding-0', 60, 1500, 2, WALLS]]);
+      expect(moldRuns(s).map((r) => r.slice(0, 3))).toEqual([['0-ep-molding-0#0', 'a', '0-u1'], ['0-ep-molding-0#1', 'b', '0-u4']]);
+    });
+
+    // 한 벽: 상부 u1 900 · u2 600 (0 … 1500) | 키큰장 스택 600 (1500 … 2100) | u4 1200 (2100 … 3300). 후드 u3 는 뺀다.
+    //   스택 = 하부단(좌대 60) · 중간단 · 상부단(상몰딩) — 브리지처럼 단마다 모듈, 자리 z0 0 (스택 바닥) · h = 단 높이 (합 2310)
+    const tallItem = (o) => {
+      const t = Object.assign({ d: 295, frontShift: 0, hs: [870, 980, 460], molding: 60, at: 1500, u4: 2100, top: null }, o || {});
+      const item = sink(['u3']);
+      placeOn(byId(item, 'u1'), 'A', 0); placeOn(byId(item, 'u2'), 'A', 900); placeOn(byId(item, 'u4'), 'A', t.u4);
+      [{ id: 't1', heightParts: { pedestalH: 60, moldingH: 0 } }, { id: 't2', heightParts: { pedestalH: 0, moldingH: 0 } },
+        { id: 't3', heightParts: { pedestalH: 0, moldingH: t.molding } }].forEach((tier, k) => {
+        const hp = tier.heightParts;
+        const m = Object.assign({ type: 'tall', name: '키큰장', pos: 'lower', w: 600, h: t.hs[k] - hp.pedestalH - hp.moldingH, d: t.d,
+          doorCount: 1, shelfCount: 0, isDrawer: false, isEL: false, hingeSide: 'left' }, tier, k === 2 && t.top ? t.top : {});
+        placeOn(m, 'A', t.at, { z0: 0, h: t.hs[k] });
+        m._place.cy += t.frontShift;
+        item.modules.push(m);
+      });
+      const lines = [{ key: 'wall', D: 650, modules: lowerEntries(item).concat(entries([['u1', 0], ['u2', 900], ['u4', t.u4], ['t1', t.at], ['t2', t.at], ['t3', t.at]])) }];
+      return specOn(item, lines);
+    };
+
+    test('깊이가 같으면 (키큰장 295 = 상부장 295) 이어 한 장 — 0 … 3300 (상부 2700 + 키큰장 600). 키큰장 상부단은 상몰딩을 따로 내지 않고, 명세가 그 한 장을 u1 위에 놓는다', () => {
+      const { materials, s } = tallItem();
+      expect(epMold(materials)).toEqual([['0-ep-molding-0', 60, 3300, 1, JOINED]]);
+      expect(tallMold(materials, 't3')).toEqual([]);
+      expect(moldRuns(s)).toEqual([['0-ep-molding-0#0', 'wall', '0-u1', 3300, -450, 2850]]);
+      expect(epOf(s).filter((e) => e[0] === '상몰딩')).toEqual([]);
+      // 키큰장 단의 다른 부재(좌대 · 몸통 · 도어)는 그대로 — 상몰딩 한 행만 빠진다 (앞면만 달라 잇지 않은 같은 스택과 견준다)
+      const other = (mats) => mats.filter((r) => /^0-t\d$/.test(r.moduleKey) && r.part !== '상몰딩').map((r) => [r.moduleKey, r.part, r.w, r.h, r.qty]);
+      expect(other(materials)).toEqual(other(tallItem({ frontShift: 50 }).materials));
+    });
+
+    test('깊이가 다르면 따로 (키큰장 550 · 상부장 295) — 상부 라인은 폭 합 2700 한 행, 키큰장 상부단이 제 상몰딩 60 × 600 (예전과 같다)', () => {
+      const { materials, s } = tallItem({ d: 550 });
+      expect(epMold(materials)).toEqual([['0-ep-molding-0', 60, 2700, 1, '']]);
+      expect(tallMold(materials, 't3')).toEqual([[60, 600, 1]]);
+      expect(epOf(s)).toContainEqual(['상몰딩', 'run-layout-unknown']);
+    });
+
+    // 깊이는 같은데 한 장이 곧게 지나갈 수 없는 경우 — 정해지지 않았다 (사장님께 여쭐 것). 지어내지 않고 예전처럼 따로
+    test.each([
+      ['윗면 높이가 다르면 (키큰장 2210 · 상부장 2310)', { hs: [870, 880, 460] }, 60],
+      ['몰딩 높이가 다르면 (키큰장 80 · 상부 라인 60)', { molding: 80 }, 80],
+      ['앞면이 다르면 (키큰장이 벽에서 50 떠 앞면 345 · 상부장 295)', { frontShift: 50 }, 60],
+    ])('깊이가 같아도 %s 따로 — 상부 라인 2700 한 행 + 키큰장 제 상몰딩, 명세는 못 놓는다', (_, o, h) => {
+      const { materials, s } = tallItem(o);
+      expect(epMold(materials)).toEqual([['0-ep-molding-0', 60, 2700, 1, '']]);
+      expect(tallMold(materials, 't3')).toEqual([[h, 600, 1]]);
+      expect(epOf(s)).toContainEqual(['상몰딩', 'run-layout-unknown']);
+    });
+
+    test('키큰장이 상부장 사이가 아니라 끝에 서 있으면 (u4 1500 … 2700, 키큰장 2700 … 3300) 잇지 않는다 — 바깥 상부장 밖으로는 늘리지 않는다', () => {
+      const { materials, s } = tallItem({ u4: 1500, at: 2700 });
+      expect(epMold(materials)).toEqual([['0-ep-molding-0', 60, 2700, 1, '']]);
+      expect(tallMold(materials, 't3')).toEqual([[60, 600, 1]]);
+      expect(moldRuns(s).map((r) => r.slice(0, 4))).toEqual([['0-ep-molding-0#0', 'wall', '0-u1', 2700]]);
+    });
+
+    test('키큰장 상부단이 상자 모듈(오픈장)이어도 같다 — 상자 모듈을 걷어내기 전 모듈로 계획하므로 그 단의 상몰딩도 빠진다', () => {
+      const { materials, s } = tallItem({ top: { moduleKind: 'open', name: '오픈장', doorCount: 0, isOpen: true, hingeSide: undefined } });
+      expect(epMold(materials)).toEqual([['0-ep-molding-0', 60, 3300, 1, JOINED]]);
+      expect(tallMold(materials, 't3')).toEqual([]);
+      expect(materials.filter((r) => r.moduleKey === '0-t3').map((r) => r.part)).toContain('천지판');   // 오픈장 상자는 그대로
+      expect(moldRuns(s).map((r) => r.slice(0, 4))).toEqual([['0-ep-molding-0#0', 'wall', '0-u1', 3300]]);
     });
   });
 });

@@ -43,7 +43,8 @@
  *            부르는 쪽이 벽(배치 공간)마다 모듈의 x 를 넘긴다 (opts.lines) — 없으면 전부 unplaced 'run-part'.
  *            상판   하부 라인(키큰장 단 뺀 하부장 + 좌우 마감 폭) 위 한 장, 뒤 = 벽, 깊이 = 행 h (2026-10-18 사장님: 배치 깊이, 오버행 없음).
  *                   벽은 호스트 몸통 뒷면에서 lines 의 back 만큼 뒤 (2026-10-24 사장님 D3: 몸통 뒤를 벽에서 띄워 설치 — 배관 자리)
- *            상몰딩 상부 라인(후드 뺀 상부장) 위 띠 — 키큰장 상몰딩과 같은 자리 (2026-10-20 카드 "도어 앞면 맞춤")
+ *            상몰딩 상부 라인 위 띠 — 키큰장 상몰딩과 같은 자리 (2026-10-20 카드 "도어 앞면 맞춤"). 후드 자리를 넣고(2026-10-25)
+ *                   상부장 사이 빈 자리 · 깊이가 같은 키큰장 자리를 건너 벽마다 한 장 (2026-10-26 사장님 확정)
  *            목찬넬 EP (전면 52 · 지면 40 × 라인 폭) — 하부 라인 측판 따내기 70×40 자리의 ㄴ자, 키큰장 단 ㄴ자와 같은 자리
  *            걸레받이 (벽 길이 × 다리발−5) — 벽마다 하부 라인 폭 한 장, 바닥에 붙여 (틈 5 는 위, 캐쳐), 앞면 = 몸통 앞선 − 32 (2026-10-22 카드 "몸통 앞선에서 32 안쪽").
  *                   2440 넘는 벽은 2440 조각을 왼쪽부터, 남는 조각은 오른쪽 끝 (카드 "1")
@@ -1157,13 +1158,14 @@
    *   lines = [{ key, D, modules: [{ moduleKey, x0, back? }] }] — 벽(배치 공간)마다, x0 = 모듈 왼쪽 끝 (벽 시작 기준 mm).
    *     back = 모듈 몸통 뒷면에서 벽까지 (mm, 배치가 정한 뒤 여유). 없으면 0 — 몸통 뒷면이 벽.
    *   구간(span) = 그 행이 세는 모듈들 — 라인 안에서 붙어 있어야 하고(사이에 안 세는 모듈이 없음), 높이가 같아야 한다.
-   *   목찬넬 · 걸레받이는 벽마다 한 장 (목찬넬 2026-10-25 사장님 확정 — 걸레받이처럼): 행은 길이별 수량이고,
-   *   라인마다 구간 하나 — 길이가 행과 같은 구간이 행 수량만큼이어야 한다. 상판 · 상몰딩은 한 라인에만 있을 때 한 장 (상몰딩은 후드도 구간에 넣고
-   *   상부장 사이 빈 자리도 건너간다 — 2026-10-25 · 2026-10-26 사장님 확정).
-   *   행 치수가 구간과 다르면 'run-layout-unknown' (ㄱ·ㄷ자 한 장 상판, 키큰장 단을 사이에 둔 상몰딩 등).
+   *   목찬넬 · 걸레받이 · 상몰딩은 벽마다 한 장 (목찬넬 2026-10-25 · 상몰딩 2026-10-26 사장님 확정 — 걸레받이처럼): 행은 길이별 수량이고,
+   *   라인마다 구간 하나 — 길이가 행과 같은 구간이 행 수량만큼이어야 한다. 상판은 한 라인에만 있을 때 한 장.
+   *   상몰딩은 후드도 구간에 넣고 상부장 사이 빈 자리도 건너간다 — 깊이가 같은 키큰장이 선 자리도 (2026-10-25 · 2026-10-26 사장님 확정).
+   *   행 치수가 구간과 다르면 'run-layout-unknown' (ㄱ·ㄷ자 한 장 상판, 깊이가 다른 키큰장 단을 사이에 둔 상몰딩 등).
+   * @param {object} [o]  of() 의 opts — o.MaterialExtractor (플래너 iframe 은 부모 창 추출기, 상몰딩 계획 sinkMoldingPlanOf)
    * @returns {{runs:Array, unplaced:Array}}
    */
-  function runsOf(itemIdx, rows, lines, specMods, item) {
+  function runsOf(itemIdx, rows, lines, specMods, item, o) {
     const mk = `${itemIdx}-ep`;
     const runs = [], unplaced = [];
     const skip = (row, reason) => unplaced.push({ rowPartId: row.partId, moduleKey: mk, part: row.part, qty: row.qty, reason });
@@ -1223,6 +1225,18 @@
     const xOf = (span, x) => x - (span.host.x0 + span.host.spec.box.W / 2);   // 벽 x → 호스트 모듈 로컬 x
     const lowerLine = (mod) => mod.pos === 'lower' && !isTallTier(mod);
     const hasTopNotch = (e) => !!e.spec && e.spec.parts.some((p) => p.part === '측판' && (p.features || []).some((f) => f.src === 'channel-top'));
+    // 2026-10-26: 상몰딩이 이어 건너는 키큰장 단 id — BOM 과 같은 계획 (MaterialExtractor sinkMoldingPlanOf · joinedTalls).
+    //   추출기를 못 찾으면 빈 집합 — 키큰장이 선 자리는 예전처럼 건너지 않는다. 플래너 iframe 은 부모 창 추출기를 o.MaterialExtractor 로 받는다 (drawerOf 와 같다)
+    let joinedCache = null;
+    const joinedTalls = () => {
+      if (joinedCache) return joinedCache;
+      const ME = (o && o.MaterialExtractor) || root.MaterialExtractor
+        || (typeof require === 'function' ? require('./extractors.js').MaterialExtractor : null);
+      const me = ME ? new ME() : null;
+      const plan = me && typeof me.sinkMoldingPlanOf === 'function' ? me.sinkMoldingPlanOf(item) : null;
+      joinedCache = new Set(plan ? plan.joinedTalls : []);
+      return joinedCache;
+    };
 
     rows.forEach((row) => {
       const key = keyOfRow(row);
@@ -1246,14 +1260,20 @@
           //   2026-10-25 사장님 확정: "상몰딩은 후드라고 해서 구별 하지 않음" — 후드 자리(type hood, 명세 모듈 없음)도 구간에 넣는다.
           //   한 장이 후드 위를 지난다 (BOM 상몰딩 폭도 후드를 넣는다). 구간 첫 모듈(호스트)은 명세가 있어야 한다 (spanOf)
           //   2026-10-26 사장님 확정: "상부장이 있다면 위에는 상몰딩이 있다고 보면됨. 가능한 이어지게." — 상부장 사이 빈 자리(빈 벽 · 창문)도
-          //   건너 가장 바깥 상부장 두 끝 사이 한 장 (BOM extractors.js bomSinkMoldingLenOf 와 같은 길이). 빈 자리에 키큰장 단이 서 있으면
-          //   잇지 않는다 — 그 단이 제 상몰딩을 따로 낸다 (sink.md §5.1). 높이가 다른 구간 · 두 벽은 예전처럼 못 놓는다
-          if (row.qty !== 1) { skip(row, 'run-cut-blank'); return; }
-          const overTall = (ln, a, b) => ln.entries.some((e) => isTallTier(e.mod) && e.x0 < b - 1 && e.x0 + e.W > a + 1);
-          const span = onlySpan((mod) => mod.pos === 'upper', (ln, a, b) => !overTall(ln, a, b));
-          if (!span || row.h !== span.x1 - span.x0) { skip(row, 'run-layout-unknown'); return; }
-          const b = span.host.spec.box;
-          put(row, span, { o: [xOf(span, span.x0), b.H, b.D / 2], u: '+y', v: '+x', n: '+z' }, 'exterior', { run: 'molding' });
+          //   건너 가장 바깥 상부장 두 끝 사이 한 장. "깊이가 다르면 따로 함." — 빈 자리에 키큰장 단이 서 있으면 BOM 이 이은 키큰장
+          //   (깊이 같음 — sinkMoldingPlanOf joinedTalls)만 건너고, 아니면 잇지 않는다 (그 단이 제 상몰딩을 따로 낸다, sink.md §5.1).
+          //   "벽을 기준으로 나눠야함." — 두 벽(ㄱ자 상부)이면 목찬넬처럼 라인마다 한 장, 각 라인 첫 상부 모듈이 호스트 (BOM 행은 길이별 수량).
+          //   길이 = BOM extractors.js bomSinkMoldingPlanOf 와 같다. 높이가 다른 구간은 예전처럼 못 놓는다
+          const upperSpans = spansOf((mod) => mod.pos === 'upper', (ln, a, b) => ln.entries
+            .filter((e) => isTallTier(e.mod) && e.x0 < b - 1 && e.x0 + e.W > a + 1)
+            .every((e) => joinedTalls().has(String(e.mod.id))));
+          if (!upperSpans.length && row.qty !== 1) { skip(row, 'run-cut-blank'); return; }   // 붙박이장 2440 재단 장수 행 — 상부 라인이 없다
+          const mine = wallSpansFor(upperSpans, row.h, row.qty);
+          if (!mine) { skip(row, 'run-layout-unknown'); return; }
+          mine.forEach((span, k) => {
+            const b = span.host.spec.box;
+            put(row, span, { o: [xOf(span, span.x0), b.H, b.D / 2], u: '+y', v: '+x', n: '+z' }, 'exterior', { run: 'molding' }, k);
+          });
           return;
         }
         case 'channel:front':
@@ -1486,7 +1506,7 @@
       res.unplaced.forEach((u) => unplaced.push(u));
     });
     epRows.forEach((rows, itemIdx) => {
-      const r = runsOf(itemIdx, rows, o.lines && o.lines[itemIdx], outItems[itemIdx].modules, items[itemIdx]);
+      const r = runsOf(itemIdx, rows, o.lines && o.lines[itemIdx], outItems[itemIdx].modules, items[itemIdx], o);
       outItems[itemIdx].runs = r.runs;
       r.unplaced.forEach((u) => unplaced.push(u));
     });
