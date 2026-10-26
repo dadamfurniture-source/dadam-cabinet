@@ -35,6 +35,18 @@ describe('deriveCornerArea — corner.md §3.4 확정 예시', () => {
     expect(20 + r.restBudget + r.blindW + 50).toBe(1970);
   });
 
+  test('벽 띄움을 30 으로 주면 멍이 20 커지고 도어 폭은 그대로 — 띄움 + 멍 = 벽 기준 가림 폭 715 (2026-10-26)', () => {
+    const r = engine.deriveCornerArea({ ownerW: 1970, ownerD: 650, adjD: 650, epW: 20, wallGap: 30 });
+    expect(r.wallGaps).toEqual([30]);
+    expect(r.blindZoneW).toBe(685);      // 715 − 30
+    expect(r.doorW).toBe(411);           // 기본 50 일 때와 같다
+    expect(r.blindW).toBe(685 + 411);
+    expect(20 + r.restBudget + r.blindW + 30).toBe(1970);
+    // 0 도 된다 (벽에 바로 붙임) · 음수나 숫자가 아니면 기본 50
+    expect(engine.deriveCornerArea({ ownerW: 1970, ownerD: 650, adjD: 650, epW: 20, wallGap: 0 }).blindZoneW).toBe(715);
+    expect(engine.deriveCornerArea({ ownerW: 1970, ownerD: 650, adjD: 650, epW: 20, wallGap: -5 }).wallGaps).toEqual([50]);
+  });
+
   test('상부 1800 = EP 20 + 890 + 멍장 840 + 여유 50', () => {
     const r = engine.deriveCornerArea({ ownerW: 1800, ownerD: 320, adjD: 320, epW: 20, isUpper: true });
     expect(r.blindZoneW).toBe(345);      // (320 + 60 + 목대 15) − 벽여유 50 (W12-69)
@@ -331,6 +343,13 @@ describe('deriveCornerArea — 코너 둘', () => {
     const r = engine.deriveCornerArea({ ownerW: 1300, ownerD: 650, adjDs: [650, 650], epW: 0 });
     expect(r.ok).toBe(false);
     expect(r.minOwnerW).toBe(50 * 2 + 665 * 2 + 350 * 2);   // 2130
+  });
+
+  test('코너마다 띄움을 따로 줄 수 있다 — 왼쪽 30 · 오른쪽 기본 50 (2026-10-26)', () => {
+    const r = engine.deriveCornerArea({ ownerW: 2800, ownerD: 650, adjDs: [650, 650], epW: 0, wallGaps: [30, null] });
+    expect(r.wallGaps).toEqual([30, 50]);
+    expect(r.blindZoneWs).toEqual([685, 665]);
+    expect(30 + r.blindWs[0] + r.restBudget + r.blindWs[1] + 50).toBe(2800);
   });
 
   test('코너가 하나면 예전과 같은 값이다 (회귀)', () => {
