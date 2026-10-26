@@ -1415,10 +1415,14 @@
           const RC = _riceCabinetRules();
           if (RC && RC.isRiceCabinet(s)) {
             const w = Number(m.W) || 0;
-            const h = _carcassHeight(m.H, m.section, specs, s);
+            // 2026-10-26 사장님: 하부 줄에서 서랍 위에 쌓인 밥솥장 — 위에 목대 30 (상판 밑까지), 상자는 그만큼 낮다.
+            //   하부 줄 계산(걸레받이 · 상판 · 목찬넬 줄)에서는 빠진다 (stacked — 밑 서랍 모듈이 그 자리를 센다).
+            const stacked = m.section === 'lower' && m.riceBelow === 'drawer' && !!RC.RULES.LOWER_TOP_BATTEN;
+            const topBatten = stacked ? RC.RULES.LOWER_TOP_BATTEN.H : 0;
+            const h = _carcassHeight(m.H, m.section, specs, s) - topBatten;
             const d = Number(m.D) || 0;
             const door = RC.doorTypeOf(s);
-            const ctx = m.riceBelow ? { below: m.riceBelow } : {};
+            const ctx = m.riceBelow ? Object.assign({ below: m.riceBelow }, stacked ? { lowerStack: true } : {}) : {};
             (RC.warningsOf({ W: w, H: h, D: d }, ctx) || []).forEach((t) => warnings.push(`${m.id}: ${t}`));
             // 2026-10-24: 경첩으로 세는 도어(여닫이 · 포켓)는 외짝 — 경첩 방향 = 칸 열림 방향 좌 ◀ / 우 ▶ (2026-10-23 사장님 4-1 C, 셀 모듈과 같다).
             //   조립 명세가 경첩 컵 자리를 그 변에 놓는다. 방향을 모르면 붙이지 않는다 (지어내지 않는다).
@@ -1446,6 +1450,7 @@
               isEL: false,
               isFixed: !!m.isFixed,
               _x: Number(m.x) || 0,
+              ...(stacked ? { stacked: true, riceTopBatten: topBatten } : {}),
             });
             placeLast(m, 0, w);
             return;
@@ -1692,6 +1697,9 @@
             // 2026-09-16: 전면 배분식의 기준높이는 **배치(영역) 높이**다 — 플래너가 payload 에 실어 보낸다.
             //   없으면 BOM 이 totalH(모듈 전체 높이) 로 떨어진다. 옛 저장 설계가 그 경우다.
             if (Number(m.areaH) > 0) out[out.length - 1].areaH = Number(m.areaH);
+            // 2026-10-26 사장님: 위에 밥솥장이 쌓인 하부 서랍 모듈 — 그 모듈이 상단 목찬넬 부재를 내고, 상판 아래 목찬넬 줄은 이 칸에서 끊긴다.
+            //   표시가 없는 모듈은 예전 payload 그대로.
+            if (m.stackTop === 'rice' && pos === 'lower') out[out.length - 1].stackTop = 'rice';
             // 2026-09-17: 붙박이장 통 구조 — 몸통 수·선반·옷봉·서랍을 옛 필드로 옮기고 블록도 같이 싣는다.
             if (isWardrobe) {
               // 2026-09-17: 거울은 통마다 (옛 화면 hasMirror). 아직 부재로 나오지 않지만 값은 나른다.

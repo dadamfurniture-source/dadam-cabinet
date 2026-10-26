@@ -85,6 +85,8 @@
         '밥솥장 보강목':    { key: 'rice:batten',       slot: 'body' },
         '밥솥장 마이다':    { key: 'rice:front',        slot: 'body' },
         '밥솥장 추가 목대': { key: 'rice:hinge-batten', slot: 'body' },
+        // 2026-10-26 사장님: 하부 밥솥장(밑 서랍) 위 목대 30 × W × 18T 2장 — 도어 재질 · 색 (bom-rice-cabinet-rules LOWER_TOP_BATTEN)
+        '밥솥장 위 목대':   { key: 'rice:top-batten',   slot: 'door' },
         // 전면 (MDF 18T)
         '도어':            { key: 'door',             slot: 'door', indexed: true },
         '서랍도어':        { key: 'drawer',           slot: 'drawerFront', indexed: true },
@@ -1366,7 +1368,7 @@
         // 멍 폭(blindZoneW)은 corner.md §3.3 대로 세 조각을 품는다:
         //
         //     멍 W = 인접 상판 D − 물끊기 10 + 마감재 자리 60 + 목대 15
-        //     ├─ 멍가림판 2.7T MDF ─────────────┤├목대┤
+        //     ├─ 멍가림판 3T MDF ───────────────┤├목대┤
         //     ├── 보이는 MDF ──┤├─ 마감재 150 ─┤
         //
         // 두 가지를 헷갈리기 쉬워 여기 적어 둔다.
@@ -1757,11 +1759,14 @@
          *   molding  싱크: bomSinkMoldingPlanOf (빈 자리 · 후드 · 깊이가 같은 키큰장을 건너 잇는다, 깊이가 다른 키큰장 양옆은 따로).
          *            단순 상자: 상부 모듈(상자 모듈 제외)을 하부 라인처럼 벽마다 붙은 것끼리 (예전 폭 합 한 장 — 잇는 규칙은 싱크만이다).
          *   lower    걸레받이 · 목찬넬 — 하부 라인 모듈(키큰장 단 · 상자 모듈, 싱크는 쿡탑장도 뺀다 — 예전 라인 폭과 같다)을 벽마다 붙은 것끼리.
+         *            2026-10-26 사장님 (하부 밥솥장): 서랍 위에 쌓인 밥솥장(stacked)은 줄에 서지 않는다 — 밑 서랍 모듈(stackTop)이 그 자리를 센다.
+         *   channel  목찬넬 — lower 와 같은 자리를, 싱크에서는 밥솥장이 쌓인 서랍 모듈(stackTop) 칸에서 더 나눈다 (2026-10-26 사장님
+         *            "상판 아래 목찬넬은 그 칸에서 끊긴다", sink.md 하부 밥솥장). 쌓인 칸이 없으면 lower 와 같다.
          *   extract() 가 상자 모듈을 걷어내기 **전** 품목으로 한 번 세우고(_ctx.linePlan), 조립 명세(bom-assembly.js runsOf)가 같은 품목으로
          *   다시 묻는다 — 둘이 같은 조각을 쓴다. 모듈 id 로 단위를 가리키므로 3D 는 같은 모듈 경계에 이음매를 놓는다.
          * @param {object} item
          * @param {'sink'|'simple'} [kind]  카테고리 대신 정한 규칙 (extractSink · extractSimpleBox 를 문맥 없이 부를 때)
-         * @returns {{ molding: {places:Array, joinedTalls:string[]}, lower: {places:Array} } | null}
+         * @returns {{ molding: {places:Array, joinedTalls:string[]}, lower: {places:Array}, channel: {places:Array} } | null}
          */
         linePlanOf(item, kind) {
           const cat = item && (item.categoryId || item.category);
@@ -1770,13 +1775,17 @@
           const mods = ((item && item.modules) || []).filter(Boolean);
           const sink = k === 'sink';
           const lowerCounts = (m) => m.pos === 'lower' && !(sink && m.type === 'cook') && !bomTallTierOf(m) && !bomIsBoxModule(m);
-          const lower = bomPlanPlaces(bomLinePlacesOf(mods.filter((m) => m.pos === 'lower'), lowerCounts));
+          const lowerMods = mods.filter((m) => m.pos === 'lower' && !m.stacked);
+          const lower = bomPlanPlaces(bomLinePlacesOf(lowerMods, lowerCounts));
           if (sink) {
             const p = this.sinkMoldingPlanOf(Object.assign({}, item, { categoryId: 'sink' }));
-            return { molding: { places: bomPlanPlaces(p.places), joinedTalls: p.joinedTalls }, lower: { places: lower } };
+            // 목찬넬은 stackTop 칸을 세지 않는다 — 그 칸에서 자리가 나뉜다 (나뉜 자리는 깊이 예외가 아니다 — 짧으면 800 발주 · 현장 자름)
+            const channel = lowerMods.some((m) => m.stackTop)
+              ? bomPlanPlaces(bomLinePlacesOf(lowerMods, (m) => lowerCounts(m) && !m.stackTop)) : lower;
+            return { molding: { places: bomPlanPlaces(p.places), joinedTalls: p.joinedTalls }, lower: { places: lower }, channel: { places: channel } };
           }
           const uppers = bomPlanPlaces(bomLinePlacesOf(mods.filter((m) => m.pos === 'upper'), (m) => !bomIsBoxModule(m)));
-          return { molding: { places: uppers, joinedTalls: [] }, lower: { places: lower } };
+          return { molding: { places: uppers, joinedTalls: [] }, lower: { places: lower }, channel: { places: lower } };
         }
 
         /**
@@ -1900,6 +1909,10 @@
             if (door) {
               const note = `밥솥장 ${door.name} 도어` + (door.note ? ` — ${door.note}` : '');
               this.add(materials, name, '도어', 'MDF', 18, door.w, door.h, door.qty, '4면', note, mod);
+            }
+            // 2026-10-26 사장님: 하부 줄 서랍 위에 쌓인 밥솥장 — 위에 목대 30 × W × 18T 2장 (도어 색, 브리지 riceTopBatten)
+            if (mod.riceTopBatten && typeof R.topBattenPartsOf === 'function') {
+              R.topBattenPartsOf(dims.W).forEach((p) => this.add(materials, name, p.part, p.material, p.t, p.w, p.h, p.qty, p.edge, p.note || '', mod));
             }
             this.addTallStackParts(materials, name, mod, specs);
           });
@@ -2130,6 +2143,12 @@
               const doorW = Math.floor(W / doorCount) - 4;
               this.add(materials, modLabel, '도어', 'MDF', 18, doorW, H - 30, doorCount, '4면', '', mod);
             }
+            // 2026-10-26 사장님: 위에 밥솥장이 쌓인 서랍 모듈 — 상단 목찬넬이 상판 아래가 아니라 이 모듈 위(밥솥장 밑)에 선다.
+            //   하부장 상단 목찬넬과 같은 ㄴ자(전면 52 · 지면 40)를 이 모듈 폭으로 낸다 (키큰장 바닥 단과 같은 자리) — 목찬넬 줄에서는 빠진다.
+            if (mod.stackTop === 'rice' && isWoodChannel) {
+              this.add(materials, modLabel, '목찬넬(전면)', 'MDF', 18, 52, W, 1, '2면(장)', '밥솥장 밑 서랍 위 목찬넬');
+              this.add(materials, modLabel, '목찬넬(지면)', 'MDF', 18, 40, W, 1, '2면(장)', '밥솥장 밑 서랍 위 목찬넬');
+            }
           });
 
           // ===== EP (마감재) =====
@@ -2165,13 +2184,19 @@
 
           // 걸레받이 · 목찬넬 — 여기부터 하부 라인 마감. 자리마다 조각 (2026-10-26 사장님 확정, 예전 2026-10-20 카드 「꺾임에서 나누기」 2440 단위)
           //   자리 = 벽마다 붙어 있는 하부장 (쿡탑장 · 키큰장 단 · 상자 모듈 제외 — 예전 라인 폭과 같다). 사이에 키큰장이 서거나 비면 따로 (①④).
-          //   목찬넬은 걸레받이와 같은 자리 · 같은 조각 (2026-10-25 사장님 확정 "보통 벽마다 한장씩, 두장으로 나뉨" 의 벽 나누기는 그대로 든다).
+          //   목찬넬은 걸레받이와 같은 자리 · 같은 조각 (2026-10-25 사장님 확정 "보통 벽마다 한장씩, 두장으로 나뉨" 의 벽 나누기는 그대로 든다) —
+          //   밥솥장이 쌓인 서랍 모듈 칸에서만 목찬넬 자리가 더 나뉜다 (아래, 2026-10-26 하부 밥솥장).
           //   하부 모듈이 하나도 없는 옛 저장 설계만 품목 폭 − 120 한 단위 — 모듈 경계가 없어 2400 을 넘으면 [확인 필요].
           const lowerPlaces = lowerModules.length ? linePlan.lower.places
             : bomPlanPlaces([{ wall: '-', units: [{ len: effectiveW, ids: [], kind: 'item' }] }]);
           this.beginItemLevel('lower');
           if (effectiveW > 0) this.addKickBoards(materials, epLabel, lowerPlaces, legH - 5);
-          if (isWoodChannel && effectiveW > 0) this.addChannelRows(materials, epLabel, lowerPlaces);
+          // 2026-10-26 사장님 (하부 밥솥장): 상판 아래 목찬넬은 밥솥장이 쌓인 서랍 모듈(stackTop)에서 끊긴다 — 그 칸은 서랍 모듈이 제 목찬넬을
+          //   내고(위 모듈 행), 밥솥장 위 목대가 이웃 목찬넬 모양을 잇는다. 걸레받이는 그 칸을 지나 이어진다 (밑 서랍 모듈이 자리를 센다).
+          //   목찬넬 자리 = linePlanOf channel — 걸레받이 자리를 stackTop 칸에서 더 나눈 것 (쌓인 칸이 없으면 걸레받이 자리와 같다).
+          //   나뉜 자리는 「조각」 규칙 그대로다 — 깊이 때문에 나뉜 자리가 아니므로 800 보다 짧으면 800 으로 내고 현장에서 자른다.
+          const channelPlaces = lowerModules.length ? linePlan.channel.places : lowerPlaces;
+          if (isWoodChannel && effectiveW > 0) this.addChannelRows(materials, epLabel, channelPlaces);
 
           // P1-3: 상판 — 하부 라인에 한 장 (3D addTopPanel 도 배치 공간 단위 한 장이다 · W12-38).
           //   두께 = specs.topThickness — 12 · 50T 인조대리석 (2026-10-18 사장님, 예전 선택지의 18 도어자재 상판은 없앴다).
@@ -2802,7 +2827,7 @@
           // 걸레받이·목찬넬 — 다리발 위 하부 라인 (키큰장 단은 좌대가 받치므로 뺀다). 하부장이 없으면 없다.
           this.beginItemLevel('lower');
           if (effectiveW > 0) this.addKickBoards(materials, epLabel, linePlan.lower.places, legH - 5);
-          if (isWoodChannel && effectiveW > 0) this.addChannelRows(materials, epLabel, linePlan.lower.places);
+          if (isWoodChannel && effectiveW > 0) this.addChannelRows(materials, epLabel, linePlan.channel.places);
 
           // 좌·우 마감 — 2026-10-24 사장님 D9: 도면 마감재 그대로 (addDrawnFinishes). simple-categories.md §2 의 스펙 기본(Filler 60)은 발주에 쓰지 않는다.
           this.addDrawnFinishes(materials, epLabel, item);
@@ -3357,8 +3382,9 @@
           const legH = specs.sinkLegHeight || 150;
           let totalLegs = 0;
 
+          // 2026-10-26: 서랍 위에 쌓인 하부 밥솥장(stacked)은 다리발이 없다 — 밑 서랍 모듈이 다리발 위에 선다
           (item.modules || [])
-            .filter((m) => m.pos === 'lower' && !bomTallTierOf(m))
+            .filter((m) => m.pos === 'lower' && !bomTallTierOf(m) && !m.stacked)
             .forEach((mod) => {
               const w = mod.w || 600;
               if (w <= 600) totalLegs += 4;
