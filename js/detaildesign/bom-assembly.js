@@ -84,6 +84,9 @@
     || (typeof require === 'function' ? require('./bom-rice-cabinet-rules.js') : null);
   const HomecafeRules = root.DadamHomecafeRules
     || (typeof require === 'function' ? require('./bom-homecafe-rules.js') : null);
+  // 2026-10-26: 설비장(개수대 · 가스대 · 후드장) — 밴드 자리 (앞 50 눕힘 · 뒤 세움)
+  const FixtureRules = root.DadamFixtureCabinetRules
+    || (typeof require === 'function' ? require('./bom-fixture-cabinet-rules.js') : null);
   const C = AsmRules.CARCASS;
   const DR = DrawerRules.DRAWER_RULES;
 
@@ -193,12 +196,17 @@
    */
   function drawerBoxesOf(layout, rules, W, D, H, T) {
     if (!layout || !rules) return null;
-    const rail = DR.RAIL_CLEARANCE[layout.rail] || DR.RAIL_CLEARANCE[DR.RAIL_DEFAULT];
     return layout.boxes.map((b) => {
       const f = layout.fronts[b.frontIndex];
-      const dims = DrawerRules.drawerBoxDims({ W, D, bodyT: T, drawerT: rules.boxT, rail: layout.rail, boxH: b.h, sakuri: rules.sakuri });
+      // 2026-10-26 (가스대): 박스마다 레일 · 사쿠리 (칸마다 — bom-drawer-rules frontSpecs), 없으면 모듈 값 — 예전과 같다
+      const railK = b.rail || layout.rail;
+      const rail = DR.RAIL_CLEARANCE[railK] || DR.RAIL_CLEARANCE[DR.RAIL_DEFAULT];
+      const sakuri = b.sakuri != null ? !!b.sakuri : !!rules.sakuri;
+      const dims = DrawerRules.drawerBoxDims({ W, D, bodyT: T, drawerT: rules.boxT, rail: railK, boxH: b.h, sakuri });
       const zf = D / 2;
-      return { size: b.size, dims, x0: -dims.outerW / 2, y0: H - f.zone.bottom + rail.below, zf, z0: zf - dims.sideL };
+      // 속서랍은 칸 맨 위 — 윗단 = 칸 위 + 레일 위 여유 (layout b.top, 몸통 위에서 잰 값). 그 밖은 칸 바닥 + 레일 아래 여유
+      const y0 = b.inner ? H - b.top - b.h : H - f.zone.bottom + rail.below;
+      return { size: b.size, dims, x0: -dims.outerW / 2, y0, zf, z0: zf - dims.sideL, rail: railK, sakuri };
     });
   }
 
@@ -209,10 +217,28 @@
   function placeBoxRow(parts, row, key, boxes, sakuri, rows) {
     // 사쿠리 서랍 — 우라가 측판 홈(바닥에서 BOX_SAKURI_GROOVE_Y)에 끼고, 앞뒷판은 그 위에 서서 측판 윗단에 맞춘다
     const bottomT = (rows.find((r) => keyOfRow(r) && keyOfRow(r).family === 'drawerbox:bottom') || {}).thickness || 0;
-    // 행 → 박스: 전후판·측판은 같은 크기 묶음(행 번호 = 크기 등장 순), 밑판·하단보강은 박스 전부
-    const sizes = [];
-    boxes.forEach((b) => { if (sizes.indexOf(b.size) < 0) sizes.push(b.size); });
-    const mine = (key.family === 'drawerbox:fb' || key.family === 'drawerbox:side') ? boxes.filter((b) => b.size === sizes[key.n]) : boxes;
+    // 행 → 박스: 전후판·측판은 같은 박스 묶음(크기 · 레일 · 사쿠리 — 행 번호 = 묶음 등장 순), 밑판·하단보강은 밑판 치수 · 사쿠리가 같은 묶음.
+    //   BOM 행과 같은 묶음이다 (bom-drawer-rules boxGroupsOf). 박스에 레일 · 사쿠리가 없거나 모두 같으면 크기별 · 박스 전부 — 예전과 같다.
+    const skOf = (b) => (b.sakuri != null ? !!b.sakuri : sakuri);
+    const groups = [];
+    boxes.forEach((b) => {
+      const k = `${b.size}|${b.h != null ? b.h : ''}|${b.rail || ''}|${skOf(b)}`;
+      let g = groups.find((x) => x.k === k);
+      if (!g) { g = { k, boxes: [] }; groups.push(g); }
+      g.boxes.push(b);
+    });
+    const bottoms = [];
+    groups.forEach((g) => {
+      const d = g.boxes[0].dims;
+      const k = `${d.bottomW}|${d.bottomD}|${skOf(g.boxes[0])}`;
+      let bt = bottoms.find((x) => x.k === k);
+      if (!bt) { bt = { k, boxes: [] }; bottoms.push(bt); }
+      bt.boxes = bt.boxes.concat(g.boxes).sort((a, b) => boxes.indexOf(a) - boxes.indexOf(b));
+    });
+    const pick = (list) => (list[key.n] || { boxes: [] }).boxes;
+    const mine = (key.family === 'drawerbox:fb' || key.family === 'drawerbox:side') ? pick(groups)
+      : key.family === 'drawerbox:bottom' ? pick(bottoms)
+        : pick(bottoms.filter((bt) => bt.boxes[0].dims.brace));
     const per = (key.family === 'drawerbox:fb' || key.family === 'drawerbox:side') ? 2 : 1;
     const dimOk = mine.length * per === row.qty && mine.every((b) => {
       const d = b.dims;
@@ -225,6 +251,7 @@
     let k = 0;
     mine.forEach((b) => {
       const d = b.dims, t = row.thickness;
+      const sakuri = skOf(b);
       const tag = { box: boxes.indexOf(b) };
       // 우라 밑면 높이 — 일반은 박스 바닥 바로 아래, 사쿠리는 측판 홈 속
       const yBottom = sakuri ? b.y0 + DR.BOX_SAKURI_GROOVE_Y : b.y0 - bottomT;
@@ -444,6 +471,19 @@
           //   천판 대신 상단 앞·뒤에 눕는다 (70 이 앞뒤 방향, 측판 사이). 앞 밴드는 목찬넬 ㄴ자 지면판 바로 아래
           //   (프로젝트 지침 — 처짐방지목 윗끝이 앞 밴드 아랫면에 닿는다, BOM bandH = H − 2T − 70), 목찬넬이 없으면
           //   윗면 = 몸통 상단 (bandH = H − 2T). 뒤 밴드는 윗면 = 몸통 상단, 뒤끝 — 사쿠리면 천지판처럼 홈 앞(panelZ0).
+          // 2026-10-26 사장님: 개수대 · 가스대 (bom-fixture-cabinet-rules BAND) — 앞 밴드 50 은 보통 앞 밴드 자리에 눕고,
+          //   뒤 밴드 70 은 뒤끝에 선다 (70 이 높이 방향, 윗면 = 몸통 상단, 뒷면 = 천지판 뒤끝 panelZ0). 행은 앞 · 뒤 한 장씩.
+          if (FixtureRules && FixtureRules.hasStandingBackBand(mod) && row.part === '밴드' && row.qty === 1 && row.h === W - 2 * T && row.thickness === T) {
+            const gs = geomOf(row);
+            if (row.w === FixtureRules.FIXTURE_CABINET_RULES.BAND.FRONT_W) {
+              parts.push(makePart(row, 0, { o: [-W / 2 + T, gs.y0 + gs.h - gs.notch - T, zFront - row.w], u: '+z', v: '+x', n: '+y' }, [], 'interior', { end: 'front' }));
+              return;
+            }
+            if (row.w === C.BAND_W) {
+              parts.push(makePart(row, 0, { o: [-W / 2 + T, gs.y0 + gs.h - row.w, panelZ0], u: '+y', v: '+x', n: '+z' }, [], 'interior', { end: 'back', stand: true }));
+              return;
+            }
+          }
           if (row.part !== '밴드' || row.qty !== 2 || row.w !== C.BAND_W || row.h !== W - 2 * T || row.thickness !== T) { skip(row, 'band-position-pending'); return; }
           const gb = geomOf(row);   // 두 몸통이면 몸통마다 (서랍 모듈 앞 밴드는 그 위 따내기 아래)
           const yFront = gb.y0 + gb.h - gb.notch - T;
@@ -616,7 +656,7 @@
         place: (opts.place && opts.place[mk]) || null,
         parts,
         // 서랍 박스 자리 (레일 철물이 쓴다) — x0 = 박스 왼쪽 끝, y0 = 측판 밑단, zf·z0 = 앞·뒤끝
-        drawerBoxes: boxes ? boxes.map((b) => ({ x0: b.x0, y0: b.y0, zf: b.zf, z0: b.z0, outerW: b.dims.outerW, railLength: b.dims.railLength, rail: layout.rail }))
+        drawerBoxes: boxes ? boxes.map((b) => ({ x0: b.x0, y0: b.y0, zf: b.zf, z0: b.z0, outerW: b.dims.outerW, railLength: b.dims.railLength, rail: b.rail || layout.rail }))
           : rice.box ? [rice.box] : [],
         pending,
       },
@@ -1199,6 +1239,10 @@
     const isTallTier = (mod) => !!mod && (mod.type === 'tall' || mod.blindKind === 'tall');
     /** 2026-10-26: 위에 밥솥장이 쌓인 서랍 모듈의 윗면 = 서랍 + 밥솥장 + 목대 (상판이 그 위에 앉는다) — 같은 자리의 쌓인 모듈에서 읽는다 */
     const withStackTop = (entries, all) => entries.map((e) => {
+      // 2026-10-26 사장님: 후드장 — 몸통이 HOOD.CUT 짧고 밑이 올라가 윗면은 이웃 상부장과 같다 (줄 기준 윗면 = 몸통 + 올라간 만큼).
+      //   상몰딩은 호스트 몸통 윗면(b.H)에 앉으므로 같은 높이 검사만 이 값을 쓴다
+      const cut = e.spec && FixtureRules ? FixtureRules.heightCutOf(e.mod) : 0;
+      if (cut > 0) return Object.assign(e, { topH: e.spec.box.H + cut });
       if (!e.mod.stackTop || !e.spec) return e;
       const top = all.find((s) => s.mod.stacked && Math.abs(s.x0 - e.x0) <= 1);
       return Object.assign(e, { topH: e.spec.box.H + (top && top.spec ? top.spec.box.H + (Number(top.mod.riceTopBatten) || 0) : 0) });
@@ -1514,11 +1558,16 @@
         return;
       }
       if (row.category === '레일') {
-        const boxes = m.drawerBoxes || [];
+        const all = m.drawerBoxes || [];
         const len = parseFloat(row.spec);
-        if (!boxes.length) { push(m, { kind: 'rail', qty: row.qty, at: null, pending: 'rail-box-unknown' }); return; }   // 박스를 못 놓은 몸통 — 박스 자리가 없다
+        if (!all.length) { push(m, { kind: 'rail', qty: row.qty, at: null, pending: 'rail-box-unknown' }); return; }   // 박스를 못 놓은 몸통 — 박스 자리가 없다
+        // 2026-10-26 (가스대): 레일 종류마다 한 행 — 그 종류(품명)의 박스만. 어느 박스와도 이름이 안 맞으면(옛 품명 · 밥솥장 선반) 박스 전부 — 예전과 같다
+        const nameOf = (r) => (DR.RAIL_CLEARANCE[r] || DR.RAIL_CLEARANCE[DR.RAIL_DEFAULT]).name;
+        const named = all.filter((b) => nameOf(b.rail) === row.item);
+        const boxes = named.length ? named : all;
         if (boxes.length !== row.qty || !boxes.every((b) => b.railLength === len)) { push(m, { kind: 'rail', qty: row.qty, at: null, pending: 'hardware-count-mismatch' }); return; }
-        boxes.forEach((b, bi) => {
+        boxes.forEach((b) => {
+          const bi = all.indexOf(b);
           if (b.rail === 'ball') {
             // 볼레일 — 박스 측판 바깥 옆에 두께 14, 밑단 = 박스 측판 밑단 (2026-10-23 사장님 4-1 D). at x = 측판 바깥면 (레일은 거기서 밖으로 thickness)
             const t = DR.RAIL_CLEARANCE.ball.thickness;
