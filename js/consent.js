@@ -116,12 +116,14 @@
   // 동의 창 — profiles.terms_agreed_at 이 비어 있는 회원
   //   (카카오·Google 로 가입한 회원, 이 기능 전에 가입한 회원)
   //
-  //   · 로그인한 뒤 한 번, 보던 페이지 위에 창으로 띄운다.
-  //   · 동의 전에는 서비스 동작만 막는다(연출컷 시작 · 상담 신청 · 상세설계 열기). 둘러보기는 그대로.
-  //     닫으면 서비스 동작을 하려 할 때 다시 뜬다.
+  //   · 로그인한 뒤 한 번, 보던 페이지 위에 창으로 띄운다 (공용 셸 페이지 · 상담 신청 · 작업자 포털).
+  //   · 동의 전에는 서비스 동작만 막는다. 둘러보기는 그대로. 닫으면 서비스 동작을 하려 할 때 다시 뜬다.
+  //       연출컷 시작 · 상세설계 열기 · 공유 링크 만들기 · 유료 구독 결제 — 아래 SERVICE_SELECTORS (클릭을 가로챔)
+  //       상담 신청 · AI 채팅 · 시공사례 올리기 — 그 페이지가 gate.allow 로 직접 확인
   //   · 동의하면 이메일 가입과 같은 칸을 쓴다(agreePatch).
   //   · 동의하지 않거나 만 14세 미만이면 계정을 지운다 — 탈퇴와 같은 길
   //     (workers/account-api POST /delete, 본인 토큰으로 자기 계정만). 그 뒤 로그아웃.
+  //     관리자에게는 이 길을 보이지 않는다 — 동의하거나, 닫고 나중에 동의한다.
   //
   //   화면에서만 막는다. 서버(연출컷·상담 저장)는 동의 여부를 따로 보지 않는다.
   // ═══════════════════════════════════════════════════════════════
@@ -137,6 +139,9 @@
     'a[href^="detaildesign.html"]', // 상세설계로 가는 링크
     '#toPlanner', // ai-design.html 「상세설계로 가져오기」
     '[data-act="planner"]', // my-designs.html 「상세설계로」
+    '#sh', // ai-design.html 「공유」 — 공유 링크를 만든다
+    '[data-act="share"]', // my-designs.html 「공유」 — 공유 링크를 만든다
+    'button[data-plan]', // pricing.html 「이 등급으로 시작」 — 유료 구독 결제창
   ];
 
   /** 로그인 한 번에 창을 저절로 한 번만 띄운다 — 회원별 마지막 로그인 시각을 적어 둔다 */
@@ -147,6 +152,9 @@
     sb: null,
     user: null,
     required: false, // 이 페이지 자체가 서비스(상세설계)면 닫을 때 페이지를 떠난다
+    // 「동의하지 않음 → 계정 지우기」를 보여도 되는가. is_admin() 이 분명히 false 일 때만 true —
+    // 관리자이거나 확인하지 못하면 그 길을 감춘다 (관리자 계정이 지워지면 되돌릴 수 없다)
+    canDecline: false,
     resume: null, // 창을 띄운 서비스 동작 — 동의하면 이어서 한다
     el: null,
     lastFocus: null,
@@ -177,6 +185,21 @@
         .maybeSingle();
       if (error || !data) return null;
       return !data.terms_agreed_at;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * 관리자 판정 — 사이트의 정본과 같은 RPC public.is_admin() (admin_roles, js/admin-access.js 가 쓰는 것).
+   * true · false, 확인하지 못하면 null. AdminAccess.isAdmin 은 오류를 false 로 접어 버려
+   * 「관리자가 아니다」와 「모른다」를 가를 수 없으므로 RPC 를 직접 부른다.
+   */
+  async function isAdmin(sb) {
+    try {
+      const { data, error } = await sb.rpc('is_admin');
+      if (error) return null;
+      return data === true;
     } catch (e) {
       return null;
     }
@@ -213,6 +236,7 @@
     gate.state = need === null ? 'unknown' : need ? 'needed' : 'ok';
     if (gate.state !== 'needed') return gate.state;
 
+    gate.canDecline = (await isAdmin(sb)) === false;
     installGuard();
     if (gate.required) {
       open();
@@ -306,10 +330,10 @@
     '<li><label><input type="checkbox" data-k="marketing" />' +
     '<span class="dc-opt">[선택] 마케팅 정보 수신에 동의합니다.</span></label></li>' +
     '</ul>' +
-    '<p class="dc-note">만 14세 미만이면 가입할 수 없습니다. 「동의하지 않음」을 눌러 주세요.</p>' +
+    '<p class="dc-note" data-decline-only>만 14세 미만이면 가입할 수 없습니다. 「동의하지 않음」을 눌러 주세요.</p>' +
     '<p class="dc-msg" data-msg="agree" role="alert" hidden></p>' +
     '<div class="dc-actions">' +
-    '<button type="button" class="dc-btn dc-btn--ghost" data-act="decline">동의하지 않음</button>' +
+    '<button type="button" class="dc-btn dc-btn--ghost" data-act="decline" data-decline-only>동의하지 않음</button>' +
     '<button type="button" class="dc-btn" data-act="agree" disabled>동의하고 계속</button>' +
     '</div>' +
     '</div>' +
@@ -338,6 +362,11 @@
   }
 
   function showStep(step) {
+    if (step === 'decline' && !gate.canDecline) step = 'agree';
+    // 관리자(또는 확인하지 못함)에게는 「동의하지 않음 → 계정 지우기」 길을 감춘다
+    gate.el.querySelectorAll('[data-decline-only]').forEach(function (n) {
+      n.hidden = !gate.canDecline;
+    });
     q('[data-step="agree"]').hidden = step !== 'agree';
     q('[data-step="decline"]').hidden = step !== 'decline';
     q('[role="dialog"]').setAttribute(
@@ -472,10 +501,19 @@
     if (resume) resume();
   }
 
-  /** 동의하지 않음 — 회원탈퇴와 같은 워커로 본인 계정을 지우고 로그아웃 */
+  /** 동의하지 않음 — 회원탈퇴와 같은 워커로 본인 계정을 지우고 로그아웃. 관리자는 여기까지 오지 않는다 */
   async function removeAccount() {
+    if (!gate.canDecline) return;
     busy(true);
     say('decline', '');
+    // 지우기 직전에 한 번 더 — 관리자가 아님이 분명할 때만 지운다
+    if ((await isAdmin(gate.sb)) !== false) {
+      gate.canDecline = false;
+      busy(false);
+      showStep('agree');
+      say('agree', '이 계정은 여기서 지울 수 없습니다. 동의하거나 창을 닫아 주세요.');
+      return;
+    }
     try {
       const base =
         window.DADAM_CONFIG && window.DADAM_CONFIG.accountApi && window.DADAM_CONFIG.accountApi.url;
@@ -525,6 +563,7 @@
       gate.state = 'unknown';
       gate.resume = null;
       gate.required = false;
+      gate.canDecline = false;
       document.documentElement.style.overflow = '';
       gate.navigate = function (url) {
         window.location.href = url;

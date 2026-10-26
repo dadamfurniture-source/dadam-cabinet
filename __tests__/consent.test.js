@@ -241,13 +241,60 @@ describe('동의 창이 막는 서비스 동작 — 가리키는 요소가 실�
     ['[data-act="planner"]', 'my-designs.html', 'data-act="planner"'],
     ['#navDetailDesign', 'js/site-shell.js', 'id="navDetailDesign"'],
     ['a[href^="detaildesign.html"]', 'js/site-shell.js', 'href="detaildesign.html"'],
+    ['#sh', 'ai-design.html', 'id="sh"'],
+    ['[data-act="share"]', 'my-designs.html', 'data-act="share"'],
+    ['button[data-plan]', 'pricing.html', '<button type="button" class="pr-btn" data-plan="'],
   ])('%s → %s', (sel, file, needle) => {
     expect(C.gate.SERVICE_SELECTORS).toContain(sel);
     expect(read(file)).toContain(needle);
   });
 
-  test('목록에는 이 여섯 가지뿐 (연출컷 시작 · 상세설계 열기 — 상담 신청은 consultation.html 이 직접 막는다)', () => {
-    expect(C.gate.SERVICE_SELECTORS).toHaveLength(6);
+  test('목록에는 이 아홉 가지뿐 — 연출컷 시작 · 상세설계 열기 · 공유 링크 · 유료 구독 결제', () => {
+    expect(C.gate.SERVICE_SELECTORS).toHaveLength(9);
+  });
+
+  test('공유 · 결제 버튼의 처리기는 그 요소(또는 위쪽 목록)에 달려 있어 캡처 단계에서 먼저 가로챌 수 있다', () => {
+    expect(read('ai-design.html')).toMatch(/\$\('sh'\)\.onclick = /);
+    expect(read('my-designs.html')).toMatch(/else if \(act === 'share'\) share\(r\);/);
+    expect(read('pricing.html')).toMatch(/var btn = e\.target\.closest\('\[data-plan\]'\);/);
+  });
+});
+
+describe('선택자가 없는 서비스 동작은 그 페이지가 gate.allow 로 직접 막는다', () => {
+  test('AI 채팅 — ai-design.html sendChat 맨 앞 (Enter 로 보내도 같은 함수)', () => {
+    const src = read('ai-design.html');
+    const fn = src.slice(src.indexOf('async function sendChat() {'));
+    expect(fn).toMatch(
+      /^async function sendChat\(\) \{\n\s*\/\/[^\n]*\n\s*if \(window\.DadamConsent && !window\.DadamConsent\.gate\.allow\(sendChat\)\) return;/
+    );
+  });
+
+  test('시공사례 올리기 — mypage.html openCaseModal 맨 앞', () => {
+    const src = read('mypage.html');
+    const fn = src.slice(src.indexOf('function openCaseModal() {'));
+    expect(fn).toMatch(
+      /^function openCaseModal\(\) \{\n\s*\/\/[^\n]*\n\s*if \(window\.DadamConsent && !window\.DadamConsent\.gate\.allow\(openCaseModal\)\) return;/
+    );
+  });
+});
+
+describe('작업자 포털 — 같은 동의 창', () => {
+  test('worker.html 이 포털 스크립트보다 먼저 js/consent.js 를 싣는다', () => {
+    const html = read('worker.html');
+    const consentAt = html.search(/<script src="js\/consent\.js"><\/script>/);
+    expect(consentAt).toBeGreaterThan(0);
+    expect(consentAt).toBeLessThan(
+      html.search(/<script src="js\/worker-portal\.js\?v=\d+"><\/script>/)
+    );
+  });
+
+  test('js/worker-portal.js 는 로그인을 확인한 뒤 gate.start (기다리지 않는다)', () => {
+    const src = read('js/worker-portal.js');
+    const fn = src.slice(src.indexOf('async function boot() {'));
+    const startAt = fn.indexOf('window.DadamConsent.gate.start(sb, session)');
+    expect(startAt).toBeGreaterThan(fn.indexOf('showLogin();'));
+    expect(startAt).toBeLessThan(fn.indexOf('await refreshMe();'));
+    expect(fn).toMatch(/window\.DadamConsent\.gate\.start\(sb, session\)\.catch\(/);
   });
 });
 
@@ -264,10 +311,19 @@ describe('동의 창 — 동의 기록이 없는 회원', () => {
    * 가짜 Supabase. profiles 의 terms_agreed_at 을 들고 있고, update 를 받아 적는다.
    * row === 'error' 이면 select 가 오류(칸 없음)를 낸다.
    */
-  function fakeSb({ row = { terms_agreed_at: null }, updateError = null } = {}) {
-    const calls = { update: [], signOut: 0 };
+  function fakeSb({ row = { terms_agreed_at: null }, updateError = null, admin = [false] } = {}) {
+    const calls = { update: [], signOut: 0, rpc: 0 };
     const sb = {
       calls,
+      // is_admin() — admin 은 부를 때마다 차례로 쓸 답 (마지막 값이 남는다). 'error' 면 RPC 오류
+      rpc: async (name) => {
+        expect(name).toBe('is_admin');
+        const a = admin[Math.min(calls.rpc, admin.length - 1)];
+        calls.rpc++;
+        return a === 'error'
+          ? { data: null, error: { message: 'rpc failed' } }
+          : { data: a, error: null };
+      },
       from: () => ({
         select: () => ({
           eq: () => ({
@@ -518,6 +574,68 @@ describe('동의 창 — 동의 기록이 없는 회원', () => {
     $('[data-act="agree"]').click();
     await flush();
     expect(resumed).toBe(1);
+  });
+
+  test('공유 · 결제 버튼도 동의 전에는 창이 대신 뜬다', async () => {
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      '<button type="button" id="sh">공유</button>' +
+        '<div id="grid"><button type="button" class="pr-btn" data-plan="expert">이 등급으로 시작</button></div>'
+    );
+    let shared = 0;
+    let paid = 0;
+    document.getElementById('sh').onclick = () => shared++;
+    document.getElementById('grid').addEventListener('click', (e) => {
+      if (e.target.closest('[data-plan]')) paid++;
+    });
+    await C.gate.start(fakeSb(), { user: USER });
+    $('[data-act="close"]').click();
+    document.getElementById('sh').click();
+    expect(dialogOpen()).toBe(true);
+    $('[data-act="close"]').click();
+    document.querySelector('[data-plan]').click();
+    expect(dialogOpen()).toBe(true);
+    expect([shared, paid]).toEqual([0, 0]);
+  });
+
+  describe('관리자 — 동의하거나 닫을 수만 있다 (계정 지우기 길이 없다)', () => {
+    const declineShown = () =>
+      [...document.querySelectorAll('.dc-backdrop [data-decline-only]')].map((n) => !n.hidden);
+
+    test('일반 회원(is_admin = false)에게는 「동의하지 않음」과 만 14세 미만 안내가 보인다', async () => {
+      await C.gate.start(fakeSb({ admin: [false] }), { user: USER });
+      expect(declineShown()).toEqual([true, true]);
+    });
+
+    test('관리자(is_admin = true)에게는 감춘다 — 닫기와 동의만 남는다', async () => {
+      await C.gate.start(fakeSb({ admin: [true] }), { user: USER });
+      expect(declineShown()).toEqual([false, false]);
+      expect($('[data-act="close"]').hidden).toBe(false);
+      expect($('[data-act="agree"]').hidden).toBe(false);
+    });
+
+    test('관리자인지 확인하지 못해도(RPC 오류) 감춘다', async () => {
+      await C.gate.start(fakeSb({ admin: ['error'] }), { user: USER });
+      expect(declineShown()).toEqual([false, false]);
+    });
+
+    test('지우기 직전에 다시 확인해 관리자면 지우지 않는다', async () => {
+      const sb = fakeSb({ admin: [false, true] });
+      const fetched = [];
+      global.fetch = async (url) => {
+        fetched.push(url);
+        return { ok: true, json: async () => ({ success: true }) };
+      };
+      await C.gate.start(sb, { user: USER });
+      $('[data-act="decline"]').click();
+      $('[data-act="delete"]').click();
+      await flush();
+      expect(fetched).toEqual([]);
+      expect(sb.calls.signOut).toBe(0);
+      expect($('[data-step="agree"]').hidden).toBe(false);
+      expect(declineShown()).toEqual([false, false]);
+      expect($('[data-msg="agree"]').textContent).toContain('이 계정은 여기서 지울 수 없습니다');
+    });
   });
 });
 
