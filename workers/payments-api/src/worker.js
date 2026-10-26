@@ -36,6 +36,18 @@ const PLAN_NAMES = {
 
 const PAID_PLANS = ['expert', 'agent'];
 
+// GET /subscription 이 브라우저에 돌려주는 칸. billing.html 이 쓰는 것만 둔다.
+// billing_key 는 서버 안에서만 쓰는 값이라 넣지 않는다.
+const SUBSCRIPTION_COLUMNS = [
+  'plan',
+  'status',
+  'amount_krw',
+  'current_period_start',
+  'current_period_end',
+  'next_charge_at',
+  'cancel_at',
+].join(',');
+
 function priceFor(env, plan) {
   const map = {
     expert: parseInt(env.TOSS_PRICE_EXPERT_KRW || '99000', 10),
@@ -92,7 +104,7 @@ async function handleSubscription(request, env) {
   const user = await verifyJwt(request, env);
   const sub = await selectOne(env, 'subscriptions', {
     user_id: `eq.${user.id}`,
-    select: '*',
+    select: SUBSCRIPTION_COLUMNS,
     order: 'created_at.desc',
   });
   if (!sub) {
