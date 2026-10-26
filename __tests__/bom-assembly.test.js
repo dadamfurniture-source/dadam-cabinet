@@ -966,6 +966,19 @@ describe('라인 부재 runs[] — 상판 · 상몰딩 · 목찬넬 EP · 걸레
       expect(materials.filter((r) => r.moduleKey === '0-t3').map((r) => r.part)).toContain('천지판');   // 오픈장 상자는 그대로
       expect(moldRuns(s).map((r) => r.slice(0, 4))).toEqual([['0-ep-molding-0#0', 'wall', '0-u1', 3300]]);
     });
+
+    test('상자 모듈 단 하나뿐인 키큰장(통짜 오픈장, 깊이 550)이 사이에 서도 잇지 않는다 — 그 키큰장 상몰딩이 두 번 나가지 않는다', () => {
+      // 앞 커밋은 상자 모듈을 걷어낸 뒤 모듈로 셈해 이 키큰장을 못 보고 빈 자리를 건넜다 (EP 3300 + 키큰장 600 — 600 이 두 번)
+      const item = sink(['u3']);
+      placeOn(byId(item, 'u1'), 'A', 0); placeOn(byId(item, 'u2'), 'A', 900); placeOn(byId(item, 'u4'), 'A', 2100);
+      const t = { id: 't1', type: 'tall', moduleKind: 'open', name: '오픈장', isOpen: true, doorCount: 0, pos: 'lower', w: 600, h: 2190, d: 550,
+        heightParts: { pedestalH: 60, moldingH: 60 } };
+      placeOn(t, 'A', 1500, { z0: 0, h: 2310 });
+      item.modules.push(t);
+      const { materials } = specOn(item, [{ key: 'wall', D: 650, modules: lowerEntries(item).concat(entries([['u1', 0], ['u2', 900], ['u4', 2100], ['t1', 1500]])) }]);
+      expect(epMold(materials)).toEqual([['0-ep-molding-0', 60, 2700, 1, '']]);
+      expect(tallMold(materials, 't1')).toEqual([[60, 600, 1]]);
+    });
   });
 });
 
