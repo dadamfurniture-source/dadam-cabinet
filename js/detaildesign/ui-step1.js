@@ -1422,7 +1422,7 @@
             const h = _carcassHeight(m.H, m.section, specs, s) - topBatten;
             const d = Number(m.D) || 0;
             const door = RC.doorTypeOf(s);
-            const ctx = m.riceBelow ? { below: m.riceBelow } : {};
+            const ctx = m.riceBelow ? Object.assign({ below: m.riceBelow }, stacked ? { lowerStack: true } : {}) : {};
             (RC.warningsOf({ W: w, H: h, D: d }, ctx) || []).forEach((t) => warnings.push(`${m.id}: ${t}`));
             // 2026-10-24: 경첩으로 세는 도어(여닫이 · 포켓)는 외짝 — 경첩 방향 = 칸 열림 방향 좌 ◀ / 우 ▶ (2026-10-23 사장님 4-1 C, 셀 모듈과 같다).
             //   조립 명세가 경첩 컵 자리를 그 변에 놓는다. 방향을 모르면 붙이지 않는다 (지어내지 않는다).

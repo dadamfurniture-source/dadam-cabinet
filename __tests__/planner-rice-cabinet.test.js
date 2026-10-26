@@ -203,7 +203,8 @@ describe('BOM — 밥솥장', () => {
     const expected = OC.partsOf({ W: mod.w, H: mod.h, D: mod.d });
     const { materials, hardware } = extract(item);
     const rows = materials.filter((r) => String(r.module).includes('밥솥장'));
-    expect(rows.map((r) => r.part)).toEqual(['측판', '천지판', '뒷판', '밥솥장 선반', '밥솥장 보강목', '밥솥장 마이다']);
+    // 2026-10-26 사장님: 하부 줄 서랍 위 밥솥장은 위에 목대 30 × W 두 장 (도어 색) — bom-rice-cabinet-rules LOWER_TOP_BATTEN
+    expect(rows.map((r) => r.part)).toEqual(['측판', '천지판', '뒷판', '밥솥장 선반', '밥솥장 보강목', '밥솥장 마이다', '밥솥장 위 목대']);
     rows.slice(0, 3).forEach((r, i) => {
       expect([Number(r.w), Number(r.h), Number(r.qty)]).toEqual([expected[i].w, expected[i].h, expected[i].qty]);
       expect(r.note || '').not.toMatch(/확인 필요/);
@@ -211,7 +212,7 @@ describe('BOM — 밥솥장', () => {
     expect(rows.every((r) => r.material === 'MDF' && Number(r.thickness) === 18)).toBe(true);
     // 내경 414 (450 − 36) · 레일 500 (깊이 570 − 50 이하 최대)
     expect(rows.slice(3).map((r) => [r.part, Number(r.w), Number(r.h), Number(r.qty)])).toEqual([
-      ['밥솥장 선반', 414 - 42 + 30, 490, 1], ['밥솥장 보강목', 80, 490, 2], ['밥솥장 마이다', 414 - 5, 95, 1]]);
+      ['밥솥장 선반', 414 - 42 + 30, 490, 1], ['밥솥장 보강목', 80, 490, 2], ['밥솥장 마이다', 414 - 5, 95, 1], ['밥솥장 위 목대', 30, 450, 2]]);
     const mine = hardware.filter((h) => h.module === '밥솥장');
     expect(mine.map((h) => `${h.category} ${h.item} ${h.spec} ×${h.qty}`)).toEqual(['레일 문주 언더레일 500mm ×1']);
   });
@@ -223,7 +224,7 @@ describe('BOM — 밥솥장', () => {
     const { materials, hardware } = extract(item);
     const rows = materials.filter((r) => String(r.module).includes('밥솥장'));
     // 2026-10-25 사장님: 도어가 달리면 일반 장 몸통 (PB 몸통 두께) + 같은 PB 슬라이딩 선반 + 여닫이 추가 목대
-    expect(rows.map((r) => r.part)).toEqual(['측판', '지판', '밴드', '뒷판', '밥솥장 선반', '밥솥장 보강목', '밥솥장 마이다', '밥솥장 추가 목대', '도어']);
+    expect(rows.map((r) => r.part)).toEqual(['측판', '지판', '밴드', '뒷판', '밥솥장 선반', '밥솥장 보강목', '밥솥장 마이다', '밥솥장 추가 목대', '도어', '밥솥장 위 목대']);
     expect(rows.slice(0, 3).concat(rows.slice(4, 8)).every((r) => r.material === 'PB' && Number(r.thickness) === 15)).toBe(true);
     // 여닫이 — 경첩 쪽 레일이 추가 목대(15T)에 붙어 선반 · 마이다 내경은 목대 면부터 (2026-10-25 사장님)
     const inner = mod.w - 30 - 15;
@@ -240,7 +241,7 @@ describe('BOM — 밥솥장', () => {
 
     const without = new (require(path.join(ROOT, 'js/detaildesign/extractors.js')).MaterialExtractor)()
       .extract({ items: [Object.assign({}, item, { modules: item.modules.filter((m) => m.moduleKind !== 'rice') })] });
-    expect(materials.length - without.materials.length).toBe(9);
+    expect(materials.length - without.materials.length).toBe(10);   // 9 + 밥솥장 위 목대 (2026-10-26)
   });
 
   test('리프트면 경첩 대신 가변철물 1 SET, 포켓은 도어 비고에 철물 [확인 필요]', () => {

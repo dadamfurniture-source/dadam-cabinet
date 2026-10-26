@@ -4,7 +4,8 @@
  * 하부 밥솥장 (밑 서랍) — 2026-10-26 사장님 결정.
  *
  *   하부 줄에 서랍 모듈 위에 밥솥장 상자를 쌓는다 — 둘은 따로 만든 모듈이다.
- *     몸통 708 = 서랍 모듈 178 + 밥솥장 500 + 목대 30   (밥솥장 윗면 = 이웃 하부장 도어 윗선 828)
+ *     몸통 708 = 서랍 모듈 250 (기본) + 밥솥장 428 (남는 높이) + 목대 30   (밥솥장 윗면 = 이웃 하부장 도어 윗선 828)
+ *     하부 밥솥장 최소 내경 높이 392 — 들어가는 밥솥 높이 = 내경 − 선반 · 레일 약 70
  *   서랍 모듈   서랍 1칸 · 위는 하부장 상단 목찬넬과 같다 (따내기 70×40 · 목찬넬 전면 52 + 지면 40 — 그 모듈의 부재)
  *   밥솥장 위   목대 30 × W × 18T 2장, 도어 색 — 앞(몸통 앞선에서 22 안쪽) · 뒤
  *   상판 아래 목찬넬 줄은 그 칸에서 끊긴다 · 걸레받이 · 상판은 이어진다 (밑 서랍 모듈이 그 자리를 센다)
@@ -30,12 +31,12 @@ const rice = (door, dir) => ({
   legH: 0, shelves: [], rice: { door },
 });
 
-/** 하부 줄: 2도어 600 · [서랍 178 + 밥솥장 500 + 목대 30] 450 · 2도어 600 */
-function line(door, dir) {
+/** 하부 줄: 2도어 600 · [서랍 drawerH + 밥솥장 (708 − drawerH − 30) + 목대 30] 450 · 2도어 600 */
+function line(door, dir, drawerH = RR.RULES.LOWER_STACK.DRAWER_H) {
   const modules = [
     { id: 'l0', section: 'lower', W: 600, H: 870, D, x: 0, y: BACK, areaH: 870 },
-    { id: 'd1', section: 'lower', W: 450, H: 150 + 178, D, x: 600, y: BACK, areaH: 150 + 178, stackTop: 'rice' },
-    { id: 'r1', section: 'lower', W: 450, H: 500 + 30 + 12, D, x: 600, y: BACK, areaH: 870, riceBelow: 'drawer' },
+    { id: 'd1', section: 'lower', W: 450, H: 150 + drawerH, D, x: 600, y: BACK, areaH: 150 + drawerH, stackTop: 'rice' },
+    { id: 'r1', section: 'lower', W: 450, H: (708 - drawerH - 30) + 30 + 12, D, x: 600, y: BACK, areaH: 870, riceBelow: 'drawer' },
     { id: 'l2', section: 'lower', W: 600, H: 870, D, x: 1050, y: BACK, areaH: 870 },
   ];
   const structures = { l0: door2(600), d1: drawer1(), r1: rice(door, dir), l2: door2(600) };
@@ -53,17 +54,27 @@ function line(door, dir) {
 }
 
 describe('브리지 — 쌓인 밥솥장 · 밑 서랍', () => {
-  test('밥솥장 몸통 = 542 − 상판 12 − 목대 30 = 500, stacked · riceTopBatten · 경고 없음', () => {
+  test('밥솥장 몸통 = 470 − 상판 12 − 목대 30 = 428 (내경 392 = 하부 밥솥장 최소), stacked · riceTopBatten · 경고 없음', () => {
     const { conv } = line('none');
     const r = conv.modules.find((m) => m.moduleKind === 'rice');
-    expect([r.h, r.stacked, r.riceTopBatten]).toEqual([500, true, 30]);
+    expect([r.h, r.stacked, r.riceTopBatten]).toEqual([428, true, 30]);
     expect(conv.warnings.filter((w) => /밥솥장/.test(w))).toEqual([]);
   });
 
-  test('밑 서랍 모듈 = 328 − 다리 150 − 상판 0 = 178, stackTop rice', () => {
+  test('서랍을 260 으로 키우면 밥솥장 418 · 내경 382 — 하부 밥솥장 최소 392 경고', () => {
+    const { conv } = line('none', 'left', 260);
+    expect(conv.warnings.filter((w) => /밥솥장 내경 높이 382 가 최소 392/.test(w)).length).toBe(1);
+  });
+
+  test('키큰장 · 단독 밥솥장은 최소 400 그대로 (하부 쌓기만 392)', () => {
+    expect(RR.warningsOf({ W: 450, H: 428, D: 550 }, { below: 'drawer' }).some((w) => /최소 400/.test(w))).toBe(true);
+    expect(RR.warningsOf({ W: 450, H: 428, D: 550 }, { below: 'drawer', lowerStack: true })).toEqual([]);
+  });
+
+  test('밑 서랍 모듈 = 400 − 다리 150 − 상판 0 = 250, stackTop rice', () => {
     const { conv, key } = line('none');
     const d = conv.modules.find((m) => m.id === key('d1'));
-    expect([d.h, d.stackTop, d.drawerLayout, d.drawerCount]).toEqual([178, 'rice', 'all', 1]);
+    expect([d.h, d.stackTop, d.drawerLayout, d.drawerCount]).toEqual([250, 'rice', 'all', 1]);
   });
 
   test('표시가 없는 하부 모듈은 예전 payload 그대로 (stackTop · stacked 없음)', () => {
@@ -75,12 +86,14 @@ describe('브리지 — 쌓인 밥솥장 · 밑 서랍', () => {
 });
 
 describe('BOM', () => {
-  test('밑 서랍: 서랍 앞판 1장 446 × 148 (몸통 178 − 상단 슬롯 30) · 그 모듈의 목찬넬 전면 52 + 지면 40 · 측판 따내기', () => {
+  test('밑 서랍: 서랍 앞판 1장 446 × 220 (몸통 250 − 상단 슬롯 30) · 박스 소 75 · 그 모듈의 목찬넬 전면 52 + 지면 40 · 측판 따내기', () => {
     const { materials } = line('none');
     const rows = materials.filter((m) => m.moduleKey === '0-planner-d1-0');
     const row = (p) => rows.filter((m) => m.part === p);
-    expect(row('서랍도어').map((m) => [m.w, m.h, m.qty])).toEqual([[446, 148, 1]]);
-    expect(row('측판')[0].h).toBe(178);
+    expect(row('서랍도어').map((m) => [m.w, m.h, m.qty])).toEqual([[446, 220, 1]]);
+    expect(row('측판')[0].h).toBe(250);
+    expect(row('서랍측판')[0].note).toMatch(/소 박스/);
+    expect(rows.some((m) => /레일 여유 부족/.test(String(m.note || '')))).toBe(false);
     expect(row('측판')[0].note).toMatch(/목찬넬 따내기 상단 70×40/);
     expect(row('목찬넬(전면)').map((m) => [m.w, m.h, m.qty])).toEqual([[52, 450, 1]]);
     expect(row('목찬넬(지면)').map((m) => [m.w, m.h, m.qty])).toEqual([[40, 450, 1]]);
@@ -109,13 +122,13 @@ describe('조립 명세', () => {
     expect(Check.check(spec).issues.filter((i) => i.level === 'error')).toEqual([]);
   });
 
-  test('목대 자리 — 상자 위 y 500 … 530, 앞 목대 앞면 = 앞선 − 22, 뒤 목대 = 뒤끝', () => {
+  test('목대 자리 — 상자 위 y 428 … 458, 앞 목대 앞면 = 앞선 − 22, 뒤 목대 = 뒤끝', () => {
     const { spec } = line('none');
     const r = spec.items[0].modules.find((m) => m.moduleKey === '0-planner-r1-rice');
     const bat = r.parts.filter((p) => p.part === RR.RULES.LOWER_TOP_BATTEN.PART);
     expect(bat.map((p) => p.box)).toEqual([
-      { min: [-225, 500, 275 - 22 - 18], max: [225, 530, 275 - 22] },
-      { min: [-225, 500, -275], max: [225, 530, -275 + 18] },
+      { min: [-225, 428, 275 - 22 - 18], max: [225, 458, 275 - 22] },
+      { min: [-225, 428, -275], max: [225, 458, -275 + 18] },
     ]);
   });
 
