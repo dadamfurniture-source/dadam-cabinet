@@ -140,3 +140,14 @@ describe('조립 명세', () => {
     expect(runs.some((r) => r.hostModuleKey === '0-planner-r1-rice')).toBe(false);
   });
 });
+
+describe('철물', () => {
+  test('다리발은 밑 서랍 모듈만 — 쌓인 밥솥장은 세지 않는다 (줄 600 · 450 · 600 → 4 × 3 = 12)', () => {
+    const { item, spec } = line('none');
+    const { HardwareExtractor } = loadExtractors();
+    const legs = new HardwareExtractor().extract({ items: [item] }).hardware.filter((h) => h.category === '다리발');
+    expect(legs.map((h) => h.qty)).toEqual([12]);
+    const r = spec.items[0].modules.find((m) => m.moduleKey === '0-planner-r1-rice');
+    expect((r.hardware || []).filter((h) => h.kind === 'leg')).toEqual([]);
+  });
+});

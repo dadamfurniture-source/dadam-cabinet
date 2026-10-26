@@ -3190,8 +3190,9 @@
           const legH = specs.sinkLegHeight || 150;
           let totalLegs = 0;
 
+          // 2026-10-26: 서랍 위에 쌓인 하부 밥솥장(stacked)은 다리발이 없다 — 밑 서랍 모듈이 다리발 위에 선다
           (item.modules || [])
-            .filter((m) => m.pos === 'lower' && !bomTallTierOf(m))
+            .filter((m) => m.pos === 'lower' && !bomTallTierOf(m) && !m.stacked)
             .forEach((mod) => {
               const w = mod.w || 600;
               if (w <= 600) totalLegs += 4;
