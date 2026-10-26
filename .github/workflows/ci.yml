@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 # PR 검증용. main 배포는 별도 workflow (pages-build-deployment)가 담당한다.
 #
-# 하드 게이트(실패 시 PR 차단): typecheck, build, test
+# 하드 게이트(실패 시 PR 차단): typecheck, build, test, 시크릿 스캔(검증된 비밀만, 2026-10-26)
 # 리포트 전용(continue-on-error): lint, format:check, html-validate,
-#   링크 체크, 시크릿 스캔, lighthouse
+#   링크 체크, 하드코딩 키 grep, lighthouse
 #   — 위 항목들은 현재 저장소가 통과하지 못하는 상태라 우선 로그만 남긴다.
 #     수정이 끝나는 대로 continue-on-error를 제거해 게이트로 승격할 것.
 #
@@ -117,14 +117,16 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # trufflehog 가 PR 의 base…head 커밋을 읽는다 (얕은 체크아웃이면 「unable to resolve ref」로 아무것도 못 읽음)
 
+      # 2026-10-26: 게이트로 올림. 실제로 살아 있는(검증된) 비밀만 실패시킨다.
+      #   base 를 주지 않으면 액션이 PR 의 base·head SHA 를 쓴다. 액션은 SHA 로 고정 (2026-10-26 main).
       - name: Check for secrets in code
-        uses: trufflesecurity/trufflehog@main
+        uses: trufflesecurity/trufflehog@291e3f03c3c67e284b62c559b6e9535b1ee6f5e5
         with:
           path: ./
-          base: ${{ github.event.repository.default_branch }}
           extra_args: --only-verified
-        continue-on-error: true
 
       - name: Check for hardcoded credentials
         run: |
