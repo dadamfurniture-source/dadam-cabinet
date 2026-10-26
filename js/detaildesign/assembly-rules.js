@@ -127,13 +127,16 @@
    *      (그 경계에 닿은 조각은 inside — 정한 규칙이 없어 BOM 행 비고 [확인 필요]).
    *   4) 800 보다 짧은 조각(자리 전체가 짧거나 3) 의 남는 조각)은 **800 으로 낸다** — 2026-10-26 사장님 "800 보다 짧으면 그 길이 그대로
    *      내는게 아니라 최소 800이상의 길이가 되어야한다는 거지". 현장에서 붙는 길이로 자른다 (site, order = 800 · len = 붙는 길이).
+   *      단, 깊이가 달라 따로 선 자리(opts.keepShort — 이웃과 깊이 · 앞면이 다른 모듈의 자리)는 짧아도 붙는 길이 그대로 낸다 —
+   *      같은 날 사장님 "800보다 작지만 깊이가 구분되는 모듈이라면 800이하도 가능." (자리 전체가 짧을 때만 — 3) 의 남는 조각은 800).
    *   len 은 붙는 길이(3D · 조립 명세), order 는 발주 길이(BOM 행). 길이는 누적 경계를 반올림한 정수 mm 다 — len 합 = 자리 길이.
    * @param {number[]} units  단위 폭 (진행 순서)
+   * @param {{keepShort?: boolean}} [opts]
    * @returns {{ total:number, offsets:number[], fallback:boolean,
    *   pieces:Array<{len:number, order:number, from:number, to:number, site:boolean, inside:boolean}> }}
    *   offsets = 단위 경계 (자리 시작에서 mm, 길이 units + 1), pieces 의 from · to 도 자리 시작에서 mm
    */
-  function linePiecesOf(units) {
+  function linePiecesOf(units, opts) {
     const MIN = CARCASS.LINE_PIECE_MIN, MAX = CARCASS.LINE_PIECE_MAX;
     const offsets = [0];
     let acc = 0;
@@ -150,7 +153,11 @@
     });
     const out = (cuts, fallback) => ({ total, offsets, fallback, pieces: cuts.map(([from, to]) => piece(from, to)) });
     if (!(total > 0)) return out([], false);
-    if (total <= MAX) return out([[0, total]], false);
+    if (total <= MAX) {
+      const one = out([[0, total]], false);
+      if (opts && opts.keepShort) Object.assign(one.pieces[0], { order: total, site: false });
+      return one;
+    }
     /**
      * 경계 pos 에서 앞에서부터 나눈다. cost(len) = null 이면 쓸 수 없는 조각, 아니면 벌점 (짧은 조각 수).
      * 뒤에서부터 [장 수, 벌점] 최소를 구하고, 앞에서부터 그 최소를 지키는 가장 긴 조각을 고른다.

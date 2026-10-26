@@ -215,6 +215,10 @@
       //   ③ 자리 전체가 2400 이하면 한 장. 800 보다 짧은 자리는 — 같은 날 사장님이 고쳐 답함 "800 보다 짧으면 그 길이 그대로 내는게 아니라
       //      최소 800이상의 길이가 되어야한다는 거지" — **800 한 장으로 내고 현장에서 자른다** (예: 상부장 600 하나 → 800 발주, 붙는 길이 600).
       //      모듈 경계로 800~2400 을 못 맞춰 남는 짧은 조각(2400 + 500)도 800 으로 낸다. 3D · 조립 명세는 붙는 길이 그대로 그린다.
+      //      예외 — 같은 날 사장님 "800보다 작지만 깊이가 구분되는 모듈이라면 800이하도 가능.": 한 줄에서 이웃 모듈과 깊이(mod.d) · 앞면이
+      //      달라 자리가 나뉘면("깊이가 다르면 따로 함" 과 같은 원칙) 그 자리는 짧아도 붙는 길이 그대로 낸다 (depthBound → linePiecesOf keepShort).
+      //      키큰장(깊이가 다른)이 사이에 서서 나뉜 양옆 자리 · 홀로 짧은 줄 · 남는 조각은 그대로 800. 키큰장 제 상몰딩 · 좌대 걸레받이 · 단 목찬넬은
+      //      모듈 행(addTallTierParts)이라 이 규칙을 타지 않는다 — 제 폭 그대로.
       //   ④ 깊이가 다른 키큰장 양옆은 서로 다른 자리다 (상몰딩 1200 · 1200 → 1200 두 장, 하부 라인의 걸레받이 · 목찬넬도 키큰장 양옆이 따로).
       //   조각 나누기 = assembly-rules.js linePiecesOf (조립 명세 runsOf 가 같은 계획을 받아 3D 에 같은 이음매를 놓는다).
       //   걸레받이카바 개수는 그대로다 — 자재 행 전체 길이(발주 조각 길이 × 수량 합)로 센다.
@@ -260,11 +264,26 @@
       }
 
       /**
+       * 이웃 두 모듈의 깊이 · 앞면이 같은가 (1mm 안) — 다르면 한 장이 곧게 못 지나 자리를 나눈다 (2026-10-26 "800보다 작지만 깊이가 구분되는
+       *   모듈이라면 800이하도 가능." · "깊이가 다르면 따로 함"). 깊이(mod.d)는 둘 다 있을 때만, 앞면은 둘 다 자리(_place)가 있을 때만 본다.
+       *   후드 자리(type hood)는 몸통이 없는 칸이라 깊이를 보지 않는다 — "상몰딩은 후드라고 해서 구별 하지 않음".
+       */
+      function bomSameDepthOf(a, b) {
+        const da = parseFloat(a && a.d), db = parseFloat(b && b.d);
+        if (da > 0 && db > 0 && Math.abs(da - db) > 1) return false;
+        if (bomPlacedOf(a) && bomPlacedOf(b)) return Math.abs(bomRunSegOf(a).front - bomRunSegOf(b).front) <= 1;
+        return true;
+      }
+      /** 깊이를 보는 모듈 — 후드 자리는 빼고 */
+      const bomDepthRefOf = (m) => !!m && m.type !== 'hood';
+
+      /**
        * 줄 모듈 → 자리들 (①). 벽마다, 벽 안에서는 진행 방향 자리 순서로 붙어 있는(1mm 안) 모듈끼리 한 자리.
+       *   이웃 모듈의 깊이 · 앞면이 다르면(bomSameDepthOf) 거기서도 나누고, 그렇게 나뉜 자리에 depthBound 를 단다 (③ 예외 — 짧아도 그대로).
        *   자리가 없는 모듈(옛 설계 · 사선 줄)은 한 벽('-') — 배열 순서로 보고 세지 않는 모듈(counts 거짓)이 사이에 서면 나눈다.
        * @param {object[]} mods    줄 후보 모듈 (배열 순서)
        * @param {(m: object) => boolean} counts  자리를 이루는 모듈
-       * @returns {Array<{wall:string, units:Array<{len:number, ids:string[], kind:string}>}>}  벽 순서 = 모듈이 처음 나온 순서
+       * @returns {Array<{wall:string, units:Array<{len:number, ids:string[], kind:string}>, depthBound?:boolean}>}  벽 순서 = 모듈이 처음 나온 순서
        */
       function bomLinePlacesOf(mods, counts) {
         const order = [];
@@ -278,29 +297,45 @@
         const places = [];
         order.forEach((wall) => {
           const list = byWall.get(wall);
-          let cur = null;
+          let cur = null, ref = null;
+          /** 새 자리 — 깊이가 달라 나누면 앞뒤 자리 둘 다 depthBound */
+          const open = (byDepth) => {
+            if (byDepth && cur) cur.depthBound = true;
+            cur = { wall, units: [] };
+            if (byDepth) cur.depthBound = true;
+            places.push(cur);
+            ref = null;
+          };
+          const add = (m) => {
+            if (cur && ref && bomDepthRefOf(m) && !bomSameDepthOf(ref, m)) open(true);
+            cur.units.push(bomModuleUnitOf(m));
+            if (bomDepthRefOf(m)) ref = m;
+          };
           if (wall === '-') {
             list.forEach((m) => {
-              if (!counts(m)) { cur = null; return; }
+              if (!counts(m)) { cur = null; ref = null; return; }
               if (!(bomWidthOf(m) > 0)) return;
-              if (!cur) { cur = { wall, units: [] }; places.push(cur); }
-              cur.units.push(bomModuleUnitOf(m));
+              if (!cur) open(false);
+              add(m);
             });
             return;
           }
           let end = -Infinity;
           list.filter((m) => counts(m) && bomWidthOf(m) > 0).map(bomRunSegOf).sort((x, y) => x.a - y.a).forEach((g) => {
-            if (!cur || g.a - end > 1) { cur = { wall, units: [] }; places.push(cur); }
-            cur.units.push(bomModuleUnitOf(g.m));
+            if (!cur || g.a - end > 1) open(false);
+            add(g.m);
             end = Math.max(end, g.b);
           });
         });
         return places;
       }
 
-      /** 자리들에 조각을 단다 — assembly-rules.js linePiecesOf (total · offsets · pieces · fallback · inside) */
+      /**
+       * 자리들에 조각을 단다 — assembly-rules.js linePiecesOf (total · offsets · pieces · fallback · inside).
+       *   깊이가 달라 나뉜 자리(depthBound)는 짧아도 붙는 길이 그대로 (keepShort — 2026-10-26 "800보다 작지만 깊이가 구분되는 모듈이라면 800이하도 가능.")
+       */
       function bomPlanPlaces(places) {
-        return (places || []).map((pl) => Object.assign({}, pl, AsmRules.linePiecesOf(pl.units.map((u) => u.len))))
+        return (places || []).map((pl) => Object.assign({}, pl, AsmRules.linePiecesOf(pl.units.map((u) => u.len), { keepShort: !!pl.depthBound })))
           .filter((pl) => pl.pieces.length);
       }
 
@@ -392,7 +427,8 @@
         };
         if (!ups.length) return done([], []);
         if (!ups.every(bomPlacedOf)) {
-          return done([{ wall: '-', units: ups.filter((m) => bomWidthOf(m) > 0).map(bomModuleUnitOf) }], []);
+          // 자리를 몰라 배열 순서 한 줄 — 이웃 상부장 깊이가 다르면 거기서만 나눈다 (bomLinePlacesOf 와 같은 깊이 원칙)
+          return done(bomLinePlacesOf(ups.map((m) => Object.assign({}, m, { _place: null })), () => true), []);
         }
         const same = (a, b) => Math.abs(a - b) <= 1;
         const epH = parseFloat(specs && specs.moldingH) || 60;
@@ -450,19 +486,25 @@
           segs.sort((x, y) => x.a - y.a);
           const wallPlaces = [{ wall, units: [bomModuleUnitOf(segs[0].m)] }];
           let last = segs[0];
+          let ref = bomDepthRefOf(segs[0].m) ? segs[0].m : null;   // 깊이를 견줄 앞 상부장 (후드 자리는 빼고)
           segs.slice(1).forEach((g) => {
             const g0 = last.b, g1 = g.a;
-            if (g1 - g0 > 1) {
-              const inGap = stacks.filter((st) => st.a < g1 - 1 && st.b > g0 + 1);
-              if (inGap.every((st) => joinable(st, last, g, g0, g1))) {
-                wallPlaces[wallPlaces.length - 1].units.push(...gapUnits(g0, g1, inGap));
-                inGap.forEach(join);
-              } else {
-                // ④ 잇지 않는 키큰장(깊이가 다름 · 한 장이 곧게 못 지남)이 선 빈 자리 — 양옆은 다른 자리
-                wallPlaces.push({ wall, units: [] });
-              }
+            const inGap = g1 - g0 > 1 ? stacks.filter((st) => st.a < g1 - 1 && st.b > g0 + 1) : [];
+            if (g1 - g0 > 1 && !inGap.every((st) => joinable(st, last, g, g0, g1))) {
+              // ④ 잇지 않는 키큰장(깊이가 다름 · 한 장이 곧게 못 지남)이 선 빈 자리 — 양옆은 다른 자리 (짧으면 800 — 깊이 예외가 아니다)
+              wallPlaces.push({ wall, units: [] });
+              ref = null;
+            } else if (ref && bomDepthRefOf(g.m) && !bomSameDepthOf(ref, g.m)) {
+              // 2026-10-26 "800보다 작지만 깊이가 구분되는 모듈이라면 800이하도 가능." — 이웃 상부장의 깊이 · 앞면이 다르면 한 장이 곧게
+              //   못 지난다 ("깊이가 다르면 따로 함" 과 같은 원칙): 다른 자리, 사이 빈 자리는 잇지 않는다. 두 자리 모두 depthBound (짧아도 그대로)
+              wallPlaces[wallPlaces.length - 1].depthBound = true;
+              wallPlaces.push({ wall, units: [], depthBound: true });
+            } else if (g1 - g0 > 1) {
+              wallPlaces[wallPlaces.length - 1].units.push(...gapUnits(g0, g1, inGap));
+              inGap.forEach(join);
             }
             wallPlaces[wallPlaces.length - 1].units.push(bomModuleUnitOf(g.m));
+            if (bomDepthRefOf(g.m)) ref = g.m;
             if (g.b > last.b) last = g;
           });
           // 2026-10-26 사장님 확정 "잇는다." — 줄 끝(가장 바깥 상부장의 끝 · 시작)에 붙은 키큰장 스택도 그 폭만큼 잇는다.

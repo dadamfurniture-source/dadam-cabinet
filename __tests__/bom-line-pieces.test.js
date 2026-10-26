@@ -168,6 +168,69 @@ describe('걸레받이 · 목찬넬 — 하부 라인 자리 (키큰장 · 빈 �
   });
 });
 
+describe('깊이가 구분되는 모듈 — 800 보다 짧아도 그대로 (2026-10-26 사장님 "800보다 작지만 깊이가 구분되는 모듈이라면 800이하도 가능.")', () => {
+  const deep = (m, d) => {   // 같은 자리에서 깊이만 바꾼다 (앞면 = 벽 + 깊이 — 브리지처럼)
+    m.d = d;
+    m._place.d = d;
+    if (m._place.front[1] === 1) m._place.cy = d / 2; else m._place.cx = -d / 2;
+    return m;
+  };
+  const PLACES = '자리 2곳 · 자리마다 한 장';
+
+  test('깊이가 다른 키큰장의 제 상몰딩 · 좌대 걸레받이 · 단 목찬넬은 모듈 행 — 제 폭 600 그대로 (800 으로 올리지 않는다)', () => {
+    const rows = extract(sinkItem([upper('u1', 1200, 0), tall('t1', 600, 1200), upper('u2', 1200, 1800),
+      lower('l1', 1200, 0), lower('l2', 1200, 1800)]));
+    expect(rows.filter((r) => r.moduleKey === '0-t1' && /상몰딩|걸레받이|목찬넬/.test(r.part)).map((r) => [r.part, r.w, r.h, r.qty]).sort()).toEqual([
+      ['목찬넬(전면)', 52, 600, 1], ['목찬넬(지면)', 40, 600, 1], ['상몰딩', 60, 600, 1], ['좌대 걸레받이', 60, 600, 1]]);
+  });
+
+  test('상부 줄에서 깊이가 다른 상부장 (1200 · 295 + 600 · 350) — 다른 자리, 600 은 그대로 600 (현장 자름 비고 없음)', () => {
+    const rows = extract(sinkItem([upper('u1', 1200, 0), deep(upper('u2', 600, 1200), 350)]));
+    expect(epRows(rows, '상몰딩')).toEqual([[1200, 1, PLACES], [600, 1, PLACES]]);
+  });
+
+  test('가운데만 깊이가 다르면 (900 · 295 | 600 · 350 | 900 · 295) — 세 자리, 600 그대로', () => {
+    const rows = extract(sinkItem([upper('u1', 900, 0), deep(upper('u2', 600, 900), 350), upper('u3', 900, 1500)]));
+    expect(epRows(rows, '상몰딩')).toEqual([[900, 2, '자리 3곳 · 자리마다 한 장'], [600, 1, '자리 3곳 · 자리마다 한 장']]);
+  });
+
+  test('깊이가 다르면 빈 자리도 잇지 않는다 (900 · 295 · 빈 자리 300 · 900 · 350) — 900 · 900, 빈 자리 몫이 빠진다', () => {
+    const rows = extract(sinkItem([upper('u1', 900, 0), deep(upper('u2', 900, 1200), 350)]));
+    expect(epRows(rows, '상몰딩')).toEqual([[900, 2, PLACES]]);
+  });
+
+  test('하부 줄에서 깊이가 다른 하부장 (1200 · 550 + 600 · 650) — 걸레받이 · 목찬넬 1200 + 600 그대로', () => {
+    const rows = extract(sinkItem([lower('l1', 1200, 0), deep(lower('l2', 600, 1200), 650)]));
+    expect(epRows(rows, '걸레받이')).toEqual([[1200, 1, PLACES], [600, 1, PLACES]]);
+    expect(epRows(rows, '목찬넬(전면)')).toEqual([[1200, 1, PLACES], [600, 1, PLACES]]);
+  });
+
+  test('자리(_place)가 없는 옛 설계도 배열 순서에서 이웃 깊이가 다르면 나눈다 (600 · 295 · 600 · 350 → 600 · 600 그대로)', () => {
+    const strip = (m) => { delete m._place; return m; };
+    const u2 = strip(upper('u2', 600, 600));
+    u2.d = 350;
+    const rows = extract(sinkItem([strip(upper('u1', 600, 0)), u2]));
+    expect(epRows(rows, '상몰딩')).toEqual([[600, 2, PLACES]]);
+  });
+
+  test('깊이 때문이 아닌 짧은 자리는 그대로 800 — 깊이가 같은 상부장 600 이 키큰장 한쪽 · 홀로 선 600 · 2400 + 500 의 남는 조각', () => {
+    expect(epRows(extract(sinkItem([upper('u1', 600, 0), tall('t1', 600, 600), upper('u2', 1200, 1200)])), '상몰딩'))
+      .toEqual([[1200, 1, PLACES], [800, 1, `${PLACES} · ${SITE}`]]);
+    expect(epRows(extract(sinkItem([upper('u1', 600, 0)])), '상몰딩')).toEqual([[800, 1, SITE]]);
+    expect(epRows(extract(sinkItem([lower('l1', 2400, 0), lower('l2', 500, 2400)])), '걸레받이')).toEqual([[2400, 1, SPLIT], [800, 1, `${SPLIT} · ${SITE}`]]);
+  });
+
+  test('명세 — 깊이가 구분된 600 은 BOM 600 · 판재 600 (현장 자름 아님, tags.siteCut 없음)', () => {
+    const item = sinkItem([upper('u1', 1200, 0), deep(upper('u2', 600, 1200), 350)]);
+    const design = { items: [item] };
+    const materials = new MaterialExtractor().extract(design).materials;
+    const lines = [{ key: 'wall', D: 650, modules: item.modules.map((m) => ({ moduleKey: `0-${m.id}`, x0: m._place.cx - m.w / 2 })) }];
+    const s = Asm.of(design, { materials, lines: { 0: lines } });
+    const runs = s.items[0].runs.filter((r) => r.parts[0].part === '상몰딩').map((r) => [r.parts[0].id, r.hostModuleKey, r.parts[0].cut.h, r.parts[0].tags]);
+    expect(runs).toEqual([['0-ep-molding-0#0', '0-u1', 1200, { run: 'molding' }], ['0-ep-molding-1#0', '0-u2', 600, { run: 'molding' }]]);
+  });
+});
+
 describe('신발장 · 수납장 (extractSimpleBox) — "상몰딩, 걸레받이, 목찬넬 조건 적용"', () => {
   const simple = (categoryId, modules) => ({ categoryId, w: 3000, h: 2310, d: 350, specs: Object.assign({}, SPECS, { upperH: 720 }), modules });
   test('신발장 상부 600 · 600 · 600 · 600 · 500 → 1800 + 1100, 하부 1200 | 빈 자리 | 600 → 1200 + 800 (현장에서 자름)', () => {
