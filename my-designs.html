@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="css/dadam-v5.css" />
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="js/storage-urls.js"></script>
     <script src="js/detaildesign-access.js"></script>
     <script src="js/admin-access.js"></script>
     <style>
@@ -429,6 +430,7 @@
             return;
           }
           rows = res.data || [];
+          await signImages(rows);
           $('state').textContent = '';
           render();
           // 진행 중인 것이 있으면 다시 읽는다
@@ -437,6 +439,32 @@
             pollTimer = setTimeout(function () {
               load(true);
             }, POLL_MS);
+        }
+
+        /**
+         * 이미지 url → 서명 URL (2026-10-26, js/storage-urls.js). 버킷이 비공개여도 본인 세션으로 열린다.
+         * 화면 안의 값만 바꾼다 (DB 에 쓰지 않는다). 서명을 못 하면 저장된 url 그대로.
+         * 같은 파일은 수명이 절반 넘게 남은 동안 같은 주소라 5초 폴링에도 이미지를 다시 받지 않는다.
+         */
+        async function signImages(list) {
+          var U = window.DadamStorageUrls;
+          if (!U) return;
+          var ims = [];
+          list.forEach(function (r) {
+            (r.images || []).forEach(function (im) {
+              if (im) ims.push(im);
+            });
+          });
+          var urls = await U.signUrls(
+            sb,
+            ims.map(function (im) {
+              return im.url || im.path;
+            }),
+            { bucket: 'generations' }
+          );
+          ims.forEach(function (im, i) {
+            im.url = urls[i];
+          });
         }
 
         // ─── 렌더 ───
@@ -664,8 +692,10 @@
           $('modalDownload').onclick = async function () {
             var im = r.images && r.images[0];
             if (!im) return;
+            // 오래 열어 둔 화면이면 서명이 낡았을 수 있다 — 받기 직전에 다시 확인한다
+            var src = window.DadamStorageUrls ? await window.DadamStorageUrls.signUrl(sb, im.url) : im.url;
             try {
-              var blob = await (await fetch(im.url)).blob();
+              var blob = await (await fetch(src)).blob();
               var url = URL.createObjectURL(blob);
               var a = document.createElement('a');
               a.href = url;
@@ -675,7 +705,7 @@
                 URL.revokeObjectURL(url);
               }, 10000);
             } catch (e) {
-              window.open(im.url, '_blank');
+              window.open(src, '_blank');
             }
           };
           $('modal').dataset.open = 'true';

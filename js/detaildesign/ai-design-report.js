@@ -313,7 +313,9 @@
       // 이미지 URL을 base64로 변환하는 함수
       async function fetchImageAsBase64(imageUrl) {
         try {
-          const response = await fetch(imageUrl);
+          // 고객 사진 버킷은 비공개일 수 있다 — 서명 URL 로 받는다 (2026-10-26, SupabaseUtils.signStorageUrl)
+          const src = typeof SupabaseUtils !== 'undefined' ? await SupabaseUtils.signStorageUrl(imageUrl) : imageUrl;
+          const response = await fetch(src);
           if (!response.ok) throw new Error('이미지 로드 실패');
 
           const blob = await response.blob();
@@ -636,7 +638,8 @@
         // 이미지 URL → File 객체로 변환
         let imageFile;
         try {
-          const resp = await fetch(sitePhotoUrl);
+          const src = typeof SupabaseUtils !== 'undefined' ? await SupabaseUtils.signStorageUrl(sitePhotoUrl) : sitePhotoUrl;
+          const resp = await fetch(src);
           const blob = await resp.blob();
           imageFile = new File([blob], 'room.jpg', { type: blob.type || 'image/jpeg' });
         } catch (e) {

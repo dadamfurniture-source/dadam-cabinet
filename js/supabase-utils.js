@@ -138,6 +138,18 @@ const SupabaseUtils = {
   MAX_IMAGES_PER_USER: 20,
 
   /**
+   * 저장된 이미지 주소 → 지금 열 수 있는 주소 (2026-10-26).
+   * design-images · generations 버킷이면 로그인 세션으로 서명 URL(1시간)을 만든다 — 버킷이 비공개여도 열린다.
+   * 그 밖의 주소, 또는 서명을 못 하면 받은 값 그대로. 규칙은 js/storage-urls.js (페이지가 먼저 불러야 한다).
+   * @param {string} value - 저장된 공개 URL · 서명 URL
+   * @returns {Promise<string>}
+   */
+  async signStorageUrl(value) {
+    if (!this.client || typeof window === 'undefined' || !window.DadamStorageUrls) return value;
+    return window.DadamStorageUrls.signUrl(this.client, value);
+  },
+
+  /**
    * 현장 사진 이미지 업로드 (계정당 20개 제한, 초과 시 자동 삭제)
    * @param {File} file - 업로드할 파일
    * @param {string} userId - 사용자 ID

@@ -133,6 +133,10 @@ export function bucketName(env) {
   return env.GENERATIONS_BUCKET || 'generations';
 }
 
+/**
+ * 행에 저장하는 주소 (images[].url · inputs.*.url). 화면에 내보낼 때는 storage-urls.js 가 path 로 서명 URL 을
+ * 만들어 바꿔 싣는다 — 버킷을 비공개로 돌려도 저장 형식은 그대로다 (2026-10-26).
+ */
 export function publicUrl(env, path) {
   return `${env.SUPABASE_URL}/storage/v1/object/public/${bucketName(env)}/${path}`;
 }
