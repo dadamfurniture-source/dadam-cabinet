@@ -182,7 +182,7 @@
         wardrobeMoldingH: 20, // 상몰딩 높이 (기본 20mm)
         // ★ 냉장고장 전용 설정 (규칙 기반)
         fridgeBrand: 'LG',
-        fridgeUpperH: 415, // 상부장 높이 (고정)
+        fridgeUpperH: 400, // 상부장 높이 — 2026-10-25 사장님 확정 400 (FRIDGE_RULES.MAX_UPPER_H 와 같은 값, 예전 415)
         fridgeLowerH: 870, // 하부장 높이 (좌대 60 포함)
         fridgePedestal: 60, // 좌대 높이
         fridgeGap: 50, // 냉장고 좌우 여유 간격

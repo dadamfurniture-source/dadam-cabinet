@@ -230,6 +230,18 @@ describe('영역에 모듈 넣기', () => {
     expect(p.g('bodyHeightOf')(m, s)).toBe(area.H - 150 - 12);
   });
 
+  test('배치 공간 높이가 없으면 기본 870 = 다리발 150 + 상판 12 + 몸통 708 (2026-10-25 사장님 확정)', () => {
+    // 정본 data-constants.js TOTAL_H_LOWER 870. 예전 기본 850 은 몸통 688 로 섰다.
+    const { p, area } = withArea();
+    delete area.H;
+    const m = p.g('addModuleToArea')(area.id);
+    const s = p.g('getStructure')(m.id);
+    expect(m.H).toBe(870);
+    expect(p.g('legHOf')(m, s)).toBe(150);
+    expect(p.g('topTOf')(m, s)).toBe(12);
+    expect(p.g('bodyHeightOf')(m, s)).toBe(708);
+  });
+
   test('모듈은 영역 안에서 왼쪽부터 이어 붙는다', () => {
     const { p, area } = withArea();
     const a = p.g('addModuleToArea')(area.id);

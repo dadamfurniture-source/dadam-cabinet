@@ -5235,10 +5235,13 @@ window.dispatchEvent(new CustomEvent('three-ready'));
   // 영역 — 배치에서 온 사각형. 모듈을 담는 그릇.
   // ─────────────────────────────────────────────────────────────
 
-  /** 새 모듈 기본값. 상판은 옵션이라 기본이 없다(topT 0) —
-   *  그래야 H850 = 다리발 150 + 몸통 700 이 그대로 성립한다.
+  /** 새 모듈 기본값. 2026-10-25 사장님 확정 — 하부장 H 870 (data-constants.js TOTAL_H_LOWER ·
+   *  planner-sections.js lower.moduleH 와 같다): 870 = 다리발 150 + 몸통 708 + 상판 12.
+   *  상판 12 는 heightPartsOf 기본값이다 — addModuleToArea 가 s.topT 를 지워 그 값을 쓴다 (W12-39).
+   *  예전 H 850 · topT 0 (다리발 150 + 몸통 700) — W12-39 뒤로 topT 0 은 읽히지 않아,
+   *  배치 공간 높이를 못 받을 때(영역 H 없음 · 다른 섹션) 몸통 688 로 섰다.
    *  선반은 지어내지 않고 calcDefaultShelves 가 내는 값을 쓴다(이 크기에선 1개). */
-  const NEW_MODULE = { W: 600, H: 850, D: 550, legH: 150, topT: 0 };
+  const NEW_MODULE = { W: 600, H: 870, D: 550, legH: 150 };
 
   // W12-5: 목찬넬 부재 색 — 몸통은 PB, 목찬넬은 18T MDF 로 BOM 상 EP(마감재)다.
   // 3D 에서 몸통과 구분되도록 마감재와 같은 진한 우드 톤을 쓴다.
@@ -5926,7 +5929,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       return null;
     }
     const cfg = SECTION_CONFIG[section] || {};
-    // 하부장은 요청 스펙(600·850·550), 나머지는 그 섹션의 배치 기본값을 쓴다.
+    // 하부장은 요청 스펙(600·870·550), 나머지는 그 섹션의 배치 기본값을 쓴다.
     const base = section === 'lower'
       ? { W: NEW_MODULE.W, H: NEW_MODULE.H, D: NEW_MODULE.D }
       : { W: cfg.w || NEW_MODULE.W, H: cfg.moduleH || NEW_MODULE.H, D: cfg.h || NEW_MODULE.D };
@@ -8618,8 +8621,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       msg = '🎯 다리발 (H=' + legHOf(_lm, getStructure(ud.moduleId)) + 'mm)';
     } else if (ud.entityKind === 'toe-kick') {
       const _km = modules.find((x) => x.id === ud.moduleId);
-      msg = '🎯  걸레받이 (H=' + Math.max(0, legHOf(_km || { section: 'lower' }, getStructure(ud.moduleId)) - KICK_FLOOR_GAP)
-          + 'mm · 18T · 앞선에서 ' + KICK_SETBACK + 'mm 안쪽)';
+      msg = '🎯  걸레받이 (H=' + Math.max(0, legHOf(_km || { section: 'lower' }, getStructure(ud.moduleId)) - KICK_H_MINUS)
+          + 'mm · ' + KICK_T + 'T · 몸통 앞선에서 ' + KICK_SETBACK + 'mm 안쪽)';
     } else if (ud.entityKind === 'molding') {
       const _mm = modules.find(x => x.id === ud.moduleId);
       msg = '🎯 상몰딩 (H=' + moldingHOf(_mm || { section: 'upper' }, getStructure(ud.moduleId)) + 'mm)';
@@ -8718,32 +8721,27 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     addEdgeOutline(panel, parent, 0x000000, 0.7);
   }
   // W12-41: 걸레받이 — 하부장 다리발 자리를 앞에서 막는 판.
-  //   치수는 BOM(`js/detaildesign/extractors.js`)이 정본이다:
+  //   치수·자리는 조립 규칙(`js/detaildesign/assembly-rules.js` CARCASS — BOM 과 같은 표)이 정본이다:
   //     MDF 18T · 폭 = 런 전폭 · 높이 = 다리발 − 5
-  //   5mm 는 바닥 여유다 — 판은 다리발에 걸려 있고 바닥에 닿지 않는다.
-  //   앞선에서 **40mm 물러선다** (발끝 자리).
-  const KICK_T = 18;
-  const KICK_SETBACK = 40;
-  const KICK_FLOOR_GAP = 5;
+  //   2026-10-25 사장님 확정 — 3D 도 BOM 과 같은 그림 (2026-10-22 사장님 결정, assembly-rules.js 주석):
+  //     바닥에 붙여 세운다. 5mm 틈은 **위**(몸통 밑단과의 틈, 캐쳐 몫)이고, 앞면 = **몸통 앞선 − 32**.
+  //     예전 3D 는 바닥에서 5 띄우고 배치 공간 앞선(도어 앞면 쪽)에서 40 물러섰다.
+  //   이 페이지는 assembly-rules.js 를 인라인보다 먼저 싣는다 (위 <script>) — 숫자를 옮겨 적지 않고 그 표를 읽는다.
+  const KICK_T = DadamAssemblyRules.CARCASS.KICK_T;
+  const KICK_SETBACK = DadamAssemblyRules.CARCASS.KICK_SETBACK;
+  const KICK_H_MINUS = DadamAssemblyRules.CARCASS.KICK_H_MINUS;
 
   /**
    * 상판과 같이 **배치 공간 단위** 부재다 — 런 전체를 한 장이 막는다
    * (BOM 도 폭을 effectiveW 로 잡는다). 영역의 첫 모듈에만 그린다.
    * 좌대를 고르면 다리발이 없으므로 걸레받이도 없다.
    */
-  /** 앞선 (모듈 로컬 z) — 배치 공간 앞면, 도어 앞면과 같은 평면 */
-  function frontLineLocal(m) {
-    const area = areaOfModule(m);
-    return area
-      ? ((area.y || 0) + area.D) - ((m.y || 0) + m.D / 2)
-      : m.D / 2 + DOOR_T;
-  }
-
-  /** 걸레받이 뒷면 (모듈 로컬 z). 걸레받이가 없으면 null — 다리발이 그만큼 물러난다. */
+  /** 걸레받이 뒷면 (모듈 로컬 z). 걸레받이가 없으면 null — 다리발이 그만큼 물러난다.
+   *  몸통 앞선(m.D / 2)에서 32 안쪽이 앞면 — BOM 조립 명세(bom-assembly.js kick)와 같은 식. */
   function toeKickBackZ(m, s) {
     if (!m || m.section !== 'lower') return null;
-    if (legHOf(m, s) <= KICK_FLOOR_GAP) return null;
-    return frontLineLocal(m) - KICK_SETBACK - KICK_T;
+    if (legHOf(m, s) <= KICK_H_MINUS) return null;
+    return m.D / 2 - KICK_SETBACK - KICK_T;
   }
 
   function addToeKick(parent, m, cfg, s) {
@@ -8751,7 +8749,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     // 이름을 legH 로 두지 않는다 — 3D 렌더러에서 `legH` 는 **몸통 바닥 offset**
     // (다리발 또는 좌대)을 뜻하는 이름이고, 여기 값은 다리발 부재 높이다.
     const legPartH = legHOf(m, s);
-    if (legPartH <= KICK_FLOOR_GAP) return;
+    if (legPartH <= KICK_H_MINUS) return;
     const area = areaById(areaIdOfModule(m));
     let W = m.W, dx = 0;
     if (area) {
@@ -8772,9 +8770,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         dx = (x0 + W / 2) - ((m.x || 0) + m.W / 2);
       }
     }
-    const h = legPartH - KICK_FLOOR_GAP;
+    // 바닥(y 0)에 붙여 세우고 윗단은 몸통 밑단(다리발 높이)보다 5 아래 — 틈은 위에 (2026-10-25 사장님 확정)
+    const h = legPartH - KICK_H_MINUS;
     const kick = makeBox(W, h, KICK_T, darken3(cfg.fill, 0.28), { roughness: 0.7, metalness: 0.04 });
-    kick.position.set(dx, KICK_FLOOR_GAP + h / 2, toeKickBackZ(m, s) + KICK_T / 2);
+    kick.position.set(dx, h / 2, toeKickBackZ(m, s) + KICK_T / 2);
     kick.userData = { entityKind: 'toe-kick', moduleId: m.id };
     parent.add(kick);
     addEdgeOutline(kick, parent, 0x000000, 0.7);
@@ -9346,8 +9345,8 @@ window.dispatchEvent(new CustomEvent('three-ready'));
     const xRight =  W/2 - LEG_INSET - LEG_SIZE/2;
     const zFront = -D/2 + LEG_INSET + LEG_SIZE/2;
     // 이름과 달리 zBack 이 **월드 앞쪽**이다 (+Z 가 앞). W12-41: 걸레받이가
-    //   앞선에서 40 물러선 자리에 서므로, 앞줄 다리는 그 뒤로 물러나야 겹치지
-    //   않는다 — 실제로도 걸레받이가 이 다리에 클립으로 걸린다.
+    //   몸통 앞선에서 32 물러선 자리에 서므로 (2026-10-25 사장님 확정, assembly-rules.js KICK_SETBACK),
+    //   앞줄 다리는 그 뒤로 물러나야 겹치지 않는다 — 실제로도 걸레받이가 이 다리에 클립으로 걸린다.
     const kickBack = toeKickBackZ(m, s);
     let zBack = D/2 - LEG_INSET - LEG_SIZE/2;
     if (kickBack != null) zBack = Math.min(zBack, kickBack - LEG_SIZE/2);
