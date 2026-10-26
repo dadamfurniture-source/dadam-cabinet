@@ -312,6 +312,40 @@
         color: #a54034;
       }
 
+      /* 회원 상세 — 구독 · 결제 (환불) */
+      .pay-box {
+        border: 1px solid #eee;
+        border-radius: 6px;
+        background: #fafafa;
+        padding: 8px 12px;
+        font-size: 0.85rem;
+      }
+      .pay-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 7px 0;
+        border-bottom: 1px solid #eee;
+      }
+      .pay-row:last-child {
+        border-bottom: 0;
+      }
+      .pay-row .pay-tag {
+        font-size: 11px;
+        color: #8b8680;
+        margin-left: 6px;
+      }
+      .pay-row .pay-tag.bad {
+        color: #a54034;
+      }
+      .pay-note {
+        font-size: 11px;
+        color: #8b8680;
+        margin-top: 6px;
+        line-height: 1.6;
+      }
+
       .badge.standard {
         background: #e0e0e0;
         color: #616161;
@@ -705,6 +739,14 @@
             <input type="text" id="modalCreatedAt" disabled />
           </div>
           <div class="form-group">
+            <label>구독 · 결제</label>
+            <div class="pay-box" id="modalBilling"><span class="cell-muted">불러오는 중…</span></div>
+            <div class="pay-note">
+              환불 조건(약관 제9조): 결제 후 7일 이내이고 그 뒤 크레딧을 쓰지 않았으면 전액 환불.
+              조건을 벗어나면 서버가 거절하고 이유를 보여 줍니다 — 그때만 관리자 예외로 진행할 수 있습니다.
+            </div>
+          </div>
+          <div class="form-group">
             <label>관리자 메모</label>
             <textarea id="modalMemo" rows="3" placeholder="관리자 메모를 입력하세요..."></textarea>
           </div>
@@ -822,7 +864,7 @@
               const [subs, credits] = await Promise.all([
                 supabaseClient
                   .from('subscriptions')
-                  .select('user_id, plan, status, amount_krw, current_period_end')
+                  .select('user_id, plan, status, amount_krw, current_period_end, ended_at')
                   .in('user_id', ids),
                 supabaseClient.from('user_credits').select('user_id, balance, period_end').in('user_id', ids),
               ]);
@@ -922,8 +964,10 @@
             // 구독
             const sub = subsById[user.id];
             const SUB_KO = { active: '이용 중', cancelled: '해지 예약', past_due: '결제 실패', expired: '종료' };
+            // 해지 뒤 등급까지 내렸으면(ended_at) 「종료」
+            const subKey = sub && sub.status === 'cancelled' && sub.ended_at ? 'expired' : sub && sub.status;
             const subCell = sub
-              ? `<span class="badge sub-${esc(sub.status)}">${esc(SUB_KO[sub.status] || sub.status)}</span>` +
+              ? `<span class="badge sub-${esc(subKey)}">${esc(SUB_KO[subKey] || subKey)}</span>` +
                 `<div class="cell-sub">${esc(sub.plan)} · ${Number(sub.amount_krw || 0).toLocaleString('ko-KR')}원</div>`
               : '<span class="cell-muted">-</span>';
 
@@ -1031,6 +1075,131 @@
         }
 
         document.getElementById('userModal').classList.add('active');
+        loadBilling(userId);
+      }
+
+      // ── 구독 · 결제 (회원 상세) ──
+      // 읽기는 관리자 RLS(admin-billing-visibility.sql)로 직접, 환불은 payments-api /admin/refund 로.
+      // 서버가 호출자 토큰으로 is_admin() 을 다시 확인한다 — 버튼을 감추는 것으로는 막을 수 없다.
+      let modalPayments = [];
+      const PAY_KO = { done: '결제', failed: '실패', refunded: '환불됨', pending: '처리 중' };
+      const SUB_REASON_KO = { user_request: '고객 해지', payment_failed: '결제 실패로 해지', refunded: '환불로 종료' };
+
+      async function loadBilling(userId) {
+        const box = document.getElementById('modalBilling');
+        box.innerHTML = '<span class="cell-muted">불러오는 중…</span>';
+        try {
+          const [subRes, payRes] = await Promise.all([
+            supabaseClient
+              .from('subscriptions')
+              .select('plan, status, amount_krw, current_period_end, next_charge_at, failed_attempts, cancel_reason, ended_at')
+              .eq('user_id', userId)
+              .order('created_at', { ascending: false })
+              .limit(1),
+            supabaseClient
+              .from('payment_history')
+              .select('id, created_at, plan, amount_krw, status, failure_code, refunded_at, refund_override')
+              .eq('user_id', userId)
+              .order('created_at', { ascending: false })
+              .limit(12),
+          ]);
+          if (selectedUserId !== userId) return; // 그새 다른 회원을 열었다
+          if (subRes.error) throw subRes.error;
+          if (payRes.error) throw payRes.error;
+          modalPayments = payRes.data || [];
+          renderBilling((subRes.data || [])[0], modalPayments);
+        } catch (e) {
+          box.innerHTML = `<span class="cell-muted">결제 정보를 불러오지 못했습니다: ${esc(e.message)}</span>`;
+        }
+      }
+
+      function renderBilling(sub, payments) {
+        const box = document.getElementById('modalBilling');
+        const won = (n) => Number(n || 0).toLocaleString('ko-KR') + '원';
+        let html = '';
+        if (sub) {
+          const SUB_KO = { active: '이용 중', cancelled: '해지', past_due: '결제 실패 · 재시도 중' };
+          let line = `${esc(SUB_KO[sub.status] || sub.status)} · ${esc(sub.plan)} · ${won(sub.amount_krw)}`;
+          if (sub.status === 'active') line += ` · 다음 결제 ${formatDate(sub.next_charge_at)}`;
+          if (sub.status === 'past_due')
+            line += ` · ${Number(sub.failed_attempts || 0)}회 실패, 다음 시도 ${formatDate(sub.next_charge_at)}`;
+          if (sub.status === 'cancelled') {
+            line += ` · ${esc(SUB_REASON_KO[sub.cancel_reason] || '해지')}`;
+            line += sub.ended_at ? ` · 종료 ${formatDate(sub.ended_at)}` : ` · ${formatDate(sub.current_period_end)}까지 이용`;
+          }
+          html += `<div class="pay-row"><span>${line}</span></div>`;
+        } else {
+          html += '<div class="pay-row"><span class="cell-muted">구독 없음</span></div>';
+        }
+        if (!payments.length) {
+          html += '<div class="pay-row"><span class="cell-muted">결제 내역 없음</span></div>';
+        }
+        payments.forEach((p) => {
+          const bad = p.status === 'failed' || p.status === 'refunded';
+          let tag = PAY_KO[p.status] || p.status;
+          if (p.status === 'failed' && p.failure_code) tag += ` (${p.failure_code})`;
+          if (p.status === 'refunded' && p.refund_override) tag += ' · 관리자 예외';
+          const btn =
+            p.status === 'done'
+              ? `<button type="button" class="btn btn-sm btn-danger" onclick="refundPayment('${esc(p.id)}')">환불</button>`
+              : '';
+          html +=
+            `<div class="pay-row"><span>${formatDate(p.created_at)} · ${esc(p.plan)} · ${won(p.amount_krw)}` +
+            `<span class="pay-tag${bad ? ' bad' : ''}">${esc(tag)}</span></span>${btn}</div>`;
+        });
+        box.innerHTML = html;
+      }
+
+      async function postRefund(body) {
+        const {
+          data: { session },
+        } = await supabaseClient.auth.getSession();
+        const base = window.DADAM_CONFIG?.paymentsApi?.url;
+        if (!base) throw new Error('결제 API 주소가 설정되지 않았습니다.');
+        const res = await fetch(base + '/admin/refund', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+          body: JSON.stringify(body),
+        });
+        const json = await res.json().catch(() => ({}));
+        return { res, json };
+      }
+
+      async function refundPayment(paymentId) {
+        const p = modalPayments.find((x) => x.id === paymentId);
+        if (!p) return;
+        const userId = selectedUserId;
+        const amount = Number(p.amount_krw || 0).toLocaleString('ko-KR');
+        if (
+          !confirm(
+            `${formatDate(p.created_at)} ${p.plan} ${amount}원 결제를 전액 환불할까요?\n\n` +
+              '토스 결제가 취소되고, 구독은 바로 끝나며, 결제로 받은 등급은 Standard 로 바뀝니다.'
+          )
+        )
+          return;
+        const reason = prompt('환불 사유 (토스 취소 사유로 남습니다)', '고객 요청 환불');
+        if (reason === null) return;
+
+        try {
+          let { res, json } = await postRefund({ payment_id: paymentId, reason });
+          if (res.status === 409 && json.code === 'REFUND_NOT_ELIGIBLE') {
+            const why = (json.reasons || []).map((r) => '- ' + r).join('\n');
+            if (
+              !confirm(
+                `${json.message}\n${why}\n\n` +
+                  '약관상 환불 대상이 아닙니다. 관리자 예외로 그래도 환불할까요? (예외였다는 기록이 남습니다)'
+              )
+            )
+              return;
+            ({ res, json } = await postRefund({ payment_id: paymentId, reason, override: true }));
+          }
+          if (!res.ok || !json.success) throw new Error(json.message || `환불 실패 (${res.status})`);
+          alert(json.message || '환불했습니다.');
+          if (selectedUserId === userId) loadBilling(userId);
+          await loadUsers();
+        } catch (e) {
+          alert('환불 중 오류가 발생했습니다: ' + e.message);
+        }
       }
 
       function closeModal() {

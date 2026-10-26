@@ -8,36 +8,41 @@
  *   POST /issue-billing-key      — authKey → billingKey + 첫 과금 (인증)
  *   POST /charge                 — 수동 재시도 (인증)
  *   POST /cancel                 — 구독 취소 (인증)
+ *   POST /admin/refund           — 결제 1건 환불 (관리자, is_admin())
  *   POST /webhook                — Toss 웹훅 (공개, 결제 조회 API 로 재확인)
+ *
+ * cron (wrangler.toml [triggers]) — 하루 한 번 src/lifecycle.js:
+ *   정기 결제(30일) · 실패 재시도(1일 · 3일) · 해지 만료 강등
  *
  * customerKey 규칙: `dadam-${supabase_user.id}`
  * 첫 과금: 빌링키 발급 즉시 1회차 + next_charge_at = now+30d
  */
 
 import { handleOptions, jsonResponse, corsHeaders } from './cors.js';
-import { issueBillingKey, chargeBillingKey, getPayment, TossError } from './toss.js';
+import { issueBillingKey, chargeBillingKey, cancelPayment, getPayment, TossError } from './toss.js';
 import {
   AuthError,
   DbError,
   verifyJwt,
+  verifyAdmin,
   selectOne,
   insertOne,
   updateById,
   updateBy,
 } from './supabase.js';
-
-// 플랜 = 등급이다. profiles.tier 와 같은 낱말을 쓴다 —
-// 어휘가 둘이면 결제한 등급과 표시되는 등급이 어긋난다.
-// standard 는 무료 기본이라 결제 대상이 아니다.
-const PLAN_NAMES = {
-  expert: '다담가구 Expert 등급 (월간)',
-  agent: '다담가구 Agent 등급 (월간)',
-};
-
-const PAID_PLANS = ['expert', 'agent'];
+import { PLAN_NAMES, PAID_PLANS, priceFor, orderNameFor } from './plans.js';
+import {
+  runDailyLifecycle,
+  refundPayment,
+  RefundError,
+  historyRow,
+  grantMonthlyCredits,
+} from './lifecycle.js';
 
 // GET /subscription 이 브라우저에 돌려주는 칸. billing.html 이 쓰는 것만 둔다.
 // billing_key 는 서버 안에서만 쓰는 값이라 넣지 않는다.
+// failed_attempts · first_failed_at · cancel_reason · ended_at 은 결제 실패·해지 안내에 쓴다
+// (database/payments-lifecycle.sql).
 const SUBSCRIPTION_COLUMNS = [
   'plan',
   'status',
@@ -46,18 +51,16 @@ const SUBSCRIPTION_COLUMNS = [
   'current_period_end',
   'next_charge_at',
   'cancel_at',
+  'failed_attempts',
+  'first_failed_at',
+  'cancel_reason',
+  'ended_at',
 ].join(',');
 
 // 웹훅 본문 상한. 결제 객체 하나는 몇 KB 라 넉넉하다.
 const WEBHOOK_MAX_BYTES = 64 * 1024;
 
-function priceFor(env, plan) {
-  const map = {
-    expert: parseInt(env.TOSS_PRICE_EXPERT_KRW || '99000', 10),
-    agent: parseInt(env.TOSS_PRICE_AGENT_KRW || '199000', 10),
-  };
-  return map[plan];
-}
+const UNDO_REASON = '구독 저장 실패로 자동 취소';
 
 function customerKeyFor(user) {
   return `dadam-${user.id}`;
@@ -166,6 +169,17 @@ async function handleIssueBillingKey(request, env) {
     return jsonResponse(request, env, { success: false, message: 'customerKey 불일치' }, 400);
   }
 
+  // 결제 전에 읽을 것은 먼저 읽는다 — 결제 뒤에 읽다 실패하면 되돌릴 일이 생긴다.
+  const existing = await selectOne(env, 'subscriptions', {
+    user_id: `eq.${user.id}`,
+    select: 'id',
+    order: 'created_at.desc',
+  });
+  const prevProfile = await selectOne(env, 'profiles', {
+    id: `eq.${user.id}`,
+    select: 'tier,tier_source',
+  });
+
   // 1. authKey → billingKey
   const billing = await issueBillingKey(env, {
     authKey: body.auth_key,
@@ -183,66 +197,104 @@ async function handleIssueBillingKey(request, env) {
     orderName: PLAN_NAMES[body.plan],
     customerEmail: user.email,
     customerName: user.name,
+    idempotencyKey: orderId,
   });
 
-  // 3. subscriptions upsert
+  // 3. 저장. 여기서 실패하면 방금 한 결제를 토스에서 취소한다 —
+  //    카드는 긁혔는데 구독이 없는 상태를 남기지 않는다.
+  //    순서: 결제 기록 → 등급 → 구독 행(마지막).
+  //    구독 행은 cron 이 다음 달에 결제하는 근거다. 마지막에 써야, 중간에 실패해서
+  //    결제를 취소했는데 구독 행만 남아 다음 달에 다시 결제되는 일이 없다.
   const start = nowIso();
   const next = plus30dIso();
-  const subData = {
-    user_id: user.id,
-    plan: body.plan,
-    provider: 'toss',
-    provider_customer_id: body.customer_key,
-    provider_subscription_id: billingKey,
-    billing_key: billingKey,
-    amount_krw: amount,
-    status: 'active',
-    current_period_start: start,
-    current_period_end: next,
-    next_charge_at: next,
-    updated_at: start,
-  };
+  const done = { historyId: null, profileChanged: false, subscriptionAttempted: false };
+  let subId = existing?.id || null;
+  try {
+    const hist = await insertOne(
+      env,
+      'payment_history',
+      historyRow({
+        userId: user.id,
+        subscriptionId: existing?.id,
+        orderId,
+        plan: body.plan,
+        amount,
+        charge,
+      })
+    );
+    done.historyId = hist?.id || null;
 
-  const existing = await selectOne(env, 'subscriptions', {
-    user_id: `eq.${user.id}`,
-    select: 'id',
-    order: 'created_at.desc',
-  });
-  let subId;
-  if (existing) {
-    const updated = await updateById(env, 'subscriptions', existing.id, subData);
-    subId = updated?.id || existing.id;
-  } else {
-    const inserted = await insertOne(env, 'subscriptions', subData);
-    subId = inserted?.id;
+    // 등급 반영
+    //    profiles 에 plan 컬럼은 없다 — tier 다.
+    //    tier_source='subscription' 을 함께 남긴다. 구독이 끝났을 때
+    //    본사 승인으로 받은 등급까지 내려버리지 않기 위한 표식이다.
+    await updateBy(
+      env,
+      'profiles',
+      { id: `eq.${user.id}` },
+      { tier: body.plan, tier_source: 'subscription' }
+    );
+    done.profileChanged = true;
+
+    const subData = {
+      user_id: user.id,
+      plan: body.plan,
+      provider: 'toss',
+      provider_customer_id: body.customer_key,
+      provider_subscription_id: billingKey,
+      billing_key: billingKey,
+      amount_krw: amount,
+      status: 'active',
+      current_period_start: start,
+      current_period_end: next,
+      next_charge_at: next,
+      cancel_at: null,
+      cancel_reason: null,
+      ended_at: null,
+      failed_attempts: 0,
+      first_failed_at: null,
+      updated_at: start,
+    };
+    done.subscriptionAttempted = true;
+    if (existing) {
+      await updateById(env, 'subscriptions', existing.id, subData);
+    } else {
+      const inserted = await insertOne(env, 'subscriptions', subData);
+      subId = inserted?.id || null;
+    }
+  } catch (e) {
+    const undone = await undoFirstPayment(env, {
+      user,
+      orderId,
+      charge,
+      billingKey,
+      done,
+      prevProfile,
+      cause: e,
+    });
+    return jsonResponse(
+      request,
+      env,
+      {
+        success: false,
+        code: 'SUBSCRIPTION_SAVE_FAILED',
+        message: undone
+          ? '구독 정보를 저장하지 못해 결제를 취소했습니다. 잠시 후 다시 시도해 주세요.'
+          : '결제는 되었지만 구독 정보를 저장하지 못했습니다. 고객센터로 문의해 주세요.',
+      },
+      500
+    );
   }
 
-  // 4. 등급 반영
-  //    profiles 에 plan 컬럼은 없다 — tier 다. 여기가 원래 { plan: ... } 를
-  //    쓰고 있어서 결제해도 등급이 안 올라갔다.
-  //    tier_source='subscription' 을 함께 남긴다. 구독이 끝났을 때
-  //    본사 승인으로 받은 등급까지 내려버리지 않기 위한 표식이다.
-  await updateBy(
-    env,
-    'profiles',
-    { id: `eq.${user.id}` },
-    { tier: body.plan, tier_source: 'subscription' }
-  );
-
-  // 5. payment_history 기록
-  await insertOne(env, 'payment_history', {
-    user_id: user.id,
-    subscription_id: subId,
-    provider: 'toss',
-    order_id: orderId,
-    payment_key: charge.paymentKey || null,
-    plan: body.plan,
-    amount_krw: amount,
-    status: charge.status === 'DONE' ? 'done' : 'pending',
-    method: charge.method || null,
-    receipt_url: charge.receipt?.url || null,
-    raw_response: charge,
-  });
+  // 4. 따라붙는 일. 실패해도 결제를 되돌리지 않는다 — 구독은 이미 섰다.
+  if (!existing && subId && done.historyId) {
+    await bestEffort('link history to subscription', () =>
+      updateById(env, 'payment_history', done.historyId, { subscription_id: subId })
+    );
+  }
+  //    새 달 크레딧 — 등급이 바뀌면 트리거가 이미 한 일이지만, 같은 등급으로 다시 결제한
+  //    경우에도 결제한 달의 크레딧이 시작되도록 같은 일을 한 번 더 한다(기간 끊기, 멱등).
+  await bestEffort('credit period reset', () => grantMonthlyCredits(env, user.id, Date.now()));
 
   return jsonResponse(request, env, {
     success: true,
@@ -254,6 +306,89 @@ async function handleIssueBillingKey(request, env) {
       receipt_url: charge.receipt?.url || null,
     },
   });
+}
+
+/**
+ * 첫 결제 뒤 저장이 실패했을 때: 토스 결제를 취소하고, 써 둔 것을 되돌린다.
+ * 취소가 됐으면 true. 취소마저 실패하면 false — 로그에 남기고 사람이 환불한다.
+ */
+async function undoFirstPayment(
+  env,
+  { user, orderId, charge, billingKey, done, prevProfile, cause }
+) {
+  console.error(
+    `[payments] first payment save failed: user=${user.id} order=${orderId} cause=${cause && cause.message}`
+  );
+  if (!charge || !charge.paymentKey) {
+    console.error(
+      `[payments] MANUAL CHECK: no paymentKey to cancel user=${user.id} order=${orderId}`
+    );
+    return false;
+  }
+  try {
+    await cancelPayment(env, charge.paymentKey, {
+      cancelReason: UNDO_REASON,
+      idempotencyKey: `dadam-undo-${orderId}`,
+    });
+    console.error(
+      `[payments] first payment auto-cancelled: user=${user.id} order=${orderId} paymentKey=${charge.paymentKey}`
+    );
+  } catch (e) {
+    console.error(
+      `[payments] AUTO-CANCEL FAILED — manual refund needed: user=${user.id} order=${orderId} paymentKey=${charge.paymentKey} code=${e.code || '-'}`
+    );
+    return false;
+  }
+
+  // 결제는 취소됐다. 아래는 되돌릴 수 있는 만큼만 (실패해도 고객 카드에는 영향 없다).
+  const now = nowIso();
+  if (done.subscriptionAttempted) {
+    // 구독 행이 실제로 써졌다면(응답만 못 받은 경우) 다음 달 결제가 걸리지 않게 끝낸다.
+    // 새 빌링키로 걸러서, 써지지 않았다면 예전 구독은 건드리지 않는다.
+    await bestEffort('undo subscription', () =>
+      updateBy(
+        env,
+        'subscriptions',
+        { user_id: `eq.${user.id}`, billing_key: `eq.${billingKey}` },
+        {
+          status: 'cancelled',
+          cancel_reason: 'refunded',
+          cancel_at: now,
+          next_charge_at: null,
+          ended_at: now,
+          updated_at: now,
+        }
+      )
+    );
+  }
+  if (done.profileChanged && prevProfile) {
+    await bestEffort('undo profile tier', () =>
+      updateBy(
+        env,
+        'profiles',
+        { id: `eq.${user.id}` },
+        { tier: prevProfile.tier, tier_source: prevProfile.tier_source }
+      )
+    );
+  }
+  if (done.historyId) {
+    await bestEffort('undo history', () =>
+      updateById(env, 'payment_history', done.historyId, {
+        status: 'refunded',
+        refunded_at: now,
+        refund_reason: UNDO_REASON,
+      })
+    );
+  }
+  return true;
+}
+
+async function bestEffort(label, fn) {
+  try {
+    await fn();
+  } catch (e) {
+    console.error(`[payments] ${label} failed:`, e && e.message);
+  }
 }
 
 async function handleManualCharge(request, env) {
@@ -281,8 +416,9 @@ async function handleManualCharge(request, env) {
       customerKey: sub.provider_customer_id,
       amount: sub.amount_krw,
       orderId,
-      orderName: PLAN_NAMES[sub.plan] || '다담가구 구독',
+      orderName: orderNameFor(sub.plan),
       customerEmail: user.email,
+      idempotencyKey: orderId,
     });
     const next = plus30dIso();
     await updateById(env, 'subscriptions', sub.id, {
@@ -290,20 +426,24 @@ async function handleManualCharge(request, env) {
       current_period_start: nowIso(),
       current_period_end: next,
       next_charge_at: next,
+      // 결제가 됐으니 재시도 기록은 지운다. 안 지우면 다음 달 실패가 2·3회차로 세어진다.
+      failed_attempts: 0,
+      first_failed_at: null,
+      updated_at: nowIso(),
     });
-    await insertOne(env, 'payment_history', {
-      user_id: user.id,
-      subscription_id: sub.id,
-      provider: 'toss',
-      order_id: orderId,
-      payment_key: charge.paymentKey || null,
-      plan: sub.plan,
-      amount_krw: sub.amount_krw,
-      status: charge.status === 'DONE' ? 'done' : 'pending',
-      method: charge.method || null,
-      receipt_url: charge.receipt?.url || null,
-      raw_response: charge,
-    });
+    await insertOne(
+      env,
+      'payment_history',
+      historyRow({
+        userId: user.id,
+        subscriptionId: sub.id,
+        orderId,
+        plan: sub.plan,
+        amount: sub.amount_krw,
+        charge,
+      })
+    );
+    await bestEffort('credit period reset', () => grantMonthlyCredits(env, user.id, Date.now()));
     return jsonResponse(request, env, {
       success: true,
       message: '결제 재시도 성공',
@@ -311,17 +451,18 @@ async function handleManualCharge(request, env) {
     });
   } catch (e) {
     if (e instanceof TossError) {
-      await insertOne(env, 'payment_history', {
-        user_id: user.id,
-        subscription_id: sub.id,
-        provider: 'toss',
-        order_id: orderId,
-        plan: sub.plan,
-        amount_krw: sub.amount_krw,
-        status: 'failed',
-        failure_code: e.code,
-        failure_message: e.message,
-      });
+      await insertOne(
+        env,
+        'payment_history',
+        historyRow({
+          userId: user.id,
+          subscriptionId: sub.id,
+          orderId,
+          plan: sub.plan,
+          amount: sub.amount_krw,
+          error: e,
+        })
+      );
     }
     throw e;
   }
@@ -330,10 +471,11 @@ async function handleManualCharge(request, env) {
 async function handleCancel(request, env) {
   const user = await verifyJwt(request, env);
   const body = (await readJson(request)) || {};
+  // 결제 실패로 재시도 중(past_due)인 구독도 해지할 수 있다 — 해지하면 더는 결제하지 않는다.
   const sub = await selectOne(env, 'subscriptions', {
     user_id: `eq.${user.id}`,
     provider: 'eq.toss',
-    status: 'eq.active',
+    status: 'in.(active,past_due)',
     select: '*',
     order: 'created_at.desc',
   });
@@ -347,18 +489,44 @@ async function handleCancel(request, env) {
   }
   await updateById(env, 'subscriptions', sub.id, {
     status: 'cancelled',
+    cancel_reason: 'user_request',
     cancel_at: sub.current_period_end,
     next_charge_at: null,
+    updated_at: nowIso(),
   });
 
-  // 등급은 지금 내리지 않는다 — 이번 기간까지는 이미 낸 값이다.
-  // 기간이 끝날 때 내리는 일은 정기 과금 실패/만료 처리에서 한다.
-  // 다만 결제로 받은 등급인 경우에만 내려야 하므로 표식은 여기서 확인해 둔다.
+  // 등급은 지금 내리지 않는다 — 이번 기간까지는 이미 낸 값이다 (약관 제9조).
+  // 기간이 끝나면 하루 한 번 도는 cron(lifecycle.js expireCancelled)이 내린다.
+  // 결제로 받은 등급(tier_source='subscription')일 때만.
   console.log(`Toss subscription cancelled: user=${user.id} reason=${body.reason || '-'}`);
+  const pastDue = sub.status === 'past_due';
   return jsonResponse(request, env, {
     success: true,
-    message: '구독이 현재 기간 종료 후 취소됩니다.',
-    data: { cancel_at: sub.current_period_end },
+    message: pastDue
+      ? '구독이 해지되었습니다. 더 이상 결제를 시도하지 않습니다.'
+      : '구독이 현재 기간 종료 후 취소됩니다.',
+    data: { cancel_at: sub.current_period_end, past_due: pastDue },
+  });
+}
+
+/**
+ * 관리자 환불 — 결제 1건 (payment_history.id).
+ * 본문: { payment_id, override?: true, reason?: string }
+ * 조건(결제 후 7일 이내 · 크레딧 미사용)을 벗어나면 409 + reasons. override:true 로 다시 보내야 한다.
+ */
+async function handleAdminRefund(request, env) {
+  const admin = await verifyAdmin(request, env);
+  const body = (await readJson(request)) || {};
+  const result = await refundPayment(env, {
+    paymentId: body.payment_id,
+    adminId: admin.id,
+    override: body.override === true,
+    reason: typeof body.reason === 'string' ? body.reason.slice(0, 200) : undefined,
+  });
+  return jsonResponse(request, env, {
+    success: true,
+    message: result.override_used ? '관리자 예외로 환불했습니다.' : '환불했습니다.',
+    data: result,
   });
 }
 
@@ -455,6 +623,7 @@ const ROUTES = [
   { method: 'POST', path: '/issue-billing-key', handler: handleIssueBillingKey },
   { method: 'POST', path: '/charge', handler: handleManualCharge },
   { method: 'POST', path: '/cancel', handler: handleCancel },
+  { method: 'POST', path: '/admin/refund', handler: handleAdminRefund },
   { method: 'POST', path: '/webhook', handler: handleWebhook },
 ];
 
@@ -472,7 +641,20 @@ export default {
       return await route.handler(request, env);
     } catch (err) {
       if (err instanceof AuthError) {
-        return jsonResponse(request, env, { success: false, message: err.message }, 401);
+        return jsonResponse(
+          request,
+          env,
+          { success: false, message: err.message },
+          err.statusCode || 401
+        );
+      }
+      if (err instanceof RefundError) {
+        return jsonResponse(
+          request,
+          env,
+          { success: false, code: err.code, message: err.message, ...err.extra },
+          err.statusCode
+        );
       }
       if (err instanceof TossError) {
         return jsonResponse(
@@ -489,5 +671,18 @@ export default {
       console.error('Unhandled:', err && err.stack ? err.stack : String(err));
       return jsonResponse(request, env, { success: false, message: '서버 오류' }, 500);
     }
+  },
+
+  /**
+   * 하루 한 번 (wrangler.toml [triggers]). 정기 결제 · 실패 재시도 · 해지 만료.
+   * 기준 시각은 cron 이 잡힌 시각(scheduledTime) — 재시도 「1일 뒤 · 3일 뒤」가 다음 cron 과 딱 맞는다.
+   */
+  async scheduled(controller, env, ctx) {
+    const nowMs = Number(controller && controller.scheduledTime) || Date.now();
+    ctx.waitUntil(
+      runDailyLifecycle(env, nowMs).catch((e) => {
+        console.error('[payments] lifecycle failed:', e && e.message ? e.message : String(e));
+      })
+    );
   },
 };
