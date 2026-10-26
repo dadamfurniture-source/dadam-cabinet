@@ -9,19 +9,22 @@
  *   POST   /api/generate/:id/layout   구성 분석 → 플래너용 layout  (JWT, 본인, 완료된 결과만)
  *   GET    /api/share                 공유 열람                    (X-Share-Token)
  *   POST   /api/admin/appliance-image 가전 모델 제품 사진 가져오기 (JWT, admin · super_admin)
- *   GET    /health · /diag            진단
+ *   GET    /health                    진단 (모델·콜로)
  *
  * 생성 자체는 job.js 의 GenerateJob(Durable Object, 미국 콜로) 이 alarm 으로 실행한다.
  * 이 파일은 인증·크레딧·입력 업로드·행 생성·조회만 한다.
  * 진행 상태의 정본은 generations 행이다 (폴링은 행만 읽는다).
+ * CORS 허용 목록·요청 한도·본문 크기는 guard.js (2026-10-26).
  */
 
-import { callGemini, geminiModel, probeRoutes, textModel } from './gemini.js';
-import { proxyStub } from './proxy.js';
+import { callGemini, geminiModel, textModel } from './gemini.js';
 import { imageProvider, plannerDefaultProvider, resolvePlannerProvider } from './images.js';
 import { openaiImageModel } from './openai.js';
+import { assertContentLength, corsHeaders, enforceRateLimit, readBodyText } from './guard.js';
 import {
   DEFAULT_STYLE,
+  DOOR_COLORS,
+  DOOR_FINISHES,
   KITCHEN_CATEGORIES,
   STYLES,
   buildChatPrompt,
@@ -75,16 +78,16 @@ const PUBLIC_COLUMNS =
   'id,parent_id,status,progress,step_label,error,category,title,options,wall_analysis,quote,images,layout,model,elapsed_ms,credit_cost,is_favorite,share_expires_at,share_revoked_at,created_at,completed_at';
 /** Anthropic 이미지 한도 5MB — base64 로는 4/3 배. 넘으면 분석하지 않는다. */
 const MAX_IMAGE_B64 = Math.floor((5 * 1024 * 1024 * 4) / 3);
-
-function corsHeaders(origin) {
-  return {
-    'Access-Control-Allow-Origin': origin || '*',
-    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Share-Token',
-    'Access-Control-Max-Age': '86400',
-    Vary: 'Origin',
-  };
-}
+/**
+ * 요청 본문 상한 (2026-10-26). 가장 큰 정상 요청은 플래너 모드 — 방 사진(긴 변 1600 JPEG) + 도면 렌더 최대 7장
+ * (긴 변 1536 PNG) 이 base64 로 실린다. 일반 연출컷은 방 사진 + 참고 이미지 5장. 둘 다 이보다 한참 작다.
+ */
+const MAX_BODY_BYTES = 32 * 1024 * 1024;
+/**
+ * 받는 이미지 형식 — 버킷 확장자(supabase.js extOf)·가전 사진(appliance-image.js)과 같은 셋.
+ * 화면(ai-design.html · js/planner/ai-photo.js)은 image/jpeg · image/png 만 보낸다. 버킷에 그대로 Content-Type 으로 올라간다.
+ */
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 function json(body, status, headers) {
   return new Response(JSON.stringify(body), {
@@ -100,7 +103,25 @@ const CODE_BY_STATUS = {
   404: 'not_found',
   409: 'already_running',
   410: 'gone',
+  413: 'body_too_large',
+  429: 'rate_limited',
 };
+
+function badRequest(message, code) {
+  const e = new ValidationError(message);
+  e.code = code;
+  return e;
+}
+
+/** 본문 JSON — maxBytes 를 넘으면 413, JSON 이 아니면 400. */
+async function readJsonBody(request, maxBytes) {
+  const raw = await readBodyText(request, maxBytes);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw badRequest('body must be JSON', 'bad_json');
+  }
+}
 
 function errorResponse(e, headers) {
   const status = e.statusCode || (e instanceof AuthError ? 401 : 500);
@@ -113,16 +134,22 @@ function errorResponse(e, headers) {
 /**
  * 참고 이미지: {base64, mimeType, role?, note?} 객체 배열. 문자열만 온 예전 형식도 JPEG 로 받아 준다.
  * note 는 테마 사진의 설명(관리자가 적은 것) — 테마일 때만 받아 색감 추출에 힌트로 쓴다.
+ * 형식이 IMAGE_TYPES 밖이면 그 한 장만 버린다 (업로드 실패한 참고 이미지처럼 — 생성은 간다).
  */
 function normalizeRefs(list) {
   if (!Array.isArray(list)) return [];
   return list
     .map((r) => {
       if (typeof r === 'string') return { base64: r, mimeType: 'image/jpeg' };
-      if (!r || !r.base64) return null;
+      if (!r || typeof r.base64 !== 'string' || !r.base64) return null;
+      const mimeType = r.mimeType || r.mime || 'image/jpeg';
+      if (!IMAGE_TYPES.includes(mimeType)) {
+        console.warn('[Generate] ref skipped: image type not allowed');
+        return null;
+      }
       // theme = 색감만 빌린다 (추천안 한 장), 그 외(upload·case) = 설치 참고
       const role = r.role === 'theme' ? 'theme' : 'style';
-      const out = { base64: r.base64, mimeType: r.mimeType || r.mime || 'image/jpeg', role };
+      const out = { base64: r.base64, mimeType, role };
       const note = role === 'theme' ? cleanThemeNote(r.note) : null;
       if (note) out.note = note;
       return out;
@@ -149,7 +176,9 @@ function normalizeRenders(list) {
   for (const r of list) {
     if (!r || typeof r !== 'object' || !RENDER_ROLES.includes(r.role)) continue;
     if (typeof r.base64 !== 'string' || !r.base64 || byRole[r.role]) continue;
-    byRole[r.role] = { role: r.role, base64: r.base64, mimeType: r.mimeType || r.mime || 'image/png' };
+    const mimeType = r.mimeType || r.mime || 'image/png';
+    if (!IMAGE_TYPES.includes(mimeType)) continue; // 형식이 틀린 렌더는 없는 것으로 (입면이면 missing_render)
+    byRole[r.role] = { role: r.role, base64: r.base64, mimeType };
   }
   return RENDER_ROLES.filter((k) => byRole[k]).map((k) => byRole[k]);
 }
@@ -206,10 +235,13 @@ function publicView(row) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const headers = corsHeaders(request.headers.get('Origin') || '*');
+    const headers = corsHeaders(request.headers.get('Origin'), env);
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
 
     try {
+      // 본문 크기 — 어느 라우트든 인증·파싱보다 먼저 (선언된 길이만. 읽으면서 세는 건 라우트가 한다)
+      assertContentLength(request, MAX_BODY_BYTES);
+
       if (url.pathname === '/health' || url.pathname === '/') {
         return json(
           {
@@ -231,7 +263,6 @@ export default {
           headers
         );
       }
-      if (url.pathname === '/diag') return json(await diag(request, env), 200, headers);
 
       if (url.pathname === '/api/chat' && request.method === 'POST') {
         return json(await chat(request, env), 200, headers);
@@ -275,13 +306,16 @@ export default {
 /**
  * POST /api/chat — 연출컷 ③ 상세 요청의 다음 한 마디 (2026-10-08).
  * 로그인한 손님만 — 익명으로 모델 호출을 열어 두지 않는다. 크레딧은 쓰지 않는다 (짧은 텍스트 한 번).
+ * 사용자마다 요청 한도 CHAT_LIMIT (wrangler.toml [[ratelimits]], 2026-10-26).
  * 본문: { category, messages:[{role:'me'|'ai', text}] } → { success, reply }
  */
 const CHAT_MAX_BODY = 32 * 1024;
 async function chat(request, env) {
   if (!env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not configured');
-  await verifyJwt(request, env);
-  const raw = await request.text();
+  const user = await verifyJwt(request, env);
+  await enforceRateLimit(env.CHAT_LIMIT, user.id);
+  // 글자 수 검사는 아래 그대로 — UTF-8 은 UTF-16 한 칸에 최대 3바이트라, 그 3배까지만 읽는다
+  const raw = await readBodyText(request, CHAT_MAX_BODY * 3);
   if (raw.length > CHAT_MAX_BODY) throw new ValidationError('chat body too large');
   let body;
   try {
@@ -315,6 +349,8 @@ async function createGeneration(request, env, headers) {
 
   // 인증 — 본문을 읽기 전에. 인증 없는 요청이 수 MB base64 를 파싱하게 두지 않는다.
   const user = await verifyJwt(request, env);
+  // 요청 한도 (2026-10-26) — 사용자마다 GENERATE_LIMIT. 본문·DB 보다 먼저.
+  await enforceRateLimit(env.GENERATE_LIMIT, user.id);
 
   // 사용자당 실행 중 잡 1개.
   const active = await selectOne(env, 'generations', {
@@ -326,7 +362,8 @@ async function createGeneration(request, env, headers) {
     throw new ConflictError('이미 생성 중인 작업이 있습니다. 끝난 뒤 다시 시도해 주세요.');
   }
 
-  const body = await request.json();
+  const body = await readJsonBody(request, MAX_BODY_BYTES);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw badRequest('body must be a JSON object', 'bad_json');
   const {
     room_image,
     image_type = 'image/jpeg',
@@ -351,6 +388,14 @@ async function createGeneration(request, env, headers) {
     image_provider,
     place_guide,
   } = body;
+
+  // 입력 검사 (2026-10-26) — 크레딧 차감 전에. 방 사진 형식은 버킷 Content-Type 으로 그대로 가고,
+  //   문짝 색·마감은 설치 프롬프트 FINISH 줄에 그대로 들어간다 — 화면이 보내는 값만 받는다 (prompts.js DOOR_COLORS).
+  if (!IMAGE_TYPES.includes(image_type)) {
+    throw badRequest(`image_type must be one of ${IMAGE_TYPES.join(', ')}`, 'bad_image_type');
+  }
+  if (!DOOR_COLORS.includes(door_color)) throw badRequest('door_color is not a known colour', 'bad_door_color');
+  if (!DOOR_FINISHES.includes(door_finish)) throw badRequest('door_finish is not a known finish', 'bad_door_finish');
 
   // 재생성: 부모의 입력을 그대로 쓴다 (업로드 생략).
   let parent = null;
@@ -634,7 +679,7 @@ async function enqueueGeneration(request, env, headers, { user, parent, category
  * 동기 응답(5~15초). 클라이언트(ai-design.html)는 응답을 받은 뒤 detaildesign.html?gen= 으로 간다.
  */
 async function createLayout(request, env, id, url) {
-  const { row } = await requireOwner(request, env, id);
+  const { user, row } = await requireOwner(request, env, id);
   if (row.status !== 'done') {
     const e = new ConflictError('완료된 결과만 설계로 가져올 수 있습니다');
     e.code = 'not_done';
@@ -649,6 +694,8 @@ async function createLayout(request, env, id, url) {
   if (row.layout && url.searchParams.get('force') !== '1') {
     return { success: true, layout: row.layout, cached: true };
   }
+  // 요청 한도 (2026-10-26) — Claude 를 실제로 부를 때만 센다 (첫 분석 · ?force=1). 캐시 응답은 세지 않는다.
+  await enforceRateLimit(env.LAYOUT_LIMIT, user.id);
   const base = (row.images || []).find((im) => im && im.slot === 'base');
   if (!base || !base.path) {
     const e = new NotFoundError('기본안 이미지가 없습니다');
@@ -797,28 +844,4 @@ async function getShared(request, env) {
       expires_at: row.share_expires_at,
     },
   };
-}
-
-async function diag(request, env) {
-  const pick = (t) => (t.match(/(colo|loc|ip)=[^\n]*/g) || []).join(' ');
-  const out = { worker_colo: (request.cf && request.cf.colo) || null };
-  try {
-    out.worker_egress = pick(
-      await fetch('https://www.cloudflare.com/cdn-cgi/trace').then((r) => r.text())
-    );
-  } catch (e) {
-    out.worker_egress = 'ERR ' + e.message;
-  }
-  try {
-    const stub = proxyStub(env);
-    out.proxy_egress = stub
-      ? pick(await stub.fetch('https://gemini-proxy/').then((r) => r.text()))
-      : 'no binding';
-  } catch (e) {
-    out.proxy_egress = 'ERR ' + e.message;
-  }
-  out.job_binding = !!env.GENERATE_JOB;
-  out.service_role = !!env.SUPABASE_SERVICE_ROLE_KEY;
-  out.routes = await probeRoutes(env);
-  return out;
 }

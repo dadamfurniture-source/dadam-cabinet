@@ -385,14 +385,14 @@ test('mode 가 없으면 options·inputs 는 옛 모양 그대로 — renders �
   const res = await post({
     room_image: PNG,
     category: 'wardrobe',
-    door_color: 'oak',
+    door_color: 'oak woodgrain',
     renders: [{ role: 'elevation', base64: PNG }],
     aspect: '4:3',
   });
   assert.equal(res.status, 202);
   assert.deepEqual(calls.inserted.options, {
     design_style: 'modern-minimal',
-    door_color: 'oak',
+    door_color: 'oak woodgrain',
     door_finish: 'matte',
     wall_width_override: null,
     // 급수·배기는 주방 품목에서만 싣는다 — 붙박이장이라 null 이다
