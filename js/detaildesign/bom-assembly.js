@@ -527,6 +527,9 @@
         case 'rice:front':
         case 'rice:hinge-batten':
           return;   // 아래에서 밥솥장 슬라이딩 선반을 한꺼번에 (도어가 달린 밥솥장 — 일반 장 몸통)
+        case 'rice:top-batten':
+          if (!placeRiceTopBattens(parts, row, { W, H, zFront, zBack })) skip(row, 'rice-top-batten-layout-unknown');
+          return;
         case 'blind': {
           // 멍가림판 MDF 3T — 멍 W − 목대 15 × 몸통 H, 벽 쪽 끝부터 앞선에 붙어 밖으로 (z D/2 … D/2 + 3)
           if (!bl || row.qty !== 1 || row.w !== bl.coverEnd || row.h !== H) { skip(row, 'blind-layout-unknown'); return; }
@@ -1017,6 +1020,20 @@
     };
   }
 
+  /**
+   * 2026-10-26 사장님: 하부 밥솥장(밑 서랍) 위 목대 30 × W × 18T 2장 — 몸통 위 (y H … H + 30), 폭 전체.
+   *   앞 한 장은 앞면이 몸통 앞선에서 22 안쪽 (이웃 하부장 목찬넬 전면판 앞면), 뒷 한 장은 몸통 뒤끝 (bom-rice-cabinet-rules LOWER_TOP_BATTEN).
+   *   행 모양이 규칙과 다르면 false (놓지 않는다 — 지어내지 않는다).
+   */
+  function placeRiceTopBattens(parts, row, g) {
+    const B = RiceRules && RiceRules.RULES.LOWER_TOP_BATTEN;
+    if (!B || row.qty !== B.QTY || row.h !== g.W || row.w !== B.H || row.thickness !== B.T) return false;
+    const frame = (z) => ({ o: [-g.W / 2, g.H, z], u: '+y', v: '+x', n: '+z' });
+    parts.push(makePart(row, 0, frame(g.zFront - B.FRONT_SETBACK - B.T), [], 'exterior', { riceTopBatten: 'front' }));
+    parts.push(makePart(row, 1, frame(g.zBack), [], 'interior', { riceTopBatten: 'back' }));
+    return true;
+  }
+
   /** 밥솥장 슬라이딩 선반 부재 — 행 키 묶음 (BOM_PART_DEFS '밥솥장 …', bom-rice-cabinet-rules shelfPartsOf). */
   const RICE_SHELF_FAMILIES = ['rice:shelf', 'rice:batten', 'rice:front', 'rice:hinge-batten'];
 
@@ -1115,6 +1132,7 @@
       if (key.family === 'shelf') { skip(row, 'shelf-height-unknown'); return; }
       if (/^pedestal:/.test(key.family) || key.family === 'kick') return;   // 아래에서 좌대 상자를 한꺼번에
       if (RICE_SHELF_FAMILIES.includes(key.family)) return;                 // 아래에서 밥솥장 슬라이딩 선반을 한꺼번에
+      if (key.family === 'rice:top-batten') { if (!placeRiceTopBattens(parts, row, { W, H, zFront, zBack })) skip(row, 'rice-top-batten-layout-unknown'); return; }
       if (key.family === 'molding') {
         // 2026-10-24 (키큰장 조합): 키큰장 맨 위 단을 상자로 바꿔도 상몰딩은 그 단이 낸다 — 몸통 단과 같은 자리
         //   (몸통 위 y H…H+몰딩H, 앞면 = 도어 앞면 z D/2+18, 뒷면 = 몸통 앞선 — shellOf 'molding')
@@ -1176,12 +1194,21 @@
       return m && item ? (item.modules || []).find((x) => String(x.id) === m[1]) : null;
     };
     const isTallTier = (mod) => !!mod && (mod.type === 'tall' || mod.blindKind === 'tall');
+    /** 2026-10-26: 위에 밥솥장이 쌓인 서랍 모듈의 윗면 = 서랍 + 밥솥장 + 목대 (상판이 그 위에 앉는다) — 같은 자리의 쌓인 모듈에서 읽는다 */
+    const withStackTop = (entries, all) => entries.map((e) => {
+      if (!e.mod.stackTop || !e.spec) return e;
+      const top = all.find((s) => s.mod.stacked && Math.abs(s.x0 - e.x0) <= 1);
+      return Object.assign(e, { topH: e.spec.box.H + (top && top.spec ? top.spec.box.H + (Number(top.mod.riceTopBatten) || 0) : 0) });
+    });
     const lineList = (Array.isArray(lines) ? lines : []).map((ln) => ({
       key: ln.key, D: Number(ln.D) || 0,
       // 명세 모듈이 없는 모듈(쿡탑장처럼 BOM 행이 없는 것)도 폭은 센다 — 상판이 그 위를 지난다. 호스트는 될 수 없다
+      // 2026-10-26: 서랍 위에 쌓인 밥솥장(stacked)은 줄에 서지 않는다 — 밑 서랍 모듈이 그 자리를 센다 (걸레받이 · 상판 · 목찬넬 구간)
       entries: (ln.modules || []).map((e) => ({ mk: String(e.moduleKey), x0: Number(e.x0) || 0, back: Math.max(0, Number(e.back) || 0), spec: byKey.get(String(e.moduleKey)) || null, mod: rawOf(e.moduleKey) }))
         .filter((e) => e.mod).map((e) => Object.assign(e, { W: e.spec ? e.spec.box.W : (Number(e.mod.w) || 0) })).sort((a, b) => a.x0 - b.x0),
-    }));
+    })).map((ln) => Object.assign(ln, { entries: withStackTop(ln.entries.filter((e) => !e.mod.stacked), ln.entries) }));
+    /** 줄 위에서 본 모듈 윗면 높이 — 쌓인 칸은 topH (상판 · 상몰딩 구간의 같은 높이 검사) */
+    const topOf = (e) => (e.topH || (e.spec ? e.spec.box.H : 0));
     /** 한 라인에서 pred 가 세는 모듈 구간. 라인에 세는 모듈이 없으면 null. 같은 pos(하부/상부) 줄 안에서 사이에 안 세는 모듈이 있거나
      *  모듈 사이가 떨어져 있거나(빈 자리) 높이가 다르거나 첫 모듈에 명세가 없으면 { bad } — 한 장이 지나갈 수 없다.
      *  bridge(ln, a, b) 가 참이면 그 빈 자리(벽 x a…b)는 건너간다 (상몰딩 — 2026-10-26) */
@@ -1197,11 +1224,24 @@
         const end = counted[k - 1].x0 + counted[k - 1].W;
         return Math.abs(end - e.x0) <= 1 || (!!bridge && e.x0 - end > 1 && bridge(ln, end, e.x0));
       });
-      const sameH = !!host.spec && counted.every((e) => !e.spec || e.spec.box.H === host.spec.box.H);
+      const sameH = !!host.spec && counted.every((e) => !e.spec || topOf(e) === topOf(host));
       return { bad: !contiguous || !touching || !sameH, host, x0: host.x0, x1: last.x0 + last.W, line: ln };
     };
     /** 라인마다 pred 구간 (세는 모듈이 없는 라인은 뺀다) */
     const spansOf = (pred, bridge) => lineList.map((ln) => spanOf(ln, pred, bridge)).filter(Boolean);
+    /**
+     * 2026-10-26: brk 가 참인 모듈에서 끊은 구간들 — 상판 아래 목찬넬은 밥솥장이 쌓인 서랍 모듈(stackTop)에서 끊긴다.
+     *   끊는 모듈이 없는 라인은 spansOf 와 같다 (한 구간).
+     */
+    const segmentsOf = (pred, brk) => lineList.flatMap((ln) => {
+      if (!ln.entries.some((e) => brk(e.mod))) { const sp = spanOf(ln, pred); return sp ? [sp] : []; }
+      const out = [];
+      let cur = [];
+      const flush = () => { if (cur.length) { const sp = spanOf(Object.assign({}, ln, { entries: cur }), pred); if (sp) out.push(sp); } cur = []; };
+      ln.entries.forEach((e) => { if (brk(e.mod)) flush(); else cur.push(e); });
+      flush();
+      return out;
+    });
     /** 품목에서 pred 구간이 꼭 한 라인에만 있어야 한다 (행이 한 장이다) */
     const onlySpan = (pred, bridge) => {
       const spans = spansOf(pred, bridge);
@@ -1252,7 +1292,7 @@
           const finL = drawnEdgeW('left'), finR = drawnEdgeW('right');
           if (!span || row.qty !== 1 || row.w !== span.x1 - span.x0 + finL + finR) { skip(row, 'run-layout-unknown'); return; }
           const b = span.host.spec.box;
-          put(row, span, { o: [xOf(span, span.x0 - finL), b.H, -b.D / 2 - span.host.back], u: '+x', v: '+z', n: '+y' }, 'exterior', { run: 'top' });
+          put(row, span, { o: [xOf(span, span.x0 - finL), topOf(span.host), -b.D / 2 - span.host.back], u: '+x', v: '+z', n: '+y' }, 'exterior', { run: 'top' });
           return;
         }
         case 'molding': {
@@ -1291,8 +1331,8 @@
           // 목찬넬 EP ㄴ자 — 벽마다 하부 라인(쿡탑장·키큰장 단 제외) 한 장 (2026-10-25 사장님 확정 "보통 벽마다 한장씩, 두장으로 나뉨"),
           //   측판 따내기 70×40 자리, 키큰장 단 ㄴ자와 같다. 그 라인의 모든 하부 측판에 따내기가 있어야 한다
           const face = key.family === 'channel:front';
-          const counts = (mod) => lowerLine(mod) && mod.type !== 'cook';
-          const notched = spansOf(counts).filter((sp) => sp.line.entries.filter((e) => counts(e.mod)).every(hasTopNotch));
+          const counts = (mod) => lowerLine(mod) && mod.type !== 'cook' && !mod.stackTop;
+          const notched = segmentsOf(counts, (mod) => !!mod.stackTop).filter((sp) => sp.line.entries.filter((e) => counts(e.mod)).every(hasTopNotch));
           const mine = row.w === (face ? DR.CHANNEL_TOP_FACE_H : DR.CHANNEL_BASE_W) && row.thickness === DR.CHANNEL_T
             ? wallSpansFor(notched, row.h, row.qty) : null;
           if (!mine) { skip(row, 'run-layout-unknown'); return; }
@@ -1377,7 +1417,7 @@
         // 품목 단위 행 — 라벨로 품목을 찾는다 (extractLegs: pos lower, 키큰장 단 제외 — 좌대가 받친다, sink.md §5)
         //   2026-10-24: 싱크도 키큰장 단을 세지 않는다 (예전엔 단순 카테고리만 뺐다)
         if (row.moduleKey || (row.itemLabel && label && row.itemLabel !== label)) return;
-        const lowers = (item.modules || []).filter((mod) => mod.pos === 'lower' && !isTallTier(mod));
+        const lowers = (item.modules || []).filter((mod) => mod.pos === 'lower' && !isTallTier(mod) && !mod.stacked);   // 쌓인 밥솥장은 다리발 없음 (2026-10-26)
         const countOf = (mod) => { const w = parseFloat(mod.w) || 600; return w <= 600 ? 4 : w <= 900 ? 6 : 8; };
         const total = lowers.reduce((a, mod) => a + countOf(mod), 0);
         lowers.forEach((mod) => {

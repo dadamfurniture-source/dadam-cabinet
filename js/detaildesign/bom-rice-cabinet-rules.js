@@ -31,6 +31,19 @@
  *   도어 한 장 = (W − 4) × (H − 4). 키큰장 푸쉬 단 도어(bomTallTierDoorH H − 4)와 도어 폭(floor(W / 장수) − 4)의
  *   간격 4 를 그대로 쓴다 — 밥솥장은 밑에 서랍이 있어 바닥 단(목찬넬 H − 30)이 될 수 없다.
  *
+ * ── 하부 밥솥장 (밑 서랍) — 2026-10-26 사장님 ─────────────
+ *   하부 줄(상판 아래)에 **서랍 모듈 위에 밥솥장 상자를 쌓는다.** 둘은 따로 만든 모듈이다.
+ *     몸통 708 = 서랍 모듈 250 (기본) + 밥솥장 (남는 높이 — 기본 428) + 목대 30   (밥솥장 윗면 = 이웃 하부장 도어 윗선 828)
+ *     서랍 250 은 서랍 박스(언더레일 소 75)가 들어가는 높이 — 178 은 박스 자리가 78 이라 안 들어갔다.
+ *     최소 내경 높이 = 392 (하부 밥솥장만, LOWER_STACK.MIN_INNER_H) — 들어가는 밥솥 높이 = 내경 − 선반 · 레일 설치 약 70 → 322 까지.
+ *     (2026-10-26 사장님: 쿠쿠 · 쿠첸 · 위니아 71 모델 중 322 넘는 것 둘 — 쿠쿠 미식 IH 10인용 326 · 대용량 21인용 336)
+ *   서랍 모듈   서랍 1칸, 위는 하부장 상단 목찬넬과 같다 (측판 따내기 70×40 · 목찬넬 전면 52 + 지면 40 — 그 모듈의 부재).
+ *               상판 아래 목찬넬 줄은 이 칸에서 끊긴다 (밥솥장 위 목대가 이웃 목찬넬 모양을 잇는다).
+ *   밥솥장 위   목대 30 × W × 18T 2장 (도어 재질 · 색). 앞 한 장은 앞면이 몸통 앞선에서 22 안쪽 (= 이웃 목찬넬 전면판 앞면:
+ *               따내기 40 − 18), 뒷 한 장은 몸통 뒤끝. LOWER_TOP_BATTEN · topBattenPartsOf.
+ *   플래너 payload: 서랍 모듈 stackTop 'rice' · 밥솥장 riceBelow 'drawer' (section lower) → 브리지가 밥솥장 몸통에서 목대 30 을 뺀다.
+ *   경고(warningsOf ctx.lowerStack)는 최소 내경 높이를 392 로 본다 — 키큰장 가운데 단 · 단독 밥솥장은 400 그대로.
+ *
  * ── 정해지지 않은 것 [확인 필요] ───────────────────────
  *   포켓 도어 철물 — 코드·문서에 값이 없다. 부재로 내지 않고 비고에만 적는다.
  */
@@ -72,6 +85,21 @@
       DOOR_MATERIAL: 'PB',        // 도어 — 몸통 PB · 몸통 두께 (몸통과 같은 색)
     }),
     SHELF_NOTE: '슬라이딩 선반 — 선반 · 보강목 2 · 마이다 (여닫이면 경첩 쪽 추가 목대) · 언더레일 1',
+    // 2026-10-26 사장님 — 하부 밥솥장(밑 서랍) 높이 (위 머리 주석)
+    LOWER_STACK: Object.freeze({
+      DRAWER_H: 250,              // 밑 서랍 모듈 몸통 기본 (밥솥장 = 하부 몸통 − 서랍 − 목대, 가변)
+      MIN_INNER_H: 392,           // 하부 밥솥장 최소 내경 높이 (서랍 250 일 때 — 밥솥 322 까지)
+      SHELF_INSTALL_H: 70,        // 선반 + 레일 설치 높이 약 70 — 들어가는 밥솥 높이 = 내경 − 이 값 (안내용)
+    }),
+    // 2026-10-26 사장님 — 하부 밥솥장(밑 서랍) 위 목대 (위 머리 주석)
+    LOWER_TOP_BATTEN: Object.freeze({
+      H: 30,                      // 목대 높이 = 이웃 하부장 도어 윗선 ~ 상판 밑 (상단 슬롯 30)
+      T: 18,
+      QTY: 2,                     // 앞 · 뒤
+      FRONT_SETBACK: 22,          // 앞 목대 앞면 = 몸통 앞선에서 22 안쪽 (이웃 목찬넬 전면판 앞면 — 따내기 40 − 목찬넬 18)
+      MATERIAL: 'MDF',            // 도어 재질 · 색 (BOM 마감 슬롯 door)
+      PART: '밥솥장 위 목대',
+    }),
     POCKET_NOTE: '포켓 도어 [확인 필요] 철물',
   });
 
@@ -173,7 +201,8 @@
   /**
    * 경고 문구.
    * @param o   {W,H,D} 몸통 외경
-   * @param ctx {below: 'drawer'|'other'|'none'} 바로 밑에 무엇이 있는가 (모르면 생략 — 검사하지 않는다)
+   * @param ctx {below: 'drawer'|'other'|'none', lowerStack?: boolean} 바로 밑에 무엇이 있는가 (모르면 생략 — 검사하지 않는다) ·
+   *            하부 줄 서랍 위에 쌓인 밥솥장이면 최소 내경 높이 LOWER_STACK.MIN_INNER_H (2026-10-26 사장님)
    */
   function warningsOf(o, ctx) {
     const out = [];
@@ -182,7 +211,8 @@
     const g = OC.innerOf(o);
     if (g.W && g.H && g.D) {
       if (g.innerW < R.MIN_INNER.W) out.push(`${R.LABEL} 내경 폭 ${g.innerW} 가 최소 ${R.MIN_INNER.W} 보다 좁습니다`);
-      if (g.innerH < R.MIN_INNER.H) out.push(`${R.LABEL} 내경 높이 ${g.innerH} 가 최소 ${R.MIN_INNER.H} 보다 낮습니다`);
+      const minH = ctx && ctx.lowerStack ? R.LOWER_STACK.MIN_INNER_H : R.MIN_INNER.H;
+      if (g.innerH < minH) out.push(`${R.LABEL} 내경 높이 ${g.innerH} 가 최소 ${minH} 보다 낮습니다`);
     }
     const below = ctx && ctx.below;
     if (below === 'none') out.push(`${R.LABEL} 밑에 서랍이 없습니다 — 밥솥장 밑에는 무조건 서랍이 들어갑니다`);
@@ -190,6 +220,18 @@
     return out;
   }
 
+  /**
+   * 하부 밥솥장(밑 서랍) 위 목대 — 30 × W × 18T 2장 (2026-10-26 사장님). 행 모양은 목찬넬 행과 같다 (w = 높이, h = 길이).
+   * @param {number} W 밥솥장 폭
+   */
+  function topBattenPartsOf(W) {
+    const B = R.LOWER_TOP_BATTEN;
+    const w = Number(W) || 0;
+    if (w <= 0) return [];
+    return [{ part: B.PART, material: B.MATERIAL, t: B.T, w: B.H, h: w, qty: B.QTY, edge: '2면(장)',
+      note: `밥솥장 위 목대 — 앞(몸통 앞선에서 ${B.FRONT_SETBACK} 안쪽) · 뒤, 도어 색 (이웃 하부장 목찬넬을 잇는다)` }];
+  }
+
   return { RULES: RICE_CABINET_RULES, isRiceCabinet, doorTypeOf, doorNameOf, innerOf, doorOf, partsOf, warningsOf,
-    hasDoorBody, shelfGeomOf, shelfPartsOf };
+    hasDoorBody, shelfGeomOf, shelfPartsOf, topBattenPartsOf };
 });
