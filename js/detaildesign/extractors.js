@@ -85,6 +85,8 @@
         '밥솥장 보강목':    { key: 'rice:batten',       slot: 'body' },
         '밥솥장 마이다':    { key: 'rice:front',        slot: 'body' },
         '밥솥장 추가 목대': { key: 'rice:hinge-batten', slot: 'body' },
+        // 2026-10-26 사장님: 하부 밥솥장(밑 서랍) 위 목대 30 × W × 18T 2장 — 도어 재질 · 색 (bom-rice-cabinet-rules LOWER_TOP_BATTEN)
+        '밥솥장 위 목대':   { key: 'rice:top-batten',   slot: 'door' },
         // 전면 (MDF 18T)
         '도어':            { key: 'door',             slot: 'door', indexed: true },
         '서랍도어':        { key: 'drawer',           slot: 'drawerFront', indexed: true },
@@ -217,6 +219,29 @@
           sum[front] += parseFloat(m && m.w) || 0;
         });
         return order.map((k) => sum[k]).filter((w) => w > 0);
+      }
+
+      /**
+       * 상판 아래 목찬넬 조각 길이 — 벽마다 한 장 (bomKickWallLensOf 와 같다). 2026-10-26 사장님: 위에 밥솥장이 쌓인 하부 서랍 모듈
+       *   (stackTop)에서 끊긴다 — 그 칸은 서랍 모듈이 제 목찬넬을 내고, 밥솥장 위 목대가 이웃 목찬넬 모양을 잇는다.
+       *   쌓인 모듈이 없으면 bomKickWallLensOf 그대로 (예전 BOM 과 같다).
+       */
+      function bomChannelWallLensOf(modules) {
+        const list = modules || [];
+        if (!list.some((m) => m && m.stackTop)) return bomKickWallLensOf(list);
+        const frontOf = (m) => (m && m._place && Array.isArray(m._place.front) ? m._place.front.join(',') : '-');
+        const walls = [];
+        list.forEach((m) => { const f = frontOf(m); if (walls.indexOf(f) < 0) walls.push(f); });
+        const out = [];
+        walls.forEach((f) => {
+          let run = 0;
+          list.filter((m) => frontOf(m) === f).sort((a, b) => (Number(a._x) || 0) - (Number(b._x) || 0)).forEach((m) => {
+            if (m.stackTop) { if (run > 0) out.push(run); run = 0; return; }
+            run += parseFloat(m.w) || 0;
+          });
+          if (run > 0) out.push(run);
+        });
+        return out;
       }
 
       /** 벽 하나를 원판 긴 변 단위로 자른 조각 길이들 (앞에서부터 unit, 끝에 나머지) */
@@ -1195,7 +1220,7 @@
         // 멍 폭(blindZoneW)은 corner.md §3.3 대로 세 조각을 품는다:
         //
         //     멍 W = 인접 상판 D − 물끊기 10 + 마감재 자리 60 + 목대 15
-        //     ├─ 멍가림판 2.7T MDF ─────────────┤├목대┤
+        //     ├─ 멍가림판 3T MDF ───────────────┤├목대┤
         //     ├── 보이는 MDF ──┤├─ 마감재 150 ─┤
         //
         // 두 가지를 헷갈리기 쉬워 여기 적어 둔다.
@@ -1692,6 +1717,10 @@
               const note = `밥솥장 ${door.name} 도어` + (door.note ? ` — ${door.note}` : '');
               this.add(materials, name, '도어', 'MDF', 18, door.w, door.h, door.qty, '4면', note, mod);
             }
+            // 2026-10-26 사장님: 하부 줄 서랍 위에 쌓인 밥솥장 — 위에 목대 30 × W × 18T 2장 (도어 색, 브리지 riceTopBatten)
+            if (mod.riceTopBatten && typeof R.topBattenPartsOf === 'function') {
+              R.topBattenPartsOf(dims.W).forEach((p) => this.add(materials, name, p.part, p.material, p.t, p.w, p.h, p.qty, p.edge, p.note || '', mod));
+            }
             this.addTallStackParts(materials, name, mod, specs);
           });
 
@@ -1915,6 +1944,12 @@
               const doorW = Math.floor(W / doorCount) - 4;
               this.add(materials, modLabel, '도어', 'MDF', 18, doorW, H - 30, doorCount, '4면', '', mod);
             }
+            // 2026-10-26 사장님: 위에 밥솥장이 쌓인 서랍 모듈 — 상단 목찬넬이 상판 아래가 아니라 이 모듈 위(밥솥장 밑)에 선다.
+            //   하부장 상단 목찬넬과 같은 ㄴ자(전면 52 · 지면 40)를 이 모듈 폭으로 낸다 (키큰장 바닥 단과 같은 자리) — 목찬넬 줄에서는 빠진다.
+            if (mod.stackTop === 'rice' && isWoodChannel) {
+              this.add(materials, modLabel, '목찬넬(전면)', 'MDF', 18, 52, W, 1, '2면(장)', '밥솥장 밑 서랍 위 목찬넬');
+              this.add(materials, modLabel, '목찬넬(지면)', 'MDF', 18, 40, W, 1, '2면(장)', '밥솥장 밑 서랍 위 목찬넬');
+            }
           });
 
           // ===== EP (마감재) =====
@@ -1961,7 +1996,7 @@
           //   벽 = 걸레받이와 같다 (하부 모듈 앞면 방향, 쿡탑장 · 키큰장 단 제외 — bomKickWallLensOf). 같은 길이의 벽은 한 행에 수량으로.
           //   자리가 없는 옛 설계 · 일자는 한 벽 — 예전처럼 한 장. 모서리는 그 자리에 선 모듈의 벽 몫이다 (벽 길이 = 그 벽 모듈 폭 합).
           if (isWoodChannel && effectiveW > 0) {
-            const chRows = bomWallLenQtyOf(lowerModules.length ? bomKickWallLensOf(lineLowerModules) : [effectiveW]);
+            const chRows = bomWallLenQtyOf(lowerModules.length ? bomChannelWallLensOf(lineLowerModules) : [effectiveW]);
             const chWalls = chRows.reduce((a, r) => a + r[1], 0);
             const chNote = chWalls > 1 ? `벽 ${chWalls}개 · 벽마다 한 장` : '';
             chRows.forEach(([len, n]) => this.add(materials, epLabel, '목찬넬(전면)', 'MDF', 18, 52, len, n, '2면(장)', chNote));
