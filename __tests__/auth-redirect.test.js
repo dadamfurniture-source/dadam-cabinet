@@ -19,6 +19,8 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').split('\r\n').jo
 
 const AR = require('../js/auth-redirect.js');
 const AR_SRC = read('js/auth-redirect.js');
+// 가입·로그인 화면이 함께 싣는 동의 기록 (js/consent.js) — 시험은 __tests__/consent.test.js
+const CONSENT_SRC = read('js/consent.js');
 
 describe('sanitize — 허용', () => {
   test.each([
@@ -363,18 +365,33 @@ const KAKAO_UA =
 /**
  * 페이지를 jsdom 에 올린다. 돌려주는 calls 에 signInWithOAuth 인자가 쌓인다.
  * calls.signUp · calls.resend 에는 이메일 가입 · 인증 메일 다시 보내기 인자가 쌓인다.
+ * calls.update 에는 from(표).update(값).eq(…).is(…) 가 { table, patch, filters } 로 쌓인다 (동의 옮기기).
  * auth 로 가짜 Supabase auth 함수를 바꿔 끼울 수 있다.
  */
 function boot(page, { url, ua = CHROME_UA, session = null, auth = {} } = {}) {
   window.history.replaceState(null, '', url);
   Object.defineProperty(window.navigator, 'userAgent', { get: () => ua, configurable: true });
   document.body.innerHTML = page.body;
+  window.localStorage.clear();
   const calls = [];
   calls.signUp = [];
   calls.resend = [];
+  calls.update = [];
   window.DADAM_CONFIG = { supabase: { url: 'https://sb.test', anonKey: 'k' } };
   window.supabase = {
     createClient: () => ({
+      from: (table) => ({
+        update: (patch) => {
+          const q = { table, patch, filters: [] };
+          calls.update.push(q);
+          const chain = {
+            eq: (c, v) => (q.filters.push(['eq', c, v]), chain),
+            is: (c, v) => (q.filters.push(['is', c, v]), chain),
+            then: (ok, bad) => Promise.resolve({ error: null }).then(ok, bad),
+          };
+          return chain;
+        },
+      }),
       auth: {
         getSession: async () => ({ data: { session } }),
         signInWithOAuth: async (args) => {
@@ -395,7 +412,9 @@ function boot(page, { url, ua = CHROME_UA, session = null, auth = {} } = {}) {
     }),
   };
   delete window.DadamAuthRedirect;
+  delete window.DadamConsent;
   (0, eval)(AR_SRC);
+  (0, eval)(CONSENT_SRC);
   (0, eval)(page.script);
   return calls;
 }
@@ -799,6 +818,7 @@ describe('signup.html', () => {
     document.getElementById('password').value = 'abcd1234';
     document.getElementById('confirmPassword').value = 'abcd1234';
     document.getElementById('agreeTerms').checked = true;
+    document.getElementById('agreeAge').checked = true;
     document.getElementById('signupForm').dispatchEvent(new Event('submit', { cancelable: true }));
     await flush();
   }
@@ -829,5 +849,141 @@ describe('signup.html', () => {
     });
     await submitEmailSignup();
     expect(calls.signUp[0].options.emailRedirectTo).toBe('http://localhost/index.html');
+  });
+});
+
+// ── 동의 (약관·처리방침·만 14세·마케팅) — database/consents.sql · js/consent.js ─────────────
+
+describe('signup.html 동의', () => {
+  /** 필수 칸을 채운다. 동의 칸은 각 시험이 정한다 */
+  function fill({ terms = true, age = true, marketing = false } = {}) {
+    document.getElementById('name').value = '테스트';
+    document.getElementById('email').value = 'new@example.test';
+    document.getElementById('password').value = 'abcd1234';
+    document.getElementById('confirmPassword').value = 'abcd1234';
+    document.getElementById('agreeTerms').checked = terms;
+    document.getElementById('agreeAge').checked = age;
+    document.getElementById('agreeMarketing').checked = marketing;
+  }
+  const submit = async () => {
+    document.getElementById('signupForm').dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+  };
+
+  test('약관·처리방침 동의와 만 14세 이상 확인은 필수 칸, 마케팅은 선택', () => {
+    boot(SIGNUP, { url: '/signup.html' });
+    expect(document.getElementById('agreeTerms').required).toBe(true);
+    expect(document.getElementById('agreeAge').required).toBe(true);
+    expect(document.getElementById('agreeAge').closest('label').textContent).toContain(
+      '만 14세 이상입니다'
+    );
+    expect(document.getElementById('agreeMarketing').required).toBe(false);
+  });
+
+  test('약관 링크는 terms.html · privacy.html 을 새 탭으로 연다 (적던 양식이 사라지지 않게)', () => {
+    boot(SIGNUP, { url: '/signup.html' });
+    const links = [...document.querySelectorAll('.terms-group a')];
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['terms.html', 'privacy.html']);
+    for (const a of links) {
+      expect(a.getAttribute('target')).toBe('_blank');
+      expect(a.getAttribute('rel')).toContain('noopener');
+    }
+  });
+
+  test('만 14세 이상을 확인하지 않으면 가입하지 않는다', async () => {
+    const calls = boot(SIGNUP, { url: '/signup.html' });
+    fill({ age: false });
+    await submit();
+    expect(calls.signUp).toHaveLength(0);
+    expect(document.getElementById('errorMsg').textContent).toBe(
+      '만 14세 이상만 가입할 수 있습니다.'
+    );
+  });
+
+  test('약관에 동의하지 않으면 가입하지 않는다', async () => {
+    const calls = boot(SIGNUP, { url: '/signup.html' });
+    fill({ terms: false });
+    await submit();
+    expect(calls.signUp).toHaveLength(0);
+  });
+
+  test('가입 메타데이터에 동의 시각이 실린다 — 마케팅은 고른 때만', async () => {
+    let calls = boot(SIGNUP, { url: '/signup.html' });
+    fill({ marketing: true });
+    await submit();
+    let data = calls.signUp[0].options.data;
+    expect(Date.parse(data.terms_agreed_at)).not.toBeNaN();
+    expect(data.privacy_agreed_at).toBe(data.terms_agreed_at);
+    expect(data.age_confirmed_at).toBe(data.terms_agreed_at);
+    expect(data.marketing_agreed_at).toBe(data.terms_agreed_at);
+    expect(data.marketing_agreed).toBe(true);
+
+    calls = boot(SIGNUP, { url: '/signup.html' });
+    fill({ marketing: false });
+    await submit();
+    data = calls.signUp[0].options.data;
+    expect(data.marketing_agreed_at).toBeNull();
+    expect(data.marketing_agreed).toBe(false);
+    // 등급은 여전히 싣지 않는다 (DB 트리거가 무시하지만 보내지도 않는다)
+    expect(data).not.toHaveProperty('tier');
+  });
+});
+
+describe('login.html — 이메일 가입 동의를 첫 로그인 때 profiles 로 옮긴다', () => {
+  const SIGNED = {
+    terms_agreed_at: '2026-10-26T01:02:03.000Z',
+    privacy_agreed_at: '2026-10-26T01:02:03.000Z',
+    age_confirmed_at: '2026-10-26T01:02:03.000Z',
+    marketing_agreed_at: null,
+    marketing_agreed: false,
+  };
+
+  // 옮긴 뒤 location.href 로 넘어간다 — jsdom 은 페이지 이동이 없어 콘솔에 'Not implemented: navigation' 을 찍는다
+  // (jsdom 가상 콘솔이라 console.error 를 가려도 나온다). 시험 결과와는 상관없다.
+
+  test('비밀번호 로그인 → 본인 행에, 아직 옮기지 않은 경우(terms_agreed_at IS NULL)만', async () => {
+    const user = { id: 'u-1', user_metadata: { name: '테스트', ...SIGNED } };
+    const calls = boot(LOGIN, {
+      url: '/login.html',
+      auth: {
+        signInWithPassword: async () => ({ data: { user, session: { user } }, error: null }),
+      },
+    });
+    document.getElementById('email').value = 'a@example.test';
+    document.getElementById('password').value = 'pw-test-1234';
+    document.getElementById('loginForm').dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+    expect(calls.update).toEqual([
+      {
+        table: 'profiles',
+        patch: {
+          terms_agreed_at: SIGNED.terms_agreed_at,
+          privacy_agreed_at: SIGNED.privacy_agreed_at,
+          age_confirmed_at: SIGNED.age_confirmed_at,
+        },
+        filters: [
+          ['eq', 'id', 'u-1'],
+          ['is', 'terms_agreed_at', null],
+        ],
+      },
+    ]);
+  });
+
+  test('인증 메일 링크로 돌아와 세션이 있으면 옮긴 뒤 보낸다', async () => {
+    const user = { id: 'u-2', user_metadata: SIGNED };
+    const calls = boot(LOGIN, { url: '/login.html?redirect=mypage.html', session: { user } });
+    await flush();
+    expect(calls.update).toHaveLength(1);
+    expect(calls.update[0].filters[0]).toEqual(['eq', 'id', 'u-2']);
+  });
+
+  test('가입 동의가 메타데이터에 없으면(카카오·Google, 예전 가입) 아무것도 쓰지 않는다', async () => {
+    const user = {
+      id: 'u-3',
+      user_metadata: { full_name: '소셜', avatar_url: 'https://img.test/a.png' },
+    };
+    const calls = boot(LOGIN, { url: '/login.html?redirect=mypage.html', session: { user } });
+    await flush();
+    expect(calls.update).toHaveLength(0);
   });
 });

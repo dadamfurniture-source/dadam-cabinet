@@ -53,6 +53,9 @@ const SOURCES = [
   'my-designs.html',
   // 연출컷: 테마 사진 읽기 (reference-images.test.js)
   'ai-design.html',
+  // 동의 기록: 상담 신청 개인정보 동의 · 셸의 가입 동의 옮기기 (consent.test.js)
+  'consultation.html',
+  'js/site-shell.js',
 ];
 
 /** 여기 아래는 통째로 훑는다 — 파일이 늘어도 가드가 따라간다 */

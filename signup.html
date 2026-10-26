@@ -15,6 +15,7 @@
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <script src="js/auth-redirect.js?v=2"></script>
+    <script src="js/consent.js"></script>
     <style>
       * {
         margin: 0;
@@ -953,14 +954,20 @@
               </p>
             </div>
 
-            <!-- Terms -->
+            <!-- Terms — 동의 시각은 가입 메타데이터에 실렸다가 첫 로그인 때 profiles 로 옮겨진다 (js/consent.js).
+                 약관 링크는 새 탭 — 같은 탭으로 가면 적던 가입 양식이 사라진다. -->
             <div class="terms-group">
               <label>
                 <input type="checkbox" id="agreeTerms" required />
                 <span
-                  ><span class="required">[필수]</span> <a href="terms.html">이용약관</a> 및
-                  <a href="privacy.html">개인정보처리방침</a>에 동의합니다.</span
+                  ><span class="required">[필수]</span>
+                  <a href="terms.html" target="_blank" rel="noopener">이용약관</a> 및
+                  <a href="privacy.html" target="_blank" rel="noopener">개인정보처리방침</a>에 동의합니다.</span
                 >
+              </label>
+              <label>
+                <input type="checkbox" id="agreeAge" required />
+                <span><span class="required">[필수]</span> 만 14세 이상입니다.</span>
               </label>
               <label>
                 <input type="checkbox" id="agreeMarketing" />
@@ -1331,6 +1338,7 @@
       const passwordInput = document.getElementById('password');
       const confirmPasswordInput = document.getElementById('confirmPassword');
       const agreeTermsInput = document.getElementById('agreeTerms');
+      const agreeAgeInput = document.getElementById('agreeAge');
       const agreeMarketingInput = document.getElementById('agreeMarketing');
       const referralSelect = document.getElementById('referral');
       const submitBtn = document.getElementById('submitBtn');
@@ -1420,6 +1428,12 @@
           return;
         }
 
+        // 약관 제4조 · 처리방침 8 — 만 14세 미만은 가입할 수 없다
+        if (!agreeAgeInput.checked) {
+          showError('만 14세 이상만 가입할 수 있습니다.');
+          return;
+        }
+
         if (!validatePassword()) {
           showError('비밀번호 조건을 확인해주세요.');
           return;
@@ -1452,7 +1466,9 @@
                 sido: sidoSelect.value,
                 gugun: gugunSelect.value,
                 referral: referralSelect.value,
-                marketing_agreed: agreeMarketingInput.checked,
+                // 동의 시각(약관·처리방침·만 14세·마케팅) + 예전부터 싣던 marketing_agreed.
+                // 인증 전에는 세션이 없어 profiles 에 못 쓴다 — 첫 로그인 때 js/consent.js 가 옮긴다.
+                ...window.DadamConsent.signupMetadata(new Date().toISOString(), agreeMarketingInput.checked),
               },
             },
           });

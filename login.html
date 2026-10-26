@@ -15,6 +15,7 @@
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <script src="js/auth-redirect.js?v=2"></script>
+    <script src="js/consent.js"></script>
     <style>
       * {
         margin: 0;
@@ -989,6 +990,8 @@
           }
 
           if (data.user) {
+            // 이메일 가입 때 받은 동의를 profiles 로 옮긴다 (첫 로그인 한 번, js/consent.js)
+            await syncSignupConsent(data.user);
             showSuccess('로그인 성공! 잠시 후 이동합니다...');
             setTimeout(() => {
               window.location.href = getRedirectUrl();
@@ -1076,6 +1079,17 @@
         return REDIRECT_TARGET;
       }
 
+      // 이메일 가입 때 받은 동의(약관·처리방침·만 14세·마케팅)를 회원 본인 세션으로 profiles 에 옮긴다.
+      // 가입 메타데이터에 동의가 없으면(소셜 가입 · 예전 가입) 아무것도 하지 않는다. 실패해도 로그인은 그대로 간다.
+      async function syncSignupConsent(user) {
+        if (!window.DadamConsent) return;
+        try {
+          await window.DadamConsent.syncSignup(supabaseClient, user);
+        } catch (e) {
+          console.warn('[login] consent:', e?.message);
+        }
+      }
+
       async function checkSession() {
         if (!supabaseClient) return;
 
@@ -1083,6 +1097,8 @@
           data: { session },
         } = await supabaseClient.auth.getSession();
         if (session) {
+          // 인증 메일 링크가 login.html?redirect=… 로 돌아오면 세션이 처음 생기는 곳이 여기다
+          await syncSignupConsent(session.user);
           window.location.href = getRedirectUrl();
         }
       }
