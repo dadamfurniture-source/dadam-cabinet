@@ -13,6 +13,11 @@ account_id = "8bd8e054dfc7bcdc577f9bb79edd3284"
 SUPABASE_URL = "https://vvqrvgcgnlfpiqqndsve.supabase.co"
 SUPABASE_ANON_KEY = "sb_publishable_OV4D2-LwhTMj8YJ711HTvA_lA2jk_PW"
 
+# 브라우저 CORS 허용 오리진 (2026-10-26, src/guard.js). 쉼표 구분, 목록 밖 Origin 에는 Allow-Origin 을 싣지 않는다.
+#   '*' 는 한 칸만 받는다 — 서브도메인 한 단계(Pages 미리보기 <해시|브랜치>.dadam-cabinet.pages.dev) 또는 포트(로컬 개발).
+#   운영 dadamfurniture.com · www(지금 DNS 없음, 다른 워커와 같게 둔다) · GitHub Pages 사본 · Cloudflare Pages dadam-cabinet · 로컬.
+CORS_ORIGINS = "https://dadamfurniture.com,https://www.dadamfurniture.com,https://dadamfurniture-source.github.io,https://dadam-cabinet.pages.dev,https://*.dadam-cabinet.pages.dev,http://localhost:*,http://127.0.0.1:*"
+
 # Gemini 모델 — 이미지와 텍스트 둘. 바꾸려면 이 값만 고친다.
 # 2026-09-09 API 목록 기준: gemini-3-pro-image (Nano Banana Pro, 2K/4K, 디테일 프롬프트·다중 참고 이미지),
 # gemini-3.1-flash-image (Nano Banana 2, 빠름). 텍스트/QC 는 gemini-3.8-flash.
@@ -58,7 +63,8 @@ PUBLIC_BASE_URL = "https://dadamfurniture.com"
 SHARE_LINK_TTL_DAYS = "30"
 
 # Gemini 호출 경로(GEMINI_VIA)는 비워 둔다 — 잡 DO(job.js) 가 미국 콜로에서 뜨므로 직접 호출이
-# 통하고, 막히면 gemini.js 가 gateway → direct → proxy 순으로 넘어간다. 진단은 /diag.
+# 통하고, 막히면 gemini.js 가 gateway → direct → proxy 순으로 넘어간다. 워커 콜로는 /health 의 colo.
+# (/diag 는 2026-10-26 지웠다 — 인증 없이 부를 때마다 Gemini 를 최대 3번 불렀고, 부르는 화면이 없었다.)
 
 # Cloudflare AI Gateway base URL — Google Generative Language API 를 한국 발신에서 차단
 # (400 "User location is not supported") 하는 문제 우회용 경로 중 하나.
@@ -89,3 +95,24 @@ new_sqlite_classes = ["GeminiProxy"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["GenerateJob"]
+
+# 요청 한도 (2026-10-26, src/guard.js) — Workers Rate Limiting. 대시보드 설정 없이 배포로 생긴다 (wrangler 4.36+).
+#   키는 로그인 사용자 id, Cloudflare 위치(콜로)마다 대략적으로 센다. period 는 10 또는 60 초만 된다.
+#   넘으면 429 rate_limited. 바인딩이 없으면 세지 않는다. namespace_id 는 계정 안에서 겹치지 않는 정수.
+# POST /api/chat — 손님 대화 한 마디마다 텍스트 모델 1회 (화면은 한 번에 하나, 최대 12마디)
+[[ratelimits]]
+name = "CHAT_LIMIT"
+namespace_id = "7301"
+simple = { limit = 20, period = 60 }
+
+# POST /api/generate — 접수 (차감·409·402 로 끝나는 요청도 센다). 잡은 사용자당 하나라 정상 사용은 분에 1~2회
+[[ratelimits]]
+name = "GENERATE_LIMIT"
+namespace_id = "7302"
+simple = { limit = 10, period = 60 }
+
+# POST /api/generate/:id/layout — Claude 를 실제로 부를 때만 (첫 분석 · ?force=1). 캐시 응답은 세지 않는다
+[[ratelimits]]
+name = "LAYOUT_LIMIT"
+namespace_id = "7303"
+simple = { limit = 5, period = 60 }

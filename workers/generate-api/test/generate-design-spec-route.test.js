@@ -150,11 +150,11 @@ test('design_spec 이 options 에 정규화되어 들어가고 잡에도 같은 
 
 test('design_spec 이 없으면 null 이고 나머지 options 는 예전 그대로다', async () => {
   install();
-  const res = await post({ room_image: ROOM_IMAGE, category: 'wardrobe', door_color: 'oak' });
+  const res = await post({ room_image: ROOM_IMAGE, category: 'wardrobe', door_color: 'oak woodgrain' });
   assert.equal(res.status, 202);
   assert.deepEqual(calls.inserted.options, {
     design_style: 'modern-minimal',
-    door_color: 'oak',
+    door_color: 'oak woodgrain',
     door_finish: 'matte',
     wall_width_override: null,
     // 급수·배기는 주방 품목에서만 싣는다 — 붙박이장이라 null 이다

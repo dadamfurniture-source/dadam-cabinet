@@ -2686,6 +2686,27 @@ export const FINISHES = [
 ];
 
 /**
+ * 요청 door_color 로 받는 값 — ai-design.html #doorColor 의 option value 그대로 (2026-10-26).
+ * 설치 프롬프트 FINISH 줄에 글자 그대로 들어가므로 이 밖의 값은 접수(worker.js)에서 400 bad_door_color.
+ * 화면에 색을 더하면 여기에도 더한다. 플래너 모드는 보내지 않아 기본값 'white' 다.
+ */
+export const DOOR_COLORS = Object.freeze([
+  'white',
+  'cream',
+  'light grey',
+  'greige',
+  'oak woodgrain',
+  'walnut woodgrain',
+  'charcoal',
+]);
+
+/**
+ * 요청 door_finish 로 받는 값 (2026-10-26). 지금 어떤 화면도 보내지 않아 늘 기본값 'matte' 다 — 그 하나만 받는다.
+ * 다른 마감(유광 등)을 화면에 열 때 여기에 더한다.
+ */
+export const DOOR_FINISHES = Object.freeze(['matte']);
+
+/**
  * 손님이 고른 문짝 색(ai-design.html #doorColor 값) → 그와 같은 계열이라 추천 색으로 쓰면 기본안과 거의 같아지는 FINISHES 키.
  * 2026-10-20: 흰 문짝 붙박이장 두 건에서 색 추천안이 '무광 화이트'로 뽑혀 기본안과 같은 그림이 됐다.
  */
