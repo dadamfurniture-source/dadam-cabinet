@@ -1030,11 +1030,11 @@
       "part": "걸레받이",
       "material": "MDF",
       "thickness": 18,
-      "w": 2440,
+      "w": 1487,
       "h": 145,
       "qty": 1,
       "edge": "2면(장)",
-      "note": "벽 1개 · 2440 넘으면 2440 단위로 나눔",
+      "note": "2400 넘으면 모듈 경계에서 나눔 (조각 800~2400)",
       "finishCode": "",
       "partId": "0-ep-kick-0",
       "slot": "kick",
@@ -1044,7 +1044,7 @@
         "T": true,
         "B": true
       },
-      "edgeLen": 4880,
+      "edgeLen": 2974,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-ep",
@@ -1055,21 +1055,21 @@
       "part": "걸레받이",
       "material": "MDF",
       "thickness": 18,
-      "w": 47,
+      "w": 1000,
       "h": 145,
       "qty": 1,
       "edge": "2면(장)",
-      "note": "벽 1개 · 2440 넘으면 2440 단위로 나눔",
+      "note": "2400 넘으면 모듈 경계에서 나눔 (조각 800~2400)",
       "finishCode": "",
       "partId": "0-ep-kick-1",
       "slot": "kick",
       "edges": {
-        "L": true,
-        "R": true,
-        "T": false,
-        "B": false
+        "L": false,
+        "R": false,
+        "T": true,
+        "B": true
       },
-      "edgeLen": 290,
+      "edgeLen": 2000,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-ep",
@@ -1154,7 +1154,7 @@
   },
   "edgeBanding": {
     "1": 14110,
-    "0.6": 59185
+    "0.6": 58989
   },
   "hardware": [
     {

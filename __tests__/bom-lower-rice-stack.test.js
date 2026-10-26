@@ -9,6 +9,8 @@
  *   서랍 모듈   서랍 1칸 · 위는 하부장 상단 목찬넬과 같다 (따내기 70×40 · 목찬넬 전면 52 + 지면 40 — 그 모듈의 부재)
  *   밥솥장 위   목대 30 × W × 18T 2장, 도어 색 — 앞(몸통 앞선에서 22 안쪽) · 뒤
  *   상판 아래 목찬넬 줄은 그 칸에서 끊긴다 · 걸레받이 · 상판은 이어진다 (밑 서랍 모듈이 그 자리를 센다)
+ *   끊겨 나뉜 목찬넬 자리는 2026-10-26 「조각」 규칙 그대로 (sink.md EP) — 깊이 때문에 나뉜 자리가 아니므로 800 보다 짧으면
+ *   800 으로 내고 현장에서 자른다 (명세 · 3D 는 붙는 길이 600, tags.siteCut).
  */
 const { loadConverter, LEDGER_SPECS } = require('../test-utils/bom-parts');
 const { loadExtractors } = require('../test-utils/bom-golden/golden');
@@ -16,6 +18,8 @@ require('../js/detaildesign/bom-open-cabinet-rules.js');
 const RR = require('../js/detaildesign/bom-rice-cabinet-rules.js');
 const Asm = require('../js/detaildesign/bom-assembly.js');
 const Check = require('../js/detaildesign/assembly-check.js');
+// 2026-10-26 「조각」 — 800 보다 짧은 조각 비고 (상자 · 밥솥장 규칙을 실은 뒤에 추출기를 싣는다)
+const { BOM_LINE_PIECE_SITE_NOTE } = require('../js/detaildesign/extractors.js');
 
 const SPECS = Object.assign({}, LEDGER_SPECS, { handle: '찬넬 (목찬넬)', finishLeftType: 'None', finishLeftWidth: 0, finishRightType: 'None', finishRightWidth: 0 });
 const D = 550, BACK = 70, AREA_D = 650;
@@ -31,14 +35,14 @@ const rice = (door, dir) => ({
   legH: 0, shelves: [], rice: { door },
 });
 
-/** 하부 줄: 2도어 600 · [서랍 drawerH + 밥솥장 (708 − drawerH − 30) + 목대 30] 450 · 2도어 600 */
-function line(door, dir, drawerH = RR.RULES.LOWER_STACK.DRAWER_H) {
+/** 하부 줄: 2도어 600 · [서랍 drawerH + 밥솥장 (708 − drawerH − 30) + 목대 30] 450 · 2도어 600. placed 면 평면 자리(plane → _place)도 싣는다 */
+function line(door, dir, drawerH = RR.RULES.LOWER_STACK.DRAWER_H, placed = false) {
   const modules = [
     { id: 'l0', section: 'lower', W: 600, H: 870, D, x: 0, y: BACK, areaH: 870 },
     { id: 'd1', section: 'lower', W: 450, H: 150 + drawerH, D, x: 600, y: BACK, areaH: 150 + drawerH, stackTop: 'rice' },
     { id: 'r1', section: 'lower', W: 450, H: (708 - drawerH - 30) + 30 + 12, D, x: 600, y: BACK, areaH: 870, riceBelow: 'drawer' },
     { id: 'l2', section: 'lower', W: 600, H: 870, D, x: 1050, y: BACK, areaH: 870 },
-  ];
+  ].map((m) => (placed ? Object.assign(m, { plane: { cx: m.x + m.W / 2, cy: m.y + m.D / 2 }, rotation: 0 }) : m));
   const structures = { l0: door2(600), d1: drawer1(), r1: rice(door, dir), l2: door2(600) };
   const conv = loadConverter()._convertPlannerModules({ modules, structures, hasStructures: true }, Object.assign({}, SPECS));
   const item = { categoryId: 'sink', w: 1650, h: 2310, d: AREA_D, specs: Object.assign({}, SPECS), modules: conv.modules };
@@ -105,13 +109,25 @@ describe('BOM', () => {
     expect(b.map((m) => [m.material, m.thickness, m.w, m.h, m.qty, m.slot])).toEqual([['MDF', 18, 30, 450, 2, 'door']]);
   });
 
-  test('줄 — 상판 아래 목찬넬은 밥솥장 칸에서 끊겨 600 두 장 · 걸레받이 · 상판은 1650 한 장', () => {
+  test('줄 — 상판 아래 목찬넬은 밥솥장 칸에서 끊겨 600 두 자리 (800 발주 · 현장 자름) · 걸레받이 · 상판은 1650 한 장', () => {
     const { materials } = line('none');
     const ep = (p) => materials.filter((m) => /EP|상판/.test(m.module) && m.part === p).map((m) => [m.h, m.qty]);
-    expect(ep('목찬넬(전면)')).toEqual([[600, 2]]);
-    expect(ep('목찬넬(지면)')).toEqual([[600, 2]]);
+    // 2026-10-26 「조각」: 600 자리는 깊이 때문에 나뉜 자리가 아니다 — 800 으로 내고 현장에서 자른다 (깊이가 다른 키큰장 한쪽 600 → 800 과 같다)
+    expect(ep('목찬넬(전면)')).toEqual([[800, 2]]);
+    expect(ep('목찬넬(지면)')).toEqual([[800, 2]]);
+    expect(materials.filter((m) => /EP/.test(m.module) && /^목찬넬/.test(m.part)).every((m) => String(m.note).includes(BOM_LINE_PIECE_SITE_NOTE))).toBe(true);
     expect(materials.filter((m) => m.part === '걸레받이').map((m) => m.w)).toEqual([1650]);
     expect(materials.find((m) => m.part === '상판').w).toBe(1650);
+  });
+
+  test('평면 자리(_place)가 있어도 같다 — 쌓인 밥솥장은 자리에서 빠지고, 목찬넬만 그 칸에서 나뉜다 · 명세 못 놓은 행 없음', () => {
+    const { conv, materials, spec } = line('none', 'left', RR.RULES.LOWER_STACK.DRAWER_H, true);
+    expect(conv.modules.every((m) => !!m._place)).toBe(true);
+    const ep = (p) => materials.filter((m) => /EP/.test(m.module) && m.part === p).map((m) => [m.h, m.qty]);
+    expect(ep('목찬넬(전면)')).toEqual([[800, 2]]);
+    expect(ep('목찬넬(지면)')).toEqual([[800, 2]]);
+    expect(materials.filter((m) => m.part === '걸레받이').map((m) => [m.w, m.qty])).toEqual([[1650, 1]]);
+    expect(spec.unplaced.filter((u) => u.reason !== 'shelf-height-unknown')).toEqual([]);
   });
 });
 
@@ -137,6 +153,9 @@ describe('조립 명세', () => {
     const runs = spec.items[0].runs || [];
     const ch = runs.filter((r) => r.parts.some((p) => p.part === '목찬넬(전면)'));
     expect(ch.map((r) => r.hostModuleKey).sort()).toEqual(['0-planner-l0-0', '0-planner-l2-0']);
+    // 현장에서 자르는 조각 — 명세 재단은 붙는 길이 600, 발주 800 (tags.siteCut)
+    const pcs = ch.map((r) => r.parts.find((p) => p.part === '목찬넬(전면)'));
+    expect(pcs.map((p) => [p.cut.h, p.tags.siteCut])).toEqual([[600, { order: 800 }], [600, { order: 800 }]]);
     expect(runs.some((r) => r.hostModuleKey === '0-planner-r1-rice')).toBe(false);
   });
 });

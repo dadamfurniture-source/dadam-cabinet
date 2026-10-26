@@ -204,68 +204,185 @@
       }
 
       // ============================================================
-      // 걸레받이 나누기 — 2026-10-20 사장님 카드 「꺾임에서 나누기」.
-      //   벽마다 한 장. 원판 긴 변(SHEET_H 2440)을 넘는 벽은 그 길이 단위로 더 나눈다 (ㄱ자면 최소 2장).
-      //   예전엔 라인 폭 합을 한 장으로 냈다 — ㄱ자 4161×145 한 장은 원판에 안 들어간다.
-      //   벽 = 하부 라인 모듈의 앞면 방향(_place.front, ui-step1 _plannerPlaceOf). 자리가 없는 옛 설계는 한 벽.
-      //   걸레받이카바 개수는 그대로다 — 전체 길이(조각 길이 × 수량 합)로 센다.
+      // 상몰딩 · 걸레받이 · 목찬넬 EP 조각 — 2026-10-26 사장님 확정 (예전: 걸레받이만 원판 2440 단위, 2026-10-20 카드 「꺾임에서 나누기」).
+      //   "상몰딩, 걸레받이, 목찬넬은 자동으로 최대 2400, 최소 1000 이상, 최대 길이로 하되 최소 길이 조건은 맞추어야함.
+      //    하나의 품목에 상몰딩의 높이가 다른 경우는 없음."
+      //   "자르는 건 모듈길이별로 잘라야해, 예) 600장 +500 이라면 1100으로 잘라서 넣어야함. 그리고 최소 길이는 800이상으로 변경해줘."
+      //   깊이가 다른 키큰장이 상부장 사이에 설 때 · 신발장 · 수납장 — "상몰딩, 걸레받이, 목찬넬 조건 적용".
+      //   같은 답에서 그대로 둔 Claude 제안 ① ④, 같은 날 고쳐 답한 ③:
+      //   ① 자리(조각을 붙이는 곧은 구간)는 벽마다, 실제로 붙는 길이다. 벽 = 모듈 앞면 방향 _place.front (자리가 없는 옛 설계는 한 벽).
+      //      하부 라인(걸레받이 · 목찬넬)은 하부장 사이가 1mm 넘게 비면(키큰장 단 · 쿡탑장 · 상자 모듈이 서거나 빈 자리) 자리를 나눈다 —
+      //      거기에는 붙일 장이 없다. 자리가 없는 설계는 배열 순서로 보고, 세지 않는 모듈이 사이에 서면 나눈다.
+      //      상몰딩은 빈 자리 · 후드 · 깊이가 같은 키큰장을 예전처럼 건너 잇는다 (bomSinkMoldingPlanOf, 2026-10-26 확정 그대로).
+      //   ③ 자리 전체가 2400 이하면 한 장. 800 보다 짧은 자리는 — 같은 날 사장님이 고쳐 답함 "800 보다 짧으면 그 길이 그대로 내는게 아니라
+      //      최소 800이상의 길이가 되어야한다는 거지" — **800 한 장으로 내고 현장에서 자른다** (예: 상부장 600 하나 → 800 발주, 붙는 길이 600).
+      //      모듈 경계로 800~2400 을 못 맞춰 남는 짧은 조각(2400 + 500)도 800 으로 낸다. 3D · 조립 명세는 붙는 길이 그대로 그린다.
+      //      예외 — 같은 날 사장님 "800보다 작지만 깊이가 구분되는 모듈이라면 800이하도 가능.": 한 줄에서 이웃 모듈과 깊이(mod.d) · 앞면이
+      //      달라 자리가 나뉘면("깊이가 다르면 따로 함" 과 같은 원칙) 그 자리는 짧아도 붙는 길이 그대로 낸다 (depthBound → linePiecesOf keepShort).
+      //      키큰장(깊이가 다른)이 사이에 서서 나뉜 양옆 자리 · 홀로 짧은 줄 · 남는 조각은 그대로 800. 키큰장 제 상몰딩 · 좌대 걸레받이 · 단 목찬넬은
+      //      모듈 행(addTallTierParts)이라 이 규칙을 타지 않는다 — 제 폭 그대로.
+      //   ④ 깊이가 다른 키큰장 양옆은 서로 다른 자리다 (상몰딩 1200 · 1200 → 1200 두 장, 하부 라인의 걸레받이 · 목찬넬도 키큰장 양옆이 따로).
+      //   조각 나누기 = assembly-rules.js linePiecesOf (조립 명세 runsOf 가 같은 계획을 받아 3D 에 같은 이음매를 놓는다).
+      //   걸레받이카바 개수는 그대로다 — 자재 행 전체 길이(발주 조각 길이 × 수량 합)로 센다.
       // ============================================================
-      function bomKickWallLensOf(modules) {
+      /** 플래너 브리지가 실은 자리(_place)가 있는가 — 진행 방향 · 앞면 방향 · 평면 중심 */
+      function bomPlacedOf(m) {
+        const p = m && m._place;
+        return !!p && Array.isArray(p.run) && Array.isArray(p.front)
+          && Number.isFinite(Number(p.cx)) && Number.isFinite(Number(p.cy));
+      }
+      const bomWidthOf = (m) => parseFloat(m && m.w) || 0;
+      /** 모듈의 벽 열쇠 — 앞면 방향, 자리가 없으면 '-' (한 벽) */
+      const bomWallKeyOf = (m) => (bomPlacedOf(m) ? m._place.front.join(',') : '-');
+      /**
+       * 벽 위 자리 — 중심을 진행 방향에 투영한 a…b, 앞면 = 중심을 앞면 방향에 투영 + 깊이 / 2, 윗면 = z0 + h.
+       * 1mm 안은 같다 (조립 명세 runsOf 의 '붙어 있다'와 같은 허용).
+       */
+      function bomRunSegOf(m) {
+        const p = m._place;
+        const c = Number(p.cx) * Number(p.run[0]) + Number(p.cy) * Number(p.run[1]);
+        return {
+          m, a: c - bomWidthOf(m) / 2, b: c + bomWidthOf(m) / 2,
+          d: parseFloat(m.d) || 0,
+          front: Number(p.cx) * Number(p.front[0]) + Number(p.cy) * Number(p.front[1]) + (Number(p.d) || 0) / 2,
+          top: (Number(p.z0) || 0) + (Number(p.h) || 0),
+        };
+      }
+      /** 자리의 단위 하나 — 모듈 (후드 자리 포함) */
+      const bomModuleUnitOf = (m) => ({ len: bomWidthOf(m), ids: [String(m.id)], kind: m.type === 'hood' ? 'hood' : 'module' });
+
+      /**
+       * 상자 모듈 (오픈장 · 밥솥장 · 플래너 홈카페장 · EL장) — extract() 가 카테고리 추출기 앞에서 걷어내는 모듈과 같은 판별
+       *   (extractOpenCabinets · extractRiceCabinets · extractHomecafes · extractEls). 하부 라인 길이에 들지 않는다 (예전과 같다).
+       */
+      function bomIsBoxModule(m) {
+        if (!m) return false;
+        const OR = (typeof DadamOpenCabinetRules !== 'undefined' && DadamOpenCabinetRules)
+          || (typeof window !== 'undefined' && window.DadamOpenCabinetRules) || null;
+        return !!((OR && OR.isOpenCabinet(m))
+          || (RiceRules && RiceRules.isRiceCabinet(m))
+          || (HomecafeRules && String(m.moduleKind || '') === HomecafeRules.RULES.KIND)
+          || (ElRules && ElRules.isEl(m)));
+      }
+
+      /**
+       * 이웃 두 모듈의 깊이 · 앞면이 같은가 (1mm 안) — 다르면 한 장이 곧게 못 지나 자리를 나눈다 (2026-10-26 "800보다 작지만 깊이가 구분되는
+       *   모듈이라면 800이하도 가능." · "깊이가 다르면 따로 함"). 깊이(mod.d)는 둘 다 있을 때만, 앞면은 둘 다 자리(_place)가 있을 때만 본다.
+       *   후드 자리(type hood)는 몸통이 없는 칸이라 깊이를 보지 않는다 — "상몰딩은 후드라고 해서 구별 하지 않음".
+       */
+      function bomSameDepthOf(a, b) {
+        const da = parseFloat(a && a.d), db = parseFloat(b && b.d);
+        if (da > 0 && db > 0 && Math.abs(da - db) > 1) return false;
+        if (bomPlacedOf(a) && bomPlacedOf(b)) return Math.abs(bomRunSegOf(a).front - bomRunSegOf(b).front) <= 1;
+        return true;
+      }
+      /** 깊이를 보는 모듈 — 후드 자리는 빼고 */
+      const bomDepthRefOf = (m) => !!m && m.type !== 'hood';
+
+      /**
+       * 줄 모듈 → 자리들 (①). 벽마다, 벽 안에서는 진행 방향 자리 순서로 붙어 있는(1mm 안) 모듈끼리 한 자리.
+       *   이웃 모듈의 깊이 · 앞면이 다르면(bomSameDepthOf) 거기서도 나누고, 그렇게 나뉜 자리에 depthBound 를 단다 (③ 예외 — 짧아도 그대로).
+       *   자리가 없는 모듈(옛 설계 · 사선 줄)은 한 벽('-') — 배열 순서로 보고 세지 않는 모듈(counts 거짓)이 사이에 서면 나눈다.
+       * @param {object[]} mods    줄 후보 모듈 (배열 순서)
+       * @param {(m: object) => boolean} counts  자리를 이루는 모듈
+       * @returns {Array<{wall:string, units:Array<{len:number, ids:string[], kind:string}>, depthBound?:boolean}>}  벽 순서 = 모듈이 처음 나온 순서
+       */
+      function bomLinePlacesOf(mods, counts) {
         const order = [];
-        const sum = {};
-        (modules || []).forEach((m) => {
-          const front = m && m._place && Array.isArray(m._place.front) ? m._place.front.join(',') : '-';
-          if (!(front in sum)) { sum[front] = 0; order.push(front); }
-          sum[front] += parseFloat(m && m.w) || 0;
+        const byWall = new Map();
+        (mods || []).forEach((m) => {
+          if (!m) return;
+          const k = bomWallKeyOf(m);
+          if (!byWall.has(k)) { byWall.set(k, []); order.push(k); }
+          byWall.get(k).push(m);
         });
-        return order.map((k) => sum[k]).filter((w) => w > 0);
-      }
-
-      /**
-       * 상판 아래 목찬넬 조각 길이 — 벽마다 한 장 (bomKickWallLensOf 와 같다). 2026-10-26 사장님: 위에 밥솥장이 쌓인 하부 서랍 모듈
-       *   (stackTop)에서 끊긴다 — 그 칸은 서랍 모듈이 제 목찬넬을 내고, 밥솥장 위 목대가 이웃 목찬넬 모양을 잇는다.
-       *   쌓인 모듈이 없으면 bomKickWallLensOf 그대로 (예전 BOM 과 같다).
-       */
-      function bomChannelWallLensOf(modules) {
-        const list = modules || [];
-        if (!list.some((m) => m && m.stackTop)) return bomKickWallLensOf(list);
-        const frontOf = (m) => (m && m._place && Array.isArray(m._place.front) ? m._place.front.join(',') : '-');
-        const walls = [];
-        list.forEach((m) => { const f = frontOf(m); if (walls.indexOf(f) < 0) walls.push(f); });
-        const out = [];
-        walls.forEach((f) => {
-          let run = 0;
-          list.filter((m) => frontOf(m) === f).sort((a, b) => (Number(a._x) || 0) - (Number(b._x) || 0)).forEach((m) => {
-            if (m.stackTop) { if (run > 0) out.push(run); run = 0; return; }
-            run += parseFloat(m.w) || 0;
+        const places = [];
+        order.forEach((wall) => {
+          const list = byWall.get(wall);
+          let cur = null, ref = null;
+          /** 새 자리 — 깊이가 달라 나누면 앞뒤 자리 둘 다 depthBound */
+          const open = (byDepth) => {
+            if (byDepth && cur) cur.depthBound = true;
+            cur = { wall, units: [] };
+            if (byDepth) cur.depthBound = true;
+            places.push(cur);
+            ref = null;
+          };
+          const add = (m) => {
+            if (cur && ref && bomDepthRefOf(m) && !bomSameDepthOf(ref, m)) open(true);
+            cur.units.push(bomModuleUnitOf(m));
+            if (bomDepthRefOf(m)) ref = m;
+          };
+          if (wall === '-') {
+            list.forEach((m) => {
+              if (!counts(m)) { cur = null; ref = null; return; }
+              if (!(bomWidthOf(m) > 0)) return;
+              if (!cur) open(false);
+              add(m);
+            });
+            return;
+          }
+          let end = -Infinity;
+          list.filter((m) => counts(m) && bomWidthOf(m) > 0).map(bomRunSegOf).sort((x, y) => x.a - y.a).forEach((g) => {
+            if (!cur || g.a - end > 1) open(false);
+            add(g.m);
+            end = Math.max(end, g.b);
           });
-          if (run > 0) out.push(run);
         });
-        return out;
-      }
-
-      /** 벽 하나를 원판 긴 변 단위로 자른 조각 길이들 (앞에서부터 unit, 끝에 나머지) */
-      function bomKickPiecesOf(wallLen, unit) {
-        const out = [];
-        let rest = Math.round(Number(wallLen) || 0);
-        const u = Number(unit) > 0 ? Number(unit) : rest;
-        while (rest > u) { out.push(u); rest -= u; }
-        if (rest > 0) out.push(rest);
-        return out;
+        return places;
       }
 
       /**
-       * 벽 길이들 → [[길이, 벽 수]] 긴 것부터 — 같은 길이의 벽은 한 행에 수량으로 (걸레받이 addKickBoards 와 같은 꼴).
-       *   2026-10-25 사장님 확정 (ㄱ자 하부 목찬넬): "보통 벽마다 한장씩, 두장으로 나뉨." — 상판은 품목당 한 장 (2026-10-26, extractSink 상판 주석).
-       *   벽은 걸레받이와 같다 (bomKickWallLensOf — 하부 모듈 앞면 방향 _place.front, 자리가 없는 옛 설계는 한 벽).
+       * 자리들에 조각을 단다 — assembly-rules.js linePiecesOf (total · offsets · pieces · fallback · inside).
+       *   깊이가 달라 나뉜 자리(depthBound)는 짧아도 붙는 길이 그대로 (keepShort — 2026-10-26 "800보다 작지만 깊이가 구분되는 모듈이라면 800이하도 가능.")
        */
-      function bomWallLenQtyOf(lens) {
-        const qty = new Map();
-        (lens || []).forEach((len) => {
-          const k = Math.round(Number(len) || 0);
-          if (k > 0) qty.set(k, (qty.get(k) || 0) + 1);
-        });
-        return [...qty.entries()].sort((a, b) => b[0] - a[0]);
+      function bomPlanPlaces(places) {
+        return (places || []).map((pl) => Object.assign({}, pl, AsmRules.linePiecesOf(pl.units.map((u) => u.len), { keepShort: !!pl.depthBound })))
+          .filter((pl) => pl.pieces.length);
+      }
+
+      /**
+       * 800 보다 짧은 조각 — 800 으로 내고 현장에서 붙는 길이로 자른다 (2026-10-26 사장님 "800 보다 짧으면 그 길이 그대로 내는게 아니라
+       * 최소 800이상의 길이가 되어야한다는 거지"). 자리 전체가 짧을 때(상부장 600 하나 · 키큰장 한쪽 600)와 경계가 모자라 남는 조각(2400 + 500).
+       */
+      const BOM_LINE_PIECE_SITE_NOTE = `${ASM.LINE_PIECE_MIN}보다 짧은 조각 — ${ASM.LINE_PIECE_MIN}으로 내고 현장에서 자름`;
+      /** 2400 을 넘는 단위(모듈 · 빈 자리 · 모듈이 없는 옛 설계의 품목 폭)를 그 안에서 자른 조각 — 정한 규칙이 없다 */
+      const BOM_LINE_PIECE_CHECK_NOTE = `[확인 필요] ${ASM.LINE_PIECE_MAX} 을 넘는 단위를 모듈 안에서 ${ASM.LINE_PIECE_MAX} 마다 자름`;
+
+      /**
+       * 조각 → 행. 같은 발주 길이(order)는 한 행에 수량으로, 긴 것부터 (예전 벽마다 행과 같은 꼴). 현장에서 자르는 조각(site)과
+       * 모듈 안에서 자른 조각(inside)은 같은 길이라도 따로 행 — 비고가 그 조각에만 붙게.
+       *   비고: 벽이 둘 이상이면 `벽 n개`, 자리가 벽보다 많으면 `자리 n곳`(키큰장 · 빈 자리에서 끊김),
+       *   한 자리를 나눴으면 `2400 넘으면 모듈 경계에서 나눔 (조각 800~2400)`, 아니면 `벽마다 한 장` · `자리마다 한 장`.
+       *   + site 면 BOM_LINE_PIECE_SITE_NOTE, inside 면 BOM_LINE_PIECE_CHECK_NOTE.
+       * @param {object[]} places  bomPlanPlaces 결과
+       * @returns {Array<{len:number, qty:number, note:string, site:boolean, inside:boolean, pieces:Array<{place:object, piece:object}>}>}
+       *   len = 발주 길이 (BOM 행), pieces = 그 행의 조각 (계획 순서 — 조립 명세가 이 순서로 #k 를 붙인다)
+       */
+      function bomLinePieceRowsOf(places) {
+        const ps = places || [];
+        const rows = new Map();
+        let pieces = 0;
+        ps.forEach((pl) => pl.pieces.forEach((p) => {
+          const key = `${p.order}|${p.site ? 1 : 0}|${p.inside ? 1 : 0}`;
+          if (!rows.has(key)) rows.set(key, { len: p.order, site: !!p.site, inside: !!p.inside, pieces: [] });
+          rows.get(key).pieces.push({ place: pl, piece: p });
+          pieces++;
+        }));
+        const walls = new Set(ps.map((pl) => pl.wall)).size;
+        const split = pieces > ps.length;
+        const base = [
+          walls > 1 ? `벽 ${walls}개` : '',
+          ps.length > walls ? `자리 ${ps.length}곳` : '',
+          split ? `${ASM.LINE_PIECE_MAX} 넘으면 모듈 경계에서 나눔 (조각 ${ASM.LINE_PIECE_MIN}~${ASM.LINE_PIECE_MAX})`
+            : ps.length > 1 ? (ps.length > walls ? '자리마다 한 장' : '벽마다 한 장') : '',
+        ];
+        return [...rows.values()]
+          .sort((a, b) => b.len - a.len || Number(a.site) - Number(b.site) || Number(a.inside) - Number(b.inside))
+          .map((r) => Object.assign(r, {
+            qty: r.pieces.length,
+            note: base.concat([r.site ? BOM_LINE_PIECE_SITE_NOTE : '', r.inside ? BOM_LINE_PIECE_CHECK_NOTE : '']).filter(Boolean).join(' · '),
+          }));
       }
 
       /** 키큰장 단의 상몰딩 높이 — 단이 짊어진 값(heightParts.moldingH), 없으면 품목 상몰딩(specs.moldingH), 없으면 60 (sink.md §5) */
@@ -279,62 +396,55 @@
       const BOM_SINK_MOLDING_CATEGORIES = ['sink', 'island', 'custom', 'door', 'fridge'];
 
       /**
-       * 싱크 상몰딩 — 벽마다 한 장 (bomSinkMoldingPlanOf). 사장님 확정 셋:
-       *   2026-10-26 "상부장이 있다면 위에는 상몰딩이 있다고 보면됨. 가능한 이어지게." — 한 벽의 가장 바깥 상부장 두 끝 사이가 한 장이다.
-       *     상부 모듈 폭 합(후드 자리 type hood 포함 — 2026-10-25 "후드라고 해서 구별 하지 않음")에 그 벽 상부장 사이 빈 자리(빈 벽 · 창문)를
+       * 싱크 상몰딩 자리 (bomSinkMoldingPlanOf) — 벽마다, 키큰장에서 끊기면 그 양옆이 따로. 사장님 확정:
+       *   2026-10-26 "상부장이 있다면 위에는 상몰딩이 있다고 보면됨. 가능한 이어지게." — 한 벽의 가장 바깥 상부장 두 끝 사이를 잇는다.
+       *     상부 모듈 폭(후드 자리 type hood 포함 — 2026-10-25 "후드라고 해서 구별 하지 않음")에 그 벽 상부장 사이 빈 자리(빈 벽 · 창문)를
        *     더한다. 바깥 상부장 밖으로는 늘리지 않는다.
-       *   2026-10-26 "벽을 기준으로 나눠야함." — 상부장이 두 벽(ㄱ자 상부)에 걸치면 목찬넬처럼 벽마다 한 장. 벽 = 모듈 앞면 방향
-       *     _place.front (걸레받이 · 목찬넬 bomKickWallLensOf 와 같다), 모서리는 그 자리에 선 모듈(멍장)의 벽 몫.
+       *   2026-10-26 "벽을 기준으로 나눠야함." — 상부장이 두 벽(ㄱ자 상부)에 걸치면 목찬넬처럼 벽마다 따로. 벽 = 모듈 앞면 방향
+       *     _place.front (걸레받이 · 목찬넬 bomLinePlacesOf 와 같다), 모서리는 그 자리에 선 모듈(멍장)의 벽 몫.
        *   2026-10-26 "깊이가 다르면 따로 함." — 빈 자리에 키큰장이 서 있으면 깊이(mod.d)가 다를 때 잇지 않는다 — 키큰장 상부단이
-       *     제 상몰딩을 따로 낸다 (addTallTierParts, sink.md §5.1). 깊이가 같으면 그 키큰장 위까지 이어 한 장이고, 그 키큰장 상부단은
+       *     제 상몰딩을 따로 낸다 (addTallTierParts, sink.md §5.1). 깊이가 같으면 그 키큰장 위까지 잇고, 그 키큰장 상부단은
        *     상몰딩을 따로 내지 않는다 (addTallMoldingPart). 한 장이 곧게 지나가야 하므로 앞면 · 윗면 높이 · 몰딩 높이도 같을 때만 잇는다 —
        *     깊이만 같고 이 셋 중 하나가 다르면 정해지지 않았으므로 예전처럼 따로 (사장님께 여쭐 것).
        *   2026-10-26 사장님 확정 — "깊이가 같은 키큰장이 상부장 사이가 아니라 줄 끝에 붙어 있으면, 상몰딩을 그 키큰장 위까지 이을까요?"
        *     "잇는다." — 가장 바깥 상부장의 시작 · 끝에 붙은(1mm 안) 키큰장 스택도 같은 검사(깊이 · 앞면 · 윗면 높이 · 몰딩 높이)를 지나면
-       *     그 폭만큼 늘려 한 장이고 joinedTalls 에 든다. 그 스택에 또 붙은 스택도 같은 검사로 이어간다.
+       *     그 폭만큼 늘리고 joinedTalls 에 든다. 그 스택에 또 붙은 스택도 같은 검사로 이어간다.
        *     줄 끝에서 떨어져 선 스택 · 다른 벽 · 깊이가 다른 스택은 잇지 않는다 (예전과 같다). 상부장이 없는 벽은 그대로 (상몰딩이 없다).
-       *   벽 위 자리 = _place 중심을 진행 방향(run)에 투영, 앞면 = 중심을 앞면 방향에 투영 + 깊이 / 2, 윗면 = z0 + h.
-       *   키큰장 단은 브리지가 스택 바닥(z0 0)에 싣는다 — 스택 윗면 = 같은 자리 단 높이 합. 1mm 안은 같다 (조립 명세 runsOf 의 '붙어 있다'와 같은 허용).
-       *   모듈 하나라도 자리(_place)가 없으면(상세설계 화면 · 옛 payload) 벽 · 사이를 알 수 없어 폭 합 한 장 (예전과 같다).
+       *   2026-10-26 사장님 확정 (조각, 위 bomLinePlacesOf 머리 주석) — 잇지 않은 빈 자리(깊이가 다른 키큰장)는 그 양옆을 **다른 자리**로
+       *     나눈다 (④, 예전엔 양옆 폭을 더해 한 행이었다). 자리 안의 단위 = 상부 모듈 · 후드 자리 · 이은 빈 자리 · 이은 키큰장 스택 —
+       *     조각은 이 단위 경계에서만 자른다 (assembly-rules.js linePiecesOf).
+       *   벽 위 자리 = bomRunSegOf. 키큰장 단은 브리지가 스택 바닥(z0 0)에 싣는다 — 스택 윗면 = 같은 자리 단 높이 합.
+       *   모듈 하나라도 자리(_place)가 없으면(상세설계 화면 · 옛 payload) 벽 · 사이를 알 수 없어 배열 순서 한 자리 (예전 폭 합 한 장과 같은 길이).
        * @param {object[]} uppers  상부 라인 모듈 (pos upper, 후드 자리 포함)
        * @param {object[]} talls   키큰장 단 모듈 (bomTallTierOf — 상자 모듈 단도 넣는다)
        * @param {object} specs     품목 스펙 (상몰딩 높이)
-       * @returns {{lens:number[], joinedTalls:string[]}}  lens = 벽마다 길이 (벽 순서), joinedTalls = 이어 한 장이 된 키큰장 스택의 단 id 전부
+       * @returns {{places:Array<{wall:string, units:Array<{len:number, ids:string[], kind:string}>}>, lens:number[], joinedTalls:string[]}}
+       *   places = 자리 (벽 순서, 벽 안은 진행 순서), lens = 자리마다 길이, joinedTalls = 이어진 키큰장 스택의 단 id 전부
        */
       function bomSinkMoldingPlanOf(uppers, talls, specs) {
-        const widthOf = (m) => parseFloat(m && m.w) || 0;
-        const ups = uppers || [];
-        const sum = ups.reduce((s, m) => s + widthOf(m), 0);
-        const placed = (m) => {
-          const p = m && m._place;
-          return !!p && Array.isArray(p.run) && Array.isArray(p.front)
-            && Number.isFinite(Number(p.cx)) && Number.isFinite(Number(p.cy));
+        const ups = (uppers || []).filter(Boolean);
+        const done = (places, joinedTalls) => {
+          const ps = places.map((pl) => Object.assign(pl, { units: pl.units.filter((u) => u.len > 0) })).filter((pl) => pl.units.length);
+          return { places: ps, lens: ps.map((pl) => Math.round(pl.units.reduce((s, u) => s + u.len, 0))).filter((l) => l > 0), joinedTalls };
         };
-        if (!ups.length || !ups.every(placed)) return { lens: sum > 0 ? [Math.round(sum)] : [], joinedTalls: [] };
+        if (!ups.length) return done([], []);
+        if (!ups.every(bomPlacedOf)) {
+          // 자리를 몰라 배열 순서 한 줄 — 이웃 상부장 깊이가 다르면 거기서만 나눈다 (bomLinePlacesOf 와 같은 깊이 원칙)
+          return done(bomLinePlacesOf(ups.map((m) => Object.assign({}, m, { _place: null })), () => true), []);
+        }
         const same = (a, b) => Math.abs(a - b) <= 1;
         const epH = parseFloat(specs && specs.moldingH) || 60;
-        const wallOf = (m) => m._place.front.join(',');
-        const segOf = (m) => {
-          const p = m._place;
-          const c = Number(p.cx) * Number(p.run[0]) + Number(p.cy) * Number(p.run[1]);
-          return {
-            m, a: c - widthOf(m) / 2, b: c + widthOf(m) / 2,
-            d: parseFloat(m.d) || 0,
-            front: Number(p.cx) * Number(p.front[0]) + Number(p.cy) * Number(p.front[1]) + (Number(p.d) || 0) / 2,
-            top: (Number(p.z0) || 0) + (Number(p.h) || 0),
-          };
-        };
         const walls = new Map();
         ups.forEach((m) => {
-          if (!walls.has(wallOf(m))) walls.set(wallOf(m), []);
-          walls.get(wallOf(m)).push(segOf(m));
+          if (!walls.has(bomWallKeyOf(m))) walls.set(bomWallKeyOf(m), []);
+          walls.get(bomWallKeyOf(m)).push(bomRunSegOf(m));
         });
-        const lens = [];
+        const places = [];
         const joinedTalls = [];
         walls.forEach((segs, wall) => {
           // 그 벽의 키큰장 스택 — 같은 자리(진행 방향 두 끝)의 단 묶음, 상몰딩은 맨 위 단(상부단 · 통짜)이 짊어진다
           const stacks = [];
-          (talls || []).filter((t) => placed(t) && wallOf(t) === wall).map(segOf).forEach((t) => {
+          (talls || []).filter((t) => bomPlacedOf(t) && bomWallKeyOf(t) === wall).map(bomRunSegOf).forEach((t) => {
             const st = stacks.find((x) => same(x.a, t.a) && same(x.b, t.b));
             if (st) st.tiers.push(t); else stacks.push({ a: t.a, b: t.b, tiers: [t] });
           });
@@ -347,21 +457,56 @@
               // 몰딩 높이 — 2026-10-26 사장님 "하나의 품목에 상몰딩의 높이가 다른 경우는 없음." 검사는 그대로 둔다 (다른 값이 오면 예전처럼 따로)
               && epH >= 20 && Math.abs(bomTallMoldingHOf(crown.m, specs) - epH) < 0.5;
           };
-          /** 깊이가 같은 키큰장 스택을 이어 한 장으로 — 양옆 상부장과 맞고(matches), 스택이 빈 자리 안에 있을 때만 */
+          /** 깊이가 같은 키큰장 스택을 잇는다 — 양옆 상부장과 맞고(matches), 스택이 빈 자리 안에 있을 때만 */
           const joinable = (st, left, right, g0, g1) => !(st.a < g0 - 1 || st.b > g1 + 1) && matches(st, [left, right]);
           const join = (st) => st.tiers.forEach((t) => joinedTalls.push(String(t.m.id)));
+          const tallUnit = (st, a, b) => ({ len: b - a, ids: st.tiers.map((t) => String(t.m.id)), kind: 'tall' });
+          /** 이은 빈 자리 g0…g1 의 단위 — 빈 칸 · 그 안에 선 이은 키큰장 스택마다 한 칸 (1mm 이하 조각은 옆 칸에 붙인다) */
+          const gapUnits = (g0, g1, inGap) => {
+            const cells = [];
+            let x = g0;
+            inGap.slice().sort((p, q) => p.a - q.a).forEach((st) => {
+              const a = Math.max(x, st.a), b = Math.min(g1, st.b);
+              if (b <= a) return;
+              if (a > x) cells.push({ a: x, b: a, st: null });
+              cells.push({ a, b, st });
+              x = b;
+            });
+            if (g1 > x) cells.push({ a: x, b: g1, st: null });
+            const out = [];
+            cells.forEach((c) => {
+              const prev = out[out.length - 1];
+              if (prev && (c.b - c.a <= 1 || prev.b - prev.a <= 1)) {
+                prev.b = c.b;
+                if (!prev.st) prev.st = c.st;
+                return;
+              }
+              out.push(Object.assign({}, c));
+            });
+            return out.map((c) => (c.st ? tallUnit(c.st, c.a, c.b) : { len: c.b - c.a, ids: [], kind: 'gap' }));
+          };
           segs.sort((x, y) => x.a - y.a);
-          let len = segs.reduce((s, g) => s + widthOf(g.m), 0);
+          const wallPlaces = [{ wall, units: [bomModuleUnitOf(segs[0].m)] }];
           let last = segs[0];
+          let ref = bomDepthRefOf(segs[0].m) ? segs[0].m : null;   // 깊이를 견줄 앞 상부장 (후드 자리는 빼고)
           segs.slice(1).forEach((g) => {
             const g0 = last.b, g1 = g.a;
-            if (g1 - g0 > 1) {
-              const inGap = stacks.filter((st) => st.a < g1 - 1 && st.b > g0 + 1);
-              if (inGap.every((st) => joinable(st, last, g, g0, g1))) {
-                len += g1 - g0;
-                inGap.forEach(join);
-              }
+            const inGap = g1 - g0 > 1 ? stacks.filter((st) => st.a < g1 - 1 && st.b > g0 + 1) : [];
+            if (g1 - g0 > 1 && !inGap.every((st) => joinable(st, last, g, g0, g1))) {
+              // ④ 잇지 않는 키큰장(깊이가 다름 · 한 장이 곧게 못 지남)이 선 빈 자리 — 양옆은 다른 자리 (짧으면 800 — 깊이 예외가 아니다)
+              wallPlaces.push({ wall, units: [] });
+              ref = null;
+            } else if (ref && bomDepthRefOf(g.m) && !bomSameDepthOf(ref, g.m)) {
+              // 2026-10-26 "800보다 작지만 깊이가 구분되는 모듈이라면 800이하도 가능." — 이웃 상부장의 깊이 · 앞면이 다르면 한 장이 곧게
+              //   못 지난다 ("깊이가 다르면 따로 함" 과 같은 원칙): 다른 자리, 사이 빈 자리는 잇지 않는다. 두 자리 모두 depthBound (짧아도 그대로)
+              wallPlaces[wallPlaces.length - 1].depthBound = true;
+              wallPlaces.push({ wall, units: [], depthBound: true });
+            } else if (g1 - g0 > 1) {
+              wallPlaces[wallPlaces.length - 1].units.push(...gapUnits(g0, g1, inGap));
+              inGap.forEach(join);
             }
+            wallPlaces[wallPlaces.length - 1].units.push(bomModuleUnitOf(g.m));
+            if (bomDepthRefOf(g.m)) ref = g.m;
             if (g.b > last.b) last = g;
           });
           // 2026-10-26 사장님 확정 "잇는다." — 줄 끝(가장 바깥 상부장의 끝 · 시작)에 붙은 키큰장 스택도 그 폭만큼 잇는다.
@@ -372,17 +517,18 @@
             let at = dir > 0 ? ref.b : ref.a;
             for (let st = touchingAt(at, dir, ref); st; st = touchingAt(at, dir, ref)) {
               used.add(st);
-              len += st.b - st.a;
+              if (dir > 0) wallPlaces[wallPlaces.length - 1].units.push(tallUnit(st, st.a, st.b));
+              else wallPlaces[0].units.unshift(tallUnit(st, st.a, st.b));
               at = dir > 0 ? st.b : st.a;
               join(st);
             }
           });
-          lens.push(Math.round(len));
+          places.push(...wallPlaces);
         });
-        return { lens: lens.filter((l) => l > 0), joinedTalls };
+        return done(places, joinedTalls);
       }
 
-      /** 싱크 상몰딩 길이 합 — 벽마다 길이(bomSinkMoldingPlanOf)를 더한 값 */
+      /** 싱크 상몰딩 길이 합 — 자리마다 길이(bomSinkMoldingPlanOf)를 더한 값 */
       function bomSinkMoldingLenOf(uppers, talls, specs) {
         return bomSinkMoldingPlanOf(uppers, talls, specs).lens.reduce((s, l) => s + l, 0);
       }
@@ -904,6 +1050,8 @@
             //   홈카페장 · EL장)을 걷어내기 **전** 모듈로 한 번 세운다. 키큰장 단이 상자 모듈이어도 그 자리가 이음을 막거나(깊이 다름)
             //   그 단의 상몰딩이 빠져야(이어짐) 하기 때문이다 — 상자 모듈 단의 상몰딩도 addTallMoldingPart 를 지난다.
             this._ctx.sinkMolding = this.sinkMoldingPlanOf(item);
+            // 2026-10-26 사장님 확정: 상몰딩 · 걸레받이 · 목찬넬 조각 (자리마다 모듈 경계에서 800~2400) — 같은 까닭으로 걷어내기 전 품목으로
+            this._ctx.linePlan = this.linePlanOf(item);
             // ★ 같은 카테고리 2개 이상이면 #1, #2 접두사 부여
             const prefix = categoryTotals[category] > 1 ? `#${categoryCounts[category]} ` : '';
             // ★ 품목 라벨 (아이템 구분용)
@@ -1590,8 +1738,9 @@
         /**
          * 싱크 상몰딩 계획 (bomSinkMoldingPlanOf) — 싱크대 규칙으로 상몰딩을 내는 품목(BOM_SINK_MOLDING_CATEGORIES)만, 아니면 null.
          *   상부 라인 모듈(후드 자리 포함)과 키큰장 단(쿡탑장 제외 하부 줄, 상자 모듈 단 포함)으로 세운다.
-         *   BOM(extract → extractSink · addTallMoldingPart)과 조립 명세(bom-assembly.js runsOf 'molding')가 이 한 답을 쓴다.
-         * @returns {{lens:number[], joinedTalls:string[]}|null}
+         *   BOM(extract → extractSink · addTallMoldingPart)과 조립 명세(bom-assembly.js runsOf 'molding' — linePlanOf 를 거쳐) · 플래너
+         *   (planner-export.js moldingJoined)가 이 한 답을 쓴다.
+         * @returns {{places:Array, lens:number[], joinedTalls:string[]}|null}
          */
         sinkMoldingPlanOf(item) {
           const cat = item && (item.categoryId || item.category);
@@ -1601,6 +1750,50 @@
             mods.filter((m) => m && m.pos === 'upper'),
             mods.filter((m) => m && m.pos === 'lower' && m.type !== 'cook' && bomTallTierOf(m)),
             (item && item.specs) || {});
+        }
+
+        /**
+         * 상몰딩 · 걸레받이 · 목찬넬 EP 조각 계획 — 2026-10-26 사장님 확정 (bomLinePlacesOf 머리 주석). 자리마다 조각(linePiecesOf)까지.
+         *   싱크대 규칙 품목(BOM_SINK_MOLDING_CATEGORIES → extractSink)과 단순 상자 품목(BOM_SIMPLE_CATEGORY_RULES → extractSimpleBox)만, 아니면 null
+         *   (붙박이장은 제 규칙 — 2440 재단 장수, bom-wardrobe-rules moldingPartFor).
+         *   molding  싱크: bomSinkMoldingPlanOf (빈 자리 · 후드 · 깊이가 같은 키큰장을 건너 잇는다, 깊이가 다른 키큰장 양옆은 따로).
+         *            단순 상자: 상부 모듈(상자 모듈 제외)을 하부 라인처럼 벽마다 붙은 것끼리 (예전 폭 합 한 장 — 잇는 규칙은 싱크만이다).
+         *   lower    걸레받이 · 목찬넬 — 하부 라인 모듈(키큰장 단 · 상자 모듈, 싱크는 쿡탑장도 뺀다 — 예전 라인 폭과 같다)을 벽마다 붙은 것끼리.
+         *            2026-10-26 사장님 (하부 밥솥장): 서랍 위에 쌓인 밥솥장(stacked)은 줄에 서지 않는다 — 밑 서랍 모듈(stackTop)이 그 자리를 센다.
+         *   channel  목찬넬 — lower 와 같은 자리를, 싱크에서는 밥솥장이 쌓인 서랍 모듈(stackTop) 칸에서 더 나눈다 (2026-10-26 사장님
+         *            "상판 아래 목찬넬은 그 칸에서 끊긴다", sink.md 하부 밥솥장). 쌓인 칸이 없으면 lower 와 같다.
+         *   extract() 가 상자 모듈을 걷어내기 **전** 품목으로 한 번 세우고(_ctx.linePlan), 조립 명세(bom-assembly.js runsOf)가 같은 품목으로
+         *   다시 묻는다 — 둘이 같은 조각을 쓴다. 모듈 id 로 단위를 가리키므로 3D 는 같은 모듈 경계에 이음매를 놓는다.
+         * @param {object} item
+         * @param {'sink'|'simple'} [kind]  카테고리 대신 정한 규칙 (extractSink · extractSimpleBox 를 문맥 없이 부를 때)
+         * @returns {{ molding: {places:Array, joinedTalls:string[]}, lower: {places:Array}, channel: {places:Array} } | null}
+         */
+        linePlanOf(item, kind) {
+          const cat = item && (item.categoryId || item.category);
+          const k = kind || (BOM_SINK_MOLDING_CATEGORIES.indexOf(cat) >= 0 ? 'sink' : (BOM_SIMPLE_CATEGORY_RULES[cat] ? 'simple' : null));
+          if (!k) return null;
+          const mods = ((item && item.modules) || []).filter(Boolean);
+          const sink = k === 'sink';
+          const lowerCounts = (m) => m.pos === 'lower' && !(sink && m.type === 'cook') && !bomTallTierOf(m) && !bomIsBoxModule(m);
+          const lowerMods = mods.filter((m) => m.pos === 'lower' && !m.stacked);
+          const lower = bomPlanPlaces(bomLinePlacesOf(lowerMods, lowerCounts));
+          if (sink) {
+            const p = this.sinkMoldingPlanOf(Object.assign({}, item, { categoryId: 'sink' }));
+            // 목찬넬은 stackTop 칸을 세지 않는다 — 그 칸에서 자리가 나뉜다 (나뉜 자리는 깊이 예외가 아니다 — 짧으면 800 발주 · 현장 자름)
+            const channel = lowerMods.some((m) => m.stackTop)
+              ? bomPlanPlaces(bomLinePlacesOf(lowerMods, (m) => lowerCounts(m) && !m.stackTop)) : lower;
+            return { molding: { places: bomPlanPlaces(p.places), joinedTalls: p.joinedTalls }, lower: { places: lower }, channel: { places: channel } };
+          }
+          const uppers = bomPlanPlaces(bomLinePlacesOf(mods.filter((m) => m.pos === 'upper'), (m) => !bomIsBoxModule(m)));
+          return { molding: { places: uppers, joinedTalls: [] }, lower: { places: lower }, channel: { places: lower } };
+        }
+
+        /**
+         * 계획 자리들 → BOM 행 (bomLinePieceRowsOf) — 조립 명세 runsOf 가 BOM 과 같은 행 · 같은 조각 순서를 얻는다.
+         *   행 순서는 addMoldingRows · addKickBoards · addChannelRows 가 내는 순서와 같다.
+         */
+        linePieceRowsOf(places) {
+          return bomLinePieceRowsOf(places);
         }
 
         /**
@@ -1812,19 +2005,25 @@
         // 싱크대 자재 추출
         // ========================================
         /**
-         * 걸레받이 행 — 벽마다, 원판 긴 변을 넘으면 그 단위로 나눈 조각을 길이별로 묶어 낸다 (bomKickWallLensOf).
-         * @param {number[]} wallLens 벽 길이들
-         * @param {number} kickH      걸레받이 높이 (다리발 − 5)
+         * 라인 EP 조각 행 — 상몰딩 · 걸레받이 · 목찬넬(전면 52 · 지면 40). 자리(bomPlanPlaces)의 조각을 길이별로 묶어 낸다 (bomLinePieceRowsOf).
+         *   2026-10-26 사장님 확정 — "자르는 건 모듈길이별로 잘라야해" · 최대 2400 · 최소 800 (assembly-rules.js linePiecesOf).
+         *   자재 · 두께 · 높이 · 엣지는 예전 행 그대로다 — 길이와 수량 · 비고만 조각을 따른다.
          */
-        addKickBoards(materials, label, wallLens, kickH) {
-          const unit = this.PANEL_H || 2440;
-          const qtyByLen = new Map();
-          wallLens.forEach((len) => bomKickPiecesOf(len, unit).forEach((p) => qtyByLen.set(p, (qtyByLen.get(p) || 0) + 1)));
-          const pieces = [...qtyByLen.values()].reduce((a, b) => a + b, 0);
-          const note = pieces > 1 ? `벽 ${wallLens.length}개 · ${unit} 넘으면 ${unit} 단위로 나눔` : '';
-          [...qtyByLen.keys()].sort((a, b) => b - a).forEach((len) => {
-            this.add(materials, label, '걸레받이', 'MDF', 18, len, kickH, qtyByLen.get(len), '2면(장)', note);
-          });
+        addKickBoards(materials, label, places, kickH) {
+          bomLinePieceRowsOf(places).forEach((r) => this.add(materials, label, '걸레받이', 'MDF', 18, r.len, kickH, r.qty, '2면(장)', r.note));
+        }
+
+        /** 목찬넬 EP ㄴ자 — 전면 52 행들, 지면 40 행들 (걸레받이와 같은 자리 · 조각) */
+        addChannelRows(materials, label, places) {
+          const rows = bomLinePieceRowsOf(places);
+          rows.forEach((r) => this.add(materials, label, '목찬넬(전면)', 'MDF', 18, 52, r.len, r.qty, '2면(장)', r.note));
+          rows.forEach((r) => this.add(materials, label, '목찬넬(지면)', 'MDF', 18, 40, r.len, r.qty, '2면(장)', r.note));
+        }
+
+        /** 상부 라인 상몰딩 — 몰딩H × 조각 길이, 2000 넘으면 2면(장) · 아니면 4면 (예전 행 그대로). extraNote = 키큰장 이음 비고 */
+        addMoldingRows(materials, label, places, moldingH, extraNote) {
+          bomLinePieceRowsOf(places).forEach((r) => this.add(materials, label, '상몰딩', 'MDF', 18, moldingH, r.len, r.qty,
+            r.len > 2000 ? '2면(장)' : '4면', [r.note, extraNote].filter(Boolean).join(' · ')));
         }
 
         extractSink(item, materials, prefix = '') {
@@ -1968,40 +2167,36 @@
           // P1-2: 상부장이 없으면 없다. 예전엔 상부 폭 합이 0 이면 하부 폭(effectiveW)에 떨어져 없는 상몰딩이 나갔다.
           //   키큰장 상부단의 상몰딩은 그 단이 따로 낸다 (addTallTierParts).
           // 2026-10-25 사장님 확정: "상몰딩은 후드라고 해서 구별 하지 않음" — 후드 자리(type hood, 몸통은 없다)도 상부 라인 폭에 넣는다.
-          //   상몰딩 한 장이 후드 위를 끊기지 않고 지난다 (조립 명세 runsOf 'molding' 도 후드를 구간에 넣는다).
+          //   상몰딩이 후드 위를 끊기지 않고 지난다 (조립 명세 runsOf 'molding' 도 같은 계획).
           // 2026-10-26 사장님 확정: "상부장이 있다면 위에는 상몰딩이 있다고 보면됨. 가능한 이어지게." — 같은 벽 상부장 사이
-          //   빈 자리(빈 벽 · 창문)도 건너 한 장. "벽을 기준으로 나눠야함." — 두 벽(ㄱ자 상부)이면 목찬넬처럼 벽마다 한 장,
-          //   같은 길이의 벽은 한 행에 수량으로. "깊이가 다르면 따로 함." — 빈 자리에 선 키큰장은 깊이가 다르면 그 단이 제 상몰딩을 따로 내고,
-          //   깊이가 같으면(앞면 · 윗면 · 몰딩 높이도 같을 때) 그 위까지 이어 한 장 (bomSinkMoldingPlanOf · sinkMoldingPlanOf).
+          //   빈 자리(빈 벽 · 창문)도 건너 잇는다. "벽을 기준으로 나눠야함." — 두 벽(ㄱ자 상부)이면 목찬넬처럼 벽마다 따로.
+          //   "깊이가 다르면 따로 함." — 빈 자리에 선 키큰장은 깊이가 다르면 그 단이 제 상몰딩을 따로 내고 양옆 상부장은 다른 자리,
+          //   깊이가 같으면(앞면 · 윗면 · 몰딩 높이도 같을 때) 그 위까지 잇는다 (bomSinkMoldingPlanOf · sinkMoldingPlanOf).
           //   줄 끝에 붙은 키큰장도 같은 검사로 그 폭만큼 잇는다 — "잇는다." (2026-10-26 사장님 확정, 줄 끝 키큰장)
+          // 2026-10-26 사장님 확정 (조각): 자리마다 모듈 경계에서 최대 2400 · 최소 800 — "자르는 건 모듈길이별로 잘라야해" (linePlanOf · linePiecesOf).
           //   계획은 extract() 가 상자 모듈을 걷어내기 전 모듈로 세운 것 (이 item 은 걷어낸 뒤라 상자 모듈 키큰장 단이 없다).
-          const moldingPlan = (this._ctx && this._ctx.sinkMolding)
-            || bomSinkMoldingPlanOf((item.modules || []).filter((m) => m.pos === 'upper'), lowerModules.filter((m) => bomTallTierOf(m)), specs);
-          const moldingRows = bomWallLenQtyOf(moldingPlan.lens);
-          const moldingWalls = moldingRows.reduce((a, r) => a + r[1], 0);
-          const moldingNote = [moldingWalls > 1 ? `벽 ${moldingWalls}개 · 벽마다 한 장` : '',
-            moldingPlan.joinedTalls.length ? '키큰장 위도 이어 한 장 (깊이 같음)' : ''].filter(Boolean).join(' · ');
+          const linePlan = (this._ctx && this._ctx.linePlan) || this.linePlanOf(item, 'sink');
           this.beginItemLevel('upper');
           if (moldingH >= 20) {
-            moldingRows.forEach(([len, n]) => this.add(materials, epLabel, '상몰딩', 'MDF', 18, moldingH, len, n, len > 2000 ? '2면(장)' : '4면', moldingNote));
+            this.addMoldingRows(materials, epLabel, linePlan.molding.places, moldingH,
+              linePlan.molding.joinedTalls.length ? '키큰장 위까지 이음 (깊이 같음)' : '');
           }
 
-          // 걸레받이 — 여기부터 하부 라인 마감. 벽마다 나눈다 (2026-10-20 카드 「꺾임에서 나누기」)
+          // 걸레받이 · 목찬넬 — 여기부터 하부 라인 마감. 자리마다 조각 (2026-10-26 사장님 확정, 예전 2026-10-20 카드 「꺾임에서 나누기」 2440 단위)
+          //   자리 = 벽마다 붙어 있는 하부장 (쿡탑장 · 키큰장 단 · 상자 모듈 제외 — 예전 라인 폭과 같다). 사이에 키큰장이 서거나 비면 따로 (①④).
+          //   목찬넬은 걸레받이와 같은 자리 · 같은 조각 (2026-10-25 사장님 확정 "보통 벽마다 한장씩, 두장으로 나뉨" 의 벽 나누기는 그대로 든다) —
+          //   밥솥장이 쌓인 서랍 모듈 칸에서만 목찬넬 자리가 더 나뉜다 (아래, 2026-10-26 하부 밥솥장).
+          //   하부 모듈이 하나도 없는 옛 저장 설계만 품목 폭 − 120 한 단위 — 모듈 경계가 없어 2400 을 넘으면 [확인 필요].
+          const lowerPlaces = lowerModules.length ? linePlan.lower.places
+            : bomPlanPlaces([{ wall: '-', units: [{ len: effectiveW, ids: [], kind: 'item' }] }]);
           this.beginItemLevel('lower');
-          if (effectiveW > 0) {
-            this.addKickBoards(materials, epLabel, lowerModules.length ? bomKickWallLensOf(lineLowerModules) : [effectiveW], legH - 5);
-          }
-
-          // 목찬넬 — 벽마다 한 장 (2026-10-25 사장님 확정 "보통 벽마다 한장씩, 두장으로 나뉨").
-          //   벽 = 걸레받이와 같다 (하부 모듈 앞면 방향, 쿡탑장 · 키큰장 단 제외 — bomKickWallLensOf). 같은 길이의 벽은 한 행에 수량으로.
-          //   자리가 없는 옛 설계 · 일자는 한 벽 — 예전처럼 한 장. 모서리는 그 자리에 선 모듈의 벽 몫이다 (벽 길이 = 그 벽 모듈 폭 합).
-          if (isWoodChannel && effectiveW > 0) {
-            const chRows = bomWallLenQtyOf(lowerModules.length ? bomChannelWallLensOf(lineLowerModules) : [effectiveW]);
-            const chWalls = chRows.reduce((a, r) => a + r[1], 0);
-            const chNote = chWalls > 1 ? `벽 ${chWalls}개 · 벽마다 한 장` : '';
-            chRows.forEach(([len, n]) => this.add(materials, epLabel, '목찬넬(전면)', 'MDF', 18, 52, len, n, '2면(장)', chNote));
-            chRows.forEach(([len, n]) => this.add(materials, epLabel, '목찬넬(지면)', 'MDF', 18, 40, len, n, '2면(장)', chNote));
-          }
+          if (effectiveW > 0) this.addKickBoards(materials, epLabel, lowerPlaces, legH - 5);
+          // 2026-10-26 사장님 (하부 밥솥장): 상판 아래 목찬넬은 밥솥장이 쌓인 서랍 모듈(stackTop)에서 끊긴다 — 그 칸은 서랍 모듈이 제 목찬넬을
+          //   내고(위 모듈 행), 밥솥장 위 목대가 이웃 목찬넬 모양을 잇는다. 걸레받이는 그 칸을 지나 이어진다 (밑 서랍 모듈이 자리를 센다).
+          //   목찬넬 자리 = linePlanOf channel — 걸레받이 자리를 stackTop 칸에서 더 나눈 것 (쌓인 칸이 없으면 걸레받이 자리와 같다).
+          //   나뉜 자리는 「조각」 규칙 그대로다 — 깊이 때문에 나뉜 자리가 아니므로 800 보다 짧으면 800 으로 내고 현장에서 자른다.
+          const channelPlaces = lowerModules.length ? linePlan.channel.places : lowerPlaces;
+          if (isWoodChannel && effectiveW > 0) this.addChannelRows(materials, epLabel, channelPlaces);
 
           // P1-3: 상판 — 하부 라인에 한 장 (3D addTopPanel 도 배치 공간 단위 한 장이다 · W12-38).
           //   두께 = specs.topThickness — 12 · 50T 인조대리석 (2026-10-18 사장님, 예전 선택지의 18 도어자재 상판은 없앴다).
@@ -2620,22 +2815,19 @@
           const effectiveW = lineLowerModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
           const totalUpperW = upperModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
           const moldingH = parseFloat(specs.moldingH) || 60;
+          // 2026-10-26 사장님 확정 (신발장 · 수납장 — "상몰딩, 걸레받이, 목찬넬 조건 적용"): 싱크와 같은 조각 — 자리마다 모듈 경계에서
+          //   최대 2400 · 최소 800 (linePlanOf 'simple' · linePiecesOf). 자리 = 벽마다 붙어 있는 모듈 (상부는 상부장, 하부는 키큰장 단 제외 하부장).
+          //   빈 자리 · 키큰장을 건너 잇는 규칙(2026-10-26)은 싱크 상몰딩 것이라 여기는 붙은 것끼리다 — 길이 합은 예전 폭 합 그대로.
+          const linePlan = (this._ctx && this._ctx.linePlan) || this.linePlanOf(item, 'simple');
 
           // 상몰딩 — 상부장이 있을 때만 (P1-2 와 같다). 키큰장 상부단 상몰딩은 그 단이 낸다.
           this.beginItemLevel('upper');
-          if (moldingH >= 20 && totalUpperW > 0) {
-            this.add(materials, epLabel, '상몰딩', 'MDF', 18, moldingH, totalUpperW, 1, totalUpperW > 2000 ? '2면(장)' : '4면');
-          }
+          if (moldingH >= 20 && totalUpperW > 0) this.addMoldingRows(materials, epLabel, linePlan.molding.places, moldingH, '');
 
-          // 걸레받이·목찬넬 — 다리발 위 하부 라인 폭 (키큰장 단은 좌대가 받치므로 뺀다). 하부장이 없으면 없다.
+          // 걸레받이·목찬넬 — 다리발 위 하부 라인 (키큰장 단은 좌대가 받치므로 뺀다). 하부장이 없으면 없다.
           this.beginItemLevel('lower');
-          if (effectiveW > 0) {
-            this.addKickBoards(materials, epLabel, bomKickWallLensOf(lineLowerModules), legH - 5);
-          }
-          if (isWoodChannel && effectiveW > 0) {
-            this.add(materials, epLabel, '목찬넬(전면)', 'MDF', 18, 52, effectiveW, 1, '2면(장)');
-            this.add(materials, epLabel, '목찬넬(지면)', 'MDF', 18, 40, effectiveW, 1, '2면(장)');
-          }
+          if (effectiveW > 0) this.addKickBoards(materials, epLabel, linePlan.lower.places, legH - 5);
+          if (isWoodChannel && effectiveW > 0) this.addChannelRows(materials, epLabel, linePlan.channel.places);
 
           // 좌·우 마감 — 2026-10-24 사장님 D9: 도면 마감재 그대로 (addDrawnFinishes). simple-categories.md §2 의 스펙 기본(Filler 60)은 발주에 쓰지 않는다.
           this.addDrawnFinishes(materials, epLabel, item);
@@ -3520,9 +3712,9 @@
           BOM_GAS_STRUTS, bomGasStrutFor,
           // 2026-10-18 사전 오류 검사(bom-preflight.js)가 컵 간격 문턱을 여기서 읽는다
           BOM_HINGE_MIN_GAP,
-          // 2026-10-20 걸레받이 꺾임에서 나누기
-          bomKickWallLensOf, bomKickPiecesOf,
-          // 2026-10-26 상몰딩은 같은 벽 상부장 사이 빈 자리도 건너 한 장 · 벽마다 한 장 · 깊이가 같은 키큰장은 이어서
+          // 2026-10-26 상몰딩 · 걸레받이 · 목찬넬 조각 — 자리(벽마다 · 실제로 붙는 길이) · 모듈 경계에서 800~2400 · 행
+          bomLinePlacesOf, bomPlanPlaces, bomLinePieceRowsOf, bomIsBoxModule, BOM_LINE_PIECE_SITE_NOTE, BOM_LINE_PIECE_CHECK_NOTE,
+          // 2026-10-26 상몰딩은 같은 벽 상부장 사이 빈 자리도 건너 잇는다 · 벽마다 · 깊이가 같은 키큰장은 이어서 · 깊이가 다르면 양옆이 다른 자리
           bomSinkMoldingLenOf, bomSinkMoldingPlanOf,
         };
       }
