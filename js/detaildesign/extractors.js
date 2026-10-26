@@ -221,6 +221,8 @@
       //      달라 자리가 나뉘면("깊이가 다르면 따로 함" 과 같은 원칙) 그 자리는 짧아도 붙는 길이 그대로 낸다 (depthBound → linePiecesOf keepShort).
       //      키큰장(깊이가 다른)이 사이에 서서 나뉜 양옆 자리 · 홀로 짧은 줄 · 남는 조각은 그대로 800. 키큰장 제 상몰딩 · 좌대 걸레받이 · 단 목찬넬은
       //      모듈 행(addTallTierParts)이라 이 규칙을 타지 않는다 — 제 폭 그대로.
+      //      두 번째 예외 — 2026-10-26 사장님 "600 그대로" (쌓기 칸에서 끊긴 짧은 목찬넬): 하부 밥솥장이 쌓인 서랍 모듈(stackTop) 칸에서 끊긴
+      //      목찬넬 자리는 깊이 예외와 똑같이 짧아도 붙는 길이 그대로 낸다 (stackBound → linePiecesOf keepShort, 그 칸에 닿은 자리 양쪽).
       //   ④ 깊이가 다른 키큰장 양옆은 서로 다른 자리다 (상몰딩 1200 · 1200 → 1200 두 장, 하부 라인의 걸레받이 · 목찬넬도 키큰장 양옆이 따로).
       //   조각 나누기 = assembly-rules.js linePiecesOf (조립 명세 runsOf 가 같은 계획을 받아 3D 에 같은 이음매를 놓는다).
       //   걸레받이카바 개수는 그대로다 — 자재 행 전체 길이(발주 조각 길이 × 수량 합)로 센다.
@@ -283,11 +285,15 @@
        * 줄 모듈 → 자리들 (①). 벽마다, 벽 안에서는 진행 방향 자리 순서로 붙어 있는(1mm 안) 모듈끼리 한 자리.
        *   이웃 모듈의 깊이 · 앞면이 다르면(bomSameDepthOf) 거기서도 나누고, 그렇게 나뉜 자리에 depthBound 를 단다 (③ 예외 — 짧아도 그대로).
        *   자리가 없는 모듈(옛 설계 · 사선 줄)은 한 벽('-') — 배열 순서로 보고 세지 않는 모듈(counts 거짓)이 사이에 서면 나눈다.
+       *   stop 이 참인 세지 않는 모듈(목찬넬의 하부 밥솥장 stackTop 칸)에 닿은 자리에는 stackBound 를 단다 — 2026-10-26 사장님 "600 그대로"
+       *   (쌓기 칸에서 끊긴 짧은 목찬넬, depthBound 와 같은 keepShort). 닿음 = 자리 끝과 그 칸 끝이 1mm 안 (자리가 없으면 배열에서 바로 이웃).
        * @param {object[]} mods    줄 후보 모듈 (배열 순서)
        * @param {(m: object) => boolean} counts  자리를 이루는 모듈
-       * @returns {Array<{wall:string, units:Array<{len:number, ids:string[], kind:string}>, depthBound?:boolean}>}  벽 순서 = 모듈이 처음 나온 순서
+       * @param {(m: object) => boolean} [stop]  자리를 끊고 닿은 자리를 짧아도 그대로 두는 칸 (세지 않는 모듈 중)
+       * @returns {Array<{wall:string, units:Array<{len:number, ids:string[], kind:string}>, depthBound?:boolean, stackBound?:boolean}>}
+       *   벽 순서 = 모듈이 처음 나온 순서
        */
-      function bomLinePlacesOf(mods, counts) {
+      function bomLinePlacesOf(mods, counts, stop) {
         const order = [];
         const byWall = new Map();
         (mods || []).forEach((m) => {
@@ -313,21 +319,37 @@
             cur.units.push(bomModuleUnitOf(m));
             if (bomDepthRefOf(m)) ref = m;
           };
+          const isStop = (m) => !!stop && !counts(m) && !!stop(m);
           if (wall === '-') {
+            let afterStop = false;   // 바로 앞 칸이 stop 이었다 — 다음에 여는 자리가 그 칸에 닿는다
             list.forEach((m) => {
-              if (!counts(m)) { cur = null; ref = null; return; }
+              if (!counts(m)) {
+                if (isStop(m) && cur) cur.stackBound = true;
+                afterStop = isStop(m);
+                cur = null; ref = null;
+                return;
+              }
               if (!(bomWidthOf(m) > 0)) return;
-              if (!cur) open(false);
+              if (!cur) { open(false); if (afterStop) cur.stackBound = true; }
+              afterStop = false;
               add(m);
             });
             return;
           }
+          // stop 칸 — 자리 끝이 그 칸 시작에, 자리 시작이 그 칸 끝에 1mm 안으로 닿으면 그 자리는 stackBound
+          const stops = list.filter((m) => isStop(m) && bomWidthOf(m) > 0).map(bomRunSegOf);
+          const stopAt = (x, side) => stops.some((st) => Math.abs(st[side] - x) <= 1);
           let end = -Infinity;
           list.filter((m) => counts(m) && bomWidthOf(m) > 0).map(bomRunSegOf).sort((x, y) => x.a - y.a).forEach((g) => {
-            if (!cur || g.a - end > 1) open(false);
+            if (!cur || g.a - end > 1) {
+              if (cur && stopAt(end, 'a')) cur.stackBound = true;
+              open(false);
+              if (stopAt(g.a, 'b')) cur.stackBound = true;
+            }
             add(g.m);
             end = Math.max(end, g.b);
           });
+          if (cur && stopAt(end, 'a')) cur.stackBound = true;
         });
         return places;
       }
@@ -335,9 +357,10 @@
       /**
        * 자리들에 조각을 단다 — assembly-rules.js linePiecesOf (total · offsets · pieces · fallback · inside).
        *   깊이가 달라 나뉜 자리(depthBound)는 짧아도 붙는 길이 그대로 (keepShort — 2026-10-26 "800보다 작지만 깊이가 구분되는 모듈이라면 800이하도 가능.")
+       *   하부 밥솥장 쌓기 칸에서 끊긴 목찬넬 자리(stackBound)도 같다 (keepShort — 2026-10-26 사장님 "600 그대로")
        */
       function bomPlanPlaces(places) {
-        return (places || []).map((pl) => Object.assign({}, pl, AsmRules.linePiecesOf(pl.units.map((u) => u.len), { keepShort: !!pl.depthBound })))
+        return (places || []).map((pl) => Object.assign({}, pl, AsmRules.linePiecesOf(pl.units.map((u) => u.len), { keepShort: !!(pl.depthBound || pl.stackBound) })))
           .filter((pl) => pl.pieces.length);
       }
 
@@ -1762,6 +1785,7 @@
          *            2026-10-26 사장님 (하부 밥솥장): 서랍 위에 쌓인 밥솥장(stacked)은 줄에 서지 않는다 — 밑 서랍 모듈(stackTop)이 그 자리를 센다.
          *   channel  목찬넬 — lower 와 같은 자리를, 싱크에서는 밥솥장이 쌓인 서랍 모듈(stackTop) 칸에서 더 나눈다 (2026-10-26 사장님
          *            "상판 아래 목찬넬은 그 칸에서 끊긴다", sink.md 하부 밥솥장). 쌓인 칸이 없으면 lower 와 같다.
+         *            그 칸에 닿은 자리는 800 보다 짧아도 붙는 길이 그대로 (2026-10-26 사장님 "600 그대로" — stackBound).
          *   extract() 가 상자 모듈을 걷어내기 **전** 품목으로 한 번 세우고(_ctx.linePlan), 조립 명세(bom-assembly.js runsOf)가 같은 품목으로
          *   다시 묻는다 — 둘이 같은 조각을 쓴다. 모듈 id 로 단위를 가리키므로 3D 는 같은 모듈 경계에 이음매를 놓는다.
          * @param {object} item
@@ -1779,9 +1803,10 @@
           const lower = bomPlanPlaces(bomLinePlacesOf(lowerMods, lowerCounts));
           if (sink) {
             const p = this.sinkMoldingPlanOf(Object.assign({}, item, { categoryId: 'sink' }));
-            // 목찬넬은 stackTop 칸을 세지 않는다 — 그 칸에서 자리가 나뉜다 (나뉜 자리는 깊이 예외가 아니다 — 짧으면 800 발주 · 현장 자름)
+            // 목찬넬은 stackTop 칸을 세지 않는다 — 그 칸에서 자리가 나뉜다. 그 칸에 닿은 자리는 짧아도 붙는 길이 그대로
+            //   (2026-10-26 사장님 "600 그대로" — 쌓기 칸에서 끊긴 짧은 목찬넬, stackBound → keepShort)
             const channel = lowerMods.some((m) => m.stackTop)
-              ? bomPlanPlaces(bomLinePlacesOf(lowerMods, (m) => lowerCounts(m) && !m.stackTop)) : lower;
+              ? bomPlanPlaces(bomLinePlacesOf(lowerMods, (m) => lowerCounts(m) && !m.stackTop, (m) => lowerCounts(m) && !!m.stackTop)) : lower;
             return { molding: { places: bomPlanPlaces(p.places), joinedTalls: p.joinedTalls }, lower: { places: lower }, channel: { places: channel } };
           }
           const uppers = bomPlanPlaces(bomLinePlacesOf(mods.filter((m) => m.pos === 'upper'), (m) => !bomIsBoxModule(m)));
@@ -2194,7 +2219,7 @@
           // 2026-10-26 사장님 (하부 밥솥장): 상판 아래 목찬넬은 밥솥장이 쌓인 서랍 모듈(stackTop)에서 끊긴다 — 그 칸은 서랍 모듈이 제 목찬넬을
           //   내고(위 모듈 행), 밥솥장 위 목대가 이웃 목찬넬 모양을 잇는다. 걸레받이는 그 칸을 지나 이어진다 (밑 서랍 모듈이 자리를 센다).
           //   목찬넬 자리 = linePlanOf channel — 걸레받이 자리를 stackTop 칸에서 더 나눈 것 (쌓인 칸이 없으면 걸레받이 자리와 같다).
-          //   나뉜 자리는 「조각」 규칙 그대로다 — 깊이 때문에 나뉜 자리가 아니므로 800 보다 짧으면 800 으로 내고 현장에서 자른다.
+          //   나뉜 자리는 「조각」 규칙을 타되, 그 칸에 닿은 자리는 800 보다 짧아도 붙는 길이 그대로 낸다 (2026-10-26 사장님 "600 그대로").
           const channelPlaces = lowerModules.length ? linePlan.channel.places : lowerPlaces;
           if (isWoodChannel && effectiveW > 0) this.addChannelRows(materials, epLabel, channelPlaces);
 
