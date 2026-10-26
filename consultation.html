@@ -18,6 +18,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <script src="js/detaildesign-access.js"></script>
     <script src="js/admin-access.js"></script>
+    <script src="js/consent.js"></script>
     <style>
       * {
         margin: 0;
@@ -737,6 +738,16 @@
           const mobileLoginLink = document.getElementById('mobileLoginLink');
           mobileLoginLink.textContent = '마이페이지';
           mobileLoginLink.href = 'mypage.html';
+
+          // 동의 기록이 없는 회원(카카오·Google 가입, 예전 가입)에게 동의 창 — js/consent.js.
+          // 상담 신청은 서비스 동작이라 동의 전에는 아래 submitConsultation 이 막는다.
+          if (window.DadamConsent) {
+            try {
+              await window.DadamConsent.gate.start(supabaseClient, session);
+            } catch (err) {
+              console.warn('[consultation] consent:', err?.message);
+            }
+          }
         }
       }
 
@@ -799,6 +810,18 @@
         // 개인정보 수집·이용 동의 — 없으면 신청하지 않는다
         if (!document.getElementById('agreePrivacy').checked) {
           alert('개인정보 수집·이용에 동의해 주세요.');
+          submitBtn.disabled = false;
+          submitBtn.innerHTML =
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>상담 신청하기';
+          return;
+        }
+
+        // 회원인데 이용약관·처리방침 동의 기록이 없으면 동의 창부터 — 동의하면 이어서 신청한다
+        if (
+          currentUser &&
+          window.DadamConsent &&
+          !window.DadamConsent.gate.allow(() => document.getElementById('consultationForm').requestSubmit())
+        ) {
           submitBtn.disabled = false;
           submitBtn.innerHTML =
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>상담 신청하기';

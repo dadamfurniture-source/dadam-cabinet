@@ -254,7 +254,7 @@
       };
     }
     bindAccountMenu();
-    syncSignupConsent(sb, session);
+    startConsentGate(sb, session);
 
     // 잔여 생성 횟수. 본인 행만 읽는다(RLS).
     // 아직 한 번도 안 쓴 사용자는 행이 없다 — 그때는 등급 지급량을 보여준다.
@@ -323,17 +323,21 @@
     window.dispatchEvent(new CustomEvent('shell:auth', { detail: { sb: sb, session: session } }));
   }
 
-  // 이메일 가입 때 받은 동의(약관·처리방침·만 14세·마케팅)를 profiles 로 옮긴다 — js/consent.js.
-  // 인증 메일 링크가 /index.html → ai-design.html 로 돌아오면 세션이 처음 생기는 곳이 이 셸이다.
-  // 가입 메타데이터에 동의가 실린 회원만 그 파일을 불러온다. 실패해도 셸 그리기는 그대로다.
-  function syncSignupConsent(sb, session) {
-    var meta = (session.user && session.user.user_metadata) || {};
-    if (!meta.terms_agreed_at) return;
+  // 동의 — js/consent.js 의 gate.start.
+  //   · 이메일 가입 때 받은 동의(약관·처리방침·만 14세·마케팅)를 profiles 로 옮긴다.
+  //     인증 메일 링크가 /index.html → ai-design.html 로 돌아오면 세션이 처음 생기는 곳이 이 셸이다.
+  //   · 그래도 동의 기록이 없으면(카카오·Google 가입, 예전 가입) 보던 페이지 위에 동의 창을 띄우고,
+  //     동의 전에는 서비스 동작(연출컷 시작 · 상세설계 열기)을 막는다.
+  //   · 상세설계 페이지(data-nav="detail")는 여는 것 자체가 서비스라 바로 띄우고, 닫으면 떠난다.
+  // 실패해도 셸 그리기는 그대로다.
+  function startConsentGate(sb, session) {
     var run = function () {
       if (!window.DadamConsent) return;
-      window.DadamConsent.syncSignup(sb, session.user).catch(function (e) {
-        console.warn('[shell] consent:', e && e.message);
-      });
+      window.DadamConsent.gate
+        .start(sb, session, { required: currentNav === 'detail' })
+        .catch(function (e) {
+          console.warn('[shell] consent:', e && e.message);
+        });
     };
     if (window.DadamConsent) return run();
     var s = document.createElement('script');
