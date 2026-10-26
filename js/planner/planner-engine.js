@@ -100,7 +100,7 @@ const MASTER_RULES = {
   //   정본은 js/detaildesign/data-constants.js 지만 플래너는 그 파일을 로드하지 않는다.
   //   값이 갈라지면 같은 코너를 화면과 BOM 이 다르게 계산한다 — 바뀌면 같이 고쳐야 한다.
   CORNER_DRIP: 10,              // 물끊기 여유 (§3.3)
-  CORNER_WALL_GAP: 50,          // 멍장 측판 ↔ 코너 벽 여유 (§3.4)
+  CORNER_WALL_GAP: 50,          // 멍장 측판 ↔ 코너 벽 여유 (§3.4) — 기본값. 사람이 코너마다 바꿀 수 있다 (deriveCornerArea wallGap)
   CORNER_MOLDING: 60,           // 코너 접합부 몰딩 기본값 (§3.3) — **자리**다
   // W12-61/72: 그 마감재의 **재단 폭**. 자리(60)와 다르다.
   //   마감재는 멍가림판 3T MDF 를 **덮고** 붙으므로 접착면을 더 물어야 한다.
@@ -385,6 +385,11 @@ function blindFrontLayout(zoneW, o) {
 // @param {number} [p.molding]  코너 몰딩 (기본 60)
 // @param {number} [p.epW]      멍장 반대쪽 끝 EP (기본 20)
 // @param {number} [p.minDoorW] 도어 최소폭 (기본 350)
+// @param {number} [p.wallGap]    멍장 측판 ↔ 코너 벽 띄움 (기본 CORNER_WALL_GAP 50) — 2026-10-26 사장님 "띄움도 입력해서 설정"
+// @param {number[]} [p.wallGaps] 코너마다 띄움 (adjDs 와 같은 차례). 주면 wallGap 보다 먼저다
+//
+// 띄움을 바꿔도 **벽 기준 가림 폭**(인접 깊이 − 물끊기 + 마감재 + 목대)은 그대로다 — 멍(카카스 안)이
+//   띄움을 뺀 나머지라(§3.3, W12-69) 띄움 + 멍 = 가림 폭. 그래서 도어 폭은 바뀌지 않고 멍장 W 와 자리만 바뀐다.
 //
 // W12-54: `ownerD`·`adjD` 는 **배치 공간 깊이 = 상판 깊이**다. 평면도에서 위에서
 //   내려다보면 상판이 제일 바깥이므로, 배치 단계에서 그리는 사각형이 곧 상판
@@ -426,21 +431,25 @@ function deriveCornerArea(p) {
   //
   //   예전엔 벽 기준 값을 카카스 안에 그대로 써서 50 을 더 가렸다.
   const batten = R.CORNER_HINGE_BATTEN_T;
+  // 벽 띄움 — 코너마다 (기본 50, §3.4). 사람이 정한 값이 있으면 그 값 (2026-10-26).
+  const gapOf = (v) => (Number.isFinite(v) && v >= 0 ? v : R.CORNER_WALL_GAP);
+  const wallGaps = adjDs.map((_, i) => gapOf(Array.isArray(p.wallGaps) ? p.wallGaps[i] : p.wallGap));
+  const gapSum = wallGaps.reduce((a, b) => a + b, 0);
   const blindZoneWs = adjDs.map((d, i) =>
-    Math.max(0, (Number(d) || 0) - dripOf(adjHasTops[i]) + molding + batten - R.CORNER_WALL_GAP));
+    Math.max(0, (Number(d) || 0) - dripOf(adjHasTops[i]) + molding + batten - wallGaps[i]));
   const zoneSum = blindZoneWs.reduce((a, b) => a + b, 0);
 
   // ② 도어 균등 분배 — §3.4 라인 원장. 도어 폭은 라인 하나에 하나다.
-  const doorAvail = ownerW - epW - R.CORNER_WALL_GAP * n - zoneSum;
+  const doorAvail = ownerW - epW - gapSum - zoneSum;
 
   // 멍장마다 최소 도어 한 장씩 들어가는 최소 폭. 거부할 때 이 값을 안내한다.
-  const minOwnerW = epW + R.CORNER_WALL_GAP * n + zoneSum + minDoorW * n;
+  const minOwnerW = epW + gapSum + zoneSum + minDoorW * n;
 
   // 멍이 라인을 다 먹었다 — 멍장을 세울 자리가 없다.
   // 반쯤 세우면 도어 없는 장이 서고 원장도 안 맞는다. 아예 만들지 않는다.
   if (doorAvail <= 0) {
     return { ok: false, reason: 'no-room', corners: n, blindZoneWs, blindZoneW: blindZoneWs[0],
-             doorAvail, minOwnerW, warnings };
+             wallGaps, doorAvail, minOwnerW, warnings };
   }
 
   let nDoors, doorW;
@@ -479,6 +488,7 @@ function deriveCornerArea(p) {
     blindZoneWs, blindWs,
     // 코너가 하나인 쪽에서 읽기 쉽도록 첫 값을 그대로도 낸다
     blindZoneW: blindZoneWs[0], blindW: blindWs[0],
+    wallGaps,
     doorAvail, nDoors, doorW, remainder,
     adjStartOffset, epW, minOwnerW,
     // 멍장들을 뺀 나머지 수납이 나눠 가질 폭
