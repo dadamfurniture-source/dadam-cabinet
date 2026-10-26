@@ -127,6 +127,7 @@ test('7일 이내 + 크레딧 미사용 → 토스 전액 취소 · refunded · 
   assert.equal(sub().next_charge_at, null);
   assert.ok(sub().ended_at);
   assert.equal(profile().tier, 'standard');
+  assert.equal(profile().tier_source, 'manual', '내리면서 결제 표식도 기본값으로');
 });
 
 test('7일이 지났으면 409 + 이유, 토스를 부르지 않는다', async () => {
@@ -196,6 +197,7 @@ test('본사 승인 등급(manual)은 환불해도 내리지 않는다', async (
   const res = await refund({ payment_id: P1 });
   assert.equal(res.status, 200);
   assert.equal(profile().tier, 'expert');
+  assert.equal(profile().tier_source, 'manual');
   assert.equal(sub().status, 'cancelled');
 });
 

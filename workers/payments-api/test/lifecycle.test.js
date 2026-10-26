@@ -170,6 +170,7 @@ test('실패 재시도: 첫 실패 1일 뒤 · 3일 뒤, 그동안 past_due + �
   assert.equal(s.ended_at, iso(T0 + 3 * DAY));
   assert.equal(s.failed_attempts, 3);
   assert.equal(profile().tier, 'standard');
+  assert.equal(profile().tier_source, 'manual', '내리면서 결제 표식도 기본값으로');
 
   const orders = be.charges().map((c) => c.body.orderId);
   assert.equal(new Set(orders).size, 3, '회차마다 다른 주문번호');
@@ -286,6 +287,7 @@ test('해지: 이번 기간 끝까지는 등급 유지, 끝나면 standard (한 
   summary = await runDailyLifecycle(ENV, T0 + 2 * DAY);
   assert.equal(summary.ended, 1);
   assert.equal(profile().tier, 'standard');
+  assert.equal(profile().tier_source, 'manual');
   assert.equal(sub().ended_at, iso(T0 + 2 * DAY));
 
   const patchesBefore = be.calls.rest.filter((c) => c.method === 'PATCH').length;
@@ -309,7 +311,34 @@ test('해지 만료여도 본사 승인 등급(manual)은 그대로', async () =
   });
   await runDailyLifecycle(ENV, T0);
   assert.equal(profile().tier, 'expert');
+  assert.equal(profile().tier_source, 'manual');
   assert.ok(sub().ended_at);
+});
+
+test('이미 standard 인데 결제 표식만 남아 있으면 표식을 manual 로 돌린다', async () => {
+  const end = iso(T0 - DAY);
+  seed({ status: 'cancelled', periodEnd: end, extra: { cancel_reason: 'user_request' } });
+  profile().tier = 'standard';
+  await runDailyLifecycle(ENV, T0);
+  assert.equal(profile().tier, 'standard');
+  assert.equal(profile().tier_source, 'manual');
+  assert.ok(sub().ended_at);
+});
+
+test('정기 결제 성공 · 재시도 중에는 등급과 결제 표식을 그대로 둔다', async () => {
+  seed();
+  be.state.chargeQueue = [decline, 'ok'];
+  await runDailyLifecycle(ENV, T0);
+  assert.equal(profile().tier, 'expert');
+  assert.equal(profile().tier_source, 'subscription');
+  await runDailyLifecycle(ENV, T0 + DAY);
+  assert.equal(profile().tier, 'expert');
+  assert.equal(profile().tier_source, 'subscription');
+  assert.equal(
+    be.calls.rest.filter((c) => c.method === 'PATCH' && c.path === 'profiles').length,
+    0,
+    '프로필은 손대지 않는다'
+  );
 });
 
 test('등급 내리기가 실패하면 ended_at 을 찍지 않고 다음 날 다시 한다', async () => {
@@ -324,6 +353,7 @@ test('등급 내리기가 실패하면 ended_at 을 찍지 않고 다음 날 다
   be.state.failDb = null;
   await runDailyLifecycle(ENV, T0 + DAY);
   assert.equal(profile().tier, 'standard');
+  assert.equal(profile().tier_source, 'manual');
   assert.ok(sub().ended_at);
 });
 

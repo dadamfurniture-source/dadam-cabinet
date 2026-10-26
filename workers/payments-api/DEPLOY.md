@@ -84,6 +84,7 @@ curl https://dadam-payments-api.dadamfurniture.workers.dev/plans
 | 마지막 재시도도 실패 | 해지(`cancel_reason = payment_failed`) → 결제로 받은 등급(`tier_source = 'subscription'`)이면 standard |
 | 고객 해지 | 이번 기간 끝(`current_period_end`)까지 등급 유지, 지나면 standard (결제로 받은 등급만), `ended_at` 기록 |
 
+- standard 로 내릴 때(마지막 실패 · 해지 만료 · 환불) `tier_source` 도 `'manual'` 로 돌린다. 본사 승인 등급(`manual`)은 처음부터 건드리지 않는다.
 - 정기 결제 주문번호는 `dadam-sub-{user}-{기간끝 UTC yyyymmddHHMM}-{회차}` — 같은 기간·회차면 같은 값이고 토스 `Idempotency-Key` 로도 쓴다. 응답을 못 받고 끊기면 다음 날 같은 키로 다시 보내 두 번 결제되지 않는다.
 - 결과를 모르는 오류(연결 끊김 · JSON 아닌 응답 · `IDEMPOTENT_REQUEST_PROCESSING`)와 가맹점 키 오류(`UNAUTHORIZED_KEY` 등)는 카드 실패로 세지 않고 다음 날 다시 한다.
 - 결제 실패·해지 안내는 `billing.html` 이 구독 상태로 보여 준다 (메일·문자 알림은 아직 없음).

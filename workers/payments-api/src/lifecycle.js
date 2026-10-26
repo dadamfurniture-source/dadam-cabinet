@@ -7,6 +7,7 @@
  *   - 결제 실패: 1일 뒤 재시도, 첫 실패 3일 뒤 마지막 재시도 (사장님 답 ask_58 = 가, 2026-10-26).
  *     재시도 동안은 등급 유지 + status past_due. 마지막 재시도도 실패하면 해지하고
  *     standard 로 내린다 — 결제로 받은 등급(tier_source='subscription')일 때만.
+ *     내릴 때(마지막 실패 · 해지 만료 · 환불) tier_source 도 'manual' 로 돌린다.
  *   - 해지: 이번 기간 끝(current_period_end)까지 등급 유지, 그 뒤 standard (약관 제9조).
  *   - 환불: 결제 후 7일 이내 + 그 뒤 크레딧을 쓰지 않았으면 전액 (약관 제9조).
  *     조건을 벗어나면 관리자 예외 표식(override)이 있어야만 한다.
@@ -132,13 +133,17 @@ export async function grantMonthlyCredits(env, userId, nowMs) {
   );
 }
 
-/** standard 로 내린다. 결제로 받은 등급일 때만 — 본사 승인 등급(manual)은 건드리지 않는다. */
+/**
+ * standard 로 내린다. 결제로 받은 등급일 때만 — 본사 승인 등급(manual)은 건드리지 않는다.
+ * 내리면서 tier_source 도 'manual'(기본값)로 돌린다 — 결제 중이 아닌데 「결제로 받은 등급」
+ * 표식이 남지 않게 (2026-10-26 결정). 이미 standard 인데 표식만 남은 경우도 같이 고친다.
+ */
 export async function downgradeIfSubscriptionTier(env, userId, nowMs) {
   return updateBy(
     env,
     'profiles',
-    { id: `eq.${userId}`, tier_source: 'eq.subscription', tier: 'neq.standard' },
-    { tier: 'standard', updated_at: iso(nowMs) }
+    { id: `eq.${userId}`, tier_source: 'eq.subscription' },
+    { tier: 'standard', tier_source: 'manual', updated_at: iso(nowMs) }
   );
 }
 
