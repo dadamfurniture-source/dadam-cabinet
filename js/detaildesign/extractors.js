@@ -229,6 +229,139 @@
         return out;
       }
 
+      /**
+       * 벽 길이들 → [[길이, 벽 수]] 긴 것부터 — 같은 길이의 벽은 한 행에 수량으로 (걸레받이 addKickBoards 와 같은 꼴).
+       *   2026-10-25 사장님 확정 (ㄱ자 하부 목찬넬): "보통 벽마다 한장씩, 두장으로 나뉨." — 상판은 품목당 한 장 (2026-10-26, extractSink 상판 주석).
+       *   벽은 걸레받이와 같다 (bomKickWallLensOf — 하부 모듈 앞면 방향 _place.front, 자리가 없는 옛 설계는 한 벽).
+       */
+      function bomWallLenQtyOf(lens) {
+        const qty = new Map();
+        (lens || []).forEach((len) => {
+          const k = Math.round(Number(len) || 0);
+          if (k > 0) qty.set(k, (qty.get(k) || 0) + 1);
+        });
+        return [...qty.entries()].sort((a, b) => b[0] - a[0]);
+      }
+
+      /** 키큰장 단의 상몰딩 높이 — 단이 짊어진 값(heightParts.moldingH), 없으면 품목 상몰딩(specs.moldingH), 없으면 60 (sink.md §5) */
+      function bomTallMoldingHOf(mod, specs) {
+        const hp = (mod && mod.heightParts && typeof mod.heightParts === 'object') ? mod.heightParts : {};
+        const n = (v, d) => { const x = parseFloat(v); return Number.isFinite(x) && x >= 0 ? x : d; };
+        return n(hp.moldingH, n(specs && specs.moldingH, 60));
+      }
+
+      /** 싱크대 규칙(extractSink)으로 상부 라인 상몰딩을 내는 품목 — sinkMoldingPlanOf 가 이 품목만 계획한다 */
+      const BOM_SINK_MOLDING_CATEGORIES = ['sink', 'island', 'custom', 'door', 'fridge'];
+
+      /**
+       * 싱크 상몰딩 — 벽마다 한 장 (bomSinkMoldingPlanOf). 사장님 확정 셋:
+       *   2026-10-26 "상부장이 있다면 위에는 상몰딩이 있다고 보면됨. 가능한 이어지게." — 한 벽의 가장 바깥 상부장 두 끝 사이가 한 장이다.
+       *     상부 모듈 폭 합(후드 자리 type hood 포함 — 2026-10-25 "후드라고 해서 구별 하지 않음")에 그 벽 상부장 사이 빈 자리(빈 벽 · 창문)를
+       *     더한다. 바깥 상부장 밖으로는 늘리지 않는다.
+       *   2026-10-26 "벽을 기준으로 나눠야함." — 상부장이 두 벽(ㄱ자 상부)에 걸치면 목찬넬처럼 벽마다 한 장. 벽 = 모듈 앞면 방향
+       *     _place.front (걸레받이 · 목찬넬 bomKickWallLensOf 와 같다), 모서리는 그 자리에 선 모듈(멍장)의 벽 몫.
+       *   2026-10-26 "깊이가 다르면 따로 함." — 빈 자리에 키큰장이 서 있으면 깊이(mod.d)가 다를 때 잇지 않는다 — 키큰장 상부단이
+       *     제 상몰딩을 따로 낸다 (addTallTierParts, sink.md §5.1). 깊이가 같으면 그 키큰장 위까지 이어 한 장이고, 그 키큰장 상부단은
+       *     상몰딩을 따로 내지 않는다 (addTallMoldingPart). 한 장이 곧게 지나가야 하므로 앞면 · 윗면 높이 · 몰딩 높이도 같을 때만 잇는다 —
+       *     깊이만 같고 이 셋 중 하나가 다르면 정해지지 않았으므로 예전처럼 따로 (사장님께 여쭐 것).
+       *   2026-10-26 사장님 확정 — "깊이가 같은 키큰장이 상부장 사이가 아니라 줄 끝에 붙어 있으면, 상몰딩을 그 키큰장 위까지 이을까요?"
+       *     "잇는다." — 가장 바깥 상부장의 시작 · 끝에 붙은(1mm 안) 키큰장 스택도 같은 검사(깊이 · 앞면 · 윗면 높이 · 몰딩 높이)를 지나면
+       *     그 폭만큼 늘려 한 장이고 joinedTalls 에 든다. 그 스택에 또 붙은 스택도 같은 검사로 이어간다.
+       *     줄 끝에서 떨어져 선 스택 · 다른 벽 · 깊이가 다른 스택은 잇지 않는다 (예전과 같다). 상부장이 없는 벽은 그대로 (상몰딩이 없다).
+       *   벽 위 자리 = _place 중심을 진행 방향(run)에 투영, 앞면 = 중심을 앞면 방향에 투영 + 깊이 / 2, 윗면 = z0 + h.
+       *   키큰장 단은 브리지가 스택 바닥(z0 0)에 싣는다 — 스택 윗면 = 같은 자리 단 높이 합. 1mm 안은 같다 (조립 명세 runsOf 의 '붙어 있다'와 같은 허용).
+       *   모듈 하나라도 자리(_place)가 없으면(상세설계 화면 · 옛 payload) 벽 · 사이를 알 수 없어 폭 합 한 장 (예전과 같다).
+       * @param {object[]} uppers  상부 라인 모듈 (pos upper, 후드 자리 포함)
+       * @param {object[]} talls   키큰장 단 모듈 (bomTallTierOf — 상자 모듈 단도 넣는다)
+       * @param {object} specs     품목 스펙 (상몰딩 높이)
+       * @returns {{lens:number[], joinedTalls:string[]}}  lens = 벽마다 길이 (벽 순서), joinedTalls = 이어 한 장이 된 키큰장 스택의 단 id 전부
+       */
+      function bomSinkMoldingPlanOf(uppers, talls, specs) {
+        const widthOf = (m) => parseFloat(m && m.w) || 0;
+        const ups = uppers || [];
+        const sum = ups.reduce((s, m) => s + widthOf(m), 0);
+        const placed = (m) => {
+          const p = m && m._place;
+          return !!p && Array.isArray(p.run) && Array.isArray(p.front)
+            && Number.isFinite(Number(p.cx)) && Number.isFinite(Number(p.cy));
+        };
+        if (!ups.length || !ups.every(placed)) return { lens: sum > 0 ? [Math.round(sum)] : [], joinedTalls: [] };
+        const same = (a, b) => Math.abs(a - b) <= 1;
+        const epH = parseFloat(specs && specs.moldingH) || 60;
+        const wallOf = (m) => m._place.front.join(',');
+        const segOf = (m) => {
+          const p = m._place;
+          const c = Number(p.cx) * Number(p.run[0]) + Number(p.cy) * Number(p.run[1]);
+          return {
+            m, a: c - widthOf(m) / 2, b: c + widthOf(m) / 2,
+            d: parseFloat(m.d) || 0,
+            front: Number(p.cx) * Number(p.front[0]) + Number(p.cy) * Number(p.front[1]) + (Number(p.d) || 0) / 2,
+            top: (Number(p.z0) || 0) + (Number(p.h) || 0),
+          };
+        };
+        const walls = new Map();
+        ups.forEach((m) => {
+          if (!walls.has(wallOf(m))) walls.set(wallOf(m), []);
+          walls.get(wallOf(m)).push(segOf(m));
+        });
+        const lens = [];
+        const joinedTalls = [];
+        walls.forEach((segs, wall) => {
+          // 그 벽의 키큰장 스택 — 같은 자리(진행 방향 두 끝)의 단 묶음, 상몰딩은 맨 위 단(상부단 · 통짜)이 짊어진다
+          const stacks = [];
+          (talls || []).filter((t) => placed(t) && wallOf(t) === wall).map(segOf).forEach((t) => {
+            const st = stacks.find((x) => same(x.a, t.a) && same(x.b, t.b));
+            if (st) st.tiers.push(t); else stacks.push({ a: t.a, b: t.b, tiers: [t] });
+          });
+          /** 키큰장 스택이 상부장들(us)과 한 장으로 곧게 이어지는가 — 깊이 · 앞면 · 윗면 높이 · 몰딩 높이가 모두 같다 */
+          const matches = (st, us) => {
+            const crown = st.tiers.find((t) => { const tier = bomTallTierOf(t.m); return tier === 'top' || tier === 'single'; });
+            if (!crown) return false;
+            const stackTop = st.tiers.reduce((s, t) => s + (Number(t.m._place.h) || 0), 0);
+            return us.every((u) => same(crown.d, u.d) && same(crown.front, u.front) && same(stackTop, u.top))
+              // 몰딩 높이 — 2026-10-26 사장님 "하나의 품목에 상몰딩의 높이가 다른 경우는 없음." 검사는 그대로 둔다 (다른 값이 오면 예전처럼 따로)
+              && epH >= 20 && Math.abs(bomTallMoldingHOf(crown.m, specs) - epH) < 0.5;
+          };
+          /** 깊이가 같은 키큰장 스택을 이어 한 장으로 — 양옆 상부장과 맞고(matches), 스택이 빈 자리 안에 있을 때만 */
+          const joinable = (st, left, right, g0, g1) => !(st.a < g0 - 1 || st.b > g1 + 1) && matches(st, [left, right]);
+          const join = (st) => st.tiers.forEach((t) => joinedTalls.push(String(t.m.id)));
+          segs.sort((x, y) => x.a - y.a);
+          let len = segs.reduce((s, g) => s + widthOf(g.m), 0);
+          let last = segs[0];
+          segs.slice(1).forEach((g) => {
+            const g0 = last.b, g1 = g.a;
+            if (g1 - g0 > 1) {
+              const inGap = stacks.filter((st) => st.a < g1 - 1 && st.b > g0 + 1);
+              if (inGap.every((st) => joinable(st, last, g, g0, g1))) {
+                len += g1 - g0;
+                inGap.forEach(join);
+              }
+            }
+            if (g.b > last.b) last = g;
+          });
+          // 2026-10-26 사장님 확정 "잇는다." — 줄 끝(가장 바깥 상부장의 끝 · 시작)에 붙은 키큰장 스택도 그 폭만큼 잇는다.
+          //   비교는 그 끝 상부장과 (빈 자리와 같은 matches). 이은 스택 끝에 또 붙은 스택도 이어간다 (dir +1 = 끝 쪽, −1 = 시작 쪽)
+          const used = new Set();
+          const touchingAt = (at, dir, ref) => stacks.find((s) => !used.has(s) && same(dir > 0 ? s.a : s.b, at) && matches(s, [ref])) || null;
+          [[last, 1], [segs[0], -1]].forEach(([ref, dir]) => {
+            let at = dir > 0 ? ref.b : ref.a;
+            for (let st = touchingAt(at, dir, ref); st; st = touchingAt(at, dir, ref)) {
+              used.add(st);
+              len += st.b - st.a;
+              at = dir > 0 ? st.b : st.a;
+              join(st);
+            }
+          });
+          lens.push(Math.round(len));
+        });
+        return { lens: lens.filter((l) => l > 0), joinedTalls };
+      }
+
+      /** 싱크 상몰딩 길이 합 — 벽마다 길이(bomSinkMoldingPlanOf)를 더한 값 */
+      function bomSinkMoldingLenOf(uppers, talls, specs) {
+        return bomSinkMoldingPlanOf(uppers, talls, specs).lens.reduce((s, l) => s + l, 0);
+      }
+
       /** 키큰장 단이 목찬넬을 짊어지는가 — 바닥 단(하부단·통짜) + 목찬넬 손잡이 스펙. 도어 H·처짐방지·목찬넬 부재가 이걸 본다. */
       function bomTallTierHasChannel(tier, specs) {
         const grounded = tier === 'bottom' || tier === 'single';
@@ -742,6 +875,10 @@
             categoryCounts[category] = (categoryCounts[category] || 0) + 1;
             // B1: 이 품목의 부재 식별 문맥 — add() 가 partId·slot 을 붙일 때 읽는다.
             this.beginItem(item, itemIdx);
+            // 2026-10-26 사장님 확정: 싱크 상몰딩 계획(벽마다 · 빈 자리 건너 · 깊이가 같은 키큰장은 이어서) — 상자 모듈(오픈장 · 밥솥장 ·
+            //   홈카페장 · EL장)을 걷어내기 **전** 모듈로 한 번 세운다. 키큰장 단이 상자 모듈이어도 그 자리가 이음을 막거나(깊이 다름)
+            //   그 단의 상몰딩이 빠져야(이어짐) 하기 때문이다 — 상자 모듈 단의 상몰딩도 addTallMoldingPart 를 지난다.
+            this._ctx.sinkMolding = this.sinkMoldingPlanOf(item);
             // ★ 같은 카테고리 2개 이상이면 #1, #2 접두사 부여
             const prefix = categoryTotals[category] > 1 ? `#${categoryCounts[category]} ` : '';
             // ★ 품목 라벨 (아이템 구분용)
@@ -1346,7 +1483,9 @@
         //   목찬넬   하부단·통짜 + 목찬넬 손잡이 → 전면 52×W · 지면 40×W 를 그 단에 (라인 걸레받이·목찬넬 폭에서는 뺀다)
         //   좌대     하부단·통짜 — wardrobe.md 좌대 상자(전후 2 · 측 2 · W≥700 중간보강 1) + 좌대 걸레받이 MDF 18T
         //            [확인 필요] sink.md §5 는 높이 60 만 정한다. 상자 구성은 붙박이장 규칙을 빌렸다
-        //   상몰딩   상부단·통짜 — MDF 18T · moldingH × W 를 그 단에 (상부 라인 상몰딩과 별개 — 높이가 다르다)
+        //   상몰딩   상부단·통짜 — MDF 18T · moldingH × W 를 그 단에 (상부 라인 상몰딩과 별개 — 높이가 다르다).
+        //            2026-10-26 사장님 확정 "깊이가 다르면 따로 함." — 상부장 사이에 서서 깊이가 같으면 상부 라인 상몰딩이 이어 한 장이라 내지 않는다 (addTallMoldingPart).
+        //            줄 끝에 붙어 깊이가 같아도 같다 (2026-10-26 사장님 확정 "잇는다.")
         // 걸레받이는 없다 — 다리발이 아니라 좌대가 받친다.
         // ========================================
         addTallTierParts(materials, prefix, mod, tier, specs) {
@@ -1423,11 +1562,32 @@
           this.add(materials, pedLabel, '좌대 걸레받이', 'MDF', 18, pedestalH, W, 1, '2면(장)', pedNote);
         }
 
-        /** 키큰장 상몰딩 — 스택 맨 위 단에 한 장 (sink.md §5 상몰딩 60, MDF 18T · moldingH × W). */
+        /**
+         * 싱크 상몰딩 계획 (bomSinkMoldingPlanOf) — 싱크대 규칙으로 상몰딩을 내는 품목(BOM_SINK_MOLDING_CATEGORIES)만, 아니면 null.
+         *   상부 라인 모듈(후드 자리 포함)과 키큰장 단(쿡탑장 제외 하부 줄, 상자 모듈 단 포함)으로 세운다.
+         *   BOM(extract → extractSink · addTallMoldingPart)과 조립 명세(bom-assembly.js runsOf 'molding')가 이 한 답을 쓴다.
+         * @returns {{lens:number[], joinedTalls:string[]}|null}
+         */
+        sinkMoldingPlanOf(item) {
+          const cat = item && (item.categoryId || item.category);
+          if (BOM_SINK_MOLDING_CATEGORIES.indexOf(cat) < 0) return null;
+          const mods = (item && item.modules) || [];
+          return bomSinkMoldingPlanOf(
+            mods.filter((m) => m && m.pos === 'upper'),
+            mods.filter((m) => m && m.pos === 'lower' && m.type !== 'cook' && bomTallTierOf(m)),
+            (item && item.specs) || {});
+        }
+
+        /**
+         * 키큰장 상몰딩 — 스택 맨 위 단에 한 장 (sink.md §5 상몰딩 60, MDF 18T · moldingH × W).
+         *   2026-10-26 사장님 확정 "깊이가 다르면 따로 함." — 상부장 사이에 선 키큰장의 깊이가 상부장과 같아 상부 라인 상몰딩이
+         *   그 위까지 이어 한 장이면(bomSinkMoldingPlanOf joinedTalls) 이 단은 상몰딩을 따로 내지 않는다 — 그 길이는 EP 상몰딩에 들어 있다.
+         *   줄 끝(가장 바깥 상부장 시작 · 끝)에 붙은 키큰장도 같다 — 2026-10-26 사장님 확정 "잇는다."
+         */
         addTallMoldingPart(materials, modLabel, mod, W, specs) {
-          const hp = (mod.heightParts && typeof mod.heightParts === 'object') ? mod.heightParts : {};
-          const n = (v, d) => { const x = parseFloat(v); return Number.isFinite(x) && x >= 0 ? x : d; };
-          const moldingH = n(hp.moldingH, n(specs.moldingH, 60));
+          const plan = this._ctx && this._ctx.sinkMolding;
+          if (plan && plan.joinedTalls.indexOf(String(mod.id)) >= 0) return;
+          const moldingH = bomTallMoldingHOf(mod, specs);
           if (moldingH >= 20) {
             this.add(materials, modLabel, '상몰딩', 'MDF', 18, moldingH, W, 1, W > 2000 ? '2면(장)' : '4면');
           }
@@ -1763,7 +1923,6 @@
           //   키큰장은 좌대가 받치므로 걸레받이 구간이 아니고, 목찬넬은 하부단이 제 폭으로 따로 낸다 (addTallTierParts).
           const lineLowerModules = lowerModules.filter((m) => !bomTallTierOf(m));
           const totalLowerW = lineLowerModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
-          const totalUpperW = upperModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
           // 하부 모듈이 하나도 없는 옛 저장 설계만 품목 폭 − 좌우 마감 120 으로 떨어진다. 키큰장만 있는 라인은 0 — 걸레받이가 없다.
           const effectiveW = lowerModules.length ? totalLowerW : item.w - 120;
           const moldingH = parseFloat(specs.moldingH) || 60;
@@ -1771,13 +1930,25 @@
           const totalH = parseFloat(item.h) || 2310;
 
           // 상몰딩 (moldingH >= 20이면 산출) — 상부 라인 위에 얹히므로 섹션 'upper'
-          // P1-2: 상부장이 없으면 없다. 예전엔 `totalUpperW || effectiveW` 로 하부 폭에 떨어져 없는 상몰딩이 나갔다.
+          // P1-2: 상부장이 없으면 없다. 예전엔 상부 폭 합이 0 이면 하부 폭(effectiveW)에 떨어져 없는 상몰딩이 나갔다.
           //   키큰장 상부단의 상몰딩은 그 단이 따로 낸다 (addTallTierParts).
+          // 2026-10-25 사장님 확정: "상몰딩은 후드라고 해서 구별 하지 않음" — 후드 자리(type hood, 몸통은 없다)도 상부 라인 폭에 넣는다.
+          //   상몰딩 한 장이 후드 위를 끊기지 않고 지난다 (조립 명세 runsOf 'molding' 도 후드를 구간에 넣는다).
+          // 2026-10-26 사장님 확정: "상부장이 있다면 위에는 상몰딩이 있다고 보면됨. 가능한 이어지게." — 같은 벽 상부장 사이
+          //   빈 자리(빈 벽 · 창문)도 건너 한 장. "벽을 기준으로 나눠야함." — 두 벽(ㄱ자 상부)이면 목찬넬처럼 벽마다 한 장,
+          //   같은 길이의 벽은 한 행에 수량으로. "깊이가 다르면 따로 함." — 빈 자리에 선 키큰장은 깊이가 다르면 그 단이 제 상몰딩을 따로 내고,
+          //   깊이가 같으면(앞면 · 윗면 · 몰딩 높이도 같을 때) 그 위까지 이어 한 장 (bomSinkMoldingPlanOf · sinkMoldingPlanOf).
+          //   줄 끝에 붙은 키큰장도 같은 검사로 그 폭만큼 잇는다 — "잇는다." (2026-10-26 사장님 확정, 줄 끝 키큰장)
+          //   계획은 extract() 가 상자 모듈을 걷어내기 전 모듈로 세운 것 (이 item 은 걷어낸 뒤라 상자 모듈 키큰장 단이 없다).
+          const moldingPlan = (this._ctx && this._ctx.sinkMolding)
+            || bomSinkMoldingPlanOf((item.modules || []).filter((m) => m.pos === 'upper'), lowerModules.filter((m) => bomTallTierOf(m)), specs);
+          const moldingRows = bomWallLenQtyOf(moldingPlan.lens);
+          const moldingWalls = moldingRows.reduce((a, r) => a + r[1], 0);
+          const moldingNote = [moldingWalls > 1 ? `벽 ${moldingWalls}개 · 벽마다 한 장` : '',
+            moldingPlan.joinedTalls.length ? '키큰장 위도 이어 한 장 (깊이 같음)' : ''].filter(Boolean).join(' · ');
           this.beginItemLevel('upper');
-          if (moldingH >= 20 && totalUpperW > 0) {
-            const moldingW = totalUpperW;
-            const moldingEdge = moldingW > 2000 ? '2면(장)' : '4면';
-            this.add(materials, epLabel, '상몰딩', 'MDF', 18, moldingH, moldingW, 1, moldingEdge);
+          if (moldingH >= 20) {
+            moldingRows.forEach(([len, n]) => this.add(materials, epLabel, '상몰딩', 'MDF', 18, moldingH, len, n, len > 2000 ? '2면(장)' : '4면', moldingNote));
           }
 
           // 걸레받이 — 여기부터 하부 라인 마감. 벽마다 나눈다 (2026-10-20 카드 「꺾임에서 나누기」)
@@ -1786,10 +1957,15 @@
             this.addKickBoards(materials, epLabel, lowerModules.length ? bomKickWallLensOf(lineLowerModules) : [effectiveW], legH - 5);
           }
 
-          // 목찬넬
+          // 목찬넬 — 벽마다 한 장 (2026-10-25 사장님 확정 "보통 벽마다 한장씩, 두장으로 나뉨").
+          //   벽 = 걸레받이와 같다 (하부 모듈 앞면 방향, 쿡탑장 · 키큰장 단 제외 — bomKickWallLensOf). 같은 길이의 벽은 한 행에 수량으로.
+          //   자리가 없는 옛 설계 · 일자는 한 벽 — 예전처럼 한 장. 모서리는 그 자리에 선 모듈의 벽 몫이다 (벽 길이 = 그 벽 모듈 폭 합).
           if (isWoodChannel && effectiveW > 0) {
-            this.add(materials, epLabel, '목찬넬(전면)', 'MDF', 18, 52, effectiveW, 1, '2면(장)');
-            this.add(materials, epLabel, '목찬넬(지면)', 'MDF', 18, 40, effectiveW, 1, '2면(장)');
+            const chRows = bomWallLenQtyOf(lowerModules.length ? bomKickWallLensOf(lineLowerModules) : [effectiveW]);
+            const chWalls = chRows.reduce((a, r) => a + r[1], 0);
+            const chNote = chWalls > 1 ? `벽 ${chWalls}개 · 벽마다 한 장` : '';
+            chRows.forEach(([len, n]) => this.add(materials, epLabel, '목찬넬(전면)', 'MDF', 18, 52, len, n, '2면(장)', chNote));
+            chRows.forEach(([len, n]) => this.add(materials, epLabel, '목찬넬(지면)', 'MDF', 18, 40, len, n, '2면(장)', chNote));
           }
 
           // P1-3: 상판 — 하부 라인에 한 장 (3D addTopPanel 도 배치 공간 단위 한 장이다 · W12-38).
@@ -1798,7 +1974,10 @@
           //   폭 = 하부 라인 폭 + 좌·우 마감 폭 (상판은 마감재 위를 지나간다 — 3D 는 영역 전폭 그대로). 깊이 = 품목 깊이(도면 그대로).
           //   이음·타공은 상판 업체가 판단한다 — BOM 은 한 장으로 낸다.
           //   **품목당 한 장**이다 — 사용자 결정 2026-09-15. 3D 가 배치 공간(런)마다 한 장 그리는 것은 표시용 단순화이고,
-          //   ㄱ·ㄷ자도 발주는 폭 합 한 장이다 (scene-bom-ledger.md §4 항목 3 · 허용 목록 `ep|top` 은 의도된 차이로 남는다).
+          //   ㄱ·ㄷ자도 발주는 폭 합 한 장이다 (scene-bom-ledger.md §3 — 원장은 3D 조각의 합으로 맞춘다, test-utils/ledger-diff.js splitDeclaredTop).
+          //   2026-10-26 사장님 확정 "ㄱ자 한 장으로 보내면 업체에서 알아서 나눔." — ㄱ·ㄷ자도 **발주는 한 장**이다 (2026-10-25
+          //   "보통 벽마다 한장씩, 두장으로 나뉨. 상판 외주업체에서 결정." 의 나누기는 상판 업체가 한다). 상판 발주 요청서
+          //   (workers/workflow-api/src/countertop.js)도 이 한 행으로 요청 한 장(평면 · 벽 길이 · 타공)을 만든다. 벽마다 나누지 않는다.
           //   쿡탑장(type cook)은 몸통을 안 내지만 상판은 그 위를 지나가므로 폭에 넣는다 (걸레받이 effectiveW 는 예전대로 뺀다).
           const topLineW = (item.modules || [])
             .filter((m) => m.pos === 'lower' && !bomTallTierOf(m))
@@ -3307,6 +3486,8 @@
           BOM_HINGE_MIN_GAP,
           // 2026-10-20 걸레받이 꺾임에서 나누기
           bomKickWallLensOf, bomKickPiecesOf,
+          // 2026-10-26 상몰딩은 같은 벽 상부장 사이 빈 자리도 건너 한 장 · 벽마다 한 장 · 깊이가 같은 키큰장은 이어서
+          bomSinkMoldingLenOf, bomSinkMoldingPlanOf,
         };
       }
 

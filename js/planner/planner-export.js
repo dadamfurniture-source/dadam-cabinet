@@ -198,7 +198,8 @@ const PLANNER_EXPORT_CELL_RE = /^planner-(.+)-(\d+|open|rice|homecafe|el)$/;
  *   lines() → [{ key, D, modules: [{ plannerId, x, back? }] }] 벽(같은 각·같은 뒷선의 배치 공간 묶음)마다 플래너 모듈 왼쪽 끝 x (벽 시작 기준),
  *     back = 몸통 뒷면 → 벽 (mm) — 명세 상판 뒤 = 벽 (2026-10-24 D3).
  *   라인 부재(상판·상몰딩·목찬넬 EP)를 호스트 모듈 좌표로 놓는 데 쓴다 — 없으면 라인 부재는 자리 미정.
- * @returns {{ spec: object, cells: Object<string, {plannerId: string, dx: number}> }}
+ * @returns {{ spec: object, cells: Object<string, {plannerId: string, dx: number}>, moldingJoined: string[] }}
+ *   moldingJoined = 상부 라인 상몰딩이 이어 덮은 키큰장 단의 명세 모듈 키 (아래, 2026-10-26)
  */
 function plannerExportCadSpec(P, deps) {
   if (!P || typeof P._convertPlannerModules !== 'function' || typeof P.MaterialExtractor !== 'function') {
@@ -249,7 +250,13 @@ function plannerExportCadSpec(P, deps) {
   // 철물 자리 (다리발·레일·경첩) — 같은 부모 창 추출기. 없으면 명세 hardware[] 는 빈다
   if (typeof P.HardwareExtractor === 'function') opts.hardware = new P.HardwareExtractor().extract(design).hardware;
   if (lines.length) opts.lines = { [itemIdx]: lines };
-  return { spec: deps.Assembly.of(design, opts), cells };
+  // 2026-10-26 사장님 확정 "깊이가 다르면 따로 함." · "잇는다." (줄 끝) — 상부 라인 상몰딩이 이어 덮은 키큰장 단. BOM (extract → addTallMoldingPart) ·
+  //   명세 (runsOf 'molding') 와 같은 계획을 같은 품목으로 다시 묻는다 (MaterialExtractor sinkMoldingPlanOf joinedTalls — 규칙을 따로 두지 않는다).
+  //   플래너 3D 가 그 단의 예전 상몰딩(addCrownMolding)을 끈다 — 명세 띠가 그 위를 지난다 (plannerAssemblyRunsFor groups.molding.joined)
+  const ex = new P.MaterialExtractor();
+  const moldingPlan = typeof ex.sinkMoldingPlanOf === 'function' ? ex.sinkMoldingPlanOf(items[itemIdx]) : null;
+  const moldingJoined = (moldingPlan ? moldingPlan.joinedTalls : []).map((id) => `${itemIdx}-${id}`);
+  return { spec: deps.Assembly.of(design, opts), cells, moldingJoined };
 }
 
 /** 키 정렬 직렬화 — 같은 명세면 같은 문자열 (planner-capture.js plannerCaptureStableJson 과 같은 규칙). */

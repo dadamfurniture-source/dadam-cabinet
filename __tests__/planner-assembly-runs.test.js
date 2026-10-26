@@ -28,6 +28,8 @@ const KIND = {
   molding: (ud) => ud.entityKind === 'molding',
 };
 const isUpperModule = (p, id) => (p.g('modules').find((m) => String(m.id) === String(id)) || {}).section === 'upper';
+/** 키큰장 단이 제 폭으로 내는 상단 목찬넬 (모듈 행 — 라인 부재가 아니다, addTallTierParts) */
+const isTallModule = (p, id) => (p.g('modules').find((m) => String(m.id) === String(id)) || {}).section === 'tall';
 
 describe('plannerAssemblyRunsFor — 묶음마다 다 놓였을 때만', () => {
   const part = (fam, n) => ({ id: `0-ep-${fam}-${n}#0`, rowPartId: `0-ep-${fam}-${n}`, box: { min: [0, 0, 0], max: [1, 1, 1] } });
@@ -61,19 +63,30 @@ describe('plannerAssemblyRunsFor — 묶음마다 다 놓였을 때만', () => {
     const r = Mesh.plannerAssemblyRunsFor({ spec: { items: [{ itemIdx: 0, modules: [], runs: [{ hostModuleKey: '0-zz', parts: [part('kick', 0)] }] }], unplaced: [] }, cells: {} });
     expect(r.groups.kick.drawn).toBe(false);
   });
+  test('2026-10-26: 상몰딩이 이어 덮은 키큰장 단(asm.moldingJoined) — 플래너 모듈의 명세 모듈(칸)이 모두 이어졌을 때만 molding.joined', () => {
+    const a = asm();
+    a.cells = { '0-a': { plannerId: 'A', dx: 5 }, '0-t': { plannerId: 'T', dx: 0 }, '0-u-0': { plannerId: 'U', dx: -150 }, '0-u-1': { plannerId: 'U', dx: 150 } };
+    a.moldingJoined = ['0-t', '0-u-0'];   // U 는 칸 하나만 — BOM 이 다른 칸 상몰딩을 아직 낸다
+    expect(Mesh.plannerAssemblyRunsFor(a).groups.molding.joined).toEqual(['T']);
+    expect(Mesh.plannerAssemblyRunsFor(asm()).groups.molding.joined).toEqual([]);   // 계획이 없으면 빈 목록
+  });
 });
 
 describe.each([
-  // straight: 걸레받이 · 상단 목찬넬 · 상판은 명세 (상몰딩은 상부 라인이 끊겨 run-layout-unknown → 예전)
-  ['straight', ['kick', 'channel', 'top'], ['molding']],
-  // lShape: 상몰딩 · 걸레받이는 명세 (목찬넬 · 상판은 하부 라인이 둘이라 run-layout-unknown → 예전)
-  ['lShape', ['kick', 'molding'], ['top', 'channel']],
+  // straight: 걸레받이 · 상단 목찬넬 · 상판 · 상몰딩 모두 명세 — 상몰딩은 상부 1800 과 1200 사이 빈 자리를 건너 한 장
+  //   (2026-10-26 사장님 확정 "상부장이 있다면 위에는 상몰딩이 있다고 보면됨. 가능한 이어지게.")
+  ['straight', ['kick', 'channel', 'top', 'molding'], []],
+  // lShape: 상몰딩 · 걸레받이 · 목찬넬은 명세 — 목찬넬은 2026-10-25 사장님 확정으로 벽마다 한 장.
+  //   상판은 품목당 한 장(2026-10-26 사장님 확정 "ㄱ자 한 장으로 보내면 업체에서 알아서 나눔")이라 하부 라인이 둘이면
+  //   명세가 놓지 않고(run-layout-unknown) 3D 는 배치 공간마다 예전 그리기 — 그림일 뿐, 발주는 ㄱ자 한 장
+  ['lShape', ['kick', 'molding', 'channel'], ['top']],
 ])('%s', (name, specKinds, oldKinds) => {
   let p;
   beforeAll(() => { p = bootPlanner3D(FIXTURES[name], { design: 'ledger', item: name, assembly: true }); });
 
   test.each(specKinds)('%s — 명세 판재만 (예전 그리기 없음)', (k) => {
-    const list = meshes(p, (ud) => KIND[k](ud) && !(k === 'molding' && !isUpperModule(p, ud.moduleId) && !ud.assembly));
+    const list = meshes(p, (ud) => KIND[k](ud) && !(k === 'molding' && !isUpperModule(p, ud.moduleId) && !ud.assembly)
+      && !(k === 'channel' && isTallModule(p, ud.moduleId) && !ud.assembly));
     expect(list.length).toBeGreaterThan(0);
     list.forEach((o) => {
       expect(o.userData.assembly).toBe(true);
@@ -81,11 +94,35 @@ describe.each([
     });
   });
 
-  test.each(oldKinds)('%s — 명세가 다 못 놓아 예전 그리기 그대로', (k) => {
-    const list = meshes(p, (ud) => KIND[k](ud));
-    expect(list.length).toBeGreaterThan(0);
-    list.forEach((o) => expect(o.userData.assembly).toBeUndefined());
-  });
+  if (oldKinds.length) {
+    test.each(oldKinds)('%s — 명세가 다 못 놓아 예전 그리기 그대로', (k) => {
+      const list = meshes(p, (ud) => KIND[k](ud));
+      expect(list.length).toBeGreaterThan(0);
+      list.forEach((o) => expect(o.userData.assembly).toBeUndefined());
+    });
+  }
+
+  if (name === 'straight') {
+    test('상몰딩은 상부장 사이 빈 자리를 건너 한 장 (2026-10-26 사장님 확정) — 0 ~ 3600, 상부 모듈마다가 아니다', () => {
+      const list = meshes(p, (ud) => KIND.molding(ud));
+      expect(list.map((o) => {
+        const g = o.geometry.parameters;
+        return [o.userData.rowPartId, Math.round(Math.max(g.width, g.height, g.depth))];
+      })).toEqual([['0-ep-molding-0', 3600]]);
+    });
+  }
+
+  if (name === 'lShape') {
+    test('ㄱ자 상단 목찬넬은 벽마다 한 장 (2026-10-25 사장님 확정) — 본 줄 2700 · 옆 줄 1500, 모듈마다가 아니다', () => {
+      // 명세 판재는 따내기가 없으면 BoxGeometry (plannerAssemblyMeshOf) — 긴 변 = 재단 길이
+      const lens = (pred) => meshes(p, (ud) => pred(ud) && /^0-ep-/.test(ud.rowPartId || '')).map((o) => {
+        const g = o.geometry.parameters;
+        return [o.userData.rowPartId, Math.round(Math.max(g.width, g.height, g.depth))];
+      });
+      expect(lens((ud) => topChannel(ud) && ud.side === 'channelFace')).toEqual([['0-ep-channel:front-0', 2700], ['0-ep-channel:front-1', 1500]]);
+      expect(lens((ud) => topChannel(ud) && ud.side === 'channelBase')).toEqual([['0-ep-channel:back-0', 2700], ['0-ep-channel:back-1', 1500]]);
+    });
+  }
 
   test('라인 부재는 호스트 모듈 그룹 밖 (같은 자리·회전의 형제 그룹)', () => {
     const runs = meshes(p, (ud) => ud.assembly && /^0-ep-/.test(ud.rowPartId || ''));
@@ -101,6 +138,72 @@ describe.each([
       expect(g.position.toArray()).toEqual(host.position.toArray());
       expect(g.rotation.y).toBe(host.rotation.y);
     });
+  });
+});
+
+describe('ㄱ자 상부 — 상몰딩은 벽마다 한 장 (2026-10-26 사장님 확정 "벽을 기준으로 나눠야함.")', () => {
+  // cornerL 과 같은 ㄱ자 하부(가로 3600 · 세로 1970) 위에 상부 두 다리 — 가로 2400, 세로 1200 (회전 90). 겹친 코너에 상부 멍장이 선다
+  const layout = {
+    version: 1, savedAt: '2026-08-31T00:00:00.000Z', person: null,
+    modules: [
+      { section: 'lower', x: 0, y: 0, w: 3600, h: 650, moduleH: 870, rotation: 0, finishings: [] },
+      { section: 'lower', x: 325 - 1970 / 2, y: 1970 / 2 - 325, w: 1970, h: 650, moduleH: 870, rotation: 90, finishings: [] },
+      { section: 'upper', x: 0, y: 0, w: 2400, h: 320, moduleH: 780, rotation: 0, finishings: [] },
+      { section: 'upper', x: 160 - 1200 / 2, y: 1200 / 2 - 160, w: 1200, h: 320, moduleH: 780, rotation: 90, finishings: [] },
+    ],
+  };
+  let p, spec;
+  beforeAll(() => {
+    p = bootPlanner3D(layout, { design: 'ledger', item: 'lUpper', assembly: true });
+    spec = p.g('plannerCadSpec')().spec;
+  });
+
+  test('BOM 상몰딩 두 행 — 가로 벽 2080 (832 · 832 · 416), 세로 벽 1149 (멍장 747 + 402, 모서리는 멍장 벽 몫). 예전엔 합 3229 한 행이라 명세가 못 놓았다', () => {
+    const it = spec.items[0];
+    expect(it.runs.filter((r) => r.parts[0].part === '상몰딩').map((r) => [r.key, r.parts[0].cut.h, r.hostModuleKey]))
+      .toEqual([['0-ep-molding-0', 2080, '0-planner-upper-0-0'], ['0-ep-molding-1', 1149, '0-corner-blind-upper']]);
+    expect(spec.unplaced.filter((u) => u.part === '상몰딩')).toEqual([]);
+  });
+
+  test('3D 는 명세 판재 두 장만 그린다 — 상부 모듈마다 예전 그리기 없음 (3D = BOM)', () => {
+    const list = meshes(p, (ud) => KIND.molding(ud));
+    expect(list.map((o) => {
+      const g = o.geometry.parameters;
+      return [o.userData.rowPartId, !!o.userData.assembly, Math.round(Math.max(g.width, g.height, g.depth))];
+    })).toEqual([['0-ep-molding-0', true, 2080], ['0-ep-molding-1', true, 1149]]);
+  });
+});
+
+describe('깊이가 같은 키큰장 위 상몰딩 — 3D 는 명세 띠 한 장만, 그 키큰장의 예전 상몰딩은 끈다 (2026-10-26 사장님 확정 "깊이가 다르면 따로 함." · "잇는다.")', () => {
+  // 한 벽 (회전 0 · 뒷선 y 0). 상부 배치 깊이 320 → 몸통 290, 윗면 1520 + 780 = 2300. 키큰장 배치 깊이 320 이면 몸통도 290 ·
+  //   단 높이 합 861 + 979 + 460 = 2300 이라 상부장과 깊이 · 앞면 · 윗면이 같다 (BOM 계획이 잇는다). 키큰장 배치 깊이 650 이면 몸통 620 — 잇지 않는다.
+  //   예전엔 이어진 키큰장 상부단(tall-2)이 제 상몰딩 블록(addCrownMolding)을 명세 띠 위에 겹쳐 그렸다 (BOM 에는 그 단 상몰딩이 없다)
+  const area = (section, x, w, h, moduleH) => ({ section, x, y: 0, w, h, moduleH, rotation: 0, finishings: [] });
+  const moldings = (p) => meshes(p, (ud) => KIND.molding(ud))
+    .map((o) => [String(o.userData.moduleId), !!o.userData.assembly, o.userData.rowPartId || null, Math.round(o.geometry.parameters.width)])
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  test.each([
+    ['줄 끝 (상부 0 … 2400 · 키큰장 2400 … 3000)', [area('lower', 0, 2400, 650, 870), area('upper', 0, 2400, 320, 780), area('tall', 2400, 600, 320, 2300)],
+      [['upper-0', true, '0-ep-molding-0', 3000]]],
+    ['줄 시작 (키큰장 0 … 600 · 상부 600 … 3000)', [area('lower', 600, 2400, 650, 870), area('upper', 600, 2400, 320, 780), area('tall', 0, 600, 320, 2300)],
+      [['upper-0', true, '0-ep-molding-0', 3000]]],
+    ['상부장 사이 (상부 0 … 1200 · 키큰장 1200 … 1800 · 상부 1800 … 3000)', [area('lower', 0, 1200, 650, 870), area('lower', 1800, 1200, 650, 870),
+      area('upper', 0, 1200, 320, 780), area('upper', 1800, 1200, 320, 780), area('tall', 1200, 600, 320, 2300)],
+    [['upper-0', true, '0-ep-molding-0', 3000]]],
+    // 깊이가 다르면 따로 — 상부 라인 명세 띠 2400 + 키큰장 상부단 제 상몰딩 블록 600 (BOM 도 두 행)
+    ['깊이가 다른 줄 끝 키큰장 (배치 깊이 650)', [area('lower', 0, 2400, 650, 870), area('upper', 0, 2400, 320, 780), area('tall', 2400, 600, 650, 2300)],
+      [['tall-2', false, null, 600], ['upper-0', true, '0-ep-molding-0', 2400]]],
+  ])('%s', (name, mods, want) => {
+    const p = bootPlanner3D({ version: 1, savedAt: '2026-08-31T00:00:00.000Z', person: null, modules: mods }, { design: 'ledger', item: 'tallMold', assembly: true });
+    const asm = p.g('plannerCadSpec')();
+    expect(asm.spec.unplaced.filter((u) => u.part === '상몰딩')).toEqual([]);
+    expect(asm.spec.items[0].runs.filter((r) => r.parts[0].part === '상몰딩').map((r) => r.parts[0].cut.h)).toEqual([want.find((w) => w[1])[3]]);
+    expect(moldings(p)).toEqual(want);
+    // 3D = BOM — 키큰장 상부단 상몰딩 행은 예전 블록을 그릴 때만 있다 (이어지면 BOM 에도 없다)
+    const tallTop = '0-planner-tall-2-0';
+    const tallRows = asm.spec.items[0].modules.filter((m) => m.moduleKey === tallTop).flatMap((m) => m.parts.filter((pt) => pt.part === '상몰딩'))
+      .concat(asm.spec.unplaced.filter((u) => u.moduleKey === tallTop && u.part === '상몰딩'));
+    expect(tallRows.length > 0).toBe(want.some((w) => w[0] === 'tall-2'));
   });
 });
 

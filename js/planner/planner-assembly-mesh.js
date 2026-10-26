@@ -42,6 +42,12 @@ const PLANNER_ASM_FAMILIES = Object.keys(PLANNER_ASM_GROUPS).reduce((a, k) => a.
  *   플래너가 그 마감재를 그대로 그린다. 명세 자리는 아직 미정(finish-drawn-pending). groups.finish 는 늘 drawn:false.
  * 상판(top)은 2026-10-24 사장님 D3 부터 명세로: 몸통은 벽에서 뒤 여유만큼 떠 있고(배치 650 = 뒤 70 + 몸통 550 + 앞 30),
  *   상판은 벽까지 — 플래너가 lines 에 모듈 back(몸통 뒷면 → 벽)을 넘겨 명세 상판 뒤 = 벽 (bom-assembly.js runsOf 'top').
+ * 상단 목찬넬은 벽(라인)마다 한 장 — 2026-10-25 사장님 확정 "보통 벽마다 한장씩, 두장으로 나뉨" (ㄱ자면 두 장, 각 벽 첫 하부 모듈이 호스트).
+ * 상판은 ㄱ자도 품목당 한 장 발주 — 2026-10-26 사장님 확정 "ㄱ자 한 장으로 보내면 업체에서 알아서 나눔". 명세는 두 벽에 걸친 한 장을
+ *   놓지 않으므로 ㄱ자 상판은 예전 그리기(배치 공간마다 한 장) 그대로 — 그림일 뿐이다 (원장은 합으로 맞춘다, ledger-diff.js splitDeclaredTop).
+ * 상몰딩은 상부장 사이 빈 자리도 건너 한 장 — 2026-10-26 사장님 확정 "상부장이 있다면 위에는 상몰딩이 있다고 보면됨. 가능한 이어지게."
+ *   깊이가 같은 키큰장도 이어 덮는다 — 상부장 사이 ("깊이가 다르면 따로 함.") · 줄 끝에 붙은 것 ("잇는다.", 둘 다 2026-10-26 사장님 확정).
+ *   그 키큰장 단은 BOM 에 제 상몰딩 행이 없으므로, 상몰딩 묶음을 명세로 그릴 때 그 단의 예전 상몰딩도 끈다 (groups.molding.joined).
  */
 const PLANNER_ASM_RUN_GROUPS = {
   top: ['top'],
@@ -54,7 +60,9 @@ const PLANNER_ASM_RUN_GROUPS = {
 /**
  * 붙박이장 통 (PR14b) — 통 하나는 몸통 여럿 · 좌대 상자 · 도어 · 외부/내부 서랍 · 칸막이 · 선반이 한 묶음으로 짜인다.
  * 그래서 묶음별이 아니라 **통 전체**로 고른다: 그 통의 행이 하나도 unplaced 가 아니고, 판재 종류가 모두 아래 목록일 때만
- * 명세로 그린다 (아니면 통 전체 예전 그리기). 옷봉(철물) · 상단 몰딩(BOM 행 없음)은 예전 그리기 그대로.
+ * 명세로 그린다 (아니면 통 전체 예전 그리기). 옷봉(철물) · 상단 몰딩은 예전 그리기 그대로.
+ *   상단 몰딩 BOM 행: 2026-10-25 사장님 확정 "붙박이장 상단 몰딩 발주 여부는 옵션 선택에 따름" — 상몰딩 60 이상이거나
+ *   옵션(specs.wardrobeMoldingFinish)을 켰을 때만 나오고, 2440 재단 장수 행이라 명세 자리가 없다 (bom-wardrobe-rules moldingPartFor).
  */
 const PLANNER_ASM_WARDROBE_FAMILIES = [
   'body:side', 'body:bottom', 'body:top', 'back', 'body:band',
@@ -114,6 +122,7 @@ function plannerAssemblyRunGroupOf(family) {
  * @param {{spec, cells}} asm
  * @returns {{ groups: Object<string,{drawn:boolean, parts:Array}>, epKey:string }|null}
  *   drawn — 명세로 그린다 (예전 그리기를 끈다). 놓이지 않은 행이 있거나 호스트 모듈을 못 찾으면 false
+ *   groups.molding.joined — 상부 라인 상몰딩이 이어 덮은 키큰장 단의 플래너 id (asm.moldingJoined, 아래)
  */
 function plannerAssemblyRunsFor(asm) {
   if (!asm || !asm.spec || !asm.cells) return null;
@@ -141,6 +150,15 @@ function plannerAssemblyRunsFor(asm) {
   });
   Object.keys(groups).forEach((g) => { if (!groups[g].parts.length) groups[g].drawn = false; });
   groups.finish.drawn = false;   // D9: 도면 마감재는 플래너가 그린다 — 위 설명
+  // 2026-10-26: 상몰딩이 이어 덮은 키큰장 단 — asm.moldingJoined (plannerExportCadSpec, BOM 계획 MaterialExtractor sinkMoldingPlanOf joinedTalls).
+  //   플래너 모듈의 명세 모듈(칸)이 **모두** 이어졌을 때만 넣는다 — BOM 이 아직 상몰딩을 내는 칸이 있으면 예전 그리기를 남긴다
+  const joinedKeys = new Set(asm.moldingJoined || []);
+  const cellsOf = {};
+  Object.keys(asm.cells).forEach((mk) => {
+    const id = String(asm.cells[mk].plannerId);
+    (cellsOf[id] = cellsOf[id] || []).push(joinedKeys.has(mk));
+  });
+  groups.molding.joined = Object.keys(cellsOf).filter((id) => cellsOf[id].every(Boolean));
   return { groups, epKey };
 }
 const PLANNER_ASM_SHELF_COLOR = '#e8d8b8';

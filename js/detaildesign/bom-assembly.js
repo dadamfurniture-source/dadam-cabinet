@@ -43,7 +43,8 @@
  *            부르는 쪽이 벽(배치 공간)마다 모듈의 x 를 넘긴다 (opts.lines) — 없으면 전부 unplaced 'run-part'.
  *            상판   하부 라인(키큰장 단 뺀 하부장 + 좌우 마감 폭) 위 한 장, 뒤 = 벽, 깊이 = 행 h (2026-10-18 사장님: 배치 깊이, 오버행 없음).
  *                   벽은 호스트 몸통 뒷면에서 lines 의 back 만큼 뒤 (2026-10-24 사장님 D3: 몸통 뒤를 벽에서 띄워 설치 — 배관 자리)
- *            상몰딩 상부 라인(후드 뺀 상부장) 위 띠 — 키큰장 상몰딩과 같은 자리 (2026-10-20 카드 "도어 앞면 맞춤")
+ *            상몰딩 상부 라인 위 띠 — 키큰장 상몰딩과 같은 자리 (2026-10-20 카드 "도어 앞면 맞춤"). 후드 자리를 넣고(2026-10-25)
+ *                   상부장 사이 빈 자리 · 깊이가 같은 키큰장 자리를 건너 벽마다 한 장, 줄 끝에 붙은 깊이가 같은 키큰장 위까지 (2026-10-26 사장님 확정)
  *            목찬넬 EP (전면 52 · 지면 40 × 라인 폭) — 하부 라인 측판 따내기 70×40 자리의 ㄴ자, 키큰장 단 ㄴ자와 같은 자리
  *            걸레받이 (벽 길이 × 다리발−5) — 벽마다 하부 라인 폭 한 장, 바닥에 붙여 (틈 5 는 위, 캐쳐), 앞면 = 몸통 앞선 − 32 (2026-10-22 카드 "몸통 앞선에서 32 안쪽").
  *                   2440 넘는 벽은 2440 조각을 왼쪽부터, 남는 조각은 오른쪽 끝 (카드 "1")
@@ -1157,10 +1158,14 @@
    *   lines = [{ key, D, modules: [{ moduleKey, x0, back? }] }] — 벽(배치 공간)마다, x0 = 모듈 왼쪽 끝 (벽 시작 기준 mm).
    *     back = 모듈 몸통 뒷면에서 벽까지 (mm, 배치가 정한 뒤 여유). 없으면 0 — 몸통 뒷면이 벽.
    *   구간(span) = 그 행이 세는 모듈들 — 라인 안에서 붙어 있어야 하고(사이에 안 세는 모듈이 없음), 높이가 같아야 한다.
-   *   행 치수가 구간과 다르면 'run-layout-unknown' (ㄱ·ㄷ자 한 장 상판, 후드가 가운데인 상몰딩 등).
+   *   목찬넬 · 걸레받이 · 상몰딩은 벽마다 한 장 (목찬넬 2026-10-25 · 상몰딩 2026-10-26 사장님 확정 — 걸레받이처럼): 행은 길이별 수량이고,
+   *   라인마다 구간 하나 — 길이가 행과 같은 구간이 행 수량만큼이어야 한다. 상판은 한 라인에만 있을 때 한 장.
+   *   상몰딩은 후드도 구간에 넣고 상부장 사이 빈 자리도 건너간다 — 깊이가 같은 키큰장이 선 자리도, 줄 끝에 붙은 그 키큰장 위까지도 (2026-10-25 · 2026-10-26 사장님 확정).
+   *   행 치수가 구간과 다르면 'run-layout-unknown' (ㄱ·ㄷ자 한 장 상판, 깊이가 다른 키큰장 단을 사이에 둔 상몰딩 등).
+   * @param {object} [o]  of() 의 opts — o.MaterialExtractor (플래너 iframe 은 부모 창 추출기, 상몰딩 계획 sinkMoldingPlanOf)
    * @returns {{runs:Array, unplaced:Array}}
    */
-  function runsOf(itemIdx, rows, lines, specMods, item) {
+  function runsOf(itemIdx, rows, lines, specMods, item, o) {
     const mk = `${itemIdx}-ep`;
     const runs = [], unplaced = [];
     const skip = (row, reason) => unplaced.push({ rowPartId: row.partId, moduleKey: mk, part: row.part, qty: row.qty, reason });
@@ -1178,33 +1183,60 @@
         .filter((e) => e.mod).map((e) => Object.assign(e, { W: e.spec ? e.spec.box.W : (Number(e.mod.w) || 0) })).sort((a, b) => a.x0 - b.x0),
     }));
     /** 한 라인에서 pred 가 세는 모듈 구간. 라인에 세는 모듈이 없으면 null. 같은 pos(하부/상부) 줄 안에서 사이에 안 세는 모듈이 있거나
-     *  모듈 사이가 떨어져 있거나(빈 자리) 높이가 다르거나 첫 모듈에 명세가 없으면 { bad } — 한 장이 지나갈 수 없다 */
-    const spanOf = (ln, pred) => {
+     *  모듈 사이가 떨어져 있거나(빈 자리) 높이가 다르거나 첫 모듈에 명세가 없으면 { bad } — 한 장이 지나갈 수 없다.
+     *  bridge(ln, a, b) 가 참이면 그 빈 자리(벽 x a…b)는 건너간다 (상몰딩 — 2026-10-26) */
+    const spanOf = (ln, pred, bridge) => {
       const counted = ln.entries.filter((e) => pred(e.mod));
       if (!counted.length) return null;
       const host = counted[0], last = counted[counted.length - 1];
       const lane = ln.entries.filter((e) => e.mod.pos === host.mod.pos);
       const i0 = lane.indexOf(host), i1 = lane.indexOf(last);
       const contiguous = i1 - i0 === counted.length - 1 && lane.slice(i0, i1 + 1).every((e) => pred(e.mod));
-      const touching = counted.every((e, k) => k === 0 || Math.abs(counted[k - 1].x0 + counted[k - 1].W - e.x0) <= 1);
+      const touching = counted.every((e, k) => {
+        if (k === 0) return true;
+        const end = counted[k - 1].x0 + counted[k - 1].W;
+        return Math.abs(end - e.x0) <= 1 || (!!bridge && e.x0 - end > 1 && bridge(ln, end, e.x0));
+      });
       const sameH = !!host.spec && counted.every((e) => !e.spec || e.spec.box.H === host.spec.box.H);
       return { bad: !contiguous || !touching || !sameH, host, x0: host.x0, x1: last.x0 + last.W, line: ln };
     };
+    /** 라인마다 pred 구간 (세는 모듈이 없는 라인은 뺀다) */
+    const spansOf = (pred, bridge) => lineList.map((ln) => spanOf(ln, pred, bridge)).filter(Boolean);
     /** 품목에서 pred 구간이 꼭 한 라인에만 있어야 한다 (행이 한 장이다) */
-    const onlySpan = (pred) => {
-      const spans = lineList.map((ln) => spanOf(ln, pred)).filter(Boolean);
+    const onlySpan = (pred, bridge) => {
+      const spans = spansOf(pred, bridge);
       return spans.length === 1 && !spans[0].bad ? spans[0] : null;
+    };
+    /**
+     * 벽마다 한 장인 행 (2026-10-25 사장님 확정 — 목찬넬, 걸레받이와 같은 꼴): 행은 길이별 수량 (extractors.js bomWallLenQtyOf).
+     *   놓을 수 있는 구간(붙어 있고 높이가 같은) 중 길이가 행 길이와 같은 것이 행 수량만큼이어야 한다. 아니면 null.
+     */
+    const wallSpansFor = (spans, len, qty) => {
+      const mine = spans.filter((sp) => !sp.bad && sp.x1 - sp.x0 === len);
+      return mine.length === qty ? mine : null;
     };
     // 2026-10-24 D9: 하부 배치 공간 끝의 도면 마감재(비움 포함) 폭 — 상판이 그 위를 지나간다 (BOM 상판 폭과 같은 값)
     const drawnEdgeW = (edge) => (Array.isArray(specs.drawnFinishes) ? specs.drawnFinishes : [])
       .filter((f) => f && f.area === 'lower' && f.edge === edge).reduce((s, f) => s + (Number(f.W) > 0 ? Number(f.W) : 0), 0);
-    const put = (row, span, frame, vis, tags) => runs.push({
+    const put = (row, span, frame, vis, tags, k) => runs.push({
       key: row.partId, lineKey: span.line.key, hostModuleKey: span.host.mk,
-      parts: [makePart(row, 0, frame, [], vis, tags)],
+      parts: [makePart(row, k || 0, frame, [], vis, tags)],
     });
     const xOf = (span, x) => x - (span.host.x0 + span.host.spec.box.W / 2);   // 벽 x → 호스트 모듈 로컬 x
     const lowerLine = (mod) => mod.pos === 'lower' && !isTallTier(mod);
     const hasTopNotch = (e) => !!e.spec && e.spec.parts.some((p) => p.part === '측판' && (p.features || []).some((f) => f.src === 'channel-top'));
+    // 2026-10-26: 상몰딩이 이어 건너는 키큰장 단 id — BOM 과 같은 계획 (MaterialExtractor sinkMoldingPlanOf · joinedTalls).
+    //   추출기를 못 찾으면 빈 집합 — 키큰장이 선 자리는 예전처럼 건너지 않는다. 플래너 iframe 은 부모 창 추출기를 o.MaterialExtractor 로 받는다 (drawerOf 와 같다)
+    let joinedCache = null;
+    const joinedTalls = () => {
+      if (joinedCache) return joinedCache;
+      const ME = (o && o.MaterialExtractor) || root.MaterialExtractor
+        || (typeof require === 'function' ? require('./extractors.js').MaterialExtractor : null);
+      const me = ME ? new ME() : null;
+      const plan = me && typeof me.sinkMoldingPlanOf === 'function' ? me.sinkMoldingPlanOf(item) : null;
+      joinedCache = new Set(plan ? plan.joinedTalls : []);
+      return joinedCache;
+    };
 
     rows.forEach((row) => {
       const key = keyOfRow(row);
@@ -1214,6 +1246,8 @@
         case 'top': {
           // 상판 — 하부 라인(쿡탑장 포함, 키큰장 단 제외) 폭 합 + 좌·우 끝 도면 마감재 폭 한 장, 뒤 = 벽, 깊이 = 행 h, 몸통 위.
           //   벽 = 호스트 몸통 뒷면 − back (2026-10-24 D3: 몸통은 벽에서 뒤 여유만큼 떠 있다, 상판은 벽까지)
+          //   BOM 상판은 품목당 한 장이라 두 벽(ㄱ자)이면 놓지 않는다 — 2026-10-26 사장님 확정 "ㄱ자 한 장으로 보내면 업체에서 알아서 나눔":
+          //   발주(BOM 행 · 상판 발주 요청서)는 ㄱ자 한 장이 정본이고 벽마다 나누는 것은 상판 업체 몫이다. 3D 가 배치 공간마다 그리는 것은 그림일 뿐
           const span = onlySpan(lowerLine);
           const finL = drawnEdgeW('left'), finR = drawnEdgeW('right');
           if (!span || row.qty !== 1 || row.w !== span.x1 - span.x0 + finL + finR) { skip(row, 'run-layout-unknown'); return; }
@@ -1222,28 +1256,53 @@
           return;
         }
         case 'molding': {
-          // 상몰딩 — 상부 라인(후드 제외) 위 띠, 앞면 = 도어 앞면 (키큰장 상몰딩과 같다). 2440 재단 장수 행(qty > 1)은 설치 길이가 아니다
-          if (row.qty !== 1) { skip(row, 'run-cut-blank'); return; }
-          const span = onlySpan((mod) => mod.pos === 'upper' && mod.type !== 'hood');
-          if (!span || row.h !== span.x1 - span.x0) { skip(row, 'run-layout-unknown'); return; }
-          const b = span.host.spec.box;
-          put(row, span, { o: [xOf(span, span.x0), b.H, b.D / 2], u: '+y', v: '+x', n: '+z' }, 'exterior', { run: 'molding' });
+          // 상몰딩 — 상부 라인 위 띠, 앞면 = 도어 앞면 (키큰장 상몰딩과 같다). 2440 재단 장수 행(qty > 1)은 설치 길이가 아니다
+          //   2026-10-25 사장님 확정: "상몰딩은 후드라고 해서 구별 하지 않음" — 후드 자리(type hood, 명세 모듈 없음)도 구간에 넣는다.
+          //   한 장이 후드 위를 지난다 (BOM 상몰딩 폭도 후드를 넣는다). 구간 첫 모듈(호스트)은 명세가 있어야 한다 (spanOf)
+          //   2026-10-26 사장님 확정: "상부장이 있다면 위에는 상몰딩이 있다고 보면됨. 가능한 이어지게." — 상부장 사이 빈 자리(빈 벽 · 창문)도
+          //   건너 가장 바깥 상부장 두 끝 사이 한 장. "깊이가 다르면 따로 함." — 빈 자리에 키큰장 단이 서 있으면 BOM 이 이은 키큰장
+          //   (깊이 같음 — sinkMoldingPlanOf joinedTalls)만 건너고, 아니면 잇지 않는다 (그 단이 제 상몰딩을 따로 낸다, sink.md §5.1).
+          //   "벽을 기준으로 나눠야함." — 두 벽(ㄱ자 상부)이면 목찬넬처럼 라인마다 한 장, 각 라인 첫 상부 모듈이 호스트 (BOM 행은 길이별 수량).
+          //   길이 = BOM extractors.js bomSinkMoldingPlanOf 와 같다. 높이가 다른 구간은 예전처럼 못 놓는다
+          //   2026-10-26 사장님 확정 "잇는다." (깊이가 같은 키큰장이 줄 끝에 붙어 있을 때) — BOM 이 이은 키큰장(joinedTalls)이 구간 끝 ·
+          //   시작에 붙어(1mm 안) 있으면 구간을 그 키큰장 끝까지 늘린다 (이어 붙은 키큰장도). 호스트는 그대로 라인 첫 상부 모듈
+          const overEnds = (sp) => {
+            // 폭이 있는 단만 (같은 스택의 단은 x0 · 폭이 같아 한 번 늘리면 다시 붙지 않는다)
+            const talls = sp.line.entries.filter((e) => isTallTier(e.mod) && e.W > 1 && joinedTalls().has(String(e.mod.id)));
+            let x0 = sp.x0, x1 = sp.x1, e;
+            while ((e = talls.find((t) => Math.abs(t.x0 - x1) <= 1))) x1 = e.x0 + e.W;
+            while ((e = talls.find((t) => Math.abs(t.x0 + t.W - x0) <= 1))) x0 = e.x0;
+            return Object.assign({}, sp, { x0, x1 });
+          };
+          const upperSpans = spansOf((mod) => mod.pos === 'upper', (ln, a, b) => ln.entries
+            .filter((e) => isTallTier(e.mod) && e.x0 < b - 1 && e.x0 + e.W > a + 1)
+            .every((e) => joinedTalls().has(String(e.mod.id)))).map(overEnds);
+          if (!upperSpans.length && row.qty !== 1) { skip(row, 'run-cut-blank'); return; }   // 붙박이장 2440 재단 장수 행 — 상부 라인이 없다
+          const mine = wallSpansFor(upperSpans, row.h, row.qty);
+          if (!mine) { skip(row, 'run-layout-unknown'); return; }
+          mine.forEach((span, k) => {
+            const b = span.host.spec.box;
+            put(row, span, { o: [xOf(span, span.x0), b.H, b.D / 2], u: '+y', v: '+x', n: '+z' }, 'exterior', { run: 'molding' }, k);
+          });
           return;
         }
         case 'channel:front':
         case 'channel:back': {
-          // 목찬넬 EP ㄴ자 — 하부 라인(쿡탑장·키큰장 단 제외) 측판 따내기 70×40 자리, 키큰장 단 ㄴ자와 같다
+          // 목찬넬 EP ㄴ자 — 벽마다 하부 라인(쿡탑장·키큰장 단 제외) 한 장 (2026-10-25 사장님 확정 "보통 벽마다 한장씩, 두장으로 나뉨"),
+          //   측판 따내기 70×40 자리, 키큰장 단 ㄴ자와 같다. 그 라인의 모든 하부 측판에 따내기가 있어야 한다
           const face = key.family === 'channel:front';
-          const span = onlySpan((mod) => lowerLine(mod) && mod.type !== 'cook');
-          if (!span || row.qty !== 1 || row.h !== span.x1 - span.x0 || row.w !== (face ? DR.CHANNEL_TOP_FACE_H : DR.CHANNEL_BASE_W)
-            || row.thickness !== DR.CHANNEL_T || !span.line.entries.filter((e) => lowerLine(e.mod) && e.mod.type !== 'cook').every(hasTopNotch)) {
-            skip(row, 'run-layout-unknown'); return;
-          }
-          const b = span.host.spec.box;
-          const yb = b.H - DR.CHANNEL_TOP_NOTCH_H, z0 = b.D / 2 - DR.CHANNEL_BASE_W, xL = xOf(span, span.x0);
-          put(row, span, face
-            ? { o: [xL, yb + row.thickness, z0], u: '+y', v: '+x', n: '+z' }
-            : { o: [xL, yb, z0], u: '+z', v: '+x', n: '+y' }, 'exterior', { run: 'channel', channel: 'top' });
+          const counts = (mod) => lowerLine(mod) && mod.type !== 'cook';
+          const notched = spansOf(counts).filter((sp) => sp.line.entries.filter((e) => counts(e.mod)).every(hasTopNotch));
+          const mine = row.w === (face ? DR.CHANNEL_TOP_FACE_H : DR.CHANNEL_BASE_W) && row.thickness === DR.CHANNEL_T
+            ? wallSpansFor(notched, row.h, row.qty) : null;
+          if (!mine) { skip(row, 'run-layout-unknown'); return; }
+          mine.forEach((span, k) => {
+            const b = span.host.spec.box;
+            const yb = b.H - DR.CHANNEL_TOP_NOTCH_H, z0 = b.D / 2 - DR.CHANNEL_BASE_W, xL = xOf(span, span.x0);
+            put(row, span, face
+              ? { o: [xL, yb + row.thickness, z0], u: '+y', v: '+x', n: '+z' }
+              : { o: [xL, yb, z0], u: '+z', v: '+x', n: '+y' }, 'exterior', { run: 'channel', channel: 'top' }, k);
+          });
           return;
         }
         case 'kick': {
@@ -1457,7 +1516,7 @@
       res.unplaced.forEach((u) => unplaced.push(u));
     });
     epRows.forEach((rows, itemIdx) => {
-      const r = runsOf(itemIdx, rows, o.lines && o.lines[itemIdx], outItems[itemIdx].modules, items[itemIdx]);
+      const r = runsOf(itemIdx, rows, o.lines && o.lines[itemIdx], outItems[itemIdx].modules, items[itemIdx], o);
       outItems[itemIdx].runs = r.runs;
       r.unplaced.forEach((u) => unplaced.push(u));
     });

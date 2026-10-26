@@ -164,16 +164,23 @@ describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
       expect([b.min[1], b.max[1], b.min[2], b.max[2]]).toEqual([-150, -5, 550 / 2 - 32 - 18, 550 / 2 - 32]);
     });
     if (/^(straight|drawer)/.test(name)) {
-      // 한 벽: 하부 1200·1000·1400 + 개수대 — 목찬넬 EP 두 장과 상판이 첫 하부 칸 아래에, 상몰딩은 상부 1800 과 1200 사이가 비어 못 놓는다
+      // 한 벽: 하부 1200·1000·1400 + 개수대 — 목찬넬 EP 두 장과 상판이 첫 하부 칸 아래에.
+      //   상몰딩은 상부 1800 과 1200 사이 빈 자리(1800~2400)를 건너 한 장 — 2026-10-26 사장님 확정 "상부장이 있다면 위에는 상몰딩이 있다고 보면됨. 가능한 이어지게."
       //   좌우 휠라 — 2026-10-24 D9: 도면(플래너에 놓은 마감재)이 정본인데 이 배치에는 마감재가 없다 → 행이 없다 (스펙 휠라 60 은 발주 안 함)
       expect(runs).toEqual([
+        ['상몰딩', 'area-lower-0', '0-planner-upper-0-0'],
         ['걸레받이', 'area-lower-0', '0-planner-lower-0-0'], ['걸레받이', 'area-lower-0', '0-planner-lower-0-0'],
         ['목찬넬(전면)', 'area-lower-0', '0-planner-lower-0-0'], ['목찬넬(지면)', 'area-lower-0', '0-planner-lower-0-0'],
         ['상판', 'area-lower-0', '0-planner-lower-0-0']]);
       // 하부 3598 → 2440 왼쪽부터, 1158 오른쪽 끝 (호스트 800 가운데 → 왼쪽 끝 x −400)
       expect(it.runs.filter((r) => r.parts[0].part === '걸레받이').map((r) => [r.parts[0].cut.w, r.parts[0].box.min[0], r.parts[0].box.max[0]]))
         .toEqual([[2440, -400, 2040], [1158, 2040, 3198]]);
-      expect(ep).toContainEqual(['상몰딩', 'run-layout-unknown']);
+      expect(ep.filter((e) => e[0] === '상몰딩')).toEqual([]);
+      // 상몰딩 0 ~ 3600 (상부 900 · 900 · 빈 자리 600 · 800 · 400) — 호스트 upper-0 칸 900 가운데 → x −450 … 3150,
+      //   몸통 위 720 … 780, 앞면 = 도어 앞면 (상부 몸통 D 290 / 2 … + 18)
+      const mold = it.runs.find((r) => r.parts[0].part === '상몰딩').parts[0];
+      expect(mold.cut).toEqual({ w: 60, h: 3600 });
+      expect(mold.box).toEqual({ min: [-450, 720, 290 / 2], max: [3150, 780, 290 / 2 + 18] });
       expect(ep.filter((e) => /휠라|몰딩\(|EP\(/.test(e[0]))).toEqual([]);
       const top = it.runs.find((r) => r.parts[0].part === '상판').parts[0];
       expect(top.box.min[1]).toBe(708);   // 하부장 몸통 위
@@ -188,13 +195,22 @@ describe.each(Object.keys(SCENES))('%s 장면 → CAD GLB', (name) => {
       const host = gltf.nodes.find((n) => n.name === 'module·0-planner-lower-0-0');
       expect(host.children.map((c) => gltf.nodes[c].name)).toContain(top.id);
     } else {
-      // ㄱ자·사선: 하부가 두 벽에 걸쳐 한 장 상판·목찬넬 EP 를 못 놓고, 상부장 한 벽의 상몰딩과 벽마다 걸레받이를 놓는다 (도면 마감재 없음 → 휠라 행 없음, D9)
+      // ㄱ자·사선: 상부장 한 벽의 상몰딩, 벽마다 걸레받이 · 목찬넬 EP (도면 마감재 없음 → 휠라 행 없음, D9)
+      //   목찬넬은 2026-10-25 사장님 확정 "보통 벽마다 한장씩, 두장으로 나뉨" — 벽(라인)마다 한 장.
+      //   상판은 품목당 한 장이라 두 벽에 걸쳐 놓지 않는다 — 2026-10-26 사장님 확정 "ㄱ자 한 장으로 보내면 업체에서 알아서 나눔" (발주 = ㄱ자 한 장)
       expect(runs[0]).toEqual(['상몰딩', 'area-lower-0', '0-planner-upper-0-0']);
-      expect(runs.slice(1).every((r) => r[0] === '걸레받이')).toBe(true);
-      expect(runs.length).toBeGreaterThan(1);
-      expect(ep.filter((e) => e[0] === '걸레받이')).toEqual([]);
+      expect(ep.filter((e) => /걸레받이|목찬넬/.test(e[0]))).toEqual([]);
       expect(ep).toContainEqual(['상판', 'run-layout-unknown']);
       expect(ep.filter((e) => /휠라/.test(e[0]))).toEqual([]);
+      ['목찬넬(전면)', '목찬넬(지면)'].forEach((part) => {
+        const mine = it.runs.filter((r) => r.parts[0].part === part);
+        expect(mine).toHaveLength(2);
+        expect(new Set(mine.map((r) => r.lineKey)).size).toBe(2);   // 두 벽에 한 장씩
+        mine.forEach((r) => {
+          expect(r.hostModuleKey).toMatch(/^0-planner-lower-\d+-0$/);   // 호스트 = 그 벽 첫 하부 모듈
+          expect(r.parts[0].box.max[0] - r.parts[0].box.min[0]).toBe(r.parts[0].cut.h);   // 판 길이 = 그 벽 하부 폭 합
+        });
+      });
     }
   });
 

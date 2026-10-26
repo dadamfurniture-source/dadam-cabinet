@@ -1606,7 +1606,7 @@
       "material": "MDF",
       "thickness": 18,
       "w": 60,
-      "h": 2700,
+      "h": 3500,
       "qty": 1,
       "edge": "2면(장)",
       "note": "",
@@ -1619,7 +1619,7 @@
         "T": false,
         "B": false
       },
-      "edgeLen": 5400,
+      "edgeLen": 7000,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-ep",
@@ -1792,7 +1792,7 @@
     "MDF_18": {
       "material": "MDF",
       "thickness": 18,
-      "totalArea": 5150044,
+      "totalArea": 5198044,
       "panelCount": 2
     },
     "인조대리석_12": {
@@ -1804,7 +1804,7 @@
   },
   "edgeBanding": {
     "1": 30114,
-    "0.6": 113518
+    "0.6": 115118
   },
   "hardware": [
     {
