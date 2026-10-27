@@ -1729,11 +1729,19 @@
           console.warn('[mypage] profile_stats 조회 실패:', e?.message);
         }
 
-        // 2) 상담 대기 건수 (status = pending)
+        // 2) 상담 대기 건수 (status = pending) — 본사(다담) 상담만 센다. 회사 구성원도 자기 회사 상담을
+        //    읽을 수 있어 거르지 않으면 다른 회사 행이 섞인다. 본사 id 를 못 읽으면 세지 않는다.
         try {
+          const { data: hq, error: hqError } = await supabaseClient
+            .from('companies')
+            .select('id')
+            .eq('kind', 'hq')
+            .single();
+          if (hqError) throw hqError;
           const { count, error } = await supabaseClient
             .from('consultations')
             .select('id', { count: 'exact', head: true })
+            .eq('company_id', hq.id)
             .eq('status', 'pending');
           if (!error) {
             const el = document.getElementById('adminStatPendingConsult');
@@ -2483,7 +2491,11 @@
       let projectRows = [];
       let feedbackTarget = null;
 
-      /** 시공이 끝난 설계만 보여준다 — 완료 판정의 정본은 orders.status='completed' 다. */
+      /**
+       * 시공이 끝난 내 설계만 보여준다 — 완료 판정의 정본은 orders.status='completed' 다.
+       * 「내 것」은 RLS 에 맡기지 않는다: 회사 구성원은 자기 회사 수주를 모두 읽을 수 있어서
+       * 먼저 내 설계(designs.user_id)를 읽고 그 설계의 수주만 묻는다.
+       */
       async function loadMyProjects() {
         const box = document.getElementById('projectList');
         const section = document.getElementById('myProjectsSection');
@@ -2491,16 +2503,22 @@
 
         let orders = [];
         try {
-          const res = await supabaseClient
-            .from('orders')
-            .select('design_id, order_no, completed_at')
-            .eq('status', 'completed')
-            .order('completed_at', { ascending: false })
-            .limit(50);
-          if (res.error) throw res.error;
-          orders = res.data || [];
+          const mine = await supabaseClient.from('designs').select('id').eq('user_id', currentUser.id);
+          if (mine.error) throw mine.error;
+          const myDesignIds = (mine.data || []).map((d) => d.id);
+          if (myDesignIds.length) {
+            const res = await supabaseClient
+              .from('orders')
+              .select('design_id, order_no, completed_at')
+              .in('design_id', myDesignIds)
+              .eq('status', 'completed')
+              .order('completed_at', { ascending: false })
+              .limit(50);
+            if (res.error) throw res.error;
+            orders = res.data || [];
+          }
         } catch (e) {
-          // 수주를 못 읽는 계정이면 이 구역은 없는 것과 같다 — 조용히 숨긴다
+          // 설계 · 수주를 못 읽는 계정이면 이 구역은 없는 것과 같다 — 조용히 숨긴다
           section.hidden = true;
           return;
         }
