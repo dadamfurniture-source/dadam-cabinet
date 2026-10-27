@@ -160,7 +160,7 @@ describe('0006 — 제약', () => {
     for (const [, name] of designFks)
       expect(dropAt(name)).toBeLessThan(dropAt('designs_id_company_id_key'));
     // 다시 만들 때는 UNIQUE 가 먼저
-    for (const [, name, at] of [...projectFks, ...designFks]) {
+    for (const [, , at] of [...projectFks, ...designFks]) {
       expect(at).toBeGreaterThan(addOf('projects_id_company_id_key')[2]);
       expect(at).toBeGreaterThan(addOf('designs_id_company_id_key')[2]);
     }
