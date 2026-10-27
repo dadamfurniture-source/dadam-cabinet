@@ -8,12 +8,19 @@
      공유   POST /api/generate/:id/share (만들기 · 새로 만들면 예전 링크는 막힌다), DELETE 같은 경로 (중단)
      시공사례 collection_posts (본인 · source ai_render) 가 있으면 「시공사례에서 내리기」:
             행을 먼저 지우고 collection 버킷 파일을 지운다 (my-designs.html 과 같은 순서)
-   하나를 열면(renders.html?g=<id>) 컷 · 예상 견적 · 「상담 신청」(④ 단계로 그 연출컷 id) · 공유 · 내리기.
+     내려받기 서명 URL 을 다시 확인하고 받아 blob 으로 저장, 못 받으면 새 창 (my-designs.html 기본안 다운로드와 같다
+            — 앱은 기본안 · 추천안 컷마다)
+     학습 동의 generations.consent_training 을 켜고 끈다 (같은 칸 · 같은 글)
+     다시 생성 POST /api/generate { parent_id, design_style, door_color } (ai-design.html ?regen=1 과 같은 호출,
+            크레딧이 다시 든다 — 확인에 단가 · 남은 횟수를 보인다) → 만들기 ③ 결과 화면으로
+     삭제   DELETE /api/generate/:id (워커가 공유 링크 · 시공사례 게시물 · 파일까지 지운다), 같은 확인 글
+   하나를 열면(renders.html?g=<id>) 컷 · 예상 견적 · 「상담 신청」(④ 단계로 그 연출컷 id) · 공유 · 내리기 ·
+   학습 동의 · 다시 생성 · 삭제. 즐겨찾기는 두지 않는다.
    만들지 못한 연출컷은 크레딧을 돌려드린다는 안내를 붙인다 (워커가 기본안 없이 끝나면 환불한다).
 
    로그인 · 클라이언트는 segan/shell.js 가 맡는다 (SeganShell.ready 의 sb · session).
    ============================================================ */
-/* global window, document, location, history, navigator, fetch, setTimeout, clearTimeout, URLSearchParams */
+/* global window, document, location, history, navigator, fetch, setTimeout, clearTimeout, URL, URLSearchParams */
 (function () {
   'use strict';
 
@@ -21,7 +28,12 @@
   var STALE_MS = 12 * 60000; // 12분 넘게 진행 중이면 멈춘 잡으로 본다 (워커와 같은 기준)
   var POLL_MS = 5000;
   var COLUMNS =
-    'id,status,progress,step_label,error,category,title,options,quote,images,share_expires_at,share_revoked_at,created_at,completed_at';
+    'id,status,progress,step_label,error,category,title,options,quote,images,consent_training,share_expires_at,share_revoked_at,created_at,completed_at';
+  // my-designs.html 과 같은 글
+  var CONSENT_ON = '이 연출컷과 함께 올린 사진이 다담 AI 학습에 쓰입니다. 누르면 끕니다.';
+  var CONSENT_OFF = '학습에 쓰이지 않습니다. 누르면 켭니다.';
+  var DELETE_ASK =
+    '이 연출컷을 삭제할까요? 이미지와 공유 링크, 시공사례에 올라간 사진이 함께 사라집니다.';
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   var REFUND_NOTE = '만들지 못한 연출컷의 크레딧은 돌려드립니다.';
 
@@ -282,9 +294,11 @@
       ['rdShots', 'rdQuoteRows'].forEach(function (id) {
         $(id).innerHTML = '';
       });
-      ['rdQuote', 'rdShare', 'rdPost', 'rdProgress', 'rdError'].forEach(function (id) {
-        $(id).hidden = true;
-      });
+      ['rdQuote', 'rdShare', 'rdPost', 'rdProgress', 'rdError', 'rdConsentBox', 'rdManage'].forEach(
+        function (id) {
+          $(id).hidden = true;
+        }
+      );
       return;
     }
     var done = r.status === 'done';
@@ -298,18 +312,33 @@
     $('rdError').textContent = (r.error || '연출컷을 만들지 못했습니다') + ' · ' + REFUND_NOTE;
 
     $('rdShots').innerHTML = (r.images || [])
-      .map(function (im) {
+      .map(function (im, i) {
         return (
           '<figure class="rd-shot"><img src="' +
           esc(im.url) +
           '" alt="' +
           esc(im.label || label(r)) +
-          '" loading="lazy" /><figcaption>' +
+          '" loading="lazy" /><figcaption><span>' +
           esc(im.label || '') +
-          '</figcaption></figure>'
+          '</span><button type="button" class="mk-link" data-dl="' +
+          i +
+          '" aria-label="' +
+          esc((im.label || '연출컷 ' + (i + 1)) + ' 내려받기') +
+          '">내려받기</button></figcaption></figure>'
         );
       })
       .join('');
+
+    // AI 학습 동의 · 다시 생성 · 삭제 (진행 중에는 다시 생성 · 삭제를 막는다 — my-designs.html 과 같다)
+    $('rdConsentBox').hidden = false;
+    $('rdManage').hidden = false;
+    $('rdDeleteText').textContent = DELETE_ASK;
+    paintConsent(r.consent_training === true);
+    var active = isActive(r);
+    $('rdRegen').disabled = active;
+    $('rdDelete').disabled = active;
+    $('rdRegenAsk').hidden = true;
+    $('rdDeleteAsk').hidden = true;
 
     // 예상 견적 + 상담 신청 (④ 단계로 이 연출컷 id)
     var q = r.quote;
@@ -435,8 +464,171 @@
     render();
   }
 
+  // ── 내려받기 (my-designs.html 기본안 다운로드와 같은 방식) ──
+  async function download(i) {
+    var r = byId(R.open);
+    var im = r && r.images && r.images[i];
+    if (!im) return;
+    // 오래 열어 둔 화면이면 서명이 낡았을 수 있다 — 받기 직전에 다시 확인한다
+    var src = window.DadamStorageUrls
+      ? await window.DadamStorageUrls.signUrl(R.sb, im.url)
+      : im.url;
+    try {
+      var blob = await (await fetch(src)).blob();
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download =
+        'dadam-' +
+        r.category +
+        (i ? '-' + (i + 1) : '') +
+        '.' +
+        (blob.type === 'image/png' ? 'png' : 'jpg');
+      a.click();
+      setTimeout(function () {
+        URL.revokeObjectURL(url);
+      }, 10000);
+    } catch {
+      window.open(src, '_blank');
+    }
+  }
+
+  // ── AI 학습 동의 (my-designs.html toggleConsent 와 같은 칸 · 같은 글) ──
+  function paintConsent(on) {
+    var b = $('rdConsent');
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.textContent = on ? 'AI 학습 허용' : 'AI 학습 안 함';
+    $('rdConsentNote').textContent = on ? CONSENT_ON : CONSENT_OFF;
+  }
+
+  async function toggleConsent() {
+    var r = byId(R.open);
+    if (!r) return;
+    var next = !(r.consent_training === true);
+    paintConsent(next);
+    $('rdConsent').disabled = true;
+    var res = await R.sb.from('generations').update({ consent_training: next }).eq('id', r.id);
+    $('rdConsent').disabled = false;
+    if (res && res.error) {
+      msg('학습 동의를 바꾸지 못했습니다');
+      paintConsent(r.consent_training === true);
+      return;
+    }
+    r.consent_training = next;
+    msg(next ? '학습에 사용하도록 켰습니다' : '학습에서 뺐습니다');
+  }
+
+  // ── 다시 생성 — 크레딧이 다시 든다 ─────────────────────
+  async function askRegen() {
+    var r = byId(R.open);
+    if (!r || isActive(r)) return;
+    $('rdDeleteAsk').hidden = true;
+    $('rdRegenText').textContent =
+      '같은 사진 · 같은 설정으로 다시 만듭니다. 크레딧이 다시 차감됩니다.';
+    $('rdRegenAsk').hidden = false;
+    // 단가 · 남은 횟수 — 만들기 ② 와 같은 출처 (credit_costs · 사이트 헤더 규칙)
+    try {
+      var cc = await R.sb
+        .from('credit_costs')
+        .select('credits')
+        .eq('action', 'generate')
+        .maybeSingle();
+      var cost = cc && cc.data ? cc.data.credits : null;
+      var M = window.SeganMake;
+      var left = M && M.loadBalance ? await M.loadBalance(R.sb, R.session) : null;
+      if (cost) {
+        $('rdRegenText').textContent =
+          '같은 사진 · 같은 설정으로 다시 만듭니다. ' +
+          cost +
+          ' 크레딧이 차감됩니다' +
+          (left != null ? ' · 남은 ' + Math.floor(left / cost) + '회' : '') +
+          '.';
+      }
+    } catch {
+      /* 단가를 못 읽으면 일반 안내 */
+    }
+  }
+
+  /** ai-design.html ?regen=1 과 같은 호출 — parent_id 와 원본의 스타일 · 도어 색 */
+  async function regen() {
+    var r = byId(R.open);
+    if (!r || isActive(r)) return;
+    var o = r.options || {};
+    $('rdRegenYes').disabled = true;
+    try {
+      var res = await fetch(apiBase() + '/api/generate', {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: JSON.stringify({
+          parent_id: r.id,
+          design_style: o.design_style || 'modern-minimal',
+          door_color: o.door_color || 'white',
+        }),
+      });
+      if (res.status === 402)
+        throw new Error('크레딧이 부족합니다. 구독을 올리면 더 만들 수 있습니다.');
+      if (res.status === 409)
+        throw new Error('이미 생성 중인 작업이 있습니다. 끝난 뒤 다시 시도해 주세요.');
+      var data = await res.json();
+      if (!res.ok || !data.success || !data.id)
+        throw new Error((data && data.error) || '다시 생성하지 못했습니다');
+      // 만들기 ③ 결과 화면이 읽어 진행을 보여 준다 (읽기만 한다)
+      api.go('./?g=' + encodeURIComponent(data.id) + '#result');
+    } catch (e) {
+      msg(e.message || '다시 생성하지 못했습니다');
+      $('rdRegenAsk').hidden = true;
+    }
+    $('rdRegenYes').disabled = false;
+  }
+
+  // ── 삭제 (my-designs.html remove 와 같은 경로 · 같은 확인 글) ──
+  async function remove() {
+    var r = byId(R.open);
+    if (!r || isActive(r)) return;
+    $('rdDeleteYes').disabled = true;
+    try {
+      var res = await fetch(apiBase() + '/api/generate/' + r.id, {
+        method: 'DELETE',
+        headers: await authHeaders(),
+      });
+      var data = await res.json().catch(function () {
+        return {};
+      });
+      if (!res.ok) throw new Error(data.error || '삭제하지 못했습니다');
+      R.rows = R.rows.filter(function (x) {
+        return x.id !== r.id;
+      });
+      delete R.posts[r.id];
+      showList(true);
+      render();
+      $('rdState').textContent = '삭제했습니다';
+    } catch (e) {
+      msg(e.message || '삭제하지 못했습니다');
+      $('rdDeleteAsk').hidden = true;
+    }
+    $('rdDeleteYes').disabled = false;
+  }
+
   // ── 시작 ───────────────────────────────────────────────
   function bind() {
+    $('rdShots').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-dl]');
+      if (b) download(Number(b.getAttribute('data-dl')));
+    });
+    $('rdConsent').addEventListener('click', toggleConsent);
+    $('rdRegen').addEventListener('click', askRegen);
+    $('rdRegenNo').addEventListener('click', function () {
+      $('rdRegenAsk').hidden = true;
+    });
+    $('rdRegenYes').addEventListener('click', regen);
+    $('rdDelete').addEventListener('click', function () {
+      $('rdRegenAsk').hidden = true;
+      $('rdDeleteAsk').hidden = false;
+    });
+    $('rdDeleteNo').addEventListener('click', function () {
+      $('rdDeleteAsk').hidden = true;
+    });
+    $('rdDeleteYes').addEventListener('click', remove);
     $('rdGrid').addEventListener('click', function (e) {
       var b = e.target.closest('[data-open]');
       if (b) showDetail(b.getAttribute('data-open'), true);
@@ -473,7 +665,16 @@
     if (g && UUID_RE.test(g)) showDetail(g, false);
   }
 
-  var api = { state: R, load: load, REFUND_NOTE: REFUND_NOTE };
+  var api = {
+    state: R,
+    load: load,
+    REFUND_NOTE: REFUND_NOTE,
+    DELETE_ASK: DELETE_ASK,
+    /** 페이지 이동 — 시험이 바꿔 끼운다 */
+    go: function (url) {
+      location.assign(url);
+    },
+  };
   window.SeganRenders = api;
   api.ready = (
     window.SeganShell && window.SeganShell.ready ? window.SeganShell.ready : Promise.resolve(null)

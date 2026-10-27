@@ -99,6 +99,38 @@
             </div>
           </section>
 
+          <!-- AI 학습 동의 — my-designs.html 과 같은 칸(consent_training) · 같은 글 -->
+          <section class="rd-box" id="rdConsentBox" aria-labelledby="rdConsentTitle">
+            <h3 class="rd-box-title" id="rdConsentTitle">AI 학습</h3>
+            <p class="mk-note" id="rdConsentNote"></p>
+            <div class="rd-acts">
+              <button type="button" class="mk-btn" id="rdConsent" aria-pressed="false">AI 학습 안 함</button>
+            </div>
+          </section>
+
+          <!-- 다시 생성(크레딧이 다시 든다) · 삭제 — 화면 안에서 한 번 더 묻는다 -->
+          <section class="rd-box" id="rdManage" aria-labelledby="rdManageTitle">
+            <h3 class="rd-box-title" id="rdManageTitle">관리</h3>
+            <div class="rd-acts">
+              <button type="button" class="mk-btn" id="rdRegen">다시 생성</button>
+              <button type="button" class="mk-btn" id="rdDelete">삭제</button>
+            </div>
+            <div class="rd-confirm" id="rdRegenAsk" hidden>
+              <p class="mk-note" id="rdRegenText"></p>
+              <div class="rd-acts">
+                <button type="button" class="mk-btn mk-btn--solid" id="rdRegenYes">다시 생성</button>
+                <button type="button" class="mk-btn" id="rdRegenNo">취소</button>
+              </div>
+            </div>
+            <div class="rd-confirm" id="rdDeleteAsk" hidden>
+              <p class="mk-note" id="rdDeleteText"></p>
+              <div class="rd-acts">
+                <button type="button" class="mk-btn mk-btn--solid" id="rdDeleteYes">삭제</button>
+                <button type="button" class="mk-btn" id="rdDeleteNo">취소</button>
+              </div>
+            </div>
+          </section>
+
           <p class="mk-msg" id="rdMsg" role="status" hidden></p>
         </section>
       </div>

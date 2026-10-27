@@ -1069,6 +1069,8 @@
     state: S,
     readImage: readImage,
     exifFocal35: exifFocal35,
+    /** 남은 크레딧 — js/site-shell.js 와 같은 규칙 (내 정보 탭도 쓴다) */
+    loadBalance: loadBalance,
     loginHref: loginHref,
     /** 페이지 이동 — 시험이 바꿔 끼운다 */
     go: function (url) {

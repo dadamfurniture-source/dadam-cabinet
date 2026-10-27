@@ -41,6 +41,8 @@ function gens() {
       status: 'done',
       progress: 100,
       category: 'wardrobe',
+      options: { design_style: 'classic', door_color: 'oak woodgrain' },
+      consent_training: false,
       title: null,
       quote: QUOTE,
       images: [0, 1, 2, 3].map((i) => ({
@@ -87,7 +89,15 @@ async function load(options = {}) {
     supabase: { url: 'https://example.supabase.co', anonKey: 'anon' },
     generateApi: { url: API },
   };
-  const calls = { gen: [], posts: [], deletes: [], removes: [], signed: [], fetch: [] };
+  const calls = {
+    gen: [],
+    posts: [],
+    deletes: [],
+    removes: [],
+    signed: [],
+    fetch: [],
+    updates: [],
+  };
   const client = {
     auth: { getSession: async () => ({ data: { session: opts.session } }) },
     storage: {
@@ -132,7 +142,20 @@ async function load(options = {}) {
           q.del = true;
           return chain;
         },
+        update: (patch) => {
+          q.update = patch;
+          return chain;
+        },
+        maybeSingle: async () => {
+          if (table === 'credit_costs') return { data: { credits: 20 }, error: null };
+          if (table === 'user_credits') return { data: { balance: 1000 }, error: null };
+          return { data: null, error: null };
+        },
         then: (resolve) => {
+          if (table === 'generations' && q.update) {
+            calls.updates.push(q);
+            return resolve({ data: null, error: opts.updateError || null });
+          }
           if (table === 'generations') {
             calls.gen.push(q);
             return resolve({ data: JSON.parse(JSON.stringify(opts.rows)), error: null });
@@ -157,7 +180,17 @@ async function load(options = {}) {
       url,
       method: init.method || 'GET',
       auth: (init.headers || {}).Authorization,
+      body: init.body,
     });
+    // 다시 생성 (POST /api/generate) · 삭제 (DELETE /api/generate/:id) · 내려받기 (서명 URL)
+    if (url === API && init.method === 'POST')
+      return opts.regen || res(202, { success: true, id: 'new-gen-id' });
+    if (url === `${API}/${ID2}` && init.method === 'DELETE')
+      return opts.del || res(200, { success: true });
+    if (url.startsWith('https://signed.example/')) {
+      if (opts.dlFail) throw new TypeError('Failed to fetch');
+      return { ok: true, status: 200, blob: async () => ({ type: 'image/png' }) };
+    }
     if (
       url === `https://gen.example.workers.dev/api/generate/${ID2}/share` &&
       init.method === 'POST'
@@ -177,6 +210,7 @@ async function load(options = {}) {
   });
   for (const f of ['js/storage-urls.js', 'segan/shell.js', 'segan/make.js', 'segan/renders.js'])
     (0, eval)(read(f));
+  window.SeganRenders.go = jest.fn();
   await window.SeganRenders.ready;
   return calls;
 }
@@ -295,7 +329,7 @@ describe('공유 링크 — 같은 generate-api 경로', () => {
     expect($('rdShareStop').hidden).toBe(true);
     $('rdShareMake').click();
     await flush();
-    expect(calls.fetch[0]).toEqual({
+    expect(calls.fetch[0]).toMatchObject({
       url: `${API}/${ID2}/share`,
       method: 'POST',
       auth: 'Bearer tok-1',
@@ -309,7 +343,7 @@ describe('공유 링크 — 같은 generate-api 경로', () => {
     expect($('rdMsg').textContent).toBe('공유 링크를 복사했습니다');
     $('rdShareStop').click();
     await flush();
-    expect(calls.fetch[1]).toEqual({
+    expect(calls.fetch[1]).toMatchObject({
       url: `${API}/${ID2}/share`,
       method: 'DELETE',
       auth: 'Bearer tok-1',
@@ -355,5 +389,177 @@ describe('시공사례에서 내리기 — my-designs.html 과 같은 순서', (
   test('시공사례에 없는 연출컷에는 내리기가 없다', async () => {
     await load({ posts: [], url: `/segan/renders.html?g=${ID2}` });
     expect($('rdPost').hidden).toBe(true);
+  });
+});
+
+describe('내려받기 — my-designs.html 과 같은 방식 (서명 확인 → blob 저장, 못 받으면 새 창)', () => {
+  test('컷마다 내려받기 — 기본안은 dadam-<품목>.png, 추천안은 -2 · -3 …', async () => {
+    const calls = await load({ url: `/segan/renders.html?g=${ID2}` });
+    window.URL.createObjectURL = jest.fn(() => 'blob:x');
+    window.URL.revokeObjectURL = jest.fn();
+    const names = [];
+    jest.spyOn(window.HTMLAnchorElement.prototype, 'click').mockImplementation(function () {
+      names.push(this.download);
+    });
+    const buttons = [...$('rdShots').querySelectorAll('[data-dl]')];
+    expect(buttons).toHaveLength(4);
+    buttons[0].click();
+    await flush();
+    buttons[2].click();
+    await flush();
+    expect(names).toEqual(['dadam-wardrobe.png', 'dadam-wardrobe-3.png']);
+    const dl = calls.fetch.filter((f) => f.url.startsWith('https://signed.example/'));
+    expect(dl.map((f) => f.url)).toEqual([
+      `https://signed.example/user-1/${ID2}/v0.png?t=1`,
+      `https://signed.example/user-1/${ID2}/v2.png?t=1`,
+    ]);
+  });
+
+  test('받지 못하면 새 창으로 연다 (my-designs.html 과 같다)', async () => {
+    await load({ url: `/segan/renders.html?g=${ID2}`, dlFail: true });
+    const open = jest.fn();
+    window.open = open;
+    $('rdShots').querySelector('[data-dl="1"]').click();
+    await flush();
+    expect(open).toHaveBeenCalledWith(`https://signed.example/user-1/${ID2}/v1.png?t=1`, '_blank');
+  });
+});
+
+describe('AI 학습 동의 — consent_training (my-designs.html 과 같은 칸 · 같은 글)', () => {
+  test('끔 → 켬: generations.update({ consent_training: true }).eq(id), 글 · aria-pressed', async () => {
+    const calls = await load({ url: `/segan/renders.html?g=${ID2}` });
+    expect($('rdConsent').textContent).toBe('AI 학습 안 함');
+    expect($('rdConsent').getAttribute('aria-pressed')).toBe('false');
+    expect($('rdConsentNote').textContent).toBe('학습에 쓰이지 않습니다. 누르면 켭니다.');
+    $('rdConsent').click();
+    await flush();
+    expect(calls.updates).toHaveLength(1);
+    expect(calls.updates[0].update).toEqual({ consent_training: true });
+    expect(calls.updates[0].filters).toEqual([['eq', 'id', ID2]]);
+    expect($('rdConsent').textContent).toBe('AI 학습 허용');
+    expect($('rdConsentNote').textContent).toBe(
+      '이 연출컷과 함께 올린 사진이 다담 AI 학습에 쓰입니다. 누르면 끕니다.'
+    );
+    expect($('rdMsg').textContent).toBe('학습에 사용하도록 켰습니다');
+  });
+
+  test('바꾸지 못하면 되돌리고 안내', async () => {
+    await load({ url: `/segan/renders.html?g=${ID2}`, updateError: { message: 'denied' } });
+    $('rdConsent').click();
+    await flush();
+    expect($('rdConsent').textContent).toBe('AI 학습 안 함');
+    expect($('rdMsg').textContent).toBe('학습 동의를 바꾸지 못했습니다');
+  });
+
+  test('my-designs.html 과 같은 글', () => {
+    const site = read('my-designs.html');
+    const js = read('segan/renders.js');
+    for (const s of [
+      '이 연출컷과 함께 올린 사진이 다담 AI 학습에 쓰입니다. 누르면 끕니다.',
+      '학습에 쓰이지 않습니다. 누르면 켭니다.',
+      '학습에 사용하도록 켰습니다',
+      '학습에서 뺐습니다',
+      '학습 동의를 바꾸지 못했습니다',
+    ]) {
+      expect([s, site.includes(s), js.includes(s)]).toEqual([s, true, true]);
+    }
+  });
+});
+
+describe('다시 생성 — 크레딧이 다시 든다', () => {
+  test('확인에 단가 · 남은 횟수 → POST { parent_id, 원본 스타일 · 도어 색 } → 만들기 ③ 결과로', async () => {
+    const calls = await load({ url: `/segan/renders.html?g=${ID2}` });
+    $('rdRegen').click();
+    await flush();
+    expect(visible($('rdRegenAsk'))).toBe(true);
+    expect($('rdRegenText').textContent).toBe(
+      '같은 사진 · 같은 설정으로 다시 만듭니다. 20 크레딧이 차감됩니다 · 남은 50회.'
+    );
+    expect(calls.fetch.filter((f) => f.method === 'POST')).toEqual([]); // 묻기 전에는 보내지 않는다
+    $('rdRegenYes').click();
+    await flush();
+    const post = calls.fetch.find((f) => f.url === API && f.method === 'POST');
+    expect(post.auth).toBe('Bearer tok-1');
+    expect(JSON.parse(post.body)).toEqual({
+      parent_id: ID2,
+      design_style: 'classic',
+      door_color: 'oak woodgrain',
+    });
+    expect(window.SeganRenders.go).toHaveBeenCalledWith('./?g=new-gen-id#result');
+  });
+
+  test('취소하면 보내지 않는다, 402 는 크레딧 부족 안내', async () => {
+    const calls = await load({
+      url: `/segan/renders.html?g=${ID2}`,
+      regen: res(402, { success: false }),
+    });
+    $('rdRegen').click();
+    await flush();
+    $('rdRegenNo').click();
+    expect($('rdRegenAsk').hidden).toBe(true);
+    expect(calls.fetch.filter((f) => f.url === API)).toEqual([]);
+    $('rdRegen').click();
+    await flush();
+    $('rdRegenYes').click();
+    await flush();
+    expect($('rdMsg').textContent).toBe('크레딧이 부족합니다. 구독을 올리면 더 만들 수 있습니다.');
+    expect(window.SeganRenders.go).not.toHaveBeenCalled();
+  });
+
+  test('ai-design.html 의 다시 생성과 같은 칸만 보낸다', () => {
+    const ai = read('ai-design.html').match(/await submit\(\{ (parent_id[^}]*) \}\);/)[1];
+    expect([...ai.matchAll(/(\w+):/g)].map((m) => m[1])).toEqual([
+      'parent_id',
+      'design_style',
+      'door_color',
+    ]);
+  });
+});
+
+describe('삭제 — DELETE /api/generate/:id (my-designs.html 과 같은 경로 · 같은 확인 글)', () => {
+  test('묻고 → DELETE → 목록에서 빠지고 목록으로', async () => {
+    const calls = await load({ url: `/segan/renders.html?g=${ID2}` });
+    $('rdDelete').click();
+    expect(visible($('rdDeleteAsk'))).toBe(true);
+    expect($('rdDeleteText').textContent).toBe(
+      '이 연출컷을 삭제할까요? 이미지와 공유 링크, 시공사례에 올라간 사진이 함께 사라집니다.'
+    );
+    $('rdDeleteNo').click();
+    expect(calls.fetch.filter((f) => f.method === 'DELETE')).toEqual([]);
+    $('rdDelete').click();
+    $('rdDeleteYes').click();
+    await flush();
+    expect(calls.fetch.find((f) => f.method === 'DELETE')).toMatchObject({
+      url: `${API}/${ID2}`,
+      auth: 'Bearer tok-1',
+    });
+    expect(visible($('rdList'))).toBe(true);
+    expect(document.querySelector(`[data-open="${ID2}"]`)).toBeNull();
+    expect($('rdState').textContent).toBe('삭제했습니다');
+  });
+
+  test('my-designs.html 의 확인 글과 같은 내용', () => {
+    expect(read('my-designs.html')).toContain(
+      "confirm('이 연출컷을 삭제할까요?\\n이미지와 공유 링크, 시공사례에 올라간 사진이 함께 사라집니다.')"
+    );
+  });
+
+  test('삭제 실패 — 서버 문구', async () => {
+    await load({
+      url: `/segan/renders.html?g=${ID2}`,
+      del: res(403, { success: false, error: '본인 것만 지울 수 있습니다' }),
+    });
+    $('rdDelete').click();
+    $('rdDeleteYes').click();
+    await flush();
+    expect($('rdMsg').textContent).toBe('본인 것만 지울 수 있습니다');
+    expect(visible($('rdDetail'))).toBe(true);
+  });
+
+  test('진행 중에는 다시 생성 · 삭제를 막는다, 즐겨찾기는 없다', async () => {
+    await load({ url: `/segan/renders.html?g=${ID1}` });
+    expect($('rdRegen').disabled).toBe(true);
+    expect($('rdDelete').disabled).toBe(true);
+    expect(document.body.textContent).not.toMatch(/즐겨찾기|★|☆/);
   });
 });
