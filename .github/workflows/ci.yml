@@ -149,7 +149,8 @@ jobs:
       - name: Run tests
         run: npm test
 
-  # 보안 검사
+  # 보안 검사 — Build 의 needs 에 들어 있어 trufflehog 가 실패하면 Build 가 실패한다.
+  #   아래 하드코딩 키 grep 은 알림용(continue-on-error)이라 잡 결과에 영향을 주지 않는다.
   security:
     name: Security Check
     runs-on: ubuntu-latest
@@ -202,14 +203,14 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test, worker-tests]
+    needs: [lint, typecheck, test, worker-tests, security]
     if: ${{ !cancelled() }}
     steps:
       - name: Gate on required jobs
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
         run: |
           echo "A required job did not succeed:"
-          echo "  lint=${{ needs.lint.result }} typecheck=${{ needs.typecheck.result }} test=${{ needs.test.result }} worker-tests=${{ needs.worker-tests.result }}"
+          echo "  lint=${{ needs.lint.result }} typecheck=${{ needs.typecheck.result }} test=${{ needs.test.result }} worker-tests=${{ needs.worker-tests.result }} security=${{ needs.security.result }}"
           exit 1
 
       - name: Checkout code
