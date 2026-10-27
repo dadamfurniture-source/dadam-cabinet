@@ -475,6 +475,10 @@
           <div class="v5-run-state" id="runState">사진 두 장을 넣어주세요</div>
           <button type="button" class="v5-btn v5-btn--lg" id="runBtn" disabled>연출컷 생성</button>
           <div class="v5-track" id="runTrack" hidden><span></span></div>
+          <!-- 2026-10-27 시공사례 자동 게시 (workers/generate-api/src/collection-post.js) -->
+          <p class="v5-note" id="runPostNote" style="margin: 0; text-align: center">
+            완성되면 대표 연출컷 1장이 시공사례에 올라갑니다. 내 연출컷에서 내릴 수 있습니다.
+          </p>
         </div>
 
         <!-- 결과 — 생성 전에는 렌더링하지 않는다 -->
@@ -850,6 +854,8 @@
         }
 
         function caseLabel(r) {
+          // AI 스튜디오 자동 게시(source 'ai_render')는 실제 시공 사진이 아니다 — collection.html 과 같은 표시 (2026-10-27)
+          if (r.source === 'ai_render') return 'AI 연출컷';
           return r.region ? '다담가구 · ' + r.region : '다담가구';
         }
 
@@ -861,7 +867,7 @@
             try {
               var res = await sb
                 .from('collection_posts')
-                .select('image_url, region, category, created_at')
+                .select('image_url, region, category, source, created_at')
                 .order('created_at', { ascending: false })
                 .limit(300);
               if (res.error) throw new Error(res.error.message);
