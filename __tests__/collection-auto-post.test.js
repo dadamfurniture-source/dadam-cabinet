@@ -191,12 +191,19 @@ describe('my-designs.html · mypage.html · ai-design.html', () => {
     expect(fn).toMatch(/\.eq\('user_id', currentUser\.id\)[\s\S]*?\.neq\('source', 'ai_render'\)/);
   });
 
-  test('ai-design: 생성 버튼 아래 안내 · 시공사례 탭의 자동 게시는 「AI 연출컷」', () => {
+  test('ai-design: 생성 버튼 아래 안내 · 시공사례(설치 참고) 탭에서 자동 게시는 뺀다', () => {
     const html = read('ai-design.html');
     const run = html.slice(html.indexOf('<div class="v5-run">'), html.indexOf('<section class="v5-results"'));
     expect(run).toContain('완성되면 대표 연출컷 1장이 시공사례에 올라갑니다');
-    expect(html).toContain(".select('image_url, region, category, source, created_at')");
-    expect(html).toMatch(/if \(r\.source === 'ai_render'\) return 'AI 연출컷';/);
+    const from = html.indexOf('async function loadGallery()');
+    expect(from).toBeGreaterThan(-1);
+    const gallery = html.slice(from, html.indexOf('.limit(300)', from));
+    expect(gallery).toMatch(
+      /\.from\('collection_posts'\)\s*\.select\('image_url, region, category, created_at'\)\s*\.neq\('source', 'ai_render'\)\s*\.order\('created_at', \{ ascending: false \}\)/
+    );
+    // 탭에 자동 게시가 오지 않으니 「AI 연출컷」 캡션 분기도 없다 (collection.html 의 표시는 그대로)
+    expect(html).not.toMatch(/r\.source === 'ai_render'/);
+    expect(read('collection.html')).toContain("(ai ? 'AI 연출컷' : '다담가구')");
   });
 });
 

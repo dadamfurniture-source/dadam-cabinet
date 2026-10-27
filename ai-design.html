@@ -854,20 +854,20 @@
         }
 
         function caseLabel(r) {
-          // AI 스튜디오 자동 게시(source 'ai_render')는 실제 시공 사진이 아니다 — collection.html 과 같은 표시 (2026-10-27)
-          if (r.source === 'ai_render') return 'AI 연출컷';
           return r.region ? '다담가구 · ' + r.region : '다담가구';
         }
 
         // 시공사례 = 컬렉션에 올라가는 그 이미지.
         // collection.html 과 같은 규칙으로 만든다: DB 글이 앞(최신순), 정적분이 뒤.
+        // 2026-10-27: AI 스튜디오 자동 게시(source 'ai_render')는 뺀다 — 실제 시공 사진이 아니라 설치 참고로 쓰지 않는다.
         async function loadGallery() {
           var rows = [];
           if (sb) {
             try {
               var res = await sb
                 .from('collection_posts')
-                .select('image_url, region, category, source, created_at')
+                .select('image_url, region, category, created_at')
+                .neq('source', 'ai_render')
                 .order('created_at', { ascending: false })
                 .limit(300);
               if (res.error) throw new Error(res.error.message);
