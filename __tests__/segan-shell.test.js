@@ -244,7 +244,8 @@ describe('내 정보 — 역할 메뉴는 기존 판정 모듈을 따른다', ()
     // DetailDesignAccess 가 AdminAccess 를 부르므로 admin-access 가 먼저
     const order = bare.filter((s) => /admin-access|detaildesign-access/.test(s));
     expect(order).toEqual(['../js/admin-access.js', '../js/detaildesign-access.js']);
-    expect(bare[bare.length - 1]).toBe('shell.js');
+    // 셸 다음에 내 정보 탭 스크립트 (상담 내역 · 크레딧 · 구독)
+    expect(bare.slice(-3)).toEqual(['shell.js', 'make.js', 'me.js']);
   });
 
   test('링크 주소 — 상세설계 · 관리자 화면 · 작업자 포털 (기존 페이지)', async () => {

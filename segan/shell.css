@@ -381,6 +381,64 @@ button.sg-row {
   overflow-wrap: anywhere;
 }
 
+/* 내 정보 — 값 · 상담 내역 */
+.me-val {
+  margin-left: auto;
+  padding-left: 12px;
+  font-size: 13px;
+  font-weight: 300;
+  text-align: right;
+  color: var(--v5-ink-60);
+}
+
+.me-consult {
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.me-c-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.me-c-main b {
+  overflow: hidden;
+  font-size: 14.5px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.me-c-main small {
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-45);
+}
+
+.me-badge {
+  flex: none;
+  margin-left: auto;
+  padding: 3px 8px;
+  border: 1px solid var(--v5-line-18);
+  font-size: 11.5px;
+  color: var(--v5-ink-60);
+}
+
+.me-badge--confirmed,
+.me-badge--completed {
+  border-color: var(--v5-ink);
+  color: var(--v5-ink);
+}
+
+.me-empty {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--v5-ink-45);
+}
+
 /* 사업자 정보 — 폰에서는 내 정보 아래, PC 에서는 푸터 */
 .sg-biz {
   margin-top: 40px;
