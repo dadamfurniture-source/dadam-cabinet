@@ -1044,8 +1044,42 @@
         selectedConsultationId = null;
       }
 
+      // 일정 확정은 업무 서버(workflow-api)가 한다 — 상담의 고객 · 프로젝트 연결 칸은 서버만 바꿀 수 있어
+      // 상태 · 확정 일시와 함께 서버가 한 번에 잇는다 (POST /consultations/:id/accept, 관리자 · 본사 상담만).
+      function workflowApiBase() {
+        return (
+          (window.DADAM_CONFIG && window.DADAM_CONFIG.workflowApi && window.DADAM_CONFIG.workflowApi.url) || ''
+        );
+      }
+
+      async function acceptConsultation(id, confirmedAt) {
+        const base = workflowApiBase();
+        if (!base) throw new Error('업무 서버(workflowApi.url)가 설정되지 않았습니다.');
+        const {
+          data: { session },
+        } = await supabaseClient.auth.getSession();
+        const token = session && session.access_token;
+        if (!token) throw new Error('로그인이 필요합니다.');
+        const res = await fetch(`${base}/consultations/${encodeURIComponent(id)}/accept`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ confirmed_at: confirmedAt }),
+        });
+        let body = null;
+        try {
+          body = await res.json();
+        } catch (e) {
+          body = null;
+        }
+        if (!res.ok || !body || !body.success) {
+          throw new Error((body && body.message) || `요청 실패 (${res.status})`);
+        }
+        return body.data;
+      }
+
       async function confirmConsultation() {
         if (!selectedConsultationId) return;
+        const id = selectedConsultationId;
         const dateTime = document.getElementById('confirmedDateTime').value;
         const memo = document.getElementById('confirmMemo').value;
 
@@ -1054,26 +1088,33 @@
           return;
         }
 
+        // 상태 · 확정 일시 · 고객 · 프로젝트 — 서버가 실패하면 행은 그대로다
+        try {
+          await acceptConsultation(id, new Date(dateTime).toISOString());
+        } catch (e) {
+          alert('오류: ' + e.message);
+          return;
+        }
+
+        // 담당자 메모 · 담당자는 예전처럼 이 화면이 적는다 (상태 칸은 건드리지 않는다)
         try {
           const { error } = await supabaseClient
             .from('consultations')
             .update({
-              status: 'confirmed',
-              confirmed_at: dateTime,
               admin_memo: memo,
               assigned_to: currentUser.id,
               updated_at: new Date().toISOString(),
             })
-            .eq('id', selectedConsultationId);
+            .eq('id', id);
 
           if (error) throw error;
           alert('상담 일정이 확정되었습니다.');
-          closeModal('confirmModal');
-          await loadStats();
-          await loadConsultations();
         } catch (e) {
-          alert('오류: ' + e.message);
+          alert('일정은 확정되었지만 메모 저장 중 오류: ' + e.message);
         }
+        closeModal('confirmModal');
+        await loadStats();
+        await loadConsultations();
       }
 
       async function completeConsultation() {
