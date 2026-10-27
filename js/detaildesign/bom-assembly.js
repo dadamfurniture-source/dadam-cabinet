@@ -578,7 +578,9 @@
         }
         case 'blindfin': {
           // 멍판 마감재 (휠라·몰딩) 150 × H × 18 — 멍가림판 위에 겹쳐 붙는다, 도어 쪽 끝 맞춤 (자리 60 + 겹침 90, §3.3.1·§3.5.1)
-          if (!bl || row.qty !== 1 || row.w !== C.BLIND_FINISH_W || row.h !== H) { skip(row, 'blind-layout-unknown'); return; }
+          //   2026-10-27 사장님: 휠라는 옆 멍장 도어와 같은 높이 — 하부 멍장은 도어처럼 밑단 = 몸통 바닥, H − 30 (목찬넬 틈). 몰딩은 H 그대로
+          const fillerLow = mod.pos === 'lower' && row.part === '휠라(멍판)' && row.h > 0 && row.h < H;
+          if (!bl || row.qty !== 1 || row.w !== C.BLIND_FINISH_W || (row.h !== H && !fillerLow)) { skip(row, 'blind-layout-unknown'); return; }
           parts.push(makePart(row, 0, { o: [bl.xOf(bl.coverEnd - row.w, bl.coverEnd), 0, zFront + C.BLIND_COVER_T], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { blind: 'finish' }));
           return;
         }

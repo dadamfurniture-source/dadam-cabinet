@@ -1608,7 +1608,12 @@
           return doorW + battenT - 4;
         }
 
-        addBlindFrontParts(materials, modLabel, mod, H, battenH) {
+        /**
+         * 멍장 정면 부재 — 멍가림판 · ㄱ자 기둥(처짐방지 밴드 + 경첩목대) · 멍판 마감재.
+         * @param {number} [fillerH] 휠라(멍판) 높이 — 옆 멍장 도어와 같다 (2026-10-27 사장님 "휠라는 옆 도어와 같은 높이로",
+         *   W12-42 휠라 = 인접 도어). 하부 멍장 = 도어 H − 30 (목찬넬 틈). 비우면 H. 몰딩(멍판)은 늘 H (상판 아래까지).
+         */
+        addBlindFrontParts(materials, modLabel, mod, H, battenH, fillerH) {
           const coverT = typeof CORNER_BLIND_COVER_T !== 'undefined' ? CORNER_BLIND_COVER_T : 3;
           const battenT = typeof CORNER_HINGE_BATTEN_T !== 'undefined' ? CORNER_HINGE_BATTEN_T : 15;
           const battenLeg = typeof CORNER_HINGE_BATTEN_LEG !== 'undefined' ? CORNER_HINGE_BATTEN_LEG : 60;
@@ -1658,8 +1663,10 @@
           if (finType !== 'None' && coverW > 0) {
             const finW = parseFloat(mod.blindFinishW) || finPartW;
             const finName = finType === 'Molding' ? '몰딩(멍판)' : '휠라(멍판)';
-            this.add(materials, modLabel, finName, 'MDF', 18, finW, H, 1, '4면',
-                     `멍판 마감재 — 자리 ${finSeatW} + 멍판 위 겹침 ${finW - finSeatW} (corner.md §3.3)`);
+            // 2026-10-27 사장님: 휠라는 옆 도어와 같은 높이 (하부 멍장 H − 30, 밑단 = 몸통 바닥) — 몰딩은 몸통 전체 (상판 아래까지)
+            const finH = finType !== 'Molding' && Number.isFinite(fillerH) && fillerH > 0 ? fillerH : H;
+            this.add(materials, modLabel, finName, 'MDF', 18, finW, finH, 1, '4면',
+                     `멍판 마감재 — 자리 ${finSeatW} + 멍판 위 겹침 ${finW - finSeatW} (corner.md §3.3)${finH !== H ? ' · 높이 = 옆 멍장 도어' : ''}`);
           }
         }
 
@@ -2171,7 +2178,7 @@
               // W10-4: 하부 멍장 — 도어는 doorW 기준 (카카스 W면 오발주), 멍 가림판 신규 (design §6)
               const blindDoorW = this.blindDoorPartW(mod, W); // doorW + 11 — 도어가 목대를 덮는다 (corner.md §3.5.1)
               this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H - 30, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준) — 목대를 덮는다: doorW + 15 − 4 (corner.md §3.5.1)', mod);
-              this.addBlindFrontParts(materials, modLabel, mod, H, bandH);
+              this.addBlindFrontParts(materials, modLabel, mod, H, bandH, H - 30);   // 휠라(멍판) = 도어 높이
             } else if (isDrawer) {
               // ★ 2026-09-15: 서랍장 — 규칙은 bom-drawer-rules.js (도면 "서랍장 목찬넬 구조 도면").
               //   전면(위→아래): doorCount>0 이면 [도어, 서랍×n] — 플래너 doorTopDrawerBottom 과 같은 그림.

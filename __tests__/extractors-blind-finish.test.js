@@ -71,18 +71,20 @@ describe('멍가림판 — 목대는 빼고 마감재는 안 뺀다', () => {
 });
 
 describe('멍판 마감재가 라인 마감을 따라 나온다', () => {
-  test('휠라면 휠라(멍판) 150 × 몸통H', () => {
-    const fin = partsOf(makeItem()).find((m) => m.part === '휠라(멍판)');
+  test('휠라면 휠라(멍판) 150 × 옆 멍장 도어 높이 (몸통 708 − 30 = 678 — 2026-10-27 사장님 "휠라는 옆 도어와 같은 높이로")', () => {
+    const parts = partsOf(makeItem());
+    const fin = parts.find((m) => m.part === '휠라(멍판)');
     expect(fin).toBeDefined();
     expect(fin.thickness).toBe(18);
     expect(fin.w).toBe(FIN_PART_W);
-    expect(fin.h).toBe(708);
+    expect(fin.h).toBe(678);
+    expect(fin.h).toBe(parts.find((m) => m.part === '도어').h);
     expect(fin.qty).toBe(1);
   });
 
-  test('몰딩이면 몰딩(멍판)', () => {
+  test('몰딩이면 몰딩(멍판) 150 × 몸통H (상판 아래까지)', () => {
     const parts = partsOf(makeItem({ blindFinishType: 'Molding' }));
-    expect(parts.find((m) => m.part === '몰딩(멍판)')).toBeDefined();
+    expect(parts.find((m) => m.part === '몰딩(멍판)').h).toBe(708);
     expect(parts.find((m) => m.part === '휠라(멍판)')).toBeUndefined();
   });
 
