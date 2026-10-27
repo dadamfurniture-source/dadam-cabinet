@@ -60,6 +60,7 @@ const SOURCE_DIRS = [
   'js/planner',            // P1 에서 생김
   'js/detaildesign',
   'database',              // 스키마 SQL — 표·뷰·함수 이름을 마커로 쓴다
+  'database/migrations',   // 번호 붙은 마이그레이션 SQL
   'workers/workflow-api/src',
   'workers/workflow-api/src/templates',
   'workers/generate-api/src',
