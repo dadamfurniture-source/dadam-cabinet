@@ -1585,6 +1585,8 @@
         }
 
         async function sendChat() {
+          // AI 채팅은 서비스 — 이용약관·처리방침 동의 기록이 없는 회원은 동의 창부터 (js/consent.js, 공용 셸이 싣는다)
+          if (window.DadamConsent && !window.DadamConsent.gate.allow(sendChat)) return;
           var t = $('chatInput').value.trim().slice(0, CHAT_MAX_CHARS);
           if (!t || S.chatBusy || myMessages().length >= CHAT_MAX_TURNS) return;
           S.chat.push({ role: 'me', text: t });

@@ -877,6 +877,9 @@
       }
       // 로그인했으면 토큰은 sessionStorage 에만 둔다 — 주소창 · 방문 기록에서 지운다
       if (route.invite) history.replaceState(null, '', location.pathname + location.search);
+      // 이용약관·처리방침 동의 기록이 없으면 동의 창 (js/consent.js — 사이트의 다른 페이지와 같은 창).
+      // 포털 화면은 기다리지 않고 그린다.
+      if (window.DadamConsent) window.DadamConsent.gate.start(sb, session).catch(() => {});
       try {
         await refreshMe();
       } catch (err) {
