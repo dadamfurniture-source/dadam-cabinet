@@ -103,6 +103,7 @@ async function load(options = {}) {
   sessionStorage.clear();
   if (opts.draft) sessionStorage.setItem(KEY, JSON.stringify(opts.draft));
   delete window.SeganMake;
+  window.scrollTo = () => {}; // jsdom 에 없다 (콘솔 오류만 낸다)
   window.DADAM_CONFIG = { supabase: { url: 'https://example.supabase.co', anonKey: 'anon' } };
   const calls = { from: [], writes: [], fetch: [] };
   window.supabase = opts.noSupabase ? undefined : { createClient: () => fakeClient(opts, calls) };
