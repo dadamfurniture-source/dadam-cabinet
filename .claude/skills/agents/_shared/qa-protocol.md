@@ -43,7 +43,7 @@ gh pr comment {PR번호} --body "## QA 검증 결과
 
 | 도메인 | 필수 검증 |
 |--------|----------|
-| 3D Planner | tsc --noEmit |
+| Planner | npx jest planner |
 | Image Gen | HTML 문법 + JS 문법 |
 | BOM | node -c + vitest (bom 테스트) |
 | Design UI | node -c (3파일) |
