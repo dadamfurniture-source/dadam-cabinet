@@ -348,7 +348,8 @@
     showView('signed-in');
     var roles = current === 'me' ? await applyMe(sb, session) : null;
     window.dispatchEvent(new CustomEvent('segan:auth', { detail: { sb: sb, session: session } }));
-    return { session: session, roles: roles };
+    // 탭 페이지 스크립트(renders.js 등)가 같은 클라이언트 · 세션을 쓴다 — SeganShell.ready 로 받는다
+    return { sb: sb, session: session, roles: roles };
   }
 
   // ── 주입 ─────────────────────────────────────────────

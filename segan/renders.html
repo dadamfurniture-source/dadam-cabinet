@@ -19,10 +19,14 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="shell.css?v=2026102701" />
-    <!-- 로그인 상태 — 기존 사이트와 같은 Supabase 설정 · 라이브러리 -->
+    <link rel="stylesheet" href="make.css?v=2026102701" />
+    <!-- 로그인 상태 · 내 연출컷 — 기존 사이트와 같은 Supabase 설정 · 라이브러리 · 서명 URL 도우미(my-designs.html 과 같다) -->
     <script src="../js/config.js?v=2026102701"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="../js/storage-urls.js?v=2026102701"></script>
     <script src="shell.js?v=2026102701" defer></script>
+    <script src="make.js?v=2026102701" defer></script>
+    <script src="renders.js?v=2026102701" defer></script>
   </head>
   <body class="sg-app" data-tab="renders">
     <div data-segan-shell="header"></div>
@@ -37,10 +41,98 @@
         <div data-segan-shell="gate"></div>
       </div>
       <div data-auth-view="signed-in" hidden>
-        <div class="sg-panel">
-          <p class="sg-title">준비 중</p>
-          <p class="sg-note">만든 연출컷과 공유한 링크가 여기에 모입니다.</p>
-        </div>
+        <!-- 목록 -->
+        <section class="rd-list" id="rdList" aria-label="내 연출컷 목록">
+          <p class="rd-state" id="rdState" role="status"></p>
+          <div class="rd-grid" id="rdGrid"></div>
+          <div class="sg-panel" id="rdEmpty" hidden>
+            <p class="sg-title">아직 만든 연출컷이 없습니다</p>
+            <p class="sg-note">만들기에서 공간 사진으로 연출컷을 만들어 보세요.</p>
+            <a class="mk-btn mk-btn--solid" href="./">만들기</a>
+          </div>
+        </section>
+
+        <!-- 하나 열기 (renders.html?g=<id>) -->
+        <section class="rd-detail" id="rdDetail" aria-labelledby="rdTitle" hidden>
+          <button type="button" class="mk-link mk-back" id="rdBack">‹ 목록</button>
+          <h2 class="rd-title" id="rdTitle"></h2>
+          <p class="rd-sub" id="rdSub"></p>
+          <p class="rd-progress" id="rdProgress" role="status" hidden></p>
+          <p class="mk-error" id="rdError" hidden></p>
+          <div class="rd-shots" id="rdShots"></div>
+
+          <section class="mk-quote" id="rdQuote" aria-labelledby="rdQuoteTitle" hidden>
+            <h3 class="mk-quote-title" id="rdQuoteTitle">예상 견적</h3>
+            <div class="mk-qrows" id="rdQuoteRows"></div>
+            <div class="mk-qrow mk-qrow--total"><span>합계 (VAT 포함)</span><span id="rdQuoteTotal"></span></div>
+            <p class="mk-note">실측 후 확정됩니다.</p>
+            <a class="mk-btn mk-btn--solid mk-btn--lg" id="rdConsult" href="consult.html">상담 신청</a>
+          </section>
+
+          <!-- 공유 링크 — generate-api /api/generate/:id/share (POST 만들기 · DELETE 중단) -->
+          <section class="rd-box" id="rdShare" aria-labelledby="rdShareTitle" hidden>
+            <h3 class="rd-box-title" id="rdShareTitle">공유 링크</h3>
+            <p class="mk-note" id="rdShareState"></p>
+            <div class="rd-link" id="rdLinkRow" hidden>
+              <input type="text" id="rdLink" readonly aria-label="공유 링크" />
+              <button type="button" class="mk-btn" id="rdCopy">복사</button>
+            </div>
+            <div class="rd-acts">
+              <button type="button" class="mk-btn" id="rdShareMake">공유 링크 만들기</button>
+              <button type="button" class="mk-btn" id="rdShareStop" hidden>공유 중단</button>
+            </div>
+          </section>
+
+          <!-- 시공사례에 자동으로 올라간 대표 연출컷 — 내리기만 (다시 올리지 않는다) -->
+          <section class="rd-box" id="rdPost" aria-labelledby="rdPostTitle" hidden>
+            <h3 class="rd-box-title" id="rdPostTitle">시공사례</h3>
+            <p class="mk-note">이 연출컷의 대표 1장이 시공사례에 올라가 있습니다.</p>
+            <div class="rd-acts">
+              <button type="button" class="mk-btn" id="rdUnpost">시공사례에서 내리기</button>
+            </div>
+            <div class="rd-confirm" id="rdUnpostAsk" hidden>
+              <p class="mk-note">내린 뒤에는 다시 올릴 수 없습니다. 내릴까요?</p>
+              <div class="rd-acts">
+                <button type="button" class="mk-btn mk-btn--solid" id="rdUnpostYes">내리기</button>
+                <button type="button" class="mk-btn" id="rdUnpostNo">취소</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- AI 학습 동의 — my-designs.html 과 같은 칸(consent_training) · 같은 글 -->
+          <section class="rd-box" id="rdConsentBox" aria-labelledby="rdConsentTitle">
+            <h3 class="rd-box-title" id="rdConsentTitle">AI 학습</h3>
+            <p class="mk-note" id="rdConsentNote"></p>
+            <div class="rd-acts">
+              <button type="button" class="mk-btn" id="rdConsent" aria-pressed="false">AI 학습 안 함</button>
+            </div>
+          </section>
+
+          <!-- 다시 생성(크레딧이 다시 든다) · 삭제 — 화면 안에서 한 번 더 묻는다 -->
+          <section class="rd-box" id="rdManage" aria-labelledby="rdManageTitle">
+            <h3 class="rd-box-title" id="rdManageTitle">관리</h3>
+            <div class="rd-acts">
+              <button type="button" class="mk-btn" id="rdRegen">다시 생성</button>
+              <button type="button" class="mk-btn" id="rdDelete">삭제</button>
+            </div>
+            <div class="rd-confirm" id="rdRegenAsk" hidden>
+              <p class="mk-note" id="rdRegenText"></p>
+              <div class="rd-acts">
+                <button type="button" class="mk-btn mk-btn--solid" id="rdRegenYes">다시 생성</button>
+                <button type="button" class="mk-btn" id="rdRegenNo">취소</button>
+              </div>
+            </div>
+            <div class="rd-confirm" id="rdDeleteAsk" hidden>
+              <p class="mk-note" id="rdDeleteText"></p>
+              <div class="rd-acts">
+                <button type="button" class="mk-btn mk-btn--solid" id="rdDeleteYes">삭제</button>
+                <button type="button" class="mk-btn" id="rdDeleteNo">취소</button>
+              </div>
+            </div>
+          </section>
+
+          <p class="mk-msg" id="rdMsg" role="status" hidden></p>
+        </section>
       </div>
     </main>
 
