@@ -6,7 +6,11 @@
  *
  * - 사용자 JWT 검증: GET /auth/v1/user 호출 → 200 이면 인증 성공
  * - DB CRUD: PostgREST API + service_role key (RLS 우회)
+ * - 업체 단위 접근: assertDesignAccess · companiesWithAccess (아래)
  */
+
+// 관리자 검사는 reports/admin.js 하나로 — 그 파일도 이 파일을 읽지만 함수 안에서만 써서 순환 import 가 안전하다
+import { isAdmin } from './reports/admin.js';
 
 export class AuthError extends Error {
   constructor(message = 'Unauthorized') {
@@ -214,21 +218,81 @@ export async function callRpc(env, fn, args = {}) {
   });
 }
 
+// ===== 업체(회사) 단위 접근 =====
+//
+// 이 워커는 service_role 로 읽으므로 RLS 가 걸리지 않는다 — 누가 무엇을 보는지는 여기서 정한다.
+// 설계 · 수주 · 상담 · 연출컷 · 작업은 company_id 칸으로 업체에 묶인다 (database/migrations/0006).
+
+/** 금액(계약금 · 원가 · 수금 · 마진 · 견적가)까지 보는 구성원 역할 */
+export const MONEY_ROLES = Object.freeze(['owner', 'manager']);
+
+// 본사 회사 id — 격리(isolate)마다 한 번 읽는다. 못 찾으면 캐시하지 않고 던진다
+let hqIdCache = null;
+
+/** 시험용 — 본사 id 캐시 비우기 */
+export function clearHqCompanyCache() {
+  hqIdCache = null;
+}
+
+/** 본사 회사 id (companies.kind = 'hq', 하나뿐). 없으면 DbError */
+export async function hqCompanyId(env) {
+  if (hqIdCache) return hqIdCache;
+  const row = await selectOne(env, 'companies', { kind: 'eq.hq', select: 'id' });
+  if (!row || !row.id) throw new DbError('본사 회사(companies.kind=hq)를 찾을 수 없습니다');
+  hqIdCache = row.id;
+  return hqIdCache;
+}
+
+/** 호출자가 active 구성원인 업체들 — [{ company_id, role }] */
+export async function activeMemberships(env, user) {
+  if (!user || !user.id) return [];
+  return (await selectMany(env, 'company_members', {
+    user_id: `eq.${user.id}`,
+    status: 'eq.active',
+    select: 'company_id,role',
+  })) || [];
+}
+
 /**
- * 설계 소유권 확인.
+ * 업체 전체를 볼 수 있는 업체 id 들.
+ *   - active 구성원인 업체 (money 이면 owner · manager 만)
+ *   - 관리자(admin_roles)는 본사
+ * 본사 설계를 직접 만든 사람의 몫(설계 단위)은 여기 들지 않는다 — assertDesignAccess · listOrders 가 따로 본다.
+ */
+export async function companiesWithAccess(env, user, { money = false, hq = null } = {}) {
+  const hqId = hq || (await hqCompanyId(env));
+  const ids = new Set();
+  for (const m of await activeMemberships(env, user)) {
+    if (!money || MONEY_ROLES.includes(m.role)) ids.add(m.company_id);
+  }
+  if (!ids.has(hqId) && (await isAdmin(env, user))) ids.add(hqId);
+  return ids;
+}
+
+/**
+ * 설계 접근 확인. 아래 중 하나면 통과하고 설계 행을 돌려준다.
+ *   a. 설계 업체의 active 구성원 — money 이면 owner · manager 만
+ *   b. 본사 설계이고 내가 만든 설계 (예전 규칙 그대로, 금액 포함)
+ *   c. 관리자이고 본사 설계 — 관리자도 협력업체 설계는 못 본다
+ * 설계가 없으면 404, 아니면 403.
+ *
+ * money: 응답에 계약금 · 원가 · 수금 · 마진 · 견적가가 실리는 경로면 true.
  *
  * ★ select=* 를 쓴다. designs 테이블 DDL 이 두 벌 존재하고
  *   (database/schema.sql 은 name, database/designs-schema.sql 은 title)
  *   없는 컬럼을 select 에 지정하면 PostgREST 가 400 을 던지기 때문.
  */
-export async function assertDesignOwner(env, designId, userId) {
+export async function assertDesignAccess(env, designId, user, { money = false } = {}) {
   const design = await selectOne(env, 'designs', {
     id: `eq.${designId}`,
     select: '*',
   });
   if (!design) throw new NotFoundError('설계를 찾을 수 없습니다');
-  if (design.user_id !== userId) throw new ForbiddenError('본인 설계가 아닙니다');
-  return design;
+  const hq = await hqCompanyId(env);
+  if (design.company_id === hq && user && design.user_id === user.id) return design;
+  const companies = await companiesWithAccess(env, user, { money, hq });
+  if (companies.has(design.company_id)) return design;
+  throw new ForbiddenError('이 설계를 볼 권한이 없습니다');
 }
 
 /** designs 의 제목 컬럼 편차를 흡수한다. */

@@ -6,6 +6,7 @@
  */
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { HQ, companyRoute } from './fixtures/company.js';
 import {
   validateCounterparty, listCounterparties, createCounterparty, updateCounterparty, assertCounterparty,
   SUPPLIER_CATEGORIES, SUPPLIER_CATEGORY_LABEL,
@@ -93,7 +94,8 @@ test('붙이기: 종류가 맞아야 한다 — 거래처 칸에 공급처를 �
 
 const owned = (u, method) => {
   if (method === 'GET' && u.includes('/orders?')) return json([{ id: 'O1', design_id: 'D1', status: 'confirmed' }]);
-  if (method === 'GET' && u.includes('/designs?')) return json([{ id: 'D1', user_id: 'U1' }]);
+  if (companyRoute(u)) return companyRoute(u);
+  if (method === 'GET' && u.includes('/designs?')) return json([{ id: 'D1', user_id: 'U1', company_id: HQ }]);
   return null;
 };
 

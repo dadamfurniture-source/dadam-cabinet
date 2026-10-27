@@ -37,6 +37,7 @@ import { issueDocument, resolvePrintAssets, renderDocument } from '../src/docume
 import { createSignedUrls } from '../src/storage.js';
 import { DbError } from '../src/supabase.js';
 import * as fx from './fixtures/work-order-v2.js';
+import { HQ, companyRoute } from './fixtures/company.js';
 
 const ENV = {
   SUPABASE_URL: 'https://x.supabase.co',
@@ -324,7 +325,8 @@ function issueRoute(snapshot, { prevDoc = null } = {}) {
   return (u, init) => {
     const method = init.method || 'GET';
     const path = u.split('?')[0];
-    if (/\/designs\?/.test(u)) return json([{ id: 'D1', user_id: 'U1', title: '테스트 설계' }]);
+    if (companyRoute(u)) return companyRoute(u);
+    if (/\/designs\?/.test(u)) return json([{ id: 'D1', user_id: 'U1', title: '테스트 설계', company_id: HQ }]);
     if (/\/design_snapshots\?id=eq\./.test(u)) return json([snapshot]);
     if (/\/design_snapshots\?/.test(u)) return json([]);
     if (method === 'POST' && /\/design_documents$/.test(path)) {

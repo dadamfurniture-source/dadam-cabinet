@@ -12,7 +12,7 @@ import {
   NotFoundError,
   GoneError,
   ForbiddenError,
-  assertDesignOwner,
+  assertDesignAccess,
   insertOne,
   selectOne,
   selectMany,
@@ -74,7 +74,7 @@ export async function issueDocument(env, { user, body }) {
   }
   if (!body.snapshot_id) throw new ValidationError('snapshot_id 가 필요합니다');
 
-  // getSnapshot 이 소유권까지 확인한다
+  // getSnapshot 이 설계 접근(금액 권한 포함 — 발행 응답에 totals 가 실린다)까지 확인한다
   const snapshot = await getSnapshot(env, { snapshotId: body.snapshot_id, user });
   const designId = snapshot.design_id;
 
@@ -250,7 +250,8 @@ export async function supersedePriorRevisions(env, { designId, docType, newDocId
 export async function supersedeDocument(env, { user, documentId, replacementId }) {
   const doc = await selectOne(env, 'design_documents', { id: `eq.${documentId}`, select: '*' });
   if (!doc) throw new NotFoundError('대체할 문서를 찾을 수 없습니다');
-  await assertDesignOwner(env, doc.design_id, user.id);
+  // 상태만 바꾸고 문서 내용을 돌려주지 않는다 (발행 경로가 결과를 버린다) — 금액 권한은 보지 않는다
+  await assertDesignAccess(env, doc.design_id, user, { money: false });
 
   const patch = { superseded_by: replacementId };
   // 고객이 이미 결정한 문서(승인/수정요청)는 상태를 유지한다.
@@ -265,7 +266,8 @@ export async function supersedeDocument(env, { user, documentId, replacementId }
 export async function revokeDocument(env, { user, documentId }) {
   const doc = await selectOne(env, 'design_documents', { id: `eq.${documentId}`, select: '*' });
   if (!doc) throw new NotFoundError('문서를 찾을 수 없습니다');
-  await assertDesignOwner(env, doc.design_id, user.id);
+  // 응답은 id · status 뿐 — 금액 권한은 보지 않는다
+  await assertDesignAccess(env, doc.design_id, user, { money: false });
 
   // ★ share_token_hash 를 NULL 로 지우지 않는다.
   //   지우면 openSharedDocument 의 토큰 조회가 아예 실패해서 404 가 나가고,
@@ -282,7 +284,8 @@ export async function revokeDocument(env, { user, documentId }) {
  * ★ 판정은 content_hash 비교로만 한다 — designs.updated_at 은 트리거가 오염시킨다.
  */
 export async function listDocuments(env, { designId, user }) {
-  await assertDesignOwner(env, designId, user.id);
+  // 목록에 totals(공급가 · 부가세 · 합계)가 실린다
+  await assertDesignAccess(env, designId, user, { money: true });
 
   const [docs, newest] = await Promise.all([
     selectMany(env, 'design_documents', {
@@ -318,10 +321,20 @@ export async function listDocuments(env, { designId, user }) {
   });
 }
 
-export async function getDocumentForOwner(env, { documentId, user }) {
+/** 화면 · 인쇄에 금액이 보이는 문서 — 고객 확인서 (작업지시서 · 설치 지시서 인쇄에는 금액이 없다) */
+export function docShowsMoney(doc) {
+  return Boolean(doc) && doc.doc_type === 'customer_confirmation';
+}
+
+/**
+ * 문서 + 스냅샷 (+ 설계 접근 확인).
+ * money: 부르는 쪽이 금액을 내보내면 true. 문서 종류로 갈리면 함수(doc → boolean)를 준다 (인쇄).
+ */
+export async function getDocumentForOwner(env, { documentId, user, money }) {
   const doc = await selectOne(env, 'design_documents', { id: `eq.${documentId}`, select: '*' });
   if (!doc) throw new NotFoundError('문서를 찾을 수 없습니다');
-  await assertDesignOwner(env, doc.design_id, user.id);
+  const needsMoney = typeof money === 'function' ? Boolean(money(doc)) : money === true;
+  await assertDesignAccess(env, doc.design_id, user, { money: needsMoney });
   const snapshot = await selectOne(env, 'design_snapshots', {
     id: `eq.${doc.snapshot_id}`,
     select: '*',

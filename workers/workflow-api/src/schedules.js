@@ -14,7 +14,8 @@
 import {
   ValidationError,
   NotFoundError,
-  assertDesignOwner,
+  assertDesignAccess,
+  hqCompanyId,
   insertOne,
   insertMany,
   selectOne,
@@ -110,7 +111,8 @@ async function collectLinks(env, designId, documentId) {
  * @param {Object} ctx Worker ExecutionContext (waitUntil 용)
  */
 export async function createSchedules(env, ctx, { designId, user, body }) {
-  const design = await assertDesignOwner(env, designId, user.id);
+  // 응답은 일정뿐 — 견적 합계는 본사 Slack 메시지에만 실린다
+  const design = await assertDesignAccess(env, designId, user, { money: false });
   validateScheduleItems(body.items);
 
   const batchId = crypto.randomUUID();
@@ -118,6 +120,11 @@ export async function createSchedules(env, ctx, { designId, user, body }) {
 
   // 1) 일정 먼저 커밋 — Slack 이 죽어도 남아야 한다
   const created = await insertMany(env, 'design_schedules', rows);
+
+  // 본사 Slack 은 본사 설계만 받는다 — 다른 업체 설계면 알림 기록도 전송도 하지 않는다
+  if (design.company_id !== (await hqCompanyId(env))) {
+    return { batch_id: batchId, schedules: created, slack: null };
+  }
 
   // 2) 알림 레코드를 pending 으로
   const idempotencyKey = `sched:${batchId}`;
@@ -186,7 +193,8 @@ export async function resendBatch(env, ctx, { batchId, user }) {
     select: '*',
   });
   if (!notification) throw new NotFoundError('알림 기록을 찾을 수 없습니다');
-  await assertDesignOwner(env, notification.design_id, user.id);
+  // 알림 기록은 본사 설계에만 생긴다 (createSchedules) — 설계의 업체는 바뀌지 않는다 (DB 트리거)
+  await assertDesignAccess(env, notification.design_id, user, { money: false });
 
   if (notification.status === 'sent') {
     return { status: 'sent', resent: false, sent_at: notification.sent_at };
@@ -200,7 +208,7 @@ export async function resendBatch(env, ctx, { batchId, user }) {
 }
 
 export async function listSchedules(env, { designId, user }) {
-  await assertDesignOwner(env, designId, user.id);
+  await assertDesignAccess(env, designId, user, { money: false });
   const rows = await selectMany(env, 'design_schedules', {
     design_id: `eq.${designId}`,
     select: '*',
@@ -213,7 +221,7 @@ export async function listSchedules(env, { designId, user }) {
 export async function updateSchedule(env, { scheduleId, user, patch }) {
   const row = await selectOne(env, 'design_schedules', { id: `eq.${scheduleId}`, select: '*' });
   if (!row) throw new NotFoundError('일정을 찾을 수 없습니다');
-  await assertDesignOwner(env, row.design_id, user.id);
+  await assertDesignAccess(env, row.design_id, user, { money: false });
 
   const allowed = {};
   if (patch.status !== undefined) {

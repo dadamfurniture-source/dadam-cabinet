@@ -14,6 +14,7 @@ import {
 } from '../src/snapshots.js';
 import { snapshotHash } from '../src/util/hash.js';
 import { ValidationError } from '../src/supabase.js';
+import { HQ, companyRoute } from './fixtures/company.js';
 
 globalThis.dlog = globalThis.dlog || (() => {});
 const require = createRequire(import.meta.url);
@@ -162,7 +163,8 @@ function withFakeSupabase(fn) {
       if (hash) return json(rows.filter((r) => `eq.${r.content_hash}` === hash).slice(0, 1));
       return json(rows.slice().sort((a, b) => b.rev - a.rev).slice(0, 1));
     }
-    if (u.pathname.endsWith('/designs')) return json([{ id: 'D1', user_id: 'U1', title: '테스트 설계' }]);
+    if (companyRoute(u)) return companyRoute(u);
+    if (u.pathname.endsWith('/designs')) return json([{ id: 'D1', user_id: 'U1', title: '테스트 설계', company_id: HQ }]);
     if (u.pathname.endsWith('/pricing_rule_sets')) return json([{ id: 'RS1', name: 'seed', is_active: true }]);
     if (u.pathname.endsWith('/pricing_rules')) return json([]);
     throw new Error('unexpected fetch ' + method + ' ' + u);

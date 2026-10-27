@@ -7,11 +7,14 @@
  *
  * 계획 대상 = 진행 중인 수주(confirmed · in_production). 각 수주는 계약 시점 스냅샷의
  * BOM·재단 배치로 작업량을 세고, 같은 설계의 설치 일정(installation)으로 마감을 잡는다.
+ *
+ * 계획 · 제안 · 아침 요약 · 월 손익은 본사 Slack · 보관함으로 나가므로 본사 수주만 싣는다 —
+ * 내가 만든 본사 설계의 수주 (orders.js listOwnHqOrders).
  */
 
-import { selectOne, selectMany, insertOne, insertMany, updateById, updateBy, upsertOne, ValidationError, NotFoundError, ConflictError } from '../supabase.js';
+import { selectOne, selectMany, insertOne, insertMany, updateById, updateBy, upsertOne, hqCompanyId, ValidationError, NotFoundError, ConflictError } from '../supabase.js';
 import { postToWebhook } from '../slack.js';
-import { listOrders, tierOf } from '../orders.js';
+import { listOwnHqOrders, tierOf } from '../orders.js';
 import { workloadFromSnapshot } from './workload.js';
 import { planProduction } from './planner.js';
 import { buildProposalBlocks, buildInstructionBlocks, buildDailyBlocks, assignmentsFromSuggestions, actionKey } from './notify.js';
@@ -170,7 +173,7 @@ export function buildJobs(orders, snapshotsById, schedules, standards, doorOrder
 }
 
 async function loadInputs(env, user) {
-  const orders = (await listOrders(env, { user })).filter((o) => ACTIVE.has(o.status));
+  const orders = (await listOwnHqOrders(env, { user })).filter((o) => ACTIVE.has(o.status));
   if (!orders.length) return { orders, snapshotsById: new Map(), schedules: [] };
   const snapIds = [...new Set(orders.map((o) => o.snapshot_id))].join(',');
   const designIds = [...new Set(orders.map((o) => o.design_id))].join(',');
@@ -335,9 +338,10 @@ export async function listAssignments(env, { user, from }) {
 }
 
 // ── 매일 아침 요약 ──
-/** 진행 중 수주가 있는 계정 (설계 소유자). */
+/** 진행 중 본사 수주가 있는 계정 (설계 소유자). */
 async function activeOwners(env) {
-  const orders = (await selectMany(env, 'orders', { status: 'in.(confirmed,in_production)', select: 'design_id', limit: '1000' })) || [];
+  const hq = await hqCompanyId(env);
+  const orders = (await selectMany(env, 'orders', { status: 'in.(confirmed,in_production)', company_id: `eq.${hq}`, select: 'design_id', limit: '1000' })) || [];
   const ids = [...new Set(orders.map((o) => o.design_id))];
   if (!ids.length) return [];
   const designs = (await selectMany(env, 'designs', { id: `in.(${ids.join(',')})`, select: 'user_id', limit: '1000' })) || [];
@@ -451,7 +455,7 @@ export function summarizeMonth(orders, snapshotsById, { month, overheadMonthly }
 export async function getMonthlySummary(env, { user, month }) {
   const m = /^\d{4}-\d{2}$/.test(String(month || '')) ? month : kstDate().slice(0, 7);
   const { settings } = await getSettings(env, { user });
-  const orders = await listOrders(env, { user });
+  const orders = await listOwnHqOrders(env, { user });
   const inMonth = orders.filter((o) => o.status !== 'cancelled' && kstDate(o.ordered_at).slice(0, 7) === m);
   let snaps = [];
   if (inMonth.length) {
@@ -484,7 +488,7 @@ export async function closeMonth(env, { userId, month }) {
 /**
  * 매월 첫 근무일 아침(평일 07시 cron) — 전월 마감이 없는 계정마다 하나 만든다.
  * 1일이 주말이면 cron 이 돌지 않으므로 '1일' 이 아니라 '그 달 7일까지 + 아직 없음' 으로 본다 (주인×달 UNIQUE 라 중복 없음).
- * 대상: 전월에 수주가 있었던 계정 + 지금 진행 중 수주가 있는 계정.
+ * 대상: 전월에 본사 수주가 있었던 계정 + 지금 진행 중 본사 수주가 있는 계정.
  */
 export async function runMonthlyCloses(env, { today } = {}) {
   const day = today || kstDate();
@@ -492,6 +496,7 @@ export async function runMonthlyCloses(env, { today } = {}) {
   const month = prevMonthOf(day);
   const ordered = (await selectMany(env, 'orders', {
     and: `(ordered_at.gte.${month}-01T00:00:00+09:00,ordered_at.lte.${monthEnd(month)}T23:59:59+09:00)`,
+    company_id: `eq.${await hqCompanyId(env)}`,
     select: 'design_id',
     limit: '1000',
   })) || [];

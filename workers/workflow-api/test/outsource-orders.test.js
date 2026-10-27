@@ -13,6 +13,7 @@ import { buildDailyBlocks } from '../src/production/notify.js';
 import { renderReportPrint } from '../src/templates/report-print.js';
 import { clearAdminCache } from '../src/reports/admin.js';
 import * as fx from './fixtures/work-order-v2.js';
+import { HQ, companyRoute } from './fixtures/company.js';
 
 const ENV = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 's' };
 const U1 = '11111111-1111-4111-8111-111111111111';
@@ -42,8 +43,11 @@ const theDoc = () => fx.doc({ id: DOC, design_id: D1, snapshot_id: 's1' });
 /** 문서 · 설계 · 스냅샷 · 설정 · 주문 — existing: 이미 있는 발주 행 */
 function docRoutes({ existing = [], settings = null } = {}) {
   return (u, m) => {
+    const company = companyRoute(u);
+    if (company) return company;
+    if (u.includes('/admin_roles?')) return json([]);
     if (u.includes('/design_documents?')) return json([theDoc()]);
-    if (u.includes('/designs?')) return json([{ id: D1, user_id: U1 }]);
+    if (u.includes('/designs?')) return json([{ id: D1, user_id: U1, company_id: HQ }]);
     if (u.includes('/design_snapshots?')) return json([fx.snapshot({ id: 's1' })]);
     if (u.includes('/production_settings?')) return json(settings ? [{ settings }] : []);
     if (u.includes('/orders?')) return json([{ id: O1 }]);
@@ -127,7 +131,7 @@ test('[발주 처리] — 잘못된 꾸러미 · 지난 날짜 · 작업지시�
   await withFetch((u, m) => (u.includes('/design_documents?') ? json([{ ...theDoc(), doc_type: 'installation_order' }]) : docRoutes()(u, m)), async () => {
     await assert.rejects(createOutsourceOrder(ENV, { user, documentId: DOC, body: { pack: 'door' } }), /작업지시서에서만/);
   });
-  await withFetch((u, m) => (u.includes('/designs?') ? json([{ id: D1, user_id: 'other' }]) : docRoutes()(u, m)), async () => {
+  await withFetch((u, m) => (u.includes('/designs?') ? json([{ id: D1, user_id: 'other', company_id: HQ }]) : docRoutes()(u, m)), async () => {
     await assert.rejects(createOutsourceOrder(ENV, { user, documentId: DOC, body: { pack: 'door' } }), (e) => e.statusCode === 403);
   });
 });

@@ -7,6 +7,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { companyRoute } from './fixtures/company.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import worker from '../src/worker.js';
@@ -92,6 +93,7 @@ function factoryDb({ assignments, logs }) {
     }
     if (u.includes('/production_worker_links?') && method === 'PATCH') return json([{ id: L1 }]);
     if (u.includes('/production_settings?')) return json([]);
+    if (companyRoute(u)) return companyRoute(u);
     if (u.includes('/designs?')) return json([{ id: D1 }]);
     if (u.includes('/orders?')) return json(ORDERS);
     if (u.includes('/design_snapshots?')) return json([SNAP]);

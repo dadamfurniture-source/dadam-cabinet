@@ -14,7 +14,9 @@ import {
   insertOne,
   updateById,
   restDelete,
-  assertDesignOwner,
+  assertDesignAccess,
+  companiesWithAccess,
+  hqCompanyId,
   ValidationError,
   NotFoundError,
   ConflictError,
@@ -96,7 +98,8 @@ function toAmount(v, field) {
 export async function createOrderFromDocument(env, { documentId, user }) {
   const doc = await selectOne(env, 'design_documents', { id: `eq.${documentId}`, select: '*' });
   if (!doc) throw new NotFoundError('문서를 찾을 수 없습니다');
-  await assertDesignOwner(env, doc.design_id, user.id);
+  // 응답이 수주(계약금)라 금액 권한까지 본다
+  const design = await assertDesignAccess(env, doc.design_id, user, { money: true });
 
   const existing = await selectOne(env, 'orders', { document_id: `eq.${documentId}`, select: '*' });
   if (existing) return { order: existing, reused: true };
@@ -124,6 +127,9 @@ export async function createOrderFromDocument(env, { documentId, user }) {
     contract_amount: contract,
     status: 'confirmed',
     created_by: user.id,
+    // 업체 · 프로젝트는 설계 것을 그대로 — DB 복합 FK (design_id, company_id) 가 같은 업체만 받는다
+    company_id: design.company_id,
+    project_id: design.project_id,
   };
   // 구분은 확인서를 낸 금액 종류(고객용 · 거래처용)를 그대로 옮긴다. 칸이 아직 없으면 빼고 넣는다
   const tier = totals.price_tier === 'partner' ? 'partner' : 'customer';
@@ -137,39 +143,73 @@ export async function createOrderFromDocument(env, { documentId, user }) {
   return { order, reused: false };
 }
 
+const ORDER_LIST_SELECT =
+  'id,order_no,design_id,document_id,snapshot_id,customer_name,contract_amount,received_amount,status,ordered_at,delivered_at,completed_at,note,created_at';
+
+function orderListQuery() {
+  return { select: ORDER_LIST_SELECT, order: 'ordered_at.desc', limit: '200' };
+}
+
+/**
+ * 수주 목록 — assertDesignAccess 와 같은 규칙. 계약금 · 수금이 실리므로 금액 권한으로 본다.
+ *   업체 구성원(owner · manager) → 그 업체 수주 전부, 관리자 → 본사 수주 전부,
+ *   그 밖에는 내가 만든 본사 설계의 수주.
+ * RLS 는 service_role 에 적용되지 않으므로 여기서 직접 거른다.
+ */
 export async function listOrders(env, { user, designId }) {
-  const query = {
-    select: 'id,order_no,design_id,document_id,snapshot_id,customer_name,contract_amount,received_amount,status,ordered_at,delivered_at,completed_at,note,created_at',
-    order: 'ordered_at.desc',
-    limit: '200',
-  };
+  const query = orderListQuery();
   if (designId) {
-    await assertDesignOwner(env, designId, user.id);
+    await assertDesignAccess(env, designId, user, { money: true });
     query.design_id = `eq.${designId}`;
     return selectOrders(env, query);
   }
-  // 설계 지정이 없으면 내 설계의 수주 전부.
-  // RLS 는 service_role 에 적용되지 않으므로 소유 설계를 직접 필터해야 한다.
-  const designs = (await selectMany(env, 'designs', {
-    select: 'id',
-    user_id: `eq.${user.id}`,
-    limit: '500',
-  })) || [];
-  if (designs.length === 0) return [];
-  const ids = designs.map((d) => d.id).join(',');
-  query.design_id = `in.(${ids})`;
+  const hq = await hqCompanyId(env);
+  const companies = await companiesWithAccess(env, user, { money: true, hq });
+  const or = [];
+  if (companies.size) or.push(`company_id.in.(${[...companies].join(',')})`);
+  if (!companies.has(hq)) {
+    const ids = await ownHqDesignIds(env, user, hq);
+    if (ids.length) or.push(`design_id.in.(${ids.join(',')})`);
+  }
+  if (or.length === 0) return [];
+  query.or = `(${or.join(',')})`;
   return selectOrders(env, query);
 }
 
-export async function loadOwnedOrder(env, orderId, user) {
+/** 내가 만든 본사 설계 id (예전 수주 목록의 기준) */
+async function ownHqDesignIds(env, user, hq) {
+  const designs = (await selectMany(env, 'designs', {
+    select: 'id',
+    user_id: `eq.${user.id}`,
+    company_id: `eq.${hq}`,
+    limit: '500',
+  })) || [];
+  return designs.map((d) => d.id);
+}
+
+/**
+ * 생산 계획 · 월 손익의 입력 — 내가 만든 본사 설계의 수주 (예전 listOrders 와 같은 범위).
+ * 계획 · 아침 요약은 본사 Slack 으로 나가므로 본사 수주만 싣는다.
+ */
+export async function listOwnHqOrders(env, { user }) {
+  const hq = await hqCompanyId(env);
+  const ids = await ownHqDesignIds(env, user, hq);
+  if (ids.length === 0) return [];
+  return selectOrders(env, { ...orderListQuery(), company_id: `eq.${hq}`, design_id: `in.(${ids.join(',')})` });
+}
+
+/**
+ * 수주 하나 + 설계 접근 확인. money: 응답 · 동작에 금액이 실리는 경로면 true (기본 — 수주 행에 계약금이 있다).
+ */
+export async function loadOwnedOrder(env, orderId, user, { money = true } = {}) {
   const order = await selectOne(env, 'orders', { id: `eq.${orderId}`, select: '*' });
   if (!order) throw new NotFoundError('수주를 찾을 수 없습니다');
-  await assertDesignOwner(env, order.design_id, user.id);
+  await assertDesignAccess(env, order.design_id, user, { money });
   return order;
 }
 
 export async function getOrder(env, { orderId, user }) {
-  const order = await loadOwnedOrder(env, orderId, user);
+  const order = await loadOwnedOrder(env, orderId, user, { money: true });
   const costs = (await selectMany(env, 'order_costs', {
     select: '*',
     order_id: `eq.${orderId}`,
@@ -218,7 +258,7 @@ export function summarizeMargin(order, costs, quote) {
 }
 
 export async function updateOrder(env, { orderId, user, patch }) {
-  const order = await loadOwnedOrder(env, orderId, user);
+  const order = await loadOwnedOrder(env, orderId, user, { money: true });
   const allowed = {};
 
   if (patch.status !== undefined) {
@@ -273,7 +313,7 @@ export async function updateOrder(env, { orderId, user, patch }) {
 }
 
 export async function addCost(env, { orderId, user, body }) {
-  await loadOwnedOrder(env, orderId, user);
+  await loadOwnedOrder(env, orderId, user, { money: true });
   const category = String(body.category || '').trim();
   if (!COST_CATEGORIES.includes(category)) {
     throw new ValidationError(`category 는 ${COST_CATEGORIES.join(', ')} 중 하나여야 합니다`);
@@ -312,7 +352,7 @@ export async function addCost(env, { orderId, user, body }) {
 }
 
 export async function deleteCost(env, { orderId, costId, user }) {
-  await loadOwnedOrder(env, orderId, user);
+  await loadOwnedOrder(env, orderId, user, { money: true });
   const cost = await selectOne(env, 'order_costs', { id: `eq.${costId}`, select: 'id,order_id' });
   if (!cost || cost.order_id !== orderId) throw new NotFoundError('원가 항목을 찾을 수 없습니다');
   await restDelete(env, 'order_costs', { id: `eq.${costId}` });

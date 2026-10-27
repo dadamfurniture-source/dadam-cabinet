@@ -19,7 +19,7 @@ import {
   ConflictError,
   NotFoundError,
   DbError,
-  assertDesignOwner,
+  assertDesignAccess,
   designTitleOf,
   insertOne,
   selectOne,
@@ -458,7 +458,8 @@ const LIST_SELECT_BASE =
 const LIST_SELECT = `${LIST_SELECT_BASE},sheet_count`;
 
 export async function createSnapshot(env, { designId, user, body }) {
-  const design = await assertDesignOwner(env, designId, user.id);
+  // 응답에 견적(quote_payload)이 실린다
+  const design = await assertDesignAccess(env, designId, user, { money: true });
   const { design: designPayload, bom, hardware } = validateSnapshotInput(body);
 
   const derived = deriveCounts(designPayload, bom);
@@ -539,7 +540,8 @@ export async function createSnapshot(env, { designId, user, body }) {
 
 /** 목록 — payload 는 제외한다 (아이템이 많으면 수 MB). */
 export async function listSnapshots(env, { designId, user, limit = 20 }) {
-  await assertDesignOwner(env, designId, user.id);
+  // 목록 칸(LIST_SELECT)에는 금액이 없다
+  await assertDesignAccess(env, designId, user, { money: false });
   const n = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
   const query = (select) => ({
     design_id: `eq.${designId}`,
@@ -565,7 +567,8 @@ export async function getSnapshot(env, { snapshotId, user }) {
     select: '*',
   });
   if (!snapshot) throw new NotFoundError('스냅샷을 찾을 수 없습니다');
-  await assertDesignOwner(env, snapshot.design_id, user.id);
+  // 단건은 quote_payload(견적가 · 원가)까지 돌려준다. 견적 미리보기 · 문서 발행도 이 길로 온다
+  await assertDesignAccess(env, snapshot.design_id, user, { money: true });
   return snapshot;
 }
 

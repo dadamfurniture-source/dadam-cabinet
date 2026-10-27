@@ -58,7 +58,7 @@ export async function listReworks(env, orderId) {
 }
 
 export async function addRework(env, { orderId, user, body }) {
-  await loadOwnedOrder(env, orderId, user);
+  await loadOwnedOrder(env, orderId, user, { money: true });
   const row = { ...validateRework(body), order_id: orderId, created_by: user.id };
   try {
     return await insertOne(env, 'rework_logs', row);
@@ -69,7 +69,7 @@ export async function addRework(env, { orderId, user, body }) {
 }
 
 export async function deleteRework(env, { orderId, reworkId, user }) {
-  await loadOwnedOrder(env, orderId, user);
+  await loadOwnedOrder(env, orderId, user, { money: true });
   const row = await selectOne(env, 'rework_logs', { id: `eq.${reworkId}`, select: 'id,order_id' });
   if (!row || row.order_id !== orderId) throw new NotFoundError('기록을 찾을 수 없습니다');
   await restDelete(env, 'rework_logs', { id: `eq.${reworkId}` });

@@ -4,6 +4,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { HQ, companyRoute } from './fixtures/company.js';
 import { reportFromMonth, monthEnd } from '../src/reports/record.js';
 import { prevMonthOf, runMonthlyCloses } from '../src/production/service.js';
 import { renderReportPrint } from '../src/templates/report-print.js';
@@ -74,13 +75,14 @@ test('그 달 8일 이후엔 돌지 않는다 (DB 를 읽지도 않는다)', asy
 
 test('첫 근무일(11/2 월) — 전월 수주 계정마다 만들고, 이미 있는 계정은 건너뛴다', async () => {
   await withFetch((u, m) => {
-    if (u.includes('/orders?') && u.includes('ordered_at.gte.2026-10-01')) return json([{ design_id: 'd1' }, { design_id: 'd2' }]);
-    if (u.includes('/orders?') && u.includes('status=in.(confirmed,in_production)')) return json([]);
+    if (companyRoute(u)) return companyRoute(u);
+    if (u.includes('/orders?') && u.includes('ordered_at.gte.2026-10-01') && u.includes(`company_id=eq.${HQ}`)) return json([{ design_id: 'd1' }, { design_id: 'd2' }]);
+    if (u.includes('/orders?') && u.includes('status=in.(confirmed,in_production)') && u.includes(`company_id=eq.${HQ}`)) return json([]);
     if (u.includes('/designs?') && u.includes('id=in.(d1,d2)')) return json([{ user_id: U1 }, { user_id: U2 }]);
     if (u.includes('/work_reports?') && u.includes(`owner_id=eq.${U2}`)) return json([{ id: 'exists' }]);
     if (u.includes('/work_reports?') && m === 'GET') return json([]);
     if (u.includes('/production_settings?')) return json([]);
-    if (u.includes('/designs?') && u.includes(`user_id=eq.${U1}`)) return json([{ id: 'd1' }]);
+    if (u.includes('/designs?') && u.includes(`user_id=eq.${U1}`) && u.includes(`company_id=eq.${HQ}`)) return json([{ id: 'd1' }]);
     if (u.includes('/orders?') && u.includes('design_id=in.(d1)')) return json([{ id: O1, order_no: 'DD-1', design_id: 'd1', snapshot_id: 's1', status: 'in_production', contract_amount: 9900000, ordered_at: '2026-10-05T01:00:00Z' }]);
     if (u.includes('/design_snapshots?')) return json([{ id: 's1', quote_payload: { cost: { total: 6000000, fixed_recovery: 0 } } }]);
     if (u.includes('/production_assignments?')) return json([{ id: 'a', status: 'done', cost: 200000, work_date: '2026-10-21' }]);
