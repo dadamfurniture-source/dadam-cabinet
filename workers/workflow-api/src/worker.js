@@ -143,6 +143,7 @@ import {
   removeAssignment,
 } from './work/assignments.js';
 import { addWorkerUpdate, addCompanyUpdate } from './work/updates.js';
+import { acceptConsultation, listMyProjects } from './projects.js';
 
 const SERVICE = 'dadam-workflow-api';
 const VERSION = '0.1.0';
@@ -778,6 +779,21 @@ async function handleResendSlack(request, env, { params, user, ctx }) {
   return jsonResponse(request, env, { success: true, data });
 }
 
+// ===== 상담 확정 · 내 프로젝트 (src/projects.js) =====
+
+/** 관리자 — 본사 상담 일정 확정 + 고객 · 프로젝트 잇기 (상담의 연결 칸은 서버만 바꾼다) */
+async function handleAcceptConsultation(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  const data = await acceptConsultation(env, { user, consultationId: params.id, body });
+  return jsonResponse(request, env, { success: true, data });
+}
+
+/** 로그인한 사람의 고객 행에 걸린 프로젝트 — 금액 · 일정이 담겨 캐시에 남기지 않는다 */
+async function handleMyProjects(request, env, { user }) {
+  const items = await listMyProjects(env, { user });
+  return jsonResponse(request, env, { success: true, data: { items } }, 200, NO_STORE);
+}
+
 // ===== 작업자 포털 (docs/01-plan/worker-portal-contract.md §3) =====
 
 /** 작업자 이름 · 휴대폰이 담길 수 있어 중간 캐시 · 브라우저 캐시에 남기지 않는다 */
@@ -836,6 +852,10 @@ const router = createRouter([
   { method: 'POST',   path: '/orders/:orderId/reworks',     auth: 'jwt', handler: handleAddRework },
   { method: 'DELETE', path: '/orders/:orderId/reworks/:reworkId', auth: 'jwt', handler: handleDeleteRework },
   { method: 'POST',   path: '/orders/:orderId/feedback-link', auth: 'jwt', handler: handleCreateFeedbackLink },
+
+  // 상담 확정 (관리자, 본사 상담) · 내 프로젝트 (로그인한 고객)
+  { method: 'POST', path: '/consultations/:id/accept', auth: 'jwt', handler: handleAcceptConsultation },
+  { method: 'GET',  path: '/me/projects',              auth: 'jwt', handler: handleMyProjects },
 
   // 거래처 · 공급처 (관리자만)
   { method: 'GET',   path: '/counterparties',     auth: 'jwt', handler: handleListCounterparties },
