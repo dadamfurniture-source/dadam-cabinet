@@ -11,8 +11,10 @@
  *   연출컷: 상담에 붙은 연출컷이 본사 것이고 아직 프로젝트가 없을 때만 이 프로젝트에 잇는다.
  *   두 번 불러도 고객 · 프로젝트가 또 생기지 않는다 (두 번째는 상담에 이어진 것을 그대로 쓴다).
  *
- * GET /me/projects — 로그인한 사람의 고객 행(회사 무관)에 걸린 프로젝트, 최신 50개.
+ * GET /me/projects — 로그인한 사람의 고객 행(회사 무관)에 걸린 프로젝트, 최신 50개 (data 는 배열).
  *   고객에게 보여 줄 칸만 싣는다 — 원가 · 마진 · 수금 합계 · 내부 메모 · 담당자 이름은 읽지도 않는다.
+ *   취소된 수주는 단계에도 「최신 수주」에도 넣지 않는다. 회수된(revoked) 확인서는 견적 단계로 세지 않는다
+ *   (대체된 superseded 는 새 문서가 있다는 뜻이라 센다).
  */
 
 import {
@@ -142,7 +144,7 @@ export const MY_PROJECTS_LIMIT = 50;
 /** 프로젝트에 붙은 표를 읽을 때 한 번에 읽는 행 수 상한 */
 const LINKED_ROW_LIMIT = '500';
 
-/** 진행 단계 — 뒤로 갈수록 높다. 걸린 행 중 가장 높은 것 */
+/** 진행 단계 — 뒤로 갈수록 높다. 걸린 행 중 가장 높은 것 (orders 는 취소 수주를 뺀 것) */
 export const PROJECT_STAGES = Object.freeze(['consult', 'render', 'design', 'quote', 'order', 'installed']);
 
 export function projectStage({ orders = [], hasQuote = false, hasDesign = false, hasRender = false }) {
@@ -186,6 +188,7 @@ export async function listMyProjects(env, { user }) {
     selectMany(env, 'companies', { id: `in.(${companyIds.join(',')})`, select: 'id,name' }),
     selectMany(env, 'orders', {
       project_id: inProjects,
+      status: 'neq.cancelled',
       select: 'id,project_id,order_no,status,contract_amount,ordered_at,completed_at',
       order: 'ordered_at.desc,created_at.desc',
       limit: LINKED_ROW_LIMIT,
@@ -193,6 +196,7 @@ export async function listMyProjects(env, { user }) {
     selectMany(env, 'designs', { project_id: inProjects, select: 'project_id', limit: LINKED_ROW_LIMIT }),
     selectMany(env, 'design_documents', {
       doc_type: 'eq.customer_confirmation',
+      status: 'neq.revoked',
       select: 'designs!inner(project_id)',
       'designs.project_id': inProjects,
       limit: LINKED_ROW_LIMIT,

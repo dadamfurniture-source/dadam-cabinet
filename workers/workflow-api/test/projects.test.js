@@ -423,6 +423,8 @@ function myDb() {
       P(4), // 확인서
       P(5), // 수주
       P(6, { company_id: PARTNER, customer_id: 'cust-me-partner' }), // 시공 완료
+      P(7), // 설계 + 회수된 확인서 + 취소된 수주뿐 → 설계
+      P(8), // 설계 + 대체된(superseded) 확인서 → 확인서
       { id: 'p-other', company_id: HQ, customer_id: 'cust-other', title: '남의 프로젝트', status: 'active', created_at: '2026-10-09T00:00:00Z' },
     ],
     generations: [{ id: 'g2', project_id: 'p-2' }, { id: 'g-other', project_id: 'p-other' }],
@@ -431,22 +433,29 @@ function myDb() {
       { id: 'd4', project_id: 'p-4' },
       { id: 'd5', project_id: 'p-5' },
       { id: 'd6', project_id: 'p-6' },
+      { id: 'd7', project_id: 'p-7' },
+      { id: 'd8', project_id: 'p-8' },
       { id: 'd-other', project_id: 'p-other' },
     ],
     design_documents: [
-      { id: 'doc4', design_id: 'd4', doc_type: 'customer_confirmation' },
-      { id: 'doc3-wo', design_id: 'd3', doc_type: 'work_order' },
+      { id: 'doc4', design_id: 'd4', doc_type: 'customer_confirmation', status: 'issued' },
+      { id: 'doc3-wo', design_id: 'd3', doc_type: 'work_order', status: 'issued' },
+      { id: 'doc7', design_id: 'd7', doc_type: 'customer_confirmation', status: 'revoked' },
+      { id: 'doc8', design_id: 'd8', doc_type: 'customer_confirmation', status: 'superseded' },
     ],
     orders: [
-      { id: 'o5-old', project_id: 'p-5', order_no: 'SO-5A', status: 'cancelled', contract_amount: 900000, received_amount: 0, ordered_at: '2026-10-10T00:00:00Z', completed_at: null, note: '내부 메모', created_at: '2026-10-10T00:00:00Z' },
+      // 가장 최근 수주지만 취소 — 단계 · 최신 수주에서 빠진다
+      { id: 'o5-cancelled', project_id: 'p-5', order_no: 'SO-5C', status: 'cancelled', contract_amount: 900000, received_amount: 0, ordered_at: '2026-10-25T00:00:00Z', completed_at: null, note: '내부 메모', created_at: '2026-10-25T00:00:00Z' },
       { id: 'o5', project_id: 'p-5', order_no: 'SO-5B', status: 'in_production', contract_amount: 1100000, received_amount: 500000, ordered_at: '2026-10-20T00:00:00Z', completed_at: null, note: '내부 메모', created_at: '2026-10-20T00:00:00Z' },
       { id: 'o6', project_id: 'p-6', order_no: 'SO-6', status: 'completed', contract_amount: 2000000, received_amount: 2000000, ordered_at: '2026-10-11T00:00:00Z', completed_at: '2026-10-25T00:00:00Z', note: null, created_at: '2026-10-11T00:00:00Z' },
+      { id: 'o7', project_id: 'p-7', order_no: 'SO-7', status: 'cancelled', contract_amount: 700000, received_amount: 0, ordered_at: '2026-10-26T00:00:00Z', completed_at: null, created_at: '2026-10-26T00:00:00Z' },
       { id: 'o-other', project_id: 'p-other', order_no: 'SO-X', status: 'confirmed', contract_amount: 1, received_amount: 1, ordered_at: '2026-10-12T00:00:00Z', completed_at: null, created_at: '2026-10-12T00:00:00Z' },
     ],
     order_payments: [
       { id: 'pay1', order_id: 'o5', stage: 'balance', amount: 600000, due_on: '2026-11-20', paid_on: null, method: 'transfer', memo: '내부' },
       { id: 'pay2', order_id: 'o5', stage: 'deposit', amount: 500000, due_on: '2026-10-20', paid_on: '2026-10-20', method: 'card', memo: null },
-      { id: 'pay-old', order_id: 'o5-old', stage: 'deposit', amount: 900000, due_on: '2026-10-10', paid_on: null },
+      { id: 'pay-cancelled', order_id: 'o5-cancelled', stage: 'deposit', amount: 900000, due_on: '2026-10-10', paid_on: null },
+      { id: 'pay7', order_id: 'o7', stage: 'deposit', amount: 700000, due_on: '2026-10-26', paid_on: null },
     ],
     design_schedules: [
       { id: 's1', design_id: 'd5', type: 'installation', status: 'cancelled', scheduled_at: '2026-11-01T00:00:00Z', assignee_name: '설치 기사' },
@@ -458,13 +467,15 @@ function myDb() {
   });
 }
 
-test('me/projects — 내 고객 행(회사 무관)의 프로젝트만, 최신순', async () => {
+test('me/projects — data 는 프로젝트 배열, 내 고객 행(회사 무관)의 프로젝트만, 최신순', async () => {
   const fake = myDb();
   const r = await call(fake, '/me/projects', MEMBER);
   assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.success, true);
+  assert.ok(Array.isArray(r.json.data), 'data 는 배열 (items 로 감싸지 않는다)');
   assert.equal(r.headers.get('Cache-Control'), 'no-store, private');
-  const items = r.json.data.items;
-  assert.deepEqual(items.map((p) => p.id), ['p-6', 'p-5', 'p-4', 'p-3', 'p-2', 'p-1']);
+  const items = r.json.data;
+  assert.deepEqual(items.map((p) => p.id), ['p-8', 'p-7', 'p-6', 'p-5', 'p-4', 'p-3', 'p-2', 'p-1']);
   const customerRead = fake.calls.find((c) => c.path === '/rest/v1/customers');
   assert.equal(customerRead.q.get('user_id'), `eq.${MEMBER}`);
   const projectRead = fake.calls.find((c) => c.path === '/rest/v1/projects');
@@ -477,20 +488,47 @@ test('me/projects — 내 고객 행(회사 무관)의 프로젝트만, 최신�
 
 test('me/projects — 단계 사다리 (상담 → 연출컷 → 설계 → 확인서 → 수주 → 시공 완료)', async () => {
   const r = await call(myDb(), '/me/projects', MEMBER);
-  const stage = Object.fromEntries(r.json.data.items.map((p) => [p.id, p.stage]));
-  assert.deepEqual(stage, { 'p-1': 'consult', 'p-2': 'render', 'p-3': 'design', 'p-4': 'quote', 'p-5': 'order', 'p-6': 'installed' });
+  const stage = Object.fromEntries(r.json.data.map((p) => [p.id, p.stage]));
+  assert.deepEqual(stage, {
+    'p-1': 'consult', 'p-2': 'render', 'p-3': 'design', 'p-4': 'quote', 'p-5': 'order', 'p-6': 'installed',
+    'p-7': 'design', // 회수된 확인서 · 취소된 수주는 세지 않는다
+    'p-8': 'quote', // 대체된 확인서는 센다
+  });
+});
+
+test('me/projects — 취소된 수주는 단계 · 최신 수주에서 빠진다, 남은 수주가 없으면 order null · payments []', async () => {
+  const fake = myDb();
+  const r = await call(fake, '/me/projects', MEMBER);
+  const p5 = r.json.data.find((p) => p.id === 'p-5');
+  assert.equal(p5.order.order_no, 'SO-5B', '더 최근의 취소 수주(SO-5C)가 아니라 살아 있는 수주');
+  assert.ok(!p5.payments.some((x) => x.amount === 900000), '취소 수주의 수금 일정은 싣지 않는다');
+  const p7 = r.json.data.find((p) => p.id === 'p-7');
+  assert.equal(p7.order, null);
+  assert.deepEqual(p7.payments, []);
+  const orderRead = fake.calls.find((c) => c.path === '/rest/v1/orders');
+  assert.equal(orderRead.q.get('status'), 'neq.cancelled');
+  const paymentRead = fake.calls.find((c) => c.path === '/rest/v1/order_payments');
+  assert.equal(paymentRead.q.get('order_id'), 'in.(o6,o5)', '살아 있는 최신 수주만 (프로젝트 최신순)');
+});
+
+test('me/projects — 확인서 단계는 회수(revoked) 문서를 빼고 읽는다', async () => {
+  const fake = myDb();
+  await call(fake, '/me/projects', MEMBER);
+  const docRead = fake.calls.find((c) => c.path === '/rest/v1/design_documents');
+  assert.equal(docRead.q.get('doc_type'), 'eq.customer_confirmation');
+  assert.equal(docRead.q.get('status'), 'neq.revoked');
 });
 
 test('me/projects — 수주는 최신 것 하나와 그 수금 일정, 설치일은 취소 안 된 가장 이른 설치', async () => {
   const r = await call(myDb(), '/me/projects', MEMBER);
-  const p5 = r.json.data.items.find((p) => p.id === 'p-5');
+  const p5 = r.json.data.find((p) => p.id === 'p-5');
   assert.deepEqual(p5.order, { order_no: 'SO-5B', status: 'in_production', contract_amount: 1100000, ordered_at: '2026-10-20T00:00:00Z', completed_at: null });
   assert.deepEqual(p5.payments, [
     { stage: 'deposit', amount: 500000, due_on: '2026-10-20', paid_on: '2026-10-20' },
     { stage: 'balance', amount: 600000, due_on: '2026-11-20', paid_on: null },
   ]);
   assert.equal(p5.install_at, '2026-11-12T00:00:00Z');
-  const p1 = r.json.data.items.find((p) => p.id === 'p-1');
+  const p1 = r.json.data.find((p) => p.id === 'p-1');
   assert.equal(p1.order, null);
   assert.deepEqual(p1.payments, []);
   assert.equal(p1.install_at, null);
@@ -499,7 +537,7 @@ test('me/projects — 수주는 최신 것 하나와 그 수금 일정, 설치�
 test('me/projects — 원가 · 마진 · 수금 합계 · 내부 메모 · 담당자는 싣지도 읽지도 않는다', async () => {
   const fake = myDb();
   const r = await call(fake, '/me/projects', MEMBER);
-  for (const p of r.json.data.items) {
+  for (const p of r.json.data) {
     assert.deepEqual(Object.keys(p).sort(), ['company_name', 'created_at', 'id', 'install_at', 'order', 'payments', 'stage', 'status', 'title']);
     if (p.order) assert.deepEqual(Object.keys(p.order).sort(), ['completed_at', 'contract_amount', 'order_no', 'ordered_at', 'status']);
     for (const x of p.payments) assert.deepEqual(Object.keys(x).sort(), ['amount', 'due_on', 'paid_on', 'stage']);
@@ -521,12 +559,12 @@ test('me/projects — 고객 행이 없거나 프로젝트가 없으면 빈 목�
   const none = myDb();
   const a = await call(none, '/me/projects', NEWBIE);
   assert.equal(a.status, 200);
-  assert.deepEqual(a.json.data.items, []);
+  assert.deepEqual(a.json.data, []);
   assert.deepEqual(none.calls.filter((c) => c.path.startsWith('/rest/v1/')).map((c) => c.path), ['/rest/v1/customers']);
 
   const empty = fakeDb({ customers: [{ id: 'cust-x', company_id: HQ, user_id: STAFF }] });
   const b = await call(empty, '/me/projects', STAFF);
-  assert.deepEqual(b.json.data.items, []);
+  assert.deepEqual(b.json.data, []);
   assert.deepEqual(empty.calls.filter((c) => c.path.startsWith('/rest/v1/')).map((c) => c.path), ['/rest/v1/customers', '/rest/v1/projects']);
 });
 

@@ -790,8 +790,9 @@ async function handleAcceptConsultation(request, env, { params, user }) {
 
 /** 로그인한 사람의 고객 행에 걸린 프로젝트 — 금액 · 일정이 담겨 캐시에 남기지 않는다 */
 async function handleMyProjects(request, env, { user }) {
-  const items = await listMyProjects(env, { user });
-  return jsonResponse(request, env, { success: true, data: { items } }, 200, NO_STORE);
+  // data 는 프로젝트 배열 그대로 (앱 화면 계약)
+  const data = await listMyProjects(env, { user });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
 }
 
 // ===== 작업자 포털 (docs/01-plan/worker-portal-contract.md §3) =====
