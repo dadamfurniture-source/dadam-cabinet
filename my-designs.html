@@ -375,6 +375,7 @@
         var rows = [];
         var filter = 'all';
         var pollTimer = null;
+        var postsByGen = {}; // 시공사례 자동 게시 — generation id → {id, storage_path} (2026-10-27)
         var $ = function (id) {
           return document.getElementById(id);
         };
@@ -431,6 +432,7 @@
           }
           rows = res.data || [];
           await signImages(rows);
+          await loadPosts();
           $('state').textContent = '';
           render();
           // 진행 중인 것이 있으면 다시 읽는다
@@ -439,6 +441,29 @@
             pollTimer = setTimeout(function () {
               load(true);
             }, POLL_MS);
+        }
+
+        /**
+         * 시공사례에 자동으로 올라간 내 연출컷 (2026-10-27, database/collection-auto-post.sql).
+         * 워커가 AI 스튜디오 연출컷이 완성되면 대표 연출컷 한 장을 올린다 (source 'ai_render', generation_id).
+         * 못 읽으면 「시공사례에서 내리기」 를 그리지 않는다.
+         */
+        async function loadPosts() {
+          var res = await sb
+            .from('collection_posts')
+            .select('id, generation_id, storage_path')
+            .eq('user_id', user.id)
+            .eq('source', 'ai_render');
+          if (res.error) {
+            console.warn('[my-designs] 시공사례:', res.error.message);
+            postsByGen = {};
+            return;
+          }
+          var map = {};
+          (res.data || []).forEach(function (p) {
+            if (p.generation_id) map[p.generation_id] = p;
+          });
+          postsByGen = map;
         }
 
         /**
@@ -535,6 +560,8 @@
             '<button type="button" class="v5-link" data-act="planner"' +
             (r.status !== 'done' || PLANNER_KINDS.indexOf(r.category) < 0 ? ' disabled' : '') +
             '>상세설계</button>' +
+            // 시공사례에 자동으로 올라간 연출컷만 — 내리기만 있고 다시 올리기는 없다 (2026-10-27)
+            (postsByGen[r.id] ? '<button type="button" class="v5-link" data-act="unpost">시공사례에서 내리기</button>' : '') +
             '<button type="button" class="v5-link" data-act="del"' +
             (active ? ' disabled' : '') +
             '>삭제</button>' +
@@ -620,8 +647,32 @@
           load(true);
         }
 
+        /**
+         * 시공사례에서 내린다 (2026-10-27) — 게시물 행을 지우고(본인 삭제 정책) collection 버킷의 복사본을 지운다.
+         * mypage.html 시공사례 삭제와 같은 순서다: 행이 먼저 — 반대면 행은 남고 이미지만 깨진다. 다시 올리지 않는다.
+         */
+        async function unpost(r, btn) {
+          var post = postsByGen[r.id];
+          if (!post) return;
+          if (!confirm('이 연출컷을 시공사례에서 내릴까요?\n내린 뒤에는 다시 올릴 수 없습니다.')) return;
+          btn.disabled = true;
+          var res = await sb.from('collection_posts').delete().eq('id', post.id).select('id');
+          if (res.error || !res.data || !res.data.length) {
+            btn.disabled = false;
+            $('state').textContent = '시공사례에서 내리지 못했습니다' + (res.error ? ' — ' + res.error.message : '');
+            return;
+          }
+          if (post.storage_path) {
+            var rm = await sb.storage.from('collection').remove([post.storage_path]);
+            if (rm && rm.error) console.warn('[my-designs] 시공사례 파일 삭제:', rm.error.message);
+          }
+          delete postsByGen[r.id];
+          render();
+          $('state').textContent = '시공사례에서 내렸습니다';
+        }
+
         async function remove(r) {
-          if (!confirm('이 연출컷을 삭제할까요?\n이미지와 공유 링크가 함께 사라집니다.')) return;
+          if (!confirm('이 연출컷을 삭제할까요?\n이미지와 공유 링크, 시공사례에 올라간 사진이 함께 사라집니다.')) return;
           var res = await fetch(API_BASE + '/api/generate/' + r.id, { method: 'DELETE', headers: await authHeaders() });
           var data = await res.json().catch(function () {
             return {};
@@ -791,6 +842,7 @@
             else if (act === 'regen') location.href = 'ai-design.html?g=' + encodeURIComponent(r.id) + '&regen=1';
             else if (act === 'share') share(r);
             else if (act === 'planner') location.href = 'detaildesign.html?gen=' + encodeURIComponent(r.id);
+            else if (act === 'unpost') unpost(r, b);
             else if (act === 'del') remove(r);
           });
           $('modalClose').onclick = closeDetail;

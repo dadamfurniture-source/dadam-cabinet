@@ -67,6 +67,7 @@ import {
   isInternalOnly,
 } from './share.js';
 import { OWNER_SIGNED_TTL_SEC, shareSignedTtl, signImageUrls } from './storage-urls.js';
+import { removeCollectionPostsFor } from './collection-post.js';
 
 // Durable Object 클래스는 워커 진입점에서 export 되어야 런타임이 찾는다.
 export { GeminiProxy } from './proxy.js';
@@ -759,6 +760,8 @@ async function deleteGeneration(request, env, id) {
   const child = await selectOne(env, 'generations', { parent_id: `eq.${id}`, select: 'id' });
   // 2026-10-19: render-elevation_labeled · render-elevation_left … 도 입력이다 (역할 이름에 밑줄)
   const toRemove = child ? paths.filter((p) => !/\/(room|ref-\d+|render-[a-z_]+)\./.test(p)) : paths;
+  // 시공사례에 올라간 대표 연출컷도 함께 내린다 — 행과 collection 버킷의 복사본 (2026-10-27, collection-post.js)
+  await removeCollectionPostsFor(env, id);
   await removeObjects(env, toRemove);
   await deleteById(env, 'generations', id);
   return { success: true };

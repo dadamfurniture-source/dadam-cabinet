@@ -43,6 +43,10 @@ PLANNER_PLACE_GUIDE = "on"
 # 꺾인 줄은 제 옆벽에 붙여 모서리에서 방 쪽으로 칠하고, 사진에 그 옆벽이 안 보이거나 주벽 줄이 붙는 끝을 모르면 칠하지 않는다.
 # 2026-10-20 사장님 카드 "켜기" 로 켰다 (현장 ㄱ자 사진 시험 뒤). 되돌리려면 "off".
 PLANNER_PLACE_CORNERS = "on"
+# 시공사례 자동 게시 (2026-10-27, src/collection-post.js). 'on' 이면 AI 스튜디오 연출컷이 done 이 될 때 기본안 한 장을
+# 공개 버킷 collection 에 복사해 collection_posts(source 'ai_render') 로 올린다. 플래너 모드는 올리지 않는다.
+# database/collection-auto-post.sql 이 먼저 적용돼 있어야 한다. 끄려면 "off".
+COLLECTION_AUTO_POST = "on"
 # 기본안 위치 검사 — 기록 전용 (2026-10-20, src/position.js · docs/02-design/features/position-qc.md).
 # 'on' 이면 싱크대·아일랜드 기본안 1장마다 gemini-3.8-flash 2회(과부하 재시도까지 최대 4회, R2 실측 장당 약 0.65센트)로
 # 싱크·쿡탑·후드·하부장 줄 끝을 mm 로 재 generations.images[base].position 에 남긴다. 다시 그리지 않고 상태·크레딧·지연에 영향이 없다.

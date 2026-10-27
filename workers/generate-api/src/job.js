@@ -78,6 +78,7 @@ import { KITCHEN_POINTS_SCHEMA, buildKitchenPointsPrompt, buildLensPrompt, massi
 import { plannerPlaceBlocks, plannerPlaceFaces, plannerPlaceRef } from './planner-place.js';
 import { loadFridgeModelPhoto } from './appliance-image.js';
 import { positionSkipped, startPositionCheck } from './position.js';
+import { collectionPostPlan, postToCollection } from './collection-post.js';
 
 const MAX_ATTEMPTS = 2;
 /** 역판독(Claude 비전) 이미지 한도 — Anthropic 5MB, base64 는 4/3 배 (worker.js MAX_IMAGE_B64 와 같은 값) */
@@ -181,6 +182,7 @@ export class GenerateJob {
 
   async fail(job, ck, reason) {
     const hasBase = ck.images && ck.images.base;
+    let closedDone = false;
     try {
       // 기본안이 있어 done 으로 닫을 때도 내부 확인용 표시는 같은 패치에 싣는다 — 대조 전에 죽었으면 ok 가 아니다
       const internal = hasBase ? await internalOnlyPatch(this.env, job, ck) : {};
@@ -193,9 +195,12 @@ export class GenerateJob {
         ...(hasBase ? { images: slotList(ck.images) } : {}),
         ...internal,
       });
+      closedDone = !!hasBase;
     } catch (e) {
       console.error(`[Job ${job.id}] fail-patch failed:`, e.message);
     }
+    // 기본안이 있어 done 으로 닫았으면 시공사례 자동 게시 (2026-10-27, collection-post.js) — 던지지 않는다
+    if (closedDone) await postToCollection(this.env, job, ck);
     if (!hasBase && job.creditRef) {
       try {
         await refundCreditService(this.env, job.creditRef);
@@ -1315,6 +1320,18 @@ async function runPipeline(env, job, ck, save) {
   console.log(
     `[Job ${job.id}] done: variants ${variantCount}/${VARIANT_COUNT}, ${Date.now() - startedAt}ms`
   );
+  // 시공사례 자동 게시 (2026-10-27, collection-post.js) — AI 스튜디오 결과의 기본안 한 장. done 을 보낸 뒤라
+  //   연출컷을 늦추지 않고, 실패는 로그만 남긴다. 올릴 때는 재실행이 done·게시를 되풀이하지 않게 체크포인트에
+  //   done 을 먼저 남긴다 (alarm() 이 attempt 검사보다 먼저 본다 — 아래 위치 검사와 같은 표시).
+  if (collectionPostPlan(env, job, ck).ok) {
+    try {
+      ck.doneAt = ck.doneAt || Date.now();
+      await save({ doneAt: ck.doneAt });
+    } catch (e) {
+      console.warn(`[Job ${job.id}] doneAt save failed:`, e.message);
+    }
+    await postToCollection(env, job, ck);
+  }
   if (posLate) {
     // 2026-10-20: 위치 검사(기록 전용)가 done 보다 늦게 끝나는 경로(추천안 없음)만. 손님은 done 을 이미 받았다.
     //   잡 마감(10분) 20초 전까지만 기다리고, images 하나만 보낸다(status·step_label 없음). 실패는 삼킨다.
