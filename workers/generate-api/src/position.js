@@ -1345,7 +1345,7 @@ export async function runPositionCheck(env, input, deps = {}) {
       }
     }
     return recordOf(st, positionResult({ route, E, Lf, Lz, nz, W, H, roomDims, input, env: e }));
-  } catch (err) {
+  } catch {
     st.error = 'internal';
     return recordOf(st, {});
   }

@@ -55,7 +55,7 @@ async function writeAdminLog(env, row) {
       body: JSON.stringify(row),
     });
     if (!res.ok) console.warn('[account] admin_logs:', res.status);
-  } catch (e) {
+  } catch {
     console.warn('[account] admin_logs: request failed');
   }
 }

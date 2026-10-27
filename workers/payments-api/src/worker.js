@@ -20,7 +20,7 @@
  * 첫 과금: 빌링키 발급 즉시 1회차 + next_charge_at = now+30d
  */
 
-import { handleOptions, jsonResponse, corsHeaders } from './cors.js';
+import { handleOptions, jsonResponse } from './cors.js';
 import { issueBillingKey, chargeBillingKey, cancelPayment, getPayment, TossError } from './toss.js';
 import {
   AuthError,
@@ -766,7 +766,7 @@ const ROUTES = [
 ];
 
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, env) {
     if (request.method === 'OPTIONS') return handleOptions(request, env);
 
     const url = new URL(request.url);
