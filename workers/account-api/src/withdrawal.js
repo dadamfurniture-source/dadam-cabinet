@@ -7,15 +7,19 @@
  *   - 직접 올린 시공사례 행 (collection_posts.source = 'upload')
  *   - 계약 기록이 없는 설계 — 행(딸린 품목 · 도면 스냅샷 · 렌더 기록 · 현장 정보 등은 FK CASCADE)과
  *     그 설계의 renders · cad 파일
- *   - 계정 · 프로필 등은 auth 사용자를 지울 때 FK CASCADE 로
+ *   - 본사 고객 줄 (customers, 본사 · 이 계정) — 프로젝트가 딸리지 않은 것만
+ *   - 계정 · 프로필 · 회사 구성원 행 등은 auth 사용자를 지울 때 FK CASCADE 로
  * 남긴다 (회원과 떼어):
+ *   - 본사가 아닌 회사의 설계 — 회사 자료다. 계약 기록이 없어도 남긴다 (withdrawal_designs 가 남길 것으로 돌려준다)
+ *   - 본사가 아닌 회사의 고객 장부 줄, 프로젝트가 딸린 본사 고객 줄 — auth 사용자를 지울 때 user_id 만 NULL 이 된다
  *   - 시공사례에 공개된 AI 연출컷 (source = 'ai_render' 행과 그 collection 복사본)
  *   - 결제 · 구독 기록 (결제 키는 지운다)                                        — database/withdrawal-retention.sql
  *   - 계약 기록이 있는 설계 — 고객 확인서 · 계약 시점 설계 · 시공 일정 · 시공 주소 · 수주가 딸린 설계 행 그대로,
  *     그 설계의 renders · cad 파일도. 크레딧 원장도 남긴다.                       — database/withdrawal-contract-records.sql
  *   auth 사용자를 지울 때 남은 행의 user_id 는 FK 가 NULL 로 바꾼다.
  *
- * 어느 설계가 계약 기록인지는 DB 함수 withdrawal_designs(회원) 가 정한다 (withdrawal-contract-records.sql).
+ * 어느 설계를 남길지는 DB 함수 withdrawal_designs(회원) 가 정한다 (withdrawal-contract-records.sql, 회사 설계는 0008).
+ * 회사의 마지막 대표(active owner)는 탈퇴하지 않는다 — soleOwnerCompanies 로 먼저 본다 (worker.js).
  * 그 함수를 못 부르면 어느 설계도 지우지 않는다 — 계약 기록을 잃는 것보다 더 남기는 쪽이 안전하다.
  * 남길 AI 연출컷 복사본은 collection_posts 행으로 정한다. 그 행을 못 읽으면 collection 버킷은 건드리지 않는다.
  * 던지지 않는다. 결과에는 수만 담는다 (경로 · 개인 정보 없음).
@@ -61,6 +65,51 @@ async function splitDesigns(env, userId) {
 }
 
 /** 계약 기록이 없는 설계 행을 지운다 — 이 회원의 것만. 실제로 지운 id 를 돌려준다. */
+/**
+ * 회원이 active owner 인 회사 중 다른 active owner 가 없는 곳.
+ * 하나라도 있으면 탈퇴하지 않는다 — 대표를 넘긴 뒤 탈퇴한다. 읽지 못하면 던진다(부른 쪽이 탈퇴를 멈춘다).
+ * @returns {Promise<string[]>} 그런 회사 id 들
+ */
+export async function soleOwnerCompanies(env, userId) {
+  if (typeof userId !== 'string' || !UUID_RE.test(userId)) throw new Error('bad_user_id');
+  const mine = await rest(env, `company_members?user_id=eq.${userId}&role=eq.owner&status=eq.active&select=company_id`, 'GET');
+  const out = [];
+  for (const r of mine) {
+    if (!r || typeof r.company_id !== 'string' || !UUID_RE.test(r.company_id)) throw new Error('bad_company_id');
+    const others = await rest(
+      env,
+      `company_members?company_id=eq.${r.company_id}&role=eq.owner&status=eq.active&user_id=neq.${userId}&select=user_id&limit=1`,
+      'GET'
+    );
+    if (!others.length) out.push(r.company_id);
+  }
+  return out;
+}
+
+/**
+ * 본사 고객 줄 — 프로젝트가 딸리지 않은 것만 지운다.
+ * 프로젝트가 있으면 남긴다 (projects 가 고객을 RESTRICT 로 잡는다). 다른 회사의 고객 장부 줄은 건드리지 않는다.
+ * @returns {Promise<{deleted: number, kept: number}>}
+ */
+async function deleteHqCustomers(env, userId) {
+  const hq = await rest(env, 'companies?kind=eq.hq&select=id', 'GET');
+  const hqId = hq.length === 1 && hq[0] ? hq[0].id : null;
+  if (typeof hqId !== 'string' || !UUID_RE.test(hqId)) throw new Error('hq');
+  const out = { deleted: 0, kept: 0 };
+  const rows = await rest(env, `customers?company_id=eq.${hqId}&user_id=eq.${userId}&select=id`, 'GET');
+  for (const c of rows) {
+    if (!c || typeof c.id !== 'string' || !UUID_RE.test(c.id)) continue;
+    const projects = await rest(env, `projects?customer_id=eq.${c.id}&select=id&limit=1`, 'GET');
+    if (projects.length) {
+      out.kept += 1;
+      continue;
+    }
+    const gone = await rest(env, `customers?id=eq.${c.id}&user_id=eq.${userId}&select=id`, 'DELETE');
+    out.deleted += gone.length;
+  }
+  return out;
+}
+
 async function deleteDesigns(env, userId, ids) {
   const deleted = [];
   let failed = 0;
@@ -82,6 +131,7 @@ async function deleteDesigns(env, userId, ids) {
  * @returns {Promise<{complete: boolean, errors: string[],
  *   posts: {upload_deleted: number, ai_render_kept: number},
  *   designs: {deleted: number, kept: number, failed: number},
+ *   customers: {deleted: number, kept: number},
  *   files: object|null, designFiles: object|null}>}
  */
 export async function prepareWithdrawal(env, userId) {
@@ -90,6 +140,7 @@ export async function prepareWithdrawal(env, userId) {
     errors: [],
     posts: { upload_deleted: 0, ai_render_kept: 0 },
     designs: { deleted: 0, kept: 0, failed: 0 },
+    customers: { deleted: 0, kept: 0 },
     files: null,
     designFiles: null,
   };
@@ -130,7 +181,14 @@ export async function prepareWithdrawal(env, userId) {
     out.errors.push('designs_read');
   }
 
-  // 4) 파일 — 하위 요청 상한은 둘이 나눠 쓴다
+  // 4) 본사 고객 줄 — 프로젝트가 없는 것만. 못 하면 줄이 남고(계정 연결만 끊김) 기록에 남긴다.
+  try {
+    out.customers = await deleteHqCustomers(env, userId);
+  } catch {
+    out.errors.push('customers');
+  }
+
+  // 5) 파일 — 하위 요청 상한은 둘이 나눠 쓴다
   const ctx = makePurgeContext();
   out.files = await purgeUserFiles(
     env,
@@ -160,6 +218,7 @@ export function withdrawalDetail(w) {
     complete: !!(w && w.complete),
     posts: { ...((w && w.posts) || {}) },
     designs: { ...((w && w.designs) || {}) },
+    customers: { ...((w && w.customers) || {}) },
     files,
     ...(w && w.errors && w.errors.length ? { errors: w.errors.slice() } : {}),
     ...(fileErr ? { files_error: fileErr } : {}),
@@ -172,9 +231,11 @@ export function withdrawalSummary(w) {
   if (!w) return 'withdrawal: -';
   const p = w.posts || {};
   const d = w.designs || {};
+  const c = w.customers || {};
   return (
     `posts: upload_deleted=${p.upload_deleted || 0} ai_render_kept=${p.ai_render_kept || 0}` +
     ` designs: deleted=${d.deleted || 0} kept=${d.kept || 0}${d.failed ? ` failed=${d.failed}` : ''}` +
+    ` customers: deleted=${c.deleted || 0} kept=${c.kept || 0}` +
     `${w.errors && w.errors.length ? ` errors=${w.errors.join(',')}` : ''} ${purgeSummary(w.files)}` +
     ` design-${purgeSummary(w.designFiles)} complete=${!!w.complete}`
   );

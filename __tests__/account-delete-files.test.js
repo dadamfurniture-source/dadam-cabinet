@@ -13,6 +13,9 @@
  *   4) database/withdrawal-retention.sql — 남길 FK 는 SET NULL, 문의는 CASCADE, 구독 결제 키는 트리거로 지운다
  *   5) 연출컷 삭제(워커 DELETE /api/generate/:id)는 게시물 행 · 복사본을 먼저 지운다 — FK 가 SET NULL 이 돼도 그 길은 그대로
  *   6) mypage.html 탈퇴 안내 — 지우는 것 · 남는 것
+ *   7) 회사의 마지막 대표는 탈퇴하지 않는다(409, 확인 못 하면 503) — 아무것도 건드리기 전에 본다
+ *   8) 본사 고객 줄은 프로젝트가 없을 때만 지운다. 다른 회사 고객 장부 줄은 건드리지 않는다
+ *   9) database/migrations/0008 — 본사가 아닌 회사의 설계는 계약 기록이 없어도 남긴다
  *
  * ESM 을 jest(CJS) 에서 읽기 위해 import · export 를 떼고, import 하던 것은 인자로 넣어 평가한다.
  */
@@ -41,7 +44,7 @@ const P = loadEsm('workers/account-api/src/storage-purge.js', [
   'purgeUserFiles',
   'purgeSummary',
 ]);
-const Wd = loadEsm('workers/account-api/src/withdrawal.js', ['prepareWithdrawal', 'withdrawalDetail', 'withdrawalSummary'], {
+const Wd = loadEsm('workers/account-api/src/withdrawal.js', ['prepareWithdrawal', 'soleOwnerCompanies', 'withdrawalDetail', 'withdrawalSummary'], {
   UUID_RE: P.UUID_RE,
   makePurgeContext: P.makePurgeContext,
   purgeDesignFiles: P.purgeDesignFiles,
@@ -54,6 +57,7 @@ const W = loadEsm('workers/account-api/src/worker.js', ['__default'], {
   handleOptions: C.handleOptions,
   jsonResponse: C.jsonResponse,
   prepareWithdrawal: Wd.prepareWithdrawal,
+  soleOwnerCompanies: Wd.soleOwnerCompanies,
   withdrawalDetail: Wd.withdrawalDetail,
   withdrawalSummary: Wd.withdrawalSummary,
 }).__default;
@@ -63,6 +67,15 @@ const ENV = { SUPABASE_URL: SB, SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE
 const UID = '11111111-1111-4111-8111-111111111111';
 const OTHER = '99999999-9999-4999-8999-999999999999';
 const ADMIN = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+// 회사 · 고객: HQ 는 본사, CO_X 는 협력업체. CUST_HQ 는 이 회원의 본사 고객 줄, CUST_X 는 협력업체 장부 줄
+const HQ = '0000000a-0000-4000-8000-00000000000a';
+const CO_X = '0000000b-0000-4000-8000-00000000000b';
+const CUST_HQ = '0000000c-0000-4000-8000-00000000000c';
+const CUST_X = '0000000d-0000-4000-8000-00000000000d';
+const CUSTOMERS = () => [
+  { id: CUST_HQ, company_id: HQ, user_id: UID },
+  { id: CUST_X, company_id: CO_X, user_id: UID },
+];
 
 function jsonRes(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -75,12 +88,25 @@ function jsonRes(body, status = 200) {
 function fakeSupabase(
   files,
   posts,
-  { failDelete = [], failList = [], failPosts = {}, admin = false, designs = DESIGNS(), failDesigns = {} } = {}
+  {
+    failDelete = [],
+    failList = [],
+    failPosts = {},
+    admin = false,
+    designs = DESIGNS(),
+    failDesigns = {},
+    members = [],
+    failMembers = false,
+    hq = HQ,
+    customers = CUSTOMERS(),
+    projects = [],
+  } = {}
 ) {
   const store = {};
   for (const [bucket, paths] of Object.entries(files)) store[bucket] = new Set(paths);
   const rows = posts.map((p) => ({ ...p }));
   const designRows = designs.map((d) => ({ ...d }));
+  const customerRows = customers.map((c) => ({ ...c }));
   const calls = [];
   const fetchImpl = async (url, init = {}) => {
     const u = decodeURIComponent(String(url));
@@ -139,6 +165,41 @@ function fakeSupabase(
       for (const d of hit) designRows.splice(designRows.indexOf(d), 1);
       return jsonRes(hit.map((d) => ({ id: d.id })));
     }
+    // 회사 대표 — 내가 active owner 인 회사, 그 회사의 다른 active owner
+    m = u.match(/\/rest\/v1\/company_members\?user_id=eq\.([0-9a-f-]+)&role=eq\.owner&status=eq\.active&select=company_id$/);
+    if (m && method === 'GET') {
+      calls.push({ kind: 'owners_mine', auth });
+      if (failMembers) return jsonRes({ message: 'boom' }, 500);
+      return jsonRes(members.filter((r) => r.user_id === m[1] && r.role === 'owner' && r.status === 'active').map((r) => ({ company_id: r.company_id })));
+    }
+    m = u.match(/\/rest\/v1\/company_members\?company_id=eq\.([0-9a-f-]+)&role=eq\.owner&status=eq\.active&user_id=neq\.([0-9a-f-]+)&select=user_id&limit=1$/);
+    if (m && method === 'GET') {
+      calls.push({ kind: 'owners_other', auth });
+      const hit = members.filter((r) => r.company_id === m[1] && r.role === 'owner' && r.status === 'active' && r.user_id !== m[2]);
+      return jsonRes(hit.slice(0, 1).map((r) => ({ user_id: r.user_id })));
+    }
+    // 본사 고객 줄
+    if (u.endsWith('/rest/v1/companies?kind=eq.hq&select=id') && method === 'GET') {
+      calls.push({ kind: 'hq', auth });
+      return jsonRes(hq ? [{ id: hq }] : []);
+    }
+    m = u.match(/\/rest\/v1\/customers\?company_id=eq\.([0-9a-f-]+)&user_id=eq\.([0-9a-f-]+)&select=id$/);
+    if (m && method === 'GET') {
+      calls.push({ kind: 'customers_read', auth });
+      return jsonRes(customerRows.filter((c) => c.company_id === m[1] && c.user_id === m[2]).map((c) => ({ id: c.id })));
+    }
+    m = u.match(/\/rest\/v1\/projects\?customer_id=eq\.([0-9a-f-]+)&select=id&limit=1$/);
+    if (m && method === 'GET') {
+      calls.push({ kind: 'projects_read', auth });
+      return jsonRes(projects.filter((p) => p.customer_id === m[1]).slice(0, 1).map((p) => ({ id: p.id })));
+    }
+    m = u.match(/\/rest\/v1\/customers\?id=eq\.([0-9a-f-]+)&user_id=eq\.([0-9a-f-]+)&select=id$/);
+    if (m && method === 'DELETE') {
+      calls.push({ kind: 'customers_delete', id: m[1], auth });
+      const hit = customerRows.filter((c) => c.id === m[1] && c.user_id === m[2]);
+      for (const c of hit) customerRows.splice(customerRows.indexOf(c), 1);
+      return jsonRes(hit.map((c) => ({ id: c.id })));
+    }
     if (u.endsWith('/auth/v1/user')) {
       calls.push({ kind: 'whoami' });
       return jsonRes(auth === 'Bearer admin-token' ? { id: ADMIN, email: 'admin@dadam.test' } : { id: UID, email: 'customer@example.com' });
@@ -158,7 +219,7 @@ function fakeSupabase(
     }
     throw new Error(`unexpected ${method} ${u}`);
   };
-  return { store, rows, designRows, calls, fetchImpl };
+  return { store, rows, designRows, customerRows, calls, fetchImpl };
 }
 
 // 설계: D_KEEP 은 계약 기록(확인서 · 수주)이 있다 — 남긴다. D_DROP 은 없다 — 지운다. D_OTHER 는 다른 회원 것
@@ -364,6 +425,7 @@ describe('/delete — 본인 탈퇴', () => {
       complete: true,
       posts: { upload_deleted: 1, ai_render_kept: 1 },
       designs: { deleted: 1, kept: 1, failed: 0 },
+      customers: { deleted: 1, kept: 0 },
       files: {
         generations: { deleted: 5, failed: 0 },
         'design-images': { deleted: 2, failed: 0 },
@@ -378,7 +440,7 @@ describe('/delete — 본인 탈퇴', () => {
     expect(text).not.toContain(D_DROP);
     expect(logs.join('\n')).not.toContain(UID);
     expect(logs.join('\n')).toMatch(
-      /posts: upload_deleted=1 ai_render_kept=1 designs: deleted=1 kept=1 .*collection=2\/3 kept=1 .*renders=2\/2 cad=2\/2 .*complete=true/
+      /posts: upload_deleted=1 ai_render_kept=1 designs: deleted=1 kept=1 customers: deleted=1 kept=0 .*collection=2\/3 kept=1 .*renders=2\/2 cad=2\/2 .*complete=true/
     );
   });
 
@@ -687,5 +749,115 @@ describe('admin_logs 정본 열', () => {
     }
     expect(table).not.toMatch(/\baction\s+TEXT/);
     expect(table).not.toMatch(/\bdetail\b/);
+  });
+});
+
+describe('prepareWithdrawal — 본사 고객 줄', () => {
+  test('프로젝트가 없는 본사 고객 줄만 지운다 — 다른 회사 장부 줄은 건드리지 않는다', async () => {
+    const sb = fakeSupabase(FILES(), POSTS());
+    global.fetch = sb.fetchImpl;
+    const w = await Wd.prepareWithdrawal(ENV, UID);
+    expect(w.complete).toBe(true);
+    expect(w.customers).toEqual({ deleted: 1, kept: 0 });
+    expect(sb.customerRows.map((c) => c.id)).toEqual([CUST_X]);
+    expect(sb.calls.filter((c) => c.kind === 'customers_delete').map((c) => c.id)).toEqual([CUST_HQ]);
+    expect(sb.calls.filter((c) => /^(hq|customers_|projects_)/.test(c.kind)).every((c) => c.auth === 'Bearer service')).toBe(true);
+  });
+
+  test('프로젝트가 딸린 본사 고객 줄은 남긴다', async () => {
+    const sb = fakeSupabase(FILES(), POSTS(), { projects: [{ id: 'p1', customer_id: CUST_HQ }] });
+    global.fetch = sb.fetchImpl;
+    const w = await Wd.prepareWithdrawal(ENV, UID);
+    expect(w.customers).toEqual({ deleted: 0, kept: 1 });
+    expect(sb.customerRows.map((c) => c.id).sort()).toEqual([CUST_HQ, CUST_X].sort());
+    expect(sb.calls.some((c) => c.kind === 'customers_delete')).toBe(false);
+  });
+
+  test('본사를 못 찾으면 고객 줄은 그대로 두고 기록에 남긴다 — 나머지 정리는 한다', async () => {
+    const sb = fakeSupabase(FILES(), POSTS(), { hq: null });
+    global.fetch = sb.fetchImpl;
+    const w = await Wd.prepareWithdrawal(ENV, UID);
+    expect(w.complete).toBe(false);
+    expect(w.errors).toEqual(['customers']);
+    expect(sb.customerRows).toHaveLength(2);
+    expect(sb.calls.some((c) => c.kind === 'customers_read')).toBe(false);
+    expect(w.posts).toEqual({ upload_deleted: 1, ai_render_kept: 1 });
+  });
+});
+
+describe('회사의 마지막 대표는 탈퇴하지 않는다', () => {
+  const TOUCH = ['list', 'delete', 'posts_read', 'posts_delete', 'designs_split', 'designs_delete', 'customers_delete', 'admin_log', 'auth_delete'];
+
+  test('/delete — 마지막 대표면 409, 아무것도 건드리지 않는다', async () => {
+    const sb = fakeSupabase(FILES(), POSTS(), { members: [{ company_id: CO_X, user_id: UID, role: 'owner', status: 'active' }] });
+    global.fetch = sb.fetchImpl;
+    const res = await W.fetch(post('/delete', 'user-token'), ENV);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ success: false, code: 'sole_owner' });
+    expect(sb.calls.filter((c) => TOUCH.includes(c.kind))).toHaveLength(0);
+  });
+
+  test('/delete — 다른 active 대표가 있으면 탈퇴한다 (removed 대표 · staff 는 세지 않는다)', async () => {
+    const members = [
+      { company_id: CO_X, user_id: UID, role: 'owner', status: 'active' },
+      { company_id: CO_X, user_id: OTHER, role: 'staff', status: 'active' },
+      { company_id: CO_X, user_id: ADMIN, role: 'owner', status: 'removed' },
+    ];
+    const blocked = fakeSupabase(FILES(), POSTS(), { members });
+    global.fetch = blocked.fetchImpl;
+    expect((await W.fetch(post('/delete', 'user-token'), ENV)).status).toBe(409);
+
+    const sb = fakeSupabase(FILES(), POSTS(), {
+      members: [...members, { company_id: CO_X, user_id: OTHER, role: 'owner', status: 'active' }],
+    });
+    global.fetch = sb.fetchImpl;
+    expect((await W.fetch(post('/delete', 'user-token'), ENV)).status).toBe(200);
+    expect(sb.calls.some((c) => c.kind === 'auth_delete')).toBe(true);
+  });
+
+  test('/delete — 대표인지 확인하지 못하면 503, 아무것도 건드리지 않는다', async () => {
+    const sb = fakeSupabase(FILES(), POSTS(), { failMembers: true });
+    global.fetch = sb.fetchImpl;
+    const res = await W.fetch(post('/delete', 'user-token'), ENV);
+    expect(res.status).toBe(503);
+    expect(sb.calls.filter((c) => TOUCH.includes(c.kind))).toHaveLength(0);
+  });
+
+  test('/admin/delete — 대상이 마지막 대표면 409, 아무것도 건드리지 않는다', async () => {
+    const sb = fakeSupabase(FILES(), POSTS(), {
+      admin: true,
+      members: [{ company_id: CO_X, user_id: OTHER, role: 'owner', status: 'active' }],
+    });
+    global.fetch = sb.fetchImpl;
+    const res = await W.fetch(post('/admin/delete', 'admin-token', { user_id: OTHER }), ENV);
+    expect(res.status).toBe(409);
+    expect(sb.calls.filter((c) => TOUCH.includes(c.kind))).toHaveLength(0);
+  });
+
+  test('soleOwnerCompanies — UUID 가 아니면 묻지 않고 던진다', async () => {
+    global.fetch = async () => {
+      throw new Error('fetch 하면 안 된다');
+    };
+    await expect(Wd.soleOwnerCompanies(ENV, 'x')).rejects.toThrow('bad_user_id');
+  });
+});
+
+describe('database/migrations/0008_withdrawal_company.sql', () => {
+  const sql = read('database/migrations/0008_withdrawal_company.sql');
+  const code = sql
+    .split('\n')
+    .map((l) => l.replace(/--.*$/, ''))
+    .join('\n');
+  const flat = code.replace(/\s+/g, ' ');
+
+  test('모양 · 권한은 그대로 — CREATE OR REPLACE 하나, GRANT · REVOKE · 트랜잭션 문 없음', () => {
+    expect(flat).toContain('CREATE OR REPLACE FUNCTION public.withdrawal_designs(p_user_id uuid) RETURNS TABLE(design_id uuid, contract boolean) LANGUAGE sql STABLE SET search_path TO \'public\'');
+    expect(code).not.toMatch(/\b(GRANT|REVOKE|DROP|SECURITY DEFINER)\b/);
+    expect(code.replace(/\$function\$[\s\S]*?\$function\$/g, '')).not.toMatch(/^\s*(BEGIN|COMMIT|ROLLBACK|END)\b/im);
+  });
+
+  test('본사가 아닌 회사의 설계 · 확인서 · 수주가 딸린 설계를 남긴다 — 이 회원의 설계만', () => {
+    expect(flat).toContain('d.company_id IS DISTINCT FROM public.hq_company_id() OR EXISTS (SELECT 1 FROM public.design_documents x WHERE x.design_id = d.id) OR EXISTS (SELECT 1 FROM public.orders o WHERE o.design_id = d.id)');
+    expect(flat).toContain('FROM public.designs d WHERE d.user_id = p_user_id');
   });
 });
