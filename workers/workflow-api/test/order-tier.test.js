@@ -7,6 +7,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { HQ, companyRoute } from './fixtures/company.js';
 import { tierOf, createOrderFromDocument, listOrders, updateOrder } from '../src/orders.js';
 import { summarizeMonth } from '../src/production/service.js';
 import { scenarioBase } from '../src/management/summary.js';
@@ -58,7 +59,8 @@ const DOC = (tier) => ({
 });
 const createRoute = (doc, { missing = false } = {}) => (u, method, body) => {
   if (method === 'GET' && u.includes('/design_documents?')) return json([doc]);
-  if (method === 'GET' && u.includes('/designs?')) return json([{ id: 'D1', user_id: 'U1' }]);
+  if (companyRoute(u)) return companyRoute(u);
+  if (method === 'GET' && u.includes('/designs?')) return json([{ id: 'D1', user_id: 'U1', company_id: HQ }]);
   if (method === 'GET' && u.includes('/orders?')) return json([]);
   if (method === 'POST' && u.endsWith('/orders')) return missing && 'price_tier' in body ? NO_COLUMN() : json([{ id: 'O1', ...body }], 201);
   return null;
@@ -90,7 +92,8 @@ test('수주 만들기: 구분 칸이 아직 DB 에 없어도 수주는 막히�
 
 test('수주 목록: 구분 칸까지 읽고, 칸이 없으면 빼고 다시 읽는다', async () => {
   const route = (missing) => (u, method) => {
-    if (u.includes('/designs?')) return json([{ id: 'D1', user_id: 'U1' }]);
+    if (companyRoute(u)) return companyRoute(u);
+    if (u.includes('/designs?')) return json([{ id: 'D1', user_id: 'U1', company_id: HQ }]);
     if (method === 'GET' && u.includes('/orders?')) {
       if (u.includes('price_tier')) return missing ? NO_COLUMN() : json([{ id: 'O1', price_tier: 'partner' }]);
       return json([{ id: 'O1' }]);
@@ -107,7 +110,8 @@ test('수주 목록: 구분 칸까지 읽고, 칸이 없으면 빼고 다시 읽
 
 const updateRoute = (missing) => (u, method, body) => {
   if (method === 'GET' && u.includes('/orders?')) return json([{ id: 'O1', design_id: 'D1', status: 'confirmed' }]);
-  if (method === 'GET' && u.includes('/designs?')) return json([{ id: 'D1', user_id: 'U1' }]);
+  if (companyRoute(u)) return companyRoute(u);
+  if (method === 'GET' && u.includes('/designs?')) return json([{ id: 'D1', user_id: 'U1', company_id: HQ }]);
   if (method === 'PATCH' && u.includes('/orders?')) return missing ? NO_COLUMN() : json([{ id: 'O1', ...body }]);
   return null;
 };

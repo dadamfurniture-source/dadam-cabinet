@@ -5,6 +5,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { HQ, companyRoute } from './fixtures/company.js';
 import { countertopRequests, workdaysBefore, hasCountertop, countertopModelIds, countertopQty, isSinkModule, isCookModule } from '../src/countertop.js';
 import { renderWorkOrder, normalizePack } from '../src/templates/work-order.js';
 import { planSvg } from '../src/templates/countertop-order.js';
@@ -204,7 +205,8 @@ async function withFetch(route, fn) {
 }
 const routes = ({ settings = null, snap = sinkSnapshot() } = {}) => (u, m) => {
   if (u.includes('/design_documents?')) return json([fx.doc({ id: DOC, design_id: D1, snapshot_id: 's1' })]);
-  if (u.includes('/designs?')) return json([{ id: D1, user_id: U1 }]);
+  if (companyRoute(u)) return companyRoute(u);
+  if (u.includes('/designs?')) return json([{ id: D1, user_id: U1, company_id: HQ }]);
   if (u.includes('/design_snapshots?')) return json([snap]);
   if (u.includes('/production_settings?')) return json(settings ? [{ settings }] : []);
   if (u.includes('/orders?')) return json([{ id: O1 }]);

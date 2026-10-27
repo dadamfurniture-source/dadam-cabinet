@@ -54,6 +54,7 @@ export async function createOutsourceOrder(env, { user, documentId, body = {} })
   const pack = String(body.pack || '');
   const def = OUTSOURCE_PACKS[pack];
   if (!def) throw new ValidationError('pack 은 door · cut-vendor · top 중 하나여야 합니다');
+  // 외주 발주 기록은 업체 · 수량 · 날짜뿐 — 업체 구성원 누구나
   const { doc, snapshot } = await getDocumentForOwner(env, { documentId, user });
   if (doc.doc_type !== 'work_order') throw new ValidationError('작업지시서에서만 외주 발주를 처리합니다');
 

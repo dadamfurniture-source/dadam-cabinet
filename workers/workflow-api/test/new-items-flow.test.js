@@ -15,6 +15,7 @@ import { renderWorkOrder, labelGroups } from '../src/templates/work-order.js';
 import { isOutsourcedCutRow } from '../src/work-order-data.js';
 import { calculateSheetQuote } from '../src/quote-sheet.js';
 import * as fx from './fixtures/work-order-v2.js';
+import { HQ, companyRoute } from './fixtures/company.js';
 
 // 플래너 BOM 그대로의 행 (아일랜드 측판 · EL장 측판 · 밥솥장 MDF 18T 상자)
 const ISLAND_NOTE = '목찬넬 따내기 상단 70×40 · [확인 필요] 아일랜드 몸통 깊이';
@@ -148,7 +149,8 @@ function withFakeSupabase(fn) {
       posts.push(body);
       return json([{ id: 'S1', created_at: '2026-10-20T00:00:00Z', ...body }], 201);
     }
-    if (/\/designs\?/.test(u)) return json([{ id: 'D1', user_id: 'U1', title: '테스트 설계' }]);
+    if (companyRoute(u)) return companyRoute(u);
+    if (/\/designs\?/.test(u)) return json([{ id: 'D1', user_id: 'U1', title: '테스트 설계', company_id: HQ }]);
     if (/\/pricing_rule_sets\?/.test(u))
       return json([{ id: 'RS1', name: 'seed', is_active: true }]);
     if (/\/pricing_rules\?/.test(u)) return json([]);

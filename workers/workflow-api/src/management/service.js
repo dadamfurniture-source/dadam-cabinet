@@ -3,8 +3,13 @@
  *
  * **관리자만** 본다. 수주는 설계 주인 기준이 아니라 회사 전체다 (작업 지시 보고 보관함과
  * 같은 방식). 상담은 고객이 남긴 것이라 건수만 읽는다 — 이름 · 연락처는 싣지 않는다.
+ *
+ * 본사 대시보드다 — 수주 · 상담 · 연출컷 · 설계는 company_id 로, 수주 · 설계에 붙은 표
+ * (원가 · 수금 · 재작업 · 설치 후 문항 · 확인서 · 일정)는 PostgREST 내장 조인(!inner)으로 본사 것만 읽는다.
+ * 업체 칸이 없는 표(주문 없는 작업 기록 · 거래처 · 외주 발주 보관함 · 현금 잔액 · 과거 매출 · 분기 목표 ·
+ * 생산 설정)는 그대로 읽는다.
  */
-import { selectMany, selectOne, ForbiddenError } from '../supabase.js';
+import { selectMany, selectOne, hqCompanyId, ForbiddenError } from '../supabase.js';
 import { isAdmin } from '../reports/admin.js';
 import { mergeSettings, kstDate } from '../production/service.js';
 import { buildManagementSummary, prevMonthOf, QUALITY_WINDOW_DAYS, PARTNER_WINDOW_DAYS, monthsOfQuarter } from './summary.js';
@@ -38,6 +43,16 @@ export function mergeLogs(a, b) {
   return out;
 }
 
+/** 수주에 붙은 표(order_id)를 본사 수주 것만 — orders!inner 로 걸러 읽는다 */
+export function hqByOrder(query, hq) {
+  return { ...query, select: `${query.select},orders!inner(company_id)`, 'orders.company_id': `eq.${hq}` };
+}
+
+/** 설계에 붙은 표(design_id)를 본사 설계 것만 — designs!inner 로 걸러 읽는다 */
+export function hqByDesign(query, hq) {
+  return { ...query, select: `${query.select},designs!inner(company_id)`, 'designs.company_id': `eq.${hq}` };
+}
+
 /**
  * 경영 숫자에 쓰는 설정. 보는 사람이 저장한 생산 설정이 있으면 그것,
  * 없으면 가장 최근에 저장된 생산 설정(사장님 것)을 쓴다 — 직원 관리자가 열어도
@@ -57,29 +72,32 @@ export async function getManagementSummary(env, { user, month }) {
   // 지난 달(비교) 또는 분기 첫 달(분기 목표 누계) 중 이른 쪽부터 읽는다
   const firstOfQuarter = monthsOfQuarter(quarterOf(m))[0];
   const since = `${[prevMonthOf(m), firstOfQuarter].sort()[0]}-01T00:00:00+09:00`;
+  const hq = await hqCompanyId(env);
+  const HQ = `eq.${hq}`;
 
   const [orders, documents, consultations, generations, designs, settings] = await Promise.all([
     // 구분(price_tier) 칸까지 — 칸이 아직 없으면 빼고 읽는다
     selectOrders(env, {
       select: 'id,order_no,design_id,snapshot_id,customer_name,contract_amount,status,ordered_at',
+      company_id: HQ,
       ordered_at: `gte.${since}`,
       order: 'ordered_at.desc',
       limit: '1000',
     }),
     // 코호트는 설계에 확인서가 '처음' 나간 달로 묶는다 — 그래서 기간을 자르지 않고 읽는다
-    selectMany(env, 'design_documents', {
+    selectMany(env, 'design_documents', hqByDesign({
       // 수정 요청 사유 코드만 꺼낸다 (메모 · 서명은 읽지 않는다)
       select: 'design_id,doc_type,status,decision,created_at,first_viewed_at,decided_at,reasons:render_payload->decision_reasons',
       doc_type: 'eq.customer_confirmation',
       order: 'created_at.asc',
       limit: '5000',
-    }),
+    }, hq)),
     // 상담은 건수와 '누가' 만 — 이름 · 연락처는 읽지 않는다
-    selectMany(env, 'consultations', { select: 'created_at,user_id', created_at: `gte.${since}`, limit: '5000' }).catch(() => null),
+    selectMany(env, 'consultations', { select: 'created_at,user_id', company_id: HQ, created_at: `gte.${since}`, limit: '5000' }).catch(() => null),
     // 연출컷도 상태 · 사람 · 시각만 — 이미지 · 입력은 읽지 않는다
-    selectMany(env, 'generations', { select: 'id,user_id,status,created_at', created_at: `gte.${since}`, limit: '5000' }).catch(() => null),
+    selectMany(env, 'generations', { select: 'id,user_id,status,created_at', company_id: HQ, created_at: `gte.${since}`, limit: '5000' }).catch(() => null),
     // 연출컷에서 시작한 설계 — 연출컷보다 늦게 생기므로 같은 기간으로 충분하다
-    selectMany(env, 'designs', { select: 'id,generation_id', generation_id: 'not.is.null', created_at: `gte.${since}`, limit: '5000' }).catch(() => []),
+    selectMany(env, 'designs', { select: 'id,generation_id', company_id: HQ, generation_id: 'not.is.null', created_at: `gte.${since}`, limit: '5000' }).catch(() => []),
     businessSettings(env, user),
   ]);
 
@@ -108,24 +126,25 @@ export async function getManagementSummary(env, { user, month }) {
     limit: '10000',
   }).catch(() => [])) || [];
   // 재작업 · A/S (반년 창) — 표가 아직 없으면(2단계 SQL 전) null
-  const reworks = await selectMany(env, 'rework_logs', {
+  const reworks = await selectMany(env, 'rework_logs', hqByOrder({
     select: 'order_id,kind,cause,occurred_on,minutes,cost',
     and: `(occurred_on.gte.${windowStart(m, QUALITY_WINDOW_DAYS + 31)},occurred_on.lte.${monthLastDay(m)})`,
     limit: '5000',
-  }).catch(() => null);
+  }, hq)).catch(() => null);
   const installed = (await selectMany(env, 'orders', {
     select: 'id,status,delivered_at,completed_at',
+    company_id: HQ,
     status: 'in.(delivered,completed)',
     order: 'ordered_at.desc',
     limit: '2000',
   }).catch(() => [])) || [];
   // 설치 후 한 문항 (반년 창, 링크를 만든 날 또는 답한 날 기준) — 점수 · 날짜만 읽는다, 한 줄 메모는 읽지 않는다
   const fbFrom = windowStart(m, QUALITY_WINDOW_DAYS + 31);
-  const feedback = await selectMany(env, 'install_feedback', {
+  const feedback = await selectMany(env, 'install_feedback', hqByOrder({
     select: 'score,created_at,answered_at',
     or: `(created_at.gte.${fbFrom},answered_at.gte.${fbFrom})`,
     limit: '5000',
-  }).catch(() => null);
+  }, hq)).catch(() => null);
   // 거래처 · 공급처 (한 해 창) — 표 · 칸이 아직 없으면 null
   const yearFrom = windowStart(m, PARTNER_WINDOW_DAYS + 31);
   const counterparties = await selectMany(env, 'counterparties', { select: 'id,kind,name,category,active', limit: '2000' }).catch(() => null);
@@ -134,16 +153,17 @@ export async function getManagementSummary(env, { user, month }) {
     [partnerOrders, supplierCosts, outsource] = await Promise.all([
       selectMany(env, 'orders', {
         select: 'id,partner_id,price_tier,contract_amount,snapshot_id,status,ordered_at',
+        company_id: HQ,
         or: '(partner_id.not.is.null,price_tier.eq.partner)',
         ordered_at: `gte.${yearFrom}T00:00:00+09:00`,
         limit: '5000',
       }).catch(() => null),
-      selectMany(env, 'order_costs', {
+      selectMany(env, 'order_costs', hqByOrder({
         select: 'counterparty_id,amount,spent_on,created_at',
         counterparty_id: 'not.is.null',
         created_at: `gte.${windowStart(m, PARTNER_WINDOW_DAYS + 400)}T00:00:00+09:00`,
         limit: '10000',
-      }).catch(() => []),
+      }, hq)).catch(() => []),
       selectMany(env, 'work_reports', {
         select: 'status,period_start,period_end,metrics',
         kind: 'in.(outsource_order,countertop_order)',
@@ -161,14 +181,15 @@ export async function getManagementSummary(env, { user, month }) {
   // 현금 (오늘부터 13주) — 수금 · 잔액 표가 아직 없으면 null
   const [balances, payments] = await Promise.all([
     selectMany(env, 'cash_balances', { select: 'as_of,amount,created_at', order: 'as_of.desc,created_at.desc', limit: '20' }).catch(() => null),
-    selectMany(env, 'order_payments', { select: 'order_id,stage,amount,due_on,paid_on', limit: '10000' }).catch(() => null),
+    selectMany(env, 'order_payments', hqByOrder({ select: 'order_id,stage,amount,due_on,paid_on', limit: '10000' }, hq)).catch(() => null),
   ]);
   let dueCosts = [], cashOrders = [], installs = new Map();
   if (payments) {
     [dueCosts, cashOrders] = await Promise.all([
-      selectMany(env, 'order_costs', { select: 'amount,due_on,spent_on', spent_on: 'is.null', due_on: 'not.is.null', limit: '5000' }).catch(() => []),
+      selectMany(env, 'order_costs', hqByOrder({ select: 'amount,due_on,spent_on', spent_on: 'is.null', due_on: 'not.is.null', limit: '5000' }, hq)).catch(() => []),
       selectMany(env, 'orders', {
         select: 'id,order_no,customer_name,design_id,contract_amount,received_amount,status,delivered_at,completed_at',
+        company_id: HQ,
         status: 'in.(confirmed,in_production,delivered,completed)',
         limit: '3000',
       }).catch(() => []),
@@ -191,17 +212,18 @@ export async function getManagementSummary(env, { user, month }) {
   // 리드타임 · 납기 (반년 창) — planned_at · completed_at 칸이 아직 없으면(3단계 SQL 전) null
   const leadFrom = windowStart(m, QUALITY_WINDOW_DAYS + 120);
   const [schedules, leadOrders] = await Promise.all([
-    selectMany(env, 'design_schedules', {
+    selectMany(env, 'design_schedules', hqByDesign({
       select: 'design_id,type,status,scheduled_at,planned_at,completed_at',
       type: 'in.(measurement,manufacturing_start,manufacturing_end,installation)',
       scheduled_at: `gte.${leadFrom}T00:00:00+09:00`,
       limit: '10000',
-    }).catch(() => null),
-    selectMany(env, 'orders', { select: 'design_id,ordered_at,status', ordered_at: `gte.${leadFrom}T00:00:00+09:00`, limit: '5000' }).catch(() => []),
+    }, hq)).catch(() => null),
+    selectMany(env, 'orders', { select: 'design_id,ordered_at,status', company_id: HQ, ordered_at: `gte.${leadFrom}T00:00:00+09:00`, limit: '5000' }).catch(() => []),
   ]);
   // 원판 사용량 — 재단이 끝난(납품 · 완료) 수주의 견적 장수 대 재단 실측 장수
   const doneOrders = ((await selectMany(env, 'orders', {
     select: 'id,order_no,customer_name,snapshot_id,status,delivered_at,completed_at',
+    company_id: HQ,
     status: 'in.(delivered,completed)',
     order: 'ordered_at.desc',
     limit: '1000',
@@ -224,7 +246,7 @@ export async function getManagementSummary(env, { user, month }) {
   const threeYears = new Date(Date.now() - 3 * 365 * 86400000).toISOString().slice(0, 10);
   const [history, sysOrders] = await Promise.all([
     selectMany(env, 'sales_history', { select: 'month,revenue,orders', order: 'month.asc', limit: '240' }).catch(() => null),
-    selectMany(env, 'orders', { select: 'contract_amount,status,ordered_at', ordered_at: `gte.${threeYears}`, limit: '10000' }).catch(() => []),
+    selectMany(env, 'orders', { select: 'contract_amount,status,ordered_at', company_id: HQ, ordered_at: `gte.${threeYears}`, limit: '10000' }).catch(() => []),
   ]);
   // 분기 목표 — 표가 아직 없으면 null
   const okrs = await selectMany(env, 'okrs', { quarter: `eq.${quarterOf(m)}`, select: 'id,objective,metric,target,direction,manual_value,sort', order: 'sort.asc', limit: '20' }).catch(() => null);

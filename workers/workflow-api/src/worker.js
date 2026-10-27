@@ -43,7 +43,8 @@ import {
   GoneError,
   DbError,
   verifyJwt,
-  assertDesignOwner,
+  assertDesignAccess,
+  hqCompanyId,
   selectOne,
 } from './supabase.js';
 import {
@@ -54,16 +55,16 @@ import {
   reportSummary,
   backfillReports,
 } from './reports/service.js';
-import { isAdmin } from './reports/admin.js';
 import { getManagementSummary } from './management/service.js';
 import { createOutsourceOrder, listOutsourceOrders, loadCountertopContext } from './reports/outsource.js';
 import { renderReportPrint } from './templates/report-print.js';
-import { createSnapshot, listSnapshots, getSnapshot, previewQuote } from './snapshots.js';
+import { createSnapshot, listSnapshots, getSnapshotForViewer, previewQuote, quoteForViewer } from './snapshots.js';
 import { getFrozenAssembly, uploadCadArtifact, listCadArtifacts, customerExteriorUrl } from './cad-artifacts.js';
 import {
   issueDocument,
   listDocuments,
   getDocumentForOwner,
+  documentForViewer,
   revokeDocument,
   renderDocument,
   resolvePrintAssets,
@@ -79,7 +80,7 @@ import {
   addCost,
   deleteCost,
 } from './orders.js';
-import { listReworks, addRework, deleteRework } from './rework.js';
+import { listReworks, addRework, deleteRework, reworksForViewer } from './rework.js';
 import { getFeedback, createFeedbackLink, openFeedback, answerFeedback } from './feedback.js';
 import { listCounterparties, createCounterparty, updateCounterparty } from './counterparties.js';
 import { listPayments, addPayment, updatePayment, deletePayment, updateCostDates, addCashBalance } from './payments.js';
@@ -178,7 +179,7 @@ async function handleCreateSnapshot(request, env, { params, user }) {
   const body = await readJson(request);
   if (!body) throw new ValidationError('JSON 본문을 해석할 수 없습니다');
 
-  const { snapshot, reused } = await createSnapshot(env, {
+  const { snapshot, reused, money } = await createSnapshot(env, {
     designId: params.designId,
     user,
     body,
@@ -199,7 +200,8 @@ async function handleCreateSnapshot(request, env, { params, user }) {
         panel_count: snapshot.panel_count,
         // B4: 재단 배치 원판 장수. 배치를 안 보냈거나 DB 컬럼이 없으면 null
         sheet_count: snapshot.sheet_count === undefined ? null : snapshot.sheet_count,
-        quote: snapshot.quote_payload, // W11-3 이후 채워짐
+        // W11-3 이후 채워짐. 원가 · 수금 권한이 없으면 원가 · 마진 칸을 뺀다
+        quote: quoteForViewer(snapshot.quote_payload, money),
         reused,
         created_at: snapshot.created_at,
       },
@@ -219,7 +221,7 @@ async function handleListSnapshots(request, env, { params, user }) {
 }
 
 async function handleGetSnapshot(request, env, { params, user }) {
-  const snapshot = await getSnapshot(env, { snapshotId: params.snapshotId, user });
+  const snapshot = await getSnapshotForViewer(env, { snapshotId: params.snapshotId, user });
   return jsonResponse(request, env, { success: true, data: snapshot });
 }
 
@@ -293,30 +295,24 @@ async function handleListDocuments(request, env, { params, user }) {
 }
 
 async function handleGetDocument(request, env, { params, user }) {
-  const { doc, snapshot } = await getDocumentForOwner(env, {
+  // 문서 행 그대로 — 원가 · 수금 권한이 없으면 render_payload.quote 의 원가 · 마진만 뺀다
+  const { doc, snapshot, money } = await getDocumentForOwner(env, {
     documentId: params.documentId,
     user,
   });
   return jsonResponse(request, env, {
     success: true,
-    data: { ...doc, snapshot_rev: snapshot.rev, snapshot_content_hash: snapshot.content_hash },
+    data: { ...documentForViewer(doc, money), snapshot_rev: snapshot.rev, snapshot_content_hash: snapshot.content_hash },
   });
 }
 
-/** 내부용 인쇄 화면. 작업지시서는 여기서 연다. */
 /**
- * 인쇄용 문서 — 설계 주인 것, 또는 관리자(보관함에서 남의 작업지시서를 연다 — work-reports-archive.plan.md §5).
+ * 내부용 인쇄 화면. 작업지시서는 여기서 연다.
+ * 접근은 설계 접근 규칙 그대로 — 관리자는 본사 설계 문서를 연다 (보관함에서 남의 작업지시서 — work-reports-archive.plan.md §5),
+ * 협력업체 설계 문서는 열지 못한다. 인쇄물에는 원가 · 마진이 없다.
  */
 async function getDocumentForPrint(env, { documentId, user }) {
-  try {
-    return await getDocumentForOwner(env, { documentId, user });
-  } catch (err) {
-    if (!(err instanceof ForbiddenError) || !(await isAdmin(env, user))) throw err;
-    const doc = await selectOne(env, 'design_documents', { id: `eq.${documentId}`, select: '*' });
-    const snapshot = doc ? await selectOne(env, 'design_snapshots', { id: `eq.${doc.snapshot_id}`, select: '*' }) : null;
-    if (!doc || !snapshot) throw new NotFoundError('문서를 찾을 수 없습니다');
-    return { doc, snapshot };
-  }
+  return getDocumentForOwner(env, { documentId, user });
 }
 
 async function handlePrintDocument(request, env, { params, user }) {
@@ -382,13 +378,13 @@ async function handlePublicConfirm(request, env) {
 }
 
 async function handleGetSiteInfo(request, env, { params, user }) {
-  await assertDesignOwner(env, params.designId, user.id);
+  await assertDesignAccess(env, params.designId, user, { money: false });
   const site = await getSiteInfo(env, params.designId);
   return jsonResponse(request, env, { success: true, data: site });
 }
 
 async function handleSaveSiteInfo(request, env, { params, user }) {
-  await assertDesignOwner(env, params.designId, user.id);
+  await assertDesignAccess(env, params.designId, user, { money: false });
   const body = (await readJson(request)) || {};
   const saved = await saveSiteInfo(env, params.designId, body);
   return jsonResponse(request, env, { success: true, data: saved });
@@ -400,29 +396,44 @@ async function handleCreateOrder(request, env, { params, user, ctx }) {
     user,
   });
   // 새 수주면 생산 계획을 다시 돌려 대표에게 인력 추천을 보낸다. 응답을 막지 않고, 실패해도 수주는 그대로다.
+  // 제안은 본사 Slack 으로 나가므로 본사 수주일 때만.
   if (!reused && ctx && typeof ctx.waitUntil === 'function') {
     ctx.waitUntil(
-      proposePlan(env, {
-        user,
-        trigger: 'order_created',
-        orderId: order.id,
-        triggerLabel: `새 수주 ${order.customer_name ? order.customer_name + ' · ' : ''}${order.order_no}`,
-      }).catch((e) => console.error('production proposal failed:', e && e.message)),
+      (async () => {
+        if (!(await isHqWork(env, { companyId: order.company_id }))) return;
+        await proposePlan(env, {
+          user,
+          trigger: 'order_created',
+          orderId: order.id,
+          triggerLabel: `새 수주 ${order.customer_name ? order.customer_name + ' · ' : ''}${order.order_no}`,
+        });
+      })().catch((e) => console.error('production proposal failed:', e && e.message)),
     );
   }
   return jsonResponse(request, env, { success: true, data: { ...order, reused } }, reused ? 200 : 201);
 }
 
 // ── 생산 계획 · 인력 추천 ──
+/** 본사 설계 · 수주의 일인가 — 생산 계획 · 제안은 본사 Slack 으로 나간다. companyId 를 모르면 설계에서 읽는다 */
+async function isHqWork(env, { companyId = null, designId = null }) {
+  const hq = await hqCompanyId(env);
+  if (companyId) return companyId === hq;
+  const design = designId ? await selectOne(env, 'designs', { id: `eq.${designId}`, select: 'company_id' }) : null;
+  return Boolean(design) && design.company_id === hq;
+}
+
 /**
  * 계획에 영향을 주는 변경(설치 일정 등록·변경, 수주 취소) 뒤에 응답을 막지 않고 다시 계획한다.
+ * 본사 설계 · 수주의 변경일 때만 (scope: { companyId } 또는 { designId }).
  * 실패는 로그만 남긴다 — 원래 요청(일정·수주 저장)은 이미 끝났다.
  */
-function replanLater(env, ctx, user, triggerLabel) {
+function replanLater(env, ctx, user, triggerLabel, scope) {
   if (!ctx || typeof ctx.waitUntil !== 'function') return;
   ctx.waitUntil(
-    proposePlan(env, { user, trigger: 'manual', triggerLabel })
-      .catch((e) => console.error('production replan failed:', e && e.message)),
+    (async () => {
+      if (!(await isHqWork(env, scope))) return;
+      await proposePlan(env, { user, trigger: 'manual', triggerLabel });
+    })().catch((e) => console.error('production replan failed:', e && e.message)),
   );
 }
 
@@ -585,13 +596,14 @@ async function handleListOrders(request, env, { user }) {
 }
 
 async function handleGetOrder(request, env, { params, user }) {
-  const data = await getOrder(env, { orderId: params.orderId, user });
+  // 원가 · 마진 · 수금 · 재작업 비용은 원가 · 수금 권한(대표 · 실장 · 본사 주인 · 관리자)이 있을 때만 싣는다
+  const { money, ...data } = await getOrder(env, { orderId: params.orderId, user });
   // 재작업 · A/S — 표가 아직 없으면(2단계 SQL 전) null 이고 화면이 안내를 띄운다
-  data.reworks = await listReworks(env, params.orderId);
+  data.reworks = reworksForViewer(await listReworks(env, params.orderId), money);
   // 설치 후 한 문항 — 같은 방식으로 표가 없으면 null
   data.feedback = await getFeedback(env, params.orderId);
   // 수금 일정 — 표가 없으면 null
-  data.payments = await listPayments(env, params.orderId);
+  if (money) data.payments = await listPayments(env, params.orderId);
   return jsonResponse(request, env, { success: true, data });
 }
 
@@ -689,7 +701,9 @@ async function handleUpdateOrder(request, env, { params, user, ctx }) {
   const patch = (await readJson(request)) || {};
   const order = await updateOrder(env, { orderId: params.orderId, user, patch });
   // 취소되면 그 주문이 차지하던 공장 시간이 풀린다
-  if (patch.status === 'cancelled') replanLater(env, ctx, user, `수주 취소 ${order && order.order_no ? order.order_no : ''}`.trim());
+  if (patch.status === 'cancelled') {
+    replanLater(env, ctx, user, `수주 취소 ${order && order.order_no ? order.order_no : ''}`.trim(), { companyId: order && order.company_id });
+  }
   return jsonResponse(request, env, { success: true, data: order });
 }
 
@@ -739,7 +753,7 @@ async function handleCreateSchedules(request, env, { params, user, ctx }) {
   // Slack 전송은 응답 후에 일어난다. 실패해도 일정은 이미 저장돼 있다.
   // 설치 일정이 들어오면 생산 마감이 바뀌므로 계획을 다시 돌린다.
   if (Array.isArray(body.items) && body.items.some((it) => it && it.type === 'installation')) {
-    replanLater(env, ctx, user, '설치 일정 등록');
+    replanLater(env, ctx, user, '설치 일정 등록', { designId: params.designId });
   }
   return jsonResponse(request, env, { success: true, data }, 201);
 }
@@ -754,7 +768,7 @@ async function handleUpdateSchedule(request, env, { params, user, ctx }) {
   const row = await updateSchedule(env, { scheduleId: params.scheduleId, user, patch });
   // 설치 날짜가 옮겨지거나 취소되면 마감이 바뀐다
   if (row && row.type === 'installation' && (patch.scheduled_at !== undefined || patch.status !== undefined)) {
-    replanLater(env, ctx, user, '설치 일정 변경');
+    replanLater(env, ctx, user, '설치 일정 변경', { designId: row.design_id });
   }
   return jsonResponse(request, env, { success: true, data: row });
 }

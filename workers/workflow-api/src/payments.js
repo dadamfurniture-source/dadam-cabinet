@@ -88,7 +88,7 @@ async function write(fn) {
 }
 
 export async function addPayment(env, { orderId, user, body }) {
-  await loadOwnedOrder(env, orderId, user);
+  await loadOwnedOrder(env, orderId, user, { money: true });
   const row = await write(() => insertOne(env, 'order_payments', { ...validatePayment(body), order_id: orderId, created_by: user.id }));
   const received = await syncReceived(env, orderId);
   return { payment: row, received };
@@ -101,7 +101,7 @@ async function ownedPayment(env, orderId, paymentId) {
 }
 
 export async function updatePayment(env, { orderId, paymentId, user, body }) {
-  await loadOwnedOrder(env, orderId, user);
+  await loadOwnedOrder(env, orderId, user, { money: true });
   await ownedPayment(env, orderId, paymentId);
   const patch = validatePayment(body, { partial: true });
   if (!Object.keys(patch).length) throw new ValidationError('바꿀 칸이 없습니다');
@@ -111,7 +111,7 @@ export async function updatePayment(env, { orderId, paymentId, user, body }) {
 }
 
 export async function deletePayment(env, { orderId, paymentId, user }) {
-  await loadOwnedOrder(env, orderId, user);
+  await loadOwnedOrder(env, orderId, user, { money: true });
   await ownedPayment(env, orderId, paymentId);
   await restDelete(env, 'order_payments', { id: `eq.${paymentId}` });
   const received = await syncReceived(env, orderId);
@@ -120,7 +120,7 @@ export async function deletePayment(env, { orderId, paymentId, user }) {
 
 /** 지급: 원가 줄의 낸 날 · 낼 날을 고친다 ("냈음" 단추) */
 export async function updateCostDates(env, { orderId, costId, user, body }) {
-  await loadOwnedOrder(env, orderId, user);
+  await loadOwnedOrder(env, orderId, user, { money: true });
   const cost = await selectOne(env, 'order_costs', { id: `eq.${costId}`, select: 'id,order_id' });
   if (!cost || cost.order_id !== orderId) throw new NotFoundError('원가 항목을 찾을 수 없습니다');
   const patch = {};

@@ -6,6 +6,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { HQ, companyRoute } from './fixtures/company.js';
 import {
   feedbackStatus, validateAnswer, buildFeedbackUrl, hashFeedbackToken,
   getFeedback, createFeedbackLink, openFeedback, answerFeedback, FEEDBACK_QUESTION,
@@ -39,7 +40,8 @@ async function withFetch(route, fn) {
 }
 const owned = (u, method) => {
   if (method === 'GET' && u.includes('/orders?')) return json([{ id: 'O1', design_id: 'D1' }]);
-  if (method === 'GET' && u.includes('/designs?')) return json([{ id: 'D1', user_id: 'U1' }]);
+  if (companyRoute(u)) return companyRoute(u);
+  if (method === 'GET' && u.includes('/designs?')) return json([{ id: 'D1', user_id: 'U1', company_id: HQ }]);
   return null;
 };
 const FUTURE = '2099-01-01T00:00:00Z';

@@ -6,6 +6,7 @@
  */
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { HQ, companyRoute } from './fixtures/company.js';
 import { validatePayment, receivedOf, addPayment, updateCostDates, addCashBalance, listPayments } from '../src/payments.js';
 import { cashflowOf, agingOf, buildManagementSummary } from '../src/management/summary.js';
 import { clearAdminCache } from '../src/reports/admin.js';
@@ -37,7 +38,8 @@ async function withFetch(route, fn) {
 }
 const owned = (u, method) => {
   if (method === 'GET' && u.includes('/orders?')) return json([{ id: 'O1', design_id: 'D1' }]);
-  if (method === 'GET' && u.includes('/designs?')) return json([{ id: 'D1', user_id: 'U1' }]);
+  if (companyRoute(u)) return companyRoute(u);
+  if (method === 'GET' && u.includes('/designs?')) return json([{ id: 'D1', user_id: 'U1', company_id: HQ }]);
   return null;
 };
 beforeEach(() => clearAdminCache());

@@ -14,8 +14,12 @@ import {
   insertOne,
   updateById,
   restDelete,
-  assertDesignOwner,
+  assertDesignAccess,
+  designAccess,
+  companyAccess,
+  hqCompanyId,
   ValidationError,
+  ForbiddenError,
   NotFoundError,
   ConflictError,
   DbError,
@@ -96,10 +100,11 @@ function toAmount(v, field) {
 export async function createOrderFromDocument(env, { documentId, user }) {
   const doc = await selectOne(env, 'design_documents', { id: `eq.${documentId}`, select: '*' });
   if (!doc) throw new NotFoundError('문서를 찾을 수 없습니다');
-  await assertDesignOwner(env, doc.design_id, user.id);
+  // 수주(상태 · 계약금)는 업체 구성원 누구나 만든다 — 수금액만 원가 · 수금 권한으로 가린다
+  const { design, money } = await designAccess(env, doc.design_id, user);
 
   const existing = await selectOne(env, 'orders', { document_id: `eq.${documentId}`, select: '*' });
-  if (existing) return { order: existing, reused: true };
+  if (existing) return { order: orderForViewer(existing, money), reused: true };
 
   // 아무 문서나 수주가 되면 안 된다. 고객이 승인한 확인서만이 계약의 근거다.
   if (doc.doc_type !== 'customer_confirmation') {
@@ -124,6 +129,9 @@ export async function createOrderFromDocument(env, { documentId, user }) {
     contract_amount: contract,
     status: 'confirmed',
     created_by: user.id,
+    // 업체 · 프로젝트는 설계 것을 그대로 — DB 복합 FK (design_id, company_id) 가 같은 업체만 받는다
+    company_id: design.company_id,
+    project_id: design.project_id,
   };
   // 구분은 확인서를 낸 금액 종류(고객용 · 거래처용)를 그대로 옮긴다. 칸이 아직 없으면 빼고 넣는다
   const tier = totals.price_tier === 'partner' ? 'partner' : 'customer';
@@ -134,42 +142,106 @@ export async function createOrderFromDocument(env, { documentId, user }) {
     if (!isMissingTierColumn(e)) throw e;
     order = await insertOne(env, 'orders', row);
   }
-  return { order, reused: false };
+  return { order: orderForViewer(order, money), reused: false };
 }
 
+/**
+ * 수금액(received_amount)은 원가 · 수금 권한이 있을 때만 싣는다.
+ * 나머지 수주 칸(상태 · 계약금 · 날짜 · 메모)은 업체 구성원 누구나 본다.
+ */
+export function orderForViewer(order, money) {
+  if (money || !order) return order;
+  const out = { ...order };
+  delete out.received_amount;
+  return out;
+}
+
+const ORDER_LIST_SELECT =
+  'id,order_no,design_id,document_id,snapshot_id,customer_name,contract_amount,received_amount,status,ordered_at,delivered_at,completed_at,note,created_at';
+
+function orderListQuery() {
+  return { select: ORDER_LIST_SELECT, order: 'ordered_at.desc', limit: '200' };
+}
+
+/**
+ * 수주 목록 — designAccess 와 같은 규칙.
+ *   업체 구성원 → 그 업체 수주 전부, 관리자 → 본사 수주 전부, 그 밖에는 내가 만든 본사 설계의 수주.
+ *   수금액은 줄마다 원가 · 수금 권한(owner · manager · 본사 주인 · 관리자)이 있을 때만.
+ * RLS 는 service_role 에 적용되지 않으므로 여기서 직접 거른다.
+ */
 export async function listOrders(env, { user, designId }) {
-  const query = {
-    select: 'id,order_no,design_id,document_id,snapshot_id,customer_name,contract_amount,received_amount,status,ordered_at,delivered_at,completed_at,note,created_at',
-    order: 'ordered_at.desc',
-    limit: '200',
-  };
+  const query = orderListQuery();
   if (designId) {
-    await assertDesignOwner(env, designId, user.id);
+    const { money } = await designAccess(env, designId, user);
     query.design_id = `eq.${designId}`;
-    return selectOrders(env, query);
+    return (await selectOrders(env, query)).map((o) => orderForViewer(o, money));
   }
-  // 설계 지정이 없으면 내 설계의 수주 전부.
-  // RLS 는 service_role 에 적용되지 않으므로 소유 설계를 직접 필터해야 한다.
+  const hq = await hqCompanyId(env);
+  const access = await companyAccess(env, user, { hq });
+  // 내가 만든 본사 설계 (주인 규칙) — 본사 원가 · 수금 권한이 이미 있으면 따로 볼 것이 없다
+  const own = access.money.has(hq) ? [] : await ownHqDesignIds(env, user, hq);
+  const or = [];
+  if (access.all.size) or.push(`company_id.in.(${[...access.all].join(',')})`);
+  if (own.length && !access.all.has(hq)) or.push(`design_id.in.(${own.join(',')})`);
+  if (or.length === 0) return [];
+  query.or = `(${or.join(',')})`;
+  // 업체는 줄마다 권한을 보는 데만 쓰고, 응답 칸은 예전 그대로 둔다
+  query.select = `${query.select},company_id`;
+  const ownSet = new Set(own);
+  return (await selectOrders(env, query)).map((o) => {
+    const out = { ...orderForViewer(o, access.money.has(o.company_id) || ownSet.has(o.design_id)) };
+    delete out.company_id;
+    return out;
+  });
+}
+
+/** 내가 만든 본사 설계 id (예전 수주 목록의 기준) */
+async function ownHqDesignIds(env, user, hq) {
   const designs = (await selectMany(env, 'designs', {
     select: 'id',
     user_id: `eq.${user.id}`,
+    company_id: `eq.${hq}`,
     limit: '500',
   })) || [];
-  if (designs.length === 0) return [];
-  const ids = designs.map((d) => d.id).join(',');
-  query.design_id = `in.(${ids})`;
-  return selectOrders(env, query);
+  return designs.map((d) => d.id);
 }
 
-export async function loadOwnedOrder(env, orderId, user) {
+/**
+ * 생산 계획 · 월 손익의 입력 — 내가 만든 본사 설계의 수주 (예전 listOrders 와 같은 범위).
+ * 계획 · 아침 요약은 본사 Slack 으로 나가므로 본사 수주만 싣는다.
+ */
+export async function listOwnHqOrders(env, { user }) {
+  const hq = await hqCompanyId(env);
+  const ids = await ownHqDesignIds(env, user, hq);
+  if (ids.length === 0) return [];
+  return selectOrders(env, { ...orderListQuery(), company_id: `eq.${hq}`, design_id: `in.(${ids.join(',')})` });
+}
+
+/** 수주 하나 + 설계 접근 — { order, money }. money: 원가 · 수금 권한 */
+export async function orderAccess(env, orderId, user) {
   const order = await selectOne(env, 'orders', { id: `eq.${orderId}`, select: '*' });
   if (!order) throw new NotFoundError('수주를 찾을 수 없습니다');
-  await assertDesignOwner(env, order.design_id, user.id);
+  const { money } = await designAccess(env, order.design_id, user);
+  return { order, money };
+}
+
+/**
+ * 수주 하나 + 설계 접근 확인. money: 원가 · 수금 · 재작업 비용을 다루는 경로면 true (기본) — 권한이 없으면 403.
+ */
+export async function loadOwnedOrder(env, orderId, user, { money = true } = {}) {
+  const order = await selectOne(env, 'orders', { id: `eq.${orderId}`, select: '*' });
+  if (!order) throw new NotFoundError('수주를 찾을 수 없습니다');
+  await assertDesignAccess(env, order.design_id, user, { money });
   return order;
 }
 
+/**
+ * 수주 상세. 원가 · 마진은 원가 · 수금 권한이 있을 때만 — 없으면 수주 기본 정보(수금액 뺀 수주 행)만.
+ * money 는 부르는 쪽(worker.js)이 수금 일정 · 재작업 비용을 붙일지 정하는 데 쓴다 (응답에 싣지 않는다).
+ */
 export async function getOrder(env, { orderId, user }) {
-  const order = await loadOwnedOrder(env, orderId, user);
+  const { order, money } = await orderAccess(env, orderId, user);
+  if (!money) return { order: orderForViewer(order, false), money: false };
   const costs = (await selectMany(env, 'order_costs', {
     select: '*',
     order_id: `eq.${orderId}`,
@@ -180,7 +252,7 @@ export async function getOrder(env, { orderId, user }) {
     id: `eq.${order.snapshot_id}`,
     select: 'rev,quote_payload',
   });
-  return { order, costs, margin: summarizeMargin(order, costs, snapshot && snapshot.quote_payload) };
+  return { order, costs, margin: summarizeMargin(order, costs, snapshot && snapshot.quote_payload), money: true };
 }
 
 /**
@@ -217,8 +289,15 @@ export function summarizeMargin(order, costs, quote) {
   };
 }
 
+/**
+ * 수주 고치기. 상태 · 날짜 · 메모 · 구분 · 거래처는 업체 구성원 누구나,
+ * 수금액(received_amount)은 원가 · 수금 권한이 있을 때만 (없으면 403). 응답의 수금액도 같은 권한으로 가린다.
+ */
 export async function updateOrder(env, { orderId, user, patch }) {
-  const order = await loadOwnedOrder(env, orderId, user);
+  const { order, money } = await orderAccess(env, orderId, user);
+  if (patch.received_amount !== undefined && !money) {
+    throw new ForbiddenError('원가 · 수금은 업체 대표 · 실장만 볼 수 있습니다');
+  }
   const allowed = {};
 
   if (patch.status !== undefined) {
@@ -264,7 +343,7 @@ export async function updateOrder(env, { orderId, user, patch }) {
 
   if (Object.keys(allowed).length === 0) throw new ValidationError('변경할 필드가 없습니다');
   try {
-    return await updateById(env, 'orders', orderId, allowed);
+    return orderForViewer(await updateById(env, 'orders', orderId, allowed), money);
   } catch (e) {
     if (isMissingTierColumn(e)) throw new ValidationError('수주 구분 칸이 아직 DB 에 없습니다 — database/orders-price-tier.sql 을 실행해 주세요');
     if (isMissingRelation(e) && /partner_id/.test(e.message)) throw new ValidationError(COUNTERPARTY_NEED_SQL);
@@ -273,7 +352,7 @@ export async function updateOrder(env, { orderId, user, patch }) {
 }
 
 export async function addCost(env, { orderId, user, body }) {
-  await loadOwnedOrder(env, orderId, user);
+  await loadOwnedOrder(env, orderId, user, { money: true });
   const category = String(body.category || '').trim();
   if (!COST_CATEGORIES.includes(category)) {
     throw new ValidationError(`category 는 ${COST_CATEGORIES.join(', ')} 중 하나여야 합니다`);
@@ -312,7 +391,7 @@ export async function addCost(env, { orderId, user, body }) {
 }
 
 export async function deleteCost(env, { orderId, costId, user }) {
-  await loadOwnedOrder(env, orderId, user);
+  await loadOwnedOrder(env, orderId, user, { money: true });
   const cost = await selectOne(env, 'order_costs', { id: `eq.${costId}`, select: 'id,order_id' });
   if (!cost || cost.order_id !== orderId) throw new NotFoundError('원가 항목을 찾을 수 없습니다');
   await restDelete(env, 'order_costs', { id: `eq.${costId}` });

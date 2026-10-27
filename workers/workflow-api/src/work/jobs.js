@@ -353,11 +353,19 @@ export async function listJobsAdmin(env, { user, query = {} }) {
   }
 }
 
-/** POST /work/admin/jobs — 초안으로 만든다 (주소 · 연락처 칸은 받지 않는다) */
+/**
+ * POST /work/admin/jobs — 초안으로 만든다 (주소 · 연락처 칸은 받지 않는다).
+ * 주문에서 만드는 작업은 업체(company_id)를 그 주문 것으로 — 아니면 DB 기본값(본사)을 둔다.
+ */
 export async function createJobAdmin(env, { user, body }) {
   await requireAdminEditor(env, user);
   const fields = jobFields(body, { partial: false });
-  const job = await insertOne(env, 'work_jobs', { ...fields, status: 'draft', version: 0, created_by: user.id });
+  const row = { ...fields, status: 'draft', version: 0, created_by: user.id };
+  if (fields.order_id) {
+    const order = await selectOne(env, 'orders', { id: `eq.${fields.order_id}`, select: 'company_id' });
+    if (order) row.company_id = order.company_id;
+  }
+  const job = await insertOne(env, 'work_jobs', row);
   await recordEvent(env, { jobId: job.id, actorUserId: user.id, actorKind: 'admin', type: 'job_created', to: 'draft' });
   return job;
 }
