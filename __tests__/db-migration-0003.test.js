@@ -230,6 +230,7 @@ describe('0003 — RLS', () => {
     );
     for (const name of ['customers_admin_read', 'projects_admin_read']) {
       const at = SQL.indexOf(`DROP POLICY IF EXISTS ${name} ON`);
+      expect([name, at > 0]).toEqual([name, true]);
       const before = SQL.slice(Math.max(0, at - 300), at);
       expect([name, /TODO:.*파트너/.test(before)]).toEqual([name, true]);
     }
@@ -244,7 +245,10 @@ describe('0003 — 시드', () => {
   });
 
   test('본사 owner 는 super_admin 이 정확히 한 명일 때 그 계정만 — 이메일을 적지 않는다', () => {
-    const seed = CODE.slice(CODE.indexOf('INSERT INTO public.company_members'));
+    // 정규식으로 자른다 — 문장이 없으면 null 이라 아래에서 크게 실패한다
+    const found = CODE.match(/INSERT INTO public\.company_members [\s\S]*$/);
+    expect(found).not.toBeNull();
+    const seed = found[0];
     expect(seed).toMatch(/a\.role = 'super_admin'/);
     expect(seed).toMatch(
       /\(SELECT count\(\*\) FROM public\.admin_roles WHERE role = 'super_admin'\) = 1/
