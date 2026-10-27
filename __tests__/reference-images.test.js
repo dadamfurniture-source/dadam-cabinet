@@ -14,7 +14,8 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').split('\r\n').join('\n');
+const { version: ASSET_VERSION } = require('../scripts/asset-version.json');
+const read =(p) => fs.readFileSync(path.join(ROOT, p), 'utf8').split('\r\n').join('\n');
 
 const SQL = read('database/reference-images.sql');
 const body = SQL.replace(/--[^\n]*/g, '');
@@ -281,7 +282,7 @@ describe('admin/reference-images.html — 관리자 화면', () => {
 
   test('공용 모듈과 관리자 판정을 싣는다', () => {
     expect(PAGE).toContain('<script src="../js/config.js"></script>');
-    expect(PAGE).toContain('<script src="../js/admin-access.js?v=36.1"></script>');
+    expect(PAGE).toContain(`<script src="../js/admin-access.js?v=${ASSET_VERSION}"></script>`);
     expect(PAGE).toContain('<script src="../js/reference-images.js"></script>');
     expect(script).toMatch(/window\.AdminAccess \? await window\.AdminAccess\.isAdmin\(sb\) : false/);
     expect(script).toMatch(/if \(!isAdmin\) \{ showAccessDenied\(\); return; \}/);

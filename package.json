@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "node scripts/check-site-assets.mjs",
+    "asset-version": "node scripts/stamp-asset-version.mjs",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{js,ts,tsx,json,css,md,html}\"",

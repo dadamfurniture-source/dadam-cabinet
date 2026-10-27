@@ -10,7 +10,8 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const SHELL = fs.readFileSync(path.join(ROOT, 'js/admin-shell.js'), 'utf8');
+const { version: ASSET_VERSION } = require('../scripts/asset-version.json');
+const SHELL =fs.readFileSync(path.join(ROOT, 'js/admin-shell.js'), 'utf8');
 const PAGES = fs.readdirSync(path.join(ROOT, 'admin')).filter((f) => f.endsWith('.html'));
 const read = (f) => fs.readFileSync(path.join(ROOT, 'admin', f), 'utf8');
 
@@ -67,7 +68,7 @@ describe('각 관리자 페이지', () => {
 
   test('메뉴를 바꾸면 모든 관리자 페이지의 ?v= 를 같이 올린다 — 한 페이지만 옛 메뉴를 캐시에서 꺼내지 않게', () => {
     const versions = PAGES.map((f) => (read(f).match(/<script src="\.\.\/js\/admin-shell\.js(\?v=[\d.]+)?"><\/script>/) || [])[1] || '(없음)');
-    expect(new Set(versions)).toEqual(new Set(['?v=2']));
+    expect(new Set(versions)).toEqual(new Set([`?v=${ASSET_VERSION}`])); // 사이트 자산 버전 하나 (scripts/asset-version.json)
   });
 
   test.each(PAGES)('%s — 관리자 판정은 AdminAccess, 하드코딩 이메일 없음', (f) => {
