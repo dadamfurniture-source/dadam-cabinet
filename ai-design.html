@@ -6,22 +6,108 @@
     <title>AI 이미지 스튜디오 — 다담가구</title>
     <meta name="description" content="공간 사진과 참고 이미지를 넣으면 연출컷이 생성됩니다." />
 
+    <!-- 첫 화면 (2026-10-27) — 휴대폰 첫 화면의 가장 큰 요소(LCP)는 마퀴 첫 타일이다.
+         타일은 배경 이미지라 브라우저가 CSS 를 다 읽은 뒤에야 찾는다. 미리 알려 먼저 받게 한다.
+         마퀴·시공사례 칸은 app/portfolio/display/ 의 가벼운 사본(같은 사진·같은 크기, 다시 압축)을 보여 주고,
+         생성 요청에는 원본(app/portfolio/*.jpg)을 그대로 보낸다.
+         마퀴는 AVIF 를 먼저 쓰고 못 읽는 브라우저는 JPEG 사본을 쓴다 (아래 <style> 의 .mq-1~6).
+         type 을 적어 AVIF 를 못 읽는 브라우저는 이 미리 받기를 건너뛴다. -->
+    <link
+      rel="preload"
+      as="image"
+      href="app/portfolio/display/kitchen-n1-1.avif"
+      type="image/avif"
+      fetchpriority="high"
+    />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- 이 페이지가 실제로 그리는 굵기만 받는다 (Noto Sans KR 200~500 · Noto Serif KR 400 — ①②③ 같은 기호의 대체 글꼴 ·
+         Cormorant Garamond 300 · 300 기울임). 한글 글꼴은 굵기 하나마다 CSS 가 수십 KB 라 안 쓰는 굵기도 첫 화면을 늦췄다.
+         첫 화면을 막지 않게 받는다 — 받는 동안 글자는 기본 글꼴로 먼저 보이고(display=swap 과 같은 동작), 도착하면 바뀐다. -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Noto+Serif+KR:wght@400;500&family=Noto+Sans+KR:wght@200;300;400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap"
-      rel="stylesheet"
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400&family=Noto+Sans+KR:wght@200;300;400;500&family=Cormorant+Garamond:ital,wght@0,300;1,300&display=swap"
+      onload="this.rel = 'stylesheet'"
     />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400&family=Noto+Sans+KR:wght@200;300;400;500&family=Cormorant+Garamond:ital,wght@0,300;1,300&display=swap"
+      />
+    </noscript>
     <link rel="stylesheet" href="css/dadam-v5.css" />
 
+    <!-- config.js 만 바로 싣는다 (아래 인라인 스크립트가 API 주소를 읽는다).
+         나머지는 defer — 첫 화면을 막지 않고, 문서를 다 읽은 뒤 이 순서대로 돈다. 그 뒤에 init() 이 시작한다. -->
     <script src="js/config.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="js/detaildesign-access.js"></script>
-    <script src="js/admin-access.js"></script>
-    <script src="js/reference-images.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
+    <script src="js/detaildesign-access.js" defer></script>
+    <script src="js/admin-access.js" defer></script>
+    <script src="js/reference-images.js" defer></script>
 
     <style>
       /* 이 페이지에만 필요한 것. 공통은 css/dadam-v5.css 가 갖는다. */
+      /* 헤더 자리 미리 잡기 (2026-10-27) — 헤더는 js/site-shell.js(defer)가 문서를 다 읽은 뒤 끼워 넣는다.
+         자리가 비어 있으면 그 순간 아래 화면 전체가 헤더 높이만큼 밀린다(레이아웃 이동).
+         높이는 실제 헤더와 같게: 넓은 화면 88px(--v5-header), 700px 이하는 두 줄로 접혀 99px (Chrome 실측).
+         끼워 넣는 순간 이 자리표시자는 헤더로 통째로 바뀐다(outerHTML). */
+      [data-site-shell='header'] {
+        height: var(--v5-header);
+        border-bottom: 1px solid var(--v5-line);
+      }
+      @media (max-width: 700px) {
+        [data-site-shell='header'] {
+          height: 99px;
+        }
+      }
+      /* 마퀴 사진 6장 (2026-10-27) — 문서에 바로 적은 타일(.mq-1~6, 두 벌)이 쓴다.
+         원본 app/portfolio/*.jpg 와 같은 사진·같은 크기의 사본이다. 첫 줄은 image-set(… type()) 을 모르는 브라우저용 JPEG,
+         둘째 줄은 아는 브라우저가 고른다 — AVIF 를 읽으면 .avif, 못 읽으면 .jpg.
+         .mq-1 의 AVIF 는 <head> 의 preload 와 같은 파일이어야 한다. */
+      .mq-1 {
+        background-image: url(app/portfolio/display/kitchen-n1-1.jpg);
+        background-image: image-set(
+          url(app/portfolio/display/kitchen-n1-1.avif) type('image/avif'),
+          url(app/portfolio/display/kitchen-n1-1.jpg) type('image/jpeg')
+        );
+      }
+      .mq-2 {
+        background-image: url(app/portfolio/display/kitchen-n3-2.jpg);
+        background-image: image-set(
+          url(app/portfolio/display/kitchen-n3-2.avif) type('image/avif'),
+          url(app/portfolio/display/kitchen-n3-2.jpg) type('image/jpeg')
+        );
+      }
+      .mq-3 {
+        background-image: url(app/portfolio/display/kitchen-n4-1.jpg);
+        background-image: image-set(
+          url(app/portfolio/display/kitchen-n4-1.avif) type('image/avif'),
+          url(app/portfolio/display/kitchen-n4-1.jpg) type('image/jpeg')
+        );
+      }
+      .mq-4 {
+        background-image: url(app/portfolio/display/kitchen-n6-2.jpg);
+        background-image: image-set(
+          url(app/portfolio/display/kitchen-n6-2.avif) type('image/avif'),
+          url(app/portfolio/display/kitchen-n6-2.jpg) type('image/jpeg')
+        );
+      }
+      .mq-5 {
+        background-image: url(app/portfolio/display/kitchen-n7-1.jpg);
+        background-image: image-set(
+          url(app/portfolio/display/kitchen-n7-1.avif) type('image/avif'),
+          url(app/portfolio/display/kitchen-n7-1.jpg) type('image/jpeg')
+        );
+      }
+      .mq-6 {
+        background-image: url(app/portfolio/display/kitchen-n1-4.jpg);
+        background-image: image-set(
+          url(app/portfolio/display/kitchen-n1-4.avif) type('image/avif'),
+          url(app/portfolio/display/kitchen-n1-4.jpg) type('image/jpeg')
+        );
+      }
       /* 붙박이장 내부 보기 — 칸 구성과 추천 이유 (2026-10-20) */
       .v5-shot-note {
         margin: 4px 0 0;
@@ -214,9 +300,25 @@
 
     <!-- 로그인 게이트 — 기존 정책 유지 -->
 
-    <!-- 사진 마퀴 — 타일 6장을 2회 복제해 12장, -50% 로 순환 -->
+    <!-- 사진 마퀴 — 타일 6장을 2회 복제해 12장, -50% 로 순환.
+         타일은 문서에 바로 적는다 (2026-10-27). 전엔 스크립트가 채워, 채우기 전 첫 화면에서는 띠가 납작했다가
+         사진 높이만큼 아래가 밀렸고 사진도 스크립트가 돈 뒤에야 받기 시작했다.
+         첫 타일이 휴대폰 첫 화면의 LCP 다 — <head> 의 preload 와 같은 파일이어야 한다. -->
     <section class="v5-marquee" aria-hidden="true">
-      <div class="v5-marquee-track" id="marquee"></div>
+      <div class="v5-marquee-track" id="marquee">
+        <div class="v5-marquee-tile mq-1"></div>
+        <div class="v5-marquee-tile mq-2"></div>
+        <div class="v5-marquee-tile mq-3"></div>
+        <div class="v5-marquee-tile mq-4"></div>
+        <div class="v5-marquee-tile mq-5"></div>
+        <div class="v5-marquee-tile mq-6"></div>
+        <div class="v5-marquee-tile mq-1"></div>
+        <div class="v5-marquee-tile mq-2"></div>
+        <div class="v5-marquee-tile mq-3"></div>
+        <div class="v5-marquee-tile mq-4"></div>
+        <div class="v5-marquee-tile mq-5"></div>
+        <div class="v5-marquee-tile mq-6"></div>
+      </div>
     </section>
 
     <!-- 히어로 -->
@@ -567,14 +669,23 @@
         // 테마 — 분위기·색감 참고. 관리자가 고른 사진만 쓴다 (theme_images · admin/reference-images.html).
         // 2026-10-08: 위키미디어 공용을 실시간으로 찾아 보여주던 길은 걷어냈다 (첫 장까지 ~45초).
 
-        var MARQUEE = [
-          'kitchen-n1-1.jpg',
-          'kitchen-n3-2.jpg',
-          'kitchen-n4-1.jpg',
-          'kitchen-n6-2.jpg',
-          'kitchen-n7-1.jpg',
-          'kitchen-n1-4.jpg',
-        ];
+        // 화면에 보이는 정적 시공사례 사진은 app/portfolio/display/ 의 가벼운 사본을 쓴다 (2026-10-27).
+        //   같은 사진·같은 크기(1220×508)를 다시 압축한 것 — 원본은 장당 300~430KB 라 휴대폰 첫 화면을 늦췄다.
+        //   AVIF 를 읽는 브라우저는 .avif, 아니면 .jpg 사본 (마퀴 .mq-1~6 과 같은 규칙).
+        //   생성 요청(fetchAsBase64)에는 원본 주소(src)를 그대로 보낸다. CASE_STATIC 밖의 주소(DB·테마·업로드)는 그대로다.
+        //   CASE_STATIC 에 사진을 더하면 사본 두 벌도 함께 만든다 (__tests__/ai-design-first-screen.test.js 가 빠진 사본을 막는다).
+        var DISPLAY_COPIES = CASE_STATIC.map(function (r) {
+          return r.image_url;
+        });
+        /** 타일 style 의 배경 선언. 값은 esc() 를 거쳐 style="…" 에 들어간다. */
+        function bgStyle(src) {
+          if (DISPLAY_COPIES.indexOf(src) < 0) return 'background-image:url(' + src + ')';
+          var base = src.replace('app/portfolio/', 'app/portfolio/display/').replace(/\.jpg$/, '');
+          var jpg = 'url(' + base + '.jpg)';
+          var avif = 'url(' + base + '.avif)';
+          var set = avif + " type('image/avif'), " + jpg + " type('image/jpeg')";
+          return 'background-image:' + jpg + ';background-image:image-set(' + set + ')';
+        }
 
         // ═══════════════════════════════════════════════
         // 상태
@@ -973,9 +1084,9 @@
             '" aria-pressed="' +
             on +
             '">' +
-            '<span class="v5-pick-img" style="background-image:url(' +
-            esc(r.src) +
-            ')"></span>' +
+            '<span class="v5-pick-img" style="' +
+            esc(bgStyle(r.src)) +
+            '"></span>' +
             '<span class="v5-pick-cap">' +
             esc(r.label) +
             '</span></button>'
@@ -1059,9 +1170,9 @@
                   '" aria-label="' +
                   esc(p.label) +
                   ' 해제"' +
-                  ' style="background-image:url(' +
-                  esc(p.src) +
-                  ')"></button>'
+                  ' style="' +
+                  esc(bgStyle(p.src)) +
+                  '"></button>'
                 );
               })
               .join('') ||
@@ -1833,21 +1944,18 @@
           renderRun();
         }
 
-        function marquee() {
-          var one = MARQUEE.map(function (f) {
-            return '<div class="v5-marquee-tile" style="background-image:url(app/portfolio/' + f + ')"></div>';
-          }).join('');
-          $('marquee').innerHTML = one + one; // 2회 복제 → -50% 로 이음새 없이 순환
-        }
-
-        async function init() {
-          marquee();
+        // 화면 — DOM 만 있으면 된다. 문서 끝의 이 스크립트가 돌 때 바로 그리고 버튼을 잇는다.
+        // (마퀴 타일은 문서에 바로 적혀 있다.)
+        function initUi() {
           renderKinds();
           renderPicks();
           renderRun();
           setTab('db');
           bind();
+        }
 
+        // 데이터 — supabase-js 등 <head> 의 defer 스크립트가 다 돈 뒤(DOMContentLoaded)에 시작한다.
+        async function init() {
           try {
             if (window.DADAM_CONFIG && window.supabase) {
               sb = window.supabase.createClient(window.DADAM_CONFIG.supabase.url, window.DADAM_CONFIG.supabase.anonKey);
@@ -1892,7 +2000,9 @@
           }
         }
 
-        init();
+        initUi();
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+        else init();
       })();
     </script>
   </body>
