@@ -7,6 +7,7 @@
     "asset-version": "node scripts/stamp-asset-version.mjs",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --fix",
+    "lint:report": "node scripts/lint-report.mjs",
     "format": "prettier --write \"**/*.{js,ts,tsx,json,css,md,html}\"",
     "format:check": "prettier --check \"**/*.{js,ts,tsx,json,css,md,html}\"",
     "typecheck": "tsc --noEmit",
