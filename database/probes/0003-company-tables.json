@@ -1,5 +1,5 @@
 {
-  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs)",
+  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs)",
   "ids": [
     "company_x",
     "company_y",
@@ -182,6 +182,15 @@
       "sql": "select public.add_hq_customer()",
       "expect": { "*": "deny" }
     },
+    {"name":"0006: 상담 넣기는 그대로 (비로그인 포함)","sql":"insert into public.consultations (name, email, title) values ('probe', 'probe@example.invalid', 'probe')","expect":{"*":"ok"}},
+    {"name":"0006: 상담 기본값 — 본사, 고객 · 프로젝트 비움","sql":"with i as (insert into public.consultations (name, email, title) values ('probe', 'probe@example.invalid', 'probe') returning company_id, customer_id, project_id) select company_id = public.hq_company_id() and customer_id is null and project_id is null from i","roles":["service_role"],"expect":{"service_role":"true"}},
+    {"name":"0006: 상담 고객은 같은 회사 것만 (복합 FK)","sql":"insert into public.consultations (name, email, title, customer_id) values ('probe', 'probe@example.invalid', 'probe', {{cust_x_plain}})","roles":["service_role"],"expect":{"service_role":"err:23503"}},
+    {"name":"0006: 내 설계 넣기 — 기본 본사, 프로젝트 비움","sql":"with i as (insert into public.designs (user_id, name) values (auth.uid(), 'probe') returning company_id, project_id) select company_id = public.hq_company_id() and project_id is null from i","expect":{"anon":"deny","*":"true"}},
+    {"name":"0006: 설계는 다른 회사 프로젝트에 못 잇는다 (복합 FK)","sql":"insert into public.designs (name, project_id) values ('probe', {{proj_x_linked}})","roles":["service_role"],"expect":{"service_role":"err:23503"}},
+    {"name":"0006: 설계는 같은 회사 프로젝트에 잇는다","sql":"insert into public.designs (name, company_id, project_id) values ('probe', {{company_x}}, {{proj_x_linked}})","roles":["service_role"],"expect":{"service_role":"ok"}},
+    {"name":"0006: 연출컷 기본값 — 본사, customer, 프로젝트 비움","sql":"with i as (insert into public.generations (user_id, category) values ({{hq_customer_user}}, 'probe') returning company_id, origin, project_id) select company_id = public.hq_company_id() and origin = 'customer' and project_id is null from i","roles":["service_role"],"expect":{"service_role":"true"}},
+    {"name":"0006: 연출컷 origin 은 customer | company","sql":"insert into public.generations (user_id, category, origin) values ({{hq_customer_user}}, 'probe', 'other')","roles":["service_role"],"expect":{"service_role":"err:23514"}},
+    {"name":"0006: 연출컷 새 칸 읽기 권한 (로그인만)","sql":"select count(*) from (select company_id, project_id, origin from public.generations where false) s","expect":{"anon":"deny","*":0}},
     {
       "name": "시드: 회사는 본사 하나뿐 (가짜 X·Y 빼고)",
       "sql": "select count(*) from public.companies where id not in ({{company_x}}, {{company_y}})",
