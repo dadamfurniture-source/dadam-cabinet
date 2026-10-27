@@ -55,6 +55,7 @@
 ## 배포 주의사항
 - main 푸시 → GitHub Pages 자동 배포 (1-2분 소요)
 - Cloudflare CDN 캐시: 변경 후 Purge Everything 필요할 수 있음
+- 로컬 css·js 참조의 `?v=` 는 손으로 올리지 않는다 — `npm run asset-version` 이 사이트 전체를 한 값(`scripts/asset-version.json`)으로 찍는다. 어긋나면 `__tests__/asset-version.test.js` 가 막는다
 - `.gitignore`에 포함된 파일: `.env`, `gcp-service-account.json`, `.claude/worktrees/`
 
 ## 손잡이 프롬프트

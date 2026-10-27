@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 /* eslint-disable @typescript-eslint/no-require-imports */
-/* global require, describe, test, expect, beforeEach, __dirname, Request, Response, URL, jest */
+/* global require, describe, test, expect, __dirname, Request, Response, URL, jest */
 /**
  * segan/sw.js — 가짜 서비스 워커 전역(self · caches · fetch)에 올려 실제 이벤트로 확인한다.
  *
@@ -83,7 +83,7 @@ function boot({ network } = {}) {
     skipWaiting: jest.fn(async () => {}),
     clients: { claim: jest.fn(async () => {}) },
   };
-  new Function('self', 'caches', 'fetch', SW_SRC)(self, api, net); // eslint-disable-line no-new-func
+  new Function('self', 'caches', 'fetch', SW_SRC)(self, api, net);
 
   const lifecycle = async (type) => {
     const waits = [];

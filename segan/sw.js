@@ -16,6 +16,7 @@
    캐시 이름에 사이트 자산 버전을 넣는다. 새 워커가 켜지면 이전 버전 캐시를 지운다.
    ASSET_VERSION 은 scripts/stamp-asset-version.mjs 가 찍는다 (손으로 고치지 않는다).
    ============================================================ */
+/* global self, caches, fetch, Request, Response, URL */
 'use strict';
 
 const ASSET_VERSION = '2026102701';
@@ -79,7 +80,7 @@ async function pageNetworkFirst(event, url) {
     const res = await fetch(event.request);
     if (cacheable(res)) event.waitUntil(cache.put(key, res.clone()));
     return res;
-  } catch (err) {
+  } catch {
     return (await cache.match(key)) || (await cache.match(abs(OFFLINE))) || Response.error();
   }
 }
