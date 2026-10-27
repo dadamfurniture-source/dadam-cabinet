@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-/* global require, describe, test, expect, __dirname, process */
+/* global require, describe, test, expect, __dirname, process, Buffer */
 /**
  * 사이트 자산 버전은 하나다 — 로컬 자산의 ?v= 가 scripts/asset-version.json 과 다르면 실패.
  *
@@ -159,5 +159,105 @@ describe('scripts/stamp-asset-version.mjs', () => {
     expect(src).toContain('npm run asset-version');
     const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
     expect(pkg.scripts['asset-version']).toBe('node scripts/stamp-asset-version.mjs');
+  });
+});
+
+/**
+ * segan/ 앱 셸 — 파일을 바꾸면 자산 버전도 올려야 한다.
+ *
+ * 서비스 워커가 ?v= 셸 파일을 캐시 먼저로 주므로, 내용만 바꾸고 버전을 그대로 두면 설치한 사람은
+ * 옛 파일을 계속 받는다. 버전을 올릴 때 적어 둔 해시(asset-version.json "segan")와 지금 파일을 비교한다.
+ * git 이력 없이 돈다 (CI 의 얕은 checkout). 해시는 시험이 따로 계산한다 — 스크립트가 틀려도 잡는다.
+ */
+describe('segan/ 파일이 바뀌면 자산 버전도 올린다', () => {
+  const crypto = require('crypto');
+  const manifest = () =>
+    JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/asset-version.json'), 'utf8'));
+  const TEXT = /\.(?:html|m?js|css|svg|json|webmanifest|txt|md)$/i;
+
+  function files() {
+    const out = [];
+    (function walk(rel) {
+      for (const e of fs.readdirSync(path.join(ROOT, rel), { withFileTypes: true })) {
+        const child = path.posix.join(rel, e.name);
+        if (e.isDirectory()) walk(child);
+        else if (child !== 'segan/sw.js') out.push(child);
+      }
+    })('segan');
+    return out.sort();
+  }
+
+  function hash(rel) {
+    let buf = fs.readFileSync(path.join(ROOT, rel));
+    if (TEXT.test(rel)) buf = Buffer.from(buf.toString('utf8').split('\r\n').join('\n'), 'utf8');
+    return crypto.createHash('sha256').update(buf).digest('hex').slice(0, 16);
+  }
+
+  test('적어 둔 해시와 지금 segan/ 파일이 같다 (다르면 npm run asset-version)', () => {
+    const recorded = manifest().segan || {};
+    const now = Object.fromEntries(files().map((f) => [f, hash(f)]));
+    const changed = [
+      ...Object.keys(now)
+        .filter((f) => recorded[f] !== now[f])
+        .map((f) => `${f} (${f in recorded ? '내용이 바뀜' : '새 파일'})`),
+      ...Object.keys(recorded)
+        .filter((f) => !(f in now))
+        .map((f) => `${f} (지워짐)`),
+    ];
+    if (changed.length) {
+      throw new Error(
+        `segan/ 파일이 바뀌었는데 자산 버전(scripts/asset-version.json)을 올리지 않았습니다.\n` +
+          `서비스 워커가 ?v= 셸 파일을 캐시 먼저로 주므로, 버전을 그대로 두면 설치한 사람은 옛 파일을 받습니다.\n` +
+          `고치는 법: npm run asset-version  (버전을 올리고 ?v= 를 다시 찍고 해시를 다시 적는다) → 그대로 커밋\n` +
+          changed.map((c) => `  · ${c}`).join('\n')
+      );
+    }
+    expect(Object.keys(recorded).length).toBeGreaterThan(10);
+  });
+
+  test('sw.js 만 빠진다 (스스로 새 워커로 퍼진다) — 앱 셸 파일 · 아이콘은 모두 지킨다', () => {
+    const list = files();
+    expect(list).not.toContain('segan/sw.js');
+    for (const f of [
+      'segan/index.html',
+      'segan/shell.js',
+      'segan/shell.css',
+      'segan/make.js',
+      'segan/icons/icon-512.png',
+    ]) {
+      expect(list).toContain(f);
+    }
+  });
+
+  test('스크립트의 해시 = 시험의 해시 (같은 규칙: sha256 앞 16자 · 글자 파일은 LF)', () => {
+    const out = execFileSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `import * as s from ${JSON.stringify(pathToFileURL(SCRIPT).href)}; console.log(JSON.stringify(s.seganHashes()));`,
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    expect(JSON.parse(out)).toEqual(Object.fromEntries(files().map((f) => [f, hash(f)])));
+  });
+
+  test('CRLF 작업본과 LF checkout 이 같은 해시 (Windows · CI)', () => {
+    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'segan-hash-'));
+    const a = path.join(tmp, 'a.js');
+    fs.writeFileSync(a, 'x\r\ny\r\n');
+    const b = Buffer.from(fs.readFileSync(a).toString('utf8').split('\r\n').join('\n'));
+    expect(crypto.createHash('sha256').update(b).digest('hex')).toBe(
+      crypto.createHash('sha256').update('x\ny\n').digest('hex')
+    );
+  });
+
+  test('--stamp 는 해시를 다시 적지 않는다 — 버전을 올릴 때만 (스크립트 본문)', () => {
+    const src = fs.readFileSync(SCRIPT, 'utf8');
+    const write = src.match(
+      /if \(version !== current\) \{\s*fs\.writeFileSync\(\s*VERSION_FILE,[\s\S]*?seganHashes\(\)/
+    );
+    expect(write).not.toBeNull();
+    expect(src.match(/seganHashes\(\)/g).length).toBe(3); // 정의 · seganDrift · 버전을 올릴 때
   });
 });
