@@ -221,8 +221,42 @@ describe('database/collection-auto-post.sql', () => {
     expect(sql).toMatch(/CREATE POLICY "collection_posts_delete_admin" ON public\.collection_posts\s+FOR DELETE TO authenticated\s+USING \(public\.is_admin\(\)\);/);
     expect(sql).toContain('DROP POLICY IF EXISTS "collection_delete_admin" ON storage.objects;');
     expect(sql).toMatch(/CREATE POLICY "collection_delete_admin" ON storage\.objects\s+FOR DELETE TO authenticated\s+USING \(bucket_id = 'collection' AND public\.is_admin\(\)\);/);
-    // 읽기·본인 정책·버킷 공개 설정은 건드리지 않는다
+    // 읽기·본인 삭제·버킷 공개 설정은 건드리지 않는다
     expect(sql).not.toMatch(/storage\.buckets/);
-    expect(sql).not.toMatch(/FOR (SELECT|INSERT|UPDATE)/);
+    expect(sql).not.toMatch(/FOR SELECT/);
+    expect(sql).not.toMatch(/"collection_posts_delete"/);
+    expect(sql).not.toMatch(/"collection_delete_own"/);
+  });
+
+  test('회원 쓰기 — 본인 행 · 직접 올린 사진(source upload, generation_id 없음)만 넣고 고친다', () => {
+    const ins = sql.indexOf('CREATE POLICY "collection_posts_insert"');
+    const upd = sql.indexOf('CREATE POLICY "collection_posts_update"');
+    expect(sql).toMatch(
+      /DROP POLICY IF EXISTS "collection_posts_insert" ON public\.collection_posts;\s+CREATE POLICY "collection_posts_insert" ON public\.collection_posts\s+FOR INSERT\s+WITH CHECK \(auth\.uid\(\) = user_id AND source = 'upload' AND generation_id IS NULL\);/
+    );
+    expect(sql).toMatch(
+      /DROP POLICY IF EXISTS "collection_posts_update" ON public\.collection_posts;\s+CREATE POLICY "collection_posts_update" ON public\.collection_posts\s+FOR UPDATE\s+USING \(auth\.uid\(\) = user_id\)\s+WITH CHECK \(auth\.uid\(\) = user_id AND source = 'upload' AND generation_id IS NULL\);/
+    );
+    // 정책이 읽는 열은 같은 파일에서 먼저 만든다
+    expect(sql.indexOf('ADD COLUMN IF NOT EXISTS source')).toBeLessThan(ins);
+    expect(sql.indexOf('ADD COLUMN IF NOT EXISTS generation_id')).toBeLessThan(ins);
+    expect(upd).toBeGreaterThan(ins);
+    // 트랜잭션 안
+    expect(sql.indexOf('BEGIN;')).toBeLessThan(ins);
+    expect(sql.indexOf('COMMIT;')).toBeGreaterThan(upd);
+  });
+
+  test('회원 화면이 하는 쓰기는 새 정책을 그대로 지난다', () => {
+    const my = read('mypage.html');
+    // 시공사례 올리기 — source · generation_id 를 보내지 않는다 (기본값 'upload' · NULL)
+    const insert = my.slice(my.indexOf(".from('collection_posts').insert({"), my.indexOf('if (dbErr)'));
+    expect(insert).toContain('user_id: currentUser.id');
+    expect(insert).not.toMatch(/source|generation_id/);
+    // 학습 동의 — consent_training 만 고친다 (자동 게시 행은 목록에 없다)
+    expect(my).toMatch(/\.from\('collection_posts'\)\s*\.update\(\{ consent_training: next \}\)\s*\.eq\('id', r\.id\)/);
+    // 내 연출컷의 내리기는 삭제다 — 본인 삭제 정책(collection_posts_delete)은 이 파일이 건드리지 않는다
+    const md = read('my-designs.html');
+    expect(md).toContain(".from('collection_posts').delete().eq('id', post.id)");
+    expect(md).not.toMatch(/collection_posts'\)\s*\.(update|insert|upsert)/);
   });
 });
