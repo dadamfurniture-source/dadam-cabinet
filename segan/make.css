@@ -322,6 +322,21 @@
   font-weight: 300;
 }
 
+.mk-input textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 88px;
+  padding: 12px;
+  border: 1px solid var(--v5-line-18);
+  border-radius: 0;
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 300;
+  resize: vertical;
+}
+
 .mk-more {
   border-top: 1px solid var(--v5-line);
 }
@@ -612,6 +627,206 @@
 .mk-btn--wide {
   width: 100%;
   min-height: 48px;
+}
+
+/* ── ④ 상담 신청 (consult.html) ── */
+.mk-back {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 0;
+  text-decoration: none;
+}
+
+.cs-form,
+.cs-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.cs-fields {
+  gap: 14px;
+}
+
+.cs-form[hidden],
+.cs-fields[hidden],
+.cs-call[hidden],
+.cs-done[hidden] {
+  display: none;
+}
+
+.cs-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--v5-well);
+}
+
+.cs-thumb {
+  flex: none;
+  width: 64px;
+  height: 48px;
+  object-fit: cover;
+  background: var(--v5-photo);
+}
+
+.cs-sum-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13.5px;
+}
+
+.cs-sum-sub {
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--mk-dim);
+}
+
+.cs-set {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.cs-set legend {
+  margin-bottom: 8px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.cs-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 44px;
+  padding: 14px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  cursor: pointer;
+}
+
+.cs-opt:has(input:checked) {
+  border-color: var(--v5-ink);
+}
+
+.cs-opt input,
+.cs-agree input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--v5-ink);
+}
+
+.cs-opt b {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 400;
+}
+
+.cs-opt small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--mk-dim);
+}
+
+.cs-region {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cs-agree {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  padding-top: 4px;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.cs-agree a {
+  color: var(--v5-ink);
+}
+
+.cs-agree-detail > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 12.5px;
+  color: var(--mk-dim);
+  cursor: pointer;
+}
+
+.cs-agree-detail ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  font-weight: 300;
+  line-height: 1.8;
+  color: var(--mk-dim);
+}
+
+.cs-call {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 16px;
+  background: var(--v5-well);
+}
+
+.cs-call-label {
+  font-size: 12.5px;
+  color: var(--mk-dim);
+}
+
+.cs-call-num {
+  font-size: 22px;
+  letter-spacing: 0.04em;
+}
+
+.cs-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 0;
+  text-align: center;
+}
+
+.cs-done a,
+.cs-tel-line a {
+  color: var(--v5-ink);
+}
+
+.cs-done-acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.cs-tel-line {
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--mk-dim);
 }
 
 /* ── PC ── */

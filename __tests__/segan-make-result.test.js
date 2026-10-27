@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /* global require, describe, test, expect, beforeEach, afterEach, __dirname, document, window, DOMParser, sessionStorage, jest */
 /**
- * SEGAN 만들기 — ③ 결과 (segan/make.js 생성 부분) · ④ 상담 신청 자리표시 (segan/consult.js).
+ * SEGAN 만들기 — ③ 결과 (segan/make.js 생성 부분). ④ 상담 신청은 segan-consult.test.js.
  *
  * 생성 백엔드는 ai-design.html 이 쓰는 그대로다:
  *   POST {generateApi.url} → 202 { id }, 3초마다 GET {base}/api/generate/:id, 서명 URL 이미지, 견적은 잡 결과
@@ -386,35 +386,5 @@ describe('결과 아래 — 다시 만들기 · 공유', () => {
     expect(share[0].headers.Authorization).toBe('Bearer tok-1');
     expect(writeText).toHaveBeenCalledWith('https://dadamfurniture.com/design-share.html#t=abc');
     expect($('mkResMsg').textContent).toBe('공유 링크를 복사했습니다');
-  });
-});
-
-describe('④ 상담 신청 자리표시 (segan/consult.html · consult.js)', () => {
-  function loadConsult(url) {
-    const doc = new DOMParser().parseFromString(read('segan/consult.html'), 'text/html');
-    document.body.innerHTML = doc.body.innerHTML;
-    for (const a of [...doc.body.attributes]) document.body.setAttribute(a.name, a.value);
-    window.history.replaceState(null, '', url);
-    delete window.SeganShell;
-    (0, eval)(read('segan/shell.js'));
-    (0, eval)(read('segan/consult.js'));
-  }
-
-  test('연출컷 id 를 받아 두고, 결과로 돌아가는 길 · 대표 전화', () => {
-    loadConsult(`/segan/consult.html?g=${ID}`);
-    expect($('csGen').value).toBe(ID);
-    expect($('csBack').getAttribute('href')).toBe(`./?g=${ID}#result`);
-    expect($('csTel').getAttribute('href')).toBe('tel:01077386822');
-    expect($('csTel').textContent).toContain('010-7738-6822');
-    expect(document.body.dataset.tab).toBe('make');
-    expect(document.querySelector('[aria-current="page"]').getAttribute('data-tab-link')).toBe(
-      'make'
-    );
-  });
-
-  test('id 가 아니면 받지 않는다', () => {
-    loadConsult('/segan/consult.html?g=<script>');
-    expect($('csGen').value).toBe('');
-    expect($('csBack').getAttribute('href')).toBe('./');
   });
 });
