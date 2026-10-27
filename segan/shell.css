@@ -10,14 +10,26 @@
 
 :root {
   --v5-ink: #2d2a26;
+  --v5-ink-62: rgba(45, 42, 38, 0.62);
   --v5-ink-60: rgba(45, 42, 38, 0.6);
   --v5-ink-45: rgba(45, 42, 38, 0.45);
   --v5-line: rgba(45, 42, 38, 0.1);
+  --v5-line-12: rgba(45, 42, 38, 0.12);
   --v5-line-18: rgba(45, 42, 38, 0.18);
   --v5-tan: #8a7457;
   --v5-navy: #0b2545;
   --v5-invert: #f6f3ee; /* 앱 바탕 — manifest background_color · theme_color 와 같다 */
+  --v5-dark: #2d2a26;
+  --v5-on-dark: rgba(246, 243, 238, 0.92);
+  --v5-on-dark-60: rgba(246, 243, 238, 0.6);
+  --v5-on-dark-42: rgba(246, 243, 238, 0.42);
+  --v5-on-dark-12: rgba(246, 243, 238, 0.12);
   --v5-sans: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* 앱 셸 치수 (v5 에 없는 것만 sg- 로) */
+  --sg-px: 20px; /* 좌우 여백 — 폰 */
+  --sg-bar: 60px; /* 폰 위 막대 높이 */
+  --sg-tab: 58px; /* 폰 아래 탭 높이 (안전 영역 제외) */
 }
 
 *,
@@ -115,4 +127,335 @@ button {
 .sg-btn:focus-visible {
   background: var(--v5-ink);
   color: var(--v5-invert);
+}
+
+/* ============================================================
+   앱 셸 — 폰: 위 막대(워드마크) + 아래 탭 4개 / PC(768px~): v5 헤더 위 메뉴 + 푸터
+   ============================================================ */
+
+.sg-app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  /* 아래 탭에 본문이 가리지 않게 */
+  padding-bottom: calc(var(--sg-tab) + env(safe-area-inset-bottom));
+}
+
+/* ── 위 막대 / 헤더 ── */
+.sg-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 34px;
+  min-height: calc(var(--sg-bar) + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) max(var(--sg-px), env(safe-area-inset-right)) 0
+    max(var(--sg-px), env(safe-area-inset-left));
+  background: rgba(246, 243, 238, 0.94);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.sg-brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  flex-shrink: 0;
+}
+
+.sg-brand img {
+  display: block;
+  width: 92px;
+  height: auto;
+}
+
+.sg-nav {
+  display: none;
+}
+
+.sg-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 400;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  color: var(--v5-ink-62);
+  text-decoration: none;
+  transition: color 140ms ease;
+}
+
+.sg-nav a:hover,
+.sg-nav a[aria-current='page'] {
+  color: var(--v5-ink);
+}
+
+/* ── 아래 탭 (폰) ── */
+.sg-tabbar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: rgba(246, 243, 238, 0.97);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--v5-line-12);
+}
+
+.sg-tabbar a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: var(--sg-tab);
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--v5-ink-45);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sg-tabbar a[aria-current='page'] {
+  color: var(--v5-ink);
+}
+
+.sg-tabbar svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+
+/* ── 본문 ── */
+.sg-main {
+  flex: 1;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px max(var(--sg-px), env(safe-area-inset-right)) 48px
+    max(var(--sg-px), env(safe-area-inset-left));
+}
+
+.sg-h1 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 300;
+  letter-spacing: 0.04em;
+}
+
+.sg-lead {
+  margin: 0 0 28px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--v5-ink-60);
+}
+
+.sg-soon {
+  margin-left: auto;
+  padding-left: 12px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: var(--v5-ink-45);
+}
+
+/* 단계 목록 (만들기) */
+.sg-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+  counter-reset: sg-step;
+}
+
+.sg-steps li {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 56px;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 15px;
+}
+
+.sg-steps li::before {
+  counter-increment: sg-step;
+  content: counter(sg-step, decimal-leading-zero);
+  width: 22px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--v5-tan);
+}
+
+/* 비어 있는 판 (준비 중) */
+.sg-panel {
+  padding: 40px 20px;
+  border: 1px solid var(--v5-line-12);
+  text-align: center;
+}
+
+/* 로그인 안내 · 확인 중 */
+.sg-gate,
+.sg-checking {
+  padding: 48px 0 24px;
+  text-align: center;
+}
+
+a.sg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+/* 줄 목록 (내 정보) */
+.sg-section {
+  margin-top: 32px;
+}
+
+.sg-section h2 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  color: var(--v5-ink-45);
+}
+
+.sg-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.sg-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 52px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--v5-line);
+  background: none;
+  color: var(--v5-ink);
+  font-size: 15px;
+  font-weight: 300;
+  text-align: left;
+  text-decoration: none;
+}
+
+a.sg-row::after,
+button.sg-row::after {
+  content: '›';
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--v5-ink-45);
+}
+
+button.sg-row {
+  cursor: pointer;
+}
+
+.sg-account {
+  margin: 0;
+  font-size: 13px;
+  color: var(--v5-ink-60);
+  overflow-wrap: anywhere;
+}
+
+/* 사업자 정보 — 폰에서는 내 정보 아래, PC 에서는 푸터 */
+.sg-biz {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--v5-line);
+  font-size: 11.5px;
+  line-height: 1.9;
+  color: var(--v5-ink-45);
+}
+
+.sg-biz p {
+  margin: 0 0 12px;
+}
+
+.sg-footer {
+  display: none;
+  background: var(--v5-dark);
+  color: var(--v5-on-dark);
+}
+
+.sg-footer-in {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 56px 48px 34px;
+}
+
+.sg-footer p {
+  margin: 0 0 18px;
+  font-size: 12.5px;
+  line-height: 2;
+  color: var(--v5-on-dark-60);
+}
+
+.sg-footer-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 30px;
+  padding-top: 22px;
+  border-top: 1px solid var(--v5-on-dark-12);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--v5-on-dark-42);
+}
+
+/* ── PC ── */
+@media (min-width: 768px) {
+  .sg-app {
+    padding-bottom: 0;
+  }
+
+  .sg-header {
+    min-height: 88px;
+    padding: 0 48px;
+  }
+
+  .sg-brand img {
+    width: 116px;
+  }
+
+  .sg-nav {
+    display: flex;
+    align-items: center;
+    gap: 34px;
+  }
+
+  .sg-tabbar {
+    display: none;
+  }
+
+  .sg-main {
+    max-width: 960px;
+    padding: 64px 48px 96px;
+  }
+
+  .sg-h1 {
+    font-size: 28px;
+  }
+
+  .sg-biz {
+    display: none;
+  }
+
+  .sg-footer {
+    display: block;
+  }
 }

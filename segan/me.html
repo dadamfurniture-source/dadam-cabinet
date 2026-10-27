@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>내 정보 · SEGAN</title>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026102701" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026102701" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026102701" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026102701" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="shell.css?v=2026102701" />
+    <!-- 로그인 상태 · 역할 메뉴 — 기존 사이트의 판정 모듈을 그대로 싣는다 (segan/shell.js 머리말) -->
+    <script src="../js/config.js?v=2026102701"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="../js/admin-access.js?v=2026102701"></script>
+    <script src="../js/detaildesign-access.js?v=2026102701"></script>
+    <script src="../js/mypage-work.js?v=2026102701"></script>
+    <script src="shell.js?v=2026102701" defer></script>
+  </head>
+  <body class="sg-app" data-tab="me">
+    <div data-segan-shell="header"></div>
+
+    <main class="sg-main" id="main">
+      <h1 class="sg-h1">내 정보</h1>
+
+      <div class="sg-checking" data-auth-view="checking">
+        <p class="sg-note">확인하는 중…</p>
+      </div>
+      <div data-auth-view="signed-out" hidden>
+        <div data-segan-shell="gate"></div>
+      </div>
+      <div data-auth-view="signed-in" hidden>
+        <p class="sg-account" id="sgAccountEmail"></p>
+
+        <section class="sg-section" aria-labelledby="sgActivityTitle">
+          <h2 id="sgActivityTitle">내 활동</h2>
+          <ul class="sg-rows">
+            <li>
+              <span class="sg-row">상담 내역<span class="sg-soon">준비 중</span></span>
+            </li>
+            <li>
+              <span class="sg-row">크레딧 · 구독<span class="sg-soon">준비 중</span></span>
+            </li>
+          </ul>
+        </section>
+
+        <div data-segan-shell="roles"></div>
+
+        <section class="sg-section" aria-labelledby="sgAccountTitle">
+          <h2 id="sgAccountTitle">계정</h2>
+          <ul class="sg-rows">
+            <li>
+              <span class="sg-row">설정<span class="sg-soon">준비 중</span></span>
+            </li>
+            <li><button type="button" class="sg-row" id="sgLogout">로그아웃</button></li>
+          </ul>
+        </section>
+      </div>
+
+      <div data-segan-shell="biz"></div>
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+  </body>
+</html>

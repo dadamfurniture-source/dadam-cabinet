@@ -9,7 +9,7 @@
 //   정본:   scripts/asset-version.json 의 "version" 한 곳
 //   형식:   YYYYMMDDNN (한국 날짜 + 그날 몇 번째인지 두 자리) 예) 2026102701
 //           숫자만이라 크기 비교가 되고, 같은 날 여러 번 올려도 계속 커진다.
-//   대상:   루트 *.html, admin/*.html, segan/*.html, segan/sw.js 안의
+//   대상:   루트 *.html, admin/*.html, segan/*.html, segan/sw.js · shell.js 안의
 //           따옴표로 감싼 URL(src= · href= 값, 인라인 스크립트 문자열) 중
 //           로컬 자산(.js .css 이미지 등, 외부 주소·data:·스크립트가 조립하는 값 제외)에
 //           이미 ?v= (또는 &v=) 가 붙은 것. 경로는 건드리지 않고 v 값만 바꾼다.
@@ -35,7 +35,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const VERSION_FILE = path.join(ROOT, 'scripts/asset-version.json');
 const PAGE_DIRS = ['.', 'admin', 'segan'];
-const EXTRA_FILES = ['segan/sw.js'];
+const EXTRA_FILES = ['segan/sw.js', 'segan/shell.js'];
 
 const VERSION_RE = /^\d{8}\d{2}$/;
 // 버전을 붙여 싣는 정적 자산 확장자. 페이지 링크(*.html)·API 경로는 건드리지 않는다.

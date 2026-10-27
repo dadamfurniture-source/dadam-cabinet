@@ -146,8 +146,22 @@ describe('설치 — 앱 셸만 담는다', () => {
     );
     for (const icon of manifest.icons)
       expect(urls).toContain(new URL(icon.src, `${ORIGIN}/segan/`).href);
-    const index = fs.readFileSync(path.join(ROOT, 'segan/index.html'), 'utf8');
-    for (const m of index.matchAll(/\s(?:src|href)="([^":]+\?v=[^"]+)"/g)) {
+    const pages = fs.readdirSync(path.join(ROOT, 'segan')).filter((n) => n.endsWith('.html'));
+    expect(pages.length).toBeGreaterThan(1);
+    for (const page of pages) {
+      // 페이지 자신 (index.html 은 start_url /segan/ 로 담는다)
+      expect(urls).toContain(`${ORIGIN}/segan/${page === 'index.html' ? '' : page}`);
+      // 페이지가 싣는 /segan/ 안의 ?v= 자산 (../js/ 같은 기존 사이트 파일은 담지 않는다)
+      const html = fs.readFileSync(path.join(ROOT, 'segan', page), 'utf8');
+      for (const m of html.matchAll(/\s(?:src|href)="([^":]+\?v=[^"]+)"/g)) {
+        const url = new URL(m[1], `${ORIGIN}/segan/${page}`);
+        if (url.pathname.startsWith('/segan/')) expect(urls).toContain(url.href);
+        else expect(urls).not.toContain(url.href);
+      }
+    }
+    // 셸이 그리는 헤더 워드마크
+    const shell = fs.readFileSync(path.join(ROOT, 'segan/shell.js'), 'utf8');
+    for (const m of shell.matchAll(/src="([^"]+\?v=[^"]+)"/g)) {
       expect(urls).toContain(new URL(m[1], `${ORIGIN}/segan/`).href);
     }
   });
