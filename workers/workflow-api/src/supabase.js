@@ -205,6 +205,15 @@ export async function updateBy(env, table, filter, patch) {
   });
 }
 
+/** PostgREST RPC — POST /rpc/<fn>. 인자는 함수의 매개변수 이름 그대로. */
+export async function callRpc(env, fn, args = {}) {
+  return restRequest(env, `/rpc/${encodeURIComponent(fn)}`, {
+    method: 'POST',
+    headers: restHeaders(env),
+    body: JSON.stringify(args),
+  });
+}
+
 /**
  * 설계 소유권 확인.
  *
