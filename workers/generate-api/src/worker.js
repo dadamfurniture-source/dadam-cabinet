@@ -47,6 +47,7 @@ import {
   removeObjects,
   fetchObjectBase64,
   extOf,
+  bucketName,
   NotFoundError,
   ForbiddenError,
   ConflictError,
@@ -65,6 +66,7 @@ import {
   checkShareAccessible,
   isInternalOnly,
 } from './share.js';
+import { OWNER_SIGNED_TTL_SEC, shareSignedTtl, signImageUrls } from './storage-urls.js';
 
 // Durable Object 클래스는 워커 진입점에서 export 되어야 런타임이 찾는다.
 export { GeminiProxy } from './proxy.js';
@@ -738,7 +740,9 @@ async function getGeneration(request, env, id) {
     select: PUBLIC_COLUMNS,
   });
   if (!row) throw new NotFoundError('생성 결과를 찾을 수 없습니다');
-  return { success: true, generation: publicView(row) };
+  // 이미지 url 은 서명 URL 로 (2026-10-26, storage-urls.js) — 버킷이 비공개여도 열린다. path 는 그대로 싣는다.
+  const images = await signImageUrls(env, row.images, bucketName(env), OWNER_SIGNED_TTL_SEC);
+  return { success: true, generation: publicView({ ...row, images }) };
 }
 
 async function deleteGeneration(request, env, id) {
@@ -817,6 +821,10 @@ async function getShared(request, env) {
     err.code = check.reason;
     throw err;
   }
+  // 서명 URL (2026-10-26) — 수명은 링크가 남은 시간, 최대 1시간 (storage-urls.js shareSignedTtl).
+  //   토큰을 가진 사람만 여기까지 온다. 회수·만료되면 이 응답이 410 이 되고, 버킷이 비공개면 이미 받은 URL 도
+  //   길어야 1시간 안에 닫힌다.
+  const signed = await signImageUrls(env, row.images, bucketName(env), shareSignedTtl(row.share_expires_at));
   return {
     success: true,
     generation: {
@@ -824,7 +832,7 @@ async function getShared(request, env) {
       title: row.title,
       options: { design_style: row.options && row.options.design_style },
       // 붙박이장 내부 보기의 칸 구성·추천 이유도 싣는다 (2026-10-20). 고른 모델(by)은 공유하지 않는다.
-      images: (row.images || []).map((im) => ({
+      images: signed.map((im) => ({
         slot: im.slot,
         label: im.label,
         url: im.url,

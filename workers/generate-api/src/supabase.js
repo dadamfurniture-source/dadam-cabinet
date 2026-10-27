@@ -133,6 +133,16 @@ export function bucketName(env) {
   return env.GENERATIONS_BUCKET || 'generations';
 }
 
+/**
+ * 이 버킷에 올리는 객체의 Cache-Control (2026-10-26). 고객 사진·연출컷이라 공유 캐시에 두지 않고(private)
+ * 1시간만 — 서명 URL 수명과 같다. 예전 값 'public, max-age=31536000, immutable' 로 올라간 파일은 그대로다.
+ */
+export const OBJECT_CACHE_CONTROL = 'private, max-age=3600';
+
+/**
+ * 행에 저장하는 주소 (images[].url · inputs.*.url). 화면에 내보낼 때는 storage-urls.js 가 path 로 서명 URL 을
+ * 만들어 바꿔 싣는다 — 버킷을 비공개로 돌려도 저장 형식은 그대로다 (2026-10-26).
+ */
 export function publicUrl(env, path) {
   return `${env.SUPABASE_URL}/storage/v1/object/public/${bucketName(env)}/${path}`;
 }
@@ -151,7 +161,7 @@ export async function uploadObject(env, path, base64, mimeType) {
       Authorization: `Bearer ${key}`,
       'Content-Type': mimeType || 'application/octet-stream',
       'x-upsert': 'true',
-      'Cache-Control': 'public, max-age=31536000, immutable',
+      'Cache-Control': OBJECT_CACHE_CONTROL,
     },
     body: bytes,
   });

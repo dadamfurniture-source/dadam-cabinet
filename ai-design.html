@@ -1392,8 +1392,14 @@
         function applyGeneration(g) {
           S.genId = g.id;
           if (g.category) S.kind = g.category;
+          // 워커가 주는 url 은 서명 URL 이라 읽을 때마다 바뀐다 (2026-10-26) — 폴링 중 같은 파일(path)은
+          //   먼저 받은 주소를 그대로 둬 이미지를 다시 받지 않는다
+          var had = {};
+          (S.results || []).forEach(function (r) {
+            if (r.path) had[r.path] = r.src;
+          });
           S.results = (g.images || []).slice(0, 4).map(function (im) {
-            return { src: im.url, label: im.label || '', structure: im.structure || null };
+            return { src: (im.path && had[im.path]) || im.url, path: im.path || null, label: im.label || '', structure: im.structure || null };
           });
           S.quote = g.quote || null;
         }
