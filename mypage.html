@@ -17,10 +17,10 @@
     <script defer src="js/nav-transitions.js"></script>
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="js/detaildesign-access.js?v=37.0"></script>
+    <script src="js/detaildesign-access.js?v=2026102701"></script>
     <script src="js/admin-access.js"></script>
-    <script src="js/mypage-work.js?v=3"></script>
-    <script src="js/consent.js"></script>
+    <script src="js/mypage-work.js?v=2026102701"></script>
+    <script src="js/consent.js?v=2026102701"></script>
     <style>
       * {
         margin: 0;
@@ -1429,8 +1429,15 @@
           <ul class="withdraw-list">
             <li>프로필과 로그인 정보</li>
             <li>저장한 설계와 도면</li>
-            <li>컬렉션에 올린 시공사례</li>
+            <li>설계에 올린 사진</li>
+            <li>AI 연출컷 (원본 사진 · 결과 이미지)</li>
+            <li>직접 올린 시공사례 사진</li>
             <li>저장한 추천 업체</li>
+          </ul>
+          <p class="withdraw-confirm">아래 정보는 남습니다.</p>
+          <ul class="withdraw-list" id="withdrawKeep">
+            <li>시공사례에 공개된 AI 연출컷은 작성자 정보 없이 남습니다. 남기지 않으려면 탈퇴 전에 「내 연출컷」에서 내려 주세요.</li>
+            <li>계약(고객 확인서 · 수주)과 결제 기록은 법에 따라 5년 동안 보관합니다.</li>
           </ul>
           <p class="withdraw-confirm">
             계속하시려면 아래에 <strong id="withdrawWord">탈퇴합니다</strong> 를 그대로 입력해 주세요.
@@ -2918,6 +2925,9 @@
           .from('collection_posts')
           .select('id, image_url, storage_path, region, created_at, consent_training, design_id')
           .eq('user_id', currentUser.id)
+          // AI 스튜디오 자동 게시(source 'ai_render')는 실제 시공 사진이 아니다 — 내 연출컷(my-designs.html)에서 내린다.
+          //   여기 두면 학습 동의 버튼으로 연출컷이 실제 사진처럼 데이터셋에 들어갈 수 있다 (2026-10-27).
+          .neq('source', 'ai_render')
           .order('created_at', { ascending: false });
 
         if (error) {

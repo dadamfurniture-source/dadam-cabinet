@@ -69,6 +69,29 @@ export async function putObject(env, bucket, objectPath, body, contentType) {
   return `${bucket}/${objectPath}`;
 }
 
+/**
+ * 한 버킷의 경로 여러 개를 한 번에 서명한다 (2026-10-26, 내보내기 — storage-urls.js).
+ * @returns {Promise<Map<string,string>>} path → 절대 URL. 그 경로만 실패하면 빠진다.
+ */
+export async function createSignedUrls(env, bucket, paths, expiresIn) {
+  const unique = [...new Set((paths || []).filter((p) => typeof p === 'string' && p))];
+  const out = new Map();
+  if (!unique.length) return out;
+  const res = await fetch(`${env.SUPABASE_URL}/storage/v1/object/sign/${bucket}`, {
+    method: 'POST',
+    headers: headers(env),
+    body: JSON.stringify({ expiresIn, paths: unique }),
+  });
+  if (!res.ok) throw new Error(`sign ${bucket} ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const rows = await res.json();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (!row || row.error || !row.signedURL) continue;
+    // signedURL 은 storage/v1 기준 상대 경로 ('/object/sign/<bucket>/<path>?token=…')
+    out.set(row.path, `${env.SUPABASE_URL}/storage/v1/${String(row.signedURL).replace(/^\/+/, '')}`);
+  }
+  return out;
+}
+
 /** 사용자 토큰 → 사용자. 관리자 확인은 is_admin() (RLS 우회 SECURITY DEFINER) 에 맡긴다. */
 export async function verifyAdmin(request, env) {
   const m = (request.headers.get('Authorization') || '').match(/^Bearer\s+(.+)$/i);

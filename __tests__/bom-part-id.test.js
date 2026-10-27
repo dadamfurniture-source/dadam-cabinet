@@ -309,7 +309,7 @@ describe('detaildesign.html — planner-finish.js 를 extractors.js 앞에 싣�
     expect(i1).toBeGreaterThan(-1);
     expect(i2).toBeGreaterThan(i1);
     expect(i3).toBeGreaterThan(i2);
-    expect(srcs[i2]).toMatch(/\?v=\d+\.\d+/);
+    expect(srcs[i2]).toMatch(/\?v=\d+/);
   });
 
   test('planner-finish.js 의 최상위 이름을 상세설계 스크립트(외부·인라인)가 다시 선언하지 않는다', () => {

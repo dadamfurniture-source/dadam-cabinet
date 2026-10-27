@@ -8,7 +8,8 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const HTML = fs.readFileSync(path.join(ROOT, 'worker.html'), 'utf8');
+const { version: ASSET_VERSION } = require('../scripts/asset-version.json');
+const HTML =fs.readFileSync(path.join(ROOT, 'worker.html'), 'utf8');
 const P = require('../js/worker-portal.js');
 
 const J1 = '11111111-1111-4111-8111-111111111111';
@@ -664,11 +665,11 @@ describe('페이지 — 1주차 후속', () => {
   });
   afterEach(() => jest.restoreAllMocks());
 
-  test('worker.html — 맨 위 정지 안내 자리, 정지 전용 화면은 없다, 스크립트 ?v=2', () => {
+  test('worker.html — 맨 위 정지 안내 자리, 정지 전용 화면은 없다, 스크립트 ?v= 는 사이트 자산 버전', () => {
     expect(HTML).toContain(`<p class="alert warn" id="suspendedNote" hidden>${P.SUSPENDED_NOTE}</p>`);
     expect(HTML).not.toContain('id="viewSuspended"');
     expect(HTML).not.toContain('신청 마감');
-    expect(HTML).toMatch(/<script src="js\/worker-portal\.js\?v=2"><\/script>/);
+    expect(HTML).toContain(`<script src="js/worker-portal.js?v=${ASSET_VERSION}"></script>`);
   });
 
   test('정지 작업자 → 앱 화면 + 맨 위 안내, 모집중 탭 없음, 기본 탭 내 작업 — 모집중 목록은 부르지 않는다', async () => {

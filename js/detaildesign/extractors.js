@@ -45,6 +45,9 @@
       // 2026-10-20: EL장 모듈 타입 — js/detaildesign/bom-el-rules.js (도어 종류만, 치수 [확인 필요]).
       const ElRules = (typeof DadamElRules !== 'undefined') ? DadamElRules
         : (typeof require === 'function' ? require('./bom-el-rules.js') : null);
+      // 2026-10-26: 설비장(개수대 · 가스대 · 후드장) 규칙 — js/detaildesign/bom-fixture-cabinet-rules.js (밴드 · 선반 · 후드장 높이 · 가스대 서랍)
+      const FixtureRules = (typeof DadamFixtureCabinetRules !== 'undefined') ? DadamFixtureCabinetRules
+        : (typeof require === 'function' ? require('./bom-fixture-cabinet-rules.js') : null);
       const WR_DEFAULTS = (WardrobeRules && WardrobeRules.WARDROBE_RULES)
         || { DEFAULT_D: 620, DEFAULT_H: 2310, PEDESTAL_H: 60, MOLDING_H: 20 };
 
@@ -221,6 +224,8 @@
       //      달라 자리가 나뉘면("깊이가 다르면 따로 함" 과 같은 원칙) 그 자리는 짧아도 붙는 길이 그대로 낸다 (depthBound → linePiecesOf keepShort).
       //      키큰장(깊이가 다른)이 사이에 서서 나뉜 양옆 자리 · 홀로 짧은 줄 · 남는 조각은 그대로 800. 키큰장 제 상몰딩 · 좌대 걸레받이 · 단 목찬넬은
       //      모듈 행(addTallTierParts)이라 이 규칙을 타지 않는다 — 제 폭 그대로.
+      //      두 번째 예외 — 2026-10-26 사장님 "600 그대로" (쌓기 칸에서 끊긴 짧은 목찬넬): 하부 밥솥장이 쌓인 서랍 모듈(stackTop) 칸에서 끊긴
+      //      목찬넬 자리는 깊이 예외와 똑같이 짧아도 붙는 길이 그대로 낸다 (stackBound → linePiecesOf keepShort, 그 칸에 닿은 자리 양쪽).
       //   ④ 깊이가 다른 키큰장 양옆은 서로 다른 자리다 (상몰딩 1200 · 1200 → 1200 두 장, 하부 라인의 걸레받이 · 목찬넬도 키큰장 양옆이 따로).
       //   조각 나누기 = assembly-rules.js linePiecesOf (조립 명세 runsOf 가 같은 계획을 받아 3D 에 같은 이음매를 놓는다).
       //   걸레받이카바 개수는 그대로다 — 자재 행 전체 길이(발주 조각 길이 × 수량 합)로 센다.
@@ -283,11 +288,15 @@
        * 줄 모듈 → 자리들 (①). 벽마다, 벽 안에서는 진행 방향 자리 순서로 붙어 있는(1mm 안) 모듈끼리 한 자리.
        *   이웃 모듈의 깊이 · 앞면이 다르면(bomSameDepthOf) 거기서도 나누고, 그렇게 나뉜 자리에 depthBound 를 단다 (③ 예외 — 짧아도 그대로).
        *   자리가 없는 모듈(옛 설계 · 사선 줄)은 한 벽('-') — 배열 순서로 보고 세지 않는 모듈(counts 거짓)이 사이에 서면 나눈다.
+       *   stop 이 참인 세지 않는 모듈(목찬넬의 하부 밥솥장 stackTop 칸)에 닿은 자리에는 stackBound 를 단다 — 2026-10-26 사장님 "600 그대로"
+       *   (쌓기 칸에서 끊긴 짧은 목찬넬, depthBound 와 같은 keepShort). 닿음 = 자리 끝과 그 칸 끝이 1mm 안 (자리가 없으면 배열에서 바로 이웃).
        * @param {object[]} mods    줄 후보 모듈 (배열 순서)
        * @param {(m: object) => boolean} counts  자리를 이루는 모듈
-       * @returns {Array<{wall:string, units:Array<{len:number, ids:string[], kind:string}>, depthBound?:boolean}>}  벽 순서 = 모듈이 처음 나온 순서
+       * @param {(m: object) => boolean} [stop]  자리를 끊고 닿은 자리를 짧아도 그대로 두는 칸 (세지 않는 모듈 중)
+       * @returns {Array<{wall:string, units:Array<{len:number, ids:string[], kind:string}>, depthBound?:boolean, stackBound?:boolean}>}
+       *   벽 순서 = 모듈이 처음 나온 순서
        */
-      function bomLinePlacesOf(mods, counts) {
+      function bomLinePlacesOf(mods, counts, stop) {
         const order = [];
         const byWall = new Map();
         (mods || []).forEach((m) => {
@@ -313,21 +322,37 @@
             cur.units.push(bomModuleUnitOf(m));
             if (bomDepthRefOf(m)) ref = m;
           };
+          const isStop = (m) => !!stop && !counts(m) && !!stop(m);
           if (wall === '-') {
+            let afterStop = false;   // 바로 앞 칸이 stop 이었다 — 다음에 여는 자리가 그 칸에 닿는다
             list.forEach((m) => {
-              if (!counts(m)) { cur = null; ref = null; return; }
+              if (!counts(m)) {
+                if (isStop(m) && cur) cur.stackBound = true;
+                afterStop = isStop(m);
+                cur = null; ref = null;
+                return;
+              }
               if (!(bomWidthOf(m) > 0)) return;
-              if (!cur) open(false);
+              if (!cur) { open(false); if (afterStop) cur.stackBound = true; }
+              afterStop = false;
               add(m);
             });
             return;
           }
+          // stop 칸 — 자리 끝이 그 칸 시작에, 자리 시작이 그 칸 끝에 1mm 안으로 닿으면 그 자리는 stackBound
+          const stops = list.filter((m) => isStop(m) && bomWidthOf(m) > 0).map(bomRunSegOf);
+          const stopAt = (x, side) => stops.some((st) => Math.abs(st[side] - x) <= 1);
           let end = -Infinity;
           list.filter((m) => counts(m) && bomWidthOf(m) > 0).map(bomRunSegOf).sort((x, y) => x.a - y.a).forEach((g) => {
-            if (!cur || g.a - end > 1) open(false);
+            if (!cur || g.a - end > 1) {
+              if (cur && stopAt(end, 'a')) cur.stackBound = true;
+              open(false);
+              if (stopAt(g.a, 'b')) cur.stackBound = true;
+            }
             add(g.m);
             end = Math.max(end, g.b);
           });
+          if (cur && stopAt(end, 'a')) cur.stackBound = true;
         });
         return places;
       }
@@ -335,9 +360,10 @@
       /**
        * 자리들에 조각을 단다 — assembly-rules.js linePiecesOf (total · offsets · pieces · fallback · inside).
        *   깊이가 달라 나뉜 자리(depthBound)는 짧아도 붙는 길이 그대로 (keepShort — 2026-10-26 "800보다 작지만 깊이가 구분되는 모듈이라면 800이하도 가능.")
+       *   하부 밥솥장 쌓기 칸에서 끊긴 목찬넬 자리(stackBound)도 같다 (keepShort — 2026-10-26 사장님 "600 그대로")
        */
       function bomPlanPlaces(places) {
-        return (places || []).map((pl) => Object.assign({}, pl, AsmRules.linePiecesOf(pl.units.map((u) => u.len), { keepShort: !!pl.depthBound })))
+        return (places || []).map((pl) => Object.assign({}, pl, AsmRules.linePiecesOf(pl.units.map((u) => u.len), { keepShort: !!(pl.depthBound || pl.stackBound) })))
           .filter((pl) => pl.pieces.length);
       }
 
@@ -392,6 +418,16 @@
         return n(hp.moldingH, n(specs && specs.moldingH, 60));
       }
 
+      /**
+       * 품목 상몰딩 높이 — specs.moldingH, 비었으면 60 (sink.md §5). **0 은 "없음"** 이다 (플래너 높이 구성 · 간편 플래너 "상몰딩 없음").
+       *   예전엔 `parseFloat(specs.moldingH) || 60` 이라 0 이 60 으로 떨어져, 상몰딩을 뺀 설계에도 60 상몰딩이 나갔다 (2026-10-27).
+       *   산출은 그대로 20 이상일 때만 (moldingH >= 20).
+       */
+      function bomItemMoldingHOf(specs) {
+        const x = parseFloat(specs && specs.moldingH);
+        return Number.isFinite(x) && x >= 0 ? x : 60;
+      }
+
       /** 싱크대 규칙(extractSink)으로 상부 라인 상몰딩을 내는 품목 — sinkMoldingPlanOf 가 이 품목만 계획한다 */
       const BOM_SINK_MOLDING_CATEGORIES = ['sink', 'island', 'custom', 'door', 'fridge'];
 
@@ -433,7 +469,7 @@
           return done(bomLinePlacesOf(ups.map((m) => Object.assign({}, m, { _place: null })), () => true), []);
         }
         const same = (a, b) => Math.abs(a - b) <= 1;
-        const epH = parseFloat(specs && specs.moldingH) || 60;
+        const epH = bomItemMoldingHOf(specs);
         const walls = new Map();
         ups.forEach((m) => {
           if (!walls.has(bomWallKeyOf(m))) walls.set(bomWallKeyOf(m), []);
@@ -652,8 +688,8 @@
       const bomBackPanelSize = AsmRules.backPanelSize;
       /** 상판 두께 — 2026-10-18 사장님: 12 · 50T (인조대리석). data-constants.js TOP_THICKNESS_OPTIONS 와 같다. */
       const BOM_TOP_THICKNESS_OPTIONS = [12, 50];
-      /** 상판 재질별 두께 — 2026-10-18 사장님 Q8 (상판 발주 요청서). data-constants.js TOP_MATERIALS 와 같다. 첫 재질이 기본. */
-      const BOM_TOP_MATERIALS = { '인조대리석': [12, 50], '엔지니어드 스톤': [12, 20], '세라믹': [12] };
+      /** 상판 재질별 두께 — 2026-10-18 사장님 Q8 (상판 발주 요청서) · 2026-10-27 사장님 "18T MDF, 18T PB 추가". data-constants.js TOP_MATERIALS 와 같다. 첫 재질이 기본. */
+      const BOM_TOP_MATERIALS = { '인조대리석': [12, 50], '엔지니어드 스톤': [12, 20], '세라믹': [12], 'MDF': [18], 'PB': [18] };
       function bomDoorCountByWidth(W) {
         return Math.max(1, Math.ceil((parseFloat(W) || 0) / BOM_DOOR_W_MAX));
       }
@@ -1399,10 +1435,13 @@
           const boxT = Number(d.boxT) || Number(mod.drawerBoxT) || T;
           // 2026-09-16: 전면 등급 — 서랍마다 소·중·대. 도어 등급은 따로 (기본 대).
           const grades = Array.isArray(d.grades) ? d.grades : null;
-          return {
+          const out = {
             rail: DrawerRules ? DrawerRules.railKeyOf(railRaw) : 'under', sakuri, boxT,
             grades, doorGrade: d.doorGrade || null,
           };
+          // 2026-10-26 사장님 (가스대): 칸마다 레일 · 박스 크기 · 맨 위 속서랍 (bom-drawer-rules frontSpecs) — 있을 때만
+          if (Array.isArray(d.fronts) && d.fronts.length) out.fronts = d.fronts;
+          return out;
         }
 
         drawerLayoutOf(mod, H, T) {
@@ -1441,10 +1480,10 @@
             }));
             return DrawerRules.layoutByGrades({
               areaH, topT: hp.topT, legH: hp.legH, pedestalH: hp.pedestalH,
-              T, fronts: graded, rail: rules.rail,
+              T, fronts: graded, rail: rules.rail, frontSpecs: rules.fronts,
             });
           }
-          return DrawerRules.layoutDrawerModule({ H, T, fronts, rail: rules.rail });
+          return DrawerRules.layoutDrawerModule({ H, T, fronts, rail: rules.rail, frontSpecs: rules.fronts });
         }
 
         /**
@@ -1460,13 +1499,20 @@
          * @param {boolean} channel  목찬넬 손잡이 — 측판 따내기 비고 · 처짐방지목 −70
          * @param {string} [extraNote]  측판 비고 뒤에 붙일 말 (키큰장 서랍 단 규칙 없음)
          * @param {boolean} [blind]  멍장 — 가운데 처짐방지목을 내지 않는다. ㄱ자 기둥 앞판이 처짐방지 밴드다 (addBlindFrontParts, 2026-10-26 사장님)
+         * @param {boolean} [standBack]  개수대 · 가스대 — 앞 밴드 50 눕힘 · 뒤 밴드 70 세움 (bom-fixture-cabinet-rules BAND, 2026-10-26 사장님)
          */
-        addLowerCarcassRows(materials, modLabel, W, H, T, modD, L, channel, extraNote, blind) {
+        addLowerCarcassRows(materials, modLabel, W, H, T, modD, L, channel, extraNote, blind, standBack) {
           const notchH = DrawerRules ? DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : 0;
           const carcass = (label, h, note, brace) => {
             this.add(materials, label, '측판', 'PB', T, modD, h, 2, '3면', note);
             this.add(materials, label, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
-            this.add(materials, label, '밴드', 'PB', T, ASM.BAND_W, W - T * 2, 2, '2면(장)');
+            if (standBack && FixtureRules) {
+              // 앞 · 뒤 한 장씩 — 앞은 보통 앞 밴드 자리에 눕고(폭 50), 뒤는 뒤끝에 선다 (폭 70 이 높이 방향)
+              this.add(materials, label, '밴드', 'PB', T, FixtureRules.FIXTURE_CABINET_RULES.BAND.FRONT_W, W - T * 2, 1, '2면(장)', '앞 · 눕힘');
+              this.add(materials, label, '밴드', 'PB', T, ASM.BAND_W, W - T * 2, 1, '2면(장)', '뒤 · 세움');
+            } else {
+              this.add(materials, label, '밴드', 'PB', T, ASM.BAND_W, W - T * 2, 2, '2면(장)');
+            }
             this.addBackPanel(materials, label, W, h, false);
             // 밴드(처짐방지목) — 목찬넬이면 −70. W ≥ 800 이면 1장, 모듈 중앙 (bomBraceQtyOf)
             const bandH = channel ? h - T * 2 - notchH : h - T * 2;
@@ -1507,37 +1553,27 @@
           drawerFrontRows.forEach((r) => {
             this.add(materials, modLabel, '서랍도어', 'MDF', 18, W - 4, r.h, r.qty, '4면', '', mod);
           });
-          // 박스 — 같은 크기끼리 묶는다 (앞뒷판·측판은 서랍당 2장). 치수는 레일 종류·깊이·자재 두께로.
+          // 박스 — 같은 박스끼리 묶는다 (앞뒷판·측판은 서랍당 2장). 치수는 레일 종류·깊이·자재 두께로.
+          //   2026-10-26 사장님 (가스대): 칸마다 레일 · 속서랍(사쿠리 없음)이 다를 수 있다 — 크기 · 레일 · 사쿠리가 같은 것끼리 묶고,
+          //   밑판 · 하단보강은 치수가 같은 것끼리. 박스가 모두 모듈 레일 · 사쿠리면 예전과 같은 행이다 (bom-drawer-rules boxGroupsOf — 조립 명세도 같은 묶음으로 행을 박스에 잇는다).
           const rules = this.drawerRulesOf(mod, T);
           const drawerT = rules.boxT;
-          const sakuri = rules.sakuri;
-          const dimsOf = (boxH) => DrawerRules.drawerBoxDims({ W, D: modD, bodyT: T, drawerT, rail: L.rail, boxH, sakuri });
-          const groups = [];
-          L.boxes.forEach((b) => {
-            let g = groups.find((x) => x.size === b.size);
-            if (!g) { g = { size: b.size, h: b.h, count: 0, fits: true }; groups.push(g); }
-            g.count += 1;
-            if (!b.fits) g.fits = false;
-          });
-          let bottomW = 0, bottomD = 0, brace = false, sideL = 0;
-          const railName = R.RAIL_CLEARANCE[L.rail].name;
-          groups.forEach((g) => {
-            const d = dimsOf(g.h);
+          const G = DrawerRules.boxGroupsOf(L, { boxT: drawerT, sakuri: rules.sakuri }, { W, D: modD, T });
+          G.groups.forEach((g) => {
+            const d = g.dims;
             if (d.warnings.length) dlog(`[Drawer] ${modLabel}: ${d.warnings.join(' / ')}`);
-            const note = `${R.BOX_LABEL[g.size]} 박스${g.fits ? '' : ' (레일 여유 부족)'}`;
+            const note = `${R.BOX_LABEL[g.size]} 박스${g.size === 'inner' ? ` ${g.h}` : ''}${g.fits ? '' : ' (레일 여유 부족)'}`;
             this.add(materials, modLabel, '서랍전후판', 'PB', drawerT, d.fbW, d.fbH, g.count * 2, '1면(장)',
-              `${note}${sakuri ? ' · 사쿠리 −' + R.BOX_SAKURI_FB_MINUS : ''}`);
+              `${note}${g.sakuri ? ' · 사쿠리 −' + R.BOX_SAKURI_FB_MINUS : ''}`);
             this.add(materials, modLabel, '서랍측판', 'PB', drawerT, d.sideL, d.sideH, g.count * 2, '1면(장)',
-              `${note} · ${railName} ${d.railLength}${sakuri ? ' · 사쿠리' : ''}`);
-            bottomW = d.bottomW; bottomD = d.bottomD; brace = d.brace; sideL = d.sideL;
+              `${note} · ${R.RAIL_CLEARANCE[g.rail].name} ${d.railLength}${g.sakuri ? ' · 사쿠리' : ''}`);
           });
-          const n = L.boxes.length;
-          if (n > 0) {
-            this.add(materials, modLabel, '서랍밑판', 'MDF', BOM_DRAWER_BOTTOM_T, bottomW, bottomD, n, '-', sakuri ? '우라 · 사쿠리 홈' : '우라');
-            if (brace) {
-              this.add(materials, modLabel, '서랍 하단보강', 'PB', drawerT, sideL, R.BOX_BRACE_H, n, '2면(장)');
+          G.bottoms.forEach((bt) => {
+            this.add(materials, modLabel, '서랍밑판', 'MDF', BOM_DRAWER_BOTTOM_T, bt.w, bt.d, bt.n, '-', bt.sakuri ? '우라 · 사쿠리 홈' : '우라');
+            if (bt.brace) {
+              this.add(materials, modLabel, '서랍 하단보강', 'PB', drawerT, bt.sideL, R.BOX_BRACE_H, bt.n, '2면(장)');
             }
-          }
+          });
           // 중간 목찬넬 — 따내기 90×40 자리를 채우는 ㄴ자 두 장, 모듈 폭.
           // 2026-10-22 사장님 "도어는 재단 규칙이 같음. 그러나 따내기, ㄴ자 목찬넬은 없음": 찬넬(알루미늄) 손잡이면
           //   전면 치수는 그대로 두고 측판 따내기(호출자 sideNote)와 ㄴ자 목찬넬 행은 내지 않는다.
@@ -1572,7 +1608,12 @@
           return doorW + battenT - 4;
         }
 
-        addBlindFrontParts(materials, modLabel, mod, H, battenH) {
+        /**
+         * 멍장 정면 부재 — 멍가림판 · ㄱ자 기둥(처짐방지 밴드 + 경첩목대) · 멍판 마감재.
+         * @param {number} [fillerH] 휠라(멍판) 높이 — 옆 멍장 도어와 같다 (2026-10-27 사장님 "휠라는 옆 도어와 같은 높이로",
+         *   W12-42 휠라 = 인접 도어). 하부 멍장 = 도어 H − 30 (목찬넬 틈). 비우면 H. 몰딩(멍판)은 늘 H (상판 아래까지).
+         */
+        addBlindFrontParts(materials, modLabel, mod, H, battenH, fillerH) {
           const coverT = typeof CORNER_BLIND_COVER_T !== 'undefined' ? CORNER_BLIND_COVER_T : 3;
           const battenT = typeof CORNER_HINGE_BATTEN_T !== 'undefined' ? CORNER_HINGE_BATTEN_T : 15;
           const battenLeg = typeof CORNER_HINGE_BATTEN_LEG !== 'undefined' ? CORNER_HINGE_BATTEN_LEG : 60;
@@ -1622,8 +1663,10 @@
           if (finType !== 'None' && coverW > 0) {
             const finW = parseFloat(mod.blindFinishW) || finPartW;
             const finName = finType === 'Molding' ? '몰딩(멍판)' : '휠라(멍판)';
-            this.add(materials, modLabel, finName, 'MDF', 18, finW, H, 1, '4면',
-                     `멍판 마감재 — 자리 ${finSeatW} + 멍판 위 겹침 ${finW - finSeatW} (corner.md §3.3)`);
+            // 2026-10-27 사장님: 휠라는 옆 도어와 같은 높이 (하부 멍장 H − 30, 밑단 = 몸통 바닥) — 몰딩은 몸통 전체 (상판 아래까지)
+            const finH = finType !== 'Molding' && Number.isFinite(fillerH) && fillerH > 0 ? fillerH : H;
+            this.add(materials, modLabel, finName, 'MDF', 18, finW, finH, 1, '4면',
+                     `멍판 마감재 — 자리 ${finSeatW} + 멍판 위 겹침 ${finW - finSeatW} (corner.md §3.3)${finH !== H ? ' · 높이 = 옆 멍장 도어' : ''}`);
           }
         }
 
@@ -1762,6 +1805,7 @@
          *            2026-10-26 사장님 (하부 밥솥장): 서랍 위에 쌓인 밥솥장(stacked)은 줄에 서지 않는다 — 밑 서랍 모듈(stackTop)이 그 자리를 센다.
          *   channel  목찬넬 — lower 와 같은 자리를, 싱크에서는 밥솥장이 쌓인 서랍 모듈(stackTop) 칸에서 더 나눈다 (2026-10-26 사장님
          *            "상판 아래 목찬넬은 그 칸에서 끊긴다", sink.md 하부 밥솥장). 쌓인 칸이 없으면 lower 와 같다.
+         *            그 칸에 닿은 자리는 800 보다 짧아도 붙는 길이 그대로 (2026-10-26 사장님 "600 그대로" — stackBound).
          *   extract() 가 상자 모듈을 걷어내기 **전** 품목으로 한 번 세우고(_ctx.linePlan), 조립 명세(bom-assembly.js runsOf)가 같은 품목으로
          *   다시 묻는다 — 둘이 같은 조각을 쓴다. 모듈 id 로 단위를 가리키므로 3D 는 같은 모듈 경계에 이음매를 놓는다.
          * @param {object} item
@@ -1779,9 +1823,10 @@
           const lower = bomPlanPlaces(bomLinePlacesOf(lowerMods, lowerCounts));
           if (sink) {
             const p = this.sinkMoldingPlanOf(Object.assign({}, item, { categoryId: 'sink' }));
-            // 목찬넬은 stackTop 칸을 세지 않는다 — 그 칸에서 자리가 나뉜다 (나뉜 자리는 깊이 예외가 아니다 — 짧으면 800 발주 · 현장 자름)
+            // 목찬넬은 stackTop 칸을 세지 않는다 — 그 칸에서 자리가 나뉜다. 그 칸에 닿은 자리는 짧아도 붙는 길이 그대로
+            //   (2026-10-26 사장님 "600 그대로" — 쌓기 칸에서 끊긴 짧은 목찬넬, stackBound → keepShort)
             const channel = lowerMods.some((m) => m.stackTop)
-              ? bomPlanPlaces(bomLinePlacesOf(lowerMods, (m) => lowerCounts(m) && !m.stackTop)) : lower;
+              ? bomPlanPlaces(bomLinePlacesOf(lowerMods, (m) => lowerCounts(m) && !m.stackTop, (m) => lowerCounts(m) && !!m.stackTop)) : lower;
             return { molding: { places: bomPlanPlaces(p.places), joinedTalls: p.joinedTalls }, lower: { places: lower }, channel: { places: channel } };
           }
           const uppers = bomPlanPlaces(bomLinePlacesOf(mods.filter((m) => m.pos === 'upper'), (m) => !bomIsBoxModule(m)));
@@ -2062,7 +2107,10 @@
             const braceQty = isBlindModule(mod, 'upper') ? 0 : bomBraceQtyOf(W, 'upper');
             if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, H - T * 2, braceQty, '2면(장)');
             // 선반 2개 (사쿠리 반영 D-34). 2026-09-13: 멍장은 ㄱ자 목대 깊이 75 만큼 짧다 (corner.md §3.5)
-            this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - ASM.SAKURI_SHELF_D_MINUS - this.blindShelfCut(mod, 'upper'), 2, '1면(전)');
+            //   2026-10-26 사장님: 후드장은 선반이 없다 (덕트 자리 — bom-fixture-cabinet-rules NO_SHELF)
+            if (!(FixtureRules && FixtureRules.noShelf(mod))) {
+              this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - ASM.SAKURI_SHELF_D_MINUS - this.blindShelfCut(mod, 'upper'), 2, '1면(전)');
+            }
             // 도어 (H + overlap)
             // W11-13: 미지정(undefined)과 0 을 구분한다.
             //   기존 저장 설계는 doorCount 를 안 넣고 폴백 1 에 의존하므로 그대로 1.
@@ -2116,10 +2164,11 @@
 
             // 몸통 — 측판 2 (하부장: 사쿠리 없음, 목찬넬이면 따내기 비고) · 지판 · 밴드 2 · 뒷판(측판 뒤 덮음) · 처짐방지목.
             //   위 도어 + 아래 서랍은 두 몸통 (2026-10-25, addLowerCarcassRows). 멍장은 가운데 처짐방지목 대신 ㄱ자 기둥 (2026-10-26)
-            this.addLowerCarcassRows(materials, modLabel, W, H, T, modD, drawerLayout, !!(isWoodChannel && DrawerRules), '', isBlindModule(mod, 'lower'));
+            this.addLowerCarcassRows(materials, modLabel, W, H, T, modD, drawerLayout, !!(isWoodChannel && DrawerRules), '', isBlindModule(mod, 'lower'),
+              !!(FixtureRules && FixtureRules.hasStandingBackBand(mod)));
             const bandH = isWoodChannel ? H - T * 2 - DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : H - T * 2;
-            // 선반 (서랍/EL/오픈장 없으면 1개, 하부장: 사쿠리 없음)
-            if (!isDrawer && !isEL && !isOpen && mod.type !== 'sink') {
+            // 선반 (서랍/EL/오픈장 없으면 1개, 하부장: 사쿠리 없음). 2026-10-26: 설비장 개수대도 없다 (예전 type 'sink' 와 같다)
+            if (!isDrawer && !isEL && !isOpen && mod.type !== 'sink' && !(FixtureRules && FixtureRules.noShelf(mod))) {
               // 2026-09-13: 멍장은 ㄱ자 목대 깊이 75 만큼 짧다 (corner.md §3.5)
               this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - T - this.blindShelfCut(mod, 'lower'), 1, '1면(전)');
             }
@@ -2129,7 +2178,7 @@
               // W10-4: 하부 멍장 — 도어는 doorW 기준 (카카스 W면 오발주), 멍 가림판 신규 (design §6)
               const blindDoorW = this.blindDoorPartW(mod, W); // doorW + 11 — 도어가 목대를 덮는다 (corner.md §3.5.1)
               this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H - 30, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준) — 목대를 덮는다: doorW + 15 − 4 (corner.md §3.5.1)', mod);
-              this.addBlindFrontParts(materials, modLabel, mod, H, bandH);
+              this.addBlindFrontParts(materials, modLabel, mod, H, bandH, H - 30);   // 휠라(멍판) = 도어 높이
             } else if (isDrawer) {
               // ★ 2026-09-15: 서랍장 — 규칙은 bom-drawer-rules.js (도면 "서랍장 목찬넬 구조 도면").
               //   전면(위→아래): doorCount>0 이면 [도어, 서랍×n] — 플래너 doorTopDrawerBottom 과 같은 그림.
@@ -2141,7 +2190,9 @@
               this.addDrawerModuleParts(materials, modLabel, mod, W, T, doorCount, drawerLayout, modD, isWoodChannel);
             } else if (doorCount > 0) {
               const doorW = Math.floor(W / doorCount) - 4;
-              this.add(materials, modLabel, '도어', 'MDF', 18, doorW, H - 30, doorCount, '4면', '', mod);
+              // 2026-10-27 사장님: 양념망장 앞판은 재단이 도어와 같고 철물에 달린 풀아웃이다 (경첩 없음 — 비고로 남긴다)
+              const doorNote = FixtureRules && FixtureRules.doorTypeOf(mod) ? FixtureRules.FIXTURE_CABINET_RULES.SPICE.FRONT_NOTE : '';
+              this.add(materials, modLabel, '도어', 'MDF', 18, doorW, H - 30, doorCount, '4면', doorNote, mod);
             }
             // 2026-10-26 사장님: 위에 밥솥장이 쌓인 서랍 모듈 — 상단 목찬넬이 상판 아래가 아니라 이 모듈 위(밥솥장 밑)에 선다.
             //   하부장 상단 목찬넬과 같은 ㄴ자(전면 52 · 지면 40)를 이 모듈 폭으로 낸다 (키큰장 바닥 단과 같은 자리) — 목찬넬 줄에서는 빠진다.
@@ -2159,7 +2210,7 @@
           const totalLowerW = lineLowerModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
           // 하부 모듈이 하나도 없는 옛 저장 설계만 품목 폭 − 좌우 마감 120 으로 떨어진다. 키큰장만 있는 라인은 0 — 걸레받이가 없다.
           const effectiveW = lowerModules.length ? totalLowerW : item.w - 120;
-          const moldingH = parseFloat(specs.moldingH) || 60;
+          const moldingH = bomItemMoldingHOf(specs);
           const lowerH = (specs.lowerH || 870) - legH;
           const totalH = parseFloat(item.h) || 2310;
 
@@ -2194,7 +2245,7 @@
           // 2026-10-26 사장님 (하부 밥솥장): 상판 아래 목찬넬은 밥솥장이 쌓인 서랍 모듈(stackTop)에서 끊긴다 — 그 칸은 서랍 모듈이 제 목찬넬을
           //   내고(위 모듈 행), 밥솥장 위 목대가 이웃 목찬넬 모양을 잇는다. 걸레받이는 그 칸을 지나 이어진다 (밑 서랍 모듈이 자리를 센다).
           //   목찬넬 자리 = linePlanOf channel — 걸레받이 자리를 stackTop 칸에서 더 나눈 것 (쌓인 칸이 없으면 걸레받이 자리와 같다).
-          //   나뉜 자리는 「조각」 규칙 그대로다 — 깊이 때문에 나뉜 자리가 아니므로 800 보다 짧으면 800 으로 내고 현장에서 자른다.
+          //   나뉜 자리는 「조각」 규칙을 타되, 그 칸에 닿은 자리는 800 보다 짧아도 붙는 길이 그대로 낸다 (2026-10-26 사장님 "600 그대로").
           const channelPlaces = lowerModules.length ? linePlan.channel.places : lowerPlaces;
           if (isWoodChannel && effectiveW > 0) this.addChannelRows(materials, epLabel, channelPlaces);
 
@@ -2814,7 +2865,7 @@
           const lineLowerModules = lowerModules.filter((m) => !bomTallTierOf(m));
           const effectiveW = lineLowerModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
           const totalUpperW = upperModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
-          const moldingH = parseFloat(specs.moldingH) || 60;
+          const moldingH = bomItemMoldingHOf(specs);
           // 2026-10-26 사장님 확정 (신발장 · 수납장 — "상몰딩, 걸레받이, 목찬넬 조건 적용"): 싱크와 같은 조각 — 자리마다 모듈 경계에서
           //   최대 2400 · 최소 800 (linePlanOf 'simple' · linePiecesOf). 자리 = 벽마다 붙어 있는 모듈 (상부는 상부장, 하부는 키큰장 단 제외 하부장).
           //   빈 자리 · 키큰장을 건너 잇는 규칙(2026-10-26)은 싱크 상몰딩 것이라 여기는 붙은 것끼리다 — 길이 합은 예전 폭 합 그대로.
@@ -3002,6 +3053,14 @@
               unit: 'SET',
               note: fits ? label : `${label} · 도어 폭 ${Math.round(doorW)} — 450~600 밖 [확인 필요]`,
               ...this.moduleTagOf(mod),
+            }];
+          }
+          // 2026-10-27 사장님: 양념망장 풀아웃 — 경첩 대신 양념망 철물 1 SET. 품명 · 규격은 정해지지 않았다 [확인 필요]
+          if (type === 'pullout' && FixtureRules) {
+            const hw = FixtureRules.FIXTURE_CABINET_RULES.SPICE.HARDWARE;
+            return [{
+              category: hw.category, item: hw.item, manufacturer: '', spec: `폭 ${Math.round(parseFloat(mod.w) || 0)}`,
+              qty: hw.qty, unit: hw.unit, note: `${label} · [확인 필요] 양념망 품명 · 규격 미정`, ...this.moduleTagOf(mod),
             }];
           }
           if (type === 'sliding' || type === 'slide') {
@@ -3306,6 +3365,30 @@
             if (railLength === null) railLength = R ? R.RAIL_LENGTHS[0] : 250;
             const maxN = R ? R.MAX_COUNT : 4;
             const qty = Math.min(maxN, Math.max(1, parseInt(mod.drawerCount, 10) || 1));
+            // 2026-10-26 사장님 (가스대): 칸마다 레일 · 속서랍 — 레일 종류마다 한 행 (bom-drawer-rules frontSpecs 와 같은 칸)
+            const specs = mod.drawer && Array.isArray(mod.drawer.fronts) && mod.drawer.fronts.length ? mod.drawer.fronts : null;
+            if (specs && DrawerRules) {
+              const counts = {};
+              const put = (k) => { counts[k] = (counts[k] || 0) + 1; };
+              for (let i = 0; i < qty; i++) {
+                const s = specs[i] || {};
+                if (s.inner) put(DrawerRules.railKeyOf(s.inner.rail));
+                put(s.rail ? DrawerRules.railKeyOf(s.rail) : railKey);
+              }
+              Object.keys(counts).forEach((k) => {
+                hardware.push({
+                  category: '레일',
+                  item: R.RAIL_CLEARANCE[k].name,
+                  manufacturer: '블룸',
+                  spec: `${railLength}mm`,
+                  qty: counts[k],
+                  unit: 'SET',
+                  note: `${mod.name || mod.type}${k === 'ball' ? ` · 두께 ${R.RAIL_CLEARANCE.ball.thickness}` : ''}`,
+                  ...this.moduleTagOf(mod),
+                });
+              });
+              return;
+            }
 
             hardware.push({
               category: '레일',

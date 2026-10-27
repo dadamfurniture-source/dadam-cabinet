@@ -5,8 +5,9 @@
 // 사이트는 빌드 단계가 없다. GitHub Pages 가 저장소 루트의 파일을 그대로 싣는다.
 // 그래서 「빌드가 된다」 대신 「싣는 페이지가 부르는 로컬 파일이 모두 있다」를 확인한다.
 //
-//   대상 페이지: 루트 *.html, admin/*.html
-//   대상 참조:   <script src>, <link rel="stylesheet|modulepreload|preload|icon|manifest" href>
+//   대상 페이지: 루트 *.html, admin/*.html, segan/*.html
+//   대상 참조:   <script src>, <link rel="stylesheet|modulepreload|preload|icon|manifest" href>,
+//               매니페스트(*.webmanifest) 안의 icons[].src
 //   건너뜀:      외부 주소(http:, https:, //), data:, 템플릿 문자열이 섞인 값, HTML 주석 안
 //
 // 빠진 파일이 하나라도 있으면 목록을 찍고 exit 1.
@@ -19,7 +20,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PAGE_DIRS = ['.', 'admin'];
+const PAGE_DIRS = ['.', 'admin', 'segan'];
 const LINK_RELS = new Set([
   'stylesheet',
   'modulepreload',
@@ -79,7 +80,23 @@ for (const page of pages()) {
       ? path.join(ROOT, clean)
       : path.join(path.dirname(page), clean);
     checked++;
-    if (!fs.existsSync(target)) missing.push(`${path.relative(ROOT, page)} → ${ref}`);
+    if (!fs.existsSync(target)) {
+      missing.push(`${path.relative(ROOT, page)} → ${ref}`);
+      continue;
+    }
+    // 웹 앱 매니페스트면 안의 아이콘 파일도 확인한다 (설치 아이콘이 빠지면 홈 화면에 빈 칸이 뜬다)
+    if (target.endsWith('.webmanifest')) {
+      for (const icon of JSON.parse(fs.readFileSync(target, 'utf8')).icons || []) {
+        if (!isLocal(icon.src)) continue;
+        const iconPath = decodeURI(icon.src.split(/[?#]/)[0]);
+        const iconTarget = iconPath.startsWith('/')
+          ? path.join(ROOT, iconPath)
+          : path.join(path.dirname(target), iconPath);
+        checked++;
+        if (!fs.existsSync(iconTarget))
+          missing.push(`${path.relative(ROOT, target)} → ${icon.src}`);
+      }
+    }
   }
 }
 

@@ -475,6 +475,10 @@
           <div class="v5-run-state" id="runState">사진 두 장을 넣어주세요</div>
           <button type="button" class="v5-btn v5-btn--lg" id="runBtn" disabled>연출컷 생성</button>
           <div class="v5-track" id="runTrack" hidden><span></span></div>
+          <!-- 2026-10-27 시공사례 자동 게시 (workers/generate-api/src/collection-post.js) -->
+          <p class="v5-note" id="runPostNote" style="margin: 0; text-align: center">
+            완성되면 대표 연출컷 1장이 시공사례에 올라갑니다. 내 연출컷에서 내릴 수 있습니다.
+          </p>
         </div>
 
         <!-- 결과 — 생성 전에는 렌더링하지 않는다 -->
@@ -855,6 +859,7 @@
 
         // 시공사례 = 컬렉션에 올라가는 그 이미지.
         // collection.html 과 같은 규칙으로 만든다: DB 글이 앞(최신순), 정적분이 뒤.
+        // 2026-10-27: AI 스튜디오 자동 게시(source 'ai_render')는 뺀다 — 실제 시공 사진이 아니라 설치 참고로 쓰지 않는다.
         async function loadGallery() {
           var rows = [];
           if (sb) {
@@ -862,6 +867,7 @@
               var res = await sb
                 .from('collection_posts')
                 .select('image_url, region, category, created_at')
+                .neq('source', 'ai_render')
                 .order('created_at', { ascending: false })
                 .limit(300);
               if (res.error) throw new Error(res.error.message);
@@ -1392,8 +1398,14 @@
         function applyGeneration(g) {
           S.genId = g.id;
           if (g.category) S.kind = g.category;
+          // 워커가 주는 url 은 서명 URL 이라 읽을 때마다 바뀐다 (2026-10-26) — 폴링 중 같은 파일(path)은
+          //   먼저 받은 주소를 그대로 둬 이미지를 다시 받지 않는다
+          var had = {};
+          (S.results || []).forEach(function (r) {
+            if (r.path) had[r.path] = r.src;
+          });
           S.results = (g.images || []).slice(0, 4).map(function (im) {
-            return { src: im.url, label: im.label || '', structure: im.structure || null };
+            return { src: (im.path && had[im.path]) || im.url, path: im.path || null, label: im.label || '', structure: im.structure || null };
           });
           S.quote = g.quote || null;
         }

@@ -200,7 +200,7 @@ describe('mypage.html — 마케팅 수신 동의', () => {
   const html = read('mypage.html');
 
   test('계정 정보에 켜기·끄기가 있고 js/consent.js 를 싣는다', () => {
-    expect(html).toMatch(/<script src="js\/consent\.js"><\/script>/);
+    expect(html).toMatch(/<script src="js\/consent\.js\?v=\d{10}"><\/script>/);
     expect(html).toMatch(/id="marketingToggle"/);
     expect(html).toMatch(/onchange="toggleMarketing\(\)"/);
   });
@@ -226,10 +226,16 @@ describe('js/site-shell.js — 로그인한 셸 페이지마다 동의 확인', 
     expect(fn).toMatch(/\.start\(sb, session, \{ required: currentNav === 'detail' \}\)/);
   });
 
-  test('상세설계 페이지는 새 셸을 받도록 버전을 올렸다', () => {
-    expect(read('detaildesign.html')).toMatch(
-      /<script src="js\/site-shell\.js\?v=38\.7" defer><\/script>/
-    );
+  test('js/consent.js 를 직접 싣는 페이지는 사이트 자산 버전 하나로 찍혀 있다 (asset-version.test.js 가 값을 본다)', () => {
+    for (const page of [
+      'login.html',
+      'signup.html',
+      'mypage.html',
+      'consultation.html',
+      'worker.html',
+    ]) {
+      expect(read(page)).toMatch(/<script src="js\/consent\.js\?v=\d{10}"><\/script>/);
+    }
   });
 });
 
@@ -281,7 +287,7 @@ describe('선택자가 없는 서비스 동작은 그 페이지가 gate.allow �
 describe('작업자 포털 — 같은 동의 창', () => {
   test('worker.html 이 포털 스크립트보다 먼저 js/consent.js 를 싣는다', () => {
     const html = read('worker.html');
-    const consentAt = html.search(/<script src="js\/consent\.js"><\/script>/);
+    const consentAt = html.search(/<script src="js\/consent\.js\?v=\d{10}"><\/script>/);
     expect(consentAt).toBeGreaterThan(0);
     expect(consentAt).toBeLessThan(
       html.search(/<script src="js\/worker-portal\.js\?v=\d+"><\/script>/)
@@ -643,7 +649,7 @@ describe('consultation.html — 회원은 상담 신청 전에 동의 창', () =
   const html = read('consultation.html');
 
   test('js/consent.js 를 싣고, 로그인했으면 gate.start, 신청 때 gate.allow 로 막는다', () => {
-    expect(html).toMatch(/<script src="js\/consent\.js"><\/script>/);
+    expect(html).toMatch(/<script src="js\/consent\.js\?v=\d{10}"><\/script>/);
     expect(html).toMatch(/await window\.DadamConsent\.gate\.start\(supabaseClient, session\)/);
     const fn = html.slice(html.indexOf('async function submitConsultation'));
     const gateAt = fn.indexOf('window.DadamConsent.gate.allow(');

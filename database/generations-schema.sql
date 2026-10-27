@@ -90,14 +90,24 @@ GRANT SELECT (
 -- (목록 SELECT 가 이 컬럼을 읽는다). 이 파일을 다시 돌리면 REVOKE ALL 이 다른 파일의 GRANT 까지 걷으므로 여기 둔다.
 GRANT UPDATE (is_favorite, title, consent_training) ON public.generations TO authenticated;
 
--- 3. 버킷 — public 읽기, 쓰기는 service_role (RLS 우회) 만.
+-- 3. 버킷 — 비공개 (2026-10-26, database/private-photo-buckets.sql 과 같다). 쓰기는 service_role (RLS 우회) 만.
+--    읽기는 본인(첫 폴더 = user id) · 관리자. 화면은 서명 URL 로 연다 (js/storage-urls.js, 워커 src/storage-urls.js).
+--    예전 공개 읽기 정책(generations_objects_select_public)은 지운다. 선행: public.is_admin() (fix-admin-rls-recursion.sql).
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('generations', 'generations', TRUE)
-ON CONFLICT (id) DO UPDATE SET public = TRUE;
+VALUES ('generations', 'generations', FALSE)
+ON CONFLICT (id) DO UPDATE SET public = FALSE;
 
 DROP POLICY IF EXISTS "generations_objects_select_public" ON storage.objects;
-CREATE POLICY "generations_objects_select_public" ON storage.objects
-  FOR SELECT TO public USING (bucket_id = 'generations');
+
+DROP POLICY IF EXISTS "generations_objects_select_own" ON storage.objects;
+CREATE POLICY "generations_objects_select_own" ON storage.objects
+  FOR SELECT TO authenticated
+  USING (bucket_id = 'generations' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+DROP POLICY IF EXISTS "generations_objects_select_admin" ON storage.objects;
+CREATE POLICY "generations_objects_select_admin" ON storage.objects
+  FOR SELECT TO authenticated
+  USING (bucket_id = 'generations' AND public.is_admin());
 
 -- 4. 서비스 환불 — 잡 안에서 실패했을 때 사용자 토큰이 없다.
 --    refund_credit 과 같은 본문에서 auth.uid() 대신 원장 행의 user_id 를 쓴다.

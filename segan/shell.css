@@ -1,0 +1,671 @@
+/* ============================================================
+   segan/shell.css — SEGAN 앱 셸 스타일
+
+   토큰은 css/dadam-v5.css 와 같은 이름 · 같은 값이다 (시험이 값이 같은지 확인한다).
+   v5 파일을 통째로 싣지 않는 이유: 서비스 워커가 오프라인용으로 담는 것은
+   segan/ 안의 셸 파일뿐이라, 앱이 쓰는 스타일은 이 폴더 안에 있어야 한다.
+
+   v5 규칙: 라운드 없음 · 섀도 없음 · 헤어라인 보더만.
+   ============================================================ */
+
+:root {
+  --v5-paper: #ffffff;
+  --v5-work: #f7f4ef;
+  --v5-well: #f1ece4;
+  --v5-photo: #e7e1d7;
+  --v5-ink: #2d2a26;
+  --v5-ink-62: rgba(45, 42, 38, 0.62);
+  --v5-ink-60: rgba(45, 42, 38, 0.6);
+  --v5-ink-55: rgba(45, 42, 38, 0.55);
+  --v5-ink-45: rgba(45, 42, 38, 0.45);
+  --v5-ink-32: rgba(45, 42, 38, 0.32);
+  --v5-line: rgba(45, 42, 38, 0.1);
+  --v5-line-12: rgba(45, 42, 38, 0.12);
+  --v5-line-16: rgba(45, 42, 38, 0.16);
+  --v5-line-18: rgba(45, 42, 38, 0.18);
+  --v5-line-25: rgba(45, 42, 38, 0.25);
+  --v5-tan: #8a7457;
+  --v5-navy: #0b2545;
+  --v5-invert: #f6f3ee; /* 앱 바탕 — manifest background_color · theme_color 와 같다 */
+  --v5-dark: #2d2a26;
+  --v5-on-dark: rgba(246, 243, 238, 0.92);
+  --v5-on-dark-60: rgba(246, 243, 238, 0.6);
+  --v5-on-dark-42: rgba(246, 243, 238, 0.42);
+  --v5-on-dark-12: rgba(246, 243, 238, 0.12);
+  --v5-sans: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --v5-display: 'Cormorant Garamond', 'Noto Serif KR', Georgia, serif;
+
+  /* 앱 셸 치수 (v5 에 없는 것만 sg- 로) */
+  --sg-px: 20px; /* 좌우 여백 — 폰 */
+  --sg-bar: 60px; /* 폰 위 막대 높이 */
+  --sg-tab: 58px; /* 폰 아래 탭 높이 (안전 영역 제외) */
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html {
+  background: var(--v5-invert);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--v5-invert);
+  color: var(--v5-ink);
+  font-family: var(--v5-sans);
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+button {
+  border-radius: 0;
+  font: inherit;
+}
+
+/* ── 가운데 한 장 (준비 중 · 오프라인) ── */
+.sg-center {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right))
+    max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+  text-align: center;
+}
+
+.sg-wordmark {
+  margin: 0;
+  line-height: 0;
+}
+
+.sg-wordmark img {
+  display: block;
+  width: min(220px, 56vw);
+  height: auto;
+  margin: 0 auto;
+}
+
+.sg-rule {
+  width: 40px;
+  height: 0;
+  margin: 28px auto;
+  border: 0;
+  border-top: 1px solid var(--v5-line-18);
+}
+
+.sg-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.sg-note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--v5-ink-60);
+  letter-spacing: 0.02em;
+}
+
+.sg-btn {
+  min-height: 44px;
+  margin-top: 24px;
+  padding: 0 22px;
+  border: 1px solid var(--v5-ink);
+  background: transparent;
+  color: var(--v5-ink);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.sg-btn:hover,
+.sg-btn:focus-visible {
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
+/* ============================================================
+   앱 셸 — 폰: 위 막대(워드마크) + 아래 탭 4개 / PC(768px~): v5 헤더 위 메뉴 + 푸터
+   ============================================================ */
+
+.sg-app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  /* 아래 탭에 본문이 가리지 않게 */
+  padding-bottom: calc(var(--sg-tab) + env(safe-area-inset-bottom));
+}
+
+/* ── 위 막대 / 헤더 ── */
+.sg-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 34px;
+  min-height: calc(var(--sg-bar) + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) max(var(--sg-px), env(safe-area-inset-right)) 0
+    max(var(--sg-px), env(safe-area-inset-left));
+  background: rgba(246, 243, 238, 0.94);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.sg-brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  flex-shrink: 0;
+}
+
+.sg-brand img {
+  display: block;
+  width: 92px;
+  height: auto;
+}
+
+.sg-nav {
+  display: none;
+}
+
+.sg-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 400;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  color: var(--v5-ink-62);
+  text-decoration: none;
+  transition: color 140ms ease;
+}
+
+.sg-nav a:hover,
+.sg-nav a[aria-current='page'] {
+  color: var(--v5-ink);
+}
+
+/* ── 아래 탭 (폰) ── */
+.sg-tabbar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: rgba(246, 243, 238, 0.97);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--v5-line-12);
+}
+
+.sg-tabbar a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: var(--sg-tab);
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--v5-ink-45);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sg-tabbar a[aria-current='page'] {
+  color: var(--v5-ink);
+}
+
+.sg-tabbar svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+
+/* ── 본문 ── */
+.sg-main {
+  flex: 1;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px max(var(--sg-px), env(safe-area-inset-right)) 48px
+    max(var(--sg-px), env(safe-area-inset-left));
+}
+
+.sg-h1 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 300;
+  letter-spacing: 0.04em;
+}
+
+.sg-lead {
+  margin: 0 0 28px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--v5-ink-60);
+}
+
+.sg-soon {
+  margin-left: auto;
+  padding-left: 12px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: var(--v5-ink-45);
+}
+
+/* 단계 목록 (만들기) */
+.sg-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+  counter-reset: sg-step;
+}
+
+.sg-steps li {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 56px;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 15px;
+}
+
+.sg-steps li::before {
+  counter-increment: sg-step;
+  content: counter(sg-step, decimal-leading-zero);
+  width: 22px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--v5-tan);
+}
+
+/* 비어 있는 판 (준비 중) */
+.sg-panel {
+  padding: 40px 20px;
+  border: 1px solid var(--v5-line-12);
+  text-align: center;
+}
+
+/* 로그인 안내 · 확인 중 */
+.sg-gate,
+.sg-checking {
+  padding: 48px 0 24px;
+  text-align: center;
+}
+
+a.sg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+/* 줄 목록 (내 정보) */
+.sg-section {
+  margin-top: 32px;
+}
+
+.sg-section h2 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  color: var(--v5-ink-45);
+}
+
+.sg-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.sg-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 52px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--v5-line);
+  background: none;
+  color: var(--v5-ink);
+  font-size: 15px;
+  font-weight: 300;
+  text-align: left;
+  text-decoration: none;
+}
+
+a.sg-row::after,
+button.sg-row::after {
+  content: '›';
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--v5-ink-45);
+}
+
+button.sg-row {
+  cursor: pointer;
+}
+
+.sg-account {
+  margin: 0;
+  font-size: 13px;
+  color: var(--v5-ink-60);
+  overflow-wrap: anywhere;
+}
+
+/* 내 정보 — 값 · 상담 내역 */
+.me-val {
+  margin-left: auto;
+  padding-left: 12px;
+  font-size: 13px;
+  font-weight: 300;
+  text-align: right;
+  color: var(--v5-ink-60);
+}
+
+.me-consult {
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.me-c-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.me-c-main b {
+  overflow: hidden;
+  font-size: 14.5px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.me-c-main small {
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-45);
+}
+
+.me-badge {
+  flex: none;
+  margin-left: auto;
+  padding: 3px 8px;
+  border: 1px solid var(--v5-line-18);
+  font-size: 11.5px;
+  color: var(--v5-ink-60);
+}
+
+.me-badge--confirmed,
+.me-badge--completed {
+  border-color: var(--v5-ink);
+  color: var(--v5-ink);
+}
+
+.me-empty {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--v5-ink-45);
+}
+
+/* 사업자 정보 — 폰에서는 내 정보 아래, PC 에서는 푸터 */
+.sg-biz {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--v5-line);
+  font-size: 11.5px;
+  line-height: 1.9;
+  color: var(--v5-ink-45);
+}
+
+.sg-biz p {
+  margin: 0 0 12px;
+}
+
+.sg-footer {
+  display: none;
+  background: var(--v5-dark);
+  color: var(--v5-on-dark);
+}
+
+.sg-footer-in {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 56px 48px 34px;
+}
+
+.sg-footer p {
+  margin: 0 0 18px;
+  font-size: 12.5px;
+  line-height: 2;
+  color: var(--v5-on-dark-60);
+}
+
+.sg-footer-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 30px;
+  padding-top: 22px;
+  border-top: 1px solid var(--v5-on-dark-12);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--v5-on-dark-42);
+}
+
+/* ── 시공사례 (collection.html) — 사이트 v5-tile 과 같은 모양 ── */
+.cl-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 10px;
+  margin-top: 16px;
+}
+
+.cl-tile {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.cl-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+
+.cl-img {
+  display: block;
+  aspect-ratio: 1 / 1;
+  background-color: var(--v5-photo);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.cl-cap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cl-brand {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.cl-dot {
+  flex: none;
+  width: 12px;
+  height: 1px;
+  background: var(--v5-line-25);
+}
+
+.cl-region {
+  overflow: hidden;
+  font-size: 11.5px;
+  font-weight: 300;
+  color: var(--v5-ink-55);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cl-state {
+  margin: 24px 0 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-45);
+}
+
+.cl-more {
+  display: flex;
+  margin: 12px auto 0;
+}
+
+.cl-sentinel {
+  height: 1px;
+}
+
+/* 크게 보기 — 앱 안 겹창. 다운로드 없음 */
+.cl-view {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+  background: #181614; /* 불투명 — 뒤 화면 · 아래 탭이 비치지 않게 */
+}
+
+.cl-view-img {
+  flex: 1;
+  min-height: 0;
+  margin: 16px;
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+.cl-view-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 14px;
+  color: var(--v5-on-dark);
+}
+
+.cl-view-cap {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 300;
+}
+
+.cl-view-btn {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--v5-on-dark-12);
+  border-radius: 0;
+  background: transparent;
+  color: var(--v5-on-dark);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.cl-view-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+body.cl-locked {
+  overflow: hidden;
+}
+
+/* ── PC ── */
+@media (min-width: 768px) {
+  .sg-app {
+    padding-bottom: 0;
+  }
+
+  .cl-tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 26px;
+  }
+
+  .sg-header {
+    min-height: 88px;
+    padding: 0 48px;
+  }
+
+  .sg-brand img {
+    width: 116px;
+  }
+
+  .sg-nav {
+    display: flex;
+    align-items: center;
+    gap: 34px;
+  }
+
+  .sg-tabbar {
+    display: none;
+  }
+
+  .sg-main {
+    max-width: 960px;
+    padding: 64px 48px 96px;
+  }
+
+  .sg-h1 {
+    font-size: 28px;
+  }
+
+  .sg-biz {
+    display: none;
+  }
+
+  .sg-footer {
+    display: block;
+  }
+}

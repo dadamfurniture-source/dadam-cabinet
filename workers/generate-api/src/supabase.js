@@ -108,6 +108,29 @@ export async function updateById(env, table, id, patch) {
   return rows && rows.length ? rows[0] : null;
 }
 
+/**
+ * 한 행 넣기 — 충돌 열(onConflict)이 같은 행이 있으면 넣지 않는다 (ON CONFLICT DO NOTHING).
+ * @returns {Promise<object|null>} 넣은 행, 이미 있었으면 null
+ */
+export async function insertIgnoreDuplicate(env, table, row, onConflict) {
+  const rows = await restRequest(env, `/${table}?on_conflict=${encodeURIComponent(onConflict)}`, {
+    method: 'POST',
+    headers: restHeaders(env, 'resolution=ignore-duplicates,return=representation'),
+    body: JSON.stringify(row),
+  });
+  return rows && rows.length ? rows[0] : null;
+}
+
+/** 조건에 맞는 행을 지우고, 지운 행의 select 열을 돌려준다. */
+export async function deleteWhere(env, table, query, select = 'id') {
+  const qs = new URLSearchParams({ ...query, select }).toString();
+  const rows = await restRequest(env, `/${table}?${qs}`, {
+    method: 'DELETE',
+    headers: restHeaders(env),
+  });
+  return rows || [];
+}
+
 export async function deleteById(env, table, id) {
   return restRequest(env, `/${table}?id=eq.${encodeURIComponent(id)}`, {
     method: 'DELETE',
@@ -133,6 +156,16 @@ export function bucketName(env) {
   return env.GENERATIONS_BUCKET || 'generations';
 }
 
+/**
+ * 이 버킷에 올리는 객체의 Cache-Control (2026-10-26). 고객 사진·연출컷이라 공유 캐시에 두지 않고(private)
+ * 1시간만 — 서명 URL 수명과 같다. 예전 값 'public, max-age=31536000, immutable' 로 올라간 파일은 그대로다.
+ */
+export const OBJECT_CACHE_CONTROL = 'private, max-age=3600';
+
+/**
+ * 행에 저장하는 주소 (images[].url · inputs.*.url). 화면에 내보낼 때는 storage-urls.js 가 path 로 서명 URL 을
+ * 만들어 바꿔 싣는다 — 버킷을 비공개로 돌려도 저장 형식은 그대로다 (2026-10-26).
+ */
 export function publicUrl(env, path) {
   return `${env.SUPABASE_URL}/storage/v1/object/public/${bucketName(env)}/${path}`;
 }
@@ -151,7 +184,7 @@ export async function uploadObject(env, path, base64, mimeType) {
       Authorization: `Bearer ${key}`,
       'Content-Type': mimeType || 'application/octet-stream',
       'x-upsert': 'true',
-      'Cache-Control': 'public, max-age=31536000, immutable',
+      'Cache-Control': OBJECT_CACHE_CONTROL,
     },
     body: bytes,
   });
@@ -162,12 +195,44 @@ export async function uploadObject(env, path, base64, mimeType) {
   return { path, url: publicUrl(env, path), bytes: bytes.byteLength };
 }
 
-/** 여러 객체 삭제. 없는 경로가 섞여 있어도 실패하지 않는다. */
-export async function removeObjects(env, paths) {
+/**
+ * 다른 버킷에 바이트를 올린다 (있으면 덮어씀). 2026-10-27: 시공사례 자동 게시가 collection 버킷에 복사할 때 쓴다.
+ * generations 버킷 업로드는 uploadObject 그대로다.
+ */
+export async function uploadBytes(env, bucket, path, bytes, mimeType, cacheControl) {
+  const key = serviceKey(env);
+  const res = await fetch(`${env.SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
+    method: 'POST',
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      'Content-Type': mimeType || 'application/octet-stream',
+      'x-upsert': 'true',
+      ...(cacheControl ? { 'Cache-Control': cacheControl } : {}),
+    },
+    body: bytes,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new DbError(`Storage upload ${bucket} ${res.status}: ${text.slice(0, 200)}`, res.status);
+  }
+  return { path, bytes: bytes.byteLength };
+}
+
+/** 공개 버킷의 주소 (collection 처럼 공개인 버킷에만 쓴다) */
+export function storagePublicUrl(env, bucket, path) {
+  return `${env.SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
+}
+
+/**
+ * 여러 객체 삭제. 없는 경로가 섞여 있어도 실패하지 않는다.
+ * bucket 을 주지 않으면 generations (2026-10-27: 시공사례 복사본은 collection 버킷).
+ */
+export async function removeObjects(env, paths, bucket = bucketName(env)) {
   const list = (paths || []).filter(Boolean);
   if (!list.length) return;
   const key = serviceKey(env);
-  const res = await fetch(`${env.SUPABASE_URL}/storage/v1/object/${bucketName(env)}`, {
+  const res = await fetch(`${env.SUPABASE_URL}/storage/v1/object/${bucket}`, {
     method: 'DELETE',
     headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ prefixes: list }),

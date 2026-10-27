@@ -1185,6 +1185,18 @@
         if (GRADES.includes(d.doorGrade)) out.doorGrade = d.doorGrade;
         // 2026-10-24 사장님 "서랍장 맨 위 칸도 서랍": 플래너 서랍장 표시 — 있을 때만 싣는다 (없는 모듈의 payload 는 예전과 같다)
         if (d.topDrawer === true) out.topDrawer = true;
+        // 2026-10-26 사장님 (가스대): 서랍 칸마다 레일 · 박스 크기 · 맨 위 속서랍 (bom-drawer-rules frontSpecs) — 있을 때만, 모르는 값은 버린다
+        if (Array.isArray(d.fronts) && d.fronts.length) {
+          out.fronts = d.fronts.map((f) => {
+            const x = {};
+            if (f && (f.rail === 'ball' || f.rail === 'under')) x.rail = f.rail;
+            if (f && ['small', 'medium', 'large'].includes(f.box)) x.box = f.box;
+            if (f && f.inner && Number(f.inner.h) > 0) {
+              x.inner = { h: Number(f.inner.h), sakuri: !!f.inner.sakuri, rail: f.inner.rail === 'ball' ? 'ball' : 'under' };
+            }
+            return x;
+          });
+        }
         return out;
       }
 
@@ -1241,6 +1253,12 @@
       function _riceCabinetRules() {
         if (typeof DadamRiceCabinetRules !== 'undefined') return DadamRiceCabinetRules;
         return (typeof window !== 'undefined' && window.DadamRiceCabinetRules) || null;
+      }
+
+      /** 2026-10-26: 설비장(개수대 · 가스대 · 후드장) 규칙 — js/detaildesign/bom-fixture-cabinet-rules.js */
+      function _fixtureCabinetRules() {
+        if (typeof DadamFixtureCabinetRules !== 'undefined') return DadamFixtureCabinetRules;
+        return (typeof window !== 'undefined' && window.DadamFixtureCabinetRules) || null;
       }
 
       /**
@@ -1700,6 +1718,22 @@
             // 2026-10-26 사장님: 위에 밥솥장이 쌓인 하부 서랍 모듈 — 그 모듈이 상단 목찬넬 부재를 내고, 상판 아래 목찬넬 줄은 이 칸에서 끊긴다.
             //   표시가 없는 모듈은 예전 payload 그대로.
             if (m.stackTop === 'rice' && pos === 'lower') out[out.length - 1].stackTop = 'rice';
+            // 2026-10-26 사장님: 설비장 — 개수대 · 가스대(하부) · 후드장(상부) (bom-fixture-cabinet-rules.js). 구조 s.fixture 를 그대로 싣고
+            //   BOM 이 밴드(앞 50 눕힘 · 뒤 세움) · 선반을 그 규칙으로 낸다. 후드장은 몸통이 HOOD.CUT 짧다 (윗선 고정, 밑이 올라간다 — 도어도 같이).
+            //   설비가 그 줄의 것이 아니면(하부에 후드장 표시 등) 싣지 않는다. 표시가 없는 모듈의 payload 는 예전과 같다.
+            const FX = _fixtureCabinetRules();
+            const fx = FX ? FX.fixtureOf(s) : null;
+            if (fx && FX.FIXTURE_CABINET_RULES.POS[fx] === pos && !isTall) {
+              const o = out[out.length - 1];
+              o.fixture = fx;
+              o.name = FX.FIXTURE_CABINET_RULES.LABEL[fx];
+              if (fx === 'cooktop' && FX.cooktopOf(s)) o.cooktop = FX.cooktopOf(s);
+              const cut = FX.heightCutOf(s);
+              if (cut > 0) o.h = Math.max(0, o.h - cut);
+              // 2026-10-27 사장님: 양념망장 — 앞판은 철물에 달린 풀아웃 (경첩 없음 — BOM 이 경첩 대신 양념망 철물을 낸다)
+              const dt = FX.doorTypeOf ? FX.doorTypeOf(s) : null;
+              if (dt) { o.doorType = dt; delete o.hingeSide; }
+            }
             // 2026-09-17: 붙박이장 통 구조 — 몸통 수·선반·옷봉·서랍을 옛 필드로 옮기고 블록도 같이 싣는다.
             if (isWardrobe) {
               // 2026-09-17: 거울은 통마다 (옛 화면 hasMirror). 아직 부재로 나오지 않지만 값은 나른다.

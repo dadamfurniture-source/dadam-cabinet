@@ -37,6 +37,12 @@
  *   · 서랍장 위 칸 (2026-10-24 사장님 "서랍장 맨 위 칸도 서랍"): 플래너가 서랍장에 drawer.topDrawer 를 단다.
  *       그러면 비율의 첫 칸도 서랍이고(gradesFromRatio topDrawer), 전면은 모두 서랍이다(BOM drawerLayout 'all').
  *       자동계산 하부장(도어 + 아래 서랍)은 그대로 위 칸 도어다.
+ *   · 칸마다 다른 서랍 (2026-10-26 사장님 가스대, bom-fixture-cabinet-rules.js COOKTOP_DRAWER): frontSpecs[k] = 서랍 k 칸 (위 → 아래)
+ *       rail  그 칸 박스의 레일 (없으면 모듈 레일)
+ *       box   박스 크기 고정 (BOX_H 키 — 없으면 들어가는 가장 큰 박스)
+ *       inner 그 칸 맨 위 속서랍 {h, sakuri, rail} — 앞판이 없고, 칸 위에서 레일 위 여유만큼 내려와 선다.
+ *             그 칸의 박스(앞판이 달리는 것)는 속서랍 + 레일 여유 아래 남는 자리에 든다.
+ *       frontSpecs 가 없는 모듈은 예전과 같은 답이다 (박스 항목에 새 필드가 붙지 않는다).
  */
 (function (root, factory) {
   const api = factory();
@@ -49,7 +55,7 @@
     MAX_COUNT: 4,
     // 2026-10-24 사장님: 소 75 · 중 120 · 대 180 (소 60 → 75). 하단보강 BOX_BRACE_H 60 은 다른 값이다.
     BOX_H: Object.freeze({ small: 75, medium: 120, large: 180 }),
-    BOX_LABEL: Object.freeze({ small: '소', medium: '중', large: '대' }),
+    BOX_LABEL: Object.freeze({ small: '소', medium: '중', large: '대', inner: '속서랍' }),
     BOX_BRACE_OVER_W: 600,        // 전후판 가로가 이보다 크면 하단보강 (측판 길이 × 60)
     BOX_BRACE_H: 60,
     BOX_T_DEFAULT: 15,            // 서랍 자재 두께 (15 or 18) — 모듈이 정하지 않으면 몸통 두께를 따른다
@@ -268,6 +274,7 @@
    *   rail     'under' | 'ball'
    *   frontGap 목찬넬 없는 경계의 갭 (기본 FRONT_GAP 4). 배분식 경로(layoutByGrades)는 0 —
    *            식이 30 × 목찬넬 개수만 빼므로 갭을 또 빼면 전면 합이 영역을 넘는다.
+   *   frontSpecs [{rail?, box?, inner?}] 서랍 칸마다 (위 → 아래, 도어 칸은 세지 않는다) — 머리말 "칸마다 다른 서랍"
    * @returns {{fronts, channels, midCount, boxes, warnings}}
    *   fronts[i]   {kind, h, y0, y1, channelAbove:'top'|'mid'|null, channelBelow:'mid'|null, zone?, box?}
    *   channels    [{kind:'top'|'mid', y, notchH, notchD, faceH, baseW}]
@@ -354,8 +361,12 @@
 
     // 존 · 박스 (서랍 전면만)
     const boxes = [];
+    const specs = Array.isArray(o.frontSpecs) ? o.frontSpecs : [];
+    let drawerK = -1;
     fronts.forEach((f, i) => {
       if (f.kind !== 'drawer') return;
+      drawerK += 1;
+      const spec = specs[drawerK] || null;
       let top;
       // 2026-10-24: 맨 위 서랍은 상단 따내기 아래 앞 밴드(몸통 두께) 밑부터 — 박스가 밴드와 겹치지 않는다 (사장님 "설치 가능한 공간")
       if (f.channelAbove === 'top') top = R.CHANNEL_TOP_NOTCH_H + T;
@@ -367,14 +378,44 @@
       else if (i < n - 1) bottom = f.y1 + frontGap / 2;
       else bottom = H - T;
       const zoneH = bottom - top;
-      // 2026-10-19: 자동 등급이면 존 높이로 등급과 박스를 정한다 (autoGradeFor)
+      if (!spec) {
+        // 2026-10-19: 자동 등급이면 존 높이로 등급과 박스를 정한다 (autoGradeFor)
+        const auto = f.grade === 'auto';
+        const box = auto ? autoGradeFor(zoneH, rail) : pickBox(zoneH, rail);
+        if (auto) { f.grade = box.size; f.gradeAuto = true; }
+        f.zone = { top, bottom, h: zoneH };
+        f.box = box;
+        if (!box.fits) warnings.push(`전면 ${i + 1}: 존 ${zoneH} 에 소 박스(${box.h}+${railOf(rail).below + railOf(rail).above})도 안 들어간다`);
+        boxes.push({ frontIndex: i, size: box.size, h: box.h, fits: box.fits, zoneH, rail });
+        return;
+      }
+      // 2026-10-26 사장님 (가스대): 칸마다 레일 · 박스 크기 · 맨 위 속서랍
+      const railK = spec.rail ? railKeyOf(spec.rail) : rail;
+      let room = zoneH;
+      let inner = null;
+      if (spec.inner && Number(spec.inner.h) > 0) {
+        const ir = railOf(spec.inner.rail);
+        const ih = Number(spec.inner.h);
+        const need = ir.above + ih + ir.below;
+        inner = { frontIndex: i, size: 'inner', h: ih, fits: need <= zoneH, zoneH, rail: railKeyOf(spec.inner.rail), sakuri: !!spec.inner.sakuri, inner: true, top: top + ir.above };
+        if (!inner.fits) warnings.push(`전면 ${i + 1}: 존 ${zoneH} 에 속서랍(${ih}+${ir.below + ir.above})이 안 들어간다`);
+        room = zoneH - need;
+      }
+      const c = railOf(railK);
       const auto = f.grade === 'auto';
-      const box = auto ? autoGradeFor(zoneH, rail) : pickBox(zoneH, rail);
+      let box;
+      if (spec.box && R.BOX_H[spec.box]) {
+        const h = R.BOX_H[spec.box];
+        box = { size: spec.box, h, fits: h + c.below + c.above <= room };
+      } else {
+        box = auto ? autoGradeFor(room, railK) : pickBox(room, railK);
+      }
       if (auto) { f.grade = box.size; f.gradeAuto = true; }
       f.zone = { top, bottom, h: zoneH };
       f.box = box;
-      if (!box.fits) warnings.push(`전면 ${i + 1}: 존 ${zoneH} 에 소 박스(${box.h}+${railOf(rail).below + railOf(rail).above})도 안 들어간다`);
-      boxes.push({ frontIndex: i, size: box.size, h: box.h, fits: box.fits, zoneH, rail });
+      if (!box.fits) warnings.push(`전면 ${i + 1}: 존 ${zoneH}${inner ? ` (속서랍 아래 ${room})` : ''} 에 ${R.BOX_LABEL[box.size]} 박스(${box.h}+${c.below + c.above})가 안 들어간다`);
+      if (inner) boxes.push(inner);
+      boxes.push({ frontIndex: i, size: box.size, h: box.h, fits: box.fits, zoneH, rail: railK });
     });
 
     return { fronts, channels, midCount, boxes, warnings, rail, split };
@@ -423,6 +464,46 @@
     };
   }
 
+  /**
+   * 2026-10-26: 박스 묶음 — BOM 행(extractors.js addDrawerModuleParts)과 조립 명세(bom-assembly.js placeBoxRow)가 같은 묶음을 쓴다.
+   *   groups  크기 · 높이 · 레일 · 사쿠리가 같은 박스 — 앞뒷판 · 측판 행 하나씩 (등장 순)
+   *   bottoms 밑판 치수 · 사쿠리가 같은 박스 — 밑판 · 하단보강 행 하나씩 (등장 순)
+   *   박스의 레일 · 사쿠리는 박스에 적힌 값(칸마다 — frontSpecs), 없으면 모듈 값(layout.rail · rules.sakuri).
+   *   칸마다 값이 없는 모듈은 예전 묶음(크기별 · 밑판 한 행)과 같다.
+   * @param {object} layout layoutDrawerModule 결과
+   * @param {{boxT:number, sakuri:boolean}} rules 서랍 자재 두께(0 이면 몸통 두께) · 모듈 사쿠리
+   * @param {{W:number, D:number, T:number}} m 모듈 외경 · 깊이 · 몸통 두께
+   * @returns {{groups:{size, h, rail, sakuri, count, fits, dims, boxes:number[]}[], bottoms:{w, d, sakuri, brace, sideL, n, boxes:number[]}[]}}
+   */
+  function boxGroupsOf(layout, rules, m) {
+    const groups = [];
+    const bottoms = [];
+    ((layout && layout.boxes) || []).forEach((b, i) => {
+      const rail = b.rail || layout.rail;
+      const sakuri = b.sakuri != null ? !!b.sakuri : !!(rules && rules.sakuri);
+      let g = groups.find((x) => x.size === b.size && x.h === b.h && x.rail === rail && x.sakuri === sakuri);
+      if (!g) {
+        const dims = drawerBoxDims({ W: m.W, D: m.D, bodyT: m.T, drawerT: rules && rules.boxT, rail, boxH: b.h, sakuri });
+        g = { size: b.size, h: b.h, rail, sakuri, count: 0, fits: true, dims, boxes: [] };
+        groups.push(g);
+      }
+      g.count += 1;
+      g.boxes.push(i);
+      if (!b.fits) g.fits = false;
+    });
+    groups.forEach((g) => {
+      const d = g.dims;
+      let bt = bottoms.find((x) => x.w === d.bottomW && x.d === d.bottomD && x.sakuri === g.sakuri);
+      if (!bt) {
+        bt = { w: d.bottomW, d: d.bottomD, sakuri: g.sakuri, brace: d.brace, sideL: d.sideL, n: 0, boxes: [] };
+        bottoms.push(bt);
+      }
+      bt.n += g.count;
+      bt.boxes = bt.boxes.concat(g.boxes);
+    });
+    return { groups, bottoms };
+  }
+
   /** 측판 따내기 설명 — BOM 비고용. */
   function notchNote(layout) {
     const R = DRAWER_RULES;
@@ -453,5 +534,5 @@
   }
 
   return { DRAWER_RULES, layoutDrawerModule, splitNotchNotes, layoutByGrades, distributeFronts, frontAreaOf, channelCountFor, gradeOf,
-    assignChannels, pickBox, autoGradeFor, gradesFromRatio, ratioOf, railOf, railKeyOf, notchNote, railLengthFor, drawerBoxDims };
+    assignChannels, pickBox, autoGradeFor, gradesFromRatio, ratioOf, railOf, railKeyOf, notchNote, railLengthFor, drawerBoxDims, boxGroupsOf };
 });
