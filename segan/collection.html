@@ -19,18 +19,33 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="shell.css?v=2026102701" />
+    <!-- 시공사례 — 기존 사이트와 같은 설정 · 라이브러리 (collection_posts 는 로그인 없이 읽는다) -->
+    <script src="../js/config.js?v=2026102701"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <script src="shell.js?v=2026102701" defer></script>
+    <script src="collection.js?v=2026102701" defer></script>
   </head>
   <body class="sg-app" data-tab="collection">
     <div data-segan-shell="header"></div>
 
     <main class="sg-main" id="main">
       <h1 class="sg-h1">시공사례</h1>
-      <div class="sg-panel">
-        <p class="sg-title">준비 중</p>
-        <p class="sg-note">시공사례가 여기에 모입니다.</p>
-      </div>
+      <div class="cl-tiles" id="clTiles"></div>
+      <p class="cl-state" id="clState" role="status"></p>
+      <button type="button" class="sg-btn cl-more" id="clMore" hidden>더 보기</button>
+      <div id="clSentinel" class="cl-sentinel"></div>
     </main>
+
+    <!-- 크게 보기 — 앱 안에서만. 다운로드 단추 · 링크는 두지 않는다 -->
+    <div class="cl-view" id="clView" role="dialog" aria-modal="true" aria-labelledby="clViewCap" hidden>
+      <div class="cl-view-img" id="clViewImg" role="img"></div>
+      <div class="cl-view-bar">
+        <button type="button" class="cl-view-btn" id="clPrev" aria-label="이전 사례">‹</button>
+        <p class="cl-view-cap" id="clViewCap"></p>
+        <button type="button" class="cl-view-btn" id="clNext" aria-label="다음 사례">›</button>
+        <button type="button" class="cl-view-btn cl-view-close" id="clClose">닫기</button>
+      </div>
+    </div>
 
     <div data-segan-shell="footer"></div>
     <div data-segan-shell="tabbar"></div>

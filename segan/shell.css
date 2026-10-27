@@ -16,6 +16,7 @@
   --v5-ink: #2d2a26;
   --v5-ink-62: rgba(45, 42, 38, 0.62);
   --v5-ink-60: rgba(45, 42, 38, 0.6);
+  --v5-ink-55: rgba(45, 42, 38, 0.55);
   --v5-ink-45: rgba(45, 42, 38, 0.45);
   --v5-ink-32: rgba(45, 42, 38, 0.32);
   --v5-line: rgba(45, 42, 38, 0.1);
@@ -425,10 +426,153 @@ button.sg-row {
   color: var(--v5-on-dark-42);
 }
 
+/* ── 시공사례 (collection.html) — 사이트 v5-tile 과 같은 모양 ── */
+.cl-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 10px;
+  margin-top: 16px;
+}
+
+.cl-tile {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.cl-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+
+.cl-img {
+  display: block;
+  aspect-ratio: 1 / 1;
+  background-color: var(--v5-photo);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.cl-cap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cl-brand {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.cl-dot {
+  flex: none;
+  width: 12px;
+  height: 1px;
+  background: var(--v5-line-25);
+}
+
+.cl-region {
+  overflow: hidden;
+  font-size: 11.5px;
+  font-weight: 300;
+  color: var(--v5-ink-55);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cl-state {
+  margin: 24px 0 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-45);
+}
+
+.cl-more {
+  display: flex;
+  margin: 12px auto 0;
+}
+
+.cl-sentinel {
+  height: 1px;
+}
+
+/* 크게 보기 — 앱 안 겹창. 다운로드 없음 */
+.cl-view {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+  background: #181614; /* 불투명 — 뒤 화면 · 아래 탭이 비치지 않게 */
+}
+
+.cl-view-img {
+  flex: 1;
+  min-height: 0;
+  margin: 16px;
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+.cl-view-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 14px;
+  color: var(--v5-on-dark);
+}
+
+.cl-view-cap {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 300;
+}
+
+.cl-view-btn {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--v5-on-dark-12);
+  border-radius: 0;
+  background: transparent;
+  color: var(--v5-on-dark);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.cl-view-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+body.cl-locked {
+  overflow: hidden;
+}
+
 /* ── PC ── */
 @media (min-width: 768px) {
   .sg-app {
     padding-bottom: 0;
+  }
+
+  .cl-tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 26px;
   }
 
   .sg-header {
