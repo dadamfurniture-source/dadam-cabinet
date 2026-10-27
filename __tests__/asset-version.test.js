@@ -22,7 +22,7 @@ const { version: VERSION } = JSON.parse(
 );
 
 const PAGE_DIRS = ['.', 'admin', 'segan'];
-const EXTRA_FILES = ['segan/sw.js'];
+const EXTRA_FILES = ['segan/sw.js', 'segan/shell.js'];
 const pages = () =>
   PAGE_DIRS.flatMap((dir) =>
     fs

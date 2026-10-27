@@ -27,7 +27,10 @@ const OFFLINE = SCOPE + 'offline.html';
 const versioned = (p) => `${p}?v=${ASSET_VERSION}`;
 
 const SHELL = [
-  SCOPE, // index.html = start_url
+  SCOPE, // 만들기 (index.html = start_url)
+  SCOPE + 'collection.html', // 시공사례
+  SCOPE + 'renders.html', // 내 연출컷
+  SCOPE + 'me.html', // 내 정보
   OFFLINE,
   SCOPE + 'manifest.webmanifest',
   versioned(SCOPE + 'shell.css'),
