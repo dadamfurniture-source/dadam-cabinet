@@ -681,10 +681,10 @@
       "material": "MDF",
       "thickness": 18,
       "w": 150,
-      "h": 708,
+      "h": 678,
       "qty": 1,
       "edge": "4면",
-      "note": "멍판 마감재 — 자리 60 + 멍판 위 겹침 90 (corner.md §3.3)",
+      "note": "멍판 마감재 — 자리 60 + 멍판 위 겹침 90 (corner.md §3.3) · 높이 = 옆 멍장 도어",
       "finishCode": "",
       "partId": "0-corner-blind-lower-blindfin#0-0",
       "slot": "finishing",
@@ -694,7 +694,7 @@
         "T": true,
         "B": true
       },
-      "edgeLen": 1716,
+      "edgeLen": 1656,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-corner-blind-lower",
@@ -1142,7 +1142,7 @@
     "MDF_18": {
       "material": "MDF",
       "thickness": 18,
-      "totalArea": 2795673,
+      "totalArea": 2791173,
       "panelCount": 1
     },
     "인조대리석_12": {
@@ -1154,7 +1154,7 @@
   },
   "edgeBanding": {
     "1": 14110,
-    "0.6": 58989
+    "0.6": 58929
   },
   "hardware": [
     {

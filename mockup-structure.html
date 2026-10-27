@@ -9585,11 +9585,15 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       parent.add(cover);
       addEdgeOutline(cover, parent, 0x000000, 0.8);
       // ② 멍판 마감재 — 멍판 위에 포개어진다
+      //   2026-10-27 사장님 "휠라는 옆 도어와 같은 높이로" (corner.md §3.3.1 높이): 휠라는 옆 멍장 도어처럼 밑단 = 몸통 바닥,
+      //   윗변이 목찬넬 틈(doorTopGap)만큼 내려온다 — BOM 휠라(멍판) H − 30 과 같다. 몰딩은 몸통 전체 (상판 아래까지).
       if (lay.finish) {
         const fs = seg(lay.finish);
-        const fcfg = SECTION_CONFIG[meta.blindFinish || 'filler'] || {};
-        const fin = makeBox(fs.w, h, T, fcfg.fill || '#c8b896', { roughness: 0.6 });
-        fin.position.set(fs.c, cy, frontZ + lay.coverT + T / 2);
+        const section = meta.blindFinish || 'filler';
+        const fcfg = SECTION_CONFIG[section] || {};
+        const gap = section !== 'molding' && meta.doorTopGap > 0 ? meta.doorTopGap : 0;
+        const fin = makeBox(fs.w, h - gap, T, fcfg.fill || '#c8b896', { roughness: 0.6 });
+        fin.position.set(fs.c, cy - gap / 2, frontZ + lay.coverT + T / 2);
         fin.userData = {
           entityKind: 'blindfin', moduleId: meta.moduleId, areaIdx: meta.areaIdx,
           finishingSection: meta.blindFinish || 'filler',

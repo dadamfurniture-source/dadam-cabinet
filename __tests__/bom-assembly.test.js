@@ -1198,7 +1198,7 @@ describe('멍장 자리 — corner.md §3.5 (멍가림판 · 마감재 · 도어
     expect(m.box).toEqual({ W: 1076, H: 708, D: 650, T: 15 });
     expect(m.blind).toEqual({ zoneW: 665, doorW: 411, doorRight: true });
     expect(box(m, '멍가림판')).toEqual({ min: [-538, 0, 325], max: [112, 708, 328] });
-    expect(box(m, '휠라(멍판)')).toEqual({ min: [-38, 0, 328], max: [112, 708, 346] });
+    expect(box(m, '휠라(멍판)')).toEqual({ min: [-38, 0, 328], max: [112, 678, 346] });   // 휠라 = 옆 멍장 도어 높이 (2026-10-27 사장님)
     expect(box(m, '도어')).toEqual({ min: [114, 0, 325], max: [536, 678, 343] });
     expect(m.parts.find((p) => p.part === '도어').tags).toEqual({ doorIdx: 0, blind: 'door' });
     // 몸통은 하부장 짜임 그대로 — 밴드 두 장 눕힘. 2026-10-26 사장님: 가운데 처짐방지목은 없다 — ㄱ자 기둥 앞판이 처짐방지 밴드
@@ -1225,7 +1225,7 @@ describe('멍장 자리 — corner.md §3.5 (멍가림판 · 마감재 · 도어
     const m = r.items[0].modules.find((x) => x.moduleId === 'corner-blind-lower');
     expect(m.blind.doorRight).toBe(false);
     expect(box(m, '멍가림판')).toEqual({ min: [-112, 0, 325], max: [538, 708, 328] });
-    expect(box(m, '휠라(멍판)')).toEqual({ min: [-112, 0, 328], max: [38, 708, 346] });
+    expect(box(m, '휠라(멍판)')).toEqual({ min: [-112, 0, 328], max: [38, 678, 346] });
     expect(box(m, '도어')).toEqual({ min: [-536, 0, 325], max: [-114, 678, 343] });
   });
 
