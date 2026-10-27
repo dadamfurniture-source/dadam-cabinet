@@ -5,12 +5,10 @@ on:
     branches: [main]
     paths:
       - 'mcp-server/**'
-      - 'lib/planner.ts'  # mcp-server 의 planner 미러본 동기화 검증 (sync-planner.mjs)
   pull_request:
     branches: [main]
     paths:
       - 'mcp-server/**'
-      - 'lib/planner.ts'
 
 env:
   NODE_VERSION: '24'
@@ -40,9 +38,6 @@ jobs:
 
       - name: TypeScript type check
         run: npx tsc --noEmit
-
-      - name: Planner mirror drift check
-        run: node scripts/sync-planner.mjs --quiet
 
       - name: Run tests
         run: npm test

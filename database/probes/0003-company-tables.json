@@ -1,0 +1,217 @@
+{
+  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs)",
+  "ids": [
+    "company_x",
+    "company_y",
+    "cust_x_linked",
+    "cust_x_plain",
+    "cust_x_spare",
+    "cust_y",
+    "cust_hq",
+    "proj_x_linked",
+    "proj_x_plain",
+    "proj_y",
+    "proj_hq",
+    "event_x",
+    "event_y",
+    "new_company",
+    "new_customer",
+    "new_project"
+  ],
+  "users": ["hq_customer_user", "x_customer_user", "x_owner_user", "x_staff_user", "y_staff_user", "hq_member_user", "hq_admin_user", "x_removed_user"],
+  "setup": [
+    "INSERT INTO public.admin_roles (user_id, role) VALUES ({{hq_admin_user}}, 'admin')",
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'expert', 'active'), ({{company_y}}, 'partner', 'probe Y', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_x}}, {{x_staff_user}}, 'staff', 'active'), ({{company_x}}, {{x_removed_user}}, 'staff', 'removed'), ({{company_y}}, {{y_staff_user}}, 'staff', 'active'), (public.hq_company_id(), {{hq_member_user}}, 'staff', 'active')",
+    "INSERT INTO public.customers (id, company_id, user_id, name, phone) VALUES ({{cust_x_linked}}, {{company_x}}, {{x_customer_user}}, 'probe', NULL), ({{cust_x_plain}}, {{company_x}}, NULL, 'probe', '000-0000'), ({{cust_x_spare}}, {{company_x}}, NULL, 'probe', NULL), ({{cust_y}}, {{company_y}}, NULL, 'probe', NULL), ({{cust_hq}}, public.hq_company_id(), {{hq_customer_user}}, 'probe', NULL)",
+    "INSERT INTO public.projects (id, company_id, customer_id, title) VALUES ({{proj_x_linked}}, {{company_x}}, {{cust_x_linked}}, 'probe'), ({{proj_x_plain}}, {{company_x}}, {{cust_x_plain}}, 'probe'), ({{proj_y}}, {{company_y}}, {{cust_y}}, 'probe'), ({{proj_hq}}, public.hq_company_id(), {{cust_hq}}, 'probe')",
+    "INSERT INTO public.company_events (id, company_id, actor_kind, type) VALUES ({{event_x}}, {{company_x}}, 'system', 'probe'), ({{event_y}}, {{company_y}}, 'system', 'probe')"
+  ],
+  "roles": {
+    "anon": { "role": "anon" },
+    "hq_customer": { "role": "authenticated", "user": "hq_customer_user" },
+    "x_customer": { "role": "authenticated", "user": "x_customer_user" },
+    "x_owner": { "role": "authenticated", "user": "x_owner_user" },
+    "x_staff": { "role": "authenticated", "user": "x_staff_user" },
+    "y_staff": { "role": "authenticated", "user": "y_staff_user" },
+    "hq_member": { "role": "authenticated", "user": "hq_member_user" },
+    "hq_admin": { "role": "authenticated", "user": "hq_admin_user" },
+    "removed_staff": { "role": "authenticated", "user": "x_removed_user" },
+    "service_role": { "role": "service_role" }
+  },
+  "checks": [
+    {
+      "name": "읽기 companies X",
+      "sql": "select count(*) from public.companies where id = {{company_x}}",
+      "expect": { "anon": "deny", "x_owner": 1, "x_staff": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "읽기 companies 본사",
+      "sql": "select count(*) from public.companies where kind = 'hq'",
+      "expect": { "anon": "deny", "hq_member": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "읽기 members X (3행: owner·staff·removed)",
+      "sql": "select count(*) from public.company_members where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "x_owner": 3, "x_staff": 3, "removed_staff": 1, "hq_admin": 3, "service_role": 3, "*": 0 }
+    },
+    {
+      "name": "읽기 members Y",
+      "sql": "select count(*) from public.company_members where company_id = {{company_y}}",
+      "expect": { "anon": "deny", "y_staff": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "읽기 customers X (3행)",
+      "sql": "select count(*) from public.customers where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "x_owner": 3, "x_staff": 3, "x_customer": 1, "hq_admin": 3, "service_role": 3, "*": 0 }
+    },
+    {
+      "name": "읽기 customers 본사 가짜 행",
+      "sql": "select count(*) from public.customers where id = {{cust_hq}}",
+      "expect": { "anon": "deny", "hq_member": 1, "hq_customer": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "읽기 projects X (2행)",
+      "sql": "select count(*) from public.projects where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "x_owner": 2, "x_staff": 2, "x_customer": 1, "hq_admin": 2, "service_role": 2, "*": 0 }
+    },
+    {
+      "name": "읽기 projects Y",
+      "sql": "select count(*) from public.projects where id = {{proj_y}}",
+      "expect": { "anon": "deny", "y_staff": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "읽기 projects 본사 가짜 행",
+      "sql": "select count(*) from public.projects where id = {{proj_hq}}",
+      "expect": { "anon": "deny", "hq_member": 1, "hq_customer": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "읽기 events X",
+      "sql": "select count(*) from public.company_events where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "x_owner": 1, "x_staff": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "넣기 companies",
+      "sql": "insert into public.companies (id, kind, name, plan) values ({{new_company}}, 'partner', 'probe new', 'expert')",
+      "expect": { "hq_admin": "ok", "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "고치기 companies X",
+      "sql": "update public.companies set name = 'probe X2' where id = {{company_x}}",
+      "expect": { "anon": "deny", "hq_admin": "rows:1", "service_role": "rows:1", "*": "rows:0" }
+    },
+    {
+      "name": "넣기 members X",
+      "sql": "insert into public.company_members (company_id, user_id, role) values ({{company_x}}, {{hq_customer_user}}, 'staff')",
+      "expect": { "hq_admin": "ok", "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "넣기 customers X",
+      "sql": "insert into public.customers (id, company_id, name) values ({{new_customer}}, {{company_x}}, 'probe')",
+      "expect": { "hq_admin": "ok", "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "고치기 customers X",
+      "sql": "update public.customers set name = 'probe2' where id = {{cust_x_plain}}",
+      "expect": { "anon": "deny", "hq_admin": "rows:1", "service_role": "rows:1", "*": "rows:0" }
+    },
+    {
+      "name": "지우기 customers X (프로젝트 없는 행)",
+      "sql": "delete from public.customers where id = {{cust_x_spare}}",
+      "expect": { "anon": "deny", "hq_admin": "rows:1", "service_role": "rows:1", "*": "rows:0" }
+    },
+    {
+      "name": "넣기 projects X",
+      "sql": "insert into public.projects (id, company_id, customer_id) values ({{new_project}}, {{company_x}}, {{cust_x_plain}})",
+      "expect": { "hq_admin": "ok", "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "넣기 events X",
+      "sql": "insert into public.company_events (company_id, actor_kind, type) values ({{company_x}}, 'admin', 'probe')",
+      "expect": { "hq_admin": "ok", "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "고치기 events X (추가만)",
+      "sql": "update public.company_events set type = 'changed' where id = {{event_x}}",
+      "expect": { "*": "deny" }
+    },
+    {
+      "name": "지우기 events X (추가만)",
+      "sql": "delete from public.company_events where id = {{event_x}}",
+      "expect": { "*": "deny" }
+    },
+    {
+      "name": "함수 hq_company_id() 있음",
+      "sql": "select public.hq_company_id() is not null",
+      "expect": { "*": "true" }
+    },
+    {
+      "name": "함수 my_company_ids() 개수",
+      "sql": "select count(*) from public.my_company_ids()",
+      "expect": { "x_owner": 1, "x_staff": 1, "y_staff": 1, "hq_member": 1, "*": 0 }
+    },
+    {
+      "name": "함수 my_company_ids(owner·manager)",
+      "sql": "select count(*) from public.my_company_ids(array['owner', 'manager'])",
+      "expect": { "x_owner": 1, "*": 0 }
+    },
+    {
+      "name": "함수 is_company_member(X)",
+      "sql": "select public.is_company_member({{company_x}})",
+      "expect": { "x_owner": "true", "x_staff": "true", "*": "false" }
+    },
+    {
+      "name": "함수 my_customer_ids() 개수",
+      "sql": "select count(*) from public.my_customer_ids()",
+      "expect": { "x_customer": 1, "hq_customer": 1, "*": 0 }
+    },
+    {
+      "name": "시드: 회사는 본사 하나뿐 (가짜 X·Y 빼고)",
+      "sql": "select count(*) from public.companies where id not in ({{company_x}}, {{company_y}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": 1 }
+    },
+    {
+      "name": "시드: 본사 owner 는 super_admin 한 명",
+      "sql": "select count(*) || '/' || count(*) filter (where exists (select 1 from public.admin_roles a where a.user_id = m.user_id and a.role = 'super_admin')) from public.company_members m where m.company_id = public.hq_company_id() and m.role = 'owner' and m.status = 'active'",
+      "roles": ["service_role"],
+      "expect": { "service_role": "1/1" }
+    },
+    {
+      "name": "제약: active 회사는 한 곳만",
+      "sql": "insert into public.company_members (company_id, user_id, role) values ({{company_y}}, {{x_staff_user}}, 'staff')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23505" }
+    },
+    {
+      "name": "제약: removed 는 다른 회사에 들어갈 수 있다",
+      "sql": "insert into public.company_members (company_id, user_id, role) values ({{company_y}}, {{x_removed_user}}, 'staff')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "제약: 고객은 같은 회사 것만 (복합 FK)",
+      "sql": "insert into public.projects (company_id, customer_id) values ({{company_y}}, {{cust_x_plain}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23503" }
+    },
+    {
+      "name": "제약: 본사는 하나",
+      "sql": "insert into public.companies (kind, name) values ('hq', 'probe hq2')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23505" }
+    },
+    {
+      "name": "제약: 본사에는 plan 없음",
+      "sql": "insert into public.companies (kind, name, plan) values ('hq', 'probe hq3', 'expert')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "제약: 넘기기는 한 번 (origin_project_id)",
+      "sql": "insert into public.projects (company_id, customer_id, origin_project_id) values ({{company_y}}, {{cust_y}}, {{proj_x_plain}}); insert into public.projects (company_id, customer_id, origin_project_id) values ({{company_y}}, {{cust_y}}, {{proj_x_plain}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23505" }
+    }
+  ]
+}
