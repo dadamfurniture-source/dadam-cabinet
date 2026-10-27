@@ -1155,6 +1155,7 @@ export function cleanCustomerRequest(v) {
     .split(/\r?\n/)
     .map((line) =>
       line
+        // eslint-disable-next-line no-control-regex -- 제어문자를 지우려는 정규식
         .replace(/[\u0000-\u001f\u007f]+/g, ' ')
         .replace(/"/g, "'")
         .replace(/\s+/g, ' ')
@@ -1181,6 +1182,7 @@ export function normalizeChat(list) {
     .filter((m) => m && (m.role === 'me' || m.role === 'ai') && typeof m.text === 'string')
     .map((m) => ({
       role: m.role,
+      // eslint-disable-next-line no-control-regex -- 제어문자(줄바꿈 빼고)를 지우려는 정규식
       text: m.text.replace(/[\u0000-\u0009\u000b-\u001f\u007f]+/g, ' ').trim().slice(0, CHAT_MAX_TEXT),
     }))
     .filter((m) => m.text)
@@ -2767,6 +2769,7 @@ tone = the scheme's name in Korean, 2-6 characters, e.g. "세이지 그린", "�
 export function cleanThemeNote(v) {
   if (typeof v !== 'string') return null;
   const s = v
+    // eslint-disable-next-line no-control-regex -- 제어문자를 지우려는 정규식
     .replace(/[\u0000-\u001f\u007f]+/g, ' ')
     .replace(/"/g, "'")
     .replace(/\s+/g, ' ')
@@ -3154,6 +3157,7 @@ export const INTERIOR_RECOMMEND_SCHEMA = {
 };
 
 const cleanKo = (v, max) =>
+  // eslint-disable-next-line no-control-regex -- 제어문자를 지우려는 정규식
   typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max) : '';
 
 /**

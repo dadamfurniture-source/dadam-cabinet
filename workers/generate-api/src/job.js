@@ -57,7 +57,7 @@ import {
   resolveCategory,
 } from './prompts.js';
 import { buildQuote } from './quote.js';
-import { selectOne, selectMany, updateById, uploadObject, fetchObjectBase64, extOf, base64ToBytes } from './supabase.js';
+import { selectOne, selectMany, updateById, uploadObject, fetchObjectBase64, extOf } from './supabase.js';
 import { ANALYSIS_ROUNDS, ROOM_PHOTO_LOOKUP_LIMIT, medianAnalysis, roomPhotoPhash, roomPhotoSha256, samePhoto } from './room-photo.js';
 import { refundCreditService } from './credits.js';
 import {

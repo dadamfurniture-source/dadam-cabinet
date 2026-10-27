@@ -2,7 +2,7 @@
 // Prompt Builder - 다담AI 프롬프트 생성기
 // ═══════════════════════════════════════════════════════════════
 
-import { mapColor, mapFinish, mapHandle, getCategoryContents } from '../utils/color-map.js';
+import { getCategoryContents } from '../utils/color-map.js';
 
 // ─────────────────────────────────────────────────────────────────
 // 타입 정의
@@ -239,7 +239,7 @@ export function buildMaterialColorSection(materials: MaterialRule[], materialKey
 // ─────────────────────────────────────────────────────────────────
 
 export function buildClosedDoorPrompt(params: PromptParams): string {
-  const { category, wallData, ragRules } = params;
+  const { wallData, ragRules } = params;
 
   const wallSection = buildWallMeasurementSection(wallData);
   const utilitySection = buildUtilityPlacementSection(wallData);
