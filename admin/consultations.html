@@ -714,9 +714,35 @@
         document.getElementById('pageContent').style.display = 'none';
       }
 
+      // 이 화면은 본사(다담) 상담만 본다 — 회사 구성원도 자기 회사 상담을 읽을 수 있어
+      // 거르지 않으면 다른 회사 행이 섞인다. 본사 id 를 못 읽으면 거르지 않은 목록을 내지 않고 오류로 둔다.
+      let hqCompanyIdPromise = null;
+      function hqCompanyId() {
+        if (!hqCompanyIdPromise) {
+          hqCompanyIdPromise = supabaseClient
+            .from('companies')
+            .select('id')
+            .eq('kind', 'hq')
+            .single()
+            .then(({ data, error }) => {
+              if (error) throw error;
+              return data.id;
+            });
+          // 실패는 남겨 두지 않는다 — 「새로고침」이 다시 읽는다
+          hqCompanyIdPromise.catch(() => {
+            hqCompanyIdPromise = null;
+          });
+        }
+        return hqCompanyIdPromise;
+      }
+
       async function loadStats() {
         try {
-          const { data, error } = await supabaseClient.from('consultations').select('status');
+          const hqId = await hqCompanyId();
+          const { data, error } = await supabaseClient
+            .from('consultations')
+            .select('status')
+            .eq('company_id', hqId);
           if (error) throw error;
 
           const counts = { total: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0 };
@@ -751,7 +777,12 @@
         const searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
 
         try {
-          let query = supabaseClient.from('consultations').select('*').order('created_at', { ascending: false });
+          const hqId = await hqCompanyId();
+          let query = supabaseClient
+            .from('consultations')
+            .select('*')
+            .eq('company_id', hqId)
+            .order('created_at', { ascending: false });
 
           if (currentStatusFilter) query = query.eq('status', currentStatusFilter);
           if (typeFilter) query = query.eq('consultation_type', typeFilter);
