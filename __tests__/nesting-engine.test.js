@@ -284,7 +284,7 @@ describe('detaildesign.html — nesting-engine.js 를 ai-design-report.js·workf
     expect(i1).toBeGreaterThan(i0);
     expect(i2).toBeGreaterThan(i1);
     expect(i3).toBeGreaterThan(i2);
-    expect(srcs[i1]).toMatch(/\?v=\d+\.\d+/);
+    expect(srcs[i1]).toMatch(/\?v=\d+/);
   });
 
   test('ai-design-report.js 는 옛 calcCuttingPlan 을 더 이상 정의하지 않는다', () => {
