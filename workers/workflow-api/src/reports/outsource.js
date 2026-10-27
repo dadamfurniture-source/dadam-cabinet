@@ -54,8 +54,8 @@ export async function createOutsourceOrder(env, { user, documentId, body = {} })
   const pack = String(body.pack || '');
   const def = OUTSOURCE_PACKS[pack];
   if (!def) throw new ValidationError('pack 은 door · cut-vendor · top 중 하나여야 합니다');
-  // 외주 발주 기록은 업체 · 수량 · 날짜뿐 — 금액 권한은 보지 않는다
-  const { doc, snapshot } = await getDocumentForOwner(env, { documentId, user, money: false });
+  // 외주 발주 기록은 업체 · 수량 · 날짜뿐 — 업체 구성원 누구나
+  const { doc, snapshot } = await getDocumentForOwner(env, { documentId, user });
   if (doc.doc_type !== 'work_order') throw new ValidationError('작업지시서에서만 외주 발주를 처리합니다');
 
   const today = kstDay();
@@ -99,7 +99,7 @@ export async function createOutsourceOrder(env, { user, documentId, body = {} })
 
 /** Step 4 카드용 — 이 문서의 설계에 걸린 외주 발주 (취소 포함, 최신순). */
 export async function listOutsourceOrders(env, { user, documentId }) {
-  const { doc } = await getDocumentForOwner(env, { documentId, user, money: false });
+  const { doc } = await getDocumentForOwner(env, { documentId, user });
   const rows = (await selectMany(env, TABLE, {
     owner_id: `eq.${user.id}`,
     kind: KINDS,

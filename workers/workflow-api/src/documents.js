@@ -13,6 +13,7 @@ import {
   GoneError,
   ForbiddenError,
   assertDesignAccess,
+  designAccess,
   insertOne,
   selectOne,
   selectMany,
@@ -20,7 +21,7 @@ import {
   updateBy,
 } from './supabase.js';
 import { sha256Hex } from './util/hash.js';
-import { getSnapshot, latestHash } from './snapshots.js';
+import { getSnapshot, latestHash, quoteForViewer } from './snapshots.js';
 import {
   generateShareToken,
   hashShareToken,
@@ -74,7 +75,7 @@ export async function issueDocument(env, { user, body }) {
   }
   if (!body.snapshot_id) throw new ValidationError('snapshot_id 가 필요합니다');
 
-  // getSnapshot 이 설계 접근(금액 권한 포함 — 발행 응답에 totals 가 실린다)까지 확인한다
+  // getSnapshot 이 설계 접근까지 확인한다 (업체 구성원 누구나 발행한다 — 응답의 totals 는 고객 금액뿐)
   const snapshot = await getSnapshot(env, { snapshotId: body.snapshot_id, user });
   const designId = snapshot.design_id;
 
@@ -250,7 +251,7 @@ export async function supersedePriorRevisions(env, { designId, docType, newDocId
 export async function supersedeDocument(env, { user, documentId, replacementId }) {
   const doc = await selectOne(env, 'design_documents', { id: `eq.${documentId}`, select: '*' });
   if (!doc) throw new NotFoundError('대체할 문서를 찾을 수 없습니다');
-  // 상태만 바꾸고 문서 내용을 돌려주지 않는다 (발행 경로가 결과를 버린다) — 금액 권한은 보지 않는다
+  // 상태만 바꾸고 문서 내용을 돌려주지 않는다 (발행 경로가 결과를 버린다) — 업체 구성원 누구나
   await assertDesignAccess(env, doc.design_id, user, { money: false });
 
   const patch = { superseded_by: replacementId };
@@ -266,7 +267,7 @@ export async function supersedeDocument(env, { user, documentId, replacementId }
 export async function revokeDocument(env, { user, documentId }) {
   const doc = await selectOne(env, 'design_documents', { id: `eq.${documentId}`, select: '*' });
   if (!doc) throw new NotFoundError('문서를 찾을 수 없습니다');
-  // 응답은 id · status 뿐 — 금액 권한은 보지 않는다
+  // 응답은 id · status 뿐 — 업체 구성원 누구나
   await assertDesignAccess(env, doc.design_id, user, { money: false });
 
   // ★ share_token_hash 를 NULL 로 지우지 않는다.
@@ -284,8 +285,8 @@ export async function revokeDocument(env, { user, documentId }) {
  * ★ 판정은 content_hash 비교로만 한다 — designs.updated_at 은 트리거가 오염시킨다.
  */
 export async function listDocuments(env, { designId, user }) {
-  // 목록에 totals(공급가 · 부가세 · 합계)가 실린다
-  await assertDesignAccess(env, designId, user, { money: true });
+  // totals 는 고객 금액(공급가 · 부가세 · 합계) · 장수뿐 — 업체 구성원 누구나 본다
+  await assertDesignAccess(env, designId, user, { money: false });
 
   const [docs, newest] = await Promise.all([
     selectMany(env, 'design_documents', {
@@ -321,26 +322,27 @@ export async function listDocuments(env, { designId, user }) {
   });
 }
 
-/** 화면 · 인쇄에 금액이 보이는 문서 — 고객 확인서 (작업지시서 · 설치 지시서 인쇄에는 금액이 없다) */
-export function docShowsMoney(doc) {
-  return Boolean(doc) && doc.doc_type === 'customer_confirmation';
-}
-
 /**
- * 문서 + 스냅샷 (+ 설계 접근 확인).
- * money: 부르는 쪽이 금액을 내보내면 true. 문서 종류로 갈리면 함수(doc → boolean)를 준다 (인쇄).
+ * 문서 + 스냅샷 (+ 설계 접근 확인). 업체 구성원 누구나.
+ * money(원가 · 수금 권한)를 함께 돌려준다 — 문서를 그대로 내보내는 쪽은 documentForViewer 로 원가 · 마진을 가린다.
+ * 인쇄물(확인서 · 작업지시서 · 설치 지시서)은 원가 · 마진을 그리지 않는다.
  */
-export async function getDocumentForOwner(env, { documentId, user, money }) {
+export async function getDocumentForOwner(env, { documentId, user }) {
   const doc = await selectOne(env, 'design_documents', { id: `eq.${documentId}`, select: '*' });
   if (!doc) throw new NotFoundError('문서를 찾을 수 없습니다');
-  const needsMoney = typeof money === 'function' ? Boolean(money(doc)) : money === true;
-  await assertDesignAccess(env, doc.design_id, user, { money: needsMoney });
+  const { money } = await designAccess(env, doc.design_id, user);
   const snapshot = await selectOne(env, 'design_snapshots', {
     id: `eq.${doc.snapshot_id}`,
     select: '*',
   });
   if (!snapshot) throw new NotFoundError('문서가 참조하는 스냅샷이 없습니다');
-  return { doc, snapshot };
+  return { doc, snapshot, money };
+}
+
+/** 문서 행을 그대로 내보낼 때 — 원가 · 수금 권한이 없으면 render_payload.quote 의 원가 · 마진을 뺀다 */
+export function documentForViewer(doc, money) {
+  if (money || !doc || !doc.render_payload || !doc.render_payload.quote) return doc;
+  return { ...doc, render_payload: { ...doc.render_payload, quote: quoteForViewer(doc.render_payload.quote, false) } };
 }
 
 /**

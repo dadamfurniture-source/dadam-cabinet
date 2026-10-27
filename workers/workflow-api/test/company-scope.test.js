@@ -2,8 +2,9 @@
  * 업체(회사) 단위 접근 · 보고.
  *
  * 이 워커는 service_role 로 읽어 RLS 가 걸리지 않는다 — 누가 어느 설계 · 수주를 보는지는 워커가 정한다.
- *   a. 설계 업체의 active 구성원 (금액은 owner · manager 만)
- *   b. 본사 설계를 만든 사람 (예전 규칙, 금액 포함)
+ *   a. 설계 업체의 active 구성원 — 설계 · 견적 · 문서 · 수주(상태 · 계약금)는 누구나,
+ *      원가 · 마진 · 수금 · 재작업 비용은 owner · manager 만
+ *   b. 본사 설계를 만든 사람 (예전 규칙, 원가 · 수금 포함)
  *   c. 관리자는 본사 설계만 — 협력업체 설계는 못 본다
  * 본사 Slack · 경영 대시보드 · 생산 계획은 본사 일만 다룬다.
  */
@@ -12,7 +13,8 @@ import assert from 'node:assert/strict';
 import { assertDesignAccess, clearHqCompanyCache, hqCompanyId, DbError } from '../src/supabase.js';
 import { clearAdminCache } from '../src/reports/admin.js';
 import { createOrderFromDocument, listOrders, listOwnHqOrders } from '../src/orders.js';
-import { getDocumentForOwner, docShowsMoney } from '../src/documents.js';
+import { getDocumentForOwner, documentForViewer } from '../src/documents.js';
+import { getSnapshot, getSnapshotForViewer, quoteForViewer } from '../src/snapshots.js';
 import { createSchedules } from '../src/schedules.js';
 import { getManagementSummary, hqByOrder, hqByDesign } from '../src/management/service.js';
 import worker from '../src/worker.js';
@@ -92,7 +94,7 @@ const forbidden = (designId, userId, money) => assert.rejects(allowed(designId, 
 
 // ── 접근 규칙 ────────────────────────────────────────────────────
 
-test('본사 설계를 만든 사람 — 구성원이 아니어도 금액까지 (예전 규칙 그대로)', async () => {
+test('본사 설계를 만든 사람 — 구성원이 아니어도 원가 · 수금까지 (예전 규칙 그대로)', async () => {
   await withFetch(baseRoute(), async (calls) => {
     assert.equal((await allowed('d-hq', CREATOR, true)).id, 'd-hq');
     assert.equal((await allowed('d-hq', CREATOR, false)).id, 'd-hq');
@@ -101,7 +103,7 @@ test('본사 설계를 만든 사람 — 구성원이 아니어도 금액까지 
   });
 });
 
-test('협력업체 구성원 — owner · manager 는 금액까지, staff 는 금액 없는 경로만', async () => {
+test('협력업체 구성원 — owner · manager 는 원가 · 수금까지, staff 는 원가 · 수금 없는 경로만', async () => {
   await withFetch(baseRoute(), async () => {
     assert.equal((await allowed('d-p', P_OWNER, true)).id, 'd-p');
     assert.equal((await allowed('d-p', P_MANAGER, true)).id, 'd-p');
@@ -110,7 +112,7 @@ test('협력업체 구성원 — owner · manager 는 금액까지, staff 는 �
   });
 });
 
-test('설계를 만든 staff 라도 협력업체 설계의 금액은 못 본다 — 주인 규칙은 본사 설계만', async () => {
+test('설계를 만든 staff 라도 협력업체 설계의 원가 · 수금은 못 본다 — 주인 규칙은 본사 설계만', async () => {
   // d-p 의 user_id 는 P_STAFF
   await withFetch(baseRoute(), async () => {
     await forbidden('d-p', P_STAFF, true);
@@ -129,14 +131,14 @@ test('구성원에서 빠진(removed) 사람 · 다른 업체 구성원 · 모�
   });
 });
 
-test('본사 구성원 — 본사 설계 전부, 금액은 역할대로', async () => {
+test('본사 구성원 — 본사 설계 전부, 원가 · 수금은 역할대로', async () => {
   await withFetch(baseRoute(), async () => {
     assert.equal((await allowed('d-hq', HQ_STAFF, false)).id, 'd-hq');
     await forbidden('d-hq', HQ_STAFF, true);
   });
 });
 
-test('관리자 — 본사 설계는 금액까지, 협력업체 설계는 못 본다', async () => {
+test('관리자 — 본사 설계는 원가 · 수금까지, 협력업체 설계는 못 본다', async () => {
   await withFetch(baseRoute(), async () => {
     assert.equal((await allowed('d-hq', ADMIN, true)).id, 'd-hq');
     await forbidden('d-p', ADMIN, false);
@@ -182,7 +184,7 @@ function orderCreateRoute(designId) {
     extra: (u, method, body) => {
       if (method === 'GET' && u.includes('/design_documents?')) return json([approvedDoc(designId)]);
       if (method === 'GET' && u.includes('/orders?')) return json([]);
-      if (method === 'POST' && u.endsWith('/orders')) return json([{ id: 'O-new', ...body }], 201);
+      if (method === 'POST' && u.endsWith('/orders')) return json([{ id: 'O-new', received_amount: 0, ...body }], 201);
       return null;
     },
   });
@@ -195,6 +197,7 @@ test('수주 만들기 — 업체 · 프로젝트를 설계에서 그대로 옮�
     assert.equal(post.company_id, PARTNER);
     assert.equal(post.project_id, 'proj-1');
     assert.equal(order.company_id, PARTNER);
+    assert.equal(order.received_amount, 0, '대표는 수금액까지');
   });
   await withFetch(orderCreateRoute('d-hq'), async (calls) => {
     await createOrderFromDocument(ENV, { documentId: 'DOC1', user: { id: CREATOR } });
@@ -204,60 +207,78 @@ test('수주 만들기 — 업체 · 프로젝트를 설계에서 그대로 옮�
   });
 });
 
-test('수주 만들기 — 계약금이 실리므로 staff 는 403', async () => {
+test('수주 만들기 — staff 도 만든다 (상태 · 계약금은 보고, 수금액은 빠진다)', async () => {
   await withFetch(orderCreateRoute('d-p'), async (calls) => {
-    await assert.rejects(createOrderFromDocument(ENV, { documentId: 'DOC1', user: { id: P_STAFF } }), (e) => e.statusCode === 403);
-    assert.equal(calls.filter((c) => c.method === 'POST').length, 0);
+    const { order } = await createOrderFromDocument(ENV, { documentId: 'DOC1', user: { id: P_STAFF } });
+    assert.equal(calls.filter((c) => c.method === 'POST').length, 1);
+    assert.equal(order.contract_amount, 1100000);
+    assert.equal(order.status, 'confirmed');
+    assert.ok(!('received_amount' in order));
   });
 });
 
-/** 수주 목록 가짜 — 내가 만든 본사 설계 · 수주 질의를 기록한다 */
-function orderListRoute(ownHqDesigns = []) {
+/** 수주 목록 가짜 — 내가 만든 본사 설계 · 수주 질의를 기록한다. 수주 줄은 rows 그대로 */
+function orderListRoute(ownHqDesigns = [], rows = [{ id: 'O1' }]) {
   return baseRoute({
     extra: (u, method) => {
       if (method === 'GET' && u.includes('/designs?select=id')) return json(ownHqDesigns.map((id) => ({ id })));
-      if (method === 'GET' && u.includes('/orders?')) return json([{ id: 'O1' }]);
+      if (method === 'GET' && u.includes('/orders?')) return json(rows);
       return null;
     },
   });
 }
 const orderQueries = (calls) => calls.filter((c) => c.url.includes('/orders?')).map((c) => new URL(c.url).searchParams);
+const row = (id, companyId, designId) => ({ id, company_id: companyId, design_id: designId, contract_amount: 1100000, received_amount: 500000, status: 'confirmed' });
 
-test('수주 목록 — 협력업체 owner 는 그 업체 수주 전부 + 내가 만든 본사 설계 수주', async () => {
-  await withFetch(orderListRoute(['d-mine']), async (calls) => {
-    await listOrders(ENV, { user: { id: P_OWNER } });
+test('수주 목록 — 협력업체 owner 는 그 업체 수주 전부 + 내가 만든 본사 설계 수주, 수금액까지', async () => {
+  await withFetch(orderListRoute(['d-mine'], [row('O1', PARTNER, 'd-p'), row('O2', HQ, 'd-mine')]), async (calls) => {
+    const items = await listOrders(ENV, { user: { id: P_OWNER } });
     const [q] = orderQueries(calls);
     assert.equal(q.get('or'), `(company_id.in.(${PARTNER}),design_id.in.(d-mine))`);
     const designs = calls.find((c) => c.url.includes('/designs?select=id')).url;
     assert.ok(designs.includes(`user_id=eq.${P_OWNER}`) && designs.includes(`company_id=eq.${HQ}`));
-    // 응답 칸은 예전 그대로 (+ 구분)
-    assert.equal(q.get('select'), 'id,order_no,design_id,document_id,snapshot_id,customer_name,contract_amount,received_amount,status,ordered_at,delivered_at,completed_at,note,created_at,price_tier');
+    // 업체 칸은 줄마다 권한을 보는 데만 읽고 응답에서는 뺀다 — 응답 칸은 예전 그대로 (+ 구분)
+    assert.equal(q.get('select'), 'id,order_no,design_id,document_id,snapshot_id,customer_name,contract_amount,received_amount,status,ordered_at,delivered_at,completed_at,note,created_at,company_id,price_tier');
     assert.equal(q.get('order'), 'ordered_at.desc');
     assert.equal(q.get('limit'), '200');
+    assert.deepEqual(items.map((o) => [o.id, o.received_amount, 'company_id' in o]), [['O1', 500000, false], ['O2', 500000, false]]);
   });
 });
 
-test('수주 목록 — staff 는 금액이 실려 업체 수주를 못 보고, 만든 본사 설계도 없으면 빈 목록', async () => {
-  await withFetch(orderListRoute([]), async (calls) => {
-    assert.deepEqual(await listOrders(ENV, { user: { id: P_STAFF } }), []);
-    assert.equal(orderQueries(calls).length, 0);
+test('수주 목록 — staff 는 업체 수주를 보되 수금액은 빠진다 (상태 · 계약금은 그대로)', async () => {
+  await withFetch(orderListRoute([], [row('O1', PARTNER, 'd-p')]), async (calls) => {
+    const items = await listOrders(ENV, { user: { id: P_STAFF } });
+    assert.equal(orderQueries(calls)[0].get('or'), `(company_id.in.(${PARTNER}))`);
+    assert.equal(items[0].contract_amount, 1100000);
+    assert.equal(items[0].status, 'confirmed');
+    assert.ok(!('received_amount' in items[0]));
+  });
+});
+
+test('수주 목록 — 본사 staff 는 본사 수주 전부, 수금액은 내가 만든 설계 줄만', async () => {
+  await withFetch(orderListRoute(['d-own'], [row('O1', HQ, 'd-hq'), row('O2', HQ, 'd-own')]), async (calls) => {
+    const items = await listOrders(ENV, { user: { id: HQ_STAFF } });
+    assert.equal(orderQueries(calls)[0].get('or'), `(company_id.in.(${HQ}))`);
+    assert.deepEqual(items.map((o) => [o.id, o.received_amount]), [['O1', undefined], ['O2', 500000]]);
   });
 });
 
 test('수주 목록 — 관리자는 본사 수주 전부 (설계 주인 질의 없이)', async () => {
-  await withFetch(orderListRoute([]), async (calls) => {
-    await listOrders(ENV, { user: { id: ADMIN } });
+  await withFetch(orderListRoute([], [row('O1', HQ, 'd-hq')]), async (calls) => {
+    const items = await listOrders(ENV, { user: { id: ADMIN } });
     const [q] = orderQueries(calls);
     assert.equal(q.get('or'), `(company_id.in.(${HQ}))`);
     assert.ok(!calls.some((c) => c.url.includes('/designs?select=id')));
+    assert.equal(items[0].received_amount, 500000);
   });
 });
 
 test('수주 목록 — 구성원 · 관리자가 아니면 내가 만든 본사 설계의 수주만 (예전과 같다)', async () => {
-  await withFetch(orderListRoute(['d-hq']), async (calls) => {
-    await listOrders(ENV, { user: { id: CREATOR } });
+  await withFetch(orderListRoute(['d-hq'], [row('O1', HQ, 'd-hq')]), async (calls) => {
+    const items = await listOrders(ENV, { user: { id: CREATOR } });
     const [q] = orderQueries(calls);
     assert.equal(q.get('or'), '(design_id.in.(d-hq))');
+    assert.equal(items[0].received_amount, 500000);
   });
   await withFetch(orderListRoute([]), async (calls) => {
     assert.deepEqual(await listOrders(ENV, { user: { id: STRANGER } }), []);
@@ -265,11 +286,14 @@ test('수주 목록 — 구성원 · 관리자가 아니면 내가 만든 본사
   });
 });
 
-test('수주 목록 — 설계를 고르면 그 설계의 금액 권한으로 본다', async () => {
-  await withFetch(orderListRoute([]), async (calls) => {
-    await listOrders(ENV, { user: { id: P_MANAGER }, designId: 'd-p' });
+test('수주 목록 — 설계를 고르면 그 설계의 권한으로, staff 는 수금액만 빠진다', async () => {
+  await withFetch(orderListRoute([], [row('O1', PARTNER, 'd-p')]), async (calls) => {
+    const forManager = await listOrders(ENV, { user: { id: P_MANAGER }, designId: 'd-p' });
     assert.equal(orderQueries(calls)[0].get('design_id'), 'eq.d-p');
-    await assert.rejects(listOrders(ENV, { user: { id: P_STAFF }, designId: 'd-p' }), (e) => e.statusCode === 403);
+    assert.equal(forManager[0].received_amount, 500000);
+    const forStaff = await listOrders(ENV, { user: { id: P_STAFF }, designId: 'd-p' });
+    assert.ok(!('received_amount' in forStaff[0]));
+    await assert.rejects(listOrders(ENV, { user: { id: OTHER_OWNER }, designId: 'd-p' }), (e) => e.statusCode === 403);
   });
 });
 
@@ -288,30 +312,119 @@ test('생산 계획 입력 — 내가 만든 본사 설계의 본사 수주만 (
   });
 });
 
-// ── 문서 인쇄 · 단건 ──────────────────────────────────────────────
-
-function docRoute(designId, docType) {
+/** 수주 상세 · 고치기 가짜 — 협력업체 설계의 수주 하나 + 원가 · 견적 · 재작업 · 문항 · 수금 */
+function orderDetailRoute() {
   return baseRoute({
-    extra: (u) => {
-      if (u.includes('/design_documents?')) return json([{ id: 'DOC1', design_id: designId, snapshot_id: 'S1', doc_type: docType }]);
-      if (u.includes('/design_snapshots?')) return json([{ id: 'S1', rev: 1, content_hash: 'h' }]);
+    extra: (u, method, body) => {
+      if (method === 'GET' && u.includes('/orders?id=eq.')) return json([{ id: 'O1', order_no: 'SO-1', design_id: 'd-p', company_id: PARTNER, snapshot_id: 'S1', contract_amount: 1100000, received_amount: 500000, status: 'confirmed' }]);
+      if (method === 'PATCH' && u.includes('/orders?')) return json([{ id: 'O1', design_id: 'd-p', company_id: PARTNER, contract_amount: 1100000, received_amount: 500000, ...body }]);
+      if (u.includes('/order_costs?')) return json([{ id: 'C1', category: 'material', amount: 300000 }]);
+      if (u.includes('/design_snapshots?')) return json([{ rev: 1, quote_payload: { total: 1100000, items: [] } }]);
+      if (u.includes('/rework_logs?')) return json([{ id: 'R1', kind: 'as', cause: 'install', cost: 20000 }]);
+      if (u.includes('/install_feedback?')) return json([]);
+      if (u.includes('/order_payments?')) return json([{ id: 'P1', stage: 'deposit', amount: 500000 }]);
       return null;
     },
   });
 }
 
-test('인쇄 — 금액이 찍히는 고객 확인서만 금액 권한을 본다', async () => {
-  assert.equal(docShowsMoney({ doc_type: 'customer_confirmation' }), true);
-  assert.equal(docShowsMoney({ doc_type: 'work_order' }), false);
-  assert.equal(docShowsMoney({ doc_type: 'installation_order' }), false);
-  await withFetch(docRoute('d-p', 'work_order'), async () => {
-    const { doc } = await getDocumentForOwner(ENV, { documentId: 'DOC1', user: { id: P_STAFF }, money: docShowsMoney });
-    assert.equal(doc.id, 'DOC1');
+test('GET /orders/:id — staff 는 수주 기본 정보만 (원가 · 마진 · 수금 · 재작업 비용 없음), 실장은 전부', async () => {
+  const staff = await callWorker('/orders/O1', P_STAFF, orderDetailRoute());
+  assert.equal(staff.status, 200, staff.text);
+  const s = JSON.parse(staff.text).data;
+  assert.equal(s.order.contract_amount, 1100000);
+  assert.equal(s.order.status, 'confirmed');
+  assert.ok(!('received_amount' in s.order));
+  for (const k of ['costs', 'margin', 'payments', 'money']) assert.ok(!(k in s), `${k} 없음`);
+  assert.deepEqual(s.reworks, [{ id: 'R1', kind: 'as', cause: 'install' }]);
+  assert.ok(!staff.calls.some((c) => c.url.includes('/order_costs?') || c.url.includes('/order_payments?')), '원가 · 수금 표를 읽지도 않는다');
+
+  const manager = await callWorker('/orders/O1', P_MANAGER, orderDetailRoute());
+  const m = JSON.parse(manager.text).data;
+  assert.equal(m.order.received_amount, 500000);
+  assert.equal(m.costs.length, 1);
+  assert.equal(m.margin.cost_total, 300000);
+  assert.equal(m.payments.length, 1);
+  assert.equal(m.reworks[0].cost, 20000);
+  assert.ok(!('money' in m));
+});
+
+test('PATCH /orders/:id — staff 는 상태는 고치고 수금액은 403, 응답에 수금액 없음', async () => {
+  const ok = await callWorker('/orders/O1', P_STAFF, orderDetailRoute(), { method: 'PATCH', body: { status: 'in_production' } });
+  assert.equal(ok.status, 200, ok.text);
+  const data = JSON.parse(ok.text).data;
+  assert.equal(data.status, 'in_production');
+  assert.ok(!('received_amount' in data));
+  const denied = await callWorker('/orders/O1', P_STAFF, orderDetailRoute(), { method: 'PATCH', body: { received_amount: 600000 } });
+  assert.equal(denied.status, 403);
+  assert.ok(!denied.calls.some((c) => c.method === 'PATCH'));
+  const owner = await callWorker('/orders/O1', P_OWNER, orderDetailRoute(), { method: 'PATCH', body: { received_amount: 600000 } });
+  assert.equal(owner.status, 200);
+  assert.equal(JSON.parse(owner.text).data.received_amount, 600000);
+});
+
+test('원가 · 수금 · 재작업 비용을 바꾸는 경로는 staff 403', async () => {
+  for (const [method, path, body] of [
+    ['POST', '/orders/O1/costs', { category: 'material', amount: 1000 }],
+    ['DELETE', '/orders/O1/costs/C1', undefined],
+    ['POST', '/orders/O1/payments', { stage: 'deposit', amount: 1000, due_on: '2026-11-01' }],
+    ['POST', '/orders/O1/reworks', { kind: 'as', cause: 'install' }],
+  ]) {
+    const r = await callWorker(path, P_STAFF, orderDetailRoute(), { method, body });
+    assert.equal(r.status, 403, `${method} ${path}`);
+    assert.ok(!r.calls.some((c) => c.method !== 'GET' && !c.url.includes('/auth/')), `${method} ${path} 쓰기 없음`);
+  }
+});
+
+// ── 견적 · 문서 ──────────────────────────────────────────────────
+
+const FULL_QUOTE = {
+  method: 'sheet', items: [{ name: '싱크대', amount: 1000000 }], subtotal: 1000000, vat: 100000, total: 1100000, margin_rate: 0.2,
+  partner: { items: [], subtotal: 900000, vat: 90000, total: 990000, margin_rate: 0.1 },
+  cost: { total: 800000, margin_amount: 200000, fixed_recovery: 50000 },
+  legacy: { method: 'per_meter', total: 1200000 },
+};
+
+test('quoteForViewer — 원가 · 수금 권한이 없으면 원가 내역 · 마진율만 뺀다 (고객 금액은 그대로)', () => {
+  assert.equal(quoteForViewer(FULL_QUOTE, true), FULL_QUOTE);
+  const q = quoteForViewer(FULL_QUOTE, false);
+  assert.deepEqual(Object.keys(q).sort(), ['items', 'legacy', 'method', 'partner', 'subtotal', 'total', 'vat']);
+  assert.deepEqual(q.partner, { items: [], subtotal: 900000, vat: 90000, total: 990000 });
+  assert.equal(FULL_QUOTE.cost.total, 800000, '원본은 그대로');
+  assert.equal(quoteForViewer(null, false), null);
+});
+
+function docRoute(designId, docType) {
+  return baseRoute({
+    extra: (u) => {
+      if (u.includes('/design_documents?')) {
+        return json([{ id: 'DOC1', design_id: designId, snapshot_id: 'S1', doc_type: docType, totals: { total: 1100000 }, render_payload: { quote: FULL_QUOTE, price_tier: 'customer' } }]);
+      }
+      if (u.includes('/design_snapshots?')) return json([{ id: 'S1', design_id: designId, rev: 1, content_hash: 'h', quote_payload: FULL_QUOTE }]);
+      return null;
+    },
   });
+}
+
+test('스냅샷 · 문서 — staff 도 읽는다 (견적 · totals 는 그대로, 원가 · 마진만 빠진다)', async () => {
   await withFetch(docRoute('d-p', 'customer_confirmation'), async () => {
-    await assert.rejects(getDocumentForOwner(ENV, { documentId: 'DOC1', user: { id: P_STAFF }, money: docShowsMoney }), (e) => e.statusCode === 403);
-    const { doc } = await getDocumentForOwner(ENV, { documentId: 'DOC1', user: { id: P_MANAGER }, money: docShowsMoney });
-    assert.equal(doc.id, 'DOC1');
+    const forStaff = await getDocumentForOwner(ENV, { documentId: 'DOC1', user: { id: P_STAFF } });
+    assert.equal(forStaff.money, false);
+    const view = documentForViewer(forStaff.doc, forStaff.money);
+    assert.equal(view.totals.total, 1100000);
+    assert.equal(view.render_payload.quote.total, 1100000);
+    assert.ok(!('cost' in view.render_payload.quote));
+    assert.equal(view.render_payload.price_tier, 'customer');
+    const forManager = await getDocumentForOwner(ENV, { documentId: 'DOC1', user: { id: P_MANAGER } });
+    assert.equal(forManager.money, true);
+    assert.equal(documentForViewer(forManager.doc, true).render_payload.quote.cost.total, 800000);
+
+    const snap = await getSnapshotForViewer(ENV, { snapshotId: 'S1', user: { id: P_STAFF } });
+    assert.equal(snap.quote_payload.total, 1100000);
+    assert.ok(!('cost' in snap.quote_payload));
+    // 서버 안(문서 발행)에서 쓰는 getSnapshot 은 그대로 — 발행된 문서에 견적 전체가 동결된다
+    assert.equal((await getSnapshot(ENV, { snapshotId: 'S1', user: { id: P_STAFF } })).quote_payload.cost.total, 800000);
+    await assert.rejects(getSnapshot(ENV, { snapshotId: 'S1', user: { id: OTHER_OWNER } }), (e) => e.statusCode === 403);
   });
 });
 
@@ -335,16 +448,31 @@ async function callWorker(path, token, route, { method = 'GET', body } = {}) {
   });
 }
 
-test('GET /documents/:id/print — 관리자는 본사 문서만, 협력업체 문서는 403 (예전 관리자 우회 없음)', async () => {
+test('GET /documents/:id/print — staff 도 확인서를 인쇄한다, 관리자는 협력업체 문서 403 (예전 관리자 우회 없음)', async () => {
+  const staff = await callWorker('/documents/DOC1/print', P_STAFF, docRoute('d-p', 'customer_confirmation'));
+  assert.equal(staff.status, 200, staff.text);
   const partner = await callWorker('/documents/DOC1/print', ADMIN, docRoute('d-p', 'work_order'));
   assert.equal(partner.status, 403);
 });
 
-test('GET /documents/:id — 문서 행(totals · 견적)이 실리므로 staff 는 403', async () => {
-  const r = await callWorker('/documents/DOC1', P_STAFF, docRoute('d-p', 'work_order'));
-  assert.equal(r.status, 403);
-  const ok = await callWorker('/documents/DOC1', P_MANAGER, docRoute('d-p', 'work_order'));
-  assert.equal(ok.status, 200);
+test('GET /documents/:id — staff 도 200, 견적의 원가 · 마진만 빠진다', async () => {
+  const r = await callWorker('/documents/DOC1', P_STAFF, docRoute('d-p', 'customer_confirmation'));
+  assert.equal(r.status, 200, r.text);
+  const quote = JSON.parse(r.text).data.render_payload.quote;
+  assert.equal(quote.total, 1100000);
+  assert.ok(!('cost' in quote) && !('margin_rate' in quote));
+  const ok = await callWorker('/documents/DOC1', P_MANAGER, docRoute('d-p', 'customer_confirmation'));
+  assert.equal(JSON.parse(ok.text).data.render_payload.quote.cost.total, 800000);
+});
+
+test('GET /snapshots/:id — staff 도 200, 견적의 원가 · 마진만 빠진다', async () => {
+  const r = await callWorker('/snapshots/S1', P_STAFF, docRoute('d-p', 'customer_confirmation'));
+  assert.equal(r.status, 200, r.text);
+  const q = JSON.parse(r.text).data.quote_payload;
+  assert.equal(q.total, 1100000);
+  assert.ok(!('cost' in q));
+  const owner = await callWorker('/snapshots/S1', P_OWNER, docRoute('d-p', 'customer_confirmation'));
+  assert.equal(JSON.parse(owner.text).data.quote_payload.cost.total, 800000);
 });
 
 // ── 본사 Slack ───────────────────────────────────────────────────

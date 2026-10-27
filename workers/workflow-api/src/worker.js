@@ -58,13 +58,13 @@ import {
 import { getManagementSummary } from './management/service.js';
 import { createOutsourceOrder, listOutsourceOrders, loadCountertopContext } from './reports/outsource.js';
 import { renderReportPrint } from './templates/report-print.js';
-import { createSnapshot, listSnapshots, getSnapshot, previewQuote } from './snapshots.js';
+import { createSnapshot, listSnapshots, getSnapshotForViewer, previewQuote, quoteForViewer } from './snapshots.js';
 import { getFrozenAssembly, uploadCadArtifact, listCadArtifacts, customerExteriorUrl } from './cad-artifacts.js';
 import {
   issueDocument,
   listDocuments,
   getDocumentForOwner,
-  docShowsMoney,
+  documentForViewer,
   revokeDocument,
   renderDocument,
   resolvePrintAssets,
@@ -80,7 +80,7 @@ import {
   addCost,
   deleteCost,
 } from './orders.js';
-import { listReworks, addRework, deleteRework } from './rework.js';
+import { listReworks, addRework, deleteRework, reworksForViewer } from './rework.js';
 import { getFeedback, createFeedbackLink, openFeedback, answerFeedback } from './feedback.js';
 import { listCounterparties, createCounterparty, updateCounterparty } from './counterparties.js';
 import { listPayments, addPayment, updatePayment, deletePayment, updateCostDates, addCashBalance } from './payments.js';
@@ -179,7 +179,7 @@ async function handleCreateSnapshot(request, env, { params, user }) {
   const body = await readJson(request);
   if (!body) throw new ValidationError('JSON 본문을 해석할 수 없습니다');
 
-  const { snapshot, reused } = await createSnapshot(env, {
+  const { snapshot, reused, money } = await createSnapshot(env, {
     designId: params.designId,
     user,
     body,
@@ -200,7 +200,8 @@ async function handleCreateSnapshot(request, env, { params, user }) {
         panel_count: snapshot.panel_count,
         // B4: 재단 배치 원판 장수. 배치를 안 보냈거나 DB 컬럼이 없으면 null
         sheet_count: snapshot.sheet_count === undefined ? null : snapshot.sheet_count,
-        quote: snapshot.quote_payload, // W11-3 이후 채워짐
+        // W11-3 이후 채워짐. 원가 · 수금 권한이 없으면 원가 · 마진 칸을 뺀다
+        quote: quoteForViewer(snapshot.quote_payload, money),
         reused,
         created_at: snapshot.created_at,
       },
@@ -220,7 +221,7 @@ async function handleListSnapshots(request, env, { params, user }) {
 }
 
 async function handleGetSnapshot(request, env, { params, user }) {
-  const snapshot = await getSnapshot(env, { snapshotId: params.snapshotId, user });
+  const snapshot = await getSnapshotForViewer(env, { snapshotId: params.snapshotId, user });
   return jsonResponse(request, env, { success: true, data: snapshot });
 }
 
@@ -294,25 +295,24 @@ async function handleListDocuments(request, env, { params, user }) {
 }
 
 async function handleGetDocument(request, env, { params, user }) {
-  // 문서 행 그대로 — totals · render_payload.quote 가 실린다
-  const { doc, snapshot } = await getDocumentForOwner(env, {
+  // 문서 행 그대로 — 원가 · 수금 권한이 없으면 render_payload.quote 의 원가 · 마진만 뺀다
+  const { doc, snapshot, money } = await getDocumentForOwner(env, {
     documentId: params.documentId,
     user,
-    money: true,
   });
   return jsonResponse(request, env, {
     success: true,
-    data: { ...doc, snapshot_rev: snapshot.rev, snapshot_content_hash: snapshot.content_hash },
+    data: { ...documentForViewer(doc, money), snapshot_rev: snapshot.rev, snapshot_content_hash: snapshot.content_hash },
   });
 }
 
 /**
  * 내부용 인쇄 화면. 작업지시서는 여기서 연다.
- * 접근은 assertDesignAccess 그대로 — 관리자는 본사 설계 문서를 연다 (보관함에서 남의 작업지시서 — work-reports-archive.plan.md §5),
- * 협력업체 설계 문서는 열지 못한다. 금액이 찍히는 고객 확인서만 금액 권한을 본다.
+ * 접근은 설계 접근 규칙 그대로 — 관리자는 본사 설계 문서를 연다 (보관함에서 남의 작업지시서 — work-reports-archive.plan.md §5),
+ * 협력업체 설계 문서는 열지 못한다. 인쇄물에는 원가 · 마진이 없다.
  */
 async function getDocumentForPrint(env, { documentId, user }) {
-  return getDocumentForOwner(env, { documentId, user, money: docShowsMoney });
+  return getDocumentForOwner(env, { documentId, user });
 }
 
 async function handlePrintDocument(request, env, { params, user }) {
@@ -596,13 +596,14 @@ async function handleListOrders(request, env, { user }) {
 }
 
 async function handleGetOrder(request, env, { params, user }) {
-  const data = await getOrder(env, { orderId: params.orderId, user });
+  // 원가 · 마진 · 수금 · 재작업 비용은 원가 · 수금 권한(대표 · 실장 · 본사 주인 · 관리자)이 있을 때만 싣는다
+  const { money, ...data } = await getOrder(env, { orderId: params.orderId, user });
   // 재작업 · A/S — 표가 아직 없으면(2단계 SQL 전) null 이고 화면이 안내를 띄운다
-  data.reworks = await listReworks(env, params.orderId);
+  data.reworks = reworksForViewer(await listReworks(env, params.orderId), money);
   // 설치 후 한 문항 — 같은 방식으로 표가 없으면 null
   data.feedback = await getFeedback(env, params.orderId);
   // 수금 일정 — 표가 없으면 null
-  data.payments = await listPayments(env, params.orderId);
+  if (money) data.payments = await listPayments(env, params.orderId);
   return jsonResponse(request, env, { success: true, data });
 }
 

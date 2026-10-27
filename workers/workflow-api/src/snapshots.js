@@ -20,6 +20,7 @@ import {
   NotFoundError,
   DbError,
   assertDesignAccess,
+  designAccess,
   designTitleOf,
   insertOne,
   selectOne,
@@ -457,9 +458,12 @@ const LIST_SELECT_BASE =
   'id,rev,content_hash,design_title,item_count,module_count,panel_count,app_version,note,created_at';
 const LIST_SELECT = `${LIST_SELECT_BASE},sheet_count`;
 
+/**
+ * 설계 + BOM 동결. 업체 구성원 누구나 한다.
+ * money(원가 · 수금 권한)를 함께 돌려준다 — 부르는 쪽이 응답의 견적에서 원가 · 마진을 가릴지 정한다 (quoteForViewer).
+ */
 export async function createSnapshot(env, { designId, user, body }) {
-  // 응답에 견적(quote_payload)이 실린다
-  const design = await assertDesignAccess(env, designId, user, { money: true });
+  const { design, money } = await designAccess(env, designId, user);
   const { design: designPayload, bom, hardware } = validateSnapshotInput(body);
 
   const derived = deriveCounts(designPayload, bom);
@@ -475,7 +479,7 @@ export async function createSnapshot(env, { designId, user, body }) {
 
   // 이미 같은 내용의 스냅샷이 있으면 재사용
   const existing = await findByHash(env, designId, contentHash);
-  if (existing) return { snapshot: existing, reused: true };
+  if (existing) return { snapshot: existing, reused: true, money };
 
   const title =
     (typeof body.title === 'string' && body.title.trim()) || designTitleOf(design);
@@ -519,7 +523,7 @@ export async function createSnapshot(env, { designId, user, body }) {
     insertRow.rev = await nextRev(env, designId);
     try {
       const created = await insertOne(env, 'design_snapshots', insertRow);
-      return { snapshot: created, reused: false };
+      return { snapshot: created, reused: false, money };
     } catch (err) {
       if (isMissingCutPlanColumn(err) && insertRow === row) {
         // workflow-cut-plan.sql 미적용 — 배치 없이 저장하고 로그로 알린다. 시도 횟수는 소모하지 않는다.
@@ -530,7 +534,7 @@ export async function createSnapshot(env, { designId, user, body }) {
       }
       if (!(err instanceof ConflictError)) throw err;
       const raced = await findByHash(env, designId, contentHash);
-      if (raced) return { snapshot: raced, reused: true };
+      if (raced) return { snapshot: raced, reused: true, money };
       // 내용은 다른데 rev 만 겹친 경우 → 다시 시도
     }
   }
@@ -560,16 +564,43 @@ export async function listSnapshots(env, { designId, user, limit = 20 }) {
   }
 }
 
-/** 단건 — payload 포함. */
-export async function getSnapshot(env, { snapshotId, user }) {
+/**
+ * 견적에서 원가 · 마진 칸을 뺀다 — 원가 · 수금 권한이 없는 구성원에게 돌려줄 때.
+ * 고객 금액(items · subtotal · vat · total · range · 거래처 금액 · legacy 합계)은 그대로 둔다.
+ *   cost (원가 내역 — 원가 · 마진액 · 고정비 회수분 · 수량 · 작업 초) · margin_rate · partner.margin_rate
+ */
+export function quoteForViewer(quote, money) {
+  if (money || !quote || typeof quote !== 'object') return quote;
+  const out = { ...quote };
+  delete out.cost;
+  delete out.margin_rate;
+  if (out.partner && typeof out.partner === 'object') {
+    out.partner = { ...out.partner };
+    delete out.partner.margin_rate;
+  }
+  return out;
+}
+
+/** 스냅샷 + 설계 접근 — { snapshot, money } */
+async function loadSnapshot(env, snapshotId, user) {
   const snapshot = await selectOne(env, 'design_snapshots', {
     id: `eq.${snapshotId}`,
     select: '*',
   });
   if (!snapshot) throw new NotFoundError('스냅샷을 찾을 수 없습니다');
-  // 단건은 quote_payload(견적가 · 원가)까지 돌려준다. 견적 미리보기 · 문서 발행도 이 길로 온다
-  await assertDesignAccess(env, snapshot.design_id, user, { money: true });
-  return snapshot;
+  const { money } = await designAccess(env, snapshot.design_id, user);
+  return { snapshot, money };
+}
+
+/** 단건 — payload 그대로 (문서 발행 등 서버 안에서 쓴다). 업체 구성원 누구나. */
+export async function getSnapshot(env, { snapshotId, user }) {
+  return (await loadSnapshot(env, snapshotId, user)).snapshot;
+}
+
+/** GET /snapshots/:id — 원가 · 수금 권한이 없으면 견적의 원가 · 마진을 뺀다 */
+export async function getSnapshotForViewer(env, { snapshotId, user }) {
+  const { snapshot, money } = await loadSnapshot(env, snapshotId, user);
+  return money ? snapshot : { ...snapshot, quote_payload: quoteForViewer(snapshot.quote_payload, false) };
 }
 
 /**
@@ -580,7 +611,7 @@ export async function getSnapshot(env, { snapshotId, user }) {
  * 미리보기는 현재 활성 세트로 계산한다(단가 변경 반영 확인용).
  */
 export async function previewQuote(env, { snapshotId, user, grade, useActiveRules = false }) {
-  const snapshot = await getSnapshot(env, { snapshotId, user });
+  const { snapshot, money } = await loadSnapshot(env, snapshotId, user);
 
   const pricebook =
     useActiveRules || !snapshot.pricing_rule_set_id
@@ -600,7 +631,7 @@ export async function previewQuote(env, { snapshotId, user, grade, useActiveRule
   return {
     snapshot_id: snapshot.id,
     rev: snapshot.rev,
-    quote,
+    quote: quoteForViewer(quote, money),
     stored_pricing_rule_set_id: snapshot.pricing_rule_set_id,
     used_pricing_rule_set_id: pricebook.ruleSetId,
   };
