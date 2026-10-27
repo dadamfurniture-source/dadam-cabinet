@@ -231,6 +231,10 @@ notes "꺾인 구간을 한 벽으로 폈습니다"). 실측(2026-10-19 GPT)에�
 렌더 역할 (플래너 모드 `renders[]`): `elevation_left` · `elevation_left_labeled` · `elevation_right` · `elevation_right_labeled` (선택, 최대 7장).
 `design_spec.walls` 에 그 벽이 있을 때만 싣는다. 번호 붙은 것은 설치 때 GPT 에만, 역판독에는 공급자와 상관없이.
 
+`composite` (선택, 2026-10-27 — 간편 플래너 「Blender 시안」): **방 사진 그대로**에 설계 3D 를 그 사진의 카메라로 렌더해 얹은 사진 (JPEG 도 받는다).
+있으면 잡이 IMAGE A 로 쓰고 도면 덩어리(`planner-place.js`)를 칠하지 않는다 — 자리 · 크기 · 깊이 · 문 · 서랍 나눔이 이미 그려져 있어서
+프롬프트는 "나눔 그대로, 사진처럼만" 이라고 말한다. 방 사진과 비율이 1.5 % 넘게 다르면 버린다. 있으면 `options.place_render: true`.
+
 `kind` 별 영어 문장:
 
 | kind | 프롬프트 문구 |

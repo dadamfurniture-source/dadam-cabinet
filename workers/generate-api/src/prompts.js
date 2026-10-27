@@ -2091,7 +2091,10 @@ export function buildPlannerPrompt(c) {
   const images = [
     `You receive ${COUNT_WORD[imageCount] || imageCount} images.`,
     // 2026-10-20: 도면 덩어리(planner-place.js, PLANNER_PLACE_GUIDE='on')가 칠해져 있으면 그 자리·크기를 지키라고 말한다
-    c.placeGuide
+    // 2026-10-27: 간편 플래너 Blender 시안(composite) — 장이 이미 문 · 서랍 나눔까지 렌더돼 있다. 기하는 그대로, 사진처럼만
+    c.placeRender
+      ? `IMAGE A — ROOM PHOTO: the customer's real room with the new built-in units already rendered into it by our planner, using this photo's own camera: their position, size, depth, every door and drawer division, the countertop line, the sink, cooktop and hood are exactly as designed. Edit this photo only inside the EDIT ZONE below. Turn the rendered units into real, finished units: keep every outer edge, seam and division exactly where IMAGE A shows it — the same number of doors and drawers with the same widths and heights; never merge, split, move, stretch or redraw a door, drawer or run. Only make the materials, light, contact shadows and reflections look photographed.`
+      : c.placeGuide
       ? `IMAGE A — ROOM PHOTO: the customer's real room, with the new built-in units already painted in as plain off-white blocks at their exact position, size and depth; a thin dark line marks each unit boundary. Edit this photo only inside the EDIT ZONE below. Re-render every block as the real units ${wallSides.length ? "its wall's elevation" : 'IMAGE B'} shows: keep each block's outer edges exactly where they are — do not stretch, move or extend any run — and keep the unit boundaries.`
       : `IMAGE A — ROOM PHOTO: the customer's real room. Edit this photo only inside the EDIT ZONE below.`,
     // 2026-10-19: 번호 입면(labeledElevation)이면 번호·치수선은 주석이지 그릴 것이 아니라고 말한다.

@@ -677,3 +677,16 @@ test('재생성은 원본의 place_guide:false 를 잇고, 원본에 없으면 �
   await post({ parent_id: base.id, place_guide: false });
   assert.equal(calls.inserted.options.place_guide, false, '새로 보낸 값');
 });
+
+// 2026-10-27: 간편 플래너 Blender 시안 — 선택 렌더 composite (JPEG 도), 있으면 options.place_render
+test('Blender 시안(composite)은 render-composite.{ext} 로 저장, 렌더 끝에 · options.place_render — 없으면 키 없음', async () => {
+  install();
+  const res = await post(plannerBody({ renders: [...plannerBody().renders, { role: 'composite', base64: PNG, mime: 'image/jpeg' }] }));
+  assert.equal(res.status, 202);
+  assert.deepEqual(calls.jobStart.inputs.renders.map((r) => r.role), ['elevation', 'massing', 'composite']);
+  assert.ok(calls.uploads.some((x) => x.url.endsWith(`${ROW_ID}/render-composite.jpg`)));
+  assert.equal(calls.inserted.options.place_render, true);
+  install();
+  await post(plannerBody());
+  assert.equal('place_render' in calls.inserted.options, false);
+});
