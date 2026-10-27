@@ -1,0 +1,407 @@
+/* ============================================================
+   segan/make.css — 만들기 탭 (① 사진 → ② 가구 → ③ 결과)
+   디자인: 앱 시안 「안 B」(B-Photo · B-Kind · B-Result). v5 토큰만 쓴다 (segan/shell.css).
+   라운드 · 섀도 없음, 헤어라인 보더만. 누르는 곳은 44px 이상.
+   ============================================================ */
+
+.sg-main.mk {
+  --mk-dim: rgba(45, 42, 38, 0.72); /* 시안의 보조 글자색 */
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-top: 14px;
+  padding-bottom: 0; /* 버튼 줄이 아래 탭 바로 위에 붙게 */
+}
+
+/* ── 진행 단계 ── */
+.mk-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.mk-stepnav {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 300;
+  text-align: left;
+  color: var(--mk-dim);
+  cursor: pointer;
+}
+
+.mk-stepnav:disabled {
+  cursor: default;
+}
+
+.mk-stepbar {
+  display: block;
+  height: 2px;
+  background: var(--v5-line-18);
+}
+
+.mk-stepnav--done .mk-stepbar {
+  background: var(--v5-ink);
+}
+
+.mk-stepnav[aria-current='step'] {
+  font-weight: 400;
+  color: var(--v5-ink);
+}
+
+/* ── 단계 공통 ── */
+.mk-step {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mk-step[hidden] {
+  display: none;
+}
+
+.mk-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mk-h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.mk-sub {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--mk-dim);
+}
+
+.mk-h2 {
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.mk-opt {
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--mk-dim);
+}
+
+/* ── 버튼 · 칩 (v5-btn · v5-chip) ── */
+.mk-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--v5-line-25);
+  border-radius: 0;
+  background: transparent;
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.mk-btn--solid {
+  border-color: var(--v5-ink);
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
+.mk-btn--lg {
+  width: 100%;
+  min-height: 52px;
+  font-size: 13.5px;
+  letter-spacing: 0.14em;
+}
+
+.mk-btn:disabled {
+  border-color: var(--v5-line-16);
+  background: transparent;
+  color: var(--v5-ink-32);
+  cursor: not-allowed;
+}
+
+.mk-chip {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--v5-line-18);
+  border-radius: 0;
+  background: transparent;
+  color: var(--mk-dim);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 300;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.mk-chip[aria-pressed='true'] {
+  border-color: var(--v5-ink);
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
+/* ── ① 사진 ── */
+.mk-drop {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  max-height: 62vh;
+  background: var(--v5-well);
+  overflow: hidden;
+}
+
+.mk-drop--over {
+  outline: 1px solid var(--v5-tan);
+  outline-offset: -1px;
+}
+
+.mk-drop--photo {
+  background: var(--v5-photo);
+}
+
+.mk-drop-empty {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+}
+
+.mk-drop-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 1px solid rgba(138, 116, 87, 0.5);
+  border-radius: 50%; /* v5 드롭존 아이콘 — 원형 요소만 예외 */
+  color: var(--v5-tan);
+}
+
+.mk-drop-text {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--mk-dim);
+}
+
+.mk-drop-acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.mk-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.mk-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+  font-weight: 300;
+  color: var(--mk-dim);
+}
+
+.mk-file span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mk-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--v5-tan);
+}
+
+/* ── ② 가구 ── */
+.mk-kinds {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mk-kinds .mk-chip {
+  min-height: 48px;
+  font-size: 14px;
+}
+
+.mk-adv {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 16px;
+  border-top: 1px solid var(--v5-line);
+}
+
+.mk-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mk-label,
+.mk-input > span {
+  font-size: 12.5px;
+  font-weight: 300;
+  color: var(--mk-dim);
+}
+
+.mk-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.mk-chips .mk-chip {
+  flex: none;
+}
+
+.mk-fridge {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mk-fridge[hidden],
+.mk-plumbing[hidden] {
+  display: none;
+}
+
+.mk-input {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mk-input input,
+.mk-input select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--v5-line-18);
+  border-radius: 0;
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 300;
+}
+
+.mk-more {
+  border-top: 1px solid var(--v5-line);
+}
+
+.mk-more > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  font-size: 13px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.mk-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.mk-more-body,
+.mk-plumbing {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 8px;
+}
+
+/* ── 아래 버튼 줄 ──
+   sticky — 내용 흐름 안에 자리를 차지한 채 아래 탭 위에 붙는다. 그래서 끝까지 내리면 마지막 줄이
+   버튼 줄 위로 다 올라온다 (fixed 처럼 따로 아래 여백을 줄 필요가 없다).
+   배경은 불투명 — 비치면 글자 밑으로 내용이 보인다. */
+.mk-bar {
+  position: sticky;
+  bottom: calc(var(--sg-tab) + env(safe-area-inset-bottom));
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: auto calc(-1 * var(--sg-px)) 0; /* 위 auto — 내용이 짧아도 버튼 줄은 화면 아래에 */
+  padding: 12px var(--sg-px) 14px;
+  background: var(--v5-invert);
+  border-top: 1px solid var(--v5-line-12);
+}
+
+.mk-bar[hidden] {
+  display: none;
+}
+
+.mk-cost,
+.mk-post,
+.mk-notice {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--mk-dim);
+}
+
+.mk-cost {
+  letter-spacing: 0.1em;
+}
+
+.mk-notice {
+  color: var(--v5-ink);
+}
+
+/* ── PC ── */
+@media (min-width: 768px) {
+  .sg-main.mk {
+    max-width: 720px;
+    padding-top: 40px;
+  }
+
+  .mk-kinds {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .mk-bar {
+    bottom: 0;
+    margin: auto 0 0;
+    padding: 14px 0 18px;
+  }
+}

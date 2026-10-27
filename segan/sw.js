@@ -35,6 +35,8 @@ const SHELL = [
   SCOPE + 'manifest.webmanifest',
   versioned(SCOPE + 'shell.css'),
   versioned(SCOPE + 'shell.js'),
+  versioned(SCOPE + 'make.css'),
+  versioned(SCOPE + 'make.js'),
   versioned(SCOPE + 'icons/icon.svg'),
   versioned(SCOPE + 'icons/wordmark.svg'),
   versioned(SCOPE + 'icons/favicon-32.png'),

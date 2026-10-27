@@ -20,20 +20,143 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="shell.css?v=2026102701" />
+    <link rel="stylesheet" href="make.css?v=2026102701" />
+    <!-- 로그인 · 크레딧 · 생성 — 기존 사이트와 같은 설정 · 라이브러리 -->
+    <script src="../js/config.js?v=2026102701"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <script src="shell.js?v=2026102701" defer></script>
+    <script src="make.js?v=2026102701" defer></script>
   </head>
   <body class="sg-app" data-tab="make">
     <div data-segan-shell="header"></div>
 
-    <main class="sg-main" id="main">
-      <h1 class="sg-h1">만들기</h1>
-      <p class="sg-lead">공간 사진에 가구를 골라 넣고, 결과를 본 뒤 상담을 신청합니다.</p>
-      <ol class="sg-steps" aria-label="만드는 순서">
-        <li>사진<span class="sg-soon">준비 중</span></li>
-        <li>가구<span class="sg-soon">준비 중</span></li>
-        <li>결과<span class="sg-soon">준비 중</span></li>
-        <li>상담 신청<span class="sg-soon">준비 중</span></li>
-      </ol>
+    <main class="sg-main mk" id="main">
+      <!-- 진행 단계 — 지나온 단계를 누르면 되돌아간다 -->
+      <nav class="mk-steps" aria-label="진행 단계">
+        <button type="button" class="mk-stepnav" data-goto="photo">
+          <span class="mk-stepbar" aria-hidden="true"></span><span>1 사진</span>
+        </button>
+        <button type="button" class="mk-stepnav" data-goto="kind">
+          <span class="mk-stepbar" aria-hidden="true"></span><span>2 가구</span>
+        </button>
+        <button type="button" class="mk-stepnav" data-goto="result">
+          <span class="mk-stepbar" aria-hidden="true"></span><span>3 결과</span>
+        </button>
+      </nav>
+
+      <!-- ① 사진 -->
+      <section class="mk-step" data-step="photo" aria-labelledby="mkPhotoTitle">
+        <div class="mk-head">
+          <h1 class="mk-h1" id="mkPhotoTitle">공간 사진을 올려주세요</h1>
+          <p class="mk-sub">가구를 넣을 벽이 보이게 찍어 주세요. JPG · PNG · 20MB 이하</p>
+        </div>
+        <div class="mk-drop" id="mkDrop">
+          <div class="mk-drop-empty" id="mkEmpty">
+            <div class="mk-drop-icon" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1">
+                <path d="M7 0v14M0 7h14" />
+              </svg>
+            </div>
+            <p class="mk-drop-text">사진을 찍거나 앨범에서 골라 주세요</p>
+            <div class="mk-drop-acts">
+              <button type="button" class="mk-btn mk-btn--solid" id="mkCamera">사진 찍기</button>
+              <button type="button" class="mk-btn" id="mkAlbum">앨범에서 고르기</button>
+            </div>
+          </div>
+          <img class="mk-photo" id="mkPhoto" alt="올린 공간 사진" hidden />
+        </div>
+        <div class="mk-file" id="mkFileRow" hidden>
+          <span id="mkFile"></span>
+          <button type="button" class="mk-btn" id="mkClear">다시 선택</button>
+        </div>
+        <p class="mk-error" id="mkPhotoError" role="alert" hidden></p>
+        <!-- 폰: 사진 찍기는 카메라를 바로 연다. 사진은 로그인 전에는 이 기기 밖으로 나가지 않는다 -->
+        <input type="file" id="mkCameraInput" accept="image/*" capture="environment" hidden />
+        <input type="file" id="mkAlbumInput" accept="image/jpeg,image/png" hidden />
+      </section>
+
+      <!-- ② 가구 -->
+      <section class="mk-step" data-step="kind" aria-labelledby="mkKindTitle" hidden>
+        <h1 class="mk-h1" id="mkKindTitle">배치할 가구를 골라주세요</h1>
+        <div class="mk-kinds" id="mkKinds" role="group" aria-label="가구 종류"></div>
+
+        <section class="mk-adv" aria-labelledby="mkAdvTitle">
+          <h2 class="mk-h2" id="mkAdvTitle"><span>고급 설정</span><span class="mk-opt">선택</span></h2>
+          <div class="mk-field">
+            <span class="mk-label" id="mkStyleLabel">디자인 스타일</span>
+            <div class="mk-chips" id="mkStyles" role="group" aria-labelledby="mkStyleLabel"></div>
+          </div>
+          <div class="mk-field">
+            <span class="mk-label" id="mkDoorLabel">도어 색상</span>
+            <div class="mk-chips" id="mkDoors" role="group" aria-labelledby="mkDoorLabel"></div>
+          </div>
+
+          <!-- 냉장고장일 때만 -->
+          <div class="mk-fridge" id="mkFridge" hidden>
+            <div class="mk-field">
+              <span class="mk-label" id="mkFBrandLabel">냉장고 브랜드</span>
+              <div class="mk-chips" id="mkFBrands" role="group" aria-labelledby="mkFBrandLabel"></div>
+            </div>
+            <div class="mk-field">
+              <span class="mk-label" id="mkFPosLabel">냉장고 위치</span>
+              <div class="mk-chips" id="mkFPos" role="group" aria-labelledby="mkFPosLabel"></div>
+            </div>
+            <label class="mk-input"
+              ><span>냉장고 (4도어)</span
+              ><select id="mkFModel">
+                <option value="">기본 모델</option>
+              </select></label
+            >
+            <label class="mk-input"
+              ><span>김치냉장고</span
+              ><select id="mkFKimchi">
+                <option value="">기본 모델</option>
+              </select></label
+            >
+          </div>
+
+          <details class="mk-more" id="mkMore">
+            <summary>치수 · 설비 <span class="mk-opt">아는 경우만</span></summary>
+            <div class="mk-more-body">
+              <label class="mk-input"
+                ><span>벽 폭 (mm)</span
+                ><input
+                  type="number"
+                  id="mkWallW"
+                  min="1000"
+                  max="6000"
+                  step="50"
+                  inputmode="numeric"
+                  placeholder="자동 인식"
+              /></label>
+              <div class="mk-plumbing" id="mkPlumbing" hidden>
+                <label class="mk-input"
+                  ><span>급수 위치 (mm, 벽 왼쪽 끝에서)</span
+                  ><input type="number" id="mkWater" min="0" step="10" inputmode="numeric" placeholder="자동 인식"
+                /></label>
+                <label class="mk-input"
+                  ><span>배기 위치 (mm, 벽 왼쪽 끝에서)</span
+                  ><input type="number" id="mkExhaust" min="0" step="10" inputmode="numeric" placeholder="자동 인식"
+                /></label>
+              </div>
+            </div>
+          </details>
+        </section>
+      </section>
+
+      <!-- ③ 결과 -->
+      <section class="mk-step" data-step="result" aria-labelledby="mkResultTitle" hidden>
+        <h1 class="mk-h1" id="mkResultTitle">결과</h1>
+      </section>
+
+      <!-- 아래 버튼 줄 — 폰에서는 아래 탭 위에 붙는다 -->
+      <div class="mk-bar" id="mkBar">
+        <p class="mk-cost" id="mkCost" hidden></p>
+        <p class="mk-post" id="mkPost" hidden>완성되면 대표 연출컷 1장이 시공사례에 올라갑니다</p>
+        <p class="mk-notice" id="mkNotice" role="status" hidden></p>
+        <button type="button" class="mk-btn mk-btn--solid mk-btn--lg" id="mkNext" disabled>다음 · 가구 고르기</button>
+        <button type="button" class="mk-btn mk-btn--solid mk-btn--lg" id="mkRun" hidden>연출컷 생성</button>
+      </div>
     </main>
 
     <div data-segan-shell="footer"></div>
