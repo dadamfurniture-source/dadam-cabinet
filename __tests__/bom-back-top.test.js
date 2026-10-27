@@ -86,6 +86,17 @@ describe('상판 재질 3종 — 2026-10-18 사장님 Q8 (상판 발주 요청�
     expect(topOf({ topMaterial: '세라믹', topThickness: 12 }).note).not.toMatch(/확인 필요/);
   });
 
+  test('상몰딩 0 은 "없음" — 60 으로 떨어지지 않는다 (2026-10-27, 간편 플래너 상몰딩 없음)', () => {
+    const rowsOf = (moldingH) => {
+      const d = designOf(FIXTURES.sink15);
+      d.items[0].specs.moldingH = moldingH;
+      return new X.MaterialExtractor().extract(d).materials.filter((r) => r.part === '상몰딩');
+    };
+    expect(rowsOf(60).length).toBeGreaterThan(0);
+    expect(rowsOf(0)).toEqual([]);
+    expect(rowsOf(undefined).map((r) => r.w)).toEqual(rowsOf(60).map((r) => r.w));
+  });
+
   test('MDF · PB 18T — 2026-10-27 사장님 "18T MDF, 18T PB 추가"', () => {
     expect(topOf({ topMaterial: 'MDF', topThickness: 18 })).toMatchObject({ material: 'MDF', thickness: 18 });
     expect(topOf({ topMaterial: 'PB', topThickness: 18 })).toMatchObject({ material: 'PB', thickness: 18 });

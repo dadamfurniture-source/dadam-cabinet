@@ -418,6 +418,16 @@
         return n(hp.moldingH, n(specs && specs.moldingH, 60));
       }
 
+      /**
+       * 품목 상몰딩 높이 — specs.moldingH, 비었으면 60 (sink.md §5). **0 은 "없음"** 이다 (플래너 높이 구성 · 간편 플래너 "상몰딩 없음").
+       *   예전엔 `parseFloat(specs.moldingH) || 60` 이라 0 이 60 으로 떨어져, 상몰딩을 뺀 설계에도 60 상몰딩이 나갔다 (2026-10-27).
+       *   산출은 그대로 20 이상일 때만 (moldingH >= 20).
+       */
+      function bomItemMoldingHOf(specs) {
+        const x = parseFloat(specs && specs.moldingH);
+        return Number.isFinite(x) && x >= 0 ? x : 60;
+      }
+
       /** 싱크대 규칙(extractSink)으로 상부 라인 상몰딩을 내는 품목 — sinkMoldingPlanOf 가 이 품목만 계획한다 */
       const BOM_SINK_MOLDING_CATEGORIES = ['sink', 'island', 'custom', 'door', 'fridge'];
 
@@ -459,7 +469,7 @@
           return done(bomLinePlacesOf(ups.map((m) => Object.assign({}, m, { _place: null })), () => true), []);
         }
         const same = (a, b) => Math.abs(a - b) <= 1;
-        const epH = parseFloat(specs && specs.moldingH) || 60;
+        const epH = bomItemMoldingHOf(specs);
         const walls = new Map();
         ups.forEach((m) => {
           if (!walls.has(bomWallKeyOf(m))) walls.set(bomWallKeyOf(m), []);
@@ -2193,7 +2203,7 @@
           const totalLowerW = lineLowerModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
           // 하부 모듈이 하나도 없는 옛 저장 설계만 품목 폭 − 좌우 마감 120 으로 떨어진다. 키큰장만 있는 라인은 0 — 걸레받이가 없다.
           const effectiveW = lowerModules.length ? totalLowerW : item.w - 120;
-          const moldingH = parseFloat(specs.moldingH) || 60;
+          const moldingH = bomItemMoldingHOf(specs);
           const lowerH = (specs.lowerH || 870) - legH;
           const totalH = parseFloat(item.h) || 2310;
 
@@ -2848,7 +2858,7 @@
           const lineLowerModules = lowerModules.filter((m) => !bomTallTierOf(m));
           const effectiveW = lineLowerModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
           const totalUpperW = upperModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
-          const moldingH = parseFloat(specs.moldingH) || 60;
+          const moldingH = bomItemMoldingHOf(specs);
           // 2026-10-26 사장님 확정 (신발장 · 수납장 — "상몰딩, 걸레받이, 목찬넬 조건 적용"): 싱크와 같은 조각 — 자리마다 모듈 경계에서
           //   최대 2400 · 최소 800 (linePlanOf 'simple' · linePiecesOf). 자리 = 벽마다 붙어 있는 모듈 (상부는 상부장, 하부는 키큰장 단 제외 하부장).
           //   빈 자리 · 키큰장을 건너 잇는 규칙(2026-10-26)은 싱크 상몰딩 것이라 여기는 붙은 것끼리다 — 길이 합은 예전 폭 합 그대로.
