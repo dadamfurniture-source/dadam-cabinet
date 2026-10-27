@@ -16,7 +16,7 @@
  *   - 플래너 모드는 대조가 ok 가 아니면 done 과 함께 options.internal_only = true (계획서 §6.3).
  */
 
-import { aspectRatioOf, callGemini, textModel } from './gemini.js';
+import { aspectRatioOf, callGemini, imageDimensions, textModel } from './gemini.js';
 import { plannerProvider, renderImage, renderPlannerImage } from './images.js';
 import {
   CATEGORIES,
@@ -434,6 +434,7 @@ async function runPipeline(env, job, ck, save) {
   let elevation = null;
   let elevationLabeled = null;
   let massing = null;
+  let composite = null; // 2026-10-27: Blender 시안 (role composite) — IMAGE A 로
   const returnElevations = []; // 2026-10-19: [{ side, plain, labeled }] — 꺾인 벽 입면
   let fridgePhoto = null; // 2026-10-20: {base64, mimeType, code, modelId} — 고른 냉장고 모델의 제품 사진
   if (planner) {
@@ -457,6 +458,24 @@ async function runPipeline(env, job, ck, save) {
         massing = await fetchObjectBase64(env, ms.path);
       } catch (e) {
         console.warn(`[Job ${job.id}] massing render skipped: ${e.message}`);
+      }
+    }
+    // 2026-10-27: 간편 플래너 「Blender 시안」 — 방 사진 그대로에 설계 3D 를 그 사진 카메라로 렌더해 얹은 사진 (자리 · 크기 · 깊이 ·
+    //   문 · 서랍 나눔까지 이미 그려져 있다). 있으면 IMAGE A 로 쓰고 도면 덩어리(1-d)는 칠하지 않는다.
+    //   방 사진과 비율이 다르면(둘 다 크기를 읽었을 때 1.5 % 넘게) 버린다 — 생성 비율이 방 사진에서 나온다. 못 읽으면 예전처럼.
+    const cp = list.find((r) => r && r.role === 'composite');
+    if (cp && cp.path) {
+      try {
+        const im = await fetchObjectBase64(env, cp.path);
+        const a = imageDimensions(room.base64);
+        const b = imageDimensions(im.base64);
+        if (a && b && Math.abs(Math.log((a.width / a.height) / (b.width / b.height))) > 0.015) {
+          console.warn(`[Job ${job.id}] composite skipped: ${b.width}x${b.height} vs room ${a.width}x${a.height}`);
+        } else {
+          composite = im;
+        }
+      } catch (e) {
+        console.warn(`[Job ${job.id}] composite render skipped: ${e.message}`);
       }
     }
     // 2026-10-19: ㄱ자·ㄷ자 꺾인 벽 입면 (elevation_left · elevation_right, 번호 붙은 것 _labeled) — design_spec.walls 에 있는 벽만.
@@ -811,13 +830,18 @@ async function runPipeline(env, job, ck, save) {
   //   도면의 실제 줄을 칠한 사진을 IMAGE A 로 준다 (planner-place.js). 기본은 꺼짐: PLANNER_PLACE_GUIDE='on' 일 때만.
   //   기존 가구가 없는 사진 · 일자(꺾인 벽 없음) · Claude 키가 있을 때만. 어느 단계든 실패하면 방 사진 그대로.
   let placeImg = null;
+  //   2026-10-27: Blender 시안(composite)이 있으면 그것이 IMAGE A — 덩어리를 칠하지 않는다 (아래 wantPlace)
+  if (composite) {
+    placeImg = composite;
+    ctx.placeRender = true;
+  }
   //   2026-10-20: ㄱ자·ㄷ자(꺾인 벽 walls[])는 따로 PLANNER_PLACE_CORNERS='on' 일 때만 (기본 꺼짐)
   const placeBlocks = planner
     ? plannerPlaceBlocks(opts.design_spec, { corners: env.PLANNER_PLACE_CORNERS === 'on' })
     : null;
   //   2026-10-20: 요청 옵션 place_guide:false 는 운영 변수 배포 없이 안내를 끈 생성 (반복 시험용, worker.js createPlannerGeneration)
   const wantPlace =
-    planner && env.PLANNER_PLACE_GUIDE === 'on' && opts.place_guide !== false && !!placeBlocks && !wall.existing && !!env.ANTHROPIC_API_KEY;
+    planner && !composite && env.PLANNER_PLACE_GUIDE === 'on' && opts.place_guide !== false && !!placeBlocks && !wall.existing && !!env.ANTHROPIC_API_KEY;
   if (wantPlace && ck.place === undefined) {
     ck.place = null;
     const t0 = Date.now();
