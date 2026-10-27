@@ -338,6 +338,25 @@ describe('/admin/delete — 관리자 강제 탈퇴', () => {
   });
 });
 
+describe('mypage.html 탈퇴 안내', () => {
+  test('지워지는 파일(연출컷 · 설계 사진 · 시공사례)을 목록에 적는다 — 정리하는 세 버킷과 짝', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'mypage.html'), 'utf8').replace(/\r\n/g, '\n');
+    const from = html.search(/<ul class="withdraw-list">/);
+    const list = html.slice(from, html.slice(from).search(/<\/ul>/) + from);
+    expect(from).toBeGreaterThan(-1);
+    const items = [...list.matchAll(/<li>([^<]+)<\/li>/g)].map((m) => m[1]);
+    expect(items).toEqual([
+      '프로필과 로그인 정보',
+      '저장한 설계와 도면',
+      '설계에 올린 사진', // design-images
+      'AI 연출컷 (원본 사진 · 결과 이미지)', // generations
+      '컬렉션에 올린 시공사례 사진과 시공사례에 자동으로 올라간 연출컷', // collection
+      '저장한 추천 업체',
+    ]);
+    expect(P.USER_FOLDER_BUCKETS).toEqual(['generations', 'design-images', 'collection']);
+  });
+});
+
 describe('admin_logs 정본 열', () => {
   test('database/admin-schema.sql 에 쓰는 열이 다 있고, action · detail 열은 없다', () => {
     const sql = fs.readFileSync(path.join(__dirname, '..', 'database', 'admin-schema.sql'), 'utf8');
