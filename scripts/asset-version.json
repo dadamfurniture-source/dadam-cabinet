@@ -1,9 +1,9 @@
 {
-  "version": "2026102702",
+  "version": "2026102801",
   "segan": {
-    "segan/collection.html": "65e99de7423794b7",
+    "segan/collection.html": "950ba93e9edf3104",
     "segan/collection.js": "575062b5bff370e6",
-    "segan/consult.html": "6ae9ec13957a1105",
+    "segan/consult.html": "b37219f1a381b064",
     "segan/consult.js": "bc489aa235373149",
     "segan/icons/apple-touch-icon.png": "2a57c4cb954cd7aa",
     "segan/icons/favicon-16.png": "35d10dd7d8d0f242",
@@ -13,17 +13,17 @@
     "segan/icons/icon-maskable-512.png": "60a76e2c4f31d782",
     "segan/icons/icon.svg": "b8e404ad79e18515",
     "segan/icons/wordmark.svg": "579c68c946a2e60c",
-    "segan/index.html": "b36c171f92eb327a",
+    "segan/index.html": "e304c854bf3d089e",
     "segan/make.css": "9beb567d8b541fa0",
     "segan/make.js": "369e73a4ae57c7ef",
     "segan/manifest.webmanifest": "70ea3f895e330eff",
-    "segan/me.html": "d1172356a9ae449a",
-    "segan/me.js": "bc5d5387c53cc4fd",
-    "segan/offline.html": "15912e8e18f79f96",
+    "segan/me.html": "4ed0c1fd8e5d3faf",
+    "segan/me.js": "10ea7bb47cd3a9ff",
+    "segan/offline.html": "9493de8901fe2523",
     "segan/regions.js": "decd1c7feb6a05da",
-    "segan/renders.html": "93a0d02190696106",
+    "segan/renders.html": "18521d67ed35803d",
     "segan/renders.js": "230e2c1fc0eaa875",
-    "segan/shell.css": "535eb26c164f15e3",
-    "segan/shell.js": "78cf8c279ab04534"
+    "segan/shell.css": "8362d8f2edf64a78",
+    "segan/shell.js": "ece3058f97fe723e"
   }
 }

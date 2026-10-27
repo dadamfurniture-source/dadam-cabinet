@@ -8,26 +8,26 @@
     <title>내 정보 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026102702" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026102702" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026102702" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026102702" />
+    <link rel="icon" href="icons/icon.svg?v=2026102801" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026102801" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026102801" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026102801" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026102702" />
+    <link rel="stylesheet" href="shell.css?v=2026102801" />
     <!-- 로그인 상태 · 역할 메뉴 — 기존 사이트의 판정 모듈을 그대로 싣는다 (segan/shell.js 머리말) -->
-    <script src="../js/config.js?v=2026102702"></script>
+    <script src="../js/config.js?v=2026102801"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026102702"></script>
-    <script src="../js/detaildesign-access.js?v=2026102702"></script>
-    <script src="../js/mypage-work.js?v=2026102702"></script>
-    <script src="shell.js?v=2026102702" defer></script>
-    <script src="make.js?v=2026102702" defer></script>
-    <script src="me.js?v=2026102702" defer></script>
+    <script src="../js/admin-access.js?v=2026102801"></script>
+    <script src="../js/detaildesign-access.js?v=2026102801"></script>
+    <script src="../js/mypage-work.js?v=2026102801"></script>
+    <script src="shell.js?v=2026102801" defer></script>
+    <script src="make.js?v=2026102801" defer></script>
+    <script src="me.js?v=2026102801" defer></script>
   </head>
   <body class="sg-app" data-tab="me">
     <div data-segan-shell="header"></div>
@@ -43,6 +43,13 @@
       </div>
       <div data-auth-view="signed-in" hidden>
         <p class="sg-account" id="sgAccountEmail"></p>
+
+        <!-- 내 프로젝트 — workflow-api GET /me/projects. 읽은 뒤에만 보인다 (못 읽으면 칸째 감춘다) -->
+        <section class="sg-section" id="meProjectSection" aria-labelledby="meProjectTitle" hidden>
+          <h2 id="meProjectTitle">내 프로젝트</h2>
+          <ul class="sg-rows" id="meProjects"></ul>
+          <p class="me-empty" id="meProjectEmpty" hidden>진행 중인 프로젝트가 없습니다.</p>
+        </section>
 
         <!-- 상담 내역 — 본인 consultations (최신순) -->
         <section class="sg-section" aria-labelledby="meConsultTitle">

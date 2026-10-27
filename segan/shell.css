@@ -439,6 +439,72 @@ button.sg-row {
   color: var(--v5-ink-45);
 }
 
+/* 내 프로젝트 — 제목 · 회사 / 단계 6칸 / 계약 금액 · 다음 결제 · 설치일 */
+.me-project {
+  padding: 14px 0 16px;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.me-p-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 단계 막대 — 만들기 탭 단계 막대(.mk-stepbar)와 같은 모양: 지금 단계까지 채운다 */
+.me-steps {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.me-step {
+  padding-top: 6px;
+  border-top: 2px solid var(--v5-line-18);
+  font-size: 11px;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  color: var(--v5-ink-45);
+}
+
+.me-step--done {
+  border-top-color: var(--v5-ink);
+  color: var(--v5-ink-60);
+}
+
+.me-step[aria-current='step'] {
+  font-weight: 400;
+  color: var(--v5-ink);
+}
+
+.me-facts {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0 0;
+  font-size: 13px;
+  font-weight: 300;
+}
+
+.me-facts div {
+  display: flex;
+  gap: 12px;
+}
+
+.me-facts dt {
+  flex: none;
+  width: 5em;
+  color: var(--v5-ink-45);
+}
+
+.me-facts dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--v5-ink);
+}
+
 /* 사업자 정보 — 폰에서는 내 정보 아래, PC 에서는 푸터 */
 .sg-biz {
   margin-top: 40px;
