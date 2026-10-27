@@ -45,13 +45,32 @@ const SHELL = [
 const STATIC_EXT = /\.(?:css|js|png|svg|ico|webmanifest|woff2?)$/i;
 const abs = (p) => new URL(p, self.location.href).href;
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches
-      .open(CACHE)
-      .then((cache) => cache.addAll(SHELL.map((p) => new Request(abs(p), { cache: 'reload' }))))
-      .then(() => self.skipWaiting())
+/**
+ * 셸 미리 담기. 호스팅이 *.html 을 확장자 없는 주소로 넘기면(리다이렉트) 그 응답은
+ * redirected 표시가 붙어 페이지 이동에 그대로 내줄 수 없다 (브라우저가 거부한다).
+ * 그래서 리다이렉트를 거친 응답은 본문 · 머리글만 옮긴 새 응답으로 담는다.
+ */
+async function precache() {
+  const cache = await caches.open(CACHE);
+  await Promise.all(
+    SHELL.map(async (p) => {
+      const req = new Request(abs(p), { cache: 'reload' });
+      const res = await fetch(req);
+      if (!res.ok) throw new Error(`precache ${p}: ${res.status}`);
+      const clean = res.redirected
+        ? new Response(await res.blob(), {
+            status: res.status,
+            statusText: res.statusText,
+            headers: res.headers,
+          })
+        : res;
+      await cache.put(req, clean);
+    })
   );
+}
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(precache().then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
