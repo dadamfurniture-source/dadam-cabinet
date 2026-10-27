@@ -70,20 +70,27 @@ describe('상판 재질 3종 — 2026-10-18 사장님 Q8 (상판 발주 요청�
 
   test('재질마다 두께 목록 — 화면과 BOM 이 같다', () => {
     const C = loadConstants();
-    expect(JSON.parse(JSON.stringify(C.TOP_MATERIALS))).toEqual({ '인조대리석': [12, 50], '엔지니어드 스톤': [12, 20], '세라믹': [12] });
+    expect(JSON.parse(JSON.stringify(C.TOP_MATERIALS))).toEqual({ '인조대리석': [12, 50], '엔지니어드 스톤': [12, 20], '세라믹': [12], 'MDF': [18], 'PB': [18] });
     expect(C.topThicknessOptionsHtml(20, '엔지니어드 스톤')).toMatch(/<option value="20" selected>20T<\/option>/);
     expect(C.topThicknessOptionsHtml(50, '세라믹')).toMatch(/50T \(옛 값\)/);
     expect(C.topMaterialOf({})).toBe('인조대리석');
     expect(C.topMaterialOf({ topMaterial: '대리석?' })).toBe('인조대리석');
     expect(C.topMaterialOptionsHtml('세라믹')).toMatch(/<option value="세라믹" selected>세라믹<\/option>/);
     const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'detaildesign', 'extractors.js'), 'utf8');
-    expect(src).toContain("const BOM_TOP_MATERIALS = { '인조대리석': [12, 50], '엔지니어드 스톤': [12, 20], '세라믹': [12] };");
+    expect(src).toContain("const BOM_TOP_MATERIALS = { '인조대리석': [12, 50], '엔지니어드 스톤': [12, 20], '세라믹': [12], 'MDF': [18], 'PB': [18] };");
   });
 
   test('BOM 상판 행 재질 · 두께가 사양을 따른다', () => {
     expect(topOf({ topMaterial: '엔지니어드 스톤', topThickness: 20 })).toMatchObject({ material: '엔지니어드 스톤', thickness: 20 });
     expect(topOf({ topMaterial: '세라믹', topThickness: 12 })).toMatchObject({ material: '세라믹', thickness: 12 });
     expect(topOf({ topMaterial: '세라믹', topThickness: 12 }).note).not.toMatch(/확인 필요/);
+  });
+
+  test('MDF · PB 18T — 2026-10-27 사장님 "18T MDF, 18T PB 추가"', () => {
+    expect(topOf({ topMaterial: 'MDF', topThickness: 18 })).toMatchObject({ material: 'MDF', thickness: 18 });
+    expect(topOf({ topMaterial: 'PB', topThickness: 18 })).toMatchObject({ material: 'PB', thickness: 18 });
+    expect(topOf({ topMaterial: 'PB', topThickness: 18 }).note).not.toMatch(/확인 필요/);
+    expect(topOf({ topMaterial: 'MDF', topThickness: 12 }).note).toMatch(/\[확인 필요\] MDF 상판 두께는 18T — 지정 값 12/);
   });
 
   test('재질에 없는 두께는 그대로 내되 [확인 필요] · 모르는 재질은 인조대리석', () => {

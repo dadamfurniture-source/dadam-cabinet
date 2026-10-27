@@ -678,8 +678,8 @@
       const bomBackPanelSize = AsmRules.backPanelSize;
       /** 상판 두께 — 2026-10-18 사장님: 12 · 50T (인조대리석). data-constants.js TOP_THICKNESS_OPTIONS 와 같다. */
       const BOM_TOP_THICKNESS_OPTIONS = [12, 50];
-      /** 상판 재질별 두께 — 2026-10-18 사장님 Q8 (상판 발주 요청서). data-constants.js TOP_MATERIALS 와 같다. 첫 재질이 기본. */
-      const BOM_TOP_MATERIALS = { '인조대리석': [12, 50], '엔지니어드 스톤': [12, 20], '세라믹': [12] };
+      /** 상판 재질별 두께 — 2026-10-18 사장님 Q8 (상판 발주 요청서) · 2026-10-27 사장님 "18T MDF, 18T PB 추가". data-constants.js TOP_MATERIALS 와 같다. 첫 재질이 기본. */
+      const BOM_TOP_MATERIALS = { '인조대리석': [12, 50], '엔지니어드 스톤': [12, 20], '세라믹': [12], 'MDF': [18], 'PB': [18] };
       function bomDoorCountByWidth(W) {
         return Math.max(1, Math.ceil((parseFloat(W) || 0) / BOM_DOOR_W_MAX));
       }
