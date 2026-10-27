@@ -12,8 +12,10 @@ const { bootPlanner } = require('../test-utils/planner-harness');
 const { FIXTURES, seedFor } = require('../test-utils/planner-golden');
 
 const ROOT = path.join(__dirname, '..');
-const STRUCT = fs.readFileSync(path.join(ROOT, 'mockup-structure.html'), 'utf8');
-const STEP1 = fs.readFileSync(path.join(ROOT, 'js/detaildesign/ui-step1.js'), 'utf8');
+// 줄바꿈을 LF 로 맞춰 읽는다 — 아래 init3D 자르기가 '\n  }\n' 을 찾는데, Windows 체크아웃(core.autocrlf)은 CRLF 라 못 찾았다
+const readLF = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n');
+const STRUCT = readLF('mockup-structure.html');
+const STEP1 = readLF('js/detaildesign/ui-step1.js');
 
 function boot(seed) {
   const s = Object.assign({}, seed);

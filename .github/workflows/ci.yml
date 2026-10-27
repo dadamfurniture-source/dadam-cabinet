@@ -2,7 +2,7 @@ name: CI/CD Pipeline
 
 # PR 검증용. main 배포는 별도 workflow (pages-build-deployment)가 담당한다.
 #
-# 하드 게이트(실패 시 PR 차단): typecheck, build, test, 시크릿 스캔(검증된 비밀만, 2026-10-26)
+# 하드 게이트(실패 시 PR 차단): typecheck, build, test, worker-tests, 시크릿 스캔(검증된 비밀만, 2026-10-26)
 # 리포트 전용(continue-on-error): lint, format:check, html-validate,
 #   링크 체크, 하드코딩 키 grep, lighthouse
 #   — 위 항목들은 현재 저장소가 통과하지 못하는 상태라 우선 로그만 남긴다.
@@ -11,6 +11,14 @@ name: CI/CD Pipeline
 # 2026-10-12: test 를 게이트로 올렸다. 그 전엔 시험이 실패해도 「Run Tests ✓」로 떠서,
 #   CI 통과하면 바로 머지하는 운영(사장님 지시 2026-10-08)과 겹쳐 깨진 시험이 그대로
 #   main 에 들어갈 수 있었다. 올리기 직전 CI 결과: 124 스위트 · 2643 통과 · 실패 0.
+#
+# 워커 시험(worker-tests): workers/* 중 test 스크립트가 있는 워커의 node --test 를
+#   PR 마다 돌린다. 워커 시험은 루트 js/detaildesign·test-utils 도 불러 쓰므로 워커 폴더만
+#   보는 배포 workflow 의 경로 필터로는 놓치는 변경이 있다.
+#
+# 게이트 방식: 필수 검사는 「Build」 하나다. 필수 검사는 skipped 도 통과로 치기 때문에
+#   needs 가 실패해 Build 가 건너뛰어지면 PR 이 막히지 않는다. 그래서 Build 는 늘 돌고
+#   (!cancelled()), needs 중 하나라도 success 가 아니면 첫 단계에서 실패한다.
 on:
   pull_request:
     branches: [main]
@@ -110,6 +118,37 @@ jobs:
           fail_ci_if_error: false
         continue-on-error: true
 
+  # 워커 단위 시험 — workers/<이름>/package.json 에 test 스크립트가 있는 워커만.
+  #   account-api · dataset-api 는 시험이 없어 뺐다. 워커에 시험이 생기면 여기에 더한다.
+  #   package-lock.json 이 있는 워커만 npm ci 한다 (나머지는 의존성 없이 돈다).
+  worker-tests:
+    name: Worker Tests (${{ matrix.worker }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        worker: [generate-api, payments-api, workflow-api]
+    defaults:
+      run:
+        working-directory: workers/${{ matrix.worker }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: ${{ hashFiles(format('workers/{0}/package-lock.json', matrix.worker)) != '' && 'npm' || '' }}
+          cache-dependency-path: workers/${{ matrix.worker }}/package-lock.json
+
+      - name: Install dependencies
+        if: hashFiles(format('workers/{0}/package-lock.json', matrix.worker)) != ''
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
   # 보안 검사
   security:
     name: Security Check
@@ -163,8 +202,16 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test]
+    needs: [lint, typecheck, test, worker-tests]
+    if: ${{ !cancelled() }}
     steps:
+      - name: Gate on required jobs
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
+        run: |
+          echo "A required job did not succeed:"
+          echo "  lint=${{ needs.lint.result }} typecheck=${{ needs.typecheck.result }} test=${{ needs.test.result }} worker-tests=${{ needs.worker-tests.result }}"
+          exit 1
+
       - name: Checkout code
         uses: actions/checkout@v7
 
