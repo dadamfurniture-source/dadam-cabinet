@@ -4,7 +4,8 @@
  * 규칙 출처 (여기서 새로 정한 값은 없다):
  *   - 정기 결제: 30일마다, 저장한 빌링키로. next_charge_at <= 지금 인 활성 구독.
  *     하루 한 번 cron 이 돈다 (wrangler.toml [triggers]).
- *   - 결제 실패: 1일 뒤 재시도, 첫 실패 3일 뒤 마지막 재시도 (사장님 답 ask_58 = 가, 2026-10-26).
+ *   - 결제 실패: 1일 뒤 재시도, 첫 실패 3일 뒤 마지막 재시도.
+ *     고객이 「지금 다시 결제」·「카드 바꾸기」로 직접 결제할 수 있다 — 실패해도 이 일정은 그대로.
  *     재시도 동안은 등급 유지 + status past_due. 마지막 재시도도 실패하면 해지하고
  *     standard 로 내린다 — 결제로 받은 등급(tier_source='subscription')일 때만.
  *     내릴 때(마지막 실패 · 해지 만료 · 환불) tier_source 도 'manual' 로 돌린다.
@@ -31,7 +32,8 @@ export const PERIOD_DAYS = 30;
 export const RETRY_AFTER_FIRST_FAILURE_DAYS = [1, 3];
 export const REFUND_WINDOW_DAYS = 7;
 
-const SUB_COLUMNS_FOR_CHARGE = [
+/** 결제에 필요한 구독 칸 — 서버 안에서만 쓴다(billing_key 포함, 응답에 싣지 않는다). */
+export const SUB_COLUMNS_FOR_CHARGE = [
   'id',
   'user_id',
   'plan',
@@ -44,7 +46,15 @@ const SUB_COLUMNS_FOR_CHARGE = [
   'next_charge_at',
   'failed_attempts',
   'first_failed_at',
+  'charge_lock_until',
+  'charge_order_id',
 ].join(',');
+
+/**
+ * 결제 잠금 시간. 토스 자동결제 승인은 최대 60초가 걸린다 — 넉넉히 5분.
+ * 워커가 결제 도중 죽어도 5분 뒤에는 풀린다.
+ */
+export const CHARGE_LOCK_MS = 5 * 60_000;
 
 function toMs(v) {
   return typeof v === 'number' ? v : Date.parse(v);
@@ -68,24 +78,35 @@ export function renewalOrderId(sub) {
 }
 
 /**
- * 결과를 모르는 오류인가. 이런 오류는 카드 실패로 세지 않고 구독을 그대로 둔다 —
- * 다음 실행이 같은 주문번호·멱등키로 다시 보낸다.
- *   - 연결이 끊김 / JSON 이 아닌 응답: 토스가 받았는지 모른다
- *   - IDEMPOTENT_REQUEST_PROCESSING(409): 같은 키 요청이 아직 처리 중
- *   - 가맹점 키 문제(설정 누락·UNAUTHORIZED_KEY·INCORRECT_BASIC_AUTH_FORMAT): 고객 카드 탓이 아니다.
- *     이걸 실패로 세면 키 하나 잘못 넣은 날 모든 구독자가 사흘 뒤 강등된다.
+ * 고객이 직접 누른 결제(지금 다시 결제 · 카드 바꾼 뒤 결제)의 주문번호. 누를 때마다 새로 만든다.
+ * 정기 결제 주문번호와 겹치지 않아야 한다 — 겹치면 수동 결제의 실패 응답이 멱등키에 남아
+ * 예정된 재시도가 실제로 카드를 다시 긁지 못한다.
+ * 길이: 10 + 36 + 1 + 12 = 59.
+ */
+export function manualOrderId(userId) {
+  const rand = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+  return `dadam-sub-${userId}-${rand}`;
+}
+
+/**
+ * 결제 오류를 세 갈래로 나눈다.
+ *   declined  카드사·토스가 거절했다 — 결제되지 않은 것이 확실하다
+ *   merchant  가맹점 키 문제(설정 누락·UNAUTHORIZED_KEY·INCORRECT_BASIC_AUTH_FORMAT) — 고객 카드 탓이 아니다.
+ *             정기 결제에서 이걸 실패로 세면 키 하나 잘못 넣은 날 모든 구독자가 사흘 뒤 강등된다
+ *   uncertain 토스가 받았는지 모른다 — 연결 끊김 · JSON 아닌 응답 · IDEMPOTENT_REQUEST_PROCESSING(409)
  */
 const MERCHANT_SIDE_CODES = new Set([
   'CONFIG_MISSING',
   'UNAUTHORIZED_KEY',
   'INCORRECT_BASIC_AUTH_FORMAT',
 ]);
-export function isUncertainChargeError(err) {
-  if (!(err instanceof TossError)) return true;
-  if (err.code === 'INVALID_RESPONSE') return true;
-  if (err.code === 'IDEMPOTENT_REQUEST_PROCESSING') return true;
-  if (MERCHANT_SIDE_CODES.has(err.code)) return true;
-  return false;
+export function classifyChargeError(err) {
+  if (!(err instanceof TossError)) return 'uncertain';
+  if (err.code === 'INVALID_RESPONSE' || err.code === 'IDEMPOTENT_REQUEST_PROCESSING') {
+    return 'uncertain';
+  }
+  if (MERCHANT_SIDE_CODES.has(err.code)) return 'merchant';
+  return 'declined';
 }
 
 /** payment_history 한 줄. 첫 결제·정기 결제·수동 재시도가 같이 쓴다. */
@@ -136,7 +157,7 @@ export async function grantMonthlyCredits(env, userId, nowMs) {
 /**
  * standard 로 내린다. 결제로 받은 등급일 때만 — 본사 승인 등급(manual)은 건드리지 않는다.
  * 내리면서 tier_source 도 'manual'(기본값)로 돌린다 — 결제 중이 아닌데 「결제로 받은 등급」
- * 표식이 남지 않게 (2026-10-26 결정). 이미 standard 인데 표식만 남은 경우도 같이 고친다.
+ * 표식이 남지 않게. 이미 standard 인데 표식만 남은 경우도 같이 고친다.
  */
 export async function downgradeIfSubscriptionTier(env, userId, nowMs) {
   return updateBy(
@@ -147,9 +168,66 @@ export async function downgradeIfSubscriptionTier(env, userId, nowMs) {
   );
 }
 
-// ───────────────────────── 정기 결제 ─────────────────────────
+// ───────────────────────── 결제 잠금 ─────────────────────────
+//
+// 결제는 모두(정기 결제 cron · 지금 다시 결제 · 카드 바꾼 뒤 결제) 구독 행의 잠금을 먼저 잡는다.
+// 잠금 = 조건부 PATCH 한 번: 「잠금이 비었거나 지났고, 구독 상태가 기대한 그대로이고,
+// 앞선 결제 주문번호(charge_order_id)도 읽은 그대로일 때만」 charge_lock_until · charge_order_id 를 쓴다.
+// 0행이면 다른 요청이 이미 결제 중이다(두 번 누름 · cron 과 겹침) — 결제하지 않는다.
+// 결과가 확정되면(성공·거절) 같은 PATCH 안에서 잠금을 푼다. 결과를 모르면 잠금을 두고
+// 주문번호를 남긴다 — 다음 결제는 그 주문번호부터 토스에 물어 본다(reconcileOrder).
+// 잠금 시각은 벽시계(Date.now)로 잰다 — cron 의 기준 시각(scheduledTime)은 실행 내내 고정이라 맞지 않다.
 
-async function recordRenewalSuccess(env, sub, orderId, charge, nowMs) {
+const UNLOCK = { charge_lock_until: null, charge_order_id: null };
+
+/** 잠금용 벽시계. 시험이 날짜를 건너뛸 때만 갈아 끼운다. */
+export const clock = { now: () => Date.now() };
+
+/** PostgREST 필터: 결제 잠금이 비었거나 지났다. 해지·카드 바꾸기도 이 조건으로 결제 중인 행을 피한다. */
+export function lockFreeFilter() {
+  return `(charge_lock_until.is.null,charge_lock_until.lt."${iso(clock.now())}")`;
+}
+
+async function acquireChargeLock(env, sub, orderId, stateFilter) {
+  const rows = await updateBy(
+    env,
+    'subscriptions',
+    {
+      id: `eq.${sub.id}`,
+      ...stateFilter,
+      or: lockFreeFilter(),
+      charge_order_id: sub.charge_order_id ? `eq.${sub.charge_order_id}` : 'is.null',
+    },
+    { charge_lock_until: iso(clock.now() + CHARGE_LOCK_MS), charge_order_id: orderId }
+  );
+  return rows && rows.length ? rows[0] : null;
+}
+
+/** 잠금을 푼다. keepOrderId 를 주면 그 주문번호는 남긴다(결과를 아직 모르는 결제). */
+async function releaseChargeLock(env, subId, orderId, keepOrderId = null) {
+  return updateBy(
+    env,
+    'subscriptions',
+    { id: `eq.${subId}`, charge_order_id: `eq.${orderId}` },
+    { charge_lock_until: null, charge_order_id: keepOrderId }
+  );
+}
+
+/** 결과를 모른 채 끝난 결제를 토스에 묻는다. */
+async function reconcileOrder(env, sub, orderId) {
+  try {
+    const p = await getPaymentByOrderId(env, orderId);
+    if (p && p.status === 'DONE' && p.totalAmount === sub.amount_krw) return { done: p };
+    return { none: true };
+  } catch (e) {
+    if (e instanceof TossError && e.statusCode === 404) return { none: true };
+    return { unknown: e };
+  }
+}
+
+// ───────────────────────── 결제 한 번 ─────────────────────────
+
+async function recordChargeSuccess(env, sub, orderId, charge, nowMs) {
   // 1. 결제 기록. 같은 주문번호가 이미 있으면(앞선 실행이 남김) 넘긴다.
   await insertIgnoreDuplicate(
     env,
@@ -180,6 +258,7 @@ async function recordRenewalSuccess(env, sub, orderId, charge, nowMs) {
       next_charge_at: end,
       failed_attempts: 0,
       first_failed_at: null,
+      ...UNLOCK,
       updated_at: iso(nowMs),
     }
   );
@@ -187,6 +266,8 @@ async function recordRenewalSuccess(env, sub, orderId, charge, nowMs) {
     console.warn(
       `[payments] renewal: subscription ${sub.id} already moved — skipped period update`
     );
+    // sub 는 잠근 행이다 — 잠금의 주문번호는 sub.charge_order_id (정리한 앞선 결제면 orderId 와 다르다).
+    await releaseChargeLock(env, sub.id, sub.charge_order_id || orderId);
     return 'charged';
   }
 
@@ -224,6 +305,7 @@ async function recordRenewalFailure(env, sub, orderId, err, nowMs) {
       failed_attempts: attempts,
       first_failed_at: firstFailedAt,
       next_charge_at: plusDays(firstFailedAt, RETRY_AFTER_FIRST_FAILURE_DAYS[attempts - 1]),
+      ...UNLOCK,
       updated_at: now,
     });
     return 'retry_scheduled';
@@ -237,27 +319,52 @@ async function recordRenewalFailure(env, sub, orderId, err, nowMs) {
     cancel_at: now,
     next_charge_at: null,
     failed_attempts: attempts,
+    ...UNLOCK,
     updated_at: now,
   });
   return 'cancelled_payment_failed';
 }
 
-/** 구독 하나를 결제해 본다. 돌려주는 값은 요약 칸 이름. */
-export async function renewSubscription(env, sub, nowMs, profile) {
-  if (!sub.billing_key || !sub.amount_krw || !sub.provider_customer_id) {
-    console.error(`[payments] renewal: subscription ${sub.id} has no billing key/amount — skipped`);
-    return 'skipped';
+/**
+ * 결제 한 번 — 정기 결제 cron · 지금 다시 결제 · 카드 바꾼 뒤 결제가 모두 이 길로 간다.
+ *   1. 잠금 (acquireChargeLock). 못 잡으면 busy
+ *   2. 앞서 결과를 모른 결제(charge_order_id)가 있으면 토스에 묻는다 — 이미 됐으면 그걸로 끝낸다
+ *   3. 저장된 빌링키로 결제. 주문번호 = 토스 멱등키
+ *   4. 성공이면 기록 · 기간 +30일 · 재시도 기록 지움 · 새 달 크레딧 · 잠금 풂 (recordChargeSuccess)
+ * 실패를 재시도 횟수로 셀지는 부르는 쪽이 정한다 — cron 은 세고, 고객이 누른 결제는 세지 않는다.
+ *
+ * outcome: charged | declined | merchant | uncertain | busy
+ */
+async function chargeOnce(env, sub, { orderId, stateFilter, nowMs, profile }) {
+  const prevOrderId = sub.charge_order_id || null;
+  const locked = await acquireChargeLock(env, sub, orderId, stateFilter);
+  if (!locked) return { outcome: 'busy', orderId };
+  const cur = { ...sub, ...locked };
+
+  if (prevOrderId && prevOrderId !== orderId) {
+    const r = await reconcileOrder(env, cur, prevOrderId);
+    if (r.done) {
+      console.warn(
+        `[payments] charge: earlier order ${prevOrderId} turned out DONE — recorded, not charged again`
+      );
+      await recordChargeSuccess(env, cur, prevOrderId, r.done, nowMs);
+      return { outcome: 'charged', orderId: prevOrderId, recovered: true };
+    }
+    if (r.unknown) {
+      // 아직도 모른다 — 앞선 주문번호를 남긴 채 잠금만 푼다. 새로 결제하지 않는다.
+      await releaseChargeLock(env, cur.id, orderId, prevOrderId);
+      return { outcome: 'uncertain', orderId: prevOrderId, error: r.unknown };
+    }
   }
-  const orderId = renewalOrderId(sub);
 
   let charge;
   try {
     charge = await chargeBillingKey(env, {
-      billingKey: sub.billing_key,
-      customerKey: sub.provider_customer_id,
-      amount: sub.amount_krw,
+      billingKey: cur.billing_key,
+      customerKey: cur.provider_customer_id,
+      amount: cur.amount_krw,
       orderId,
-      orderName: orderNameFor(sub.plan),
+      orderName: orderNameFor(cur.plan),
       customerEmail: profile?.email || undefined,
       customerName: profile?.name || undefined,
       idempotencyKey: orderId,
@@ -267,22 +374,92 @@ export async function renewSubscription(env, sub, nowMs, profile) {
       // 이 주문번호는 이미 승인됐다 — 앞선 실행이 결제하고 기록 전에 끊겼다(멱등키 15일이 지난 경우).
       // 다시 결제하지 않고, 그 결제를 찾아 기록을 잇는다.
       const found = await getPaymentByOrderId(env, orderId);
-      if (found && found.status === 'DONE' && found.totalAmount === sub.amount_krw) {
+      if (found && found.status === 'DONE' && found.totalAmount === cur.amount_krw) {
         charge = found;
       } else {
-        throw e;
+        console.error(
+          `[payments] charge: duplicated order ${orderId} is not DONE — needs a manual check`
+        );
+        return { outcome: 'uncertain', orderId, error: e, sub: cur };
       }
-    } else if (isUncertainChargeError(e)) {
-      console.error(
-        `[payments] renewal: uncertain result sub=${sub.id} order=${orderId} code=${e.code || '-'} — left as is, next run retries with the same key`
-      );
-      return 'skipped';
     } else {
-      console.warn(`[payments] renewal failed: sub=${sub.id} order=${orderId} code=${e.code}`);
-      return recordRenewalFailure(env, sub, orderId, e, nowMs);
+      const kind = classifyChargeError(e);
+      if (kind === 'merchant') await releaseChargeLock(env, cur.id, orderId);
+      // uncertain: 잠금과 주문번호를 그대로 둔다 — 5분 뒤 다음 결제가 이 주문번호부터 토스에 묻는다.
+      console.warn(
+        `[payments] charge ${kind}: sub=${cur.id} order=${orderId} code=${e.code || '-'}`
+      );
+      return { outcome: kind, orderId, error: e, sub: cur };
     }
   }
-  return recordRenewalSuccess(env, sub, orderId, charge, nowMs);
+  await recordChargeSuccess(env, cur, orderId, charge, nowMs);
+  return { outcome: 'charged', orderId, charge };
+}
+
+/** 정기 결제 (cron). 돌려주는 값은 요약 칸 이름. 거절은 재시도 횟수로 센다. */
+export async function renewSubscription(env, sub, nowMs, profile) {
+  if (!sub.billing_key || !sub.amount_krw || !sub.provider_customer_id) {
+    console.error(`[payments] renewal: subscription ${sub.id} has no billing key/amount — skipped`);
+    return 'skipped';
+  }
+  const orderId = renewalOrderId(sub);
+  const r = await chargeOnce(env, sub, {
+    orderId,
+    nowMs,
+    profile,
+    // 읽은 상태 그대로일 때만 — 주문번호가 이 기간·회차에서 나왔다
+    stateFilter: {
+      status: 'in.(active,past_due)',
+      next_charge_at: `lte.${iso(nowMs)}`,
+      current_period_end: `eq.${sub.current_period_end}`,
+      failed_attempts: `eq.${sub.failed_attempts || 0}`,
+    },
+  });
+  if (r.outcome === 'charged') return 'charged';
+  if (r.outcome === 'declined') return recordRenewalFailure(env, r.sub, r.orderId, r.error, nowMs);
+  if (r.outcome === 'uncertain') {
+    console.error(
+      `[payments] renewal: uncertain result sub=${sub.id} order=${r.orderId} — left as is, next run checks this order first`
+    );
+  }
+  return 'skipped'; // busy · merchant · uncertain
+}
+
+/**
+ * 고객이 누른 결제 — 「지금 다시 결제」·「카드 바꾸기」 뒤 결제. 결제 실패 재시도 중(past_due)일 때만.
+ * 성공하면 cron 재시도 성공과 같다. 거절되면 결제 기록만 남기고 재시도 일정(+1일 · +3일)·
+ * 횟수·등급은 그대로 둔다.
+ * 돌려주는 값: { outcome, error? }  outcome = charged | declined | merchant | uncertain | busy | not_past_due
+ */
+export async function chargePastDueNow(env, sub, { nowMs = Date.now(), profile } = {}) {
+  if (!sub || sub.status !== 'past_due') return { outcome: 'not_past_due' };
+  const orderId = manualOrderId(sub.user_id);
+  const r = await chargeOnce(env, sub, {
+    orderId,
+    nowMs,
+    profile,
+    stateFilter: { status: 'eq.past_due' },
+  });
+  if (r.outcome === 'declined') {
+    try {
+      await insertIgnoreDuplicate(
+        env,
+        'payment_history',
+        historyRow({
+          userId: sub.user_id,
+          subscriptionId: sub.id,
+          orderId: r.orderId,
+          plan: sub.plan,
+          amount: sub.amount_krw,
+          error: r.error,
+        }),
+        'provider,order_id'
+      );
+    } finally {
+      await releaseChargeLock(env, sub.id, r.orderId);
+    }
+  }
+  return r;
 }
 
 // ───────────────────────── 해지 만료 ─────────────────────────

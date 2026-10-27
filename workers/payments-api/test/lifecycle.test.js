@@ -18,8 +18,15 @@ import {
   DAY,
   iso,
 } from './helpers/fake-backend.js';
-import { runDailyLifecycle, renewalOrderId } from '../src/lifecycle.js';
+import { runDailyLifecycle, renewalOrderId, clock } from '../src/lifecycle.js';
 import worker from '../src/worker.js';
+
+const realClock = clock.now;
+/** cron 한 번. 결제 잠금의 벽시계도 그날로 옮긴다 (cron 은 실제로 하루씩 떨어져 돈다). */
+function run(t) {
+  clock.now = () => t + 1000;
+  return runDailyLifecycle(ENV, t);
+}
 
 const U1 = '11111111-1111-4111-8111-111111111111';
 const S1 = '22222222-2222-4222-8222-222222222222';
@@ -85,12 +92,13 @@ beforeEach(() => {
 afterEach(() => {
   restoreFetch();
   quiet.restore();
+  clock.now = realClock;
 });
 
 test('정기 결제 성공: 기록 · 기간 +30일 · 등급 유지 · 새 달 크레딧', async () => {
   seed();
   const orderId = renewalOrderId(sub());
-  const summary = await runDailyLifecycle(ENV, T0);
+  const summary = await run(T0);
 
   assert.equal(summary.charged, 1);
   const charges = be.charges();
@@ -126,7 +134,7 @@ test('정기 결제 성공: 기록 · 기간 +30일 · 등급 유지 · 새 달 
 
 test('결제일이 아직이면 아무것도 하지 않는다', async () => {
   seed({ periodEnd: iso(T0 + 3600_000) });
-  const summary = await runDailyLifecycle(ENV, T0);
+  const summary = await run(T0);
   assert.equal(summary.due, 0);
   assert.equal(be.charges().length, 0);
 });
@@ -136,7 +144,7 @@ test('실패 재시도: 첫 실패 1일 뒤 · 3일 뒤, 그동안 past_due + �
   be.state.chargeQueue = [decline, decline, decline];
 
   // 첫 실패
-  let summary = await runDailyLifecycle(ENV, T0);
+  let summary = await run(T0);
   assert.equal(summary.retry_scheduled, 1);
   let s = sub();
   assert.equal(s.status, 'past_due');
@@ -148,7 +156,7 @@ test('실패 재시도: 첫 실패 1일 뒤 · 3일 뒤, 그동안 past_due + �
   assert.equal(be.db.payment_history.at(-1).failure_code, 'REJECT_CARD_PAYMENT');
 
   // 1일 뒤 — 두 번째 실패
-  summary = await runDailyLifecycle(ENV, T0 + 1 * DAY);
+  summary = await run(T0 + 1 * DAY);
   assert.equal(summary.retry_scheduled, 1);
   s = sub();
   assert.equal(s.failed_attempts, 2);
@@ -156,11 +164,11 @@ test('실패 재시도: 첫 실패 1일 뒤 · 3일 뒤, 그동안 past_due + �
   assert.equal(profile().tier, 'expert');
 
   // 2일 뒤 — 걸지 않는다
-  await runDailyLifecycle(ENV, T0 + 2 * DAY);
+  await run(T0 + 2 * DAY);
   assert.equal(be.charges().length, 2);
 
   // 3일 뒤 — 마지막 실패
-  summary = await runDailyLifecycle(ENV, T0 + 3 * DAY);
+  summary = await run(T0 + 3 * DAY);
   assert.equal(summary.cancelled_payment_failed, 1);
   assert.equal(summary.ended, 1, '같은 실행에서 등급까지 내린다');
   s = sub();
@@ -181,17 +189,17 @@ test('실패 재시도: 첫 실패 1일 뒤 · 3일 뒤, 그동안 past_due + �
   assert.equal(be.db.payment_history.filter((h) => h.status === 'failed').length, 3);
 
   // 그 뒤로는 결제하지 않는다
-  await runDailyLifecycle(ENV, T0 + 4 * DAY);
-  await runDailyLifecycle(ENV, T0 + 30 * DAY);
+  await run(T0 + 4 * DAY);
+  await run(T0 + 30 * DAY);
   assert.equal(be.charges().length, 3);
 });
 
 test('마지막 실패여도 본사 승인 등급(manual)은 내리지 않는다', async () => {
   seed({ tierSource: 'manual' });
   be.state.chargeQueue = [decline, decline, decline];
-  await runDailyLifecycle(ENV, T0);
-  await runDailyLifecycle(ENV, T0 + 1 * DAY);
-  await runDailyLifecycle(ENV, T0 + 3 * DAY);
+  await run(T0);
+  await run(T0 + 1 * DAY);
+  await run(T0 + 3 * DAY);
   assert.equal(sub().status, 'cancelled');
   assert.ok(sub().ended_at);
   assert.equal(profile().tier, 'expert');
@@ -200,8 +208,8 @@ test('마지막 실패여도 본사 승인 등급(manual)은 내리지 않는다
 test('재시도에서 성공하면 정상으로 돌아오고 결제일은 밀리지 않는다', async () => {
   seed();
   be.state.chargeQueue = [decline, 'ok'];
-  await runDailyLifecycle(ENV, T0);
-  const summary = await runDailyLifecycle(ENV, T0 + 1 * DAY);
+  await run(T0);
+  const summary = await run(T0 + 1 * DAY);
   assert.equal(summary.charged, 1);
   const s = sub();
   assert.equal(s.status, 'active');
@@ -216,13 +224,13 @@ test('재시도에서 성공하면 정상으로 돌아오고 결제일은 밀리
 test('결과를 모르는 오류(연결 끊김)는 실패로 세지 않고, 다음 날 같은 주문번호·멱등키로 다시 보낸다', async () => {
   seed();
   be.state.chargeQueue = [{ throw: new TypeError('network connection lost') }, 'ok'];
-  const first = await runDailyLifecycle(ENV, T0);
+  const first = await run(T0);
   assert.equal(first.skipped, 1);
   assert.equal(sub().status, 'active');
   assert.equal(sub().failed_attempts, 0);
   assert.equal(be.db.payment_history.length, 0);
 
-  await runDailyLifecycle(ENV, T0 + 1 * DAY);
+  await run(T0 + 1 * DAY);
   const [a, b] = be.charges();
   assert.equal(a.body.orderId, b.body.orderId);
   assert.equal(a.idempotencyKey, b.idempotencyKey);
@@ -232,7 +240,7 @@ test('결과를 모르는 오류(연결 끊김)는 실패로 세지 않고, 다�
 test('가맹점 키 오류(UNAUTHORIZED_KEY)는 고객 카드 실패로 세지 않는다', async () => {
   seed();
   be.state.chargeQueue = [{ status: 401, code: 'UNAUTHORIZED_KEY', message: '인증되지 않은 키' }];
-  const summary = await runDailyLifecycle(ENV, T0);
+  const summary = await run(T0);
   assert.equal(summary.skipped, 1);
   assert.equal(sub().status, 'active');
   assert.equal(sub().failed_attempts, 0);
@@ -250,7 +258,7 @@ test('이미 승인된 주문번호(DUPLICATED_ORDER_ID)면 다시 결제하지 
   be.state.chargeQueue = [
     { status: 400, code: 'DUPLICATED_ORDER_ID', message: '이미 승인된 주문번호' },
   ];
-  const summary = await runDailyLifecycle(ENV, T0);
+  const summary = await run(T0);
   assert.equal(summary.charged, 1);
   assert.equal(be.db.payment_history[0].payment_key, 'pk_prev');
   assert.equal(sub().current_period_end, iso(Date.parse(PERIOD_END) + 30 * DAY));
@@ -266,7 +274,7 @@ test('같은 결제가 두 번 기록되지 않는다 (이미 기록된 주문�
     status: 'done',
     user_id: U1,
   });
-  await runDailyLifecycle(ENV, T0);
+  await run(T0);
   assert.equal(be.db.payment_history.length, 1);
   assert.equal(sub().current_period_end, iso(Date.parse(PERIOD_END) + 30 * DAY));
 });
@@ -279,19 +287,19 @@ test('해지: 이번 기간 끝까지는 등급 유지, 끝나면 standard (한 
     extra: { cancel_reason: 'user_request', cancel_at: end },
   });
 
-  let summary = await runDailyLifecycle(ENV, T0);
+  let summary = await run(T0);
   assert.equal(summary.ended, 0);
   assert.equal(profile().tier, 'expert');
   assert.equal(be.charges().length, 0, '해지한 구독은 결제하지 않는다');
 
-  summary = await runDailyLifecycle(ENV, T0 + 2 * DAY);
+  summary = await run(T0 + 2 * DAY);
   assert.equal(summary.ended, 1);
   assert.equal(profile().tier, 'standard');
   assert.equal(profile().tier_source, 'manual');
   assert.equal(sub().ended_at, iso(T0 + 2 * DAY));
 
   const patchesBefore = be.calls.rest.filter((c) => c.method === 'PATCH').length;
-  summary = await runDailyLifecycle(ENV, T0 + 3 * DAY);
+  summary = await run(T0 + 3 * DAY);
   assert.equal(summary.ended, 0);
   assert.equal(
     be.calls.rest.filter((c) => c.method === 'PATCH').length,
@@ -309,7 +317,7 @@ test('해지 만료여도 본사 승인 등급(manual)은 그대로', async () =
     periodEnd: end,
     extra: { cancel_reason: 'user_request' },
   });
-  await runDailyLifecycle(ENV, T0);
+  await run(T0);
   assert.equal(profile().tier, 'expert');
   assert.equal(profile().tier_source, 'manual');
   assert.ok(sub().ended_at);
@@ -319,7 +327,7 @@ test('이미 standard 인데 결제 표식만 남아 있으면 표식을 manual 
   const end = iso(T0 - DAY);
   seed({ status: 'cancelled', periodEnd: end, extra: { cancel_reason: 'user_request' } });
   profile().tier = 'standard';
-  await runDailyLifecycle(ENV, T0);
+  await run(T0);
   assert.equal(profile().tier, 'standard');
   assert.equal(profile().tier_source, 'manual');
   assert.ok(sub().ended_at);
@@ -328,10 +336,10 @@ test('이미 standard 인데 결제 표식만 남아 있으면 표식을 manual 
 test('정기 결제 성공 · 재시도 중에는 등급과 결제 표식을 그대로 둔다', async () => {
   seed();
   be.state.chargeQueue = [decline, 'ok'];
-  await runDailyLifecycle(ENV, T0);
+  await run(T0);
   assert.equal(profile().tier, 'expert');
   assert.equal(profile().tier_source, 'subscription');
-  await runDailyLifecycle(ENV, T0 + DAY);
+  await run(T0 + DAY);
   assert.equal(profile().tier, 'expert');
   assert.equal(profile().tier_source, 'subscription');
   assert.equal(
@@ -345,13 +353,13 @@ test('등급 내리기가 실패하면 ended_at 을 찍지 않고 다음 날 다
   const end = iso(T0 - DAY);
   seed({ status: 'cancelled', periodEnd: end, extra: { cancel_reason: 'user_request' } });
   be.state.failDb = (method, table) => method === 'PATCH' && table === 'profiles';
-  const first = await runDailyLifecycle(ENV, T0);
+  const first = await run(T0);
   assert.equal(first.errors, 1);
   assert.equal(sub().ended_at, null);
   assert.equal(profile().tier, 'expert');
 
   be.state.failDb = null;
-  await runDailyLifecycle(ENV, T0 + DAY);
+  await run(T0 + DAY);
   assert.equal(profile().tier, 'standard');
   assert.equal(profile().tier_source, 'manual');
   assert.ok(sub().ended_at);

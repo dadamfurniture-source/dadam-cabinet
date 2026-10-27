@@ -118,10 +118,38 @@ export function createBackend({ nowMs = Date.now() } = {}) {
     return db[table];
   }
 
+  // or=(col.op.val,col.op."quoted val") — 하나라도 맞으면 통과
+  function matchesOr(row, expr) {
+    const inner = expr.replace(/^\(|\)$/g, '');
+    const parts = [];
+    let buf = '';
+    let quoted = false;
+    for (const ch of inner) {
+      if (ch === '"') quoted = !quoted;
+      if (ch === ',' && !quoted) {
+        parts.push(buf);
+        buf = '';
+      } else {
+        buf += ch;
+      }
+    }
+    if (buf) parts.push(buf);
+    return parts.some((part) => {
+      const dot = part.indexOf('.');
+      const col = part.slice(0, dot);
+      const rest = part.slice(dot + 1).replace(/"/g, '');
+      return matches(row, col, rest);
+    });
+  }
+
   function filterRows(table, params) {
     let out = rows(table).filter((row) => {
       for (const [k, expr] of params) {
         if (RESERVED.has(k)) continue;
+        if (k === 'or') {
+          if (!matchesOr(row, expr)) return false;
+          continue;
+        }
         if (!matches(row, k, expr)) return false;
       }
       return true;
@@ -164,7 +192,14 @@ export function createBackend({ nowMs = Date.now() } = {}) {
     const params = url.searchParams;
 
     if (method === 'GET') {
-      return jsonRes(filterRows(table, params));
+      // select=a,b,c 면 그 칸만 (PostgREST 처럼). '*' 나 없으면 전부.
+      const select = params.get('select');
+      const found = filterRows(table, params);
+      if (!select || select === '*') return jsonRes(found);
+      const cols = select.split(',').map((c) => c.trim());
+      return jsonRes(
+        found.map((r) => Object.fromEntries(cols.filter((c) => c in r).map((c) => [c, r[c]])))
+      );
     }
     if (method === 'POST') {
       const body = JSON.parse(init.body);

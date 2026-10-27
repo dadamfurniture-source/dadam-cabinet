@@ -68,7 +68,9 @@ curl https://dadam-payments-api.dadamfurniture.workers.dev/plans
 | GET | `/plans` | 없음 | 플랜 + Toss client_key |
 | GET | `/subscription` | Bearer | 현재 구독 조회 |
 | POST | `/issue-billing-key` | Bearer | authKey → billingKey + 첫 과금 |
-| POST | `/charge` | Bearer | 수동 재시도 |
+| POST | `/subscription/retry` | Bearer | 지금 다시 결제 — 결제 실패 재시도 중(`past_due`)인 본인 구독만 (아래) |
+| POST | `/subscription/card` | Bearer | 카드 바꾸기 — `{ auth_key, customer_key }` → 새 빌링키, 재시도 중이면 바로 결제 (아래) |
+| POST | `/charge` | Bearer | 예전 경로 — `/subscription/retry` 와 같다 |
 | POST | `/cancel` | Bearer | 구독 취소 (이용 중 · 결제 실패 재시도 중) |
 | POST | `/admin/refund` | Bearer (관리자) | 결제 1건 환불 — `{ payment_id, reason?, override? }` (아래) |
 | POST | `/webhook` | 없음 | Toss 웹훅 — `PAYMENT_STATUS_CHANGED` 만 기록 (아래) |
@@ -89,6 +91,30 @@ curl https://dadam-payments-api.dadamfurniture.workers.dev/plans
 - 결과를 모르는 오류(연결 끊김 · JSON 아닌 응답 · `IDEMPOTENT_REQUEST_PROCESSING`)와 가맹점 키 오류(`UNAUTHORIZED_KEY` 등)는 카드 실패로 세지 않고 다음 날 다시 한다.
 - 결제 실패·해지 안내는 `billing.html` 이 구독 상태로 보여 준다 (메일·문자 알림은 아직 없음).
 - 로그: `npx wrangler tail` 에서 `[payments] lifecycle {...}` 요약 한 줄.
+
+## 지금 다시 결제 · 카드 바꾸기
+
+`billing.html` 은 구독이 결제 실패로 재시도 중(`past_due`)일 때만 두 버튼을 보여 준다.
+
+- **지금 다시 결제** `POST /subscription/retry` — 저장된 빌링키로 cron 과 같은 길(`chargePastDueNow` → `chargeOnce`)로 결제.
+  - 성공: cron 재시도 성공과 같다 (`active`, `failed_attempts = 0`, `first_failed_at = null`, 기간 +30일, `next_charge_at`, 결제 기록, 새 달 크레딧).
+  - 거절: 결제 기록(`failed`)만 남기고 재시도 일정(+1일 · +3일)·횟수·등급은 그대로. 402 + 토스 실패 문구.
+  - 이용 중(`active`)이면 409 `NOT_PAST_DUE`.
+- **카드 바꾸기**: `billing.html` → 토스 `requestBillingAuth('CARD')` → `billing.html?card=ok&authKey&customerKey` → `POST /subscription/card`.
+  - `customer_key` 가 이 구독의 `provider_customer_id`(= `dadam-{user}`)와 다르면 400 `CUSTOMER_KEY_MISMATCH` — 토스를 부르지 않는다.
+  - 새 빌링키로 `billing_key` 를 바꾸고, 재시도 중이면 바로 새 카드로 결제해 결과를 `data.charge` 로 돌려준다.
+  - 예전 빌링키는 응답·로그 어디에도 없다.
+- 응답의 구독은 `/subscription` 과 같은 공개 칸만 (`billing_key` · 잠금 · 주문번호 없음).
+
+### 결제 잠금 (두 번 누름 · cron 과 겹침)
+
+결제하는 길(cron · 지금 다시 결제 · 카드 바꾼 뒤 결제)은 모두 먼저 구독 행을 잠근다 — 조건부 PATCH 한 번:
+`charge_lock_until` 이 비었거나 지났고, 상태가 기대한 그대로이고, `charge_order_id` 도 읽은 그대로일 때만 잠금(5분)과 주문번호를 쓴다. 0행이면 409(이미 결제 중).
+
+- 결과가 확정되면(성공·거절) 같은 PATCH 안에서 잠금을 푼다.
+- 결과를 모르면(연결 끊김) 잠금과 주문번호를 남긴다. 다음 결제는 그 주문번호부터 토스에 묻는다(`GET /v1/payments/orders/{orderId}`) — 이미 됐으면 기록만 하고 다시 결제하지 않는다.
+- 결제 중이면 해지·카드 바꾸기도 409 로 잠시 막는다.
+- 고객이 누른 결제의 주문번호는 누를 때마다 새로 만든다 — 정기 결제 주문번호와 겹치면 실패 응답이 멱등키에 남아 예정된 재시도가 카드를 다시 긁지 못한다.
 
 ## 관리자 환불
 
