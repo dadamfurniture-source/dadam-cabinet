@@ -1730,6 +1730,9 @@
               if (fx === 'cooktop' && FX.cooktopOf(s)) o.cooktop = FX.cooktopOf(s);
               const cut = FX.heightCutOf(s);
               if (cut > 0) o.h = Math.max(0, o.h - cut);
+              // 2026-10-27 사장님: 양념망장 — 앞판은 철물에 달린 풀아웃 (경첩 없음 — BOM 이 경첩 대신 양념망 철물을 낸다)
+              const dt = FX.doorTypeOf ? FX.doorTypeOf(s) : null;
+              if (dt) { o.doorType = dt; delete o.hingeSide; }
             }
             // 2026-09-17: 붙박이장 통 구조 — 몸통 수·선반·옷봉·서랍을 옛 필드로 옮기고 블록도 같이 싣는다.
             if (isWardrobe) {

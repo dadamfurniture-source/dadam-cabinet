@@ -2173,7 +2173,9 @@
               this.addDrawerModuleParts(materials, modLabel, mod, W, T, doorCount, drawerLayout, modD, isWoodChannel);
             } else if (doorCount > 0) {
               const doorW = Math.floor(W / doorCount) - 4;
-              this.add(materials, modLabel, '도어', 'MDF', 18, doorW, H - 30, doorCount, '4면', '', mod);
+              // 2026-10-27 사장님: 양념망장 앞판은 재단이 도어와 같고 철물에 달린 풀아웃이다 (경첩 없음 — 비고로 남긴다)
+              const doorNote = FixtureRules && FixtureRules.doorTypeOf(mod) ? FixtureRules.FIXTURE_CABINET_RULES.SPICE.FRONT_NOTE : '';
+              this.add(materials, modLabel, '도어', 'MDF', 18, doorW, H - 30, doorCount, '4면', doorNote, mod);
             }
             // 2026-10-26 사장님: 위에 밥솥장이 쌓인 서랍 모듈 — 상단 목찬넬이 상판 아래가 아니라 이 모듈 위(밥솥장 밑)에 선다.
             //   하부장 상단 목찬넬과 같은 ㄴ자(전면 52 · 지면 40)를 이 모듈 폭으로 낸다 (키큰장 바닥 단과 같은 자리) — 목찬넬 줄에서는 빠진다.
@@ -3034,6 +3036,14 @@
               unit: 'SET',
               note: fits ? label : `${label} · 도어 폭 ${Math.round(doorW)} — 450~600 밖 [확인 필요]`,
               ...this.moduleTagOf(mod),
+            }];
+          }
+          // 2026-10-27 사장님: 양념망장 풀아웃 — 경첩 대신 양념망 철물 1 SET. 품명 · 규격은 정해지지 않았다 [확인 필요]
+          if (type === 'pullout' && FixtureRules) {
+            const hw = FixtureRules.FIXTURE_CABINET_RULES.SPICE.HARDWARE;
+            return [{
+              category: hw.category, item: hw.item, manufacturer: '', spec: `폭 ${Math.round(parseFloat(mod.w) || 0)}`,
+              qty: hw.qty, unit: hw.unit, note: `${label} · [확인 필요] 양념망 품명 · 규격 미정`, ...this.moduleTagOf(mod),
             }];
           }
           if (type === 'sliding' || type === 'slide') {

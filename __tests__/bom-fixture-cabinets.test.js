@@ -175,3 +175,57 @@ describe('조립 검사', () => {
     expect(Check.check(spec).issues.filter((i) => i.level === 'error')).toEqual([]);
   });
 });
+
+describe('양념망장 200 · 300 (2026-10-27 사장님)', () => {
+  /** 하부 줄: 1도어 450 · 양념망장 200 · 양념망장 300 */
+  function spiceLine() {
+    const modules = [
+      { id: 'd0', section: 'lower', W: 450, H: 870, D, x: 0, y: BACK, areaH: 870 },
+      { id: 'p1', section: 'lower', W: 200, H: 870, D, x: 450, y: BACK, areaH: 870 },
+      { id: 'p2', section: 'lower', W: 300, H: 870, D, x: 650, y: BACK, areaH: 870 },
+    ];
+    const structures = { d0: doors(450, 1), p1: doors(200, 1, 'left', { fixture: 'spice' }), p2: doors(300, 1, 'left', { fixture: 'spice' }) };
+    const conv = loadConverter()._convertPlannerModules({ modules, structures, hasStructures: true }, Object.assign({}, SPECS));
+    const item = { categoryId: 'sink', w: 950, h: 2310, d: AREA_D, specs: Object.assign({}, SPECS), modules: conv.modules };
+    const { MaterialExtractor, HardwareExtractor } = loadExtractors();
+    const materials = new MaterialExtractor().extract({ items: [item] }).materials;
+    const hardware = new HardwareExtractor().extract({ items: [item] }).hardware;
+    const key = (id) => conv.modules.find((m) => String(m.id).indexOf(`planner-${id}-`) === 0).id;
+    const mk = (id) => `0-${key(id)}`;
+    const lines = [[{ key: 'area-lower-0', D: AREA_D, modules: ['d0', 'p1', 'p2'].map((id, i) => ({ moduleKey: mk(id), x0: [0, 450, 650][i], back: BACK })) }]];
+    const spec = Asm.of({ items: [item] }, { materials, hardware, lines });
+    return { conv, materials, hardware, spec, key, mk };
+  }
+
+  test('브리지 — fixture spice · 이름 양념망장 · 도어 종류 pullout · 경첩 방향 없음', () => {
+    const { conv, key } = spiceLine();
+    const m = conv.modules.find((x) => x.id === key('p1'));
+    expect([m.fixture, m.name, m.doorType, m.hingeSide]).toEqual(['spice', '양념망장', 'pullout', undefined]);
+    expect(conv.modules.find((x) => x.id === key('d0')).hingeSide).toBe('left');
+  });
+
+  test('BOM — 앞판 (W − 4) × (H − 30) 비고 풀아웃 · 선반 없음 · 밴드는 보통 하부장 (70 × 2 눕힘)', () => {
+    const { materials, mk } = spiceLine();
+    const r = (id) => materials.filter((m) => m.moduleKey === mk(id));
+    expect(r('p1').filter((m) => m.part === '도어').map((m) => [m.w, m.h, m.qty, m.note])).toEqual([[196, 678, 1, R.SPICE.FRONT_NOTE]]);
+    expect(r('p2').filter((m) => m.part === '도어').map((m) => [m.w, m.h])).toEqual([[296, 678]]);
+    expect(pick(r('p1'), '선반')).toEqual([]);
+    expect(pick(r('p1'), '밴드')).toEqual([[70, 170, 2]]);
+    expect(pick(r('d0'), '선반').length).toBe(1);
+  });
+
+  test('철물 — 경첩 없이 양념망 1 SET (품명 · 규격 [확인 필요]), 1도어 450 은 경첩 그대로', () => {
+    const { hardware, mk } = spiceLine();
+    const hw = (id) => hardware.filter((h) => h.moduleKey === mk(id));
+    expect(hw('p1').filter((h) => h.category === '경첩')).toEqual([]);
+    expect(hw('p1').filter((h) => h.category === '양념망').map((h) => [h.item, h.spec, h.qty, h.unit])).toEqual([['양념망 (풀아웃)', '폭 200', 1, 'SET']]);
+    expect(hw('p1').find((h) => h.category === '양념망').note).toMatch(/\[확인 필요\]/);
+    expect(hw('d0').filter((h) => h.category === '경첩').length).toBe(1);
+  });
+
+  test('조립 — 못 놓은 행 없음 · 조립 검사 오류 없음', () => {
+    const { spec } = spiceLine();
+    expect(spec.unplaced.filter((u) => u.reason !== 'shelf-height-unknown')).toEqual([]);
+    expect(Check.check(spec).issues.filter((i) => i.level === 'error')).toEqual([]);
+  });
+});
