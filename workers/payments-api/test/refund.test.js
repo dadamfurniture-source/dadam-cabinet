@@ -244,3 +244,56 @@ test('토스 취소가 실패하면 DB 는 그대로 (결제 done · 구독 acti
   assert.equal(sub().status, 'active');
   assert.equal(profile().tier, 'expert');
 });
+
+// ─── 탈퇴한 회원의 결제 (2026-10-27) ───
+// 탈퇴하면 payment_history · subscriptions 의 user_id 가 NULL 이 된다 (database/withdrawal-retention.sql).
+// 크레딧 원장도 회원과 떨어져 사용을 확인할 수 없다 — 관리자 예외(override)로만 환불하고, 내릴 등급이 없으니 건너뛴다.
+
+function detach() {
+  payment().user_id = null;
+  Object.assign(sub(), { user_id: null, billing_key: null, status: 'cancelled', cancel_reason: 'user_request', ended_at: iso(Date.now()) });
+  be.db.profiles.splice(0, be.db.profiles.length);
+}
+
+/** PostgREST 는 user_id=eq.null 을 uuid 로 읽다 400 을 낸다 — 그런 질의를 보내지 않아야 한다 */
+function sentNullUserFilter() {
+  return be.calls.rest.some((c) => /user_id=eq\.(null|undefined)/.test(decodeURIComponent(c.query || '')));
+}
+
+test('탈퇴한 회원의 결제: 크레딧 사용을 확인할 수 없어 409 + 이유 — 토스를 부르지 않는다', async () => {
+  seed();
+  detach();
+  const res = await refund({ payment_id: P1 });
+  const body = await res.json();
+  assert.equal(res.status, 409, JSON.stringify(body));
+  assert.equal(body.code, 'REFUND_NOT_ELIGIBLE');
+  assert.ok(body.reasons.some((r) => r.includes('탈퇴')), body.reasons.join(' / '));
+  assert.equal(body.credits_used, null);
+  assert.equal(be.cancels().length, 0);
+  assert.equal(sentNullUserFilter(), false);
+});
+
+test('탈퇴한 회원의 결제: override 면 환불한다 — 등급 내리기는 건너뛰고, user_id=eq.null 질의를 보내지 않는다', async () => {
+  seed();
+  detach();
+  const res = await refund({ payment_id: P1, override: true, reason: '탈퇴 회원 요청' });
+  const body = await res.json();
+  assert.equal(res.status, 200, JSON.stringify(body));
+  assert.equal(body.data.override_used, true);
+  assert.equal(be.cancels().length, 1);
+  assert.equal(payment().status, 'refunded');
+  assert.equal(payment().refund_override, true);
+  assert.equal(be.calls.rest.filter((c) => c.path === 'profiles').length, 0, '등급을 내릴 회원이 없다');
+  assert.equal(sentNullUserFilter(), false);
+});
+
+test('탈퇴한 회원 + 구독 없는 결제: 구독을 user_id 로 찾지 않는다', async () => {
+  seed();
+  detach();
+  payment().subscription_id = null;
+  const res = await refund({ payment_id: P1, override: true });
+  assert.equal(res.status, 200, JSON.stringify(await res.clone().json()));
+  assert.equal(be.calls.rest.filter((c) => c.path === 'subscriptions').length, 0);
+  assert.equal(payment().status, 'refunded');
+  assert.equal(sentNullUserFilter(), false);
+});

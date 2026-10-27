@@ -592,6 +592,12 @@ export async function checkRefundEligibility(env, payment, nowMs) {
   if (ageMs > REFUND_WINDOW_DAYS * DAY_MS) {
     reasons.push(`결제 후 ${REFUND_WINDOW_DAYS}일이 지났습니다 (${ageDays}일 경과).`);
   }
+  // 탈퇴한 회원의 결제는 user_id 가 비어 있다 (database/withdrawal-retention.sql). 원장도 회원과 떨어져
+  //   (withdrawal-contract-records.sql) 누가 썼는지 알 수 없다 — 「확인할 수 없음」을 이유로 남긴다 (관리자 예외로만 환불).
+  if (!payment.user_id) {
+    reasons.push('탈퇴한 회원의 결제라 크레딧 사용을 확인할 수 없습니다.');
+    return { eligible: false, reasons, age_days: ageDays, credits_used: null };
+  }
   const used =
     (await selectMany(env, 'credit_ledger', {
       user_id: `eq.${payment.user_id}`,
@@ -652,17 +658,20 @@ export async function refundPayment(
   });
 
   const now = iso(nowMs);
+  // 탈퇴한 회원(user_id 없음)은 결제에 적힌 구독만 본다 — user_id 로 찾을 수 없다
   const sub = payment.subscription_id
     ? await selectOne(env, 'subscriptions', {
         id: `eq.${payment.subscription_id}`,
         select: 'id,status,ended_at',
       })
-    : await selectOne(env, 'subscriptions', {
-        user_id: `eq.${payment.user_id}`,
-        provider: 'eq.toss',
-        select: 'id,status,ended_at',
-        order: 'created_at.desc',
-      });
+    : payment.user_id
+      ? await selectOne(env, 'subscriptions', {
+          user_id: `eq.${payment.user_id}`,
+          provider: 'eq.toss',
+          select: 'id,status,ended_at',
+          order: 'created_at.desc',
+        })
+      : null;
   if (sub && !(sub.status === 'cancelled' && sub.ended_at)) {
     await updateBy(
       env,
@@ -680,7 +689,8 @@ export async function refundPayment(
       }
     );
   }
-  await downgradeIfSubscriptionTier(env, payment.user_id, nowMs);
+  // 등급을 내릴 회원이 없으면(탈퇴) 건너뛴다
+  if (payment.user_id) await downgradeIfSubscriptionTier(env, payment.user_id, nowMs);
 
   await updateBy(
     env,
