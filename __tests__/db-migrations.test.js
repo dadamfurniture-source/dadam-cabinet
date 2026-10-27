@@ -6,7 +6,8 @@
 /**
  * DB 번호 마이그레이션 (database/migrations) 시험 — DB 없이 돈다.
  *
- *   1. 파일 이름: NNNN_이름.sql, 0000_baseline.sql 부터 빈 번호 · 겹치는 번호 없이 하나씩 커진다
+ *   1. 파일 이름: NNNN_이름.sql, 0000_baseline.sql 부터 겹치는 번호 없이 커진다
+ *      (앞 번호 PR 이 아직 열려 있으면 번호가 빌 수 있다 — db-migrate --apply 가 그 뒤 번호를 막는다)
  *   2. 기준선 0000_baseline.sql: 있고, 찍은 날 머리말, 비밀값 없음, 행 데이터 없음(버킷 정의만), SQL 모양
  *   3. scripts/db-migrate.mjs 의 순수 부분: 이름 · 순서 · 체크섬 · 대기 계산 · 문장 나누기 · 금지 문장
  *
@@ -54,10 +55,10 @@ describe('마이그레이션 파일 이름', () => {
     expect(sql.filter((f) => !NAME.test(f))).toEqual([]);
   });
 
-  test('0000_baseline.sql 부터 빈 번호 · 겹치는 번호 없이 하나씩 커진다', () => {
+  test('0000_baseline.sql 부터 겹치는 번호 없이 커진다 (앞 번호 PR 이 열려 있는 동안의 빈 번호는 된다)', () => {
     const nums = sql.map((f) => Number(f.slice(0, 4)));
     expect(sql[0]).toBe('0000_baseline.sql');
-    nums.forEach((n, i) => expect(n).toBe(i));
+    nums.slice(1).forEach((n, i) => expect(n).toBeGreaterThan(nums[i]));
   });
 });
 
@@ -139,7 +140,7 @@ describe('scripts/db-migrate.mjs 순수 부분', () => {
           .map((n) => m.parseMigrationName(n)),
         namesOk: m.checkMigrationNames(['README.md', '0002_b.sql', '0000_baseline.sql', '0001_a.sql']),
         namesDup: m.checkMigrationNames(['0000_baseline.sql', '0001_a.sql', '0001_b.sql']).problems.length,
-        namesGap: m.checkMigrationNames(['0000_baseline.sql', '0002_b.sql']).problems.length,
+        namesGap: m.checkMigrationNames(['0000_baseline.sql', '0001_a.sql', '0004_d.sql']),
         namesNoBase: m.checkMigrationNames(['0001_a.sql']).problems.length,
         namesBad: m.checkMigrationNames(['0000_baseline.sql', 'add-x.sql', '0001_A.SQL']).problems.length,
         sumLf: sha('SELECT 1;\\nSELECT 2;\\n'),
@@ -203,15 +204,17 @@ describe('scripts/db-migrate.mjs 순수 부분', () => {
     expect(r.parse.slice(2)).toEqual([null, null, null, null, null, null, null, null]);
   });
 
-  test('이름 목록: 번호 순으로 세우고 겹침 · 빈 번호 · 기준선 없음 · 형식 틀림을 잡는다', () => {
+  test('이름 목록: 번호 순으로 세우고 겹침 · 기준선 없음 · 형식 틀림을 잡는다, 빈 번호는 따로 알린다', () => {
     expect(r.namesOk.problems).toEqual([]);
+    expect(r.namesOk.gaps).toEqual([]);
+    expect(r.namesGap.problems).toEqual([]);
+    expect(r.namesGap.gaps).toEqual(['0002', '0003']);
     expect(r.namesOk.migrations.map((x) => x.file)).toEqual([
       '0000_baseline.sql',
       '0001_a.sql',
       '0002_b.sql',
     ]);
     expect(r.namesDup).toBe(1);
-    expect(r.namesGap).toBe(1);
     expect(r.namesNoBase).toBe(1);
     expect(r.namesBad).toBe(2);
   });
