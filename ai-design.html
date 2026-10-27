@@ -1425,13 +1425,21 @@
           renderRun();
           renderResults();
           try {
-            if (regen) {
-              await submit({ parent_id: id, design_style: $('style').value, door_color: $('doorColor').value });
-              return;
-            }
             var res = await fetch(API_BASE + '/api/generate/' + id, { headers: await authHeaders() });
             var data = await res.json();
             if (!res.ok || !data.success) throw new Error(data && data.error ? data.error : '불러오지 못했습니다');
+            if (regen) {
+              // 다시 생성은 원본의 스타일·문짝 색으로 보낸다. 워커는 이 둘을 원본에서 잇지 않고 요청 값(없으면 기본값)을 쓴다.
+              //   예전엔 막 연 페이지의 선택 칸 값(모던 미니멀 · 화이트)을 보내 다시 만들 때마다 스타일·색이 바뀌었다.
+              //   원본 행에 값이 없으면 예전처럼 선택 칸 값을 보낸다.
+              var o = (data.generation && data.generation.options) || {};
+              await submit({
+                parent_id: id,
+                design_style: o.design_style || $('style').value,
+                door_color: o.door_color || $('doorColor').value,
+              });
+              return;
+            }
             applyGeneration(data.generation);
             renderKinds();
             if (data.generation.status === 'done' || data.generation.status === 'failed') {
