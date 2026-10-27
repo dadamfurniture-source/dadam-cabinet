@@ -77,7 +77,7 @@ const DOMAINS = [
         'scripts/segan-icons.mjs',
       ].includes(p),
   ],
-  ['3D Planner (legacy)', (p) => p === 'lib/planner.ts' || p.startsWith('planner/embed/')],
+  ['3D Planner (legacy)', (p) => p.startsWith('planner/embed/')],
 ];
 // __tests__/<앞부분>-*.test.js → 담당 영역 (이름 규칙에 기댄 추정)
 const TEST_PREFIX = [

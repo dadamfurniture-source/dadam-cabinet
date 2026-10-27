@@ -12,8 +12,10 @@ DB 스키마를 바꾸는 일은 이 폴더의 번호 파일로만 한다. 무�
 | `database/*.sql` (옛 파일) | 손으로 돌리던 시절의 기록. 역사로만 둔다 — 고치지 않고, 새 변경도 넣지 않는다.                            |
 
 - 이름: `NNNN_무엇을_하는지.sql` — 네 자리 번호, 소문자 · 숫자 · `_` · `-`.
-- 번호: 지금 있는 가장 큰 번호 + 1. 빈 번호 · 겹치는 번호는
-  시험(`__tests__/db-migrations.test.js`)이 막는다.
+- 번호: 다음 번호 — 열려 있는 다른 DB PR 이 잡은 번호도 건너뛴다. 겹치는 번호는
+  시험(`__tests__/db-migrations.test.js`)이 막는다. 앞 번호 PR 이 아직 머지되지
+  않아 번호가 비는 것은 괜찮다 — 대신 `--apply` 는 빈 번호가 메워질 때까지 그 뒤
+  번호를 적용하지 않는다.
 - 적용한 파일은 다시 고치지 않는다. 고칠 일이 생기면 다음 번호 파일로 고친다
   (적용한 뒤 파일 내용이 바뀌면 `db-migrate` 가 체크섬으로 알아채고 아무것도
   돌리지 않는다).
@@ -66,14 +68,15 @@ DB 스키마를 바꾸는 일은 이 폴더의 번호 파일로만 한다. 무�
 
 ## 도구
 
-| 명령                                                  | 하는 일                                                             |
-| ----------------------------------------------------- | ------------------------------------------------------------------- |
-| `node scripts/db-dump-schema.mjs [--out 파일]`        | 라이브 스키마 덤프 (읽기 전용 · 행 데이터 없음 · 두 번 찍어도 같다) |
-| `node scripts/db-dump-schema.mjs --baseline --out …`  | 기준선 머리말(찍은 날)을 붙여 덤프                                  |
-| `node scripts/db-migrate.mjs --status`                | 적용됨 · 대기 · 바뀜 · 파일 없음 목록 (읽기 전용)                   |
-| `node scripts/db-migrate.mjs --dry 파일`              | 돌려 보고 ROLLBACK, 객체 수 전후                                    |
-| `node scripts/db-migrate.mjs --apply 파일`            | 한 트랜잭션으로 적용 + 기록                                         |
-| `node scripts/db-migrate.mjs --baseline-mark [--dry]` | 기록 표 만들기 + 0000 을 적용됨으로                                 |
+| 명령                                                                            | 하는 일                                                                                            |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `node scripts/db-dump-schema.mjs [--out 파일]`                                  | 라이브 스키마 덤프 (읽기 전용 · 행 데이터 없음 · 두 번 찍어도 같다)                                |
+| `node scripts/db-dump-schema.mjs --baseline --out …`                            | 기준선 머리말(찍은 날)을 붙여 덤프                                                                 |
+| `node scripts/db-migrate.mjs --status`                                          | 적용됨 · 대기 · 바뀜 · 파일 없음 목록 (읽기 전용)                                                  |
+| `node scripts/db-migrate.mjs --dry 파일`                                        | 돌려 보고 ROLLBACK, 객체 수 전후                                                                   |
+| `node scripts/db-migrate.mjs --apply 파일`                                      | 한 트랜잭션으로 적용 + 기록                                                                        |
+| `node scripts/db-migrate.mjs --baseline-mark [--dry]`                           | 기록 표 만들기 + 0000 을 적용됨으로                                                                |
+| `node scripts/rls-probe.mjs --probe database/probes/….json [--migration 파일]…` | 역할별(anon · 고객 · 구성원 · 관리자 …) 읽기 · 쓰기 표 — 가짜 계정 · 행으로 시험하고 끝에 ROLLBACK |
 
 - 접속: `pg` 패키지는 `mcp-server/node_modules` 에서 싣는다
   (`cd mcp-server && npm ci`). 접속값은 환경 변수 또는 `mcp-server/.env` 의

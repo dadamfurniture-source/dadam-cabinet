@@ -1,12 +1,8 @@
 // ═══════════════════════════════════════════════════════════════
-// Planner 타입 미러 — lib/planner.ts (Next.js 측)에서 추출
+// Planner 타입 — SketchUp 통합(빌드 · 가져오기)에 쓰는 데이터 타입
 //
-// mcp-server는 stdio 환경이라 Three.js/React 의존 불가.
-// SketchUp 통합에 필요한 데이터 타입만 별도 파일로 미러한다.
-//
-// 동기화: `npm run sync-planner` (drift 검사) / `--write` (자동 수정).
-// CI 에서 mcp-server-ci.yml 의 "Planner mirror drift check" 가 강제.
-// 새 export 추가 시 mcp-server/scripts/sync-planner.mjs 의 EXPORTS_TO_SYNC 도 함께 갱신.
+// 처음에는 옛 3D 플래너(lib/planner.ts)의 미러였다. 그 플래너는 지워졌고,
+// 이제 이 파일이 mcp-server 안의 정본이다.
 // ═══════════════════════════════════════════════════════════════
 
 export type CabinetCategory = 'sink' | 'wardrobe' | 'vanity' | 'shoe' | 'fridge' | 'storage';
@@ -25,34 +21,6 @@ export type ModuleType = 'storage' | 'sink' | 'cook' | 'hood' | 'drawer';
 
 export type ColorKey = 'body' | 'accent' | 'shadow' | 'trim';
 
-// lib/planner.ts:93-110 에서 미러
-// V1 (legacy) — Three.js Y-up center 좌표계. W4-3 에서 deriveCabinet 이 V2 출력으로
-// 전환됨. mcp-server 의 SketchUp 빌드 경로는 V2 만 받음 (sketchup.schema.ts).
-// 본 인터페이스는 sync-planner.mjs 가 lib/planner.ts (root) 미러를 유지하기 위해
-// 남아있을 뿐 — mcp-server 의 코드 어디에서도 import 되지 않음. W4-6 에서 root
-// lib/planner.ts 가 V2 로 갱신되면 본 인터페이스도 동시 제거 예정.
-//
-// @deprecated W4-4 이후 mcp-server 내부 사용 없음. CabinetPartV2 사용할 것.
-export interface CabinetPart {
-  id: string;
-  label: string;
-  x: number;
-  y: number;
-  z: number;
-  width: number;
-  height: number;
-  depth: number;
-  colorKey: ColorKey;
-  wireframe?: boolean;
-  essential?: boolean;
-  moduleType?: ModuleType;
-  isDoor?: boolean;
-  parentModuleId?: string;
-  doorIndex?: number;
-  openDirection?: 'left' | 'right';
-  rotationY?: number; // W1 누락 — radians, Y축 회전. W4-1 에서 노출.
-}
-
 // ───────────────────────────────────────────────────────────────
 // V2 (W4 — SketchUp 호환 신규)
 // ───────────────────────────────────────────────────────────────
@@ -63,9 +31,6 @@ export interface CabinetPart {
 // 단위: mm (mcp-server 에서만 inch 변환)
 // 기준점: AABB 최소 모서리 (x_min, y_min, z_min) — 회전 전
 // 회전: rotationZDeg (degrees, Z축 CCW). pivot = (x, y, z) 코너.
-//
-// 본 V2 는 planner-vite/src/lib/planner.ts 와 mirror 되어야 함.
-// W4-1 단계에서는 mcp-server 내부에서만 사용 — V1 입력은 migrateV1ToV2 통과.
 export interface CabinetPartV2 {
   id: string;
   label: string;
@@ -94,7 +59,6 @@ export interface CabinetPartV2 {
   };
 }
 
-// lib/planner.ts:139-147 에서 미러
 export interface MaterialPalette {
   name: string;
   body: string;
