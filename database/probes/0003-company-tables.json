@@ -1,5 +1,5 @@
 {
-  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs)",
+  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs)",
   "ids": [
     "company_x",
     "company_y",
@@ -23,7 +23,8 @@
     "INSERT INTO public.admin_roles (user_id, role) VALUES ({{hq_admin_user}}, 'admin')",
     "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'expert', 'active'), ({{company_y}}, 'partner', 'probe Y', 'agent', 'active')",
     "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_x}}, {{x_staff_user}}, 'staff', 'active'), ({{company_x}}, {{x_removed_user}}, 'staff', 'removed'), ({{company_y}}, {{y_staff_user}}, 'staff', 'active'), (public.hq_company_id(), {{hq_member_user}}, 'staff', 'active')",
-    "INSERT INTO public.customers (id, company_id, user_id, name, phone) VALUES ({{cust_x_linked}}, {{company_x}}, {{x_customer_user}}, 'probe', NULL), ({{cust_x_plain}}, {{company_x}}, NULL, 'probe', '000-0000'), ({{cust_x_spare}}, {{company_x}}, NULL, 'probe', NULL), ({{cust_y}}, {{company_y}}, NULL, 'probe', NULL), ({{cust_hq}}, public.hq_company_id(), {{hq_customer_user}}, 'probe', NULL)",
+    "INSERT INTO public.customers (id, company_id, user_id, name, phone) VALUES ({{cust_x_linked}}, {{company_x}}, {{x_customer_user}}, 'probe', NULL), ({{cust_x_plain}}, {{company_x}}, NULL, 'probe', '000-0000'), ({{cust_x_spare}}, {{company_x}}, NULL, 'probe', NULL), ({{cust_y}}, {{company_y}}, NULL, 'probe', NULL)",
+    "UPDATE public.customers SET id = {{cust_hq}} WHERE company_id = public.hq_company_id() AND user_id = {{hq_customer_user}}",
     "INSERT INTO public.projects (id, company_id, customer_id, title) VALUES ({{proj_x_linked}}, {{company_x}}, {{cust_x_linked}}, 'probe'), ({{proj_x_plain}}, {{company_x}}, {{cust_x_plain}}, 'probe'), ({{proj_y}}, {{company_y}}, {{cust_y}}, 'probe'), ({{proj_hq}}, public.hq_company_id(), {{cust_hq}}, 'probe')",
     "INSERT INTO public.company_events (id, company_id, actor_kind, type) VALUES ({{event_x}}, {{company_x}}, 'system', 'probe'), ({{event_y}}, {{company_y}}, 'system', 'probe')"
   ],
@@ -161,9 +162,25 @@
       "expect": { "x_owner": "true", "x_staff": "true", "*": "false" }
     },
     {
-      "name": "함수 my_customer_ids() 개수",
+      "name": "함수 my_customer_ids() 개수 (계정마다 본사 고객 행 하나 + X 고객 행)",
       "sql": "select count(*) from public.my_customer_ids()",
-      "expect": { "x_customer": 1, "hq_customer": 1, "*": 0 }
+      "expect": { "anon": 0, "x_customer": 2, "service_role": 0, "*": 1 }
+    },
+    {
+      "name": "0005: 가짜 계정마다 본사 고객 행 (본인 것만 보임)",
+      "sql": "select count(*) from public.customers where company_id = public.hq_company_id() and user_id in ({{hq_customer_user}}, {{x_customer_user}}, {{x_owner_user}}, {{x_staff_user}}, {{y_staff_user}}, {{hq_member_user}}, {{hq_admin_user}}, {{x_removed_user}})",
+      "expect": { "anon": "deny", "hq_member": 8, "hq_admin": 8, "service_role": 8, "*": 1 }
+    },
+    {
+      "name": "0005: 본사 고객 행에 이름 · 연락처를 베끼지 않는다",
+      "sql": "select count(*) from public.customers where company_id = public.hq_company_id() and user_id in ({{hq_customer_user}}, {{x_customer_user}}, {{x_owner_user}}, {{x_staff_user}}, {{y_staff_user}}, {{hq_member_user}}, {{hq_admin_user}}, {{x_removed_user}}) and (name is not null or phone is not null)",
+      "roles": ["service_role"],
+      "expect": { "service_role": 0 }
+    },
+    {
+      "name": "0005: add_hq_customer() 는 직접 부를 수 없다",
+      "sql": "select public.add_hq_customer()",
+      "expect": { "*": "deny" }
     },
     {
       "name": "시드: 회사는 본사 하나뿐 (가짜 X·Y 빼고)",
