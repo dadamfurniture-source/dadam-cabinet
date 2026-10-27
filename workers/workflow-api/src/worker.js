@@ -116,6 +116,7 @@ import {
   getCalibration,
   applyCalibration,
 } from './production/worker-access.js';
+import { runConsultNotices, CONSULT_NOTICE_CRON } from './consult-notify.js';
 import { getMe, registerWorker, listWorkersAdmin, patchWorkerAdmin, listWorkerNotes, addWorkerNote, listWorkerEvents } from './work/workers.js';
 import { createInvite, claimInvite } from './work/invites.js';
 import {
@@ -909,6 +910,9 @@ const router = createRouter([
   { method: 'POST', path: '/public/confirm/decision', auth: 'none', handler: handlePublicDecision },
 ]);
 
+/** 평일 아침 7시(KST) — UTC 22:00 일~목 (wrangler.toml [triggers] crons) */
+export const DAILY_BRIEF_CRON = '0 22 * * SUN-THU';
+
 function errorResponse(request, env, err) {
   const known = [AuthError, ForbiddenError, NotFoundError, ValidationError, ConflictError, GoneError];
   if (known.some((C) => err instanceof C)) {
@@ -949,8 +953,22 @@ export default {
     }
   },
 
-  /** 평일 아침 7시(KST) 생산 요약 — wrangler.toml [triggers] crons */
+  /**
+   * cron 둘 (wrangler.toml [triggers] crons — 값을 바꾸면 여기 판정도 같이 고칠 것):
+   *   DAILY_BRIEF_CRON    — 평일 아침 7시(KST) 생산 요약 · 월 마감
+   *   CONSULT_NOTICE_CRON — 5분마다 새 상담 Slack 알림 (src/consult-notify.js)
+   */
   async scheduled(event, env, ctx) {
+    if (event.cron === CONSULT_NOTICE_CRON) {
+      ctx.waitUntil(
+        runConsultNotices(env).catch((e) => console.error('consultation notice failed:', e && e.message)),
+      );
+      return;
+    }
+    if (event.cron !== DAILY_BRIEF_CRON) {
+      console.warn('unknown cron:', event.cron);
+      return;
+    }
     ctx.waitUntil(
       runDailyBriefs(env).catch((e) => console.error('daily production brief failed:', e && e.message)),
     );
