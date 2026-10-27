@@ -122,14 +122,13 @@ export const CATEGORIES = {
  * 붙박이장 통 나누기 (2026-10-19 사장님 "반 통도 연출컷에 — 추천대로": D1 반 통은 오른쪽 끝, D3 벽 전체 폭).
  * 예전엔 벽 폭으로 4·6·8짝만 정해 플래너와 문 수가 자주 달랐고 반 통이 없었다.
  * 이제 플래너 정본 js/planner/planner-engine.js 의 distributeModules + spreadGapEqually 를 그대로 옮긴다:
- * 도어 350~600(목표 450), 잔여 0~10 — 조립 여유(통 수 × 1mm) 안 → 450 근접 → 잔여 작은 → 도어 적은 순.
+ * 도어 350~600(목표 450), 잔여 0~10 — 450 근접 → 잔여 작은 → 도어 적은 순 (2026-10-27 사장님: 목표 450 근접 우선 — 조립 여유 안 우선은 없앴다).
  * 도어를 둘씩 묶어 2짝 통, 홀수면 1짝 통(반 통)이 맨 오른쪽. 이 파일은 import 가 없어야 해서 옮겨 적고,
  * test/wardrobe-modules.test.js 가 플래너 원본과 1000~6000 mm 전부 같은지 본다.
  */
 export const WARDROBE_DOOR_RULES = { DOOR_W_MIN: 350, DOOR_W_MAX: 600, DOOR_W_TARGET: 450, MAX_REMAINDER: 10, JOINT_SLACK_PER_MODULE: 1 };
 
 const jointSlackOf = (modules) => Math.max(0, Number(modules) || 0) * WARDROBE_DOOR_RULES.JOINT_SLACK_PER_MODULE;
-const moduleCountOfDoors = (n) => Math.floor(Math.max(0, n) / 2) + (Math.max(0, n) % 2);
 
 /** 정본 distributeModules 와 같다 — {modules:[{w, doors}], doorWidth, doorCount, gap} */
 export function distributeWardrobeDoors(totalSpace) {
@@ -162,10 +161,7 @@ export function distributeWardrobeDoors(totalSpace) {
       }
     }
   }
-  all.forEach((r) => {
-    r.withinSlack = r.gap <= jointSlackOf(moduleCountOfDoors(r.doorCount)) ? 0 : 1;
-  });
-  all.sort((a, b) => a.withinSlack - b.withinSlack || a.targetDiff - b.targetDiff || a.gap - b.gap || a.doorCount - b.doorCount);
+  all.sort((a, b) => a.targetDiff - b.targetDiff || a.gap - b.gap || a.doorCount - b.doorCount);
   const best = all[0];
   if (!best) {
     // 정본 calcDoorCount 대체 — 1000~6000 에서는 나오지 않는다 (시험이 본다)
