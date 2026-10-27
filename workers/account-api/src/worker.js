@@ -9,7 +9,7 @@
  * 헬퍼(cors.js)는 payments-api 것을 그대로 복제했다 — workflow-api 가 쓴 방식과 같다.
  */
 import { corsHeaders, handleOptions, jsonResponse } from './cors.js';
-import { purgeSummary, purgeUserFiles } from './storage-purge.js';
+import { prepareWithdrawal, withdrawalDetail, withdrawalSummary } from './withdrawal.js';
 
 class AuthError extends Error {
   constructor(message = 'Unauthorized') {
@@ -60,30 +60,20 @@ async function writeAdminLog(env, row) {
   }
 }
 
-/** admin_logs.new_value 에 싣는 파일 정리 결과 — 버킷마다 수만 (경로 없음) */
-function filesDetail(purge) {
-  const out = { complete: !!(purge && purge.ok) };
-  if (purge && purge.error) out.error = purge.error;
-  if (purge && purge.truncated) out.truncated = true;
-  for (const [name, b] of Object.entries((purge && purge.buckets) || {})) {
-    out[name] = { deleted: b.deleted, failed: b.failed, ...(b.error ? { error: b.error } : {}) };
-  }
-  return out;
-}
-
 /**
  * 회원탈퇴.
  *
  * 본인 토큰으로만 자기 계정을 지운다 — 대상 id 를 본문에서 받지 않는 이유다.
  * 받으면 남의 계정을 지목할 수 있게 된다.
  *
- * auth.users 를 지우면 profiles·designs·collection_posts 등은 CASCADE 로 함께
- * 지워지고, 문의·피드백 같은 기록은 SET NULL 로 남는다
- * (database/account-deletion.sql).
- *
- * Storage 파일은 CASCADE 로 지워지지 않는다 — 계정을 지우기 **전에** 회원 폴더를 비운다
- * (storage-purge.js · generations · design-images · collection). 일부를 못 지워도 탈퇴는 그대로 하고
- * 그 사실을 기록한다 (경로·개인 정보는 남기지 않는다). 계정이 남아 있는 동안이어야 같은 요청을 다시 보낼 수 있다.
+ * 계정을 지우기 **전에** withdrawal.js 가 정리한다 (2026-10-27):
+ *   지운다 — Storage 회원 폴더(generations · design-images 전부, collection 은 공개 AI 연출컷 복사본 빼고),
+ *            직접 올린 시공사례 행(source 'upload')
+ *   남긴다 — 시공사례에 공개된 AI 연출컷(source 'ai_render') 과 결제 · 구독 기록. auth 사용자를 지울 때 FK 가
+ *            회원과 떼어 놓는다 (database/withdrawal-retention.sql — 이 파일이 적용돼 있어야 한다)
+ * 나머지(프로필 · 설계 등)는 auth.users 를 지울 때 FK CASCADE 로 지워진다.
+ * 일부를 못 지워도 탈퇴는 그대로 하고 그 사실을 수로만 기록한다 (경로 · 개인 정보 없음).
+ * 계정이 남아 있는 동안이어야 같은 요청을 다시 보낼 수 있으므로 정리를 먼저 한다.
  */
 async function handleDelete(request, env) {
   // 인증을 먼저 본다. 설정 여부를 인증 앞에 두면 비로그인 요청이 401 대신
@@ -101,9 +91,9 @@ async function handleDelete(request, env) {
     );
   }
 
-  // 파일 먼저 — 계정을 지운 뒤에는 이 요청을 다시 보낼 수 없다. 던지지 않는다.
-  const purge = await purgeUserFiles(env, user.id);
-  console.log('[account] delete', purgeSummary(purge));
+  // 정리 먼저 — 계정을 지운 뒤에는 이 요청을 다시 보낼 수 없다. 던지지 않는다.
+  const w = await prepareWithdrawal(env, user.id);
+  console.log('[account] delete', withdrawalSummary(w));
 
   // 흔적을 남긴다. 계정을 지운 뒤에는 누가 지웠는지 쓸 수 없다.
   // 2026-10-27: 열 이름을 admin_logs 정본에 맞췄다 (예전 action · detail 은 없는 열이라 기록이 남지 않았다).
@@ -112,7 +102,7 @@ async function handleDelete(request, env) {
     target_type: 'user',
     target_id: user.id,
     description: '회원 본인 탈퇴',
-    new_value: { self_service: true, files: filesDetail(purge) },
+    new_value: { self_service: true, ...withdrawalDetail(w) },
   });
 
   const res = await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users/${user.id}`, {
@@ -177,9 +167,9 @@ async function handleAdminDelete(request, env) {
 
   const admin = await verifyJwt(request, env);
 
-  // 대상 회원의 Storage 파일 먼저 (본인 탈퇴와 같다). 던지지 않는다.
-  const purge = await purgeUserFiles(env, target);
-  console.log('[account] admin delete', purgeSummary(purge));
+  // 대상 회원 정리 먼저 (본인 탈퇴와 같다). 던지지 않는다.
+  const w = await prepareWithdrawal(env, target);
+  console.log('[account] admin delete', withdrawalSummary(w));
 
   await writeAdminLog(env, {
     admin_id: admin.id,
@@ -188,7 +178,7 @@ async function handleAdminDelete(request, env) {
     target_type: 'user',
     target_id: target,
     description: '관리자 강제 탈퇴',
-    new_value: { by_admin: true, files: filesDetail(purge) },
+    new_value: { by_admin: true, ...withdrawalDetail(w) },
   });
 
   const res = await fetch(`${env.SUPABASE_URL}/auth/v1/admin/users/${target}`, {

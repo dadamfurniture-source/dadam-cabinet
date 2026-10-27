@@ -1,20 +1,22 @@
 /**
  * 탈퇴할 때 그 회원의 Storage 파일을 지운다 (2026-10-27).
  *
- * auth.users 를 지우면 DB 행은 CASCADE 로 지워지지만 Storage 파일은 남는다. 공개 버킷(collection)의 파일은
- * 탈퇴 뒤에도 주소로 계속 열린다. 그래서 계정을 지우기 **전에** 회원 폴더를 비운다.
+ * auth.users 를 지우면 DB 행은 FK 에 따라 지워지거나 남지만 Storage 파일은 그대로 남는다. 공개 버킷(collection)의
+ * 파일은 탈퇴 뒤에도 주소로 계속 열린다. 그래서 계정을 지우기 **전에** 회원 폴더를 비운다.
  *
  * 대상 버킷 — 첫 폴더가 회원 id 인 것 ({user_id}/…):
- *   generations     '{user_id}/{generation_id}/{file}'      AI 연출컷 입력·결과 (workers/generate-api)
+ *   generations     '{user_id}/{generation_id}/{file}'      AI 연출컷 입력·결과·중간 산출물 전부 (workers/generate-api)
  *   design-images   '{user_id}/{type}/{file}'               설계 사진 (js/supabase-utils.js 등)
- *   collection      '{user_id}/{file}'                      시공사례 사진 · 연출컷 자동 게시 복사본
+ *   collection      '{user_id}/{file}'                      직접 올린 시공사례 사진 · 연출컷 자동 게시 복사본
  *   (renders · cad 는 첫 폴더가 설계 id 라 여기서 다루지 않는다. 카탈로그 버킷은 회원 것이 아니다.)
+ *
+ * 남길 파일은 부르는 쪽이 opts.keep[bucket] 으로 준다 — 시공사례에 공개된 AI 연출컷 복사본(withdrawal.js).
  *
  * 폴더를 따라 내려가며 목록을 읽고(service_role, POST /storage/v1/object/list/{bucket}), 모아서 지운다
  * (DELETE /storage/v1/object/{bucket}). 회원 id 는 UUID 여야 하고, 지우는 경로는 반드시 '{user_id}/' 로 시작한다 —
  * 빈 접두사로 버킷 전체를 지우는 일이 없게.
  *
- * 던지지 않는다. 결과(버킷마다 찾은 수 · 지운 수 · 실패 수)를 돌려준다 — 경로나 개인 정보는 담지 않는다.
+ * 던지지 않는다. 결과(버킷마다 찾은 수 · 지운 수 · 남긴 수 · 실패 수)를 돌려준다 — 경로나 개인 정보는 담지 않는다.
  * 이 파일은 import 가 없다 — 시험(__tests__/account-delete-files.test.js)이 export 를 떼고 평가한다.
  */
 
@@ -25,10 +27,10 @@ export const LIST_PAGE = 1000;
 export const DELETE_CHUNK = 500;
 /** 폴더 깊이 — 지금 가장 깊은 것이 2 ({user_id}/{generation_id}/{file}) */
 export const MAX_DEPTH = 4;
-/** Storage 요청 수 상한 — 워커 한 요청의 하위 요청 한도(유료 1000) 안에서 인증·로그 몫을 남긴다 */
+/** Storage 요청 수 상한 — 워커 한 요청의 하위 요청 한도(유료 1000) 안에서 인증·로그·행 몫을 남긴다 */
 export const MAX_STORAGE_CALLS = 900;
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function headers(env) {
   return {
@@ -119,12 +121,18 @@ async function removeFiles(env, bucket, paths, ctx) {
 
 /**
  * 회원의 Storage 파일을 지운다. 던지지 않는다.
+ * @param {object} [opts]
+ *   buckets   지울 버킷 (기본 USER_FOLDER_BUCKETS)
+ *   keep      { [bucket]: Set<string> } 남길 경로 — 그 버킷에서 이 경로는 지우지 않는다
+ *   skip      { [bucket]: string } 이 버킷은 건드리지 않는다 (값은 결과에 남길 사유)
  * @returns {Promise<{ok: boolean, truncated: boolean, calls: number,
- *   buckets: Object<string, {found: number, deleted: number, failed: number, error?: string}>}>}
- *   ok — 모든 버킷을 끝까지 읽고 찾은 파일을 전부 지웠다
+ *   buckets: Object<string, {found: number, deleted: number, kept: number, failed: number, error?: string}>}>}
+ *   ok — 모든 버킷을 끝까지 읽고 지울 파일을 전부 지웠다
  */
 export async function purgeUserFiles(env, userId, opts = {}) {
   const buckets = opts.buckets || USER_FOLDER_BUCKETS;
+  const keepOf = opts.keep || {};
+  const skipOf = opts.skip || {};
   const ctx = {
     calls: 0,
     truncated: false,
@@ -143,12 +151,20 @@ export async function purgeUserFiles(env, userId, opts = {}) {
   }
   let ok = true;
   for (const bucket of buckets) {
-    const b = { found: 0, deleted: 0, failed: 0 };
+    const b = { found: 0, deleted: 0, kept: 0, failed: 0 };
     result.buckets[bucket] = b;
+    if (skipOf[bucket]) {
+      b.error = skipOf[bucket];
+      ok = false;
+      continue;
+    }
     try {
+      const keep = keepOf[bucket] || new Set();
       const paths = (await listUserFiles(env, bucket, userId, ctx)).filter((p) => p.startsWith(`${userId}/`));
       b.found = paths.length;
-      const r = await removeFiles(env, bucket, paths, ctx);
+      const doomed = paths.filter((p) => !keep.has(p));
+      b.kept = paths.length - doomed.length;
+      const r = await removeFiles(env, bucket, doomed, ctx);
       b.deleted = r.deleted;
       b.failed = r.failed;
       if (r.failed) ok = false;
@@ -169,12 +185,15 @@ export async function purgeUserFiles(env, userId, opts = {}) {
   return result;
 }
 
-/** 로그 한 줄 — 버킷마다 지운 수/찾은 수와 실패 수만 (경로·회원 id 없음) */
+/** 로그 한 줄 — 버킷마다 지운 수/찾은 수 · 남긴 수 · 실패 수만 (경로·회원 id 없음) */
 export function purgeSummary(r) {
   if (!r) return 'storage: -';
   if (r.error) return `storage: skipped (${r.error})`;
   const parts = Object.entries(r.buckets).map(
-    ([name, b]) => `${name}=${b.deleted}/${b.found}${b.failed ? ` failed=${b.failed}` : ''}${b.error ? ` error=${b.error}` : ''}`
+    ([name, b]) =>
+      `${name}=${b.deleted}/${b.found}${b.kept ? ` kept=${b.kept}` : ''}${b.failed ? ` failed=${b.failed}` : ''}${
+        b.error ? ` error=${b.error}` : ''
+      }`
   );
   return `storage: ${parts.join(' ')} calls=${r.calls}${r.truncated ? ' truncated' : ''} ok=${r.ok}`;
 }
