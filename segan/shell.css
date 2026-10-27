@@ -1,0 +1,118 @@
+/* ============================================================
+   segan/shell.css — SEGAN 앱 셸 스타일
+
+   토큰은 css/dadam-v5.css 와 같은 이름 · 같은 값이다 (시험이 값이 같은지 확인한다).
+   v5 파일을 통째로 싣지 않는 이유: 서비스 워커가 오프라인용으로 담는 것은
+   segan/ 안의 셸 파일뿐이라, 앱이 쓰는 스타일은 이 폴더 안에 있어야 한다.
+
+   v5 규칙: 라운드 없음 · 섀도 없음 · 헤어라인 보더만.
+   ============================================================ */
+
+:root {
+  --v5-ink: #2d2a26;
+  --v5-ink-60: rgba(45, 42, 38, 0.6);
+  --v5-ink-45: rgba(45, 42, 38, 0.45);
+  --v5-line: rgba(45, 42, 38, 0.1);
+  --v5-line-18: rgba(45, 42, 38, 0.18);
+  --v5-tan: #8a7457;
+  --v5-navy: #0b2545;
+  --v5-invert: #f6f3ee; /* 앱 바탕 — manifest background_color · theme_color 와 같다 */
+  --v5-sans: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html {
+  background: var(--v5-invert);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--v5-invert);
+  color: var(--v5-ink);
+  font-family: var(--v5-sans);
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+button {
+  border-radius: 0;
+  font: inherit;
+}
+
+/* ── 가운데 한 장 (준비 중 · 오프라인) ── */
+.sg-center {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right))
+    max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+  text-align: center;
+}
+
+.sg-wordmark {
+  margin: 0;
+  line-height: 0;
+}
+
+.sg-wordmark img {
+  display: block;
+  width: min(220px, 56vw);
+  height: auto;
+  margin: 0 auto;
+}
+
+.sg-rule {
+  width: 40px;
+  height: 0;
+  margin: 28px auto;
+  border: 0;
+  border-top: 1px solid var(--v5-line-18);
+}
+
+.sg-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.sg-note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--v5-ink-60);
+  letter-spacing: 0.02em;
+}
+
+.sg-btn {
+  min-height: 44px;
+  margin-top: 24px;
+  padding: 0 22px;
+  border: 1px solid var(--v5-ink);
+  background: transparent;
+  color: var(--v5-ink);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.sg-btn:hover,
+.sg-btn:focus-visible {
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}

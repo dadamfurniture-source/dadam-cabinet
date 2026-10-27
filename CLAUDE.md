@@ -79,6 +79,7 @@
 | Worker Portal | `worker.html`, `js/worker-portal.js`, `js/mypage-work.js`, `admin/work-jobs.html`, `mypage.html` 의 `#myWorkSection` 부분, `database/work-jobs*.sql` | `agent/worker-*` |
 | Site Auth | `login.html`, `signup.html` (리다이렉트·OAuth·로그인 수단) | `agent/auth-*` |
 | Module Library | `docs/01-plan/module-library.plan.md` — 모듈 정의 · 검증은 별도 저장소 `dadamfurniture-source/dadam-module-library` (비공개, 이 저장소를 `engine/` 서브모듈로 쓴다) | `agent/modlib-*` |
+| App Shell (SEGAN) | `segan/**`, `scripts/stamp-asset-version.mjs`, `scripts/asset-version.json`, `scripts/segan-icons.mjs` | `agent/app-*` |
 
 CAD 베타 파일 소유는 결정 D11 (2026-10-18 승인, `docs/01-plan/planner-cad.plan.md`).
 모듈 라이브러리 소유는 2026-10-24 사장님 계획 승인 (`docs/01-plan/module-library.plan.md`). 같은 날 사장님 지시로 별도 저장소로 옮겼다 — 라이브러리는 선택값만 담고, 플래너·BOM·CAD 규칙은 이 저장소의 각 도메인이 고친다.
