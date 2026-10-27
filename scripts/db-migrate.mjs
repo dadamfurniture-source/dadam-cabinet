@@ -59,11 +59,14 @@ export function checksum(text) {
 }
 
 /**
- * 폴더의 파일 이름들 → { migrations: 번호 순, problems: 문제 설명 }
+ * 폴더의 파일 이름들 → { migrations: 번호 순, problems: 문제 설명, gaps: 빈 번호 }
  * .sql 이 아닌 파일(README.md 등)은 건너뛴다.
+ * 빈 번호는 문제가 아니다 — 앞 번호를 잡은 PR 이 아직 머지되지 않았을 수 있다.
+ * 대신 --apply 는 빈 번호보다 뒤 번호를 적용하지 않는다 (cmdRun).
  */
 export function checkMigrationNames(fileNames) {
   const problems = [];
+  const gaps = [];
   const migrations = [];
   for (const f of fileNames) {
     if (!f.toLowerCase().endsWith('.sql')) continue;
@@ -76,14 +79,16 @@ export function checkMigrationNames(fileNames) {
     const prev = migrations[i - 1];
     const cur = migrations[i];
     if (cur.version === prev.version) problems.push(`번호가 겹친다: ${prev.file} · ${cur.file}`);
-    else if (Number(cur.version) !== Number(prev.version) + 1) {
-      problems.push(`번호가 비었다: ${prev.file} 다음이 ${cur.file}`);
+    else {
+      for (let n = Number(prev.version) + 1; n < Number(cur.version); n++) {
+        gaps.push(String(n).padStart(4, '0'));
+      }
     }
   }
   if (!migrations.length || migrations[0].file !== BASELINE.file) {
     problems.push(`${BASELINE.file} 이 맨 앞에 있어야 한다`);
   }
-  return { migrations, problems };
+  return { migrations, problems, gaps };
 }
 
 /**
@@ -278,15 +283,15 @@ export function forbiddenStatements(sql) {
   return out;
 }
 
-/** 폴더를 읽어 마이그레이션 목록(체크섬 포함)과 이름 문제를 돌려준다 */
+/** 폴더를 읽어 마이그레이션 목록(체크섬 포함) · 이름 문제 · 빈 번호를 돌려준다 */
 export function loadMigrations(dir = MIGRATIONS_DIR) {
   const names = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
-  const { migrations, problems } = checkMigrationNames(names);
+  const { migrations, problems, gaps } = checkMigrationNames(names);
   for (const m of migrations) {
     m.path = path.join(dir, m.file);
     m.checksum = checksum(fs.readFileSync(m.path, 'utf8'));
   }
-  return { migrations, problems };
+  return { migrations, problems, gaps };
 }
 
 // ── DB 쪽 ───────────────────────────────────────────────────
@@ -377,7 +382,7 @@ function resolveTarget(arg, migrations) {
 }
 
 async function cmdStatus() {
-  const { migrations, problems } = loadMigrations();
+  const { migrations, problems, gaps } = loadMigrations();
   const client = await connect();
   let applied;
   try {
@@ -403,12 +408,14 @@ async function cmdStatus() {
     `\n대기 ${plan.pending.length} · 바뀜 ${plan.changed.length} · 파일 없음 ${plan.missing.length}` +
       (plan.next ? ` · 다음: ${plan.next.file}` : '')
   );
+  for (const g of gaps)
+    console.log(`알림: ${g} 번 파일이 아직 없다 — 그 뒤 번호는 --apply 하지 않는다`);
   for (const b of blockers) console.log(`문제: ${b}`);
   return blockers.length ? 1 : 0;
 }
 
 async function cmdRun(arg, { apply }) {
-  const { migrations, problems } = loadMigrations();
+  const { migrations, problems, gaps } = loadMigrations();
   const target = resolveTarget(arg, migrations);
   if (target.version === BASELINE.version) {
     throw new Error('기준선(0000)은 돌리지 않는다 — --baseline-mark 로 기록만 한다');
@@ -434,6 +441,11 @@ async function cmdRun(arg, { apply }) {
     if (plan.pending.some((r) => r.version === BASELINE.version)) {
       const msg = `기준선 ${BASELINE.file} 이 아직 기록되지 않았다 (--baseline-mark)`;
       if (apply) blockers.push(msg);
+      else console.log(`알림: ${msg}`);
+    }
+    for (const g of gaps.filter((v) => v < target.version)) {
+      const msg = `${g} 번 파일이 아직 없다 (앞 번호 PR 이 머지되지 않았다)`;
+      if (apply) blockers.push(`${msg} — 그 뒤 번호는 적용하지 않는다`);
       else console.log(`알림: ${msg}`);
     }
     const next = plan.pending.find((r) => r.version !== BASELINE.version);
