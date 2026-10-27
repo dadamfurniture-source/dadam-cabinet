@@ -165,6 +165,31 @@ describe('설치 — 앱 셸만 담는다', () => {
       expect(urls).toContain(new URL(m[1], `${ORIGIN}/segan/`).href);
     }
   });
+
+  test('*.html 이 리다이렉트돼도(확장자 없는 주소로) 페이지 이동에 쓸 수 있는 응답으로 담는다', async () => {
+    const sw = boot({
+      network: async (req) => {
+        const res = htmlRes(`net:${new URL(req.url).pathname}`);
+        if (req.url.endsWith('.html')) Object.defineProperty(res, 'redirected', { value: true });
+        return res;
+      },
+    });
+    await sw.lifecycle('install');
+    const stored = sw.stores.get(CACHE).get(`${ORIGIN}/segan/offline.html`);
+    expect(stored.redirected).toBe(false);
+    expect(stored.status).toBe(200);
+    expect(stored.headers.get('Content-Type')).toBe('text/html');
+    expect(await stored.clone().text()).toBe('net:/segan/offline.html');
+  });
+
+  test('셸 파일 하나라도 못 받으면 설치가 실패한다 (반쪽 캐시로 켜지지 않게)', async () => {
+    const sw = boot({
+      network: async (req) =>
+        req.url.endsWith('offline.html') ? htmlRes('x', { status: 404 }) : htmlRes('ok'),
+    });
+    await expect(sw.lifecycle('install')).rejects.toThrow(/offline\.html: 404/);
+    expect(sw.self.skipWaiting).not.toHaveBeenCalled();
+  });
 });
 
 describe('손대지 않는 요청 (respondWith 를 부르지 않는다 → 브라우저가 그대로 보낸다)', () => {
