@@ -35,11 +35,16 @@ const P = loadEsm('workers/account-api/src/storage-purge.js', [
   'USER_FOLDER_BUCKETS',
   'MAX_STORAGE_CALLS',
   'UUID_RE',
+  'DESIGN_FOLDERS',
+  'makePurgeContext',
+  'purgeDesignFiles',
   'purgeUserFiles',
   'purgeSummary',
 ]);
 const Wd = loadEsm('workers/account-api/src/withdrawal.js', ['prepareWithdrawal', 'withdrawalDetail', 'withdrawalSummary'], {
   UUID_RE: P.UUID_RE,
+  makePurgeContext: P.makePurgeContext,
+  purgeDesignFiles: P.purgeDesignFiles,
   purgeSummary: P.purgeSummary,
   purgeUserFiles: P.purgeUserFiles,
 });
@@ -67,10 +72,15 @@ function jsonRes(body, status = 200) {
  * Supabase 흉내 — Storage 버킷(경로 목록) · list · delete · collection_posts · auth · admin_logs · is_admin.
  *   failDelete / failList: Storage 가 500 인 버킷   failPosts: { read?: true, del?: true } collection_posts 가 500
  */
-function fakeSupabase(files, posts, { failDelete = [], failList = [], failPosts = {}, admin = false } = {}) {
+function fakeSupabase(
+  files,
+  posts,
+  { failDelete = [], failList = [], failPosts = {}, admin = false, designs = DESIGNS(), failDesigns = {} } = {}
+) {
   const store = {};
   for (const [bucket, paths] of Object.entries(files)) store[bucket] = new Set(paths);
   const rows = posts.map((p) => ({ ...p }));
+  const designRows = designs.map((d) => ({ ...d }));
   const calls = [];
   const fetchImpl = async (url, init = {}) => {
     const u = decodeURIComponent(String(url));
@@ -113,6 +123,22 @@ function fakeSupabase(files, posts, { failDelete = [], failList = [], failPosts 
       if (method === 'DELETE') for (const r of hit) rows.splice(rows.indexOf(r), 1);
       return jsonRes(hit.map((r) => ({ id: r.id, storage_path: r.storage_path })));
     }
+    // 설계 — 계약 기록 판정(RPC)과 지우기
+    if (u.endsWith('/rest/v1/rpc/withdrawal_designs')) {
+      const { p_user_id } = JSON.parse(init.body);
+      calls.push({ kind: 'designs_split', auth });
+      if (failDesigns.rpc) return jsonRes({ message: 'function does not exist' }, 404);
+      return jsonRes(designRows.filter((d) => d.user_id === p_user_id).map((d) => ({ design_id: d.id, contract: d.contract })));
+    }
+    m = u.match(/\/rest\/v1\/designs\?id=in\.\(([^)]*)\)&user_id=eq\.([0-9a-f-]+)&select=id$/);
+    if (m && method === 'DELETE') {
+      const ids = m[1].split(',');
+      calls.push({ kind: 'designs_delete', ids, auth });
+      if (failDesigns.del) return jsonRes({ message: 'boom' }, 500);
+      const hit = designRows.filter((d) => ids.includes(d.id) && d.user_id === m[2]);
+      for (const d of hit) designRows.splice(designRows.indexOf(d), 1);
+      return jsonRes(hit.map((d) => ({ id: d.id })));
+    }
     if (u.endsWith('/auth/v1/user')) {
       calls.push({ kind: 'whoami' });
       return jsonRes(auth === 'Bearer admin-token' ? { id: ADMIN, email: 'admin@dadam.test' } : { id: UID, email: 'customer@example.com' });
@@ -132,14 +158,25 @@ function fakeSupabase(files, posts, { failDelete = [], failList = [], failPosts 
     }
     throw new Error(`unexpected ${method} ${u}`);
   };
-  return { store, rows, calls, fetchImpl };
+  return { store, rows, designRows, calls, fetchImpl };
 }
+
+// 설계: D_KEEP 은 계약 기록(확인서 · 수주)이 있다 — 남긴다. D_DROP 은 없다 — 지운다. D_OTHER 는 다른 회원 것
+const D_KEEP = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const D_DROP = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const D_OTHER = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+const DESIGNS = () => [
+  { id: D_KEEP, user_id: UID, contract: true },
+  { id: D_DROP, user_id: UID, contract: false },
+  { id: D_OTHER, user_id: OTHER, contract: false },
+];
 
 const FILES = () => ({
   generations: [`${UID}/g1/room.jpg`, `${UID}/g1/base.png`, `${UID}/g1/v1.jpg`, `${UID}/g2/room.jpg`, `${UID}/g2/guide.png`, `${OTHER}/g9/room.jpg`],
   'design-images': [`${UID}/site_photo/1.jpg`, `${UID}/ai_generated/2.png`, `${OTHER}/site_photo/3.jpg`],
   collection: [`${UID}/gen-g1.png`, `${UID}/gen-g2.jpg`, `${UID}/1700000000-a.jpg`, `${OTHER}/x.jpg`],
-  renders: [`d1/1/front.png`],
+  renders: [`${D_KEEP}/1/front.png`, `${D_DROP}/1/front.png`, `${D_DROP}/2/iso.png`, `${D_OTHER}/1/front.png`],
+  cad: [`${D_KEEP}/s1/body-a.glb`, `${D_DROP}/s1/body-b.glb`, `exterior/${D_DROP}/s1/ext-c.glb`, `exterior/${D_KEEP}/s1/ext-d.glb`],
   'furniture-images': [`${UID}/not-a-user-folder.jpg`],
 });
 // gen-g1 은 공개 AI 연출컷(남긴다). gen-g2 는 고객이 이미 내린 것(행 없음 → 지운다). 1700000000-a 는 직접 올린 사진
@@ -180,7 +217,8 @@ describe('purgeUserFiles', () => {
       collection: { found: 3, deleted: 3, kept: 0, failed: 0 },
     });
     expect([...sb.store.generations]).toEqual([`${OTHER}/g9/room.jpg`]);
-    expect([...sb.store.renders]).toHaveLength(1);
+    expect([...sb.store.renders]).toHaveLength(FILES().renders.length); // 설계 폴더는 회원 정리가 건드리지 않는다
+    expect([...sb.store.cad]).toHaveLength(FILES().cad.length);
     expect([...sb.store['furniture-images']]).toHaveLength(1);
     expect(sb.calls.every((c) => c.auth === 'Bearer service')).toBe(true);
     expect(sb.calls.filter((c) => c.kind === 'delete').flatMap((c) => c.paths).every((p) => p.startsWith(`${UID}/`))).toBe(true);
@@ -325,17 +363,23 @@ describe('/delete — 본인 탈퇴', () => {
       self_service: true,
       complete: true,
       posts: { upload_deleted: 1, ai_render_kept: 1 },
+      designs: { deleted: 1, kept: 1, failed: 0 },
       files: {
         generations: { deleted: 5, failed: 0 },
         'design-images': { deleted: 2, failed: 0 },
         collection: { deleted: 2, failed: 0, kept: 1 },
+        renders: { deleted: 2, failed: 0 },
+        cad: { deleted: 2, failed: 0 },
       },
     });
     const text = JSON.stringify(row) + logs.join('\n');
     expect(text).not.toContain('customer@example.com');
-    expect(text).not.toMatch(/\.jpg|\.png|site_photo|gen-g/);
+    expect(text).not.toMatch(/\.jpg|\.png|\.glb|site_photo|gen-g/);
+    expect(text).not.toContain(D_DROP);
     expect(logs.join('\n')).not.toContain(UID);
-    expect(logs.join('\n')).toMatch(/posts: upload_deleted=1 ai_render_kept=1 .*collection=2\/3 kept=1 .*complete=true/);
+    expect(logs.join('\n')).toMatch(
+      /posts: upload_deleted=1 ai_render_kept=1 designs: deleted=1 kept=1 .*collection=2\/3 kept=1 .*renders=2\/2 cad=2\/2 .*complete=true/
+    );
   });
 
   test('일부를 못 지워도 탈퇴는 한다 — 기록에 complete:false', async () => {
@@ -396,6 +440,149 @@ describe('/admin/delete — 관리자 강제 탈퇴', () => {
       expect((await W.fetch(post('/admin/delete', 'admin-token', { user_id: bad }), ENV)).status).toBe(400);
     }
     expect(sb.calls.filter((c) => ['list', 'delete', 'posts_read', 'posts_delete', 'auth_delete'].includes(c.kind))).toHaveLength(0);
+  });
+});
+
+describe('purgeDesignFiles — renders · cad', () => {
+  test('준 설계의 폴더만 — renders {id}/ · cad {id}/ · cad exterior/{id}/', async () => {
+    const sb = fakeSupabase(FILES(), []);
+    global.fetch = sb.fetchImpl;
+    const r = await P.purgeDesignFiles(ENV, [D_DROP]);
+    expect(r.ok).toBe(true);
+    expect(r.buckets).toEqual({
+      renders: { found: 2, deleted: 2, kept: 0, failed: 0 },
+      cad: { found: 2, deleted: 2, kept: 0, failed: 0 },
+    });
+    expect([...sb.store.renders].sort()).toEqual([`${D_KEEP}/1/front.png`, `${D_OTHER}/1/front.png`].sort());
+    expect([...sb.store.cad].sort()).toEqual([`${D_KEEP}/s1/body-a.glb`, `exterior/${D_KEEP}/s1/ext-d.glb`].sort());
+    expect(sb.calls.filter((c) => c.kind === 'list').map((c) => `${c.bucket}:${c.prefix.split('/').slice(0, 2).join('/')}`)).toEqual(
+      expect.arrayContaining([`renders:${D_DROP}/1`, `cad:${D_DROP}/s1`, `cad:exterior/${D_DROP}`])
+    );
+    expect(P.DESIGN_FOLDERS.cad(D_DROP)).toEqual([D_DROP, `exterior/${D_DROP}`]);
+  });
+
+  test('설계 id 가 하나라도 UUID 가 아니면 아무것도 하지 않는다 · 빈 목록이면 지울 것이 없다', async () => {
+    global.fetch = async () => {
+      throw new Error('fetch 하면 안 된다');
+    };
+    for (const ids of [[D_DROP, ''], ['exterior'], [D_DROP, '../x'], null]) {
+      expect(await P.purgeDesignFiles(ENV, ids)).toMatchObject({ ok: false, error: 'bad_design_id' });
+    }
+    expect(await P.purgeDesignFiles(ENV, [])).toMatchObject({ ok: true, buckets: { renders: { found: 0 }, cad: { found: 0 } } });
+  });
+
+  test('요청 상한은 회원 정리와 나눠 쓴다 (같은 묶음)', async () => {
+    const sb = fakeSupabase(FILES(), []);
+    global.fetch = sb.fetchImpl;
+    const ctx = P.makePurgeContext({ maxCalls: 3 });
+    await P.purgeUserFiles(ENV, UID, { ctx, buckets: ['collection'] });
+    const r = await P.purgeDesignFiles(ENV, [D_DROP], { ctx });
+    expect(r.truncated).toBe(true);
+    expect(ctx.calls).toBe(3);
+  });
+});
+
+describe('prepareWithdrawal — 설계', () => {
+  test('계약 기록이 없는 설계만 지우고(이 회원 것만) 그 renders · cad 파일을 지운다 — 계약 설계와 그 파일은 남긴다', async () => {
+    const sb = fakeSupabase(FILES(), POSTS());
+    global.fetch = sb.fetchImpl;
+    const w = await Wd.prepareWithdrawal(ENV, UID);
+    expect(w.complete).toBe(true);
+    expect(w.designs).toEqual({ deleted: 1, kept: 1, failed: 0 });
+    expect(sb.designRows.map((d) => d.id).sort()).toEqual([D_KEEP, D_OTHER].sort());
+    const del = sb.calls.find((c) => c.kind === 'designs_delete');
+    expect(del.ids).toEqual([D_DROP]);
+    expect(del.auth).toBe('Bearer service');
+    expect(sb.store.renders.has(`${D_KEEP}/1/front.png`)).toBe(true);
+    expect(sb.store.cad.has(`exterior/${D_KEEP}/s1/ext-d.glb`)).toBe(true);
+    expect([...sb.store.renders].some((p) => p.startsWith(D_DROP))).toBe(false);
+    expect([...sb.store.cad].some((p) => p.includes(D_DROP))).toBe(false);
+    // 순서: 설계 판정 → 설계 행 → (파일)
+    const kinds = sb.calls.map((c) => c.kind);
+    expect(kinds.findIndex((k) => k === 'designs_split')).toBeLessThan(kinds.findIndex((k) => k === 'designs_delete'));
+    const firstDesignList = sb.calls.findIndex((c) => c.kind === 'list' && (c.bucket === 'renders' || c.bucket === 'cad'));
+    expect(kinds.findIndex((k) => k === 'designs_delete')).toBeLessThan(firstDesignList);
+  });
+
+  test('계약 판정을 못 하면 어느 설계도 지우지 않고 renders · cad 도 건드리지 않는다', async () => {
+    const sb = fakeSupabase(FILES(), POSTS(), { failDesigns: { rpc: true } });
+    global.fetch = sb.fetchImpl;
+    const w = await Wd.prepareWithdrawal(ENV, UID);
+    expect(w.complete).toBe(false);
+    expect(w.errors).toContain('designs_read');
+    expect(sb.calls.some((c) => c.kind === 'designs_delete')).toBe(false);
+    expect(sb.designRows).toHaveLength(3);
+    expect(sb.store.renders.size).toBe(FILES().renders.length);
+    expect(sb.store.cad.size).toBe(FILES().cad.length);
+    // 회원 폴더 정리는 그대로 한다
+    expect(sb.store.generations.size).toBe(1);
+  });
+
+  test('설계 행을 못 지우면 그 설계의 파일도 남긴다 (행과 파일이 함께 남는다)', async () => {
+    const sb = fakeSupabase(FILES(), POSTS(), { failDesigns: { del: true } });
+    global.fetch = sb.fetchImpl;
+    const w = await Wd.prepareWithdrawal(ENV, UID);
+    expect(w.errors).toContain('designs_delete');
+    expect(w.designs).toEqual({ deleted: 0, kept: 1, failed: 1 });
+    expect(sb.store.renders.size).toBe(FILES().renders.length);
+    expect(sb.store.cad.size).toBe(FILES().cad.length);
+  });
+});
+
+describe('database/withdrawal-contract-records.sql', () => {
+  const sql = read('database/withdrawal-contract-records.sql')
+    .split('\n')
+    .filter((l) => !l.trim().startsWith('--'))
+    .join('\n');
+
+  test('트랜잭션 · designs.user_id · credit_ledger.user_id 를 SET NULL 로 (기존 FK 는 이름과 상관없이 지운다)', () => {
+    expect(sql.trim().startsWith('BEGIN;')).toBe(true);
+    expect(sql.trim().endsWith('COMMIT;')).toBe(true);
+    for (const [t, ref] of [
+      ['designs', 'auth\\.users\\(id\\)'],
+      ['credit_ledger', 'auth\\.users\\(id\\)'],
+    ]) {
+      expect(sql).toMatch(
+        new RegExp(
+          `SELECT pg_temp\\.drop_fks_on\\('public\\.${t}', 'user_id'\\);\\s+ALTER TABLE public\\.${t} ALTER COLUMN user_id DROP NOT NULL;\\s+ALTER TABLE public\\.${t}\\s+ADD CONSTRAINT ${t}_user_id_fkey\\s+FOREIGN KEY \\(user_id\\) REFERENCES ${ref} ON DELETE SET NULL;`
+        )
+      );
+    }
+    // 수주 · 문서 FK(RESTRICT)는 건드리지 않는다 — 계약 설계는 지우지 않으므로 닿지 않는다
+    expect(sql).not.toMatch(/ALTER TABLE (public\.)?orders/);
+    expect(sql).not.toMatch(/ALTER TABLE (public\.)?design_documents/);
+  });
+
+  test('계약 판정 함수 — 확인서 또는 수주, 이 회원의 설계만, service_role 만 실행', () => {
+    expect(sql).toMatch(
+      /CREATE OR REPLACE FUNCTION public\.withdrawal_designs\(p_user_id UUID\)\s+RETURNS TABLE \(design_id UUID, contract BOOLEAN\)/
+    );
+    const fn = sql.slice(sql.search(/CREATE OR REPLACE FUNCTION public\.withdrawal_designs/), sql.search(/REVOKE ALL ON FUNCTION/));
+    expect(fn).toMatch(/EXISTS \(SELECT 1 FROM public\.design_documents x WHERE x\.design_id = d\.id\)\s+OR EXISTS \(SELECT 1 FROM public\.orders o WHERE o\.design_id = d\.id\)/);
+    expect(fn).toMatch(/WHERE d\.user_id = p_user_id/);
+    expect(fn).not.toMatch(/SECURITY DEFINER/);
+    expect(sql).toContain('REVOKE ALL ON FUNCTION public.withdrawal_designs(UUID) FROM PUBLIC;');
+    expect(sql).toContain('REVOKE ALL ON FUNCTION public.withdrawal_designs(UUID) FROM anon, authenticated;');
+    expect(sql).toContain('GRANT EXECUTE ON FUNCTION public.withdrawal_designs(UUID) TO service_role;');
+  });
+
+  test('저장소의 회원 정책은 떨어진 행(user_id NULL)을 열지 않는다 — = auth.uid() 비교뿐, IS NULL · true 로 여는 정책 없음', () => {
+    const files = fs.readdirSync(path.join(__dirname, '..', 'database')).filter((f) => f.endsWith('.sql'));
+    const tables = ['designs', 'design_items', 'design_documents', 'design_snapshots', 'design_schedules', 'design_site_info', 'design_renders', 'planner_snapshots', 'design_cad_artifacts', 'orders', 'order_payments', 'order_costs', 'credit_ledger'];
+    const found = [];
+    for (const f of files) {
+      const src = read(`database/${f}`);
+      const re = /CREATE POLICY\s+"?([^"\n]+?)"?\s+ON\s+(?:public\.)?(\w+)([\s\S]*?);/gi;
+      let m;
+      while ((m = re.exec(src))) {
+        if (!tables.includes(m[2])) continue;
+        found.push(`${f}:${m[2]}:${m[1]}`);
+        const body = m[3].replace(/--[^\n]*/g, '');
+        expect(`${f} ${m[1]}: ${/user_id\s+IS\s+NULL/i.test(body)}`).toBe(`${f} ${m[1]}: false`);
+        expect(`${f} ${m[1]}: ${/USING\s*\(\s*true\s*\)/i.test(body)}`).toBe(`${f} ${m[1]}: false`);
+      }
+    }
+    expect(found.length).toBeGreaterThan(20);
   });
 });
 
@@ -485,7 +672,7 @@ describe('mypage.html 탈퇴 안내', () => {
   test('남는 것 — 공개 AI 연출컷 · 결제 기록', () => {
     expect(items(/<ul class="withdraw-list" id="withdrawKeep">/)).toEqual([
       '시공사례에 공개된 AI 연출컷은 작성자 정보 없이 남습니다. 남기지 않으려면 탈퇴 전에 「내 연출컷」에서 내려 주세요.',
-      '결제 기록은 법에 따라 5년 동안 보관합니다.',
+      '계약(고객 확인서 · 수주)과 결제 기록은 법에 따라 5년 동안 보관합니다.',
     ]);
   });
 });

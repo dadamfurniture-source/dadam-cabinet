@@ -68,10 +68,11 @@ async function writeAdminLog(env, row) {
  *
  * 계정을 지우기 **전에** withdrawal.js 가 정리한다 (2026-10-27):
  *   지운다 — Storage 회원 폴더(generations · design-images 전부, collection 은 공개 AI 연출컷 복사본 빼고),
- *            직접 올린 시공사례 행(source 'upload')
- *   남긴다 — 시공사례에 공개된 AI 연출컷(source 'ai_render') 과 결제 · 구독 기록. auth 사용자를 지울 때 FK 가
- *            회원과 떼어 놓는다 (database/withdrawal-retention.sql — 이 파일이 적용돼 있어야 한다)
- * 나머지(프로필 · 설계 등)는 auth.users 를 지울 때 FK CASCADE 로 지워진다.
+ *            직접 올린 시공사례 행(source 'upload'), 계약 기록이 없는 설계 행과 그 renders · cad 파일
+ *   남긴다 — 시공사례에 공개된 AI 연출컷(source 'ai_render'), 결제 · 구독 기록, 계약 기록이 있는 설계
+ *            (고객 확인서 · 수주가 딸린 설계)와 크레딧 원장. auth 사용자를 지울 때 FK 가 회원과 떼어 놓는다
+ *            (database/withdrawal-retention.sql · withdrawal-contract-records.sql — 적용돼 있어야 한다)
+ * 나머지(프로필 등)는 auth.users 를 지울 때 FK CASCADE 로 지워진다.
  * 일부를 못 지워도 탈퇴는 그대로 하고 그 사실을 수로만 기록한다 (경로 · 개인 정보 없음).
  * 계정이 남아 있는 동안이어야 같은 요청을 다시 보낼 수 있으므로 정리를 먼저 한다.
  */

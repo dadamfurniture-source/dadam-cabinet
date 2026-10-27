@@ -8,7 +8,11 @@
  *   generations     '{user_id}/{generation_id}/{file}'      AI 연출컷 입력·결과·중간 산출물 전부 (workers/generate-api)
  *   design-images   '{user_id}/{type}/{file}'               설계 사진 (js/supabase-utils.js 등)
  *   collection      '{user_id}/{file}'                      직접 올린 시공사례 사진 · 연출컷 자동 게시 복사본
- *   (renders · cad 는 첫 폴더가 설계 id 라 여기서 다루지 않는다. 카탈로그 버킷은 회원 것이 아니다.)
+ *   카탈로그 버킷은 회원 것이 아니다.
+ * 설계 폴더를 쓰는 버킷 — 첫 폴더가 설계 id 인 것 (purgeDesignFiles, 2026-10-27):
+ *   renders         '{design_id}/{item_unique_id}/{file}'   플래너 렌더 스냅샷
+ *   cad             '{design_id}/{snapshot_id}/{file}' · 'exterior/{design_id}/{snapshot_id}/{file}'
+ *   계약 기록으로 남기는 설계의 폴더는 부르는 쪽이 넘기지 않는다 (withdrawal.js).
  *
  * 남길 파일은 부르는 쪽이 opts.keep[bucket] 으로 준다 — 시공사례에 공개된 AI 연출컷 복사본(withdrawal.js).
  *
@@ -73,10 +77,10 @@ async function listFolder(env, bucket, folder, ctx) {
   return { files, folders };
 }
 
-/** 회원 폴더 아래 파일 경로 전부 */
-async function listUserFiles(env, bucket, userId, ctx) {
+/** 한 폴더 아래(하위 폴더 포함) 파일 경로 전부 */
+async function listTree(env, bucket, root, ctx) {
   const out = [];
-  let level = [userId];
+  let level = [root];
   for (let depth = 0; depth < MAX_DEPTH && level.length; depth++) {
     const next = [];
     for (const folder of level) {
@@ -133,13 +137,7 @@ export async function purgeUserFiles(env, userId, opts = {}) {
   const buckets = opts.buckets || USER_FOLDER_BUCKETS;
   const keepOf = opts.keep || {};
   const skipOf = opts.skip || {};
-  const ctx = {
-    calls: 0,
-    truncated: false,
-    maxCalls: opts.maxCalls || MAX_STORAGE_CALLS,
-    pageSize: opts.pageSize || LIST_PAGE,
-    deleteChunk: opts.deleteChunk || DELETE_CHUNK,
-  };
+  const ctx = opts.ctx || makePurgeContext(opts);
   const result = { ok: false, truncated: false, calls: 0, buckets: {} };
   if (typeof userId !== 'string' || !UUID_RE.test(userId)) {
     result.error = 'bad_user_id';
@@ -149,6 +147,7 @@ export async function purgeUserFiles(env, userId, opts = {}) {
     result.error = 'no_service_key';
     return result;
   }
+  const startCalls = ctx.calls;
   let ok = true;
   for (const bucket of buckets) {
     const b = { found: 0, deleted: 0, kept: 0, failed: 0 };
@@ -160,7 +159,7 @@ export async function purgeUserFiles(env, userId, opts = {}) {
     }
     try {
       const keep = keepOf[bucket] || new Set();
-      const paths = (await listUserFiles(env, bucket, userId, ctx)).filter((p) => p.startsWith(`${userId}/`));
+      const paths = (await listTree(env, bucket, userId, ctx)).filter((p) => p.startsWith(`${userId}/`));
       b.found = paths.length;
       const doomed = paths.filter((p) => !keep.has(p));
       b.kept = paths.length - doomed.length;
@@ -181,7 +180,79 @@ export async function purgeUserFiles(env, userId, opts = {}) {
   }
   result.truncated = ctx.truncated;
   result.ok = ok && !ctx.truncated;
-  result.calls = ctx.calls;
+  result.calls = ctx.calls - startCalls;
+  return result;
+}
+
+/**
+ * 요청 수 상한 · 쪽 크기를 담는 묶음. 여러 정리(회원 폴더 · 설계 폴더)가 같은 묶음을 나눠 쓰면
+ * 상한이 합계에 걸린다 — 워커 한 요청의 하위 요청 한도는 합계라서.
+ */
+export function makePurgeContext(opts = {}) {
+  return {
+    calls: 0,
+    truncated: false,
+    maxCalls: opts.maxCalls || MAX_STORAGE_CALLS,
+    pageSize: opts.pageSize || LIST_PAGE,
+    deleteChunk: opts.deleteChunk || DELETE_CHUNK,
+  };
+}
+
+/** 설계 폴더를 쓰는 버킷과 그 설계의 폴더들 */
+export const DESIGN_FOLDERS = Object.freeze({
+  renders: (id) => [id],
+  cad: (id) => [id, `exterior/${id}`],
+});
+
+/**
+ * 설계들의 Storage 파일을 지운다 (renders · cad). 던지지 않는다.
+ * 설계 id 는 전부 UUID 여야 한다 — 하나라도 아니면 아무것도 하지 않는다. 지우는 경로는 그 설계 폴더 아래뿐이다.
+ * @param {string[]} designIds  지울 설계 (계약 기록으로 남기는 설계는 넣지 않는다)
+ * @returns 같은 모양의 결과 (purgeUserFiles)
+ */
+export async function purgeDesignFiles(env, designIds, opts = {}) {
+  const ctx = opts.ctx || makePurgeContext(opts);
+  const result = { ok: false, truncated: false, calls: 0, buckets: {} };
+  const ids = [...new Set(Array.isArray(designIds) ? designIds : [])];
+  if (!Array.isArray(designIds) || ids.some((id) => typeof id !== 'string' || !UUID_RE.test(id))) {
+    result.error = 'bad_design_id';
+    return result;
+  }
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) {
+    result.error = 'no_service_key';
+    return result;
+  }
+  const startCalls = ctx.calls;
+  let ok = true;
+  for (const [bucket, foldersOf] of Object.entries(DESIGN_FOLDERS)) {
+    const b = { found: 0, deleted: 0, kept: 0, failed: 0 };
+    result.buckets[bucket] = b;
+    try {
+      const paths = [];
+      for (const id of ids) {
+        for (const folder of foldersOf(id)) {
+          const found = await listTree(env, bucket, folder, ctx);
+          paths.push(...found.filter((p) => p.startsWith(`${folder}/`)));
+        }
+      }
+      b.found = paths.length;
+      const r = await removeFiles(env, bucket, paths, ctx);
+      b.deleted = r.deleted;
+      b.failed = r.failed;
+      if (r.failed) ok = false;
+    } catch (e) {
+      ok = false;
+      if (e instanceof BudgetError) ctx.truncated = true;
+      else b.error = String((e && e.message) || e).slice(0, 60);
+    }
+    if (ctx.truncated) {
+      b.error = 'budget';
+      break;
+    }
+  }
+  result.truncated = ctx.truncated;
+  result.ok = ok && !ctx.truncated;
+  result.calls = ctx.calls - startCalls;
   return result;
 }
 
