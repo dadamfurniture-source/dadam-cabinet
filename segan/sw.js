@@ -31,12 +31,14 @@ const SHELL = [
   SCOPE + 'collection.html', // 시공사례
   SCOPE + 'renders.html', // 내 연출컷
   SCOPE + 'me.html', // 내 정보
+  SCOPE + 'consult.html', // 만들기 ④ 상담 신청
   OFFLINE,
   SCOPE + 'manifest.webmanifest',
   versioned(SCOPE + 'shell.css'),
   versioned(SCOPE + 'shell.js'),
   versioned(SCOPE + 'make.css'),
   versioned(SCOPE + 'make.js'),
+  versioned(SCOPE + 'consult.js'),
   versioned(SCOPE + 'icons/icon.svg'),
   versioned(SCOPE + 'icons/wordmark.svg'),
   versioned(SCOPE + 'icons/favicon-32.png'),
