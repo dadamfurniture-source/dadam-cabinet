@@ -15,6 +15,8 @@
     <link rel="stylesheet" href="css/dadam-v5.css" />
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <!-- 카드 바꾸기(결제 실패 재시도 중) — pricing.html 과 같은 토스 결제창 v1 -->
+    <script src="https://js.tosspayments.com/v1/payment"></script>
     <style>
       .bl-main {
         background: var(--v5-work);
@@ -103,6 +105,7 @@
         line-height: 1.8;
         color: var(--v5-ink-62);
         margin-bottom: 18px;
+        white-space: pre-line;
       }
       .bl-status.err {
         color: #c0392b;
@@ -189,9 +192,46 @@
         var STATUS_KO = {
           active: '이용 중',
           cancelled: '해지 예약됨',
-          past_due: '결제 실패',
+          past_due: '결제 실패 · 재시도 중',
           expired: '종료됨',
         };
+
+        // 해지된 구독은 등급을 내린 뒤 ended_at 이 찍힌다 — 그 전이면 「해지 예약됨」, 뒤면 「종료됨」.
+        function statusLabel(sub) {
+          if (sub.status === 'cancelled' && sub.ended_at) return '종료됨';
+          return STATUS_KO[sub.status] || sub.status;
+        }
+
+        // 결제 실패·해지 안내. 지금은 고객에게 따로 알림(메일·문자)을 보내지 않으므로
+        // 이 화면이 알리는 곳이다. 문구는 payments-api 의 규칙(src/lifecycle.js)과 같아야 한다:
+        //   재시도 = 첫 실패 1일 뒤 · 3일 뒤, 마지막도 실패하면 해지 + Standard (결제로 받은 등급만)
+        function notice(sub, tier) {
+          if (sub.status === 'past_due') {
+            return {
+              kind: 'err',
+              text:
+                '정기 결제에 실패했습니다. ' +
+                day(sub.next_charge_at) +
+                '에 다시 결제를 시도합니다. 카드 한도·잔액을 확인해 주세요.\n' +
+                '재시도는 첫 실패 후 1일·3일 뒤 두 번이며, 마지막 재시도도 실패하면 구독이 해지되고 등급이 Standard 로 바뀝니다.',
+            };
+          }
+          if (sub.status === 'cancelled' && sub.cancel_reason === 'payment_failed') {
+            return {
+              kind: 'err',
+              text:
+                '정기 결제가 계속 실패해 ' +
+                day(sub.cancel_at) +
+                '에 구독이 해지되었습니다.' +
+                (sub.ended_at && tier === 'standard' ? ' 등급이 Standard 로 바뀌었습니다.' : '') +
+                ' 다시 구독하시려면 아래 버튼을 눌러 주세요.',
+            };
+          }
+          if (sub.status === 'cancelled' && sub.cancel_reason === 'refunded') {
+            return { kind: '', text: '결제가 환불되어 ' + day(sub.cancel_at) + '에 구독이 종료되었습니다.' };
+          }
+          return null;
+        }
 
         var cost = null;
 
@@ -215,17 +255,38 @@
             return;
           }
 
-          rows += row('구독 상태', STATUS_KO[sub.status] || sub.status);
+          rows += row('구독 상태', statusLabel(sub));
           rows += row('월 결제액', won(sub.amount_krw));
           rows += row('이번 기간', day(sub.current_period_start) + ' ~ ' + day(sub.current_period_end));
           if (sub.status === 'active') {
             rows += row('다음 결제일', day(sub.next_charge_at));
+          } else if (sub.status === 'past_due') {
+            rows += row('다음 결제 시도', day(sub.next_charge_at));
+          } else if (sub.ended_at) {
+            rows += row('종료일', day(sub.ended_at));
           } else if (sub.cancel_at) {
             rows += row('이용 종료일', day(sub.cancel_at));
           }
           $('planRows').innerHTML = rows;
 
-          if (sub.status === 'active') {
+          // 방금 한 일(지금 다시 결제 · 카드 바꾸기)의 결과를 상태 안내 위에 붙인다.
+          var n = notice(sub, tier);
+          var text = [flash && flash.text, n && n.text].filter(Boolean).join('\n\n');
+          if (text) say(text, (flash && flash.kind) || (n && n.kind) || '');
+          flash = null;
+
+          if (sub.status === 'past_due') {
+            // 결제 실패로 재시도 중일 때만: 지금 다시 결제 · 카드 바꾸기.
+            // 여기서 실패해도 예정된 재시도(+1일 · +3일)는 그대로 간다 (payments-api).
+            // 해지도 할 수 있다 — 해지하면 더는 결제를 시도하지 않는다.
+            $('actions').innerHTML =
+              '<button type="button" class="bl-btn" id="retryBtn">지금 다시 결제</button>' +
+              '<button type="button" class="bl-btn bl-btn--ghost" id="cardBtn">카드 바꾸기</button>' +
+              '<button type="button" class="bl-btn bl-btn--danger" id="cancelBtn">구독 해지</button>';
+            $('retryBtn').onclick = retryNow;
+            $('cardBtn').onclick = changeCard;
+            $('cancelBtn').onclick = cancel;
+          } else if (sub.status === 'active') {
             $('actions').innerHTML =
               '<a class="bl-btn bl-btn--ghost" href="pricing.html">등급 변경</a>' +
               '<button type="button" class="bl-btn bl-btn--danger" id="cancelBtn">구독 해지</button>';
@@ -235,8 +296,121 @@
           }
         }
 
+        var currentSub = null;
+        var flash = null; // { text, kind } — 다음 그리기 때 안내 위에 붙는다
+        var pendingCard = null; // 토스 카드 등록에서 돌아온 { auth_key, customer_key }
+
+        function authHeaders() {
+          return { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token };
+        }
+
+        function setBusy(on) {
+          ['retryBtn', 'cardBtn', 'cancelBtn'].forEach(function (id) {
+            var b = $(id);
+            if (b) b.disabled = on;
+          });
+        }
+
+        // 결제 응답 → 안내 종류. 202(결과 확인 중)는 오류로 칠하지 않는다.
+        function chargeKind(res, body) {
+          var charge = body && body.data && body.data.charge;
+          if (!res.ok) return 'err';
+          if (charge && (charge.result === 'declined' || charge.result === 'merchant')) return 'err';
+          return '';
+        }
+
+        async function retryNow() {
+          setBusy(true);
+          say('결제하는 중입니다…');
+          try {
+            var res = await fetch(API + '/subscription/retry', { method: 'POST', headers: authHeaders(), body: '{}' });
+            var body = await res.json().catch(function () {
+              return {};
+            });
+            var kind = res.status === 202 ? '' : chargeKind(res, body);
+            flash = { text: body.message || (res.ok ? '결제했습니다.' : '결제하지 못했습니다.'), kind: kind };
+          } catch (e) {
+            flash = { text: '결제 요청을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.', kind: 'err' };
+          }
+          await load();
+        }
+
+        var clientKey = null;
+        async function tossClientKey() {
+          if (clientKey) return clientKey;
+          var res = await fetch(API + '/plans');
+          var body = await res.json();
+          clientKey = (body && body.data && body.data.client_key) || null;
+          return clientKey;
+        }
+
+        async function changeCard() {
+          setBusy(true);
+          say('카드 등록 창을 여는 중입니다…');
+          try {
+            var ck = await tossClientKey();
+            if (!ck || !window.TossPayments)
+              throw new Error('결제 모듈을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+            // 등록이 끝나면 토스가 successUrl 에 authKey · customerKey 를 붙여 돌려보낸다.
+            await window.TossPayments(ck).requestBillingAuth('CARD', {
+              customerKey: 'dadam-' + session.user.id,
+              successUrl: location.origin + '/billing.html?card=ok',
+              failUrl: location.origin + '/billing.html?card=fail',
+            });
+          } catch (err) {
+            setBusy(false);
+            // 고객이 창을 닫은 경우 — 오류로 소란 떨지 않는다.
+            if (err && err.code === 'USER_CANCEL') {
+              await load();
+              return;
+            }
+            say('카드 등록 창을 열지 못했습니다. ' + (err && err.message ? err.message : ''), 'err');
+          }
+        }
+
+        async function submitCard(pc) {
+          say('새 카드를 등록하는 중입니다…');
+          try {
+            var res = await fetch(API + '/subscription/card', {
+              method: 'POST',
+              headers: authHeaders(),
+              body: JSON.stringify(pc),
+            });
+            var body = await res.json().catch(function () {
+              return {};
+            });
+            flash = {
+              text: body.message || (res.ok ? '카드를 바꿨습니다.' : '카드를 바꾸지 못했습니다.'),
+              kind: chargeKind(res, body),
+            };
+          } catch (e) {
+            flash = { text: '카드 변경 요청을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.', kind: 'err' };
+          }
+        }
+
+        // 토스 카드 등록에서 돌아왔는가. 주소창에서는 바로 지운다 — 새로 고침으로 같은 authKey 를 다시 보내지 않게.
+        (function readCardReturn() {
+          var q = new URLSearchParams(location.search);
+          var card = q.get('card');
+          if (!card) return;
+          try {
+            history.replaceState(null, '', location.pathname);
+          } catch (e) {
+            /* 주소를 못 지워도 진행한다 */
+          }
+          if (card === 'ok' && q.get('authKey') && q.get('customerKey')) {
+            pendingCard = { auth_key: q.get('authKey'), customer_key: q.get('customerKey') };
+          } else if (card === 'fail' && q.get('code') !== 'USER_CANCEL') {
+            flash = { text: '카드를 바꾸지 못했습니다. ' + (q.get('message') || ''), kind: 'err' };
+          }
+        })();
+
         async function cancel() {
-          if (!confirm('구독을 해지할까요?\n\n이미 결제한 기간까지는 그대로 이용하실 수 있습니다.')) return;
+          var pastDue = currentSub && currentSub.status === 'past_due';
+          var ask = pastDue
+            ? '구독을 해지할까요?\n\n더 이상 결제를 시도하지 않습니다.'
+            : '구독을 해지할까요?\n\n이미 결제한 기간까지는 그대로 이용하실 수 있습니다.';
+          if (!confirm(ask)) return;
           var btn = $('cancelBtn');
           btn.disabled = true;
           say('해지 처리 중…');
@@ -248,7 +422,11 @@
             });
             var body = await res.json();
             if (!res.ok || !body.success) throw new Error(body.message || '해지에 실패했습니다.');
-            say('해지되었습니다. ' + day(body.data && body.data.cancel_at) + ' 까지 이용하실 수 있습니다.');
+            say(
+              body.data && body.data.past_due
+                ? '해지되었습니다. 더 이상 결제를 시도하지 않습니다.'
+                : '해지되었습니다. ' + day(body.data && body.data.cancel_at) + ' 까지 이용하실 수 있습니다.'
+            );
             load();
           } catch (e) {
             btn.disabled = false;
@@ -261,9 +439,12 @@
             $('history').innerHTML = '<p class="bl-empty">결제 내역이 없습니다.</p>';
             return;
           }
+          // 실패·환불도 같은 표에 남는다 — 결제된 것처럼 보이지 않게 상태를 붙인다.
+          var HIST_KO = { failed: '결제 실패', refunded: '환불', pending: '처리 중' };
           $('history').innerHTML = rows
             .map(function (h) {
-              return row(day(h.created_at) + ' · ' + (h.plan || ''), won(h.amount_krw));
+              var tag = HIST_KO[h.status] ? ' · ' + HIST_KO[h.status] : '';
+              return row(day(h.created_at) + ' · ' + (h.plan || '') + tag, won(h.amount_krw));
             })
             .join('');
         }
@@ -278,6 +459,12 @@
           if (!session) {
             location.href = 'login.html?redirect=' + encodeURIComponent('billing.html');
             return;
+          }
+
+          if (pendingCard) {
+            var pc = pendingCard;
+            pendingCard = null;
+            await submitCard(pc);
           }
 
           var tier = 'standard';
@@ -307,6 +494,7 @@
           } catch (e) {
             console.warn('[billing] subscription:', e.message);
           }
+          currentSub = sub;
           renderPlan(sub, tier, tierSource, credits);
 
           try {

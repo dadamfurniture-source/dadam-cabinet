@@ -3,6 +3,12 @@ main = "src/worker.js"
 compatibility_date = "2024-09-23"
 account_id = "8bd8e054dfc7bcdc577f9bb79edd3284"
 
+# 구독 수명주기(src/lifecycle.js) — 하루 한 번 KST 04:00 (UTC 19:00).
+# 정기 결제(30일) · 실패 재시도(첫 실패 1일 뒤 · 3일 뒤) · 해지 만료 강등.
+# 재시도 시각은 이 cron 이 잡힌 시각에서 잰다 — 시각을 바꾸면 다음 재시도도 같이 옮겨진다.
+[triggers]
+crons = ["0 19 * * *"]
+
 [vars]
 # 등급별 월 가격 (원, VAT 포함). 플랜 id = profiles.tier 값과 같다.
 TOSS_PRICE_EXPERT_KRW = "99000"
