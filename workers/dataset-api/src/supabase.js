@@ -69,6 +69,19 @@ export async function putObject(env, bucket, objectPath, body, contentType) {
   return `${bucket}/${objectPath}`;
 }
 
+/** 비공개 버킷에서 여러 경로를 지운다 (2026-10-28, 간편 플래너에서 지운 사진 — planner.js). */
+export async function removeObjects(env, bucket, paths) {
+  const list = [...new Set((paths || []).filter((p) => typeof p === 'string' && p))];
+  if (!list.length) return 0;
+  const res = await fetch(`${env.SUPABASE_URL}/storage/v1/object/${bucket}`, {
+    method: 'DELETE',
+    headers: headers(env),
+    body: JSON.stringify({ prefixes: list }),
+  });
+  if (!res.ok) throw new Error(`storage delete ${bucket} ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  return list.length;
+}
+
 /**
  * 한 버킷의 경로 여러 개를 한 번에 서명한다 (2026-10-26, 내보내기 — storage-urls.js).
  * @returns {Promise<Map<string,string>>} path → 절대 URL. 그 경로만 실패하면 빠진다.
