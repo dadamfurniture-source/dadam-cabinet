@@ -507,7 +507,8 @@ describe('다시 생성 — 크레딧이 다시 든다', () => {
   });
 
   test('ai-design.html 의 다시 생성과 같은 칸만 보낸다', () => {
-    const ai = read('ai-design.html').match(/await submit\(\{ (parent_id[^}]*) \}\);/)[1];
+    // ai-design.html 은 다시 생성 때 원본 값을 읽어 여러 줄로 보낸다 — 줄바꿈과 값 식은 건너뛰고 칸 이름만 본다
+    const ai = read('ai-design.html').match(/await submit\(\{\s*(parent_id[\s\S]*?)\}\);/)[1];
     expect([...ai.matchAll(/(\w+):/g)].map((m) => m[1])).toEqual([
       'parent_id',
       'design_style',
