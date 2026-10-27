@@ -9576,11 +9576,12 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       const doorRight = ((s && s.areaTypes) || [])[(meta.areaIdx || 0) + 1] === 'door';
       const X = (u) => doorRight ? (cx - w / 2 + u) : (cx + w / 2 - u);
       const seg = (a) => ({ c: (X(a[0]) + X(a[1])) / 2, w: Math.abs(a[1] - a[0]) });
-      // ① 멍가림판 / EP
+      // ① 멍가림판 / EP — 2026-10-27 사장님: 목찬넬 하부 멍장은 따내기(70) 아래까지 (BOM 멍가림판 H − 70 — 목찬넬이 멍 구간을 지난다)
       const cs = seg(lay.cover);
-      const cover = makeBox(cs.w, h, lay.coverT,
+      const coverCut = !epBlind && meta.doorTopGap > 0 ? DadamDrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : 0;
+      const cover = makeBox(cs.w, h - coverCut, lay.coverT,
         epBlind ? ((SECTION_CONFIG.ep || {}).fill || '#7a6a45') : '#8a7f6a', { roughness: 0.8 });
-      cover.position.set(cs.c, cy, frontZ + lay.coverT / 2);
+      cover.position.set(cs.c, cy - coverCut / 2, frontZ + lay.coverT / 2);
       cover.userData = { entityKind: 'blind', ep: epBlind, moduleId: meta.moduleId, areaIdx: meta.areaIdx };
       parent.add(cover);
       addEdgeOutline(cover, parent, 0x000000, 0.8);
@@ -9592,8 +9593,10 @@ window.dispatchEvent(new CustomEvent('three-ready'));
         const section = meta.blindFinish || 'filler';
         const fcfg = SECTION_CONFIG[section] || {};
         const gap = section !== 'molding' && meta.doorTopGap > 0 ? meta.doorTopGap : 0;
-        const fin = makeBox(fs.w, h - gap, T, fcfg.fill || '#c8b896', { roughness: 0.6 });
-        fin.position.set(fs.c, cy - gap / 2, frontZ + lay.coverT + T / 2);
+        //   상부 멍장 휠라는 도어처럼 밑단이 내림만큼 아래 (BOM 휠라(멍판) H + 15)
+        const drop = section !== 'molding' && meta.doorDrop > 0 ? meta.doorDrop : 0;
+        const fin = makeBox(fs.w, h - gap + drop, T, fcfg.fill || '#c8b896', { roughness: 0.6 });
+        fin.position.set(fs.c, cy - gap / 2 - drop / 2, frontZ + lay.coverT + T / 2);
         fin.userData = {
           entityKind: 'blindfin', moduleId: meta.moduleId, areaIdx: meta.areaIdx,
           finishingSection: meta.blindFinish || 'filler',

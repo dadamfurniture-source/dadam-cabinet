@@ -1611,9 +1611,11 @@
         /**
          * 멍장 정면 부재 — 멍가림판 · ㄱ자 기둥(처짐방지 밴드 + 경첩목대) · 멍판 마감재.
          * @param {number} [fillerH] 휠라(멍판) 높이 — 옆 멍장 도어와 같다 (2026-10-27 사장님 "휠라는 옆 도어와 같은 높이로",
-         *   W12-42 휠라 = 인접 도어). 하부 멍장 = 도어 H − 30 (목찬넬 틈). 비우면 H. 몰딩(멍판)은 늘 H (상판 아래까지).
+         *   W12-42 휠라 = 인접 도어). 하부 멍장 = 도어 H − 30 (목찬넬 틈), 상부 멍장 = 도어 H + 내림 15. 비우면 H. 몰딩(멍판)은 늘 H (상판 아래까지).
+         * @param {number} [coverH] 멍가림판 높이 — 목찬넬 하부 멍장은 측판 따내기(70) 아래까지 (2026-10-27 사장님 "멍가림판을 따내기 아래까지만"
+         *   — 목찬넬이 멍 구간을 지나 코너까지 이어져 보인다). 비우면 H.
          */
-        addBlindFrontParts(materials, modLabel, mod, H, battenH, fillerH) {
+        addBlindFrontParts(materials, modLabel, mod, H, battenH, fillerH, coverH) {
           const coverT = typeof CORNER_BLIND_COVER_T !== 'undefined' ? CORNER_BLIND_COVER_T : 3;
           const battenT = typeof CORNER_HINGE_BATTEN_T !== 'undefined' ? CORNER_HINGE_BATTEN_T : 15;
           const battenLeg = typeof CORNER_HINGE_BATTEN_LEG !== 'undefined' ? CORNER_HINGE_BATTEN_LEG : 60;
@@ -1638,8 +1640,9 @@
                        '키큰장 멍 구간 EP — 멍 폭 − 목대 15 · 장 높이 전체 (corner.md §3.9)');
             }
           } else {
-            this.add(materials, modLabel, '멍가림판', 'MDF', coverT, coverW, H, 1, '-',
-                     '멍 가림 MDF — 멍 폭 − 목대 (corner.md §3.5)');
+            const cH = Number.isFinite(coverH) && coverH > 0 ? coverH : H;
+            this.add(materials, modLabel, '멍가림판', 'MDF', coverT, coverW, cH, 1, '-',
+                     `멍 가림 MDF — 멍 폭 − 목대 (corner.md §3.5)${cH !== H ? ' · 목찬넬 따내기 아래까지 (목찬넬이 멍 구간을 지난다)' : ''}`);
           }
           // W12-54: 경첩 목대 — 멍 폭에 15T 가 들어가 있으므로 자재표에도 나온다.
           // 2026-09-13: **ㄱ자** — 앞판 60(정면과 나란히, 멍판 뒤) + 옆판 60(도어 쪽 끝,
@@ -2124,7 +2127,7 @@
               const overlap = parseFloat(specs.upperDoorOverlap) || 15;
               const blindDoorW = this.blindDoorPartW(mod, W); // doorW + 11 — 도어가 목대를 덮는다 (corner.md §3.5.1)
               this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H + overlap, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준) — 목대를 덮는다: doorW + 15 − 4 (corner.md §3.5.1)', mod);
-              this.addBlindFrontParts(materials, modLabel, mod, H, H - T * 2);
+              this.addBlindFrontParts(materials, modLabel, mod, H, H - T * 2, H + overlap);   // 휠라(멍판) = 도어 (내림 15 포함 — 2026-10-27 사장님)
             } else if (doorCount > 0) {
               const overlap = parseFloat(specs.upperDoorOverlap) || 15;
               const doorW = Math.floor(W / doorCount) - 4;
@@ -2178,7 +2181,8 @@
               // W10-4: 하부 멍장 — 도어는 doorW 기준 (카카스 W면 오발주), 멍 가림판 신규 (design §6)
               const blindDoorW = this.blindDoorPartW(mod, W); // doorW + 11 — 도어가 목대를 덮는다 (corner.md §3.5.1)
               this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H - 30, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준) — 목대를 덮는다: doorW + 15 − 4 (corner.md §3.5.1)', mod);
-              this.addBlindFrontParts(materials, modLabel, mod, H, bandH, H - 30);   // 휠라(멍판) = 도어 높이
+              // 휠라(멍판) = 도어 높이 · 멍가림판 = 목찬넬 따내기 아래까지 (목찬넬 손잡이일 때 — 2026-10-27 사장님)
+              this.addBlindFrontParts(materials, modLabel, mod, H, bandH, H - 30, isWoodChannel ? H - DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : H);
             } else if (isDrawer) {
               // ★ 2026-09-15: 서랍장 — 규칙은 bom-drawer-rules.js (도면 "서랍장 목찬넬 구조 도면").
               //   전면(위→아래): doorCount>0 이면 [도어, 서랍×n] — 플래너 doorTopDrawerBottom 과 같은 그림.

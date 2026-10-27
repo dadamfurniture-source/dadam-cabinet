@@ -572,16 +572,20 @@
           return;
         case 'blind': {
           // 멍가림판 MDF 3T — 멍 W − 목대 15 × 몸통 H, 벽 쪽 끝부터 앞선에 붙어 밖으로 (z D/2 … D/2 + 3)
-          if (!bl || row.qty !== 1 || row.w !== bl.coverEnd || row.h !== H) { skip(row, 'blind-layout-unknown'); return; }
+          //   2026-10-27 사장님: 목찬넬 하부 멍장은 따내기 아래까지 (H − 70, 밑단 = 몸통 바닥) — 목찬넬이 멍 구간을 지나 코너까지
+          const coverLow = chanTop && row.h === H - DR.CHANNEL_TOP_NOTCH_H;
+          if (!bl || row.qty !== 1 || row.w !== bl.coverEnd || (row.h !== H && !coverLow)) { skip(row, 'blind-layout-unknown'); return; }
           parts.push(makePart(row, 0, { o: [bl.xOf(0, bl.coverEnd), 0, zFront], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { blind: 'cover' }));
           return;
         }
         case 'blindfin': {
           // 멍판 마감재 (휠라·몰딩) 150 × H × 18 — 멍가림판 위에 겹쳐 붙는다, 도어 쪽 끝 맞춤 (자리 60 + 겹침 90, §3.3.1·§3.5.1)
           //   2026-10-27 사장님: 휠라는 옆 멍장 도어와 같은 높이 — 하부 멍장은 도어처럼 밑단 = 몸통 바닥, H − 30 (목찬넬 틈). 몰딩은 H 그대로
+          //   상부 멍장 휠라는 도어처럼 윗변 = 몸통 상단, 밑단이 내림만큼 아래 (H + 15, doorYOf 상부와 같다)
           const fillerLow = mod.pos === 'lower' && row.part === '휠라(멍판)' && row.h > 0 && row.h < H;
-          if (!bl || row.qty !== 1 || row.w !== C.BLIND_FINISH_W || (row.h !== H && !fillerLow)) { skip(row, 'blind-layout-unknown'); return; }
-          parts.push(makePart(row, 0, { o: [bl.xOf(bl.coverEnd - row.w, bl.coverEnd), 0, zFront + C.BLIND_COVER_T], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { blind: 'finish' }));
+          const fillerDrop = mod.pos === 'upper' && row.part === '휠라(멍판)' && row.h > H;
+          if (!bl || row.qty !== 1 || row.w !== C.BLIND_FINISH_W || (row.h !== H && !fillerLow && !fillerDrop)) { skip(row, 'blind-layout-unknown'); return; }
+          parts.push(makePart(row, 0, { o: [bl.xOf(bl.coverEnd - row.w, bl.coverEnd), fillerDrop ? H - row.h : 0, zFront + C.BLIND_COVER_T], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { blind: 'finish' }));
           return;
         }
         case 'body:batten-front':
