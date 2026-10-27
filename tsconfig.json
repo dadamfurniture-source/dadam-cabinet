@@ -17,11 +17,10 @@
     "paths": {
       "@/*": ["./*"],
       "@/types/*": ["./types/*"],
-      "@/js/*": ["./js/*"],
-      "@/lib/*": ["./lib/*"]
+      "@/js/*": ["./js/*"]
     },
     "typeRoots": ["./node_modules/@types", "./types"]
   },
-  "include": ["**/*.ts", "**/*.tsx", "types/**/*.d.ts", "lib/**/*.ts"],
+  "include": ["**/*.ts", "**/*.tsx", "types/**/*.d.ts"],
   "exclude": ["node_modules", "js", "mcp-server"]
 }
