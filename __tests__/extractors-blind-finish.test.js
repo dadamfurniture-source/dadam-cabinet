@@ -128,3 +128,27 @@ describe('멍장이 아니면 아무것도 안 나온다', () => {
     });
   });
 });
+
+describe('목찬넬 멍장 · 상부 멍장 — 2026-10-27 사장님 "멍가림판을 따내기 아래까지만" · "상부장 휠라는 도어크기보다 짧음"', () => {
+  const withHandle = (item, handle) => Object.assign(item, { specs: Object.assign({}, item.specs, { handle }) });
+
+  test('목찬넬 하부 멍장 — 멍가림판은 따내기 70 아래까지 (708 → 638), 휠라(멍판)는 도어 678', () => {
+    const parts = partsOf(withHandle(makeItem(), '찬넬 (목찬넬)'));
+    expect(parts.find((m) => m.part === '멍가림판').h).toBe(708 - 70);
+    expect(parts.find((m) => m.part === '휠라(멍판)').h).toBe(678);
+    expect(parts.find((m) => m.part === '멍가림판').note).toMatch(/목찬넬 따내기 아래까지/);
+  });
+
+  test('목찬넬이 아니면 멍가림판은 몸통 H 그대로', () => {
+    expect(partsOf(withHandle(makeItem(), '찬넬')).find((m) => m.part === '멍가림판').h).toBe(708);
+  });
+
+  test('상부 멍장 휠라(멍판) = 도어 높이 (몸통 720 + 내림 15 = 735), 몰딩(멍판)은 몸통 720', () => {
+    const up = (fin) => new MaterialExtractor().extract({ items: [makeItem({ id: 'corner-blind-upper', pos: 'upper', h: 720, d: 295, blindFinishType: fin })] })
+      .materials.filter((m) => m.module === '상부장-LT망장');
+    const f = up('Filler');
+    expect(f.find((m) => m.part === '휠라(멍판)').h).toBe(f.find((m) => m.part === '도어').h);
+    expect(f.find((m) => m.part === '휠라(멍판)').h).toBe(735);
+    expect(up('Molding').find((m) => m.part === '몰딩(멍판)').h).toBe(720);
+  });
+});

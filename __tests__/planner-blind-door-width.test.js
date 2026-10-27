@@ -87,7 +87,7 @@ describe('멍장 도어 폭 = doorW + 11 — 도어가 목대를 덮는다 (corn
     expect(Math.abs(doorEdge - coverEnd)).toBeCloseTo(R.DOOR_GAP / 2, 5);
   });
 
-  test('3D: 멍장 도어 mesh 폭 = doorW + 11 · 멍가림판 = (멍W − 15) × 몸통 H (P2-5 그대로) — 원장(BOM 429)과 같다', () => {
+  test('3D: 멍장 도어 mesh 폭 = doorW + 11 · 멍가림판 = (멍W − 15) × (몸통 H − 목찬넬 따내기 70) — 원장(BOM)과 같다', () => {
     const p = bootPlanner3D(lShapeLayout(), { design: 'blind-door-w', item: '1' });
     const m = (p.g('modules') || []).find((x) => x.blind);
     expect(m).toBeTruthy();
@@ -99,10 +99,12 @@ describe('멍장 도어 폭 = doorW + 11 — 도어가 목대를 덮는다 (corn
     expect(doors[0].b).not.toBe(m.blind.doorW - R.DOOR_GAP);                    // 옛 P2 그림(doorW − 4)이 아니다
     const cover = parts.find((r) => r.family === 'blind');
     expect(cover).toBeTruthy();
-    expect(cover.b).toBe(m.blind.zoneW - R.CORNER_HINGE_BATTEN_T);               // 멍가림판 폭 = 멍W − 15 (갭 없음)
     const carcassH = p.g('bodyHeightOf')(m, p.g('structures')[m.id]);
-    expect(cover.a).toBe(carcassH);                                               // 높이 = 몸통 H (P2-5 그대로)
+    const coverW = m.blind.zoneW - R.CORNER_HINGE_BATTEN_T;                      // 멍가림판 폭 = 멍W − 15 (갭 없음)
+    // 높이 = 몸통 H − 목찬넬 따내기 70 (2026-10-27 사장님 "멍가림판을 따내기 아래까지만" — 목찬넬 손잡이 하부 멍장)
+    const coverH = carcassH - require('../js/detaildesign/bom-drawer-rules.js').DRAWER_RULES.CHANNEL_TOP_NOTCH_H;
+    expect([cover.a, cover.b].sort((x, y) => x - y)).toEqual([coverW, coverH].sort((x, y) => x - y));
     // 정면 원장: 멍가림판 + (도어 + 갭 4) = 멍장 W (corner.md §3.5.2)
-    expect(cover.b + doors[0].b + R.DOOR_GAP).toBe(Math.round(m.W));
+    expect(coverW + doors[0].b + R.DOOR_GAP).toBe(Math.round(m.W));
   });
 });
