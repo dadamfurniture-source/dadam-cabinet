@@ -26,6 +26,8 @@
     <script src="../js/detaildesign-access.js?v=2026102701"></script>
     <script src="../js/mypage-work.js?v=2026102701"></script>
     <script src="shell.js?v=2026102701" defer></script>
+    <script src="make.js?v=2026102701" defer></script>
+    <script src="me.js?v=2026102701" defer></script>
   </head>
   <body class="sg-app" data-tab="me">
     <div data-segan-shell="header"></div>
@@ -42,15 +44,27 @@
       <div data-auth-view="signed-in" hidden>
         <p class="sg-account" id="sgAccountEmail"></p>
 
-        <section class="sg-section" aria-labelledby="sgActivityTitle">
-          <h2 id="sgActivityTitle">내 활동</h2>
+        <!-- 상담 내역 — 본인 consultations (최신순) -->
+        <section class="sg-section" aria-labelledby="meConsultTitle">
+          <h2 id="meConsultTitle">상담 내역</h2>
+          <ul class="sg-rows" id="meConsults"></ul>
+          <p class="me-empty" id="meConsultEmpty" hidden>아직 상담 신청이 없습니다.</p>
+        </section>
+
+        <!-- 크레딧 · 구독 — 사이트 헤더 · billing.html 과 같은 출처. 바꾸기는 billing.html -->
+        <section class="sg-section" aria-labelledby="mePlanTitle">
+          <h2 id="mePlanTitle">크레딧 · 구독</h2>
           <ul class="sg-rows">
             <li>
-              <span class="sg-row">상담 내역<span class="sg-soon">준비 중</span></span>
+              <span class="sg-row">등급<span class="me-val" id="meTier">…</span></span>
             </li>
             <li>
-              <span class="sg-row">크레딧 · 구독<span class="sg-soon">준비 중</span></span>
+              <span class="sg-row">남은 크레딧<span class="me-val" id="meCredits">…</span></span>
             </li>
+            <li>
+              <span class="sg-row">구독<span class="me-val" id="meSub">…</span></span>
+            </li>
+            <li><a class="sg-row" href="../billing.html">구독 관리</a></li>
           </ul>
         </section>
 
@@ -59,9 +73,8 @@
         <section class="sg-section" aria-labelledby="sgAccountTitle">
           <h2 id="sgAccountTitle">계정</h2>
           <ul class="sg-rows">
-            <li>
-              <span class="sg-row">설정<span class="sg-soon">준비 중</span></span>
-            </li>
+            <!-- 프로필 수정 · 회원 탈퇴는 지금은 사이트 마이페이지에서 -->
+            <li><a class="sg-row" href="../mypage.html">설정 · 프로필 · 탈퇴</a></li>
             <li><button type="button" class="sg-row" id="sgLogout">로그아웃</button></li>
           </ul>
         </section>

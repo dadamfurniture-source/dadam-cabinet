@@ -42,6 +42,7 @@ const SHELL = [
   versioned(SCOPE + 'regions.js'),
   versioned(SCOPE + 'collection.js'),
   versioned(SCOPE + 'renders.js'),
+  versioned(SCOPE + 'me.js'),
   versioned(SCOPE + 'icons/icon.svg'),
   versioned(SCOPE + 'icons/wordmark.svg'),
   versioned(SCOPE + 'icons/favicon-32.png'),
