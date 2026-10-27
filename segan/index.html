@@ -18,7 +18,10 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@300&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="shell.css?v=2026102701" />
     <link rel="stylesheet" href="make.css?v=2026102701" />
     <!-- 로그인 · 크레딧 · 생성 — 기존 사이트와 같은 설정 · 라이브러리 -->
@@ -146,7 +149,41 @@
 
       <!-- ③ 결과 -->
       <section class="mk-step" data-step="result" aria-labelledby="mkResultTitle" hidden>
-        <h1 class="mk-h1" id="mkResultTitle">결과</h1>
+        <div class="mk-res-head">
+          <h1 class="mk-res-title" id="mkResultTitle">Results</h1>
+          <span class="mk-res-state" id="mkResState" aria-live="polite"></span>
+          <div class="mk-res-acts" id="mkResActs" hidden>
+            <button type="button" class="mk-link" id="mkDownload">다운로드</button>
+            <button type="button" class="mk-link" id="mkShare">공유</button>
+          </div>
+        </div>
+
+        <!-- 만드는 중 — 서버가 주는 단계 안내 · 진행률 -->
+        <div class="mk-progress" id="mkProgress" role="status" hidden>
+          <span class="mk-track"><span id="mkProgressBar"></span></span>
+          <span class="mk-progress-label" id="mkProgressLabel"></span>
+        </div>
+
+        <div class="mk-shots" id="mkShots"></div>
+        <p class="mk-msg" id="mkResMsg" role="status" hidden></p>
+        <p class="mk-error" id="mkResError" role="alert" hidden></p>
+        <button type="button" class="mk-btn" id="mkRetry" hidden>가구 단계로 돌아가기</button>
+        <p class="mk-note">생성 이미지는 실제 시공 결과와 다를 수 있습니다. 정확한 치수·자재는 상담에서 확정합니다.</p>
+
+        <!-- 예상 견적 + 상담 신청 (버튼은 이것 하나) -->
+        <section class="mk-quote" id="mkQuote" aria-labelledby="mkQuoteTitle" hidden>
+          <h2 class="mk-quote-title" id="mkQuoteTitle">예상 견적</h2>
+          <div class="mk-qrows" id="mkQuoteRows"></div>
+          <div class="mk-qrow mk-qrow--total"><span>합계 (VAT 포함)</span><span id="mkQuoteTotal"></span></div>
+          <p class="mk-note">실측 후 확정됩니다.</p>
+          <a class="mk-btn mk-btn--solid mk-btn--lg" id="mkConsult" href="consult.html">상담 신청</a>
+          <p class="mk-note mk-center">전화 상담과 가까운 협력업체 연결도 여기서 할 수 있습니다.</p>
+        </section>
+
+        <div class="mk-res-foot" id="mkResFoot" hidden>
+          <p class="mk-note mk-center">이 연출컷은 내 연출컷에 저장됩니다.</p>
+          <button type="button" class="mk-btn mk-btn--wide" id="mkAgain">다른 사진으로 다시 만들기</button>
+        </div>
       </section>
 
       <!-- 아래 버튼 줄 — 폰에서는 아래 탭 위에 붙는다 -->

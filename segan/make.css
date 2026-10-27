@@ -388,6 +388,232 @@
   color: var(--v5-ink);
 }
 
+/* ── ③ 결과 ── */
+.mk-step[data-step='result'] {
+  gap: 14px;
+  padding-bottom: 32px;
+}
+
+.mk-res-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.mk-res-title {
+  margin: 0;
+  font-family: var(--v5-display);
+  font-size: 30px;
+  font-weight: 300;
+}
+
+.mk-res-state {
+  font-size: 13px;
+  font-weight: 300;
+  letter-spacing: 0.12em;
+  color: var(--mk-dim);
+}
+
+.mk-res-acts {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.mk-res-acts[hidden] {
+  display: none;
+}
+
+.mk-link {
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 300;
+  text-decoration: underline;
+  text-decoration-color: rgba(45, 42, 38, 0.2);
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.mk-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mk-progress[hidden] {
+  display: none;
+}
+
+.mk-track {
+  display: block;
+  height: 2px;
+  background: var(--v5-line-18);
+}
+
+.mk-track > span {
+  display: block;
+  height: 100%;
+  background: var(--v5-ink);
+  transition: width 400ms ease;
+}
+
+.mk-progress-label {
+  font-size: 12.5px;
+  font-weight: 300;
+  color: var(--mk-dim);
+}
+
+.mk-shots {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mk-shots[hidden] {
+  display: none;
+}
+
+.mk-shot {
+  margin: 0;
+}
+
+.mk-shot img,
+.mk-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mk-shot--main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mk-shot--main img {
+  aspect-ratio: 4 / 3;
+  background: var(--v5-photo);
+}
+
+.mk-shot--main figcaption {
+  font-size: 12.5px;
+  font-weight: 300;
+  color: var(--mk-dim);
+}
+
+.mk-shot--wait {
+  aspect-ratio: 4 / 3;
+  background: var(--v5-photo);
+}
+
+.mk-thumbs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mk-thumb {
+  display: block;
+  aspect-ratio: 4 / 3;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: var(--v5-photo);
+  cursor: pointer;
+}
+
+.mk-thumb--wait {
+  background: var(--v5-well);
+}
+
+.mk-note {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 300;
+  line-height: 1.7;
+  color: var(--mk-dim);
+}
+
+.mk-center {
+  text-align: center;
+}
+
+.mk-msg {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--v5-ink);
+}
+
+.mk-quote {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 18px 16px;
+  background: var(
+    --v5-well
+  ); /* 시안은 흰 바탕 위 work — 앱 바탕(#f6f3ee) 위에서는 한 단계 진하게 */
+}
+
+.mk-quote[hidden],
+.mk-res-foot[hidden] {
+  display: none;
+}
+
+.mk-quote-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.mk-qrows {
+  display: flex;
+  flex-direction: column;
+}
+
+.mk-qrow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 13.5px;
+  font-weight: 300;
+}
+
+.mk-qrow span:last-child {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.mk-qrow--total {
+  padding-top: 2px;
+  border-bottom: 0;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.mk-res-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.mk-btn--wide {
+  width: 100%;
+  min-height: 48px;
+}
+
 /* ── PC ── */
 @media (min-width: 768px) {
   .sg-main.mk {

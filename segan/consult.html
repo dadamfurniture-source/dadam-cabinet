@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>상담 신청 · SEGAN</title>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026102701" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026102701" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026102701" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026102701" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="shell.css?v=2026102701" />
+    <link rel="stylesheet" href="make.css?v=2026102701" />
+    <script src="shell.js?v=2026102701" defer></script>
+    <script src="consult.js?v=2026102701" defer></script>
+  </head>
+  <!-- ④ 상담 신청 — 만들기의 마지막 단계라 만들기 탭에 둔다. 지금은 자리표시 (연출컷 id 를 받는다) -->
+  <body class="sg-app" data-tab="make">
+    <div data-segan-shell="header"></div>
+
+    <main class="sg-main mk" id="main">
+      <section class="mk-step" aria-labelledby="csTitle">
+        <a class="mk-link mk-back" id="csBack" href="./">‹ 결과로 돌아가기</a>
+        <h1 class="mk-h1" id="csTitle">이 연출컷으로 상담받기</h1>
+        <div class="sg-panel">
+          <p class="sg-title">준비 중</p>
+          <p class="sg-note">상담 신청서는 곧 열립니다. 지금은 전화로 상담할 수 있습니다.</p>
+          <a class="mk-btn mk-btn--solid" id="csTel" href="tel:">전화 걸기</a>
+        </div>
+        <!-- 상담 신청서가 이 연출컷을 붙인다 -->
+        <input type="hidden" id="csGen" name="generation_id" value="" />
+      </section>
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+  </body>
+</html>

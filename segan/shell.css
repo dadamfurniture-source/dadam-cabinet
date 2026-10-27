@@ -32,6 +32,7 @@
   --v5-on-dark-42: rgba(246, 243, 238, 0.42);
   --v5-on-dark-12: rgba(246, 243, 238, 0.12);
   --v5-sans: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --v5-display: 'Cormorant Garamond', 'Noto Serif KR', Georgia, serif;
 
   /* 앱 셸 치수 (v5 에 없는 것만 sg- 로) */
   --sg-px: 20px; /* 좌우 여백 — 폰 */
