@@ -17,17 +17,31 @@
 //           그리고 `const ASSET_VERSION = '…'` 상수 (segan/sw.js 의 캐시 이름이 이 값을 쓴다).
 //   검사:   __tests__/asset-version.test.js (CI 「Run Tests」) 가 어긋난 값을 막는다.
 //
+// ── segan/ 앱 셸 지키기 (버전 올림 강제) ─────────────────────
+//   segan/sw.js 는 ?v= 가 붙은 셸 파일을 「캐시 먼저」로 준다. 파일 내용만 바꾸고 버전을 그대로 두면
+//   설치한 사람은 옛 파일을 계속 받는다. 그래서 버전을 올릴 때 segan/ 파일들의 내용 해시를
+//   asset-version.json 의 "segan" 에 함께 적어 두고, 시험이 지금 파일과 비교한다.
+//   segan/ 파일이 하나라도 다르면(추가 · 삭제 포함) 「npm run asset-version」 을 돌리라고 실패한다.
+//   git 이력이 필요 없다 — CI 의 얕은 checkout 에서도 그대로 돈다.
+//   해시는 버전을 올릴 때만 다시 적는다 (--stamp 는 적지 않는다 — 버전 없이 해시만 맞추는 길을 막는다).
+//   줄바꿈은 LF 로 맞춰 해시한다 (Windows 작업본의 CRLF 와 CI 의 LF 가 같은 값이 되게).
+//   sw.js 는 뺀다: 브라우저가 sw.js 를 바이트로 비교해 바뀌면 새 워커를 깔고, 설치 때 셸 전체를
+//   cache:'reload' 로 다시 받는다 — sw.js 만 고친 변경은 버전 없이도 퍼진다. 버전을 올리면
+//   sw.js 의 ASSET_VERSION(캐시 이름)도 바뀌므로 다른 파일 변경도 이 길로 퍼진다.
+//
 // ── 버전 올리기 (한 줄) ─────────────────────────────────────
 //   npm run asset-version
 //     → 오늘(한국 시간) 첫 판이면 YYYYMMDD01, 이미 오늘 판이면 끝 두 자리 +1.
-//       asset-version.json 을 고치고 모든 대상 파일의 ?v= 를 새 값으로 찍는다. 그대로 커밋한다.
+//       asset-version.json 을 고치고 모든 대상 파일의 ?v= 를 새 값으로 찍고 segan/ 해시를 다시 적는다.
+//       그대로 커밋한다. segan/ 파일을 고친 PR 은 반드시 이것을 돌린다.
 //
 // 그 밖의 쓰는 법:
 //   npm run asset-version -- 2026110301   값을 직접 정한다 (지금 값보다 커야 한다)
 //   npm run asset-version -- --stamp      값은 그대로 두고 다시 찍기만 (새 페이지에 ?v= 를 붙인 뒤)
-//   npm run asset-version -- --check      아무것도 고치지 않고 어긋난 참조만 찍는다 (있으면 exit 1)
+//   npm run asset-version -- --check      아무것도 고치지 않고 어긋난 참조 · segan/ 해시만 찍는다 (있으면 exit 1)
 // ============================================================
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -48,12 +62,56 @@ const V_PARAM_RE = /([?&]v=)([^&#]*)/;
 // 스크립트 안의 버전 상수
 const CONST_RE = /(\bconst ASSET_VERSION = )(["'])([^"']*)\2/g;
 
+// segan/ 셸 해시 — sw.js 는 뺀다 (머리말)
+const SEGAN_DIR = 'segan';
+const SEGAN_EXCLUDE = ['segan/sw.js'];
+const TEXT_EXT_RE = /\.(?:html|m?js|css|svg|json|webmanifest|txt|md)$/i;
+
 export function readVersion() {
   const { version } = JSON.parse(fs.readFileSync(VERSION_FILE, 'utf8'));
   if (!VERSION_RE.test(version)) {
     throw new Error(`asset-version.json 의 version 이 YYYYMMDDNN 형식이 아니다: ${version}`);
   }
   return version;
+}
+
+/** segan/ 아래 파일 (sw.js 제외, 저장소 기준 posix 경로, 정렬) */
+export function seganFiles() {
+  const out = [];
+  (function walk(rel) {
+    for (const e of fs.readdirSync(path.join(ROOT, rel), { withFileTypes: true })) {
+      const child = path.posix.join(rel, e.name);
+      if (e.isDirectory()) walk(child);
+      else if (!SEGAN_EXCLUDE.includes(child)) out.push(child);
+    }
+  })(SEGAN_DIR);
+  return out.sort();
+}
+
+/** 파일 내용 해시 (sha256 앞 16자리). 글자 파일은 CRLF → LF 로 맞춘다 */
+export function hashFile(rel) {
+  let buf = fs.readFileSync(path.join(ROOT, rel));
+  if (TEXT_EXT_RE.test(rel)) buf = Buffer.from(buf.toString('utf8').replace(/\r\n/g, '\n'), 'utf8');
+  return crypto.createHash('sha256').update(buf).digest('hex').slice(0, 16);
+}
+
+export function seganHashes() {
+  const out = {};
+  for (const rel of seganFiles()) out[rel] = hashFile(rel);
+  return out;
+}
+
+/** 적어 둔 해시와 지금 파일이 다른 것 — [{ file, why }] */
+export function seganDrift() {
+  const recorded = JSON.parse(fs.readFileSync(VERSION_FILE, 'utf8')).segan || {};
+  const now = seganHashes();
+  const out = [];
+  for (const f of Object.keys(now)) {
+    if (!(f in recorded)) out.push({ file: f, why: '새 파일' });
+    else if (recorded[f] !== now[f]) out.push({ file: f, why: '내용이 바뀜' });
+  }
+  for (const f of Object.keys(recorded)) if (!(f in now)) out.push({ file: f, why: '지워짐' });
+  return out;
 }
 
 /** 대상 파일 목록 (저장소 기준 상대 경로, 정렬) */
@@ -154,16 +212,26 @@ function main(argv) {
   }
 
   if (check) {
-    if (drift) {
+    const segan = seganDrift();
+    for (const d of segan) console.error(`  ✗ ${d.file} (${d.why})`);
+    if (drift)
       console.error(`asset version: 어긋난 참조 ${drift}개 — npm run asset-version -- --stamp`);
-      process.exit(1);
+    if (segan.length) {
+      console.error(
+        `asset version: segan/ 파일 ${segan.length}개가 바뀌었는데 자산 버전을 올리지 않았다 — npm run asset-version`
+      );
     }
-    console.log(`asset version: ${version} — 모든 로컬 ?v= 참조가 같다`);
+    if (drift || segan.length) process.exit(1);
+    console.log(`asset version: ${version} — 모든 로컬 ?v= 참조가 같고 segan/ 해시도 같다`);
     return;
   }
 
+  // 버전을 올렸을 때만 segan/ 해시를 다시 적는다 (찍은 뒤의 내용으로)
   if (version !== current) {
-    fs.writeFileSync(VERSION_FILE, `${JSON.stringify({ version }, null, 2)}\n`);
+    fs.writeFileSync(
+      VERSION_FILE,
+      `${JSON.stringify({ version, segan: seganHashes() }, null, 2)}\n`
+    );
   }
   console.log(
     `asset version: ${current === version ? version : `${current} → ${version}`} · 파일 ${changedFiles}개 · 참조 ${drift}개 고침`
