@@ -62,8 +62,9 @@
       const TOP_THICKNESS_OPTIONS = [12, 50];
       /** 상판 두께 셀렉트의 <option> — 목록 밖의 옛 값(예: 18)은 지우지 않고 "옛 값"으로 보여 준다. */
       // 상판 재질별 두께 — 2026-10-18 사장님 Q8: 인조대리석 12·50 · 엔지니어드 스톤 12·20 · 세라믹 12. 첫 재질이 기본.
-      //   extractors.js BOM_TOP_MATERIALS 와 같다. 재질마다 상판 업체가 다르다 (워커 생산 설정 vendors).
-      const TOP_MATERIALS = { '인조대리석': [12, 50], '엔지니어드 스톤': [12, 20], '세라믹': [12] };
+      //   2026-10-27 사장님 (간편 플래너 상판 설정): "18T MDF, 18T PB 추가".
+      //   extractors.js BOM_TOP_MATERIALS 와 같다. 재질마다 상판 업체가 다르다 (워커 생산 설정 vendors — MDF · PB 발주처는 아직 없어 인조대리석 업체로 떨어진다 [확인 필요]).
+      const TOP_MATERIALS = { '인조대리석': [12, 50], '엔지니어드 스톤': [12, 20], '세라믹': [12], 'MDF': [18], 'PB': [18] };
       function topMaterialOf(specs) {
         const m = specs && specs.topMaterial;
         return Object.prototype.hasOwnProperty.call(TOP_MATERIALS, m) ? m : '인조대리석';
