@@ -13,6 +13,7 @@
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { GenerateJob } from '../src/job.js';
+import jpeg from 'jpeg-js';
 
 const ROW_ID = '22222222-2222-4222-8222-222222222222';
 const USER_ID = '11111111-1111-4111-8111-111111111111';
@@ -428,4 +429,83 @@ test('GPT + 번호 입면 + 3/4 없음: 두 장 [방, 번호 입면]', async () 
   await run({ ...PLANNER_OPTIONS, image_provider: 'openai' }, { ...LABELED_INPUTS, renders: LABELED_INPUTS.renders.slice(0, 2) }, OPENAI_ENV);
   assert.deepEqual(calls.openai[0].images, ['ROOM', 'LABEL']);
   assert.match(calls.openai[0].prompt, /^You receive two images\./);
+});
+
+// ─── 2026-10-27: 간편 플래너 Blender 시안 (role composite) ───
+
+/** PNG 머리만 — imageDimensions 가 읽는 IHDR 폭 · 높이 */
+function pngHead(w, h) {
+  const b = Buffer.alloc(33);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(b, 0);
+  b.writeUInt32BE(13, 8);
+  b.write('IHDR', 12, 'ascii');
+  b.writeUInt32BE(w, 16);
+  b.writeUInt32BE(h, 20);
+  return b;
+}
+const COMPOSITE = { role: 'composite', path: `${USER_ID}/${ROW_ID}/render-composite.jpg`, url: 'u', mime: 'image/jpeg' };
+
+/** 빈 공사현장 분석(기존 가구 없음) + Claude 질문 기록 — 도면 덩어리(1-d)가 실제로 켜지는 조건 */
+function emptySiteWithClaudeLog() {
+  const inner = globalThis.fetch;
+  const asked = [];
+  globalThis.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.startsWith('https://api.anthropic.com/')) { asked.push(String(init && init.body)); throw new Error('no claude in test'); }
+    if (u.includes('generativelanguage.googleapis.com')) {
+      const body = JSON.parse(init.body);
+      const parts = body.contents[0].parts;
+      if (body.generationConfig.responseModalities.length === 1 && parts[parts.length - 1].text.startsWith('Measure and describe')) {
+        const text = JSON.stringify({ wall_width_mm: 3600, wall_height_mm: 2400, confidence: 'medium', existing_furniture: '', site_condition: 'construction' });
+        return jsonRes({ candidates: [{ content: { parts: [{ text }] } }] });
+      }
+    }
+    return inner(url, init);
+  };
+  return asked;
+}
+const PLACE_ON = { PLANNER_PLACE_GUIDE: 'on', ANTHROPIC_API_KEY: 'k' };
+/** 덩어리를 칠할 수 있는 도면 — 깊이 · 바닥 높이가 있어야 planner-place 가 상자를 만든다 */
+const PLACE_OPTIONS = { ...PLANNER_OPTIONS, design_spec: { ...SPEC, sections: { lower: { ...SPEC.sections.lower, depthMm: 600, fromFloorMm: 0 } } } };
+const POINTS_Q = 'Find lines and corners in this room photo';
+
+test('planner + Blender 시안: IMAGE A = 시안, 도면 덩어리는 칠하지 않는다 (켜져 있어도), 프롬프트는 "이미 렌더된 장 — 나눔 그대로"', async () => {
+  // 덩어리 단계는 방 사진을 풀어야 묻는다 — 진짜 JPEG (320×180, 16:9)
+  const room0 = BYTES.room;
+  BYTES.room = jpeg.encode({ width: 320, height: 180, data: Buffer.alloc(320 * 180 * 4, 200) }, 80).data;
+  let asked0, asked;
+  try {
+    // 대조군 — 시안이 없으면 같은 조건에서 덩어리 선 찾기를 묻는다 (이 시험이 헛돌지 않게)
+    install({ qcIssues: [] });
+    asked0 = emptySiteWithClaudeLog();
+    await run(PLACE_OPTIONS, PLANNER_INPUTS, PLACE_ON);
+    BYTES['render-composite'] = 'COMP';
+    install({ qcIssues: [] });
+    asked = emptySiteWithClaudeLog();
+    await run({ ...PLACE_OPTIONS, place_render: true }, { ...PLANNER_INPUTS, renders: [...PLANNER_INPUTS.renders, COMPOSITE] }, PLACE_ON);
+  } finally { BYTES.room = room0; delete BYTES['render-composite']; }
+  assert.ok(asked0.some((b) => b.includes(POINTS_Q)), '시안 없으면 1-d 가 선 찾기를 묻는다');
+  const call = calls.image[0];
+  assert.deepEqual(call.images.map((i) => Buffer.from(i.data, 'base64').toString()), ['COMP', 'ELEV', 'MASS'], '방 사진 대신 시안');
+  assert.match(call.prompt, /already rendered into it by our planner, using this photo's own camera/);
+  assert.match(call.prompt, /never merge, split, move, stretch or redraw a door/);
+  // 장에만 해당 — 공사 현장이면 방 마감(SITE 문단)은 그대로 들어간다 (사장님 "1번으로 고치기")
+  assert.match(call.prompt, /This rule is about the units only — the walls, floor and ceiling around them follow the rest of this prompt/);
+  assert.match(call.prompt, /SITE: the photo shows an unfinished construction site\. Render the room fully finished and clean/);
+  assert.doesNotMatch(call.prompt, /plain off-white blocks/);
+  assert.ok(calls.reads.includes('render-composite'));
+  assert.equal(asked.some((b) => b.includes(POINTS_Q)), false, '시안이 있으면 덩어리 선 찾기를 묻지 않는다');
+});
+
+test('planner + Blender 시안인데 방 사진과 비율이 다르면 버리고 방 사진으로 (예전처럼)', async () => {
+  const room0 = BYTES.room;
+  BYTES.room = pngHead(1600, 900);
+  BYTES['render-composite'] = pngHead(900, 1600);
+  install({ qcIssues: [] });
+  try {
+    await run(PLANNER_OPTIONS, { ...PLANNER_INPUTS, renders: [...PLANNER_INPUTS.renders, COMPOSITE] });
+  } finally { BYTES.room = room0; delete BYTES['render-composite']; }
+  const call = calls.image[0];
+  assert.equal(Buffer.from(call.images[0].data, 'base64').readUInt32BE(16), 1600, 'IMAGE A = 방 사진');
+  assert.doesNotMatch(call.prompt, /already rendered into it/);
 });

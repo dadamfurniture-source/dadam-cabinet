@@ -767,12 +767,24 @@
           console.log('expert_requests 테이블이 아직 없습니다.');
         }
 
-        // 상담 통계
+        // 상담 통계 — 본사(다담) 상담만 센다. 회사 구성원도 자기 회사 상담을 읽을 수 있어
+        // 거르지 않으면 다른 회사 행이 섞인다. 본사 id 를 못 읽으면 세지 않고 '-' 로 둔다.
         try {
-          const { data: allConsult } = await supabaseClient.from('consultations').select('id');
+          const { data: hq, error: hqError } = await supabaseClient
+            .from('companies')
+            .select('id')
+            .eq('kind', 'hq')
+            .single();
+          if (hqError) throw hqError;
+          const hqId = hq.id;
+          const { data: allConsult } = await supabaseClient
+            .from('consultations')
+            .select('id')
+            .eq('company_id', hqId);
           const { data: pendingConsultations } = await supabaseClient
             .from('consultations')
             .select('id')
+            .eq('company_id', hqId)
             .eq('status', 'pending');
 
           if (allConsult) {
@@ -784,7 +796,7 @@
             document.getElementById('thisMonthConsultations').textContent = `대기 ${pendingConsult}건`;
           }
         } catch (e) {
-          console.log('consultations 테이블이 아직 없습니다.');
+          console.log('상담 통계 로드 실패:', e.message);
           document.getElementById('totalConsultations').textContent = '-';
         }
 

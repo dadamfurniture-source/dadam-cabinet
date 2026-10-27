@@ -9,7 +9,7 @@
  * 헬퍼(cors.js)는 payments-api 것을 그대로 복제했다 — workflow-api 가 쓴 방식과 같다.
  */
 import { corsHeaders, handleOptions, jsonResponse } from './cors.js';
-import { prepareWithdrawal, withdrawalDetail, withdrawalSummary } from './withdrawal.js';
+import { prepareWithdrawal, soleOwnerCompanies, withdrawalDetail, withdrawalSummary } from './withdrawal.js';
 
 class AuthError extends Error {
   constructor(message = 'Unauthorized') {
@@ -74,6 +74,7 @@ async function writeAdminLog(env, row) {
  *            (database/withdrawal-retention.sql · withdrawal-contract-records.sql — 적용돼 있어야 한다)
  * 나머지(프로필 등)는 auth.users 를 지울 때 FK CASCADE 로 지워진다.
  * 일부를 못 지워도 탈퇴는 그대로 하고 그 사실을 수로만 기록한다 (경로 · 개인 정보 없음).
+ * 회사의 마지막 대표는 탈퇴하지 않는다 (409) — 정리 전에 본다.
  * 계정이 남아 있는 동안이어야 같은 요청을 다시 보낼 수 있으므로 정리를 먼저 한다.
  */
 async function handleDelete(request, env) {
@@ -91,6 +92,9 @@ async function handleDelete(request, env) {
       503
     );
   }
+
+  const blocked = await soleOwnerBlock(request, env, user.id);
+  if (blocked) return blocked;
 
   // 정리 먼저 — 계정을 지운 뒤에는 이 요청을 다시 보낼 수 없다. 던지지 않는다.
   const w = await prepareWithdrawal(env, user.id);
@@ -146,6 +150,31 @@ async function assertAdmin(request, env) {
 }
 
 /**
+ * 회사의 마지막 대표면 탈퇴하지 않는다 — 대표를 넘긴 뒤에 한다. 확인을 못 하면 탈퇴도 하지 않는다.
+ * 막아야 하면 응답을, 아니면 null 을 돌려준다.
+ */
+async function soleOwnerBlock(request, env, userId) {
+  let sole;
+  try {
+    sole = await soleOwnerCompanies(env, userId);
+  } catch {
+    return jsonResponse(
+      request,
+      env,
+      { success: false, error: '탈퇴할 수 있는지 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.' },
+      503
+    );
+  }
+  if (!sole.length) return null;
+  return jsonResponse(
+    request,
+    env,
+    { success: false, code: 'sole_owner', error: '업체 대표를 다른 분께 넘긴 뒤 탈퇴할 수 있습니다.' },
+    409
+  );
+}
+
+/**
  * 관리자의 강제 탈퇴.
  *
  * 본인 탈퇴(handleDelete)와 달리 대상 id 를 받는다 — 그래서 관리자 확인이
@@ -167,6 +196,9 @@ async function handleAdminDelete(request, env) {
   }
 
   const admin = await verifyJwt(request, env);
+
+  const blocked = await soleOwnerBlock(request, env, target);
+  if (blocked) return blocked;
 
   // 대상 회원 정리 먼저 (본인 탈퇴와 같다). 던지지 않는다.
   const w = await prepareWithdrawal(env, target);

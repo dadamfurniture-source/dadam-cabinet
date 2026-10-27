@@ -169,9 +169,12 @@ function normalizeRefs(list) {
  */
 //   2026-10-19: ㄱ자·ㄷ자 꺾인 벽의 정면 입면 elevation_left · elevation_right (+ _labeled) — 선택, 최대 7장.
 //   design_spec.walls[] 에 그 벽이 있을 때만 프롬프트가 쓴다. 번호 붙은 것은 GPT 에만 (주벽 입면과 같은 규칙).
+//   2026-10-27: composite — 간편 플래너 「Blender 시안」(방 사진 그대로에 설계 3D 를 그 사진 카메라로 렌더해 얹은 사진, 사장님 "진행").
+//   선택. 있으면 잡이 IMAGE A 로 쓰고 도면 덩어리(1-d)를 칠하지 않는다 (job.js). JPEG 도 받는다.
 const RENDER_ROLES = [
   'elevation', 'elevation_labeled', 'massing',
   'elevation_left', 'elevation_left_labeled', 'elevation_right', 'elevation_right_labeled',
+  'composite',
 ];
 function normalizeRenders(list) {
   if (!Array.isArray(list)) return [];
@@ -556,6 +559,8 @@ async function createPlannerGeneration(request, env, headers, p) {
     ...(p.place_guide === false || (p.place_guide === undefined && !!(parent && parent.options && parent.options.place_guide === false))
       ? { place_guide: false }
       : {}),
+    // 2026-10-27: Blender 시안이 IMAGE A 로 가는 생성 — 집계용 표시. **있을 때만** 키를 둔다 (재생성은 원본 입력을 그대로 쓴다)
+    ...(renders.some((r) => r.role === 'composite') || parentRenders.some((r) => r && r.role === 'composite') ? { place_render: true } : {}),
     // 이미지 공급자 (2026-10-18 → 2026-10-19 기본 GPT) — 플래너 모드는 결정된 값을 **항상** 기록한다.
     //   요청 값 → 재생성 원본 값 → PLANNER_IMAGE_PROVIDER. 잡은 이 값만 읽는다 (없는 옛 행은 Gemini).
     image_provider: resolvePlannerProvider(env, p.image_provider, parent && parent.options && parent.options.image_provider),
