@@ -489,6 +489,9 @@ test('planner + Blender 시안: IMAGE A = 시안, 도면 덩어리는 칠하지 
   assert.deepEqual(call.images.map((i) => Buffer.from(i.data, 'base64').toString()), ['COMP', 'ELEV', 'MASS'], '방 사진 대신 시안');
   assert.match(call.prompt, /already rendered into it by our planner, using this photo's own camera/);
   assert.match(call.prompt, /never merge, split, move, stretch or redraw a door/);
+  // 장에만 해당 — 공사 현장이면 방 마감(SITE 문단)은 그대로 들어간다 (사장님 "1번으로 고치기")
+  assert.match(call.prompt, /This rule is about the units only — the walls, floor and ceiling around them follow the rest of this prompt/);
+  assert.match(call.prompt, /SITE: the photo shows an unfinished construction site\. Render the room fully finished and clean/);
   assert.doesNotMatch(call.prompt, /plain off-white blocks/);
   assert.ok(calls.reads.includes('render-composite'));
   assert.equal(asked.some((b) => b.includes(POINTS_Q)), false, '시안이 있으면 덩어리 선 찾기를 묻지 않는다');
