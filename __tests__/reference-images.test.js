@@ -474,7 +474,8 @@ describe('ai-design.html — 테마는 DB(theme_images)만, 위키미디어 실�
   });
 
   test('공용 모듈을 싣는다', () => {
-    expect(STUDIO).toContain('<script src="js/reference-images.js"></script>');
+    // defer 여도 된다 — 테마를 읽는 init() 은 DOMContentLoaded 뒤에 돈다 (__tests__/ai-design-first-screen.test.js)
+    expect(STUDIO).toMatch(/<script src="js\/reference-images\.js"( defer)?><\/script>/);
   });
 });
 
