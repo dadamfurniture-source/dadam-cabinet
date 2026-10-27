@@ -71,7 +71,7 @@ async function deleteDesigns(env, userId, ids) {
       const got = new Set(rows.map((r) => r && r.id));
       for (const id of chunk) if (got.has(id)) deleted.push(id);
       failed += chunk.length - got.size;
-    } catch (e) {
+    } catch {
       failed += chunk.length;
     }
   }
@@ -104,7 +104,7 @@ export async function prepareWithdrawal(env, userId) {
     const rows = await rest(env, `collection_posts?user_id=eq.${userId}&source=eq.ai_render&select=id,storage_path`, 'GET');
     keep = new Set(rows.map((r) => r && r.storage_path).filter(Boolean));
     out.posts.ai_render_kept = rows.length;
-  } catch (e) {
+  } catch {
     out.errors.push('ai_render_read');
   }
 
@@ -112,7 +112,7 @@ export async function prepareWithdrawal(env, userId) {
   try {
     const rows = await rest(env, `collection_posts?user_id=eq.${userId}&source=eq.upload&select=id`, 'DELETE');
     out.posts.upload_deleted = rows.length;
-  } catch (e) {
+  } catch {
     out.errors.push('upload_delete');
   }
 
@@ -126,7 +126,7 @@ export async function prepareWithdrawal(env, userId) {
     out.designs.deleted = r.deleted.length;
     out.designs.failed = r.failed;
     if (r.failed) out.errors.push('designs_delete');
-  } catch (e) {
+  } catch {
     out.errors.push('designs_read');
   }
 
