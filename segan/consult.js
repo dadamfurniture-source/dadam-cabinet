@@ -1,8 +1,9 @@
 /* ============================================================
    segan/consult.js — ④ 상담 신청 (consult.html?g=<연출컷 id>)
 
-   저장은 consultation.html 과 같은 길이다: Supabase consultations 에 insert
-   (→ on_new_consultation 트리거가 관리자 알림 로그를 남긴다). 새 엔드포인트를 만들지 않는다.
+   저장은 consultation.html 과 같은 길이다: Supabase consultations 에 insert. 새 엔드포인트를 만들지 않는다.
+   신청이 들어왔다고 바로 알리는 장치는 없다 — 본사가 관리자 화면(admin/consultations.html)에서 보고
+   연락한다. 그래서 접수 화면은 「바로 알림」을 약속하지 않는다.
 
    고객이 적는 것: 이름 · 연락처(필수, 프로필에서 채움), 시공 지역(시/도 · 시/군/구 — signup.html 과
    같은 목록), 연락 받기 좋은 시간(consultation.html 과 같은 값), 요청 사항, 개인정보 동의(필수).

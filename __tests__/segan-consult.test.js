@@ -363,8 +363,51 @@ describe('database/consultations-app.sql', () => {
     expect(SQL).toMatch(/consult_target IN \('hq', 'partner'\)/);
   });
 
-  test('RLS 는 바꾸지 않는다 · 지우는 문 없음', () => {
-    const code = SQL.replace(/--[^\n]*/g, '');
-    expect(code).not.toMatch(/POLICY|ROW LEVEL SECURITY|GRANT|REVOKE|DROP\s/i);
+  const code = () => SQL.replace(/--[^\n]*/g, '');
+
+  test('insert 정책만 좁힌다 — user_id 는 비우거나 자기 것, generation_id 는 비우거나 자기 연출컷', () => {
+    const c = code();
+    // 바꾸는 정책은 하나뿐 (읽기 · 고치기 정책은 그대로)
+    expect(
+      [...c.matchAll(/(?:DROP|CREATE) POLICY (?:IF EXISTS )?"([^"]+)"/g)].map((m) => m[1])
+    ).toEqual(['Users can insert consultations', 'Users can insert consultations']);
+    const policy = c.match(
+      /CREATE POLICY "Users can insert consultations" ON public\.consultations([\s\S]*?);/
+    )[1];
+    expect(policy).toMatch(/FOR INSERT/);
+    expect(policy).toMatch(/\(user_id IS NULL OR user_id = auth\.uid\(\)\)/);
+    expect(policy).toMatch(/public\.consultation_generation_ok\(generation_id\)/);
+    expect(policy).not.toMatch(/WITH CHECK \(\s*true\s*\)/);
+    // DROP 은 그 정책 하나뿐, 한 트랜잭션
+    expect(c.match(/DROP\s/g)).toHaveLength(1);
+    expect(c.trim().startsWith('BEGIN;')).toBe(true);
+    expect(c.trim().endsWith('COMMIT;')).toBe(true);
+    expect(c).not.toMatch(/ROW LEVEL SECURITY/i);
+  });
+
+  test('연출컷 주인 확인 함수 — SECURITY DEFINER · search_path 고정 · 비면 참 · anon/authenticated 만 실행', () => {
+    const c = code();
+    const fn = c.match(
+      /CREATE OR REPLACE FUNCTION public\.consultation_generation_ok\(gid UUID\)([\s\S]*?)\$\$;/
+    )[1];
+    expect(fn).toMatch(/SECURITY DEFINER/);
+    expect(fn).toMatch(/SET search_path = public/);
+    expect(fn).toMatch(
+      /SELECT gid IS NULL\s+OR EXISTS \(SELECT 1 FROM public\.generations g WHERE g\.id = gid AND g\.user_id = auth\.uid\(\)\)/
+    );
+    expect(c).toMatch(
+      /REVOKE ALL ON FUNCTION public\.consultation_generation_ok\(UUID\) FROM PUBLIC;/
+    );
+    expect(c).toMatch(
+      /GRANT EXECUTE ON FUNCTION public\.consultation_generation_ok\(UUID\) TO anon, authenticated;/
+    );
+    expect([...c.matchAll(/GRANT\s/g)]).toHaveLength(1);
+  });
+
+  test('consultation.html 의 insert 는 새 정책을 지난다 — 로그인 없으면 user_id null, generation_id 없음', () => {
+    const site = read('consultation.html');
+    const block = site.match(/from\('consultations'\)\.insert\(\{([\s\S]*?)\}\);/)[1];
+    expect(block).toMatch(/user_id: currentUser\?\.id \|\| null,/);
+    expect(block).not.toMatch(/generation_id/);
   });
 });
