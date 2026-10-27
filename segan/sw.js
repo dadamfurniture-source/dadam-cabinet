@@ -39,6 +39,7 @@ const SHELL = [
   versioned(SCOPE + 'make.css'),
   versioned(SCOPE + 'make.js'),
   versioned(SCOPE + 'consult.js'),
+  versioned(SCOPE + 'regions.js'),
   versioned(SCOPE + 'icons/icon.svg'),
   versioned(SCOPE + 'icons/wordmark.svg'),
   versioned(SCOPE + 'icons/favicon-32.png'),
