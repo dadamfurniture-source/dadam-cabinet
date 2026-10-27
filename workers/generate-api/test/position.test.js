@@ -156,6 +156,7 @@ test('질의는 오프라인 검증본과 글자까지 같다 — md5 앞 10자�
   assert.ok(!full.includes('ZOOMED CROP'));
   // 띠: 좌표 문장 바로 앞에 띠 문장
   assert.ok(zoom.indexOf('This image is a ZOOMED CROP') < zoom.indexOf('COORDINATES:'));
+  // eslint-disable-next-line no-control-regex -- ASCII 범위 검사
   assert.ok(/^[\x00-\x7f]*$/.test(zoom), 'ASCII 만');
   assert.ok(!zoom.includes('\r'));
   // 상판 뒷선 문장은 옛것 (접합선 문장은 GPT 용)
