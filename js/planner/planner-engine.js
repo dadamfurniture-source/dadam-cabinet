@@ -221,11 +221,6 @@ function calcDoorCount(W) {
 // W9-96: distributeModules — planner-vite/src/lib/calc-utils.ts 의 TS 알고리즘 vanilla 포팅
 //   3가지 후보 (10단위 내림 / 짝수 내림 / 균등) 우선순위 정렬 + 잔여 0~10mm 최적화 + 2D 페어링
 //   반환: { doorWidth, doorCount, modules: [{ w, is2D }], gap }
-/** 도어 n 장을 양문 우선으로 묶었을 때 모듈 수 */
-function moduleCountOf(doorCount) {
-  const n = Math.max(0, Number(doorCount) || 0);
-  return Math.floor(n / 2) + (n % 2);
-}
 
 function distributeModules(totalSpace) {
   if (totalSpace < 100) return { modules: [], doorWidth: 0, doorCount: 0, gap: 0 };
@@ -262,15 +257,12 @@ function distributeModules(totalSpace) {
       }
     }
   }
-  // W12-73: 조립 여유(모듈 수 × 1mm) 안에 드는 후보를 **먼저** 본다.
-  //   그 안이면 잔여를 나눠 붙이지 않아도 되고, 라인의 도어가 전부 같은 폭으로 남는다.
-  //   여유를 넘으면 결국 어느 도어 하나가 커진다 — 그건 마지막 수단이다.
-  allResults.forEach((r) => {
-    r.withinSlack = r.gap <= jointSlack(moduleCountOf(r.doorCount)) ? 0 : 1;
-  });
-  // 정렬: 조립 여유 안 → 목표 450 근접 → 잔여 작은 순 → 도어 수 적은 순
+  // 정렬: 목표 450 근접 → 잔여 작은 순 → 도어 수 적은 순
+  //   2026-10-27 사장님 "2072 … 도어가 5개, 몸통 2통 반이 맞다" → 목표 450 에 가까운 쪽 우선.
+  //   W12-73 은 조립 여유(모듈 수 × 1mm) 안 후보를 먼저 봐서 빈 폭 2064 · 2069 · 2074 … 가 도어 4장(516 · 517 · 518)이 됐다.
+  //   이제 2064 → 도어 5장 412. 잔여 처리는 W12-73 그대로다 (spreadGapEqually — 조립 여유 안이면 두고, 넘는 만큼만 마지막 모듈이 먹는다:
+  //   2064 는 잔여 4 = 여유 3 + 마지막 모듈 1).
   allResults.sort((a, b) => {
-    if (a.withinSlack !== b.withinSlack) return a.withinSlack - b.withinSlack;
     if (a.targetDiff !== b.targetDiff) return a.targetDiff - b.targetDiff;
     if (a.gap !== b.gap) return a.gap - b.gap;
     return a.doorCount - b.doorCount;
