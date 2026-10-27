@@ -21,14 +21,17 @@ const { version: VERSION } = JSON.parse(
   fs.readFileSync(path.join(ROOT, 'scripts/asset-version.json'), 'utf8')
 );
 
-const PAGE_DIRS = ['.', 'admin'];
+const PAGE_DIRS = ['.', 'admin', 'segan'];
+const EXTRA_FILES = ['segan/sw.js'];
 const pages = () =>
   PAGE_DIRS.flatMap((dir) =>
     fs
       .readdirSync(path.join(ROOT, dir))
       .filter((n) => n.endsWith('.html'))
       .map((n) => path.posix.join(dir === '.' ? '' : dir, n))
-  ).sort();
+  )
+    .concat(EXTRA_FILES)
+    .sort();
 
 const ASSET_EXT =
   /\.(?:m?js|css|png|jpe?g|webp|avif|gif|svg|ico|json|webmanifest|woff2?|ttf|otf)$/i;
@@ -57,11 +60,20 @@ describe('사이트 자산 버전 (하나)', () => {
     expect(Number(VERSION.slice(8))).toBeGreaterThanOrEqual(1);
   });
 
-  test('대상 페이지가 있다 (루트 · admin)', () => {
+  test('대상 페이지가 있다 (루트 · admin · segan)', () => {
     const list = pages();
     expect(list).toContain('index.html');
     expect(list).toContain('detaildesign.html');
     expect(list.some((p) => p.startsWith('admin/'))).toBe(true);
+    expect(list).toContain('segan/index.html');
+    expect(list).toContain('segan/sw.js');
+  });
+
+  test('segan 서비스 워커의 캐시 이름이 지금 버전을 쓴다', () => {
+    const sw = fs.readFileSync(path.join(ROOT, 'segan/sw.js'), 'utf8');
+    const consts = [...sw.matchAll(/\bconst ASSET_VERSION = (["'])([^"']*)\1/g)].map((m) => m[2]);
+    expect(consts).toEqual([VERSION]);
+    expect(sw).toMatch(/const CACHE = CACHE_PREFIX \+ ASSET_VERSION;/);
   });
 
   test('모든 로컬 자산 ?v= 가 지금 버전과 같다', () => {
@@ -131,6 +143,15 @@ describe('scripts/stamp-asset-version.mjs', () => {
       '<script src="js/a.js?v=2026102701"></script><link href="../css/b.css?x=1&v=2026102701#h"><script src="https://x.test/c.js?v=9"></script>'
     );
     expect(refs.map((r) => r.from)).toEqual(['36.0', '2']);
+  });
+
+  test('stampText — 서비스 워커의 ASSET_VERSION 상수도 찍는다', () => {
+    const out = run(`${imp}
+      const src = "const ASSET_VERSION = '2026010101';\\nconst x = 'shell.css?v=2026010101';";
+      console.log(JSON.stringify(s.stampText(src, '2026102701')));`);
+    expect(JSON.parse(out).text).toBe(
+      "const ASSET_VERSION = '2026102701';\nconst x = 'shell.css?v=2026102701';"
+    );
   });
 
   test('헤더에 한 줄 올리는 법이 적혀 있고 npm 스크립트로 묶여 있다', () => {
