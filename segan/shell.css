@@ -9,13 +9,20 @@
    ============================================================ */
 
 :root {
+  --v5-paper: #ffffff;
+  --v5-work: #f7f4ef;
+  --v5-well: #f1ece4;
+  --v5-photo: #e7e1d7;
   --v5-ink: #2d2a26;
   --v5-ink-62: rgba(45, 42, 38, 0.62);
   --v5-ink-60: rgba(45, 42, 38, 0.6);
   --v5-ink-45: rgba(45, 42, 38, 0.45);
+  --v5-ink-32: rgba(45, 42, 38, 0.32);
   --v5-line: rgba(45, 42, 38, 0.1);
   --v5-line-12: rgba(45, 42, 38, 0.12);
+  --v5-line-16: rgba(45, 42, 38, 0.16);
   --v5-line-18: rgba(45, 42, 38, 0.18);
+  --v5-line-25: rgba(45, 42, 38, 0.25);
   --v5-tan: #8a7457;
   --v5-navy: #0b2545;
   --v5-invert: #f6f3ee; /* 앱 바탕 — manifest background_color · theme_color 와 같다 */

@@ -133,7 +133,7 @@ describe('탭 4개 — 순서 · 주소 · 현재 탭', () => {
         expect(links.every(visible)).toBe(true); // 로그인 전에도 보인다
       }
       expect($('main#main')).not.toBeNull();
-      expect($$('h1')).toHaveLength(1);
+      expect($$('h1').filter(visible)).toHaveLength(1); // 만들기는 단계마다 제목이 있고 지금 단계만 보인다
       expect($$('[data-segan-shell]')).toHaveLength(0); // 자리표시가 모두 채워졌다
     }
   );
