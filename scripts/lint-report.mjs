@@ -122,11 +122,8 @@ function bump(map, key, msg) {
   return row;
 }
 
-// `npm run lint` = eslint . --report-unused-disable-directives --max-warnings 0
-const eslint = new ESLint({
-  cwd: ROOT,
-  overrideConfig: { linterOptions: { reportUnusedDisableDirectives: 'error' } },
-});
+// `npm run lint` = eslint . --max-warnings 0 (쓰이지 않는 disable 주석 보고는 eslint.config.mjs 의 linterOptions)
+const eslint = new ESLint({ cwd: ROOT });
 const results = await eslint.lintFiles(['.']);
 
 const byRule = new Map();
