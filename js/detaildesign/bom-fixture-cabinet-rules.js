@@ -12,6 +12,9 @@
  *   후드장 (fixture 'hood')     상부장 · 2도어 또는 플랩 · 선반 없음 (덕트 자리) ·
  *       몸통 · 도어 = 상부장 − 60 (윗선은 이웃 상부장과 같다 — 밑이 60 올라간다). 그 60 자리에 후드 50 이 도어 바로 밑에 붙고 아래 10 이 남는다.
  *       상부장 높이는 후드 종류에 따라 정해진다 — 지금 60 · 50 은 기준값이다 (사장님 "지금은 기준값으로").
+ *   양념망장 (fixture 'spice')  하부장 200 · 300 (2026-10-27 사장님) · 앞판이 양념망 철물에 달려 앞으로 당겨 나오는 풀아웃 —
+ *       경첩 없음 · 재단은 도어와 같다 (W − 4) × (H − 30) · 보통 하부장 몸통 (밴드 눕힘 그대로) · 선반 없음 ·
+ *       양념망 철물 1 SET — 품명 · 규격은 정해지지 않았다 [확인 필요] (사장님 "나중에 정합니다"). 폭은 철물이 정한다.
  *
  * ── 밴드 (개수대 · 가스대, 2026-10-26 사장님) ─────────────────
  *   보통 하부장은 밴드 70 두 장이 상단 앞 · 뒤에 눕는다 (sink.md §9 "뒤 눕힘").
@@ -24,6 +27,7 @@
  * ── 정해지지 않은 것 [확인 필요] ───────────────────────
  *   싱크볼 · 쿡탑 타공 치수 — 상판 업체 몫. 부재로 내지 않는다.
  *   후드 종류별 상부장 높이 — 지금은 기준값 하나 (HOOD.CUT 60 · HOOD.APPLIANCE_H 50).
+ *   양념망 철물 품명 · 규격 — 철물 행 비고에 [확인 필요] (SPICE.HARDWARE).
  */
 (function (root, factory) {
   const api = factory();
@@ -33,10 +37,10 @@
   'use strict';
 
   const FIXTURE_CABINET_RULES = Object.freeze({
-    FIXTURES: Object.freeze(['sink', 'cooktop', 'hood']),
-    LABEL: Object.freeze({ sink: '개수대', cooktop: '가스대', hood: '후드장' }),
-    // 설비가 서는 줄 — 개수대 · 가스대는 하부, 후드장은 상부
-    POS: Object.freeze({ sink: 'lower', cooktop: 'lower', hood: 'upper' }),
+    FIXTURES: Object.freeze(['sink', 'cooktop', 'hood', 'spice']),
+    LABEL: Object.freeze({ sink: '개수대', cooktop: '가스대', hood: '후드장', spice: '양념망장' }),
+    // 설비가 서는 줄 — 개수대 · 가스대 · 양념망장은 하부, 후드장은 상부
+    POS: Object.freeze({ sink: 'lower', cooktop: 'lower', hood: 'upper', spice: 'lower' }),
     // 개수대 · 가스대 밴드 — 앞 50 눕힘 · 뒤는 보통 밴드 폭(assembly-rules CARCASS.BAND_W 70)을 세운다
     BAND: Object.freeze({ FRONT_W: 50, BACK: 'stand' }),
     // 쿡탑 종류 (그림 · 표시) — 상판 위에 놓인다
@@ -54,8 +58,14 @@
     }),
     // 후드장 — 몸통 · 도어를 이만큼 짧게 (윗선 고정, 밑이 올라간다). 그 자리에 후드 APPLIANCE_H 가 도어 바로 밑에 붙는다
     HOOD: Object.freeze({ CUT: 60, APPLIANCE_H: 50 }),
-    // 선반 — 개수대 · 후드장은 없다 (가스대는 전부 서랍이라 선반이 없다)
-    NO_SHELF: Object.freeze(['sink', 'hood']),
+    // 양념망장 — 앞판은 철물에 달린 풀아웃 (BOM 도어 종류 'pullout' — 경첩 대신 이 철물 1 SET)
+    SPICE: Object.freeze({
+      DOOR_TYPE: 'pullout',
+      HARDWARE: Object.freeze({ category: '양념망', item: '양념망 (풀아웃)', unit: 'SET', qty: 1 }),
+      FRONT_NOTE: '양념망 앞판 — 풀아웃 (경첩 없음)',
+    }),
+    // 선반 — 개수대 · 후드장 · 양념망장은 없다 (가스대는 전부 서랍이라 선반이 없다)
+    NO_SHELF: Object.freeze(['sink', 'hood', 'spice']),
   });
 
   const R = FIXTURE_CABINET_RULES;
@@ -88,5 +98,10 @@
     return fixtureOf(x) === 'hood' ? R.HOOD.CUT : 0;
   }
 
-  return { FIXTURE_CABINET_RULES, fixtureOf, cooktopOf, hasStandingBackBand, noShelf, heightCutOf };
+  /** 여닫이가 아닌 앞판 종류 — 양념망장 'pullout' (아니면 null) */
+  function doorTypeOf(x) {
+    return fixtureOf(x) === 'spice' ? R.SPICE.DOOR_TYPE : null;
+  }
+
+  return { FIXTURE_CABINET_RULES, fixtureOf, cooktopOf, hasStandingBackBand, noShelf, heightCutOf, doorTypeOf };
 });
