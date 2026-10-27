@@ -24,7 +24,6 @@ const config = {
   transformIgnorePatterns: ['[\\\\/]node_modules[\\\\/](?!three[\\\\/])'],
   collectCoverageFrom: [
     'js/**/*.js',
-    'lib/**/*.ts',
     '!**/node_modules/**',
     '!**/*.d.ts',
   ],
