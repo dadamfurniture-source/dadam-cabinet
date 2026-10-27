@@ -348,7 +348,10 @@
   padding-bottom: 8px;
 }
 
-/* ── 아래 버튼 줄 ── */
+/* ── 아래 버튼 줄 ──
+   sticky — 내용 흐름 안에 자리를 차지한 채 아래 탭 위에 붙는다. 그래서 끝까지 내리면 마지막 줄이
+   버튼 줄 위로 다 올라온다 (fixed 처럼 따로 아래 여백을 줄 필요가 없다).
+   배경은 불투명 — 비치면 글자 밑으로 내용이 보인다. */
 .mk-bar {
   position: sticky;
   bottom: calc(var(--sg-tab) + env(safe-area-inset-bottom));
@@ -358,8 +361,8 @@
   gap: 8px;
   margin: auto calc(-1 * var(--sg-px)) 0; /* 위 auto — 내용이 짧아도 버튼 줄은 화면 아래에 */
   padding: 12px var(--sg-px) 14px;
-  background: rgba(246, 243, 238, 0.97);
-  border-top: 1px solid var(--v5-line);
+  background: var(--v5-invert);
+  border-top: 1px solid var(--v5-line-12);
 }
 
 .mk-bar[hidden] {
