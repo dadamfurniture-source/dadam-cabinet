@@ -13,12 +13,14 @@
  *   GET  /state    워터마크 · 마지막 실행 · 표별 건수
  *   POST /ingest   지금 수집
  *   POST /export   지금 내보내기
+ *   POST /planner/state · /planner/photo · /planner/design   간편 플래너 → 창고 (2026-10-28, planner.js)
  *
  * 검수 자체는 이 워커를 지나지 않는다. 관리자 페이지가 dataset_reviews 에 직접 쓰고
  * (RLS 가 관리자만 통과시킨다), 트리거가 dataset_samples 에 반영한다.
  */
 import { corsHeaders, handleOptions, jsonResponse } from './cors.js';
-import { select, verifyAdmin } from './supabase.js';
+import { select, upsert, patch, remove, putObject, removeObjects, verifyAdmin } from './supabase.js';
+import { plannerState, plannerPhoto, plannerDesign } from './planner.js';
 import { ingestAll } from './ingest.js';
 import { exportDataset } from './export.js';
 import { TAXONOMY_VERSION } from './adapters.js';
@@ -74,8 +76,16 @@ export default {
       if (url.pathname === '/export' && request.method === 'POST') {
         return jsonResponse(request, env, { ok: true, ...(await exportDataset(env)), by: auth.user.email });
       }
+      // 2026-10-28: 간편 플래너 → 창고 (planner.js) — 관리자 토큰으로 부른다
+      const PLANNER = { '/planner/state': plannerState, '/planner/photo': plannerPhoto, '/planner/design': plannerDesign };
+      if (PLANNER[url.pathname] && request.method === 'POST') {
+        let body;
+        try { body = await request.json(); } catch { return jsonResponse(request, env, { error: 'JSON 이 아닙니다' }, 400); }
+        const h = { select, upsert, patch, remove, putObject, removeObjects };
+        return jsonResponse(request, env, { ok: true, ...(await PLANNER[url.pathname](env, body, h)), by: auth.user.email });
+      }
     } catch (e) {
-      return jsonResponse(request, env, { error: String(e.message || e).slice(0, 400) }, 500);
+      return jsonResponse(request, env, { error: String(e.message || e).slice(0, 400) }, e.status === 400 ? 400 : 500);
     }
 
     return new Response('not found', { status: 404, headers: corsHeaders(request, env) });
