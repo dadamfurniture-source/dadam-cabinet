@@ -15,13 +15,16 @@
          두 벌이 되면 한쪽만 고치는 날이 반드시 온다. 정본은 ai-design.html 하나다.
 
          자바스크립트가 꺼져 있어도 넘어가도록 meta refresh 를 함께 둔다.
-         canonical 은 실제 내용이 있는 주소를 가리킨다. -->
-    <link rel="canonical" href="https://dadamfurniture.com/ai-design.html" />
-    <meta http-equiv="refresh" content="0; url=ai-design.html" />
+         canonical 은 실제 내용이 있는 주소를 가리킨다.
+
+         주소는 확장자 없는 ai-design 이다 — 호스팅이 /ai-design.html 을 /ai-design 으로
+         308 넘기므로, .html 로 보내면 한 번 더 돈다. /ai-design 은 ai-design.html 을 그대로 준다. -->
+    <link rel="canonical" href="https://dadamfurniture.com/ai-design" />
+    <meta http-equiv="refresh" content="0; url=ai-design" />
     <script>
       // meta refresh 는 뒤로 가기 기록을 남겨 '뒤로' 가 무한히 되돌아온다.
       // 스크립트가 살아 있으면 기록을 남기지 않는 replace 로 넘긴다.
-      location.replace('ai-design.html' + location.search + location.hash);
+      location.replace('ai-design' + location.search + location.hash);
     </script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -66,7 +69,7 @@
     <main class="idx-main">
       <div>
         <div class="idx-mark">DADAM</div>
-        <p class="idx-msg">AI 스튜디오로 이동합니다 · <a href="ai-design.html">바로 가기</a></p>
+        <p class="idx-msg">AI 스튜디오로 이동합니다 · <a href="ai-design">바로 가기</a></p>
       </div>
     </main>
   </body>
