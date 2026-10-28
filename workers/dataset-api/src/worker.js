@@ -13,7 +13,7 @@
  *   GET  /state    워터마크 · 마지막 실행 · 표별 건수
  *   POST /ingest   지금 수집
  *   POST /export   지금 내보내기
- *   POST /planner/state · /planner/photo · /planner/design   간편 플래너 → 창고 (2026-10-28, planner.js)
+ *   POST /planner/state · /planner/photo · /planner/design   간편 플래너 → 창고 (2026-10-28, planner.js — 시공 완료 확인은 planner_completions)
  *
  * 검수 자체는 이 워커를 지나지 않는다. 관리자 페이지가 dataset_reviews 에 직접 쓰고
  * (RLS 가 관리자만 통과시킨다), 트리거가 dataset_samples 에 반영한다.
@@ -82,7 +82,7 @@ export default {
         let body;
         try { body = await request.json(); } catch { return jsonResponse(request, env, { error: 'JSON 이 아닙니다' }, 400); }
         const h = { select, upsert, patch, remove, putObject, removeObjects };
-        return jsonResponse(request, env, { ok: true, ...(await PLANNER[url.pathname](env, body, h)), by: auth.user.email });
+        return jsonResponse(request, env, { ok: true, ...(await PLANNER[url.pathname](env, body, h, auth.user)), by: auth.user.email });
       }
     } catch (e) {
       return jsonResponse(request, env, { error: String(e.message || e).slice(0, 400) }, e.status === 400 ? 400 : 500);

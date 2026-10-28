@@ -4,15 +4,17 @@
  * 간편 플래너(dadam-planner-lite — 사장님 PC 의 로컬 도구)가 **관리자 계정 토큰**으로 부른다 (worker.js 가 verifyAdmin 을 먼저 지난다):
  *   POST /planner/state   {designId}                         → 그 설계 묶음의 표본 [{sample_id, image_sha256, label_source}]
  *   POST /planner/photo   {designId, fileName, sample, file} → 사진 한 장: 비공개 버킷 design-images 의 planner-lite/<설계>/<파일> + 표본 한 줄
- *   POST /planner/design  {designId, orderNo?, record, keep} → 설계 한 줄(그림 없음) · 수주번호 → orders.design_id 를 묶음 전체에 ·
- *                                                             keep 에 없는 표본 지움 (사진 파일도)
+ *   POST /planner/design  {designId, orderNo?, completed?, record, keep}
+ *                                                           → 설계 한 줄(그림 없음) · 수주번호 → orders.design_id 를 묶음 전체에 ·
+ *                                                             keep 에 없는 표본 지움 (사진 파일도) · 시공 완료 확인 (planner_completions)
  *
  * 원칙 (ingest.js 와 같다):
  *   1) 출처 · 묶음 키는 여기서 정한다 — source dadam_planner, group_key planner-lite:design:<id>. 플래너가 보낸 라벨은 범위만 검사.
  *   2) **사람이 검수한 표본(label_source human)은 덮어쓰지도 지우지도 않는다.** 플래너가 보내는 라벨은 늘 structured —
  *      창고의 human 은 관리자 검수(dataset_reviews 트리거)만 단다.
- *   3) 학습용 내보내기(dataset_exportable)는 수주가 시공 완료일 때만 — 앱 정본 그대로. 수주번호가 없거나 못 찾으면 design_id 는 비워
- *      창고 저장 · 검수만 된다.
+ *   3) 학습용 내보내기(dataset_exportable)는 수주가 시공 완료일 때 — 앱 정본 그대로. 수주번호가 없거나 못 찾으면 design_id 는 비워
+ *      창고 저장 · 검수만 된다. 앱 전에 끝난 현장(수주 없음)은 관리자가 플래너에서 「시공 완료 확인」을 켜면
+ *      planner_completions 에 한 줄 (0009, 사장님 2026-10-28) — 창고에 남는 시공 완료 사진이 한 장 이상일 때만. 끄면 지운다.
  *   4) 사진은 design-images 의 planner-lite/ 아래 — 고객 폴더(auth.uid)가 아니라 관리자만 읽는다 (design-images_select_admin).
  *      관리자 검수 화면 · 야간 내보내기가 이미 이 버킷을 서명한다 (storage-urls.js PRIVATE_BUCKETS).
  *
@@ -22,6 +24,8 @@
 export const PLANNER_BUCKET = 'design-images';
 export const PLANNER_PREFIX = 'planner-lite';
 export const PLANNER_SRC_TABLE = 'planner_lite';
+/** 시공 완료 확인 (database/migrations/0009_planner_completions.sql) */
+export const COMPLETION_TABLE = 'planner_completions';
 const DESIGN_ID_RE = /^[A-Za-z0-9][A-Za-z0-9-]{3,80}$/;
 const FILE_RE = /^[A-Za-z0-9][A-Za-z0-9-]{3,80}\.(jpg|png|webp)$/;
 /** ERP 수주번호 (workflow-api orders.js buildOrderNo: SO-YYYYMMDD-XXXX) — 넉넉히 */
@@ -146,7 +150,30 @@ export function designRow(designId, record) {
 }
 
 async function groupRows(env, gk, h) {
-  return h.select(env, `dataset_samples?select=sample_id,image_url,image_sha256,label_source&group_key=eq.${encodeURIComponent(gk)}&limit=1000`);
+  return h.select(env, `dataset_samples?select=sample_id,image_url,image_sha256,label_source,media,kind:attrs->>kind&group_key=eq.${encodeURIComponent(gk)}&limit=1000`);
+}
+
+/** 0009 를 DB 에 적용하기 전 — 표가 없다 (PostgREST PGRST205 · Postgres 42P01) */
+const missingTable = (e) => /PGRST205|42P01/.test(String((e && e.message) || ''));
+
+/**
+ * 시공 완료 확인 — want 가 참이고 창고에 남는 시공 완료 사진(attrs.kind complete · media photo)이 있으면 한 줄, 아니면 지운다.
+ * confirmed_at 은 처음 켠 때 그대로 둔다 (upsert 는 보낸 칸만 고친다).
+ * @returns {{confirmed:boolean, photos:number, why?:'no_complete_photo'|'db_pending'}}
+ */
+async function setCompletion(env, gk, want, remaining, h, who) {
+  const photos = remaining.filter((r) => r.kind === 'complete' && r.media === 'photo').length;
+  try {
+    if (want && photos > 0) {
+      await h.upsert(env, COMPLETION_TABLE, [{ group_key: gk, complete_photos: photos, confirmed_by: who.id, updated_at: new Date().toISOString() }], 'group_key');
+      return { confirmed: true, photos };
+    }
+    await h.remove(env, `${COMPLETION_TABLE}?group_key=eq.${encodeURIComponent(gk)}`);
+    return want ? { confirmed: false, photos, why: 'no_complete_photo' } : { confirmed: false, photos };
+  } catch (e) {
+    if (missingTable(e)) return { confirmed: false, photos, why: 'db_pending' };
+    throw e;
+  }
 }
 
 /** POST /planner/state */
@@ -174,8 +201,8 @@ export async function plannerPhoto(env, b, h) {
   return { sample_id: row.sample_id, image_sha256: sha };
 }
 
-/** POST /planner/design — 설계 한 줄 · 수주 잇기 · 빠진 표본 지우기 */
-export async function plannerDesign(env, b, h) {
+/** POST /planner/design — 설계 한 줄 · 수주 잇기 · 빠진 표본 지우기 · 시공 완료 확인. who = verifyAdmin 을 지난 관리자 */
+export async function plannerDesign(env, b, h, who) {
   const designId = designIdOf(b);
   const gk = plannerGroupKey(designId);
   const orderNo = b.orderNo == null || b.orderNo === '' ? null : String(b.orderNo).trim();
@@ -203,5 +230,12 @@ export async function plannerDesign(env, b, h) {
     const paths = gone.map((r) => String(r.image_url || '')).filter((u) => u.includes(prefix)).map((u) => u.split(prefix)[1]).filter((p) => p.startsWith(`${PLANNER_PREFIX}/${designId}/`));
     if (paths.length) await h.removeObjects(env, PLANNER_BUCKET, paths);
   }
-  return { sample_id: row.sample_id, removed: gone.length, locked: human.size, order };
+  // 시공 완료 확인 — 보낸 때만 (completed 가 없으면 건드리지 않는다)
+  let completion = null;
+  if (typeof b.completed === 'boolean') {
+    if (b.completed && !(who && who.id)) throw bad('시공 완료 확인은 관리자 계정으로만 합니다');
+    const goneSet = new Set(gone.map((r) => r.sample_id));
+    completion = await setCompletion(env, gk, b.completed, rows.filter((r) => !goneSet.has(r.sample_id)), h, who);
+  }
+  return { sample_id: row.sample_id, removed: gone.length, locked: human.size, order, completion };
 }

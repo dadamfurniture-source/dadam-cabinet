@@ -9,6 +9,8 @@
  *   3) 고객이 올린 것(SEGAN 학습 허용)은 동의 · 검수 대기 · user-uploaded, 업체 사진은 restricted-internal
  *   4) 수주번호 → orders.design_id 를 묶음 전체에, 못 찾거나 없으면 비운다 (학습 내보내기는 시공 완료 수주만 — dataset_exportable)
  *   5) 플래너에서 지운 사진은 표본 · 파일을 같이 지운다. 형식 · 크기 · id 는 쓰기 전에 거른다. 메모 · 이름 칸은 빼고 넣는다
+ *   6) 시공 완료 확인 (ERP 이전 현장, 0009 planner_completions) — 관리자 · 창고에 남는 시공 완료 사진이 있을 때만 한 줄, 끄면 지운다,
+ *      보내지 않으면 건드리지 않는다, 표가 아직 없으면(DB 적용 전) 나머지는 그대로 하고 알린다
  *
  * ESM 을 jest(CJS) 에서 읽기 위해 import · export 를 떼고 평가한다 (dataset-adapters.test.js 방식). planner.js 는 import 가 없고
  * 쓰는 것(select · upsert …)은 h 로 받는다. atob · crypto 는 노드 것을 넣는다.
@@ -38,9 +40,14 @@ const GK = `planner-lite:design:${ID}`;
 const JPG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0xff, 0xd9]);
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
 
-/** 가짜 Supabase — 표 한 개(dataset_samples) · orders · 저장소 */
-function fake(rows = [], orders = []) {
-  const db = { rows: rows.map((r) => ({ ...r })), objects: new Map(), removedObjects: [], patches: [], upserts: [] };
+/** 가짜 Supabase — 표 둘(dataset_samples · planner_completions) · orders · 저장소. noCompletions = 0009 적용 전 */
+function fake(rows = [], orders = [], { noCompletions = false } = {}) {
+  const db = { rows: rows.map((r) => ({ ...r })), objects: new Map(), removedObjects: [], patches: [], upserts: [], completions: new Map(), completionUpserts: [] };
+  const missing = (table) => {
+    if (noCompletions && table === 'planner_completions') {
+      throw new Error(`upsert planner_completions 404: {"code":"PGRST205","message":"Could not find the table 'public.planner_completions' in the schema cache"}`);
+    }
+  };
   const h = {
     select: async (env, q) => {
       if (q.startsWith('orders?')) {
@@ -48,9 +55,17 @@ function fake(rows = [], orders = []) {
         return orders.filter((o) => o.order_no === no);
       }
       const gk = decodeURIComponent(q.match(/group_key=eq\.([^&]+)/)[1]);
-      return db.rows.filter((r) => r.group_key === gk);
+      // kind:attrs->>kind — PostgREST 가 attrs 의 kind 를 kind 칸으로 준다
+      return db.rows.filter((r) => r.group_key === gk)
+        .map((r) => (q.includes('kind:attrs->>kind') ? { ...r, kind: r.attrs && r.attrs.kind != null ? String(r.attrs.kind) : null } : r));
     },
     upsert: async (env, table, list) => {
+      missing(table);
+      if (table === 'planner_completions') {
+        db.completionUpserts.push(...list);
+        for (const r of list) db.completions.set(r.group_key, { ...(db.completions.get(r.group_key) || { confirmed_at: 'first' }), ...r });
+        return list.length;
+      }
       db.upserts.push(...list);
       for (const r of list) {
         const i = db.rows.findIndex((x) => x.sample_id === r.sample_id);
@@ -64,6 +79,11 @@ function fake(rows = [], orders = []) {
       db.rows.filter((r) => r.group_key === gk).forEach((r) => Object.assign(r, values));
     },
     remove: async (env, q) => {
+      if (q.startsWith('planner_completions?')) {
+        missing('planner_completions');
+        db.completions.delete(decodeURIComponent(q.match(/group_key=eq\.([^&]+)/)[1]));
+        return;
+      }
       const ids = q.match(/in\.\((.*)\)$/)[1].split(',').map((s) => s.replace(/"/g, ''));
       db.rows = db.rows.filter((r) => !ids.includes(r.sample_id));
     },
@@ -169,4 +189,59 @@ test('상태 — 그 묶음의 표본 id · sha256 · 라벨 출처만', async (
   expect(P.sniff(JPG)).toBe('jpg');
   expect(P.sniff(PNG)).toBe('png');
   expect([P.PLANNER_BUCKET, P.PLANNER_PREFIX]).toEqual(['design-images', 'planner-lite']);
+});
+
+describe('시공 완료 확인 (ERP 이전 현장 — 0009 planner_completions)', () => {
+  const ADMIN = { id: '11111111-1111-4111-8111-111111111111', email: 'boss@example.com' };
+  const photo = (pid, kind, extra = {}) => Object.assign({ sample_id: `${GK}:photo:${pid}`, group_key: GK, label_source: 'structured', media: 'photo', image_url: 'u', attrs: { kind } }, extra);
+  const body = (extra) => Object.assign({ designId: ID, record: { design: {} }, keep: [`${GK}:photo:s1`, `${GK}:photo:c1`] }, extra);
+
+  test('켜면 — 시공 완료 사진 수 · 표시한 관리자로 한 줄, 처음 켠 때는 그대로, 끄면 지운다', async () => {
+    const { db, h } = fake([photo('s1', 'site'), photo('c1', 'complete'), photo('a1', 'ai', { media: 'generated' })]);
+    const r = await P.plannerDesign(ENV, body({ completed: true }), h, ADMIN);
+    expect(r.completion).toEqual({ confirmed: true, photos: 1 });
+    const c = db.completions.get(GK);
+    expect([c.group_key, c.complete_photos, c.confirmed_by, c.confirmed_at]).toEqual([GK, 1, ADMIN.id, 'first']);
+    expect('confirmed_at' in db.completionUpserts[0]).toBe(false);   // 처음 켠 때는 DB 기본값(now) — 보내지 않는다
+    await P.plannerDesign(ENV, body({ completed: true }), h, ADMIN);
+    expect(db.completions.get(GK).confirmed_at).toBe('first');   // 다시 올려도 처음 켠 때
+    const off = await P.plannerDesign(ENV, body({ completed: false }), h, ADMIN);
+    expect(off.completion).toEqual({ confirmed: false, photos: 1 });
+    expect(db.completions.has(GK)).toBe(false);
+  });
+
+  test('시공 완료 사진이 없으면 — 켜도 줄을 두지 않는다 (이번에 지우는 사진 · AI 연출 · Blender 시안은 세지 않는다)', async () => {
+    const { db, h } = fake([photo('s1', 'site'), photo('c1', 'complete'), photo('b1', 'complete', { media: 'render3d' })]);
+    db.completions.set(GK, { group_key: GK, complete_photos: 1 });
+    const r = await P.plannerDesign(ENV, body({ completed: true, keep: [`${GK}:photo:s1`, `${GK}:photo:b1`] }), h, ADMIN);
+    expect(r.removed).toBe(1);
+    expect(r.completion).toEqual({ confirmed: false, photos: 0, why: 'no_complete_photo' });
+    expect(db.completions.has(GK)).toBe(false);
+  });
+
+  test('관리자가 검수한 시공 완료 사진은 플래너가 지워도 남으니 센다', async () => {
+    const { db, h } = fake([photo('c9', 'complete', { label_source: 'human' })]);
+    const r = await P.plannerDesign(ENV, body({ completed: true, keep: [] }), h, ADMIN);
+    expect(r.completion).toEqual({ confirmed: true, photos: 1 });
+    expect(db.completions.get(GK).complete_photos).toBe(1);
+  });
+
+  test('보내지 않으면 건드리지 않는다 · 켜기는 관리자만 · 다른 설계 줄은 그대로', async () => {
+    const { db, h } = fake([photo('c1', 'complete')]);
+    db.completions.set(GK, { group_key: GK, complete_photos: 1 });
+    db.completions.set('planner-lite:design:other-1', { group_key: 'planner-lite:design:other-1', complete_photos: 2 });
+    const r = await P.plannerDesign(ENV, body({}), h, ADMIN);
+    expect(r.completion).toBeNull();
+    expect(db.completions.size).toBe(2);
+    await expect(P.plannerDesign(ENV, body({ completed: true }), h, undefined)).rejects.toMatchObject({ status: 400 });
+    await P.plannerDesign(ENV, body({ completed: false }), h, ADMIN);
+    expect([...db.completions.keys()]).toEqual(['planner-lite:design:other-1']);
+  });
+
+  test('DB 에 0009 를 적용하기 전 — 설계 · 수주 잇기는 그대로 하고 db_pending 으로 알린다', async () => {
+    const { db, h } = fake([photo('c1', 'complete')], [], { noCompletions: true });
+    const r = await P.plannerDesign(ENV, body({ completed: true }), h, ADMIN);
+    expect(r.completion).toEqual({ confirmed: false, photos: 1, why: 'db_pending' });
+    expect(db.rows.some((x) => x.sample_id === GK)).toBe(true);
+  });
 });
