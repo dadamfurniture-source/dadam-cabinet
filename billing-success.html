@@ -92,6 +92,9 @@
         border-color: var(--v5-line-18);
         margin-top: 10px;
       }
+      .bs-btn--back {
+        margin-bottom: 10px;
+      }
     </style>
   </head>
   <body class="v5-page">
@@ -103,6 +106,7 @@
         <h1 class="bs-title" id="title">결제 확인 중</h1>
         <p class="bs-msg" id="msg">잠시만 기다려 주세요…</p>
         <div class="bs-detail" id="detail" hidden></div>
+        <a class="bs-btn bs-btn--back" id="back" href="ai-design.html" hidden>돌아가기</a>
         <a class="bs-btn" id="primary" href="ai-design.html" hidden>AI 스튜디오로</a>
         <a class="bs-btn bs-btn--ghost" id="secondary" href="pricing.html" hidden>요금제로 돌아가기</a>
       </div>
@@ -133,6 +137,7 @@
           $('msg').textContent = msg;
           $('msg').className = 'bs-msg err';
           $('secondary').hidden = false;
+          showBack();
         }
 
         function won(n) {
@@ -145,10 +150,32 @@
           });
         }
 
-        // 업체 가입 — SEGAN 「내 정보 › 업체」(또는 구독 관리의 다시 결제)가 토스 카드 등록 전에 남긴 값.
-        //   { plan: 'expert' | 'agent', company?: { name, sido, gugun } }  (company 는 새 Expert 업체만)
-        // 서버에 plan · company 를 함께 보내고, 요청이 끝나면 지운다.
+        // 업체 가입 — 새 앱 「내 정보 › 업체」(또는 구독 관리의 다시 결제)가 토스 카드 등록 전에 남긴 값.
+        //   { plan: 'expert' | 'agent', company?: { name, sido, gugun }, returnTo?: '/…' }
+        //   (company 는 새 Expert 업체만, returnTo 는 결제 뒤 돌아갈 같은 사이트 경로)
+        // 서버에 plan · company 를 함께 보내고, 요청이 끝나면 지운다. returnTo 는 그 전에 읽어 둔다.
         var SIGNUP_KEY = 'partnerSignup';
+        var returnTo = null;
+
+        /** 같은 사이트 안 경로만 — '/' 로 시작, '//' 아님, 200자 이하, 풀어 보아도 이 사이트 */
+        function safeReturnTo(v) {
+          if (typeof v !== 'string' || v.length > 200) return null;
+          if (v.charAt(0) !== '/' || v.charAt(1) === '/') return null;
+          try {
+            // '/\evil' 같은 값은 브라우저가 다른 사이트로 읽는다 — 풀어 본 주소의 출처로 한 번 더 막는다
+            if (new URL(v, location.origin).origin !== location.origin) return null;
+          } catch (e) {
+            return null;
+          }
+          return v;
+        }
+
+        // 성공 · 실패 화면 모두 맨 앞에 「돌아가기」
+        function showBack() {
+          if (!returnTo) return;
+          $('back').setAttribute('href', returnTo);
+          $('back').hidden = false;
+        }
         function readSignup() {
           try {
             var raw = sessionStorage.getItem(SIGNUP_KEY);
@@ -187,6 +214,7 @@
           var authKey = q.get('authKey');
           var customerKey = q.get('customerKey');
           var signup = readSignup();
+          returnTo = safeReturnTo(signup && signup.returnTo);
           var plan = (signup && signup.plan) || q.get('plan');
 
           if (!authKey || !customerKey || !plan) {
@@ -264,6 +292,7 @@
             (d.next_charge_at ? new Date(d.next_charge_at).toLocaleDateString('ko-KR') : '-') +
             '</span></div>';
           $('detail').hidden = false;
+          showBack();
           $('primary').hidden = false;
           if (d.receipt_url) {
             $('secondary').textContent = '영수증 보기';

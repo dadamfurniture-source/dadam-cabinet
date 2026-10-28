@@ -325,6 +325,87 @@ describe('billing-success.html — partnerSignup 을 함께 보낸다', () => {
     expect($('detail').textContent).toContain(evil);
     expect(window.__pwned).toBeUndefined();
   });
+
+  describe('returnTo — 결제 뒤 돌아갈 같은 사이트 경로', () => {
+    const BACK = '/segan/me.html#partner';
+    const visibleLinks = () =>
+      [...document.querySelectorAll('.bs-card a')].filter((a) => !a.hidden).map((a) => a.id);
+
+    test('성공 — 맨 앞에 「돌아가기」(그 경로), 서버에는 보내지 않고 partnerSignup 은 지운다', async () => {
+      const calls = bootSuccess({
+        search: '?customerKey=dadam-u1&authKey=ak_7',
+        signup: { plan: 'expert', company: COMPANY, returnTo: BACK },
+      });
+      await flush();
+      expect($('title').textContent).toBe('구독이 시작되었습니다');
+      expect($('back').hidden).toBe(false);
+      expect($('back').textContent).toBe('돌아가기');
+      expect($('back').getAttribute('href')).toBe(BACK);
+      expect(visibleLinks()).toEqual(['back', 'primary']);
+      expect(calls[0].body).toEqual({
+        auth_key: 'ak_7',
+        customer_key: 'dadam-u1',
+        plan: 'expert',
+        company: COMPANY,
+      });
+      expect(window.sessionStorage.getItem('partnerSignup')).toBeNull();
+    });
+
+    test('결제 전에 막힌 실패에도 맨 앞에 「돌아가기」', async () => {
+      bootSuccess({
+        search: '?customerKey=dadam-u1&authKey=ak_8',
+        signup: { plan: 'agent', returnTo: BACK },
+        response: json(403, { success: false, code: 'agent_not_approved' }),
+      });
+      await flush();
+      expect($('title').textContent).toBe('결제를 마치지 못했습니다');
+      expect($('back').getAttribute('href')).toBe(BACK);
+      expect(visibleLinks()).toEqual(['back', 'secondary']);
+    });
+
+    test('결제 정보가 없는 실패 화면에도 「돌아가기」', async () => {
+      bootSuccess({ search: '', signup: { plan: 'expert', returnTo: '/a/b.html?x=1' } });
+      await flush();
+      expect($('msg').textContent).toContain('결제 정보가 올바르지 않습니다');
+      expect($('back').hidden).toBe(false);
+      expect($('back').getAttribute('href')).toBe('/a/b.html?x=1');
+    });
+
+    test.each([
+      ['다른 사이트 주소', 'https://evil.example/x'],
+      ['// 로 시작', '//evil.example/x'],
+      ['/\\ 로 시작 (브라우저가 다른 사이트로 읽음)', '/\\evil.example/x'],
+      ['/ 로 시작하지 않음', 'me.html#partner'],
+      ['javascript:', 'javascript:alert(1)'],
+      ['200자 넘음', '/' + 'a'.repeat(200)],
+      ['숫자', 42],
+      ['객체', { href: '/x' }],
+      ['null', null],
+    ])('%s 이면 「돌아가기」가 없다', async (_label, value) => {
+      bootSuccess({
+        search: '?customerKey=dadam-u1&authKey=ak_9',
+        signup: { plan: 'expert', company: COMPANY, returnTo: value },
+      });
+      await flush();
+      expect($('title').textContent).toBe('구독이 시작되었습니다');
+      expect($('back').hidden).toBe(true);
+      expect(visibleLinks()).toEqual(['primary']);
+    });
+
+    test('200자 경로까지는 된다', async () => {
+      const long = '/' + 'a'.repeat(199);
+      bootSuccess({
+        search: '?customerKey=dadam-u1&authKey=ak_10',
+        signup: { plan: 'expert', company: COMPANY, returnTo: long },
+      });
+      await flush();
+      expect($('back').getAttribute('href')).toBe(long);
+    });
+
+    test('사이트 페이지 코드에 새 앱 주소를 적지 않는다', () => {
+      expect(read('billing-success.html')).not.toMatch(/segan/i);
+    });
+  });
 });
 
 // ── billing.html ─────────────────────────────────────────────
