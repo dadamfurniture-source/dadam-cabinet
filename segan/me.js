@@ -1,7 +1,11 @@
 /* ============================================================
-   segan/me.js — 「내 정보」 탭의 상담 내역 · 크레딧 · 구독 (segan/me.html)
+   segan/me.js — 「내 정보」 탭의 내 프로젝트 · 상담 내역 · 크레딧 · 구독 (segan/me.html)
 
-   역할 메뉴 · 로그아웃 · 사업자 정보는 segan/shell.js 가 그린다. 여기서는 셋만 채운다 — 모두 기존 출처:
+   역할 메뉴 · 로그아웃 · 사업자 정보는 segan/shell.js 가 그린다. 여기서는 넷을 채운다:
+     내 프로젝트 workflow-api GET /me/projects (본인 토큰). 단계 6칸 · 끝난 상태 · 계약 금액 ·
+                다음 결제(안 낸 것 중 낼 날이 가장 이른 것 — 워커 payments.js 와 같은 due_on 오름차순 ·
+                빈 날 뒤) · 설치일. 수금 단계 이름은 erp.html PAY_STAGE_LABELS · 워커 payments.js 와 같다.
+                못 읽으면(오류 · 404 · 주소 없음) 칸째 감춘다 — 가짜 값을 그리지 않는다
      상담 내역  consultations (본인 — RLS 「Users can view own consultations」), 최신순.
                 상태 이름은 admin/consultations.html STATUS_LABELS 와 같다
      크레딧    js/site-shell.js 헤더와 같은 규칙 (user_credits, 없으면 등급 지급량) + credit_costs 로 「생성 N회」
@@ -22,6 +26,18 @@
   }; // billing.html
   var LIMIT = 20;
 
+  // 내 프로젝트 — GET /me/projects 의 stage 순서 그대로 (상담 → 시공 완료)
+  var PROJECT_STAGES = [
+    ['consult', '상담'],
+    ['render', '연출컷'],
+    ['design', '설계'],
+    ['quote', '견적'],
+    ['order', '수주'],
+    ['installed', '시공 완료'],
+  ];
+  var PROJECT_STATUS = { closed: '끝남', cancelled: '취소', handed_over: '넘김' }; // active 는 적지 않는다
+  var PAY_STAGE = { deposit: '계약금', interim: '중도금', balance: '잔금', other: '기타' }; // erp.html · 워커 payments.js
+
   var $ = function (id) {
     return document.getElementById(id);
   };
@@ -33,6 +49,9 @@
   }
 
   function day(iso) {
+    // 날짜만 온 값(due_on 'YYYY-MM-DD')은 그대로 읽는다 — Date 로 바꾸면 시간대에 따라 하루 밀린다
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso == null ? '' : iso));
+    if (m) return m[1] + '.' + m[2] + '.' + m[3];
     var d = new Date(iso);
     if (isNaN(d)) return '';
     return (
@@ -52,6 +71,99 @@
   function subLabel(sub) {
     if (sub.status === 'cancelled' && sub.ended_at) return '종료됨';
     return SUB_STATUS[sub.status] || sub.status || '';
+  }
+
+  // ── 내 프로젝트 ────────────────────────────────────────
+  /** 다음 결제 — 안 낸 것(paid_on 없음) 중 낼 날이 가장 이른 것. 날이 없는 것은 뒤, 같으면 받은 순서 */
+  function nextPayment(payments) {
+    var best = null;
+    (Array.isArray(payments) ? payments : []).forEach(function (x) {
+      if (!x || x.paid_on) return;
+      if (!best) best = x;
+      else if (x.due_on && (!best.due_on || String(x.due_on) < String(best.due_on))) best = x;
+    });
+    return best;
+  }
+
+  /** 단계 6칸 — 지금 단계까지 막대를 채운다 (만들기 탭 단계 막대와 같은 모양) */
+  function stepsHtml(stage) {
+    var at = -1;
+    PROJECT_STAGES.forEach(function (s, i) {
+      if (s[0] === stage) at = i;
+    });
+    return (
+      '<ol class="me-steps" aria-label="진행 단계">' +
+      PROJECT_STAGES.map(function (s, i) {
+        return (
+          '<li class="me-step' +
+          (i <= at ? ' me-step--done' : '') +
+          '"' +
+          (i === at ? ' aria-current="step"' : '') +
+          '>' +
+          esc(s[1]) +
+          '</li>'
+        );
+      }).join('') +
+      '</ol>'
+    );
+  }
+
+  function factHtml(label, value) {
+    return '<div><dt>' + esc(label) + '</dt><dd>' + esc(value) + '</dd></div>';
+  }
+
+  /** 프로젝트 한 줄 — 제목 · 회사 · 상태(active 아니면) · 단계 · 계약 금액 · 다음 결제 · 설치일 */
+  function projectHtml(p) {
+    var facts = [];
+    var order = p.order || null;
+    if (order && order.contract_amount != null) {
+      facts.push(factHtml('계약 금액', won(order.contract_amount)));
+    }
+    var pay = nextPayment(p.payments);
+    if (pay) {
+      var t = PAY_STAGE[pay.stage] || pay.stage || '';
+      if (pay.amount != null) t += (t ? ' ' : '') + won(pay.amount);
+      if (pay.due_on) t += (t ? ' · ' : '') + day(pay.due_on);
+      facts.push(factHtml('다음 결제', t));
+    }
+    if (p.install_at) facts.push(factHtml('설치일', day(p.install_at)));
+    var status = p.status && p.status !== 'active' ? PROJECT_STATUS[p.status] || p.status : '';
+    return (
+      '<li class="me-project"><span class="me-p-head"><span class="me-c-main"><b>' +
+      esc(p.title || '프로젝트') +
+      '</b>' +
+      (p.company_name ? '<small>' + esc(p.company_name) + '</small>' : '') +
+      '</span>' +
+      (status ? '<span class="me-badge">' + esc(status) + '</span>' : '') +
+      '</span>' +
+      stepsHtml(p.stage) +
+      (facts.length ? '<dl class="me-facts">' + facts.join('') + '</dl>' : '') +
+      '</li>'
+    );
+  }
+
+  async function loadProjects(session) {
+    var section = $('meProjectSection');
+    if (!section) return;
+    section.hidden = true;
+    var cfg = window.DADAM_CONFIG || {};
+    var base = (cfg.workflowApi && cfg.workflowApi.url) || '';
+    if (!base) return;
+    try {
+      var res = await fetch(base + '/me/projects', {
+        headers: { Authorization: 'Bearer ' + session.access_token },
+        cache: 'no-store',
+      });
+      if (!res.ok) return; // 404(아직 없는 주소) · 오류 — 칸째 감춘다
+      var body = await res.json();
+      if (!body || body.success !== true || !Array.isArray(body.data)) return;
+      var rows = body.data;
+      $('meProjects').innerHTML = rows.map(projectHtml).join(''); // 모양이 틀린 행은 던진다 → 칸째 감춘다
+      $('meProjectEmpty').hidden = rows.length > 0;
+      section.hidden = false;
+    } catch {
+      section.hidden = true;
+    }
   }
 
   // ── 상담 내역 ──────────────────────────────────────────
@@ -144,10 +256,23 @@
 
   async function start(auth) {
     if (!auth || !auth.session || !auth.sb || !$('meConsults')) return;
-    await Promise.all([loadConsults(auth.sb, auth.session), loadPlan(auth.sb, auth.session)]);
+    await Promise.all([
+      loadProjects(auth.session),
+      loadConsults(auth.sb, auth.session),
+      loadPlan(auth.sb, auth.session),
+    ]);
   }
 
-  var api = { CONSULT_STATUS: CONSULT_STATUS, SUB_STATUS: SUB_STATUS, subLabel: subLabel };
+  var api = {
+    CONSULT_STATUS: CONSULT_STATUS,
+    SUB_STATUS: SUB_STATUS,
+    PROJECT_STAGES: PROJECT_STAGES,
+    PROJECT_STATUS: PROJECT_STATUS,
+    PAY_STAGE: PAY_STAGE,
+    subLabel: subLabel,
+    nextPayment: nextPayment,
+    projectHtml: projectHtml,
+  };
   window.SeganMe = api;
   api.ready = (
     window.SeganShell && window.SeganShell.ready ? window.SeganShell.ready : Promise.resolve(null)
