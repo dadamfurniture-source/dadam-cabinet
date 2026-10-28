@@ -143,9 +143,9 @@
         '좌대 전후':       { key: 'pedestal:fb',      slot: 'kick' },
         '좌대 측':         { key: 'pedestal:side',    slot: 'kick' },
         '좌대 중간보강':   { key: 'pedestal:brace',   slot: 'kick' },
-        // 띄움 시공 (2026-10-28 사장님 — 신발장): 걸레받이 자리의 가림판 (몸통 뒤 맞춤) · 줄 좌우 마감재 (assembly-rules CARCASS.FLOAT_*)
+        // 띄움 시공 (2026-10-28 사장님 — 신발장): 걸레받이 자리의 가림판 (몸통 뒤 맞춤) · 줄 좌우 가림판 (몸통 바깥, assembly-rules CARCASS.FLOAT_*)
         '가림판':          { key: 'float:cover',      slot: 'kick' },
-        '마감재(띄움)':    { key: 'float:side',       slot: 'finishing' },
+        '가림판(좌우)':    { key: 'float:side',       slot: 'finishing' },
       };
 
       /** 2026-10-20: 아일랜드 몸통 깊이는 사장님 값 대기 — 측판 비고에 붙인다 (extract 'island'). */
@@ -688,6 +688,34 @@
       }
       /** 띄움 시공 서랍장 — 정한 규칙이 없다 (하부장 짜임 그대로 낸다) */
       const BOM_FLOAT_DRAWER_NOTE = '[확인 필요] 띄움 시공 서랍장 — 규칙 없음 (하부장 짜임 그대로)';
+      /** 좌우 가림판 비고 — 끝 마감재 종류별 (CARCASS.FLOAT_SIDE_D_MINUS) */
+      const BOM_FLOAT_SIDE_NOTE = Object.freeze({
+        filler: '쫄 뒤 — 깊이 몸통 − 35 (쫄 25 는 도어 앞선까지 앞으로)',
+        molding: '몰딩 안쪽 — 깊이 몸통 − 5 (몰딩 36 중 몸통 안 11, 여유 5)',
+        none: '끝 마감재 없음 — 깊이 = 배치 공간 (몸통 + 앞 자리)',
+      });
+      /**
+       * 바닥 줄 끝 모듈 그 쪽(side)에 붙은 도면 마감재 (specs.drawnFinishes — 상부 것은 빼고). 위치가 있으면 모듈 끝과 1mm 안
+       *   (모듈 _x · 마감재 x · W 는 같은 플래너 좌표), 모듈 위치가 없는 옛 도면이면 배치 공간 끝(edge)이 그 쪽인 것. 없으면 null.
+       */
+      function bomFloatEndFinishOf(mod, side, fins) {
+        const x0 = mod && mod._x != null ? Number(mod._x) : NaN;
+        const x1 = x0 + bomWidthOf(mod);
+        return (fins || []).find((f) => {
+          if (!f || f.area === 'upper') return false;
+          if (Number.isFinite(x0) && Number.isFinite(f.x) && Number.isFinite(f.W)) return side === 'left' ? Math.abs(f.x + f.W - x0) <= 1 : Math.abs(f.x - x1) <= 1;
+          return !Number.isFinite(x0) && f.edge === side;
+        }) || null;
+      }
+      /**
+       * 띄움 좌우 가림판 깊이 — 끝 마감재(section)에 따라 (2026-10-28 사장님): 쫄 · 몰딩은 몸통에서 FLOAT_SIDE_D_MINUS 만큼 빼고,
+       *   EP 는 0 (가림판 없음 — EP 가 바닥까지), 마감재 없음 · 비움은 배치 공간 깊이 (몸통 + 앞 자리).
+       */
+      function bomFloatSideDepthOf(section, bodyD) {
+        if (section === 'ep') return 0;
+        const minus = ASM.FLOAT_SIDE_D_MINUS[section];
+        return minus != null ? bodyD - minus : bodyD + BOM_SIMPLE_TOP_FRONT;
+      }
 
       /**
        * 도어 수 기본값 — 2026-10-13 사장님: 플래너와 같게. 도어 한 장 최대 600 (MASTER_RULES.DOOR_W_MAX) —
@@ -2103,9 +2131,10 @@
         }
 
         /**
-         * 띄움 줄 좌우 마감재 — 붙어 선 바닥 줄마다 양 끝 한 장씩, 높이 띄움 + 40 · 깊이 그 끝 몸통 + 20 (현장재단 여유), 18T MDF 도어 재질
-         *   (2026-10-28 사장님). 같은 크기는 한 행에 수량으로. 가림판 자리는 깊이가 다른 이웃에서도 나뉘므로(조각 규칙) 맞붙은 자리는
-         *   한 줄로 합친다 — 자리 없는 옛 설계('-')는 차례대로 붙어 있고, 자리가 있으면 끝과 끝이 1mm 안이면 붙었다.
+         * 띄움 줄 좌우 가림판 — 붙어 선 바닥 줄마다 양 끝, 몸통 바깥쪽에 붙는다 (2026-10-28 사장님 "정확히는 몸통 바깥쪽에서 결합되어 들어감").
+         *   18T MDF 도어 재질 · 높이 띄움 + 20 · 깊이는 그 끝 도면 마감재에 따라 (bomFloatSideDepthOf — 쫄 몸통 − 35 · 몰딩 몸통 − 5 ·
+         *   EP 없음 · 마감재 없음 = 배치 공간 깊이). 같은 크기 · 같은 끝 마감재는 한 행에 수량으로. 가림판 자리는 깊이가 다른 이웃에서도
+         *   나뉘므로(조각 규칙) 맞붙은 자리는 한 줄로 합친다 — 자리 없는 옛 설계('-')는 차례대로 붙어 있고, 자리가 있으면 끝과 끝이 1mm 안이면 붙었다.
          */
         addFloatSideFinishes(materials, label, places, item, rules, floatH) {
           // 줄 계획은 상자 모듈(오픈장 · 홈카페)을 걷어내기 전 품목으로 세웠다 (_ctx.item) — 끝 모듈은 그 목록에서 찾는다
@@ -2124,13 +2153,21 @@
             if (touching) prev.last = last;
             else runs.push({ wall: pl.wall, first, last });
           });
+          const fins = Array.isArray(item && item.specs && item.specs.drawnFinishes) ? item.specs.drawnFinishes : [];
           const sizes = new Map();
-          runs.forEach((r) => [r.first, r.last].forEach((m) => {
-            const d = bomSimpleDepthOf(m, 'lower', item, rules) + ASM.FLOAT_SIDE_D_PLUS;
-            sizes.set(d, (sizes.get(d) || 0) + 1);
+          runs.forEach((r) => [[r.first, 'left'], [r.last, 'right']].forEach(([m, side]) => {
+            if (!m) return;
+            const f = bomFloatEndFinishOf(m, side, fins);
+            const kind = f && BOM_FLOAT_SIDE_NOTE[f.section] ? f.section : f && f.section === 'ep' ? 'ep' : 'none';
+            const d = bomFloatSideDepthOf(kind, bomSimpleDepthOf(m, 'lower', item, rules));
+            if (!(d > 0)) return;   // EP — 가림판 없음
+            const key = `${d}|${kind}`;
+            const s = sizes.get(key) || { d, kind, qty: 0 };
+            s.qty += 1;
+            sizes.set(key, s);
           }));
-          [...sizes.entries()].sort((a, b) => b[0] - a[0]).forEach(([d, qty]) => this.add(materials, label, '마감재(띄움)', 'MDF', ASM.FLOAT_PANEL_T,
-            floatH + ASM.FLOAT_SIDE_H_PLUS, d, qty, '4면', `띄움 줄 좌우 마감재 — 높이 띄움 + ${ASM.FLOAT_SIDE_H_PLUS} · 깊이 몸통 + ${ASM.FLOAT_SIDE_D_PLUS} (현장재단 여유) · 도어 재질`));
+          [...sizes.values()].sort((a, b) => b.d - a.d).forEach((s) => this.add(materials, label, '가림판(좌우)', 'MDF', ASM.FLOAT_PANEL_T,
+            floatH + ASM.FLOAT_SIDE_H_PLUS, s.d, s.qty, '4면', `띄움 좌우 가림판 — 몸통 바깥 · 높이 띄움 + ${ASM.FLOAT_SIDE_H_PLUS} · ${BOM_FLOAT_SIDE_NOTE[s.kind]} · 도어 재질`));
         }
 
         /**
@@ -3920,7 +3957,7 @@
           BOM_SIMPLE_CATEGORY_RULES, bomSimpleShelfQtyOf, bomSimpleDefaultShelfCount, bomSimpleDoorCountOf,
           bomSimpleHingeDoorsOf, bomSimpleDepthOf, bomSimpleRailLenOf,
           // 2026-10-28 신발장 — 품목 기본값 (하부 1000 · 띄움 200 · 상판 18T MDF) · 상판 앞 자리 · 상판 두께 (0 = 없음)
-          BOM_SHOERACK_DEFAULTS, BOM_SIMPLE_TOP_FRONT, bomSimpleTopTOf,
+          BOM_SHOERACK_DEFAULTS, BOM_SIMPLE_TOP_FRONT, bomSimpleTopTOf, bomFloatEndFinishOf, bomFloatSideDepthOf,
           // 2026-10-13 플랩 가스쇼바 — 규격표·자동 선택
           BOM_GAS_STRUTS, bomGasStrutFor,
           // 2026-10-18 사전 오류 검사(bom-preflight.js)가 컵 간격 문턱을 여기서 읽는다
