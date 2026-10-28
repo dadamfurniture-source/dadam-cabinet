@@ -2103,21 +2103,32 @@
         }
 
         /**
-         * 띄움 줄 좌우 마감재 — 자리(붙어 선 바닥 줄)마다 양 끝 한 장씩, 높이 띄움 + 40 · 깊이 그 끝 몸통 + 20 (현장재단 여유), 18T MDF 도어 재질
-         *   (2026-10-28 사장님). 같은 크기는 한 행에 수량으로.
+         * 띄움 줄 좌우 마감재 — 붙어 선 바닥 줄마다 양 끝 한 장씩, 높이 띄움 + 40 · 깊이 그 끝 몸통 + 20 (현장재단 여유), 18T MDF 도어 재질
+         *   (2026-10-28 사장님). 같은 크기는 한 행에 수량으로. 가림판 자리는 깊이가 다른 이웃에서도 나뉘므로(조각 규칙) 맞붙은 자리는
+         *   한 줄로 합친다 — 자리 없는 옛 설계('-')는 차례대로 붙어 있고, 자리가 있으면 끝과 끝이 1mm 안이면 붙었다.
          */
         addFloatSideFinishes(materials, label, places, item, rules, floatH) {
-          const byId = new Map((item.modules || []).map((m) => [String(m.id), m]));
-          const sizes = new Map();
+          // 줄 계획은 상자 모듈(오픈장 · 홈카페)을 걷어내기 전 품목으로 세웠다 (_ctx.item) — 끝 모듈은 그 목록에서 찾는다
+          const all = ((this._ctx && this._ctx.item && this._ctx.item.modules) || []).concat(item.modules || []);
+          const byId = new Map(all.map((m) => [String(m.id), m]));
+          const runs = [];
           (places || []).forEach((pl) => {
             const units = pl.units || [];
             if (!units.length) return;
-            const endMod = (u, last) => byId.get(String(last ? u.ids[u.ids.length - 1] : u.ids[0]));
-            [endMod(units[0], false), endMod(units[units.length - 1], true)].forEach((m) => {
-              const d = bomSimpleDepthOf(m, 'lower', item, rules) + ASM.FLOAT_SIDE_D_PLUS;
-              sizes.set(d, (sizes.get(d) || 0) + 1);
-            });
+            const first = byId.get(String(units[0].ids[0]));
+            const lastU = units[units.length - 1];
+            const last = byId.get(String(lastU.ids[lastU.ids.length - 1]));
+            const prev = runs[runs.length - 1];
+            const touching = !!prev && prev.wall === pl.wall
+              && (pl.wall === '-' || (!!prev.last && !!first && !!prev.last._place && !!first._place && Math.abs(bomRunSegOf(prev.last).b - bomRunSegOf(first).a) <= 1));
+            if (touching) prev.last = last;
+            else runs.push({ wall: pl.wall, first, last });
           });
+          const sizes = new Map();
+          runs.forEach((r) => [r.first, r.last].forEach((m) => {
+            const d = bomSimpleDepthOf(m, 'lower', item, rules) + ASM.FLOAT_SIDE_D_PLUS;
+            sizes.set(d, (sizes.get(d) || 0) + 1);
+          }));
           [...sizes.entries()].sort((a, b) => b[0] - a[0]).forEach(([d, qty]) => this.add(materials, label, '마감재(띄움)', 'MDF', ASM.FLOAT_PANEL_T,
             floatH + ASM.FLOAT_SIDE_H_PLUS, d, qty, '4면', `띄움 줄 좌우 마감재 — 높이 띄움 + ${ASM.FLOAT_SIDE_H_PLUS} · 깊이 몸통 + ${ASM.FLOAT_SIDE_D_PLUS} (현장재단 여유) · 도어 재질`));
         }

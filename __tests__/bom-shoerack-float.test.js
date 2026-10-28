@@ -103,6 +103,16 @@ describe('띄움 시공 — 자재', () => {
     mats.forEach((m) => expect(X.bomPartDefOf(m.part).fallback).toBeUndefined());
   });
 
+  test('좌우 마감재 깊이는 끝 모듈 몸통 + 20 — 끝이 오픈장 상자(걷어 낸 모듈)여도', () => {
+    const d = shoeDesign();
+    d.items[0].modules = [
+      { id: 'o1', type: 'storage', name: '오픈장', pos: 'lower', w: 450, h: 782, d: 340, moduleKind: 'open', isOpen: true, doorCount: 0, isDrawer: false, isEL: false },
+      { id: 'l1', type: 'storage', name: '하부장', pos: 'lower', w: 900, h: 782, d: 350, doorCount: 2, isDrawer: false, isEL: false },
+    ];
+    const ep = new MaterialExtractor().extract(d).materials.filter((m) => m.part === '마감재(띄움)');
+    expect(ep.map((m) => [m.h, m.qty]).sort()).toEqual([[360, 1], [370, 1]]);
+  });
+
   test('철물 — 다리발 없음, 키큰장 도어 경첩은 도어 높이(2055)로', () => {
     expect(hw.some((h) => h.category === '다리발')).toBe(false);
     const hinge = hw.filter((h) => /경첩/.test(h.category || ''));
