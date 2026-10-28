@@ -4,7 +4,7 @@ compatibility_date = "2025-01-01"
 account_id = "8bd8e054dfc7bcdc577f9bb79edd3284"
 
 # 평일 아침 7시(KST) 생산 요약 — UTC 22:00 일~목 = KST 07:00 월~금
-# 5분마다 새 상담 Slack 알림 (src/consult-notify.js)
+# 5분마다 새 상담 · 새 업체 신청 Slack 알림 (src/consult-notify.js)
 # 값을 바꾸면 src/worker.js 의 scheduled() 판정(DAILY_BRIEF_CRON · CONSULT_NOTICE_CRON)도 같이 고칠 것.
 [triggers]
 crons = ["0 22 * * SUN-THU", "*/5 * * * *"]
