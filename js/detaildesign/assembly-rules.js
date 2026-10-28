@@ -78,6 +78,14 @@
     KICK_T: 18,
     KICK_H_MINUS: 5,
     KICK_SETBACK: 32,
+    // 띄움 시공 — 2026-10-28 사장님 (신발장 "바닥에서 띄움시공이 있어서, 좌대나 다리발이 없는 경우가 있음"):
+    //   품목 스펙 floatH (바닥 띄움, mm) > 0 이면 바닥 줄(하부장 · 키큰장)이 떠 있다 — 다리발 · 걸레받이 · 좌대 없음.
+    //   몸통은 상부장 짜임 (사장님 "하부장도 사쿠리형으로" — 사쿠리 · 천판 · 지판 · 홈 속 뒷판 · 벽 고정 보강목 2 · 도어 아래로 내림).
+    //   가림판 = 걸레받이 크기 (높이 띄움 − KICK_H_MINUS, 길이 = 줄 조각 LINE_PIECE_*), 몸통 뒤 맞춤, MDF 18T.
+    //   줄 좌우 마감재 = 높이 띄움 + 40, 깊이 몸통 + 20 (현장재단 여유), MDF 18T 도어 재질.
+    FLOAT_SIDE_H_PLUS: 40,
+    FLOAT_SIDE_D_PLUS: 20,
+    FLOAT_PANEL_T: 18,
     // 상몰딩 · 걸레받이 · 목찬넬 EP 조각 길이 (linePiecesOf) — 2026-10-26 사장님 확정:
     //   "상몰딩, 걸레받이, 목찬넬은 자동으로 최대 2400, 최소 1000 이상, 최대 길이로 하되 최소 길이 조건은 맞추어야함."
     //   "자르는 건 모듈길이별로 잘라야해, 예) 600장 +500 이라면 1100으로 잘라서 넣어야함. 그리고 최소 길이는 800이상으로 변경해줘."
@@ -202,5 +210,11 @@
     return out(split(pos, (len) => (len < MIN ? 1 : 0)), true);
   }
 
-  return { RULES_VERSION, CARCASS, backPanelSize, braceQtyOf, sakuriGrooveDepth, linePiecesOf };
+  /** 띄움 높이 — 품목 스펙 floatH 가 0 보다 크면 그 값, 아니면 0 (띄우지 않는다). extractors · bom-assembly 가 같이 쓴다 (CARCASS.FLOAT_*). */
+  function floatHOf(specs) {
+    const v = parseFloat(specs && specs.floatH);
+    return Number.isFinite(v) && v > 0 ? v : 0;
+  }
+
+  return { RULES_VERSION, CARCASS, backPanelSize, braceQtyOf, sakuriGrooveDepth, linePiecesOf, floatHOf };
 });
