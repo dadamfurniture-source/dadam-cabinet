@@ -1,5 +1,5 @@
 {
-  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 + 0007 회사 기준 읽기 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs) + 0011 협력업체 가입(신청 · 업체 크레딧 · 업체 구독 · 초대 · 등급 맞추기)",
+  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 + 0007 회사 기준 읽기 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs) + 0011 협력업체 가입(신청 · 업체 크레딧 · 업체 구독 · 초대 · 등급 맞추기) + 0012 업체 원가 설정",
   "ids": [
     "company_x",
     "company_y",
@@ -52,7 +52,8 @@
     "INSERT INTO public.partner_applications (id, user_id, kind, company_name, representative_name, contact_phone, sido, gugun, business_number, intro) VALUES ({{app_a}}, {{hq_customer_user}}, 'new', 'probe A', 'probe', '010-0000-0000', 'probe', 'probe', '123-45-67890', 'probe')",
     "INSERT INTO public.company_credits (company_id, balance, period_start, period_end) VALUES ({{company_x}}, 500, now(), now() + interval '1 month')",
     "INSERT INTO public.subscriptions (id, user_id, company_id, plan, status) VALUES ({{sub_x}}, NULL, {{company_x}}, 'expert', 'active')",
-    "INSERT INTO public.company_invites (id, company_id, role, token_hash, expires_at) VALUES ({{invite_x}}, {{company_x}}, 'staff', repeat('a', 64), now() + interval '7 days')"
+    "INSERT INTO public.company_invites (id, company_id, role, token_hash, expires_at) VALUES ({{invite_x}}, {{company_x}}, 'staff', repeat('a', 64), now() + interval '7 days')",
+    "INSERT INTO public.company_settings (company_id, settings) VALUES ({{company_x}}, '{}'::jsonb), (public.hq_company_id(), '{}'::jsonb) ON CONFLICT (company_id) DO NOTHING"
   ],
   "roles": {
     "anon": { "role": "anon" },
@@ -449,6 +450,32 @@
       "name": "0011: claim_partner_application_notices 는 서버만, 건수 · 종류만",
       "sql": "select string_agg(k, ',' order by k) from jsonb_object_keys((public.claim_partner_application_notices(now() - interval '1 hour')->'rows')->0) k",
       "expect": { "service_role": "created_at,kind", "*": "deny" }
+    },
+    {
+      "name": "0012: 읽기 company_settings X (대표 · 실장만)",
+      "sql": "select count(*) from public.company_settings where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "x_owner": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0012: 읽기 company_settings 본사 (관리자 · 본사 대표 · 실장)",
+      "sql": "select count(*) from public.company_settings where company_id = public.hq_company_id()",
+      "expect": { "anon": "deny", "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0012: 고치기 company_settings 는 서버만",
+      "sql": "update public.company_settings set settings = '{\"quote\":{}}'::jsonb where company_id = {{company_x}}",
+      "expect": { "service_role": "rows:1", "*": "deny" }
+    },
+    {
+      "name": "0012: 넣기 company_settings 는 서버만",
+      "sql": "insert into public.company_settings (company_id, settings) values ({{company_y}}, '{}'::jsonb)",
+      "expect": { "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "제약: company_settings 는 객체만",
+      "sql": "insert into public.company_settings (company_id, settings) values ({{company_y}}, '[]'::jsonb)",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
     }
   ]
 }
