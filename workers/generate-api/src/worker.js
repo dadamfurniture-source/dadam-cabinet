@@ -37,7 +37,7 @@ import {
   resolvePlannerAspect,
 } from './prompts.js';
 import { verifyJwt, AuthError } from './auth.js';
-import { consumeCredit, refundCredit, InsufficientCredit } from './credits.js';
+import { consumeCredit, refundCredit, InsufficientCredit, CompanyInactive } from './credits.js';
 import {
   selectOne,
   insertOne,
@@ -606,6 +606,17 @@ async function enqueueGeneration(request, env, headers, { user, parent, category
           success: false,
           error: '이번 달 생성 횟수를 모두 사용했습니다.',
           code: 'insufficient_credit',
+        },
+        402,
+        headers
+      );
+    }
+    if (e instanceof CompanyInactive) {
+      return json(
+        {
+          success: false,
+          error: '업체 구독이 멈춰 있어 연출컷을 만들 수 없습니다. 결제를 확인해 주세요.',
+          code: 'company_inactive',
         },
         402,
         headers

@@ -152,3 +152,13 @@ export async function updateBy(env, table, filter, patch) {
     body: JSON.stringify(patch),
   });
 }
+
+/** 필터에 맞는 행을 지운다. 필터 없이는 부르지 않는다 (표 전체가 지워진다). */
+export async function deleteBy(env, table, filter) {
+  if (!filter || !Object.keys(filter).length) throw new Error('deleteBy: filter required');
+  const qs = new URLSearchParams(filter).toString();
+  return restRequest(env, `/${table}?${qs}`, {
+    method: 'DELETE',
+    headers: restHeaders(env),
+  });
+}
