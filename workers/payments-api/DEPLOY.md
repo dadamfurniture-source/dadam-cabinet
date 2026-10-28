@@ -8,6 +8,21 @@
 
 > **DB 먼저.** `database/payments-lifecycle.sql` 을 Supabase 에 적용한 **뒤에** 머지한다.
 > 워커가 그 칸(`failed_attempts` · `first_failed_at` · `cancel_reason` · `ended_at` · `refunded_*`)을 읽고 쓴다 — 없으면 `/subscription` 과 cron 이 실패한다.
+> 업체 구독은 `database/migrations/0011_partner_signup.sql` 이 먼저다 (`subscriptions.company_id` · `companies.next_plan` · `company_credits` · `partner_applications` · 등급 맞추기 트리거).
+
+## 업체 구독
+
+Expert · Agent 결제는 모두 협력업체(`companies.kind = 'partner'`)의 구독이다 (`src/company.js`).
+
+- 등급(`profiles.tier`)은 DB 트리거가 업체 plan · status 로 맞춘다 — 워커는 `profiles` 를 쓰지 않는다.
+- 크레딧은 업체 통장(`company_credits`) 하나를 구성원이 함께 쓴다. 새 달 크레딧 = 업체 통장 기간 끊기.
+- `/issue-billing-key` `{ auth_key, customer_key, plan, company?: { name, sido, gugun } }` — 결제 전에 막는다:
+  본사 구성원 409 `hq_member` · 협력업체 실장/직원 403 `not_owner` · 업체에 살아 있는 구독 409 `already_subscribed` ·
+  업체 등급과 다른 plan 409 `plan_mismatch` · Expert 업체 이름/지역 없음 422 `invalid`(+`field`) · Agent 승인 없음 403 `agent_not_approved`.
+  - 구성원이 아니면 결제 뒤 업체(active) → 대표 구성원 → (Agent) 승인된 신청 `used_at` → 구독 행 → 업체 이력 `subscribed`.
+  - 협력업체 대표면 그 업체로 (정지 · 해지였으면 active 로, 업체 통장 기간 끊기).
+- `/subscription` — 대표: 업체 구독 + `company` + `role`, 실장 · 직원: `data: null` + `company` + `role`.
+- `/subscription/retry` · `/subscription/card` · `/cancel` — 업체 구독은 대표만 (403 `not_owner`).
 
 ### 1회 Secret 등록 (이미 등록됐으면 스킵)
 
@@ -87,6 +102,9 @@ curl https://dadam-payments-api.dadamfurniture.workers.dev/plans
 | 고객 해지 | 이번 기간 끝(`current_period_end`)까지 등급 유지, 지나면 standard (결제로 받은 등급만), `ended_at` 기록 |
 
 - standard 로 내릴 때(마지막 실패 · 해지 만료 · 환불) `tier_source` 도 `'manual'` 로 돌린다. 본사 승인 등급(`manual`)은 처음부터 건드리지 않는다.
+- 업체 구독: 결제 금액은 업체 `next_plan`(없으면 `plan`) 등급의 값. 성공하면 구독 `plan` · `amount_krw` 와 업체 `plan` 을 옮기고 `next_plan` 을 비운다 (실패면 그대로).
+  등급 대신 업체 status 를 바꾼다 — 마지막 실패 `suspended`, 해지 기간 끝 · 환불 `closed` (그 업체에 살아 있는 다른 구독이 있으면 그대로).
+  환불의 크레딧 사용 확인은 업체 통장 줄(`credit_ledger.company_id`)로.
 - 정기 결제 주문번호는 `dadam-sub-{user}-{기간끝 UTC yyyymmddHHMM}-{회차}` — 같은 기간·회차면 같은 값이고 토스 `Idempotency-Key` 로도 쓴다. 응답을 못 받고 끊기면 다음 날 같은 키로 다시 보내 두 번 결제되지 않는다.
 - 결과를 모르는 오류(연결 끊김 · JSON 아닌 응답 · `IDEMPOTENT_REQUEST_PROCESSING`)와 가맹점 키 오류(`UNAUTHORIZED_KEY` 등)는 카드 실패로 세지 않고 다음 날 다시 한다.
 - 결제 실패·해지 안내는 `billing.html` 이 구독 상태로 보여 준다 (메일·문자 알림은 아직 없음).
@@ -126,7 +144,7 @@ curl https://dadam-payments-api.dadamfurniture.workers.dev/plans
 
 ## 첫 결제 되돌리기
 
-`/issue-billing-key` 는 토스 결제 뒤 DB 저장(결제 기록 → 등급 → 구독 행)이 실패하면 그 결제를 토스에서 취소한다(멱등키 `dadam-undo-{orderId}`). 취소마저 실패하면 `AUTO-CANCEL FAILED — manual refund needed` 로그가 남는다 — 토스 대시보드에서 직접 취소할 것.
+`/issue-billing-key` 는 토스 결제 뒤 DB 저장(결제 기록 → 업체 → 대표 구성원 → 신청 · 업체 status → 구독 행)이 실패하면 그 결제를 토스에서 취소하고(멱등키 `dadam-undo-{orderId}`) 만든 행을 지운다 (구독 → 신청 되돌림 → 업체 status 되돌림 → 구성원 → 업체). 업체 이력은 지울 수 없어 저장이 다 끝난 뒤에 넣는다. 취소마저 실패하면 `AUTO-CANCEL FAILED — manual refund needed` 로그가 남는다 — 토스 대시보드에서 직접 취소할 것.
 
 ## 토스 웹훅 등록
 

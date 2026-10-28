@@ -297,10 +297,13 @@ async function runScheduled(cron) {
   );
 }
 
-test('scheduled(): 5분 cron 은 새 상담 알림만, 아침 cron 은 생산 요약만, 모르는 cron 은 아무것도', async () => {
+test('scheduled(): 5분 cron 은 새 상담 · 새 업체 신청 알림만(따로 돈다), 아침 cron 은 생산 요약만, 모르는 cron 은 아무것도', async () => {
   const consult = (await runScheduled(CONSULT_NOTICE_CRON)).out;
-  assert.equal(consult.waits, 1);
-  assert.deepEqual(consult.calls.map((c) => c.url), ['https://x.supabase.co/rest/v1/rpc/claim_consultation_notices']);
+  assert.equal(consult.waits, 2);
+  assert.deepEqual(consult.calls.map((c) => c.url).sort(), [
+    'https://x.supabase.co/rest/v1/rpc/claim_consultation_notices',
+    'https://x.supabase.co/rest/v1/rpc/claim_partner_application_notices',
+  ]);
 
   const daily = (await runScheduled(DAILY_BRIEF_CRON)).out;
   assert.equal(daily.waits, 2);
