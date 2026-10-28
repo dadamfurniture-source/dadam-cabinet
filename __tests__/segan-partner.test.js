@@ -7,7 +7,7 @@
  *           · RPC my_credit_wallet (업체 통장) — 금액 · 크레딧을 적어 두지 않는다
  *   감춤    /partner/me 를 못 읽으면(404 · 오류 · 주소 없음) · 본사 구성원이면 칸째 감춘다
  *   화면    a 업체로 시작하기(Expert · Agent) / b 신청 접수 · 미팅 / c 승인 / d 보류 / e 업체 있음
- *   결제    pricing.html 과 같은 토스 requestBillingAuth → billing-success.html?plan=…,
+ *   결제    billing.html(결제 관리)과 같은 토스 requestBillingAuth → billing-success.html?plan=…,
  *           떠나기 전 sessionStorage partnerSignup = { plan, company?, returnTo: '/segan/me.html#partner' }
  *   주소    me.html#partner 로 오면 업체 칸으로 내려간다, ?failed=1 이면 안내
  */
@@ -354,9 +354,9 @@ describe('칸 자리 · 감춤', () => {
     expect(sec.hasAttribute('hidden')).toBe(true);
     expect(sec.previousElementSibling.id).toBe('meProjectSection');
     expect(sec.querySelector('h2').textContent).toBe('업체');
-    // 토스 결제창 · 지역 목록 · 업체 칸 스크립트를 싣는다 (pricing.html 과 같은 토스 주소)
+    // 토스 결제창 · 지역 목록 · 업체 칸 스크립트를 싣는다 (billing.html 과 같은 토스 주소)
     const srcs = [...doc.querySelectorAll('script[src]')].map((s) => s.getAttribute('src'));
-    const toss = read('pricing.html').match(
+    const toss = read('billing.html').match(
       /<script src="(https:\/\/js\.tosspayments\.com[^"]+)"/
     )[1];
     expect(srcs).toContain(toss);
@@ -534,7 +534,7 @@ describe('Expert — 업체 이름 · 지역 → 토스 카드 등록', () => {
     expect(sessionStorage.getItem('partnerSignup')).toBeNull();
   });
 
-  test('다 적으면 partnerSignup 을 두고 pricing.html 과 같은 토스 카드 등록', async () => {
+  test('다 적으면 partnerSignup 을 두고 billing.html 과 같은 토스 카드 등록', async () => {
     const calls = await open();
     const form = formOf('expert');
     fill(form, { name: '  다담 협력 주방 ', sido: '대구광역시', gugun: '북구' });
@@ -555,10 +555,10 @@ describe('Expert — 업체 이름 · 지역 → 토스 카드 등록', () => {
       returnTo: '/segan/me.html#partner', // billing-success.html 의 「돌아가기」
     });
     expect(JSON.parse(sessionStorage.getItem('partnerSignup'))).toEqual(JSON.parse(t.signup));
-    // pricing.html 의 customerKey · successUrl 모양과 같다
-    const pricing = read('pricing.html');
-    expect(pricing).toContain("customerKey: 'dadam-' + state.user.id");
-    expect(pricing).toContain("'/billing-success.html?plan=' + encodeURIComponent(plan)");
+    // billing.html(결제 관리)의 customerKey · successUrl 모양과 같다
+    const billing = read('billing.html');
+    expect(billing).toContain("customerKey: 'dadam-' + session.user.id");
+    expect(billing).toContain("'/billing-success.html?plan=' + encodeURIComponent(");
     // 서버에는 아무것도 보내지 않았다 (업체는 결제 뒤 결제 서버가 만든다)
     expect(posts(calls)).toEqual([]);
   });
@@ -1144,7 +1144,7 @@ describe('e. 업체 있음', () => {
 });
 
 describe('주소 — #partner · ?failed=1', () => {
-  test('me.html#partner 로 오면 업체 칸으로 내려간다 (pricing.html 의 버튼)', async () => {
+  test('me.html#partner 로 오면 업체 칸으로 내려간다', async () => {
     await load({ partner: ok(meData()), url: '/segan/me.html#partner' });
     expect(section().hidden).toBe(false);
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1);
