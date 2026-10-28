@@ -4,7 +4,8 @@
  * 워커는 전부 global fetch 로 나가므로 fetch 하나만 갈아 끼운다 (generate-api 시험과 같은 방식).
  * PostgREST 는 워커가 쓰는 만큼만 흉내 낸다:
  *   필터 eq · neq · lt · lte · gt · gte · in · is, order, limit,
- *   POST(+ on_conflict + resolution=ignore-duplicates), PATCH(return=representation).
+ *   POST(+ on_conflict + resolution=ignore-duplicates), PATCH(return=representation), DELETE.
+ * 트리거(업체 등급 맞추기 등)는 흉내 내지 않는다 — 워커가 무엇을 쓰는지만 본다.
  * 시각 비교는 ISO 문자열이면 Date.parse 로 한다 (DB 의 timestamptz 비교와 같게).
  */
 
@@ -97,11 +98,16 @@ export function createBackend({ nowMs = Date.now() } = {}) {
     profiles: [],
     user_credits: [],
     credit_ledger: [],
+    companies: [],
+    company_members: [],
+    company_events: [],
+    company_credits: [],
+    partner_applications: [],
   };
   const calls = { toss: [], rest: [] };
   const state = {
     nowMs,
-    /** (method, table) => true 면 그 요청을 500 으로 떨어뜨린다 */
+    /** (method, table, body) => true 면 그 요청을 500 으로 떨어뜨린다 */
     failDb: null,
     users: {}, // token → { id, email }
     admins: new Set(), // token
@@ -186,7 +192,8 @@ export function createBackend({ nowMs = Date.now() } = {}) {
     }
 
     const table = path;
-    if (state.failDb && state.failDb(method, table)) {
+    const reqBody = init.body ? JSON.parse(init.body) : undefined;
+    if (state.failDb && state.failDb(method, table, reqBody)) {
       return new Response('boom', { status: 500 });
     }
     const params = url.searchParams;
@@ -230,6 +237,11 @@ export function createBackend({ nowMs = Date.now() } = {}) {
       const hit = filterRows(table, params);
       hit.forEach((row) => Object.assign(row, patch));
       return jsonRes(hit);
+    }
+    if (method === 'DELETE') {
+      const hit = new Set(filterRows(table, params));
+      db[table] = rows(table).filter((r) => !hit.has(r));
+      return jsonRes([...hit]);
     }
     throw new Error(`fake rest: ${method} ${path}`);
   }

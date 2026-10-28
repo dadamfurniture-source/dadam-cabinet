@@ -20,11 +20,19 @@
  * 등급을 내리는 길은 한 곳(expireCancelled)뿐이다. 마지막 재시도 실패도 구독을 cancelled 로만
  * 바꾸고, 같은 실행의 만료 단계가 등급을 내린 뒤 ended_at 을 찍는다. 등급 내리기가 실패하면
  * ended_at 이 비어 있으니 다음 날 다시 한다.
+ *
+ * 업체 구독(company_id 가 있는 구독, src/company.js):
+ *   - 등급은 DB 트리거가 업체 plan · status 로 맞춘다 — 여기서 profiles 를 쓰지 않는다.
+ *   - 결제 금액은 업체가 다음 기간에 쓸 등급(next_plan, 없으면 plan)의 값이다 (chargeTerms).
+ *     성공하면 구독 행 plan · amount 와 업체 plan 을 그 등급으로 바꾸고 next_plan 을 비운다. 실패면 그대로.
+ *   - 새 달 크레딧은 업체 통장(company_credits)의 기간을 끊는다.
+ *   - 만료 단계: 결제가 끝내 안 됐으면 업체 suspended, 해지 기간이 끝났으면 closed. 환불도 closed.
  */
 
 import { chargeBillingKey, cancelPayment, getPaymentByOrderId, TossError } from './toss.js';
 import { selectOne, selectMany, insertIgnoreDuplicate, updateBy } from './supabase.js';
-import { orderNameFor } from './plans.js';
+import { orderNameFor, priceFor } from './plans.js';
+import { endCompany, resetCompanyCredits } from './company.js';
 
 export const DAY_MS = 86_400_000;
 export const PERIOD_DAYS = 30;
@@ -36,6 +44,7 @@ export const REFUND_WINDOW_DAYS = 7;
 export const SUB_COLUMNS_FOR_CHARGE = [
   'id',
   'user_id',
+  'company_id',
   'plan',
   'status',
   'amount_krw',
@@ -213,11 +222,41 @@ async function releaseChargeLock(env, subId, orderId, keepOrderId = null) {
   );
 }
 
+/**
+ * 이번 결제의 등급 · 금액. 개인 구독은 구독 행 그대로.
+ * 업체 구독은 업체가 다음 기간에 쓸 등급(next_plan, 없으면 plan) — 구독 행과 같으면 구독 행 금액,
+ * 다르면 그 등급의 값(plans.js). company 는 결제가 되면 업체 등급을 옮길 때 쓴다.
+ */
+async function chargeTerms(env, sub) {
+  const base = { plan: sub.plan, amount: sub.amount_krw, company: null };
+  if (!sub.company_id) return base;
+  const company = await selectOne(env, 'companies', {
+    id: `eq.${sub.company_id}`,
+    select: 'id,plan,next_plan',
+  });
+  if (!company) return base;
+  const plan = company.next_plan || company.plan;
+  const amount = plan === sub.plan ? sub.amount_krw : priceFor(env, plan);
+  if (!plan || !amount) return { ...base, company };
+  return { plan, amount, company };
+}
+
+/**
+ * 이미 된 결제(앞서 결과를 몰랐던 주문)의 금액이 어느 조건인가.
+ * 이번 조건과 같거나 구독 행 그대로의 금액이면 그 조건. 둘 다 아니면 null (우리가 건 금액이 아니다).
+ */
+function paidTerms(sub, terms, amount) {
+  if (amount === terms.amount) return terms;
+  if (amount === sub.amount_krw) return { ...terms, plan: sub.plan, amount: sub.amount_krw };
+  return null;
+}
+
 /** 결과를 모른 채 끝난 결제를 토스에 묻는다. */
-async function reconcileOrder(env, sub, orderId) {
+async function reconcileOrder(env, sub, terms, orderId) {
   try {
     const p = await getPaymentByOrderId(env, orderId);
-    if (p && p.status === 'DONE' && p.totalAmount === sub.amount_krw) return { done: p };
+    const paid = p && p.status === 'DONE' ? paidTerms(sub, terms, p.totalAmount) : null;
+    if (paid) return { done: p, terms: paid };
     return { none: true };
   } catch (e) {
     if (e instanceof TossError && e.statusCode === 404) return { none: true };
@@ -227,7 +266,7 @@ async function reconcileOrder(env, sub, orderId) {
 
 // ───────────────────────── 결제 한 번 ─────────────────────────
 
-async function recordChargeSuccess(env, sub, orderId, charge, nowMs) {
+async function recordChargeSuccess(env, sub, orderId, charge, nowMs, terms) {
   // 1. 결제 기록. 같은 주문번호가 이미 있으면(앞선 실행이 남김) 넘긴다.
   await insertIgnoreDuplicate(
     env,
@@ -236,23 +275,39 @@ async function recordChargeSuccess(env, sub, orderId, charge, nowMs) {
       userId: sub.user_id,
       subscriptionId: sub.id,
       orderId,
-      plan: sub.plan,
-      amount: sub.amount_krw,
+      plan: terms.plan,
+      amount: terms.amount,
       charge,
     }),
     'provider,order_id'
   );
 
-  // 2. 기간을 30일 넘긴다. 시작은 지난 기간의 끝 — 재시도 끝에 성공해도 결제일은 밀리지 않는다.
+  // 2. 업체 등급을 결제한 등급으로 (next_plan 을 비운다). 구성원 등급 · 업체 통장은 트리거가 맞춘다.
+  //    구독 행보다 먼저 — 여기서 실패하면 잠금 · 주문번호가 남아 다음 결제가 이 결제를 찾아 다시 한다.
+  if (terms.company && terms.company.plan !== terms.plan) {
+    await updateBy(
+      env,
+      'companies',
+      { id: `eq.${terms.company.id}` },
+      { plan: terms.plan, next_plan: null }
+    );
+  }
+
+  // 3. 기간을 30일 넘긴다. 시작은 지난 기간의 끝 — 재시도 끝에 성공해도 결제일은 밀리지 않는다.
   //    읽은 그대로일 때만 바꾼다(다른 실행이 먼저 넘겼으면 0행).
   const start = sub.current_period_end;
   const end = plusDays(sub.current_period_end, PERIOD_DAYS);
+  const planChange =
+    terms.plan !== sub.plan || terms.amount !== sub.amount_krw
+      ? { plan: terms.plan, amount_krw: terms.amount }
+      : {};
   const rows = await updateBy(
     env,
     'subscriptions',
     { id: `eq.${sub.id}`, current_period_end: `eq.${sub.current_period_end}` },
     {
       status: 'active',
+      ...planChange,
       current_period_start: start,
       current_period_end: end,
       next_charge_at: end,
@@ -271,12 +326,13 @@ async function recordChargeSuccess(env, sub, orderId, charge, nowMs) {
     return 'charged';
   }
 
-  // 3. 새 달 크레딧. 등급은 그대로 둔다.
-  await grantMonthlyCredits(env, sub.user_id, nowMs);
+  // 4. 새 달 크레딧. 개인 구독은 등급을 그대로 둔다.
+  if (sub.company_id) await resetCompanyCredits(env, sub.company_id, nowMs);
+  else await grantMonthlyCredits(env, sub.user_id, nowMs);
   return 'charged';
 }
 
-async function recordRenewalFailure(env, sub, orderId, err, nowMs) {
+async function recordRenewalFailure(env, sub, orderId, err, nowMs, terms) {
   const now = iso(nowMs);
   const prevAttempts = sub.failed_attempts || 0;
   const attempts = prevAttempts + 1;
@@ -289,8 +345,8 @@ async function recordRenewalFailure(env, sub, orderId, err, nowMs) {
       userId: sub.user_id,
       subscriptionId: sub.id,
       orderId,
-      plan: sub.plan,
-      amount: sub.amount_krw,
+      plan: terms ? terms.plan : sub.plan,
+      amount: terms ? terms.amount : sub.amount_krw,
       error: err,
     }),
     'provider,order_id'
@@ -311,7 +367,7 @@ async function recordRenewalFailure(env, sub, orderId, err, nowMs) {
     return 'retry_scheduled';
   }
 
-  // 마지막 재시도도 실패 → 해지. 등급 내리기는 만료 단계(expireCancelled)가 한다.
+  // 마지막 재시도도 실패 → 해지. 등급 내리기(업체 구독은 업체 정지)는 만료 단계(expireCancelled)가 한다.
   // 이 구독의 current_period_end 는 이미 지났으므로 같은 실행에서 바로 처리된다.
   await updateBy(env, 'subscriptions', guard, {
     status: 'cancelled',
@@ -329,25 +385,30 @@ async function recordRenewalFailure(env, sub, orderId, err, nowMs) {
  * 결제 한 번 — 정기 결제 cron · 지금 다시 결제 · 카드 바꾼 뒤 결제가 모두 이 길로 간다.
  *   1. 잠금 (acquireChargeLock). 못 잡으면 busy
  *   2. 앞서 결과를 모른 결제(charge_order_id)가 있으면 토스에 묻는다 — 이미 됐으면 그걸로 끝낸다
- *   3. 저장된 빌링키로 결제. 주문번호 = 토스 멱등키
- *   4. 성공이면 기록 · 기간 +30일 · 재시도 기록 지움 · 새 달 크레딧 · 잠금 풂 (recordChargeSuccess)
+ *   3. 저장된 빌링키로 결제. 주문번호 = 토스 멱등키. 금액은 chargeTerms (업체 구독은 다음 기간 등급)
+ *   4. 성공이면 기록 · (업체 등급 옮김) · 기간 +30일 · 재시도 기록 지움 · 새 달 크레딧 · 잠금 풂
+ *      (recordChargeSuccess)
  * 실패를 재시도 횟수로 셀지는 부르는 쪽이 정한다 — cron 은 세고, 고객이 누른 결제는 세지 않는다.
  *
  * outcome: charged | declined | merchant | uncertain | busy
  */
 async function chargeOnce(env, sub, { orderId, stateFilter, nowMs, profile }) {
   const prevOrderId = sub.charge_order_id || null;
+  // 잠그기 전에 읽는다 — 읽다 실패해도 잠금 · 앞선 주문번호가 그대로 남는다.
+  const terms = await chargeTerms(env, sub);
   const locked = await acquireChargeLock(env, sub, orderId, stateFilter);
   if (!locked) return { outcome: 'busy', orderId };
   const cur = { ...sub, ...locked };
 
-  if (prevOrderId && prevOrderId !== orderId) {
-    const r = await reconcileOrder(env, cur, prevOrderId);
+  // 같은 주문번호(정기 결제 같은 회차)여도 먼저 묻는다 — 업체 구독은 그 사이 금액(next_plan)이 바뀌었을 수 있어,
+  // 같은 멱등키로 다른 금액을 보내지 않는다.
+  if (prevOrderId) {
+    const r = await reconcileOrder(env, cur, terms, prevOrderId);
     if (r.done) {
       console.warn(
         `[payments] charge: earlier order ${prevOrderId} turned out DONE — recorded, not charged again`
       );
-      await recordChargeSuccess(env, cur, prevOrderId, r.done, nowMs);
+      await recordChargeSuccess(env, cur, prevOrderId, r.done, nowMs, r.terms);
       return { outcome: 'charged', orderId: prevOrderId, recovered: true };
     }
     if (r.unknown) {
@@ -358,13 +419,14 @@ async function chargeOnce(env, sub, { orderId, stateFilter, nowMs, profile }) {
   }
 
   let charge;
+  let paid = terms;
   try {
     charge = await chargeBillingKey(env, {
       billingKey: cur.billing_key,
       customerKey: cur.provider_customer_id,
-      amount: cur.amount_krw,
+      amount: terms.amount,
       orderId,
-      orderName: orderNameFor(cur.plan),
+      orderName: orderNameFor(terms.plan),
       customerEmail: profile?.email || undefined,
       customerName: profile?.name || undefined,
       idempotencyKey: orderId,
@@ -374,13 +436,14 @@ async function chargeOnce(env, sub, { orderId, stateFilter, nowMs, profile }) {
       // 이 주문번호는 이미 승인됐다 — 앞선 실행이 결제하고 기록 전에 끊겼다(멱등키 15일이 지난 경우).
       // 다시 결제하지 않고, 그 결제를 찾아 기록을 잇는다.
       const found = await getPaymentByOrderId(env, orderId);
-      if (found && found.status === 'DONE' && found.totalAmount === cur.amount_krw) {
+      paid = found && found.status === 'DONE' ? paidTerms(cur, terms, found.totalAmount) : null;
+      if (paid) {
         charge = found;
       } else {
         console.error(
           `[payments] charge: duplicated order ${orderId} is not DONE — needs a manual check`
         );
-        return { outcome: 'uncertain', orderId, error: e, sub: cur };
+        return { outcome: 'uncertain', orderId, error: e, sub: cur, terms };
       }
     } else {
       const kind = classifyChargeError(e);
@@ -389,10 +452,14 @@ async function chargeOnce(env, sub, { orderId, stateFilter, nowMs, profile }) {
       console.warn(
         `[payments] charge ${kind}: sub=${cur.id} order=${orderId} code=${e.code || '-'}`
       );
-      return { outcome: kind, orderId, error: e, sub: cur };
+      return { outcome: kind, orderId, error: e, sub: cur, terms };
     }
   }
-  await recordChargeSuccess(env, cur, orderId, charge, nowMs);
+  // 기록은 실제로 결제된 금액의 조건으로 (멱등키가 앞선 응답을 돌려준 경우)
+  if (paid === terms && typeof charge.totalAmount === 'number') {
+    paid = paidTerms(cur, terms, charge.totalAmount) || terms;
+  }
+  await recordChargeSuccess(env, cur, orderId, charge, nowMs, paid);
   return { outcome: 'charged', orderId, charge };
 }
 
@@ -416,7 +483,9 @@ export async function renewSubscription(env, sub, nowMs, profile) {
     },
   });
   if (r.outcome === 'charged') return 'charged';
-  if (r.outcome === 'declined') return recordRenewalFailure(env, r.sub, r.orderId, r.error, nowMs);
+  if (r.outcome === 'declined') {
+    return recordRenewalFailure(env, r.sub, r.orderId, r.error, nowMs, r.terms);
+  }
   if (r.outcome === 'uncertain') {
     console.error(
       `[payments] renewal: uncertain result sub=${sub.id} order=${r.orderId} — left as is, next run checks this order first`
@@ -449,8 +518,8 @@ export async function chargePastDueNow(env, sub, { nowMs = Date.now(), profile }
           userId: sub.user_id,
           subscriptionId: sub.id,
           orderId: r.orderId,
-          plan: sub.plan,
-          amount: sub.amount_krw,
+          plan: r.terms ? r.terms.plan : sub.plan,
+          amount: r.terms ? r.terms.amount : sub.amount_krw,
           error: r.error,
         }),
         'provider,order_id'
@@ -467,9 +536,19 @@ export async function chargePastDueNow(env, sub, { nowMs = Date.now(), profile }
 /**
  * 해지된 구독의 기간이 끝났으면 등급을 내리고 ended_at 을 찍는다.
  * 순서: 등급 먼저, ended_at 나중 — 등급 내리기가 실패하면 다음 날 다시 한다.
+ * 업체 구독은 등급 대신 업체 status 를 바꾼다 (구성원 등급은 트리거가 맞춘다) —
+ * 결제가 끝내 안 됐으면 suspended, 해지면 closed.
  */
 export async function expireCancelled(env, sub, nowMs) {
-  await downgradeIfSubscriptionTier(env, sub.user_id, nowMs);
+  if (sub.company_id) {
+    await endCompany(
+      env,
+      sub.company_id,
+      sub.cancel_reason === 'payment_failed' ? 'suspended' : 'closed'
+    );
+  } else {
+    await downgradeIfSubscriptionTier(env, sub.user_id, nowMs);
+  }
   const now = iso(nowMs);
   await updateBy(
     env,
@@ -550,7 +629,7 @@ export async function runDailyLifecycle(env, nowMs = Date.now()) {
       status: 'eq.cancelled',
       ended_at: 'is.null',
       current_period_end: `lte.${now}`,
-      select: 'id,user_id,plan,current_period_end,cancel_reason',
+      select: 'id,user_id,company_id,plan,current_period_end,cancel_reason',
       order: 'current_period_end.asc',
     })) || [];
   for (const sub of ending) {
@@ -584,8 +663,9 @@ export class RefundError extends Error {
  * 약관 제9조: 결제 후 7일 이내 + 그 뒤 크레딧 사용 없음 → 전액 환불.
  * 「사용」은 원장의 차감(delta < 0) 중 되돌려지지 않은 것이다.
  * 생성이 실패해 환불된 차감(refunded = true)은 쓴 것이 아니다.
+ * 업체 구독의 결제(companyId)는 업체 통장 줄(credit_ledger.company_id)로 본다 — 구성원 누가 썼든.
  */
-export async function checkRefundEligibility(env, payment, nowMs) {
+export async function checkRefundEligibility(env, payment, nowMs, companyId = null) {
   const reasons = [];
   const ageMs = nowMs - toMs(payment.created_at);
   const ageDays = Math.floor(ageMs / DAY_MS);
@@ -594,13 +674,13 @@ export async function checkRefundEligibility(env, payment, nowMs) {
   }
   // 탈퇴한 회원의 결제는 user_id 가 비어 있다 (database/withdrawal-retention.sql). 원장도 회원과 떨어져
   //   (withdrawal-contract-records.sql) 누가 썼는지 알 수 없다 — 「확인할 수 없음」을 이유로 남긴다 (관리자 예외로만 환불).
-  if (!payment.user_id) {
+  if (!companyId && !payment.user_id) {
     reasons.push('탈퇴한 회원의 결제라 크레딧 사용을 확인할 수 없습니다.');
     return { eligible: false, reasons, age_days: ageDays, credits_used: null };
   }
   const used =
     (await selectMany(env, 'credit_ledger', {
-      user_id: `eq.${payment.user_id}`,
+      ...(companyId ? { company_id: `eq.${companyId}` } : { user_id: `eq.${payment.user_id}` }),
       delta: 'lt.0',
       refunded: 'is.false',
       created_at: `gte.${payment.created_at}`,
@@ -616,9 +696,10 @@ export async function checkRefundEligibility(env, payment, nowMs) {
 
 /**
  * 관리자 환불. 결제 1건을 토스에서 전액 취소하고, 구독을 바로 끝내고, 결제로 받은 등급이면 standard 로.
+ * 업체 구독의 결제면 등급 대신 업체를 closed 로 (구성원 등급은 트리거가 맞춘다).
  * 조건을 벗어나면 override 가 없으면 거절한다(이유를 돌려준다).
  *
- * 순서: 토스 취소 → 구독 끝 → 등급 → 결제 기록 refunded (마지막).
+ * 순서: 토스 취소 → 구독 끝 → 등급(업체 closed) → 결제 기록 refunded (마지막).
  * 중간에 DB 가 실패하면 결제 기록이 아직 done 이라 관리자가 다시 누를 수 있고,
  * 토스 취소는 같은 멱등키라 두 번 취소되지 않는다(첫 응답을 그대로 받는다).
  */
@@ -641,7 +722,23 @@ export async function refundPayment(
     throw new RefundError('NOT_REFUNDABLE', '완료된 결제만 환불할 수 있습니다.', 400);
   }
 
-  const check = await checkRefundEligibility(env, payment, nowMs);
+  // 탈퇴한 회원(user_id 없음)은 결제에 적힌 구독만 본다 — user_id 로 찾을 수 없다
+  const sub = payment.subscription_id
+    ? await selectOne(env, 'subscriptions', {
+        id: `eq.${payment.subscription_id}`,
+        select: 'id,status,ended_at,company_id',
+      })
+    : payment.user_id
+      ? await selectOne(env, 'subscriptions', {
+          user_id: `eq.${payment.user_id}`,
+          provider: 'eq.toss',
+          select: 'id,status,ended_at,company_id',
+          order: 'created_at.desc',
+        })
+      : null;
+  const companyId = (sub && sub.company_id) || null;
+
+  const check = await checkRefundEligibility(env, payment, nowMs, companyId);
   if (!check.eligible && override !== true) {
     throw new RefundError(
       'REFUND_NOT_ELIGIBLE',
@@ -658,20 +755,6 @@ export async function refundPayment(
   });
 
   const now = iso(nowMs);
-  // 탈퇴한 회원(user_id 없음)은 결제에 적힌 구독만 본다 — user_id 로 찾을 수 없다
-  const sub = payment.subscription_id
-    ? await selectOne(env, 'subscriptions', {
-        id: `eq.${payment.subscription_id}`,
-        select: 'id,status,ended_at',
-      })
-    : payment.user_id
-      ? await selectOne(env, 'subscriptions', {
-          user_id: `eq.${payment.user_id}`,
-          provider: 'eq.toss',
-          select: 'id,status,ended_at',
-          order: 'created_at.desc',
-        })
-      : null;
   if (sub && !(sub.status === 'cancelled' && sub.ended_at)) {
     await updateBy(
       env,
@@ -689,8 +772,9 @@ export async function refundPayment(
       }
     );
   }
-  // 등급을 내릴 회원이 없으면(탈퇴) 건너뛴다
-  if (payment.user_id) await downgradeIfSubscriptionTier(env, payment.user_id, nowMs);
+  // 업체 구독이면 업체를 닫는다. 등급을 내릴 회원이 없으면(탈퇴) 건너뛴다
+  if (companyId) await endCompany(env, companyId, 'closed');
+  else if (payment.user_id) await downgradeIfSubscriptionTier(env, payment.user_id, nowMs);
 
   await updateBy(
     env,
