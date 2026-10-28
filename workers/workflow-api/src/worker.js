@@ -117,7 +117,7 @@ import {
   getCalibration,
   applyCalibration,
 } from './production/worker-access.js';
-import { runConsultNotices, CONSULT_NOTICE_CRON } from './consult-notify.js';
+import { runConsultNotices, runPartnerApplicationNotices, CONSULT_NOTICE_CRON } from './consult-notify.js';
 import { getMe, registerWorker, listWorkersAdmin, patchWorkerAdmin, listWorkerNotes, addWorkerNote, listWorkerEvents } from './work/workers.js';
 import { createInvite, claimInvite } from './work/invites.js';
 import {
@@ -991,12 +991,16 @@ export default {
   /**
    * cron 둘 (wrangler.toml [triggers] crons — 값을 바꾸면 여기 판정도 같이 고칠 것):
    *   DAILY_BRIEF_CRON    — 평일 아침 7시(KST) 생산 요약 · 월 마감
-   *   CONSULT_NOTICE_CRON — 5분마다 새 상담 Slack 알림 (src/consult-notify.js)
+   *   CONSULT_NOTICE_CRON — 5분마다 새 상담 · 새 업체 신청 Slack 알림 (src/consult-notify.js)
    */
   async scheduled(event, env, ctx) {
     if (event.cron === CONSULT_NOTICE_CRON) {
       ctx.waitUntil(
         runConsultNotices(env).catch((e) => console.error('consultation notice failed:', e && e.message)),
+      );
+      // 새 업체 신청은 따로 — 실패해도 상담 알림은 그대로 돈다
+      ctx.waitUntil(
+        runPartnerApplicationNotices(env).catch((e) => console.error('partner application notice failed:', e && e.message)),
       );
       return;
     }

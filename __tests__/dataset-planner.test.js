@@ -169,6 +169,15 @@ test('설계 한 줄 — 그림 없는 floorplan, 이름은 빼고, 수주번호
   await expect(P.plannerDesign(ENV, { designId: ID, orderNo: "SO-1,eq.x)", record, keep: [] }, h)).rejects.toMatchObject({ status: 400 });
 });
 
+test('설계 줄 공간 · 가구 — 플래너 설계 품목(record.space · furniture)을 범위만 검사해 받는다, 없거나 모르는 값은 주방 · 싱크대', () => {
+  const row = (r) => P.designRow(ID, Object.assign({ design: {}, layout_shape: 'I' }, r));
+  expect([row({ item: 'shoerack', space: 'entrance', furniture: 'storage' }).space, row({ space: 'entrance', furniture: 'storage' }).furniture]).toEqual(['entrance', 'storage']);
+  expect([row({ space: 'unknown', furniture: 'unknown' }).space, row({ space: 'unknown', furniture: 'unknown' }).furniture]).toEqual(['unknown', 'unknown']);
+  expect([row({}).space, row({}).furniture]).toEqual(['kitchen', 'sink']);
+  expect([row({ space: 'moon', furniture: 'rocket' }).space, row({ space: 'moon', furniture: 'rocket' }).furniture]).toEqual(['kitchen', 'sink']);
+  expect(row({ item: 'vanity', space: 'unknown', furniture: 'unknown' }).attrs.record.item).toBe('vanity');
+});
+
 test('플래너에서 지운 사진 — 표본 · 파일을 지운다, 사람 검수 표본 · 설계 줄은 남긴다', async () => {
   const url = (f) => `https://example.supabase.co/storage/v1/object/public/design-images/planner-lite/${ID}/${f}`;
   const { db, h } = fake([

@@ -92,6 +92,9 @@
         border-color: var(--v5-line-18);
         margin-top: 10px;
       }
+      .bs-btn--back {
+        margin-bottom: 10px;
+      }
     </style>
   </head>
   <body class="v5-page">
@@ -103,6 +106,7 @@
         <h1 class="bs-title" id="title">결제 확인 중</h1>
         <p class="bs-msg" id="msg">잠시만 기다려 주세요…</p>
         <div class="bs-detail" id="detail" hidden></div>
+        <a class="bs-btn bs-btn--back" id="back" href="ai-design.html" hidden>돌아가기</a>
         <a class="bs-btn" id="primary" href="ai-design.html" hidden>AI 스튜디오로</a>
         <a class="bs-btn bs-btn--ghost" id="secondary" href="pricing.html" hidden>요금제로 돌아가기</a>
       </div>
@@ -133,17 +137,85 @@
           $('msg').textContent = msg;
           $('msg').className = 'bs-msg err';
           $('secondary').hidden = false;
+          showBack();
         }
 
         function won(n) {
           return Number(n || 0).toLocaleString('ko-KR') + '원';
         }
 
+        function esc(v) {
+          return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+          });
+        }
+
+        // 업체 가입 — 새 앱 「내 정보 › 업체」(또는 구독 관리의 다시 결제)가 토스 카드 등록 전에 남긴 값.
+        //   { plan: 'expert' | 'agent', company?: { name, sido, gugun }, returnTo?: '/…' }
+        //   (company 는 새 Expert 업체만, returnTo 는 결제 뒤 돌아갈 같은 사이트 경로)
+        // 서버에 plan · company 를 함께 보내고, 요청이 끝나면 지운다. returnTo 는 그 전에 읽어 둔다.
+        var SIGNUP_KEY = 'partnerSignup';
+        var returnTo = null;
+
+        /** 같은 사이트 안 경로만 — '/' 로 시작, '//' 아님, 200자 이하, 풀어 보아도 이 사이트 */
+        function safeReturnTo(v) {
+          if (typeof v !== 'string' || v.length > 200) return null;
+          if (v.charAt(0) !== '/' || v.charAt(1) === '/') return null;
+          try {
+            // '/\evil' 같은 값은 브라우저가 다른 사이트로 읽는다 — 풀어 본 주소의 출처로 한 번 더 막는다
+            if (new URL(v, location.origin).origin !== location.origin) return null;
+          } catch (e) {
+            return null;
+          }
+          return v;
+        }
+
+        // 성공 · 실패 화면 모두 맨 앞에 「돌아가기」
+        function showBack() {
+          if (!returnTo) return;
+          $('back').setAttribute('href', returnTo);
+          $('back').hidden = false;
+        }
+        function readSignup() {
+          try {
+            var raw = sessionStorage.getItem(SIGNUP_KEY);
+            var v = raw ? JSON.parse(raw) : null;
+            return v && typeof v === 'object' ? v : null;
+          } catch (e) {
+            return null;
+          }
+        }
+        function clearSignup() {
+          try {
+            sessionStorage.removeItem(SIGNUP_KEY);
+          } catch (e) {
+            /* 지우지 못해도 다음 가입이 새 값으로 덮는다 */
+          }
+        }
+
+        // 결제 전에 서버가 막은 경우 (payments-api /issue-billing-key 의 409 · 403 · 422 code). 카드는 긁히지 않았다.
+        var CODE_KO = {
+          hq_member: '본사 구성원은 협력업체로 결제할 수 없습니다.',
+          not_owner: '업체 결제는 대표만 할 수 있습니다.',
+          already_subscribed: '이 업체는 이미 구독 중입니다. 구독 관리에서 확인해 주세요.',
+          plan_mismatch: '업체 등급과 다른 등급으로는 결제할 수 없습니다. 구독 관리에서 다시 결제해 주세요.',
+          agent_not_approved:
+            'Agent 는 본사 승인을 받은 뒤에 결제할 수 있습니다. 내 정보 › 업체에서 신청 상태를 확인해 주세요.',
+          invalid: '업체 이름과 지역(시·도, 시·군·구)을 확인해 주세요. 내 정보 › 업체에서 다시 입력할 수 있습니다.',
+        };
+        function blockedMessage(res, body) {
+          if (!body || !body.code) return null;
+          if (res.status !== 403 && res.status !== 409 && res.status !== 422) return null;
+          return CODE_KO[body.code] || null;
+        }
+
         async function run() {
           var q = new URLSearchParams(location.search);
           var authKey = q.get('authKey');
           var customerKey = q.get('customerKey');
-          var plan = q.get('plan');
+          var signup = readSignup();
+          returnTo = safeReturnTo(signup && signup.returnTo);
+          var plan = (signup && signup.plan) || q.get('plan');
 
           if (!authKey || !customerKey || !plan) {
             fail('결제 정보가 올바르지 않습니다. 요금제 화면에서 다시 시도해 주세요.');
@@ -161,45 +233,71 @@
             return;
           }
 
+          var payload = { auth_key: authKey, customer_key: customerKey, plan: plan };
+          if (signup && signup.company) {
+            payload.company = {
+              name: signup.company.name,
+              sido: signup.company.sido,
+              gugun: signup.company.gugun,
+            };
+          }
+
+          var res = null;
+          var body = null;
           try {
-            var res = await fetch(API + '/issue-billing-key', {
+            res = await fetch(API + '/issue-billing-key', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 Authorization: 'Bearer ' + session.access_token,
               },
-              body: JSON.stringify({ auth_key: authKey, customer_key: customerKey, plan: plan }),
+              body: JSON.stringify(payload),
             });
-            var body = await res.json();
-            if (!res.ok || !body.success) throw new Error(body.message || '결제 처리에 실패했습니다.');
-
-            var d = body.data || {};
-            $('title').textContent = '구독이 시작되었습니다';
-            $('msg').textContent = '이제 해당 등급의 기능을 바로 쓰실 수 있습니다.';
-            $('detail').innerHTML =
-              '<div class="bs-row"><span>등급</span><span>' +
-              (d.plan || plan) +
-              '</span></div>' +
-              '<div class="bs-row"><span>결제 금액</span><span>' +
-              won(d.amount_krw) +
-              '</span></div>' +
-              '<div class="bs-row"><span>다음 결제일</span><span>' +
-              (d.next_charge_at ? new Date(d.next_charge_at).toLocaleDateString('ko-KR') : '-') +
-              '</span></div>';
-            $('detail').hidden = false;
-            $('primary').hidden = false;
-            if (d.receipt_url) {
-              $('secondary').textContent = '영수증 보기';
-              $('secondary').href = d.receipt_url;
-              $('secondary').hidden = false;
-            }
+            body = await res.json().catch(function () {
+              return null;
+            });
           } catch (e) {
+            body = null;
+          }
+          clearSignup();
+
+          if (!res || !res.ok || !body || !body.success) {
+            var blocked = res ? blockedMessage(res, body) : null;
+            if (blocked) {
+              fail(blocked + ' 결제는 되지 않았습니다.');
+              return;
+            }
             // 카드는 등록됐는데 서버 처리가 실패했을 수 있다. 그대로 재시도하면
             // 중복 결제가 될 수 있으므로 고객센터로 안내한다.
             fail(
-              (e.message || '결제 처리에 실패했습니다.') +
+              ((body && (body.message || body.error)) || '결제 처리에 실패했습니다.') +
                 ' 결제가 이루어졌는데 이 화면이 보인다면 고객센터로 문의해 주세요.'
             );
+            return;
+          }
+
+          var d = body.data || {};
+          var company = signup && signup.company && signup.company.name;
+          $('title').textContent = '구독이 시작되었습니다';
+          $('msg').textContent = '이제 해당 등급의 기능을 바로 쓰실 수 있습니다.';
+          $('detail').innerHTML =
+            (company ? '<div class="bs-row"><span>업체</span><span>' + esc(company) + '</span></div>' : '') +
+            '<div class="bs-row"><span>등급</span><span>' +
+            esc(d.plan || plan) +
+            '</span></div>' +
+            '<div class="bs-row"><span>결제 금액</span><span>' +
+            won(d.amount_krw) +
+            '</span></div>' +
+            '<div class="bs-row"><span>다음 결제일</span><span>' +
+            (d.next_charge_at ? new Date(d.next_charge_at).toLocaleDateString('ko-KR') : '-') +
+            '</span></div>';
+          $('detail').hidden = false;
+          showBack();
+          $('primary').hidden = false;
+          if (d.receipt_url) {
+            $('secondary').textContent = '영수증 보기';
+            $('secondary').href = d.receipt_url;
+            $('secondary').hidden = false;
           }
         }
 
