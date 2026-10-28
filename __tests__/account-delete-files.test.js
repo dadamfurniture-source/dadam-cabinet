@@ -52,10 +52,17 @@ const Wd = loadEsm('workers/account-api/src/withdrawal.js', ['prepareWithdrawal'
   purgeUserFiles: P.purgeUserFiles,
 });
 const C = loadEsm('workers/account-api/src/cors.js', ['corsHeaders', 'handleOptions', 'jsonResponse']);
+const Pt = loadEsm('workers/account-api/src/partner.js', ['matchPartnerRoute', 'partnerResponse', 'runPartnerRoute'], {
+  jsonResponse: C.jsonResponse,
+  UUID_RE: P.UUID_RE,
+});
 const W = loadEsm('workers/account-api/src/worker.js', ['__default'], {
   corsHeaders: C.corsHeaders,
   handleOptions: C.handleOptions,
   jsonResponse: C.jsonResponse,
+  matchPartnerRoute: Pt.matchPartnerRoute,
+  partnerResponse: Pt.partnerResponse,
+  runPartnerRoute: Pt.runPartnerRoute,
   prepareWithdrawal: Wd.prepareWithdrawal,
   soleOwnerCompanies: Wd.soleOwnerCompanies,
   withdrawalDetail: Wd.withdrawalDetail,
