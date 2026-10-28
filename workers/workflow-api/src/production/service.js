@@ -180,6 +180,19 @@ export async function assertSettingsEditor(env, user, companyId) {
   await checkSettingsEditor(env, user, companyId, membership || null, hq);
 }
 
+/**
+ * 본사 원가 · 고정비가 실리는 화면(월 손익)을 볼 수 있는가 — 본사 설정을 다룰 수 있는 사람과 같다
+ * (본사 대표 · 실장, 관리자). 아니면 403 not_money.
+ */
+export async function assertHqMoney(env, user) {
+  try {
+    await assertSettingsEditor(env, user, await hqCompanyId(env));
+  } catch (e) {
+    if (e instanceof ForbiddenError) throw new ForbiddenError('본사 원가 · 고정비는 본사 대표 · 실장 · 관리자만 봅니다', 'not_money');
+    throw e;
+  }
+}
+
 /** 업체 설정 저장 — 보낸 묶음만 남긴다 (예전 개인 설정과 같은 방식). 권한은 부르는 쪽이 확인한다 */
 export async function writeCompanySettings(env, { companyId, user, body }) {
   const clean = sanitizeSettings(body);

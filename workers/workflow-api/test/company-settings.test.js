@@ -405,16 +405,33 @@ test('생산 계획 — 누가 불러도 본사 설정으로 돌고, 응답에 �
   }
 });
 
+const monthlyDb = () => db({
+  settings: { [HQ]: { quote: { overheadMonthly: 5000000 } } },
+  extra: (u) => (u.includes('/designs?select=id') ? json([]) : null),
+});
+
 test('월 손익 — 월 고정비는 본사 설정', async () => {
-  const route = db({
-    settings: { [HQ]: { quote: { overheadMonthly: 5000000 } } },
-    extra: (u) => (u.includes('/designs?select=id') ? json([]) : null),
-  });
-  await withFetch(route, async (calls) => {
+  await withFetch(monthlyDb(), async (calls) => {
     const s = await getMonthlySummary(ENV, { user: { id: HQ_OWNER }, month: '2026-10' });
     assert.equal(s.totals.overhead, 5000000);
     assert.deepEqual(settingsReads(calls).map((c) => eqParam(c.url, 'company_id')), [HQ]);
   });
+});
+
+test('GET /production/monthly — 본사 대표 · 실장 · 관리자만, 고객 · 본사 직원 · 협력업체는 403 not_money (본사 설정을 읽지도 않는다)', async () => {
+  // 관리자는 본사 원가 권한이 있다 (companyAccess 와 같다) — 어느 업체 구성원이든
+  for (const who of [HQ_OWNER, HQ_MANAGER, ADMIN, HQ_STAFF_ADMIN, P_STAFF_ADMIN]) {
+    const r = await callWorker('/production/monthly?month=2026-10', who, monthlyDb());
+    assert.equal(r.status, 200, `${who} ${r.text}`);
+    assert.equal(r.body.data.totals.overhead, 5000000);
+  }
+  for (const who of [STRANGER, HQ_STAFF, P_OWNER, P_REMOVED]) {
+    const r = await callWorker('/production/monthly?month=2026-10', who, monthlyDb());
+    assert.equal(r.status, 403, `${who} ${r.text}`);
+    assert.equal(r.body.code, 'not_money', who);
+    assert.ok(!r.text.includes('5000000'), '고정비가 실리지 않는다');
+    assert.equal(settingsReads(r.calls).length, 0);
+  }
 });
 
 test('경영 대시보드 설정 — 본사 줄(source hq), 없으면 기본값(source default)', async () => {
