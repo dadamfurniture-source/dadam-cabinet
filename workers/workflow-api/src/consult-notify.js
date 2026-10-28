@@ -1,5 +1,6 @@
 /**
  * 새 상담 Slack 알림 — 5분마다 (wrangler.toml [triggers] crons 의 CONSULT_NOTICE_CRON).
+ * 같은 cron 에서 새 업체 신청 알림(runPartnerApplicationNotices, 이 파일 아래쪽)도 따로 돈다.
  *
  * 상담 신청은 브라우저(consultation.html · segan/consult.html)가 consultations 에 바로 넣는다 — 이 워커를
  * 거치지 않는다. 그래서 cron 이 DB 함수 claim_consultation_notices
@@ -207,6 +208,84 @@ export async function runConsultNotices(env, { now = Date.now(), limit = CLAIM_L
     result.failed = rows.length;
     console.error(
       `[consult-notify] Slack 전송 실패 — 상담 ${rows.length}건 알림을 보내지 못함, 다시 보내지 않음 (${reasonOf(sent && sent.error)})`,
+    );
+    return result;
+  }
+  result.posted = rows.length;
+  return result;
+}
+
+// ── 새 업체 신청 알림 ───────────────────────────────────
+//
+// 같은 5분 cron 에서 상담 알림과 따로 돈다 (worker.js scheduled 가 나란히 부른다) — 한쪽이 실패해도 다른 쪽은 그대로.
+// 신청(partner_applications)은 account-api 가 넣는다. DB 함수 claim_partner_application_notices
+// (database/migrations/0011_partner_signup.sql)가 상담과 같은 규칙으로 잡는다 — 24시간 창 밖은 표시만(stale),
+// 창 안은 오래된 것부터 표시하고 돌려준다. 함수는 접수 시각 · 종류(new | upgrade)만 돌려준다.
+// 메시지에는 건수와 종류별 건수만 싣는다 — 업체 이름 · 대표자 · 연락처 · 사업자번호는 넣지 않는다.
+
+/** 신청 종류 — new: 새 업체, upgrade: Expert 업체가 Agent 로 */
+export const PARTNER_KIND_LABELS = Object.freeze({ new: '새 업체', upgrade: 'Expert→Agent' });
+
+/** 관리자 업체 신청 화면 링크 */
+export function partnerAdminUrl(env) {
+  const base = String((env && env.PUBLIC_BASE_URL) || '').replace(/\/+$/, '');
+  return base ? `${base}/admin/expert-requests.html` : '';
+}
+
+/**
+ * 메시지 (순수). rows 는 DB 함수가 돌려준 행 — kind 만 센다.
+ * @returns {{ text: string, blocks: object[] }}
+ */
+export function buildPartnerApplicationNotice(rows, { adminUrl = '' } = {}) {
+  const list = Array.isArray(rows) ? rows : [];
+  const count = (kind) => list.filter((r) => r && r.kind === kind).length;
+  const line =
+    `새 업체 신청 ${list.length}건 (${PARTNER_KIND_LABELS.new} ${count('new')} · ` +
+    `${PARTNER_KIND_LABELS.upgrade} ${count('upgrade')}) — 관리자 화면에서 확인`;
+  const blocks = [{ type: 'section', text: { type: 'mrkdwn', text: line } }];
+  if (adminUrl) {
+    blocks.push({
+      type: 'actions',
+      elements: [{ type: 'button', text: { type: 'plain_text', text: '업체 신청 열기', emoji: true }, url: adminUrl }],
+    });
+  }
+  return { text: adminUrl ? `${line}\n${adminUrl}` : line, blocks };
+}
+
+/**
+ * cron 한 번 — 새 업체 신청. 던지지 않는다. 상담 알림과 같은 창(FRESH_WINDOW_MS) · 같은 건수 상한(CLAIM_LIMIT).
+ * @param {object} env
+ * @param {{ now?: number, limit?: number }} [opts]
+ * @returns {Promise<{posted:number, failed:number, stale:number, skipped?:string, error?:string}>}
+ */
+export async function runPartnerApplicationNotices(env, { now = Date.now(), limit = CLAIM_LIMIT } = {}) {
+  const result = { posted: 0, failed: 0, stale: 0 };
+  if (!env || !env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return { ...result, skipped: 'supabase' };
+  // 웹훅이 없으면 잡지 않는다 — 잡으면 표시만 되고 알림은 사라진다
+  if (!env.SLACK_WEBHOOK_URL) return { ...result, skipped: 'slack' };
+
+  let out;
+  try {
+    out = await callRpc(env, 'claim_partner_application_notices', {
+      p_fresh_since: new Date(now - FRESH_WINDOW_MS).toISOString(),
+      p_limit: limit,
+    });
+  } catch (e) {
+    const reason = reasonOf(e);
+    console.error(`[partner-notify] 업체 신청 잡기 실패 (${reason})`);
+    return { ...result, error: reason };
+  }
+
+  result.stale = Number(out && out.stale) || 0;
+  const rows = Array.isArray(out && out.rows) ? out.rows : [];
+  if (result.stale) console.log(`[partner-notify] 24시간 지난 미알림 업체 신청 ${result.stale}건 — 알리지 않고 표시만 함`);
+  if (!rows.length) return result;
+
+  const sent = await postToWebhook(env, buildPartnerApplicationNotice(rows, { adminUrl: partnerAdminUrl(env) }));
+  if (!sent || !sent.ok) {
+    result.failed = rows.length;
+    console.error(
+      `[partner-notify] Slack 전송 실패 — 업체 신청 ${rows.length}건 알림을 보내지 못함, 다시 보내지 않음 (${reasonOf(sent && sent.error)})`,
     );
     return result;
   }
