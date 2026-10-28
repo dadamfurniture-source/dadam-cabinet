@@ -1,8 +1,8 @@
 /**
  * 사이트 쪽 업체 가입 · 업체 구독 화면.
  *
- *   pricing.html          Expert · Agent 는 업체 구독 — 결제창을 열지 않고 SEGAN 「내 정보 › 업체」(segan/me.html#partner)로.
- *                         Expert 「업체로 시작하기」, Agent 「신청하기」.
+ *   pricing.html          Expert · Agent 는 업체 구독 — 결제창을 열지 않는다. 업체 가입은 새 앱에서 열리므로
+ *                         비활성 안내 「업체 가입은 새 앱에서 열립니다」 + 상담 신청 링크만 둔다 (새 앱 링크 없음).
  *   billing-success.html  sessionStorage partnerSignup({ plan, company? })을 읽어 /issue-billing-key 에 plan · company 를
  *                         함께 보내고, 요청이 끝나면 지운다. 결제 전에 막힌 409 · 403 · 422 는 code 별 한국어 안내.
  *   billing.html          업체 구독이면 업체 이름 · 등급 · 다음 결제일 등급. 카드 바꾸기 · 해지 · 다시 결제는 대표만,
@@ -121,7 +121,7 @@ beforeEach(() => {
 
 // ── pricing.html ─────────────────────────────────────────────
 
-describe('pricing.html — Expert · Agent 는 SEGAN 「내 정보 › 업체」로', () => {
+describe('pricing.html — Expert · Agent 는 안내 · 상담 신청만 (결제창 · 새 앱 링크 없음)', () => {
   function bootPricing(tier) {
     const script = mountPage('pricing.html');
     window.DADAM_CONFIG = {
@@ -148,38 +148,47 @@ describe('pricing.html — Expert · Agent 는 SEGAN 「내 정보 › 업체」
     return { calls, toss };
   }
 
-  test('Expert 「업체로 시작하기」 · Agent 「신청하기」 — 둘 다 segan/me.html#partner 링크', async () => {
+  test('Expert · Agent — 비활성 안내 「업체 가입은 새 앱에서 열립니다」 + 상담 신청 링크, 가격 · 크레딧은 그대로', async () => {
     const { toss } = bootPricing('standard');
     await flush();
-    const expert = document.querySelector('#grid [data-plan="expert"]');
-    const agent = document.querySelector('#grid [data-plan="agent"]');
-    expect(expert.tagName).toBe('A');
-    expect(expert.getAttribute('href')).toBe('segan/me.html#partner');
-    expect(expert.textContent).toBe('업체로 시작하기');
-    expect(agent.tagName).toBe('A');
-    expect(agent.getAttribute('href')).toBe('segan/me.html#partner');
-    expect(agent.textContent).toBe('신청하기');
+    for (const plan of ['expert', 'agent']) {
+      const cta = document.querySelector(`#grid [data-plan="${plan}"]`);
+      const btn = cta.querySelector('button');
+      expect(btn.disabled).toBe(true);
+      expect(btn.textContent).toBe('업체 가입은 새 앱에서 열립니다');
+      const links = [...cta.querySelectorAll('a')];
+      expect(links.map((a) => [a.getAttribute('href'), a.textContent])).toEqual([
+        ['consultation.html', '상담 신청'],
+      ]);
+    }
     expect(toss.keys).toHaveLength(0);
-    expect(document.querySelector('#grid').textContent).toContain('월 1,000 크레딧');
+    const grid = document.querySelector('#grid').textContent;
+    expect(grid).toContain('49,000원');
+    expect(grid).toContain('99,000원');
+    expect(grid).toContain('월 1,000 크레딧 · 생성 50회');
+    expect(grid).toContain('월 3,000 크레딧 · 생성 150회');
+    // 새 앱으로 가는 링크는 어디에도 없다
+    expect(document.querySelector('#grid a[href*="segan"]')).toBeNull();
   });
 
-  test('바로 토스를 열지 않는다 — 결제창 SDK · requestBillingAuth 가 페이지에 없다', () => {
+  test('바로 토스를 열지 않고 새 앱도 가리키지 않는다 — 결제창 SDK · requestBillingAuth · segan/ 이 페이지에 없다', () => {
     const html = read('pricing.html');
     expect(html).not.toContain('js.tosspayments.com');
     expect(html).not.toContain('requestBillingAuth');
     expect(html).not.toContain('billing-success.html');
+    expect(html).not.toMatch(/segan\//i);
   });
 
-  test('지금 등급 카드는 「현재 등급」, 다른 유료 등급만 링크', async () => {
+  test('지금 등급 카드는 「현재 등급」, 다른 유료 등급만 안내', async () => {
     bootPricing('expert');
     await flush();
     const cards = [...document.querySelectorAll('#grid .pr-card')];
     const expertCard = cards.find((c) =>
       c.querySelector('.pr-name').textContent.startsWith('Expert')
     );
-    expect(expertCard.querySelector('a[data-plan]')).toBeNull();
+    expect(expertCard.querySelector('[data-plan]')).toBeNull();
     expect(expertCard.querySelector('button[disabled]').textContent).toBe('현재 등급');
-    expect(document.querySelectorAll('#grid a[data-plan]')).toHaveLength(1);
+    expect(document.querySelectorAll('#grid [data-plan]')).toHaveLength(1);
   });
 });
 

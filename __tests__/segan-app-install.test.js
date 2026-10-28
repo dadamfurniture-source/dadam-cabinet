@@ -296,22 +296,10 @@ describe('서비스 워커 범위', () => {
   });
 });
 
-// 하나뿐인 예외 — 협력업체 가입 입구. 요금제의 Expert · Agent 단추는 SEGAN 「내 정보 › 업체」로 간다.
-const SEGAN_LINK_ALLOWED = { 'pricing.html': ["var PARTNER_HREF = 'segan/me.html#partner';"] };
-
 describe('숨김 — 기존 사이트에서 segan 으로 가는 길이 없다', () => {
-  test('루트 · admin 페이지와 js/ 가 segan/ 을 가리키지 않는다 (협력업체 가입 입구 하나만 예외)', () => {
-    const offenders = [...SITE_PAGES, ...SITE_SCRIPTS].filter((f) => {
-      let text = read(f);
-      for (const ok of SEGAN_LINK_ALLOWED[f] || []) text = text.split(ok).join('');
-      return /segan\//i.test(text);
-    });
+  test('루트 · admin 페이지와 js/ 가 segan/ 을 가리키지 않는다', () => {
+    const offenders = [...SITE_PAGES, ...SITE_SCRIPTS].filter((f) => /segan\//i.test(read(f)));
     expect(offenders).toEqual([]);
-  });
-
-  test('예외 입구는 정해 둔 그 한 줄로 한 번만 있다', () => {
-    for (const [f, lines] of Object.entries(SEGAN_LINK_ALLOWED))
-      for (const line of lines) expect(read(f).split(line).length - 1).toBe(1);
   });
 
   test('robots.txt · 사이트맵에 segan 이 없다', () => {

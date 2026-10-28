@@ -124,8 +124,6 @@
         color: var(--v5-tan);
       }
       .pr-btn {
-        display: block;
-        box-sizing: border-box;
         width: 100%;
         padding: 14px;
         border: 1px solid var(--v5-ink);
@@ -134,9 +132,18 @@
         font-weight: 400;
         font-size: 12.5px;
         letter-spacing: 0.14em;
-        text-align: center;
-        text-decoration: none;
         cursor: pointer;
+      }
+      .pr-cta {
+        display: grid;
+        gap: 10px;
+      }
+      .pr-consult {
+        font-weight: 300;
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-align: center;
+        color: var(--v5-ink-62);
       }
       .pr-btn--ghost {
         background: none;
@@ -246,12 +253,8 @@
           agent: ['Expert 의 모든 기능', '대리점 전용 지원', '팀 협업', '맞춤 컨설팅'],
         };
 
-        // Expert · Agent 는 업체 구독이다 — 여기서 결제창을 열지 않고 SEGAN 「내 정보 › 업체」로 보낸다.
-        //   Expert: 업체 이름 · 지역을 넣고 결제하면 바로 시작. Agent: 신청 → 현장 미팅 → 본사 승인 → 결제.
-        //   로그인은 그 화면이 확인한다.
-        var PARTNER_HREF = 'segan/me.html#partner';
-        var START_LABEL = { expert: '업체로 시작하기', agent: '신청하기' };
-
+        // Expert · Agent 는 업체 구독이다 — 업체 가입은 새 앱에서 열린다.
+        //   여기서는 결제창을 열지 않고, 안내와 상담 신청 링크만 둔다.
         var state = { user: null, tier: 'standard', credits: {}, cost: null, plans: [] };
 
         // 크레딧만 적으면 몇 번 만들 수 있는지 모른다. 단가로 환산해 함께 낸다.
@@ -275,13 +278,12 @@
             btn = '<button type="button" class="pr-btn pr-btn--ghost" disabled>기본 등급</button>';
           } else {
             btn =
-              '<a class="pr-btn" href="' +
-              PARTNER_HREF +
-              '" data-plan="' +
+              '<div class="pr-cta" data-plan="' +
               esc(p.id) +
               '">' +
-              esc(START_LABEL[p.id] || '시작하기') +
-              '</a>';
+              '<button type="button" class="pr-btn pr-btn--ghost" disabled>업체 가입은 새 앱에서 열립니다</button>' +
+              '<a class="pr-consult" href="consultation.html">상담 신청</a>' +
+              '</div>';
           }
 
           return (
