@@ -10,6 +10,8 @@
  *
  * 원칙 (ingest.js 와 같다):
  *   1) 출처 · 묶음 키는 여기서 정한다 — source dadam_planner, group_key planner-lite:design:<id>. 플래너가 보낸 라벨은 범위만 검사.
+ *      설계 줄의 공간 · 가구도 플래너 레코드(record.space · furniture — 설계 품목, 2026-10-28 신발장 · 화장대 · 수납장)에서 범위만 검사해 받는다.
+ *      없으면(예전 플래너) 주방 · 싱크대.
  *   2) **사람이 검수한 표본(label_source human)은 덮어쓰지도 지우지도 않는다.** 플래너가 보내는 라벨은 늘 structured —
  *      창고의 human 은 관리자 검수(dataset_reviews 트리거)만 단다.
  *   3) 학습용 내보내기(dataset_exportable)는 수주가 시공 완료일 때 — 앱 정본 그대로. 수주번호가 없거나 못 찾으면 design_id 는 비워
@@ -118,7 +120,7 @@ export function photoRow(env, designId, sample, file, sha256) {
   };
 }
 
-/** 설계 한 줄 — 그림 없는 구조 레코드 (같은 묶음의 사진이 상속한다, dataset-schema.sql) */
+/** 설계 한 줄 — 그림 없는 구조 레코드 (같은 묶음의 사진이 상속한다, dataset-schema.sql). 공간 · 가구 = 레코드의 설계 품목 (없으면 주방 · 싱크대) */
 export function designRow(designId, record) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) throw bad('설계 레코드가 없습니다');
   const r = { ...record };
@@ -134,8 +136,8 @@ export function designRow(designId, record) {
     height: null,
     media: 'floorplan',
     phase: 'unknown',
-    space: 'kitchen',
-    furniture: 'sink',
+    space: pick(r.space, SPACE, 'kitchen'),
+    furniture: pick(r.furniture, FURNITURE, 'sink'),
     layout_shape: pick(r.layout_shape, SHAPE, 'unknown'),
     attrs: { record: r },
     label_source: 'structured',
