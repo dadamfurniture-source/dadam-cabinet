@@ -375,6 +375,8 @@
     const W = bottom.w + 2 * T;
     const sakuri = /sakuri/.test(String(side.note || ''));
     const chanTop = /목찬넬 따내기 상단/.test(String(side.note || ''));   // 측판 앞 위 70×40 따내기 (목찬넬 손잡이)
+    // 띄움 시공 (2026-10-28 사장님 — 신발장): 바닥 줄 사쿠리 몸통은 상부장 짜임 — 도어가 몸통 밑으로 내려온다 (extractors addSimpleSakuriBox)
+    const doorPos = sakuri && mod.pos === 'lower' && AsmRules.floatHOf(item && item.specs) > 0 ? 'upper' : mod.pos;
     const zBack = -D / 2, zFront = D / 2;
     const blind = String(mod.id).indexOf('corner-blind-') === 0;   // 멍장 — 정면은 멍가림판·마감재·도어, 안쪽에 ㄱ자 목대
     const bl = blind ? blindGeomOf(mod, W, item) : null;
@@ -496,14 +498,14 @@
           //   앞뒤: 측판 앞선에 붙어 밖으로 (z = D/2 … D/2 + 두께). 서랍장 도어는 서랍 레이아웃 몫 (PR9 다음).
           if (blind) {
             // 멍장 도어 — 목대를 덮는다 (corner.md §3.5.2): 자리 = doorW + 15, 재단 = 자리 − 4, 갭 좌우 2. 높이는 보통 도어와 같다.
-            const yb = doorYOf(mod.pos, H, row.h);
+            const yb = doorYOf(doorPos, H, row.h);
             if (!bl || row.qty !== 1 || row.w !== bl.doorW + C.BLIND_BATTEN_T - C.DOOR_GAP || yb == null) { skip(row, 'blind-layout-unknown'); return; }
             const u0 = bl.coverEnd + C.DOOR_GAP / 2;
             parts.push(makePart(row, 0, { o: [bl.xOf(u0, u0 + row.w), yb, zFront], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { doorIdx: 0, blind: 'door' }));
             return;
           }
           const xs = doorXsOf(W, row);
-          let y0 = doorYOf(mod.pos, H, row.h);
+          let y0 = doorYOf(doorPos, H, row.h);
           if (mod.isDrawer) {
             // 서랍장 도어 — 레이아웃 전면 (플래너 frontSpanOf: 몸통 상단에서 아래로 잰 y0..y1 을 뒤집는다)
             const f = frontsOf('door');
