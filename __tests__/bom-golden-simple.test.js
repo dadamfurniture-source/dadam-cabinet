@@ -304,12 +304,13 @@ describe('규칙표·도우미 (BOM_SIMPLE_CATEGORY_RULES)', () => {
     expect(X.bomSimpleDoorCountOf({}, 1300)).toEqual({ count: 3, defaulted: true });
   });
 
-  test('깊이 폴백: mod.d → item.d → 카테고리 기본, 상부는 295', () => {
+  test('깊이 폴백: mod.d → item.d → 카테고리 기본, 상부는 카테고리 upperD (신발장 350 — 2026-10-28 사장님, 그 밖 295)', () => {
     const shoe = X.BOM_SIMPLE_CATEGORY_RULES.shoerack;
     expect(X.bomSimpleDepthOf({ d: 320 }, 'lower', { d: 350 }, shoe)).toBe(320);
     expect(X.bomSimpleDepthOf({}, 'lower', { d: 380 }, shoe)).toBe(380);
     expect(X.bomSimpleDepthOf({}, 'lower', {}, shoe)).toBe(350);
-    expect(X.bomSimpleDepthOf({}, 'upper', { d: 380 }, shoe)).toBe(295);
+    expect(X.bomSimpleDepthOf({}, 'upper', { d: 380 }, shoe)).toBe(350);
+    expect(X.bomSimpleDepthOf({}, 'upper', { d: 500 }, X.BOM_SIMPLE_CATEGORY_RULES.vanity)).toBe(295);
   });
 
   test('레일 길이 문턱 (bom-protocol.md §4-2)', () => {

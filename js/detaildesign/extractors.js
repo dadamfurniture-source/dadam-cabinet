@@ -143,6 +143,9 @@
         '좌대 전후':       { key: 'pedestal:fb',      slot: 'kick' },
         '좌대 측':         { key: 'pedestal:side',    slot: 'kick' },
         '좌대 중간보강':   { key: 'pedestal:brace',   slot: 'kick' },
+        // 띄움 시공 (2026-10-28 사장님 — 신발장): 걸레받이 자리의 가림판 (몸통 뒤 맞춤) · 줄 좌우 마감재 (assembly-rules CARCASS.FLOAT_*)
+        '가림판':          { key: 'float:cover',      slot: 'kick' },
+        '마감재(띄움)':    { key: 'float:side',       slot: 'finishing' },
       };
 
       /** 2026-10-20: 아일랜드 몸통 깊이는 사장님 값 대기 — 측판 비고에 붙인다 (extract 'island'). */
@@ -656,13 +659,35 @@
       const BOM_SHELF_SPACE_GENERAL = { min: 300, max: 450 };
       const BOM_UPPER_SHELF_COUNT = 2;
       const BOM_SIMPLE_CATEGORY_RULES = {
-        shoerack:  { label: '신발장', defaultD: 350, upperD: 295, shelfSpace: { min: 150, max: 300 } },
+        // 2026-10-28 사장님 (간편 플래너 신발장 모듈): 신발장 상부장 깊이 350 — 하부와 같은 깊이 (예전 295, 싱크 상부와 같았다)
+        shoerack:  { label: '신발장', defaultD: 350, upperD: 350, shelfSpace: { min: 150, max: 300 } },
         vanity:    { label: '화장대', defaultD: 500, upperD: 295, shelfSpace: BOM_SHELF_SPACE_GENERAL },
         storage:   { label: '수납장', defaultD: 400, upperD: 295, shelfSpace: BOM_SHELF_SPACE_GENERAL },
         warehouse: { label: '창고장', defaultD: 450, upperD: 295, shelfSpace: BOM_SHELF_SPACE_GENERAL },
         // 2026-10-20 TV장 — 깊이 400 사장님 확정(결정 카드). 선반 칸 간격은 수납장 규칙 준용 [확인 필요] (simple-categories.md §1)
         tvcabinet: { label: 'TV장', defaultD: 400, upperD: 295, shelfSpace: BOM_SHELF_SPACE_GENERAL },
       };
+
+      /**
+       * 신발장 품목 기본값 — 2026-10-28 사장님 (간편 플래너 신발장 모듈 · 띄움 시공):
+       *   하부장 높이 = 바닥~윗면 1000 (띄움 · 상판 포함 — 싱크 870 과 같은 잼, 띄움 200 이면 몸통 800 · 상판 18T 면 782) ·
+       *   띄움 시공 기본 200 (설계마다 바꾼다) · 상판은 있을 때 기본 18T MDF.
+       *   품목 스펙(lowerH · floatH · topMaterial · topThickness)을 만드는 쪽(플래너 · 모듈 라이브러리)이 이 값을 쓴다 — BOM 은 스펙을 읽는다.
+       */
+      const BOM_SHOERACK_DEFAULTS = Object.freeze({ lowerH: 1000, floatH: 200, topMaterial: 'MDF', topThickness: 18 });
+      /**
+       * 단순 상자 품목 상판 깊이 = 몸통 + 앞 자리 — 2026-10-28 사장님 "380 = 몸통 + 앞 자리" (싱크 상판 "도면 깊이 그대로"와 같은 식,
+       *   단순 상자 품목은 품목 깊이가 몸통이라 배치 공간 앞 자리를 더한다). 앞 자리 = 물끊기 10 + 도어 자리 20
+       *   (js/planner/planner-engine.js MASTER_RULES.CORNER_DRIP + DOOR_SEAT_D — 시험이 대조한다).
+       */
+      const BOM_SIMPLE_TOP_FRONT = 30;
+      /** 상판 두께 — 품목 스펙 topThickness, 0 이면 상판 없음 (2026-10-28 신발장 — 상판이 없는 장). 값이 없으면 12 (DEFAULT_SPECS) */
+      function bomSimpleTopTOf(specs) {
+        const v = parseFloat(specs && specs.topThickness);
+        return Number.isFinite(v) && v >= 0 ? v : 12;
+      }
+      /** 띄움 시공 서랍장 — 정한 규칙이 없다 (하부장 짜임 그대로 낸다) */
+      const BOM_FLOAT_DRAWER_NOTE = '[확인 필요] 띄움 시공 서랍장 — 규칙 없음 (하부장 짜임 그대로)';
 
       /**
        * 도어 수 기본값 — 2026-10-13 사장님: 플래너와 같게. 도어 한 장 최대 600 (MASTER_RULES.DOOR_W_MAX) —
@@ -806,13 +831,20 @@
         const s = specs || {};
         const W = parseFloat(m.w) || 600;
         const tier = bomTallTierOf(m);
+        const floatH = AsmRules.floatHOf(s);
+        if (floatH > 0 && m.pos === 'lower' && !m.isDrawer) {
+          // 띄움 시공 — 하부장 · 키큰장도 상부장 짜임: 도어 H + 내림 (extractSimpleBox addSimpleSakuriBox 와 같다)
+          const overlap = parseFloat(s.upperDoorOverlap) || 15;
+          const H = parseFloat(m.h) || (parseFloat(s.lowerH) || 870) - bomSimpleTopTOf(s) - floatH;
+          return { count: bomSimpleDoorCountOf(m, W).count, doorH: H + overlap };
+        }
         if (tier) return { count: m.doorCount || 0, doorH: bomTallTierDoorH(m, tier, s) };
         if (m.pos === 'upper') {
           const overlap = parseFloat(s.upperDoorOverlap) || 15;
           const H = parseFloat(m.h) || (parseFloat(s.upperH) || 720) - overlap;
           return { count: bomSimpleDoorCountOf(m, W).count, doorH: H + overlap };
         }
-        const H = parseFloat(m.h) || (parseFloat(s.lowerH) || 870) - (parseFloat(s.topThickness) || 12) - (parseFloat(s.sinkLegHeight) || 150);
+        const H = parseFloat(m.h) || (parseFloat(s.lowerH) || 870) - bomSimpleTopTOf(s) - (floatH > 0 ? floatH : (parseFloat(s.sinkLegHeight) || 150));
         if (m.isDrawer) {
           // 2026-10-22: 싱크 서랍 규칙 — 도어는 doorCount 가 있을 때만 그 수 (레이아웃 [도어, 서랍×n]). 서랍장 전면은 마이다라
           //   경첩은 bomIsMaidaModule 이 먼저 거르고, 손잡이 수만 여기서 센다 (싱크 extractHandles 의 mod.doorCount 와 같다).
@@ -1833,7 +1865,10 @@
             return { molding: { places: bomPlanPlaces(p.places), joinedTalls: p.joinedTalls }, lower: { places: lower }, channel: { places: channel } };
           }
           const uppers = bomPlanPlaces(bomLinePlacesOf(mods.filter((m) => m.pos === 'upper'), (m) => !bomIsBoxModule(m)));
-          return { molding: { places: uppers, joinedTalls: [] }, lower: { places: lower }, channel: { places: lower } };
+          // 띄움 시공 — 바닥 줄 전체(키큰장 포함)가 떠 있다: 가림판 · 좌우 마감재 자리 (AsmRules.floatHOf)
+          const float = AsmRules.floatHOf(item && item.specs) > 0
+            ? { places: bomPlanPlaces(bomLinePlacesOf(lowerMods, (m) => m.pos === 'lower')) } : null;
+          return { molding: { places: uppers, joinedTalls: [] }, lower: { places: lower }, channel: { places: lower }, float };
         }
 
         /**
@@ -2059,6 +2094,56 @@
          */
         addKickBoards(materials, label, places, kickH) {
           bomLinePieceRowsOf(places).forEach((r) => this.add(materials, label, '걸레받이', 'MDF', 18, r.len, kickH, r.qty, '2면(장)', r.note));
+        }
+
+        /** 띄움 가림판 — 걸레받이와 같은 조각 · 높이 (띄움 − KICK_H_MINUS), 몸통 뒤 맞춤 (2026-10-28 사장님). 키큰장도 떠 있어 같은 줄이다 */
+        addFloatCovers(materials, label, places, coverH) {
+          bomLinePieceRowsOf(places).forEach((r) => this.add(materials, label, '가림판', 'MDF', ASM.FLOAT_PANEL_T, r.len, coverH, r.qty, '2면(장)',
+            `띄움 가림판 — 걸레받이 크기 · 몸통 뒤 맞춤${r.note ? ` · ${r.note}` : ''}`));
+        }
+
+        /**
+         * 띄움 줄 좌우 마감재 — 자리(붙어 선 바닥 줄)마다 양 끝 한 장씩, 높이 띄움 + 40 · 깊이 그 끝 몸통 + 20 (현장재단 여유), 18T MDF 도어 재질
+         *   (2026-10-28 사장님). 같은 크기는 한 행에 수량으로.
+         */
+        addFloatSideFinishes(materials, label, places, item, rules, floatH) {
+          const byId = new Map((item.modules || []).map((m) => [String(m.id), m]));
+          const sizes = new Map();
+          (places || []).forEach((pl) => {
+            const units = pl.units || [];
+            if (!units.length) return;
+            const endMod = (u, last) => byId.get(String(last ? u.ids[u.ids.length - 1] : u.ids[0]));
+            [endMod(units[0], false), endMod(units[units.length - 1], true)].forEach((m) => {
+              const d = bomSimpleDepthOf(m, 'lower', item, rules) + ASM.FLOAT_SIDE_D_PLUS;
+              sizes.set(d, (sizes.get(d) || 0) + 1);
+            });
+          });
+          [...sizes.entries()].sort((a, b) => b[0] - a[0]).forEach(([d, qty]) => this.add(materials, label, '마감재(띄움)', 'MDF', ASM.FLOAT_PANEL_T,
+            floatH + ASM.FLOAT_SIDE_H_PLUS, d, qty, '4면', `띄움 줄 좌우 마감재 — 높이 띄움 + ${ASM.FLOAT_SIDE_H_PLUS} · 깊이 몸통 + ${ASM.FLOAT_SIDE_D_PLUS} (현장재단 여유) · 도어 재질`));
+        }
+
+        /**
+         * 단순 상자 품목의 사쿠리 몸통 — 상부장 (bom-protocol.md §3-1 상부장) · 띄움 시공 하부장 · 키큰장 (2026-10-28 사장님 "하부장도 사쿠리형으로").
+         *   측판 사쿠리 · 천판 · 지판 · 홈 속 뒷판 · 벽 고정 보강목 2 · 처짐방지 (상부 문턱) · 선반 (품목 규칙) · 도어 H + 내림 — 도어가 몸통 밑으로 내려온다.
+         * @param {{door:string, shelf:string}} notes 기본값으로 정한 행의 비고
+         */
+        addSimpleSakuriBox(materials, modLabel, mod, W, H, modD, T, rules, overlap, notes) {
+          this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면', 'sakuri(15→3mm)');
+          this.add(materials, modLabel, '천판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
+          this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
+          this.addBackPanel(materials, modLabel, W, H, true);
+          this.add(materials, modLabel, '밴드(보강목)', 'PB', ASM.UPPER_BAND_T, W - T * 2, ASM.UPPER_BAND_W, 2, '2면(장)');
+          const braceQty = bomBraceQtyOf(W, 'upper');
+          if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, H - T * 2, braceQty, '2면(장)');
+          const shelf = bomSimpleShelfQtyOf(mod, rules);
+          if (shelf.qty > 0) {
+            this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - ASM.SAKURI_SHELF_D_MINUS, shelf.qty, '1면(전)', shelf.defaulted ? notes.shelf : '');
+          }
+          const door = bomSimpleDoorCountOf(mod, W);
+          if (door.count > 0) {
+            const doorW = Math.floor(W / door.count) - 4;
+            this.add(materials, modLabel, '도어', 'MDF', 18, doorW, H + overlap, door.count, '4면', door.defaulted ? notes.door : '', mod);
+          }
         }
 
         /** 목찬넬 EP ㄴ자 — 전면 52 행들, 지면 40 행들 (걸레받이와 같은 자리 · 조각) */
@@ -2786,11 +2871,15 @@
           const isWoodChannel = (specs.handle || '').includes('목찬넬');
           const legH = parseFloat(specs.sinkLegHeight) || 150;
           const overlap = parseFloat(specs.upperDoorOverlap) || 15;
-          const topT = parseFloat(specs.topThickness) || 12;
+          const topT = bomSimpleTopTOf(specs);
+          // 띄움 시공 (2026-10-28 사장님 — 신발장): 바닥 줄이 floatH 만큼 떠 있다 — 다리발 대신 그 높이, 몸통은 상부장 짜임 (addSimpleSakuriBox)
+          const floatH = AsmRules.floatHOf(specs);
+          const baseH = floatH > 0 ? floatH : legH;
           // 2026-10-13 사장님 확정 — 도어·선반 기본값은 플래너와 같다 (비고는 "기본값으로 정했다"는 표시)
           const doorNote = `도어 수 미지정 → 한 장 최대 ${BOM_DOOR_W_MAX} (플래너와 같다)`;
           const sp = rules.shelfSpace || BOM_SHELF_SPACE_GENERAL;
           const shelfNote = `선반 수 미지정 → 상부 ${BOM_UPPER_SHELF_COUNT} · 그 밖 칸 간격 ${sp.min}~${sp.max} (플래너와 같다)`;
+          const notes = { door: doorNote, shelf: shelfNote };
 
           dlog(`[SimpleBox:${rules.label}] 모듈:`, (item.modules || []).length);
 
@@ -2804,28 +2893,23 @@
             const door = bomSimpleDoorCountOf(mod, W);
             const name = mod.name || `${W}/${door.count}도어`;
             const modLabel = `${prefix}상부장-${name}`;
-
-            this.add(materials, modLabel, '측판', 'PB', T, modD, H, 2, '3면', 'sakuri(15→3mm)');
-            this.add(materials, modLabel, '천판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
-            this.add(materials, modLabel, '지판', 'PB', T, W - T * 2, modD - ASM.SAKURI_PANEL_D_MINUS, 1, '1면(전)');
-            this.addBackPanel(materials, modLabel, W, H, true);
-            this.add(materials, modLabel, '밴드(보강목)', 'PB', ASM.UPPER_BAND_T, W - T * 2, ASM.UPPER_BAND_W, 2, '2면(장)');
-            const braceQty = bomBraceQtyOf(W, 'upper');
-            if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, H - T * 2, braceQty, '2면(장)');
-            const shelf = bomSimpleShelfQtyOf(mod, rules);
-            if (shelf.qty > 0) {
-              this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - ASM.SAKURI_SHELF_D_MINUS, shelf.qty, '1면(전)', shelf.defaulted ? shelfNote : '');
-            }
-            if (door.count > 0) {
-              const doorW = Math.floor(W / door.count) - 4;
-              this.add(materials, modLabel, '도어', 'MDF', 18, doorW, H + overlap, door.count, '4면', door.defaulted ? doorNote : '', mod);
-            }
+            this.addSimpleSakuriBox(materials, modLabel, mod, W, H, modD, T, rules, overlap, notes);
           });
 
           // ===== 하부장 모듈 — bom-protocol.md §3-1 하부장 (사쿠리 없음) · 키큰장 단은 sink.md §5.1 =====
           const lowerModules = (item.modules || []).filter((m) => m.pos === 'lower');
           lowerModules.forEach((mod, idx) => {
             const tallTier = bomTallTierOf(mod);
+            if (tallTier && floatH > 0) {
+              // 띄움 키큰장 — 상부장 짜임 몸통 (좌대 없음 · 몸통 높이는 브리지가 띄움 · 상몰딩을 뺀 값), 맨 위 단이면 상몰딩
+              this.beginModule(mod, idx, 'tall');
+              const W = parseFloat(mod.w) || 600;
+              const tierLabel = BOM_TALL_TIER_LABEL[tallTier] || '';
+              const modLabel = `${prefix}${mod.name || '키큰장'}${tierLabel ? `(${tierLabel})` : ''}`;
+              this.addSimpleSakuriBox(materials, modLabel, mod, W, parseFloat(mod.h) || 0, bomSimpleDepthOf(mod, 'lower', item, rules), T, rules, overlap, notes);
+              if (tallTier === 'top' || tallTier === 'single') this.addTallMoldingPart(materials, modLabel, mod, W, specs);
+              return;
+            }
             if (tallTier) {
               this.beginModule(mod, idx, 'tall');
               // 선반 기본값만 카테고리 규칙으로 — addTallTierParts 는 shelfCount 가 없으면 1 (sink.md §5.1 통짜) 로 본다
@@ -2836,18 +2920,23 @@
             }
             this.beginModule(mod, idx, 'lower');
             const W = parseFloat(mod.w) || 600;
-            const H = parseFloat(mod.h) || (parseFloat(specs.lowerH) || 870) - topT - legH;
+            const H = parseFloat(mod.h) || (parseFloat(specs.lowerH) || 870) - topT - baseH;
             const modD = bomSimpleDepthOf(mod, 'lower', item, rules);
             const door = bomSimpleDoorCountOf(mod, W);
             const name = mod.name || `${W}/${door.count}도어`;
             const modLabel = `${prefix}하부장-${name}`;
             const isDrawer = !!mod.isDrawer;
+            if (floatH > 0 && !isDrawer) {
+              // 띄움 하부장 — 상부장 짜임 (사장님 "하부장도 사쿠리형으로"): 벽 고정 보강목 2 · 도어 아래로 내림, 목찬넬 따내기 없음
+              this.addSimpleSakuriBox(materials, modLabel, mod, W, H, modD, T, rules, overlap, notes);
+              return;
+            }
             // 2026-10-22 사장님 카드 "싱크 규칙으로 통일": 서랍장은 전면·목찬넬·박스 모두 싱크 하부장 서랍 규칙 (drawerLayoutOf ·
             //   addDrawerModuleParts). 측판 비고(따내기)도 싱크처럼 레이아웃에서 나온다.
             const drawerLayout = isDrawer ? this.drawerLayoutOf(mod, H, T) : null;
             if (drawerLayout && drawerLayout.warnings.length) dlog(`[Drawer] ${modLabel}: ${drawerLayout.warnings.join(' / ')}`);
             // 몸통 — 위 도어 + 아래 서랍은 두 몸통 (2026-10-25, addLowerCarcassRows)
-            this.addLowerCarcassRows(materials, modLabel, W, H, T, modD, drawerLayout, !!(isWoodChannel && DrawerRules));
+            this.addLowerCarcassRows(materials, modLabel, W, H, T, modD, drawerLayout, !!(isWoodChannel && DrawerRules), floatH > 0 ? BOM_FLOAT_DRAWER_NOTE : '');
             const shelf = bomSimpleShelfQtyOf(mod, rules);
             if (shelf.qty > 0) {
               this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - T, shelf.qty, '1면(전)', shelf.defaulted ? shelfNote : '');
@@ -2880,9 +2969,31 @@
           if (moldingH >= 20 && totalUpperW > 0) this.addMoldingRows(materials, epLabel, linePlan.molding.places, moldingH, '');
 
           // 걸레받이·목찬넬 — 다리발 위 하부 라인 (키큰장 단은 좌대가 받치므로 뺀다). 하부장이 없으면 없다.
+          //   띄움 시공이면 걸레받이 · 목찬넬 대신 가림판 · 좌우 마감재 — 바닥 줄 전체(키큰장 포함)가 떠 있다 (2026-10-28 사장님)
           this.beginItemLevel('lower');
-          if (effectiveW > 0) this.addKickBoards(materials, epLabel, linePlan.lower.places, legH - 5);
-          if (isWoodChannel && effectiveW > 0) this.addChannelRows(materials, epLabel, linePlan.channel.places);
+          if (floatH > 0) {
+            const floatPlaces = (linePlan.float && linePlan.float.places) || [];
+            this.addFloatCovers(materials, epLabel, floatPlaces, floatH - ASM.KICK_H_MINUS);
+            this.addFloatSideFinishes(materials, epLabel, floatPlaces, item, rules, floatH);
+          } else {
+            if (effectiveW > 0) this.addKickBoards(materials, epLabel, linePlan.lower.places, legH - 5);
+            if (isWoodChannel && effectiveW > 0) this.addChannelRows(materials, epLabel, linePlan.channel.places);
+          }
+
+          // 상판 — 단순 상자 품목은 상판 규칙이 없어 내지 않았다 (§6.5). 2026-10-28 사장님: 화장대 기본 12T 인조대리석 · 신발장은 있을 때 18T MDF —
+          //   품목 스펙에 상판 재질(topMaterial)이 있고 두께가 0 보다 클 때만 (예전 스펙엔 재질이 없다 → 예전과 같다).
+          //   폭 = 하부 라인(키큰장 단 제외) + 하부 도면 마감재 (싱크와 같다), 깊이 = 몸통 + 앞 자리 (사장님 "380 = 몸통 + 앞 자리").
+          if (specs.topMaterial && topT > 0 && effectiveW > 0) {
+            const topW = effectiveW + (Array.isArray(specs.drawnFinishes) ? specs.drawnFinishes : [])
+              .filter((f) => f && f.area === 'lower').reduce((s, f) => s + (Number(f.W) > 0 ? Number(f.W) : 0), 0);
+            const bodyD = Math.max(...lineLowerModules.map((m) => bomSimpleDepthOf(m, 'lower', item, rules)));
+            const topMat = String(specs.topMaterial);
+            const topTs = BOM_TOP_MATERIALS[topMat];
+            const topOk = !!topTs && topTs.includes(topT);
+            this.add(materials, `${prefix}상판`, '상판', topMat, topT, topW, bodyD + BOM_SIMPLE_TOP_FRONT, 1, '-',
+              `하부 라인 한 장(도면 마감재 폭 포함) · 깊이 = 몸통 + 앞 자리 ${BOM_SIMPLE_TOP_FRONT} (2026-10-28 사장님)`
+              + (topOk ? '' : ` [확인 필요] ${topMat} 상판 두께 목록 ${topTs ? topTs.join(' · ') : '없음'} — 지정 값 ${topT}`));
+          }
 
           // 좌·우 마감 — 2026-10-24 사장님 D9: 도면 마감재 그대로 (addDrawnFinishes). simple-categories.md §2 의 스펙 기본(Filler 60)은 발주에 쓰지 않는다.
           this.addDrawnFinishes(materials, epLabel, item);
@@ -3466,6 +3577,8 @@
           // 2026-10-20: 아일랜드도 다리발 150 (sink.md §1 표). 비규격장은 싱크대 규칙 (2026-10-20 카드).
           if (category !== 'sink' && category !== 'island' && category !== 'custom' && !simple) return;
           const specs = item.specs || {};
+          // 2026-10-28 사장님 (신발장 띄움 시공): 바닥 줄이 떠 있으면 다리발이 없다 (AsmRules.floatHOf)
+          if (simple && AsmRules.floatHOf(specs) > 0) return;
           const legH = specs.sinkLegHeight || 150;
           let totalLegs = 0;
 
@@ -3795,6 +3908,8 @@
           // B3 단순 카테고리 — 규칙표·선반/도어/깊이/레일 도우미 (bom-golden-simple.test.js)
           BOM_SIMPLE_CATEGORY_RULES, bomSimpleShelfQtyOf, bomSimpleDefaultShelfCount, bomSimpleDoorCountOf,
           bomSimpleHingeDoorsOf, bomSimpleDepthOf, bomSimpleRailLenOf,
+          // 2026-10-28 신발장 — 품목 기본값 (하부 1000 · 띄움 200 · 상판 18T MDF) · 상판 앞 자리 · 상판 두께 (0 = 없음)
+          BOM_SHOERACK_DEFAULTS, BOM_SIMPLE_TOP_FRONT, bomSimpleTopTOf,
           // 2026-10-13 플랩 가스쇼바 — 규격표·자동 선택
           BOM_GAS_STRUTS, bomGasStrutFor,
           // 2026-10-18 사전 오류 검사(bom-preflight.js)가 컵 간격 문턱을 여기서 읽는다
