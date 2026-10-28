@@ -20,9 +20,11 @@ export class AuthError extends Error {
 }
 
 export class ForbiddenError extends Error {
-  constructor(message = 'Forbidden') {
+  /** code — 화면이 사유를 가를 때 쓰는 짧은 이름 (예: not_member · not_money). 응답에 그대로 실린다 */
+  constructor(message = 'Forbidden', code = null) {
     super(message);
     this.statusCode = 403;
+    if (code) this.code = code;
   }
 }
 

@@ -382,16 +382,21 @@ const FULL_QUOTE = {
   method: 'sheet', items: [{ name: '싱크대', amount: 1000000 }], subtotal: 1000000, vat: 100000, total: 1100000, margin_rate: 0.2,
   partner: { items: [], subtotal: 900000, vat: 90000, total: 990000, margin_rate: 0.1 },
   cost: { total: 800000, margin_amount: 200000, fixed_recovery: 50000 },
-  legacy: { method: 'per_meter', total: 1200000 },
+  settings_missing: false,
+  settings_used: { standards: {}, crew: {}, costs: { assemblerDay: 200000 }, quote: { marginRate: 0.2 } },
 };
 
-test('quoteForViewer — 원가 · 수금 권한이 없으면 원가 내역 · 마진율만 뺀다 (고객 금액은 그대로)', () => {
+test('quoteForViewer — 원가 · 수금 권한이 없으면 원가 내역 · 마진율 · 동결 설정만 뺀다 (고객 금액은 그대로)', () => {
   assert.equal(quoteForViewer(FULL_QUOTE, true), FULL_QUOTE);
   const q = quoteForViewer(FULL_QUOTE, false);
-  assert.deepEqual(Object.keys(q).sort(), ['items', 'legacy', 'method', 'partner', 'subtotal', 'total', 'vat']);
+  assert.deepEqual(Object.keys(q).sort(), ['items', 'method', 'partner', 'settings_missing', 'subtotal', 'total', 'vat']);
   assert.deepEqual(q.partner, { items: [], subtotal: 900000, vat: 90000, total: 990000 });
   assert.equal(FULL_QUOTE.cost.total, 800000, '원본은 그대로');
   assert.equal(quoteForViewer(null, false), null);
+  // 본사 견적이 아니면 거래처 금액이 null — 그대로 둔다
+  assert.equal(quoteForViewer({ ...FULL_QUOTE, partner: null }, false).partner, null);
+  // 옛 스냅샷의 legacy 합계는 손대지 않는다
+  assert.deepEqual(quoteForViewer({ total: 1, legacy: { method: 'per_meter', total: 2 } }, false).legacy, { method: 'per_meter', total: 2 });
 });
 
 function docRoute(designId, docType) {
@@ -591,8 +596,10 @@ test('경영 대시보드 — 수주 · 상담 · 연출컷 · 설계와 거기 
         assert.equal(r.q.get('designs.company_id'), `eq.${HQ}`);
       }
     }
-    // 생산 설정은 그대로 (본사 거르기 없음)
-    for (const r of of('production_settings')) assert.equal(r.q.get('company_id'), null);
+    // 원가 설정은 본사 줄 — 보는 사람 개인 설정(production_settings)은 읽지 않는다
+    assert.ok(of('company_settings').length > 0, 'company_settings 를 읽는다');
+    for (const r of of('company_settings')) assert.equal(r.q.get('company_id'), `eq.${HQ}`);
+    assert.equal(of('production_settings').length, 0);
   });
 });
 

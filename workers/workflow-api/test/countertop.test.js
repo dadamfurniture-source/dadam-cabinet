@@ -208,7 +208,7 @@ const routes = ({ settings = null, snap = sinkSnapshot() } = {}) => (u, m) => {
   if (companyRoute(u)) return companyRoute(u);
   if (u.includes('/designs?')) return json([{ id: D1, user_id: U1, company_id: HQ }]);
   if (u.includes('/design_snapshots?')) return json([snap]);
-  if (u.includes('/production_settings?')) return json(settings ? [{ settings }] : []);
+  if (u.includes('/company_settings?')) return json(settings ? [{ settings }] : []);
   if (u.includes('/orders?')) return json([{ id: O1 }]);
   if (u.includes('/design_schedules?')) return json([{ scheduled_at: '2026-10-26T01:00:00Z' }]);
   if (u.includes('/appliance_models?')) return json([...MODELS.values()]);

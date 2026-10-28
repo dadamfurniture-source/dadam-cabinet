@@ -954,7 +954,7 @@ function errorResponse(request, env, err) {
     return jsonResponse(
       request,
       env,
-      { success: false, message: err.message, details: err.details || undefined },
+      { success: false, message: err.message, code: err.code || undefined, details: err.details || undefined },
       err.statusCode,
     );
   }

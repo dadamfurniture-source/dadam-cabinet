@@ -12,7 +12,8 @@
  * 내가 만든 본사 설계의 수주 (orders.js listOwnHqOrders).
  */
 
-import { selectOne, selectMany, insertOne, insertMany, updateById, updateBy, upsertOne, hqCompanyId, ValidationError, NotFoundError, ConflictError } from '../supabase.js';
+import { selectOne, selectMany, insertOne, insertMany, updateById, updateBy, upsertOne, hqCompanyId, activeMemberships, MONEY_ROLES, ValidationError, NotFoundError, ConflictError, ForbiddenError } from '../supabase.js';
+import { isAdmin } from '../reports/admin.js';
 import { postToWebhook } from '../slack.js';
 import { listOwnHqOrders, tierOf } from '../orders.js';
 import { workloadFromSnapshot } from './workload.js';
@@ -123,15 +124,82 @@ export function sanitizeSettings(body) {
   return out;
 }
 
-export async function getSettings(env, { user }) {
-  const row = await selectOne(env, 'production_settings', { user_id: `eq.${user.id}`, select: 'settings,updated_at' });
-  return { settings: mergeSettings(row && row.settings), saved: row ? row.settings : null, updated_at: row ? row.updated_at : null };
+// 원가 설정은 업체 소유다 — company_settings 에 업체당 한 줄 (database/migrations/0012).
+//   견적: 설계가 속한 업체의 설정 (snapshots.js)
+//   생산 계획 · 월 손익 · 경영 대시보드 · 작업자 보정: 본사 설정
+// 줄이 없는 업체는 코드 기본값으로 계산한다 — 다른 업체(본사) 설정으로 대신하지 않는다 (본사 원가가 샌다).
+
+/** 업체 원가 설정 — { settings (기본값과 합친 것), saved (저장된 그대로, 없으면 null), updated_at, missing } */
+export async function companySettings(env, companyId) {
+  const row = companyId
+    ? await selectOne(env, 'company_settings', { company_id: `eq.${companyId}`, select: 'settings,updated_at' })
+    : null;
+  return {
+    settings: mergeSettings(row && row.settings),
+    saved: row ? row.settings : null,
+    updated_at: row ? row.updated_at : null,
+    missing: !row,
+  };
 }
 
-export async function saveSettings(env, { user, body }) {
+/** 본사 원가 설정 */
+export async function hqSettings(env) {
+  return companySettings(env, await hqCompanyId(env));
+}
+
+/** 그 업체 설정을 다룰 수 있는가 — 그 업체의 대표 · 실장, 본사는 관리자(admin_roles)도. 아니면 403 */
+async function checkSettingsEditor(env, user, companyId, membership, hq) {
+  if (membership && membership.company_id === companyId && MONEY_ROLES.includes(membership.role)) return;
+  if (companyId === hq && (await isAdmin(env, user))) return;
+  if (membership && membership.company_id === companyId) {
+    throw new ForbiddenError('원가 설정은 업체 대표 · 실장만 다룹니다', 'not_money');
+  }
+  throw new ForbiddenError('이 업체의 원가 설정을 다룰 권한이 없습니다', 'not_member');
+}
+
+/**
+ * 호출자가 다루는 업체 — active 업체 (한 사람에 하나, 0003 company_members_one_active_company).
+ *   협력업체 구성원 → 그 업체, 본사 구성원 · 구성원이 아닌 관리자 → 본사.
+ * 그 업체 설정을 다룰 수 없으면 403 (구성원이 아니면 not_member, 대표 · 실장이 아니면 not_money).
+ */
+export async function settingsCompanyOf(env, user) {
+  const hq = await hqCompanyId(env);
+  const [membership] = await activeMemberships(env, user);
+  if (membership) {
+    await checkSettingsEditor(env, user, membership.company_id, membership, hq);
+    return membership.company_id;
+  }
+  if (await isAdmin(env, user)) return hq;
+  throw new ForbiddenError('업체 구성원만 원가 설정을 다룹니다', 'not_member');
+}
+
+/** companyId 설정을 다룰 수 없으면 403 (작업자 보정 → 본사 설정) */
+export async function assertSettingsEditor(env, user, companyId) {
+  const hq = await hqCompanyId(env);
+  const [membership] = await activeMemberships(env, user);
+  await checkSettingsEditor(env, user, companyId, membership || null, hq);
+}
+
+/** 업체 설정 저장 — 보낸 묶음만 남긴다 (예전 개인 설정과 같은 방식). 권한은 부르는 쪽이 확인한다 */
+export async function writeCompanySettings(env, { companyId, user, body }) {
   const clean = sanitizeSettings(body);
-  const row = await upsertOne(env, 'production_settings', { user_id: user.id, settings: clean, updated_at: new Date().toISOString() }, 'user_id');
+  const row = await upsertOne(env, 'company_settings', {
+    company_id: companyId,
+    settings: clean,
+    updated_by: user.id,
+    updated_at: new Date().toISOString(),
+  }, 'company_id');
   return { settings: mergeSettings(row && row.settings), saved: clean };
+}
+
+/** GET /production/settings — 내 업체 설정. missing 이면 저장된 줄이 없어 기본값이다 */
+export async function getSettings(env, { user }) {
+  return companySettings(env, await settingsCompanyOf(env, user));
+}
+
+/** POST /production/settings — 내 업체 설정 저장 */
+export async function saveSettings(env, { user, body }) {
+  return writeCompanySettings(env, { companyId: await settingsCompanyOf(env, user), user, body });
 }
 
 // ── 계획 입력 ──
@@ -223,8 +291,12 @@ export async function doorOrderedIds(env, userId) {
   }
 }
 
+/**
+ * 생산 계획 — 본사 설정(표준시간 · 인원 · 일당 · 납기 · 휴일)으로 돈다.
+ * 설정 자체는 돌려주지 않는다 — 계획은 JWT 가 있으면 누구나 부르고, 본사 원가 설정은 대표 · 실장 · 관리자만 본다.
+ */
 export async function computePlan(env, { user, today }) {
-  const { settings } = await getSettings(env, { user });
+  const { settings } = await hqSettings(env);
   const { orders, snapshotsById, schedules, doorOrdered, topOrdered } = await loadInputs(env, user);
   const { jobs, skipped } = buildJobs(orders, snapshotsById, schedules, settings.standards, doorOrdered, topOrdered);
   const plan = planProduction({
@@ -235,7 +307,7 @@ export async function computePlan(env, { user, today }) {
     leads: settings.leads,
     holidays: settings.holidays,
   });
-  return { ...plan, skipped, settings };
+  return { ...plan, skipped };
 }
 
 // ── 제안 · 승인 ──
@@ -454,7 +526,8 @@ export function summarizeMonth(orders, snapshotsById, { month, overheadMonthly }
 
 export async function getMonthlySummary(env, { user, month }) {
   const m = /^\d{4}-\d{2}$/.test(String(month || '')) ? month : kstDate().slice(0, 7);
-  const { settings } = await getSettings(env, { user });
+  // 월 고정비는 본사 설정
+  const { settings } = await hqSettings(env);
   const orders = await listOwnHqOrders(env, { user });
   const inMonth = orders.filter((o) => o.status !== 'cancelled' && kstDate(o.ordered_at).slice(0, 7) === m);
   let snaps = [];

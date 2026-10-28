@@ -87,10 +87,14 @@ export async function issueDocument(env, { user, body }) {
 
   // 확인서는 고객용(기본)과 거래처(인테리어 업체)용 두 가지 금액 중 하나로 낸다.
   // 거래처용은 스냅샷에 함께 계산해 둔 partner 금액을 쓴다 — 옛 스냅샷(partner 없음)이면 거절한다.
+  // 거래처 금액은 본사가 거래처에 파는 값이라 본사 견적에만 있다 (다른 업체 견적은 partner: null).
   const priceTier = body.price_tier === 'partner' ? 'partner' : 'customer';
   const baseQuote = snapshot.quote_payload;
   let quoteForDoc = baseQuote;
   if (priceTier === 'partner') {
+    if (baseQuote && baseQuote.partner === null) {
+      throw new ValidationError('거래처 금액은 본사 견적에만 있습니다');
+    }
     if (!baseQuote || !baseQuote.partner) {
       throw new ValidationError('이 스냅샷에는 거래처 금액이 없습니다. 설계·BOM 을 다시 동결한 뒤 발행해 주세요');
     }
@@ -330,13 +334,13 @@ export async function listDocuments(env, { designId, user }) {
 export async function getDocumentForOwner(env, { documentId, user }) {
   const doc = await selectOne(env, 'design_documents', { id: `eq.${documentId}`, select: '*' });
   if (!doc) throw new NotFoundError('문서를 찾을 수 없습니다');
-  const { money } = await designAccess(env, doc.design_id, user);
+  const { design, money } = await designAccess(env, doc.design_id, user);
   const snapshot = await selectOne(env, 'design_snapshots', {
     id: `eq.${doc.snapshot_id}`,
     select: '*',
   });
   if (!snapshot) throw new NotFoundError('문서가 참조하는 스냅샷이 없습니다');
-  return { doc, snapshot, money };
+  return { doc, snapshot, money, design };
 }
 
 /** 문서 행을 그대로 내보낼 때 — 원가 · 수금 권한이 없으면 render_payload.quote 의 원가 · 마진을 뺀다 */

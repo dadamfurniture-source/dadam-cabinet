@@ -11,7 +11,7 @@ import { countertopRequests, countertopModelIds, countertopQty, workdaysBefore, 
 import { getDocumentForOwner } from '../documents.js';
 import { outsourceCounts } from '../templates/work-order.js';
 import { workdays } from '../production/planner.js';
-import { getSettings } from '../production/service.js';
+import { companySettings } from '../production/service.js';
 import { OUTSOURCE_PACKS, kstDay, reportFromOutsource } from './record.js';
 
 const TABLE = 'work_reports';
@@ -55,7 +55,7 @@ export async function createOutsourceOrder(env, { user, documentId, body = {} })
   const def = OUTSOURCE_PACKS[pack];
   if (!def) throw new ValidationError('pack 은 door · cut-vendor · top 중 하나여야 합니다');
   // 외주 발주 기록은 업체 · 수량 · 날짜뿐 — 업체 구성원 누구나
-  const { doc, snapshot } = await getDocumentForOwner(env, { documentId, user });
+  const { doc, snapshot, design } = await getDocumentForOwner(env, { documentId, user });
   if (doc.doc_type !== 'work_order') throw new ValidationError('작업지시서에서만 외주 발주를 처리합니다');
 
   const today = kstDay();
@@ -68,7 +68,8 @@ export async function createOutsourceOrder(env, { user, documentId, body = {} })
     throw new ConflictError(`이미 발주 처리했습니다 — ${e.period_start} ${(e.metrics && e.metrics.vendor) || ''} (${e.status === 'received' ? '입고' : '발주'}). 다시 보내려면 한 번 더 확인해 주세요.`);
   }
 
-  const { settings } = await getSettings(env, { user });
+  // 업체 이름 · 납기 · 휴일 · 상판 기본값은 설계가 속한 업체의 설정
+  const { settings } = await companySettings(env, design.company_id);
   let quantities;
   let vendorKey = def.vendorKey;
   if (pack === 'top') {
@@ -122,14 +123,14 @@ export async function listOutsourceOrders(env, { user, documentId }) {
 }
 
 /**
- * 상판 요청서 인쇄 시점 자료 — 설계 주인의 생산 설정(업체 · 기본값 · 마감 근무일 · 공휴일), 가장 이른 설치일, 고른 가전 모델.
+ * 상판 요청서 인쇄 시점 자료 — 설계가 속한 업체의 설정(업체 · 기본값 · 마감 근무일 · 공휴일), 가장 이른 설치일, 고른 가전 모델.
  * 하나라도 못 읽으면 그 칸만 [확인 필요] 로 남기고 종이는 나온다.
  */
 export async function loadCountertopContext(env, { doc, snapshot }) {
   const ctx = { today: kstDay(), installDate: null, deadline: null, leadDays: 4, vendors: {}, countertop: null, models: new Map() };
   try {
-    const design = await selectOne(env, 'designs', { id: `eq.${doc.design_id}`, select: 'user_id' });
-    const { settings } = await getSettings(env, { user: { id: design ? design.user_id : null } });
+    const design = await selectOne(env, 'designs', { id: `eq.${doc.design_id}`, select: 'company_id' });
+    const { settings } = await companySettings(env, design ? design.company_id : null);
     ctx.vendors = settings.vendors;
     ctx.countertop = settings.countertop;
     ctx.leadDays = settings.leads.topLeadDays;

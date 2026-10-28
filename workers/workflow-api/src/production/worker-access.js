@@ -8,8 +8,8 @@
  */
 
 import { pepperedHash } from '../util/hash.js';
-import { selectOne, selectMany, insertOne, updateById, AuthError, ValidationError, NotFoundError } from '../supabase.js';
-import { computePlan, getSettings, saveSettings, kstDate } from './service.js';
+import { selectOne, selectMany, insertOne, updateById, hqCompanyId, AuthError, ValidationError, NotFoundError } from '../supabase.js';
+import { computePlan, hqSettings, companySettings, assertSettingsEditor, writeCompanySettings, kstDate } from './service.js';
 import { calibrate, calibrationPatch } from './calibration.js';
 import { maskOrderLabel, workerAssignmentText } from './redact.js';
 
@@ -186,19 +186,22 @@ export async function listWorklogs(env, { user, from }) {
   return (await selectMany(env, 'production_worklogs', q)) || [];
 }
 
+/** 표준시간 보정 — 실측 기록을 본사 설정의 표준시간과 견준다 (생산 계획이 본사 설정으로 돈다). */
 export async function getCalibration(env, { user, days = 30 }) {
   const from = kstDate(new Date(Date.now() - days * 86400000).toISOString());
   const logs = await listWorklogs(env, { user, from });
-  const { settings } = await getSettings(env, { user });
+  const { settings } = await hqSettings(env);
   return { from, days, result: calibrate(logs, settings.standards) };
 }
 
-/** 보정 적용 — 저장된 설정에 표준시간만 덮어쓴다. */
+/** 보정 적용 — 본사 설정에 표준시간만 덮어쓴다. 본사 대표 · 실장 · 관리자만 (아니면 403). */
 export async function applyCalibration(env, { user, roles }) {
+  const hq = await hqCompanyId(env);
+  await assertSettingsEditor(env, user, hq);
   const { result } = await getCalibration(env, { user });
   const patch = calibrationPatch(result, roles);
   if (!Object.keys(patch.standards).length) throw new ValidationError('적용할 보정값이 없습니다 (기록이 부족합니다)');
-  const { saved } = await getSettings(env, { user });
+  const { saved } = await companySettings(env, hq);
   const body = { ...(saved || {}), standards: { ...((saved && saved.standards) || {}), ...patch.standards } };
-  return saveSettings(env, { user, body });
+  return writeCompanySettings(env, { companyId: hq, user, body });
 }

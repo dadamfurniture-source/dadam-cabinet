@@ -81,7 +81,7 @@ test('첫 근무일(11/2 월) — 전월 수주 계정마다 만들고, 이미 �
     if (u.includes('/designs?') && u.includes('id=in.(d1,d2)')) return json([{ user_id: U1 }, { user_id: U2 }]);
     if (u.includes('/work_reports?') && u.includes(`owner_id=eq.${U2}`)) return json([{ id: 'exists' }]);
     if (u.includes('/work_reports?') && m === 'GET') return json([]);
-    if (u.includes('/production_settings?')) return json([]);
+    if (u.includes('/company_settings?')) return json([]);
     if (u.includes('/designs?') && u.includes(`user_id=eq.${U1}`) && u.includes(`company_id=eq.${HQ}`)) return json([{ id: 'd1' }]);
     if (u.includes('/orders?') && u.includes('design_id=in.(d1)')) return json([{ id: O1, order_no: 'DD-1', design_id: 'd1', snapshot_id: 's1', status: 'in_production', contract_amount: 9900000, ordered_at: '2026-10-05T01:00:00Z' }]);
     if (u.includes('/design_snapshots?')) return json([{ id: 's1', quote_payload: { cost: { total: 6000000, fixed_recovery: 0 } } }]);
