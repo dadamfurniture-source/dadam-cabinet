@@ -565,8 +565,12 @@
           door_color: o.door_color || 'white',
         }),
       });
-      if (res.status === 402)
+      // 402 — 크레딧 부족 · 업체 구독 멈춤 (만들기 ③ 과 같은 안내)
+      if (res.status === 402) {
+        var M402 = window.SeganMake;
+        if (M402 && M402.paymentRequiredError) throw await M402.paymentRequiredError(res);
         throw new Error('크레딧이 부족합니다. 구독을 올리면 더 만들 수 있습니다.');
+      }
       if (res.status === 409)
         throw new Error('이미 생성 중인 작업이 있습니다. 끝난 뒤 다시 시도해 주세요.');
       var data = await res.json();

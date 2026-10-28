@@ -69,6 +69,10 @@ function fakeClient(opts) {
   };
   return {
     auth: { getSession: async () => ({ data: { session: opts.session } }) },
+    rpc: async (name) =>
+      name === 'my_credit_wallet'
+        ? { data: [{ scope: 'personal', balance: 1000, monthly: 100, usable: true }], error: null }
+        : { data: null, error: { message: 'x' } },
     from: (table) => {
       const result = tables[table] || { data: null, error: null };
       const chain = {
@@ -313,9 +317,23 @@ describe('시작하지 못했을 때 — 가구 단계에서 안내, 사진은 �
       { success: false, error: 'insufficient' },
       '크레딧이 부족합니다. 구독을 올리면 더 만들 수 있습니다.',
     ],
+    [
+      402,
+      {
+        success: false,
+        code: 'company_inactive',
+        error: '업체 구독이 멈춰 있어 연출컷을 만들 수 없습니다. 결제를 확인해 주세요.',
+      },
+      '업체 구독이 멈춰 있어 연출컷을 만들 수 없습니다. 결제를 확인해 주세요.',
+    ],
+    [
+      402,
+      { success: false, code: 'company_inactive' },
+      '업체 구독이 멈춰 있어 연출컷을 만들 수 없습니다. 결제를 확인해 주세요.',
+    ],
     [409, { success: false }, '이미 생성 중인 작업이 있습니다. 끝난 뒤 다시 시도해 주세요.'],
     [500, { success: false, error: '서버 오류' }, '서버 오류'],
-  ])('%i', async (status, body, message) => {
+  ])('%i %j', async (status, body, message) => {
     const { calls } = await load({ post: res(status, body) });
     $('mkRun').click();
     await tick();

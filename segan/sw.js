@@ -19,7 +19,7 @@
 /* global self, caches, fetch, Request, Response, URL */
 'use strict';
 
-const ASSET_VERSION = '2026102801';
+const ASSET_VERSION = '2026102803';
 const CACHE_PREFIX = 'segan-shell-';
 const CACHE = CACHE_PREFIX + ASSET_VERSION;
 const SCOPE = new URL('./', self.location.href).pathname; // '/segan/'
@@ -32,6 +32,7 @@ const SHELL = [
   SCOPE + 'renders.html', // 내 연출컷
   SCOPE + 'me.html', // 내 정보
   SCOPE + 'consult.html', // 만들기 ④ 상담 신청
+  SCOPE + 'join.html', // 내 정보 — 업체 직원 초대 받기
   OFFLINE,
   SCOPE + 'manifest.webmanifest',
   versioned(SCOPE + 'shell.css'),
@@ -43,6 +44,8 @@ const SHELL = [
   versioned(SCOPE + 'collection.js'),
   versioned(SCOPE + 'renders.js'),
   versioned(SCOPE + 'me.js'),
+  versioned(SCOPE + 'partner.js'),
+  versioned(SCOPE + 'join.js'),
   versioned(SCOPE + 'icons/icon.svg'),
   versioned(SCOPE + 'icons/wordmark.svg'),
   versioned(SCOPE + 'icons/favicon-32.png'),
