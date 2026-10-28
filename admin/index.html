@@ -521,7 +521,7 @@
             <div class="stat-icon">⭐</div>
             <div class="stat-value" id="expertUsers">-</div>
             <div class="stat-label">Expert 회원</div>
-            <div class="stat-change" id="pendingUpgrades">승급 대기 0건</div>
+            <div class="stat-change" id="pendingUpgrades">업체 신청 대기 0건</div>
           </div>
 
           <div class="stat-card consultations">
@@ -577,7 +577,7 @@
                 <a href="expert-requests.html" class="quick-action-btn">
                   <div class="action-icon" style="background: #fff3e0; color: #f57c00">⭐</div>
                   <div class="action-text">
-                    <h4>Expert 승급 검토</h4>
+                    <h4>업체 신청 검토</h4>
                     <p id="pendingExpertCount">대기 중 0건</p>
                   </div>
                 </a>
@@ -751,20 +751,20 @@
           document.getElementById('expertUsers').textContent = '-';
         }
 
-        // Expert 승급 대기 건수
+        // 업체 신청 대기 건수 — 열린 신청(신청 접수 · 미팅 예정). 관리자는 partner_applications 를 읽을 수 있다(RLS)
         try {
-          const { data: expertRequests, error } = await supabaseClient
-            .from('expert_requests')
+          const { data: partnerApplications, error } = await supabaseClient
+            .from('partner_applications')
             .select('id')
-            .eq('status', 'pending');
+            .in('status', ['applied', 'meeting']);
 
-          if (!error && expertRequests) {
-            pendingExpert = expertRequests.length;
+          if (!error && partnerApplications) {
+            pendingExpert = partnerApplications.length;
             document.getElementById('pendingExpertCount').textContent = `대기 중 ${pendingExpert}건`;
-            document.getElementById('pendingUpgrades').textContent = `승급 대기 ${pendingExpert}건`;
+            document.getElementById('pendingUpgrades').textContent = `업체 신청 대기 ${pendingExpert}건`;
           }
         } catch (e) {
-          console.log('expert_requests 테이블이 아직 없습니다.');
+          console.log('업체 신청 건수를 읽지 못했습니다:', e.message);
         }
 
         // 상담 통계 — 본사(다담) 상담만 센다. 회사 구성원도 자기 회사 상담을 읽을 수 있어

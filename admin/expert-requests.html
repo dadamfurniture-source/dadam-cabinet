@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Expert 승급 관리 - 다담가구 관리자</title>
+    <title>업체 신청 - 다담가구 관리자</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -129,62 +129,34 @@
         color: #333;
       }
 
-      /* Stats */
-      .stats-row {
-        display: flex;
-        gap: 20px;
-        margin-bottom: 25px;
+      .section {
+        margin-bottom: 40px;
       }
 
-      .stat-box {
-        background: white;
-        padding: 20px 25px;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      .section-head {
         display: flex;
+        justify-content: space-between;
         align-items: center;
         gap: 15px;
+        margin-bottom: 15px;
       }
 
-      .stat-box .icon {
-        width: 50px;
-        height: 50px;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.5rem;
-      }
-
-      .stat-box.pending .icon {
-        background: #fff3e0;
-        color: #f57c00;
-      }
-      .stat-box.approved .icon {
-        background: #e8f5e9;
-        color: #388e3c;
-      }
-      .stat-box.rejected .icon {
-        background: #ffebee;
-        color: #c62828;
-      }
-
-      .stat-box .value {
-        font-size: 1.8rem;
-        font-weight: 700;
+      .section-head h3 {
+        font-size: 1.15rem;
         color: #333;
       }
 
-      .stat-box .label {
+      .section-head p {
         font-size: 0.85rem;
         color: #888;
+        margin-top: 4px;
       }
 
       /* Filters */
       .filters {
         display: flex;
         gap: 15px;
-        margin-bottom: 20px;
+        margin-bottom: 15px;
       }
 
       .filter-group {
@@ -206,6 +178,21 @@
         font-family: inherit;
       }
 
+      .status-line {
+        min-height: 1.4em;
+        margin-bottom: 10px;
+        font-size: 0.9rem;
+        color: #666;
+      }
+
+      .status-line.ok {
+        color: #2e7d32;
+      }
+
+      .status-line.error {
+        color: #c62828;
+      }
+
       .btn {
         padding: 8px 16px;
         border: none;
@@ -214,6 +201,11 @@
         cursor: pointer;
         font-family: inherit;
         transition: all 0.3s;
+      }
+
+      .btn[disabled] {
+        opacity: 0.5;
+        cursor: default;
       }
 
       .btn-primary {
@@ -257,7 +249,7 @@
         padding: 0;
       }
 
-      /* Request Cards */
+      /* Application Cards */
       .request-list {
         padding: 20px;
       }
@@ -279,35 +271,25 @@
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
+        gap: 12px;
         margin-bottom: 15px;
       }
 
-      .request-user {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
-
-      .user-avatar {
-        width: 45px;
-        height: 45px;
-        border-radius: 50%;
-        background: #e0e0e0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 700;
-        color: #666;
-      }
-
-      .user-details h4 {
+      .request-title h4 {
         font-size: 1rem;
         margin-bottom: 3px;
       }
 
-      .user-details span {
+      .request-title span {
         font-size: 0.85rem;
         color: #888;
+      }
+
+      .badges {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
       }
 
       .badge {
@@ -316,19 +298,33 @@
         border-radius: 20px;
         font-size: 0.8rem;
         font-weight: 500;
+        background: #eee;
+        color: #555;
       }
 
-      .badge.pending {
+      .badge.kind {
+        background: #e3f2fd;
+        color: #1565c0;
+      }
+      .badge.applied {
         background: #fff3e0;
         color: #f57c00;
+      }
+      .badge.meeting {
+        background: #ede7f6;
+        color: #5e35b1;
       }
       .badge.approved {
         background: #e8f5e9;
         color: #388e3c;
       }
-      .badge.rejected {
+      .badge.held {
         background: #ffebee;
         color: #c62828;
+      }
+      .badge.withdrawn {
+        background: #f0f0f0;
+        color: #888;
       }
 
       .request-info {
@@ -351,6 +347,11 @@
       .info-item p {
         font-size: 0.95rem;
         color: #333;
+        word-break: break-all;
+      }
+
+      .info-item.wide {
+        grid-column: 1 / -1;
       }
 
       .request-actions {
@@ -358,6 +359,43 @@
         gap: 10px;
         padding-top: 15px;
         border-top: 1px solid #eee;
+      }
+
+      /* Company table */
+      .table-wrap {
+        overflow-x: auto;
+      }
+
+      .company-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+      }
+
+      .company-table th,
+      .company-table td {
+        padding: 12px 15px;
+        text-align: left;
+        border-bottom: 1px solid #eee;
+        white-space: nowrap;
+      }
+
+      .company-table th {
+        font-size: 0.8rem;
+        color: #888;
+        font-weight: 500;
+        background: #fafafa;
+      }
+
+      .company-table td.empty {
+        text-align: center;
+        color: #888;
+        padding: 40px 15px;
+      }
+
+      .sub-note {
+        font-size: 0.8rem;
+        color: #888;
       }
 
       /* Empty State */
@@ -436,8 +474,15 @@
         padding: 20px;
       }
 
+      .modal-body .lede {
+        font-size: 0.95rem;
+        line-height: 1.7;
+        color: #333;
+        white-space: pre-line;
+      }
+
       .form-group {
-        margin-bottom: 20px;
+        margin-bottom: 18px;
       }
 
       .form-group label {
@@ -448,14 +493,38 @@
         font-weight: 500;
       }
 
-      .form-group textarea {
+      .form-group input,
+      .form-group select {
         width: 100%;
         padding: 10px 12px;
         border: 1px solid #ddd;
         border-radius: 5px;
         font-size: 0.95rem;
         font-family: inherit;
-        resize: vertical;
+      }
+
+      .form-row {
+        display: flex;
+        gap: 10px;
+      }
+
+      .form-row > * {
+        flex: 1;
+      }
+
+      .found-user {
+        padding: 10px 12px;
+        background: #f5f9ff;
+        border: 1px solid #d6e6fb;
+        border-radius: 5px;
+        font-size: 0.9rem;
+        color: #333;
+      }
+
+      .modal-error {
+        min-height: 1.4em;
+        font-size: 0.9rem;
+        color: #c62828;
       }
 
       .modal-footer {
@@ -474,20 +543,6 @@
 
         .main-content {
           margin-left: 0;
-        }
-
-        .stats-row {
-          flex-wrap: wrap;
-        }
-
-        .stat-box {
-          flex: 1 1 calc(50% - 10px);
-        }
-      }
-
-      @media (max-width: 768px) {
-        .stat-box {
-          flex: 1 1 100%;
         }
       }
     </style>
@@ -517,107 +572,216 @@
         <a href="../index.html">메인 페이지로 돌아가기</a>
       </div>
 
-      <!-- Expert Requests Content -->
       <div id="pageContent" style="display: none">
-        <!-- Header -->
         <header class="header">
-          <h2>Expert 승급 관리</h2>
+          <h2>업체 신청</h2>
         </header>
 
-        <!-- Stats -->
-        <div class="stats-row">
-          <div class="stat-box pending">
-            <div class="icon">⏳</div>
-            <div>
-              <div class="value" id="pendingCount">0</div>
-              <div class="label">대기 중</div>
-            </div>
-          </div>
-          <div class="stat-box approved">
-            <div class="icon">✓</div>
-            <div>
-              <div class="value" id="approvedCount">0</div>
-              <div class="label">승인됨</div>
-            </div>
-          </div>
-          <div class="stat-box rejected">
-            <div class="icon">✕</div>
-            <div>
-              <div class="value" id="rejectedCount">0</div>
-              <div class="label">거절됨</div>
-            </div>
-          </div>
-        </div>
+        <div class="status-line" id="statusLine" role="status"></div>
 
-        <!-- Filters -->
-        <div class="filters">
-          <div class="filter-group">
-            <label>상태:</label>
-            <select id="statusFilter" onchange="loadRequests()">
-              <option value="">전체</option>
-              <option value="pending" selected>대기 중</option>
-              <option value="approved">승인됨</option>
-              <option value="rejected">거절됨</option>
-            </select>
+        <!-- Agent 신청 (새 업체 · Expert→Agent) -->
+        <section class="section">
+          <div class="section-head">
+            <div>
+              <h3>Agent 신청</h3>
+              <p>
+                신청 → 현장 미팅 → 승인. 승인된 새 업체는 대표가 앱에서 카드를 등록하고 첫 달을 결제하면 시작합니다.
+              </p>
+            </div>
           </div>
-          <button class="btn btn-secondary" onclick="loadRequests()">새로고침</button>
-        </div>
 
-        <!-- Request List -->
-        <div class="card">
-          <div class="card-body">
-            <div class="request-list" id="requestList">
-              <div class="empty-state">
-                <h4>로딩 중...</h4>
+          <div class="filters">
+            <div class="filter-group">
+              <label for="statusFilter">상태:</label>
+              <select id="statusFilter">
+                <option value="applied,meeting" selected>열린 신청 (접수 · 미팅)</option>
+                <option value="applied">신청 접수</option>
+                <option value="meeting">미팅 예정</option>
+                <option value="approved">승인</option>
+                <option value="held">보류</option>
+                <option value="withdrawn">거둠</option>
+                <option value="">전체</option>
+              </select>
+            </div>
+            <button type="button" class="btn btn-secondary" id="refreshBtn">새로고침</button>
+          </div>
+
+          <div class="card">
+            <div class="card-body">
+              <div class="request-list" id="requestList">
+                <div class="empty-state">
+                  <h4>로딩 중...</h4>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </section>
+
+        <!-- 협력업체 -->
+        <section class="section">
+          <div class="section-head">
+            <div>
+              <h3>협력업체</h3>
+              <p>「업체로 만들기」는 구독 없이 업체와 대표를 만듭니다. 대표가 결제하면 구독이 시작됩니다.</p>
+            </div>
+            <button type="button" class="btn btn-primary" id="createCompanyBtn">업체로 만들기</button>
+          </div>
+
+          <div class="card">
+            <div class="card-body table-wrap">
+              <table class="company-table">
+                <thead>
+                  <tr>
+                    <th scope="col">업체 이름</th>
+                    <th scope="col">등급</th>
+                    <th scope="col">상태</th>
+                    <th scope="col">지역</th>
+                    <th scope="col">대표 이메일</th>
+                    <th scope="col">구성원</th>
+                    <th scope="col">구독</th>
+                    <th scope="col">만든 날</th>
+                  </tr>
+                </thead>
+                <tbody id="companyList">
+                  <tr>
+                    <td colspan="8" class="empty">로딩 중...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
       </div>
     </main>
 
-    <!-- Review Modal -->
-    <div class="modal" id="reviewModal">
+    <!-- 미팅 잡기 -->
+    <div class="modal" id="meetingModal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3 id="modalTitle">승급 신청 검토</h3>
-          <button class="modal-close" onclick="closeModal()">&times;</button>
+          <h3>미팅 잡기</h3>
+          <button type="button" class="modal-close" data-close="meetingModal" aria-label="닫기">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p class="lede" id="meetingTarget"></p>
+          <div class="form-group" style="margin-top: 15px">
+            <label for="meetingAt">미팅 날짜 · 시각 (한국 시간)</label>
+            <input type="datetime-local" id="meetingAt" />
+          </div>
+          <div class="modal-error" id="meetingError"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close="meetingModal">취소</button>
+          <button type="button" class="btn btn-primary" id="meetingSubmit">미팅 저장</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 승인 · 보류 확인 -->
+    <div class="modal" id="decideModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="decideTitle">신청 승인</h3>
+          <button type="button" class="modal-close" data-close="decideModal" aria-label="닫기">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p class="lede" id="decideText"></p>
+          <div class="modal-error" id="decideError" style="margin-top: 12px"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close="decideModal">취소</button>
+          <button type="button" class="btn btn-success" id="decideSubmit">승인</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 업체로 만들기 -->
+    <div class="modal" id="companyModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>업체로 만들기</h3>
+          <button type="button" class="modal-close" data-close="companyModal" aria-label="닫기">&times;</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>관리자 메모 / 사유</label>
-            <textarea id="adminMemo" rows="4" placeholder="승인 또는 거절 사유를 입력하세요..."></textarea>
+            <label for="cmEmail">회원 이메일</label>
+            <div class="form-row">
+              <input type="email" id="cmEmail" autocomplete="off" />
+              <button type="button" class="btn btn-secondary" id="cmFind" style="flex: 0 0 auto">찾기</button>
+            </div>
           </div>
+          <div class="form-group">
+            <div class="found-user" id="cmFound" hidden></div>
+          </div>
+          <div class="form-group">
+            <label for="cmName">업체 이름</label>
+            <input type="text" id="cmName" maxlength="100" />
+          </div>
+          <div class="form-group">
+            <label for="cmPlan">등급</label>
+            <select id="cmPlan">
+              <option value="expert">Expert</option>
+              <option value="agent">Agent</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="cmSido">시·도</label>
+              <input type="text" id="cmSido" maxlength="20" />
+            </div>
+            <div class="form-group">
+              <label for="cmGugun">시·군·구</label>
+              <input type="text" id="cmGugun" maxlength="40" />
+            </div>
+          </div>
+          <div class="modal-error" id="companyError"></div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="closeModal()">취소</button>
-          <button class="btn btn-danger" onclick="submitReview('rejected')" id="rejectBtn">거절</button>
-          <button class="btn btn-success" onclick="submitReview('approved')" id="approveBtn">승인</button>
+          <button type="button" class="btn btn-secondary" data-close="companyModal">취소</button>
+          <button type="button" class="btn btn-primary" id="cmSubmit" disabled>업체 만들기</button>
         </div>
       </div>
     </div>
 
     <script>
-      // Supabase 설정 - config.js에서 가져옴
+      // 업체 신청 — 신청 목록 · 미팅 · 승인 · 보류, 협력업체 목록 · 업체로 만들기.
+      // 신청 · 업체 쓰기는 service_role 만 할 수 있어 계정 서버(account-api /admin/partner/*)가 한다.
+      // 이 화면은 관리자 JWT 를 실어 부르기만 한다. 「업체로 만들기」의 회원 찾기만 profiles 를 직접 읽는다.
       let supabaseClient = null;
       let currentUser = null;
-      let selectedRequestId = null;
+      let applications = [];
+      let pending = null; // { id, action } — 열린 확인 창이 다룰 신청
+      let foundMember = null; // 업체로 만들기 — 이메일로 찾은 회원
 
-      // 관리자 판정 — admin_roles + is_admin() RPC (js/admin-access.js). 예전 하드코딩 이메일 목록은 폐기 (PR7).
-      const isAdminUser = () => (window.AdminAccess ? window.AdminAccess.isAdmin(supabaseClient) : Promise.resolve(false));
+      // 관리자 판정 — admin_roles + is_admin() RPC (js/admin-access.js)
+      const isAdminUser = () =>
+        window.AdminAccess ? window.AdminAccess.isAdmin(supabaseClient) : Promise.resolve(false);
 
-      // innerHTML 에 넣는 값은 모두 거친다 — 승급 신청은 회원이 직접 넣는 행이라
-      // 이름·이메일·회사·업종·사업자번호·포트폴리오 주소·status·admin_memo 까지 신청자가 정할 수 있다.
+      // innerHTML 에 넣는 값은 모두 거친다 — 업체 이름 · 대표자 · 연락처 · 소개는 신청자가 적은 글이다.
       const esc = (v) =>
         String(v == null ? '' : v).replace(
           /[&<>"']/g,
           (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
         );
-      /** 링크로 거는 주소는 http(s) 만 — javascript: · data: 같은 것은 링크 없이 글자로만 보인다 */
-      function safeUrl(u) {
-        const s = String(u == null ? '' : u).trim();
-        return /^https?:\/\//i.test(s) ? s : '';
-      }
+      const $ = (id) => document.getElementById(id);
+
+      const STATUS_LABEL = {
+        applied: '신청 접수',
+        meeting: '미팅 예정',
+        approved: '승인',
+        held: '보류',
+        withdrawn: '거둠',
+      };
+      const KIND_LABEL = { new: '새 업체', upgrade: 'Expert→Agent' };
+      const PLAN_LABEL = { expert: 'Expert', agent: 'Agent' };
+      const COMPANY_STATUS_LABEL = { active: '이용 중', suspended: '정지 (결제 멈춤)', closed: '해지' };
+      const SUB_STATUS_LABEL = {
+        active: '이용 중',
+        cancelled: '해지 예약됨',
+        past_due: '결제 실패 · 재시도 중',
+        expired: '종료됨',
+      };
+      // 미팅 · 승인 · 보류는 열린 신청(접수 · 미팅)에서만 할 수 있다 (서버도 그 밖은 409 invalid_transition)
+      const OPEN = ['applied', 'meeting'];
 
       document.addEventListener('DOMContentLoaded', async () => {
         await initAdmin();
@@ -648,184 +812,67 @@
           return;
         }
 
-        document.getElementById('pageContent').style.display = 'block';
-        await loadStats();
-        await loadRequests();
+        $('pageContent').style.display = 'block';
+        await Promise.all([loadApplications(), loadCompanies()]);
       }
 
       function showAccessDenied() {
-        document.getElementById('accessDenied').style.display = 'block';
-        document.getElementById('pageContent').style.display = 'none';
+        $('accessDenied').style.display = 'block';
+        $('pageContent').style.display = 'none';
       }
 
-      async function loadStats() {
+      function setStatus(msg, kind) {
+        const el = $('statusLine');
+        el.textContent = msg || '';
+        el.className = 'status-line' + (kind ? ' ' + kind : '');
+      }
+
+      // ── 계정 서버 ─────────────────────────────────────────
+      function accountApiBase() {
+        return (window.DADAM_CONFIG && window.DADAM_CONFIG.accountApi && window.DADAM_CONFIG.accountApi.url) || '';
+      }
+
+      /** 실패면 서버의 한국어 문장(error)을 담은 Error — code · status 도 붙인다 */
+      async function accountApi(path, opts) {
+        const base = accountApiBase();
+        if (!base) throw new Error('계정 서버(accountApi.url)가 설정되지 않았습니다.');
+        const {
+          data: { session },
+        } = await supabaseClient.auth.getSession();
+        const token = session && session.access_token;
+        if (!token) throw new Error('로그인이 필요합니다.');
+        const o = opts || {};
+        const res = await fetch(base + path, {
+          method: o.method || 'GET',
+          headers: Object.assign(
+            { Authorization: `Bearer ${token}` },
+            o.body ? { 'Content-Type': 'application/json' } : {}
+          ),
+          body: o.body ? JSON.stringify(o.body) : undefined,
+        });
+        let body = null;
         try {
-          // 상태별 개수 조회
-          const { data: pending } = await supabaseClient
-            .from('expert_requests')
-            .select('id', { count: 'exact' })
-            .eq('status', 'pending');
-
-          const { data: approved } = await supabaseClient
-            .from('expert_requests')
-            .select('id', { count: 'exact' })
-            .eq('status', 'approved');
-
-          const { data: rejected } = await supabaseClient
-            .from('expert_requests')
-            .select('id', { count: 'exact' })
-            .eq('status', 'rejected');
-
-          document.getElementById('pendingCount').textContent = pending?.length || 0;
-          document.getElementById('approvedCount').textContent = approved?.length || 0;
-          document.getElementById('rejectedCount').textContent = rejected?.length || 0;
-        } catch (error) {
-          console.log('통계 로드 실패:', error.message);
+          body = await res.json();
+        } catch (e) {
+          body = null;
         }
-      }
-
-      async function loadRequests() {
-        const container = document.getElementById('requestList');
-        container.innerHTML = '<div class="empty-state"><h4>로딩 중...</h4></div>';
-
-        const statusFilter = document.getElementById('statusFilter').value;
-
-        try {
-          let query = supabaseClient.from('expert_requests').select('*').order('created_at', { ascending: false });
-
-          if (statusFilter) {
-            query = query.eq('status', statusFilter);
-          }
-
-          const { data: requests, error } = await query;
-
-          if (error) throw error;
-
-          if (!requests || requests.length === 0) {
-            container.innerHTML = `
-                        <div class="empty-state">
-                            <h4>승급 신청이 없습니다</h4>
-                            <p>아직 접수된 Expert 승급 신청이 없습니다.</p>
-                        </div>
-                    `;
-            return;
-          }
-
-          container.innerHTML = requests.map((req) => renderRequestCard(req)).join('');
-        } catch (error) {
-          console.error('Error loading requests:', error);
-          container.innerHTML = `
-                    <div class="empty-state">
-                        <h4>데이터를 불러올 수 없습니다</h4>
-                        <p>${esc(error.message)}</p>
-                        <br>
-                        <p style="font-size: 0.85rem; color: #888;">
-                            expert_requests 테이블이 생성되어 있는지 확인하세요.<br>
-                            database/admin-schema.sql 파일을 Supabase SQL Editor에서 실행하세요.
-                        </p>
-                    </div>
-                `;
+        if (!res.ok || !body || !body.success) {
+          const err = new Error((body && (body.error || body.message)) || `요청 실패 (${res.status})`);
+          err.code = body && body.code;
+          err.status = res.status;
+          throw err;
         }
+        return body.data;
       }
 
-      function renderRequestCard(req) {
-        const initial = (req.user_name || req.user_email || '?').charAt(0).toUpperCase();
-        const statusLabel = {
-          pending: '대기 중',
-          approved: '승인됨',
-          rejected: '거절됨',
-        };
-
-        // 단추의 신청 id 는 data-id 로만 싣는다 — 인라인 onclick 의 JS 문자열에 DB 값을 넣지 않는다.
-        // 누르면 아래 requestList 의 click 위임(CARD_ACTIONS)이 받는다.
-        const id = esc(req.id);
-        const actionsHtml =
-          req.status === 'pending'
-            ? `
-                <button class="btn btn-success btn-sm" data-act="approve" data-id="${id}">승인</button>
-                <button class="btn btn-danger btn-sm" data-act="reject" data-id="${id}">거절</button>
-            `
-            : `
-                <button class="btn btn-secondary btn-sm" data-act="details" data-id="${id}">상세 보기</button>
-            `;
-
-        // 포트폴리오: http(s) 면 새 창 링크, 아니면 적힌 글자만 보인다
-        const portfolioHref = safeUrl(req.portfolio_url);
-        const portfolioHtml = portfolioHref
-          ? `<a href="${esc(portfolioHref)}" target="_blank" rel="noopener noreferrer">바로가기</a>`
-          : esc(req.portfolio_url);
-
-        return `
-                <div class="request-card">
-                    <div class="request-header">
-                        <div class="request-user">
-                            <div class="user-avatar">${esc(initial)}</div>
-                            <div class="user-details">
-                                <h4>${esc(req.user_name || '이름 없음')}</h4>
-                                <span>${esc(req.user_email)}</span>
-                            </div>
-                        </div>
-                        <span class="badge ${esc(req.status)}">${esc(statusLabel[req.status] || req.status)}</span>
-                    </div>
-
-                    <div class="request-info">
-                        <div class="info-item">
-                            <label>신청 등급</label>
-                            <p>${esc(req.requested_tier || 'Expert')}</p>
-                        </div>
-                        <div class="info-item">
-                            <label>회사/상호명</label>
-                            <p>${esc(req.company_name || '-')}</p>
-                        </div>
-                        <div class="info-item">
-                            <label>업종</label>
-                            <p>${esc(req.business_type || '-')}</p>
-                        </div>
-                        <div class="info-item">
-                            <label>경력</label>
-                            <p>${esc(req.career_years ? req.career_years + '년' : '-')}</p>
-                        </div>
-                        <div class="info-item">
-                            <label>사업자등록번호</label>
-                            <p>${esc(req.business_number || '-')}</p>
-                        </div>
-                        <div class="info-item">
-                            <label>신청일</label>
-                            <p>${esc(formatDate(req.created_at))}</p>
-                        </div>
-                        ${
-                          req.portfolio_url
-                            ? `
-                        <div class="info-item">
-                            <label>포트폴리오</label>
-                            <p>${portfolioHtml}</p>
-                        </div>
-                        `
-                            : ''
-                        }
-                        ${
-                          req.admin_memo
-                            ? `
-                        <div class="info-item" style="grid-column: 1 / -1;">
-                            <label>관리자 메모</label>
-                            <p>${esc(req.admin_memo)}</p>
-                        </div>
-                        `
-                            : ''
-                        }
-                    </div>
-
-                    <div class="request-actions">
-                        ${actionsHtml}
-                    </div>
-                </div>
-            `;
-      }
-
-      function formatDate(dateStr) {
-        if (!dateStr) return '-';
-        const date = new Date(dateStr);
-        return date.toLocaleDateString('ko-KR', {
+      // ── 날짜 ─────────────────────────────────────────────
+      // 미팅 시각은 한국 시간으로 보인다. 서버 값은 UTC ISO 문자열이다.
+      function formatDate(v) {
+        if (!v) return '-';
+        const d = new Date(v);
+        if (Number.isNaN(d.getTime())) return '-';
+        return d.toLocaleString('ko-KR', {
+          timeZone: 'Asia/Seoul',
           year: 'numeric',
           month: '2-digit',
           day: '2-digit',
@@ -834,87 +881,373 @@
         });
       }
 
-      function openReviewModal(requestId, action) {
-        selectedRequestId = requestId;
-
-        if (action === 'approve') {
-          document.getElementById('modalTitle').textContent = 'Expert 승급 승인';
-          document.getElementById('approveBtn').style.display = 'inline-block';
-          document.getElementById('rejectBtn').style.display = 'none';
-        } else {
-          document.getElementById('modalTitle').textContent = 'Expert 승급 거절';
-          document.getElementById('approveBtn').style.display = 'none';
-          document.getElementById('rejectBtn').style.display = 'inline-block';
-        }
-
-        document.getElementById('adminMemo').value = '';
-        document.getElementById('reviewModal').classList.add('active');
+      function formatDay(v) {
+        if (!v) return '-';
+        const d = new Date(v);
+        if (Number.isNaN(d.getTime())) return '-';
+        return d.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' });
       }
 
-      function closeModal() {
-        document.getElementById('reviewModal').classList.remove('active');
-        selectedRequestId = null;
+      /** ISO → datetime-local 칸 값 (브라우저 시간대 = 한국) */
+      function toLocalInput(v) {
+        const d = new Date(v);
+        if (!v || Number.isNaN(d.getTime())) return '';
+        const p = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
       }
 
-      async function submitReview(status) {
-        if (!selectedRequestId) return;
-
-        const memo = document.getElementById('adminMemo').value;
-
+      // ── 신청 목록 ─────────────────────────────────────────
+      async function loadApplications() {
+        const list = $('requestList');
+        list.innerHTML = '<div class="empty-state"><h4>로딩 중...</h4></div>';
+        // 거름 값은 고정 목록에서만 온다 (applied,meeting · applied · … · 빈 값 = 전부)
+        const status = $('statusFilter').value;
         try {
-          // 신청 상태 업데이트
-          // DB 트리거가 자동으로 profiles.tier를 업데이트하고 로그를 기록함
-          const { error } = await supabaseClient
-            .from('expert_requests')
-            .update({
-              status: status,
-              admin_memo: memo,
-              reviewed_by: currentUser.id,
-              reviewed_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', selectedRequestId);
-
-          if (error) throw error;
-
-          if (status === 'approved') {
-            alert('승급이 승인되었습니다.\n사용자의 등급이 자동으로 변경되었습니다.');
-          } else {
-            alert('승급 신청이 거절되었습니다.');
-          }
-
-          closeModal();
-          await loadStats();
-          await loadRequests();
-        } catch (error) {
-          console.error('Error updating request:', error);
-          alert('처리 중 오류가 발생했습니다: ' + error.message);
+          const data = await accountApi('/admin/partner/applications' + (status ? `?status=${status}` : ''));
+          applications = Array.isArray(data) ? data : [];
+        } catch (e) {
+          applications = [];
+          list.innerHTML = `<div class="empty-state"><h4>신청을 불러올 수 없습니다</h4><p>${esc(e.message)}</p></div>`;
+          return;
         }
+        if (!applications.length) {
+          list.innerHTML = '<div class="empty-state"><h4>신청이 없습니다</h4></div>';
+          return;
+        }
+        list.innerHTML = applications.map(renderApplication).join('');
       }
 
-      function viewDetails(requestId) {
-        // 상세 보기 (추후 구현)
-        alert('상세 보기 기능은 추후 구현 예정입니다.');
+      function info(label, value, wide) {
+        return `<div class="info-item${wide ? ' wide' : ''}"><label>${esc(label)}</label><p>${esc(value)}</p></div>`;
       }
 
+      function renderApplication(a) {
+        const status = STATUS_LABEL[a.status] ? a.status : 'other';
+        const region = [a.sido, a.gugun].filter(Boolean).join(' ') || '-';
+        const items = [
+          info('종류', KIND_LABEL[a.kind] || a.kind || '-'),
+          info('대표자', a.representative_name || '-'),
+          info('연락처', a.contact_phone || '-'),
+          info('지역', region),
+          info('사업자등록번호', a.business_number || '-'),
+          info('이메일', a.email || '-'),
+          info('신청일', formatDate(a.created_at)),
+        ];
+        if (a.meeting_at) items.push(info('미팅 (한국 시간)', formatDate(a.meeting_at)));
+        if (a.decided_at) items.push(info('결정일', formatDate(a.decided_at)));
+        if (a.status === 'approved') {
+          // used_at — 새 업체: 결제로 업체를 만든 때 / Expert→Agent: 다음 결제일 Agent 예약을 넣은 때
+          items.push(
+            a.kind === 'upgrade'
+              ? info('Agent 예약', a.used_at ? formatDate(a.used_at) : '-')
+              : info('결제 · 업체 시작', a.used_at ? formatDate(a.used_at) : '결제 전')
+          );
+        }
+        items.push(info('하는 일', a.intro || '-', true));
+
+        // 단추의 신청 id 는 data-id 로만 싣는다 — 인라인 onclick 의 JS 문자열에 서버 값을 넣지 않는다.
+        const id = esc(a.id);
+        const actions = OPEN.includes(a.status)
+          ? `<div class="request-actions">
+              <button type="button" class="btn btn-primary btn-sm" data-act="meeting" data-id="${id}">${
+                a.status === 'meeting' ? '미팅 바꾸기' : '미팅 잡기'
+              }</button>
+              <button type="button" class="btn btn-success btn-sm" data-act="approve" data-id="${id}">승인</button>
+              <button type="button" class="btn btn-danger btn-sm" data-act="hold" data-id="${id}">보류</button>
+            </div>`
+          : '';
+
+        return `
+          <div class="request-card">
+            <div class="request-header">
+              <div class="request-title">
+                <h4>${esc(a.company_name || '이름 없음')}</h4>
+                <span>${esc(a.email || '')}</span>
+              </div>
+              <div class="badges">
+                <span class="badge kind">${esc(KIND_LABEL[a.kind] || a.kind || '-')}</span>
+                <span class="badge ${status}">${esc(STATUS_LABEL[a.status] || a.status || '-')}</span>
+              </div>
+            </div>
+            <div class="request-info">${items.join('')}</div>
+            ${actions}
+          </div>`;
+      }
+
+      function findApplication(id) {
+        return applications.find((a) => String(a.id) === String(id)) || null;
+      }
+
+      function openModal(id) {
+        $(id).classList.add('active');
+      }
+
+      function closeModal(id) {
+        $(id).classList.remove('active');
+        if (id !== 'companyModal') pending = null;
+      }
+
+      // ── 미팅 잡기 ─────────────────────────────────────────
+      function openMeeting(id) {
+        const a = findApplication(id);
+        pending = { id, action: 'meeting' };
+        $('meetingTarget').textContent = a
+          ? `${a.company_name || ''} · ${a.representative_name || ''} · ${a.contact_phone || ''}`
+          : '';
+        $('meetingAt').value = a && a.meeting_at ? toLocalInput(a.meeting_at) : '';
+        $('meetingError').textContent = '';
+        openModal('meetingModal');
+      }
+
+      async function submitMeeting() {
+        if (!pending || pending.action !== 'meeting') return;
+        const v = $('meetingAt').value;
+        const at = v ? new Date(v) : null;
+        if (!at || Number.isNaN(at.getTime())) {
+          $('meetingError').textContent = '미팅 날짜와 시각을 골라 주세요.';
+          return;
+        }
+        // 브라우저 시간(한국)으로 읽은 시각을 UTC ISO 로 보낸다
+        await decide(
+          pending.id,
+          { action: 'meeting', meeting_at: at.toISOString() },
+          'meetingModal',
+          'meetingError',
+          'meetingSubmit',
+          `미팅을 잡았습니다 — ${formatDate(at)} (한국 시간)`
+        );
+      }
+
+      // ── 승인 · 보류 ───────────────────────────────────────
+      function openDecide(id, action) {
+        const a = findApplication(id);
+        pending = { id, action };
+        const name = (a && a.company_name) || '이 업체';
+        let text;
+        if (action === 'approve') {
+          text =
+            a && a.kind === 'upgrade'
+              ? `${name} — 승인하면 다음 결제일부터 Agent 금액 · 크레딧이 됩니다.`
+              : `${name} — 승인하면 대표가 앱에서 카드를 등록하고 첫 달을 결제할 때 Agent 업체가 시작됩니다.`;
+        } else {
+          text = `${name} — 보류하면 이 신청은 닫힙니다. 신청자는 다시 신청할 수 있습니다.`;
+        }
+        $('decideTitle').textContent = action === 'approve' ? '신청 승인' : '신청 보류';
+        $('decideText').textContent = text;
+        $('decideError').textContent = '';
+        const btn = $('decideSubmit');
+        btn.textContent = action === 'approve' ? '승인' : '보류';
+        btn.className = 'btn ' + (action === 'approve' ? 'btn-success' : 'btn-danger');
+        openModal('decideModal');
+      }
+
+      async function submitDecide() {
+        if (!pending || (pending.action !== 'approve' && pending.action !== 'hold')) return;
+        const action = pending.action;
+        await decide(
+          pending.id,
+          { action },
+          'decideModal',
+          'decideError',
+          'decideSubmit',
+          action === 'approve' ? '승인했습니다.' : '보류했습니다.'
+        );
+      }
+
+      /** POST /admin/partner/applications/:id — 성공하면 창을 닫고 목록을 새로 읽는다. 실패하면 창에 서버 문장을 보인다. */
+      async function decide(id, body, modalId, errorId, buttonId, okMsg) {
+        const btn = $(buttonId);
+        btn.disabled = true;
+        $(errorId).textContent = '';
+        try {
+          await accountApi('/admin/partner/applications/' + encodeURIComponent(id), { method: 'POST', body });
+        } catch (e) {
+          $(errorId).textContent = e.message;
+          btn.disabled = false;
+          return;
+        }
+        btn.disabled = false;
+        closeModal(modalId);
+        setStatus(okMsg, 'ok');
+        // Expert→Agent 승인은 업체의 다음 결제일 등급을 바꾼다 — 업체 목록도 새로 읽는다
+        await Promise.all([loadApplications(), body.action === 'approve' ? loadCompanies() : null]);
+      }
+
+      // ── 협력업체 ─────────────────────────────────────────
+      async function loadCompanies() {
+        const tbody = $('companyList');
+        tbody.innerHTML = '<tr><td colspan="8" class="empty">로딩 중...</td></tr>';
+        let rows;
+        try {
+          const data = await accountApi('/admin/partner/companies');
+          rows = Array.isArray(data) ? data : [];
+        } catch (e) {
+          tbody.innerHTML = `<tr><td colspan="8" class="empty">업체를 불러올 수 없습니다 — ${esc(e.message)}</td></tr>`;
+          return;
+        }
+        if (!rows.length) {
+          tbody.innerHTML = '<tr><td colspan="8" class="empty">협력업체가 없습니다.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = rows.map(renderCompany).join('');
+      }
+
+      function renderCompany(c) {
+        const plan = PLAN_LABEL[c.plan] || c.plan || '-';
+        const next = c.next_plan
+          ? `<div class="sub-note">다음 결제일부터 ${esc(PLAN_LABEL[c.next_plan] || c.next_plan)}</div>`
+          : '';
+        const s = c.subscription;
+        const sub = s
+          ? `${esc(SUB_STATUS_LABEL[s.status] || s.status || '-')}<div class="sub-note">${esc(
+              Number(s.amount_krw || 0).toLocaleString('ko-KR')
+            )}원 · 다음 결제 ${esc(formatDay(s.next_charge_at))}</div>`
+          : '없음';
+        return `<tr>
+          <td>${esc(c.name || '-')}</td>
+          <td>${esc(plan)}${next}</td>
+          <td>${esc(COMPANY_STATUS_LABEL[c.status] || c.status || '-')}</td>
+          <td>${esc([c.sido, c.gugun].filter(Boolean).join(' ') || '-')}</td>
+          <td>${esc(c.owner_email || '-')}</td>
+          <td>${esc(c.member_count == null ? '-' : c.member_count)}</td>
+          <td>${sub}</td>
+          <td>${esc(formatDay(c.created_at))}</td>
+        </tr>`;
+      }
+
+      // ── 업체로 만들기 ─────────────────────────────────────
+      function openCompanyModal() {
+        foundMember = null;
+        ['cmEmail', 'cmName', 'cmSido', 'cmGugun'].forEach((id) => {
+          $(id).value = '';
+        });
+        $('cmPlan').value = 'expert';
+        $('cmFound').hidden = true;
+        $('cmFound').textContent = '';
+        $('companyError').textContent = '';
+        $('cmSubmit').disabled = true;
+        openModal('companyModal');
+      }
+
+      async function findMember() {
+        const email = $('cmEmail').value.trim().toLowerCase();
+        foundMember = null;
+        $('cmSubmit').disabled = true;
+        $('cmFound').hidden = true;
+        $('companyError').textContent = '';
+        if (!email) {
+          $('companyError').textContent = '회원 이메일을 넣어 주세요.';
+          return;
+        }
+        let rows;
+        try {
+          const { data, error } = await supabaseClient
+            .from('profiles')
+            .select('id, name, email, tier, company_name, sido, gugun')
+            .eq('email', email)
+            .limit(2);
+          if (error) throw error;
+          rows = data || [];
+        } catch (e) {
+          $('companyError').textContent = '회원을 찾지 못했습니다: ' + (e.message || '');
+          return;
+        }
+        if (!rows.length) {
+          $('companyError').textContent = '그 이메일의 회원이 없습니다.';
+          return;
+        }
+        if (rows.length > 1) {
+          $('companyError').textContent = '같은 이메일의 회원이 둘 이상입니다. 회원 관리에서 확인해 주세요.';
+          return;
+        }
+        foundMember = rows[0];
+        $('cmFound').textContent = `${foundMember.name || '이름 없음'} · ${foundMember.email || email} · 지금 등급 ${
+          foundMember.tier || 'standard'
+        }`;
+        $('cmFound').hidden = false;
+        // 비어 있는 칸만 회원 정보로 채운다 — 관리자가 고칠 수 있다
+        if (!$('cmName').value) $('cmName').value = foundMember.company_name || '';
+        if (!$('cmSido').value) $('cmSido').value = foundMember.sido || '';
+        if (!$('cmGugun').value) $('cmGugun').value = foundMember.gugun || '';
+        if (PLAN_LABEL[foundMember.tier]) $('cmPlan').value = foundMember.tier;
+        $('cmSubmit').disabled = false;
+      }
+
+      async function submitCompany() {
+        if (!foundMember) {
+          $('companyError').textContent = '먼저 회원을 찾아 주세요.';
+          return;
+        }
+        const body = {
+          user_id: foundMember.id,
+          name: $('cmName').value.trim(),
+          plan: $('cmPlan').value,
+          sido: $('cmSido').value.trim(),
+          gugun: $('cmGugun').value.trim(),
+        };
+        if (!body.name || body.name.length > 100) {
+          $('companyError').textContent = '업체 이름을 1~100자로 넣어 주세요.';
+          return;
+        }
+        if (!PLAN_LABEL[body.plan]) {
+          $('companyError').textContent = '등급을 골라 주세요.';
+          return;
+        }
+        if (!body.sido || body.sido.length > 20 || !body.gugun || body.gugun.length > 40) {
+          $('companyError').textContent = '지역(시·도, 시·군·구)을 넣어 주세요.';
+          return;
+        }
+        const btn = $('cmSubmit');
+        btn.disabled = true;
+        $('companyError').textContent = '';
+        try {
+          await accountApi('/admin/partner/companies', { method: 'POST', body });
+        } catch (e) {
+          $('companyError').textContent = e.message;
+          btn.disabled = false;
+          return;
+        }
+        closeModal('companyModal');
+        foundMember = null;
+        setStatus(`${body.name} 업체를 만들었습니다.`, 'ok');
+        await loadCompanies();
+      }
+
+      // ── 단추 ─────────────────────────────────────────────
       // 카드 단추 → 함수. id 는 data-id 에서 글자 그대로 읽는다.
       const CARD_ACTIONS = {
-        approve: (id) => openReviewModal(id, 'approve'),
-        reject: (id) => openReviewModal(id, 'reject'),
-        details: (id) => viewDetails(id),
+        meeting: (id) => openMeeting(id),
+        approve: (id) => openDecide(id, 'approve'),
+        hold: (id) => openDecide(id, 'hold'),
       };
-      document.getElementById('requestList').addEventListener('click', (e) => {
+      $('requestList').addEventListener('click', (e) => {
         const btn = e.target.closest('button[data-act]');
         if (!btn || btn.disabled) return;
         const run = CARD_ACTIONS[btn.dataset.act];
         if (run) run(btn.dataset.id);
       });
-
-      // 모달 외부 클릭 시 닫기
-      document.getElementById('reviewModal').addEventListener('click', (e) => {
-        if (e.target.id === 'reviewModal') {
-          closeModal();
-        }
+      $('statusFilter').addEventListener('change', () => loadApplications());
+      $('refreshBtn').addEventListener('click', () => {
+        setStatus('');
+        loadApplications();
+        loadCompanies();
+      });
+      $('meetingSubmit').addEventListener('click', () => submitMeeting());
+      $('decideSubmit').addEventListener('click', () => submitDecide());
+      $('createCompanyBtn').addEventListener('click', () => openCompanyModal());
+      $('cmFind').addEventListener('click', () => findMember());
+      $('cmEmail').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') findMember();
+      });
+      $('cmSubmit').addEventListener('click', () => submitCompany());
+      document.querySelectorAll('[data-close]').forEach((b) => {
+        b.addEventListener('click', () => closeModal(b.dataset.close));
+      });
+      // 창 바깥을 누르면 닫는다
+      document.querySelectorAll('.modal').forEach((m) => {
+        m.addEventListener('click', (e) => {
+          if (e.target === m) closeModal(m.id);
+        });
       });
     </script>
   </body>

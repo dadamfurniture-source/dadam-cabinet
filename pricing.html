@@ -18,8 +18,6 @@
     <link rel="stylesheet" href="css/dadam-v5.css" />
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <!-- 토스 결제창 SDK. 빌링키 발급(정기결제 등록)에 쓴다. -->
-    <script src="https://js.tosspayments.com/v1/payment"></script>
     <style>
       .pr-hero {
         text-align: center;
@@ -126,6 +124,8 @@
         color: var(--v5-tan);
       }
       .pr-btn {
+        display: block;
+        box-sizing: border-box;
         width: 100%;
         padding: 14px;
         border: 1px solid var(--v5-ink);
@@ -134,6 +134,8 @@
         font-weight: 400;
         font-size: 12.5px;
         letter-spacing: 0.14em;
+        text-align: center;
+        text-decoration: none;
         cursor: pointer;
       }
       .pr-btn--ghost {
@@ -244,7 +246,13 @@
           agent: ['Expert 의 모든 기능', '대리점 전용 지원', '팀 협업', '맞춤 컨설팅'],
         };
 
-        var state = { user: null, tier: 'standard', credits: {}, cost: null, clientKey: '', plans: [] };
+        // Expert · Agent 는 업체 구독이다 — 여기서 결제창을 열지 않고 SEGAN 「내 정보 › 업체」로 보낸다.
+        //   Expert: 업체 이름 · 지역을 넣고 결제하면 바로 시작. Agent: 신청 → 현장 미팅 → 본사 승인 → 결제.
+        //   로그인은 그 화면이 확인한다.
+        var PARTNER_HREF = 'segan/me.html#partner';
+        var START_LABEL = { expert: '업체로 시작하기', agent: '신청하기' };
+
+        var state = { user: null, tier: 'standard', credits: {}, cost: null, plans: [] };
 
         // 크레딧만 적으면 몇 번 만들 수 있는지 모른다. 단가로 환산해 함께 낸다.
         function creditNote(credits) {
@@ -266,7 +274,14 @@
           } else if (isFree) {
             btn = '<button type="button" class="pr-btn pr-btn--ghost" disabled>기본 등급</button>';
           } else {
-            btn = '<button type="button" class="pr-btn" data-plan="' + esc(p.id) + '">이 등급으로 시작</button>';
+            btn =
+              '<a class="pr-btn" href="' +
+              PARTNER_HREF +
+              '" data-plan="' +
+              esc(p.id) +
+              '">' +
+              esc(START_LABEL[p.id] || '시작하기') +
+              '</a>';
           }
 
           return (
@@ -309,7 +324,6 @@
           try {
             var res = await fetch(API + '/plans');
             var body = await res.json();
-            state.clientKey = body.data.client_key || '';
             state.plans = body.data.plans || [];
           } catch (e) {
             say('요금제를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.', 'err');
@@ -335,46 +349,7 @@
             }
           }
           render();
-
-          if (!state.clientKey) {
-            say('결제 준비 중입니다. 지금은 등급 안내만 보실 수 있습니다.');
-          }
         }
-
-        // 결제창을 열기 전에 로그인부터 확인한다.
-        // customerKey 가 사용자 id 로 만들어지므로 로그인 없이는 시작할 수 없다.
-        $('grid').addEventListener('click', function (e) {
-          var btn = e.target.closest('[data-plan]');
-          if (!btn) return;
-          var plan = btn.getAttribute('data-plan');
-
-          if (!state.user) {
-            location.href = 'login.html?redirect=' + encodeURIComponent('pricing.html');
-            return;
-          }
-          if (!state.clientKey || !window.TossPayments) {
-            say('결제 모듈을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.', 'err');
-            return;
-          }
-
-          var origin = location.origin;
-          try {
-            window
-              .TossPayments(state.clientKey)
-              .requestBillingAuth('CARD', {
-                customerKey: 'dadam-' + state.user.id,
-                successUrl: origin + '/billing-success.html?plan=' + encodeURIComponent(plan),
-                failUrl: origin + '/pricing.html?failed=1',
-              })
-              .catch(function (err) {
-                // 사용자가 창을 닫은 경우도 여기로 온다 — 오류로 소란 떨지 않는다.
-                if (err && err.code === 'USER_CANCEL') return;
-                say('결제창을 열지 못했습니다. ' + (err && err.message ? err.message : ''), 'err');
-              });
-          } catch (err) {
-            say('결제창을 열지 못했습니다.', 'err');
-          }
-        });
 
         if (/[?&]failed=1/.test(location.search)) {
           say('결제가 완료되지 않았습니다. 다시 시도해 주세요.', 'err');

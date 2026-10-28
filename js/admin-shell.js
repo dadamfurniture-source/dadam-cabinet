@@ -20,7 +20,7 @@
     { href: 'gallery.html', icon: '🖼️', label: '시공사례 관리' },
     { href: 'reference-images.html', icon: '🎨', label: '참고 이미지' },
     { href: 'dataset.html', icon: '🧠', label: '학습 데이터셋' },
-    { href: 'expert-requests.html', icon: '⭐', label: 'Expert 승급 관리' },
+    { href: 'expert-requests.html', icon: '⭐', label: '업체 신청' },
     { href: 'consultations.html', icon: '💬', label: '상담 관리' },
     { href: 'appliances.html', icon: '🧊', label: '가전 모델 관리' },
     { href: 'work-reports.html', icon: '📑', label: '작업 지시 보고' },

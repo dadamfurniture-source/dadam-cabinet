@@ -112,7 +112,7 @@
       links +
       '</nav>' +
       '<div class="v5-header-end">' +
-      // 잔여 횟수. applyAuth 가 user_credits 를 읽어 채운다.
+      // 잔여 횟수. applyAuth 가 my_credit_wallet 을 읽어 채운다.
       '<span class="v5-credit" id="shellCredit" hidden></span>' +
       '<span class="v5-sep" id="shellSep" hidden aria-hidden="true"></span>' +
       // DETAIL DESIGN — 로그인하면 헤더 우측에 뜬다.
@@ -257,21 +257,13 @@
     }
     bindAccountMenu();
 
-    // 잔여 생성 횟수. 본인 행만 읽는다(RLS).
-    // 아직 한 번도 안 쓴 사용자는 행이 없다 — 그때는 등급 지급량을 보여준다.
+    // 잔여 생성 횟수 — 지금 쓰는 통장(my_credit_wallet RPC).
+    // 협력업체 구성원은 업체 통장, 아니면 내 통장. 기간이 끝났거나 아직 안 쓴 통장은
+    // 다음 사용 때 채워질 월 지급량이 잔액으로 온다.
     try {
-      var credit = await sb.from('user_credits').select('balance').maybeSingle();
-      var left = credit && credit.data ? credit.data.balance : null;
-      if (left === null) {
-        var prof = await sb.from('profiles').select('tier').eq('id', session.user.id).maybeSingle();
-        var tier = prof && prof.data ? prof.data.tier : 'standard';
-        var plan = await sb
-          .from('credit_plans')
-          .select('monthly_credits')
-          .eq('tier', tier)
-          .maybeSingle();
-        left = plan && plan.data ? plan.data.monthly_credits : null;
-      }
+      var wallet = await sb.rpc('my_credit_wallet');
+      var w = wallet && Array.isArray(wallet.data) ? wallet.data[0] : null;
+      var left = w && typeof w.balance === 'number' ? w.balance : null;
       if (left !== null) {
         // 잔액은 크레딧이고 생성 1회는 그보다 크다. 크레딧만 적으면
         // 몇 번 만들 수 있는지 알 수 없어 환산값을 함께 낸다.
