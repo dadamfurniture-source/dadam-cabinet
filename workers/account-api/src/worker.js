@@ -1,7 +1,7 @@
 /**
  * dadam-account-api — 계정 자체를 다루는 작업
  *
- * 지금은 회원탈퇴 하나다. 별도 워커로 둔 이유:
+ * 회원탈퇴와 협력업체(신청 · 업체 · 직원 초대 · 관리자 처리 — partner.js). 별도 워커로 둔 이유:
  *   auth.users 삭제는 service_role 키가 있어야 한다. 브라우저에서는 못 한다.
  *   generate-api 에는 service_role 을 두지 않기로 했고(이미지 생성 워커가
  *   사용자 삭제 권한까지 갖고 있을 이유가 없다), payments-api 는 결제 전용이다.
@@ -9,6 +9,7 @@
  * 헬퍼(cors.js)는 payments-api 것을 그대로 복제했다 — workflow-api 가 쓴 방식과 같다.
  */
 import { corsHeaders, handleOptions, jsonResponse } from './cors.js';
+import { matchPartnerRoute, partnerResponse, runPartnerRoute } from './partner.js';
 import { prepareWithdrawal, soleOwnerCompanies, withdrawalDetail, withdrawalSummary } from './withdrawal.js';
 
 class AuthError extends Error {
@@ -228,6 +229,55 @@ async function handleAdminDelete(request, env) {
   return jsonResponse(request, env, { success: true });
 }
 
+/**
+ * 협력업체 길 (partner.js). 로그인 확인은 verifyJwt, 관리자 길은 /admin/delete 와 같은 assertAdmin.
+ * 로그인 안 됨 → 401 unauthorized, 관리자 아님 → 403 not_admin.
+ */
+async function handlePartner(request, env, route, url) {
+  let user;
+  try {
+    user = await verifyJwt(request, env);
+  } catch (e) {
+    if (e instanceof AuthError) {
+      return partnerResponse(
+        request,
+        env,
+        { success: false, code: 'unauthorized', error: e.message },
+        401
+      );
+    }
+    console.error('[account] partner auth:', e.message);
+    return partnerResponse(
+      request,
+      env,
+      { success: false, code: 'server_error', error: '처리 중 오류가 발생했습니다.' },
+      500
+    );
+  }
+  if (route.admin) {
+    try {
+      await assertAdmin(request, env);
+    } catch (e) {
+      if (e instanceof AuthError) {
+        return partnerResponse(
+          request,
+          env,
+          { success: false, code: 'not_admin', error: e.message },
+          403
+        );
+      }
+      console.error('[account] partner admin check:', e.message);
+      return partnerResponse(
+        request,
+        env,
+        { success: false, code: 'server_error', error: '처리 중 오류가 발생했습니다.' },
+        500
+      );
+    }
+  }
+  return runPartnerRoute(request, env, route, { user, url });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -265,6 +315,9 @@ export default {
         );
       }
     }
+
+    const partnerRoute = matchPartnerRoute(request.method, url.pathname);
+    if (partnerRoute) return handlePartner(request, env, partnerRoute, url);
 
     return new Response(JSON.stringify({ success: false, error: 'Not found' }), {
       status: 404,
