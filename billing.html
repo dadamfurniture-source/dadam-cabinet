@@ -15,7 +15,7 @@
     <link rel="stylesheet" href="css/dadam-v5.css" />
     <script src="js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <!-- 카드 바꾸기(결제 실패 재시도 중) — pricing.html 과 같은 토스 결제창 v1 -->
+    <!-- 카드 바꾸기(결제 실패 재시도 중) · 업체 다시 결제 — 토스 결제창 v1 -->
     <script src="https://js.tosspayments.com/v1/payment"></script>
     <style>
       .bl-main {
@@ -196,6 +196,18 @@
           expired: '종료됨',
         };
 
+        // 업체 구독 — 협력업체 구성원이면 GET /subscription 이 company { id, name, plan, next_plan, status } 를 함께 준다.
+        //   대표(owner): 업체 구독 + 카드 바꾸기 · 해지 · 다시 결제. 실장 · 직원: 구독 칸 없이 업체 정보만 (role).
+        var PLAN_KO = { expert: 'Expert', agent: 'Agent', standard: 'Standard' };
+        var COMPANY_STATUS_KO = {
+          active: '이용 중',
+          suspended: '결제가 멈춰 읽기만 됩니다',
+          closed: '해지된 업체',
+        };
+        function planName(p) {
+          return PLAN_KO[p] || (p ? String(p).toUpperCase() : '-');
+        }
+
         // 해지된 구독은 등급을 내린 뒤 ended_at 이 찍힌다 — 그 전이면 「해지 예약됨」, 뒤면 「종료됨」.
         function statusLabel(sub) {
           if (sub.status === 'cancelled' && sub.ended_at) return '종료됨';
@@ -205,7 +217,8 @@
         // 결제 실패·해지 안내. 지금은 고객에게 따로 알림(메일·문자)을 보내지 않으므로
         // 이 화면이 알리는 곳이다. 문구는 payments-api 의 규칙(src/lifecycle.js)과 같아야 한다:
         //   재시도 = 첫 실패 1일 뒤 · 3일 뒤, 마지막도 실패하면 해지 + Standard (결제로 받은 등급만)
-        function notice(sub, tier) {
+        //   업체 구독은 마지막도 실패하면 업체가 정지된다 (읽기만, 연출컷을 만들 수 없다)
+        function notice(sub, tier, company) {
           if (sub.status === 'past_due') {
             return {
               kind: 'err',
@@ -213,10 +226,22 @@
                 '정기 결제에 실패했습니다. ' +
                 day(sub.next_charge_at) +
                 '에 다시 결제를 시도합니다. 카드 한도·잔액을 확인해 주세요.\n' +
-                '재시도는 첫 실패 후 1일·3일 뒤 두 번이며, 마지막 재시도도 실패하면 구독이 해지되고 등급이 Standard 로 바뀝니다.',
+                '재시도는 첫 실패 후 1일·3일 뒤 두 번이며, 마지막 재시도도 실패하면 구독이 해지되고 ' +
+                (company ? '업체가 정지되어 연출컷을 만들 수 없습니다.' : '등급이 Standard 로 바뀝니다.'),
             };
           }
           if (sub.status === 'cancelled' && sub.cancel_reason === 'payment_failed') {
+            if (company) {
+              return {
+                kind: 'err',
+                text:
+                  '정기 결제가 계속 실패해 ' +
+                  day(sub.cancel_at) +
+                  '에 구독이 해지되었습니다.' +
+                  (company.status === 'suspended' ? ' 업체가 정지되어 읽기만 됩니다.' : '') +
+                  ' 다시 시작하시려면 아래 「다시 결제」를 눌러 주세요.',
+              };
+            }
             return {
               kind: 'err',
               text:
@@ -235,19 +260,42 @@
 
         var cost = null;
 
-        function renderPlan(sub, tier, tierSource, credits) {
+        function renderPlan(sub, tier, tierSource, credits, company, role) {
           var rows = '';
-          rows += row('현재 등급', (tier || 'standard').toUpperCase());
+          if (company) {
+            rows += row('업체', company.name || '-');
+            rows += row('업체 등급', planName(company.plan));
+            if (company.next_plan) rows += row('다음 결제일부터', planName(company.next_plan));
+            rows += row('업체 상태', COMPANY_STATUS_KO[company.status] || company.status || '-');
+          } else {
+            rows += row('현재 등급', (tier || 'standard').toUpperCase());
+          }
           if (credits != null) {
             rows += row(
-              '남은 크레딧',
+              company ? '업체 크레딧' : '남은 크레딧',
               credits.toLocaleString('ko-KR') + (cost > 0 ? ' (생성 ' + Math.floor(credits / cost) + '회)' : '')
             );
+          }
+
+          // 업체 실장 · 직원 — 구독은 대표가 관리한다
+          if (company && role !== 'owner') {
+            $('planRows').innerHTML = rows;
+            $('actions').innerHTML = '';
+            say('업체 구독은 대표가 관리합니다.');
+            return;
           }
 
           if (!sub || sub.plan === 'free') {
             rows += row('구독', '없음');
             $('planRows').innerHTML = rows;
+            if (company) {
+              // 업체는 있는데 구독이 없다 (관리자가 만든 업체 등) — 대표가 업체 등급으로 첫 결제를 한다
+              $('actions').innerHTML = '<button type="button" class="bl-btn" id="payBtn">결제하고 시작</button>';
+              $('payBtn').onclick = payCompany;
+              if (flash) say(flash.text, flash.kind);
+              flash = null;
+              return;
+            }
             $('actions').innerHTML = '<a class="bl-btn" href="pricing.html">등급 올리기</a>';
             if (tierSource === 'manual' && tier !== 'standard') {
               say('현재 등급은 본사 승인으로 부여된 등급입니다. 구독 결제와는 별개로 유지됩니다.');
@@ -270,7 +318,7 @@
           $('planRows').innerHTML = rows;
 
           // 방금 한 일(지금 다시 결제 · 카드 바꾸기)의 결과를 상태 안내 위에 붙인다.
-          var n = notice(sub, tier);
+          var n = notice(sub, tier, company);
           var text = [flash && flash.text, n && n.text].filter(Boolean).join('\n\n');
           if (text) say(text, (flash && flash.kind) || (n && n.kind) || '');
           flash = null;
@@ -291,10 +339,20 @@
               '<a class="bl-btn bl-btn--ghost" href="pricing.html">등급 변경</a>' +
               '<button type="button" class="bl-btn bl-btn--danger" id="cancelBtn">구독 해지</button>';
             $('cancelBtn').onclick = cancel;
+          } else if (company) {
+            // 정지 · 해지된 업체만 다시 결제한다. 업체가 아직 이용 중이면(해지 예약 — 이용 종료일까지) 단추를 두지 않는다.
+            if (company.status !== 'active') {
+              $('actions').innerHTML = '<button type="button" class="bl-btn" id="payBtn">다시 결제</button>';
+              $('payBtn').onclick = payCompany;
+            } else {
+              $('actions').innerHTML = '';
+            }
           } else {
             $('actions').innerHTML = '<a class="bl-btn" href="pricing.html">다시 구독하기</a>';
           }
         }
+
+        var currentCompany = null; // GET /subscription 의 company (협력업체 구성원일 때)
 
         var currentSub = null;
         var flash = null; // { text, kind } — 다음 그리기 때 안내 위에 붙는다
@@ -368,6 +426,38 @@
           }
         }
 
+        // 업체 첫 결제 · 다시 결제 — 기존 업체로 결제한다 (업체를 새로 만들지 않는다, 등급 = 업체 등급).
+        // billing-success.html 이 partnerSignup 의 plan 을 /issue-billing-key 에 보낸다.
+        async function payCompany() {
+          if (!currentCompany) return;
+          var btn = $('payBtn');
+          if (btn) btn.disabled = true;
+          say('카드 등록 창을 여는 중입니다…');
+          try {
+            var ck = await tossClientKey();
+            if (!ck || !window.TossPayments)
+              throw new Error('결제 모듈을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+            try {
+              sessionStorage.setItem('partnerSignup', JSON.stringify({ plan: currentCompany.plan }));
+            } catch (e) {
+              /* 저장을 못 해도 successUrl 의 plan 으로 결제한다 */
+            }
+            await window.TossPayments(ck).requestBillingAuth('CARD', {
+              customerKey: 'dadam-' + session.user.id,
+              successUrl: location.origin + '/billing-success.html?plan=' + encodeURIComponent(currentCompany.plan),
+              failUrl: location.origin + '/billing.html?pay=fail',
+            });
+          } catch (err) {
+            if (btn) btn.disabled = false;
+            // 고객이 창을 닫은 경우 — 오류로 소란 떨지 않는다.
+            if (err && err.code === 'USER_CANCEL') {
+              say('');
+              return;
+            }
+            say('카드 등록 창을 열지 못했습니다. ' + (err && err.message ? err.message : ''), 'err');
+          }
+        }
+
         async function submitCard(pc) {
           say('새 카드를 등록하는 중입니다…');
           try {
@@ -392,6 +482,23 @@
         (function readCardReturn() {
           var q = new URLSearchParams(location.search);
           var card = q.get('card');
+          // 업체 다시 결제(payCompany)의 카드 등록이 실패해 돌아온 경우
+          if (q.get('pay') === 'fail') {
+            try {
+              history.replaceState(null, '', location.pathname);
+            } catch (e) {
+              /* 주소를 못 지워도 진행한다 */
+            }
+            try {
+              sessionStorage.removeItem('partnerSignup');
+            } catch (e) {
+              /* 다음 결제가 새 값으로 덮는다 */
+            }
+            if (q.get('code') !== 'USER_CANCEL') {
+              flash = { text: '카드를 등록하지 못했습니다. ' + (q.get('message') || ''), kind: 'err' };
+            }
+            return;
+          }
           if (!card) return;
           try {
             history.replaceState(null, '', location.pathname);
@@ -476,8 +583,10 @@
               tier = prof.data.tier || 'standard';
               tierSource = prof.data.tier_source || 'manual';
             }
-            var c = await sb.from('user_credits').select('balance').maybeSingle();
-            if (c.data) credits = c.data.balance;
+            // 지금 쓰는 통장 — 협력업체 구성원은 업체 통장, 아니면 내 통장 (my_credit_wallet)
+            var w = await sb.rpc('my_credit_wallet');
+            var wallet = w && Array.isArray(w.data) ? w.data[0] : null;
+            if (wallet && typeof wallet.balance === 'number') credits = wallet.balance;
             var cc = await sb.from('credit_costs').select('credits').eq('action', 'generate').maybeSingle();
             if (cc.data) cost = cc.data.credits;
           } catch (e) {
@@ -485,17 +594,23 @@
           }
 
           var sub = null;
+          var company = null;
+          var role = null;
           try {
             var res = await fetch(API + '/subscription', {
               headers: { Authorization: 'Bearer ' + session.access_token },
             });
             var body = await res.json();
             sub = body && body.data ? body.data : null;
+            // 협력업체 대표 = 업체 구독 + company (role 이 없으면 대표), 실장 · 직원 = data null + company + role
+            company = body && body.company ? body.company : null;
+            role = company ? body.role || 'owner' : null;
           } catch (e) {
             console.warn('[billing] subscription:', e.message);
           }
           currentSub = sub;
-          renderPlan(sub, tier, tierSource, credits);
+          currentCompany = company;
+          renderPlan(sub, tier, tierSource, credits, company, role);
 
           try {
             var h = await sb
