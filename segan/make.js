@@ -100,7 +100,7 @@
     sb: null,
     session: null,
     cost: null, // 생성 1회 크레딧 — credit_costs (ai-design.html 과 같은 출처)
-    balance: null, // 남은 크레딧 — user_credits, 없으면 등급 지급량 (js/site-shell.js 와 같은 규칙)
+    balance: null, // 남은 크레딧 — RPC my_credit_wallet (업체 구성원이면 업체 통장)
     notice: '',
     fridgeRows: null,
     // ③ 결과
@@ -694,9 +694,8 @@
         headers: await authHeaders(),
         body: JSON.stringify(body),
       });
-      // 402 는 크레딧 소진, 409 는 이미 만드는 중 (ai-design.html 과 같은 문구)
-      if (res.status === 402)
-        throw new Error('크레딧이 부족합니다. 구독을 올리면 더 만들 수 있습니다.');
+      // 402 는 크레딧 소진(업체 구독이 멈춘 업체면 그 안내), 409 는 이미 만드는 중 (ai-design.html 과 같은 문구)
+      if (res.status === 402) throw await paymentRequiredError(res);
       if (res.status === 409)
         throw new Error('이미 생성 중인 작업이 있습니다. 끝난 뒤 다시 시도해 주세요.');
       var data = await res.json();
@@ -834,21 +833,38 @@
     return null;
   }
 
-  /** 남은 크레딧 — js/site-shell.js 와 같은 규칙 (행이 없으면 등급 지급량) */
-  async function loadBalance(sb, session) {
-    var credit = await sb.from('user_credits').select('balance').maybeSingle();
-    var left = credit && credit.data ? credit.data.balance : null;
-    if (left === null) {
-      var prof = await sb.from('profiles').select('tier').eq('id', session.user.id).maybeSingle();
-      var tier = prof && prof.data ? prof.data.tier : 'standard';
-      var plan = await sb
-        .from('credit_plans')
-        .select('monthly_credits')
-        .eq('tier', tier)
-        .maybeSingle();
-      left = plan && plan.data ? plan.data.monthly_credits : null;
+  /**
+   * 지금 쓰는 크레딧 통장 — RPC my_credit_wallet (협력업체 구성원이면 업체 통장, 아니면 내 통장).
+   * { scope: 'company' | 'personal', company_id, plan, balance, monthly, period_end, usable } | null.
+   * 기간이 끝났으면 DB 가 월 지급량을 돌려준다 — 화면은 다시 계산하지 않는다
+   */
+  async function loadWallet(sb) {
+    var r = await sb.rpc('my_credit_wallet');
+    if (r && r.error) throw r.error;
+    var rows = r ? r.data : null;
+    var w = Array.isArray(rows) ? rows[0] : rows;
+    return w && typeof w === 'object' ? w : null;
+  }
+
+  /** 남은 크레딧 — 지금 쓰는 통장의 잔액 (못 읽으면 null) */
+  async function loadBalance(sb) {
+    var w = await loadWallet(sb);
+    return w && w.balance != null ? Number(w.balance) : null;
+  }
+
+  /** 402 — 업체 구독이 멈춘 업체(company_inactive)면 서버 문구, 그 밖은 크레딧 부족 */
+  async function paymentRequiredError(res) {
+    var body = null;
+    try {
+      body = await res.json();
+    } catch {
+      body = null;
     }
-    return left;
+    if (body && body.code === 'company_inactive')
+      return new Error(
+        body.error || '업체 구독이 멈춰 있어 연출컷을 만들 수 없습니다. 결제를 확인해 주세요.'
+      );
+    return new Error('크레딧이 부족합니다. 구독을 올리면 더 만들 수 있습니다.');
   }
 
   async function loadAccount() {
@@ -1069,8 +1085,10 @@
     state: S,
     readImage: readImage,
     exifFocal35: exifFocal35,
-    /** 남은 크레딧 — js/site-shell.js 와 같은 규칙 (내 정보 탭도 쓴다) */
+    /** 크레딧 통장 · 남은 크레딧 — my_credit_wallet (내 정보 · 내 연출컷 탭도 쓴다) */
+    loadWallet: loadWallet,
     loadBalance: loadBalance,
+    paymentRequiredError: paymentRequiredError,
     loginHref: loginHref,
     /** 페이지 이동 — 시험이 바꿔 끼운다 */
     go: function (url) {

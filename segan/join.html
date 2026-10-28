@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>업체 초대 · SEGAN</title>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026102802" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026102802" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026102802" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026102802" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="shell.css?v=2026102802" />
+    <link rel="stylesheet" href="make.css?v=2026102802" />
+    <!-- 로그인 · 초대 확인 / 수락 (account-api POST /partner/invites/peek · /partner/invites/accept) -->
+    <script src="../js/config.js?v=2026102802"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="shell.js?v=2026102802" defer></script>
+    <script src="join.js?v=2026102802" defer></script>
+  </head>
+  <!-- 업체 대표가 보낸 초대 링크 — join.html#t=<토큰>. 내 정보 탭에 둔다 -->
+  <body class="sg-app" data-tab="me">
+    <div data-segan-shell="header"></div>
+
+    <main class="sg-main jn" id="main">
+      <h1 class="sg-h1">업체 초대</h1>
+
+      <div class="sg-checking" data-jn-view="checking">
+        <p class="sg-note">확인하는 중…</p>
+      </div>
+
+      <!-- 로그인 없음 — 로그인하고 이 링크로 돌아온다 -->
+      <div class="sg-gate" data-jn-view="signed-out" hidden>
+        <p class="sg-title">로그인이 필요합니다</p>
+        <p class="sg-note">초대를 받으려면 먼저 로그인해 주세요. 로그인한 뒤 이 화면으로 돌아옵니다.</p>
+        <a class="sg-btn" id="jnLogin" href="../login.html">로그인</a>
+      </div>
+
+      <!-- 초대 내용 · 수락 -->
+      <div class="jn-box" data-jn-view="invite" hidden>
+        <p class="sg-title" id="jnTitle"></p>
+        <dl class="me-facts">
+          <div>
+            <dt>업체</dt>
+            <dd id="jnCompany"></dd>
+          </div>
+          <div>
+            <dt>역할</dt>
+            <dd id="jnRole"></dd>
+          </div>
+          <div>
+            <dt>기한</dt>
+            <dd id="jnExpires"></dd>
+          </div>
+        </dl>
+        <p class="mk-note">수락하면 이 업체의 크레딧을 함께 씁니다.</p>
+        <p class="mk-error" id="jnError" role="alert" hidden></p>
+        <div class="rd-acts">
+          <button type="button" class="mk-btn mk-btn--solid" id="jnAccept">수락</button>
+          <a class="mk-btn" href="me.html">나중에</a>
+        </div>
+      </div>
+
+      <!-- 쓸 수 없는 초대 · 서버 오류 -->
+      <div class="jn-box" data-jn-view="stop" hidden>
+        <p class="sg-title" id="jnStopTitle"></p>
+        <p class="sg-note" id="jnStopText"></p>
+        <div class="rd-acts">
+          <a class="mk-btn" href="me.html">내 정보로</a>
+        </div>
+      </div>
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+  </body>
+</html>

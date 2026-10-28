@@ -505,6 +505,183 @@ button.sg-row {
   color: var(--v5-ink);
 }
 
+/* 업체 (segan/partner.js) — 입력 · 단추는 make.css 의 mk- 모양을 쓴다 */
+.me-pt,
+.jn {
+  --mk-dim: rgba(45, 42, 38, 0.72); /* make.css 의 보조 글자색 (만들기 탭과 같은 값) */
+}
+
+.me-pt-lead {
+  margin: 10px 0 12px;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.7;
+  color: var(--v5-ink-60);
+}
+
+.me-pt-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.me-pt-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 16px 16px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+}
+
+.me-pt-card .mk-btn {
+  margin-top: 8px;
+}
+
+.me-pt-name {
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.me-pt-info,
+.me-pt-how {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.6;
+}
+
+.me-pt-how {
+  color: var(--v5-ink-60);
+}
+
+.me-pt-form,
+.me-pt-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 18px 16px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+}
+
+.me-pt-box .me-facts,
+.me-pt-box .me-steps {
+  margin-top: 0;
+}
+
+.me-pt-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.me-pt-group {
+  margin-top: 20px;
+}
+
+.me-pt-sub {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--v5-ink-60);
+}
+
+.me-pt-group > .rd-acts,
+.me-pt-group > .mk-note,
+.me-pt-group > .me-pt-info {
+  margin-top: 10px;
+}
+
+.me-pt-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.me-pt-row {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.me-pt-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.me-pt-line .me-badge {
+  margin-left: auto;
+}
+
+.me-pt-ask {
+  margin-top: 10px;
+}
+
+.me-pt-url {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--v5-line-18);
+  border-radius: 0;
+  background: var(--v5-well);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.me-pt-msg {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 300;
+  color: var(--v5-ink);
+}
+
+.me-pt-msg:empty {
+  display: none;
+}
+
+.me-pt-err {
+  margin-top: 8px;
+}
+
+.me-pt-warn {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--v5-well);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.me-pt-rows {
+  margin-top: 20px;
+}
+
+.me-steps--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* 직원 초대 받기 (segan/join.html) */
+.jn-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 22px 18px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+}
+
+.jn-box .me-facts {
+  margin-top: 0;
+}
+
 /* 사업자 정보 — 폰에서는 내 정보 아래, PC 에서는 푸터 */
 .sg-biz {
   margin-top: 40px;

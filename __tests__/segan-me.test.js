@@ -5,8 +5,9 @@
  *   내 프로젝트 workflow-api GET /me/projects (본인 토큰). 못 읽으면(404 · 오류) 칸째 감춘다.
  *              수금 단계 이름 = erp.html PAY_STAGE_LABELS · 워커 payments.js PAYMENT_STAGE_LABEL
  *   상담 내역  consultations (본인 · 최신순), 상태 이름 = admin/consultations.html
- *   크레딧    user_credits → 없으면 등급 지급량 (js/site-shell.js 와 같은 규칙) + credit_costs
+ *   크레딧    RPC my_credit_wallet (업체 구성원이면 업체 통장) + credit_costs
  *   구독      payments-api GET /subscription (billing.html 과 같은 호출), 상태 이름 = billing.html
+ *   업체 칸(segan/partner.js)은 __tests__/segan-partner.test.js — 여기서는 순서만 본다
  *   설정은 사이트 mypage.html, 구독 바꾸기는 billing.html 로 보낸다
  */
 const fs = require('fs');
@@ -46,6 +47,8 @@ async function load(options = {}) {
       next_charge_at: '2026-11-20T00:00:00Z',
     },
     subFail: false,
+    subBody: null, // GET /subscription 본문 통째 (업체 직원 — data 없이 company)
+    walletError: false,
     // GET /me/projects 응답 — 기본은 아직 배포 전(404)
     projectsRes: { ok: false, status: 404, body: { success: false, error: 'Not found' } },
     projectsFail: false,
@@ -71,7 +74,7 @@ async function load(options = {}) {
     workflowApi: { url: opts.workflowUrl },
     paymentsApi: { url: PAY },
   };
-  const calls = { tables: [], consultQuery: null, fetch: [] };
+  const calls = { tables: [], consultQuery: null, fetch: [], rpc: [] };
   const results = {
     consultations: () => ({
       data: opts.consultError ? null : opts.consults,
@@ -88,7 +91,22 @@ async function load(options = {}) {
   window.supabase = {
     createClient: () => ({
       auth: { getSession: async () => ({ data: { session: opts.session } }) },
-      rpc: async () => ({ data: false, error: null }),
+      rpc: async (name) => {
+        calls.rpc.push(name);
+        if (name !== 'my_credit_wallet') return { data: false, error: null };
+        if (opts.walletError) return { data: null, error: { message: 'x' } };
+        if (opts.wallet) return { data: opts.wallet, error: null };
+        const row = {
+          scope: 'personal',
+          company_id: null,
+          plan: opts.tier,
+          balance: opts.balance,
+          monthly: opts.monthly,
+          period_end: null,
+          usable: true,
+        };
+        return { data: opts.balance == null ? [] : [row], error: null };
+      },
       from: (table) => {
         calls.tables.push(table);
         const q = { filters: [] };
@@ -123,7 +141,8 @@ async function load(options = {}) {
     calls.fetch.push({ url, auth: (init.headers || {}).Authorization });
     if (url === PAY + '/subscription') {
       if (opts.subFail) throw new TypeError('Failed to fetch');
-      return { ok: true, status: 200, json: async () => ({ success: true, data: opts.sub }) };
+      const body = opts.subBody || { success: true, data: opts.sub };
+      return { ok: true, status: 200, json: async () => body };
     }
     if (url === WORK + '/me/projects') {
       if (opts.projectsFail) throw new TypeError('Failed to fetch');
@@ -214,10 +233,48 @@ describe('크레딧 · 구독', () => {
     });
   });
 
-  test('잔액 행이 없으면 등급 지급량 (사이트 헤더와 같은 규칙)', async () => {
-    const calls = await load({ balance: null, monthly: 300 });
-    expect(calls.tables).toEqual(expect.arrayContaining(['user_credits', 'credit_plans']));
+  test('크레딧은 my_credit_wallet 한 번 — 옛 계산(user_credits · 등급 지급량)은 쓰지 않는다', async () => {
+    const calls = await load({ balance: 300 });
+    expect(calls.rpc.filter((n) => n === 'my_credit_wallet')).toHaveLength(1);
+    expect(calls.tables).not.toContain('user_credits');
     expect($('meCredits').textContent).toBe('300 크레딧 · 생성 15회');
+  });
+
+  test('업체 구성원 — 업체 통장 잔액', async () => {
+    await load({
+      wallet: [
+        {
+          scope: 'company',
+          company_id: '11111111-1111-4111-8111-111111111111',
+          plan: 'agent',
+          balance: 2400,
+          monthly: 3000,
+          period_end: '2026-11-20T00:00:00Z',
+          usable: true,
+        },
+      ],
+    });
+    expect($('meCredits').textContent).toBe('2,400 크레딧 · 생성 120회');
+  });
+
+  test.each([
+    ['통장을 못 읽음', { walletError: true }],
+    ['빈 응답', { balance: null }],
+  ])('%s — 크레딧은 「-」', async (_name, extra) => {
+    await load(extra);
+    expect($('meCredits').textContent).toBe('-');
+  });
+
+  test('업체 실장 · 직원 — 구독 칸 없이 company 만 오면 「업체 구독은 대표가 관리합니다」', async () => {
+    await load({
+      subBody: {
+        success: true,
+        data: null,
+        company: { id: 'c1', name: '다담 협력', plan: 'agent', next_plan: null, status: 'active' },
+        role: 'staff',
+      },
+    });
+    expect($('meSub').textContent).toBe('업체 구독은 대표가 관리합니다');
   });
 
   test.each([
@@ -313,7 +370,7 @@ describe('내 프로젝트 — GET /me/projects', () => {
     const order = [...document.querySelectorAll('[data-auth-view="signed-in"] section h2')].map(
       (h) => h.textContent
     );
-    expect(order.slice(0, 2)).toEqual(['내 프로젝트', '상담 내역']);
+    expect(order.slice(0, 3)).toEqual(['내 프로젝트', '업체', '상담 내역']);
   });
 
   test('단계 6칸 — 상담 · 연출컷 · 설계 · 견적 · 수주 · 시공 완료, 지금 단계까지 채운다', async () => {

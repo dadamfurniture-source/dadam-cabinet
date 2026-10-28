@@ -5,7 +5,7 @@
  *
  *   - 품목 · 스타일 · 도어 색 · 냉장고 선택지가 ai-design.html 과 같다 (새 선택지를 만들지 않는다)
  *   - 사진 찍기(카메라) · 앨범 → 미리보기 · 다시 선택, 다음 단계
- *   - 크레딧 안내 (credit_costs · 남은 횟수) 와 시공사례 안내 문장
+ *   - 크레딧 안내 (credit_costs · 남은 횟수 = my_credit_wallet 잔액) 와 시공사례 안내 문장
  *   - 로그인 전 생성 → sessionStorage 에만 담고 login.html?redirect= 로. 돌아오면 같은 단계로 되살리고
  *     저절로 생성하지 않는다. 로그인 전에는 아무것도 올리지 않는다 (fetch 없음)
  */
@@ -70,6 +70,22 @@ function fakeClient(opts, calls) {
   };
   return {
     auth: { getSession: async () => ({ data: { session: opts.session || null } }) },
+    // 크레딧 통장 — my_credit_wallet (업체 구성원이면 업체 통장, 아니면 내 통장)
+    rpc: async (name) => {
+      calls.rpc.push(name);
+      if (opts.walletError) return { data: null, error: { message: 'x' } };
+      if (opts.wallet !== undefined) return { data: opts.wallet, error: null };
+      const row = {
+        scope: 'personal',
+        company_id: null,
+        plan: opts.tier || 'standard',
+        balance: opts.balance,
+        monthly: 100,
+        period_end: null,
+        usable: true,
+      };
+      return { data: opts.balance == null ? [] : [row], error: null };
+    },
     from: (table) => {
       calls.from.push(table);
       const result = tables[table] || { data: null, error: null };
@@ -105,7 +121,7 @@ async function load(options = {}) {
   delete window.SeganMake;
   window.scrollTo = () => {}; // jsdom 에 없다 (콘솔 오류만 낸다)
   window.DADAM_CONFIG = { supabase: { url: 'https://example.supabase.co', anonKey: 'anon' } };
-  const calls = { from: [], writes: [], fetch: [] };
+  const calls = { from: [], writes: [], fetch: [], rpc: [] };
   window.supabase = opts.noSupabase ? undefined : { createClient: () => fakeClient(opts, calls) };
   window.fetch = jest.fn(async (url) => {
     calls.fetch.push(url);
@@ -335,22 +351,39 @@ describe('크레딧 안내 — 생성 버튼 위', () => {
     expect($('mkRun').textContent).toBe('연출컷 생성');
   });
 
-  test('로그인 — 남은 횟수 = 잔액 ÷ 단가 (user_credits)', async () => {
-    await kindWith({ session: SESSION, balance: 1000 });
+  test('로그인 — 남은 횟수 = 통장 잔액(my_credit_wallet) ÷ 단가', async () => {
+    const { calls } = await kindWith({ session: SESSION, balance: 1000 });
+    expect(calls.rpc).toEqual(['my_credit_wallet']);
     expect($('mkCost').textContent).toBe('20 크레딧 차감 · 남은 50회');
+    // 옛 계산(user_credits · 등급 지급량)은 쓰지 않는다 — 기간 · 업체 통장은 DB 가 고른다
+    expect(calls.from).not.toEqual(expect.arrayContaining(['user_credits']));
+    expect(calls.from).not.toEqual(expect.arrayContaining(['credit_plans']));
   });
 
-  test('로그인 · 잔액 행 없음 — 등급 지급량 (js/site-shell.js 와 같은 규칙)', async () => {
-    const { calls } = await kindWith({
+  test('협력업체 구성원 — 업체 통장 잔액으로 센다', async () => {
+    await kindWith({
       session: SESSION,
-      balance: null,
-      tier: 'expert',
-      monthly: 300,
+      wallet: [
+        {
+          scope: 'company',
+          company_id: '11111111-1111-4111-8111-111111111111',
+          plan: 'agent',
+          balance: 2400,
+          monthly: 3000,
+          period_end: '2026-11-20T00:00:00Z',
+          usable: true,
+        },
+      ],
     });
-    expect(calls.from).toEqual(
-      expect.arrayContaining(['user_credits', 'profiles', 'credit_plans'])
-    );
-    expect($('mkCost').textContent).toBe('20 크레딧 차감 · 남은 15회');
+    expect($('mkCost').textContent).toBe('20 크레딧 차감 · 남은 120회');
+  });
+
+  test.each([
+    ['통장을 못 읽음', { walletError: true }],
+    ['빈 응답', { wallet: [] }],
+  ])('%s — 남은 횟수는 적지 않는다', async (_name, extra) => {
+    await kindWith({ session: SESSION, ...extra });
+    expect($('mkCost').textContent).toBe('20 크레딧 차감');
   });
 
   test('사진 단계에서는 크레딧 줄 · 시공사례 문장을 감춘다', async () => {

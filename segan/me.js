@@ -1,17 +1,19 @@
 /* ============================================================
    segan/me.js — 「내 정보」 탭의 내 프로젝트 · 상담 내역 · 크레딧 · 구독 (segan/me.html)
 
-   역할 메뉴 · 로그아웃 · 사업자 정보는 segan/shell.js 가 그린다. 여기서는 넷을 채운다:
+   역할 메뉴 · 로그아웃 · 사업자 정보는 segan/shell.js 가 그린다. 업체 칸은 segan/partner.js 가 그린다
+   (여기서 로그인 뒤 SeganPartner.load 를 부른다). 여기서는 넷을 채운다:
      내 프로젝트 workflow-api GET /me/projects (본인 토큰). 단계 6칸 · 끝난 상태 · 계약 금액 ·
                 다음 결제(안 낸 것 중 낼 날이 가장 이른 것 — 워커 payments.js 와 같은 due_on 오름차순 ·
                 빈 날 뒤) · 설치일. 수금 단계 이름은 erp.html PAY_STAGE_LABELS · 워커 payments.js 와 같다.
                 못 읽으면(오류 · 404 · 주소 없음) 칸째 감춘다 — 가짜 값을 그리지 않는다
      상담 내역  consultations (본인 — RLS 「Users can view own consultations」), 최신순.
                 상태 이름은 admin/consultations.html STATUS_LABELS 와 같다
-     크레딧    js/site-shell.js 헤더와 같은 규칙 (user_credits, 없으면 등급 지급량) + credit_costs 로 「생성 N회」
-                — segan/make.js 의 loadBalance 를 쓴다
+     크레딧    RPC my_credit_wallet (업체 구성원이면 업체 통장, 아니면 내 통장) + credit_costs 로 「생성 N회」
+                — segan/make.js 의 loadWallet 을 한 번 불러 업체 칸과 함께 쓴다
      구독      billing.html 과 같은 payments-api GET /subscription, 등급은 profiles.tier.
-                상태 이름은 billing.html STATUS_KO 와 같다. 바꾸기는 billing.html(구독 관리)에서
+                상태 이름은 billing.html STATUS_KO 와 같다. 바꾸기는 billing.html(구독 관리)에서.
+                업체 실장 · 직원은 구독 칸 없이 company 만 온다 — 「업체 구독은 대표가 관리합니다」
    ============================================================ */
 /* global window, document, fetch */
 (function () {
@@ -202,7 +204,7 @@
   }
 
   // ── 크레딧 · 구독 ──────────────────────────────────────
-  async function loadPlan(sb, session) {
+  async function loadPlan(sb, session, wallet) {
     var tier = 'standard';
     try {
       var p = await sb.from('profiles').select('tier').eq('id', session.user.id).maybeSingle();
@@ -212,9 +214,9 @@
     }
     $('meTier').textContent = tier.toUpperCase();
 
-    var M = window.SeganMake;
     try {
-      var left = M && M.loadBalance ? await M.loadBalance(sb, session) : null;
+      var w = await wallet;
+      var left = w && w.balance != null ? Number(w.balance) : null;
       var cc = await sb
         .from('credit_costs')
         .select('credits')
@@ -240,7 +242,9 @@
       });
       var body = await res.json();
       var sub = body && body.data ? body.data : null;
-      if (!sub || sub.plan === 'free') {
+      if (!sub && body && body.company) {
+        $('meSub').textContent = '업체 구독은 대표가 관리합니다';
+      } else if (!sub || sub.plan === 'free') {
         $('meSub').textContent = '없음';
       } else {
         var t = subLabel(sub);
@@ -255,11 +259,23 @@
   }
 
   async function start(auth) {
-    if (!auth || !auth.session || !auth.sb || !$('meConsults')) return;
+    var Partner = window.SeganPartner;
+    if (!auth || !auth.session || !auth.sb || !$('meConsults')) {
+      if (Partner && Partner.keepHashOnGate) Partner.keepHashOnGate(); // me.html#partner → 로그인 뒤 같은 곳
+      return;
+    }
+    // 크레딧 통장 — 크레딧 줄과 업체 칸이 같은 값을 쓴다 (한 번만 묻는다)
+    var M = window.SeganMake;
+    var wallet = Promise.resolve(M && M.loadWallet ? M.loadWallet(auth.sb) : null).catch(
+      function () {
+        return null;
+      }
+    );
     await Promise.all([
       loadProjects(auth.session),
+      Partner && Partner.load ? Partner.load(auth.sb, auth.session, wallet) : null,
       loadConsults(auth.sb, auth.session),
-      loadPlan(auth.sb, auth.session),
+      loadPlan(auth.sb, auth.session, wallet),
     ]);
   }
 
