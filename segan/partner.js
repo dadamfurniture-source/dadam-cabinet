@@ -21,7 +21,8 @@
                        Agent  — 신청 → 현장 미팅 → 본사 승인: 신청 칸 7개 → POST /partner/apply
 
    결제 — pricing.html 과 같은 토스 requestBillingAuth → billing-success.html?plan=…
-     떠나기 전에 sessionStorage partnerSignup 에 { plan, company? } 를 둔다 (billing-success.html 이 읽는다).
+     떠나기 전에 sessionStorage partnerSignup 에 { plan, company?, returnTo } 를 둔다 (billing-success.html 이 읽는다).
+     returnTo = 결제 뒤 앱으로 돌아올 곳 (이 업체 칸, 같은 사이트 안 경로).
      창을 닫았거나 못 열었으면 지운다. 실패해 돌아오면(me.html?failed=1) 그 안내를 업체 칸에 보인다.
    지우는 동작(신청 거두기 · 내보내기 · 초대 취소 · 등급 예약)은 페이지 안에서 한 번 더 묻는다.
    ============================================================ */
@@ -41,6 +42,7 @@
   var BILLING_PAGE = '../billing.html';
   var CONSULT_PAGE = '../consultation.html';
   var FAIL_PATH = '/segan/me.html?failed=1';
+  var RETURN_TO = '/segan/me.html#partner'; // billing-success.html 의 「돌아가기」
 
   // DB 의 CHECK 와 같은 형식 (partner_applications) — 서버도 같은 것을 본다
   var PHONE_RE = /^[0-9][0-9-]{7,19}$/;
@@ -881,7 +883,9 @@
     var key = P.plans && P.plans.client_key;
     if (!key || typeof window.TossPayments !== 'function') return boxError(box, PAY_MODULE_ERR);
     try {
-      sessionStorage.setItem(SIGNUP_KEY, JSON.stringify(signup));
+      // 모든 업체 결제(Expert · Agent)에 돌아올 곳을 함께 둔다
+      var data = Object.assign({}, signup, { returnTo: RETURN_TO });
+      sessionStorage.setItem(SIGNUP_KEY, JSON.stringify(data));
     } catch {
       return boxError(
         box,
@@ -1165,6 +1169,7 @@
 
   window.SeganPartner = {
     SIGNUP_KEY: SIGNUP_KEY,
+    RETURN_TO: RETURN_TO,
     PLAN_LABEL: PLAN_LABEL,
     ROLE_LABEL: ROLE_LABEL,
     COMPANY_STATUS: COMPANY_STATUS,

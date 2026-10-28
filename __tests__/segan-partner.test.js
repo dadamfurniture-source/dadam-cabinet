@@ -8,7 +8,7 @@
  *   감춤    /partner/me 를 못 읽으면(404 · 오류 · 주소 없음) · 본사 구성원이면 칸째 감춘다
  *   화면    a 업체로 시작하기(Expert · Agent) / b 신청 접수 · 미팅 / c 승인 / d 보류 / e 업체 있음
  *   결제    pricing.html 과 같은 토스 requestBillingAuth → billing-success.html?plan=…,
- *           떠나기 전 sessionStorage partnerSignup = { plan, company? }
+ *           떠나기 전 sessionStorage partnerSignup = { plan, company?, returnTo: '/segan/me.html#partner' }
  *   주소    me.html#partner 로 오면 업체 칸으로 내려간다, ?failed=1 이면 안내
  */
 const fs = require('fs');
@@ -552,6 +552,7 @@ describe('Expert — 업체 이름 · 지역 → 토스 카드 등록', () => {
     expect(JSON.parse(t.signup)).toEqual({
       plan: 'expert',
       company: { name: '다담 협력 주방', sido: '대구광역시', gugun: '북구' },
+      returnTo: '/segan/me.html#partner', // billing-success.html 의 「돌아가기」
     });
     expect(JSON.parse(sessionStorage.getItem('partnerSignup'))).toEqual(JSON.parse(t.signup));
     // pricing.html 의 customerKey · successUrl 모양과 같다
@@ -795,7 +796,10 @@ describe('c. 승인 — 결제하고 시작 (Agent)', () => {
     expect(root().querySelector('.me-pt-info').textContent).toBe('월 199,000원 · 크레딧 월 3,000');
     await press('결제하고 시작');
     expect(calls.toss).toHaveLength(1);
-    expect(JSON.parse(calls.toss[0].signup)).toEqual({ plan: 'agent' });
+    expect(JSON.parse(calls.toss[0].signup)).toEqual({
+      plan: 'agent',
+      returnTo: '/segan/me.html#partner',
+    });
     expect(calls.toss[0].params).toEqual({
       customerKey: 'dadam-user-1',
       successUrl: `${ORIGIN}/billing-success.html?plan=agent`,
