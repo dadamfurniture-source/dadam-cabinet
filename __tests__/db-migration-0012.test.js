@@ -7,7 +7,7 @@
  * database/migrations/0012_company_settings.sql 정적 시험 (DB 없이).
  *
  *   새 표 company_settings: 업체당 한 줄, RLS 켬, authenticated 는 읽기만(대표 · 실장, 관리자는 본사만).
- *   옮기기: 본사 active owner 의 production_settings 한 줄만, 본사 설정이 있으면 건드리지 않음.
+ *   값은 넣지 않는다 — 표만 만든다 (본사 설정도 비어 있다).
  *   production_settings 는 지우지도 고치지도 않는다.
  *   역할별 동작은 database/probes/0003-company-tables.json 의 0012 확인이 실DB 트랜잭션에서 본다.
  */
@@ -64,14 +64,8 @@ describe('0012 — company_settings', () => {
   });
 });
 
-describe('0012 — 옮기기', () => {
-  const ins = flat.slice(flat.indexOf('INSERT INTO public.company_settings'));
-
-  test('본사 active owner 의 한 줄만, 본사 설정이 있으면 그대로', () => {
-    expect(ins).toContain('AND m.company_id = public.hq_company_id()');
-    expect(ins).toContain("AND m.role = 'owner'");
-    expect(ins).toContain("AND m.status = 'active'");
-    expect(ins).toContain('LIMIT 1');
-    expect(ins).toContain('ON CONFLICT (company_id) DO NOTHING;');
+describe('0012 — 값은 넣지 않는다', () => {
+  test('INSERT · UPDATE 가 없다 (표만 만든다)', () => {
+    expect(CODE).not.toMatch(/\b(INSERT\s+INTO|UPDATE)\b/i);
   });
 });
