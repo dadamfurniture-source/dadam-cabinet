@@ -325,6 +325,22 @@ describe('상담 고르기 — 고객 · 배정 · 순위', () => {
     );
   });
 
+  test('본사 평가 등급 — 서버가 grade_letter 를 주면 글자를 붙인다 (점수는 그대로)', async () => {
+    const withLetter = JSON.parse(JSON.stringify(CANDS));
+    withLetter.items[0].score.eval.grade_letter = 'A';
+    withLetter.items[1].score.eval.grade_letter = '<b>S</b>';
+    await start({ handler: defaultHandler({ '/candidates$': () => ok(withLetter) }) });
+    await pick('c1');
+    const parts = [
+      ...document.querySelectorAll('#candidates .sg[data-group="eval"] .sg-parts'),
+    ].map((n) => n.textContent);
+    expect(parts[0]).toBe('등급 A 13/16 · 고객 만족 9.6/12 · 재작업 6/6 · 응답 3/6');
+    expect(parts[1]).toBe('등급 <b>S</b> 13/16 · 고객 만족 6/12 · 재작업 3/6 · 응답 3/6');
+    expect(document.querySelector('#candidates .sg-parts b')).toBeNull();
+    // grade_letter 가 없으면 예전처럼 점수만
+    expect(parts[2]).toBe('등급 10/16 · 고객 만족 6/12 · 재작업 3/6 · 응답 3/6');
+  });
+
   test('걸러진 업체 — 이유를 우리말로 (지역 밖 · 품목 안 함 · 한도 · 서류 미확인 · 자격 · 활동 안 함)', async () => {
     await start();
     await pick('c1');

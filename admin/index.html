@@ -767,24 +767,29 @@
           console.log('업체 신청 건수를 읽지 못했습니다:', e.message);
         }
 
-        // 상담 통계 — 본사(다담) 상담만 센다. 회사 구성원도 자기 회사 상담을 읽을 수 있어
-        // 거르지 않으면 다른 회사 행이 섞인다. 본사 id 를 못 읽으면 세지 않고 '-' 로 둔다.
+        // 상담 통계 — 다담 본사(companies.kind = 'platform', 고객 상담이 들어오는 곳) 상담만 센다.
+        // 회사 구성원도 자기 회사 상담을 읽을 수 있어 거르지 않으면 다른 회사 행이 섞인다.
+        // 본사 행을 못 읽거나 없으면 세지 않고 '-' 로 둔다 — 다른 회사로 대신하지 않는다.
         try {
-          const { data: hq, error: hqError } = await supabaseClient
+          const { data: platform, error: platformError } = await supabaseClient
             .from('companies')
             .select('id')
-            .eq('kind', 'hq')
-            .single();
-          if (hqError) throw hqError;
-          const hqId = hq.id;
+            .eq('kind', 'platform')
+            .maybeSingle();
+          if (platformError) throw platformError;
+          if (!platform || !platform.id) {
+            document.getElementById('pendingConsultCount').textContent = '다담 본사 회사를 찾지 못했습니다';
+            throw new Error('다담 본사 회사(kind platform) 없음');
+          }
+          const platformId = platform.id;
           const { data: allConsult } = await supabaseClient
             .from('consultations')
             .select('id')
-            .eq('company_id', hqId);
+            .eq('company_id', platformId);
           const { data: pendingConsultations } = await supabaseClient
             .from('consultations')
             .select('id')
-            .eq('company_id', hqId)
+            .eq('company_id', platformId)
             .eq('status', 'pending');
 
           if (allConsult) {

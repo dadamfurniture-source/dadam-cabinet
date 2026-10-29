@@ -25,7 +25,7 @@ const EVIL_LOG = '새 상담 신청: <img src=x onerror="window.__pwned=3"> - <b
 /** 어떤 메서드를 이어 불러도 자기를 돌려주고, await 하면 정해 둔 결과를 내는 가짜 쿼리 */
 function query(result) {
   const q = {};
-  for (const m of ['select', 'order', 'limit', 'eq', 'single']) q[m] = () => q;
+  for (const m of ['select', 'order', 'limit', 'eq', 'single', 'maybeSingle']) q[m] = () => q;
   q.then = (ok, ng) => Promise.resolve(result).then(ok, ng);
   return q;
 }

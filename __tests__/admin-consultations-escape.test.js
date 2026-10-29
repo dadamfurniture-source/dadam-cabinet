@@ -26,7 +26,7 @@ const EVIL_MEMO = '<u>메모</u>';
 /** 어떤 메서드를 이어 불러도 자기를 돌려주고, await 하면 정해 둔 결과를 내는 가짜 쿼리 */
 function query(result, calls) {
   const q = {};
-  for (const m of ['select', 'order', 'limit', 'eq', 'update', 'single']) {
+  for (const m of ['select', 'order', 'limit', 'eq', 'update', 'single', 'maybeSingle']) {
     q[m] = (...args) => {
       if (calls) calls.push([m, ...args]);
       return q;
@@ -44,7 +44,14 @@ function boot(rows, calls) {
   window.supabase = {
     createClient: () => ({
       auth: { getSession: async () => ({ data: { session } }) },
-      from: () => query({ data: rows, error: null }, calls),
+      // companies 는 다담 본사 행 하나 (목록은 그 id 로 거른다)
+      from: (table) =>
+        query(
+          table === 'companies'
+            ? { data: { id: 'platform-company-id' }, error: null }
+            : { data: rows, error: null },
+          calls
+        ),
     }),
   };
   (0, eval)(SCRIPT);

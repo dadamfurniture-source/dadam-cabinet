@@ -933,13 +933,22 @@
           if (typeof v === 'string' && v) return v; // 등급 글자(S·A·B·C)를 줄 때
           return '-';
         }
+        /** 세부 항목 이름 — 본사 평가의 등급은 서버가 grade_letter(S · A · B · C)를 주면 글자를 붙인다 */
+        function partName(g, k, name, s) {
+          if (g.key === 'eval' && k === 'grade' && s && typeof s.grade_letter === 'string' && s.grade_letter) {
+            return `${name} ${s.grade_letter}`;
+          }
+          return name;
+        }
         function groupHtml(g, s) {
           const sum = s && typeof s.sum === 'number' ? s.sum : null;
           const pct = sum === null ? 0 : Math.max(0, Math.min(100, (sum / g.max) * 100));
           const parts =
             g.key === 'location'
               ? esc(s && s.why ? label(LOCATION_WHY, s.why, '') : '')
-              : g.parts.map(([k, name, max]) => `${esc(name)} ${esc(partText(s && s[k], max))}`).join(' · ');
+              : g.parts
+                  .map(([k, name, max]) => `${esc(partName(g, k, name, s))} ${esc(partText(s && s[k], max))}`)
+                  .join(' · ');
           return `<div class="sg" data-group="${esc(g.key)}">
             <div class="sg-top"><span>${esc(g.label)}</span><span>${esc(fmtNum(sum))}/${g.max}</span></div>
             <div class="bar"><i style="width:${Math.round(pct)}%"></i></div>

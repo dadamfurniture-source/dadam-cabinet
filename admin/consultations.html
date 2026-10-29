@@ -733,35 +733,43 @@
         document.getElementById('pageContent').style.display = 'none';
       }
 
-      // 이 화면은 본사(다담) 상담만 본다 — 회사 구성원도 자기 회사 상담을 읽을 수 있어
-      // 거르지 않으면 다른 회사 행이 섞인다. 본사 id 를 못 읽으면 거르지 않은 목록을 내지 않고 오류로 둔다.
-      let hqCompanyIdPromise = null;
-      function hqCompanyId() {
-        if (!hqCompanyIdPromise) {
-          hqCompanyIdPromise = supabaseClient
+      // 이 화면은 다담 본사 상담만 본다 — 고객 상담은 본사(companies.kind = 'platform') 행으로 들어온다
+      // (다담 공장 kind = 'hq' 는 배정받은 사본 상담을 따로 갖는다). 회사 구성원도 자기 회사 상담을 읽을 수 있어
+      // 거르지 않으면 다른 회사 행이 섞인다. 본사 행을 못 읽거나 없으면 거르지 않은 목록을 내지 않는다 —
+      // 다른 회사로 대신하지 않는다.
+      const NO_PLATFORM = '다담 본사 회사를 찾지 못해 상담을 불러오지 않았습니다.';
+      let platformCompanyIdPromise = null;
+      function platformCompanyId() {
+        if (!platformCompanyIdPromise) {
+          platformCompanyIdPromise = supabaseClient
             .from('companies')
             .select('id')
-            .eq('kind', 'hq')
-            .single()
+            .eq('kind', 'platform')
+            .maybeSingle()
             .then(({ data, error }) => {
               if (error) throw error;
+              if (!data || !data.id) {
+                const err = new Error(NO_PLATFORM);
+                err.code = 'no_platform';
+                throw err;
+              }
               return data.id;
             });
           // 실패는 남겨 두지 않는다 — 「새로고침」이 다시 읽는다
-          hqCompanyIdPromise.catch(() => {
-            hqCompanyIdPromise = null;
+          platformCompanyIdPromise.catch(() => {
+            platformCompanyIdPromise = null;
           });
         }
-        return hqCompanyIdPromise;
+        return platformCompanyIdPromise;
       }
 
       async function loadStats() {
         try {
-          const hqId = await hqCompanyId();
+          const platformId = await platformCompanyId();
           const { data, error } = await supabaseClient
             .from('consultations')
             .select('status')
-            .eq('company_id', hqId);
+            .eq('company_id', platformId);
           if (error) throw error;
 
           const counts = { total: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0 };
@@ -796,11 +804,11 @@
         const searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
 
         try {
-          const hqId = await hqCompanyId();
+          const platformId = await platformCompanyId();
           let query = supabaseClient
             .from('consultations')
             .select('*')
-            .eq('company_id', hqId)
+            .eq('company_id', platformId)
             .order('created_at', { ascending: false });
 
           if (currentStatusFilter) query = query.eq('status', currentStatusFilter);
@@ -833,6 +841,11 @@
           container.innerHTML = filtered.map((c) => renderConsultationCard(c)).join('');
         } catch (e) {
           console.error('Error:', e);
+          if (e && e.code === 'no_platform') {
+            consultationsCache = [];
+            container.innerHTML = `<div class="empty-state"><h4>${esc(e.message)}</h4></div>`;
+            return;
+          }
           container.innerHTML = `
                     <div class="empty-state">
                         <h4>데이터를 불러올 수 없습니다</h4>
