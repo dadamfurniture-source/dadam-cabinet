@@ -1,5 +1,5 @@
 {
-  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 + 0007 회사 기준 읽기 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs) + 0011 협력업체 가입(신청 · 업체 크레딧 · 업체 구독 · 초대 · 등급 맞추기) + 0012 업체 원가 설정 + 0013 수주 기록 + 0014 수주당 기다리는 요청 하나 + 0015 업체 회계(업체 칸 · 금액 칸 · 관리자는 본사 것만)",
+  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 + 0007 회사 기준 읽기 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs) + 0011 협력업체 가입(신청 · 업체 크레딧 · 업체 구독 · 초대 · 등급 맞추기) + 0012 업체 원가 설정 + 0013 수주 기록 + 0014 수주당 기다리는 요청 하나 + 0015 업체 회계(업체 칸 · 금액 칸 · 관리자는 본사 것만) + 0016 앱 알림(기기 등록 · 보낼 알림 · 본사 상담만 Slack)",
   "ids": [
     "company_x",
     "company_y",
@@ -37,7 +37,11 @@
     "cp_x",
     "cp_hq",
     "wr_x",
-    "wr_hq"
+    "wr_hq",
+    "ps_staff",
+    "ps_owner",
+    "nb_staff",
+    "nb_owner"
   ],
   "users": ["hq_customer_user", "x_customer_user", "x_owner_user", "x_staff_user", "y_staff_user", "hq_member_user", "hq_admin_user", "x_removed_user"],
   "setup": [
@@ -67,7 +71,9 @@
     "INSERT INTO public.counterparties (id, kind, name, company_id) VALUES ({{cp_x}}, 'supplier', 'probe', {{company_x}})",
     "INSERT INTO public.counterparties (id, kind, name) VALUES ({{cp_hq}}, 'supplier', 'probe-hq')",
     "INSERT INTO public.work_reports (id, owner_id, kind, title, company_id) VALUES ({{wr_x}}, {{x_owner_user}}, 'outsource_order', 'probe', {{company_x}})",
-    "INSERT INTO public.work_reports (id, owner_id, kind, title) VALUES ({{wr_hq}}, {{hq_member_user}}, 'outsource_order', 'probe')"
+    "INSERT INTO public.work_reports (id, owner_id, kind, title) VALUES ({{wr_hq}}, {{hq_member_user}}, 'outsource_order', 'probe')",
+    "INSERT INTO public.push_subscriptions (id, user_id, company_id, endpoint, p256dh, auth) VALUES ({{ps_staff}}, {{x_staff_user}}, {{company_x}}, 'https://push.invalid/' || {{ps_staff}}::text, 'k', 'a'), ({{ps_owner}}, {{x_owner_user}}, {{company_x}}, 'https://push.invalid/' || {{ps_owner}}::text, 'k', 'a')",
+    "INSERT INTO public.notification_outbox (id, user_id, company_id, kind, title, body, url) VALUES ({{nb_staff}}, {{x_staff_user}}, {{company_x}}, 'order_request_decided', 'probe', 'probe', '/segan/me.html'), ({{nb_owner}}, {{x_owner_user}}, {{company_x}}, 'company_suspended', 'probe', 'probe', '/segan/me.html')"
   ],
   "roles": {
     "anon": { "role": "anon" },
@@ -655,6 +661,74 @@
       "sql": "select count(*) from public.order_payments where order_id = {{order_x}}",
       "roles": ["hq_admin"],
       "expect": { "hq_admin": 0 }
+    },
+    {
+      "name": "0016: 기기 등록은 서버만 읽음",
+      "sql": "select count(*) from public.push_subscriptions where id = {{ps_staff}}",
+      "expect": { "service_role": 1, "*": "deny" }
+    },
+    {
+      "name": "0016: 보낼 알림은 서버만 읽음",
+      "sql": "select count(*) from public.notification_outbox where id = {{nb_staff}}",
+      "expect": { "service_role": 1, "*": "deny" }
+    },
+    {
+      "name": "0016: 기기 등록 넣기는 서버만",
+      "sql": "insert into public.push_subscriptions (user_id, company_id, endpoint, p256dh, auth) values ({{x_staff_user}}, {{company_x}}, 'https://push.invalid/probe-new', 'k', 'a')",
+      "expect": { "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "제약: 알림이 열 곳은 앱 안(/segan/)만",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{x_staff_user}}, {{company_x}}, 'order_request', 'probe', 'probe', 'https://example.invalid/')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "제약: 업체 없는 알림은 신청 진행만",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{x_staff_user}}, null, 'order_request', 'probe', 'probe', '/segan/me.html')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "제약: 업체 없는 신청 진행 알림은 됨",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{hq_customer_user}}, null, 'partner_application', 'probe', 'probe', '/segan/me.html')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "제약: 기기 주소는 https 만",
+      "sql": "insert into public.push_subscriptions (user_id, endpoint, p256dh, auth) values ({{x_staff_user}}, 'http://push.invalid/x', 'k', 'a')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0016: 보낼 알림 잡기는 서버만",
+      "sql": "select count(*) from public.claim_notifications(10) where id in ({{nb_staff}}, {{nb_owner}})",
+      "expect": { "service_role": 2, "*": "deny" }
+    },
+    {
+      "name": "0016: 구성원에서 빠지면 그 기기 · 안 보낸 알림 지움",
+      "sql": "update public.company_members set status = 'removed' where company_id = {{company_x}} and user_id = {{x_staff_user}}; select (select count(*) from public.push_subscriptions where id = {{ps_staff}}) = 0 and (select count(*) from public.notification_outbox where id = {{nb_staff}}) = 0 and (select count(*) from public.push_subscriptions where id = {{ps_owner}}) = 1",
+      "roles": ["service_role"],
+      "expect": { "service_role": "true" }
+    },
+    {
+      "name": "0016: 업체 정지면 대표 것만 남김",
+      "sql": "update public.companies set status = 'suspended' where id = {{company_x}}; select (select count(*) from public.push_subscriptions where id = {{ps_staff}}) = 0 and (select count(*) from public.notification_outbox where id = {{nb_staff}}) = 0 and (select count(*) from public.push_subscriptions where id = {{ps_owner}}) = 1 and (select count(*) from public.notification_outbox where id = {{nb_owner}}) = 1",
+      "roles": ["service_role"],
+      "expect": { "service_role": "true" }
+    },
+    {
+      "name": "0016: 업체 닫으면 모두 지움",
+      "sql": "update public.companies set status = 'closed' where id = {{company_x}}; select (select count(*) from public.push_subscriptions where id = {{ps_staff}}) = 0 and (select count(*) from public.push_subscriptions where id = {{ps_owner}}) = 0 and (select count(*) from public.notification_outbox where id = {{nb_owner}}) = 0",
+      "roles": ["service_role"],
+      "expect": { "service_role": "true" }
+    },
+    {
+      "name": "0016: 본사 Slack 새 상담은 본사 상담만 잡음",
+      "sql": "select public.claim_consultation_notices(now() - interval '1 day', 50); select (select notified_at is null from public.consultations where id = {{cons_x}}) and (select notified_at is not null from public.consultations where id = {{cons_hq}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": "true" }
     }
   ]
 }
