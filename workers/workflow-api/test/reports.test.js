@@ -8,9 +8,11 @@ import {
   REPORT_KINDS, reportFromProposal, reportFromDecision, reportFromDailyBrief, reportFromDocument, reportNote, isUuid,
 } from '../src/reports/record.js';
 import {
-  buildListQuery, recordReport, safeRecord, listReports, getReport, updateReportMeta, recordDocumentIssued, backfillReports,
+  buildListQuery, recordReport, safeRecord, listReports, getReport, updateReportMeta, recordDocumentIssued, backfillReports, reportSummary,
 } from '../src/reports/service.js';
 import { clearAdminCache, canEditRole } from '../src/reports/admin.js';
+import { clearHqCompanyCache } from '../src/supabase.js';
+import { HQ, PARTNER } from './fixtures/company.js';
 import { decideProposal } from '../src/production/service.js';
 import { renderReportPrint } from '../src/templates/report-print.js';
 import worker from '../src/worker.js';
@@ -58,7 +60,10 @@ const PLAN = {
 };
 const PROPOSAL = { id: P1, user_id: U1, trigger: 'order_created', plan: PLAN, status: 'pending', created_at: '2026-10-18T23:00:00Z' };
 
-beforeEach(() => clearAdminCache());
+beforeEach(() => {
+  clearAdminCache();
+  clearHqCompanyCache();
+});
 
 // ── 빌더 ─────────────────────────────────────────────────────────
 
@@ -133,38 +138,70 @@ test('목록 쿼리 — 주인 필터(관리자 전체는 없음) · 종류 · �
   assert.equal(mine.archived_at, 'is.null');
   assert.deepEqual([mine.limit, mine.offset], ['31', '30']);
   assert.equal(mine.order, 'pinned.desc,created_at.desc');
-  const all = buildListQuery({ userId: U1, all: true, query: { archived: '1', kind: 'note' } }).q;
+  assert.equal(mine.company_id, undefined, '본인 것은 업체를 가리지 않는다');
+  const all = buildListQuery({ userId: U1, all: true, hq: HQ, query: { archived: '1', kind: 'note' } }).q;
   assert.equal(all.owner_id, undefined);
+  assert.equal(all.company_id, `eq.${HQ}`, '관리자 전체 보기는 본사 보고만');
   assert.equal(all.kind, 'eq.note');
   assert.equal(all.archived_at, undefined);
-  assert.equal(buildListQuery({ userId: U1, all: true, query: { archived: 'only' } }).q.archived_at, 'not.is.null');
+  assert.equal(buildListQuery({ userId: U1, all: true, hq: HQ, query: { archived: 'only' } }).q.archived_at, 'not.is.null');
 });
 
 // ── 권한 ─────────────────────────────────────────────────────────
 
 const route = ({ role = null, reports = [], extra } = {}) => (u, method) => {
+  if (u.includes('/companies?')) return json([{ id: HQ }]);
   if (u.includes('/admin_roles?')) return json(role ? [{ role }] : []);
   if (extra) { const r = extra(u, method); if (r) return r; }
   if (u.includes('/work_reports?') && method === 'GET') return json(reports);
   return null;
 };
 
-test('목록 — 관리자는 전체(주인 필터 없음), 관리자 아니면 본인 것만', async () => {
+test('목록 — 관리자는 본사 보고 전체(주인 필터 없음), 관리자 아니면 본인 것만', async () => {
   await withFetch(route({ role: 'manager', reports: [] }), async (calls) => {
     const out = await listReports(ENV, { user: { id: U1 } });
     assert.equal(out.scope, 'all');
-    assert.ok(!calls.find((c) => c.url.includes('/work_reports?')).url.includes('owner_id='));
+    const url = calls.find((c) => c.url.includes('/work_reports?')).url;
+    assert.ok(!url.includes('owner_id='));
+    assert.ok(url.includes(`company_id=eq.${HQ}`), '협력업체 보고는 관리자 보관함에 없다');
   });
   clearAdminCache();
   await withFetch(route({ role: null, reports: [] }), async (calls) => {
     const out = await listReports(ENV, { user: { id: U2 } });
     assert.equal(out.scope, 'mine');
-    assert.ok(calls.find((c) => c.url.includes('/work_reports?')).url.includes(`owner_id=eq.${U2}`));
+    const url = calls.find((c) => c.url.includes('/work_reports?')).url;
+    assert.ok(url.includes(`owner_id=eq.${U2}`));
+    assert.ok(!url.includes('company_id='), '내 보고는 업체를 가리지 않는다');
+  });
+});
+
+test('목록 위 숫자 — 관리자 전체 보기는 본사 보고만, 본인 보기는 내 것', async () => {
+  await withFetch(route({ role: 'admin', reports: [] }), async (calls) => {
+    await reportSummary(ENV, { user: { id: U1 } });
+    const reads = calls.filter((c) => c.url.includes('/work_reports?'));
+    assert.equal(reads.length, 3);
+    for (const c of reads) assert.ok(c.url.includes(`company_id=eq.${HQ}`) && !c.url.includes('owner_id='));
+    calls.length = 0;
+    await reportSummary(ENV, { user: { id: U1 }, query: { owner: 'mine' } });
+    for (const c of calls.filter((x) => x.url.includes('/work_reports?'))) assert.ok(c.url.includes(`owner_id=eq.${U1}`) && !c.url.includes('company_id='));
+  });
+});
+
+test('한 건 — 관리자도 협력업체 보고(남의 것)는 못 연다, 내 보고는 업체와 상관없이 연다', async () => {
+  const partnerRow = { id: R1, owner_id: U1, kind: 'outsource_order', company_id: PARTNER, title: 't', body: {} };
+  await withFetch(route({ role: 'super_admin', reports: [partnerRow] }), async () => {
+    await assert.rejects(getReport(ENV, { user: { id: U2 }, id: R1 }), /찾을 수 없습니다/);
+    await assert.rejects(updateReportMeta(ENV, { user: { id: U2 }, id: R1, body: { note: 'x' } }), /찾을 수 없습니다/);
+  });
+  clearAdminCache();
+  await withFetch(route({ role: null, reports: [partnerRow] }), async () => {
+    const r = await getReport(ENV, { user: { id: U1 }, id: R1 });
+    assert.equal(r.id, R1);
   });
 });
 
 test('한 건 — 남의 보고는 관리자만, 인력 승인은 지시의 지금 상태를 같이', async () => {
-  const row = { id: R1, owner_id: U1, kind: 'staffing_decision', source_id: P1, title: 't', body: {} };
+  const row = { id: R1, owner_id: U1, company_id: HQ, kind: 'staffing_decision', source_id: P1, title: 't', body: {} };
   await withFetch(route({ role: null, reports: [row] }), async () => {
     await assert.rejects(getReport(ENV, { user: { id: U2 }, id: R1 }), /찾을 수 없습니다/);
   });
@@ -178,7 +215,7 @@ test('한 건 — 남의 보고는 관리자만, 인력 승인은 지시의 지�
 });
 
 test('메모 · 고정 · 보관만 바뀐다 — support/manager 는 남의 것 못 바꿈, admin 은 가능', async () => {
-  const row = { id: R1, owner_id: U1, kind: 'production_plan', title: 't' };
+  const row = { id: R1, owner_id: U1, company_id: HQ, kind: 'production_plan', title: 't' };
   await withFetch(route({ role: 'manager', reports: [row] }), async () => {
     await assert.rejects(updateReportMeta(ENV, { user: { id: U2 }, id: R1, body: { note: 'x' } }), /admin 이상/);
   });
@@ -262,6 +299,16 @@ test('작업지시서 발행 → 같은 설계·종류의 옛 보고는 supersed
     assert.ok(sync.url.includes(`kind=eq.work_order&design_ids=cs.{${D1}}&source_id=neq.${R1}&status=neq.superseded`));
     const rec = calls.find((c) => c.method === 'POST').body;
     assert.deepEqual([rec.kind, rec.owner_id, rec.order_ids[0]], ['work_order', U1, O1]);
+    assert.equal(rec.company_id, undefined, '업체를 모르면 넣지 않는다 (DB 기본값 본사)');
+  });
+  // 설계 업체를 주면 보고의 업체 — 협력업체 지시서는 그 업체 보고 (관리자 보관함에 섞이지 않는다)
+  await withFetch((u, m) => {
+    if (u.includes('/orders?') && m === 'GET') return json([]);
+    if (u.includes('/work_reports')) return json([{ id: 'x' }]);
+    return null;
+  }, async (calls) => {
+    await recordDocumentIssued(ENV, { user: { id: U1 }, doc, companyId: PARTNER });
+    assert.equal(calls.find((c) => c.method === 'POST').body.company_id, PARTNER);
   });
   await withFetch(() => null, async () => {
     assert.equal(await recordDocumentIssued(ENV, { user: { id: U1 }, doc: { ...doc, doc_type: 'customer_confirmation' } }), null);
@@ -279,13 +326,18 @@ test('백필 — admin 이상만, 제안 · 결정 · 문서를 옮겨 담는다
     if (u.includes('/production_proposals?')) return json([{ ...PROPOSAL, status: 'approved', decided_at: '2026-10-19T00:00:00Z' }]);
     if (u.includes('/production_assignments?')) return json([{ id: 'a1', work_date: '2026-10-21', kind: 'asm_extra', text: 't', cost: 1 }]);
     if (u.includes('/design_documents?')) return json([{ id: R1, design_id: D1, doc_type: 'work_order', doc_no: 'n', rev: 1, status: 'issued', title: 't', totals: {}, created_at: '2026-10-18T05:00:00Z' }]);
-    if (u.includes('/designs?')) return json([{ id: D1, user_id: U1 }]);
+    if (u.includes('/designs?')) return json([{ id: D1, user_id: U1, company_id: PARTNER }]);
     if (u.includes('/orders?')) return json([{ id: O1, design_id: D1 }]);
     if (m === 'POST' && u.endsWith('/work_reports')) return first ? json([{ id: 'r' }]) : fail(409, '23505');
     if (m === 'PATCH') return json([]);
     return null;
-  }, async () => {
+  }, async (calls) => {
     assert.deepEqual(await backfillReports(ENV, { user: { id: U2 } }), { proposals: 1, decisions: 1, documents: 1, skipped: 0 });
+    // 문서 보고의 업체는 설계의 업체 · 생산 계획 보고는 업체를 넣지 않는다 (본사)
+    const posts = calls.filter((c) => c.method === 'POST' && c.url.endsWith('/work_reports')).map((c) => c.body);
+    assert.equal(posts.find((r) => r.kind === 'work_order').company_id, PARTNER);
+    assert.equal(posts.find((r) => r.kind === 'production_plan').company_id, undefined);
+    assert.ok(new URL(calls.find((c) => c.url.includes('/designs?')).url).searchParams.get('select').includes('company_id'));
     first = false;
     assert.deepEqual(await backfillReports(ENV, { user: { id: U2 } }), { proposals: 0, decisions: 0, documents: 0, skipped: 3 });
   });

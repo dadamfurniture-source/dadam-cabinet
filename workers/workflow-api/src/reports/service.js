@@ -15,6 +15,7 @@ import {
   selectOne,
   updateBy,
   updateById,
+  hqCompanyId,
 } from '../supabase.js';
 import { isMissingRelation } from '../work-order-data.js';
 import { adminRoleOf, assertAdminEditor, canEditRole } from './admin.js';
@@ -77,11 +78,15 @@ export async function safeSyncStatus(env, filter, status) {
 
 // ── 조회 ─────────────────────────────────────────────────────────
 
-/** 보관함 쿼리 → PostgREST 필터 (순수, 시험용으로 노출). */
-export function buildListQuery({ userId, all, query = {} }) {
+/**
+ * 보관함 쿼리 → PostgREST 필터 (순수, 시험용으로 노출).
+ * all(관리자 전체 보기)은 본사 보고만 — hq 를 꼭 준다 (협력업체 외주 발주 · 지시서 보고는 관리자 보관함에 없다).
+ */
+export function buildListQuery({ userId, all, hq = null, query = {} }) {
   const q = { select: LIST_COLUMNS, order: 'pinned.desc,created_at.desc' };
   const and = [];
   if (!all) q.owner_id = `eq.${userId}`;
+  else q.company_id = `eq.${hq}`;
   const kinds = String(query.kind || '').split(',').map((k) => k.trim()).filter((k) => REPORT_KINDS.includes(k));
   if (kinds.length === 1) q.kind = `eq.${kinds[0]}`;
   else if (kinds.length > 1) q.kind = `in.(${kinds.join(',')})`;
@@ -104,11 +109,11 @@ export function buildListQuery({ userId, all, query = {} }) {
   return { q, page };
 }
 
-/** 목록. 관리자는 `owner=all` 이 기본(전체), 그 밖은 본인 것만. */
+/** 목록. 관리자는 `owner=all` 이 기본(본사 보고 전체), 그 밖은 본인 것만. */
 export async function listReports(env, { user, query = {} }) {
   const role = await adminRoleOf(env, user);
   const all = Boolean(role) && query.owner !== 'mine';
-  const { q, page } = buildListQuery({ userId: user.id, all, query });
+  const { q, page } = buildListQuery({ userId: user.id, all, hq: all ? await hqCompanyId(env) : null, query });
   const rows = (await selectMany(env, TABLE, q)) || [];
   return {
     items: rows.slice(0, PAGE_SIZE),
@@ -126,7 +131,8 @@ async function loadVisible(env, user, id) {
   if (!row) throw new NotFoundError('보고를 찾을 수 없습니다');
   if (row.owner_id === user.id) return { row, role: await adminRoleOf(env, user) };
   const role = await adminRoleOf(env, user);
-  if (!role) throw new NotFoundError('보고를 찾을 수 없습니다');
+  // 관리자가 남의 보고를 여는 것은 본사 보고만
+  if (!role || row.company_id !== (await hqCompanyId(env))) throw new NotFoundError('보고를 찾을 수 없습니다');
   return { row, role };
 }
 
@@ -183,7 +189,8 @@ export async function createNote(env, { user, body = {} }) {
 export async function reportSummary(env, { user, query = {} }) {
   const role = await adminRoleOf(env, user);
   const all = Boolean(role) && query.owner !== 'mine';
-  const own = all ? {} : { owner_id: `eq.${user.id}` };
+  // 관리자 전체 보기는 본사 보고만
+  const own = all ? { company_id: `eq.${await hqCompanyId(env)}` } : { owner_id: `eq.${user.id}` };
   const today = kstDay();
   const d = new Date(`${today}T00:00:00Z`);
   const monday = new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 86400000).toISOString().slice(0, 10);
@@ -257,10 +264,14 @@ export async function backfillReports(env, { user }) {
   if (docs.length) {
     const designIds = [...new Set(docs.map((d) => d.design_id))];
     const owners = new Map();
+    const companies = new Map();
     const ordersByDesign = new Map();
     for (let i = 0; i < designIds.length; i += 200) {
       const chunk = designIds.slice(i, i + 200).join(',');
-      for (const d of (await selectMany(env, 'designs', { id: `in.(${chunk})`, select: 'id,user_id', limit: '1000' })) || []) owners.set(d.id, d.user_id);
+      for (const d of (await selectMany(env, 'designs', { id: `in.(${chunk})`, select: 'id,user_id,company_id', limit: '1000' })) || []) {
+        owners.set(d.id, d.user_id);
+        companies.set(d.id, d.company_id);
+      }
       for (const o of (await selectMany(env, 'orders', { design_id: `in.(${chunk})`, select: 'id,design_id', limit: '1000' })) || []) {
         if (!ordersByDesign.has(o.design_id)) ordersByDesign.set(o.design_id, []);
         ordersByDesign.get(o.design_id).push(o.id);
@@ -269,7 +280,8 @@ export async function backfillReports(env, { user }) {
     for (const doc of docs) {
       const ownerId = owners.get(doc.design_id);
       if (!ownerId) { counts.skipped++; continue; }
-      const row = reportFromDocument(doc, { ownerId, orderIds: ordersByDesign.get(doc.design_id) || [] });
+      // 보고의 업체 = 설계의 업체 (협력업체 지시서가 본사 보관함에 섞이지 않게)
+      const row = withCompany(reportFromDocument(doc, { ownerId, orderIds: ordersByDesign.get(doc.design_id) || [] }), companies.get(doc.design_id));
       if (await recordReport(env, row)) counts.documents++;
       else counts.skipped++;
     }
@@ -279,8 +291,16 @@ export async function backfillReports(env, { user }) {
 
 // ── 문서 발행 연결 (documents.js 에서 부른다) ────────────────────
 
-/** 작업지시서 · 설치 지시서 발행 → 색인 행 + 같은 설계·종류의 옛 보고는 superseded. */
-export async function recordDocumentIssued(env, { user, doc }) {
+/** 보고 행에 업체를 넣는다 — 없으면(모르면) 넣지 않아 DB 기본값(본사)이 된다 */
+export function withCompany(row, companyId) {
+  return row && companyId ? { ...row, company_id: companyId } : row;
+}
+
+/**
+ * 작업지시서 · 설치 지시서 발행 → 색인 행 + 같은 설계·종류의 옛 보고는 superseded.
+ * companyId: 설계의 업체 — 협력업체 지시서는 그 업체 보고가 된다 (관리자 보관함은 본사 것만 본다).
+ */
+export async function recordDocumentIssued(env, { user, doc, companyId = null }) {
   if (!doc || (doc.doc_type !== 'work_order' && doc.doc_type !== 'installation_order')) return null;
   let orderIds = [];
   try {
@@ -291,5 +311,5 @@ export async function recordDocumentIssued(env, { user, doc }) {
   await safeSyncStatus(env, {
     kind: `eq.${doc.doc_type}`, design_ids: `cs.{${doc.design_id}}`, source_id: `neq.${doc.id}`, status: 'neq.superseded',
   }, 'superseded');
-  return safeRecord(env, reportFromDocument(doc, { ownerId: user.id, orderIds }));
+  return safeRecord(env, withCompany(reportFromDocument(doc, { ownerId: user.id, orderIds }), companyId));
 }

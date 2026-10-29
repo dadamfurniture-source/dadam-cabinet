@@ -479,20 +479,20 @@
 <!-- 플래너 공통 모듈 — 배치·구조 두 단계가 같은 정본을 본다.
      클래식 스크립트이므로 아래 인라인보다 **먼저** 실행되어야 하고,
      여기서 선언한 이름을 인라인이 다시 선언하면 SyntaxError 로 화면이 죽는다. -->
-<script src="js/planner/planner-category-picker.js?v=2026102901"></script>
-<script src="js/planner/planner-scope.js?v=2026102901"></script>
-<script src="js/planner/planner-view.js?v=2026102901"></script>
-<script src="js/planner/planner-sections.js?v=2026102901"></script>
+<script src="js/planner/planner-category-picker.js?v=2026102902"></script>
+<script src="js/planner/planner-scope.js?v=2026102902"></script>
+<script src="js/planner/planner-view.js?v=2026102902"></script>
+<script src="js/planner/planner-sections.js?v=2026102902"></script>
 <!-- 2026-10-20: 품목 깊이로 배치 깊이를 잡을 때 몸통 앞 여유(MASTER_RULES)를 구조 단계와 같은 값으로 쓴다. -->
-<script src="js/planner/planner-engine.js?v=2026102901"></script>
+<script src="js/planner/planner-engine.js?v=2026102902"></script>
 <!-- 2026-10-20: 빠른 배치 (일자·ㄱ자·ㄷ자) — 배치 단계 전용 -->
-<script src="js/planner/planner-presets.js?v=2026102901"></script>
+<script src="js/planner/planner-presets.js?v=2026102902"></script>
 <!-- W12-71: 배치 도면을 계정에도 한 벌 남긴다. 불러오기 UI 는 구조 단계에 있다.
      셋이 없어도 배치는 그대로 돈다 — PlannerStore 가 localStorage 로 물러난다. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-<script src="js/config.js?v=2026102901"></script>
-<script src="js/planner/planner-store.js?v=2026102901"></script>
-<script src="js/planner/planner-drawing-menu.js?v=2026102901"></script>
+<script src="js/config.js?v=2026102902"></script>
+<script src="js/planner/planner-store.js?v=2026102902"></script>
+<script src="js/planner/planner-drawing-menu.js?v=2026102902"></script>
 
 <script>
   const lt = document.getElementById('leftTools'), btnL = document.getElementById('btnLeft');
@@ -2587,40 +2587,9 @@
 
   /**
    * 2026-10-12: 냉장고 **설치 여유** — 위장 폭 = 냉장고 폭 + 양옆 여유 × 2 (사장님 결정).
-   *   예) 10 + 595 + 10 = 615 위장.
-   * 값은 모델 표(appliance_models side_gap_mm · top_gap_mm)가 정본이고, 비어 있으면 브랜드 라인
-   * 기본값을 쓴다 — js/detaildesign/data-constants.js FRIDGE_RULES.DEFAULT_GAPS 와 같은 수다
-   * (플래너는 그 파일을 읽지 않아 옮겨 적었다 — 바뀌면 같이 고친다). 위 간격은 FRIDGE_RULES.TOP_GAP 15.
-   * 설치 가이드를 확인하는 대로 모델 표의 값을 고쳐 나간다.
+   * 2026-10-29: 식(fridgeLineOf · fridgeGapsOf · 브랜드 라인 기본 여유)은 js/planner/planner-engine.js 로 옮겼다 —
+   *   간편 플래너도 같은 식을 쓴다. 이 페이지는 그 전역 함수를 부른다 (planner-engine.js 를 위에서 싣는다).
    */
-  const FRIDGE_DEFAULT_GAPS = {
-    LG_BUILTIN:   { side: 4,  between: 8 },
-    SS_BESPOKE:   { side: 12, between: 10 },
-    SS_INFINITE:  { side: 5,  between: 10 },
-    FREESTANDING: { side: 50, between: 0 },
-  };
-  const FRIDGE_TOP_GAP_DEFAULT = 15;
-  /** 모델 이름으로 라인을 고른다 — 표에 값이 없을 때만 쓴다 */
-  function fridgeLineOf(m) {
-    const s = `${(m && m.brand) || ''} ${(m && m.name) || ''}`;
-    if (s.indexOf('키친핏') >= 0 || /kitchen ?fit/i.test(s)) return 'SS_BESPOKE';
-    if (s.indexOf('인피니트') >= 0 || /infinite/i.test(s)) return 'SS_INFINITE';
-    if (s.indexOf('빌트인') >= 0 || /built-?in|fit ?& ?max/i.test(s)) return 'LG_BUILTIN';
-    return 'FREESTANDING';
-  }
-  function fridgeGapsOf(m) {
-    const d = FRIDGE_DEFAULT_GAPS[fridgeLineOf(m)];
-    const num = (v, def) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Number(v) : def);
-    // 2026-10-20 사장님: 빌트인은 **장 안쪽 치수(니치)** 기준. 모델 표에 니치가 있으면
-    //   옆 여유 = (니치 폭 − 냉장고 폭) / 2, 위 여유 = 니치 높이 − 냉장고 높이 로 되돌려 싣는다 —
-    //   구조 단계는 여유만 보므로 '니치 + 전체 여유 6' 이 그대로 나온다 (fridgeNichesOf).
-    const nw = num(m && m.nicheW, null);
-    const nh = num(m && m.nicheH, null);
-    // 니치 = 냉장고 치수(표준 니치 템플릿처럼 겉 치수를 모를 때)면 여유 0 — 기본 여유 50 으로 새지 않게 >=
-    const side = nw !== null && nw >= num(m && m.w, 0) ? (nw - m.w) / 2 : num(m && m.sideGap, d.side);
-    const top = nh !== null && nh >= num(m && m.h, 0) ? nh - m.h : num(m && m.topGap, FRIDGE_TOP_GAP_DEFAULT);
-    return { side, top };
-  }
 
   /**
    * 2026-10-20: 고른 모델 → 배치에 싣는 fridgeModel (design_spec appliances[].model 과 같은 모양,

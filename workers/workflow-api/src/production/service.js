@@ -8,14 +8,15 @@
  * 계획 대상 = 진행 중인 수주(confirmed · in_production). 각 수주는 계약 시점 스냅샷의
  * BOM·재단 배치로 작업량을 세고, 같은 설계의 설치 일정(installation)으로 마감을 잡는다.
  *
- * 계획 · 제안 · 아침 요약 · 월 손익은 본사 Slack · 보관함으로 나가므로 본사 수주만 싣는다 —
- * 내가 만든 본사 설계의 수주 (orders.js listOwnHqOrders).
+ * 계획 · 제안 · 아침 요약 · 월 마감은 본사 Slack · 보관함으로 나가므로 본사 수주만 싣는다 —
+ * 내가 만든 본사 설계의 수주 (orders.js listOwnHqOrders). 월 손익 화면(/production/monthly)은 본사 수주 전부.
+ * 협력업체 구성원은 계획 · 제안을 못 쓴다 (assertHqProduction — 403 not_hq). 원가 설정은 자기 업체 것을 쓴다.
  */
 
 import { selectOne, selectMany, insertOne, insertMany, updateById, updateBy, upsertOne, hqCompanyId, activeMemberships, MONEY_ROLES, ValidationError, NotFoundError, ConflictError, ForbiddenError } from '../supabase.js';
 import { isAdmin } from '../reports/admin.js';
 import { postToWebhook } from '../slack.js';
-import { listOwnHqOrders, tierOf } from '../orders.js';
+import { listOwnHqOrders, listHqOrdersOfMonth, tierOf } from '../orders.js';
 import { workloadFromSnapshot } from './workload.js';
 import { planProduction } from './planner.js';
 import { buildProposalBlocks, buildInstructionBlocks, buildDailyBlocks, assignmentsFromSuggestions, actionKey } from './notify.js';
@@ -205,9 +206,25 @@ export async function writeCompanySettings(env, { companyId, user, body }) {
   return { settings: mergeSettings(row && row.settings), saved: clean };
 }
 
-/** GET /production/settings — 내 업체 설정. missing 이면 저장된 줄이 없어 기본값이다 */
+/**
+ * GET /production/settings — 내 업체 설정. missing 이면 저장된 줄이 없어 기본값이다.
+ * hq: 본사 설정인가 — 아니면(협력업체) 생산 화면은 설정만 보여 준다 (계획 · 제안은 본사만).
+ */
 export async function getSettings(env, { user }) {
-  return companySettings(env, await settingsCompanyOf(env, user));
+  const companyId = await settingsCompanyOf(env, user);
+  return { ...(await companySettings(env, companyId)), hq: companyId === (await hqCompanyId(env)) };
+}
+
+/**
+ * 생산 계획 · 제안은 본사 일이다 — 본사 Slack 으로 나간다.
+ * 다른 업체(협력업체)의 active 구성원이면 403 not_hq. 본사 구성원 · 관리자 · 구성원이 아닌 사람(예전 본사 설계 주인)은 그대로.
+ */
+export async function assertHqProduction(env, user) {
+  const hq = await hqCompanyId(env);
+  const memberships = await activeMemberships(env, user);
+  if (memberships.length && !memberships.some((m) => m.company_id === hq)) {
+    throw new ForbiddenError('생산 계획 · 제안은 본사만 씁니다', 'not_hq');
+  }
 }
 
 /** POST /production/settings — 내 업체 설정 저장 */
@@ -537,11 +554,14 @@ export function summarizeMonth(orders, snapshotsById, { month, overheadMonthly }
   };
 }
 
-export async function getMonthlySummary(env, { user, month }) {
+/**
+ * 월 손익. scope — 'hq': 본사 수주 전부 (/production/monthly 화면) · 'own': 내가 만든 본사 설계의 수주 (월 마감 보고, 예전 그대로)
+ */
+export async function getMonthlySummary(env, { user, month, scope = 'own' }) {
   const m = /^\d{4}-\d{2}$/.test(String(month || '')) ? month : kstDate().slice(0, 7);
   // 월 고정비는 본사 설정
   const { settings } = await hqSettings(env);
-  const orders = await listOwnHqOrders(env, { user });
+  const orders = scope === 'hq' ? await listHqOrdersOfMonth(env, m) : await listOwnHqOrders(env, { user });
   const inMonth = orders.filter((o) => o.status !== 'cancelled' && kstDate(o.ordered_at).slice(0, 7) === m);
   let snaps = [];
   if (inMonth.length) {

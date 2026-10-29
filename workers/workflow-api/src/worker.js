@@ -106,7 +106,9 @@ import {
   getSettings,
   saveSettings,
   assertHqMoney,
+  assertHqProduction,
 } from './production/service.js';
+import { getBooksSummary } from './books.js';
 import {
   createWorkerLink,
   listWorkerLinks,
@@ -428,7 +430,7 @@ async function isHqWork(env, { companyId = null, designId = null }) {
 }
 
 /**
- * 계획에 영향을 주는 변경(설치 일정 등록·변경, 수주 취소) 뒤에 응답을 막지 않고 다시 계획한다.
+ * 계획에 영향을 주는 변경(설치 일정 등록·변경, 수주 취소 · 되살리기) 뒤에 응답을 막지 않고 다시 계획한다.
  * 본사 설계 · 수주의 변경일 때만 (scope: { companyId } 또는 { designId }).
  * 실패는 로그만 남긴다 — 원래 요청(일정·수주 저장)은 이미 끝났다.
  */
@@ -443,12 +445,16 @@ function replanLater(env, ctx, user, triggerLabel, scope) {
 }
 
 async function handleGetProductionPlan(request, env, { user }) {
+  // 계획 · 제안은 본사 일 — 협력업체 구성원은 403 not_hq (생산 화면은 설정만 보여 준다)
+  await assertHqProduction(env, user);
   const url = new URL(request.url);
   const data = await computePlan(env, { user, today: url.searchParams.get('today') || undefined });
   return jsonResponse(request, env, { success: true, data });
 }
 
 async function handleCreateProposal(request, env, { user }) {
+  // 제안은 본사 Slack 으로 나간다 — 협력업체 구성원이면 제안도 Slack 도 만들지 않는다 (403 not_hq)
+  await assertHqProduction(env, user);
   const data = await proposePlan(env, { user, trigger: 'manual', triggerLabel: '수동 재계산' });
   return jsonResponse(request, env, { success: true, data }, 201);
 }
@@ -582,7 +588,14 @@ async function handleMonthlySummary(request, env, { user }) {
   // 월 고정비는 본사 설정이다 — 본사 대표 · 실장 · 관리자만 (아니면 403 not_money). 월 마감 cron 은 이 경로를 거치지 않는다
   await assertHqMoney(env, user);
   const url = new URL(request.url);
-  return jsonResponse(request, env, { success: true, data: await getMonthlySummary(env, { user, month: url.searchParams.get('month') }) });
+  // 본사 수주 전부 (누가 만든 설계든) — 월 마감 보고(cron)는 예전처럼 설계 주인별
+  return jsonResponse(request, env, { success: true, data: await getMonthlySummary(env, { user, month: url.searchParams.get('month'), scope: 'hq' }) });
+}
+
+/** 업체 장부 요약 — 그 업체 대표 · 실장만 (src/books.js). 금액이 담겨 캐시에 남기지 않는다 */
+async function handleBooksSummary(request, env, { user }) {
+  const url = new URL(request.url);
+  return jsonResponse(request, env, { success: true, data: await getBooksSummary(env, { user, month: url.searchParams.get('month') }) }, 200, NO_STORE);
 }
 
 // 경영 대시보드 (Claude 프로젝트 문서 "다담 경영 대시보드" 1단계) — 관리자만, 회사 전체
@@ -709,11 +722,17 @@ async function handleUpdateOrder(request, env, { params, user, ctx }) {
   const { order, event, pending } = await updateOrder(env, { orderId: params.orderId, user, patch });
   // 대표 승인이 필요한 바꾸기를 대표가 아닌 사람이 했다 — 요청만 남았고 수주는 그대로다
   if (pending) return jsonResponse(request, env, { success: true, data: event }, 202);
-  // 취소되면 그 주문이 차지하던 공장 시간이 풀린다
+  // 취소되면 그 주문이 차지하던 공장 시간이 풀리고, 되살리면 다시 차지한다
   if (event && event.to_status === 'cancelled') {
     replanLater(env, ctx, user, `수주 취소 ${order && order.order_no ? order.order_no : ''}`.trim(), { companyId: order && order.company_id });
   }
+  if (event && event.kind === 'revive') replanAfterRevive(env, ctx, user, order);
   return jsonResponse(request, env, { success: true, data: order });
+}
+
+/** 되살리기(취소 → 접수)가 적용됐다 — 취소 때처럼 다시 계획한다 (본사 수주일 때만) */
+function replanAfterRevive(env, ctx, user, order) {
+  replanLater(env, ctx, user, `수주 되살리기 ${order && order.order_no ? order.order_no : ''}`.trim(), { companyId: order && order.company_id });
 }
 
 /** 수주 기록 (최근 것 먼저) + 지금 바꿀 수 있는 상태 · 승인 권한 — 수주를 볼 수 있는 사람 누구나 */
@@ -730,9 +749,13 @@ async function handleListOrderRequests(request, env, { user }) {
 }
 
 /** 대표의 승인 · 반려 — { decision: 'approved' | 'rejected' } */
-async function handleDecideOrderEvent(request, env, { params, user }) {
+async function handleDecideOrderEvent(request, env, { params, user, ctx }) {
   const body = (await readJson(request)) || {};
   const data = await decideOrderEvent(env, { eventId: params.eventId, user, decision: body.decision });
+  // 승인으로 되살리기가 적용됐다
+  if (data.order && data.event && data.event.kind === 'revive' && data.event.state === 'approved') {
+    replanAfterRevive(env, ctx, user, data.order);
+  }
   return jsonResponse(request, env, { success: true, data });
 }
 
@@ -895,7 +918,10 @@ const router = createRouter([
   { method: 'POST', path: '/consultations/:id/accept', auth: 'jwt', handler: handleAcceptConsultation },
   { method: 'GET',  path: '/me/projects',              auth: 'jwt', handler: handleMyProjects },
 
-  // 거래처 · 공급처 (관리자만)
+  // 업체 장부 요약 (그 업체 대표 · 실장)
+  { method: 'GET',   path: '/books/summary',      auth: 'jwt', handler: handleBooksSummary },
+
+  // 거래처 · 공급처 (그 업체 대표 · 실장, 본사 목록은 관리자도)
   { method: 'GET',   path: '/counterparties',     auth: 'jwt', handler: handleListCounterparties },
   { method: 'POST',  path: '/counterparties',     auth: 'jwt', handler: handleCreateCounterparty },
   { method: 'PATCH', path: '/counterparties/:id', auth: 'jwt', handler: handleUpdateCounterparty },
