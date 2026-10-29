@@ -60,13 +60,14 @@ export function resetCompanyCredits(env, companyId, nowMs) {
  * 구독이 끝난 업체를 정지(suspended) 또는 해지(closed)로.
  * 그 업체에 살아 있는 다른 구독이 있으면(다시 결제했다) 손대지 않는다.
  * 정지는 active 에서만, 해지는 active · suspended 에서.
+ * 돌려주는 값: 이번에 업체 상태를 바꿨으면 true (이미 바뀌어 있었거나 손대지 않았으면 false).
  */
 export async function endCompany(env, companyId, status) {
   if (await liveCompanySubscription(env, companyId)) {
     console.warn(`[payments] company ${companyId} has a live subscription — left as is`);
     return false;
   }
-  await updateBy(
+  const rows = await updateBy(
     env,
     'companies',
     {
@@ -75,5 +76,5 @@ export async function endCompany(env, companyId, status) {
     },
     { status }
   );
-  return true;
+  return Array.isArray(rows) && rows.length > 0;
 }

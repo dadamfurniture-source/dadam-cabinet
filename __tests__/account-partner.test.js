@@ -53,6 +53,16 @@ const C = loadEsm('workers/account-api/src/cors.js', [
   'handleOptions',
   'jsonResponse',
 ]);
+const Po = loadEsm('workers/account-api/src/push-outbox.js', [
+  'enqueuePartnerApplicationNotice',
+  'partnerApplicationMessage',
+  'PUSH_URL',
+]);
+// 앱 알림 글의 정본 (workflow-api) — account-api 의 글이 같은지 본다
+const Msg = loadEsm('workers/workflow-api/src/push/messages.js', [
+  'buildMessage',
+  'isValidMessage',
+]);
 const Pt = loadEsm(
   'workers/account-api/src/partner.js',
   [
@@ -65,7 +75,11 @@ const Pt = loadEsm(
     'PHONE_RE',
     'BIZNO_RE',
   ],
-  { jsonResponse: C.jsonResponse, UUID_RE: SP.UUID_RE }
+  {
+    jsonResponse: C.jsonResponse,
+    UUID_RE: SP.UUID_RE,
+    enqueuePartnerApplicationNotice: Po.enqueuePartnerApplicationNotice,
+  }
 );
 const W = loadEsm('workers/account-api/src/worker.js', ['__default'], {
   corsHeaders: C.corsHeaders,
@@ -244,6 +258,7 @@ function seed() {
     company_invites: [],
     company_events: [],
     subscriptions: [],
+    notification_outbox: [],
   };
 }
 
@@ -379,6 +394,19 @@ function violation(tables, table, row, self) {
     if (!row.accepted_by !== !row.accepted_at) return { code: '23514', status: 400 };
     if (others.some((r) => r.token_hash === row.token_hash)) return { code: '23505', status: 409 };
   }
+  if (table === 'notification_outbox') {
+    // 0016 의 CHECK · 유니크 흉내
+    const len = (s, a, b) => typeof s === 'string' && [...s].length >= a && [...s].length <= b;
+    const ok =
+      row.kind === 'partner_application' &&
+      len(row.title, 1, 60) &&
+      len(row.body, 1, 160) &&
+      /^\/segan\//.test(row.url) &&
+      (row.dedupe_key === null || len(row.dedupe_key, 1, 200));
+    if (!ok) return { code: '23514', status: 400 };
+    if (row.dedupe_key && others.some((r) => r.dedupe_key === row.dedupe_key))
+      return { code: '23505', status: 409 };
+  }
   if (table === 'companies') {
     if (row.kind === 'partner' && !row.plan) return { code: '23514', status: 400 };
     if (
@@ -507,6 +535,13 @@ function fakeDb({ fail = {}, onRequest = null, mutate = null } = {}) {
         if (table === 'partner_applications' || table === 'companies')
           row.updated_at = row.created_at;
         const bad = violation(tables, table, row, null);
+        if (
+          bad &&
+          bad.code === '23505' &&
+          /resolution=ignore-duplicates/.test(call.prefer || '') &&
+          u.searchParams.get('on_conflict')
+        )
+          continue;
         if (bad) return jsonRes({ code: bad.code, message: 'violation' }, bad.status);
         made.push(row);
       }
@@ -1424,6 +1459,7 @@ describe('관리자 — 신청', () => {
     expect(r.json.data.application.decided_at).toMatch(ISO_RE);
     expect(db.writes().map((c) => `${c.method} ${c.table}`)).toEqual([
       'PATCH partner_applications',
+      'POST notification_outbox',
     ]);
   });
 
@@ -1518,6 +1554,119 @@ describe('관리자 — 신청', () => {
       action: 'delete',
     });
     expect(bad.json).toMatchObject({ code: 'invalid', field: 'action' });
+  });
+});
+
+describe('관리자 — 신청 · 앱 알림', () => {
+  const decide = (id, body) => call('POST', `/admin/partner/applications/${id}`, 'admin', body);
+  const outbox = () => db.tables.notification_outbox;
+
+  test('미팅 · 승인 · 보류 — 신청한 사람에게 한 줄 (업체 없음, 글은 workflow-api 정본과 같다)', async () => {
+    const a = addApp(db.tables, { user_id: U.newbie });
+    await decide(a.id, { action: 'meeting', meeting_at: '2026-11-03T10:30:00+09:00' });
+    await decide(a.id, { action: 'meeting', meeting_at: '2026-11-04T10:30:00+09:00' });
+    await decide(a.id, { action: 'approve' });
+    const b = addApp(db.tables, { user_id: U.left, created_at: at(800) });
+    await decide(b.id, { action: 'hold' });
+
+    const rows = outbox();
+    expect(rows.map((r) => [r.user_id, r.body])).toEqual([
+      [U.newbie, Msg.buildMessage('partner_application', { status: 'meeting' }).body],
+      [
+        U.newbie,
+        Msg.buildMessage('partner_application', { status: 'meeting', rescheduled: true }).body,
+      ],
+      [U.newbie, Msg.buildMessage('partner_application', { status: 'approved' }).body],
+      [U.left, Msg.buildMessage('partner_application', { status: 'held' }).body],
+    ]);
+    for (const r of rows) {
+      expect(r).toMatchObject({
+        kind: 'partner_application',
+        company_id: null,
+        title: '업체 신청',
+        url: '/segan/me.html#partner',
+      });
+      expect(Msg.isValidMessage(r)).toBe(true);
+    }
+    expect(rows.map((r) => r.ref_id)).toEqual([a.id, a.id, a.id, b.id]);
+    expect(rows[0].dedupe_key).toBe(
+      `partner_application:${a.id}:${U.newbie}:meeting:20261103T013000000Z`
+    );
+    expect(rows[2].dedupe_key).toBe(`partner_application:${a.id}:${U.newbie}:approved`);
+    expect(rows[3].dedupe_key).toBe(`partner_application:${b.id}:${U.left}:held`);
+    // 넣기는 on_conflict=dedupe_key · ignore-duplicates · return=minimal
+    const post = db.calls.find((c) => c.method === 'POST' && c.table === 'notification_outbox');
+    expect(post.query).toBe('?on_conflict=dedupe_key');
+    expect(post.prefer).toBe('resolution=ignore-duplicates,return=minimal');
+  });
+
+  test('upgrade 승인 — 그 업체로 (Agent 글)', async () => {
+    const a = addApp(db.tables, { user_id: U.owner, kind: 'upgrade', company_id: CO.expert });
+    await decide(a.id, { action: 'approve' });
+    expect(outbox()).toEqual([
+      expect.objectContaining({
+        user_id: U.owner,
+        company_id: CO.expert,
+        kind: 'partner_application',
+        body: Msg.buildMessage('partner_application', { status: 'approved', upgrade: true }).body,
+      }),
+    ]);
+  });
+
+  test('글 정본 — account-api 의 글이 workflow-api 의 글과 같다 (상태 · upgrade · 일정 바뀜)', () => {
+    for (const status of ['meeting', 'approved', 'held', 'withdrawn']) {
+      for (const upgrade of [false, true]) {
+        for (const rescheduled of [false, true]) {
+          expect(Po.partnerApplicationMessage({ status, upgrade, rescheduled })).toEqual(
+            Msg.buildMessage('partner_application', { status, upgrade, rescheduled })
+          );
+        }
+      }
+    }
+    expect(Po.PUSH_URL).toBe('/segan/me.html#partner');
+  });
+
+  test('같은 결정이 다시 들어와도 한 줄 (dedupe) · 처리 못 한 결정은 알리지 않는다', async () => {
+    const a = addApp(db.tables, { user_id: U.newbie });
+    await Po.enqueuePartnerApplicationNotice(ENV, { ...a, status: 'held' });
+    await Po.enqueuePartnerApplicationNotice(ENV, { ...a, status: 'held' });
+    expect(outbox()).toHaveLength(1);
+    const held = addApp(db.tables, { user_id: U.staff, status: 'held', created_at: at(900) });
+    expect((await decide(held.id, { action: 'approve' })).status).toBe(409);
+    expect(outbox()).toHaveLength(1);
+  });
+
+  test('알림 넣기가 실패해도 처리는 그대로 — 상태 코드만 로그, 개인정보 · 글 없음', async () => {
+    use({ fail: { 'POST notification_outbox': 500 } });
+    const a = addApp(db.tables, { user_id: U.newbie });
+    const r = await decide(a.id, { action: 'hold' });
+    expect(r.status).toBe(200);
+    expect(r.json.data.application.status).toBe('held');
+    expect(logs).toEqual(['[partner] notification_outbox: held 500']);
+    expect(db.tables.notification_outbox).toEqual([]);
+  });
+
+  test('알림 줄에 이름 · 연락처 · 사업자번호 · 업체 이름이 없다', async () => {
+    const a = addApp(db.tables, { user_id: U.newbie, company_name: '홍길동가구' });
+    await decide(a.id, { action: 'meeting', meeting_at: '2026-11-03T10:30:00+09:00' });
+    await decide(a.id, { action: 'hold' });
+    const txt = JSON.stringify(db.tables.notification_outbox);
+    for (const v of [...Object.values(PII), '홍길동가구', '@example.test'])
+      expect(txt).not.toContain(v);
+    expect(Object.keys(db.tables.notification_outbox[0]).sort()).toEqual(
+      [
+        'id',
+        'created_at',
+        'user_id',
+        'company_id',
+        'kind',
+        'title',
+        'body',
+        'url',
+        'ref_id',
+        'dedupe_key',
+      ].sort()
+    );
   });
 });
 

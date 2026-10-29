@@ -33,6 +33,11 @@ import { chargeBillingKey, cancelPayment, getPaymentByOrderId, TossError } from 
 import { selectOne, selectMany, insertIgnoreDuplicate, updateBy } from './supabase.js';
 import { orderNameFor, priceFor } from './plans.js';
 import { endCompany, resetCompanyCredits } from './company.js';
+import {
+  notifyCompanyOwners,
+  billingFailedMessage,
+  companySuspendedMessage,
+} from './push-outbox.js';
 
 export const DAY_MS = 86_400_000;
 export const PERIOD_DAYS = 30;
@@ -82,8 +87,28 @@ export function plusDays(v, days) {
  * 길이: 10 + 36 + 1 + 12 + 1 + 1 = 61 (토스 한도 64, 영문·숫자·-·_ 만).
  */
 export function renewalOrderId(sub) {
-  const stamp = iso(toMs(sub.current_period_end)).replace(/[-:T]/g, '').slice(0, 12);
-  return `dadam-sub-${sub.user_id}-${stamp}-${(sub.failed_attempts || 0) + 1}`;
+  return `dadam-sub-${sub.user_id}-${periodStamp(sub)}-${(sub.failed_attempts || 0) + 1}`;
+}
+
+/** 이번 기간 끝 시각 YYYYMMDDHHmm — 주문번호 · 알림 dedupe 키가 같은 기간을 가를 때 쓴다 */
+function periodStamp(sub) {
+  return iso(toMs(sub.current_period_end)).replace(/[-:T]/g, '').slice(0, 12);
+}
+
+/**
+ * 업체 구독의 결제 실패 앱 알림 — 재시도가 시작될 때(첫 실패) 대표에게. 이 기간에 한 번.
+ * 마지막 재시도도 실패한 실행에서는 보내지 않는다 — 업체가 정지되면 「업체 정지」 하나만 간다 (expireCancelled).
+ * 바꾼 줄이 없으면(다른 실행이 먼저 옮겼다) 알리지 않는다. 실패해도 결제 처리는 그대로다.
+ */
+async function notifyBillingFailed(env, sub, rows) {
+  if (!sub.company_id || !Array.isArray(rows) || !rows.length) return;
+  await notifyCompanyOwners(env, {
+    companyId: sub.company_id,
+    kind: 'billing_failed',
+    refId: sub.id,
+    suffix: `${periodStamp(sub)}:past_due`,
+    message: billingFailedMessage(),
+  });
 }
 
 /**
@@ -356,7 +381,7 @@ async function recordRenewalFailure(env, sub, orderId, err, nowMs, terms) {
 
   if (attempts <= RETRY_AFTER_FIRST_FAILURE_DAYS.length) {
     // 재시도 예약. 등급은 그대로(past_due 동안 유지).
-    await updateBy(env, 'subscriptions', guard, {
+    const rows = await updateBy(env, 'subscriptions', guard, {
       status: 'past_due',
       failed_attempts: attempts,
       first_failed_at: firstFailedAt,
@@ -364,11 +389,14 @@ async function recordRenewalFailure(env, sub, orderId, err, nowMs, terms) {
       ...UNLOCK,
       updated_at: now,
     });
+    // 재시도가 시작될 때(첫 실패) 업체 대표에게 앱 알림
+    if (attempts === 1) await notifyBillingFailed(env, sub, rows);
     return 'retry_scheduled';
   }
 
   // 마지막 재시도도 실패 → 해지. 등급 내리기(업체 구독은 업체 정지)는 만료 단계(expireCancelled)가 한다.
   // 이 구독의 current_period_end 는 이미 지났으므로 같은 실행에서 바로 처리된다.
+  // 앱 알림은 결제 실패를 따로 보내지 않고, 업체가 정지되면 「업체 정지」 하나만 간다.
   await updateBy(env, 'subscriptions', guard, {
     status: 'cancelled',
     cancel_reason: 'payment_failed',
@@ -541,11 +569,17 @@ export async function chargePastDueNow(env, sub, { nowMs = Date.now(), profile }
  */
 export async function expireCancelled(env, sub, nowMs) {
   if (sub.company_id) {
-    await endCompany(
-      env,
-      sub.company_id,
-      sub.cancel_reason === 'payment_failed' ? 'suspended' : 'closed'
-    );
+    const suspend = sub.cancel_reason === 'payment_failed';
+    const changed = await endCompany(env, sub.company_id, suspend ? 'suspended' : 'closed');
+    // 이번에 정지됐으면 업체 대표에게 앱 알림 (구독 하나에 한 번)
+    if (suspend && changed) {
+      await notifyCompanyOwners(env, {
+        companyId: sub.company_id,
+        kind: 'company_suspended',
+        refId: sub.id,
+        message: companySuspendedMessage(),
+      });
+    }
   } else {
     await downgradeIfSubscriptionTier(env, sub.user_id, nowMs);
   }

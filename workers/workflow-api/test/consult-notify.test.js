@@ -21,6 +21,7 @@ import {
   buildConsultNotice, noticeLines, itemLabel, regionLabel, contactLabel, isFromApp, consultAdminUrl, runConsultNotices,
 } from '../src/consult-notify.js';
 import { CATEGORIES } from '../../generate-api/src/prompts.js';
+import { PUSH_SEND_CRON } from '../src/push/sender.js';
 
 const ROOT = new URL('../../../', import.meta.url);
 const readRepo = (p) => readFileSync(fileURLToPath(new URL(p, ROOT)), 'utf8');
@@ -276,12 +277,12 @@ test('DB 함수가 없거나 실패하면 Slack 에 보내지 않고 상태 · �
 
 // ── cron ───────────────────────────────────────────────
 
-test('wrangler.toml crons = 생산 요약 · 새 상담 알림 두 개, scheduled() 판정 값과 같다', () => {
+test('wrangler.toml crons = 생산 요약 · 새 상담 알림 · 앱 알림 세 개, scheduled() 판정 값과 같다', () => {
   const toml = readRepo('workers/workflow-api/wrangler.toml');
   const m = toml.match(/^crons\s*=\s*\[(.*)\]\s*$/m);
   assert.ok(m, 'crons 줄');
   const crons = [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
-  assert.deepEqual(crons, [DAILY_BRIEF_CRON, CONSULT_NOTICE_CRON]);
+  assert.deepEqual(crons, [DAILY_BRIEF_CRON, CONSULT_NOTICE_CRON, PUSH_SEND_CRON]);
   assert.equal(CONSULT_NOTICE_CRON, '*/5 * * * *');
 });
 

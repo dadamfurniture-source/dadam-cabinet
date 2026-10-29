@@ -5,9 +5,10 @@ account_id = "8bd8e054dfc7bcdc577f9bb79edd3284"
 
 # 평일 아침 7시(KST) 생산 요약 — UTC 22:00 일~목 = KST 07:00 월~금
 # 5분마다 새 상담 · 새 업체 신청 Slack 알림 (src/consult-notify.js)
-# 값을 바꾸면 src/worker.js 의 scheduled() 판정(DAILY_BRIEF_CRON · CONSULT_NOTICE_CRON)도 같이 고칠 것.
+# 1분마다 앱 알림(web push) 보내기 · 하루 한 번 끝난 알림 정리 (src/push/sender.js)
+# 값을 바꾸면 src/worker.js 의 scheduled() 판정(DAILY_BRIEF_CRON · CONSULT_NOTICE_CRON · PUSH_SEND_CRON)도 같이 고칠 것.
 [triggers]
-crons = ["0 22 * * SUN-THU", "*/5 * * * *"]
+crons = ["0 22 * * SUN-THU", "*/5 * * * *", "* * * * *"]
 
 [vars]
 # CORS 허용 오리진 (콤마 구분)
@@ -37,4 +38,7 @@ PRICING_CACHE_TTL_SEC = "300"
 #   wrangler secret put SLACK_WEBHOOK_PRODUCTION (생산 지시 → 작업자 채널. 없으면 SLACK_WEBHOOK_URL 로 보낸다)
 #   wrangler secret put SHARE_TOKEN_PEPPER       (공유 토큰 해시용)
 #   wrangler secret put IP_HASH_SALT             (접근 로그 IP 해시용)
+#   wrangler secret put VAPID_PRIVATE_KEY        (앱 알림 — JWK JSON: kty · crv · x · y · d)
+#   wrangler secret put VAPID_PUBLIC_KEY         (앱 알림 — base64url 비압축 P-256 점, 개인 키와 짝)
+#   wrangler secret put VAPID_SUBJECT            (앱 알림 — https 주소)
 # ─────────────────────────────────────────────────────────────

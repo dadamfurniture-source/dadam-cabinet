@@ -88,6 +88,7 @@ const RESERVED = new Set(['select', 'order', 'limit', 'on_conflict']);
 const UNIQUE = {
   payment_history: ['provider', 'order_id'],
   payment_events: ['provider', 'event_id'],
+  notification_outbox: ['dedupe_key'],
 };
 
 export function createBackend({ nowMs = Date.now() } = {}) {
