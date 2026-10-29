@@ -3,8 +3,8 @@
  *
  * 업체 대표(active owner)에게 한 사람 한 줄씩 notification_outbox 에 넣는다
  * (database/migrations/0016_app_notifications.sql). 보내기는 workflow-api 의 1분 cron 이 한다.
- *   billing_failed     정기 결제가 처음 실패해 재시도가 시작될 때 · 마지막 재시도도 실패했을 때
- *   company_suspended  결제가 끝내 안 돼 업체가 정지됐을 때
+ *   billing_failed     정기 결제가 처음 실패해 재시도가 시작될 때
+ *   company_suspended  결제가 끝내 안 돼 업체가 정지됐을 때 (그 실행에서는 결제 실패를 따로 보내지 않는다)
  * dedupe_key: kind:구독 id:대표 id[:덧붙임] — 같은 일은 한 번만 들어간다.
  * 글은 workers/workflow-api/src/push/messages.js 와 같다 (시험이 본다) — 금액 · 카드 · 업체 이름을 넣지 않는다.
  * 넣기가 실패해도 결제 처리는 그대로다 — 던지지 않고 종류 · 상태 코드만 로그에 남긴다.
@@ -15,13 +15,11 @@ import { selectMany } from './supabase.js';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const PUSH_URL = '/segan/me.html#partner';
 
-/** 결제 실패 알림 글 — final: 마지막 재시도도 실패 */
-export function billingFailedMessage({ final = false } = {}) {
+/** 결제 실패 알림 글 (재시도 시작) */
+export function billingFailedMessage() {
   return {
     title: '결제 실패',
-    body: final
-      ? '업체 구독 결제가 끝내 되지 않았습니다. 결제 관리에서 결제 수단을 확인해 주세요.'
-      : '업체 구독 결제가 되지 않았습니다. 결제 관리에서 결제 수단을 확인해 주세요.',
+    body: '업체 구독 결제가 되지 않았습니다. 결제 관리에서 결제 수단을 확인해 주세요.',
     url: PUSH_URL,
   };
 }

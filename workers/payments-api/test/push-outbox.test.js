@@ -3,7 +3,8 @@
  *
  * 고정하는 것:
  *   1) 정기 결제가 처음 실패해 재시도가 시작되면 billing_failed — 업체 대표(active owner)에게만, 한 사람 한 줄
- *   2) 중간 재시도 실패는 알리지 않는다. 마지막 실패는 billing_failed(마지막) + 업체가 정지되면 company_suspended
+ *   2) 중간 재시도 실패는 알리지 않는다. 마지막 실패로 업체가 정지되는 실행에서는 company_suspended 하나만
+ *      (결제 실패를 따로 넣지 않는다). 정지되지 않으면(살아 있는 다른 구독) 아무것도 넣지 않는다
  *   3) 같은 일은 한 번만 (dedupe_key: kind:구독 id:대표 id[:기간:단계]) — 같은 날 다시 돌아도
  *   4) 개인 구독(업체 없음) · 해지 만료(closed) 는 알리지 않는다
  *   5) 넣기가 실패해도 결제 처리는 그대로 — 로그는 종류 · 상태 코드만
@@ -129,15 +130,22 @@ test('첫 실패(재시도 시작) — 업체 대표에게만 billing_failed 한
   assert.equal(post.query, '?on_conflict=dedupe_key');
 });
 
-test('중간 재시도 실패는 알리지 않고, 마지막 실패는 결제 실패(마지막) + 업체 정지', async () => {
+test('중간 재시도 실패는 알리지 않고, 마지막 실패로 업체가 정지되는 실행에서는 업체 정지 하나만 (결제 실패 없음)', async () => {
   seed();
   be.state.chargeQueue = [decline, decline, decline];
   await run(T0);
   await run(T0 + DAY);
   assert.equal(outbox().length, 1, '두 번째 실패는 알리지 않는다');
+  const postsBefore = outboxPosts().length;
   const summary = await run(T0 + 3 * DAY);
   assert.equal(summary.cancelled_payment_failed, 1);
   assert.equal(be.db.companies[0].status, 'suspended');
+  const added = outboxPosts().slice(postsBefore);
+  assert.equal(added.length, 1, '이 실행에서 넣는 것은 한 번');
+  assert.deepEqual(
+    added[0].body.map((r) => r.kind),
+    ['company_suspended']
+  );
   assert.deepEqual(
     outbox().map((r) => [r.kind, r.user_id, r.dedupe_key, r.body]),
     [
@@ -146,12 +154,6 @@ test('중간 재시도 실패는 알리지 않고, 마지막 실패는 결제 �
         OWNER,
         `billing_failed:${S1}:${OWNER}:${STAMP}:past_due`,
         billingFailedMessage().body,
-      ],
-      [
-        'billing_failed',
-        OWNER,
-        `billing_failed:${S1}:${OWNER}:${STAMP}:final`,
-        billingFailedMessage({ final: true }).body,
       ],
       [
         'company_suspended',
@@ -163,7 +165,33 @@ test('중간 재시도 실패는 알리지 않고, 마지막 실패는 결제 �
   );
   // 다시 돌아도 더 넣지 않는다 (이미 정지 · 끝난 구독)
   await run(T0 + 4 * DAY);
-  assert.equal(outbox().length, 3);
+  assert.equal(outbox().length, 2);
+});
+
+test('마지막 실패여도 업체가 정지되지 않으면(살아 있는 다른 구독) 아무 알림도 넣지 않는다', async () => {
+  seed();
+  be.state.chargeQueue = [decline, decline, decline];
+  await run(T0);
+  await run(T0 + DAY);
+  assert.equal(outbox().length, 1);
+  // 그 사이 업체가 새로 결제했다 — 살아 있는 다른 구독 (다음 결제일은 멀다)
+  be.db.subscriptions.push({
+    id: '44444444-4444-4444-8444-444444444444',
+    company_id: C1,
+    user_id: OWNER,
+    plan: 'expert',
+    status: 'active',
+    provider: 'toss',
+    current_period_end: iso(T0 + 30 * DAY),
+    next_charge_at: iso(T0 + 30 * DAY),
+    failed_attempts: 0,
+  });
+  const postsBefore = outboxPosts().length;
+  const summary = await run(T0 + 3 * DAY);
+  assert.equal(summary.cancelled_payment_failed, 1);
+  assert.equal(be.db.companies[0].status, 'active');
+  assert.equal(outboxPosts().length, postsBefore);
+  assert.equal(outbox().length, 1);
 });
 
 test('같은 일은 한 번만 — 같은 dedupe_key 는 넘긴다', async () => {
@@ -270,17 +298,9 @@ test('업체 끝내기 — 이번에 바꿨을 때만 true (이미 정지 · 살
 
 test('글 — workflow-api 정본과 같다, DB 글자 수 안, 금액 · 업체 이름 없음', () => {
   assert.deepEqual(billingFailedMessage(), buildMessage('billing_failed', {}));
-  assert.deepEqual(
-    billingFailedMessage({ final: true }),
-    buildMessage('billing_failed', { final: true })
-  );
   assert.deepEqual(companySuspendedMessage(), buildMessage('company_suspended', {}));
   assert.equal(PUSH_URL, '/segan/me.html#partner');
-  for (const m of [
-    billingFailedMessage(),
-    billingFailedMessage({ final: true }),
-    companySuspendedMessage(),
-  ]) {
+  for (const m of [billingFailedMessage(), companySuspendedMessage()]) {
     assert.ok(isValidMessage(m));
     assert.ok(!/\d/.test(m.body), '숫자(금액)가 없다');
     assert.ok(!m.body.includes('좋은가구'));
