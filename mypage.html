@@ -1729,25 +1729,30 @@
           console.warn('[mypage] profile_stats 조회 실패:', e?.message);
         }
 
-        // 2) 상담 대기 건수 (status = pending) — 본사(다담) 상담만 센다. 회사 구성원도 자기 회사 상담을
-        //    읽을 수 있어 거르지 않으면 다른 회사 행이 섞인다. 본사 id 를 못 읽으면 세지 않는다.
+        // 2) 상담 대기 건수 (status = pending) — 다담 본사(companies.kind = 'platform') 상담만 센다.
+        //    상담은 본사가 먼저 받아 업체 · 다담 공장에 나눠 주므로 대기 상담은 본사 것이다. 회사 구성원도
+        //    자기 회사 상담을 읽을 수 있어 거르지 않으면 다른 회사 행이 섞인다.
+        //    본사 행이 없거나 못 읽으면 세지 않고 '-' 로 둔다 (다른 회사로 대신 세지 않는다).
+        const pendingConsultEl = document.getElementById('adminStatPendingConsult');
         try {
-          const { data: hq, error: hqError } = await supabaseClient
+          const { data: platform, error: platformError } = await supabaseClient
             .from('companies')
             .select('id')
-            .eq('kind', 'hq')
-            .single();
-          if (hqError) throw hqError;
-          const { count, error } = await supabaseClient
-            .from('consultations')
-            .select('id', { count: 'exact', head: true })
-            .eq('company_id', hq.id)
-            .eq('status', 'pending');
-          if (!error) {
-            const el = document.getElementById('adminStatPendingConsult');
-            if (el) el.textContent = count ?? '-';
+            .eq('kind', 'platform')
+            .maybeSingle();
+          if (platformError) throw platformError;
+          if (!platform) {
+            if (pendingConsultEl) pendingConsultEl.textContent = '-';
+          } else {
+            const { count, error } = await supabaseClient
+              .from('consultations')
+              .select('id', { count: 'exact', head: true })
+              .eq('company_id', platform.id)
+              .eq('status', 'pending');
+            if (!error && pendingConsultEl) pendingConsultEl.textContent = count ?? '-';
           }
         } catch (e) {
+          if (pendingConsultEl) pendingConsultEl.textContent = '-';
           console.warn('[mypage] 상담 대기 count 실패:', e?.message);
         }
 
