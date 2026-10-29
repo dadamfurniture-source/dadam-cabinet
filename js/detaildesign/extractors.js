@@ -2132,11 +2132,25 @@
 
         /**
          * 띄움 줄 좌우 가림판 — 붙어 선 바닥 줄마다 양 끝, 몸통 바깥쪽에 붙는다 (2026-10-28 사장님 "정확히는 몸통 바깥쪽에서 결합되어 들어감").
-         *   18T MDF 도어 재질 · 높이 띄움 + 20 · 깊이는 그 끝 도면 마감재에 따라 (bomFloatSideDepthOf — 쫄 몸통 − 40 · 몰딩 몸통 − 5 ·
-         *   EP 없음 · 마감재 없음 = 배치 공간 깊이). 같은 크기 · 같은 끝 마감재는 한 행에 수량으로. 가림판 자리는 깊이가 다른 이웃에서도
-         *   나뉘므로(조각 규칙) 맞붙은 자리는 한 줄로 합친다 — 자리 없는 옛 설계('-')는 차례대로 붙어 있고, 자리가 있으면 끝과 끝이 1mm 안이면 붙었다.
+         *   18T MDF 도어 재질 · 높이 띄움 + 20 · 깊이는 그 끝 도면 마감재에 따라 (floatSideRowsOf).
          */
         addFloatSideFinishes(materials, label, places, item, rules, floatH) {
+          this.floatSideRowsOf(item, places, rules).forEach((s) => this.add(materials, label, '가림판(좌우)', 'MDF', ASM.FLOAT_PANEL_T,
+            floatH + ASM.FLOAT_SIDE_H_PLUS, s.d, s.qty, '4면', `띄움 좌우 가림판 — 몸통 바깥 · 높이 띄움 + ${ASM.FLOAT_SIDE_H_PLUS} · ${BOM_FLOAT_SIDE_NOTE[s.kind]} · 도어 재질`));
+        }
+
+        /**
+         * 띄움 좌우 가림판 행 계획 — BOM(addFloatSideFinishes)과 조립 명세(bom-assembly.js runsOf float:side)가 같은 행 · 같은 순서 · 같은 끝을 쓴다.
+         *   깊이는 그 끝 도면 마감재에 따라 (bomFloatSideDepthOf — 쫄 몸통 − 40 · 몰딩 몸통 − 5 · EP 없음 · 마감재 없음 = 배치 공간 깊이).
+         *   같은 크기 · 같은 끝 마감재는 한 행에 수량으로, 깊이 큰 행부터. 가림판 자리는 깊이가 다른 이웃에서도 나뉘므로(조각 규칙) 맞붙은 자리는
+         *   한 줄로 합친다 — 자리 없는 옛 설계('-')는 차례대로 붙어 있고, 자리가 있으면 끝과 끝이 1mm 안이면 붙었다.
+         * @param {object} item
+         * @param {Array} places  linePlanOf(item).float.places
+         * @param {object} [rules] 품목 규칙 (없으면 카테고리 BOM_SIMPLE_CATEGORY_RULES)
+         * @returns {Array<{d:number, kind:string, qty:number, ends:Array<{mod:object, side:'left'|'right'}>}>}
+         */
+        floatSideRowsOf(item, places, rules) {
+          const R = rules || BOM_SIMPLE_CATEGORY_RULES[item && (item.categoryId || item.category)] || {};
           // 줄 계획은 상자 모듈(오픈장 · 홈카페)을 걷어내기 전 품목으로 세웠다 (_ctx.item) — 끝 모듈은 그 목록에서 찾는다
           const all = ((this._ctx && this._ctx.item && this._ctx.item.modules) || []).concat(item.modules || []);
           const byId = new Map(all.map((m) => [String(m.id), m]));
@@ -2159,15 +2173,15 @@
             if (!m) return;
             const f = bomFloatEndFinishOf(m, side, fins);
             const kind = f && BOM_FLOAT_SIDE_NOTE[f.section] ? f.section : f && f.section === 'ep' ? 'ep' : 'none';
-            const d = bomFloatSideDepthOf(kind, bomSimpleDepthOf(m, 'lower', item, rules));
+            const d = bomFloatSideDepthOf(kind, bomSimpleDepthOf(m, 'lower', item, R));
             if (!(d > 0)) return;   // EP — 가림판 없음
             const key = `${d}|${kind}`;
-            const s = sizes.get(key) || { d, kind, qty: 0 };
+            const s = sizes.get(key) || { d, kind, qty: 0, ends: [] };
             s.qty += 1;
+            s.ends.push({ mod: m, side });
             sizes.set(key, s);
           }));
-          [...sizes.values()].sort((a, b) => b.d - a.d).forEach((s) => this.add(materials, label, '가림판(좌우)', 'MDF', ASM.FLOAT_PANEL_T,
-            floatH + ASM.FLOAT_SIDE_H_PLUS, s.d, s.qty, '4면', `띄움 좌우 가림판 — 몸통 바깥 · 높이 띄움 + ${ASM.FLOAT_SIDE_H_PLUS} · ${BOM_FLOAT_SIDE_NOTE[s.kind]} · 도어 재질`));
+          return [...sizes.values()].sort((a, b) => b.d - a.d);
         }
 
         /**

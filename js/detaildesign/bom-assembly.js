@@ -49,6 +49,8 @@
  *            걸레받이 (벽 길이 × 다리발−5) — 벽마다 하부 라인 폭 한 장, 바닥에 붙여 (틈 5 는 위, 캐쳐), 앞면 = 몸통 앞선 − 32 (2026-10-22 카드 "몸통 앞선에서 32 안쪽").
  *                   2440 넘는 벽은 2440 조각을 왼쪽부터, 남는 조각은 오른쪽 끝 (카드 "1")
  *            좌우 마감재 (휠라·몰딩·EP, 폭 × 품목H−다리발) — 하부 라인 양 끝 밖 세로, 밑단 = 하부 몸통 바닥, 앞면 = 도어 앞면 (2026-10-22 카드)
+ *            띄움 가림판 (신발장 — 2026-10-28 사장님, simple-categories.md §7) — 걸레받이 크기 · 조각(계획 float), 뒷면 = 몸통 뒷면, 바닥에 붙여.
+ *                   좌우 가림판 — 바닥 줄 양 끝 몸통 옆면 바깥, 뒷면 = 몸통 뒷면, 깊이 끝 마감재별 (BOM 과 같은 계획 floatSideRowsOf)
  *   철물 (modules[].hardware[], 2026-10-22, hardwareOf) — 다리발 4 코너(플래너 3D 자리) + 가운데 균등 분할 · 레일(언더레일 박스 밑 여유 30,
  *            볼레일 측판 밑단) · 경첩 컵 자리(변에서 21.5, 깊이 12.5)를 놓는다 (2026-10-23 4-1 A~D). 외짝 경첩 방향이 설계에 없으면 pending.
  *
@@ -1320,7 +1322,7 @@
      *   lane(e) 인 라인 칸이 자리 안에 들어와 있는데 자리의 단위가 아니면(사이에 안 세는 모듈 · 잇지 않은 키큰장) 못 놓는다.
      * @returns {{line, host, entries, xr:(from:number, to:number) => number[]} | null}
      */
-    const placeOnLine = (pl, isHost, lane) => {
+    const placeOnLine = (pl, isHost, lane, anyTop) => {
       if (placeCache.has(pl)) return placeCache.get(pl);
       const at = (() => {
         let line = null;
@@ -1349,7 +1351,8 @@
         if (line.entries.some((e) => lane(e) && !ids.has(String(e.mod.id)) && e.x0 < X1 - 1 && e.x0 + e.W > X0 + 1)) return null;
         const entries = [].concat(...mapped.map((m) => m.entries));
         const hosts = entries.filter((e) => isHost(e) && e.spec).sort((a, b) => a.x0 - b.x0);
-        if (!hosts.length || hosts.some((e) => topOf(e) !== topOf(hosts[0]))) return null;
+        // anyTop — 띄움 가림판은 바닥 줄(키큰장 포함) 밑에 선다: 윗면이 달라도 밑면은 모두 띄움 높이라 윗면 검사를 하지 않는다
+        if (!hosts.length || (!anyTop && hosts.some((e) => topOf(e) !== topOf(hosts[0])))) return null;
         return { line, host: hosts[0], entries, xr };
       })();
       placeCache.set(pl, at);
@@ -1362,7 +1365,7 @@
      *   조각마다 len(붙는 길이)과 site(800 보다 짧아 800 으로 내고 현장에서 자르는 조각 — 2026-10-26 사장님)를 함께 돌려준다.
      * @returns {Array<{at, x0:number, x1:number, len:number, site:boolean}>|null}
      */
-    const piecesFor = (group, places, len, qty, isHost, lane, ok) => {
+    const piecesFor = (group, places, len, qty, isHost, lane, ok, anyTop) => {
       if (!planRows.has(group)) planRows.set(group, extractor().linePieceRowsOf(places || []));
       const i = rowCursor.get(group) || 0;
       rowCursor.set(group, i + 1);
@@ -1370,7 +1373,7 @@
       if (!pr || pr.len !== len || pr.qty !== qty) return null;
       const out = [];
       for (const { place, piece } of pr.pieces) {
-        const at = placeOnLine(place, isHost, lane);
+        const at = placeOnLine(place, isHost, lane, anyTop);
         if (!at || (ok && !ok(at))) return null;
         const [x0, x1] = at.xr(piece.from, piece.to);
         out.push({ at, x0, x1, len: piece.len, site: !!piece.site });
@@ -1390,6 +1393,9 @@
     // 상부 라인 자리 — 상몰딩. 호스트는 상부 모듈, 사이를 막는 것은 상부 칸과 키큰장 단 (BOM 이 이은 키큰장은 자리의 단위다)
     const upperHost = (e) => e.mod.pos === 'upper';
     const upperLane = (e) => e.mod.pos === 'upper' || isTallTier(e.mod);
+    // 띄움 바닥 줄 자리 — 가림판 (2026-10-28 사장님 — 신발장). 호스트는 자리의 첫 바닥 모듈 (키큰장도 — 바닥 줄 전체가 떠 있다)
+    const floatHost = (e) => e.mod.pos === 'lower';
+    let sideRows = null, sideCursor = 0;
 
     rows.forEach((row) => {
       const key = keyOfRow(row);
@@ -1463,6 +1469,44 @@
             const b = pc.at.host.spec.box;
             put(pieceRow(row, pc, 'w'), pc.at, { o: [xOf(pc.at, pc.x0), -(row.h + C.KICK_H_MINUS), b.D / 2 - C.KICK_SETBACK - row.thickness], u: '+x', v: '+y', n: '+z' },
               'exterior', pieceTags(row, pc, 'w', { run: 'kick' }), k);
+          });
+          return;
+        }
+        case 'float:cover': {
+          // 띄움 가림판 (2026-10-28 사장님 — 신발장, simple-categories.md §7): 걸레받이 크기 · 조각, **몸통 뒤 맞춤** — 뒷면 = 몸통 뒷면,
+          //   바닥에 붙여 세운다 (행 h = 띄움 − 5 → 밑단 y = −띄움, 윗단 −5 — 걸레받이처럼 틈 5 는 위). 자리는 BOM 계획 linePlanOf float
+          //   (바닥 줄 전체 · 키큰장 포함) 조각 그대로
+          const plan = linePlan();
+          const mine = plan && plan.float && row.thickness === C.FLOAT_PANEL_T
+            ? piecesFor('float', plan.float.places, row.w, row.qty, floatHost, lowerLane, null, true) : null;
+          if (!mine) { skip(row, 'run-layout-unknown'); return; }
+          mine.forEach((pc, k) => {
+            const b = pc.at.host.spec.box;
+            put(pieceRow(row, pc, 'w'), pc.at, { o: [xOf(pc.at, pc.x0), -(row.h + C.KICK_H_MINUS), -b.D / 2], u: '+x', v: '+y', n: '+z' },
+              'exterior', pieceTags(row, pc, 'w', { run: 'float-cover' }), k);
+          });
+          return;
+        }
+        case 'float:side': {
+          // 띄움 좌우 가림판 — 붙어 선 바닥 줄 양 끝 몸통 바깥 (2026-10-28 사장님 "정확히는 몸통 바깥쪽에서 결합되어 들어감").
+          //   행 · 끝은 BOM 과 같은 계획 (MaterialExtractor floatSideRowsOf — 행마다 끝 목록, 같은 순서). 판은 몸통 옆면 바깥에 세로로 —
+          //   뒷면 = 몸통 뒷면, 밑단 = 바닥 (y −띄움), 높이 = 행 w (띄움 + 20), 깊이 = 행 h (끝 마감재별)
+          const me = extractor();
+          const plan = linePlan();
+          if (!sideRows) sideRows = plan && plan.float && me && typeof me.floatSideRowsOf === 'function' ? me.floatSideRowsOf(item, plan.float.places) : [];
+          const g = sideRows[sideCursor++];
+          const fh = AsmRules.floatHOf(specs);
+          if (!g || g.d !== row.h || g.qty !== row.qty || row.w !== fh + C.FLOAT_SIDE_H_PLUS) { skip(row, 'run-layout-unknown'); return; }
+          const hits = g.ends.map((end) => {
+            let hit = null;
+            lineList.forEach((ln) => ln.entries.forEach((e) => { if (!hit && e.spec && String(e.mod.id) === String(end.mod.id)) hit = { line: ln, host: e }; }));
+            return hit && Object.assign(hit, { side: end.side });
+          });
+          if (hits.some((h) => !h)) { skip(row, 'run-layout-unknown'); return; }
+          hits.forEach((h, k) => {
+            const b = h.host.spec.box;
+            const x = h.side === 'left' ? h.host.x0 - row.thickness : h.host.x0 + h.host.W;
+            put(row, h, { o: [xOf(h, x), -fh, -b.D / 2], u: '+y', v: '+z', n: '+x' }, 'exterior', { run: 'float-side', side: h.side, finish: g.kind }, k);
           });
           return;
         }

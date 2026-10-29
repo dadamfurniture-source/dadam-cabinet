@@ -180,6 +180,68 @@ describe('띄움 시공 — 조립 명세', () => {
   test('다리발 철물 자리가 없다', () => {
     mods.forEach((m) => expect((m.hardware || []).some((h) => h.kind === 'leg')).toBe(false));
   });
+
+  test('줄 자리(lines)가 없으면 가림판은 자리 미정 (run-part) — 걸레받이와 같다', () => {
+    const ep = (spec.unplaced || []).filter((u) => /-ep$/.test(u.moduleKey)).map((u) => [u.part, u.reason]);
+    expect(ep).toContainEqual(['가림판', 'run-part']);
+    expect(ep).toContainEqual(['가림판(좌우)', 'run-part']);
+  });
+});
+
+describe('띄움 가림판 · 좌우 가림판 — 조립 명세 자리 (2026-10-29 사장님 "아직 안 된 것 진행")', () => {
+  /** 벽 하나 — 하부 l1 0 · 오픈 l2 900 · 키큰장 t1 1350, 상부 u1 0 (bom-assembly.test.js linesOf 와 같은 모양) */
+  const lines = { 0: [{ key: 'wall', D: 350, modules: [
+    { moduleKey: '0-l1', x0: 0 }, { moduleKey: '0-l2', x0: 900 }, { moduleKey: '0-t1', x0: 1350 }, { moduleKey: '0-u1', x0: 0 }] }] };
+  const specOf = (d) => Asm.of(d, { materials: new MaterialExtractor().extract(d).materials, lines });
+  const runsOf = (s, part) => s.items[0].runs.filter((r) => r.parts[0].part === part)
+    .map((r) => ({ host: r.hostModuleKey, min: r.parts[0].box.min, max: r.parts[0].box.max, tags: r.parts[0].tags }));
+  const epOf = (s) => (s.unplaced || []).filter((u) => /-ep$/.test(u.moduleKey)).map((u) => [u.part, u.reason]);
+
+  test('가림판 — 바닥 줄 한 조각(키큰장까지 1800), 뒷면 = 몸통 뒷면 · 밑단 바닥(−200) · 윗단 −5', () => {
+    const s = specOf(shoeDesign());
+    const [c] = runsOf(s, '가림판');
+    expect(runsOf(s, '가림판')).toHaveLength(1);
+    expect(c.host).toBe('0-l1');
+    expect([c.min[0], c.max[0]]).toEqual([-450, 1350]);
+    expect([c.min[1], c.max[1]]).toEqual([-200, -5]);
+    expect([c.min[2], c.max[2]]).toEqual([-175, -175 + 18]);
+    expect(epOf(s).filter((e) => /가림판/.test(e[0]))).toEqual([]);
+  });
+
+  test('좌우 가림판 — 줄 양 끝 몸통 옆면 바깥, 밑단 바닥 · 높이 띄움 + 20 · 깊이 끝 마감재대로 (마감재 없음 380)', () => {
+    const s = specOf(shoeDesign());
+    const sides = runsOf(s, '가림판(좌우)');
+    expect(sides.map((r) => [r.host, r.tags.side, r.min[0], r.max[0], r.min[1], r.max[1], r.min[2], r.max[2]])).toEqual([
+      ['0-l1', 'left', -468, -450, -200, 20, -175, -175 + 380],
+      ['0-t1', 'right', 225, 243, -200, 20, -175, -175 + 380],
+    ]);
+  });
+
+  test('끝 마감재가 다르면 행이 갈려도 같은 끝에 — 왼쪽 쫄 310 · 오른쪽 몰딩 345', () => {
+    const d = shoeDesign();
+    d.items[0].modules.forEach((m, i) => { if (m.pos === 'lower') m._x = [0, 900, 1350][i]; });
+    d.items[0].specs.drawnFinishes = [
+      { section: 'filler', side: null, edge: 'left', area: 'lower', W: 60, partW: 60, H: 1000, D: 380, baseY: 0, x: -60 },
+      { section: 'molding', side: null, edge: 'right', area: 'tall', W: 60, partW: 60, H: 2300, D: 380, baseY: 0, x: 1800 },
+    ];
+    const sides = runsOf(specOf(d), '가림판(좌우)');
+    expect(sides.map((r) => [r.host, r.tags.side, r.tags.finish, r.max[2] - r.min[2]])).toEqual([
+      ['0-t1', 'right', 'molding', 345], ['0-l1', 'left', 'filler', 310]]);
+  });
+
+  test('EP 끝은 좌우 가림판이 없다 — 남은 끝만 놓인다', () => {
+    const d = shoeDesign();
+    d.items[0].modules.forEach((m, i) => { if (m.pos === 'lower') m._x = [0, 900, 1350][i]; });
+    d.items[0].specs.drawnFinishes = [{ section: 'ep', side: null, edge: 'left', area: 'lower', W: 20, partW: 18, H: 1000, D: 380, baseY: 0, x: -20 }];
+    const sides = runsOf(specOf(d), '가림판(좌우)');
+    expect(sides.map((r) => [r.host, r.tags.side])).toEqual([['0-t1', 'right']]);
+  });
+
+  test('띄움이 아니면 가림판 없이 걸레받이가 예전 자리에 (걸레받이 조각 그대로)', () => {
+    const s = specOf(shoeDesign({ floatH: 0, topThickness: 0, topMaterial: undefined }));
+    expect(runsOf(s, '가림판').concat(runsOf(s, '가림판(좌우)'))).toEqual([]);
+    expect(runsOf(s, '걸레받이').length).toBeGreaterThan(0);
+  });
 });
 
 describe('띄움이 아니면 예전 그대로 — 다리발 · 걸레받이, 하부장 짜임', () => {
