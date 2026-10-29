@@ -5,7 +5,8 @@
  *
  *   띄움 (품목 스펙 floatH > 0): 다리발 · 걸레받이 · 좌대 없음, 하부장 · 키큰장 몸통은 상부장 짜임 ("하부장도 사쿠리형으로" —
  *   사쿠리 · 천판 · 지판 · 홈 속 뒷판 · 벽 고정 보강목 2 · 도어 H + 내림), 줄 아래 가림판 (걸레받이 크기 · 몸통 뒤 맞춤),
- *   줄 좌우 마감재 (띄움 + 40 × 몸통 + 20). 상판 = 스펙에 재질이 있을 때만 (신발장 18T MDF · 화장대 12T 인조대리석), 깊이 = 몸통 + 앞 자리.
+ *   줄 좌우 가림판 (몸통 바깥 · 띄움 + 20 × 끝 마감재별 깊이 — 쫄 몸통 − 40 · 몰딩 몸통 − 5 · EP 없음 · 없음 = 몸통 + 앞 자리).
+ *   상판 = 스펙에 재질이 있을 때만 (신발장 18T MDF · 화장대 12T 인조대리석), 깊이 = 몸통 + 앞 자리.
  */
 const X = require('../js/detaildesign/extractors.js');
 const AR = require('../js/detaildesign/assembly-rules.js');
@@ -93,24 +94,60 @@ describe('띄움 시공 — 자재', () => {
     expect(rowOf(mats, '상부장-상부장', '측판').w).toBe(350);
   });
 
-  test('줄 부재 — 걸레받이 · 목찬넬 대신 가림판 (띄움 − 5, 키큰장까지 한 줄) · 좌우 마감재 (띄움 + 40 × 몸통 + 20) · 상판 18T MDF (몸통 + 30)', () => {
+  test('줄 부재 — 걸레받이 · 목찬넬 대신 가림판 (띄움 − 5, 키큰장까지 한 줄) · 좌우 가림판 (끝 마감재 없음 = 띄움 + 20 × 몸통 + 30) · 상판 18T MDF (몸통 + 30)', () => {
     const ep = rowsOf(mats, 'EP');
     expect(ep.some((m) => m.part === '걸레받이' || /목찬넬/.test(m.part))).toBe(false);
     expect(ep.filter((m) => m.part === '가림판')).toEqual([expect.objectContaining({ material: 'MDF', thickness: 18, w: 1800, h: 195, qty: 1 })]);
-    expect(ep.filter((m) => m.part === '마감재(띄움)')).toEqual([expect.objectContaining({ material: 'MDF', thickness: 18, w: 240, h: 370, qty: 2 })]);
+    expect(ep.filter((m) => m.part === '가림판(좌우)')).toEqual([expect.objectContaining({ material: 'MDF', thickness: 18, w: 220, h: 380, qty: 2 })]);
     const top = mats.find((m) => m.part === '상판');
     expect(top).toMatchObject({ material: 'MDF', thickness: 18, w: 1350, h: 380, qty: 1 });
     mats.forEach((m) => expect(X.bomPartDefOf(m.part).fallback).toBeUndefined());
   });
 
-  test('좌우 마감재 깊이는 끝 모듈 몸통 + 20 — 끝이 오픈장 상자(걷어 낸 모듈)여도', () => {
+  test('좌우 가림판 깊이는 끝 모듈 몸통 기준 — 끝이 오픈장 상자(걷어 낸 모듈)여도', () => {
     const d = shoeDesign();
     d.items[0].modules = [
       { id: 'o1', type: 'storage', name: '오픈장', pos: 'lower', w: 450, h: 782, d: 340, moduleKind: 'open', isOpen: true, doorCount: 0, isDrawer: false, isEL: false },
       { id: 'l1', type: 'storage', name: '하부장', pos: 'lower', w: 900, h: 782, d: 350, doorCount: 2, isDrawer: false, isEL: false },
     ];
-    const ep = new MaterialExtractor().extract(d).materials.filter((m) => m.part === '마감재(띄움)');
-    expect(ep.map((m) => [m.h, m.qty]).sort()).toEqual([[360, 1], [370, 1]]);
+    const ep = new MaterialExtractor().extract(d).materials.filter((m) => m.part === '가림판(좌우)');
+    expect(ep.map((m) => [m.h, m.qty]).sort()).toEqual([[370, 1], [380, 1]]);
+  });
+
+  /** 도면 마감재가 있는 신발장 — 모듈 위치 _x (플래너 좌표): 하부장 0~900 · 오픈 900~1350 · 키큰장 1350~1800 */
+  function withFinishes(fins) {
+    const d = shoeDesign();
+    d.items[0].modules.forEach((m, i) => { if (m.pos === 'lower') m._x = [0, 900, 1350][i]; });
+    d.items[0].specs.drawnFinishes = fins;
+    return new MaterialExtractor().extract(d).materials.filter((m) => m.part === '가림판(좌우)').map((m) => [m.w, m.h, m.qty]).sort();
+  }
+  const fin = (section, x, W, area, edge) => ({ section, x, W, area, edge, side: null, partW: section === 'ep' ? 18 : 60, H: 1000, D: 380, baseY: 0 });
+
+  test('끝 마감재별 깊이 (2026-10-28 · 29 사장님) — 쫄 몸통 − 40 (여유 5) · 몰딩 몸통 − 5, 높이 띄움 + 20', () => {
+    expect(withFinishes([fin('filler', -60, 60, 'lower', 'left'), fin('molding', 1800, 60, 'tall', 'right')])).toEqual([[220, 310, 1], [220, 345, 1]]);
+    expect(withFinishes([fin('filler', -60, 60, 'lower', 'left'), fin('filler', 1800, 60, 'tall', 'right')])).toEqual([[220, 310, 2]]);
+  });
+
+  test('EP 끝은 좌우 가림판 없음 (EP 가 바닥까지), 비움 · 마감재 없음 = 배치 공간 깊이 (몸통 + 30)', () => {
+    expect(withFinishes([fin('ep', -18, 18, 'lower', 'left'), fin('gap', 1800, 30, 'tall', 'right')])).toEqual([[220, 380, 1]]);
+    expect(withFinishes([fin('ep', -18, 18, 'lower', 'left'), fin('ep', 1800, 18, 'tall', 'right')])).toEqual([]);
+  });
+
+  test('상부 마감재 · 끝에서 떨어진 마감재는 바닥 줄 끝 마감재가 아니다', () => {
+    expect(withFinishes([fin('filler', -60, 60, 'upper', 'left'), fin('molding', 2000, 60, 'lower', null)])).toEqual([[220, 380, 2]]);
+  });
+
+  test('모듈 위치가 없는 옛 도면은 배치 공간 끝(edge)으로 짝짓는다', () => {
+    const d = shoeDesign();
+    d.items[0].specs.drawnFinishes = [{ section: 'filler', side: null, edge: 'left', area: 'lower', W: null, partW: 60, H: 1000, D: null, baseY: 0, x: null }];
+    const rows = new MaterialExtractor().extract(d).materials.filter((m) => m.part === '가림판(좌우)').map((m) => [m.h, m.qty]).sort();
+    expect(rows).toEqual([[310, 1], [380, 1]]);
+  });
+
+  test('깊이 도우미 — 상수와 같다', () => {
+    expect(C.FLOAT_SIDE_D_MINUS).toEqual({ filler: 40, molding: 5 });
+    expect([X.bomFloatSideDepthOf('filler', 350), X.bomFloatSideDepthOf('molding', 350), X.bomFloatSideDepthOf('ep', 350), X.bomFloatSideDepthOf(null, 350), X.bomFloatSideDepthOf('gap', 350)])
+      .toEqual([310, 345, 0, 380, 380]);
   });
 
   test('철물 — 다리발 없음, 키큰장 도어 경첩은 도어 높이(2055)로', () => {
