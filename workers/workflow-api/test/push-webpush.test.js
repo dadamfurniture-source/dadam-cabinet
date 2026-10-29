@@ -3,7 +3,7 @@
  *
  *   - 본문 암호화: RFC 8291 부록 A 의 시험 값(고정 키 · 소금)과 바이트까지 같다. 새 키로 만든 본문은 기기 쪽에서 풀린다
  *   - VAPID JWT: ES256 · 머리 { typ, alg } · aud = 받는 주소 origin · exp = 지금 + 12시간 · sub, 서명이 공개 키로 맞는다
- *   - 보내기: POST · Authorization vapid t=…, k=… · Content-Encoding aes128gcm · TTL 86400 · Urgency normal · 넘겨주기 안 따라감
+ *   - 보내기: POST · Authorization vapid t=…, k=… · Content-Encoding aes128gcm · TTL 86400 · Urgency high · 넘겨주기 안 따라감
  *   - 받는 주소: 알려진 푸시 서비스의 https 주소만 (SSRF 막기)
  *   - VAPID 설정: 공개 키가 개인 키와 짝이 안 맞거나 비었으면 config
  * 시험 키는 모두 시험용으로 새로 만든다 (RFC 부록 값 제외).
@@ -279,7 +279,7 @@ async function deviceSub(endpoint = 'https://fcm.googleapis.com/fcm/send/abc:APA
   return { sub: { endpoint, p256dh: b64urlEncode(raw), auth: b64urlEncode(auth) }, ua, raw, auth };
 }
 
-test('보내기 — POST, VAPID · aes128gcm · TTL 86400 · Urgency normal, 넘겨주기 안 따라감. 기기 쪽에서 글이 풀린다', async () => {
+test('보내기 — POST, VAPID · aes128gcm · TTL 86400 · Urgency high, 넘겨주기 안 따라감. 기기 쪽에서 글이 풀린다', async () => {
   clearVapidCache();
   const { env, publicKey } = await makeVapidEnv();
   const v = await loadVapid(env);
@@ -298,7 +298,7 @@ test('보내기 — POST, VAPID · aes128gcm · TTL 86400 · Urgency normal, 넘
       assert.equal(init.redirect, 'manual');
       assert.equal(init.headers['Content-Encoding'], 'aes128gcm');
       assert.equal(init.headers.TTL, '86400');
-      assert.equal(init.headers.Urgency, 'normal');
+      assert.equal(init.headers.Urgency, 'high');
       const m = init.headers.Authorization.match(/^vapid t=([^,]+), k=(.+)$/);
       assert.ok(m, 'vapid t=…, k=…');
       assert.equal(m[2], env.VAPID_PUBLIC_KEY);
