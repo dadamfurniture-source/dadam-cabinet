@@ -7,9 +7,9 @@
     <meta name="robots" content="noindex, nofollow, noarchive" />
     <meta name="referrer" content="no-referrer" />
     <title>수주 · 원가 · 마진 · 다담가구</title>
-    <link rel="stylesheet" href="css/nav.css?v=2026102803" />
+    <link rel="stylesheet" href="css/nav.css?v=2026102901" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="js/config.js?v=2026102803"></script>
+    <script src="js/config.js?v=2026102901"></script>
     <style>
       :root {
         --bg: #eef0f3;
@@ -66,6 +66,7 @@
       .alert-ok { background: #e8f5ec; border: 1px solid #b7dcc3; color: #14562c; }
       .status { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #eef1f4; font-size: 12px; }
       .status.tier { background: #fff3e0; color: #e65100; }
+      .status.pending { background: #fff8e1; color: #8a5a00; border: 1px solid #f0d58a; }
     </style>
   </head>
   <body>
@@ -79,6 +80,22 @@
       </div>
 
       <div id="alert" class="alert alert-err" hidden></div>
+
+      <div class="card" id="requestsCard" hidden>
+        <div style="font-weight: 600">대표 승인 기다림</div>
+        <div class="sub" style="margin: 4px 0 0">승인하면 그때 수주 상태가 바뀝니다. 반려하면 그대로입니다.</div>
+        <div class="scroll" style="margin-top: 10px">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">수주번호</th><th scope="col">고객</th><th scope="col">바꾸기</th>
+                <th scope="col">사유</th><th scope="col">요청한 때</th><th scope="col"></th>
+              </tr>
+            </thead>
+            <tbody id="requestRows"></tbody>
+          </table>
+        </div>
+      </div>
 
       <div class="card">
         <div class="row" style="justify-content: space-between">
@@ -119,10 +136,27 @@
           <div>견적 총액 <span class="muted">(참고)</span><b id="kQuoted">-</b></div>
         </div>
 
-        <div class="row" style="margin-top: 12px">
-          <label>상태
+        <div class="row" style="margin-top: 12px" id="statusRow">
+          <span>상태 <span class="status" id="curStatus">-</span>
+            <span class="status pending" id="pendingBadge" hidden>승인 기다림</span></span>
+          <label>바꿀 상태
             <select id="selStatus"></select>
           </label>
+          <input id="inpStatusReason" type="text" maxlength="500" placeholder="사유 (꼭 적어 주세요)" aria-label="사유" style="min-width: 240px" hidden />
+          <button type="button" id="btnStatus" disabled>상태 바꾸기</button>
+        </div>
+        <div id="statusHint" class="muted" style="margin-top: 6px"></div>
+
+        <div class="scroll" style="margin-top: 10px">
+          <table>
+            <thead>
+              <tr><th scope="col">때</th><th scope="col">바꾼 것</th><th scope="col">사유</th><th scope="col">처리</th></tr>
+            </thead>
+            <tbody id="eventRows"></tbody>
+          </table>
+        </div>
+
+        <div class="row" style="margin-top: 12px">
           <label>수금액
             <input id="inpReceived" type="number" min="0" step="1000" style="width: 140px" />
           </label>
@@ -223,15 +257,20 @@
         var API = (window.DADAM_CONFIG && window.DADAM_CONFIG.workflowApi && window.DADAM_CONFIG.workflowApi.url) || '';
         var sb = null;
         // cp = 거래처 · 공급처 목록 (관리자만, 표가 없거나 권한이 없으면 null — 고르기 칸을 숨긴다)
-        var state = { orders: [], current: null, detail: null, cp: undefined };
+        // events = 열어 본 수주의 상태 기록 · 바꿀 수 있는 상태 (못 불러오면 null), requests = 대표 승인 기다림
+        var state = { orders: [], current: null, detail: null, cp: undefined, events: null, requests: [] };
 
+        // 수주 상태 — 워커 order-events.js ORDER_STATUS_LABELS 와 같은 이름
         var STATUS_LABELS = {
-          confirmed: '수주확정',
-          in_production: '제작중',
-          delivered: '납품완료',
-          completed: '종료',
+          confirmed: '접수',
+          in_production: '생산 중',
+          delivered: '배송',
+          completed: '완료',
           cancelled: '취소',
         };
+        // 상태 기록 — 되살리기 · 완료 되돌리기만 따로 이름을 붙인다
+        var EVENT_KIND_LABELS = { revive: '되살리기', revert: '완료 되돌리기' };
+        var EVENT_STATE_LABELS = { done: '바로 바뀜', pending: '승인 기다림', approved: '대표 승인', rejected: '반려' };
         var COST_LABELS = {
           material: '자재', hardware: '부자재', labor: '노무',
           outsourcing: '외주', logistics: '물류', other: '기타',
@@ -311,6 +350,7 @@
               '고객이 확인서를 승인하면 상세설계 화면의 업무 루프에서 수주로 전환할 수 있습니다.</td></tr>';
             return;
           }
+          var waiting = pendingOrderIds();
           tb.innerHTML = state.orders
             .map(function (o) {
               var cost = o._cost_total;
@@ -320,7 +360,8 @@
                 '<td>' + esc(o.order_no) + '</td>' +
                 '<td>' + esc(o.customer_name || '-') +
                 (o.price_tier === 'partner' ? ' <span class="status tier">거래처</span>' : '') + '</td>' +
-                '<td><span class="status">' + esc(STATUS_LABELS[o.status] || o.status) + '</span></td>' +
+                '<td><span class="status">' + esc(STATUS_LABELS[o.status] || o.status) + '</span>' +
+                (waiting[o.id] ? ' <span class="status pending">승인 기다림</span>' : '') + '</td>' +
                 '<td class="num">' + krw(o.contract_amount) + '</td>' +
                 '<td class="num">' + krw(o.received_amount) + '</td>' +
                 '<td class="num">' + (cost === undefined ? '<span class="muted">-</span>' : krw(cost)) + '</td>' +
@@ -353,12 +394,6 @@
           el('kMargin').className = m.margin < 0 ? 'neg' : 'pos';
           el('kQuoted').textContent = m.quoted_total === null ? '-' : krw(m.quoted_total);
 
-          el('selStatus').innerHTML = Object.keys(STATUS_LABELS)
-            .map(function (k) {
-              return '<option value="' + k + '"' + (d.order.status === k ? ' selected' : '') + '>' +
-                STATUS_LABELS[k] + '</option>';
-            })
-            .join('');
           el('inpReceived').value = d.order.received_amount;
 
           // 구분 — 고객 · 거래처. 칸이 아직 DB 에 없으면(orders-price-tier.sql 실행 전) 고칠 곳을 숨긴다.
@@ -408,6 +443,171 @@
           });
         }
 
+        function whenKst(iso) {
+          var t = Date.parse(iso);
+          if (!isFinite(t)) return '-';
+          return new Date(t + 9 * 3600 * 1000).toISOString().slice(0, 16).replace('T', ' ');
+        }
+        function moveText(e) {
+          return (STATUS_LABELS[e.from_status] || e.from_status) + ' → ' + (STATUS_LABELS[e.to_status] || e.to_status) +
+            (EVENT_KIND_LABELS[e.kind] ? ' (' + EVENT_KIND_LABELS[e.kind] + ')' : '');
+        }
+        // 승인을 기다리는 수주 — 대표는 요청 목록으로, 그 밖에는 열어 본 수주의 기록으로 안다
+        function pendingOrderIds() {
+          var out = {};
+          (state.requests || []).forEach(function (r) { out[r.order_id] = true; });
+          if (state.current && state.events && state.events.pending) out[state.current] = true;
+          return out;
+        }
+
+        // 상태 바꾸기 — 워커가 준 moves(지금 상태에서 바꿀 수 있는 것)만 고르게 한다
+        function renderStatus() {
+          var d = state.detail;
+          if (!d) return;
+          var ev = state.events;
+          el('curStatus').textContent = STATUS_LABELS[d.order.status] || d.order.status;
+          el('pendingBadge').hidden = !(ev && ev.pending);
+          var moves = (ev && ev.moves) || [];
+          el('selStatus').innerHTML = moves.length
+            ? '<option value="">고르기</option>' + moves
+              .map(function (m) {
+                return '<option value="' + esc(m.to) + '">' + esc(m.label + (m.request ? ' — 대표 승인 요청' : '')) + '</option>';
+              })
+              .join('')
+            : '<option value="">없음</option>';
+          el('selStatus').disabled = !moves.length;
+          el('inpStatusReason').value = '';
+          onStatusPick();
+          renderEvents();
+        }
+
+        function selectedMove() {
+          var v = el('selStatus').value;
+          var moves = (state.events && state.events.moves) || [];
+          return moves.find(function (m) { return m.to === v; }) || null;
+        }
+
+        function onStatusPick() {
+          var m = selectedMove();
+          var ev = state.events;
+          el('inpStatusReason').hidden = !(m && m.reason_required);
+          el('btnStatus').disabled = !m;
+          el('btnStatus').textContent = m && m.request ? '대표 승인 요청' : '상태 바꾸기';
+          var hint = '';
+          if (!ev) hint = '바꿀 수 있는 상태를 불러오지 못했습니다. 새로고침해 주세요.';
+          else if (m && m.request) hint = '대표가 승인하면 바뀝니다. 그 전까지 수주는 그대로입니다.';
+          else if (m && m.reason_required) hint = '사유를 적어야 바꿀 수 있습니다.';
+          else if (ev.pending) hint = '대표 승인을 기다리는 요청: ' + moveText(ev.pending) + (ev.pending.reason ? ' · ' + ev.pending.reason : '');
+          el('statusHint').textContent = hint;
+        }
+
+        function renderEvents() {
+          var tb = el('eventRows');
+          var ev = state.events;
+          if (!ev) {
+            tb.innerHTML = '<tr><td colspan="4" class="muted">상태 기록을 불러오지 못했습니다.</td></tr>';
+            return;
+          }
+          if (!ev.items.length) {
+            tb.innerHTML = '<tr><td colspan="4" class="muted">상태가 바뀐 기록이 아직 없습니다.</td></tr>';
+            return;
+          }
+          tb.innerHTML = ev.items
+            .map(function (e) {
+              var label = EVENT_STATE_LABELS[e.state] || e.state;
+              return (
+                '<tr>' +
+                '<td>' + esc(whenKst(e.created_at)) + '</td>' +
+                '<td>' + esc(moveText(e)) + '</td>' +
+                '<td>' + esc(e.reason || '-') + '</td>' +
+                '<td>' + (e.state === 'pending' ? '<span class="status pending">' + esc(label) + '</span>' : esc(label)) +
+                (e.decided_at ? ' <span class="muted">' + esc(whenKst(e.decided_at)) + '</span>' : '') + '</td>' +
+                '</tr>'
+              );
+            })
+            .join('');
+        }
+
+        async function loadEvents() {
+          try {
+            state.events = await api('/orders/' + encodeURIComponent(state.current) + '/events');
+          } catch (e) {
+            state.events = null;
+          }
+        }
+
+        async function changeStatus() {
+          if (!state.current) return;
+          var m = selectedMove();
+          if (!m) { fail('바꿀 상태를 골라 주세요.'); return; }
+          var reason = el('inpStatusReason').value.trim();
+          if (m.reason_required && !reason) {
+            fail('사유를 적어 주세요.');
+            el('inpStatusReason').focus();
+            return;
+          }
+          var body = { status: m.to };
+          if (m.reason_required) body.reason = reason;
+          try {
+            var out = await api('/orders/' + encodeURIComponent(state.current), { method: 'PATCH', body: body });
+            var requested = !!out && out.state === 'pending';
+            await load();
+            await open(state.current);
+            note(requested ? '대표 승인 요청을 보냈습니다. 승인되면 ' + m.label + '(으)로 바뀝니다.' : '상태를 ' + m.label + '(으)로 바꿨습니다.');
+          } catch (e) { fail(e.message); }
+        }
+
+        // 대표 승인 기다림 — 대표가 아니면 워커가 빈 목록을 준다 (카드를 숨긴다)
+        async function loadRequests() {
+          try {
+            var data = await api('/order-requests?state=pending');
+            state.requests = data.items || [];
+          } catch (e) {
+            state.requests = [];
+          }
+          renderRequests();
+        }
+
+        function renderRequests() {
+          var list = state.requests || [];
+          el('requestsCard').hidden = !list.length;
+          var tb = el('requestRows');
+          tb.innerHTML = list
+            .map(function (r) {
+              return (
+                '<tr>' +
+                '<td>' + esc(r.order_no || '-') + '</td>' +
+                '<td>' + esc(r.customer_name || '-') + '</td>' +
+                '<td>' + esc(moveText(r)) + '</td>' +
+                '<td>' + esc(r.reason || '-') + '</td>' +
+                '<td>' + esc(whenKst(r.created_at)) + '</td>' +
+                '<td><button type="button" class="primary" data-approve="' + esc(r.id) + '">승인</button> ' +
+                '<button type="button" data-reject="' + esc(r.id) + '">반려</button> ' +
+                '<button type="button" data-open-req="' + esc(r.order_id) + '">열기</button></td>' +
+                '</tr>'
+              );
+            })
+            .join('');
+          tb.querySelectorAll('[data-approve]').forEach(function (b) {
+            b.addEventListener('click', function () { decide(b.getAttribute('data-approve'), 'approved'); });
+          });
+          tb.querySelectorAll('[data-reject]').forEach(function (b) {
+            b.addEventListener('click', function () { decide(b.getAttribute('data-reject'), 'rejected'); });
+          });
+          tb.querySelectorAll('[data-open-req]').forEach(function (b) {
+            b.addEventListener('click', function () { open(b.getAttribute('data-open-req')); });
+          });
+        }
+
+        async function decide(eventId, decision) {
+          try {
+            await api('/order-events/' + encodeURIComponent(eventId) + '/decide', { method: 'POST', body: { decision: decision } });
+            await load();
+            if (state.current) await open(state.current);
+            note(decision === 'approved' ? '승인했습니다. 수주 상태가 바뀌었습니다.' : '반려했습니다. 수주는 그대로입니다.');
+          } catch (e) { fail(e.message); }
+        }
+
         async function load() {
           try {
             el('alert').hidden = true;
@@ -417,13 +617,17 @@
           } catch (e) {
             el('orderRows').innerHTML = '<tr><td colspan="8" class="muted">불러오지 못했습니다.</td></tr>';
             fail(e.message);
+            return;
           }
+          await loadRequests();
+          renderOrders();
         }
 
         async function open(orderId) {
           try {
             el('alert').hidden = true;
             state.current = orderId;
+            state.events = null;
             state.detail = await api('/orders/' + encodeURIComponent(orderId));
             // 목록의 원가 합계도 채워 한눈에 보이게 한다
             var row = state.orders.find(function (o) { return o.id === orderId; });
@@ -434,19 +638,24 @@
             renderFeedback();
             await loadCounterparties();
             renderCounterparties();
+            await loadEvents();
+            renderStatus();
+            renderOrders();
           } catch (e) { fail(e.message); }
         }
 
         async function saveOrder() {
           if (!state.current) return;
           try {
-            var patch = { status: el('selStatus').value };
+            // 상태는 [상태 바꾸기] 로만 바꾼다 — 규칙 · 사유 · 대표 승인을 거친다
+            var patch = {};
             // 수금 일정이 있으면 수금액은 일정이 맞춘다 — 보내지 않는다
             if (!el('inpReceived').readOnly) patch.received_amount = Number(el('inpReceived').value) || 0;
             if (!el('lblTier').hidden) patch.price_tier = el('selTier').value || null;
             // 거래처 칸이 보일 때만 싣는다. 구분을 고객으로 바꾸면 붙였던 거래처를 뗀다
             if (!el('lblPartner').hidden) patch.partner_id = el('selPartner').value || null;
             else if (patch.price_tier === 'customer' && state.detail && state.detail.order.partner_id) patch.partner_id = null;
+            if (!Object.keys(patch).length) { note('저장할 것이 없습니다.'); return; }
             await api('/orders/' + encodeURIComponent(state.current), { method: 'PATCH', body: patch });
             note('수주 정보를 저장했습니다.');
             await load();
@@ -756,9 +965,11 @@
 
         el('btnReload').addEventListener('click', load);
         el('btnClose').addEventListener('click', function () {
-          state.current = null; state.detail = null; renderDetail();
+          state.current = null; state.detail = null; state.events = null; renderDetail(); renderOrders();
         });
         el('btnSaveOrder').addEventListener('click', saveOrder);
+        el('btnStatus').addEventListener('click', changeStatus);
+        el('selStatus').addEventListener('change', onStatusPick);
         el('btnAddCost').addEventListener('click', addCost);
         el('btnAddRework').addEventListener('click', addRework);
         el('btnAddPay').addEventListener('click', addPayment);

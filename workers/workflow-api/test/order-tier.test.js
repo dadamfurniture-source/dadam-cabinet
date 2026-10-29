@@ -118,7 +118,7 @@ const updateRoute = (missing) => (u, method, body) => {
 
 test('수주 고치기: 구분을 바꾼다 · 모르는 값은 거절', async () => {
   await withFetch(updateRoute(false), async (calls) => {
-    const o = await updateOrder(ENV, { orderId: 'O1', user: { id: 'U1' }, patch: { price_tier: 'partner' } });
+    const { order: o } = await updateOrder(ENV, { orderId: 'O1', user: { id: 'U1' }, patch: { price_tier: 'partner' } });
     assert.equal(o.price_tier, 'partner');
     assert.deepEqual(calls.find((c) => c.method === 'PATCH').body, { price_tier: 'partner' });
     await assert.rejects(updateOrder(ENV, { orderId: 'O1', user: { id: 'U1' }, patch: { price_tier: 'vip' } }), /customer, partner/);

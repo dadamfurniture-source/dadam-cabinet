@@ -4,7 +4,7 @@
  * workflow-client.js 를 jsdom 에 그대로 올리고 워커는 가짜 fetch 로 대신한다.
  *   - [발행] 한 번 = 저장 확인 → 동결 → 제작(+현장 정보 있으면 설치) 발행
  *   - 같은 스냅샷이면 다시 발행하지 않는다
- *   - 고객 승인 전이면 사유를 받아 특기사항(instructions)에 남기고, 취소하면 발행하지 않는다
+ *   - 고객 승인 전이면 사유를 받아 early_reason 으로 보내고(서버가 기록 · 특기사항에 남긴다), 취소하면 발행하지 않는다
  *   - 꾸러미 카드 [인쇄] = /documents/:id/print?pack=
  */
 const fs = require('fs');
@@ -119,7 +119,9 @@ describe('[발행]', () => {
     expect(w.calls.some((c) => c.method === 'POST' && c.u === '/designs/D1/snapshots')).toBe(true);
     const wo = posts(w, 'work_order');
     expect(wo).toHaveLength(1);
-    expect(wo[0].body.instructions).toBe('고객 승인 전 발행 — 사유: 급한 현장');
+    expect(wo[0].body.early_reason).toBe('급한 현장');
+    // 특기사항 문구는 서버가 사유로 적는다 — 화면이 따로 만들지 않는다
+    expect(wo[0].body.instructions).toBeUndefined();
     expect(posts(w, 'installation_order')).toHaveLength(0);
     expect(p4().querySelector('#wo4Status').textContent).toMatch(/DD-WO-r1 발행 완료/);
     // 제작 꾸러미 7장이 켜지고, 설치 카드는 현장 정보가 없어 꺼진 채
@@ -144,15 +146,28 @@ describe('[발행]', () => {
   });
 
   test('사유를 비우거나 취소하면 발행하지 않는다', async () => {
+    for (const answer of [null, '', '   ']) {
+      const w = fakeWorker();
+      boot(w);
+      window.prompt = jest.fn(() => answer);
+      await window.DadamWorkflow.enterStep4();
+      await settle();
+      document.querySelector('#wo4Issue').click();
+      await settle();
+      expect(posts(w)).toHaveLength(0);
+      expect(document.querySelector('#wo4Status').textContent).toMatch(/발행하지 않았습니다/);
+    }
+  });
+
+  test('사유는 앞뒤 공백을 떼어 보낸다', async () => {
     const w = fakeWorker();
     boot(w);
-    window.prompt = jest.fn(() => null);
+    window.prompt = jest.fn(() => '  자재 먼저 주문  ');
     await window.DadamWorkflow.enterStep4();
     await settle();
     document.querySelector('#wo4Issue').click();
     await settle();
-    expect(posts(w)).toHaveLength(0);
-    expect(document.querySelector('#wo4Status').textContent).toMatch(/발행하지 않았습니다/);
+    expect(posts(w, 'work_order')[0].body).toEqual({ doc_type: 'work_order', early_reason: '자재 먼저 주문' });
   });
 
   test('고객이 승인했으면 사유를 묻지 않고, 현장 정보가 있으면 설치 지시서도 함께', async () => {
@@ -169,6 +184,7 @@ describe('[발행]', () => {
     const wo = posts(w, 'work_order');
     expect(wo).toHaveLength(1);
     expect(wo[0].body.instructions).toBeUndefined();
+    expect(wo[0].body.early_reason).toBeUndefined();
     expect(posts(w, 'installation_order')).toHaveLength(1);
     const io = document.querySelector('[data-wo-print="IO2"]');
     expect(io).not.toBeNull();
