@@ -121,7 +121,7 @@ import {
   getCalibration,
   applyCalibration,
 } from './production/worker-access.js';
-import { runConsultNotices, runPartnerApplicationNotices, CONSULT_NOTICE_CRON } from './consult-notify.js';
+import { runConsultNotices, runPartnerApplicationNotices, isConsultNoticeMinute } from './consult-notify.js';
 import { getMe, registerWorker, listWorkersAdmin, patchWorkerAdmin, listWorkerNotes, addWorkerNote, listWorkerEvents } from './work/workers.js';
 import { createInvite, claimInvite } from './work/invites.js';
 import {
@@ -1052,10 +1052,11 @@ export default {
   },
 
   /**
-   * cron 셋 (wrangler.toml [triggers] crons — 값을 바꾸면 여기 판정도 같이 고칠 것):
-   *   DAILY_BRIEF_CRON    — 평일 아침 7시(KST) 생산 요약 · 월 마감
-   *   CONSULT_NOTICE_CRON — 5분마다 새 상담 · 새 업체 신청 Slack 알림 (src/consult-notify.js)
-   *   PUSH_SEND_CRON      — 1분마다 앱 알림 보내기, 하루 한 번 그 1분에 끝난 알림 정리 (src/push/sender.js)
+   * cron 둘 (wrangler.toml [triggers] crons — 값을 바꾸면 여기 판정도 같이 고칠 것.
+   * 계정 전체 cron 개수 한도(Workers Free 5개) 때문에 1분 cron 하나에 여러 일을 싣는다):
+   *   DAILY_BRIEF_CRON — 평일 아침 7시(KST) 생산 요약 · 월 마감
+   *   PUSH_SEND_CRON   — 1분마다 앱 알림 보내기, 하루 한 번 그 1분에 끝난 알림 정리 (src/push/sender.js),
+   *                      분이 5의 배수면 새 상담 · 새 업체 신청 Slack 알림 (src/consult-notify.js)
    */
   async scheduled(event, env, ctx) {
     if (event.cron === PUSH_SEND_CRON) {
@@ -1067,16 +1068,15 @@ export default {
           runPushCleanup(env, { nowMs: event.scheduledTime }).catch((e) => console.error('push cleanup failed:', e && e.statusCode ? e.statusCode : 'error')),
         );
       }
-      return;
-    }
-    if (event.cron === CONSULT_NOTICE_CRON) {
-      ctx.waitUntil(
-        runConsultNotices(env).catch((e) => console.error('consultation notice failed:', e && e.message)),
-      );
-      // 새 업체 신청은 따로 — 실패해도 상담 알림은 그대로 돈다
-      ctx.waitUntil(
-        runPartnerApplicationNotices(env).catch((e) => console.error('partner application notice failed:', e && e.message)),
-      );
+      if (isConsultNoticeMinute(event.scheduledTime)) {
+        ctx.waitUntil(
+          runConsultNotices(env).catch((e) => console.error('consultation notice failed:', e && e.message)),
+        );
+        // 새 업체 신청은 따로 — 실패해도 상담 알림은 그대로 돈다
+        ctx.waitUntil(
+          runPartnerApplicationNotices(env).catch((e) => console.error('partner application notice failed:', e && e.message)),
+        );
+      }
       return;
     }
     if (event.cron !== DAILY_BRIEF_CRON) {
