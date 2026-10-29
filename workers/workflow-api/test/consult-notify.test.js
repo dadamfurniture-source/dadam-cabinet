@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import worker, { DAILY_BRIEF_CRON } from '../src/worker.js';
 import {
-  CONSULT_NOTICE_CRON, FRESH_WINDOW_MS, CLAIM_LIMIT,
+  CONSULT_NOTICE_EVERY_MIN, isConsultNoticeMinute, FRESH_WINDOW_MS, CLAIM_LIMIT,
   TYPE_LABELS, FURNITURE_LABELS, APP_KIND_LABELS, TIME_LABELS, SIDO,
   buildConsultNotice, noticeLines, itemLabel, regionLabel, contactLabel, isFromApp, consultAdminUrl, runConsultNotices,
 } from '../src/consult-notify.js';
@@ -277,42 +277,63 @@ test('DB 함수가 없거나 실패하면 Slack 에 보내지 않고 상태 · �
 
 // ── cron ───────────────────────────────────────────────
 
-test('wrangler.toml crons = 생산 요약 · 새 상담 알림 · 앱 알림 세 개, scheduled() 판정 값과 같다', () => {
+test('wrangler.toml crons = 생산 요약 · 1분(앱 알림 + 5분마다 새 상담) 두 개, scheduled() 판정 값과 같다', () => {
   const toml = readRepo('workers/workflow-api/wrangler.toml');
   const m = toml.match(/^crons\s*=\s*\[(.*)\]\s*$/m);
   assert.ok(m, 'crons 줄');
   const crons = [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
-  assert.deepEqual(crons, [DAILY_BRIEF_CRON, CONSULT_NOTICE_CRON, PUSH_SEND_CRON]);
-  assert.equal(CONSULT_NOTICE_CRON, '*/5 * * * *');
+  // 계정 전체 cron 한도(Workers Free 5개) — 이 워커는 둘만 쓴다
+  assert.deepEqual(crons, [DAILY_BRIEF_CRON, PUSH_SEND_CRON]);
+  assert.equal(CONSULT_NOTICE_EVERY_MIN, 5);
 });
 
-async function runScheduled(cron) {
+test('isConsultNoticeMinute: 분이 5의 배수일 때만', () => {
+  const at = (hhmm) => Date.parse(`2026-10-29T${hhmm}:00Z`);
+  for (const t of ['00:00', '03:05', '05:30', '23:55']) assert.equal(isConsultNoticeMinute(at(t)), true, t);
+  for (const t of ['00:01', '03:04', '05:31', '23:59']) assert.equal(isConsultNoticeMinute(at(t)), false, t);
+});
+
+async function runScheduled(cron, scheduledTime = NOW) {
   const waits = [];
   const ctx = { waitUntil: (p) => waits.push(p) };
   return withLogs(() =>
-    withFetch((c) => (isRpc(c) ? json({ stale: 0, rows: [] }) : c.url.includes('/rest/v1/') ? json([]) : null), async (calls) => {
-      await worker.scheduled({ cron, scheduledTime: NOW }, ENV, ctx);
-      await Promise.all(waits);
-      return { calls, waits: waits.length };
-    }),
+    withFetch(
+      (c) => (c.url.endsWith('/rpc/claim_notifications') ? json([]) : isRpc(c) ? json({ stale: 0, rows: [] }) : c.url.includes('/rest/v1/') ? json([]) : null),
+      async (calls) => {
+        await worker.scheduled({ cron, scheduledTime }, ENV, ctx);
+        await Promise.all(waits);
+        return { calls, waits: waits.length };
+      },
+    ),
   );
 }
 
-test('scheduled(): 5분 cron 은 새 상담 · 새 업체 신청 알림만(따로 돈다), 아침 cron 은 생산 요약만, 모르는 cron 은 아무것도', async () => {
-  const consult = (await runScheduled(CONSULT_NOTICE_CRON)).out;
-  assert.equal(consult.waits, 2);
-  assert.deepEqual(consult.calls.map((c) => c.url).sort(), [
+test('scheduled(): 1분 cron 은 앱 알림 + 5분마다 새 상담 · 새 업체 신청 알림(따로 돈다), 아침 cron 은 생산 요약만, 모르는 cron 은 아무것도', async () => {
+  const CONSULT_RPCS = [
     'https://x.supabase.co/rest/v1/rpc/claim_consultation_notices',
     'https://x.supabase.co/rest/v1/rpc/claim_partner_application_notices',
-  ]);
+  ];
+  // NOW = 05:30Z — 5의 배수 분
+  const minute5 = (await runScheduled(PUSH_SEND_CRON, NOW)).out;
+  assert.equal(minute5.waits, 3);
+  const urls5 = minute5.calls.map((c) => c.url);
+  // 앱 알림 보내기도 같은 실행에서 돈다(waits 3) — 여기 ENV 에는 서명 키가 없어 DB 까지 가지 않는다 (push-sender.test.js 가 본다)
+  for (const u of CONSULT_RPCS) assert.ok(urls5.includes(u), u);
+
+  const minute3 = (await runScheduled(PUSH_SEND_CRON, NOW + 3 * 60 * 1000)).out;
+  assert.equal(minute3.waits, 1);
+  assert.ok(!minute3.calls.some((c) => CONSULT_RPCS.includes(c.url)));
 
   const daily = (await runScheduled(DAILY_BRIEF_CRON)).out;
   assert.equal(daily.waits, 2);
   assert.equal(daily.calls.filter(isRpc).length, 0);
 
-  const unknown = await runScheduled('0 0 * * *');
-  assert.equal(unknown.out.waits, 0);
-  assert.equal(unknown.out.calls.length, 0);
+  // 예전 5분 cron 값은 이제 모르는 cron
+  for (const cron of ['0 0 * * *', '*/5 * * * *']) {
+    const unknown = await runScheduled(cron);
+    assert.equal(unknown.out.waits, 0);
+    assert.equal(unknown.out.calls.length, 0);
+  }
 });
 
 // ── 값 목록이 화면 · 생성 워커와 같다 ──────────────────
