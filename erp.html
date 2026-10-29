@@ -487,14 +487,15 @@
           var ev = state.events;
           el('curStatus').textContent = STATUS_LABELS[d.order.status] || d.order.status;
           el('pendingBadge').hidden = !(ev && ev.pending);
-          var moves = (ev && ev.moves) || [];
+          // 기다리는 요청이 있으면 누구도(대표도) 상태를 못 바꾼다 — 워커가 409 pending_exists 를 준다
+          var moves = ev && !ev.pending ? ev.moves || [] : [];
           el('selStatus').innerHTML = moves.length
             ? '<option value="">고르기</option>' + moves
               .map(function (m) {
                 return '<option value="' + esc(m.to) + '">' + esc(m.label + (m.request ? ' — 대표 승인 요청' : '')) + '</option>';
               })
               .join('')
-            : '<option value="">없음</option>';
+            : '<option value="">' + (ev && ev.pending ? '승인 기다림' : '없음') + '</option>';
           el('selStatus').disabled = !moves.length;
           el('inpStatusReason').value = '';
           onStatusPick();
@@ -517,7 +518,10 @@
           if (!ev) hint = '바꿀 수 있는 상태를 불러오지 못했습니다. 새로고침해 주세요.';
           else if (m && m.request) hint = '대표가 승인하면 바뀝니다. 그 전까지 수주는 그대로입니다.';
           else if (m && m.reason_required) hint = '사유를 적어야 바꿀 수 있습니다.';
-          else if (ev.pending) hint = '대표 승인을 기다리는 요청: ' + moveText(ev.pending) + (ev.pending.reason ? ' · ' + ev.pending.reason : '');
+          else if (ev.pending) {
+            hint = '대표 승인을 기다리는 요청: ' + moveText(ev.pending) + (ev.pending.reason ? ' · ' + ev.pending.reason : '') +
+              ' — 승인 · 반려 전에는 상태를 바꿀 수 없습니다.';
+          }
           el('statusHint').textContent = hint;
         }
 

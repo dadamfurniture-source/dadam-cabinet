@@ -12,7 +12,8 @@ import worker from '../src/worker.js';
 import { clearAdminCache } from '../src/reports/admin.js';
 import { computeJobStatus, pickNextJob } from '../src/work/jobs.js';
 import { effectiveStatus, jobCard, jobDetail, findForbiddenKeys, FORBIDDEN_KEYS, SITE_NOTE } from '../src/work/reveal.js';
-import { buildWorkSlack } from '../src/work/notify.js';
+import { buildWorkSlack, notifyWork } from '../src/work/notify.js';
+import { clearHqCompanyCache } from '../src/supabase.js';
 import { hashInviteToken } from '../src/work/invites.js';
 import { HQ, PARTNER } from './fixtures/company.js';
 
@@ -54,7 +55,8 @@ const clone = (v) => JSON.parse(JSON.stringify(v));
 const DEFAULTS = {
   workers: () => ({ phone: null, kinds: [], region_label: null, status: 'pending', photo_consent: false, approved_by: null, approved_at: null, reject_reason: null, invited_via: null, last_seen_at: null, updated_at: new Date().toISOString() }),
   worker_invites: () => ({ kinds_preset: [], display_name_preset: null, used_at: null, used_by: null, created_by: null }),
-  work_jobs: () => ({ status: 'draft', detail: null, region_label: null, starts_at: null, ends_at: null, apply_deadline: null, slots: 1, mode: 'open', pay_amount: null, pay_unit: null, pay_visible: false, order_id: null, design_id: null, version: 0, cancel_reason: null, updated_at: new Date().toISOString() }),
+  // company_id — DB 기본값(본사, 0006 work_jobs.company_id DEFAULT hq_company_id()) 그대로
+  work_jobs: () => ({ company_id: HQ, status: 'draft', detail: null, region_label: null, starts_at: null, ends_at: null, apply_deadline: null, slots: 1, mode: 'open', pay_amount: null, pay_unit: null, pay_visible: false, order_id: null, design_id: null, version: 0, cancel_reason: null, updated_at: new Date().toISOString() }),
   work_applications: () => ({ status: 'applied', message: null, decided_by: null, decided_at: null, decide_reason: null }),
   work_assignments: () => ({ application_id: null, started_at: null, submitted_at: null, accepted_at: null, revision_count: 0, no_show: false, release_reason: null, updated_at: new Date().toISOString() }),
   work_updates: () => ({ assignment_id: null, issue_chips: [], amends_id: null, visible_to_worker: true }),
@@ -206,12 +208,14 @@ function seed(db) {
     { ...base, id: WP, user_id: U_PEND, display_name: '시험대기', phone: null, kinds: ['install'], status: 'pending', approved_at: null },
   ];
   db.tables.orders = [{ id: ORDER, order_no: 'DD-TEST-1', customer_name: CUSTOMER_NAME, contract_amount: 9900000, company_id: HQ }];
+  db.tables.companies = [{ id: HQ, kind: 'hq' }, { id: PARTNER, kind: 'partner' }];
 }
 
 let db;
 const originalFetch = globalThis.fetch;
 beforeEach(() => {
   clearAdminCache();
+  clearHqCompanyCache();
   db = makeDb();
   seed(db);
   globalThis.fetch = db.fetch;
@@ -678,6 +682,50 @@ test('Slack — 신청 · 철회 · 거절 · 포기 · 완료 · 문제 보고,
   }
   assert.ok(all.includes(`https://dadam.test/admin/work-jobs.html?job=${job.id}`));
   assert.ok(texts.every((t) => t.startsWith('[작업자 포털]')));
+});
+
+test('Slack — 본사 작업만: 협력업체 작업(협력업체 주문에서 만든 것)의 신청 · 철회 · 거절 · 포기 · 완료 · 문제 보고는 보내지 않는다', async () => {
+  const PARTNER_ORDER = 'e0000000-0000-4000-8000-0000000000bb';
+  db.tables.orders.push({ id: PARTNER_ORDER, order_no: 'DD-TEST-P', customer_name: '시험고객', contract_amount: 1, company_id: PARTNER });
+  const job = await makeJob({ order_id: PARTNER_ORDER, title: '협력업체 설치' });
+  assert.equal(rowOf('work_jobs', job.id).company_id, PARTNER);
+  const a2 = await call('POST', `/work/jobs/${job.id}/apply`, { token: 'tok-w2', body: {} });
+  assert.equal(a2.status, 201);
+  await call('POST', `/work/applications/${a2.data.id}/withdraw`, { token: 'tok-w2' });
+  const asg = await assign(job, 'tok-w1');
+  await call('POST', `/work/assignments/${asg.id}/start`, { token: 'tok-w1' });
+  await call('POST', `/work/assignments/${asg.id}/updates`, { token: 'tok-w1', body: { kind: 'issue', body: '문제', issue_chips: ['현장 조건 다름'] } });
+  assert.equal((await call('POST', `/work/assignments/${asg.id}/updates`, { token: 'tok-w1', body: { kind: 'result', body: '완료' } })).status, 201);
+
+  const direct = await makeJob({ mode: 'direct', title: '협력업체 지정', order_id: PARTNER_ORDER });
+  const offer = await call('POST', `/work/admin/jobs/${direct.id}/invite`, { token: 'tok-admin', body: { worker_id: W2 } });
+  assert.equal((await call('POST', `/work/assignments/${offer.data.id}/decline`, { token: 'tok-w2', body: { reason: '일정' } })).data.status, 'declined');
+  const third = await makeJob({ title: '협력업체 포기', order_id: PARTNER_ORDER });
+  const asg3 = await assign(third, 'tok-w2');
+  assert.equal((await call('POST', `/work/assignments/${asg3.id}/release`, { token: 'tok-w2', body: { reason: '사정' } })).data.status, 'released');
+
+  assert.deepEqual(db.slack, [], '협력업체 작업은 본사 Slack 으로 가지 않는다');
+
+  // 같은 흐름이라도 본사 작업이면 보낸다 · 작업이 없는 가입 신청은 그대로
+  const hqJob = await makeJob({ order_id: ORDER, title: '본사 설치' });
+  await call('POST', `/work/jobs/${hqJob.id}/apply`, { token: 'tok-w2', body: {} });
+  const reg = await call('POST', '/work/register', { token: 'tok-cust', body: { display_name: '시험신청', phone: '010-0000-0009', kinds: ['install'], region_label: '시험시', consent_version: 'v1', photo_consent: false } });
+  assert.equal(reg.status, 201);
+  assert.deepEqual(db.slack.map((p) => p.text.split(' — ')[0]), ['[작업자 포털] 작업 신청', '[작업자 포털] 작업자 가입 신청']);
+});
+
+test('notifyWork — 작업 업체를 모르면 보내지 않는다, 본사 작업 · 작업 없음은 보낸다', async () => {
+  await notifyWork(ENV, null, 'application_created', { job: { id: 'j1', kind: 'install', title: '업체 모름' }, workerName: 'A' });
+  await notifyWork(ENV, null, 'application_created', { job: { id: 'j2', kind: 'install', title: '협력', company_id: PARTNER }, workerName: 'A' });
+  assert.equal(db.slack.length, 0);
+  await notifyWork(ENV, null, 'application_created', { job: { id: 'j3', kind: 'install', title: '본사', company_id: HQ }, workerName: 'A' });
+  await notifyWork(ENV, null, 'worker_registered', { workerName: 'B' });
+  assert.equal(db.slack.length, 2);
+  // 본사 행을 못 찾아도 던지지 않는다 (보내지도 않는다)
+  clearHqCompanyCache();
+  db.tables.companies = [];
+  await notifyWork(ENV, null, 'issue_reported', { job: { id: 'j4', kind: 'install', title: '본사', company_id: HQ } });
+  assert.equal(db.slack.length, 2);
 });
 
 test('직접 지정 — 승인 · 종류 맞는 작업자만, 수락하면 정원에 들고 정원이 찼으면 수락 409', async () => {

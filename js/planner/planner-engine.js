@@ -136,6 +136,8 @@ const MASTER_RULES = {
   DOOR_SEAT_D: 20,
   // 2026-10-20 사장님 확정: 냉장고 위 상부장 몸통 깊이 = 좌우 EP 깊이 − 25, 싱크대 상부장처럼 벽에 건다
   FRIDGE_UPPER_EP_MINUS: 25,
+  // 2026-10-20 사장님: 냉장고 자리(장 안쪽) 폭 = 냉장고 폭 + 양옆 설치 여유 + **전체 여유 6** (fridgeNicheWidthsOf — 냉장고 수로 등분)
+  FRIDGE_NICHE_EXTRA: 6,
   // 플래너 전용 — 레거시엔 없다. 라인이 선언돼 있지 않아 코너를 좌표로 찾기 때문에,
   // 사람이 손으로 그린 사각형의 어긋남을 얼마까지 코너로 볼지 정해야 한다.
   CORNER_TOUCH_TOL: 20,         // 두 배치 공간이 이 안쪽으로 만나면 코너로 본다
@@ -692,6 +694,74 @@ function autoCalcModule(m, s, applianceRanges) {
                    : 'middle';
 }
 
+// ── 냉장고 자리 — 설치 여유 · 위장 폭 (2026-10-12 · 10-20 사장님) ─────────────────────────────
+// 2026-10-29: 기존 플래너 배치(mockup-shell fridgeGapsOf)와 구조(mockup-structure fridgeNichesOf)에 있던 식을 여기로 옮겼다 —
+//   간편 플래너(dadam-planner-lite)도 같은 식을 쓴다 (사장님 「냉장고 모델 고르기」). 값 · 식은 그대로다.
+
+/**
+ * 브랜드 라인 기본 여유 — js/detaildesign/data-constants.js FRIDGE_RULES.DEFAULT_GAPS 와 같은 수다
+ * (플래너는 그 파일을 읽지 않아 옮겨 적었다 — 바뀌면 같이 고친다). 모델 표(appliance_models side_gap_mm · top_gap_mm)가 정본이고
+ * 비어 있을 때만 쓴다. 설치 가이드를 확인하는 대로 모델 표의 값을 고쳐 나간다.
+ */
+const FRIDGE_DEFAULT_GAPS = {
+  LG_BUILTIN:   { side: 4,  between: 8 },
+  SS_BESPOKE:   { side: 12, between: 10 },
+  SS_INFINITE:  { side: 5,  between: 10 },
+  FREESTANDING: { side: 50, between: 0 },
+};
+
+/** 모델 이름으로 라인을 고른다 — 표에 값이 없을 때만 쓴다 */
+function fridgeLineOf(m) {
+  const s = `${(m && m.brand) || ''} ${(m && m.name) || ''}`;
+  if (s.indexOf('키친핏') >= 0 || /kitchen ?fit/i.test(s)) return 'SS_BESPOKE';
+  if (s.indexOf('인피니트') >= 0 || /infinite/i.test(s)) return 'SS_INFINITE';
+  if (s.indexOf('빌트인') >= 0 || /built-?in|fit ?& ?max/i.test(s)) return 'LG_BUILTIN';
+  return 'FREESTANDING';
+}
+
+/**
+ * 냉장고 **설치 여유** — 위장 폭 = 냉장고 폭 + 양옆 여유 × 2 (2026-10-12 사장님 결정, 예: 10 + 595 + 10).
+ * 2026-10-20 사장님: 빌트인은 **장 안쪽 치수(니치)** 기준. 모델 표에 니치가 있으면
+ *   옆 여유 = (니치 폭 − 냉장고 폭) / 2, 위 여유 = 니치 높이 − 냉장고 높이 로 되돌려 싣는다 —
+ *   구조 단계는 여유만 보므로 '니치 + 전체 여유 6' 이 그대로 나온다 (fridgeNicheWidthsOf).
+ * 니치 = 냉장고 치수(표준 니치 템플릿처럼 겉 치수를 모를 때)면 여유 0 — 기본 여유 50 으로 새지 않게 >=
+ * @param {{brand?, name?, w?, h?, nicheW?, nicheH?, sideGap?, topGap?}} m 모델 (mockup-shell fetchApplianceModels 모양)
+ * @returns {{side:number, top:number}}
+ */
+function fridgeGapsOf(m) {
+  const d = FRIDGE_DEFAULT_GAPS[fridgeLineOf(m)];
+  const num = (v, def) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Number(v) : def);
+  const nw = num(m && m.nicheW, null);
+  const nh = num(m && m.nicheH, null);
+  const side = nw !== null && nw >= num(m && m.w, 0) ? (nw - m.w) / 2 : num(m && m.sideGap, d.side);
+  const top = nh !== null && nh >= num(m && m.h, 0) ? nh - m.h : num(m && m.topGap, MASTER_RULES.FRIDGE_TOP_GAP);
+  return { side, top };
+}
+
+/** 전체 여유를 n 통에 등분 — 정수로, 나머지는 왼쪽 통부터 1씩 (6 ÷ 4 → 2, 2, 1, 1) */
+function fridgeExtraShares(n) {
+  const base = Math.floor(MASTER_RULES.FRIDGE_NICHE_EXTRA / n);
+  const rest = MASTER_RULES.FRIDGE_NICHE_EXTRA - base * n;
+  return Array.from({ length: n }, (_, i) => base + (i < rest ? 1 : 0));
+}
+
+/**
+ * 나란히 붙은 냉장고 묶음(한 자리)의 위장 폭 — 냉장고마다 한 통 (2026-10-12 · 10-20 사장님).
+ *   한 대: 여유 + 폭 + 여유 + 전체 여유 6 (10 + 595 + 10 + 6 = 621).
+ *   여러 대: 사이 여유는 양쪽 중 큰 값 하나 — 반씩 나눠 갖고(홀수면 왼쪽이 내림), 전체 여유 6 은 냉장고 수로 등분 (fridgeExtraShares).
+ * @param {{w:number, side:number}[]} units 왼쪽부터 (side = fridgeGapsOf 옆 여유)
+ * @returns {number[]} 통마다 위장 폭
+ */
+function fridgeNicheWidthsOf(units) {
+  const g = units || [];
+  const extra = fridgeExtraShares(g.length || 1);
+  return g.map((it, i) => {
+    const left = i === 0 ? it.side : Math.ceil(Math.max(g[i - 1].side, it.side) / 2);
+    const right = i === g.length - 1 ? it.side : Math.floor(Math.max(it.side, g[i + 1].side) / 2);
+    return left + it.w + right + extra[i];
+  });
+}
+
 // 브라우저에서는 클래식 스크립트의 최상위 선언이 전역 렉시컬 스코프에 올라가
 // 뒤따르는 인라인이 그대로 참조한다. 하지만 테스트 하네스는 스크립트마다
 // 함수 스코프를 만들기 때문에 그 연결이 끊긴다 — window 에 실어야 인라인이 찾는다.
@@ -715,6 +785,10 @@ if (typeof window !== 'undefined') {
   window.cornerAdjAir = cornerAdjAir;       // 2026-10-26 — 옆 라인 끝판이 닿는 멍판 앞면
   window.jointSlack = jointSlack;           // W12-73
   window.spreadGapEqually = spreadGapEqually;
+  window.fridgeLineOf = fridgeLineOf;               // 2026-10-29 — mockup-shell · mockup-structure 에서 옮김
+  window.fridgeGapsOf = fridgeGapsOf;
+  window.fridgeExtraShares = fridgeExtraShares;
+  window.fridgeNicheWidthsOf = fridgeNicheWidthsOf;
 }
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -727,5 +801,6 @@ if (typeof module !== 'undefined' && module.exports) {
     collectXRanges, splitModuleByAppliance, autoCalcModule,
     deriveCornerArea, distributeByDoorW,
     jointSlack, spreadGapEqually,
+    FRIDGE_DEFAULT_GAPS, fridgeLineOf, fridgeGapsOf, fridgeExtraShares, fridgeNicheWidthsOf,
   };
 }

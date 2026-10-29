@@ -1493,8 +1493,11 @@
             const w = Number(m.W) || 0;
             const is2 = Array.isArray(s.areaIs2D) ? s.areaIs2D : [];
             const cells = Math.max(1, (Array.isArray(s.areaWidths) ? s.areaWidths.length : 0) || 1);
+            // 2026-10-29 사장님 (간편 플래너 「도어 있음도 있고, 없음도 있는 걸로」): 칸 타입이 'open' 이면 도어 없는 홈카페장 —
+            //   몸통은 부재표 그대로, 도어 · 경첩이 없다 (bom-homecafe-rules doorOf open). 표시가 없는 모듈의 payload 는 예전과 같다.
+            const hcOpen = Array.isArray(s.areaTypes) && s.areaTypes.length > 0 && s.areaTypes.every((t) => t === 'open');
             let doors = 0;
-            for (let i = 0; i < cells; i++) doors += is2[i] ? 2 : 1;
+            if (!hcOpen) for (let i = 0; i < cells; i++) doors += is2[i] ? 2 : 1;
             out.push({
               id: `planner-${m.id}-homecafe`,
               type: boxType,
@@ -1516,6 +1519,10 @@
               isFixed: !!m.isFixed,
               _x: Number(m.x) || 0,
             });
+            if (hcOpen) out[out.length - 1].homecafeOpen = true;
+            // 2026-10-29: 외짝 도어 경첩 방향 = 칸 열림 방향 좌 ◀ / 우 ▶ (셀 도어와 같은 2026-10-23 4-1 C — 조립 명세가 경첩 컵 자리를 그 변에)
+            const hcDirs = Array.isArray(s.areaDirections) ? s.areaDirections : [];
+            if (doors === 1 && (hcDirs[0] === 'left' || hcDirs[0] === 'right')) out[out.length - 1].hingeSide = hcDirs[0];
             placeLast(m, 0, w);
             return;
           }
@@ -1727,6 +1734,15 @@
             // 2026-10-29 사장님 (신발장): 키큰장 도어 전신거울 — 구조 s.mirror 'single'(외짝) · 'left' | 'right'(양문의 그 짝). BOM 이 거울 5T 를 낸다
             //   (extractors.js BOM_MIRROR — 도어 사방 여백 50). 표시가 없는 모듈의 payload 는 예전과 같다.
             if (!isWardrobe && !isOpen && s && ['single', 'left', 'right'].indexOf(s.mirror) >= 0) out[out.length - 1].mirror = s.mirror;
+            // 2026-10-29 사장님 (간편 플래너 석가 · 속서랍 · 선반 단추 — bom-interior-rules.js): 구조 s.interior { mids: [석가 중심 y], inner: 속서랍 단수 }.
+            //   있으면 사람이 속을 정한 모듈이다 — BOM 이 선반 수도 구조(s.shelves) 그대로 낸다 (싱크 상부 2 · 하부 1 고정 대신).
+            //   서랍 · 오픈 칸 · 붙박이장에는 싣지 않는다 (서랍장 · 오픈장 · 통 구조 규칙이 속을 정한다). 표시가 없는 모듈의 payload 는 예전과 같다.
+            if (!isWardrobe && !isOpen && !drawerAtBottom && s && s.interior && typeof s.interior === 'object') {
+              out[out.length - 1].interior = {
+                mids: (Array.isArray(s.interior.mids) ? s.interior.mids : []).map(Number).filter(Number.isFinite),
+                inner: Math.max(0, parseInt(s.interior.inner, 10) || 0),
+              };
+            }
             // 2026-09-16: 전면 배분식의 기준높이는 **배치(영역) 높이**다 — 플래너가 payload 에 실어 보낸다.
             //   없으면 BOM 이 totalH(모듈 전체 높이) 로 떨어진다. 옛 저장 설계가 그 경우다.
             if (Number(m.areaH) > 0) out[out.length - 1].areaH = Number(m.areaH);

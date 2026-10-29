@@ -192,10 +192,21 @@ function fakeDb({ orders = [], events = [], failEventInsert = false } = {}) {
       }
       return json(hit.map((e) => ({ ...e })));
     }
+    // 다시 계획하기(생산 계획 · 제안 · 보관함) — 읽으면 비어 있고, 쓰기는 받은 그대로
+    if (/^production_/.test(table) || ['company_settings', 'work_reports', 'design_snapshots', 'design_schedules'].includes(table)) {
+      if (method === 'POST') {
+        db.seq += 1;
+        return json([{ id: `${table}-${db.seq}`, ...(Array.isArray(body) ? body[0] : body) }], 201);
+      }
+      return json([]);
+    }
     return null;
   };
   return db;
 }
+
+/** 다시 계획하기가 남긴 생산 계획 제안 (POST production_proposals) */
+const proposalPosts = (calls) => calls.filter((c) => c.method === 'POST' && c.url.split('?')[0].endsWith('/production_proposals'));
 
 async function withFetch(route, fn) {
   const original = globalThis.fetch;
@@ -300,7 +311,7 @@ test('날짜 — 배송 · 완료에 들어가면 찍고, 완료에서 나가면
   assert.deepEqual(statusClears('completed', 'delivered'), { completed_at: null });
   assert.deepEqual(statusClears('delivered', 'in_production'), { delivered_at: null });
   assert.deepEqual(statusClears('delivered', 'cancelled'), {});
-  assert.deepEqual(statusClears('cancelled', 'confirmed'), {});
+  assert.deepEqual(statusClears('cancelled', 'confirmed'), { delivered_at: null }, '되살리면 배송일을 지운다');
 });
 
 // ── PATCH /orders/:id — 짝마다 ────────────────────────────────────
@@ -419,6 +430,157 @@ test('한 수주에 기다리는 요청은 하나 — 두 번째는 409 pending_
   assert.equal(second.body.code, 'pending_exists');
   assert.equal(db.events.length, 1);
   assert.ok(!second.calls.some((c) => c.method === 'POST'));
+});
+
+test('기다리는 요청이 있으면 누구도(대표도) 상태를 못 바꾼다 — 409 pending_exists, 아무것도 쓰지 않는다', async () => {
+  const cases = [
+    // [수주 상태, 요청 (from → to), 그 사이 시도하는 바꾸기]
+    ['completed', 'delivered', [[P_OWNER, 'delivered', '대표가 직접'], [P_STAFF, 'delivered', '같은 요청 다시'], [P_MANAGER, 'delivered', '실장']]],
+    ['cancelled', 'confirmed', [[P_OWNER, 'confirmed', '대표가 직접 되살리기']]],
+  ];
+  for (const [from, to, tries] of cases) {
+    const db = fakeDb({ orders: [partnerOrder(from)] });
+    const req = await patchOrder(db, P_STAFF, { status: to, reason: '첫 요청' });
+    assert.equal(req.status, 202);
+    for (const [who, target, reason] of tries) {
+      const r = await patchOrder(db, who, { status: target, reason });
+      assert.equal(r.status, 409, `${who} ${from} → ${target}`);
+      assert.equal(r.body.code, 'pending_exists', who);
+      assert.equal(r.body.message, '기다리는 요청을 먼저 승인 · 반려해 주세요', who);
+      assert.equal(writes(r.calls).length, 0, `${who} 쓰기 없음`);
+    }
+    assert.equal(db.order('O1').status, from, '수주는 그대로');
+    assert.equal(db.events.length, 1, '요청 한 줄뿐');
+    assert.equal(db.events[0].state, 'pending');
+  }
+
+  // 사유가 필요 없는 앞으로 가기도 — 다른 경로로 생산 중이 된 수주에 기다리는 요청이 남아 있다
+  const db = fakeDb({
+    orders: [partnerOrder('in_production')],
+    events: [{ id: 'E0', company_id: PARTNER, order_id: 'O1', kind: 'revive', from_status: 'cancelled', to_status: 'confirmed', reason: '다시', state: 'pending', requested_by: P_STAFF, created_at: '2026-10-28T00:00:00Z' }],
+  });
+  for (const [who, target, reason] of [[P_OWNER, 'delivered'], [HQ_OWNER, 'delivered'], [P_STAFF, 'cancelled', '취소'], [P_OWNER, 'confirmed', '한 단계 뒤로']]) {
+    const r = await patchOrder(db, who, { status: target, reason });
+    if (who === HQ_OWNER) {
+      assert.equal(r.status, 403, '다른 업체는 수주를 못 본다');
+      continue;
+    }
+    assert.equal(r.status, 409, `${who} → ${target}`);
+    assert.equal(r.body.code, 'pending_exists');
+    assert.equal(writes(r.calls).length, 0);
+  }
+  assert.equal(db.order('O1').status, 'in_production');
+
+  // 상태가 아닌 칸(메모)은 그대로 고친다 · 지금 상태 그대로 보낸 것도 바꾸기가 아니다
+  const note = await patchOrder(db, P_STAFF, { note: '메모' });
+  assert.equal(note.status, 200);
+  assert.equal(db.order('O1').note, '메모');
+  assert.equal((await patchOrder(db, P_STAFF, { status: 'in_production' })).status, 200);
+
+  // 반려하면 다시 바꿀 수 있다
+  const rejected = await call(db, '/order-events/E0/decide', P_OWNER, { method: 'POST', body: { decision: 'rejected' } });
+  assert.equal(rejected.status, 200);
+  const after = await patchOrder(db, P_OWNER, { status: 'delivered' });
+  assert.equal(after.status, 200, after.body.message);
+  assert.equal(db.order('O1').status, 'delivered');
+  assert.deepEqual(db.violations, []);
+});
+
+test('승인하면 다시 바꿀 수 있다 — 기다리는 요청이 없어진다', async () => {
+  const db = fakeDb({ orders: [partnerOrder('completed')] });
+  const req = await patchOrder(db, P_STAFF, { status: 'delivered', reason: '하자' });
+  assert.equal((await patchOrder(db, P_OWNER, { status: 'delivered', reason: '직접' })).status, 409, '요청 중에는 대표도 막힌다');
+  const ok =await call(db, `/order-events/${req.body.data.id}/decide`, P_OWNER, { method: 'POST', body: { decision: 'approved' } });
+  assert.equal(ok.status, 200);
+  assert.equal(db.order('O1').status, 'delivered');
+  const next = await patchOrder(db, P_STAFF, { status: 'completed' });
+  assert.equal(next.status, 200, next.body.message);
+  assert.equal(db.order('O1').status, 'completed');
+});
+
+test('되살리기(취소 → 접수) — 배송일을 지운다 (대표가 바로 · 승인으로)', async () => {
+  // 배송 뒤에 취소된 수주 — 배송일이 남아 있다
+  const cancelledAfterDelivery = () => partnerOrder('cancelled', { delivered_at: '2026-10-20T00:00:00.000Z' });
+  let db = fakeDb({ orders: [cancelledAfterDelivery()] });
+  const direct = await patchOrder(db, P_OWNER, { status: 'confirmed', reason: '고객이 다시 원함' });
+  assert.equal(direct.status, 200, direct.body.message);
+  assert.equal(db.order('O1').status, 'confirmed');
+  assert.equal(db.order('O1').delivered_at, null);
+  assert.equal(db.order('O1').completed_at, null);
+  assert.equal(direct.calls.find((c) => c.method === 'PATCH' && c.url.includes('/orders?')).body.delivered_at, null);
+
+  // 배송일을 같이 보내도 지운다 (상태 규칙이 앞선다)
+  db = fakeDb({ orders: [cancelledAfterDelivery()] });
+  await patchOrder(db, P_OWNER, { status: 'confirmed', reason: '다시', delivered_at: '2026-10-21' });
+  assert.equal(db.order('O1').delivered_at, null);
+
+  db = fakeDb({ orders: [cancelledAfterDelivery()] });
+  const req = await patchOrder(db, P_STAFF, { status: 'confirmed', reason: '다시 진행' });
+  assert.equal(req.status, 202);
+  assert.equal(db.order('O1').delivered_at, '2026-10-20T00:00:00.000Z', '요청만으로는 그대로');
+  const ok = await call(db, `/order-events/${req.body.data.id}/decide`, P_OWNER, { method: 'POST', body: { decision: 'approved' } });
+  assert.equal(ok.status, 200, ok.body.message);
+  assert.equal(db.order('O1').status, 'confirmed');
+  assert.equal(db.order('O1').delivered_at, null);
+  assert.equal(ok.body.data.order.delivered_at, null);
+  assert.deepEqual(db.violations, []);
+});
+
+test('되살리기가 적용되면 취소 때처럼 다시 계획한다 — 본사 수주일 때만 (대표가 바로 · 승인으로)', async () => {
+  const hqOrder = () => partnerOrder('cancelled', { design_id: 'd-hq', company_id: HQ });
+
+  // 본사 대표가 바로
+  let db = fakeDb({ orders: [hqOrder()] });
+  const direct = await patchOrder(db, HQ_OWNER, { status: 'confirmed', reason: '다시 진행' });
+  assert.equal(direct.status, 200, direct.body.message);
+  const plan = proposalPosts(direct.calls);
+  assert.equal(plan.length, 1, '다시 계획한다');
+  assert.equal(plan[0].body.user_id, HQ_OWNER);
+  assert.equal(plan[0].body.trigger, 'manual', '취소 때와 같은 방식');
+  assert.equal(plan[0].body.plan.triggerLabel, '수주 되살리기 SO-20261001-AAAA');
+
+  // 본사 직원이 요청 → 요청만으로는 계획하지 않는다 → 대표가 승인하면 그때
+  db = fakeDb({ orders: [hqOrder()] });
+  const req = await patchOrder(db, HQ_STAFF, { status: 'confirmed', reason: '다시 진행' });
+  assert.equal(req.status, 202);
+  assert.equal(proposalPosts(req.calls).length, 0);
+  const approved = await call(db, `/order-events/${req.body.data.id}/decide`, HQ_OWNER, { method: 'POST', body: { decision: 'approved' } });
+  assert.equal(approved.status, 200, approved.body.message);
+  assert.equal(proposalPosts(approved.calls).length, 1);
+  assert.equal(proposalPosts(approved.calls)[0].body.user_id, HQ_OWNER, '승인한 사람으로 계획한다');
+
+  // 반려 — 계획하지 않는다
+  db = fakeDb({ orders: [hqOrder()] });
+  const req2 = await patchOrder(db, HQ_STAFF, { status: 'confirmed', reason: '다시 진행' });
+  const rejected = await call(db, `/order-events/${req2.body.data.id}/decide`, HQ_OWNER, { method: 'POST', body: { decision: 'rejected' } });
+  assert.equal(rejected.status, 200);
+  assert.equal(proposalPosts(rejected.calls).length, 0);
+
+  // 완료 되돌리기 승인 — 되살리기가 아니라 계획하지 않는다 (예전 그대로)
+  db = fakeDb({ orders: [partnerOrder('completed', { design_id: 'd-hq', company_id: HQ })] });
+  const req3 = await patchOrder(db, HQ_STAFF, { status: 'delivered', reason: '하자' });
+  const revert = await call(db, `/order-events/${req3.body.data.id}/decide`, HQ_OWNER, { method: 'POST', body: { decision: 'approved' } });
+  assert.equal(revert.status, 200);
+  assert.equal(proposalPosts(revert.calls).length, 0);
+
+  // 협력업체 수주 — 본사 계획을 건드리지 않는다 (바로 · 승인 모두)
+  db = fakeDb({ orders: [partnerOrder('cancelled')] });
+  const partnerDirect = await patchOrder(db, P_OWNER, { status: 'confirmed', reason: '다시' });
+  assert.equal(partnerDirect.status, 200);
+  assert.ok(!partnerDirect.calls.some((c) => c.url.includes('/production_')));
+  db = fakeDb({ orders: [partnerOrder('cancelled')] });
+  const partnerReq = await patchOrder(db, P_STAFF, { status: 'confirmed', reason: '다시' });
+  const partnerOk = await call(db, `/order-events/${partnerReq.body.data.id}/decide`, P_OWNER, { method: 'POST', body: { decision: 'approved' } });
+  assert.equal(partnerOk.status, 200);
+  assert.ok(!partnerOk.calls.some((c) => c.url.includes('/production_')));
+});
+
+test('취소하면 다시 계획한다 — 본사 수주 (예전 그대로)', async () => {
+  const db = fakeDb({ orders: [partnerOrder('confirmed', { design_id: 'd-hq', company_id: HQ })] });
+  const r = await patchOrder(db, HQ_STAFF, { status: 'cancelled', reason: '고객 변심' });
+  assert.equal(r.status, 200, r.body.message);
+  assert.equal(proposalPosts(r.calls).length, 1);
+  assert.equal(proposalPosts(r.calls)[0].body.plan.triggerLabel, '수주 취소 SO-20261001-AAAA');
 });
 
 test('승인을 기다리면 같이 보낸 다른 칸도 쓰지 않는다 — 수주는 그대로', async () => {
@@ -567,8 +729,8 @@ test('반려 — rejected, 수주는 그대로. 반려 뒤에는 새 요청을 �
 test('승인할 때 수주 상태가 요청 때와 다르면 409 stale — 요청은 기다림 그대로, 반려는 된다', async () => {
   const db = fakeDb({ orders: [partnerOrder('completed')] });
   const req = await patchOrder(db, P_STAFF, { status: 'delivered', reason: '하자' });
-  // 그 사이 대표가 직접 되돌렸다 (요청이 기다리는 중에도 대표는 바로 바꾼다)
-  assert.equal((await patchOrder(db, P_OWNER, { status: 'delivered', reason: '직접 처리' })).status, 200);
+  // 그 사이 다른 경로로 상태가 바뀌었다 (이 워커의 PATCH 는 기다리는 요청이 있으면 막는다)
+  db.order('O1').status = 'delivered';
   const stale = await call(db, `/order-events/${req.body.data.id}/decide`, P_OWNER, { method: 'POST', body: { decision: 'approved' } });
   assert.equal(stale.status, 409);
   assert.equal(stale.body.code, 'stale');
