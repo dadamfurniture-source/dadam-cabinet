@@ -1395,6 +1395,18 @@
           //   모듈 하나 = 상자 하나이고, 부재는 규칙 파일(bom-open-cabinet-rules.js)이 통째로 낸다.
           //   여기서는 그 표시(moduleKind)와 치수만 넘긴다 — 규칙을 두 군데 적지 않는다.
           //   멍장보다 **먼저** 본다: 오픈장으로 바꾼 모듈에 옛 blind 값이 남아 있어도 도어가 없다.
+          // 2026-10-29 사장님 (신발장 벤치 — "키큰장 사이 벤치 450" · "앉는 판 + 목대"): 몸통이 없다. 표시(moduleKind 'bench')와 치수만 넘기고
+          //   부재(앉는 판 · 목대 · 띄움이면 각파이프)는 BOM 규칙(extractors.js BOM_BENCH)이 낸다. 오픈장보다 먼저 본다.
+          if (s && s.bench) {
+            out.push({
+              id: `planner-${m.id}-0`, type: 'storage', moduleKind: 'bench', name: '벤치', pos: 'lower',
+              w: Number(m.W) || 0, h: Number(m.H) || 0, totalH: Number(m.H) || 0, d: Number(m.D) || 0,
+              doorCount: 0, is2door: false, isDrawer: false, drawerCount: 0, isOpen: false, shelfCount: 0, isEL: false, isFixed: false,
+              _x: Number(m.x) || 0,
+            });
+            placeLast(m, 0, Number(m.W) || 0);
+            return;
+          }
           const OC = _openCabinetRules();
           if (OC && OC.isOpenCabinet(s)) {
             const w = Number(m.W) || 0;
@@ -1712,6 +1724,9 @@
             // 2026-10-23 사장님 4-1 C: 외짝 도어 경첩 방향 = 칸 열림 방향 좌 ◀ / 우 ▶ (정면도 화살표가 그 변 — 양문의 왼 도어 ◀ = 왼쪽 경첩과 같다).
             //   조립 명세(bom-assembly.js hardwareOf)가 경첩 컵 자리를 그 변에 놓는다. 양문·오픈·플랩 칸엔 붙이지 않는다.
             else if (!isOpen && !topDrawer && !c.is2D && (dirs[i] === 'left' || dirs[i] === 'right')) out[out.length - 1].hingeSide = dirs[i];
+            // 2026-10-29 사장님 (신발장): 키큰장 도어 전신거울 — 구조 s.mirror 'single'(외짝) · 'left' | 'right'(양문의 그 짝). BOM 이 거울 5T 를 낸다
+            //   (extractors.js BOM_MIRROR — 도어 사방 여백 50). 표시가 없는 모듈의 payload 는 예전과 같다.
+            if (!isWardrobe && !isOpen && s && ['single', 'left', 'right'].indexOf(s.mirror) >= 0) out[out.length - 1].mirror = s.mirror;
             // 2026-09-16: 전면 배분식의 기준높이는 **배치(영역) 높이**다 — 플래너가 payload 에 실어 보낸다.
             //   없으면 BOM 이 totalH(모듈 전체 높이) 로 떨어진다. 옛 저장 설계가 그 경우다.
             if (Number(m.areaH) > 0) out[out.length - 1].areaH = Number(m.areaH);

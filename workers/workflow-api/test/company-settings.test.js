@@ -260,7 +260,7 @@ test('동결 — 본사 설계는 본사 설정 · 마진, 거래처 금액 있�
     const q = snapshot.quote_payload;
     assert.equal(q.method, 'sheet');
     assert.equal(q.margin_rate, 0.3);
-    assert.equal(q.partner.margin_rate, 0.1);
+    assert.equal(q.partner.margin_rate, 0.08);
     assert.ok(q.partner.total > 0);
     assert.equal(typeof q.cost.partner_margin_amount, 'number');
     assert.equal(q.settings_missing, false);

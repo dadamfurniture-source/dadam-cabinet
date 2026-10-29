@@ -146,6 +146,11 @@
         // 띄움 시공 (2026-10-28 사장님 — 신발장): 걸레받이 자리의 가림판 (몸통 뒤 맞춤) · 줄 좌우 가림판 (몸통 바깥, assembly-rules CARCASS.FLOAT_*)
         '가림판':          { key: 'float:cover',      slot: 'kick' },
         '가림판(좌우)':    { key: 'float:side',       slot: 'finishing' },
+        // 신발장 벤치 (2026-10-29 사장님 "키큰장 사이 벤치 450" · "앉는 판 + 목대"): 앉는 판 = MDF 도어 재질 (마감재와 같은 색), 목대 = PB (몸통)
+        '벤치 앉는 판':    { key: 'bench:seat',       slot: 'finishing' },
+        '벤치 목대':       { key: 'bench:cleat',      slot: 'body' },
+        // 신발장 키큰장 도어 전신거울 (2026-10-29 사장님) — 유리라 칠하지 않는다 (뒷판처럼 slot back — 도어 색이 덮어쓰지 않게)
+        '거울':            { key: 'mirror',           slot: 'back' },
       };
 
       /** 2026-10-20: 아일랜드 몸통 깊이는 사장님 값 대기 — 측판 비고에 붙인다 (extract 'island'). */
@@ -716,6 +721,17 @@
         const minus = ASM.FLOAT_SIDE_D_MINUS[section];
         return minus != null ? bodyD - minus : bodyD + BOM_SIMPLE_TOP_FRONT;
       }
+      /**
+       * 신발장 벤치 — 2026-10-29 사장님 ("키큰장 사이 벤치 450" · "앉는 판 + 목대" · "MDF 18T 한 장 · 깊이 380" · 기본 폭 900 ·
+       *   목대 "띄움이 없으면 PB 15T × 60 · 길이 350, 띄움이면 철제 30T 각파이프" · "벽에도 목대").
+       *   SEAT_H = 바닥 ~ 앉는 면, 앉는 판 깊이 = 몸통 + 앞 자리 (BOM_SIMPLE_TOP_FRONT — 신발장 380), 목대 길이 = 몸통 깊이 (350).
+       *   목대 규격은 상부장 보강목과 같다 (assembly-rules CARCASS.UPPER_BAND_T · UPPER_BAND_W).
+       */
+      const BOM_BENCH = Object.freeze({ SEAT_H: ASM.BENCH_SEAT_H, SEAT_T: 18, CLEAT_T: ASM.UPPER_BAND_T, CLEAT_W: ASM.UPPER_BAND_W, PIPE: 30, W: 900 });
+      /** 벤치 모듈 — 브리지가 moduleKind 'bench' 로 넘긴다 (몸통 없음 — 줄 부재 · 다리발 · 상판 자리에서 빠진다) */
+      const bomIsBenchModule = (m) => !!m && String(m.moduleKind || '') === 'bench';
+      /** 키큰장 도어 전신거울 — 2026-10-29 사장님 "5T · 도어 사방 여백 50", 양문은 "한 짝만 — 좌 · 우 고름" (mod.mirror 'single' | 'left' | 'right') */
+      const BOM_MIRROR = Object.freeze({ T: 5, MARGIN: 50, MATERIAL: '거울', SIDES: Object.freeze(['single', 'left', 'right']) });
 
       /**
        * 도어 수 기본값 — 2026-10-13 사장님: 플래너와 같게. 도어 한 장 최대 600 (MASTER_RULES.DOOR_W_MAX) —
@@ -1881,7 +1897,7 @@
           if (!k) return null;
           const mods = ((item && item.modules) || []).filter(Boolean);
           const sink = k === 'sink';
-          const lowerCounts = (m) => m.pos === 'lower' && !(sink && m.type === 'cook') && !bomTallTierOf(m) && !bomIsBoxModule(m);
+          const lowerCounts = (m) => m.pos === 'lower' && !(sink && m.type === 'cook') && !bomTallTierOf(m) && !bomIsBoxModule(m) && !bomIsBenchModule(m);
           const lowerMods = mods.filter((m) => m.pos === 'lower' && !m.stacked);
           const lower = bomPlanPlaces(bomLinePlacesOf(lowerMods, lowerCounts));
           if (sink) {
@@ -1893,9 +1909,10 @@
             return { molding: { places: bomPlanPlaces(p.places), joinedTalls: p.joinedTalls }, lower: { places: lower }, channel: { places: channel } };
           }
           const uppers = bomPlanPlaces(bomLinePlacesOf(mods.filter((m) => m.pos === 'upper'), (m) => !bomIsBoxModule(m)));
-          // 띄움 시공 — 바닥 줄 전체(키큰장 포함)가 떠 있다: 가림판 · 좌우 마감재 자리 (AsmRules.floatHOf)
+          // 띄움 시공 — 바닥 줄 전체(키큰장 포함)가 떠 있다: 가림판 · 좌우 가림판 자리 (AsmRules.floatHOf).
+          //   벤치는 빠진다 — 앉는 판 아래가 비어 있어(신발 놓는 자리) 가림판이 없고, 벤치 옆 키큰장 옆면이 줄 끝이 된다 (좌우 가림판)
           const float = AsmRules.floatHOf(item && item.specs) > 0
-            ? { places: bomPlanPlaces(bomLinePlacesOf(lowerMods, (m) => m.pos === 'lower')) } : null;
+            ? { places: bomPlanPlaces(bomLinePlacesOf(lowerMods, (m) => m.pos === 'lower' && !bomIsBenchModule(m))) } : null;
           return { molding: { places: uppers, joinedTalls: [] }, lower: { places: lower }, channel: { places: lower }, float };
         }
 
@@ -2132,14 +2149,32 @@
 
         /**
          * 띄움 줄 좌우 가림판 — 붙어 선 바닥 줄마다 양 끝, 몸통 바깥쪽에 붙는다 (2026-10-28 사장님 "정확히는 몸통 바깥쪽에서 결합되어 들어감").
-         *   18T MDF 도어 재질 · 높이 띄움 + 20 · 깊이는 그 끝 도면 마감재에 따라 (bomFloatSideDepthOf — 쫄 몸통 − 40 · 몰딩 몸통 − 5 ·
-         *   EP 없음 · 마감재 없음 = 배치 공간 깊이). 같은 크기 · 같은 끝 마감재는 한 행에 수량으로. 가림판 자리는 깊이가 다른 이웃에서도
-         *   나뉘므로(조각 규칙) 맞붙은 자리는 한 줄로 합친다 — 자리 없는 옛 설계('-')는 차례대로 붙어 있고, 자리가 있으면 끝과 끝이 1mm 안이면 붙었다.
+         *   18T MDF 도어 재질 · 높이 띄움 + 20 · 깊이는 그 끝 도면 마감재에 따라 (floatSideRowsOf).
          */
         addFloatSideFinishes(materials, label, places, item, rules, floatH) {
+          this.floatSideRowsOf(item, places, rules).forEach((s) => this.add(materials, label, '가림판(좌우)', 'MDF', ASM.FLOAT_PANEL_T,
+            floatH + ASM.FLOAT_SIDE_H_PLUS, s.d, s.qty, '4면', `띄움 좌우 가림판 — 몸통 바깥 · 높이 띄움 + ${ASM.FLOAT_SIDE_H_PLUS} · ${BOM_FLOAT_SIDE_NOTE[s.kind]} · 도어 재질`));
+        }
+
+        /**
+         * 띄움 좌우 가림판 행 계획 — BOM(addFloatSideFinishes)과 조립 명세(bom-assembly.js runsOf float:side)가 같은 행 · 같은 순서 · 같은 끝을 쓴다.
+         *   깊이는 그 끝 도면 마감재에 따라 (bomFloatSideDepthOf — 쫄 몸통 − 40 · 몰딩 몸통 − 5 · EP 없음 · 마감재 없음 = 배치 공간 깊이).
+         *   같은 크기 · 같은 끝 마감재는 한 행에 수량으로, 깊이 큰 행부터. 가림판 자리는 깊이가 다른 이웃에서도 나뉘므로(조각 규칙) 맞붙은 자리는
+         *   한 줄로 합친다 — 자리 없는 옛 설계('-')는 차례대로 붙어 있고, 자리가 있으면 끝과 끝이 1mm 안이면 붙었다.
+         * @param {object} item
+         * @param {Array} places  linePlanOf(item).float.places
+         * @param {object} [rules] 품목 규칙 (없으면 카테고리 BOM_SIMPLE_CATEGORY_RULES)
+         * @returns {Array<{d:number, kind:string, qty:number, ends:Array<{mod:object, side:'left'|'right'}>}>}
+         */
+        floatSideRowsOf(item, places, rules) {
+          const R = rules || BOM_SIMPLE_CATEGORY_RULES[item && (item.categoryId || item.category)] || {};
           // 줄 계획은 상자 모듈(오픈장 · 홈카페)을 걷어내기 전 품목으로 세웠다 (_ctx.item) — 끝 모듈은 그 목록에서 찾는다
           const all = ((this._ctx && this._ctx.item && this._ctx.item.modules) || []).concat(item.modules || []);
           const byId = new Map(all.map((m) => [String(m.id), m]));
+          // 자리 없는 옛 설계('-')는 바닥 줄 모듈 차례로 붙음을 본다 — 사이에 벤치(가림판 자리 밖)가 있으면 떨어져 있다
+          const order = (((this._ctx && this._ctx.item && this._ctx.item.modules) || item.modules || []))
+            .filter((m) => m && m.pos === 'lower' && !m.stacked).map((m) => String(m.id));
+          const next = (a, b) => !!a && !!b && order.indexOf(String(a.id)) >= 0 && order.indexOf(String(b.id)) === order.indexOf(String(a.id)) + 1;
           const runs = [];
           (places || []).forEach((pl) => {
             const units = pl.units || [];
@@ -2149,7 +2184,7 @@
             const last = byId.get(String(lastU.ids[lastU.ids.length - 1]));
             const prev = runs[runs.length - 1];
             const touching = !!prev && prev.wall === pl.wall
-              && (pl.wall === '-' || (!!prev.last && !!first && !!prev.last._place && !!first._place && Math.abs(bomRunSegOf(prev.last).b - bomRunSegOf(first).a) <= 1));
+              && (pl.wall === '-' ? next(prev.last, first) : (!!prev.last && !!first && !!prev.last._place && !!first._place && Math.abs(bomRunSegOf(prev.last).b - bomRunSegOf(first).a) <= 1));
             if (touching) prev.last = last;
             else runs.push({ wall: pl.wall, first, last });
           });
@@ -2159,15 +2194,49 @@
             if (!m) return;
             const f = bomFloatEndFinishOf(m, side, fins);
             const kind = f && BOM_FLOAT_SIDE_NOTE[f.section] ? f.section : f && f.section === 'ep' ? 'ep' : 'none';
-            const d = bomFloatSideDepthOf(kind, bomSimpleDepthOf(m, 'lower', item, rules));
+            const d = bomFloatSideDepthOf(kind, bomSimpleDepthOf(m, 'lower', item, R));
             if (!(d > 0)) return;   // EP — 가림판 없음
             const key = `${d}|${kind}`;
-            const s = sizes.get(key) || { d, kind, qty: 0 };
+            const s = sizes.get(key) || { d, kind, qty: 0, ends: [] };
             s.qty += 1;
+            s.ends.push({ mod: m, side });
             sizes.set(key, s);
           }));
-          [...sizes.values()].sort((a, b) => b.d - a.d).forEach((s) => this.add(materials, label, '가림판(좌우)', 'MDF', ASM.FLOAT_PANEL_T,
-            floatH + ASM.FLOAT_SIDE_H_PLUS, s.d, s.qty, '4면', `띄움 좌우 가림판 — 몸통 바깥 · 높이 띄움 + ${ASM.FLOAT_SIDE_H_PLUS} · ${BOM_FLOAT_SIDE_NOTE[s.kind]} · 도어 재질`));
+          return [...sizes.values()].sort((a, b) => b.d - a.d);
+        }
+
+        /**
+         * 키큰장 도어 전신거울 (2026-10-29 사장님 — 신발장): 거울 5T, 크기 = 도어 − 사방 여백 50 (BOM_MIRROR), 도어 앞면 가운데.
+         *   mod.mirror 'single' = 외짝 도어, 'left' · 'right' = 양문의 그 짝 ("한 짝만 — 좌 · 우 고름"). 크기는 그 모듈이 방금 낸 도어 행
+         *   (fromIdx 뒤)에서 읽는다. 도어가 없거나 짝이 맞지 않으면 거울을 내지 않고 알린다 (조용히 빠지지 않는다).
+         */
+        addMirrorRow(materials, fromIdx, mod) {
+          const side = mod && mod.mirror;
+          if (!side) return;
+          const door = materials.slice(fromIdx).find((r) => r.part === '도어');
+          const ok = !!door && (side === 'single' ? door.qty === 1 : (side === 'left' || side === 'right') && door.qty === 2);
+          if (!ok) {
+            const ctx = this._ctx || {};
+            if (this._notices) this._notices.push({ itemIdx: ctx.itemIdx | 0, code: 'mirror-door', message: `${(mod && mod.name) || '모듈'}: 거울(${side})을 붙일 도어가 맞지 않아 거울을 내지 않습니다 — 외짝은 single, 양문은 left · right` });
+            return;
+          }
+          const M = BOM_MIRROR;
+          this.add(materials, door.module, '거울', M.MATERIAL, M.T, door.w - M.MARGIN * 2, door.h - M.MARGIN * 2, 1, '-',
+            `전신거울 — ${side === 'single' ? '도어' : side === 'left' ? '왼쪽 도어' : '오른쪽 도어'} 앞면 가운데 · 사방 여백 ${M.MARGIN} (2026-10-29 사장님)`);
+        }
+
+        /**
+         * 신발장 벤치 (2026-10-29 사장님 — BOM_BENCH): 몸통 없이 앉는 판 한 장 + 양쪽 받침 (키큰장 옆면 · 벽).
+         *   앉는 판 MDF 18T 도어 재질 — 폭 = 모듈 폭, 깊이 = 몸통 + 앞 자리 (380), 앉는 면 = 바닥 ~ 450 (조립 명세가 놓는 자리).
+         *   받침 — 띄움이 아니면 목대 PB 15T × 60 × 몸통 깊이 2 (상부장 보강목 규격), 띄움이면 철제 각파이프 30 2 (철물 — HardwareExtractor extractBenchSupports).
+         */
+        addBenchParts(materials, modLabel, W, D, floatH) {
+          const B = BOM_BENCH;
+          this.add(materials, modLabel, '벤치 앉는 판', 'MDF', B.SEAT_T, W, D + BOM_SIMPLE_TOP_FRONT, 1, '4면',
+            `앉는 면 바닥 ~ ${B.SEAT_H} · 깊이 = 몸통 + 앞 자리 ${BOM_SIMPLE_TOP_FRONT} · 도어 재질`);
+          if (!(floatH > 0)) {
+            this.add(materials, modLabel, '벤치 목대', 'PB', B.CLEAT_T, D, B.CLEAT_W, 2, '2면(장)', '앉는 판 받침 — 양쪽 (키큰장 옆면 · 벽)');
+          }
         }
 
         /**
@@ -2954,8 +3023,10 @@
               const W = parseFloat(mod.w) || 600;
               const tierLabel = BOM_TALL_TIER_LABEL[tallTier] || '';
               const modLabel = `${prefix}${mod.name || '키큰장'}${tierLabel ? `(${tierLabel})` : ''}`;
+              const from = materials.length;
               this.addSimpleSakuriBox(materials, modLabel, mod, W, parseFloat(mod.h) || 0, bomSimpleDepthOf(mod, 'lower', item, rules), T, rules, overlap, notes);
               if (tallTier === 'top' || tallTier === 'single') this.addTallMoldingPart(materials, modLabel, mod, W, specs);
+              this.addMirrorRow(materials, from, mod);
               return;
             }
             if (tallTier) {
@@ -2963,7 +3034,16 @@
               // 선반 기본값만 카테고리 규칙으로 — addTallTierParts 는 shelfCount 가 없으면 1 (sink.md §5.1 통짜) 로 본다
               const shelf = bomSimpleShelfQtyOf(mod, rules);
               const tierMod = shelf.defaulted ? { ...mod, shelfCount: shelf.qty } : mod;
+              const from = materials.length;
               this.addTallTierParts(materials, prefix, tierMod, tallTier, specs);
+              this.addMirrorRow(materials, from, mod);
+              return;
+            }
+            if (bomIsBenchModule(mod)) {
+              // 신발장 벤치 — 몸통 없이 앉는 판 + 받침 (BOM_BENCH)
+              this.beginModule(mod, idx, 'lower');
+              const W = parseFloat(mod.w) || BOM_BENCH.W;
+              this.addBenchParts(materials, `${prefix}벤치-${W}`, W, bomSimpleDepthOf(mod, 'lower', item, rules), floatH);
               return;
             }
             this.beginModule(mod, idx, 'lower');
@@ -3003,7 +3083,7 @@
 
           // ===== EP (마감재) — 싱크대 EP 준용 (상판·코너 마감 없음) =====
           const epLabel = `${prefix}EP`;
-          const lineLowerModules = lowerModules.filter((m) => !bomTallTierOf(m));
+          const lineLowerModules = lowerModules.filter((m) => !bomTallTierOf(m) && !bomIsBenchModule(m));   // 벤치는 상판 · 줄 부재 밖
           const effectiveW = lineLowerModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
           const totalUpperW = upperModules.reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
           const moldingH = bomItemMoldingHOf(specs);
@@ -3181,7 +3261,29 @@
           this.extractHandles(item, hardware);
           this.extractLegs(item, hardware);
           this.extractBrackets(item, hardware);
+          this.extractBenchSupports(item, hardware);
           this.extractOthers(item, hardware);
+        }
+
+        /**
+         * 신발장 벤치 받침 — 띄움 시공이면 철제 각파이프 30 (2026-10-29 사장님 "띄움이면 철제 30T 각파이프"), 벤치마다 2 (양쪽 — 키큰장 옆면 · 벽).
+         *   길이 = 목대와 같은 몸통 깊이. 띄움이 아니면 받침은 목대(PB 판 — 자재 행)라 철물이 없다.
+         */
+        extractBenchSupports(item, hardware) {
+          if (!(AsmRules.floatHOf((item && item.specs) || {}) > 0)) return;
+          const rules = BOM_SIMPLE_CATEGORY_RULES[item.categoryId || item.category] || {};
+          (item.modules || []).filter(bomIsBenchModule).forEach((mod) => {
+            const len = bomSimpleDepthOf(mod, 'lower', item, rules);
+            hardware.push(Object.assign({
+              category: '벤치 받침',
+              item: `철제 각파이프 ${BOM_BENCH.PIPE}`,
+              manufacturer: '-',
+              spec: `${BOM_BENCH.PIPE}×${BOM_BENCH.PIPE} · 길이 ${len}mm`,
+              qty: 2,
+              unit: 'EA',
+              note: '벤치 앉는 판 받침 — 양쪽 (키큰장 옆면 · 벽), 띄움 시공 (2026-10-29 사장님)',
+            }, this.moduleTagOf(mod)));
+          });
         }
 
         /**
@@ -3631,8 +3733,9 @@
           let totalLegs = 0;
 
           // 2026-10-26: 서랍 위에 쌓인 하부 밥솥장(stacked)은 다리발이 없다 — 밑 서랍 모듈이 다리발 위에 선다
+          // 2026-10-29: 신발장 벤치는 다리발이 없다 — 앉는 판이 양쪽 받침(목대)에 얹힌다
           (item.modules || [])
-            .filter((m) => m.pos === 'lower' && !bomTallTierOf(m) && !m.stacked)
+            .filter((m) => m.pos === 'lower' && !bomTallTierOf(m) && !m.stacked && !bomIsBenchModule(m))
             .forEach((mod) => {
               const w = mod.w || 600;
               if (w <= 600) totalLegs += 4;
@@ -3958,6 +4061,8 @@
           bomSimpleHingeDoorsOf, bomSimpleDepthOf, bomSimpleRailLenOf,
           // 2026-10-28 신발장 — 품목 기본값 (하부 1000 · 띄움 200 · 상판 18T MDF) · 상판 앞 자리 · 상판 두께 (0 = 없음)
           BOM_SHOERACK_DEFAULTS, BOM_SIMPLE_TOP_FRONT, bomSimpleTopTOf, bomFloatEndFinishOf, bomFloatSideDepthOf,
+          // 2026-10-29 신발장 벤치 · 키큰장 도어 전신거울
+          BOM_BENCH, BOM_MIRROR, bomIsBenchModule,
           // 2026-10-13 플랩 가스쇼바 — 규격표·자동 선택
           BOM_GAS_STRUTS, bomGasStrutFor,
           // 2026-10-18 사전 오류 검사(bom-preflight.js)가 컵 간격 문턱을 여기서 읽는다

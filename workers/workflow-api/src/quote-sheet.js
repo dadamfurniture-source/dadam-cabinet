@@ -9,6 +9,7 @@
  *   몸통 제작 (PB 15T)       n장 × 장당 단가   ← 몸통 원판·엣지·철물·재단·엣지·조립·포장·간접비
  *   뒷판 (MDF 2.7T)          n장 × 장당 단가   ← 뒷판 원판·재단·간접비
  *   도어 (MDF 18T 외주 마감)  n장 × 장당 단가   ← 도어 외주·도어 검수·달기·간접비
+ *   서랍 박스                 n개 × 개당 단가   ← 서랍 1개(레일 수)마다 drawerBox. 서랍 자재·레일·조립 노무는 몸통 줄에 그대로
  *   시공 (설치 길이 기준)     n m × m당 단가    ← 시공 외주 (싱크 하부+상부, 키큰·붙박이 1m = 2m)
  * 상판·설비(싱크볼·수전·후드)·철거도 매입·시공 원가 × (1 + 마진율) 로 낸다 —
  * 원가·제작·설치·기타 비용을 다 넣은 최종 지출비용에 마진 20% (2026-10-13 대표).
@@ -18,7 +19,7 @@
  *
  * 가격은 두 벌을 같은 원가 줄에서 낸다 (2026-10-13 대표):
  *   고객 금액   = 최종 지출비용 × (1 + marginRate, 기본 0.2)          → items · subtotal · vat · total
- *   거래처 금액 = 최종 지출비용 × (1 + partnerMarginRate, 기본 0.1)  → partner.{items, subtotal, vat, total}
+ *   거래처 금액 = 최종 지출비용 × (1 + partnerMarginRate, 기본 0.08 — 소비자 × 0.9) → partner.{items, subtotal, vat, total}
  * 거래처 금액은 본사가 거래처에 파는 값이라 본사 견적에만 낸다 — partnerPrice: false 면 partner · partner_margin_amount 가 null.
  * 간접비는 매출 전체에서 충당하므로 기본은 품목 원가에 넣지 않는다 (overheadPerHour 0).
  */
@@ -203,6 +204,8 @@ export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extra
     overhead: doorHangSec * ohSec,
   };
   const install = { outsourcing: installM * Q.installPerMeter };
+  // 서랍 박스 — 서랍 1개(자재 목록의 레일 수 — 서랍장 · 붙박이장 안팎 서랍 모두)마다
+  const drawerBoxCost = c.drawers * (Q.drawerBox || 0);
   const sum = (o) => Object.values(o).reduce((s, v) => s + v, 0);
 
   // 원가 줄 — 이름·수량·단위·원가. 가격은 마진율을 바꿔 두 벌로 낸다.
@@ -211,6 +214,7 @@ export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extra
   add('몸통 제작 (PB 15T · 재단·엣지·조립·철물 포함)', c.sheetsPB, '장', sum(body), 'body');
   add('뒷판 (MDF 2.7T)', c.sheetsBack, '장', sum(back), 'back');
   add('도어 (MDF 18T · 마감·달기 포함)', doors, '장', sum(door), 'door');
+  add('서랍 박스', c.drawers, '개', drawerBoxCost, 'drawerBox');
   add('시공 (설치 길이 기준)', installM, 'm', sum(install), 'install');
   // 몸통 장수가 0 인데 몸통 원가가 있으면(PB 없이 철물만 등) 일식으로 남긴다 — 금액을 조용히 버리지 않는다
   if (!(c.sheetsPB > 0) && sum(body) > 0) add('몸통 부자재·작업 (일식)', 1, '식', sum(body), 'body');
@@ -235,7 +239,7 @@ export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extra
   const items = customer.items;
   const { subtotal, vat, total } = customer;
   const cabinetCost = sum(body) + sum(back) + sum(door) + sum(install);
-  const costTotal = cabinetCost + sum(extraCost);
+  const costTotal = cabinetCost + drawerBoxCost + sum(extraCost);
   const pricedTotal = customer.priced;
 
   return {
@@ -251,9 +255,10 @@ export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extra
     partner: partner && { items: partner.items, subtotal: partner.subtotal, vat: partner.vat, total: partner.total, margin_rate: Q.partnerMarginRate },
     // ── 대표용 원가 내역 (고객 문서에는 그리지 않는다) ──
     cost: {
-      // 최종 지출비용 = 캐비닛(자재·제작·간접비·시공) + 상판·설비·철거. 고객 공급가(정해진 줄 제외) = 이 × (1 + 마진)
+      // 최종 지출비용 = 캐비닛(자재·제작·간접비·시공) + 서랍 박스 + 상판·설비·철거. 고객 공급가(정해진 줄 제외) = 이 × (1 + 마진)
       total: Math.round(costTotal),
       cabinet: Math.round(cabinetCost),
+      drawerBox: Math.round(drawerBoxCost),
       extras: roundAll(extraCost),
       priced_total: pricedTotal,
       // 몸통 장당 고정비 회수분 — 실제로 나가는 돈이 아니라 고정비를 덮는 매출 몫. 손익 요약은 total 에서 이걸 뺀다
