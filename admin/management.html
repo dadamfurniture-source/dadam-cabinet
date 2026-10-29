@@ -1192,7 +1192,7 @@
           $('btnWhatIfReset').addEventListener('click', () => { if (state.data && state.data.scenario) { resetLevers(state.data.scenario); renderWhatIfResult(); } });
         }
 
-        const SOURCE_LABEL = { mine: '내 생산 설정', latest: '가장 최근에 저장된 생산 설정', default: '기본값' };
+        const SOURCE_LABEL = { hq: '본사 설정', mine: '내 생산 설정', latest: '가장 최근에 저장된 생산 설정', default: '기본값' };
         function renderBasis(d) {
           const b = d.basis || {};
           $('basis').innerHTML = `근거 — 매출: ${esc(b.revenue)} · 원가: ${esc(b.cost)} · 월 고정비 ${esc(man(b.overhead))}: ${esc(SOURCE_LABEL[b.settingsSource] || b.settingsSource)}

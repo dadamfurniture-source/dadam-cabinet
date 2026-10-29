@@ -26,7 +26,7 @@ const SNAPS = new Map([
   ['s2', { quote_payload: { total: 1320000, partner: { total: 1210000 }, cost: { total: 1000000, fixed_recovery: 0, seconds: { cutter: 5400, edge: 1800, asm: 3600 } } } }],
   ['s3', { quote_payload: { total: 1100000 } }],
 ]);
-const SETTINGS = { quote: { overheadMonthly: 2000000 }, source: 'mine' };
+const SETTINGS = { quote: { overheadMonthly: 2000000 }, source: 'hq' };
 
 test('전달: 1월의 전달은 지난해 12월', () => {
   assert.equal(prevMonthOf('2026-01'), '2025-12');
@@ -135,7 +135,7 @@ test('경영 요약 한 벌: 이달과 지난 달을 나란히, 근거를 함께
   assert.equal(s.breakEven.revenueNeeded, 8857143);
   assert.equal(s.channels.length, 2);
   assert.equal(s.basis.overhead, 2000000);
-  assert.equal(s.basis.settingsSource, 'mine');
+  assert.equal(s.basis.settingsSource, 'hq');
 });
 
 test('수주가 없는 달: 0 으로 채우고 비율은 비운다', () => {

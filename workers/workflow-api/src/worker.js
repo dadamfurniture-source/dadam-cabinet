@@ -104,6 +104,7 @@ import {
   listAssignments,
   getSettings,
   saveSettings,
+  assertHqMoney,
 } from './production/service.js';
 import {
   createWorkerLink,
@@ -575,6 +576,8 @@ async function handleWorkerAssignmentDone(request, env, { params }) {
 }
 
 async function handleMonthlySummary(request, env, { user }) {
+  // 월 고정비는 본사 설정이다 — 본사 대표 · 실장 · 관리자만 (아니면 403 not_money). 월 마감 cron 은 이 경로를 거치지 않는다
+  await assertHqMoney(env, user);
   const url = new URL(request.url);
   return jsonResponse(request, env, { success: true, data: await getMonthlySummary(env, { user, month: url.searchParams.get('month') }) });
 }
@@ -954,7 +957,7 @@ function errorResponse(request, env, err) {
     return jsonResponse(
       request,
       env,
-      { success: false, message: err.message, details: err.details || undefined },
+      { success: false, message: err.message, code: err.code || undefined, details: err.details || undefined },
       err.statusCode,
     );
   }

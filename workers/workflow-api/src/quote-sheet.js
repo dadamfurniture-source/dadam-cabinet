@@ -19,6 +19,7 @@
  * 가격은 두 벌을 같은 원가 줄에서 낸다 (2026-10-13 대표):
  *   고객 금액   = 최종 지출비용 × (1 + marginRate, 기본 0.2)          → items · subtotal · vat · total
  *   거래처 금액 = 최종 지출비용 × (1 + partnerMarginRate, 기본 0.1)  → partner.{items, subtotal, vat, total}
+ * 거래처 금액은 본사가 거래처에 파는 값이라 본사 견적에만 낸다 — partnerPrice: false 면 partner · partner_margin_amount 가 null.
  * 간접비는 매출 전체에서 충당하므로 기본은 품목 원가에 넣지 않는다 (overheadPerHour 0).
  */
 
@@ -145,8 +146,9 @@ export function extraCostLines(design, Q) {
  * @param {Object} [input.settings]  production settings ({standards, crew, costs, quote})
  * @param {Array}  [input.extraItems]  금액이 이미 정해진 줄 (마진을 다시 붙이지 않는다). 기본은 없음
  * @param {Object} [input.range]  {min,max} 배수 — 확인서의 "최종 금액 범위" 문구
+ * @param {boolean} [input.partnerPrice]  거래처 금액(본사 → 거래처)도 낼지. 본사 견적만 true
  */
-export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extraItems = [], range = null }) {
+export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extraItems = [], range = null, partnerPrice = true }) {
   const S = { ...DEFAULT_STANDARDS, ...(settings.standards || {}) };
   const crew = { ...DEFAULT_CREW, ...(settings.crew || {}) };
   const costs = { ...DEFAULT_COSTS, ...(settings.costs || {}) };
@@ -229,7 +231,7 @@ export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extra
     return { items: all, priced: lines.reduce((t, i) => t + i.total, 0), subtotal: sub, vat: v, total: sub + v };
   };
   const customer = priceWith(Q.marginRate);
-  const partner = priceWith(Q.partnerMarginRate);
+  const partner = partnerPrice ? priceWith(Q.partnerMarginRate) : null;
   const items = customer.items;
   const { subtotal, vat, total } = customer;
   const cabinetCost = sum(body) + sum(back) + sum(door) + sum(install);
@@ -245,14 +247,8 @@ export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extra
     range: range && range.min && range.max ? { min: Math.round(total * range.min), max: Math.round(total * range.max) } : null,
     skipped: [],
     margin_rate: Q.marginRate,
-    // 거래처(인테리어 업체) 금액 — 같은 원가 줄에 거래처 마진율
-    partner: {
-      items: partner.items,
-      subtotal: partner.subtotal,
-      vat: partner.vat,
-      total: partner.total,
-      margin_rate: Q.partnerMarginRate,
-    },
+    // 거래처(인테리어 업체) 금액 — 같은 원가 줄에 거래처 마진율. 본사 견적이 아니면 null
+    partner: partner && { items: partner.items, subtotal: partner.subtotal, vat: partner.vat, total: partner.total, margin_rate: Q.partnerMarginRate },
     // ── 대표용 원가 내역 (고객 문서에는 그리지 않는다) ──
     cost: {
       // 최종 지출비용 = 캐비닛(자재·제작·간접비·시공) + 상판·설비·철거. 고객 공급가(정해진 줄 제외) = 이 × (1 + 마진)
@@ -263,7 +259,7 @@ export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extra
       // 몸통 장당 고정비 회수분 — 실제로 나가는 돈이 아니라 고정비를 덮는 매출 몫. 손익 요약은 total 에서 이걸 뺀다
       fixed_recovery: Math.round(body.fixed),
       margin_amount: Math.round(pricedTotal - costTotal),
-      partner_margin_amount: Math.round(partner.priced - costTotal),
+      partner_margin_amount: partner ? Math.round(partner.priced - costTotal) : null,
       body: roundAll(body),
       back: roundAll(back),
       door: roundAll(door),
@@ -278,9 +274,4 @@ export function calculateSheetQuote({ design, bom, cutPlan, settings = {}, extra
 
 function roundAll(o) {
   return Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Math.round(v)]));
-}
-
-/** 단가표 견적에서 캐비닛과 무관한 줄(상판·설비·철거)만 고른다. 캐비닛·도어 업차지는 장당 견적이 대신한다. */
-export function nonCabinetItems(pricebookQuote) {
-  return ((pricebookQuote && pricebookQuote.items) || []).filter((i) => !/캐비닛|도어 마감 업그레이드/.test(String(i.name)));
 }

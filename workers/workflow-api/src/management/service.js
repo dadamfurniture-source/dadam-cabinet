@@ -6,12 +6,12 @@
  *
  * 본사 대시보드다 — 수주 · 상담 · 연출컷 · 설계는 company_id 로, 수주 · 설계에 붙은 표
  * (원가 · 수금 · 재작업 · 설치 후 문항 · 확인서 · 일정)는 PostgREST 내장 조인(!inner)으로 본사 것만 읽는다.
- * 업체 칸이 없는 표(주문 없는 작업 기록 · 거래처 · 외주 발주 보관함 · 현금 잔액 · 과거 매출 · 분기 목표 ·
- * 생산 설정)는 그대로 읽는다.
+ * 업체 칸이 없는 표(주문 없는 작업 기록 · 거래처 · 외주 발주 보관함 · 현금 잔액 · 과거 매출 · 분기 목표)는
+ * 그대로 읽는다. 원가 설정은 본사 줄(company_settings)을 읽는다.
  */
-import { selectMany, selectOne, hqCompanyId, ForbiddenError } from '../supabase.js';
+import { selectMany, hqCompanyId, ForbiddenError } from '../supabase.js';
 import { isAdmin } from '../reports/admin.js';
-import { mergeSettings, kstDate } from '../production/service.js';
+import { hqSettings, kstDate } from '../production/service.js';
 import { buildManagementSummary, prevMonthOf, QUALITY_WINDOW_DAYS, PARTNER_WINDOW_DAYS, monthsOfQuarter } from './summary.js';
 import { quarterOf } from '../okrs.js';
 import { selectOrders } from '../orders.js';
@@ -54,16 +54,12 @@ export function hqByDesign(query, hq) {
 }
 
 /**
- * 경영 숫자에 쓰는 설정. 보는 사람이 저장한 생산 설정이 있으면 그것,
- * 없으면 가장 최근에 저장된 생산 설정(사장님 것)을 쓴다 — 직원 관리자가 열어도
- * 월 고정비가 기본값으로 떨어지지 않게.
+ * 경영 숫자에 쓰는 설정 — 본사 원가 설정 (누가 열어도 같다).
+ * source: 'hq' (본사 설정) · 'default' (본사 설정 줄이 없어 기본값)
  */
-export async function businessSettings(env, user) {
-  const mine = await selectOne(env, 'production_settings', { user_id: `eq.${user.id}`, select: 'settings' });
-  if (mine) return { ...mergeSettings(mine.settings), source: 'mine' };
-  const latest = await selectOne(env, 'production_settings', { select: 'settings', order: 'updated_at.desc' });
-  if (latest) return { ...mergeSettings(latest.settings), source: 'latest' };
-  return { ...mergeSettings(null), source: 'default' };
+export async function businessSettings(env) {
+  const { settings, missing } = await hqSettings(env);
+  return { ...settings, source: missing ? 'default' : 'hq' };
 }
 
 export async function getManagementSummary(env, { user, month }) {
@@ -98,7 +94,7 @@ export async function getManagementSummary(env, { user, month }) {
     selectMany(env, 'generations', { select: 'id,user_id,status,created_at', company_id: HQ, created_at: `gte.${since}`, limit: '5000' }).catch(() => null),
     // 연출컷에서 시작한 설계 — 연출컷보다 늦게 생기므로 같은 기간으로 충분하다
     selectMany(env, 'designs', { select: 'id,generation_id', company_id: HQ, generation_id: 'not.is.null', created_at: `gte.${since}`, limit: '5000' }).catch(() => []),
-    businessSettings(env, user),
+    businessSettings(env),
   ]);
 
   const list = orders || [];

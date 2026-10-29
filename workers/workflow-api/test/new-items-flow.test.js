@@ -155,7 +155,7 @@ function withFakeSupabase(fn) {
       return json([{ id: 'RS1', name: 'seed', is_active: true }]);
     if (/\/pricing_rules\?/.test(u)) return json([]);
     if (/\/design_snapshots\?/.test(u)) return json([]);
-    if (/\/production_settings\?/.test(u)) return json([]);
+    if (/\/company_settings\?/.test(u)) return json([]);
     throw new Error('unexpected fetch ' + method + ' ' + u);
   };
   return Promise.resolve(fn(posts)).finally(() => {

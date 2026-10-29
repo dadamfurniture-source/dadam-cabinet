@@ -49,7 +49,7 @@ function docRoutes({ existing = [], settings = null } = {}) {
     if (u.includes('/design_documents?')) return json([theDoc()]);
     if (u.includes('/designs?')) return json([{ id: D1, user_id: U1, company_id: HQ }]);
     if (u.includes('/design_snapshots?')) return json([fx.snapshot({ id: 's1' })]);
-    if (u.includes('/production_settings?')) return json(settings ? [{ settings }] : []);
+    if (u.includes('/company_settings?')) return json(settings ? [{ settings }] : []);
     if (u.includes('/orders?')) return json([{ id: O1 }]);
     if (u.includes('/work_reports?') && m === 'GET') return json(existing);
     if (u.endsWith('/work_reports') && m === 'POST') return json([{ id: 'new' }], 201);
