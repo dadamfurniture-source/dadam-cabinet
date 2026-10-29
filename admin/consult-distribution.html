@@ -859,7 +859,7 @@
             } else {
               setStatus('statusLine', e.message, 'error');
             }
-            return;
+            return false;
           }
           showSetup(false);
           state.items = arr(data && data.items);
@@ -867,6 +867,7 @@
           setStatus('statusLine', state.items.length ? `${state.items.length}건` : EMPTY_TEXT[state.tab]);
           if (current()) renderDetail();
           else clearDetail();
+          return true;
         }
 
         // ── 상세 ──
@@ -1100,6 +1101,32 @@
           });
         }
 
+        /** 주소의 #consult=<id> (또는 #<id>) — 상담 관리의 「상담 분배에서 업체에 나누기」에서 온다 */
+        function hashConsult() {
+          const h = String(window.location.hash || '').replace(/^#/, '');
+          if (!h) return null;
+          const m = /(?:^|&)consult=([^&]+)/.exec(h);
+          const raw = m ? m[1] : h.includes('=') ? '' : h;
+          if (!raw) return null;
+          try {
+            return decodeURIComponent(raw);
+          } catch (e) {
+            return null;
+          }
+        }
+        /** 그 상담을 고른 채 연다 — 대기 탭에 없으면 전체 탭에서 찾는다 */
+        async function openFromHash(loaded) {
+          const id = hashConsult();
+          if (!id || !loaded) return;
+          if (!state.items.some((i) => i.id === id) && state.tab !== 'all') {
+            state.tab = 'all';
+            renderTabs();
+            if (!(await loadInbox())) return;
+          }
+          if (state.items.some((i) => i.id === id)) await select(id);
+          else setStatus('statusLine', '고른 상담을 목록에서 찾지 못했습니다.', 'error');
+        }
+
         function showAccessDenied() {
           $('accessDenied').style.display = 'block';
           $('pageContent').style.display = 'none';
@@ -1147,7 +1174,7 @@
             setStatus('statusLine', '업무 서버(workflowApi.url)가 설정되지 않았습니다.', 'error');
             return;
           }
-          await loadInbox();
+          await openFromHash(await loadInbox());
         }
 
         window.ConsultDistribution = { init, select, loadInbox, leftText, esc, state };

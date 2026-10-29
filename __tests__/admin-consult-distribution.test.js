@@ -138,8 +138,9 @@ function defaultHandler(over = {}) {
   };
 }
 
-function boot({ admin = true, handler = defaultHandler(), workflowUrl = API } = {}) {
+function boot({ admin = true, handler = defaultHandler(), workflowUrl = API, hash = '' } = {}) {
   document.body.innerHTML = BODY;
+  window.history.replaceState(null, '', `/admin/consult-distribution.html${hash}`);
   window.DADAM_CONFIG = {
     supabase: { url: 'https://sb', anonKey: 'k' },
     workflowApi: { url: workflowUrl },
@@ -617,7 +618,55 @@ describe('넣는 값은 모두 esc', () => {
   });
 });
 
+describe('#consult=<id> — 상담 관리에서 그 상담을 고른 채로', () => {
+  test('대기 탭에 있으면 바로 고른다', async () => {
+    const calls = await start({ hash: '#consult=c1' });
+    expect(calls.map((c) => c.path)).toEqual([
+      '/admin/consult-inbox?state=pending',
+      '/admin/consultations/c1/candidates',
+    ]);
+    expect(
+      document.querySelector('#inboxList button[data-id="c1"]').classList.contains('active')
+    ).toBe(true);
+    expect(text('#customerCard h3')).toContain('김고객');
+  });
+
+  test('대기 탭에 없으면 전체 탭으로 바꿔 찾는다 (#<id> 꼴도 받는다)', async () => {
+    const calls = await start({ hash: '#c2' });
+    expect(calls.map((c) => c.path)).toEqual([
+      '/admin/consult-inbox?state=pending',
+      '/admin/consult-inbox?state=all',
+      '/admin/consultations/c2/candidates',
+    ]);
+    expect(document.querySelector('#tabs [data-state="all"]').getAttribute('aria-pressed')).toBe(
+      'true'
+    );
+    expect(text('#customerCard h3')).toContain('이고객');
+  });
+
+  test('어디에도 없으면 한 줄 알림, 서버가 아직 없으면 조용히', async () => {
+    await start({ hash: '#consult=zz' });
+    expect($('statusLine').textContent).toBe('고른 상담을 목록에서 찾지 못했습니다.');
+    expect($('detailBody').hidden).toBe(true);
+    const calls = await start({
+      hash: '#consult=c1',
+      handler: () => ({ status: 404, body: { success: false, message: 'Not found' } }),
+    });
+    expect(calls).toHaveLength(1);
+    expect($('statusLine').textContent).toBe('');
+    expect($('setupNotice').hidden).toBe(false);
+  });
+});
+
 describe('소스 · 메뉴 · 상담 관리 안내', () => {
+  test('대시보드 「상담 요청 확인」 빠른 작업은 상담 분배로', () => {
+    const doc = new window.DOMParser().parseFromString(read('admin/index.html'), 'text/html');
+    const quick = [...doc.querySelectorAll('a.quick-action-btn')].find(
+      (a) => a.querySelector('h4').textContent === '상담 요청 확인'
+    );
+    expect(quick.getAttribute('href')).toBe('consult-distribution.html');
+  });
+
   test('브라우저 확인 창(confirm · alert)을 쓰지 않는다', () => {
     expect(SCRIPT).not.toMatch(/\bconfirm\(/);
     expect(SCRIPT).not.toMatch(/\balert\(/);

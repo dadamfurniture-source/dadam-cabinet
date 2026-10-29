@@ -130,6 +130,10 @@
         color: #007bff;
         font-weight: 500;
       }
+      .consultation-actions a.btn {
+        display: inline-block;
+        text-decoration: none;
+      }
 
       /* Stats Tabs */
       .stats-tabs {
@@ -609,6 +613,8 @@
               <option value="confirmed">확정</option>
               <option value="completed">완료</option>
               <option value="cancelled">취소</option>
+              <!-- 업체에 나간 상담 — 고를 수는 없고, 저장할 때 상태를 그대로 둔다 -->
+              <option value="assigned" disabled>배정됨 (상담 분배)</option>
             </select>
           </div>
           <div class="form-group" style="background:#fafafa;border:1px solid #eee;border-radius:6px;padding:12px;">
@@ -904,18 +910,25 @@
         // 단추의 상담 id 는 data-id 로만 싣는다 — 인라인 onclick 의 JS 문자열에 DB 값을 넣지 않는다.
         // 누르면 아래 consultationList 의 click 위임(CARD_ACTIONS)이 받는다.
         const id = esc(c.id);
+        // 이 화면의 상담은 모두 다담 본사 상담 — 본사는 일정을 확정하지 않고 상담 분배에서 업체에 나눈다.
+        // 그래서 「일정 확정」 · 「일정 변경」 단추를 두지 않고 그 상담을 고른 채 여는 상담 분배 링크를 둔다.
+        const distHref = esc(`consult-distribution.html#consult=${encodeURIComponent(c.id == null ? '' : c.id)}`);
         let actionsHtml = '';
         if (c.status === 'pending') {
           actionsHtml = `
-                    <button class="btn btn-primary btn-sm" data-act="confirm" data-id="${id}">일정 확정</button>
+                    <a class="btn btn-primary btn-sm" data-dist="1" href="${distHref}">상담 분배에서 업체에 나누기 →</a>
                     <button class="btn btn-secondary btn-sm" data-act="edit" data-id="${id}">내용 정리</button>
                     <button class="btn btn-danger btn-sm" data-act="cancel" data-id="${id}">취소</button>
+                `;
+        } else if (c.status === 'assigned') {
+          actionsHtml = `
+                    <a class="btn btn-primary btn-sm" data-dist="1" href="${distHref}">상담 분배에서 보기 →</a>
+                    <button class="btn btn-secondary btn-sm" data-act="edit" data-id="${id}">내용 정리</button>
                 `;
         } else if (c.status === 'confirmed') {
           actionsHtml = `
                     <button class="btn btn-success btn-sm" data-act="complete" data-id="${id}">완료 처리</button>
                     <button class="btn btn-secondary btn-sm" data-act="edit" data-id="${id}">내용 정리</button>
-                    <button class="btn btn-warning btn-sm" data-act="confirm" data-id="${id}">일정 변경</button>
                     <button class="btn btn-danger btn-sm" data-act="cancel" data-id="${id}">취소</button>
                 `;
         } else {
