@@ -207,13 +207,26 @@ test('수주 만들기 — 업체 · 프로젝트를 설계에서 그대로 옮�
   });
 });
 
-test('수주 만들기 — staff 도 만든다 (상태 · 계약금은 보고, 수금액은 빠진다)', async () => {
+test('수주 만들기 — staff 도 만든다 (상태는 보고, 계약금 · 수금액은 빠진다)', async () => {
   await withFetch(orderCreateRoute('d-p'), async (calls) => {
     const { order } = await createOrderFromDocument(ENV, { documentId: 'DOC1', user: { id: P_STAFF } });
     assert.equal(calls.filter((c) => c.method === 'POST').length, 1);
-    assert.equal(order.contract_amount, 1100000);
+    assert.equal(calls.find((c) => c.method === 'POST').body.contract_amount, 1100000, '계약금은 저장한다');
     assert.equal(order.status, 'confirmed');
+    assert.ok(!('contract_amount' in order));
     assert.ok(!('received_amount' in order));
+  });
+});
+
+test('수주 만들기 — 협력업체 수주 응답에는 구분 · 거래처 칸이 없다 (본사 수주에는 있다)', async () => {
+  await withFetch(orderCreateRoute('d-p'), async () => {
+    const { order } = await createOrderFromDocument(ENV, { documentId: 'DOC1', user: { id: P_OWNER } });
+    assert.ok(!('price_tier' in order));
+    assert.equal(order.contract_amount, 1100000, '대표는 계약금을 본다');
+  });
+  await withFetch(orderCreateRoute('d-hq'), async () => {
+    const { order } = await createOrderFromDocument(ENV, { documentId: 'DOC1', user: { id: CREATOR } });
+    assert.equal(order.price_tier, 'customer');
   });
 });
 
@@ -245,21 +258,34 @@ test('수주 목록 — 협력업체 owner 는 그 업체 수주 전부 + 내가
   });
 });
 
-test('수주 목록 — staff 는 업체 수주를 보되 수금액은 빠진다 (상태 · 계약금은 그대로)', async () => {
+test('수주 목록 — staff 는 업체 수주 목록 · 상태만 (계약금 · 수금액은 빠진다)', async () => {
   await withFetch(orderListRoute([], [row('O1', PARTNER, 'd-p')]), async (calls) => {
     const items = await listOrders(ENV, { user: { id: P_STAFF } });
     assert.equal(orderQueries(calls)[0].get('or'), `(company_id.in.(${PARTNER}))`);
-    assert.equal(items[0].contract_amount, 1100000);
     assert.equal(items[0].status, 'confirmed');
+    assert.ok(!('contract_amount' in items[0]));
     assert.ok(!('received_amount' in items[0]));
   });
 });
 
-test('수주 목록 — 본사 staff 는 본사 수주 전부, 수금액은 내가 만든 설계 줄만', async () => {
+test('수주 목록 — 본사 staff 는 본사 수주 전부, 계약금 · 수금액은 내가 만든 설계 줄만', async () => {
   await withFetch(orderListRoute(['d-own'], [row('O1', HQ, 'd-hq'), row('O2', HQ, 'd-own')]), async (calls) => {
     const items = await listOrders(ENV, { user: { id: HQ_STAFF } });
     assert.equal(orderQueries(calls)[0].get('or'), `(company_id.in.(${HQ}))`);
-    assert.deepEqual(items.map((o) => [o.id, o.received_amount]), [['O1', undefined], ['O2', 500000]]);
+    assert.deepEqual(items.map((o) => [o.id, o.contract_amount, o.received_amount]), [['O1', undefined, undefined], ['O2', 1100000, 500000]]);
+  });
+});
+
+test('수주 목록 — 협력업체 수주 줄에는 구분 · 거래처 칸이 없다, 본사 수주 줄에는 있다', async () => {
+  const tiered = (id, companyId, designId) => ({ ...row(id, companyId, designId), price_tier: 'partner' });
+  await withFetch(orderListRoute(['d-mine'], [tiered('O1', PARTNER, 'd-p'), tiered('O2', HQ, 'd-mine')]), async () => {
+    const items = await listOrders(ENV, { user: { id: P_OWNER } });
+    assert.deepEqual(items.map((o) => [o.id, o.price_tier]), [['O1', undefined], ['O2', 'partner']]);
+    assert.ok(!('price_tier' in items[0]));
+  });
+  await withFetch(orderListRoute([], [tiered('O1', PARTNER, 'd-p')]), async () => {
+    const items = await listOrders(ENV, { user: { id: P_MANAGER }, designId: 'd-p' });
+    assert.ok(!('price_tier' in items[0]), '설계를 골라도 같다');
   });
 });
 
@@ -286,13 +312,15 @@ test('수주 목록 — 구성원 · 관리자가 아니면 내가 만든 본사
   });
 });
 
-test('수주 목록 — 설계를 고르면 그 설계의 권한으로, staff 는 수금액만 빠진다', async () => {
+test('수주 목록 — 설계를 고르면 그 설계의 권한으로, staff 는 계약금 · 수금액이 빠진다', async () => {
   await withFetch(orderListRoute([], [row('O1', PARTNER, 'd-p')]), async (calls) => {
     const forManager = await listOrders(ENV, { user: { id: P_MANAGER }, designId: 'd-p' });
     assert.equal(orderQueries(calls)[0].get('design_id'), 'eq.d-p');
     assert.equal(forManager[0].received_amount, 500000);
+    assert.equal(forManager[0].contract_amount, 1100000);
     const forStaff = await listOrders(ENV, { user: { id: P_STAFF }, designId: 'd-p' });
     assert.ok(!('received_amount' in forStaff[0]));
+    assert.ok(!('contract_amount' in forStaff[0]));
     await assert.rejects(listOrders(ENV, { user: { id: OTHER_OWNER }, designId: 'd-p' }), (e) => e.statusCode === 403);
   });
 });
@@ -331,12 +359,12 @@ function orderDetailRoute() {
   });
 }
 
-test('GET /orders/:id — staff 는 수주 기본 정보만 (원가 · 마진 · 수금 · 재작업 비용 없음), 실장은 전부', async () => {
+test('GET /orders/:id — staff 는 수주 기본 정보 · 상태만 (계약금 · 원가 · 마진 · 수금 · 재작업 비용 없음), 실장은 전부', async () => {
   const staff = await callWorker('/orders/O1', P_STAFF, orderDetailRoute());
   assert.equal(staff.status, 200, staff.text);
   const s = JSON.parse(staff.text).data;
-  assert.equal(s.order.contract_amount, 1100000);
   assert.equal(s.order.status, 'confirmed');
+  assert.ok(!('contract_amount' in s.order));
   assert.ok(!('received_amount' in s.order));
   for (const k of ['costs', 'margin', 'payments', 'money']) assert.ok(!(k in s), `${k} 없음`);
   assert.deepEqual(s.reworks, [{ id: 'R1', kind: 'as', cause: 'install' }]);
@@ -364,6 +392,43 @@ test('PATCH /orders/:id — staff 는 상태는 고치고 수금액은 403, 응�
   const owner = await callWorker('/orders/O1', P_OWNER, orderDetailRoute(), { method: 'PATCH', body: { received_amount: 600000 } });
   assert.equal(owner.status, 200);
   assert.equal(JSON.parse(owner.text).data.received_amount, 600000);
+});
+
+/** 구분 · 거래처 칸이 있는 수주 하나 — designId 의 업체 수주 */
+function tieredOrderRoute(designId, companyId) {
+  const inner = orderDetailRoute();
+  const order = { id: 'O1', order_no: 'SO-1', design_id: designId, company_id: companyId, snapshot_id: 'S1', contract_amount: 1100000, received_amount: 500000, status: 'confirmed', price_tier: 'partner', partner_id: null };
+  return (u, method, body) => {
+    if (method === 'GET' && u.includes('/orders?id=eq.')) return json([order]);
+    if (method === 'PATCH' && u.includes('/orders?')) return json([{ ...order, ...body }]);
+    if (method === 'GET' && u.includes('/counterparties?')) return json([]);
+    return inner(u, method, body);
+  };
+}
+
+test('협력업체 수주 — 구분 · 거래처는 응답에 없고, 적으려 하면 422 (다른 칸도 쓰지 않는다)', async () => {
+  for (const who of [P_OWNER, P_MANAGER, P_STAFF]) {
+    const got = await callWorker('/orders/O1', who, tieredOrderRoute('d-p', PARTNER));
+    assert.equal(got.status, 200, got.text);
+    const o = JSON.parse(got.text).data.order;
+    assert.ok(!('price_tier' in o) && !('partner_id' in o), who);
+    for (const body of [{ price_tier: 'customer' }, { price_tier: null }, { partner_id: null }, { partner_id: '11111111-1111-4111-8111-111111111111', note: '메모' }]) {
+      const r = await callWorker('/orders/O1', who, tieredOrderRoute('d-p', PARTNER), { method: 'PATCH', body });
+      assert.equal(r.status, 422, `${who} ${JSON.stringify(body)}`);
+      assert.match(JSON.parse(r.text).message, /협력업체 수주에는 구분/);
+      assert.ok(!r.calls.some((c) => c.method !== 'GET' && !c.url.includes('/auth/')), '아무것도 쓰지 않는다');
+    }
+    // 다른 칸은 예전처럼
+    const note = await callWorker('/orders/O1', who, tieredOrderRoute('d-p', PARTNER), { method: 'PATCH', body: { note: '메모' } });
+    assert.equal(note.status, 200, note.text);
+    assert.ok(!('price_tier' in JSON.parse(note.text).data));
+  }
+  // 본사 수주는 예전 그대로 — 칸이 있고 고친다
+  const hq = await callWorker('/orders/O1', CREATOR, tieredOrderRoute('d-hq', HQ));
+  assert.equal(JSON.parse(hq.text).data.order.price_tier, 'partner');
+  const patched = await callWorker('/orders/O1', CREATOR, tieredOrderRoute('d-hq', HQ), { method: 'PATCH', body: { price_tier: 'customer' } });
+  assert.equal(patched.status, 200, patched.text);
+  assert.equal(JSON.parse(patched.text).data.price_tier, 'customer');
 });
 
 test('원가 · 수금 · 재작업 비용을 바꾸는 경로는 staff 403', async () => {
@@ -571,7 +636,9 @@ test('본사 거르기 도우미 — 수주 · 설계에 붙은 표는 내장 �
 });
 
 test('경영 대시보드 — 수주 · 상담 · 연출컷 · 설계와 거기 붙은 표는 본사 것만 읽는다', async () => {
-  const route = baseRoute({ extra: (u) => (u.includes('/rest/v1/') ? json([]) : null) });
+  // 본사 수주 하나 (이달 완료) — 수주에 붙은 작업 기록 · 재단 실측도 읽게
+  const done = { id: 'O1', order_no: 'SO-1', design_id: 'd-hq', snapshot_id: null, contract_amount: 0, status: 'completed', ordered_at: '2026-10-01T01:00:00Z', completed_at: '2026-10-10T01:00:00Z' };
+  const route = baseRoute({ extra: (u) => (u.includes('/rest/v1/orders?') ? json([done]) : u.includes('/rest/v1/') ? json([]) : null) });
   await withFetch(route, async (calls) => {
     await getManagementSummary(ENV, { user: { id: ADMIN }, month: '2026-10' });
     const reads = calls.filter((c) => c.method === 'GET').map((c) => {
@@ -579,13 +646,18 @@ test('경영 대시보드 — 수주 · 상담 · 연출컷 · 설계와 거기 
       return { table: url.pathname.replace('/rest/v1/', ''), q: url.searchParams };
     });
     const of = (t) => reads.filter((r) => r.table === t);
-    for (const t of ['orders', 'consultations', 'generations', 'designs']) {
+    // 작업 기록 · 거래처 · 공급처 · 외주 발주(공급처 성적표)도 본사 것만 (업체 칸 — 0015)
+    for (const t of ['orders', 'consultations', 'generations', 'designs', 'production_worklogs', 'counterparties', 'work_reports']) {
       assert.ok(of(t).length > 0, `${t} 를 읽는다`);
       for (const r of of(t)) assert.equal(r.q.get('company_id'), `eq.${HQ}`, `${t} 는 본사만`);
     }
+    // 작업 기록은 수주별 · 이달 · 처리능력 · 재단 실측 네 번 모두
+    assert.equal(of('production_worklogs').length, 4);
     for (const t of ['order_costs', 'order_payments', 'rework_logs', 'install_feedback']) {
       assert.ok(of(t).length > 0, `${t} 를 읽는다`);
       for (const r of of(t)) {
+        // 본사 수주 id 로 읽는 경우도 있다 — 그때는 수주 id 가 이미 본사 것
+        if (r.q.get('order_id')) continue;
         assert.ok(r.q.get('select').endsWith(',orders!inner(company_id)'), `${t} 는 본사 수주로 거른다`);
         assert.equal(r.q.get('orders.company_id'), `eq.${HQ}`);
       }

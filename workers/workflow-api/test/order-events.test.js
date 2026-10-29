@@ -602,9 +602,9 @@ test('지금 상태와 같은 status 는 바꾸기가 아니다 — 기록 없�
   assert.equal(withNote.status, 200);
   assert.deepEqual(withNote.calls.find((c) => c.method === 'PATCH').body, { note: '메모' });
   assert.equal(db.events.length, 0);
-  // 상태 없이 다른 칸만 — 예전 그대로
-  const tier = await patchOrder(db, P_STAFF, { price_tier: 'partner' });
-  assert.equal(tier.status, 200);
+  // 상태 없이 다른 칸만 — 예전 그대로 (협력업체 수주라 구분 대신 메모)
+  const other = await patchOrder(db, P_STAFF, { note: '다른 메모' });
+  assert.equal(other.status, 200);
   assert.equal(db.events.length, 0);
 });
 
