@@ -8,35 +8,36 @@
     <title>내 정보 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026103001" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026103001" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026103001" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026103001" />
+    <link rel="icon" href="icons/icon.svg?v=2026103002" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026103002" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026103002" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026103002" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026103001" />
+    <link rel="stylesheet" href="shell.css?v=2026103002" />
     <!-- 업체 칸의 입력 · 버튼 — 만들기 탭과 같은 모양 (consult.html · renders.html 처럼 싣는다) -->
-    <link rel="stylesheet" href="make.css?v=2026103001" />
+    <link rel="stylesheet" href="make.css?v=2026103002" />
     <!-- 로그인 상태 · 역할 메뉴 — 기존 사이트의 판정 모듈을 그대로 싣는다 (segan/shell.js 머리말) -->
-    <script src="../js/config.js?v=2026103001"></script>
+    <script src="../js/config.js?v=2026103002"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026103001"></script>
-    <script src="../js/detaildesign-access.js?v=2026103001"></script>
-    <script src="../js/mypage-work.js?v=2026103001"></script>
+    <script src="../js/admin-access.js?v=2026103002"></script>
+    <script src="../js/detaildesign-access.js?v=2026103002"></script>
+    <script src="../js/mypage-work.js?v=2026103002"></script>
     <!-- 업체 칸: Expert 카드 등록 · Agent 결제 — pricing.html 과 같은 토스 결제창 -->
     <script src="https://js.tosspayments.com/v1/payment" defer></script>
     <!-- 내 정보 › 알림 (web push) — 셸의 로그아웃이 이 기기 구독을 지우려 SeganPush.forget 을 부른다 -->
-    <script src="push.js?v=2026103001" defer></script>
-    <script src="regions.js?v=2026103001" defer></script>
-    <script src="partner.js?v=2026103001" defer></script>
-    <script src="books.js?v=2026103001" defer></script>
-    <script src="shell.js?v=2026103001" defer></script>
-    <script src="make.js?v=2026103001" defer></script>
-    <script src="me.js?v=2026103001" defer></script>
+    <script src="push.js?v=2026103002" defer></script>
+    <script src="regions.js?v=2026103002" defer></script>
+    <script src="partner.js?v=2026103002" defer></script>
+    <script src="partner-consults.js?v=2026103002" defer></script>
+    <script src="books.js?v=2026103002" defer></script>
+    <script src="shell.js?v=2026103002" defer></script>
+    <script src="make.js?v=2026103002" defer></script>
+    <script src="me.js?v=2026103002" defer></script>
   </head>
   <body class="sg-app" data-tab="me">
     <div data-segan-shell="header"></div>
@@ -65,6 +66,11 @@
         <section class="sg-section me-pt" id="partner" aria-labelledby="mePartnerTitle" hidden>
           <h2 id="mePartnerTitle">업체</h2>
           <div id="mePartner"></div>
+          <!-- 업체 › 상담 — workflow-api GET /company/consults. Agent 업체 구성원(받기 · 못 받음 · 내 평가는 대표 · 실장),
+               읽은 뒤에만 보인다 (segan/partner-consults.js). 새 상담 알림이 me.html#partner-consults 로 연다 -->
+          <div class="me-pt-group me-cs" id="partner-consults" hidden></div>
+          <!-- 업체 › 상담 설정 — GET/PUT /company/service-settings. 대표 · 실장만 (segan/partner-consults.js) -->
+          <div class="me-pt-group me-cs" id="partnerConsultSettings" hidden></div>
           <!-- 업체 › 회계 — workflow-api GET /books/summary. 대표 · 실장만, 읽은 뒤에만 보인다 (segan/books.js) -->
           <div class="me-pt-group me-bk" id="meBooks" hidden></div>
         </section>

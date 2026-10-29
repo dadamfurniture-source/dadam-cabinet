@@ -245,7 +245,11 @@ describe('자리 · 이름', () => {
     expect(el).not.toBeNull();
     expect(el.hasAttribute('hidden')).toBe(true);
     expect(el.closest('section').id).toBe('partner');
-    expect(el.previousElementSibling.id).toBe('mePartner');
+    // 업체 내용 · 상담 · 상담 설정(segan/partner-consults.js) 아래, 칸의 맨 끝
+    const ids = [...el.parentElement.children].map((x) => x.id);
+    const pos = (id) => ids.findIndex((x) => x === id);
+    expect(pos('meBooks')).toBeGreaterThan(pos('mePartner'));
+    expect(el.nextElementSibling).toBeNull();
     // books.js 를 업체 칸 스크립트 뒤 · me.js 앞에 싣는다
     const srcs = [...doc.querySelectorAll('script[src]')].map((s) => s.getAttribute('src'));
     const at = (name) => srcs.findIndex((s) => s.startsWith(name + '?v='));

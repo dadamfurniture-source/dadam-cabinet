@@ -2,8 +2,9 @@
    segan/me.js — 「내 정보」 탭의 내 프로젝트 · 상담 내역 · 크레딧 · 구독 (segan/me.html)
 
    역할 메뉴 · 로그아웃 · 사업자 정보는 segan/shell.js 가 그린다. 업체 칸은 segan/partner.js 가 그린다
-   (여기서 로그인 뒤 SeganPartner.load 를 부른다). 업체 › 회계는 segan/books.js, 알림 칸은 segan/push.js 가
-   그린다 (업체 칸을 읽은 뒤 SeganBooks.load · SeganPush.load 에 그 /partner/me 를 넘긴다). 여기서는 넷을 채운다:
+   (여기서 로그인 뒤 SeganPartner.load 를 부른다). 업체 › 상담 · 상담 설정은 segan/partner-consults.js,
+   업체 › 회계는 segan/books.js, 알림 칸은 segan/push.js 가 그린다 (업체 칸을 읽은 뒤
+   SeganPartnerConsults.load · SeganBooks.load · SeganPush.load 에 그 /partner/me 를 넘긴다). 여기서는 넷을 채운다:
      내 프로젝트 workflow-api GET /me/projects (본인 토큰). 단계 6칸 · 끝난 상태 · 계약 금액 ·
                 다음 결제(안 낸 것 중 낼 날이 가장 이른 것 — 워커 payments.js 와 같은 due_on 오름차순 ·
                 빈 날 뒤) · 설치일. 수금 단계 이름은 erp.html PAY_STAGE_LABELS · 워커 payments.js 와 같다.
@@ -262,7 +263,8 @@
   async function start(auth) {
     var Partner = window.SeganPartner;
     if (!auth || !auth.session || !auth.sb || !$('meConsults')) {
-      if (Partner && Partner.keepHashOnGate) Partner.keepHashOnGate(); // me.html#partner → 로그인 뒤 같은 곳
+      // me.html#partner · #partner-consults → 로그인 뒤 같은 곳
+      if (Partner && Partner.keepHashOnGate) Partner.keepHashOnGate();
       return;
     }
     // 크레딧 통장 — 크레딧 줄과 업체 칸이 같은 값을 쓴다 (한 번만 묻는다)
@@ -273,15 +275,18 @@
       }
     );
     var partner = Partner && Partner.load ? Partner.load(auth.sb, auth.session, wallet) : null;
+    var Consults = window.SeganPartnerConsults;
     var Books = window.SeganBooks;
     var Push = window.SeganPush;
     await Promise.all([
       loadProjects(auth.session),
-      // 업체 › 회계 · 알림 — 업체 칸이 읽은 /partner/me 로 가린다
-      //   회계 = 대표 · 실장 (segan/books.js), 알림 = 업체 구성원 · 본사 · 신청 중 (segan/push.js)
+      // 업체 › 상담 · 회계 · 알림 — 업체 칸이 읽은 /partner/me 로 가린다
+      //   상담 = Agent 업체 구성원 (segan/partner-consults.js), 회계 = 대표 · 실장 (segan/books.js),
+      //   알림 = 업체 구성원 · 본사 · 신청 중 (segan/push.js)
       Promise.resolve(partner).then(function () {
         var me = Partner && Partner.state ? Partner.state.me : null;
         return Promise.all([
+          Consults && Consults.load ? Consults.load(auth.sb, auth.session, me) : null,
           Books && Books.load ? Books.load(auth.sb, auth.session, me) : null,
           Push && Push.load ? Push.load(auth.sb, auth.session, me) : null,
         ]);
