@@ -171,3 +171,19 @@ describe('배치 단계 — 모델의 설치 여유', () => {
     expect(lower).not.toHaveProperty('sideGap');
   });
 });
+
+describe('planner-engine.js 냉장고 자리 식 (2026-10-29 — mockup-shell · mockup-structure 에서 옮김, 간편 플래너도 쓴다)', () => {
+  const E = require('../js/planner/planner-engine.js');
+  test('여유 — 모델 표 · 니치 · 브랜드 라인 기본 (화면과 같은 함수)', () => {
+    expect(E.fridgeGapsOf({ brand: '삼성', name: 'BESPOKE 1도어 키친핏 380L' })).toEqual({ side: 12, top: E.MASTER_RULES.FRIDGE_TOP_GAP });
+    expect(E.fridgeGapsOf({ brand: '데이코', name: '컬럼 냉장고', w: 604, h: 2118, nicheW: 610, nicheH: 2135, sideGap: 50 })).toEqual({ side: 3, top: 17 });
+    expect(E.fridgeLineOf({ brand: 'LG', name: 'DIOS 빌트인 양문형' })).toBe('LG_BUILTIN');
+  });
+  test('위장 폭 — 한 대 621 · 세 대 사이 여유 하나 · 전체 여유 6 등분', () => {
+    expect(E.MASTER_RULES.FRIDGE_NICHE_EXTRA).toBe(6);
+    expect(E.fridgeNicheWidthsOf([{ w: 595, side: 10 }])).toEqual([621]);
+    const three = E.fridgeNicheWidthsOf([{ w: 595, side: 10 }, { w: 595, side: 10 }, { w: 595, side: 10 }]);
+    expect(three.reduce((a, b) => a + b, 0)).toBe(1831);
+    expect(E.fridgeExtraShares(4)).toEqual([2, 2, 1, 1]);
+  });
+});

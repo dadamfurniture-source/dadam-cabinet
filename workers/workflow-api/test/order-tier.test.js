@@ -109,7 +109,8 @@ test('수주 목록: 구분 칸까지 읽고, 칸이 없으면 빼고 다시 읽
 });
 
 const updateRoute = (missing) => (u, method, body) => {
-  if (method === 'GET' && u.includes('/orders?')) return json([{ id: 'O1', design_id: 'D1', status: 'confirmed' }]);
+  // 구분은 본사 수주에만 — 본사 수주
+  if (method === 'GET' && u.includes('/orders?')) return json([{ id: 'O1', design_id: 'D1', company_id: HQ, status: 'confirmed' }]);
   if (companyRoute(u)) return companyRoute(u);
   if (method === 'GET' && u.includes('/designs?')) return json([{ id: 'D1', user_id: 'U1', company_id: HQ }]);
   if (method === 'PATCH' && u.includes('/orders?')) return missing ? NO_COLUMN() : json([{ id: 'O1', ...body }]);

@@ -4,10 +4,10 @@
  * **관리자만** 본다. 수주는 설계 주인 기준이 아니라 회사 전체다 (작업 지시 보고 보관함과
  * 같은 방식). 상담은 고객이 남긴 것이라 건수만 읽는다 — 이름 · 연락처는 싣지 않는다.
  *
- * 본사 대시보드다 — 수주 · 상담 · 연출컷 · 설계는 company_id 로, 수주 · 설계에 붙은 표
+ * 본사 대시보드다 — 수주 · 상담 · 연출컷 · 설계 · 작업 기록(production_worklogs) · 거래처 · 공급처 ·
+ * 외주 발주 보관함(work_reports)은 company_id 로, 수주 · 설계에 붙은 표
  * (원가 · 수금 · 재작업 · 설치 후 문항 · 확인서 · 일정)는 PostgREST 내장 조인(!inner)으로 본사 것만 읽는다.
- * 업체 칸이 없는 표(주문 없는 작업 기록 · 거래처 · 외주 발주 보관함 · 현금 잔액 · 과거 매출 · 분기 목표)는
- * 그대로 읽는다. 원가 설정은 본사 줄(company_settings)을 읽는다.
+ * 업체 칸이 없는 표(현금 잔액 · 과거 매출 · 분기 목표)는 그대로 읽는다. 원가 설정은 본사 줄(company_settings)을 읽는다.
  */
 import { selectMany, hqCompanyId, ForbiddenError } from '../supabase.js';
 import { isAdmin } from '../reports/admin.js';
@@ -106,18 +106,20 @@ export async function getManagementSummary(env, { user, month }) {
       ids.length ? selectMany(env, 'design_snapshots', { id: `in.(${ids.join(',')})`, select: 'id,quote_payload', limit: '1000' }) : [],
       // 실적 원가 · 작업 실측은 그 수주에 붙은 것 — 언제 적었든 수주 기준으로 본다
       selectMany(env, 'order_costs', { order_id: `in.(${orderIds})`, select: 'order_id,category,amount', limit: '5000' }).catch(() => []),
-      selectMany(env, 'production_worklogs', { order_id: `in.(${orderIds})`, select: 'id,order_id,role,minutes,work_date', limit: '5000' }).catch(() => []),
+      selectMany(env, 'production_worklogs', { order_id: `in.(${orderIds})`, company_id: HQ, select: 'id,order_id,role,minutes,work_date', limit: '5000' }).catch(() => []),
     ]);
   }
-  // 부하의 '이달 실제로 한 일' 은 주문과 상관없이 그 달 기록 전부다
+  // 부하의 '이달 실제로 한 일' 은 주문과 상관없이 그 달 본사 기록 전부다
   const monthLogs = (await selectMany(env, 'production_worklogs', {
     select: 'id,order_id,role,minutes,work_date',
+    company_id: HQ,
     and: `(work_date.gte.${m}-01,work_date.lte.${monthLastDay(m)})`,
     limit: '5000',
   }).catch(() => [])) || [];
-  // 처리능력 실측 — 수량 · 분이 있는 기록만 쓴다 (표준시간 보정과 같은 재료)
+  // 처리능력 실측 — 수량 · 분이 있는 본사 기록만 쓴다 (표준시간 보정과 같은 재료)
   const paceLogs = (await selectMany(env, 'production_worklogs', {
     select: 'role,units,minutes,work_date',
+    company_id: HQ,
     and: `(work_date.gte.${windowStart(m, PACE_WINDOW_DAYS)},work_date.lte.${monthLastDay(m)})`,
     limit: '10000',
   }).catch(() => [])) || [];
@@ -141,9 +143,9 @@ export async function getManagementSummary(env, { user, month }) {
     or: `(created_at.gte.${fbFrom},answered_at.gte.${fbFrom})`,
     limit: '5000',
   }, hq)).catch(() => null);
-  // 거래처 · 공급처 (한 해 창) — 표 · 칸이 아직 없으면 null
+  // 거래처 · 공급처 (한 해 창) — 본사 목록. 표 · 칸이 아직 없으면 null
   const yearFrom = windowStart(m, PARTNER_WINDOW_DAYS + 31);
-  const counterparties = await selectMany(env, 'counterparties', { select: 'id,kind,name,category,active', limit: '2000' }).catch(() => null);
+  const counterparties = await selectMany(env, 'counterparties', { select: 'id,kind,name,category,active', company_id: HQ, limit: '2000' }).catch(() => null);
   let partnerOrders = null, supplierCosts = [], outsource = [];
   if (counterparties) {
     [partnerOrders, supplierCosts, outsource] = await Promise.all([
@@ -160,8 +162,10 @@ export async function getManagementSummary(env, { user, month }) {
         created_at: `gte.${windowStart(m, PARTNER_WINDOW_DAYS + 400)}T00:00:00+09:00`,
         limit: '10000',
       }, hq)).catch(() => []),
+      // 외주 · 상판 발주 (공급처 성적표) — 본사 발주만
       selectMany(env, 'work_reports', {
         select: 'status,period_start,period_end,metrics',
+        company_id: HQ,
         kind: 'in.(outsource_order,countertop_order)',
         period_start: `gte.${yearFrom}`,
         limit: '5000',
@@ -232,7 +236,7 @@ export async function getManagementSummary(env, { user, month }) {
     const ids = doneOrders.map((o) => o.id);
     const need = [...new Set(doneOrders.map((o) => o.snapshot_id).filter((id) => id && !snaps.some((s) => s.id === id)))];
     const [logs, more] = await Promise.all([
-      selectMany(env, 'production_worklogs', { select: 'order_id,role,units', role: 'eq.cutter', order_id: `in.(${ids.join(',')})`, limit: '10000' }).catch(() => []),
+      selectMany(env, 'production_worklogs', { select: 'order_id,role,units', role: 'eq.cutter', order_id: `in.(${ids.join(',')})`, company_id: HQ, limit: '10000' }).catch(() => []),
       need.length ? selectMany(env, 'design_snapshots', { id: `in.(${need.join(',')})`, select: 'id,quote_payload', limit: '1000' }).catch(() => []) : [],
     ]);
     cutLogs = logs || [];

@@ -16,6 +16,10 @@
  *   선반  MDF 18T  (W−36) × (D−15)    2  1면(전)
  *   도어  MDF 18T  (floor(W/n)−4) × (H+20)   n  4면   (n = 도어 수, 없으면 1)
  *
+ * 2026-10-29 사장님 (간편 플래너 키큰장 가운데 단 홈카페 — 「도어 있음도 있고, 없음도 있는 걸로」): **도어 없는 홈카페장** —
+ *   부재는 위 몸통 그대로이고 도어만 없다 (fridge.md §6 "오픈형 중간장"). 구조 칸 타입이 'open' 이면 브리지가 BOM 모듈에
+ *   homecafeOpen 을 싣고, doorOf(…, { open: true }) 가 null 이다 (자재 도어 행 · 경첩이 같이 없다).
+ *
  * 순수 함수만 있다. 브라우저는 전역 `DadamHomecafeRules`, Node(Jest)는 module.exports.
  * BOM(extractors.js)과 플래너(mockup-structure)가 같은 이 파일을 읽는다.
  */
@@ -66,8 +70,12 @@
     ];
   }
 
-  /** 도어 — 수는 doorCount, 없거나 0 이하면 1 (extractFridge 와 같다). */
-  function doorOf(o, doorCount) {
+  /**
+   * 도어 — 수는 doorCount, 없거나 0 이하면 1 (extractFridge 와 같다).
+   * @param {{open?: boolean}} [opts] open = 도어 없는 홈카페장 (2026-10-29) — null
+   */
+  function doorOf(o, doorCount, opts) {
+    if (opts && opts.open) return null;
     const W = dim(o && o.W), H = dim(o && o.H);
     const n = Math.max(1, Math.round(Number(doorCount) || 0));
     if (!W || !H) return null;
