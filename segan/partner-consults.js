@@ -1,18 +1,23 @@
 /* ============================================================
    segan/partner-consults.js — 「내 정보 › 업체」 안의 상담 · 상담 설정 · 내 평가 (segan/me.html)
 
-   누가 보나  Agent 협력업체 구성원 — account-api GET /partner/me 의 company (plan agent).
-             상담 목록은 구성원 모두, 받기 · 못 받음 · 내 평가 · 상담 설정은 대표 · 실장만.
-             정지 · 해지된 업체는 읽기만 (segan/partner.js 「결제가 멈춰 있어 읽기만 됩니다」와 같다).
-             본사 구성원 · 업체 없음 · Expert 업체는 칸이 없다 (다담 본사가 상담을 나누는 업체 풀은 Agent 업체다).
+   누가 보나  다담 본사가 상담을 나누는 업체 풀의 구성원 — account-api GET /partner/me 로 가린다.
+               Agent 협력업체 구성원 (company.plan agent): 상담 목록은 구성원 모두, 내 평가 · 상담 설정은 대표 · 실장만.
+               다담 공장 구성원 (hq_member — company 없이 온다): 세 칸을 모두 묻고 서버가 가린다
+                 (403 이면 그 칸만 감춘다). 결제 · 구성원 같은 협력업체 칸(segan/partner.js)은 그대로 감추고,
+                 업체 칸(#partner)은 이 세 칸 중 하나라도 그렸을 때만 보인다.
+             받기 · 못 받음 · 설정 저장 단추: 서버 응답(목록 · 설정)의 can_act 를 따른다. 없으면 대표 · 실장이고
+               업체가 이용 중(active)일 때 — 정지 · 해지된 업체는 읽기만 (segan/partner.js 「결제가 멈춰 있어
+               읽기만 됩니다」와 같다). 다담 공장 구성원은 역할을 모르므로 can_act 가 없으면 읽기만.
+             업체 없음 · Expert 업체는 칸이 없다 (업체 풀은 Agent 업체 + 다담 공장).
              segan/me.js 가 업체 칸(segan/partner.js)을 읽은 뒤 SeganPartnerConsults.load(sb, session, partnerMe) 를
              부른다 (/partner/me 를 두 번 묻지 않는다).
    서버      workflow-api (본인 토큰 · 응답은 { success, data } · 오류는 { success:false, message, code })
-               GET  /company/consults               내 업체에 배정된 상담 (본사 상담의 사본)
+               GET  /company/consults               { items[], can_act? } 내 업체에 배정된 상담 (본사 상담의 사본)
                POST /company/consults/:id/accept    받기 → { customer_id, project_id } (업체 고객 · 프로젝트를 만든다)
                POST /company/consults/:id/decline   못 받음 { reason } → 204
                GET/PUT /company/service-settings    { regions[{sido,gugun}], items{품목: do|outsource|no},
-                                                      monthly_limit, next_available_date }
+                                                      monthly_limit, next_available_date, can_act? }
                GET  /company/my-score               { grade, satisfaction(0~5|null), response_rate(0~1|null) }
    화면
      상담 (#partner-consults)
@@ -111,8 +116,8 @@
     session: null,
     base: '', // workflow-api
     me: null, // GET /partner/me data
-    manager: false, // 대표 · 실장
-    act: false, // 받기 · 못 받음 · 설정 저장을 할 수 있나 (대표 · 실장, 업체 active)
+    act: false, // 받기 · 못 받음을 할 수 있나 (목록 응답 can_act, 없으면 대표 · 실장 · 업체 active)
+    setAct: false, // 상담 설정을 저장할 수 있나 (설정 응답 can_act, 없으면 위와 같은 판정)
     items: null, // GET /company/consults items (못 읽으면 null)
     score: null, // GET /company/my-score data (못 읽으면 null)
     settings: null, // GET /company/service-settings (못 읽으면 null)
@@ -173,22 +178,44 @@
     return c && typeof c === 'object' && !Array.isArray(c) ? c : null;
   }
 
-  /** 상담 칸을 보이나 — Agent 협력업체 구성원 */
+  /** 다담 공장 구성원 — /partner/me 가 company 없이 hq_member 로 준다 */
+  function isHq(me) {
+    return !!me && typeof me === 'object' && !Array.isArray(me) && me.hq_member === true;
+  }
+
+  /** 상담 칸을 보이나 — Agent 협력업체 구성원 · 다담 공장 구성원 */
   function canSee(me) {
+    if (isHq(me)) return true;
     var c = companyOf(me);
     return !!(c && c.plan === 'agent' && MEMBER_ROLES.indexOf(c.role) >= 0);
   }
 
-  /** 대표 · 실장 — 내 평가 · 상담 설정을 본다 */
+  /** 협력업체 대표 · 실장 (company.role) */
   function isManager(me) {
     var c = companyOf(me);
-    return canSee(me) && ROLES.indexOf(c.role) >= 0;
+    return canSee(me) && !!c && ROLES.indexOf(c.role) >= 0;
   }
 
-  /** 받기 · 못 받음 · 설정 저장 — 대표 · 실장이고 업체가 이용 중(active) */
+  /** 내 평가 · 상담 설정을 묻나 — 협력업체 대표 · 실장, 다담 공장 구성원(역할을 몰라 묻고 서버가 가린다) */
+  function asksManagerViews(me) {
+    return isManager(me) || isHq(me);
+  }
+
+  /** 받기 · 못 받음 · 설정 저장 (서버가 can_act 를 주지 않을 때) — 대표 · 실장이고 업체가 이용 중(active) */
   function canAct(me) {
     var c = companyOf(me);
     return isManager(me) && c.status === 'active';
+  }
+
+  /** 응답 data 의 can_act (참 · 거짓일 때만), 없으면 company.role 로 */
+  function actOf(d, me) {
+    return d && typeof d === 'object' && typeof d.can_act === 'boolean' ? d.can_act : canAct(me);
+  }
+
+  /** 정지 · 해지된 협력업체 — 읽기만 (단추가 없는 까닭이 역할이 아니다) */
+  function isPaused(me) {
+    var c = companyOf(me);
+    return !!c && c.status !== 'active';
   }
 
   /** GET /company/consults 본문 → 상담 목록 | null (id 가 uuid 인 것만) */
@@ -484,12 +511,14 @@
       P.items.some(function (x) {
         return x.id === P.note.id;
       });
-    var score = P.manager && P.score ? scoreText(P.score) : '';
+    var score = P.score ? scoreText(P.score) : '';
+    // 단추가 없는 까닭이 역할일 때만 「대표 · 실장이 합니다」 (정지 · 해지된 업체는 업체 칸이 이미 알린다)
+    var staff = !P.act && !isPaused(P.me);
     box.innerHTML =
       '<h3 class="me-pt-sub" id="partnerConsultsTitle">상담</h3>' +
       (score ? '<p class="me-cs-score" data-score>내 평가 · ' + esc(score) + '</p>' : '') +
       '<p class="mk-note">' +
-      esc(TEXT.lead + (P.manager ? '' : ' ' + TEXT.leadStaff)) +
+      esc(TEXT.lead + (staff ? ' ' + TEXT.leadStaff : '')) +
       '</p>' +
       (P.note && !matched ? noteHtml(P.note) : '') +
       (P.items.length
@@ -591,7 +620,7 @@
   function renderSettings() {
     var box = $('partnerConsultSettings');
     if (!box) return;
-    if (!P.manager || !P.settings || !P.draft) {
+    if (!P.settings || !P.draft) {
       box.hidden = true;
       box.innerHTML = '';
       return;
@@ -604,11 +633,11 @@
       esc(TEXT.settingsLead) +
       '</p>' +
       '<fieldset class="me-cs-fields"' +
-      (P.act ? '' : ' disabled') +
+      (P.setAct ? '' : ' disabled') +
       '>' +
       '<div class="me-cs-field"><p class="me-pt-title">상담 받는 지역</p>' +
       regionsHtml(d.regions) +
-      (P.act
+      (P.setAct
         ? regionSelectHtml() + '<div class="rd-acts">' + btn('region-add', '지역 더하기') + '</div>'
         : '') +
       '</div>' +
@@ -632,7 +661,7 @@
       esc(P.setErr) +
       '</p>' +
       (P.setMsg ? '<p class="me-pt-msg" role="status">' + esc(P.setMsg) + '</p>' : '') +
-      (P.act
+      (P.setAct
         ? '<div class="rd-acts"><button type="submit" class="mk-btn mk-btn--solid"' +
           (P.busy ? ' disabled' : '') +
           '>설정 저장</button></div>'
@@ -769,9 +798,11 @@
     return typeof m === 'string' && m ? m : TEXT.generic;
   }
 
+  /** GET /company/consults → { items, act } | null */
   async function fetchList() {
     var r = await call('GET', '/company/consults');
-    return r.ok ? listOf(r.body) : null;
+    var items = r.ok ? listOf(r.body) : null;
+    return items ? { items: items, act: actOf(r.body.data, P.me) } : null;
   }
 
   async function fetchScore() {
@@ -779,12 +810,21 @@
     return r.ok ? scoreOf(r.body) : null;
   }
 
+  /** GET /company/service-settings → { settings, act } | null */
   async function fetchSettings() {
     var r = await call('GET', '/company/service-settings');
     if (!r.ok || !('data' in r.body)) return null;
     var d = r.body.data;
     if (d != null && (typeof d !== 'object' || Array.isArray(d))) return null;
-    return settingsOf(d); // 아직 한 번도 저장하지 않았으면(data null) 빈 설정
+    // 아직 한 번도 저장하지 않았으면(data null) 빈 설정
+    return { settings: settingsOf(d), act: actOf(d, P.me) };
+  }
+
+  /** 목록 응답을 옮긴다 (못 읽었으면 지금 것을 둔다) */
+  function takeList(got) {
+    if (!got) return;
+    P.items = got.items;
+    P.act = got.act;
   }
 
   // ── 동작 ───────────────────────────────────────────────
@@ -807,8 +847,7 @@
 
   /** 목록을 다시 읽고 그린다 (못 읽으면 지금 목록을 그대로 두고 한 줄) */
   async function refreshList(note) {
-    var items = await fetchList();
-    if (items) P.items = items;
+    takeList(await fetchList());
     P.note = note || null;
     P.decline = '';
     renderList();
@@ -869,7 +908,7 @@
   }
 
   async function saveSettings() {
-    if (P.busy || !P.act) return;
+    if (P.busy || !P.setAct) return;
     syncDraft();
     var v = settingsBody(P.draft);
     if (v.error) return settingsError(v.error, v.field);
@@ -882,8 +921,9 @@
       return settingsError(errText(r), r.status === 422 ? r.body.field : null);
     }
     var d = r.body.data;
-    P.settings =
-      d && typeof d === 'object' && !Array.isArray(d) ? settingsOf(d) : settingsOf(v.body);
+    var saved = d && typeof d === 'object' && !Array.isArray(d);
+    P.settings = saved ? settingsOf(d) : settingsOf(v.body);
+    if (saved && typeof d.can_act === 'boolean') P.setAct = d.can_act;
     P.draft = draftOf(P.settings);
     P.setErr = '';
     P.setMsg = TEXT.saved;
@@ -951,12 +991,25 @@
   /** 앱이 열린 채 알림을 눌러 주소의 # 만 바뀌었다 — 새 상담을 다시 읽고 내려간다 */
   async function onHash() {
     if (location.hash !== HASH || !P.base || !canSee(P.me) || P.busy) return;
-    var items = await fetchList();
-    if (items) {
-      P.items = items;
+    var got = await fetchList();
+    if (got) {
+      takeList(got);
       renderList();
+      showSection();
     }
     scrollIfAsked();
+  }
+
+  /**
+   * 다담 공장 구성원 — 업체 칸(#partner)은 segan/partner.js 가 감춰 둔다(협력업체 칸이 없으므로).
+   * 이 파일의 칸을 하나라도 그렸으면 업체 칸을 보이고(협력업체 내용 #mePartner 는 비어 있다), 아니면 감춘다.
+   */
+  function showSection() {
+    if (!isHq(P.me)) return;
+    var section = $('partner');
+    var list = $('partner-consults');
+    var set = $('partnerConsultSettings');
+    if (section) section.hidden = !((list && !list.hidden) || (set && !set.hidden));
   }
 
   function bind() {
@@ -1001,22 +1054,25 @@
     P.decline = '';
     P.setMsg = '';
     P.setErr = '';
+    P.act = false;
+    P.setAct = false;
     if (!P.base || !session || !canSee(me)) return;
-    P.manager = isManager(me);
-    P.act = canAct(me);
+    var managerViews = asksManagerViews(me);
     try {
       var got = await Promise.all([
         fetchList(),
-        P.manager ? fetchScore() : null,
-        P.manager ? fetchSettings() : null,
+        managerViews ? fetchScore() : null,
+        managerViews ? fetchSettings() : null,
       ]);
-      P.items = got[0];
+      takeList(got[0]);
       P.score = got[1];
-      P.settings = got[2];
+      P.settings = got[2] ? got[2].settings : null;
+      P.setAct = got[2] ? got[2].act : false;
       P.draft = P.settings ? draftOf(P.settings) : null;
       bind();
       renderList(); // 모양이 틀린 응답은 여기서 던진다 → 칸째 감춘다
       renderSettings();
+      showSection();
       scrollIfAsked();
     } catch {
       list.hidden = true;
@@ -1025,6 +1081,7 @@
         set.hidden = true;
         set.innerHTML = '';
       }
+      showSection();
     }
   }
 
@@ -1042,6 +1099,7 @@
     canSee: canSee,
     isManager: isManager,
     canAct: canAct,
+    actOf: actOf,
     listOf: listOf,
     scoreOf: scoreOf,
     scoreText: scoreText,

@@ -389,10 +389,6 @@ describe('누가 보나', () => {
   test.each([
     ['Expert 업체', { partner: partnerMe({ plan: 'expert' }) }],
     ['업체 없음', { partner: ok({ company: null, application: null, members: [], invites: [] }) }],
-    [
-      '본사 구성원',
-      { partner: ok({ hq_member: true, company: company(), members: [], invites: [] }) },
-    ],
     ['/partner/me 404', { partner: fail(404, 'not_found', 'x') }],
     ['/partner/me 끊김', { partner: new TypeError('Failed to fetch') }],
     ['모르는 역할', { partner: partnerMe({ role: 'admin' }) }],
@@ -430,9 +426,122 @@ describe('누가 보나', () => {
     expect(canAct(me({ role: 'owner', status: 'suspended' }))).toBe(false);
     expect(canAct(me({ role: 'owner', status: 'closed' }))).toBe(false);
     expect(canSee(me({ role: 'owner', plan: 'expert' }))).toBe(false);
-    expect(canSee({ hq_member: true, company: { plan: 'agent', role: 'owner' } })).toBe(false);
+    // 다담 공장 구성원 — 보지만 역할을 모르니 단추는 서버 can_act 를 따른다
+    const hq = { hq_member: true, company: null };
+    expect(canSee(hq)).toBe(true);
+    expect(isManager(hq)).toBe(false);
+    expect(canAct(hq)).toBe(false);
+    expect(canSee({ hq_member: 'yes' })).toBe(false);
     expect(canSee(null)).toBe(false);
     expect(canSee([])).toBe(false);
+  });
+
+  test('actOf — 서버 can_act(참 · 거짓)이 먼저, 없으면 company.role', async () => {
+    await load();
+    const { actOf } = window.SeganPartnerConsults;
+    const owner = { company: { plan: 'agent', status: 'active', role: 'owner' } };
+    const staff = { company: { plan: 'agent', status: 'active', role: 'staff' } };
+    expect(actOf({ can_act: false }, owner)).toBe(false);
+    expect(actOf({ can_act: true }, staff)).toBe(true);
+    expect(actOf({ can_act: 'yes' }, staff)).toBe(false);
+    expect(actOf({}, owner)).toBe(true);
+    expect(actOf(null, owner)).toBe(true);
+    expect(actOf({ items: [] }, { hq_member: true })).toBe(false);
+    expect(actOf({ can_act: true }, { hq_member: true })).toBe(true);
+  });
+});
+
+describe('다담 공장 구성원 (hq_member) — 상담 · 상담 설정 · 내 평가만', () => {
+  const hqMe = () =>
+    ok({ hq_member: true, company: null, application: null, members: [], invites: [] });
+
+  test('세 칸을 모두 묻고 업체 칸 안에 그린다 — 협력업체 내용 · 회계는 없다, can_act 가 없으면 읽기만', async () => {
+    const calls = await load({ partner: hqMe() });
+    expect(workCalls(calls).map((f) => f.url)).toEqual([
+      WORK + '/company/consults',
+      WORK + '/company/my-score',
+      WORK + '/company/service-settings',
+    ]);
+    expect($('partner').hidden).toBe(false);
+    expect($('mePartner').textContent).toBe('');
+    expect($('meBooks').hidden).toBe(true);
+    expect(calls.fetch.some((f) => f.url.startsWith(WORK + '/books/'))).toBe(false);
+    expect(box().hidden).toBe(false);
+    expect(item(C1)).not.toBeNull();
+    expect(box().querySelectorAll('button')).toHaveLength(0);
+    expect(box().querySelector('.mk-note').textContent).toContain(
+      '받기 · 못 받음은 대표 · 실장이 합니다.'
+    );
+    expect(box().querySelector('[data-score]').textContent).toBe(
+      '내 평가 · 등급 A · 고객 만족 4.6 / 5 · 응답률 90%'
+    );
+    expect(setBox().hidden).toBe(false);
+    expect(form().querySelector('fieldset').disabled).toBe(true);
+    expect(form().querySelector('button[type="submit"]')).toBeNull();
+  });
+
+  test('서버가 can_act: true 를 주면 받기 · 못 받음 · 설정 저장', async () => {
+    const calls = await load({
+      partner: hqMe(),
+      list: ok({ items: [waiting()], can_act: true }),
+      settings: ok({ ...SETTINGS, can_act: true }),
+    });
+    expect(btnIn(item(C1), '받기')).toBeTruthy();
+    expect(box().querySelector('.mk-note').textContent).not.toContain('대표 · 실장이 합니다');
+    expect(form().querySelector('fieldset').disabled).toBe(false);
+    await press(item(C1), '받기');
+    expect(
+      workCalls(calls)
+        .filter((f) => f.method === 'POST')
+        .map((f) => f.url)
+    ).toEqual([`${WORK}/company/consults/${C1}/accept`]);
+    await submitSettings();
+    const put = workCalls(calls, 'service-settings').find((f) => f.method === 'PUT');
+    expect(put.body).not.toHaveProperty('can_act');
+    expect(put.body.monthly_limit).toBe(12);
+  });
+
+  test('서버가 셋 다 막으면(403) 업체 칸째 감춘 그대로', async () => {
+    const no = fail(403, 'forbidden', 'x');
+    await load({ partner: hqMe(), list: no, score: no, settings: no });
+    expect($('partner').hidden).toBe(true);
+    expect(box().hidden).toBe(true);
+    expect(setBox().hidden).toBe(true);
+  });
+
+  test('목록만 막히면(403) 상담 설정만 보인다', async () => {
+    await load({ partner: hqMe(), list: fail(403, 'forbidden', 'x') });
+    expect($('partner').hidden).toBe(false);
+    expect(box().hidden).toBe(true);
+    expect(setBox().hidden).toBe(false);
+  });
+});
+
+describe('서버 can_act — 협력업체도 응답을 따른다', () => {
+  test('대표라도 목록 can_act: false 면 단추 없음, 설정 can_act: false 면 잠김', async () => {
+    await load({
+      list: ok({ items: [waiting()], can_act: false }),
+      settings: ok({ ...SETTINGS, can_act: false }),
+    });
+    expect(box().querySelectorAll('button')).toHaveLength(0);
+    expect(form().querySelector('fieldset').disabled).toBe(true);
+    expect(form().querySelector('button[type="submit"]')).toBeNull();
+  });
+
+  test('직원이라도 목록 can_act: true 면 받기 · 못 받음', async () => {
+    await load({
+      partner: partnerMe({ role: 'staff' }),
+      list: ok({ items: [waiting()], can_act: true }),
+    });
+    expect(btnIn(item(C1), '받기')).toBeTruthy();
+    expect(btnIn(item(C1), '못 받음')).toBeTruthy();
+  });
+});
+
+describe('상담 목록 (계속)', () => {
+  test('can_act 가 없는 응답이면 지금처럼 company.role (대표 · active)', async () => {
+    await load({ list: ok({ items: [waiting()] }) });
+    expect(btnIn(item(C1), '받기')).toBeTruthy();
   });
 });
 
