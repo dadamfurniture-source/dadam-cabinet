@@ -303,15 +303,29 @@
     return SAMPLE_PRESETS[Math.min(i, SAMPLE_PRESETS.length - 1)];
   }
 
+  /**
+   * 칸마다 선반 수 (2026-10-30 사장님 간편 플래너 붙박이장 「칸마다 바꾸기」) — 칸 차례(layoutWardrobeModule cells — 몸통 아래 → 위,
+   *   몸통 안 아래 → 위 · 왼 → 오른)마다 장수, null 은 기본형 그대로. 몸통 구조(기본형 stack)는 그대로 두고 칸의 shelves 만 바꾼다
+   *   (사용자 칸 cells 는 몸통을 하나로 합치므로 쓰지 않는다). 자리는 칸 규칙 shelfPositions 그대로.
+   * @returns {Array<number|null>|null} 바꾼 칸이 없으면 null
+   */
+  function cleanCellShelves(v) {
+    if (!Array.isArray(v)) return null;
+    const out = v.slice(0, 24).map((n) => (n == null || n === '' || !Number.isFinite(Number(n)) ? null : int0(n, 12)));
+    return out.some((n) => n != null) ? out : null;
+  }
+
   /** 모듈에 붙는 붙박이장 구조 블록을 다듬는다. 모르는 값은 버린다 (브리지·저장이 이 모양으로 주고받는다). */
   function normalizeBlock(raw) {
     const b = raw && typeof raw === 'object' ? raw : {};
     const preset = PRESET_KEYS.includes(b.preset) ? b.preset : null;
     const cells = Array.isArray(b.cells) ? b.cells.map(cleanCell).filter(Boolean) : [];
     const drawers = int0(b.drawers, R.MAX_DRAWER_COUNT);
+    const cellShelves = cleanCellShelves(b.cellShelves);
     return {
       preset,
       cells: cells.length ? cells : null,
+      ...(cellShelves ? { cellShelves } : {}),
       // null·undefined 는 **미지정**이다 — 0 으로 접으면 프리셋 기본 서랍 단수를 덮어쓴다
       // (Number(null) 이 0 이고 Number.isFinite(0) 이 true 라 그렇게 새던 자리다).
       drawers: b.drawers == null || b.drawers === '' ? null : drawers,
@@ -715,6 +729,7 @@
    *   preset          프리셋 키. 'custom' 이거나 cells 를 주면 그 칸을 쓴다
    *   cells           직접 편집한 칸 목록
    *   drawers         외부 서랍 단수 (없으면 프리셋 기본값)
+   *   cellShelves     칸마다 선반 수 (normalizeBlock cellShelves — null 칸은 기본형 그대로, 2026-10-30)
    * @returns {{preset, cells, dividers, rods, shelves, drawerModH, bodyH, Wi, Hi, warnings}}
    */
   function layoutWardrobeModule(o) {
@@ -780,6 +795,7 @@
     const dividers = [];
     const shelves = [];
     const rods = [];
+    const cellShelves = cleanCellShelves(opt.cellShelves);
 
     const firstCabinet = carcasses.findIndex((c) => c.kind === 'cabinet');
     carcasses.forEach((car, carIdx) => {
@@ -824,7 +840,10 @@
       car.dividers = ownDividers;
       dividers.push(...ownDividers);
 
-      own.forEach((c) => {
+      own.forEach((c0) => {
+        // 칸마다 선반 수 — 사람이 바꾼 칸만 (몸통 · 칸 · 옷봉은 기본형 그대로)
+        const ov = cellShelves && cellShelves[cells.length];
+        const c = ov == null ? c0 : Object.assign({}, c0, { shelves: ov });
         const cell = Object.assign({}, c, { carcass: carIdx, y0: c.y0 + base });
         const idx = cells.length;
         cells.push(cell);
@@ -906,7 +925,7 @@
 
   return {
     WARDROBE_RULES, PRESETS, PRESET_KEYS, PRESET_DEFAULT, SAMPLE_PRESETS, CELL_KINDS,
-    layoutWardrobeModule, normalizeBlock, dividersOf, shelfPositions, rodPositions,
+    layoutWardrobeModule, normalizeBlock, cleanCellShelves, dividersOf, shelfPositions, rodPositions,
     partsOf, rodHardwareOf, rodHardwareFor, rodLengthFor, bodyHeightOf, shelfDepthOf, innerDepthOf,
     cabinetsOf, splitStack, moldingPartFor, moldingFinishOn,
     innerDrawerLayout, innerDrawerPartsOf, innerDrawerModulePartsOf, innerSlotPlan,
