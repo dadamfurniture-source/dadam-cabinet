@@ -150,6 +150,7 @@ import { addWorkerUpdate, addCompanyUpdate } from './work/updates.js';
 import { acceptConsultation, listMyProjects } from './projects.js';
 import { handlePushKey, handleSavePushSubscription, handleDeletePushSubscription } from './push/routes.js';
 import { runPushSender, runPushCleanup, isPushCleanupTime, PUSH_SEND_CRON } from './push/sender.js';
+import { notifyOrderRequest, notifyOrderRequestDecided, notifyConfirmationDecided } from './push/hooks.js';
 
 const SERVICE = 'dadam-workflow-api';
 const VERSION = '0.1.0';
@@ -160,6 +161,15 @@ async function readJson(request) {
   } catch {
     return null;
   }
+}
+
+/**
+ * 응답을 막지 않고 뒤에서 돌린다 (ctx.waitUntil). ctx 가 없으면 기다린다.
+ * job 은 던지지 않는 일이어야 한다 (앱 알림 넣기 — src/push/hooks.js).
+ */
+async function afterResponse(ctx, job) {
+  if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(job);
+  else await job;
 }
 
 // ===== 핸들러 =====
@@ -720,8 +730,11 @@ async function handleDeleteRework(request, env, { params, user }) {
 async function handleUpdateOrder(request, env, { params, user, ctx }) {
   const patch = (await readJson(request)) || {};
   const { order, event, pending } = await updateOrder(env, { orderId: params.orderId, user, patch });
-  // 대표 승인이 필요한 바꾸기를 대표가 아닌 사람이 했다 — 요청만 남았고 수주는 그대로다
-  if (pending) return jsonResponse(request, env, { success: true, data: event }, 202);
+  // 대표 승인이 필요한 바꾸기를 대표가 아닌 사람이 했다 — 요청만 남았고 수주는 그대로다. 대표들에게 앱 알림
+  if (pending) {
+    await afterResponse(ctx, notifyOrderRequest(env, event));
+    return jsonResponse(request, env, { success: true, data: event }, 202);
+  }
   // 취소되면 그 주문이 차지하던 공장 시간이 풀리고, 되살리면 다시 차지한다
   if (event && event.to_status === 'cancelled') {
     replanLater(env, ctx, user, `수주 취소 ${order && order.order_no ? order.order_no : ''}`.trim(), { companyId: order && order.company_id });
@@ -756,6 +769,8 @@ async function handleDecideOrderEvent(request, env, { params, user, ctx }) {
   if (data.order && data.event && data.event.kind === 'revive' && data.event.state === 'approved') {
     replanAfterRevive(env, ctx, user, data.order);
   }
+  // 요청한 사람에게 결과 앱 알림
+  await afterResponse(ctx, notifyOrderRequestDecided(env, data.event));
   return jsonResponse(request, env, { success: true, data });
 }
 
@@ -774,7 +789,7 @@ async function handleDeleteCost(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data: out });
 }
 
-async function handlePublicDecision(request, env) {
+async function handlePublicDecision(request, env, { ctx } = {}) {
   const { token, pin } = shareCredentials(request);
   const body = (await readJson(request)) || {};
   const { doc } = await recordDecision(env, request, {
@@ -786,6 +801,8 @@ async function handlePublicDecision(request, env) {
     // CD-6: 집계 가능한 수정 요청 사유 (자유 메모와 병행)
     reasons: body.reasons,
   });
+  // 설계 업체 대표 · 실장 + 설계를 만든 사람에게 앱 알림 (설계 제목 · 고객 이름은 싣지 않는다)
+  await afterResponse(ctx, notifyConfirmationDecided(env, doc));
 
   return jsonResponse(request, env, {
     success: true,
