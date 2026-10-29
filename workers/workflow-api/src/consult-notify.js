@@ -1,5 +1,6 @@
 /**
- * 새 상담 Slack 알림 — 5분마다 (wrangler.toml [triggers] crons 의 CONSULT_NOTICE_CRON).
+ * 새 상담 Slack 알림 — 5분마다. 1분 cron(PUSH_SEND_CRON) 안에서 분이 5의 배수일 때 돈다 (isConsultNoticeMinute)
+ *   — 계정 전체 cron 개수 한도(Workers Free 5개) 때문에 5분 cron 을 따로 두지 않는다.
  * 같은 cron 에서 새 업체 신청 알림(runPartnerApplicationNotices, 이 파일 아래쪽)도 따로 돈다.
  *
  * 상담 신청은 브라우저(consultation.html · segan/consult.html)가 consultations 에 바로 넣는다 — 이 워커를
@@ -23,7 +24,13 @@
 import { callRpc } from './supabase.js';
 import { postToWebhook, formatKst } from './slack.js';
 
-export const CONSULT_NOTICE_CRON = '*/5 * * * *';
+/** 새 상담 · 새 업체 신청 알림 간격(분) */
+export const CONSULT_NOTICE_EVERY_MIN = 5;
+
+/** 1분 cron 의 이 실행(scheduledTime, ms)이 상담 알림을 돌릴 분인가 — 분이 5의 배수 */
+export function isConsultNoticeMinute(scheduledTime) {
+  return new Date(scheduledTime).getUTCMinutes() % CONSULT_NOTICE_EVERY_MIN === 0;
+}
 /** 이보다 오래된 미알림 행은 알리지 않고 표시만 한다 */
 export const FRESH_WINDOW_MS = 24 * 60 * 60 * 1000;
 /** 한 번에 잡는 건수 — 남으면 다음 실행(5분 뒤)이 잡는다. DB 함수도 1~50 으로 자른다 */
