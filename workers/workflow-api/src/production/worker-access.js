@@ -8,7 +8,7 @@
  */
 
 import { pepperedHash } from '../util/hash.js';
-import { selectOne, selectMany, insertOne, updateById, hqCompanyId, AuthError, ValidationError, NotFoundError } from '../supabase.js';
+import { selectOne, selectMany, insertOne, updateById, hqCompanyId, activeMemberships, AuthError, ValidationError, NotFoundError } from '../supabase.js';
 import { computePlan, hqSettings, companySettings, assertSettingsEditor, writeCompanySettings, kstDate } from './service.js';
 import { calibrate, calibrationPatch } from './calibration.js';
 import { maskOrderLabel, workerAssignmentText } from './redact.js';
@@ -159,6 +159,19 @@ export function validateWorklog(body) {
   };
 }
 
+/**
+ * 작업 기록의 업체 — 주문에 묶이면 그 주문의 업체, 아니면 링크의 업체(링크를 만든 사람의 active 업체).
+ * 링크를 만든 사람이 어느 업체 구성원도 아니면(관리자 · 예전 본사 설계 주인) 본사.
+ */
+export async function worklogCompanyOf(env, { link, orderId }) {
+  if (orderId) {
+    const order = await selectOne(env, 'orders', { id: `eq.${orderId}`, select: 'company_id' });
+    if (order && order.company_id) return order.company_id;
+  }
+  const [membership] = await activeMemberships(env, { id: link.user_id });
+  return membership ? membership.company_id : hqCompanyId(env);
+}
+
 export async function addWorklog(env, { link, body }) {
   const v = validateWorklog(body);
   const row = await insertOne(env, 'production_worklogs', {
@@ -167,6 +180,7 @@ export async function addWorklog(env, { link, body }) {
     link_id: link.id,
     worker_label: link.label,
     work_date: kstDate(),
+    company_id: await worklogCompanyOf(env, { link, orderId: v.order_id }),
   });
   return { id: row.id, role: row.role, units: row.units, minutes: row.minutes };
 }
@@ -180,16 +194,18 @@ export async function markAssignmentDone(env, { link, assignmentId, done }) {
 }
 
 // ── 대표: 기록 · 보정 ──
-export async function listWorklogs(env, { user, from }) {
+/** 내 링크들의 작업 기록. companyId 를 주면 그 업체 기록만 */
+export async function listWorklogs(env, { user, from, companyId = null }) {
   const q = { user_id: `eq.${user.id}`, select: '*', order: 'work_date.desc,created_at.desc', limit: '500' };
   if (from) q.work_date = `gte.${String(from).slice(0, 10)}`;
+  if (companyId) q.company_id = `eq.${companyId}`;
   return (await selectMany(env, 'production_worklogs', q)) || [];
 }
 
-/** 표준시간 보정 — 실측 기록을 본사 설정의 표준시간과 견준다 (생산 계획이 본사 설정으로 돈다). */
+/** 표준시간 보정 — 본사 작업 기록을 본사 설정의 표준시간과 견준다 (생산 계획이 본사 설정으로 돈다). */
 export async function getCalibration(env, { user, days = 30 }) {
   const from = kstDate(new Date(Date.now() - days * 86400000).toISOString());
-  const logs = await listWorklogs(env, { user, from });
+  const logs = await listWorklogs(env, { user, from, companyId: await hqCompanyId(env) });
   const { settings } = await hqSettings(env);
   return { from, days, result: calibrate(logs, settings.standards) };
 }

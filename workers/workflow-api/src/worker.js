@@ -106,7 +106,9 @@ import {
   getSettings,
   saveSettings,
   assertHqMoney,
+  assertHqProduction,
 } from './production/service.js';
+import { getBooksSummary } from './books.js';
 import {
   createWorkerLink,
   listWorkerLinks,
@@ -441,12 +443,16 @@ function replanLater(env, ctx, user, triggerLabel, scope) {
 }
 
 async function handleGetProductionPlan(request, env, { user }) {
+  // 계획 · 제안은 본사 일 — 협력업체 구성원은 403 not_hq (생산 화면은 설정만 보여 준다)
+  await assertHqProduction(env, user);
   const url = new URL(request.url);
   const data = await computePlan(env, { user, today: url.searchParams.get('today') || undefined });
   return jsonResponse(request, env, { success: true, data });
 }
 
 async function handleCreateProposal(request, env, { user }) {
+  // 제안은 본사 Slack 으로 나간다 — 협력업체 구성원이면 제안도 Slack 도 만들지 않는다 (403 not_hq)
+  await assertHqProduction(env, user);
   const data = await proposePlan(env, { user, trigger: 'manual', triggerLabel: '수동 재계산' });
   return jsonResponse(request, env, { success: true, data }, 201);
 }
@@ -580,7 +586,14 @@ async function handleMonthlySummary(request, env, { user }) {
   // 월 고정비는 본사 설정이다 — 본사 대표 · 실장 · 관리자만 (아니면 403 not_money). 월 마감 cron 은 이 경로를 거치지 않는다
   await assertHqMoney(env, user);
   const url = new URL(request.url);
-  return jsonResponse(request, env, { success: true, data: await getMonthlySummary(env, { user, month: url.searchParams.get('month') }) });
+  // 본사 수주 전부 (누가 만든 설계든) — 월 마감 보고(cron)는 예전처럼 설계 주인별
+  return jsonResponse(request, env, { success: true, data: await getMonthlySummary(env, { user, month: url.searchParams.get('month'), scope: 'hq' }) });
+}
+
+/** 업체 장부 요약 — 그 업체 대표 · 실장만 (src/books.js). 금액이 담겨 캐시에 남기지 않는다 */
+async function handleBooksSummary(request, env, { user }) {
+  const url = new URL(request.url);
+  return jsonResponse(request, env, { success: true, data: await getBooksSummary(env, { user, month: url.searchParams.get('month') }) }, 200, NO_STORE);
 }
 
 // 경영 대시보드 (Claude 프로젝트 문서 "다담 경영 대시보드" 1단계) — 관리자만, 회사 전체
@@ -888,7 +901,10 @@ const router = createRouter([
   { method: 'POST', path: '/consultations/:id/accept', auth: 'jwt', handler: handleAcceptConsultation },
   { method: 'GET',  path: '/me/projects',              auth: 'jwt', handler: handleMyProjects },
 
-  // 거래처 · 공급처 (관리자만)
+  // 업체 장부 요약 (그 업체 대표 · 실장)
+  { method: 'GET',   path: '/books/summary',      auth: 'jwt', handler: handleBooksSummary },
+
+  // 거래처 · 공급처 (그 업체 대표 · 실장, 본사 목록은 관리자도)
   { method: 'GET',   path: '/counterparties',     auth: 'jwt', handler: handleListCounterparties },
   { method: 'POST',  path: '/counterparties',     auth: 'jwt', handler: handleCreateCounterparty },
   { method: 'PATCH', path: '/counterparties/:id', auth: 'jwt', handler: handleUpdateCounterparty },

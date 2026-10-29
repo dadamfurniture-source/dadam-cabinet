@@ -6,9 +6,10 @@
  */
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { HQ, companyRoute } from './fixtures/company.js';
+import { HQ, PARTNER, companyRoute } from './fixtures/company.js';
+import { clearHqCompanyCache } from '../src/supabase.js';
 import {
-  validateCounterparty, listCounterparties, createCounterparty, updateCounterparty, assertCounterparty,
+  validateCounterparty, listCounterparties, createCounterparty, updateCounterparty, assertCounterparty, counterpartyCompanyOf,
   SUPPLIER_CATEGORIES, SUPPLIER_CATEGORY_LABEL,
 } from '../src/counterparties.js';
 import { updateOrder, addCost } from '../src/orders.js';
@@ -26,6 +27,7 @@ const fail = (status, body) => ({
 const NO_TABLE = () => fail(404, { code: 'PGRST205', message: "Could not find the table 'public.counterparties' in the schema cache" });
 const P1 = '11111111-1111-4111-8111-111111111111';
 const S1 = '22222222-2222-4222-8222-222222222222';
+const OTHER = 'f0000000-0000-4000-8000-0000000000cc';
 
 async function withFetch(route, fn) {
   const original = globalThis.fetch;
@@ -43,8 +45,23 @@ async function withFetch(route, fn) {
     globalThis.fetch = original;
   }
 }
-const admin = (yes) => (u) => (u.includes('/admin_roles?') ? json(yes ? [{ role: 'admin' }] : []) : null);
-beforeEach(() => clearAdminCache());
+beforeEach(() => {
+  clearAdminCache();
+  clearHqCompanyCache();
+});
+
+// 업체 구성원 — 협력업체 대표 · 실장 · staff, 본사 대표 · 실장 · staff
+const MEMBERS = [
+  { user_id: 'P-OWNER', company_id: PARTNER, role: 'owner', status: 'active' },
+  { user_id: 'P-MANAGER', company_id: PARTNER, role: 'manager', status: 'active' },
+  { user_id: 'P-STAFF', company_id: PARTNER, role: 'staff', status: 'active' },
+  { user_id: 'P-GONE', company_id: PARTNER, role: 'owner', status: 'removed' },
+  { user_id: 'H-OWNER', company_id: HQ, role: 'owner', status: 'active' },
+  { user_id: 'H-MANAGER', company_id: HQ, role: 'manager', status: 'active' },
+  { user_id: 'H-STAFF', company_id: HQ, role: 'staff', status: 'active' },
+];
+/** 구성원 · 본사 행 + 관리자(ADMIN 만) */
+const people = (u) => companyRoute(u, { members: MEMBERS }) || (u.includes('/admin_roles?') ? json(u.includes('user_id=eq.ADMIN') ? [{ role: 'admin' }] : []) : null);
 
 test('입력: 종류 · 이름은 꼭, 공급처 갈래는 정해진 것만, 거래처에는 갈래가 없다', () => {
   assert.deepEqual(validateCounterparty({ kind: 'supplier', name: ' 상일 ', category: 'door', phone: '010-1', memo: '' }), {
@@ -58,42 +75,89 @@ test('입력: 종류 · 이름은 꼭, 공급처 갈래는 정해진 것만, 거
   for (const c of SUPPLIER_CATEGORIES) assert.ok(SUPPLIER_CATEGORY_LABEL[c], c);
 });
 
-test('관리자만 — 아니면 403, 표가 아직 없으면 목록은 null', async () => {
-  await withFetch(admin(false), async () => {
-    await assert.rejects(listCounterparties(ENV, { user: { id: 'U1' } }), /관리자만/);
-  });
-  clearAdminCache();
-  await withFetch((u) => admin(true)(u) || (u.includes('/counterparties?') ? NO_TABLE() : null), async () => {
-    assert.deepEqual(await listCounterparties(ENV, { user: { id: 'U1' } }), { items: null });
+test('누가 다루나 — 그 업체 대표 · 실장, 본사 목록은 관리자도. staff · 빠진 구성원 · 모르는 사람은 403', async () => {
+  for (const [who, company] of [['P-OWNER', PARTNER], ['P-MANAGER', PARTNER], ['H-OWNER', HQ], ['H-MANAGER', HQ], ['ADMIN', HQ]]) {
+    await withFetch((u) => people(u) || (u.includes('/counterparties?') ? json([]) : null), async (calls) => {
+      assert.equal(await counterpartyCompanyOf(ENV, { id: who }), company, who);
+      await listCounterparties(ENV, { user: { id: who } });
+      const q = new URL(calls.find((c) => c.url.includes('/counterparties?')).url).searchParams;
+      assert.equal(q.get('company_id'), `eq.${company}`, `${who} 는 ${company} 목록만`);
+    });
+  }
+  for (const who of ['P-STAFF', 'H-STAFF', 'P-GONE', 'STRANGER']) {
+    await withFetch((u) => people(u), async (calls) => {
+      await assert.rejects(listCounterparties(ENV, { user: { id: who } }), (e) => e.statusCode === 403 && /대표 · 실장 · 관리자만/.test(e.message), who);
+      await assert.rejects(createCounterparty(ENV, { user: { id: who }, body: { kind: 'supplier', name: '상일' } }), (e) => e.statusCode === 403, who);
+      await assert.rejects(updateCounterparty(ENV, { user: { id: who }, id: P1, body: { name: 'x' } }), (e) => e.statusCode === 403, who);
+      assert.ok(!calls.some((c) => c.url.includes('/counterparties')), `${who} 는 표를 건드리지 않는다`);
+    });
+  }
+});
+
+test('표가 아직 없으면 목록은 null', async () => {
+  await withFetch((u) => people(u) || (u.includes('/counterparties?') ? NO_TABLE() : null), async () => {
+    assert.deepEqual(await listCounterparties(ENV, { user: { id: 'ADMIN' } }), { items: null });
   });
 });
 
-test('만들기: 같은 이름이면 알아듣게, 표가 없으면 SQL 안내 · 고치기는 종류를 바꾸지 않는다', async () => {
-  await withFetch((u, method) => admin(true)(u) || (method === 'POST' ? fail(409, { code: '23505', message: 'duplicate key value violates unique constraint' }) : null), async () => {
-    await assert.rejects(createCounterparty(ENV, { user: { id: 'U1' }, body: { kind: 'partner', name: '한빛' } }), /같은 이름이 이미 있습니다/);
+test('만들기 — 내 업체로 넣는다 (본문의 company_id 는 받지 않는다)', async () => {
+  for (const [who, company] of [['P-OWNER', PARTNER], ['ADMIN', HQ]]) {
+    await withFetch((u, method, body) => people(u) || (method === 'POST' ? json([{ id: S1, ...body }], 201) : null), async (calls) => {
+      await createCounterparty(ENV, { user: { id: who }, body: { kind: 'supplier', name: '상일', company_id: OTHER } });
+      const post = calls.find((c) => c.method === 'POST').body;
+      assert.equal(post.company_id, company, who);
+      assert.equal(post.created_by, who);
+    });
+  }
+});
+
+test('만들기: 같은 이름이면 알아듣게 (업체 안 색인 — DB 원문은 싣지 않는다), 표가 없으면 SQL 안내 · 고치기는 종류를 바꾸지 않는다', async () => {
+  const dup = { code: '23505', message: 'duplicate key value violates unique constraint "uq_counterparties_name"', details: `Key (company_id, kind, lower(name))=(${HQ}, partner, 한빛) already exists.` };
+  await withFetch((u, method) => people(u) || (method === 'POST' || method === 'PATCH' ? fail(409, dup) : null), async () => {
+    for (const run of [
+      () => createCounterparty(ENV, { user: { id: 'P-OWNER' }, body: { kind: 'partner', name: '한빛' } }),
+      () => updateCounterparty(ENV, { user: { id: 'P-OWNER' }, id: P1, body: { name: '한빛' } }),
+    ]) {
+      await assert.rejects(run(), (e) => {
+        assert.equal(e.statusCode, 409);
+        assert.equal(e.message, '같은 이름이 이미 있습니다');
+        assert.equal(e.details, null, 'DB 원문(다른 줄의 업체 · 이름)을 싣지 않는다');
+        return true;
+      });
+    }
   });
-  clearAdminCache();
-  await withFetch((u, method) => admin(true)(u) || (method === 'POST' ? NO_TABLE() : null), async () => {
-    await assert.rejects(createCounterparty(ENV, { user: { id: 'U1' }, body: { kind: 'partner', name: '한빛' } }), /management-phase2\.sql/);
+  await withFetch((u, method) => people(u) || (method === 'POST' ? NO_TABLE() : null), async () => {
+    await assert.rejects(createCounterparty(ENV, { user: { id: 'ADMIN' }, body: { kind: 'partner', name: '한빛' } }), /management-phase2\.sql/);
   });
-  clearAdminCache();
-  await withFetch((u, method, body) => admin(true)(u) || (method === 'PATCH' ? json([{ id: P1, kind: 'partner', ...body }]) : null), async (calls) => {
-    await updateCounterparty(ENV, { user: { id: 'U1' }, id: P1, body: { kind: 'supplier', name: '한빛2', active: false } });
-    assert.deepEqual(calls.find((c) => c.method === 'PATCH').body, { name: '한빛2', active: false });
+  await withFetch((u, method, body) => people(u) || (method === 'PATCH' ? json([{ id: P1, kind: 'partner', ...body }]) : null), async (calls) => {
+    await updateCounterparty(ENV, { user: { id: 'ADMIN' }, id: P1, body: { kind: 'supplier', name: '한빛2', active: false } });
+    const patch = calls.find((c) => c.method === 'PATCH');
+    assert.deepEqual(patch.body, { name: '한빛2', active: false });
   });
 });
 
-test('붙이기: 종류가 맞아야 한다 — 거래처 칸에 공급처를 붙이지 못한다', async () => {
-  await withFetch((u) => (u.includes('/counterparties?') ? json([{ id: S1, kind: 'supplier', name: '상일' }]) : null), async () => {
-    await assert.rejects(assertCounterparty(ENV, S1, 'partner'), /거래처를 다시 골라/);
-    assert.deepEqual(await assertCounterparty(ENV, S1, 'supplier'), { id: S1, kind: 'supplier', name: '상일' });
+test('고치기 — 내 업체 줄만 (다른 업체 줄이면 404)', async () => {
+  await withFetch((u, method) => people(u) || (method === 'PATCH' ? json([]) : null), async (calls) => {
+    await assert.rejects(updateCounterparty(ENV, { user: { id: 'P-OWNER' }, id: P1, body: { name: '한빛2' } }), (e) => e.statusCode === 404);
+    const q = new URL(calls.find((c) => c.method === 'PATCH').url).searchParams;
+    assert.equal(q.get('id'), `eq.${P1}`);
+    assert.equal(q.get('company_id'), `eq.${PARTNER}`);
   });
-  assert.equal(await assertCounterparty(ENV, null, 'partner'), null);
-  await assert.rejects(assertCounterparty(ENV, 'not-a-uuid', 'partner'), /다시 골라/);
+});
+
+test('붙이기: 종류가 맞고 같은 업체 것이어야 한다 — 거래처 칸에 공급처 · 다른 업체 공급처를 붙이지 못한다', async () => {
+  await withFetch((u) => (u.includes('/counterparties?') ? json([{ id: S1, kind: 'supplier', name: '상일', company_id: HQ }]) : null), async () => {
+    await assert.rejects(assertCounterparty(ENV, S1, 'partner', HQ), /거래처를 다시 골라/);
+    assert.deepEqual(await assertCounterparty(ENV, S1, 'supplier', HQ), { id: S1, kind: 'supplier', name: '상일' });
+    await assert.rejects(assertCounterparty(ENV, S1, 'supplier', PARTNER), /공급처를 다시 골라/, '다른 업체 것');
+    await assert.rejects(assertCounterparty(ENV, S1, 'supplier', undefined), /공급처를 다시 골라/, '업체를 모르면');
+  });
+  assert.equal(await assertCounterparty(ENV, null, 'partner', HQ), null);
+  await assert.rejects(assertCounterparty(ENV, 'not-a-uuid', 'partner', HQ), /다시 골라/);
 });
 
 const owned = (u, method) => {
-  if (method === 'GET' && u.includes('/orders?')) return json([{ id: 'O1', design_id: 'D1', status: 'confirmed' }]);
+  if (method === 'GET' && u.includes('/orders?')) return json([{ id: 'O1', design_id: 'D1', company_id: HQ, status: 'confirmed' }]);
   if (companyRoute(u)) return companyRoute(u);
   if (method === 'GET' && u.includes('/designs?')) return json([{ id: 'D1', user_id: 'U1', company_id: HQ }]);
   return null;
@@ -101,7 +165,7 @@ const owned = (u, method) => {
 
 test('수주에 거래처 붙이기 · 떼기', async () => {
   await withFetch((u, method, body) => owned(u, method)
-    || (u.includes('/counterparties?') ? json([{ id: P1, kind: 'partner', name: '한빛' }]) : null)
+    || (u.includes('/counterparties?') ? json([{ id: P1, kind: 'partner', name: '한빛', company_id: HQ }]) : null)
     || (method === 'PATCH' ? json([{ id: 'O1', ...body }]) : null), async (calls) => {
     await updateOrder(ENV, { orderId: 'O1', user: { id: 'U1' }, patch: { partner_id: P1 } });
     assert.deepEqual(calls.find((c) => c.method === 'PATCH').body, { partner_id: P1 });
@@ -114,11 +178,23 @@ test('수주에 거래처 붙이기 · 떼기', async () => {
 
 test('원가 줄에 공급처를 고르면 이름도 그 공급처로 맞춘다', async () => {
   await withFetch((u, method, body) => owned(u, method)
-    || (u.includes('/counterparties?') ? json([{ id: S1, kind: 'supplier', name: '상일' }]) : null)
+    || (u.includes('/counterparties?') ? json([{ id: S1, kind: 'supplier', name: '상일', company_id: HQ }]) : null)
     || (method === 'POST' && u.endsWith('/order_costs') ? json([{ id: 'C1', ...body }], 201) : null), async () => {
     const row = await addCost(ENV, { orderId: 'O1', user: { id: 'U1' }, body: { category: 'outsourcing', amount: 920000, vendor_name: '상일도어?', counterparty_id: S1 } });
     assert.equal(row.counterparty_id, S1);
     assert.equal(row.vendor_name, '상일');
+  });
+});
+
+test('다른 업체의 거래처 · 공급처는 수주 · 원가에 붙이지 못한다 (수주 업체와 같아야 한다)', async () => {
+  const otherCompanyRow = (kind, id) => json([{ id, kind, name: '남의 업체 것', company_id: PARTNER }]);
+  await withFetch((u, method) => owned(u, method) || (u.includes('/counterparties?') ? otherCompanyRow('partner', P1) : null), async (calls) => {
+    await assert.rejects(updateOrder(ENV, { orderId: 'O1', user: { id: 'U1' }, patch: { partner_id: P1 } }), /거래처를 다시 골라/);
+    assert.ok(!calls.some((c) => c.method === 'PATCH'));
+  });
+  await withFetch((u, method) => owned(u, method) || (u.includes('/counterparties?') ? otherCompanyRow('supplier', S1) : null), async (calls) => {
+    await assert.rejects(addCost(ENV, { orderId: 'O1', user: { id: 'U1' }, body: { category: 'outsourcing', amount: 1000, counterparty_id: S1 } }), /공급처를 다시 골라/);
+    assert.ok(!calls.some((c) => c.method === 'POST'));
   });
 });
 

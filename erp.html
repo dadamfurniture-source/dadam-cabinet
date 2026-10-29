@@ -127,7 +127,8 @@
           </div>
         </div>
 
-        <div class="kpi" style="margin-top: 12px">
+        <!-- 금액 칸은 원가 · 수금 권한(대표 · 실장)이 있을 때만 — 워커가 margin 을 줄 때 -->
+        <div class="kpi" id="moneyKpi" style="margin-top: 12px">
           <div>계약금액<b id="kContract">-</b></div>
           <div>수금<b id="kReceived">-</b></div>
           <div>미수금<b id="kOutstanding">-</b></div>
@@ -156,8 +157,8 @@
           </table>
         </div>
 
-        <div class="row" style="margin-top: 12px">
-          <label>수금액
+        <div class="row" id="orderEditRow" style="margin-top: 12px">
+          <label id="lblReceived">수금액
             <input id="inpReceived" type="number" min="0" step="1000" style="width: 140px" />
           </label>
           <label id="lblTier" hidden>구분
@@ -169,6 +170,7 @@
           <button type="button" id="btnSaveOrder">저장</button>
         </div>
 
+        <div id="moneyPay">
         <div style="font-weight: 600; margin: 18px 0 8px">수금 일정</div>
         <div id="payNeedSql" class="muted" hidden>
           수금 일정 칸이 아직 없습니다. Supabase 에서 database/management-phase2.sql 을 실행하면 계약금 · 중도금 · 잔금을 날짜로 적을 수 있습니다.
@@ -190,7 +192,9 @@
           </div>
           <div id="paySummary" class="muted" style="margin-top: 6px"></div>
         </div>
+        </div>
 
+        <div id="moneyCost">
         <div style="font-weight: 600; margin: 18px 0 8px">실적 원가</div>
         <div class="row">
           <select id="selCategory"></select>
@@ -210,12 +214,14 @@
             <tbody id="costRows"></tbody>
           </table>
         </div>
+        </div>
 
         <div style="font-weight: 600; margin: 18px 0 8px">재작업 · A/S</div>
         <div id="reworkNeedSql" class="muted" hidden>
           재작업 · A/S 기록 칸이 아직 없습니다. Supabase 에서 database/management-phase2.sql 을 실행하면 여기서 적을 수 있습니다.
         </div>
         <div id="reworkForm">
+          <div id="reworkInputs">
           <div class="row">
             <select id="selReworkKind" aria-label="종류"></select>
             <select id="selReworkCause" aria-label="원인"></select>
@@ -227,6 +233,7 @@
             <input id="inpReworkParts" type="text" placeholder="다시 만든 부재 (예: 상부장 도어 2장)" style="min-width: 220px" />
             <input id="inpReworkMemo" type="text" placeholder="메모" style="min-width: 200px" />
             <button type="button" class="primary" id="btnAddRework">기록</button>
+          </div>
           </div>
           <div class="scroll" style="margin-top: 10px">
             <table>
@@ -256,7 +263,7 @@
 
         var API = (window.DADAM_CONFIG && window.DADAM_CONFIG.workflowApi && window.DADAM_CONFIG.workflowApi.url) || '';
         var sb = null;
-        // cp = 거래처 · 공급처 목록 (관리자만, 표가 없거나 권한이 없으면 null — 고르기 칸을 숨긴다)
+        // cp = 거래처 · 공급처 목록 (내 업체 것 — 대표 · 실장, 본사는 관리자도. 표가 없거나 권한이 없으면 null — 고르기 칸을 숨긴다)
         // events = 열어 본 수주의 상태 기록 · 바꿀 수 있는 상태 (못 불러오면 null), requests = 대표 승인 기다림
         var state = { orders: [], current: null, detail: null, cp: undefined, events: null, requests: [] };
 
@@ -377,29 +384,41 @@
           });
         }
 
+        // 원가 · 수금 권한(대표 · 실장)이 있는가 — 없으면(staff) 워커가 margin · costs · payments 를 싣지 않는다
+        function hasMoney(d) { return !!(d && d.margin); }
+
         function renderDetail() {
           var d = state.detail;
           if (!d) { el('detailCard').hidden = true; return; }
           var m = d.margin;
+          var money = hasMoney(d);
           el('detailCard').hidden = false;
           el('detailTitle').textContent = d.order.order_no + ' · ' + (d.order.customer_name || '고객 미기재');
           el('lnkReports').href = 'admin/work-reports.html?order=' + encodeURIComponent(d.order.id);
 
-          el('kContract').textContent = krw(m.contract_amount);
-          el('kReceived').textContent = krw(m.received_amount);
-          el('kOutstanding').textContent = krw(m.outstanding);
-          el('kCost').textContent = krw(m.cost_total);
-          el('kMargin').textContent =
-            krw(m.margin) + (m.margin_rate === null ? '' : ' (' + m.margin_rate + '%)');
-          el('kMargin').className = m.margin < 0 ? 'neg' : 'pos';
-          el('kQuoted').textContent = m.quoted_total === null ? '-' : krw(m.quoted_total);
-
-          el('inpReceived').value = d.order.received_amount;
+          // staff 는 수주 상태 · 기록 · 재작업 목록 · 설치 후 문항만 — 금액 칸 · 수금 · 원가는 숨긴다
+          el('moneyKpi').hidden = !money;
+          el('lblReceived').hidden = !money;
+          el('moneyPay').hidden = !money;
+          el('moneyCost').hidden = !money;
+          if (money) {
+            el('kContract').textContent = krw(m.contract_amount);
+            el('kReceived').textContent = krw(m.received_amount);
+            el('kOutstanding').textContent = krw(m.outstanding);
+            el('kCost').textContent = krw(m.cost_total);
+            el('kMargin').textContent =
+              krw(m.margin) + (m.margin_rate === null ? '' : ' (' + m.margin_rate + '%)');
+            el('kMargin').className = m.margin < 0 ? 'neg' : 'pos';
+            el('kQuoted').textContent = m.quoted_total === null ? '-' : krw(m.quoted_total);
+            el('inpReceived').value = d.order.received_amount;
+          }
 
           // 구분 — 고객 · 거래처. 칸이 아직 DB 에 없으면(orders-price-tier.sql 실행 전) 고칠 곳을 숨긴다.
+          // 협력업체 수주는 워커가 구분 · 거래처 칸을 싣지 않는다 — 본사 수주에만 있다 (같이 숨는다).
           // 비어 있는 옛 수주는 '모름'으로 두고, 경영 대시보드는 그때만 계약금으로 짐작한다
           var hasTier = Object.prototype.hasOwnProperty.call(d.order, 'price_tier');
           el('lblTier').hidden = !hasTier;
+          el('orderEditRow').hidden = !money && !hasTier;
           if (hasTier) {
             var tiers = Object.keys(TIER_LABELS);
             if (!d.order.price_tier) tiers.unshift('');
@@ -411,6 +430,7 @@
               .join('');
           }
 
+          if (!money) return;
           el('selCategory').innerHTML = Object.keys(COST_LABELS)
             .map(function (k) { return '<option value="' + k + '">' + COST_LABELS[k] + '</option>'; })
             .join('');
@@ -631,7 +651,7 @@
             state.detail = await api('/orders/' + encodeURIComponent(orderId));
             // 목록의 원가 합계도 채워 한눈에 보이게 한다
             var row = state.orders.find(function (o) { return o.id === orderId; });
-            if (row) { row._cost_total = state.detail.margin.cost_total; renderOrders(); }
+            if (row && hasMoney(state.detail)) { row._cost_total = state.detail.margin.cost_total; renderOrders(); }
             renderDetail();
             renderPayments();
             renderReworks();
@@ -649,8 +669,8 @@
           try {
             // 상태는 [상태 바꾸기] 로만 바꾼다 — 규칙 · 사유 · 대표 승인을 거친다
             var patch = {};
-            // 수금 일정이 있으면 수금액은 일정이 맞춘다 — 보내지 않는다
-            if (!el('inpReceived').readOnly) patch.received_amount = Number(el('inpReceived').value) || 0;
+            // 수금 일정이 있으면 수금액은 일정이 맞춘다 — 보내지 않는다. 수금 권한이 없으면(칸이 숨으면) 보내지 않는다
+            if (!el('lblReceived').hidden && !el('inpReceived').readOnly) patch.received_amount = Number(el('inpReceived').value) || 0;
             if (!el('lblTier').hidden) patch.price_tier = el('selTier').value || null;
             // 거래처 칸이 보일 때만 싣는다. 구분을 고객으로 바꾸면 붙였던 거래처를 뗀다
             if (!el('lblPartner').hidden) patch.partner_id = el('selPartner').value || null;
@@ -668,8 +688,11 @@
           if (!d) return;
           // 표가 아직 없으면(2단계 SQL 전) 워커가 null 을 준다 — 입력칸 대신 안내
           var missing = d.reworks === null || d.reworks === undefined;
+          // 적기 · 지우기는 원가 · 수금 권한이 있을 때만 (워커가 staff 에 403) — staff 는 목록만 본다
+          var money = hasMoney(d);
           el('reworkNeedSql').hidden = !missing;
           el('reworkForm').hidden = missing;
+          el('reworkInputs').hidden = !money;
           if (missing) return;
           if (!el('selReworkKind').options.length) {
             el('selReworkKind').innerHTML = Object.keys(REWORK_KIND_LABELS)
@@ -693,7 +716,7 @@
                 '<td class="num">' + (r.minutes === null ? '-' : esc(r.minutes)) + '</td>' +
                 '<td class="num">' + (r.cost === null ? '-' : krw(r.cost)) + '</td>' +
                 '<td>' + esc(note || '-') + '</td>' +
-                '<td><button type="button" data-del-rework="' + esc(r.id) + '">삭제</button></td>' +
+                '<td>' + (money ? '<button type="button" data-del-rework="' + esc(r.id) + '">삭제</button>' : '') + '</td>' +
                 '</tr>'
               );
             })
@@ -760,7 +783,7 @@
 
         function renderPayments() {
           var d = state.detail;
-          if (!d) return;
+          if (!d || !hasMoney(d)) return;
           var pays = d.payments;
           var missing = pays === null || pays === undefined;
           el('payNeedSql').hidden = !missing;
