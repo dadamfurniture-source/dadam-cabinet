@@ -51,7 +51,7 @@ describe('규칙 파일', () => {
     const L = WR.layoutWardrobeModule({ preset: 'rodTopSplitBottom', W: 900, D: 590, bodyH: 2230 });
     const c = L.cells[0];
     expect([c.label, c.shelves]).toEqual(['하부 선반', 3]);
-    expect(Math.floor((c.h - 3 * 15) / 4)).toBeLessThan(IR.INTERIOR_RULES.SPACE_MIN.general);
+    expect(Math.floor((c.h - 3 * 15) / 4)).toBe(260);
     expect(IR.wardrobeShelfErrorsOf(L, [3])).toEqual([]);
   });
   test('들어가지 않는 장수는 막는다 — 옷봉 칸이 첫 선반 자리(칸 상단 − 315)보다 낮다', () => {
