@@ -1,5 +1,5 @@
 {
-  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 + 0007 회사 기준 읽기 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs) + 0011 협력업체 가입(신청 · 업체 크레딧 · 업체 구독 · 초대 · 등급 맞추기) + 0012 업체 원가 설정 + 0013 수주 기록",
+  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 + 0007 회사 기준 읽기 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs) + 0011 협력업체 가입(신청 · 업체 크레딧 · 업체 구독 · 초대 · 등급 맞추기) + 0012 업체 원가 설정 + 0013 수주 기록 + 0014 수주당 기다리는 요청 하나",
   "ids": [
     "company_x",
     "company_y",
@@ -549,6 +549,24 @@
       "sql": "insert into public.order_events (company_id, order_id, kind, from_status, to_status, reason, state) values ({{company_y}}, {{order_x}}, 'status', 'confirmed', 'in_production', null, 'done')",
       "roles": ["service_role"],
       "expect": { "service_role": "err:23503" }
+    },
+    {
+      "name": "0014: 같은 수주에 두 번째 기다리는 요청은 안 됨",
+      "sql": "insert into public.order_events (company_id, order_id, kind, from_status, to_status, reason, state, requested_by) values ({{company_x}}, {{order_x}}, 'revive', 'cancelled', 'confirmed', 'probe', 'pending', {{x_staff_user}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23505" }
+    },
+    {
+      "name": "0014: 기다리던 요청을 결정하면 새 요청이 됨",
+      "sql": "with d as (update public.order_events set state = 'rejected', decided_at = now() where id = {{ev_pending}} returning company_id, order_id) insert into public.order_events (company_id, order_id, kind, from_status, to_status, reason, state, requested_by) select company_id, order_id, 'revive', 'cancelled', 'confirmed', 'probe', 'pending', {{x_staff_user}} from d",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
+    },
+    {
+      "name": "0014: 바로 처리된 줄은 몇 개든 됨",
+      "sql": "insert into public.order_events (company_id, order_id, kind, from_status, to_status, reason, state, requested_by) values ({{company_x}}, {{order_x}}, 'status', 'confirmed', 'in_production', null, 'done', {{x_owner_user}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": "ok" }
     }
   ]
 }
