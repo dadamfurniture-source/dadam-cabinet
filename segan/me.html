@@ -66,10 +66,11 @@
         <section class="sg-section me-pt" id="partner" aria-labelledby="mePartnerTitle" hidden>
           <h2 id="mePartnerTitle">업체</h2>
           <div id="mePartner"></div>
-          <!-- 업체 › 상담 — workflow-api GET /company/consults. Agent 업체 구성원(받기 · 못 받음 · 내 평가는 대표 · 실장),
-               읽은 뒤에만 보인다 (segan/partner-consults.js). 새 상담 알림이 me.html#partner-consults 로 연다 -->
+          <!-- 업체 › 상담 — workflow-api GET /company/consults. Agent 업체 구성원 · 다담 공장 구성원
+               (공장 구성원이면 위 업체 내용 없이 이 칸들만), 읽은 뒤에만 보인다 (segan/partner-consults.js).
+               새 상담 알림이 me.html#partner-consults 로 연다 -->
           <div class="me-pt-group me-cs" id="partner-consults" hidden></div>
-          <!-- 업체 › 상담 설정 — GET/PUT /company/service-settings. 대표 · 실장만 (segan/partner-consults.js) -->
+          <!-- 업체 › 상담 설정 — GET/PUT /company/service-settings. 대표 · 실장 · 다담 공장 (segan/partner-consults.js) -->
           <div class="me-pt-group me-cs" id="partnerConsultSettings" hidden></div>
           <!-- 업체 › 회계 — workflow-api GET /books/summary. 대표 · 실장만, 읽은 뒤에만 보인다 (segan/books.js) -->
           <div class="me-pt-group me-bk" id="meBooks" hidden></div>

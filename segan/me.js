@@ -281,7 +281,7 @@
     await Promise.all([
       loadProjects(auth.session),
       // 업체 › 상담 · 회계 · 알림 — 업체 칸이 읽은 /partner/me 로 가린다
-      //   상담 = Agent 업체 구성원 (segan/partner-consults.js), 회계 = 대표 · 실장 (segan/books.js),
+      //   상담 = Agent 업체 · 다담 공장 구성원 (segan/partner-consults.js), 회계 = 대표 · 실장 (segan/books.js),
       //   알림 = 업체 구성원 · 본사 · 신청 중 (segan/push.js)
       Promise.resolve(partner).then(function () {
         var me = Partner && Partner.state ? Partner.state.me : null;
