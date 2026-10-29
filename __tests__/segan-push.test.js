@@ -627,9 +627,67 @@ describe('브라우저 · 권한', () => {
     await load({ push: false });
     expect(view()).toBe('unsupported');
     expect(body().querySelector('.me-pt-warn').textContent).toBe(
-      '이 브라우저에서는 알림을 받을 수 없습니다.'
+      '이 브라우저에서는 알림을 받을 수 없습니다. 크롬 · 삼성 인터넷에서 열거나, 아이폰은 홈 화면에 추가한 SEGAN에서 열어 주세요.'
     );
     expect(buttons()).toEqual([]);
+  });
+
+  const UA_KAKAO_ANDROID = UA_ANDROID.replace('Mobile Safari/537.36', 'Mobile Safari/537.36 KAKAOTALK 10.8.0');
+  const UA_KAKAO_IPHONE = UA_IPHONE + ' KAKAOTALK 10.8.0';
+  const UA_NAVER_ANDROID = UA_ANDROID.replace('Pixel 8)', 'Pixel 8; wv)') + ' NAVER(inapp; search; 2000; 12.1.0)';
+  const UA_WEBVIEW = UA_ANDROID.replace('Pixel 8)', 'Pixel 8; wv)');
+  const steps = () => [...body().querySelectorAll('.me-push-steps li')].map((li) => li.textContent);
+
+  test.each([
+    ['카카오톡 (안드로이드)', UA_KAKAO_ANDROID, '카카오톡'],
+    ['네이버 앱 (안드로이드, wv 보다 이름이 먼저)', UA_NAVER_ANDROID, '네이버'],
+    ['이름 모르는 앱 안 WebView', UA_WEBVIEW, '앱'],
+  ])('앱 안 브라우저 — %s: 다른 브라우저로 여는 법, 단추 없음', async (_n, ua, name) => {
+    const { calls } = await load({ ua, platform: 'Linux armv8l', push: false });
+    expect(view()).toBe('inapp');
+    expect(body().querySelector('.me-pt-warn').textContent).toBe(
+      name + ' 안에서 연 화면에서는 알림을 받을 수 없어요'
+    );
+    expect(steps()).toEqual([
+      '오른쪽 위 메뉴(⋮)에서 「다른 브라우저로 열기」를 누릅니다.',
+      '크롬(또는 삼성 인터넷)에서 로그인하고 여기서 알림을 켭니다.',
+    ]);
+    expect(buttons()).toEqual([]);
+    expect(calls.permission).toBe(0);
+  });
+
+  test('앱 안 브라우저 — 카카오톡 (아이폰): Safari 로 연 뒤 홈 화면에 추가', async () => {
+    await load({ ua: UA_KAKAO_IPHONE, platform: 'iPhone', push: false });
+    expect(view()).toBe('inapp');
+    expect(body().querySelector('.me-pt-warn').textContent).toBe(
+      '카카오톡 안에서 연 화면에서는 알림을 받을 수 없어요'
+    );
+    expect(steps()).toEqual([
+      '메뉴에서 「Safari로 열기」를 누릅니다.',
+      'Safari 아래쪽 공유 단추를 누릅니다.',
+      '「홈 화면에 추가」를 누릅니다.',
+      '홈 화면의 SEGAN을 열고 여기서 알림을 켭니다.',
+    ]);
+    expect(buttons()).toEqual([]);
+  });
+
+  test.each([
+    ['iOS 16.3 Safari', { standalone: false }],
+    ['iOS 16.3 홈 화면 앱', { standalone: true }],
+  ])('%s — iOS 16.4 이상이 필요하다고 안내', async (_n, extra) => {
+    const ua = UA_IPHONE.replace('OS 18_0', 'OS 16_3');
+    await load({ ua, platform: 'iPhone', push: false, ...extra });
+    expect(view()).toBe('iosold');
+    expect(body().querySelector('.me-pt-warn').textContent).toBe(
+      '아이폰 알림은 iOS 16.4 이상에서 받을 수 있어요. 「설정 › 일반 › 소프트웨어 업데이트」에서 올린 뒤 다시 열어 주세요.'
+    );
+    expect(buttons()).toEqual([]);
+  });
+
+  test('iOS 16.4 홈 화면 앱은 켤 수 있다', async () => {
+    await load({ ua: UA_IPHONE.replace('OS 18_0', 'OS 16_4'), platform: 'iPhone', standalone: true });
+    expect(view()).toBe('off');
+    expect(buttons()).toEqual(['알림 켜기']);
   });
 
   test('서비스 워커가 없는 브라우저도 같다', async () => {

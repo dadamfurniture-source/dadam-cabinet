@@ -31,8 +31,12 @@
   var LEAD = '업무 알림(승인 요청 · 확인서 결정 · 결제 등)이 이 기기로 옵니다.';
   var TEXT = {
     on: '이 기기에서 알림을 받고 있습니다.',
-    unsupported: '이 브라우저에서는 알림을 받을 수 없습니다.',
+    unsupported:
+      '이 브라우저에서는 알림을 받을 수 없습니다. 크롬 · 삼성 인터넷에서 열거나, 아이폰은 홈 화면에 추가한 SEGAN에서 열어 주세요.',
     ios: '아이폰은 홈 화면에 추가한 SEGAN에서만 알림을 받을 수 있어요',
+    inapp: '안에서 연 화면에서는 알림을 받을 수 없어요', // 앞에 카카오톡 · 네이버 … 이름 (모르면 「앱」)
+    iosOld:
+      '아이폰 알림은 iOS 16.4 이상에서 받을 수 있어요. 「설정 › 일반 › 소프트웨어 업데이트」에서 올린 뒤 다시 열어 주세요.',
     denied: '알림이 막혀 있습니다. 브라우저(휴대폰) 설정에서 이 사이트의 알림을 허용해 주세요.',
     turnedOn: '알림을 켰습니다.',
     turnedOff: '알림을 껐습니다.',
@@ -46,6 +50,22 @@
     '「홈 화면에 추가」를 누릅니다.',
     '홈 화면의 SEGAN을 열고 여기서 알림을 켭니다.',
   ];
+  var INAPP_STEPS_ANDROID = [
+    '오른쪽 위 메뉴(⋮)에서 「다른 브라우저로 열기」를 누릅니다.',
+    '크롬(또는 삼성 인터넷)에서 로그인하고 여기서 알림을 켭니다.',
+  ];
+  var INAPP_STEPS_IOS = ['메뉴에서 「Safari로 열기」를 누릅니다.'].concat(IOS_STEPS);
+  /** 앱 안 브라우저(web push 없음) — userAgent 표시 → 이름. 맨 끝은 안드로이드 앱 안 WebView 일반 */
+  var IN_APPS = [
+    [/KAKAOTALK/i, '카카오톡'],
+    [/NAVER\(inapp/i, '네이버'],
+    [/DaumApps/i, '다음'],
+    [/\bBAND\//, '밴드'],
+    [/Instagram/i, '인스타그램'],
+    [/FBAN|FBAV/, '페이스북'],
+    [/\bLine\//, '라인'],
+    [/; wv\)/, '앱'],
+  ];
   var KEY_RE = /^[A-Za-z0-9_-]+={0,2}$/;
   var SW_WAIT = 10000; // 서비스 워커가 켜지기를 기다리는 시간
   var FORGET_WAIT = 3000; // 로그아웃 때 구독 지우기를 기다리는 시간
@@ -56,7 +76,8 @@
     base: '', // workflow-api
     key: '', // VAPID 공개 키
     sub: null, // 이 기기 구독
-    view: '', // ios | unsupported | denied | on | off
+    view: '', // inapp | iosold | ios | unsupported | denied | on | off
+    env: null, // envOf 결과 (안내 문구 고르기)
     msg: '',
     err: '',
     busy: false,
@@ -97,11 +118,25 @@
     }
     var supported = 'serviceWorker' in nav && 'PushManager' in w && 'Notification' in w;
     var permission = supported ? w.Notification.permission : '';
-    return { ios: ios, standalone: !!standalone, supported: supported, permission: permission };
+    var inApp = '';
+    for (var i = 0; i < IN_APPS.length && !inApp; i++) if (IN_APPS[i][0].test(ua)) inApp = IN_APPS[i][1];
+    // 아이폰 web push 는 iOS 16.4 부터 — userAgent 의 OS 판을 읽을 수 있을 때만 본다(아이패드 데스크톱 모드는 모름)
+    var v = ios ? ua.match(/OS (\d+)[_.](\d+)/) : null;
+    var iosOld = !!v && (+v[1] < 16 || (+v[1] === 16 && +v[2] < 4));
+    return {
+      ios: ios,
+      standalone: !!standalone,
+      supported: supported,
+      permission: permission,
+      inApp: inApp,
+      iosOld: iosOld,
+    };
   }
 
-  /** 보일 화면 — ios | unsupported | denied | on | off */
+  /** 보일 화면 — inapp | iosold | ios | unsupported | denied | on | off */
   function viewOf(env, sub) {
+    if (env.inApp) return 'inapp';
+    if (env.ios && env.iosOld) return 'iosold';
     if (env.ios && !env.standalone) return 'ios';
     if (!env.supported) return 'unsupported';
     if (env.permission === 'denied') return 'denied';
@@ -164,6 +199,23 @@
         }).join('') +
         '</ol>'
       );
+    }
+    if (S.view === 'inapp') {
+      var env = S.env || {};
+      return (
+        '<p class="me-pt-warn">' +
+        esc((env.inApp || '앱') + ' ' + TEXT.inapp) +
+        '</p><ol class="me-push-steps">' +
+        (env.ios ? INAPP_STEPS_IOS : INAPP_STEPS_ANDROID)
+          .map(function (t) {
+            return '<li>' + esc(t) + '</li>';
+          })
+          .join('') +
+        '</ol>'
+      );
+    }
+    if (S.view === 'iosold') {
+      return '<p class="me-pt-warn">' + esc(TEXT.iosOld) + '</p>';
     }
     if (S.view === 'unsupported' || S.view === 'denied') {
       return '<p class="me-pt-warn">' + esc(TEXT[S.view]) + '</p>';
@@ -404,6 +456,7 @@
       S.key = await fetchKey();
       if (!S.key) return; // 서버가 아직 없다 (404 · 오류) — 칸째 감춘다
       var env = envOf(window);
+      S.env = env;
       S.sub = env.supported ? await currentSub() : null;
       S.view = viewOf(env, S.sub);
       S.msg = '';
