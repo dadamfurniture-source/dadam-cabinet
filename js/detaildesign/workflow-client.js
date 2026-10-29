@@ -577,7 +577,8 @@
 
   /**
    * [발행] — 저장 → 동결 → 제작(+설치) 작업지시서. 같은 스냅샷에 살아 있는 문서가 있으면 새로 만들지 않는다.
-   * 고객 승인 전이면 사유를 받아 특기사항에 남긴다 (계획 §7 Q6 기본값: 확정은 승인 뒤, 사유 입력 시 예외).
+   * 고객 승인 전이면 사유를 받아 early_reason 으로 보낸다 (계획 §7 Q6 기본값: 확정은 승인 뒤, 사유 입력 시 예외).
+   * 서버가 그 사유를 수주 기록에 남기고 지시서 특기사항 첫 줄에 적는다 — 사유가 없으면 서버도 거절한다.
    */
   async function issueWorkOrders() {
     if (!designId()) {
@@ -610,7 +611,7 @@
           setStep4Status('발행하지 않았습니다 — 고객 승인 뒤에 다시 눌러 주세요.', 'error');
           return;
         }
-        body.instructions = '고객 승인 전 발행 — 사유: ' + String(reason).trim();
+        body.early_reason = String(reason).trim();
       }
       setStep4Status('제작 작업지시서를 발행하는 중…');
       const data = await api('/snapshots/' + encodeURIComponent(snap.snapshot_id) + '/documents', {

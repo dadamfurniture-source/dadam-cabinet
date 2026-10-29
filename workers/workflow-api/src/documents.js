@@ -21,7 +21,8 @@ import {
   updateBy,
 } from './supabase.js';
 import { sha256Hex } from './util/hash.js';
-import { getSnapshot, latestHash, quoteForViewer } from './snapshots.js';
+import { getSnapshotWithDesign, latestHash, quoteForViewer } from './snapshots.js';
+import { cleanReason, reasonRequiredError, recordEarlyWorkOrder } from './order-events.js';
 import {
   generateShareToken,
   hashShareToken,
@@ -67,6 +68,35 @@ async function nextDocRev(env, designId, docType) {
   return rows && rows.length ? Number(rows[0].rev) + 1 : 1;
 }
 
+/** 승인 전 작업지시서의 특기사항 첫 줄 (예전 화면이 직접 적던 문구 그대로) */
+export const EARLY_WORK_ORDER_PREFIX = '고객 승인 전 발행 — 사유: ';
+
+/**
+ * 고객 확인서 승인 전 작업지시서의 사유. 이 설계에 승인된 확인서가 있으면 null (사유가 필요 없다).
+ * 없으면 body.early_reason 이 있어야 한다 — 비면 422 reason_required.
+ */
+export async function earlyWorkOrderReason(env, { designId, body }) {
+  const approved = await selectOne(env, 'design_documents', {
+    design_id: `eq.${designId}`,
+    doc_type: 'eq.customer_confirmation',
+    decision: 'eq.approved',
+    select: 'id',
+  });
+  if (approved) return null;
+  const reason = cleanReason(body.early_reason);
+  if (!reason) {
+    throw reasonRequiredError('고객 확인서 승인 전입니다 — 작업지시서를 먼저 내는 사유(early_reason)를 적어 주세요');
+  }
+  return reason;
+}
+
+/** 특기사항 맨 앞에 승인 전 발행 사유 한 줄 (같이 보낸 특기사항은 그 아래) */
+function withEarlyLine(instructions, reason) {
+  const rest = typeof instructions === 'string' ? instructions.trim() : '';
+  const line = EARLY_WORK_ORDER_PREFIX + reason;
+  return rest ? `${line}\n${rest}` : line;
+}
+
 /** 문서 발행. customer_confirmation 이면 평문 토큰을 함께 돌려준다 (1회만). */
 export async function issueDocument(env, { user, body }) {
   const docType = body.doc_type;
@@ -75,9 +105,12 @@ export async function issueDocument(env, { user, body }) {
   }
   if (!body.snapshot_id) throw new ValidationError('snapshot_id 가 필요합니다');
 
-  // getSnapshot 이 설계 접근까지 확인한다 (업체 구성원 누구나 발행한다 — 응답의 totals 는 고객 금액뿐)
-  const snapshot = await getSnapshot(env, { snapshotId: body.snapshot_id, user });
+  // 설계 접근까지 확인한다 (업체 구성원 누구나 발행한다 — 응답의 totals 는 고객 금액뿐)
+  const { snapshot, design } = await getSnapshotWithDesign(env, { snapshotId: body.snapshot_id, user });
   const designId = snapshot.design_id;
+
+  // 제작 작업지시서는 고객이 확인서를 승인한 뒤가 기본이다. 그 전이면 사유를 받아 기록하고 특기사항에 남긴다
+  const earlyReason = docType === 'work_order' ? await earlyWorkOrderReason(env, { designId, body }) : null;
 
   const rev = await nextDocRev(env, designId, docType);
   const docNo = buildDocNo(designId, docType, rev);
@@ -104,7 +137,7 @@ export async function issueDocument(env, { user, body }) {
   const renderPayload = {
     quote: quoteForDoc,
     price_tier: priceTier,
-    instructions: typeof body.instructions === 'string' ? body.instructions : '',
+    instructions: earlyReason ? withEarlyLine(body.instructions, earlyReason) : typeof body.instructions === 'string' ? body.instructions : '',
     issued_by: user.email || null,
   };
 
@@ -162,6 +195,9 @@ export async function issueDocument(env, { user, body }) {
       row.access_pin_hash = 'pending';
     }
   }
+
+  // 승인 전 작업지시서는 문서를 만들기 전에 기록부터 — 기록 없이 지시서만 나가는 일이 없게
+  if (earlyReason) await recordEarlyWorkOrder(env, { design, user, reason: earlyReason });
 
   const created = await insertOne(env, 'design_documents', row);
 

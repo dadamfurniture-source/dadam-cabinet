@@ -629,6 +629,12 @@ export async function getSnapshot(env, { snapshotId, user }) {
   return (await loadSnapshot(env, snapshotId, user)).snapshot;
 }
 
+/** 단건 + 설계 행 — 문서 발행이 설계 업체(기록의 company_id)를 쓴다. 업체 구성원 누구나. */
+export async function getSnapshotWithDesign(env, { snapshotId, user }) {
+  const { snapshot, design } = await loadSnapshot(env, snapshotId, user);
+  return { snapshot, design };
+}
+
 /** GET /snapshots/:id — 원가 · 수금 권한이 없으면 견적의 원가 · 마진을 뺀다 */
 export async function getSnapshotForViewer(env, { snapshotId, user }) {
   const { snapshot, money } = await loadSnapshot(env, snapshotId, user);

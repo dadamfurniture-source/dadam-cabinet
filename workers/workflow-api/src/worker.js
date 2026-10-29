@@ -80,6 +80,7 @@ import {
   addCost,
   deleteCost,
 } from './orders.js';
+import { listOrderEvents, listOrderRequests, decideOrderEvent } from './order-events.js';
 import { listReworks, addRework, deleteRework, reworksForViewer } from './rework.js';
 import { getFeedback, createFeedbackLink, openFeedback, answerFeedback } from './feedback.js';
 import { listCounterparties, createCounterparty, updateCounterparty } from './counterparties.js';
@@ -703,12 +704,34 @@ async function handleDeleteRework(request, env, { params, user }) {
 
 async function handleUpdateOrder(request, env, { params, user, ctx }) {
   const patch = (await readJson(request)) || {};
-  const order = await updateOrder(env, { orderId: params.orderId, user, patch });
+  const { order, event, pending } = await updateOrder(env, { orderId: params.orderId, user, patch });
+  // 대표 승인이 필요한 바꾸기를 대표가 아닌 사람이 했다 — 요청만 남았고 수주는 그대로다
+  if (pending) return jsonResponse(request, env, { success: true, data: event }, 202);
   // 취소되면 그 주문이 차지하던 공장 시간이 풀린다
-  if (patch.status === 'cancelled') {
+  if (event && event.to_status === 'cancelled') {
     replanLater(env, ctx, user, `수주 취소 ${order && order.order_no ? order.order_no : ''}`.trim(), { companyId: order && order.company_id });
   }
   return jsonResponse(request, env, { success: true, data: order });
+}
+
+/** 수주 기록 (최근 것 먼저) + 지금 바꿀 수 있는 상태 · 승인 권한 — 수주를 볼 수 있는 사람 누구나 */
+async function handleListOrderEvents(request, env, { params, user }) {
+  const data = await listOrderEvents(env, { orderId: params.orderId, user });
+  return jsonResponse(request, env, { success: true, data });
+}
+
+/** 내가 대표인 업체에서 승인을 기다리는 요청 (?state=pending) */
+async function handleListOrderRequests(request, env, { user }) {
+  const url = new URL(request.url);
+  const items = await listOrderRequests(env, { user, state: url.searchParams.get('state') || 'pending' });
+  return jsonResponse(request, env, { success: true, data: { items } });
+}
+
+/** 대표의 승인 · 반려 — { decision: 'approved' | 'rejected' } */
+async function handleDecideOrderEvent(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  const data = await decideOrderEvent(env, { eventId: params.eventId, user, decision: body.decision });
+  return jsonResponse(request, env, { success: true, data });
 }
 
 async function handleAddCost(request, env, { params, user }) {
@@ -847,6 +870,10 @@ const router = createRouter([
   { method: 'GET',    path: '/orders',                      auth: 'jwt', handler: handleListOrders },
   { method: 'GET',    path: '/orders/:orderId',             auth: 'jwt', handler: handleGetOrder },
   { method: 'PATCH',  path: '/orders/:orderId',             auth: 'jwt', handler: handleUpdateOrder },
+  // 수주 상태 기록 · 대표 승인 (src/order-events.js)
+  { method: 'GET',    path: '/orders/:orderId/events',      auth: 'jwt', handler: handleListOrderEvents },
+  { method: 'GET',    path: '/order-requests',              auth: 'jwt', handler: handleListOrderRequests },
+  { method: 'POST',   path: '/order-events/:eventId/decide', auth: 'jwt', handler: handleDecideOrderEvent },
   { method: 'POST',   path: '/orders/:orderId/costs',       auth: 'jwt', handler: handleAddCost },
   { method: 'DELETE', path: '/orders/:orderId/costs/:costId', auth: 'jwt', handler: handleDeleteCost },
   { method: 'PATCH',  path: '/orders/:orderId/costs/:costId', auth: 'jwt', handler: handleUpdateCostDates },

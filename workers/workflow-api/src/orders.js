@@ -26,6 +26,7 @@ import {
 } from './supabase.js';
 import { assertCounterparty, NEED_SQL as COUNTERPARTY_NEED_SQL } from './counterparties.js';
 import { isMissingRelation } from './work-order-data.js';
+import { planStatusChange, requestStatusChange, applyStatusChange, statusPatch, statusClears } from './order-events.js';
 
 export const ORDER_STATUSES = ['confirmed', 'in_production', 'delivered', 'completed', 'cancelled'];
 
@@ -292,6 +293,11 @@ export function summarizeMargin(order, costs, quote) {
 /**
  * 수주 고치기. 상태 · 날짜 · 메모 · 구분 · 거래처는 업체 구성원 누구나,
  * 수금액(received_amount)은 원가 · 수금 권한이 있을 때만 (없으면 403). 응답의 수금액도 같은 권한으로 가린다.
+ *
+ * 상태는 order-events.js 의 규칙으로만 바뀐다 ({ status, reason }).
+ *   바로 바뀌면 다른 칸과 함께 한 번에 쓰고 기록(order_events)을 한 줄 남긴다 → { order, event }
+ *   대표 승인이 필요한데 대표가 아니면 요청만 남기고 수주는 손대지 않는다 (같이 보낸 다른 칸도) → { pending: true, event }
+ *   지금 상태와 같은 status 는 바꾸기가 아니다 — 다른 칸만 고친다.
  */
 export async function updateOrder(env, { orderId, user, patch }) {
   const { order, money } = await orderAccess(env, orderId, user);
@@ -299,18 +305,19 @@ export async function updateOrder(env, { orderId, user, patch }) {
     throw new ForbiddenError('원가 · 수금은 업체 대표 · 실장만 볼 수 있습니다');
   }
   const allowed = {};
+  let plan = null;
 
   if (patch.status !== undefined) {
     if (!ORDER_STATUSES.includes(patch.status)) {
       throw new ValidationError(`status 는 ${ORDER_STATUSES.join(', ')} 중 하나여야 합니다`);
     }
-    allowed.status = patch.status;
-    // 완료로 옮기면 완료일을 자동으로 찍는다 (DB CHECK 가 요구한다)
-    if (patch.status === 'completed' && !order.completed_at && patch.completed_at === undefined) {
-      allowed.completed_at = new Date().toISOString();
-    }
-    if (patch.status === 'delivered' && !order.delivered_at && patch.delivered_at === undefined) {
-      allowed.delivered_at = new Date().toISOString();
+    if (patch.status !== order.status) {
+      plan = await planStatusChange(env, { order, user, to: patch.status, reason: patch.reason });
+      if (plan.pending) {
+        return { pending: true, order: null, event: await requestStatusChange(env, { order, user, plan }) };
+      }
+      // 배송 · 완료로 옮기면 그날을 자동으로 찍는다 (완료일은 DB CHECK 가 요구한다)
+      Object.assign(allowed, statusPatch(order, patch.status, patch));
     }
   }
   if (patch.received_amount !== undefined) {
@@ -326,6 +333,8 @@ export async function updateOrder(env, { orderId, user, patch }) {
     if (Number.isNaN(when.getTime())) throw new ValidationError(`${k} 가 올바르지 않습니다`);
     allowed[k] = when.toISOString();
   }
+  // 완료를 되돌리면 완료일, 배송에서 생산 중으로 돌아가면 배송일을 지운다 (보낸 날짜보다 앞선다)
+  if (plan) Object.assign(allowed, statusClears(plan.from, plan.to));
   if (patch.note !== undefined) {
     allowed.note = patch.note ? String(patch.note).slice(0, 2000) : null;
   }
@@ -341,9 +350,17 @@ export async function updateOrder(env, { orderId, user, patch }) {
     allowed.partner_id = p ? p.id : null;
   }
 
-  if (Object.keys(allowed).length === 0) throw new ValidationError('변경할 필드가 없습니다');
+  if (Object.keys(allowed).length === 0) {
+    // 지금 상태 그대로 보낸 것뿐이면 바꿀 것이 없다 — 예전처럼 성공으로 돌려준다
+    if (patch.status !== undefined) return { pending: false, order: orderForViewer(order, money), event: null };
+    throw new ValidationError('변경할 필드가 없습니다');
+  }
   try {
-    return orderForViewer(await updateById(env, 'orders', orderId, allowed), money);
+    if (plan) {
+      const { order: changed, event } = await applyStatusChange(env, { order, user, plan, patch: allowed });
+      return { pending: false, order: orderForViewer(changed, money), event };
+    }
+    return { pending: false, order: orderForViewer(await updateById(env, 'orders', orderId, allowed), money), event: null };
   } catch (e) {
     if (isMissingTierColumn(e)) throw new ValidationError('수주 구분 칸이 아직 DB 에 없습니다 — database/orders-price-tier.sql 을 실행해 주세요');
     if (isMissingRelation(e) && /partner_id/.test(e.message)) throw new ValidationError(COUNTERPARTY_NEED_SQL);
