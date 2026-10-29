@@ -1619,12 +1619,15 @@
          * @param {boolean} [blind]  멍장 — 가운데 처짐방지목을 내지 않는다. ㄱ자 기둥 앞판이 처짐방지 밴드다 (addBlindFrontParts, 2026-10-26 사장님)
          * @param {boolean} [standBack]  개수대 · 가스대 — 앞 밴드 50 눕힘 · 뒤 밴드 70 세움 (bom-fixture-cabinet-rules BAND, 2026-10-26 사장님)
          */
-        addLowerCarcassRows(materials, modLabel, W, H, T, modD, L, channel, extraNote, blind, standBack, braceCut) {
+        addLowerCarcassRows(materials, modLabel, W, H, T, modD, L, channel, extraNote, blind, standBack, braceCut, topPanel) {
           const notchH = DrawerRules ? DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : 0;
           const carcass = (label, h, note, brace) => {
             this.add(materials, label, '측판', 'PB', T, modD, h, 2, '3면', note);
             this.add(materials, label, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
-            if (standBack && FixtureRules) {
+            if (topPanel) {
+              // 2026-10-30 사장님 「지금 짜임에서 밴드만 천판으로」: 상판 밑이 아닌 몸통(키큰장 가운데 · 위 단)은 밴드 2 대신 천판 — 지판과 같은 판
+              this.add(materials, label, '천판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
+            } else if (standBack && FixtureRules) {
               // 앞 · 뒤 한 장씩 — 앞은 보통 앞 밴드 자리에 눕고(폭 50), 뒤는 뒤끝에 선다 (폭 70 이 높이 방향)
               this.add(materials, label, '밴드', 'PB', T, FixtureRules.FIXTURE_CABINET_RULES.BAND.FRONT_W, W - T * 2, 1, '2면(장)', '앞 · 눕힘');
               this.add(materials, label, '밴드', 'PB', T, ASM.BAND_W, W - T * 2, 1, '2면(장)', '뒤 · 세움');
@@ -1845,8 +1848,10 @@
           // 몸통 — 하부장과 같다 (사쿠리 없음). 목찬넬 단은 하부장처럼 측판 앞 위를 70×40 따낸다 (sink.md §5.1, 비고는 하부장과 같은 글).
           //   서랍 단이면 중간 따내기도 (하부장 서랍장과 같은 notchNote). 서랍을 고른 중간 · 상부 단은 규칙이 없다고 남긴다.
           //   키큰장 단은 하부장 문턱(800) · 전부 서랍이면 처짐방지목 없음 · 위 도어 + 아래 서랍은 두 몸통 (addLowerCarcassRows)
+          //   2026-10-30 사장님: 맨 아래 단(좌대 단 · 통짜)만 밴드, 가운데 · 위 단은 밴드 2 대신 천판 (「지금 짜임에서 밴드만 천판으로」 ·
+          //   "맨 아래 단만 하부장 처럼 밴드 구성 그대로둬")
           this.addLowerCarcassRows(materials, modLabel, W, H, T, modD, drawerLayout, !!(channelHere && DrawerRules),
-            mod.isDrawer && !drawerLayout ? BOM_TALL_DRAWER_TIER_NOTE : '', isBlindModule(mod, 'lower'), false, bomBraceCutOf(mod, W, modD, T));
+            mod.isDrawer && !drawerLayout ? BOM_TALL_DRAWER_TIER_NOTE : '', isBlindModule(mod, 'lower'), false, bomBraceCutOf(mod, W, modD, T), !grounded);
           const bandH = channelHere ? H - T * 2 - DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : H - T * 2;
           // 선반 — 단이 가진 만큼 (하부장 규칙 "서랍·EL·오픈 아니면 1" 을 타지 않는다). 서랍 단에는 없다 (하부장 서랍장과 같다)
           const rawShelf = Number(mod.shelfCount);
@@ -2101,13 +2106,14 @@
 
         /**
          * 2026-10-25 사장님: 도어가 달린 밥솥장 몸통 = **일반 장 몸통** — 하부장 · 키큰장 단과 같은 짜임 (사쿠리 없음, 목찬넬 따내기 없음):
-         *   측판 3면 D×H 2 · 지판 (W−2T)×D · 밴드 70×(W−2T) 2 · 뒷판 3T 측판 뒤 덮음 · 처짐방지 (W ≥ 800). PB, 품목 몸통 두께 (기본 15 · 18 옵션).
+         *   측판 3면 D×H 2 · 지판 (W−2T)×D · 천판 (W−2T)×D · 뒷판 3T 측판 뒤 덮음 · 처짐방지 (W ≥ 800). PB, 품목 몸통 두께 (기본 15 · 18 옵션).
+         *   2026-10-30 사장님: 밴드 2 대신 천판 — 키큰장 가운데 단 밥솥장 · 하부 밥솥장 모두 (「하부 밥솥장만 천판」 — 일반 하부장은 밴드 그대로)
          */
         addRiceCarcassParts(materials, name, dims, T) {
           const { W, H, D } = dims;
           this.add(materials, name, '측판', 'PB', T, D, H, 2, '3면');
           this.add(materials, name, '지판', 'PB', T, W - T * 2, D, 1, '1면(전)');
-          this.add(materials, name, '밴드', 'PB', T, ASM.BAND_W, W - T * 2, 2, '2면(장)');
+          this.add(materials, name, '천판', 'PB', T, W - T * 2, D, 1, '1면(전)');
           this.addBackPanel(materials, name, W, H, false);
           const braceQty = bomBraceQtyOf(W, 'lower');
           if (braceQty > 0) this.add(materials, name, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, H - T * 2, braceQty, '2면(장)');

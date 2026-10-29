@@ -223,8 +223,8 @@ describe('BOM — 밥솥장', () => {
     const mod = item.modules.find((m) => m.moduleKind === 'rice');
     const { materials, hardware } = extract(item);
     const rows = materials.filter((r) => String(r.module).includes('밥솥장'));
-    // 2026-10-25 사장님: 도어가 달리면 일반 장 몸통 (PB 몸통 두께) + 같은 PB 슬라이딩 선반 + 여닫이 추가 목대
-    expect(rows.map((r) => r.part)).toEqual(['측판', '지판', '밴드', '뒷판', '밥솥장 선반', '밥솥장 보강목', '밥솥장 마이다', '밥솥장 추가 목대', '도어', '밥솥장 위 목대']);
+    // 2026-10-25 사장님: 도어가 달리면 일반 장 몸통 (PB 몸통 두께) + 같은 PB 슬라이딩 선반 + 여닫이 추가 목대. 2026-10-30 사장님: 밴드 대신 천판
+    expect(rows.map((r) => r.part)).toEqual(['측판', '지판', '천판', '뒷판', '밥솥장 선반', '밥솥장 보강목', '밥솥장 마이다', '밥솥장 추가 목대', '도어', '밥솥장 위 목대']);
     expect(rows.slice(0, 3).concat(rows.slice(4, 8)).every((r) => r.material === 'PB' && Number(r.thickness) === 15)).toBe(true);
     // 여닫이 — 경첩 쪽 레일이 추가 목대(15T)에 붙어 선반 · 마이다 내경은 목대 면부터 (2026-10-25 사장님)
     const inner = mod.w - 30 - 15;
