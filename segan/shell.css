@@ -667,6 +667,139 @@ button.sg-row {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+/* 업체 › 회계 (segan/books.js) — 달 바꾸기 · 이번 달 · 지난달 표 · 미수 · 상태별 수주 · 다가오는 수금 */
+.me-bk-box {
+  gap: 14px;
+}
+
+.me-bk-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.me-bk-step {
+  min-width: 44px;
+  padding: 0;
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+.me-bk-month {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.me-bk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+
+.me-bk-table th,
+.me-bk-table td {
+  padding: 9px 0 9px 10px;
+  border-bottom: 1px solid var(--v5-line);
+  text-align: right;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.me-bk-table th:first-child {
+  padding-left: 0;
+  text-align: left;
+}
+
+.me-bk-table thead th {
+  padding-top: 0;
+  font-size: 11.5px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--v5-ink-45);
+}
+
+.me-bk-table tbody th {
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.me-bk-miss {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--v5-tan);
+  white-space: normal;
+}
+
+.me-bk-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.me-bk-h {
+  margin: 6px 0 -6px;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--v5-ink-60);
+}
+
+.me-bk-status {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.me-bk-status li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 2px;
+  background: var(--v5-well);
+}
+
+.me-bk-status b {
+  font-size: 17px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.me-bk-status span {
+  font-size: 11px;
+  color: var(--v5-ink-60);
+  white-space: nowrap;
+}
+
+.me-bk-amt {
+  margin-left: auto;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.me-bk .me-empty,
+.me-bk .me-pt-msg {
+  margin: 0;
+}
+
+.me-bk .me-pt-rows {
+  margin-top: 10px;
+}
+
 /* 직원 초대 받기 (segan/join.html) */
 .jn-box {
   display: flex;
@@ -680,6 +813,19 @@ button.sg-row {
 
 .jn-box .me-facts {
   margin-top: 0;
+}
+
+/* 내 정보 › 알림 (segan/push.js) — 아이폰: 홈 화면에 추가하는 법 */
+.me-push-steps {
+  margin: 0;
+  padding-left: 1.4em;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.8;
+}
+
+#mePush .me-pt-msg {
+  margin: 0;
 }
 
 /* 사업자 정보 — 폰에서는 내 정보 아래, PC 에서는 푸터 */

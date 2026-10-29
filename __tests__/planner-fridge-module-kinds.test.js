@@ -146,3 +146,67 @@ describe('EL장 — 도어 종류만, 몸통은 예전 PB 상자, 치수 [확인
     expect(src).toContain("s.el = Object.assign({}, s.el, { door: e.target.value || null });");
   });
 });
+
+describe('도어 없는 홈카페장 (2026-10-29 사장님 「도어 있음도 있고, 없음도 있는 걸로」)', () => {
+  const payload = {
+    modules: [{ id: 'tall-1', section: 'tall', W: 600, H: 979, D: 620, x: 0, y: 0 }],
+    structures: { 'tall-1': { moduleKind: 'homecafe', horizontalLayout: 'doorOnly', areaTypes: ['open'], areaWidths: [600], areaIs2D: [false], shelves: [], pedestalH: 0, moldingH: 0 } },
+  };
+
+  test('칸 타입 open → 브리지가 도어 0 · homecafeOpen', () => {
+    const { modules } = _convertPlannerModules(payload, { moldingH: 60 });
+    expect(modules[0]).toMatchObject({ moduleKind: 'homecafe', doorCount: 0, homecafeOpen: true });
+    expect(HC.doorOf({ W: 600, H: 979 }, 0, { open: true })).toBeNull();
+    expect(HC.doorOf({ W: 600, H: 979 }, 0)).toMatchObject({ qty: 1 });   // 표시가 없으면 예전처럼 1
+  });
+
+  test('몸통은 부재표 그대로, 도어 행 · 경첩이 없다', () => {
+    const { modules } = _convertPlannerModules(payload, { moldingH: 60 });
+    const r = snapshotOf({ items: [{ categoryId: 'sink', w: 3000, h: 2310, d: 650, specs: { bodyThickness: 15 }, modules }] });
+    expect(rows(r, '홈카페장').map((x) => x[0])).toEqual(['측판', '천판', '지판', '뒷판', '선반']);
+    expect(r.hardware.filter((h) => h.category === '경첩').reduce((s, h) => s + h.qty, 0)).toBe(0);
+  });
+
+  test('도어 칸이면 예전 그대로 (도어 1 · homecafeOpen 없음)', () => {
+    const p2 = JSON.parse(JSON.stringify(payload));
+    p2.structures['tall-1'].areaTypes = ['door'];
+    const { modules } = _convertPlannerModules(p2, { moldingH: 60 });
+    expect(modules[0].doorCount).toBe(1);
+    expect(modules[0].homecafeOpen).toBeUndefined();
+  });
+});
+
+describe('홈카페장 경첩 방향 · 선반 자리 (2026-10-29 — 간편 플래너 키큰장 가운데 단)', () => {
+  const Asm = require('../js/detaildesign/bom-assembly.js');
+  const { loadExtractors } = require('../test-utils/bom-golden/golden');
+  const payload = {
+    modules: [{ id: 'tall-1', section: 'tall', W: 600, H: 979, D: 620, x: 0, y: 0 }],
+    structures: { 'tall-1': { moduleKind: 'homecafe', horizontalLayout: 'doorOnly', areaTypes: ['door'], areaDirections: ['right'], areaWidths: [600], areaIs2D: [false], shelves: [], pedestalH: 0, moldingH: 0 } },
+  };
+
+  test('외짝 도어 — 경첩 방향 = 칸 열림 방향 (셀 도어와 같다), 양문 · 도어 없음에는 없다', () => {
+    expect(_convertPlannerModules(payload, { moldingH: 60 }).modules[0].hingeSide).toBe('right');
+    const two = JSON.parse(JSON.stringify(payload));
+    Object.assign(two.structures['tall-1'], { areaIs2D: [true] });
+    expect(_convertPlannerModules(two, { moldingH: 60 }).modules[0].hingeSide).toBeUndefined();
+  });
+
+  test('선반 — 구조 자리(opts.shelfY)가 있으면 그 높이 · 천지판 뒤끝 · 앞 15 들어감, 없으면 예전처럼 높이 모름', () => {
+    const { modules } = _convertPlannerModules(payload, { moldingH: 60 });
+    const item = { categoryId: 'sink', w: 600, h: 2310, d: 650, specs: { bodyThickness: 15, moldingH: 60 }, modules };
+    const { MaterialExtractor, HardwareExtractor } = loadExtractors();
+    const materials = new MaterialExtractor().extract({ items: [item] }).materials;
+    const hardware = new HardwareExtractor().extract({ items: [item] }).hardware;
+    const mk = `0-${modules[0].id}`;
+    const ys = [334, 645];
+    const spec = Asm.of({ items: [item] }, { materials, hardware, shelfY: { [mk]: ys } });
+    const m = spec.items[0].modules.find((x) => x.moduleKey === mk);
+    const shelves = m.parts.filter((p) => p.part === '선반');
+    expect(shelves.map((p) => p.frame.o[1] + p.t / 2)).toEqual(ys);
+    expect(shelves.map((p) => p.frame.o[2])).toEqual([640 / 2 - 620, 640 / 2 - 620]);   // 측판 D+20 = 640 · 천지판 깊이 620 뒤끝
+    expect(spec.unplaced.filter((u) => u.moduleKey === mk)).toEqual([]);   // 줄 부재(걸레받이 · 상판)는 줄을 안 넘겨 자리 미정 — 이 시험 몫 아님
+    expect((m.hardware || []).filter((h) => h.kind === 'hinge' && h.pending)).toEqual([]);
+    const none = Asm.of({ items: [item] }, { materials, hardware });
+    expect(none.unplaced.filter((u) => u.moduleKey === mk).map((u) => [u.part, u.reason])).toEqual([['선반', 'shelf-height-unknown']]);
+  });
+});

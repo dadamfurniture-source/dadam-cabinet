@@ -95,7 +95,8 @@ export async function createOutsourceOrder(env, { user, documentId, body = {} })
     note: typeof body.note === 'string' ? body.note : null,
     createdBy: user.id,
   });
-  return insertOne(env, TABLE, row);
+  // 발주 기록의 업체 = 설계의 업체 — 협력업체 발주는 그 업체 것 (본사 외주 성적표 · 관리자 보관함에 섞이지 않는다)
+  return insertOne(env, TABLE, { ...row, company_id: design.company_id });
 }
 
 /** Step 4 카드용 — 이 문서의 설계에 걸린 외주 발주 (취소 포함, 최신순). */

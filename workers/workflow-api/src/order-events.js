@@ -7,7 +7,8 @@
  *   대표 승인 — 완료 되돌리기(완료 → 배송) · 되살리기(취소 → 접수). 사유가 있어야 한다.
  *              그 업체 대표(active owner)가 하면 바로, 다른 사람이 하면 요청(pending)만 남고 수주는 그대로다.
  *              대표가 승인하면 그때 바뀐다 — 수주 상태가 요청 때(from_status)와 같을 때만 (아니면 409 stale).
- *              한 수주에 기다리는 요청은 하나뿐이다 (409 pending_exists).
+ *              한 수주에 기다리는 요청은 하나뿐이다. 요청이 기다리는 동안에는 그 수주의 상태를 아무도
+ *              (대표도) 바꾸지 못한다 — 먼저 승인 · 반려한다 (409 pending_exists).
  * 바뀐 상태는 모두 order_events 에 한 줄씩 남는다. 표는 지우기를 막고, 쓰기는 이 워커(service_role)만 한다.
  *
  * 고객 확인서 승인 전 작업지시서도 같은 표에 남는다 (kind early_work_order — 수주가 없어 설계에 단다).
@@ -80,6 +81,11 @@ function staleError(message = '그 사이 수주 상태가 바뀌었습니다 �
   return codedError(ConflictError, message, 'stale');
 }
 
+/** 승인을 기다리는 요청이 있는 수주의 상태 바꾸기 — 대표도 먼저 승인 · 반려해야 한다 */
+function pendingExistsError() {
+  return codedError(ConflictError, '기다리는 요청을 먼저 승인 · 반려해 주세요', 'pending_exists');
+}
+
 function alreadyDecidedError() {
   return codedError(ConflictError, '이미 결정된 요청입니다', 'already_decided');
 }
@@ -121,11 +127,15 @@ export function statusPatch(order, to, patch = {}) {
   return out;
 }
 
-/** 상태에서 나갈 때 지우는 날짜 — 완료를 되돌리면 완료일, 배송에서 생산 중으로 돌아가면 배송일 */
+/**
+ * 상태에서 나갈 때 지우는 날짜 — 완료를 되돌리면 완료일, 배송에서 생산 중으로 돌아가면 배송일,
+ * 되살리면(취소 → 접수) 배송일 (완료일은 취소된 수주에 이미 없다).
+ */
 export function statusClears(from, to) {
   const out = {};
   if (from === 'completed' && to !== 'completed') out.completed_at = null;
   if (from === 'delivered' && to === 'in_production') out.delivered_at = null;
+  if (from === 'cancelled' && to === 'confirmed') out.delivered_at = null;
   return out;
 }
 
@@ -181,11 +191,14 @@ export async function findPendingEvent(env, orderId) {
   return selectOne(env, 'order_events', { order_id: `eq.${orderId}`, state: 'eq.pending', select: EVENT_SELECT });
 }
 
+/** 기다리는 요청이 있으면 409 pending_exists — 상태 바꾸기(바로 · 요청) 앞에서 누구에게나 (대표도) */
+export async function assertNoPendingEvent(env, orderId) {
+  if (await findPendingEvent(env, orderId)) throw pendingExistsError();
+}
+
 /** 대표가 아닌 사람의 요청 — 수주는 그대로 두고 pending 한 줄. 이미 기다리는 요청이 있으면 409 */
 export async function requestStatusChange(env, { order, user, plan }) {
-  if (await findPendingEvent(env, order.id)) {
-    throw codedError(ConflictError, '이 수주에는 대표 승인을 기다리는 요청이 이미 있습니다', 'pending_exists');
-  }
+  await assertNoPendingEvent(env, order.id);
   return eventView(await insertOne(env, 'order_events', eventRow(order, user, plan, 'pending')));
 }
 

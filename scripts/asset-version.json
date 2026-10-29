@@ -1,9 +1,10 @@
 {
-  "version": "2026102901",
+  "version": "2026102903",
   "segan": {
-    "segan/collection.html": "37f5795c42eb3d16",
+    "segan/books.js": "a756d4f91d9ef81d",
+    "segan/collection.html": "6dee9a055d81b47f",
     "segan/collection.js": "575062b5bff370e6",
-    "segan/consult.html": "05673362dd59c13f",
+    "segan/consult.html": "8d34f79453469f4d",
     "segan/consult.js": "bc489aa235373149",
     "segan/icons/apple-touch-icon.png": "2a57c4cb954cd7aa",
     "segan/icons/favicon-16.png": "35d10dd7d8d0f242",
@@ -13,20 +14,21 @@
     "segan/icons/icon-maskable-512.png": "60a76e2c4f31d782",
     "segan/icons/icon.svg": "b8e404ad79e18515",
     "segan/icons/wordmark.svg": "579c68c946a2e60c",
-    "segan/index.html": "d509f8d2401e4880",
-    "segan/join.html": "e1b54c77da63e01a",
+    "segan/index.html": "de11c418d7c83dde",
+    "segan/join.html": "900f0940429f49c4",
     "segan/join.js": "9b4e03bf9914d224",
     "segan/make.css": "9beb567d8b541fa0",
     "segan/make.js": "b68c420fdf31de2a",
     "segan/manifest.webmanifest": "70ea3f895e330eff",
-    "segan/me.html": "19eec1e28cb2f116",
-    "segan/me.js": "ccfea87f96621b3b",
-    "segan/offline.html": "fa5496cd9740644c",
+    "segan/me.html": "701be3439d71e60a",
+    "segan/me.js": "4cdeef8eaa1e8a83",
+    "segan/offline.html": "89fc7a143fb27be1",
     "segan/partner.js": "b829fcb110e6a391",
+    "segan/push.js": "6ed8f79c4662d3f5",
     "segan/regions.js": "decd1c7feb6a05da",
-    "segan/renders.html": "0cfc9d39ba73c32b",
+    "segan/renders.html": "a55eb55da9294fe7",
     "segan/renders.js": "0124da7e043b69a1",
-    "segan/shell.css": "211d7a2c9f6bf3a4",
-    "segan/shell.js": "8d1df30cfac88020"
+    "segan/shell.css": "e5334ef9b4fa6dd4",
+    "segan/shell.js": "de158547795efdbe"
   }
 }

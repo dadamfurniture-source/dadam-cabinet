@@ -6,9 +6,9 @@
     <meta name="robots" content="noindex, nofollow, noarchive" />
     <meta name="referrer" content="no-referrer" />
     <title>생산 계획 · 인력 추천 · 다담가구</title>
-    <link rel="stylesheet" href="css/nav.css?v=2026102901" />
+    <link rel="stylesheet" href="css/nav.css?v=2026102903" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="js/config.js?v=2026102901"></script>
+    <script src="js/config.js?v=2026102903"></script>
     <style>
       :root {
         --bg: #eef0f3; --panel: #fff; --border: #d6dae0; --text: #1a1d21; --muted: #6b7280;
@@ -60,11 +60,12 @@
   <body>
     <div class="wrap">
       <h1>생산 계획 · 인력 추천</h1>
-      <div class="sub">주문이 들어오면 진행 중인 주문 전체를 다시 계획해, 설치일 하루 전까지 끝내려면 누구를 언제 더 불러야 하는지 제안합니다. 승인한 항목만 작업자 Slack 으로 지시가 나갑니다. 지난 계획·승인·아침 요약·월 마감은 <a href="admin/work-reports.html">작업 지시 보고 보관함</a>에 쌓입니다.</div>
+      <div class="sub" id="subPartner" hidden>우리 업체의 견적 · 외주 발주 설정입니다. 생산 계획 · 인력 추천 · Slack 지시는 본사만 씁니다.</div>
+      <div class="sub hq-only">주문이 들어오면 진행 중인 주문 전체를 다시 계획해, 설치일 하루 전까지 끝내려면 누구를 언제 더 불러야 하는지 제안합니다. 승인한 항목만 작업자 Slack 으로 지시가 나갑니다. 지난 계획·승인·아침 요약·월 마감은 <a href="admin/work-reports.html">작업 지시 보고 보관함</a>에 쌓입니다.</div>
 
       <div id="alert" class="alert alert-err" hidden></div>
 
-      <div class="card">
+      <div class="card hq-only">
         <div class="row" style="justify-content: space-between">
           <h2 style="margin:0">추천 <span class="status" id="propStatus">-</span></h2>
           <div class="row">
@@ -86,7 +87,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card hq-only">
         <div class="row" style="justify-content: space-between">
           <h2 style="margin:0">지난 제안 (최근 30일)</h2>
           <a href="admin/work-reports.html" class="muted">보관함 전체 →</a>
@@ -97,7 +98,7 @@
         </table>
       </div>
 
-      <div class="card">
+      <div class="card hq-only">
         <div class="row" style="justify-content: space-between">
           <h2 style="margin:0">월 손익 요약</h2>
           <label class="muted">월 <input type="month" id="plMonth" /></label>
@@ -117,7 +118,7 @@
         </details>
       </div>
 
-      <div class="card">
+      <div class="card hq-only">
         <h2>주문별 일정</h2>
         <div class="scroll">
           <table>
@@ -128,7 +129,7 @@
         <div class="muted" id="skipped" style="margin-top:8px"></div>
       </div>
 
-      <div class="card">
+      <div class="card hq-only">
         <h2>날짜별 부하</h2>
         <div class="legend"><span><i style="background:var(--cut)"></i>재단 기사</span><span><i style="background:var(--edge)"></i>엣지 (알바)</span><span><i style="background:var(--asm)"></i>조립 기사</span></div>
         <div class="scroll">
@@ -139,7 +140,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card hq-only">
         <h2>지시 내역 (오늘 이후)</h2>
         <div class="scroll">
           <table>
@@ -149,7 +150,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card hq-only">
         <h2>작업자 링크</h2>
         <div class="muted" style="margin-bottom:10px">작업자는 계정 없이 이 링크로 휴대폰에서 오늘 할 일을 보고, 시작·완료로 실제 걸린 시간을 남깁니다. 링크는 만든 직후 한 번만 보이니 바로 복사해 카톡으로 보내 주세요.</div>
         <div class="row">
@@ -166,7 +167,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card hq-only">
         <div class="row" style="justify-content: space-between">
           <h2 style="margin:0">실측 기록 · 표준시간 보정 (최근 30일)</h2>
           <button type="button" id="btnApplyAll">보정 모두 적용</button>
@@ -183,12 +184,12 @@
         </details>
       </div>
 
-      <div class="card">
+      <div class="card" id="settingsCard">
         <div class="row" style="justify-content: space-between">
           <h2 style="margin:0">표준시간 · 인력 설정</h2>
           <button type="button" id="btnSaveSettings">설정 저장</button>
         </div>
-        <div class="muted" style="margin:6px 0 10px">시간은 초, 금액은 원(부가세 별도). 실제로 재 보고 바꾸면 추천이 정확해집니다. 저장 후 "지금 다시 계산"을 누르세요.<br>아래 <b>견적</b> 항목은 상세설계 견적(장당 계산: BOM 수량 × 실제 원가 × (1 + 마진율))에 쓰입니다. 바꾸면 다음 스냅샷부터 반영됩니다.</div>
+        <div class="muted" style="margin:6px 0 10px">시간은 초, 금액은 원(부가세 별도).<span class="hq-only"> 실제로 재 보고 바꾸면 추천이 정확해집니다. 저장 후 "지금 다시 계산"을 누르세요.</span><br>아래 <b>견적</b> 항목은 상세설계 견적(장당 계산: BOM 수량 × 실제 원가 × (1 + 마진율))에 쓰입니다. 바꾸면 다음 스냅샷부터 반영됩니다.</div>
         <div class="settings" id="settingsForm"></div>
       </div>
     </div>
@@ -198,7 +199,7 @@
         'use strict';
         var API = (window.DADAM_CONFIG && window.DADAM_CONFIG.workflowApi && window.DADAM_CONFIG.workflowApi.url) || '';
         var sb = null;
-        var state = { proposal: null, settings: null };
+        var state = { proposal: null, settings: null, partner: false };
         var KIND = { asm_extra: '조립 인원 추가', edge_overtime: '알바 연장', edge_outsource: '재단+엣지 외주', reschedule: '설치일 조정', door_order: '도어 발주', top_order: '상판 발주', asm_call: '조립 기사 출근' };
         var STATUS = { pending: '승인 대기', approved: '승인됨', dismissed: '무시함', superseded: '지난 제안' };
         var LABELS = {
@@ -341,7 +342,7 @@
             if (g === 'vendors' && /^top/.test(i.getAttribute('data-k'))) body[g][i.getAttribute('data-k')] = i.value.trim();
             else if (i.value.trim() !== '') body[g][i.getAttribute('data-k')] = g === 'vendors' ? i.value.trim() : Number(i.value);
           });
-          try { var r = await api('/production/settings', { method: 'POST', body: body }); state.settings = r.settings; renderSettings(); note('설정을 저장했습니다. "지금 다시 계산"을 누르면 반영됩니다.'); }
+          try { var r = await api('/production/settings', { method: 'POST', body: body }); state.settings = r.settings; renderSettings(); note(state.partner ? '설정을 저장했습니다.' : '설정을 저장했습니다. "지금 다시 계산"을 누르면 반영됩니다.'); }
           catch (e) { fail(e.message); }
         }
 
@@ -456,16 +457,31 @@
         el('btnDismiss').addEventListener('click', function () { decide('dismiss'); });
         el('btnSaveSettings').addEventListener('click', saveSettings);
 
+        // 협력업체(설정이 본사 것이 아님) — 생산 계획 · 제안 · Slack 은 본사 일이라 설정만 보여 준다.
+        // 계획 · 제안을 부르지 않는다 (워커도 협력업체 구성원의 계획 · 제안을 403 not_hq 로 막는다)
+        function partnerMode() {
+          state.partner = true;
+          document.querySelectorAll('.hq-only').forEach(function (n) { n.hidden = true; });
+          el('subPartner').hidden = false;
+        }
+
         if (!API) { fail('업무 루프 서버(workflowApi.url)가 설정되지 않았습니다.'); return; }
-        Promise.all([
-          loadProposal(),
-          loadAssignments(),
-          api('/production/settings').then(function (d) { state.settings = d.settings; renderSettings(); }),
-          loadLinks(),
-          loadCalibration(),
-          loadMonthly(),
-          loadHistory(),
-        ]).catch(function (e) { fail(e.message); });
+        api('/production/settings')
+          .then(function (d) { state.settings = d.settings; renderSettings(); return d.hq !== false; },
+            // 설정을 못 읽어도(본사 staff 등) 예전처럼 나머지는 불러온다
+            function (e) { fail(e.message); return true; })
+          .then(function (hq) {
+            if (!hq) { partnerMode(); return; }
+            return Promise.all([
+              loadProposal(),
+              loadAssignments(),
+              loadLinks(),
+              loadCalibration(),
+              loadMonthly(),
+              loadHistory(),
+            ]);
+          })
+          .catch(function (e) { fail(e.message); });
       })();
     </script>
   </body>

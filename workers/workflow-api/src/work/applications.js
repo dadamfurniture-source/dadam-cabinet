@@ -58,7 +58,8 @@ export async function withdrawApplication(env, { user, params, ctx }) {
   if (app.status !== 'applied') throw new ConflictError('대기 중인 신청만 철회할 수 있습니다');
   const rows = await updateBy(env, 'work_applications', { id: `eq.${id}`, status: 'eq.applied' }, { status: 'withdrawn' });
   if (!rows || !rows.length) throw new ConflictError('신청 상태가 바뀌었습니다. 새로 고친 뒤 다시 시도하세요');
-  const job = await selectOne(env, 'work_jobs', { id: `eq.${app.job_id}`, select: 'id,kind,title' });
+  // 알림은 본사 작업일 때만 — 업체 칸까지 읽는다 (src/work/notify.js)
+  const job = await selectOne(env, 'work_jobs', { id: `eq.${app.job_id}`, select: 'id,kind,title,company_id' });
   await recordEvent(env, {
     jobId: app.job_id, actorUserId: user.id, actorKind: 'worker', type: 'application_withdrawn', from: 'applied', to: 'withdrawn',
     payload: { worker_id: worker.id, application_id: id },
