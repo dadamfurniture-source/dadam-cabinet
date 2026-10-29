@@ -1,0 +1,941 @@
+/**
+ * 상담 분배 — 거르기 · 점수 · 순위 (순수 함수: src/distribution/rules.js · score.js · data.js 의 통계 · catalog.js 검사)
+ * 와 새 상담 배정 앱 알림 글 (src/push/messages.js consult_assigned).
+ * 시험 데이터는 모두 가짜다.
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import * as R from '../src/distribution/rules.js';
+import {
+  customerItems,
+  poolReasons,
+  isPoolCompany,
+  serviceRegions,
+  filterReasons,
+  evalScore,
+  fitScore,
+  otherScore,
+  itemRecordCount,
+  itemRecordPoints,
+  finishPoints,
+  pricePoints,
+  designPoints,
+  scoreCompany,
+  rankCandidates,
+  satisfactionOf,
+  responseRateOf,
+  kstToday,
+  kstMonthStartMs,
+} from '../src/distribution/score.js';
+import { assignmentStats, orderStats } from '../src/distribution/data.js';
+import {
+  parseEvaluation,
+  evaluationCatalog,
+  docsOk,
+  EQUIPMENT,
+  ITEM_KEYS,
+} from '../src/distribution/catalog.js';
+import {
+  buildMessage,
+  isValidMessage,
+  CONSULT_ITEM_LABELS,
+  PARTNER_CONSULTS_URL,
+  BODY_MAX,
+  charLen,
+} from '../src/push/messages.js';
+import { FURNITURE_LABELS } from '../src/consult-notify.js';
+
+const NOW = Date.parse('2026-10-30T03:00:00Z'); // KST 10-30 12:00
+const DOCS = {
+  insurance: { checked_at: '2026-10-01T00:00:00Z', by: 'u' },
+  contract: { checked_at: '2026-10-01T00:00:00Z', by: 'u' },
+};
+
+const company = (id, extra = {}) => ({
+  id,
+  kind: 'partner',
+  name: id,
+  plan: 'agent',
+  status: 'active',
+  sido: '서울특별시',
+  gugun: '강남구',
+  ...extra,
+});
+const settings = (extra = {}) => ({
+  regions: [{ sido: '서울특별시', gugun: '강남구' }],
+  items: { sink: 'do' },
+  monthly_limit: 10,
+  next_available_date: null,
+  ...extra,
+});
+const consult = (extra = {}) => ({
+  sido: '서울특별시',
+  gugun: '강남구',
+  furniture_categories: ['sink'],
+  door_finish: null,
+  wanted_price_tier: null,
+  preferred_date: null,
+  request_detail_design: false,
+  ...extra,
+});
+const stats = (extra = {}) => ({
+  monthCount: 0,
+  recentCount: 0,
+  lastAssignedAt: null,
+  respondedCount: 0,
+  fastAcceptCount: 0,
+  feedbackCount: 0,
+  feedbackSum: 0,
+  recentOrderCount: 0,
+  cleanOrderCount: 0,
+  inProgressCount: 0,
+  completedItems: [],
+  ...extra,
+});
+
+// ── 대표 확인 대기 규칙 ─────────────────────────────────────────
+
+test('위치 — 같은 시/군/구 15 · 같은 시/도 10 · 그 밖 5 (상수는 rules.js)', () => {
+  assert.equal(R.LOCATION_SAME_GUGUN, 15);
+  assert.equal(R.LOCATION_SAME_SIDO, 10);
+  assert.equal(R.LOCATION_OTHER, 5);
+  const c = company('a');
+  assert.deepEqual(R.locationScore(consult(), c), { sum: 15, why: 'same_gugun' });
+  assert.deepEqual(R.locationScore(consult({ gugun: '송파구' }), c), { sum: 10, why: 'same_sido' });
+  assert.deepEqual(
+    R.locationScore(consult({ sido: '경기도', gugun: '강남구' }), c),
+    { sum: 5, why: 'other' },
+    '시/도가 다르면 같은 이름 구도 그 밖'
+  );
+  assert.deepEqual(R.locationScore(consult({ sido: null, gugun: null }), c), {
+    sum: 5,
+    why: 'other',
+  });
+  assert.deepEqual(R.locationScore(consult(), company('b', { sido: null, gugun: null })), {
+    sum: 5,
+    why: 'other',
+  });
+});
+
+test('고객 가격대 — wanted_price_tier, 모름 · 빈 값이면 모든 업체 3', () => {
+  assert.equal(R.customerPriceTier(consult({ wanted_price_tier: 'mid' })), 'mid');
+  assert.equal(R.customerPriceTier(consult({ wanted_price_tier: 'unknown' })), null);
+  assert.equal(R.customerPriceTier(consult({ wanted_price_tier: null })), null);
+  assert.equal(R.customerPriceTier(consult({ wanted_price_tier: 'premium' })), null);
+  const ev = (price_tier) => ({ price_tier });
+  assert.equal(pricePoints(consult({ wanted_price_tier: 'mid' }), ev('mid')), 6, '같음');
+  assert.equal(pricePoints(consult({ wanted_price_tier: 'mid' }), ev('high')), 2, '한 칸');
+  assert.equal(pricePoints(consult({ wanted_price_tier: 'basic' }), ev('mid')), 2, '한 칸');
+  assert.equal(pricePoints(consult({ wanted_price_tier: 'basic' }), ev('high')), 0, '두 칸');
+  assert.equal(
+    pricePoints(consult({ wanted_price_tier: 'high' }), ev(null)),
+    0,
+    '업체 가격대 없음'
+  );
+  assert.equal(pricePoints(consult({ wanted_price_tier: 'high' }), null), 0);
+  for (const t of ['unknown', null]) {
+    assert.equal(pricePoints(consult({ wanted_price_tier: t }), ev('high')), 3);
+    assert.equal(pricePoints(consult({ wanted_price_tier: t }), null), 3);
+  }
+});
+
+test('희망 시기 — 날짜 안 6 · 7일 안 늦음 3 · 그 밖 0, 희망 날짜 없으면 6, 업체 날짜 없으면 오늘', () => {
+  const today = '2026-10-30';
+  assert.equal(R.timingScore(null, '2026-12-31', today), 6);
+  assert.equal(R.timingScore('2026-11-10', '2026-11-01', today), 6);
+  assert.equal(R.timingScore('2026-11-10', '2026-11-10', today), 6, '같은 날');
+  assert.equal(R.timingScore('2026-11-10', '2026-11-11', today), 3);
+  assert.equal(R.timingScore('2026-11-10', '2026-11-17', today), 3, '7일');
+  assert.equal(R.timingScore('2026-11-10', '2026-11-18', today), 0, '8일');
+  assert.equal(R.timingScore('2026-11-10', null, today), 6, '업체 날짜 없음 → 오늘');
+  assert.equal(R.timingScore('2026-10-25', null, today), 3, '오늘이 희망보다 5일 늦음');
+  assert.equal(R.timingScore('2026-10-01', null, today), 0);
+  assert.equal(
+    R.timingScore('언젠가', '2026-11-01', today),
+    6,
+    '날짜 모양이 아니면 희망 날짜 없음'
+  );
+});
+
+test('한 달 한도를 정하지 않은 업체는 거른다 (limit)', () => {
+  assert.equal(R.REQUIRE_MONTHLY_LIMIT, true);
+  const base = {
+    consult: consult(),
+    items: ['sink'],
+    company: company('a'),
+    evaluation: { docs: DOCS },
+    stats: stats(),
+  };
+  assert.deepEqual(filterReasons({ ...base, settings: settings({ monthly_limit: null }) }), [
+    'limit',
+  ]);
+  assert.deepEqual(
+    filterReasons({ ...base, settings: null }),
+    ['item', 'limit'],
+    '설정이 없으면 지역은 주소로, 품목 · 한도 없음'
+  );
+});
+
+// ── 거르기 ────────────────────────────────────────────────────
+
+test('업체 풀 — 다담 공장 · 활동 중 Agent. Expert 는 tier, 정지 · 해지 · 신청 중은 inactive', () => {
+  assert.deepEqual(poolReasons({ kind: 'hq', plan: null, status: 'active' }), []);
+  assert.deepEqual(poolReasons(company('a')), []);
+  assert.deepEqual(poolReasons(company('e', { plan: 'expert' })), ['tier']);
+  assert.deepEqual(poolReasons(company('s', { status: 'suspended' })), ['inactive']);
+  assert.deepEqual(poolReasons(company('x', { plan: 'expert', status: 'closed' })), [
+    'tier',
+    'inactive',
+  ]);
+  assert.deepEqual(poolReasons(company('m', { status: 'meeting' })), ['inactive']);
+  assert.equal(
+    isPoolCompany({ kind: 'platform', status: 'active' }),
+    false,
+    '다담 본사는 풀이 아니다'
+  );
+  assert.equal(isPoolCompany({ kind: 'hq', status: 'active' }), true);
+});
+
+test('풀 밖 업체는 풀 이유만 싣는다', () => {
+  const r = filterReasons({
+    consult: consult({ sido: '부산광역시' }),
+    items: ['sink'],
+    company: company('e', { plan: 'expert' }),
+    settings: null,
+    evaluation: null,
+    stats: null,
+  });
+  assert.deepEqual(r, ['tier']);
+});
+
+test('지역 — 설정한 지역, 비면 업체 주소 시/군/구 하나. 고객 지역이 없으면 탈락', () => {
+  const c = company('a');
+  assert.deepEqual(serviceRegions(settings({ regions: [] }), c), [
+    { sido: '서울특별시', gugun: '강남구' },
+  ]);
+  assert.deepEqual(serviceRegions(null, company('b', { sido: null })), []);
+  const base = { items: ['sink'], company: c, evaluation: { docs: DOCS }, stats: stats() };
+  assert.deepEqual(
+    filterReasons({ ...base, consult: consult(), settings: settings({ regions: [] }) }),
+    [],
+    '주소로 통과'
+  );
+  assert.deepEqual(
+    filterReasons({
+      ...base,
+      consult: consult({ gugun: '송파구' }),
+      settings: settings({ regions: [] }),
+    }),
+    ['region']
+  );
+  // 설정한 지역이 있으면 주소는 보지 않는다
+  assert.deepEqual(
+    filterReasons({
+      ...base,
+      consult: consult(),
+      settings: settings({ regions: [{ sido: '서울특별시', gugun: '송파구' }] }),
+    }),
+    ['region']
+  );
+  assert.deepEqual(
+    filterReasons({
+      ...base,
+      consult: consult({ gugun: '송파구' }),
+      settings: settings({ regions: [{ sido: '서울특별시', gugun: '송파구' }] }),
+    }),
+    []
+  );
+  assert.deepEqual(
+    filterReasons({ ...base, consult: consult({ gugun: null }), settings: settings() }),
+    ['region']
+  );
+});
+
+test('품목 — 함 · 외주 통과, 안 함 · 빈 값 탈락, 고객 품목이 여럿이면 모두', () => {
+  const base = {
+    consult: consult(),
+    company: company('a'),
+    evaluation: { docs: DOCS },
+    stats: stats(),
+  };
+  assert.deepEqual(
+    filterReasons({
+      ...base,
+      items: ['sink'],
+      settings: settings({ items: { sink: 'outsource' } }),
+    }),
+    []
+  );
+  assert.deepEqual(
+    filterReasons({ ...base, items: ['sink'], settings: settings({ items: { sink: 'no' } }) }),
+    ['item']
+  );
+  assert.deepEqual(filterReasons({ ...base, items: ['sink'], settings: settings({ items: {} }) }), [
+    'item',
+  ]);
+  assert.deepEqual(
+    filterReasons({
+      ...base,
+      items: ['sink', 'wardrobe'],
+      settings: settings({ items: { sink: 'do' } }),
+    }),
+    ['item']
+  );
+  assert.deepEqual(
+    filterReasons({
+      ...base,
+      items: ['sink', 'wardrobe'],
+      settings: settings({ items: { sink: 'do', wardrobe: 'outsource' } }),
+    }),
+    []
+  );
+  assert.deepEqual(
+    filterReasons({ ...base, items: [], settings: settings({ items: {} }) }),
+    [],
+    '고객 품목이 없으면 거를 품목이 없다'
+  );
+});
+
+test('여유 — 이번 달 배정 수 < 한 달 한도', () => {
+  const base = {
+    consult: consult(),
+    items: ['sink'],
+    company: company('a'),
+    evaluation: { docs: DOCS },
+  };
+  assert.deepEqual(
+    filterReasons({
+      ...base,
+      settings: settings({ monthly_limit: 3 }),
+      stats: stats({ monthCount: 2 }),
+    }),
+    []
+  );
+  assert.deepEqual(
+    filterReasons({
+      ...base,
+      settings: settings({ monthly_limit: 3 }),
+      stats: stats({ monthCount: 3 }),
+    }),
+    ['limit']
+  );
+  assert.deepEqual(
+    filterReasons({ ...base, settings: settings({ monthly_limit: 0 }), stats: stats() }),
+    ['limit']
+  );
+});
+
+test('서류 — 보험 · 계약서 둘 다 본사 확인', () => {
+  assert.equal(docsOk({ docs: DOCS }), true);
+  assert.equal(docsOk({ docs: { insurance: DOCS.insurance } }), false);
+  assert.equal(docsOk({ docs: { insurance: DOCS.insurance, contract: {} } }), false);
+  assert.equal(docsOk(null), false);
+  const base = {
+    consult: consult(),
+    items: ['sink'],
+    company: company('a'),
+    settings: settings(),
+    stats: stats(),
+  };
+  assert.deepEqual(filterReasons({ ...base, evaluation: { docs: { contract: DOCS.contract } } }), [
+    'docs',
+  ]);
+  assert.deepEqual(filterReasons({ ...base, evaluation: null }), ['docs']);
+  assert.deepEqual(R.REQUIRED_DOCS, ['insurance', 'contract']);
+});
+
+test('이유는 모두 싣는다 — 지역 · 품목 · 한도 · 서류', () => {
+  const r = filterReasons({
+    consult: consult({ gugun: '송파구' }),
+    items: ['sink'],
+    company: company('a'),
+    settings: settings({ items: {}, monthly_limit: null }),
+    evaluation: null,
+    stats: stats(),
+  });
+  assert.deepEqual(r, ['region', 'item', 'limit', 'docs']);
+  for (const x of r) assert.ok(R.FILTER_REASONS.includes(x));
+});
+
+// ── 점수 ──────────────────────────────────────────────────────
+
+test('본사 평가 — 등급 S16 · A13 · B10 · C4, 등급 없음 0', () => {
+  assert.deepEqual(R.GRADE_POINTS, { S: 16, A: 13, B: 10, C: 4 });
+  for (const [g, p] of [
+    ['S', 16],
+    ['A', 13],
+    ['B', 10],
+    ['C', 4],
+    [null, 0],
+    ['Z', 0],
+  ]) {
+    assert.equal(evalScore({ grade: g }, stats()).grade, p, String(g));
+  }
+  assert.equal(evalScore(null, stats()).grade, R.NO_GRADE_POINTS);
+});
+
+test('본사 평가 — 자료가 없으면 만족 · 재작업 · 응답은 만점의 절반', () => {
+  const e = evalScore({ grade: 'A' }, stats());
+  assert.deepEqual(e, { grade: 13, satisfaction: 6, rework: 3, response: 3, sum: 25, raw: 25 });
+  assert.equal(evalScore({ grade: 'A' }, null).sum, 25);
+});
+
+test('본사 평가 — 만족 = 설치 후 문항 평균(0~10 → 0~5) ÷ 5 × 12 · 재작업 비율 × 6 · 24시간 안 받기 비율 × 6', () => {
+  const s = stats({
+    feedbackCount: 2,
+    feedbackSum: 16,
+    recentOrderCount: 4,
+    cleanOrderCount: 3,
+    respondedCount: 4,
+    fastAcceptCount: 1,
+  });
+  assert.equal(satisfactionOf(s), 4);
+  assert.equal(responseRateOf(s), 0.25);
+  const e = evalScore({ grade: 'B' }, s);
+  assert.equal(e.satisfaction, 9.6);
+  assert.equal(e.rework, 4.5);
+  assert.equal(e.response, 1.5);
+  assert.equal(e.sum, 25.6);
+  assert.equal(
+    evalScore(
+      { grade: 'S' },
+      stats({
+        feedbackCount: 1,
+        feedbackSum: 10,
+        recentOrderCount: 1,
+        cleanOrderCount: 1,
+        respondedCount: 1,
+        fastAcceptCount: 1,
+      })
+    ).sum,
+    40,
+    '만점 40'
+  );
+  assert.equal(satisfactionOf(stats()), null);
+  assert.equal(responseRateOf(stats()), null);
+});
+
+test('품목 실적 — 0건 3 · 1~4건 6 · 5건 이상 12, 고객 품목이 하나라도 든 완료 수주', () => {
+  assert.deepEqual([0, 1, 4, 5, 9].map(itemRecordPoints), [3, 6, 6, 12, 12]);
+  const done = [
+    new Set(['sink']),
+    new Set(['sink', 'island']),
+    new Set(['wardrobe']),
+    new Set(['door']),
+  ];
+  assert.equal(itemRecordCount(['sink'], stats({ completedItems: done })), 2);
+  assert.equal(
+    itemRecordCount(['sink', 'wardrobe'], stats({ completedItems: done })),
+    3,
+    '한 수주는 한 번만'
+  );
+  assert.equal(itemRecordCount([], stats({ completedItems: done })), 0);
+});
+
+test('도어 마감 — 취급 6 · 안 함 0 · 고객 모름(또는 빈 값) 모두 3', () => {
+  const ev = { finishes: { door_pet: 'yes', door_paint: 'no' } };
+  assert.equal(finishPoints(consult({ door_finish: 'pet' }), ev), 6);
+  assert.equal(finishPoints(consult({ door_finish: 'paint' }), ev), 0);
+  assert.equal(finishPoints(consult({ door_finish: 'veneer' }), ev), 0, '평가표에 없으면 안 함');
+  assert.equal(finishPoints(consult({ door_finish: 'unknown' }), ev), 3);
+  assert.equal(finishPoints(consult({ door_finish: null }), null), 3);
+});
+
+test('상세 설계 — 요청이 있으면 설계 인원 1명 이상 + 플래너 5 · 아니면 0, 요청 없으면 5', () => {
+  const req = consult({ request_detail_design: true });
+  assert.equal(designPoints(consult(), null), 5);
+  assert.equal(designPoints(req, { staff: { design: 1 }, design: { planner: true } }), 5);
+  assert.equal(designPoints(req, { staff: { design: 0 }, design: { planner: true } }), 0);
+  assert.equal(designPoints(req, { staff: { design: 2 }, design: { planner: false } }), 0);
+  assert.equal(designPoints(req, null), 0);
+});
+
+test('선택 적합도 — 다섯 항목 합 (만점 35)', () => {
+  const f = fitScore({
+    consult: consult({
+      door_finish: 'pet',
+      wanted_price_tier: 'mid',
+      preferred_date: '2026-11-10',
+      request_detail_design: true,
+    }),
+    items: ['sink'],
+    settings: settings({ next_available_date: '2026-11-05' }),
+    evaluation: {
+      finishes: { door_pet: 'yes' },
+      price_tier: 'mid',
+      staff: { design: 1 },
+      design: { planner: true },
+    },
+    stats: stats({ completedItems: Array.from({ length: 5 }, () => new Set(['sink'])) }),
+    today: '2026-10-30',
+  });
+  assert.deepEqual(f, { item: 12, finish: 6, price: 6, timing: 6, design: 5, sum: 35, raw: 35 });
+});
+
+test('기타 — 일감 고르게(최다 업체 0, 직선) · 처리 여유(진행 중 ÷ 한도, 1 이상 0)', () => {
+  assert.equal(otherScore({ settings: settings(), stats: stats(), maxRecent: 0 }).spread, 5);
+  assert.equal(
+    otherScore({ settings: settings(), stats: stats({ recentCount: 4 }), maxRecent: 4 }).spread,
+    0
+  );
+  assert.equal(
+    otherScore({ settings: settings(), stats: stats({ recentCount: 2 }), maxRecent: 4 }).spread,
+    2.5
+  );
+  assert.equal(
+    otherScore({ settings: settings({ monthly_limit: 10 }), stats: stats(), maxRecent: 0 })
+      .capacity,
+    5
+  );
+  assert.equal(
+    otherScore({
+      settings: settings({ monthly_limit: 10 }),
+      stats: stats({ inProgressCount: 5 }),
+      maxRecent: 0,
+    }).capacity,
+    2.5
+  );
+  assert.equal(
+    otherScore({
+      settings: settings({ monthly_limit: 10 }),
+      stats: stats({ inProgressCount: 10 }),
+      maxRecent: 0,
+    }).capacity,
+    0
+  );
+  assert.equal(
+    otherScore({
+      settings: settings({ monthly_limit: 10 }),
+      stats: stats({ inProgressCount: 25 }),
+      maxRecent: 0,
+    }).capacity,
+    0
+  );
+});
+
+test('점수 모양 — eval · fit · location · other, 총점은 반올림 정수 (0~100)', () => {
+  const s = scoreCompany({
+    consult: consult(),
+    items: ['sink'],
+    company: company('a'),
+    settings: settings(),
+    evaluation: { grade: 'S', docs: DOCS },
+    stats: stats(),
+    maxRecent: 0,
+    today: '2026-10-30',
+  });
+  assert.deepEqual(Object.keys(s.score), ['eval', 'fit', 'location', 'other']);
+  assert.deepEqual(Object.keys(s.score.eval), [
+    'grade',
+    'satisfaction',
+    'rework',
+    'response',
+    'sum',
+  ]);
+  assert.deepEqual(Object.keys(s.score.fit), [
+    'item',
+    'finish',
+    'price',
+    'timing',
+    'design',
+    'sum',
+  ]);
+  assert.deepEqual(s.score.location, { sum: 15, why: 'same_gugun' });
+  assert.deepEqual(Object.keys(s.score.other), ['spread', 'capacity', 'sum']);
+  // eval 16 + 6 + 3 + 3 = 28 (자료 없음은 절반) · fit 3 + 3 + 3 + 6 + 5 = 20 · location 15 · other 5 + 5 = 10
+  assert.equal(s.score.eval.sum, 28);
+  assert.equal(s.score.fit.sum, 20);
+  assert.equal(s.score.other.sum, 10);
+  assert.equal(s.total, 73);
+  assert.ok(Number.isInteger(s.total));
+});
+
+// ── 순위 ──────────────────────────────────────────────────────
+
+function rankWith(list, extraStats = {}) {
+  const companies = list.map((c) => c.company);
+  const settingsBy = new Map(
+    list.map((c) => [c.company.id, c.settings === undefined ? settings() : c.settings])
+  );
+  const evaluationBy = new Map(
+    list.map((c) => [
+      c.company.id,
+      c.evaluation === undefined ? { grade: 'B', docs: DOCS } : c.evaluation,
+    ])
+  );
+  const statsBy = new Map(
+    list.map((c) => [c.company.id, stats({ ...extraStats, ...(c.stats || {}) })])
+  );
+  return rankCandidates({
+    consult: consult(),
+    items: ['sink'],
+    companies,
+    settingsBy,
+    evaluationBy,
+    statsBy,
+    nowMs: NOW,
+  });
+}
+
+test('순위 — 총점 높은 순, 걸러진 업체는 이유와 따로', () => {
+  const { ranked, filtered } = rankWith([
+    { company: company('low', { name: '가' }), evaluation: { grade: 'C', docs: DOCS } },
+    { company: company('high', { name: '나' }), evaluation: { grade: 'S', docs: DOCS } },
+    { company: company('mid', { name: '다' }), evaluation: { grade: 'A', docs: DOCS } },
+    { company: company('exp', { name: '라', plan: 'expert' }) },
+    { company: company('nodocs', { name: '마' }), evaluation: { grade: 'S' } },
+  ]);
+  assert.deepEqual(
+    ranked.map((c) => [c.company.id, c.rank]),
+    [
+      ['high', 1],
+      ['mid', 2],
+      ['low', 3],
+    ]
+  );
+  assert.deepEqual(filtered, [
+    { company_id: 'exp', company_name: '라', reasons: ['tier'] },
+    { company_id: 'nodocs', company_name: '마', reasons: ['docs'] },
+  ]);
+});
+
+test('동점 — 마지막 배정이 오래된 업체 먼저 (배정이 없던 업체가 맨 앞), 그다음 이름', () => {
+  const { ranked } = rankWith([
+    {
+      company: company('recent', { name: '가' }),
+      stats: { lastAssignedAt: '2026-10-20T00:00:00Z' },
+    },
+    { company: company('old', { name: '나' }), stats: { lastAssignedAt: '2026-08-01T00:00:00Z' } },
+    { company: company('never2', { name: '라' }) },
+    { company: company('never1', { name: '다' }) },
+  ]);
+  assert.equal(new Set(ranked.map((c) => c.total)).size, 1, '모두 동점');
+  assert.deepEqual(
+    ranked.map((c) => c.company.id),
+    ['never1', 'never2', 'old', 'recent']
+  );
+});
+
+test('순위 — 일감 고르게는 순위 대상 업체 중 최근 30일 배정이 가장 많은 업체를 0 으로', () => {
+  const { ranked } = rankWith([
+    { company: company('busy', { name: '가' }), stats: { recentCount: 4 } },
+    { company: company('half', { name: '나' }), stats: { recentCount: 2 } },
+    { company: company('free', { name: '다' }) },
+  ]);
+  const spread = Object.fromEntries(ranked.map((c) => [c.company.id, c.score.other.spread]));
+  assert.deepEqual(spread, { busy: 0, half: 2.5, free: 5 });
+});
+
+// ── 고객 품목 ─────────────────────────────────────────────────
+
+test('고객 품목 — furniture_categories(목록 안 값), 비면 앱 연출컷 품목 (이름이 같은 것만)', () => {
+  assert.deepEqual(
+    customerItems({ furniture_categories: ['sink', 'hack<script>', 'sink', 'wardrobe'] }),
+    ['sink', 'wardrobe']
+  );
+  assert.deepEqual(customerItems({ furniture_categories: null }, 'shoe'), ['shoerack']);
+  assert.deepEqual(customerItems({ furniture_categories: [] }, 'island'), ['island']);
+  assert.deepEqual(customerItems({ furniture_categories: [] }, 'office'), []);
+  assert.deepEqual(
+    customerItems({ furniture_categories: ['vanity'] }, 'sink'),
+    ['vanity'],
+    '신청서 품목이 먼저'
+  );
+  assert.deepEqual(ITEM_KEYS, Object.keys(FURNITURE_LABELS));
+});
+
+// ── 통계 ──────────────────────────────────────────────────────
+
+test('KST 날짜 · 이번 달 시작', () => {
+  assert.equal(kstToday(Date.parse('2026-10-31T15:30:00Z')), '2026-11-01');
+  assert.equal(new Date(kstMonthStartMs(NOW)).toISOString(), '2026-09-30T15:00:00.000Z');
+  assert.equal(
+    new Date(kstMonthStartMs(Date.parse('2026-10-31T15:30:00Z'))).toISOString(),
+    '2026-10-31T15:00:00.000Z'
+  );
+});
+
+test('배정 통계 — 이번 달(KST) 수 · 최근 30일 수 · 마지막 배정 · 24시간 안 받기 (기다리는 배정은 응답에서 뺌)', () => {
+  const statsBy = new Map([['a', stats()]]);
+  assignmentStats(
+    [
+      {
+        company_id: 'a',
+        state: 'accepted',
+        assigned_at: '2026-10-29T00:00:00Z',
+        responded_at: '2026-10-29T05:00:00Z',
+      },
+      {
+        company_id: 'a',
+        state: 'accepted',
+        assigned_at: '2026-10-02T00:00:00Z',
+        responded_at: '2026-10-04T00:00:00Z',
+      },
+      {
+        company_id: 'a',
+        state: 'declined',
+        assigned_at: '2026-09-30T16:00:00Z',
+        responded_at: '2026-09-30T17:00:00Z',
+      },
+      {
+        company_id: 'a',
+        state: 'expired',
+        assigned_at: '2026-09-30T14:00:00Z',
+        responded_at: '2026-10-01T14:00:00Z',
+      },
+      {
+        company_id: 'a',
+        state: 'assigned',
+        assigned_at: '2026-10-30T01:00:00Z',
+        responded_at: null,
+      },
+      {
+        company_id: 'a',
+        state: 'accepted',
+        assigned_at: '2026-05-01T00:00:00Z',
+        responded_at: '2026-05-01T01:00:00Z',
+      },
+      {
+        company_id: 'other',
+        state: 'accepted',
+        assigned_at: '2026-10-29T00:00:00Z',
+        responded_at: '2026-10-29T01:00:00Z',
+      },
+    ],
+    NOW,
+    statsBy
+  );
+  const s = statsBy.get('a');
+  assert.equal(s.monthCount, 4, '10-01 KST 0시(09-30 15:00Z) 뒤 — 받기 · 못 받음 · 기다림 모두');
+  assert.equal(s.recentCount, 5, '최근 30일 (09-30 03:00Z 뒤)');
+  assert.equal(s.lastAssignedAt, '2026-10-30T01:00:00Z');
+  assert.equal(s.respondedCount, 4, '최근 90일 끝난 배정 (5월 것 · 기다리는 것 뺌)');
+  assert.equal(s.fastAcceptCount, 1, '24시간 안 받기만');
+});
+
+test('수주 통계 — 진행 중 · 최근 90일 재작업 없는 수주 · 만족 · 완료 수주 품목', () => {
+  const statsBy = new Map([['a', stats()]]);
+  orderStats(
+    {
+      orders: [
+        {
+          id: 'o1',
+          company_id: 'a',
+          status: 'confirmed',
+          ordered_at: '2026-10-01T00:00:00Z',
+          snapshot_id: 's1',
+        },
+        {
+          id: 'o2',
+          company_id: 'a',
+          status: 'in_production',
+          ordered_at: '2026-09-01T00:00:00Z',
+          snapshot_id: 's2',
+        },
+        {
+          id: 'o3',
+          company_id: 'a',
+          status: 'delivered',
+          ordered_at: '2026-08-15T00:00:00Z',
+          snapshot_id: 's3',
+        },
+        {
+          id: 'o4',
+          company_id: 'a',
+          status: 'completed',
+          ordered_at: '2026-05-01T00:00:00Z',
+          snapshot_id: 's4',
+        },
+        {
+          id: 'o5',
+          company_id: 'a',
+          status: 'completed',
+          ordered_at: '2026-10-10T00:00:00Z',
+          snapshot_id: 's5',
+        },
+      ],
+      reworkOrderIds: new Set(['o2', 'o4']),
+      feedback: [
+        { order_id: 'o4', score: 10 },
+        { order_id: 'o5', score: 7 },
+        { order_id: 'o1', score: null },
+        { order_id: 'zz', score: 0 },
+      ],
+      snapshotItems: new Map([
+        ['s4', new Set(['sink'])],
+        ['s5', new Set(['wardrobe', 'sink'])],
+      ]),
+      nowMs: NOW,
+    },
+    statsBy
+  );
+  const s = statsBy.get('a');
+  assert.equal(s.inProgressCount, 3);
+  assert.equal(s.recentOrderCount, 4, '08-01 뒤 수주 (90일)');
+  assert.equal(s.cleanOrderCount, 3);
+  assert.equal(s.feedbackCount, 2);
+  assert.equal(s.feedbackSum, 17);
+  assert.equal(s.completedItems.length, 2);
+});
+
+// ── 평가표 검사 ────────────────────────────────────────────────
+
+test('평가표 — 항목 목록 (설비 14 · 직무 10 · 마감 14 · 설계 4 · 시공 3 + 경력)', () => {
+  const c = evaluationCatalog();
+  assert.equal(c.equipment.length, 14);
+  assert.deepEqual(Object.keys(EQUIPMENT), [
+    'panel_saw',
+    'cnc_cut',
+    'edge_bander',
+    'curved_edge_bander',
+    'special_door_edge_bander',
+    'boring',
+    'cnc_router',
+    'nesting',
+    'conveyor',
+    'packing',
+    'forklift',
+    'panel_lifter',
+    'assembly_space',
+    'install_vehicle',
+  ]);
+  assert.deepEqual(
+    c.staff_roles.map((x) => x.key),
+    [
+      'design',
+      'measure',
+      'cutting',
+      'edge',
+      'assembly',
+      'packing',
+      'inspection',
+      'install',
+      'sales',
+      'as',
+    ]
+  );
+  assert.equal(c.finishes.length, 14);
+  assert.deepEqual(
+    c.design.map((x) => x.key),
+    ['measure', 'drawing_2d', 'planner', 'render_3d']
+  );
+  assert.deepEqual(
+    c.install.map((x) => x.key),
+    ['demolition', 'utility_connect', 'high_floor', 'install_years']
+  );
+  for (const group of Object.values(c))
+    for (const e of group) if (typeof e === 'object') assert.ok(e.key && e.name);
+});
+
+test('평가표 — 목록 밖 키는 422 (어느 키인지), 틀린 값도 422', () => {
+  const opts = { existing: null, userId: 'u1', nowIso: '2026-10-30T00:00:00.000Z' };
+  assert.throws(
+    () =>
+      parseEvaluation(
+        { equipment: { laser: 'have' }, staff: { chef: 1 }, docs: { license: true } },
+        opts
+      ),
+    (e) =>
+      e.statusCode === 422 &&
+      JSON.stringify(e.details.unknown_keys) ===
+        JSON.stringify(['equipment.laser', 'staff.chef', 'docs.license'])
+  );
+  assert.throws(
+    () => parseEvaluation({ equipment: { boring: 'maybe' } }, opts),
+    (e) => e.statusCode === 422 && e.details.invalid[0] === 'equipment.boring'
+  );
+  assert.throws(
+    () => parseEvaluation({ staff: { design: -1 } }, opts),
+    (e) => e.statusCode === 422
+  );
+  assert.throws(
+    () => parseEvaluation({ install: { install_years: 1.5 } }, opts),
+    (e) => e.statusCode === 422
+  );
+  assert.throws(
+    () => parseEvaluation({ grade: 'S+' }, opts),
+    (e) => e.statusCode === 422
+  );
+  assert.throws(
+    () => parseEvaluation({ price_tier: 'premium' }, opts),
+    (e) => e.statusCode === 422
+  );
+  assert.throws(
+    () => parseEvaluation({ as_months: 300 }, opts),
+    (e) => e.statusCode === 422
+  );
+  assert.throws(
+    () => parseEvaluation({ equipment: ['boring'] }, opts),
+    (e) => e.statusCode === 422
+  );
+  assert.throws(
+    () => parseEvaluation(null, opts),
+    (e) => e.statusCode === 422
+  );
+});
+
+test('평가표 — 서류는 true 면 확인(처음 확인 기록 유지), false 면 뺀다', () => {
+  const opts = {
+    existing: { docs: { insurance: { checked_at: '2026-01-01T00:00:00Z', by: 'old' } } },
+    userId: 'u1',
+    nowIso: '2026-10-30T00:00:00.000Z',
+  };
+  const out = parseEvaluation(
+    {
+      grade: 'A',
+      docs: { insurance: true, contract: true },
+      install: { demolition: true, install_years: 12 },
+      note: '  메모  ',
+      company_id: 'ignored',
+    },
+    opts
+  );
+  assert.deepEqual(out.docs, {
+    insurance: { checked_at: '2026-01-01T00:00:00Z', by: 'old' },
+    contract: { checked_at: '2026-10-30T00:00:00.000Z', by: 'u1' },
+  });
+  assert.equal(out.note, '메모');
+  assert.equal(out.grade, 'A');
+  assert.deepEqual(out.install, { demolition: true, install_years: 12 });
+  assert.deepEqual(parseEvaluation({ docs: { insurance: false } }, opts).docs, {});
+  assert.deepEqual(Object.keys(out).sort(), [
+    'as_months',
+    'design',
+    'docs',
+    'equipment',
+    'finishes',
+    'grade',
+    'install',
+    'note',
+    'price_tier',
+    'staff',
+    'warranty_months',
+  ]);
+});
+
+// ── 앱 알림 글 ─────────────────────────────────────────────────
+
+test('consult_assigned 글 — 「새 상담 배정」, 품목 · 시/군/구만, 업체 › 상담으로', () => {
+  assert.deepEqual(CONSULT_ITEM_LABELS, FURNITURE_LABELS);
+  const m = buildMessage('consult_assigned', { items: ['sink', 'wardrobe'], gugun: '강남구' });
+  assert.deepEqual(m, {
+    title: '새 상담 배정',
+    body: '싱크대·붙박이장 · 강남구 상담이 배정되었습니다. 24시간 안에 받기 · 못 받음을 골라 주세요.',
+    url: '/segan/me.html#partner-consults',
+  });
+  assert.equal(PARTNER_CONSULTS_URL, m.url);
+  assert.ok(isValidMessage(m));
+  const odd = buildMessage('consult_assigned', {
+    items: ['홍길동 010-1234-5678', 'sink'],
+    gugun: '강남구 역삼동 12-3',
+    name: '홍길동',
+  });
+  assert.equal(odd.body, '싱크대 상담이 배정되었습니다. 24시간 안에 받기 · 못 받음을 골라 주세요.');
+  const none = buildMessage('consult_assigned', {});
+  assert.equal(none.body, '상담이 배정되었습니다. 24시간 안에 받기 · 못 받음을 골라 주세요.');
+  const all = buildMessage('consult_assigned', {
+    items: Object.keys(FURNITURE_LABELS),
+    gugun: '가나다라마바사아자차구',
+  });
+  assert.ok(charLen(all.body) <= BODY_MAX);
+});
