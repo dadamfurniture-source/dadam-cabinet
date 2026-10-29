@@ -5,7 +5,7 @@
  *
  *   띄움 (품목 스펙 floatH > 0): 다리발 · 걸레받이 · 좌대 없음, 하부장 · 키큰장 몸통은 상부장 짜임 ("하부장도 사쿠리형으로" —
  *   사쿠리 · 천판 · 지판 · 홈 속 뒷판 · 벽 고정 보강목 2 · 도어 H + 내림), 줄 아래 가림판 (걸레받이 크기 · 몸통 뒤 맞춤),
- *   줄 좌우 가림판 (몸통 바깥 · 띄움 + 20 × 끝 마감재별 깊이 — 쫄 몸통 − 35 · 몰딩 몸통 − 5 · EP 없음 · 없음 = 몸통 + 앞 자리).
+ *   줄 좌우 가림판 (몸통 바깥 · 띄움 + 20 × 끝 마감재별 깊이 — 쫄 몸통 − 40 · 몰딩 몸통 − 5 · EP 없음 · 없음 = 몸통 + 앞 자리).
  *   상판 = 스펙에 재질이 있을 때만 (신발장 18T MDF · 화장대 12T 인조대리석), 깊이 = 몸통 + 앞 자리.
  */
 const X = require('../js/detaildesign/extractors.js');
@@ -123,9 +123,9 @@ describe('띄움 시공 — 자재', () => {
   }
   const fin = (section, x, W, area, edge) => ({ section, x, W, area, edge, side: null, partW: section === 'ep' ? 18 : 60, H: 1000, D: 380, baseY: 0 });
 
-  test('끝 마감재별 깊이 (2026-10-28 사장님) — 쫄 몸통 − 35 · 몰딩 몸통 − 5, 높이 띄움 + 20', () => {
-    expect(withFinishes([fin('filler', -60, 60, 'lower', 'left'), fin('molding', 1800, 60, 'tall', 'right')])).toEqual([[220, 315, 1], [220, 345, 1]]);
-    expect(withFinishes([fin('filler', -60, 60, 'lower', 'left'), fin('filler', 1800, 60, 'tall', 'right')])).toEqual([[220, 315, 2]]);
+  test('끝 마감재별 깊이 (2026-10-28 · 29 사장님) — 쫄 몸통 − 40 (여유 5) · 몰딩 몸통 − 5, 높이 띄움 + 20', () => {
+    expect(withFinishes([fin('filler', -60, 60, 'lower', 'left'), fin('molding', 1800, 60, 'tall', 'right')])).toEqual([[220, 310, 1], [220, 345, 1]]);
+    expect(withFinishes([fin('filler', -60, 60, 'lower', 'left'), fin('filler', 1800, 60, 'tall', 'right')])).toEqual([[220, 310, 2]]);
   });
 
   test('EP 끝은 좌우 가림판 없음 (EP 가 바닥까지), 비움 · 마감재 없음 = 배치 공간 깊이 (몸통 + 30)', () => {
@@ -141,13 +141,13 @@ describe('띄움 시공 — 자재', () => {
     const d = shoeDesign();
     d.items[0].specs.drawnFinishes = [{ section: 'filler', side: null, edge: 'left', area: 'lower', W: null, partW: 60, H: 1000, D: null, baseY: 0, x: null }];
     const rows = new MaterialExtractor().extract(d).materials.filter((m) => m.part === '가림판(좌우)').map((m) => [m.h, m.qty]).sort();
-    expect(rows).toEqual([[315, 1], [380, 1]]);
+    expect(rows).toEqual([[310, 1], [380, 1]]);
   });
 
   test('깊이 도우미 — 상수와 같다', () => {
-    expect(C.FLOAT_SIDE_D_MINUS).toEqual({ filler: 35, molding: 5 });
+    expect(C.FLOAT_SIDE_D_MINUS).toEqual({ filler: 40, molding: 5 });
     expect([X.bomFloatSideDepthOf('filler', 350), X.bomFloatSideDepthOf('molding', 350), X.bomFloatSideDepthOf('ep', 350), X.bomFloatSideDepthOf(null, 350), X.bomFloatSideDepthOf('gap', 350)])
-      .toEqual([315, 345, 0, 380, 380]);
+      .toEqual([310, 345, 0, 380, 380]);
   });
 
   test('철물 — 다리발 없음, 키큰장 도어 경첩은 도어 높이(2055)로', () => {
