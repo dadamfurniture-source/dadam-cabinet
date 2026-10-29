@@ -492,7 +492,7 @@ describe('켜짐 → 끄기', () => {
   test('끄기 — 구독을 풀고 DELETE /push/subscriptions { endpoint } (본인 토큰)', async () => {
     const { calls, sub } = await load({ subscribed: true, permission: 'granted' });
     await press('끄기');
-    expect(calls.order).toEqual(['unsubscribe', 'DELETE']);
+    expect(calls.order).toEqual(['POST', 'unsubscribe', 'DELETE']); // POST = 열 때 다시 적기
     expect(pushCalls(calls).filter((f) => f.method === 'DELETE')).toEqual([
       {
         url: WORK + '/push/subscriptions',
@@ -526,11 +526,95 @@ describe('켜짐 → 끄기', () => {
       unsubscribeError: new Error('x'),
     });
     await press('끄기');
-    expect(calls.order).toEqual(['unsubscribe']);
+    expect(calls.order).toEqual(['POST', 'unsubscribe']); // POST = 열 때 다시 적기
     expect(view()).toBe('on');
     expect(body().querySelector('.mk-error').textContent).toBe(
       '알림을 끄지 못했습니다. 잠시 후 다시 시도해 주세요.'
     );
+  });
+});
+
+describe('열 때 다시 적기 — 이 기기에 구독이 있으면 POST 한 번 (서버가 endpoint 로 사람 · 업체를 다시 묶는다)', () => {
+  const posts = (calls) => pushCalls(calls).filter((f) => f.method === 'POST');
+
+  test('켜져 있으면 권한을 묻지 않고 같은 구독을 본인 토큰으로 한 번 보낸다 — 안내 글은 없다', async () => {
+    const { calls, reg } = await load({ subscribed: true, permission: 'granted' });
+    expect(posts(calls)).toEqual([
+      {
+        url: WORK + '/push/subscriptions',
+        method: 'POST',
+        auth: 'Bearer tok-1',
+        body: {
+          endpoint: ENDPOINT,
+          keys: { p256dh: 'P256DH-KEY', auth: 'AUTH-KEY' },
+          user_agent: UA_ANDROID,
+        },
+      },
+    ]);
+    expect(calls.permission).toBe(0);
+    expect(reg.pushManager.subscribe).not.toHaveBeenCalled();
+    expect(view()).toBe('on');
+    expect(body().querySelector('.me-pt-msg')).toBeNull();
+    expect(body().querySelector('.mk-error')).toBeNull();
+  });
+
+  test('업체 신청 중에 켠 사람이 업체 구성원이 된 뒤 — 열면 다시 적힌다', async () => {
+    const { calls } = await load({
+      subscribed: true,
+      permission: 'granted',
+      partner: partnerMe({ company: company({ role: 'staff' }) }),
+    });
+    expect(posts(calls)).toHaveLength(1);
+  });
+
+  test.each([
+    ['구독 없음', { subscribed: false }],
+    ['권한이 막힘', { subscribed: true, permission: 'denied' }],
+    ['아이폰 (홈 화면 앱 아님)', { subscribed: true, ua: UA_IPHONE, platform: 'iPhone' }],
+    ['못 받는 브라우저', { subscribed: true, push: false }],
+    ['칸을 보이지 않는 사람', { subscribed: true, partner: partnerMe() }],
+    ['키를 못 읽음', { subscribed: true, keyRes: fail(404, 'not_found', 'x') }],
+  ])('%s — 다시 적지 않는다', async (_n, extra) => {
+    const { calls } = await load({ permission: 'granted', ...extra });
+    expect(posts(calls)).toEqual([]);
+  });
+
+  test.each([
+    ['500', fail(500, 'error', 'x')],
+    ['끊김', new TypeError('Failed to fetch')],
+    ['403 다른 사유', fail(403, 'forbidden', 'x')],
+  ])('실패(%s)는 그냥 둔다 — 켜진 채, 안내 없음, 구독을 풀지 않는다', async (_n, postRes) => {
+    const { calls, sub } = await load({ subscribed: true, permission: 'granted', postRes });
+    expect(calls.order).toEqual(['POST']);
+    expect(sub()).not.toBeNull();
+    expect(view()).toBe('on');
+    expect(buttons()).toEqual(['끄기']);
+    expect(body().querySelector('.mk-error')).toBeNull();
+    expect(section().hidden).toBe(false);
+  });
+
+  test('403 no_company — 켜기 때처럼 이 기기 구독을 풀고 「알림 켜기」로', async () => {
+    const { calls, sub } = await load({
+      subscribed: true,
+      permission: 'granted',
+      postRes: fail(403, 'no_company', '업체 구성원이 아닙니다'),
+    });
+    expect(calls.order).toEqual(['POST', 'unsubscribe']);
+    expect(sub()).toBeNull();
+    expect(view()).toBe('off');
+    expect(buttons()).toEqual(['알림 켜기']);
+    expect(pushCalls(calls).filter((f) => f.method === 'DELETE')).toEqual([]);
+  });
+
+  test('403 no_company 인데 구독을 못 풀면 켜진 채로 둔다', async () => {
+    const { calls } = await load({
+      subscribed: true,
+      permission: 'granted',
+      postRes: fail(403, 'no_company', 'x'),
+      unsubscribeError: new Error('x'),
+    });
+    expect(calls.order).toEqual(['POST', 'unsubscribe']);
+    expect(view()).toBe('on');
   });
 });
 
@@ -604,7 +688,7 @@ describe('로그아웃 — 이 기기 구독을 지우고 나서 signOut', () =>
     $('sgLogout').click();
     await flush();
     await flush();
-    expect(calls.order).toEqual(['DELETE', 'unsubscribe', 'signOut']);
+    expect(calls.order).toEqual(['POST', 'DELETE', 'unsubscribe', 'signOut']); // POST = 열 때 다시 적기
     const del = pushCalls(calls).filter((f) => f.method === 'DELETE');
     expect(del).toEqual([
       {

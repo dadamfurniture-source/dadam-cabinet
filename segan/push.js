@@ -15,6 +15,9 @@
      알림을 못 받는 브라우저 → 한 줄
      권한을 막음 → 설정에서 다시 켜는 법 한 줄
      이 기기 구독 있음 (registration.pushManager.getSubscription()) → 「끄기」 (구독 해지 + DELETE)
+       이때 POST /push/subscriptions 를 한 번 조용히 다시 보낸다 — 서버가 endpoint 로 덮어써
+       사람 · 업체를 다시 묶는다 (업체 신청 중에 켠 사람이 업체 구성원이 된 뒤에도 업체 알림을 받게).
+       권한은 묻지 않고 실패는 그냥 둔다. 403 no_company 면 켜기 때처럼 이 기기 구독을 푼다
      그 밖 → 「알림 켜기」 — 권한은 이 단추를 누를 때만 묻는다
    알림 글은 서버가 정한다 (고객 개인정보를 넣지 않는 것은 서버 몫). 화면 · 서비스 워커는 글을 보태지 않는다.
    알림을 띄우고 누르면 여는 일은 segan/sw.js. 로그아웃(segan/shell.js)하면 SeganPush.forget 으로
@@ -360,6 +363,23 @@
     done('off', TEXT.turnedOff);
   }
 
+  /** 이 기기 구독을 서버에 다시 적는다 (「내 정보」를 열 때, 켜져 있으면). 권한은 묻지 않는다 */
+  async function resync(sub) {
+    var body = subscriptionBody(sub, navigator.userAgent);
+    if (!body) return;
+    var r = await call('POST', '/push/subscriptions', body, true);
+    if (r.ok || r.status !== 403 || r.body.code !== 'no_company') return; // 실패는 그냥 둔다
+    if (S.sub !== sub || S.busy) return; // 그새 사용자가 끄거나 켜는 중
+    try {
+      await sub.unsubscribe();
+    } catch {
+      return;
+    }
+    S.sub = null;
+    S.view = viewOf(envOf(window), null);
+    render();
+  }
+
   function onClick(e) {
     var el = e.target.closest ? e.target.closest('[data-act]') : null;
     if (!el || el.disabled || S.busy) return;
@@ -394,6 +414,7 @@
         root.addEventListener('click', onClick);
       }
       render();
+      if (S.view === 'on') await resync(S.sub).catch(function () {}); // 칸은 이미 그렸다
     } catch {
       section.hidden = true;
       root.innerHTML = '';
