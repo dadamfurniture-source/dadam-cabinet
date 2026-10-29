@@ -1493,8 +1493,11 @@
             const w = Number(m.W) || 0;
             const is2 = Array.isArray(s.areaIs2D) ? s.areaIs2D : [];
             const cells = Math.max(1, (Array.isArray(s.areaWidths) ? s.areaWidths.length : 0) || 1);
+            // 2026-10-29 사장님 (간편 플래너 「도어 있음도 있고, 없음도 있는 걸로」): 칸 타입이 'open' 이면 도어 없는 홈카페장 —
+            //   몸통은 부재표 그대로, 도어 · 경첩이 없다 (bom-homecafe-rules doorOf open). 표시가 없는 모듈의 payload 는 예전과 같다.
+            const hcOpen = Array.isArray(s.areaTypes) && s.areaTypes.length > 0 && s.areaTypes.every((t) => t === 'open');
             let doors = 0;
-            for (let i = 0; i < cells; i++) doors += is2[i] ? 2 : 1;
+            if (!hcOpen) for (let i = 0; i < cells; i++) doors += is2[i] ? 2 : 1;
             out.push({
               id: `planner-${m.id}-homecafe`,
               type: boxType,
@@ -1516,6 +1519,10 @@
               isFixed: !!m.isFixed,
               _x: Number(m.x) || 0,
             });
+            if (hcOpen) out[out.length - 1].homecafeOpen = true;
+            // 2026-10-29: 외짝 도어 경첩 방향 = 칸 열림 방향 좌 ◀ / 우 ▶ (셀 도어와 같은 2026-10-23 4-1 C — 조립 명세가 경첩 컵 자리를 그 변에)
+            const hcDirs = Array.isArray(s.areaDirections) ? s.areaDirections : [];
+            if (doors === 1 && (hcDirs[0] === 'left' || hcDirs[0] === 'right')) out[out.length - 1].hingeSide = hcDirs[0];
             placeLast(m, 0, w);
             return;
           }
