@@ -48,6 +48,9 @@
       // 2026-10-26: 설비장(개수대 · 가스대 · 후드장) 규칙 — js/detaildesign/bom-fixture-cabinet-rules.js (밴드 · 선반 · 후드장 높이 · 가스대 서랍)
       const FixtureRules = (typeof DadamFixtureCabinetRules !== 'undefined') ? DadamFixtureCabinetRules
         : (typeof require === 'function' ? require('./bom-fixture-cabinet-rules.js') : null);
+      // 2026-10-29: 모듈 속 부재(석가 · 선반 · 속서랍) 규칙 — js/detaildesign/bom-interior-rules.js (간편 플래너 단추, 붙박이장 규칙 다음에 싣는다)
+      const InteriorRules = (typeof DadamInteriorRules !== 'undefined') ? DadamInteriorRules
+        : (typeof require === 'function' ? require('./bom-interior-rules.js') : null);
       const WR_DEFAULTS = (WardrobeRules && WardrobeRules.WARDROBE_RULES)
         || { DEFAULT_D: 620, DEFAULT_H: 2310, PEDESTAL_H: 60, MOLDING_H: 20 };
 
@@ -77,6 +80,7 @@
         '지판':            { key: 'body:bottom',      slot: 'body' },
         '뒷판':            { key: 'back',             slot: 'back' },
         '선반':            { key: 'shelf',            slot: 'body', indexed: true },
+        '석가':            { key: 'mid',              slot: 'body', indexed: true },   // 2026-10-29 고정 중간판 (bom-interior-rules.js)
         '밴드':            { key: 'body:band',        slot: 'body', indexed: true },
         '밴드(보강목)':    { key: 'body:band',        slot: 'body', indexed: true },
         '밴드(처짐방지)':  { key: 'body:brace',       slot: 'body', indexed: true },
@@ -609,6 +613,18 @@
        * @param {object|null} layout  drawerLayoutOf 결과
        */
       const bomAllDrawers = (layout) => !!(layout && layout.fronts && layout.fronts.length && layout.fronts[0].kind === 'drawer');
+      /**
+       * 2026-10-29 사장님 (간편 플래너 석가 · 속서랍 — bom-interior-rules.js): 모듈 속 부재 표시 { mids, inner, midYs } 또는 null.
+       *   표시가 있는 모듈은 사람이 속을 정했다 — 선반 수도 구조 그대로(mod.shelfCount)이고 싱크 상부 2 · 하부 1 고정을 타지 않는다.
+       */
+      const bomInteriorOf = (mod) => (InteriorRules && mod ? InteriorRules.normalize(mod.interior) : null);
+      /** 속서랍 구역 (붙박이장 속서랍 규칙 — 통 내경 W − 2T · 통 깊이 modD). 속서랍이 없으면 null */
+      const bomInnerZoneOf = (mod, W, modD, T) => {
+        const it = bomInteriorOf(mod);
+        return it && it.inner > 0 ? InteriorRules.innerZoneOf({ W, D: modD, T, inner: it.inner }) : null;
+      };
+      /** 처짐방지목 밑단을 올릴 높이 — 속서랍이 있으면 그 구역(350 × 단수 + 상판), 처짐방지목은 속서랍 상판 위부터 (2026-10-29 사장님) */
+      const bomBraceCutOf = (mod, W, modD, T) => { const L = bomInnerZoneOf(mod, W, modD, T); return L ? L.totalH : 0; };
       /** 2026-10-25 사장님: 위 도어 + 아래 서랍은 두 몸통 — 서랍 모듈 행의 module 이름 (붙박이장 `-서랍모듈` 과 같은 꼴) */
       const bomDrawerModLabel = (modLabel, layout) => (layout && layout.split ? `${modLabel}-서랍모듈` : modLabel);
 
@@ -1569,6 +1585,32 @@
          *   mod.drawerBoxT 서랍 자재 두께(기본 몸통 T) · mod.drawerSakuri 측판 사쿠리 여부.
          */
         /**
+         * 2026-10-29 사장님 (간편 플래너 석가 · 속서랍 — bom-interior-rules.js · interior-parts.md): 모듈 속 부재 행.
+         *   석가  몸통 PB T · (W − 2T) × 천지판 깊이 − 앞 기둥 (처짐방지목 T · 멍장 ㄱ자 기둥) · 장수 = 표시 석가 수
+         *   속서랍 붙박이장 속서랍 규칙 그대로 — 모듈(`-내부서랍모듈`: 측판 · 지판 · 밴드 · 뒷판 · 상판 · 박스) + 전면 · 좌우몰딩 (그 모듈 이름)
+         * 표시가 없는 모듈은 아무것도 내지 않는다.
+         * @param {number} panelD 천지판 깊이 (사쿠리 몸통 D − 18 · 하부장 짜임 지판 D)
+         * @param {number} frontCut 앞 기둥 깊이 — 처짐방지목이면 T, 멍장이면 blindShelfCut, 없으면 0
+         */
+        addInteriorRows(materials, modLabel, mod, W, T, modD, panelD, frontCut) {
+          const it = bomInteriorOf(mod);
+          if (!it) return;
+          if (it.mids > 0) {
+            this.add(materials, modLabel, '석가', 'PB', T, W - T * 2, InteriorRules.midDepthOf(panelD, frontCut), it.mids, '1면(전)',
+                     `고정 중간판 — 칸 균등${frontCut > 0 ? ` · 앞 기둥 뒤까지 −${frontCut}` : ''} (interior-parts.md)`);
+          }
+          const L = bomInnerZoneOf(mod, W, modD, T);
+          if (!L || !WardrobeRules) return;
+          if (L.errors.length) dlog(`[Interior] ${modLabel}: ${L.errors.join(' / ')}`);
+          WardrobeRules.innerDrawerModulePartsOf(L).forEach((row) => {
+            this.add(materials, `${modLabel}-내부서랍모듈`, row.part, row.material, row.t, row.w, row.h, row.qty, row.edge, row.note || '');
+          });
+          WardrobeRules.innerDrawerPartsOf(L).forEach((row) => {
+            this.add(materials, modLabel, row.part, row.material, row.t, row.w, row.h, row.qty, row.edge, row.note || '');
+          });
+        }
+
+        /**
          * 하부장 · 키큰장 단 몸통 (측판 · 지판 · 밴드 2 · 뒷판 · 처짐방지목) — 사쿠리 없음.
          *   보통은 몸통 하나. 2026-10-25 사장님: 위 도어 + 아래 서랍(L.split)은 **도어 모듈 · 서랍 모듈 두 몸통**으로 나누어 만든다 —
          *   몸통마다 같은 짜임, 서랍 모듈 행은 `-서랍모듈`. 처짐방지목은 도어 모듈에만 (서랍 모듈은 전부 서랍이라 없다, D2 (b)).
@@ -1577,7 +1619,7 @@
          * @param {boolean} [blind]  멍장 — 가운데 처짐방지목을 내지 않는다. ㄱ자 기둥 앞판이 처짐방지 밴드다 (addBlindFrontParts, 2026-10-26 사장님)
          * @param {boolean} [standBack]  개수대 · 가스대 — 앞 밴드 50 눕힘 · 뒤 밴드 70 세움 (bom-fixture-cabinet-rules BAND, 2026-10-26 사장님)
          */
-        addLowerCarcassRows(materials, modLabel, W, H, T, modD, L, channel, extraNote, blind, standBack) {
+        addLowerCarcassRows(materials, modLabel, W, H, T, modD, L, channel, extraNote, blind, standBack, braceCut) {
           const notchH = DrawerRules ? DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : 0;
           const carcass = (label, h, note, brace) => {
             this.add(materials, label, '측판', 'PB', T, modD, h, 2, '3면', note);
@@ -1591,7 +1633,8 @@
             }
             this.addBackPanel(materials, label, W, h, false);
             // 밴드(처짐방지목) — 목찬넬이면 −70. W ≥ 800 이면 1장, 모듈 중앙 (bomBraceQtyOf)
-            const bandH = channel ? h - T * 2 - notchH : h - T * 2;
+            //   2026-10-29 사장님: 속서랍이 있으면 그 상판 위부터 (braceCut = 속서랍 구역 — 서랍이 앞 가운데 목대에 걸리지 않는다)
+            const bandH = (channel ? h - T * 2 - notchH : h - T * 2) - (Number(braceCut) > 0 ? Number(braceCut) : 0);
             const braceQty = brace ? bomBraceQtyOf(W, 'lower') : 0;
             if (braceQty > 0) this.add(materials, label, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, bandH, braceQty, '2면(장)');
           };
@@ -1803,13 +1846,18 @@
           //   서랍 단이면 중간 따내기도 (하부장 서랍장과 같은 notchNote). 서랍을 고른 중간 · 상부 단은 규칙이 없다고 남긴다.
           //   키큰장 단은 하부장 문턱(800) · 전부 서랍이면 처짐방지목 없음 · 위 도어 + 아래 서랍은 두 몸통 (addLowerCarcassRows)
           this.addLowerCarcassRows(materials, modLabel, W, H, T, modD, drawerLayout, !!(channelHere && DrawerRules),
-            mod.isDrawer && !drawerLayout ? BOM_TALL_DRAWER_TIER_NOTE : '', isBlindModule(mod, 'lower'));
+            mod.isDrawer && !drawerLayout ? BOM_TALL_DRAWER_TIER_NOTE : '', isBlindModule(mod, 'lower'), false, bomBraceCutOf(mod, W, modD, T));
           const bandH = channelHere ? H - T * 2 - DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : H - T * 2;
           // 선반 — 단이 가진 만큼 (하부장 규칙 "서랍·EL·오픈 아니면 1" 을 타지 않는다). 서랍 단에는 없다 (하부장 서랍장과 같다)
           const rawShelf = Number(mod.shelfCount);
           const shelfQty = drawerLayout ? 0 : (Number.isFinite(rawShelf) ? Math.max(0, Math.round(rawShelf)) : 1);
           if (shelfQty > 0) {
             this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - T - this.blindShelfCut(mod, 'lower'), shelfQty, '1면(전)');
+          }
+          // 2026-10-29 석가 · 속서랍 (서랍 단에는 없다) — 지판 깊이 D, 처짐방지목(하부 문턱)이 있으면 그 뒤까지
+          if (!drawerLayout) {
+            const braced = !isBlindModule(mod, 'lower') && bomBraceQtyOf(W, 'lower') > 0;
+            this.addInteriorRows(materials, modLabel, mod, W, T, modD, modD, braced ? T : this.blindShelfCut(mod, 'lower'));
           }
           // 도어 — 목찬넬 단만 H−30, 나머지는 푸쉬 H−4 (bomTallTierDoorH — 경첩 수도 같은 높이를 본다)
           const doorH = bomTallTierDoorH(mod, tier, specs);
@@ -2251,11 +2299,14 @@
           this.addBackPanel(materials, modLabel, W, H, true);
           this.add(materials, modLabel, '밴드(보강목)', 'PB', ASM.UPPER_BAND_T, W - T * 2, ASM.UPPER_BAND_W, 2, '2면(장)');
           const braceQty = bomBraceQtyOf(W, 'upper');
-          if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, H - T * 2, braceQty, '2면(장)');
+          // 2026-10-29 사장님: 속서랍이 있으면 처짐방지목은 그 상판 위부터 (bomBraceCutOf)
+          if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, H - T * 2 - bomBraceCutOf(mod, W, modD, T), braceQty, '2면(장)');
           const shelf = bomSimpleShelfQtyOf(mod, rules);
           if (shelf.qty > 0) {
             this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - ASM.SAKURI_SHELF_D_MINUS, shelf.qty, '1면(전)', shelf.defaulted ? notes.shelf : '');
           }
+          // 2026-10-29 석가 · 속서랍 — 천지판 깊이 D − 18, 처짐방지목이 있으면 그 뒤까지
+          this.addInteriorRows(materials, modLabel, mod, W, T, modD, modD - ASM.SAKURI_PANEL_D_MINUS, braceQty > 0 ? T : 0);
           const door = bomSimpleDoorCountOf(mod, W);
           if (door.count > 0) {
             const doorW = Math.floor(W / door.count) - 4;
@@ -2310,12 +2361,17 @@
             this.add(materials, modLabel, '밴드(보강목)', 'PB', ASM.UPPER_BAND_T, W - T * 2, ASM.UPPER_BAND_W, 2, '2면(장)');
             // 밴드(처짐방지목) — W ≥ 700 이면 1장, 모듈 중앙 (bomBraceQtyOf). 멍장은 ㄱ자 기둥 앞판이 처짐방지 밴드라 따로 없다 (2026-10-26)
             const braceQty = isBlindModule(mod, 'upper') ? 0 : bomBraceQtyOf(W, 'upper');
-            if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, H - T * 2, braceQty, '2면(장)');
+            // 2026-10-29 사장님: 속서랍이 있으면 처짐방지목은 그 상판 위부터 (bomBraceCutOf)
+            if (braceQty > 0) this.add(materials, modLabel, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, H - T * 2 - bomBraceCutOf(mod, W, modD, T), braceQty, '2면(장)');
             // 선반 2개 (사쿠리 반영 D-34). 2026-09-13: 멍장은 ㄱ자 목대 깊이 75 만큼 짧다 (corner.md §3.5)
             //   2026-10-26 사장님: 후드장은 선반이 없다 (덕트 자리 — bom-fixture-cabinet-rules NO_SHELF)
+            //   2026-10-29 사장님 (간편 플래너 선반 단추): 속을 정한 모듈(bomInteriorOf)은 구조 선반 수 그대로 (0 이면 없음)
             if (!(FixtureRules && FixtureRules.noShelf(mod))) {
-              this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - ASM.SAKURI_SHELF_D_MINUS - this.blindShelfCut(mod, 'upper'), 2, '1면(전)');
+              const upperShelfQty = bomInteriorOf(mod) ? Math.max(0, Math.round(Number(mod.shelfCount) || 0)) : 2;
+              if (upperShelfQty > 0) this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - ASM.SAKURI_SHELF_D_MINUS - this.blindShelfCut(mod, 'upper'), upperShelfQty, '1면(전)');
             }
+            // 2026-10-29 석가 · 속서랍 — 천지판 깊이 D − 18, 처짐방지목이 있으면 그 뒤까지 (멍장은 ㄱ자 기둥 뒤까지)
+            this.addInteriorRows(materials, modLabel, mod, W, T, modD, modD - ASM.SAKURI_PANEL_D_MINUS, braceQty > 0 ? T : this.blindShelfCut(mod, 'upper'));
             // 도어 (H + overlap)
             // W11-13: 미지정(undefined)과 0 을 구분한다.
             //   기존 저장 설계는 doorCount 를 안 넣고 폴백 1 에 의존하므로 그대로 1.
@@ -2370,12 +2426,17 @@
             // 몸통 — 측판 2 (하부장: 사쿠리 없음, 목찬넬이면 따내기 비고) · 지판 · 밴드 2 · 뒷판(측판 뒤 덮음) · 처짐방지목.
             //   위 도어 + 아래 서랍은 두 몸통 (2026-10-25, addLowerCarcassRows). 멍장은 가운데 처짐방지목 대신 ㄱ자 기둥 (2026-10-26)
             this.addLowerCarcassRows(materials, modLabel, W, H, T, modD, drawerLayout, !!(isWoodChannel && DrawerRules), '', isBlindModule(mod, 'lower'),
-              !!(FixtureRules && FixtureRules.hasStandingBackBand(mod)));
+              !!(FixtureRules && FixtureRules.hasStandingBackBand(mod)), isDrawer ? 0 : bomBraceCutOf(mod, W, modD, T));
             const bandH = isWoodChannel ? H - T * 2 - DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : H - T * 2;
             // 선반 (서랍/EL/오픈장 없으면 1개, 하부장: 사쿠리 없음). 2026-10-26: 설비장 개수대도 없다 (예전 type 'sink' 와 같다)
             if (!isDrawer && !isEL && !isOpen && mod.type !== 'sink' && !(FixtureRules && FixtureRules.noShelf(mod))) {
               // 2026-09-13: 멍장은 ㄱ자 목대 깊이 75 만큼 짧다 (corner.md §3.5)
-              this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - T - this.blindShelfCut(mod, 'lower'), 1, '1면(전)');
+              //   2026-10-29 사장님 (간편 플래너 선반 단추): 속을 정한 모듈(bomInteriorOf)은 구조 선반 수 그대로 (0 이면 없음)
+              const lowerShelfQty = bomInteriorOf(mod) ? Math.max(0, Math.round(Number(mod.shelfCount) || 0)) : 1;
+              if (lowerShelfQty > 0) this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - T - this.blindShelfCut(mod, 'lower'), lowerShelfQty, '1면(전)');
+              // 2026-10-29 석가 · 속서랍 — 지판 깊이 D, 처짐방지목(하부 문턱)이 있으면 그 뒤까지 (멍장은 ㄱ자 기둥 뒤까지)
+              const braced = !isBlindModule(mod, 'lower') && bomBraceQtyOf(W, 'lower') > 0;
+              this.addInteriorRows(materials, modLabel, mod, W, T, modD, modD, braced ? T : this.blindShelfCut(mod, 'lower'));
             }
             // 도어 (H - 30)
             const doorCount = mod.doorCount || 0;
@@ -3064,11 +3125,14 @@
             const drawerLayout = isDrawer ? this.drawerLayoutOf(mod, H, T) : null;
             if (drawerLayout && drawerLayout.warnings.length) dlog(`[Drawer] ${modLabel}: ${drawerLayout.warnings.join(' / ')}`);
             // 몸통 — 위 도어 + 아래 서랍은 두 몸통 (2026-10-25, addLowerCarcassRows)
-            this.addLowerCarcassRows(materials, modLabel, W, H, T, modD, drawerLayout, !!(isWoodChannel && DrawerRules), floatH > 0 ? BOM_FLOAT_DRAWER_NOTE : '');
+            this.addLowerCarcassRows(materials, modLabel, W, H, T, modD, drawerLayout, !!(isWoodChannel && DrawerRules), floatH > 0 ? BOM_FLOAT_DRAWER_NOTE : '',
+              false, false, isDrawer ? 0 : bomBraceCutOf(mod, W, modD, T));
             const shelf = bomSimpleShelfQtyOf(mod, rules);
             if (shelf.qty > 0) {
               this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - T, shelf.qty, '1면(전)', shelf.defaulted ? shelfNote : '');
             }
+            // 2026-10-29 석가 · 속서랍 (서랍장에는 없다) — 지판 깊이 D, 처짐방지목(하부 문턱)이 있으면 그 뒤까지
+            if (!isDrawer) this.addInteriorRows(materials, modLabel, mod, W, T, modD, modD, bomBraceQtyOf(W, 'lower') > 0 ? T : 0);
 
             if (isDrawer) {
               // 서랍장 — 싱크 하부장 서랍 규칙 그대로 (bom-drawer-rules.js): 전면 합 = H, 목찬넬 ㄴ자(중간은 모듈 부재, 상단은 EP),
@@ -3554,6 +3618,27 @@
         // 레일 추출
         extractRails(item, hardware) {
           const category = item.categoryId || item.category;
+          // 2026-10-29 사장님 (간편 플래너 속서랍 — bom-interior-rules.js): 일반 장 속서랍은 붙박이장 속서랍과 같은 언더레일 —
+          //   길이는 여유 30 기준 (innerRailLengthFor, 박스 측판과 같은 값), 단수만큼. 품목과 무관하게 먼저 센다.
+          if (InteriorRules) {
+            const sp = item.specs || {};
+            const bodyT = parseFloat(sp.bodyThickness);
+            const T = Number.isFinite(bodyT) && bodyT > 0 ? bodyT : InteriorRules.INTERIOR_RULES.PANEL_T;
+            (item.modules || []).forEach((mod) => {
+              const L = bomInnerZoneOf(mod, parseFloat(mod.w) || 0, parseFloat(mod.d) || 0, T);
+              if (!L || !L.boxes.length) return;
+              hardware.push({
+                category: '레일',
+                item: '문주 언더레일',
+                manufacturer: '문주',
+                spec: `${L.boxes[0].railLength}mm`,
+                qty: L.boxes.length,
+                unit: 'SET',
+                note: `${mod.name || mod.type} 속서랍`,
+                ...this.moduleTagOf(mod),
+              });
+            });
+          }
           // 2026-10-25 사장님: 밥솥장 슬라이딩 선반 — 문주 언더레일 1 SET (모듈 타입이라 카테고리와 무관)
           if (RiceRules) {
             (item.modules || []).filter((m) => RiceRules.isRiceCabinet(m)).forEach((mod) => {
