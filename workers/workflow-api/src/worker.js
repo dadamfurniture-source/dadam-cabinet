@@ -146,6 +146,8 @@ import {
 } from './work/assignments.js';
 import { addWorkerUpdate, addCompanyUpdate } from './work/updates.js';
 import { acceptConsultation, listMyProjects } from './projects.js';
+import { handlePushKey, handleSavePushSubscription, handleDeletePushSubscription } from './push/routes.js';
+import { runPushSender, runPushCleanup, isPushCleanupTime, PUSH_SEND_CRON } from './push/sender.js';
 
 const SERVICE = 'dadam-workflow-api';
 const VERSION = '0.1.0';
@@ -840,6 +842,11 @@ function workRoute(fn, status = 200) {
 const router = createRouter([
   { method: 'GET', path: '/health', auth: 'none', handler: handleHealth },
 
+  // 앱 알림 (web push) — 공개 키 · 이 기기 등록 · 지우기 (src/push/routes.js)
+  { method: 'GET',    path: '/push/key',           auth: 'none', handler: handlePushKey },
+  { method: 'POST',   path: '/push/subscriptions', auth: 'jwt',  handler: handleSavePushSubscription },
+  { method: 'DELETE', path: '/push/subscriptions', auth: 'jwt',  handler: handleDeletePushSubscription },
+
   { method: 'POST', path: '/designs/:designId/snapshots', auth: 'jwt', handler: handleCreateSnapshot },
   { method: 'GET', path: '/designs/:designId/snapshots', auth: 'jwt', handler: handleListSnapshots },
   { method: 'GET', path: '/snapshots/:snapshotId', auth: 'jwt', handler: handleGetSnapshot },
@@ -1019,11 +1026,23 @@ export default {
   },
 
   /**
-   * cron 둘 (wrangler.toml [triggers] crons — 값을 바꾸면 여기 판정도 같이 고칠 것):
+   * cron 셋 (wrangler.toml [triggers] crons — 값을 바꾸면 여기 판정도 같이 고칠 것):
    *   DAILY_BRIEF_CRON    — 평일 아침 7시(KST) 생산 요약 · 월 마감
    *   CONSULT_NOTICE_CRON — 5분마다 새 상담 · 새 업체 신청 Slack 알림 (src/consult-notify.js)
+   *   PUSH_SEND_CRON      — 1분마다 앱 알림 보내기, 하루 한 번 그 1분에 끝난 알림 정리 (src/push/sender.js)
    */
   async scheduled(event, env, ctx) {
+    if (event.cron === PUSH_SEND_CRON) {
+      ctx.waitUntil(
+        runPushSender(env, { nowMs: event.scheduledTime }).catch((e) => console.error('push sender failed:', e && e.statusCode ? e.statusCode : 'error')),
+      );
+      if (isPushCleanupTime(event.scheduledTime)) {
+        ctx.waitUntil(
+          runPushCleanup(env, { nowMs: event.scheduledTime }).catch((e) => console.error('push cleanup failed:', e && e.statusCode ? e.statusCode : 'error')),
+        );
+      }
+      return;
+    }
     if (event.cron === CONSULT_NOTICE_CRON) {
       ctx.waitUntil(
         runConsultNotices(env).catch((e) => console.error('consultation notice failed:', e && e.message)),

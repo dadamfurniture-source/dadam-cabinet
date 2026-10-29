@@ -20,6 +20,7 @@
  */
 import { jsonResponse } from './cors.js';
 import { UUID_RE } from './storage-purge.js';
+import { enqueuePartnerApplicationNotice } from './push-outbox.js';
 
 /** 초대 링크 유효 기간 */
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -789,6 +790,10 @@ async function adminDecide(env, { user, params, body }) {
       type: 'agent_approved',
     });
   }
+  // 신청한 사람에게 앱 알림 (미팅 · 승인 · 보류). 실패해도 처리는 그대로다
+  await enqueuePartnerApplicationNotice(env, rows[0], {
+    rescheduled: action === 'meeting' && cur.status === 'meeting',
+  });
   return { data: { application: appAllView(rows[0]) } };
 }
 
