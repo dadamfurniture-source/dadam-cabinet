@@ -15,11 +15,17 @@
      - ?v= 없는 정적 파일(매니페스트 · 매니페스트 아이콘) → 네트워크 먼저, 끊기면 캐시
    캐시 이름에 사이트 자산 버전을 넣는다. 새 워커가 켜지면 이전 버전 캐시를 지운다.
    ASSET_VERSION 은 scripts/stamp-asset-version.mjs 가 찍는다 (손으로 고치지 않는다).
+
+   업무 알림 (web push — 구독 · 끄기는 segan/push.js):
+     - push: 서버(workflow-api)가 보낸 { title, body, url, tag } 를 그대로 띄운다. 글을 보태지 않는다
+       (고객 개인정보를 넣지 않는 것은 서버 몫). 아이콘은 segan/icons.
+     - notificationclick: 같은 출처 /segan/ 안 주소만 연다 (그 밖 · 틀린 주소는 /segan/).
+       열린 앱 창(/segan/)이 있으면 그 창을 앞으로 가져와 그 주소로, 없으면 새 창.
    ============================================================ */
 /* global self, caches, fetch, Request, Response, URL */
 'use strict';
 
-const ASSET_VERSION = '2026102901';
+const ASSET_VERSION = '2026102902';
 const CACHE_PREFIX = 'segan-shell-';
 const CACHE = CACHE_PREFIX + ASSET_VERSION;
 const SCOPE = new URL('./', self.location.href).pathname; // '/segan/'
@@ -41,6 +47,7 @@ const SHELL = [
   versioned(SCOPE + 'make.js'),
   versioned(SCOPE + 'consult.js'),
   versioned(SCOPE + 'regions.js'),
+  versioned(SCOPE + 'push.js'),
   versioned(SCOPE + 'collection.js'),
   versioned(SCOPE + 'renders.js'),
   versioned(SCOPE + 'me.js'),
@@ -155,4 +162,77 @@ self.addEventListener('fetch', (event) => {
   }
   if (!STATIC_EXT.test(url.pathname)) return;
   event.respondWith(url.searchParams.has('v') ? cacheFirst(event) : networkFirst(event));
+});
+
+// ── 업무 알림 (web push) ──────────────────────────────────
+const PUSH_ICON = SCOPE + 'icons/icon-192.png';
+const PUSH_BADGE = SCOPE + 'icons/icon-192.png';
+
+/** 알림을 누르면 열 곳 — 같은 출처 /segan/ 안 경로만, 그 밖은 /segan/ */
+function pushTarget(raw) {
+  try {
+    const url = new URL(typeof raw === 'string' ? raw : '', self.location.origin + SCOPE);
+    if (url.origin === self.location.origin && url.pathname.startsWith(SCOPE)) {
+      return url.pathname + url.search + url.hash;
+    }
+  } catch {
+    /* 아래로 */
+  }
+  return SCOPE;
+}
+
+function pushMessage(event) {
+  try {
+    const m = event.data ? event.data.json() : null;
+    return m && typeof m === 'object' && !Array.isArray(m) ? m : {};
+  } catch {
+    return {};
+  }
+}
+
+const text = (v) => (typeof v === 'string' ? v : '');
+
+self.addEventListener('push', (event) => {
+  const m = pushMessage(event);
+  const options = {
+    body: text(m.body),
+    icon: PUSH_ICON,
+    badge: PUSH_BADGE,
+    data: { url: pushTarget(m.url) },
+  };
+  if (text(m.tag)) options.tag = m.tag;
+  event.waitUntil(self.registration.showNotification(text(m.title) || 'SEGAN', options));
+});
+
+function inApp(client) {
+  try {
+    const u = new URL(client.url);
+    return u.origin === self.location.origin && u.pathname.startsWith(SCOPE);
+  } catch {
+    return false;
+  }
+}
+
+async function openApp(target) {
+  const href = abs(target);
+  const wins = (await self.clients.matchAll({ type: 'window', includeUncontrolled: true })).filter(
+    inApp
+  );
+  const win = wins.find((c) => c.url === href) || wins[0];
+  if (win) {
+    try {
+      const focused = (await win.focus()) || win;
+      if (focused.url !== href) await focused.navigate(href);
+      return;
+    } catch {
+      /* 그 창으로 못 가면 새 창으로 */
+    }
+  }
+  await self.clients.openWindow(href);
+}
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const data = event.notification.data || {};
+  event.waitUntil(openApp(pushTarget(data.url)));
 });

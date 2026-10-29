@@ -127,7 +127,7 @@
   function headerHTML(current) {
     return (
       '<header class="sg-header">' +
-      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026102901" alt="SEGAN" width="477" height="75" /></a>' +
+      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026102902" alt="SEGAN" width="477" height="75" /></a>' +
       '<nav class="sg-nav" aria-label="주 메뉴">' +
       links(current, false) +
       '</nav>' +
@@ -310,6 +310,13 @@
     var logout = document.getElementById('sgLogout');
     if (logout) {
       logout.onclick = async function () {
+        try {
+          // 이 기기의 업무 알림 구독을 지운다 — 다음 사람이 앞사람 알림을 받지 않게 (segan/push.js)
+          var Push = window.SeganPush;
+          if (Push && Push.forget) await Push.forget();
+        } catch {
+          /* 그래도 로그아웃한다 */
+        }
         try {
           await sb.auth.signOut();
         } catch {
