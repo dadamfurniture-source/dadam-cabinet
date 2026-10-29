@@ -5,7 +5,8 @@
  *               레코드 하나(rs 4096), 끝 표시 0x02 (덧붙임 없음).
  *   보내는 쪽   RFC 8292 VAPID — ES256 JWT (aud = 받는 주소의 origin, exp ≤ 12시간, sub = VAPID_SUBJECT)
  *               Authorization: vapid t=<jwt>, k=<VAPID_PUBLIC_KEY>
- *   머리글      Content-Encoding: aes128gcm · TTL: 86400 · Urgency: normal
+ *   머리글      Content-Encoding: aes128gcm · TTL: 86400 · Urgency: high
+ *               (업무 알림 — 승인 요청 · 결제 실패 등은 바로 봐야 한다. normal 이면 폰이 절전일 때 전달이 늦다)
  *
  * 받는 주소(endpoint)는 알려진 푸시 서비스만 (isAllowedPushEndpoint) — 등록할 때도, 보낼 때도 본다.
  * 넘겨주기(redirect)는 따라가지 않는다.
@@ -305,7 +306,7 @@ export async function sendWebPush(vapid, sub, message, { nowMs = Date.now(), jwt
         'Content-Encoding': 'aes128gcm',
         'Content-Type': 'application/octet-stream',
         TTL: String(PUSH_TTL_SEC),
-        Urgency: 'normal',
+        Urgency: 'high',
       },
       body,
       redirect: 'manual',
