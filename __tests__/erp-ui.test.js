@@ -263,7 +263,8 @@ describe('수금 일정 · 지급 예정 (경영 대시보드 2단계 PR-9)', ()
 
   test('일정이 있으면 수금액은 일정이 맞춘다 — 입력을 잠그고 저장에 싣지 않는다', () => {
     expect(pay).toMatch(/el\('inpReceived'\)\.readOnly = scheduled/);
-    expect(save).toMatch(/if \(!el\('inpReceived'\)\.readOnly\) patch\.received_amount/);
+    // 수금 권한이 없어 칸이 숨어도 싣지 않는다
+    expect(save).toMatch(/if \(!el\('lblReceived'\)\.hidden && !el\('inpReceived'\)\.readOnly\) patch\.received_amount/);
   });
 
   test('밀린 일정 표시 · 일정 합이 계약금액과 다르면 알린다', () => {

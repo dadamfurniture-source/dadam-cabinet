@@ -229,8 +229,8 @@ export async function issueDocument(env, { user, body }) {
     await supersedeDocument(env, { user, documentId: body.supersedes, replacementId: created.id });
   }
 
-  // 보관함: 작업지시서 · 설치 지시서 색인 (실패해도 발행은 그대로)
-  await recordDocumentIssued(env, { user, doc: finalDoc });
+  // 보관함: 작업지시서 · 설치 지시서 색인 (실패해도 발행은 그대로). 보고의 업체는 설계의 업체
+  await recordDocumentIssued(env, { user, doc: finalDoc, companyId: design.company_id });
 
   return {
     document: finalDoc,

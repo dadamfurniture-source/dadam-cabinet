@@ -392,22 +392,54 @@ test('거래처용 확인서 — 본사 견적이 아닌 스냅샷(partner: null
 
 // ── 본사 설정을 읽는 곳 ──────────────────────────────────────────
 
-test('생산 계획 — 누가 불러도 본사 설정으로 돌고, 응답에 설정을 싣지 않는다', async () => {
+test('생산 계획 — 본사 쪽(본사 구성원 · 관리자 · 구성원 아닌 사람)은 본사 설정으로 돌고, 응답에 설정을 싣지 않는다', async () => {
   const route = db({
     settings: { [HQ]: { quote: { marginRate: 0.3 } }, [PARTNER]: { quote: { marginRate: 0.9 } } },
     extra: (u) => (u.includes('/designs?select=id') ? json([]) : null),
   });
-  for (const who of [P_OWNER, HQ_OWNER]) {
+  for (const who of [HQ_OWNER, HQ_STAFF, ADMIN, STRANGER]) {
     const r = await callWorker('/production/plan?today=2026-10-20', who, route);
-    assert.equal(r.status, 200, r.text);
+    assert.equal(r.status, 200, `${who} ${r.text}`);
     assert.ok(!('settings' in r.body.data), '계획 응답에 원가 설정 없음');
     assert.deepEqual(settingsReads(r.calls).map((c) => eqParam(c.url, 'company_id')), [HQ]);
   }
 });
 
+test('생산 계획 · 제안 — 협력업체 구성원은 403 not_hq, 제안도 Slack 도 만들지 않는다', async () => {
+  const route = db({ extra: (u) => (u.includes('/rest/v1/') ? json([]) : null) });
+  for (const who of [P_OWNER, P_MANAGER, P_STAFF, P_STAFF_ADMIN]) {
+    for (const [method, path] of [['GET', '/production/plan'], ['POST', '/production/proposals']]) {
+      const r = await callWorker(path, who, route, { method });
+      assert.equal(r.status, 403, `${who} ${method} ${path} ${r.text}`);
+      assert.equal(r.body.code, 'not_hq');
+      assert.equal(settingsReads(r.calls).length, 0, '계획을 돌리지 않는다');
+      assert.ok(!r.calls.some((c) => c.method !== 'GET' && !c.url.includes('/auth/')), '제안 · Slack 을 쓰지 않는다');
+    }
+  }
+});
+
+test('GET /production/settings — hq: 본사 설정인가 (협력업체 화면은 설정만 보여 준다)', async () => {
+  for (const [who, hq] of [[HQ_OWNER, true], [ADMIN, true], [P_OWNER, false], [P_MANAGER, false]]) {
+    const r = await callWorker('/production/settings', who, db());
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.body.data.hq, hq, who);
+  }
+});
+
+/** 그 달 본사 수주 — 누가 만든 설계든 (주문 읽기 질의는 calls 로 본다) */
+const MONTH_ORDERS = [
+  { id: 'O1', order_no: 'SO-1', design_id: 'd-hq', snapshot_id: 'S1', contract_amount: 2200000, status: 'confirmed', ordered_at: '2026-10-05T01:00:00Z' },
+  { id: 'O2', order_no: 'SO-2', design_id: 'd-other', snapshot_id: 'S2', contract_amount: 1100000, status: 'completed', ordered_at: '2026-10-31T15:30:00Z' }, // KST 11-01 00:30 — 다음 달
+  { id: 'O3', order_no: 'SO-3', design_id: 'd-other', snapshot_id: null, contract_amount: 1100000, status: 'cancelled', ordered_at: '2026-10-06T01:00:00Z' },
+];
 const monthlyDb = () => db({
   settings: { [HQ]: { quote: { overheadMonthly: 5000000 } } },
-  extra: (u) => (u.includes('/designs?select=id') ? json([]) : null),
+  extra: (u) => {
+    if (u.includes('/designs?select=id')) return json([]);
+    if (u.includes('/orders?')) return json(MONTH_ORDERS);
+    if (u.includes('/design_snapshots?')) return json([{ id: 'S1', quote_payload: { cost: { total: 1500000, fixed_recovery: 0 } } }]);
+    return null;
+  },
 });
 
 test('월 손익 — 월 고정비는 본사 설정', async () => {
@@ -415,6 +447,30 @@ test('월 손익 — 월 고정비는 본사 설정', async () => {
     const s = await getMonthlySummary(ENV, { user: { id: HQ_OWNER }, month: '2026-10' });
     assert.equal(s.totals.overhead, 5000000);
     assert.deepEqual(settingsReads(calls).map((c) => eqParam(c.url, 'company_id')), [HQ]);
+  });
+});
+
+test('GET /production/monthly — 본사 수주 전부 (누가 만든 설계든), 그 달(KST) · 취소 뺌', async () => {
+  const r = await callWorker('/production/monthly?month=2026-10', HQ_OWNER, monthlyDb());
+  assert.equal(r.status, 200, r.text);
+  const read = r.calls.find((c) => c.method === 'GET' && c.url.includes('/orders?'));
+  const q = new URL(read.url).searchParams;
+  assert.equal(q.get('company_id'), `eq.${HQ}`);
+  assert.equal(q.get('design_id'), null, '설계 주인으로 거르지 않는다');
+  // (가짜 fetch 가 주소를 한 번 풀어 '+' 가 빈칸으로 보인다)
+  assert.equal(q.get('and').replace(/ /g, '+'), '(ordered_at.gte.2026-10-01T00:00:00+09:00,ordered_at.lt.2026-11-01T00:00:00+09:00)');
+  assert.ok(!r.calls.some((c) => c.url.includes('/designs?select=id')), '내가 만든 설계를 읽지 않는다');
+  const d = r.body.data;
+  assert.deepEqual(d.rows.map((x) => x.id), ['O1']);
+  assert.equal(d.totals.revenue, 2000000);
+  assert.equal(d.totals.cost, 1500000);
+  assert.equal(d.totals.gross, 500000);
+});
+
+test('월 마감 보고(설계 주인별) 는 예전처럼 내가 만든 본사 설계의 수주', async () => {
+  await withFetch(monthlyDb(), async (calls) => {
+    await getMonthlySummary(ENV, { user: { id: HQ_OWNER }, month: '2026-10' });
+    assert.ok(calls.some((c) => c.url.includes('/designs?select=id')));
   });
 });
 
@@ -460,12 +516,15 @@ function calibrationDb() {
   });
 }
 
-test('보정 보기 — 본사 표준시간과 견준다', async () => {
+test('보정 보기 — 본사 표준시간과 견준다 (재료는 본사 작업 기록만)', async () => {
   const r = await callWorker('/production/calibration', P_OWNER, calibrationDb());
   assert.equal(r.status, 200, r.text);
   const cutter = r.body.data.result.find((x) => x.role === 'cutter');
   assert.equal(cutter.current, 200);
   assert.equal(cutter.suggested, 300);
+  const logs = new URL(r.calls.find((c) => c.url.includes('/production_worklogs?')).url).searchParams;
+  assert.equal(logs.get('company_id'), `eq.${HQ}`);
+  assert.equal(logs.get('user_id'), `eq.${P_OWNER}`);
 });
 
 test('보정 적용 — 본사 설정에 표준시간만 덮어쓴다 (본사 대표 · 실장 · 관리자만)', async () => {
@@ -509,6 +568,16 @@ test('[발주 처리] — 업체 이름 · 납기는 설계가 속한 업체의 
     await createOutsourceOrder(ENV, { user: { id: P_STAFF }, documentId: P_DOC, body: { pack: 'cut-vendor' } });
     assert.equal(calls.find((c) => c.method === 'POST').body.metrics.vendor, '협력재단');
     assert.deepEqual(settingsReads(calls).map((c) => eqParam(c.url, 'company_id')), [PARTNER]);
+  });
+});
+
+test('[발주 처리] — 협력업체 발주 기록은 그 업체 것 (본사 공급처 성적표 · 관리자 보관함에 섞이지 않는다)', async () => {
+  await withFetch(outsourceDb({}), async (calls) => {
+    await createOutsourceOrder(ENV, { user: { id: P_STAFF }, documentId: P_DOC, body: { pack: 'door' } });
+    const row = calls.find((c) => c.method === 'POST').body;
+    assert.equal(row.company_id, PARTNER);
+    assert.equal(row.kind, 'outsource_order');
+    assert.equal(row.owner_id, P_STAFF);
   });
 });
 

@@ -89,6 +89,7 @@ async function load(options = {}) {
     standalone: undefined,
     displayStandalone: false,
     workflowUrl: WORK,
+    books: null, // 회계(segan/books.js)도 올릴 때 GET /books/summary 응답
     ...options,
   };
   window.history.replaceState(null, '', '/segan/me.html');
@@ -106,6 +107,7 @@ async function load(options = {}) {
     'SeganMe',
     'SeganPartner',
     'SeganPush',
+    'SeganBooks',
     'SeganRegions',
     'TossPayments',
     'Notification',
@@ -223,6 +225,7 @@ async function load(options = {}) {
     };
     if (url === ACC + '/partner/me') return reply(opts.partner);
     if (url === WORK + '/push/key') return reply(opts.keyRes);
+    if (url.startsWith(WORK + '/books/summary')) return reply(opts.books);
     if (url === WORK + '/push/subscriptions') {
       calls.order.push(method);
       return reply(method === 'POST' ? opts.postRes : opts.deleteRes);
@@ -239,6 +242,7 @@ async function load(options = {}) {
   }
   for (const f of [
     'segan/push.js',
+    ...(opts.books ? ['segan/books.js'] : []),
     'segan/regions.js',
     'segan/partner.js',
     'segan/shell.js',
@@ -753,5 +757,44 @@ describe('순수 함수', () => {
     });
     expect(subscriptionBody({ toJSON: () => ({ endpoint: ENDPOINT }) }, 'UA')).toBeNull();
     expect(subscriptionBody(null, 'UA')).toBeNull();
+  });
+});
+
+describe('회계와 함께 — me.html 에서 두 칸이 같은 /partner/me 로 함께 돈다', () => {
+  const summary = {
+    company: { id: '11111111-1111-4111-8111-111111111111', name: '다담 협력 주방' },
+    month: '2026-10',
+    months: [],
+    outstanding: { total: 0, count: 0 },
+    status_counts: {},
+    upcoming: [],
+  };
+
+  test('대표 — 회계 · 알림 둘 다 보이고, /partner/me 는 한 번만 묻는다', async () => {
+    jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-29T03:00:00Z'));
+    const { calls } = await load({ books: ok(summary) });
+    expect(calls.fetch.filter((f) => f.url === ACC + '/partner/me')).toHaveLength(1);
+    expect(calls.fetch.filter((f) => f.url.startsWith(WORK + '/books/summary'))).toHaveLength(1);
+    expect(pushCalls(calls).map((f) => f.url)).toEqual([WORK + '/push/key']);
+    expect($('meBooks').hidden).toBe(false);
+    expect(section().hidden).toBe(false);
+    expect(view()).toBe('off');
+  });
+
+  test('직원 — 회계는 없고 알림만', async () => {
+    const { calls } = await load({
+      books: ok(summary),
+      partner: partnerMe({ company: company({ role: 'staff' }) }),
+    });
+    expect(calls.fetch.filter((f) => f.url.startsWith(WORK + '/books/'))).toEqual([]);
+    expect($('meBooks').hidden).toBe(true);
+    expect(section().hidden).toBe(false);
+  });
+
+  test('회계를 못 읽어도 알림은 그대로', async () => {
+    await load({ books: fail(403, 'forbidden', 'x') });
+    expect($('meBooks').hidden).toBe(true);
+    expect(section().hidden).toBe(false);
+    expect(buttons()).toEqual(['알림 켜기']);
   });
 });

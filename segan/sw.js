@@ -52,6 +52,7 @@ const SHELL = [
   versioned(SCOPE + 'renders.js'),
   versioned(SCOPE + 'me.js'),
   versioned(SCOPE + 'partner.js'),
+  versioned(SCOPE + 'books.js'),
   versioned(SCOPE + 'join.js'),
   versioned(SCOPE + 'icons/icon.svg'),
   versioned(SCOPE + 'icons/wordmark.svg'),

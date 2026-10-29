@@ -33,6 +33,7 @@
     <script src="push.js?v=2026102903" defer></script>
     <script src="regions.js?v=2026102903" defer></script>
     <script src="partner.js?v=2026102903" defer></script>
+    <script src="books.js?v=2026102903" defer></script>
     <script src="shell.js?v=2026102903" defer></script>
     <script src="make.js?v=2026102903" defer></script>
     <script src="me.js?v=2026102903" defer></script>
@@ -64,6 +65,8 @@
         <section class="sg-section me-pt" id="partner" aria-labelledby="mePartnerTitle" hidden>
           <h2 id="mePartnerTitle">업체</h2>
           <div id="mePartner"></div>
+          <!-- 업체 › 회계 — workflow-api GET /books/summary. 대표 · 실장만, 읽은 뒤에만 보인다 (segan/books.js) -->
+          <div class="me-pt-group me-bk" id="meBooks" hidden></div>
         </section>
 
         <!-- 상담 내역 — 본인 consultations (최신순) -->
