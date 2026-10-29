@@ -1,5 +1,5 @@
 {
-  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 + 0007 회사 기준 읽기 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs) + 0011 협력업체 가입(신청 · 업체 크레딧 · 업체 구독 · 초대 · 등급 맞추기) + 0012 업체 원가 설정",
+  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 + 0007 회사 기준 읽기 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs) + 0011 협력업체 가입(신청 · 업체 크레딧 · 업체 구독 · 초대 · 등급 맞추기) + 0012 업체 원가 설정 + 0013 수주 기록",
   "ids": [
     "company_x",
     "company_y",
@@ -30,7 +30,10 @@
     "gen_hq_linked",
     "app_a",
     "invite_x",
-    "sub_x"
+    "sub_x",
+    "ev_done",
+    "ev_pending",
+    "ev_early"
   ],
   "users": ["hq_customer_user", "x_customer_user", "x_owner_user", "x_staff_user", "y_staff_user", "hq_member_user", "hq_admin_user", "x_removed_user"],
   "setup": [
@@ -53,7 +56,10 @@
     "INSERT INTO public.company_credits (company_id, balance, period_start, period_end) VALUES ({{company_x}}, 500, now(), now() + interval '1 month')",
     "INSERT INTO public.subscriptions (id, user_id, company_id, plan, status) VALUES ({{sub_x}}, NULL, {{company_x}}, 'expert', 'active')",
     "INSERT INTO public.company_invites (id, company_id, role, token_hash, expires_at) VALUES ({{invite_x}}, {{company_x}}, 'staff', repeat('a', 64), now() + interval '7 days')",
-    "INSERT INTO public.company_settings (company_id, settings) VALUES ({{company_x}}, '{}'::jsonb), (public.hq_company_id(), '{}'::jsonb) ON CONFLICT (company_id) DO NOTHING"
+    "INSERT INTO public.company_settings (company_id, settings) VALUES ({{company_x}}, '{}'::jsonb), (public.hq_company_id(), '{}'::jsonb) ON CONFLICT (company_id) DO NOTHING",
+    "INSERT INTO public.order_events (id, company_id, order_id, kind, from_status, to_status, state, requested_by) VALUES ({{ev_done}}, {{company_x}}, {{order_x}}, 'status', 'confirmed', 'in_production', 'done', {{x_owner_user}})",
+    "INSERT INTO public.order_events (id, company_id, order_id, kind, from_status, to_status, reason, state, requested_by) VALUES ({{ev_pending}}, {{company_x}}, {{order_x}}, 'revert', 'completed', 'delivered', 'probe', 'pending', {{x_staff_user}})",
+    "INSERT INTO public.order_events (id, company_id, design_id, kind, reason, state) VALUES ({{ev_early}}, public.hq_company_id(), {{design_hq}}, 'early_work_order', 'probe', 'done')"
   ],
   "roles": {
     "anon": { "role": "anon" },
@@ -476,6 +482,73 @@
       "sql": "insert into public.company_settings (company_id, settings) values ({{company_y}}, '[]'::jsonb)",
       "roles": ["service_role"],
       "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0013: 읽기 order_events X (업체 구성원)",
+      "sql": "select count(*) from public.order_events where id = {{ev_done}}",
+      "expect": { "anon": "deny", "x_owner": 1, "x_staff": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0013: 읽기 order_events 본사 (본사 구성원 · 관리자)",
+      "sql": "select count(*) from public.order_events where id = {{ev_early}}",
+      "expect": { "anon": "deny", "hq_member": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0013: 넣기 order_events 는 서버만",
+      "sql": "insert into public.order_events (company_id, order_id, kind, from_status, to_status, reason, state) values ({{company_x}}, {{order_x}}, 'status', 'in_production', 'delivered', null, 'done')",
+      "expect": { "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "0013: 기다리는 요청 승인 (서버)",
+      "sql": "update public.order_events set state = 'approved', decided_by = {{x_owner_user}}, decided_at = now() where id = {{ev_pending}}",
+      "expect": { "service_role": "rows:1", "*": "deny" }
+    },
+    {
+      "name": "0013: 끝난 기록은 못 고침",
+      "sql": "update public.order_events set state = 'approved', decided_at = now() where id = {{ev_done}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:P0001" }
+    },
+    {
+      "name": "0013: 결정하면서 내용은 못 바꿈",
+      "sql": "update public.order_events set state = 'rejected', decided_at = now(), reason = 'changed' where id = {{ev_pending}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:P0001" }
+    },
+    {
+      "name": "0013: 지우기는 아무도 못 함",
+      "sql": "delete from public.order_events where id = {{ev_done}}",
+      "expect": { "*": "deny" }
+    },
+    {
+      "name": "제약: 되살리기는 취소에서만",
+      "sql": "insert into public.order_events (company_id, order_id, kind, from_status, to_status, reason, state) values ({{company_x}}, {{order_x}}, 'revive', 'confirmed', 'in_production', 'probe', 'done')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "제약: 되돌리기는 사유가 있어야",
+      "sql": "insert into public.order_events (company_id, order_id, kind, from_status, to_status, reason, state) values ({{company_x}}, {{order_x}}, 'revert', 'completed', 'delivered', '  ', 'pending')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "제약: 승인 전 작업지시서는 수주가 아니라 설계에",
+      "sql": "insert into public.order_events (company_id, order_id, kind, from_status, to_status, reason, state) values ({{company_x}}, {{order_x}}, 'early_work_order', null, null, 'probe', 'done')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "제약: 상태가 그대로면 기록 안 됨",
+      "sql": "insert into public.order_events (company_id, order_id, kind, from_status, to_status, reason, state) values ({{company_x}}, {{order_x}}, 'status', 'confirmed', 'confirmed', null, 'done')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "제약: 다른 업체 수주는 못 가리킴",
+      "sql": "insert into public.order_events (company_id, order_id, kind, from_status, to_status, reason, state) values ({{company_y}}, {{order_x}}, 'status', 'confirmed', 'in_production', null, 'done')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23503" }
     }
   ]
 }
