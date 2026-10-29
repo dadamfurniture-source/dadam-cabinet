@@ -276,7 +276,10 @@ const orderLabel = (o) => (o.customer_name ? `${o.customer_name} (${o.order_no})
 const liveIn = (orders, month) => (orders || []).filter((o) => o.status !== 'cancelled' && inMonth(o.ordered_at, month));
 const quoteOf = (o, snapshotsById) => (snapshotsById.get(o.snapshot_id) || {}).quote_payload || null;
 
-/** 견적 원가를 실적 범주로 (노무 · 간접비 배분 · 고정비 회수분은 빼고). 견적 원가가 없으면 null */
+/**
+ * 견적 원가를 실적 범주로 (노무 · 간접비 배분 · 고정비 회수분은 빼고). 견적 원가가 없으면 null.
+ * 서랍 박스(cost.drawerBox)는 범주가 정해지지 않아 상판 · 설비 밖의 추가 줄처럼 기타로 둔다.
+ */
 export function estimateByCategory(quote) {
   const c = quote && quote.cost;
   if (!c) return null;
@@ -286,7 +289,7 @@ export function estimateByCategory(quote) {
     hardware: v(c.body, 'hardware'),
     outsourcing: v(c.door, 'outsourcing') + v(c.install, 'outsourcing'),
     logistics: 0,
-    other: 0,
+    other: v(c, 'drawerBox'),
   };
   for (const [k, amt] of Object.entries(c.extras || {})) out[EXTRA_CATEGORY[k] || 'other'] += num(amt);
   return out;
@@ -481,7 +484,7 @@ export function throughputOf(orders, snapshotsById, month, role) {
  * 갈래의 합은 **정확히** 월 손익의 변동원가(견적 원가 − 고정비 회수분)와 같다 —
  * 그래야 판을 그대로 둔 값이 맨 위 이익 식과 한 원도 다르지 않다.
  *   자재 = 몸통 자재 + 엣지 + 뒷판 자재 + 설비(싱크볼 · 수전 · 후드)
- *   철물 = 몸통 철물 · 도어 = 도어 외주 · 그 밖 외주 = 시공 + 상판 · 철거 + 그 밖 추가
+ *   철물 = 몸통 철물 · 도어 = 도어 외주 · 그 밖 외주 = 시공 + 상판 · 철거 + 그 밖 추가(서랍 박스 포함)
  *   노무 = 재단 · 엣지 · 조립 노무 · 간접비 배분 = 공장 시간에 배분한 간접비(기본 0)
  * 레버가 모두 선형이라 주문마다 들고 다닐 필요 없이 합만 내린다. 계산은 화면이 한다.
  */
@@ -499,7 +502,7 @@ export function scenarioBase(orders, snapshotsById, settings, month) {
     b.hardware += v(c.body, 'hardware');
     b.door += v(c.door, 'outsourcing');
     b.doorSheets += v(c.quantities, 'doorSheets');
-    b.outsourcing += v(c.install, 'outsourcing');
+    b.outsourcing += v(c.install, 'outsourcing') + v(c, 'drawerBox');
     b.labor += v(c.body, 'labor') + v(c.back, 'labor') + v(c.door, 'labor');
     b.overheadAlloc += v(c.body, 'overhead') + v(c.back, 'overhead') + v(c.door, 'overhead');
     for (const [k, amt] of Object.entries(c.extras || {})) {
