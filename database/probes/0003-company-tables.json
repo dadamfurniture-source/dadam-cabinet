@@ -1,5 +1,5 @@
 {
-  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 + 0007 회사 기준 읽기 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs) + 0011 협력업체 가입(신청 · 업체 크레딧 · 업체 구독 · 초대 · 등급 맞추기) + 0012 업체 원가 설정 + 0013 수주 기록 + 0014 수주당 기다리는 요청 하나 + 0015 업체 회계(업체 칸 · 금액 칸 · 관리자는 본사 것만) + 0016 앱 알림(기기 등록 · 보낼 알림 · 본사 상담만 Slack)",
+  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 + 0007 회사 기준 읽기 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs) + 0011 협력업체 가입(신청 · 업체 크레딧 · 업체 구독 · 초대 · 등급 맞추기) + 0012 업체 원가 설정 + 0013 수주 기록 + 0014 수주당 기다리는 요청 하나 + 0015 업체 회계(업체 칸 · 금액 칸 · 관리자는 본사 것만) + 0016 앱 알림(기기 등록 · 보낼 알림 · 본사 상담만 Slack) + 0017 다담 본사 · 다담 공장",
   "ids": [
     "company_x",
     "company_y",
@@ -41,7 +41,8 @@
     "ps_staff",
     "ps_owner",
     "nb_staff",
-    "nb_owner"
+    "nb_owner",
+    "cons_pf"
   ],
   "users": ["hq_customer_user", "x_customer_user", "x_owner_user", "x_staff_user", "y_staff_user", "hq_member_user", "hq_admin_user", "x_removed_user"],
   "setup": [
@@ -49,7 +50,7 @@
     "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'expert', 'active'), ({{company_y}}, 'partner', 'probe Y', 'agent', 'active')",
     "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_x}}, {{x_staff_user}}, 'staff', 'active'), ({{company_x}}, {{x_removed_user}}, 'staff', 'removed'), ({{company_y}}, {{y_staff_user}}, 'staff', 'active'), (public.hq_company_id(), {{hq_member_user}}, 'staff', 'active')",
     "INSERT INTO public.customers (id, company_id, user_id, name, phone) VALUES ({{cust_x_linked}}, {{company_x}}, {{x_customer_user}}, 'probe', NULL), ({{cust_x_plain}}, {{company_x}}, NULL, 'probe', '000-0000'), ({{cust_x_spare}}, {{company_x}}, NULL, 'probe', NULL), ({{cust_y}}, {{company_y}}, NULL, 'probe', NULL)",
-    "UPDATE public.customers SET id = {{cust_hq}} WHERE company_id = public.hq_company_id() AND user_id = {{hq_customer_user}}",
+    "INSERT INTO public.customers (id, company_id, user_id) VALUES ({{cust_hq}}, public.hq_company_id(), {{hq_customer_user}})",
     "INSERT INTO public.projects (id, company_id, customer_id, title) VALUES ({{proj_x_linked}}, {{company_x}}, {{cust_x_linked}}, 'probe'), ({{proj_x_plain}}, {{company_x}}, {{cust_x_plain}}, 'probe'), ({{proj_y}}, {{company_y}}, {{cust_y}}, 'probe'), ({{proj_hq}}, public.hq_company_id(), {{cust_hq}}, 'probe')",
     "INSERT INTO public.company_events (id, company_id, actor_kind, type) VALUES ({{event_x}}, {{company_x}}, 'system', 'probe'), ({{event_y}}, {{company_y}}, 'system', 'probe')",
     "INSERT INTO public.designs (id, user_id, name, company_id) VALUES ({{design_x}}, {{x_owner_user}}, 'probe', {{company_x}}), ({{design_y}}, {{y_staff_user}}, 'probe', {{company_y}}), ({{design_hq}}, {{hq_customer_user}}, 'probe', public.hq_company_id())",
@@ -73,7 +74,8 @@
     "INSERT INTO public.work_reports (id, owner_id, kind, title, company_id) VALUES ({{wr_x}}, {{x_owner_user}}, 'outsource_order', 'probe', {{company_x}})",
     "INSERT INTO public.work_reports (id, owner_id, kind, title) VALUES ({{wr_hq}}, {{hq_member_user}}, 'outsource_order', 'probe')",
     "INSERT INTO public.push_subscriptions (id, user_id, company_id, endpoint, p256dh, auth) VALUES ({{ps_staff}}, {{x_staff_user}}, {{company_x}}, 'https://push.invalid/' || {{ps_staff}}::text, 'k', 'a'), ({{ps_owner}}, {{x_owner_user}}, {{company_x}}, 'https://push.invalid/' || {{ps_owner}}::text, 'k', 'a')",
-    "INSERT INTO public.notification_outbox (id, user_id, company_id, kind, title, body, url) VALUES ({{nb_staff}}, {{x_staff_user}}, {{company_x}}, 'order_request_decided', 'probe', 'probe', '/segan/me.html'), ({{nb_owner}}, {{x_owner_user}}, {{company_x}}, 'company_suspended', 'probe', 'probe', '/segan/me.html')"
+    "INSERT INTO public.notification_outbox (id, user_id, company_id, kind, title, body, url) VALUES ({{nb_staff}}, {{x_staff_user}}, {{company_x}}, 'order_request_decided', 'probe', 'probe', '/segan/me.html'), ({{nb_owner}}, {{x_owner_user}}, {{company_x}}, 'company_suspended', 'probe', 'probe', '/segan/me.html')",
+    "INSERT INTO public.consultations (id, name, email, title) VALUES ({{cons_pf}}, 'probe', 'probe@example.invalid', 'probe')"
   ],
   "roles": {
     "anon": { "role": "anon" },
@@ -209,28 +211,28 @@
       "expect": { "x_owner": "true", "x_staff": "true", "*": "false" }
     },
     {
-      "name": "함수 my_customer_ids() 개수 (계정마다 본사 고객 행 하나 + X 고객 행)",
+      "name": "함수 my_customer_ids() 개수 (계정마다 본사 고객 행 하나 + X 고객 행 · 0017 공장 고객 행)",
       "sql": "select count(*) from public.my_customer_ids()",
-      "expect": { "anon": 0, "x_customer": 2, "service_role": 0, "*": 1 }
+      "expect": { "anon": 0, "x_customer": 2, "hq_customer": 2, "service_role": 0, "*": 1 }
     },
     {
-      "name": "0005: 가짜 계정마다 본사 고객 행 (본인 것만 보임)",
-      "sql": "select count(*) from public.customers where company_id = public.hq_company_id() and user_id in ({{hq_customer_user}}, {{x_customer_user}}, {{x_owner_user}}, {{x_staff_user}}, {{y_staff_user}}, {{hq_member_user}}, {{hq_admin_user}}, {{x_removed_user}})",
-      "expect": { "anon": "deny", "hq_member": 8, "hq_admin": 8, "service_role": 8, "*": 1 }
+      "name": "0005 · 0017: 가짜 계정마다 본사(다담 본사) 고객 행 (본인 것만 보임, 공장 직원은 못 봄)",
+      "sql": "select count(*) from public.customers where company_id = public.platform_company_id() and user_id in ({{hq_customer_user}}, {{x_customer_user}}, {{x_owner_user}}, {{x_staff_user}}, {{y_staff_user}}, {{hq_member_user}}, {{hq_admin_user}}, {{x_removed_user}})",
+      "expect": { "anon": "deny", "hq_admin": 8, "service_role": 8, "*": 1 }
     },
     {
-      "name": "0005: 본사 고객 행에 이름 · 연락처를 베끼지 않는다",
-      "sql": "select count(*) from public.customers where company_id = public.hq_company_id() and user_id in ({{hq_customer_user}}, {{x_customer_user}}, {{x_owner_user}}, {{x_staff_user}}, {{y_staff_user}}, {{hq_member_user}}, {{hq_admin_user}}, {{x_removed_user}}) and (name is not null or phone is not null)",
+      "name": "0005 · 0017: 본사 고객 행에 이름 · 연락처를 베끼지 않는다",
+      "sql": "select count(*) from public.customers where company_id = public.platform_company_id() and user_id in ({{hq_customer_user}}, {{x_customer_user}}, {{x_owner_user}}, {{x_staff_user}}, {{y_staff_user}}, {{hq_member_user}}, {{hq_admin_user}}, {{x_removed_user}}) and (name is not null or phone is not null)",
       "roles": ["service_role"],
       "expect": { "service_role": 0 }
     },
     {
-      "name": "0005: add_hq_customer() 는 직접 부를 수 없다",
-      "sql": "select public.add_hq_customer()",
+      "name": "0005 · 0017: add_platform_customer() 는 직접 부를 수 없다",
+      "sql": "select public.add_platform_customer()",
       "expect": { "*": "deny" }
     },
     {"name":"0006: 상담 넣기는 그대로 (비로그인 포함)","sql":"insert into public.consultations (name, email, title) values ('probe', 'probe@example.invalid', 'probe')","expect":{"*":"ok"}},
-    {"name":"0006: 상담 기본값 — 본사, 고객 · 프로젝트 비움","sql":"with i as (insert into public.consultations (name, email, title) values ('probe', 'probe@example.invalid', 'probe') returning company_id, customer_id, project_id) select company_id = public.hq_company_id() and customer_id is null and project_id is null from i","roles":["service_role"],"expect":{"service_role":"true"}},
+    {"name":"0006 · 0017: 상담 기본값 — 다담 본사, 고객 · 프로젝트 비움","sql":"with i as (insert into public.consultations (name, email, title) values ('probe', 'probe@example.invalid', 'probe') returning company_id, customer_id, project_id) select company_id = public.platform_company_id() and customer_id is null and project_id is null from i","roles":["service_role"],"expect":{"service_role":"true"}},
     {"name":"0006: 상담 고객은 같은 회사 것만 (복합 FK)","sql":"insert into public.consultations (name, email, title, customer_id) values ('probe', 'probe@example.invalid', 'probe', {{cust_x_plain}})","roles":["service_role"],"expect":{"service_role":"err:23503"}},
     {"name":"0006: 내 설계 넣기 — 기본 본사, 프로젝트 비움","sql":"with i as (insert into public.designs (user_id, name) values (auth.uid(), 'probe') returning company_id, project_id) select company_id = public.hq_company_id() and project_id is null from i","expect":{"anon":"deny","*":"true"}},
     {"name":"0006: 설계는 다른 회사 프로젝트에 못 잇는다 (복합 FK)","sql":"insert into public.designs (name, project_id) values ('probe', {{proj_x_linked}})","roles":["service_role"],"expect":{"service_role":"err:23503"}},
@@ -246,8 +248,8 @@
     {"name":"0007: 읽기 orders X","sql":"select count(*) from public.orders where id = {{order_x}}","expect":{"anon":"deny","x_owner":1,"x_staff":1,"service_role":1,"*":0}},
     {"name":"0007: 읽기 order_costs X (owner · manager 만)","sql":"select count(*) from public.order_costs where order_id = {{order_x}}","expect":{"anon":"deny","x_owner":1,"service_role":1,"*":0}},
     {"name":"0007: 읽기 order_payments X (owner · manager · 관리자)","sql":"select count(*) from public.order_payments where order_id = {{order_x}}","expect":{"anon":"deny","x_owner":1,"service_role":1,"*":0}},
-    {"name":"0007: 읽기 consultations X","sql":"select count(*) from public.consultations where id = {{cons_x}}","expect":{"x_owner":1,"x_staff":1,"hq_admin":1,"service_role":1,"*":0}},
-    {"name":"0007: 읽기 consultations 본사","sql":"select count(*) from public.consultations where id = {{cons_hq}}","expect":{"hq_member":1,"hq_admin":1,"service_role":1,"*":0}},
+    {"name":"0007: 읽기 consultations X (관리자는 본사 상담만 — 0017)","sql":"select count(*) from public.consultations where id = {{cons_x}}","expect":{"x_owner":1,"x_staff":1,"service_role":1,"*":0}},
+    {"name":"0007: 읽기 consultations 공장 (관리자는 본사 상담만 — 0017)","sql":"select count(*) from public.consultations where id = {{cons_hq}}","expect":{"hq_member":1,"service_role":1,"*":0}},
     {"name":"0007: 읽기 generations X (회사가 만듦)","sql":"select count(*) from public.generations where id = {{gen_x}}","expect":{"anon":"deny","x_owner":1,"x_staff":1,"service_role":1,"*":0}},
     {"name":"0007: 읽기 generations 본사 — 고객 혼자 만든 것","sql":"select count(*) from public.generations where id = {{gen_hq_private}}","expect":{"anon":"deny","hq_customer":1,"service_role":1,"*":0}},
     {"name":"0007: 읽기 generations 본사 — 프로젝트에 이은 것","sql":"select count(*) from public.generations where id = {{gen_hq_linked}}","expect":{"anon":"deny","hq_customer":1,"hq_member":1,"service_role":1,"*":0}},
@@ -257,14 +259,14 @@
     {"name":"0007: 고치기 설계 프로젝트 칸 — 서버만","sql":"update public.designs set project_id = {{proj_hq}} where id = {{design_hq}}","expect":{"hq_customer":"deny","service_role":"rows:1","*":"rows:0"}},
     {"name":"0007: 고치기 설계 회사 칸 — 아무도 못 함","sql":"update public.designs set company_id = {{company_x}} where id = {{design_hq}}","expect":{"hq_customer":"deny","service_role":"deny","*":"rows:0"}},
     {"name":"0007: 넣기 상담 — 다른 회사로","sql":"insert into public.consultations (name, email, title, company_id) values ('probe', 'probe@example.invalid', 'probe', {{company_x}})","expect":{"service_role":"ok","*":"deny"}},
-    {"name":"0007: 넣기 상담 — 고객을 이어서","sql":"insert into public.consultations (name, email, title, customer_id) values ('probe', 'probe@example.invalid', 'probe', {{cust_hq}})","expect":{"service_role":"ok","*":"deny"}},
-    {"name":"0007: 고치기 상담 고객 칸 — 서버만 (관리자도 못 함)","sql":"update public.consultations set customer_id = {{cust_hq}} where id = {{cons_hq}}","expect":{"hq_admin":"deny","service_role":"rows:1","*":"rows:0"}},
+    {"name":"0007: 넣기 상담 — 고객을 이어서 (공장 상담)","sql":"insert into public.consultations (name, email, title, company_id, customer_id) values ('probe', 'probe@example.invalid', 'probe', public.hq_company_id(), {{cust_hq}})","expect":{"service_role":"ok","*":"deny"}},
+    {"name":"0007: 고치기 상담 고객 칸 — 서버만 (관리자도 못 함, 본사 상담)","sql":"update public.consultations set customer_id = (select id from public.customers where company_id = public.platform_company_id() and user_id = {{hq_customer_user}}) where id = {{cons_pf}}","expect":{"anon":"deny","hq_admin":"deny","service_role":"rows:1","*":"rows:0"}},
     {"name":"0007: keep_owner_links() 는 직접 부를 수 없다","sql":"select public.keep_owner_links()","expect":{"*":"deny"}},
     {
-      "name": "시드: 회사는 본사 하나뿐 (가짜 X·Y 빼고)",
+      "name": "시드: 회사는 다담 본사 · 다담 공장 둘 (가짜 X·Y 빼고) — 0017",
       "sql": "select count(*) from public.companies where id not in ({{company_x}}, {{company_y}})",
       "roles": ["service_role"],
-      "expect": { "service_role": 1 }
+      "expect": { "service_role": 2 }
     },
     {
       "name": "시드: 본사 owner 는 super_admin 한 명",
@@ -725,10 +727,59 @@
       "expect": { "service_role": "true" }
     },
     {
-      "name": "0016: 본사 Slack 새 상담은 본사 상담만 잡음",
-      "sql": "select public.claim_consultation_notices(now() - interval '1 day', 50); select (select notified_at is null from public.consultations where id = {{cons_x}}) and (select notified_at is not null from public.consultations where id = {{cons_hq}})",
+      "name": "0016 · 0017: 본사 Slack 새 상담은 다담 본사 상담만 잡음",
+      "sql": "select public.claim_consultation_notices(now() - interval '1 day', 50); select (select notified_at is null from public.consultations where id = {{cons_x}}) and (select notified_at is null from public.consultations where id = {{cons_hq}}) and (select notified_at is not null from public.consultations where id = {{cons_pf}})",
       "roles": ["service_role"],
       "expect": { "service_role": "true" }
+    },
+    {
+      "name": "0017: 다담 본사 하나 · 공장과 다름",
+      "sql": "select count(*) = 1 and public.platform_company_id() is not null and public.platform_company_id() <> public.hq_company_id() from public.companies where kind = 'platform'",
+      "roles": ["service_role"],
+      "expect": { "service_role": "true" }
+    },
+    {
+      "name": "0017: 공장 이름은 「다담 공장」",
+      "sql": "select name = '다담 공장' from public.companies where id = public.hq_company_id()",
+      "roles": ["service_role"],
+      "expect": { "service_role": "true" }
+    },
+    {
+      "name": "0017: 상담 기본값은 본사",
+      "sql": "with i as (insert into public.consultations (name, email, title) values ('probe', 'probe@example.invalid', 'probe') returning company_id) select company_id = public.platform_company_id() from i",
+      "roles": ["service_role"],
+      "expect": { "service_role": "true" }
+    },
+    {
+      "name": "0017: 누구나 본사로 상담을 넣는다",
+      "sql": "insert into public.consultations (name, email, title) values ('probe', 'probe@example.invalid', 'probe')",
+      "expect": { "removed_staff": "ok", "*": "ok" }
+    },
+    {
+      "name": "0017: 공장으로 바로 상담을 넣지 못한다",
+      "sql": "insert into public.consultations (name, email, title, company_id) values ('probe', 'probe@example.invalid', 'probe', public.hq_company_id())",
+      "expect": { "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "0017: 본사 상담은 관리자만 (공장 · 업체 직원은 못 봄)",
+      "sql": "select count(*) from public.consultations where id = {{cons_pf}}",
+      "expect": { "anon": 0, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0017: 공장 상담은 공장 구성원 (관리자 규칙으로는 못 봄)",
+      "sql": "select count(*) from public.consultations where id = {{cons_hq}}",
+      "expect": { "anon": 0, "hq_member": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0017: 관리자는 본사 상담만 고친다",
+      "sql": "update public.consultations set admin_memo = 'probe' where id in ({{cons_pf}}, {{cons_hq}})",
+      "expect": { "hq_admin": "rows:1", "service_role": "rows:2", "*": "rows:0" }
+    },
+    {
+      "name": "0017: 공장에 남은 가입 고객 줄 없음 (이름 · 연락처 없는 줄은 본사로)",
+      "sql": "select count(*) from public.customers cu where cu.company_id = public.hq_company_id() and cu.name is null and cu.phone is null and cu.id <> {{cust_hq}} and not exists (select 1 from public.projects p where p.customer_id = cu.id) and not exists (select 1 from public.consultations s where s.customer_id = cu.id)",
+      "roles": ["service_role"],
+      "expect": { "service_role": 0 }
     }
   ]
 }
