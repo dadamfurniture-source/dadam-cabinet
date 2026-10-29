@@ -1,5 +1,5 @@
 {
-  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 + 0007 회사 기준 읽기 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs) + 0011 협력업체 가입(신청 · 업체 크레딧 · 업체 구독 · 초대 · 등급 맞추기) + 0012 업체 원가 설정 + 0013 수주 기록 + 0014 수주당 기다리는 요청 하나 + 0015 업체 회계(업체 칸 · 금액 칸 · 관리자는 본사 것만) + 0016 앱 알림(기기 등록 · 보낼 알림 · 본사 상담만 Slack) + 0017 다담 본사 · 다담 공장",
+  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 + 0007 회사 기준 읽기 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs) + 0011 협력업체 가입(신청 · 업체 크레딧 · 업체 구독 · 초대 · 등급 맞추기) + 0012 업체 원가 설정 + 0013 수주 기록 + 0014 수주당 기다리는 요청 하나 + 0015 업체 회계(업체 칸 · 금액 칸 · 관리자는 본사 것만) + 0016 앱 알림(기기 등록 · 보낼 알림 · 본사 상담만 Slack) + 0017 다담 본사 · 다담 공장 + 0018 업체 상담 설정 · 평가표 + 0019 상담 배정",
   "ids": [
     "company_x",
     "company_y",
@@ -42,7 +42,9 @@
     "ps_owner",
     "nb_staff",
     "nb_owner",
-    "cons_pf"
+    "cons_pf",
+    "cons_xc",
+    "asg_x"
   ],
   "users": ["hq_customer_user", "x_customer_user", "x_owner_user", "x_staff_user", "y_staff_user", "hq_member_user", "hq_admin_user", "x_removed_user"],
   "setup": [
@@ -75,7 +77,11 @@
     "INSERT INTO public.work_reports (id, owner_id, kind, title) VALUES ({{wr_hq}}, {{hq_member_user}}, 'outsource_order', 'probe')",
     "INSERT INTO public.push_subscriptions (id, user_id, company_id, endpoint, p256dh, auth) VALUES ({{ps_staff}}, {{x_staff_user}}, {{company_x}}, 'https://push.invalid/' || {{ps_staff}}::text, 'k', 'a'), ({{ps_owner}}, {{x_owner_user}}, {{company_x}}, 'https://push.invalid/' || {{ps_owner}}::text, 'k', 'a')",
     "INSERT INTO public.notification_outbox (id, user_id, company_id, kind, title, body, url) VALUES ({{nb_staff}}, {{x_staff_user}}, {{company_x}}, 'order_request_decided', 'probe', 'probe', '/segan/me.html'), ({{nb_owner}}, {{x_owner_user}}, {{company_x}}, 'company_suspended', 'probe', 'probe', '/segan/me.html')",
-    "INSERT INTO public.consultations (id, name, email, title) VALUES ({{cons_pf}}, 'probe', 'probe@example.invalid', 'probe')"
+    "INSERT INTO public.consultations (id, name, email, title) VALUES ({{cons_pf}}, 'probe', 'probe@example.invalid', 'probe')",
+    "INSERT INTO public.company_service_settings (company_id, regions, items, monthly_limit) VALUES ({{company_x}}, '[{\"sido\":\"probe\",\"gugun\":\"probe\"}]'::jsonb, '{\"sink\":\"do\"}'::jsonb, 10)",
+    "INSERT INTO public.company_evaluations (company_id, grade, equipment) VALUES ({{company_x}}, 'B', '{\"panel_saw\":\"have\"}'::jsonb)",
+    "INSERT INTO public.consultations (id, name, email, title, company_id, origin_consultation_id, status) VALUES ({{cons_xc}}, 'probe', 'probe@example.invalid', 'probe', {{company_x}}, {{cons_pf}}, 'pending')",
+    "INSERT INTO public.consult_assignments (id, consultation_id, company_id, copy_consultation_id, rank, total, score) VALUES ({{asg_x}}, {{cons_pf}}, {{company_x}}, {{cons_xc}}, 1, 80, '{\"eval\":30}'::jsonb)"
   ],
   "roles": {
     "anon": { "role": "anon" },
@@ -780,6 +786,107 @@
       "sql": "select count(*) from public.customers cu where cu.company_id = public.hq_company_id() and cu.name is null and cu.phone is null and cu.id <> {{cust_hq}} and not exists (select 1 from public.projects p where p.customer_id = cu.id) and not exists (select 1 from public.consultations s where s.customer_id = cu.id)",
       "roles": ["service_role"],
       "expect": { "service_role": 0 }
+    },
+    {
+      "name": "0018: 업체 상담 설정은 그 업체 대표 · 실장과 관리자가 읽음",
+      "sql": "select count(*) from public.company_service_settings where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "x_owner": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0018: 업체 상담 설정 쓰기는 서버만",
+      "sql": "update public.company_service_settings set monthly_limit = 11 where company_id = {{company_x}}",
+      "expect": { "service_role": "rows:1", "*": "deny" }
+    },
+    {
+      "name": "0018: 본사 평가표는 관리자만 (업체는 못 봄)",
+      "sql": "select count(*) from public.company_evaluations where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0018: 본사 평가표 쓰기는 서버만",
+      "sql": "update public.company_evaluations set grade = 'A' where company_id = {{company_x}}",
+      "expect": { "service_role": "rows:1", "*": "deny" }
+    },
+    {
+      "name": "0018: 평가표가 바뀌면 이력이 한 줄씩 쌓임",
+      "sql": "update public.company_evaluations set grade = 'A' where company_id = {{company_x}}; select count(*) from public.company_evaluation_history where company_id = {{company_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": 2 }
+    },
+    {
+      "name": "0018: 평가 이력은 관리자만 읽음",
+      "sql": "select count(*) from public.company_evaluation_history where company_id = {{company_x}}",
+      "expect": { "anon": "deny", "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0018: 평가 이력은 고치거나 지우지 못함 (서버도)",
+      "sql": "update public.company_evaluation_history set evaluated_at = now() where company_id = {{company_x}}",
+      "expect": { "*": "deny" }
+    },
+    {
+      "name": "제약: 평가 등급은 S · A · B · C",
+      "sql": "update public.company_evaluations set grade = 'D' where company_id = {{company_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0019: 업체 사본 상담은 그 업체 구성원이 읽음 (관리자는 본사 상담만)",
+      "sql": "select count(*) from public.consultations where id = {{cons_xc}}",
+      "expect": { "anon": 0, "x_owner": 1, "x_staff": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0019: 화면에서 사본 상담(origin)을 넣지 못함",
+      "sql": "insert into public.consultations (name, email, title, origin_consultation_id) values ('probe', 'probe@example.invalid', 'probe', {{cons_pf}})",
+      "expect": { "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "0019: 상담 칸 — 도어 마감 · 철거 · 가격대 · 동의를 넣을 수 있음",
+      "sql": "insert into public.consultations (name, email, title, door_finish, demolition_needed, wanted_price_tier, third_party_agreed_at, consent_version) values ('probe', 'probe@example.invalid', 'probe', 'highgloss', true, 'mid', now(), 'v1')",
+      "expect": { "removed_staff": "ok", "*": "ok" }
+    },
+    {
+      "name": "제약: 도어 마감 값",
+      "sql": "insert into public.consultations (name, email, title, door_finish) values ('probe', 'probe@example.invalid', 'probe', 'gold')",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "제약: 상담 상태 값",
+      "sql": "update public.consultations set status = 'lost' where id = {{cons_pf}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0019: 배정 기록은 관리자 · 그 업체 대표 · 실장이 읽음",
+      "sql": "select count(id) from public.consult_assignments where id = {{asg_x}}",
+      "expect": { "anon": "deny", "x_owner": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
+    },
+    {
+      "name": "0019: 순위 · 점수 내역은 서버만 읽음",
+      "sql": "select count(*) from (select score, total, rank from public.consult_assignments where id = {{asg_x}}) q",
+      "expect": { "service_role": 1, "*": "deny" }
+    },
+    {
+      "name": "0019: 배정 쓰기는 서버만 · 지우기는 아무도",
+      "sql": "update public.consult_assignments set state = 'accepted', responded_at = now() where id = {{asg_x}}",
+      "expect": { "service_role": "rows:1", "*": "deny" }
+    },
+    {
+      "name": "0019: 배정 지우기는 아무도 못 함",
+      "sql": "delete from public.consult_assignments where id = {{asg_x}}",
+      "expect": { "*": "deny" }
+    },
+    {
+      "name": "제약: 본사 상담 하나에 기다리는 배정은 하나",
+      "sql": "insert into public.consult_assignments (consultation_id, company_id) values ({{cons_pf}}, {{company_y}})",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23505" }
+    },
+    {
+      "name": "제약: 응답하면 응답 시각이 있어야",
+      "sql": "update public.consult_assignments set state = 'declined' where id = {{asg_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
     }
   ]
 }
