@@ -82,7 +82,6 @@ export const INSTALL = Object.freeze({
   high_floor: '높은 층 운반',
 });
 export const INSTALL_YEARS_KEY = 'install_years';
-export const INSTALL_YEARS_NAME = '시공 경력(년)';
 export const INSTALL_YEARS_MAX = 100;
 
 /** 서류 — 본사 확인 (checked_at · by 는 서버가 찍는다) */
@@ -107,31 +106,16 @@ export const doorFinishKey = (v) => `door_${v}`;
 export const ITEM_KEYS = Object.freeze(Object.keys(FURNITURE_LABELS));
 
 /**
- * 앱 연출컷 품목(generations.category) 중 품목 키와 이름이 같은 것 — 앱 상담은 furniture_categories 를 넣지 않아
- * 연출컷 품목을 고객 품목으로 쓴다 (consult-notify.js APP_KIND_LABELS · FURNITURE_LABELS 의 같은 이름).
- * 이름이 다른 앱 품목(사무실 · 서재 · 침실)은 품목 키가 없다.
+ * GET /admin/companies/:id/evaluation 의 catalog — 묶음마다 [{ key, name }].
+ * install 은 체크 항목만 — 시공 경력은 평가표 install.install_years(숫자)로 따로 받는다.
  */
-export const APP_KIND_TO_ITEM = Object.freeze({
-  sink: 'sink',
-  island: 'island',
-  wardrobe: 'wardrobe',
-  storage: 'storage',
-  fridge: 'fridge',
-  vanity: 'vanity',
-  shoe: 'shoerack',
-});
-
-/** GET /admin/companies/:id/evaluation 의 catalog */
 export function evaluationCatalog() {
   return {
     equipment: entries(EQUIPMENT),
     staff_roles: entries(STAFF_ROLES),
     finishes: entries(FINISHES),
     design: entries(DESIGN),
-    install: [
-      ...entries(INSTALL),
-      { key: INSTALL_YEARS_KEY, name: INSTALL_YEARS_NAME, type: 'number' },
-    ],
+    install: entries(INSTALL),
     docs: entries(DOCS),
     grades: Object.keys(GRADE_POINTS),
     price_tiers: [...PRICE_TIERS],
@@ -168,6 +152,14 @@ function objectOf(body, field) {
   return v;
 }
 
+/** 서류 확인한 날 — 'YYYY-MM-DD' (있는 날짜) 또는 저장된 ISO 시각 */
+function isCheckedAt(v) {
+  if (typeof v !== 'string') return false;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v))
+    return new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;
+  return /^\d{4}-\d{2}-\d{2}T/.test(v) && Number.isFinite(Date.parse(v));
+}
+
 function unknownKeys(obj, allowed) {
   return Object.keys(obj).filter((k) => !has(allowed, k));
 }
@@ -184,10 +176,10 @@ function intOrNull(body, field, min, max) {
 /**
  * PUT /admin/companies/:id/evaluation 본문 → 저장할 칸. 목록 밖 키 · 틀린 값은 422 (어느 칸 · 키인지 details).
  * 본문이 다시 정하는 표 전체다 (빠진 칸은 비운다). 위쪽 칸 중 모르는 이름(company_id 등)은 읽지 않는다.
- *   docs: { insurance: true|false, contract: … } — true 면 본사 확인. 이미 확인된 서류는 처음 확인 기록을 그대로 둔다.
- *         GET 이 돌려준 모양({ checked_at, by })을 그대로 보내도 확인으로 본다.
+ *   docs: { insurance: { checked_at: 'YYYY-MM-DD' }, contract: … } — 확인한 날. 확인한 사람(by)은 서버가 호출자로 채운다.
+ *         날이 저장된 것과 같으면 저장된 기록(by 포함)을 그대로 둔다. true 는 오늘(today) 확인, false · null 은 확인 안 됨.
  */
-export function parseEvaluation(body, { existing = null, userId, nowIso }) {
+export function parseEvaluation(body, { existing = null, userId, today }) {
   if (!isPlainObject(body)) throw new ValidationError('JSON 본문이 필요합니다');
 
   const bad = [];
@@ -227,15 +219,14 @@ export function parseEvaluation(body, { existing = null, userId, nowIso }) {
   const docs = {};
   const before = (existing && isPlainObject(existing.docs) && existing.docs) || {};
   for (const [k, v] of Object.entries(docsIn)) {
-    const checked =
-      v === true || (isPlainObject(v) && typeof v.checked_at === 'string' && v.checked_at);
-    if (v !== false && v !== null && !checked) {
+    if (v === false || v === null) continue;
+    const at = v === true ? today : isPlainObject(v) ? v.checked_at : undefined;
+    if (!isCheckedAt(at)) {
       wrong.push(`docs.${k}`);
       continue;
     }
-    if (!checked) continue;
     const prev = before[k];
-    docs[k] = isPlainObject(prev) && prev.checked_at ? prev : { checked_at: nowIso, by: userId };
+    docs[k] = isPlainObject(prev) && prev.checked_at === at ? prev : { checked_at: at, by: userId };
   }
   if (wrong.length) throw new ValidationError('평가표 값이 올바르지 않습니다', { invalid: wrong });
 

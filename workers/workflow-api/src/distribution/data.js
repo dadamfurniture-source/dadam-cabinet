@@ -173,9 +173,10 @@ async function loadSnapshotItems(env, snapshotIds) {
 
 /**
  * 풀 안 업체의 통계.
+ *   withItems  완료 수주의 품목(스냅샷 설계)까지 읽는다 — 품목 실적이 필요 없으면(업체 내 점수) false
  * @returns {Promise<Map<string, object>>} company_id → 통계
  */
-export async function loadStats(env, companyIds, { nowMs }) {
+export async function loadStats(env, companyIds, { nowMs, withItems = true }) {
   const statsBy = new Map(companyIds.map((id) => [id, emptyStats()]));
   if (!companyIds.length) return statsBy;
 
@@ -210,10 +211,12 @@ export async function loadStats(env, companyIds, { nowMs }) {
       orders.map((o) => o.id),
       { select: 'order_id,score', limit: ROW_LIMIT }
     ),
-    loadSnapshotItems(
-      env,
-      completed.map((o) => o.snapshot_id)
-    ),
+    withItems
+      ? loadSnapshotItems(
+          env,
+          completed.map((o) => o.snapshot_id)
+        )
+      : new Map(),
   ]);
   orderStats(
     {

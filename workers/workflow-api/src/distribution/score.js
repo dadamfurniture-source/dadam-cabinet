@@ -20,13 +20,7 @@
  */
 
 import * as R from './rules.js';
-import {
-  APP_KIND_TO_ITEM,
-  ITEM_KEYS,
-  DOOR_FINISH_UNKNOWN,
-  docsOk,
-  doorFinishKey,
-} from './catalog.js';
+import { ITEM_KEYS, DOOR_FINISH_UNKNOWN, docsOk, doorFinishKey } from './catalog.js';
 
 const KST_MS = 9 * 3600 * 1000;
 const DAY_MS = 86400000;
@@ -45,22 +39,18 @@ export function kstMonthStartMs(nowMs) {
 }
 
 /**
- * 고객 품목 키 — 상담의 furniture_categories(목록 안 값만). 비었으면 앱 연출컷 품목(generationCategory)이 품목 키와
- * 같은 이름일 때 그 키 (catalog.js APP_KIND_TO_ITEM). 둘 다 없으면 빈 배열.
+ * 고객 품목 키 — 상담의 furniture_categories 중 품목 키 목록(consult-notify.js FURNITURE_LABELS)에 있는 것만.
+ * 사이트 · 앱 모두 고객이 이 키로 고른다. 없으면 빈 배열 (품목 거르기는 통과, 품목 실적은 0건).
  */
-export function customerItems(consult, generationCategory = null) {
+export function customerItems(consult) {
   const out = [];
-  for (const k of Array.isArray(consult && consult.furniture_categories)
+  const list = Array.isArray(consult && consult.furniture_categories)
     ? consult.furniture_categories
-    : []) {
+    : [];
+  for (const k of list) {
     if (ITEM_KEYS.includes(k) && !out.includes(k)) out.push(k);
   }
-  if (out.length) return out;
-  const fromApp =
-    generationCategory && Object.prototype.hasOwnProperty.call(APP_KIND_TO_ITEM, generationCategory)
-      ? APP_KIND_TO_ITEM[generationCategory]
-      : null;
-  return fromApp ? [fromApp] : [];
+  return out;
 }
 
 /** 업체 풀 밖이면 그 이유 — 다담 공장(hq)은 언제나 풀 안 */
@@ -135,8 +125,28 @@ export function responseRateOf(stats) {
   return stats.fastAcceptCount / stats.respondedCount;
 }
 
-/** 본사 평가 40 */
+/** 재작업 없는 비율 — 최근 90일 수주 중 재작업이 없는 수주 (0~1). 수주가 없으면 null */
+export function reworkFreeRateOf(stats) {
+  if (!stats || !stats.recentOrderCount) return null;
+  return stats.cleanOrderCount / stats.recentOrderCount;
+}
+
+/** 자동 지표 (화면용) — 만족 0~5 소수 한 자리, 비율 0~1 소수 둘째 자리. 자료가 없으면 null */
+export function companyMetrics(stats) {
+  const round = (v, n) => (v === null ? null : Math.round(v * 10 ** n) / 10 ** n);
+  return {
+    satisfaction: round(satisfactionOf(stats), 1),
+    response_rate: round(responseRateOf(stats), 2),
+    rework_free_rate: round(reworkFreeRateOf(stats), 2),
+  };
+}
+
+/** 본사 평가 40 — grade 는 등급 점수(숫자), grade_letter 는 등급 글자(S · A · B · C, 없으면 null) */
 export function evalScore(evaluation, stats) {
+  const letter =
+    evaluation && Object.prototype.hasOwnProperty.call(R.GRADE_POINTS, evaluation.grade)
+      ? evaluation.grade
+      : null;
   const grade =
     evaluation && Object.prototype.hasOwnProperty.call(R.GRADE_POINTS, evaluation.grade)
       ? R.GRADE_POINTS[evaluation.grade]
@@ -144,15 +154,14 @@ export function evalScore(evaluation, stats) {
   const sat = satisfactionOf(stats);
   const satisfaction =
     sat === null ? half(R.SATISFACTION_MAX) : (sat / R.SATISFACTION_SCALE) * R.SATISFACTION_MAX;
-  const rework =
-    stats && stats.recentOrderCount
-      ? (stats.cleanOrderCount / stats.recentOrderCount) * R.REWORK_MAX
-      : half(R.REWORK_MAX);
+  const free = reworkFreeRateOf(stats);
+  const rework = free === null ? half(R.REWORK_MAX) : free * R.REWORK_MAX;
   const rate = responseRateOf(stats);
   const response = rate === null ? half(R.RESPONSE_MAX) : rate * R.RESPONSE_MAX;
   const sum = grade + satisfaction + rework + response;
   return {
     grade: r1(grade),
+    grade_letter: letter,
     satisfaction: r1(satisfaction),
     rework: r1(rework),
     response: r1(response),

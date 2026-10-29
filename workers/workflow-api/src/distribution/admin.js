@@ -10,10 +10,13 @@
  *
  * 배정 (assignConsultation)
  *   1) 본사 상담이고 대기(pending)여야 한다. 기다리는 배정이 있으면 409 open_assignment.
+ *      업체 제공 동의(third_party_agreed_at)가 없으면 422 no_consent — 본사가 직접 상담한다
+ *      (목록 · 후보 응답의 consent: false).
  *   2) 순위를 다시 계산해 그 업체가 거르기를 통과하는지 본다 — 아니면 422 not_eligible (details.reasons).
  *   3) 본사 상담을 pending → assigned 로 (읽은 그대로일 때만 — 동시에 두 배정이 나가지 않게).
- *   4) 업체 company_id 로 상담 사본을 넣는다 (origin_consultation_id = 본사 상담). 넘기는 칸은 COPY_FIELDS 뿐 —
- *      관리자 메모 · 담당자 · 본사 내부 칸 · 동의 기록 · 회원 id 는 넘기지 않는다. 품목은 고객 품목 키로 채운다.
+ *   4) 업체 company_id 로 상담 사본을 넣는다 (origin_consultation_id = 본사 상담). 넘기는 칸은 동의 문구의 항목
+ *      (COPY_FIELDS + 품목)뿐 — 공간 · 치수 · 예산 · 스타일, 관리자 메모 · 담당자 · 본사 내부 칸 · 동의 기록 · 회원 id 는
+ *      넘기지 않는다. 품목은 고객 품목 키로 채운다.
  *      연출컷은 사본에 잇지 않는다 (표 권한이 생기지 않게) — 업체 화면이 원래 연출컷의 짧은 서명 주소를 받는다.
  *   5) 배정 기록(consult_assignments)에 순위 · 총점 · 점수 내역을 남긴다.
  *   6) 응답 뒤에 그 업체 대표 · 실장에게 앱 알림 consult_assigned (품목 · 시/군/구만).
@@ -39,12 +42,20 @@ import { FURNITURE_LABELS } from '../consult-notify.js';
 import { buildMessage } from '../push/messages.js';
 import { notifyRoles } from '../push/outbox.js';
 import { RULES_VERSION, TOP_N, ASSIGNMENT_TTL_HOURS, REQUIRE_MONTHLY_LIMIT } from './rules.js';
-import { customerItems, rankCandidates, candidateView, isPoolCompany } from './score.js';
+import {
+  customerItems,
+  rankCandidates,
+  candidateView,
+  isPoolCompany,
+  companyMetrics,
+  kstToday,
+} from './score.js';
 import {
   loadCompanies,
   loadSettings,
   loadEvaluations,
   loadRankingContext,
+  loadStats,
   EVALUATION_COLUMNS,
   COMPANY_COLUMNS,
 } from './data.js';
@@ -58,7 +69,10 @@ const has = (obj, k) => Object.prototype.hasOwnProperty.call(obj, k);
 export const INBOX_STATES = Object.freeze({ pending: 'pending', assigned: 'assigned', all: null });
 export const INBOX_LIMIT = 200;
 
-/** 업체 사본에 넘기는 칸 (본사 상담 그대로) — 품목 · 제목 · 회사 · 상태 · 원래 상담은 따로 정한다 */
+/**
+ * 업체 사본에 넘기는 칸 (본사 상담 그대로) — 업체 제공 동의 문구의 항목만.
+ * 품목(furniture_categories) · 제목 · 회사 · 상태 · 원래 상담은 따로 정한다. 연출컷은 업체 화면이 서명 주소로 받는다.
+ */
 export const COPY_FIELDS = Object.freeze([
   'name',
   'phone',
@@ -68,15 +82,9 @@ export const COPY_FIELDS = Object.freeze([
   'preferred_date',
   'preferred_time',
   'description',
-  'space_type',
-  'space_width_mm',
-  'space_height_mm',
-  'space_depth_mm',
-  'budget_range',
-  'wanted_price_tier',
-  'style_preference',
   'door_finish',
   'demolition_needed',
+  'wanted_price_tier',
   'request_detail_design',
   'quote',
 ]);
@@ -88,12 +96,16 @@ const CONSULT_COLUMNS = [
   'status',
   'furniture_categories',
   'generation_id',
+  'third_party_agreed_at',
   ...COPY_FIELDS,
 ].join(',');
 
 const INBOX_COLUMNS =
   'id,created_at,status,name,phone,sido,gugun,furniture_categories,door_finish,demolition_needed,wanted_price_tier,' +
-  'preferred_date,preferred_time,request_detail_design,quote,generation_id';
+  'preferred_date,preferred_time,request_detail_design,quote,generation_id,third_party_agreed_at';
+
+/** 업체 제공 동의가 있나 — 없으면 배정하지 않고 본사가 직접 상담한다 */
+export const hasConsent = (consult) => Boolean(consult && consult.third_party_agreed_at);
 
 const HOUR_MS = 3600 * 1000;
 
@@ -137,17 +149,8 @@ async function loadPlatformConsult(env, consultationId) {
   return { consult: row, platform };
 }
 
-async function generationCategory(env, consult) {
-  if (!consult.generation_id) return null;
-  const g = await selectOne(env, 'generations', {
-    id: `eq.${consult.generation_id}`,
-    select: 'category',
-  });
-  return g ? g.category : null;
-}
-
 async function rankFor(env, consult, nowMs) {
-  const items = customerItems(consult, await generationCategory(env, consult));
+  const items = customerItems(consult);
   const ctx = await loadRankingContext(env, { nowMs });
   return { items, ...rankCandidates({ consult, items, ...ctx, nowMs }) };
 }
@@ -218,6 +221,7 @@ export async function consultInbox(env, { user, query = {} }) {
       request_detail_design: r.request_detail_design === true,
       quote_total: quoteTotal(r.quote),
       has_generation: Boolean(r.generation_id),
+      consent: hasConsent(r),
       assignment: current
         ? {
             id: current.id,
@@ -245,7 +249,11 @@ export async function consultCandidates(env, { user, consultationId, nowMs = Dat
   await assertAdmin(env, user);
   const { consult } = await loadPlatformConsult(env, consultationId);
   const { ranked, filtered } = await rankFor(env, consult, nowMs);
-  return { items: ranked.slice(0, TOP_N).map(candidateView), filtered };
+  return {
+    consent: hasConsent(consult),
+    items: ranked.slice(0, TOP_N).map(candidateView),
+    filtered,
+  };
 }
 
 // ── 배정 ──────────────────────────────────────────────────────
@@ -294,6 +302,11 @@ export async function assignConsultation(env, { user, consultationId, body, nowM
     throw conflict('대기 중인 상담만 배정할 수 있습니다', 'not_pending', {
       status: consult.status,
     });
+  }
+  if (!hasConsent(consult)) {
+    const err = new ValidationError('업체 제공 동의가 없는 상담입니다 — 본사가 직접 상담합니다');
+    err.code = 'no_consent';
+    throw err;
   }
 
   const ranking = await rankFor(env, consult, nowMs);
@@ -440,11 +453,15 @@ async function userEmails(env, ids) {
   return out;
 }
 
-/** GET /admin/companies/:id/evaluation */
-export async function getCompanyEvaluation(env, { user, companyId }) {
+/**
+ * GET /admin/companies/:id/evaluation
+ *   metrics — 자동 지표 (설치 후 문항 · 배정 응답 · 재작업에서): satisfaction(0~5) · response_rate(0~1) ·
+ *             rework_free_rate(0~1), 자료가 없으면 null. 점수의 만족 · 응답 · 재작업과 같은 자료다.
+ */
+export async function getCompanyEvaluation(env, { user, companyId, nowMs = Date.now() }) {
   await assertAdmin(env, user);
   const company = await loadEvaluableCompany(env, companyId);
-  const [row, history] = await Promise.all([
+  const [row, history, statsBy] = await Promise.all([
     selectOne(env, 'company_evaluations', {
       company_id: `eq.${company.id}`,
       select: EVALUATION_COLUMNS,
@@ -455,6 +472,7 @@ export async function getCompanyEvaluation(env, { user, companyId }) {
       order: 'created_at.desc',
       limit: '50',
     }),
+    loadStats(env, [company.id], { nowMs, withItems: false }),
   ]);
   const emails = await userEmails(
     env,
@@ -470,6 +488,7 @@ export async function getCompanyEvaluation(env, { user, companyId }) {
     },
     evaluation: row || emptyEvaluation(company.id),
     catalog: evaluationCatalog(),
+    metrics: companyMetrics(statsBy.get(company.id)),
     history: (history || []).map((h) => ({
       evaluated_at: h.evaluated_at,
       evaluated_by_email: emails.get(h.evaluated_by) || null,
@@ -487,7 +506,7 @@ export async function putCompanyEvaluation(env, { user, companyId, body, nowMs =
     select: 'docs',
   });
   const nowIso = new Date(nowMs).toISOString();
-  const fields = parseEvaluation(body, { existing, userId: user.id, nowIso });
+  const fields = parseEvaluation(body, { existing, userId: user.id, today: kstToday(nowMs) });
   const row = await upsertOne(
     env,
     'company_evaluations',

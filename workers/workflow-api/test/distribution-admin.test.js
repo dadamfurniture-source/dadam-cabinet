@@ -47,6 +47,7 @@ const P3 = sid(3); // 취소
 const P4 = sid(4); // 대기 — C 가 못 받음
 const COPY_OLD = sid(5); // A 의 사본 (목록에 나오지 않는다)
 const FACTORY_OLD = sid(6); // 공장 옛 상담 (목록에 나오지 않는다)
+const P7 = sid(7); // 대기 — 업체 제공 동의 없음 (본사 직접 상담)
 
 const ago = (hours) => new Date(Date.now() - hours * 3600 * 1000).toISOString();
 const DOCS = {
@@ -199,6 +200,13 @@ function tables() {
       },
       { ...P1_ROW, id: COPY_OLD, company_id: A, origin_consultation_id: P4, status: 'returned' },
       { ...P1_ROW, id: FACTORY_OLD, company_id: FACTORY },
+      {
+        ...P1_ROW,
+        id: P7,
+        created_at: '2026-10-25T01:00:00Z',
+        third_party_agreed_at: null,
+        consent_version: null,
+      },
     ],
     consult_assignments: [
       {
@@ -292,10 +300,11 @@ test('목록 — 기본은 본사 대기 상담 (업체 사본 · 공장 상담 
   const items = r.json.data.items;
   assert.deepEqual(
     items.map((i) => i.id),
-    [P1, P4]
+    [P1, P4, P7]
   );
   assert.deepEqual(Object.keys(items[0]).sort(), [
     'assignment',
+    'consent',
     'created_at',
     'demolition_needed',
     'door_finish',
@@ -324,6 +333,11 @@ test('목록 — 기본은 본사 대기 상담 (업체 사본 · 공장 상담 
     { company_id: C, company_name: '마바 공방', state: 'declined' },
   ]);
   assert.ok(!('admin_memo' in items[0]));
+  assert.deepEqual(
+    items.map((i) => i.consent),
+    [true, true, false],
+    '업체 제공 동의가 없으면 본사 직접 상담'
+  );
 });
 
 test('목록 — 배정됨은 기다리는 배정과 답할 기한(24시간), 전체 · 틀린 상태', async () => {
@@ -350,7 +364,7 @@ test('목록 — 배정됨은 기다리는 배정과 답할 기한(24시간), �
   const all = await call(fake, '/admin/consult-inbox?state=all');
   assert.deepEqual(
     all.json.data.items.map((i) => i.id),
-    [P1, P2, P3, P4]
+    [P1, P2, P3, P4, P7]
   );
   const bad = await call(fake, '/admin/consult-inbox?state=done');
   assert.equal(bad.status, 422);
@@ -363,6 +377,7 @@ test('후보 — 1~3순위와 점수 내역, 걸러진 업체는 이유', async 
   const r = await call(fake, `/admin/consultations/${P1}/candidates`);
   assert.equal(r.status, 200, JSON.stringify(r.json));
   const { items, filtered } = r.json.data;
+  assert.equal(r.json.data.consent, true);
   assert.deepEqual(
     items.map((i) => [i.company_id, i.rank, i.kind]),
     [
@@ -375,7 +390,7 @@ test('후보 — 1~3순위와 점수 내역, 걸러진 업체는 이유', async 
   //    품목 실적 1건 6 + 도어 PET 6 + 가격대 같음 6 + 날짜 안 6 + 설계 인원 · 플래너 5
   //    같은 시/군/구 15 · 일감 5(최근 30일 배정 없음) + 여유 5
   assert.deepEqual(items[0].score, {
-    eval: { grade: 16, satisfaction: 9.6, rework: 3, response: 3, sum: 31.6 },
+    eval: { grade: 16, grade_letter: 'S', satisfaction: 9.6, rework: 3, response: 3, sum: 31.6 },
     fit: { item: 6, finish: 6, price: 6, timing: 6, design: 5, sum: 29 },
     location: { sum: 15, why: 'same_gugun' },
     other: { spread: 5, capacity: 5, sum: 10 },
@@ -403,14 +418,22 @@ test('후보 — 본사 상담이 아니면 404 (업체 사본 · 공장 상담 
   }
 });
 
-test('후보 — 앱 상담(신청서 품목 없음)은 연출컷 품목으로 거른다', async () => {
+test('후보 — 품목 키가 없는 상담은 품목으로 거르지 않는다 (연출컷 품목을 바꿔 쓰지 않는다)', async () => {
   const fake = fakeOf();
   const p4 = fake.db.consultations.find((c) => c.id === P4);
   p4.furniture_categories = [];
   fake.db.generations[0].category = 'wardrobe';
   const r = await call(fake, `/admin/consultations/${P4}/candidates`);
-  assert.equal(r.json.data.items.length, 0, '붙박이장을 하는 업체가 없다');
-  assert.ok(r.json.data.filtered.filter((f) => f.reasons.includes('item')).length >= 5);
+  assert.equal(r.json.data.items.length, 3);
+  assert.ok(!r.json.data.filtered.some((f) => f.reasons.includes('item')));
+  assert.ok(!fake.calls.some((c) => c.table === 'generations'), '연출컷 표를 읽지 않는다');
+});
+
+test('후보 — 업체 제공 동의가 없는 상담은 consent: false', async () => {
+  const fake = fakeOf();
+  const r = await call(fake, `/admin/consultations/${P7}/candidates`);
+  assert.equal(r.status, 200);
+  assert.equal(r.json.data.consent, false);
 });
 
 // ── 배정 ──────────────────────────────────────────────────────
@@ -436,6 +459,12 @@ test('배정 — 201, 업체 사본(넘기는 칸만) · 배정 기록(순위 ·
     ].sort()
   );
   for (const hidden of [
+    'space_type',
+    'space_width_mm',
+    'space_height_mm',
+    'space_depth_mm',
+    'budget_range',
+    'style_preference',
     'admin_memo',
     'assigned_to',
     'user_id',
@@ -506,6 +535,15 @@ test('배정 — 이미 기다리는 배정이 있으면 409 open_assignment (�
   assert.equal(p2.status, 409);
   assert.equal(p2.json.code, 'open_assignment');
   assert.equal(fake.db.consult_assignments.filter((x) => x.consultation_id === P1).length, 1);
+});
+
+test('배정 — 업체 제공 동의가 없는 상담은 422 no_consent, 아무것도 쓰지 않는다', async () => {
+  const fake = fakeOf();
+  const r = await assign(fake, P7, A);
+  assert.equal(r.status, 422);
+  assert.equal(r.json.code, 'no_consent');
+  assert.equal(writesOf(fake).length, 0);
+  assert.equal(fake.db.consultations.find((c) => c.id === P7).status, 'pending');
 });
 
 test('배정 — 대기가 아닌 상담은 409 not_pending', async () => {
@@ -642,6 +680,27 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
   assert.equal(first.json.data.catalog.equipment.length, 14);
   assert.deepEqual(first.json.data.catalog.equipment[0], { key: 'panel_saw', name: '패널쏘' });
   assert.deepEqual(first.json.data.history, []);
+  assert.deepEqual(first.json.data.metrics, {
+    satisfaction: null,
+    response_rate: null,
+    rework_free_rate: null,
+  });
+  assert.deepEqual(first.json.data.catalog.install, [
+    { key: 'demolition', name: '철거' },
+    { key: 'utility_connect', name: '설비 연결' },
+    { key: 'high_floor', name: '높은 층 운반' },
+  ]);
+  assert.deepEqual(first.json.data.catalog.docs, [
+    { key: 'insurance', name: '배상 책임 보험' },
+    { key: 'contract', name: '표준 계약서' },
+  ]);
+  // A — 설치 후 문항 8/10 → 4.0, 배정 · 최근 90일 수주 없음
+  const a = await call(fake, `/admin/companies/${A}/evaluation`);
+  assert.deepEqual(a.json.data.metrics, {
+    satisfaction: 4,
+    response_rate: null,
+    rework_free_rate: null,
+  });
 
   const put = await call(fake, `/admin/companies/${E}/evaluation`, ADMIN, {
     method: 'PUT',
@@ -649,7 +708,8 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
       grade: 'B',
       equipment: { panel_saw: 'have', nesting: 'outsource' },
       staff: { design: 2 },
-      docs: { insurance: true },
+      docs: { insurance: { checked_at: '2026-10-29' }, contract: false },
+      install: { demolition: true, install_years: 7 },
       price_tier: 'basic',
       as_months: 12,
     },
@@ -658,8 +718,8 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
   const saved = fake.db.company_evaluations.find((x) => x.company_id === E);
   assert.equal(saved.grade, 'B');
   assert.equal(saved.evaluated_by, ADMIN);
-  assert.deepEqual(Object.keys(saved.docs), ['insurance']);
-  assert.equal(saved.docs.insurance.by, ADMIN);
+  assert.deepEqual(saved.docs, { insurance: { checked_at: '2026-10-29', by: ADMIN } });
+  assert.deepEqual(saved.install, { demolition: true, install_years: 7 });
   assert.deepEqual(put.json.data.evaluation.equipment, { panel_saw: 'have', nesting: 'outsource' });
   const upsert = writesOf(fake).find((c) => c.table === 'company_evaluations');
   assert.equal(upsert.params.get('on_conflict'), 'company_id');

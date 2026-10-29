@@ -369,14 +369,25 @@ test('본사 평가 — 등급 S16 · A13 · B10 · C4, 등급 없음 0', () => 
     [null, 0],
     ['Z', 0],
   ]) {
-    assert.equal(evalScore({ grade: g }, stats()).grade, p, String(g));
+    const e = evalScore({ grade: g }, stats());
+    assert.equal(e.grade, p, String(g));
+    assert.equal(e.grade_letter, p ? g : null, '등급 글자는 따로');
   }
   assert.equal(evalScore(null, stats()).grade, R.NO_GRADE_POINTS);
+  assert.equal(evalScore(null, stats()).grade_letter, null);
 });
 
 test('본사 평가 — 자료가 없으면 만족 · 재작업 · 응답은 만점의 절반', () => {
   const e = evalScore({ grade: 'A' }, stats());
-  assert.deepEqual(e, { grade: 13, satisfaction: 6, rework: 3, response: 3, sum: 25, raw: 25 });
+  assert.deepEqual(e, {
+    grade: 13,
+    grade_letter: 'A',
+    satisfaction: 6,
+    rework: 3,
+    response: 3,
+    sum: 25,
+    raw: 25,
+  });
   assert.equal(evalScore({ grade: 'A' }, null).sum, 25);
 });
 
@@ -527,6 +538,7 @@ test('점수 모양 — eval · fit · location · other, 총점은 반올림 �
   assert.deepEqual(Object.keys(s.score), ['eval', 'fit', 'location', 'other']);
   assert.deepEqual(Object.keys(s.score.eval), [
     'grade',
+    'grade_letter',
     'satisfaction',
     'rework',
     'response',
@@ -628,19 +640,21 @@ test('순위 — 일감 고르게는 순위 대상 업체 중 최근 30일 배�
 
 // ── 고객 품목 ─────────────────────────────────────────────────
 
-test('고객 품목 — furniture_categories(목록 안 값), 비면 앱 연출컷 품목 (이름이 같은 것만)', () => {
+test('고객 품목 — furniture_categories 중 품목 키 목록(FURNITURE_LABELS)에 있는 것만', () => {
   assert.deepEqual(
     customerItems({ furniture_categories: ['sink', 'hack<script>', 'sink', 'wardrobe'] }),
     ['sink', 'wardrobe']
   );
-  assert.deepEqual(customerItems({ furniture_categories: null }, 'shoe'), ['shoerack']);
-  assert.deepEqual(customerItems({ furniture_categories: [] }, 'island'), ['island']);
-  assert.deepEqual(customerItems({ furniture_categories: [] }, 'office'), []);
+  assert.deepEqual(customerItems({ furniture_categories: null, generation_id: 'g' }), []);
   assert.deepEqual(
-    customerItems({ furniture_categories: ['vanity'] }, 'sink'),
-    ['vanity'],
-    '신청서 품목이 먼저'
+    customerItems({ furniture_categories: ['shoe'] }),
+    [],
+    '앱 연출컷 품목 키는 바꾸지 않는다'
   );
+  assert.deepEqual(customerItems({ furniture_categories: ['shoerack', 'other'] }), [
+    'shoerack',
+    'other',
+  ]);
   assert.deepEqual(ITEM_KEYS, Object.keys(FURNITURE_LABELS));
 });
 
@@ -821,14 +835,19 @@ test('평가표 — 항목 목록 (설비 14 · 직무 10 · 마감 14 · 설계
   );
   assert.deepEqual(
     c.install.map((x) => x.key),
-    ['demolition', 'utility_connect', 'high_floor', 'install_years']
+    ['demolition', 'utility_connect', 'high_floor'],
+    '시공 경력은 install.install_years 숫자로 따로'
   );
+  assert.deepEqual(c.docs, [
+    { key: 'insurance', name: '배상 책임 보험' },
+    { key: 'contract', name: '표준 계약서' },
+  ]);
   for (const group of Object.values(c))
     for (const e of group) if (typeof e === 'object') assert.ok(e.key && e.name);
 });
 
 test('평가표 — 목록 밖 키는 422 (어느 키인지), 틀린 값도 422', () => {
-  const opts = { existing: null, userId: 'u1', nowIso: '2026-10-30T00:00:00.000Z' };
+  const opts = { existing: null, userId: 'u1', today: '2026-10-30' };
   assert.throws(
     () =>
       parseEvaluation(
@@ -874,16 +893,19 @@ test('평가표 — 목록 밖 키는 422 (어느 키인지), 틀린 값도 422'
   );
 });
 
-test('평가표 — 서류는 true 면 확인(처음 확인 기록 유지), false 면 뺀다', () => {
+test('평가표 — 서류는 { checked_at: 확인한 날 }, 확인한 사람은 호출자 (같은 날이면 저장된 기록 그대로), false 면 뺀다', () => {
   const opts = {
-    existing: { docs: { insurance: { checked_at: '2026-01-01T00:00:00Z', by: 'old' } } },
+    existing: { docs: { insurance: { checked_at: '2026-01-01', by: 'old' } } },
     userId: 'u1',
-    nowIso: '2026-10-30T00:00:00.000Z',
+    today: '2026-10-30',
   };
   const out = parseEvaluation(
     {
       grade: 'A',
-      docs: { insurance: true, contract: true },
+      docs: {
+        insurance: { checked_at: '2026-01-01', by: 'someone-else' },
+        contract: { checked_at: '2026-10-29' },
+      },
       install: { demolition: true, install_years: 12 },
       note: '  메모  ',
       company_id: 'ignored',
@@ -891,9 +913,24 @@ test('평가표 — 서류는 true 면 확인(처음 확인 기록 유지), fals
     opts
   );
   assert.deepEqual(out.docs, {
-    insurance: { checked_at: '2026-01-01T00:00:00Z', by: 'old' },
-    contract: { checked_at: '2026-10-30T00:00:00.000Z', by: 'u1' },
+    insurance: { checked_at: '2026-01-01', by: 'old' },
+    contract: { checked_at: '2026-10-29', by: 'u1' },
   });
+  assert.deepEqual(
+    parseEvaluation({ docs: { insurance: { checked_at: '2026-02-01' } } }, opts).docs,
+    {
+      insurance: { checked_at: '2026-02-01', by: 'u1' },
+    }
+  );
+  assert.deepEqual(parseEvaluation({ docs: { contract: true } }, opts).docs, {
+    contract: { checked_at: '2026-10-30', by: 'u1' },
+  });
+  for (const bad of [{ checked_at: '2026-02-30' }, { checked_at: '어제' }, {}, 'yes']) {
+    assert.throws(
+      () => parseEvaluation({ docs: { insurance: bad } }, opts),
+      (e) => e.statusCode === 422 && e.details.invalid[0] === 'docs.insurance'
+    );
+  }
   assert.equal(out.note, '메모');
   assert.equal(out.grade, 'A');
   assert.deepEqual(out.install, { demolition: true, install_years: 12 });
