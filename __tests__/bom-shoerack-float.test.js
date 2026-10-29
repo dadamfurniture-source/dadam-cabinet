@@ -180,6 +180,68 @@ describe('띄움 시공 — 조립 명세', () => {
   test('다리발 철물 자리가 없다', () => {
     mods.forEach((m) => expect((m.hardware || []).some((h) => h.kind === 'leg')).toBe(false));
   });
+
+  test('줄 자리(lines)가 없으면 가림판은 자리 미정 (run-part) — 걸레받이와 같다', () => {
+    const ep = (spec.unplaced || []).filter((u) => /-ep$/.test(u.moduleKey)).map((u) => [u.part, u.reason]);
+    expect(ep).toContainEqual(['가림판', 'run-part']);
+    expect(ep).toContainEqual(['가림판(좌우)', 'run-part']);
+  });
+});
+
+describe('띄움 가림판 · 좌우 가림판 — 조립 명세 자리 (2026-10-29 사장님 "아직 안 된 것 진행")', () => {
+  /** 벽 하나 — 하부 l1 0 · 오픈 l2 900 · 키큰장 t1 1350, 상부 u1 0 (bom-assembly.test.js linesOf 와 같은 모양) */
+  const lines = { 0: [{ key: 'wall', D: 350, modules: [
+    { moduleKey: '0-l1', x0: 0 }, { moduleKey: '0-l2', x0: 900 }, { moduleKey: '0-t1', x0: 1350 }, { moduleKey: '0-u1', x0: 0 }] }] };
+  const specOf = (d) => Asm.of(d, { materials: new MaterialExtractor().extract(d).materials, lines });
+  const runsOf = (s, part) => s.items[0].runs.filter((r) => r.parts[0].part === part)
+    .map((r) => ({ host: r.hostModuleKey, min: r.parts[0].box.min, max: r.parts[0].box.max, tags: r.parts[0].tags }));
+  const epOf = (s) => (s.unplaced || []).filter((u) => /-ep$/.test(u.moduleKey)).map((u) => [u.part, u.reason]);
+
+  test('가림판 — 바닥 줄 한 조각(키큰장까지 1800), 뒷면 = 몸통 뒷면 · 밑단 바닥(−200) · 윗단 −5', () => {
+    const s = specOf(shoeDesign());
+    const [c] = runsOf(s, '가림판');
+    expect(runsOf(s, '가림판')).toHaveLength(1);
+    expect(c.host).toBe('0-l1');
+    expect([c.min[0], c.max[0]]).toEqual([-450, 1350]);
+    expect([c.min[1], c.max[1]]).toEqual([-200, -5]);
+    expect([c.min[2], c.max[2]]).toEqual([-175, -175 + 18]);
+    expect(epOf(s).filter((e) => /가림판/.test(e[0]))).toEqual([]);
+  });
+
+  test('좌우 가림판 — 줄 양 끝 몸통 옆면 바깥, 밑단 바닥 · 높이 띄움 + 20 · 깊이 끝 마감재대로 (마감재 없음 380)', () => {
+    const s = specOf(shoeDesign());
+    const sides = runsOf(s, '가림판(좌우)');
+    expect(sides.map((r) => [r.host, r.tags.side, r.min[0], r.max[0], r.min[1], r.max[1], r.min[2], r.max[2]])).toEqual([
+      ['0-l1', 'left', -468, -450, -200, 20, -175, -175 + 380],
+      ['0-t1', 'right', 225, 243, -200, 20, -175, -175 + 380],
+    ]);
+  });
+
+  test('끝 마감재가 다르면 행이 갈려도 같은 끝에 — 왼쪽 쫄 310 · 오른쪽 몰딩 345', () => {
+    const d = shoeDesign();
+    d.items[0].modules.forEach((m, i) => { if (m.pos === 'lower') m._x = [0, 900, 1350][i]; });
+    d.items[0].specs.drawnFinishes = [
+      { section: 'filler', side: null, edge: 'left', area: 'lower', W: 60, partW: 60, H: 1000, D: 380, baseY: 0, x: -60 },
+      { section: 'molding', side: null, edge: 'right', area: 'tall', W: 60, partW: 60, H: 2300, D: 380, baseY: 0, x: 1800 },
+    ];
+    const sides = runsOf(specOf(d), '가림판(좌우)');
+    expect(sides.map((r) => [r.host, r.tags.side, r.tags.finish, r.max[2] - r.min[2]])).toEqual([
+      ['0-t1', 'right', 'molding', 345], ['0-l1', 'left', 'filler', 310]]);
+  });
+
+  test('EP 끝은 좌우 가림판이 없다 — 남은 끝만 놓인다', () => {
+    const d = shoeDesign();
+    d.items[0].modules.forEach((m, i) => { if (m.pos === 'lower') m._x = [0, 900, 1350][i]; });
+    d.items[0].specs.drawnFinishes = [{ section: 'ep', side: null, edge: 'left', area: 'lower', W: 20, partW: 18, H: 1000, D: 380, baseY: 0, x: -20 }];
+    const sides = runsOf(specOf(d), '가림판(좌우)');
+    expect(sides.map((r) => [r.host, r.tags.side])).toEqual([['0-t1', 'right']]);
+  });
+
+  test('띄움이 아니면 가림판 없이 걸레받이가 예전 자리에 (걸레받이 조각 그대로)', () => {
+    const s = specOf(shoeDesign({ floatH: 0, topThickness: 0, topMaterial: undefined }));
+    expect(runsOf(s, '가림판').concat(runsOf(s, '가림판(좌우)'))).toEqual([]);
+    expect(runsOf(s, '걸레받이').length).toBeGreaterThan(0);
+  });
 });
 
 describe('띄움이 아니면 예전 그대로 — 다리발 · 걸레받이, 하부장 짜임', () => {
@@ -203,5 +265,143 @@ describe('화장대 상판 — 스펙에 재질이 있으면 (2026-10-28 사장�
     d.items[0].modules.forEach((m) => { if (m.pos === 'lower') m.d = 500; });
     const top = new MaterialExtractor().extract(d).materials.find((m) => m.part === '상판');
     expect(top).toMatchObject({ material: '인조대리석', thickness: 12, w: 1350, h: 530 });
+  });
+});
+
+describe('신발장 벤치 · 키큰장 도어 전신거울 (2026-10-29 사장님)', () => {
+  /** 키큰장 450 · 벤치 900 · 키큰장 450 (키큰장 사이 벤치) — 위치 _x 는 플래너 좌표 */
+  function benchDesign(over, place) {
+    const d = shoeDesign(over);
+    const floatH = AR.floatHOf(d.items[0].specs);
+    const tallH = 2300 - (floatH || 60) - 60;
+    const tall = (id) => ({ id, type: 'tall', name: '키큰장', pos: 'lower', w: 450, h: tallH, d: 350, doorCount: 1, isDrawer: false, isEL: false,
+      heightParts: { pedestalH: floatH ? 0 : 60, moldingH: 60 } });
+    d.items[0].modules = [tall('t1'),
+      { id: 'b1', type: 'storage', moduleKind: 'bench', name: '벤치', pos: 'lower', w: 900, h: 450, d: 350, doorCount: 0, isDrawer: false, isEL: false },
+      tall('t2')];
+    if (place) d.items[0].modules.forEach((m, i) => { m._x = [0, 450, 1350][i]; });
+    return d;
+  }
+  const lines = { 0: [{ key: 'wall', D: 350, modules: [{ moduleKey: '0-t1', x0: 0 }, { moduleKey: '0-b1', x0: 450 }, { moduleKey: '0-t2', x0: 1350 }] }] };
+
+  test('상수 — 앉는 면 450 · 앉는 판 18T · 목대 = 보강목 규격 · 각파이프 30 · 기본 폭 900, 거울 5T · 여백 50', () => {
+    expect(X.BOM_BENCH).toEqual({ SEAT_H: 450, SEAT_T: 18, CLEAT_T: C.UPPER_BAND_T, CLEAT_W: C.UPPER_BAND_W, PIPE: 30, W: 900 });
+    expect(C.BENCH_SEAT_H).toBe(450);
+    expect([X.BOM_MIRROR.T, X.BOM_MIRROR.MARGIN, X.BOM_MIRROR.MATERIAL]).toEqual([5, 50, '거울']);
+    expect([X.bomIsBenchModule({ moduleKind: 'bench' }), X.bomIsBenchModule({ moduleKind: 'open' }), X.bomIsBenchModule(null)]).toEqual([true, false, false]);
+  });
+
+  test('띄움 벤치 — 앉는 판 MDF 18T 900 × 380, 받침은 철제 각파이프 30 × 2 (목대 판 없음), 다리발 없음', () => {
+    const d = benchDesign();
+    const mats = new MaterialExtractor().extract(d).materials;
+    const hw = new HardwareExtractor().extract(d).hardware;
+    expect(mats.filter((m) => /^벤치/.test(m.part)).map((m) => [m.module, m.part, m.material, m.thickness, m.w, m.h, m.qty]))
+      .toEqual([['벤치-900', '벤치 앉는 판', 'MDF', 18, 900, 380, 1]]);
+    expect(hw.filter((h) => h.category === '벤치 받침').map((h) => [h.item, h.spec, h.qty, h.moduleKey])).toEqual([['철제 각파이프 30', '30×30 · 길이 350mm', 2, '0-b1']]);
+    expect(hw.some((h) => h.category === '다리발')).toBe(false);
+    mats.forEach((m) => expect(X.bomPartDefOf(m.part).fallback).toBeUndefined());
+  });
+
+  test('띄움 아닌 벤치 — 받침 목대 PB 15T × 60 × 350 두 개, 각파이프 없음, 벤치는 다리발 · 걸레받이 자리 밖', () => {
+    const d = benchDesign({ floatH: 0, topThickness: 0, topMaterial: undefined });
+    const mats = new MaterialExtractor().extract(d).materials;
+    const hw = new HardwareExtractor().extract(d).hardware;
+    expect(mats.filter((m) => m.part === '벤치 목대').map((m) => [m.material, m.thickness, m.w, m.h, m.qty])).toEqual([['PB', 15, 350, 60, 2]]);
+    expect(hw.some((h) => h.category === '벤치 받침' || h.category === '다리발')).toBe(false);
+    expect(mats.some((m) => m.part === '걸레받이')).toBe(false);   // 키큰장은 좌대 걸레받이 — 하부 줄 걸레받이 없음
+  });
+
+  test('띄움 줄 — 벤치 아래는 가림판이 없고, 벤치 옆 키큰장 옆면이 줄 끝이 된다 (좌우 가림판 4) — 위치가 없는 옛 도면도', () => {
+    [false, true].forEach((place) => {
+      const mats = new MaterialExtractor().extract(benchDesign({}, place)).materials;
+      expect(mats.filter((m) => m.part === '가림판(좌우)').reduce((s, m) => s + m.qty, 0)).toBe(4);
+      expect(mats.filter((m) => m.part === '가림판').reduce((s, m) => s + m.qty, 0)).toBe(2);
+      expect(mats.some((m) => m.part === '상판')).toBe(false);
+    });
+  });
+
+  test('조립 명세 — 앉는 판 윗면 = 바닥 ~ 450 (띄움 200 이면 몸통 바닥 자리에서 250), 목대는 앉는 판 바로 아래 양쪽 안쪽', () => {
+    const run = (d) => { const s = Asm.of(d, { materials: new MaterialExtractor().extract(d).materials, lines }); return { s, m: s.items[0].modules.find((x) => x.moduleKey === '0-b1') }; };
+    const fl = run(benchDesign());
+    const seat = fl.m.parts.find((p) => p.part === '벤치 앉는 판');
+    expect([seat.box.min[1], seat.box.max[1], seat.box.min[0], seat.box.max[0], seat.box.min[2], seat.box.max[2]]).toEqual([232, 250, -450, 450, -175, 205]);
+    expect(fl.m.parts.some((p) => p.part === '벤치 목대')).toBe(false);
+    const nf = run(benchDesign({ floatH: 0, topThickness: 0, topMaterial: undefined }));
+    const cleats = nf.m.parts.filter((p) => p.part === '벤치 목대').map((p) => [p.tags.side, p.box.min[0], p.box.max[0], p.box.min[1], p.box.max[1], p.box.min[2], p.box.max[2]]);
+    expect(cleats).toEqual([['left', -450, -435, 222, 282, -175, 175], ['right', 435, 450, 222, 282, -175, 175]]);
+    [fl.s, nf.s].forEach((s) => expect((s.unplaced || []).filter((u) => u.moduleKey === '0-b1')).toEqual([]));
+  });
+
+  test('거울 — 외짝 키큰장 도어 446 × 2055 → 거울 5T 346 × 1955, 도어 앞면 가운데 (사방 50)', () => {
+    const d = benchDesign();
+    d.items[0].modules[0].mirror = 'single';
+    const mats = new MaterialExtractor().extract(d).materials;
+    const door = mats.find((m) => m.moduleKey === '0-t1' && m.part === '도어');
+    const mir = mats.filter((m) => m.part === '거울');
+    expect(mir.map((m) => [m.module, m.material, m.thickness, m.w, m.h, m.qty, m.edge])).toEqual([[door.module, '거울', 5, door.w - 100, door.h - 100, 1, '-']]);
+    const s = Asm.of(d, { materials: mats, lines });
+    const mod = s.items[0].modules.find((x) => x.moduleKey === '0-t1');
+    const dp = mod.parts.find((p) => p.part === '도어'), mp = mod.parts.find((p) => p.part === '거울');
+    expect([mp.box.min[0] - dp.box.min[0], dp.box.max[0] - mp.box.max[0], mp.box.min[1] - dp.box.min[1], dp.box.max[1] - mp.box.max[1]]).toEqual([50, 50, 50, 50]);
+    expect([mp.box.min[2], mp.box.max[2]]).toEqual([dp.box.max[2], dp.box.max[2] + 5]);
+    expect((s.unplaced || []).filter((u) => u.part === '거울')).toEqual([]);
+  });
+
+  test('거울 — 양문은 고른 짝만 (왼쪽 · 오른쪽), 짝이 안 맞으면 내지 않고 알린다', () => {
+    const d = benchDesign();
+    Object.assign(d.items[0].modules[2], { w: 900, doorCount: 2, mirror: 'right' });
+    const r = new MaterialExtractor().extract(d);
+    const door2 = r.materials.find((m) => m.moduleKey === '0-t2' && m.part === '도어');
+    const mir = r.materials.filter((m) => m.part === '거울');
+    expect(mir.map((m) => [m.w, m.h])).toEqual([[door2.w - 100, door2.h - 100]]);
+    const s = Asm.of(d, { materials: r.materials, lines });
+    const mod = s.items[0].modules.find((x) => x.moduleKey === '0-t2');
+    const doors = mod.parts.filter((p) => p.part === '도어').sort((a, b) => a.box.min[0] - b.box.min[0]);
+    const mp = mod.parts.find((p) => p.part === '거울');
+    expect(mp.box.min[0] - doors[1].box.min[0]).toBe(50);
+    const bad = benchDesign();
+    bad.items[0].modules[0].mirror = 'left';   // 외짝인데 양문 짝
+    const rb = new MaterialExtractor().extract(bad);
+    expect(rb.materials.some((m) => m.part === '거울')).toBe(false);
+    expect(rb.notices.map((n) => n.code)).toContain('mirror-door');
+  });
+
+  test('띄움 아닌 키큰장(단 짜임)에도 거울 — 도어 행에서 크기를 읽는다', () => {
+    const d = benchDesign({ floatH: 0, topThickness: 0, topMaterial: undefined });
+    d.items[0].modules[0].mirror = 'single';
+    const mats = new MaterialExtractor().extract(d).materials;
+    const door = mats.find((m) => m.moduleKey === '0-t1' && m.part === '도어');
+    expect(mats.filter((m) => m.part === '거울').map((m) => [m.w, m.h])).toEqual([[door.w - 100, door.h - 100]]);
+  });
+});
+
+describe('브리지 — 벤치 · 거울 표시 (2026-10-29 사장님)', () => {
+  const { loadConverter } = require('../test-utils/bom-parts');
+  const doors = (W, n, dir, extra) => Object.assign({
+    moduleKind: 'normal', verticalCount: 1, horizontalLayout: 'doorOnly', areaTypes: ['door'], areaDirections: [dir || 'left'],
+    areaWidths: [W], areaIs2D: [n === 2],
+  }, extra || {});
+  const specs = () => Object.assign({ layoutShape: 'I', bodyThickness: 15, upperH: 720, sinkLegHeight: 150, moldingH: 60, upperDoorOverlap: 15 }, X.BOM_SHOERACK_DEFAULTS);
+  const convert = (structures) => loadConverter()._convertPlannerModules({
+    modules: [
+      { id: 't1', section: 'tall', W: 450, H: 2300, D: 350, x: 0, y: 0 },
+      { id: 'b1', section: 'lower', W: 900, H: 450, D: 350, x: 450, y: 0 },
+      { id: 't2', section: 'tall', W: 900, H: 2300, D: 350, x: 1350, y: 0 },
+    ],
+    structures, hasStructures: true,
+  }, specs());
+
+  test('벤치 구조(s.bench)는 몸통 없는 벤치 모듈 하나 — moduleKind bench · 폭 · 깊이 · 위치만', () => {
+    const conv = convert({ t1: doors(450, 1), b1: { bench: true }, t2: doors(900, 2) });
+    const b = conv.modules.find((m) => m.moduleKind === 'bench');
+    expect(b).toMatchObject({ id: 'planner-b1-0', pos: 'lower', w: 900, d: 350, doorCount: 0, isOpen: false, isDrawer: false, _x: 450 });
+  });
+
+  test('거울 구조(s.mirror)는 외짝 single · 양문 left/right 를 그대로, 모르는 값 · 표시 없음은 싣지 않는다', () => {
+    const conv = convert({ t1: doors(450, 1, 'left', { mirror: 'single' }), b1: { bench: true }, t2: doors(900, 2, 'left', { mirror: 'right' }) });
+    const of = (id) => conv.modules.find((m) => String(m.id).indexOf(`planner-${id}-`) === 0);
+    expect([of('t1').mirror, of('t2').mirror]).toEqual(['single', 'right']);
+    const plain = convert({ t1: doors(450, 1, 'left', { mirror: 'top' }), b1: { bench: true }, t2: doors(900, 2) });
+    expect(plain.modules.some((m) => 'mirror' in m)).toBe(false);
   });
 });
