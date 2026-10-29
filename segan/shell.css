@@ -815,6 +815,19 @@ button.sg-row {
   margin-top: 0;
 }
 
+/* 내 정보 › 알림 (segan/push.js) — 아이폰: 홈 화면에 추가하는 법 */
+.me-push-steps {
+  margin: 0;
+  padding-left: 1.4em;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.8;
+}
+
+#mePush .me-pt-msg {
+  margin: 0;
+}
+
 /* 사업자 정보 — 폰에서는 내 정보 아래, PC 에서는 푸터 */
 .sg-biz {
   margin-top: 40px;
