@@ -194,6 +194,22 @@ describe('상태 바꾸기', () => {
     expect(text('#orderRows')).toMatch(/완료 승인 기다림/);
   });
 
+  test('기다리는 요청이 있으면 대표도 상태를 고를 수 없다 — 먼저 승인 · 반려', async () => {
+    const PENDING = { id: 'E7', kind: 'revert', from_status: 'completed', to_status: 'delivered', reason: '하자', state: 'pending', created_at: '2026-10-29T00:00:00Z' };
+    for (const owner of [true, false]) {
+      const api = fakeApi({ status: 'completed', owner, events: [PENDING] });
+      await openOrder(api);
+      expect([...$('#selStatus').options].map((o) => o.textContent)).toEqual(['승인 기다림']);
+      expect($('#selStatus').disabled).toBe(true);
+      expect($('#btnStatus').disabled).toBe(true);
+      expect($('#pendingBadge').hidden).toBe(false);
+      expect(text('#statusHint')).toMatch(/대표 승인을 기다리는 요청: 완료 → 배송 \(완료 되돌리기\) · 하자 — 승인 · 반려 전에는 상태를 바꿀 수 없습니다/);
+      $('#btnStatus').click();
+      await settle();
+      expect(patches(api)).toHaveLength(0);
+    }
+  });
+
   test('대표는 같은 바꾸기를 바로 한다 — 버튼은 [상태 바꾸기]', async () => {
     const api = fakeApi({ status: 'completed', owner: true });
     await openOrder(api);

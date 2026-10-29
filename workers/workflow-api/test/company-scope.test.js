@@ -318,7 +318,8 @@ function orderDetailRoute() {
     extra: (u, method, body) => {
       if (method === 'GET' && u.includes('/orders?id=eq.')) return json([{ id: 'O1', order_no: 'SO-1', design_id: 'd-p', company_id: PARTNER, snapshot_id: 'S1', contract_amount: 1100000, received_amount: 500000, status: 'confirmed' }]);
       if (method === 'PATCH' && u.includes('/orders?')) return json([{ id: 'O1', design_id: 'd-p', company_id: PARTNER, contract_amount: 1100000, received_amount: 500000, ...body }]);
-      // 상태가 바뀌면 기록 한 줄 (src/order-events.js)
+      // 상태가 바뀌면 기록 한 줄 (src/order-events.js) — 기다리는 요청은 없다
+      if (method === 'GET' && u.includes('/order_events?')) return json([]);
       if (method === 'POST' && u.endsWith('/order_events')) return json([{ id: 'E1', ...body }], 201);
       if (u.includes('/order_costs?')) return json([{ id: 'C1', category: 'material', amount: 300000 }]);
       if (u.includes('/design_snapshots?')) return json([{ rev: 1, quote_payload: { total: 1100000, items: [] } }]);

@@ -26,7 +26,7 @@ import {
 } from './supabase.js';
 import { assertCounterparty, NEED_SQL as COUNTERPARTY_NEED_SQL } from './counterparties.js';
 import { isMissingRelation } from './work-order-data.js';
-import { planStatusChange, requestStatusChange, applyStatusChange, statusPatch, statusClears } from './order-events.js';
+import { planStatusChange, requestStatusChange, applyStatusChange, statusPatch, statusClears, assertNoPendingEvent } from './order-events.js';
 
 export const ORDER_STATUSES = ['confirmed', 'in_production', 'delivered', 'completed', 'cancelled'];
 
@@ -297,6 +297,7 @@ export function summarizeMargin(order, costs, quote) {
  * 상태는 order-events.js 의 규칙으로만 바뀐다 ({ status, reason }).
  *   바로 바뀌면 다른 칸과 함께 한 번에 쓰고 기록(order_events)을 한 줄 남긴다 → { order, event }
  *   대표 승인이 필요한데 대표가 아니면 요청만 남기고 수주는 손대지 않는다 (같이 보낸 다른 칸도) → { pending: true, event }
+ *   승인을 기다리는 요청이 있으면 누구도(대표도) 상태를 못 바꾼다 — 409 pending_exists (먼저 승인 · 반려).
  *   지금 상태와 같은 status 는 바꾸기가 아니다 — 다른 칸만 고친다.
  */
 export async function updateOrder(env, { orderId, user, patch }) {
@@ -312,6 +313,7 @@ export async function updateOrder(env, { orderId, user, patch }) {
       throw new ValidationError(`status 는 ${ORDER_STATUSES.join(', ')} 중 하나여야 합니다`);
     }
     if (patch.status !== order.status) {
+      await assertNoPendingEvent(env, order.id);
       plan = await planStatusChange(env, { order, user, to: patch.status, reason: patch.reason });
       if (plan.pending) {
         return { pending: true, order: null, event: await requestStatusChange(env, { order, user, plan }) };
