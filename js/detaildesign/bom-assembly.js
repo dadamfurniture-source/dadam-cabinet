@@ -1270,6 +1270,7 @@
       || back.qty !== 1 || back.thickness !== T || back.w !== tb.w || back.h !== H) return null;
     const zBack = -D / 2, zFront = D / 2;
     const parts = [], unplaced = [];
+    const hcShelves = [];   // 홈카페장 선반 — 아래에서 구조 자리(opts.shelfY) 순으로
     const skip = (row, reason) => unplaced.push({ rowPartId: row.partId, moduleKey: mk, part: row.part, qty: row.qty, reason });
     parts.push(makePart(side, 0, { o: [-W / 2, 0, zBack], u: '+z', v: '+y', n: '+x' }, [], 'exterior', { side: 'left' }));
     parts.push(makePart(side, 1, { o: [W / 2, 0, zBack], u: '+z', v: '+y', n: '-x' }, [], 'exterior', { side: 'right' }));
@@ -1295,7 +1296,10 @@
         parts.push(makePart(row, 0, { o: [xs[0], y0, zFront], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { doorIdx: 0 }));
         return;
       }
-      if (key.family === 'shelf') { skip(row, 'shelf-height-unknown'); return; }
+      if (key.family === 'shelf') {
+        if (homecafe) { hcShelves.push(row); return; }
+        skip(row, 'shelf-height-unknown'); return;
+      }
       if (/^pedestal:/.test(key.family) || key.family === 'kick') return;   // 아래에서 좌대 상자를 한꺼번에
       if (RICE_SHELF_FAMILIES.includes(key.family)) return;                 // 아래에서 밥솥장 슬라이딩 선반을 한꺼번에
       if (key.family === 'rice:top-batten') { if (!placeRiceTopBattens(parts, row, { W, H, zFront, zBack })) skip(row, 'rice-top-batten-layout-unknown'); return; }
@@ -1318,6 +1322,20 @@
       if (!pd || row.qty !== 1 || row.h !== W || row.w !== pd.h) { skip(row, 'pedestal-layout-unknown'); return; }
       parts.push(makePart(row, 0, { o: [-W / 2, -pd.h, pd.zFront], u: '+y', v: '+x', n: '+z' }, [], 'exterior', { pedestal: true, kick: true }));
     });
+    // 2026-10-29: 홈카페장 선반 — 높이는 부르는 쪽(플래너 구조 s.shelves → opts.shelfY, 선반 중심 y)이 넘긴다. 장수가 BOM 과 다르면 놓지 않는다.
+    //   뒤끝 = 천지판 뒤끝 (뒷판 앞), 깊이 = 행 (D − 15 — 앞이 15 들어간다), 측판 사이
+    if (hcShelves.length) {
+      const qty = hcShelves.reduce((s, r) => s + r.qty, 0);
+      const ys = opts.shelfY && opts.shelfY[mk];
+      if (!Array.isArray(ys) || ys.length !== qty) hcShelves.forEach((r) => skip(r, 'shelf-height-unknown'));
+      else {
+        const sorted = ys.slice().sort((a, b) => a - b);
+        let i = 0;
+        hcShelves.forEach((r) => {
+          for (let k = 0; k < r.qty; k++, i++) parts.push(makePart(r, k, { o: [-W / 2 + T, sorted[i] - r.thickness / 2, zFront - tb.h], u: '+x', v: '+z', n: '+y' }, [], 'interior', { shelfIdx: i }));
+        });
+      }
+    }
     // 2026-10-25 사장님: 오픈 밥솥장 슬라이딩 선반 — 바닥판(천지판) 윗면 = T, 몸통 앞선 = 측판 앞끝
     const rice = placeRiceShelf(parts, keyed, { W, D, T, floorY: T, zFront }, mod, skip);
     return {

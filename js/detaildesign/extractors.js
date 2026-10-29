@@ -2151,7 +2151,8 @@
           R.partsOf(dims).forEach((p) => {
             this.add(materials, name, p.part, p.material, p.t, p.w, p.h, p.qty, p.edge, p.note || '');
           });
-          const door = R.doorOf(dims, mod.doorCount);
+          // 2026-10-29: 도어 없는 홈카페장 (mod.homecafeOpen — bom-homecafe-rules.js) 은 도어 행이 없다
+          const door = R.doorOf(dims, mod.doorCount, { open: !!mod.homecafeOpen });
           if (door) this.add(materials, name, '도어', 'MDF', 18, door.w, door.h, door.qty, '4면', '', mod);
         }
 
@@ -3500,8 +3501,9 @@
               ? (RiceRules.doorOf({ W: mod.w, H: mod.h }, mod.doorType || 'none') || { qty: 0 }) : null;
             if (riceDoor) doorCount = riceDoor.qty;
             // 2026-10-20: 플래너 홈카페장 모듈 타입 — 자재 행과 같은 규칙 파일 doorOf (H + 20, 수 없으면 1)
+            //   2026-10-29: 도어 없는 홈카페장(homecafeOpen)은 경첩도 없다 — 도어 0
             const hcDoor = (!riceDoor && HomecafeRules && String(mod.moduleKind || '') === HomecafeRules.RULES.KIND)
-              ? HomecafeRules.doorOf({ W: mod.w, H: mod.h }, mod.doorCount) : null;
+              ? (HomecafeRules.doorOf({ W: mod.w, H: mod.h }, mod.doorCount, { open: !!mod.homecafeOpen }) || { qty: 0, h: 0 }) : null;
             // B4: 붙박이장 통 · 냉장고장 모듈은 자재 도어 행과 같은 수·높이
             const wardrobeDoor = riceDoor ? null
               : hcDoor ? { count: hcDoor.qty, h: hcDoor.h }
