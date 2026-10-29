@@ -748,7 +748,19 @@
   gap: 8px;
 }
 
-/* 고르는 칸 — 라디오를 칩 모양으로 (업체 상담 설정의 함 · 외주 · 안 함) */
+/* 신청서 안의 고르는 칸 (도어 마감 · 철거 · 가격대) — 이름은 입력 칸 이름과 같은 모양 */
+.cs-pick {
+  gap: 0;
+}
+
+.cs-pick legend {
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  font-weight: 300;
+  color: var(--mk-dim);
+}
+
+/* 고르는 칸 — 라디오를 칩 모양으로 (상담 신청 · 업체 상담 설정의 함 · 외주 · 안 함) */
 .cs-choices {
   display: flex;
   flex-wrap: wrap;

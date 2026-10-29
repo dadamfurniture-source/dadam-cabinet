@@ -5,8 +5,10 @@
  *
  *   - 저장은 consultation.html 과 같은 길 (Supabase consultations insert) — 새 엔드포인트 없음
  *   - 고객이 적는 칸 / 저절로 채우는 칸 / 뺀 칸 (상담 종류 · 가구 종류 · 공간 · 치수 · 예산 · 스타일 · 희망 날짜)
+ *   - 상담받을 곳은 고르지 않는다 (모두 다담 본사 → 업체 배정). 시공 지역은 언제나 필수
+ *   - 도어 마감 · 철거 · 가격대 (필수, 「모름」 있음), 동의 둘 — 수집 · 이용(필수) · 업체 제공(선택)
  *   - 시공 지역 목록 = signup.html, 연락 시간 값 = consultation.html
- *   - 보내는 칸은 consultation.html 이 쓰는 칸 + SQL 파일이 더하는 칸뿐
+ *   - 보내는 칸은 consultation.html 이 쓰는 칸 + SQL 파일 · 0019 가 더하는 칸뿐
  *   - 새 칸이 없으면 신청서 대신 「아직 받을 수 없습니다」 + 전화
  */
 const fs = require('fs');
@@ -16,6 +18,19 @@ const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const AuthRedirect = require('../js/auth-redirect.js');
 const SQL = read('database/consultations-app.sql');
+// 도어 마감 · 철거 · 가격대 · 업체 제공 동의 칸 — database/migrations/0019 (DB 쪽 PR) 가 더한다
+const COLUMNS_0019 = [
+  'door_finish',
+  'demolition_needed',
+  'wanted_price_tier',
+  'third_party_agreed_at',
+  'consent_version',
+];
+const MIGRATION_0019 = (() => {
+  const dir = path.join(ROOT, 'database/migrations');
+  const f = fs.readdirSync(dir).find((n) => /^0019_.*\.sql$/.test(n));
+  return f ? read('database/migrations/' + f) : null;
+})();
 const ID = '11111111-2222-4333-8444-555555555555';
 const API = 'https://gen.example.workers.dev/api/generate';
 const SESSION = {
@@ -129,6 +144,18 @@ function pick(name, value) {
   el.checked = true;
   el.dispatchEvent(new window.Event('change'));
 }
+/** 필수로 고르는 칸 · 수집 동의 */
+function fillRequired() {
+  pick('doorFinish', 'highgloss');
+  pick('demolition', 'yes');
+  pick('priceTier', 'mid');
+  $('csAgree').checked = true;
+}
+const radios = (name) =>
+  [...document.querySelectorAll(`input[name="${name}"]`)].map((el) => [
+    el.value,
+    el.closest('label').textContent.trim(),
+  ]);
 
 afterEach(() => jest.restoreAllMocks());
 
@@ -155,7 +182,8 @@ describe('들어오기 전', () => {
     const calls = await load({ columnsMissing: true });
     expect(view()).toEqual(['unavailable']);
     expect(calls.probes).toEqual([
-      'generation_id,quote,sido,gugun,consult_target,privacy_agreed_at',
+      'generation_id,quote,sido,gugun,privacy_agreed_at,' +
+        'door_finish,demolition_needed,wanted_price_tier,third_party_agreed_at,consent_version',
     ]);
     expect(visible($('csTelLine'))).toBe(true);
     expect(calls.inserts).toEqual([]);
@@ -226,6 +254,73 @@ describe('신청서', () => {
     expect($('csGugun').disabled).toBe(false);
   });
 
+  test('상담받을 곳(본사 · 협력업체)은 고르지 않는다 — 지역은 언제나 필수', async () => {
+    await load();
+    expect(document.querySelectorAll('input[name="target"]')).toHaveLength(0);
+    expect($('csForm').textContent).not.toMatch(/누구와 상담할까요|가까운 협력업체|준비 중/);
+    for (const id of ['csCallPartner', 'csDonePartner', 'csSidoLabel'])
+      expect(document.getElementById(id)).toBeNull();
+    const labels = [...$('csFields').querySelectorAll('.cs-region .mk-input > span')].map(
+      (s) => s.textContent
+    );
+    expect(labels).toEqual(['시공 지역 · 시/도 · 필수', '시/군/구 · 필수']);
+  });
+
+  test('도어 마감 · 철거 · 가격대 — 값은 consultations 칸 값, 이름은 업체 상담 칸(partner-consults.js)과 같다', async () => {
+    await load();
+    (0, eval)(read('segan/partner-consults.js'));
+    const P = window.SeganPartnerConsults;
+    expect(radios('doorFinish')).toEqual(Object.entries(P.DOOR_FINISH));
+    expect(radios('priceTier')).toEqual(Object.entries(P.PRICE_TIER));
+    expect(radios('demolition')).toEqual([
+      ['yes', '예'],
+      ['no', '아니요'],
+    ]);
+    expect(window.SeganConsult.DOOR_FINISHES).toEqual(Object.keys(P.DOOR_FINISH));
+    expect(window.SeganConsult.PRICE_TIERS).toEqual(Object.keys(P.PRICE_TIER));
+    // 처음엔 아무것도 골라 두지 않는다
+    for (const n of ['doorFinish', 'demolition', 'priceTier'])
+      expect(document.querySelector(`input[name="${n}"]:checked`)).toBeNull();
+    // DB 쪽 마이그레이션이 들어와 있으면 CHECK 값과도 같다
+    if (MIGRATION_0019) {
+      const list = (col) =>
+        [
+          ...MIGRATION_0019.match(new RegExp(`${col} = ANY \\(ARRAY\\[([^\\]]*)\\]`))[1].matchAll(
+            /'(\w+)'/g
+          ),
+        ].map((m) => m[1]);
+      expect(list('door_finish')).toEqual(window.SeganConsult.DOOR_FINISHES);
+      expect(list('wanted_price_tier')).toEqual(window.SeganConsult.PRICE_TIERS);
+    }
+  });
+
+  test('동의 둘 — 수집 · 이용(필수) · 다담이 정한 업체에 제공(선택), 제공 내용', async () => {
+    await load();
+    const agrees = [...$('csFields').querySelectorAll('.cs-agree')].map((l) => [
+      l.querySelector('input').id,
+      l.textContent.trim(),
+    ]);
+    expect(agrees).toEqual([
+      ['csAgree', '개인정보 수집·이용에 동의합니다 (필수)'],
+      [
+        'csAgreeThird',
+        '다담 협력업체 목록 중 다담이 정한 업체에 상담 정보를 제공하는 데 동의합니다 (선택)',
+      ],
+    ]);
+    expect($('csAgreeThird').checked).toBe(false);
+    expect([...$('csThirdDetail').querySelectorAll('li')].map((li) => li.textContent)).toEqual([
+      '받는 곳: 다담 협력업체(다담 공장 포함) 중 다담이 정한 한 곳 — 연결되면 업체 이름을 알려 드립니다',
+      '항목: 이름 · 전화 · 지역 · 연락 시간 · 요청 사항 · 도어 마감 · 철거 · 가격대 · 연출컷 · 예상 견적',
+      '목적: 상담 · 견적 · 시공',
+      '보유: 상담 목적을 이룰 때까지',
+      '동의하지 않으면 다담 본사가 직접 상담합니다',
+    ]);
+    // 수집 · 이용 목적에는 업체 연결을 넣지 않는다 (따로 묻는다)
+    const privacy = $('csFields').querySelector('.cs-agree-detail').textContent;
+    expect(privacy).toContain('목적: 상담 신청 처리');
+    expect(privacy).not.toContain('협력업체 연결');
+  });
+
   test('연락 받기 좋은 시간 값 = consultation.html #preferredTime', async () => {
     await load();
     const site = [
@@ -250,7 +345,7 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
     const calls = await load();
     $('csTime').value = '15:00-18:00';
     $('csDesc').value = '다음 달 입주라 급해요';
-    $('csAgree').checked = true;
+    fillRequired();
     await send();
     expect(calls.inserts).toHaveLength(1);
     const { table, row } = calls.inserts[0];
@@ -270,26 +365,82 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
       quote: QUOTE,
       sido: '대구광역시',
       gugun: '북구',
-      consult_target: 'hq',
+      door_finish: 'highgloss',
+      demolition_needed: true,
+      wanted_price_tier: 'mid',
+      third_party_agreed_at: null,
+      consent_version: null,
     });
-    // 보내는 칸은 consultation.html 이 쓰는 칸 + SQL 파일이 더하는 칸뿐
-    const allowed = new Set(siteKeys().concat(sqlColumns()));
+    // 상담받을 곳 · 회사는 보내지 않는다 (company_id 는 DB 기본값 — 다담 본사)
+    expect(row).not.toHaveProperty('consult_target');
+    expect(row).not.toHaveProperty('company_id');
+    // 보내는 칸은 consultation.html 이 쓰는 칸 + SQL 파일 · 0019 가 더하는 칸뿐
+    const allowed = new Set(siteKeys().concat(sqlColumns(), COLUMNS_0019));
     for (const k of Object.keys(row)) expect([k, allowed.has(k)]).toEqual([k, true]);
-    // 접수 화면 — 다음에 일어나는 일 · 전화 · 결과로
+    if (MIGRATION_0019) {
+      for (const c of COLUMNS_0019)
+        expect([c, MIGRATION_0019.includes(`ADD COLUMN IF NOT EXISTS ${c} `)]).toEqual([c, true]);
+    }
+    // 접수 화면 — 업체 제공에 동의하지 않았으면 본사가 직접 · 전화 · 결과로
     expect(view()).toEqual(['done']);
     expect($('csDoneTitle').textContent).toBe('상담 신청이 접수되었습니다');
+    expect($('csDoneText').textContent).toBe(
+      '다담 본사가 확인한 뒤 남기신 연락처로 직접 연락드립니다.'
+    );
     expect($('csDoneTel').querySelector('a').getAttribute('href')).toBe('tel:01077386822');
     expect($('csDoneBack').getAttribute('href')).toBe(`./?g=${ID}#result`);
-    expect($('csDonePartner').hidden).toBe(true);
+  });
+
+  test('업체 제공 동의 — 같은 시각으로 third_party_agreed_at · consent_version v1, 접수 화면은 「가까운 업체를 연결」', async () => {
+    const calls = await load();
+    fillRequired();
+    $('csAgreeThird').checked = true;
+    await send();
+    const { row } = calls.inserts[0];
+    expect(row.third_party_agreed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(row.third_party_agreed_at).toBe(row.privacy_agreed_at);
+    expect(row.consent_version).toBe('v1');
+    expect($('csDoneText').textContent).toBe(
+      '다담 본사가 확인한 뒤 가까운 업체를 연결해 드립니다.'
+    );
+    // 특정 업체를 약속하지 않는다
+    expect($('csDoneText').textContent).not.toMatch(/협력업체|공장|업체 이름/);
   });
 
   test.each([
+    ['아니요 · 모름 · 보급', 'no', 'unknown', 'basic', false],
+    ['예 · 세라믹 · 고급', 'yes', 'ceramic', 'high', true],
+  ])('고른 값 그대로 — %s', async (_n, demolition, door, tier, dem) => {
+    const calls = await load();
+    fillRequired();
+    pick('demolition', demolition);
+    pick('doorFinish', door);
+    pick('priceTier', tier);
+    await send();
+    expect(calls.inserts[0].row).toMatchObject({
+      demolition_needed: dem,
+      door_finish: door,
+      wanted_price_tier: tier,
+    });
+  });
+
+  const uncheck = (name) => () =>
+    document.querySelectorAll(`input[name="${name}"]`).forEach((el) => (el.checked = false));
+  test.each([
     ['이름 없음', () => ($('csName').value = ''), '이름을 적어 주세요.'],
     ['연락처 없음', () => ($('csPhone').value = ' '), '연락처를 적어 주세요.'],
+    [
+      '시/군/구 없음',
+      () => ($('csGugun').value = ''),
+      '시공 지역(시/도 · 시/군/구)을 골라 주세요.',
+    ],
+    ['도어 마감 안 고름', uncheck('doorFinish'), '원하는 도어 마감을 골라 주세요.'],
+    ['철거 안 고름', uncheck('demolition'), '철거가 필요한지 골라 주세요.'],
+    ['가격대 안 고름', uncheck('priceTier'), '원하는 가격대를 골라 주세요.'],
     ['동의 안 함', () => ($('csAgree').checked = false), '개인정보 수집·이용에 동의해 주세요.'],
   ])('%s → 보내지 않고 안내', async (_n, change, message) => {
     const calls = await load();
-    $('csAgree').checked = true;
+    fillRequired();
     change();
     await send();
     expect(calls.inserts).toEqual([]);
@@ -297,23 +448,18 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
     expect($('csError').textContent).toBe(message);
   });
 
-  test('가까운 협력업체 — 지역이 있어야 하고, 고른 값만 남긴다(연결은 아직)', async () => {
+  test('지역은 언제나 필수 — 프로필에 없으면 골라야 보낸다', async () => {
     const calls = await load({ profile: { name: '김고객', phone: '010-2222-3333' } });
-    pick('target', 'partner');
-    $('csAgree').checked = true;
+    fillRequired();
     await send();
     expect(calls.inserts).toEqual([]);
-    expect($('csError').textContent).toBe('협력업체를 찾으려면 시공 지역을 골라 주세요.');
+    expect($('csError').textContent).toBe('시공 지역(시/도 · 시/군/구)을 골라 주세요.');
     $('csSido').value = '경기도';
     $('csSido').dispatchEvent(new window.Event('change'));
     $('csGugun').value = '수원시';
     await send();
-    expect(calls.inserts[0].row).toMatchObject({
-      consult_target: 'partner',
-      sido: '경기도',
-      gugun: '수원시',
-    });
-    expect(visible($('csDonePartner'))).toBe(true);
+    expect(calls.inserts[0].row).toMatchObject({ sido: '경기도', gugun: '수원시' });
+    expect(view()).toEqual(['done']);
   });
 
   test('지금 전화하기 — 신청서 대신 대표 전화, 저장하지 않는다', async () => {
@@ -330,7 +476,7 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
 
   test('저장 실패 — 안내하고 다시 누를 수 있다', async () => {
     const calls = await load({ insertError: { message: 'permission denied' } });
-    $('csAgree').checked = true;
+    fillRequired();
     await send();
     expect(calls.inserts).toHaveLength(1);
     expect(view()).toEqual(['form']);
