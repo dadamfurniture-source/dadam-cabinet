@@ -577,24 +577,24 @@
     },
     {
       "module": "키큰장(중간단)",
-      "part": "밴드",
+      "part": "천판",
       "material": "PB",
       "thickness": 15,
-      "w": 70,
-      "h": 770,
-      "qty": 2,
-      "edge": "2면(장)",
+      "w": 770,
+      "h": 450,
+      "qty": 1,
+      "edge": "1면(전)",
       "note": "",
       "finishCode": "",
-      "partId": "0-planner-x-1-body:band#0-0",
+      "partId": "0-planner-x-1-body:top-0",
       "slot": "body",
       "edges": {
-        "L": true,
-        "R": true,
+        "L": false,
+        "R": false,
         "T": false,
-        "B": false
+        "B": true
       },
-      "edgeLen": 1540,
+      "edgeLen": 770,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-planner-x-1",
@@ -752,24 +752,24 @@
     },
     {
       "module": "키큰장(상부단)",
-      "part": "밴드",
+      "part": "천판",
       "material": "PB",
       "thickness": 15,
-      "w": 70,
-      "h": 770,
-      "qty": 2,
-      "edge": "2면(장)",
+      "w": 770,
+      "h": 450,
+      "qty": 1,
+      "edge": "1면(전)",
       "note": "",
       "finishCode": "",
-      "partId": "0-planner-x-2-body:band#0-0",
+      "partId": "0-planner-x-2-body:top-0",
       "slot": "body",
       "edges": {
-        "L": true,
-        "R": true,
+        "L": false,
+        "R": false,
         "T": false,
-        "B": false
+        "B": true
       },
-      "edgeLen": 1540,
+      "edgeLen": 770,
       "edgeT": 0.6,
       "edgeCode": null,
       "moduleKey": "0-planner-x-2",
@@ -1205,7 +1205,7 @@
     "PB_15": {
       "material": "PB",
       "thickness": 15,
-      "totalArea": 8021410,
+      "totalArea": 8498810,
       "panelCount": 3
     },
     "MDF_3": {
@@ -1223,7 +1223,7 @@
   },
   "edgeBanding": {
     "1": 23480,
-    "0.6": 74444
+    "0.6": 69824
   },
   "hardware": [
     {

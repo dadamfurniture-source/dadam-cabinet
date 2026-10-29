@@ -118,10 +118,17 @@ describe('P1-1 키큰장 단은 하부장 규칙이 아니다 (sink.md §5)', ()
     expect(rowsOf(rows, 'ep', '상몰딩')).toHaveLength(0);   // 상부장이 없다
   });
 
-  test('몸통은 하부장과 같다 — 측판·지판·밴드·뒷판 (단별 H)', () => {
+  test('몸통은 하부장 짜임 — 측판·지판·뒷판 (단별 H), 맨 아래 단만 밴드 · 가운데 · 위 단은 천판 (2026-10-30 사장님)', () => {
     expect(one(rows, 'planner-tall-1-0', '측판')).toMatchObject({ w: 620, h: 979, qty: 2 });
     expect(one(rows, 'planner-tall-1-0', '지판')).toMatchObject({ w: 570, h: 620 });
-    expect(one(rows, 'planner-tall-1-0', '밴드')).toMatchObject({ w: 70, h: 570, qty: 2 });
+    // 「지금 짜임에서 밴드만 천판으로」 — 천판 = 지판과 같은 판, 밴드 없음
+    expect(one(rows, 'planner-tall-1-0', '천판')).toMatchObject({ w: 570, h: 620, qty: 1 });
+    expect(rowsOf(rows, 'planner-tall-1-0', '밴드')).toHaveLength(0);
+    expect(one(rows, 'planner-tall-2-0', '천판')).toMatchObject({ w: 570, h: 620, qty: 1 });
+    expect(rowsOf(rows, 'planner-tall-2-0', '밴드')).toHaveLength(0);
+    // "맨 아래 단만 하부장 처럼 밴드 구성 그대로" — 좌대 단은 밴드 2, 천판 없음
+    expect(one(rows, 'planner-tall-0-0', '밴드')).toMatchObject({ w: 70, h: 570, qty: 2 });
+    expect(rowsOf(rows, 'planner-tall-0-0', '천판')).toHaveLength(0);
     expect(one(rows, 'planner-tall-1-0', '뒷판')).toMatchObject({ thickness: 3, w: 599, h: 978 });   // 뒷판 우라 3T · 사쿠리 없음 → 측판 뒤 덮음 (W−1)×(H−1) (2026-10-19)
   });
 

@@ -592,11 +592,15 @@ describe('오픈장·밥솥장 자리 — 18T 상자', () => {
     expect(box(m, '뒷판', 0)).toEqual({ min: [-232, 0, -285], max: [232, 450, -267] });
   });
 
-  test('밥솥장 여닫이 — 일반 장 몸통 (2026-10-25) + 도어 (W−4)×(H−4) 가 측판 앞선에 붙어 가운데', () => {
+  test('밥솥장 여닫이 — 일반 장 몸통 (2026-10-25) + 도어 (W−4)×(H−4) 가 측판 앞선에 붙어 가운데, 천판 (2026-10-30 — 밴드 대신)', () => {
     const m = mod('rc1');
-    expect(m.parts.map((p) => p.part)).toEqual(['측판', '측판', '지판', '밴드', '밴드', '뒷판', '도어',
+    expect(m.parts.map((p) => p.part)).toEqual(['측판', '측판', '지판', '천판', '뒷판', '도어',
       '밥솥장 보강목', '밥솥장 보강목', '밥솥장 추가 목대', '밥솥장 선반', '밥솥장 마이다']);
     expect(box(m, '도어', 0)).toEqual({ min: [-298, 2, 275], max: [298, 698, 293] });
+    // 천판 — 측판 사이 맨 위 (윗면 = 몸통 상단), 깊이 = 지판과 같다
+    const top = box(m, '천판', 0), bot = box(m, '지판', 0);
+    expect(top.max[1]).toBe(700);
+    expect([top.min[0], top.max[0], top.min[2], top.max[2]]).toEqual([bot.min[0], bot.max[0], bot.min[2], bot.max[2]]);
   });
 
   test('밥솥장 슬라이딩 선반 자리 (2026-10-25 사장님): 선반은 언더레일 바로 위 · 보강목은 선반 밑면에 딱 · 마이다 밑단 = 지판 + 3 · 여닫이 레일은 추가 목대에', () => {
@@ -1160,13 +1164,12 @@ describe('키큰장 단 자리 — 좌대 뒤 맞춤 · 걸레받이 · 목찬�
     expect(box(m, '좌대 걸레받이', 0)).toEqual({ min: [-400, -60, 175], max: [400, 0, 193] });
   });
 
-  test('warehouse planner-x-1·x-2 — 목찬넬 없는 단: 따내기 없음, 밴드 둘 다 몸통 상단', () => {
+  test('warehouse planner-x-1·x-2 — 가운데 · 위 단: 따내기 없음, 밴드 대신 천판이 몸통 상단 (2026-10-30 사장님 — 맨 아래 단만 밴드)', () => {
     [['planner-x-1', 780], ['planner-x-2', 600]].forEach(([id, H]) => {
       const m = modOf(wh, id);
       expect(notches(m, 0)).toEqual([]);
-      expect(m.parts.filter((p) => /목찬넬|좌대/.test(p.part))).toEqual([]);
-      expect(box(m, '밴드', 0)).toEqual({ min: [-385, H - 15, 155], max: [385, H, 225] });
-      expect(box(m, '밴드', 1)).toEqual({ min: [-385, H - 15, -225], max: [385, H, -155] });
+      expect(m.parts.filter((p) => /목찬넬|좌대|^밴드$/.test(p.part))).toEqual([]);
+      expect(box(m, '천판', 0)).toEqual({ min: [-385, H - 15, -225], max: [385, H, 225] });
     });
   });
 
