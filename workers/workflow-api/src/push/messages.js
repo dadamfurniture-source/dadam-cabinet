@@ -96,13 +96,14 @@ function partnerApplication({ status, upgrade = false, rescheduled = false } = {
   return { title: '업체 신청', body, url: PARTNER_URL };
 }
 
-/** 결제 실패 — 업체 대표에게. { final } (재시도 시작 · 마지막 실패). 금액은 싣지 않는다 */
-function billingFailed({ final = false } = {}) {
+/**
+ * 결제 실패 — 업체 대표에게, 재시도가 시작될 때(첫 실패). 금액은 싣지 않는다.
+ * 마지막 재시도도 실패해 업체가 정지되는 실행에서는 보내지 않고 업체 정지 하나만 간다 (payments-api).
+ */
+function billingFailed() {
   return {
     title: '결제 실패',
-    body: final
-      ? '업체 구독 결제가 끝내 되지 않았습니다. 결제 관리에서 결제 수단을 확인해 주세요.'
-      : '업체 구독 결제가 되지 않았습니다. 결제 관리에서 결제 수단을 확인해 주세요.',
+    body: '업체 구독 결제가 되지 않았습니다. 결제 관리에서 결제 수단을 확인해 주세요.',
     url: PARTNER_URL,
   };
 }
