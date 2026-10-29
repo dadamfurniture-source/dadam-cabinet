@@ -1237,6 +1237,18 @@
         return (typeof window !== 'undefined' && window.DadamOpenCabinetRules) || null;
       }
 
+      /**
+       * 2026-10-30 사장님 (간편 플래너 가전 연동): 가전 칸에 고른 가전 — 구조 s.appliance (가전 DB 한 줄:
+       *   category · name · w · h · d · sideGap · topGap · backGap · nicheW · nicheH). 오픈장 · 밥솥장 경고 모양 {W,H,D,…} 로. 없으면 null.
+       */
+      function _applianceOf(s) {
+        const a = s && s.appliance;
+        if (!a || typeof a !== 'object') return null;
+        const n = (v) => (v != null && Number.isFinite(Number(v)) ? Number(v) : null);
+        return { name: String(a.name || ''), W: n(a.w), H: n(a.h), D: n(a.d),
+          sideGap: n(a.sideGap), topGap: n(a.topGap), backGap: n(a.backGap), nicheW: n(a.nicheW), nicheH: n(a.nicheH) };
+      }
+
       /** 2026-10-20: 홈카페장 규칙 (fridge.md §11) — 플래너와 BOM 이 읽는 그 파일. */
       function _homecafeRules() {
         if (typeof DadamHomecafeRules !== 'undefined') return DadamHomecafeRules;
@@ -1412,12 +1424,18 @@
             const w = Number(m.W) || 0;
             const h = _carcassHeight(m.H, m.section, specs, s);
             const d = Number(m.D) || 0;
-            (OC.warningsOf({ W: w, H: h, D: d }) || []).forEach((t) => warnings.push(`${m.id}: ${t}`));
+            // 2026-10-30 사장님: 빌트인 오븐장 — 같은 상자를 PB 15T 로 (bom-open-cabinet-rules BUILTIN_OVEN). 구조 표시를 그대로 싣는다.
+            //   고른 가전(s.appliance)이 있으면 칸에 드는지 경고로 남긴다 (applianceWarningsOf — 빌트인은 니치, 그 밖은 외경 + 여유).
+            const builtin = !!(OC.isBuiltinOven && OC.isBuiltinOven(s));
+            const box = builtin ? { W: w, H: h, D: d, builtinOven: true } : { W: w, H: h, D: d };
+            (OC.warningsOf(box) || []).forEach((t) => warnings.push(`${m.id}: ${t}`));
+            const app = _applianceOf(s);
+            if (app && OC.applianceWarningsOf) OC.applianceWarningsOf(box, app, app.name).forEach((t) => warnings.push(`${m.id}: ${t}`));
             out.push({
               id: `planner-${m.id}-open`,
               type: boxType,              // 'hood' 처럼 BOM 에서 제외되는 type 이면 안 된다
               moduleKind: OC.RULES.KIND,  // extractors 가 이 값 하나로 오픈장 규칙을 탄다
-              name: OC.RULES.LABEL,
+              name: builtin ? OC.RULES.BUILTIN_OVEN.LABEL : OC.RULES.LABEL,
               pos,
               w,
               h,
@@ -1434,6 +1452,7 @@
               isFixed: !!m.isFixed,
               _x: Number(m.x) || 0,
             });
+            if (builtin) out[out.length - 1].builtinOven = true;   // 표시가 없는 모듈의 payload 는 예전과 같다
             placeLast(m, 0, w);
             return;
           }
@@ -1454,6 +1473,9 @@
             const door = RC.doorTypeOf(s);
             const ctx = m.riceBelow ? Object.assign({ below: m.riceBelow }, stacked ? { lowerStack: true } : {}) : {};
             (RC.warningsOf({ W: w, H: h, D: d }, ctx) || []).forEach((t) => warnings.push(`${m.id}: ${t}`));
+            // 2026-10-30 사장님: 고른 밥솥(s.appliance)이 들어가는지 — 밥솥 H + 선반 · 레일 70 · 외경 (cookerWarningsOf)
+            const cooker = _applianceOf(s);
+            if (cooker && RC.cookerWarningsOf) RC.cookerWarningsOf({ W: w, H: h, D: d }, { w: cooker.W, h: cooker.H, d: cooker.D }, cooker.name).forEach((t) => warnings.push(`${m.id}: ${t}`));
             // 2026-10-24: 경첩으로 세는 도어(여닫이 · 포켓)는 외짝 — 경첩 방향 = 칸 열림 방향 좌 ◀ / 우 ▶ (2026-10-23 사장님 4-1 C, 셀 모듈과 같다).
             //   조립 명세가 경첩 컵 자리를 그 변에 놓는다. 방향을 모르면 붙이지 않는다 (지어내지 않는다).
             const dir0 = s && Array.isArray(s.areaDirections) ? s.areaDirections[0] : null;
@@ -1712,6 +1734,9 @@
               _x: c.x,
             });
             placeLast(m, (Number(c.x) || 0) - (Number(m.x) || 0), c.w);
+            // 2026-10-30 사장님 (냉장고 위장 선반 「0장」): 냉장고장 위장은 선반 수를 구조 그대로 낸다 — 플래너 calcDefaultShelves('fridge')
+            //   가 위장(최대 400)에 선반을 두지 않는다. BOM 싱크 상부장 2장 고정을 타지 않게 표시만 싣는다 (표시 없는 모듈은 예전과 같다).
+            if (m.section === 'fridge') out[out.length - 1].fridgeUpper = true;
             // 2026-09-15: 서랍 규칙(레일·사쿠리·서랍 자재 두께·전면 등급)은 서랍이 있는 셀에만 — 없는 모듈의 payload 는 예전과 같다.
             if (!isOpen && drawerAtBottom) out[out.length - 1].drawer = _drawerRulesOf(s);
             // 2026-10-24 사장님 "서랍장 맨 위 칸도 서랍": 플래너 서랍장(drawer.topDrawer)은 전면이 모두 서랍이다 —

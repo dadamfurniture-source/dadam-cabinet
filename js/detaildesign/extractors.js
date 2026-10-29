@@ -2024,16 +2024,19 @@
           open.forEach((mod, i) => {
             // 2026-10-20: 행 식별자(partId·moduleKey)가 이 모듈을 가리키게 — 문맥이 없으면 '0-none' 으로 떨어져 조립 명세가 모듈을 못 찾는다.
             this.beginModule(mod, i, mod.pos);
+            // 2026-10-30 사장님: 빌트인 오븐장(mod.builtinOven)은 같은 상자를 PB 15T 로 · 뒷판 높이 절반 — 규칙 파일이 낸다
+            const builtin = !!(R.isBuiltinOven && R.isBuiltinOven(mod));
             const dims = { W: Number(mod.w) || 0, H: Number(mod.h) || 0, D: Number(mod.d) || 0 };
+            if (builtin) dims.builtinOven = true;
             // 같은 품목에 오픈장이 여럿이면 자재표에서 구분되어야 한다 (#1·#2 는 품목 접두사라 여기선 못 쓴다).
-            const name = `${prefix}${R.RULES.LABEL}${open.length > 1 ? ` ${i + 1}` : ''}`;
+            const name = `${prefix}${builtin ? R.RULES.BUILTIN_OVEN.LABEL : R.RULES.LABEL}${open.length > 1 ? ` ${i + 1}` : ''}`;
             const parts = R.partsOf(dims);
             if (!parts.length) {
               dlog(`[BOM] 오픈장 ${mod.id || name} 치수가 규칙을 못 채운다:`, dims, R.warningsOf(dims));
               return;
             }
             parts.forEach((p) => {
-              this.add(materials, name, p.part, p.material, p.t, p.w, p.h, p.qty, p.edge, '', mod);
+              this.add(materials, name, p.part, p.material, p.t, p.w, p.h, p.qty, p.edge, p.note || '', mod);
             });
             this.addTallStackParts(materials, name, mod, (item && item.specs) || {});
           });
@@ -2367,8 +2370,9 @@
             // 선반 2개 (사쿠리 반영 D-34). 2026-09-13: 멍장은 ㄱ자 목대 깊이 75 만큼 짧다 (corner.md §3.5)
             //   2026-10-26 사장님: 후드장은 선반이 없다 (덕트 자리 — bom-fixture-cabinet-rules NO_SHELF)
             //   2026-10-29 사장님 (간편 플래너 선반 단추): 속을 정한 모듈(bomInteriorOf)은 구조 선반 수 그대로 (0 이면 없음)
+            //   2026-10-30 사장님 (냉장고 위장 선반 「0장」): 냉장고장 위장(브리지 fridgeUpper)도 구조 선반 수 그대로 — 플래너가 0 을 준다
             if (!(FixtureRules && FixtureRules.noShelf(mod))) {
-              const upperShelfQty = bomInteriorOf(mod) ? Math.max(0, Math.round(Number(mod.shelfCount) || 0)) : 2;
+              const upperShelfQty = (bomInteriorOf(mod) || mod.fridgeUpper === true) ? Math.max(0, Math.round(Number(mod.shelfCount) || 0)) : 2;
               if (upperShelfQty > 0) this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - ASM.SAKURI_SHELF_D_MINUS - this.blindShelfCut(mod, 'upper'), upperShelfQty, '1면(전)');
             }
             // 2026-10-29 석가 · 속서랍 — 천지판 깊이 D − 18, 처짐방지목이 있으면 그 뒤까지 (멍장은 ㄱ자 기둥 뒤까지)

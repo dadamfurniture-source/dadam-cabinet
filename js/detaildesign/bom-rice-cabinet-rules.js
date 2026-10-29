@@ -44,6 +44,12 @@
  *   플래너 payload: 서랍 모듈 stackTop 'rice' · 밥솥장 riceBelow 'drawer' (section lower) → 브리지가 밥솥장 몸통에서 목대 30 을 뺀다.
  *   경고(warningsOf ctx.lowerStack)는 최소 내경 높이를 392 로 본다 — 키큰장 가운데 단 · 단독 밥솥장은 400 그대로.
  *
+ * ── 밥솥 칸 높이 (2026-10-30 사장님 「가전에 맞춰 단 높이」 — 밥솥 H + 선반 · 레일 70) ──
+ *   키큰장 가운데 단 밥솥장을 고른 밥솥에 맞춘다 (cookerBoxOf):
+ *     내경 높이 = 밥솥 H + LOWER_STACK.SHELF_INSTALL_H (70) — 최소 내경 MIN_INNER.H (400) 보다 낮으면 400
+ *     상자 H   = 내경 높이 + 천지판 2장 (오픈장 innerOf 의 18 — 경고 warningsOf 가 재는 식 그대로. 도어 몸통 15T 면 6 이 남는다)
+ *   하부 밥솥장(밑 서랍)은 높이가 하부 줄에서 정해져 바꾸지 않는다 — 밥솥이 안 들어가면 cookerWarningsOf 가 알린다.
+ *
  * ── 정해지지 않은 것 [확인 필요] ───────────────────────
  *   포켓 도어 철물 — 코드·문서에 값이 없다. 부재로 내지 않고 비고에만 적는다.
  */
@@ -232,6 +238,45 @@
       note: `밥솥장 위 목대 — 앞(몸통 앞선에서 ${B.FRONT_SETBACK} 안쪽) · 뒤, 도어 색 (이웃 하부장 목찬넬을 잇는다)` }];
   }
 
+  /** 숫자로 읽되 음수·NaN 은 0 */
+  function dim(v) {
+    const n = Math.round(Number(v) || 0);
+    return n > 0 ? n : 0;
+  }
+
+  /**
+   * 밥솥 칸 상자 — 고른 밥솥에 맞춘 높이 (2026-10-30 사장님, 위 머리 주석).
+   * @param cooker {h} 밥솥 외경 높이 (가전 DB height_mm)
+   * @returns {{ innerH: number, H: number, T: number } | null} 밥솥 높이를 모르면 null
+   */
+  function cookerBoxOf(cooker) {
+    const h = dim(cooker && cooker.h);
+    if (!OC || !(h > 0)) return null;
+    const T = OC.RULES.T;
+    const innerH = Math.max(R.MIN_INNER.H, h + R.LOWER_STACK.SHELF_INSTALL_H);
+    return { innerH, H: innerH + 2 * T, T };
+  }
+
+  /**
+   * 고른 밥솥이 상자에 드는가 — 높이 = 밥솥 H + 선반 · 레일 70 (안내용), 폭 · 깊이 = 외경 그대로 (내경보다 크면 들어가지 않는다).
+   * @param o      {W,H,D} 밥솥장 몸통 외경
+   * @param cooker {w,h,d} 밥솥 외경
+   * @param label  밥솥 이름 (경고 문구, 기본 '밥솥')
+   * @returns {string[]}
+   */
+  function cookerWarningsOf(o, cooker, label) {
+    if (!OC) return [];
+    const g = OC.innerOf(o);
+    const name = label || '밥솥';
+    const out = [];
+    const h = dim(cooker && cooker.h), w = dim(cooker && cooker.w), d = dim(cooker && cooker.d);
+    const S = R.LOWER_STACK.SHELF_INSTALL_H;
+    if (h > 0 && g.innerH < h + S) out.push(`${R.LABEL} 내경 높이 ${g.innerH} 가 ${name} 높이 ${h} + 선반 · 레일 ${S} = ${h + S} 보다 낮습니다`);
+    if (w > 0 && g.innerW < w) out.push(`${R.LABEL} 내경 폭 ${g.innerW} 가 ${name} 폭 ${w} 보다 좁습니다`);
+    if (d > 0 && g.innerD < d) out.push(`${R.LABEL} 내경 깊이 ${g.innerD} 가 ${name} 깊이 ${d} 보다 얕습니다`);
+    return out;
+  }
+
   return { RULES: RICE_CABINET_RULES, isRiceCabinet, doorTypeOf, doorNameOf, innerOf, doorOf, partsOf, warningsOf,
-    hasDoorBody, shelfGeomOf, shelfPartsOf, topBattenPartsOf };
+    hasDoorBody, shelfGeomOf, shelfPartsOf, topBattenPartsOf, cookerBoxOf, cookerWarningsOf };
 });
