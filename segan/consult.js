@@ -7,7 +7,9 @@
    접수 화면은 특정 업체를 약속하지 않는다.
 
    고객이 적는 것: 이름 · 연락처(필수, 프로필에서 채움), 시공 지역(시/도 · 시/군/구, 필수 — signup.html 과
-   같은 목록), 원하는 도어 마감 · 철거 필요 · 원하는 가격대(필수, 「모름」 있음), 연락 받기 좋은 시간
+   같은 목록), 품목(여러 개, 필수 — consultation.html 가구 종류와 같은 키 → furniture_categories.
+   연출컷 품목 키가 그 목록에 똑같이 있을 때만 미리 골라 둔다 — 다른 키를 바꾸는 규칙은 없다),
+   원하는 도어 마감 · 철거 필요 · 원하는 가격대(필수, 「모름」 있음), 연락 받기 좋은 시간
    (consultation.html 과 같은 값), 요청 사항, 동의 둘:
      개인정보 수집 · 이용 (필수) → privacy_agreed_at
      다담 협력업체 목록 중 다담이 정한 업체에 제공 (선택) → third_party_agreed_at · consent_version 'v1'
@@ -32,6 +34,17 @@
   var LOGIN_PAGE = '../login.html';
   // 업체 제공 동의 문구 판 — consult.html 「제공하는 내용 보기」를 바꾸면 올린다
   var CONSENT_VERSION = 'v1';
+  // 품목 — consultation.html 가구 종류 = workflow-api consult-notify.js FURNITURE_LABELS 키 (시험이 같은지 본다)
+  var ITEM_KEYS = [
+    'sink',
+    'island',
+    'wardrobe',
+    'fridge',
+    'shoerack',
+    'vanity',
+    'storage',
+    'other',
+  ];
   // consultations CHECK 값 (도어 마감 · 가격대)
   var DOOR_FINISHES = ['pet', 'highgloss', 'paint', 'veneer', 'ceramic', 'unknown'];
   var PRICE_TIERS = ['basic', 'mid', 'high', 'unknown'];
@@ -246,6 +259,24 @@
     return list.indexOf(v) >= 0 ? v : null;
   }
 
+  /** 고른 품목 — 목록 차례대로, 목록 안 값만 */
+  function pickedItems() {
+    var on = [];
+    document.querySelectorAll('input[name="item"]:checked').forEach(function (el) {
+      on.push(el.value);
+    });
+    return ITEM_KEYS.filter(function (k) {
+      return on.indexOf(k) >= 0;
+    });
+  }
+
+  /** 연출컷 품목 키가 품목 목록에 똑같이 있을 때만 미리 골라 둔다 (다른 키는 바꾸지 않는다) */
+  function preselectItem(category) {
+    if (ITEM_KEYS.indexOf(category) < 0) return;
+    var el = document.querySelector('input[name="item"][value="' + category + '"]');
+    if (el) el.checked = true;
+  }
+
   /** consultations 한 줄 — consultation.html 이 쓰는 칸 + 앱 칸 */
   function buildRow() {
     var u = C.session.user || {};
@@ -267,6 +298,7 @@
       quote: (C.gen && C.gen.quote) || null,
       sido: $('csSido').value || null,
       gugun: $('csGugun').value || null,
+      furniture_categories: pickedItems(),
       door_finish: oneOf(DOOR_FINISHES, picked('doorFinish')),
       demolition_needed: demolition === 'yes' ? true : demolition === 'no' ? false : null,
       wanted_price_tier: oneOf(PRICE_TIERS, picked('priceTier')),
@@ -280,6 +312,7 @@
     if (!row.name) return '이름을 적어 주세요.';
     if (!row.phone) return '연락처를 적어 주세요.';
     if (!(row.sido && row.gugun)) return '시공 지역(시/도 · 시/군/구)을 골라 주세요.';
+    if (!row.furniture_categories.length) return '품목을 하나 이상 골라 주세요.';
     if (!row.door_finish) return '원하는 도어 마감을 골라 주세요.';
     if (row.demolition_needed == null) return '철거가 필요한지 골라 주세요.';
     if (!row.wanted_price_tier) return '원하는 가격대를 골라 주세요.';
@@ -379,12 +412,14 @@
       return show('no-gen');
     }
     renderSummary(C.gen);
+    preselectItem(C.gen.category);
     await prefill();
     show('form');
   }
 
   var api = {
     CONSENT_VERSION: CONSENT_VERSION,
+    ITEM_KEYS: ITEM_KEYS,
     DOOR_FINISHES: DOOR_FINISHES,
     PRICE_TIERS: PRICE_TIERS,
     DONE_TEXT: DONE_TEXT,

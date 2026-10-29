@@ -4,7 +4,8 @@
  * SEGAN ④ 상담 신청 (segan/consult.html + segan/consult.js) + database/consultations-app.sql.
  *
  *   - 저장은 consultation.html 과 같은 길 (Supabase consultations insert) — 새 엔드포인트 없음
- *   - 고객이 적는 칸 / 저절로 채우는 칸 / 뺀 칸 (상담 종류 · 가구 종류 · 공간 · 치수 · 예산 · 스타일 · 희망 날짜)
+ *   - 고객이 적는 칸 / 저절로 채우는 칸 / 뺀 칸 (상담 종류 · 공간 · 치수 · 예산 · 스타일 · 희망 날짜)
+ *   - 품목 칩 (여러 개, 필수 — consultation.html 가구 종류 키, 연출컷 품목 키가 같을 때만 미리 고름)
  *   - 상담받을 곳은 고르지 않는다 (모두 다담 본사 → 업체 배정). 시공 지역은 언제나 필수
  *   - 도어 마감 · 철거 · 가격대 (필수, 「모름」 있음), 동의 둘 — 수집 · 이용(필수) · 업체 제공(선택)
  *   - 시공 지역 목록 = signup.html, 연락 시간 값 = consultation.html
@@ -224,7 +225,7 @@ describe('신청서', () => {
     expect($('csSido').value).toBe('');
   });
 
-  test('뺀 칸 — 상담 종류 · 가구 종류 · 공간 · 치수 · 예산 · 스타일 · 희망 날짜가 없다', async () => {
+  test('뺀 칸 — 상담 종류 · 공간 · 치수 · 예산 · 스타일 · 희망 날짜가 없다 (가구 종류는 「품목」 칩으로 따로)', async () => {
     await load();
     for (const id of [
       'consultationType',
@@ -308,17 +309,58 @@ describe('신청서', () => {
       ],
     ]);
     expect($('csAgreeThird').checked).toBe(false);
-    expect([...$('csThirdDetail').querySelectorAll('li')].map((li) => li.textContent)).toEqual([
+    const lis = [...$('csThirdDetail').querySelectorAll('li')].map((li) =>
+      li.textContent.replace(/\s+/g, ' ').trim()
+    );
+    expect(lis).toEqual([
       '받는 곳: 다담 협력업체(다담 공장 포함) 중 다담이 정한 한 곳 — 연결되면 업체 이름을 알려 드립니다',
-      '항목: 이름 · 전화 · 지역 · 연락 시간 · 요청 사항 · 도어 마감 · 철거 · 가격대 · 연출컷 · 예상 견적',
+      // 업체 사본에 실제로 넘기는 칸과 같다 (서버는 이 항목만 넣는다)
+      '항목: 이름 · 전화 · 이메일 · 지역 · 연락 시간 · 품목 · 요청 사항 · 도어 마감 · 철거 · 가격대 · 상세 설계 요청 · 연출컷 · 예상 견적',
       '목적: 상담 · 견적 · 시공',
       '보유: 상담 목적을 이룰 때까지',
       '동의하지 않으면 다담 본사가 직접 상담합니다',
     ]);
     // 수집 · 이용 목적에는 업체 연결을 넣지 않는다 (따로 묻는다)
     const privacy = $('csFields').querySelector('.cs-agree-detail').textContent;
+    expect(privacy).toContain(
+      '필수: 이름, 연락처, 이메일, 상담 제목, 시공 지역, 품목, 도어 마감, 철거, 가격대'
+    );
     expect(privacy).toContain('목적: 상담 신청 처리');
     expect(privacy).not.toContain('협력업체 연결');
+  });
+
+  test('품목 칩 — 여러 개, 값 · 이름 = consultation.html 가구 종류 = consult-notify.js FURNITURE_LABELS', async () => {
+    await load();
+    const notify = read('workers/workflow-api/src/consult-notify.js');
+    const labels = Function(
+      `return ${notify.match(/FURNITURE_LABELS = Object\.freeze\((\{[\s\S]*?\})\);/)[1]}`
+    )();
+    const chips = [...document.querySelectorAll('input[name="item"]')];
+    expect(chips.every((el) => el.type === 'checkbox')).toBe(true);
+    expect(chips.map((el) => [el.value, el.closest('label').textContent.trim()])).toEqual(
+      Object.entries(labels)
+    );
+    const site = [
+      ...read('consultation.html').matchAll(/name="furnitureCategory" value="([^"]+)"/g),
+    ].map((m) => m[1]);
+    expect(window.SeganConsult.ITEM_KEYS).toEqual(site);
+    expect(window.SeganConsult.ITEM_KEYS).toEqual(Object.keys(labels));
+    // 이 연출컷(싱크대 sink)은 같은 키가 있어 미리 골라 둔다
+    expect(chips.filter((el) => el.checked).map((el) => el.value)).toEqual(['sink']);
+  });
+
+  test.each([
+    ['wardrobe', ['wardrobe']],
+    ['storage', ['storage']],
+    // 목록에 똑같은 키가 없으면 골라 두지 않는다 (shoe → shoerack 같은 바꾸기 규칙은 없다)
+    ['shoe', []],
+    ['office', []],
+    ['bedroom', []],
+  ])('연출컷 품목 %s → 미리 고른 품목 %j', async (category, expected) => {
+    await load({ gen: { ...GEN, category } });
+    expect(
+      [...document.querySelectorAll('input[name="item"]:checked')].map((el) => el.value)
+    ).toEqual(expected);
   });
 
   test('연락 받기 좋은 시간 값 = consultation.html #preferredTime', async () => {
@@ -365,6 +407,7 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
       quote: QUOTE,
       sido: '대구광역시',
       gugun: '북구',
+      furniture_categories: ['sink'],
       door_finish: 'highgloss',
       demolition_needed: true,
       wanted_price_tier: 'mid',
@@ -407,6 +450,17 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
     expect($('csDoneText').textContent).not.toMatch(/협력업체|공장|업체 이름/);
   });
 
+  test('품목 여러 개 — 목록 차례대로 furniture_categories, 미리 고른 것을 빼도 된다', async () => {
+    const calls = await load();
+    fillRequired();
+    for (const v of ['other', 'wardrobe', 'island']) {
+      document.querySelector(`input[name="item"][value="${v}"]`).checked = true;
+    }
+    document.querySelector('input[name="item"][value="sink"]').checked = false;
+    await send();
+    expect(calls.inserts[0].row.furniture_categories).toEqual(['island', 'wardrobe', 'other']);
+  });
+
   test.each([
     ['아니요 · 모름 · 보급', 'no', 'unknown', 'basic', false],
     ['예 · 세라믹 · 고급', 'yes', 'ceramic', 'high', true],
@@ -434,6 +488,7 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
       () => ($('csGugun').value = ''),
       '시공 지역(시/도 · 시/군/구)을 골라 주세요.',
     ],
+    ['품목 안 고름', uncheck('item'), '품목을 하나 이상 골라 주세요.'],
     ['도어 마감 안 고름', uncheck('doorFinish'), '원하는 도어 마감을 골라 주세요.'],
     ['철거 안 고름', uncheck('demolition'), '철거가 필요한지 골라 주세요.'],
     ['가격대 안 고름', uncheck('priceTier'), '원하는 가격대를 골라 주세요.'],
