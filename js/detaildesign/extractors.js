@@ -2614,6 +2614,7 @@
                 cells: wrBlock.cells,
                 drawers: wrBlock.drawers,
                 externalDrawer: wrBlock.externalDrawer,
+                cellShelves: wrBlock.cellShelves,   // 2026-10-30 칸마다 선반 수
               })
               : null;
             const modType = mod.moduleType || 'long';
@@ -3599,7 +3600,7 @@
                 totalH: parseFloat(item.h) || R.DEFAULT_H,
                 pedestalH: parseFloat(specs.wardrobePedestal),
                 moldingH: parseFloat(specs.wardrobeMoldingH),
-                preset: block.preset, cells: block.cells, drawers: block.drawers,
+                preset: block.preset, cells: block.cells, drawers: block.drawers, cellShelves: block.cellShelves,
               });
               (L.rods || []).forEach((r) => lengths.push(r.length));
               return;

@@ -1294,6 +1294,7 @@
           cells: block.cells,
           drawers: block.drawers,
           externalDrawer: block.externalDrawer,
+          cellShelves: block.cellShelves,   // 2026-10-30 칸마다 선반 수 (간편 플래너 「칸마다 바꾸기」)
         });
         const cabs = WR.cabinetsOf(L);
         if (!cabs.length) return null;
@@ -1314,6 +1315,7 @@
           wardrobe: { preset: L.preset, drawers: L.drawers, externalDrawer: L.external },
         };
         if (block.cells) out.wardrobe.cells = block.cells;
+        if (block.cellShelves) out.wardrobe.cellShelves = block.cellShelves;
         if (divided) { out.lowerH = cabs[0].h; out.upperH = cabs[1].h; }
         return out;
       }

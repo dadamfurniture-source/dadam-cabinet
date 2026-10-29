@@ -148,5 +148,31 @@
     return { shelves, mids, cells, inner, innerTop: a, spaceMin, errors, warnings };
   }
 
-  return { INTERIOR_RULES, normalize, innerZoneOf, midDepthOf, shelvesInCell, interiorLayoutOf };
+  /**
+   * 붙박이장 통 칸마다 선반 (2026-10-30 사장님 간편 플래너 「칸마다 바꾸기」 — bom-wardrobe-rules.js cellShelves) — 사람이 바꾼 칸에
+   *   그 장수가 들어가는가. 선반 자리는 붙박이장 shelfPositions 그대로다 (옷봉 칸은 첫 선반 = 칸 상단 − 315, 나머지 그 아래 균등).
+   *   칸 간격 최소는 두지 않는다 — 위 선반 단추의 300(SPACE_MIN)은 붙박이장 규칙이 아니다: 사장님 기본형 4번 통 하부 선반 3단이 260 간격이다.
+   *   [확인 필요] 붙박이장 칸 선반 간격 최소. 그때까지는 들어가지 않는 장수(칸 밖으로 밀리는 선반 · 겹치는 선반)만 막는다.
+   * @param layout       layoutWardrobeModule 결과 (cellShelves 를 넣어 지은 것)
+   * @param cellShelves  칸마다 선반 수 (null 칸은 기본형 그대로 — 보지 않는다)
+   * @returns {string[]}
+   */
+  function wardrobeShelfErrorsOf(layout, cellShelves) {
+    const out = [];
+    const L = layout || {};
+    (L.cells || []).forEach((c, i) => {
+      const want = Array.isArray(cellShelves) ? cellShelves[i] : null;
+      if (want == null) return;
+      const name = c.label || `${i + 1}번째 칸`;
+      const rows = (L.shelves || []).filter((s) => s.cell === i).sort((a, b) => a.y - b.y);
+      if (rows.length !== want) { out.push(`${name} 높이 ${c.h} 에 선반 ${want}장이 들어가지 않습니다`); return; }
+      let prev = c.y0;
+      const gaps = rows.map((s) => { const g = s.y - prev; prev = s.y + s.t; return g; });
+      if (!(c.rods > 0) && rows.length) gaps.push(c.y0 + c.h - prev);
+      if (gaps.some((g) => g <= 0)) out.push(`${name} 높이 ${c.h} 에 선반 ${want}장이 겹칩니다`);
+    });
+    return out;
+  }
+
+  return { INTERIOR_RULES, normalize, innerZoneOf, midDepthOf, shelvesInCell, interiorLayoutOf, wardrobeShelfErrorsOf };
 });
