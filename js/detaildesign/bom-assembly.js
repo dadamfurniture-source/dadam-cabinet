@@ -385,6 +385,7 @@
     const panelZ0 = sakuri ? zBack + C.SAKURI_PANEL_D_MINUS : zBack;   // 천지판 뒤끝 (앞선 맞춤)
     const shelfZ0 = sakuri ? zBack + C.SAKURI_PANEL_D_MINUS : zBack;   // 선반은 뒤로 붙인다
     const parts = [], unplaced = [], pending = [];
+    const mirrorRows = [];   // 키큰장 도어 전신거울 — 도어를 다 놓은 뒤 (placeMirror)
     const drawer = mod.isDrawer ? drawerOf(mod, H, T, opts) : { layout: null, rules: null };
     const layout = drawer.layout;
     // 두 몸통이면 레이아웃이 같은 자리에서 나눴어야 한다 — 다르면 놓지 않는다 (지어내지 않는다)
@@ -608,6 +609,9 @@
           }
           return;
         }
+        case 'mirror':
+          mirrorRows.push(row);   // 도어를 다 놓은 뒤 그 도어 앞면에 (placeMirror)
+          return;
         case 'molding': {
           // 키큰장 상부단 상몰딩 띠 (MDF 18T, 몰딩H × W) — 2026-10-20 카드 "도어 앞면 맞춤":
           //   몸통 위에 올라서고(y H…H+몰딩H), 띠 앞면 = 도어 앞면(z D/2+18), 띠 뒷면 = 몸통 앞선(z D/2).
@@ -653,6 +657,8 @@
         });
       }
     }
+
+    mirrorRows.forEach((row) => { if (!placeMirror(parts, row, mod)) skip(row, 'mirror-door-unknown'); });
 
     const kind = mod.type === 'tall' ? 'tall' : mod.pos;
     return {
@@ -1135,6 +1141,69 @@
   }
 
   /**
+   * 키큰장 도어 전신거울 (2026-10-29 사장님 — 신발장, extractors addMirrorRow): 그 도어 앞면에 붙인다 — 사방 여백 = (도어 − 거울) / 2,
+   *   앞면 = 도어 앞면 (z 도어 o + 두께), 거울 두께만큼 앞으로. 외짝은 도어 하나, 양문은 mod.mirror 쪽 (x 가 작은 쪽 = 왼쪽).
+   *   도어를 못 찾거나 크기가 맞지 않으면 false.
+   */
+  function placeMirror(parts, row, mod) {
+    const doors = parts.filter((p) => p.part === '도어' && p.frame && p.frame.u === '+x' && p.frame.v === '+y' && p.frame.n === '+z')
+      .sort((a, b) => a.frame.o[0] - b.frame.o[0]);
+    const side = mod && mod.mirror;
+    const door = side === 'single' ? (doors.length === 1 ? doors[0] : null)
+      : side === 'left' && doors.length === 2 ? doors[0] : side === 'right' && doors.length === 2 ? doors[1] : null;
+    if (!door || row.qty !== 1) return false;
+    const mx = (door.cut.w - row.w) / 2, my = (door.cut.h - row.h) / 2;
+    if (!(mx >= 0 && my >= 0)) return false;
+    const o = door.frame.o;
+    parts.push(makePart(row, 0, { o: [o[0] + mx, o[1] + my, o[2] + door.t], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { mirror: side }));
+    return true;
+  }
+
+  /**
+   * 신발장 벤치 (2026-10-29 사장님 — extractors addBenchParts · BOM_BENCH): 몸통 없이 앉는 판 + 양쪽 목대.
+   *   좌표는 다른 하부 모듈과 같다 — y 0 = 몸통 바닥 자리 (바닥에서 다리발 · 띄움만큼 위), z −D/2 = 몸통 뒷면.
+   *   앉는 판 — 윗면 = 바닥 ~ SEAT_H, 뒷면 = 몸통 뒷면, 폭 = 모듈 폭 (양쪽 키큰장 옆면 · 벽 사이), 깊이 = 행 h (몸통 + 앞 자리).
+   *   목대 — 앉는 판 바로 아래 양쪽 끝 안쪽에 세로로 (두께 15 가 벤치 안쪽으로), 뒷면 = 몸통 뒷면. 띄움이면 받침은 각파이프(철물)라 판이 없다.
+   */
+  function benchOf(mk, mod, rows, opts, item) {
+    const keyed = rows.map((r) => ({ row: r, key: keyOfRow(r) }));
+    const seat = keyed.find((x) => x.key && x.key.family === 'bench:seat');
+    if (!seat || seat.row.qty !== 1) return null;
+    const specs = (item && item.specs) || {};
+    const fh = AsmRules.floatHOf(specs);
+    const baseH = fh > 0 ? fh : (parseFloat(specs.sinkLegHeight) || 150);
+    const S = seat.row, W = S.w, D = parseFloat(mod.d) || S.h;
+    const yTop = C.BENCH_SEAT_H - baseH, zBack = -D / 2;
+    const parts = [], unplaced = [];
+    const skip = (row, reason) => unplaced.push({ rowPartId: row.partId, moduleKey: mk, part: row.part, qty: row.qty, reason });
+    parts.push(makePart(S, 0, { o: [-W / 2, yTop - S.thickness, zBack], u: '+x', v: '+z', n: '+y' }, [], 'exterior', { bench: 'seat' }));
+    keyed.forEach(({ row, key }) => {
+      if (row === S) return;
+      if (key && key.family === 'bench:cleat' && row.qty === 2) {
+        const y0 = yTop - S.thickness - row.h;
+        parts.push(makePart(row, 0, { o: [-W / 2, y0, zBack], u: '+z', v: '+y', n: '+x' }, [], 'interior', { bench: 'cleat', side: 'left' }));
+        parts.push(makePart(row, 1, { o: [W / 2 - row.thickness, y0, zBack], u: '+z', v: '+y', n: '+x' }, [], 'interior', { bench: 'cleat', side: 'right' }));
+        return;
+      }
+      skip(row, key ? 'bench-layout-unknown' : 'no-part-key');
+    });
+    return {
+      module: {
+        moduleKey: mk,
+        moduleId: String(mod.id),
+        kind: 'bench',
+        box: { W, H: yTop, D, T: S.thickness },
+        sakuri: false,
+        place: (opts.place && opts.place[mk]) || null,
+        parts,
+        pending: [],
+        drawerBoxes: [],
+      },
+      unplaced,
+    };
+  }
+
+  /**
    * 오픈장·밥솥장 상자 — 판 다섯 장 (+ 밥솥장 도어 한 장). 행 치수가 규칙 파일 모양이 아니면 null.
    * 키큰장 단을 상자로 바꾼 모듈이면 그 단의 좌대(바닥 단) · 상몰딩(맨 위 단)도 몸통 단과 같은 자리에 놓는다.
    */
@@ -1292,7 +1361,7 @@
       parts: [makePart(row, k || 0, frame, [], vis, tags)],
     });
     const xOf = (span, x) => x - (span.host.x0 + span.host.spec.box.W / 2);   // 벽 x → 호스트 모듈 로컬 x
-    const lowerLine = (mod) => mod.pos === 'lower' && !isTallTier(mod);
+    const lowerLine = (mod) => mod.pos === 'lower' && !isTallTier(mod) && String(mod.moduleKind || '') !== 'bench';   // 벤치는 상판 · 걸레받이 자리 밖 (2026-10-29)
     const hasTopNotch = (e) => !!e.spec && e.spec.parts.some((p) => p.part === '측판' && (p.features || []).some((f) => f.src === 'channel-top'));
 
     // 2026-10-26 사장님 확정 (상몰딩 · 걸레받이 · 목찬넬 조각): BOM 과 같은 계획 — MaterialExtractor linePlanOf (자리 · 단위 · 조각,
@@ -1687,7 +1756,9 @@
       // 옛 냉장고장 화면 모듈(pos 없음, type) — 짜임 자리를 FRIDGE_TYPE_POS 로 읽는다 (상부장·하부장 짜임). 플래너 냉장고장은 pos 가 있다.
       const fridgePos = mod && !mod.pos && (item.categoryId || item.category) === 'fridge' ? FRIDGE_TYPE_POS[String(mod.type || '')] : null;
       const shellMod = fridgePos ? Object.assign({}, mod, { pos: fridgePos }) : mod;
-      const res = openBox ? openBoxOf(mk, mod, rows, o)
+      const bench = !!(mod && String(mod.moduleKind || '') === 'bench');
+      const res = bench ? benchOf(mk, mod, rows, o, item)
+        : openBox ? openBoxOf(mk, mod, rows, o)
         : wardrobe ? wardrobeOf(mk, mod, rows, o, item)
         : (shellMod && SHELL_POS.indexOf(shellMod.pos) >= 0) ? shellOf(mk, shellMod, rows, o, item) : null;
       if (!res) {
