@@ -68,13 +68,15 @@ const CATALOG = {
     { key: 'hw_blum', name: '블룸(서버)' },
     { key: 'top_resin', name: '인조대리석(서버)' },
   ],
-  design: [
-    { key: 'measure', name: '실측(서버)' },
-    { key: 'planner', name: '플래너(서버)' },
+  finish_notes: [
+    { key: 'door', name: '도어(서버)' },
+    { key: 'body', name: '몸통(서버)' },
+    { key: 'hw', name: '하드웨어(서버)' },
+    { key: 'top', name: '상판(서버)' },
   ],
-  install: [
-    { key: 'demolition', name: '철거(서버)' },
-    { key: 'high_floor', name: '높은 층 운반(서버)' },
+  design: [
+    { key: 'cad', name: 'CAD(서버)' },
+    { key: 'planner', name: '가구 전문 플래너(서버)' },
   ],
 };
 const EVAL = {
@@ -82,9 +84,8 @@ const EVAL = {
   grade: 'B',
   equipment: { panel_saw: 'have', cnc_cut: 'outsource' },
   staff: { design: 2 },
-  finishes: { door_pet: 'yes', door_paint: 'no' },
-  design: { measure: true, planner: false },
-  install: { demolition: true, install_years: 7 },
+  finishes: { door_pet: 'yes', door_paint: 'no', notes: { door: 'PET 는 외주' } },
+  design: { cad: true, planner: false },
   price_tier: 'mid',
   docs: { insurance: { checked_at: '2026-10-01T12:00:00Z', by: 'u1' } },
   as_months: 12,
@@ -171,11 +172,7 @@ const rowsOf = (groupKey) =>
 const checkedIn = (groupKey) =>
   [...document.querySelectorAll(`#evForm .group[data-group="${groupKey}"] input:checked`)].map(
     (n) =>
-      n.type === 'radio'
-        ? n.value
-        : n.getAttribute('data-design') ||
-          n.getAttribute('data-install') ||
-          n.getAttribute('data-doc')
+      n.type === 'radio' ? n.value : n.getAttribute('data-design') || n.getAttribute('data-doc')
   );
 function setRadio(name, value) {
   const n = document.querySelector(`#evForm input[name="${name}"][value="${value}"]`);
@@ -239,7 +236,6 @@ describe('평가표 — 10묶음, 항목은 서버 catalog', () => {
       'staff',
       'finishes',
       'design',
-      'install',
       'price',
       'quality',
       'docs',
@@ -254,7 +250,6 @@ describe('평가표 — 10묶음, 항목은 서버 catalog', () => {
       '인력',
       '마감 · 자재',
       '설계',
-      '시공',
       '가격대',
       '품질 · 서비스',
       '신뢰 · 서류',
@@ -276,9 +271,14 @@ describe('평가표 — 10묶음, 항목은 서버 catalog', () => {
     expect(document.querySelector('input[data-staff="design"]').value).toBe('2');
     expect(document.querySelector('input[data-staff="install"]').value).toBe('');
     expect(checkedIn('finishes')).toEqual(['yes', 'no']);
-    expect(checkedIn('design')).toEqual(['measure']);
-    expect(checkedIn('install')).toEqual(['demolition']);
-    expect($('fInstallYears').value).toBe('7');
+    expect(checkedIn('design')).toEqual(['cad']);
+    expect(
+      [...document.querySelectorAll('#evForm .group[data-group="design"] label')].map((l) =>
+        l.textContent.trim()
+      )
+    ).toEqual(['CAD(서버)', '가구 전문 플래너(서버)']);
+    expect($('fInstallYears')).toBeNull();
+    expect(document.querySelector('[data-install]')).toBeNull();
     expect(checkedIn('price')).toEqual(['mid']);
     expect(document.querySelector('#evForm .group[data-group="price"]').textContent).toContain(
       '보급중급고급'
@@ -319,6 +319,40 @@ describe('평가표 — 10묶음, 항목은 서버 catalog', () => {
     await open('p1');
     // 글이면 그대로, 묶음 키(door · body · hw · top)면 이름으로
     expect(subs()).toEqual(['문짝', '몸통']);
+  });
+
+  test('마감 · 자재 분야마다 메모 칸 — 묶음 아래, 지금 메모가 채워진다 (catalog finish_notes 에 있는 분야만)', async () => {
+    await start();
+    await open('p1');
+    const boxes = () =>
+      [
+        ...document.querySelectorAll(
+          '#evForm .group[data-group="finishes"] textarea[data-finish-note]'
+        ),
+      ].map((t) => [t.getAttribute('data-finish-note'), t.placeholder, t.value, t.maxLength]);
+    expect(boxes()).toEqual([
+      ['door', '도어(서버) 메모', 'PET 는 외주', 500],
+      ['body', '몸통(서버) 메모', '', 500],
+      ['hw', '하드웨어(서버) 메모', '', 500],
+      ['top', '상판(서버) 메모', '', 500],
+    ]);
+    // 묶음 바로 아래
+    expect(
+      document.querySelector('textarea[data-finish-note="door"]').previousElementSibling.className
+    ).toBe('rows');
+    // catalog 에 분야 메모가 없으면 칸도 없다
+    await start({
+      handler: defaultHandler(
+        {},
+        {
+          evaluation: EVAL,
+          catalog: { ...CATALOG, finish_notes: [{ key: 'top', name: '상판' }] },
+          history: [],
+        }
+      ),
+    });
+    await open('p1');
+    expect(boxes()).toEqual([['top', '상판 메모', '', 500]]);
   });
 
   test('catalog 항목이 [키, 이름] 꼴이어도 받는다', () => {
@@ -387,8 +421,7 @@ describe('저장 — PUT /admin/companies/:id/evaluation', () => {
     setRadio('fi-3', 'yes');
     setValue('input[data-staff="install"]', '3');
     setCheck('input[data-design="planner"]', true);
-    setCheck('input[data-install="high_floor"]', true);
-    setValue('#fInstallYears', '10');
+    setValue('textarea[data-finish-note="top"]', '  세라믹은 외주  ');
     setRadio('price_tier', 'high');
     setValue('#fAsMonths', '18');
     setValue('input[data-doc-date="contract"]', '2026-10-28');
@@ -402,9 +435,13 @@ describe('저장 — PUT /admin/companies/:id/evaluation', () => {
       grade: 'A',
       equipment: { panel_saw: 'have', cnc_cut: 'outsource', edge_bander: 'none' },
       staff: { design: 2, install: 3 },
-      finishes: { door_pet: 'yes', door_paint: 'no', hw_blum: 'yes' },
-      design: { measure: true, planner: true },
-      install: { demolition: true, high_floor: true, install_years: 10 },
+      finishes: {
+        door_pet: 'yes',
+        door_paint: 'no',
+        hw_blum: 'yes',
+        notes: { door: 'PET 는 외주', top: '세라믹은 외주' },
+      },
+      design: { cad: true, planner: true },
       price_tier: 'high',
       docs: {
         insurance: { checked_at: '2026-10-01T12:00:00Z', by: 'u1' },
@@ -458,8 +495,7 @@ describe('저장 — PUT /admin/companies/:id/evaluation', () => {
       equipment: {},
       staff: {},
       finishes: {},
-      design: { measure: false, planner: false },
-      install: { demolition: false, high_floor: false },
+      design: { cad: false, planner: false },
       price_tier: null,
       docs: {},
       as_months: null,
