@@ -8,25 +8,25 @@
     <title>상담 신청 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026103003" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026103003" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026103003" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026103003" />
+    <link rel="icon" href="icons/icon.svg?v=2026103004" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026103004" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026103004" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026103004" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026103003" />
-    <link rel="stylesheet" href="make.css?v=2026103003" />
+    <link rel="stylesheet" href="shell.css?v=2026103004" />
+    <link rel="stylesheet" href="make.css?v=2026103004" />
     <!-- 로그인 · 상담 저장(consultations, consultation.html 과 같은 길) · 연출컷 읽기(generate-api) -->
-    <script src="../js/config.js?v=2026103003"></script>
+    <script src="../js/config.js?v=2026103004"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="shell.js?v=2026103003" defer></script>
-    <script src="make.js?v=2026103003" defer></script>
-    <script src="regions.js?v=2026103003" defer></script>
-    <script src="consult.js?v=2026103003" defer></script>
+    <script src="shell.js?v=2026103004" defer></script>
+    <script src="make.js?v=2026103004" defer></script>
+    <script src="regions.js?v=2026103004" defer></script>
+    <script src="consult.js?v=2026103004" defer></script>
   </head>
   <!-- ④ 상담 신청 — 만들기의 마지막 단계라 만들기 탭에 둔다. consult.html?g=<연출컷 id> -->
   <body class="sg-app" data-tab="make">
@@ -70,18 +70,6 @@
         <p class="mk-note">연출컷과 예상 견적이 상담 내용에 함께 붙습니다.</p>
 
         <fieldset class="cs-set">
-          <legend>누구와 상담할까요?</legend>
-          <label class="cs-opt">
-            <input type="radio" name="target" value="hq" checked />
-            <span><b>다담가구 본사</b><small>설계와 견적을 다담이 직접 상담합니다.</small></span>
-          </label>
-          <label class="cs-opt">
-            <input type="radio" name="target" value="partner" />
-            <span><b>가까운 협력업체</b><small>내 지역의 다담 협력업체를 연결해 드립니다.</small></span>
-          </label>
-        </fieldset>
-
-        <fieldset class="cs-set">
           <legend>어떻게 연락할까요?</legend>
           <label class="cs-opt">
             <input type="radio" name="how" value="request" checked />
@@ -104,14 +92,65 @@
           /></label>
           <div class="cs-region">
             <label class="mk-input"
-              ><span id="csSidoLabel">시공 지역 · 시/도</span
+              ><span>시공 지역 · 시/도 · 필수</span
               ><select id="csSido"></select
             ></label>
             <label class="mk-input"
-              ><span>시/군/구</span
+              ><span>시/군/구 · 필수</span
               ><select id="csGugun" disabled></select
             ></label>
           </div>
+          <!-- 품목 — consultations.furniture_categories (consultation.html 가구 종류와 같은 키, 여러 개 · 필수).
+               연출컷 품목 키가 이 목록에 똑같이 있을 때만 미리 골라 둔다 (consult.js) -->
+          <fieldset class="cs-set cs-pick">
+            <legend>품목 · 필수 · 여러 개 고를 수 있어요</legend>
+            <div class="cs-choices" id="csItems">
+              <label class="cs-choice"><input type="checkbox" name="item" value="sink" /><span>싱크대</span></label>
+              <label class="cs-choice"><input type="checkbox" name="item" value="island" /><span>아일랜드</span></label>
+              <label class="cs-choice"
+                ><input type="checkbox" name="item" value="wardrobe" /><span>붙박이장</span></label
+              >
+              <label class="cs-choice"><input type="checkbox" name="item" value="fridge" /><span>냉장고장</span></label>
+              <label class="cs-choice"><input type="checkbox" name="item" value="shoerack" /><span>신발장</span></label>
+              <label class="cs-choice"><input type="checkbox" name="item" value="vanity" /><span>화장대</span></label>
+              <label class="cs-choice"><input type="checkbox" name="item" value="storage" /><span>수납장</span></label>
+              <label class="cs-choice"><input type="checkbox" name="item" value="other" /><span>기타</span></label>
+            </div>
+          </fieldset>
+          <!-- 도어 마감 · 철거 · 가격대 — consultations.door_finish · demolition_needed · wanted_price_tier -->
+          <fieldset class="cs-set cs-pick">
+            <legend>원하는 도어 마감 · 필수</legend>
+            <div class="cs-choices">
+              <label class="cs-choice"><input type="radio" name="doorFinish" value="pet" /><span>PET</span></label>
+              <label class="cs-choice"
+                ><input type="radio" name="doorFinish" value="highgloss" /><span>하이그로시</span></label
+              >
+              <label class="cs-choice"><input type="radio" name="doorFinish" value="paint" /><span>도장</span></label>
+              <label class="cs-choice"
+                ><input type="radio" name="doorFinish" value="veneer" /><span>무늬목</span></label
+              >
+              <label class="cs-choice"
+                ><input type="radio" name="doorFinish" value="ceramic" /><span>세라믹</span></label
+              >
+              <label class="cs-choice"><input type="radio" name="doorFinish" value="unknown" /><span>모름</span></label>
+            </div>
+          </fieldset>
+          <fieldset class="cs-set cs-pick">
+            <legend>철거가 필요한가요? · 필수</legend>
+            <div class="cs-choices">
+              <label class="cs-choice"><input type="radio" name="demolition" value="yes" /><span>예</span></label>
+              <label class="cs-choice"><input type="radio" name="demolition" value="no" /><span>아니요</span></label>
+            </div>
+          </fieldset>
+          <fieldset class="cs-set cs-pick">
+            <legend>원하는 가격대 · 필수</legend>
+            <div class="cs-choices">
+              <label class="cs-choice"><input type="radio" name="priceTier" value="basic" /><span>보급</span></label>
+              <label class="cs-choice"><input type="radio" name="priceTier" value="mid" /><span>중급</span></label>
+              <label class="cs-choice"><input type="radio" name="priceTier" value="high" /><span>고급</span></label>
+              <label class="cs-choice"><input type="radio" name="priceTier" value="unknown" /><span>모름</span></label>
+            </div>
+          </fieldset>
           <label class="mk-input"
             ><span>연락 받기 좋은 시간 · 선택</span
             ><select id="csTime">
@@ -134,11 +173,29 @@
           <details class="cs-agree-detail">
             <summary>수집하는 내용 보기</summary>
             <ul>
-              <li>필수: 이름, 연락처, 이메일, 상담 제목</li>
-              <li>선택: 시공 지역, 연락 받기 좋은 시간, 요청 사항</li>
+              <li>필수: 이름, 연락처, 이메일, 상담 제목, 시공 지역, 품목, 도어 마감, 철거, 가격대</li>
+              <li>선택: 연락 받기 좋은 시간, 요청 사항</li>
               <li>함께 보내는 것: 이 연출컷과 예상 견적</li>
-              <li>목적: 상담 신청 처리와 협력업체 연결</li>
+              <li>목적: 상담 신청 처리</li>
               <li>보유 기간: 상담이 끝난 뒤 3년</li>
+            </ul>
+          </details>
+          <!-- 업체 제공 동의 — 체크하면 third_party_agreed_at · consent_version 을 남긴다. 안 해도 신청은 간다(본사 직접 상담) -->
+          <label class="cs-agree">
+            <input type="checkbox" id="csAgreeThird" />
+            <span>다담 협력업체 목록 중 다담이 정한 업체에 상담 정보를 제공하는 데 동의합니다 (선택)</span>
+          </label>
+          <details class="cs-agree-detail">
+            <summary>제공하는 내용 보기</summary>
+            <ul id="csThirdDetail">
+              <li>받는 곳: 다담 협력업체(다담 공장 포함) 중 다담이 정한 한 곳 — 연결되면 업체 이름을 알려 드립니다</li>
+              <li>
+                항목: 이름 · 전화 · 이메일 · 지역 · 연락 시간 · 품목 · 요청 사항 · 도어 마감 · 철거 · 가격대 · 상세 설계
+                요청 · 연출컷 · 예상 견적
+              </li>
+              <li>목적: 상담 · 견적 · 시공</li>
+              <li>보유: 상담 목적을 이룰 때까지</li>
+              <li>동의하지 않으면 다담 본사가 직접 상담합니다</li>
             </ul>
           </details>
         </section>
@@ -147,7 +204,6 @@
         <section class="cs-call" id="csCall" aria-label="전화 상담" hidden>
           <span class="cs-call-label">다담가구 상담 전화</span>
           <span class="cs-call-num" id="csCallNum"></span>
-          <span class="mk-note" id="csCallPartner" hidden>협력업체 연결은 준비 중이라 본사에서 먼저 상담합니다.</span>
           <span class="mk-note">전화 걸기를 누르면 폰의 전화 앱이 열립니다.</span>
         </section>
 
@@ -162,10 +218,8 @@
       <!-- 접수됨 -->
       <section class="cs-done" data-cs-view="done" aria-labelledby="csDoneTitle" hidden>
         <p class="sg-title" id="csDoneTitle">상담 신청이 접수되었습니다</p>
-        <p class="sg-note">다담가구 본사에서 신청 내용을 확인한 뒤 남기신 연락처로 연락드립니다.</p>
-        <p class="sg-note" id="csDonePartner" hidden>
-          협력업체 연결은 준비 중이라 다담가구 본사에서 먼저 연락드립니다.
-        </p>
+        <!-- 업체 제공에 동의했으면 업체 연결, 아니면 본사가 직접 (특정 업체를 약속하지 않는다) — consult.js done() -->
+        <p class="sg-note" id="csDoneText">다담 본사가 확인한 뒤 가까운 업체를 연결해 드립니다.</p>
         <p class="sg-note" id="csDoneTel"></p>
         <div class="cs-done-acts">
           <a class="mk-btn mk-btn--solid" id="csDoneBack" href="./">결과로 돌아가기</a>
