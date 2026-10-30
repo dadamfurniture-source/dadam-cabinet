@@ -722,7 +722,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
 <script src="js/detaildesign/bom-el-rules.js?v=2026103004"></script>
 <!-- 2026-10-26: 설비장 규칙 (개수대 · 가스대 · 후드장) — BOM 과 같은 파일. 전역 DadamFixtureCabinetRules (조립 명세 밴드 자리) -->
 <script src="js/detaildesign/bom-fixture-cabinet-rules.js?v=2026103004"></script>
-<!-- 2026-10-29: 모듈 속 부재 규칙 (석가 · 선반 · 속서랍 — 간편 플래너 단추) — BOM 과 같은 파일, 붙박이장 규칙 다음. 전역 DadamInteriorRules -->
+<!-- 2026-10-29: 모듈 속 부재 규칙 (중간판 · 선반 · 속서랍 — 간편 플래너 단추) — BOM 과 같은 파일, 붙박이장 규칙 다음. 전역 DadamInteriorRules -->
 <script src="js/detaildesign/bom-interior-rules.js?v=2026103004"></script>
 <!-- D0: 디테일 모드. 카탈로그 정본(bom-finish-color.js, IIFE → window.DadamBomFinishColor)을 먼저 싣고,
      순수 모델(planner-finish.js) → 화면·상태(planner-detail.js) 순. 셋 다 인라인보다 앞.
@@ -3371,7 +3371,7 @@ window.dispatchEvent(new CustomEvent('three-ready'));
       drawers: b.drawers,
       externalDrawer: b.externalDrawer,
       cellShelves: b.cellShelves,   // 2026-10-30 칸마다 선반 수 (간편 플래너 「칸마다 바꾸기」 — 이 화면은 바꾸지 않고 그린다)
-      cellSplits: b.cellSplits,     // 2026-10-30 칸마다 석가 (간편 플래너 「붙박이장 석가」 — 그린다)
+      cellSplits: b.cellSplits,     // 2026-10-30 칸마다 중간판 (간편 플래너 「붙박이장 중간판」 — 그린다)
     });
   }
 
