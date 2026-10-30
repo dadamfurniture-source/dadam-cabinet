@@ -1,5 +1,5 @@
 {
-  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 + 0007 회사 기준 읽기 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs) + 0011 협력업체 가입(신청 · 업체 크레딧 · 업체 구독 · 초대 · 등급 맞추기) + 0012 업체 원가 설정 + 0013 수주 기록 + 0014 수주당 기다리는 요청 하나 + 0015 업체 회계(업체 칸 · 금액 칸 · 관리자는 본사 것만) + 0016 앱 알림(기기 등록 · 보낼 알림 · 본사 상담만 Slack) + 0017 다담 본사 · 다담 공장 + 0018 업체 상담 설정 · 평가표 + 0019 상담 배정 + 0020 상담까지 걸리는 날",
+  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 + 0007 회사 기준 읽기 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs) + 0011 협력업체 가입(신청 · 업체 크레딧 · 업체 구독 · 초대 · 등급 맞추기) + 0012 업체 원가 설정 + 0013 수주 기록 + 0014 수주당 기다리는 요청 하나 + 0015 업체 회계(업체 칸 · 금액 칸 · 관리자는 본사 것만) + 0016 앱 알림(기기 등록 · 보낼 알림 · 본사 상담만 Slack) + 0017 다담 본사 · 다담 공장 + 0018 업체 상담 설정 · 평가표 + 0019 상담 배정 + 0020 상담까지 걸리는 날 + 0021 고객 확정 ~ 시공 완료 기간 · 시공 완료 희망 날짜",
   "ids": [
     "company_x",
     "company_y",
@@ -889,18 +889,18 @@
       "expect": { "service_role": "err:23514" }
     },
     {
-      "name": "0020: 상담까지 걸리는 날은 서버만 고침",
+      "name": "0020 · 0021: 고객 확정 ~ 시공 완료 기간은 서버만 고침",
       "sql": "update public.company_service_settings set lead_days = 3 where company_id = {{company_x}}",
       "expect": { "service_role": "rows:1", "*": "deny" }
     },
     {
-      "name": "0020: 상담까지 걸리는 날은 설정을 읽는 사람이 같이 읽음",
+      "name": "0020 · 0021: 고객 확정 ~ 시공 완료 기간은 설정을 읽는 사람이 같이 읽음",
       "sql": "select count(lead_days) + count(*) from public.company_service_settings where company_id = {{company_x}}",
       "expect": { "anon": "deny", "x_owner": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
     },
     {
-      "name": "제약: 상담까지 걸리는 날은 0~14",
-      "sql": "update public.company_service_settings set lead_days = 15 where company_id = {{company_x}}",
+      "name": "제약: 고객 확정 ~ 시공 완료 기간은 1~14 — 0 안 됨 (0021)",
+      "sql": "update public.company_service_settings set lead_days = 0 where company_id = {{company_x}}",
       "roles": ["service_role"],
       "expect": { "service_role": "err:23514" }
     },
@@ -909,6 +909,23 @@
       "sql": "select next_available_date from public.company_service_settings limit 1",
       "roles": ["service_role"],
       "expect": { "service_role": "err:42703" }
+    },
+    {
+      "name": "제약: 고객 확정 ~ 시공 완료 기간은 1~14 — 15 안 됨 (0021)",
+      "sql": "update public.company_service_settings set lead_days = 15 where company_id = {{company_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0021: 고객 확정 ~ 시공 완료 기간 14일은 됨",
+      "sql": "update public.company_service_settings set lead_days = 14 where company_id = {{company_x}}",
+      "roles": ["service_role"],
+      "expect": { "service_role": "rows:1" }
+    },
+    {
+      "name": "0021: 상담 칸 — 시공 완료 희망 날짜를 넣을 수 있음",
+      "sql": "insert into public.consultations (name, email, title, wanted_done_date) values ('probe', 'probe@example.invalid', 'probe', current_date + 60)",
+      "expect": { "*": "ok" }
     }
   ]
 }
