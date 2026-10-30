@@ -705,8 +705,8 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
   assert.equal(first.json.data.evaluation.company_id, E);
   assert.equal(first.json.data.evaluation.grade, null);
   assert.deepEqual(first.json.data.evaluation.docs, {});
-  assert.equal(first.json.data.catalog.equipment.length, 14);
-  assert.deepEqual(first.json.data.catalog.equipment[0], { key: 'panel_saw', name: '패널쏘' });
+  assert.equal(first.json.data.catalog.equipment.length, 13);
+  assert.deepEqual(first.json.data.catalog.equipment[0], { key: 'table_saw', name: '테이블쏘' });
   assert.deepEqual(first.json.data.history, []);
   assert.deepEqual(first.json.data.metrics, {
     satisfaction: null,
@@ -734,7 +734,7 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
     method: 'PUT',
     body: {
       grade: 'B',
-      equipment: { panel_saw: 'have', nesting: 'outsource' },
+      equipment: { table_saw: 'have', nesting: 'outsource' },
       staff: { design: 2 },
       docs: { insurance: { checked_at: '2026-10-29' }, contract: false },
       install: { demolition: true, install_years: 7 },
@@ -748,7 +748,7 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
   assert.equal(saved.evaluated_by, ADMIN);
   assert.deepEqual(saved.docs, { insurance: { checked_at: '2026-10-29', by: ADMIN } });
   assert.deepEqual(saved.install, { demolition: true, install_years: 7 });
-  assert.deepEqual(put.json.data.evaluation.equipment, { panel_saw: 'have', nesting: 'outsource' });
+  assert.deepEqual(put.json.data.evaluation.equipment, { table_saw: 'have', nesting: 'outsource' });
   const upsert = writesOf(fake).find((c) => c.table === 'company_evaluations');
   assert.equal(upsert.params.get('on_conflict'), 'company_id');
 

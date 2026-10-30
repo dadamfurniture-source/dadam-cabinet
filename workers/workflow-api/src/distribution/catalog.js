@@ -16,20 +16,19 @@ const entries = (obj) =>
 
 /** 설비 — have(있음) | outsource(외주) | none(없음) */
 export const EQUIPMENT = Object.freeze({
-  panel_saw: '패널쏘',
+  table_saw: '테이블쏘',
   cnc_cut: 'CNC 재단',
-  edge_bander: '엣지밴더',
+  edge_bander_body: '엣지밴더(몸통용)',
+  edge_bander_door: '엣지밴더(도어용)',
   curved_edge_bander: '곡면 엣지밴딩기',
   special_door_edge_bander: '특수도어 엣지밴딩기',
   boring: '보링',
-  cnc_router: 'CNC 가공',
   nesting: '네스팅',
   conveyor: '컨베이어 시스템',
   packing: '포장기',
   forklift: '지게차',
   panel_lifter: '합판 양중기',
   assembly_space: '조립 · 검수 공간',
-  install_vehicle: '시공 차량',
 });
 export const EQUIPMENT_VALUES = Object.freeze(['have', 'outsource', 'none']);
 
