@@ -4,7 +4,7 @@
  * 모듈 속 부재 — 석가(중간판) · 선반 · 속서랍 (2026-10-29 사장님, js/detaildesign/bom-interior-rules.js · docs/design-rules/interior-parts.md).
  *
  *   석가   몸통 PB T · (W − 2T) × 천지판 깊이, 처짐방지목이 있으면 그 뒤까지 (−T) · 칸 균등
- *   선반   1장씩 · 칸마다 균등 · 칸 간격 최소 300 (신발장 150 — planner-engine MASTER_RULES 와 같다)
+ *   선반   1장씩 · 칸마다 균등 · 칸 간격 최소 200 (2026-10-30 사장님 「200 으로 낮추기」 · 신발장 150 — planner-engine MASTER_RULES 와 같다)
  *   속서랍 붙박이장 속서랍 규칙 (W − 2T 통 내경 · 350 × 단수 · 모듈 D = 몸통 D − 110 · 전면 = 앞선 − 70), 지판 위.
  *          처짐방지목은 속서랍 상판 위부터 (서랍이 앞 가운데 목대에 걸리지 않는다)
  *   구조 s.interior 가 있는 모듈은 선반 수도 구조 그대로 — 싱크 상부 2 · 하부 1 고정을 타지 않는다. 없는 모듈은 예전과 같다.
@@ -75,8 +75,9 @@ function kitchen() {
 const pick = (rows, part) => rows.filter((r) => r.part === part).map((r) => [r.w, r.h, r.qty]);
 
 describe('규칙 파일 — 배치', () => {
-  test('칸 간격 최소 = planner-engine MASTER_RULES (일반 300 · 신발장 150), 판 두께 = BODY_T', () => {
-    expect(IR.INTERIOR_RULES.SPACE_MIN).toEqual({ general: engine.MASTER_RULES.SHELF_SPACE_MIN, shoe: engine.MASTER_RULES.SHELF_SPACE_MIN_SHOE });
+  test('칸 간격 최소 — 일반 200 (사장님 2026-10-30, 기본 선반 수 규칙 300 과 따로), 신발장 = MASTER_RULES 150, 판 두께 = BODY_T', () => {
+    expect(IR.INTERIOR_RULES.SPACE_MIN).toEqual({ general: 200, shoe: engine.MASTER_RULES.SHELF_SPACE_MIN_SHOE });
+    expect(engine.MASTER_RULES.SHELF_SPACE_MIN).toBe(300);   // 기본 선반 수 (calcDefaultShelves) 는 그대로
     expect(IR.INTERIOR_RULES.PANEL_T).toBe(engine.MASTER_RULES.BODY_T);
   });
 
@@ -93,9 +94,10 @@ describe('규칙 파일 — 배치', () => {
     expect(L.errors).toEqual([]);
   });
 
-  test('칸 간격이 최소보다 좁으면 막는다 — 하부장 선반 2 (226 < 300), 신발장 기준은 150', () => {
-    expect(IR.interiorLayoutOf({ H: LOWER_H, W: 600, D, shelves: 2 }).errors).toEqual(['칸 간격 226 이 최소 300 보다 좁습니다']);
-    expect(IR.interiorLayoutOf({ H: LOWER_H, W: 600, D, shelves: 2, shoe: true }).errors).toEqual([]);
+  test('칸 간격이 최소보다 좁으면 막는다 — 하부장 선반 2 (226) 는 들어가고 3 (169 < 200) 은 막는다, 신발장 기준은 150', () => {
+    expect(IR.interiorLayoutOf({ H: LOWER_H, W: 600, D, shelves: 2 }).errors).toEqual([]);
+    expect(IR.interiorLayoutOf({ H: LOWER_H, W: 600, D, shelves: 3 }).errors).toEqual(['칸 간격 169 이 최소 200 보다 좁습니다']);
+    expect(IR.interiorLayoutOf({ H: LOWER_H, W: 600, D, shelves: 3, shoe: true }).errors).toEqual([]);
   });
 
   test('속서랍 — 붙박이장 규칙 그대로 (모듈 W = 내경 − 120 · H = 350 · D = 몸통 − 110), 지판 위 350 + 상판 15', () => {
