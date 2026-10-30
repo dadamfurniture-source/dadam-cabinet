@@ -11,7 +11,8 @@
  *   1분 cron                               24시간 지난 기다리는 배정 → 무응답(expired), 못 받음과 같게 되돌린다
  *
  * 받기 — 본사 상담 확정(projects.js acceptConsultation)과 같은 방식으로, 이 업체 company 로:
- *   고객  원래 상담(본사)이 회원 상담이면 { 업체, user_id } 고객 행 (있으면 그 행), 비회원이면 이름 · 연락처로 새 고객
+ *   고객  원래 상담(본사)이 회원 상담이면 { 업체, user_id, 이름, 연락처 } 고객 행 (있으면 그 행), 비회원이면 이름 · 연락처로 새 고객
+ *         업체 장부라 이름 · 연락처를 베낀다 — 회원이 탈퇴해도 업체 고객 줄은 남고 user_id 만 비기 때문 (account-api withdrawal.js)
  *   프로젝트  업체 · 그 고객으로 새로 (제목은 사본 제목)
  *   배정 기록 accepted (기다리는 배정일 때만 — 그사이 무응답 처리됐으면 만든 행을 지우고 409)
  *   사본  고객 · 프로젝트를 잇고 status confirmed
@@ -265,6 +266,8 @@ async function resolveCompanyCustomer(env, companyId, copy, originUserId) {
     const inserted = await insertOneIgnoreConflict(env, 'customers', {
       company_id: companyId,
       user_id: originUserId,
+      name: copy.name || null,
+      phone: copy.phone || null,
     });
     if (inserted) return { id: inserted.id, created: true, owned: false };
     const again = await find();

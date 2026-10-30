@@ -295,7 +295,7 @@ test('받기 — 직원 403 not_manager, 구성원 아님 403, 다른 업체 사
   assert.equal(writesOf(fake).length, 0);
 });
 
-test('받기 — 회원 상담: { 업체, user_id } 고객 · 프로젝트, 사본 confirmed, 배정 accepted (본사 상담은 그대로)', async () => {
+test('받기 — 회원 상담: { 업체, user_id, 이름, 연락처 } 고객 · 프로젝트, 사본 confirmed, 배정 accepted (본사 상담은 그대로)', async () => {
   const fake = fakeOf();
   const r = await accept(fake, C1);
   assert.equal(r.status, 200, JSON.stringify(r.json));
@@ -304,10 +304,11 @@ test('받기 — 회원 상담: { 업체, user_id } 고객 · 프로젝트, 사�
   const customer = fake.db.customers.find((c) => c.id === customer_id);
   assert.equal(customer.company_id, A);
   assert.equal(customer.user_id, CUSTOMER);
-  assert.equal(
-    customer.name,
-    undefined,
-    '계정 고객 행에는 이름 · 연락처를 베끼지 않는다 (본사 확정과 같은 방식)'
+  const insert = writesOf(fake).find((c) => c.method === 'POST' && c.table === 'customers');
+  assert.deepEqual(
+    insert.body,
+    { company_id: A, user_id: CUSTOMER, name: '김고객', phone: '010-1111-2222' },
+    '업체 장부 — 탈퇴해도 남는 줄이라 이름 · 연락처를 베낀다'
   );
   const project = fake.db.projects.find((p) => p.id === project_id);
   assert.deepEqual(
