@@ -835,7 +835,7 @@ test('수주 통계 — 진행 중 · 최근 90일 재작업 없는 수주 · �
 
 // ── 평가표 검사 ────────────────────────────────────────────────
 
-test('평가표 — 항목 목록 (설비 13 · 직무 10 · 마감 14 · 설계 4 · 시공 3 + 경력)', () => {
+test('평가표 — 항목 목록 (설비 13 · 직무 10 · 마감 14 + 분야 메모 4 · 설계 4, 시공 묶음 없음)', () => {
   const c = evaluationCatalog();
   assert.equal(c.equipment.length, 13);
   assert.deepEqual(Object.keys(EQUIPMENT), [
@@ -871,15 +871,24 @@ test('평가표 — 항목 목록 (설비 13 · 직무 10 · 마감 14 · 설계
     ]
   );
   assert.equal(c.finishes.length, 14);
-  assert.deepEqual(
-    c.design.map((x) => x.key),
-    ['measure', 'drawing_2d', 'planner', 'render_3d']
-  );
-  assert.deepEqual(
-    c.install.map((x) => x.key),
-    ['demolition', 'utility_connect', 'high_floor'],
-    '시공 경력은 install.install_years 숫자로 따로'
-  );
+  assert.deepEqual(c.finish_notes, [
+    { key: 'door', name: '도어' },
+    { key: 'body', name: '몸통' },
+    { key: 'hw', name: '하드웨어' },
+    { key: 'top', name: '상판' },
+  ]);
+  for (const n of c.finish_notes)
+    assert.ok(
+      c.finishes.some((f) => f.key.startsWith(`${n.key}_`)),
+      `메모 분야 ${n.key} 는 마감 키 앞머리`
+    );
+  assert.deepEqual(c.design, [
+    { key: 'hand_drawing', name: '손도면' },
+    { key: 'cad', name: 'CAD' },
+    { key: 'sketchup', name: '스케치업' },
+    { key: 'planner', name: '가구 전문 플래너' },
+  ]);
+  assert.ok(!('install' in c), '시공 묶음은 뺐다');
   assert.deepEqual(c.docs, [
     { key: 'insurance', name: '배상 책임 보험' },
     { key: 'contract', name: '표준 계약서' },
@@ -910,8 +919,18 @@ test('평가표 — 목록 밖 키는 422 (어느 키인지), 틀린 값도 422'
     (e) => e.statusCode === 422
   );
   assert.throws(
-    () => parseEvaluation({ install: { install_years: 1.5 } }, opts),
-    (e) => e.statusCode === 422
+    () => parseEvaluation({ install: { demolition: true, install_years: 7 } }, opts),
+    (e) =>
+      e.statusCode === 422 &&
+      JSON.stringify(e.details.unknown_keys) ===
+        JSON.stringify(['install.demolition', 'install.install_years'])
+  );
+  assert.throws(
+    () => parseEvaluation({ design: { measure: true, render_3d: true } }, opts),
+    (e) =>
+      e.statusCode === 422 &&
+      JSON.stringify(e.details.unknown_keys) ===
+        JSON.stringify(['design.measure', 'design.render_3d'])
   );
   assert.throws(
     () => parseEvaluation({ grade: 'S+' }, opts),
@@ -935,6 +954,46 @@ test('평가표 — 목록 밖 키는 422 (어느 키인지), 틀린 값도 422'
   );
 });
 
+test('평가표 — 마감 · 자재 분야별 메모 finishes.notes (앞뒤 빈칸 지움 · 빈 글 뺌 · 500자) — 점수 키와 섞이지 않는다', () => {
+  const opts = { existing: null, userId: 'u1', today: '2026-10-30' };
+  const out = parseEvaluation(
+    {
+      finishes: {
+        door_pet: 'yes',
+        notes: { door: '  PET 는 외주  ', top: '   ', hw: '블룸 재고' },
+      },
+    },
+    opts
+  );
+  assert.deepEqual(out.finishes, {
+    door_pet: 'yes',
+    notes: { door: 'PET 는 외주', hw: '블룸 재고' },
+  });
+  assert.deepEqual(parseEvaluation({ finishes: { notes: { top: '' } } }, opts).finishes, {});
+  assert.equal(parseEvaluation({ finishes: { door_pet: 'yes' } }, opts).finishes.notes, undefined);
+  assert.throws(
+    () => parseEvaluation({ finishes: { notes: { frame: '틀' } } }, opts),
+    (e) => e.statusCode === 422 && e.details.unknown_keys[0] === 'finishes.notes.frame'
+  );
+  for (const bad of ['가'.repeat(501), 3, true]) {
+    assert.throws(
+      () => parseEvaluation({ finishes: { notes: { body: bad } } }, opts),
+      (e) => e.statusCode === 422 && e.details.invalid[0] === 'finishes.notes.body'
+    );
+  }
+  assert.equal(
+    parseEvaluation({ finishes: { notes: { body: '가'.repeat(500) } } }, opts).finishes.notes.body
+      .length,
+    500
+  );
+  assert.throws(
+    () => parseEvaluation({ finishes: { notes: '메모' } }, opts),
+    (e) => e.statusCode === 422
+  );
+  // 메모가 있어도 도어 마감 점수는 그대로
+  assert.equal(finishPoints(consult({ door_finish: 'pet' }), out), 6);
+});
+
 test('평가표 — 서류는 { checked_at: 확인한 날 }, 확인한 사람은 호출자 (같은 날이면 저장된 기록 그대로), false 면 뺀다', () => {
   const opts = {
     existing: { docs: { insurance: { checked_at: '2026-01-01', by: 'old' } } },
@@ -948,7 +1007,6 @@ test('평가표 — 서류는 { checked_at: 확인한 날 }, 확인한 사람은
         insurance: { checked_at: '2026-01-01', by: 'someone-else' },
         contract: { checked_at: '2026-10-29' },
       },
-      install: { demolition: true, install_years: 12 },
       note: '  메모  ',
       company_id: 'ignored',
     },
@@ -975,7 +1033,7 @@ test('평가표 — 서류는 { checked_at: 확인한 날 }, 확인한 사람은
   }
   assert.equal(out.note, '메모');
   assert.equal(out.grade, 'A');
-  assert.deepEqual(out.install, { demolition: true, install_years: 12 });
+  assert.deepEqual(out.install, {}, '시공 묶음은 뺐다 — 늘 비운다');
   assert.deepEqual(parseEvaluation({ docs: { insurance: false } }, opts).docs, {});
   assert.deepEqual(Object.keys(out).sort(), [
     'as_months',
