@@ -89,7 +89,7 @@
   // 2026-10-26: 설비장(개수대 · 가스대 · 후드장) — 밴드 자리 (앞 50 눕힘 · 뒤 세움)
   const FixtureRules = root.DadamFixtureCabinetRules
     || (typeof require === 'function' ? require('./bom-fixture-cabinet-rules.js') : null);
-  // 2026-10-29: 모듈 속 부재 — 중간판 자리 · 속서랍 구역 (간편 플래너 단추)
+  // 2026-10-29: 모듈 속 부재 — 세로칸막이 · 나뉜 칸 선반 자리 · 속서랍 구역 (간편 플래너 단추)
   const InteriorRules = root.DadamInteriorRules
     || (typeof require === 'function' ? require('./bom-interior-rules.js') : null);
   const C = AsmRules.CARCASS;
@@ -406,9 +406,14 @@
     const geomOf = (row) => (!grp ? { y0: 0, h: H, notch: chanTop ? DR.CHANNEL_TOP_NOTCH_H : 0 } : inDrawerMod(row) ? grp.drawer : grp.door);
     const boxes = drawerBoxesOf(layout, drawer.rules, W, D, H, T);
     const frontsOf = (kind) => (layout ? layout.fronts.filter((f) => f.kind === kind && f.h >= DR.MIN_FRONT_H) : []);
-    // 2026-10-29 사장님 (간편 플래너 중간판 · 속서랍): 사람이 정한 모듈 속 — 속서랍 구역은 지판 위, 처짐방지목은 그 상판 위부터 (bom-interior-rules.js)
+    // 2026-10-29 사장님 (간편 플래너 세로칸막이 · 속서랍): 사람이 정한 모듈 속 — 속서랍 구역은 지판 위, 처짐방지목은 그 상판 위부터 (bom-interior-rules.js)
     const interior = InteriorRules && !grp ? InteriorRules.normalize(mod.interior) : null;
     const innerZone = interior && interior.inner > 0 ? InteriorRules.innerZoneOf({ W, D, T, inner: interior.inner }) : null;
+    // 2026-10-30 세로칸막이 — 나뉜 칸 · 칸막이 자리 (BOM 행과 같은 규칙 interiorLayoutOf, x 는 몸통 왼쪽 겉면부터)
+    const divLayout = interior && interior.mids > 0
+      ? InteriorRules.interiorLayoutOf({ H, W, D, T, shelves: Math.max(0, Math.round(Number(mod.shelfCount) || 0)), mids: interior.mids, cols: interior.cols, inner: interior.inner,
+        topCut: chanTop ? DR.CHANNEL_TOP_NOTCH_H : 0 })
+      : null;
     const braceLift = innerZone ? innerZone.totalH : 0;
     const skip = (row, reason) => unplaced.push({ rowPartId: row.partId, moduleKey: mk, part: row.part, qty: row.qty, reason });
 
@@ -472,8 +477,8 @@
         }
         case 'shelf':
           return;   // 아래에서 모듈 선반을 한꺼번에 높이 순으로
-        case 'mid':
-          return;   // 중간판 — 아래에서 구조 자리(mod.interior.mids) 순으로
+        case 'divider:v':
+          return;   // 세로칸막이 — 아래에서 나뉜 칸 자리 순으로
         case 'body:band': {
           if (row.part === '밴드(보강목)') {
             // 2026-10-20 사장님: 상부장 보강목 2장은 사쿠리 홈 뒤 — 장의 맨 뒤, 판이 서서 뒤를 본다.
@@ -653,9 +658,23 @@
     const rice = placeRiceShelf(parts, keyed, { W, D, T, floorY: T, zFront }, mod, skip);
 
     // 선반 — 높이는 부르는 쪽(플래너 구조 s.shelves)이 넘긴다. 개수가 BOM 과 다르면 놓지 않는다.
+    //   세로칸막이로 나뉜 칸이면 칸마다 (폭 = 그 칸 폭인 행에서, 높이 = 규칙 interiorLayoutOf — BOM 과 같은 셈)
     const shelfRows = one('shelf').map((x) => x.row);
     const shelfQty = shelfRows.reduce((s, r) => s + r.qty, 0);
-    if (shelfQty > 0) {
+    if (shelfQty > 0 && divLayout) {
+      const left = new Map(shelfRows.map((r) => [r, r.qty]));
+      const used = new Map();
+      const picks = [];
+      divLayout.cols.forEach((c) => c.ys.forEach((yc) => {
+        const r = shelfRows.find((x) => x.w === c.w && left.get(x) > 0);
+        if (!r) { picks.push(null); return; }
+        left.set(r, left.get(r) - 1);
+        picks.push({ r, k: used.get(r) || 0, x0: c.x0, yc });
+        used.set(r, (used.get(r) || 0) + 1);
+      }));
+      if (picks.some((p) => !p) || [...left.values()].some((n) => n !== 0)) shelfRows.forEach((r) => skip(r, 'shelf-layout-unknown'));
+      else picks.forEach((p, i) => parts.push(makePart(p.r, p.k, { o: [-W / 2 + p.x0, p.yc - p.r.thickness / 2, shelfZ0], u: '+x', v: '+z', n: '+y' }, [], 'interior', { shelfIdx: i })));
+    } else if (shelfQty > 0) {
       const ys = opts.shelfY && opts.shelfY[mk];
       if (!Array.isArray(ys) || ys.length !== shelfQty) {
         shelfRows.forEach((r) => skip(r, 'shelf-height-unknown'));
@@ -671,17 +690,18 @@
       }
     }
 
-    // 중간판 (2026-10-29 사장님 — bom-interior-rules.js): 높이 = 구조 중간판 중심 y (bom 행 장수와 다르면 놓지 않는다).
-    //   천지판처럼 뒤끝 = 천지판 뒤끝(panelZ0), 깊이 = 행 깊이 (처짐방지목 · 멍장 기둥 뒤까지 짧다)
-    const midRows = one('mid').map((x) => x.row);
-    const midQty = midRows.reduce((s, r) => s + r.qty, 0);
-    if (midQty > 0) {
-      const ys = interior && interior.midYs ? interior.midYs.slice().sort((a, b) => a - b) : null;
-      if (!ys || ys.length !== midQty) midRows.forEach((r) => skip(r, 'mid-height-unknown'));
+    // 세로칸막이 (2026-10-30 사장님 「중간판을 세로칸막이로」 — bom-interior-rules.js): 측판처럼 선다 — 왼쪽 면 = 나뉜 칸 사이 (divs[i].x0),
+    //   밑단 = 지판 · 속서랍 상판 윗면 (divY0), 뒤끝 = 천지판 뒤끝(panelZ0), 깊이 = 행 가로 (천지판 깊이 — 앞까지). 장수가 규칙과 다르면 놓지 않는다
+    const divRows = one('divider:v').map((x) => x.row);
+    const divQty = divRows.reduce((s, r) => s + r.qty, 0);
+    if (divQty > 0) {
+      if (!divLayout || divLayout.divs.length !== divQty) divRows.forEach((r) => skip(r, 'divider-layout-unknown'));
       else {
         let i = 0;
-        midRows.forEach((r) => {
-          for (let k = 0; k < r.qty; k++, i++) parts.push(makePart(r, k, { o: [-W / 2 + T, ys[i] - r.thickness / 2, panelZ0], u: '+x', v: '+z', n: '+y' }, [], 'interior', { midIdx: i }));
+        divRows.forEach((r) => {
+          for (let k = 0; k < r.qty; k++, i++) {
+            parts.push(makePart(r, k, { o: [-W / 2 + divLayout.divs[i].x0, divLayout.divY0, panelZ0], u: '+z', v: '+y', n: '+x' }, [], 'interior', { divIdx: i }));
+          }
         });
       }
     }
