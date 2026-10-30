@@ -32,6 +32,8 @@ const C_LINKED_GEN = id(7);
 const C_PARTNER_GEN = id(8);
 const C_HAS_CUSTOMER = id(9);
 const C_MISSING = id(99);
+const C_PLATFORM = id(10);
+const PLATFORM = 'f0000000-0000-4000-8000-0000000000cc';
 
 const GEN_FREE = 'g-free';
 const GEN_TAKEN = 'g-taken';
@@ -104,7 +106,14 @@ function sortRows(rows, order) {
  * admins: 관리자 user_id 목록. hooks.beforePatch(table, rows) 가 무엇을 돌려주면 그 응답을 쓴다.
  */
 function fakeDb(tables, { admins = [ADMIN], hooks = {} } = {}) {
-  const db = { companies: [{ id: HQ, kind: 'hq', name: '다담가구' }, { id: PARTNER, kind: 'partner', name: '협력업체' }], ...tables };
+  const db = {
+    companies: [
+      { id: HQ, kind: 'hq', name: '다담가구' },
+      { id: PARTNER, kind: 'partner', name: '협력업체' },
+      { id: PLATFORM, kind: 'platform', name: '다담 본사' },
+    ],
+    ...tables,
+  };
   for (const t of ['customers', 'projects', 'consultations', 'generations', 'orders', 'order_payments', 'designs', 'design_documents', 'design_schedules']) {
     db[t] = db[t] || [];
   }
@@ -229,6 +238,7 @@ function acceptDb(hooks) {
         consult(C_LINKED_GEN, { user_id: MEMBER, generation_id: GEN_TAKEN }),
         consult(C_PARTNER_GEN, { generation_id: GEN_PARTNER }),
         consult(C_HAS_CUSTOMER, { customer_id: 'cust-member', status: 'confirmed', confirmed_at: '2026-11-01T00:00:00.000Z' }),
+        consult(C_PLATFORM, { company_id: PLATFORM, user_id: MEMBER }),
       ],
       generations: [
         { id: GEN_FREE, company_id: HQ, project_id: null },
@@ -254,6 +264,15 @@ test('accept — 본사 상담이 아니면 관리자도 403', async () => {
   const r = await accept(fake, C_PARTNER);
   assert.equal(r.status, 403);
   assert.equal(writes(fake).length, 0);
+});
+
+test('accept — 다담 본사로 들어온 상담은 409 platform_consult (업체에 배정해 그 업체가 받는다), 아무것도 쓰지 않는다', async () => {
+  const fake = acceptDb();
+  const r = await accept(fake, C_PLATFORM);
+  assert.equal(r.status, 409);
+  assert.equal(r.json.code, 'platform_consult');
+  assert.equal(writes(fake).length, 0);
+  assert.equal(fake.db.consultations.find((c) => c.id === C_PLATFORM).status, 'pending');
 });
 
 test('accept — 없는 상담 · id 모양이 아니면 404', async () => {

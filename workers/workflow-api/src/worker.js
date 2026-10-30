@@ -24,6 +24,9 @@
  *   PATCH /schedules/:scheduleId           — 일정 수정
  *   POST /schedules/batches/:batchId/notify — Slack 재전송 (멱등)
  *
+ *   GET  /admin/consult-inbox · /admin/consultations/:id/candidates · POST /admin/consultations/:id/assign
+ *   GET  /admin/companies · GET|PUT /admin/companies/:id/evaluation — 다담 본사 상담 분배 (src/distribution/)
+ *
  *   GET  /public/confirm                   — 고객 열람 (X-Share-Token)
  *   POST /public/confirm/decision          — 고객 승인/수정요청
  *
@@ -148,6 +151,15 @@ import {
 } from './work/assignments.js';
 import { addWorkerUpdate, addCompanyUpdate } from './work/updates.js';
 import { acceptConsultation, listMyProjects } from './projects.js';
+import {
+  consultInbox,
+  consultCandidates,
+  assignConsultation,
+  notifyConsultAssigned,
+  listCompaniesAdmin,
+  getCompanyEvaluation,
+  putCompanyEvaluation,
+} from './distribution/admin.js';
 import { handlePushKey, handleSavePushSubscription, handleDeletePushSubscription } from './push/routes.js';
 import { runPushSender, runPushCleanup, isPushCleanupTime, PUSH_SEND_CRON } from './push/sender.js';
 import { notifyOrderRequest, notifyOrderRequestDecided, notifyConfirmationDecided } from './push/hooks.js';
@@ -856,6 +868,42 @@ async function handleAcceptConsultation(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data });
 }
 
+// ===== 다담 본사 상담 분배 (관리자, src/distribution/admin.js) — 이름 · 연락처가 담겨 캐시에 남기지 않는다 =====
+
+async function handleConsultInbox(request, env, { user }) {
+  const data = await consultInbox(env, { user, query: queryOf(request) });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleConsultCandidates(request, env, { params, user }) {
+  const data = await consultCandidates(env, { user, consultationId: params.id });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+/** 배정 — 업체 대표 · 실장 앱 알림은 응답 뒤에 (실패해도 배정은 그대로) */
+async function handleAssignConsultation(request, env, { params, user, ctx }) {
+  const body = (await readJson(request)) || {};
+  const { data, notice } = await assignConsultation(env, { user, consultationId: params.id, body });
+  await afterResponse(ctx, notifyConsultAssigned(env, notice));
+  return jsonResponse(request, env, { success: true, data }, 201, NO_STORE);
+}
+
+async function handleListCompaniesAdmin(request, env, { user }) {
+  const data = await listCompaniesAdmin(env, { user, query: queryOf(request) });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleGetCompanyEvaluation(request, env, { params, user }) {
+  const data = await getCompanyEvaluation(env, { user, companyId: params.id });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handlePutCompanyEvaluation(request, env, { params, user }) {
+  const body = await readJson(request);
+  const data = await putCompanyEvaluation(env, { user, companyId: params.id, body });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
 /** 로그인한 사람의 고객 행에 걸린 프로젝트 — 금액 · 일정이 담겨 캐시에 남기지 않는다 */
 async function handleMyProjects(request, env, { user }) {
   // data 는 프로젝트 배열 그대로 (앱 화면 계약)
@@ -934,6 +982,14 @@ const router = createRouter([
   // 상담 확정 (관리자, 본사 상담) · 내 프로젝트 (로그인한 고객)
   { method: 'POST', path: '/consultations/:id/accept', auth: 'jwt', handler: handleAcceptConsultation },
   { method: 'GET',  path: '/me/projects',              auth: 'jwt', handler: handleMyProjects },
+
+  // 다담 본사 상담 분배 · 업체 평가표 (관리자)
+  { method: 'GET',  path: '/admin/consult-inbox',                 auth: 'jwt', handler: handleConsultInbox },
+  { method: 'GET',  path: '/admin/consultations/:id/candidates',  auth: 'jwt', handler: handleConsultCandidates },
+  { method: 'POST', path: '/admin/consultations/:id/assign',      auth: 'jwt', handler: handleAssignConsultation },
+  { method: 'GET',  path: '/admin/companies',                     auth: 'jwt', handler: handleListCompaniesAdmin },
+  { method: 'GET',  path: '/admin/companies/:id/evaluation',      auth: 'jwt', handler: handleGetCompanyEvaluation },
+  { method: 'PUT',  path: '/admin/companies/:id/evaluation',      auth: 'jwt', handler: handlePutCompanyEvaluation },
 
   // 업체 장부 요약 (그 업체 대표 · 실장)
   { method: 'GET',   path: '/books/summary',      auth: 'jwt', handler: handleBooksSummary },

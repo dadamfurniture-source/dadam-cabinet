@@ -133,7 +133,8 @@ test('글 — 고객 이름 · 설계 제목 같은 값은 받지 않는다. 모
   assert.equal(buildMessage('confirmation_decided', {}), null);
   assert.equal(buildMessage('nope', {}), null);
   assert.equal(buildMessage('toString', {}), null);
-  assert.equal(buildMessage('consult_assigned', {}), null);
+  // 새 상담 배정은 품목 · 시/군/구가 없어도 글이 있다 (test/distribution-rules.test.js)
+  assert.equal(buildMessage('consult_assigned', { name: PII[0] }).body.includes(PII[0]), false);
 });
 
 test('수주 번호 — 서버 모양(SO-YYYYMMDD-XXXX)만 싣는다', () => {
