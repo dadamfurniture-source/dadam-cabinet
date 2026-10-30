@@ -127,7 +127,7 @@
   function headerHTML(current) {
     return (
       '<header class="sg-header">' +
-      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026103001" alt="SEGAN" width="477" height="75" /></a>' +
+      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026103003" alt="SEGAN" width="477" height="75" /></a>' +
       '<nav class="sg-nav" aria-label="주 메뉴">' +
       links(current, false) +
       '</nav>' +
