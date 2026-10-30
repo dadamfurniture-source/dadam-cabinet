@@ -191,7 +191,8 @@ async function runCron(route) {
   const ctx = { waitUntil: (p) => waits.push(p) };
   return withLogs(() =>
     // 1분 cron · NOW(05:30Z)는 5의 배수 분 — 상담 · 업체 신청 알림이 돈다. 앱 알림 잡기는 빈 목록
-    withFetch((c) => (c.url.endsWith('/rpc/claim_notifications') ? json([]) : route(c)), async (calls) => {
+    // 매분 도는 상담 배정 되돌리기는 빈 목록
+    withFetch((c) => (c.url.endsWith('/rpc/claim_notifications') || c.url.includes('/rest/v1/consult_assignments?') ? json([]) : route(c)), async (calls) => {
       await worker.scheduled({ cron: PUSH_SEND_CRON, scheduledTime: NOW }, ENV, ctx);
       await Promise.all(waits);
       return { calls, waits: waits.length };
@@ -216,7 +217,7 @@ test('5분 cron: 상담 · 업체 신청을 각각 한 메시지로 보낸다', 
   const { out } = await runCron((c) =>
     isConsultRpc(c) ? json({ stale: 0, rows: [CONSULT_ROW] }) : isPartnerRpc(c) ? json({ stale: 0, rows: [NEW_ROW] }) : c.url === HOOK ? plain(200, 'ok') : null,
   );
-  assert.equal(out.waits, 3);
+  assert.equal(out.waits, 4, '앱 알림 · 상담 배정 되돌리기 · 상담 · 업체 신청');
   const texts = slackCalls(out.calls).map((c) => c.body.text).sort();
   assert.equal(texts.length, 2);
   assert.ok(texts.some((t) => t.startsWith('[다담] 새 상담 1건')));

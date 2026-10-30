@@ -26,6 +26,8 @@
  *
  *   GET  /admin/consult-inbox · /admin/consultations/:id/candidates · POST /admin/consultations/:id/assign
  *   GET  /admin/companies · GET|PUT /admin/companies/:id/evaluation — 다담 본사 상담 분배 (src/distribution/)
+ *   GET  /company/consults · POST /company/consults/:id/accept|decline · GET|PUT /company/service-settings
+ *   GET  /company/my-score — 업체 쪽 상담 (src/distribution/company.js)
  *
  *   GET  /public/confirm                   — 고객 열람 (X-Share-Token)
  *   POST /public/confirm/decision          — 고객 승인/수정요청
@@ -34,7 +36,7 @@
  *       고객 공유 링크는 X-Share-Token 헤더 (W11-4).
  */
 
-import { handleOptions, jsonResponse, htmlResponse, isAllowedOrigin } from './cors.js';
+import { handleOptions, jsonResponse, htmlResponse, isAllowedOrigin, corsHeaders } from './cors.js';
 import { createRouter } from './router.js';
 import { normalizePack, WORK_ORDER_PACKS } from './templates/work-order.js';
 import {
@@ -160,6 +162,15 @@ import {
   getCompanyEvaluation,
   putCompanyEvaluation,
 } from './distribution/admin.js';
+import {
+  listCompanyConsults,
+  acceptCompanyConsult,
+  declineCompanyConsult,
+  runAssignmentExpiry,
+  getServiceSettings,
+  putServiceSettings,
+  myScore,
+} from './distribution/company.js';
 import { handlePushKey, handleSavePushSubscription, handleDeletePushSubscription } from './push/routes.js';
 import { runPushSender, runPushCleanup, isPushCleanupTime, PUSH_SEND_CRON } from './push/sender.js';
 import { notifyOrderRequest, notifyOrderRequestDecided, notifyConfirmationDecided } from './push/hooks.js';
@@ -904,6 +915,41 @@ async function handlePutCompanyEvaluation(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
 }
 
+// ===== 업체 쪽 상담 (src/distribution/company.js) — 이름 · 연락처가 담겨 캐시에 남기지 않는다 =====
+
+async function handleCompanyConsults(request, env, { user }) {
+  const data = await listCompanyConsults(env, { user });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleAcceptCompanyConsult(request, env, { params, user }) {
+  const data = await acceptCompanyConsult(env, { user, consultationId: params.id });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+/** 못 받음 — 본문 없이 204 */
+async function handleDeclineCompanyConsult(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  await declineCompanyConsult(env, { user, consultationId: params.id, body });
+  return new Response(null, { status: 204, headers: { ...corsHeaders(request, env), ...NO_STORE } });
+}
+
+async function handleGetServiceSettings(request, env, { user }) {
+  const data = await getServiceSettings(env, { user });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handlePutServiceSettings(request, env, { user }) {
+  const body = await readJson(request);
+  const data = await putServiceSettings(env, { user, body });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleMyScore(request, env, { user }) {
+  const data = await myScore(env, { user });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
 /** 로그인한 사람의 고객 행에 걸린 프로젝트 — 금액 · 일정이 담겨 캐시에 남기지 않는다 */
 async function handleMyProjects(request, env, { user }) {
   // data 는 프로젝트 배열 그대로 (앱 화면 계약)
@@ -990,6 +1036,14 @@ const router = createRouter([
   { method: 'GET',  path: '/admin/companies',                     auth: 'jwt', handler: handleListCompaniesAdmin },
   { method: 'GET',  path: '/admin/companies/:id/evaluation',      auth: 'jwt', handler: handleGetCompanyEvaluation },
   { method: 'PUT',  path: '/admin/companies/:id/evaluation',      auth: 'jwt', handler: handlePutCompanyEvaluation },
+
+  // 업체 쪽 상담 — 목록 · 설정 읽기는 구성원, 받기 · 못 받음 · 설정 고치기 · 내 점수는 대표 · 실장
+  { method: 'GET',  path: '/company/consults',                    auth: 'jwt', handler: handleCompanyConsults },
+  { method: 'POST', path: '/company/consults/:id/accept',         auth: 'jwt', handler: handleAcceptCompanyConsult },
+  { method: 'POST', path: '/company/consults/:id/decline',        auth: 'jwt', handler: handleDeclineCompanyConsult },
+  { method: 'GET',  path: '/company/service-settings',            auth: 'jwt', handler: handleGetServiceSettings },
+  { method: 'PUT',  path: '/company/service-settings',            auth: 'jwt', handler: handlePutServiceSettings },
+  { method: 'GET',  path: '/company/my-score',                    auth: 'jwt', handler: handleMyScore },
 
   // 업체 장부 요약 (그 업체 대표 · 실장)
   { method: 'GET',   path: '/books/summary',      auth: 'jwt', handler: handleBooksSummary },
@@ -1129,12 +1183,17 @@ export default {
    * 계정 전체 cron 개수 한도(Workers Free 5개) 때문에 1분 cron 하나에 여러 일을 싣는다):
    *   DAILY_BRIEF_CRON — 평일 아침 7시(KST) 생산 요약 · 월 마감
    *   PUSH_SEND_CRON   — 1분마다 앱 알림 보내기, 하루 한 번 그 1분에 끝난 알림 정리 (src/push/sender.js),
+   *                      24시간 지난 상담 배정 되돌리기 (src/distribution/company.js runAssignmentExpiry),
    *                      분이 5의 배수면 새 상담 · 새 업체 신청 Slack 알림 (src/consult-notify.js)
    */
   async scheduled(event, env, ctx) {
     if (event.cron === PUSH_SEND_CRON) {
       ctx.waitUntil(
         runPushSender(env, { nowMs: event.scheduledTime }).catch((e) => console.error('push sender failed:', e && e.statusCode ? e.statusCode : 'error')),
+      );
+      // 24시간 지난 상담 배정 → 무응답, 본사 상담은 다시 대기 (src/distribution/company.js)
+      ctx.waitUntil(
+        runAssignmentExpiry(env, { nowMs: event.scheduledTime }).catch((e) => console.error('assignment expiry failed:', e && e.statusCode ? e.statusCode : 'error')),
       );
       if (isPushCleanupTime(event.scheduledTime)) {
         ctx.waitUntil(

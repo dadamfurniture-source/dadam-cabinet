@@ -8,7 +8,7 @@
  */
 
 import { ValidationError } from '../supabase.js';
-import { FURNITURE_LABELS } from '../consult-notify.js';
+import { FURNITURE_LABELS, SIDO } from '../consult-notify.js';
 import { PRICE_TIERS, REQUIRED_DOCS, GRADE_POINTS } from './rules.js';
 
 const entries = (obj) =>
@@ -271,4 +271,95 @@ export function parseEvaluation(body, { existing = null, userId, today }) {
 export function docsOk(evaluation) {
   const docs = evaluation && isPlainObject(evaluation.docs) ? evaluation.docs : {};
   return REQUIRED_DOCS.every((k) => isPlainObject(docs[k]) && Boolean(docs[k].checked_at));
+}
+
+// ── 업체 상담 설정 (company_service_settings — 업체 대표 · 실장이 고친다) ──────────────
+
+/** 하는 품목 값 — 함 · 외주 · 안 함 */
+export const SETTINGS_ITEM_VALUES = Object.freeze(['do', 'outsource', 'no']);
+/** 상담 받는 지역 수 상한 (DB company_service_settings_shape_check 와 같다) */
+export const REGIONS_MAX = 300;
+/** 한 달 한도 상한 (DB company_service_settings_limit_check 와 같다) */
+export const MONTHLY_LIMIT_MAX = 1000;
+/** 시/군/구 모양 (consult-notify.js 와 같다 — 목록 값은 한글 한 낱말 + 시 · 군 · 구) */
+const GUGUN_RE = /^[가-힣]{1,10}(?:시|군|구)$/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** 아직 설정하지 않은 업체 */
+export function emptySettings() {
+  return {
+    regions: [],
+    items: {},
+    monthly_limit: null,
+    next_available_date: null,
+    updated_at: null,
+  };
+}
+
+function dateOrNull(body, field) {
+  const v = body[field];
+  if (v === undefined || v === null || v === '') return null;
+  const ok =
+    typeof v === 'string' &&
+    DATE_RE.test(v) &&
+    new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;
+  if (!ok) throw new ValidationError(`${field} 는 YYYY-MM-DD 날짜여야 합니다`, { field });
+  return v;
+}
+
+/**
+ * PUT /company/service-settings 본문 → 저장할 칸. 본문이 다시 정하는 설정 전체다 (빠진 칸은 비운다).
+ *   regions              [{ sido, gugun }] — 시/도 목록 · 시/군/구 모양만, 같은 곳은 한 번. 비우면 업체 주소의 시/군/구 하나로 본다
+ *   items                { 품목 키: do | outsource | no } — 목록 밖 품목은 422
+ *   monthly_limit        0~1000 정수 또는 null (null 이면 배정받지 않는다 — rules.js REQUIRE_MONTHLY_LIMIT)
+ *   next_available_date  'YYYY-MM-DD' 또는 null
+ */
+export function parseServiceSettings(body) {
+  if (!isPlainObject(body)) throw new ValidationError('JSON 본문이 필요합니다');
+  const rawRegions = body.regions === undefined || body.regions === null ? [] : body.regions;
+  if (!Array.isArray(rawRegions))
+    throw new ValidationError('regions 는 배열이어야 합니다', { field: 'regions' });
+  if (rawRegions.length > REGIONS_MAX)
+    throw new ValidationError(`regions 는 ${REGIONS_MAX}곳까지입니다`, { field: 'regions' });
+  const regions = [];
+  const seen = new Set();
+  const badRegions = [];
+  rawRegions.forEach((r, i) => {
+    if (
+      !isPlainObject(r) ||
+      !SIDO.includes(r.sido) ||
+      typeof r.gugun !== 'string' ||
+      !GUGUN_RE.test(r.gugun)
+    ) {
+      badRegions.push(i);
+      return;
+    }
+    const key = `${r.sido}|${r.gugun}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    regions.push({ sido: r.sido, gugun: r.gugun });
+  });
+  if (badRegions.length)
+    throw new ValidationError('지역 값이 올바르지 않습니다', { invalid_regions: badRegions });
+
+  const items = objectOf(body, 'items');
+  const unknown = Object.keys(items).filter((k) => !ITEM_KEYS.includes(k));
+  if (unknown.length)
+    throw new ValidationError('품목 목록에 없는 항목입니다', {
+      unknown_keys: unknown.map((k) => `items.${k}`),
+    });
+  const wrong = Object.entries(items)
+    .filter(([, v]) => !SETTINGS_ITEM_VALUES.includes(v))
+    .map(([k]) => `items.${k}`);
+  if (wrong.length)
+    throw new ValidationError('품목 값은 do · outsource · no 중 하나여야 합니다', {
+      invalid: wrong,
+    });
+
+  return {
+    regions,
+    items: { ...items },
+    monthly_limit: intOrNull(body, 'monthly_limit', 0, MONTHLY_LIMIT_MAX),
+    next_available_date: dateOrNull(body, 'next_available_date'),
+  };
 }
