@@ -65,7 +65,7 @@ const settings = (extra = {}) => ({
   regions: [{ sido: '서울특별시', gugun: '강남구' }],
   items: { sink: 'do' },
   monthly_limit: 10,
-  next_available_date: null,
+  lead_days: null,
   ...extra,
 });
 const consult = (extra = {}) => ({
@@ -139,22 +139,19 @@ test('고객 가격대 — wanted_price_tier, 모름 · 빈 값이면 모든 업
   }
 });
 
-test('희망 시기 — 날짜 안 6 · 7일 안 늦음 3 · 그 밖 0, 희망 날짜 없으면 6, 업체 날짜 없으면 오늘', () => {
+test('희망 시기 — 가능한 날(오늘 + 걸리는 날)이 날짜 안 6 · 7일 안 늦음 3 · 그 밖 0, 희망 날짜 없으면 6, 걸리는 날 비면 0', () => {
   const today = '2026-10-30';
-  assert.equal(R.timingScore(null, '2026-12-31', today), 6);
-  assert.equal(R.timingScore('2026-11-10', '2026-11-01', today), 6);
-  assert.equal(R.timingScore('2026-11-10', '2026-11-10', today), 6, '같은 날');
-  assert.equal(R.timingScore('2026-11-10', '2026-11-11', today), 3);
-  assert.equal(R.timingScore('2026-11-10', '2026-11-17', today), 3, '7일');
-  assert.equal(R.timingScore('2026-11-10', '2026-11-18', today), 0, '8일');
-  assert.equal(R.timingScore('2026-11-10', null, today), 6, '업체 날짜 없음 → 오늘');
+  assert.equal(R.LEAD_DAYS_MAX, 14);
+  assert.equal(R.timingScore(null, 14, today), 6);
+  assert.equal(R.timingScore('2026-11-10', 0, today), 6);
+  assert.equal(R.timingScore('2026-11-10', 11, today), 6, '같은 날');
+  assert.equal(R.timingScore('2026-11-10', 12, today), 3);
+  assert.equal(R.timingScore('2026-11-01', 9, today), 3, '7일');
+  assert.equal(R.timingScore('2026-11-01', 10, today), 0, '8일');
+  assert.equal(R.timingScore('2026-11-10', null, today), 6, '걸리는 날 비면 오늘');
   assert.equal(R.timingScore('2026-10-25', null, today), 3, '오늘이 희망보다 5일 늦음');
-  assert.equal(R.timingScore('2026-10-01', null, today), 0);
-  assert.equal(
-    R.timingScore('언젠가', '2026-11-01', today),
-    6,
-    '날짜 모양이 아니면 희망 날짜 없음'
-  );
+  assert.equal(R.timingScore('2026-10-01', 0, today), 0);
+  assert.equal(R.timingScore('언젠가', 3, today), 6, '날짜 모양이 아니면 희망 날짜 없음');
 });
 
 test('한 달 한도를 정하지 않은 업체는 거른다 (limit)', () => {
@@ -508,7 +505,7 @@ test('선택 적합도 — 다섯 항목 합 (만점 35)', () => {
       request_detail_design: true,
     }),
     items: ['sink'],
-    settings: settings({ next_available_date: '2026-11-05' }),
+    settings: settings({ lead_days: 5 }),
     evaluation: {
       finishes: { door_pet: 'yes' },
       price_tier: 'mid',

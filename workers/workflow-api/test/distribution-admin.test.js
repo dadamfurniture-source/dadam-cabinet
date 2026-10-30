@@ -50,6 +50,9 @@ const FACTORY_OLD = sid(6); // 공장 옛 상담 (목록에 나오지 않는다)
 const P7 = sid(7); // 대기 — 업체 제공 동의 없음 (본사 직접 상담)
 
 const ago = (hours) => new Date(Date.now() - hours * 3600 * 1000).toISOString();
+/** 오늘(KST)에서 days 날 뒤 'YYYY-MM-DD' — 서버가 오늘 + 상담까지 걸리는 날로 세므로 날짜를 박아 두지 않는다 */
+const kstDay = (days) =>
+  new Date(Date.now() + 9 * 3600 * 1000 + days * 86400000).toISOString().slice(0, 10);
 const DOCS = {
   insurance: { checked_at: '2026-10-01T00:00:00Z', by: ADMIN },
   contract: { checked_at: '2026-10-01T00:00:00Z', by: ADMIN },
@@ -71,7 +74,7 @@ const svc = (company_id, extra = {}) => ({
   regions: [SEOUL_GANGNAM],
   items: { sink: 'do' },
   monthly_limit: 10,
-  next_available_date: '2026-11-01',
+  lead_days: 0,
   ...extra,
 });
 const evaln = (company_id, extra = {}) => ({
@@ -100,7 +103,7 @@ const P1_ROW = {
   consultation_type: 'estimate',
   title: '김고객네 주방',
   description: '상부장 높게',
-  preferred_date: '2026-11-20',
+  preferred_date: kstDay(2),
   preferred_time: '09:00-12:00',
   furniture_categories: ['sink', 'not-a-key'],
   space_type: 'kitchen',
@@ -165,10 +168,10 @@ function tables() {
       { company_id: B, user_id: OWNER_B, role: 'owner', status: 'active' },
     ],
     company_service_settings: [
-      svc(FACTORY, { next_available_date: '2026-11-20' }),
+      svc(FACTORY, { lead_days: 2 }), // 희망 날 그날 6
       svc(A),
-      svc(B, { next_available_date: '2026-11-25' }),
-      svc(C, { next_available_date: '2027-01-01' }),
+      svc(B, { lead_days: 7 }), // 5일 늦음 3
+      svc(C, { lead_days: 14 }), // 12일 늦음 0
       svc(D),
       svc(G, { regions: [{ sido: '부산광역시', gugun: '해운대구' }] }),
     ],
