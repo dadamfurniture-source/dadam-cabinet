@@ -835,25 +835,26 @@ test('수주 통계 — 진행 중 · 최근 90일 재작업 없는 수주 · �
 
 // ── 평가표 검사 ────────────────────────────────────────────────
 
-test('평가표 — 항목 목록 (설비 14 · 직무 10 · 마감 14 · 설계 4 · 시공 3 + 경력)', () => {
+test('평가표 — 항목 목록 (설비 13 · 직무 10 · 마감 14 · 설계 4 · 시공 3 + 경력)', () => {
   const c = evaluationCatalog();
-  assert.equal(c.equipment.length, 14);
+  assert.equal(c.equipment.length, 13);
   assert.deepEqual(Object.keys(EQUIPMENT), [
-    'panel_saw',
+    'table_saw',
     'cnc_cut',
-    'edge_bander',
+    'edge_bander_body',
+    'edge_bander_door',
     'curved_edge_bander',
     'special_door_edge_bander',
     'boring',
-    'cnc_router',
     'nesting',
     'conveyor',
     'packing',
     'forklift',
     'panel_lifter',
     'assembly_space',
-    'install_vehicle',
   ]);
+  assert.equal(EQUIPMENT.edge_bander_body, '엣지밴더(몸통용)');
+  assert.equal(EQUIPMENT.edge_bander_door, '엣지밴더(도어용)');
   assert.deepEqual(
     c.staff_roles.map((x) => x.key),
     [
