@@ -2,6 +2,7 @@
  * 앱 알림 글 — 모든 알림의 제목 · 본문 · 열 곳을 이 파일 하나에서 정한다.
  *
  * 넣지 않는 것: 고객 이름 · 전화 · 주소 · 금액 · 설계 제목(제목에 이름이 들어갈 수 있다).
+ *   새 상담 배정(consult_assigned)만 품목 · 시/군/구를 싣는다 — 정해진 목록 · 모양에 맞는 값만.
  * 수주 번호는 서버가 만든 모양(SO-YYYYMMDD-XXXX: 날짜 + 설계 id 앞 4자)일 때만 싣는다 (safeOrderNo).
  * 열 곳은 앱 안(/segan/…)만 — DB 도 ^/segan/ 만 받는다.
  *
@@ -117,6 +118,49 @@ function companySuspended() {
   };
 }
 
+/** 업체 › 상담 (배정 상담 받기 · 못 받음) */
+export const PARTNER_CONSULTS_URL = '/segan/me.html#partner-consults';
+
+/** 상담 품목 키 → 이름 — consult-notify.js FURNITURE_LABELS 와 같다 (시험이 견준다. 이 파일은 import 하지 않는다) */
+export const CONSULT_ITEM_LABELS = Object.freeze({
+  sink: '싱크대',
+  island: '아일랜드',
+  wardrobe: '붙박이장',
+  fridge: '냉장고장',
+  shoerack: '신발장',
+  vanity: '화장대',
+  storage: '수납장',
+  other: '기타',
+});
+
+/** 시/군/구 모양 (consult-notify.js 와 같다) — 이 모양이 아니면 싣지 않는다 */
+const GUGUN_RE = /^[가-힣]{1,10}(?:시|군|구)$/;
+
+/**
+ * 새 상담 배정 — 업체 대표 · 실장에게. { items: 품목 키[], gugun }
+ * 품목 · 시/군/구만 싣는다 (이름 · 전화 · 요청 내용 없음). 목록 밖 품목 · 모양이 틀린 시/군/구는 뺀다.
+ */
+function consultAssigned({ items = [], gugun = null } = {}) {
+  const labels = [];
+  for (const k of Array.isArray(items) ? items : []) {
+    const label =
+      typeof k === 'string' && Object.prototype.hasOwnProperty.call(CONSULT_ITEM_LABELS, k)
+        ? CONSULT_ITEM_LABELS[k]
+        : null;
+    if (label && !labels.includes(label)) labels.push(label);
+  }
+  const parts = [
+    labels.join('·'),
+    typeof gugun === 'string' && GUGUN_RE.test(gugun) ? gugun : '',
+  ].filter(Boolean);
+  const head = parts.length ? `${parts.join(' · ')} 상담이` : '상담이';
+  return {
+    title: '새 상담 배정',
+    body: `${head} 배정되었습니다. 24시간 안에 받기 · 못 받음을 골라 주세요.`,
+    url: PARTNER_CONSULTS_URL,
+  };
+}
+
 const BUILDERS = Object.freeze({
   order_request: orderRequest,
   order_request_decided: orderRequestDecided,
@@ -124,6 +168,7 @@ const BUILDERS = Object.freeze({
   partner_application: partnerApplication,
   billing_failed: billingFailed,
   company_suspended: companySuspended,
+  consult_assigned: consultAssigned,
 });
 
 /**

@@ -98,6 +98,9 @@
   const WARDROBE_RULES = Object.freeze({
     PANEL_T: 15,                  // 천판·지판·선반·칸막이 두께 (§5 PANEL_THICKNESS)
     ROD_OFFSET: 75,               // 옷봉 — 칸 상단에서 아래로 (§5)
+    // 2026-10-30 사장님: "선반이나 서랍을 추가 했을때, 옷봉의 유무는 높이가 옷봉 설치에서 바닥 닿는데 까지 최소1000 이하라면 자동 제거"
+    //   — 사람이 바꾼 칸(칸마다 선반 · 서랍)에서 봉 중심 ~ 그 아래 판(아래 선반 윗면 · 칸 바닥) 이 이 값 이하면 옷봉을 뺀다 (layoutWardrobeModule)
+    ROD_MIN_HANG: 1000,
     LONG_FIRST_SHELF: 315,        // 긴옷 첫 선반 — 칸 상단에서 아래로 (§5)
     DRAWER_MOD_H: 350,            // 외부 서랍 한 단 (§7)
     MAX_DRAWER_COUNT: 5,          // §7 서랍 0~5
@@ -796,6 +799,9 @@
     const shelves = [];
     const rods = [];
     const cellShelves = cleanCellShelves(opt.cellShelves);
+    // 서랍을 바꿨나 (기본형과 다른 단수 · 종류) — 바뀐 서랍이 닿는 칸에서 옷봉 걸 공간을 본다 (ROD_MIN_HANG):
+    //   외부 서랍이면 캐비닛 높이가 줄어 모든 칸, 내부 서랍이면 맨 아래 캐비닛 칸
+    const drawersChanged = drawers !== int0(preset.drawers, R.MAX_DRAWER_COUNT) || external !== (preset.external !== false);
 
     const firstCabinet = carcasses.findIndex((c) => c.kind === 'cabinet');
     carcasses.forEach((car, carIdx) => {
@@ -843,12 +849,24 @@
       own.forEach((c0) => {
         // 칸마다 선반 수 — 사람이 바꾼 칸만 (몸통 · 칸 · 옷봉은 기본형 그대로)
         const ov = cellShelves && cellShelves[cells.length];
-        const c = ov == null ? c0 : Object.assign({}, c0, { shelves: ov });
+        let c = ov == null ? c0 : Object.assign({}, c0, { shelves: ov });
+        let shelfYs = shelfPositions(c, opt);
+        // 옷봉 걸 공간 (2026-10-30 사장님) — 사람이 바꾼 칸에서 봉 중심 ~ 아래 판이 ROD_MIN_HANG 이하면 옷봉을 뺀다.
+        //   빼면 그 칸은 선반 칸이다 — 선반 자리는 일반 규칙 (판 두께를 뺀 나머지 균등, §6)
+        const changed = ov != null || (drawersChanged && (external || carIdx === firstCabinet));
+        const rod0 = changed ? rodPositions(c, shelfYs) : [];
+        if (rod0.length) {
+          const below = shelfYs.filter((y) => y < rod0[0]).map((y) => y + T);
+          const floor = below.length ? Math.max(...below) : 0;
+          if (rod0[0] - floor <= R.ROD_MIN_HANG) {
+            c = Object.assign({}, c, { rods: 0, kind: c.shelves > 0 ? 'shelf' : 'open' });
+            shelfYs = shelfPositions(c, opt);
+          }
+        }
         const cell = Object.assign({}, c, { carcass: carIdx, y0: c.y0 + base });
         const idx = cells.length;
         cells.push(cell);
         car.cells.push(cell);
-        const shelfYs = shelfPositions(c, opt);
         shelfYs.forEach((sy) => {
           const row = { cell: idx, carcass: carIdx, x0: c.x0, y: sy + cell.y0,
             w: c.w, cutW: c.w, cutH: shelfDepthOf(opt), t: T, part: '선반' };
