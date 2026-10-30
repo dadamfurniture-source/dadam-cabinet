@@ -41,7 +41,13 @@ import { isAdmin } from '../reports/admin.js';
 import { FURNITURE_LABELS } from '../consult-notify.js';
 import { buildMessage } from '../push/messages.js';
 import { notifyRoles } from '../push/outbox.js';
-import { RULES_VERSION, TOP_N, ASSIGNMENT_TTL_HOURS, REQUIRE_MONTHLY_LIMIT } from './rules.js';
+import {
+  RULES_VERSION,
+  TOP_N,
+  ASSIGNMENT_TTL_HOURS,
+  REQUIRE_MONTHLY_LIMIT,
+  TRIED_STATES,
+} from './rules.js';
 import {
   customerItems,
   rankCandidates,
@@ -149,10 +155,25 @@ async function loadPlatformConsult(env, consultationId) {
   return { consult: row, platform };
 }
 
+/** 이 상담을 이미 못 받음 · 무응답으로 돌려보낸 업체 — 같은 상담의 후보에서 뺀다 */
+async function triedCompanyIds(env, consultationId) {
+  const rows =
+    (await selectMany(env, 'consult_assignments', {
+      consultation_id: `eq.${consultationId}`,
+      state: `in.(${TRIED_STATES.join(',')})`,
+      select: 'company_id',
+      limit: '2000',
+    })) || [];
+  return new Set(rows.map((r) => r.company_id));
+}
+
 async function rankFor(env, consult, nowMs) {
   const items = customerItems(consult);
-  const ctx = await loadRankingContext(env, { nowMs });
-  return { items, ...rankCandidates({ consult, items, ...ctx, nowMs }) };
+  const [ctx, triedIds] = await Promise.all([
+    loadRankingContext(env, { nowMs }),
+    triedCompanyIds(env, consult.id),
+  ]);
+  return { items, ...rankCandidates({ consult, items, ...ctx, triedIds, nowMs }) };
 }
 
 async function companyNames(env, ids) {
@@ -233,7 +254,7 @@ export async function consultInbox(env, { user, query = {} }) {
           }
         : null,
       tried: list
-        .filter((a) => a.state === 'declined' || a.state === 'expired')
+        .filter((a) => TRIED_STATES.includes(a.state))
         .map((a) => ({
           company_id: a.company_id,
           company_name: names.get(a.company_id) || null,

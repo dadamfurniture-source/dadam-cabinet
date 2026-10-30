@@ -578,6 +578,25 @@ test('배정 — 거르기를 통과하지 못하면 422 not_eligible (이유), 
   assert.equal(fake.db.consultations.find((c) => c.id === P1).status, 'pending');
 });
 
+test('거친 업체 — 같은 상담을 못 받은 업체는 후보에서 빠지고(tried) 다시 배정하지 못한다', async () => {
+  const fake = fakeOf();
+  const r = await call(fake, `/admin/consultations/${P4}/candidates`);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const { items, filtered } = r.json.data;
+  assert.ok(!items.some((i) => i.company_id === C), 'C 는 P4 를 못 받았다');
+  assert.deepEqual(filtered.find((f) => f.company_id === C)?.reasons, ['tried']);
+  const a = await assign(fake, P4, C);
+  assert.equal(a.status, 422);
+  assert.equal(a.json.code, 'not_eligible');
+  assert.deepEqual(a.json.details.reasons, ['tried']);
+  assert.equal(writesOf(fake).length, 0);
+  assert.equal(fake.db.consultations.find((c) => c.id === P4).status, 'pending');
+
+  // 다른 상담(P1)에서는 C 도 후보 — 거친 업체는 그 상담에서만 빠진다
+  const p1 = await call(fake, `/admin/consultations/${P1}/candidates`);
+  assert.ok(!p1.json.data.filtered.some((f) => f.company_id === C));
+});
+
 test('배정 — company_id 가 없거나 모양이 아니면 422, 본사 상담이 아니면 404', async () => {
   const fake = fakeOf();
   assert.equal((await assign(fake, P1, undefined)).status, 422);

@@ -10,6 +10,7 @@
  *   item             고객 품목이 모두 업체 「하는 품목」에서 함 · 외주
  *   limit            이번 달(KST) 배정 수 < 업체 한 달 한도 (한도가 없으면 rules.js REQUIRE_MONTHLY_LIMIT)
  *   docs             배상 책임 보험 · 표준 계약서 둘 다 본사 확인
+ *   tried            같은 상담을 이미 못 받음 · 무응답으로 돌려보낸 업체 (rules.js TRIED_STATES)
  *
  * 점수 (100) — 항목마다 소수 한 자리, 총점은 반올림 정수
  *   eval 40     등급 + 고객 만족 + 재작업 + 응답
@@ -96,9 +97,10 @@ function limitOk(settings, monthCount) {
 
 /**
  * 거른 이유 (빈 배열이면 통과).
- * @param {object} p  { consult, items, company, settings, evaluation, stats }
+ * @param {object} p  { consult, items, company, settings, evaluation, stats, tried }
+ *   tried  이 상담을 이미 돌려보낸 업체면 true
  */
-export function filterReasons({ consult, items, company, settings, evaluation, stats }) {
+export function filterReasons({ consult, items, company, settings, evaluation, stats, tried }) {
   const pool = poolReasons(company);
   if (pool.length) return pool;
   const reasons = [];
@@ -106,6 +108,7 @@ export function filterReasons({ consult, items, company, settings, evaluation, s
   if (!itemOk(items, settings)) reasons.push('item');
   if (!limitOk(settings, (stats && stats.monthCount) || 0)) reasons.push('limit');
   if (!docsOk(evaluation)) reasons.push('docs');
+  if (tried) reasons.push('tried');
   return reasons;
 }
 
@@ -270,6 +273,7 @@ export function scoreCompany({
  *   consult, items       상담 · 고객 품목 키 (customerItems)
  *   companies            본사(platform)를 뺀 업체 행 { id, kind, name, plan, status, sido, gugun }
  *   settingsBy · evaluationBy · statsBy  Map company_id → 행 / 통계 (data.js)
+ *   triedIds             이 상담을 이미 돌려보낸 업체 id (Set)
  *   nowMs
  * @returns {{ ranked: object[], filtered: object[] }}
  *   ranked   순위 대상 전부 (rank 1 부터) — { company, total, rank, score, last_assigned_at }
@@ -282,6 +286,7 @@ export function rankCandidates({
   settingsBy,
   evaluationBy,
   statsBy,
+  triedIds = new Set(),
   nowMs,
 }) {
   const today = kstToday(nowMs);
@@ -291,7 +296,8 @@ export function rankCandidates({
     const settings = settingsBy.get(company.id) || null;
     const evaluation = evaluationBy.get(company.id) || null;
     const stats = statsBy.get(company.id) || null;
-    const reasons = filterReasons({ consult, items, company, settings, evaluation, stats });
+    const tried = triedIds.has(company.id);
+    const reasons = filterReasons({ consult, items, company, settings, evaluation, stats, tried });
     if (reasons.length)
       filtered.push({ company_id: company.id, company_name: company.name, reasons });
     else eligible.push({ company, settings, evaluation, stats });

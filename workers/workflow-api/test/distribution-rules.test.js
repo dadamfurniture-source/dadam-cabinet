@@ -93,7 +93,7 @@ const stats = (extra = {}) => ({
   ...extra,
 });
 
-// ── 대표 확인 대기 규칙 ─────────────────────────────────────────
+// ── 대표 확인 규칙 ─────────────────────────────────────────────
 
 test('위치 — 같은 시/군/구 15 · 같은 시/도 10 · 그 밖 5 (상수는 rules.js)', () => {
   assert.equal(R.LOCATION_SAME_GUGUN, 15);
@@ -174,6 +174,44 @@ test('한 달 한도를 정하지 않은 업체는 거른다 (limit)', () => {
     ['item', 'limit'],
     '설정이 없으면 지역은 주소로, 품목 · 한도 없음'
   );
+});
+
+test('거친 업체 — 같은 상담을 못 받음 · 무응답으로 돌려보낸 업체는 거른다 (tried)', () => {
+  assert.deepEqual(R.TRIED_STATES, ['declined', 'expired']);
+  assert.ok(R.FILTER_REASONS.includes('tried'));
+  const base = {
+    consult: consult(),
+    items: ['sink'],
+    company: company('a'),
+    settings: settings(),
+    evaluation: { grade: 'B', docs: DOCS },
+    stats: stats(),
+  };
+  assert.deepEqual(filterReasons(base), []);
+  assert.deepEqual(filterReasons({ ...base, tried: true }), ['tried']);
+  assert.deepEqual(
+    filterReasons({ ...base, company: company('a', { plan: 'expert' }), tried: true }),
+    ['tier'],
+    '풀 밖 업체는 풀 이유만'
+  );
+
+  const companies = [company('a', { name: '가' }), company('b', { name: '나' })];
+  const by = (v) => new Map(companies.map((c) => [c.id, v]));
+  const { ranked, filtered } = rankCandidates({
+    consult: consult(),
+    items: ['sink'],
+    companies,
+    settingsBy: by(settings()),
+    evaluationBy: by({ grade: 'B', docs: DOCS }),
+    statsBy: by(stats()),
+    triedIds: new Set(['a']),
+    nowMs: NOW,
+  });
+  assert.deepEqual(
+    ranked.map((c) => [c.company.id, c.rank]),
+    [['b', 1]]
+  );
+  assert.deepEqual(filtered, [{ company_id: 'a', company_name: '가', reasons: ['tried'] }]);
 });
 
 // ── 거르기 ────────────────────────────────────────────────────
