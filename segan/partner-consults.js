@@ -21,13 +21,14 @@
                GET  /company/my-score               { grade, satisfaction(0~5|null), response_rate(0~1|null) }
    화면
      상담 (#partner-consults)
-       상담 한 건마다 품목 · 시/군/구 · 희망 시기 · 연락 시간 · 도어 마감 · 철거 · 가격대 · 예상 견적 ·
+       상담 한 건마다 품목 · 시/군/구 · 희망 시기(시공 완료 희망 날짜) · 희망 상담일 · 연락 시간 · 도어 마감 ·
+       철거 · 가격대 · 예상 견적 ·
        상세 설계 요청 · 요청 사항 · 연출컷 · 이름 · 전화 · 남은 시간(배정 기록의 expires_at — 배정 뒤 24시간)
        기다리는 상담(assignment.state assigned): 「받기」 · 「못 받음」(까닭을 적는 칸이 그 자리에서 열린다)
        돌려보낸 상담(status returned · 못 받음 · 시간 넘김): 연락처 없이 흐리게 (서버도 연락처를 지워서 준다)
      내 평가 — 상담 칸 위 한 줄: 등급 · 고객 만족 · 응답률 (못 읽으면 줄째 뺀다)
      상담 설정 — 상담 받는 지역(시/도 · 시/군/구 여러 개, segan/regions.js) · 하는 품목(함 · 외주 · 안 함) ·
-       한 달 한도 · 상담까지 걸리는 날(0~14일, 비면 바로 가능)
+       한 달 한도 · 고객 확정 ~ 시공 완료 기간(1~90일, 비면 상담을 배정받지 않는다)
    이름      품목 = workflow-api consult-notify.js FURNITURE_LABELS (consultation.html 가구 종류와 같은 키)
              연락 시간 = consult-notify.js TIME_LABELS (consult.html · consultation.html 의 선택지)
    못 읽으면  처음(403 · 404 · 오류 · 끊김 · 모양이 틀림) → 그 칸째 감춘다 (가짜 값을 그리지 않는다)
@@ -85,7 +86,8 @@
   var GRADES = ['S', 'A', 'B', 'C'];
 
   var LIMIT_MAX = 1000; // company_service_settings.monthly_limit CHECK 0~1000
-  var LEAD_MAX = 14; // company_service_settings.lead_days CHECK 0~14
+  var LEAD_MIN = 1; // company_service_settings.lead_days CHECK 1~90
+  var LEAD_MAX = 90;
   var REGION_MAX = 300; // company_service_settings regions 길이 CHECK
   var REASON_MAX = 500; // consult_assignments.reason CHECK
   var TICK_MS = 30000;
@@ -104,9 +106,10 @@
     regionPick: '시/도와 시/군/구를 골라 주세요.',
     regionMax: '지역은 ' + REGION_MAX + '곳까지 둘 수 있습니다.',
     limitBad: '한 달 한도는 0~' + LIMIT_MAX + ' 사이 숫자로 적어 주세요.',
-    leadBad: '상담까지 걸리는 날은 0~' + LEAD_MAX + '일 사이 숫자로 적어 주세요.',
+    leadBad:
+      '고객 확정 ~ 시공 완료 기간은 ' + LEAD_MIN + '~' + LEAD_MAX + '일 사이 숫자로 적어 주세요.',
     leadNote:
-      '상담까지 걸리는 날 — 새 상담에 보통 며칠 뒤 방문할 수 있는지 적어 주세요. 비우면 바로 가능으로 봅니다. 쉬실 때는 한 달 한도를 0으로 두세요.',
+      '고객 확정 ~ 시공 완료 기간 — 고객이 확정한 날부터 시공을 마칠 때까지 보통 며칠 걸리는지 적어 주세요. 비우면 상담을 배정받지 않습니다. 쉬실 때는 한 달 한도를 0으로 두세요.',
     saved: '상담 설정을 저장했습니다.',
     generic: '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
   };
@@ -296,7 +299,7 @@
           ? limit
           : null,
       lead_days:
-        typeof lead === 'number' && Number.isInteger(lead) && lead >= 0 && lead <= LEAD_MAX
+        typeof lead === 'number' && Number.isInteger(lead) && lead >= LEAD_MIN && lead <= LEAD_MAX
           ? lead
           : null,
     };
@@ -325,7 +328,7 @@
     var rawLead = String(x.lead_days == null ? '' : x.lead_days).trim();
     var lead = null;
     if (rawLead) {
-      if (!/^\d{1,2}$/.test(rawLead) || Number(rawLead) > LEAD_MAX)
+      if (!/^\d{1,3}$/.test(rawLead) || Number(rawLead) < LEAD_MIN || Number(rawLead) > LEAD_MAX)
         return { field: 'lead_days', error: TEXT.leadBad };
       lead = Number(rawLead);
     }
@@ -406,7 +409,10 @@
 
   function factsHtml(x, returned) {
     var f = [];
-    if (day(x.preferred_date)) f.push(fact('희망 시기', esc(day(x.preferred_date))));
+    // 희망 시기 = 시공 완료 희망 날짜 (분배가 업체 기간과 견주는 날). 희망 상담일은 연락 일정
+    if (day(x.wanted_done_date))
+      f.push(fact('희망 시기', esc(day(x.wanted_done_date)) + ' 시공 완료'));
+    if (day(x.preferred_date)) f.push(fact('희망 상담일', esc(day(x.preferred_date))));
     if (typeof x.preferred_time === 'string' && x.preferred_time)
       f.push(fact('연락 시간', esc(TIME_LABELS[x.preferred_time] || x.preferred_time)));
     if (has(DOOR_FINISH, x.door_finish)) f.push(fact('도어 마감', esc(DOOR_FINISH[x.door_finish])));
@@ -649,7 +655,9 @@
       '" step="1" value="' +
       esc(d.monthly_limit) +
       '" /></label>' +
-      '<label class="mk-input"><span>상담까지 걸리는 날 (일)</span><input name="lead_days" type="number" inputmode="numeric" min="0" max="' +
+      '<label class="mk-input"><span>고객 확정 ~ 시공 완료 기간 (일)</span><input name="lead_days" type="number" inputmode="numeric" min="' +
+      LEAD_MIN +
+      '" max="' +
       LEAD_MAX +
       '" step="1" value="' +
       esc(d.lead_days) +

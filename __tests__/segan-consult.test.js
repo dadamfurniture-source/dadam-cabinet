@@ -32,6 +32,13 @@ const MIGRATION_0019 = (() => {
   const f = fs.readdirSync(dir).find((n) => /^0019_.*\.sql$/.test(n));
   return f ? read('database/migrations/' + f) : null;
 })();
+// 시공 완료 희망 날짜 칸 — database/migrations/0021 (DB 쪽 PR) 이 더한다
+const COLUMNS_0021 = ['wanted_done_date'];
+const MIGRATION_0021 = (() => {
+  const dir = path.join(ROOT, 'database/migrations');
+  const f = fs.readdirSync(dir).find((n) => /^0021_.*\.sql$/.test(n));
+  return f ? read('database/migrations/' + f) : null;
+})();
 const ID = '11111111-2222-4333-8444-555555555555';
 const API = 'https://gen.example.workers.dev/api/generate';
 const SESSION = {
@@ -187,7 +194,7 @@ describe('들어오기 전', () => {
     expect(view()).toEqual(['unavailable']);
     expect(calls.probes).toEqual([
       'generation_id,quote,sido,gugun,privacy_agreed_at,' +
-        'door_finish,demolition_needed,wanted_price_tier,third_party_agreed_at,consent_version',
+        'door_finish,demolition_needed,wanted_price_tier,third_party_agreed_at,consent_version,wanted_done_date',
     ]);
     expect(visible($('csTelLine'))).toBe(true);
     expect(calls.inserts).toEqual([]);
@@ -228,7 +235,7 @@ describe('신청서', () => {
     expect($('csSido').value).toBe('');
   });
 
-  test('뺀 칸 — 상담 종류 · 공간 · 치수 · 예산 · 스타일이 없다 (가구 종류는 「품목」 칩, 날짜는 「희망 상담 날짜」 한 칸)', async () => {
+  test('뺀 칸 — 상담 종류 · 공간 · 치수 · 예산 · 스타일이 없다 (가구 종류는 「품목」 칩, 날짜는 「시공 완료 희망 날짜」 한 칸)', async () => {
     await load();
     for (const id of [
       'consultationType',
@@ -242,16 +249,20 @@ describe('신청서', () => {
       expect(document.getElementById(id)).toBeNull();
     }
     const form = $('csForm').textContent;
-    expect(form).not.toMatch(/예산|상담 유형|가구 종류|희망 날짜|설치 공간/);
+    expect(form.replace(/시공 완료 희망 날짜/g, '')).not.toMatch(
+      /예산|상담 유형|가구 종류|희망 날짜|설치 공간/
+    );
     expect([...document.querySelectorAll('input[type="date"]')].map((el) => el.id)).toEqual([
-      'csDate',
+      'csWantDate',
     ]);
   });
 
-  test('희망 상담 날짜 · 선택 — 오늘(KST)부터 고른다', async () => {
+  test('시공 완료 희망 날짜 · 선택 — 오늘(KST)부터 고른다', async () => {
     await load();
-    expect($('csDate').min).toBe(kstDay(0));
-    expect($('csDate').closest('label').textContent).toContain('희망 상담 날짜 · 선택');
+    expect($('csWantDate').min).toBe(kstDay(0));
+    expect($('csWantDate').closest('label').textContent).toContain(
+      '시공 완료 희망 날짜 (예: 입주 날) · 선택'
+    );
   });
 
   test('시공 지역 목록 = signup.html 의 locationData', async () => {
@@ -326,7 +337,7 @@ describe('신청서', () => {
     expect(lis).toEqual([
       '받는 곳: 다담 협력업체(다담 공장 포함) 중 다담이 정한 한 곳 — 연결되면 업체 이름을 알려 드립니다',
       // 업체 사본에 실제로 넘기는 칸과 같다 (서버는 이 항목만 넣는다)
-      '항목: 이름 · 전화 · 이메일 · 지역 · 연락 시간 · 품목 · 요청 사항 · 도어 마감 · 철거 · 가격대 · 상세 설계 요청 · 연출컷 · 예상 견적',
+      '항목: 이름 · 전화 · 이메일 · 지역 · 연락 시간 · 시공 완료 희망 날짜 · 품목 · 요청 사항 · 도어 마감 · 철거 · 가격대 · 상세 설계 요청 · 연출컷 · 예상 견적',
       '목적: 상담 · 견적 · 시공',
       '보유: 상담 목적을 이룰 때까지',
       '동의하지 않으면 다담 본사가 직접 상담합니다',
@@ -336,6 +347,7 @@ describe('신청서', () => {
     expect(privacy).toContain(
       '필수: 이름, 연락처, 이메일, 상담 제목, 시공 지역, 품목, 도어 마감, 철거, 가격대'
     );
+    expect(privacy).toContain('선택: 연락 받기 좋은 시간, 시공 완료 희망 날짜, 요청 사항');
     expect(privacy).toContain('목적: 상담 신청 처리');
     expect(privacy).not.toContain('협력업체 연결');
   });
@@ -396,7 +408,7 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
 
   test('한 줄 — 저절로 채우는 칸(이메일 · 제목 · 유형 · 연출컷 · 견적 · 동의 시각)과 고객 칸', async () => {
     const calls = await load();
-    $('csDate').value = kstDay(3);
+    $('csWantDate').value = kstDay(40);
     $('csTime').value = '15:00-18:00';
     $('csDesc').value = '다음 달 입주라 급해요';
     fillRequired();
@@ -412,8 +424,8 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
       consultation_type: 'ai-design',
       title: 'AI 연출컷 상담 — 싱크대',
       description: '다음 달 입주라 급해요',
-      preferred_date: kstDay(3),
       preferred_time: '15:00-18:00',
+      wanted_done_date: kstDay(40),
       status: 'pending',
       privacy_agreed_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
       generation_id: ID,
@@ -431,11 +443,15 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
     expect(row).not.toHaveProperty('consult_target');
     expect(row).not.toHaveProperty('company_id');
     // 보내는 칸은 consultation.html 이 쓰는 칸 + SQL 파일 · 0019 가 더하는 칸뿐
-    const allowed = new Set(siteKeys().concat(sqlColumns(), COLUMNS_0019));
+    const allowed = new Set(siteKeys().concat(sqlColumns(), COLUMNS_0019, COLUMNS_0021));
     for (const k of Object.keys(row)) expect([k, allowed.has(k)]).toEqual([k, true]);
     if (MIGRATION_0019) {
       for (const c of COLUMNS_0019)
         expect([c, MIGRATION_0019.includes(`ADD COLUMN IF NOT EXISTS ${c} `)]).toEqual([c, true]);
+    }
+    if (MIGRATION_0021) {
+      for (const c of COLUMNS_0021)
+        expect([c, MIGRATION_0021.includes(`ADD COLUMN IF NOT EXISTS ${c} `)]).toEqual([c, true]);
     }
     // 접수 화면 — 업체 제공에 동의하지 않았으면 본사가 직접 · 전화 · 결과로
     expect(view()).toEqual(['done']);
@@ -447,7 +463,7 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
     expect($('csDoneBack').getAttribute('href')).toBe(`./?g=${ID}#result`);
   });
 
-  test('업체 제공 동의 — 같은 시각으로 third_party_agreed_at · consent_version v1, 접수 화면은 「가까운 업체를 연결」', async () => {
+  test('업체 제공 동의 — 같은 시각으로 third_party_agreed_at · consent_version v2, 접수 화면은 「가까운 업체를 연결」', async () => {
     const calls = await load();
     fillRequired();
     $('csAgreeThird').checked = true;
@@ -455,7 +471,7 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
     const { row } = calls.inserts[0];
     expect(row.third_party_agreed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(row.third_party_agreed_at).toBe(row.privacy_agreed_at);
-    expect(row.consent_version).toBe('v1');
+    expect(row.consent_version).toBe('v2');
     expect($('csDoneText').textContent).toBe(
       '다담 본사가 확인한 뒤 가까운 업체를 연결해 드립니다.'
     );
@@ -506,9 +522,9 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
     ['철거 안 고름', uncheck('demolition'), '철거가 필요한지 골라 주세요.'],
     ['가격대 안 고름', uncheck('priceTier'), '원하는 가격대를 골라 주세요.'],
     [
-      '희망 상담 날짜가 지남',
-      () => ($('csDate').value = kstDay(-1)),
-      '희망 상담 날짜는 오늘이나 그 뒤로 골라 주세요.',
+      '시공 완료 희망 날짜가 지남',
+      () => ($('csWantDate').value = kstDay(-1)),
+      '시공 완료 희망 날짜는 오늘이나 그 뒤로 골라 주세요.',
     ],
     ['동의 안 함', () => ($('csAgree').checked = false), '개인정보 수집·이용에 동의해 주세요.'],
   ])('%s → 보내지 않고 안내', async (_n, change, message) => {

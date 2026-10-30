@@ -67,6 +67,7 @@ const waiting = (extra = {}) => ({
   wanted_price_tier: 'mid',
   preferred_date: '2026-11-20',
   preferred_time: '15:00-18:00',
+  wanted_done_date: '2027-01-15',
   description: '다음 달 입주라 급해요',
   request_detail_design: true,
   quote_total: 3128400,
@@ -117,7 +118,7 @@ const SETTINGS = {
   ],
   items: { sink: 'do', wardrobe: 'outsource', fridge: 'no' },
   monthly_limit: 12,
-  lead_days: 3,
+  lead_days: 30,
 };
 const SCORE = { grade: 'A', satisfaction: 4.62, response_rate: 0.9 };
 
@@ -557,7 +558,8 @@ describe('상담 목록', () => {
       waiting().generation_image_url
     );
     expect(facts(el)).toEqual({
-      '희망 시기': '2026.11.20',
+      '희망 시기': '2027.01.15 시공 완료',
+      '희망 상담일': '2026.11.20',
       '연락 시간': '오후 (15:00~18:00)',
       '도어 마감': '하이그로시',
       철거: '필요',
@@ -621,6 +623,7 @@ describe('상담 목록', () => {
             wanted_price_tier: 'bogus',
             preferred_date: null,
             preferred_time: null,
+            wanted_done_date: null,
             description: '  ',
             request_detail_design: false,
             quote_total: null,
@@ -843,7 +846,7 @@ describe('내 평가', () => {
 });
 
 describe('상담 설정', () => {
-  test('읽은 값 — 지역 · 품목(없는 품목은 안 함) · 한 달 한도 · 상담까지 걸리는 날 · 안내 한 줄', async () => {
+  test('읽은 값 — 지역 · 품목(없는 품목은 안 함) · 한 달 한도 · 고객 확정 ~ 시공 완료 기간 · 안내 한 줄', async () => {
     await load();
     expect(setBox().querySelector('.me-pt-warn').textContent).toBe(
       '설정을 마쳐야 상담을 배정받을 수 있어요.'
@@ -867,10 +870,10 @@ describe('상담 설정', () => {
     ).toEqual(['싱크대', ['함', '외주', '안 함']]);
     expect(form().querySelector('input[name="monthly_limit"]').value).toBe('12');
     const lead = form().querySelector('input[name="lead_days"]');
-    expect(lead.value).toBe('3');
-    expect([lead.type, lead.min, lead.max]).toEqual(['number', '0', '14']);
+    expect(lead.value).toBe('30');
+    expect([lead.type, lead.min, lead.max]).toEqual(['number', '1', '90']);
     expect(form().querySelector('[data-lead-note]').textContent).toBe(
-      '상담까지 걸리는 날 — 새 상담에 보통 며칠 뒤 방문할 수 있는지 적어 주세요. 비우면 바로 가능으로 봅니다. 쉬실 때는 한 달 한도를 0으로 두세요.'
+      '고객 확정 ~ 시공 완료 기간 — 고객이 확정한 날부터 시공을 마칠 때까지 보통 며칠 걸리는지 적어 주세요. 비우면 상담을 배정받지 않습니다. 쉬실 때는 한 달 한도를 0으로 두세요.'
     );
   });
 
@@ -925,7 +928,7 @@ describe('상담 설정', () => {
     const calls = await load();
     form().querySelector('input[name="item-vanity"][value="outsource"]').checked = true;
     form().querySelector('input[name="monthly_limit"]').value = '20';
-    form().querySelector('input[name="lead_days"]').value = '5';
+    form().querySelector('input[name="lead_days"]').value = '45';
     pickRegion('서울특별시', '강남구');
     await press(form(), '지역 더하기');
     await submitSettings();
@@ -952,7 +955,7 @@ describe('상담 설정', () => {
             other: 'no',
           },
           monthly_limit: 20,
-          lead_days: 5,
+          lead_days: 45,
         },
       },
     ]);
@@ -960,7 +963,7 @@ describe('상담 설정', () => {
     expect(chips()).toHaveLength(3);
   });
 
-  test('한도 · 걸리는 날을 비우면 null 로 보낸다', async () => {
+  test('한도 · 기간을 비우면 null 로 보낸다', async () => {
     const calls = await load();
     form().querySelector('input[name="monthly_limit"]').value = '';
     form().querySelector('input[name="lead_days"]').value = '';
@@ -986,7 +989,7 @@ describe('상담 설정', () => {
     expect(form().querySelector('[aria-invalid]').name).toBe('monthly_limit');
   });
 
-  test.each(['-1', '15', '2.5'])('걸리는 날 %s → 보내지 않고 안내', async (v) => {
+  test.each(['0', '91', '-1', '2.5'])('기간 %s → 보내지 않고 안내', async (v) => {
     const calls = await load();
     const el = form().querySelector('input[name="lead_days"]');
     el.type = 'text';
@@ -994,7 +997,7 @@ describe('상담 설정', () => {
     await submitSettings();
     expect(workCalls(calls, 'service-settings').filter((f) => f.method === 'PUT')).toEqual([]);
     expect(form().querySelector('[data-err]').textContent).toBe(
-      '상담까지 걸리는 날은 0~14일 사이 숫자로 적어 주세요.'
+      '고객 확정 ~ 시공 완료 기간은 1~90일 사이 숫자로 적어 주세요.'
     );
     expect(form().querySelector('[aria-invalid]').name).toBe('lead_days');
   });
@@ -1028,14 +1031,14 @@ describe('상담 설정', () => {
         ],
         items: { sink: 'do', island: 'bogus' },
         monthly_limit: '0',
-        lead_days: '15',
+        lead_days: '0',
       })
     ).toEqual({
       field: 'lead_days',
-      error: '상담까지 걸리는 날은 0~14일 사이 숫자로 적어 주세요.',
+      error: '고객 확정 ~ 시공 완료 기간은 1~90일 사이 숫자로 적어 주세요.',
     });
-    const r = settingsBody({ regions: [], items: {}, monthly_limit: '0', lead_days: '0' });
-    expect(r.body.lead_days).toBe(0);
+    const r = settingsBody({ regions: [], items: {}, monthly_limit: '0', lead_days: '90' });
+    expect(r.body.lead_days).toBe(90);
     expect(r.body.monthly_limit).toBe(0);
     expect(r.body.regions).toEqual([]);
     expect(Object.values(r.body.items).every((v) => v === 'no')).toBe(true);
