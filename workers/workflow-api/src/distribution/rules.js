@@ -15,13 +15,16 @@
  *   ④ 설정 덜 함     한 달 한도(monthly_limit) · 고객 확정 ~ 시공 완료 기간(lead_days)을 정하지 않은 업체는
  *                   거른다 — 상담 설정을 마쳐야 배정받는다 (REQUIRE_MONTHLY_LIMIT · REQUIRE_LEAD_DAYS)
  *   ⑤ 거친 업체      같은 상담을 못 받음 · 무응답으로 돌려보낸 업체는 그 상담 후보에서 뺀다 (TRIED_STATES)
+ *   ⑥ 본사 등급      평가표 영역별 배율 합(100)으로 매긴다 — 설비 30 · 인력 20 · 마감 · 자재 20 · 설계 15 ·
+ *                   품질 · 서비스 10 · 신뢰 · 서류 5 (가격대 빼고), S 85 · A 70 · B 50 이상 · 그 밖 C.
+ *                   저장할 때 서버가 매기고 손으로 고르지 않는다 (grade.js, EVAL_WEIGHTS · GRADE_CUTS) (10-31 확인)
  *
  * ☆ 정하지 않음 — 약속서에 값이 없어 임시로 둔 것. 역시 여기만 고친다.
  *   NO_GRADE_POINTS · RESPONSE_WINDOW_DAYS · FEEDBACK_SCORE_MAX 환산
  */
 
 /** 이 규칙 묶음의 판 — 배정 기록(consult_assignments.score)에 같이 남겨 나중에 기준을 견준다 */
-export const RULES_VERSION = '2026-10-30';
+export const RULES_VERSION = '2026-10-31';
 
 /** 순위에 올리는 업체 수 (1~3순위) */
 export const TOP_N = 3;
@@ -137,6 +140,37 @@ export const SPREAD_WINDOW_DAYS = 30;
 /** 처리 여유 — 진행 중 수주 ÷ 한 달 한도 0 → 5, 1 이상 → 0 */
 export const CAPACITY_MAX = 5;
 
+// ── 본사 등급 — 평가표 영역별 배율 (grade.js) ─────────────────
+
+/** ★⑥ 영역 배율 (합 100). 가격대는 넣지 않는다 — 고객 가격대와 맞추는 데만 쓴다 (대표 확인 2026-10-31) */
+export const EVAL_WEIGHTS = Object.freeze({
+  equipment: 30,
+  staff: 20,
+  finishes: 20,
+  design: 15,
+  quality: 10,
+  docs: 5,
+});
+/** 설비 한 항목 — 있음 1 · 외주 0.5 · 없음 0 (합 ÷ 항목 수 × 배율) */
+export const EQUIPMENT_SCORE = Object.freeze({ have: 1, outsource: 0.5, none: 0 });
+/** 설계 — 가진 것 합 (손도면 · CAD · 스케치업 · 가구 전문 플래너, 합이 설계 배율) */
+export const DESIGN_SCORE = Object.freeze({ hand_drawing: 2, cad: 4, sketchup: 4, planner: 5 });
+/** 품질 · 서비스 — A/S 기간 · 하자 보증 기간 각각 [이 개월 이상, 점수], 위에서부터. 없음 · 0개월 0 */
+export const SERVICE_MONTH_SCORE = Object.freeze([
+  [24, 5],
+  [12, 3],
+  [1, 1],
+]);
+/** 신뢰 · 서류 — 본사가 확인한 서류 하나 (배상 책임 보험 · 표준 계약서) */
+export const DOC_SCORE = 2.5;
+/** 등급 구간 — 합(소수 첫째 자리)이 이 점수 이상이면 그 등급, 위에서부터 */
+export const GRADE_CUTS = Object.freeze([
+  ['S', 85],
+  ['A', 70],
+  ['B', 50],
+  ['C', 0],
+]);
+
 // ── 대표 확인 규칙 (함수) ──────────────────────────────────
 
 const DAY_MS = 86400000;
@@ -166,7 +200,7 @@ export function customerPriceTier(consult) {
 /**
  * ★③ 희망 시기.
  *   wantedDoneDate  고객 시공 완료 희망 날짜 'YYYY-MM-DD' (없으면 모두 TIMING_NO_DATE)
- *   leadDays        업체 「고객 확정 ~ 시공 완료 기간」 1~90 — 마칠 수 있는 날 = 오늘 + leadDays
+ *   leadDays        업체 「고객 확정 ~ 시공 완료 기간」 1~14 — 마칠 수 있는 날 = 오늘 + leadDays
  *   today           오늘(KST) 'YYYY-MM-DD'
  * 기간이 없으면 잴 수 없어 0 (REQUIRE_LEAD_DAYS 가 켜져 있으면 여기 오지 않는다).
  */

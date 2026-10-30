@@ -704,6 +704,7 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
   assert.equal(first.status, 200, JSON.stringify(first.json));
   assert.equal(first.json.data.evaluation.company_id, E);
   assert.equal(first.json.data.evaluation.grade, null);
+  assert.equal(first.json.data.score, null, '아직 평가하지 않았으면 점수 없음');
   assert.deepEqual(first.json.data.evaluation.docs, {});
   assert.equal(first.json.data.catalog.equipment.length, 13);
   assert.deepEqual(first.json.data.catalog.equipment[0], { key: 'table_saw', name: '테이블쏘' });
@@ -749,7 +750,15 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
   });
   assert.equal(put.status, 200, JSON.stringify(put.json));
   const saved = fake.db.company_evaluations.find((x) => x.company_id === E);
-  assert.equal(saved.grade, 'B');
+  // 본문의 등급(B)은 읽지 않고 점수로 매긴다 — 설비 (1 + 0.5) ÷ 13 × 30 = 3.5 · 인력 1 ÷ 10 × 20 = 2 ·
+  // 마감 1 ÷ 14 × 20 = 1.4 · 설계 CAD 4 + 플래너 5 = 9 · A/S 12개월 3 · 서류 하나 2.5 → 21.4 C
+  assert.equal(saved.grade, 'C');
+  assert.equal(put.json.data.score.total, 21.4);
+  assert.equal(put.json.data.score.grade, 'C');
+  assert.deepEqual(
+    put.json.data.score.areas.map((a) => a.points),
+    [3.5, 2, 1.4, 9, 3, 2.5]
+  );
   assert.equal(saved.evaluated_by, ADMIN);
   assert.deepEqual(saved.docs, { insurance: { checked_at: '2026-10-29', by: ADMIN } });
   assert.deepEqual(saved.install, {});
@@ -762,8 +771,10 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
   const again = await call(fake, `/admin/companies/${E}/evaluation`);
   assert.deepEqual(
     again.json.data.history.map((h) => [h.grade, h.evaluated_by_email]),
-    [['B', `${ADMIN}@test.local`]]
+    [['C', `${ADMIN}@test.local`]]
   );
+  assert.equal(again.json.data.score.grade, 'C');
+  assert.equal(again.json.data.score.total, 21.4);
 });
 
 test('평가표 — 목록 밖 키는 422 (unknown_keys), 본사(platform) · 없는 업체는 404', async () => {
