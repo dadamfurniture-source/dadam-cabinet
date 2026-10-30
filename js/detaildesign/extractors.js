@@ -48,7 +48,7 @@
       // 2026-10-26: 설비장(개수대 · 가스대 · 후드장) 규칙 — js/detaildesign/bom-fixture-cabinet-rules.js (밴드 · 선반 · 후드장 높이 · 가스대 서랍)
       const FixtureRules = (typeof DadamFixtureCabinetRules !== 'undefined') ? DadamFixtureCabinetRules
         : (typeof require === 'function' ? require('./bom-fixture-cabinet-rules.js') : null);
-      // 2026-10-29: 모듈 속 부재(석가 · 선반 · 속서랍) 규칙 — js/detaildesign/bom-interior-rules.js (간편 플래너 단추, 붙박이장 규칙 다음에 싣는다)
+      // 2026-10-29: 모듈 속 부재(중간판 · 선반 · 속서랍) 규칙 — js/detaildesign/bom-interior-rules.js (간편 플래너 단추, 붙박이장 규칙 다음에 싣는다)
       const InteriorRules = (typeof DadamInteriorRules !== 'undefined') ? DadamInteriorRules
         : (typeof require === 'function' ? require('./bom-interior-rules.js') : null);
       const WR_DEFAULTS = (WardrobeRules && WardrobeRules.WARDROBE_RULES)
@@ -80,7 +80,7 @@
         '지판':            { key: 'body:bottom',      slot: 'body' },
         '뒷판':            { key: 'back',             slot: 'back' },
         '선반':            { key: 'shelf',            slot: 'body', indexed: true },
-        '석가':            { key: 'mid',              slot: 'body', indexed: true },   // 2026-10-29 고정 중간판 (bom-interior-rules.js)
+        '중간판':            { key: 'mid',              slot: 'body', indexed: true },   // 2026-10-29 고정 중간판 (bom-interior-rules.js)
         '밴드':            { key: 'body:band',        slot: 'body', indexed: true },
         '밴드(보강목)':    { key: 'body:band',        slot: 'body', indexed: true },
         '밴드(처짐방지)':  { key: 'body:brace',       slot: 'body', indexed: true },
@@ -614,7 +614,7 @@
        */
       const bomAllDrawers = (layout) => !!(layout && layout.fronts && layout.fronts.length && layout.fronts[0].kind === 'drawer');
       /**
-       * 2026-10-29 사장님 (간편 플래너 석가 · 속서랍 — bom-interior-rules.js): 모듈 속 부재 표시 { mids, inner, midYs } 또는 null.
+       * 2026-10-29 사장님 (간편 플래너 중간판 · 속서랍 — bom-interior-rules.js): 모듈 속 부재 표시 { mids, inner, midYs } 또는 null.
        *   표시가 있는 모듈은 사람이 속을 정했다 — 선반 수도 구조 그대로(mod.shelfCount)이고 싱크 상부 2 · 하부 1 고정을 타지 않는다.
        */
       const bomInteriorOf = (mod) => (InteriorRules && mod ? InteriorRules.normalize(mod.interior) : null);
@@ -1585,8 +1585,8 @@
          *   mod.drawerBoxT 서랍 자재 두께(기본 몸통 T) · mod.drawerSakuri 측판 사쿠리 여부.
          */
         /**
-         * 2026-10-29 사장님 (간편 플래너 석가 · 속서랍 — bom-interior-rules.js · interior-parts.md): 모듈 속 부재 행.
-         *   석가  몸통 PB T · (W − 2T) × 천지판 깊이 − 앞 기둥 (처짐방지목 T · 멍장 ㄱ자 기둥) · 장수 = 표시 석가 수
+         * 2026-10-29 사장님 (간편 플래너 중간판 · 속서랍 — bom-interior-rules.js · interior-parts.md): 모듈 속 부재 행.
+         *   중간판  몸통 PB T · (W − 2T) × 천지판 깊이 − 앞 기둥 (처짐방지목 T · 멍장 ㄱ자 기둥) · 장수 = 표시 중간판 수
          *   속서랍 붙박이장 속서랍 규칙 그대로 — 모듈(`-내부서랍모듈`: 측판 · 지판 · 밴드 · 뒷판 · 상판 · 박스) + 전면 · 좌우몰딩 (그 모듈 이름)
          * 표시가 없는 모듈은 아무것도 내지 않는다.
          * @param {number} panelD 천지판 깊이 (사쿠리 몸통 D − 18 · 하부장 짜임 지판 D)
@@ -1596,7 +1596,7 @@
           const it = bomInteriorOf(mod);
           if (!it) return;
           if (it.mids > 0) {
-            this.add(materials, modLabel, '석가', 'PB', T, W - T * 2, InteriorRules.midDepthOf(panelD, frontCut), it.mids, '1면(전)',
+            this.add(materials, modLabel, '중간판', 'PB', T, W - T * 2, InteriorRules.midDepthOf(panelD, frontCut), it.mids, '1면(전)',
                      `고정 중간판 — 칸 균등${frontCut > 0 ? ` · 앞 기둥 뒤까지 −${frontCut}` : ''} (interior-parts.md)`);
           }
           const L = bomInnerZoneOf(mod, W, modD, T);
@@ -1859,7 +1859,7 @@
           if (shelfQty > 0) {
             this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - T - this.blindShelfCut(mod, 'lower'), shelfQty, '1면(전)');
           }
-          // 2026-10-29 석가 · 속서랍 (서랍 단에는 없다) — 지판 깊이 D, 처짐방지목(하부 문턱)이 있으면 그 뒤까지
+          // 2026-10-29 중간판 · 속서랍 (서랍 단에는 없다) — 지판 깊이 D, 처짐방지목(하부 문턱)이 있으면 그 뒤까지
           if (!drawerLayout) {
             const braced = !isBlindModule(mod, 'lower') && bomBraceQtyOf(W, 'lower') > 0;
             this.addInteriorRows(materials, modLabel, mod, W, T, modD, modD, braced ? T : this.blindShelfCut(mod, 'lower'));
@@ -2315,7 +2315,7 @@
           if (shelf.qty > 0) {
             this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - ASM.SAKURI_SHELF_D_MINUS, shelf.qty, '1면(전)', shelf.defaulted ? notes.shelf : '');
           }
-          // 2026-10-29 석가 · 속서랍 — 천지판 깊이 D − 18, 처짐방지목이 있으면 그 뒤까지
+          // 2026-10-29 중간판 · 속서랍 — 천지판 깊이 D − 18, 처짐방지목이 있으면 그 뒤까지
           this.addInteriorRows(materials, modLabel, mod, W, T, modD, modD - ASM.SAKURI_PANEL_D_MINUS, braceQty > 0 ? T : 0);
           const door = bomSimpleDoorCountOf(mod, W);
           if (door.count > 0) {
@@ -2381,7 +2381,7 @@
               const upperShelfQty = (bomInteriorOf(mod) || mod.fridgeUpper === true) ? Math.max(0, Math.round(Number(mod.shelfCount) || 0)) : 2;
               if (upperShelfQty > 0) this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - ASM.SAKURI_SHELF_D_MINUS - this.blindShelfCut(mod, 'upper'), upperShelfQty, '1면(전)');
             }
-            // 2026-10-29 석가 · 속서랍 — 천지판 깊이 D − 18, 처짐방지목이 있으면 그 뒤까지 (멍장은 ㄱ자 기둥 뒤까지)
+            // 2026-10-29 중간판 · 속서랍 — 천지판 깊이 D − 18, 처짐방지목이 있으면 그 뒤까지 (멍장은 ㄱ자 기둥 뒤까지)
             this.addInteriorRows(materials, modLabel, mod, W, T, modD, modD - ASM.SAKURI_PANEL_D_MINUS, braceQty > 0 ? T : this.blindShelfCut(mod, 'upper'));
             // 도어 (H + overlap)
             // W11-13: 미지정(undefined)과 0 을 구분한다.
@@ -2445,7 +2445,7 @@
               //   2026-10-29 사장님 (간편 플래너 선반 단추): 속을 정한 모듈(bomInteriorOf)은 구조 선반 수 그대로 (0 이면 없음)
               const lowerShelfQty = bomInteriorOf(mod) ? Math.max(0, Math.round(Number(mod.shelfCount) || 0)) : 1;
               if (lowerShelfQty > 0) this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - T - this.blindShelfCut(mod, 'lower'), lowerShelfQty, '1면(전)');
-              // 2026-10-29 석가 · 속서랍 — 지판 깊이 D, 처짐방지목(하부 문턱)이 있으면 그 뒤까지 (멍장은 ㄱ자 기둥 뒤까지)
+              // 2026-10-29 중간판 · 속서랍 — 지판 깊이 D, 처짐방지목(하부 문턱)이 있으면 그 뒤까지 (멍장은 ㄱ자 기둥 뒤까지)
               const braced = !isBlindModule(mod, 'lower') && bomBraceQtyOf(W, 'lower') > 0;
               this.addInteriorRows(materials, modLabel, mod, W, T, modD, modD, braced ? T : this.blindShelfCut(mod, 'lower'));
             }
@@ -2621,7 +2621,7 @@
                 drawers: wrBlock.drawers,
                 externalDrawer: wrBlock.externalDrawer,
                 cellShelves: wrBlock.cellShelves,   // 2026-10-30 칸마다 선반 수
-                cellSplits: wrBlock.cellSplits,     // 2026-10-30 칸마다 석가 (세로칸막이)
+                cellSplits: wrBlock.cellSplits,     // 2026-10-30 칸마다 중간판 (세로칸막이)
               })
               : null;
             const modType = mod.moduleType || 'long';
@@ -3144,7 +3144,7 @@
             if (shelf.qty > 0) {
               this.add(materials, modLabel, '선반', 'PB', T, W - T * 2, modD - T, shelf.qty, '1면(전)', shelf.defaulted ? shelfNote : '');
             }
-            // 2026-10-29 석가 · 속서랍 (서랍장에는 없다) — 지판 깊이 D, 처짐방지목(하부 문턱)이 있으면 그 뒤까지
+            // 2026-10-29 중간판 · 속서랍 (서랍장에는 없다) — 지판 깊이 D, 처짐방지목(하부 문턱)이 있으면 그 뒤까지
             if (!isDrawer) this.addInteriorRows(materials, modLabel, mod, W, T, modD, modD, bomBraceQtyOf(W, 'lower') > 0 ? T : 0);
 
             if (isDrawer) {

@@ -89,7 +89,7 @@
   // 2026-10-26: 설비장(개수대 · 가스대 · 후드장) — 밴드 자리 (앞 50 눕힘 · 뒤 세움)
   const FixtureRules = root.DadamFixtureCabinetRules
     || (typeof require === 'function' ? require('./bom-fixture-cabinet-rules.js') : null);
-  // 2026-10-29: 모듈 속 부재 — 석가 자리 · 속서랍 구역 (간편 플래너 단추)
+  // 2026-10-29: 모듈 속 부재 — 중간판 자리 · 속서랍 구역 (간편 플래너 단추)
   const InteriorRules = root.DadamInteriorRules
     || (typeof require === 'function' ? require('./bom-interior-rules.js') : null);
   const C = AsmRules.CARCASS;
@@ -406,7 +406,7 @@
     const geomOf = (row) => (!grp ? { y0: 0, h: H, notch: chanTop ? DR.CHANNEL_TOP_NOTCH_H : 0 } : inDrawerMod(row) ? grp.drawer : grp.door);
     const boxes = drawerBoxesOf(layout, drawer.rules, W, D, H, T);
     const frontsOf = (kind) => (layout ? layout.fronts.filter((f) => f.kind === kind && f.h >= DR.MIN_FRONT_H) : []);
-    // 2026-10-29 사장님 (간편 플래너 석가 · 속서랍): 사람이 정한 모듈 속 — 속서랍 구역은 지판 위, 처짐방지목은 그 상판 위부터 (bom-interior-rules.js)
+    // 2026-10-29 사장님 (간편 플래너 중간판 · 속서랍): 사람이 정한 모듈 속 — 속서랍 구역은 지판 위, 처짐방지목은 그 상판 위부터 (bom-interior-rules.js)
     const interior = InteriorRules && !grp ? InteriorRules.normalize(mod.interior) : null;
     const innerZone = interior && interior.inner > 0 ? InteriorRules.innerZoneOf({ W, D, T, inner: interior.inner }) : null;
     const braceLift = innerZone ? innerZone.totalH : 0;
@@ -473,7 +473,7 @@
         case 'shelf':
           return;   // 아래에서 모듈 선반을 한꺼번에 높이 순으로
         case 'mid':
-          return;   // 석가 — 아래에서 구조 자리(mod.interior.mids) 순으로
+          return;   // 중간판 — 아래에서 구조 자리(mod.interior.mids) 순으로
         case 'body:band': {
           if (row.part === '밴드(보강목)') {
             // 2026-10-20 사장님: 상부장 보강목 2장은 사쿠리 홈 뒤 — 장의 맨 뒤, 판이 서서 뒤를 본다.
@@ -671,7 +671,7 @@
       }
     }
 
-    // 석가 (2026-10-29 사장님 — bom-interior-rules.js): 높이 = 구조 석가 중심 y (bom 행 장수와 다르면 놓지 않는다).
+    // 중간판 (2026-10-29 사장님 — bom-interior-rules.js): 높이 = 구조 중간판 중심 y (bom 행 장수와 다르면 놓지 않는다).
     //   천지판처럼 뒤끝 = 천지판 뒤끝(panelZ0), 깊이 = 행 깊이 (처짐방지목 · 멍장 기둥 뒤까지 짧다)
     const midRows = one('mid').map((x) => x.row);
     const midQty = midRows.reduce((s, r) => s + r.qty, 0);
