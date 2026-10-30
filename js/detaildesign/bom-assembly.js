@@ -884,7 +884,7 @@
       D: parseFloat(mod.d) || parseFloat(item && item.d) || R.DEFAULT_D,
       T,
       bodyH: (parseFloat(item && item.h) || R.DEFAULT_H) - (parseFloat(specs.wardrobePedestal) || R.PEDESTAL_H) - (parseFloat(specs.wardrobeMoldingH) || R.MOLDING_H),
-      preset: block.preset, cells: block.cells, drawers: block.drawers, externalDrawer: block.externalDrawer, cellShelves: block.cellShelves,
+      preset: block.preset, cells: block.cells, drawers: block.drawers, externalDrawer: block.externalDrawer, cellShelves: block.cellShelves, cellSplits: block.cellSplits,
     }) : null;
     const cabs = layout ? WR.cabinetsOf(layout) : null;
     const ourCabs = cars.filter((c) => c.group !== '서랍모듈');

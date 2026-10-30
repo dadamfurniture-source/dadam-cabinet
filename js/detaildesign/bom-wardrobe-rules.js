@@ -319,6 +319,17 @@
     return out.some((n) => n != null) ? out : null;
   }
 
+  /**
+   * 칸마다 석가 (2026-10-30 사장님 간편 플래너 「붙박이장 석가」) — **기본형** 칸 차례(나누기 전, cellShelves 와 같은 차례)마다
+   *   세로칸막이 장수, null · 0 은 나누지 않는다. 그 칸을 좌우로 고르게 나눈다 (반 분할 칸막이와 같은 판 — dividersOf).
+   * @returns {Array<number|null>|null} 나눈 칸이 없으면 null
+   */
+  function cleanCellSplits(v) {
+    if (!Array.isArray(v)) return null;
+    const out = v.slice(0, 24).map((n) => (n == null || n === '' || !Number.isFinite(Number(n)) ? null : int0(n, 12) || null));
+    return out.some((n) => n != null) ? out : null;
+  }
+
   /** 모듈에 붙는 붙박이장 구조 블록을 다듬는다. 모르는 값은 버린다 (브리지·저장이 이 모양으로 주고받는다). */
   function normalizeBlock(raw) {
     const b = raw && typeof raw === 'object' ? raw : {};
@@ -326,10 +337,12 @@
     const cells = Array.isArray(b.cells) ? b.cells.map(cleanCell).filter(Boolean) : [];
     const drawers = int0(b.drawers, R.MAX_DRAWER_COUNT);
     const cellShelves = cleanCellShelves(b.cellShelves);
+    const cellSplits = cleanCellSplits(b.cellSplits);
     return {
       preset,
       cells: cells.length ? cells : null,
       ...(cellShelves ? { cellShelves } : {}),
+      ...(cellSplits ? { cellSplits } : {}),
       // null·undefined 는 **미지정**이다 — 0 으로 접으면 프리셋 기본 서랍 단수를 덮어쓴다
       // (Number(null) 이 0 이고 Number.isFinite(0) 이 true 라 그렇게 새던 자리다).
       drawers: b.drawers == null || b.drawers === '' ? null : drawers,
@@ -733,7 +746,8 @@
    *   preset          프리셋 키. 'custom' 이거나 cells 를 주면 그 칸을 쓴다
    *   cells           직접 편집한 칸 목록
    *   drawers         외부 서랍 단수 (없으면 프리셋 기본값)
-   *   cellShelves     칸마다 선반 수 (normalizeBlock cellShelves — null 칸은 기본형 그대로, 2026-10-30)
+   *   cellShelves     칸마다 선반 수 (normalizeBlock cellShelves — null 칸은 기본형 그대로, 2026-10-30). 석가로 나눈 칸은 나눈 뒤 칸 차례
+   *   cellSplits      칸마다 석가 장수 (normalizeBlock cellSplits — 기본형 칸 차례, 2026-10-30) — 칸을 좌우 고르게 나눈다
    * @returns {{preset, cells, dividers, rods, shelves, drawerModH, bodyH, Wi, Hi, warnings}}
    */
   function layoutWardrobeModule(o) {
@@ -800,6 +814,8 @@
     const shelves = [];
     const rods = [];
     const cellShelves = cleanCellShelves(opt.cellShelves);
+    const cellSplits = cleanCellSplits(opt.cellSplits);
+    let baseIdx = 0;   // 기본형 칸 차례 (cellSplits)
     // 서랍을 바꿨나 (기본형과 다른 단수 · 종류) — 바뀐 서랍이 닿는 칸에서 옷봉 걸 공간을 본다 (ROD_MIN_HANG):
     //   외부 서랍이면 캐비닛 높이가 줄어 모든 칸, 내부 서랍이면 맨 아래 캐비닛 칸
     const drawersChanged = drawers !== int0(preset.drawers, R.MAX_DRAWER_COUNT) || external !== (preset.external !== false);
@@ -836,6 +852,27 @@
         own = [...rows.values()];
       }
       own.sort((x, z) => (x.y0 - z.y0) || (x.x0 - z.x0));
+      // 석가 (2026-10-30 사장님 「붙박이장 석가」 — "900장에 석가 들어가면 (내경(900-30)-석가두께(15))/2 해서 짧은 옷봉 2개") —
+      //   기본형 칸을 세로칸막이 n 장으로 좌우 고르게 나눈다 (사장님 「칸 균등」). 판은 반 분할 칸막이와 같다 (dividersOf 가 낸다).
+      //   나뉜 칸은 원래 칸의 종류 · 선반 · 옷봉을 받는다 (옷봉 칸이면 칸마다 짧은 옷봉). 폭 나머지(1~2)는 맨 오른쪽 칸 — 옆 칸과 칸막이 자리를 지킨다.
+      //   나뉜 칸이 MIN_CELL_W 보다 좁으면 나누지 않고 경고한다 (만들 수 없는 판을 BOM 으로 내지 않는다).
+      if (cellSplits) {
+        own = own.flatMap((c) => {
+          const n = cellSplits[baseIdx++] || 0;
+          if (!n) return [c];
+          const w = Math.floor((c.w - n * T) / (n + 1));
+          if (w < R.MIN_CELL_W) {
+            warnings.push(`${car.label} ${c.label || '칸'} 석가 ${n}장이면 칸 폭 ${w} 가 최소 ${R.MIN_CELL_W} 미만 — 나누지 않는다`);
+            return [c];
+          }
+          return Array.from({ length: n + 1 }, (_, i) => Object.assign({}, c, {
+            x0: c.x0 + i * (w + T),
+            w: i === n ? c.w - n * (w + T) : w,
+            label: `${c.label || '칸'} ${i + 1}`,
+            sub: i, subOf: n + 1,
+          }));
+        });
+      }
 
       // 몸통 안 좌표 → 통 좌표. 그 몸통 지판 윗면이 y0 + T 이고, 내부 서랍이 있으면 그 위부터다.
       const base = car.y0 + T + zoneH;
@@ -944,7 +981,7 @@
 
   return {
     WARDROBE_RULES, PRESETS, PRESET_KEYS, PRESET_DEFAULT, SAMPLE_PRESETS, CELL_KINDS,
-    layoutWardrobeModule, normalizeBlock, cleanCellShelves, dividersOf, shelfPositions, rodPositions,
+    layoutWardrobeModule, normalizeBlock, cleanCellShelves, cleanCellSplits, dividersOf, shelfPositions, rodPositions,
     partsOf, rodHardwareOf, rodHardwareFor, rodLengthFor, bodyHeightOf, shelfDepthOf, innerDepthOf,
     cabinetsOf, splitStack, moldingPartFor, moldingFinishOn,
     innerDrawerLayout, innerDrawerPartsOf, innerDrawerModulePartsOf, innerSlotPlan,

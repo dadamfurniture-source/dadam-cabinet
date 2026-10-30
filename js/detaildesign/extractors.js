@@ -2621,6 +2621,7 @@
                 drawers: wrBlock.drawers,
                 externalDrawer: wrBlock.externalDrawer,
                 cellShelves: wrBlock.cellShelves,   // 2026-10-30 칸마다 선반 수
+                cellSplits: wrBlock.cellSplits,     // 2026-10-30 칸마다 석가 (세로칸막이)
               })
               : null;
             const modType = mod.moduleType || 'long';
@@ -3606,7 +3607,9 @@
                 totalH: parseFloat(item.h) || R.DEFAULT_H,
                 pedestalH: parseFloat(specs.wardrobePedestal),
                 moldingH: parseFloat(specs.wardrobeMoldingH),
-                preset: block.preset, cells: block.cells, drawers: block.drawers, cellShelves: block.cellShelves,
+                // 서랍 종류도 판재와 같게 — 빠지면 프리셋 기본(짧은옷 2단은 외부)으로 셈해 속서랍 통의 옷봉 걸 공간(ROD_MIN_HANG)이 어긋난다
+                preset: block.preset, cells: block.cells, drawers: block.drawers, externalDrawer: block.externalDrawer,
+                cellShelves: block.cellShelves, cellSplits: block.cellSplits,
               });
               (L.rods || []).forEach((r) => lengths.push(r.length));
               return;
