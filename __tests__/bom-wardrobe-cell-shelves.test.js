@@ -36,7 +36,7 @@ describe('규칙 파일', () => {
     expect('cellShelves' in WR.normalizeBlock({ preset: 'short2', cellShelves: [null, null] })).toBe(false);
     expect(WR.normalizeBlock(undefined)).toEqual({ preset: null, cells: null, drawers: null, externalDrawer: null });
   });
-  test('짧은옷 2단 하부 칸 선반 2 — 몸통 둘 그대로, 옷봉 걸 공간이 1000 이하라 그 칸 옷봉을 빼고 선반 칸 (선반 = 일반 규칙 균등) (2026-10-30 사장님)', () => {
+  test('짧은옷 2단 하부 칸 선반 2 — 몸통 둘 그대로, 옷봉 걸 공간이 950 보다 짧아 그 칸 옷봉을 빼고 선반 칸 (선반 = 일반 규칙 균등) (2026-10-30 사장님)', () => {
     const base = WR.layoutWardrobeModule({ preset: 'short2', W: 900, D: 590, bodyH: 2230 });
     const L = WR.layoutWardrobeModule({ preset: 'short2', W: 900, D: 590, bodyH: 2230, cellShelves: [2, null] });
     expect(WR.cabinetsOf(L).length).toBe(WR.cabinetsOf(base).length);
@@ -47,14 +47,21 @@ describe('규칙 파일', () => {
     expect(ys).toEqual(WR.shelfPositions({ h: c.h, shelves: 2, rods: 0 }, { T: 15 }));
     expect(IR.wardrobeShelfErrorsOf(L, [2, null])).toEqual([]);
   });
-  test('옷봉 걸 공간 (봉 중심 ~ 아래 판) 이 ROD_MIN_HANG 1000 보다 크면 옷봉은 그대로 — 긴옷 칸 선반 1 (기본) 은 그대로, 2 면 아래 선반까지 1000 이하라 뺀다', () => {
-    expect(WR.WARDROBE_RULES.ROD_MIN_HANG).toBe(1000);
+  test('옷봉 걸 공간 (봉 중심 ~ 아래 판) 이 ROD_MIN_HANG 950 이상이면 옷봉은 그대로 — 긴옷 칸 선반 1 (기본) 은 그대로, 2 면 아래 선반까지 950 보다 짧아 뺀다', () => {
+    expect(WR.WARDROBE_RULES.ROD_MIN_HANG).toBe(950);
     const keep = WR.layoutWardrobeModule({ preset: 'longDrawer', W: 900, D: 590, bodyH: 2230, cellShelves: [1] });
     const c = keep.cells[0];
     expect(keep.rods.length).toBe(1);
-    expect(keep.rods[0].y - c.y0).toBeGreaterThan(1000);
+    expect(keep.rods[0].y - c.y0).toBeGreaterThan(950);
     const drop = WR.layoutWardrobeModule({ preset: 'longDrawer', W: 900, D: 590, bodyH: 2230, cellShelves: [2] });
     expect([drop.rods.length, drop.cells[0].kind]).toEqual([0, 'shelf']);
+  });
+  test('최소 950 — 걸 공간이 꼭 950 이면 옷봉을 걸고, 949 면 뺀다 (긴옷 + 속서랍 1: 칸 = 몸통 − 30 − 350, 옷봉 = 칸 − 315 − 75)', () => {
+    const at = (bodyH) => WR.layoutWardrobeModule({ preset: 'longDrawer', W: 900, D: 590, bodyH, drawers: 1, externalDrawer: false });
+    const ok = at(1720);
+    expect(ok.rods.length).toBe(1);
+    expect(ok.rods[0].y - ok.cells[0].y0).toBe(950);
+    expect([at(1719).rods.length, at(1719).cells[0].kind]).toEqual([0, 'shelf']);
   });
   test('서랍을 바꾸면 그 서랍이 닿는 칸도 본다 — 짧은옷 2단에 속서랍 1 (맨 아래 캐비닛) · 외부 서랍 1 (캐비닛이 줄어 모든 칸), 바꾸지 않은 기본형은 높이가 낮아도 그대로', () => {
     const inner = WR.layoutWardrobeModule({ preset: 'short2', W: 900, D: 590, bodyH: 2230, drawers: 1, externalDrawer: false });
