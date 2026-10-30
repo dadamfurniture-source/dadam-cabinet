@@ -1295,6 +1295,7 @@
           drawers: block.drawers,
           externalDrawer: block.externalDrawer,
           cellShelves: block.cellShelves,   // 2026-10-30 칸마다 선반 수 (간편 플래너 「칸마다 바꾸기」)
+          cellSplits: block.cellSplits,     // 2026-10-30 칸마다 석가 (세로칸막이 — 간편 플래너 「붙박이장 석가」)
         });
         const cabs = WR.cabinetsOf(L);
         if (!cabs.length) return null;
@@ -1316,6 +1317,7 @@
         };
         if (block.cells) out.wardrobe.cells = block.cells;
         if (block.cellShelves) out.wardrobe.cellShelves = block.cellShelves;
+        if (block.cellSplits) out.wardrobe.cellSplits = block.cellSplits;
         if (divided) { out.lowerH = cabs[0].h; out.upperH = cabs[1].h; }
         return out;
       }
