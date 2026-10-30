@@ -118,7 +118,7 @@ const SETTINGS = {
   ],
   items: { sink: 'do', wardrobe: 'outsource', fridge: 'no' },
   monthly_limit: 12,
-  lead_days: 30,
+  lead_days: 10,
 };
 const SCORE = { grade: 'A', satisfaction: 4.62, response_rate: 0.9 };
 
@@ -869,11 +869,19 @@ describe('상담 설정', () => {
       ])[0]
     ).toEqual(['싱크대', ['함', '외주', '안 함']]);
     expect(form().querySelector('input[name="monthly_limit"]').value).toBe('12');
-    const lead = form().querySelector('input[name="lead_days"]');
-    expect(lead.value).toBe('30');
-    expect([lead.type, lead.min, lead.max]).toEqual(['number', '1', '90']);
+    // 기간은 최소 제작 기간 — 1~14일 중 하루 단위로 고른다
+    const lead = form().querySelector('select[name="lead_days"]');
+    expect(lead.value).toBe('10');
+    expect([...lead.options].map((o) => [o.value, o.textContent])).toEqual(
+      [['', '기간 선택']].concat(
+        Array.from({ length: 14 }, (_, i) => [String(i + 1), i + 1 + '일'])
+      )
+    );
+    expect(lead.closest('label').querySelector('span').textContent).toBe(
+      '고객 확정 ~ 시공 완료 기간'
+    );
     expect(form().querySelector('[data-lead-note]').textContent).toBe(
-      '고객 확정 ~ 시공 완료 기간 — 고객이 확정한 날부터 시공을 마칠 때까지 보통 며칠 걸리는지 적어 주세요. 비우면 상담을 배정받지 않습니다. 쉬실 때는 한 달 한도를 0으로 두세요.'
+      '고객 확정 ~ 시공 완료 기간 — 고객이 확정한 날부터 시공을 마칠 때까지 가장 짧게 걸리는 날(최소 제작 기간)을 골라 주세요. 고르지 않으면 상담을 배정받지 않습니다. 쉬실 때는 한 달 한도를 0으로 두세요.'
     );
   });
 
@@ -928,7 +936,7 @@ describe('상담 설정', () => {
     const calls = await load();
     form().querySelector('input[name="item-vanity"][value="outsource"]').checked = true;
     form().querySelector('input[name="monthly_limit"]').value = '20';
-    form().querySelector('input[name="lead_days"]').value = '45';
+    form().querySelector('select[name="lead_days"]').value = '14';
     pickRegion('서울특별시', '강남구');
     await press(form(), '지역 더하기');
     await submitSettings();
@@ -955,7 +963,7 @@ describe('상담 설정', () => {
             other: 'no',
           },
           monthly_limit: 20,
-          lead_days: 45,
+          lead_days: 14,
         },
       },
     ]);
@@ -966,7 +974,7 @@ describe('상담 설정', () => {
   test('한도 · 기간을 비우면 null 로 보낸다', async () => {
     const calls = await load();
     form().querySelector('input[name="monthly_limit"]').value = '';
-    form().querySelector('input[name="lead_days"]').value = '';
+    form().querySelector('select[name="lead_days"]').value = '';
     await submitSettings();
     const put = workCalls(calls, 'service-settings').find((f) => f.method === 'PUT');
     expect(put.body.monthly_limit).toBeNull();
@@ -989,15 +997,18 @@ describe('상담 설정', () => {
     expect(form().querySelector('[aria-invalid]').name).toBe('monthly_limit');
   });
 
-  test.each(['0', '91', '-1', '2.5'])('기간 %s → 보내지 않고 안내', async (v) => {
+  test.each(['0', '15', '-1', '2.5'])('기간 %s → 보내지 않고 안내', async (v) => {
     const calls = await load();
-    const el = form().querySelector('input[name="lead_days"]');
-    el.type = 'text';
+    const el = form().querySelector('select[name="lead_days"]');
+    // 고르는 칸에 없는 값 — 칸에 넣어 그대로 고른다
+    const opt = document.createElement('option');
+    opt.value = v;
+    el.appendChild(opt);
     el.value = v;
     await submitSettings();
     expect(workCalls(calls, 'service-settings').filter((f) => f.method === 'PUT')).toEqual([]);
     expect(form().querySelector('[data-err]').textContent).toBe(
-      '고객 확정 ~ 시공 완료 기간은 1~90일 사이 숫자로 적어 주세요.'
+      '고객 확정 ~ 시공 완료 기간은 1~14일 중에서 골라 주세요.'
     );
     expect(form().querySelector('[aria-invalid]').name).toBe('lead_days');
   });
@@ -1035,10 +1046,10 @@ describe('상담 설정', () => {
       })
     ).toEqual({
       field: 'lead_days',
-      error: '고객 확정 ~ 시공 완료 기간은 1~90일 사이 숫자로 적어 주세요.',
+      error: '고객 확정 ~ 시공 완료 기간은 1~14일 중에서 골라 주세요.',
     });
-    const r = settingsBody({ regions: [], items: {}, monthly_limit: '0', lead_days: '90' });
-    expect(r.body.lead_days).toBe(90);
+    const r = settingsBody({ regions: [], items: {}, monthly_limit: '0', lead_days: '14' });
+    expect(r.body.lead_days).toBe(14);
     expect(r.body.monthly_limit).toBe(0);
     expect(r.body.regions).toEqual([]);
     expect(Object.values(r.body.items).every((v) => v === 'no')).toBe(true);
