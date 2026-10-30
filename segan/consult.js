@@ -10,16 +10,17 @@
    같은 목록), 품목(여러 개, 필수 — consultation.html 가구 종류와 같은 키 → furniture_categories.
    연출컷 품목 키가 그 목록에 똑같이 있을 때만 미리 골라 둔다 — 다른 키를 바꾸는 규칙은 없다),
    원하는 도어 마감 · 철거 필요 · 원하는 가격대(필수, 「모름」 있음), 연락 받기 좋은 시간
-   (consultation.html 과 같은 값), 요청 사항, 동의 둘:
+   (consultation.html 과 같은 값), 시공 완료 희망 날짜(예: 입주 날, 선택 → wanted_done_date), 요청 사항, 동의 둘:
      개인정보 수집 · 이용 (필수) → privacy_agreed_at
-     다담 협력업체 목록 중 다담이 정한 업체에 제공 (선택) → third_party_agreed_at · consent_version 'v1'
+     다담 협력업체 목록 중 다담이 정한 업체에 제공 (선택) → third_party_agreed_at · consent_version 'v2'
+       (v2 = 제공 항목에 시공 완료 희망 날짜를 더한 판)
        동의하지 않아도 신청은 간다 — 다담 본사가 직접 상담한다 (두 칸은 비운다).
    저절로 채우는 것: 이메일(로그인 계정), 상담 제목(「AI 연출컷 상담 — 품목」), 상담 유형 'ai-design',
    이 연출컷(generation_id)과 그 예상 견적(quote).
    「지금 전화하기」는 저장하지 않고 대표 전화(사업자 정보와 같은 번호)를 연다.
 
    앱 칸(generation_id · quote · sido · gugun)은 database/consultations-app.sql, 도어 마감 · 철거 · 가격대 ·
-   업체 제공 동의 칸은 database/migrations/0019 가 더한다. 그 칸이 아직 없으면 신청서 대신
+   업체 제공 동의 칸은 database/migrations/0019, 시공 완료 희망 날짜 칸은 0021 이 더한다. 그 칸이 아직 없으면 신청서 대신
    「아직 받을 수 없습니다」 + 전화를 보인다.
    ============================================================ */
 /* global window, document, location, fetch, URLSearchParams */
@@ -27,13 +28,14 @@
   'use strict';
 
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   // 넣는 칸 중 consultation.html 에 없는 것 — 하나라도 없으면 신청서를 열지 않는다
   var NEW_COLUMNS =
     'generation_id,quote,sido,gugun,privacy_agreed_at,' +
-    'door_finish,demolition_needed,wanted_price_tier,third_party_agreed_at,consent_version';
+    'door_finish,demolition_needed,wanted_price_tier,third_party_agreed_at,consent_version,wanted_done_date';
   var LOGIN_PAGE = '../login.html';
   // 업체 제공 동의 문구 판 — consult.html 「제공하는 내용 보기」를 바꾸면 올린다
-  var CONSENT_VERSION = 'v1';
+  var CONSENT_VERSION = 'v2';
   // 품목 — consultation.html 가구 종류 = workflow-api consult-notify.js FURNITURE_LABELS 키 (시험이 같은지 본다)
   var ITEM_KEYS = [
     'sink',
@@ -277,6 +279,11 @@
     if (el) el.checked = true;
   }
 
+  /** 오늘(KST) 'YYYY-MM-DD' — 시공 완료 희망 날짜는 오늘부터 고른다 */
+  function kstToday() {
+    return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  }
+
   /** consultations 한 줄 — consultation.html 이 쓰는 칸 + 앱 칸 */
   function buildRow() {
     var u = C.session.user || {};
@@ -292,6 +299,8 @@
       title: titleFor(C.gen),
       description: $('csDesc').value.trim() || null,
       preferred_time: $('csTime').value || null,
+      // 시공 완료 희망 날짜 — 다담 본사가 업체를 고를 때 업체의 「고객 확정 ~ 시공 완료 기간」과 견준다
+      wanted_done_date: DATE_RE.test($('csWantDate').value) ? $('csWantDate').value : null,
       status: 'pending',
       privacy_agreed_at: now,
       generation_id: C.id,
@@ -316,6 +325,8 @@
     if (!row.door_finish) return '원하는 도어 마감을 골라 주세요.';
     if (row.demolition_needed == null) return '철거가 필요한지 골라 주세요.';
     if (!row.wanted_price_tier) return '원하는 가격대를 골라 주세요.';
+    if (row.wanted_done_date && row.wanted_done_date < kstToday())
+      return '시공 완료 희망 날짜는 오늘이나 그 뒤로 골라 주세요.';
     if (!$('csAgree').checked) return '개인정보 수집·이용에 동의해 주세요.';
     if (!row.email) return '로그인 계정의 이메일을 읽지 못했습니다. 다시 로그인해 주세요.';
     return '';
@@ -372,6 +383,7 @@
       $('csCallNum').textContent = b.tel;
     }
     if (b.hours) $('csHoursNote').textContent = '남겨 주시면 ' + b.hours + ' 사이에 연락드립니다.';
+    $('csWantDate').min = kstToday();
 
     document.querySelectorAll('input[name="how"]').forEach(function (el) {
       el.addEventListener('change', renderHow);
