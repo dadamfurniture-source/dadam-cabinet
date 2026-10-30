@@ -47,18 +47,14 @@ test('추천 재료: 정본 PRESET_KEYS(custom 제외)·이름·서랍 상한·�
 });
 
 test('긴옷 옷걸이 길이: 정본 layoutWardrobeModule 의 옷봉 높이 − 칸 바닥과 같고, 정본이 선반·옷봉을 빼는 높이면 null', () => {
-  for (const H of [2000, 2200, 2310, 2400, 2600, 3000]) {
+  for (const H of [1700, 2000, 2200, 2310, 2400, 2600, 3000]) {
     for (let n = 0; n <= INTERIOR_MAX_DRAWERS; n++) {
       const r = W.layoutWardrobeModule({ preset: 'longDrawer', drawers: n, W: 900, D: 620, totalH: H });
       const cell = r.cells.find((c) => c.kind === 'rod');
       const drop = longHangDrop(H, n);
       if (drop == null) {
-        // 정본이 경고하며 선반을 빼거나(칸 ≤ 315), 옷봉을 빼다(칸 ≤ 390)
+        // 정본이 경고하며 선반을 빼거나(칸 ≤ 315), 옷봉을 뺀다(칸 ≤ 390 · 2026-10-30 사장님 서랍을 기본과 다르게 바꿔 걸 공간이 ROD_MIN_HANG 950 보다 짧을 때)
         assert.ok(r.warnings.length > 0 || r.rods.length === 0, `${H}/${n}`);
-      } else if (n !== W.presetOf('longDrawer').drawers && drop <= W.WARDROBE_RULES.ROD_MIN_HANG) {
-        // 2026-10-30 사장님 (정본 ROD_MIN_HANG): 서랍을 기본과 다르게 바꿔 옷봉 아래 걸 공간이 1000 이하면 정본이 옷봉을 뺀다.
-        //   이 워커의 추천 글은 아직 옛 셈(옷봉 있음) — 맞출지는 사장님께 여쭌다
-        assert.equal(r.rods.length, 0, `${H}/${n}`);
       } else {
         assert.equal(drop, r.rods[0].y - cell.y0, `${H}/${n}`);
         assert.equal(r.warnings.length, 0, `${H}/${n}`);
@@ -66,6 +62,9 @@ test('긴옷 옷걸이 길이: 정본 layoutWardrobeModule 의 옷봉 높이 −
     }
   }
   assert.equal(longHangDrop(2310, 2), 1110);
+  assert.equal(longHangDrop(2310, 3), null, '걸 공간 760 — 정본이 옷봉을 뺀다');
+  assert.equal(longHangDrop(2600, 3), 1050);
+  assert.equal(longHangDrop(2000, 2), 800, '기본 서랍 수는 정본이 걸 공간을 보지 않는다');
   assert.equal(longHangDrop(2000, 5), null);
 });
 
@@ -91,13 +90,13 @@ test('프롬프트: 문을 전부 연다 — 정본 기본형은 색만 바뀌�
 
 test('프롬프트: 추천 구조를 주면 그 칸 줄 — 선반형·서랍 수가 글에 들어간다', () => {
   const plan = [
-    { preset: 'longDrawer', drawers: 3 },
+    { preset: 'longDrawer', drawers: 1 },
     { preset: 'shelf22', drawers: 0 },
     { preset: 'longDrawer', drawers: 0 },
     { preset: 'short2', drawers: 0 },
   ];
   const R = buildWardrobeInteriorPrompt(3600, { body: 'walnut woodgrain', tone: '월넛' }, { plan, tag: '추천 구조', wallH: 2310 });
-  assert.match(R.prompt, /1\. long hanging[^\n]*about 760 mm of clear hanging space under the rail, then three internal drawers \(350 mm tall each\) at the bottom/);
+  assert.match(R.prompt, /1\. long hanging[^\n]*about 1460 mm of clear hanging space under the rail, then one internal drawer \(350 mm tall each\) at the bottom/);
   assert.match(R.prompt, /2\. shelving only, no clothes rail/);
   assert.match(R.prompt, /3\. long hanging: a shelf at the top and one clothes rail below it, about 1810 mm of clear hanging space under the rail\n/);
   assert.match(R.prompt, /4\. two short-hanging tiers/);
@@ -105,7 +104,7 @@ test('프롬프트: 추천 구조를 주면 그 칸 줄 — 선반형·서랍 �
   const none = buildWardrobeInteriorPrompt(3600, null, { plan: ['short2', 'shelf22', 'halfSplit', 'short2'] });
   assert.doesNotMatch(none.prompt, /Internal drawer fronts/, '서랍이 없으면 서랍 문장도 없다');
   assert.equal(R.label, '내부 보기 · 추천 구조 · 월넛');
-  assert.equal(interiorPlanKo(plan), '긴옷 + 서랍 3 · 선반형 (상 2 · 하 2) · 긴옷 + 서랍 0 · 짧은옷 2단');
+  assert.equal(interiorPlanKo(plan), '긴옷 + 서랍 1 · 선반형 (상 2 · 하 2) · 긴옷 + 서랍 0 · 짧은옷 2단');
 });
 
 test('추천 요청 글: 재료·통 수·정본 기본형·손님 요청을 싣는다', () => {
@@ -117,10 +116,12 @@ test('추천 요청 글: 재료·통 수·정본 기본형·손님 요청을 싣
   assert.match(p, /"서랍 많이"/);
   assert.match(p, /oak floor, bright bedroom/);
   assert.match(p, /exactly 4 items/);
-  assert.match(p, /longDrawer may have 0 to 5 internal drawers[\s\S]*0 → 1900 mm, 1 → 1550 mm[\s\S]*5 → 150 mm/, '높이 2400: 서랍 수별 옷걸이 길이');
-  const low = buildInteriorRecommendPrompt({ sections: 4, wallW: 3600, wallH: 2000, canonical });
-  assert.match(low, /longDrawer may have 0 to 4 internal drawers/, '높이 2000 이면 5단은 정본이 접는다');
-  assert.doesNotMatch(low, /5 → /);
+  assert.match(p, /longDrawer may have 0 to 2 internal drawers[\s\S]*: 0 → 1900 mm, 1 → 1550 mm, 2 → 1200 mm\./, '높이 2400: 서랍 수별 옷걸이 길이 — 3단부터는 걸 공간이 950 보다 짧아 정본이 옷봉을 뺀다');
+  assert.doesNotMatch(p, /3 → /);
+  const tall = buildInteriorRecommendPrompt({ sections: 4, wallW: 3600, wallH: 2600, canonical });
+  assert.match(tall, /longDrawer may have 0 to 3 internal drawers[\s\S]*3 → 1050 mm\./, '높이 2600 이면 3단까지');
+  const low = buildInteriorRecommendPrompt({ sections: 4, wallW: 3600, wallH: 1700, canonical });
+  assert.match(low, /longDrawer may have 0 or 2 internal drawers[\s\S]*: 0 → 1200 mm, 2 → 500 mm\./, '높이 1700: 서랍 1 은 걸 공간 850, 기본 2 는 정본이 그대로 둔다');
   assert.doesNotMatch(buildInteriorRecommendPrompt({ sections: 4, wallW: 3600, wallH: 2400, canonical }), /customer wrote/);
 });
 
@@ -128,7 +129,7 @@ test('추천 답 풀기: 통 수·정본 키·서랍 범위를 지키고, 정본
   const canonical = wardrobeInteriorPlan(3600);
   const ok = parseInteriorRecommendation({
     sections: [
-      { preset: 'longDrawer', drawers: 3 },
+      { preset: 'longDrawer', drawers: 1 },
       { preset: 'short2', drawers: 2 }, // 긴옷이 아닌 칸의 서랍은 0 으로
       { preset: 'shelf22', drawers: 0 },
       { preset: 'halfSplit', drawers: 0 },
@@ -137,7 +138,7 @@ test('추천 답 풀기: 통 수·정본 키·서랍 범위를 지키고, 정본
     reason_ko: '드레스룸에 맞게 서랍과 선반을 늘렸다',
   }, { sections: 4, canonical });
   assert.deepEqual(ok.plan, [
-    { preset: 'longDrawer', drawers: 3 },
+    { preset: 'longDrawer', drawers: 1 },
     { preset: 'short2', drawers: 0 },
     { preset: 'shelf22', drawers: 0 },
     { preset: 'halfSplit', drawers: 0 },
@@ -152,8 +153,10 @@ test('추천 답 풀기: 통 수·정본 키·서랍 범위를 지키고, 정본
   assert.equal(bad({ preset: 'longDrawer', drawers: 1.5 }), null, '서랍은 정수');
   assert.equal(bad({ preset: 'longDrawer', drawers: '3' }), null, '서랍은 숫자');
   assert.equal(parseInteriorRecommendation(null, { sections: 4, canonical }), null);
+  const three = { ...same, sections: [{ preset: 'longDrawer', drawers: 3 }, ...same.sections.slice(1)] };
+  assert.ok(parseInteriorRecommendation(three, { sections: 4, canonical, wallH: 2600 }), '2600 이면 3단도 걸 공간 1050');
+  assert.equal(parseInteriorRecommendation(three, { sections: 4, canonical, wallH: 2310 }), null, '2310 이면 걸 공간 760 — 정본이 옷봉을 뺀다');
   const five = { ...same, sections: [{ preset: 'longDrawer', drawers: 5 }, ...same.sections.slice(1)] };
-  assert.ok(parseInteriorRecommendation(five, { sections: 4, canonical, wallH: 2310 }), '2310 이면 5단도 정본이 받는다');
   assert.equal(parseInteriorRecommendation(five, { sections: 4, canonical, wallH: 2000 }), null, '2000 이면 정본이 선반을 접는다');
 });
 
@@ -222,7 +225,7 @@ async function runJob(category, o = {}) {
 
 const REC = {
   sections: [
-    { preset: 'longDrawer', drawers: 3 },
+    { preset: 'longDrawer', drawers: 1 },
     { preset: 'shelf22', drawers: 0 },
     { preset: 'short2', drawers: 0 },
     { preset: 'short2', drawers: 0 },
@@ -254,7 +257,7 @@ test('잡(붙박이장): 내부 보기 둘째 장은 Claude 가 고른 추천 �
   const rec = inside.find((p) => p.includes(`to ${body}, one continuous colour`));
   assert.ok(std && rec);
   assert.match(std, /1\. two short-hanging tiers[\s\S]*2\. long hanging[^\n]*two internal drawers/, '첫 장은 정본 기본형');
-  assert.match(rec, /1\. long hanging[^\n]*three internal drawers[\s\S]*2\. shelving only/, '둘째 장은 추천 구조');
+  assert.match(rec, /1\. long hanging[^\n]*one internal drawer[\s\S]*2\. shelving only/, '둘째 장은 추천 구조');
 
   const v = Object.fromEntries(last.images.map((i) => [i.slot, i]));
   assert.equal(v.v2.finish_key, 'interior');
@@ -263,7 +266,7 @@ test('잡(붙박이장): 내부 보기 둘째 장은 Claude 가 고른 추천 �
   assert.equal(v.v3.finish_key, `interior:${v.v1.finish_key}`);
   assert.match(v.v3.label, /^내부 보기 · 추천 구조 · /);
   assert.equal(v.v3.structure.kind, 'recommended');
-  assert.equal(v.v3.structure.plan, '긴옷 + 서랍 3 · 선반형 (상 2 · 하 2) · 짧은옷 2단 · 짧은옷 2단');
+  assert.equal(v.v3.structure.plan, '긴옷 + 서랍 1 · 선반형 (상 2 · 하 2) · 짧은옷 2단 · 짧은옷 2단');
   assert.equal(v.v3.structure.concept, '수납 중심');
   assert.equal(last.status, 'done');
   assert.equal(last.step_label, '완료');
