@@ -55,6 +55,10 @@ test('긴옷 옷걸이 길이: 정본 layoutWardrobeModule 의 옷봉 높이 −
       if (drop == null) {
         // 정본이 경고하며 선반을 빼거나(칸 ≤ 315), 옷봉을 빼다(칸 ≤ 390)
         assert.ok(r.warnings.length > 0 || r.rods.length === 0, `${H}/${n}`);
+      } else if (n !== W.presetOf('longDrawer').drawers && drop <= W.WARDROBE_RULES.ROD_MIN_HANG) {
+        // 2026-10-30 사장님 (정본 ROD_MIN_HANG): 서랍을 기본과 다르게 바꿔 옷봉 아래 걸 공간이 1000 이하면 정본이 옷봉을 뺀다.
+        //   이 워커의 추천 글은 아직 옛 셈(옷봉 있음) — 맞출지는 사장님께 여쭌다
+        assert.equal(r.rods.length, 0, `${H}/${n}`);
       } else {
         assert.equal(drop, r.rods[0].y - cell.y0, `${H}/${n}`);
         assert.equal(r.warnings.length, 0, `${H}/${n}`);
