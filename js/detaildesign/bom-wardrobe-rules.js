@@ -320,7 +320,7 @@
   }
 
   /**
-   * 칸마다 석가 (2026-10-30 사장님 간편 플래너 「붙박이장 석가」) — **기본형** 칸 차례(나누기 전, cellShelves 와 같은 차례)마다
+   * 칸마다 세로칸막이 (2026-10-30 사장님 간편 플래너 「붙박이장 세로칸막이」) — **기본형** 칸 차례(나누기 전, cellShelves 와 같은 차례)마다
    *   세로칸막이 장수, null · 0 은 나누지 않는다. 그 칸을 좌우로 고르게 나눈다 (반 분할 칸막이와 같은 판 — dividersOf).
    * @returns {Array<number|null>|null} 나눈 칸이 없으면 null
    */
@@ -746,8 +746,8 @@
    *   preset          프리셋 키. 'custom' 이거나 cells 를 주면 그 칸을 쓴다
    *   cells           직접 편집한 칸 목록
    *   drawers         외부 서랍 단수 (없으면 프리셋 기본값)
-   *   cellShelves     칸마다 선반 수 (normalizeBlock cellShelves — null 칸은 기본형 그대로, 2026-10-30). 석가로 나눈 칸은 나눈 뒤 칸 차례
-   *   cellSplits      칸마다 석가 장수 (normalizeBlock cellSplits — 기본형 칸 차례, 2026-10-30) — 칸을 좌우 고르게 나눈다
+   *   cellShelves     칸마다 선반 수 (normalizeBlock cellShelves — null 칸은 기본형 그대로, 2026-10-30). 세로칸막이로 나눈 칸은 나눈 뒤 칸 차례
+   *   cellSplits      칸마다 세로칸막이 장수 (normalizeBlock cellSplits — 기본형 칸 차례, 2026-10-30) — 칸을 좌우 고르게 나눈다
    * @returns {{preset, cells, dividers, rods, shelves, drawerModH, bodyH, Wi, Hi, warnings}}
    */
   function layoutWardrobeModule(o) {
@@ -852,7 +852,7 @@
         own = [...rows.values()];
       }
       own.sort((x, z) => (x.y0 - z.y0) || (x.x0 - z.x0));
-      // 석가 (2026-10-30 사장님 「붙박이장 석가」 — "900장에 석가 들어가면 (내경(900-30)-석가두께(15))/2 해서 짧은 옷봉 2개") —
+      // 세로칸막이 (2026-10-30 사장님 「붙박이장 세로칸막이」 — "900장에 석가 들어가면 (내경(900-30)-석가두께(15))/2 해서 짧은 옷봉 2개") —
       //   기본형 칸을 세로칸막이 n 장으로 좌우 고르게 나눈다 (사장님 「칸 균등」). 판은 반 분할 칸막이와 같다 (dividersOf 가 낸다).
       //   나뉜 칸은 원래 칸의 종류 · 선반 · 옷봉을 받는다 (옷봉 칸이면 칸마다 짧은 옷봉). 폭 나머지(1~2)는 맨 오른쪽 칸 — 옆 칸과 칸막이 자리를 지킨다.
       //   나뉜 칸이 MIN_CELL_W 보다 좁으면 나누지 않고 경고한다 (만들 수 없는 판을 BOM 으로 내지 않는다).
@@ -862,7 +862,7 @@
           if (!n) return [c];
           const w = Math.floor((c.w - n * T) / (n + 1));
           if (w < R.MIN_CELL_W) {
-            warnings.push(`${car.label} ${c.label || '칸'} 석가 ${n}장이면 칸 폭 ${w} 가 최소 ${R.MIN_CELL_W} 미만 — 나누지 않는다`);
+            warnings.push(`${car.label} ${c.label || '칸'} 세로칸막이 ${n}장이면 칸 폭 ${w} 가 최소 ${R.MIN_CELL_W} 미만 — 나누지 않는다`);
             return [c];
           }
           return Array.from({ length: n + 1 }, (_, i) => Object.assign({}, c, {

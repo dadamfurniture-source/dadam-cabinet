@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /* global require, describe, test, expect */
 /**
- * 모듈 속 부재 — 석가(중간판) · 선반 · 속서랍 (2026-10-29 사장님, js/detaildesign/bom-interior-rules.js · docs/design-rules/interior-parts.md).
+ * 모듈 속 부재 — 세로칸막이 · 선반 · 속서랍 (2026-10-29 사장님, js/detaildesign/bom-interior-rules.js · docs/design-rules/interior-parts.md).
  *
- *   석가   몸통 PB T · (W − 2T) × 천지판 깊이, 처짐방지목이 있으면 그 뒤까지 (−T) · 칸 균등
+ *   세로칸막이 (2026-10-30 사장님 "중간판을 세로칸막이로 바꿔줘") 몸통 PB T · 천지판 깊이 × (지판 · 속서랍 상판 ~ 천판 · 밴드), 좌우 칸 균등,
+ *          나뉜 칸마다 선반 따로, 가운데를 덮으면 처짐방지목 빼기, 칸 폭 최소 200 (붙박이장 MIN_CELL_W)
  *   선반   1장씩 · 칸마다 균등 · 칸 간격 최소 200 (2026-10-30 사장님 「200 으로 낮추기」 · 신발장 150 — planner-engine MASTER_RULES 와 같다)
  *   속서랍 붙박이장 속서랍 규칙 (W − 2T 통 내경 · 350 × 단수 · 모듈 D = 몸통 D − 110 · 전면 = 앞선 − 70), 지판 위.
  *          처짐방지목은 속서랍 상판 위부터 (서랍이 앞 가운데 목대에 걸리지 않는다)
@@ -31,31 +32,38 @@ const doors = (W, n, extra) => Object.assign({
 /** 규칙 파일 배치로 구조 속을 채운다 — 간편 플래너(모듈 라이브러리)가 하는 그대로 */
 const inside = (W, H, Dd, o) => {
   const L = IR.interiorLayoutOf(Object.assign({ W, H, D: Dd, T }, o));
-  return { shelves: L.shelves, interior: { mids: L.mids, inner: o.inner || 0 }, L };
+  return { shelves: L.shelves, interior: Object.assign({ mids: o.mids || 0, inner: o.inner || 0 }, o.cols ? { cols: o.cols } : {}), L };
 };
 
 const L900 = inside(900, LOWER_H, D, { inner: 1 });
 const U900 = inside(900, UPPER_H, UD, { mids: 1 });
 const L600 = inside(600, LOWER_H, D, { shelves: 0 });
+const LD900 = inside(900, LOWER_H, D, { mids: 1, cols: [2, 0] });
+const UW900 = inside(900, UPPER_H, UD, { mids: 2, cols: [0, 1, 0] });
 
-/** 하부 줄: 2도어 900 (속서랍 1) · 1도어 600 (선반 0 — 속을 정함) · 2도어 900 (속 그대로), 상부 줄: 2도어 900 (석가 1 · 선반 0) · 2도어 900 (속 그대로) */
+/** 하부 줄: 2도어 900 (속서랍 1) · 1도어 600 (선반 0 — 속을 정함) · 2도어 900 (속 그대로) · 2도어 900 (세로칸막이 1 · 왼쪽 선반 2),
+ *  상부 줄: 2도어 900 (세로칸막이 1 · 선반 0) · 2도어 900 (속 그대로) · 2도어 900 (세로칸막이 2 · 가운데 칸 선반 1) */
 function kitchen() {
   const modules = [
     { id: 'a', section: 'lower', W: 900, H: 870, D, x: 0, y: BACK, areaH: 870 },
     { id: 'b', section: 'lower', W: 600, H: 870, D, x: 900, y: BACK, areaH: 870 },
     { id: 'c', section: 'lower', W: 900, H: 870, D, x: 1500, y: BACK, areaH: 870 },
+    { id: 'd', section: 'lower', W: 900, H: 870, D, x: 2400, y: BACK, areaH: 870 },
     { id: 'u', section: 'upper', W: 900, H: 780, D: UD, x: 0, y: 0, areaH: 780 },
     { id: 'v', section: 'upper', W: 900, H: 780, D: UD, x: 900, y: 0, areaH: 780 },
+    { id: 'w', section: 'upper', W: 900, H: 780, D: UD, x: 1800, y: 0, areaH: 780 },
   ];
   const structures = {
     a: doors(900, 2, { shelves: L900.shelves, interior: L900.interior }),
     b: doors(600, 1, { shelves: L600.shelves, interior: L600.interior }),
     c: doors(900, 2, { shelves: engine.calcDefaultShelves('lower', LOWER_H) }),
+    d: doors(900, 2, { shelves: LD900.shelves, interior: LD900.interior }),
     u: doors(900, 2, { shelves: U900.shelves, interior: U900.interior }),
     v: doors(900, 2, { shelves: engine.calcDefaultShelves('upper', UPPER_H) }),
+    w: doors(900, 2, { shelves: UW900.shelves, interior: UW900.interior }),
   };
   const conv = loadConverter()._convertPlannerModules({ modules, structures, hasStructures: true }, Object.assign({}, SPECS));
-  const item = { categoryId: 'sink', w: 2400, h: 2310, d: AREA_D, specs: Object.assign({}, SPECS), modules: conv.modules };
+  const item = { categoryId: 'sink', w: 3300, h: 2310, d: AREA_D, specs: Object.assign({}, SPECS), modules: conv.modules };
   const { MaterialExtractor, HardwareExtractor } = loadExtractors();
   const materials = new MaterialExtractor().extract({ items: [item] }).materials;
   const hardware = new HardwareExtractor().extract({ items: [item] }).hardware;
@@ -64,8 +72,8 @@ function kitchen() {
   const shelfY = {};
   Object.keys(structures).forEach((id) => { shelfY[mk(id)] = structures[id].shelves; });
   const lines = [[
-    { key: 'area-lower-0', D: AREA_D, modules: ['a', 'b', 'c'].map((id, i) => ({ moduleKey: mk(id), x0: [0, 900, 1500][i], back: BACK })) },
-    { key: 'area-upper-0', D: 325, modules: ['u', 'v'].map((id, i) => ({ moduleKey: mk(id), x0: i * 900, back: 30 })) },
+    { key: 'area-lower-0', D: AREA_D, modules: ['a', 'b', 'c', 'd'].map((id, i) => ({ moduleKey: mk(id), x0: [0, 900, 1500, 2400][i], back: BACK })) },
+    { key: 'area-upper-0', D: 325, modules: ['u', 'v', 'w'].map((id, i) => ({ moduleKey: mk(id), x0: i * 900, back: 30 })) },
   ]];
   const spec = Asm.of({ items: [item] }, { materials, hardware, lines, shelfY });
   const rows = (id) => materials.filter((m) => m.moduleKey === mk(id));
@@ -81,17 +89,28 @@ describe('규칙 파일 — 배치', () => {
     expect(IR.INTERIOR_RULES.PANEL_T).toBe(engine.MASTER_RULES.BODY_T);
   });
 
-  test('석가 · 속서랍이 없으면 선반 자리 = 플래너 기본 (shelvesEvenInner · calcDefaultShelves)', () => {
+  test('세로칸막이 · 속서랍이 없으면 선반 자리 = 플래너 기본 (shelvesEvenInner · calcDefaultShelves)', () => {
     expect(IR.interiorLayoutOf({ H: UPPER_H, W: 900, D: UD, shelves: 2, shoe: false }).shelves).toEqual(engine.shelvesEvenInner(UPPER_H, 2));
     expect(IR.interiorLayoutOf({ H: LOWER_H, W: 900, D, shelves: 1 }).shelves).toEqual(engine.calcDefaultShelves('lower', LOWER_H));
   });
 
-  test('석가 n 장 = 몸통 안 n + 1 칸 균등, 선반은 칸마다 고르게 (남는 장은 아래 칸부터)', () => {
-    const L = IR.interiorLayoutOf({ H: 2100, W: 600, D: 590, mids: 1, shelves: 3 });
-    expect(L.mids).toEqual([1050]);   // 15 + (2070 − 15) / 2 + 7.5
-    expect(L.cells.map((c) => c.shelves)).toEqual([2, 1]);
-    expect(L.shelves).toEqual(IR.shelvesInCell(L.cells[0].y0, L.cells[0].y1, 2, T).concat(IR.shelvesInCell(L.cells[1].y0, L.cells[1].y1, 1, T)));
+  test('세로칸막이 n 장 = 몸통 안 폭 n + 1 칸 좌우 균등 (나머지는 맨 오른쪽), 나뉜 칸마다 선반, 가운데를 덮으면 처짐방지목 빼기 (2026-10-30 사장님)', () => {
+    const L = IR.interiorLayoutOf({ H: LOWER_H, W: 900, D, mids: 1, cols: [2, 0], shelves: 1 });
+    expect(L.cols.map((c) => [c.x0, c.w, c.shelves])).toEqual([[15, 427, 2], [457, 428, 0]]);   // (870 − 15) / 2 = 427 · 428
+    expect(L.divs).toEqual([{ x0: 442 }]);
+    expect([L.divY0, L.divH, L.braceOff]).toEqual([T, LOWER_H - 2 * T, true]);
+    expect(L.shelves).toEqual(IR.shelvesInCell(T, LOWER_H - T, 2, T));
     expect(L.errors).toEqual([]);
+    // 나뉜 칸 선반을 안 주면 모듈 선반 수를 받는다
+    expect(IR.interiorLayoutOf({ H: LOWER_H, W: 900, D, mids: 1, shelves: 1 }).cols.map((c) => c.shelves)).toEqual([1, 1]);
+    // 2장이면 가운데가 비어 처짐방지목은 그대로
+    const L2 = IR.interiorLayoutOf({ H: UPPER_H, W: 900, D: UD, mids: 2 });
+    expect([L2.cols.map((c) => c.w), L2.divs.map((d) => d.x0), L2.braceOff]).toEqual([[280, 280, 280], [295, 590], false]);
+    // 칸 폭 최소 = 붙박이장 MIN_CELL_W 200 (사장님 「붙박이장과 같은 200」) — 450 에 2장이면 130
+    expect(IR.interiorLayoutOf({ H: UPPER_H, W: 450, D: UD, mids: 1 }).errors).toEqual([]);
+    expect(IR.interiorLayoutOf({ H: UPPER_H, W: 450, D: UD, mids: 2 }).errors).toEqual([`세로칸막이 2장이면 칸 폭 130 이 최소 ${WR.WARDROBE_RULES.MIN_CELL_W} 보다 좁습니다`]);
+    // 가로 중간판 시절 구조(중심 y 배열)는 장수만 읽는다
+    expect(IR.normalize({ mids: [300, 500], inner: 0 })).toEqual({ mids: 2, cols: null, inner: 0 });
   });
 
   test('칸 간격이 최소보다 좁으면 막는다 — 하부장 선반 2 (226) 는 들어가고 3 (169 < 200) 은 막는다, 신발장 기준은 150', () => {
@@ -128,19 +147,34 @@ describe('자재 — 싱크 줄', () => {
     expect(pick(r, '내부서랍 전면판')).toEqual(WR.innerDrawerPartsOf(L900.L.inner).filter((x) => x.part === '내부서랍 전면판').map((x) => [x.w, x.h, x.qty]));
     expect(pick(r, '내부서랍 좌우몰딩')).toEqual([[350, 60, 2]]);
     expect(pick(r, '밴드(처짐방지)')).toEqual([[C.BRACE_W, LOWER_H - 2 * T - 70 - 365, 1]]);
-    expect(pick(r, '석가')).toEqual([]);
+    expect(pick(r, '세로칸막이')).toEqual([]);
   });
 
-  test('상부 900 석가 1 · 선반 0 — 석가 870 × (천판 277 − 처짐방지목 15), 선반 없음 (예전 고정 2 를 타지 않는다)', () => {
+  test('상부 900 세로칸막이 1 · 선반 0 — 칸막이 천판 깊이 277 × 690 (앞까지), 가운데라 처짐방지목 없음, 선반 없음', () => {
     const r = rows('u');
-    expect(pick(r, '석가')).toEqual([[870, UD - C.SAKURI_PANEL_D_MINUS - T, 1]]);
+    expect(pick(r, '세로칸막이')).toEqual([[UD - C.SAKURI_PANEL_D_MINUS, UPPER_H - 2 * T, 1]]);
     expect(pick(r, '선반')).toEqual([]);
+    expect(pick(r, '밴드(처짐방지)')).toEqual([]);
+  });
+
+  test('하부 900 세로칸막이 1 · 왼쪽 선반 2 — 칸막이 지판 깊이 550 × 608 (목찬넬 앞 밴드 밑까지 = 처짐방지목 높이), 선반 427 × 2, 처짐방지목 없음', () => {
+    const r = rows('d');
+    expect(pick(r, '세로칸막이')).toEqual([[D, pick(rows('c'), '밴드(처짐방지)')[0][1], 1]]);
+    expect(pick(r, '세로칸막이')[0][1]).toBe(LOWER_H - 2 * T - 70);
+    expect(pick(r, '선반')).toEqual([[427, D - T, 2]]);
+    expect(pick(r, '밴드(처짐방지)')).toEqual([]);
+  });
+
+  test('상부 900 세로칸막이 2 · 가운데 칸 선반 1 — 칸막이 2장, 선반 280 × 1, 가운데가 비어 처짐방지목 그대로', () => {
+    const r = rows('w');
+    expect(pick(r, '세로칸막이')).toEqual([[UD - C.SAKURI_PANEL_D_MINUS, UPPER_H - 2 * T, 2]]);
+    expect(pick(r, '선반')).toEqual([[280, UD - C.SAKURI_SHELF_D_MINUS, 1]]);
     expect(pick(r, '밴드(처짐방지)')).toEqual([[C.BRACE_W, UPPER_H - 2 * T, 1]]);
   });
 
-  test('하부 600 선반 0 (속을 정함) — 선반 없음, 석가 · 속서랍 없음', () => {
+  test('하부 600 선반 0 (속을 정함) — 선반 없음, 세로칸막이 · 속서랍 없음', () => {
     expect(pick(rows('b'), '선반')).toEqual([]);
-    expect(rows('b').some((m) => /석가|내부서랍/.test(m.part + m.module))).toBe(false);
+    expect(rows('b').some((m) => /세로칸막이|내부서랍/.test(m.part + m.module))).toBe(false);
   });
 
   test('속을 정하지 않은 모듈은 예전 그대로 — 하부 선반 1 · 상부 선반 2', () => {
@@ -159,12 +193,19 @@ describe('자재 — 싱크 줄', () => {
 describe('조립 명세', () => {
   const { spec, modOf } = kitchen();
 
-  test('석가 — 구조 자리(중심 y), 뒤끝 = 천판 뒤끝 (사쿠리 홈 앞)', () => {
+  test('세로칸막이 — 측판처럼 선다: 왼쪽 면 = 나뉜 칸 사이, 밑단 = 지판 윗면, 뒤끝 = 천판 뒤끝 (사쿠리 홈 앞), 처짐방지목 없음', () => {
     const m = modOf('u');
-    const mids = m.parts.filter((p) => p.part === '석가');
-    expect(mids).toHaveLength(1);
-    expect(mids[0].frame.o[1]).toBe(U900.L.mids[0] - T / 2);
-    expect(mids[0].frame.o[2]).toBe(-UD / 2 + C.SAKURI_PANEL_D_MINUS);
+    const divs = m.parts.filter((p) => p.part === '세로칸막이');
+    expect(divs).toHaveLength(1);
+    expect(divs[0].frame.o).toEqual([-450 + 442, T, -UD / 2 + C.SAKURI_PANEL_D_MINUS]);
+    expect(m.parts.filter((p) => p.part === '밴드(처짐방지)')).toEqual([]);
+    expect(modOf('w').parts.filter((p) => p.part === '세로칸막이').map((p) => p.frame.o[0])).toEqual([-450 + 295, -450 + 590]);
+  });
+
+  test('나뉜 칸 선반 — 그 칸 자리 (x = 칸 왼쪽, y = 칸 안 균등)', () => {
+    const sh = modOf('d').parts.filter((p) => p.part === '선반');
+    expect(sh.map((p) => [p.frame.o[0], p.frame.o[1]])).toEqual(IR.shelvesInCell(T, LOWER_H - T, 2, T).map((y) => [-450 + 15, y - T / 2]));
+    expect(modOf('w').parts.filter((p) => p.part === '선반').map((p) => p.frame.o[0])).toEqual([-450 + 310]);
   });
 
   test('속서랍 — 모듈 밑면 = 지판 윗면, 전면 앞면 = 앞선 − 70, 처짐방지목 밑단 = 속서랍 상판 윗면, 박스 · 레일 자리', () => {

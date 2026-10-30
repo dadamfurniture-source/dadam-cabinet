@@ -1231,6 +1231,12 @@
         return (typeof window !== 'undefined' && window.DadamWardrobeRules) || null;
       }
 
+      /** 모듈 속 부재 규칙 (세로칸막이 · 속서랍 — detaildesign.html 이 extractors.js 앞에 싣는다). */
+      function _interiorRules() {
+        if (typeof DadamInteriorRules !== 'undefined') return DadamInteriorRules;
+        return (typeof window !== 'undefined' && window.DadamInteriorRules) || null;
+      }
+
       /** 2026-09-19: 오픈장 규칙 — 플래너(mockup-structure)와 BOM(extractors)이 읽는 그 파일. */
       function _openCabinetRules() {
         if (typeof DadamOpenCabinetRules !== 'undefined') return DadamOpenCabinetRules;
@@ -1295,7 +1301,7 @@
           drawers: block.drawers,
           externalDrawer: block.externalDrawer,
           cellShelves: block.cellShelves,   // 2026-10-30 칸마다 선반 수 (간편 플래너 「칸마다 바꾸기」)
-          cellSplits: block.cellSplits,     // 2026-10-30 칸마다 석가 (세로칸막이 — 간편 플래너 「붙박이장 석가」)
+          cellSplits: block.cellSplits,     // 2026-10-30 칸마다 세로칸막이 (세로칸막이 — 간편 플래너 「붙박이장 세로칸막이」)
         });
         const cabs = WR.cabinetsOf(L);
         if (!cabs.length) return null;
@@ -1763,14 +1769,13 @@
             // 2026-10-29 사장님 (신발장): 키큰장 도어 전신거울 — 구조 s.mirror 'single'(외짝) · 'left' | 'right'(양문의 그 짝). BOM 이 거울 5T 를 낸다
             //   (extractors.js BOM_MIRROR — 도어 사방 여백 50). 표시가 없는 모듈의 payload 는 예전과 같다.
             if (!isWardrobe && !isOpen && s && ['single', 'left', 'right'].indexOf(s.mirror) >= 0) out[out.length - 1].mirror = s.mirror;
-            // 2026-10-29 사장님 (간편 플래너 석가 · 속서랍 · 선반 단추 — bom-interior-rules.js): 구조 s.interior { mids: [석가 중심 y], inner: 속서랍 단수 }.
+            // 2026-10-29 사장님 (간편 플래너 세로칸막이 · 속서랍 · 선반 단추 — bom-interior-rules.js): 구조 s.interior { mids: 세로칸막이 장수, cols: 나뉜 칸 선반, inner: 속서랍 단수 }.
             //   있으면 사람이 속을 정한 모듈이다 — BOM 이 선반 수도 구조(s.shelves) 그대로 낸다 (싱크 상부 2 · 하부 1 고정 대신).
             //   서랍 · 오픈 칸 · 붙박이장에는 싣지 않는다 (서랍장 · 오픈장 · 통 구조 규칙이 속을 정한다). 표시가 없는 모듈의 payload 는 예전과 같다.
             if (!isWardrobe && !isOpen && !drawerAtBottom && s && s.interior && typeof s.interior === 'object') {
-              out[out.length - 1].interior = {
-                mids: (Array.isArray(s.interior.mids) ? s.interior.mids : []).map(Number).filter(Number.isFinite),
-                inner: Math.max(0, parseInt(s.interior.inner, 10) || 0),
-              };
+              const IR = _interiorRules();
+              const iv = IR ? IR.normalize(s.interior) : null;
+              if (iv) out[out.length - 1].interior = Object.assign({ mids: iv.mids, inner: iv.inner }, iv.cols ? { cols: iv.cols } : {});
             }
             // 2026-09-16: 전면 배분식의 기준높이는 **배치(영역) 높이**다 — 플래너가 payload 에 실어 보낸다.
             //   없으면 BOM 이 totalH(모듈 전체 높이) 로 떨어진다. 옛 저장 설계가 그 경우다.
