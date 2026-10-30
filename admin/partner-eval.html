@@ -20,6 +20,7 @@
       업체 평가 — 상담 분배 순위의 「본사 평가」 · 거르기의 「서류」 근거. 업체 풀(활동 중인 Agent 협력업체 · 다담 공장)을
       보고 한 업체의 평가표(설비 · 인력 · 마감 · 자재(분야별 메모) · 설계 · 가격대 · 품질 · 서비스 · 신뢰 · 서류 · 등급 · 메모)를 고친다.
       항목 이름은 서버가 주는 catalog 를 그대로 쓴다 — 서버 상수에 항목을 더하면 이 화면도 따라온다.
+      본사 등급은 손으로 고르지 않는다 — 저장할 때 서버가 평가표 영역별 점수로 매기고(score), 이 화면은 그것을 보여 준다.
       읽기 · 쓰기 모두 업무 서버(workflow-api)의 /admin/companies* (관리자만). 화면에 넣는 값은 전부 esc() 를 거친다.
     -->
     <style>
@@ -252,6 +253,14 @@
       }
       .warn {
         color: #e65100;
+      }
+      .grade-line {
+        font-size: 14px;
+        margin-bottom: 6px;
+      }
+      .grade-line .grade {
+        font-size: 15px;
+        padding: 2px 8px;
       }
       .grade {
         display: inline-block;
@@ -550,7 +559,6 @@
         const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
 
         // ── 고르는 값 (DB 0018 칸 값과 같다) ──
-        const GRADES = ['S', 'A', 'B', 'C'];
         const EQUIP_CHOICES = [
           ['have', '있음'],
           ['outsource', '외주'],
@@ -734,6 +742,21 @@
           const v = typeof value === 'number' && Number.isFinite(value) ? value : '';
           return `<input class="num" type="number" min="0" step="1" inputmode="numeric" ${attrs} value="${esc(v)}" aria-label="${esc(label)}" />`;
         }
+        /** 본사 등급 — 서버가 매긴 score { areas[{ key, name, points, max }], total, max, grade } (없으면 아직 평가 전) */
+        function gradeHtml(score) {
+          const s = obj(score);
+          const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? String(v) : '-');
+          if (!s.grade)
+            return '<p class="muted" id="evGrade">아직 평가하지 않았습니다. 저장하면 등급이 매겨집니다.</p>';
+          const areas = Array.isArray(s.areas) ? s.areas : [];
+          return `<div id="evGrade"><p class="grade-line"><span class="grade">${esc(s.grade)}</span> 합계 ${esc(n(s.total))} / ${esc(n(s.max))}점</p><div class="rows">${areas
+            .map((a) => {
+              const x = obj(a);
+              return `<div class="row"><span>${esc(x.name || x.key || '')}</span><span>${esc(n(x.points))} / ${esc(n(x.max))}</span></div>`;
+            })
+            .join('')}</div></div>`;
+        }
+
         function group(key, title, body, hint) {
           return `<section class="group" data-group="${key}"><h4>${esc(title)}${hint ? `<small>${esc(hint)}</small>` : ''}</h4>${body}</section>`;
         }
@@ -880,17 +903,7 @@
                 .join('')}</div>`,
               '둘 다 확인해야 상담을 받습니다'
             ),
-            group(
-              'grade',
-              '본사 등급',
-              seg(
-                'grade',
-                GRADES.map((g) => [g, g]),
-                ev.grade,
-                ' data-kind="grade"'
-              ),
-              'S · A · B · C'
-            ),
+            group('grade', '본사 등급', gradeHtml(d.score), '저장할 때 평가표 점수로 매깁니다'),
             group(
               'note',
               '메모',
@@ -974,7 +987,6 @@
 
           const note = $('fNote').value.trim();
           return {
-            grade: checked('grade'),
             equipment,
             staff,
             finishes,
