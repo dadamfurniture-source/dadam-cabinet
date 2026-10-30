@@ -18,7 +18,7 @@
     <script src="../js/admin-access.js?v=2026103009"></script>
     <!--
       업체 평가 — 상담 분배 순위의 「본사 평가」 · 거르기의 「서류」 근거. 업체 풀(활동 중인 Agent 협력업체 · 다담 공장)을
-      보고 한 업체의 평가표(설비 · 인력 · 마감 · 자재 · 설계 · 시공 · 가격대 · 품질 · 서비스 · 신뢰 · 서류 · 등급 · 메모)를 고친다.
+      보고 한 업체의 평가표(설비 · 인력 · 마감 · 자재(분야별 메모) · 설계 · 가격대 · 품질 · 서비스 · 신뢰 · 서류 · 등급 · 메모)를 고친다.
       항목 이름은 서버가 주는 catalog 를 그대로 쓴다 — 서버 상수에 항목을 더하면 이 화면도 따라온다.
       읽기 · 쓰기 모두 업무 서버(workflow-api)의 /admin/companies* (관리자만). 화면에 넣는 값은 전부 esc() 를 거친다.
     -->
@@ -346,6 +346,10 @@
         font-size: 12px;
         color: #888;
         margin: 8px 0 4px;
+      }
+      .fi-note {
+        min-height: 56px;
+        margin: 6px 0 2px;
       }
       .check {
         display: inline-flex;
@@ -752,26 +756,34 @@
           const staff = entries(cat.staff_roles);
           const finishes = entries(cat.finishes);
           const design = entries(cat.design);
-          const install = entries(cat.install).filter((e) => e.key !== 'install_years');
           const docs = Array.isArray(cat.docs) && cat.docs.length ? entries(cat.docs) : DOC_ITEMS;
           const eq = obj(ev.equipment);
           const st = obj(ev.staff);
           const fi = obj(ev.finishes);
           const ds = obj(ev.design);
-          const ins = obj(ev.install);
           const dc = obj(ev.docs);
+          // 마감 · 자재 분야별 메모 — finishes.notes { 분야 키: 글 }, 칸은 catalog finish_notes 에 있는 분야만
+          const fNotes = obj(fi.notes);
+          const noteGroups = entries(cat.finish_notes);
+          const noteBox = (key) => {
+            const n = noteGroups.find((x) => x.key === key);
+            if (!n) return '';
+            const text = typeof fNotes[n.key] === 'string' ? fNotes[n.key] : '';
+            return `<textarea class="fi-note" data-finish-note="${esc(n.key)}" maxlength="500" placeholder="${esc(n.name)} 메모" aria-label="${esc(n.name)} 메모">${esc(text)}</textarea>`;
+          };
 
           // 마감 · 자재: 묶음별로
           const fGroups = [];
           finishes.forEach((e, i) => {
             // group 이 키(door · body · hw · top)면 이름으로, 글이면 그대로, 없으면 키 앞머리로
             const byGroupKey = FINISH_GROUPS.find(([p]) => p === `${e.group}_`);
-            const g =
-              (byGroupKey && byGroupKey[1]) ||
-              (typeof e.group === 'string' && e.group) ||
-              (FINISH_GROUPS.find(([p]) => e.key.startsWith(p)) || [null, '그 밖'])[1];
+            const byPrefix = FINISH_GROUPS.find(([p]) => e.key.startsWith(p));
+            const named = typeof e.group === 'string' && e.group;
+            const g = (byGroupKey && byGroupKey[1]) || named || (byPrefix || [null, '그 밖'])[1];
+            // 메모 칸 분야 키 — 묶음 키(door · body · hw · top)로 묶인 것만 (글로 이름 지은 묶음은 없다)
+            const pre = byGroupKey ? byGroupKey[0] : named ? null : byPrefix ? byPrefix[0] : null;
             let bucket = fGroups.find((x) => x.name === g);
-            if (!bucket) fGroups.push((bucket = { name: g, rows: [] }));
+            if (!bucket) fGroups.push((bucket = { name: g, key: pre ? pre.slice(0, -1) : null, rows: [] }));
             bucket.rows.push(
               `<div class="row"><span>${esc(e.name)}</span>${seg(`fi-${i}`, FINISH_CHOICES, fi[e.key], ` data-key="${esc(e.key)}" data-kind="fi"`)}</div>`
             );
@@ -827,7 +839,10 @@
               '마감 · 자재',
               fGroups.length
                 ? fGroups
-                    .map((g) => `<div class="sub">${esc(g.name)}</div><div class="rows">${g.rows.join('')}</div>`)
+                    .map(
+                      (g) =>
+                        `<div class="sub">${esc(g.name)}</div><div class="rows">${g.rows.join('')}</div>${noteBox(g.key)}`
+                    )
                     .join('')
                 : emptyCatalog()
             ),
@@ -842,18 +857,6 @@
                     )
                     .join('')}</div>`
                 : emptyCatalog()
-            ),
-            group(
-              'install',
-              '시공',
-              `<div class="rows">${install
-                .map(
-                  (e) =>
-                    `<label class="check"><input type="checkbox" data-install="${esc(e.key)}"${ins[e.key] === true ? ' checked' : ''} /> ${esc(e.name)}</label>`
-                )
-                .join(
-                  ''
-                )}<div class="row"><span>경력</span><span>${numInput('id="fInstallYears"', ins.install_years, '시공 경력 연수')} 년</span></div></div>`
             ),
             group('price', '가격대', seg('price_tier', PRICE_TIERS, ev.price_tier, ' data-kind="price"')),
             group(
@@ -944,16 +947,16 @@
             const v = checked(`fi-${i}`);
             if (v) finishes[e.key] = v;
           });
+          const notes = {};
+          [...form.querySelectorAll('textarea[data-finish-note]')].forEach((n) => {
+            const v = n.value.trim();
+            if (v) notes[n.getAttribute('data-finish-note')] = v;
+          });
+          if (Object.keys(notes).length) finishes.notes = notes;
           const design = {};
           [...form.querySelectorAll('input[data-design]')].forEach((n) => {
             design[n.getAttribute('data-design')] = n.checked;
           });
-          const install = {};
-          [...form.querySelectorAll('input[data-install]')].forEach((n) => {
-            install[n.getAttribute('data-install')] = n.checked;
-          });
-          const years = intOf($('fInstallYears'), '시공 경력');
-          if (years !== null) install.install_years = years;
 
           const docs = {};
           const prevDocs = obj(ev.docs);
@@ -976,7 +979,6 @@
             staff,
             finishes,
             design,
-            install,
             price_tier: checked('price_tier'),
             docs,
             as_months: intOf($('fAsMonths'), 'A/S 기간'),
