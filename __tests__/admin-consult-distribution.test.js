@@ -114,6 +114,7 @@ const CANDS = {
   filtered: [
     { company_id: 'p5', company_name: '먼가구', reasons: ['region', 'limit'] },
     { company_id: 'p6', company_name: '서류업체', reasons: ['docs', 'inactive', 'tier', 'item'] },
+    { company_id: 'p7', company_name: '거친가구', reasons: ['tried'] },
   ],
 };
 
@@ -342,11 +343,11 @@ describe('상담 고르기 — 고객 · 배정 · 순위', () => {
     expect(parts[2]).toBe('등급 10/16 · 고객 만족 6/12 · 재작업 3/6 · 응답 3/6');
   });
 
-  test('걸러진 업체 — 이유를 우리말로 (지역 밖 · 품목 안 함 · 한도 · 서류 미확인 · 자격 · 활동 안 함)', async () => {
+  test('걸러진 업체 — 이유를 우리말로 (지역 밖 · 품목 안 함 · 한도 · 서류 미확인 · 자격 · 활동 안 함 · 거친 업체)', async () => {
     await start();
     await pick('c1');
     expect($('filteredCard').hidden).toBe(false);
-    expect(text('#filteredCard summary')).toBe('걸러진 업체 2');
+    expect(text('#filteredCard summary')).toBe('걸러진 업체 3');
     const rows = [...document.querySelectorAll('#filteredCard .filtered li')].map((li) => [
       li.querySelector('span').textContent,
       [...li.querySelectorAll('.reason')].map((r) => r.textContent),
@@ -354,6 +355,7 @@ describe('상담 고르기 — 고객 · 배정 · 순위', () => {
     expect(rows).toEqual([
       ['먼가구', ['지역 밖', '한도']],
       ['서류업체', ['서류 미확인', '활동 안 함', '자격', '품목 안 함']],
+      ['거친가구', ['거친 업체']],
     ]);
     expect(document.querySelector('#filteredCard .reason').getAttribute('title')).toContain(
       '상담 받는 지역'
