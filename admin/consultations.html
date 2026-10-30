@@ -960,6 +960,10 @@
                             <p>${esc(c.preferred_date || '-')} ${esc(c.preferred_time || '')}</p>
                         </div>
                         <div class="info-item">
+                            <label>시공 완료 희망</label>
+                            <p>${esc(c.wanted_done_date || '-')}</p>
+                        </div>
+                        <div class="info-item">
                             <label>신청일</label>
                             <p>${esc(formatDate(c.created_at))}</p>
                         </div>

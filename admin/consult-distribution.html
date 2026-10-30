@@ -670,6 +670,7 @@
           region: ['지역 밖', '고객 지역이 업체의 상담 받는 지역에 없음'],
           item: ['품목 안 함', '고객 품목을 업체가 하지 않음'],
           limit: ['한도', '이번 달 배정 수가 업체의 한 달 한도에 닿음'],
+          period: ['기간 없음', '업체가 고객 확정 ~ 시공 완료 기간을 정하지 않음'],
           docs: ['서류 미확인', '배상 책임 보험 · 표준 계약서를 본사가 아직 확인하지 않음'],
           tier: ['자격', '업체 풀 밖(활동 중인 Agent · 다담 공장이 아님)'],
           inactive: ['활동 안 함', '업체가 지금 활동 중이 아님'],
@@ -799,6 +800,11 @@
           const list = arr(cats).map((k) => label(ITEM_LABEL, k, ''));
           return list.length ? list : [];
         }
+        /** 희망 시기 — 시공 완료 희망 날짜 (점수가 업체의 고객 확정 ~ 시공 완료 기간과 견주는 날) */
+        function doneBy(c) {
+          return c.wanted_done_date ? `${c.wanted_done_date} 시공 완료` : '-';
+        }
+        /** 희망 상담 — 연락 일정 (점수에 쓰지 않는다) */
         function wantedTime(c) {
           const parts = [c.preferred_date, label(TIME_LABEL, c.preferred_time, '')].filter(Boolean);
           return parts.length ? parts.join(' ') : '-';
@@ -896,7 +902,8 @@
               ${info('도어 마감', esc(label(DOOR_FINISH_LABEL, c.door_finish, '-')))}
               ${info('철거', esc(demolition(c.demolition_needed)))}
               ${info('원하는 가격대', esc(label(PRICE_TIER_LABEL, c.wanted_price_tier, '-')))}
-              ${info('희망 시기', esc(wantedTime(c)))}
+              ${info('희망 시기', esc(doneBy(c)))}
+              ${info('희망 상담', esc(wantedTime(c)))}
               ${info('상세 설계', esc(c.request_detail_design ? '요청함' : '요청 안 함'))}
               ${info('예상 견적', esc(won(c.quote_total)))}
               ${info('연출컷', esc(c.has_generation ? '있음' : '없음'))}
