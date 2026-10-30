@@ -9,6 +9,7 @@
  *   region           고객 시/도 + 시/군/구가 업체 「상담 받는 지역」에 있음 (지역을 비워 두면 업체 주소의 시/군/구 하나)
  *   item             고객 품목이 모두 업체 「하는 품목」에서 함 · 외주
  *   limit            이번 달(KST) 배정 수 < 업체 한 달 한도 (한도가 없으면 rules.js REQUIRE_MONTHLY_LIMIT)
+ *   period           업체 「고객 확정 ~ 시공 완료 기간」을 정함 (rules.js REQUIRE_LEAD_DAYS)
  *   docs             배상 책임 보험 · 표준 계약서 둘 다 본사 확인
  *   tried            같은 상담을 이미 못 받음 · 무응답으로 돌려보낸 업체 (rules.js TRIED_STATES)
  *
@@ -95,6 +96,11 @@ function limitOk(settings, monthCount) {
   return monthCount < limit;
 }
 
+function periodOk(settings) {
+  const lead = settings ? settings.lead_days : null;
+  return Number.isInteger(lead) || !R.REQUIRE_LEAD_DAYS;
+}
+
 /**
  * 거른 이유 (빈 배열이면 통과).
  * @param {object} p  { consult, items, company, settings, evaluation, stats, tried }
@@ -107,6 +113,7 @@ export function filterReasons({ consult, items, company, settings, evaluation, s
   if (!regionOk(consult, settings, company)) reasons.push('region');
   if (!itemOk(items, settings)) reasons.push('item');
   if (!limitOk(settings, (stats && stats.monthCount) || 0)) reasons.push('limit');
+  if (!periodOk(settings)) reasons.push('period');
   if (!docsOk(evaluation)) reasons.push('docs');
   if (tried) reasons.push('tried');
   return reasons;
@@ -216,7 +223,7 @@ export function fitScore({ consult, items, settings, evaluation, stats, today })
   const finish = finishPoints(consult, evaluation);
   const price = pricePoints(consult, evaluation);
   const timing = R.timingScore(
-    consult && consult.preferred_date,
+    consult && consult.wanted_done_date,
     settings ? settings.lead_days : null,
     today
   );

@@ -9,7 +9,7 @@
 
 import { ValidationError } from '../supabase.js';
 import { FURNITURE_LABELS, SIDO } from '../consult-notify.js';
-import { PRICE_TIERS, REQUIRED_DOCS, GRADE_POINTS, LEAD_DAYS_MAX } from './rules.js';
+import { PRICE_TIERS, REQUIRED_DOCS, GRADE_POINTS, LEAD_DAYS_MIN, LEAD_DAYS_MAX } from './rules.js';
 
 const entries = (obj) =>
   Object.freeze(Object.entries(obj).map(([key, name]) => Object.freeze({ key, name })));
@@ -300,7 +300,7 @@ export function emptySettings() {
  *   regions              [{ sido, gugun }] — 시/도 목록 · 시/군/구 모양만, 같은 곳은 한 번. 비우면 업체 주소의 시/군/구 하나로 본다
  *   items                { 품목 키: do | outsource | no } — 목록 밖 품목은 422
  *   monthly_limit        0~1000 정수 또는 null (null 이면 배정받지 않는다 — rules.js REQUIRE_MONTHLY_LIMIT)
- *   lead_days            상담까지 걸리는 날 0~14 정수 또는 null (null 이면 0 — 바로 가능)
+ *   lead_days            고객 확정 ~ 시공 완료 기간(최소 제작 기간) 1~14 정수 또는 null (null 이면 배정받지 않는다 — rules.js REQUIRE_LEAD_DAYS)
  */
 export function parseServiceSettings(body) {
   if (!isPlainObject(body)) throw new ValidationError('JSON 본문이 필요합니다');
@@ -348,6 +348,6 @@ export function parseServiceSettings(body) {
     regions,
     items: { ...items },
     monthly_limit: intOrNull(body, 'monthly_limit', 0, MONTHLY_LIMIT_MAX),
-    lead_days: intOrNull(body, 'lead_days', 0, LEAD_DAYS_MAX),
+    lead_days: intOrNull(body, 'lead_days', LEAD_DAYS_MIN, LEAD_DAYS_MAX),
   };
 }
