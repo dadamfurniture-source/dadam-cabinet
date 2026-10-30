@@ -13,8 +13,9 @@
  *     자리  고정 (선반 핀 없음). n 장이면 몸통 안(속서랍 위)을 n + 1 칸으로 고르게 나눈다.
  *   선반 (「1장씩, 간격 균등」)
  *     칸마다 고르게 놓는다 — 장수는 칸에 고르게 나누고 남는 장은 아래 칸부터. 판은 각 품목 선반 규칙 그대로 (BOM 이 낸다).
- *     칸 간격 = 칸 안 높이 ÷ (그 칸 선반 + 1) 이 엔진 최소(일반 300 · 신발장 150 —
- *     planner-engine.js MASTER_RULES.SHELF_SPACE_MIN · SHELF_SPACE_MIN_SHOE 와 같은 값)보다 좁으면 막는다 (errors).
+ *     칸 간격 = 칸 안 높이 ÷ (그 칸 선반 + 1) 이 최소(일반 200 · 신발장 150)보다 좁으면 막는다 (errors).
+ *     2026-10-30 사장님 「200 으로 낮추기」 — 단추 칸 간격 최소는 기본 선반 수 규칙(planner-engine MASTER_RULES.SHELF_SPACE_MIN 300 ~ MAX 450 —
+ *     calcDefaultShelves · BOM 기본 선반)과 따로 간다. 신발장은 MASTER_RULES.SHELF_SPACE_MIN_SHOE 150 그대로.
  *   속서랍 (「붙박이장 속서랍 규칙」 — bom-wardrobe-rules.js innerDrawerLayout 그대로)
  *     통 내경 = W − 2T, 구역 = 350 × 단수, 통 깊이 = 몸통 D → 모듈 W = 내경 − 120 · D = 몸통 D − 110 · 전면 = 앞선 − 70.
  *     몸통 지판 위에 놓인다 — 차지하는 높이 350 × 단수 + 상판 T. 석가 · 선반은 그 위 칸에 선다.
@@ -44,8 +45,9 @@
   }
 
   const INTERIOR_RULES = Object.freeze({
-    // 칸 간격 최소 — planner-engine.js MASTER_RULES.SHELF_SPACE_MIN (일반) · SHELF_SPACE_MIN_SHOE (신발장) 와 같은 값 (시험이 대 본다)
-    SPACE_MIN: Object.freeze({ general: 300, shoe: 150 }),
+    // 칸 간격 최소 — 일반 200 (2026-10-30 사장님 「200 으로 낮추기」 — 상부장 기본 2장 230 · 하부장 선반 2 226 이 들어간다),
+    //   신발장 = planner-engine.js MASTER_RULES.SHELF_SPACE_MIN_SHOE (시험이 대 본다). 기본 선반 수 규칙(MASTER_RULES.SHELF_SPACE_MIN 300)과는 따로다
+    SPACE_MIN: Object.freeze({ general: 200, shoe: 150 }),
     PANEL_T: 15,            // 몸통 두께 기본 (MASTER_RULES.BODY_T)
     INNER_RAIL: 'under',    // 속서랍 레일 — 붙박이장 속서랍과 같은 언더레일 (bom-wardrobe-rules INNER_DRAWER RAIL_*)
   });
@@ -151,7 +153,7 @@
   /**
    * 붙박이장 통 칸마다 선반 (2026-10-30 사장님 간편 플래너 「칸마다 바꾸기」 — bom-wardrobe-rules.js cellShelves) — 사람이 바꾼 칸에
    *   그 장수가 들어가는가. 선반 자리는 붙박이장 shelfPositions 그대로다 (옷봉 칸은 첫 선반 = 칸 상단 − 315, 나머지 그 아래 균등).
-   *   칸 간격 최소는 두지 않는다 — 위 선반 단추의 300(SPACE_MIN)은 붙박이장 규칙이 아니다: 사장님 기본형 4번 통 하부 선반 3단이 260 간격이다.
+   *   칸 간격 최소는 두지 않는다 — 위 선반 단추의 칸 간격 최소(SPACE_MIN)는 붙박이장 규칙이 아니다 (사장님 기본형 4번 통 하부 선반 3단이 260 간격).
    *   [확인 필요] 붙박이장 칸 선반 간격 최소. 그때까지는 들어가지 않는 장수(칸 밖으로 밀리는 선반 · 겹치는 선반)만 막는다.
    * @param layout       layoutWardrobeModule 결과 (cellShelves 를 넣어 지은 것)
    * @param cellShelves  칸마다 선반 수 (null 칸은 기본형 그대로 — 보지 않는다)
