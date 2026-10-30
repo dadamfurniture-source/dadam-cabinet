@@ -6,7 +6,7 @@
  *   POST /admin/consultations/:id/assign { company_id }    거르기 다시 확인 → 업체 사본 → 배정 기록 → 앱 알림
  *   GET  /admin/companies?pool=1                           업체 목록 (등급 · 서류 · 상담 설정 여부)
  *   GET  /admin/companies/:id/evaluation                   평가표 + 항목 목록 + 이력
- *   PUT  /admin/companies/:id/evaluation                   평가표 저장 (목록 밖 키는 422)
+ *   PUT  /admin/companies/:id/evaluation                   평가표 저장 (목록 밖 키는 422) — 등급은 평가표 점수로 매김
  *
  * 배정 (assignConsultation)
  *   1) 본사 상담이고 대기(pending)여야 한다. 기다리는 배정이 있으면 409 open_assignment.
@@ -66,6 +66,7 @@ import {
   COMPANY_COLUMNS,
 } from './data.js';
 import { evaluationCatalog, emptyEvaluation, parseEvaluation, docsOk } from './catalog.js';
+import { evaluationScore } from './grade.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
@@ -480,6 +481,7 @@ async function userEmails(env, ids) {
  * GET /admin/companies/:id/evaluation
  *   metrics — 자동 지표 (설치 후 문항 · 배정 응답 · 재작업에서): satisfaction(0~5) · response_rate(0~1) ·
  *             rework_free_rate(0~1), 자료가 없으면 null. 점수의 만족 · 응답 · 재작업과 같은 자료다.
+ *   score   — 저장된 평가표의 영역별 점수 · 합 · 등급 (grade.js). 아직 평가하지 않았으면 null.
  */
 export async function getCompanyEvaluation(env, { user, companyId, nowMs = Date.now() }) {
   await assertAdmin(env, user);
@@ -510,6 +512,7 @@ export async function getCompanyEvaluation(env, { user, companyId, nowMs = Date.
       status: company.status,
     },
     evaluation: row || emptyEvaluation(company.id),
+    score: row ? evaluationScore(row) : null,
     catalog: evaluationCatalog(),
     metrics: companyMetrics(statsBy.get(company.id)),
     history: (history || []).map((h) => ({
@@ -530,12 +533,20 @@ export async function putCompanyEvaluation(env, { user, companyId, body, nowMs =
   });
   const nowIso = new Date(nowMs).toISOString();
   const fields = parseEvaluation(body, { existing, userId: user.id, today: kstToday(nowMs) });
+  // 본사 등급은 평가표 점수로 매긴다 — 본문의 grade 는 읽지 않는다
+  const score = evaluationScore(fields);
   const row = await upsertOne(
     env,
     'company_evaluations',
-    { company_id: company.id, ...fields, evaluated_at: nowIso, evaluated_by: user.id },
+    {
+      company_id: company.id,
+      ...fields,
+      grade: score.grade,
+      evaluated_at: nowIso,
+      evaluated_by: user.id,
+    },
     'company_id'
   );
   if (!row) throw new DbError('평가표를 저장하지 못했습니다');
-  return { evaluation: row };
+  return { evaluation: row, score };
 }

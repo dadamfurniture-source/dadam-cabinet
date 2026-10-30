@@ -179,6 +179,7 @@ function intOrNull(body, field, min, max) {
  * 본문이 다시 정하는 표 전체다 (빠진 칸은 비운다). 위쪽 칸 중 모르는 이름(company_id 등)은 읽지 않는다.
  *   finishes.notes: { door · body · hw · top: 글 } — 마감 · 자재 분야별 메모 (앞뒤 빈칸 지움, 빈 글은 뺀다, 500자까지).
  *   install: 시공 묶음은 뺐다 — 키가 있으면 422, 저장은 늘 {}.
+ *   grade: 받지 않는다 — 저장할 때 서버가 평가표 점수로 매긴다 (grade.js · admin.js putCompanyEvaluation).
  *   docs: { insurance: { checked_at: 'YYYY-MM-DD' }, contract: … } — 확인한 날. 확인한 사람(by)은 서버가 호출자로 채운다.
  *         날이 저장된 것과 같으면 저장된 기록(by 포함)을 그대로 둔다. true 는 오늘(today) 확인, false · null 은 확인 안 됨.
  */
@@ -234,10 +235,6 @@ export function parseEvaluation(body, { existing = null, userId, today }) {
   }
   if (wrong.length) throw new ValidationError('평가표 값이 올바르지 않습니다', { invalid: wrong });
 
-  const grade =
-    body.grade === undefined || body.grade === null || body.grade === '' ? null : body.grade;
-  if (grade !== null && !has(GRADE_POINTS, grade))
-    throw new ValidationError('grade 는 S · A · B · C 중 하나여야 합니다', { field: 'grade' });
   const priceTier =
     body.price_tier === undefined || body.price_tier === null || body.price_tier === ''
       ? null
@@ -257,7 +254,6 @@ export function parseEvaluation(body, { existing = null, userId, today }) {
   }
 
   return {
-    grade,
     equipment: { ...equipment },
     staff: { ...staff },
     finishes: Object.keys(finishNotes).length

@@ -33,8 +33,12 @@ import {
   evaluationCatalog,
   docsOk,
   EQUIPMENT,
+  STAFF_ROLES,
+  FINISHES,
+  DESIGN,
   ITEM_KEYS,
 } from '../src/distribution/catalog.js';
+import { evaluationScore, gradeOf, EVAL_AREAS } from '../src/distribution/grade.js';
 import {
   buildMessage,
   isValidMessage,
@@ -932,10 +936,8 @@ test('평가표 — 목록 밖 키는 422 (어느 키인지), 틀린 값도 422'
       JSON.stringify(e.details.unknown_keys) ===
         JSON.stringify(['design.measure', 'design.render_3d'])
   );
-  assert.throws(
-    () => parseEvaluation({ grade: 'S+' }, opts),
-    (e) => e.statusCode === 422
-  );
+  // 등급은 받지 않는다 — 저장할 때 서버가 점수로 매긴다
+  assert.equal(parseEvaluation({ grade: 'S+' }, opts).grade, undefined);
   assert.throws(
     () => parseEvaluation({ price_tier: 'premium' }, opts),
     (e) => e.statusCode === 422
@@ -1032,7 +1034,7 @@ test('평가표 — 서류는 { checked_at: 확인한 날 }, 확인한 사람은
     );
   }
   assert.equal(out.note, '메모');
-  assert.equal(out.grade, 'A');
+  assert.equal(out.grade, undefined, '등급은 본문에서 읽지 않는다');
   assert.deepEqual(out.install, {}, '시공 묶음은 뺐다 — 늘 비운다');
   assert.deepEqual(parseEvaluation({ docs: { insurance: false } }, opts).docs, {});
   assert.deepEqual(Object.keys(out).sort(), [
@@ -1041,13 +1043,128 @@ test('평가표 — 서류는 { checked_at: 확인한 날 }, 확인한 사람은
     'docs',
     'equipment',
     'finishes',
-    'grade',
     'install',
     'note',
     'price_tier',
     'staff',
     'warranty_months',
   ]);
+});
+
+// ── 본사 등급 (평가표 영역별 배율) ───────────────────────────────
+
+test('본사 등급 — 영역 배율 합 100 (가격대 없음), 설계 점수 합 = 설계 배율, 영역 이름', () => {
+  assert.deepEqual(R.EVAL_WEIGHTS, {
+    equipment: 30,
+    staff: 20,
+    finishes: 20,
+    design: 15,
+    quality: 10,
+    docs: 5,
+  });
+  assert.equal(
+    Object.values(R.EVAL_WEIGHTS).reduce((s, v) => s + v, 0),
+    100
+  );
+  assert.deepEqual(Object.keys(EVAL_AREAS), Object.keys(R.EVAL_WEIGHTS));
+  assert.deepEqual(Object.keys(R.DESIGN_SCORE), Object.keys(DESIGN), '설계 항목마다 점수');
+  assert.equal(
+    Object.values(R.DESIGN_SCORE).reduce((s, v) => s + v, 0),
+    R.EVAL_WEIGHTS.design
+  );
+  assert.deepEqual(Object.keys(R.EQUIPMENT_SCORE), ['have', 'outsource', 'none']);
+});
+
+test('본사 등급 — 빈 평가표 0점 C, 다 갖추면 100점 S', () => {
+  const empty = evaluationScore({});
+  assert.equal(empty.total, 0);
+  assert.equal(empty.max, 100);
+  assert.equal(empty.grade, 'C');
+  assert.deepEqual(
+    empty.areas.map((a) => [a.key, a.name, a.points, a.max]),
+    [
+      ['equipment', '설비', 0, 30],
+      ['staff', '인력', 0, 20],
+      ['finishes', '마감 · 자재', 0, 20],
+      ['design', '설계', 0, 15],
+      ['quality', '품질 · 서비스', 0, 10],
+      ['docs', '신뢰 · 서류', 0, 5],
+    ]
+  );
+  assert.equal(evaluationScore(null).grade, 'C');
+  const full = evaluationScore({
+    equipment: Object.fromEntries(Object.keys(EQUIPMENT).map((k) => [k, 'have'])),
+    staff: Object.fromEntries(Object.keys(STAFF_ROLES).map((k) => [k, 3])),
+    finishes: Object.fromEntries(Object.keys(FINISHES).map((k) => [k, 'yes'])),
+    design: Object.fromEntries(Object.keys(DESIGN).map((k) => [k, true])),
+    as_months: 24,
+    warranty_months: 36,
+    docs: { insurance: { checked_at: '2026-10-01' }, contract: { checked_at: '2026-10-01' } },
+  });
+  assert.equal(full.total, 100);
+  assert.equal(full.grade, 'S');
+  assert.deepEqual(
+    full.areas.map((a) => a.points),
+    [30, 20, 20, 15, 10, 5]
+  );
+});
+
+test('본사 등급 — 영역 안 점수 (설비 외주 0.5 · 인력 1명 이상 직무 · 마감 취급 · 설계 합 · 기간 · 서류)', () => {
+  const s = evaluationScore({
+    equipment: { table_saw: 'have', cnc_cut: 'outsource', nesting: 'have', boring: 'none' },
+    staff: { design: 2, measure: 1, install: 0 },
+    finishes: {
+      door_pet: 'yes',
+      body_pb: 'yes',
+      hw_blum: 'no',
+      notes: { door: '메모는 셈에 안 넣는다' },
+    },
+    design: { cad: true, planner: true, sketchup: false },
+    as_months: 12,
+    warranty_months: 24,
+    docs: { insurance: { checked_at: '2026-10-01', by: 'u1' } },
+    price_tier: 'high',
+    grade: 'S',
+  });
+  // 설비 (1 + 0.5 + 1) ÷ 13 × 30 = 5.77 · 인력 2 ÷ 10 × 20 = 4 · 마감 2 ÷ 14 × 20 = 2.86
+  // 설계 CAD 4 + 플래너 5 = 9 · 품질 A/S 12개월 3 + 보증 24개월 5 = 8 · 서류 하나 2.5
+  assert.deepEqual(
+    s.areas.map((a) => a.points),
+    [5.8, 4, 2.9, 9, 8, 2.5]
+  );
+  assert.equal(s.total, 32.2, '영역 점수(소수 첫째 자리)를 더한 값');
+  assert.equal(s.grade, 'C', '저장된 등급 · 가격대는 셈에 넣지 않는다');
+  // 기간 점수: 없음 · 0 → 0, 1~11 → 1, 12~23 → 3, 24 이상 → 5
+  const q = (m) => evaluationScore({ as_months: m }).areas.find((a) => a.key === 'quality').points;
+  assert.deepEqual([null, 0, 1, 11, 12, 23, 24, 240, 1.5].map(q), [0, 0, 1, 1, 3, 3, 5, 5, 0]);
+  // 서류는 확인한 날이 있어야
+  const d = (docs) => evaluationScore({ docs }).areas.find((a) => a.key === 'docs').points;
+  assert.equal(d({ insurance: {}, contract: { checked_at: '2026-10-01' } }), 2.5);
+  assert.equal(d({ insurance: true }), 0);
+});
+
+test('본사 등급 — 구간 S 85 · A 70 · B 50 이상 · 그 밖 C', () => {
+  assert.deepEqual(R.GRADE_CUTS, [
+    ['S', 85],
+    ['A', 70],
+    ['B', 50],
+    ['C', 0],
+  ]);
+  assert.deepEqual([100, 85, 84.9, 70, 69.9, 50, 49.9, 0].map(gradeOf), [
+    'S',
+    'S',
+    'A',
+    'A',
+    'B',
+    'B',
+    'C',
+    'C',
+  ]);
+  for (const g of Object.keys(R.GRADE_POINTS))
+    assert.ok(
+      R.GRADE_CUTS.some(([x]) => x === g),
+      `${g} 는 상담 분배 등급 점수와 같은 글자`
+    );
 });
 
 // ── 앱 알림 글 ─────────────────────────────────────────────────
