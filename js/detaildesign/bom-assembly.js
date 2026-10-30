@@ -1010,11 +1010,13 @@
     // 도어 — 2026-10-20 사장님 카드 "바닥 20 띄움": 좌대를 덮고 바닥에서 20 뜬다, 윗변 = 몸통 상단 (BOM 좌대H + 몸통 − 20).
     //   좌대 높이는 좌대 행 높이. 외부 서랍 몸통이 있으면 도어는 그 몸통 상단부터 (카드 "도어 1580" — 좌대 덮기는 서랍 전면 몫).
     //   높이가 그 식과 다르면 자리를 모른다.
+    //   2026-10-31 인몰딩 — 도어가 몰딩을 덮어 몸통 윗선 위로 늘어난다 (윗변 = 몸통 상단 + doorTopExtraOf, 도어 위 끝 = 천장 − 20)
     const doorRows = new Set();
+    const doorTop = y + (WR.doorTopExtraOf ? WR.doorTopExtraOf(specs) : 0);
     keyed.filter((x) => x.key && x.key.family === 'door' && groupOf(x.row) === '').forEach(({ row }) => {
       const xs = doorXsOf(W, row);
       const y0 = drawerCar ? drawerCar.y0 + drawerCar.H : DR.SUPPORT_PEDESTAL_GAP - pedH;   // 서랍 규칙: 좌대가 있으면 바닥에서 20
-      if (!xs || (!pedH && !drawerCar) || row.h !== y - y0) return;
+      if (!xs || (!pedH && !drawerCar) || row.h !== doorTop - y0) return;
       xs.forEach((x0, k) => parts.push(makePart(row, k, { o: [x0, y0, D / 2], u: '+x', v: '+y', n: '+z' }, [], 'exterior', { doorIdx: k })));
       doorRows.add(row);
     });

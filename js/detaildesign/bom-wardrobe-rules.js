@@ -113,6 +113,11 @@
     //   그때까지 §11 은 60 미만을 "무몰딩" 으로만 보아 부재가 하나도 나오지 않았다.
     MOLDING_FINISH_W: 60,
     MOLDING_FINISH_T: 18,
+    // 상몰딩 마감 종류 (specs.wardrobeMoldingType) — 2026-10-30 사장님 "상몰딩, 인몰딩, 무몰딩" · 2026-10-31
+    //   "인몰딩은 상몰딩 위치가 몸통앞선 + 도어가 몰딩을 덮는 형식, 상몰딩은 도어 앞선에 설치되는 형태":
+    //   top 상몰딩 = 도어 앞선 (도어 위) · in 인몰딩 = 몸통 앞선, 도어가 덮는다 · none 무몰딩 = 부재 없음 (틈)
+    MOLDING_TYPES: Object.freeze(['top', 'in', 'none']),
+    IN_MOLDING_TOP_GAP: 20,       // 인몰딩 도어 위 끝 = 천장 − 20 (2026-10-31 사장님 「천장 아래 20 남김」 — 무몰딩 틈과 같다)
     EP_LENGTH: 2440,              // 몰딩 EP 세로 고정 (§11) — 가로가 이보다 길면 2장
     DEFAULT_D: 620,               // 2026-09-16: 600 → 620 (data-constants CATEGORIES.wardrobe.defaultD)
     DEFAULT_H: 2310,
@@ -477,17 +482,40 @@
     const opt = o || {};
     const moldingH = Number(opt.moldingH) || 0;
     const totalW = Number(opt.totalW) || 0;
+    // 종류 (MOLDING_TYPES) — 무몰딩은 부재가 없고, 상몰딩 · 인몰딩을 고르면 마감재 스위치가 켜진 것과 같다 (60 미만도 막는다).
+    //   종류가 없으면 예전 그대로 (높이 · 스위치). 인몰딩은 같은 판을 몸통 앞선에 세운다 — 이름만 다르다.
+    const type = moldingTypeOf({ wardrobeMoldingType: opt.type });
+    if (type === 'none') return null;
+    const part = type === 'in' ? '인몰딩' : '상몰딩';
+    const where = type === 'in' ? '몸통 앞선 — 도어가 덮는다' : '';
     if (moldingH <= 0 || totalW <= 0) return null;
     const qty = totalW > R.EP_LENGTH ? 2 : 1;
     if (moldingH >= R.MOLDING_FINISH_W) {
-      return { part: '상몰딩', material: 'MDF', t: 18, w: moldingH, h: R.EP_LENGTH, qty, edge: '2면(장)', note: '' };
+      return { part, material: 'MDF', t: 18, w: moldingH, h: R.EP_LENGTH, qty, edge: '2면(장)', note: where };
     }
-    if (!opt.finish) return null;
+    if (!opt.finish && !type) return null;
     return {
-      part: '상몰딩', material: 'MDF', t: R.MOLDING_FINISH_T, w: R.MOLDING_FINISH_W, h: R.EP_LENGTH, qty,
+      part, material: 'MDF', t: R.MOLDING_FINISH_T, w: R.MOLDING_FINISH_W, h: R.EP_LENGTH, qty,
       edge: '2면(장)',
-      note: `상몰딩 ${moldingH} — ${R.MOLDING_FINISH_W}×${R.MOLDING_FINISH_T}T MDF 마감재로 설치`,
+      note: `${part} ${moldingH} — ${R.MOLDING_FINISH_W}×${R.MOLDING_FINISH_T}T MDF 마감재로 설치${where ? ` (${where})` : ''}`,
     };
+  }
+
+  /** 상몰딩 마감 종류 — specs.wardrobeMoldingType ('top' · 'in' · 'none'). 없거나 모르는 값이면 null (예전 그대로 — 높이 · 스위치로 정한다). */
+  function moldingTypeOf(specs) {
+    const t = specs && specs.wardrobeMoldingType;
+    return R.MOLDING_TYPES.indexOf(t) >= 0 ? t : null;
+  }
+
+  /**
+   * 인몰딩이면 도어가 몰딩을 덮어 몸통 윗선 위로 늘어나는 길이 — 도어 위 끝 = 천장 − IN_MOLDING_TOP_GAP
+   *   (= 몸통 윗선 + 상몰딩 높이 − 20, 2026-10-31 사장님 「천장 아래 20 남김」). 그 밖(상몰딩 · 무몰딩 · 종류 없음)은 0.
+   *   상몰딩 높이는 specs.wardrobeMoldingH (없으면 MOLDING_H — 다른 높이 셈과 같은 `||` 기본).
+   */
+  function doorTopExtraOf(specs) {
+    if (moldingTypeOf(specs) !== 'in') return 0;
+    const moldingH = parseFloat(specs.wardrobeMoldingH) || R.MOLDING_H;
+    return Math.max(0, moldingH - R.IN_MOLDING_TOP_GAP);
   }
 
   /** specs.wardrobeMoldingFinish 를 켜짐/꺼짐으로 — '1'·true·'ep60' 은 켜짐, 'none'·0·빈값은 꺼짐. */
@@ -983,7 +1011,7 @@
     WARDROBE_RULES, PRESETS, PRESET_KEYS, PRESET_DEFAULT, SAMPLE_PRESETS, CELL_KINDS,
     layoutWardrobeModule, normalizeBlock, cleanCellShelves, cleanCellSplits, dividersOf, shelfPositions, rodPositions,
     partsOf, rodHardwareOf, rodHardwareFor, rodLengthFor, bodyHeightOf, shelfDepthOf, innerDepthOf,
-    cabinetsOf, splitStack, moldingPartFor, moldingFinishOn,
+    cabinetsOf, splitStack, moldingPartFor, moldingFinishOn, moldingTypeOf, doorTopExtraOf,
     innerDrawerLayout, innerDrawerPartsOf, innerDrawerModulePartsOf, innerSlotPlan,
     innerRailLengthFor: (moduleD) => innerRailLengthFor(drawerRules(), moduleD),
     presetOf, presetKeyOf, presetLabel, moduleTypeOf, samplePresetFor,

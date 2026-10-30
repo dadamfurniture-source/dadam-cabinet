@@ -1103,7 +1103,9 @@
         const drawerCount = mod.drawerCount || 0;
         const external = mod.isExternalDrawer && drawerCount > 0 ? drawerCount * 350 : 0;
         // 2026-10-20 (도어 1580): 외부 서랍 위 도어는 몸통 − 서랍모듈H (extractWardrobe 와 같은 식)
-        return { count: mod.doorCount || Math.max(1, Math.round(W / 450)), h: external ? bodyH - external : pedestalH + bodyH - 20 };
+        // 2026-10-31 인몰딩 — 도어가 몰딩을 덮어 위로 늘어난다 (bom-wardrobe-rules doorTopExtraOf, extractWardrobe 와 같은 식)
+        const extra = WardrobeRules && WardrobeRules.doorTopExtraOf ? WardrobeRules.doorTopExtraOf(specs) : 0;
+        return { count: mod.doorCount || Math.max(1, Math.round(W / 450)), h: (external ? bodyH - external : pedestalH + bodyH - 20) + extra };
       }
 
       /**
@@ -2608,6 +2610,8 @@
           const moldingH = parseFloat(specs.wardrobeMoldingH) || WR_DEFAULTS.MOLDING_H;
           const totalH = parseFloat(item.h) || WR_DEFAULTS.DEFAULT_H;
           const bodyH = totalH - pedestalH - moldingH;
+          // 2026-10-31 인몰딩 — 도어가 몰딩을 덮어 몸통 윗선 위로 늘어난다 (도어 위 끝 = 천장 − 20, bom-wardrobe-rules doorTopExtraOf)
+          const doorTopExtra = WardrobeRules && WardrobeRules.doorTopExtraOf ? WardrobeRules.doorTopExtraOf(specs) : 0;
 
           dlog('[Wardrobe] ===== 붙박이장 자재 추출 시작 =====');
           dlog('[Wardrobe] item: w=%s, h=%s, d=%s, bodyH=%s', item.w, item.h, item.d, bodyH);
@@ -2754,10 +2758,10 @@
               // 도어 (좌대+bodyH-20 통일 — 짧은옷/긴옷 모두 동일 높이)
               if (doorCount > 0) {
                 const doorW = Math.floor(W / doorCount) - 4;
-                const doorH = pedestalH + bodyH - 20;
+                const doorH = pedestalH + bodyH - 20 + doorTopExtra;
                 if (isExternalDrawer && drawerCount > 0) {
                   // 2026-10-20 사장님 카드 "도어 1580": 외부 서랍 위 도어는 서랍모듈 상단~몸통 상단 (= 몸통 − 서랍모듈H). 좌대 덮기는 서랍 전면 몫이다
-                  this.add(materials, `${name}`, '도어', 'MDF', 18, doorW, bodyH - drawerCount * DRAWER_MOD_H, doorCount, '4면', '', mod);
+                  this.add(materials, `${name}`, '도어', 'MDF', 18, doorW, bodyH - drawerCount * DRAWER_MOD_H + doorTopExtra, doorCount, '4면', '', mod);
                   // 외부 서랍 도어 (목찬넬, 서랍수별 높이)
                   const drawerDoorW = W - 4;
                   const drawerModTotal = drawerCount * DRAWER_MOD_H + pedestalH;
@@ -2848,10 +2852,10 @@
               // 도어 (좌대+bodyH-20 통일 — 짧은옷/긴옷 모두 동일 높이)
               if (doorCount > 0) {
                 const doorW = Math.floor(W / doorCount) - 4;
-                const doorH = pedestalH + bodyH - 20;
+                const doorH = pedestalH + bodyH - 20 + doorTopExtra;
                 if (isExternalDrawer && drawerCount > 0) {
                   // 2026-10-20 사장님 카드 "도어 1580": 외부 서랍 위 도어는 서랍모듈 상단~몸통 상단 (= 몸통 − 서랍모듈H). 좌대 덮기는 서랍 전면 몫이다
-                  this.add(materials, `${name}`, '도어', 'MDF', 18, doorW, bodyH - drawerCount * DRAWER_MOD_H_LONG, doorCount, '4면', '', mod);
+                  this.add(materials, `${name}`, '도어', 'MDF', 18, doorW, bodyH - drawerCount * DRAWER_MOD_H_LONG + doorTopExtra, doorCount, '4면', '', mod);
                   // 외부 서랍 도어 (목찬넬, 서랍수별 높이)
                   const drawerDoorW = W - 4;
                   const drawerModTotal = drawerCount * DRAWER_MOD_H_LONG + pedestalH;
@@ -2918,6 +2922,7 @@
             ? WardrobeRules.moldingPartFor({
               moldingH, totalW,
               finish: WardrobeRules.moldingFinishOn(specs.wardrobeMoldingFinish),
+              type: WardrobeRules.moldingTypeOf ? WardrobeRules.moldingTypeOf(specs) : null,   // 2026-10-31 상몰딩 · 인몰딩 · 무몰딩
             })
             : (moldingH >= 60 && totalW > 0
               ? { part: '상몰딩', material: 'MDF', t: 18, w: moldingH, h: EP_H, qty: epQty(totalW), edge: '2면(장)', note: '' }
