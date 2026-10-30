@@ -67,6 +67,7 @@ const waiting = (extra = {}) => ({
   wanted_price_tier: 'mid',
   preferred_date: '2026-11-20',
   preferred_time: '15:00-18:00',
+  wanted_done_date: '2027-01-15',
   description: '다음 달 입주라 급해요',
   request_detail_design: true,
   quote_total: 3128400,
@@ -117,7 +118,7 @@ const SETTINGS = {
   ],
   items: { sink: 'do', wardrobe: 'outsource', fridge: 'no' },
   monthly_limit: 12,
-  next_available_date: '2026-11-15',
+  lead_days: 10,
 };
 const SCORE = { grade: 'A', satisfaction: 4.62, response_rate: 0.9 };
 
@@ -557,7 +558,8 @@ describe('상담 목록', () => {
       waiting().generation_image_url
     );
     expect(facts(el)).toEqual({
-      '희망 시기': '2026.11.20',
+      '희망 시기': '2027.01.15 시공 완료',
+      '희망 상담일': '2026.11.20',
       '연락 시간': '오후 (15:00~18:00)',
       '도어 마감': '하이그로시',
       철거: '필요',
@@ -621,6 +623,7 @@ describe('상담 목록', () => {
             wanted_price_tier: 'bogus',
             preferred_date: null,
             preferred_time: null,
+            wanted_done_date: null,
             description: '  ',
             request_detail_design: false,
             quote_total: null,
@@ -843,7 +846,7 @@ describe('내 평가', () => {
 });
 
 describe('상담 설정', () => {
-  test('읽은 값 — 지역 · 품목(없는 품목은 안 함) · 한 달 한도 · 다음 가능 날짜 · 안내 한 줄', async () => {
+  test('읽은 값 — 지역 · 품목(없는 품목은 안 함) · 한 달 한도 · 고객 확정 ~ 시공 완료 기간 · 안내 한 줄', async () => {
     await load();
     expect(setBox().querySelector('.me-pt-warn').textContent).toBe(
       '설정을 마쳐야 상담을 배정받을 수 있어요.'
@@ -866,7 +869,20 @@ describe('상담 설정', () => {
       ])[0]
     ).toEqual(['싱크대', ['함', '외주', '안 함']]);
     expect(form().querySelector('input[name="monthly_limit"]').value).toBe('12');
-    expect(form().querySelector('input[name="next_available_date"]').value).toBe('2026-11-15');
+    // 기간은 최소 제작 기간 — 1~14일 중 하루 단위로 고른다
+    const lead = form().querySelector('select[name="lead_days"]');
+    expect(lead.value).toBe('10');
+    expect([...lead.options].map((o) => [o.value, o.textContent])).toEqual(
+      [['', '기간 선택']].concat(
+        Array.from({ length: 14 }, (_, i) => [String(i + 1), i + 1 + '일'])
+      )
+    );
+    expect(lead.closest('label').querySelector('span').textContent).toBe(
+      '고객 확정 ~ 시공 완료 기간'
+    );
+    expect(form().querySelector('[data-lead-note]').textContent).toBe(
+      '고객 확정 ~ 시공 완료 기간 — 고객이 확정한 날부터 시공을 마칠 때까지 가장 짧게 걸리는 날(최소 제작 기간)을 골라 주세요. 고르지 않으면 상담을 배정받지 않습니다. 쉬실 때는 한 달 한도를 0으로 두세요.'
+    );
   });
 
   test('처음(data null) — 빈 설정, 지역이 없으면 업체 주소 안내', async () => {
@@ -920,7 +936,7 @@ describe('상담 설정', () => {
     const calls = await load();
     form().querySelector('input[name="item-vanity"][value="outsource"]').checked = true;
     form().querySelector('input[name="monthly_limit"]').value = '20';
-    form().querySelector('input[name="next_available_date"]').value = '2026-12-01';
+    form().querySelector('select[name="lead_days"]').value = '14';
     pickRegion('서울특별시', '강남구');
     await press(form(), '지역 더하기');
     await submitSettings();
@@ -947,7 +963,7 @@ describe('상담 설정', () => {
             other: 'no',
           },
           monthly_limit: 20,
-          next_available_date: '2026-12-01',
+          lead_days: 14,
         },
       },
     ]);
@@ -955,14 +971,14 @@ describe('상담 설정', () => {
     expect(chips()).toHaveLength(3);
   });
 
-  test('한도 · 날짜를 비우면 null 로 보낸다', async () => {
+  test('한도 · 기간을 비우면 null 로 보낸다', async () => {
     const calls = await load();
     form().querySelector('input[name="monthly_limit"]').value = '';
-    form().querySelector('input[name="next_available_date"]').value = '';
+    form().querySelector('select[name="lead_days"]').value = '';
     await submitSettings();
     const put = workCalls(calls, 'service-settings').find((f) => f.method === 'PUT');
     expect(put.body.monthly_limit).toBeNull();
-    expect(put.body.next_available_date).toBeNull();
+    expect(put.body.lead_days).toBeNull();
   });
 
   test.each([
@@ -979,6 +995,22 @@ describe('상담 설정', () => {
     expect(workCalls(calls, 'service-settings').filter((f) => f.method === 'PUT')).toEqual([]);
     expect(form().querySelector('[data-err]').textContent).toBe(msg);
     expect(form().querySelector('[aria-invalid]').name).toBe('monthly_limit');
+  });
+
+  test.each(['0', '15', '-1', '2.5'])('기간 %s → 보내지 않고 안내', async (v) => {
+    const calls = await load();
+    const el = form().querySelector('select[name="lead_days"]');
+    // 고르는 칸에 없는 값 — 칸에 넣어 그대로 고른다
+    const opt = document.createElement('option');
+    opt.value = v;
+    el.appendChild(opt);
+    el.value = v;
+    await submitSettings();
+    expect(workCalls(calls, 'service-settings').filter((f) => f.method === 'PUT')).toEqual([]);
+    expect(form().querySelector('[data-err]').textContent).toBe(
+      '고객 확정 ~ 시공 완료 기간은 1~14일 중에서 골라 주세요.'
+    );
+    expect(form().querySelector('[aria-invalid]').name).toBe('lead_days');
   });
 
   test('저장 실패(422) — 서버 글을 보이고 그 칸에 표시', async () => {
@@ -1010,10 +1042,14 @@ describe('상담 설정', () => {
         ],
         items: { sink: 'do', island: 'bogus' },
         monthly_limit: '0',
-        next_available_date: '2026-02-30',
+        lead_days: '0',
       })
-    ).toEqual({ field: 'next_available_date', error: '다음 가능 날짜를 다시 골라 주세요.' });
-    const r = settingsBody({ regions: [], items: {}, monthly_limit: '0', next_available_date: '' });
+    ).toEqual({
+      field: 'lead_days',
+      error: '고객 확정 ~ 시공 완료 기간은 1~14일 중에서 골라 주세요.',
+    });
+    const r = settingsBody({ regions: [], items: {}, monthly_limit: '0', lead_days: '14' });
+    expect(r.body.lead_days).toBe(14);
     expect(r.body.monthly_limit).toBe(0);
     expect(r.body.regions).toEqual([]);
     expect(Object.values(r.body.items).every((v) => v === 'no')).toBe(true);
@@ -1024,7 +1060,7 @@ describe('상담 설정', () => {
         regions: [{ sido: '경기도', gugun: '수원시' }, { sido: '경기도', gugun: '수원시' }, 'x'],
         items: { sink: 'outsource', bogus: 'do' },
         monthly_limit: 3.5,
-        next_available_date: '2026/11/01',
+        lead_days: 2.5,
       })
     ).toEqual({
       regions: [{ sido: '경기도', gugun: '수원시' }],
@@ -1039,7 +1075,7 @@ describe('상담 설정', () => {
         other: 'no',
       },
       monthly_limit: null,
-      next_available_date: null,
+      lead_days: null,
     });
   });
 });

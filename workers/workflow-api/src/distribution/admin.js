@@ -87,6 +87,7 @@ export const COPY_FIELDS = Object.freeze([
   'gugun',
   'preferred_date',
   'preferred_time',
+  'wanted_done_date',
   'description',
   'door_finish',
   'demolition_needed',
@@ -108,7 +109,7 @@ const CONSULT_COLUMNS = [
 
 const INBOX_COLUMNS =
   'id,created_at,status,name,phone,sido,gugun,furniture_categories,door_finish,demolition_needed,wanted_price_tier,' +
-  'preferred_date,preferred_time,request_detail_design,quote,generation_id,third_party_agreed_at';
+  'preferred_date,preferred_time,wanted_done_date,request_detail_design,quote,generation_id,third_party_agreed_at';
 
 /** 업체 제공 동의가 있나 — 없으면 배정하지 않고 본사가 직접 상담한다 */
 export const hasConsent = (consult) => Boolean(consult && consult.third_party_agreed_at);
@@ -239,6 +240,7 @@ export async function consultInbox(env, { user, query = {} }) {
       wanted_price_tier: r.wanted_price_tier ?? null,
       preferred_date: r.preferred_date,
       preferred_time: r.preferred_time,
+      wanted_done_date: r.wanted_done_date ?? null,
       request_detail_design: r.request_detail_design === true,
       quote_total: quoteTotal(r.quote),
       has_generation: Boolean(r.generation_id),

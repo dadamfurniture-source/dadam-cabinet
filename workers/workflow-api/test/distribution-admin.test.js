@@ -50,7 +50,7 @@ const FACTORY_OLD = sid(6); // 공장 옛 상담 (목록에 나오지 않는다)
 const P7 = sid(7); // 대기 — 업체 제공 동의 없음 (본사 직접 상담)
 
 const ago = (hours) => new Date(Date.now() - hours * 3600 * 1000).toISOString();
-/** 오늘(KST)에서 days 날 뒤 'YYYY-MM-DD' — 서버가 오늘 + 상담까지 걸리는 날로 세므로 날짜를 박아 두지 않는다 */
+/** 오늘(KST)에서 days 날 뒤 'YYYY-MM-DD' — 서버가 오늘 + 고객 확정 ~ 시공 완료 기간으로 세므로 날짜를 박아 두지 않는다 */
 const kstDay = (days) =>
   new Date(Date.now() + 9 * 3600 * 1000 + days * 86400000).toISOString().slice(0, 10);
 const DOCS = {
@@ -74,7 +74,7 @@ const svc = (company_id, extra = {}) => ({
   regions: [SEOUL_GANGNAM],
   items: { sink: 'do' },
   monthly_limit: 10,
-  lead_days: 0,
+  lead_days: 5,
   ...extra,
 });
 const evaln = (company_id, extra = {}) => ({
@@ -105,6 +105,7 @@ const P1_ROW = {
   description: '상부장 높게',
   preferred_date: kstDay(2),
   preferred_time: '09:00-12:00',
+  wanted_done_date: kstDay(7),
   furniture_categories: ['sink', 'not-a-key'],
   space_type: 'kitchen',
   space_width_mm: 3000,
@@ -168,10 +169,10 @@ function tables() {
       { company_id: B, user_id: OWNER_B, role: 'owner', status: 'active' },
     ],
     company_service_settings: [
-      svc(FACTORY, { lead_days: 2 }), // 희망 날 그날 6
+      svc(FACTORY, { lead_days: 7 }), // 시공 완료 희망 날 그날 6
       svc(A),
-      svc(B, { lead_days: 7 }), // 5일 늦음 3
-      svc(C, { lead_days: 14 }), // 12일 늦음 0
+      svc(B, { lead_days: 14 }), // 7일 늦음 3
+      svc(C, { lead_days: 10 }), // 3일 늦음 3
       svc(D),
       svc(G, { regions: [{ sido: '부산광역시', gugun: '해운대구' }] }),
     ],
@@ -324,6 +325,7 @@ test('목록 — 기본은 본사 대기 상담 (업체 사본 · 공장 상담 
     'sido',
     'status',
     'tried',
+    'wanted_done_date',
     'wanted_price_tier',
   ]);
   assert.equal(items[0].quote_total, 5200000);
@@ -577,6 +579,10 @@ test('배정 — 거르기를 통과하지 못하면 422 not_eligible (이유), 
   fake.db.company_service_settings.find((s) => s.company_id === A).monthly_limit = 0;
   const limit = await assign(fake, P1, A);
   assert.deepEqual(limit.json.details.reasons, ['limit']);
+  // 기간 — 고객 확정 ~ 시공 완료 기간을 비우면
+  fake.db.company_service_settings.find((s) => s.company_id === A).lead_days = null;
+  const period = await assign(fake, P1, A);
+  assert.deepEqual(period.json.details.reasons, ['limit', 'period']);
   assert.equal(writesOf(fake).length, 0);
   assert.equal(fake.db.consultations.find((c) => c.id === P1).status, 'pending');
 });

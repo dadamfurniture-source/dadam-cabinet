@@ -65,7 +65,7 @@ const settings = (extra = {}) => ({
   regions: [{ sido: '서울특별시', gugun: '강남구' }],
   items: { sink: 'do' },
   monthly_limit: 10,
-  lead_days: null,
+  lead_days: 10,
   ...extra,
 });
 const consult = (extra = {}) => ({
@@ -74,7 +74,7 @@ const consult = (extra = {}) => ({
   furniture_categories: ['sink'],
   door_finish: null,
   wanted_price_tier: null,
-  preferred_date: null,
+  wanted_done_date: null,
   request_detail_design: false,
   ...extra,
 });
@@ -139,23 +139,28 @@ test('고객 가격대 — wanted_price_tier, 모름 · 빈 값이면 모든 업
   }
 });
 
-test('희망 시기 — 가능한 날(오늘 + 걸리는 날)이 날짜 안 6 · 7일 안 늦음 3 · 그 밖 0, 희망 날짜 없으면 6, 걸리는 날 비면 0', () => {
+test('희망 시기 — 마칠 수 있는 날(오늘 + 기간)이 시공 완료 희망 날짜 안 6 · 14일 안 늦음 3 · 그 밖 0, 희망 날짜 없으면 6', () => {
   const today = '2026-10-30';
+  assert.equal(R.LEAD_DAYS_MIN, 1);
   assert.equal(R.LEAD_DAYS_MAX, 14);
+  assert.equal(R.TIMING_LATE_DAYS, 14);
   assert.equal(R.timingScore(null, 14, today), 6);
-  assert.equal(R.timingScore('2026-11-10', 0, today), 6);
-  assert.equal(R.timingScore('2026-11-10', 11, today), 6, '같은 날');
-  assert.equal(R.timingScore('2026-11-10', 12, today), 3);
-  assert.equal(R.timingScore('2026-11-01', 9, today), 3, '7일');
-  assert.equal(R.timingScore('2026-11-01', 10, today), 0, '8일');
-  assert.equal(R.timingScore('2026-11-10', null, today), 6, '걸리는 날 비면 오늘');
-  assert.equal(R.timingScore('2026-10-25', null, today), 3, '오늘이 희망보다 5일 늦음');
-  assert.equal(R.timingScore('2026-10-01', 0, today), 0);
-  assert.equal(R.timingScore('언젠가', 3, today), 6, '날짜 모양이 아니면 희망 날짜 없음');
+  assert.equal(R.timingScore('2026-12-31', 14, today), 6);
+  assert.equal(R.timingScore('2026-11-09', 10, today), 6, '같은 날');
+  assert.equal(R.timingScore('2026-11-09', 11, today), 3, '1일 늦음');
+  assert.equal(R.timingScore('2026-10-30', 14, today), 3, '14일');
+  assert.equal(R.timingScore('2026-10-29', 14, today), 0, '15일 — 지난 희망 날짜');
+  assert.equal(
+    R.timingScore('2026-11-09', null, today),
+    0,
+    '기간이 없으면 잴 수 없음 (거르기에서 빠진다)'
+  );
+  assert.equal(R.timingScore('언젠가', 10, today), 6, '날짜 모양이 아니면 희망 날짜 없음');
 });
 
-test('한 달 한도를 정하지 않은 업체는 거른다 (limit)', () => {
+test('한 달 한도 · 고객 확정 ~ 시공 완료 기간을 정하지 않은 업체는 거른다 (limit · period)', () => {
   assert.equal(R.REQUIRE_MONTHLY_LIMIT, true);
+  assert.equal(R.REQUIRE_LEAD_DAYS, true);
   const base = {
     consult: consult(),
     items: ['sink'],
@@ -166,10 +171,11 @@ test('한 달 한도를 정하지 않은 업체는 거른다 (limit)', () => {
   assert.deepEqual(filterReasons({ ...base, settings: settings({ monthly_limit: null }) }), [
     'limit',
   ]);
+  assert.deepEqual(filterReasons({ ...base, settings: settings({ lead_days: null }) }), ['period']);
   assert.deepEqual(
     filterReasons({ ...base, settings: null }),
-    ['item', 'limit'],
-    '설정이 없으면 지역은 주소로, 품목 · 한도 없음'
+    ['item', 'limit', 'period'],
+    '설정이 없으면 지역은 주소로, 품목 · 한도 · 기간 없음'
   );
 });
 
@@ -379,16 +385,16 @@ test('서류 — 보험 · 계약서 둘 다 본사 확인', () => {
   assert.deepEqual(R.REQUIRED_DOCS, ['insurance', 'contract']);
 });
 
-test('이유는 모두 싣는다 — 지역 · 품목 · 한도 · 서류', () => {
+test('이유는 모두 싣는다 — 지역 · 품목 · 한도 · 기간 · 서류', () => {
   const r = filterReasons({
     consult: consult({ gugun: '송파구' }),
     items: ['sink'],
     company: company('a'),
-    settings: settings({ items: {}, monthly_limit: null }),
+    settings: settings({ items: {}, monthly_limit: null, lead_days: null }),
     evaluation: null,
     stats: stats(),
   });
-  assert.deepEqual(r, ['region', 'item', 'limit', 'docs']);
+  assert.deepEqual(r, ['region', 'item', 'limit', 'period', 'docs']);
   for (const x of r) assert.ok(R.FILTER_REASONS.includes(x));
 });
 
@@ -501,11 +507,11 @@ test('선택 적합도 — 다섯 항목 합 (만점 35)', () => {
     consult: consult({
       door_finish: 'pet',
       wanted_price_tier: 'mid',
-      preferred_date: '2026-11-10',
+      wanted_done_date: '2026-12-31',
       request_detail_design: true,
     }),
     items: ['sink'],
-    settings: settings({ lead_days: 5 }),
+    settings: settings({ lead_days: 10 }),
     evaluation: {
       finishes: { door_pet: 'yes' },
       price_tier: 'mid',

@@ -17,17 +17,18 @@
                POST /company/consults/:id/accept    받기 → { customer_id, project_id } (업체 고객 · 프로젝트를 만든다)
                POST /company/consults/:id/decline   못 받음 { reason } → 204
                GET/PUT /company/service-settings    { regions[{sido,gugun}], items{품목: do|outsource|no},
-                                                      monthly_limit, next_available_date, can_act? }
+                                                      monthly_limit, lead_days, can_act? }
                GET  /company/my-score               { grade, satisfaction(0~5|null), response_rate(0~1|null) }
    화면
      상담 (#partner-consults)
-       상담 한 건마다 품목 · 시/군/구 · 희망 시기 · 연락 시간 · 도어 마감 · 철거 · 가격대 · 예상 견적 ·
+       상담 한 건마다 품목 · 시/군/구 · 희망 시기(시공 완료 희망 날짜) · 희망 상담일 · 연락 시간 · 도어 마감 ·
+       철거 · 가격대 · 예상 견적 ·
        상세 설계 요청 · 요청 사항 · 연출컷 · 이름 · 전화 · 남은 시간(배정 기록의 expires_at — 배정 뒤 24시간)
        기다리는 상담(assignment.state assigned): 「받기」 · 「못 받음」(까닭을 적는 칸이 그 자리에서 열린다)
        돌려보낸 상담(status returned · 못 받음 · 시간 넘김): 연락처 없이 흐리게 (서버도 연락처를 지워서 준다)
      내 평가 — 상담 칸 위 한 줄: 등급 · 고객 만족 · 응답률 (못 읽으면 줄째 뺀다)
      상담 설정 — 상담 받는 지역(시/도 · 시/군/구 여러 개, segan/regions.js) · 하는 품목(함 · 외주 · 안 함) ·
-       한 달 한도 · 다음 가능 날짜
+       한 달 한도 · 고객 확정 ~ 시공 완료 기간(최소 제작 기간 1~14일 중 고름, 비면 상담을 배정받지 않는다)
    이름      품목 = workflow-api consult-notify.js FURNITURE_LABELS (consultation.html 가구 종류와 같은 키)
              연락 시간 = consult-notify.js TIME_LABELS (consult.html · consultation.html 의 선택지)
    못 읽으면  처음(403 · 404 · 오류 · 끊김 · 모양이 틀림) → 그 칸째 감춘다 (가짜 값을 그리지 않는다)
@@ -85,6 +86,8 @@
   var GRADES = ['S', 'A', 'B', 'C'];
 
   var LIMIT_MAX = 1000; // company_service_settings.monthly_limit CHECK 0~1000
+  var LEAD_MIN = 1; // company_service_settings.lead_days CHECK 1~14 (최소 제작 기간, 일 단위)
+  var LEAD_MAX = 14;
   var REGION_MAX = 300; // company_service_settings regions 길이 CHECK
   var REASON_MAX = 500; // consult_assignments.reason CHECK
   var TICK_MS = 30000;
@@ -103,13 +106,14 @@
     regionPick: '시/도와 시/군/구를 골라 주세요.',
     regionMax: '지역은 ' + REGION_MAX + '곳까지 둘 수 있습니다.',
     limitBad: '한 달 한도는 0~' + LIMIT_MAX + ' 사이 숫자로 적어 주세요.',
-    dateBad: '다음 가능 날짜를 다시 골라 주세요.',
+    leadBad: '고객 확정 ~ 시공 완료 기간은 ' + LEAD_MIN + '~' + LEAD_MAX + '일 중에서 골라 주세요.',
+    leadNote:
+      '고객 확정 ~ 시공 완료 기간 — 고객이 확정한 날부터 시공을 마칠 때까지 가장 짧게 걸리는 날(최소 제작 기간)을 골라 주세요. 고르지 않으면 상담을 배정받지 않습니다. 쉬실 때는 한 달 한도를 0으로 두세요.',
     saved: '상담 설정을 저장했습니다.',
     generic: '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
   };
 
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  var DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
   var P = {
     sb: null,
@@ -283,6 +287,7 @@
       return true;
     });
     var limit = x.monthly_limit;
+    var lead = x.lead_days;
     return {
       regions: regions.map(function (r) {
         return { sido: r.sido, gugun: r.gugun };
@@ -292,24 +297,15 @@
         typeof limit === 'number' && Number.isInteger(limit) && limit >= 0 && limit <= LIMIT_MAX
           ? limit
           : null,
-      next_available_date:
-        typeof x.next_available_date === 'string' && DATE_RE.test(x.next_available_date)
-          ? x.next_available_date
+      lead_days:
+        typeof lead === 'number' && Number.isInteger(lead) && lead >= LEAD_MIN && lead <= LEAD_MAX
+          ? lead
           : null,
     };
   }
 
-  function realDate(s) {
-    var m = DATE_RE.exec(s);
-    if (!m) return false;
-    var d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
-    return (
-      d.getUTCFullYear() === +m[1] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3]
-    );
-  }
-
   /**
-   * PUT 본문 — v = { regions, items, monthly_limit(글자), next_available_date(글자) }
+   * PUT 본문 — v = { regions, items, monthly_limit(글자), lead_days(글자) }
    * → { body } | { field, error }
    */
   function settingsBody(v) {
@@ -328,8 +324,13 @@
         return { field: 'monthly_limit', error: TEXT.limitBad };
       limit = Number(rawLimit);
     }
-    var rawDate = String(x.next_available_date == null ? '' : x.next_available_date).trim();
-    if (rawDate && !realDate(rawDate)) return { field: 'next_available_date', error: TEXT.dateBad };
+    var rawLead = String(x.lead_days == null ? '' : x.lead_days).trim();
+    var lead = null;
+    if (rawLead) {
+      if (!/^\d{1,3}$/.test(rawLead) || Number(rawLead) < LEAD_MIN || Number(rawLead) > LEAD_MAX)
+        return { field: 'lead_days', error: TEXT.leadBad };
+      lead = Number(rawLead);
+    }
     return {
       body: {
         regions: regions.map(function (r) {
@@ -337,7 +338,7 @@
         }),
         items: items,
         monthly_limit: limit,
-        next_available_date: rawDate || null,
+        lead_days: lead,
       },
     };
   }
@@ -407,7 +408,10 @@
 
   function factsHtml(x, returned) {
     var f = [];
-    if (day(x.preferred_date)) f.push(fact('희망 시기', esc(day(x.preferred_date))));
+    // 희망 시기 = 시공 완료 희망 날짜 (분배가 업체 기간과 견주는 날). 희망 상담일은 연락 일정
+    if (day(x.wanted_done_date))
+      f.push(fact('희망 시기', esc(day(x.wanted_done_date)) + ' 시공 완료'));
+    if (day(x.preferred_date)) f.push(fact('희망 상담일', esc(day(x.preferred_date))));
     if (typeof x.preferred_time === 'string' && x.preferred_time)
       f.push(fact('연락 시간', esc(TIME_LABELS[x.preferred_time] || x.preferred_time)));
     if (has(DOOR_FINISH, x.door_finish)) f.push(fact('도어 마감', esc(DOOR_FINISH[x.door_finish])));
@@ -535,6 +539,22 @@
   }
 
   // ── 상담 설정 ──────────────────────────────────────────
+  /** 고객 확정 ~ 시공 완료 기간 — 최소 제작 기간을 1~14일 중 하루 단위로 고른다 (고르지 않으면 빈 값) */
+  function leadSelectHtml(value) {
+    var html = '<option value="">기간 선택</option>';
+    for (var n = LEAD_MIN; n <= LEAD_MAX; n++) {
+      html +=
+        '<option value="' +
+        n +
+        '"' +
+        (String(n) === value ? ' selected' : '') +
+        '>' +
+        n +
+        '일</option>';
+    }
+    return '<select name="lead_days">' + html + '</select>';
+  }
+
   function regionSelectHtml() {
     var R = window.SeganRegions || {};
     return (
@@ -650,10 +670,13 @@
       '" step="1" value="' +
       esc(d.monthly_limit) +
       '" /></label>' +
-      '<label class="mk-input"><span>다음 가능 날짜</span><input name="next_available_date" type="date" value="' +
-      esc(d.next_available_date) +
-      '" /></label>' +
+      '<label class="mk-input"><span>고객 확정 ~ 시공 완료 기간</span>' +
+      leadSelectHtml(d.lead_days) +
+      '</label>' +
       '</div>' +
+      '<p class="mk-note" data-lead-note>' +
+      esc(TEXT.leadNote) +
+      '</p>' +
       '</fieldset>' +
       '<p class="mk-error" data-err role="alert"' +
       (P.setErr ? '' : ' hidden') +
@@ -670,7 +693,7 @@
     box.hidden = false;
   }
 
-  /** 설정 → 고치는 값 (한도 · 날짜는 입력 칸 글자) */
+  /** 설정 → 고치는 값 (한도는 입력 칸 글자 · 기간은 고른 값 글자) */
   function draftOf(s) {
     var items = {};
     Object.keys(ITEMS).forEach(function (k) {
@@ -680,7 +703,7 @@
       regions: s.regions.slice(),
       items: items,
       monthly_limit: s.monthly_limit == null ? '' : String(s.monthly_limit),
-      next_available_date: s.next_available_date || '',
+      lead_days: s.lead_days == null ? '' : String(s.lead_days),
     };
   }
 
@@ -694,9 +717,9 @@
       if (on) P.draft.items[k] = on.value;
     });
     var limit = form.querySelector('input[name="monthly_limit"]');
-    var date = form.querySelector('input[name="next_available_date"]');
+    var lead = form.querySelector('select[name="lead_days"]');
     if (limit) P.draft.monthly_limit = limit.value;
-    if (date) P.draft.next_available_date = date.value;
+    if (lead) P.draft.lead_days = lead.value;
   }
 
   function settingsError(text, field) {
