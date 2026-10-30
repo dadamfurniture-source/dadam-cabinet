@@ -800,6 +800,157 @@ button.sg-row {
   margin-top: 10px;
 }
 
+/* 업체 › 상담 · 상담 설정 (segan/partner-consults.js) — 고르는 칸은 make.css 의 cs-choice */
+.me-cs > .mk-note {
+  margin-bottom: 10px;
+}
+
+.me-cs-score {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.me-cs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.me-cs-item {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+}
+
+/* 돌려보낸 상담 — 흐리게 (연락처 없음) */
+.me-cs-item--off {
+  border-color: var(--v5-line);
+  background: var(--v5-well);
+}
+
+.me-cs-item--off .me-c-main b,
+.me-cs-item--off .me-facts dd {
+  color: var(--v5-ink-45);
+}
+
+.me-cs-item .me-facts {
+  margin-top: 0;
+}
+
+.me-cs-item .me-facts a {
+  color: var(--v5-ink);
+}
+
+.me-cs-desc dd {
+  white-space: pre-wrap;
+}
+
+.me-cs-left {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--v5-tan);
+}
+
+.me-cs-shotlink {
+  display: block;
+  align-self: flex-start;
+  width: 100%;
+  max-width: 320px;
+}
+
+.me-cs-shot {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--v5-photo);
+}
+
+.me-cs-item .mk-error,
+.me-cs-item .me-pt-msg {
+  margin: 0;
+}
+
+.me-cs-decline,
+.me-cs-field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.me-cs-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.me-cs-regions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.me-cs-regions li {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--v5-line-18);
+  font-size: 13px;
+}
+
+.me-cs-regions span {
+  padding: 0 10px;
+}
+
+.me-cs-regions button {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-left: 1px solid var(--v5-line-18);
+  background: transparent;
+  color: var(--v5-ink-60);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.me-cs-regions button:disabled {
+  cursor: not-allowed;
+}
+
+.me-cs-itemrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.me-cs-itemname {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.me-cs-set .me-pt-msg,
+.me-cs .me-empty {
+  margin: 0;
+}
+
 /* 직원 초대 받기 (segan/join.html) */
 .jn-box {
   display: flex;

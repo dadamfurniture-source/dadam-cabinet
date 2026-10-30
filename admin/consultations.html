@@ -12,7 +12,7 @@
     />
     <script src="../js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026103001"></script>
+    <script src="../js/admin-access.js?v=2026103004"></script>
     <style>
       * {
         margin: 0;
@@ -114,6 +114,25 @@
       .header h2 {
         font-size: 1.5rem;
         color: #333;
+      }
+
+      /* 상담 분배 안내 */
+      .dist-notice {
+        background: #eef4ff;
+        color: #24527a;
+        border: 1px solid #c9dbf5;
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 0.9rem;
+        margin: -10px 0 20px;
+      }
+      .dist-notice a {
+        color: #007bff;
+        font-weight: 500;
+      }
+      .consultation-actions a.btn {
+        display: inline-block;
+        text-decoration: none;
       }
 
       /* Stats Tabs */
@@ -485,7 +504,7 @@
         <span>관리자 패널</span>
       </div>
       <ul class="nav-menu" id="adminNav"></ul>
-      <script src="../js/admin-shell.js?v=2026103001"></script>
+      <script src="../js/admin-shell.js?v=2026103004"></script>
       <div class="sidebar-footer">
         <a href="../index.html">← 메인 사이트로</a>
       </div>
@@ -503,6 +522,10 @@
         <header class="header">
           <h2>상담 관리</h2>
         </header>
+
+        <div class="dist-notice" id="distNotice">
+          새 상담은 <a href="consult-distribution.html">상담 분배</a>에서 업체에 나눕니다.
+        </div>
 
         <!-- Stats Tabs -->
         <div class="stats-tabs">
@@ -590,6 +613,8 @@
               <option value="confirmed">확정</option>
               <option value="completed">완료</option>
               <option value="cancelled">취소</option>
+              <!-- 업체에 나간 상담 — 고를 수는 없고, 저장할 때 상태를 그대로 둔다 -->
+              <option value="assigned" disabled>배정됨 (상담 분배)</option>
             </select>
           </div>
           <div class="form-group" style="background:#fafafa;border:1px solid #eee;border-radius:6px;padding:12px;">
@@ -714,35 +739,43 @@
         document.getElementById('pageContent').style.display = 'none';
       }
 
-      // 이 화면은 본사(다담) 상담만 본다 — 회사 구성원도 자기 회사 상담을 읽을 수 있어
-      // 거르지 않으면 다른 회사 행이 섞인다. 본사 id 를 못 읽으면 거르지 않은 목록을 내지 않고 오류로 둔다.
-      let hqCompanyIdPromise = null;
-      function hqCompanyId() {
-        if (!hqCompanyIdPromise) {
-          hqCompanyIdPromise = supabaseClient
+      // 이 화면은 다담 본사 상담만 본다 — 고객 상담은 본사(companies.kind = 'platform') 행으로 들어온다
+      // (다담 공장 kind = 'hq' 는 배정받은 사본 상담을 따로 갖는다). 회사 구성원도 자기 회사 상담을 읽을 수 있어
+      // 거르지 않으면 다른 회사 행이 섞인다. 본사 행을 못 읽거나 없으면 거르지 않은 목록을 내지 않는다 —
+      // 다른 회사로 대신하지 않는다.
+      const NO_PLATFORM = '다담 본사 회사를 찾지 못해 상담을 불러오지 않았습니다.';
+      let platformCompanyIdPromise = null;
+      function platformCompanyId() {
+        if (!platformCompanyIdPromise) {
+          platformCompanyIdPromise = supabaseClient
             .from('companies')
             .select('id')
-            .eq('kind', 'hq')
-            .single()
+            .eq('kind', 'platform')
+            .maybeSingle()
             .then(({ data, error }) => {
               if (error) throw error;
+              if (!data || !data.id) {
+                const err = new Error(NO_PLATFORM);
+                err.code = 'no_platform';
+                throw err;
+              }
               return data.id;
             });
           // 실패는 남겨 두지 않는다 — 「새로고침」이 다시 읽는다
-          hqCompanyIdPromise.catch(() => {
-            hqCompanyIdPromise = null;
+          platformCompanyIdPromise.catch(() => {
+            platformCompanyIdPromise = null;
           });
         }
-        return hqCompanyIdPromise;
+        return platformCompanyIdPromise;
       }
 
       async function loadStats() {
         try {
-          const hqId = await hqCompanyId();
+          const platformId = await platformCompanyId();
           const { data, error } = await supabaseClient
             .from('consultations')
             .select('status')
-            .eq('company_id', hqId);
+            .eq('company_id', platformId);
           if (error) throw error;
 
           const counts = { total: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0 };
@@ -777,11 +810,11 @@
         const searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
 
         try {
-          const hqId = await hqCompanyId();
+          const platformId = await platformCompanyId();
           let query = supabaseClient
             .from('consultations')
             .select('*')
-            .eq('company_id', hqId)
+            .eq('company_id', platformId)
             .order('created_at', { ascending: false });
 
           if (currentStatusFilter) query = query.eq('status', currentStatusFilter);
@@ -814,6 +847,11 @@
           container.innerHTML = filtered.map((c) => renderConsultationCard(c)).join('');
         } catch (e) {
           console.error('Error:', e);
+          if (e && e.code === 'no_platform') {
+            consultationsCache = [];
+            container.innerHTML = `<div class="empty-state"><h4>${esc(e.message)}</h4></div>`;
+            return;
+          }
           container.innerHTML = `
                     <div class="empty-state">
                         <h4>데이터를 불러올 수 없습니다</h4>
@@ -872,18 +910,25 @@
         // 단추의 상담 id 는 data-id 로만 싣는다 — 인라인 onclick 의 JS 문자열에 DB 값을 넣지 않는다.
         // 누르면 아래 consultationList 의 click 위임(CARD_ACTIONS)이 받는다.
         const id = esc(c.id);
+        // 이 화면의 상담은 모두 다담 본사 상담 — 본사는 일정을 확정하지 않고 상담 분배에서 업체에 나눈다.
+        // 그래서 「일정 확정」 · 「일정 변경」 단추를 두지 않고 그 상담을 고른 채 여는 상담 분배 링크를 둔다.
+        const distHref = esc(`consult-distribution.html#consult=${encodeURIComponent(c.id == null ? '' : c.id)}`);
         let actionsHtml = '';
         if (c.status === 'pending') {
           actionsHtml = `
-                    <button class="btn btn-primary btn-sm" data-act="confirm" data-id="${id}">일정 확정</button>
+                    <a class="btn btn-primary btn-sm" data-dist="1" href="${distHref}">상담 분배에서 업체에 나누기 →</a>
                     <button class="btn btn-secondary btn-sm" data-act="edit" data-id="${id}">내용 정리</button>
                     <button class="btn btn-danger btn-sm" data-act="cancel" data-id="${id}">취소</button>
+                `;
+        } else if (c.status === 'assigned') {
+          actionsHtml = `
+                    <a class="btn btn-primary btn-sm" data-dist="1" href="${distHref}">상담 분배에서 보기 →</a>
+                    <button class="btn btn-secondary btn-sm" data-act="edit" data-id="${id}">내용 정리</button>
                 `;
         } else if (c.status === 'confirmed') {
           actionsHtml = `
                     <button class="btn btn-success btn-sm" data-act="complete" data-id="${id}">완료 처리</button>
                     <button class="btn btn-secondary btn-sm" data-act="edit" data-id="${id}">내용 정리</button>
-                    <button class="btn btn-warning btn-sm" data-act="confirm" data-id="${id}">일정 변경</button>
                     <button class="btn btn-danger btn-sm" data-act="cancel" data-id="${id}">취소</button>
                 `;
         } else {

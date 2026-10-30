@@ -1117,14 +1117,18 @@
     if (section.scrollIntoView) section.scrollIntoView({ block: 'start' });
   }
 
-  /** 로그인 안내의 로그인 단추 — me.html#partner 로 왔으면 돌아올 곳에 #partner 를 붙인다 */
+  /**
+   * 로그인 안내의 로그인 단추 — me.html#partner · #partner-consults(새 상담 알림)로 왔으면
+   * 돌아올 곳에 그 # 를 붙인다
+   */
   function keepHashOnGate() {
-    if (location.hash !== '#partner') return;
+    var hash = location.hash;
+    if (hash !== '#partner' && hash !== '#partner-consults') return;
     var a = document.querySelector('[data-auth-view="signed-out"] a.sg-btn');
     if (a)
       a.setAttribute(
         'href',
-        '../login.html?redirect=' + encodeURIComponent('segan/me.html#partner')
+        '../login.html?redirect=' + encodeURIComponent('segan/me.html' + hash)
       );
   }
 

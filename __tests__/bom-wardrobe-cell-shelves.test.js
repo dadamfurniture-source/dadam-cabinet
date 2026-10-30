@@ -36,16 +36,32 @@ describe('규칙 파일', () => {
     expect('cellShelves' in WR.normalizeBlock({ preset: 'short2', cellShelves: [null, null] })).toBe(false);
     expect(WR.normalizeBlock(undefined)).toEqual({ preset: null, cells: null, drawers: null, externalDrawer: null });
   });
-  test('짧은옷 2단 하부 칸 선반 2 — 몸통 둘 그대로, 그 칸만 선반 2 (옷봉 칸이라 첫 선반 = 칸 상단 − 315), 옷봉은 맨 위 선반 아래', () => {
+  test('짧은옷 2단 하부 칸 선반 2 — 몸통 둘 그대로, 옷봉 걸 공간이 1000 이하라 그 칸 옷봉을 빼고 선반 칸 (선반 = 일반 규칙 균등) (2026-10-30 사장님)', () => {
     const base = WR.layoutWardrobeModule({ preset: 'short2', W: 900, D: 590, bodyH: 2230 });
     const L = WR.layoutWardrobeModule({ preset: 'short2', W: 900, D: 590, bodyH: 2230, cellShelves: [2, null] });
     expect(WR.cabinetsOf(L).length).toBe(WR.cabinetsOf(base).length);
-    expect(L.cells.map((c) => c.shelves)).toEqual([2, 0]);
+    expect(L.cells.map((c) => [c.kind, c.shelves, c.rods])).toEqual([['shelf', 2, 0], ['rod', 0, 1]]);
+    expect(L.rods.map((r) => r.cell)).toEqual([1]);   // 상부 칸 옷봉은 그대로 (바꾸지 않은 칸)
     const c = L.cells[0];
-    const ys = L.shelves.filter((s) => s.cell === 0).map((s) => s.y - c.y0).sort((a, b) => b - a);
-    expect(ys[0]).toBe(c.h - WR.WARDROBE_RULES.LONG_FIRST_SHELF);
-    expect(L.rods.find((r) => r.cell === 0).y).toBe(Math.max(...L.shelves.filter((s) => s.cell === 0).map((s) => s.y)) - WR.WARDROBE_RULES.ROD_OFFSET);
+    const ys = L.shelves.filter((s) => s.cell === 0).map((s) => s.y - c.y0);
+    expect(ys).toEqual(WR.shelfPositions({ h: c.h, shelves: 2, rods: 0 }, { T: 15 }));
     expect(IR.wardrobeShelfErrorsOf(L, [2, null])).toEqual([]);
+  });
+  test('옷봉 걸 공간 (봉 중심 ~ 아래 판) 이 ROD_MIN_HANG 1000 보다 크면 옷봉은 그대로 — 긴옷 칸 선반 1 (기본) 은 그대로, 2 면 아래 선반까지 1000 이하라 뺀다', () => {
+    expect(WR.WARDROBE_RULES.ROD_MIN_HANG).toBe(1000);
+    const keep = WR.layoutWardrobeModule({ preset: 'longDrawer', W: 900, D: 590, bodyH: 2230, cellShelves: [1] });
+    const c = keep.cells[0];
+    expect(keep.rods.length).toBe(1);
+    expect(keep.rods[0].y - c.y0).toBeGreaterThan(1000);
+    const drop = WR.layoutWardrobeModule({ preset: 'longDrawer', W: 900, D: 590, bodyH: 2230, cellShelves: [2] });
+    expect([drop.rods.length, drop.cells[0].kind]).toEqual([0, 'shelf']);
+  });
+  test('서랍을 바꾸면 그 서랍이 닿는 칸도 본다 — 짧은옷 2단에 속서랍 1 (맨 아래 캐비닛) · 외부 서랍 1 (캐비닛이 줄어 모든 칸), 바꾸지 않은 기본형은 높이가 낮아도 그대로', () => {
+    const inner = WR.layoutWardrobeModule({ preset: 'short2', W: 900, D: 590, bodyH: 2230, drawers: 1, externalDrawer: false });
+    expect(inner.cells.map((c) => c.rods)).toEqual([0, 1]);
+    const ext = WR.layoutWardrobeModule({ preset: 'short2', W: 900, D: 590, bodyH: 2230, drawers: 1, externalDrawer: true });
+    expect(ext.cells.map((c) => c.rods)).toEqual([0, 0]);
+    expect(WR.layoutWardrobeModule({ preset: 'short2', W: 900, D: 590, bodyH: 2120 }).rods.length).toBe(2);
   });
   test('칸 간격 최소는 두지 않는다 — 사장님 기본형 4번 통 하부 선반 3단이 이미 260 간격 (300 은 붙박이장 규칙이 아니다)', () => {
     const L = WR.layoutWardrobeModule({ preset: 'rodTopSplitBottom', W: 900, D: 590, bodyH: 2230 });
@@ -54,10 +70,11 @@ describe('규칙 파일', () => {
     expect(Math.floor((c.h - 3 * 15) / 4)).toBe(260);
     expect(IR.wardrobeShelfErrorsOf(L, [3])).toEqual([]);
   });
-  test('들어가지 않는 장수는 막는다 — 옷봉 칸이 첫 선반 자리(칸 상단 − 315)보다 낮다', () => {
+  test('낮은 옷봉 칸에 선반 — 옷봉을 빼서 선반 칸이 되므로 들어간다 (예전엔 첫 선반 자리가 없어 막았다)', () => {
     const L = WR.layoutWardrobeModule({ preset: 'short2', W: 900, D: 590, bodyH: 600, cellShelves: [1] });
     expect(L.cells[0].h).toBeLessThan(WR.WARDROBE_RULES.LONG_FIRST_SHELF);
-    expect(IR.wardrobeShelfErrorsOf(L, [1])).toEqual([`하부 옷봉 높이 ${L.cells[0].h} 에 선반 1장이 들어가지 않습니다`]);
+    expect([L.cells[0].rods, L.shelves.filter((s) => s.cell === 0).length]).toEqual([0, 1]);
+    expect(IR.wardrobeShelfErrorsOf(L, [1])).toEqual([]);
     // 최소 간격이 없어 12장도 칸 안에 들어가면 받는다 — [확인 필요] 붙박이장 칸 선반 간격 최소
     const L12 = WR.layoutWardrobeModule({ preset: 'short2', W: 900, D: 590, bodyH: 2230, cellShelves: [12] });
     expect(IR.wardrobeShelfErrorsOf(L12, [12])).toEqual([]);

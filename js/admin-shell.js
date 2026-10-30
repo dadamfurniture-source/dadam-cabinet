@@ -21,6 +21,8 @@
     { href: 'reference-images.html', icon: '🎨', label: '참고 이미지' },
     { href: 'dataset.html', icon: '🧠', label: '학습 데이터셋' },
     { href: 'expert-requests.html', icon: '⭐', label: '업체 신청' },
+    { href: 'partner-eval.html', icon: '🏅', label: '업체 평가' },
+    { href: 'consult-distribution.html', icon: '🔀', label: '상담 분배' },
     { href: 'consultations.html', icon: '💬', label: '상담 관리' },
     { href: 'appliances.html', icon: '🧊', label: '가전 모델 관리' },
     { href: 'work-reports.html', icon: '📑', label: '작업 지시 보고' },

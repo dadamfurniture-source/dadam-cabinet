@@ -748,6 +748,65 @@
   gap: 8px;
 }
 
+/* 신청서 안의 고르는 칸 (도어 마감 · 철거 · 가격대) — 이름은 입력 칸 이름과 같은 모양 */
+.cs-pick {
+  gap: 0;
+}
+
+.cs-pick legend {
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  font-weight: 300;
+  color: var(--mk-dim);
+}
+
+/* 고르는 칸 — 라디오를 칩 모양으로 (상담 신청 · 업체 상담 설정의 함 · 외주 · 안 함) */
+.cs-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cs-choice {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  min-width: 56px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  color: var(--mk-dim);
+  font-size: 13px;
+  font-weight: 300;
+  cursor: pointer;
+}
+
+.cs-choice input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.cs-choice:has(input:checked) {
+  border-color: var(--v5-ink);
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
+.cs-choice:has(input:focus-visible) {
+  outline: 2px solid var(--v5-tan);
+  outline-offset: 2px;
+}
+
+.cs-choice:has(input:disabled) {
+  cursor: not-allowed;
+}
+
 .cs-agree {
   display: flex;
   align-items: flex-start;

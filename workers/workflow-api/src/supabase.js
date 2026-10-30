@@ -233,13 +233,28 @@ export const MONEY_ROLES = Object.freeze(['owner', 'manager']);
 
 // 본사 회사 id — 격리(isolate)마다 한 번 읽는다. 못 찾으면 캐시하지 않고 던진다
 let hqIdCache = null;
+// 다담 본사(상담을 받아 나누는 곳, companies.kind = 'platform') id — 같은 방식
+let platformIdCache = null;
 
-/** 시험용 — 본사 id 캐시 비우기 */
+/** 시험용 — 공장(hq) · 본사(platform) id 캐시 비우기 */
 export function clearHqCompanyCache() {
   hqIdCache = null;
+  platformIdCache = null;
 }
 
-/** 본사 회사 id (companies.kind = 'hq', 하나뿐). 없으면 DbError */
+/**
+ * 다담 본사 id (companies.kind = 'platform', 하나뿐 — database/migrations/0017). 없으면 DbError.
+ * 상담은 모두 여기로 들어와 업체 풀(협력업체 + 다담 공장)에 나뉜다. 다담 공장은 hqCompanyId.
+ */
+export async function platformCompanyId(env) {
+  if (platformIdCache) return platformIdCache;
+  const row = await selectOne(env, 'companies', { kind: 'eq.platform', select: 'id' });
+  if (!row || !row.id) throw new DbError('다담 본사(companies.kind=platform)를 찾을 수 없습니다');
+  platformIdCache = row.id;
+  return platformIdCache;
+}
+
+/** 본사 회사 id (companies.kind = 'hq', 하나뿐 — 0017 뒤로는 다담 공장). 없으면 DbError */
 export async function hqCompanyId(env) {
   if (hqIdCache) return hqIdCache;
   const row = await selectOne(env, 'companies', { kind: 'eq.hq', select: 'id' });
