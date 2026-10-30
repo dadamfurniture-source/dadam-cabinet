@@ -6,9 +6,11 @@
  *   - admin/consultations.html, admin/index.html:
  *       고객 상담은 다담 본사(companies.kind='platform') 행으로 들어온다. 그 id 로 consultations 를 거른다.
  *       본사 행을 못 읽거나 없으면 거르지 않은 채 읽지 않고, 다른 회사(다담 공장 kind='hq')로 대신하지도 않는다.
- *   - mypage.html 의 관리자 통계: companies(kind='hq') 의 id 로 거른다 (이 시험은 지금 모양을 지킨다).
+ *   - mypage.html 의 관리자 통계 「상담 대기」: 상담은 다담 본사(companies.kind='platform')가 먼저 받으므로
+ *       본사 id 로 거른다. 본사 행이 없거나 못 읽으면 세지 않고 '-' (다른 회사로 대신 세지 않는다).
  *   - mypage.html loadMyProjects: 내 설계(designs.user_id) id 로 orders 를 거른다.
- * 관리자 두 화면은 페이지 스크립트를 jsdom 에 올리고 가짜 Supabase 로 돌린다. 마이페이지는 소스를 잘라 본다.
+ * 관리자 두 화면은 페이지 스크립트를 jsdom 에 올리고 가짜 Supabase 로 돌린다. 마이페이지는 함수 소스를 잘라
+ * 가짜 Supabase 로 돌리거나(관리자 통계) 소스를 본다(시공 완료 · 평가).
  */
 const fs = require('fs');
 const path = require('path');
@@ -176,21 +178,79 @@ describe('admin/index.html — 상담 통계는 본사 것만', () => {
 
 describe('mypage.html', () => {
   const MYPAGE = read('mypage.html');
+  const PLATFORM = 'platform-company-id';
 
-  test('관리자 통계 「상담 대기」는 본사 상담만 센다', () => {
-    const fn = between(
+  /** loadAdminStats 소스를 잘라 가짜 Supabase 로 돌린다. 돌려주는 log 에는 from() 마다 { table, calls } 가 쌓인다. */
+  async function runAdminStats(tables, pendingBefore = '-') {
+    const src = between(
       MYPAGE,
       'async function loadAdminStats()',
       'async function renderDetailDesignApprovalBanner('
     );
-    const consult = between(fn, "from('consultations')", 'adminStatPendingConsult');
-    expect(fn).toMatch(
-      /\.from\('companies'\)\s*\.select\('id'\)\s*\.eq\('kind', 'hq'\)\s*\.single\(\)/
+    document.body.innerHTML =
+      '<div id="adminStatTotalUsers">-</div><div id="adminStatExpertUsers">-</div>' +
+      `<div id="adminStatPendingConsult">${pendingBefore}</div><div id="adminStatPendingDD">-</div>`;
+    const log = [];
+    const supabaseClient = {
+      from: (table) => {
+        const entry = { table, calls: [] };
+        log.push(entry);
+        return query(tables[table] || { data: null, error: null }, entry.calls);
+      },
+    };
+    const loadAdminStats = new Function('supabaseClient', `${src}\nreturn loadAdminStats;`)(
+      supabaseClient
     );
-    expect(fn).toMatch(/if \(hqError\) throw hqError;/);
-    expect(consult).toMatch(/\.eq\('company_id', hq\.id\)/);
-    expect(consult).toMatch(/\.eq\('status', 'pending'\)/);
-    expect(fn.indexOf("from('companies')")).toBeLessThan(fn.indexOf("from('consultations')"));
+    await loadAdminStats();
+    return log;
+  }
+
+  const STATS = {
+    profile_stats: { data: { total_users: 10, expert_users: 2 }, error: null },
+    consultations: { count: 3, error: null },
+    detail_design_approval_requests: { count: 1, error: null },
+  };
+  const pending = () => document.getElementById('adminStatPendingConsult').textContent;
+
+  test('관리자 통계 「상담 대기」는 다담 본사(kind=platform) 상담만 센다', async () => {
+    const log = await runAdminStats({
+      ...STATS,
+      companies: { data: { id: PLATFORM }, error: null },
+    });
+    const companyReads = reads(log, 'companies');
+    expect(companyReads).toHaveLength(1);
+    expect(hasEq(companyReads[0], 'kind', 'platform')).toBe(true);
+    expect(companyReads[0].calls.some((c) => c[0] === 'maybeSingle')).toBe(true);
+    const consult = reads(log, 'consultations');
+    expect(consult).toHaveLength(1);
+    expect(hasEq(consult[0], 'company_id', PLATFORM)).toBe(true);
+    expect(hasEq(consult[0], 'status', 'pending')).toBe(true);
+    expect(log.findIndex((e) => e.table === 'companies')).toBeLessThan(
+      log.findIndex((e) => e.table === 'consultations')
+    );
+    expect(pending()).toBe('3');
+  });
+
+  test("본사 행이 없으면 상담을 세지 않고 '-' — 다른 회사(공장 kind=hq)로 대신 세지 않는다", async () => {
+    const log = await runAdminStats({ ...STATS, companies: { data: null, error: null } }, '7');
+    expect(reads(log, 'companies')).toHaveLength(1);
+    expect(
+      log.some((e) => e.calls.some((c) => c[0] === 'eq' && c[1] === 'kind' && c[2] === 'hq'))
+    ).toBe(false);
+    expect(reads(log, 'consultations')).toHaveLength(0);
+    expect(pending()).toBe('-');
+    // 나머지 통계는 그대로 읽는다
+    expect(document.getElementById('adminStatPendingDD').textContent).toBe('1');
+  });
+
+  test("본사 행을 못 읽으면 상담을 세지 않고 '-'", async () => {
+    const log = await runAdminStats(
+      { ...STATS, companies: { data: null, error: { message: '본사 회사를 읽지 못했습니다' } } },
+      '7'
+    );
+    expect(reads(log, 'consultations')).toHaveLength(0);
+    expect(pending()).toBe('-');
+    expect(document.getElementById('adminStatPendingDD').textContent).toBe('1');
   });
 
   test('시공 완료 · 평가는 내 설계의 수주만 읽는다', () => {

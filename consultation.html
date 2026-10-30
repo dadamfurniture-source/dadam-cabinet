@@ -206,6 +206,78 @@
         box-shadow: 0 0 0 2px rgba(184, 149, 108, 0.08);
       }
       .furniture-chip input { cursor: pointer; }
+      /* 체크 · 라디오는 글 칸 모양(.form-group input · label)을 받지 않는다 — 칩 안에서 칸 너비로 늘어나지 않게 */
+      .form-group input[type='checkbox'],
+      .form-group input[type='radio'] {
+        width: auto;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      .form-group .furniture-chip {
+        display: flex;
+        margin-bottom: 0;
+        font-size: 13px;
+        font-weight: 400;
+        letter-spacing: normal;
+        color: var(--d-text);
+      }
+
+      /* 고르기 묶음 (도어 마감 · 철거 · 가격대) — 칩은 가구 종류와 같은 모양 */
+      fieldset.form-group {
+        border: 0;
+        min-width: 0;
+      }
+      .form-group legend {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--d-text-secondary);
+        letter-spacing: 0.02em;
+      }
+      .form-group legend .required {
+        color: var(--d-error);
+        margin-left: 2px;
+      }
+      .chip-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 8px;
+      }
+
+      /* 동의 */
+      .consent-check {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        font-size: 13px;
+        line-height: 1.6;
+        color: var(--d-text);
+        cursor: pointer;
+      }
+      .consent-check input {
+        flex: none;
+        margin-top: 4px;
+        cursor: pointer;
+      }
+      .consent-check .required {
+        color: var(--d-error);
+      }
+      .consent-detail {
+        margin: 6px 0 16px 23px;
+        font-size: 12px;
+        color: var(--d-text-tertiary);
+      }
+      .consent-detail summary {
+        cursor: pointer;
+      }
+      .consent-detail ul {
+        margin-top: 6px;
+        padding-left: 18px;
+        line-height: 1.8;
+      }
 
       /* Date/Time Selection */
       .datetime-row {
@@ -446,6 +518,59 @@
             </div>
           </div>
 
+          <!-- 시공 정보 — consultations.sido · gugun · door_finish · demolition_needed · wanted_price_tier.
+               다담 본사가 상담을 업체에 나눌 때 쓴다. 값은 앱 상담 신청서와 같고, 지역 목록은 signup.html 과 같다 -->
+          <div class="form-section">
+            <h3 class="form-section-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
+              시공 정보
+            </h3>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="sido">시공 지역 · 시/도 <span class="required">*</span></label>
+                <select id="sido" required onchange="updateGugun()">
+                  <option value="">시/도 선택</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="gugun">시/군/구 <span class="required">*</span></label>
+                <select id="gugun" required disabled>
+                  <option value="">시/군/구 선택</option>
+                </select>
+              </div>
+            </div>
+            <fieldset class="form-group">
+              <legend>원하는 도어 마감 <span class="required">*</span></legend>
+              <div class="chip-grid">
+                <label class="furniture-chip"><input type="radio" name="doorFinish" value="pet" required /> PET</label>
+                <label class="furniture-chip"><input type="radio" name="doorFinish" value="highgloss" /> 하이그로시</label>
+                <label class="furniture-chip"><input type="radio" name="doorFinish" value="paint" /> 도장</label>
+                <label class="furniture-chip"><input type="radio" name="doorFinish" value="veneer" /> 무늬목</label>
+                <label class="furniture-chip"><input type="radio" name="doorFinish" value="ceramic" /> 세라믹</label>
+                <label class="furniture-chip"><input type="radio" name="doorFinish" value="unknown" /> 모름</label>
+              </div>
+            </fieldset>
+            <fieldset class="form-group">
+              <legend>철거가 필요한가요? <span class="required">*</span></legend>
+              <div class="chip-grid">
+                <label class="furniture-chip"><input type="radio" name="demolition" value="yes" required /> 예</label>
+                <label class="furniture-chip"><input type="radio" name="demolition" value="no" /> 아니요</label>
+              </div>
+            </fieldset>
+            <fieldset class="form-group">
+              <legend>원하는 가격대 <span class="required">*</span></legend>
+              <div class="chip-grid">
+                <label class="furniture-chip"><input type="radio" name="priceTier" value="basic" required /> 보급</label>
+                <label class="furniture-chip"><input type="radio" name="priceTier" value="mid" /> 중급</label>
+                <label class="furniture-chip"><input type="radio" name="priceTier" value="high" /> 고급</label>
+                <label class="furniture-chip"><input type="radio" name="priceTier" value="unknown" /> 모름</label>
+              </div>
+            </fieldset>
+          </div>
+
           <!-- Consultation Details -->
           <div class="form-section">
             <h3 class="form-section-title">
@@ -585,6 +710,45 @@
             <div class="form-hint">선택하신 일정은 담당자 확인 후 확정됩니다.</div>
           </div>
 
+          <!-- 동의 — 개인정보 수집 · 이용(필수) → privacy_agreed_at.
+               업체 제공(선택) → third_party_agreed_at · consent_version. 동의하지 않아도 신청은 간다 (다담 본사가 직접 상담).
+               업체 제공 문구 · 항목은 앱 상담 신청서와 같다 — 바꾸면 CONSENT_VERSION 을 올린다 -->
+          <div class="form-section">
+            <label class="consent-check">
+              <input type="checkbox" id="agreePrivacy" required />
+              <span>개인정보 수집·이용에 동의합니다 <span class="required">(필수)</span></span>
+            </label>
+            <details class="consent-detail">
+              <summary>수집하는 내용 보기</summary>
+              <ul>
+                <li>필수: 이름, 연락처, 이메일, 상담 유형, 상담 제목, 시공 지역, 도어 마감, 철거, 가격대</li>
+                <li>
+                  선택: 상세 내용, 가구 종류, 설치 공간, 예산 범위, 공간 크기, 선호 스타일, 상세설계 권한 신청, 희망 날짜 ·
+                  시간대
+                </li>
+                <li>목적: 상담 신청 처리</li>
+                <li>보유 기간: 상담이 끝난 뒤 3년</li>
+              </ul>
+            </details>
+            <label class="consent-check">
+              <input type="checkbox" id="agreeThirdParty" />
+              <span>다담 협력업체 목록 중 다담이 정한 업체에 상담 정보를 제공하는 데 동의합니다 (선택)</span>
+            </label>
+            <details class="consent-detail">
+              <summary>제공하는 내용 보기</summary>
+              <ul id="thirdPartyDetail">
+                <li>받는 곳: 다담 협력업체(다담 공장 포함) 중 다담이 정한 한 곳 — 연결되면 업체 이름을 알려 드립니다</li>
+                <li>
+                  항목: 이름 · 전화 · 이메일 · 지역 · 연락 시간 · 품목 · 요청 사항 · 도어 마감 · 철거 · 가격대 · 상세 설계
+                  요청 · 연출컷 · 예상 견적
+                </li>
+                <li>목적: 상담 · 견적 · 시공</li>
+                <li>보유: 상담 목적을 이룰 때까지</li>
+                <li>동의하지 않으면 다담 본사가 직접 상담합니다</li>
+              </ul>
+            </details>
+          </div>
+
           <!-- Submit -->
           <button type="submit" class="btn-submit" id="submitBtn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -604,7 +768,8 @@
             </svg>
           </div>
           <h2>상담 신청이 완료되었습니다</h2>
-          <p>담당자 확인 후 입력하신 연락처로<br />상담 일정을 안내해 드리겠습니다.</p>
+          <!-- 특정 업체를 약속하지 않는다 — 업체 제공에 동의했으면 업체 연결, 아니면 본사가 직접 (submitConsultation) -->
+          <p id="successText">담당자 확인 후 입력하신 연락처로<br />상담 일정을 안내해 드리겠습니다.</p>
           <a href="index.html" class="btn-home">홈으로 돌아가기</a>
         </div>
       </div>
@@ -620,7 +785,268 @@
       let supabaseClient = null;
       let currentUser = null;
 
+      // 원하는 도어 마감 · 가격대 — consultations CHECK 값 (앱 상담 신청서와 같다)
+      const DOOR_FINISHES = ['pet', 'highgloss', 'paint', 'veneer', 'ceramic', 'unknown'];
+      const PRICE_TIERS = ['basic', 'mid', 'high', 'unknown'];
+      // 업체 제공 동의 문구 판 — 「제공하는 내용 보기」를 바꾸면 올린다 (앱 상담 신청서와 같은 판)
+      const CONSENT_VERSION = 'v1';
+      // 접수 화면 — 특정 업체를 약속하지 않는다 (앱 상담 신청서와 같은 문구)
+      const DONE_TEXT = {
+        partner: '다담 본사가 확인한 뒤 가까운 업체를 연결해 드립니다.',
+        hq: '다담 본사가 확인한 뒤 남기신 연락처로 직접 연락드립니다.',
+      };
+
+      // 시공 지역 시/도 및 시/군/구 — signup.html 의 locationData 와 같은 목록 (시험이 같은지 본다)
+      const locationData = {
+        서울특별시: [
+          '강남구',
+          '강동구',
+          '강북구',
+          '강서구',
+          '관악구',
+          '광진구',
+          '구로구',
+          '금천구',
+          '노원구',
+          '도봉구',
+          '동대문구',
+          '동작구',
+          '마포구',
+          '서대문구',
+          '서초구',
+          '성동구',
+          '성북구',
+          '송파구',
+          '양천구',
+          '영등포구',
+          '용산구',
+          '은평구',
+          '종로구',
+          '중구',
+          '중랑구',
+        ],
+        부산광역시: [
+          '강서구',
+          '금정구',
+          '기장군',
+          '남구',
+          '동구',
+          '동래구',
+          '부산진구',
+          '북구',
+          '사상구',
+          '사하구',
+          '서구',
+          '수영구',
+          '연제구',
+          '영도구',
+          '중구',
+          '해운대구',
+        ],
+        대구광역시: ['남구', '달서구', '달성군', '동구', '북구', '서구', '수성구', '중구'],
+        인천광역시: ['강화군', '계양구', '남동구', '동구', '미추홀구', '부평구', '서구', '연수구', '옹진군', '중구'],
+        광주광역시: ['광산구', '남구', '동구', '북구', '서구'],
+        대전광역시: ['대덕구', '동구', '서구', '유성구', '중구'],
+        울산광역시: ['남구', '동구', '북구', '울주군', '중구'],
+        세종특별자치시: ['세종시'],
+        경기도: [
+          '가평군',
+          '고양시',
+          '과천시',
+          '광명시',
+          '광주시',
+          '구리시',
+          '군포시',
+          '김포시',
+          '남양주시',
+          '동두천시',
+          '부천시',
+          '성남시',
+          '수원시',
+          '시흥시',
+          '안산시',
+          '안성시',
+          '안양시',
+          '양주시',
+          '양평군',
+          '여주시',
+          '연천군',
+          '오산시',
+          '용인시',
+          '의왕시',
+          '의정부시',
+          '이천시',
+          '파주시',
+          '평택시',
+          '포천시',
+          '하남시',
+          '화성시',
+        ],
+        강원도: [
+          '강릉시',
+          '고성군',
+          '동해시',
+          '삼척시',
+          '속초시',
+          '양구군',
+          '양양군',
+          '영월군',
+          '원주시',
+          '인제군',
+          '정선군',
+          '철원군',
+          '춘천시',
+          '태백시',
+          '평창군',
+          '홍천군',
+          '화천군',
+          '횡성군',
+        ],
+        충청북도: [
+          '괴산군',
+          '단양군',
+          '보은군',
+          '영동군',
+          '옥천군',
+          '음성군',
+          '제천시',
+          '증평군',
+          '진천군',
+          '청주시',
+          '충주시',
+        ],
+        충청남도: [
+          '계룡시',
+          '공주시',
+          '금산군',
+          '논산시',
+          '당진시',
+          '보령시',
+          '부여군',
+          '서산시',
+          '서천군',
+          '아산시',
+          '예산군',
+          '천안시',
+          '청양군',
+          '태안군',
+          '홍성군',
+        ],
+        전라북도: [
+          '고창군',
+          '군산시',
+          '김제시',
+          '남원시',
+          '무주군',
+          '부안군',
+          '순창군',
+          '완주군',
+          '익산시',
+          '임실군',
+          '장수군',
+          '전주시',
+          '정읍시',
+          '진안군',
+        ],
+        전라남도: [
+          '강진군',
+          '고흥군',
+          '곡성군',
+          '광양시',
+          '구례군',
+          '나주시',
+          '담양군',
+          '목포시',
+          '무안군',
+          '보성군',
+          '순천시',
+          '신안군',
+          '여수시',
+          '영광군',
+          '영암군',
+          '완도군',
+          '장성군',
+          '장흥군',
+          '진도군',
+          '함평군',
+          '해남군',
+          '화순군',
+        ],
+        경상북도: [
+          '경산시',
+          '경주시',
+          '고령군',
+          '구미시',
+          '군위군',
+          '김천시',
+          '문경시',
+          '봉화군',
+          '상주시',
+          '성주군',
+          '안동시',
+          '영덕군',
+          '영양군',
+          '영주시',
+          '영천시',
+          '예천군',
+          '울릉군',
+          '울진군',
+          '의성군',
+          '청도군',
+          '청송군',
+          '칠곡군',
+          '포항시',
+        ],
+        경상남도: [
+          '거제시',
+          '거창군',
+          '고성군',
+          '김해시',
+          '남해군',
+          '밀양시',
+          '사천시',
+          '산청군',
+          '양산시',
+          '의령군',
+          '진주시',
+          '창녕군',
+          '창원시',
+          '통영시',
+          '하동군',
+          '함안군',
+          '함양군',
+          '합천군',
+        ],
+        제주특별자치도: ['서귀포시', '제주시'],
+      };
+
+      function fillSido() {
+        const sidoSelect = document.getElementById('sido');
+        Object.keys(locationData).forEach((sido) => {
+          const option = document.createElement('option');
+          option.value = sido;
+          option.textContent = sido;
+          sidoSelect.appendChild(option);
+        });
+      }
+
+      // 시/도를 바꾸면 시/군/구를 다시 채운다. selected 가 목록에 있으면 골라 둔다
+      function updateGugun(selected) {
+        const list = locationData[document.getElementById('sido').value] || [];
+        const gugunSelect = document.getElementById('gugun');
+        gugunSelect.innerHTML = '<option value="">시/군/구 선택</option>';
+        list.forEach((gugun) => {
+          const option = document.createElement('option');
+          option.value = gugun;
+          option.textContent = gugun;
+          gugunSelect.appendChild(option);
+        });
+        gugunSelect.disabled = !list.length;
+        gugunSelect.value = list.includes(selected) ? selected : '';
+      }
+
       document.addEventListener('DOMContentLoaded', async () => {
+        fillSido();
         if (typeof window.supabase !== 'undefined' && window.DADAM_CONFIG?.supabase) {
           const { url, anonKey } = window.DADAM_CONFIG.supabase;
           supabaseClient = window.supabase.createClient(url, anonKey);
@@ -644,6 +1070,11 @@
           document.getElementById('name').value = meta.name || meta.full_name || '';
           document.getElementById('email').value = currentUser.email || '';
           document.getElementById('phone').value = meta.phone || '';
+          // 시공 지역 — 가입 때 적은 거주지역이 목록에 있으면 미리 골라 둔다
+          if (Object.keys(locationData).includes(meta.sido)) {
+            document.getElementById('sido').value = meta.sido;
+            updateGugun(meta.gugun);
+          }
 
           // 네비게이션 - 로그인 버튼 숨기고 사용자 메뉴 표시
           document.getElementById('loginLink').style.display = 'none';
@@ -689,6 +1120,23 @@
         el.classList.add('selected');
       }
 
+      // 고른 라디오 값 — 목록 안 값만, 없으면 null
+      function pickedValue(name, allowed) {
+        const el = document.querySelector('input[name="' + name + '"]:checked');
+        return el && allowed.includes(el.value) ? el.value : null;
+      }
+
+      // 빠진 필수 항목 안내 — 다 있으면 ''
+      function missingMessage(f) {
+        if (!f.name || !f.phone || !f.email || !f.title) return '필수 항목을 모두 입력해주세요.';
+        if (!(f.sido && f.gugun)) return '시공 지역(시/도 · 시/군/구)을 골라 주세요.';
+        if (!f.doorFinish) return '원하는 도어 마감을 골라 주세요.';
+        if (!f.demolition) return '철거가 필요한지 골라 주세요.';
+        if (!f.priceTier) return '원하는 가격대를 골라 주세요.';
+        if (!f.agreePrivacy) return '개인정보 수집·이용에 동의해 주세요.';
+        return '';
+      }
+
       async function submitConsultation(e) {
         e.preventDefault();
 
@@ -717,13 +1165,35 @@
         const spaceDepth = parseInt(document.getElementById('spaceDepth').value, 10) || null;
         const requestDetailDesign = document.getElementById('requestDetailDesign').checked;
 
-        if (!name || !phone || !email || !title) {
-          alert('필수 항목을 모두 입력해주세요.');
+        // 시공 정보 · 동의
+        const sido = document.getElementById('sido').value;
+        const gugun = document.getElementById('gugun').value;
+        const doorFinish = pickedValue('doorFinish', DOOR_FINISHES);
+        const demolition = pickedValue('demolition', ['yes', 'no']);
+        const priceTier = pickedValue('priceTier', PRICE_TIERS);
+        const agreePrivacy = document.getElementById('agreePrivacy').checked;
+        const agreeThirdParty = document.getElementById('agreeThirdParty').checked;
+
+        const missing = missingMessage({
+          name,
+          phone,
+          email,
+          title,
+          sido,
+          gugun,
+          doorFinish,
+          demolition,
+          priceTier,
+          agreePrivacy,
+        });
+        if (missing) {
+          alert(missing);
           submitBtn.disabled = false;
           submitBtn.innerHTML =
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>상담 신청하기';
           return;
         }
+        const now = new Date().toISOString();
 
         try {
           const { error } = await supabaseClient.from('consultations').insert({
@@ -745,6 +1215,15 @@
             budget_range: budgetRange,
             style_preference: stylePreference,
             request_detail_design: requestDetailDesign,
+            sido: sido,
+            gugun: gugun,
+            door_finish: doorFinish,
+            demolition_needed: demolition === 'yes',
+            wanted_price_tier: priceTier,
+            privacy_agreed_at: now,
+            // 업체 제공 동의 — 안 하면 둘 다 비운다 (다담 본사가 직접 상담)
+            third_party_agreed_at: agreeThirdParty ? now : null,
+            consent_version: agreeThirdParty ? CONSENT_VERSION : null,
           });
 
           if (error) throw error;
@@ -762,6 +1241,9 @@
           }
 
           // 성공 메시지 표시
+          document.getElementById('successText').textContent = agreeThirdParty
+            ? DONE_TEXT.partner
+            : DONE_TEXT.hq;
           document.getElementById('consultationForm').style.display = 'none';
           document.getElementById('successMessage').classList.add('show');
         } catch (error) {
