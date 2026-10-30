@@ -29,7 +29,7 @@ export const COMPLETED_ORDERS_MAX = 500;
 export const IN_PROGRESS_STATUSES = Object.freeze(['confirmed', 'in_production', 'delivered']);
 
 const COMPANY_COLUMNS = 'id,kind,name,plan,status,sido,gugun';
-const SETTINGS_COLUMNS = 'company_id,regions,items,monthly_limit,next_available_date,updated_at';
+const SETTINGS_COLUMNS = 'company_id,regions,items,monthly_limit,lead_days,updated_at';
 const EVALUATION_COLUMNS =
   'company_id,grade,equipment,staff,finishes,design,install,price_tier,docs,as_months,warranty_months,note,evaluated_at,evaluated_by';
 

@@ -451,7 +451,7 @@ export async function getServiceSettings(env, { user }) {
     regions: s.regions || [],
     items: s.items || {},
     monthly_limit: s.monthly_limit ?? null,
-    next_available_date: s.next_available_date ?? null,
+    lead_days: s.lead_days ?? null,
     updated_at: s.updated_at ?? null,
   };
 }
@@ -477,7 +477,7 @@ export async function putServiceSettings(env, { user, body, nowMs = Date.now() }
     regions: row.regions,
     items: row.items,
     monthly_limit: row.monthly_limit ?? null,
-    next_available_date: row.next_available_date ?? null,
+    lead_days: row.lead_days ?? null,
     updated_at: row.updated_at ?? null,
   };
 }

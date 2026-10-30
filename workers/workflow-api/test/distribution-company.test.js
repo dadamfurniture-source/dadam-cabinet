@@ -486,7 +486,7 @@ test('상담 설정 — 없으면 빈 값 (구성원), 대표 · 실장이 고�
     regions: [],
     items: {},
     monthly_limit: null,
-    next_available_date: null,
+    lead_days: null,
     updated_at: null,
   });
   const staffPut = await call(fake, '/company/service-settings', STAFF_A, {
@@ -503,7 +503,7 @@ test('상담 설정 — 없으면 빈 값 (구성원), 대표 · 실장이 고�
     ],
     items: { sink: 'do', wardrobe: 'outsource', vanity: 'no' },
     monthly_limit: 12,
-    next_available_date: '2026-11-15',
+    lead_days: 3,
   };
   const put = await call(fake, '/company/service-settings', MANAGER_A, { method: 'PUT', body });
   assert.equal(put.status, 200, JSON.stringify(put.json));
@@ -515,9 +515,11 @@ test('상담 설정 — 없으면 빈 값 (구성원), 대표 · 실장이 고�
   ]);
   assert.deepEqual(row.items, body.items);
   assert.equal(row.monthly_limit, 12);
+  assert.equal(row.lead_days, 3);
   assert.equal(row.updated_by, MANAGER_A);
   const read = await call(fake, '/company/service-settings', STAFF_A);
-  assert.equal(read.json.data.next_available_date, '2026-11-15');
+  assert.equal(read.json.data.lead_days, 3);
+  assert.ok(!('next_available_date' in read.json.data));
   assert.equal(
     writesOf(fake)
       .find((c) => c.table === 'company_service_settings')
@@ -526,7 +528,7 @@ test('상담 설정 — 없으면 빈 값 (구성원), 대표 · 실장이 고�
   );
 });
 
-test('상담 설정 — 목록 밖 품목 · 틀린 값 · 지역 · 한도 · 날짜는 422', async () => {
+test('상담 설정 — 목록 밖 품목 · 틀린 값 · 지역 · 한도 · 걸리는 날은 422', async () => {
   const fake = fakeOf();
   const put = (body) => call(fake, '/company/service-settings', OWNER_A, { method: 'PUT', body });
   const unknown = await put({ items: { sauna: 'do' } });
@@ -544,8 +546,9 @@ test('상담 설정 — 목록 밖 품목 · 틀린 값 · 지역 · 한도 · �
   assert.equal((await put({ regions: 'x' })).status, 422);
   assert.equal((await put({ monthly_limit: 1001 })).status, 422);
   assert.equal((await put({ monthly_limit: 2.5 })).status, 422);
-  assert.equal((await put({ next_available_date: '2026-02-30' })).status, 422);
-  assert.equal((await put({ next_available_date: '11/15' })).status, 422);
+  for (const lead_days of [15, -1, 1.5, '3']) {
+    assert.equal((await put({ lead_days })).status, 422, String(lead_days));
+  }
   assert.equal(writesOf(fake).length, 0);
 });
 
