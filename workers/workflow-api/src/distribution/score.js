@@ -217,7 +217,7 @@ export function fitScore({ consult, items, settings, evaluation, stats, today })
   const price = pricePoints(consult, evaluation);
   const timing = R.timingScore(
     consult && consult.preferred_date,
-    settings ? settings.next_available_date : null,
+    settings ? settings.lead_days : null,
     today
   );
   const design = designPoints(consult, evaluation);

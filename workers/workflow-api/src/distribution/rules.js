@@ -9,13 +9,14 @@
  *                   이웃 시/군/구 표가 없어(segan/regions.js 에 없다) 처음엔 같은 시/도를 이웃으로 본다.
  *                   이웃 표가 생기면 locationScore 만 바꾼다.
  *   ② 고객 가격대    상담의 wanted_price_tier. 모름 · 빈 값이면 모든 업체 3  (customerPriceTier · PRICE_UNKNOWN)
- *   ③ 희망 시기      업체 다음 가능 날짜가 희망 날짜 안 6 · 7일 안 늦음 3 · 그 밖 0, 희망 날짜 없으면 모두 6 (timingScore)
+ *   ③ 희망 시기      업체가 가능한 날(오늘 + 상담까지 걸리는 날)이 희망 날짜 안 6 · 7일 안 늦음 3 · 그 밖 0,
+ *                   희망 날짜 없으면 모두 6 (timingScore). 걸리는 날은 0~14일, 비면 0 (LEAD_DAYS_MAX · 10-30 확인)
  *   ④ 한도 없음      한 달 한도(monthly_limit)를 정하지 않은 업체는 거른다 — 상담 설정을 마쳐야 배정받는다
  *                   (REQUIRE_MONTHLY_LIMIT)
  *   ⑤ 거친 업체      같은 상담을 못 받음 · 무응답으로 돌려보낸 업체는 그 상담 후보에서 뺀다 (TRIED_STATES)
  *
  * ☆ 정하지 않음 — 약속서에 값이 없어 임시로 둔 것. 역시 여기만 고친다.
- *   NO_GRADE_POINTS · RESPONSE_WINDOW_DAYS · NEXT_AVAILABLE_UNSET(timingScore) · FEEDBACK_SCORE_MAX 환산
+ *   NO_GRADE_POINTS · RESPONSE_WINDOW_DAYS · FEEDBACK_SCORE_MAX 환산
  */
 
 /** 이 규칙 묶음의 판 — 배정 기록(consult_assignments.score)에 같이 남겨 나중에 기준을 견준다 */
@@ -107,6 +108,8 @@ export const TIMING_ON_TIME = 6;
 export const TIMING_LATE = 3;
 export const TIMING_LATE_DAYS = 7;
 export const TIMING_NO_DATE = 6;
+/** 업체 「상담까지 걸리는 날」 최댓값 (0~14일, 비면 0) — 날짜를 적어 두면 날마다 고쳐야 해서 일수로 받는다 */
+export const LEAD_DAYS_MAX = 14;
 
 /** 상세 설계 — 요청이 있으면 설계 인원 1명 이상 + 플래너 사용 5 · 아니면 0. 요청 없으면 모두 5 */
 export const DESIGN_MAX = 5;
@@ -155,17 +158,16 @@ export function customerPriceTier(consult) {
 
 /**
  * ★③ 희망 시기.
- *   preferredDate      고객 희망 날짜 'YYYY-MM-DD' (없으면 모두 TIMING_NO_DATE)
- *   nextAvailableDate  업체 다음 가능 날짜 'YYYY-MM-DD'
- *   today              오늘(KST) 'YYYY-MM-DD'
- * ☆ 업체가 다음 가능 날짜를 비워 두면 오늘부터 된다고 본다 (정하지 않음).
+ *   preferredDate  고객 희망 (상담) 날짜 'YYYY-MM-DD' (없으면 모두 TIMING_NO_DATE)
+ *   leadDays       업체 「상담까지 걸리는 날」 0~14 (비면 0) — 가능한 날 = 오늘 + leadDays
+ *   today          오늘(KST) 'YYYY-MM-DD'
  */
-export function timingScore(preferredDate, nextAvailableDate, today) {
-  if (!isDate(preferredDate)) return TIMING_NO_DATE;
-  const ready = isDate(nextAvailableDate) ? nextAvailableDate : today;
-  if (!isDate(ready)) return TIMING_NO_DATE;
+export function timingScore(preferredDate, leadDays, today) {
+  if (!isDate(preferredDate) || !isDate(today)) return TIMING_NO_DATE;
+  const lead = Number.isInteger(leadDays) && leadDays > 0 ? leadDays : 0;
   const late = Math.round(
-    (Date.parse(`${ready}T00:00:00Z`) - Date.parse(`${preferredDate}T00:00:00Z`)) / DAY_MS
+    (Date.parse(`${today}T00:00:00Z`) + lead * DAY_MS - Date.parse(`${preferredDate}T00:00:00Z`)) /
+      DAY_MS
   );
   if (late <= 0) return TIMING_ON_TIME;
   if (late <= TIMING_LATE_DAYS) return TIMING_LATE;

@@ -9,7 +9,7 @@
 
 import { ValidationError } from '../supabase.js';
 import { FURNITURE_LABELS, SIDO } from '../consult-notify.js';
-import { PRICE_TIERS, REQUIRED_DOCS, GRADE_POINTS } from './rules.js';
+import { PRICE_TIERS, REQUIRED_DOCS, GRADE_POINTS, LEAD_DAYS_MAX } from './rules.js';
 
 const entries = (obj) =>
   Object.freeze(Object.entries(obj).map(([key, name]) => Object.freeze({ key, name })));
@@ -283,7 +283,6 @@ export const REGIONS_MAX = 300;
 export const MONTHLY_LIMIT_MAX = 1000;
 /** 시/군/구 모양 (consult-notify.js 와 같다 — 목록 값은 한글 한 낱말 + 시 · 군 · 구) */
 const GUGUN_RE = /^[가-힣]{1,10}(?:시|군|구)$/;
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** 아직 설정하지 않은 업체 */
 export function emptySettings() {
@@ -291,20 +290,9 @@ export function emptySettings() {
     regions: [],
     items: {},
     monthly_limit: null,
-    next_available_date: null,
+    lead_days: null,
     updated_at: null,
   };
-}
-
-function dateOrNull(body, field) {
-  const v = body[field];
-  if (v === undefined || v === null || v === '') return null;
-  const ok =
-    typeof v === 'string' &&
-    DATE_RE.test(v) &&
-    new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;
-  if (!ok) throw new ValidationError(`${field} 는 YYYY-MM-DD 날짜여야 합니다`, { field });
-  return v;
 }
 
 /**
@@ -312,7 +300,7 @@ function dateOrNull(body, field) {
  *   regions              [{ sido, gugun }] — 시/도 목록 · 시/군/구 모양만, 같은 곳은 한 번. 비우면 업체 주소의 시/군/구 하나로 본다
  *   items                { 품목 키: do | outsource | no } — 목록 밖 품목은 422
  *   monthly_limit        0~1000 정수 또는 null (null 이면 배정받지 않는다 — rules.js REQUIRE_MONTHLY_LIMIT)
- *   next_available_date  'YYYY-MM-DD' 또는 null
+ *   lead_days            상담까지 걸리는 날 0~14 정수 또는 null (null 이면 0 — 바로 가능)
  */
 export function parseServiceSettings(body) {
   if (!isPlainObject(body)) throw new ValidationError('JSON 본문이 필요합니다');
@@ -360,6 +348,6 @@ export function parseServiceSettings(body) {
     regions,
     items: { ...items },
     monthly_limit: intOrNull(body, 'monthly_limit', 0, MONTHLY_LIMIT_MAX),
-    next_available_date: dateOrNull(body, 'next_available_date'),
+    lead_days: intOrNull(body, 'lead_days', 0, LEAD_DAYS_MAX),
   };
 }
