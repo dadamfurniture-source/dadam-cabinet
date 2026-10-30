@@ -39,7 +39,7 @@ const ROW = {
 /** 어떤 메서드를 이어 불러도 자기를 돌려주고, await 하면 정해 둔 결과를 내는 가짜 쿼리. 부른 차례를 남긴다. */
 function query(result, calls) {
   const q = {};
-  for (const m of ['select', 'order', 'limit', 'eq', 'in', 'update', 'single']) {
+  for (const m of ['select', 'order', 'limit', 'eq', 'in', 'update', 'single', 'maybeSingle']) {
     q[m] = (...args) => {
       calls.push([m, ...args]);
       return q;

@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 업체 평가 · 메모가 담긴다 — 색인 · 참조자 노출을 막는다 -->
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta name="referrer" content="no-referrer" />
+    <title>업체 평가 - 다담가구 관리자</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="../js/config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="../js/admin-access.js?v=2026103003"></script>
+    <!--
+      업체 평가 — 상담 분배 순위의 「본사 평가」 · 거르기의 「서류」 근거. 업체 풀(활동 중인 Agent 협력업체 · 다담 공장)을
+      보고 한 업체의 평가표(설비 · 인력 · 마감 · 자재 · 설계 · 시공 · 가격대 · 품질 · 서비스 · 신뢰 · 서류 · 등급 · 메모)를 고친다.
+      항목 이름은 서버가 주는 catalog 를 그대로 쓴다 — 서버 상수에 항목을 더하면 이 화면도 따라온다.
+      읽기 · 쓰기 모두 업무 서버(workflow-api)의 /admin/companies* (관리자만). 화면에 넣는 값은 전부 esc() 를 거친다.
+    -->
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      body {
+        font-family: 'Noto Sans KR', sans-serif;
+        background: #f5f5f5;
+        color: #333;
+      }
+      .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 250px;
+        height: 100vh;
+        background: #1a1a2e;
+        color: white;
+        padding: 20px 0;
+        overflow-y: auto;
+      }
+      .sidebar-logo {
+        padding: 0 20px 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 20px;
+      }
+      .sidebar-logo h1 {
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .sidebar-logo span {
+        font-size: 12px;
+        color: #888;
+      }
+      .nav-menu {
+        list-style: none;
+      }
+      .nav-menu li a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 20px;
+        color: #aaa;
+        text-decoration: none;
+        transition: all 0.3s;
+      }
+      .nav-menu li a:hover,
+      .nav-menu li a.active {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+      }
+      .nav-menu li a.active {
+        border-left: 3px solid #007bff;
+      }
+      .nav-icon {
+        font-size: 18px;
+        width: 24px;
+        text-align: center;
+      }
+      .sidebar-footer {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        right: 20px;
+      }
+      .sidebar-footer a {
+        display: block;
+        padding: 10px;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.1);
+        color: #aaa;
+        text-decoration: none;
+        border-radius: 8px;
+        font-size: 13px;
+      }
+      .main-content {
+        margin-left: 250px;
+        padding: 20px 30px;
+        min-height: 100vh;
+        min-width: 0;
+      }
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid #ddd;
+      }
+      .header h2 {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+      .header-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .muted {
+        color: #888;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      .status-line {
+        font-size: 13px;
+        color: #666;
+        min-height: 18px;
+        margin-bottom: 8px;
+      }
+      .notice {
+        background: #fff3e0;
+        color: #8a4b00;
+        border: 1px solid #ffd8a8;
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 13px;
+        line-height: 1.6;
+        margin-bottom: 12px;
+      }
+      .access-denied {
+        display: none;
+        text-align: center;
+        padding: 100px 20px;
+      }
+      .access-denied h2 {
+        margin-bottom: 10px;
+      }
+      .access-denied a {
+        color: #007bff;
+      }
+      .btn {
+        display: inline-block;
+        padding: 8px 14px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+        font-family: inherit;
+        text-decoration: none;
+      }
+      .btn-primary {
+        background: #007bff;
+        color: #fff;
+      }
+      .btn-primary:hover {
+        background: #0056b3;
+      }
+      .btn-light {
+        background: #fff;
+        color: #333;
+        border: 1px solid #ddd;
+      }
+      .btn-sm {
+        padding: 5px 10px;
+        font-size: 12px;
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .card {
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        padding: 16px 18px;
+        margin-bottom: 14px;
+      }
+      .card h3 {
+        font-size: 15px;
+        margin-bottom: 10px;
+      }
+      .empty-mini {
+        color: #999;
+        font-size: 13px;
+        padding: 10px 2px;
+      }
+      .split {
+        display: grid;
+        grid-template-columns: minmax(300px, 520px) minmax(0, 1fr);
+        gap: 16px;
+        align-items: start;
+      }
+
+      /* 업체 풀 */
+      .tbl-wrap {
+        overflow-x: auto;
+      }
+      table.tbl {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      table.tbl th,
+      table.tbl td {
+        border-bottom: 1px solid #eee;
+        padding: 8px 6px;
+        text-align: left;
+        vertical-align: middle;
+        white-space: nowrap;
+      }
+      table.tbl th {
+        color: #888;
+        font-weight: 500;
+        font-size: 12px;
+      }
+      table.tbl tr.active td {
+        background: #f3f8ff;
+      }
+      .link-btn {
+        background: none;
+        border: none;
+        color: #007bff;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 500;
+        text-align: left;
+        white-space: normal;
+      }
+      .ok {
+        color: #2e7d32;
+      }
+      .warn {
+        color: #e65100;
+      }
+      .grade {
+        display: inline-block;
+        min-width: 22px;
+        text-align: center;
+        border-radius: 6px;
+        background: #1a1a2e;
+        color: #fff;
+        font-weight: 700;
+        font-size: 12px;
+        padding: 1px 6px;
+      }
+
+      /* 평가표 */
+      .ev-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        margin-bottom: 6px;
+      }
+      .ev-head h3 {
+        font-size: 18px;
+        margin: 0;
+      }
+      .group {
+        border-top: 1px solid #eee;
+        padding: 14px 0 6px;
+      }
+      .group h4 {
+        font-size: 14px;
+        margin-bottom: 8px;
+      }
+      .group h4 small {
+        font-weight: 400;
+        color: #888;
+        margin-left: 6px;
+      }
+      .rows {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 6px 18px;
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        min-height: 30px;
+      }
+      .row > span:first-child {
+        word-break: break-word;
+      }
+      .seg {
+        display: inline-flex;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      .seg label {
+        position: relative;
+        cursor: pointer;
+      }
+      .seg input {
+        position: absolute;
+        opacity: 0;
+        width: 1px;
+        height: 1px;
+      }
+      .seg span {
+        display: block;
+        padding: 3px 9px;
+        font-size: 12px;
+        color: #555;
+        border-left: 1px solid #ddd;
+      }
+      .seg label:first-child span {
+        border-left: 0;
+      }
+      .seg input:checked + span {
+        background: #007bff;
+        color: #fff;
+      }
+      .seg input:focus-visible + span {
+        outline: 2px solid #1a1a2e;
+        outline-offset: -2px;
+      }
+      .sub {
+        font-size: 12px;
+        color: #888;
+        margin: 8px 0 4px;
+      }
+      .check {
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .num {
+        width: 76px;
+        padding: 5px 8px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-family: inherit;
+        font-size: 13px;
+        text-align: right;
+      }
+      input[type='date'] {
+        padding: 4px 8px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-family: inherit;
+        font-size: 13px;
+      }
+      textarea {
+        width: 100%;
+        min-height: 90px;
+        padding: 8px 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-family: inherit;
+        font-size: 13px;
+        resize: vertical;
+      }
+      .metrics {
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+        font-size: 13px;
+        background: #f8f9fb;
+        border-radius: 8px;
+        padding: 8px 12px;
+        margin-top: 8px;
+      }
+      .metrics b {
+        font-size: 15px;
+      }
+      .ev-actions {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        border-top: 1px solid #eee;
+        padding-top: 14px;
+      }
+      .history {
+        list-style: none;
+        font-size: 13px;
+      }
+      .history li {
+        padding: 6px 0;
+        border-bottom: 1px solid #f1f1f1;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .history li:last-child {
+        border-bottom: 0;
+      }
+      .dirty-bar {
+        background: #fff8e1;
+        border: 1px solid #ffe08a;
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 13px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      }
+
+      @media (max-width: 1200px) {
+        .split {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media (max-width: 900px) {
+        .sidebar {
+          display: none;
+        }
+        .main-content {
+          margin-left: 0;
+          padding: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="sidebar">
+      <div class="sidebar-logo">
+        <h1>다담가구</h1>
+        <span>관리자 패널</span>
+      </div>
+      <ul class="nav-menu" id="adminNav"></ul>
+      <script src="../js/admin-shell.js?v=2026103003"></script>
+      <div class="sidebar-footer"><a href="../index.html">← 메인 사이트로</a></div>
+    </nav>
+
+    <main class="main-content">
+      <div class="access-denied" id="accessDenied">
+        <h2>접근 권한이 없습니다</h2>
+        <p>관리자만 접근할 수 있는 페이지입니다.</p>
+        <a href="../index.html">메인 페이지로 돌아가기</a>
+      </div>
+
+      <div id="pageContent" style="display: none">
+        <header class="header">
+          <div>
+            <h2>업체 평가</h2>
+            <div class="muted">
+              상담 분배 순위의 본사 평가와 서류 확인 근거입니다. 업체 풀은 활동 중인 Agent 협력업체와 다담 공장입니다.
+            </div>
+          </div>
+          <div class="header-actions">
+            <a class="btn btn-light" href="consult-distribution.html">상담 분배</a>
+            <button class="btn btn-light" id="btnReload" type="button">새로고침</button>
+          </div>
+        </header>
+
+        <div class="notice" id="setupNotice" hidden></div>
+        <div class="status-line" id="statusLine"></div>
+
+        <div class="dirty-bar" id="dirtyBar" hidden>
+          <span>저장하지 않은 내용이 있습니다.</span>
+          <button class="btn btn-light btn-sm" id="dirtyDiscard" type="button">버리고 열기</button>
+          <button class="btn btn-light btn-sm" id="dirtyKeep" type="button">계속 고치기</button>
+        </div>
+
+        <div class="split">
+          <section class="card">
+            <h3>업체 풀</h3>
+            <div class="tbl-wrap">
+              <table class="tbl" id="poolTable">
+                <thead>
+                  <tr>
+                    <th scope="col">이름</th>
+                    <th scope="col">종류</th>
+                    <th scope="col">지역</th>
+                    <th scope="col">등급</th>
+                    <th scope="col">평가일</th>
+                    <th scope="col">서류</th>
+                    <th scope="col">상담 설정</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section>
+            <div class="card empty-mini" id="editorEmpty">왼쪽에서 업체를 고르세요.</div>
+            <div class="card" id="editor" hidden>
+              <div class="ev-head">
+                <div>
+                  <h3 id="evTitle">업체</h3>
+                  <div class="muted" id="evSub"></div>
+                </div>
+              </div>
+              <div id="evForm"></div>
+              <div class="ev-actions">
+                <button class="btn btn-primary" id="btnSave" type="button">저장</button>
+                <span class="status-line" id="evStatus" style="margin: 0"></span>
+              </div>
+            </div>
+            <div class="card" id="historyCard" hidden>
+              <h3>평가 이력</h3>
+              <ol class="history" id="historyList"></ol>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      (function () {
+        'use strict';
+
+        const $ = (id) => document.getElementById(id);
+        const esc = (v) =>
+          String(v === null || v === undefined ? '' : v)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        const has = (obj, k) => Boolean(obj) && typeof k === 'string' && Object.prototype.hasOwnProperty.call(obj, k);
+        const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+
+        // ── 고르는 값 (DB 0018 칸 값과 같다) ──
+        const GRADES = ['S', 'A', 'B', 'C'];
+        const EQUIP_CHOICES = [
+          ['have', '있음'],
+          ['outsource', '외주'],
+          ['none', '없음'],
+        ];
+        const FINISH_CHOICES = [
+          ['yes', '취급함'],
+          ['no', '안 함'],
+        ];
+        const PRICE_TIERS = [
+          ['basic', '보급'],
+          ['mid', '중급'],
+          ['high', '고급'],
+        ];
+        /** 마감 · 자재 묶음 — 서버 catalog 에 group 이 없으면 키 앞머리로 묶는다 */
+        const FINISH_GROUPS = [
+          ['door_', '도어'],
+          ['body_', '몸통'],
+          ['hw_', '하드웨어'],
+          ['top_', '상판'],
+        ];
+        /** 서류 — 서버 catalog 에 docs 가 없을 때 쓰는 두 가지 (거르기 조건: 둘 다 본사 확인) */
+        const DOC_ITEMS = [
+          { key: 'insurance', name: '배상 책임 보험' },
+          { key: 'contract', name: '표준 계약서' },
+        ];
+        const KIND_LABEL = { hq: '다담 공장' };
+        const PLAN_LABEL = { agent: 'Agent', expert: 'Expert' };
+        /** 서버가 주는 자동 지표 이름 — 모르는 키는 키 그대로 보인다 */
+        const METRIC_LABEL = {
+          satisfaction: '고객 만족',
+          response_rate: '24시간 안 받기',
+          rework_free_rate: '재작업 없는 수주',
+          rework_rate: '재작업 수주',
+          orders_done: '완료 수주',
+        };
+        const ROUTE_MISSING = '업무 서버에 업체 평가 기능이 아직 배포되지 않았습니다. 배포가 끝나면 새로고침해 주세요.';
+
+        const state = {
+          sb: null,
+          companies: [],
+          selectedId: null,
+          data: null,
+          dirty: false,
+          busy: false,
+          waitingId: null,
+        };
+
+        // ── 서버 ──
+        function apiBase() {
+          return (window.DADAM_CONFIG && window.DADAM_CONFIG.workflowApi && window.DADAM_CONFIG.workflowApi.url) || '';
+        }
+        async function api(path, opts) {
+          const o = opts || {};
+          const r = await state.sb.auth.getSession();
+          const t = r && r.data && r.data.session && r.data.session.access_token;
+          if (!t) throw new Error('로그인이 필요합니다.');
+          const headers = { Authorization: `Bearer ${t}` };
+          if (o.body) headers['Content-Type'] = 'application/json';
+          const res = await fetch(apiBase() + path, {
+            method: o.method || 'GET',
+            headers,
+            body: o.body ? JSON.stringify(o.body) : undefined,
+          });
+          let body = null;
+          try {
+            body = await res.json();
+          } catch (e) {
+            body = null;
+          }
+          if (!res.ok || !body || !body.success) {
+            const err = new Error((body && body.message) || `요청 실패 (${res.status})`);
+            err.status = res.status;
+            err.code = (body && body.code) || '';
+            err.routeMissing = res.status === 404 && (!body || body.message === 'Not found');
+            throw err;
+          }
+          return body.data;
+        }
+        function setStatus(id, msg, kind) {
+          const n = $(id);
+          if (!n) return;
+          n.textContent = msg || '';
+          n.style.color = kind === 'error' ? '#c62828' : kind === 'ok' ? '#2e7d32' : '#666';
+        }
+        function showSetup(on) {
+          $('setupNotice').textContent = on ? ROUTE_MISSING : '';
+          $('setupNotice').hidden = !on;
+        }
+
+        const pad = (n) => String(n).padStart(2, '0');
+        function fmtDate(iso) {
+          const d = new Date(iso || '');
+          if (Number.isNaN(d.getTime())) return '-';
+          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        }
+        function fmtDateTime(iso) {
+          const d = new Date(iso || '');
+          if (Number.isNaN(d.getTime())) return '-';
+          return `${fmtDate(iso)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
+        /** 서류 확인 날짜 (YYYY-MM-DD) — 시각까지 있으면 이 브라우저의 날짜로 */
+        function docDay(v) {
+          if (typeof v !== 'string' || !v) return '';
+          return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : fmtDate(v) === '-' ? '' : fmtDate(v);
+        }
+        function today() {
+          return fmtDate(new Date().toISOString());
+        }
+        function kindText(c) {
+          if (has(KIND_LABEL, c.kind)) return KIND_LABEL[c.kind];
+          return has(PLAN_LABEL, c.plan) ? PLAN_LABEL[c.plan] : c.plan || c.kind || '-';
+        }
+
+        /** catalog 항목 → [{ key, name, group }] — { key, name } · { key, label } · [key, name] · 'key' 모두 받는다 */
+        function entries(list) {
+          return (Array.isArray(list) ? list : [])
+            .map((e) => {
+              if (Array.isArray(e)) return { key: String(e[0] ?? ''), name: String(e[1] ?? e[0] ?? ''), group: e[2] };
+              if (e && typeof e === 'object') {
+                const key = String(e.key ?? e.id ?? '');
+                return { key, name: String(e.name ?? e.label ?? key), group: e.group };
+              }
+              return { key: String(e ?? ''), name: String(e ?? '') };
+            })
+            .filter((e) => e.key);
+        }
+
+        // ── 업체 풀 ──
+        function renderPool() {
+          const tb = $('poolTable').querySelector('tbody');
+          if (!state.companies.length) {
+            tb.innerHTML = '<tr><td colspan="7" class="muted">업체 풀이 비었습니다.</td></tr>';
+            return;
+          }
+          tb.innerHTML = state.companies
+            .map((c) => {
+              const sel = c.id === state.selectedId;
+              return `<tr data-id="${esc(c.id)}"${sel ? ' class="active"' : ''}>
+                <td><button type="button" class="link-btn" data-open="${esc(c.id)}">${esc(c.name || '-')}</button></td>
+                <td>${esc(kindText(c))}</td>
+                <td>${esc([c.sido, c.gugun].filter(Boolean).join(' ') || '-')}</td>
+                <td>${c.grade ? `<span class="grade">${esc(c.grade)}</span>` : '<span class="muted">없음</span>'}</td>
+                <td>${esc(c.evaluated_at ? fmtDate(c.evaluated_at) : '-')}</td>
+                <td>${c.docs_ok ? '<span class="ok">확인됨</span>' : '<span class="warn">미확인</span>'}</td>
+                <td>${c.settings_ok ? '<span class="ok">마침</span>' : '<span class="warn">안 함</span>'}</td>
+              </tr>`;
+            })
+            .join('');
+        }
+        async function loadPool() {
+          setStatus('statusLine', '불러오는 중…');
+          try {
+            const d = await api('/admin/companies?pool=1');
+            state.companies = Array.isArray(d && d.items) ? d.items : [];
+          } catch (e) {
+            state.companies = [];
+            renderPool();
+            if (e.routeMissing) {
+              showSetup(true);
+              setStatus('statusLine', '');
+            } else setStatus('statusLine', e.message, 'error');
+            return false;
+          }
+          showSetup(false);
+          renderPool();
+          setStatus('statusLine', `업체 ${state.companies.length}곳`);
+          return true;
+        }
+
+        // ── 평가표 ──
+        function seg(name, choices, value, attrs) {
+          return `<span class="seg">${choices
+            .map(
+              ([v, l]) =>
+                `<label><input type="radio" name="${name}" value="${esc(v)}"${value === v ? ' checked' : ''}${attrs || ''} /><span>${esc(l)}</span></label>`
+            )
+            .join('')}</span>`;
+        }
+        function numInput(attrs, value, label) {
+          const v = typeof value === 'number' && Number.isFinite(value) ? value : '';
+          return `<input class="num" type="number" min="0" step="1" inputmode="numeric" ${attrs} value="${esc(v)}" aria-label="${esc(label)}" />`;
+        }
+        function group(key, title, body, hint) {
+          return `<section class="group" data-group="${key}"><h4>${esc(title)}${hint ? `<small>${esc(hint)}</small>` : ''}</h4>${body}</section>`;
+        }
+        function emptyCatalog() {
+          return '<div class="muted">서버가 항목 목록을 주지 않았습니다.</div>';
+        }
+
+        function renderEditor() {
+          const d = state.data;
+          const ev = obj(d.evaluation);
+          const cat = obj(d.catalog);
+          const c = state.companies.find((x) => x.id === state.selectedId) || {};
+          $('editorEmpty').hidden = true;
+          $('editor').hidden = false;
+          $('evTitle').textContent = c.name || '업체';
+          $('evSub').textContent =
+            `${kindText(c)} · 마지막 평가 ${ev.evaluated_at ? fmtDateTime(ev.evaluated_at) : '없음'}`;
+
+          const equipment = entries(cat.equipment);
+          const staff = entries(cat.staff_roles);
+          const finishes = entries(cat.finishes);
+          const design = entries(cat.design);
+          const install = entries(cat.install).filter((e) => e.key !== 'install_years');
+          const docs = Array.isArray(cat.docs) && cat.docs.length ? entries(cat.docs) : DOC_ITEMS;
+          const eq = obj(ev.equipment);
+          const st = obj(ev.staff);
+          const fi = obj(ev.finishes);
+          const ds = obj(ev.design);
+          const ins = obj(ev.install);
+          const dc = obj(ev.docs);
+
+          // 마감 · 자재: 묶음별로
+          const fGroups = [];
+          finishes.forEach((e, i) => {
+            // group 이 키(door · body · hw · top)면 이름으로, 글이면 그대로, 없으면 키 앞머리로
+            const byGroupKey = FINISH_GROUPS.find(([p]) => p === `${e.group}_`);
+            const g =
+              (byGroupKey && byGroupKey[1]) ||
+              (typeof e.group === 'string' && e.group) ||
+              (FINISH_GROUPS.find(([p]) => e.key.startsWith(p)) || [null, '그 밖'])[1];
+            let bucket = fGroups.find((x) => x.name === g);
+            if (!bucket) fGroups.push((bucket = { name: g, rows: [] }));
+            bucket.rows.push(
+              `<div class="row"><span>${esc(e.name)}</span>${seg(`fi-${i}`, FINISH_CHOICES, fi[e.key], ` data-key="${esc(e.key)}" data-kind="fi"`)}</div>`
+            );
+          });
+
+          const metrics = obj(d.metrics || ev.metrics);
+          const metricKeys = Object.keys(metrics);
+          const metricHtml = metricKeys.length
+            ? `<div class="metrics" id="evMetrics">${metricKeys
+                .map((k) => {
+                  const v = metrics[k];
+                  let text = '자료 없음';
+                  if (typeof v === 'number' && Number.isFinite(v)) {
+                    text = /_rate$/.test(k)
+                      ? `${Math.round(v * 100)}%`
+                      : k === 'satisfaction'
+                        ? `${Math.round(v * 10) / 10} / 5`
+                        : String(v);
+                  }
+                  return `<span>${esc(has(METRIC_LABEL, k) ? METRIC_LABEL[k] : k)} <b>${esc(text)}</b></span>`;
+                })
+                .join('')}</div>`
+            : '';
+
+          $('evForm').innerHTML = [
+            group(
+              'equipment',
+              '설비',
+              equipment.length
+                ? `<div class="rows">${equipment
+                    .map(
+                      (e, i) =>
+                        `<div class="row"><span>${esc(e.name)}</span>${seg(`eq-${i}`, EQUIP_CHOICES, eq[e.key], ` data-key="${esc(e.key)}" data-kind="eq"`)}</div>`
+                    )
+                    .join('')}</div>`
+                : emptyCatalog()
+            ),
+            group(
+              'staff',
+              '인력',
+              staff.length
+                ? `<div class="rows">${staff
+                    .map(
+                      (e) =>
+                        `<div class="row"><span>${esc(e.name)}</span><span>${numInput(`data-staff="${esc(e.key)}"`, st[e.key], e.name)} 명</span></div>`
+                    )
+                    .join('')}</div>`
+                : emptyCatalog(),
+              '직무별 인원'
+            ),
+            group(
+              'finishes',
+              '마감 · 자재',
+              fGroups.length
+                ? fGroups
+                    .map((g) => `<div class="sub">${esc(g.name)}</div><div class="rows">${g.rows.join('')}</div>`)
+                    .join('')
+                : emptyCatalog()
+            ),
+            group(
+              'design',
+              '설계',
+              design.length
+                ? `<div class="rows">${design
+                    .map(
+                      (e) =>
+                        `<label class="check"><input type="checkbox" data-design="${esc(e.key)}"${ds[e.key] === true ? ' checked' : ''} /> ${esc(e.name)}</label>`
+                    )
+                    .join('')}</div>`
+                : emptyCatalog()
+            ),
+            group(
+              'install',
+              '시공',
+              `<div class="rows">${install
+                .map(
+                  (e) =>
+                    `<label class="check"><input type="checkbox" data-install="${esc(e.key)}"${ins[e.key] === true ? ' checked' : ''} /> ${esc(e.name)}</label>`
+                )
+                .join(
+                  ''
+                )}<div class="row"><span>경력</span><span>${numInput('id="fInstallYears"', ins.install_years, '시공 경력 연수')} 년</span></div></div>`
+            ),
+            group('price', '가격대', seg('price_tier', PRICE_TIERS, ev.price_tier, ' data-kind="price"')),
+            group(
+              'quality',
+              '품질 · 서비스',
+              `<div class="rows">
+                <div class="row"><span>A/S 기간</span><span>${numInput('id="fAsMonths"', ev.as_months, 'A/S 기간 (개월)')} 개월</span></div>
+                <div class="row"><span>하자 보증 기간</span><span>${numInput('id="fWarrantyMonths"', ev.warranty_months, '하자 보증 기간 (개월)')} 개월</span></div>
+              </div>${metricHtml}`
+            ),
+            group(
+              'docs',
+              '신뢰 · 서류',
+              `<div class="rows">${docs
+                .map((e) => {
+                  const cur = obj(dc[e.key]);
+                  const day = docDay(cur.checked_at);
+                  return `<div class="row"><label class="check"><input type="checkbox" data-doc="${esc(e.key)}"${day ? ' checked' : ''} /> ${esc(e.name)} 확인</label>
+                    <input type="date" data-doc-date="${esc(e.key)}" value="${esc(day)}" aria-label="${esc(e.name)} 확인 날짜" /></div>`;
+                })
+                .join('')}</div>`,
+              '둘 다 확인해야 상담을 받습니다'
+            ),
+            group(
+              'grade',
+              '본사 등급',
+              seg(
+                'grade',
+                GRADES.map((g) => [g, g]),
+                ev.grade,
+                ' data-kind="grade"'
+              ),
+              'S · A · B · C'
+            ),
+            group(
+              'note',
+              '메모',
+              `<textarea id="fNote" maxlength="2000" aria-label="메모">${esc(ev.note || '')}</textarea>`
+            ),
+          ].join('');
+
+          const hist = Array.isArray(d.history) ? d.history : [];
+          $('historyCard').hidden = false;
+          $('historyList').innerHTML = hist.length
+            ? hist
+                .map(
+                  (h) =>
+                    `<li><span>${esc(fmtDateTime(h.evaluated_at))}</span><span>등급 ${esc(h.grade || '없음')}</span>${h.evaluated_by_email ? `<span class="muted">${esc(h.evaluated_by_email)}</span>` : ''}</li>`
+                )
+                .join('')
+            : '<li class="muted">이력이 없습니다.</li>';
+          state.dirty = false;
+        }
+
+        /** 입력 칸 → PUT 본문. catalog 에 있는 키만 보낸다 (밖의 키는 서버가 422) */
+        function collect() {
+          const d = state.data;
+          const ev = obj(d.evaluation);
+          const cat = obj(d.catalog);
+          const form = $('evForm');
+          const checked = (name) => {
+            const n = form.querySelector(`input[name="${name}"]:checked`);
+            return n ? n.value : null;
+          };
+          const intOf = (input, label) => {
+            const raw = String(input ? input.value : '').trim();
+            if (raw === '') return null;
+            const n = Number(raw);
+            if (!Number.isInteger(n) || n < 0) throw new Error(`${label}: 0 이상의 정수로 넣어 주세요.`);
+            return n;
+          };
+
+          const equipment = {};
+          entries(cat.equipment).forEach((e, i) => {
+            const v = checked(`eq-${i}`);
+            if (v) equipment[e.key] = v;
+          });
+          const staff = {};
+          entries(cat.staff_roles).forEach((e) => {
+            const input = [...form.querySelectorAll('input[data-staff]')].find(
+              (n) => n.getAttribute('data-staff') === e.key
+            );
+            const v = intOf(input, `인력 ${e.name}`);
+            if (v !== null) staff[e.key] = v;
+          });
+          const finishes = {};
+          entries(cat.finishes).forEach((e, i) => {
+            const v = checked(`fi-${i}`);
+            if (v) finishes[e.key] = v;
+          });
+          const design = {};
+          [...form.querySelectorAll('input[data-design]')].forEach((n) => {
+            design[n.getAttribute('data-design')] = n.checked;
+          });
+          const install = {};
+          [...form.querySelectorAll('input[data-install]')].forEach((n) => {
+            install[n.getAttribute('data-install')] = n.checked;
+          });
+          const years = intOf($('fInstallYears'), '시공 경력');
+          if (years !== null) install.install_years = years;
+
+          const docs = {};
+          const prevDocs = obj(ev.docs);
+          [...form.querySelectorAll('input[data-doc]')].forEach((n) => {
+            if (!n.checked) return;
+            const key = n.getAttribute('data-doc');
+            const dateInput = [...form.querySelectorAll('input[data-doc-date]')].find(
+              (x) => x.getAttribute('data-doc-date') === key
+            );
+            const day = (dateInput && dateInput.value) || today();
+            const prev = obj(prevDocs[key]);
+            // 날짜를 그대로 두면 확인한 사람 · 시각을 그대로 보낸다
+            docs[key] = docDay(prev.checked_at) === day ? prev : { checked_at: day };
+          });
+
+          const note = $('fNote').value.trim();
+          return {
+            grade: checked('grade'),
+            equipment,
+            staff,
+            finishes,
+            design,
+            install,
+            price_tier: checked('price_tier'),
+            docs,
+            as_months: intOf($('fAsMonths'), 'A/S 기간'),
+            warranty_months: intOf($('fWarrantyMonths'), '하자 보증 기간'),
+            note: note || null,
+          };
+        }
+
+        async function openCompany(id) {
+          if (!state.companies.some((c) => c.id === id)) return;
+          if (state.dirty && id !== state.selectedId) {
+            state.waitingId = id;
+            $('dirtyBar').hidden = false;
+            return;
+          }
+          state.waitingId = null;
+          $('dirtyBar').hidden = true;
+          state.selectedId = id;
+          state.data = null;
+          renderPool();
+          $('editor').hidden = true;
+          $('historyCard').hidden = true;
+          $('editorEmpty').hidden = false;
+          $('editorEmpty').textContent = '불러오는 중…';
+          let data;
+          try {
+            data = await api(`/admin/companies/${encodeURIComponent(id)}/evaluation`);
+          } catch (e) {
+            if (state.selectedId !== id) return;
+            $('editorEmpty').textContent = e.routeMissing ? ROUTE_MISSING : e.message;
+            return;
+          }
+          if (state.selectedId !== id) return;
+          state.data = data || {};
+          setStatus('evStatus', '');
+          renderEditor();
+        }
+
+        async function save() {
+          if (!state.data || state.busy) return;
+          let body;
+          try {
+            body = collect();
+          } catch (e) {
+            setStatus('evStatus', e.message, 'error');
+            return;
+          }
+          const id = state.selectedId;
+          state.busy = true;
+          $('btnSave').disabled = true;
+          setStatus('evStatus', '저장하는 중…');
+          try {
+            await api(`/admin/companies/${encodeURIComponent(id)}/evaluation`, { method: 'PUT', body });
+            state.dirty = false;
+            await loadPool();
+            if (state.selectedId === id) await openCompany(id);
+            setStatus('evStatus', '저장했습니다.', 'ok');
+          } catch (e) {
+            if (e.routeMissing) showSetup(true);
+            setStatus('evStatus', e.routeMissing ? ROUTE_MISSING : e.message, 'error');
+          } finally {
+            state.busy = false;
+            $('btnSave').disabled = false;
+          }
+        }
+
+        function showAccessDenied() {
+          $('accessDenied').style.display = 'block';
+          $('pageContent').style.display = 'none';
+        }
+
+        /** 주소의 #company=<id> — 상담 분배의 「평가 보기」에서 온다 */
+        function hashCompany() {
+          const m = /(?:^#|&)company=([^&]+)/.exec(window.location.hash || '');
+          if (!m) return null;
+          try {
+            return decodeURIComponent(m[1]);
+          } catch (e) {
+            return null;
+          }
+        }
+
+        async function init() {
+          if (!window.supabase || !window.DADAM_CONFIG || !window.DADAM_CONFIG.supabase) return showAccessDenied();
+          const { url, anonKey } = window.DADAM_CONFIG.supabase;
+          state.sb = window.supabase.createClient(url, anonKey);
+          const {
+            data: { session },
+          } = await state.sb.auth.getSession();
+          if (!session) return showAccessDenied();
+          const isAdmin = window.AdminAccess ? await window.AdminAccess.isAdmin(state.sb) : false;
+          if (!isAdmin) return showAccessDenied();
+          $('pageContent').style.display = 'block';
+
+          $('poolTable').addEventListener('click', (e) => {
+            const b = e.target.closest('button[data-open]');
+            if (b) openCompany(b.getAttribute('data-open'));
+          });
+          $('evForm').addEventListener('input', () => {
+            state.dirty = true;
+          });
+          $('evForm').addEventListener('change', (e) => {
+            state.dirty = true;
+            // 서류 날짜를 넣으면 확인 체크, 확인을 켜면 비어 있는 날짜에 오늘
+            const t = e.target;
+            if (t.matches('input[data-doc-date]') && t.value) {
+              const key = t.getAttribute('data-doc-date');
+              const box = [...$('evForm').querySelectorAll('input[data-doc]')].find(
+                (n) => n.getAttribute('data-doc') === key
+              );
+              if (box) box.checked = true;
+            }
+            if (t.matches('input[data-doc]') && t.checked) {
+              const key = t.getAttribute('data-doc');
+              const date = [...$('evForm').querySelectorAll('input[data-doc-date]')].find(
+                (n) => n.getAttribute('data-doc-date') === key
+              );
+              if (date && !date.value) date.value = today();
+            }
+          });
+          $('btnSave').addEventListener('click', save);
+          $('btnReload').addEventListener('click', async () => {
+            await loadPool();
+            if (state.selectedId && !state.dirty) await openCompany(state.selectedId);
+          });
+          $('dirtyDiscard').addEventListener('click', () => {
+            const id = state.waitingId;
+            state.dirty = false;
+            if (id) openCompany(id);
+          });
+          $('dirtyKeep').addEventListener('click', () => {
+            state.waitingId = null;
+            $('dirtyBar').hidden = true;
+          });
+
+          if (!apiBase()) {
+            setStatus('statusLine', '업무 서버(workflowApi.url)가 설정되지 않았습니다.', 'error');
+            return;
+          }
+          const ok = await loadPool();
+          const want = hashCompany();
+          if (ok && want) await openCompany(want);
+        }
+
+        window.PartnerEval = { init, openCompany, collect, entries, esc, state };
+        if (!window.__PARTNER_EVAL_NO_AUTOSTART) {
+          if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+          else init();
+        }
+      })();
+    </script>
+  </body>
+</html>

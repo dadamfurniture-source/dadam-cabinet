@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 고객 이름 · 전화가 담긴다 — 색인 · 참조자 노출을 막는다 -->
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta name="referrer" content="no-referrer" />
+    <title>상담 분배 - 다담가구 관리자</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="../js/config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="../js/admin-access.js?v=2026103003"></script>
+    <!--
+      상담 분배 — 고객 상담은 다담 본사로 들어온다. 본사(관리자)가 여기서 업체 풀(활동 중인 Agent 협력업체 · 다담 공장)의
+      1~3순위와 점수 내역을 보고 한 업체를 골라 배정한다. 업체는 24시간 안에 받기 · 못 받음을 고르고,
+      못 받거나 답이 없으면 상담은 대기로 돌아온다.
+      읽기 · 쓰기 모두 업무 서버(workflow-api)의 /admin/* (관리자만). 거르기 · 점수는 서버가 한다 — 화면은 받은 대로 보인다.
+      화면에 넣는 값은 전부 esc() 를 거친다.
+    -->
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      body {
+        font-family: 'Noto Sans KR', sans-serif;
+        background: #f5f5f5;
+        color: #333;
+      }
+      .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 250px;
+        height: 100vh;
+        background: #1a1a2e;
+        color: white;
+        padding: 20px 0;
+        overflow-y: auto;
+      }
+      .sidebar-logo {
+        padding: 0 20px 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 20px;
+      }
+      .sidebar-logo h1 {
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .sidebar-logo span {
+        font-size: 12px;
+        color: #888;
+      }
+      .nav-menu {
+        list-style: none;
+      }
+      .nav-menu li a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 20px;
+        color: #aaa;
+        text-decoration: none;
+        transition: all 0.3s;
+      }
+      .nav-menu li a:hover,
+      .nav-menu li a.active {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+      }
+      .nav-menu li a.active {
+        border-left: 3px solid #007bff;
+      }
+      .nav-icon {
+        font-size: 18px;
+        width: 24px;
+        text-align: center;
+      }
+      .sidebar-footer {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        right: 20px;
+      }
+      .sidebar-footer a {
+        display: block;
+        padding: 10px;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.1);
+        color: #aaa;
+        text-decoration: none;
+        border-radius: 8px;
+        font-size: 13px;
+      }
+      .main-content {
+        margin-left: 250px;
+        padding: 20px 30px;
+        min-height: 100vh;
+        min-width: 0;
+      }
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid #ddd;
+      }
+      .header h2 {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+      .header-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .muted {
+        color: #888;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      .status-line {
+        font-size: 13px;
+        color: #666;
+        min-height: 18px;
+        margin-bottom: 8px;
+      }
+      .notice {
+        background: #fff3e0;
+        color: #8a4b00;
+        border: 1px solid #ffd8a8;
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 13px;
+        line-height: 1.6;
+        margin-bottom: 12px;
+      }
+      .access-denied {
+        display: none;
+        text-align: center;
+        padding: 100px 20px;
+      }
+      .access-denied h2 {
+        margin-bottom: 10px;
+      }
+      .access-denied a {
+        color: #007bff;
+      }
+      .btn {
+        display: inline-block;
+        padding: 8px 14px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+        font-family: inherit;
+        text-decoration: none;
+      }
+      .btn-primary {
+        background: #007bff;
+        color: #fff;
+      }
+      .btn-primary:hover {
+        background: #0056b3;
+      }
+      .btn-light {
+        background: #fff;
+        color: #333;
+        border: 1px solid #ddd;
+      }
+      .btn-sm {
+        padding: 5px 10px;
+        font-size: 12px;
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .tabs {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+      }
+      .tab {
+        padding: 6px 14px;
+        border-radius: 99px;
+        border: 1px solid #ddd;
+        background: #fff;
+        cursor: pointer;
+        font-size: 13px;
+        font-family: inherit;
+      }
+      .tab.active {
+        background: #007bff;
+        border-color: #007bff;
+        color: #fff;
+      }
+      .card {
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        padding: 16px 18px;
+        margin-bottom: 14px;
+      }
+      .card h3 {
+        font-size: 15px;
+        margin-bottom: 10px;
+      }
+      .empty-mini {
+        color: #999;
+        font-size: 13px;
+        padding: 10px 2px;
+      }
+      .split {
+        display: grid;
+        grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+        gap: 16px;
+        align-items: start;
+      }
+
+      /* 목록 */
+      .list-card {
+        padding: 8px;
+      }
+      .consult-item {
+        display: grid;
+        gap: 3px;
+        width: 100%;
+        text-align: left;
+        background: #fff;
+        border: 1px solid #eee;
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin-bottom: 6px;
+        cursor: pointer;
+        font-family: inherit;
+        color: inherit;
+      }
+      .consult-item:hover {
+        border-color: #9ec5fe;
+      }
+      .consult-item.active {
+        border-color: #007bff;
+        background: #f3f8ff;
+      }
+      .ci-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+      }
+      .ci-name {
+        font-weight: 500;
+        font-size: 14px;
+        word-break: break-word;
+      }
+      .ci-meta {
+        font-size: 12px;
+        color: #777;
+        word-break: break-word;
+      }
+      .left-time {
+        color: #e65100;
+        font-weight: 500;
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 9px;
+        border-radius: 99px;
+        font-size: 12px;
+        white-space: nowrap;
+        background: #eef1f5;
+        color: #555;
+      }
+      .st-pending {
+        background: #fff3e0;
+        color: #e65100;
+      }
+      .st-assigned {
+        background: #e3f2fd;
+        color: #1565c0;
+      }
+      .st-accepted,
+      .st-confirmed,
+      .st-completed {
+        background: #e8f5e9;
+        color: #2e7d32;
+      }
+      .st-declined,
+      .st-expired,
+      .st-cancelled {
+        background: #ffebee;
+        color: #c62828;
+      }
+
+      /* 상세 */
+      .info {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+        gap: 10px 16px;
+        font-size: 13px;
+      }
+      .info dt {
+        font-size: 12px;
+        color: #888;
+        margin-bottom: 2px;
+      }
+      .info dd {
+        word-break: break-word;
+      }
+      .chip {
+        display: inline-block;
+        padding: 1px 8px;
+        border-radius: 99px;
+        font-size: 12px;
+        background: #f1f3f5;
+        color: #444;
+        margin: 1px 4px 1px 0;
+      }
+      .kind-chip {
+        display: inline-block;
+        padding: 1px 8px;
+        border-radius: 99px;
+        font-size: 11px;
+        background: #e3f2fd;
+        color: #1565c0;
+      }
+      .assign-now {
+        font-size: 14px;
+        margin-bottom: 8px;
+      }
+      .no-cand {
+        background: #ffebee;
+        color: #8e1b1b;
+        border: 1px solid #f5c2c2;
+        border-radius: 8px;
+        padding: 12px 14px;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .no-cand .muted {
+        font-weight: 400;
+        color: #8e1b1b;
+      }
+
+      /* 후보 */
+      .cands {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 12px;
+      }
+      .cand {
+        border: 1px solid #e3e6ea;
+        border-radius: 10px;
+        padding: 12px 14px;
+        display: grid;
+        gap: 10px;
+        align-content: start;
+      }
+      .cand-head {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .rank {
+        font-size: 12px;
+        font-weight: 700;
+        color: #fff;
+        background: #1a1a2e;
+        border-radius: 99px;
+        padding: 1px 8px;
+      }
+      .cand-name {
+        font-weight: 700;
+        font-size: 15px;
+        word-break: break-word;
+      }
+      .total {
+        margin-left: auto;
+        font-size: 13px;
+        color: #555;
+      }
+      .total b {
+        font-size: 22px;
+        color: #007bff;
+      }
+      .sg {
+        display: grid;
+        gap: 3px;
+      }
+      .sg-top {
+        display: flex;
+        justify-content: space-between;
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .bar {
+        height: 6px;
+        background: #eef1f5;
+        border-radius: 99px;
+        overflow: hidden;
+      }
+      .bar i {
+        display: block;
+        height: 100%;
+        background: #4d94ff;
+        border-radius: 99px;
+      }
+      .sg-parts {
+        font-size: 12px;
+        color: #777;
+      }
+      .cand-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .cand-actions a {
+        font-size: 12px;
+        color: #007bff;
+      }
+      .filtered {
+        list-style: none;
+        font-size: 13px;
+      }
+      .filtered li {
+        padding: 6px 0;
+        border-bottom: 1px solid #f1f1f1;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .filtered li:last-child {
+        border-bottom: 0;
+      }
+      .reason {
+        display: inline-block;
+        padding: 1px 8px;
+        border-radius: 99px;
+        font-size: 12px;
+        background: #fff3e0;
+        color: #8a4b00;
+      }
+      details summary {
+        cursor: pointer;
+        font-size: 15px;
+        font-weight: 700;
+      }
+      details[open] summary {
+        margin-bottom: 8px;
+      }
+
+      /* 배정 확인 */
+      .modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        z-index: 100;
+        padding: 60px 16px;
+        overflow-y: auto;
+      }
+      .modal.active {
+        display: block;
+      }
+      .modal-content {
+        background: #fff;
+        border-radius: 12px;
+        max-width: 440px;
+        margin: 0 auto;
+      }
+      .modal-header {
+        padding: 18px 22px 0;
+      }
+      .modal-header h3 {
+        font-size: 18px;
+      }
+      .modal-body {
+        padding: 12px 22px;
+        display: grid;
+        gap: 8px;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+      .modal-footer {
+        padding: 12px 22px 18px;
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+
+      @media (max-width: 1100px) {
+        .split {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media (max-width: 900px) {
+        .sidebar {
+          display: none;
+        }
+        .main-content {
+          margin-left: 0;
+          padding: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="sidebar">
+      <div class="sidebar-logo">
+        <h1>다담가구</h1>
+        <span>관리자 패널</span>
+      </div>
+      <ul class="nav-menu" id="adminNav"></ul>
+      <script src="../js/admin-shell.js?v=2026103003"></script>
+      <div class="sidebar-footer"><a href="../index.html">← 메인 사이트로</a></div>
+    </nav>
+
+    <main class="main-content">
+      <div class="access-denied" id="accessDenied">
+        <h2>접근 권한이 없습니다</h2>
+        <p>관리자만 접근할 수 있는 페이지입니다.</p>
+        <a href="../index.html">메인 페이지로 돌아가기</a>
+      </div>
+
+      <div id="pageContent" style="display: none">
+        <header class="header">
+          <div>
+            <h2>상담 분배</h2>
+            <div class="muted">
+              본사로 들어온 상담을 업체 점수 순위로 나눕니다. 업체가 24시간 안에 받기 · 못 받음을 고르고, 못 받거나 답이
+              없으면 대기로 돌아옵니다.
+            </div>
+          </div>
+          <div class="header-actions">
+            <a class="btn btn-light" href="partner-eval.html">업체 평가</a>
+            <button class="btn btn-light" id="btnReload" type="button">새로고침</button>
+          </div>
+        </header>
+
+        <div class="notice" id="setupNotice" hidden></div>
+
+        <div class="tabs" id="tabs">
+          <button class="tab active" type="button" data-state="pending" aria-pressed="true">대기</button>
+          <button class="tab" type="button" data-state="assigned" aria-pressed="false">배정됨</button>
+          <button class="tab" type="button" data-state="all" aria-pressed="false">전체</button>
+        </div>
+        <div class="status-line" id="statusLine"></div>
+
+        <div class="split">
+          <section class="card list-card">
+            <div id="inboxList"></div>
+          </section>
+
+          <section>
+            <div class="card empty-mini" id="detailEmpty">왼쪽에서 상담을 고르세요.</div>
+            <div id="detailBody" hidden>
+              <section class="card" id="customerCard"></section>
+              <section class="card" id="assignCard"></section>
+              <section class="card">
+                <h3>추천 순위</h3>
+                <div class="status-line" id="candStatus"></div>
+                <div id="candidates"></div>
+              </section>
+              <section class="card" id="filteredCard" hidden></section>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <!-- 배정 확인 — 브라우저 확인 창 대신 화면 안에서 묻는다 -->
+    <div class="modal" id="assignModal">
+      <div class="modal-content">
+        <div class="modal-header"><h3>업체에 배정</h3></div>
+        <div class="modal-body">
+          <p id="assignText"></p>
+          <p class="muted">
+            배정하면 고객 연락처와 상담 내용이 그 업체에 넘어가고, 업체가 24시간 안에 받기 · 못 받음을 고릅니다.
+          </p>
+          <div class="status-line" id="assignStatus"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" id="assignCancel" type="button">그만두기</button>
+          <button class="btn btn-primary" id="assignOk" type="button">배정</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        'use strict';
+
+        const $ = (id) => document.getElementById(id);
+        const esc = (v) =>
+          String(v === null || v === undefined ? '' : v)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        const has = (obj, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(obj, k);
+        /** 이름표가 있으면 이름표, 없으면 값 그대로, 값이 없으면 fallback */
+        const label = (map, k, fallback) =>
+          has(map, k) ? map[k] : k === null || k === undefined || k === '' ? fallback : String(k);
+        const arr = (v) => (Array.isArray(v) ? v : []);
+
+        // ── 이름표 — 업무 서버 consult-notify.js(FURNITURE_LABELS · TIME_LABELS) · DB 상담 칸 값과 같다 ──
+        const ITEM_LABEL = {
+          sink: '싱크대',
+          island: '아일랜드',
+          wardrobe: '붙박이장',
+          fridge: '냉장고장',
+          shoerack: '신발장',
+          vanity: '화장대',
+          storage: '수납장',
+          other: '기타',
+        };
+        const TIME_LABEL = {
+          '09:00-12:00': '오전',
+          '12:00-15:00': '점심',
+          '15:00-18:00': '오후',
+          '18:00-21:00': '저녁',
+        };
+        const DOOR_FINISH_LABEL = {
+          pet: 'PET',
+          highgloss: '하이그로시',
+          paint: '도장',
+          veneer: '무늬목',
+          ceramic: '세라믹',
+          unknown: '모름',
+        };
+        const PRICE_TIER_LABEL = { basic: '보급', mid: '중급', high: '고급', unknown: '모름' };
+        const STATUS_LABEL = {
+          pending: '대기',
+          assigned: '배정됨',
+          confirmed: '확정',
+          completed: '완료',
+          cancelled: '취소',
+          returned: '돌아옴',
+        };
+        const ASSIGN_STATE_LABEL = {
+          assigned: '답 기다림',
+          accepted: '받음',
+          declined: '못 받음',
+          expired: '시간 지남',
+        };
+        const KIND_LABEL = { hq: '다담 공장', partner: 'Agent' };
+        /** 걸러진 이유 — [이름표, 풀이] */
+        const FILTER_REASON = {
+          region: ['지역 밖', '고객 지역이 업체의 상담 받는 지역에 없음'],
+          item: ['품목 안 함', '고객 품목을 업체가 하지 않음'],
+          limit: ['한도', '이번 달 배정 수가 업체의 한 달 한도에 닿음'],
+          docs: ['서류 미확인', '배상 책임 보험 · 표준 계약서를 본사가 아직 확인하지 않음'],
+          tier: ['자격', '업체 풀 밖(활동 중인 Agent · 다담 공장이 아님)'],
+          inactive: ['활동 안 함', '업체가 지금 활동 중이 아님'],
+          tried: ['거친 업체', '이 상담을 이미 못 받음 · 시간 지남으로 돌려보낸 업체'],
+        };
+        /** 위치 점수 까닭 */
+        const LOCATION_WHY = { same_gugun: '같은 시/군/구', same_sido: '같은 시/도', other: '그 밖' };
+        /** 점수 내역 — 묶음 · 항목 이름 · 만점 (서버 점수 규칙과 같은 무게, 합 100) */
+        const SCORE_GROUPS = [
+          {
+            key: 'eval',
+            label: '본사 평가',
+            max: 40,
+            parts: [
+              ['grade', '등급', 16],
+              ['satisfaction', '고객 만족', 12],
+              ['rework', '재작업', 6],
+              ['response', '응답', 6],
+            ],
+          },
+          {
+            key: 'fit',
+            label: '선택 적합도',
+            max: 35,
+            parts: [
+              ['item', '품목 실적', 12],
+              ['finish', '도어 마감', 6],
+              ['price', '가격대', 6],
+              ['timing', '희망 시기', 6],
+              ['design', '상세 설계', 5],
+            ],
+          },
+          { key: 'location', label: '위치', max: 15, parts: [] },
+          {
+            key: 'other',
+            label: '기타',
+            max: 10,
+            parts: [
+              ['spread', '일감 고르게', 5],
+              ['capacity', '처리 여유', 5],
+            ],
+          },
+        ];
+        const EMPTY_TEXT = {
+          pending: '기다리는 상담이 없습니다.',
+          assigned: '답을 기다리는 배정이 없습니다.',
+          all: '상담이 없습니다.',
+        };
+        const ROUTE_MISSING = '업무 서버에 상담 분배 기능이 아직 배포되지 않았습니다. 배포가 끝나면 새로고침해 주세요.';
+
+        const state = { sb: null, tab: 'pending', items: [], selectedId: null, cand: null, pending: null, busy: false };
+
+        // ── 서버 ──
+        function apiBase() {
+          return (window.DADAM_CONFIG && window.DADAM_CONFIG.workflowApi && window.DADAM_CONFIG.workflowApi.url) || '';
+        }
+        async function api(path, opts) {
+          const o = opts || {};
+          const r = await state.sb.auth.getSession();
+          const t = r && r.data && r.data.session && r.data.session.access_token;
+          if (!t) throw new Error('로그인이 필요합니다.');
+          const headers = { Authorization: `Bearer ${t}` };
+          if (o.body) headers['Content-Type'] = 'application/json';
+          const res = await fetch(apiBase() + path, {
+            method: o.method || 'GET',
+            headers,
+            body: o.body ? JSON.stringify(o.body) : undefined,
+          });
+          let body = null;
+          try {
+            body = await res.json();
+          } catch (e) {
+            body = null;
+          }
+          if (!res.ok || !body || !body.success) {
+            const err = new Error((body && body.message) || `요청 실패 (${res.status})`);
+            err.status = res.status;
+            err.code = (body && body.code) || '';
+            // 경로 자체가 없을 때 (서버 라우터의 404 'Not found') — 아직 배포 전
+            err.routeMissing = res.status === 404 && (!body || body.message === 'Not found');
+            throw err;
+          }
+          return body.data;
+        }
+
+        function setStatus(id, msg, kind) {
+          const n = $(id);
+          if (!n) return;
+          n.textContent = msg || '';
+          n.style.color = kind === 'error' ? '#c62828' : kind === 'ok' ? '#2e7d32' : '#666';
+        }
+        function showSetup(on) {
+          $('setupNotice').textContent = on ? ROUTE_MISSING : '';
+          $('setupNotice').hidden = !on;
+        }
+
+        // ── 글자 만들기 ──
+        const pad = (n) => String(n).padStart(2, '0');
+        function fmtDate(iso) {
+          const d = new Date(iso || '');
+          if (Number.isNaN(d.getTime())) return '-';
+          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        }
+        function fmtDateTime(iso) {
+          const d = new Date(iso || '');
+          if (Number.isNaN(d.getTime())) return '-';
+          return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
+        /** 남은 시간 — 서버가 준 expires_at 까지 */
+        function leftText(expiresAt, now) {
+          const t = Date.parse(expiresAt || '');
+          if (!Number.isFinite(t)) return '';
+          const ms = t - (now === undefined ? Date.now() : now);
+          if (ms <= 0) return '시간 지남';
+          const mins = Math.ceil(ms / 60000);
+          const h = Math.floor(mins / 60);
+          const m = mins % 60;
+          return h ? `${h}시간 ${m}분 남음` : `${m}분 남음`;
+        }
+        function fmtNum(v) {
+          return typeof v === 'number' && Number.isFinite(v) ? String(Math.round(v * 10) / 10) : '-';
+        }
+        function region(c) {
+          return [c.sido, c.gugun].filter(Boolean).join(' ') || '-';
+        }
+        function itemNames(cats) {
+          const list = arr(cats).map((k) => label(ITEM_LABEL, k, ''));
+          return list.length ? list : [];
+        }
+        function wantedTime(c) {
+          const parts = [c.preferred_date, label(TIME_LABEL, c.preferred_time, '')].filter(Boolean);
+          return parts.length ? parts.join(' ') : '-';
+        }
+        function demolition(v) {
+          return v === true ? '필요' : v === false ? '필요 없음' : '-';
+        }
+        function won(v) {
+          return typeof v === 'number' && Number.isFinite(v) ? `${Math.round(v).toLocaleString('ko-KR')}원` : '-';
+        }
+        const waiting = (c) => Boolean(c && c.assignment && c.assignment.state === 'assigned');
+        /** 배정할 수 있는 상담 — 대기이고 답을 기다리는 배정이 없을 때 (서버가 다시 확인한다) */
+        const canAssign = (c) => Boolean(c && c.status === 'pending' && !waiting(c));
+        const current = () => state.items.find((i) => i.id === state.selectedId) || null;
+
+        // ── 목록 ──
+        function itemHtml(c) {
+          const sel = c.id === state.selectedId;
+          const a = c.assignment;
+          const statusKey = waiting(c) ? 'assigned' : has(STATUS_LABEL, c.status) ? c.status : 'other';
+          const items = itemNames(c.furniture_categories);
+          const tried = arr(c.tried).length;
+          const meta2 = [fmtDate(c.created_at), c.phone || ''].filter(Boolean).map(esc);
+          if (waiting(c)) {
+            meta2.push(
+              `${esc(a.company_name || '-')} <span class="left-time" data-expires="${esc(a.expires_at || '')}">${esc(leftText(a.expires_at))}</span>`
+            );
+          }
+          if (tried) meta2.push(`거친 업체 ${tried}`);
+          return `<button type="button" class="consult-item${sel ? ' active' : ''}" data-id="${esc(c.id)}" aria-pressed="${sel}">
+            <span class="ci-top"><span class="ci-name">${esc(c.name || '이름 없음')}</span><span class="badge st-${esc(statusKey)}">${esc(label(STATUS_LABEL, statusKey, '-'))}</span></span>
+            <span class="ci-meta">${esc(region(c))} · ${esc(items.length ? items.join(' · ') : '품목 없음')}</span>
+            <span class="ci-meta">${meta2.join(' · ')}</span>
+          </button>`;
+        }
+        function renderList() {
+          $('inboxList').innerHTML = state.items.map(itemHtml).join('') || '<div class="empty-mini">없음</div>';
+        }
+        function renderTabs() {
+          document.querySelectorAll('#tabs .tab').forEach((b) => {
+            const on = b.getAttribute('data-state') === state.tab;
+            b.classList.toggle('active', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+        }
+
+        async function loadInbox() {
+          setStatus('statusLine', '불러오는 중…');
+          let data;
+          try {
+            data = await api(`/admin/consult-inbox?state=${encodeURIComponent(state.tab)}`);
+          } catch (e) {
+            state.items = [];
+            renderList();
+            clearDetail();
+            if (e.routeMissing) {
+              showSetup(true);
+              setStatus('statusLine', '');
+            } else {
+              setStatus('statusLine', e.message, 'error');
+            }
+            return false;
+          }
+          showSetup(false);
+          state.items = arr(data && data.items);
+          renderList();
+          setStatus('statusLine', state.items.length ? `${state.items.length}건` : EMPTY_TEXT[state.tab]);
+          if (current()) renderDetail();
+          else clearDetail();
+          return true;
+        }
+
+        // ── 상세 ──
+        function clearDetail() {
+          state.selectedId = null;
+          state.cand = null;
+          $('detailBody').hidden = true;
+          $('detailEmpty').hidden = false;
+        }
+        function info(name, value) {
+          return `<div><dt>${esc(name)}</dt><dd>${value}</dd></div>`;
+        }
+        function renderDetail() {
+          const c = current();
+          if (!c) return clearDetail();
+          $('detailEmpty').hidden = true;
+          $('detailBody').hidden = false;
+          const items = itemNames(c.furniture_categories);
+          $('customerCard').innerHTML = `
+            <h3>${esc(c.name || '이름 없음')} <span class="badge st-${esc(has(STATUS_LABEL, c.status) ? c.status : 'other')}">${esc(label(STATUS_LABEL, c.status, '-'))}</span></h3>
+            <dl class="info">
+              ${info('전화', esc(c.phone || '-'))}
+              ${info('지역', esc(region(c)))}
+              ${info('품목', items.length ? items.map((n) => `<span class="chip">${esc(n)}</span>`).join('') : '-')}
+              ${info('도어 마감', esc(label(DOOR_FINISH_LABEL, c.door_finish, '-')))}
+              ${info('철거', esc(demolition(c.demolition_needed)))}
+              ${info('원하는 가격대', esc(label(PRICE_TIER_LABEL, c.wanted_price_tier, '-')))}
+              ${info('희망 시기', esc(wantedTime(c)))}
+              ${info('상세 설계', esc(c.request_detail_design ? '요청함' : '요청 안 함'))}
+              ${info('예상 견적', esc(won(c.quote_total)))}
+              ${info('연출컷', esc(c.has_generation ? '있음' : '없음'))}
+              ${info('신청일', esc(fmtDate(c.created_at)))}
+            </dl>`;
+
+          const a = c.assignment;
+          let now = '<div class="assign-now">지금 배정 없음</div>';
+          if (a) {
+            const left = a.state === 'assigned' ? leftText(a.expires_at) : '';
+            now = `<div class="assign-now"><b>${esc(a.company_name || '-')}</b>
+              <span class="badge st-${esc(has(ASSIGN_STATE_LABEL, a.state) ? a.state : 'other')}">${esc(label(ASSIGN_STATE_LABEL, a.state, '-'))}</span>
+              ${left ? `<span class="left-time" data-expires="${esc(a.expires_at || '')}">${esc(left)}</span>` : ''}
+              <span class="muted">배정 ${esc(fmtDateTime(a.assigned_at))}</span></div>`;
+          }
+          const tried = arr(c.tried);
+          $('assignCard').innerHTML = `
+            <h3>배정</h3>
+            ${now}
+            <div class="muted">거친 업체</div>
+            <div>${
+              tried.length
+                ? tried
+                    .map(
+                      (t) =>
+                        `<span class="chip">${esc(t.company_name || '-')} · ${esc(label(ASSIGN_STATE_LABEL, t.state, '-'))}</span>`
+                    )
+                    .join('')
+                : '<span class="muted">없음</span>'
+            }</div>`;
+          renderCandidates();
+        }
+
+        function partText(v, max) {
+          if (typeof v === 'number') return `${fmtNum(v)}/${max}`;
+          if (typeof v === 'string' && v) return v; // 등급 글자(S·A·B·C)를 줄 때
+          return '-';
+        }
+        /** 세부 항목 이름 — 본사 평가의 등급은 서버가 grade_letter(S · A · B · C)를 주면 글자를 붙인다 */
+        function partName(g, k, name, s) {
+          if (g.key === 'eval' && k === 'grade' && s && typeof s.grade_letter === 'string' && s.grade_letter) {
+            return `${name} ${s.grade_letter}`;
+          }
+          return name;
+        }
+        function groupHtml(g, s) {
+          const sum = s && typeof s.sum === 'number' ? s.sum : null;
+          const pct = sum === null ? 0 : Math.max(0, Math.min(100, (sum / g.max) * 100));
+          const parts =
+            g.key === 'location'
+              ? esc(s && s.why ? label(LOCATION_WHY, s.why, '') : '')
+              : g.parts
+                  .map(([k, name, max]) => `${esc(partName(g, k, name, s))} ${esc(partText(s && s[k], max))}`)
+                  .join(' · ');
+          return `<div class="sg" data-group="${esc(g.key)}">
+            <div class="sg-top"><span>${esc(g.label)}</span><span>${esc(fmtNum(sum))}/${g.max}</span></div>
+            <div class="bar"><i style="width:${Math.round(pct)}%"></i></div>
+            <div class="sg-parts">${parts}</div>
+          </div>`;
+        }
+        function candHtml(x, c) {
+          const allow = canAssign(c);
+          return `<article class="cand" data-company="${esc(x.company_id)}">
+            <div class="cand-head">
+              <span class="rank">${esc(x.rank)}순위</span>
+              <span class="cand-name">${esc(x.company_name || '-')}</span>
+              <span class="kind-chip">${esc(label(KIND_LABEL, x.kind, '-'))}</span>
+              <span class="total"><b>${esc(fmtNum(x.total))}</b>점</span>
+            </div>
+            ${SCORE_GROUPS.map((g) => groupHtml(g, x.score && x.score[g.key])).join('')}
+            <div class="cand-actions">
+              <button class="btn btn-primary btn-sm" type="button" data-assign="${esc(x.company_id)}"${allow ? '' : ' disabled'}>이 업체에 배정</button>
+              <a href="partner-eval.html#company=${encodeURIComponent(x.company_id || '')}">평가 보기</a>
+            </div>
+          </article>`;
+        }
+        function renderCandidates() {
+          const c = current();
+          const box = $('candidates');
+          if (!c || !state.cand) {
+            box.innerHTML = '';
+            $('filteredCard').hidden = true;
+            return;
+          }
+          const items = state.cand.items;
+          if (!items.length) {
+            box.innerHTML = `<div class="no-cand">남는 업체 없음 — 고객에게 직접 연락
+              <div class="muted">조건에 맞는 업체가 없습니다. 상담은 대기로 둡니다${c.phone ? ` · 전화 ${esc(c.phone)}` : ''}</div></div>`;
+          } else {
+            const why = waiting(c)
+              ? '<div class="muted" style="margin-bottom:8px">답을 기다리는 배정이 있어 지금은 배정할 수 없습니다.</div>'
+              : !canAssign(c)
+                ? '<div class="muted" style="margin-bottom:8px">대기 상담만 배정할 수 있습니다.</div>'
+                : '';
+            box.innerHTML = `${why}<div class="cands">${items.map((x) => candHtml(x, c)).join('')}</div>`;
+          }
+          const filtered = state.cand.filtered;
+          $('filteredCard').hidden = !filtered.length;
+          $('filteredCard').innerHTML = filtered.length
+            ? `<details>
+                <summary>걸러진 업체 ${filtered.length}</summary>
+                <ul class="filtered">${filtered
+                  .map(
+                    (f) =>
+                      `<li><span>${esc(f.company_name || '-')}</span>${arr(f.reasons)
+                        .map((r) => {
+                          const l = has(FILTER_REASON, r) ? FILTER_REASON[r] : [String(r), ''];
+                          return `<span class="reason" title="${esc(l[1])}">${esc(l[0])}</span>`;
+                        })
+                        .join('')}</li>`
+                  )
+                  .join('')}</ul>
+              </details>`
+            : '';
+        }
+
+        async function loadCandidates(id) {
+          state.cand = null;
+          renderCandidates();
+          setStatus('candStatus', '순위를 계산하는 중…');
+          let data;
+          try {
+            data = await api(`/admin/consultations/${encodeURIComponent(id)}/candidates`);
+          } catch (e) {
+            if (state.selectedId !== id) return;
+            setStatus('candStatus', e.routeMissing ? ROUTE_MISSING : e.message, 'error');
+            return;
+          }
+          if (state.selectedId !== id) return; // 그새 다른 상담을 골랐다
+          state.cand = { items: arr(data && data.items), filtered: arr(data && data.filtered) };
+          setStatus('candStatus', '');
+          renderCandidates();
+        }
+
+        async function select(id) {
+          if (!state.items.some((i) => i.id === id)) return;
+          state.selectedId = id;
+          renderList();
+          renderDetail();
+          await loadCandidates(id);
+        }
+
+        // ── 배정 ──
+        function openAssign(companyId) {
+          const c = current();
+          if (!c || !state.cand || !canAssign(c)) return;
+          const x = state.cand.items.find((i) => i.company_id === companyId);
+          if (!x) return;
+          state.pending = { consultId: c.id, companyId: x.company_id, companyName: x.company_name || '-' };
+          $('assignText').textContent = `${c.name || '이 고객'} 상담을 「${state.pending.companyName}」에 배정할까요?`;
+          setStatus('assignStatus', '');
+          $('assignOk').disabled = false;
+          $('assignModal').classList.add('active');
+          $('assignOk').focus();
+        }
+        function closeAssign() {
+          $('assignModal').classList.remove('active');
+          state.pending = null;
+        }
+        async function doAssign() {
+          const p = state.pending;
+          if (!p || state.busy) return;
+          state.busy = true;
+          $('assignOk').disabled = true;
+          setStatus('assignStatus', '배정하는 중…');
+          try {
+            await api(`/admin/consultations/${encodeURIComponent(p.consultId)}/assign`, {
+              method: 'POST',
+              body: { company_id: p.companyId },
+            });
+            closeAssign();
+            await loadInbox();
+            setStatus('statusLine', `「${p.companyName}」에 배정했습니다. 업체가 24시간 안에 답합니다.`, 'ok');
+          } catch (e) {
+            if (e.code === 'open_assignment' || e.status === 409) {
+              closeAssign();
+              await loadInbox();
+              setStatus('statusLine', '이미 답을 기다리는 배정이 있습니다. 목록을 다시 불러왔습니다.', 'error');
+            } else if (e.code === 'not_eligible' || e.status === 422) {
+              closeAssign();
+              if (state.selectedId === p.consultId) await loadCandidates(p.consultId);
+              setStatus(
+                'candStatus',
+                `「${p.companyName}」은 지금 배정 조건에 맞지 않습니다. 순위를 다시 불러왔습니다.`,
+                'error'
+              );
+            } else if (e.routeMissing) {
+              closeAssign();
+              showSetup(true);
+            } else {
+              setStatus('assignStatus', e.message, 'error');
+              $('assignOk').disabled = false;
+            }
+          } finally {
+            state.busy = false;
+          }
+        }
+
+        /** 남은 시간 글자를 1분마다 고친다 */
+        function tick() {
+          document.querySelectorAll('[data-expires]').forEach((n) => {
+            n.textContent = leftText(n.getAttribute('data-expires'));
+          });
+        }
+
+        /** 주소의 #consult=<id> (또는 #<id>) — 상담 관리의 「상담 분배에서 업체에 나누기」에서 온다 */
+        function hashConsult() {
+          const h = String(window.location.hash || '').replace(/^#/, '');
+          if (!h) return null;
+          const m = /(?:^|&)consult=([^&]+)/.exec(h);
+          const raw = m ? m[1] : h.includes('=') ? '' : h;
+          if (!raw) return null;
+          try {
+            return decodeURIComponent(raw);
+          } catch (e) {
+            return null;
+          }
+        }
+        /** 그 상담을 고른 채 연다 — 대기 탭에 없으면 전체 탭에서 찾는다 */
+        async function openFromHash(loaded) {
+          const id = hashConsult();
+          if (!id || !loaded) return;
+          if (!state.items.some((i) => i.id === id) && state.tab !== 'all') {
+            state.tab = 'all';
+            renderTabs();
+            if (!(await loadInbox())) return;
+          }
+          if (state.items.some((i) => i.id === id)) await select(id);
+          else setStatus('statusLine', '고른 상담을 목록에서 찾지 못했습니다.', 'error');
+        }
+
+        function showAccessDenied() {
+          $('accessDenied').style.display = 'block';
+          $('pageContent').style.display = 'none';
+        }
+
+        async function init() {
+          if (!window.supabase || !window.DADAM_CONFIG || !window.DADAM_CONFIG.supabase) return showAccessDenied();
+          const { url, anonKey } = window.DADAM_CONFIG.supabase;
+          state.sb = window.supabase.createClient(url, anonKey);
+          const {
+            data: { session },
+          } = await state.sb.auth.getSession();
+          if (!session) return showAccessDenied();
+          const isAdmin = window.AdminAccess ? await window.AdminAccess.isAdmin(state.sb) : false;
+          if (!isAdmin) return showAccessDenied();
+          $('pageContent').style.display = 'block';
+
+          $('tabs').addEventListener('click', (e) => {
+            const b = e.target.closest('button[data-state]');
+            if (!b || b.getAttribute('data-state') === state.tab) return;
+            state.tab = b.getAttribute('data-state');
+            renderTabs();
+            loadInbox();
+          });
+          $('btnReload').addEventListener('click', () => loadInbox());
+          $('inboxList').addEventListener('click', (e) => {
+            const b = e.target.closest('button[data-id]');
+            if (b) select(b.getAttribute('data-id'));
+          });
+          $('candidates').addEventListener('click', (e) => {
+            const b = e.target.closest('button[data-assign]');
+            if (b && !b.disabled) openAssign(b.getAttribute('data-assign'));
+          });
+          $('assignCancel').addEventListener('click', closeAssign);
+          $('assignOk').addEventListener('click', doAssign);
+          $('assignModal').addEventListener('click', (e) => {
+            if (e.target === $('assignModal') && !state.busy) closeAssign();
+          });
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && $('assignModal').classList.contains('active') && !state.busy) closeAssign();
+          });
+          setInterval(tick, 60000);
+
+          if (!apiBase()) {
+            setStatus('statusLine', '업무 서버(workflowApi.url)가 설정되지 않았습니다.', 'error');
+            return;
+          }
+          await openFromHash(await loadInbox());
+        }
+
+        window.ConsultDistribution = { init, select, loadInbox, leftText, esc, state };
+        if (!window.__CONSULT_DIST_NO_AUTOSTART) {
+          if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+          else init();
+        }
+      })();
+    </script>
+  </body>
+</html>

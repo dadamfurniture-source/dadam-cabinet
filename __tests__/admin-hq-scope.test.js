@@ -3,8 +3,10 @@
  *
  * 회사 구성원 읽기 규칙이 생겨 RLS 만으로는 「본사 것」·「내 것」이 갈리지 않는다
  * (회사 구성원은 자기 회사의 상담 · 수주 · 설계를 모두 읽는다). 그래서 읽는 쪽이 직접 거른다.
- *   - admin/consultations.html, admin/index.html, mypage.html 의 관리자 통계:
- *       companies(kind='hq') 의 id 로 consultations 를 거른다. 그 id 를 못 읽으면 거르지 않은 채 읽지 않는다.
+ *   - admin/consultations.html, admin/index.html:
+ *       고객 상담은 다담 본사(companies.kind='platform') 행으로 들어온다. 그 id 로 consultations 를 거른다.
+ *       본사 행을 못 읽거나 없으면 거르지 않은 채 읽지 않고, 다른 회사(다담 공장 kind='hq')로 대신하지도 않는다.
+ *   - mypage.html 의 관리자 통계: companies(kind='hq') 의 id 로 거른다 (이 시험은 지금 모양을 지킨다).
  *   - mypage.html loadMyProjects: 내 설계(designs.user_id) id 로 orders 를 거른다.
  * 관리자 두 화면은 페이지 스크립트를 jsdom 에 올리고 가짜 Supabase 로 돌린다. 마이페이지는 소스를 잘라 본다.
  */
@@ -26,12 +28,12 @@ function between(src, start, end) {
   return src.slice(a, b);
 }
 
-const HQ = 'hq-company-id';
+const PLATFORM = 'platform-company-id';
 
 /** 어떤 메서드를 이어 불러도 자기를 돌려주고, await 하면 정해 둔 결과를 내는 가짜 쿼리. 부른 차례를 남긴다. */
 function query(result, calls) {
   const q = {};
-  for (const m of ['select', 'order', 'limit', 'eq', 'in', 'update', 'single']) {
+  for (const m of ['select', 'order', 'limit', 'eq', 'in', 'update', 'single', 'maybeSingle']) {
     q[m] = (...args) => {
       calls.push([m, ...args]);
       return q;
@@ -69,8 +71,10 @@ const reads = (log, table) =>
 const hasEq = (entry, col, val) =>
   entry.calls.some((c) => c[0] === 'eq' && c[1] === col && c[2] === val);
 
-const HQ_OK = { data: { id: HQ }, error: null };
-const HQ_FAIL = { data: null, error: { message: '본사 회사를 읽지 못했습니다' } };
+const PLATFORM_OK = { data: { id: PLATFORM }, error: null };
+const PLATFORM_FAIL = { data: null, error: { message: '본사 회사를 읽지 못했습니다' } };
+// maybeSingle 이 행 없이 끝난 경우 — 오류는 없고 data 가 null
+const PLATFORM_NONE = { data: null, error: null };
 const ROW = {
   id: 'c1',
   name: '고객',
@@ -79,59 +83,94 @@ const ROW = {
   created_at: '2026-10-20T00:00:00Z',
 };
 
+/** companies 읽기 — kind='platform' 하나로, maybeSingle (행이 없으면 오류 대신 null) */
+function expectPlatformRead(entry) {
+  expect(hasEq(entry, 'kind', 'platform')).toBe(true);
+  expect(hasEq(entry, 'kind', 'hq')).toBe(false);
+  expect(entry.calls.some((c) => c[0] === 'maybeSingle')).toBe(true);
+}
+
 describe('admin/consultations.html — 본사 상담만', () => {
   const HTML = read('admin/consultations.html');
 
-  test('통계 · 목록 읽기가 모두 본사 company_id 로 걸러진다', async () => {
-    const log = boot(HTML, { companies: HQ_OK, consultations: { data: [ROW], error: null } });
+  test('통계 · 목록 읽기가 모두 본사(kind platform) company_id 로 걸러진다', async () => {
+    const log = boot(HTML, { companies: PLATFORM_OK, consultations: { data: [ROW], error: null } });
     await window.initAdmin();
     const companyReads = reads(log, 'companies');
     expect(companyReads).toHaveLength(1);
-    expect(hasEq(companyReads[0], 'kind', 'hq')).toBe(true);
+    expectPlatformRead(companyReads[0]);
     const consult = reads(log, 'consultations');
     expect(consult.length).toBe(2); // loadStats + loadConsultations
-    consult.forEach((e) => expect(hasEq(e, 'company_id', HQ)).toBe(true));
+    consult.forEach((e) => expect(hasEq(e, 'company_id', PLATFORM)).toBe(true));
     expect(document.querySelectorAll('#consultationList .consultation-card')).toHaveLength(1);
   });
 
   test('본사 id 는 한 번만 읽는다 — 새로고침해도 다시 묻지 않는다', async () => {
-    const log = boot(HTML, { companies: HQ_OK, consultations: { data: [ROW], error: null } });
+    const log = boot(HTML, { companies: PLATFORM_OK, consultations: { data: [ROW], error: null } });
     await window.initAdmin();
     await window.loadConsultations();
     expect(reads(log, 'companies')).toHaveLength(1);
-    reads(log, 'consultations').forEach((e) => expect(hasEq(e, 'company_id', HQ)).toBe(true));
+    reads(log, 'consultations').forEach((e) => expect(hasEq(e, 'company_id', PLATFORM)).toBe(true));
   });
 
   test('본사 id 를 못 읽으면 거르지 않은 목록을 내지 않고 오류 화면을 보인다', async () => {
-    const log = boot(HTML, { companies: HQ_FAIL, consultations: { data: [ROW], error: null } });
+    const log = boot(HTML, { companies: PLATFORM_FAIL, consultations: { data: [ROW], error: null } });
     await window.initAdmin();
     expect(reads(log, 'consultations')).toHaveLength(0);
     const list = document.getElementById('consultationList');
     expect(list.querySelector('.consultation-card')).toBeNull();
     expect(list.textContent).toContain('데이터를 불러올 수 없습니다');
   });
+
+  test('본사 행이 없으면 안내 한 줄 — 다른 회사로 대신하지 않고 상담을 읽지 않는다', async () => {
+    const log = boot(HTML, { companies: PLATFORM_NONE, consultations: { data: [ROW], error: null } });
+    await window.initAdmin();
+    // 실패는 남겨 두지 않으므로 통계 · 목록이 한 번씩 다시 묻는다 — 모두 본사(kind platform)로만
+    const companyReads = reads(log, 'companies');
+    expect(companyReads).toHaveLength(2);
+    companyReads.forEach(expectPlatformRead);
+    expect(reads(log, 'consultations')).toHaveLength(0);
+    const list = document.getElementById('consultationList');
+    expect(list.querySelector('.consultation-card')).toBeNull();
+    expect(list.textContent.trim()).toBe('다담 본사 회사를 찾지 못해 상담을 불러오지 않았습니다.');
+  });
 });
 
 describe('admin/index.html — 상담 통계는 본사 것만', () => {
   const HTML = read('admin/index.html');
 
-  test('전체 · 대기 상담 수가 본사 company_id 로 걸러진다', async () => {
-    const log = boot(HTML, { companies: HQ_OK, consultations: { data: [ROW, ROW], error: null } });
+  test('전체 · 대기 상담 수가 본사(kind platform) company_id 로 걸러진다', async () => {
+    const log = boot(HTML, { companies: PLATFORM_OK, consultations: { data: [ROW, ROW], error: null } });
     await window.initAdmin();
+    const companyReads = reads(log, 'companies');
+    expect(companyReads).toHaveLength(1);
+    expectPlatformRead(companyReads[0]);
     const consult = reads(log, 'consultations');
     expect(consult).toHaveLength(2);
-    consult.forEach((e) => expect(hasEq(e, 'company_id', HQ)).toBe(true));
+    consult.forEach((e) => expect(hasEq(e, 'company_id', PLATFORM)).toBe(true));
     expect(document.getElementById('totalConsultations').textContent).toBe('2');
+    expect(document.getElementById('pendingConsultCount').textContent).toBe('대기 중 2건');
   });
 
   test("본사 id 를 못 읽으면 상담을 세지 않고 '-' 로 둔다", async () => {
     const log = boot(HTML, {
-      companies: HQ_FAIL,
+      companies: PLATFORM_FAIL,
       consultations: { data: [ROW, ROW], error: null },
     });
     await window.initAdmin();
     expect(reads(log, 'consultations')).toHaveLength(0);
     expect(document.getElementById('totalConsultations').textContent).toBe('-');
+  });
+
+  test("본사 행이 없으면 세지 않고 '-' · 대기 칸에 안내 한 줄", async () => {
+    const log = boot(HTML, {
+      companies: PLATFORM_NONE,
+      consultations: { data: [ROW, ROW], error: null },
+    });
+    await window.initAdmin();
+    expect(reads(log, 'consultations')).toHaveLength(0);
+    expect(document.getElementById('totalConsultations').textContent).toBe('-');
+    expect(document.getElementById('pendingConsultCount').textContent).toBe('다담 본사 회사를 찾지 못했습니다');
   });
 });
 

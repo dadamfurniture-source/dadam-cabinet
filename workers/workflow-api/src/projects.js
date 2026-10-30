@@ -2,6 +2,8 @@
  * 상담 → 고객 · 프로젝트 잇기, 고객이 보는 「내 프로젝트」.
  *
  * POST /consultations/:id/accept — 관리자가 본사 상담의 일정을 확정한다.
+ *   여기서 「본사」는 hq 회사(다담 공장)다. 다담 본사(platform)로 들어온 상담은 409 platform_consult —
+ *   그 상담은 업체에 배정하고(distribution/admin.js) 받은 업체가 고객 · 프로젝트를 만든다.
  *   상담의 customer_id · project_id 는 keep_owner_links 트리거(database/migrations/0007) 때문에
  *   사용자 JWT 로는 바꾸지 못한다 — 이 워커(service_role)가 잇는다.
  *   고객: 상담에 이미 있으면 그대로 → 회원 상담이면 그 계정의 본사 고객 행(없으면 만든다)
@@ -24,6 +26,7 @@ import {
   NotFoundError,
   ValidationError,
   hqCompanyId,
+  platformCompanyId,
   insertOne,
   insertOneIgnoreConflict,
   restDelete,
@@ -85,7 +88,15 @@ export async function acceptConsultation(env, { user, consultationId, body }) {
   const consultation = await selectOne(env, 'consultations', { id: `eq.${consultationId}`, select: CONSULTATION_COLUMNS });
   if (!consultation) throw new NotFoundError('상담을 찾을 수 없습니다');
   const hq = await hqCompanyId(env);
-  if (consultation.company_id !== hq) throw new ForbiddenError('본사 상담만 확정할 수 있습니다');
+  if (consultation.company_id !== hq) {
+    // 다담 본사(platform)로 들어온 상담은 여기서 확정하지 않는다 — 업체에 배정(/admin/consultations/:id/assign)한다
+    if (consultation.company_id === (await platformCompanyId(env))) {
+      const err = new ConflictError('본사로 들어온 상담은 업체에 배정해 그 업체가 받습니다', { status: consultation.status });
+      err.code = 'platform_consult';
+      throw err;
+    }
+    throw new ForbiddenError('본사 상담만 확정할 수 있습니다');
+  }
   if (!ACCEPTABLE_STATUSES.includes(consultation.status)) {
     throw new ConflictError('대기 · 확정 상담만 일정을 확정할 수 있습니다', { status: consultation.status });
   }
