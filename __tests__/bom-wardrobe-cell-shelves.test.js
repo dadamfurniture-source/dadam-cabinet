@@ -70,7 +70,7 @@ describe('규칙 파일', () => {
     expect(ext.cells.map((c) => c.rods)).toEqual([0, 0]);
     expect(WR.layoutWardrobeModule({ preset: 'short2', W: 900, D: 590, bodyH: 2120 }).rods.length).toBe(2);
   });
-  test('석가 (cellSplits) — 짧은옷 2단 하부 칸 석가 1: 900 통 내경 870 → (870 − 15) / 2 = 427 · 428, 칸마다 짧은 옷봉, 세로칸막이 1장 (그 칸 높이) (2026-10-30 사장님)', () => {
+  test('중간판 (cellSplits) — 짧은옷 2단 하부 칸 중간판 1: 900 통 내경 870 → (870 − 15) / 2 = 427 · 428, 칸마다 짧은 옷봉, 세로칸막이 1장 (그 칸 높이) (2026-10-30 사장님)', () => {
     const base = WR.layoutWardrobeModule({ preset: 'short2', W: 900, D: 590, bodyH: 2230 });
     const L = WR.layoutWardrobeModule({ preset: 'short2', W: 900, D: 590, bodyH: 2230, cellSplits: [1, null] });
     expect(WR.cabinetsOf(L).map((c) => [c.y0, c.h])).toEqual(WR.cabinetsOf(base).map((c) => [c.y0, c.h]));   // 몸통 그대로
@@ -81,13 +81,13 @@ describe('규칙 파일', () => {
     expect(L.dividers.map((d) => [d.part, d.axis, d.x, d.h, d.cutW])).toEqual([['세로칸막이', 'v', 427, base.cells[0].h, 590 - 18]]);
     expect(L.warnings).toEqual([]);
   });
-  test('석가 뒤 cellShelves 는 나눈 뒤 칸 차례 — 왼쪽 선반 3 (옷봉 걸 공간이 모자라 엔진이 옷봉을 뺀다) · 오른쪽 옷봉 그대로', () => {
+  test('중간판 뒤 cellShelves 는 나눈 뒤 칸 차례 — 왼쪽 선반 3 (옷봉 걸 공간이 모자라 엔진이 옷봉을 뺀다) · 오른쪽 옷봉 그대로', () => {
     const L = WR.layoutWardrobeModule({ preset: 'short2', W: 900, D: 590, bodyH: 2230, cellSplits: [1, null], cellShelves: [3, null, null] });
     expect(L.cells.map((c) => [c.kind, c.shelves, c.rods])).toEqual([['shelf', 3, 0], ['rod', 0, 1], ['rod', 0, 1]]);
     expect(L.shelves.filter((s) => s.cell === 0).map((s) => s.cutW)).toEqual([427, 427, 427]);
     expect(IR.wardrobeShelfErrorsOf(L, [3, null, null])).toEqual([]);
   });
-  test('석가 — 반 분할 왼쪽 칸 1장은 427 → 206 · 206 (기존 가운데 칸막이 그대로 + 1장), 2장은 132 라 최소 200 미만 — 나누지 않고 경고', () => {
+  test('중간판 — 반 분할 왼쪽 칸 1장은 427 → 206 · 206 (기존 가운데 칸막이 그대로 + 1장), 2장은 132 라 최소 200 미만 — 나누지 않고 경고', () => {
     const L = WR.layoutWardrobeModule({ preset: 'halfSplit', W: 900, D: 590, bodyH: 2230, cellSplits: [1, null] });
     expect(L.cells.map((c) => [c.label, c.x0, c.w])).toEqual([['좌 1', 0, 206], ['좌 2', 221, 206], ['우', 442, 427]]);
     expect(L.dividers.map((d) => d.x)).toEqual([206, 427]);
@@ -140,7 +140,7 @@ describe('배선 — 구조 → 브리지 → BOM → 조립', () => {
     expect(r.spec.unplaced.filter((u) => u.moduleKey === r.mk)).toEqual([]);
     expect(Check.check(r.spec).issues.filter((i) => i.level === 'error')).toEqual([]);
   });
-  test('석가 — 짧은옷 2단 하부 칸 석가 1: 브리지가 싣고, BOM 세로칸막이 1장 · 옷봉 422 · 423 · 865, 몸통 그대로, 조립 검사 오류 없음', () => {
+  test('중간판 — 짧은옷 2단 하부 칸 중간판 1: 브리지가 싣고, BOM 세로칸막이 1장 · 옷봉 422 · 423 · 865, 몸통 그대로, 조립 검사 오류 없음', () => {
     const base = run({ preset: 'short2' });
     const r = run({ preset: 'short2', cellSplits: [1, null] });
     expect(r.mod.wardrobe.cellSplits).toEqual([1, null]);
