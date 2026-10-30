@@ -4,7 +4,7 @@
  * 다담 본사가 받은 상담을 업체 풀(활동 중인 Agent 협력업체 + 다담 공장)에 나눌 때 쓰는 값.
  * 계산 순서 · 자료 읽기는 score.js · data.js — 숫자와 규칙은 여기만 고친다.
  *
- * ★ 대표 확인 대기 — 아래 넷은 추천값으로 넣어 두었다. 답이 오면 이 파일만 바꾼다.
+ * ★ 대표 확인 (2026-10-30, 추천값 그대로) — 아래 넷. 바꿀 때는 이 파일만 고친다.
  *   ① 위치          같은 시/군/구 15 · 같은 시/도 10 · 그 밖 5            (locationScore)
  *                   이웃 시/군/구 표가 없어(segan/regions.js 에 없다) 처음엔 같은 시/도를 이웃으로 본다.
  *                   이웃 표가 생기면 locationScore 만 바꾼다.
@@ -12,6 +12,7 @@
  *   ③ 희망 시기      업체 다음 가능 날짜가 희망 날짜 안 6 · 7일 안 늦음 3 · 그 밖 0, 희망 날짜 없으면 모두 6 (timingScore)
  *   ④ 한도 없음      한 달 한도(monthly_limit)를 정하지 않은 업체는 거른다 — 상담 설정을 마쳐야 배정받는다
  *                   (REQUIRE_MONTHLY_LIMIT)
+ *   ⑤ 거친 업체      같은 상담을 못 받음 · 무응답으로 돌려보낸 업체는 그 상담 후보에서 뺀다 (TRIED_STATES)
  *
  * ☆ 정하지 않음 — 약속서에 값이 없어 임시로 둔 것. 역시 여기만 고친다.
  *   NO_GRADE_POINTS · RESPONSE_WINDOW_DAYS · NEXT_AVAILABLE_UNSET(timingScore) · FEEDBACK_SCORE_MAX 환산
@@ -36,6 +37,7 @@ export const FILTER_REASONS = Object.freeze([
   'docs',
   'tier',
   'inactive',
+  'tried',
 ]);
 
 /** 품목 거르기 — 업체 「하는 품목」 값 중 통과하는 것 (함 · 외주). 「안 함(no)」 · 빈 값은 탈락 */
@@ -44,8 +46,11 @@ export const ITEM_PASS = Object.freeze(['do', 'outsource']);
 /** 서류 거르기 — 본사가 확인한(checked_at 이 있는) 서류 둘 다 있어야 한다: 배상 책임 보험 · 표준 계약서 */
 export const REQUIRED_DOCS = Object.freeze(['insurance', 'contract']);
 
-/** ★④ 한 달 한도를 정하지 않은 업체는 거른다 (대표 확인 대기) */
+/** ★④ 한 달 한도를 정하지 않은 업체는 거른다 (대표 확인 2026-10-30) */
 export const REQUIRE_MONTHLY_LIMIT = true;
+
+/** ★⑤ 같은 상담에서 이 배정 상태였던 업체는 거른다 — 못 받음 · 무응답 (대표 확인 2026-10-30) */
+export const TRIED_STATES = Object.freeze(['declined', 'expired']);
 
 // ── 점수 1) 본사 평가 40 ───────────────────────────────────────
 
@@ -94,10 +99,10 @@ export const FINISH_UNKNOWN = 3;
 export const PRICE_TIERS = Object.freeze(['basic', 'mid', 'high']);
 export const PRICE_SAME = 6;
 export const PRICE_ONE_STEP = 2;
-/** ★② 고객 가격대를 모르면 모든 업체 3 (대표 확인 대기) */
+/** ★② 고객 가격대를 모르면 모든 업체 3 (대표 확인 2026-10-30) */
 export const PRICE_UNKNOWN = 3;
 
-/** ★③ 희망 시기 (대표 확인 대기) */
+/** ★③ 희망 시기 (대표 확인 2026-10-30) */
 export const TIMING_ON_TIME = 6;
 export const TIMING_LATE = 3;
 export const TIMING_LATE_DAYS = 7;
@@ -109,7 +114,7 @@ export const DESIGN_MIN_STAFF = 1;
 
 // ── 점수 3) 위치 15 ───────────────────────────────────────────
 
-/** ★① 위치 (대표 확인 대기) */
+/** ★① 위치 (대표 확인 2026-10-30) */
 export const LOCATION_SAME_GUGUN = 15;
 export const LOCATION_SAME_SIDO = 10;
 export const LOCATION_OTHER = 5;
@@ -122,7 +127,7 @@ export const SPREAD_WINDOW_DAYS = 30;
 /** 처리 여유 — 진행 중 수주 ÷ 한 달 한도 0 → 5, 1 이상 → 0 */
 export const CAPACITY_MAX = 5;
 
-// ── 대표 확인 대기 규칙 (함수) ──────────────────────────────────
+// ── 대표 확인 규칙 (함수) ──────────────────────────────────
 
 const DAY_MS = 86400000;
 const isDate = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
