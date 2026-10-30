@@ -7,11 +7,12 @@
  *   - 직접 올린 시공사례 행 (collection_posts.source = 'upload')
  *   - 계약 기록이 없는 설계 — 행(딸린 품목 · 도면 스냅샷 · 렌더 기록 · 현장 정보 등은 FK CASCADE)과
  *     그 설계의 renders · cad 파일
- *   - 본사 고객 줄 (customers, 본사 · 이 계정) — 프로젝트가 딸리지 않은 것만
+ *   - 가입 고객 줄 (customers, 이 계정) — 다담 공장(hq) · 다담 본사(platform) 줄 중 프로젝트가 딸리지 않은 것만
+ *     (가입하면 본사 줄이 생긴다 — database/migrations/0017. 본사가 없는 DB 는 공장 줄만)
  *   - 계정 · 프로필 · 회사 구성원 행 등은 auth 사용자를 지울 때 FK CASCADE 로
  * 남긴다 (회원과 떼어):
  *   - 본사가 아닌 회사의 설계 — 회사 자료다. 계약 기록이 없어도 남긴다 (withdrawal_designs 가 남길 것으로 돌려준다)
- *   - 본사가 아닌 회사의 고객 장부 줄, 프로젝트가 딸린 본사 고객 줄 — auth 사용자를 지울 때 user_id 만 NULL 이 된다
+ *   - 협력업체의 고객 장부 줄, 프로젝트가 딸린 공장 · 본사 고객 줄 — auth 사용자를 지울 때 user_id 만 NULL 이 된다
  *   - 시공사례에 공개된 AI 연출컷 (source = 'ai_render' 행과 그 collection 복사본)
  *   - 결제 · 구독 기록 (결제 키는 지운다)                                        — database/withdrawal-retention.sql
  *   - 계약 기록이 있는 설계 — 고객 확인서 · 계약 시점 설계 · 시공 일정 · 시공 주소 · 수주가 딸린 설계 행 그대로,
@@ -87,25 +88,32 @@ export async function soleOwnerCompanies(env, userId) {
 }
 
 /**
- * 본사 고객 줄 — 프로젝트가 딸리지 않은 것만 지운다.
- * 프로젝트가 있으면 남긴다 (projects 가 고객을 RESTRICT 로 잡는다). 다른 회사의 고객 장부 줄은 건드리지 않는다.
+ * 가입 고객 줄 — 다담 공장(hq) · 다담 본사(platform)의 이 계정 고객 줄 중 프로젝트가 딸리지 않은 것만 지운다.
+ * 프로젝트가 있으면 남긴다 (projects 가 고객을 RESTRICT 로 잡는다). 협력업체의 고객 장부 줄은 건드리지 않는다.
+ * 공장을 못 찾으면 던진다. 본사는 없을 수 있다 (0017 전 DB) — 그때는 공장 줄만.
  * @returns {Promise<{deleted: number, kept: number}>}
  */
 async function deleteHqCustomers(env, userId) {
   const hq = await rest(env, 'companies?kind=eq.hq&select=id', 'GET');
   const hqId = hq.length === 1 && hq[0] ? hq[0].id : null;
   if (typeof hqId !== 'string' || !UUID_RE.test(hqId)) throw new Error('hq');
+  const platform = await rest(env, 'companies?kind=eq.platform&select=id', 'GET');
+  if (platform.length > 1) throw new Error('platform');
+  const platformId = platform.length === 1 && platform[0] ? platform[0].id : null;
+  if (platformId !== null && (typeof platformId !== 'string' || !UUID_RE.test(platformId))) throw new Error('platform');
   const out = { deleted: 0, kept: 0 };
-  const rows = await rest(env, `customers?company_id=eq.${hqId}&user_id=eq.${userId}&select=id`, 'GET');
-  for (const c of rows) {
-    if (!c || typeof c.id !== 'string' || !UUID_RE.test(c.id)) continue;
-    const projects = await rest(env, `projects?customer_id=eq.${c.id}&select=id&limit=1`, 'GET');
-    if (projects.length) {
-      out.kept += 1;
-      continue;
+  for (const companyId of platformId ? [hqId, platformId] : [hqId]) {
+    const rows = await rest(env, `customers?company_id=eq.${companyId}&user_id=eq.${userId}&select=id`, 'GET');
+    for (const c of rows) {
+      if (!c || typeof c.id !== 'string' || !UUID_RE.test(c.id)) continue;
+      const projects = await rest(env, `projects?customer_id=eq.${c.id}&select=id&limit=1`, 'GET');
+      if (projects.length) {
+        out.kept += 1;
+        continue;
+      }
+      const gone = await rest(env, `customers?id=eq.${c.id}&user_id=eq.${userId}&select=id`, 'DELETE');
+      out.deleted += gone.length;
     }
-    const gone = await rest(env, `customers?id=eq.${c.id}&user_id=eq.${userId}&select=id`, 'DELETE');
-    out.deleted += gone.length;
   }
   return out;
 }
@@ -181,7 +189,7 @@ export async function prepareWithdrawal(env, userId) {
     out.errors.push('designs_read');
   }
 
-  // 4) 본사 고객 줄 — 프로젝트가 없는 것만. 못 하면 줄이 남고(계정 연결만 끊김) 기록에 남긴다.
+  // 4) 가입 고객 줄(공장 · 본사) — 프로젝트가 없는 것만. 못 하면 줄이 남고(계정 연결만 끊김) 기록에 남긴다.
   try {
     out.customers = await deleteHqCustomers(env, userId);
   } catch {

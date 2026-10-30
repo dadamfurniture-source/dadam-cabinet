@@ -79,6 +79,9 @@ const HQ = '0000000a-0000-4000-8000-00000000000a';
 const CO_X = '0000000b-0000-4000-8000-00000000000b';
 const CUST_HQ = '0000000c-0000-4000-8000-00000000000c';
 const CUST_X = '0000000d-0000-4000-8000-00000000000d';
+// 다담 본사(platform)와 이 회원의 본사 가입 고객 줄
+const PLATFORM = '0000000e-0000-4000-8000-00000000000e';
+const CUST_PF = '0000000f-0000-4000-8000-00000000000f';
 const CUSTOMERS = () => [
   { id: CUST_HQ, company_id: HQ, user_id: UID },
   { id: CUST_X, company_id: CO_X, user_id: UID },
@@ -105,6 +108,7 @@ function fakeSupabase(
     members = [],
     failMembers = false,
     hq = HQ,
+    platform = null,
     customers = CUSTOMERS(),
     projects = [],
   } = {}
@@ -189,6 +193,11 @@ function fakeSupabase(
     if (u.endsWith('/rest/v1/companies?kind=eq.hq&select=id') && method === 'GET') {
       calls.push({ kind: 'hq', auth });
       return jsonRes(hq ? [{ id: hq }] : []);
+    }
+    // 다담 본사 (0017 — 없으면 빈 목록)
+    if (u.endsWith('/rest/v1/companies?kind=eq.platform&select=id') && method === 'GET') {
+      calls.push({ kind: 'platform', auth });
+      return jsonRes(platform ? [].concat(platform).map((id) => ({ id })) : []);
     }
     m = u.match(/\/rest\/v1\/customers\?company_id=eq\.([0-9a-f-]+)&user_id=eq\.([0-9a-f-]+)&select=id$/);
     if (m && method === 'GET') {
@@ -777,6 +786,46 @@ describe('prepareWithdrawal — 본사 고객 줄', () => {
     const w = await Wd.prepareWithdrawal(ENV, UID);
     expect(w.customers).toEqual({ deleted: 0, kept: 1 });
     expect(sb.customerRows.map((c) => c.id).sort()).toEqual([CUST_HQ, CUST_X].sort());
+    expect(sb.calls.some((c) => c.kind === 'customers_delete')).toBe(false);
+  });
+
+  test('다담 본사 가입 고객 줄도 지운다 — 공장 · 본사 줄 둘 다, 협력업체 장부 줄은 그대로', async () => {
+    const sb = fakeSupabase(FILES(), POSTS(), {
+      platform: PLATFORM,
+      customers: [...CUSTOMERS(), { id: CUST_PF, company_id: PLATFORM, user_id: UID }],
+    });
+    global.fetch = sb.fetchImpl;
+    const w = await Wd.prepareWithdrawal(ENV, UID);
+    expect(w.complete).toBe(true);
+    expect(w.customers).toEqual({ deleted: 2, kept: 0 });
+    expect(sb.customerRows.map((c) => c.id)).toEqual([CUST_X]);
+    expect(sb.calls.filter((c) => c.kind === 'customers_delete').map((c) => c.id)).toEqual([CUST_HQ, CUST_PF]);
+    expect(sb.calls.filter((c) => /^(hq|platform|customers_|projects_)/.test(c.kind)).every((c) => c.auth === 'Bearer service')).toBe(true);
+  });
+
+  test('프로젝트가 딸린 본사 가입 고객 줄은 남긴다', async () => {
+    const sb = fakeSupabase(FILES(), POSTS(), {
+      platform: PLATFORM,
+      customers: [...CUSTOMERS(), { id: CUST_PF, company_id: PLATFORM, user_id: UID }],
+      projects: [{ id: 'p1', customer_id: CUST_PF }],
+    });
+    global.fetch = sb.fetchImpl;
+    const w = await Wd.prepareWithdrawal(ENV, UID);
+    expect(w.customers).toEqual({ deleted: 1, kept: 1 });
+    expect(sb.customerRows.map((c) => c.id).sort()).toEqual([CUST_PF, CUST_X].sort());
+  });
+
+  test('다담 본사가 없는 DB(0017 전)는 공장 줄만, 본사가 둘이면 고객 줄을 건드리지 않고 기록에 남긴다', async () => {
+    let sb = fakeSupabase(FILES(), POSTS());
+    global.fetch = sb.fetchImpl;
+    let w = await Wd.prepareWithdrawal(ENV, UID);
+    expect(w.customers).toEqual({ deleted: 1, kept: 0 });
+    expect(sb.calls.some((c) => c.kind === 'platform')).toBe(true);
+
+    sb = fakeSupabase(FILES(), POSTS(), { platform: [PLATFORM, CO_X] });
+    global.fetch = sb.fetchImpl;
+    w = await Wd.prepareWithdrawal(ENV, UID);
+    expect(w.errors).toEqual(['customers']);
     expect(sb.calls.some((c) => c.kind === 'customers_delete')).toBe(false);
   });
 
