@@ -9,10 +9,11 @@
  *                   이웃 시/군/구 표가 없어(segan/regions.js 에 없다) 처음엔 같은 시/도를 이웃으로 본다.
  *                   이웃 표가 생기면 locationScore 만 바꾼다.
  *   ② 고객 가격대    상담의 wanted_price_tier. 모름 · 빈 값이면 모든 업체 3  (customerPriceTier · PRICE_UNKNOWN)
- *   ③ 희망 시기      업체가 가능한 날(오늘 + 상담까지 걸리는 날)이 희망 날짜 안 6 · 7일 안 늦음 3 · 그 밖 0,
- *                   희망 날짜 없으면 모두 6 (timingScore). 걸리는 날은 0~14일, 비면 0 (LEAD_DAYS_MAX · 10-30 확인)
- *   ④ 한도 없음      한 달 한도(monthly_limit)를 정하지 않은 업체는 거른다 — 상담 설정을 마쳐야 배정받는다
- *                   (REQUIRE_MONTHLY_LIMIT)
+ *   ③ 희망 시기      업체가 마칠 수 있는 날(오늘 + 고객 확정 ~ 시공 완료 기간)이 고객 시공 완료 희망 날짜 안 6 ·
+ *                   14일 안 늦음 3 · 그 밖 0, 희망 날짜 없으면 모두 6 (timingScore). 기간은 1~90일
+ *                   (LEAD_DAYS_MIN · LEAD_DAYS_MAX). 상담 → 고객 확정까지 걸리는 날은 셈에 넣지 않는다 (10-30 확인)
+ *   ④ 설정 덜 함     한 달 한도(monthly_limit) · 고객 확정 ~ 시공 완료 기간(lead_days)을 정하지 않은 업체는
+ *                   거른다 — 상담 설정을 마쳐야 배정받는다 (REQUIRE_MONTHLY_LIMIT · REQUIRE_LEAD_DAYS)
  *   ⑤ 거친 업체      같은 상담을 못 받음 · 무응답으로 돌려보낸 업체는 그 상담 후보에서 뺀다 (TRIED_STATES)
  *
  * ☆ 정하지 않음 — 약속서에 값이 없어 임시로 둔 것. 역시 여기만 고친다.
@@ -35,6 +36,7 @@ export const FILTER_REASONS = Object.freeze([
   'region',
   'item',
   'limit',
+  'period',
   'docs',
   'tier',
   'inactive',
@@ -49,6 +51,9 @@ export const REQUIRED_DOCS = Object.freeze(['insurance', 'contract']);
 
 /** ★④ 한 달 한도를 정하지 않은 업체는 거른다 (대표 확인 2026-10-30) */
 export const REQUIRE_MONTHLY_LIMIT = true;
+
+/** ★④ 고객 확정 ~ 시공 완료 기간을 정하지 않은 업체도 거른다 (대표 확인 2026-10-30) */
+export const REQUIRE_LEAD_DAYS = true;
 
 /** ★⑤ 같은 상담에서 이 배정 상태였던 업체는 거른다 — 못 받음 · 무응답 (대표 확인 2026-10-30) */
 export const TRIED_STATES = Object.freeze(['declined', 'expired']);
@@ -106,10 +111,11 @@ export const PRICE_UNKNOWN = 3;
 /** ★③ 희망 시기 (대표 확인 2026-10-30) */
 export const TIMING_ON_TIME = 6;
 export const TIMING_LATE = 3;
-export const TIMING_LATE_DAYS = 7;
+export const TIMING_LATE_DAYS = 14;
 export const TIMING_NO_DATE = 6;
-/** 업체 「상담까지 걸리는 날」 최댓값 (0~14일, 비면 0) — 날짜를 적어 두면 날마다 고쳐야 해서 일수로 받는다 */
-export const LEAD_DAYS_MAX = 14;
+/** 업체 「고객 확정 ~ 시공 완료 기간」 1~90일 — DB company_service_settings_lead_days_check 와 같다 */
+export const LEAD_DAYS_MIN = 1;
+export const LEAD_DAYS_MAX = 90;
 
 /** 상세 설계 — 요청이 있으면 설계 인원 1명 이상 + 플래너 사용 5 · 아니면 0. 요청 없으면 모두 5 */
 export const DESIGN_MAX = 5;
@@ -158,15 +164,18 @@ export function customerPriceTier(consult) {
 
 /**
  * ★③ 희망 시기.
- *   preferredDate  고객 희망 (상담) 날짜 'YYYY-MM-DD' (없으면 모두 TIMING_NO_DATE)
- *   leadDays       업체 「상담까지 걸리는 날」 0~14 (비면 0) — 가능한 날 = 오늘 + leadDays
- *   today          오늘(KST) 'YYYY-MM-DD'
+ *   wantedDoneDate  고객 시공 완료 희망 날짜 'YYYY-MM-DD' (없으면 모두 TIMING_NO_DATE)
+ *   leadDays        업체 「고객 확정 ~ 시공 완료 기간」 1~90 — 마칠 수 있는 날 = 오늘 + leadDays
+ *   today           오늘(KST) 'YYYY-MM-DD'
+ * 기간이 없으면 잴 수 없어 0 (REQUIRE_LEAD_DAYS 가 켜져 있으면 여기 오지 않는다).
  */
-export function timingScore(preferredDate, leadDays, today) {
-  if (!isDate(preferredDate) || !isDate(today)) return TIMING_NO_DATE;
-  const lead = Number.isInteger(leadDays) && leadDays > 0 ? leadDays : 0;
+export function timingScore(wantedDoneDate, leadDays, today) {
+  if (!isDate(wantedDoneDate) || !isDate(today)) return TIMING_NO_DATE;
+  if (!Number.isInteger(leadDays)) return 0;
   const late = Math.round(
-    (Date.parse(`${today}T00:00:00Z`) + lead * DAY_MS - Date.parse(`${preferredDate}T00:00:00Z`)) /
+    (Date.parse(`${today}T00:00:00Z`) +
+      leadDays * DAY_MS -
+      Date.parse(`${wantedDoneDate}T00:00:00Z`)) /
       DAY_MS
   );
   if (late <= 0) return TIMING_ON_TIME;
