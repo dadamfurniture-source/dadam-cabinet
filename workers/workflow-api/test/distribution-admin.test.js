@@ -713,11 +713,15 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
     response_rate: null,
     rework_free_rate: null,
   });
-  assert.deepEqual(first.json.data.catalog.install, [
-    { key: 'demolition', name: '철거' },
-    { key: 'utility_connect', name: '설비 연결' },
-    { key: 'high_floor', name: '높은 층 운반' },
-  ]);
+  assert.equal(first.json.data.catalog.install, undefined, '시공 묶음은 뺐다');
+  assert.deepEqual(
+    first.json.data.catalog.design.map((x) => x.name),
+    ['손도면', 'CAD', '스케치업', '가구 전문 플래너']
+  );
+  assert.deepEqual(
+    first.json.data.catalog.finish_notes.map((x) => x.key),
+    ['door', 'body', 'hw', 'top']
+  );
   assert.deepEqual(first.json.data.catalog.docs, [
     { key: 'insurance', name: '배상 책임 보험' },
     { key: 'contract', name: '표준 계약서' },
@@ -737,7 +741,8 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
       equipment: { table_saw: 'have', nesting: 'outsource' },
       staff: { design: 2 },
       docs: { insurance: { checked_at: '2026-10-29' }, contract: false },
-      install: { demolition: true, install_years: 7 },
+      finishes: { door_pet: 'yes', notes: { door: ' PET 는 외주 ', top: '' } },
+      design: { cad: true, planner: true },
       price_tier: 'basic',
       as_months: 12,
     },
@@ -747,7 +752,9 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
   assert.equal(saved.grade, 'B');
   assert.equal(saved.evaluated_by, ADMIN);
   assert.deepEqual(saved.docs, { insurance: { checked_at: '2026-10-29', by: ADMIN } });
-  assert.deepEqual(saved.install, { demolition: true, install_years: 7 });
+  assert.deepEqual(saved.install, {});
+  assert.deepEqual(saved.finishes, { door_pet: 'yes', notes: { door: 'PET 는 외주' } });
+  assert.deepEqual(saved.design, { cad: true, planner: true });
   assert.deepEqual(put.json.data.evaluation.equipment, { table_saw: 'have', nesting: 'outsource' });
   const upsert = writesOf(fake).find((c) => c.table === 'company_evaluations');
   assert.equal(upsert.params.get('on_conflict'), 'company_id');

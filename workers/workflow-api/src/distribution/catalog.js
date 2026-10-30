@@ -65,23 +65,25 @@ export const FINISHES = Object.freeze({
   top_engineered: '상판 엔지니어드 스톤',
 });
 export const FINISH_VALUES = Object.freeze(['yes', 'no']);
+/** 마감 · 자재 분야별 메모 — finishes.notes { 분야: 글 } (점수에 쓰지 않는다). 분야 키는 FINISHES 키 앞머리 */
+export const FINISH_NOTE_GROUPS = Object.freeze({
+  door: '도어',
+  body: '몸통',
+  hw: '하드웨어',
+  top: '상판',
+});
+export const FINISH_NOTES_KEY = 'notes';
+export const FINISH_NOTE_MAX = 500;
 
-/** 설계 — true | false */
+/** 설계 — true | false. planner(가구 전문 플래너)는 상담 분배 「상세 설계」 점수가 본다 (score.js designPoints) */
 export const DESIGN = Object.freeze({
-  measure: '실측',
-  drawing_2d: '도면',
-  planner: '플래너',
-  render_3d: '3D',
+  hand_drawing: '손도면',
+  cad: 'CAD',
+  sketchup: '스케치업',
+  planner: '가구 전문 플래너',
 });
 
-/** 시공 — true | false, 그리고 경력 연수(INSTALL_YEARS_KEY, 정수) */
-export const INSTALL = Object.freeze({
-  demolition: '철거',
-  utility_connect: '설비 연결',
-  high_floor: '높은 층 운반',
-});
-export const INSTALL_YEARS_KEY = 'install_years';
-export const INSTALL_YEARS_MAX = 100;
+/** 시공 묶음은 평가표에서 뺐다 — 칸(0018 install)은 남고 저장할 때 늘 비운다 */
 
 /** 서류 — 본사 확인 (checked_at · by 는 서버가 찍는다) */
 export const DOCS = Object.freeze({
@@ -106,15 +108,15 @@ export const ITEM_KEYS = Object.freeze(Object.keys(FURNITURE_LABELS));
 
 /**
  * GET /admin/companies/:id/evaluation 의 catalog — 묶음마다 [{ key, name }].
- * install 은 체크 항목만 — 시공 경력은 평가표 install.install_years(숫자)로 따로 받는다.
+ * finish_notes 는 마감 · 자재 분야별 메모 칸 (finishes.notes 의 키).
  */
 export function evaluationCatalog() {
   return {
     equipment: entries(EQUIPMENT),
     staff_roles: entries(STAFF_ROLES),
     finishes: entries(FINISHES),
+    finish_notes: entries(FINISH_NOTE_GROUPS),
     design: entries(DESIGN),
-    install: entries(INSTALL),
     docs: entries(DOCS),
     grades: Object.keys(GRADE_POINTS),
     price_tiers: [...PRICE_TIERS],
@@ -175,6 +177,8 @@ function intOrNull(body, field, min, max) {
 /**
  * PUT /admin/companies/:id/evaluation 본문 → 저장할 칸. 목록 밖 키 · 틀린 값은 422 (어느 칸 · 키인지 details).
  * 본문이 다시 정하는 표 전체다 (빠진 칸은 비운다). 위쪽 칸 중 모르는 이름(company_id 등)은 읽지 않는다.
+ *   finishes.notes: { door · body · hw · top: 글 } — 마감 · 자재 분야별 메모 (앞뒤 빈칸 지움, 빈 글은 뺀다, 500자까지).
+ *   install: 시공 묶음은 뺐다 — 키가 있으면 422, 저장은 늘 {}.
  *   docs: { insurance: { checked_at: 'YYYY-MM-DD' }, contract: … } — 확인한 날. 확인한 사람(by)은 서버가 호출자로 채운다.
  *         날이 저장된 것과 같으면 저장된 기록(by 포함)을 그대로 둔다. true 는 오늘(today) 확인, false · null 은 확인 안 됨.
  */
@@ -184,7 +188,7 @@ export function parseEvaluation(body, { existing = null, userId, today }) {
   const bad = [];
   const equipment = objectOf(body, 'equipment');
   const staff = objectOf(body, 'staff');
-  const finishes = objectOf(body, 'finishes');
+  const { [FINISH_NOTES_KEY]: notesIn, ...finishes } = objectOf(body, 'finishes');
   const design = objectOf(body, 'design');
   const install = objectOf(body, 'install');
   const docsIn = objectOf(body, 'docs');
@@ -193,8 +197,11 @@ export function parseEvaluation(body, { existing = null, userId, today }) {
   for (const k of unknownKeys(staff, STAFF_ROLES)) bad.push(`staff.${k}`);
   for (const k of unknownKeys(finishes, FINISHES)) bad.push(`finishes.${k}`);
   for (const k of unknownKeys(design, DESIGN)) bad.push(`design.${k}`);
-  for (const k of Object.keys(install))
-    if (!has(INSTALL, k) && k !== INSTALL_YEARS_KEY) bad.push(`install.${k}`);
+  for (const k of Object.keys(install)) bad.push(`install.${k}`);
+  const notes = notesIn === undefined || notesIn === null ? {} : notesIn;
+  if (!isPlainObject(notes))
+    throw new ValidationError('finishes.notes 는 객체여야 합니다', { field: 'finishes.notes' });
+  for (const k of unknownKeys(notes, FINISH_NOTE_GROUPS)) bad.push(`finishes.notes.${k}`);
   for (const k of unknownKeys(docsIn, DOCS)) bad.push(`docs.${k}`);
   if (bad.length) throw new ValidationError('평가표 목록에 없는 항목입니다', { unknown_keys: bad });
 
@@ -207,13 +214,11 @@ export function parseEvaluation(body, { existing = null, userId, today }) {
     if (!FINISH_VALUES.includes(v)) wrong.push(`finishes.${k}`);
   for (const [k, v] of Object.entries(design))
     if (typeof v !== 'boolean') wrong.push(`design.${k}`);
-  for (const [k, v] of Object.entries(install)) {
-    if (k === INSTALL_YEARS_KEY) {
-      if (v !== null && (!Number.isInteger(v) || v < 0 || v > INSTALL_YEARS_MAX))
-        wrong.push(`install.${k}`);
-    } else if (typeof v !== 'boolean') {
-      wrong.push(`install.${k}`);
-    }
+  const finishNotes = {};
+  for (const [k, v] of Object.entries(notes)) {
+    const text = typeof v === 'string' ? v.trim() : null;
+    if (text === null || text.length > FINISH_NOTE_MAX) wrong.push(`finishes.notes.${k}`);
+    else if (text) finishNotes[k] = text;
   }
   const docs = {};
   const before = (existing && isPlainObject(existing.docs) && existing.docs) || {};
@@ -255,9 +260,11 @@ export function parseEvaluation(body, { existing = null, userId, today }) {
     grade,
     equipment: { ...equipment },
     staff: { ...staff },
-    finishes: { ...finishes },
+    finishes: Object.keys(finishNotes).length
+      ? { ...finishes, [FINISH_NOTES_KEY]: finishNotes }
+      : { ...finishes },
     design: { ...design },
-    install: { ...install },
+    install: {},
     price_tier: priceTier,
     docs,
     as_months: intOrNull(body, 'as_months', 0, 240),
