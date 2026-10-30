@@ -61,7 +61,8 @@ export const REASON_MAX = 500;
 
 const COPY_COLUMNS =
   'id,company_id,origin_consultation_id,customer_id,project_id,created_at,status,name,phone,email,sido,gugun,' +
-  'furniture_categories,door_finish,demolition_needed,wanted_price_tier,preferred_date,preferred_time,description,' +
+  'furniture_categories,door_finish,demolition_needed,wanted_price_tier,preferred_date,preferred_time,wanted_done_date,' +
+  'description,' +
   'request_detail_design,quote,title';
 
 function conflict(message, code, details = null) {
@@ -204,6 +205,7 @@ export async function listCompanyConsults(env, { user }) {
         wanted_price_tier: r.wanted_price_tier ?? null,
         preferred_date: r.preferred_date,
         preferred_time: r.preferred_time,
+        wanted_done_date: r.wanted_done_date ?? null,
         description: r.description ?? null,
         request_detail_design: r.request_detail_design === true,
         quote_total: quoteTotal(r.quote),
