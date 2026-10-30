@@ -93,6 +93,16 @@ const EVAL = {
   note: '첫 미팅 메모',
   evaluated_at: '2026-10-25T02:00:00Z',
 };
+// 서버가 매긴 점수 — 화면은 계산하지 않고 그대로 보인다
+const SCORE = {
+  areas: [
+    { key: 'equipment', name: '설비(서버)', points: 3.5, max: 30 },
+    { key: 'docs', name: '신뢰 · 서류(서버)', points: 2.5, max: 5 },
+  ],
+  total: 6,
+  max: 100,
+  grade: 'B',
+};
 const HISTORY = [
   { evaluated_at: '2026-10-25T02:00:00Z', evaluated_by_email: 'boss@example.test', grade: 'B' },
   { evaluated_at: '2026-09-01T02:00:00Z', grade: 'C' },
@@ -103,7 +113,7 @@ const fail = (status, message, code) => ({ status, body: { success: false, messa
 
 function defaultHandler(
   over = {},
-  evalData = { evaluation: EVAL, catalog: CATALOG, history: HISTORY }
+  evalData = { evaluation: EVAL, score: SCORE, catalog: CATALOG, history: HISTORY }
 ) {
   return (call) => {
     for (const [re, fn] of Object.entries(over)) {
@@ -288,7 +298,12 @@ describe('평가표 — 10묶음, 항목은 서버 catalog', () => {
     expect(checkedIn('docs')).toEqual(['insurance']);
     expect(document.querySelector('input[data-doc-date="insurance"]').value).toBe('2026-10-01');
     expect(document.querySelector('input[data-doc-date="contract"]').value).toBe('');
-    expect(checkedIn('grade')).toEqual(['B']);
+    expect(document.querySelector('#evGrade .grade-line').textContent).toBe('B 합계 6 / 100점');
+    expect(rowsOf('grade')).toEqual(['설비(서버)3.5 / 30', '신뢰 · 서류(서버)2.5 / 5']);
+    expect(document.querySelector('#evForm input[name="grade"]')).toBeNull();
+    expect(document.querySelector('#evForm .group[data-group="grade"] h4 small').textContent).toBe(
+      '저장할 때 평가표 점수로 매깁니다'
+    );
     expect($('fNote').value).toBe('첫 미팅 메모');
   });
 
@@ -425,14 +440,12 @@ describe('저장 — PUT /admin/companies/:id/evaluation', () => {
     setRadio('price_tier', 'high');
     setValue('#fAsMonths', '18');
     setValue('input[data-doc-date="contract"]', '2026-10-28');
-    setRadio('grade', 'A');
     setValue('#fNote', '  서류 다 받음  ');
     $('btnSave').click();
     await settle();
     const put = calls.find((c) => c.method === 'PUT');
     expect(put.path).toBe('/admin/companies/p1/evaluation');
     expect(put.body).toEqual({
-      grade: 'A',
       equipment: { panel_saw: 'have', cnc_cut: 'outsource', edge_bander: 'none' },
       staff: { design: 2, install: 3 },
       finishes: {
@@ -490,8 +503,8 @@ describe('저장 — PUT /admin/companies/:id/evaluation', () => {
     await open('f1');
     $('btnSave').click();
     await settle();
+    expect($('evGrade').textContent).toBe('아직 평가하지 않았습니다. 저장하면 등급이 매겨집니다.');
     expect(calls.find((c) => c.method === 'PUT').body).toEqual({
-      grade: null,
       equipment: {},
       staff: {},
       finishes: {},
