@@ -505,7 +505,7 @@ test('상담 설정 — 없으면 빈 값 (구성원), 대표 · 실장이 고�
     ],
     items: { sink: 'do', wardrobe: 'outsource', vanity: 'no' },
     monthly_limit: 12,
-    lead_days: 30,
+    lead_days: 10,
   };
   const put = await call(fake, '/company/service-settings', MANAGER_A, { method: 'PUT', body });
   assert.equal(put.status, 200, JSON.stringify(put.json));
@@ -517,10 +517,10 @@ test('상담 설정 — 없으면 빈 값 (구성원), 대표 · 실장이 고�
   ]);
   assert.deepEqual(row.items, body.items);
   assert.equal(row.monthly_limit, 12);
-  assert.equal(row.lead_days, 30);
+  assert.equal(row.lead_days, 10);
   assert.equal(row.updated_by, MANAGER_A);
   const read = await call(fake, '/company/service-settings', STAFF_A);
-  assert.equal(read.json.data.lead_days, 30);
+  assert.equal(read.json.data.lead_days, 10);
   assert.ok(!('next_available_date' in read.json.data));
   assert.equal(
     writesOf(fake)
@@ -530,7 +530,7 @@ test('상담 설정 — 없으면 빈 값 (구성원), 대표 · 실장이 고�
   );
 });
 
-test('상담 설정 — 목록 밖 품목 · 틀린 값 · 지역 · 한도 · 기간(1~90)은 422', async () => {
+test('상담 설정 — 목록 밖 품목 · 틀린 값 · 지역 · 한도 · 기간(1~14)은 422', async () => {
   const fake = fakeOf();
   const put = (body) => call(fake, '/company/service-settings', OWNER_A, { method: 'PUT', body });
   const unknown = await put({ items: { sauna: 'do' } });
@@ -548,7 +548,7 @@ test('상담 설정 — 목록 밖 품목 · 틀린 값 · 지역 · 한도 · �
   assert.equal((await put({ regions: 'x' })).status, 422);
   assert.equal((await put({ monthly_limit: 1001 })).status, 422);
   assert.equal((await put({ monthly_limit: 2.5 })).status, 422);
-  for (const lead_days of [0, 91, -1, 1.5, '30']) {
+  for (const lead_days of [0, 15, -1, 1.5, '10']) {
     assert.equal((await put({ lead_days })).status, 422, String(lead_days));
   }
   assert.equal(writesOf(fake).length, 0);

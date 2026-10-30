@@ -10,8 +10,8 @@
  *                   이웃 표가 생기면 locationScore 만 바꾼다.
  *   ② 고객 가격대    상담의 wanted_price_tier. 모름 · 빈 값이면 모든 업체 3  (customerPriceTier · PRICE_UNKNOWN)
  *   ③ 희망 시기      업체가 마칠 수 있는 날(오늘 + 고객 확정 ~ 시공 완료 기간)이 고객 시공 완료 희망 날짜 안 6 ·
- *                   14일 안 늦음 3 · 그 밖 0, 희망 날짜 없으면 모두 6 (timingScore). 기간은 1~90일
- *                   (LEAD_DAYS_MIN · LEAD_DAYS_MAX). 상담 → 고객 확정까지 걸리는 날은 셈에 넣지 않는다 (10-30 확인)
+ *                   14일 안 늦음 3 · 그 밖 0, 희망 날짜 없으면 모두 6 (timingScore). 기간은 업체의 최소 제작 기간
+ *                   1~14일, 일 단위 (LEAD_DAYS_MIN · LEAD_DAYS_MAX). 상담 → 고객 확정까지 걸리는 날은 셈에 넣지 않는다 (10-30 확인)
  *   ④ 설정 덜 함     한 달 한도(monthly_limit) · 고객 확정 ~ 시공 완료 기간(lead_days)을 정하지 않은 업체는
  *                   거른다 — 상담 설정을 마쳐야 배정받는다 (REQUIRE_MONTHLY_LIMIT · REQUIRE_LEAD_DAYS)
  *   ⑤ 거친 업체      같은 상담을 못 받음 · 무응답으로 돌려보낸 업체는 그 상담 후보에서 뺀다 (TRIED_STATES)
@@ -113,9 +113,10 @@ export const TIMING_ON_TIME = 6;
 export const TIMING_LATE = 3;
 export const TIMING_LATE_DAYS = 14;
 export const TIMING_NO_DATE = 6;
-/** 업체 「고객 확정 ~ 시공 완료 기간」 1~90일 — DB company_service_settings_lead_days_check 와 같다 */
+/** 업체 「고객 확정 ~ 시공 완료 기간」 = 최소 제작 기간 1~14일, 일 단위 (대표 확인 2026-10-30)
+ *  — DB company_service_settings_lead_days_check 와 같다 */
 export const LEAD_DAYS_MIN = 1;
-export const LEAD_DAYS_MAX = 90;
+export const LEAD_DAYS_MAX = 14;
 
 /** 상세 설계 — 요청이 있으면 설계 인원 1명 이상 + 플래너 사용 5 · 아니면 0. 요청 없으면 모두 5 */
 export const DESIGN_MAX = 5;

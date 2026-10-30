@@ -65,7 +65,7 @@ const settings = (extra = {}) => ({
   regions: [{ sido: '서울특별시', gugun: '강남구' }],
   items: { sink: 'do' },
   monthly_limit: 10,
-  lead_days: 30,
+  lead_days: 10,
   ...extra,
 });
 const consult = (extra = {}) => ({
@@ -142,20 +142,20 @@ test('고객 가격대 — wanted_price_tier, 모름 · 빈 값이면 모든 업
 test('희망 시기 — 마칠 수 있는 날(오늘 + 기간)이 시공 완료 희망 날짜 안 6 · 14일 안 늦음 3 · 그 밖 0, 희망 날짜 없으면 6', () => {
   const today = '2026-10-30';
   assert.equal(R.LEAD_DAYS_MIN, 1);
-  assert.equal(R.LEAD_DAYS_MAX, 90);
+  assert.equal(R.LEAD_DAYS_MAX, 14);
   assert.equal(R.TIMING_LATE_DAYS, 14);
-  assert.equal(R.timingScore(null, 90, today), 6);
-  assert.equal(R.timingScore('2026-12-31', 30, today), 6);
-  assert.equal(R.timingScore('2026-11-29', 30, today), 6, '같은 날');
-  assert.equal(R.timingScore('2026-11-29', 31, today), 3, '1일 늦음');
-  assert.equal(R.timingScore('2026-11-29', 44, today), 3, '14일');
-  assert.equal(R.timingScore('2026-11-29', 45, today), 0, '15일');
+  assert.equal(R.timingScore(null, 14, today), 6);
+  assert.equal(R.timingScore('2026-12-31', 14, today), 6);
+  assert.equal(R.timingScore('2026-11-09', 10, today), 6, '같은 날');
+  assert.equal(R.timingScore('2026-11-09', 11, today), 3, '1일 늦음');
+  assert.equal(R.timingScore('2026-10-30', 14, today), 3, '14일');
+  assert.equal(R.timingScore('2026-10-29', 14, today), 0, '15일 — 지난 희망 날짜');
   assert.equal(
-    R.timingScore('2026-11-29', null, today),
+    R.timingScore('2026-11-09', null, today),
     0,
     '기간이 없으면 잴 수 없음 (거르기에서 빠진다)'
   );
-  assert.equal(R.timingScore('언젠가', 30, today), 6, '날짜 모양이 아니면 희망 날짜 없음');
+  assert.equal(R.timingScore('언젠가', 10, today), 6, '날짜 모양이 아니면 희망 날짜 없음');
 });
 
 test('한 달 한도 · 고객 확정 ~ 시공 완료 기간을 정하지 않은 업체는 거른다 (limit · period)', () => {
@@ -511,7 +511,7 @@ test('선택 적합도 — 다섯 항목 합 (만점 35)', () => {
       request_detail_design: true,
     }),
     items: ['sink'],
-    settings: settings({ lead_days: 30 }),
+    settings: settings({ lead_days: 10 }),
     evaluation: {
       finishes: { door_pet: 'yes' },
       price_tier: 'mid',

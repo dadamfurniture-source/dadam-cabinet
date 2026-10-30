@@ -300,7 +300,7 @@ export function emptySettings() {
  *   regions              [{ sido, gugun }] — 시/도 목록 · 시/군/구 모양만, 같은 곳은 한 번. 비우면 업체 주소의 시/군/구 하나로 본다
  *   items                { 품목 키: do | outsource | no } — 목록 밖 품목은 422
  *   monthly_limit        0~1000 정수 또는 null (null 이면 배정받지 않는다 — rules.js REQUIRE_MONTHLY_LIMIT)
- *   lead_days            고객 확정 ~ 시공 완료 기간 1~90 정수 또는 null (null 이면 배정받지 않는다 — rules.js REQUIRE_LEAD_DAYS)
+ *   lead_days            고객 확정 ~ 시공 완료 기간(최소 제작 기간) 1~14 정수 또는 null (null 이면 배정받지 않는다 — rules.js REQUIRE_LEAD_DAYS)
  */
 export function parseServiceSettings(body) {
   if (!isPlainObject(body)) throw new ValidationError('JSON 본문이 필요합니다');

@@ -74,7 +74,7 @@ const svc = (company_id, extra = {}) => ({
   regions: [SEOUL_GANGNAM],
   items: { sink: 'do' },
   monthly_limit: 10,
-  lead_days: 20,
+  lead_days: 5,
   ...extra,
 });
 const evaln = (company_id, extra = {}) => ({
@@ -105,7 +105,7 @@ const P1_ROW = {
   description: '상부장 높게',
   preferred_date: kstDay(2),
   preferred_time: '09:00-12:00',
-  wanted_done_date: kstDay(30),
+  wanted_done_date: kstDay(7),
   furniture_categories: ['sink', 'not-a-key'],
   space_type: 'kitchen',
   space_width_mm: 3000,
@@ -169,10 +169,10 @@ function tables() {
       { company_id: B, user_id: OWNER_B, role: 'owner', status: 'active' },
     ],
     company_service_settings: [
-      svc(FACTORY, { lead_days: 30 }), // 시공 완료 희망 날 그날 6
+      svc(FACTORY, { lead_days: 7 }), // 시공 완료 희망 날 그날 6
       svc(A),
-      svc(B, { lead_days: 40 }), // 10일 늦음 3
-      svc(C, { lead_days: 60 }), // 30일 늦음 0
+      svc(B, { lead_days: 14 }), // 7일 늦음 3
+      svc(C, { lead_days: 10 }), // 3일 늦음 3
       svc(D),
       svc(G, { regions: [{ sido: '부산광역시', gugun: '해운대구' }] }),
     ],
