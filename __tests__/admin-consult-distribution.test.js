@@ -36,6 +36,7 @@ const C1 = {
   wanted_price_tier: 'mid',
   preferred_date: '2026-11-20',
   preferred_time: '09:00-12:00',
+  wanted_done_date: '2027-01-15',
   request_detail_design: true,
   quote_total: 4200000,
   has_generation: true,
@@ -56,6 +57,7 @@ const C2 = {
   wanted_price_tier: null,
   preferred_date: null,
   preferred_time: null,
+  wanted_done_date: null,
   request_detail_design: false,
   quote_total: null,
   has_generation: false,
@@ -112,7 +114,7 @@ const CANDS = {
     },
   ],
   filtered: [
-    { company_id: 'p5', company_name: '먼가구', reasons: ['region', 'limit'] },
+    { company_id: 'p5', company_name: '먼가구', reasons: ['region', 'limit', 'period'] },
     { company_id: 'p6', company_name: '서류업체', reasons: ['docs', 'inactive', 'tier', 'item'] },
     { company_id: 'p7', company_name: '거친가구', reasons: ['tried'] },
   ],
@@ -256,7 +258,7 @@ describe('들어오기 · 목록', () => {
 });
 
 describe('상담 고르기 — 고객 · 배정 · 순위', () => {
-  test('고객 칸: 이름 · 전화 · 지역 · 품목 · 도어 마감 · 철거 · 원하는 가격대 · 희망 시기 · 상세 설계 · 예상 견적', async () => {
+  test('고객 칸: 이름 · 전화 · 지역 · 품목 · 도어 마감 · 철거 · 원하는 가격대 · 희망 시기(시공 완료) · 희망 상담 · 상세 설계 · 예상 견적', async () => {
     const calls = await start();
     await pick('c1');
     expect(calls.find((c) => /candidates$/.test(c.path)).path).toBe(
@@ -270,7 +272,8 @@ describe('상담 고르기 — 고객 · 배정 · 순위', () => {
       '도어 마감': '하이그로시',
       철거: '필요',
       '원하는 가격대': '중급',
-      '희망 시기': '2026-11-20 오전',
+      '희망 시기': '2027-01-15 시공 완료',
+      '희망 상담': '2026-11-20 오전',
       '상세 설계': '요청함',
       '예상 견적': '4,200,000원',
       연출컷: '있음',
@@ -343,7 +346,7 @@ describe('상담 고르기 — 고객 · 배정 · 순위', () => {
     expect(parts[2]).toBe('등급 10/16 · 고객 만족 6/12 · 재작업 3/6 · 응답 3/6');
   });
 
-  test('걸러진 업체 — 이유를 우리말로 (지역 밖 · 품목 안 함 · 한도 · 서류 미확인 · 자격 · 활동 안 함 · 거친 업체)', async () => {
+  test('걸러진 업체 — 이유를 우리말로 (지역 밖 · 품목 안 함 · 한도 · 기간 없음 · 서류 미확인 · 자격 · 활동 안 함 · 거친 업체)', async () => {
     await start();
     await pick('c1');
     expect($('filteredCard').hidden).toBe(false);
@@ -353,7 +356,7 @@ describe('상담 고르기 — 고객 · 배정 · 순위', () => {
       [...li.querySelectorAll('.reason')].map((r) => r.textContent),
     ]);
     expect(rows).toEqual([
-      ['먼가구', ['지역 밖', '한도']],
+      ['먼가구', ['지역 밖', '한도', '기간 없음']],
       ['서류업체', ['서류 미확인', '활동 안 함', '자격', '품목 안 함']],
       ['거친가구', ['거친 업체']],
     ]);
@@ -389,6 +392,7 @@ describe('상담 고르기 — 고객 · 배정 · 순위', () => {
       철거: '필요 없음',
       '원하는 가격대': '-',
       '희망 시기': '-',
+      '희망 상담': '-',
       '상세 설계': '요청 안 함',
       '예상 견적': '-',
     });

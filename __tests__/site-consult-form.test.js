@@ -5,7 +5,8 @@
  *   - 시공 지역(시/도 · 시/군/구, 필수 — signup.html 의 locationData 와 같은 목록)
  *   - 원하는 도어 마감 · 철거 필요 · 원하는 가격대(필수 — segan/consult.html 과 같은 값, 「모름」 있음)
  *   - 동의 둘: 개인정보 수집 · 이용(필수) → privacy_agreed_at
- *             다담 협력업체 목록 중 다담이 정한 업체에 제공(선택) → third_party_agreed_at · consent_version 'v1'
+ *             다담 협력업체 목록 중 다담이 정한 업체에 제공(선택) → third_party_agreed_at · consent_version 'v2'
+ *   - 시공 완료 희망 날짜(선택) → wanted_done_date (업체 고르기에 쓴다 — 희망 상담 일시는 연락 일정)
  *     업체 제공에 동의하지 않아도 신청은 간다 (다담 본사가 직접 상담 — 두 칸은 비운다)
  * 를 받고, company_id · consult_target 은 보내지 않는다 (DB 기본값이 본사).
  * 페이지 스크립트를 jsdom 에 올리고 가짜 Supabase 로 돌린다.
@@ -191,7 +192,7 @@ describe('동의', () => {
     );
     expect(items).toEqual([
       '받는 곳: 다담 협력업체(다담 공장 포함) 중 다담이 정한 한 곳 — 연결되면 업체 이름을 알려 드립니다',
-      '항목: 이름 · 전화 · 이메일 · 지역 · 연락 시간 · 품목 · 요청 사항 · 도어 마감 · 철거 · 가격대 · 상세 설계 요청 · 연출컷 · 예상 견적',
+      '항목: 이름 · 전화 · 이메일 · 지역 · 연락 시간 · 시공 완료 희망 날짜 · 품목 · 요청 사항 · 도어 마감 · 철거 · 가격대 · 상세 설계 요청 · 연출컷 · 예상 견적',
       '목적: 상담 · 견적 · 시공',
       '보유: 상담 목적을 이룰 때까지',
       '동의하지 않으면 다담 본사가 직접 상담합니다',
@@ -234,7 +235,7 @@ describe('보내기 — consultations insert', () => {
     );
   });
 
-  test("업체 제공에 동의하면 동의 시각 · 문구 판 'v1' 을 남긴다 — 업체 연결 안내", async () => {
+  test("업체 제공에 동의하면 동의 시각 · 문구 판 'v2' 을 남긴다 — 업체 연결 안내", async () => {
     const calls = await load({ session: SESSION });
     fillRequired();
     pick('demolition', 'no');
@@ -249,10 +250,34 @@ describe('보내기 — consultations insert', () => {
     expect(row.wanted_price_tier).toBe('unknown');
     expect(row.third_party_agreed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(row.third_party_agreed_at).toBe(row.privacy_agreed_at);
-    expect(row.consent_version).toBe('v1');
+    expect(row.consent_version).toBe('v2');
     expect($('successText').textContent).toBe(
       '다담 본사가 확인한 뒤 가까운 업체를 연결해 드립니다.'
     );
+  });
+
+  test('시공 완료 희망 날짜 — 고르면 wanted_done_date, 안 고르면 null · 오늘부터 고른다', async () => {
+    const calls = await load({ session: SESSION });
+    expect($('wantedDoneDate').min).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(norm($('wantedDoneDate').closest('.form-section').textContent)).toContain(
+      '시공이 끝났으면 하는 날 (예: 입주 날)'
+    );
+    fillRequired();
+    $('wantedDoneDate').value = '2027-02-01';
+    await send();
+    expect(calls.inserts[0].row.wanted_done_date).toBe('2027-02-01');
+    const again = await load({ session: SESSION });
+    fillRequired();
+    await send();
+    expect(again.inserts[0].row.wanted_done_date).toBeNull();
+  });
+
+  test('수집하는 내용에 시공 완료 희망 날짜(선택)', async () => {
+    await load();
+    const privacy = norm(
+      $('agreePrivacy').closest('.form-section').querySelector('.consent-detail').textContent
+    );
+    expect(privacy).toContain('희망 날짜 · 시간대, 시공 완료 희망 날짜');
   });
 
   test('로그인 없이도 보낸다 — user_id null', async () => {
