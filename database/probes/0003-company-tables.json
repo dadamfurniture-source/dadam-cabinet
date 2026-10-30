@@ -899,7 +899,7 @@
       "expect": { "anon": "deny", "x_owner": 1, "hq_admin": 1, "service_role": 1, "*": 0 }
     },
     {
-      "name": "제약: 고객 확정 ~ 시공 완료 기간은 1~90 — 0 안 됨 (0021)",
+      "name": "제약: 고객 확정 ~ 시공 완료 기간은 1~14 — 0 안 됨 (0021)",
       "sql": "update public.company_service_settings set lead_days = 0 where company_id = {{company_x}}",
       "roles": ["service_role"],
       "expect": { "service_role": "err:23514" }
@@ -911,14 +911,14 @@
       "expect": { "service_role": "err:42703" }
     },
     {
-      "name": "제약: 고객 확정 ~ 시공 완료 기간은 1~90 — 91 안 됨 (0021)",
-      "sql": "update public.company_service_settings set lead_days = 91 where company_id = {{company_x}}",
+      "name": "제약: 고객 확정 ~ 시공 완료 기간은 1~14 — 15 안 됨 (0021)",
+      "sql": "update public.company_service_settings set lead_days = 15 where company_id = {{company_x}}",
       "roles": ["service_role"],
       "expect": { "service_role": "err:23514" }
     },
     {
-      "name": "0021: 고객 확정 ~ 시공 완료 기간 90일은 됨",
-      "sql": "update public.company_service_settings set lead_days = 90 where company_id = {{company_x}}",
+      "name": "0021: 고객 확정 ~ 시공 완료 기간 14일은 됨",
+      "sql": "update public.company_service_settings set lead_days = 14 where company_id = {{company_x}}",
       "roles": ["service_role"],
       "expect": { "service_role": "rows:1" }
     },

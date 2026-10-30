@@ -6,7 +6,7 @@
 /**
  * database/migrations/0021_build_period.sql 정적 시험 (DB 없이).
  *
- *   업체 「상담까지 걸리는 날」(0~14일)을 「고객 확정 ~ 시공 완료 기간」(1~90일)으로 바꾸고,
+ *   업체 「상담까지 걸리는 날」(0~14일)을 「고객 확정 ~ 시공 완료 기간」(1~14일, 최소 제작 기간)으로 바꾸고,
  *   상담에 「시공 완료 희망 날짜」 칸을 더한다.
  *   역할별 동작은 database/probes/0003-company-tables.json 의 0021 확인이 실DB 트랜잭션에서 본다.
  */
@@ -37,9 +37,9 @@ describe('0021 — 고객 확정 ~ 시공 완료 기간', () => {
     expect(S).not.toMatch(/\bPOLICY\b/i);
   });
 
-  test('기간 1~90 제약 — 지우고 다시 만든다', () => {
+  test('기간 1~14 제약 — 지우고 다시 만든다', () => {
     expect(f).toContain('DROP CONSTRAINT IF EXISTS company_service_settings_lead_days_check;');
-    expect(f).toContain('CHECK (lead_days IS NULL OR (lead_days >= 1 AND lead_days <= 90))');
+    expect(f).toContain('CHECK (lead_days IS NULL OR (lead_days >= 1 AND lead_days <= 14))');
   });
 
   test('상담 「시공 완료 희망 날짜」 칸', () => {
