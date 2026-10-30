@@ -27,6 +27,7 @@
   'use strict';
 
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   // 넣는 칸 중 consultation.html 에 없는 것 — 하나라도 없으면 신청서를 열지 않는다
   var NEW_COLUMNS =
     'generation_id,quote,sido,gugun,privacy_agreed_at,' +
@@ -278,6 +279,11 @@
   }
 
   /** consultations 한 줄 — consultation.html 이 쓰는 칸 + 앱 칸 */
+  /** 오늘(KST) 'YYYY-MM-DD' — 희망 상담 날짜는 오늘부터 고른다 */
+  function kstToday() {
+    return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  }
+
   function buildRow() {
     var u = C.session.user || {};
     var now = new Date().toISOString();
@@ -291,6 +297,8 @@
       consultation_type: 'ai-design',
       title: titleFor(C.gen),
       description: $('csDesc').value.trim() || null,
+      // 희망 상담 날짜 — 다담 본사가 업체를 고를 때 업체의 「상담까지 걸리는 날」과 견준다
+      preferred_date: DATE_RE.test($('csDate').value) ? $('csDate').value : null,
       preferred_time: $('csTime').value || null,
       status: 'pending',
       privacy_agreed_at: now,
@@ -316,6 +324,8 @@
     if (!row.door_finish) return '원하는 도어 마감을 골라 주세요.';
     if (row.demolition_needed == null) return '철거가 필요한지 골라 주세요.';
     if (!row.wanted_price_tier) return '원하는 가격대를 골라 주세요.';
+    if (row.preferred_date && row.preferred_date < kstToday())
+      return '희망 상담 날짜는 오늘이나 그 뒤로 골라 주세요.';
     if (!$('csAgree').checked) return '개인정보 수집·이용에 동의해 주세요.';
     if (!row.email) return '로그인 계정의 이메일을 읽지 못했습니다. 다시 로그인해 주세요.';
     return '';
@@ -372,6 +382,7 @@
       $('csCallNum').textContent = b.tel;
     }
     if (b.hours) $('csHoursNote').textContent = '남겨 주시면 ' + b.hours + ' 사이에 연락드립니다.';
+    $('csDate').min = kstToday();
 
     document.querySelectorAll('input[name="how"]').forEach(function (el) {
       el.addEventListener('change', renderHow);

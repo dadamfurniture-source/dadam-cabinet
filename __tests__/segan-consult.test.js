@@ -42,6 +42,9 @@ const SESSION = {
     user_metadata: { name: '메타 이름', phone: '010-9999-0000' },
   },
 };
+/** 오늘(KST)에서 days 날 뒤 'YYYY-MM-DD' */
+const kstDay = (days) =>
+  new Date(Date.now() + 9 * 3600 * 1000 + days * 86400000).toISOString().slice(0, 10);
 const QUOTE = { items: [{ name: '하부장 캐비닛', total: 1280000 }], total: 3128400 };
 const GEN = {
   id: ID,
@@ -225,7 +228,7 @@ describe('신청서', () => {
     expect($('csSido').value).toBe('');
   });
 
-  test('뺀 칸 — 상담 종류 · 공간 · 치수 · 예산 · 스타일 · 희망 날짜가 없다 (가구 종류는 「품목」 칩으로 따로)', async () => {
+  test('뺀 칸 — 상담 종류 · 공간 · 치수 · 예산 · 스타일이 없다 (가구 종류는 「품목」 칩, 날짜는 「희망 상담 날짜」 한 칸)', async () => {
     await load();
     for (const id of [
       'consultationType',
@@ -240,7 +243,15 @@ describe('신청서', () => {
     }
     const form = $('csForm').textContent;
     expect(form).not.toMatch(/예산|상담 유형|가구 종류|희망 날짜|설치 공간/);
-    expect(document.querySelectorAll('input[type="date"]')).toHaveLength(0);
+    expect([...document.querySelectorAll('input[type="date"]')].map((el) => el.id)).toEqual([
+      'csDate',
+    ]);
+  });
+
+  test('희망 상담 날짜 · 선택 — 오늘(KST)부터 고른다', async () => {
+    await load();
+    expect($('csDate').min).toBe(kstDay(0));
+    expect($('csDate').closest('label').textContent).toContain('희망 상담 날짜 · 선택');
   });
 
   test('시공 지역 목록 = signup.html 의 locationData', async () => {
@@ -385,6 +396,7 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
 
   test('한 줄 — 저절로 채우는 칸(이메일 · 제목 · 유형 · 연출컷 · 견적 · 동의 시각)과 고객 칸', async () => {
     const calls = await load();
+    $('csDate').value = kstDay(3);
     $('csTime').value = '15:00-18:00';
     $('csDesc').value = '다음 달 입주라 급해요';
     fillRequired();
@@ -400,6 +412,7 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
       consultation_type: 'ai-design',
       title: 'AI 연출컷 상담 — 싱크대',
       description: '다음 달 입주라 급해요',
+      preferred_date: kstDay(3),
       preferred_time: '15:00-18:00',
       status: 'pending',
       privacy_agreed_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
@@ -492,6 +505,11 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
     ['도어 마감 안 고름', uncheck('doorFinish'), '원하는 도어 마감을 골라 주세요.'],
     ['철거 안 고름', uncheck('demolition'), '철거가 필요한지 골라 주세요.'],
     ['가격대 안 고름', uncheck('priceTier'), '원하는 가격대를 골라 주세요.'],
+    [
+      '희망 상담 날짜가 지남',
+      () => ($('csDate').value = kstDay(-1)),
+      '희망 상담 날짜는 오늘이나 그 뒤로 골라 주세요.',
+    ],
     ['동의 안 함', () => ($('csAgree').checked = false), '개인정보 수집·이용에 동의해 주세요.'],
   ])('%s → 보내지 않고 안내', async (_n, change, message) => {
     const calls = await load();

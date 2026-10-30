@@ -17,7 +17,7 @@
                POST /company/consults/:id/accept    받기 → { customer_id, project_id } (업체 고객 · 프로젝트를 만든다)
                POST /company/consults/:id/decline   못 받음 { reason } → 204
                GET/PUT /company/service-settings    { regions[{sido,gugun}], items{품목: do|outsource|no},
-                                                      monthly_limit, next_available_date, can_act? }
+                                                      monthly_limit, lead_days, can_act? }
                GET  /company/my-score               { grade, satisfaction(0~5|null), response_rate(0~1|null) }
    화면
      상담 (#partner-consults)
@@ -27,7 +27,7 @@
        돌려보낸 상담(status returned · 못 받음 · 시간 넘김): 연락처 없이 흐리게 (서버도 연락처를 지워서 준다)
      내 평가 — 상담 칸 위 한 줄: 등급 · 고객 만족 · 응답률 (못 읽으면 줄째 뺀다)
      상담 설정 — 상담 받는 지역(시/도 · 시/군/구 여러 개, segan/regions.js) · 하는 품목(함 · 외주 · 안 함) ·
-       한 달 한도 · 다음 가능 날짜
+       한 달 한도 · 상담까지 걸리는 날(0~14일, 비면 바로 가능)
    이름      품목 = workflow-api consult-notify.js FURNITURE_LABELS (consultation.html 가구 종류와 같은 키)
              연락 시간 = consult-notify.js TIME_LABELS (consult.html · consultation.html 의 선택지)
    못 읽으면  처음(403 · 404 · 오류 · 끊김 · 모양이 틀림) → 그 칸째 감춘다 (가짜 값을 그리지 않는다)
@@ -85,6 +85,7 @@
   var GRADES = ['S', 'A', 'B', 'C'];
 
   var LIMIT_MAX = 1000; // company_service_settings.monthly_limit CHECK 0~1000
+  var LEAD_MAX = 14; // company_service_settings.lead_days CHECK 0~14
   var REGION_MAX = 300; // company_service_settings regions 길이 CHECK
   var REASON_MAX = 500; // consult_assignments.reason CHECK
   var TICK_MS = 30000;
@@ -103,13 +104,14 @@
     regionPick: '시/도와 시/군/구를 골라 주세요.',
     regionMax: '지역은 ' + REGION_MAX + '곳까지 둘 수 있습니다.',
     limitBad: '한 달 한도는 0~' + LIMIT_MAX + ' 사이 숫자로 적어 주세요.',
-    dateBad: '다음 가능 날짜를 다시 골라 주세요.',
+    leadBad: '상담까지 걸리는 날은 0~' + LEAD_MAX + '일 사이 숫자로 적어 주세요.',
+    leadNote:
+      '상담까지 걸리는 날 — 새 상담에 보통 며칠 뒤 방문할 수 있는지 적어 주세요. 비우면 바로 가능으로 봅니다. 쉬실 때는 한 달 한도를 0으로 두세요.',
     saved: '상담 설정을 저장했습니다.',
     generic: '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
   };
 
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  var DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
   var P = {
     sb: null,
@@ -283,6 +285,7 @@
       return true;
     });
     var limit = x.monthly_limit;
+    var lead = x.lead_days;
     return {
       regions: regions.map(function (r) {
         return { sido: r.sido, gugun: r.gugun };
@@ -292,24 +295,15 @@
         typeof limit === 'number' && Number.isInteger(limit) && limit >= 0 && limit <= LIMIT_MAX
           ? limit
           : null,
-      next_available_date:
-        typeof x.next_available_date === 'string' && DATE_RE.test(x.next_available_date)
-          ? x.next_available_date
+      lead_days:
+        typeof lead === 'number' && Number.isInteger(lead) && lead >= 0 && lead <= LEAD_MAX
+          ? lead
           : null,
     };
   }
 
-  function realDate(s) {
-    var m = DATE_RE.exec(s);
-    if (!m) return false;
-    var d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
-    return (
-      d.getUTCFullYear() === +m[1] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3]
-    );
-  }
-
   /**
-   * PUT 본문 — v = { regions, items, monthly_limit(글자), next_available_date(글자) }
+   * PUT 본문 — v = { regions, items, monthly_limit(글자), lead_days(글자) }
    * → { body } | { field, error }
    */
   function settingsBody(v) {
@@ -328,8 +322,13 @@
         return { field: 'monthly_limit', error: TEXT.limitBad };
       limit = Number(rawLimit);
     }
-    var rawDate = String(x.next_available_date == null ? '' : x.next_available_date).trim();
-    if (rawDate && !realDate(rawDate)) return { field: 'next_available_date', error: TEXT.dateBad };
+    var rawLead = String(x.lead_days == null ? '' : x.lead_days).trim();
+    var lead = null;
+    if (rawLead) {
+      if (!/^\d{1,2}$/.test(rawLead) || Number(rawLead) > LEAD_MAX)
+        return { field: 'lead_days', error: TEXT.leadBad };
+      lead = Number(rawLead);
+    }
     return {
       body: {
         regions: regions.map(function (r) {
@@ -337,7 +336,7 @@
         }),
         items: items,
         monthly_limit: limit,
-        next_available_date: rawDate || null,
+        lead_days: lead,
       },
     };
   }
@@ -650,10 +649,15 @@
       '" step="1" value="' +
       esc(d.monthly_limit) +
       '" /></label>' +
-      '<label class="mk-input"><span>다음 가능 날짜</span><input name="next_available_date" type="date" value="' +
-      esc(d.next_available_date) +
+      '<label class="mk-input"><span>상담까지 걸리는 날 (일)</span><input name="lead_days" type="number" inputmode="numeric" min="0" max="' +
+      LEAD_MAX +
+      '" step="1" value="' +
+      esc(d.lead_days) +
       '" /></label>' +
       '</div>' +
+      '<p class="mk-note" data-lead-note>' +
+      esc(TEXT.leadNote) +
+      '</p>' +
       '</fieldset>' +
       '<p class="mk-error" data-err role="alert"' +
       (P.setErr ? '' : ' hidden') +
@@ -680,7 +684,7 @@
       regions: s.regions.slice(),
       items: items,
       monthly_limit: s.monthly_limit == null ? '' : String(s.monthly_limit),
-      next_available_date: s.next_available_date || '',
+      lead_days: s.lead_days == null ? '' : String(s.lead_days),
     };
   }
 
@@ -694,9 +698,9 @@
       if (on) P.draft.items[k] = on.value;
     });
     var limit = form.querySelector('input[name="monthly_limit"]');
-    var date = form.querySelector('input[name="next_available_date"]');
+    var lead = form.querySelector('input[name="lead_days"]');
     if (limit) P.draft.monthly_limit = limit.value;
-    if (date) P.draft.next_available_date = date.value;
+    if (lead) P.draft.lead_days = lead.value;
   }
 
   function settingsError(text, field) {
