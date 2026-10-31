@@ -21,6 +21,8 @@
       보고 한 업체의 평가표(설비 · 인력 · 마감 · 자재(분야별 메모) · 설계 · 가격대 · 품질 · 서비스 · 신뢰 · 서류 · 등급 · 메모)를 고친다.
       항목 이름은 서버가 주는 catalog 를 그대로 쓴다 — 서버 상수에 항목을 더하면 이 화면도 따라온다.
       본사 등급은 손으로 고르지 않는다 — 저장할 때 서버가 평가표 영역별 점수로 매기고(score), 이 화면은 그것을 보여 준다.
+      마감 · 자재는 분야마다 거래 회사 줄(catalog suppliers 에서 고르기 또는 직접 적기 + 주력) — 점수에 쓰지 않는다.
+      본사 소통은 본사가 0 ~ catalog limits.hq_comm 점을 직접 넣는다.
       읽기 · 쓰기 모두 업무 서버(workflow-api)의 /admin/companies* (관리자만). 화면에 넣는 값은 전부 esc() 를 거친다.
     -->
     <style>
@@ -360,6 +362,32 @@
         min-height: 56px;
         margin: 6px 0 2px;
       }
+      .sup-rows {
+        display: grid;
+        gap: 6px;
+      }
+      .sup-row {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+      }
+      .sup-row select,
+      .sup-row input[type='text'] {
+        padding: 4px 8px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-family: inherit;
+        font-size: 13px;
+        min-width: 0;
+      }
+      .sup-row select {
+        flex: 1 1 220px;
+      }
+      .sup-row input[type='text'] {
+        flex: 1 1 160px;
+      }
+      .sup-add {
+        margin-top: 6px;
+      }
       .check {
         display: inline-flex;
         gap: 6px;
@@ -564,21 +592,10 @@
           ['outsource', '외주'],
           ['none', '없음'],
         ];
-        const FINISH_CHOICES = [
-          ['yes', '취급함'],
-          ['no', '안 함'],
-        ];
         const PRICE_TIERS = [
           ['basic', '보급'],
           ['mid', '중급'],
           ['high', '고급'],
-        ];
-        /** 마감 · 자재 묶음 — 서버 catalog 에 group 이 없으면 키 앞머리로 묶는다 */
-        const FINISH_GROUPS = [
-          ['door_', '도어'],
-          ['body_', '몸통'],
-          ['hw_', '하드웨어'],
-          ['top_', '상판'],
         ];
         /** 서류 — 서버 catalog 에 docs 가 없을 때 쓰는 두 가지 (거르기 조건: 둘 다 본사 확인) */
         const DOC_ITEMS = [
@@ -742,6 +759,30 @@
           const v = typeof value === 'number' && Number.isFinite(value) ? value : '';
           return `<input class="num" type="number" min="0" step="1" inputmode="numeric" ${attrs} value="${esc(v)}" aria-label="${esc(label)}" />`;
         }
+        /**
+         * 마감 · 자재 거래 회사 한 줄 — g: catalog suppliers 의 분야 { key, name, companies }, row: { key | name, main } (새 줄은 {}).
+         * nameMax: 직접 적는 이름 글자 수 (catalog limits.supplier_name)
+         */
+        function supRowHtml(g, row, nameMax) {
+          const companies = Array.isArray(g.companies) ? g.companies : [];
+          const custom = typeof row.name === 'string';
+          const pick = custom ? 'custom' : typeof row.key === 'string' ? `key:${row.key}` : '';
+          const known = companies.some((c) => `key:${c.key}` === pick);
+          const options = [
+            '<option value="">회사 고르기</option>',
+            ...companies.map(
+              (c) =>
+                `<option value="key:${esc(c.key)}"${pick === `key:${c.key}` ? ' selected' : ''}>${esc(c.name)}${c.kind ? ` — ${esc(c.kind)}` : ''}</option>`
+            ),
+            // 목록에서 빠진 회사 — 그대로 보내면 서버가 「목록에 없는 항목」으로 알린다
+            ...(pick.startsWith('key:') && !known
+              ? [`<option value="${esc(pick)}" selected>목록에 없는 회사 (${esc(row.key)})</option>`]
+              : []),
+            `<option value="custom"${custom ? ' selected' : ''}>직접 적기</option>`,
+          ].join('');
+          const max = Number.isInteger(nameMax) ? ` maxlength="${nameMax}"` : '';
+          return `<div class="row sup-row" data-sup-row><select data-sup-pick aria-label="${esc(g.name)} 회사">${options}</select><input type="text" data-sup-name${max} placeholder="회사 이름" aria-label="${esc(g.name)} 회사 이름" value="${esc(custom ? row.name : '')}"${custom ? '' : ' hidden'} /><label class="check"><input type="checkbox" data-sup-main${row.main === true ? ' checked' : ''} /> 주력</label><button class="btn btn-light btn-sm" type="button" data-sup-del>빼기</button></div>`;
+        }
         /** 본사 등급 — 서버가 매긴 score { areas[{ key, name, points, max }], total, max, grade } (없으면 아직 평가 전) */
         function gradeHtml(score) {
           const s = obj(score);
@@ -779,7 +820,8 @@
           const staff = entries(cat.staff_roles);
           // 전체 인원(실제 사람 수) — staff.total. 직무별 인원은 겸직이면 직무마다 센다
           const staffTotal = entries(cat.staff_total);
-          const finishes = entries(cat.finishes);
+          const suppliers = Array.isArray(cat.suppliers) ? cat.suppliers.filter((g) => g && g.key) : [];
+          const limits = obj(cat.limits);
           const design = entries(cat.design);
           const docs = Array.isArray(cat.docs) && cat.docs.length ? entries(cat.docs) : DOC_ITEMS;
           const eq = obj(ev.equipment);
@@ -797,22 +839,12 @@
             return `<textarea class="fi-note" data-finish-note="${esc(n.key)}" maxlength="500" placeholder="${esc(n.name)} 메모" aria-label="${esc(n.name)} 메모">${esc(text)}</textarea>`;
           };
 
-          // 마감 · 자재: 묶음별로
-          const fGroups = [];
-          finishes.forEach((e, i) => {
-            // group 이 키(door · body · hw · top)면 이름으로, 글이면 그대로, 없으면 키 앞머리로
-            const byGroupKey = FINISH_GROUPS.find(([p]) => p === `${e.group}_`);
-            const byPrefix = FINISH_GROUPS.find(([p]) => e.key.startsWith(p));
-            const named = typeof e.group === 'string' && e.group;
-            const g = (byGroupKey && byGroupKey[1]) || named || (byPrefix || [null, '그 밖'])[1];
-            // 메모 칸 분야 키 — 묶음 키(door · body · hw · top)로 묶인 것만 (글로 이름 지은 묶음은 없다)
-            const pre = byGroupKey ? byGroupKey[0] : named ? null : byPrefix ? byPrefix[0] : null;
-            let bucket = fGroups.find((x) => x.name === g);
-            if (!bucket) fGroups.push((bucket = { name: g, key: pre ? pre.slice(0, -1) : null, rows: [] }));
-            bucket.rows.push(
-              `<div class="row"><span>${esc(e.name)}</span>${seg(`fi-${i}`, FINISH_CHOICES, fi[e.key], ` data-key="${esc(e.key)}" data-kind="fi"`)}</div>`
-            );
-          });
+          // 마감 · 자재: 분야마다 지금 거래 회사 줄 (없으면 빈 줄 하나)
+          const supRows = (g) => {
+            const list = Array.isArray(fi[g.key]) ? fi[g.key].map(obj) : [];
+            return (list.length ? list : [{}]).map((r) => supRowHtml(g, r, limits.supplier_name)).join('');
+          };
+          const hqMax = Number.isInteger(limits.hq_comm) ? limits.hq_comm : null;
 
           const metrics = obj(d.metrics || ev.metrics);
           const metricKeys = Object.keys(metrics);
@@ -871,14 +903,15 @@
             group(
               'finishes',
               '마감 · 자재',
-              fGroups.length
-                ? fGroups
+              suppliers.length
+                ? suppliers
                     .map(
                       (g) =>
-                        `<div class="sub">${esc(g.name)}</div><div class="rows">${g.rows.join('')}</div>${noteBox(g.key)}`
+                        `<div class="sub">${esc(g.name)}</div><div class="sup-rows" data-sup-group="${esc(g.key)}">${supRows(g)}</div><button class="btn btn-light btn-sm sup-add" type="button" data-sup-add="${esc(g.key)}">+ 회사 더하기</button>${noteBox(g.key)}`
                     )
                     .join('')
-                : emptyCatalog()
+                : emptyCatalog(),
+              '거래 회사 · 주력 (점수에 쓰지 않습니다)'
             ),
             group(
               'design',
@@ -914,6 +947,16 @@
                 .join('')}</div>`,
               '둘 다 확인해야 상담을 받습니다'
             ),
+            ...(hqMax !== null
+              ? [
+                  group(
+                    'hq_comm',
+                    '본사 소통',
+                    `<div class="rows"><div class="row"><span>본사 소통 점수</span><span>${numInput(`id="fHqComm" max="${hqMax}"`, obj(ev.hq_comm).score, '본사 소통 점수')} / ${hqMax}점</span></div></div>`,
+                    '본사 설계 · 구성에 맞을수록 높게'
+                  ),
+                ]
+              : []),
             group('grade', '본사 등급', gradeHtml(d.score), '저장할 때 평가표 점수로 매깁니다'),
             group(
               'note',
@@ -973,10 +1016,29 @@
             const v = intOf(input, e.name);
             if (v !== null) staff[e.key] = v;
           });
+          // 마감 · 자재 — 분야마다 고른 줄만 (고르지 않은 줄 · 이름을 안 적은 직접 적기는 보내지 않는다)
           const finishes = {};
-          entries(cat.finishes).forEach((e, i) => {
-            const v = checked(`fi-${i}`);
-            if (v) finishes[e.key] = v;
+          const supGroups = Array.isArray(cat.suppliers) ? cat.suppliers : [];
+          [...form.querySelectorAll('[data-sup-group]')].forEach((box) => {
+            const key = box.getAttribute('data-sup-group');
+            const g = obj(supGroups.find((x) => x && x.key === key));
+            const rows = [];
+            const seen = new Set();
+            [...box.querySelectorAll('[data-sup-row]')].forEach((r) => {
+              const pick = r.querySelector('select[data-sup-pick]').value;
+              const main = r.querySelector('input[data-sup-main]').checked;
+              let row = null;
+              if (pick === 'custom') {
+                const name = r.querySelector('input[data-sup-name]').value.trim();
+                if (name) row = { name, main };
+              } else if (pick.startsWith('key:')) row = { key: pick.slice(4), main };
+              if (!row) return;
+              const id = row.key !== undefined ? `key:${row.key}` : `name:${row.name}`;
+              if (seen.has(id)) throw new Error(`${g.name || key}: 같은 회사를 두 번 넣었습니다.`);
+              seen.add(id);
+              rows.push(row);
+            });
+            if (rows.length) finishes[key] = rows;
           });
           const notes = {};
           [...form.querySelectorAll('textarea[data-finish-note]')].forEach((n) => {
@@ -1003,12 +1065,18 @@
             docs[key] = docDay(prev.checked_at) === day ? prev : { checked_at: day };
           });
 
+          // 본사 소통 — 칸이 있을 때만 (catalog limits.hq_comm)
+          const hqInput = $('fHqComm');
+          const hqScore = hqInput ? intOf(hqInput, '본사 소통') : null;
+          const hqMax = obj(cat.limits).hq_comm;
+          if (hqScore !== null && hqScore > hqMax) throw new Error(`본사 소통: 0~${hqMax}점으로 넣어 주세요.`);
           const note = $('fNote').value.trim();
           return {
             equipment,
             staff,
             finishes,
             design,
+            ...(hqInput ? { hq_comm: hqScore === null ? {} : { score: hqScore } } : {}),
             price_tier: checked('price_tier'),
             docs,
             as_months: intOf($('fAsMonths'), 'A/S 기간'),
@@ -1110,10 +1178,48 @@
           $('evForm').addEventListener('input', () => {
             state.dirty = true;
           });
+          // 마감 · 자재 — 회사 더하기 · 빼기
+          $('evForm').addEventListener('click', (e) => {
+            const add = e.target.closest('button[data-sup-add]');
+            const del = e.target.closest('button[data-sup-del]');
+            if (del) {
+              del.closest('[data-sup-row]').remove();
+              state.dirty = true;
+              return;
+            }
+            if (!add) return;
+            const key = add.getAttribute('data-sup-add');
+            const cat = obj(state.data && state.data.catalog);
+            const limits = obj(cat.limits);
+            const g = obj((Array.isArray(cat.suppliers) ? cat.suppliers : []).find((x) => x && x.key === key));
+            const box = [...$('evForm').querySelectorAll('[data-sup-group]')].find(
+              (n) => n.getAttribute('data-sup-group') === key
+            );
+            if (!box) return;
+            if (
+              Number.isInteger(limits.supplier_rows) &&
+              box.querySelectorAll('[data-sup-row]').length >= limits.supplier_rows
+            ) {
+              setStatus(
+                'evStatus',
+                `${g.name || key}: 회사는 ${limits.supplier_rows}곳까지 넣을 수 있습니다.`,
+                'error'
+              );
+              return;
+            }
+            box.insertAdjacentHTML('beforeend', supRowHtml(g, {}, limits.supplier_name));
+            state.dirty = true;
+          });
           $('evForm').addEventListener('change', (e) => {
             state.dirty = true;
             // 서류 날짜를 넣으면 확인 체크, 확인을 켜면 비어 있는 날짜에 오늘
             const t = e.target;
+            // 거래 회사 「직접 적기」를 고르면 이름 칸
+            if (t.matches('select[data-sup-pick]')) {
+              const name = t.closest('[data-sup-row]').querySelector('input[data-sup-name]');
+              name.hidden = t.value !== 'custom';
+              if (!name.hidden) name.focus();
+            }
             if (t.matches('input[data-doc-date]') && t.value) {
               const key = t.getAttribute('data-doc-date');
               const box = [...$('evForm').querySelectorAll('input[data-doc]')].find(
