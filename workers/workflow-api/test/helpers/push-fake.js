@@ -74,6 +74,8 @@ export function createFake({ tables = {}, users = {}, nowMs = Date.now(), pushSt
     company_members: [],
     partner_applications: [],
     consult_assignments: [],
+    workers: [],
+    work_assignments: [],
     push_subscriptions: [],
     notification_outbox: [],
     ...JSON.parse(JSON.stringify(tables)),
