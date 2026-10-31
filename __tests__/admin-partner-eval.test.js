@@ -62,6 +62,7 @@ const CATALOG = {
     { key: 'install', name: '시공 담당(서버)' },
   ],
   staff_total: [{ key: 'total', name: '전체 인원(서버)' }],
+  staff_dedicated: [{ key: 'dedicated', name: '전담(서버)' }],
   suppliers: [
     {
       key: 'door',
@@ -103,7 +104,7 @@ const EVAL = {
   company_id: 'p1',
   grade: 'B',
   equipment: { panel_saw: 'have', cnc_cut: 'outsource' },
-  staff: { design: 2, total: 5 },
+  staff: { design: 2, total: 5, dedicated: ['design'] },
   finishes: {
     door: [
       { key: 'cratech', main: true },
@@ -308,13 +309,15 @@ describe('평가표 — 10묶음, 항목은 서버 catalog', () => {
     expect(checkedIn('equipment')).toEqual(['have', 'outsource']);
     expect(rowsOf('staff')).toEqual([
       '전체 인원(서버) 명',
-      '설계 담당(서버) 명',
-      '시공 담당(서버) 명',
+      '설계 담당(서버) 명 전담(서버)',
+      '시공 담당(서버) 명 전담(서버)',
     ]);
     expect(document.querySelector('input[data-staff-total="total"]').value).toBe('5');
     expect(document.querySelector('#evForm .group[data-group="staff"] .sub').textContent).toBe(
-      '직무별 (겸직이면 직무마다 셉니다)'
+      '직무별 (겸직이면 직무마다 셉니다 · 그 일만 하는 사람이 있으면 전담)'
     );
+    expect(document.querySelector('input[data-staff-ded="design"]').checked).toBe(true);
+    expect(document.querySelector('input[data-staff-ded="install"]').checked).toBe(false);
     expect(document.querySelector('input[data-staff="design"]').value).toBe('2');
     expect(document.querySelector('input[data-staff="install"]').value).toBe('');
     // 마감 · 자재 — 지금 거래 회사 줄 [고른 값, 직접 적은 이름(칸이 보일 때), 주력], 없으면 빈 줄 하나
@@ -522,6 +525,7 @@ describe('저장 — PUT /admin/companies/:id/evaluation', () => {
     setValue('#fHqComm', '15');
     setValue('input[data-staff="install"]', '3');
     setValue('input[data-staff-total="total"]', '4');
+    setCheck('input[data-staff-ded="install"]', true);
     setCheck('input[data-design="planner"]', true);
     setValue('textarea[data-finish-note="top"]', '  세라믹은 외주  ');
     setRadio('price_tier', 'high');
@@ -534,7 +538,7 @@ describe('저장 — PUT /admin/companies/:id/evaluation', () => {
     expect(put.path).toBe('/admin/companies/p1/evaluation');
     expect(put.body).toEqual({
       equipment: { panel_saw: 'have', cnc_cut: 'outsource', edge_bander: 'none' },
-      staff: { design: 2, install: 3, total: 4 },
+      staff: { design: 2, install: 3, total: 4, dedicated: ['design', 'install'] },
       finishes: {
         door: [
           { key: 'cratech', main: true },
@@ -651,6 +655,46 @@ describe('저장 — PUT /admin/companies/:id/evaluation', () => {
     await settle();
     expect(calls.filter((c) => c.method === 'PUT')).toHaveLength(0);
     expect($('evStatus').textContent).toBe('몸통(서버): 같은 회사를 두 번 넣었습니다.');
+  });
+
+  test('전담 — 인원이 없거나 전담 직무가 전체 인원보다 많으면 보내지 않고 알린다', async () => {
+    const calls = await start();
+    await open('p1');
+    setCheck('input[data-staff-ded="install"]', true);
+    $('btnSave').click();
+    await settle();
+    expect(calls.filter((c) => c.method === 'PUT')).toHaveLength(0);
+    expect($('evStatus').textContent).toBe(
+      '인력 시공 담당(서버): 전담이면 인원을 1명 이상 넣어 주세요.'
+    );
+    setValue('input[data-staff="install"]', '1');
+    setValue('input[data-staff-total="total"]', '1');
+    $('btnSave').click();
+    await settle();
+    expect(calls.filter((c) => c.method === 'PUT')).toHaveLength(0);
+    expect($('evStatus').textContent).toBe('인력: 전담 직무(2개)가 전체 인원(1명)보다 많습니다.');
+    setValue('input[data-staff-total="total"]', '2');
+    $('btnSave').click();
+    await settle();
+    expect(calls.find((c) => c.method === 'PUT').body.staff).toEqual({
+      design: 2,
+      install: 1,
+      total: 2,
+      dedicated: ['design', 'install'],
+    });
+  });
+
+  test('catalog 에 전담 칸이 없으면(옛 서버) 체크도 없고 dedicated 를 보내지 않는다', async () => {
+    const { staff_dedicated, ...noDed } = CATALOG;
+    expect(staff_dedicated).toHaveLength(1);
+    const calls = await start({
+      handler: defaultHandler({}, { evaluation: EVAL, catalog: noDed, history: [] }),
+    });
+    await open('p1');
+    expect(document.querySelector('input[data-staff-ded]')).toBeNull();
+    $('btnSave').click();
+    await settle();
+    expect(calls.find((c) => c.method === 'PUT').body.staff).toEqual({ design: 2, total: 5 });
   });
 
   test('catalog 에 본사 소통 한도가 없으면 칸도 없고 보내지 않는다', async () => {
