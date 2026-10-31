@@ -62,12 +62,30 @@ const CATALOG = {
     { key: 'install', name: '시공 담당(서버)' },
   ],
   staff_total: [{ key: 'total', name: '전체 인원(서버)' }],
-  finishes: [
-    { key: 'door_pet', name: 'PET 도어(서버)' },
-    { key: 'door_paint', name: '도장 도어(서버)' },
-    { key: 'body_pb', name: 'PB 몸통(서버)' },
-    { key: 'hw_blum', name: '블룸(서버)' },
-    { key: 'top_resin', name: '인조대리석(서버)' },
+  suppliers: [
+    {
+      key: 'door',
+      name: '도어(서버)',
+      companies: [
+        { key: 'cratech', name: '크라텍(서버)', kind: 'PET · 도장' },
+        { key: 'homegreen', name: '홈그린(서버)', kind: '' },
+      ],
+    },
+    {
+      key: 'body',
+      name: '몸통(서버)',
+      companies: [{ key: 'dongwha', name: '동화(서버)', kind: 'PB' }],
+    },
+    {
+      key: 'hw',
+      name: '하드웨어(서버)',
+      companies: [{ key: 'blum', name: '블룸(서버)', kind: '해외' }],
+    },
+    {
+      key: 'top',
+      name: '상판(서버)',
+      companies: [{ key: 'hanex', name: '하넥스(서버)', kind: '인조대리석' }],
+    },
   ],
   finish_notes: [
     { key: 'door', name: '도어(서버)' },
@@ -79,13 +97,21 @@ const CATALOG = {
     { key: 'cad', name: 'CAD(서버)' },
     { key: 'planner', name: '가구 전문 플래너(서버)' },
   ],
+  limits: { supplier_rows: 3, supplier_name: 50, finish_note: 500, hq_comm: 20 },
 };
 const EVAL = {
   company_id: 'p1',
   grade: 'B',
   equipment: { panel_saw: 'have', cnc_cut: 'outsource' },
   staff: { design: 2, total: 5 },
-  finishes: { door_pet: 'yes', door_paint: 'no', notes: { door: 'PET 는 외주' } },
+  finishes: {
+    door: [
+      { key: 'cratech', main: true },
+      { name: '동네 도어', main: false },
+    ],
+    notes: { door: 'PET 는 외주' },
+  },
+  hq_comm: { score: 12 },
   design: { cad: true, planner: false },
   price_tier: 'mid',
   docs: { insurance: { checked_at: '2026-10-01T12:00:00Z', by: 'u1' } },
@@ -250,6 +276,7 @@ describe('평가표 — 10묶음, 항목은 서버 catalog', () => {
       'price',
       'quality',
       'docs',
+      'hq_comm',
       'grade',
       'note',
     ]);
@@ -264,6 +291,7 @@ describe('평가표 — 10묶음, 항목은 서버 catalog', () => {
       '가격대',
       '품질 · 서비스',
       '신뢰 · 서류',
+      '본사 소통',
       '본사 등급',
       '메모',
     ]);
@@ -289,7 +317,28 @@ describe('평가표 — 10묶음, 항목은 서버 catalog', () => {
     );
     expect(document.querySelector('input[data-staff="design"]').value).toBe('2');
     expect(document.querySelector('input[data-staff="install"]').value).toBe('');
-    expect(checkedIn('finishes')).toEqual(['yes', 'no']);
+    // 마감 · 자재 — 지금 거래 회사 줄 [고른 값, 직접 적은 이름(칸이 보일 때), 주력], 없으면 빈 줄 하나
+    const sup = (g) =>
+      [...document.querySelectorAll(`[data-sup-group="${g}"] [data-sup-row]`)].map((r) => {
+        const name = r.querySelector('input[data-sup-name]');
+        return [
+          r.querySelector('select[data-sup-pick]').value,
+          name.hidden ? null : name.value,
+          r.querySelector('input[data-sup-main]').checked,
+        ];
+      });
+    expect(sup('door')).toEqual([
+      ['key:cratech', null, true],
+      ['custom', '동네 도어', false],
+    ]);
+    expect(sup('body')).toEqual([['', null, false]]);
+    expect(
+      [...document.querySelector('[data-sup-group="door"] select').options].map(
+        (o) => o.textContent
+      )
+    ).toEqual(['회사 고르기', '크라텍(서버) — PET · 도장', '홈그린(서버)', '직접 적기']);
+    expect($('fHqComm').value).toBe('12');
+    expect($('fHqComm').max).toBe('20');
     expect(checkedIn('design')).toEqual(['cad']);
     expect(
       [...document.querySelectorAll('#evForm .group[data-group="design"] label')].map((l) =>
@@ -316,33 +365,52 @@ describe('평가표 — 10묶음, 항목은 서버 catalog', () => {
     expect($('fNote').value).toBe('첫 미팅 메모');
   });
 
-  test('마감 · 자재는 도어 · 몸통 · 하드웨어 · 상판으로 묶는다 (catalog 의 group 이 있으면 그것)', async () => {
+  test('마감 · 자재는 catalog suppliers 분야 차례 — 분야마다 회사 줄 · 더하기 단추 (취급함 · 안 함 없음)', async () => {
     await start();
     await open('p1');
-    const subs = () =>
-      [...document.querySelectorAll('#evForm .group[data-group="finishes"] .sub')].map(
-        (s) => s.textContent
-      );
-    expect(subs()).toEqual(['도어', '몸통', '하드웨어', '상판']);
-    await start({
-      handler: defaultHandler(
-        {},
-        {
-          evaluation: {},
-          catalog: {
-            ...CATALOG,
-            finishes: [
-              { key: 'door_pet', name: 'PET', group: '문짝' },
-              { key: 'x_mdf', name: 'MDF', group: 'body' },
-            ],
-          },
-          history: [],
-        }
-      ),
-    });
+    const fin = document.querySelector('#evForm .group[data-group="finishes"]');
+    expect([...fin.querySelectorAll('.sub')].map((s) => s.textContent)).toEqual([
+      '도어(서버)',
+      '몸통(서버)',
+      '하드웨어(서버)',
+      '상판(서버)',
+    ]);
+    expect(
+      [...fin.querySelectorAll('button[data-sup-add]')].map((b) => b.getAttribute('data-sup-add'))
+    ).toEqual(['door', 'body', 'hw', 'top']);
+    expect(fin.querySelector('h4 small').textContent).toBe(
+      '거래 회사 · 주력 (점수에 쓰지 않습니다)'
+    );
+    expect(fin.textContent).not.toContain('취급함');
+    expect(fin.querySelector('input[type="radio"]')).toBeNull();
+  });
+
+  test('회사 더하기 · 빼기 · 직접 적기 — 분야마다 catalog limits.supplier_rows 줄까지', async () => {
+    await start();
     await open('p1');
-    // 글이면 그대로, 묶음 키(door · body · hw · top)면 이름으로
-    expect(subs()).toEqual(['문짝', '몸통']);
+    const rowsIn = (g) => document.querySelectorAll(`[data-sup-group="${g}"] [data-sup-row]`);
+    const add = (g) => document.querySelector(`button[data-sup-add="${g}"]`).click();
+    add('door');
+    expect(rowsIn('door')).toHaveLength(3);
+    add('door');
+    expect(rowsIn('door')).toHaveLength(3);
+    expect($('evStatus').textContent).toBe('도어(서버): 회사는 3곳까지 넣을 수 있습니다.');
+    // 직접 적기를 고르면 이름 칸이 보인다
+    const last = rowsIn('door')[2];
+    const pick = last.querySelector('select[data-sup-pick]');
+    const name = last.querySelector('input[data-sup-name]');
+    expect(name.hidden).toBe(true);
+    expect(name.maxLength).toBe(50);
+    pick.value = 'custom';
+    pick.dispatchEvent(new window.Event('change', { bubbles: true }));
+    expect(name.hidden).toBe(false);
+    pick.value = 'key:homegreen';
+    pick.dispatchEvent(new window.Event('change', { bubbles: true }));
+    expect(name.hidden).toBe(true);
+    // 빼기
+    rowsIn('door')[0].querySelector('button[data-sup-del]').click();
+    expect(rowsIn('door')).toHaveLength(2);
+    expect(rowsIn('door')[0].querySelector('select').value).toBe('custom');
   });
 
   test('마감 · 자재 분야마다 메모 칸 — 묶음 아래, 지금 메모가 채워진다 (catalog finish_notes 에 있는 분야만)', async () => {
@@ -360,10 +428,12 @@ describe('평가표 — 10묶음, 항목은 서버 catalog', () => {
       ['hw', '하드웨어(서버) 메모', '', 500],
       ['top', '상판(서버) 메모', '', 500],
     ]);
-    // 묶음 바로 아래
+    // 분야 회사 줄 · 더하기 단추 바로 아래
     expect(
-      document.querySelector('textarea[data-finish-note="door"]').previousElementSibling.className
-    ).toBe('rows');
+      document
+        .querySelector('textarea[data-finish-note="door"]')
+        .previousElementSibling.getAttribute('data-sup-add')
+    ).toBe('door');
     // catalog 에 분야 메모가 없으면 칸도 없다
     await start({
       handler: defaultHandler(
@@ -442,7 +512,14 @@ describe('저장 — PUT /admin/companies/:id/evaluation', () => {
     const calls = await start();
     await open('p1');
     setRadio('eq-2', 'none');
-    setRadio('fi-3', 'yes');
+    // 하드웨어 — 블룸 고르고 주력, 상판 — 직접 적기
+    const hw = document.querySelector('[data-sup-group="hw"] [data-sup-row]');
+    setValue('[data-sup-group="hw"] select[data-sup-pick]', 'key:blum');
+    setCheck('[data-sup-group="hw"] input[data-sup-main]', true);
+    setValue('[data-sup-group="top"] select[data-sup-pick]', 'custom');
+    setValue('[data-sup-group="top"] input[data-sup-name]', '  동네 상판  ');
+    expect(hw.querySelector('input[data-sup-name]').hidden).toBe(true);
+    setValue('#fHqComm', '15');
     setValue('input[data-staff="install"]', '3');
     setValue('input[data-staff-total="total"]', '4');
     setCheck('input[data-design="planner"]', true);
@@ -459,12 +536,16 @@ describe('저장 — PUT /admin/companies/:id/evaluation', () => {
       equipment: { panel_saw: 'have', cnc_cut: 'outsource', edge_bander: 'none' },
       staff: { design: 2, install: 3, total: 4 },
       finishes: {
-        door_pet: 'yes',
-        door_paint: 'no',
-        hw_blum: 'yes',
+        door: [
+          { key: 'cratech', main: true },
+          { name: '동네 도어', main: false },
+        ],
+        hw: [{ key: 'blum', main: true }],
+        top: [{ name: '동네 상판', main: false }],
         notes: { door: 'PET 는 외주', top: '세라믹은 외주' },
       },
       design: { cad: true, planner: true },
+      hq_comm: { score: 15 },
       price_tier: 'high',
       docs: {
         insurance: { checked_at: '2026-10-01T12:00:00Z', by: 'u1' },
@@ -519,6 +600,7 @@ describe('저장 — PUT /admin/companies/:id/evaluation', () => {
       staff: {},
       finishes: {},
       design: { cad: false, planner: false },
+      hq_comm: {},
       price_tier: null,
       docs: {},
       as_months: null,
@@ -547,6 +629,42 @@ describe('저장 — PUT /admin/companies/:id/evaluation', () => {
     await settle();
     expect(calls.filter((c) => c.method === 'PUT')).toHaveLength(0);
     expect($('evStatus').textContent).toBe('전체 인원(서버): 0 이상의 정수로 넣어 주세요.');
+    setValue('input[data-staff-total="total"]', '4');
+    setValue('#fHqComm', '21');
+    $('btnSave').click();
+    await settle();
+    expect(calls.filter((c) => c.method === 'PUT')).toHaveLength(0);
+    expect($('evStatus').textContent).toBe('본사 소통: 0~20점으로 넣어 주세요.');
+    setValue('#fHqComm', '1.5');
+    $('btnSave').click();
+    await settle();
+    expect($('evStatus').textContent).toBe('본사 소통: 0 이상의 정수로 넣어 주세요.');
+  });
+
+  test('같은 분야에 같은 회사를 두 번 넣으면 보내지 않고 알린다', async () => {
+    const calls = await start();
+    await open('p1');
+    document.querySelector('button[data-sup-add="body"]').click();
+    const picks = document.querySelectorAll('[data-sup-group="body"] select[data-sup-pick]');
+    for (const p of picks) p.value = 'key:dongwha';
+    $('btnSave').click();
+    await settle();
+    expect(calls.filter((c) => c.method === 'PUT')).toHaveLength(0);
+    expect($('evStatus').textContent).toBe('몸통(서버): 같은 회사를 두 번 넣었습니다.');
+  });
+
+  test('catalog 에 본사 소통 한도가 없으면 칸도 없고 보내지 않는다', async () => {
+    const { limits, ...noLimits } = CATALOG;
+    expect(limits.hq_comm).toBe(20);
+    const calls = await start({
+      handler: defaultHandler({}, { evaluation: EVAL, catalog: noLimits, history: [] }),
+    });
+    await open('p1');
+    expect($('fHqComm')).toBeNull();
+    expect(document.querySelector('#evForm .group[data-group="hq_comm"]')).toBeNull();
+    $('btnSave').click();
+    await settle();
+    expect('hq_comm' in calls.find((c) => c.method === 'PUT').body).toBe(false);
   });
 
   test('422 (catalog 밖 키 등) — 서버 글을 그대로', async () => {
@@ -624,8 +742,14 @@ describe('그 밖', () => {
         handler: defaultHandler(
           {},
           {
-            evaluation: { note: evil },
-            catalog: { ...CATALOG, equipment: [{ key: '"><i>k', name: evil }] },
+            evaluation: { note: evil, finishes: { door: [{ name: evil }, { key: evil }] } },
+            catalog: {
+              ...CATALOG,
+              equipment: [{ key: '"><i>k', name: evil }],
+              suppliers: [
+                { key: 'door', name: evil, companies: [{ key: '"><i>', name: evil, kind: evil }] },
+              ],
+            },
             history: [{ evaluated_at: 'x', grade: evil, evaluated_by_email: evil }],
             metrics: { [evil]: 1 },
           }

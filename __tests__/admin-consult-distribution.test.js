@@ -77,11 +77,11 @@ const CANDS = {
       company_id: 'p1',
       company_name: '한빛가구',
       kind: 'partner',
-      total: 82,
+      total: 83,
       rank: 1,
       score: {
         eval: { grade: 13, satisfaction: 9.6, rework: 6, response: 3, sum: 31.6 },
-        fit: { item: 12, finish: 6, price: 2, timing: 6, design: 5, sum: 31 },
+        fit: { item: 15, price: 1.7, timing: 5, design: 10, sum: 31.7 },
         location: { sum: 15, why: 'same_gugun' },
         other: { spread: 2.5, capacity: 2, sum: 4.5 },
       },
@@ -94,7 +94,7 @@ const CANDS = {
       rank: 2,
       score: {
         eval: { grade: 13, satisfaction: 6, rework: 3, response: 3, sum: 25 },
-        fit: { item: 12, finish: 6, price: 6, timing: 6, design: 5, sum: 35 },
+        fit: { item: 15, price: 5, timing: 5, design: 10, sum: 35 },
         location: { sum: 5, why: 'other' },
         other: { spread: 5, capacity: 0, sum: 5 },
       },
@@ -103,11 +103,11 @@ const CANDS = {
       company_id: 'p2',
       company_name: '바른장',
       kind: 'partner',
-      total: 61,
+      total: 59,
       rank: 3,
       score: {
         eval: { grade: 10, satisfaction: 6, rework: 3, response: 3, sum: 22 },
-        fit: { item: 3, finish: 6, price: 6, timing: 3, design: 5, sum: 23 },
+        fit: { item: 3.8, price: 5, timing: 2.5, design: 10, sum: 21.3 },
         location: { sum: 10, why: 'same_sido' },
         other: { spread: 3, capacity: 3, sum: 6 },
       },
@@ -299,7 +299,7 @@ describe('상담 고르기 — 고객 · 배정 · 순위', () => {
     expect(c.querySelector('.rank').textContent).toBe('1순위');
     expect(c.querySelector('.cand-name').textContent).toBe('한빛가구');
     expect(c.querySelector('.kind-chip').textContent).toBe('Agent');
-    expect(c.querySelector('.total').textContent.replace(/\s+/g, '')).toBe('82점');
+    expect(c.querySelector('.total').textContent.replace(/\s+/g, '')).toBe('83점');
     // 묶음 이름 | 묶음 점수/만점 | 세부 항목
     const g = (k) => {
       const sg = c.querySelector(`.sg[data-group="${k}"]`);
@@ -310,7 +310,7 @@ describe('상담 고르기 — 고객 · 배정 · 순위', () => {
       '본사 평가 | 31.6/40 | 등급 13/16 · 고객 만족 9.6/12 · 재작업 6/6 · 응답 3/6'
     );
     expect(g('fit')).toBe(
-      '선택 적합도 | 31/35 | 품목 실적 12/12 · 도어 마감 6/6 · 가격대 2/6 · 희망 시기 6/6 · 상세 설계 5/5'
+      '선택 적합도 | 31.7/35 | 품목 실적 15/15 · 가격대 1.7/5 · 희망 시기 5/5 · 상세 설계 10/10'
     );
     expect(g('location')).toBe('위치 | 15/15 | 같은 시/군/구');
     expect(g('other')).toBe('기타 | 4.5/10 | 일감 고르게 2.5/5 · 처리 여유 2/5');
