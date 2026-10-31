@@ -905,6 +905,7 @@
       T,
       bodyH: (parseFloat(item && item.h) || R.DEFAULT_H) - (parseFloat(specs.wardrobePedestal) || R.PEDESTAL_H) - (parseFloat(specs.wardrobeMoldingH) || R.MOLDING_H),
       preset: block.preset, cells: block.cells, drawers: block.drawers, externalDrawer: block.externalDrawer, cellShelves: block.cellShelves, cellSplits: block.cellSplits,
+      cellShelfYs: block.cellShelfYs, cellRods: block.cellRods,   // 2026-10-31 칸마다 선반 자리 · 옷봉 빼기
     }) : null;
     const cabs = layout ? WR.cabinetsOf(layout) : null;
     const ourCabs = cars.filter((c) => c.group !== '서랍모듈');

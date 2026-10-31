@@ -720,6 +720,10 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
     ['손도면', 'CAD', '스케치업', '가구 전문 플래너']
   );
   assert.deepEqual(
+    first.json.data.catalog.staff_total.map((x) => x.key),
+    ['total']
+  );
+  assert.deepEqual(
     first.json.data.catalog.finish_notes.map((x) => x.key),
     ['door', 'body', 'hw', 'top']
   );

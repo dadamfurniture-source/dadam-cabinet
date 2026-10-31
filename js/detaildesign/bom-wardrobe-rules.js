@@ -335,6 +335,35 @@
     return out.some((n) => n != null) ? out : null;
   }
 
+  /**
+   * 칸마다 선반 자리 (2026-10-31 사장님 간편 플래너 "선반은 선반을 따로 클릭하면 높이를 설정 … 아랫면에서 얼마, 윗면에서 얼마") —
+   *   칸 차례(cellShelves 와 같은 차례 — 세로칸막이로 나눈 뒤)마다 선반 **밑면** y 목록 (칸 바닥에서, 작은 것부터), null 은 칸 규칙 자리 (shelfPositions).
+   *   사람이 정한 자리라 칸 규칙(긴옷 첫 선반 315 · 균등)을 쓰지 않는다. 장수 = 목록 길이 (cellShelves 보다 먼저).
+   *   칸에 들어가지 않으면 (판이 겹치거나 칸 밖) layoutWardrobeModule 이 경고하고 칸 규칙 자리로 둔다.
+   * @returns {Array<number[]|null>|null} 정한 칸이 없으면 null
+   */
+  function cleanCellShelfYs(v) {
+    if (!Array.isArray(v)) return null;
+    const out = v.slice(0, 24).map((ys) => {
+      if (!Array.isArray(ys)) return null;
+      const list = ys.slice(0, 12).map(Number);
+      if (list.some((y) => !Number.isFinite(y))) return null;
+      return list.map((y) => Math.round(y)).sort((a, b) => a - b);
+    });
+    return out.some((x) => x != null) ? out : null;
+  }
+
+  /**
+   * 칸마다 옷봉 빼기 (2026-10-31 사장님 "옷봉을 클릭하면 제거 버튼이 생성되고 제거 버튼 클릭하면 제거") — 칸 차례(cellShelves 와 같은 차례)마다
+   *   0 = 사람이 뺐다, null = 칸 규칙 그대로 (옷봉 칸이면 걸고, 걸 공간이 ROD_MIN_HANG 보다 짧으면 엔진이 뺀다). 사람이 뺀 칸은 옷봉만 빼고 선반 자리는 그대로 둔다.
+   * @returns {Array<0|null>|null} 뺀 칸이 없으면 null
+   */
+  function cleanCellRods(v) {
+    if (!Array.isArray(v)) return null;
+    const out = v.slice(0, 24).map((n) => (n === 0 || n === '0' ? 0 : null));
+    return out.some((n) => n != null) ? out : null;
+  }
+
   /** 모듈에 붙는 붙박이장 구조 블록을 다듬는다. 모르는 값은 버린다 (브리지·저장이 이 모양으로 주고받는다). */
   function normalizeBlock(raw) {
     const b = raw && typeof raw === 'object' ? raw : {};
@@ -343,11 +372,15 @@
     const drawers = int0(b.drawers, R.MAX_DRAWER_COUNT);
     const cellShelves = cleanCellShelves(b.cellShelves);
     const cellSplits = cleanCellSplits(b.cellSplits);
+    const cellShelfYs = cleanCellShelfYs(b.cellShelfYs);
+    const cellRods = cleanCellRods(b.cellRods);
     return {
       preset,
       cells: cells.length ? cells : null,
       ...(cellShelves ? { cellShelves } : {}),
       ...(cellSplits ? { cellSplits } : {}),
+      ...(cellShelfYs ? { cellShelfYs } : {}),
+      ...(cellRods ? { cellRods } : {}),
       // null·undefined 는 **미지정**이다 — 0 으로 접으면 프리셋 기본 서랍 단수를 덮어쓴다
       // (Number(null) 이 0 이고 Number.isFinite(0) 이 true 라 그렇게 새던 자리다).
       drawers: b.drawers == null || b.drawers === '' ? null : drawers,
@@ -776,6 +809,8 @@
    *   drawers         외부 서랍 단수 (없으면 프리셋 기본값)
    *   cellShelves     칸마다 선반 수 (normalizeBlock cellShelves — null 칸은 기본형 그대로, 2026-10-30). 세로칸막이로 나눈 칸은 나눈 뒤 칸 차례
    *   cellSplits      칸마다 세로칸막이 장수 (normalizeBlock cellSplits — 기본형 칸 차례, 2026-10-30) — 칸을 좌우 고르게 나눈다
+   *   cellShelfYs     칸마다 선반 밑면 자리 (normalizeBlock cellShelfYs — cellShelves 차례, 2026-10-31) — 장수 · 자리를 사람이 정한다
+   *   cellRods        칸마다 옷봉 빼기 0 (normalizeBlock cellRods — cellShelves 차례, 2026-10-31)
    * @returns {{preset, cells, dividers, rods, shelves, drawerModH, bodyH, Wi, Hi, warnings}}
    */
   function layoutWardrobeModule(o) {
@@ -843,6 +878,8 @@
     const rods = [];
     const cellShelves = cleanCellShelves(opt.cellShelves);
     const cellSplits = cleanCellSplits(opt.cellSplits);
+    const cellShelfYs = cleanCellShelfYs(opt.cellShelfYs);
+    const cellRods = cleanCellRods(opt.cellRods);
     let baseIdx = 0;   // 기본형 칸 차례 (cellSplits)
     // 서랍을 바꿨나 (기본형과 다른 단수 · 종류) — 바뀐 서랍이 닿는 칸에서 옷봉 걸 공간을 본다 (ROD_MIN_HANG):
     //   외부 서랍이면 캐비닛 높이가 줄어 모든 칸, 내부 서랍이면 맨 아래 캐비닛 칸
@@ -917,16 +954,24 @@
         const ov = cellShelves && cellShelves[cells.length];
         let c = ov == null ? c0 : Object.assign({}, c0, { shelves: ov });
         let shelfYs = shelfPositions(c, opt);
+        // 사람이 정한 선반 자리 (2026-10-31 cellShelfYs) — 판이 겹치지 않고 칸 안이면 그 자리 · 그 장수, 아니면 경고하고 칸 규칙 자리
+        const want = cellShelfYs && cellShelfYs[cells.length];
+        const fixed = !!want && !want.some((y, k) => y < 0 || (k > 0 && y < want[k - 1] + T)) && !(want.length && want[want.length - 1] + T > c.h);
+        if (want && !fixed) warnings.push(`${car.label} ${c.label || '칸'} 선반 자리 ${want.join('·')} 가 칸(높이 ${c.h}, 판 ${T})에 들어가지 않는다 — 칸 규칙 자리로 둔다`);
+        if (fixed) { c = Object.assign({}, c, { shelves: want.length }); shelfYs = want.slice(); }
+        // 사람이 뺀 옷봉 (2026-10-31 cellRods) — 옷봉만 뺀다. 선반 자리는 그린 그대로 (다시 셈하지 않는다)
+        if (cellRods && cellRods[cells.length] === 0 && c.rods > 0) c = Object.assign({}, c, { rods: 0, kind: c.shelves > 0 ? 'shelf' : 'open' });
         // 옷봉 걸 공간 (2026-10-30 사장님) — 사람이 바꾼 칸에서 봉 중심 ~ 아래 판이 ROD_MIN_HANG 보다 짧으면 옷봉을 뺀다.
-        //   빼면 그 칸은 선반 칸이다 — 선반 자리는 일반 규칙 (판 두께를 뺀 나머지 균등, §6)
-        const changed = ov != null || (drawersChanged && (external || carIdx === firstCabinet));
+        //   빼면 그 칸은 선반 칸이다 — 선반 자리는 일반 규칙 (판 두께를 뺀 나머지 균등, §6). 사람이 정한 자리면 그 자리 그대로.
+        //   선반 자리를 정한 칸도 본다 — 옷봉은 최상단 선반 바로 아래라 선반을 옮기면 걸 공간이 바뀐다 (사장님 "이 기능을 사용해도 옷봉의 생성여부는 자동으로 조건에 따라")
+        const changed = ov != null || fixed || (drawersChanged && (external || carIdx === firstCabinet));
         const rod0 = changed ? rodPositions(c, shelfYs) : [];
         if (rod0.length) {
           const below = shelfYs.filter((y) => y < rod0[0]).map((y) => y + T);
           const floor = below.length ? Math.max(...below) : 0;
           if (rod0[0] - floor < R.ROD_MIN_HANG) {
             c = Object.assign({}, c, { rods: 0, kind: c.shelves > 0 ? 'shelf' : 'open' });
-            shelfYs = shelfPositions(c, opt);
+            if (!fixed) shelfYs = shelfPositions(c, opt);
           }
         }
         const cell = Object.assign({}, c, { carcass: carIdx, y0: c.y0 + base });
@@ -1009,7 +1054,7 @@
 
   return {
     WARDROBE_RULES, PRESETS, PRESET_KEYS, PRESET_DEFAULT, SAMPLE_PRESETS, CELL_KINDS,
-    layoutWardrobeModule, normalizeBlock, cleanCellShelves, cleanCellSplits, dividersOf, shelfPositions, rodPositions,
+    layoutWardrobeModule, normalizeBlock, cleanCellShelves, cleanCellSplits, cleanCellShelfYs, cleanCellRods, dividersOf, shelfPositions, rodPositions,
     partsOf, rodHardwareOf, rodHardwareFor, rodLengthFor, bodyHeightOf, shelfDepthOf, innerDepthOf,
     cabinetsOf, splitStack, moldingPartFor, moldingFinishOn, moldingTypeOf, doorTopExtraOf,
     innerDrawerLayout, innerDrawerPartsOf, innerDrawerModulePartsOf, innerSlotPlan,
