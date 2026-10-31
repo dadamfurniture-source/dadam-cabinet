@@ -498,6 +498,15 @@ a.sg-row.ad-row::after {
   font-size: 13px;
 }
 
+/* 관리 › 작업 보고 — 숫자 넷 · 종류 고르기 */
+.ad-kpis dt {
+  width: 8em;
+}
+
+.ad-kind {
+  margin-top: 12px;
+}
+
 /* 내 정보 — 값 · 상담 내역 */
 .me-val {
   margin-left: auto;
