@@ -392,15 +392,15 @@ test('후보 — 1~3순위와 점수 내역, 걸러진 업체는 이유', async 
     ]
   );
   // A: 등급 S 16 + 만족 8/10 → 9.6 + 재작업 · 응답 자료 없음 3 · 3
-  //    품목 실적 1건 6 + 도어 PET 6 + 가격대 같음 6 + 날짜 안 6 + 설계 인원 · 플래너 5
+  //    품목 실적 1건 7.5 + 가격대 같음 5 + 날짜 안 5 + 설계 인원 · 플래너 10 (도어 마감은 점수에 없다)
   //    같은 시/군/구 15 · 일감 5(최근 30일 배정 없음) + 여유 5
   assert.deepEqual(items[0].score, {
     eval: { grade: 16, grade_letter: 'S', satisfaction: 9.6, rework: 3, response: 3, sum: 31.6 },
-    fit: { item: 6, finish: 6, price: 6, timing: 6, design: 5, sum: 29 },
+    fit: { item: 7.5, price: 5, timing: 5, design: 10, sum: 27.5 },
     location: { sum: 15, why: 'same_gugun' },
     other: { spread: 5, capacity: 5, sum: 10 },
   });
-  assert.equal(items[0].total, 86);
+  assert.equal(items[0].total, 84);
   assert.equal(items[0].company_name, '가나 인테리어');
   // B 는 기다리는 배정이 있어 최근 30일 최다 → 일감 0
   assert.equal(items[2].score.other.spread, 0);
@@ -499,7 +499,7 @@ test('배정 — 201, 업체 사본(넘기는 칸만) · 배정 기록(순위 ·
   assert.equal(a.company_id, A);
   assert.equal(a.copy_consultation_id, copy_consultation_id);
   assert.equal(a.rank, 1);
-  assert.equal(a.total, 86);
+  assert.equal(a.total, 84);
   assert.equal(a.state, 'assigned');
   assert.equal(a.assigned_by, ADMIN);
   assert.equal(a.score.rules, RULES_VERSION);
@@ -706,6 +706,7 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
   assert.equal(first.json.data.evaluation.grade, null);
   assert.equal(first.json.data.score, null, '아직 평가하지 않았으면 점수 없음');
   assert.deepEqual(first.json.data.evaluation.docs, {});
+  assert.deepEqual(first.json.data.evaluation.hq_comm, {});
   assert.equal(first.json.data.catalog.equipment.length, 13);
   assert.deepEqual(first.json.data.catalog.equipment[0], { key: 'table_saw', name: '테이블쏘' });
   assert.deepEqual(first.json.data.history, []);
@@ -727,6 +728,17 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
     first.json.data.catalog.finish_notes.map((x) => x.key),
     ['door', 'body', 'hw', 'top']
   );
+  assert.equal(first.json.data.catalog.finishes, undefined, '마감 · 자재는 거래 회사 목록으로');
+  assert.deepEqual(
+    first.json.data.catalog.suppliers.map((g) => [g.key, g.companies.length]),
+    [
+      ['door', 20],
+      ['body', 8],
+      ['hw', 22],
+      ['top', 25],
+    ]
+  );
+  assert.equal(first.json.data.catalog.limits.hq_comm, 20);
   assert.deepEqual(first.json.data.catalog.docs, [
     { key: 'insurance', name: '배상 책임 보험' },
     { key: 'contract', name: '표준 계약서' },
@@ -746,7 +758,11 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
       equipment: { table_saw: 'have', nesting: 'outsource' },
       staff: { design: 2 },
       docs: { insurance: { checked_at: '2026-10-29' }, contract: false },
-      finishes: { door_pet: 'yes', notes: { door: ' PET 는 외주 ', top: '' } },
+      finishes: {
+        door: [{ key: 'cratech', main: true }, { name: '동네 도어' }],
+        notes: { door: ' PET 는 외주 ', top: '' },
+      },
+      hq_comm: { score: 12 },
       design: { cad: true, planner: true },
       price_tier: 'basic',
       as_months: 12,
@@ -755,18 +771,25 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
   assert.equal(put.status, 200, JSON.stringify(put.json));
   const saved = fake.db.company_evaluations.find((x) => x.company_id === E);
   // 본문의 등급(B)은 읽지 않고 점수로 매긴다 — 설비 (1 + 0.5) ÷ 13 × 30 = 3.5 · 인력 1 ÷ 10 × 20 = 2 ·
-  // 마감 1 ÷ 14 × 20 = 1.4 · 설계 CAD 4 + 플래너 5 = 9 · A/S 12개월 3 · 서류 하나 2.5 → 21.4 C
+  // 본사 소통 12 · 설계 CAD 4 + 플래너 5 = 9 · A/S 12개월 3 · 서류 하나 2.5 → 32 C (거래 회사는 셈에 없다)
   assert.equal(saved.grade, 'C');
-  assert.equal(put.json.data.score.total, 21.4);
+  assert.equal(put.json.data.score.total, 32);
   assert.equal(put.json.data.score.grade, 'C');
   assert.deepEqual(
     put.json.data.score.areas.map((a) => a.points),
-    [3.5, 2, 1.4, 9, 3, 2.5]
+    [3.5, 2, 12, 9, 3, 2.5]
   );
   assert.equal(saved.evaluated_by, ADMIN);
   assert.deepEqual(saved.docs, { insurance: { checked_at: '2026-10-29', by: ADMIN } });
   assert.deepEqual(saved.install, {});
-  assert.deepEqual(saved.finishes, { door_pet: 'yes', notes: { door: 'PET 는 외주' } });
+  assert.deepEqual(saved.finishes, {
+    door: [
+      { key: 'cratech', main: true },
+      { name: '동네 도어', main: false },
+    ],
+    notes: { door: 'PET 는 외주' },
+  });
+  assert.deepEqual(saved.hq_comm, { score: 12 });
   assert.deepEqual(saved.design, { cad: true, planner: true });
   assert.deepEqual(put.json.data.evaluation.equipment, { table_saw: 'have', nesting: 'outsource' });
   const upsert = writesOf(fake).find((c) => c.table === 'company_evaluations');
@@ -778,7 +801,7 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
     [['C', `${ADMIN}@test.local`]]
   );
   assert.equal(again.json.data.score.grade, 'C');
-  assert.equal(again.json.data.score.total, 21.4);
+  assert.equal(again.json.data.score.total, 32);
 });
 
 test('평가표 — 목록 밖 키는 422 (unknown_keys), 본사(platform) · 없는 업체는 404', async () => {
