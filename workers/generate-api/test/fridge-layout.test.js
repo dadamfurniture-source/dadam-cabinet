@@ -20,6 +20,7 @@ import {
   fridgeSpecText,
   wardrobeModules,
 } from '../src/prompts.js';
+import * as P from '../src/prompts.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const constants = fs.readFileSync(path.join(here, '../../../js/detaildesign/data-constants.js'), 'utf8');
@@ -83,7 +84,7 @@ test('지시문: 모델·치수·자리 폭·단 높이·한 면·색 패널 (D2
   assert.match(t, /Samsung BESPOKE four-door french-door refrigerator \(model RM70F63R2A, 912 × 1853 × 697 mm\)/);
   assert.match(t, /Samsung BESPOKE stand-type kimchi refrigerator with three doors \(model RQ33HB7411A/);
   assert.match(t, /one open recess 1649 mm wide/);
-  assert.match(t, /flat colour panels in a tone close to white/);
+  assert.match(t, /Both have flat colour panels in a tone close to white/);
   assert.match(t, /a plinth 60 mm, a lower door 851 mm high, a middle door 1039 mm high above it, and the same 400 mm wall cabinet on top/);
   assert.match(t, /sit in one flush plane/);
   assert.match(t, /50 mm crown moulding/);
@@ -94,7 +95,7 @@ test('지시문: 모델·치수·자리 폭·단 높이·한 면·색 패널 (D2
   assert.doesNotMatch(lg, /\ba LG\b/);
   // 색 패널이 없는 라인은 제 색
   const plain = fridgeSpecText({ ...BASE, fridgeModels: [{ brand: 'LG', name: 'LG 프렌치 디오스', code: 'F756SI14', subtype: 'french_4door', line: '디오스', widthMm: 908, heightMm: 1785, depthMm: 802, sideGap: 50, topGap: 15, doors: 4, kind: 'fridge' }] });
-  assert.match(plain, /its own factory finish/);
+  assert.match(plain, /It has its own factory finish/);
   assert.match(plain, /one open recess 1014 mm wide/);
 });
 
@@ -129,4 +130,43 @@ test('appliance_models 행 → 모델: 여유는 표 → 라인 기본, 문 수�
   const free = fridgeModelFromRow({ brand: 'LG', model_name: 'LG 프렌치 디오스', model_code: 'F756SI14', subtype: 'french_4door', line: '디오스', width_mm: 908, height_mm: 1785, depth_mm: 802 });
   assert.equal(free.sideGap, 50);
   assert.equal(fridgeModelFromRow(null), null);
+});
+
+test('덩어리 나눔선 (③): 자리 끝·냉장고 사이·통 경계·2짝 가운데, 상부장 줄·중간/하부 경계', () => {
+  const { fridgeMassingLines } = P;
+  const l = fridgeMassingLines(BASE);
+  const L = fridgeLayout(3000, 2400, FRIDGE_DEFAULT_MODELS.Samsung, 'left');
+  const r4 = (x) => Math.round(x * 10000) / 10000;
+  assert.ok(l.vertical.includes(r4(L.nicheW / 3000)), '자리 끝');
+  assert.ok(l.vertical.includes(r4((12 + 912 + 6) / 3000)), '냉장고 사이 여유 가운데');
+  let cx = L.nicheW;
+  for (const m of L.columns) {
+    if (m.doors === 2) assert.ok(l.vertical.includes(r4((cx + m.w / 2) / 3000)), '2짝 가운데');
+    cx += m.w;
+    if (cx < 3000) assert.ok(l.vertical.includes(r4(cx / 3000)), '통 경계');
+  }
+  assert.deepEqual(l.horizontal[0], { v: (50 + 400) / 2400, u0: 0, u1: 1 });
+  assert.equal(l.horizontal[1].v, 1 - (60 + L.lowerH) / 2400);
+  assert.equal(l.horizontal[1].u0, L.nicheW / 3000);
+  assert.ok(l.vertical.every((u) => u > 0 && u < 1));
+  // 우측이면 자리가 오른쪽 끝, 통 구간은 0 부터
+  const rt = fridgeMassingLines({ ...BASE, fridgePosition: 'right' });
+  const LR = fridgeLayout(3000, 2400, FRIDGE_DEFAULT_MODELS.Samsung, 'right');
+  assert.ok(rt.vertical.includes(r4((3000 - LR.nicheW) / 3000)));
+  assert.equal(rt.horizontal[1].u0, 0);
+  assert.equal(rt.horizontal[1].u1, LR.columns.reduce((n, m) => n + m.w, 0) / 3000);
+});
+
+test('냉장고장은 벽 끝에서 끝(wallToWallMm 700) — 옆벽 깊이 문장은 cabinet, 붙박이장은 wardrobe 그대로', () => {
+  assert.equal(P.CATEGORIES.fridge.wallToWallMm, 700);
+  const side = { sideReturn: { side: 'right', depthMm: 300 } };
+  const f = buildInstallPrompt({ ...BASE, ...side });
+  assert.match(f, /The right end of the cabinet meets that wall's front corner/);
+  assert.doesNotMatch(f, /wardrobe/);
+  const st = buildInstallPrompt({ ...BASE, category: 'storage', ...side });
+  assert.match(st, /The right end of the wardrobe meets/); // 수납장은 예전 문장 그대로
+  const w = buildInstallPrompt({ ...BASE, category: 'wardrobe', ...side });
+  assert.match(w, /The right end of the wardrobe meets that wall's front corner/);
+  const mock = buildInstallPrompt({ ...BASE, mockVolume: true, mockKind: 'wardrobe' });
+  assert.match(mock, /The leftmost part of the mock, up to the first vertical line, is the refrigerator recess/);
 });
