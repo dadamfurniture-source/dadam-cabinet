@@ -121,6 +121,10 @@ test('글 — 종류마다 제목 · 본문 · 열 곳, DB 글자 수 안, /sega
     'billing_failed',
     'company_suspended',
     'consult_assigned',
+    'work_invited',
+    'work_registration',
+    'work_assigned',
+    'work_schedule',
   ]);
 });
 
@@ -379,6 +383,19 @@ test('POST /push/subscriptions — 업체 없이 신청 중이면 업체 없음.
   fake = createFake({ tables: t, users: USERS });
   r = await call(fake, 'POST', '/push/subscriptions', 'nobody', { endpoint: FCM, keys });
   assert.equal(r.status, 201);
+});
+
+test('POST /push/subscriptions — 작업자(대기 · 승인 · 정지)는 업체 없는 기기로, 반려된 작업자는 403 no_company', async () => {
+  const keys = await makeKeys();
+  for (const [status, want] of [['pending', 201], ['approved', 201], ['suspended', 201], ['rejected', 403]]) {
+    const t = tables();
+    t.workers = [{ id: 'w-' + status, user_id: U.nobody, status }];
+    const fake = createFake({ tables: t, users: USERS });
+    const r = await call(fake, 'POST', '/push/subscriptions', 'nobody', { endpoint: FCM, keys });
+    assert.equal(r.status, want, status);
+    if (want === 201) assert.equal(fake.db.push_subscriptions[0].company_id, null, status);
+    else assert.equal(r.json.code, 'no_company');
+  }
 });
 
 test('POST /push/subscriptions — 로그인 없으면 401, 모르는 주소 422 invalid_endpoint · 키 모양 422 invalid_keys (DB 를 보지 않는다)', async () => {

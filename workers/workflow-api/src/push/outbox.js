@@ -10,7 +10,7 @@
  */
 
 import { selectMany } from '../supabase.js';
-import { NOTIFICATION_KINDS, isValidMessage } from './messages.js';
+import { NOTIFICATION_KINDS, WORK_NOTIFICATION_KINDS, isValidMessage } from './messages.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** DB 상한 */
@@ -51,13 +51,13 @@ async function insertRows(env, rows) {
 
 /**
  * 알림 한 줄 모양 — 틀리면 null.
- * company_id 는 업체 신청(partner_application)만 비울 수 있다 (DB notification_outbox_company_check).
+ * company_id 는 업체 신청(partner_application) · 작업자 알림(work_*)만 비울 수 있다 (DB notification_outbox_company_check).
  */
 function outboxRow({ userId, companyId = null, kind, title, body, url, refId = null, dedupeKey = null }) {
   if (!NOTIFICATION_KINDS.includes(kind)) return null;
   if (!isUuid(userId)) return null;
   if (companyId !== null && !isUuid(companyId)) return null;
-  if (companyId === null && kind !== 'partner_application') return null;
+  if (companyId === null && kind !== 'partner_application' && !WORK_NOTIFICATION_KINDS.includes(kind)) return null;
   if (refId !== null && !isUuid(refId)) return null;
   if (dedupeKey !== null && (typeof dedupeKey !== 'string' || !dedupeKey || dedupeKey.length > DEDUPE_MAX)) return null;
   if (!isValidMessage({ title, body, url })) return null;

@@ -10,6 +10,7 @@ import { assertAssignable, assertMine, requireAdminEditor, requireApprovedWorker
 import { recordEvent, recordJobStatusChange } from './events.js';
 import { computeJobStatus, countFilled, loadJob, loadJobAssignments, lockJob } from './jobs.js';
 import { notifyWork } from './notify.js';
+import { later, notifyWorkAssigned } from '../push/work-hooks.js';
 import { ACTIVE_STATUSES, effectiveStatus, workerApplication } from './reveal.js';
 import { assertUuid, optText } from './validate.js';
 
@@ -74,7 +75,7 @@ export async function withdrawApplication(env, { user, params, ctx }) {
  * POST /work/admin/applications/:id/approve — 신청 승인 → 배정 confirmed.
  * 정원이 찼으면 409. 동시에 두 관리자가 승인하면 version 잠금에 진 쪽이 배정 · 신청을 되돌리고 409.
  */
-export async function approveApplication(env, { user, params, body }) {
+export async function approveApplication(env, { user, params, body, ctx }) {
   await requireAdminEditor(env, user);
   const id = assertUuid(params.id, '신청 id');
   const reason = optText(body && body.reason, 200, '사유');
@@ -128,6 +129,8 @@ export async function approveApplication(env, { user, params, body }) {
     payload: { worker_id: worker.id, via: 'application' },
   });
   await recordJobStatusChange(env, job, locked);
+  // 뽑힌 작업자에게 앱 알림 — 응답 뒤에
+  await later(ctx, notifyWorkAssigned(env, { job: locked, assignment }));
   return { application: decided[0], assignment };
 }
 

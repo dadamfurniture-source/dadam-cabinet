@@ -16,6 +16,7 @@ import { ConflictError, NotFoundError, ValidationError, insertOne, selectMany, s
 import { isMissingRelation } from '../work-order-data.js';
 import { requireAdminEditor, requireAdminReader, requireApprovedWorker, requireWorker } from './access.js';
 import { recordEvent, recordJobStatusChange } from './events.js';
+import { later, notifyWorkSchedule } from '../push/work-hooks.js';
 import { ACTIVE_STATUSES, COUNTED_STATUSES, effectiveStatus, jobCard, jobDetail, pickAssignment } from './reveal.js';
 import { WORK_KINDS, assertUuid, oneOf, optBool, optInt, optIso, optText, optUuid, reqText } from './validate.js';
 
@@ -371,7 +372,7 @@ export async function createJobAdmin(env, { user, body }) {
 }
 
 /** PATCH /work/admin/jobs/:id — draft · open 만, version 필수 */
-export async function patchJobAdmin(env, { user, params, body }) {
+export async function patchJobAdmin(env, { user, params, body, ctx }) {
   await requireAdminEditor(env, user);
   const id = assertUuid(params.id, '작업 id');
   const b = body || {};
@@ -389,6 +390,8 @@ export async function patchJobAdmin(env, { user, params, body }) {
   }
   const locked = await lockJob(env, { ...job, version: b.version }, { ...patch, status });
   await recordEvent(env, { jobId: id, actorUserId: user.id, actorKind: 'admin', type: 'job_updated', from: job.status, to: locked.status, payload: { fields: Object.keys(patch) } });
+  // 시작 · 끝 시각이 바뀌면 그 작업의 작업자에게 앱 알림 — 응답 뒤에
+  await later(ctx, notifyWorkSchedule(env, { before: job, after: locked }));
   return locked;
 }
 
