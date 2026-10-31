@@ -2,6 +2,7 @@
    segan/shell.js — SEGAN 앱 셸 (헤더 · 아래 탭 · 푸터 · 로그인 상태 · 서비스 워커)
 
    탭 4개 (순서 고정): 만들기 · 시공사례 · 내 연출컷 · 내 정보
+     + 관리 (관리자에게만 — 내 정보 역할 메뉴와 같은 AdminAccess.isAdmin 이 참일 때 연다, 처음엔 감춤)
      - 폰(좁은 화면): 아래 고정 탭 막대
      - PC(넓은 화면): v5 헤더 모양의 위 메뉴 + 사업자 정보 푸터
        폰에서는 사업자 정보를 내 정보 안에 둔다.
@@ -9,7 +10,7 @@
    「로그인이 필요합니다」와 로그인 버튼(돌아올 곳 = 지금 페이지)을 보인다.
 
    쓰는 법 (segan/*.html):
-     <body data-tab="make">            <!-- make | collection | renders | me -->
+     <body data-tab="make">            <!-- make | collection | renders | me | admin -->
        <div data-segan-shell="header"></div>
        <main id="main">…</main>
        <div data-segan-shell="footer"></div>
@@ -42,6 +43,8 @@
     },
     { key: 'renders', label: '내 연출컷', href: 'renders.html', target: 'segan/renders.html' },
     { key: 'me', label: '내 정보', href: 'me.html', target: 'segan/me.html' },
+    // 관리자 전용 — 판정 전에는 감춘다 (applyAdminTab)
+    { key: 'admin', label: '관리', href: 'admin.html', target: 'segan/admin.html', admin: true },
   ];
 
   // 역할 메뉴 — 주소는 js/site-shell.js(DETAIL DESIGN · ACCOUNT_MENU 관리자 페이지)와
@@ -95,6 +98,7 @@
       '<rect x="3.5" y="5.5" width="17" height="13"/><path d="M3.5 16l4.8-4.8 3.7 3.7 2.4-2.4 6.1 6"/>' +
       '<circle cx="15.6" cy="9.4" r="1.3"/>',
     me: '<circle cx="12" cy="8.4" r="3.4"/><path d="M5 19.5c0-3.5 3.1-5.6 7-5.6s7 2.1 7 5.6"/>',
+    admin: '<rect x="5.5" y="4.5" width="13" height="15"/><path d="M9 9h6M9 12.5h6M9 16h3.5"/>',
   };
 
   function icon(key) {
@@ -115,6 +119,7 @@
         t.key +
         '"' +
         (t.key === current ? ' aria-current="page"' : '') +
+        (t.admin ? ' hidden' : '') +
         '>' +
         (withIcon ? icon(t.key) : '') +
         '<span>' +
@@ -127,7 +132,7 @@
   function headerHTML(current) {
     return (
       '<header class="sg-header">' +
-      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026103101" alt="SEGAN" width="477" height="75" /></a>' +
+      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110102" alt="SEGAN" width="477" height="75" /></a>' +
       '<nav class="sg-nav" aria-label="주 메뉴">' +
       links(current, false) +
       '</nav>' +
@@ -359,6 +364,28 @@
     return { sb: sb, session: session, roles: roles };
   }
 
+  /**
+   * 관리 탭 — 관리자에게만 연다. 내 정보는 역할 메뉴 판정(roles.admin)을 그대로 쓰고,
+   * 다른 탭은 AdminAccess.isAdmin(sb) 를 묻는다 (참만 1분 기억한다 — js/admin-access.js). 모르면 감춘 채 둔다.
+   */
+  async function applyAdminTab(r) {
+    var on = false;
+    try {
+      if (r && r.roles) on = r.roles.admin === true;
+      else if (window.AdminAccess) {
+        var sb = (r && r.sb) || client();
+        var session = (r && r.session) || (await sessionOf(sb));
+        if (sb && session) on = (await window.AdminAccess.isAdmin(sb)) === true;
+      }
+    } catch {
+      on = false;
+    }
+    document.querySelectorAll('[data-tab-link="admin"]').forEach(function (a) {
+      a.hidden = !on;
+    });
+    return on;
+  }
+
   // ── 주입 ─────────────────────────────────────────────
   function mount() {
     var current = (document.body && document.body.getAttribute('data-tab')) || '';
@@ -371,7 +398,12 @@
       else if (kind === 'gate') slot.outerHTML = gateHTML(current);
       else if (kind === 'roles') slot.outerHTML = rolesHTML();
     });
-    return applyAuth(current);
+    return applyAuth(current).then(function (r) {
+      return applyAdminTab(r).then(function (on) {
+        r.admin = on;
+        return r;
+      });
+    });
   }
 
   function registerServiceWorker() {

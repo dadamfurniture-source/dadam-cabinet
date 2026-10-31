@@ -211,7 +211,9 @@ button {
   left: 0;
   z-index: 40;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* 탭 4개 + 관리자면 관리 — 감춘 탭은 자리를 차지하지 않는다 */
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
   padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   background: rgba(246, 243, 238, 0.97);
   -webkit-backdrop-filter: blur(12px);
@@ -379,6 +381,24 @@ button.sg-row {
   font-size: 13px;
   color: var(--v5-ink-60);
   overflow-wrap: anywhere;
+}
+
+/* 관리 (segan/admin.js) — 오늘 할 일 수, 할 일이 있으면 진하게 */
+a.sg-row.ad-row::after {
+  margin-left: 0;
+}
+
+.ad-count {
+  margin-left: auto;
+  padding-left: 12px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--v5-ink-60);
+}
+
+.ad-count.is-on {
+  font-weight: 500;
+  color: var(--v5-ink);
 }
 
 /* 내 정보 — 값 · 상담 내역 */
