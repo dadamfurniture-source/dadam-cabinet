@@ -784,6 +784,14 @@ button.sg-row {
   white-space: nowrap;
 }
 
+/* 업체 › 프로젝트 (segan/partner-projects.js) — 진행 중이 아닌 프로젝트의 상태 */
+.me-pr-status {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--v5-ink-60);
+  white-space: nowrap;
+}
+
 .me-bk-amt {
   margin-left: auto;
   font-size: 13px;
