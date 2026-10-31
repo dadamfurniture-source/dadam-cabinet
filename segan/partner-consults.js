@@ -1032,7 +1032,13 @@
     var section = $('partner');
     var list = $('partner-consults');
     var set = $('partnerConsultSettings');
-    if (section) section.hidden = !((list && !list.hidden) || (set && !set.hidden));
+    var projects = $('partnerProjects'); // segan/partner-projects.js 도 이 칸을 연다
+    if (section)
+      section.hidden = !(
+        (list && !list.hidden) ||
+        (set && !set.hidden) ||
+        (projects && !projects.hidden)
+      );
   }
 
   function bind() {

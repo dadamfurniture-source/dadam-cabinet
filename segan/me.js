@@ -277,17 +277,20 @@
     var partner = Partner && Partner.load ? Partner.load(auth.sb, auth.session, wallet) : null;
     var Consults = window.SeganPartnerConsults;
     var Books = window.SeganBooks;
+    var Projects = window.SeganPartnerProjects;
     var Push = window.SeganPush;
     await Promise.all([
       loadProjects(auth.session),
       // 업체 › 상담 · 회계 · 알림 — 업체 칸이 읽은 /partner/me 로 가린다
       //   상담 = Agent 업체 · 다담 공장 구성원 (segan/partner-consults.js), 회계 = 대표 · 실장 (segan/books.js),
+      //   프로젝트 = 다담 공장 · Expert · Agent 업체 구성원 (segan/partner-projects.js),
       //   알림 = 업체 구성원 · 본사 · 신청 중 (segan/push.js)
       Promise.resolve(partner).then(function () {
         var me = Partner && Partner.state ? Partner.state.me : null;
         return Promise.all([
           Consults && Consults.load ? Consults.load(auth.sb, auth.session, me) : null,
           Books && Books.load ? Books.load(auth.sb, auth.session, me) : null,
+          Projects && Projects.load ? Projects.load(auth.sb, auth.session, me) : null,
           Push && Push.load ? Push.load(auth.sb, auth.session, me) : null,
         ]);
       }),
