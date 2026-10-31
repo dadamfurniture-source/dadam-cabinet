@@ -110,9 +110,7 @@ export const SUPPLIERS = Object.freeze({
   body: Object.freeze({
     dongwha: supplier('동화기업', 'PB · MDF · 멜라민 보드 · 내수 보드'),
     sungchang: supplier('성창보드', 'PB (E0)'),
-    unid_btplus: supplier('유니드비티플러스', 'MDF'),
     hansol_homedeco: supplier('한솔홈데코', 'MDF · LPM · PET 표면보드'),
-    foresco: supplier('포레스코', 'MDF · 방염 MDF · 컬러 MDF'),
     moklim: supplier('(주)목림(멜라보드)', 'LPM · 멜라민 보드'),
     hanwha_with: supplier('(주)한화위드(Ottimo)', '멜라민 보드(MFB)'),
     printech: supplier('(주)프린테크엘피엠', 'LPM · 멜라민 보드'),
