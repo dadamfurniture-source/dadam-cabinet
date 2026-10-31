@@ -419,6 +419,85 @@ a.sg-row.ad-row::after {
   margin-top: 16px;
 }
 
+/* 관리 › 상담 배정 — 상담 줄을 누르면 그 자리에 고객 칸 · 순위 */
+.ad-tabs {
+  margin-top: 8px;
+}
+
+.ad-pick {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ad-status {
+  margin-left: auto;
+  font-size: 13px;
+  white-space: nowrap;
+  color: var(--v5-ink-60);
+}
+
+.ad-detail {
+  display: grid;
+  gap: 10px;
+}
+
+.ad-assign {
+  margin: 0;
+  font-size: 13px;
+}
+
+.ad-cands,
+.ad-score {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ad-cands {
+  display: grid;
+  gap: 10px;
+}
+
+.ad-cand {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--v5-line);
+}
+
+.ad-cand-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.ad-cand-head span {
+  margin-left: auto;
+  color: var(--v5-ink-60);
+  font-variant-numeric: tabular-nums;
+}
+
+.ad-score {
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.ad-filtered {
+  font-size: 13px;
+}
+
 /* 내 정보 — 값 · 상담 내역 */
 .me-val {
   margin-left: auto;

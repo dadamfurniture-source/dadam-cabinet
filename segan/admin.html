@@ -8,26 +8,27 @@
     <title>관리 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026110104" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026110104" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026110104" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110104" />
+    <link rel="icon" href="icons/icon.svg?v=2026110105" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110105" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110105" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110105" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026110104" />
+    <link rel="stylesheet" href="shell.css?v=2026110105" />
     <!-- 단추 · 입력 칸 — 만들기 탭과 같은 모양 -->
-    <link rel="stylesheet" href="make.css?v=2026110104" />
+    <link rel="stylesheet" href="make.css?v=2026110105" />
     <!-- 로그인 상태 · 관리자 판정 — 기존 사이트의 판정 모듈을 그대로 싣는다 (segan/shell.js 머리말) -->
-    <script src="../js/config.js?v=2026110104"></script>
+    <script src="../js/config.js?v=2026110105"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026110104"></script>
-    <script src="shell.js?v=2026110104" defer></script>
-    <script src="admin-applications.js?v=2026110104" defer></script>
-    <script src="admin.js?v=2026110104" defer></script>
+    <script src="../js/admin-access.js?v=2026110105"></script>
+    <script src="shell.js?v=2026110105" defer></script>
+    <script src="admin-applications.js?v=2026110105" defer></script>
+    <script src="admin-consults.js?v=2026110105" defer></script>
+    <script src="admin.js?v=2026110105" defer></script>
   </head>
   <body class="sg-app" data-tab="admin">
     <div data-segan-shell="header"></div>
@@ -66,6 +67,13 @@
           <a class="mk-link mk-back" href="#">‹ 관리</a>
           <h2 id="adApplicationsTitle">새 업체 신청</h2>
           <div id="adApplicationsBody"></div>
+        </section>
+
+        <!-- 상담 배정 — admin.html#consults · #consults-assigned (segan/admin-consults.js) -->
+        <section class="sg-section ad-view" id="adConsults" aria-labelledby="adConsultsTitle" hidden>
+          <a class="mk-link mk-back" href="#">‹ 관리</a>
+          <h2 id="adConsultsTitle">상담 배정</h2>
+          <div id="adConsultsBody"></div>
         </section>
       </div>
     </main>
