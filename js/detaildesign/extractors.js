@@ -2645,6 +2645,8 @@
                 externalDrawer: wrBlock.externalDrawer,
                 cellShelves: wrBlock.cellShelves,   // 2026-10-30 칸마다 선반 수
                 cellSplits: wrBlock.cellSplits,     // 2026-10-30 칸마다 세로칸막이 (세로칸막이)
+                cellShelfYs: wrBlock.cellShelfYs,   // 2026-10-31 칸마다 선반 자리 (간편 플래너 선반 높이)
+                cellRods: wrBlock.cellRods,         // 2026-10-31 칸마다 옷봉 빼기
               })
               : null;
             const modType = mod.moduleType || 'long';
@@ -3632,6 +3634,7 @@
                 // 서랍 종류도 판재와 같게 — 빠지면 프리셋 기본(짧은옷 2단은 외부)으로 셈해 속서랍 통의 옷봉 걸 공간(ROD_MIN_HANG)이 어긋난다
                 preset: block.preset, cells: block.cells, drawers: block.drawers, externalDrawer: block.externalDrawer,
                 cellShelves: block.cellShelves, cellSplits: block.cellSplits,
+                cellShelfYs: block.cellShelfYs, cellRods: block.cellRods,   // 2026-10-31 선반 자리 · 사람이 뺀 옷봉도 판재와 같게
               });
               (L.rods || []).forEach((r) => lengths.push(r.length));
               return;
