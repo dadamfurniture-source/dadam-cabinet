@@ -354,13 +354,15 @@
   }
 
   /**
-   * 칸마다 옷봉 빼기 (2026-10-31 사장님 "옷봉을 클릭하면 제거 버튼이 생성되고 제거 버튼 클릭하면 제거") — 칸 차례(cellShelves 와 같은 차례)마다
-   *   0 = 사람이 뺐다, null = 칸 규칙 그대로 (옷봉 칸이면 걸고, 걸 공간이 ROD_MIN_HANG 보다 짧으면 엔진이 뺀다). 사람이 뺀 칸은 옷봉만 빼고 선반 자리는 그대로 둔다.
-   * @returns {Array<0|null>|null} 뺀 칸이 없으면 null
+   * 칸마다 옷봉 빼기 · 걸기 (2026-10-31 사장님 "옷봉을 클릭하면 제거 버튼이 생성되고 제거 버튼 클릭하면 제거" ·
+   *   "붙박이장에는 내부구성 버튼에 옷봉버튼 만들어서 추가 할 수 있게 해줘") — 칸 차례(cellShelves 와 같은 차례)마다
+   *   0 = 사람이 뺐다, 1 = 사람이 걸었다 (칸 규칙으로 옷봉이 없는 칸 — 선반 칸 · 걸 공간이 모자라 뺀 칸 — 에도 건다, rodGapPositions),
+   *   null = 칸 규칙 그대로 (옷봉 칸이면 걸고, 걸 공간이 ROD_MIN_HANG 보다 짧으면 엔진이 뺀다). 사람이 빼거나 건 칸도 선반 자리는 그대로 둔다.
+   * @returns {Array<0|1|null>|null} 정한 칸이 없으면 null
    */
   function cleanCellRods(v) {
     if (!Array.isArray(v)) return null;
-    const out = v.slice(0, 24).map((n) => (n === 0 || n === '0' ? 0 : null));
+    const out = v.slice(0, 24).map((n) => (n === 0 || n === '0' ? 0 : n === 1 || n === '1' ? 1 : null));
     return out.some((n) => n != null) ? out : null;
   }
 
@@ -833,7 +835,7 @@
    *   cellShelves     칸마다 선반 수 (normalizeBlock cellShelves — null 칸은 기본형 그대로, 2026-10-30). 세로칸막이로 나눈 칸은 나눈 뒤 칸 차례
    *   cellSplits      칸마다 세로칸막이 장수 (normalizeBlock cellSplits — 기본형 칸 차례, 2026-10-30) — 칸을 좌우 고르게 나눈다
    *   cellShelfYs     칸마다 선반 밑면 자리 (normalizeBlock cellShelfYs — cellShelves 차례, 2026-10-31) — 장수 · 자리를 사람이 정한다
-   *   cellRods        칸마다 옷봉 빼기 0 (normalizeBlock cellRods — cellShelves 차례, 2026-10-31)
+   *   cellRods        칸마다 옷봉 빼기 0 · 걸기 1 (normalizeBlock cellRods — cellShelves 차례, 2026-10-31)
    * @returns {{preset, cells, dividers, rods, shelves, drawerModH, bodyH, Wi, Hi, warnings}}
    */
   function layoutWardrobeModule(o) {
@@ -1003,6 +1005,14 @@
             c = Object.assign({}, c, { rods: 0, kind: c.shelves > 0 ? 'shelf' : 'open' });
             if (!fixed) shelfYs = shelfPositions(c, opt);
           }
+        }
+        // 사람이 건 옷봉 (2026-10-31 cellRods 1 — 사장님 "붙박이장에는 내부구성 버튼에 옷봉버튼 만들어서 추가 할 수 있게 해줘") —
+        //   칸 규칙으로 옷봉이 없는 칸(선반 칸 · 빈 칸 · 걸 공간이 모자라 뺀 칸)에 건다. 칸마다 옷봉 1개 (cleanCell rods 최대 1).
+        //   자리는 걸 수 있는 가장 위 빈 칸 (rodGapPositions — 위 판 밑면 − 75 ~ 아래 판 ROD_MIN_HANG 이상), 선반 자리는 그대로 둔다.
+        //   걸 칸이 없으면 걸지 않는다 — 선반을 빼거나 옮겨 칸이 생기면 걸린다 (규칙 옷봉과 같다).
+        if (cellRods && cellRods[cells.length] === 1 && c.rods <= 0) {
+          const add = rodGapPositions(Object.assign({}, c, { rods: 1 }), shelfYs, opt);
+          if (add.length) { c = Object.assign({}, c, { rods: 1, kind: 'rod' }); rodYs = add; }
         }
         const cell = Object.assign({}, c, { carcass: carIdx, y0: c.y0 + base });
         const idx = cells.length;

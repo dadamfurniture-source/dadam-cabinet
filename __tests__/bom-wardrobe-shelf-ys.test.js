@@ -7,7 +7,7 @@
  *
  *   cellShelfYs — 칸마다 선반 밑면 y 목록 (칸 바닥에서). 사람이 정한 자리라 칸 규칙(긴옷 315 · 균등)을 쓰지 않는다. 장수 = 목록 길이.
  *                 판이 겹치거나 칸 밖이면 경고하고 칸 규칙 자리 (플래너 · 라이브러리는 경고를 오류로 막는다).
- *   cellRods    — 칸마다 0 = 사람이 뺀 옷봉. 옷봉만 빼고 선반 자리는 그대로.
+ *   cellRods    — 칸마다 0 = 사람이 뺀 옷봉, 1 = 사람이 건 옷봉 (같은 날 "붙박이장에는 내부구성 버튼에 옷봉버튼 만들어서 추가"). 선반 자리는 그대로.
  *   옷봉 걸 공간 (ROD_MIN_HANG 950) 은 선반 자리를 정한 칸도 본다 — 옷봉은 최상단 선반 바로 아래라 선반을 옮기면 걸 공간이 바뀐다.
  *   구조 s.wardrobe → 브리지 mod.wardrobe → BOM(extractWardrobe · 옷봉 철물) · 조립(wardrobeOf). 표시 없는 통은 예전과 같다.
  */
@@ -44,11 +44,11 @@ function run(wardrobe) {
 }
 
 describe('규칙 파일', () => {
-  test('normalizeBlock — cellShelfYs 는 칸마다 숫자 목록 (반올림 · 작은 것부터) 또는 null, cellRods 는 0 만 (나머지 null), 정한 칸이 없으면 싣지 않는다', () => {
-    const b = WR.normalizeBlock({ preset: 'shelf22', cellShelfYs: [[600.4, 100], null, 'x', [1, 'y']], cellRods: [0, 1, null, '0'] });
+  test('normalizeBlock — cellShelfYs 는 칸마다 숫자 목록 (반올림 · 작은 것부터) 또는 null, cellRods 는 0 · 1 만 (나머지 null), 정한 칸이 없으면 싣지 않는다', () => {
+    const b = WR.normalizeBlock({ preset: 'shelf22', cellShelfYs: [[600.4, 100], null, 'x', [1, 'y']], cellRods: [0, 1, null, '0', 2, '1'] });
     expect(b.cellShelfYs).toEqual([[100, 600], null, null, null]);
-    expect(b.cellRods).toEqual([0, null, null, 0]);
-    expect(Object.keys(WR.normalizeBlock({ preset: 'shelf22', cellShelfYs: [null], cellRods: [1, null] }))).not.toEqual(expect.arrayContaining(['cellShelfYs', 'cellRods']));
+    expect(b.cellRods).toEqual([0, 1, null, 0, null, 1]);
+    expect(Object.keys(WR.normalizeBlock({ preset: 'shelf22', cellShelfYs: [null], cellRods: [2, null] }))).not.toEqual(expect.arrayContaining(['cellShelfYs', 'cellRods']));
     expect(WR.normalizeBlock(undefined)).toEqual({ preset: null, cells: null, drawers: null, externalDrawer: null });
   });
   test('선반형 하부 칸 선반 자리 100 · 600 — 그 자리 그대로 (칸 규칙 균등 352 · 718 대신), 다른 칸 · 몸통 그대로', () => {
@@ -113,6 +113,29 @@ describe('옷봉 — 자동 (ROD_MIN_HANG) · 사람이 빼기', () => {
     expect(S.cells.map((c) => [c.kind, c.rods])).toEqual([['open', 0], ['rod', 1]]);
     expect(at({ preset: 'shelf22', cellRods: [0, 0] }).shelves.length).toBe(4);
   });
+  test('cellRods 1 — 사람이 건 옷봉 (2026-10-31 사장님 "붙박이장에는 내부구성 버튼에 옷봉버튼 만들어서 추가"): 걸 수 있는 가장 위 빈 칸, 선반 자리 그대로, 걸 칸이 없으면 걸지 않는다', () => {
+    // 선반형 하부 칸 1085 — 선반 2장 (352 · 718) 그대로면 판 사이가 다 950 미만 → 걸지 않는다
+    const S = at({ preset: 'shelf22', cellRods: [1, null] });
+    expect([ysOf(S, 0), rodsOf(S, 0), S.cells[0].kind]).toEqual([[352, 718], [], 'shelf']);
+    // 선반을 다 빼면 칸 천장 − 75 (1010) · 걸 공간 1010, 칸은 옷봉 칸
+    const E = at({ preset: 'shelf22', cellShelves: [0, null], cellRods: [1, null] });
+    expect([ysOf(E, 0), rodsOf(E, 0), E.cells[0].kind, E.cells[0].rods]).toEqual([[], [1085 - 75], 'rod', 1]);
+    expect(rodsOf(E, 1)).toEqual([]);
+    // 선반을 아래로 붙이면 (자리 정함 40) 선반 위 빈 칸에 — 1010 − 55 = 955 ≥ 950, 선반은 40 그대로
+    const D = at({ preset: 'shelf22', cellShelfYs: [[40], null], cellRods: [1, null] });
+    expect([ysOf(D, 0), rodsOf(D, 0)]).toEqual([[40], [1010]]);
+    // 4번 통 하부 선반 칸 (선반 3) — 선반을 다 빼고 걸면 짧은 옷봉 칸이 둘 (옷봉 길이는 칸 폭 − 5)
+    const B = at({ preset: 'rodTopSplitBottom', cellShelves: [0, null, null], cellRods: [1, null, null] });
+    expect(B.cells.slice(0, 2).map((c) => [c.kind, c.rods])).toEqual([['rod', 1], ['rod', 1]]);
+    expect(B.rods.filter((r) => r.cell === 0).map((r) => r.length)).toEqual([WR.rodLengthFor(B.cells[0].w)]);
+    // 규칙 옷봉 칸에 1 은 규칙 그대로 (자리 · 개수 같음), 사람이 뺀 뒤 1 로 다시 걸면 규칙 자리
+    expect(at({ preset: 'longDrawer', cellRods: [1] }).rods).toEqual(at({ preset: 'longDrawer' }).rods);
+    // 걸 공간이 모자라 엔진이 뺀 칸 (긴옷 선반 3 → 균등 364 · 743 · 1121) 에 1 — 판 사이가 다 950 미만이라 걸지 않는다, 선반 자리 그대로
+    const L3 = at({ preset: 'longDrawer', cellShelves: [3] });
+    const L3r = at({ preset: 'longDrawer', cellShelves: [3], cellRods: [1] });
+    expect([rodsOf(L3, 0), rodsOf(L3r, 0)]).toEqual([[], []]);
+    expect(ysOf(L3r, 0)).toEqual(ysOf(L3, 0));
+  });
   test('세로칸막이로 나눈 칸은 나눈 뒤 칸 차례 — 짧은옷 하부 세로칸막이 1, 오른쪽 칸 옷봉만 뺀다', () => {
     const L = at({ preset: 'short2', cellSplits: [1, null], cellRods: [null, 0, null] });
     expect(L.cells.map((c) => [c.label, c.rods])).toEqual([['하부 옷봉 1', 1], ['하부 옷봉 2', 0], ['상부 옷봉', 1]]);
@@ -130,6 +153,13 @@ describe('배선 — 구조 → 브리지 → BOM → 조립', () => {
     expect(r.mod.wardrobe.cellShelfYs).toEqual([[100, 600], null]);
     const L = at({ preset: 'shelf22' });
     expect(r.shelfY.slice(0, 2)).toEqual([100 + L.cells[0].y0, 600 + L.cells[0].y0]);
+    expect(r.spec.unplaced.filter((u) => u.moduleKey === r.mk)).toEqual([]);
+    expect(Check.check(r.spec).issues.filter((i) => i.level === 'error')).toEqual([]);
+  });
+  test('옷봉 걸기 — 브리지가 싣고, 옷봉 철물이 판재와 같이 는다 (선반형 하부 선반을 빼고 걸기 0 → 1), 검사 오류 없음', () => {
+    const r = run({ preset: 'shelf22', cellShelves: [0, null], cellRods: [1, null] });
+    expect(r.mod.wardrobe.cellRods).toEqual([1, null]);
+    expect([r.shelves, r.rods]).toEqual([2, 1]);
     expect(r.spec.unplaced.filter((u) => u.moduleKey === r.mk)).toEqual([]);
     expect(Check.check(r.spec).issues.filter((i) => i.level === 'error')).toEqual([]);
   });
