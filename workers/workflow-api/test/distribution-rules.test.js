@@ -874,6 +874,8 @@ test('평가표 — 항목 목록 (설비 13 · 직무 10 · 마감 14 + 분야 
       'as',
     ]
   );
+  assert.deepEqual(c.staff_total, [{ key: 'total', name: '전체 인원 (실제 사람 수)' }]);
+  assert.ok(!STAFF_ROLES.total, '전체 인원은 직무가 아니다');
   assert.equal(c.finishes.length, 14);
   assert.deepEqual(c.finish_notes, [
     { key: 'door', name: '도어' },
@@ -994,6 +996,25 @@ test('평가표 — 마감 · 자재 분야별 메모 finishes.notes (앞뒤 빈
   );
   // 메모가 있어도 도어 마감 점수는 그대로
   assert.equal(finishPoints(consult({ door_finish: 'pet' }), out), 6);
+});
+
+test('평가표 — 전체 인원 staff.total (실제 사람 수), 직무별 인원과 따로 · 점수에 안 들어감', () => {
+  const opts = { existing: null, userId: 'u1', today: '2026-10-30' };
+  // 설계 1명이 실측도 한다 — 직무마다 세고 전체 인원은 실제 사람 수
+  const out = parseEvaluation({ staff: { total: 4, design: 2, measure: 2 } }, opts);
+  assert.deepEqual(out.staff, { design: 2, measure: 2, total: 4 });
+  assert.deepEqual(parseEvaluation({ staff: { total: null, design: 1 } }, opts).staff, {
+    design: 1,
+  });
+  assert.deepEqual(parseEvaluation({ staff: { total: 0 } }, opts).staff, { total: 0 });
+  for (const bad of [-1, 1.5, '4', 1000])
+    assert.throws(
+      () => parseEvaluation({ staff: { total: bad } }, opts),
+      (e) => e.statusCode === 422 && e.details.invalid[0] === 'staff.total'
+    );
+  const withTotal = evaluationScore({ staff: { design: 2, measure: 2, total: 40 } });
+  const without = evaluationScore({ staff: { design: 2, measure: 2 } });
+  assert.deepEqual(withTotal.areas, without.areas, '전체 인원은 등급 점수에 넣지 않는다');
 });
 
 test('평가표 — 서류는 { checked_at: 확인한 날 }, 확인한 사람은 호출자 (같은 날이면 저장된 기록 그대로), false 면 뺀다', () => {

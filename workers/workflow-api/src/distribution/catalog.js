@@ -32,7 +32,7 @@ export const EQUIPMENT = Object.freeze({
 });
 export const EQUIPMENT_VALUES = Object.freeze(['have', 'outsource', 'none']);
 
-/** 직무별 인원 (정수) */
+/** 직무별 인원 (정수) — 한 사람이 여러 일을 하면(겸직) 직무마다 센다 */
 export const STAFF_ROLES = Object.freeze({
   design: '설계',
   measure: '실측',
@@ -46,6 +46,9 @@ export const STAFF_ROLES = Object.freeze({
   as: 'A/S',
 });
 export const STAFF_MAX = 999;
+/** 전체 인원 (실제 사람 수) — staff.total. 점수는 직무별 인원만 본다 (grade.js · score.js) */
+export const STAFF_TOTAL_KEY = 'total';
+export const STAFF_TOTAL = Object.freeze({ [STAFF_TOTAL_KEY]: '전체 인원 (실제 사람 수)' });
 
 /** 마감 · 자재 취급 — yes | no */
 export const FINISHES = Object.freeze({
@@ -108,12 +111,13 @@ export const ITEM_KEYS = Object.freeze(Object.keys(FURNITURE_LABELS));
 
 /**
  * GET /admin/companies/:id/evaluation 의 catalog — 묶음마다 [{ key, name }].
- * finish_notes 는 마감 · 자재 분야별 메모 칸 (finishes.notes 의 키).
+ * finish_notes 는 마감 · 자재 분야별 메모 칸 (finishes.notes 의 키). staff_total 은 전체 인원 칸 (staff.total).
  */
 export function evaluationCatalog() {
   return {
     equipment: entries(EQUIPMENT),
     staff_roles: entries(STAFF_ROLES),
+    staff_total: entries(STAFF_TOTAL),
     finishes: entries(FINISHES),
     finish_notes: entries(FINISH_NOTE_GROUPS),
     design: entries(DESIGN),
@@ -177,6 +181,7 @@ function intOrNull(body, field, min, max) {
 /**
  * PUT /admin/companies/:id/evaluation 본문 → 저장할 칸. 목록 밖 키 · 틀린 값은 422 (어느 칸 · 키인지 details).
  * 본문이 다시 정하는 표 전체다 (빠진 칸은 비운다). 위쪽 칸 중 모르는 이름(company_id 등)은 읽지 않는다.
+ *   staff.total: 전체 인원 (실제 사람 수, 0~999 정수). 직무별 인원은 겸직이면 직무마다 센다.
  *   finishes.notes: { door · body · hw · top: 글 } — 마감 · 자재 분야별 메모 (앞뒤 빈칸 지움, 빈 글은 뺀다, 500자까지).
  *   install: 시공 묶음은 뺐다 — 키가 있으면 422, 저장은 늘 {}.
  *   grade: 받지 않는다 — 저장할 때 서버가 평가표 점수로 매긴다 (grade.js · admin.js putCompanyEvaluation).
@@ -188,7 +193,7 @@ export function parseEvaluation(body, { existing = null, userId, today }) {
 
   const bad = [];
   const equipment = objectOf(body, 'equipment');
-  const staff = objectOf(body, 'staff');
+  const { [STAFF_TOTAL_KEY]: totalIn, ...staff } = objectOf(body, 'staff');
   const { [FINISH_NOTES_KEY]: notesIn, ...finishes } = objectOf(body, 'finishes');
   const design = objectOf(body, 'design');
   const install = objectOf(body, 'install');
@@ -211,6 +216,9 @@ export function parseEvaluation(body, { existing = null, userId, today }) {
     if (!EQUIPMENT_VALUES.includes(v)) wrong.push(`equipment.${k}`);
   for (const [k, v] of Object.entries(staff))
     if (!Number.isInteger(v) || v < 0 || v > STAFF_MAX) wrong.push(`staff.${k}`);
+  const total = totalIn === undefined || totalIn === null || totalIn === '' ? null : totalIn;
+  if (total !== null && (!Number.isInteger(total) || total < 0 || total > STAFF_MAX))
+    wrong.push(`staff.${STAFF_TOTAL_KEY}`);
   for (const [k, v] of Object.entries(finishes))
     if (!FINISH_VALUES.includes(v)) wrong.push(`finishes.${k}`);
   for (const [k, v] of Object.entries(design))
@@ -255,7 +263,7 @@ export function parseEvaluation(body, { existing = null, userId, today }) {
 
   return {
     equipment: { ...equipment },
-    staff: { ...staff },
+    staff: total === null ? { ...staff } : { ...staff, [STAFF_TOTAL_KEY]: total },
     finishes: Object.keys(finishNotes).length
       ? { ...finishes, [FINISH_NOTES_KEY]: finishNotes }
       : { ...finishes },
