@@ -28,6 +28,7 @@
  *   GET  /admin/companies · GET|PUT /admin/companies/:id/evaluation — 다담 본사 상담 분배 (src/distribution/)
  *   GET  /company/consults · POST /company/consults/:id/accept|decline · GET|PUT /company/service-settings
  *   GET  /company/my-score — 업체 쪽 상담 (src/distribution/company.js)
+ *   GET|POST /company/projects · PUT /designs/:designId/project — 업체 고객 · 프로젝트, 설계 잇기 (src/company-projects.js)
  *
  *   GET  /public/confirm                   — 고객 열람 (X-Share-Token)
  *   POST /public/confirm/decision          — 고객 승인/수정요청
@@ -171,6 +172,7 @@ import {
   putServiceSettings,
   myScore,
 } from './distribution/company.js';
+import { listCompanyProjects, createCompanyProject, linkDesignProject } from './company-projects.js';
 import { handlePushKey, handleSavePushSubscription, handleDeletePushSubscription } from './push/routes.js';
 import { runPushSender, runPushCleanup, isPushCleanupTime, PUSH_SEND_CRON } from './push/sender.js';
 import { notifyOrderRequest, notifyOrderRequestDecided, notifyConfirmationDecided } from './push/hooks.js';
@@ -950,6 +952,25 @@ async function handleMyScore(request, env, { user }) {
   return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
 }
 
+// ===== 업체 고객 · 프로젝트 (src/company-projects.js) — 고객 이름 · 전화가 담겨 캐시에 남기지 않는다 =====
+
+async function handleCompanyProjects(request, env, { user }) {
+  const data = await listCompanyProjects(env, { user });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleCreateCompanyProject(request, env, { user }) {
+  const body = await readJson(request);
+  const data = await createCompanyProject(env, { user, body });
+  return jsonResponse(request, env, { success: true, data }, 201, NO_STORE);
+}
+
+async function handleLinkDesignProject(request, env, { params, user }) {
+  const body = await readJson(request);
+  const data = await linkDesignProject(env, { user, designId: params.designId, body });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
 /** 로그인한 사람의 고객 행에 걸린 프로젝트 — 금액 · 일정이 담겨 캐시에 남기지 않는다 */
 async function handleMyProjects(request, env, { user }) {
   // data 는 프로젝트 배열 그대로 (앱 화면 계약)
@@ -1003,6 +1024,8 @@ const router = createRouter([
 
   { method: 'POST', path: '/designs/:designId/schedules', auth: 'jwt', handler: handleCreateSchedules },
   { method: 'GET', path: '/designs/:designId/schedules', auth: 'jwt', handler: handleListSchedules },
+  // 설계를 프로젝트에 잇기 · 풀기 (그 업체 대표 · 실장, 협력업체 설계는 만든 사람도)
+  { method: 'PUT', path: '/designs/:designId/project', auth: 'jwt', handler: handleLinkDesignProject },
   { method: 'PATCH', path: '/schedules/:scheduleId', auth: 'jwt', handler: handleUpdateSchedule },
   { method: 'POST', path: '/schedules/batches/:batchId/notify', auth: 'jwt', handler: handleResendSlack },
 
@@ -1044,6 +1067,9 @@ const router = createRouter([
   { method: 'GET',  path: '/company/service-settings',            auth: 'jwt', handler: handleGetServiceSettings },
   { method: 'PUT',  path: '/company/service-settings',            auth: 'jwt', handler: handlePutServiceSettings },
   { method: 'GET',  path: '/company/my-score',                    auth: 'jwt', handler: handleMyScore },
+  // 업체 고객 · 프로젝트 — 목록은 구성원, 만들기는 대표 · 실장 (다담 공장 · Expert 이상 협력업체)
+  { method: 'GET',  path: '/company/projects',                    auth: 'jwt', handler: handleCompanyProjects },
+  { method: 'POST', path: '/company/projects',                    auth: 'jwt', handler: handleCreateCompanyProject },
 
   // 업체 장부 요약 (그 업체 대표 · 실장)
   { method: 'GET',   path: '/books/summary',      auth: 'jwt', handler: handleBooksSummary },
