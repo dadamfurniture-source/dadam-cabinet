@@ -20,6 +20,7 @@
  *                   저장할 때 서버가 매기고 손으로 고르지 않는다 (grade.js, EVAL_WEIGHTS · GRADE_CUTS) (10-31 확인)
  *                   본사 소통 = 본사 설계 · 구성에 맞을수록 높게 — 평가 항목을 정할 때까지 본사가 0~20 을 직접 넣는다.
  *                   마감 · 자재(거래 회사)는 점수에 넣지 않는다 — 우선순위를 정하면 그때 차등 (10-31 확인)
+ *                   인력은 직무마다 전담 1 · 겸직 0.3 · 없음 0 — 전담 = 그 일만 하는 사람이 있음 (STAFF_SCORE, 10-31 확인)
  *   ⑦ 선택 적합도    도어 마감 점수를 뺐다 — 35 = 품목 실적 15 · 가격대 5 · 희망 시기 5 · 상세 설계 10 (10-31 확인).
  *                   항목 안의 세부 점수는 만점과 같은 비율로 맞췄다 (예: 실적 1건 이상 6/12 → 7.5/15)
  *
@@ -28,7 +29,7 @@
  */
 
 /** 이 규칙 묶음의 판 — 배정 기록(consult_assignments.score)에 같이 남겨 나중에 기준을 견준다 */
-export const RULES_VERSION = '2026-10-31b';
+export const RULES_VERSION = '2026-10-31c';
 
 /** 순위에 올리는 업체 수 (1~3순위) */
 export const TOP_N = 3;
@@ -156,6 +157,11 @@ export const EVAL_WEIGHTS = Object.freeze({
 });
 /** 설비 한 항목 — 있음 1 · 외주 0.5 · 없음 0 (합 ÷ 항목 수 × 배율) */
 export const EQUIPMENT_SCORE = Object.freeze({ have: 1, outsource: 0.5, none: 0 });
+/**
+ * ★⑥ 인력 한 직무 — 전담 1 · 겸직 0.3 (합 ÷ 직무 수 × 배율). 인원 0 · 빈 칸은 0.
+ * 전담은 평가표 staff.dedicated 에 든 직무 (그 일만 하는 사람이 있음), 그 밖에 인원이 있으면 겸직.
+ */
+export const STAFF_SCORE = Object.freeze({ dedicated: 1, shared: 0.3 });
 /** 설계 — 가진 것 합 (손도면 · CAD · 스케치업 · 가구 전문 플래너, 합이 설계 배율) */
 export const DESIGN_SCORE = Object.freeze({ hand_drawing: 2, cad: 4, sketchup: 4, planner: 5 });
 /** 품질 · 서비스 — A/S 기간 · 하자 보증 기간 각각 [이 개월 이상, 점수], 위에서부터. 없음 · 0개월 0 */

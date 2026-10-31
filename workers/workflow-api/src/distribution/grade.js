@@ -2,7 +2,8 @@
  * 본사 등급 — 평가표 영역별 점수를 더해(100점) S · A · B · C 를 매긴다. 숫자는 rules.js (EVAL_WEIGHTS · GRADE_CUTS).
  *
  *   설비          항목마다 있음 1 · 외주 0.5 · 없음 0 → 합 ÷ 항목 수 × 배율
- *   인력          1명 이상인 직무 수 ÷ 직무 수 × 배율 (전체 인원 staff.total 은 셈에 넣지 않는다)
+ *   인력          직무마다 전담 1 · 겸직 0.3 · 없음 0 (STAFF_SCORE) → 합 ÷ 직무 수 × 배율
+ *                 전담 = staff.dedicated 에 든 직무, 그 밖에 1명 이상이면 겸직. 전체 인원 staff.total 은 셈에 넣지 않는다
  *   본사 소통      본사가 넣은 점수 hq_comm.score (0 ~ 배율, 없으면 0) — 평가 항목을 정하면 항목별로 바꾼다
  *   설계          가진 것 합 (DESIGN_SCORE — 최대가 배율)
  *   품질 · 서비스  A/S 기간 · 하자 보증 기간 각각 SERVICE_MONTH_SCORE
@@ -14,7 +15,7 @@
  */
 
 import * as R from './rules.js';
-import { EQUIPMENT, STAFF_ROLES, DOCS } from './catalog.js';
+import { EQUIPMENT, STAFF_ROLES, STAFF_DEDICATED_KEY, DOCS } from './catalog.js';
 
 const r1 = (v) => Math.round(v * 10) / 10;
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -52,7 +53,11 @@ function rawAreas(ev) {
     0
   );
   const roles = Object.keys(STAFF_ROLES);
-  const filled = roles.filter((k) => Number.isInteger(st[k]) && st[k] >= 1).length;
+  const dedicated = Array.isArray(st[STAFF_DEDICATED_KEY]) ? st[STAFF_DEDICATED_KEY] : [];
+  const staffSum = roles.reduce((s, k) => {
+    if (!(Number.isInteger(st[k]) && st[k] >= 1)) return s;
+    return s + (dedicated.includes(k) ? R.STAFF_SCORE.dedicated : R.STAFF_SCORE.shared);
+  }, 0);
   const hqScore = Number.isInteger(hq.score) && hq.score > 0 ? hq.score : 0;
   const design = Object.keys(R.DESIGN_SCORE).reduce(
     (s, k) => s + (ds[k] === true ? R.DESIGN_SCORE[k] : 0),
@@ -63,7 +68,7 @@ function rawAreas(ev) {
 
   return {
     equipment: (eqSum / eqKeys.length) * W.equipment,
-    staff: (filled / roles.length) * W.staff,
+    staff: (staffSum / roles.length) * W.staff,
     hq_comm: Math.min(hqScore, W.hq_comm),
     design: Math.min(design, W.design),
     quality: Math.min(quality, W.quality),
