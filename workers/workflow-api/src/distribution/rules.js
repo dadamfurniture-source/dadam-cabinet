@@ -8,23 +8,27 @@
  *   ① 위치          같은 시/군/구 15 · 같은 시/도 10 · 그 밖 5            (locationScore)
  *                   이웃 시/군/구 표가 없어(segan/regions.js 에 없다) 처음엔 같은 시/도를 이웃으로 본다.
  *                   이웃 표가 생기면 locationScore 만 바꾼다.
- *   ② 고객 가격대    상담의 wanted_price_tier. 모름 · 빈 값이면 모든 업체 3  (customerPriceTier · PRICE_UNKNOWN)
- *   ③ 희망 시기      업체가 마칠 수 있는 날(오늘 + 고객 확정 ~ 시공 완료 기간)이 고객 시공 완료 희망 날짜 안 6 ·
- *                   14일 안 늦음 3 · 그 밖 0, 희망 날짜 없으면 모두 6 (timingScore). 기간은 업체의 최소 제작 기간
+ *   ② 고객 가격대    상담의 wanted_price_tier. 모름 · 빈 값이면 모든 업체 만점의 절반 2.5 (customerPriceTier · PRICE_UNKNOWN)
+ *   ③ 희망 시기      업체가 마칠 수 있는 날(오늘 + 고객 확정 ~ 시공 완료 기간)이 고객 시공 완료 희망 날짜 안 5 ·
+ *                   14일 안 늦음 2.5 · 그 밖 0, 희망 날짜 없으면 모두 5 (timingScore). 기간은 업체의 최소 제작 기간
  *                   1~14일, 일 단위 (LEAD_DAYS_MIN · LEAD_DAYS_MAX). 상담 → 고객 확정까지 걸리는 날은 셈에 넣지 않는다 (10-30 확인)
  *   ④ 설정 덜 함     한 달 한도(monthly_limit) · 고객 확정 ~ 시공 완료 기간(lead_days)을 정하지 않은 업체는
  *                   거른다 — 상담 설정을 마쳐야 배정받는다 (REQUIRE_MONTHLY_LIMIT · REQUIRE_LEAD_DAYS)
  *   ⑤ 거친 업체      같은 상담을 못 받음 · 무응답으로 돌려보낸 업체는 그 상담 후보에서 뺀다 (TRIED_STATES)
- *   ⑥ 본사 등급      평가표 영역별 배율 합(100)으로 매긴다 — 설비 30 · 인력 20 · 마감 · 자재 20 · 설계 15 ·
+ *   ⑥ 본사 등급      평가표 영역별 배율 합(100)으로 매긴다 — 설비 30 · 인력 20 · 본사 소통 20 · 설계 15 ·
  *                   품질 · 서비스 10 · 신뢰 · 서류 5 (가격대 빼고), S 85 · A 70 · B 50 이상 · 그 밖 C.
  *                   저장할 때 서버가 매기고 손으로 고르지 않는다 (grade.js, EVAL_WEIGHTS · GRADE_CUTS) (10-31 확인)
+ *                   본사 소통 = 본사 설계 · 구성에 맞을수록 높게 — 평가 항목을 정할 때까지 본사가 0~20 을 직접 넣는다.
+ *                   마감 · 자재(거래 회사)는 점수에 넣지 않는다 — 우선순위를 정하면 그때 차등 (10-31 확인)
+ *   ⑦ 선택 적합도    도어 마감 점수를 뺐다 — 35 = 품목 실적 15 · 가격대 5 · 희망 시기 5 · 상세 설계 10 (10-31 확인).
+ *                   항목 안의 세부 점수는 만점과 같은 비율로 맞췄다 (예: 실적 1건 이상 6/12 → 7.5/15)
  *
  * ☆ 정하지 않음 — 약속서에 값이 없어 임시로 둔 것. 역시 여기만 고친다.
  *   NO_GRADE_POINTS · RESPONSE_WINDOW_DAYS · FEEDBACK_SCORE_MAX 환산
  */
 
 /** 이 규칙 묶음의 판 — 배정 기록(consult_assignments.score)에 같이 남겨 나중에 기준을 견준다 */
-export const RULES_VERSION = '2026-10-31';
+export const RULES_VERSION = '2026-10-31b';
 
 /** 순위에 올리는 업체 수 (1~3순위) */
 export const TOP_N = 3;
@@ -93,36 +97,32 @@ export const NO_DATA_SHARE = 0.5;
 
 // ── 점수 2) 선택 적합도 35 ─────────────────────────────────────
 
-/** 품목 실적 — 그 품목 완료 수주 수 → 점수 (위에서부터 처음 맞는 줄) */
+/** ★⑦ 품목 실적 (만점 15) — 그 품목 완료 수주 수 → 점수 (위에서부터 처음 맞는 줄) */
 export const ITEM_RECORD_STEPS = Object.freeze([
-  Object.freeze({ min: 5, points: 12 }),
-  Object.freeze({ min: 1, points: 6 }),
-  Object.freeze({ min: 0, points: 3 }),
+  Object.freeze({ min: 5, points: 15 }),
+  Object.freeze({ min: 1, points: 7.5 }),
+  Object.freeze({ min: 0, points: 3.8 }),
 ]);
 
-/** 도어 마감 — 고객이 고른 마감을 업체가 취급 6 · 안 함 0 · 고객 「모름」이면 모두 3 */
-export const FINISH_MAX = 6;
-export const FINISH_UNKNOWN = 3;
-
-/** 가격대 — 같음 6 · 한 칸 차이 2 · 그 밖 0 */
+/** ★⑦ 가격대 (만점 5) — 같음 5 · 한 칸 차이 1.7 · 그 밖 0 */
 export const PRICE_TIERS = Object.freeze(['basic', 'mid', 'high']);
-export const PRICE_SAME = 6;
-export const PRICE_ONE_STEP = 2;
-/** ★② 고객 가격대를 모르면 모든 업체 3 (대표 확인 2026-10-30) */
-export const PRICE_UNKNOWN = 3;
+export const PRICE_SAME = 5;
+export const PRICE_ONE_STEP = 1.7;
+/** ★② 고객 가격대를 모르면 모든 업체 만점의 절반 (대표 확인 2026-10-30, 만점 5 로 맞춤 10-31) */
+export const PRICE_UNKNOWN = 2.5;
 
-/** ★③ 희망 시기 (대표 확인 2026-10-30) */
-export const TIMING_ON_TIME = 6;
-export const TIMING_LATE = 3;
+/** ★③ 희망 시기 (대표 확인 2026-10-30, ★⑦ 만점 5 로 맞춤 10-31) */
+export const TIMING_ON_TIME = 5;
+export const TIMING_LATE = 2.5;
 export const TIMING_LATE_DAYS = 14;
-export const TIMING_NO_DATE = 6;
+export const TIMING_NO_DATE = 5;
 /** 업체 「고객 확정 ~ 시공 완료 기간」 = 최소 제작 기간 1~14일, 일 단위 (대표 확인 2026-10-30)
  *  — DB company_service_settings_lead_days_check 와 같다 */
 export const LEAD_DAYS_MIN = 1;
 export const LEAD_DAYS_MAX = 14;
 
-/** 상세 설계 — 요청이 있으면 설계 인원 1명 이상 + 플래너 사용 5 · 아니면 0. 요청 없으면 모두 5 */
-export const DESIGN_MAX = 5;
+/** ★⑦ 상세 설계 (만점 10) — 요청이 있으면 설계 인원 1명 이상 + 플래너 사용 10 · 아니면 0. 요청 없으면 모두 10 */
+export const DESIGN_MAX = 10;
 export const DESIGN_MIN_STAFF = 1;
 
 // ── 점수 3) 위치 15 ───────────────────────────────────────────
@@ -142,11 +142,14 @@ export const CAPACITY_MAX = 5;
 
 // ── 본사 등급 — 평가표 영역별 배율 (grade.js) ─────────────────
 
-/** ★⑥ 영역 배율 (합 100). 가격대는 넣지 않는다 — 고객 가격대와 맞추는 데만 쓴다 (대표 확인 2026-10-31) */
+/**
+ * ★⑥ 영역 배율 (합 100). 가격대 · 마감 · 자재는 넣지 않는다 — 가격대는 고객 가격대와 맞추는 데만 쓴다.
+ * 본사 소통(hq_comm)은 마감 · 자재 자리 — 지금은 본사가 0 ~ 배율 점수를 직접 넣는다 (대표 확인 2026-10-31)
+ */
 export const EVAL_WEIGHTS = Object.freeze({
   equipment: 30,
   staff: 20,
-  finishes: 20,
+  hq_comm: 20,
   design: 15,
   quality: 10,
   docs: 5,

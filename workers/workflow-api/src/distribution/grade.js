@@ -2,19 +2,19 @@
  * 본사 등급 — 평가표 영역별 점수를 더해(100점) S · A · B · C 를 매긴다. 숫자는 rules.js (EVAL_WEIGHTS · GRADE_CUTS).
  *
  *   설비          항목마다 있음 1 · 외주 0.5 · 없음 0 → 합 ÷ 항목 수 × 배율
- *   인력          1명 이상인 직무 수 ÷ 직무 수 × 배율
- *   마감 · 자재    「취급함」 수 ÷ 항목 수 × 배율 (분야별 메모는 셈에 넣지 않는다)
+ *   인력          1명 이상인 직무 수 ÷ 직무 수 × 배율 (전체 인원 staff.total 은 셈에 넣지 않는다)
+ *   본사 소통      본사가 넣은 점수 hq_comm.score (0 ~ 배율, 없으면 0) — 평가 항목을 정하면 항목별로 바꾼다
  *   설계          가진 것 합 (DESIGN_SCORE — 최대가 배율)
  *   품질 · 서비스  A/S 기간 · 하자 보증 기간 각각 SERVICE_MONTH_SCORE
  *   신뢰 · 서류    확인한 서류마다 DOC_SCORE
- *   가격대는 넣지 않는다 — 고객 가격대와 맞추는 데만 쓴다.
+ *   가격대 · 마감 · 자재(거래 회사)는 넣지 않는다 — 가격대는 고객 가격대와 맞추는 데만 쓴다.
  *
  * 영역 점수는 소수 첫째 자리로 맞추고, 합은 그 영역 점수를 더한 값 — 화면의 숫자가 그대로 맞아떨어진다.
  * 저장할 때 서버가 매긴다 (admin.js putCompanyEvaluation) — 손으로 고르지 않는다.
  */
 
 import * as R from './rules.js';
-import { EQUIPMENT, STAFF_ROLES, FINISHES, DOCS } from './catalog.js';
+import { EQUIPMENT, STAFF_ROLES, DOCS } from './catalog.js';
 
 const r1 = (v) => Math.round(v * 10) / 10;
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -24,7 +24,7 @@ const own = (obj, k) => Object.prototype.hasOwnProperty.call(obj, k);
 export const EVAL_AREAS = Object.freeze({
   equipment: '설비',
   staff: '인력',
-  finishes: '마감 · 자재',
+  hq_comm: '본사 소통',
   design: '설계',
   quality: '품질 · 서비스',
   docs: '신뢰 · 서류',
@@ -41,7 +41,7 @@ function monthsScore(m) {
 function rawAreas(ev) {
   const eq = isObj(ev.equipment) ? ev.equipment : {};
   const st = isObj(ev.staff) ? ev.staff : {};
-  const fi = isObj(ev.finishes) ? ev.finishes : {};
+  const hq = isObj(ev.hq_comm) ? ev.hq_comm : {};
   const ds = isObj(ev.design) ? ev.design : {};
   const dc = isObj(ev.docs) ? ev.docs : {};
   const W = R.EVAL_WEIGHTS;
@@ -53,8 +53,7 @@ function rawAreas(ev) {
   );
   const roles = Object.keys(STAFF_ROLES);
   const filled = roles.filter((k) => Number.isInteger(st[k]) && st[k] >= 1).length;
-  const finishKeys = Object.keys(FINISHES);
-  const handled = finishKeys.filter((k) => fi[k] === 'yes').length;
+  const hqScore = Number.isInteger(hq.score) && hq.score > 0 ? hq.score : 0;
   const design = Object.keys(R.DESIGN_SCORE).reduce(
     (s, k) => s + (ds[k] === true ? R.DESIGN_SCORE[k] : 0),
     0
@@ -65,7 +64,7 @@ function rawAreas(ev) {
   return {
     equipment: (eqSum / eqKeys.length) * W.equipment,
     staff: (filled / roles.length) * W.staff,
-    finishes: (handled / finishKeys.length) * W.finishes,
+    hq_comm: Math.min(hqScore, W.hq_comm),
     design: Math.min(design, W.design),
     quality: Math.min(quality, W.quality),
     docs: Math.min(docs * R.DOC_SCORE, W.docs),

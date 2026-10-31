@@ -15,14 +15,14 @@
  *
  * 점수 (100) — 항목마다 소수 한 자리, 총점은 반올림 정수
  *   eval 40     등급 + 고객 만족 + 재작업 + 응답
- *   fit 35      품목 실적 + 도어 마감 + 가격대 + 희망 시기 + 상세 설계
+ *   fit 35      품목 실적 15 + 가격대 5 + 희망 시기 5 + 상세 설계 10 (도어 마감은 뺐다 — rules.js ⑦)
  *   location 15 업체 주소와 고객 지역
  *   other 10    일감 고르게(최근 30일 배정 수) + 처리 여유(진행 중 수주 ÷ 한 달 한도)
  * 순위: 총점 높은 순, 같으면 마지막 배정이 오래된 업체(배정이 없던 업체가 맨 앞), 그래도 같으면 이름 순.
  */
 
 import * as R from './rules.js';
-import { ITEM_KEYS, DOOR_FINISH_UNKNOWN, docsOk, doorFinishKey } from './catalog.js';
+import { ITEM_KEYS, docsOk } from './catalog.js';
 
 const KST_MS = 9 * 3600 * 1000;
 const DAY_MS = 86400000;
@@ -192,13 +192,6 @@ export function itemRecordPoints(count) {
   return 0;
 }
 
-export function finishPoints(consult, evaluation) {
-  const f = consult && consult.door_finish;
-  if (!f || f === DOOR_FINISH_UNKNOWN) return R.FINISH_UNKNOWN;
-  const finishes = evaluation && isObj(evaluation.finishes) ? evaluation.finishes : {};
-  return finishes[doorFinishKey(f)] === 'yes' ? R.FINISH_MAX : 0;
-}
-
 export function pricePoints(consult, evaluation) {
   const want = R.customerPriceTier(consult);
   if (want === null) return R.PRICE_UNKNOWN;
@@ -220,7 +213,6 @@ export function designPoints(consult, evaluation) {
 /** 선택 적합도 35 */
 export function fitScore({ consult, items, settings, evaluation, stats, today }) {
   const item = itemRecordPoints(itemRecordCount(items, stats));
-  const finish = finishPoints(consult, evaluation);
   const price = pricePoints(consult, evaluation);
   const timing = R.timingScore(
     consult && consult.wanted_done_date,
@@ -228,8 +220,15 @@ export function fitScore({ consult, items, settings, evaluation, stats, today })
     today
   );
   const design = designPoints(consult, evaluation);
-  const sum = item + finish + price + timing + design;
-  return { item, finish, price, timing, design, sum, raw: sum };
+  const sum = item + price + timing + design;
+  return {
+    item: r1(item),
+    price: r1(price),
+    timing: r1(timing),
+    design: r1(design),
+    sum: r1(sum),
+    raw: sum,
+  };
 }
 
 /** 기타 10 — maxRecent: 순위 대상 업체 중 최근 30일 배정 수가 가장 많은 수 */
