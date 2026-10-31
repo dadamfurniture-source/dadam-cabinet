@@ -4,7 +4,8 @@
    누가 보나  account-api GET /partner/me 로 가린다 (segan/me.js 가 업체 칸을 읽은 뒤
              SeganPush.load(sb, session, partnerMe) 를 부른다 — /partner/me 를 두 번 묻지 않는다)
                협력업체 구성원 (company 있음, 역할 무관) · 본사 구성원 (hq_member) ·
-               업체 신청 진행 중 (application.status applied · meeting · approved)
+               업체 신청 진행 중 (application.status applied · meeting · approved) ·
+               작업자 (셸의 작업 탭 판정 — load 의 opts.worker, 작업 초대 · 신청 결과 · 확정 · 일정 알림)
              그 밖이면 칸이 없다. 서버도 그 밖이면 403 code 'no_company' 를 준다.
    서버      workflow-api (응답은 { success, data })
                GET    /push/key            VAPID 공개 키 (base64url) — 로그인 없이. 못 읽으면 칸째 감춘다
@@ -28,7 +29,8 @@
   'use strict';
 
   var APPLYING = ['applied', 'meeting', 'approved']; // 업체 신청 진행 중
-  var LEAD = '업무 알림(승인 요청 · 확인서 결정 · 결제 등)이 이 기기로 옵니다.';
+  var LEAD =
+    '업무 알림(승인 요청 · 확인서 결정 · 결제 · 작업 초대 · 작업 일정 등)이 이 기기로 옵니다.';
   var TEXT = {
     on: '이 기기에서 알림을 받고 있습니다.',
     unsupported:
@@ -94,8 +96,9 @@
   }
 
   // ── 판정 (순수 함수 — 시험이 직접 부른다) ─────────────────
-  /** 알림 칸을 보이나 — 협력업체 구성원 · 본사 구성원 · 업체 신청 진행 중 */
-  function canUse(me) {
+  /** 알림 칸을 보이나 — 협력업체 구성원 · 본사 구성원 · 업체 신청 진행 중 · 작업자(opts.worker) */
+  function canUse(me, opts) {
+    if (opts && opts.worker === true) return true;
     if (!me || typeof me !== 'object' || Array.isArray(me)) return false;
     if (me.hq_member === true) return true;
     if (me.company && typeof me.company === 'object') return true;
@@ -440,8 +443,11 @@
     if (act === 'off') return turnOff();
   }
 
-  /** 알림 칸 채우기 — me.js 가 업체 칸을 읽은 뒤 부른다. me = GET /partner/me data */
-  async function load(sb, session, me) {
+  /**
+   * 알림 칸 채우기 — me.js 가 업체 칸을 읽은 뒤 부른다. me = GET /partner/me data,
+   * opts.worker = 작업자인가 (segan/shell.js 의 작업 탭 판정 — GET /work/me 를 다시 묻지 않는다)
+   */
+  async function load(sb, session, me, opts) {
     var section = $('mePush');
     var root = $('mePushBody');
     if (!section || !root) return;
@@ -451,7 +457,7 @@
     S.base = (cfg.workflowApi && cfg.workflowApi.url) || '';
     S.sb = sb;
     S.session = session;
-    if (!S.base || !session || !canUse(me)) return;
+    if (!S.base || !session || !canUse(me, opts)) return;
     try {
       S.key = await fetchKey();
       if (!S.key) return; // 서버가 아직 없다 (404 · 오류) — 칸째 감춘다

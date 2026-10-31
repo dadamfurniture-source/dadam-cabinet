@@ -4,28 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>다담 캐비넷 에이전트 - v33.0 (자재추출 시스템 개선)</title>
-    <link rel="stylesheet" href="css/dadam-v5.css?v=2026110110" />
-    <link rel="stylesheet" href="css/detaildesign/base.css?v=2026110110" />
-    <link rel="stylesheet" href="css/detaildesign/components.css?v=2026110110" />
-    <link rel="stylesheet" href="css/detaildesign/chrome.css?v=2026110110" />
+    <link rel="stylesheet" href="css/dadam-v5.css?v=2026110112" />
+    <link rel="stylesheet" href="css/detaildesign/base.css?v=2026110112" />
+    <link rel="stylesheet" href="css/detaildesign/components.css?v=2026110112" />
+    <link rel="stylesheet" href="css/detaildesign/chrome.css?v=2026110112" />
     <script src="js/nav-transitions.js"></script>
     <!-- xlsx는 BOM export 시 ai-design-report.js의 loadXLSX()로 동적 로드 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="js/config.js?v=2026110110"></script>
+    <script src="js/config.js?v=2026110112"></script>
     <script src="js/storage-urls.js"></script>
-    <script src="js/supabase-utils.js?v=2026110110"></script>
-    <script src="js/site-shell.js?v=2026110110" defer></script>
+    <script src="js/supabase-utils.js?v=2026110112"></script>
+    <script src="js/site-shell.js?v=2026110112" defer></script>
     <!-- W12-71: 도면 스냅샷 저장소. 플래너(iframe)와 **같은 정본**을 쓴다 —
          디테일 스냅샷을 여기서 쌓고, 설계를 처음 저장할 때 local 스코프를 이관한다. -->
-    <script src="js/planner/planner-store.js?v=2026110110"></script>
+    <script src="js/planner/planner-store.js?v=2026110112"></script>
     <!-- 2026-09-13: 도면 저장 / 불러오기 공통 메뉴 — 디테일 단계 우측 상단 -->
-    <script src="js/planner/planner-drawing-menu.js?v=2026110110"></script>
+    <script src="js/planner/planner-drawing-menu.js?v=2026110112"></script>
     <!-- P11 gen-to-planner: 연출컷 가져오기가 배치 영역의 깊이·높이·가전 폭을 이 정본에서 읽는다 (읽기 전용 상수) -->
-    <script src="js/planner/planner-sections.js?v=2026110110"></script>
-    <script src="js/detaildesign-access.js?v=2026110110"></script>
-    <script src="js/admin-access.js?v=2026110110"></script>
+    <script src="js/planner/planner-sections.js?v=2026110112"></script>
+    <script src="js/detaildesign-access.js?v=2026110112"></script>
+    <script src="js/admin-access.js?v=2026110112"></script>
     <!-- CAD 베타 T4: 플래너(iframe)가 묻으면 관리자인지 답한다 — 관리자 근사 GLB 버튼. admin-access.js 뒤에 실린다. -->
-    <script src="js/planner/planner-export.js?v=2026110110"></script>
+    <script src="js/planner/planner-export.js?v=2026110112"></script>
   </head>
   <body class="has-toolbar">
     <!-- 헤더 — 메인 사이트와 같은 셸 (js/site-shell.js 가 주입). 2026-09-12:
@@ -366,54 +366,54 @@
 
     <!-- JS 모듈 (로딩 순서 중요: data → utils → config → engine → extractors → ui → 나머지) -->
     <!-- 정적 <script>는 동일 origin/동기 로드 시 선언 순서 보장됨 -->
-    <script src="js/detaildesign/data-constants.js?v=2026110110"></script>
-    <script src="js/detaildesign/utils.js?v=2026110110"></script>
-    <script src="js/detaildesign/config-constants.js?v=2026110110"></script>
+    <script src="js/detaildesign/data-constants.js?v=2026110112"></script>
+    <script src="js/detaildesign/utils.js?v=2026110112"></script>
+    <script src="js/detaildesign/config-constants.js?v=2026110112"></script>
     <!-- W10-1: 멍장(코너장) 파생 엔진 — calc-engine/ui 보다 먼저 load -->
-    <script src="js/detaildesign/corner-engine.js?v=2026110110"></script>
-    <script src="js/detaildesign/calc-engine.js?v=2026110110"></script>
+    <script src="js/detaildesign/corner-engine.js?v=2026110112"></script>
+    <script src="js/detaildesign/calc-engine.js?v=2026110112"></script>
     <!-- W7-1: BOM 자재 코드 매트릭스 (extractors.js 보다 먼저 load) -->
-    <script src="js/detaildesign/bom-finish-color.js?v=2026110110"></script>
+    <script src="js/detaildesign/bom-finish-color.js?v=2026110112"></script>
     <!-- B1: 디테일 마감 모델 해석기 (플래너와 같은 파일, window.plannerFinishResolve) — extractors.js 가 item.detail 을 읽을 때 쓴다 -->
-    <script src="js/planner/planner-finish.js?v=2026110110"></script>
+    <script src="js/planner/planner-finish.js?v=2026110112"></script>
     <!-- 2026-09-15: 서랍장·목찬넬·레일 규칙 — extractors.js 가 전역 DadamDrawerRules 로 읽는다 -->
-    <script src="js/detaildesign/bom-drawer-rules.js?v=2026110110"></script>
+    <script src="js/detaildesign/bom-drawer-rules.js?v=2026110112"></script>
     <!-- 2026-09-16: 붙박이장 통 내부 구조 규칙 — extractors.js 가 전역 DadamWardrobeRules 로 읽는다 -->
-    <script src="js/detaildesign/bom-wardrobe-rules.js?v=2026110110"></script>
+    <script src="js/detaildesign/bom-wardrobe-rules.js?v=2026110112"></script>
     <!-- 2026-09-19: 오픈장 규칙 (18T MDF 상자) — extractors.js 가 전역 DadamOpenCabinetRules 로 읽는다 -->
-    <script src="js/detaildesign/bom-open-cabinet-rules.js?v=2026110110"></script>
+    <script src="js/detaildesign/bom-open-cabinet-rules.js?v=2026110112"></script>
     <!-- 2026-10-20: 밥솥장 규칙 (오픈장 상자 + 슬라이딩 선반 + 도어 종류) — 오픈장 규칙 다음. extractors.js 가 전역 DadamRiceCabinetRules 로 읽는다 -->
-    <script src="js/detaildesign/bom-rice-cabinet-rules.js?v=2026110110"></script>
+    <script src="js/detaildesign/bom-rice-cabinet-rules.js?v=2026110112"></script>
     <!-- 2026-10-20: 홈카페장 규칙 (fridge.md §11) — extractors.js 가 전역 DadamHomecafeRules 로 읽는다 -->
-    <script src="js/detaildesign/bom-homecafe-rules.js?v=2026110110"></script>
+    <script src="js/detaildesign/bom-homecafe-rules.js?v=2026110112"></script>
     <!-- 2026-10-20: EL장 모듈 타입 (도어 종류만) — extractors.js 가 전역 DadamElRules 로 읽는다 -->
-    <script src="js/detaildesign/bom-el-rules.js?v=2026110110"></script>
+    <script src="js/detaildesign/bom-el-rules.js?v=2026110112"></script>
     <!-- 2026-10-26: 설비장 규칙 (개수대 · 가스대 · 후드장 — 밴드 · 선반 · 후드장 높이 · 가스대 서랍) — extractors.js · ui-step1.js · bom-assembly.js 가 전역 DadamFixtureCabinetRules 로 읽는다 -->
-    <script src="js/detaildesign/bom-fixture-cabinet-rules.js?v=2026110110"></script>
+    <script src="js/detaildesign/bom-fixture-cabinet-rules.js?v=2026110112"></script>
     <!-- 2026-10-29: 모듈 속 부재 규칙 (세로칸막이 · 선반 · 속서랍 — 간편 플래너 단추) — 붙박이장 규칙 다음. extractors.js · bom-assembly.js 가 전역 DadamInteriorRules 로 읽는다 -->
-    <script src="js/detaildesign/bom-interior-rules.js?v=2026110110"></script>
+    <script src="js/detaildesign/bom-interior-rules.js?v=2026110112"></script>
     <!-- 2026-10-19 CAD 베타 PR3: 몸통 조립 규칙 한 표 — extractors.js 가 전역 DadamAssemblyRules 로 읽는다 (없으면 BOM 을 내지 않는다) -->
-    <script src="js/detaildesign/assembly-rules.js?v=2026110110"></script>
-    <script src="js/detaildesign/extractors.js?v=2026110110"></script>
-    <script src="js/detaildesign/ui-step1.js?v=2026110110"></script>
-    <script src="js/detaildesign/ui-workspace.js?v=2026110110"></script>
-    <script src="js/detaildesign/ui-fridge-el.js?v=2026110110"></script>
+    <script src="js/detaildesign/assembly-rules.js?v=2026110112"></script>
+    <script src="js/detaildesign/extractors.js?v=2026110112"></script>
+    <script src="js/detaildesign/ui-step1.js?v=2026110112"></script>
+    <script src="js/detaildesign/ui-workspace.js?v=2026110112"></script>
+    <script src="js/detaildesign/ui-fridge-el.js?v=2026110112"></script>
     <!-- Three.js 레거시 제거됨 — R3F planner iframe으로 대체 -->
-    <script src="js/detaildesign/nesting-engine.js?v=2026110110"></script>
+    <script src="js/detaildesign/nesting-engine.js?v=2026110112"></script>
     <!-- 2026-10-18 사전 오류 검사 — 동결 전 부재 누락·보링·원판 초과 (workflow-client.js 가 window.BomPreflight 로 부른다) -->
     <!-- 2026-10-20 CAD 베타 PR7: 조립 명세 + 조립 검사 — bom-preflight 가 opts.assembly 로 받은 명세를 window.DadamAssemblyCheck 로 검사한다 -->
-    <script src="js/detaildesign/bom-assembly.js?v=2026110110"></script>
-    <script src="js/detaildesign/assembly-check.js?v=2026110110"></script>
-    <script src="js/detaildesign/bom-preflight.js?v=2026110110"></script>
-    <script src="js/detaildesign/multiagent-client.js?v=2026110110"></script>
-    <script src="js/detaildesign/ai-design-report.js?v=2026110110"></script>
+    <script src="js/detaildesign/bom-assembly.js?v=2026110112"></script>
+    <script src="js/detaildesign/assembly-check.js?v=2026110112"></script>
+    <script src="js/detaildesign/bom-preflight.js?v=2026110112"></script>
+    <script src="js/detaildesign/multiagent-client.js?v=2026110112"></script>
+    <script src="js/detaildesign/ai-design-report.js?v=2026110112"></script>
     <!-- P11 gen-to-planner: ?gen=<id> — 연출컷 구성을 품목·배치로. persistence-init 이 로그인 뒤 부른다 -->
-    <script src="js/detaildesign/gen-import.js?v=2026110110"></script>
+    <script src="js/detaildesign/gen-import.js?v=2026110112"></script>
     <!-- 2026-09-13: 디테일 단계 도면 저장/불러오기 (공통 메뉴에 디테일 저장·되쓰기를 꽂는다) -->
-    <script src="js/detaildesign/detail-drawing.js?v=2026110110"></script>
-    <script src="js/detaildesign/persistence-init.js?v=2026110110"></script>
+    <script src="js/detaildesign/detail-drawing.js?v=2026110112"></script>
+    <script src="js/detaildesign/persistence-init.js?v=2026110112"></script>
     <!-- W11-5: 업무 루프 패널. persistence-init 뒤에 로드해야 currentDesignId 를 볼 수 있다 -->
-    <script src="js/detaildesign/workflow-client.js?v=2026110110"></script>
+    <script src="js/detaildesign/workflow-client.js?v=2026110112"></script>
 
     <!-- AI 채팅 토글 버튼 (제거됨) -->
 
