@@ -820,12 +820,17 @@
           const staff = entries(cat.staff_roles);
           // 전체 인원(실제 사람 수) — staff.total. 직무별 인원은 겸직이면 직무마다 센다
           const staffTotal = entries(cat.staff_total);
+          // 전담 — staff.dedicated (그 일만 하는 사람이 있는 직무). catalog 에 칸이 있을 때만 직무마다 체크
+          const staffDed = entries(cat.staff_dedicated);
+          const dedKey = staffDed.length ? staffDed[0].key : null;
+          const staffSub = `직무별 (겸직이면 직무마다 셉니다${dedKey ? ' · 그 일만 하는 사람이 있으면 전담' : ''})`;
           const suppliers = Array.isArray(cat.suppliers) ? cat.suppliers.filter((g) => g && g.key) : [];
           const limits = obj(cat.limits);
           const design = entries(cat.design);
           const docs = Array.isArray(cat.docs) && cat.docs.length ? entries(cat.docs) : DOC_ITEMS;
           const eq = obj(ev.equipment);
           const st = obj(ev.staff);
+          const dedNow = dedKey && Array.isArray(st[dedKey]) ? st[dedKey] : [];
           const fi = obj(ev.finishes);
           const ds = obj(ev.design);
           const dc = obj(ev.docs);
@@ -889,16 +894,20 @@
                             (e) =>
                               `<div class="row"><span>${esc(e.name)}</span><span>${numInput(`data-staff-total="${esc(e.key)}"`, st[e.key], e.name)} 명</span></div>`
                           )
-                          .join('')}</div><div class="sub">직무별 (겸직이면 직무마다 셉니다)</div>`
+                          .join('')}</div><div class="sub">${staffSub}</div>`
                       : ''
                   }<div class="rows">${staff
                     .map(
                       (e) =>
-                        `<div class="row"><span>${esc(e.name)}</span><span>${numInput(`data-staff="${esc(e.key)}"`, st[e.key], e.name)} 명</span></div>`
+                        `<div class="row"><span>${esc(e.name)}</span><span>${numInput(`data-staff="${esc(e.key)}"`, st[e.key], e.name)} 명${
+                          dedKey
+                            ? ` <label class="check"><input type="checkbox" data-staff-ded="${esc(e.key)}"${dedNow.includes(e.key) ? ' checked' : ''} /> ${esc(staffDed[0].name)}</label>`
+                            : ''
+                        }</span></div>`
                     )
                     .join('')}</div>`
                 : emptyCatalog(),
-              '실제 사람 수와 직무별 인원'
+              dedKey ? '실제 사람 수 · 직무별 인원 · 전담' : '실제 사람 수와 직무별 인원'
             ),
             group(
               'finishes',
@@ -1016,6 +1025,25 @@
             const v = intOf(input, e.name);
             if (v !== null) staff[e.key] = v;
           });
+          // 전담 — 체크한 직무만 (인원이 있어야 하고, 전체 인원보다 많을 수 없다 — 서버도 같은 검사)
+          const dedKeyNow = entries(cat.staff_dedicated).map((e) => e.key)[0];
+          if (dedKeyNow) {
+            const ded = [];
+            entries(cat.staff_roles).forEach((e) => {
+              const box = [...form.querySelectorAll('input[data-staff-ded]')].find(
+                (n) => n.getAttribute('data-staff-ded') === e.key
+              );
+              if (!box || !box.checked) return;
+              if (!(staff[e.key] >= 1)) throw new Error(`인력 ${e.name}: 전담이면 인원을 1명 이상 넣어 주세요.`);
+              ded.push(e.key);
+            });
+            const total = entries(cat.staff_total)
+              .map((e) => staff[e.key])
+              .find((v) => Number.isInteger(v));
+            if (Number.isInteger(total) && ded.length > total)
+              throw new Error(`인력: 전담 직무(${ded.length}개)가 전체 인원(${total}명)보다 많습니다.`);
+            if (ded.length) staff[dedKeyNow] = ded;
+          }
           // 마감 · 자재 — 분야마다 고른 줄만 (고르지 않은 줄 · 이름을 안 적은 직접 적기는 보내지 않는다)
           const finishes = {};
           const supGroups = Array.isArray(cat.suppliers) ? cat.suppliers : [];
