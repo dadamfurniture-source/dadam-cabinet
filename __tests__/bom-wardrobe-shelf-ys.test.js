@@ -91,6 +91,21 @@ describe('옷봉 — 자동 (ROD_MIN_HANG) · 사람이 빼기', () => {
     const edge = at({ preset: 'longDrawer', cellShelfYs: [[1025]] });   // 봉 950 — 최소라 건다
     expect(rodsOf(edge, 0)).toEqual([950]);
   });
+  test('선반을 내려 위 빈 칸이 생기면 옷봉은 그 칸에 — 걸 수 있는 가장 위 빈 칸, 위 판 밑면 − 75 (2026-10-31 사장님 "옷봉이 설치되는 공간 1175가 충분히 나오는데")', () => {
+    const L = at({ preset: 'longDrawer', cellShelfYs: [[300]] });   // 칸 1500 — 선반 위 빈 칸 1500 − 315 = 1185
+    expect([ysOf(L, 0), rodsOf(L, 0), L.cells[0].kind]).toEqual([[300], [1500 - 75], 'rod']);
+    expect(WR.rodGapPositions({ h: 1500, rods: 1 }, [300], { T: 15 })).toEqual([1425]);
+    // 사장님 설계 그대로 — 일반서랍 2단 (외부) · 칸 1490 · 선반 300 → 빈 칸 1175, 옷봉 1415 · 걸 공간 1100
+    const D = WR.layoutWardrobeModule({ preset: 'longDrawer', W: 900, D: 590, bodyH: 2220, drawers: 2, externalDrawer: true, cellShelfYs: [[300]] });
+    expect([D.cells[0].h, rodsOf(D, 0)]).toEqual([1490, [1415]]);
+    expect(rodsOf(D, 0)[0] - (300 + 15)).toBe(1100);
+    // 위 · 가운데 칸이 다 모자라고 맨 아래가 되면 맨 아래 칸 위쪽에 (선반 둘 1100 · 1300 → 첫 선반 아래 1025)
+    expect(rodsOf(at({ preset: 'longDrawer', cellShelfYs: [[1100, 1300]] }), 0)).toEqual([1025]);
+    // 선반이 위에 붙은 기본 자리는 예전과 같다 (맨 위 선반 아래)
+    expect(rodsOf(at({ preset: 'longDrawer', cellShelfYs: [[1185]] }), 0)).toEqual(rodsOf(at({ preset: 'longDrawer' }), 0));
+    // 선반 칸에는 새로 걸지 않는다
+    expect(at({ preset: 'shelf22', cellShelfYs: [[100], null] }).rods.length).toBe(0);
+  });
   test('cellRods 0 — 사람이 뺀 옷봉: 긴옷은 옷봉만 빠지고 선반은 그린 자리 (1185) 그대로, 짧은옷 하부는 빈 칸, 옷봉 없는 칸은 그대로', () => {
     const L = at({ preset: 'longDrawer', cellRods: [0] });
     expect([ysOf(L, 0), rodsOf(L, 0), L.cells[0].kind]).toEqual([[1185], [], 'shelf']);

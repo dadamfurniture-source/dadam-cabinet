@@ -502,6 +502,29 @@
   }
 
   /**
+   * 사람이 선반 자리를 정한 칸의 옷봉 자리 (칸 바닥에서 봉 중심) — 2026-10-31 사장님 "선반 2개 있다가, 1개 제거하고 1개는 이동했는데,
+   * 옷봉이 설치되는 공간 1175가 충분히 나오는데 옷봉이 자동으로 생성 안되네?".
+   *
+   * 판 사이 빈 칸(칸 바닥 · 선반 윗면 ~ 위 선반 밑면 · 칸 천장)을 **위에서부터** 보고, 옷봉(위 판 밑면 − ROD_OFFSET 75)부터
+   * 아래 판까지가 ROD_MIN_HANG(950) 이상인 첫 칸에 건다. 없으면 [] (옷봉을 뺀다).
+   * 선반이 위에 붙은 자리(긴옷 첫 선반 = 칸 상단 − 315)는 맨 위 칸이 모자라 rodPositions 와 같다 — 맨 위 선반 아래.
+   * 옷봉 칸(rods > 0)만 — 선반 칸에 새로 걸지는 않는다.
+   * @param {number[]} shelfYs 그 칸 선반 밑면 y (칸 바닥에서)
+   */
+  function rodGapPositions(cell, shelfYs, o) {
+    if (int0(cell.rods, 1) <= 0) return [];
+    const T = thicknessOf(o);
+    const ys = (Array.isArray(shelfYs) ? shelfYs : []).slice().sort((a, b) => a - b);
+    for (let i = 0; i <= ys.length; i++) {
+      const upper = i === 0 ? cell.h : ys[ys.length - i];          // 위 판 밑면 (칸 천장 · 위 선반)
+      const floor = i < ys.length ? ys[ys.length - 1 - i] + T : 0;  // 아래 판 윗면 (아래 선반 · 칸 바닥)
+      const y = upper - R.ROD_OFFSET;
+      if (y - floor >= R.ROD_MIN_HANG) return [Math.round(y)];
+    }
+    return [];
+  }
+
+  /**
    * 상몰딩 부재 한 줄. 없으면 null.
    *
    *   moldingH >= 60      → 몰딩 폭 그대로 EP (§11 기존 규칙)
@@ -964,8 +987,15 @@
         // 옷봉 걸 공간 (2026-10-30 사장님) — 사람이 바꾼 칸에서 봉 중심 ~ 아래 판이 ROD_MIN_HANG 보다 짧으면 옷봉을 뺀다.
         //   빼면 그 칸은 선반 칸이다 — 선반 자리는 일반 규칙 (판 두께를 뺀 나머지 균등, §6). 사람이 정한 자리면 그 자리 그대로.
         //   선반 자리를 정한 칸도 본다 — 옷봉은 최상단 선반 바로 아래라 선반을 옮기면 걸 공간이 바뀐다 (사장님 "이 기능을 사용해도 옷봉의 생성여부는 자동으로 조건에 따라")
+        //   사람이 선반 자리를 정한 칸은 맨 위 선반 아래가 아니라 걸 수 있는 가장 위 빈 칸에 건다 (rodGapPositions — 2026-10-31 사장님
+        //   "선반 … 1개는 이동했는데, 옷봉이 설치되는 공간 1175가 충분히 나오는데 옷봉이 자동으로 생성 안되네"). 걸 칸이 없으면 뺀다.
+        let rodYs = null;
         const changed = ov != null || fixed || (drawersChanged && (external || carIdx === firstCabinet));
-        const rod0 = changed ? rodPositions(c, shelfYs) : [];
+        if (fixed && c.rods > 0) {
+          rodYs = rodGapPositions(c, shelfYs, opt);
+          if (!rodYs.length) c = Object.assign({}, c, { rods: 0, kind: c.shelves > 0 ? 'shelf' : 'open' });
+        }
+        const rod0 = changed && !rodYs ? rodPositions(c, shelfYs) : [];
         if (rod0.length) {
           const below = shelfYs.filter((y) => y < rod0[0]).map((y) => y + T);
           const floor = below.length ? Math.max(...below) : 0;
@@ -983,8 +1013,8 @@
             w: c.w, cutW: c.w, cutH: shelfDepthOf(opt), t: T, part: '선반' };
           shelves.push(row); car.shelves.push(row);
         });
-        // 옷봉은 최상단 선반 **아래**에 걸린다 — 선반 위치를 넘겨야 그 자리가 잡힌다.
-        rodPositions(c, shelfYs).forEach((ry) => {
+        // 옷봉은 최상단 선반 **아래**에 걸린다 — 선반 위치를 넘겨야 그 자리가 잡힌다. 사람이 선반 자리를 정한 칸은 위에서 고른 빈 칸 (rodYs)
+        (rodYs || rodPositions(c, shelfYs)).forEach((ry) => {
           // clearW = 칸 내경 폭(그림에서 칸이 차지하는 폭), length = 실제 파이프 재단 길이
           const row = { cell: idx, carcass: carIdx, x0: c.x0, y: ry + cell.y0,
             clearW: c.w, length: rodLengthFor(c.w), sockets: R.ROD_SOCKETS_PER_ROD, part: '옷봉' };
@@ -1054,7 +1084,7 @@
 
   return {
     WARDROBE_RULES, PRESETS, PRESET_KEYS, PRESET_DEFAULT, SAMPLE_PRESETS, CELL_KINDS,
-    layoutWardrobeModule, normalizeBlock, cleanCellShelves, cleanCellSplits, cleanCellShelfYs, cleanCellRods, dividersOf, shelfPositions, rodPositions,
+    layoutWardrobeModule, normalizeBlock, cleanCellShelves, cleanCellSplits, cleanCellShelfYs, cleanCellRods, dividersOf, shelfPositions, rodPositions, rodGapPositions,
     partsOf, rodHardwareOf, rodHardwareFor, rodLengthFor, bodyHeightOf, shelfDepthOf, innerDepthOf,
     cabinetsOf, splitStack, moldingPartFor, moldingFinishOn, moldingTypeOf, doorTopExtraOf,
     innerDrawerLayout, innerDrawerPartsOf, innerDrawerModulePartsOf, innerSlotPlan,
