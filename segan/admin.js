@@ -22,12 +22,8 @@
   var INBOX_LIMIT = 200; // 워커 distribution/admin.js INBOX_LIMIT
   var TODAY = [
     { key: 'applications', label: '새 업체 신청', href: '#applications' },
-    { key: 'pending', label: '배정을 기다리는 상담', href: '../admin/consult-distribution.html' },
-    {
-      key: 'assigned',
-      label: '업체 답을 기다리는 배정',
-      href: '../admin/consult-distribution.html',
-    },
+    { key: 'pending', label: '배정을 기다리는 상담', href: '#consults' },
+    { key: 'assigned', label: '업체 답을 기다리는 배정', href: '#consults-assigned' },
     { key: 'proposals', label: '결정할 생산 제안', href: '../admin/work-reports.html' },
   ];
   // PC 에 남기는 화면 — 이름은 js/admin-shell.js ADMIN_NAV 와 같다 (시험이 본다)
@@ -47,6 +43,7 @@
   // 앱 화면 — 주소 # 이름 → [칸 id, 채우는 모듈 이름]
   var VIEWS = {
     applications: ['adApplications', 'SeganAdminApplications'],
+    consults: ['adConsults', 'SeganAdminConsults'], // #consults-assigned = 답 기다림 탭으로
   };
 
   var A = { sb: null, session: null, counts: {}, view: '' };
@@ -169,9 +166,12 @@
     $('adToday').hidden = false;
   }
 
-  /** 주소의 # 로 화면을 고른다 — 모르는 # 는 첫 화면 */
+  /** 주소의 # 로 화면을 고른다 — '이름' 또는 '이름-값'(값은 그 화면에 넘긴다), 모르는 # 는 첫 화면 */
   async function route() {
-    var name = String(window.location.hash || '').slice(1);
+    var hash = String(window.location.hash || '').slice(1);
+    var dash = hash.indexOf('-');
+    var name = dash > 0 ? hash.slice(0, dash) : hash;
+    var arg = dash > 0 ? hash.slice(dash + 1) : '';
     var view = Object.prototype.hasOwnProperty.call(VIEWS, name) ? VIEWS[name] : null;
     Object.keys(VIEWS).forEach(function (k) {
       var el = $(VIEWS[k][0]);
@@ -182,7 +182,7 @@
       $('adToday').hidden = true;
       $('adPc').hidden = true;
       A.view = name;
-      await mod.load(A.sb, A.session);
+      await mod.load(A.sb, A.session, arg);
       return;
     }
     if (view) $(view[0]).hidden = true; // 모듈이 없으면 첫 화면
