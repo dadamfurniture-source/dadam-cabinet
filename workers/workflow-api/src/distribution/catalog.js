@@ -113,6 +113,8 @@ export const SUPPLIERS = Object.freeze({
     moklim: supplier('(주)목림(멜라보드)', 'LPM · 멜라민 보드'),
     hanwha_with: supplier('(주)한화위드(Ottimo)', '멜라민 보드(MFB)'),
     printech: supplier('(주)프린테크엘피엠', 'LPM · 멜라민 보드'),
+    yerim: supplier('예림', '멜라민 보드(MFB)'),
+    gyeongbuk_plywood: supplier('(주)경북합판', '합판 · 적층판 (대구)'),
   }),
   hw: Object.freeze({
     blum: supplier('블룸 Blum', '해외 · 경첩 · 레일 · 서랍 · 리프트'),
