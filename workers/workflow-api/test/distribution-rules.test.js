@@ -879,6 +879,7 @@ test('평가표 — 항목 목록 (설비 13 · 직무 10 · 거래 회사 4분�
     ]
   );
   assert.deepEqual(c.staff_total, [{ key: 'total', name: '전체 인원 (실제 사람 수)' }]);
+  assert.deepEqual(c.staff_dedicated, [{ key: 'dedicated', name: '전담' }]);
   assert.ok(!STAFF_ROLES.total, '전체 인원은 직무가 아니다');
   assert.ok(!('finishes' in c), '마감 · 자재는 거래 회사 목록(suppliers)으로');
   assert.deepEqual(
@@ -1158,6 +1159,57 @@ test('평가표 — 전체 인원 staff.total (실제 사람 수), 직무별 인
   assert.deepEqual(withTotal.areas, without.areas, '전체 인원은 등급 점수에 넣지 않는다');
 });
 
+test('평가표 — 전담 직무 staff.dedicated (직무 차례로, 인원 있어야, 전체 인원보다 많을 수 없음)', () => {
+  const opts = { existing: null, userId: 'u1', today: '2026-10-31' };
+  const out = parseEvaluation(
+    { staff: { total: 3, design: 1, cutting: 2, sales: 1, dedicated: ['cutting', 'design'] } },
+    opts
+  );
+  assert.deepEqual(out.staff, {
+    design: 1,
+    cutting: 2,
+    sales: 1,
+    total: 3,
+    dedicated: ['design', 'cutting'],
+  });
+  assert.deepEqual(parseEvaluation({ staff: { design: 1, dedicated: [] } }, opts).staff, {
+    design: 1,
+  });
+  assert.deepEqual(parseEvaluation({ staff: { design: 1, dedicated: null } }, opts).staff, {
+    design: 1,
+  });
+  assert.throws(
+    () => parseEvaluation({ staff: { design: 1, dedicated: ['chef'] } }, opts),
+    (e) => e.statusCode === 422 && e.details.unknown_keys[0] === 'staff.dedicated.chef'
+  );
+  for (const [staff, key] of [
+    [{ design: 1, dedicated: 'design' }, 'staff.dedicated'],
+    [{ design: 1, dedicated: ['design', 'design'] }, 'staff.dedicated'],
+    [{ design: 0, dedicated: ['design'] }, 'staff.dedicated.design'],
+    [{ dedicated: ['measure'] }, 'staff.dedicated.measure'],
+    [{ total: 1, design: 1, measure: 1, dedicated: ['design', 'measure'] }, 'staff.dedicated'],
+  ])
+    assert.throws(
+      () => parseEvaluation({ staff }, opts),
+      (e) => e.statusCode === 422 && e.details.invalid.includes(key),
+      JSON.stringify(staff)
+    );
+  // 전체 인원을 안 넣었으면 전담 수는 따지지 않는다
+  assert.deepEqual(
+    parseEvaluation({ staff: { design: 1, measure: 1, dedicated: ['design', 'measure'] } }, opts)
+      .staff.dedicated,
+    ['design', 'measure']
+  );
+  // 점수: 전담 1 · 겸직 0.3 · 없음 0 → 합 ÷ 10 × 20
+  assert.deepEqual(R.STAFF_SCORE, { dedicated: 1, shared: 0.3 });
+  const pts = (staff) => evaluationScore({ staff }).areas.find((a) => a.key === 'staff').points;
+  const all = (n) => Object.fromEntries(Object.keys(STAFF_ROLES).map((k) => [k, n]));
+  assert.equal(pts({ ...all(1), total: 1 }), 6, '한 사람이 열 직무 — 모두 겸직');
+  assert.equal(pts({ ...all(2), dedicated: Object.keys(STAFF_ROLES) }), 20, '모두 전담');
+  assert.equal(pts({ design: 1, cutting: 1, dedicated: ['design'] }), 2.6, '전담 1 + 겸직 0.3');
+  assert.equal(pts({ design: 0, dedicated: ['design'] }), 0, '인원 없는 전담은 0');
+});
+
 test('평가표 — 서류는 { checked_at: 확인한 날 }, 확인한 사람은 호출자 (같은 날이면 저장된 기록 그대로), false 면 뺀다', () => {
   const opts = {
     existing: { docs: { insurance: { checked_at: '2026-01-01', by: 'old' } } },
@@ -1257,7 +1309,10 @@ test('본사 등급 — 빈 평가표 0점 C, 다 갖추면 100점 S', () => {
   assert.equal(evaluationScore(null).grade, 'C');
   const full = evaluationScore({
     equipment: Object.fromEntries(Object.keys(EQUIPMENT).map((k) => [k, 'have'])),
-    staff: Object.fromEntries(Object.keys(STAFF_ROLES).map((k) => [k, 3])),
+    staff: {
+      ...Object.fromEntries(Object.keys(STAFF_ROLES).map((k) => [k, 3])),
+      dedicated: Object.keys(STAFF_ROLES),
+    },
     hq_comm: { score: 20 },
     design: Object.fromEntries(Object.keys(DESIGN).map((k) => [k, true])),
     as_months: 24,
@@ -1272,10 +1327,10 @@ test('본사 등급 — 빈 평가표 0점 C, 다 갖추면 100점 S', () => {
   );
 });
 
-test('본사 등급 — 영역 안 점수 (설비 외주 0.5 · 인력 1명 이상 직무 · 본사 소통 · 설계 합 · 기간 · 서류)', () => {
+test('본사 등급 — 영역 안 점수 (설비 외주 0.5 · 인력 전담 1 · 겸직 0.3 · 본사 소통 · 설계 합 · 기간 · 서류)', () => {
   const s = evaluationScore({
     equipment: { table_saw: 'have', cnc_cut: 'outsource', nesting: 'have', boring: 'none' },
-    staff: { design: 2, measure: 1, install: 0 },
+    staff: { design: 2, measure: 1, install: 0, dedicated: ['design'] },
     finishes: {
       door: [{ key: 'cratech', main: true }],
       notes: { door: '거래 회사 · 메모는 셈에 안 넣는다' },
@@ -1288,13 +1343,13 @@ test('본사 등급 — 영역 안 점수 (설비 외주 0.5 · 인력 1명 이�
     price_tier: 'high',
     grade: 'S',
   });
-  // 설비 (1 + 0.5 + 1) ÷ 13 × 30 = 5.77 · 인력 2 ÷ 10 × 20 = 4 · 본사 소통 7
+  // 설비 (1 + 0.5 + 1) ÷ 13 × 30 = 5.77 · 인력 (설계 전담 1 + 실측 겸직 0.3) ÷ 10 × 20 = 2.6 · 본사 소통 7
   // 설계 CAD 4 + 플래너 5 = 9 · 품질 A/S 12개월 3 + 보증 24개월 5 = 8 · 서류 하나 2.5
   assert.deepEqual(
     s.areas.map((a) => a.points),
-    [5.8, 4, 7, 9, 8, 2.5]
+    [5.8, 2.6, 7, 9, 8, 2.5]
   );
-  assert.equal(s.total, 36.3, '영역 점수(소수 첫째 자리)를 더한 값');
+  assert.equal(s.total, 34.9, '영역 점수(소수 첫째 자리)를 더한 값');
   assert.equal(s.grade, 'C', '저장된 등급 · 가격대는 셈에 넣지 않는다');
   // 기간 점수: 없음 · 0 → 0, 1~11 → 1, 12~23 → 3, 24 이상 → 5
   const q = (m) => evaluationScore({ as_months: m }).areas.find((a) => a.key === 'quality').points;

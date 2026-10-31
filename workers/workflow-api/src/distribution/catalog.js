@@ -53,9 +53,12 @@ export const STAFF_ROLES = Object.freeze({
   as: 'A/S',
 });
 export const STAFF_MAX = 999;
-/** 전체 인원 (실제 사람 수) — staff.total. 점수는 직무별 인원만 본다 (grade.js · score.js) */
+/** 전체 인원 (실제 사람 수) — staff.total. 점수에는 넣지 않는다 (grade.js · score.js) */
 export const STAFF_TOTAL_KEY = 'total';
 export const STAFF_TOTAL = Object.freeze({ [STAFF_TOTAL_KEY]: '전체 인원 (실제 사람 수)' });
+/** 전담 직무 — staff.dedicated: [직무 키]. 그 일만 하는 사람이 있는 직무 (점수 STAFF_SCORE, grade.js) */
+export const STAFF_DEDICATED_KEY = 'dedicated';
+export const STAFF_DEDICATED = Object.freeze({ [STAFF_DEDICATED_KEY]: '전담' });
 
 /**
  * 마감 · 자재 — 분야(도어 · 몸통 · 하드웨어 · 상판)마다 거래하는 회사와 주력 (등급 · 상담 분배 점수에 쓰지 않는다 —
@@ -198,7 +201,8 @@ export const ITEM_KEYS = Object.freeze(Object.keys(FURNITURE_LABELS));
 
 /**
  * GET /admin/companies/:id/evaluation 의 catalog — 묶음마다 [{ key, name }].
- * finish_notes 는 마감 · 자재 분야별 메모 칸 (finishes.notes 의 키). staff_total 은 전체 인원 칸 (staff.total).
+ * finish_notes 는 마감 · 자재 분야별 메모 칸 (finishes.notes 의 키). staff_total 은 전체 인원 칸 (staff.total),
+ * staff_dedicated 는 직무마다 붙는 전담 칸 (staff.dedicated).
  * suppliers 는 마감 · 자재 분야마다 [{ key, name, companies: [{ key, name, kind }] }], limits 는 입력 한도.
  */
 export function evaluationCatalog() {
@@ -206,6 +210,7 @@ export function evaluationCatalog() {
     equipment: entries(EQUIPMENT),
     staff_roles: entries(STAFF_ROLES),
     staff_total: entries(STAFF_TOTAL),
+    staff_dedicated: entries(STAFF_DEDICATED),
     suppliers: Object.entries(SUPPLIER_GROUPS).map(([key, name]) => ({
       key,
       name,
@@ -341,6 +346,8 @@ function supplierRows(group, rows, bad, wrong) {
  * PUT /admin/companies/:id/evaluation 본문 → 저장할 칸. 목록 밖 키 · 틀린 값은 422 (어느 칸 · 키인지 details).
  * 본문이 다시 정하는 표 전체다 (빠진 칸은 비운다). 위쪽 칸 중 모르는 이름(company_id 등)은 읽지 않는다.
  *   staff.total: 전체 인원 (실제 사람 수, 0~999 정수). 직무별 인원은 겸직이면 직무마다 센다.
+ *   staff.dedicated: [직무 키] — 전담 직무 (그 일만 하는 사람이 있음). 그 직무 인원이 1명 이상이어야 하고,
+ *            전체 인원을 넣었으면 전담 직무 수가 그보다 많을 수 없다. 같은 직무는 한 번, 빈 목록은 뺀다.
  *   finishes: { door · body · hw · top: [{ key, main } | { name, main }] } — 분야마다 거래 회사 (SUPPLIERS 키 또는
  *            직접 적은 이름 50자까지, 주력 main). 분야마다 20줄까지, 같은 회사는 한 번. 빈 분야는 뺀다.
  *   finishes.notes: { door · body · hw · top: 글 } — 마감 · 자재 분야별 메모 (앞뒤 빈칸 지움, 빈 글은 뺀다, 500자까지).
@@ -356,7 +363,11 @@ export function parseEvaluation(body, { existing = null, userId, today }) {
   const bad = [];
   const wrong = [];
   const equipment = objectOf(body, 'equipment');
-  const { [STAFF_TOTAL_KEY]: totalIn, ...staff } = objectOf(body, 'staff');
+  const {
+    [STAFF_TOTAL_KEY]: totalIn,
+    [STAFF_DEDICATED_KEY]: dedIn,
+    ...staff
+  } = objectOf(body, 'staff');
   const { [FINISH_NOTES_KEY]: notesIn, ...groupsIn } = objectOf(body, 'finishes');
   const design = objectOf(body, 'design');
   const install = objectOf(body, 'install');
@@ -365,6 +376,12 @@ export function parseEvaluation(body, { existing = null, userId, today }) {
 
   for (const k of unknownKeys(equipment, EQUIPMENT)) bad.push(`equipment.${k}`);
   for (const k of unknownKeys(staff, STAFF_ROLES)) bad.push(`staff.${k}`);
+  const dedList = dedIn === undefined || dedIn === null ? [] : dedIn;
+  if (!Array.isArray(dedList)) wrong.push(`staff.${STAFF_DEDICATED_KEY}`);
+  const dedicated = Array.isArray(dedList) ? dedList : [];
+  for (const k of dedicated)
+    if (typeof k !== 'string' || !Object.prototype.hasOwnProperty.call(STAFF_ROLES, k))
+      bad.push(`staff.${STAFF_DEDICATED_KEY}.${String(k)}`);
   for (const k of unknownKeys(groupsIn, SUPPLIER_GROUPS)) bad.push(`finishes.${k}`);
   const suppliers = {};
   for (const g of Object.keys(SUPPLIER_GROUPS)) {
@@ -388,6 +405,13 @@ export function parseEvaluation(body, { existing = null, userId, today }) {
   const total = totalIn === undefined || totalIn === null || totalIn === '' ? null : totalIn;
   if (total !== null && (!Number.isInteger(total) || total < 0 || total > STAFF_MAX))
     wrong.push(`staff.${STAFF_TOTAL_KEY}`);
+  // 전담은 그 직무 인원이 있어야 하고, 전담 한 명은 한 직무만 하므로 전담 직무 수 ≤ 전체 인원
+  for (const k of dedicated)
+    if (!(Number.isInteger(staff[k]) && staff[k] >= 1))
+      wrong.push(`staff.${STAFF_DEDICATED_KEY}.${k}`);
+  if (new Set(dedicated).size !== dedicated.length) wrong.push(`staff.${STAFF_DEDICATED_KEY}`);
+  else if (total !== null && Number.isInteger(total) && dedicated.length > total)
+    wrong.push(`staff.${STAFF_DEDICATED_KEY}`);
   for (const [k, v] of Object.entries(design))
     if (typeof v !== 'boolean') wrong.push(`design.${k}`);
   const finishNotes = {};
@@ -434,7 +458,13 @@ export function parseEvaluation(body, { existing = null, userId, today }) {
 
   return {
     equipment: { ...equipment },
-    staff: total === null ? { ...staff } : { ...staff, [STAFF_TOTAL_KEY]: total },
+    staff: {
+      ...staff,
+      ...(total === null ? {} : { [STAFF_TOTAL_KEY]: total }),
+      ...(dedicated.length
+        ? { [STAFF_DEDICATED_KEY]: Object.keys(STAFF_ROLES).filter((k) => dedicated.includes(k)) }
+        : {}),
+    },
     finishes: Object.keys(finishNotes).length
       ? { ...suppliers, [FINISH_NOTES_KEY]: finishNotes }
       : { ...suppliers },

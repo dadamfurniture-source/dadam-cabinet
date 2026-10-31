@@ -756,7 +756,7 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
     body: {
       grade: 'B',
       equipment: { table_saw: 'have', nesting: 'outsource' },
-      staff: { design: 2 },
+      staff: { design: 2, dedicated: ['design'] },
       docs: { insurance: { checked_at: '2026-10-29' }, contract: false },
       finishes: {
         door: [{ key: 'cratech', main: true }, { name: '동네 도어' }],
@@ -770,7 +770,7 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
   });
   assert.equal(put.status, 200, JSON.stringify(put.json));
   const saved = fake.db.company_evaluations.find((x) => x.company_id === E);
-  // 본문의 등급(B)은 읽지 않고 점수로 매긴다 — 설비 (1 + 0.5) ÷ 13 × 30 = 3.5 · 인력 1 ÷ 10 × 20 = 2 ·
+  // 본문의 등급(B)은 읽지 않고 점수로 매긴다 — 설비 (1 + 0.5) ÷ 13 × 30 = 3.5 · 인력 전담 1 ÷ 10 × 20 = 2 ·
   // 본사 소통 12 · 설계 CAD 4 + 플래너 5 = 9 · A/S 12개월 3 · 서류 하나 2.5 → 32 C (거래 회사는 셈에 없다)
   assert.equal(saved.grade, 'C');
   assert.equal(put.json.data.score.total, 32);
@@ -780,6 +780,7 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
     [3.5, 2, 12, 9, 3, 2.5]
   );
   assert.equal(saved.evaluated_by, ADMIN);
+  assert.deepEqual(saved.staff, { design: 2, dedicated: ['design'] });
   assert.deepEqual(saved.docs, { insurance: { checked_at: '2026-10-29', by: ADMIN } });
   assert.deepEqual(saved.install, {});
   assert.deepEqual(saved.finishes, {
