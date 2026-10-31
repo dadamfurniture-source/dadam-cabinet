@@ -9,7 +9,10 @@
                업체 답을 기다리는 배정  workflow-api GET /admin/consult-inbox?state=assigned  (data.items)
                결정할 생산 제안        workflow-api GET /reports/summary  (data.pendingProposals)
              목록 한 번 상한(INBOX_LIMIT 200 — 워커 distribution/admin.js)에 닿으면 「200+」.
-             줄을 누르면 그 일을 하는 화면 — 앱 화면이 생기기 전에는 PC 관리자 화면(admin/*.html).
+             줄을 누르면 그 일을 하는 화면 — 앱 화면이 있으면 #화면(새 업체 신청 #applications),
+             아직 없으면 PC 관리자 화면(admin/*.html).
+   앱 화면    주소의 # 로 고른다 (VIEWS). 화면을 열면 오늘 할 일 · PC에서 열기를 감추고, 「‹ 관리」로 돌아오면
+             수를 다시 읽는다 (그 화면에서 처리했을 수 있다).
    PC에서 열기  표 · 큰 입력이 많아 PC 에 남기는 관리자 화면 10개 (주소 · 이름은 js/admin-shell.js ADMIN_NAV)
    ============================================================ */
 /* global window, document, fetch */
@@ -18,7 +21,7 @@
 
   var INBOX_LIMIT = 200; // 워커 distribution/admin.js INBOX_LIMIT
   var TODAY = [
-    { key: 'applications', label: '새 업체 신청', href: '../admin/expert-requests.html' },
+    { key: 'applications', label: '새 업체 신청', href: '#applications' },
     { key: 'pending', label: '배정을 기다리는 상담', href: '../admin/consult-distribution.html' },
     {
       key: 'assigned',
@@ -41,8 +44,12 @@
     { href: '../admin/settings.html', label: '설정' },
   ];
   var FAIL = '불러오지 못함';
+  // 앱 화면 — 주소 # 이름 → [칸 id, 채우는 모듈 이름]
+  var VIEWS = {
+    applications: ['adApplications', 'SeganAdminApplications'],
+  };
 
-  var A = { sb: null, session: null, counts: {} };
+  var A = { sb: null, session: null, counts: {}, view: '' };
 
   var $ = function (id) {
     return document.getElementById(id);
@@ -155,6 +162,34 @@
     }).join('');
   }
 
+  async function showHome() {
+    $('adPc').hidden = false;
+    A.counts = await loadCounts();
+    $('adTodayRows').innerHTML = todayHtml(A.counts);
+    $('adToday').hidden = false;
+  }
+
+  /** 주소의 # 로 화면을 고른다 — 모르는 # 는 첫 화면 */
+  async function route() {
+    var name = String(window.location.hash || '').slice(1);
+    var view = Object.prototype.hasOwnProperty.call(VIEWS, name) ? VIEWS[name] : null;
+    Object.keys(VIEWS).forEach(function (k) {
+      var el = $(VIEWS[k][0]);
+      if (el) el.hidden = !view || VIEWS[k] !== view;
+    });
+    var mod = view ? window[view[1]] : null;
+    if (view && mod && mod.load) {
+      $('adToday').hidden = true;
+      $('adPc').hidden = true;
+      A.view = name;
+      await mod.load(A.sb, A.session);
+      return;
+    }
+    if (view) $(view[0]).hidden = true; // 모듈이 없으면 첫 화면
+    A.view = '';
+    await showHome();
+  }
+
   async function start(r) {
     if (!r || !r.session) return; // 로그인 안내는 셸이 보인다
     A.sb = r.sb || null;
@@ -164,16 +199,20 @@
       return;
     }
     $('adPcRows').innerHTML = pcHtml();
-    $('adPc').hidden = false;
-    A.counts = await loadCounts();
-    $('adTodayRows').innerHTML = todayHtml(A.counts);
-    $('adToday').hidden = false;
+    // 주소 # 가 바뀌면 화면을 다시 고른다 — 손잡이는 하나만 (스크립트를 다시 실어도 겹치지 않게)
+    if (window.__seganAdminHash) window.removeEventListener('hashchange', window.__seganAdminHash);
+    window.__seganAdminHash = function () {
+      api.routed = route();
+    };
+    window.addEventListener('hashchange', window.__seganAdminHash);
+    await route();
   }
 
   var api = {
     TODAY: TODAY,
     PC_PAGES: PC_PAGES,
     INBOX_LIMIT: INBOX_LIMIT,
+    VIEWS: VIEWS,
     state: A,
     countText: countText,
     applicationsOf: applicationsOf,

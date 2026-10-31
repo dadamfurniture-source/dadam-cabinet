@@ -401,6 +401,24 @@ a.sg-row.ad-row::after {
   color: var(--v5-ink);
 }
 
+/* 관리 › 새 업체 신청 — 카드는 업체 › 상담과 같은 모양 (me-cs-item) */
+.ad-list {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ad-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.ad-more {
+  margin-top: 16px;
+}
+
 /* 내 정보 — 값 · 상담 내역 */
 .me-val {
   margin-left: auto;
