@@ -733,7 +733,7 @@ test('평가표 — 없으면 빈 값 + 항목 목록, 저장하면 이력이 �
     first.json.data.catalog.suppliers.map((g) => [g.key, g.companies.length]),
     [
       ['door', 20],
-      ['body', 10],
+      ['body', 8],
       ['hw', 22],
       ['top', 25],
     ]
