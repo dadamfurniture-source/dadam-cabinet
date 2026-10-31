@@ -3,6 +3,8 @@
 
    탭 4개 (순서 고정): 만들기 · 시공사례 · 내 연출컷 · 내 정보
      + 관리 (관리자에게만 — 내 정보 역할 메뉴와 같은 AdminAccess.isAdmin 이 참일 때 연다, 처음엔 감춤)
+     + 작업 (작업자에게만 — 같은 역할 메뉴 판정 GET /work/me + DadamMyPageWork.shouldShow, 처음엔 감춤.
+            예전 worker.html 작업자 포털을 앱 안 segan/work.html 로 옮겼다)
      - 폰(좁은 화면): 아래 고정 탭 막대
      - PC(넓은 화면): v5 헤더 모양의 위 메뉴 + 사업자 정보 푸터
        폰에서는 사업자 정보를 내 정보 안에 둔다.
@@ -45,6 +47,8 @@
     { key: 'me', label: '내 정보', href: 'me.html', target: 'segan/me.html' },
     // 관리자 전용 — 판정 전에는 감춘다 (applyAdminTab)
     { key: 'admin', label: '관리', href: 'admin.html', target: 'segan/admin.html', admin: true },
+    // 작업자 전용 — 판정 전에는 감춘다 (applyRoleTabs)
+    { key: 'work', label: '작업', href: 'work.html', target: 'segan/work.html', worker: true },
   ];
 
   // 역할 메뉴 — 주소는 js/site-shell.js(DETAIL DESIGN · ACCOUNT_MENU 관리자 페이지)와
@@ -52,7 +56,7 @@
   var ROLE_LINKS = [
     { key: 'detail', label: '상세설계', href: '../detaildesign.html' },
     { key: 'admin', label: '관리자 화면', href: '../admin/index.html' },
-    { key: 'worker', label: '작업자 포털', href: '../worker.html' },
+    { key: 'worker', label: '작업', href: 'work.html' }, // 작업자 포털 — 앱 안 「작업」 탭
   ];
 
   // 로그인 — 기존 login.html 의 ?redirect= (js/auth-redirect.js 가 같은 사이트 *.html 만 받는다)
@@ -99,6 +103,7 @@
       '<circle cx="15.6" cy="9.4" r="1.3"/>',
     me: '<circle cx="12" cy="8.4" r="3.4"/><path d="M5 19.5c0-3.5 3.1-5.6 7-5.6s7 2.1 7 5.6"/>',
     admin: '<rect x="5.5" y="4.5" width="13" height="15"/><path d="M9 9h6M9 12.5h6M9 16h3.5"/>',
+    work: '<rect x="4.5" y="8.5" width="15" height="10"/><path d="M9.5 8.5V6h5v2.5M4.5 13h15"/>',
   };
 
   function icon(key) {
@@ -119,7 +124,7 @@
         t.key +
         '"' +
         (t.key === current ? ' aria-current="page"' : '') +
-        (t.admin ? ' hidden' : '') +
+        (t.admin || t.worker ? ' hidden' : '') +
         '>' +
         (withIcon ? icon(t.key) : '') +
         '<span>' +
@@ -132,7 +137,7 @@
   function headerHTML(current) {
     return (
       '<header class="sg-header">' +
-      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110108" alt="SEGAN" width="477" height="75" /></a>' +
+      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110110" alt="SEGAN" width="477" height="75" /></a>' +
       '<nav class="sg-nav" aria-label="주 메뉴">' +
       links(current, false) +
       '</nav>' +
@@ -365,23 +370,46 @@
   }
 
   /**
-   * 관리 탭 — 관리자에게만 연다. 내 정보는 역할 메뉴 판정(roles.admin)을 그대로 쓰고,
-   * 다른 탭은 AdminAccess.isAdmin(sb) 를 묻는다 (참만 1분 기억한다 — js/admin-access.js). 모르면 감춘 채 둔다.
+   * 관리 · 작업 탭 — 관리자 · 작업자에게만 연다. 내 정보는 역할 메뉴 판정(roles)을 그대로 쓰고,
+   * 다른 탭은 AdminAccess.isAdmin(sb) (참만 1분 기억 — js/admin-access.js) · GET /work/me 를 묻는다.
+   * 모르면(로그인 전 · 모듈 없음 · 실패) 감춘 채 둔다.
    */
-  async function applyAdminTab(r) {
-    var on = false;
+  async function applyRoleTabs(r) {
+    var on = { admin: false, work: false };
     try {
-      if (r && r.roles) on = r.roles.admin === true;
-      else if (window.AdminAccess) {
+      if (r && r.roles) {
+        on.admin = r.roles.admin === true;
+        on.work = r.roles.worker === true;
+      } else if (window.AdminAccess || window.DadamMyPageWork) {
+        // 판정 모듈이 실린 페이지만 세션을 묻는다
         var sb = (r && r.sb) || client();
         var session = (r && r.session) || (await sessionOf(sb));
-        if (sb && session) on = (await window.AdminAccess.isAdmin(sb)) === true;
+        if (sb && session) {
+          var got = await Promise.all([
+            window.AdminAccess
+              ? window.AdminAccess.isAdmin(sb).then(
+                  function (x) {
+                    return x === true;
+                  },
+                  function () {
+                    return false;
+                  }
+                )
+              : false,
+            isWorker(session),
+          ]);
+          on.admin = got[0] === true;
+          on.work = got[1] === true;
+        }
       }
     } catch {
-      on = false;
+      on = { admin: false, work: false };
     }
     document.querySelectorAll('[data-tab-link="admin"]').forEach(function (a) {
-      a.hidden = !on;
+      a.hidden = !on.admin;
+    });
+    document.querySelectorAll('[data-tab-link="work"]').forEach(function (a) {
+      a.hidden = !on.work;
     });
     return on;
   }
@@ -399,8 +427,9 @@
       else if (kind === 'roles') slot.outerHTML = rolesHTML();
     });
     return applyAuth(current).then(function (r) {
-      return applyAdminTab(r).then(function (on) {
-        r.admin = on;
+      return applyRoleTabs(r).then(function (on) {
+        r.admin = on.admin;
+        r.worker = on.work;
         return r;
       });
     });

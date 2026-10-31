@@ -1,5 +1,7 @@
 /**
- * 작업자 포털 화면 (worker.html + js/worker-portal.js) — docs/01-plan/worker-portal-contract.md §3 · §4.
+ * 작업자 포털 화면 (segan/work.html + js/worker-portal.js) — docs/01-plan/worker-portal-contract.md §3 · §4.
+ * 2026-11-01 포털을 SEGAN 앱 「작업」 탭(segan/work.html)에도 올렸다. 앱은 공개 전까지 숨겨 두므로(사이트가 segan/ 을
+ * 가리키지 않는다) worker.html 은 그대로 두고, 두 본문이 같은지 시험이 본다 — 넘기기는 공개할 때.
  *
  * 순수 함수(상태 고르기 · 카드 · 상세 · 기록 · 신청서)를 먼저 고정하고,
  * 페이지 본문을 jsdom 에 올려 가짜 Supabase · fetch 로 상태별 화면이 뜨는지 본다.
@@ -9,7 +11,11 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const { version: ASSET_VERSION } = require('../scripts/asset-version.json');
-const HTML =fs.readFileSync(path.join(ROOT, 'worker.html'), 'utf8');
+const HTML = fs.readFileSync(path.join(ROOT, 'segan/work.html'), 'utf8');
+const CSS = fs.readFileSync(path.join(ROOT, 'segan/work.css'), 'utf8');
+const OLD = fs.readFileSync(path.join(ROOT, 'worker.html'), 'utf8');
+/** 글 안에서 처음 나오는 자리 (없으면 -1) */
+const at = (text, mark) => (text.includes(mark) ? text.split(mark)[0].length : -1);
 const P = require('../js/worker-portal.js');
 
 const J1 = '11111111-1111-4111-8111-111111111111';
@@ -91,6 +97,12 @@ describe('주소 # 읽기 · 로그인 링크', () => {
     expect(P.returnTarget({ tab: 'done' }, null)).toBe('worker.html#tab=done');
     expect(P.returnTarget({}, null)).toBe('worker.html');
     expect(P.loginHref(`worker.html#job=${J1}`)).toBe(`login.html?redirect=worker.html%23job%3D${J1}`);
+    // 앱 화면 — 돌아올 곳은 segan/work.html, 로그인은 한 칸 위
+    expect(P.returnTarget({}, TOKEN, 'segan/work.html')).toBe(`segan/work.html#invite=${TOKEN}`);
+    expect(P.returnTarget({ job: J1 }, null, 'segan/work.html')).toBe(`segan/work.html#job=${J1}`);
+    expect(P.loginHref(`segan/work.html#job=${J1}`, '../login.html')).toBe(
+      `../login.html?redirect=segan%2Fwork.html%23job%3D${J1}`
+    );
   });
 });
 
@@ -253,12 +265,38 @@ describe('작업 상세 · 기록', () => {
   });
 });
 
-describe('worker.html — 머리 · 신청서', () => {
-  test('noindex · no-referrer · 스크립트 ?v=', () => {
-    expect(HTML).toMatch(/<meta name="robots" content="noindex, nofollow, noarchive" \/>/);
+describe('segan/work.html — 머리 · 신청서', () => {
+  test('noindex · no-referrer · 스크립트 ?v= · 돌아올 곳 · 로그인 주소 · 꾸밈은 work.css 의 #workerApp 안', () => {
+    // 앱 화면은 SEGAN 페이지 공통 숨김 표시 (segan-app-install 시험), 참조자는 보내지 않는다
+    expect(HTML).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
     expect(HTML).toMatch(/<meta name="referrer" content="no-referrer" \/>/);
-    expect(HTML).toMatch(/<script src="js\/worker-portal\.js\?v=\d+"><\/script>/);
-    expect(HTML).toMatch(/max-width: 560px/);
+    expect(HTML).toMatch(/<script src="\.\.\/js\/worker-portal\.js\?v=\d+"><\/script>/);
+    expect(HTML).toContain('id="workerApp" data-page="segan/work.html" data-login="../login.html"');
+    expect(HTML).toContain('href="../login.html?redirect=segan%2Fwork.html"');
+    expect(HTML).toContain('<body class="sg-app" data-tab="work">');
+    expect(CSS).toMatch(/max-width: 560px/);
+    // 규칙마다 #workerApp 안 — 앱 셸의 머리 · 탭 · 바닥글과 섞이지 않는다
+    const selectors = [...CSS.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(^|\})\s*([^{}]+)\{/g)].map((m) => m[2].trim());
+    expect(selectors.length).toBeGreaterThan(20);
+    for (const s of selectors) for (const one of s.split(',')) expect(one.trim().startsWith('#workerApp')).toBe(true);
+  });
+
+  test('worker.html 과 앱 「작업」 탭의 포털 본문이 같다 — 다른 것은 돌아올 곳 · 로그인 주소 · 제목뿐', () => {
+    // 빈칸 · 줄바꿈 차이는 무시한다 (코드 모양 정리가 줄을 다르게 나눠도 같은 본문)
+    const norm = (s) => s.replace(/\s+/g, ' ').replace(/>\s+/g, '>').replace(/\s+</g, '<').trim();
+    const oldStart = at(OLD, '<div class="wrap" id="workerApp">');
+    const oldEnd = at(OLD, '<script src="js/worker-portal.js');
+    const appStart = at(HTML, '<div class="wrap" id="workerApp"');
+    const appEnd = at(HTML, '<!-- 작업자 포털 끝 -->');
+    expect(oldStart).toBeGreaterThan(0);
+    expect(appStart).toBeGreaterThan(0);
+    const app = norm(HTML.slice(appStart, appEnd))
+      .replace('<div class="wrap" id="workerApp" data-page="segan/work.html" data-login="../login.html">', '<div class="wrap" id="workerApp">')
+      .replace('<h1 class="sg-h1">작업</h1>', '<h1>다담 작업자</h1>')
+      .replace('href="../login.html?redirect=segan%2Fwork.html"', 'href="login.html?redirect=worker.html"');
+    expect(app).toBe(norm(OLD.slice(oldStart, oldEnd)));
+    // 사이트 쪽 worker.html 은 앱을 가리키지 않는다 (숨김)
+    expect(OLD).not.toMatch(/segan\//i);
   });
 
   test('신청서 — 수집 항목 · 목적 · 주민번호/계좌 안내 · 사진 동의 따로, 받지 않는 칸 없음', () => {
@@ -271,7 +309,7 @@ describe('worker.html — 머리 · 신청서', () => {
   });
 
   test('글자는 16px 이상', () => {
-    const sizes = [...HTML.matchAll(/font-size:\s*(\d+)px/g)].map((m) => Number(m[1]));
+    const sizes = [...CSS.matchAll(/font-size:\s*(\d+)px/g)].map((m) => Number(m[1]));
     expect(sizes.length).toBeGreaterThan(5);
     expect(Math.min(...sizes)).toBeGreaterThanOrEqual(16);
   });
@@ -279,10 +317,10 @@ describe('worker.html — 머리 · 신청서', () => {
 
 // ── 페이지를 jsdom 에 올려 본다 ──
 // 본문 = <body> 다음부터 페이지 스크립트 앞까지 (못 찾으면 시험이 바로 깨지게 한다)
-const BODY_START = HTML.search(/<body>/);
-const BODY_END = HTML.search(/<script src="js\/worker-portal\.js/);
-if (BODY_START < 0 || BODY_END < BODY_START) throw new Error('worker.html 본문 경계를 찾지 못했습니다');
-const BODY = HTML.slice(BODY_START + '<body>'.length, BODY_END);
+const BODY_START = at(HTML, '<!-- 작업자 포털 시작');
+const BODY_END = at(HTML, '<!-- 작업자 포털 끝 -->');
+if (BODY_START < 0 || BODY_END < BODY_START) throw new Error('segan/work.html 포털 경계를 찾지 못했습니다');
+const BODY = HTML.slice(BODY_START, BODY_END);
 const API = 'https://api.test';
 const flush = () => new Promise((r) => setTimeout(r, 0));
 async function settle() {
@@ -307,7 +345,7 @@ function startPortal() {
 
 function mount({ session = true, routes = {}, hash = '' } = {}) {
   document.body.innerHTML = BODY;
-  window.history.replaceState(null, '', `/worker.html${hash}`);
+  window.history.replaceState(null, '', `/segan/work.html${hash}`);
   window.DADAM_CONFIG = { supabase: { url: 'https://sb.test', anonKey: 'anon' }, workflowApi: { url: API } };
   window.supabase = {
     createClient: () => ({
@@ -345,7 +383,9 @@ describe('페이지 — 상태별 화면', () => {
     expect(visible('viewLogin')).toBe(true);
     expect(visible('loginInviteNote')).toBe(true);
     expect(sessionStorage.getItem(P.INVITE_KEY)).toBe(TOKEN);
-    expect(document.getElementById('loginLink').getAttribute('href')).toBe(`login.html?redirect=${encodeURIComponent(`worker.html#invite=${TOKEN}`)}`);
+    expect(document.getElementById('loginLink').getAttribute('href')).toBe(
+      `../login.html?redirect=${encodeURIComponent(`segan/work.html#invite=${TOKEN}`)}`
+    );
     expect(calls).toEqual([]);
   });
 
@@ -655,7 +695,7 @@ describe('페이지 — 1주차 후속', () => {
   const SUSPENDED_ME = { data: { ready: true, worker: { id: 'w', status: 'suspended', display_name: '테스트', kinds: ['install'] }, counts: { open: 0, mine: 1, revision: 0, newEvents: 0 }, next_job: null } };
   const APPROVED_ME = { data: { ready: true, worker: { id: 'w', status: 'approved', display_name: '테스트', kinds: ['install'] }, counts: COUNTS, next_job: null } };
   const goto = async (hash) => {
-    window.history.replaceState(null, '', `/worker.html${hash}`);
+    window.history.replaceState(null, '', `/segan/work.html${hash}`);
     window.dispatchEvent(new HashChangeEvent('hashchange'));
     await settle();
   };
@@ -665,11 +705,11 @@ describe('페이지 — 1주차 후속', () => {
   });
   afterEach(() => jest.restoreAllMocks());
 
-  test('worker.html — 맨 위 정지 안내 자리, 정지 전용 화면은 없다, 스크립트 ?v= 는 사이트 자산 버전', () => {
+  test('segan/work.html — 맨 위 정지 안내 자리, 정지 전용 화면은 없다, 스크립트 ?v= 는 사이트 자산 버전', () => {
     expect(HTML).toContain(`<p class="alert warn" id="suspendedNote" hidden>${P.SUSPENDED_NOTE}</p>`);
     expect(HTML).not.toContain('id="viewSuspended"');
     expect(HTML).not.toContain('신청 마감');
-    expect(HTML).toContain(`<script src="js/worker-portal.js?v=${ASSET_VERSION}"></script>`);
+    expect(HTML).toContain(`<script src="../js/worker-portal.js?v=${ASSET_VERSION}"></script>`);
   });
 
   test('정지 작업자 → 앱 화면 + 맨 위 안내, 모집중 탭 없음, 기본 탭 내 작업 — 모집중 목록은 부르지 않는다', async () => {

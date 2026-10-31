@@ -5,6 +5,7 @@
  *
  *   - 탭 4개: 만들기 · 시공사례 · 내 연출컷 · 내 정보 (순서 · 주소), 페이지마다 현재 탭 aria-current
  *     + 관리 탭 — 처음엔 감추고 관리자(AdminAccess.isAdmin)에게만 연다, 탭 페이지마다 AdminAccess 를 싣는다
+ *     + 작업 탭 — 처음엔 감추고 작업자(GET /work/me + DadamMyPageWork.shouldShow)에게만 연다
  *   - 내 연출컷 · 내 정보는 로그인이 없으면 「로그인이 필요합니다」 + login.html?redirect=(이 페이지)
  *   - 내 정보의 역할 메뉴는 기존 모듈 판정(AdminAccess · DetailDesignAccess · DadamMyPageWork)을 따른다
  *     — 페이지가 싣는 실제 js/ 파일을 그대로 올리고 Supabase · /work/me 만 가짜로 둔다
@@ -130,8 +131,9 @@ describe('탭 4개 — 순서 · 주소 · 현재 탭', () => {
         expect(all.map((a) => a.getAttribute('data-tab-link'))).toEqual([
           ...Object.keys(TAB_PAGES),
           'admin',
+          'work',
         ]);
-        expect(all[all.length - 1].hidden).toBe(true);
+        expect(all.slice(-2).map((a) => a.hidden)).toEqual([true, true]);
         const links = all.filter((a) => !a.hidden);
         expect(links.map((a) => a.textContent.trim())).toEqual(LABELS);
         expect(links.map((a) => a.getAttribute('href'))).toEqual(HREFS);
@@ -157,7 +159,7 @@ describe('탭 4개 — 순서 · 주소 · 현재 탭', () => {
   test('아래 탭 아이콘은 꾸밈 (aria-hidden), 이름은 글자로', async () => {
     await load('index.html');
     for (const svg of $$('.sg-tabbar svg')) expect(svg.getAttribute('aria-hidden')).toBe('true');
-    expect($$('.sg-tabbar a span').map((s) => s.textContent)).toEqual([...LABELS, '관리']);
+    expect($$('.sg-tabbar a span').map((s) => s.textContent)).toEqual([...LABELS, '관리', '작업']);
     expect(
       $$('.sg-tabbar a')
         .filter(visible)
@@ -173,11 +175,13 @@ describe('탭 4개 — 순서 · 주소 · 현재 탭', () => {
     'renders.html',
     'me.html',
     'admin.html',
+    'work.html',
   ])(
     '관리 탭 — %s 는 AdminAccess 를 싣고, 관리자면 위 메뉴 · 아래 탭에 「관리」를 연다',
     async (page) => {
       const { scripts } = await load(page, { session: SESSION, isAdmin: true });
       expect(scripts.some((s) => s.startsWith('../js/admin-access.js?v='))).toBe(true);
+      expect(scripts.some((s) => s.startsWith('../js/mypage-work.js?v='))).toBe(true);
       for (const sel of ['.sg-header nav.sg-nav', 'nav.sg-tabbar']) {
         const admin = $(sel + ' a[data-tab-link="admin"]');
         expect(admin.hidden).toBe(false);
@@ -199,6 +203,32 @@ describe('탭 4개 — 순서 · 주소 · 현재 탭', () => {
     expect(admin.result.admin).toBe(true);
   });
 
+  test('작업 탭 — 작업자(승인 · 대기 포함, shouldShow)면 연다, 아니면 · 로그인 전 · /work/me 실패면 감춘다', async () => {
+    const worker = {
+      ready: true,
+      worker: { id: 'w', status: 'approved', display_name: '김작업', kinds: ['install'] },
+    };
+    const tab = () => $('nav.sg-tabbar a[data-tab-link="work"]');
+    const on = await load('index.html', { session: SESSION, workMe: worker });
+    expect(tab().hidden).toBe(false);
+    expect(tab().textContent.trim()).toBe('작업');
+    expect(tab().getAttribute('href')).toBe('work.html');
+    expect(on.result.worker).toBe(true);
+    expect(on.calls.fetch.map((f) => f.url)).toContain('https://work.example.workers.dev/work/me');
+    await load('collection.html', { session: SESSION, workMe: { ready: true, worker: null } });
+    expect(tab().hidden).toBe(true);
+    const guest = await load('renders.html', { session: null, workMe: worker });
+    expect(tab().hidden).toBe(true);
+    expect(guest.calls.fetch).toEqual([]);
+    await load('index.html', { session: SESSION, workFail: true });
+    expect(tab().hidden).toBe(true);
+    // 작업 화면 — 셸 탭은 작업 · 포털은 그 안에서 (본문은 worker-portal 시험이 본다)
+    await load('work.html', { session: SESSION, workMe: worker });
+    expect(document.body.dataset.tab).toBe('work');
+    expect(tab().getAttribute('aria-current')).toBe('page');
+    expect(tab().hidden).toBe(false);
+  });
+
   test('아래 탭은 감춘 탭 자리를 두지 않는다 (칸 수를 정하지 않고 보이는 탭만큼)', () => {
     const css = read('segan/shell.css');
     const m = css.match(/^\.sg-tabbar \{([^}]*)\}/m);
@@ -208,6 +238,8 @@ describe('탭 4개 — 순서 · 주소 · 현재 탭', () => {
     expect(rule).not.toContain('grid-template-columns');
     expect(read('segan/sw.js')).toContain("SCOPE + 'admin.html'");
     expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'admin.js')");
+    expect(read('segan/sw.js')).toContain("SCOPE + 'work.html'");
+    expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'work.css')");
   });
 });
 
@@ -312,7 +344,7 @@ describe('내 정보 — 역할 메뉴는 기존 판정 모듈을 따른다', ()
     expect(links).toEqual([
       ['상세설계', '../detaildesign.html'],
       ['관리자 화면', '../admin/index.html'],
-      ['작업자 포털', '../worker.html'],
+      ['작업', 'work.html'],
     ]);
     for (const [, href] of links) expect(fs.existsSync(path.join(ROOT, 'segan', href))).toBe(true);
   });

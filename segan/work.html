@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>작업 · SEGAN</title>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026110110" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110110" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110110" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110110" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="shell.css?v=2026110110" />
+    <link rel="stylesheet" href="work.css?v=2026110110" />
+    <!-- 로그인 · 관리 탭 · 작업 탭 판정 — 기존 사이트의 판정 모듈을 그대로 싣는다 (segan/shell.js 머리말) -->
+    <script src="../js/config.js?v=2026110110"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="../js/admin-access.js?v=2026110110"></script>
+    <script src="../js/mypage-work.js?v=2026110110"></script>
+    <script src="shell.js?v=2026110110" defer></script>
+  </head>
+  <body class="sg-app" data-tab="work">
+    <div data-segan-shell="header"></div>
+
+    <main class="sg-main" id="main">
+      <!-- 작업자 포털 시작 — 예전 worker.html 본문 (js/worker-portal.js 가 그린다, 로그인 안내도 그 안에서) -->
+      <div class="wrap" id="workerApp" data-page="segan/work.html" data-login="../login.html">
+        <h1 class="sg-h1">작업</h1>
+        <div class="muted" id="sub">불러오는 중…</div>
+        <div id="alert" class="alert" role="status" hidden></div>
+
+        <noscript><div class="alert err">이 페이지는 자바스크립트를 켜야 쓸 수 있습니다.</div></noscript>
+
+        <section id="viewLoading">
+          <div class="card empty">불러오는 중…</div>
+        </section>
+
+        <!-- 미로그인 — 카카오 먼저 (작업자 링크는 카카오톡으로 받는다, 계약 §4 · §5) -->
+        <section id="viewLogin" hidden>
+          <div class="card">
+            <h2>로그인이 필요합니다</h2>
+            <p>작업자 페이지는 로그인한 뒤 쓸 수 있습니다.</p>
+            <p><strong>카카오 계정으로 로그인하는 것이 가장 빠릅니다.</strong> 로그인 화면에서 「카카오로 계속하기」를 누르세요. 구글 · 이메일로도 로그인할 수 있습니다.</p>
+            <p class="note" id="loginInviteNote" hidden>초대 링크를 받았습니다. 로그인하면 이어서 작업자 신청서를 쓸 수 있습니다.</p>
+            <a class="big go" id="loginLink" href="../login.html?redirect=segan%2Fwork.html">로그인하러 가기</a>
+          </div>
+        </section>
+
+        <!-- 미등록 — 작업자 신청서 (공개 신청 · 초대 공통, 둘 다 승인 전까지 대기 ★3).
+             동의 문구는 결정 13(동의 문구 · 위탁 계약) 전까지 초안 — 바꾸면 js/worker-portal.js 의 CONSENT_VERSION 을 올린다 -->
+        <section id="viewRegister" hidden>
+          <div class="card">
+            <h2 id="regTitle">작업자 신청</h2>
+            <p class="note" id="regInviteNote" hidden>초대 링크로 신청합니다. 초대에 작업 종류가 정해져 있으면 그 종류로 등록됩니다.</p>
+            <p class="muted">신청하면 회사가 확인한 뒤 승인합니다. 승인되면 내 작업 종류에 맞는 작업을 보고 신청할 수 있습니다.</p>
+            <form id="regForm" class="stack" novalidate>
+              <label for="regName">이름 <span class="req">(필수)</span></label>
+              <input type="text" id="regName" name="display_name" maxlength="30" autocomplete="name" required />
+
+              <label for="regPhone">휴대폰 (선택)</label>
+              <input type="tel" id="regPhone" name="phone" maxlength="30" inputmode="tel" autocomplete="tel" />
+
+              <fieldset>
+                <legend>작업 종류 <span id="regKindsHint">(하나 이상)</span></legend>
+                <label class="check"><input type="checkbox" name="kind_install" value="install" data-kind /> 설치</label>
+                <label class="check"><input type="checkbox" name="kind_as" value="as" data-kind /> A/S</label>
+                <label class="check"><input type="checkbox" name="kind_assembly" value="assembly" data-kind /> 조립 추가 인원</label>
+              </fieldset>
+
+              <label for="regRegion">활동 지역 (선택)</label>
+              <input type="text" id="regRegion" name="region_label" maxlength="40" placeholder="예: 서울 송파구" />
+
+              <div class="consent">
+                <h3>개인정보 수집 · 이용 안내</h3>
+                <dl>
+                  <dt>수집 항목</dt>
+                  <dd>이름 · 휴대폰(선택) · 작업 종류 · 활동 지역</dd>
+                  <dt>목적</dt>
+                  <dd>작업 안내, 작업 신청 · 배정 확인과 연락, 작업 기록 관리</dd>
+                  <dt>보관 기간</dt>
+                  <dd>미정 (아직 정하지 않았습니다)</dd>
+                </dl>
+                <p><strong>주민등록번호 · 계좌는 받지 않습니다.</strong></p>
+                <label class="check"><input type="checkbox" id="regConsent" name="consent" /> 위 내용에 동의합니다 <span class="req">(필수)</span></label>
+              </div>
+
+              <div class="consent">
+                <h3>작업 사진 (선택)</h3>
+                <p>작업 결과 사진을 올리고 회사가 작업 기록으로 보관하는 데 동의합니다. 사진에는 현장 모습이 찍힐 수 있습니다. 사진 보관 기간은 미정이며, 사진 올리기는 준비 중입니다.</p>
+                <label class="check"><input type="checkbox" id="regPhoto" name="photo_consent" /> 작업 사진 촬영 · 제출에 동의합니다 (선택)</label>
+              </div>
+
+              <p class="muted">동의 버전 <span id="regConsentVersion"></span></p>
+              <button type="submit" class="big go">작업자 신청하기</button>
+            </form>
+          </div>
+        </section>
+
+        <section id="viewPending" hidden>
+          <div class="card">
+            <h2>신청을 받았습니다</h2>
+            <p>회사가 확인한 뒤 승인하면 이 페이지에서 작업을 보고 신청할 수 있습니다.</p>
+            <div id="pendingInfo"></div>
+            <button type="button" class="big" id="pendingRefresh">승인됐는지 다시 보기</button>
+          </div>
+        </section>
+
+        <section id="viewRejected" hidden>
+          <div class="card">
+            <h2>작업자 신청이 승인되지 않았습니다</h2>
+            <p id="rejectReason"></p>
+            <p class="muted">궁금한 점은 회사에 문의해 주세요.</p>
+          </div>
+        </section>
+
+        <section id="viewNotReady" hidden>
+          <div class="card">
+            <h2>작업자 기능을 준비하고 있습니다</h2>
+            <p class="muted">잠시 뒤 다시 열어 주세요.</p>
+          </div>
+        </section>
+
+        <section id="viewError" hidden>
+          <div class="card">
+            <h2>불러오지 못했습니다</h2>
+            <p id="errorText"></p>
+          </div>
+        </section>
+
+        <!-- 승인 · 정지 작업자 — 탭(모집중 · 내 작업 · 완료 · 내 정보), 작업 상세는 #job=<id>.
+             정지(suspended)는 맨 위 안내 + 모집중 탭 · 신청 · 초대 수락 버튼만 빠진다 (계약 1주차 후속 D) -->
+        <section id="viewApp" hidden>
+          <p class="alert warn" id="suspendedNote" hidden>계정이 정지되어 새 작업 신청·수락을 할 수 없습니다. 지난 기록은 볼 수 있습니다.</p>
+          <nav class="tabs" id="tabs" aria-label="작업 목록"></nav>
+          <div id="appBody"></div>
+        </section>
+      </div>
+      <!-- 작업자 포털 끝 -->
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+
+    <script src="../js/worker-portal.js?v=2026110110"></script>
+  </body>
+</html>
