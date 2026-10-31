@@ -17,7 +17,6 @@ import {
   otherScore,
   itemRecordCount,
   itemRecordPoints,
-  finishPoints,
   pricePoints,
   designPoints,
   scoreCompany,
@@ -34,7 +33,8 @@ import {
   docsOk,
   EQUIPMENT,
   STAFF_ROLES,
-  FINISHES,
+  SUPPLIERS,
+  SUPPLIER_GROUPS,
   DESIGN,
   ITEM_KEYS,
 } from '../src/distribution/catalog.js';
@@ -121,15 +121,15 @@ test('위치 — 같은 시/군/구 15 · 같은 시/도 10 · 그 밖 5 (상수
   });
 });
 
-test('고객 가격대 — wanted_price_tier, 모름 · 빈 값이면 모든 업체 3', () => {
+test('고객 가격대 — 같음 5 · 한 칸 1.7 · 그 밖 0, 모름 · 빈 값이면 모든 업체 2.5', () => {
   assert.equal(R.customerPriceTier(consult({ wanted_price_tier: 'mid' })), 'mid');
   assert.equal(R.customerPriceTier(consult({ wanted_price_tier: 'unknown' })), null);
   assert.equal(R.customerPriceTier(consult({ wanted_price_tier: null })), null);
   assert.equal(R.customerPriceTier(consult({ wanted_price_tier: 'premium' })), null);
   const ev = (price_tier) => ({ price_tier });
-  assert.equal(pricePoints(consult({ wanted_price_tier: 'mid' }), ev('mid')), 6, '같음');
-  assert.equal(pricePoints(consult({ wanted_price_tier: 'mid' }), ev('high')), 2, '한 칸');
-  assert.equal(pricePoints(consult({ wanted_price_tier: 'basic' }), ev('mid')), 2, '한 칸');
+  assert.equal(pricePoints(consult({ wanted_price_tier: 'mid' }), ev('mid')), 5, '같음');
+  assert.equal(pricePoints(consult({ wanted_price_tier: 'mid' }), ev('high')), 1.7, '한 칸');
+  assert.equal(pricePoints(consult({ wanted_price_tier: 'basic' }), ev('mid')), 1.7, '한 칸');
   assert.equal(pricePoints(consult({ wanted_price_tier: 'basic' }), ev('high')), 0, '두 칸');
   assert.equal(
     pricePoints(consult({ wanted_price_tier: 'high' }), ev(null)),
@@ -138,28 +138,28 @@ test('고객 가격대 — wanted_price_tier, 모름 · 빈 값이면 모든 업
   );
   assert.equal(pricePoints(consult({ wanted_price_tier: 'high' }), null), 0);
   for (const t of ['unknown', null]) {
-    assert.equal(pricePoints(consult({ wanted_price_tier: t }), ev('high')), 3);
-    assert.equal(pricePoints(consult({ wanted_price_tier: t }), null), 3);
+    assert.equal(pricePoints(consult({ wanted_price_tier: t }), ev('high')), 2.5);
+    assert.equal(pricePoints(consult({ wanted_price_tier: t }), null), 2.5);
   }
 });
 
-test('희망 시기 — 마칠 수 있는 날(오늘 + 기간)이 시공 완료 희망 날짜 안 6 · 14일 안 늦음 3 · 그 밖 0, 희망 날짜 없으면 6', () => {
+test('희망 시기 — 마칠 수 있는 날(오늘 + 기간)이 시공 완료 희망 날짜 안 5 · 14일 안 늦음 2.5 · 그 밖 0, 희망 날짜 없으면 5', () => {
   const today = '2026-10-30';
   assert.equal(R.LEAD_DAYS_MIN, 1);
   assert.equal(R.LEAD_DAYS_MAX, 14);
   assert.equal(R.TIMING_LATE_DAYS, 14);
-  assert.equal(R.timingScore(null, 14, today), 6);
-  assert.equal(R.timingScore('2026-12-31', 14, today), 6);
-  assert.equal(R.timingScore('2026-11-09', 10, today), 6, '같은 날');
-  assert.equal(R.timingScore('2026-11-09', 11, today), 3, '1일 늦음');
-  assert.equal(R.timingScore('2026-10-30', 14, today), 3, '14일');
+  assert.equal(R.timingScore(null, 14, today), 5);
+  assert.equal(R.timingScore('2026-12-31', 14, today), 5);
+  assert.equal(R.timingScore('2026-11-09', 10, today), 5, '같은 날');
+  assert.equal(R.timingScore('2026-11-09', 11, today), 2.5, '1일 늦음');
+  assert.equal(R.timingScore('2026-10-30', 14, today), 2.5, '14일');
   assert.equal(R.timingScore('2026-10-29', 14, today), 0, '15일 — 지난 희망 날짜');
   assert.equal(
     R.timingScore('2026-11-09', null, today),
     0,
     '기간이 없으면 잴 수 없음 (거르기에서 빠진다)'
   );
-  assert.equal(R.timingScore('언젠가', 10, today), 6, '날짜 모양이 아니면 희망 날짜 없음');
+  assert.equal(R.timingScore('언젠가', 10, today), 5, '날짜 모양이 아니면 희망 날짜 없음');
 });
 
 test('한 달 한도 · 고객 확정 ~ 시공 완료 기간을 정하지 않은 업체는 거른다 (limit · period)', () => {
@@ -471,8 +471,8 @@ test('본사 평가 — 만족 = 설치 후 문항 평균(0~10 → 0~5) ÷ 5 × 
   assert.equal(responseRateOf(stats()), null);
 });
 
-test('품목 실적 — 0건 3 · 1~4건 6 · 5건 이상 12, 고객 품목이 하나라도 든 완료 수주', () => {
-  assert.deepEqual([0, 1, 4, 5, 9].map(itemRecordPoints), [3, 6, 6, 12, 12]);
+test('품목 실적 — 0건 3.8 · 1~4건 7.5 · 5건 이상 15, 고객 품목이 하나라도 든 완료 수주', () => {
+  assert.deepEqual([0, 1, 4, 5, 9].map(itemRecordPoints), [3.8, 7.5, 7.5, 15, 15]);
   const done = [
     new Set(['sink']),
     new Set(['sink', 'island']),
@@ -488,25 +488,37 @@ test('품목 실적 — 0건 3 · 1~4건 6 · 5건 이상 12, 고객 품목이 �
   assert.equal(itemRecordCount([], stats({ completedItems: done })), 0);
 });
 
-test('도어 마감 — 취급 6 · 안 함 0 · 고객 모름(또는 빈 값) 모두 3', () => {
-  const ev = { finishes: { door_pet: 'yes', door_paint: 'no' } };
-  assert.equal(finishPoints(consult({ door_finish: 'pet' }), ev), 6);
-  assert.equal(finishPoints(consult({ door_finish: 'paint' }), ev), 0);
-  assert.equal(finishPoints(consult({ door_finish: 'veneer' }), ev), 0, '평가표에 없으면 안 함');
-  assert.equal(finishPoints(consult({ door_finish: 'unknown' }), ev), 3);
-  assert.equal(finishPoints(consult({ door_finish: null }), null), 3);
+test('도어 마감은 점수에 넣지 않는다 — 고객이 고른 마감 · 업체 거래 회사와 상관없이 같은 적합도', () => {
+  const base = {
+    items: ['sink'],
+    settings: settings({ lead_days: 10 }),
+    stats: stats(),
+    today: '2026-10-30',
+  };
+  const withDoor = fitScore({
+    ...base,
+    consult: consult({ door_finish: 'pet' }),
+    evaluation: { finishes: { door: [{ key: 'cratech', main: true }] } },
+  });
+  const without = fitScore({
+    ...base,
+    consult: consult({ door_finish: 'ceramic' }),
+    evaluation: {},
+  });
+  assert.deepEqual(withDoor, without);
+  assert.ok(!('finish' in withDoor));
 });
 
-test('상세 설계 — 요청이 있으면 설계 인원 1명 이상 + 플래너 5 · 아니면 0, 요청 없으면 5', () => {
+test('상세 설계 — 요청이 있으면 설계 인원 1명 이상 + 플래너 10 · 아니면 0, 요청 없으면 10', () => {
   const req = consult({ request_detail_design: true });
-  assert.equal(designPoints(consult(), null), 5);
-  assert.equal(designPoints(req, { staff: { design: 1 }, design: { planner: true } }), 5);
+  assert.equal(designPoints(consult(), null), 10);
+  assert.equal(designPoints(req, { staff: { design: 1 }, design: { planner: true } }), 10);
   assert.equal(designPoints(req, { staff: { design: 0 }, design: { planner: true } }), 0);
   assert.equal(designPoints(req, { staff: { design: 2 }, design: { planner: false } }), 0);
   assert.equal(designPoints(req, null), 0);
 });
 
-test('선택 적합도 — 다섯 항목 합 (만점 35)', () => {
+test('선택 적합도 — 네 항목 합 (만점 35 = 품목 실적 15 · 가격대 5 · 희망 시기 5 · 상세 설계 10)', () => {
   const f = fitScore({
     consult: consult({
       door_finish: 'pet',
@@ -517,7 +529,6 @@ test('선택 적합도 — 다섯 항목 합 (만점 35)', () => {
     items: ['sink'],
     settings: settings({ lead_days: 10 }),
     evaluation: {
-      finishes: { door_pet: 'yes' },
       price_tier: 'mid',
       staff: { design: 1 },
       design: { planner: true },
@@ -525,7 +536,7 @@ test('선택 적합도 — 다섯 항목 합 (만점 35)', () => {
     stats: stats({ completedItems: Array.from({ length: 5 }, () => new Set(['sink'])) }),
     today: '2026-10-30',
   });
-  assert.deepEqual(f, { item: 12, finish: 6, price: 6, timing: 6, design: 5, sum: 35, raw: 35 });
+  assert.deepEqual(f, { item: 15, price: 5, timing: 5, design: 10, sum: 35, raw: 35 });
 });
 
 test('기타 — 일감 고르게(최다 업체 0, 직선) · 처리 여유(진행 중 ÷ 한도, 1 이상 0)', () => {
@@ -589,21 +600,14 @@ test('점수 모양 — eval · fit · location · other, 총점은 반올림 �
     'response',
     'sum',
   ]);
-  assert.deepEqual(Object.keys(s.score.fit), [
-    'item',
-    'finish',
-    'price',
-    'timing',
-    'design',
-    'sum',
-  ]);
+  assert.deepEqual(Object.keys(s.score.fit), ['item', 'price', 'timing', 'design', 'sum']);
   assert.deepEqual(s.score.location, { sum: 15, why: 'same_gugun' });
   assert.deepEqual(Object.keys(s.score.other), ['spread', 'capacity', 'sum']);
-  // eval 16 + 6 + 3 + 3 = 28 (자료 없음은 절반) · fit 3 + 3 + 3 + 6 + 5 = 20 · location 15 · other 5 + 5 = 10
+  // eval 16 + 6 + 3 + 3 = 28 (자료 없음은 절반) · fit 3.8 + 2.5 + 5 + 10 = 21.3 · location 15 · other 5 + 5 = 10
   assert.equal(s.score.eval.sum, 28);
-  assert.equal(s.score.fit.sum, 20);
+  assert.equal(s.score.fit.sum, 21.3);
   assert.equal(s.score.other.sum, 10);
-  assert.equal(s.total, 73);
+  assert.equal(s.total, 74);
   assert.ok(Number.isInteger(s.total));
 });
 
@@ -839,7 +843,7 @@ test('수주 통계 — 진행 중 · 최근 90일 재작업 없는 수주 · �
 
 // ── 평가표 검사 ────────────────────────────────────────────────
 
-test('평가표 — 항목 목록 (설비 13 · 직무 10 · 마감 14 + 분야 메모 4 · 설계 4, 시공 묶음 없음)', () => {
+test('평가표 — 항목 목록 (설비 13 · 직무 10 · 거래 회사 4분야 + 분야 메모 4 · 설계 4, 시공 묶음 없음)', () => {
   const c = evaluationCatalog();
   assert.equal(c.equipment.length, 13);
   assert.deepEqual(Object.keys(EQUIPMENT), [
@@ -876,18 +880,40 @@ test('평가표 — 항목 목록 (설비 13 · 직무 10 · 마감 14 + 분야 
   );
   assert.deepEqual(c.staff_total, [{ key: 'total', name: '전체 인원 (실제 사람 수)' }]);
   assert.ok(!STAFF_ROLES.total, '전체 인원은 직무가 아니다');
-  assert.equal(c.finishes.length, 14);
+  assert.ok(!('finishes' in c), '마감 · 자재는 거래 회사 목록(suppliers)으로');
+  assert.deepEqual(
+    c.suppliers.map((g) => [g.key, g.name, g.companies.length]),
+    [
+      ['door', '도어', 20],
+      ['body', '몸통', 8],
+      ['hw', '하드웨어', 22],
+      ['top', '상판', 25],
+    ]
+  );
+  assert.deepEqual(Object.keys(SUPPLIERS), Object.keys(SUPPLIER_GROUPS));
+  for (const g of c.suppliers)
+    for (const s of g.companies) assert.ok(s.key && s.name && s.kind, `${g.key}.${s.key}`);
+  assert.deepEqual(
+    c.suppliers[0].companies.find((s) => s.key === 'cratech'),
+    { key: 'cratech', name: '크라텍', kind: 'PET · 하이그로시 · 도장(UV)' }
+  );
   assert.deepEqual(c.finish_notes, [
     { key: 'door', name: '도어' },
     { key: 'body', name: '몸통' },
     { key: 'hw', name: '하드웨어' },
     { key: 'top', name: '상판' },
   ]);
-  for (const n of c.finish_notes)
-    assert.ok(
-      c.finishes.some((f) => f.key.startsWith(`${n.key}_`)),
-      `메모 분야 ${n.key} 는 마감 키 앞머리`
-    );
+  assert.deepEqual(
+    c.finish_notes.map((n) => n.key),
+    c.suppliers.map((g) => g.key),
+    '메모 분야 = 거래 회사 분야'
+  );
+  assert.deepEqual(c.limits, {
+    supplier_rows: 20,
+    supplier_name: 50,
+    finish_note: 500,
+    hq_comm: 20,
+  });
   assert.deepEqual(c.design, [
     { key: 'hand_drawing', name: '손도면' },
     { key: 'cad', name: 'CAD' },
@@ -900,7 +926,8 @@ test('평가표 — 항목 목록 (설비 13 · 직무 10 · 마감 14 + 분야 
     { key: 'contract', name: '표준 계약서' },
   ]);
   for (const group of Object.values(c))
-    for (const e of group) if (typeof e === 'object') assert.ok(e.key && e.name);
+    if (Array.isArray(group))
+      for (const e of group) if (typeof e === 'object') assert.ok(e.key && e.name);
 });
 
 test('평가표 — 목록 밖 키는 422 (어느 키인지), 틀린 값도 422', () => {
@@ -958,23 +985,26 @@ test('평가표 — 목록 밖 키는 422 (어느 키인지), 틀린 값도 422'
   );
 });
 
-test('평가표 — 마감 · 자재 분야별 메모 finishes.notes (앞뒤 빈칸 지움 · 빈 글 뺌 · 500자) — 점수 키와 섞이지 않는다', () => {
+test('평가표 — 마감 · 자재 분야별 메모 finishes.notes (앞뒤 빈칸 지움 · 빈 글 뺌 · 500자) — 거래 회사 줄과 섞이지 않는다', () => {
   const opts = { existing: null, userId: 'u1', today: '2026-10-30' };
   const out = parseEvaluation(
     {
       finishes: {
-        door_pet: 'yes',
+        door: [{ key: 'cratech', main: true }],
         notes: { door: '  PET 는 외주  ', top: '   ', hw: '블룸 재고' },
       },
     },
     opts
   );
   assert.deepEqual(out.finishes, {
-    door_pet: 'yes',
+    door: [{ key: 'cratech', main: true }],
     notes: { door: 'PET 는 외주', hw: '블룸 재고' },
   });
   assert.deepEqual(parseEvaluation({ finishes: { notes: { top: '' } } }, opts).finishes, {});
-  assert.equal(parseEvaluation({ finishes: { door_pet: 'yes' } }, opts).finishes.notes, undefined);
+  assert.equal(
+    parseEvaluation({ finishes: { door: [{ key: 'cratech' }] } }, opts).finishes.notes,
+    undefined
+  );
   assert.throws(
     () => parseEvaluation({ finishes: { notes: { frame: '틀' } } }, opts),
     (e) => e.statusCode === 422 && e.details.unknown_keys[0] === 'finishes.notes.frame'
@@ -994,8 +1024,119 @@ test('평가표 — 마감 · 자재 분야별 메모 finishes.notes (앞뒤 빈
     () => parseEvaluation({ finishes: { notes: '메모' } }, opts),
     (e) => e.statusCode === 422
   );
-  // 메모가 있어도 도어 마감 점수는 그대로
-  assert.equal(finishPoints(consult({ door_finish: 'pet' }), out), 6);
+});
+
+test('평가표 — 마감 · 자재 거래 회사 (목록 키 또는 직접 적기 · 주력), 분야마다 20줄 · 같은 회사 한 번', () => {
+  const opts = { existing: null, userId: 'u1', today: '2026-10-30' };
+  const out = parseEvaluation(
+    {
+      finishes: {
+        door: [
+          { key: 'cratech', main: true },
+          { key: 'homegreen' },
+          { name: '  동네 도어  ', main: false },
+        ],
+        hw: [{ key: 'blum', main: true }],
+        body: [],
+        top: null,
+      },
+    },
+    opts
+  );
+  assert.deepEqual(out.finishes, {
+    door: [
+      { key: 'cratech', main: true },
+      { key: 'homegreen', main: false },
+      { name: '동네 도어', main: false },
+    ],
+    hw: [{ key: 'blum', main: true }],
+  });
+  // 목록 밖 분야 · 회사는 「목록에 없는 항목」 — 예전 화면(취급함 · 안함)이 보내는 키도
+  assert.throws(
+    () => parseEvaluation({ finishes: { door_pet: 'yes', door: [{ key: 'nobody' }] } }, opts),
+    (e) =>
+      e.statusCode === 422 &&
+      JSON.stringify(e.details.unknown_keys) ===
+        JSON.stringify(['finishes.door_pet', 'finishes.door.nobody'])
+  );
+  assert.throws(
+    () => parseEvaluation({ finishes: { door: [{ key: 'sungchang' }] } }, opts),
+    (e) => e.statusCode === 422 && e.details.unknown_keys[0] === 'finishes.door.sungchang',
+    '몸통 회사는 도어 목록에 없다'
+  );
+  // 모양 · 글자 수
+  for (const bad of [
+    'cratech',
+    {},
+    { key: 'cratech', name: '크라텍' },
+    { key: 'cratech', main: 'yes' },
+    { key: 'cratech', extra: 1 },
+    { key: 3 },
+    { name: '   ' },
+    { name: '가'.repeat(51) },
+  ])
+    assert.throws(
+      () => parseEvaluation({ finishes: { top: [bad] } }, opts),
+      (e) => e.statusCode === 422 && e.details.invalid[0] === 'finishes.top.0',
+      JSON.stringify(bad)
+    );
+  assert.equal(
+    parseEvaluation({ finishes: { top: [{ name: '가'.repeat(50) }] } }, opts).finishes.top[0].name
+      .length,
+    50
+  );
+  // 같은 회사 두 번
+  assert.throws(
+    () =>
+      parseEvaluation(
+        { finishes: { door: [{ key: 'cratech' }, { key: 'cratech', main: true }] } },
+        opts
+      ),
+    (e) => e.statusCode === 422 && e.details.invalid[0] === 'finishes.door.1'
+  );
+  assert.throws(
+    () => parseEvaluation({ finishes: { door: [{ name: '동네' }, { name: ' 동네 ' }] } }, opts),
+    (e) => e.statusCode === 422 && e.details.invalid[0] === 'finishes.door.1'
+  );
+  // 분야마다 20줄까지 · 줄 목록이어야
+  const many = (n) => Array.from({ length: n }, (_, i) => ({ name: `회사 ${i}` }));
+  assert.equal(parseEvaluation({ finishes: { body: many(20) } }, opts).finishes.body.length, 20);
+  assert.throws(
+    () => parseEvaluation({ finishes: { body: many(21) } }, opts),
+    (e) => e.statusCode === 422 && e.details.invalid[0] === 'finishes.body'
+  );
+  assert.throws(
+    () => parseEvaluation({ finishes: { body: { key: 'dongwha' } } }, opts),
+    (e) => e.statusCode === 422 && e.details.invalid[0] === 'finishes.body'
+  );
+  // 거래 회사는 등급 점수에 넣지 않는다
+  assert.deepEqual(evaluationScore(out).areas, evaluationScore({}).areas);
+});
+
+test('평가표 — 본사 소통 hq_comm { score } 0~20 정수 (비우면 {}) — 등급 「본사 소통」 영역 점수', () => {
+  const opts = { existing: null, userId: 'u1', today: '2026-10-30' };
+  assert.deepEqual(parseEvaluation({ hq_comm: { score: 12 } }, opts).hq_comm, { score: 12 });
+  assert.deepEqual(parseEvaluation({ hq_comm: { score: 0 } }, opts).hq_comm, { score: 0 });
+  assert.deepEqual(parseEvaluation({ hq_comm: { score: null } }, opts).hq_comm, {});
+  assert.deepEqual(parseEvaluation({}, opts).hq_comm, {});
+  for (const bad of [-1, 21, 1.5, '12'])
+    assert.throws(
+      () => parseEvaluation({ hq_comm: { score: bad } }, opts),
+      (e) => e.statusCode === 422 && e.details.invalid[0] === 'hq_comm.score'
+    );
+  assert.throws(
+    () => parseEvaluation({ hq_comm: { items: [] } }, opts),
+    (e) => e.statusCode === 422 && e.details.unknown_keys[0] === 'hq_comm.items'
+  );
+  assert.throws(
+    () => parseEvaluation({ hq_comm: 12 }, opts),
+    (e) => e.statusCode === 422
+  );
+  const hq = (v) => evaluationScore({ hq_comm: v }).areas.find((a) => a.key === 'hq_comm');
+  assert.deepEqual(hq({ score: 12 }), { key: 'hq_comm', name: '본사 소통', points: 12, max: 20 });
+  assert.equal(hq({}).points, 0);
+  assert.equal(hq({ score: 25 }).points, 20, '배율보다 크면 배율까지');
+  assert.equal(hq({ score: '12' }).points, 0);
 });
 
 test('평가표 — 전체 인원 staff.total (실제 사람 수), 직무별 인원과 따로 · 점수에 안 들어감', () => {
@@ -1064,6 +1205,7 @@ test('평가표 — 서류는 { checked_at: 확인한 날 }, 확인한 사람은
     'docs',
     'equipment',
     'finishes',
+    'hq_comm',
     'install',
     'note',
     'price_tier',
@@ -1074,11 +1216,11 @@ test('평가표 — 서류는 { checked_at: 확인한 날 }, 확인한 사람은
 
 // ── 본사 등급 (평가표 영역별 배율) ───────────────────────────────
 
-test('본사 등급 — 영역 배율 합 100 (가격대 없음), 설계 점수 합 = 설계 배율, 영역 이름', () => {
+test('본사 등급 — 영역 배율 합 100 (가격대 · 마감 · 자재 없음), 설계 점수 합 = 설계 배율, 영역 이름', () => {
   assert.deepEqual(R.EVAL_WEIGHTS, {
     equipment: 30,
     staff: 20,
-    finishes: 20,
+    hq_comm: 20,
     design: 15,
     quality: 10,
     docs: 5,
@@ -1106,7 +1248,7 @@ test('본사 등급 — 빈 평가표 0점 C, 다 갖추면 100점 S', () => {
     [
       ['equipment', '설비', 0, 30],
       ['staff', '인력', 0, 20],
-      ['finishes', '마감 · 자재', 0, 20],
+      ['hq_comm', '본사 소통', 0, 20],
       ['design', '설계', 0, 15],
       ['quality', '품질 · 서비스', 0, 10],
       ['docs', '신뢰 · 서류', 0, 5],
@@ -1116,7 +1258,7 @@ test('본사 등급 — 빈 평가표 0점 C, 다 갖추면 100점 S', () => {
   const full = evaluationScore({
     equipment: Object.fromEntries(Object.keys(EQUIPMENT).map((k) => [k, 'have'])),
     staff: Object.fromEntries(Object.keys(STAFF_ROLES).map((k) => [k, 3])),
-    finishes: Object.fromEntries(Object.keys(FINISHES).map((k) => [k, 'yes'])),
+    hq_comm: { score: 20 },
     design: Object.fromEntries(Object.keys(DESIGN).map((k) => [k, true])),
     as_months: 24,
     warranty_months: 36,
@@ -1130,16 +1272,15 @@ test('본사 등급 — 빈 평가표 0점 C, 다 갖추면 100점 S', () => {
   );
 });
 
-test('본사 등급 — 영역 안 점수 (설비 외주 0.5 · 인력 1명 이상 직무 · 마감 취급 · 설계 합 · 기간 · 서류)', () => {
+test('본사 등급 — 영역 안 점수 (설비 외주 0.5 · 인력 1명 이상 직무 · 본사 소통 · 설계 합 · 기간 · 서류)', () => {
   const s = evaluationScore({
     equipment: { table_saw: 'have', cnc_cut: 'outsource', nesting: 'have', boring: 'none' },
     staff: { design: 2, measure: 1, install: 0 },
     finishes: {
-      door_pet: 'yes',
-      body_pb: 'yes',
-      hw_blum: 'no',
-      notes: { door: '메모는 셈에 안 넣는다' },
+      door: [{ key: 'cratech', main: true }],
+      notes: { door: '거래 회사 · 메모는 셈에 안 넣는다' },
     },
+    hq_comm: { score: 7 },
     design: { cad: true, planner: true, sketchup: false },
     as_months: 12,
     warranty_months: 24,
@@ -1147,13 +1288,13 @@ test('본사 등급 — 영역 안 점수 (설비 외주 0.5 · 인력 1명 이�
     price_tier: 'high',
     grade: 'S',
   });
-  // 설비 (1 + 0.5 + 1) ÷ 13 × 30 = 5.77 · 인력 2 ÷ 10 × 20 = 4 · 마감 2 ÷ 14 × 20 = 2.86
+  // 설비 (1 + 0.5 + 1) ÷ 13 × 30 = 5.77 · 인력 2 ÷ 10 × 20 = 4 · 본사 소통 7
   // 설계 CAD 4 + 플래너 5 = 9 · 품질 A/S 12개월 3 + 보증 24개월 5 = 8 · 서류 하나 2.5
   assert.deepEqual(
     s.areas.map((a) => a.points),
-    [5.8, 4, 2.9, 9, 8, 2.5]
+    [5.8, 4, 7, 9, 8, 2.5]
   );
-  assert.equal(s.total, 32.2, '영역 점수(소수 첫째 자리)를 더한 값');
+  assert.equal(s.total, 36.3, '영역 점수(소수 첫째 자리)를 더한 값');
   assert.equal(s.grade, 'C', '저장된 등급 · 가격대는 셈에 넣지 않는다');
   // 기간 점수: 없음 · 0 → 0, 1~11 → 1, 12~23 → 3, 24 이상 → 5
   const q = (m) => evaluationScore({ as_months: m }).areas.find((a) => a.key === 'quality').points;

@@ -31,7 +31,7 @@ export const IN_PROGRESS_STATUSES = Object.freeze(['confirmed', 'in_production',
 const COMPANY_COLUMNS = 'id,kind,name,plan,status,sido,gugun';
 const SETTINGS_COLUMNS = 'company_id,regions,items,monthly_limit,lead_days,updated_at';
 const EVALUATION_COLUMNS =
-  'company_id,grade,equipment,staff,finishes,design,install,price_tier,docs,as_months,warranty_months,note,evaluated_at,evaluated_by';
+  'company_id,grade,equipment,staff,finishes,design,install,hq_comm,price_tier,docs,as_months,warranty_months,note,evaluated_at,evaluated_by';
 
 function chunks(list, size) {
   const out = [];
