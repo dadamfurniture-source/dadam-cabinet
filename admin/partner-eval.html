@@ -777,6 +777,8 @@
 
           const equipment = entries(cat.equipment);
           const staff = entries(cat.staff_roles);
+          // 전체 인원(실제 사람 수) — staff.total. 직무별 인원은 겸직이면 직무마다 센다
+          const staffTotal = entries(cat.staff_total);
           const finishes = entries(cat.finishes);
           const design = entries(cat.design);
           const docs = Array.isArray(cat.docs) && cat.docs.length ? entries(cat.docs) : DOC_ITEMS;
@@ -848,14 +850,23 @@
               'staff',
               '인력',
               staff.length
-                ? `<div class="rows">${staff
+                ? `${
+                    staffTotal.length
+                      ? `<div class="rows">${staffTotal
+                          .map(
+                            (e) =>
+                              `<div class="row"><span>${esc(e.name)}</span><span>${numInput(`data-staff-total="${esc(e.key)}"`, st[e.key], e.name)} 명</span></div>`
+                          )
+                          .join('')}</div><div class="sub">직무별 (겸직이면 직무마다 셉니다)</div>`
+                      : ''
+                  }<div class="rows">${staff
                     .map(
                       (e) =>
                         `<div class="row"><span>${esc(e.name)}</span><span>${numInput(`data-staff="${esc(e.key)}"`, st[e.key], e.name)} 명</span></div>`
                     )
                     .join('')}</div>`
                 : emptyCatalog(),
-              '직무별 인원'
+              '실제 사람 수와 직무별 인원'
             ),
             group(
               'finishes',
@@ -953,6 +964,13 @@
               (n) => n.getAttribute('data-staff') === e.key
             );
             const v = intOf(input, `인력 ${e.name}`);
+            if (v !== null) staff[e.key] = v;
+          });
+          entries(cat.staff_total).forEach((e) => {
+            const input = [...form.querySelectorAll('input[data-staff-total]')].find(
+              (n) => n.getAttribute('data-staff-total') === e.key
+            );
+            const v = intOf(input, e.name);
             if (v !== null) staff[e.key] = v;
           });
           const finishes = {};

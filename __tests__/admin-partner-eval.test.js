@@ -61,6 +61,7 @@ const CATALOG = {
     { key: 'design', name: '설계 담당(서버)' },
     { key: 'install', name: '시공 담당(서버)' },
   ],
+  staff_total: [{ key: 'total', name: '전체 인원(서버)' }],
   finishes: [
     { key: 'door_pet', name: 'PET 도어(서버)' },
     { key: 'door_paint', name: '도장 도어(서버)' },
@@ -83,7 +84,7 @@ const EVAL = {
   company_id: 'p1',
   grade: 'B',
   equipment: { panel_saw: 'have', cnc_cut: 'outsource' },
-  staff: { design: 2 },
+  staff: { design: 2, total: 5 },
   finishes: { door_pet: 'yes', door_paint: 'no', notes: { door: 'PET 는 외주' } },
   design: { cad: true, planner: false },
   price_tier: 'mid',
@@ -277,7 +278,15 @@ describe('평가표 — 10묶음, 항목은 서버 catalog', () => {
       '엣지밴더(서버)있음외주없음',
     ]);
     expect(checkedIn('equipment')).toEqual(['have', 'outsource']);
-    expect(rowsOf('staff')).toEqual(['설계 담당(서버) 명', '시공 담당(서버) 명']);
+    expect(rowsOf('staff')).toEqual([
+      '전체 인원(서버) 명',
+      '설계 담당(서버) 명',
+      '시공 담당(서버) 명',
+    ]);
+    expect(document.querySelector('input[data-staff-total="total"]').value).toBe('5');
+    expect(document.querySelector('#evForm .group[data-group="staff"] .sub').textContent).toBe(
+      '직무별 (겸직이면 직무마다 셉니다)'
+    );
     expect(document.querySelector('input[data-staff="design"]').value).toBe('2');
     expect(document.querySelector('input[data-staff="install"]').value).toBe('');
     expect(checkedIn('finishes')).toEqual(['yes', 'no']);
@@ -435,6 +444,7 @@ describe('저장 — PUT /admin/companies/:id/evaluation', () => {
     setRadio('eq-2', 'none');
     setRadio('fi-3', 'yes');
     setValue('input[data-staff="install"]', '3');
+    setValue('input[data-staff-total="total"]', '4');
     setCheck('input[data-design="planner"]', true);
     setValue('textarea[data-finish-note="top"]', '  세라믹은 외주  ');
     setRadio('price_tier', 'high');
@@ -447,7 +457,7 @@ describe('저장 — PUT /admin/companies/:id/evaluation', () => {
     expect(put.path).toBe('/admin/companies/p1/evaluation');
     expect(put.body).toEqual({
       equipment: { panel_saw: 'have', cnc_cut: 'outsource', edge_bander: 'none' },
-      staff: { design: 2, install: 3 },
+      staff: { design: 2, install: 3, total: 4 },
       finishes: {
         door_pet: 'yes',
         door_paint: 'no',
@@ -531,6 +541,12 @@ describe('저장 — PUT /admin/companies/:id/evaluation', () => {
     await settle();
     expect(calls.filter((c) => c.method === 'PUT')).toHaveLength(0);
     expect($('evStatus').textContent).toBe('인력 설계 담당(서버): 0 이상의 정수로 넣어 주세요.');
+    setValue('input[data-staff="design"]', '2');
+    setValue('input[data-staff-total="total"]', '2.5');
+    $('btnSave').click();
+    await settle();
+    expect(calls.filter((c) => c.method === 'PUT')).toHaveLength(0);
+    expect($('evStatus').textContent).toBe('전체 인원(서버): 0 이상의 정수로 넣어 주세요.');
   });
 
   test('422 (catalog 밖 키 등) — 서버 글을 그대로', async () => {
