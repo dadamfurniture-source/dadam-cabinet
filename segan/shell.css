@@ -507,6 +507,13 @@ a.sg-row.ad-row::after {
   margin-top: 12px;
 }
 
+/* 관리 › 회원 — 찾기 칸 */
+.ad-search {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+
 /* 내 정보 — 값 · 상담 내역 */
 .me-val {
   margin-left: auto;
