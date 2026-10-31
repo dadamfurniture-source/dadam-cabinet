@@ -13,6 +13,7 @@
              아직 없으면 PC 관리자 화면(admin/*.html).
    앱 화면    주소의 # 로 고른다 (VIEWS). 화면을 열면 오늘 할 일 · PC에서 열기를 감추고, 「‹ 관리」로 돌아오면
              수를 다시 읽는다 (그 화면에서 처리했을 수 있다).
+   찾기       수가 아닌 앱 화면 — 회원 (#members, 보기만)
    PC에서 열기  표 · 큰 입력이 많아 PC 에 남기는 관리자 화면 10개 (주소 · 이름은 js/admin-shell.js ADMIN_NAV)
    ============================================================ */
 /* global window, document, fetch */
@@ -45,6 +46,7 @@
     applications: ['adApplications', 'SeganAdminApplications'],
     consults: ['adConsults', 'SeganAdminConsults'], // #consults-assigned = 답 기다림 탭으로
     reports: ['adReports', 'SeganAdminReports'],
+    members: ['adMembers', 'SeganAdminMembers'],
   };
 
   var A = { sb: null, session: null, counts: {}, view: '' };
@@ -161,6 +163,7 @@
   }
 
   async function showHome() {
+    $('adGo').hidden = false;
     $('adPc').hidden = false;
     A.counts = await loadCounts();
     $('adTodayRows').innerHTML = todayHtml(A.counts);
@@ -181,6 +184,7 @@
     var mod = view ? window[view[1]] : null;
     if (view && mod && mod.load) {
       $('adToday').hidden = true;
+      $('adGo').hidden = true;
       $('adPc').hidden = true;
       A.view = name;
       await mod.load(A.sb, A.session, arg);
