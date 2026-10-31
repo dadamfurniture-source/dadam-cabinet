@@ -119,7 +119,7 @@ describe('오늘 할 일', () => {
     expect(tab.hidden).toBe(false);
     expect(tab.getAttribute('aria-current')).toBe('page');
     expect(today()).toEqual([
-      ['applications', '새 업체 신청', '3건', true, '../admin/expert-requests.html'],
+      ['applications', '새 업체 신청', '3건', true, '#applications'],
       ['pending', '배정을 기다리는 상담', '2건', true, '../admin/consult-distribution.html'],
       ['assigned', '업체 답을 기다리는 배정', '200+건', true, '../admin/consult-distribution.html'],
       ['proposals', '결정할 생산 제안', '0건', false, '../admin/work-reports.html'],
