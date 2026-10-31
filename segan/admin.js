@@ -24,7 +24,7 @@
     { key: 'applications', label: '새 업체 신청', href: '#applications' },
     { key: 'pending', label: '배정을 기다리는 상담', href: '#consults' },
     { key: 'assigned', label: '업체 답을 기다리는 배정', href: '#consults-assigned' },
-    { key: 'proposals', label: '결정할 생산 제안', href: '../admin/work-reports.html' },
+    { key: 'proposals', label: '결정할 생산 제안', href: '#reports' },
   ];
   // PC 에 남기는 화면 — 이름은 js/admin-shell.js ADMIN_NAV 와 같다 (시험이 본다)
   var PC_PAGES = [
@@ -44,6 +44,7 @@
   var VIEWS = {
     applications: ['adApplications', 'SeganAdminApplications'],
     consults: ['adConsults', 'SeganAdminConsults'], // #consults-assigned = 답 기다림 탭으로
+    reports: ['adReports', 'SeganAdminReports'],
   };
 
   var A = { sb: null, session: null, counts: {}, view: '' };
