@@ -73,6 +73,7 @@ async function load(options = {}) {
   const opts = {
     session: SESSION,
     partner: partnerMe({ company: company() }),
+    workMe: { ready: true, worker: null }, // GET /work/me — 셸의 작업 탭 판정
     keyRes: ok({ key: KEY }),
     push: true,
     serviceWorker: true,
@@ -233,7 +234,7 @@ async function load(options = {}) {
     if (url === PAY + '/subscription') return reply(ok({ plan: 'free', status: 'active' }));
     if (url === PAY + '/plans') return reply(ok({ client_key: 'k', plans: [] }));
     if (url === WORK + '/me/projects') return reply(fail(404, 'not_found', 'x'));
-    return reply(ok({ ready: true, worker: null })); // /work/me
+    return reply(ok(opts.workMe)); // /work/me
   });
   Element.prototype.scrollIntoView = jest.fn();
   for (const src of [...doc.querySelectorAll('script[src]')].map((s) => s.getAttribute('src'))) {
@@ -270,7 +271,8 @@ const press = async (label) => {
 };
 const pushCalls = (calls) => calls.fetch.filter((f) => f.url.startsWith(WORK + '/push/'));
 const view = () => body().querySelector('[data-view]').getAttribute('data-view');
-const LEAD = '업무 알림(승인 요청 · 확인서 결정 · 결제 등)이 이 기기로 옵니다.';
+const LEAD =
+  '업무 알림(승인 요청 · 확인서 결정 · 결제 · 작업 초대 · 작업 일정 등)이 이 기기로 옵니다.';
 
 afterEach(() => {
   jest.restoreAllMocks();
@@ -327,6 +329,22 @@ describe('누가 보나 — 협력업체 구성원 · 본사 구성원 · 업체
     expect(pushCalls(calls)).toEqual([]);
     expect(section().hidden).toBe(true);
     expect(body().textContent).toBe('');
+  });
+
+  test.each([
+    ['승인된 작업자', 'approved'],
+    ['대기 중인 작업자', 'pending'],
+  ])('%s — 업체 · 신청이 없어도 칸이 보인다 (셸의 작업 탭 판정)', async (_n, status) => {
+    const worker = {
+      ready: true,
+      worker: { id: 'w', status, display_name: '김작업', kinds: ['install'] },
+    };
+    const { calls } = await load({ partner: partnerMe(), workMe: worker });
+    expect(pushCalls(calls)).toEqual([
+      { url: WORK + '/push/key', method: 'GET', auth: undefined, body: undefined },
+    ]);
+    expect(section().hidden).toBe(false);
+    expect(body().querySelector('.mk-note').textContent).toBe(LEAD);
   });
 
   test('workflow-api 주소가 없으면 묻지 않는다', async () => {
