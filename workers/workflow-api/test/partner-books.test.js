@@ -1,5 +1,6 @@
 /**
  * 업체 장부 요약 (GET /books/summary — src/books.js) · 작업 기록의 업체 (production/worker-access.js).
+ *   작업 기록에 적는 주문은 링크 주인의 본사 수주만 — 남의 주문 · 협력업체 주문은 422, 기록은 남기지 않는다
  *
  *   그 업체 active 대표 · 실장만 → 그 업체 것 (본사 포함). staff 403 not_money, 구성원이 아니면(관리자여도) 403 not_member
  *   숫자는 본사 월 손익(summarizeMonth)과 같은 식 — 매출 = 계약금 ÷ 1.1, 견적 원가 = 스냅샷 cost.total − fixed_recovery
@@ -12,7 +13,7 @@ import { clearHqCompanyCache } from '../src/supabase.js';
 import { clearAdminCache } from '../src/reports/admin.js';
 import { summarizeBooks, booksCompanyOf, UPCOMING_MAX } from '../src/books.js';
 import { summarizeMonth, kstDate } from '../src/production/service.js';
-import { addWorklog, worklogCompanyOf } from '../src/production/worker-access.js';
+import { addWorklog, worklogCompanyOf, createWorkerLink } from '../src/production/worker-access.js';
 import worker from '../src/worker.js';
 import { HQ, PARTNER, companyRoute } from './fixtures/company.js';
 
@@ -280,15 +281,21 @@ function worklogDb() {
   return (u, method, body) => {
     const hit = people(u);
     if (hit) return hit;
-    if (method === 'GET' && u.includes('/orders?id=eq.O-HQ')) return json([{ company_id: HQ }]);
-    if (method === 'GET' && u.includes('/orders?id=eq.O-P')) return json([{ company_id: PARTNER }]);
-    if (method === 'GET' && u.includes('/orders?')) return json([]);
+    // 주문 — O-HQ 는 HQ_OWNER 가 만든 본사 설계 D-HQ 의 본사 수주, O-P 는 협력업체 수주
+    const order = u.includes('/orders?id=eq.O-HQ') ? { id: 'O-HQ', company_id: HQ, design_id: 'D-HQ' } : u.includes('/orders?id=eq.O-P') ? { id: 'O-P', company_id: PARTNER, design_id: 'D-P' } : null;
+    if (method === 'GET' && u.includes('/orders?')) {
+      if (!order) return json([]);
+      return json(u.includes(`company_id=eq.${HQ}`) && order.company_id !== HQ ? [] : [order]);
+    }
+    if (method === 'GET' && u.includes('/designs?')) {
+      return json(u.includes('id=eq.D-HQ') && u.includes(`user_id=eq.${HQ_OWNER}`) && u.includes(`company_id=eq.${HQ}`) ? [{ id: 'D-HQ' }] : []);
+    }
     if (method === 'POST' && u.endsWith('/production_worklogs')) return json([{ id: 'W1', ...body }], 201);
     return null;
   };
 }
 
-test('작업 기록 — 주문에 묶이면 그 주문의 업체, 아니면 링크(만든 사람)의 업체, 구성원이 아니면 본사', async () => {
+test('작업 기록의 업체 — 주문에 묶이면 그 주문의 업체, 아니면 링크(만든 사람)의 업체, 구성원이 아니면 본사', async () => {
   const cases = [
     [LINK_HQ, 'O-P', PARTNER],
     [LINK_P, 'O-HQ', HQ],
@@ -298,13 +305,75 @@ test('작업 기록 — 주문에 묶이면 그 주문의 업체, 아니면 링�
     [LINK_P, 'O-NONE', PARTNER], // 없는 주문 — 링크의 업체
   ];
   for (const [link, orderId, want] of cases) {
-    await withFetch(worklogDb(), async (calls) => {
+    await withFetch(worklogDb(), async () => {
       assert.equal(await worklogCompanyOf(ENV, { link, orderId }), want, `${link.id} ${orderId}`);
+    });
+  }
+});
+
+test('작업 기록 — 주문 없이, 또는 링크 주인의 본사 수주면 남긴다 (그 업체 · 링크로)', async () => {
+  for (const [link, orderId, want] of [
+    [LINK_HQ, 'O-HQ', HQ],
+    [LINK_HQ, null, HQ],
+    [LINK_P, null, PARTNER],
+    [LINK_ADMIN, null, HQ],
+  ]) {
+    await withFetch(worklogDb(), async (calls) => {
       clearHqCompanyCache();
       await addWorklog(ENV, { link, body: { role: 'cutter', units: 2, minutes: 30, order_id: orderId } });
       const post = calls.find((c) => c.method === 'POST').body;
       assert.equal(post.company_id, want, `${link.id} ${orderId} 기록`);
       assert.equal(post.link_id, link.id);
+      assert.equal(post.order_id, orderId);
+    });
+  }
+});
+
+test('작업 기록 — 남의 주문 · 협력업체 주문 · 없는 주문은 422, 기록을 남기지 않는다', async () => {
+  for (const [link, orderId] of [
+    [LINK_HQ, 'O-P'], // 협력업체 수주
+    [LINK_P, 'O-HQ'], // 본사 수주지만 링크 주인이 만든 설계가 아님
+    [LINK_ADMIN, 'O-HQ'],
+    [LINK_HQ, 'O-NONE'],
+  ]) {
+    await withFetch(worklogDb(), async (calls) => {
+      clearHqCompanyCache();
+      await assert.rejects(
+        addWorklog(ENV, { link, body: { role: 'cutter', units: 2, minutes: 30, order_id: orderId } }),
+        (e) => e.statusCode === 422 && e.details && e.details.field === 'order_id',
+        `${link.id} ${orderId}`
+      );
+      assert.equal(calls.filter((c) => c.method === 'POST').length, 0);
+    });
+  }
+});
+
+// ── 작업자 링크 만들기 ───────────────────────────────────────────
+
+test('작업자 링크 — 본사 대표 · 실장 · 관리자만 만든다, 그 밖은 403 not_link_maker', async () => {
+  const env = { ...ENV, SHARE_TOKEN_PEPPER: 'test-pepper', PUBLIC_BASE_URL: 'https://dadam.test' };
+  const route = (u, method, body) =>
+    people(u) || (method === 'POST' && u.endsWith('/production_worker_links') ? json([{ id: 'L9', ...body }], 201) : null);
+  for (const who of [HQ_OWNER, HQ_MANAGER, ADMIN]) {
+    await withFetch(route, async (calls) => {
+      clearHqCompanyCache();
+      clearAdminCache();
+      const out = await createWorkerLink(env, { user: { id: who }, body: { label: '재단 김', days: 30 } });
+      assert.equal(out.label, '재단 김', who);
+      assert.ok(out.url.startsWith('https://dadam.test/production-worker.html#t='), who);
+      assert.equal(calls.find((c) => c.method === 'POST').body.user_id, who);
+    });
+  }
+  for (const who of [HQ_STAFF, P_OWNER, P_MANAGER, P_STAFF, STRANGER]) {
+    await withFetch(route, async (calls) => {
+      clearHqCompanyCache();
+      clearAdminCache();
+      await assert.rejects(
+        createWorkerLink(env, { user: { id: who }, body: { label: '재단 김' } }),
+        (e) => e.statusCode === 403 && e.code === 'not_link_maker',
+        who
+      );
+      assert.equal(calls.filter((c) => c.method === 'POST').length, 0, who);
     });
   }
 });
