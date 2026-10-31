@@ -885,7 +885,7 @@ test('평가표 — 항목 목록 (설비 13 · 직무 10 · 거래 회사 4분�
     c.suppliers.map((g) => [g.key, g.name, g.companies.length]),
     [
       ['door', '도어', 20],
-      ['body', '몸통', 8],
+      ['body', '몸통', 10],
       ['hw', '하드웨어', 22],
       ['top', '상판', 25],
     ]
