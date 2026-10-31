@@ -4,11 +4,13 @@
  * 작업자는 계정이 없다. 대표가 만든 링크의 토큰(X-Worker-Token)이 곧 권한이다.
  * 토큰은 발급 응답에서 1회만 평문으로 주고 DB 에는 해시만 둔다 (고객 공유 링크와 같은 방식).
  * 링크로 할 수 있는 일은 좁게 둔다: 오늘 할 일 보기, 실측 기록 남기기, 내 지시 완료 체크.
+ * 링크를 만드는 사람은 본사 대표 · 실장 · 관리자뿐이다 (본사 원가 설정을 다루는 사람과 같다 — 생산 계획이 본사 일).
+ * 실측 기록에 적는 주문은 링크 주인의 본사 수주(생산 계획에 들어가는 범위, orders.js listOwnHqOrders)만 받는다.
  * 금액(일당·비용)은 작업자 화면에 내보내지 않는다. 고객은 가린 이름(홍*동)과 주문번호로만 (결정 ★15, redact.js).
  */
 
 import { pepperedHash } from '../util/hash.js';
-import { selectOne, selectMany, insertOne, updateById, hqCompanyId, activeMemberships, AuthError, ValidationError, NotFoundError } from '../supabase.js';
+import { selectOne, selectMany, insertOne, updateById, hqCompanyId, activeMemberships, AuthError, ValidationError, NotFoundError, ForbiddenError } from '../supabase.js';
 import { computePlan, hqSettings, companySettings, assertSettingsEditor, writeCompanySettings, kstDate } from './service.js';
 import { calibrate, calibrationPatch } from './calibration.js';
 import { maskOrderLabel, workerAssignmentText } from './redact.js';
@@ -30,7 +32,20 @@ function workerUrl(env, token) {
 }
 
 // ── 대표: 링크 관리 ──
+/** 링크를 만들 수 있는가 — 본사 대표 · 실장 · 관리자 (assertSettingsEditor 본사). 아니면 403 not_link_maker */
+async function assertLinkMaker(env, user) {
+  try {
+    await assertSettingsEditor(env, user, await hqCompanyId(env));
+  } catch (e) {
+    if (e instanceof ForbiddenError) {
+      throw new ForbiddenError('작업자 링크는 본사 대표 · 실장 · 관리자만 만듭니다', 'not_link_maker');
+    }
+    throw e;
+  }
+}
+
 export async function createWorkerLink(env, { user, body }) {
+  await assertLinkMaker(env, user);
   const label = String((body && body.label) || '').trim();
   if (!label || label.length > 50) throw new ValidationError('작업자 이름(1~50자)이 필요합니다');
   const days = Math.min(MAX_LINK_DAYS, Math.max(1, Math.round(Number(body && body.days) || 90)));
@@ -172,8 +187,19 @@ export async function worklogCompanyOf(env, { link, orderId }) {
   return membership ? membership.company_id : hqCompanyId(env);
 }
 
+/** 실측 기록의 주문 — 링크 주인이 만든 본사 설계의 본사 수주만 (생산 계획 · 오늘 할 일과 같은 범위). 아니면 422 */
+async function assertOwnHqOrder(env, link, orderId) {
+  const hq = await hqCompanyId(env);
+  const order = await selectOne(env, 'orders', { id: `eq.${orderId}`, company_id: `eq.${hq}`, select: 'id,design_id' });
+  const design = order && order.design_id
+    ? await selectOne(env, 'designs', { id: `eq.${order.design_id}`, user_id: `eq.${link.user_id}`, company_id: `eq.${hq}`, select: 'id' })
+    : null;
+  if (!design) throw new ValidationError('이 링크로 기록할 수 있는 주문이 아닙니다', { field: 'order_id' });
+}
+
 export async function addWorklog(env, { link, body }) {
   const v = validateWorklog(body);
+  if (v.order_id) await assertOwnHqOrder(env, link, v.order_id);
   const row = await insertOne(env, 'production_worklogs', {
     ...v,
     user_id: link.user_id,
