@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>관리 · SEGAN</title>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026110102" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110102" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110102" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110102" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="shell.css?v=2026110102" />
+    <!-- 로그인 상태 · 관리자 판정 — 기존 사이트의 판정 모듈을 그대로 싣는다 (segan/shell.js 머리말) -->
+    <script src="../js/config.js?v=2026110102"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="../js/admin-access.js?v=2026110102"></script>
+    <script src="shell.js?v=2026110102" defer></script>
+    <script src="admin.js?v=2026110102" defer></script>
+  </head>
+  <body class="sg-app" data-tab="admin">
+    <div data-segan-shell="header"></div>
+
+    <main class="sg-main" id="main">
+      <h1 class="sg-h1">관리</h1>
+
+      <div class="sg-checking" data-auth-view="checking">
+        <p class="sg-note">확인하는 중…</p>
+      </div>
+      <div data-auth-view="signed-out" hidden>
+        <div data-segan-shell="gate"></div>
+      </div>
+      <div data-auth-view="signed-in" hidden>
+        <!-- 관리자가 아니면 이 줄만 (서버도 관리자만 답한다) -->
+        <div class="sg-panel" id="adDenied" hidden>
+          <p class="sg-title">관리자만 볼 수 있습니다</p>
+          <p class="sg-note">관리자 계정으로 로그인해 주세요.</p>
+        </div>
+
+        <!-- 오늘 할 일 — 수는 서버가 준 그대로, 못 읽은 줄은 「불러오지 못함」 (segan/admin.js) -->
+        <section class="sg-section" id="adToday" aria-labelledby="adTodayTitle" hidden>
+          <h2 id="adTodayTitle">오늘 할 일</h2>
+          <ul class="sg-rows" id="adTodayRows"></ul>
+        </section>
+
+        <!-- PC에서 열기 — 표 · 큰 입력이 많은 관리자 화면 (admin/*.html) -->
+        <section class="sg-section" id="adPc" aria-labelledby="adPcTitle" hidden>
+          <h2 id="adPcTitle">PC에서 열기</h2>
+          <ul class="sg-rows" id="adPcRows"></ul>
+          <p class="sg-note">표와 큰 입력이 많은 화면은 PC 관리자 화면에서 엽니다.</p>
+        </section>
+      </div>
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+  </body>
+</html>

@@ -4,6 +4,7 @@
  * SEGAN 앱 셸 (segan/shell.js + segan/*.html) — jsdom 에 페이지를 올려 확인한다.
  *
  *   - 탭 4개: 만들기 · 시공사례 · 내 연출컷 · 내 정보 (순서 · 주소), 페이지마다 현재 탭 aria-current
+ *     + 관리 탭 — 처음엔 감추고 관리자(AdminAccess.isAdmin)에게만 연다, 탭 페이지마다 AdminAccess 를 싣는다
  *   - 내 연출컷 · 내 정보는 로그인이 없으면 「로그인이 필요합니다」 + login.html?redirect=(이 페이지)
  *   - 내 정보의 역할 메뉴는 기존 모듈 판정(AdminAccess · DetailDesignAccess · DadamMyPageWork)을 따른다
  *     — 페이지가 싣는 실제 js/ 파일을 그대로 올리고 Supabase · /work/me 만 가짜로 둔다
@@ -124,7 +125,14 @@ describe('탭 4개 — 순서 · 주소 · 현재 탭', () => {
         const nav = $(sel);
         expect(nav).not.toBeNull();
         expect(nav.getAttribute('aria-label')).toBe('주 메뉴');
-        const links = [...nav.querySelectorAll('a')];
+        const all = [...nav.querySelectorAll('a')];
+        // 관리 탭은 맨 뒤에 감춰져 있다 (로그인 전 · 관리자 아님)
+        expect(all.map((a) => a.getAttribute('data-tab-link'))).toEqual([
+          ...Object.keys(TAB_PAGES),
+          'admin',
+        ]);
+        expect(all[all.length - 1].hidden).toBe(true);
+        const links = all.filter((a) => !a.hidden);
         expect(links.map((a) => a.textContent.trim())).toEqual(LABELS);
         expect(links.map((a) => a.getAttribute('href'))).toEqual(HREFS);
         const current = links.filter((a) => a.getAttribute('aria-current') === 'page');
@@ -149,7 +157,57 @@ describe('탭 4개 — 순서 · 주소 · 현재 탭', () => {
   test('아래 탭 아이콘은 꾸밈 (aria-hidden), 이름은 글자로', async () => {
     await load('index.html');
     for (const svg of $$('.sg-tabbar svg')) expect(svg.getAttribute('aria-hidden')).toBe('true');
-    expect($$('.sg-tabbar a span').map((s) => s.textContent)).toEqual(LABELS);
+    expect($$('.sg-tabbar a span').map((s) => s.textContent)).toEqual([...LABELS, '관리']);
+    expect(
+      $$('.sg-tabbar a')
+        .filter(visible)
+        .map((a) => a.textContent.trim())
+    ).toEqual(LABELS);
+  });
+
+  test.each([
+    'index.html',
+    'collection.html',
+    'consult.html',
+    'join.html',
+    'renders.html',
+    'me.html',
+    'admin.html',
+  ])(
+    '관리 탭 — %s 는 AdminAccess 를 싣고, 관리자면 위 메뉴 · 아래 탭에 「관리」를 연다',
+    async (page) => {
+      const { scripts } = await load(page, { session: SESSION, isAdmin: true });
+      expect(scripts.some((s) => s.startsWith('../js/admin-access.js?v='))).toBe(true);
+      for (const sel of ['.sg-header nav.sg-nav', 'nav.sg-tabbar']) {
+        const admin = $(sel + ' a[data-tab-link="admin"]');
+        expect(admin.hidden).toBe(false);
+        expect(admin.textContent.trim()).toBe('관리');
+        expect(admin.getAttribute('href')).toBe('admin.html');
+      }
+    }
+  );
+
+  test('관리 탭 — 관리자가 아니거나 로그인 전이면 감춘 채, 로그인 전에는 is_admin 을 묻지 않는다', async () => {
+    const member = await load('index.html', { session: SESSION, isAdmin: false });
+    expect($('nav.sg-tabbar a[data-tab-link="admin"]').hidden).toBe(true);
+    expect(member.calls.rpc).toEqual(['is_admin']);
+    expect(member.result.admin).toBe(false);
+    const guest = await load('collection.html', { session: null });
+    expect($('nav.sg-tabbar a[data-tab-link="admin"]').hidden).toBe(true);
+    expect(guest.calls.rpc).toEqual([]);
+    const admin = await load('me.html', { session: SESSION, isAdmin: true });
+    expect(admin.result.admin).toBe(true);
+  });
+
+  test('아래 탭은 감춘 탭 자리를 두지 않는다 (칸 수를 정하지 않고 보이는 탭만큼)', () => {
+    const css = read('segan/shell.css');
+    const m = css.match(/^\.sg-tabbar \{([^}]*)\}/m);
+    expect(m).not.toBeNull();
+    const rule = m[1];
+    expect(rule).toContain('grid-auto-flow: column');
+    expect(rule).not.toContain('grid-template-columns');
+    expect(read('segan/sw.js')).toContain("SCOPE + 'admin.html'");
+    expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'admin.js')");
   });
 });
 
