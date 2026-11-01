@@ -88,7 +88,9 @@ curl https://dadam-payments-api.dadamfurniture.workers.dev/plans
 | POST | `/charge` | Bearer | 예전 경로 — `/subscription/retry` 와 같다 |
 | POST | `/cancel` | Bearer | 구독 취소 (이용 중 · 결제 실패 재시도 중) |
 | POST | `/admin/refund` | Bearer (관리자) | 결제 1건 환불 — `{ payment_id, reason?, override? }` (아래) |
-| POST | `/webhook` | 없음 | Toss 웹훅 — `PAYMENT_STATUS_CHANGED` 만 기록 (아래) |
+| POST | `/order-payments/checkout` | JWT | 수주 수금 일정 결제창 열기 — 그 수주의 고객 본인 · 다담 공장 수주만 (`src/order-pay.js`) |
+| POST | `/order-payments/confirm` | JWT | 결제창이 돌아오면 토스 승인 — 금액이 같을 때만 |
+| POST | `/webhook` | 없음 | Toss 웹훅 — `PAYMENT_STATUS_CHANGED` 기록, 수주 결제면 결제 기록 · 수금 줄 반영, 수주 가상계좌 `DEPOSIT_CALLBACK` (아래) |
 
 ## 구독 수명주기 (cron)
 
@@ -156,7 +158,7 @@ https://dadam-payments-api.dadamfurniture.workers.dev/webhook
 
 또는 커스텀 도메인 연결 후 `https://api.dadam.kr/webhook`.
 
-이벤트는 **`PAYMENT_STATUS_CHANGED`** 를 고른다. 워커는 이 이벤트만 기록하고 나머지는 200 으로 넘긴다.
+이벤트는 **`PAYMENT_STATUS_CHANGED`** 와 **`DEPOSIT_CALLBACK`** (가상계좌 입금) 을 고른다. 워커는 `PAYMENT_STATUS_CHANGED` 를 기록하고, 수주 결제(주문 번호 `dadampay-`)면 두 이벤트 모두 결제 조회 API 로 다시 확인해 결제 기록 · 수금 줄을 고친다. 나머지는 200 으로 넘긴다.
 
 - 이 이벤트에는 서명 헤더가 없다. 워커가 본문의 `paymentKey` 로 결제 조회 API(`GET /v1/payments/{paymentKey}`)를 `TOSS_SECRET_KEY` 로 다시 불러, 그 응답만 `payment_events` 에 남긴다. 토스에 없는 결제거나 주문번호·금액이 다르면 401.
 - 본문은 64KB 까지만 받는다 (넘으면 413).

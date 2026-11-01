@@ -89,6 +89,7 @@ const UNIQUE = {
   payment_history: ['provider', 'order_id'],
   payment_events: ['provider', 'event_id'],
   notification_outbox: ['dedupe_key'],
+  payment_transactions: ['provider', 'provider_ref'],
 };
 
 export function createBackend({ nowMs = Date.now() } = {}) {
@@ -115,6 +116,8 @@ export function createBackend({ nowMs = Date.now() } = {}) {
     /** 정기·첫 결제 응답을 차례로. 함수면 (payload, headers) 로 부른다 */
     chargeQueue: [],
     cancelResult: null, // null = 성공, 아니면 { status, code, message }
+    /** 결제창 승인(POST /v1/payments/confirm) — null 이면 카드 DONE, 객체면 결제에 덧씌움, { error } 면 그 오류, 함수면 (body) 로 부른다 */
+    confirmResult: null,
     payments: {}, // paymentKey → payment (조회용)
     ordersById: {}, // orderId → payment (주문번호 조회용)
     issueResult: { billingKey: 'bk_new', customerKey: null },
@@ -288,6 +291,30 @@ export function createBackend({ nowMs = Date.now() } = {}) {
       }
       if (result.throw) throw result.throw;
       return jsonRes({ code: result.code, message: result.message || result.code }, result.status);
+    }
+    if (method === 'POST' && url.pathname === '/v1/payments/confirm') {
+      const r =
+        typeof state.confirmResult === 'function'
+          ? await state.confirmResult(body, call)
+          : state.confirmResult;
+      if (r && r.error) {
+        return jsonRes(
+          { code: r.error.code, message: r.error.message || r.error.code },
+          r.error.status
+        );
+      }
+      const payment = {
+        paymentKey: body.paymentKey,
+        orderId: body.orderId,
+        totalAmount: body.amount,
+        status: 'DONE',
+        method: '카드',
+        approvedAt: new Date(state.nowMs).toISOString(),
+        ...(r || {}),
+      };
+      state.payments[payment.paymentKey] = payment;
+      state.ordersById[payment.orderId] = payment;
+      return jsonRes(payment);
     }
     const cancel = url.pathname.match(/^\/v1\/payments\/([^/]+)\/cancel$/);
     if (method === 'POST' && cancel) {
