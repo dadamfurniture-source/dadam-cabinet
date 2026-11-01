@@ -393,6 +393,7 @@ async function createGeneration(request, env, headers) {
     customer_request,
     image_provider,
     place_guide,
+    planner_polish,
   } = body;
 
   // 입력 검사 (2026-10-26) — 크레딧 차감 전에. 방 사진 형식은 버킷 Content-Type 으로 그대로 가고,
@@ -423,7 +424,7 @@ async function createGeneration(request, env, headers) {
     return await createPlannerGeneration(request, env, headers, {
       user, parent, room_image, image_type, rawCategory, design_style, door_color, door_finish,
       wall_width_override, water_from_left_override, exhaust_from_left_override,
-      fridge_options, design_spec, renders, aspect, title, image_provider, room_focal35, place_guide,
+      fridge_options, design_spec, renders, aspect, title, image_provider, room_focal35, place_guide, planner_polish,
     });
   }
 
@@ -503,6 +504,13 @@ async function createGeneration(request, env, headers) {
  * 검증은 전부 크레딧 차감 전에 한다 — 틀린 요청으로 20 크레딧이 날아가지 않는다.
  * 추천안은 항상 끈다 (한 장이 결과물이다).
  */
+/** 플래너 다듬기 — 요청 true 거나 (요청이 없을 때) 재생성 원본이 다듬기였고, 시안(composite)이 실제로 갈 때만 */
+function plannerPolishOn(given, parent, renders, parentRenders) {
+  const want = given === true || (given === undefined && !!(parent && parent.options && parent.options.polish === true));
+  const hasComposite = parent ? parentRenders.some((r) => r && r.role === 'composite') : renders.some((r) => r.role === 'composite');
+  return want && hasComposite;
+}
+
 /** 플래너 모드 초점거리 — 요청 값 → 재생성 원본 값. 8~200 밖이거나 없으면 키를 두지 않는다. */
 function plannerFocalOption(given, parent) {
   const ok = (v) => Number(v) >= 8 && Number(v) <= 200;
@@ -561,6 +569,9 @@ async function createPlannerGeneration(request, env, headers, p) {
       : {}),
     // 2026-10-27: Blender 시안이 IMAGE A 로 가는 생성 — 집계용 표시. **있을 때만** 키를 둔다 (재생성은 원본 입력을 그대로 쓴다)
     ...(renders.some((r) => r.role === 'composite') || parentRenders.some((r) => r && r.role === 'composite') ? { place_render: true } : {}),
+    // 2026-11-01: 다듬기 (사장님 「C로 작업 실행」 — 간편 플래너 「AI: 다듬기만」) — 시안(composite)이 있을 때만, 요청 planner_polish:true
+    //   (재생성은 원본 값을 잇는다 — 요청이 false 면 끈다). **있을 때만** 키를 둔다. 잡은 시안 한 장 + 다듬기 지시문 (job.js polishOn)
+    ...(plannerPolishOn(p.planner_polish, parent, renders, parentRenders) ? { polish: true } : {}),
     // 이미지 공급자 (2026-10-18 → 2026-10-19 기본 GPT) — 플래너 모드는 결정된 값을 **항상** 기록한다.
     //   요청 값 → 재생성 원본 값 → PLANNER_IMAGE_PROVIDER. 잡은 이 값만 읽는다 (없는 옛 행은 Gemini).
     image_provider: resolvePlannerProvider(env, p.image_provider, parent && parent.options && parent.options.image_provider),

@@ -690,3 +690,41 @@ test('Blender 시안(composite)은 render-composite.{ext} 로 저장, 렌더 끝
   await post(plannerBody());
   assert.equal('place_render' in calls.inserted.options, false);
 });
+
+// 2026-11-01: 다듬기 (사장님 「C로 작업 실행」) — planner_polish:true 이고 시안(composite)이 갈 때만 options.polish
+test('다듬기 — planner_polish:true + 시안이면 options.polish, 시안이 없거나 요청이 없으면 키 없음 · 재생성은 원본을 잇고 false 면 끈다', async () => {
+  const withComposite = () => plannerBody({ planner_polish: true, renders: [...plannerBody().renders, { role: 'composite', base64: PNG, mime: 'image/jpeg' }] });
+  install();
+  assert.equal((await post(withComposite())).status, 202);
+  assert.equal(calls.inserted.options.polish, true);
+  assert.equal(calls.inserted.options.place_render, true);
+  install();
+  await post(plannerBody({ planner_polish: true }));
+  assert.equal('polish' in calls.inserted.options, false, '시안 없이는 다듬기가 아니다');
+  install();
+  await post(plannerBody({ renders: [...plannerBody().renders, { role: 'composite', base64: PNG, mime: 'image/jpeg' }] }));
+  assert.equal('polish' in calls.inserted.options, false, '요청이 없으면 예전 방식');
+  install();
+  await post(plannerBody({ planner_polish: 'yes', renders: [...plannerBody().renders, { role: 'composite', base64: PNG, mime: 'image/jpeg' }] }));
+  assert.equal('polish' in calls.inserted.options, false, '참(true)만 받는다');
+  const base = {
+    id: '33333333-3333-4333-8333-333333333333',
+    user_id: USER_ID,
+    category: 'sink',
+    inputs: {
+      room: { path: 'p/room.jpg', url: 'u', mime: 'image/jpeg' },
+      refs: [],
+      renders: [
+        { role: 'elevation', path: 'p/render-elevation.png', url: 'u2', mime: 'image/png' },
+        { role: 'composite', path: 'p/render-composite.jpg', url: 'u3', mime: 'image/jpeg' },
+      ],
+    },
+    options: { design_spec: { version: 1, category: 'sink', wallRunMm: 2200 }, mode: 'planner', aspect: '4:3', variants: false, place_render: true, polish: true },
+  };
+  install({ parent: base });
+  await post({ parent_id: base.id });
+  assert.equal(calls.inserted.options.polish, true, '재생성은 원본 다듬기를 잇는다');
+  install({ parent: base });
+  await post({ parent_id: base.id, planner_polish: false });
+  assert.equal('polish' in calls.inserted.options, false, '요청이 false 면 끈다');
+});

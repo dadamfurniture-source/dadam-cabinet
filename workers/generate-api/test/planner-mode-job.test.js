@@ -509,3 +509,49 @@ test('planner + Blender 시안인데 방 사진과 비율이 다르면 버리고
   assert.equal(Buffer.from(call.images[0].data, 'base64').readUInt32BE(16), 1600, 'IMAGE A = 방 사진');
   assert.doesNotMatch(call.prompt, /already rendered into it/);
 });
+
+// ─── 2026-11-01: 다듬기 (options.polish — 사장님 「C로 작업 실행」, 간편 플래너 「AI: 다듬기만」) ───
+
+test('planner 다듬기 + 시안: 그림 모델에는 시안 한 장 + 다듬기 지시문, 방 분석 · 배관 질문 없음, 역판독 대조는 그대로', async () => {
+  install({ qcIssues: [] });
+  BYTES['render-composite'] = 'COMP';
+  try {
+    await run({ ...PLANNER_OPTIONS, place_render: true, polish: true }, { ...PLANNER_INPUTS, renders: [...PLANNER_INPUTS.renders, COMPOSITE] });
+  } finally { delete BYTES['render-composite']; }
+  assert.equal(calls.image.length, 1);
+  const call = calls.image[0];
+  assert.deepEqual(call.images.map((i) => Buffer.from(i.data, 'base64').toString()), ['COMP'], '시안 한 장 — 입면 · 3/4 는 안 간다');
+  assert.equal(call.body.generationConfig.temperature, 0.2);
+  assert.deepEqual(call.body.generationConfig.imageConfig, { imageSize: '2K', aspectRatio: '16:9' });
+  assert.match(call.prompt, /^You receive one image\./);
+  assert.match(call.prompt, /This is a polish, not a redesign\./);
+  assert.doesNotMatch(call.prompt, /EDIT ZONE|IMAGE B|SITE:|FINAL SELF-CHECK/);
+  assert.equal(calls.text.some((t) => t.startsWith('Measure and describe')), false, '방 분석을 묻지 않는다');
+  assert.ok(calls.patched.some((p) => p.wall_analysis && p.wall_analysis.polish === true), '분석 칸에 다듬기 표시');
+  assert.match(calls.patched.find((p) => p.layout).layout.verify.error, /ANTHROPIC_API_KEY/, '역판독 대조는 그대로 돈다');
+});
+
+test('planner 다듬기 + 시안 (GPT): 편집 호출에도 시안 한 장 + 다듬기 지시문', async () => {
+  install({ qcIssues: [] });
+  BYTES['render-composite'] = 'COMP';
+  try {
+    await run({ ...PLANNER_OPTIONS, place_render: true, polish: true, image_provider: 'openai' }, { ...PLANNER_INPUTS, renders: [...PLANNER_INPUTS.renders, COMPOSITE] }, OPENAI_ENV);
+  } finally { delete BYTES['render-composite']; }
+  assert.equal(calls.openai.length, 1);
+  assert.deepEqual(calls.openai[0].images, ['COMP']);
+  assert.match(calls.openai[0].prompt, /^You receive one image\./);
+});
+
+test('planner 다듬기인데 시안을 버리면(방 사진과 비율이 다름) 예전 플래너 경로 — 방 분석 · 방 사진 + 입면', async () => {
+  const room0 = BYTES.room;
+  BYTES.room = pngHead(1600, 900);
+  BYTES['render-composite'] = pngHead(900, 1600);
+  install({ qcIssues: [] });
+  try {
+    await run({ ...PLANNER_OPTIONS, polish: true }, { ...PLANNER_INPUTS, renders: [...PLANNER_INPUTS.renders, COMPOSITE] });
+  } finally { BYTES.room = room0; delete BYTES['render-composite']; }
+  const call = calls.image[0];
+  assert.equal(call.images.length, 3, '방 사진 · 입면 · 3/4');
+  assert.match(call.prompt, /^You receive three images\./);
+  assert.ok(calls.text.some((t) => t.startsWith('Measure and describe')), '방 분석을 한다');
+});

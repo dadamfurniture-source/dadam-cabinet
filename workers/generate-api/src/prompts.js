@@ -2480,6 +2480,34 @@ export function buildPlannerPrompt(c) {
 }
 
 /**
+ * 플래너 다듬기 지시문 (2026-11-01 사장님 「C로 작업 실행」 — 간편 플래너 Blender 시안을 실제 사진처럼, AI 는 보정 · 다듬기만).
+ *   이미지는 시안 한 장(IMAGE A) — 기하를 알려 주는 출처를 하나로 (입면 IMAGE B · 덩어리 · 꺾인 벽 · 냉장고 사진은 보내지 않는다).
+ *   장 · 방의 모양은 그대로 두고 빛 · 그림자 · 색온도 · 반사 · 재질 결 · 입자만 바꾼다.
+ *   방 마감 정리(SITE · TILE) · 편집 구역(EDIT ZONE) · 옛 가구 지우기 · 줄 목록 · 자체 점검은 없다 — 그것은 예전 방식(방까지 정리)의 몫이다.
+ * @param {object} c buildPlannerPrompt 와 같은 ctx — designSpec(finishes) · doorColor · doorFinish · aspect 만 읽는다
+ */
+export function buildPlannerPolishPrompt(c) {
+  const spec = c.designSpec && typeof c.designSpec === 'object' ? c.designSpec : {};
+  const fin = spec.finishes || null;
+  const door = designFinishPhrase(fin && fin.door) || `${c.doorColor || 'white'} ${c.doorFinish || 'matte'}`;
+  const body = designFinishPhrase(fin && fin.body);
+  const top = designFinishPhrase(fin && fin.top);
+  return [
+    `You receive one image. IMAGE A — ROOM PHOTO: the customer's real room with the new built-in units already rendered into it by our planner, using this photo's own camera. The units' position, size, depth, outline and every door and drawer division are final.`,
+    `TASK: retouch IMAGE A into one natural photograph, as if the finished units had been photographed in this room with the same camera. This is a polish, not a redesign.`,
+    `KEEP EXACTLY as in IMAGE A: every outer edge, seam and door or drawer division of the units — the same number of doors and drawers with the same widths and heights, in the same place; the countertop line; the camera position, lens, perspective and framing; and the whole room — walls, floor, ceiling, windows, doors, tiles, pipes, wires and every object, with any marks or unfinished surfaces as they are. Do not move, stretch, add, remove, clean or redraw anything.`,
+    `CHANGE ONLY the look of light and surfaces on the units: natural light falloff matching the room's light direction and colour temperature, soft contact shadows and ambient occlusion where the units meet the wall, floor and ceiling and in the door gaps, subtle reflections, fine material texture, and the same photographic grain and sharpness as the rest of the photo.`,
+    `MATERIALS (keep the colour as rendered): fronts ${door}, the same on every door and drawer` +
+      (body ? `; carcass and visible sides ${body}` : '') +
+      (top ? `; countertop ${top}` : '') +
+      '.',
+    HANDLES_LINE,
+    `DO NOT: change how many doors or drawers any unit has; add handles, knobs, appliances or decorations; open any door or drawer; add text, labels or watermarks.`,
+    `OUTPUT: one photorealistic photograph, ${resolvePlannerAspect(c.aspect)}, the same view as IMAGE A.`,
+  ].join('\n\n');
+}
+
+/**
  * 플래너 모드 검사의 gap_to_ceiling 기준 (2026-10-19). 도면이 맨 위 줄과 천장 사이에 틈을 두었으면 그 크기를 알려
  * 거짓 경보를 줄인다. 높이 기준(fromFloorMm·ceilingMm)이 없거나 틈이 없으면 빈 문자열.
  */
