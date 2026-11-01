@@ -6,9 +6,9 @@
     <meta name="robots" content="noindex, nofollow, noarchive" />
     <meta name="referrer" content="no-referrer" />
     <title>생산 계획 · 인력 추천 · 다담가구</title>
-    <link rel="stylesheet" href="css/nav.css?v=2026110112" />
+    <link rel="stylesheet" href="css/nav.css?v=2026110113" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="js/config.js?v=2026110112"></script>
+    <script src="js/config.js?v=2026110113"></script>
     <style>
       :root {
         --bg: #eef0f3; --panel: #fff; --border: #d6dae0; --text: #1a1d21; --muted: #6b7280;
@@ -146,6 +146,21 @@
           <table>
             <thead><tr><th>날짜</th><th>내용</th><th class="num">비용</th><th>상태</th></tr></thead>
             <tbody id="assignRows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card hq-only">
+        <h2>공장 배정</h2>
+        <div class="muted" style="margin-bottom:10px">승인된 작업자(재단 · 엣지 · 조립)를 이 생산 계획에 배정하면, 작업자 계정의 「공장」 탭에서 오늘 할 일 · 지시를 보고 시작 · 완료로 실제 걸린 시간을 남깁니다. 작업자 신청 승인 · 종류는 관리자 「작업 배정」 화면에서 합니다.</div>
+        <div class="row">
+          <select id="factoryPick" style="min-width: 200px" aria-label="배정할 작업자"></select>
+          <button type="button" class="primary" id="btnAssignFactory">배정하기</button>
+        </div>
+        <div class="scroll" style="margin-top: 10px">
+          <table>
+            <thead><tr><th>작업자</th><th>공정</th><th>배정</th><th></th></tr></thead>
+            <tbody id="factoryRows"></tbody>
           </table>
         </div>
       </div>
@@ -384,6 +399,37 @@
           } catch (e) { fail(e.message); }
         }
 
+        var KIND_KO = { install: '설치', as: 'A/S', assembly: '조립', cutting: '재단', edge: '엣지' };
+        function kindsKo(list) { return (list || []).map(function (k) { return KIND_KO[k] || k; }).join(' · '); }
+
+        // 공장 배정 — 내 생산 계획에 배정된 작업자 · 배정할 수 있는 작업자 (workflow-api work/factory.js)
+        async function loadFactory() {
+          var d = await api('/production/factory-workers');
+          el('factoryRows').innerHTML = (d.assigned || []).map(function (a) {
+            var roles = (a.roles || []).map(function (r) { return esc(ROLE_KO[r] || r); }).join(' · ') || '<span class="muted">공정 없음</span>';
+            var st = a.worker.status === 'approved' ? '' : ' <span class="muted">(' + (a.worker.status === 'suspended' ? '정지' : esc(a.worker.status)) + ')</span>';
+            return '<tr><td>' + esc(a.worker.display_name) + st + '</td><td>' + roles + '</td><td>' + new Date(a.assigned_at).toLocaleDateString('ko-KR') + (a.from_link ? ' · 링크에서 이음' : '') + '</td><td>' +
+              '<button type="button" data-end="' + esc(a.id) + '">배정 끝</button></td></tr>';
+          }).join('') || '<tr><td colspan="4" class="muted">아직 없습니다.</td></tr>';
+          var c = d.candidates || [];
+          el('factoryPick').innerHTML = c.length
+            ? c.map(function (w) { return '<option value="' + esc(w.id) + '">' + esc(w.display_name) + ' (' + esc(kindsKo(w.kinds)) + ')</option>'; }).join('')
+            : '<option value="">배정할 수 있는 작업자가 없습니다</option>';
+          el('btnAssignFactory').disabled = !c.length;
+          el('factoryRows').querySelectorAll('[data-end]').forEach(function (b) {
+            b.addEventListener('click', async function () {
+              if (!confirm('이 작업자의 공장 배정을 끝낼까요? 작업자 화면의 「공장」 탭이 사라집니다.')) return;
+              try { await api('/production/factory-workers/' + encodeURIComponent(b.getAttribute('data-end')) + '/end', { method: 'POST' }); await loadFactory(); note('공장 배정을 끝냈습니다.'); } catch (e) { fail(e.message); }
+            });
+          });
+        }
+
+        async function assignFactory() {
+          var id = el('factoryPick').value;
+          if (!id) return;
+          try { await api('/production/factory-workers', { method: 'POST', body: { worker_id: id } }); await loadFactory(); note('공장에 배정했습니다.'); } catch (e) { fail(e.message); }
+        }
+
         async function loadCalibration() {
           var d = await api('/production/calibration');
           el('calibRows').innerHTML = (d.result || []).map(function (r) {
@@ -450,6 +496,7 @@
         el('plMonth').addEventListener('change', function () { loadMonthly().catch(function (e) { fail(e.message); }); });
 
         el('btnCreateLink').addEventListener('click', createLink);
+        el('btnAssignFactory').addEventListener('click', assignFactory);
         el('btnApplyAll').addEventListener('click', function () { applyCalib(null); });
 
         el('btnRecompute').addEventListener('click', function () { recompute().catch(function (e) { fail(e.message); }); });
@@ -475,6 +522,7 @@
             return Promise.all([
               loadProposal(),
               loadAssignments(),
+              loadFactory(),
               loadLinks(),
               loadCalibration(),
               loadMonthly(),

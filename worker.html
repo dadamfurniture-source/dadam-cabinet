@@ -7,7 +7,7 @@
     <meta name="referrer" content="no-referrer" />
     <title>작업자 · 다담가구</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="js/config.js?v=2026110112"></script>
+    <script src="js/config.js?v=2026110113"></script>
     <style>
       /* production-worker.html 의 틀 — 560px 한 열, 16px 이상 글자, 전체 폭 버튼 */
       :root {
@@ -35,6 +35,8 @@
       /* 탭 — 4칸, 글자 아래 건수 (정지된 작업자는 모집중이 빠져 3칸) */
       .tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 14px 0; }
       .tabs.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      /* 공장 배정 · 이을 링크가 있으면 공장 탭이 더해져 5칸 */
+      .tabs.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
       .tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 58px; padding: 6px 2px; border: 2px solid var(--border); border-radius: 10px; background: #fff; color: var(--text); text-decoration: none; font-size: 16px; font-weight: 700; text-align: center; }
       .tab.on { border-color: var(--accent); background: var(--accent); color: #fff; }
       .tab .n { font-size: 16px; font-weight: 700; line-height: 1.2; }
@@ -99,6 +101,19 @@
       .tl-h { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 4px; }
       .tl-b { white-space: pre-wrap; }
       .tl-amends { color: var(--warn); margin-bottom: 4px; }
+
+      /* 공장 — production-worker.html 과 같은 틀 (공정 고르기 · 진행 시간 · 수량/시간 칸 · 오늘 기록) */
+      .fw-roles { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; margin: 4px 0 12px; }
+      .fw-roles .tab { font-family: inherit; cursor: pointer; }
+      .fw-head { margin: 12px 2px 6px; }
+      .fw-run { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--danger); margin: 8px 0; }
+      .fw-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 10px; }
+      .fw-form label { display: grid; gap: 4px; color: var(--muted); }
+      .fw-form .full { grid-column: 1 / -1; }
+      .fw-form input { width: 100%; padding: 11px 10px; font-size: 17px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; background: #fff; color: var(--text); }
+      .check.done span { color: var(--muted); text-decoration: line-through; }
+      .fw-log { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+      .fw-log:last-child { border-bottom: 0; }
     </style>
   </head>
   <body>
@@ -143,6 +158,8 @@
               <label class="check"><input type="checkbox" name="kind_install" value="install" data-kind /> 설치</label>
               <label class="check"><input type="checkbox" name="kind_as" value="as" data-kind /> A/S</label>
               <label class="check"><input type="checkbox" name="kind_assembly" value="assembly" data-kind /> 조립 추가 인원</label>
+              <label class="check"><input type="checkbox" name="kind_cutting" value="cutting" data-kind /> 재단 (공장)</label>
+              <label class="check"><input type="checkbox" name="kind_edge" value="edge" data-kind /> 엣지 (공장)</label>
             </fieldset>
 
             <label for="regRegion">활동 지역 (선택)</label>
@@ -214,6 +231,6 @@
       </section>
     </div>
 
-    <script src="js/worker-portal.js?v=2026110112"></script>
+    <script src="js/worker-portal.js?v=2026110113"></script>
   </body>
 </html>
