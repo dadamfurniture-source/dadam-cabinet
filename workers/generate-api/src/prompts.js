@@ -2483,7 +2483,10 @@ export function buildPlannerPrompt(c) {
  * 플래너 다듬기 지시문 (2026-11-01 사장님 「C로 작업 실행」 — 간편 플래너 Blender 시안을 실제 사진처럼, AI 는 보정 · 다듬기만).
  *   이미지는 시안 한 장(IMAGE A) — 기하를 알려 주는 출처를 하나로 (입면 IMAGE B · 덩어리 · 꺾인 벽 · 냉장고 사진은 보내지 않는다).
  *   장 · 방의 모양은 그대로 두고 빛 · 그림자 · 색온도 · 반사 · 재질 결 · 입자만 바꾼다.
- *   방 마감 정리(SITE · TILE) · 편집 구역(EDIT ZONE) · 옛 가구 지우기 · 줄 목록 · 자체 점검은 없다 — 그것은 예전 방식(방까지 정리)의 몫이다.
+ *   방 마감 정리(SITE · TILE) · 편집 구역(EDIT ZONE) · 줄 목록 · 자체 점검은 없다 — 그것은 예전 방식(방까지 정리)의 몫이다.
+ *   2026-11-01 사장님 「원래 있던 물건과 겹쳐 보이는 건 정리 안됨?」: 방에서 바꾸는 것은 하나 — 새 장과 겹치는 옛 물건 (CLEAN UP).
+ *     시안은 사진 위에 장을 덮어 그려서, 장 뒤의 옛 장 · 장에 반쯤 가린 물건이 장 둘레로 삐져나와 보인다. 장이 겹친 옛 붙박이(같은 줄 나머지 포함)와
+ *     장에 가리거나 잘린 물건만 지우고 뒤의 벽 · 바닥 · 천장을 잇는다. 장과 떨어져 선 물건(냉장고 · 의자 · 화분 등)은 그대로.
  * @param {object} c buildPlannerPrompt 와 같은 ctx — designSpec(finishes) · doorColor · doorFinish · aspect 만 읽는다
  */
 export function buildPlannerPolishPrompt(c) {
@@ -2494,9 +2497,10 @@ export function buildPlannerPolishPrompt(c) {
   const top = designFinishPhrase(fin && fin.top);
   return [
     `You receive one image. IMAGE A — ROOM PHOTO: the customer's real room with the new built-in units already rendered into it by our planner, using this photo's own camera. The units' position, size, depth, outline and every door and drawer division are final.`,
-    `TASK: retouch IMAGE A into one natural photograph, as if the finished units had been photographed in this room with the same camera. This is a polish, not a redesign.`,
-    `KEEP EXACTLY as in IMAGE A: every outer edge, seam and door or drawer division of the units — the same number of doors and drawers with the same widths and heights, in the same place; the countertop line; the camera position, lens, perspective and framing; and the whole room — walls, floor, ceiling, windows, doors, tiles, pipes, wires and every object, with any marks or unfinished surfaces as they are. Do not move, stretch, add, remove, clean or redraw anything.`,
-    `CHANGE ONLY the look of light and surfaces on the units: natural light falloff matching the room's light direction and colour temperature, soft contact shadows and ambient occlusion where the units meet the wall, floor and ceiling and in the door gaps, subtle reflections, fine material texture, and the same photographic grain and sharpness as the rest of the photo.`,
+    `TASK: retouch IMAGE A into one natural photograph, as if the finished units had been photographed in this room with the same camera after the old furniture they replace was taken out. This is a polish, not a redesign.`,
+    `KEEP EXACTLY as in IMAGE A: every outer edge, seam and door or drawer division of the units — the same number of doors and drawers with the same widths and heights, in the same place; the countertop line; the camera position, lens, perspective and framing; and the rest of the room — walls, floor, ceiling, windows, doors, tiles, pipes, wires and every object that stands clear of the units, with any marks or unfinished surfaces as they are. Apart from the clean-up below, do not move, stretch, add, remove, clean or redraw anything.`,
+    `CLEAN UP — the only change to the room: the new units replace whatever stood in their place. Remove the old built-in cabinets, shelves, hood and built-in appliances the units overlap, together with the rest of that same old run on that wall, and any other object the units now cover or cut through, so that no part of it still shows around, above, beside or between the units. Remove each one completely, with its shadow, and continue the wall, floor and ceiling behind it in their own colour and texture, with no demolition marks or ghost outlines. Free-standing objects that stand clear of the units — a refrigerator, chairs, carts, plants — stay where they are.`,
+    `ON THE UNITS, CHANGE ONLY the look of light and surfaces: natural light falloff matching the room's light direction and colour temperature, soft contact shadows and ambient occlusion where the units meet the wall, floor and ceiling and in the door gaps, subtle reflections, fine material texture, and the same photographic grain and sharpness as the rest of the photo.`,
     `MATERIALS (keep the colour as rendered): fronts ${door}, the same on every door and drawer` +
       (body ? `; carcass and visible sides ${body}` : '') +
       (top ? `; countertop ${top}` : '') +
