@@ -6,8 +6,11 @@
 import { ValidationError } from '../supabase.js';
 import { isUuid } from '../reports/record.js';
 
+/** 작업(모집) 종류 — work_jobs.kind */
 export const WORK_KINDS = Object.freeze(['install', 'as', 'assembly']);
-export const KIND_LABEL = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립' });
+/** 작업자 종류 — workers.kinds · worker_invites.kinds_preset. 작업 종류 + 공장 공정 재단 · 엣지 (DB 0024, 공장 조립은 조립) */
+export const WORKER_KINDS = Object.freeze([...WORK_KINDS, 'cutting', 'edge']);
+export const KIND_LABEL = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립', cutting: '재단', edge: '엣지' });
 
 /** 경로 · 본문 id — UUID 가 아니면 422 */
 export function assertUuid(value, label = 'id') {
@@ -67,13 +70,13 @@ export function oneOf(value, list, label) {
   return value;
 }
 
-/** 작업 종류 배열 — 중복 제거, 목록 밖이면 422 */
+/** 작업자 종류 배열 — 중복 제거, 목록 밖이면 422 */
 export function kindsOf(value, label = 'kinds') {
   if (value === undefined || value === null) return [];
   if (!Array.isArray(value)) throw new ValidationError(`${label} 은(는) 배열이어야 합니다`);
   const out = [];
   for (const k of value) {
-    oneOf(k, WORK_KINDS, label);
+    oneOf(k, WORKER_KINDS, label);
     if (!out.includes(k)) out.push(k);
   }
   return out;

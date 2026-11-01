@@ -16,6 +16,7 @@ import { MINE_STATUSES, loadMyAssignments, myJobCards, openJobsFor, pickNextJob 
 import { notifyWork } from './notify.js';
 import { later, notifyWorkerStatus } from '../push/work-hooks.js';
 import { workerSelf } from './reveal.js';
+import { factoryRolesOf, openFactoryOf } from './factory.js';
 import { assertUuid, kindsOf, oneOf, optBool, optPhone, optText, reqText } from './validate.js';
 
 export const WORKER_STATUSES = Object.freeze(['pending', 'approved', 'suspended', 'rejected']);
@@ -69,18 +70,19 @@ async function summaryFor(env, worker) {
 }
 
 /**
- * GET /work/me — { ready, worker, counts, next_job }. 표가 없으면 { ready:false } (화면은 메뉴 · 섹션을 숨긴다).
+ * GET /work/me — { ready, worker, counts, next_job, factory }. 표가 없으면 { ready:false } (화면은 메뉴 · 섹션을 숨긴다).
  * next_job 은 승인 · 정지 작업자의 내 작업 탭 중 하나 (JobCard, pickNextJob 규칙) — 없으면 null.
+ * factory 는 승인된 작업자의 열린 공장 배정 { roles, from_link } — 없으면 null (화면의 「공장」 탭, work/factory.js).
  */
 export async function getMe(env, { user }) {
   let worker;
   try {
     worker = await loadSelfWorker(env, user);
   } catch (err) {
-    if (isMissingRelation(err)) return { ready: false, worker: null, counts: { ...ZERO }, next_job: null };
+    if (isMissingRelation(err)) return { ready: false, worker: null, counts: { ...ZERO }, next_job: null, factory: null };
     throw err;
   }
-  if (!worker) return { ready: true, worker: null, counts: { ...ZERO }, next_job: null };
+  if (!worker) return { ready: true, worker: null, counts: { ...ZERO }, next_job: null, factory: null };
   let counts = { ...ZERO };
   let nextJob = null;
   if (WORKER_ACCESS_STATUSES.includes(worker.status)) {
@@ -90,7 +92,16 @@ export async function getMe(env, { user }) {
       if (!isMissingRelation(err)) throw err;
     }
   }
-  return { ready: true, worker: workerSelf(worker), counts, next_job: nextJob };
+  let factory = null;
+  if (worker.status === 'approved') {
+    try {
+      const f = await openFactoryOf(env, worker.id);
+      if (f) factory = { roles: factoryRolesOf(worker.kinds), from_link: !!f.link_id };
+    } catch (err) {
+      if (!isMissingRelation(err)) throw err;
+    }
+  }
+  return { ready: true, worker: workerSelf(worker), counts, next_job: nextJob, factory };
 }
 
 /** POST /work/register — 공개 신청 (pending). 이미 행이 있으면 409 */
