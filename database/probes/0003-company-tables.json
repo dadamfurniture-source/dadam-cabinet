@@ -1,5 +1,5 @@
 {
-  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 + 0007 회사 기준 읽기 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs) + 0011 협력업체 가입(신청 · 업체 크레딧 · 업체 구독 · 초대 · 등급 맞추기) + 0012 업체 원가 설정 + 0013 수주 기록 + 0014 수주당 기다리는 요청 하나 + 0015 업체 회계(업체 칸 · 금액 칸 · 관리자는 본사 것만) + 0016 앱 알림(기기 등록 · 보낼 알림 · 본사 상담만 Slack) + 0017 다담 본사 · 다담 공장 + 0018 업체 상담 설정 · 평가표 + 0019 상담 배정 + 0020 상담까지 걸리는 날 + 0021 고객 확정 ~ 시공 완료 기간 · 시공 완료 희망 날짜 + 0022 평가표 본사 소통 + 0023 작업자 앱 알림 + 0024 공장 작업자 계정 + 0025 수주 온라인 결제 기록",
+  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 + 0007 회사 기준 읽기 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs) + 0011 협력업체 가입(신청 · 업체 크레딧 · 업체 구독 · 초대 · 등급 맞추기) + 0012 업체 원가 설정 + 0013 수주 기록 + 0014 수주당 기다리는 요청 하나 + 0015 업체 회계(업체 칸 · 금액 칸 · 관리자는 본사 것만) + 0016 앱 알림(기기 등록 · 보낼 알림 · 본사 상담만 Slack) + 0017 다담 본사 · 다담 공장 + 0018 업체 상담 설정 · 평가표 + 0019 상담 배정 + 0020 상담까지 걸리는 날 + 0021 고객 확정 ~ 시공 완료 기간 · 시공 완료 희망 날짜 + 0022 평가표 본사 소통 + 0023 작업자 앱 알림 + 0024 공장 작업자 계정 + 0025 수주 온라인 결제 기록 + 0026 업체 설계 학습 공유 동의",
   "ids": [
     "company_x",
     "company_y",
@@ -811,6 +811,48 @@
       "sql": "with p as (select id from public.order_payments where order_id = {{order_x}} limit 1) insert into public.payment_transactions (payment_id, order_id, company_id, provider, provider_ref, status, amount_requested) select p.id, {{order_x}}, {{company_x}}, 'toss', 'probe-0025-h', 'held', 1 from p",
       "roles": ["service_role"],
       "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0026: 설계 공유 넣기는 서버만",
+      "sql": "insert into public.company_design_sharing (company_id, shared, shared_since, changed_by) values ({{company_x}}, true, now(), {{x_owner_user}})",
+      "expect": { "service_role": "ok", "*": "deny" }
+    },
+    {
+      "name": "0026: 설계 공유 읽기도 서버만",
+      "sql": "select count(*) from public.company_design_sharing",
+      "expect": { "service_role": 0, "*": "deny" }
+    },
+    {
+      "name": "0026: 켜고 끄면 기록 두 줄 — 같은 상태로 다시 쓰면 그대로",
+      "sql": "insert into public.company_design_sharing (company_id, shared, shared_since, changed_by) values ({{company_x}}, true, now(), {{x_owner_user}}); update public.company_design_sharing set shared = false, shared_since = null where company_id = {{company_x}}; update public.company_design_sharing set changed_at = now() where company_id = {{company_x}}; select (select count(*) from public.company_design_sharing_log where company_id = {{company_x}}) = 2 and (select count(*) from public.company_design_sharing_log where company_id = {{company_x}} and shared) = 1 and (select count(*) from public.company_design_sharing_log where company_id = {{company_x}} and not shared and changed_by = {{x_owner_user}}) = 1",
+      "roles": ["service_role"],
+      "expect": { "service_role": "true" }
+    },
+    {
+      "name": "0026: 켠 시각 없이 켜기는 막는다",
+      "sql": "insert into public.company_design_sharing (company_id, shared) values ({{company_x}}, true)",
+      "roles": ["service_role"],
+      "expect": { "service_role": "err:23514" }
+    },
+    {
+      "name": "0026: 설계 공유 지우기는 아무도 못 함",
+      "sql": "delete from public.company_design_sharing",
+      "expect": { "*": "deny" }
+    },
+    {
+      "name": "0026: 기록 읽기는 서버만",
+      "sql": "select count(*) from public.company_design_sharing_log",
+      "expect": { "service_role": 0, "*": "deny" }
+    },
+    {
+      "name": "0026: 기록은 서버도 직접 못 넣음",
+      "sql": "insert into public.company_design_sharing_log (company_id, shared, changed_at) values ({{company_x}}, true, now())",
+      "expect": { "*": "deny" }
+    },
+    {
+      "name": "0026: 기록 고치기 · 지우기는 아무도 못 함",
+      "sql": "update public.company_design_sharing_log set shared = false; delete from public.company_design_sharing_log",
+      "expect": { "*": "deny" }
     },
     {
       "name": "제약: 기기 주소는 https 만",
