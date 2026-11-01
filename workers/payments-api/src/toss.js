@@ -3,6 +3,7 @@
  *
  * docs: https://docs.tosspayments.com/reference
  *   자동결제 승인  POST /v1/billing/{billingKey}
+ *   결제 승인      POST /v1/payments/confirm (결제창 · 가상계좌 — 수주 결제 src/order-pay.js)
  *   결제 취소      POST /v1/payments/{paymentKey}/cancel
  *   주문번호 조회  GET  /v1/payments/orders/{orderId}
  *   멱등키        Idempotency-Key 헤더 (POST 전부, 15일 유효, 300자 이하)
@@ -114,6 +115,19 @@ export async function cancelPayment(env, paymentKey, { cancelReason, idempotency
     `/v1/payments/${encodeURIComponent(paymentKey)}/cancel`,
     { cancelReason: String(cancelReason || '결제 취소').slice(0, 200) },
     idempotencyKey
+  );
+}
+
+/**
+ * 결제창 승인 — 결제창이 돌려준 paymentKey · orderId · amount 로. 가상계좌면 WAITING_FOR_DEPOSIT 으로 온다.
+ * 멱등키는 orderId (같은 결제창을 두 번 승인하지 않게).
+ */
+export async function confirmPayment(env, { paymentKey, orderId, amount }) {
+  return postJson(
+    env,
+    '/v1/payments/confirm',
+    { paymentKey, orderId, amount },
+    `confirm-${orderId}`
   );
 }
 
