@@ -19,8 +19,10 @@
  */
 
 import {
+  AuthError,
   ConflictError,
   ForbiddenError,
+  GoneError,
   NotFoundError,
   ValidationError,
   hqCompanyId,
@@ -182,9 +184,16 @@ export async function markFactoryAssignmentDone(env, { user, params, body }) {
  *   승인된 작업자만 (아니면 403 not_worker — 작업자 신청 → 승인 뒤 다시).
  *   이미 공장 배정이 있으면 409. 링크는 한 번만 잇는다 (DB 고유 색인 — 겹치면 409).
  *   잇고 나면 그 링크로 남긴 지난 기록에 작업자를 채우고, 링크를 끊는다 (링크 주소는 더 안 열린다).
+ *   링크가 틀리거나 끊기거나 만료됐으면 410 (문구는 링크 화면과 같다) — 401 은 로그인이 끝났다는 뜻이라 쓰지 않는다.
  */
 export async function linkFactoryAccount(env, { user, token }) {
-  const link = await resolveWorker(env, token);
+  let link;
+  try {
+    link = await resolveWorker(env, token);
+  } catch (e) {
+    if (e instanceof AuthError) throw new GoneError(e.message);
+    throw e;
+  }
   const worker = await loadSelfWorker(env, user);
   if (!worker || worker.status !== 'approved') {
     throw new ForbiddenError(

@@ -5,7 +5,7 @@
  *   작업자: 승인된 작업자 + 열린 공장 배정만 (아니면 403 not_worker · not_factory). 보는 계획은 배정의 plan_user_id
  *     기록: 공정은 내 종류 안에서(아니면 422 role), 주문은 계획 주인의 본사 수주만(아니면 422 order_id), 작업자 칸을 채운다
  *     지시 완료: 내 계획의 지시만 (아니면 404)
- *   잇기: 승인된 작업자 + 살아 있는 링크 → 배정(plan = 링크 만든 사람, link_id) · 링크 끊기 · 지난 기록에 작업자
+ *   잇기: 승인된 작업자 + 살아 있는 링크 → 배정(plan = 링크 만든 사람, link_id) · 링크 끊기 · 지난 기록에 작업자 (틀린 · 끊긴 링크는 410)
  *     이어진 링크는 열면 「작업자 계정에 이어졌습니다」
  *   본사: 대표 · 실장 · 관리자만 (아니면 403 not_factory_admin). 내 계획 배정 · 배정할 수 있는 작업자(승인 · 공장 종류 · 열린 배정 없음)
  *     배정: 승인 작업자만(409) · 공장 종류가 있어야(422) · 열린 배정이 있으면 409 / 끝내기: 내 계획 배정만(404)
@@ -514,10 +514,14 @@ test('잇기 — 승인된 작업자: 링크를 만든 사람의 계획으로 �
       resolveWorker(ENV, TOKEN),
       (e) => e.statusCode === 401 && /작업자 계정에 이어졌습니다/.test(e.message)
     );
-    // 한 번 더 — 이미 배정이 있다
+    // 한 번 더 — 끊긴 링크라 410 (401 은 로그인 만료라 쓰지 않는다), 문구는 링크 화면과 같다
     await assert.rejects(
       linkFactoryAccount(ENV, { user: { id: U_INSTALL }, token: TOKEN }),
-      (e) => e.statusCode === 401
+      (e) => e.statusCode === 410 && /작업자 계정에 이어졌습니다/.test(e.message)
+    );
+    await assert.rejects(
+      linkFactoryAccount(ENV, { user: { id: U_INSTALL }, token: 'short' }),
+      (e) => e.statusCode === 410
     );
   });
 });
@@ -554,7 +558,7 @@ test('잇기 — 대기 · 정지 · 작업자 아님은 403 not_worker, 이미 
   }
 });
 
-test('잇기 — 끊긴 링크(잇지 않음)는 예전 문구, 링크 하나는 한 번만 (다른 계정이 같은 링크 → 401)', async () => {
+test('잇기 — 끊긴 링크(잇지 않음)는 예전 문구, 링크 하나는 한 번만 (다른 계정이 같은 링크 → 410)', async () => {
   const db = makeDb({
     production_worker_links: [await linkRow(LINK_OLD, TOKEN_OLD, { revoked_at: later(-2) })],
   });
@@ -569,7 +573,7 @@ test('잇기 — 끊긴 링크(잇지 않음)는 예전 문구, 링크 하나는
     await linkFactoryAccount(ENV, { user: { id: U_CUT }, token: TOKEN });
     await assert.rejects(
       linkFactoryAccount(ENV, { user: { id: U_INSTALL }, token: TOKEN }),
-      (e) => e.statusCode === 401
+      (e) => e.statusCode === 410
     );
     assert.equal(db2.factory_workers.length, 1);
   });
