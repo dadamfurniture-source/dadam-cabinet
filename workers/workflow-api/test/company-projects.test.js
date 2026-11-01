@@ -1,6 +1,6 @@
 /**
  * 업체 고객 · 프로젝트 — src/company-projects.js 를 워커로 부른다.
- *   GET|POST /company/projects · PUT /designs/:designId/project
+ *   GET|POST /company/projects · PUT /designs/:designId/project · PUT /company/design-sharing
  * 가짜 Supabase 는 test/helpers/distribution-fake.js. 시험 데이터는 모두 가짜다.
  */
 import { test, beforeEach } from 'node:test';
@@ -120,6 +120,12 @@ function tables() {
     orders: [
       { id: rid(31), company_id: A, design_id: D_A_ORDER, project_id: PRJ_A1, status: 'confirmed' },
     ],
+    company_design_sharing: [
+      { company_id: B, shared: true, shared_since: at(3), changed_by: OWNER_B, changed_at: at(3) },
+    ],
+    company_design_sharing_log: [
+      { id: rid(41), company_id: B, shared: true, changed_by: OWNER_B, changed_at: at(3) },
+    ],
   };
 }
 
@@ -127,6 +133,8 @@ const fakeOf = (opts = {}) => createFake({ tables: tables(), admins: [ADMIN], ..
 const call = (fake, path, token, init) => callWorker(worker, fake, path, token, init);
 const create = (fake, body, token = OWNER_A) =>
   call(fake, '/company/projects', token, { method: 'POST', body });
+const share = (fake, body, token = OWNER_A) =>
+  call(fake, '/company/design-sharing', token, { method: 'PUT', body });
 const link = (fake, designId, body, token = OWNER_A) =>
   call(fake, `/designs/${designId}/project`, token, { method: 'PUT', body });
 
@@ -332,4 +340,89 @@ test('잇기 — 틀린 본문 422, 없는 설계 404', async () => {
   }
   assert.equal((await link(fake, rid(98), { project_id: PRJ_A1 })).status, 404);
   assert.equal((await link(fake, 'not-a-uuid', { project_id: PRJ_A1 })).status, 404);
+});
+
+// ── 설계 학습 공유 ──────────────────────────────────────────────
+
+test('목록 — 설계 학습 공유: 줄이 없으면 꺼짐, 켠 업체는 켠 시각', async () => {
+  const a = await call(fakeOf(), '/company/projects', STAFF_A);
+  assert.deepEqual(a.json.data.design_sharing, { shared: false, shared_since: null });
+  const b = await call(fakeOf(), '/company/projects', OWNER_B);
+  assert.deepEqual(b.json.data.design_sharing, { shared: true, shared_since: at(3) });
+});
+
+test('공유 — 대표가 켜고 실장이 끔, 켠 시각 · 켜고 끈 기록, 같은 상태면 쓰지 않는다', async () => {
+  const fake = fakeOf();
+  const off0 = await share(fake, { shared: false });
+  assert.equal(off0.status, 200, JSON.stringify(off0.json));
+  assert.deepEqual(off0.json.data, { shared: false, shared_since: null, changed_at: null });
+  assert.equal(writesOf(fake).length, 0, '꺼진 업체를 끄면 쓰지 않는다');
+
+  const on = await share(fake, { shared: true });
+  assert.equal(on.status, 200, JSON.stringify(on.json));
+  assert.equal(on.json.data.shared, true);
+  assert.match(on.json.data.shared_since, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(on.json.data.changed_at, on.json.data.shared_since);
+  const row = fake.db.company_design_sharing.find((r) => r.company_id === A);
+  assert.equal(row.changed_by, OWNER_A);
+  const since = on.json.data.shared_since;
+
+  const before = writesOf(fake).length;
+  const again = await share(fake, { shared: true }, MANAGER_A);
+  assert.deepEqual(again.json.data, { shared: true, shared_since: since, changed_at: since });
+  assert.equal(writesOf(fake).length, before, '켜진 업체를 켜면 쓰지 않는다 (켠 시각 그대로)');
+
+  const off = await share(fake, { shared: false }, MANAGER_A);
+  assert.equal(off.status, 200);
+  assert.equal(off.json.data.shared, false);
+  assert.equal(off.json.data.shared_since, null);
+  assert.equal(
+    fake.db.company_design_sharing.find((r) => r.company_id === A).changed_by,
+    MANAGER_A
+  );
+  assert.deepEqual(
+    fake.db.company_design_sharing_log
+      .filter((x) => x.company_id === A)
+      .map((x) => [x.shared, x.changed_by]),
+    [
+      [true, OWNER_A],
+      [false, MANAGER_A],
+    ]
+  );
+  const list = await call(fake, '/company/projects', STAFF_A);
+  assert.deepEqual(list.json.data.design_sharing, { shared: false, shared_since: null });
+});
+
+test('공유 — 다담 공장 대표도 켠다, 다른 업체 줄은 그대로', async () => {
+  const fake = fakeOf();
+  const r = await share(fake, { shared: true }, FACTORY_OWNER);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.deepEqual(
+    fake.db.company_design_sharing.map((x) => [x.company_id, x.shared]).sort(),
+    [
+      [B, true],
+      [FACTORY, true],
+    ].sort()
+  );
+});
+
+test('공유 — 직원 403 not_manager, 다담 본사 · 멈춘 업체 403, 구성원 아님 403, 틀린 본문 422', async () => {
+  const fake = fakeOf();
+  const staff = await share(fake, { shared: true }, STAFF_A);
+  assert.equal(staff.status, 403);
+  assert.equal(staff.json.code, 'not_manager');
+  for (const who of [PLATFORM_STAFF, OWNER_S]) {
+    const r = await share(fake, { shared: true }, who);
+    assert.equal(r.status, 403, who);
+    assert.equal(r.json.code, 'not_project_company');
+  }
+  const none = await share(fake, { shared: true }, NOBODY);
+  assert.equal(none.status, 403);
+  assert.equal(none.json.code, 'not_member');
+  for (const body of [null, {}, { shared: 'true' }, { shared: 1 }, { shared: null }, []]) {
+    const r = await share(fake, body);
+    assert.equal(r.status, 422, JSON.stringify(body));
+    assert.equal(r.json.details.field, 'shared', JSON.stringify(body));
+  }
+  assert.equal(writesOf(fake).length, 0);
 });

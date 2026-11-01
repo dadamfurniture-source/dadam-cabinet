@@ -11,6 +11,11 @@
  *       잇는 사람: 설계 업체의 대표 · 실장 (다담 공장 설계는 관리자도), 협력업체 설계는 만든 사람(그 업체 구성원)도.
  *       다담 공장 설계를 만든 일반 고객은 잇지 못한다 — 고객 설계 잇기는 아직 없다.
  *       같은 업체의 프로젝트에만 (designs → projects 복합 FK 와 같은 규칙). 수주가 생긴 설계는 바꾸지 못한다 (409 has_order).
+ *   PUT  /company/design-sharing 설계 학습 공유 켜기 · 끄기 (대표 · 실장) { shared: true | false }
+ *                                → { shared, shared_since, changed_at }. 같은 상태면 쓰지 않는다 (켠 시각 그대로)
+ *       켠 업체의 설계만 다른 업체 설계 제안(간편 플래너)의 재료가 된다 — 동의하지 않아도 자기 설계로 자기 제안은 받는다.
+ *       지금 상태 company_design_sharing (database/migrations/0026 — 줄이 없으면 꺼짐), 켜고 끈 기록은 DB 트리거가 남긴다.
+ *       목록(GET /company/projects)도 design_sharing { shared, shared_since } 를 싣는다.
  *
  * 고객 · 프로젝트를 만들고 설계의 project_id 를 바꾸는 일은 keep_owner_links 트리거(database/migrations/0007) 때문에
  * 사용자 JWT 로는 못 한다 — 이 워커(service_role)가 쓴다.
@@ -29,6 +34,7 @@ import {
   selectMany,
   selectOne,
   updateBy,
+  upsertOne,
 } from './supabase.js';
 import { companyOf } from './distribution/company.js';
 
@@ -72,6 +78,13 @@ async function projectCompanyOf(env, user, { manage = false } = {}) {
   return { company, canAct };
 }
 
+/** 설계 학습 공유 — 줄이 없으면 꺼짐 */
+function sharingOf(row) {
+  return row && row.shared === true
+    ? { shared: true, shared_since: row.shared_since || null }
+    : { shared: false, shared_since: null };
+}
+
 /** 글 칸 — 앞뒤 빈칸 지움, 1 ~ max 자 */
 function textOf(value, field, max) {
   const text = typeof value === 'string' ? value.trim() : '';
@@ -83,13 +96,18 @@ function textOf(value, field, max) {
 /** GET /company/projects */
 export async function listCompanyProjects(env, { user }) {
   const { company, canAct } = await projectCompanyOf(env, user);
-  const projects =
-    (await selectMany(env, 'projects', {
+  const [projects, sharing] = await Promise.all([
+    selectMany(env, 'projects', {
       company_id: `eq.${company.id}`,
       select: 'id,customer_id,title,status,created_at,closed_at',
       order: 'created_at.desc',
       limit: String(COMPANY_PROJECTS_LIMIT),
-    })) || [];
+    }).then((rows) => rows || []),
+    selectOne(env, 'company_design_sharing', {
+      company_id: `eq.${company.id}`,
+      select: 'shared,shared_since',
+    }),
+  ]);
   const ids = projects.map((p) => p.id);
   const customerIds = [...new Set(projects.map((p) => p.customer_id).filter(Boolean))];
   const customers = customerIds.length
@@ -112,6 +130,7 @@ export async function listCompanyProjects(env, { user }) {
   return {
     company: { id: company.id, name: company.name, kind: company.kind, plan: company.plan || null },
     can_manage: canAct,
+    design_sharing: sharingOf(sharing),
     items: projects.map((p) => {
       const c = customerOf.get(p.customer_id);
       return {
@@ -188,6 +207,34 @@ export async function createCompanyProject(env, { user, body }) {
     throw new DbError('프로젝트를 만들지 못했습니다');
   }
   return { project_id: project.id, customer_id: customerId };
+}
+
+/** PUT /company/design-sharing */
+export async function putDesignSharing(env, { user, body, nowMs = Date.now() }) {
+  const { company } = await projectCompanyOf(env, user, { manage: true });
+  if (!isPlainObject(body) || typeof body.shared !== 'boolean')
+    throw new ValidationError('shared 는 true 또는 false 입니다', { field: 'shared' });
+  const current = await selectOne(env, 'company_design_sharing', {
+    company_id: `eq.${company.id}`,
+    select: 'shared,shared_since,changed_at',
+  });
+  if ((current ? current.shared === true : false) === body.shared)
+    return { ...sharingOf(current), changed_at: current ? current.changed_at : null };
+  const nowIso = new Date(nowMs).toISOString();
+  const row = await upsertOne(
+    env,
+    'company_design_sharing',
+    {
+      company_id: company.id,
+      shared: body.shared,
+      shared_since: body.shared ? nowIso : null,
+      changed_by: user.id,
+      changed_at: nowIso,
+    },
+    'company_id'
+  );
+  if (!row) throw new DbError('설계 학습 공유를 저장하지 못했습니다');
+  return { ...sharingOf(row), changed_at: row.changed_at };
 }
 
 /** PUT /designs/:id/project */

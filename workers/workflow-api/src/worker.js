@@ -29,6 +29,7 @@
  *   GET  /company/consults · POST /company/consults/:id/accept|decline · GET|PUT /company/service-settings
  *   GET  /company/my-score — 업체 쪽 상담 (src/distribution/company.js)
  *   GET|POST /company/projects · PUT /designs/:designId/project — 업체 고객 · 프로젝트, 설계 잇기 (src/company-projects.js)
+ *   PUT /company/design-sharing — 업체 설계 학습 공유 켜기 · 끄기 (src/company-projects.js)
  *
  *   GET  /public/confirm                   — 고객 열람 (X-Share-Token)
  *   POST /public/confirm/decision          — 고객 승인/수정요청
@@ -181,7 +182,12 @@ import {
   putServiceSettings,
   myScore,
 } from './distribution/company.js';
-import { listCompanyProjects, createCompanyProject, linkDesignProject } from './company-projects.js';
+import {
+  listCompanyProjects,
+  createCompanyProject,
+  linkDesignProject,
+  putDesignSharing,
+} from './company-projects.js';
 import { handlePushKey, handleSavePushSubscription, handleDeletePushSubscription } from './push/routes.js';
 import { runPushSender, runPushCleanup, isPushCleanupTime, PUSH_SEND_CRON } from './push/sender.js';
 import { notifyOrderRequest, notifyOrderRequestDecided, notifyConfirmationDecided } from './push/hooks.js';
@@ -980,6 +986,12 @@ async function handleCreateCompanyProject(request, env, { user }) {
   return jsonResponse(request, env, { success: true, data }, 201, NO_STORE);
 }
 
+async function handlePutDesignSharing(request, env, { user }) {
+  const body = await readJson(request);
+  const data = await putDesignSharing(env, { user, body });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
 async function handleLinkDesignProject(request, env, { params, user }) {
   const body = await readJson(request);
   const data = await linkDesignProject(env, { user, designId: params.designId, body });
@@ -1085,6 +1097,7 @@ const router = createRouter([
   // 업체 고객 · 프로젝트 — 목록은 구성원, 만들기는 대표 · 실장 (다담 공장 · Expert 이상 협력업체)
   { method: 'GET',  path: '/company/projects',                    auth: 'jwt', handler: handleCompanyProjects },
   { method: 'POST', path: '/company/projects',                    auth: 'jwt', handler: handleCreateCompanyProject },
+  { method: 'PUT',  path: '/company/design-sharing',              auth: 'jwt', handler: handlePutDesignSharing },
 
   // 업체 장부 요약 (그 업체 대표 · 실장)
   { method: 'GET',   path: '/books/summary',      auth: 'jwt', handler: handleBooksSummary },

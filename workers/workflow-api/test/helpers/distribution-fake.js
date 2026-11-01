@@ -11,6 +11,7 @@
  *   notification_outbox  dedupe_key 유니크
  *   company_evaluations  company_id 기본 키, 넣거나 고치면 company_evaluation_history 에 한 줄 (트리거)
  *   company_service_settings  company_id 기본 키
+ *   company_design_sharing    company_id 기본 키 · 켠 시각은 켜졌을 때만 (23514) · 상태가 바뀌면 company_design_sharing_log 에 한 줄 (트리거)
  * Auth: Bearer 토큰이 곧 user id. admin/users/:id 는 { id, email }.
  * 시험 데이터는 모두 가짜다.
  */
@@ -65,7 +66,11 @@ function matches(row, col, expr) {
 }
 
 const RESERVED = new Set(['select', 'order', 'limit', 'on_conflict']);
-const PK = { company_evaluations: 'company_id', company_service_settings: 'company_id' };
+const PK = {
+  company_evaluations: 'company_id',
+  company_service_settings: 'company_id',
+  company_design_sharing: 'company_id',
+};
 
 let seq = 0;
 export const fakeId = () => {
@@ -90,6 +95,8 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
     company_service_settings: [],
     company_evaluations: [],
     company_evaluation_history: [],
+    company_design_sharing: [],
+    company_design_sharing_log: [],
     orders: [],
     rework_logs: [],
     install_feedback: [],
@@ -187,6 +194,8 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
       )
         return fail('23505', 409);
     }
+    if (table === 'company_design_sharing' && (row.shared === true) !== (row.shared_since != null))
+      return fail('23514', 400, 'company_design_sharing_since_check');
     if (table === 'notification_outbox' && row.dedupe_key) {
       if (db.notification_outbox.some((x) => x !== self && x.dedupe_key === row.dedupe_key))
         return fail('23505', 409);
@@ -220,10 +229,26 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
     if (table === 'notification_outbox') return { ...base, state: 'queued', created_at: nowIso() };
     if (table === 'company_evaluations') return { evaluated_at: nowIso() };
     if (table === 'company_service_settings') return { updated_at: nowIso() };
+    if (table === 'company_design_sharing')
+      return { shared: false, shared_since: null, changed_by: null, changed_at: nowIso() };
     return { ...base, created_at: nowIso() };
   }
 
   function afterWrite(table, row) {
+    if (table === 'company_design_sharing') {
+      // 0026 트리거 — 처음 줄은 늘, 그 뒤는 상태가 바뀔 때만
+      const last = db.company_design_sharing_log
+        .filter((x) => x.company_id === row.company_id)
+        .pop();
+      if (!last || last.shared !== row.shared)
+        db.company_design_sharing_log.push({
+          id: fakeId(),
+          company_id: row.company_id,
+          shared: row.shared,
+          changed_by: row.changed_by ?? null,
+          changed_at: row.changed_at,
+        });
+    }
     if (table === 'company_evaluations') {
       db.company_evaluation_history.push({
         id: fakeId(),
