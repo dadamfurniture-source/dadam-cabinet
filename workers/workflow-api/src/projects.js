@@ -17,6 +17,8 @@
  *   고객에게 보여 줄 칸만 싣는다 — 원가 · 마진 · 수금 합계 · 내부 메모 · 담당자 이름은 읽지도 않는다.
  *   취소된 수주는 단계에도 「최신 수주」에도 넣지 않는다. 회수된(revoked) 확인서는 견적 단계로 세지 않는다
  *   (대체된 superseded 는 새 문서가 있다는 뜻이라 센다).
+ *   수금 일정: id · 결제할 수 있나(payable — 다담 공장 수주의 안 받은 줄, 결제창은 payments-api) ·
+ *   온라인 결제(online — 가상계좌 입금 기다림이면 입금 안내, 받은 금액이 달라 확인 중이면 그 상태만. DB 0025).
  */
 
 import {
@@ -35,6 +37,7 @@ import {
   updateBy,
 } from './supabase.js';
 import { isAdmin } from './reports/admin.js';
+import { isMissingRelation } from './work-order-data.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -178,6 +181,31 @@ function groupBy(rows, keyOf) {
   return out;
 }
 
+/** 고객에게 보여 줄 온라인 결제 상태 — 수금 줄마다 가장 최근의 입금 기다림 · 확인 중 (DB 0025 payment_transactions). 표가 없으면 비움 */
+export const CUSTOMER_PAY_STATUSES = Object.freeze(['waiting_deposit', 'check_needed']);
+async function onlineOf(env, paymentIds) {
+  const out = new Map();
+  if (!paymentIds.length) return out;
+  let rows;
+  try {
+    rows = (await selectMany(env, 'payment_transactions', {
+      payment_id: `in.(${paymentIds.join(',')})`,
+      status: `in.(${CUSTOMER_PAY_STATUSES.join(',')})`,
+      select: 'payment_id,status,method,virtual_account,created_at',
+      order: 'created_at.desc',
+      limit: LINKED_ROW_LIMIT,
+    })) || [];
+  } catch (e) {
+    if (isMissingRelation(e)) return out;
+    throw e;
+  }
+  for (const t of rows) {
+    if (out.has(t.payment_id)) continue;
+    out.set(t.payment_id, { status: t.status, method: t.method || null, virtual_account: t.status === 'waiting_deposit' ? t.virtual_account || null : null });
+  }
+  return out;
+}
+
 /** GET /me/projects */
 export async function listMyProjects(env, { user }) {
   const customers = (await selectMany(env, 'customers', { user_id: `eq.${user.id}`, select: 'id', limit: '100' })) || [];
@@ -200,7 +228,7 @@ export async function listMyProjects(env, { user }) {
     selectMany(env, 'orders', {
       project_id: inProjects,
       status: 'neq.cancelled',
-      select: 'id,project_id,order_no,status,contract_amount,ordered_at,completed_at',
+      select: 'id,project_id,company_id,order_no,status,contract_amount,ordered_at,completed_at',
       order: 'ordered_at.desc,created_at.desc',
       limit: LINKED_ROW_LIMIT,
     }),
@@ -238,12 +266,16 @@ export async function listMyProjects(env, { user }) {
   const payments = latestOrders.length
     ? (await selectMany(env, 'order_payments', {
         order_id: `in.(${latestOrders.map((o) => o.id).join(',')})`,
-        select: 'order_id,stage,amount,due_on,paid_on',
+        select: 'id,order_id,stage,amount,due_on,paid_on',
         order: 'due_on.asc.nullslast,created_at.asc',
         limit: LINKED_ROW_LIMIT,
       })) || []
     : [];
   const paymentsBy = groupBy(payments, (p) => p.order_id);
+  // 결제할 수 있는 줄 = 다담 공장 수주의 안 받은 줄 (협력업체 수주는 업체가 직접 받는다)
+  const hq = latestOrders.length ? await hqCompanyId(env) : null;
+  const payableOrder = new Set(latestOrders.filter((o) => o.company_id === hq).map((o) => o.id));
+  const online = await onlineOf(env, payments.filter((p) => !p.paid_on && payableOrder.has(p.order_id)).map((p) => p.id));
 
   return projects.map((p) => {
     const projectOrders = ordersBy.get(p.id) || [];
@@ -270,7 +302,15 @@ export async function listMyProjects(env, { user }) {
           }
         : null,
       payments: latest
-        ? (paymentsBy.get(latest.id) || []).map((x) => ({ stage: x.stage, amount: x.amount, due_on: x.due_on, paid_on: x.paid_on }))
+        ? (paymentsBy.get(latest.id) || []).map((x) => ({
+            id: x.id,
+            stage: x.stage,
+            amount: x.amount,
+            due_on: x.due_on,
+            paid_on: x.paid_on,
+            payable: !x.paid_on && payableOrder.has(latest.id),
+            online: online.get(x.id) || null,
+          }))
         : [],
       install_at: installAt.get(p.id) || null,
     };

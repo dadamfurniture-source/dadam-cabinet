@@ -71,6 +71,31 @@ test('일정을 넣으면 수주의 수금액을 받은 합으로 맞춘다', as
   });
 });
 
+test('ERP 수금 일정 — 줄마다 가장 최근 온라인 결제(결제창만 연 것 · 닫은 것 빼고), 결제 표가 없으면 online 없이', async () => {
+  const lines = [{ id: 'P1', amount: 3000000, paid_on: null }, { id: 'P2', amount: 1000000, paid_on: '2026-11-01' }, { id: 'P3', amount: 500000, paid_on: null }];
+  const txs = [
+    { payment_id: 'P1', status: 'check_needed', method: 'virtual_account', amount_requested: 3000000, amount_received: 2900000, virtual_account: null, status_note: '받은 금액이 수금 일정과 다릅니다', paid_at: '2026-11-02T00:00:00Z', created_at: '2026-11-02T00:00:00Z' },
+    { payment_id: 'P1', status: 'expired', method: 'virtual_account', amount_requested: 3000000, amount_received: null, virtual_account: null, status_note: null, paid_at: null, created_at: '2026-10-30T00:00:00Z' },
+    { payment_id: 'P2', status: 'paid', method: 'card', amount_requested: 1000000, amount_received: 1000000, virtual_account: null, status_note: null, paid_at: '2026-11-01T01:00:00Z', created_at: '2026-11-01T00:00:00Z' },
+  ];
+  await withFetch((u) => (u.includes('/order_payments?') ? json(lines) : u.includes('/payment_transactions?') ? json(txs) : null), async (calls) => {
+    const out = await listPayments(ENV, 'O1', { online: true });
+    assert.deepEqual(out.map((p) => [p.id, p.online && p.online.status]), [['P1', 'check_needed'], ['P2', 'paid'], ['P3', null]]);
+    assert.equal(out[0].online.amount_received, 2900000);
+    assert.equal('payment_id' in out[0].online, false);
+    const q = calls.find((c) => c.url.includes('/payment_transactions?')).url;
+    assert.ok(q.includes('order_id=eq.O1') && q.includes('status=in.(waiting_deposit,paid,check_needed,expired,failed)'));
+  });
+  await withFetch((u) => (u.includes('/order_payments?') ? json(lines) : u.includes('/payment_transactions?') ? NO_TABLE() : null), async () => {
+    const out = await listPayments(ENV, 'O1', { online: true });
+    assert.deepEqual(out.map((p) => p.online), [null, null, null]);
+  });
+  await withFetch((u) => (u.includes('/order_payments?') ? json(lines) : null), async (calls) => {
+    assert.equal((await listPayments(ENV, 'O1')).length, 3);
+    assert.equal(calls.length, 1, 'online 이 아니면 결제 표를 읽지 않는다');
+  });
+});
+
 test('표가 아직 없으면 읽기는 null, 쓰기는 SQL 안내', async () => {
   await withFetch((u) => (u.includes('/order_payments?') ? NO_TABLE() : null), async () => {
     assert.equal(await listPayments(ENV, 'O1'), null);

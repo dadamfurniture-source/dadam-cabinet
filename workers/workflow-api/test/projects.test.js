@@ -114,7 +114,7 @@ function fakeDb(tables, { admins = [ADMIN], hooks = {} } = {}) {
     ],
     ...tables,
   };
-  for (const t of ['customers', 'projects', 'consultations', 'generations', 'orders', 'order_payments', 'designs', 'design_documents', 'design_schedules']) {
+  for (const t of ['customers', 'projects', 'consultations', 'generations', 'orders', 'order_payments', 'payment_transactions', 'designs', 'design_documents', 'design_schedules']) {
     db[t] = db[t] || [];
   }
   let seq = 0;
@@ -543,8 +543,8 @@ test('me/projects — 수주는 최신 것 하나와 그 수금 일정, 설치�
   const p5 = r.json.data.find((p) => p.id === 'p-5');
   assert.deepEqual(p5.order, { order_no: 'SO-5B', status: 'in_production', contract_amount: 1100000, ordered_at: '2026-10-20T00:00:00Z', completed_at: null });
   assert.deepEqual(p5.payments, [
-    { stage: 'deposit', amount: 500000, due_on: '2026-10-20', paid_on: '2026-10-20' },
-    { stage: 'balance', amount: 600000, due_on: '2026-11-20', paid_on: null },
+    { id: 'pay2', stage: 'deposit', amount: 500000, due_on: '2026-10-20', paid_on: '2026-10-20', payable: false, online: null },
+    { id: 'pay1', stage: 'balance', amount: 600000, due_on: '2026-11-20', paid_on: null, payable: false, online: null },
   ]);
   assert.equal(p5.install_at, '2026-11-12T00:00:00Z');
   const p1 = r.json.data.find((p) => p.id === 'p-1');
@@ -559,7 +559,7 @@ test('me/projects — 원가 · 마진 · 수금 합계 · 내부 메모 · 담�
   for (const p of r.json.data) {
     assert.deepEqual(Object.keys(p).sort(), ['company_name', 'created_at', 'id', 'install_at', 'order', 'payments', 'stage', 'status', 'title']);
     if (p.order) assert.deepEqual(Object.keys(p.order).sort(), ['completed_at', 'contract_amount', 'order_no', 'ordered_at', 'status']);
-    for (const x of p.payments) assert.deepEqual(Object.keys(x).sort(), ['amount', 'due_on', 'paid_on', 'stage']);
+    for (const x of p.payments) assert.deepEqual(Object.keys(x).sort(), ['amount', 'due_on', 'id', 'online', 'paid_on', 'payable', 'stage']);
   }
   const text = JSON.stringify(r.json);
   for (const word of ['received_amount', 'cost', 'margin', 'memo', 'note', 'assignee', '설치 기사', '내부', 'p-other', 'SO-X']) {
@@ -572,6 +572,33 @@ test('me/projects — 원가 · 마진 · 수금 합계 · 내부 메모 · 담�
     if (c.q.get('limit') === null) assert.equal(c.path, '/rest/v1/companies', `${c.path} 는 행 수 상한이 있다`);
   }
   assert.ok(fake.calls.every((c) => c.method === 'GET'), '읽기만 한다');
+});
+
+test('me/projects — 다담 공장 수주의 안 받은 줄만 결제할 수 있다 · 온라인 결제는 입금 기다림(입금 안내) · 확인 중만 싣는다', async () => {
+  const fake = myDb();
+  fake.db.orders.find((o) => o.id === 'o5').company_id = HQ;
+  fake.db.orders.find((o) => o.id === 'o6').company_id = PARTNER;
+  fake.db.order_payments.push({ id: 'pay6', order_id: 'o6', stage: 'balance', amount: 100, due_on: '2026-11-30', paid_on: null });
+  fake.db.order_payments.push({ id: 'pay5c', order_id: 'o5', stage: 'interim', amount: 200, due_on: '2026-11-25', paid_on: null });
+  const va = { bank: '88', account_number: 'X0000', holder: '김고객', due_at: '2026-11-25T23:59:59+09:00' };
+  fake.db.payment_transactions = [
+    { id: 't-old', payment_id: 'pay1', status: 'check_needed', method: 'card', virtual_account: null, status_note: '내부 사유', amount_received: 1, created_at: '2026-11-01T00:00:00Z' },
+    { id: 't-new', payment_id: 'pay1', status: 'waiting_deposit', method: 'virtual_account', virtual_account: va, created_at: '2026-11-02T00:00:00Z' },
+    { id: 't-chk', payment_id: 'pay5c', status: 'check_needed', method: 'virtual_account', virtual_account: va, created_at: '2026-11-02T00:00:00Z' },
+  ];
+  const r = await call(fake, '/me/projects', MEMBER);
+  const p5 = r.json.data.find((p) => p.id === 'p-5');
+  const by = Object.fromEntries(p5.payments.map((x) => [x.id, x]));
+  assert.equal(by.pay2.payable, false, '받은 줄');
+  assert.deepEqual([by.pay1.payable, by.pay1.online], [true, { status: 'waiting_deposit', method: 'virtual_account', virtual_account: va }], '가장 최근 결제');
+  assert.deepEqual(by.pay5c.online, { status: 'check_needed', method: 'virtual_account', virtual_account: null }, '확인 중이면 입금 안내를 싣지 않는다');
+  const p6 = r.json.data.find((p) => p.id === 'p-6');
+  assert.deepEqual(p6.payments.map((x) => [x.id, x.payable, x.online]), [['pay6', false, null]], '협력업체 수주는 업체에 직접');
+  const txRead = fake.calls.find((c) => c.path === '/rest/v1/payment_transactions');
+  assert.equal(txRead.q.get('payment_id'), 'in.(pay1,pay5c)', '결제할 수 있는 줄만 (낼 날 순)');
+  assert.equal(txRead.q.get('status'), 'in.(waiting_deposit,check_needed)');
+  assert.ok(!/note|amount/.test(txRead.q.get('select')), '사유 · 금액 칸은 읽지 않는다');
+  assert.ok(!JSON.stringify(r.json).includes('내부 사유'));
 });
 
 test('me/projects — 고객 행이 없거나 프로젝트가 없으면 빈 목록 (더 읽지 않는다)', async () => {
