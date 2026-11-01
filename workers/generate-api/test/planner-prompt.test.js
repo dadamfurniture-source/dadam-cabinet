@@ -675,7 +675,12 @@ test('다듬기 지시문 — 시안 한 장, 기하 · 방 그대로, 빛 · �
   const p = buildPlannerPolishPrompt(ctx);
   assert.match(p, /^You receive one image\. IMAGE A — ROOM PHOTO: the customer's real room with the new built-in units already rendered into it by our planner/);
   assert.ok(p.includes('the same number of doors and drawers with the same widths and heights, in the same place'));
-  assert.ok(p.includes('with any marks or unfinished surfaces as they are. Do not move, stretch, add, remove, clean or redraw anything.'));
+  assert.ok(p.includes('every object that stands clear of the units, with any marks or unfinished surfaces as they are. Apart from the clean-up below, do not move, stretch, add, remove, clean or redraw anything.'));
+  // 2026-11-01 사장님 「원래 있던 물건과 겹쳐 보이는 건 정리 안됨?」 — 장과 겹치는 옛 물건만 지운다, 떨어져 선 물건은 그대로
+  assert.ok(p.includes('CLEAN UP — the only change to the room: the new units replace whatever stood in their place.'));
+  assert.ok(p.includes('any other object the units now cover or cut through, so that no part of it still shows around, above, beside or between the units.'));
+  assert.ok(p.includes('Free-standing objects that stand clear of the units — a refrigerator, chairs, carts, plants — stay where they are.'));
+  assert.ok(p.indexOf('KEEP EXACTLY') < p.indexOf('CLEAN UP') && p.indexOf('CLEAN UP') < p.indexOf('ON THE UNITS, CHANGE ONLY'));
   assert.ok(p.includes('HANDLES: none.'));
   assert.ok(p.endsWith('OUTPUT: one photorealistic photograph, 4:3, the same view as IMAGE A.'));
   for (const gone of ['SITE:', 'WALL TILE:', 'EDIT ZONE', 'IMAGE B', 'FINAL SELF-CHECK', 'CLOSED LIST']) assert.ok(!p.includes(gone), gone);
