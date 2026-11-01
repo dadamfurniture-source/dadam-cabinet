@@ -291,7 +291,10 @@
           Consults && Consults.load ? Consults.load(auth.sb, auth.session, me) : null,
           Books && Books.load ? Books.load(auth.sb, auth.session, me) : null,
           Projects && Projects.load ? Projects.load(auth.sb, auth.session, me) : null,
-          Push && Push.load ? Push.load(auth.sb, auth.session, me) : null,
+          // 작업자도 알림 칸 — 셸의 작업 탭 판정을 그대로 넘긴다
+          Push && Push.load
+            ? Push.load(auth.sb, auth.session, me, { worker: !!(auth.roles && auth.roles.worker) })
+            : null,
         ]);
       }),
       loadConsults(auth.sb, auth.session),
