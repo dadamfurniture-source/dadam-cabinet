@@ -5,6 +5,7 @@
  *   (예전엔 제안이 없으면 '지금 다시 계산' 을 저절로 불러 본사 Slack 으로 나갔다)
  *   본사(hq true) · 설정을 못 읽는 본사 직원은 예전처럼 전부 부른다.
  *   공장 배정 — 내 계획에 배정된 작업자 · 배정할 수 있는 작업자, 배정하기 · 배정 끝 (workflow-api work/factory.js)
+ *   작업자 링크 — 새 링크 만들기 칸이 없다 (서버 410 links_closed). 계정에 이은 링크(linked)는 「계정에 이음」
  */
 const fs = require('fs');
 const path = require('path');
@@ -24,7 +25,7 @@ const SETTINGS = { standards: {}, crew: {}, costs: {}, leads: {}, quote: { margi
 const PLAN = { days: [], jobs: [], suggestions: [], summary: {}, skipped: [] };
 
 /** settings: 'hq' | 'partner' | 'forbidden' */
-function fakeApi(settings, factory = { assigned: [], candidates: [] }) {
+function fakeApi(settings, factory = { assigned: [], candidates: [] }, links = []) {
   const calls = [];
   const ok = (data, code = 200) => ({ ok: true, status: code, json: async () => ({ success: true, data }) });
   const err = (code, message) => ({ ok: false, status: code, json: async () => ({ success: false, message }) });
@@ -40,7 +41,7 @@ function fakeApi(settings, factory = { assigned: [], candidates: [] }) {
     if (u.startsWith('/production/proposals/latest')) return ok({ id: 'P1', status: 'pending', trigger: 'manual', created_at: '2026-10-29T00:00:00Z', plan: PLAN });
     if (u.startsWith('/production/proposals')) return ok({ items: [] });
     if (u.startsWith('/production/assignments')) return ok({ items: [] });
-    if (u.startsWith('/production/worker-links')) return ok({ items: [] });
+    if (u.startsWith('/production/worker-links')) return ok({ items: links });
     if (u === '/production/factory-workers' && method === 'GET') return ok(factory);
     if (u === '/production/factory-workers' && method === 'POST') return ok({ id: 'F2' }, 201);
     if (/^\/production\/factory-workers\/[^/]+\/end$/.test(u)) return ok({ id: 'F1', ended_at: '2026-11-01T00:00:00Z' });
@@ -128,4 +129,24 @@ test('공장 배정 — 배정할 사람이 없으면 버튼을 잠근다', asyn
   expect($('#factoryPick').options[0].textContent).toBe('배정할 수 있는 작업자가 없습니다');
   expect($('#btnAssignFactory').disabled).toBe(true);
   expect($('#factoryRows').textContent).toContain('아직 없습니다.');
+});
+
+test('작업자 링크 — 새 링크 만들기 칸이 없고, 계정에 이은 링크는 「계정에 이음」 (끊기는 사용 중인 링크만)', async () => {
+  const soon = new Date(Date.now() + 86400000).toISOString();
+  const past = new Date(Date.now() - 86400000).toISOString();
+  const api = fakeApi('hq', undefined, [
+    { id: 'L1', label: '재단 김', expires_at: soon, revoked_at: past, last_used_at: null, linked: true },
+    { id: 'L2', label: '엣지 이', expires_at: soon, revoked_at: past, last_used_at: null, linked: false },
+    { id: 'L3', label: '조립 박', expires_at: past, revoked_at: null, last_used_at: null, linked: false },
+    { id: 'L4', label: '재단 최', expires_at: soon, revoked_at: null, last_used_at: null, linked: false },
+  ]);
+  boot(api);
+  await settle();
+  expect($('#btnCreateLink')).toBe(null);
+  expect($('#linkLabel')).toBe(null);
+  expect($('#linkNote').textContent).toContain('새 링크는 만들지 않습니다');
+  const rows = [...$('#linkRows').querySelectorAll('tr')];
+  expect(rows.map((tr) => tr.children[3].textContent)).toEqual(['계정에 이음', '끊음', '만료', '사용 중']);
+  expect([...$('#linkRows').querySelectorAll('[data-revoke]')].map((b) => b.getAttribute('data-revoke'))).toEqual(['L4']);
+  expect(api.calls.some((c) => c.method === 'POST' && c.u === '/production/worker-links')).toBe(false);
 });

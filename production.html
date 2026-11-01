@@ -167,14 +167,8 @@
 
       <div class="card hq-only">
         <h2>작업자 링크</h2>
-        <div class="muted" style="margin-bottom:10px">작업자는 계정 없이 이 링크로 휴대폰에서 오늘 할 일을 보고, 시작·완료로 실제 걸린 시간을 남깁니다. 링크는 만든 직후 한 번만 보이니 바로 복사해 카톡으로 보내 주세요.</div>
-        <div class="row">
-          <input id="linkLabel" placeholder="작업자 이름 (예: 재단 김OO)" style="min-width: 200px" />
-          <label class="muted">유효 <input id="linkDays" type="number" min="1" max="365" value="90" style="width: 70px" /> 일</label>
-          <button type="button" class="primary" id="btnCreateLink">링크 만들기</button>
-        </div>
-        <div id="newLink" class="alert alert-ok" style="margin-top:10px" hidden></div>
-        <div class="scroll" style="margin-top: 10px">
+        <div class="muted" id="linkNote" style="margin-bottom:10px">새 링크는 만들지 않습니다. 작업자는 작업자 포털에서 신청하고, 승인되면 위 「공장 배정」에서 배정합니다. 남은 링크는 만료되거나 끊을 때까지 열리고, 작업자가 로그인한 채 열어 「내 계정에 잇기」를 하면 계정으로 옮겨집니다.</div>
+        <div class="scroll">
           <table>
             <thead><tr><th>작업자</th><th>만료</th><th>마지막 사용</th><th>상태</th><th></th></tr></thead>
             <tbody id="linkRows"></tbody>
@@ -368,7 +362,7 @@
           var d = await api('/production/worker-links');
           var now = new Date();
           el('linkRows').innerHTML = (d.items || []).map(function (l) {
-            var st = l.revoked_at ? '끊음' : new Date(l.expires_at) < now ? '만료' : '사용 중';
+            var st = l.linked ? '계정에 이음' : l.revoked_at ? '끊음' : new Date(l.expires_at) < now ? '만료' : '사용 중';
             return '<tr><td>' + esc(l.label) + '</td><td>' + new Date(l.expires_at).toLocaleDateString('ko-KR') + '</td><td>' + (l.last_used_at ? new Date(l.last_used_at).toLocaleString('ko-KR') : '-') + '</td><td>' + st + '</td><td>' +
               (st === '사용 중' ? '<button type="button" data-revoke="' + esc(l.id) + '">끊기</button>' : '') + '</td></tr>';
           }).join('') || '<tr><td colspan="5" class="muted">아직 없습니다.</td></tr>';
@@ -378,25 +372,6 @@
               try { await api('/production/worker-links/' + encodeURIComponent(b.getAttribute('data-revoke')) + '/revoke', { method: 'POST' }); await loadLinks(); } catch (e) { fail(e.message); }
             });
           });
-        }
-
-        async function createLink() {
-          var label = el('linkLabel').value.trim();
-          if (!label) { fail('작업자 이름을 입력해 주세요.'); return; }
-          try {
-            var d = await api('/production/worker-links', { method: 'POST', body: { label: label, days: Number(el('linkDays').value) || 90 } });
-            var box = el('newLink');
-            box.hidden = false;
-            box.innerHTML = '<b>' + esc(d.label) + '</b> 링크 (지금만 보입니다): <input readonly style="width:100%;margin-top:6px" value="' + esc(d.url) + '"><div class="row" style="margin-top:6px"><button type="button" id="btnCopyLink">복사</button></div>';
-            el('btnCopyLink').addEventListener('click', function () {
-              var i = box.querySelector('input');
-              i.select();
-              if (navigator.clipboard) navigator.clipboard.writeText(i.value).then(function () { note('복사했습니다.'); });
-              else document.execCommand('copy');
-            });
-            el('linkLabel').value = '';
-            await loadLinks();
-          } catch (e) { fail(e.message); }
         }
 
         var KIND_KO = { install: '설치', as: 'A/S', assembly: '조립', cutting: '재단', edge: '엣지' };
@@ -495,7 +470,6 @@
 
         el('plMonth').addEventListener('change', function () { loadMonthly().catch(function (e) { fail(e.message); }); });
 
-        el('btnCreateLink').addEventListener('click', createLink);
         el('btnAssignFactory').addEventListener('click', assignFactory);
         el('btnApplyAll').addEventListener('click', function () { applyCalib(null); });
 
