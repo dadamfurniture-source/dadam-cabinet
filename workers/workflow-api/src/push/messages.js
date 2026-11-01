@@ -12,7 +12,7 @@
  * 시험이 이 파일과 같은지 본다 — 글을 바꾸면 세 곳을 같이 바꾼다.
  */
 
-/** DB notification_outbox_kind_check 와 같다 */
+/** DB notification_outbox_kind_check 와 같다 (작업자 넷은 0023) */
 export const NOTIFICATION_KINDS = Object.freeze([
   'order_request',
   'order_request_decided',
@@ -21,7 +21,14 @@ export const NOTIFICATION_KINDS = Object.freeze([
   'billing_failed',
   'company_suspended',
   'consult_assigned',
+  'work_invited',
+  'work_registration',
+  'work_assigned',
+  'work_schedule',
 ]);
+
+/** 작업자 알림 — 업체 없이(company_id 비움) 넣고 업체 없는 기기로 간다 (DB notification_outbox_company_check, 0023) */
+export const WORK_NOTIFICATION_KINDS = Object.freeze(['work_invited', 'work_registration', 'work_assigned', 'work_schedule']);
 
 /** 글자 수 상한 (DB notification_outbox_text_check · url_check 와 같다, 코드 포인트로 센다) */
 export const TITLE_MAX = 60;
@@ -161,6 +168,66 @@ function consultAssigned({ items = [], gugun = null } = {}) {
   };
 }
 
+/** 작업 탭 (앱 「작업」 — 예전 worker.html 작업자 포털) */
+export const WORK_URL = '/segan/work.html';
+
+/** 작업 종류 이름 — work/validate.js WORK_KINDS 와 같은 키 (작업 제목 · 지역은 싣지 않는다 — 고객 이름 · 주소가 섞일 수 있다) */
+export const WORK_KIND_LABELS = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립' });
+const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
+const JOB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** 작업 날 — 한국 시간 'M/D(요일)', 모르면 '' */
+export function workDay(iso) {
+  const t = Date.parse(iso || '');
+  if (!Number.isFinite(t)) return '';
+  const k = new Date(t + 9 * 3600 * 1000);
+  return `${k.getUTCMonth() + 1}/${k.getUTCDate()}(${WEEKDAY[k.getUTCDay()]})`;
+}
+
+/** 작업 한 줄 — 「11/5(목) 설치 작업」, 열 곳은 그 작업 (#job=) — 종류를 모르면 null */
+function workJob({ jobKind, startsAt, jobId } = {}) {
+  const label = Object.prototype.hasOwnProperty.call(WORK_KIND_LABELS, jobKind) ? WORK_KIND_LABELS[jobKind] : null;
+  if (!label) return null;
+  const day = workDay(startsAt);
+  const url = typeof jobId === 'string' && JOB_ID_RE.test(jobId) ? `${WORK_URL}#job=${jobId.toLowerCase()}` : WORK_URL;
+  return { what: `${day ? `${day} ` : ''}${label} 작업`, day, label, url };
+}
+
+/** 작업 초대 — 관리자가 작업에 초대(배정 제안)함. { jobKind, startsAt, jobId } */
+function workInvited(p) {
+  const j = workJob(p);
+  if (!j) return null;
+  return { title: '작업 초대', body: `${j.what}에 초대받았습니다. 수락하거나 거절해 주세요.`, url: j.url };
+}
+
+/** 작업자 신청 결과. { status: approved | rejected } */
+function workRegistration({ status } = {}) {
+  if (status === 'approved') {
+    return { title: '작업자 신청', body: '작업자 신청이 승인되었습니다. 작업 탭에서 작업을 보고 신청할 수 있습니다.', url: WORK_URL };
+  }
+  if (status === 'rejected') {
+    return { title: '작업자 신청', body: '작업자 신청이 승인되지 않았습니다. 작업 탭에서 확인해 주세요.', url: WORK_URL };
+  }
+  return null;
+}
+
+/** 작업 확정 — 신청한 작업에 뽑힘. { jobKind, startsAt, jobId } */
+function workAssigned(p) {
+  const j = workJob(p);
+  if (!j) return null;
+  return { title: '작업 확정', body: `${j.what}에 확정되었습니다. 작업 탭에서 확인해 주세요.`, url: j.url };
+}
+
+/** 작업 일정 바뀜 — 맡은 작업의 시각이 바뀜. { jobKind, startsAt(새 시각), jobId } */
+function workSchedule(p) {
+  const j = workJob(p);
+  if (!j) return null;
+  const body = j.day
+    ? `${j.label} 작업 일정이 ${j.day}(으)로 바뀌었습니다. 작업 탭에서 확인해 주세요.`
+    : `${j.label} 작업 일정이 바뀌었습니다. 작업 탭에서 확인해 주세요.`;
+  return { title: '작업 일정 바뀜', body, url: j.url };
+}
+
 const BUILDERS = Object.freeze({
   order_request: orderRequest,
   order_request_decided: orderRequestDecided,
@@ -169,6 +236,10 @@ const BUILDERS = Object.freeze({
   billing_failed: billingFailed,
   company_suspended: companySuspended,
   consult_assigned: consultAssigned,
+  work_invited: workInvited,
+  work_registration: workRegistration,
+  work_assigned: workAssigned,
+  work_schedule: workSchedule,
 });
 
 /**

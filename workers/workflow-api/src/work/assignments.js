@@ -14,6 +14,7 @@ import {
   countFilled, declineOffersIfEnded, loadJob, loadJobAssignments, needsReview, recordAssignmentChange, transitionAssignment,
 } from './jobs.js';
 import { notifyWork } from './notify.js';
+import { later, notifyWorkInvited } from '../push/work-hooks.js';
 import { ACTIVE_STATUSES, workerAssignment } from './reveal.js';
 import { assertUuid, optBool, optText, reqText } from './validate.js';
 
@@ -93,7 +94,7 @@ export async function releaseAssignment(env, { user, params, body, ctx }) {
 // ── 관리자 ───────────────────────────────────────────────────────
 
 /** POST /work/admin/jobs/:id/invite — 직접 지정 (offered). 승인된 작업자(정지 · 대기는 409) · 종류가 맞아야 */
-export async function inviteWorker(env, { user, params, body }) {
+export async function inviteWorker(env, { user, params, body, ctx }) {
   await requireAdminEditor(env, user);
   const jobId = assertUuid(params.id, '작업 id');
   const workerId = assertUuid(body && body.worker_id, '작업자 id');
@@ -123,6 +124,8 @@ export async function inviteWorker(env, { user, params, body }) {
   const ended = await declineOffersIfEnded(env, jobId)
     .catch((e) => { console.warn('[work] 남은 초대 정리 실패:', e && e.message); return null; });
   if (ended !== null) throw new ConflictError('더 이상 사람을 받지 않는 작업입니다');
+  // 초대받은 작업자에게 앱 알림 — 응답 뒤에
+  await later(ctx, notifyWorkInvited(env, { job, assignment: row }));
   return row;
 }
 

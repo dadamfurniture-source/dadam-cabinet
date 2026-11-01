@@ -82,7 +82,8 @@ const isOpenApplication = (a) =>
   !!a && (a.status === 'applied' || a.status === 'meeting' || (a.status === 'approved' && !a.used_at));
 
 /**
- * 알림을 묶을 업체. 구성원이면 { companyId }, 업체 없이 신청 중이면 { companyId: null }. 그 밖은 403 no_company.
+ * 알림을 묶을 업체. 구성원이면 { companyId }, 업체 없이 신청 중이거나 작업자(대기 · 승인 · 정지)면 { companyId: null }.
+ * 그 밖은 403 no_company.
  */
 export async function pushCompanyFor(env, userId) {
   const members =
@@ -102,6 +103,10 @@ export async function pushCompanyFor(env, userId) {
       select: 'id,status,used_at',
     })) || [];
   if (apps.some(isOpenApplication)) return { companyId: null };
+  // 작업자 — 업체 구성원이 아니라 업체 없는 기기로 작업자 알림(work_*)을 받는다 (0023)
+  const workers =
+    (await selectMany(env, 'workers', { user_id: `eq.${userId}`, status: 'in.(pending,approved,suspended)', select: 'id' })) || [];
+  if (workers.length) return { companyId: null };
   throw new ForbiddenError('업체 구성원만 알림을 받을 수 있습니다', 'no_company');
 }
 

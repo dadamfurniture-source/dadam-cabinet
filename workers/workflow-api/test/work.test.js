@@ -633,7 +633,7 @@ test('초대 링크 — 1회용 · 만료 410 · 없는 토큰 404 · 이미 작
 
 test('공개 신청 — pending 으로 등록, 두 번째는 409, 관리자 승인 뒤 신청 가능 · 잘못된 전이 409', async () => {
   const body = { display_name: '시험신청', phone: '010-0000-0009', kinds: ['install'], region_label: '시험시', consent_version: 'v1', photo_consent: false };
-  assert.equal((await call('POST', '/work/register', { token: 'tok-cust', body: { ...body, kinds: ['cutting'] } })).status, 422);
+  assert.equal((await call('POST', '/work/register', { token: 'tok-cust', body: { ...body, kinds: ['welding'] } })).status, 422, '모르는 종류 (재단 cutting · 엣지 edge 는 받는다)');
   assert.equal((await call('POST', '/work/register', { token: 'tok-cust', body: { ...body, consent_version: '' } })).status, 422);
   const r = await call('POST', '/work/register', { token: 'tok-cust', body });
   assert.equal(r.status, 201);
@@ -1004,7 +1004,7 @@ test('표가 아직 없으면 — 목록은 빈 결과, /work/me 는 { ready:fal
   for (const t of ['workers', 'worker_invites', 'worker_notes', 'work_jobs', 'work_applications', 'work_assignments', 'work_updates', 'work_job_events']) db.missing.add(t);
   const me = await call('GET', '/work/me', { token: 'tok-w1' });
   assert.equal(me.status, 200);
-  assert.deepEqual(me.data, { ready: false, worker: null, counts: { open: 0, mine: 0, revision: 0, newEvents: 0 }, next_job: null });
+  assert.deepEqual(me.data, { ready: false, worker: null, counts: { open: 0, mine: 0, revision: 0, newEvents: 0 }, next_job: null, factory: null });
   for (const tab of ['open', 'mine', 'done']) {
     const r = await call('GET', `/work/jobs?tab=${tab}`, { token: 'tok-w1' });
     assert.deepEqual([r.status, r.data.items], [200, []], tab);

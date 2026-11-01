@@ -153,6 +153,15 @@ import {
   removeAssignment,
 } from './work/assignments.js';
 import { addWorkerUpdate, addCompanyUpdate } from './work/updates.js';
+import {
+  getFactoryToday,
+  addFactoryWorklog,
+  markFactoryAssignmentDone,
+  linkFactoryAccount,
+  listFactoryWorkers,
+  assignFactoryWorker,
+  endFactoryWorker,
+} from './work/factory.js';
 import { acceptConsultation, listMyProjects } from './projects.js';
 import {
   consultInbox,
@@ -617,6 +626,12 @@ async function handleWorkerAssignmentDone(request, env, { params }) {
   const link = await workerFrom(request, env);
   const body = (await readJson(request)) || {};
   return jsonResponse(request, env, { success: true, data: await markAssignmentDone(env, { link, assignmentId: params.assignmentId, done: body.done !== false }) });
+}
+
+/** 「내 계정에 잇기」 — 로그인(JWT) + 이 기기의 생산 링크(X-Worker-Token) → 공장 배정 (work/factory.js) */
+async function handleFactoryLink(request, env, { user }) {
+  const data = await linkFactoryAccount(env, { user, token: request.headers.get('X-Worker-Token') || '' });
+  return jsonResponse(request, env, { success: true, data }, 201, NO_STORE);
 }
 
 async function handleMonthlySummary(request, env, { user }) {
@@ -1149,6 +1164,15 @@ const router = createRouter([
   { method: 'POST',  path: '/work/admin/workers/:id/notes',           auth: 'jwt', handler: workRoute(addWorkerNote, 201) },
   { method: 'GET',   path: '/work/admin/workers/:id/events',          auth: 'jwt', handler: workRoute(listWorkerEvents) },
   { method: 'POST',  path: '/work/admin/invites',                     auth: 'jwt', handler: workRoute(createInvite, 201) },
+
+  // 공장 작업자 — 작업자 계정으로 하는 공장 일 · 본사의 공장 배정 (src/work/factory.js, DB 0024)
+  { method: 'GET',   path: '/work/factory',                           auth: 'jwt', handler: workRoute(getFactoryToday) },
+  { method: 'POST',  path: '/work/factory/worklogs',                  auth: 'jwt', handler: workRoute(addFactoryWorklog, 201) },
+  { method: 'POST',  path: '/work/factory/assignments/:id/done',      auth: 'jwt', handler: workRoute(markFactoryAssignmentDone) },
+  { method: 'POST',  path: '/work/factory/link',                      auth: 'jwt', handler: handleFactoryLink },
+  { method: 'GET',   path: '/production/factory-workers',             auth: 'jwt', handler: workRoute(listFactoryWorkers) },
+  { method: 'POST',  path: '/production/factory-workers',             auth: 'jwt', handler: workRoute(assignFactoryWorker, 201) },
+  { method: 'POST',  path: '/production/factory-workers/:id/end',     auth: 'jwt', handler: workRoute(endFactoryWorker) },
 
   { method: 'GET',  path: '/public/production/today',                          auth: 'none', handler: handleWorkerToday },
   { method: 'POST', path: '/public/production/worklogs',                       auth: 'none', handler: handleWorkerLog },

@@ -2,6 +2,7 @@
  * 작업자 링크 · 실측 기록 · 보정.
  *
  * 작업자는 계정이 없다. 대표가 만든 링크의 토큰(X-Worker-Token)이 곧 권한이다.
+ * 계정이 있는 공장 작업자는 공장 배정으로 같은 일을 한다 (work/factory.js) — 링크는 「내 계정에 잇기」로 옮긴다.
  * 토큰은 발급 응답에서 1회만 평문으로 주고 DB 에는 해시만 둔다 (고객 공유 링크와 같은 방식).
  * 링크로 할 수 있는 일은 좁게 둔다: 오늘 할 일 보기, 실측 기록 남기기, 내 지시 완료 체크.
  * 링크를 만드는 사람은 본사 대표 · 실장 · 관리자뿐이다 (본사 원가 설정을 다루는 사람과 같다 — 생산 계획이 본사 일).
@@ -83,7 +84,12 @@ export async function resolveWorker(env, token) {
   if (!token || token.length < 20 || token.length > 100) throw new AuthError('작업자 링크가 올바르지 않습니다');
   const link = await selectOne(env, 'production_worker_links', { token_hash: `eq.${await hashWorkerToken(env, token)}`, select: '*' });
   if (!link) throw new AuthError('작업자 링크가 올바르지 않습니다');
-  if (link.revoked_at) throw new AuthError('끊긴 링크입니다. 대표에게 새 링크를 받으세요');
+  if (link.revoked_at) {
+    // 「내 계정에 잇기」로 끊긴 링크는 작업자 계정으로 하라고 알린다 (work/factory.js)
+    const linked = await selectOne(env, 'factory_workers', { link_id: `eq.${link.id}`, select: 'id' });
+    if (linked) throw new AuthError('이 링크는 작업자 계정에 이어졌습니다. 작업자 포털에 로그인해 「공장」에서 해 주세요');
+    throw new AuthError('끊긴 링크입니다. 대표에게 새 링크를 받으세요');
+  }
   if (new Date(link.expires_at) < new Date()) throw new AuthError('만료된 링크입니다. 대표에게 새 링크를 받으세요');
   return link;
 }
@@ -187,8 +193,11 @@ export async function worklogCompanyOf(env, { link, orderId }) {
   return membership ? membership.company_id : hqCompanyId(env);
 }
 
-/** 실측 기록의 주문 — 링크 주인이 만든 본사 설계의 본사 수주만 (생산 계획 · 오늘 할 일과 같은 범위). 아니면 422 */
-async function assertOwnHqOrder(env, link, orderId) {
+/**
+ * 실측 기록의 주문 — 링크 주인이 만든 본사 설계의 본사 수주만 (생산 계획 · 오늘 할 일과 같은 범위). 아니면 422.
+ * link = 계획 주인 { user_id } (공장 배정의 plan_user_id 도 같은 뜻 — work/factory.js)
+ */
+export async function assertOwnHqOrder(env, link, orderId) {
   const hq = await hqCompanyId(env);
   const order = await selectOne(env, 'orders', { id: `eq.${orderId}`, company_id: `eq.${hq}`, select: 'id,design_id' });
   const design = order && order.design_id
