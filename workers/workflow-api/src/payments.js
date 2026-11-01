@@ -8,6 +8,8 @@
  *   지급 예정  실적 원가 줄의 due_on — 낸 날(spent_on)이 비면 아직 안 낸 돈
  *   통장 잔액  현금흐름의 시작점 — 관리자가 적는다
  * 표는 database/management-phase2.sql 이 만든다.
+ * 온라인 결제(payments-api — 고객 결제창 · 가상계좌, DB 0025 payment_transactions)는 수금 줄마다 가장 최근 것을
+ * online 으로 붙인다 (ERP 가 「확인 필요」 · 「입금 대기」를 보인다). 결제창만 열고 닫은 것(ready · canceled)은 뺀다.
  */
 import { selectOne, selectMany, insertOne, updateById, restDelete, ValidationError, NotFoundError, ForbiddenError } from './supabase.js';
 import { loadOwnedOrder } from './orders.js';
@@ -59,14 +61,40 @@ export function receivedOf(payments) {
   return (payments || []).filter((p) => p.paid_on).reduce((s, p) => s + Number(p.amount || 0), 0);
 }
 
-/** 수주 상세용 — 표가 아직 없으면 null */
-export async function listPayments(env, orderId) {
+/** ERP 에 보이는 온라인 결제 상태 (ready · canceled 는 뺀다) */
+export const ERP_PAY_STATUSES = Object.freeze(['waiting_deposit', 'paid', 'check_needed', 'expired', 'failed']);
+
+/** 수주 상세용 — 표가 아직 없으면 null. online 이면 수금 줄마다 가장 최근 온라인 결제를 붙인다 */
+export async function listPayments(env, orderId, { online = false } = {}) {
+  let rows;
   try {
-    return (await selectMany(env, 'order_payments', { order_id: `eq.${orderId}`, select: '*', order: 'due_on.asc.nullslast,created_at.asc', limit: '100' })) || [];
+    rows = (await selectMany(env, 'order_payments', { order_id: `eq.${orderId}`, select: '*', order: 'due_on.asc.nullslast,created_at.asc', limit: '100' })) || [];
   } catch (e) {
     if (isMissingRelation(e)) return null;
     throw e;
   }
+  if (!online || !rows.length) return rows;
+  let txs = [];
+  try {
+    txs = (await selectMany(env, 'payment_transactions', {
+      order_id: `eq.${orderId}`,
+      status: `in.(${ERP_PAY_STATUSES.join(',')})`,
+      select: 'payment_id,status,method,amount_requested,amount_received,virtual_account,status_note,paid_at,created_at',
+      order: 'created_at.desc',
+      limit: '200',
+    })) || [];
+  } catch (e) {
+    if (!isMissingRelation(e)) throw e;
+  }
+  const latest = new Map();
+  for (const t of txs) if (t.payment_id && !latest.has(t.payment_id)) latest.set(t.payment_id, t);
+  return rows.map((p) => {
+    const t = latest.get(p.id);
+    if (!t) return { ...p, online: null };
+    const online = { ...t };
+    delete online.payment_id;
+    return { ...p, online };
+  });
 }
 
 /** 일정이 있는 수주는 수금액을 받은 합으로 맞춘다 (화면의 수금 · 미수가 일정과 어긋나지 않게) */

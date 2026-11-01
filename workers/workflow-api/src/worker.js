@@ -673,7 +673,7 @@ async function handleGetOrder(request, env, { params, user }) {
   // 설치 후 한 문항 — 같은 방식으로 표가 없으면 null
   data.feedback = await getFeedback(env, params.orderId);
   // 수금 일정 — 표가 없으면 null
-  if (money) data.payments = await listPayments(env, params.orderId);
+  if (money) data.payments = await listPayments(env, params.orderId, { online: true });
   return jsonResponse(request, env, { success: true, data });
 }
 

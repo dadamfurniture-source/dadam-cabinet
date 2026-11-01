@@ -11,7 +11,9 @@
  *   POST /charge                 — 예전 경로. /subscription/retry 와 같다
  *   POST /cancel                 — 구독 취소 (인증)
  *   POST /admin/refund           — 결제 1건 환불 (관리자, is_admin())
- *   POST /webhook                — Toss 웹훅 (공개, 결제 조회 API 로 재확인)
+ *   POST /order-payments/checkout — 수주 수금 일정 결제창 열기 (인증, 그 수주의 고객 본인 · 다담 공장 수주만 — src/order-pay.js)
+ *   POST /order-payments/confirm  — 결제창이 돌아오면 토스 승인 (인증)
+ *   POST /webhook                — Toss 웹훅 (공개, 결제 조회 API 로 재확인). 수주 결제는 PAYMENT_STATUS_CHANGED · DEPOSIT_CALLBACK
  *   업체 구독의 결제 · 카드 · 해지는 업체 대표(owner)만 한다.
  *
  * cron (wrangler.toml [triggers]) — 하루 한 번 src/lifecycle.js:
@@ -23,7 +25,21 @@
  */
 
 import { handleOptions, jsonResponse } from './cors.js';
-import { issueBillingKey, chargeBillingKey, cancelPayment, getPayment, TossError } from './toss.js';
+import {
+  issueBillingKey,
+  chargeBillingKey,
+  cancelPayment,
+  getPayment,
+  getPaymentByOrderId,
+  TossError,
+} from './toss.js';
+import {
+  startCheckout,
+  confirmCheckout,
+  applyOrderPaymentWebhook,
+  OrderPayError,
+  ORDER_PAY_PREFIX,
+} from './order-pay.js';
 import {
   AuthError,
   DbError,
@@ -876,6 +892,7 @@ async function handleWebhook(request, env) {
   }
 
   const eventType = payload.eventType;
+  if (eventType === 'DEPOSIT_CALLBACK') return handleDepositCallback(request, env, payload);
   if (eventType !== 'PAYMENT_STATUS_CHANGED') {
     console.log(`Toss webhook ignored: type=${String(eventType || '-').slice(0, 64)}`);
     return jsonResponse(request, env, { status: 'ignored' });
@@ -907,6 +924,10 @@ async function handleWebhook(request, env) {
     return jsonResponse(request, env, { status: 'unverified' }, 401);
   }
 
+  // 수주 결제면 결제 기록 · 수금 줄을 고친다 — 같은 상태가 다시 와도 그대로라, 기록(아래)보다 먼저 한다
+  // (반영이 실패하면 2xx 가 아니게 되어 토스가 다시 보낸다)
+  await applyOrderPaymentWebhook(env, payment);
+
   // 같은 결제의 같은 상태는 한 번만 남긴다. 조회한 값으로 만든다 (본문 값이 아니라).
   const eventId = `${payment.paymentKey}:${payment.status}:${payment.lastTransactionKey || '-'}`;
 
@@ -928,6 +949,51 @@ async function handleWebhook(request, env) {
   return jsonResponse(request, env, { status: 'ok' });
 }
 
+/**
+ * 가상계좌 입금 알림 (DEPOSIT_CALLBACK) — 본문에는 paymentKey 가 없다. orderId 로 결제 조회 API 를 다시 불러 그 값을 믿는다.
+ * 수주 결제가 아니면 넘긴다.
+ */
+async function handleDepositCallback(request, env, payload) {
+  const orderId = payload.orderId;
+  if (typeof orderId !== 'string' || !orderId.startsWith(ORDER_PAY_PREFIX) || orderId.length > 64) {
+    return jsonResponse(request, env, { status: 'ignored' });
+  }
+  let payment;
+  try {
+    payment = await getPaymentByOrderId(env, orderId);
+  } catch (e) {
+    if (e instanceof TossError && e.statusCode === 404) {
+      return jsonResponse(request, env, { status: 'unverified' }, 401);
+    }
+    throw e;
+  }
+  if (!payment || payment.orderId !== orderId) {
+    return jsonResponse(request, env, { status: 'unverified' }, 401);
+  }
+  const applied = await applyOrderPaymentWebhook(env, payment);
+  return jsonResponse(request, env, { status: applied ? 'ok' : 'ignored' });
+}
+
+// ===== 수주 결제 (src/order-pay.js) =====
+
+async function handleOrderCheckout(request, env) {
+  const user = await verifyJwt(request, env);
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, {
+    success: true,
+    data: await startCheckout(env, { user, body }),
+  });
+}
+
+async function handleOrderConfirm(request, env) {
+  const user = await verifyJwt(request, env);
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, {
+    success: true,
+    data: await confirmCheckout(env, { user, body }),
+  });
+}
+
 // ===== 라우터 =====
 
 const ROUTES = [
@@ -946,6 +1012,8 @@ const ROUTES = [
   { method: 'POST', path: '/charge', handler: handleRetry },
   { method: 'POST', path: '/cancel', handler: handleCancel },
   { method: 'POST', path: '/admin/refund', handler: handleAdminRefund },
+  { method: 'POST', path: '/order-payments/checkout', handler: handleOrderCheckout },
+  { method: 'POST', path: '/order-payments/confirm', handler: handleOrderConfirm },
   { method: 'POST', path: '/webhook', handler: handleWebhook },
 ];
 
@@ -968,6 +1036,14 @@ export default {
           env,
           { success: false, message: err.message },
           err.statusCode || 401
+        );
+      }
+      if (err instanceof OrderPayError) {
+        return jsonResponse(
+          request,
+          env,
+          { success: false, code: err.code, message: err.message, ...err.extra },
+          err.statusCode
         );
       }
       if (err instanceof RefundError) {
