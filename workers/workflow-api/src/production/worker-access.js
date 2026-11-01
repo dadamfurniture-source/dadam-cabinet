@@ -1,75 +1,50 @@
 /**
  * 작업자 링크 · 실측 기록 · 보정.
  *
- * 작업자는 계정이 없다. 대표가 만든 링크의 토큰(X-Worker-Token)이 곧 권한이다.
+ * 링크 작업자는 계정이 없다. 대표가 만든 링크의 토큰(X-Worker-Token)이 곧 권한이다.
  * 계정이 있는 공장 작업자는 공장 배정으로 같은 일을 한다 (work/factory.js) — 링크는 「내 계정에 잇기」로 옮긴다.
  * 토큰은 발급 응답에서 1회만 평문으로 주고 DB 에는 해시만 둔다 (고객 공유 링크와 같은 방식).
  * 링크로 할 수 있는 일은 좁게 둔다: 오늘 할 일 보기, 실측 기록 남기기, 내 지시 완료 체크.
- * 링크를 만드는 사람은 본사 대표 · 실장 · 관리자뿐이다 (본사 원가 설정을 다루는 사람과 같다 — 생산 계획이 본사 일).
+ * 새 링크는 더 만들지 않는다 (410 links_closed) — 작업자는 계정으로 일한다: 작업자 신청 → 승인 → 본사 공장 배정.
+ * 남은 링크는 만료 · 끊기 · 「내 계정에 잇기」 전까지 그대로 열린다.
  * 실측 기록에 적는 주문은 링크 주인의 본사 수주(생산 계획에 들어가는 범위, orders.js listOwnHqOrders)만 받는다.
  * 금액(일당·비용)은 작업자 화면에 내보내지 않는다. 고객은 가린 이름(홍*동)과 주문번호로만 (결정 ★15, redact.js).
  */
 
 import { pepperedHash } from '../util/hash.js';
-import { selectOne, selectMany, insertOne, updateById, hqCompanyId, activeMemberships, AuthError, ValidationError, NotFoundError, ForbiddenError } from '../supabase.js';
+import { selectOne, selectMany, insertOne, updateById, hqCompanyId, activeMemberships, AuthError, ValidationError, NotFoundError, GoneError } from '../supabase.js';
 import { computePlan, hqSettings, companySettings, assertSettingsEditor, writeCompanySettings, kstDate } from './service.js';
 import { calibrate, calibrationPatch } from './calibration.js';
 import { maskOrderLabel, workerAssignmentText } from './redact.js';
 
-const TOKEN_BYTES = 24;
-const MAX_LINK_DAYS = 365;
 const ROLES = ['cutter', 'edge', 'asm'];
 
-function toBase64Url(bytes) {
-  let bin = '';
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
 const hashWorkerToken = (env, token) => pepperedHash(env.SHARE_TOKEN_PEPPER, 'worker', token);
 
-/** 토큰은 fragment 에 싣는다 — 링크 미리보기·Referer·접속 로그로 새지 않게 (share.js 와 같은 이유). */
-function workerUrl(env, token) {
-  return `${String(env.PUBLIC_BASE_URL || '').replace(/\/+$/, '')}/production-worker.html#t=${token}`;
-}
-
 // ── 대표: 링크 관리 ──
-/** 링크를 만들 수 있는가 — 본사 대표 · 실장 · 관리자 (assertSettingsEditor 본사). 아니면 403 not_link_maker */
-async function assertLinkMaker(env, user) {
-  try {
-    await assertSettingsEditor(env, user, await hqCompanyId(env));
-  } catch (e) {
-    if (e instanceof ForbiddenError) {
-      throw new ForbiddenError('작업자 링크는 본사 대표 · 실장 · 관리자만 만듭니다', 'not_link_maker');
-    }
-    throw e;
-  }
+/** 새 링크는 만들지 않는다 — 옛 화면에서 눌러도 사유가 보이게 410 links_closed (아무것도 쓰지 않는다) */
+export async function createWorkerLink() {
+  throw new GoneError(
+    '새 작업자 링크는 만들지 않습니다. 작업자는 작업자 포털에서 신청 → 승인 뒤 「공장 배정」에서 배정해 주세요',
+    'links_closed'
+  );
 }
 
-export async function createWorkerLink(env, { user, body }) {
-  await assertLinkMaker(env, user);
-  const label = String((body && body.label) || '').trim();
-  if (!label || label.length > 50) throw new ValidationError('작업자 이름(1~50자)이 필요합니다');
-  const days = Math.min(MAX_LINK_DAYS, Math.max(1, Math.round(Number(body && body.days) || 90)));
-  const bytes = new Uint8Array(TOKEN_BYTES);
-  crypto.getRandomValues(bytes);
-  const token = toBase64Url(bytes);
-  const expires = new Date(Date.now() + days * 86400000).toISOString();
-  const row = await insertOne(env, 'production_worker_links', {
-    user_id: user.id,
-    label,
-    token_hash: await hashWorkerToken(env, token),
-    expires_at: expires,
-  });
-  return { id: row.id, label: row.label, expires_at: row.expires_at, url: workerUrl(env, token) };
-}
-
+/** 내가 만든 링크 — linked: 「내 계정에 잇기」로 끊긴 링크 (공장 배정 link_id) */
 export async function listWorkerLinks(env, { user }) {
-  return (await selectMany(env, 'production_worker_links', {
+  const links = (await selectMany(env, 'production_worker_links', {
     user_id: `eq.${user.id}`,
     select: 'id,label,expires_at,revoked_at,last_used_at,created_at',
     order: 'created_at.desc',
     limit: '100',
   })) || [];
+  if (!links.length) return links;
+  const rows = (await selectMany(env, 'factory_workers', {
+    link_id: `in.(${links.map((l) => l.id).join(',')})`,
+    select: 'link_id',
+  })) || [];
+  const linked = new Set(rows.map((r) => r.link_id));
+  return links.map((l) => ({ ...l, linked: linked.has(l.id) }));
 }
 
 export async function revokeWorkerLink(env, { user, linkId }) {
@@ -80,6 +55,8 @@ export async function revokeWorkerLink(env, { user, linkId }) {
 }
 
 // ── 작업자: 토큰 확인 ──
+/** 새 링크가 없으니 끊기거나 만료된 링크는 계정으로 안내한다 */
+const APPLY_HINT = '작업자 포털에서 작업자 신청을 해 주세요 — 승인되면 본사가 공장에 배정합니다';
 export async function resolveWorker(env, token) {
   if (!token || token.length < 20 || token.length > 100) throw new AuthError('작업자 링크가 올바르지 않습니다');
   const link = await selectOne(env, 'production_worker_links', { token_hash: `eq.${await hashWorkerToken(env, token)}`, select: '*' });
@@ -88,9 +65,9 @@ export async function resolveWorker(env, token) {
     // 「내 계정에 잇기」로 끊긴 링크는 작업자 계정으로 하라고 알린다 (work/factory.js)
     const linked = await selectOne(env, 'factory_workers', { link_id: `eq.${link.id}`, select: 'id' });
     if (linked) throw new AuthError('이 링크는 작업자 계정에 이어졌습니다. 작업자 포털에 로그인해 「공장」에서 해 주세요');
-    throw new AuthError('끊긴 링크입니다. 대표에게 새 링크를 받으세요');
+    throw new AuthError(`끊긴 링크입니다. ${APPLY_HINT}`);
   }
-  if (new Date(link.expires_at) < new Date()) throw new AuthError('만료된 링크입니다. 대표에게 새 링크를 받으세요');
+  if (new Date(link.expires_at) < new Date()) throw new AuthError(`만료된 링크입니다. ${APPLY_HINT}`);
   return link;
 }
 
