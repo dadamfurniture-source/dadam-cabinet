@@ -8,6 +8,7 @@
  *   데이터  workflow-api GET /company/projects (본인 토큰) → { company, can_manage, items }
  *   만들기  can_manage 일 때 「새 고객 · 프로젝트」 → POST /company/projects
  *           { title, customer: { name, phone } } | { title, customer_id }, 보내기 전 서버와 같은 검사
+ *   공유    목록의 design_sharing 상태, can_manage 일 때 「동의하고 켜기」 · 「끄기」 → PUT /company/design-sharing { shared }
  */
 const fs = require('fs');
 const path = require('path');
@@ -82,6 +83,12 @@ async function load(options = {}) {
     partner: partnerMe(),
     list: () => ok(projects()),
     create: () => ok({ project_id: P1, customer_id: C2 }, 201),
+    share: (body) =>
+      ok({
+        shared: body.shared,
+        shared_since: body.shared ? '2026-10-31T16:00:00Z' : null, // 한국 시간 11-01
+        changed_at: '2026-10-31T16:00:00Z',
+      }),
     workflowUrl: WORK,
     ...options,
   };
@@ -143,6 +150,7 @@ async function load(options = {}) {
     if (url === ACC + '/partner/me') return reply(opts.partner);
     if (url === WORK + '/company/projects')
       return reply(await ((init.method || 'GET') === 'POST' ? opts.create(body) : opts.list()));
+    if (url === WORK + '/company/design-sharing') return reply(await opts.share(body));
     if (url === PAY + '/subscription') return reply(ok({ plan: 'free', status: 'active' }));
     if (url === PAY + '/plans') return reply(ok({ client_key: 'k', plans: [] }));
     if (url === WORK + '/me/projects') return reply(fail(404, 'not_found', 'x'));
@@ -389,5 +397,82 @@ describe('새 고객 · 프로젝트', () => {
     expect(box().querySelector('input[name="name"]').value).toBe('박고객');
     box().querySelector('[data-act="close"]').click();
     expect(box().querySelector('form[data-form="project"]')).toBeNull();
+  });
+});
+
+describe('설계 학습 공유', () => {
+  const shareBox = () => box().querySelector('[data-share]');
+  const state = () => shareBox().querySelector('[data-share-state]').textContent;
+  const shareCalls = (calls) =>
+    calls.fetch.filter((f) => f.url === WORK + '/company/design-sharing');
+
+  test('상태 읽기 — 줄이 없거나 켜짐이 아니면 꺼짐', async () => {
+    await load();
+    const P = window.SeganPartnerProjects;
+    expect(P.sharingOf(undefined)).toEqual({ shared: false, since: null });
+    expect(P.sharingOf({ shared: 'true', shared_since: 'x' })).toEqual({
+      shared: false,
+      since: null,
+    });
+    expect(P.sharingOf({ shared: true, shared_since: '2026-10-31T16:00:00Z' })).toEqual({
+      shared: true,
+      since: '2026-10-31T16:00:00Z',
+    });
+    expect(P.listOf(ok(projects()).body).sharing).toEqual({ shared: false, since: null });
+  });
+
+  test('구성원(직원) — 상태와 넘어가는 것만, 단추 없이 「대표 · 실장이 바꿉니다」', async () => {
+    await load({
+      list: () =>
+        ok(
+          projects({
+            can_manage: false,
+            design_sharing: { shared: true, shared_since: '2026-10-31T16:00:00Z' },
+          })
+        ),
+    });
+    await flush();
+    expect(state()).toBe('켜짐 · 2026.11.01부터');
+    expect(shareBox().querySelector('[data-act^="share"]')).toBeNull();
+    const text = shareBox().textContent;
+    expect(text).toContain('모듈 구성(자리 폭 · 모듈 종류 등)');
+    expect(text).toContain(
+      '고객 이름 · 주소 · 전화, 설계 이름 · 메모, 사진, 가격, 어느 업체 설계인지는 넘어가지 않습니다'
+    );
+    expect(text).toContain('세 곳 이상의 업체');
+    expect(text).toContain('대표 · 실장이 바꿉니다.');
+  });
+
+  test('대표 — 「동의하고 켜기」 → 켜짐(켠 날) · 「끄기」 → 꺼짐, 보낸 본문 그대로', async () => {
+    const calls = await load();
+    await flush();
+    expect(state()).toBe('꺼짐');
+    shareBox().querySelector('[data-act="share-on"]').click();
+    await flush();
+    expect(state()).toBe('켜짐 · 2026.11.01부터');
+    expect(shareBox().querySelector('.me-pt-msg').textContent).toBe('설계 학습 공유를 켰습니다.');
+    expect(shareBox().querySelector('[data-act="share-on"]')).toBeNull();
+    shareBox().querySelector('[data-act="share-off"]').click();
+    await flush();
+    expect(state()).toBe('꺼짐');
+    expect(shareBox().querySelector('.me-pt-msg').textContent).toBe('설계 학습 공유를 껐습니다.');
+    expect(shareCalls(calls).map((c) => [c.method, c.body, c.auth])).toEqual([
+      ['PUT', { shared: true }, 'Bearer tok-1'],
+      ['PUT', { shared: false }, 'Bearer tok-1'],
+    ]);
+  });
+
+  test('서버가 못 바꾸면 서버 글을 그 자리에 · 상태 그대로 · 열린 새 프로젝트 칸의 적던 값은 남는다', async () => {
+    await load({ share: () => fail(403, 'not_manager', '업체 대표 · 실장만 할 수 있습니다') });
+    await flush();
+    box().querySelector('[data-act="open"]').click();
+    setValue('input[name="title"]', '거실장');
+    shareBox().querySelector('[data-act="share-on"]').click();
+    await flush();
+    expect(shareBox().querySelector('[data-share-err]').textContent).toBe(
+      '업체 대표 · 실장만 할 수 있습니다'
+    );
+    expect(state()).toBe('꺼짐');
+    expect(box().querySelector('input[name="title"]').value).toBe('거실장');
   });
 });

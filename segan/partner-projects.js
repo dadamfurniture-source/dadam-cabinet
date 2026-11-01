@@ -11,8 +11,11 @@
                                           customer { id, name, phone } | null, design_count }] }
                POST /company/projects   { title, customer: { name, phone } } | { title, customer_id }
                                         → 201 { project_id, customer_id }
+               PUT  /company/design-sharing  { shared } → { shared, shared_since, changed_at } (대표 · 실장)
+                                        목록의 design_sharing { shared, shared_since } 가 지금 상태 (없으면 꺼짐)
    화면      프로젝트 한 줄마다 이름 · 상태(진행 중은 적지 않는다) · 고객 이름 · 전화 · 만든 날 · 이어진 설계 수
              새 고객 · 프로젝트 — 프로젝트 이름 + 「새 고객」(이름 · 전화) 또는 「있는 고객」(목록에 나온 고객 중 고르기)
+             설계 학습 공유 — 켜짐(켠 날) · 꺼짐과 무엇이 넘어가는지. 대표 · 실장은 「동의하고 켜기」 · 「끄기」, 구성원은 보기만
    이름      상태 = segan/me.js PROJECT_STATUS 와 같다 (active 는 적지 않는다)
    못 읽으면  처음(403 · 404 · 오류 · 끊김 · 모양이 틀림) → 칸째 감춘다. 만들기를 못 하면 서버 글을 그 자리에.
    ============================================================ */
@@ -38,6 +41,16 @@
     phoneBad: '전화는 숫자와 - 로 8~20자로 적어 주세요.',
     pickCustomer: '고객을 골라 주세요.',
     created: '프로젝트를 만들었습니다.',
+    shareTitle: '설계 학습 공유',
+    shareLead:
+      '켜면 우리 업체가 프로젝트에 저장한 설계의 모듈 구성(자리 폭 · 모듈 종류 등)이 다른 업체 설계 제안의 재료가 됩니다.',
+    shareKeep:
+      '고객 이름 · 주소 · 전화, 설계 이름 · 메모, 사진, 가격, 어느 업체 설계인지는 넘어가지 않습니다. 세 곳 이상의 업체에서 나온 구성만 제안에 뜹니다.',
+    shareOwn:
+      '꺼도 우리 설계로 우리 제안은 받습니다. 끄면 그 뒤로는 다른 업체 제안에 쓰지 않습니다.',
+    shareWho: '대표 · 실장이 바꿉니다.',
+    shareOn: '설계 학습 공유를 켰습니다.',
+    shareOff: '설계 학습 공유를 껐습니다.',
     generic: '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
   };
 
@@ -46,12 +59,15 @@
     session: null,
     base: '', // workflow-api
     me: null,
-    data: null, // { company, can_manage, items }
+    data: null, // { company, manage, sharing, items }
     open: false, // 새 고객 · 프로젝트 칸
     mode: 'new', // new | existing
     err: '',
     msg: '',
     busy: false,
+    shareErr: '',
+    shareMsg: '',
+    shareBusy: false,
   };
 
   var $ = function (id) {
@@ -100,13 +116,21 @@
     );
   }
 
-  /** GET /company/projects 본문 → { company, manage, items } | null (id 가 uuid 인 프로젝트만) */
+  /** 설계 학습 공유 { shared, shared_since } → { shared, since } (켜짐이 아니면 꺼짐) */
+  function sharingOf(s) {
+    return s && typeof s === 'object' && s.shared === true
+      ? { shared: true, since: typeof s.shared_since === 'string' ? s.shared_since : null }
+      : { shared: false, since: null };
+  }
+
+  /** GET /company/projects 본문 → { company, manage, sharing, items } | null (id 가 uuid 인 프로젝트만) */
   function listOf(body) {
     var d = body && body.success === true ? body.data : null;
     if (!d || typeof d !== 'object' || Array.isArray(d) || !Array.isArray(d.items)) return null;
     return {
       company: d.company && typeof d.company === 'object' ? d.company : null,
       manage: d.can_manage === true,
+      sharing: sharingOf(d.design_sharing),
       items: d.items.filter(function (p) {
         return p && typeof p === 'object' && UUID_RE.test(String(p.id || ''));
       }),
@@ -227,6 +251,46 @@
     );
   }
 
+  function shareHtml(d) {
+    var s = d.sharing;
+    var state = s.shared ? '켜짐' + (s.since ? ' · ' + kstDay(s.since) + '부터' : '') : '꺼짐';
+    return (
+      '<div class="me-pt-box" data-share>' +
+      '<p class="me-pt-line"><b class="me-pt-title">' +
+      esc(TEXT.shareTitle) +
+      '</b><span class="me-pr-status" data-share-state>' +
+      esc(state) +
+      '</span></p>' +
+      '<p class="me-pt-info">' +
+      esc(TEXT.shareLead) +
+      '</p>' +
+      '<p class="me-pt-how">' +
+      esc(TEXT.shareKeep) +
+      '</p>' +
+      '<p class="me-pt-how">' +
+      esc(TEXT.shareOwn) +
+      '</p>' +
+      (J.shareMsg ? '<p class="me-pt-msg" role="status">' + esc(J.shareMsg) + '</p>' : '') +
+      '<p class="mk-error" data-share-err role="alert"' +
+      (J.shareErr ? '' : ' hidden') +
+      '>' +
+      esc(J.shareErr) +
+      '</p>' +
+      (d.manage
+        ? '<div class="rd-acts"><button type="button" class="mk-btn' +
+          (s.shared ? '' : ' mk-btn--solid') +
+          '" data-act="' +
+          (s.shared ? 'share-off' : 'share-on') +
+          '"' +
+          (J.shareBusy ? ' disabled' : '') +
+          '>' +
+          (s.shared ? '끄기' : '동의하고 켜기') +
+          '</button></div>'
+        : '<p class="me-pt-how">' + esc(TEXT.shareWho) + '</p>') +
+      '</div>'
+    );
+  }
+
   function render() {
     var box = $('partnerProjects');
     if (!box) return;
@@ -245,7 +309,8 @@
         ? J.open
           ? formHtml(customersOf(items))
           : '<div class="rd-acts"><button type="button" class="mk-btn" data-act="open">새 고객 · 프로젝트</button></div>'
-        : '');
+        : '') +
+      shareHtml(d);
     box.hidden = false;
   }
 
@@ -334,6 +399,14 @@
     });
   }
 
+  /** 다시 그리기 — 열린 새 고객 · 프로젝트 칸의 적던 값을 남긴다 */
+  function rerender() {
+    var form = formOf();
+    var v = form ? valuesOf(form) : null;
+    render();
+    restore(v);
+  }
+
   function focusField(field) {
     var form = formOf();
     var el = form && form.querySelector('[name="' + field + '"]');
@@ -374,10 +447,33 @@
     render();
   }
 
+  /** PUT /company/design-sharing — 켜기 · 끄기 */
+  async function setSharing(on) {
+    J.shareBusy = true;
+    J.shareErr = '';
+    J.shareMsg = '';
+    rerender();
+    var r = await call('PUT', '/company/design-sharing', { shared: on });
+    J.shareBusy = false;
+    var d = r.ok ? r.body.data : null;
+    if (!d || typeof d !== 'object' || typeof d.shared !== 'boolean') {
+      J.shareErr = errText(r);
+      rerender();
+      return;
+    }
+    J.data.sharing = sharingOf(d);
+    J.shareMsg = d.shared ? TEXT.shareOn : TEXT.shareOff;
+    rerender();
+  }
+
   function onClick(e) {
     var el = e.target.closest ? e.target.closest('[data-act]') : null;
-    if (!el || el.disabled || J.busy) return;
+    if (!el || el.disabled || J.busy || J.shareBusy) return;
     var act = el.getAttribute('data-act');
+    if (act === 'share-on' || act === 'share-off') {
+      setSharing(act === 'share-on');
+      return;
+    }
     if (act === 'open') {
       J.open = true;
       J.mode = 'new';
@@ -429,6 +525,9 @@
     J.err = '';
     J.msg = '';
     J.busy = false;
+    J.shareErr = '';
+    J.shareMsg = '';
+    J.shareBusy = false;
     if (!J.base || !session || !canSee(me)) return;
     try {
       var list = await fetchList();
@@ -455,6 +554,7 @@
     PHONE_RE: PHONE_RE,
     state: J,
     canSee: canSee,
+    sharingOf: sharingOf,
     listOf: listOf,
     customersOf: customersOf,
     bodyOf: bodyOf,
