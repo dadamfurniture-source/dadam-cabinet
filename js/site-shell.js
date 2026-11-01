@@ -23,16 +23,16 @@
 
   // ── 정본 ─────────────────────────────────────────────
   // 링크를 한 곳에만 적는다. 페이지마다 적으면 또 어긋난다.
+  // 메인 · 시공사례 · 내 정보 · 내 연출컷은 SEGAN 앱(segan/)이다. 옛 주소는 앱으로 넘어가므로
+  // 바로 앱 주소를 적는다(확장자 없이 — 호스팅이 .html 을 308 넘긴다). Material 은 없앴다.
   var NAV = [
-    { key: 'ai', label: 'AI DESIGN', href: 'ai-design.html' },
-    { key: 'collection', label: 'COLLECTION', href: 'collection.html' },
-    { key: 'material', label: 'MATERIAL', href: 'material.html' },
+    { key: 'ai', label: 'AI DESIGN', href: 'segan/' },
+    { key: 'collection', label: 'COLLECTION', href: 'segan/collection' },
   ];
 
   var FOOT_MENU = [
-    { label: 'AI Design', href: 'ai-design.html' },
-    { label: 'Collection', href: 'collection.html' },
-    { label: 'Material', href: 'material.html' },
+    { label: 'AI Design', href: 'segan/' },
+    { label: 'Collection', href: 'segan/collection' },
   ];
 
   // TODO(콘텐츠): FAQ · terms.html · privacy.html 이 아직 없다.
@@ -50,8 +50,8 @@
   // '구독 관리'는 전에 /account/billing(Next.js 라우트)이라 뺐었다.
   // 지금은 정적 billing.html 이 있어 되돌렸다.
   var ACCOUNT_MENU = [
-    { label: '마이페이지', href: 'mypage.html' },
-    { label: '내 연출컷', href: 'my-designs.html' },
+    { label: '내 정보', href: 'segan/me' },
+    { label: '내 연출컷', href: 'segan/renders' },
     { label: '구독 관리', href: 'billing.html' },
     { label: '관리자 페이지', href: 'admin/index.html', id: 'navAdminLink', hidden: true },
   ];
@@ -103,7 +103,7 @@
 
     return (
       '<header class="v5-header">' +
-      '<a class="v5-mark" href="ai-design.html" aria-label="다담가구 홈">' +
+      '<a class="v5-mark" href="segan/" aria-label="다담가구 홈">' +
       '<span class="v5-mark-ko">다담</span>' +
       '<span class="v5-mark-rule" aria-hidden="true"></span>' +
       '<span class="v5-mark-en">FURNITURE</span>' +

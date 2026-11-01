@@ -456,9 +456,12 @@ describe('사업자 정보 — 사이트 푸터(js/site-shell.js)와 같다', ()
 describe('숨김 · 접근성 · 안전 영역', () => {
   const PAGES = fs.readdirSync(path.join(ROOT, 'segan')).filter((n) => n.endsWith('.html'));
 
-  test.each(PAGES)('%s — noindex,nofollow · 매니페스트 · 아이콘', (page) => {
+  test.each(PAGES)('%s — 검색(공개 화면만) · 매니페스트 · 아이콘', (page) => {
     const html = read(`segan/${page}`);
-    expect(html).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
+    // 공개 화면(만들기 · 시공사례 · 상담 신청)은 검색에 보인다. 나머지는 로그인 뒤 화면이라 숨긴다
+    if (['index.html', 'collection.html', 'consult.html'].includes(page))
+      expect(html).not.toMatch(/<meta name="robots"/);
+    else expect(html).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
     expect(html).toMatch(/rel="manifest"/);
     expect(html).toMatch(/rel="apple-touch-icon"/);
   });

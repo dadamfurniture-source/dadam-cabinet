@@ -295,8 +295,9 @@ describe('segan/work.html — 머리 · 신청서', () => {
       .replace('<h1 class="sg-h1">작업</h1>', '<h1>다담 작업자</h1>')
       .replace('href="../login.html?redirect=segan%2Fwork.html"', 'href="login.html?redirect=worker.html"');
     expect(app).toBe(norm(OLD.slice(oldStart, oldEnd)));
-    // 사이트 쪽 worker.html 은 앱을 가리키지 않는다 (숨김)
-    expect(OLD).not.toMatch(/segan\//i);
+    // 사이트 쪽 worker.html 은 <head> 맨 앞의 넘기기(to-segan)로만 앱을 가리킨다
+    const rest = OLD.replace(/<!-- 이 주소는 SEGAN 앱[\s\S]*?<\/script>/, '');
+    expect(rest).not.toMatch(/segan\//i);
   });
 
   test('신청서 — 수집 항목 · 목적 · 주민번호/계좌 안내 · 사진 동의 따로, 받지 않는 칸 없음', () => {

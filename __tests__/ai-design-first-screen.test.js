@@ -97,9 +97,9 @@ describe('마퀴 — 문서에 바로 적은 타일, 첫 타일을 먼저 받는
     expect(preload).not.toBeNull();
     expect(rule('mq-1')).toContain(`url(${preload[1]}) type('image/avif')`);
     expect(tiles[0]).toBe('mq-1');
-    // 프리로드는 스타일시트·스크립트보다 앞에 둔다
+    // 프리로드는 스타일시트·스크립트보다 앞에 둔다 (앱으로 넘기는 맨 앞 스크립트 to-segan 빼고)
     expect(HEAD.indexOf(preload[0])).toBeLessThan(HEAD.indexOf('<link rel="stylesheet"'));
-    expect(HEAD.indexOf(preload[0])).toBeLessThan(HEAD.indexOf('<script'));
+    expect(HEAD.indexOf(preload[0])).toBeLessThan(HEAD.search(/<script(?! id="to-segan")/));
   });
 
   test('타일 크기는 공용 CSS 가 고정한다 — 사진이 늦게 와도 띠 높이가 변하지 않는다', () => {

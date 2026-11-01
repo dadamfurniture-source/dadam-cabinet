@@ -1,12 +1,14 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /* global require, describe, test, expect, __dirname, process, Buffer */
 /**
- * SEGAN 앱 설치 기본 (segan/) — 매니페스트 · 아이콘 · 숨김(noindex) · 서비스 워커 범위.
+ * SEGAN 앱 설치 기본 (segan/) — 매니페스트 · 아이콘 · 검색 · 서비스 워커 범위 · 옛 주소 넘김.
  *
  *   - 매니페스트 값과 아이콘 파일 (크기 · 마스커블 안전 영역 · 가운데 S)
- *   - segan 페이지는 모두 noindex · 매니페스트 · 아이콘을 갖고, 로컬 참조 파일이 다 있다
+ *   - segan 페이지는 매니페스트 · 아이콘을 갖고, 로컬 참조 파일이 다 있다.
+ *     만들기 · 시공사례 · 상담 신청만 검색에 보이고, 나머지는 noindex
  *   - 서비스 워커는 segan/shell.js 가 /segan/ 범위로만 등록한다. 기존 사이트는 등록하지 않는다
- *   - 기존 사이트 어디에서도 segan/ 을 링크하지 않는다
+ *   - 옛 주소(메인 · 시공사례 · 자재 · 상담 · 협력업체 연결 · 내 연출컷 · 마이페이지 · 요금제 · 작업자 포털)는
+ *     <head> 맨 앞에서 앱으로 넘긴다. 사이트에서 segan/ 을 가리키는 곳은 그 페이지들 · 첫 화면 · 사이트 셸뿐
  *   - 아이콘 · 워드마크 파일이 scripts/segan-icons.mjs 출력과 같다 (다시 만들면 같은 그림)
  */
 const fs = require('fs');
@@ -23,6 +25,7 @@ const SEGAN_PAGES = fs
   .readdirSync(SEGAN)
   .filter((n) => n.endsWith('.html'))
   .map((n) => `segan/${n}`);
+const SEGAN_PUBLIC = ['segan/index.html', 'segan/collection.html', 'segan/consult.html'];
 const SITE_PAGES = ['.', 'admin'].flatMap((dir) =>
   fs
     .readdirSync(path.join(ROOT, dir))
@@ -242,14 +245,16 @@ describe('segan/icons — 네이비 타일 가운데 S', () => {
   });
 });
 
-describe('segan 페이지 — 숨김 · 설치 정보', () => {
+describe('segan 페이지 — 검색 · 설치 정보', () => {
   test('페이지 목록 (index · offline)', () => {
     expect(SEGAN_PAGES).toEqual(expect.arrayContaining(['segan/index.html', 'segan/offline.html']));
   });
 
-  test.each(SEGAN_PAGES)('%s — noindex,nofollow · 매니페스트 · theme-color · 아이콘', (page) => {
+  test.each(SEGAN_PAGES)('%s — 검색(공개 화면만) · 매니페스트 · theme-color · 아이콘', (page) => {
     const html = read(page);
-    expect(html).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
+    // 공개 화면(만들기 · 시공사례 · 상담 신청)은 검색에 보인다. 나머지는 로그인 뒤 화면이라 숨긴다
+    if (SEGAN_PUBLIC.includes(page)) expect(html).not.toMatch(/<meta name="robots"/);
+    else expect(html).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
     expect(html).toMatch(/<link rel="manifest" href="(?:\/segan\/)?manifest\.webmanifest" \/>/);
     expect(html).toMatch(/<meta name="theme-color" content="#F6F3EE" \/>/);
     expect(html).toMatch(
@@ -296,15 +301,58 @@ describe('서비스 워커 범위', () => {
   });
 });
 
-describe('숨김 — 기존 사이트에서 segan 으로 가는 길이 없다', () => {
-  test('루트 · admin 페이지와 js/ 가 segan/ 을 가리키지 않는다', () => {
-    const offenders = [...SITE_PAGES, ...SITE_SCRIPTS].filter((f) => /segan\//i.test(read(f)));
-    expect(offenders).toEqual([]);
+describe('공개 — 옛 주소는 앱으로 간다', () => {
+  // [옛 페이지, 앱 주소(확장자 없이 — 호스팅이 .html 을 308 넘긴다), 뒤에 붙이는 것]
+  const MOVED = [
+    ['ai-design.html', 'segan/', 'location.hash'],
+    ['collection.html', 'segan/collection', 'location.hash'],
+    ['material.html', 'segan/collection', 'location.hash'],
+    ['consultation.html', 'segan/consult', 'location.hash'],
+    ['partner-recommendation.html', 'segan/consult', 'location.hash'],
+    ['my-designs.html', 'segan/renders', 'location.hash'],
+    ['mypage.html', 'segan/me', 'location.hash'],
+    ['pricing.html', 'segan/me', "'#partner'"],
+    ['worker.html', 'segan/work', 'location.hash'],
+  ];
+  const headOf = (html) => html.slice(0, html.indexOf('</head>'));
+
+  test.each(MOVED)('%s → %s — <head> 의 어떤 스크립트 · 스타일시트보다 먼저 넘긴다', (page, to, tail) => {
+    const head = headOf(read(page));
+    const go = `<script id="to-segan">\n      location.replace('${to}' + location.search + ${tail});\n    </script>`;
+    expect(head.replace(/\r\n/g, '\n')).toContain(go);
+    const at = head.indexOf('<script id="to-segan">');
+    expect(at).toBe(head.indexOf('<script'));
+    if (head.includes('<link rel="stylesheet"')) expect(at).toBeLessThan(head.indexOf('<link rel="stylesheet"'));
+    // 스크립트가 꺼져 있어도 넘어간다
+    const hash = tail === "'#partner'" ? '#partner' : '';
+    expect(head).toContain(`<meta http-equiv="refresh" content="0; url=${to}${hash}" />`);
   });
 
-  test('robots.txt · 사이트맵에 segan 이 없다', () => {
+  test.each(MOVED.filter(([page]) => page !== 'worker.html'))('%s — canonical 은 앱 주소', (page, to) => {
+    const head = headOf(read(page));
+    expect(head.match(/<link rel="canonical"[^>]*>/g)).toEqual([`<link rel="canonical" href="https://dadamfurniture.com/${to}" />`]);
+  });
+
+  test('작업자 포털 — 작업 초대 링크(#invite=)를 그대로 가져가고, 검색에는 계속 안 보인다', () => {
+    const head = headOf(read('worker.html'));
+    expect(head).toContain("location.replace('segan/work' + location.search + location.hash)");
+    expect(head).toMatch(/<meta name="robots" content="noindex, nofollow, noarchive" \/>/);
+    expect(head).not.toMatch(/rel="canonical"/);
+  });
+
+  test('첫 화면은 앱 「만들기」로', () => {
+    expect(read('index.html')).toContain("location.replace('segan/' + location.search + location.hash)");
+  });
+
+  test('사이트에서 segan/ 을 가리키는 곳은 넘기는 페이지 · 첫 화면 · 사이트 셸뿐', () => {
+    const allowed = new Set([...MOVED.map(([page]) => page), 'index.html', 'js/site-shell.js']);
+    const others = [...SITE_PAGES, ...SITE_SCRIPTS].filter((f) => !allowed.has(f) && /segan\//i.test(read(f)));
+    expect(others).toEqual([]);
+  });
+
+  test('robots.txt · 사이트맵이 segan 을 막지 않는다', () => {
     const files = ['robots.txt', 'sitemap.xml'].filter((f) => fs.existsSync(path.join(ROOT, f)));
-    for (const f of files) expect(read(f)).not.toMatch(/segan/i);
+    for (const f of files) expect(read(f)).not.toMatch(/Disallow:\s*\/segan/i);
   });
 });
 
