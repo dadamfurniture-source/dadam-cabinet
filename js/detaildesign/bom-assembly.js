@@ -258,25 +258,27 @@
       const d = b.dims, t = row.thickness;
       const sakuri = skOf(b);
       const tag = { box: boxes.indexOf(b) };
+      // 박스 가로 가운데 — 보통 0 (x0 = −외경/2). 외짝 속서랍은 몰딩 없는 쪽으로 비킨 모듈 가운데 (2026-11-01 placeInnerDrawer mx)
+      const cx = b.x0 + d.outerW / 2;
       // 우라 밑면 높이 — 일반은 박스 바닥 바로 아래, 사쿠리는 측판 홈 속
       const yBottom = sakuri ? b.y0 + DR.BOX_SAKURI_GROOVE_Y : b.y0 - bottomT;
       if (key.family === 'drawerbox:side') {
         // 왼 · 오 — 서서 앞뒤로 (u = 뒤→앞). 사쿠리면 안쪽 면에 우라 홈 (깊이 10, D5)
         const feats = sakuri ? [{ type: 'groove', face: 'inner', u0: 0, u1: d.sideL, v0: DR.BOX_SAKURI_GROOVE_Y, v1: DR.BOX_SAKURI_GROOVE_Y + bottomT, depth: DR.BOX_SAKURI_GROOVE_DEPTH, src: 'drawer-sakuri' }] : [];
         parts.push(makePart(row, k++, { o: [b.x0, b.y0, b.z0], u: '+z', v: '+y', n: '+x' }, feats, 'interior', Object.assign({ side: 'left' }, tag)));
-        parts.push(makePart(row, k++, { o: [-b.x0, b.y0, b.z0], u: '+z', v: '+y', n: '-x' }, feats, 'interior', Object.assign({ side: 'right' }, tag)));
+        parts.push(makePart(row, k++, { o: [2 * cx - b.x0, b.y0, b.z0], u: '+z', v: '+y', n: '-x' }, feats, 'interior', Object.assign({ side: 'right' }, tag)));
       } else if (key.family === 'drawerbox:fb') {
         // 앞 · 뒤 — 측판 사이, 윗단은 측판 윗단 (사쿠리면 측판 − 18 높이라 우라 위에 선다)
         const yfb = b.y0 + d.sideH - d.fbH;
-        parts.push(makePart(row, k++, { o: [-d.fbW / 2, yfb, b.zf - t], u: '+x', v: '+y', n: '+z' }, [], 'interior', Object.assign({ end: 'front' }, tag)));
-        parts.push(makePart(row, k++, { o: [-d.fbW / 2, yfb, b.z0], u: '+x', v: '+y', n: '+z' }, [], 'interior', Object.assign({ end: 'back' }, tag)));
+        parts.push(makePart(row, k++, { o: [cx - d.fbW / 2, yfb, b.zf - t], u: '+x', v: '+y', n: '+z' }, [], 'interior', Object.assign({ end: 'front' }, tag)));
+        parts.push(makePart(row, k++, { o: [cx - d.fbW / 2, yfb, b.z0], u: '+x', v: '+y', n: '+z' }, [], 'interior', Object.assign({ end: 'back' }, tag)));
       } else if (key.family === 'drawerbox:bottom') {
         // 가운데. 일반은 밑면에 덮어 붙이고, 사쿠리는 양쪽 측판 홈에 끼운다
-        parts.push(makePart(row, k++, { o: [-row.w / 2, yBottom, (b.z0 + b.zf) / 2 - row.h / 2], u: '+x', v: '+z', n: '+y' }, [], 'interior',
+        parts.push(makePart(row, k++, { o: [cx - row.w / 2, yBottom, (b.z0 + b.zf) / 2 - row.h / 2], u: '+x', v: '+z', n: '+y' }, [], 'interior',
           Object.assign(sakuri ? { mount: 'groove' } : {}, tag)));
       } else {
         // 하단보강 — 밑판 아래 폭 가운데, 앞뒤로 눕힘 (u = 앞뒤 길이, v = 폭 60)
-        parts.push(makePart(row, k++, { o: [-row.h / 2, yBottom - t, b.z0], u: '+z', v: '+x', n: '+y' }, [], 'interior', tag));
+        parts.push(makePart(row, k++, { o: [cx - row.h / 2, yBottom - t, b.z0], u: '+z', v: '+x', n: '+y' }, [], 'interior', tag));
       }
     });
     return true;
@@ -408,7 +410,7 @@
     const frontsOf = (kind) => (layout ? layout.fronts.filter((f) => f.kind === kind && f.h >= DR.MIN_FRONT_H) : []);
     // 2026-10-29 사장님 (간편 플래너 세로칸막이 · 속서랍): 사람이 정한 모듈 속 — 속서랍 구역은 지판 위, 처짐방지목은 그 상판 위부터 (bom-interior-rules.js)
     const interior = InteriorRules && !grp ? InteriorRules.normalize(mod.interior) : null;
-    const innerZone = interior && interior.inner > 0 ? InteriorRules.innerZoneOf({ W, D, T, inner: interior.inner }) : null;
+    const innerZone = interior && interior.inner > 0 ? InteriorRules.innerZoneOf({ W, D, T, inner: interior.inner, doorCount: mod.doorCount, hingeSide: mod.hingeSide }) : null;
     // 2026-10-30 세로칸막이 — 나뉜 칸 · 칸막이 자리 (BOM 행과 같은 규칙 interiorLayoutOf, x 는 몸통 왼쪽 겉면부터)
     const divLayout = interior && interior.mids > 0
       ? InteriorRules.interiorLayoutOf({ H, W, D, T, shelves: Math.max(0, Math.round(Number(mod.shelfCount) || 0)), mids: interior.mids, cols: interior.cols, inner: interior.inner,
@@ -756,6 +758,9 @@
     const zFace = D / 2 - I.FRONT_SETBACK;            // 도어·몰딩 앞면, 상판 앞선
     const zMod = zFace - t;                          // 모듈 앞선
     const mW = z.moduleW, mH = z.moduleH, mD = z.moduleD, y0 = z.y0;
+    // 몰딩은 경첩 쪽만 (2026-11-01 사장님 — 규칙 파일 innerMoldingSidesOf): 몰딩이 없는 쪽은 모듈이 통 측판에 붙어 가운데가 mx 만큼 비킨다
+    const sides = Array.isArray(z.moldingSides) && z.moldingSides.length ? z.moldingSides : ['left', 'right'];
+    const mx = Number(z.moduleX) || 0;
     const frontHs = z.fronts.map((f) => f.h).sort((a, b) => a - b);
     const rowHs = [].concat(...fronts.map((r) => new Array(r.qty).fill(r.h))).sort((a, b) => a - b);
     const ok = side && side.qty === 2 && side.w === mD && side.h === mH && side.thickness === t
@@ -763,28 +768,28 @@
       && band && band.qty === 2 && band.w === mW - 2 * t && band.h === I.BAND_H
       && back && back.w === mW - I.BACK_FLAT_W_MINUS && back.h === mH - I.BACK_H_MINUS && !I.SIDE_SAKURI
       && topP && topP.w === z.topPanelW && topP.h === z.topPanelD
-      && molding && molding.qty === 2 && molding.w === z.moldingH && molding.h === z.moldingW
+      && molding && molding.qty === sides.length && molding.w === z.moldingH && molding.h === z.moldingW
       && fronts.every((r) => r.w === z.frontW) && rowHs.join() === frontHs.join()
       && z.topPanelW <= W - 2 * T && zMod - mD >= -D / 2;
     if (ok) {
       // 검사는 몸통마다 측판·뒷판을 본다 — 내부 서랍장은 따로 만드는 몸통이라 carcass 'inner'
       const tag = (o) => Object.assign({ innerDrawer: true, carcass: 'inner' }, o || {});
-      parts.push(makePart(side, 0, { o: [-mW / 2, y0, zMod - mD], u: '+z', v: '+y', n: '+x' }, [], 'interior', tag({ side: 'left' })));
-      parts.push(makePart(side, 1, { o: [mW / 2, y0, zMod - mD], u: '+z', v: '+y', n: '-x' }, [], 'interior', tag({ side: 'right' })));
-      parts.push(makePart(bottom, 0, { o: [-mW / 2 + t, y0, zMod - z.panelD], u: '+x', v: '+z', n: '+y' }, [], 'interior', tag()));
-      parts.push(makePart(band, 0, { o: [-band.w / 2, y0 + mH - t, zMod - band.h], u: '+x', v: '+z', n: '+y' }, [], 'interior', tag({ end: 'front' })));
-      parts.push(makePart(band, 1, { o: [-band.w / 2, y0 + mH - t, zMod - mD], u: '+x', v: '+z', n: '+y' }, [], 'interior', tag({ end: 'back' })));
+      parts.push(makePart(side, 0, { o: [mx - mW / 2, y0, zMod - mD], u: '+z', v: '+y', n: '+x' }, [], 'interior', tag({ side: 'left' })));
+      parts.push(makePart(side, 1, { o: [mx + mW / 2, y0, zMod - mD], u: '+z', v: '+y', n: '-x' }, [], 'interior', tag({ side: 'right' })));
+      parts.push(makePart(bottom, 0, { o: [mx - mW / 2 + t, y0, zMod - z.panelD], u: '+x', v: '+z', n: '+y' }, [], 'interior', tag()));
+      parts.push(makePart(band, 0, { o: [mx - band.w / 2, y0 + mH - t, zMod - band.h], u: '+x', v: '+z', n: '+y' }, [], 'interior', tag({ end: 'front' })));
+      parts.push(makePart(band, 1, { o: [mx - band.w / 2, y0 + mH - t, zMod - mD], u: '+x', v: '+z', n: '+y' }, [], 'interior', tag({ end: 'back' })));
       // 뒷판 — 측판 뒤 덮음 (사쿠리 없음), 위아래 가운데
-      parts.push(makePart(back, 0, { o: [-back.w / 2, y0 + (mH - back.h) / 2, zMod - mD - back.thickness], u: '+x', v: '+y', n: '+z' }, [], 'interior', tag({ mount: 'behind-sides' })));
+      parts.push(makePart(back, 0, { o: [mx - back.w / 2, y0 + (mH - back.h) / 2, zMod - mD - back.thickness], u: '+x', v: '+y', n: '+z' }, [], 'interior', tag({ mount: 'behind-sides' })));
       // 상판 — 모듈 위, 통 내경 폭으로 좌우 몰딩까지 덮는다. 앞선 = 앞선 − 70, 뒤로 뻗는다
       parts.push(makePart(topP, 0, { o: [-topP.w / 2, y0 + mH, zFace - topP.h], u: '+x', v: '+z', n: '+y' }, [], 'interior', tag({ panel: 'top' })));
-      // 좌우몰딩 — 모듈 옆 60 자리에 앞을 보고 선다 (u = 높이, v = 폭 60)
-      [-mW / 2 - z.moldingW, mW / 2].forEach((x0, k) => parts.push(makePart(molding, k, { o: [x0, y0, zMod], u: '+y', v: '+x', n: '+z' }, [], 'exterior', tag({ end: k ? 'right' : 'left' }))));
+      // 좌우몰딩 — 모듈 옆 60 자리에 앞을 보고 선다 (u = 높이, v = 폭 60). 경첩 쪽만 — 왼쪽은 통 내경 왼끝, 오른쪽은 오른끝에서 60
+      sides.forEach((s, k) => parts.push(makePart(molding, k, { o: [s === 'left' ? mx - mW / 2 - z.moldingW : mx + mW / 2, y0, zMod], u: '+y', v: '+x', n: '+z' }, [], 'exterior', tag({ end: s }))));
       // 서랍 도어 — 아래에서 위로 (f.y0 는 frontY0 위), 가로 가운데
       const pool = fronts.map((r) => ({ r, k: 0 }));
       z.fronts.forEach((f) => {
         const slot = pool.find((p) => p.r.h === f.h && p.k < p.r.qty);
-        parts.push(makePart(slot.r, slot.k++, { o: [-z.frontW / 2, y0 + z.frontY0 + f.y0, zMod], u: '+x', v: '+y', n: '+z' }, [], 'exterior', tag({ drawerIdx: f.idx })));
+        parts.push(makePart(slot.r, slot.k++, { o: [mx - z.frontW / 2, y0 + z.frontY0 + f.y0, zMod], u: '+x', v: '+y', n: '+z' }, [], 'exterior', tag({ drawerIdx: f.idx })));
       });
       [side, bottom, band, back, topP, molding].concat(fronts).forEach((r) => placed.add(r));
 
@@ -800,7 +805,7 @@
         const topY = i < z.fronts.length - 1 ? ys[i + 1] : y0 + mH - t;   // 맨 위는 눕힌 밴드 아랫면
         const by = bottomY + rail.below;
         if (by + b.sideH + rail.above > topY) return;
-        boxes.push({ size: b.size, dims: b, x0: -b.outerW / 2, y0: by, zf: zMod, z0: zMod - b.sideL });
+        boxes.push({ size: b.size, dims: b, x0: mx - b.outerW / 2, y0: by, zf: zMod, z0: zMod - b.sideL });
       });
       if (boxes.length === z.fronts.length) {
         const boxHit = innerHit.filter((x) => groupOf(x.row) === '내부서랍모듈' && /^drawerbox:/.test(x.key.family));
@@ -906,6 +911,7 @@
       bodyH: (parseFloat(item && item.h) || R.DEFAULT_H) - (parseFloat(specs.wardrobePedestal) || R.PEDESTAL_H) - (parseFloat(specs.wardrobeMoldingH) || R.MOLDING_H),
       preset: block.preset, cells: block.cells, drawers: block.drawers, externalDrawer: block.externalDrawer, cellShelves: block.cellShelves, cellSplits: block.cellSplits,
       cellShelfYs: block.cellShelfYs, cellRods: block.cellRods,   // 2026-10-31 칸마다 선반 자리 · 옷봉 빼기
+      doorCount: mod.doorCount, hingeSide: mod.hingeSide,   // 2026-11-01 내부 서랍 몰딩은 경첩 쪽만 (판재와 같다)
     }) : null;
     const cabs = layout ? WR.cabinetsOf(layout) : null;
     const ourCabs = cars.filter((c) => c.group !== '서랍모듈');
@@ -1784,8 +1790,9 @@
           if (b.rail === 'ball') {
             // 볼레일 — 박스 측판 바깥 옆에 두께 14, 밑단 = 박스 측판 밑단 (2026-10-23 사장님 4-1 D). at x = 측판 바깥면 (레일은 거기서 밖으로 thickness)
             const t = DR.RAIL_CLEARANCE.ball.thickness;
-            push(m, { kind: 'rail', at: [-b.outerW / 2, b.y0, b.zf - len], len, thickness: t, tags: { box: bi, side: 'left', rail: 'ball' } });
-            push(m, { kind: 'rail', at: [b.outerW / 2, b.y0, b.zf - len], len, thickness: t, tags: { box: bi, side: 'right', rail: 'ball' } });
+            //   박스 외경 양끝 (b.x0 · b.x0 + 외경 — 가운데 박스면 ∓외경/2, 외짝 속서랍 박스는 비킨 자리, 2026-11-01)
+            push(m, { kind: 'rail', at: [b.x0, b.y0, b.zf - len], len, thickness: t, tags: { box: bi, side: 'left', rail: 'ball' } });
+            push(m, { kind: 'rail', at: [b.x0 + b.outerW, b.y0, b.zf - len], len, thickness: t, tags: { box: bi, side: 'right', rail: 'ball' } });
             return;
           }
           // 박스 외경 양끝 — 밥솥장 여닫이 선반은 추가 목대만큼 가운데에서 비켜 있다 (placeRiceShelf)

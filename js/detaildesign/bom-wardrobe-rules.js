@@ -131,7 +131,7 @@
     ROD_SOCKET_NAME: '원형소켓',
     // 내부 서랍 — 2026-09-19 사장님 확정. 전면·몰딩은 15PB 몸통 재질.
     INNER_DRAWER: Object.freeze({
-      SIDE_MOLDING_W: 60,   // 좌우 각 60 — 문이 경첩에 걸리지 않게 모듈을 안으로 넣는다
+      SIDE_MOLDING_W: 60,   // 각 60 — 문이 경첩에 걸리지 않게 모듈을 안으로 넣는다. 경첩이 있는 쪽만 (innerMoldingSidesOf — 2026-11-01)
       FRONT_SETBACK: 70,    // 붙박이장 앞선에서 안쪽으로 (경첩 자리)
       // 2026-09-23 사장님 확정: 경첩 자리 70 을 뺀 자리(기본 520) 중 실제로 쓰는 깊이는 480.
       //   남는 40 은 여유다 (서랍장 도어 15 + 여유 5 를 포함한 총 여유).
@@ -602,17 +602,31 @@
   }
 
   /**
+   * 속서랍 몰딩 자리 — 경첩이 있는 쪽만 (2026-11-01 사장님 "경첩방향에 속서랍 좌우 몰딩만 설치 되도록 해줘. 예: 좌경첩 도어라면
+   *   속서랍 좌측에만 몰딩처리, 양문형 이라면 좌우 둘다 속서랍 몰딩처리, 우경첩 도어면 우측에만 속서랍 몰딩처리 따라서 속서랍 너비 규칙에
+   *   따라 변경됨"). 몰딩은 문이 경첩에 걸리지 않게 하는 판이다 (SIDE_MOLDING_W).
+   *   외짝(doorCount 1) + 경첩 left · right → 그 쪽만. 양문(2 이상)과 경첩을 모르는 모듈(옛 설계)은 예전대로 좌우 둘 다.
+   * @param {{doorCount?:number, hingeSide?:string}} o 모듈 (플래너 브리지 doorCount · hingeSide)
+   * @returns {string[]} ['left'] · ['right'] · ['left', 'right']
+   */
+  function innerMoldingSidesOf(o) {
+    const n = Number(o && o.doorCount);
+    const h = o && o.hingeSide;
+    return n === 1 && (h === 'left' || h === 'right') ? [h] : ['left', 'right'];
+  }
+
+  /**
    * 내부 서랍 구역의 배치 — 좌우 몰딩 · 모듈 · 전면.
    *
    * 전면 수는 서랍 단수와 같고, **빈 공간(30) 수는 최소**다 (`innerSlotPlan`: ceil(n/2)).
    * 하나가 위·아래 두 전면을 열기 때문에 전면과 1:1 이 아니다.
    *
-   *   모듈 내경 폭   = 통 내경 − 2 × 60
+   *   모듈 외경 폭   = 통 내경 − 60 × 몰딩 수 (몰딩은 경첩 쪽만 — innerMoldingSidesOf, 2026-11-01)
    *   모듈 내경 높이 = 구역 높이 − 2 × T        (모듈 상판·지판)
-   *   전면 가로       = 모듈 내경 폭 − 4
+   *   전면 가로       = 모듈 외경 폭 − 4
    *   전면 높이 합    = (모듈 내경 높이 − 4) − 30 × 빈 공간 수
    *
-   * @param o { Wi, zoneH, drawers, T, D, rail }
+   * @param o { Wi, zoneH, drawers, T, D, rail, moldingSides } — moldingSides = 몰딩 자리 ['left'] · ['right'] · ['left', 'right'] (없으면 좌우 둘 다)
    * @returns null 이면 그릴 것이 없다 (서랍 0 또는 자리가 안 나온다)
    */
   function innerDrawerLayout(o) {
@@ -629,15 +643,19 @@
     //   2026-09-22: 몸통은 하부장과 같다 — 천판이 없고 밴드가 상단에 선다. 그 **위에 상판**이
     //   얹힌다. 350 은 **모듈 전체 높이**이므로 상판은 그 위에 더해진다 (사장님 확정) —
     //   모듈이 차지하는 높이는 350×단수 + 상판 15 다.
-    const moduleW = Wi - 2 * I.SIDE_MOLDING_W;
+    // 몰딩 — 경첩 쪽만 (2026-11-01 사장님). 몰딩이 없는 쪽은 모듈이 통 측판에 붙는다 → 모듈 가운데가 그만큼 비킨다 (moduleX, 통 가운데 0 기준)
+    const pickedSides = Array.isArray(opt.moldingSides) ? ['left', 'right'].filter((s) => opt.moldingSides.indexOf(s) >= 0) : [];
+    const moldingSides = pickedSides.length ? pickedSides : ['left', 'right'];
+    const moduleW = Wi - moldingSides.length * I.SIDE_MOLDING_W;
+    const moduleX = ((moldingSides.indexOf('left') >= 0 ? I.SIDE_MOLDING_W : 0) - (moldingSides.indexOf('right') >= 0 ? I.SIDE_MOLDING_W : 0)) / 2;
     const topT = T;                                        // 상판도 15PB 몸통 재질
     const moduleH = zoneH;                                 // 몸통 외경 높이 = 350 × 단수 (도어 세로의 기준)
     const totalH = moduleH + topT;                         // 모듈 + 상판이 차지하는 높이
     const moduleHi = Math.max(0, moduleH - T);             // 참고용 (지판만 빠진다 — 천판이 없다)
     const moduleD = Math.max(0, depthOf(opt) - I.FRONT_SETBACK - I.MODULE_BACK_GAP);
     const base = {
-      drawers: n, moldingW: I.SIDE_MOLDING_W, moldingT: T, moldingH: zoneH,
-      setback: I.FRONT_SETBACK, moduleW, moduleH, moduleHi, moduleD, zoneH, topT, totalH,
+      drawers: n, moldingW: I.SIDE_MOLDING_W, moldingT: T, moldingH: zoneH, moldingSides, moldingQty: moldingSides.length,
+      setback: I.FRONT_SETBACK, moduleW, moduleX, moduleH, moduleHi, moduleD, zoneH, topT, totalH,
       bodyD: depthOf(opt),
       // 지판 깊이 — 측판에 사쿠리가 없으므로 모듈 깊이를 그대로 쓴다 (2026-09-23 사장님 확정).
       panelD: moduleD,
@@ -761,8 +779,8 @@
       });
     });
     rows.push({
-      part: '내부서랍 좌우몰딩', material: 'PB', t: L.moldingT, w: L.moldingH, h: L.moldingW, qty: 2,
-      edge: '2면(장)', note: `앞선에서 ${L.setback} 안쪽 — 경첩 자리`,
+      part: '내부서랍 좌우몰딩', material: 'PB', t: L.moldingT, w: L.moldingH, h: L.moldingW, qty: (L.moldingSides || ['left', 'right']).length,
+      edge: '2면(장)', note: `앞선에서 ${L.setback} 안쪽 — 경첩 자리${(L.moldingSides || []).length === 1 ? ` (${L.moldingSides[0] === 'left' ? '좌' : '우'}경첩 쪽만)` : ''}`,
     });
     return rows;
   }
@@ -836,6 +854,7 @@
    *   cellSplits      칸마다 세로칸막이 장수 (normalizeBlock cellSplits — 기본형 칸 차례, 2026-10-30) — 칸을 좌우 고르게 나눈다
    *   cellShelfYs     칸마다 선반 밑면 자리 (normalizeBlock cellShelfYs — cellShelves 차례, 2026-10-31) — 장수 · 자리를 사람이 정한다
    *   cellRods        칸마다 옷봉 빼기 0 · 걸기 1 (normalizeBlock cellRods — cellShelves 차례, 2026-10-31)
+   *   doorCount · hingeSide  통 도어 수 · 외짝 경첩 (플래너 브리지 모듈 값) — 내부 서랍 몰딩은 경첩 쪽만 (innerMoldingSidesOf, 2026-11-01)
    * @returns {{preset, cells, dividers, rods, shelves, drawerModH, bodyH, Wi, Hi, warnings}}
    */
   function layoutWardrobeModule(o) {
@@ -917,7 +936,8 @@
       const zoneH = (!external && drawers > 0 && carIdx === firstCabinet) ? drawerModH : 0;
       if (zoneH > 0) {
         // 내부 서랍 — 전면·몰딩 배치까지 같이 낸다 (플래너·BOM 이 같은 숫자를 쓴다).
-        const inner = innerDrawerLayout({ Wi, zoneH, drawers, T, D: depthOf(opt), rail: opt.rail });
+        const inner = innerDrawerLayout({ Wi, zoneH, drawers, T, D: depthOf(opt), rail: opt.rail,
+          moldingSides: innerMoldingSidesOf({ doorCount: opt.doorCount, hingeSide: opt.hingeSide }) });   // 몰딩은 경첩 쪽만 (2026-11-01)
         car.drawerZone = Object.assign({ y0: car.y0 + T, h: zoneH, drawers }, inner || {});
         if (inner && inner.warnings.length) warnings.push(...inner.warnings);
       }
@@ -1097,7 +1117,7 @@
     layoutWardrobeModule, normalizeBlock, cleanCellShelves, cleanCellSplits, cleanCellShelfYs, cleanCellRods, dividersOf, shelfPositions, rodPositions, rodGapPositions,
     partsOf, rodHardwareOf, rodHardwareFor, rodLengthFor, bodyHeightOf, shelfDepthOf, innerDepthOf,
     cabinetsOf, splitStack, moldingPartFor, moldingFinishOn, moldingTypeOf, doorTopExtraOf,
-    innerDrawerLayout, innerDrawerPartsOf, innerDrawerModulePartsOf, innerSlotPlan,
+    innerDrawerLayout, innerDrawerPartsOf, innerDrawerModulePartsOf, innerSlotPlan, innerMoldingSidesOf,
     innerRailLengthFor: (moduleD) => innerRailLengthFor(drawerRules(), moduleD),
     presetOf, presetKeyOf, presetLabel, moduleTypeOf, samplePresetFor,
   };

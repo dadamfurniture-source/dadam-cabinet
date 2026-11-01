@@ -225,3 +225,16 @@ describe('조립 명세', () => {
     expect(Check.check(spec).issues.filter((i) => i.level === 'error')).toEqual([]);
   });
 });
+
+// 2026-11-01 사장님: 속서랍 몰딩은 경첩 쪽만 — 일반 장 속서랍(간편 플래너 속서랍 단추)도 붙박이장과 같은 규칙
+describe('일반 장 속서랍 — 몰딩은 경첩 쪽만 (2026-11-01)', () => {
+  test('외짝 좌경첩 900 — 몰딩 왼쪽 하나, 모듈 870 − 60 = 810 (오른쪽 측판에 붙음) · 양문은 좌우 둘', () => {
+    const left = IR.innerZoneOf({ W: 900, D, T, inner: 1, doorCount: 1, hingeSide: 'left' });
+    expect([left.moldingSides, left.moduleW, left.moduleX]).toEqual([['left'], 810, 30]);
+    const right = IR.innerZoneOf({ W: 900, D, T, inner: 1, doorCount: 1, hingeSide: 'right' });
+    expect([right.moldingSides, right.moduleW, right.moduleX]).toEqual([['right'], 810, -30]);
+    const two = IR.innerZoneOf({ W: 900, D, T, inner: 1, doorCount: 2 });
+    expect([two.moldingSides, two.moduleW, two.moduleX]).toEqual([['left', 'right'], 750, 0]);
+    expect(IR.innerZoneOf({ W: 900, D, T, inner: 1 }).moldingSides).toEqual(['left', 'right']);   // 경첩을 모르면 예전대로
+  });
+});

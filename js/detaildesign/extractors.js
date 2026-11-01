@@ -620,7 +620,7 @@
       /** 속서랍 구역 (붙박이장 속서랍 규칙 — 통 내경 W − 2T · 통 깊이 modD). 속서랍이 없으면 null */
       const bomInnerZoneOf = (mod, W, modD, T) => {
         const it = bomInteriorOf(mod);
-        return it && it.inner > 0 ? InteriorRules.innerZoneOf({ W, D: modD, T, inner: it.inner }) : null;
+        return it && it.inner > 0 ? InteriorRules.innerZoneOf({ W, D: modD, T, inner: it.inner, doorCount: mod.doorCount, hingeSide: mod.hingeSide }) : null;   // 몰딩은 경첩 쪽만 (2026-11-01)
       };
       /** 처짐방지목 밑단을 올릴 높이 — 속서랍이 있으면 그 구역(350 × 단수 + 상판), 처짐방지목은 속서랍 상판 위부터 (2026-10-29 사장님) */
       const bomBraceCutOf = (mod, W, modD, T) => { const L = bomInnerZoneOf(mod, W, modD, T); return L ? L.totalH : 0; };
@@ -2647,12 +2647,13 @@
                 cellSplits: wrBlock.cellSplits,     // 2026-10-30 칸마다 세로칸막이 (세로칸막이)
                 cellShelfYs: wrBlock.cellShelfYs,   // 2026-10-31 칸마다 선반 자리 (간편 플래너 선반 높이)
                 cellRods: wrBlock.cellRods,         // 2026-10-31 칸마다 옷봉 빼기
+                doorCount: mod.doorCount, hingeSide: mod.hingeSide,   // 2026-11-01 내부 서랍 몰딩은 경첩 쪽만
               })
               : null;
             const modType = mod.moduleType || 'long';
             // 2026-09-19: 내부 서랍의 전면·좌우몰딩은 규칙 파일이 정한다 (사장님 확정 치수).
             //   전면 = 모듈 내경 −4 / 내경 높이 −4 에서 손잡이 빈 공간(30 × 목찬넬 갯수)을 뺀 것을 단수로 나눈다.
-            //   몰딩은 좌우 각 60, 앞선에서 70 안쪽 — 문이 경첩에 걸리지 않게.
+            //   몰딩은 각 60, 앞선에서 70 안쪽 — 문이 경첩에 걸리지 않게. 경첩이 있는 쪽만 (2026-11-01 — 외짝은 한쪽).
             const innerZone = wrLayout && WardrobeRules
               ? (WardrobeRules.cabinetsOf(wrLayout).find((c) => c.drawerZone) || {}).drawerZone
               : null;
@@ -2660,7 +2661,7 @@
               ? WardrobeRules.innerDrawerPartsOf(innerZone)
               : [];
             // 2026-09-19 사장님 확정: 내부 서랍은 **모듈을 따로 만든다** — 만드는 방식은 일반 모듈과 같고
-            //   모듈 W = 통 내경 − 120 (경첩 몰딩 60+60) · H = 단수 × 350 · D = 통 깊이 − 70 이다.
+            //   모듈 W = 통 내경 − 60 × 몰딩 수 (양문 120 · 외짝 60, 2026-11-01) · H = 단수 × 350 · D = 통 깊이 − 70 이다.
             //   몸통(측판·천판·지판·뒷판·밴드)과 박스(전후판·측판·우라)를 규칙 파일이 낸다.
             const innerModRows = (innerZone && WardrobeRules && WardrobeRules.innerDrawerModulePartsOf)
               ? WardrobeRules.innerDrawerModulePartsOf(innerZone)
@@ -3635,6 +3636,7 @@
                 preset: block.preset, cells: block.cells, drawers: block.drawers, externalDrawer: block.externalDrawer,
                 cellShelves: block.cellShelves, cellSplits: block.cellSplits,
                 cellShelfYs: block.cellShelfYs, cellRods: block.cellRods,   // 2026-10-31 선반 자리 · 사람이 뺀 옷봉도 판재와 같게
+                doorCount: mod.doorCount, hingeSide: mod.hingeSide,   // 2026-11-01 내부 서랍 몰딩은 경첩 쪽만 — 판재와 같게
               });
               (L.rods || []).forEach((r) => lengths.push(r.length));
               return;

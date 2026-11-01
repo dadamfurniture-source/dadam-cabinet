@@ -550,6 +550,36 @@ describe('wardrobe 자리 — 몸통 쌓기', () => {
     expect(require('../js/detaildesign/assembly-check.js').check(s).issues.filter((i) => i.level === 'error')).toEqual([]);
   });
 
+  // 2026-11-01 사장님: 속서랍 몰딩은 경첩 쪽만 — 외짝 좌경첩이면 왼쪽 몰딩 하나, 모듈(810)은 오른쪽 측판에 붙는다 (우경첩은 거울)
+  test.each([
+    ['left', 30, [[-435, -375]], [[-375, -360], [420, 435]]],
+    ['right', -30, [[375, 435]], [[-435, -420], [360, 375]]],
+  ])('내부 서랍장 외짝 %s 경첩 — 몰딩은 그 쪽만, 모듈 · 전면 · 박스가 비킨다', (hinge, mx, molds, sides) => {
+    const n = 2;
+    const item = JSON.parse(JSON.stringify(FIXTURES.wardrobe));
+    Object.assign(item.modules.find((x) => x.id === 'w2'), { isExternalDrawer: false, drawerCount: n, doorCount: 1, hingeSide: hinge, wardrobe: { preset: 'longDrawer', drawers: n } });
+    const design = { items: [item] };
+    const materials = new MaterialExtractor().extract(design).materials;
+    const s = Asm.of(design, { materials });
+    const w2 = s.items[0].modules.find((x) => x.moduleId === 'w2');
+    const inner = (part) => w2.parts.filter((p) => p.tags.innerDrawer && p.part === part).map((p) => p.box);
+    const H = n * 350;
+    expect(inner('내부서랍 좌우몰딩').map((b) => [b.min[0], b.max[0]])).toEqual(molds);
+    expect(inner('측판').map((b) => [b.min[0], b.max[0]])).toEqual(sides);
+    expect(inner('상판').map((b) => [b.min[0], b.max[0]])).toEqual([[-435, 435]]);
+    expect(w2.parts.filter((p) => p.part === '내부서랍 전면판').map((p) => [p.box.min[0], p.box.max[0]])).toEqual([[mx - 403, mx + 403], [mx - 403, mx + 403]]);
+    const bs = w2.parts.filter((p) => p.part === '서랍측판' && p.tags.innerDrawer);
+    expect(bs.length).toBe(2 * n);
+    expect((Math.min(...bs.map((p) => p.box.min[0])) + Math.max(...bs.map((p) => p.box.max[0]))) / 2).toBe(mx);
+    // 판재 — 이 통(구역 높이 H)의 몰딩 1장 · 전면 806 (픽스처의 다른 통 속서랍은 양문 그대로 2장 · 746)
+    const rows = materials.filter((r) => r.part === '내부서랍 좌우몰딩');
+    expect(rows.filter((r) => r.w === H).map((r) => [r.w, r.h, r.qty])).toEqual([[H, 60, 1]]);
+    expect(rows.filter((r) => r.w !== H).every((r) => r.qty === 2)).toBe(true);
+    expect(materials.filter((r) => r.part === '내부서랍 전면판' && r.w === 806).reduce((a, r) => a + r.qty, 0)).toBe(n);
+    expect(s.unplaced.filter((u) => u.moduleKey === '0-w2')).toEqual([]);
+    expect(require('../js/detaildesign/assembly-check.js').check(s).issues.filter((i) => i.level === 'error')).toEqual([]);
+  });
+
   test('좌대 상자 — 몸통 아래, 뒤 맞춤 (앞 50 들어감), 측판은 전후판 사이, 중간보강은 폭 가운데 (2026-10-20 카드)', () => {
     const m = spec.items[0].modules.find((x) => x.moduleId === 'w1');
     const ped = m.parts.filter((p) => p.tags.pedestal);
