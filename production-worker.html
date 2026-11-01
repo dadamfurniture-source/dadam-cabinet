@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex, nofollow, noarchive" />
     <meta name="referrer" content="no-referrer" />
     <title>오늘 작업 · 다담가구</title>
-    <script src="js/config.js?v=2026110112"></script>
+    <script src="js/config.js?v=2026110113"></script>
     <style>
       :root { --bg: #f3f4f6; --panel: #fff; --border: #d6dae0; --text: #111827; --muted: #6b7280; --accent: #147a3d; --cut: #2a78d6; --edge: #1baf7a; --asm: #eb6834; --danger: #a02020; }
       * { box-sizing: border-box; }
@@ -75,6 +75,12 @@
       <div class="card">
         <h2>오늘 내 기록</h2>
         <div id="logs"></div>
+      </div>
+
+      <div class="card" id="accountCard" hidden>
+        <h2>작업자 계정이 있으면</h2>
+        <div class="muted">작업자 포털에 로그인해 「공장」 탭에서 이 링크를 내 계정에 이을 수 있습니다. 이으면 이 링크 대신 계정으로 기록하고, 이 링크로 남긴 기록도 이어집니다.</div>
+        <p style="margin:10px 0 0"><a href="worker.html#tab=factory">작업자 포털에서 잇기 →</a></p>
       </div>
     </div>
 
@@ -194,6 +200,7 @@
           el('title').textContent = data.worker + '님 오늘 작업';
           el('sub').textContent = day(data.today) + ' · 시작을 누르고, 끝나면 완료 기록을 눌러 주세요.';
           renderAssignments(); renderJobs(); renderLogs();
+          el('accountCard').hidden = false;
         }
 
         el('tabs').addEventListener('click', function (e) { var r = e.target && e.target.getAttribute && e.target.getAttribute('data-r'); if (!r) return; role = r; store('dadamWorkerRole', r); renderJobs(); });

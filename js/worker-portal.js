@@ -17,6 +17,12 @@
  *     화면 시각으로 지났으면 신청 버튼을 잠그고 "지원 종료". 서버 409 문구는 그대로 보여 준다
  *   - C: 지난 작업(완료) 탭에서 거절(declined) 배정의 release_reason — 작업 닫기 · 취소로 끝난 초대 안내 포함
  *   - D: 정지(suspended) 작업자는 같은 앱 화면 + 맨 위 안내. 모집중 탭 · 신청 · 초대 수락 버튼만 숨긴다
+ *
+ * 공장 (2026-11-01, 서버 work/factory.js · DB 0024):
+ *   - 작업자 종류에 재단 · 엣지 (공장 조립은 조립). 작업(모집) 종류는 그대로 셋
+ *   - 「공장」 탭: 승인된 작업자가 공장에 배정됐거나(GET /work/me 의 factory), 이 기기에 생산 링크가 있을 때만.
+ *     생산 링크 화면(production-worker.html)과 같은 일 — 오늘 지시 체크 · 공정별 할 일 시작/완료 기록 · 다른 작업 기록 · 오늘 내 기록.
+ *     진행 중 타이머 · 고른 공정은 이 기기 localStorage. 배정이 없고 링크만 있으면 「내 계정에 잇기」
  */
 (function (root, factory) {
   const api = factory();
@@ -34,7 +40,9 @@
 
   // ── 이름표 (계약 §1 · §2 의 CHECK 값) ──
   const KINDS = Object.freeze(['install', 'as', 'assembly']);
-  const KIND_LABEL = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립 추가 인원' });
+  /** 작업자 종류 — 작업 종류 + 공장 공정 재단 · 엣지 (공장 조립은 조립, 서버 WORKER_KINDS · DB 0024) */
+  const WORKER_KINDS = Object.freeze([...KINDS, 'cutting', 'edge']);
+  const KIND_LABEL = Object.freeze({ install: '설치', as: 'A/S', assembly: '조립 추가 인원', cutting: '재단', edge: '엣지' });
   /** 작업자에게 보이는 작업 상태 (effective_status — expired 는 API 가 읽을 때 판정) */
   const JOB_STATUS_LABEL = Object.freeze({
     draft: '준비 중', open: '모집중', expired: '지원 종료', filled: '인원 마감', in_progress: '진행 중',
@@ -54,6 +62,7 @@
     { key: 'open', label: '모집중' },
     { key: 'mine', label: '내 작업' },
     { key: 'done', label: '완료' },
+    { key: 'factory', label: '공장' },
     { key: 'me', label: '내 정보' },
   ]);
   const TAB_KEYS = TABS.map((t) => t.key);
@@ -83,6 +92,17 @@
   const DEADLINE_NONE = '정하지 않음 (정원이 차면 마감)';
   /** 지원 종료일이 지났을 때의 꼬리표 · 잠근 신청 버튼 글 */
   const DEADLINE_ENDED = '지원 종료';
+
+  // ── 공장 (서버 work/factory.js — 생산 링크 화면 production-worker.html 과 같은 일을 계정으로) ──
+  const FACTORY_ROLE_LABEL = Object.freeze({ cutter: '재단', edge: '엣지', asm: '조립' });
+  const FACTORY_UNIT_HINT = Object.freeze({ cutter: '원판 장', edge: '엣지 면', asm: '통·서랍 개' });
+  /** 이 기기의 생산 링크 토큰 — production-worker.html 이 localStorage 에 둔다. 있으면 「내 계정에 잇기」 */
+  const LINK_TOKEN_KEY = 'dadamWorkerToken';
+  /** 마지막에 고른 공정 · 진행 중 타이머 (이 기기 localStorage) */
+  const FACTORY_ROLE_KEY = 'dadamFactoryRole';
+  const factoryTimerKey = (role, orderId) => `dadamFactoryTimer:${role}:${orderId}`;
+  /** 실측 기록 상한 — 서버 validateWorklog 와 같다 */
+  const WORKLOG_LIMITS = Object.freeze({ units: 1000, minutes: 1440, label: 200 });
 
   /** 일이 시작된 배정 · 보고할 수 있는 배정 (서버 updates.js 와 같은 조건) */
   const REPORTABLE = Object.freeze(['confirmed', 'started', 'submitted', 'revision', 'accepted']);
@@ -235,15 +255,15 @@
 
   /** 작업자 상태로 본 정지 여부 (GET /work/me 의 worker.status) */
   const isSuspended = (me) => !!(me && me.worker && me.worker.status === 'suspended');
-  /** 보이는 탭 — 정지된 작업자는 모집중 탭이 없다 (1주차 후속 D) */
-  const tabsFor = (suspended) => (suspended ? TABS.filter((t) => t.key !== 'open') : TABS);
+  /** 보이는 탭 — 정지된 작업자는 모집중 탭이 없다 (1주차 후속 D). 공장 탭은 factory 일 때만 (공장 배정 · 이을 링크) */
+  const tabsFor = (suspended, factory) => TABS.filter((t) => !(suspended && t.key === 'open') && (factory || t.key !== 'factory'));
 
   /**
    * 처음 볼 탭 — 주소에 탭이 있으면 그것, 아니면 내 작업이 있으면 내 작업.
    * 정지된 작업자는 모집중 탭이 없어 기본이 내 작업 (주소가 #tab=open 이어도).
    */
-  function defaultTab(route, counts, suspended) {
-    const keys = tabsFor(suspended).map((t) => t.key);
+  function defaultTab(route, counts, suspended, factory) {
+    const keys = tabsFor(suspended, factory).map((t) => t.key);
     if (route && route.tab && keys.includes(route.tab)) return route.tab;
     if (suspended) return 'mine';
     return counts && Number(counts.mine) > 0 ? 'mine' : 'open';
@@ -253,13 +273,13 @@
    * 작업 상세의 '← 목록으로' — 목록에서 들어왔으면 그 탭, #job= 로 바로 들어왔으면 내 배정이 든 탭
    * (내 작업 · 완료), 배정이 없으면 처음 탭 (1주차 리뷰: 내 배정 작업인데 모집중으로 돌아가던 것).
    */
-  function backTabFor(d, fromTab, suspended) {
-    const keys = tabsFor(suspended).map((t) => t.key);
+  function backTabFor(d, fromTab, suspended, factory) {
+    const keys = tabsFor(suspended, factory).map((t) => t.key);
     if (fromTab && keys.includes(fromTab)) return fromTab;
     const a = d && d.my && d.my.assignment_status;
     if (MINE_ASSIGN.includes(a)) return 'mine';
     if (DONE_ASSIGN.includes(a)) return 'done';
-    return defaultTab(null, null, suspended);
+    return defaultTab(null, null, suspended, factory);
   }
 
   // ── 신청서 ──
@@ -278,7 +298,7 @@
     if (phone && (phone.length > LIMITS.phone || !PHONE_RE.test(phone))) errors.push('휴대폰은 숫자와 - 만 적어 주세요.');
     const kinds = [];
     (Array.isArray(v.kinds) ? v.kinds : []).forEach((k) => {
-      if (KINDS.includes(k) && !kinds.includes(k)) kinds.push(k);
+      if (WORKER_KINDS.includes(k) && !kinds.includes(k)) kinds.push(k);
     });
     if (!invite && !kinds.length) errors.push('작업 종류를 하나 이상 골라 주세요.');
     const region = trimStr(v.region_label);
@@ -381,9 +401,9 @@
    * 탭 줄 — 모집중 · 내 작업 건수 (GET /work/me counts). 보완요청 · 새 소식은 탭 아래 한 줄로
    * (탭 칸에 넣으면 375px 에서 칸이 세 줄로 늘어난다). 정지된 작업자는 모집중 탭이 없다.
    */
-  function tabsHtml(active, counts, suspended) {
+  function tabsHtml(active, counts, suspended, factory) {
     const c = counts || {};
-    const tabs = tabsFor(suspended).map((t) => {
+    const tabs = tabsFor(suspended, factory).map((t) => {
       let n = '';
       if (t.key === 'open' && toNum(c.open)) n = `<span class="n">${esc(toNum(c.open))}</span>`;
       if (t.key === 'mine' && toNum(c.mine)) n = `<span class="n">${esc(toNum(c.mine))}</span>`;
@@ -582,8 +602,8 @@
       (showTimeline ? `<div class="card"><h3>작업 기록</h3><p class="muted">내 보고와 회사 정정 · 메모가 고쳐지지 않고 차례로 쌓입니다.</p>${timelineHtml(d.timeline)}</div>` : '');
   }
 
-  /** 내 정보 탭 (WorkerSelf) */
-  function workerInfoHtml(w) {
+  /** 내 정보 탭 (WorkerSelf). mypage = 이 페이지에서 본 마이페이지 주소 (#workerApp 의 data-mypage — 앱은 me.html) */
+  function workerInfoHtml(w, mypage = 'mypage.html') {
     if (!w) return '';
     const rows = [
       ['이름', w.display_name],
@@ -598,7 +618,7 @@
       `<dl class="facts">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` +
       '<p class="muted">받은 정보: 이름 · 휴대폰(선택) · 작업 종류 · 활동 지역. 주민등록번호 · 계좌는 받지 않습니다.</p>' +
       '<p class="muted">이 화면에서는 아직 정보를 고칠 수 없습니다. 바꿀 내용은 회사에 알려 주세요.</p>' +
-      '<div class="btns"><a class="big" href="mypage.html">마이페이지</a><button type="button" class="big" data-act="logout">로그아웃</button></div>' +
+      `<div class="btns"><a class="big" href="${esc(mypage)}">마이페이지</a><button type="button" class="big" data-act="logout">로그아웃</button></div>` +
       '</div>';
   }
 
@@ -611,6 +631,113 @@
       ['활동 지역', w.region_label || '적지 않음'],
     ];
     return `<dl class="facts">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`;
+  }
+
+  // ── 공장 (순수) ──
+  /** 'YYYY-MM-DD' → '11/1(일)' (서버 kstDate 가 준 날짜) */
+  function factoryDay(s) {
+    if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(String(s))) return '-';
+    const d = new Date(`${s}T00:00:00Z`);
+    return `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${WEEKDAY[d.getUTCDay()]})`;
+  }
+  /** 고를 공정 — 저장해 둔 것이 내 공정이면 그것, 아니면 첫 공정 (공정이 없으면 null) */
+  const factoryRoleOf = (roles, stored) => (Array.isArray(roles) && roles.includes(stored) ? stored : (Array.isArray(roles) && roles[0]) || null);
+  /** 시작한 지 몇 분 (1분 아래는 1) */
+  const elapsedMin = (start, nowMs) => Math.max(1, Math.round((nowMs - Number(start)) / 60000));
+
+  /** 실측 기록 값 → 요청 본문 + 오류 목록 (POST /work/factory/worklogs, 상한은 서버와 같다) */
+  function worklogBody(values) {
+    const v = values || {};
+    const errors = [];
+    const units = toNum(v.units);
+    const minutes = toNum(v.minutes);
+    if (!(units > 0 && units <= WORKLOG_LIMITS.units)) errors.push(`수량은 0보다 크고 ${WORKLOG_LIMITS.units} 이하로 적어 주세요.`);
+    if (!(minutes > 0 && minutes <= WORKLOG_LIMITS.minutes)) errors.push(`걸린 시간(분)은 0보다 크고 ${WORKLOG_LIMITS.minutes} 이하로 적어 주세요.`);
+    const body = { role: v.role, units, minutes };
+    if (isUuid(v.order_id)) body.order_id = v.order_id;
+    const what = trimStr(v.order_label);
+    if (what) body.order_label = what.slice(0, WORKLOG_LIMITS.label);
+    return { body, errors };
+  }
+
+  /** 「내 계정에 잇기」 — 이 기기에 생산 링크가 있고 공장 배정이 아직 없을 때 */
+  function factoryLinkHtml() {
+    return '<div class="card"><h3>생산 링크를 내 계정에 잇기</h3>' +
+      '<p>이 기기에 공장 생산 링크가 있습니다. 내 계정에 이으면 링크 대신 이 「공장」 탭에서 오늘 할 일 · 지시 · 기록을 합니다. 그 링크로 남긴 기록도 이어집니다.</p>' +
+      '<p class="muted">이으면 링크 주소는 더 열리지 않습니다.</p>' +
+      '<button type="button" class="big go" data-act="fw-link">내 계정에 잇기</button></div>';
+  }
+
+  /** 한 공정의 할 일 카드 — 생산 링크 화면과 같은 차례 (오늘 예정 → 다른 진행 중 주문). timers = { orderId: 시작 ms } */
+  function factoryJobsHtml(d, role, timers, nowMs) {
+    const list = (d && d.work && d.work[role]) || [];
+    const roleName = esc(FACTORY_ROLE_LABEL[role] || role);
+    if (!list.length) {
+      let why = d && d.activeJobs ? `진행 중인 주문에 ${roleName} 작업이 없습니다.` : '진행 중인 수주가 없습니다.';
+      const skipped = (d && d.skipped) || [];
+      if (skipped.length) why += `<br>계획에서 빠진 주문: ${skipped.map((s) => `${esc(s.label)} (${esc(s.reason)})`).join(', ')}`;
+      return `<div class="card empty">${why}<br>아래 「다른 작업 기록」으로는 언제든 기록할 수 있습니다.</div>`;
+    }
+    const firstLater = list.findIndex((j) => !j.today);
+    return list.map((j, i) => {
+      let head = '';
+      if (i === 0 && j.today) head = '<p class="muted fw-head">오늘 예정</p>';
+      if (i === firstLater) head = `<p class="muted fw-head">${i === 0 ? '오늘 예정은 없습니다 · ' : ''}다른 진행 중 주문 (먼저 해도 됩니다)</p>`;
+      const meta = [esc(j.detail), `마감 ${esc(factoryDay(j.due))}`];
+      if (!j.today && j.plannedStart) meta.push(`계획 ${esc(factoryDay(j.plannedStart))}`);
+      if (role === 'asm' && j.doorArrival) meta.push(`도어 도착 ${esc(factoryDay(j.doorArrival))}`);
+      const start = timers && timers[j.orderId];
+      const units = toNum(j.units);
+      const form = start
+        ? `<p class="fw-run" data-since="${esc(start)}">진행 중 · ${elapsedMin(start, nowMs)}분째</p>` +
+          `<div class="fw-form"><label>${esc(FACTORY_UNIT_HINT[role] || '수량')} <input type="number" inputmode="decimal" id="fwU${i}" value="${units === null ? '' : esc(units)}" /></label>` +
+          `<label>걸린 시간 (분) <input type="number" inputmode="decimal" id="fwM${i}" value="${elapsedMin(start, nowMs)}" /></label></div>` +
+          `<div class="btns"><button type="button" class="big" data-act="fw-cancel" data-i="${i}">취소</button>` +
+          `<button type="button" class="big stop" data-act="fw-done" data-i="${i}">완료 기록</button></div>`
+        : `<button type="button" class="big go" data-act="fw-start" data-i="${i}">시작</button>`;
+      return `${head}<div class="card job"><div class="jt">${esc(j.label)}</div><div class="jd">${meta.join(' · ')}</div>${form}</div>`;
+    }).join('');
+  }
+
+  /**
+   * 공장 탭 한 장 (GET /work/factory) — 오늘 지시 · 공정 고르기 · 할 일 · 다른 작업 기록 · 오늘 내 기록.
+   * opts.role = 고른 공정, opts.timers = 그 공정의 진행 중 타이머. 글은 전부 esc() (지시 · 주문 이름은 서버가 가려서 준다)
+   */
+  function factoryHtml(d, opts) {
+    const o = opts || {};
+    const roles = d && Array.isArray(d.roles) ? d.roles : [];
+    const role = factoryRoleOf(roles, o.role);
+    const parts = [`<p class="muted">${esc(factoryDay(d && d.today))} · 시작을 누르고, 끝나면 완료 기록을 눌러 주세요.</p>`];
+    const assignments = (d && d.assignments) || [];
+    if (assignments.length) {
+      parts.push('<div class="card"><h3>오늘 지시</h3>' + assignments.map((a) => {
+        const done = a.status === 'done';
+        return `<label class="check${done ? ' done' : ''}"><input type="checkbox" data-fa="${esc(a.id)}"${done ? ' checked' : ''} /><span>${esc(a.text)}</span></label>`;
+      }).join('') + '</div>');
+    }
+    if (!role) {
+      parts.push('<div class="card empty">작업자 종류에 재단 · 엣지 · 조립이 없어 공장 기록을 할 수 없습니다. 회사에 종류를 넣어 달라고 해 주세요.</div>');
+      return parts.join('');
+    }
+    const roleName = esc(FACTORY_ROLE_LABEL[role] || role);
+    if (roles.length > 1) {
+      const btn = (r) =>
+        `<button type="button" class="tab${r === role ? ' on' : ''}" data-act="fw-role" data-role="${esc(r)}" aria-pressed="${r === role}">${esc(FACTORY_ROLE_LABEL[r] || r)}</button>`;
+      parts.push(`<div class="fw-roles" role="group" aria-label="공정">${roles.map(btn).join('')}</div>`);
+    } else {
+      parts.push(`<h3>${roleName}</h3>`);
+    }
+    parts.push(factoryJobsHtml(d, role, o.timers || {}, o.nowMs || Date.now()));
+    parts.push('<div class="card"><h3>다른 작업 기록</h3><p class="muted">목록에 없는 작업도 수량과 걸린 시간을 남겨 주세요.</p>' +
+      `<div class="fw-form"><label class="full">무엇을 <input type="text" id="fwFreeLabel" maxlength="${WORKLOG_LIMITS.label}" placeholder="예: 싱크대 추가 재단" /></label>` +
+      '<label>수량 <input type="number" inputmode="decimal" id="fwFreeUnits" min="0" step="1" /></label>' +
+      '<label>걸린 시간 (분) <input type="number" inputmode="decimal" id="fwFreeMinutes" min="0" step="1" /></label></div>' +
+      `<button type="button" class="big go" data-act="fw-free">${roleName} 기록하기</button></div>`);
+    const logs = (d && d.logs) || [];
+    const logRow = (l) =>
+      `<div class="fw-log"><span>${esc(FACTORY_ROLE_LABEL[l.role] || l.role)} · ${esc(l.order_label || '-')}</span><span>${esc(toNum(l.units))} · ${esc(toNum(l.minutes))}분</span></div>`;
+    parts.push(`<div class="card"><h3>오늘 내 기록</h3>${logs.length ? logs.map(logRow).join('') : '<p class="empty">아직 없습니다.</p>'}</div>`);
+    return parts.join('');
   }
 
   // ── 초대 토큰 보관 (sessionStorage — 탭을 닫으면 사라진다) ──
@@ -645,6 +772,8 @@
     let currentJob = null;
     let seq = 0;
     let alertTimer = null;
+    /** 마지막으로 받은 GET /work/factory (공장 탭) */
+    let factoryData = null;
 
     try {
       if (window.supabase && cfg.supabase) sb = window.supabase.createClient(cfg.supabase.url, cfg.supabase.anonKey);
@@ -684,7 +813,7 @@
         err.status = 401;
         throw err;
       }
-      const h = { Authorization: `Bearer ${t}` };
+      const h = { Authorization: `Bearer ${t}`, ...(o.headers || {}) };
       if (o.body) h['Content-Type'] = 'application/json';
       const res = await fetch(API + path, { method: o.method || 'GET', headers: h, body: o.body ? JSON.stringify(o.body) : undefined, cache: 'no-store' });
       let body = null;
@@ -700,6 +829,28 @@
       }
       return body.data;
     }
+
+    // 이 기기 저장소 — 못 쓰면(사생활 보호 모드 등) 이번 접속 동안만 메모리에
+    const mem = {};
+    const store = {
+      get(k) {
+        try {
+          const v = window.localStorage.getItem(k);
+          if (v !== null) return v;
+        } catch (e) { /* 메모리만 */ }
+        return k in mem ? mem[k] : null;
+      },
+      set(k, v) {
+        if (v === null) delete mem[k];
+        else mem[k] = v;
+        try {
+          if (v === null) window.localStorage.removeItem(k);
+          else window.localStorage.setItem(k, v);
+        } catch (e) { /* 메모리만 */ }
+      },
+    };
+    /** 공장 탭을 보이나 — 승인된 작업자이고, 공장 배정이 있거나 이 기기에 이을 생산 링크가 있을 때 */
+    const factoryShown = () => !!(me && me.worker && me.worker.status === 'approved' && (me.factory || store.get(LINK_TOKEN_KEY)));
 
     function showLogin() {
       const appEl = $('workerApp');
@@ -754,8 +905,10 @@
     function renderTabs(active) {
       const suspended = isSuspended(me);
       const nav = $('tabs');
+      const factory = factoryShown();
       nav.classList.toggle('three', suspended);
-      nav.innerHTML = tabsHtml(active, me && me.counts, suspended);
+      nav.classList.toggle('five', factory && !suspended);
+      nav.innerHTML = tabsHtml(active, me && me.counts, suspended, factory);
     }
 
     async function renderRoute() {
@@ -763,7 +916,8 @@
       const body = $('appBody');
       const suspended = isSuspended(me);
       $('suspendedNote').hidden = !suspended;
-      const listBack = () => listTab || defaultTab(null, me && me.counts, suspended);
+      const factory = factoryShown();
+      const listBack = () => listTab || defaultTab(null, me && me.counts, suspended, factory);
       window.scrollTo(0, 0);
       if (route.badJob) {
         currentJob = null;
@@ -778,7 +932,7 @@
         try {
           const d = await api(`/work/jobs/${route.job}`);
           if (mySeq !== seq) return;
-          body.innerHTML = jobDetailHtml(d, Date.now(), backTabFor(d, listTab, suspended), { suspended });
+          body.innerHTML = jobDetailHtml(d, Date.now(), backTabFor(d, listTab, suspended, factory), { suspended });
         } catch (err) {
           if (mySeq !== seq) return;
           if (await handleAuthError(err)) return;
@@ -788,11 +942,16 @@
         return;
       }
       currentJob = null;
-      const tab = defaultTab(route, me && me.counts, suspended);
+      const tab = defaultTab(route, me && me.counts, suspended, factory);
       listTab = tab;
       renderTabs(tab);
       if (tab === 'me') {
-        body.innerHTML = workerInfoHtml(me && me.worker);
+        const appEl = $('workerApp');
+        body.innerHTML = workerInfoHtml(me && me.worker, (appEl && appEl.getAttribute('data-mypage')) || 'mypage.html');
+        return;
+      }
+      if (tab === 'factory') {
+        await renderFactory(mySeq);
         return;
       }
       body.innerHTML = '<div class="card empty">불러오는 중…</div>';
@@ -808,6 +967,109 @@
         if (mySeq !== seq) return;
         if (await handleAuthError(err)) return;
         body.innerHTML = `<div class="card empty">${esc(err.message)}</div>`;
+      }
+    }
+
+    // ── 공장 탭 ──
+    async function renderFactory(mySeq) {
+      const body = $('appBody');
+      if (!(me && me.factory)) {
+        factoryData = null;
+        body.innerHTML = factoryLinkHtml();
+        return;
+      }
+      body.innerHTML = '<div class="card empty">불러오는 중…</div>';
+      try {
+        const d = await api('/work/factory');
+        if (mySeq !== seq) return;
+        factoryData = d;
+        drawFactory();
+      } catch (err) {
+        if (mySeq !== seq) return;
+        if (await handleAuthError(err)) return;
+        body.innerHTML = `<div class="card empty">${esc(err.message)}</div>`;
+      }
+    }
+    const factoryRole = () => factoryRoleOf(factoryData && factoryData.roles, store.get(FACTORY_ROLE_KEY));
+    function drawFactory() {
+      const role = factoryRole();
+      const timers = {};
+      ((factoryData && factoryData.work && factoryData.work[role]) || []).forEach((j) => {
+        const v = store.get(factoryTimerKey(role, j.orderId));
+        if (v) timers[j.orderId] = v;
+      });
+      $('appBody').innerHTML = factoryHtml(factoryData, { role, timers, nowMs: Date.now() });
+    }
+    /** 실측 기록 보내기 — 값이 틀리면 보내지 않는다. 보내면 공장 탭을 다시 받는다 (act) */
+    function sendWorklog(values, onOk) {
+      const { body, errors } = worklogBody(values);
+      if (errors.length) {
+        say(errors.join(' '));
+        return;
+      }
+      act(async () => {
+        await api('/work/factory/worklogs', { method: 'POST', body });
+        if (onOk) onOk();
+      }, `${FACTORY_ROLE_LABEL[values.role] || ''} 기록했습니다.`);
+    }
+    /** 「내 계정에 잇기」 — 이 기기의 생산 링크 토큰을 X-Worker-Token 으로. 틀리거나 끊긴 링크(410)는 이 기기에서 지운다 */
+    async function linkAccount() {
+      const tok = store.get(LINK_TOKEN_KEY);
+      if (!tok) {
+        await renderRoute();
+        return;
+      }
+      const buttons = $('appBody').querySelectorAll('button');
+      buttons.forEach((c) => { c.disabled = true; });
+      try {
+        await api('/work/factory/link', { method: 'POST', body: {}, headers: { 'X-Worker-Token': tok } });
+        store.set(LINK_TOKEN_KEY, null);
+        say('생산 링크를 내 계정에 이었습니다. 이제 「공장」 탭에서 기록합니다.', true);
+        await refreshMe();
+        await renderRoute();
+      } catch (err) {
+        buttons.forEach((c) => { c.disabled = false; });
+        if (err.status === 410) {
+          store.set(LINK_TOKEN_KEY, null);
+          say(err.message);
+          await renderRoute();
+          return;
+        }
+        if (await handleAuthError(err)) return;
+        say(err.message);
+      }
+    }
+    function onFactoryAct(what, b) {
+      if (what === 'fw-link') {
+        linkAccount();
+        return;
+      }
+      if (what === 'fw-role') {
+        store.set(FACTORY_ROLE_KEY, b.getAttribute('data-role'));
+        drawFactory();
+        return;
+      }
+      const role = factoryRole();
+      if (!role) return;
+      if (what === 'fw-free') {
+        sendWorklog({ role, order_label: $('fwFreeLabel').value, units: $('fwFreeUnits').value, minutes: $('fwFreeMinutes').value });
+        return;
+      }
+      const i = Number(b.getAttribute('data-i'));
+      const job = ((factoryData && factoryData.work && factoryData.work[role]) || [])[i];
+      if (!job) return;
+      const key = factoryTimerKey(role, job.orderId);
+      if (what === 'fw-start') {
+        store.set(key, String(Date.now()));
+        drawFactory();
+      } else if (what === 'fw-cancel') {
+        store.set(key, null);
+        drawFactory();
+      } else if (what === 'fw-done') {
+        sendWorklog(
+          { role, order_id: job.orderId, order_label: job.label, units: $(`fwU${i}`).value, minutes: $(`fwM${i}`).value },
+          () => store.set(key, null)
+        );
       }
     }
 
@@ -1013,6 +1275,10 @@
         Promise.resolve(sb && sb.auth.signOut()).catch(() => {}).then(() => location.reload());
         return;
       }
+      if (what && what.indexOf('fw-') === 0) {
+        onFactoryAct(what, b);
+        return;
+      }
       if (!isUuid(id)) return;
       if (what === 'withdraw') {
         if (!window.confirm('신청을 철회할까요?')) return;
@@ -1023,6 +1289,28 @@
         act(() => api(`/work/assignments/${id}/start`, { method: 'POST', body: {} }), '작업을 시작했습니다.');
       }
     });
+
+    // 오늘 지시 체크 — 보내고 성공하면 줄만 바꾼다 (다시 그리면 입력 중인 수량 · 시간이 지워진다), 실패하면 되돌린다
+    appBody.addEventListener('change', async (e) => {
+      const c = e.target && e.target.closest && e.target.closest('input[data-fa]');
+      if (!c) return;
+      const id = c.getAttribute('data-fa');
+      if (!isUuid(id)) return;
+      try {
+        await api(`/work/factory/assignments/${id}/done`, { method: 'POST', body: { done: c.checked } });
+        c.closest('label').classList.toggle('done', c.checked);
+      } catch (err) {
+        c.checked = !c.checked;
+        if (await handleAuthError(err)) return;
+        say(err.message);
+      }
+    });
+    // 진행 시간 글자만 30초마다 — 다시 그리면 입력 중인 값이 지워진다
+    setInterval(() => {
+      document.querySelectorAll('#appBody .fw-run[data-since]').forEach((el) => {
+        el.textContent = `진행 중 · ${elapsedMin(el.getAttribute('data-since'), Date.now())}분째`;
+      });
+    }, 30000);
 
     window.addEventListener('hashchange', () => {
       const next = parseHash(location.hash);
@@ -1041,6 +1329,7 @@
 
   return Object.freeze({
     KINDS,
+    WORKER_KINDS,
     KIND_LABEL,
     JOB_STATUS_LABEL,
     APP_STATUS_LABEL,
@@ -1055,6 +1344,10 @@
     INVITE_KEY,
     SUSPENDED_NOTE,
     DEADLINE_NONE,
+    FACTORY_ROLE_LABEL,
+    LINK_TOKEN_KEY,
+    FACTORY_ROLE_KEY,
+    factoryTimerKey,
     esc,
     fmtDate,
     fmtTime,
@@ -1087,6 +1380,12 @@
     jobDetailHtml,
     workerInfoHtml,
     pendingInfoHtml,
+    factoryDay,
+    factoryRoleOf,
+    worklogBody,
+    factoryLinkHtml,
+    factoryJobsHtml,
+    factoryHtml,
     storeInvite,
     loadInvite,
     start,

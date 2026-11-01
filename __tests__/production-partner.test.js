@@ -4,6 +4,7 @@
  *   GET /production/settings 의 hq 가 false 면 설정 카드만 남기고, 계획 · 제안 · 지시 · 작업자 링크 · 보정 · 월 손익을 부르지 않는다
  *   (예전엔 제안이 없으면 '지금 다시 계산' 을 저절로 불러 본사 Slack 으로 나갔다)
  *   본사(hq true) · 설정을 못 읽는 본사 직원은 예전처럼 전부 부른다.
+ *   공장 배정 — 내 계획에 배정된 작업자 · 배정할 수 있는 작업자, 배정하기 · 배정 끝 (workflow-api work/factory.js)
  */
 const fs = require('fs');
 const path = require('path');
@@ -23,14 +24,14 @@ const SETTINGS = { standards: {}, crew: {}, costs: {}, leads: {}, quote: { margi
 const PLAN = { days: [], jobs: [], suggestions: [], summary: {}, skipped: [] };
 
 /** settings: 'hq' | 'partner' | 'forbidden' */
-function fakeApi(settings) {
+function fakeApi(settings, factory = { assigned: [], candidates: [] }) {
   const calls = [];
   const ok = (data, code = 200) => ({ ok: true, status: code, json: async () => ({ success: true, data }) });
   const err = (code, message) => ({ ok: false, status: code, json: async () => ({ success: false, message }) });
   const fetchFn = jest.fn(async (url, init = {}) => {
     const u = String(url).replace(API, '');
     const method = init.method || 'GET';
-    calls.push({ method, u });
+    calls.push({ method, u, body: init.body ? JSON.parse(init.body) : null });
     if (u === '/production/settings' && method === 'GET') {
       if (settings === 'forbidden') return err(403, '원가 설정은 업체 대표 · 실장만 다룹니다');
       return ok({ settings: SETTINGS, saved: null, updated_at: null, missing: true, hq: settings === 'hq' });
@@ -40,6 +41,9 @@ function fakeApi(settings) {
     if (u.startsWith('/production/proposals')) return ok({ items: [] });
     if (u.startsWith('/production/assignments')) return ok({ items: [] });
     if (u.startsWith('/production/worker-links')) return ok({ items: [] });
+    if (u === '/production/factory-workers' && method === 'GET') return ok(factory);
+    if (u === '/production/factory-workers' && method === 'POST') return ok({ id: 'F2' }, 201);
+    if (/^\/production\/factory-workers\/[^/]+\/end$/.test(u)) return ok({ id: 'F1', ended_at: '2026-11-01T00:00:00Z' });
     if (u.startsWith('/production/calibration')) return ok({ from: '2026-10-01', result: [] });
     if (u.startsWith('/production/worklogs')) return ok({ items: [] });
     if (u.startsWith('/production/monthly')) return ok({ month: '2026-10', rows: [], totals: { orders: 0, revenue: 0, cost: 0, gross: 0, grossRate: null, overhead: 0, net: 0, unknownCost: 0, shortfall: 0 } });
@@ -79,9 +83,9 @@ test('본사 — 예전처럼 전부 부른다', async () => {
   const api = fakeApi('hq');
   boot(api);
   await settle();
-  expect(visibleCards().length).toBe(9);
+  expect(visibleCards().length).toBe(10);
   expect($('#subPartner').hidden).toBe(true);
-  for (const p of ['/production/proposals/latest', '/production/assignments', '/production/worker-links', '/production/calibration', '/production/monthly']) {
+  for (const p of ['/production/proposals/latest', '/production/assignments', '/production/factory-workers', '/production/worker-links', '/production/calibration', '/production/monthly']) {
     expect(api.calls.some((c) => c.u.startsWith(p))).toBe(true);
   }
 });
@@ -90,6 +94,38 @@ test('설정을 못 읽는 본사 직원 — 알리고 나머지는 예전처럼
   const api = fakeApi('forbidden');
   boot(api);
   await settle();
-  expect(visibleCards().length).toBe(9);
+  expect(visibleCards().length).toBe(10);
   expect(api.calls.some((c) => c.u.startsWith('/production/proposals/latest'))).toBe(true);
+});
+
+test('공장 배정 — 배정된 작업자 · 공정 · 링크에서 이음, 고른 작업자를 배정하고 배정을 끝낸다 (이름은 글자로)', async () => {
+  const XSS = '<img src=x onerror=alert(1)>';
+  const api = fakeApi('hq', {
+    assigned: [{ id: 'F1', assigned_at: '2026-10-30T00:00:00Z', from_link: true, worker: { id: 'W1', display_name: XSS, kinds: ['cutting'], status: 'approved' }, roles: ['cutter', 'asm'] }],
+    candidates: [{ id: 'W2', display_name: '이엣지', kinds: ['edge'], status: 'approved' }],
+  });
+  window.confirm = jest.fn(() => true);
+  boot(api);
+  await settle();
+  const rows = $('#factoryRows');
+  expect(rows.querySelector('img')).toBe(null);
+  expect(rows.textContent).toContain(XSS);
+  expect(rows.textContent).toContain('재단 · 조립');
+  expect(rows.textContent).toContain('링크에서 이음');
+  expect($('#factoryPick').options[0].textContent).toBe('이엣지 (엣지)');
+  $('#btnAssignFactory').click();
+  await settle();
+  expect(api.calls.find((c) => c.method === 'POST' && c.u === '/production/factory-workers').body).toEqual({ worker_id: 'W2' });
+  rows.querySelector('[data-end="F1"]').click();
+  await settle();
+  expect(api.calls.some((c) => c.method === 'POST' && c.u === '/production/factory-workers/F1/end')).toBe(true);
+});
+
+test('공장 배정 — 배정할 사람이 없으면 버튼을 잠근다', async () => {
+  const api = fakeApi('hq');
+  boot(api);
+  await settle();
+  expect($('#factoryPick').options[0].textContent).toBe('배정할 수 있는 작업자가 없습니다');
+  expect($('#btnAssignFactory').disabled).toBe(true);
+  expect($('#factoryRows').textContent).toContain('아직 없습니다.');
 });
