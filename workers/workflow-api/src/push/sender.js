@@ -6,6 +6,7 @@
  *   2. 줄마다 보낼 때 다시 본다 — 받는 사람이 아직 그 업체의 active 구성원이고 업체가 active 인가.
  *      결제 실패 · 업체 정지(billing_failed · company_suspended)는 업체가 정지됐어도 active 대표에게 간다.
  *      업체 없는 업체 신청(partner_application, company_id 없음)은 그 사람의 업체 없는 기기로 간다.
+ *      작업자 알림(work_*, company_id 없음)은 작업자에게 — 신청 결과는 작업자 행이 있으면, 그 밖은 승인된 작업자만.
  *   3. 그 사람의 그 업체 기기 (업체 없는 신청이면 업체 없는 기기) 모두에 보낸다.
  *        404 · 410 · 쓸 수 없는 키 → 그 기기 등록을 지운다
  *        하나라도 받으면 → sent (sent_at)
@@ -21,6 +22,7 @@
 
 import { callRpc, selectMany, updateBy } from '../supabase.js';
 import { loadVapid, sendWebPush, PushError } from './webpush.js';
+import { WORK_NOTIFICATION_KINDS } from './messages.js';
 
 export const PUSH_SEND_CRON = '* * * * *';
 /** 한 번에 잡는 줄 수 */
@@ -46,9 +48,15 @@ const chunks = (list, size = ID_CHUNK) => {
   return out;
 };
 
-/** 알림을 받을 사람인가 — 보낼 때 다시 본다 */
-export function isEligible(row, memberships) {
+/** 알림을 받을 사람인가 — 보낼 때 다시 본다. workers = [{ user_id, status }] (작업자 알림 때만 읽는다) */
+export function isEligible(row, memberships, workers = []) {
   if (row.kind === 'partner_application' && !row.company_id) return true;
+  if (WORK_NOTIFICATION_KINDS.includes(row.kind)) {
+    if (row.company_id) return false;
+    const w = (workers || []).find((x) => x.user_id === row.user_id);
+    if (!w) return false;
+    return row.kind === 'work_registration' || w.status === 'approved';
+  }
   const m = memberships.find((x) => x.user_id === row.user_id && x.company_id === row.company_id);
   if (!m) return false;
   const status = m.company && m.company.status;
@@ -82,11 +90,16 @@ function errorName(result) {
   return (result && result.error) || 'error';
 }
 
-/** 잡은 줄의 받는 사람들 — 구성원(업체 상태 포함) · 기기 */
+/** 잡은 줄의 받는 사람들 — 구성원(업체 상태 포함) · 기기 · (작업자 알림이 있으면) 작업자 상태 */
 async function loadRecipients(env, rows) {
   const userIds = [...new Set(rows.map((r) => r.user_id))];
+  const workerIds = [...new Set(rows.filter((r) => WORK_NOTIFICATION_KINDS.includes(r.kind)).map((r) => r.user_id))];
   const memberships = [];
   const subs = [];
+  const workers = [];
+  for (const part of chunks(workerIds)) {
+    workers.push(...((await selectMany(env, 'workers', { user_id: `in.(${part.join(',')})`, select: 'user_id,status' })) || []));
+  }
   for (const part of chunks(userIds)) {
     const inList = `in.(${part.join(',')})`;
     const [m, s] = await Promise.all([
@@ -103,7 +116,7 @@ async function loadRecipients(env, rows) {
     memberships.push(...(m || []));
     subs.push(...(s || []));
   }
-  return { memberships, subs };
+  return { memberships, subs, workers };
 }
 
 /** 줄 닫기 — 아직 queued 일 때만 (그사이 정리 트리거가 지웠으면 0행) */
@@ -139,7 +152,7 @@ async function sendToSub(env, ctx, sub, message) {
 
 /** 한 줄 보내기 → sent | skipped | retry | failed */
 async function processRow(env, ctx, row) {
-  if (!isEligible(row, ctx.memberships)) {
+  if (!isEligible(row, ctx.memberships, ctx.workers)) {
     await finishRow(env, row, { state: 'skipped', last_error: 'ineligible' });
     return 'skipped';
   }
