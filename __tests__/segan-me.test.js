@@ -53,6 +53,21 @@ async function load(options = {}) {
     projectsRes: { ok: false, status: 404, body: { success: false, error: 'Not found' } },
     projectsFail: false,
     workflowUrl: WORK,
+    // POST /order-payments/checkout 응답 (segan/pay.js) · 토스 결제창 (window.TossPayments)
+    checkoutRes: {
+      ok: true,
+      status: 200,
+      body: {
+        success: true,
+        data: {
+          order_id: 'dadampay-abc123',
+          amount: 3000000,
+          order_name: '다담 계약금 · SO-1',
+          client_key: 'test_ck_x',
+        },
+      },
+    },
+    tossError: null,
     ...options,
   };
   const doc = new DOMParser().parseFromString(read('segan/me.html'), 'text/html');
@@ -67,6 +82,8 @@ async function load(options = {}) {
     'SeganShell',
     'SeganMake',
     'SeganMe',
+    'SeganPay',
+    'TossPayments',
   ])
     delete window[k];
   window.DADAM_CONFIG = {
@@ -74,7 +91,13 @@ async function load(options = {}) {
     workflowApi: { url: opts.workflowUrl },
     paymentsApi: { url: PAY },
   };
-  const calls = { tables: [], consultQuery: null, fetch: [], rpc: [] };
+  const calls = { tables: [], consultQuery: null, fetch: [], rpc: [], posts: [], toss: [] };
+  window.TossPayments = (key) => ({
+    requestPayment: async (method, params) => {
+      calls.toss.push({ key, method, params });
+      if (opts.tossError) throw opts.tossError;
+    },
+  });
   const results = {
     consultations: () => ({
       data: opts.consultError ? null : opts.consults,
@@ -139,6 +162,16 @@ async function load(options = {}) {
   };
   window.fetch = jest.fn(async (url, init = {}) => {
     calls.fetch.push({ url, auth: (init.headers || {}).Authorization });
+    if (init.method === 'POST')
+      calls.posts.push({
+        url,
+        auth: (init.headers || {}).Authorization,
+        body: JSON.parse(init.body || '{}'),
+      });
+    if (url === PAY + '/order-payments/checkout') {
+      const r = opts.checkoutRes;
+      return { ok: r.ok, status: r.status, json: async () => r.body };
+    }
     if (url === PAY + '/subscription') {
       if (opts.subFail) throw new TypeError('Failed to fetch');
       const body = opts.subBody || { success: true, data: opts.sub };
@@ -160,7 +193,8 @@ async function load(options = {}) {
     if (!src.startsWith('../js/') || src.startsWith('../js/config.js')) continue;
     (0, eval)(read(src.slice(3).split('?')[0]));
   }
-  for (const f of ['segan/shell.js', 'segan/make.js', 'segan/me.js']) (0, eval)(read(f));
+  for (const f of ['segan/pay.js', 'segan/shell.js', 'segan/make.js', 'segan/me.js'])
+    (0, eval)(read(f));
   await window.SeganShell.ready;
   await window.SeganMe.ready;
   return calls;
@@ -617,5 +651,165 @@ describe('로그인 · 나머지', () => {
     expect(document.getElementById('sgRoles')).not.toBeNull();
     expect(document.querySelector('.sg-biz')).not.toBeNull();
     expect(document.querySelectorAll('.sg-soon')).toHaveLength(0); // 「준비 중」 자리표시가 남지 않았다
+  });
+});
+
+describe('내 프로젝트 — 다음 결제 칸 (segan/pay.js, 다담 공장 수주)', () => {
+  const PAY_ID = '66666666-6666-4666-8666-666666666661';
+  const withPay = (pay) => ({
+    projectsRes: {
+      ok: true,
+      status: 200,
+      body: {
+        success: true,
+        data: [
+          {
+            id: 'p1',
+            title: '주방',
+            status: 'active',
+            company_name: '다담 공장',
+            created_at: '2026-10-01T00:00:00Z',
+            stage: 'order',
+            order: {
+              order_no: 'SO-1',
+              status: 'confirmed',
+              contract_amount: 10000000,
+              ordered_at: '2026-10-20T00:00:00Z',
+              completed_at: null,
+            },
+            payments: [
+              {
+                id: '66666666-6666-4666-8666-666666666660',
+                stage: 'deposit',
+                amount: 1000000,
+                due_on: '2026-10-20',
+                paid_on: '2026-10-20',
+                payable: false,
+                online: null,
+              },
+              {
+                id: PAY_ID,
+                stage: 'interim',
+                amount: 3000000,
+                due_on: '2026-11-10',
+                paid_on: null,
+                payable: true,
+                online: null,
+                ...pay,
+              },
+            ],
+            install_at: null,
+          },
+        ],
+      },
+    },
+  });
+  const box = () => $('meProjects').querySelector('.pay-box');
+
+  test('결제할 수 있는 줄 — 카드 · 간편결제 / 가상계좌 단추, 누르면 결제창 열기 → 토스 결제창 (돌아올 곳 pay.html)', async () => {
+    const calls = await load(withPay({}));
+    const buttons = [...box().querySelectorAll('button[data-pay-id]')];
+    expect(buttons.map((b) => [b.textContent, b.getAttribute('data-pay-method')])).toEqual([
+      ['카드 · 간편결제', 'card'],
+      ['가상계좌', 'virtual_account'],
+    ]);
+    buttons[1].click();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(calls.posts).toEqual([
+      { url: PAY + '/order-payments/checkout', auth: 'Bearer tok-1', body: { payment_id: PAY_ID } },
+    ]);
+    expect(calls.toss).toHaveLength(1);
+    const { key, method, params } = calls.toss[0];
+    expect([key, method]).toEqual(['test_ck_x', 'VIRTUAL_ACCOUNT']);
+    expect(params).toEqual({
+      amount: 3000000,
+      orderId: 'dadampay-abc123',
+      orderName: '다담 계약금 · SO-1',
+      successUrl: new URL('pay.html', location.href).href,
+      failUrl: new URL('pay.html?result=fail', location.href).href,
+    });
+    expect($('mePayError').hidden).toBe(true);
+  });
+
+  test('결제창을 못 열면(409 입금 기다림 등) 서버 글을 칸 아래에 · 칸을 다시 받는다, 결제창을 닫으면 아무 말 없이', async () => {
+    const calls = await load({
+      ...withPay({}),
+      checkoutRes: {
+        ok: false,
+        status: 409,
+        body: {
+          success: false,
+          code: 'waiting_deposit',
+          message: '가상계좌 입금을 기다리는 중입니다.',
+        },
+      },
+    });
+    const before = calls.fetch.filter((f) => f.url === WORK + '/me/projects').length;
+    box().querySelector('button[data-pay-method="card"]').click();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    expect($('mePayError').hidden).toBe(false);
+    expect($('mePayError').textContent).toBe('가상계좌 입금을 기다리는 중입니다.');
+    expect(calls.fetch.filter((f) => f.url === WORK + '/me/projects').length).toBe(before + 1);
+    expect(calls.toss).toHaveLength(0);
+
+    const c2 = await load({ ...withPay({}), tossError: { code: 'USER_CANCEL', message: '취소' } });
+    box().querySelector('button[data-pay-method="card"]').click();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(c2.toss).toHaveLength(1);
+    expect($('mePayError').hidden).toBe(true);
+  });
+
+  test('가상계좌 입금 기다림 — 은행 이름 · 계좌 · 예금주 · 기한(한국 시간), 단추 없음 · 확인 중이면 그 안내만', async () => {
+    await load(
+      withPay({
+        online: {
+          status: 'waiting_deposit',
+          method: 'virtual_account',
+          virtual_account: {
+            bank: '88',
+            account_number: 'X1234567890',
+            holder: '김고객',
+            due_at: '2026-11-05T14:59:00Z',
+          },
+        },
+      })
+    );
+    expect(box().querySelector('button')).toBeNull();
+    const rows = [...box().querySelectorAll('.pay-va div')].map((d) => [
+      d.querySelector('dt').textContent,
+      d.querySelector('dd').textContent,
+    ]);
+    expect(rows).toEqual([
+      ['은행', '신한은행'],
+      ['계좌', 'X1234567890'],
+      ['예금주', '김고객'],
+      ['기한', '11/5(목) 23:59까지'],
+    ]);
+    await load(
+      withPay({ online: { status: 'check_needed', method: 'card', virtual_account: null } })
+    );
+    expect(box().querySelector('button')).toBeNull();
+    expect(box().textContent).toBe(window.SeganPay.TEXT.checking);
+  });
+
+  test('협력업체 수주(payable 아님) · id 가 이상한 줄은 칸을 그리지 않는다, 계좌 글은 글자로만', async () => {
+    await load(withPay({ payable: false }));
+    expect(box()).toBeNull();
+    await load(withPay({ id: '<x>' }));
+    expect(box()).toBeNull();
+    await load(
+      withPay({
+        online: {
+          status: 'waiting_deposit',
+          virtual_account: { bank: '99', account_number: '<img src=x>' },
+        },
+      })
+    );
+    expect(box().querySelector('img')).toBeNull();
+    expect(box().textContent).toContain('<img src=x>');
+    expect(box().textContent).toContain('은행 코드 99');
   });
 });
