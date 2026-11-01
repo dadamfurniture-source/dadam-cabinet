@@ -176,7 +176,8 @@ describe('pricing.html — Expert · Agent 는 안내 · 상담 신청만 (결�
     expect(html).not.toContain('js.tosspayments.com');
     expect(html).not.toContain('requestBillingAuth');
     expect(html).not.toContain('billing-success.html');
-    expect(html).not.toMatch(/segan\//i);
+    // 앱으로 넘기는 <head> 맨 앞(to-segan) 말고는 앱을 가리키지 않는다
+    expect(html.replace(/<!-- 이 주소는 SEGAN 앱[\s\S]*?<\/script>/, '')).not.toMatch(/segan\//i);
   });
 
   test('지금 등급 카드는 「현재 등급」, 다른 유료 등급만 안내', async () => {

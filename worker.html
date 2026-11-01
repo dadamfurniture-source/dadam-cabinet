@@ -5,9 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow, noarchive" />
     <meta name="referrer" content="no-referrer" />
+    <!-- 이 주소는 SEGAN 앱 「작업」으로 넘긴다. 아래 옛 화면은 정리할 때까지 남지만 보이지 않는다.
+         주소는 확장자 없이 보낸다 — 호스팅이 .html 을 확장자 없는 주소로 308 넘긴다.
+         작업 초대 링크(worker.html#invite=…)는 # 을 그대로 가져간다. -->
+    <meta http-equiv="refresh" content="0; url=segan/work" />
+    <script id="to-segan">
+      location.replace('segan/work' + location.search + location.hash);
+    </script>
     <title>작업자 · 다담가구</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="js/config.js?v=2026110201"></script>
+    <script src="js/config.js?v=2026110202"></script>
     <style>
       /* production-worker.html 의 틀 — 560px 한 열, 16px 이상 글자, 전체 폭 버튼 */
       :root {
@@ -231,6 +238,6 @@
       </section>
     </div>
 
-    <script src="js/worker-portal.js?v=2026110201"></script>
+    <script src="js/worker-portal.js?v=2026110202"></script>
   </body>
 </html>

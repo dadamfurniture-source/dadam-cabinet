@@ -231,9 +231,9 @@ describe('크게 보기 — 앱 안에서', () => {
 });
 
 describe('페이지', () => {
-  test('collection.html 이 config · supabase · shell · collection.js 를 싣고 noindex', () => {
+  test('collection.html 이 config · supabase · shell · collection.js 를 싣고 검색에 보인다', () => {
     const html = read('segan/collection.html');
-    expect(html).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
+    expect(html).not.toMatch(/<meta name="robots"/);
     expect(html).toMatch(/<script src="\.\.\/js\/config\.js\?v=\d+"><\/script>/);
     expect(html).toMatch(/<script src="collection\.js\?v=\d+" defer><\/script>/);
     expect(html).toMatch(/<body class="sg-app" data-tab="collection">/);
