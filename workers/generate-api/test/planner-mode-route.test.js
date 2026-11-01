@@ -728,3 +728,38 @@ test('다듬기 — planner_polish:true + 시안이면 options.polish, 시안이
   await post({ parent_id: base.id, planner_polish: false });
   assert.equal('polish' in calls.inserted.options, false, '요청이 false 면 끈다');
 });
+
+// 2026-11-01: 방 비우기 (사장님 「AI로 방을 먼저 정리 -> 블렌더 시안 -> AI 보정」) — planner_clear:true 면 입면 없이 options.clear
+test('방 비우기 — planner_clear:true 면 입면 없이 받고 options.clear (다듬기와 같이 오면 비우기), 비운 방 다듬기는 cleared · 재생성은 원본을 잇는다', async () => {
+  install();
+  assert.equal((await post(plannerBody({ planner_clear: true, renders: [] }))).status, 202, '입면 없이도 받는다');
+  assert.equal(calls.inserted.options.clear, true);
+  assert.equal('polish' in calls.inserted.options, false);
+  install();
+  assert.equal((await post(plannerBody({ renders: [] }))).status, 400, '비우기가 아니면 입면은 여전히 필수');
+  const comp = { role: 'composite', base64: PNG, mime: 'image/jpeg' };
+  install();
+  await post(plannerBody({ planner_clear: true, planner_polish: true, renders: [...plannerBody().renders, comp] }));
+  assert.equal(calls.inserted.options.clear, true);
+  assert.equal('polish' in calls.inserted.options, false, '비우기가 이긴다');
+  install();
+  await post(plannerBody({ planner_polish: true, planner_cleared: true, renders: [...plannerBody().renders, comp] }));
+  assert.equal(calls.inserted.options.polish, true);
+  assert.equal(calls.inserted.options.cleared, true);
+  install();
+  await post(plannerBody({ planner_cleared: true, renders: [...plannerBody().renders, comp] }));
+  assert.equal('cleared' in calls.inserted.options, false, '다듬기가 아니면 cleared 키 없음');
+  install();
+  await post(plannerBody({ planner_clear: 'yes', renders: [...plannerBody().renders] }));
+  assert.equal('clear' in calls.inserted.options, false, '참(true)만 받는다');
+  const base = {
+    id: '44444444-4444-4444-8444-444444444444',
+    user_id: USER_ID,
+    category: 'sink',
+    inputs: { room: { path: 'p/room.jpg', url: 'u', mime: 'image/jpeg' }, refs: [], renders: [] },
+    options: { design_spec: { version: 1, category: 'sink', wallRunMm: 2200 }, mode: 'planner', aspect: '4:3', variants: false, clear: true },
+  };
+  install({ parent: base });
+  assert.equal((await post({ parent_id: base.id })).status, 202);
+  assert.equal(calls.inserted.options.clear, true, '재생성은 원본 비우기를 잇는다');
+});

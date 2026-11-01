@@ -1126,9 +1126,11 @@ function guidePhrase(c) {
  * 2026-10-20 사장님 "주변과 어울리는 색상·재질을 판단해서 자연스럽게 마감" — 마감 목록·고르는 칸 없이
  * 모델이 방의 마감된 부분을 보고 이어 간다. 천장 구멍은 생성마다 막히기도·조명 홈이 되기도 했다 → 막고, 전선이 나온 자리만 매립등.
  */
-function sitePhrase(c) {
+function sitePhrase(c, o = {}) {
+  // o.empty — 방 비우기 (buildPlannerClearPrompt): 아직 새 가구가 없다 — 배관 · 전선은 벽 안으로만 (나머지 문장은 같다)
+  const route = o.empty ? 'inside the wall' : 'behind the new furniture or inside the wall';
   return c.site === 'construction'
-    ? `\nSITE: the photo shows an unfinished construction site${c.siteNotes ? ` (${c.siteNotes})` : ''}. Render the room fully finished and clean: remove debris, tools, boxes, dust and protective film. Finish every unfinished surface so it blends with the finished parts of this room: continue the colour, material and pattern of the existing floor, walls, ceiling, skirting and trim; where no finished part is visible, choose a calm finish that suits the room and the new furniture. Close holes, slots and cut-outs in the walls and ceiling flush with the surface around them; where wires hang out for a light, fit a simple flush light that matches the room's other lights. Route every exposed pipe, valve and wire behind the new furniture or inside the wall so none stays visible. Keep the room geometry, window positions and camera unchanged.`
+    ? `\nSITE: the photo shows an unfinished construction site${c.siteNotes ? ` (${c.siteNotes})` : ''}. Render the room fully finished and clean: remove debris, tools, boxes, dust and protective film. Finish every unfinished surface so it blends with the finished parts of this room: continue the colour, material and pattern of the existing floor, walls, ceiling, skirting and trim; where no finished part is visible, choose a calm finish that suits the room and the new furniture. Close holes, slots and cut-outs in the walls and ceiling flush with the surface around them; where wires hang out for a light, fit a simple flush light that matches the room's other lights. Route every exposed pipe, valve and wire ${route} so none stays visible. Keep the room geometry, window positions and camera unchanged.`
     : '';
 }
 
@@ -2487,9 +2489,12 @@ export function buildPlannerPrompt(c) {
  *   2026-11-01 사장님 「원래 있던 물건과 겹쳐 보이는 건 정리 안됨?」: 방에서 바꾸는 것은 하나 — 새 장과 겹치는 옛 물건 (CLEAN UP).
  *     시안은 사진 위에 장을 덮어 그려서, 장 뒤의 옛 장 · 장에 반쯤 가린 물건이 장 둘레로 삐져나와 보인다. 장이 겹친 옛 붙박이(같은 줄 나머지 포함)와
  *     장에 가리거나 잘린 물건만 지우고 뒤의 벽 · 바닥 · 천장을 잇는다. 장과 떨어져 선 물건(냉장고 · 의자 · 화분 등)은 그대로.
- * @param {object} c buildPlannerPrompt 와 같은 ctx — designSpec(finishes) · doorColor · doorFinish · aspect 만 읽는다
+ *   2026-11-01 사장님 「AI로 방을 먼저 정리 -> 블렌더 시안 -> AI 보정」 · 「무엇을 지울지: 추천 + 공사현장처럼 마감정리가 안 되어 있다면 클리어하게 정리」: 시안 배경이 비운 방(c.cleared)이면
+ *     지울 것이 없다 — CLEAN UP 줄을 빼고 방 전체를 그대로 둔다 (정리 줄이 새 장까지 지우지 않게).
+ * @param {object} c buildPlannerPrompt 와 같은 ctx — designSpec(finishes) · doorColor · doorFinish · aspect · cleared 만 읽는다
  */
 export function buildPlannerPolishPrompt(c) {
+  const cleared = c.cleared === true;
   const spec = c.designSpec && typeof c.designSpec === 'object' ? c.designSpec : {};
   const fin = spec.finishes || null;
   const door = designFinishPhrase(fin && fin.door) || `${c.doorColor || 'white'} ${c.doorFinish || 'matte'}`;
@@ -2497,9 +2502,13 @@ export function buildPlannerPolishPrompt(c) {
   const top = designFinishPhrase(fin && fin.top);
   return [
     `You receive one image. IMAGE A — ROOM PHOTO: the customer's real room with the new built-in units already rendered into it by our planner, using this photo's own camera. The units' position, size, depth, outline and every door and drawer division are final.`,
-    `TASK: retouch IMAGE A into one natural photograph, as if the finished units had been photographed in this room with the same camera after the old furniture they replace was taken out. This is a polish, not a redesign.`,
-    `KEEP EXACTLY as in IMAGE A: every outer edge, seam and door or drawer division of the units — the same number of doors and drawers with the same widths and heights, in the same place; the countertop line; the camera position, lens, perspective and framing; and the rest of the room — walls, floor, ceiling, windows, doors, tiles, pipes, wires and every object that stands clear of the units, with any marks or unfinished surfaces as they are. Apart from the clean-up below, do not move, stretch, add, remove, clean or redraw anything.`,
-    `CLEAN UP — the only change to the room: the new units replace whatever stood in their place. Remove the old built-in cabinets, shelves, hood and built-in appliances the units overlap, together with the rest of that same old run on that wall, and any other object the units now cover or cut through, so that no part of it still shows around, above, beside or between the units. Remove each one completely, with its shadow, and continue the wall, floor and ceiling behind it in their own colour and texture, with no demolition marks or ghost outlines. Free-standing objects that stand clear of the units — a refrigerator, chairs, carts, plants — stay where they are.`,
+    cleared
+      ? `TASK: retouch IMAGE A into one natural photograph, as if the finished units had been photographed in this room with the same camera. This is a polish, not a redesign.`
+      : `TASK: retouch IMAGE A into one natural photograph, as if the finished units had been photographed in this room with the same camera after the old furniture they replace was taken out. This is a polish, not a redesign.`,
+    cleared
+      ? `KEEP EXACTLY as in IMAGE A: every outer edge, seam and door or drawer division of the units — the same number of doors and drawers with the same widths and heights, in the same place; the countertop line; the camera position, lens, perspective and framing; and the whole room — walls, floor, ceiling, windows, doors, tiles, pipes, wires and every object, as they are. Do not move, stretch, add, remove, clean or redraw anything.`
+      : `KEEP EXACTLY as in IMAGE A: every outer edge, seam and door or drawer division of the units — the same number of doors and drawers with the same widths and heights, in the same place; the countertop line; the camera position, lens, perspective and framing; and the rest of the room — walls, floor, ceiling, windows, doors, tiles, pipes, wires and every object that stands clear of the units, with any marks or unfinished surfaces as they are. Apart from the clean-up below, do not move, stretch, add, remove, clean or redraw anything.`,
+    !cleared && `CLEAN UP — the only change to the room: the new units replace whatever stood in their place. Remove the old built-in cabinets, shelves, hood and built-in appliances the units overlap, together with the rest of that same old run on that wall, and any other object the units now cover or cut through, so that no part of it still shows around, above, beside or between the units. Remove each one completely, with its shadow, and continue the wall, floor and ceiling behind it in their own colour and texture, with no demolition marks or ghost outlines. Free-standing objects that stand clear of the units — a refrigerator, chairs, carts, plants — stay where they are.`,
     `ON THE UNITS, CHANGE ONLY the look of light and surfaces: natural light falloff matching the room's light direction and colour temperature, soft contact shadows and ambient occlusion where the units meet the wall, floor and ceiling and in the door gaps, subtle reflections, fine material texture, and the same photographic grain and sharpness as the rest of the photo.`,
     `MATERIALS (keep the colour as rendered): fronts ${door}, the same on every door and drawer` +
       (body ? `; carcass and visible sides ${body}` : '') +
@@ -2508,7 +2517,39 @@ export function buildPlannerPolishPrompt(c) {
     HANDLES_LINE,
     `DO NOT: change how many doors or drawers any unit has; add handles, knobs, appliances or decorations; open any door or drawer; add text, labels or watermarks.`,
     `OUTPUT: one photorealistic photograph, ${resolvePlannerAspect(c.aspect)}, the same view as IMAGE A.`,
-  ].join('\n\n');
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+/**
+ * 플래너 방 비우기 지시문 (2026-11-01 사장님 「AI로 방을 먼저 정리 -> 블렌더 시안 -> AI 보정」 · 「무엇을 지울지: 추천 + 공사현장처럼 마감정리가 안 되어 있다면 클리어하게 정리」).
+ *   현장사진 한 장 → 설계를 놓을 벽(정면 벽 + 꺾인 벽)의 옛 붙박이 · 가구와 그 벽에 기대 선 물건을 지운 빈 방. 공사 현장이면 SITE 문단
+ *   (설치 · 플래너 프롬프트와 같은 문장 — 아직 새 가구가 없어 배관 · 전선은 벽 안으로). 타일은 그대로 (타일 바꾸기는 예전 방식의 몫).
+ *   간편 플래너가 받은 그림을 원본 사진에 맞춰 바뀐 곳만 붙이고 그 위에 Blender 시안을 그린다 — 카메라 · 벽 모서리를 옮기면 안 된다.
+ * @param {object} c buildPlannerPrompt 와 같은 ctx — designSpec(walls) · existing · site · siteNotes · aspect 만 읽는다
+ */
+export function buildPlannerClearPrompt(c) {
+  const spec = c.designSpec && typeof c.designSpec === 'object' ? c.designSpec : {};
+  const sides = plannerWalls(spec).map((w) => w.side);
+  const layout = plannerLayout(spec);
+  const walls = sides.length
+    ? listJoinAnd(['main', ...sides].map((s) => `the ${plannerWallName(s)}`))
+    : layout && layout.walls > 1
+      ? `the ${layout.walls} target walls`
+      : `the ${plannerWallName('main')}`;
+  const existing = c.existing ? ` (${c.existing})` : '';
+  return [
+    `You receive one image. IMAGE A — ROOM PHOTO: the customer's real room before new built-in furniture is installed on ${walls}.`,
+    `TASK: show this same room emptied and ready for the installation — one natural photograph taken with exactly the same camera.`,
+    `REMOVE: on ${walls}, every old built-in cabinet, shelf, hood, built-in appliance and piece of furniture standing against it${existing}, and every object standing in front of it. Remove each one completely, with its shadow, and continue the wall, floor and ceiling behind it in their own colour, material and texture, with no demolition marks, patches or ghost outlines.`,
+    sitePhrase(c, { empty: true }).trim(),
+    `KEEP EXACTLY as in IMAGE A: the camera position, lens, perspective and framing — do not widen, crop, zoom or shift the view; every wall corner, the ceiling and floor lines, windows and doors exactly where they are; the other walls and everything on them; free-standing objects that stand clear of ${walls} — a refrigerator, chairs, carts, plants; the wall tiles; and the lighting.`,
+    `DO NOT: add any furniture, cabinets, shelves, appliances or decorations; add text, labels or watermarks.`,
+    `OUTPUT: one photorealistic photograph, ${resolvePlannerAspect(c.aspect)}, the same view as IMAGE A.`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 /**

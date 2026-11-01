@@ -394,6 +394,8 @@ async function createGeneration(request, env, headers) {
     image_provider,
     place_guide,
     planner_polish,
+    planner_clear,
+    planner_cleared,
   } = body;
 
   // 입력 검사 (2026-10-26) — 크레딧 차감 전에. 방 사진 형식은 버킷 Content-Type 으로 그대로 가고,
@@ -425,6 +427,7 @@ async function createGeneration(request, env, headers) {
       user, parent, room_image, image_type, rawCategory, design_style, door_color, door_finish,
       wall_width_override, water_from_left_override, exhaust_from_left_override,
       fridge_options, design_spec, renders, aspect, title, image_provider, room_focal35, place_guide, planner_polish,
+      planner_clear, planner_cleared,
     });
   }
 
@@ -500,6 +503,8 @@ async function createGeneration(request, env, headers) {
  *         image_provider ('openai' | 'gemini', 2026-10-18). 없거나 모르는 값이면 재생성 원본 값,
  *           그것도 없으면 PLANNER_IMAGE_PROVIDER (2026-10-19 기본 'openai' = GPT).
  *         renders 의 elevation_labeled (번호 붙은 입면, 2026-10-19) — GPT 가 그릴 때만 IMAGE B 로 쓴다.
+ *         planner_clear (2026-11-01, 방 비우기) — true 면 입면이 없어도 된다 (방 사진 한 장으로 빈 방을 그린다, options.clear).
+ *         planner_cleared (2026-11-01) — 다듬기(planner_polish)일 때만, 시안 배경이 비운 방이면 true (options.cleared — 정리 줄을 뺀다).
  *   받지 않음: reference_images. (realize · engine · control_* 는 2026-10-19 경로째 지웠다 — 어느 모드도 읽지 않는다)
  * 검증은 전부 크레딧 차감 전에 한다 — 틀린 요청으로 20 크레딧이 날아가지 않는다.
  * 추천안은 항상 끈다 (한 장이 결과물이다).
@@ -509,6 +514,11 @@ function plannerPolishOn(given, parent, renders, parentRenders) {
   const want = given === true || (given === undefined && !!(parent && parent.options && parent.options.polish === true));
   const hasComposite = parent ? parentRenders.some((r) => r && r.role === 'composite') : renders.some((r) => r.role === 'composite');
   return want && hasComposite;
+}
+
+/** 플래너 참/거짓 옵션 — 요청 true 거나 (요청이 없을 때) 재생성 원본이 true. 참(true)만 받는다 */
+function plannerFlagOn(given, parent, key) {
+  return given === true || (given === undefined && !!(parent && parent.options && parent.options[key] === true));
 }
 
 /** 플래너 모드 초점거리 — 요청 값 → 재생성 원본 값. 8~200 밖이거나 없으면 키를 두지 않는다. */
@@ -533,10 +543,14 @@ async function createPlannerGeneration(request, env, headers, p) {
   }
   const renders = normalizeRenders(p.renders);
   const parentRenders = parent && parent.inputs && Array.isArray(parent.inputs.renders) ? parent.inputs.renders : [];
+  // 2026-11-01: 방 비우기 (2026-11-01 사장님 「AI로 방을 먼저 정리 -> 블렌더 시안 -> AI 보정」 · 「무엇을 지울지: 추천 + 공사현장처럼 마감정리가 안 되어 있다면 클리어하게 정리」)
+  //   — 방 사진 한 장으로 설계 벽을 비운 빈 방을 그린다. 입면은 필요 없다. 다듬기와 같이 오면 비우기가 이긴다.
+  const clear = plannerFlagOn(p.planner_clear, parent, 'clear');
+  const polishOn = !clear && plannerPolishOn(p.planner_polish, parent, renders, parentRenders);
   const hasElevation = parent
     ? parentRenders.some((r) => r && r.role === 'elevation')
     : renders.some((r) => r.role === 'elevation');
-  if (!hasElevation) {
+  if (!hasElevation && !clear) {
     const e = new ValidationError('renders must include an elevation image when mode is planner');
     e.code = 'missing_render';
     throw e;
@@ -571,7 +585,11 @@ async function createPlannerGeneration(request, env, headers, p) {
     ...(renders.some((r) => r.role === 'composite') || parentRenders.some((r) => r && r.role === 'composite') ? { place_render: true } : {}),
     // 2026-11-01: 다듬기 (사장님 「C로 작업 실행」 — 간편 플래너 「AI: 다듬기만」) — 시안(composite)이 있을 때만, 요청 planner_polish:true
     //   (재생성은 원본 값을 잇는다 — 요청이 false 면 끈다). **있을 때만** 키를 둔다. 잡은 시안 한 장 + 다듬기 지시문 (job.js polishOn)
-    ...(plannerPolishOn(p.planner_polish, parent, renders, parentRenders) ? { polish: true } : {}),
+    ...(polishOn ? { polish: true } : {}),
+    // 2026-11-01: 시안 배경이 비운 방 — 다듬기일 때만 (잡이 정리 줄을 뺀다). **있을 때만** 키를 둔다. 재생성은 원본 값을 잇는다
+    ...(polishOn && plannerFlagOn(p.planner_cleared, parent, 'cleared') ? { cleared: true } : {}),
+    // 2026-11-01: 방 비우기 — 잡은 방 사진 한 장 + 비우기 지시문, 검사 · 대조 없음. **있을 때만** 키를 둔다
+    ...(clear ? { clear: true } : {}),
     // 이미지 공급자 (2026-10-18 → 2026-10-19 기본 GPT) — 플래너 모드는 결정된 값을 **항상** 기록한다.
     //   요청 값 → 재생성 원본 값 → PLANNER_IMAGE_PROVIDER. 잡은 이 값만 읽는다 (없는 옛 행은 Gemini).
     image_provider: resolvePlannerProvider(env, p.image_provider, parent && parent.options && parent.options.image_provider),
