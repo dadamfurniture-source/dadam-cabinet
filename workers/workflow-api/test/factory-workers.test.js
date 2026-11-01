@@ -6,7 +6,7 @@
  *     기록: 공정은 내 종류 안에서(아니면 422 role), 주문은 계획 주인의 본사 수주만(아니면 422 order_id), 작업자 칸을 채운다
  *     지시 완료: 내 계획의 지시만 (아니면 404)
  *   잇기: 승인된 작업자 + 살아 있는 링크 → 배정(plan = 링크 만든 사람, link_id) · 링크 끊기 · 지난 기록에 작업자 (틀린 · 끊긴 링크는 410)
- *     이어진 링크는 열면 「작업자 계정에 이어졌습니다」
+ *     이어진 링크는 열면 「작업자 계정에 이어졌습니다」, 본사 링크 목록에는 linked. 그냥 끊기거나 만료된 링크는 작업자 신청으로 안내
  *   본사: 대표 · 실장 · 관리자만 (아니면 403 not_factory_admin). 내 계획 배정 · 배정할 수 있는 작업자(승인 · 공장 종류 · 열린 배정 없음)
  *     배정: 승인 작업자만(409) · 공장 종류가 있어야(422) · 열린 배정이 있으면 409 / 끝내기: 내 계획 배정만(404)
  *   일당 · 금액은 작업자 화면에 없고 고객은 가린 이름, 본사 목록에도 휴대폰은 없다.
@@ -19,7 +19,7 @@ import { clearHqCompanyCache } from '../src/supabase.js';
 import { clearAdminCache } from '../src/reports/admin.js';
 import { pepperedHash } from '../src/util/hash.js';
 import { WORK_KINDS, WORKER_KINDS, KIND_LABEL, kindsOf } from '../src/work/validate.js';
-import { resolveWorker } from '../src/production/worker-access.js';
+import { resolveWorker, listWorkerLinks } from '../src/production/worker-access.js';
 import { maskOrderLabel, workerAssignmentText } from '../src/production/redact.js';
 import { getMe } from '../src/work/workers.js';
 import {
@@ -565,7 +565,7 @@ test('잇기 — 끊긴 링크(잇지 않음)는 예전 문구, 링크 하나는
   await withDb(db, async () => {
     await assert.rejects(
       resolveWorker(ENV, TOKEN_OLD),
-      (e) => e.statusCode === 401 && /끊긴 링크입니다/.test(e.message)
+      (e) => e.statusCode === 401 && /^끊긴 링크입니다\. 작업자 포털에서 작업자 신청/.test(e.message)
     );
   });
   const db2 = makeDb({ production_worker_links: [await linkRow(LINK, TOKEN)] });
@@ -576,6 +576,43 @@ test('잇기 — 끊긴 링크(잇지 않음)는 예전 문구, 링크 하나는
       (e) => e.statusCode === 410
     );
     assert.equal(db2.factory_workers.length, 1);
+  });
+});
+
+test('링크 — 만료된 링크는 작업자 신청으로 안내 (새 링크는 없다)', async () => {
+  const db = makeDb({ production_worker_links: [await linkRow(LINK, TOKEN, { expires_at: later(-1) })] });
+  await withDb(db, async () => {
+    await assert.rejects(
+      resolveWorker(ENV, TOKEN),
+      (e) =>
+        e.statusCode === 401 &&
+        e.message === '만료된 링크입니다. 작업자 포털에서 작업자 신청을 해 주세요 — 승인되면 본사가 공장에 배정합니다'
+    );
+  });
+});
+
+test('링크 목록 — 계정에 이어 끊긴 링크만 linked, 그냥 끊긴 링크는 아니다 · 링크가 없으면 배정 표를 안 부른다', async () => {
+  const db = makeDb({
+    production_worker_links: [
+      await linkRow(LINK, TOKEN),
+      await linkRow(LINK_OLD, TOKEN_OLD, { revoked_at: later(-2) }),
+    ],
+  });
+  await withDb(db, async () => {
+    await linkFactoryAccount(ENV, { user: { id: U_CUT }, token: TOKEN });
+    const items = await listWorkerLinks(ENV, { user: { id: HQ_OWNER } });
+    assert.deepEqual(
+      items.map((l) => [l.id, Boolean(l.revoked_at), l.linked]),
+      [
+        [LINK, true, true],
+        [LINK_OLD, true, false],
+      ]
+    );
+    assert.deepEqual(await listWorkerLinks(ENV, { user: { id: HQ_MANAGER } }), [], '내가 만든 링크만');
+  });
+  await withDb(makeDb(), async (calls) => {
+    assert.deepEqual(await listWorkerLinks(ENV, { user: { id: HQ_OWNER } }), []);
+    assert.equal(calls.filter((c) => c.url.includes('/factory_workers')).length, 0);
   });
 });
 
