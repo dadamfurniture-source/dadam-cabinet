@@ -95,7 +95,8 @@
 
   /**
    * 속서랍 구역 — 붙박이장 속서랍 규칙 그대로 (innerDrawerLayout). 통 내경 = W − 2T, 구역 = 350 × 단수, 통 깊이 = 몸통 D.
-   * @param {{W:number, D:number, T?:number, inner:number, rail?:string}} o
+   *   몰딩은 경첩 쪽만 — 모듈 doorCount · hingeSide (innerMoldingSidesOf, 2026-11-01 사장님)
+   * @param {{W:number, D:number, T?:number, inner:number, rail?:string, doorCount?:number, hingeSide?:string}} o
    * @returns {object|null} innerDrawerLayout 결과 + errors (레일 · 박스 · 전면이 안 되면)
    */
   function innerZoneOf(o) {
@@ -103,7 +104,8 @@
     const n = int0(o && o.inner);
     if (!WR || n <= 0) return null;
     const T = num(o.T, R.PANEL_T);
-    const L = WR.innerDrawerLayout({ Wi: num(o.W, 0) - 2 * T, zoneH: n * WR.WARDROBE_RULES.DRAWER_MOD_H, drawers: n, T, D: num(o.D, 0), rail: o.rail || R.INNER_RAIL });
+    const L = WR.innerDrawerLayout({ Wi: num(o.W, 0) - 2 * T, zoneH: n * WR.WARDROBE_RULES.DRAWER_MOD_H, drawers: n, T, D: num(o.D, 0), rail: o.rail || R.INNER_RAIL,
+      moldingSides: WR.innerMoldingSidesOf({ doorCount: o.doorCount, hingeSide: o.hingeSide }) });
     if (!L) return null;
     const errors = [];
     if (n > WR.WARDROBE_RULES.MAX_DRAWER_COUNT) errors.push(`속서랍은 ${WR.WARDROBE_RULES.MAX_DRAWER_COUNT}단까지입니다`);
