@@ -29,6 +29,7 @@ import {
   buildInstallPrompt,
   buildPlannerPrompt,
   buildPlannerPolishPrompt,
+  buildPlannerClearPrompt,
   buildQcPrompt,
   normalizeDesignSpec,
   parseQc,
@@ -690,4 +691,33 @@ test('다듬기 지시문 — 시안 한 장, 기하 · 방 그대로, 빛 · �
   assert.ok(buildPlannerPolishPrompt({ doorColor: 'greige', doorFinish: 'matte' }).includes('fronts greige matte, the same on every door and drawer.'));
   // 비율이 모르는 값이면 기본 비율
   assert.ok(buildPlannerPolishPrompt({ aspect: '7:5' }).includes(`OUTPUT: one photorealistic photograph, ${resolvePlannerAspect('7:5')},`));
+});
+
+// 2026-11-01: 방 비우기 (사장님 「AI로 방을 먼저 정리 -> 블렌더 시안 -> AI 보정」 · 「추천 + 공사현장처럼 마감정리가 안 되어 있다면 클리어하게 정리」)
+test('비우기 지시문 — 방 사진 한 장, 설계 벽의 옛 붙박이 · 가구만 지우고 카메라 · 모서리 · 다른 벽 · 떨어진 물건 · 타일은 그대로', () => {
+  const p = buildPlannerClearPrompt(d1Ctx({ aspect: '4:3', existing: 'old white kitchen cabinets' }));
+  assert.match(p, /^You receive one image\. IMAGE A — ROOM PHOTO: the customer's real room before new built-in furniture is installed on the back wall\./);
+  assert.ok(p.includes('REMOVE: on the back wall, every old built-in cabinet, shelf, hood, built-in appliance and piece of furniture standing against it (old white kitchen cabinets), and every object standing in front of it.'));
+  assert.ok(p.includes('do not widen, crop, zoom or shift the view; every wall corner, the ceiling and floor lines, windows and doors exactly where they are'));
+  assert.ok(p.includes('free-standing objects that stand clear of the back wall — a refrigerator, chairs, carts, plants; the wall tiles; and the lighting.'));
+  assert.ok(p.endsWith('OUTPUT: one photorealistic photograph, 4:3, the same view as IMAGE A.'));
+  for (const gone of ['SITE:', 'WALL TILE:', 'EDIT ZONE', 'IMAGE B', 'MATERIALS', 'HANDLES']) assert.ok(!p.includes(gone), gone);
+  // 공사 현장이면 SITE 문단 — 배관 · 전선은 벽 안으로만 (새 가구가 아직 없다), 설치 프롬프트의 SITE 는 예전 그대로
+  const site = buildPlannerClearPrompt(d1Ctx({ site: 'construction', siteNotes: 'bare cement' }));
+  assert.ok(site.includes('SITE: the photo shows an unfinished construction site (bare cement). Render the room fully finished and clean'));
+  assert.ok(site.includes('Route every exposed pipe, valve and wire inside the wall so none stays visible.'));
+  assert.ok(!site.includes('behind the new furniture or inside the wall'));
+  assert.ok(buildPlannerPrompt(d1Ctx({ site: 'construction' })).includes('Route every exposed pipe, valve and wire behind the new furniture or inside the wall so none stays visible.'));
+  // 꺾인 벽이 있으면 그 벽도 비운다
+  const lspec = normalizeDesignSpec({ wallRunMm: 2400, walls: [{ side: 'left', sections: { lower: { modules: [{ widthMm: 600 }] } } }] }, 'sink');
+  assert.ok(buildPlannerClearPrompt(d1Ctx({ designSpec: lspec })).includes('installed on the back wall and the left wall.'));
+});
+
+test('다듬기 지시문 — 시안 배경이 비운 방(cleared)이면 정리 줄 없이 방 전체를 그대로', () => {
+  const p = buildPlannerPolishPrompt(d1Ctx({ aspect: '4:3', cleared: true }));
+  assert.ok(!p.includes('CLEAN UP'));
+  assert.ok(p.includes('and the whole room — walls, floor, ceiling, windows, doors, tiles, pipes, wires and every object, as they are. Do not move, stretch, add, remove, clean or redraw anything.'));
+  assert.ok(p.includes('as if the finished units had been photographed in this room with the same camera. This is a polish, not a redesign.'));
+  assert.ok(p.includes('ON THE UNITS, CHANGE ONLY the look of light and surfaces:'));
+  assert.ok(buildPlannerPolishPrompt(d1Ctx({ aspect: '4:3' })).includes('CLEAN UP — the only change to the room'), '비운 방이 아니면 정리 줄 그대로');
 });
