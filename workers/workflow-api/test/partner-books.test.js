@@ -350,30 +350,15 @@ test('작업 기록 — 남의 주문 · 협력업체 주문 · 없는 주문은
 
 // ── 작업자 링크 만들기 ───────────────────────────────────────────
 
-test('작업자 링크 — 본사 대표 · 실장 · 관리자만 만든다, 그 밖은 403 not_link_maker', async () => {
-  const env = { ...ENV, SHARE_TOKEN_PEPPER: 'test-pepper', PUBLIC_BASE_URL: 'https://dadam.test' };
-  const route = (u, method, body) =>
-    people(u) || (method === 'POST' && u.endsWith('/production_worker_links') ? json([{ id: 'L9', ...body }], 201) : null);
-  for (const who of [HQ_OWNER, HQ_MANAGER, ADMIN]) {
-    await withFetch(route, async (calls) => {
-      clearHqCompanyCache();
-      clearAdminCache();
-      const out = await createWorkerLink(env, { user: { id: who }, body: { label: '재단 김', days: 30 } });
-      assert.equal(out.label, '재단 김', who);
-      assert.ok(out.url.startsWith('https://dadam.test/production-worker.html#t='), who);
-      assert.equal(calls.find((c) => c.method === 'POST').body.user_id, who);
-    });
-  }
-  for (const who of [HQ_STAFF, P_OWNER, P_MANAGER, P_STAFF, STRANGER]) {
-    await withFetch(route, async (calls) => {
-      clearHqCompanyCache();
-      clearAdminCache();
+test('작업자 링크 — 새 링크는 아무도 못 만든다 (본사 대표 · 관리자도 410 links_closed, DB 를 부르지 않음)', async () => {
+  for (const who of [HQ_OWNER, HQ_MANAGER, ADMIN, HQ_STAFF, P_OWNER, STRANGER]) {
+    await withFetch(people, async (calls) => {
       await assert.rejects(
-        createWorkerLink(env, { user: { id: who }, body: { label: '재단 김' } }),
-        (e) => e.statusCode === 403 && e.code === 'not_link_maker',
+        createWorkerLink(ENV, { user: { id: who }, body: { label: '재단 김', days: 30 } }),
+        (e) => e.statusCode === 410 && e.code === 'links_closed' && /작업자 포털에서 신청/.test(e.message),
         who
       );
-      assert.equal(calls.filter((c) => c.method === 'POST').length, 0, who);
+      assert.equal(calls.length, 0, who);
     });
   }
 });

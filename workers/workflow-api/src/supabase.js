@@ -52,9 +52,11 @@ export class ConflictError extends Error {
 }
 
 export class GoneError extends Error {
-  constructor(message = 'Gone') {
+  /** code — ForbiddenError 와 같다 (예: links_closed) */
+  constructor(message = 'Gone', code = null) {
     super(message);
     this.statusCode = 410;
+    if (code) this.code = code;
   }
 }
 

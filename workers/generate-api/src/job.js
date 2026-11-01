@@ -28,6 +28,7 @@ import {
   buildPlumbingPrompt,
   buildPlannerPrompt,
   buildPlannerPolishPrompt,
+  buildPlannerClearPrompt,
   plannerChosenFridgeModel,
   fridgeModelFromRow,
   FRIDGE_DEFAULT_MODELS,
@@ -432,6 +433,10 @@ async function runPipeline(env, job, ck, save) {
   //   그림 모델에는 시안 한 장 + buildPlannerPolishPrompt. 방 분석 · 배관 질문 · 위치 검사는 하지 않는다 (방을 고치지 않는다).
   //   시안을 못 읽었거나 비율이 달라 버렸으면 예전 플래너 경로 그대로 (아래 polishOn).
   const polish = planner && opts.polish === true;
+  // 방 비우기 (2026-11-01 사장님 「AI로 방을 먼저 정리 -> 블렌더 시안 -> AI 보정」 · 「무엇을 지울지: 추천 + 공사현장처럼 마감정리가 안 되어 있다면 클리어하게 정리」,
+  //   options.clear): 그림 모델에는 방 사진 한 장 + buildPlannerClearPrompt — 설계를 놓을 벽을 비운 빈 방 한 장이 결과다.
+  //   방 분석(공사 현장 · 기존 가구 읽기)은 하고, 렌더(입면 · 시안)는 읽지 않는다. 배관 질문 · 검사 · 위치 검사 · 역판독 대조는 하지 않는다.
+  const clear = planner && opts.clear === true;
 
   // 입력 이미지는 Storage 에서 읽는다 — DO storage 에 base64 를 두지 않는다.
   const room = await fetchObjectBase64(env, inputs.room.path);
@@ -442,7 +447,7 @@ async function runPipeline(env, job, ck, save) {
   let composite = null; // 2026-10-27: Blender 시안 (role composite) — IMAGE A 로
   const returnElevations = []; // 2026-10-19: [{ side, plain, labeled }] — 꺾인 벽 입면
   let fridgePhoto = null; // 2026-10-20: {base64, mimeType, code, modelId} — 고른 냉장고 모델의 제품 사진
-  if (planner) {
+  if (planner && !clear) {
     const list = Array.isArray(inputs.renders) ? inputs.renders : [];
     const el = list.find((r) => r && r.role === 'elevation');
     if (!el || !el.path) throw new Error('planner: elevation render missing');
@@ -627,6 +632,7 @@ async function runPipeline(env, job, ck, save) {
       }
     }
     if (roomPhoto && roomPhoto.analysis) wall.roomPhoto = roomPhoto;
+    if (clear) wall.clear = true; // 방 비우기 — 분석은 같고 표시만 (roomPhoto.analysis 사본에는 들지 않는다)
     const manualW = Number(opts.wall_width_override);
     if (manualW >= 1000 && manualW <= 6000) {
       wall.wallW = clampWall(manualW);
@@ -639,7 +645,7 @@ async function runPipeline(env, job, ck, save) {
     // 1차가 배관을 놓쳤으면 **그것만** 다시 묻는다. 주방이 아니면 묻지 않는다.
     //   실측(2026-10): 1차는 급수 56% · 배기 48% 만 읽고, 2차로 놓친 것의 절반을 더 읽는다.
     //   벽 폭 보정 뒤에 둔다 — 2차 프롬프트가 그 폭을 기준으로 비율을 답한다.
-    if (!polishOn && KITCHEN_CATEGORIES.includes(category) && wall.read && (!wall.read.water || !wall.read.exhaust)) {
+    if (!polishOn && !clear && KITCHEN_CATEGORIES.includes(category) && wall.read && (!wall.read.water || !wall.read.exhaust)) {
       await askPlumbing(env, job, wall, room);
     }
     applyManualPlumbing(wall, opts);   // 사람이 넣은 값은 둘 다 이긴다
@@ -713,6 +719,9 @@ async function runPipeline(env, job, ck, save) {
     // 플래너 모드 — 프롬프트 v2 와 검사 코드(existing_left·pasted_reference)를 켠다
     ...(planner ? { planner: true, massing: !!massing, aspect: opts.aspect } : {}),
     ...(polishOn ? { polish: true } : {}),
+    // 다듬기 배경이 비운 방이면 정리 줄을 뺀다 (worker.js options.cleared — 다듬기일 때만 기록)
+    ...(polishOn && opts.cleared === true ? { cleared: true } : {}),
+    ...(clear ? { clear: true } : {}),
   };
   const imageSize = env.GEMINI_IMAGE_SIZE || '2K';
   // 결과 비율은 방 사진을 따른다 (플래너 모드는 고른 비율). 추천안도 같은 비율로 그린다.
@@ -926,7 +935,16 @@ async function runPipeline(env, job, ck, save) {
         temperature: 0.2,
         aspectRatio: ctx.aspect,
       });
+      // 방 비우기 — 방 사진 한 장 + 비우기 지시문 (공급자와 상관없이 같다)
+      const clearPayload = () => ({
+        prompt: buildPlannerClearPrompt(ctx),
+        images: [room],
+        imageSize,
+        temperature: 0.2,
+        aspectRatio: ctx.aspect,
+      });
       const payload = (who) => {
+        if (ctx.clear) return clearPayload();
         if (ctx.polish) return polishPayload();
         const labeled = who === 'openai' && !!elevationLabeled;
         const b = labeled ? elevationLabeled : elevation;
@@ -994,7 +1012,8 @@ async function runPipeline(env, job, ck, save) {
     await setStep(env, job, ck, 'qc');
     let qc = { ok: true, issues: [], note: null };
     let qcTimer = null;
-    try {
+    // 방 비우기는 가구 검사(QC)가 뜻이 없다 — 묻지 않는다 (통과 기록)
+    if (!ctx.clear) try {
       // 검사 한 번에 90초 이상 걸리면 통과로 본다 — 검사 때문에 생성을 막지 않는다
       const q = await Promise.race([
         // 원본 방 사진을 함께 본다 — 가구가 원래 벽선보다 앞으로 나왔는지 비교해야 깊이를 판정한다 (2026-10-14)
@@ -1028,14 +1047,15 @@ async function runPipeline(env, job, ck, save) {
 
     // 최종 기본안이 정해진 뒤(검사·재시도 다음) 시작한다 — 검사와 같은 Flash 할당량을 같은 순간에 나눠 쓰지 않는다
     // 다듬기는 방을 읽지 않아 지시한 자리(벽 분석 %)가 없다 — 위치 검사를 하지 않는다 (자리는 시안이 정했다)
-    if (!ctx.polish) pos = startPositionCheck(env, positionInput(qc, base.meta && base.meta.provider));
+    // 방 비우기도 자리가 없다 (가구를 그리지 않는다)
+    if (!ctx.polish && !ctx.clear) pos = startPositionCheck(env, positionInput(qc, base.meta && base.meta.provider));
     const up = await uploadObject(
       env,
       `${prefix}/base.${extOf(base.mimeType)}`,
       base.base64,
       base.mimeType
     );
-    ck.images.base = { label: `${labelOf(category)} · 기본안`, path: up.path, url: up.url, qc, ...(base.meta || {}) };
+    ck.images.base = { label: `${labelOf(category)} · ${ctx.clear ? '빈 방' : '기본안'}`, path: up.path, url: up.url, qc, ...(base.meta || {}) };
     if (pos) pos.attachTo(ck.images.base); // 끝나는 순간 images[base].position — 이후 images 패치에 저절로 실린다
     await save({ images: ck.images });
     await updateById(env, 'generations', job.id, {
@@ -1045,7 +1065,7 @@ async function runPipeline(env, job, ck, save) {
   } else {
     base = await fetchObjectBase64(env, ck.images.base.path);
     // 알람 재실행 — 같은 기본안을 다시 재지 않는다 (장당 호출 수). 기록이 없으면 그 사실만 (error 'rerun')
-    if (!ck.images.base.position && !ctx.polish) {
+    if (!ck.images.base.position && !ctx.polish && !ctx.clear) {
       const skipped = positionSkipped(env, positionInput(ck.images.base.qc, ck.images.base.provider), 'rerun');
       if (skipped) ck.images.base.position = skipped;
     }
@@ -1060,7 +1080,8 @@ async function runPipeline(env, job, ck, save) {
   //   예전엔 신발장·화장대·서재·침실·사무실이 여기서 빠져 대조 기록이 없었고, 그래서 늘 internal_only 였다.
   //   플래너가 아니면 예전 그대로 LAYOUT_CATEGORIES 만 (옛 판독은 품목별 세그먼트 종류가 있어야 한다).
   const verifiable = planner ? PLANNER_READ_CATEGORIES.includes(category) : LAYOUT_CATEGORIES.includes(category);
-  if (!ck.verify && opts.design_spec && verifiable) {
+  // 방 비우기는 가구가 없어 대조하지 않는다
+  if (!ck.verify && !ctx.clear && opts.design_spec && verifiable) {
     await updateById(env, 'generations', job.id, { step_label: '도면과 대조하는 중', progress: 65 });
     let layout;
     const t0 = Date.now();

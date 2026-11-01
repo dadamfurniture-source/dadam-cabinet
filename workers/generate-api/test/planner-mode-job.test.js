@@ -555,3 +555,34 @@ test('planner 다듬기인데 시안을 버리면(방 사진과 비율이 다름
   assert.match(call.prompt, /^You receive three images\./);
   assert.ok(calls.text.some((t) => t.startsWith('Measure and describe')), '방 분석을 한다');
 });
+
+// ─── 2026-11-01: 방 비우기 (options.clear — 사장님 「AI로 방을 먼저 정리 -> 블렌더 시안 -> AI 보정」) ───
+
+test('planner 방 비우기: 방 사진 한 장 + 비우기 지시문, 입면 없어도 된다 · 방 분석은 하고 검사 · 대조 · 배관 질문 없음, 칸 이름 빈 방', async () => {
+  install({ qcIssues: ['existing_left'] });
+  await run({ ...PLANNER_OPTIONS, clear: true }, { ...PLANNER_INPUTS, renders: [] });
+  assert.equal(calls.image.length, 1);
+  const call = calls.image[0];
+  assert.deepEqual(call.images.map((i) => Buffer.from(i.data, 'base64').toString()), ['ROOM'], '방 사진 한 장');
+  assert.equal(call.body.generationConfig.temperature, 0.2);
+  assert.match(call.prompt, /^You receive one image\. IMAGE A — ROOM PHOTO: the customer's real room before new built-in furniture is installed/);
+  assert.ok(calls.text.some((t) => t.startsWith('Measure and describe')), '방 분석을 한다 (공사 현장 · 기존 가구)');
+  assert.equal(calls.text.some((t) => t.startsWith('You are checking')), false, '가구 검사를 묻지 않는다');
+  assert.equal(calls.patched.some((p) => p.layout), false, '역판독 대조를 하지 않는다');
+  assert.ok(calls.patched.some((p) => p.wall_analysis && p.wall_analysis.clear === true), '분석 칸에 비우기 표시');
+  const imgs = calls.patched.filter((p) => Array.isArray(p.images)).pop().images;
+  assert.match(imgs[0].label, /· 빈 방$/);
+  assert.deepEqual(imgs[0].qc, { ok: true, issues: [], note: null });
+});
+
+test('planner 다듬기 + 비운 방 배경(cleared): 정리 줄 없는 다듬기 지시문', async () => {
+  install({ qcIssues: [] });
+  BYTES['render-composite'] = 'COMP';
+  try {
+    await run({ ...PLANNER_OPTIONS, place_render: true, polish: true, cleared: true }, { ...PLANNER_INPUTS, renders: [...PLANNER_INPUTS.renders, COMPOSITE] });
+  } finally { delete BYTES['render-composite']; }
+  const call = calls.image[0];
+  assert.deepEqual(call.images.map((i) => Buffer.from(i.data, 'base64').toString()), ['COMP']);
+  assert.doesNotMatch(call.prompt, /CLEAN UP/);
+  assert.match(call.prompt, /and the whole room — walls, floor, ceiling/);
+});
