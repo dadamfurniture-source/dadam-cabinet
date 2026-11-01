@@ -1071,7 +1071,7 @@
 /* ── PC ── */
 @media (min-width: 768px) {
   .sg-main.mk {
-    max-width: 720px;
+    max-width: 960px;
     padding-top: 40px;
   }
 
