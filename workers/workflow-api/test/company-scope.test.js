@@ -354,6 +354,8 @@ function orderDetailRoute() {
       if (u.includes('/rework_logs?')) return json([{ id: 'R1', kind: 'as', cause: 'install', cost: 20000 }]);
       if (u.includes('/install_feedback?')) return json([]);
       if (u.includes('/order_payments?')) return json([{ id: 'P1', stage: 'deposit', amount: 500000 }]);
+      // 수금 줄의 온라인 결제 (DB 0025) — 없음
+      if (u.includes('/payment_transactions?')) return json([]);
       return null;
     },
   });
