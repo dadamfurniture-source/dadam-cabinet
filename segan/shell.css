@@ -1375,8 +1375,9 @@ body.cl-locked {
     display: none;
   }
 
+  /* PC 본문 폭 — 만들기 · 상담 신청은 make.css .sg-main.mk */
   .sg-main {
-    max-width: 960px;
+    max-width: 1200px;
     padding: 64px 48px 96px;
   }
 
