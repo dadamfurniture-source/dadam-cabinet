@@ -28,6 +28,7 @@ import {
   buildDesignSpecBlock,
   buildInstallPrompt,
   buildPlannerPrompt,
+  buildPlannerPolishPrompt,
   buildQcPrompt,
   normalizeDesignSpec,
   parseQc,
@@ -661,4 +662,27 @@ test('parseQc 는 existing_left·pasted_reference 를 알아듣는다', () => {
   // 공통 코드 목록(QC_ISSUE_CODES)은 늘지 않는다 — 옛 검사 프롬프트가 그대로인 이유
   assert.ok(!QC_ISSUE_CODES.includes('existing_left'));
   assert.ok(PLANNER_QC_FIXES.existing_left.length > 40 && PLANNER_QC_FIXES.pasted_reference.length > 40);
+});
+
+// 2026-11-01: 다듬기 지시문 (사장님 「C로 작업 실행」 — 간편 플래너 Blender 시안을 사진처럼, AI 는 보정 · 다듬기만)
+test('다듬기 지시문 — 시안 한 장, 기하 · 방 그대로, 빛 · 재질만, 마감은 도면 요약, 방 정리 · 편집 구역 · 입면 · 자체 점검 없음', () => {
+  const ctx = d1Ctx({
+    site: 'construction',
+    siteNotes: 'bare cement, debris',
+    tile: { present: true, lightNeutral: false, description: 'dark brown glossy' },
+    aspect: '4:3',
+  });
+  const p = buildPlannerPolishPrompt(ctx);
+  assert.match(p, /^You receive one image\. IMAGE A — ROOM PHOTO: the customer's real room with the new built-in units already rendered into it by our planner/);
+  assert.ok(p.includes('the same number of doors and drawers with the same widths and heights, in the same place'));
+  assert.ok(p.includes('with any marks or unfinished surfaces as they are. Do not move, stretch, add, remove, clean or redraw anything.'));
+  assert.ok(p.includes('HANDLES: none.'));
+  assert.ok(p.endsWith('OUTPUT: one photorealistic photograph, 4:3, the same view as IMAGE A.'));
+  for (const gone of ['SITE:', 'WALL TILE:', 'EDIT ZONE', 'IMAGE B', 'FINAL SELF-CHECK', 'CLOSED LIST']) assert.ok(!p.includes(gone), gone);
+  // 마감 — 도면 요약 finishes 가 이긴다, 없으면 도어 색 · 마감
+  const spec = normalizeDesignSpec({ finishes: { door: { nameEn: 'walnut woodgrain' } } }, 'sink');
+  assert.ok(buildPlannerPolishPrompt(d1Ctx({ designSpec: spec })).includes('MATERIALS (keep the colour as rendered): fronts walnut woodgrain, the same on every door and drawer.'));
+  assert.ok(buildPlannerPolishPrompt({ doorColor: 'greige', doorFinish: 'matte' }).includes('fronts greige matte, the same on every door and drawer.'));
+  // 비율이 모르는 값이면 기본 비율
+  assert.ok(buildPlannerPolishPrompt({ aspect: '7:5' }).includes(`OUTPUT: one photorealistic photograph, ${resolvePlannerAspect('7:5')},`));
 });

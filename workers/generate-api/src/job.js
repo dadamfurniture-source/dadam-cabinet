@@ -27,6 +27,7 @@ import {
   buildInstallPrompt,
   buildPlumbingPrompt,
   buildPlannerPrompt,
+  buildPlannerPolishPrompt,
   plannerChosenFridgeModel,
   fridgeModelFromRow,
   FRIDGE_DEFAULT_MODELS,
@@ -427,6 +428,10 @@ async function runPipeline(env, job, ck, save) {
   //   설치는 [방 사진, 입면, 3/4?] + 프롬프트 v2 · 온도 0.2 · 비율 고정. 검사는 기록만(재시도 없음).
   //   역판독 대조는 [결과 사진, 정면 입면] + 도면 목록으로 모듈마다 센다(2026-10-19). 추천안 없음.
   const planner = opts.mode === 'planner';
+  // 다듬기 (2026-11-01 사장님 「C로 작업 실행」, options.polish — worker.js 가 시안(composite)이 있을 때만 기록):
+  //   그림 모델에는 시안 한 장 + buildPlannerPolishPrompt. 방 분석 · 배관 질문 · 위치 검사는 하지 않는다 (방을 고치지 않는다).
+  //   시안을 못 읽었거나 비율이 달라 버렸으면 예전 플래너 경로 그대로 (아래 polishOn).
+  const polish = planner && opts.polish === true;
 
   // 입력 이미지는 Storage 에서 읽는다 — DO storage 에 base64 를 두지 않는다.
   const room = await fetchObjectBase64(env, inputs.room.path);
@@ -478,6 +483,7 @@ async function runPipeline(env, job, ck, save) {
         console.warn(`[Job ${job.id}] composite render skipped: ${e.message}`);
       }
     }
+    if (polish && !composite) console.warn(`[Job ${job.id}] polish without composite — planner prompt instead`);
     // 2026-10-19: ㄱ자·ㄷ자 꺾인 벽 입면 (elevation_left · elevation_right, 번호 붙은 것 _labeled) — design_spec.walls 에 있는 벽만.
     //   못 읽으면 그 벽은 글 목록만으로 그린다. 번호 붙은 것은 설치 때 GPT 에만, 역판독에는 공급자와 상관없이 쓴다.
     const sides = (Array.isArray(opts.design_spec && opts.design_spec.walls) ? opts.design_spec.walls : [])
@@ -568,6 +574,8 @@ async function runPipeline(env, job, ck, save) {
     }
   }
 
+  const polishOn = polish && !!composite;
+
   // ═══ 1. 분석 (브리프 포함) ═══
   if (!ck.wall) {
     await setStep(env, job, ck, 'analyzing');
@@ -589,7 +597,7 @@ async function runPipeline(env, job, ck, save) {
     //   새 표 없이 generations.wall_analysis.roomPhoto 에 남긴다. 사람이 넣은 벽 폭은 아래에서 그래도 이긴다.
     //   재생성은 원본과 같은 inputs.room 을 쓰므로 같은 해시다. 일반 경로는 찾지도 남기지도 않고 1회 분석 (예전 그대로).
     let roomPhoto = null;
-    if (planner) {
+    if (planner && !polishOn) {
       const sha256 = await roomPhotoSha256(room);
       const phash = sha256 ? roomPhotoPhash(room) : null;
       const prior = sha256 ? await findRoomAnalysis(env, job, { sha256, phash }) : null;
@@ -601,7 +609,11 @@ async function runPipeline(env, job, ck, save) {
         roomPhoto = { sha256, phash, analysis: null, from: job.id };
       }
     }
-    if (!roomPhoto || !roomPhoto.analysis) {
+    if (polishOn) {
+      // 다듬기 — 방을 읽지 않는다 (지시문이 벽 · 배관을 말하지 않는다). 벽 폭은 아래 사람이 넣은 값, 없으면 기본값.
+      //   roomPhoto 를 남기지 않으므로 같은 사진의 다음 예전 방식 생성이 이 기본값을 이어받지 않는다.
+      wall.polish = true;
+    } else if (!roomPhoto || !roomPhoto.analysis) {
       const got = await analyseRoom(env, job, room, planner ? ANALYSIS_ROUNDS : 1);
       if (got) {
         wall = got.wall;
@@ -627,7 +639,7 @@ async function runPipeline(env, job, ck, save) {
     // 1차가 배관을 놓쳤으면 **그것만** 다시 묻는다. 주방이 아니면 묻지 않는다.
     //   실측(2026-10): 1차는 급수 56% · 배기 48% 만 읽고, 2차로 놓친 것의 절반을 더 읽는다.
     //   벽 폭 보정 뒤에 둔다 — 2차 프롬프트가 그 폭을 기준으로 비율을 답한다.
-    if (KITCHEN_CATEGORIES.includes(category) && wall.read && (!wall.read.water || !wall.read.exhaust)) {
+    if (!polishOn && KITCHEN_CATEGORIES.includes(category) && wall.read && (!wall.read.water || !wall.read.exhaust)) {
       await askPlumbing(env, job, wall, room);
     }
     applyManualPlumbing(wall, opts);   // 사람이 넣은 값은 둘 다 이긴다
@@ -700,6 +712,7 @@ async function runPipeline(env, job, ck, save) {
     customerRequest: cleanCustomerRequest(opts.customer_request),
     // 플래너 모드 — 프롬프트 v2 와 검사 코드(existing_left·pasted_reference)를 켠다
     ...(planner ? { planner: true, massing: !!massing, aspect: opts.aspect } : {}),
+    ...(polishOn ? { polish: true } : {}),
   };
   const imageSize = env.GEMINI_IMAGE_SIZE || '2K';
   // 결과 비율은 방 사진을 따른다 (플래너 모드는 고른 비율). 추천안도 같은 비율로 그린다.
@@ -905,7 +918,16 @@ async function runPipeline(env, job, ck, save) {
       // 2026-10-19: IMAGE B 는 공급자마다 — GPT 는 번호 입면(있으면), Gemini 는 늘 번호 없는 입면.
       //   번호 입면을 보낼 때만 프롬프트에 "번호·치수선은 주석" 문장이 들어간다. GPT 실패 대체로 Gemini 가
       //   그릴 때는 번호 없는 입면 + 그 문장 없는 프롬프트로 다시 만든다.
+      // 다듬기 — 시안 한 장 + 짧은 지시문 (공급자와 상관없이 같다)
+      const polishPayload = () => ({
+        prompt: buildPlannerPolishPrompt(ctx),
+        images: [composite],
+        imageSize,
+        temperature: 0.2,
+        aspectRatio: ctx.aspect,
+      });
       const payload = (who) => {
+        if (ctx.polish) return polishPayload();
         const labeled = who === 'openai' && !!elevationLabeled;
         const b = labeled ? elevationLabeled : elevation;
         // 2026-10-19: 꺾인 벽 입면은 3/4 뒤에 (IMAGE C·D …) — GPT 는 번호 있는 것, Gemini 는 번호 없는 것만
@@ -1005,7 +1027,8 @@ async function runPipeline(env, job, ck, save) {
     }
 
     // 최종 기본안이 정해진 뒤(검사·재시도 다음) 시작한다 — 검사와 같은 Flash 할당량을 같은 순간에 나눠 쓰지 않는다
-    pos = startPositionCheck(env, positionInput(qc, base.meta && base.meta.provider));
+    // 다듬기는 방을 읽지 않아 지시한 자리(벽 분석 %)가 없다 — 위치 검사를 하지 않는다 (자리는 시안이 정했다)
+    if (!ctx.polish) pos = startPositionCheck(env, positionInput(qc, base.meta && base.meta.provider));
     const up = await uploadObject(
       env,
       `${prefix}/base.${extOf(base.mimeType)}`,
@@ -1022,7 +1045,7 @@ async function runPipeline(env, job, ck, save) {
   } else {
     base = await fetchObjectBase64(env, ck.images.base.path);
     // 알람 재실행 — 같은 기본안을 다시 재지 않는다 (장당 호출 수). 기록이 없으면 그 사실만 (error 'rerun')
-    if (!ck.images.base.position) {
+    if (!ck.images.base.position && !ctx.polish) {
       const skipped = positionSkipped(env, positionInput(ck.images.base.qc, ck.images.base.provider), 'rerun');
       if (skipped) ck.images.base.position = skipped;
     }
