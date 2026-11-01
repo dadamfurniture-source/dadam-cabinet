@@ -58,6 +58,15 @@ async function load(options = {}) {
     }),
   };
   window.fetch = jest.fn(async (url, init = {}) => {
+    // 셸의 작업 탭 판정(GET /work/me)은 관리 화면 요청이 아니라 따로 센다
+    if (url.endsWith('/work/me')) {
+      calls.workMe = (calls.workMe || 0) + 1;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, data: { ready: true, worker: null } }),
+      };
+    }
     calls.fetch.push({ url, auth: (init.headers || {}).Authorization });
     const r = opts.replies[url];
     if (r instanceof Error) throw r;

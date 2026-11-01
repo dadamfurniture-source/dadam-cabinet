@@ -3,7 +3,8 @@
  * 계약: docs/01-plan/worker-portal-contract.md §3 작업자 API · §4 화면.
  *
  * 앞부분은 순수 함수다 (브라우저 전역 `DadamWorkerPortal`, Node(Jest) 는 module.exports).
- * 뒷부분 start() 는 worker.html 에서만 돈다 (#workerApp 이 있을 때).
+ * 뒷부분 start() 는 #workerApp 이 있는 페이지에서만 돈다 — worker.html 과 앱 「작업」 탭 (본문은 둘이 같다).
+ * 로그인 뒤 돌아올 곳 · 로그인 주소는 #workerApp 의 data-page · data-login (없으면 worker.html · login.html).
  *
  *   - 화면에 넣는 사용자 글(이름 · 제목 · 내용 · 보고 · 사유 · 지역 · 메모)은 전부 esc() 를 거친다
  *   - 현장 주소 · 연락처는 1주차에 어디에도 없다 (★7 공개 기간 미정) — site 가 null 이면 site_note 만 보여 준다
@@ -200,15 +201,19 @@
     return out;
   }
 
-  /** 로그인 뒤 돌아올 곳 — 같은 사이트 상대 경로 (login.html 이 *.html + #… 만 받는다, 계약 §5) */
-  function returnTarget(route, invite) {
+  /**
+   * 로그인 뒤 돌아올 곳 — 같은 사이트 상대 경로 (login.html 이 *.html + #… 만 받는다, 계약 §5).
+   * page = 포털 페이지 (사이트 뿌리에서 본 주소 — #workerApp 의 data-page)
+   */
+  function returnTarget(route, invite, page = 'worker.html') {
     const r = route || {};
-    if (invite && TOKEN_RE.test(invite)) return `worker.html#invite=${invite}`;
-    if (r.job && UUID_RE.test(r.job)) return `worker.html#job=${r.job}`;
-    if (r.tab && TAB_KEYS.includes(r.tab)) return `worker.html#tab=${r.tab}`;
-    return 'worker.html';
+    if (invite && TOKEN_RE.test(invite)) return `${page}#invite=${invite}`;
+    if (r.job && UUID_RE.test(r.job)) return `${page}#job=${r.job}`;
+    if (r.tab && TAB_KEYS.includes(r.tab)) return `${page}#tab=${r.tab}`;
+    return page;
   }
-  const loginHref = (target) => `login.html?redirect=${encodeURIComponent(target || 'worker.html')}`;
+  /** login = 이 페이지에서 본 로그인 페이지 주소 (앱은 '../login.html') */
+  const loginHref = (target, login = 'login.html') => `${login}?redirect=${encodeURIComponent(target || 'worker.html')}`;
 
   /**
    * 보여 줄 화면 (계약 §4): 미로그인 → login / 표 없음 → not_ready / 작업자 행 없음 → register /
@@ -697,8 +702,11 @@
     }
 
     function showLogin() {
-      const target = returnTarget(route, invite);
-      $('loginLink').href = loginHref(target);
+      const appEl = $('workerApp');
+      const page = (appEl && appEl.getAttribute('data-page')) || 'worker.html';
+      const login = (appEl && appEl.getAttribute('data-login')) || 'login.html';
+      const target = returnTarget(route, invite, page);
+      $('loginLink').href = loginHref(target, login);
       $('loginInviteNote').hidden = !invite;
       sub('로그인이 필요합니다');
       show('viewLogin');

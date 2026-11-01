@@ -14,6 +14,7 @@ import { WORKER_ACCESS_STATUSES, loadSelfWorker, requireAdminEditor, requireAdmi
 import { recordWorkerEvent } from './events.js';
 import { MINE_STATUSES, loadMyAssignments, myJobCards, openJobsFor, pickNextJob } from './jobs.js';
 import { notifyWork } from './notify.js';
+import { later, notifyWorkerStatus } from '../push/work-hooks.js';
 import { workerSelf } from './reveal.js';
 import { assertUuid, kindsOf, oneOf, optBool, optPhone, optText, reqText } from './validate.js';
 
@@ -143,7 +144,7 @@ export async function listWorkersAdmin(env, { user, query = {} }) {
 const sameKinds = (a, b) => JSON.stringify([...(a || [])].sort()) === JSON.stringify([...(b || [])].sort());
 
 /** PATCH /work/admin/workers/:id — 승인 · 반려 · 정지 · 종류 지정. 상태 · 종류가 바뀌면 worker_events 에 한 줄씩 */
-export async function patchWorkerAdmin(env, { user, params, body }) {
+export async function patchWorkerAdmin(env, { user, params, body, ctx }) {
   await requireAdminEditor(env, user);
   const id = assertUuid(params.id, '작업자 id');
   const b = body || {};
@@ -176,6 +177,10 @@ export async function patchWorkerAdmin(env, { user, params, body }) {
       workerId: id, actorUserId: user.id, actorKind: 'admin', type: 'status_changed',
       from: worker.status, to: patch.status, note: patch.status === 'rejected' ? patch.reject_reason : null,
     });
+  }
+  // 작업자 신청 결과 앱 알림 (승인 · 반려) — 응답 뒤에
+  if (patch.status === 'approved' || patch.status === 'rejected') {
+    await later(ctx, notifyWorkerStatus(env, { worker: rows[0], status: patch.status }));
   }
   if (patch.kinds && !sameKinds(patch.kinds, worker.kinds)) {
     await recordWorkerEvent(env, { workerId: id, actorUserId: user.id, actorKind: 'admin', type: 'kinds_changed', payload: { kinds: patch.kinds } });
