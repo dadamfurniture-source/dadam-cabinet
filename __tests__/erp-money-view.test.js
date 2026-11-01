@@ -25,7 +25,7 @@ const EVENTS = { status: 'in_production', can_decide: false, pending: null, move
 /**
  * 가짜 워커. money: 대표 · 실장 응답(금액 · 원가 · 수금 포함), partner: 협력업체 수주(구분 · 거래처 칸 없음)
  */
-function fakeApi({ money, partner }) {
+function fakeApi({ money, partner, payments = [] }) {
   const calls = [];
   const base = { id: 'O1', order_no: 'SO-1', customer_name: '김고객', status: 'in_production', note: null };
   const order = {
@@ -55,7 +55,7 @@ function fakeApi({ money, partner }) {
         margin: { contract_amount: 1100000, received_amount: 300000, outstanding: 800000, cost_total: 400000, margin: 700000, margin_rate: 63.6, quoted_total: null },
         reworks,
         feedback,
-        payments: [],
+        payments,
       });
     }
     if (method === 'GET' && u === '/orders/O1/events') return ok(EVENTS);
@@ -145,5 +145,30 @@ describe('대표 · 실장', () => {
     await settle();
     const patch = api.calls.filter((c) => c.method === 'PATCH');
     expect(patch.map((c) => c.body)).toEqual([{ received_amount: 500000 }]);
+  });
+});
+
+describe('수금 일정 — 온라인 결제 (고객 결제창 · 가상계좌)', () => {
+  test('입금 대기 · 온라인 결제 · 확인 필요(들어온 돈 · 사유) · 기한 지남 — 확인 필요 줄은 받음 단추가 그대로', async () => {
+    const payments = [
+      { id: 'P1', stage: 'deposit', amount: 300000, due_on: '2026-10-10', paid_on: '2026-10-10', online: { status: 'paid', method: 'card', amount_received: 300000 } },
+      { id: 'P2', stage: 'interim', amount: 400000, due_on: '2026-11-10', paid_on: null, online: { status: 'check_needed', method: 'virtual_account', amount_received: 390000, status_note: '받은 금액이 수금 일정과 다릅니다' } },
+      { id: 'P3', stage: 'balance', amount: 400000, due_on: '2026-12-10', paid_on: null, online: { status: 'waiting_deposit', method: 'virtual_account', virtual_account: { bank: '88', account_number: 'X1', due_at: '2026-12-05T23:59:59+09:00' } } },
+      { id: 'P4', stage: 'other', amount: 1000, due_on: '2026-12-20', paid_on: null, online: { status: 'expired', method: 'virtual_account' } },
+      { id: 'P5', stage: 'other', amount: 2000, due_on: '2026-12-21', paid_on: null, online: null },
+    ];
+    const api = fakeApi({ money: true, partner: false, payments });
+    await openOrder(api);
+    const rows = [...document.querySelectorAll('#payRows tr')];
+    const online = rows.map((r) => (r.querySelector('[data-online]') ? r.querySelector('[data-online]').textContent : null));
+    expect(online).toEqual([
+      '온라인 결제 · 카드',
+      '확인 필요 · 가상계좌 · 들어온 돈 390,000원 — 받은 금액이 수금 일정과 다릅니다',
+      '가상계좌 입금 대기 (기한 2026-12-05)',
+      '입금 기한 지남 · 가상계좌',
+      null,
+    ]);
+    expect(rows[1].querySelector('[data-online]').className).toBe('neg');
+    expect(rows[1].querySelector('[data-pay="P2"]')).not.toBeNull();
   });
 });

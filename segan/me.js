@@ -8,6 +8,7 @@
      내 프로젝트 workflow-api GET /me/projects (본인 토큰). 단계 6칸 · 끝난 상태 · 계약 금액 ·
                 다음 결제(안 낸 것 중 낼 날이 가장 이른 것 — 워커 payments.js 와 같은 due_on 오름차순 ·
                 빈 날 뒤) · 설치일. 수금 단계 이름은 erp.html PAY_STAGE_LABELS · 워커 payments.js 와 같다.
+                다음 결제 줄 아래 결제 칸 — 결제 버튼 · 가상계좌 입금 안내 · 확인 중 (segan/pay.js, 다담 공장 수주만)
                 못 읽으면(오류 · 404 · 주소 없음) 칸째 감춘다 — 가짜 값을 그리지 않는다
      상담 내역  consultations (본인 — RLS 「Users can view own consultations」), 최신순.
                 상태 이름은 admin/consultations.html STATUS_LABELS 와 같다
@@ -131,6 +132,7 @@
       facts.push(factHtml('다음 결제', t));
     }
     if (p.install_at) facts.push(factHtml('설치일', day(p.install_at)));
+    var payBox = pay && window.SeganPay ? window.SeganPay.boxHtml(pay) : '';
     var status = p.status && p.status !== 'active' ? PROJECT_STATUS[p.status] || p.status : '';
     return (
       '<li class="me-project"><span class="me-p-head"><span class="me-c-main"><b>' +
@@ -142,8 +144,36 @@
       '</span>' +
       stepsHtml(p.stage) +
       (facts.length ? '<dl class="me-facts">' + facts.join('') + '</dl>' : '') +
+      payBox +
       '</li>'
     );
+  }
+
+  var payBound = false;
+  /** 다음 결제 줄의 결제 버튼 (segan/pay.js) — 막히면 칸 아래 글로. 입금 기다림 · 이미 받음(409)이면 칸을 다시 받는다 */
+  function bindPay(session) {
+    var list = $('meProjects');
+    if (!list || payBound || !window.SeganPay) return;
+    payBound = true;
+    list.addEventListener('click', async function (e) {
+      var b = e.target && e.target.closest ? e.target.closest('button[data-pay-id]') : null;
+      if (!b) return;
+      var err = $('mePayError');
+      if (err) err.hidden = true;
+      b.disabled = true;
+      var r = await window.SeganPay.start(
+        session,
+        b.getAttribute('data-pay-id'),
+        b.getAttribute('data-pay-method')
+      );
+      b.disabled = false;
+      if (r.ok) return;
+      if (err) {
+        err.textContent = r.message;
+        err.hidden = false;
+      }
+      if (r.reload) loadProjects(session);
+    });
   }
 
   async function loadProjects(session) {
@@ -165,6 +195,7 @@
       $('meProjects').innerHTML = rows.map(projectHtml).join(''); // 모양이 틀린 행은 던진다 → 칸째 감춘다
       $('meProjectEmpty').hidden = rows.length > 0;
       section.hidden = false;
+      bindPay(session);
     } catch {
       section.hidden = true;
     }

@@ -7,9 +7,9 @@
     <meta name="robots" content="noindex, nofollow, noarchive" />
     <meta name="referrer" content="no-referrer" />
     <title>수주 · 원가 · 마진 · 다담가구</title>
-    <link rel="stylesheet" href="css/nav.css?v=2026110113" />
+    <link rel="stylesheet" href="css/nav.css?v=2026110115" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="js/config.js?v=2026110113"></script>
+    <script src="js/config.js?v=2026110115"></script>
     <style>
       :root {
         --bg: #eef0f3;
@@ -284,6 +284,20 @@
         };
         // 수금 일정 — 워커 payments.js 와 같은 축
         var PAY_STAGE_LABELS = { deposit: '계약금', interim: '중도금', balance: '잔금', other: '기타' };
+        // 온라인 결제 — 고객 결제창 · 가상계좌 (payments-api, 워커 payments.js 의 online). 확인 필요는 사람이 보고 받음을 누른다
+        var ONLINE_LABELS = { waiting_deposit: '가상계좌 입금 대기', paid: '온라인 결제', check_needed: '확인 필요', expired: '입금 기한 지남', failed: '결제 실패' };
+        var PAY_METHOD_LABELS = { card: '카드', easy_pay: '간편결제', virtual_account: '가상계좌', transfer: '계좌이체' };
+        function onlineHtml(o) {
+          if (!o || !o.status) return '';
+          var t = ONLINE_LABELS[o.status] || o.status;
+          if (o.method && PAY_METHOD_LABELS[o.method] && o.status !== 'waiting_deposit') t += ' · ' + PAY_METHOD_LABELS[o.method];
+          if (o.status === 'waiting_deposit' && o.virtual_account && o.virtual_account.due_at) t += ' (기한 ' + String(o.virtual_account.due_at).slice(0, 10) + ')';
+          if (o.status === 'check_needed') {
+            if (o.amount_received != null) t += ' · 들어온 돈 ' + krw(o.amount_received);
+            if (o.status_note) t += ' — ' + o.status_note;
+          }
+          return '<div class="' + (o.status === 'check_needed' ? 'neg' : 'muted') + '" data-online="' + esc(o.status) + '">' + esc(t) + '</div>';
+        }
         function todayKst() { return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10); }
         // 재작업 · A/S — 워커 rework.js 와 같은 축 (경영 대시보드 품질비용 · A/S 율의 재료)
         var REWORK_KIND_LABELS = { rework: '재작업 (공장)', as: 'A/S (설치 뒤)' };
@@ -816,7 +830,7 @@
                 '<td>' + esc(PAY_STAGE_LABELS[p.stage] || p.stage) + '</td>' +
                 '<td class="num">' + krw(p.amount) + '</td>' +
                 '<td' + (late ? ' class="neg"' : '') + '>' + esc(p.due_on || '-') + (late ? ' (밀림)' : '') + '</td>' +
-                '<td>' + esc(p.paid_on || '-') + '</td>' +
+                '<td>' + esc(p.paid_on || '-') + onlineHtml(p.online) + '</td>' +
                 '<td>' + (p.paid_on
                   ? '<button type="button" data-unpay="' + esc(p.id) + '">되돌리기</button>'
                   : '<button type="button" class="primary" data-pay="' + esc(p.id) + '">받음</button>') +

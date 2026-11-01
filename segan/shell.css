@@ -1107,6 +1107,48 @@ a.sg-row.ad-row::after {
   margin-top: 0;
 }
 
+/* 수금 일정 결제 (segan/pay.js) — 내 프로젝트 다음 결제 줄 · 결제 결과 (segan/pay.html) */
+.pay-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.pay-acts {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.pay-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.pay-va {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.pay-va div {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.pay-va dt {
+  color: var(--v5-ink-45);
+  font-weight: 300;
+}
+
+.pay-va dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 /* 내 정보 › 알림 (segan/push.js) — 아이폰: 홈 화면에 추가하는 법 */
 .me-push-steps {
   margin: 0;
