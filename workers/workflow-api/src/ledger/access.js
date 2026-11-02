@@ -8,18 +8,62 @@
  *     read  등급이 내려감 — 보기 · 내보내기만 (장부 · 증빙 5년 보관). 쓰면 403 read_only
  *     none  403 not_entitled
  *   대표 · 실장(MONEY_ROLES): 장부 · 금액 · 설정. 직원: 사진 올리기와 자기가 올린 사진의 상태만 — 금액 · 장부는 403 not_money
+ *
+ *   다른 업체 장부 보기 (?company=) — 다담 본사(platform) 대표 · 실장만 다담 공장(hq) 장부를 본다.
+ *     보기만 (level read · viewing). 공장 장부 자격은 사람 없이 본다 (본사 사람은 공장 구성원이 아니다).
+ *     쓰기 주소는 company 를 받지 않는다 — 언제나 자기 업체에 쓴다.
  */
-import { activeMemberships, callRpc, ForbiddenError, MONEY_ROLES } from '../supabase.js';
+import { activeMemberships, callRpc, selectMany, platformCompanyId, hqCompanyId, ForbiddenError, MONEY_ROLES } from '../supabase.js';
+import { isUuid } from './checks.js';
 
 export const LEDGER_LEVELS = Object.freeze(['full', 'read']);
 
-/** @returns {{ companyId, role, money, level }} */
-export async function ledgerAccess(env, user) {
+async function entitled(env, companyId, userId) {
+  const args = { p_company: companyId, p_feature: 'ledger' };
+  if (userId) args.p_user = userId;
+  return callRpc(env, 'company_entitled', args);
+}
+
+/** 본사 대표 · 실장이 함께 보는 공장 장부 — 볼 수 있으면 공장 id, 아니면 null */
+async function viewableHq(env, m) {
+  if (!m || !MONEY_ROLES.includes(m.role)) return null;
+  const [platform, hq] = await Promise.all([platformCompanyId(env), hqCompanyId(env)]);
+  if (m.company_id !== platform || hq === platform) return null;
+  return LEDGER_LEVELS.includes(await entitled(env, hq)) ? hq : null;
+}
+
+/**
+ * @param {{ company?: string }} [opts] — 보려는 업체 (비우면 자기 업체)
+ * @returns {{ companyId, role, money, level, viewing }}
+ */
+export async function ledgerAccess(env, user, { company } = {}) {
   const [m] = await activeMemberships(env, user);
   if (!m) throw new ForbiddenError('장부는 업체 구성원만 씁니다', 'not_member');
-  const level = await callRpc(env, 'company_entitled', { p_company: m.company_id, p_feature: 'ledger', p_user: user.id });
+  if (company && company !== m.company_id) {
+    const hq = isUuid(company) ? await viewableHq(env, m) : null;
+    if (!hq || company !== hq) throw new ForbiddenError('이 업체 장부는 열 수 없습니다', 'not_member');
+    return { companyId: hq, role: m.role, money: true, level: 'read', viewing: true };
+  }
+  const level = await entitled(env, m.company_id, user.id);
   if (!LEDGER_LEVELS.includes(level)) throw new ForbiddenError('이 업체는 장부를 쓸 수 없습니다', 'not_entitled');
-  return { companyId: m.company_id, role: m.role, money: MONEY_ROLES.includes(m.role), level };
+  return { companyId: m.company_id, role: m.role, money: MONEY_ROLES.includes(m.role), level, viewing: false };
+}
+
+/**
+ * 이 사람이 여는 장부들 — [{ company_id, name, kind, own }] (자기 업체 먼저).
+ * 자기 업체는 자격(full · read)이 있을 때, 본사 대표 · 실장이면 공장 장부를 더한다.
+ */
+export async function ledgerList(env, user) {
+  const [m] = await activeMemberships(env, user);
+  if (!m) return [];
+  const [ownLevel, hq] = await Promise.all([entitled(env, m.company_id, user.id), viewableHq(env, m)]);
+  const list = [];
+  if (LEDGER_LEVELS.includes(ownLevel)) list.push({ company_id: m.company_id, own: true });
+  if (hq) list.push({ company_id: hq, own: false });
+  if (!list.length) return [];
+  const rows = (await selectMany(env, 'companies', { id: `in.(${list.map((x) => x.company_id).join(',')})`, select: 'id,name,kind' })) || [];
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  return list.map((x) => ({ company_id: x.company_id, name: (byId.get(x.company_id) || {}).name || null, kind: (byId.get(x.company_id) || {}).kind || null, own: x.own }));
 }
 
 /** 금액 · 장부 · 설정 — 대표 · 실장만 */
@@ -27,7 +71,7 @@ export function assertMoney(access) {
   if (!access.money) throw new ForbiddenError('장부는 업체 대표 · 실장만 봅니다', 'not_money');
 }
 
-/** 쓰기 — 자격이 full 일 때만 */
+/** 쓰기 — 자격이 full 일 때만 (다른 업체 장부 보기는 늘 read) */
 export function assertWritable(access) {
   if (access.level !== 'full') throw new ForbiddenError('지금 등급에서는 장부를 보기 · 내보내기만 할 수 있습니다', 'read_only');
 }

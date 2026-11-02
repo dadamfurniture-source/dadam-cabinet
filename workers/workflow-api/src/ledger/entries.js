@@ -6,6 +6,7 @@
  *   POST /ledger/entries/:id/correct   고치기 — 원래 줄 취소 + 바꾼 칸만 다른 새 줄 (DB 함수 ledger_correct_entry)
  *   GET  /ledger/book                  장부 줄 + 수주 수금 + 수주 원가를 합친 것 (DB 함수 ledger_book) — 대표 · 실장, 자격 read 도
  *   GET  /ledger/accounts              계정 목록 (국세청 서식 항목 그대로 — ledger_accounts)
+ *   보기 주소(book · accounts)는 ?company= 를 받는다 — 본사 대표 · 실장이 공장 장부를 볼 때 (access.js)
  *
  * 쓰기는 asActor 로 부른다 — 바꾼 사람이 ledger_events 에 남는다.
  */
@@ -193,8 +194,8 @@ export function sortBook(rows) {
 }
 
 /** GET /ledger/book */
-export async function getBook(env, { user, month, from, to, includeVoid }) {
-  const access = await ledgerAccess(env, user);
+export async function getBook(env, { user, company, month, from, to, includeVoid }) {
+  const access = await ledgerAccess(env, user, { company });
   assertMoney(access);
   const range = bookRange({ month, from, to });
   const rows = await callRpc(env, 'ledger_book', {
@@ -204,12 +205,12 @@ export async function getBook(env, { user, month, from, to, includeVoid }) {
     p_include_void: Boolean(includeVoid),
   });
   const sorted = sortBook(rows);
-  return { ...range, rows: sorted, totals: bookTotals(sorted), level: access.level };
+  return { ...range, company_id: access.companyId, rows: sorted, totals: bookTotals(sorted), level: access.level, viewing: access.viewing };
 }
 
 /** GET /ledger/accounts — 쓰는 계정만 */
-export async function listAccounts(env, { user }) {
-  const access = await ledgerAccess(env, user);
+export async function listAccounts(env, { user, company }) {
+  const access = await ledgerAccess(env, user, { company });
   assertMoney(access);
   return { items: (await loadAccounts(env)).filter((a) => a.active).map(({ code, name, grp, note }) => ({ code, name, grp, note })) };
 }
