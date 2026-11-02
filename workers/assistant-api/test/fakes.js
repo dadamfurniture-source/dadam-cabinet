@@ -45,11 +45,15 @@ export function makeDb(over = {}) {
     for (const [k, v] of new URLSearchParams(q)) out[k] = v;
     return out;
   }
+  // eq · lt · in.( ) 만
   const eq = (row, filters) =>
     Object.entries(filters).every(([k, v]) => {
       if (['select', 'order', 'limit'].includes(k)) return true;
-      if (!v.startsWith('eq.')) throw new Error('fake: only eq filters — ' + k + '=' + v);
-      return String(row[k]) === v.slice(3);
+      if (v.startsWith('eq.')) return String(row[k]) === v.slice(3);
+      if (v.startsWith('lt.')) return String(row[k]) < v.slice(3);
+      if (v.startsWith('in.(') && v.endsWith(')'))
+        return v.slice(4, -1).split(',').includes(String(row[k]));
+      throw new Error('fake: unsupported filter — ' + k + '=' + v);
     });
   const ok = (body, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -191,6 +195,15 @@ export function makeDb(over = {}) {
       rows.push(...made);
       return ok(made, 201);
     }
+    if (method === 'DELETE') {
+      const hit = rows.filter((r) => eq(r, q));
+      for (const r of hit) rows.splice(rows.indexOf(r), 1);
+      if (path === 'assistant_conversations') {
+        const gone = new Set(hit.map((r) => r.id));
+        db.messages = db.messages.filter((m) => !gone.has(m.conversation_id));
+      }
+      return new Response(null, { status: 204 });
+    }
     if (method === 'PATCH') {
       const hit = rows.filter((r) => eq(r, q));
       for (const r of hit) Object.assign(r, body, { updated_at: new Date().toISOString() });
@@ -214,6 +227,7 @@ function makeStorage() {
       map.set(k, structuredClone(v));
     },
     async delete(k) {
+      if (Array.isArray(k)) return k.filter((x) => map.delete(x)).length;
       return map.delete(k);
     },
     async list({ prefix = '', start = '' } = {}) {

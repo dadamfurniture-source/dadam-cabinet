@@ -14,6 +14,8 @@
  *   GET  /state         { running: { turn, after } | null } — 화면이 대화를 다시 열 때 도는 차례를 이어 받는다
  *
  * 사건 (n 은 이 대화 안에서 1부터 늘어난다. 최근 EVENT_KEEP 개만 둔다)
+ *   사건 줄은 끊긴 화면이 이어 받는 데만 쓴다 — 차례가 끝나고 EVENT_TTL_MS 뒤 알람이 모두 지운다(번호 lastN 은 남긴다).
+ *   답 글은 assistant_messages 에 있으므로 객체에는 개인 정보가 오래 남지 않는다 (90일 보관은 src/retention.js).
  *   start { turn } · text { turn, text } · tool { turn, name, label } · done { turn, stop_reason }
  *   끝 — blocked { turn, reason } · refused { turn } · error { turn, code, message }
  *     blocked reason: not_entitled · conversation_full · no_limit · over_limit · off (예산 함수의 이유 그대로)
@@ -43,6 +45,8 @@ import { toolDefs, toolLabel, runTool } from './tools.js';
 
 export const EVENT_KEEP = 500;
 export const STREAM_MS = 55_000;
+/** 차례가 끝나고 사건 줄을 지우기까지 */
+export const EVENT_TTL_MS = 24 * 3600 * 1000;
 export const MAX_TOOL_ROUNDS = 6;
 const FLUSH_CHARS = 200;
 const FLUSH_MS = 250;
@@ -75,7 +79,7 @@ export class AssistantSession {
     this.env = env;
     this.subs = new Set();
     this.tokens = new Map(); // 차례 → 사람 토큰 (메모리에만)
-    this.m = { lastN: 0, turns: 0, current: null, keys: [] };
+    this.m = { lastN: 0, turns: 0, current: null, keys: [], purgeAt: null };
     ctx.blockConcurrencyWhile(async () => {
       const saved = await ctx.storage.get('meta');
       if (saved) this.m = { ...this.m, ...saved };
@@ -184,7 +188,7 @@ export class AssistantSession {
   // ── 차례 돌리기 ─────────────────────────────────────────
   async alarm() {
     const cur = this.m.current;
-    if (!cur) return;
+    if (!cur) return this.purgeIfDue();
     if (cur.phase !== 'queued') {
       // Claude 를 부르기 시작한 뒤 객체가 다시 떴다 — 두 번 부르지 않는다
       await this.fail(cur, 'interrupted', '답을 만드는 중에 끊겼습니다. 다시 보내 주세요.');
@@ -406,6 +410,21 @@ export class AssistantSession {
   async finish(cur, type, data) {
     this.m.current = null;
     await this.emit(type, { turn: cur.turn, ...data });
+    // 하루 뒤 사건 줄 지우기 — 다음 차례가 오면 그 차례 끝에서 다시 미룬다
+    this.m.purgeAt = Date.now() + EVENT_TTL_MS;
+    await this.save();
+    await this.ctx.storage.setAlarm(this.m.purgeAt);
+  }
+
+  /** 지울 때가 됐으면 사건 줄 · 같은 키 기억을 지운다 (번호는 이어 간다) */
+  async purgeIfDue() {
+    if (!this.m.purgeAt || Date.now() < this.m.purgeAt) return;
+    const keys = [...(await this.ctx.storage.list({ prefix: 'ev:' })).keys()];
+    for (let i = 0; i < keys.length; i += 128)
+      await this.ctx.storage.delete(keys.slice(i, i + 128));
+    this.m.purgeAt = null;
+    this.m.keys = [];
+    await this.save();
   }
 
   async block(cur, reason) {

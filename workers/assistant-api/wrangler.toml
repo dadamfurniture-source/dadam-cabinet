@@ -38,6 +38,10 @@ EXTRACT_MAX_ATTEMPTS = "2"
 binding = "WORKFLOW_API"
 service = "dadam-workflow-api"
 
+# 하루 한 번 03:40(한국) — 시작한 지 90일 지난 대화 지우기 (src/retention.js). 유료 플랜이라 cron 자리가 넉넉하다
+[triggers]
+crons = ["40 18 * * *"]
+
 [[durable_objects.bindings]]
 name = "ASSISTANT_SESSION"
 class_name = "AssistantSession"
