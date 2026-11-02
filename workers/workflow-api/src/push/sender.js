@@ -7,6 +7,7 @@
  *      결제 실패 · 업체 정지(billing_failed · company_suspended)는 업체가 정지됐어도 active 대표에게 간다.
  *      업체 없는 업체 신청(partner_application, company_id 없음)은 그 사람의 업체 없는 기기로 간다.
  *      작업자 알림(work_*, company_id 없음)은 작업자에게 — 신청 결과는 작업자 행이 있으면, 그 밖은 승인된 작업자만.
+ *      확인할 사진(ledger_pending)은 아직 그 업체의 대표 · 실장일 때만 (돌려받은 사진 ledger_returned 은 구성원이면).
  *   3. 그 사람의 그 업체 기기 (업체 없는 신청이면 업체 없는 기기) 모두에 보낸다.
  *        404 · 410 · 쓸 수 없는 키 → 그 기기 등록을 지운다
  *        하나라도 받으면 → sent (sent_at)
@@ -20,7 +21,7 @@
  * 로그 · last_error 에 받는 주소 · 키 · 알림 글 · 받는 사람을 싣지 않는다 — 건수와 짧은 이름만.
  */
 
-import { callRpc, selectMany, updateBy } from '../supabase.js';
+import { callRpc, selectMany, updateBy, MONEY_ROLES } from '../supabase.js';
 import { loadVapid, sendWebPush, PushError } from './webpush.js';
 import { WORK_NOTIFICATION_KINDS } from './messages.js';
 
@@ -33,6 +34,8 @@ export const MAX_ATTEMPTS = 5;
 const CONCURRENCY = 6;
 /** 이 종류는 업체가 정지돼도 대표에게 간다 */
 export const OWNER_KINDS = Object.freeze(['billing_failed', 'company_suspended']);
+/** 이 종류는 보낼 때도 대표 · 실장이어야 한다 (supabase.js MONEY_ROLES) */
+export const MONEY_KINDS = Object.freeze(['ledger_pending']);
 /** 끝난 줄을 남겨 두는 기간 */
 export const RETAIN_DAYS = 30;
 /** 하루 한 번 정리하는 시각 (UTC 18:17 = KST 03:17) */
@@ -61,6 +64,7 @@ export function isEligible(row, memberships, workers = []) {
   if (!m) return false;
   const status = m.company && m.company.status;
   if (OWNER_KINDS.includes(row.kind)) return m.role === 'owner' && (status === 'active' || status === 'suspended');
+  if (MONEY_KINDS.includes(row.kind)) return MONEY_ROLES.includes(m.role) && status === 'active';
   return status === 'active';
 }
 

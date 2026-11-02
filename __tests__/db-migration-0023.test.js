@@ -61,8 +61,11 @@ describe('0023 — 작업자 앱 알림', () => {
     const block = /NOTIFICATION_KINDS = Object\.freeze\(\[([\s\S]*?)\]\)/.exec(msg);
     expect(block).not.toBeNull();
     const names = [...block[1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]);
-    // 서버가 먼저 바뀌기 전(이 DB 변경만 들어간 때)에는 서버 목록이 0016 그대로다
+    // 서버가 먼저 바뀌기 전(이 DB 변경만 들어간 때)에는 서버 목록이 0016 그대로고,
+    // 뒤 마이그레이션(0030 장부 알림)이 종류를 더하면 서버 목록이 더 길다 — 겹치는 앞부분이 같으면 된다
     const db = kindsOf(S, 'notification_outbox_kind_check');
-    expect(db.slice(0, names.length)).toEqual(names);
+    const n = Math.min(db.length, names.length);
+    expect(n).toBeGreaterThanOrEqual(7);
+    expect(names.slice(0, n)).toEqual(db.slice(0, n));
   });
 });
