@@ -1,0 +1,244 @@
+{
+  "title": "0029 사진 읽기 — 읽기 시도 · 고친 칸 · 사업자 상태는 서버만 · 시도는 running 으로 시작 · 한 사진에 도는 시도 하나 · 읽은 사진은 다시 읽지 않음 · 실패 뒤 최대 시도 · 거절 · 한도 뒤는 다시(p_again)만 · 끝난 시도는 고치지 않고 지우지 않음 · 매분 다시 걸 사진(멈춘 시도는 failed) · 고친 칸은 덧붙이기만 (scripts/rls-probe.mjs)",
+  "ids": [
+    "company_x",
+    "doc_a",
+    "doc_b",
+    "doc_c"
+  ],
+  "users": [
+    "x_owner_user",
+    "x_staff_user",
+    "other_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_x}}, {{x_staff_user}}, 'staff', 'active')",
+    "INSERT INTO public.ledger_documents (id, company_id, uploaded_by, storage_path, mime, size_bytes, sha256, created_at) VALUES ({{doc_a}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_a}}::text, 'image/jpeg', 100, repeat('a', 64), now() - interval '10 minutes'), ({{doc_b}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_b}}::text, 'image/jpeg', 100, repeat('b', 64), now()), ({{doc_c}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_c}}::text, 'image/jpeg', 100, repeat('c', 64), now() - interval '10 minutes')",
+    "UPDATE public.ledger_documents SET review_status = 'rejected', decided_by = {{x_owner_user}}, decided_at = now(), decision_reason = 'probe' WHERE id = {{doc_c}}"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "x_staff": {
+      "role": "authenticated",
+      "user": "x_staff_user"
+    },
+    "other": {
+      "role": "authenticated",
+      "user": "other_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "읽기 시도 · 고친 칸 · 사업자 상태 읽기는 서버만",
+      "sql": "select (select count(*) from public.ledger_extractions where company_id = {{company_x}}) + (select count(*) from public.ledger_extraction_feedback where company_id = {{company_x}}) + (select count(*) from public.nts_business_status where biz_no = '0000000000')",
+      "expect": {
+        "service_role": 0,
+        "*": "deny"
+      }
+    },
+    {
+      "name": "읽기 시작은 서버만 — 확인 기다리는 사진에 시도 1",
+      "sql": "select public.ledger_extract_begin({{doc_a}}, 2) ->> 'attempt'",
+      "expect": {
+        "service_role": "1",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "도는 시도가 있으면 막는다",
+      "sql": "select public.ledger_extract_begin({{doc_a}}, 2); select public.ledger_extract_begin({{doc_a}}, 2) ->> 'reason'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "running"
+      }
+    },
+    {
+      "name": "읽은 사진은 다시 읽지 않는다 (다시 = true 여도)",
+      "sql": "select public.ledger_extract_begin({{doc_a}}, 2); update public.ledger_extractions set status = 'done', result = '{}'::jsonb where document_id = {{doc_a}}; select public.ledger_extract_begin({{doc_a}}, 2, true) ->> 'reason'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "done"
+      }
+    },
+    {
+      "name": "끝나면 끝난 때가 적힌다",
+      "sql": "select public.ledger_extract_begin({{doc_a}}, 2); update public.ledger_extractions set status = 'failed', error = 'probe' where document_id = {{doc_a}}; select (finished_at is not null)::text from public.ledger_extractions where document_id = {{doc_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "끝난 시도는 고치지 않는다",
+      "sql": "select public.ledger_extract_begin({{doc_a}}, 2); update public.ledger_extractions set status = 'done' where document_id = {{doc_a}}; update public.ledger_extractions set result = '{\"x\": 1}'::jsonb where document_id = {{doc_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:P0001"
+      }
+    },
+    {
+      "name": "시도의 사진 · 차례는 고치지 않는다",
+      "sql": "select public.ledger_extract_begin({{doc_a}}, 2); update public.ledger_extractions set attempt = 3 where document_id = {{doc_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:P0001"
+      }
+    },
+    {
+      "name": "시도는 지우지 않는다 (서버도)",
+      "sql": "delete from public.ledger_extractions where document_id = {{doc_a}}",
+      "expect": {
+        "*": "deny"
+      }
+    },
+    {
+      "name": "시도는 running 으로만 넣는다",
+      "sql": "insert into public.ledger_extractions (document_id, company_id, attempt, status) values ({{doc_b}}, {{company_x}}, 1, 'done')",
+      "expect": {
+        "service_role": "err:P0001",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "한 사진에 도는 시도는 하나",
+      "sql": "insert into public.ledger_extractions (document_id, company_id, attempt) values ({{doc_b}}, {{company_x}}, 1), ({{doc_b}}, {{company_x}}, 2)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "실패 뒤 다시 — 최대 시도까지",
+      "sql": "select public.ledger_extract_begin({{doc_a}}, 2); update public.ledger_extractions set status = 'failed' where document_id = {{doc_a}} and status = 'running'; select public.ledger_extract_begin({{doc_a}}, 2); update public.ledger_extractions set status = 'failed' where document_id = {{doc_a}} and status = 'running'; select (select count(*) from public.ledger_extractions where document_id = {{doc_a}}) || '/' || (public.ledger_extract_begin({{doc_a}}, 2) ->> 'reason')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "2/max_attempts"
+      }
+    },
+    {
+      "name": "한도 · 거절 뒤에는 다시(p_again)만",
+      "sql": "select public.ledger_extract_begin({{doc_a}}, 2); update public.ledger_extractions set status = 'skipped_budget' where document_id = {{doc_a}}; select (public.ledger_extract_begin({{doc_a}}, 2) ->> 'reason') || '/' || (public.ledger_extract_begin({{doc_a}}, 2, true) ->> 'attempt')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "skipped_budget/2"
+      }
+    },
+    {
+      "name": "확인이 끝난 사진은 읽지 않는다",
+      "sql": "select public.ledger_extract_begin({{doc_c}}, 2) ->> 'reason'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "not_pending"
+      }
+    },
+    {
+      "name": "다시 걸 사진 — 기다린 초가 지난 확인 기다리는 사진만 (방금 올린 · 끝난 사진은 아니다)",
+      "sql": "select string_agg(case d.document_id when {{doc_a}} then 'a' when {{doc_b}} then 'b' when {{doc_c}} then 'c' end, ',') from public.ledger_extract_due(100, 60, 600, 2) d where d.document_id in ({{doc_a}}, {{doc_b}}, {{doc_c}})",
+      "expect": {
+        "service_role": "a",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "다시 걸 사진 — 멈춘 running 은 failed(stuck)로 닫고 다시 건다",
+      "sql": "insert into public.ledger_extractions (document_id, company_id, attempt, started_at) values ({{doc_a}}, {{company_x}}, 1, now() - interval '20 minutes'); select count(*) from public.ledger_extract_due(100, 60, 600, 2) d where d.document_id = {{doc_a}}; select status || ':' || error || ':' || (finished_at is not null)::text from public.ledger_extractions where document_id = {{doc_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "failed:stuck:true"
+      }
+    },
+    {
+      "name": "다시 걸 사진 — 막 시작한 running 은 그대로 두고 걸지 않는다",
+      "sql": "select public.ledger_extract_begin({{doc_a}}, 2); select (select count(*) from public.ledger_extract_due(100, 60, 600, 2) d where d.document_id = {{doc_a}}) || '/' || (select status from public.ledger_extractions where document_id = {{doc_a}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "0/running"
+      }
+    },
+    {
+      "name": "고친 칸 넣기는 서버만",
+      "sql": "insert into public.ledger_extraction_feedback (company_id, document_id, target, fields, changed_count, created_by) values ({{company_x}}, {{doc_a}}, 'entry', '{\"total_amount\": {\"read\": 1000, \"posted\": 1100}}'::jsonb, 1, {{x_owner_user}})",
+      "expect": {
+        "service_role": "ok",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "고친 칸은 덧붙이기만 (서버도 고치지 않는다)",
+      "sql": "insert into public.ledger_extraction_feedback (company_id, document_id, target, changed_count, created_by) values ({{company_x}}, {{doc_a}}, 'entry', 0, {{x_owner_user}}); update public.ledger_extraction_feedback set changed_count = 5 where document_id = {{doc_a}}",
+      "expect": {
+        "*": "deny"
+      }
+    },
+    {
+      "name": "사진마다 고친 칸 한 줄",
+      "sql": "insert into public.ledger_extraction_feedback (company_id, document_id, target, changed_count, created_by) values ({{company_x}}, {{doc_a}}, 'entry', 0, {{x_owner_user}}), ({{company_x}}, {{doc_a}}, 'entry', 0, {{x_owner_user}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "사업자 상태 넣기는 서버만",
+      "sql": "insert into public.nts_business_status (biz_no, status, tax_type) values ('0000000000', 'active', '부가가치세 일반과세자')",
+      "expect": {
+        "service_role": "ok",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "사업자번호는 숫자 10자리 · 상태는 네 가지",
+      "sql": "insert into public.nts_business_status (biz_no, status) values ('123-45-67890', 'active')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "모르는 사업자 상태는 막는다",
+      "sql": "insert into public.nts_business_status (biz_no, status) values ('0000000000', 'open')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    }
+  ]
+}
