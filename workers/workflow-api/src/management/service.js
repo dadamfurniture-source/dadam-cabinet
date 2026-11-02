@@ -186,7 +186,7 @@ export async function getManagementSummary(env, { user, month }) {
   let dueCosts = [], cashOrders = [], installs = new Map();
   if (payments) {
     [dueCosts, cashOrders] = await Promise.all([
-      selectMany(env, 'order_costs', hqByOrder({ select: 'amount,due_on,spent_on', spent_on: 'is.null', due_on: 'not.is.null', limit: '5000' }, hq)).catch(() => []),
+      selectMany(env, 'order_costs', hqByOrder({ select: 'amount,vat_amount,due_on,spent_on', spent_on: 'is.null', due_on: 'not.is.null', limit: '5000' }, hq)).catch(() => []),
       selectMany(env, 'orders', {
         select: 'id,order_no,customer_name,design_id,contract_amount,received_amount,status,delivered_at,completed_at',
         company_id: HQ,

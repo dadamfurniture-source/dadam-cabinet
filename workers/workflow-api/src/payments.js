@@ -11,7 +11,7 @@
  * 온라인 결제(payments-api — 고객 결제창 · 가상계좌, DB 0025 payment_transactions)는 수금 줄마다 가장 최근 것을
  * online 으로 붙인다 (ERP 가 「확인 필요」 · 「입금 대기」를 보인다). 결제창만 열고 닫은 것(ready · canceled)은 뺀다.
  */
-import { selectOne, selectMany, insertOne, updateById, restDelete, ValidationError, NotFoundError, ForbiddenError } from './supabase.js';
+import { selectOne, selectMany, insertOne, updateById, restDelete, asActor, ValidationError, NotFoundError, ForbiddenError } from './supabase.js';
 import { loadOwnedOrder } from './orders.js';
 import { isAdmin } from './reports/admin.js';
 import { isMissingRelation } from './work-order-data.js';
@@ -117,7 +117,7 @@ async function write(fn) {
 
 export async function addPayment(env, { orderId, user, body }) {
   await loadOwnedOrder(env, orderId, user, { money: true });
-  const row = await write(() => insertOne(env, 'order_payments', { ...validatePayment(body), order_id: orderId, created_by: user.id }));
+  const row = await write(() => insertOne(asActor(env, user), 'order_payments', { ...validatePayment(body), order_id: orderId, created_by: user.id }));
   const received = await syncReceived(env, orderId);
   return { payment: row, received };
 }
@@ -133,7 +133,7 @@ export async function updatePayment(env, { orderId, paymentId, user, body }) {
   await ownedPayment(env, orderId, paymentId);
   const patch = validatePayment(body, { partial: true });
   if (!Object.keys(patch).length) throw new ValidationError('바꿀 칸이 없습니다');
-  const row = await write(() => updateById(env, 'order_payments', paymentId, patch));
+  const row = await write(() => updateById(asActor(env, user), 'order_payments', paymentId, patch));
   const received = await syncReceived(env, orderId);
   return { payment: row, received };
 }
@@ -141,7 +141,7 @@ export async function updatePayment(env, { orderId, paymentId, user, body }) {
 export async function deletePayment(env, { orderId, paymentId, user }) {
   await loadOwnedOrder(env, orderId, user, { money: true });
   await ownedPayment(env, orderId, paymentId);
-  await restDelete(env, 'order_payments', { id: `eq.${paymentId}` });
+  await restDelete(asActor(env, user), 'order_payments', { id: `eq.${paymentId}` });
   const received = await syncReceived(env, orderId);
   return { deleted: paymentId, received };
 }
@@ -157,7 +157,7 @@ export async function updateCostDates(env, { orderId, costId, user, body }) {
   if (spent !== undefined) patch.spent_on = spent;
   if (due !== undefined) patch.due_on = due;
   if (!Object.keys(patch).length) throw new ValidationError('바꿀 칸이 없습니다');
-  return write(() => updateById(env, 'order_costs', costId, patch));
+  return write(() => updateById(asActor(env, user), 'order_costs', costId, patch));
 }
 
 /** 통장 잔액 적기 — 관리자만 */

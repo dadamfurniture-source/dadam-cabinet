@@ -201,7 +201,9 @@
           <select id="selSupplier" aria-label="공급처" hidden></select>
           <input id="inpDesc" placeholder="내용" style="min-width: 180px" />
           <input id="inpVendor" placeholder="거래처" style="width: 130px" />
-          <input id="inpAmount" type="number" min="0" step="1000" placeholder="금액" style="width: 130px" />
+          <input id="inpAmount" type="number" min="0" step="1000" placeholder="공급가 (부가세 뺌)" title="부가세를 뺀 공급가" style="width: 150px" />
+          <input id="inpVat" type="number" min="0" step="100" placeholder="부가세" title="공제되는 부가세 — 비우면 미기재" style="width: 110px" />
+          <select id="selEvidence" aria-label="증빙"></select>
           <input id="inpDate" type="date" aria-label="낸 날" title="낸 날" />
           <label class="muted" id="lblDue">낼 날 <input id="inpDue" type="date" aria-label="낼 날" /></label>
           <button type="button" class="primary" id="btnAddCost">추가</button>
@@ -209,7 +211,7 @@
         <div class="scroll" style="margin-top: 10px">
           <table>
             <thead>
-              <tr><th>분류</th><th>내용</th><th>거래처</th><th class="num">금액</th><th>낸 날</th><th></th></tr>
+              <tr><th>분류</th><th>내용</th><th>거래처</th><th class="num">공급가</th><th class="num">부가세</th><th>증빙</th><th>낸 날</th><th></th></tr>
             </thead>
             <tbody id="costRows"></tbody>
           </table>
@@ -281,6 +283,11 @@
         var COST_LABELS = {
           material: '자재', hardware: '부자재', labor: '노무',
           outsourcing: '외주', logistics: '물류', other: '기타',
+        };
+        // 증빙 — 값은 워커 ledger/checks.js EVIDENCE_TYPES 와 같다
+        var EVIDENCE_LABELS = {
+          tax_invoice: '세금계산서', invoice: '계산서', card: '카드', cash_receipt: '현금영수증',
+          simple_receipt: '간이영수증', statement: '거래명세표', other: '기타', none: '증빙 없음',
         };
         // 수금 일정 — 워커 payments.js 와 같은 축
         var PAY_STAGE_LABELS = { deposit: '계약금', interim: '중도금', balance: '잔금', other: '기타' };
@@ -448,10 +455,13 @@
           el('selCategory').innerHTML = Object.keys(COST_LABELS)
             .map(function (k) { return '<option value="' + k + '">' + COST_LABELS[k] + '</option>'; })
             .join('');
+          el('selEvidence').innerHTML = '<option value="">증빙</option>' + Object.keys(EVIDENCE_LABELS)
+            .map(function (k) { return '<option value="' + k + '">' + EVIDENCE_LABELS[k] + '</option>'; })
+            .join('');
 
           var tb = el('costRows');
           if (!d.costs.length) {
-            tb.innerHTML = '<tr><td colspan="6" class="muted">입력된 원가가 없습니다.</td></tr>';
+            tb.innerHTML = '<tr><td colspan="8" class="muted">입력된 원가가 없습니다.</td></tr>';
             return;
           }
           tb.innerHTML = d.costs
@@ -462,6 +472,9 @@
                 '<td>' + esc(c.description || '-') + '</td>' +
                 '<td>' + esc(c.vendor_name || '-') + '</td>' +
                 '<td class="num">' + krw(c.amount) + '</td>' +
+                // 부가세 칸이 생기기 전 줄은 NULL — 공급가인지 합계인지 모른다
+                '<td class="num">' + (c.vat_amount === null || c.vat_amount === undefined ? '<span class="muted">미기재</span>' : krw(c.vat_amount)) + '</td>' +
+                '<td>' + (c.evidence_type ? esc(EVIDENCE_LABELS[c.evidence_type] || c.evidence_type) : '-') + '</td>' +
                 // 아직 안 낸 돈(낸 날 없음 · 낼 날 있음)은 낼 날과 '냈음' 단추
                 '<td>' + (c.spent_on ? esc(c.spent_on) : c.due_on ? '<span class="muted">낼 날 ' + esc(c.due_on) + '</span> <button type="button" data-paid-cost="' + esc(c.id) + '">냈음</button>' : '-') + '</td>' +
                 '<td><button type="button" data-del="' + esc(c.id) + '">삭제</button></td>' +
@@ -968,7 +981,9 @@
         async function addCost() {
           if (!state.current) return;
           var amount = Number(el('inpAmount').value);
-          if (!(amount >= 0) || el('inpAmount').value === '') { fail('금액을 입력해 주세요.'); return; }
+          if (!(amount >= 0) || el('inpAmount').value === '') { fail('공급가를 입력해 주세요.'); return; }
+          var vat = el('inpVat').value === '' ? null : Number(el('inpVat').value);
+          if (vat !== null && !(vat >= 0)) { fail('부가세는 0 이상으로 입력해 주세요.'); return; }
           try {
             await api('/orders/' + encodeURIComponent(state.current) + '/costs', {
               method: 'POST',
@@ -980,6 +995,8 @@
                 counterparty_id: el('selSupplier').value || null,
                 due_on: el('inpDue').value || null,
                 amount: amount,
+                vat_amount: vat,
+                evidence_type: el('selEvidence').value || null,
                 spent_on: el('inpDate').value || null,
               },
             });
@@ -988,6 +1005,8 @@
             el('selSupplier').value = '';
             el('inpVendor').hidden = false;
             el('inpAmount').value = '';
+            el('inpVat').value = '';
+            el('selEvidence').value = '';
             note('원가를 추가했습니다.');
             await open(state.current);
           } catch (e) { fail(e.message); }
