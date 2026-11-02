@@ -1,0 +1,45 @@
+name = "dadam-assistant-api"
+main = "src/worker.js"
+compatibility_date = "2025-01-01"
+account_id = "8bd8e054dfc7bcdc577f9bb79edd3284"
+
+# 업체 AI 비서 — 대화마다 Durable Object(AssistantSession) 하나가 Claude 를 부른다 (src/session.js).
+# 객체는 SESSION_LOCATION(기본 enam, 미국 동부)에 만든다 — 홍콩 콜로 발신은 api.anthropic.com 이 403 으로 막는다
+# (generate-api 2026-09-12 실측). 그래서 이 워커에는 프록시가 없다.
+
+[vars]
+# 사용자 인증용 공개값 (js/config.js 에 이미 있다). service_role 키는 시크릿이다.
+SUPABASE_URL = "https://vvqrvgcgnlfpiqqndsve.supabase.co"
+SUPABASE_ANON_KEY = "sb_publishable_OV4D2-LwhTMj8YJ711HTvA_lA2jk_PW"
+
+# 브라우저 CORS 허용 오리진 (쉼표 구분, 목록 밖이면 Allow-Origin 을 싣지 않는다)
+CORS_ORIGINS = "https://dadamfurniture.com,http://localhost:8000,http://127.0.0.1:8000"
+
+# Claude — 모델 · 생각 정도 · 처리 지역. inference_geo "us" 는 모든 토큰 요금 1.1배 (src/meter.js)
+ANTHROPIC_MODEL = "claude-opus-5-5"
+EFFORT = "medium"
+INFERENCE_GEO = "us"
+# 한 차례 답의 최대 토큰 (생각 포함) — 예산 잡기도 이 값으로 어림한다
+MAX_OUTPUT_TOKENS = "8000"
+# 한 대화의 최대 차례 — 넘으면 새 대화를 시작한다 (차례마다 지난 대화 전부를 다시 보내므로 비용이 커진다)
+MAX_TURNS = "30"
+# 대화 객체를 만드는 곳 (Durable Object locationHint)
+SESSION_LOCATION = "enam"
+
+[[durable_objects.bindings]]
+name = "ASSISTANT_SESSION"
+class_name = "AssistantSession"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AssistantSession"]
+
+# 차례 보내기 분 한도 — 사람마다. 넘으면 429 rate_limited. namespace_id 는 계정 안에서 겹치지 않는 정수
+[[ratelimits]]
+name = "ASSISTANT_TURN_LIMIT"
+namespace_id = "7501"
+simple = { limit = 10, period = 60 }
+
+# 시크릿 (Cloudflare 대시보드 › Workers › dadam-assistant-api › 설정 › 변수와 시크릿):
+#   SUPABASE_SERVICE_ROLE_KEY   필수 — 비서 표 · 자격 · 예산 함수
+#   ANTHROPIC_API_KEY           필수 — 없으면 차례가 error 로 끝난다

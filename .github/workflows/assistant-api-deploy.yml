@@ -1,0 +1,61 @@
+name: Deploy Cloudflare Worker (assistant-api)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'workers/assistant-api/**'
+      - '.github/workflows/assistant-api-deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: unit tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workers/assistant-api
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # src/claude.js 가 @anthropic-ai/sdk 를 부르므로 시험 전에 설치한다 (generate-api 와 같다)
+      - name: Install dependencies
+        run: npm ci
+
+      # 가짜 Supabase · 가짜 Durable Object · 가짜 Claude — 네트워크 · 모델 비용 없음
+      - name: Run tests
+        run: node --test "test/*.test.js"
+
+      # 번들 실패(예: SDK 가 Node 전용 API 를 요구)를 배포 전에 잡는다
+      - name: Bundle check (dry run)
+        run: npx wrangler deploy --dry-run --outdir /tmp/dadam-assistant-api-dist
+
+  deploy:
+    name: wrangler deploy
+    needs: test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workers/assistant-api
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Install dependencies (wrangler + @anthropic-ai/sdk)
+        run: npm ci
+
+      - name: Deploy to Cloudflare
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
