@@ -15,6 +15,14 @@
              375만 화소 이하로 줄인다 (워커 checks.js 와 같은 한도). 이 기기에서 못 여는 사진(HEIC 등)은 안내만 하고
              올리지 않는다. 한 장씩 차례로 올리고, 429(분 · 하루 한도)면 남은 사진은 멈춰 두었다가 「다시 올리기」.
              형식 · 크기로 거절된 사진(413 · 422)은 다시 올리지 않는다.
+   사진 확인  대표 · 실장만 (직원은 묻지 않는다). GET /ledger/review?status=pending&limit=&before= — 확인 기다리는 사진
+             + 10분 서명 주소 + 최근 읽기 시도(상태 · 읽은 칸 · 검사). 사진을 누르면 읽은 칸으로 채운 칸을 고쳐
+             POST /ledger/documents/:id/post { target: entry | order_cost } · /return · /reject { reason } · /reread.
+             경고 없이 다 읽은 사진은 골라 POST /ledger/review/post (한 번에 BATCH_MAX 장, 계정 하나를 골라 함께).
+             읽는 중인 사진이 있으면 화면이 보일 때 POLL_MS 마다 목록을 다시 읽는다.
+             GET /ledger/business-status?biz_no= — 국세청 상태 (서버에 키가 없으면 available false → 단추를 감춘다)
+             금액 채우기는 세무사 확인 전 기준: 공제되는 부가세 증빙(세금계산서 · 카드 · 현금영수증)에 공급가 · 부가세가 있으면
+             금액 = 공급가 · 부가세 = 부가세, 아니면 금액 = 합계 · 부가세 0
    보이는 것  늘 「종이 원본 5년 보관」 안내 · 과세 설정 · 달 바꾸기 · 달 요약(수입 · 비용 · 장부 손익 · 부가세)
              · 장부 줄 (직접 입력 · 수금 · 수주 원가 — 받은 날 · 낸 날 기준). 수금 · 원가 줄은 PC ERP 에서 고친다.
              취소한 줄은 「취소한 줄도 보기」를 켜야 보인다 (지우지 않는다).
@@ -86,6 +94,58 @@
   var HEIC_MSG =
     '이 브라우저에서 HEIC 사진을 열지 못했습니다. 아이폰은 설정 › 카메라 › 포맷 › 「높은 호환성」으로 찍으면 됩니다.';
   var OPEN_FAIL_MSG = '이 사진을 열지 못했습니다. JPEG · PNG 사진을 골라 주세요.';
+  // 사진 확인 — 워커 src/ledger/review.js (REVIEW_MAX · BATCH_MAX)
+  var REVIEW_PAGE = 50;
+  var BATCH_MAX = 20;
+  var POLL_MS = 10000;
+  // 읽기 시도 상태 (ledger_extractions.status, 시도가 아직 없으면 none)
+  var READ_STATE = {
+    none: '읽는 중',
+    running: '읽는 중',
+    done: '읽음',
+    failed: '못 읽음',
+    refused: '답할 수 없는 사진',
+    skipped_budget: '한도로 못 읽음',
+  };
+  var REREAD = ['failed', 'refused', 'skipped_budget'];
+  // 세무사 확인 전 기준 — 이 증빙에 부가세가 있으면 공제되는 부가세로 본다
+  var DEDUCT_EVIDENCE = ['tax_invoice', 'card', 'cash_receipt'];
+  // 수주 원가 종류 — 워커 orders.js COST_CATEGORIES · erp.html 과 같다
+  var COST_CATEGORY = {
+    material: '자재',
+    hardware: '부자재',
+    labor: '노무',
+    outsourcing: '외주',
+    logistics: '물류',
+    other: '기타',
+  };
+  var NTS_STATUS = {
+    active: '계속 사업자',
+    suspended: '휴업',
+    closed: '폐업',
+    unregistered: '국세청에 없는 번호',
+  };
+  // 읽은 칸 → 확인 칸 (확실하지 않은 칸 · 검사에 걸린 칸을 표시한다)
+  var FLAG_INPUTS = {
+    issue_date: ['lgRvDate'],
+    supplier_name: ['lgRvCpName'],
+    supplier_biz_no: ['lgRvBiz'],
+    supply_amount: ['lgRvAmount', 'lgRvVat'],
+    vat_amount: ['lgRvAmount', 'lgRvVat'],
+    tax_free_amount: ['lgRvAmount'],
+    service_charge: ['lgRvAmount'],
+    total_amount: ['lgRvAmount'],
+    evidence_type: ['lgRvEvidence'],
+    payment_method: ['lgRvMethod'],
+    items: ['lgRvDesc'],
+  };
+  var AMOUNT_KEYS = [
+    'supply_amount',
+    'vat_amount',
+    'tax_free_amount',
+    'service_charge',
+    'total_amount',
+  ];
 
   var L = {
     sb: null,
@@ -105,6 +165,16 @@
     up: [], // 올릴 사진 [{ name, file, blob, key, note, status: wait|prep|send|done|same|fail, msg, final }]
     uploading: false,
     upAt: 0, // 올리는 사진 차례 (L.up 안)
+    review: [], // GET /ledger/review items (확인 기다리는 사진, 새것부터)
+    reviewMore: false,
+    reviewFail: false,
+    picked: {}, // 한꺼번에 올릴 사진 id → true
+    sheet: null, // 여는 사진 { doc, prefill }
+    decide: '', // 이유를 적는 중 — returned | rejected
+    orders: null, // GET /orders items (수주 원가로 올릴 때 한 번)
+    ntsAvailable: null, // 국세청 상태 조회 — false 면 단추를 감춘다
+    pollTimer: null,
+    reviewBusy: false,
   };
 
   var $ = function (id) {
@@ -237,6 +307,102 @@
       pad(k.getUTCHours()) +
       ':' +
       pad(k.getUTCMinutes())
+    );
+  }
+
+  /** 사업자등록번호 검증 숫자 — 워커 checks.js bizNoValid 와 같다 (가중치 1,3,7,1,3,7,1,3,5) */
+  function bizNoValid(value) {
+    var s = String(value == null ? '' : value).replace(/[-\s]/g, '');
+    if (!/^\d{10}$/.test(s)) return false;
+    var w = [1, 3, 7, 1, 3, 7, 1, 3, 5];
+    var sum = 0;
+    for (var i = 0; i < 9; i++) sum += Number(s[i]) * w[i];
+    sum += Math.floor((Number(s[8]) * 5) / 10);
+    return (10 - (sum % 10)) % 10 === Number(s[9]);
+  }
+
+  function wholeWon(v) {
+    return typeof v === 'number' && Number.isInteger(v) ? v : null;
+  }
+
+  /** 사진의 읽기 상태 — 시도가 아직 없으면 none */
+  function readState(doc) {
+    return doc && doc.extraction && doc.extraction.status ? doc.extraction.status : 'none';
+  }
+
+  /** 다 읽은 사진의 경고 [{ key, text }] — 검사(checks)와 확실하지 않은 칸(unsure) */
+  function warningsOf(doc) {
+    if (readState(doc) !== 'done') return [];
+    var x = doc.extraction;
+    var c = x.checks || {};
+    var r = x.result || {};
+    var out = [];
+    if (c.biz_no === 'bad') out.push({ key: 'biz_no', text: '사업자번호 확인 필요' });
+    if (c.amounts === 'mismatch' || c.items === 'mismatch')
+      out.push({ key: 'amounts', text: '금액 합이 안 맞음' });
+    if (c.date && c.date !== 'ok') out.push({ key: 'date', text: '날짜 확인' });
+    if (c.multiple) out.push({ key: 'multiple', text: '한 장씩 다시 찍기' });
+    var unsure = Array.isArray(r.unsure) ? r.unsure.length : 0;
+    if (unsure) out.push({ key: 'unsure', text: '확실하지 않은 칸 ' + unsure });
+    return out;
+  }
+
+  /**
+   * 읽은 칸 → 장부 줄 칸 (세무사 확인 전 기준). 공제되는 부가세 증빙에 공급가 · 부가세가 있으면
+   * 금액 = 공급가 · 부가세 = 부가세, 아니면 금액 = 합계 · 부가세 0. 없는 칸은 비운다 (계산해서 채우지 않는다)
+   */
+  function prefillEntry(result) {
+    var r = result || {};
+    var supply = wholeWon(r.supply_amount);
+    var vat = wholeWon(r.vat_amount);
+    var deductible = DEDUCT_EVIDENCE.indexOf(r.evidence_type) >= 0 && supply > 0 && vat > 0;
+    var items = (Array.isArray(r.items) ? r.items : []).filter(function (i) {
+      return i && typeof i.name === 'string' && i.name.trim();
+    });
+    var desc = items.length
+      ? items[0].name.trim() + (items.length > 1 ? ' 외 ' + (items.length - 1) + '건' : '')
+      : '';
+    return {
+      entry_date: typeof r.issue_date === 'string' ? r.issue_date : '',
+      direction: 'expense',
+      account: '',
+      description: desc.slice(0, 200),
+      counterparty_name: typeof r.supplier_name === 'string' ? r.supplier_name.slice(0, 100) : '',
+      counterparty_biz_no: typeof r.supplier_biz_no === 'string' ? r.supplier_biz_no : '',
+      amount: deductible ? supply : wholeWon(r.total_amount),
+      vat_amount: deductible ? vat : 0,
+      evidence_type: EVIDENCE[r.evidence_type] ? r.evidence_type : '',
+      payment_method: METHOD[r.payment_method] ? r.payment_method : '',
+      deductible: deductible,
+    };
+  }
+
+  /** 채운 칸 → 보낼 장부 줄 (빈 글은 null) */
+  function entryBody(p, account) {
+    return {
+      entry_date: p.entry_date,
+      direction: p.direction || 'expense',
+      account: account,
+      description: p.description || null,
+      counterparty_name: p.counterparty_name || null,
+      counterparty_biz_no: p.counterparty_biz_no || null,
+      amount: p.amount,
+      vat_amount: p.vat_amount || 0,
+      evidence_type: p.evidence_type,
+      payment_method: p.payment_method || null,
+    };
+  }
+
+  /** 한꺼번에 올릴 수 있나 — 다 읽었고 경고가 없고 일자 · 금액 · 증빙이 있다 (사업자번호는 비었거나 맞다) */
+  function batchReady(doc) {
+    if (readState(doc) !== 'done' || warningsOf(doc).length) return false;
+    var p = prefillEntry(doc.extraction.result);
+    return !!(
+      p.entry_date &&
+      Number.isInteger(p.amount) &&
+      p.amount >= 1 &&
+      p.evidence_type &&
+      (!p.counterparty_biz_no || bizNoValid(p.counterparty_biz_no))
     );
   }
 
@@ -783,6 +949,8 @@
     }
     L.uploading = false;
     renderUp();
+    // 대표 · 실장은 방금 올린 사진도 확인할 사진에 보인다
+    if (L.me && L.me.money) await loadReview();
     await loadDocs();
   }
 
@@ -880,7 +1048,7 @@
     $('lgUp').hidden = !canUpload();
     $('lgPhotosNote').textContent =
       L.me && L.me.money
-        ? '사진을 읽어 장부 칸을 채우는 기능은 곧 붙습니다. 지금은 사진을 모아 두고, 장부는 직접 입력합니다.'
+        ? '올린 사진은 Claude가 읽어 칸을 채웁니다. 위 「확인할 사진」에서 칸을 확인한 뒤 장부에 올립니다.'
         : '올린 사진은 대표 · 실장이 확인해 장부에 올립니다. 금액은 대표 · 실장만 봅니다.';
   }
 
@@ -904,6 +1072,666 @@
     });
   }
 
+  // ── 사진 확인 (대표 · 실장) ─────────────────────────────
+  /** 글자만 넣는 칸 하나 (자료 글은 textContent 로만) */
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function safePhotoUrl(u) {
+    return typeof u === 'string' && /^https:\/\//.test(u) ? u : '';
+  }
+
+  function reviewById(id) {
+    for (var i = 0; i < L.review.length; i++) if (L.review[i].id === id) return L.review[i];
+    return null;
+  }
+
+  function chipsInto(box, doc) {
+    box.textContent = '';
+    warningsOf(doc).forEach(function (w) {
+      var c = el('span', 'lg-chip', w.text);
+      c.setAttribute('data-warn', w.key);
+      box.appendChild(c);
+    });
+  }
+
+  /** 목록 한 줄의 읽은 요약 — 상호 · 합계 */
+  function readSummary(doc) {
+    if (readState(doc) !== 'done') return '';
+    var r = doc.extraction.result || {};
+    return [r.supplier_name, r.total_amount != null ? money(r.total_amount) : '']
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  function reviewItem(doc) {
+    var state = readState(doc);
+    var li = el('li', 'lg-rv');
+    li.setAttribute('data-id', doc.id);
+    li.setAttribute('data-read', state);
+    if (canWrite() && batchReady(doc)) {
+      var pick = el('label', 'lg-rv-pick');
+      var box = document.createElement('input');
+      box.type = 'checkbox';
+      box.setAttribute('data-pick', doc.id);
+      box.setAttribute('aria-label', '한꺼번에 올리기에 넣기');
+      box.checked = !!L.picked[doc.id];
+      pick.appendChild(box);
+      li.appendChild(pick);
+    }
+    var open = el('button', 'lg-rv-open');
+    open.type = 'button';
+    open.setAttribute('data-act', 'rv-open');
+    open.setAttribute('data-id', doc.id);
+    var url = safePhotoUrl(doc.photo_url);
+    if (url) {
+      var img = document.createElement('img');
+      img.className = 'lg-rv-thumb';
+      img.setAttribute('loading', 'lazy');
+      img.alt = '';
+      img.setAttribute('referrerpolicy', 'no-referrer');
+      img.src = url;
+      open.appendChild(img);
+    } else {
+      open.appendChild(el('span', 'lg-rv-thumb lg-rv-thumb--none', '사진 없음'));
+    }
+    var main = el('span', 'lg-rv-main');
+    var line = el('span', 'lg-rv-line');
+    line.appendChild(el('span', '', stamp(doc.created_at)));
+    line.appendChild(el('b', '', READ_STATE[state] || state));
+    main.appendChild(line);
+    if (doc.note) main.appendChild(el('small', 'lg-rv-memo', doc.note));
+    var sum = readSummary(doc);
+    if (sum) main.appendChild(el('small', 'lg-rv-sum', sum));
+    var chips = el('span', 'lg-chips');
+    chipsInto(chips, doc);
+    if (chips.childNodes.length) main.appendChild(chips);
+    open.appendChild(main);
+    li.appendChild(open);
+    return li;
+  }
+
+  function pickedIds() {
+    return L.review
+      .filter(function (d) {
+        return L.picked[d.id] && batchReady(d);
+      })
+      .map(function (d) {
+        return d.id;
+      });
+  }
+
+  function renderBatch() {
+    var any = canWrite() && L.review.some(batchReady);
+    $('lgBatch').hidden = !any;
+    var n = pickedIds().length;
+    $('lgBatchPost').disabled = L.reviewBusy || !n;
+    $('lgBatchPost').textContent = n
+      ? '선택한 사진 ' + n + '장 한꺼번에 올리기'
+      : '선택한 사진 한꺼번에 올리기';
+  }
+
+  function renderReview() {
+    $('lgReview').hidden = false;
+    var n = L.review.length;
+    $('lgReviewTitle').textContent =
+      '확인할 사진' + (L.reviewFail ? '' : ' ' + n + (L.reviewMore ? '장 넘게' : '장'));
+    $('lgReviewNote').textContent = L.reviewFail
+      ? '확인할 사진을 불러오지 못했습니다.'
+      : !n
+        ? '확인할 사진이 없습니다.'
+        : canWrite()
+          ? '사진을 눌러 읽은 칸을 확인하고 장부에 올립니다. 경고 없이 다 읽은 사진은 골라서 한꺼번에 올릴 수 있습니다.'
+          : '보기만 합니다.';
+    var list = $('lgReviewList');
+    list.textContent = '';
+    L.review.forEach(function (d) {
+      list.appendChild(reviewItem(d));
+    });
+    $('lgReviewMore').hidden = !L.reviewMore;
+    renderBatch();
+  }
+
+  /** 읽는 중인 사진이 있으면 화면이 보일 때 다시 읽는다 */
+  function needsPoll() {
+    return L.review.some(function (d) {
+      var s = readState(d);
+      return s === 'none' || s === 'running';
+    });
+  }
+
+  function stopPoll() {
+    if (L.pollTimer) window.clearTimeout(L.pollTimer);
+    L.pollTimer = null;
+  }
+
+  function schedulePoll() {
+    stopPoll();
+    if (!needsPoll() || document.visibilityState === 'hidden') return;
+    L.pollTimer = window.setTimeout(pollTick, POLL_MS);
+  }
+
+  async function pollTick() {
+    L.pollTimer = null;
+    if (document.visibilityState === 'hidden') return;
+    // 칸을 고치는 중 · 올리는 중에는 목록을 바꾸지 않는다 — 다음에
+    if (L.sheet || L.reviewBusy) return schedulePoll();
+    await loadReview();
+  }
+
+  /** 확인할 사진 — 새것부터 REVIEW_PAGE 장, 더 보기는 마지막 사진보다 앞선 것 */
+  async function loadReview(more) {
+    var last = more && L.review.length ? L.review[L.review.length - 1].created_at : '';
+    var r = await api(
+      withCompany(
+        '/ledger/review?status=pending&limit=' +
+          REVIEW_PAGE +
+          (last ? '&before=' + encodeURIComponent(last) : '')
+      )
+    );
+    if (!r.ok) {
+      if (!more) L.review = [];
+      L.reviewFail = !more;
+      L.reviewMore = false;
+      renderReview();
+      return schedulePoll();
+    }
+    var got = r.data && Array.isArray(r.data.items) ? r.data.items : [];
+    L.review = last ? L.review.concat(got) : got;
+    L.reviewMore = got.length === REVIEW_PAGE;
+    L.reviewFail = false;
+    Object.keys(L.picked).forEach(function (id) {
+      if (!reviewById(id)) delete L.picked[id];
+    });
+    renderReview();
+    schedulePoll();
+  }
+
+  // 시트 — 사진 하나
+  function rvError(text) {
+    $('lgRvError').textContent = text || '';
+    $('lgRvError').hidden = !text;
+  }
+
+  function fillRvAccounts(direction, selected) {
+    var list = accountsFor(L.accounts, direction);
+    var sel = $('lgRvAccount');
+    sel.textContent = '';
+    sel.appendChild(new window.Option('고르기', ''));
+    list.forEach(function (a) {
+      sel.appendChild(new window.Option(a.name + (a.note ? ' (' + a.note + ')' : ''), a.code));
+    });
+    sel.value = selected || '';
+  }
+
+  function fillRvOrders() {
+    var sel = $('lgRvOrder');
+    var keep = sel.value;
+    sel.textContent = '';
+    sel.appendChild(new window.Option(L.orders ? '고르기' : '수주를 불러오는 중…', ''));
+    (L.orders || []).forEach(function (o) {
+      sel.appendChild(
+        new window.Option([o.order_no, o.customer_name].filter(Boolean).join(' · '), o.id)
+      );
+    });
+    sel.value = keep;
+  }
+
+  async function loadOrders() {
+    if (L.orders) return fillRvOrders();
+    fillRvOrders();
+    var r = await api('/orders');
+    L.orders = r.ok
+      ? ((r.data && r.data.items) || []).filter(function (o) {
+          return o && o.id && o.status !== 'cancelled';
+        })
+      : null;
+    if (!r.ok) rvError('수주 목록을 불러오지 못했습니다.');
+    fillRvOrders();
+  }
+
+  function setTarget(target) {
+    $('lgRvTarget').value = target;
+    [].forEach.call($('lgRvForm').querySelectorAll('[data-for]'), function (n) {
+      n.hidden = n.getAttribute('data-for') !== target;
+    });
+    $('lgRvPost').textContent = target === 'order_cost' ? '수주 원가로 올리기' : '장부에 올리기';
+    renderBizRow();
+    if (target === 'order_cost' && canWrite()) loadOrders();
+  }
+
+  /** 확실하지 않은 칸 · 검사에 걸린 칸 표시 */
+  function flagInputs(doc) {
+    [].forEach.call($('lgRvForm').querySelectorAll('.lg-flag'), function (n) {
+      n.classList.remove('lg-flag');
+    });
+    $('lgRvAmounts').classList.remove('lg-flag');
+    if (readState(doc) !== 'done') return;
+    var x = doc.extraction;
+    var keys = ((x.result && x.result.unsure) || []).slice();
+    var c = x.checks || {};
+    if (c.biz_no === 'bad') keys.push('supplier_biz_no');
+    if (c.amounts === 'mismatch' || c.items === 'mismatch') keys.push('total_amount');
+    if (c.date && c.date !== 'ok') keys.push('issue_date');
+    keys.forEach(function (k) {
+      (FLAG_INPUTS[k] || []).forEach(function (id) {
+        var label = $(id).closest('.mk-input');
+        if (label) label.classList.add('lg-flag');
+      });
+      if (AMOUNT_KEYS.indexOf(k) >= 0) $('lgRvAmounts').classList.add('lg-flag');
+    });
+  }
+
+  function amountsText(doc) {
+    if (readState(doc) !== 'done') return '';
+    var r = doc.extraction.result || {};
+    var names = {
+      supply_amount: '공급가',
+      vat_amount: '부가세',
+      tax_free_amount: '면세',
+      service_charge: '봉사료',
+      total_amount: '합계',
+    };
+    var parts = AMOUNT_KEYS.filter(function (k) {
+      return r[k] != null;
+    }).map(function (k) {
+      return names[k] + ' ' + money(r[k]);
+    });
+    return parts.length ? '읽은 금액 — ' + parts.join(' · ') : '읽은 금액이 없습니다.';
+  }
+
+  function readText(doc) {
+    var state = readState(doc);
+    var x = doc.extraction;
+    if (state === 'none' || state === 'running')
+      return '읽는 중입니다. 다 읽으면 목록에 「읽음」이 보입니다 — 직접 적어 올려도 됩니다.';
+    if (state === 'done') return '읽음 — 칸을 확인하고 고쳐서 올려 주세요.';
+    if (state === 'skipped_budget')
+      return '이달 사진 읽기 한도로 읽지 못했습니다. 직접 적어 올리거나 「다시 읽기」를 눌러 주세요.';
+    if (state === 'refused') return '이 사진은 읽지 않았습니다. 직접 적어 올려 주세요.';
+    return (
+      '읽지 못했습니다' +
+      (x && x.attempt ? ' (' + x.attempt + '번째 시도)' : '') +
+      '. 직접 적어 올리거나 「다시 읽기」를 눌러 주세요.'
+    );
+  }
+
+  function renderBizRow() {
+    var show =
+      canWrite() &&
+      L.ntsAvailable !== false &&
+      $('lgRvTarget').value === 'entry' &&
+      bizNoValid($('lgRvBiz').value);
+    $('lgRvBizRow').hidden = !show;
+  }
+
+  function openSheet(id) {
+    var doc = reviewById(id);
+    if (!doc) return;
+    var p = readState(doc) === 'done' ? prefillEntry(doc.extraction.result) : prefillEntry(null);
+    L.sheet = { doc: doc, prefill: p };
+    L.decide = '';
+    var url = safePhotoUrl(doc.photo_url);
+    $('lgRvPhoto').hidden = !url;
+    $('lgRvPhotoBtn').hidden = !url;
+    $('lgRvPhotoBtn').classList.remove('lg-rv-photo--big');
+    if (url) $('lgRvPhoto').src = url;
+    else $('lgRvPhoto').removeAttribute('src');
+    $('lgRvNoPhoto').hidden = !!url;
+    $('lgRvRead').textContent = readText(doc);
+    chipsInto($('lgRvChips'), doc);
+    $('lgRvAmounts').textContent = amountsText(doc);
+    $('lgRvDate').value = p.entry_date || '';
+    $('lgRvDir').value = p.direction;
+    fillRvAccounts(p.direction, '');
+    $('lgRvDesc').value = p.description;
+    $('lgRvCpName').value = p.counterparty_name;
+    $('lgRvBiz').value = p.counterparty_biz_no;
+    $('lgRvAmount').value = p.amount == null ? '' : p.amount;
+    $('lgRvVat').value = p.vat_amount == null ? '' : p.vat_amount;
+    $('lgRvEvidence').value = p.evidence_type;
+    $('lgRvMethod').value = p.payment_method;
+    $('lgRvCategory').value = 'material';
+    $('lgRvBizState').textContent = '';
+    $('lgRvReason').value = '';
+    $('lgRvDecide').hidden = true;
+    rvError('');
+    var w = canWrite();
+    $('lgRvActs').hidden = !w;
+    $('lgRvReread').hidden = !w || REREAD.indexOf(readState(doc)) < 0;
+    [].forEach.call($('lgRvForm').querySelectorAll('input, select'), function (n) {
+      n.disabled = !w;
+    });
+    flagInputs(doc);
+    setTarget('entry');
+    $('lgSheet').hidden = false;
+  }
+
+  function closeSheet() {
+    L.sheet = null;
+    L.decide = '';
+    $('lgSheet').hidden = true;
+    rvError('');
+    schedulePoll();
+  }
+
+  /** 시트 칸 → 올리기 본문 (틀리면 { error }) */
+  function sheetBody() {
+    var target = $('lgRvTarget').value;
+    var amount = Number($('lgRvAmount').value);
+    var vatText = $('lgRvVat').value;
+    var vat = vatText === '' ? 0 : Number(vatText);
+    var date = $('lgRvDate').value;
+    var evidence = $('lgRvEvidence').value;
+    if (!date) return { error: '일자를 적어 주세요.' };
+    if (!($('lgRvAmount').value !== '' && Number.isInteger(amount) && amount >= 1))
+      return { error: '금액을 1원 이상 정수로 적어 주세요.' };
+    if (!(Number.isInteger(vat) && vat >= 0))
+      return { error: '부가세는 0 이상 정수로 적어 주세요.' };
+    if (!evidence) return { error: '증빙을 골라 주세요.' };
+    var desc = $('lgRvDesc').value.trim() || null;
+    var name = $('lgRvCpName').value.trim() || null;
+    if (target === 'order_cost') {
+      if (!$('lgRvOrder').value) return { error: '수주를 골라 주세요.' };
+      return {
+        body: {
+          target: 'order_cost',
+          order_id: $('lgRvOrder').value,
+          cost: {
+            category: $('lgRvCategory').value,
+            amount: amount,
+            vat_amount: vat,
+            description: desc,
+            vendor_name: name,
+            evidence_type: evidence,
+            spent_on: date,
+          },
+        },
+      };
+    }
+    if (!$('lgRvAccount').value) return { error: '계정을 골라 주세요.' };
+    var biz = $('lgRvBiz').value.trim();
+    if (biz && !bizNoValid(biz))
+      return { error: '사업자등록번호를 확인해 주세요 (숫자 10자리, 검증 숫자).' };
+    return {
+      body: {
+        target: 'entry',
+        entry: {
+          entry_date: date,
+          direction: $('lgRvDir').value,
+          account: $('lgRvAccount').value,
+          description: desc,
+          counterparty_name: name,
+          counterparty_biz_no: biz ? biz.replace(/[-\s]/g, '') : null,
+          amount: amount,
+          vat_amount: vat,
+          evidence_type: evidence,
+          payment_method: $('lgRvMethod').value || null,
+        },
+      },
+    };
+  }
+
+  /** 사진 하나가 끝났다 — 목록에서 빼고 장부 · 올린 사진을 다시 읽는다 */
+  async function afterDecided(id, text) {
+    L.review = L.review.filter(function (d) {
+      return d.id !== id;
+    });
+    delete L.picked[id];
+    closeSheet();
+    renderReview();
+    await loadBook(L.month);
+    await loadDocs();
+    setState(text); // 장부 다시 읽기가 상태 줄을 비우므로 그 뒤에
+  }
+
+  async function postSheet(e) {
+    if (e) e.preventDefault();
+    if (!L.sheet || L.reviewBusy || !canWrite()) return;
+    var got = sheetBody();
+    if (got.error) return rvError(got.error);
+    var id = L.sheet.doc.id;
+    L.reviewBusy = true;
+    $('lgRvPost').disabled = true;
+    var r = await api('/ledger/documents/' + encodeURIComponent(id) + '/post', {
+      method: 'POST',
+      body: got.body,
+    });
+    L.reviewBusy = false;
+    $('lgRvPost').disabled = false;
+    if (!r.ok) {
+      if (r.status === 409) {
+        closeSheet();
+        setState(r.message || '이미 확인한 사진입니다.');
+        return loadReview();
+      }
+      return rvError(r.message || '올리지 못했습니다.');
+    }
+    await afterDecided(
+      id,
+      got.body.target === 'order_cost' ? '수주 원가로 올렸습니다.' : '장부에 올렸습니다.'
+    );
+  }
+
+  function askDecide(status) {
+    if (!L.sheet || !canWrite()) return;
+    L.decide = status;
+    $('lgRvDecideOk').textContent = status === 'rejected' ? '버리기' : '돌려보내기';
+    $('lgRvReason').placeholder =
+      status === 'rejected' ? '버리는 이유 · 필수' : '돌려보내는 이유 · 필수 (올린 사람이 봅니다)';
+    $('lgRvDecide').hidden = false;
+    rvError('');
+  }
+
+  async function decide() {
+    if (!L.sheet || !L.decide || L.reviewBusy) return;
+    var reason = $('lgRvReason').value.trim();
+    if (!reason) return rvError('이유를 적어 주세요.');
+    var id = L.sheet.doc.id;
+    var status = L.decide;
+    L.reviewBusy = true;
+    var r = await api(
+      '/ledger/documents/' +
+        encodeURIComponent(id) +
+        (status === 'rejected' ? '/reject' : '/return'),
+      { method: 'POST', body: { reason: reason } }
+    );
+    L.reviewBusy = false;
+    if (!r.ok) {
+      if (r.status === 409) {
+        closeSheet();
+        setState(r.message || '이미 확인한 사진입니다.');
+        return loadReview();
+      }
+      return rvError(r.message || '바꾸지 못했습니다.');
+    }
+    await afterDecided(id, status === 'rejected' ? '사진을 버렸습니다.' : '사진을 돌려보냈습니다.');
+  }
+
+  async function reread() {
+    if (!L.sheet || L.reviewBusy || !canWrite()) return;
+    var id = L.sheet.doc.id;
+    L.reviewBusy = true;
+    var r = await api('/ledger/documents/' + encodeURIComponent(id) + '/reread', {
+      method: 'POST',
+    });
+    L.reviewBusy = false;
+    if (!r.ok) return rvError(r.message || '다시 읽기를 걸지 못했습니다.');
+    closeSheet();
+    setState('다시 읽는 중입니다.');
+    await loadReview();
+  }
+
+  async function checkBusiness() {
+    var biz = $('lgRvBiz').value.trim().replace(/[-\s]/g, '');
+    if (!bizNoValid(biz)) return;
+    $('lgRvBizState').textContent = '보는 중…';
+    var r = await api('/ledger/business-status?biz_no=' + encodeURIComponent(biz));
+    if (!r.ok) {
+      $('lgRvBizState').textContent = r.message || '조회하지 못했습니다.';
+      return;
+    }
+    var d = r.data || {};
+    if (d.available === false) {
+      L.ntsAvailable = false;
+      $('lgRvBizState').textContent = '';
+      return renderBizRow();
+    }
+    L.ntsAvailable = true;
+    if (!d.status) {
+      $('lgRvBizState').textContent = '국세청 조회에 실패했습니다. 잠시 뒤 다시 눌러 주세요.';
+      return;
+    }
+    $('lgRvBizState').textContent = [
+      (NTS_STATUS[d.status] || d.status) +
+        (d.status === 'closed' && d.closed_on ? ' (' + d.closed_on + ')' : ''),
+      d.tax_type,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  /** 고른 사진을 한꺼번에 — 계정 하나를 골라 함께, BATCH_MAX 장씩 */
+  async function postBatch() {
+    if (L.reviewBusy || !canWrite()) return;
+    var ids = pickedIds();
+    if (!ids.length) return;
+    var account = $('lgBatchAccount').value;
+    if (!account) {
+      $('lgBatchState').textContent = '한꺼번에 올릴 계정을 골라 주세요.';
+      return;
+    }
+    L.reviewBusy = true;
+    renderBatch();
+    $('lgBatchResult').textContent = '';
+    var results = [];
+    for (var i = 0; i < ids.length; i += BATCH_MAX) {
+      var chunk = ids.slice(i, i + BATCH_MAX);
+      $('lgBatchState').textContent =
+        Math.min(i + BATCH_MAX, ids.length) + ' / ' + ids.length + '장 올리는 중…';
+      var r = await api('/ledger/review/post', {
+        method: 'POST',
+        body: {
+          items: chunk.map(function (id) {
+            return {
+              id: id,
+              target: 'entry',
+              entry: entryBody(prefillEntry(reviewById(id).extraction.result), account),
+            };
+          }),
+        },
+      });
+      if (!r.ok) {
+        chunk.forEach(function (id) {
+          results.push({ id: id, ok: false, message: r.message || '올리지 못했습니다.' });
+        });
+        continue;
+      }
+      ((r.data && r.data.items) || []).forEach(function (x) {
+        results.push(x);
+      });
+    }
+    L.reviewBusy = false;
+    var okIds = results
+      .filter(function (x) {
+        return x && x.ok;
+      })
+      .map(function (x) {
+        return x.id;
+      });
+    var failed = results.filter(function (x) {
+      return x && !x.ok;
+    });
+    $('lgBatchState').textContent =
+      okIds.length + '장 올림' + (failed.length ? ' · ' + failed.length + '장 못 올림' : '');
+    failed.forEach(function (x) {
+      var doc = reviewById(x.id);
+      var li = el('li');
+      li.appendChild(el('b', '', doc ? stamp(doc.created_at) : '사진'));
+      li.appendChild(document.createTextNode(' — ' + (x.message || '올리지 못했습니다.')));
+      $('lgBatchResult').appendChild(li);
+    });
+    L.review = L.review.filter(function (d) {
+      return okIds.indexOf(d.id) < 0;
+    });
+    okIds.forEach(function (id) {
+      delete L.picked[id];
+    });
+    renderReview();
+    if (okIds.length) {
+      await loadBook(L.month);
+      await loadDocs();
+    }
+  }
+
+  function onReviewClick(e) {
+    var t = e.target;
+    var pick = t.closest ? t.closest('[data-pick]') : null;
+    if (pick) {
+      if (pick.checked) L.picked[pick.getAttribute('data-pick')] = true;
+      else delete L.picked[pick.getAttribute('data-pick')];
+      return renderBatch();
+    }
+    var open = t.closest ? t.closest('[data-act="rv-open"]') : null;
+    if (open && !L.reviewBusy) openSheet(open.getAttribute('data-id'));
+  }
+
+  function fillBatchAccounts() {
+    var sel = $('lgBatchAccount');
+    var keep = sel.value;
+    sel.textContent = '';
+    sel.appendChild(new window.Option('고르기', ''));
+    accountsFor(L.accounts, 'expense').forEach(function (a) {
+      sel.appendChild(new window.Option(a.name + (a.note ? ' (' + a.note + ')' : ''), a.code));
+    });
+    sel.value = keep;
+  }
+
+  function bindReview() {
+    fillSelect('lgRvEvidence', EVIDENCE, '고르기');
+    fillSelect('lgRvMethod', METHOD, '고르지 않음');
+    fillSelect('lgRvCategory', COST_CATEGORY);
+    fillBatchAccounts();
+    $('lgReviewList').addEventListener('click', onReviewClick);
+    $('lgReviewMore').addEventListener('click', function () {
+      loadReview(true);
+    });
+    $('lgBatchPost').addEventListener('click', postBatch);
+    $('lgRvClose').addEventListener('click', closeSheet);
+    $('lgRvPhotoBtn').addEventListener('click', function () {
+      $('lgRvPhotoBtn').classList.toggle('lg-rv-photo--big');
+    });
+    $('lgRvTarget').addEventListener('change', function () {
+      setTarget($('lgRvTarget').value);
+    });
+    $('lgRvDir').addEventListener('change', function () {
+      fillRvAccounts($('lgRvDir').value);
+    });
+    $('lgRvBiz').addEventListener('input', renderBizRow);
+    $('lgRvBizCheck').addEventListener('click', checkBusiness);
+    $('lgRvForm').addEventListener('submit', postSheet);
+    $('lgRvReturn').addEventListener('click', function () {
+      askDecide('returned');
+    });
+    $('lgRvReject').addEventListener('click', function () {
+      askDecide('rejected');
+    });
+    $('lgRvDecideOk').addEventListener('click', decide);
+    $('lgRvDecideNo').addEventListener('click', function () {
+      L.decide = '';
+      $('lgRvDecide').hidden = true;
+    });
+    $('lgRvReread').addEventListener('click', reread);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') stopPoll();
+      else if (!L.pollTimer) schedulePoll();
+    });
+  }
+
   async function switchTo(id) {
     if (L.busy || L.uploading || !L.me || id === L.me.company_id) return;
     var own = (
@@ -922,10 +1750,17 @@
     L.me = me.data;
     L.voiding = '';
     closeForm();
+    closeSheet();
+    L.review = [];
+    L.picked = {};
+    L.orders = null;
+    $('lgBatchResult').textContent = '';
+    $('lgBatchState').textContent = '';
     renderTax();
     renderSwitch();
     renderPhotosBox();
     await loadBook(L.month);
+    await loadReview();
     await loadDocs();
   }
 
@@ -1010,12 +1845,14 @@
     L.accounts = (acc.data && acc.data.items) || [];
     bind();
     bindPhotos();
+    bindReview();
     renderTax();
     renderSwitch();
     renderPhotosBox();
     $('lgBody').hidden = false;
     await loadBook(thisMonth());
     await loadDocs();
+    await loadReview();
   }
 
   var exported = {
@@ -1030,6 +1867,11 @@
     fitSize: fitSize,
     stamp: stamp,
     media: media,
+    bizNoValid: bizNoValid,
+    prefillEntry: prefillEntry,
+    warningsOf: warningsOf,
+    batchReady: batchReady,
+    poll: { tick: pollTick, stop: stopPoll, POLL_MS: POLL_MS },
   };
   window.SeganLedger = exported;
   exported.ready = (

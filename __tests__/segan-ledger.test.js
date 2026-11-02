@@ -153,6 +153,11 @@ async function load(options = {}) {
     write: () => ok({ entry: { id: 'new' }, reused: false }, 201),
     docs: () => ok({ items: [], money: true }),
     upload: () => ok({ document: { id: 'd-new' }, reused: false }, 201),
+    review: () => ok({ items: [], level: 'full', viewing: false }),
+    decide: () => ok({ document_id: 'x' }, 201),
+    batch: () => ok({ items: [], posted: 0 }),
+    business: () => ok({ available: false, biz_no: '' }),
+    orders: () => ok({ items: [] }),
     ...options,
   };
   jest.spyOn(Date, 'now').mockReturnValue(NOW);
@@ -194,6 +199,12 @@ async function load(options = {}) {
     if (url === WORK + '/ledger/accounts') return reply(opts.accounts);
     if (url.startsWith(WORK + '/ledger/book'))
       return reply(opts.book(new URL(url).searchParams.get('month')));
+    if (url === WORK + '/ledger/review/post') return reply(opts.batch(url, init));
+    if (url.startsWith(WORK + '/ledger/review')) return reply(opts.review(url));
+    if (/\/ledger\/documents\/[^/]+\/(post|return|reject|reread)$/.test(url))
+      return reply(opts.decide(url, init));
+    if (url.startsWith(WORK + '/ledger/business-status')) return reply(opts.business(url));
+    if (url === WORK + '/orders') return reply(opts.orders(url));
     if (url.startsWith(WORK + '/ledger/documents'))
       return reply(init.method === 'POST' ? opts.upload(url, init) : opts.docs(url));
     if (url.startsWith(WORK + '/ledger/')) return reply(opts.write(url, init));
@@ -616,7 +627,7 @@ describe('사진', () => {
     });
     expect($('lgPhotos').hidden).toBe(false);
     expect($('lgUp').hidden).toBe(false);
-    expect($('lgPhotosNote').textContent).toContain('지금은 사진을 모아 두고');
+    expect($('lgPhotosNote').textContent).toContain('「확인할 사진」에서 칸을 확인한 뒤');
     expect(calls.find((c) => c.url.startsWith(WORK + '/ledger/documents')).url).toBe(
       WORK + '/ledger/documents?limit=20'
     );
@@ -791,5 +802,576 @@ describe('사진', () => {
     }
     expect(stamp('2026-11-02T03:05:00Z')).toBe('11.02 12:05');
     expect(stamp('엉터리')).toBe('');
+  });
+});
+
+describe('사진 확인 (대표 · 실장)', () => {
+  const D = (n) => `d0000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+  const URL1 = 'https://x.supabase.co/storage/v1/object/sign/ledger-evidence/a.jpg?token=t';
+  const CHECKS = {
+    biz_no: 'ok',
+    amounts: 'ok',
+    items: 'ok',
+    date: 'ok',
+    multiple: false,
+    redacted: 0,
+  };
+  const RESULT = {
+    document_count: 1,
+    evidence_type: 'card',
+    issue_date: '2026-11-01',
+    supplier_name: '예림 자재',
+    supplier_biz_no: '1234567891',
+    supply_amount: 10000,
+    vat_amount: 1000,
+    tax_free_amount: null,
+    service_charge: null,
+    total_amount: 11000,
+    approval_no: '12345678',
+    payment_method: 'card',
+    items: [
+      { name: '경첩', quantity: 2, unit_price: 4000, amount: 8000 },
+      { name: '나사', quantity: 1, unit_price: 2000, amount: 2000 },
+    ],
+    unsure: [],
+  };
+  const doc = (n, extraction, over = {}) => ({
+    id: D(n),
+    created_at: `2026-11-02T${String(n % 24).padStart(2, '0')}:00:00Z`,
+    review_status: 'pending',
+    note: null,
+    photo_url: URL1,
+    photo_expires_in: 600,
+    extraction,
+    ...over,
+  });
+  const done = (result = RESULT, checks = CHECKS) => ({
+    id: 'x',
+    attempt: 1,
+    status: 'done',
+    model: 'claude-haiku-5-5',
+    schema_version: 1,
+    result,
+    checks,
+    error: null,
+  });
+  const rows = () => [...$('lgReviewList').querySelectorAll('.lg-rv')];
+  const rowOf = (n) => $('lgReviewList').querySelector(`[data-id="${D(n)}"]`);
+  const open = async (n) => {
+    rowOf(n).querySelector('[data-act="rv-open"]').click();
+    await flush();
+  };
+  const reviewGets = (calls) => calls.filter((c) => c.url.startsWith(WORK + '/ledger/review?'));
+  const submitSheet = async () => {
+    $('lgRvForm').dispatchEvent(new window.Event('submit', { cancelable: true }));
+    await flush();
+  };
+
+  afterEach(() => {
+    if (window.SeganLedger && window.SeganLedger.poll) window.SeganLedger.poll.stop();
+  });
+
+  test('목록 — 읽기 상태 · 경고 · 썸네일 · 개수, 한꺼번에 고르기는 경고 없이 다 읽은 사진만', async () => {
+    const calls = await load({
+      review: () =>
+        ok({
+          items: [
+            doc(1, done(), { note: '현장 A' }),
+            doc(
+              2,
+              done(
+                { ...RESULT, unsure: ['total_amount', 'issue_date'] },
+                { ...CHECKS, biz_no: 'bad' }
+              )
+            ),
+            doc(3, { id: 'y', attempt: 1, status: 'running' }),
+            doc(4, { id: 'z', attempt: 2, status: 'failed', error: 'parse' }, { photo_url: null }),
+            doc(5, null),
+          ],
+          level: 'full',
+          viewing: false,
+        }),
+    });
+    expect(reviewGets(calls).map((c) => c.url)).toEqual([
+      WORK + '/ledger/review?status=pending&limit=50',
+    ]);
+    expect($('lgReview').hidden).toBe(false);
+    expect($('lgReviewTitle').textContent).toBe('확인할 사진 5장');
+    expect(rows().map((li) => li.querySelector('.lg-rv-line b').textContent)).toEqual([
+      '읽음',
+      '읽음',
+      '읽는 중',
+      '못 읽음',
+      '읽는 중',
+    ]);
+    const a = rowOf(1);
+    expect(a.querySelector('.lg-rv-memo').textContent).toBe('현장 A');
+    expect(a.querySelector('.lg-rv-sum').textContent).toBe('예림 자재 · 11,000원');
+    const img = a.querySelector('img.lg-rv-thumb');
+    expect(img.getAttribute('src')).toBe(URL1);
+    expect(img.getAttribute('loading')).toBe('lazy');
+    expect(img.getAttribute('referrerpolicy')).toBe('no-referrer');
+    expect(rowOf(4).querySelector('.lg-rv-thumb--none').textContent).toBe('사진 없음');
+    expect([...rowOf(2).querySelectorAll('.lg-chip')].map((c) => c.textContent)).toEqual([
+      '사업자번호 확인 필요',
+      '확실하지 않은 칸 2',
+    ]);
+    expect(a.querySelector('.lg-chip')).toBeNull();
+    // 한꺼번에 — 1번만
+    expect(rows().map((li) => !!li.querySelector('[data-pick]'))).toEqual([
+      true,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    expect($('lgBatch').hidden).toBe(false);
+    expect($('lgBatchPost').disabled).toBe(true);
+    a.querySelector('[data-pick]').click();
+    expect($('lgBatchPost').disabled).toBe(false);
+    expect($('lgBatchPost').textContent).toBe('선택한 사진 1장 한꺼번에 올리기');
+    // 읽는 중이 있어 다시 묻기를 걸어 둔다
+    expect(window.SeganLedger.state.pollTimer).not.toBeNull();
+  });
+
+  test('시트 — 읽은 칸으로 채우고(공제 증빙은 공급가 · 부가세) 표시한 칸, 계정을 골라야 장부에 올린다', async () => {
+    const calls = await load({
+      review: () =>
+        ok({
+          items: [
+            doc(1, done({ ...RESULT, unsure: ['issue_date'] }, { ...CHECKS, amounts: 'mismatch' })),
+          ],
+        }),
+    });
+    await open(1);
+    expect($('lgSheet').hidden).toBe(false);
+    expect($('lgRvPhoto').getAttribute('src')).toBe(URL1);
+    expect($('lgRvRead').textContent).toContain('읽음');
+    expect([...$('lgRvChips').querySelectorAll('.lg-chip')].map((c) => c.textContent)).toEqual([
+      '금액 합이 안 맞음',
+      '확실하지 않은 칸 1',
+    ]);
+    expect($('lgRvAmounts').textContent).toBe(
+      '읽은 금액 — 공급가 10,000원 · 부가세 1,000원 · 합계 11,000원'
+    );
+    expect($('lgRvAmounts').classList.contains('lg-flag')).toBe(true);
+    expect($('lgRvDate').value).toBe('2026-11-01');
+    expect($('lgRvDate').closest('.mk-input').classList.contains('lg-flag')).toBe(true);
+    expect($('lgRvAmount').closest('.mk-input').classList.contains('lg-flag')).toBe(true);
+    expect($('lgRvCpName').closest('.mk-input').classList.contains('lg-flag')).toBe(false);
+    expect($('lgRvCpName').value).toBe('예림 자재');
+    expect($('lgRvBiz').value).toBe('1234567891');
+    expect($('lgRvAmount').value).toBe('10000');
+    expect($('lgRvVat').value).toBe('1000');
+    expect($('lgRvEvidence').value).toBe('card');
+    expect($('lgRvMethod').value).toBe('card');
+    expect($('lgRvDesc').value).toBe('경첩 외 1건');
+    expect($('lgRvAccount').value).toBe('');
+    expect($('lgRvReread').hidden).toBe(true);
+    // 사진을 누르면 크게
+    $('lgRvPhotoBtn').click();
+    expect($('lgRvPhotoBtn').classList.contains('lg-rv-photo--big')).toBe(true);
+    // 계정 없이 — 보내지 않는다
+    await submitSheet();
+    expect($('lgRvError').textContent).toBe('계정을 골라 주세요.');
+    expect(calls.some((c) => c.url.endsWith('/post'))).toBe(false);
+    set('lgRvAccount', 'purchase.materials');
+    const books = calls.filter((c) => c.url.startsWith(WORK + '/ledger/book')).length;
+    await submitSheet();
+    const post = calls.find((c) => c.url === `${WORK}/ledger/documents/${D(1)}/post`);
+    expect(post.method).toBe('POST');
+    expect(post.body).toEqual({
+      target: 'entry',
+      entry: {
+        entry_date: '2026-11-01',
+        direction: 'expense',
+        account: 'purchase.materials',
+        description: '경첩 외 1건',
+        counterparty_name: '예림 자재',
+        counterparty_biz_no: '1234567891',
+        amount: 10000,
+        vat_amount: 1000,
+        evidence_type: 'card',
+        payment_method: 'card',
+      },
+    });
+    expect($('lgSheet').hidden).toBe(true);
+    expect(rows().length).toBe(0);
+    expect($('lgState').textContent).toBe('장부에 올렸습니다.');
+    expect(calls.filter((c) => c.url.startsWith(WORK + '/ledger/book')).length).toBe(books + 1);
+  });
+
+  test('시트 — 틀린 금액 · 사업자번호는 보내지 않는다, 읽기 전 사진은 빈 칸에서 직접', async () => {
+    const calls = await load({ review: () => ok({ items: [doc(3, null)] }) });
+    await open(3);
+    expect($('lgRvRead').textContent).toContain('읽는 중입니다');
+    expect($('lgRvAmount').value).toBe('');
+    expect($('lgRvAmounts').textContent).toBe('');
+    set('lgRvDate', '2026-11-02');
+    set('lgRvAccount', 'admin.rent');
+    set('lgRvEvidence', 'simple_receipt');
+    await submitSheet();
+    expect($('lgRvError').textContent).toBe('금액을 1원 이상 정수로 적어 주세요.');
+    set('lgRvAmount', '5500');
+    $('lgRvBiz').value = '1234567890';
+    await submitSheet();
+    expect($('lgRvError').textContent).toContain('사업자등록번호를 확인해 주세요');
+    expect(calls.some((c) => c.url.endsWith('/post'))).toBe(false);
+    $('lgRvBiz').value = '';
+    await submitSheet();
+    const post = calls.find((c) => c.url.endsWith('/post'));
+    expect(post.body.entry).toEqual({
+      entry_date: '2026-11-02',
+      direction: 'expense',
+      account: 'admin.rent',
+      description: null,
+      counterparty_name: null,
+      counterparty_biz_no: null,
+      amount: 5500,
+      vat_amount: 0,
+      evidence_type: 'simple_receipt',
+      payment_method: null,
+    });
+  });
+
+  test('수주 원가로 — 수주(취소 빼고)를 골라 원가 종류와 함께', async () => {
+    const O1 = 'f0000000-0000-4000-8000-000000000001';
+    const calls = await load({
+      review: () => ok({ items: [doc(1, done()), doc(2, done())] }),
+      orders: () =>
+        ok({
+          items: [
+            { id: O1, order_no: 'SO-1', customer_name: '김고객', status: 'confirmed' },
+            { id: 'o-x', order_no: 'SO-2', customer_name: '이고객', status: 'cancelled' },
+          ],
+        }),
+    });
+    await open(1);
+    set('lgRvTarget', 'order_cost');
+    await flush();
+    expect(calls.filter((c) => c.url === WORK + '/orders').length).toBe(1);
+    expect([...$('lgRvOrder').options].map((o) => [o.value, o.textContent])).toEqual([
+      ['', '고르기'],
+      [O1, 'SO-1 · 김고객'],
+    ]);
+    expect($('lgRvAccount').closest('.mk-input').hidden).toBe(true);
+    expect($('lgRvOrder').closest('.mk-input').hidden).toBe(false);
+    expect($('lgRvPost').textContent).toBe('수주 원가로 올리기');
+    expect([...$('lgRvCategory').options].map((o) => o.textContent)).toEqual([
+      '자재',
+      '부자재',
+      '노무',
+      '외주',
+      '물류',
+      '기타',
+    ]);
+    await submitSheet();
+    expect($('lgRvError').textContent).toBe('수주를 골라 주세요.');
+    set('lgRvOrder', O1);
+    set('lgRvCategory', 'hardware');
+    await submitSheet();
+    const post = calls.find((c) => c.url.endsWith('/post'));
+    expect(post.body).toEqual({
+      target: 'order_cost',
+      order_id: O1,
+      cost: {
+        category: 'hardware',
+        amount: 10000,
+        vat_amount: 1000,
+        description: '경첩 외 1건',
+        vendor_name: '예림 자재',
+        evidence_type: 'card',
+        spent_on: '2026-11-01',
+      },
+    });
+    expect($('lgState').textContent).toBe('수주 원가로 올렸습니다.');
+    // 다른 사진에서 다시 골라도 수주 목록은 한 번만 묻는다
+    await open(2);
+    set('lgRvTarget', 'order_cost');
+    await flush();
+    expect(calls.filter((c) => c.url === WORK + '/orders').length).toBe(1);
+  });
+
+  test('돌려보내기 · 버리기 — 화면 안에서 이유를 받고(confirm 없음), 보낸 뒤 목록에서 뺀다', async () => {
+    for (const [btn, path, text] of [
+      ['lgRvReturn', 'return', '사진을 돌려보냈습니다.'],
+      ['lgRvReject', 'reject', '사진을 버렸습니다.'],
+    ]) {
+      window.confirm = jest.fn(() => true);
+      const calls = await load({ review: () => ok({ items: [doc(1, done()), doc(2, done())] }) });
+      await open(1);
+      $(btn).click();
+      expect($('lgRvDecide').hidden).toBe(false);
+      $('lgRvDecideOk').click();
+      await flush();
+      expect($('lgRvError').textContent).toBe('이유를 적어 주세요.');
+      expect(calls.some((c) => c.url.endsWith('/' + path))).toBe(false);
+      $('lgRvReason').value = ' 흐림 ';
+      $('lgRvDecideOk').click();
+      await flush();
+      const post = calls.find((c) => c.url === `${WORK}/ledger/documents/${D(1)}/${path}`);
+      expect(post.body).toEqual({ reason: '흐림' });
+      expect($('lgSheet').hidden).toBe(true);
+      expect(rows().map((li) => li.getAttribute('data-id'))).toEqual([D(2)]);
+      expect($('lgState').textContent).toBe(text);
+      expect(window.confirm).not.toHaveBeenCalled();
+      jest.restoreAllMocks();
+    }
+  });
+
+  test('409 — 이미 확인한 사진이면 시트를 닫고 목록을 다시 읽는다', async () => {
+    const calls = await load({
+      review: () => ok({ items: [doc(1, done())] }),
+      decide: () => fail(409, 'not_pending', '이미 확인한 사진입니다'),
+    });
+    await open(1);
+    set('lgRvAccount', 'admin.rent');
+    await submitSheet();
+    expect($('lgSheet').hidden).toBe(true);
+    expect($('lgState').textContent).toBe('이미 확인한 사진입니다');
+    expect(reviewGets(calls).length).toBe(2);
+  });
+
+  test('다시 읽기 — 못 읽음 · 거절 · 한도 사진에만, 보내면 목록을 다시 읽는다', async () => {
+    const calls = await load({
+      review: () =>
+        ok({
+          items: [
+            doc(1, done()),
+            doc(2, { id: 'b', attempt: 1, status: 'skipped_budget', error: 'over_limit' }),
+          ],
+        }),
+      decide: () => ok({ queued: true, reason: null }, 202),
+    });
+    await open(1);
+    expect($('lgRvReread').hidden).toBe(true);
+    $('lgRvClose').click();
+    await open(2);
+    expect($('lgRvRead').textContent).toContain('한도로 읽지 못했습니다');
+    expect($('lgRvReread').hidden).toBe(false);
+    $('lgRvReread').click();
+    await flush();
+    const post = calls.find((c) => c.url === `${WORK}/ledger/documents/${D(2)}/reread`);
+    expect(post.method).toBe('POST');
+    expect($('lgState').textContent).toBe('다시 읽는 중입니다.');
+    expect(reviewGets(calls).length).toBe(2);
+  });
+
+  test('사업자 상태 — 서버에 키가 없으면 단추를 감추고, 있으면 상태를 보인다', async () => {
+    const calls = await load({ review: () => ok({ items: [doc(1, done()), doc(2, done())] }) });
+    await open(1);
+    expect($('lgRvBizRow').hidden).toBe(false);
+    $('lgRvBizCheck').click();
+    await flush();
+    expect(calls.find((c) => c.url.includes('/ledger/business-status')).url).toBe(
+      WORK + '/ledger/business-status?biz_no=1234567891'
+    );
+    expect($('lgRvBizRow').hidden).toBe(true);
+    $('lgRvClose').click();
+    await open(2);
+    expect($('lgRvBizRow').hidden).toBe(true);
+    jest.restoreAllMocks();
+
+    await load({
+      review: () => ok({ items: [doc(1, done())] }),
+      business: () =>
+        ok({
+          available: true,
+          cached: false,
+          biz_no: '1234567891',
+          status: 'closed',
+          tax_type: '부가가치세 일반과세자',
+          closed_on: '2026-10-01',
+        }),
+    });
+    await open(1);
+    $('lgRvBizCheck').click();
+    await flush();
+    expect($('lgRvBizState').textContent).toBe('폐업 (2026-10-01) · 부가가치세 일반과세자');
+    expect($('lgRvBizRow').hidden).toBe(false);
+    // 틀린 번호면 단추가 없다
+    $('lgRvBiz').value = '1234567890';
+    $('lgRvBiz').dispatchEvent(new window.Event('input'));
+    expect($('lgRvBizRow').hidden).toBe(true);
+  });
+
+  test('한꺼번에 — 계정 하나를 골라 함께, 장마다 결과 · 올린 사진만 빠진다, 20장씩 나눠 보낸다', async () => {
+    const many = Array.from({ length: 21 }, (_, i) => doc(i + 1, done()));
+    let n = 0;
+    const calls = await load({
+      review: () => ok({ items: many }),
+      batch: (url, init) => {
+        n += 1;
+        const body = JSON.parse(init.body);
+        return ok({
+          items: body.items.map((x, i) =>
+            n === 1 && i === 1
+              ? { id: x.id, ok: false, status: 409, message: '이미 확인한 사진입니다' }
+              : { id: x.id, ok: true, target: 'entry' }
+          ),
+          posted: 0,
+        });
+      },
+    });
+    for (const box of $('lgReviewList').querySelectorAll('[data-pick]')) box.click();
+    expect($('lgBatchPost').textContent).toBe('선택한 사진 21장 한꺼번에 올리기');
+    $('lgBatchPost').click();
+    await flush();
+    expect($('lgBatchState').textContent).toBe('한꺼번에 올릴 계정을 골라 주세요.');
+    expect(calls.some((c) => c.url === WORK + '/ledger/review/post')).toBe(false);
+    expect([...$('lgBatchAccount').options].map((o) => o.value)).toEqual([
+      '',
+      'purchase.materials',
+      'admin.rent',
+    ]);
+    set('lgBatchAccount', 'purchase.materials');
+    const books = calls.filter((c) => c.url.startsWith(WORK + '/ledger/book')).length;
+    $('lgBatchPost').click();
+    await flush();
+    const sent = calls.filter((c) => c.url === WORK + '/ledger/review/post');
+    expect(sent.map((c) => c.body.items.length)).toEqual([20, 1]);
+    expect(sent[0].body.items[0]).toEqual({
+      id: D(1),
+      target: 'entry',
+      entry: {
+        entry_date: '2026-11-01',
+        direction: 'expense',
+        account: 'purchase.materials',
+        description: '경첩 외 1건',
+        counterparty_name: '예림 자재',
+        counterparty_biz_no: '1234567891',
+        amount: 10000,
+        vat_amount: 1000,
+        evidence_type: 'card',
+        payment_method: 'card',
+      },
+    });
+    expect($('lgBatchState').textContent).toBe('20장 올림 · 1장 못 올림');
+    expect($('lgBatchResult').textContent).toContain('이미 확인한 사진입니다');
+    expect(rows().map((li) => li.getAttribute('data-id'))).toEqual([D(2)]);
+    expect(calls.filter((c) => c.url.startsWith(WORK + '/ledger/book')).length).toBe(books + 1);
+  });
+
+  test('직원 — 확인할 사진을 묻지 않고 칸도 없다', async () => {
+    const calls = await load({
+      me: ok({ ...ME, role: 'staff', money: false, can_write: false }),
+      review: () => {
+        throw new Error('staff must not call review');
+      },
+    });
+    expect($('lgReview').hidden).toBe(true);
+    expect(calls.some((c) => /\/ledger\/(review|business-status)|\/orders$/.test(c.url))).toBe(
+      false
+    );
+  });
+
+  test('다담 공장 보기 — 목록은 ?company= 로 보이고, 고르기 · 쓰기 단추가 없고 시트는 보기만', async () => {
+    const HQ = 'c0000000-0000-4000-8000-0000000000b2';
+    const calls = await load({
+      me: ok({
+        ...ME,
+        company_id: HQ,
+        level: 'read',
+        viewing: true,
+        can_upload: false,
+        can_write: false,
+        ledgers: [{ company_id: HQ, name: '다담 공장', kind: 'hq', own: false }],
+      }),
+      review: () => ok({ items: [doc(1, done())], level: 'read', viewing: true }),
+    });
+    expect(reviewGets(calls)[0].url).toBe(
+      `${WORK}/ledger/review?status=pending&limit=50&company=${HQ}`
+    );
+    expect($('lgReviewNote').textContent).toBe('보기만 합니다.');
+    expect($('lgReviewList').querySelector('[data-pick]')).toBeNull();
+    expect($('lgBatch').hidden).toBe(true);
+    await open(1);
+    expect($('lgRvActs').hidden).toBe(true);
+    expect($('lgRvAmount').disabled).toBe(true);
+    expect($('lgRvBizRow').hidden).toBe(true);
+  });
+
+  test('읽는 중이면 화면이 보일 때 다시 묻고, 다 읽으면 멈춘다 (숨기면 멈춘다)', async () => {
+    let n = 0;
+    const calls = await load({
+      review: () => {
+        n += 1;
+        return ok({
+          items: [doc(1, n === 1 ? { id: 'a', attempt: 1, status: 'running' } : done())],
+        });
+      },
+    });
+    const { state, poll } = window.SeganLedger;
+    expect(state.pollTimer).not.toBeNull();
+    expect(poll.POLL_MS).toBe(10000);
+    // 숨기면 멈추고, 그동안은 묻지 않는다
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new window.Event('visibilitychange'));
+    expect(state.pollTimer).toBeNull();
+    await poll.tick();
+    expect(reviewGets(calls).length).toBe(1);
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    document.dispatchEvent(new window.Event('visibilitychange'));
+    expect(state.pollTimer).not.toBeNull();
+    await poll.tick();
+    expect(reviewGets(calls).length).toBe(2);
+    expect(rowOf(1).querySelector('.lg-rv-line b').textContent).toBe('읽음');
+    expect(state.pollTimer).toBeNull();
+    delete document.visibilityState;
+  });
+
+  test('순수 — 채우기 기준 · 경고 · 한꺼번에 · 사업자번호', async () => {
+    await load();
+    const { prefillEntry, warningsOf, batchReady, bizNoValid } = window.SeganLedger;
+    // 공제 증빙 + 공급가 · 부가세 → 공급가 · 부가세
+    expect(prefillEntry(RESULT)).toMatchObject({
+      amount: 10000,
+      vat_amount: 1000,
+      deductible: true,
+    });
+    // 간이영수증 · 거래명세표 · 모름 → 합계 · 0
+    for (const ev of ['simple_receipt', 'statement', 'other', null]) {
+      expect(prefillEntry({ ...RESULT, evidence_type: ev })).toMatchObject({
+        amount: 11000,
+        vat_amount: 0,
+        deductible: false,
+      });
+    }
+    // 카드여도 부가세가 없으면 합계 · 0, 합계가 없으면 비운다 (계산해서 채우지 않는다)
+    expect(prefillEntry({ ...RESULT, vat_amount: null })).toMatchObject({
+      amount: 11000,
+      vat_amount: 0,
+    });
+    expect(
+      prefillEntry({ ...RESULT, evidence_type: 'simple_receipt', total_amount: null })
+    ).toMatchObject({ amount: null, vat_amount: 0 });
+    expect(prefillEntry(null)).toMatchObject({
+      entry_date: '',
+      amount: null,
+      evidence_type: '',
+      description: '',
+    });
+    expect(prefillEntry({ ...RESULT, items: [{ name: '경첩', amount: 1 }] }).description).toBe(
+      '경첩'
+    );
+    expect(
+      prefillEntry({ ...RESULT, evidence_type: 'photo', payment_method: 'coin' })
+    ).toMatchObject({ evidence_type: '', payment_method: '' });
+    // 경고
+    expect(warningsOf(doc(1, done())).length).toBe(0);
+    expect(
+      warningsOf(
+        doc(1, done(RESULT, { ...CHECKS, date: 'future', multiple: true, items: 'mismatch' }))
+      ).map((w) => w.text)
+    ).toEqual(['금액 합이 안 맞음', '날짜 확인', '한 장씩 다시 찍기']);
+    expect(warningsOf(doc(1, { status: 'failed' }))).toEqual([]);
+    // 한꺼번에
+    expect(batchReady(doc(1, done()))).toBe(true);
+    expect(batchReady(doc(1, done({ ...RESULT, issue_date: null })))).toBe(false);
+    expect(batchReady(doc(1, done({ ...RESULT, evidence_type: null })))).toBe(false);
+    expect(batchReady(doc(1, done({ ...RESULT, supplier_biz_no: null })))).toBe(true);
+    expect(batchReady(doc(1, { status: 'running' }))).toBe(false);
+    expect(bizNoValid('123-45-67891')).toBe(true);
+    expect(bizNoValid('1234567890')).toBe(false);
   });
 });

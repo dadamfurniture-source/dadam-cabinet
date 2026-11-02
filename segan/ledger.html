@@ -9,28 +9,28 @@
     <title>장부 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026110301" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026110301" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026110301" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110301" />
+    <link rel="icon" href="icons/icon.svg?v=2026110302" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110302" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110302" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110302" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026110301" />
-    <link rel="stylesheet" href="make.css?v=2026110301" />
-    <link rel="stylesheet" href="ledger.css?v=2026110301" />
+    <link rel="stylesheet" href="shell.css?v=2026110302" />
+    <link rel="stylesheet" href="make.css?v=2026110302" />
+    <link rel="stylesheet" href="ledger.css?v=2026110302" />
     <!-- 업체 회계장부 — workflow-api /ledger/* (대표 · 실장. 직원은 사진 올리기만) -->
-    <script src="../js/config.js?v=2026110301"></script>
+    <script src="../js/config.js?v=2026110302"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <!-- 관리 탭 — 관리자에게만 연다 (segan/shell.js applyAdminTab) -->
-    <script src="../js/admin-access.js?v=2026110301"></script>
+    <script src="../js/admin-access.js?v=2026110302"></script>
     <!-- 작업 탭 — 작업자에게만 연다 (segan/shell.js applyRoleTabs · GET /work/me) -->
-    <script src="../js/mypage-work.js?v=2026110301"></script>
-    <script src="shell.js?v=2026110301" defer></script>
-    <script src="ledger.js?v=2026110301" defer></script>
+    <script src="../js/mypage-work.js?v=2026110302"></script>
+    <script src="shell.js?v=2026110302" defer></script>
+    <script src="ledger.js?v=2026110302" defer></script>
   </head>
   <body class="sg-app" data-tab="me">
     <div data-segan-shell="header"></div>
@@ -55,6 +55,25 @@
           ><select id="lgCompany"></select
         ></label>
         <p class="lg-readonly" id="lgReadonly" hidden>지금 등급에서는 장부를 보기만 할 수 있습니다.</p>
+
+        <!-- 확인할 사진 — 대표 · 실장. 읽은 칸으로 채운 칸을 고쳐 장부 · 수주 원가로 올린다 (직원에게는 없다) -->
+        <section class="lg-box lg-review" id="lgReview" hidden aria-labelledby="lgReviewTitle">
+          <h2 class="lg-box-title" id="lgReviewTitle">확인할 사진</h2>
+          <p class="mk-note" id="lgReviewNote"></p>
+          <div class="lg-acts lg-batch" id="lgBatch" hidden>
+            <label class="mk-input lg-batch-account"
+              ><span>한꺼번에 올릴 계정</span
+              ><select id="lgBatchAccount"></select
+            ></label>
+            <button type="button" class="mk-btn mk-btn--solid" id="lgBatchPost" disabled>
+              선택한 사진 한꺼번에 올리기
+            </button>
+          </div>
+          <p class="lg-up-state" id="lgBatchState" role="status" aria-live="polite"></p>
+          <ul class="lg-up-fail" id="lgBatchResult" aria-label="한꺼번에 올린 결과"></ul>
+          <ul class="lg-rv-list" id="lgReviewList" aria-label="확인할 사진"></ul>
+          <button type="button" class="mk-link" id="lgReviewMore" hidden>더 보기</button>
+        </section>
 
         <!-- 영수증 · 거래명세표 사진 — 구성원 누구나 올린다 (직원은 자기가 올린 것의 상태만) -->
         <section class="lg-box lg-photos" id="lgPhotos" hidden aria-labelledby="lgPhotosTitle">
@@ -198,6 +217,99 @@
 
           <ul class="lg-list" id="lgList" aria-label="장부 줄"></ul>
           <p class="mk-note">수주 수금 · 원가는 PC ERP에서 적고, 여기에는 받은 날 · 낸 날 기준으로 함께 보입니다.</p>
+        </div>
+
+        <!-- 사진 확인 — 사진 + 읽은 칸으로 채운 칸. 고쳐서 장부 줄 · 수주 원가로 올리거나 돌려보내기 · 버리기 -->
+        <div class="lg-sheet-wrap" id="lgSheet" hidden>
+          <section class="lg-box lg-sheet" role="dialog" aria-modal="true" aria-labelledby="lgSheetTitle">
+            <div class="lg-sheet-head">
+              <h2 class="lg-box-title" id="lgSheetTitle">사진 확인</h2>
+              <button type="button" class="mk-link" id="lgRvClose">닫기</button>
+            </div>
+            <button type="button" class="lg-rv-photo" id="lgRvPhotoBtn" aria-label="사진 크게 보기">
+              <img id="lgRvPhoto" alt="영수증 · 명세표 사진" referrerpolicy="no-referrer" />
+            </button>
+            <p class="mk-note" id="lgRvNoPhoto" hidden>사진을 불러오지 못했습니다. 닫았다가 다시 열어 주세요.</p>
+            <p class="lg-rv-read" id="lgRvRead" role="status"></p>
+            <div class="lg-chips" id="lgRvChips"></div>
+            <p class="lg-rv-amounts" id="lgRvAmounts"></p>
+            <form class="lg-rv-form" id="lgRvForm" novalidate>
+              <div class="lg-grid">
+                <label class="mk-input"
+                  ><span>올릴 곳</span
+                  ><select id="lgRvTarget">
+                    <option value="entry">장부 줄</option>
+                    <option value="order_cost">수주 원가</option>
+                  </select></label
+                >
+                <label class="mk-input"><span>일자</span><input type="date" id="lgRvDate" /></label>
+                <label class="mk-input" data-for="entry"
+                  ><span>구분</span
+                  ><select id="lgRvDir">
+                    <option value="expense">비용</option>
+                    <option value="income">수입</option>
+                    <option value="asset_buy">자산 사기</option>
+                    <option value="asset_sell">자산 팔기</option>
+                  </select></label
+                >
+                <label class="mk-input" data-for="entry"
+                  ><span>계정</span
+                  ><select id="lgRvAccount"></select
+                ></label>
+                <label class="mk-input" data-for="order_cost"
+                  ><span>수주</span
+                  ><select id="lgRvOrder"></select
+                ></label>
+                <label class="mk-input" data-for="order_cost"
+                  ><span>원가 종류</span
+                  ><select id="lgRvCategory"></select
+                ></label>
+                <label class="mk-input"><span>내용</span><input type="text" id="lgRvDesc" maxlength="200" /></label>
+                <label class="mk-input"
+                  ><span>거래처</span><input type="text" id="lgRvCpName" maxlength="100" placeholder="상호"
+                /></label>
+                <label class="mk-input" data-for="entry"
+                  ><span>사업자등록번호</span
+                  ><input type="text" id="lgRvBiz" inputmode="numeric" maxlength="12" placeholder="숫자 10자리"
+                /></label>
+                <label class="mk-input"
+                  ><span>금액</span><input type="number" id="lgRvAmount" min="1" step="1" inputmode="numeric"
+                /></label>
+                <label class="mk-input"
+                  ><span>공제되는 부가세</span
+                  ><input type="number" id="lgRvVat" min="0" step="1" inputmode="numeric" placeholder="0"
+                /></label>
+                <label class="mk-input"
+                  ><span>증빙</span
+                  ><select id="lgRvEvidence"></select
+                ></label>
+                <label class="mk-input" data-for="entry"
+                  ><span>결제 수단</span
+                  ><select id="lgRvMethod"></select
+                ></label>
+              </div>
+              <div class="lg-acts lg-rv-biz" id="lgRvBizRow" hidden>
+                <button type="button" class="mk-link" id="lgRvBizCheck">사업자 상태 보기</button>
+                <span class="lg-rv-biz-state" id="lgRvBizState" role="status"></span>
+              </div>
+              <p class="mk-note">
+                세무사 확인 전 기준 — 공제되는 부가세(세금계산서 · 카드 · 현금영수증)가 있으면 공급가 · 부가세로, 아니면
+                합계를 금액에 적고 부가세는 0으로 채웠습니다. 고쳐서 올려도 됩니다.
+              </p>
+              <p class="mk-error" id="lgRvError" hidden></p>
+              <div class="lg-acts" id="lgRvActs">
+                <button type="submit" class="mk-btn mk-btn--solid" id="lgRvPost">장부에 올리기</button>
+                <button type="button" class="mk-btn" id="lgRvReturn">돌려보내기</button>
+                <button type="button" class="mk-btn" id="lgRvReject">버리기</button>
+                <button type="button" class="mk-link" id="lgRvReread" hidden>다시 읽기</button>
+              </div>
+              <div class="lg-void lg-rv-decide" id="lgRvDecide" hidden>
+                <input type="text" id="lgRvReason" maxlength="300" aria-label="이유" placeholder="이유 · 필수" />
+                <button type="button" class="mk-btn" id="lgRvDecideOk">돌려보내기</button>
+                <button type="button" class="mk-link" id="lgRvDecideNo">그만</button>
+              </div>
+            </form>
+          </section>
         </div>
       </div>
     </main>
