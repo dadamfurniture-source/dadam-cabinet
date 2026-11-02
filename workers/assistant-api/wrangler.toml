@@ -27,6 +27,11 @@ MAX_TURNS = "30"
 # 대화 객체를 만드는 곳 (Durable Object locationHint)
 SESSION_LOCATION = "enam"
 
+# 읽기 도구 — workflow-api 를 묻는 사람의 토큰으로 부른다 (src/tools.js). 같은 계정 워커끼리는 주소 대신 서비스 바인딩
+[[services]]
+binding = "WORKFLOW_API"
+service = "dadam-workflow-api"
+
 [[durable_objects.bindings]]
 name = "ASSISTANT_SESSION"
 class_name = "AssistantSession"
