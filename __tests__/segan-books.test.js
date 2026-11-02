@@ -3,8 +3,9 @@
 /**
  * SEGAN 「내 정보 › 업체」 안의 회계 (segan/books.js + segan/me.html #meBooks)
  *
- *   누가    업체 대표 · 실장만 (account-api GET /partner/me 의 company.role).
- *           직원 · 업체 없음 · 본사 구성원 · /partner/me 를 못 읽음 → 묻지도 않고 칸이 없다
+ *   누가    회계 요약은 업체 대표 · 실장만 (account-api GET /partner/me 의 company.role).
+ *           직원 · 본사 · 공장 구성원은 /ledger/me 가 답할 때 장부 줄(대표 · 실장) 또는 사진 올리기 줄(직원)만.
+ *           업체 없음 · /partner/me 를 못 읽음 → 칸이 없다
  *   데이터  workflow-api GET /books/summary?month=YYYY-MM (본인 토큰) → { success, data }
  *   화면    이번 달 · 지난달 계약액 · 받은 돈 · 견적 마진 · 실제 마진(실제 원가 없음 N건 — 대신 채우지 않는다)
  *           · 미수 · 상태별 수주 · 다가오는 수금 · 달 바꾸기 · PC ERP 링크
@@ -670,15 +671,41 @@ describe('장부 줄 — 다담 본사 · 공장 구성원 (회계 요약 없이
     }
   });
 
-  test('고객(업체 없음) — /ledger/me 403 이면 칸이 없다. 협력업체 직원은 묻지 않는다', async () => {
+  test('고객(업체 없음) — /ledger/me 403 이면 칸이 없다', async () => {
     const none = await load({ partner: ok({ company: null, application: null, members: [], invites: [] }) });
     await flush();
     expect(box().hidden).toBe(true);
     expect(none.fetch.filter((f) => f.url === WORK + '/ledger/me').length).toBe(1);
-    jest.restoreAllMocks();
-    const staff = await load({ partner: partnerMe({ role: 'staff' }), ledger: ok({ money: true, level: 'full' }) });
-    await flush();
-    expect(box().hidden).toBe(true);
-    expect(staff.fetch.filter((f) => f.url === WORK + '/ledger/me').length).toBe(0);
+  });
+
+  test('직원 — /ledger/me 가 사진 올리기(can_upload)로 답하면 「영수증 · 명세표 사진 올리기」 줄만, 회계 요약은 묻지 않는다', async () => {
+    const STAFF_ME = ok({ role: 'staff', money: false, level: 'full', can_upload: true, can_write: false });
+    for (const partner of [
+      partnerMe({ role: 'staff' }),
+      ok({ hq_member: true, company: null, application: null, members: [], invites: [] }),
+    ]) {
+      const calls = await load({ partner, ledger: STAFF_ME });
+      await flush();
+      expect(box().hidden).toBe(false);
+      expect(ledgerHref()).toEqual(['ledger.html']);
+      expect(box().querySelector('.me-pt-rows a').textContent).toBe('영수증 · 명세표 사진 올리기');
+      expect(box().querySelector('.me-bk-table')).toBeNull();
+      expect(box().textContent).not.toContain('원');
+      expect(bookGets(calls).length).toBe(0);
+      expect(calls.fetch.filter((f) => f.url === WORK + '/ledger/me').length).toBe(1);
+      jest.restoreAllMocks();
+    }
+  });
+
+  test('직원 — 자격이 없거나(403) 올릴 수 없으면(등급 내림) 칸이 없다', async () => {
+    for (const ledger of [
+      fail(403, 'not_entitled', 'x'),
+      ok({ role: 'staff', money: false, level: 'read', can_upload: false, can_write: false }),
+    ]) {
+      await load({ partner: partnerMe({ role: 'staff' }), ledger });
+      await flush();
+      expect(box().hidden).toBe(true);
+      jest.restoreAllMocks();
+    }
   });
 });
