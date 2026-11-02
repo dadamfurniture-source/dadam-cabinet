@@ -1,5 +1,5 @@
 {
-  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 + 0007 회사 기준 읽기 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs) + 0011 협력업체 가입(신청 · 업체 크레딧 · 업체 구독 · 초대 · 등급 맞추기) + 0012 업체 원가 설정 + 0013 수주 기록 + 0014 수주당 기다리는 요청 하나 + 0015 업체 회계(업체 칸 · 금액 칸 · 관리자는 본사 것만) + 0016 앱 알림(기기 등록 · 보낼 알림 · 본사 상담만 Slack) + 0017 다담 본사 · 다담 공장 + 0018 업체 상담 설정 · 평가표 + 0019 상담 배정 + 0020 상담까지 걸리는 날 + 0021 고객 확정 ~ 시공 완료 기간 · 시공 완료 희망 날짜 + 0022 평가표 본사 소통 + 0023 작업자 앱 알림 + 0024 공장 작업자 계정 + 0025 수주 온라인 결제 기록",
+  "title": "0003 회사 · 구성원 · 고객 · 프로젝트 표 + 0005 가입하면 본사 고객 + 0006 기존 표 회사 · 프로젝트 칸 + 0007 회사 기준 읽기 — 역할별 읽기 · 쓰기 (scripts/rls-probe.mjs) + 0011 협력업체 가입(신청 · 업체 크레딧 · 업체 구독 · 초대 · 등급 맞추기) + 0012 업체 원가 설정 + 0013 수주 기록 + 0014 수주당 기다리는 요청 하나 + 0015 업체 회계(업체 칸 · 금액 칸 · 관리자는 본사 것만) + 0016 앱 알림(기기 등록 · 보낼 알림 · 본사 상담만 Slack) + 0017 다담 본사 · 다담 공장 + 0018 업체 상담 설정 · 평가표 + 0019 상담 배정 + 0020 상담까지 걸리는 날 + 0021 고객 확정 ~ 시공 완료 기간 · 시공 완료 희망 날짜 + 0022 평가표 본사 소통 + 0023 작업자 앱 알림 + 0024 공장 작업자 계정 + 0025 수주 온라인 결제 기록 + 0026 AI 비서 바탕(서버만 · 자격 · 예산 잡기 · 정산)",
   "ids": [
     "company_x",
     "company_y",
@@ -81,7 +81,10 @@
     "INSERT INTO public.company_service_settings (company_id, regions, items, monthly_limit) VALUES ({{company_x}}, '[{\"sido\":\"probe\",\"gugun\":\"probe\"}]'::jsonb, '{\"sink\":\"do\"}'::jsonb, 10)",
     "INSERT INTO public.company_evaluations (company_id, grade, equipment) VALUES ({{company_x}}, 'B', '{\"panel_saw\":\"have\"}'::jsonb)",
     "INSERT INTO public.consultations (id, name, email, title, company_id, origin_consultation_id, status) VALUES ({{cons_xc}}, 'probe', 'probe@example.invalid', 'probe', {{company_x}}, {{cons_pf}}, 'pending')",
-    "INSERT INTO public.consult_assignments (id, consultation_id, company_id, copy_consultation_id, rank, total, score) VALUES ({{asg_x}}, {{cons_pf}}, {{company_x}}, {{cons_xc}}, 1, 80, '{\"eval\":30}'::jsonb)"
+    "INSERT INTO public.consult_assignments (id, consultation_id, company_id, copy_consultation_id, rank, total, score) VALUES ({{asg_x}}, {{cons_pf}}, {{company_x}}, {{cons_xc}}, 1, 80, '{\"eval\":30}'::jsonb)",
+    "INSERT INTO public.assistant_settings (company_id, enabled, monthly_limit_micros, extract_floor_micros) VALUES ({{company_y}}, true, 1000, 300), ({{company_x}}, true, 1000, 0)",
+    "INSERT INTO public.assistant_settings (company_id, enabled, trial) VALUES (public.hq_company_id(), true, true) ON CONFLICT (company_id) DO UPDATE SET enabled = true, trial = true",
+    "INSERT INTO public.assistant_usage (company_id, purpose, reservation_key, period, reserved_micros) VALUES ({{company_y}}, 'chat', 'probe-0026-' || {{company_y}}::text, (date_trunc('month', now() AT TIME ZONE 'Asia/Seoul'))::date, 500)"
   ],
   "roles": {
     "anon": { "role": "anon" },
@@ -1051,6 +1054,29 @@
       "sql": "update public.company_evaluations set hq_comm = '[]'::jsonb where company_id = {{company_x}}",
       "roles": ["service_role"],
       "expect": { "service_role": "err:23514" }
-    }
+    },
+    {"name":"0026: 비서 설정 읽기는 서버만","sql":"select count(*) from public.assistant_settings where company_id in ({{company_x}}, {{company_y}})","expect":{"service_role":2,"*":"deny"}},
+    {"name":"0026: 대화 · 기록 읽기도 서버만","sql":"select (select count(*) from public.assistant_conversations where company_id = {{company_y}}) + (select count(*) from public.assistant_audit where company_id = {{company_y}})","expect":{"service_role":0,"*":"deny"}},
+    {"name":"0026: 사용량은 서버도 직접 못 넣는다 (잡기 함수로만)","sql":"insert into public.assistant_usage (company_id, purpose, reservation_key, period, reserved_micros) values ({{company_y}}, 'chat', 'probe-0026-direct-' || {{company_y}}::text, (date_trunc('month', now() AT TIME ZONE 'Asia/Seoul'))::date, 1)","expect":{"*":"deny"}},
+    {"name":"0026: 메시지는 고치지 않는다","sql":"update public.assistant_messages set role = 'user' where conversation_id = {{company_y}}","expect":{"*":"deny"}},
+    {"name":"0026: 기록은 지우지 않는다","sql":"delete from public.assistant_audit where company_id = {{company_y}}","expect":{"*":"deny"}},
+    {"name":"0026: 전체 스위치 줄은 더 넣지 못한다","sql":"insert into public.assistant_global (id) values (false)","expect":{"*":"deny"}},
+    {"name":"0026: 메시지는 내용 블록 배열","sql":"with c as (insert into public.assistant_conversations (company_id, user_id) values ({{company_y}}, {{y_staff_user}}) returning id) insert into public.assistant_messages (conversation_id, seq, role, content) select id, 1, 'user', '[{\"type\":\"text\",\"text\":\"probe\"}]'::jsonb from c","roles":["service_role"],"expect":{"service_role":"ok"}},
+    {"name":"0026: 배열이 아닌 메시지는 막는다","sql":"with c as (insert into public.assistant_conversations (company_id, user_id) values ({{company_y}}, {{y_staff_user}}) returning id) insert into public.assistant_messages (conversation_id, seq, role, content) select id, 1, 'user', '{}'::jsonb from c","roles":["service_role"],"expect":{"service_role":"err:23514"}},
+    {"name":"0026: 플레이북은 정한 넷만","sql":"insert into public.assistant_playbooks (key, version, body) values ('other', 1, 'probe')","roles":["service_role"],"expect":{"service_role":"err:23514"}},
+    {"name":"0026: 플레이북 판 넣기","sql":"insert into public.assistant_playbooks (key, version, body, approved_by) values ('consult', 999999, 'probe', {{hq_admin_user}})","roles":["service_role"],"expect":{"service_role":"ok"}},
+    {"name":"0026: 자격 — Agent 업체 비서 켬 → full","sql":"select public.company_entitled({{company_y}}, 'assistant')","expect":{"service_role":"full","*":"deny"}},
+    {"name":"0026: 자격 — Expert 업체는 비서 none · 장부 read","sql":"select public.company_entitled({{company_x}}, 'assistant') || '/' || public.company_entitled({{company_x}}, 'ledger')","roles":["service_role"],"expect":{"service_role":"none/read"}},
+    {"name":"0026: 자격 — 그 업체 active 구성원만","sql":"select public.company_entitled({{company_y}}, 'ledger', {{x_owner_user}}) || '/' || public.company_entitled({{company_y}}, 'ledger', {{y_staff_user}})","roles":["service_role"],"expect":{"service_role":"none/full"}},
+    {"name":"0026: 자격 — 시험 예외는 다담 공장도 연다","sql":"select public.company_entitled(public.hq_company_id(), 'assistant')","roles":["service_role"],"expect":{"service_role":"full"}},
+    {"name":"0026: 자격 — 전체 스위치를 끄면 비서 none","sql":"update public.assistant_global set assistant_on = false where id; select public.company_entitled({{company_y}}, 'assistant')","roles":["service_role"],"expect":{"service_role":"none"}},
+    {"name":"0026: 예산 잡기 — 한도 안이면 잡힌다","sql":"select public.assistant_budget_reserve({{company_y}}, 'chat', 'probe-0026-a-' || {{company_y}}::text, 100)->>'ok'","expect":{"service_role":"true","*":"deny"}},
+    {"name":"0026: 예산 잡기 — 대화는 사진 읽기 몫을 남긴다","sql":"select public.assistant_budget_reserve({{company_y}}, 'chat', 'probe-0026-b-' || {{company_y}}::text, 300)->>'reason'","roles":["service_role"],"expect":{"service_role":"over_limit"}},
+    {"name":"0026: 예산 잡기 — 사진 읽기는 그 몫까지 쓴다","sql":"select public.assistant_budget_reserve({{company_y}}, 'extract', 'probe-0026-c-' || {{company_y}}::text, 400)->>'ok'","roles":["service_role"],"expect":{"service_role":"true"}},
+    {"name":"0026: 예산 잡기 — 같은 키는 한 줄 (두 번 깎지 않음)","sql":"select public.assistant_budget_reserve({{company_y}}, 'chat', 'probe-0026-' || {{company_y}}::text, 100)->>'repeat'","roles":["service_role"],"expect":{"service_role":"true"}},
+    {"name":"0026: 예산 잡기 — Expert 업체는 not_entitled","sql":"select public.assistant_budget_reserve({{company_x}}, 'chat', 'probe-0026-d-' || {{company_y}}::text, 1)->>'reason'","roles":["service_role"],"expect":{"service_role":"not_entitled"}},
+    {"name":"0026: 예산 잡기 — 한도를 비우면 no_limit","sql":"update public.assistant_settings set monthly_limit_micros = null where company_id = {{company_y}}; select public.assistant_budget_reserve({{company_y}}, 'chat', 'probe-0026-e-' || {{company_y}}::text, 1)->>'reason'","roles":["service_role"],"expect":{"service_role":"no_limit"}},
+    {"name":"0026: 예산 잡기 — 사진 읽기 스위치를 끄면 off","sql":"update public.assistant_global set extract_on = false where id; select public.assistant_budget_reserve({{company_y}}, 'extract', 'probe-0026-f-' || {{company_y}}::text, 1)->>'reason'","roles":["service_role"],"expect":{"service_role":"off"}},
+    {"name":"0026: 정산은 한 번만","sql":"select public.assistant_budget_settle((select id from public.assistant_usage where reservation_key = 'probe-0026-' || {{company_y}}::text), 450, '{\"input_tokens\":10,\"output_tokens\":5}'::jsonb); select public.assistant_budget_settle((select id from public.assistant_usage where reservation_key = 'probe-0026-' || {{company_y}}::text), 450, '{\"input_tokens\":10,\"output_tokens\":5}'::jsonb)->>'repeat'","expect":{"service_role":"true","*":"deny"}}
   ]
 }
