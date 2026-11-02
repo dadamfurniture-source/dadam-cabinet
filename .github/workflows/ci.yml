@@ -127,7 +127,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        worker: [generate-api, payments-api, workflow-api]
+        worker: [assistant-api, generate-api, payments-api, workflow-api]
     defaults:
       run:
         working-directory: workers/${{ matrix.worker }}
