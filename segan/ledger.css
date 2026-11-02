@@ -65,6 +65,11 @@
   grid-column: 1 / -1;
 }
 
+.lg-switch {
+  max-width: 320px;
+  margin: 0 0 16px;
+}
+
 .lg-nav {
   margin: 4px 0 12px;
 }

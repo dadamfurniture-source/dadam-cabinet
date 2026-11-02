@@ -12,6 +12,8 @@
              · 장부 줄 (직접 입력 · 수금 · 수주 원가 — 받은 날 · 낸 날 기준). 수금 · 원가 줄은 PC ERP 에서 고친다.
              취소한 줄은 「취소한 줄도 보기」를 켜야 보인다 (지우지 않는다).
    못 읽으면  /ledger/me 403 → 이유 한 줄 (구성원 아님 · 자격 없음 · 대표 · 실장 아님), 그 밖 → 「불러오지 못했습니다」
+   여러 장부  /ledger/me 의 ledgers 가 둘 이상이면(다담 본사 대표 · 실장 — 본사 · 공장) 장부 고르기.
+             남의 장부(viewing)는 보기 주소에 ?company= 를 붙이고 보기만 한다. 쓰기는 언제나 자기 업체
    로그인 · 클라이언트는 segan/shell.js 가 맡는다 (SeganShell.ready 의 sb · session).
    ============================================================ */
 /* global window, document, fetch, crypto */
@@ -59,6 +61,7 @@
     session: null,
     base: '',
     me: null, // GET /ledger/me data
+    company: '', // 보는 남의 장부 업체 id (비면 자기 업체)
     accounts: [], // [{ code, name, grp, note }]
     month: '',
     data: null, // GET /ledger/book data
@@ -210,6 +213,12 @@
     }
   }
 
+  /** 보기 주소 — 남의 장부를 볼 때 ?company= */
+  function withCompany(path) {
+    if (!L.company) return path;
+    return path + (path.indexOf('?') >= 0 ? '&' : '?') + 'company=' + encodeURIComponent(L.company);
+  }
+
   function canWrite() {
     return !!(L.me && L.me.can_write);
   }
@@ -349,6 +358,37 @@
     renderList();
     $('lgAdd').hidden = !canWrite();
     $('lgReadonly').hidden = !(L.me && L.me.level === 'read');
+    $('lgReadonly').textContent =
+      L.me && L.me.viewing
+        ? (ledgerName(L.me.company_id) || '이') + ' 장부 — 보기만 합니다.'
+        : '지금 등급에서는 장부를 보기만 할 수 있습니다.';
+  }
+
+  function ledgerName(id) {
+    var list = (L.me && L.me.ledgers) || [];
+    for (var i = 0; i < list.length; i++) if (list[i].company_id === id) return list[i].name || '';
+    return '';
+  }
+
+  /** 장부 고르기 — 여는 장부가 둘 이상일 때만 */
+  function renderSwitch() {
+    var list = ((L.me && L.me.ledgers) || []).filter(function (x) {
+      return x && x.company_id;
+    });
+    $('lgSwitch').hidden = list.length < 2;
+    $('lgCompany').innerHTML = list
+      .map(function (x) {
+        return (
+          '<option value="' +
+          esc(x.company_id) +
+          '">' +
+          esc(x.name || x.company_id) +
+          (x.own ? '' : ' (보기만)') +
+          '</option>'
+        );
+      })
+      .join('');
+    $('lgCompany').value = L.me.company_id;
   }
 
   // ── 입력 칸 ────────────────────────────────────────────
@@ -477,7 +517,9 @@
   async function loadBook(month) {
     L.busy = true;
     renderSummary();
-    var r = await api('/ledger/book?month=' + encodeURIComponent(month) + '&include_void=1');
+    var r = await api(
+      withCompany('/ledger/book?month=' + encodeURIComponent(month) + '&include_void=1')
+    );
     L.busy = false;
     L.month = month;
     L.data = r.ok ? r.data : { rows: [], totals: {} };
@@ -511,6 +553,29 @@
     if (!r.ok) return setState(r.message || '취소하지 못했습니다.');
     L.voiding = '';
     setState('그 줄을 취소했습니다. 「취소한 줄도 보기」로 볼 수 있습니다.');
+    await loadBook(L.month);
+  }
+
+  async function switchTo(id) {
+    if (L.busy || !L.me || id === L.me.company_id) return;
+    var own = (
+      (L.me.ledgers || []).filter(function (x) {
+        return x.own;
+      })[0] || {}
+    ).company_id;
+    var prev = L.company;
+    L.company = id === own ? '' : id;
+    var me = await api(withCompany('/ledger/me'));
+    if (!me.ok || !me.data || !me.data.money) {
+      L.company = prev;
+      renderSwitch();
+      return setState(DENY[me.code] || FAIL_MSG);
+    }
+    L.me = me.data;
+    L.voiding = '';
+    closeForm();
+    renderTax();
+    renderSwitch();
     await loadBook(L.month);
   }
 
@@ -564,6 +629,9 @@
     $('lgForm').addEventListener('submit', submitForm);
     $('lgTaxSave').addEventListener('click', saveTax);
     $('lgList').addEventListener('click', onListClick);
+    $('lgCompany').addEventListener('change', function () {
+      switchTo($('lgCompany').value);
+    });
   }
 
   async function start(auth) {
@@ -577,11 +645,14 @@
     if (!me.ok) return setState(DENY[me.code] || FAIL_MSG);
     L.me = me.data;
     if (!L.me.money) return setState(DENY.not_money);
+    // 자기 업체 장부가 없는 본사 대표 · 실장 — 서버가 공장 장부(보기만)로 열어 준다
+    if (L.me.viewing) L.company = L.me.company_id;
     var acc = await api('/ledger/accounts');
     if (!acc.ok) return setState(FAIL_MSG);
     L.accounts = (acc.data && acc.data.items) || [];
     bind();
     renderTax();
+    renderSwitch();
     $('lgBody').hidden = false;
     await loadBook(thisMonth());
   }

@@ -7,6 +7,7 @@
  *           자격 read 는 보기만 (입력 · 고치기 · 취소 · 설정 저장 없음)
  *   화면    「종이 원본 5년 보관」 · 과세 설정 · 달 요약 · 장부 줄(직접 · 수금 · 수주 원가), 취소한 줄은 켜야 보인다
  *   쓰기    직접 입력은 X-Idempotency-Key, 고치기는 바뀐 칸 + 이유만, 취소는 이유 필수
+ *   고르기  ledgers 가 둘 이상(다담 본사 대표 · 실장)이면 장부 고르기 — 남의 장부는 ?company= · 보기만
  */
 const fs = require('fs');
 const path = require('path');
@@ -178,7 +179,8 @@ async function load(options = {}) {
       auth: headers.Authorization,
     });
     const reply = (r) => ({ ok: r.ok, status: r.status, json: async () => r.body });
-    if (url === WORK + '/ledger/me') return reply(opts.me);
+    if (url.startsWith(WORK + '/ledger/me'))
+      return reply(typeof opts.me === 'function' ? opts.me(url) : opts.me);
     if (url === WORK + '/ledger/accounts') return reply(opts.accounts);
     if (url.startsWith(WORK + '/ledger/book'))
       return reply(opts.book(new URL(url).searchParams.get('month')));
@@ -457,5 +459,85 @@ describe('순수 함수', () => {
       payment_method: 'cash',
     });
     expect(L.accountsFor(ACCOUNTS, 'asset_sell').map((a) => a.code)).toEqual(['asset.tangible']);
+  });
+});
+
+describe('장부 고르기 (다담 본사 → 다담 공장)', () => {
+  const PF = 'c0000000-0000-4000-8000-0000000000b1';
+  const HQ = 'c0000000-0000-4000-8000-0000000000b2';
+  const LEDGERS = [
+    { company_id: PF, name: '다담 본사', kind: 'platform', own: true },
+    { company_id: HQ, name: '다담 공장', kind: 'hq', own: false },
+  ];
+  const meOf = (url) => {
+    const c = new URL(url).searchParams.get('company');
+    return c === HQ
+      ? ok({
+          ...ME,
+          company_id: HQ,
+          level: 'read',
+          viewing: true,
+          can_upload: false,
+          can_write: false,
+          tax: { vat_type: 'general', business_kind: 'manufacturing' },
+          ledgers: LEDGERS,
+        })
+      : ok({
+          ...ME,
+          company_id: PF,
+          viewing: false,
+          tax: { vat_type: null, business_kind: null },
+          ledgers: LEDGERS,
+        });
+  };
+
+  test('둘 이상이면 고르기가 보이고, 공장을 고르면 ?company= 로 보기만, 다시 본사로', async () => {
+    const calls = await load({ me: meOf });
+    expect($('lgSwitch').hidden).toBe(false);
+    expect([...$('lgCompany').options].map((o) => o.textContent)).toEqual([
+      '다담 본사',
+      '다담 공장 (보기만)',
+    ]);
+    expect($('lgCompany').value).toBe(PF);
+    expect($('lgAdd').hidden).toBe(false);
+    set('lgCompany', HQ);
+    await flush();
+    expect(calls.some((c) => c.url === `${WORK}/ledger/me?company=${HQ}`)).toBe(true);
+    expect(calls.filter((c) => c.url.startsWith(WORK + '/ledger/book')).at(-1).url).toBe(
+      `${WORK}/ledger/book?month=2026-11&include_void=1&company=${HQ}`
+    );
+    expect($('lgReadonly').hidden).toBe(false);
+    expect($('lgReadonly').textContent).toBe('다담 공장 장부 — 보기만 합니다.');
+    expect($('lgAdd').hidden).toBe(true);
+    expect($('lgTaxSave').hidden).toBe(true);
+    expect($('lgList').querySelector('[data-act]')).toBeNull();
+    set('lgCompany', PF);
+    await flush();
+    expect(calls.filter((c) => c.url.startsWith(WORK + '/ledger/book')).at(-1).url).toBe(
+      WORK + '/ledger/book?month=2026-11&include_void=1'
+    );
+    expect($('lgReadonly').hidden).toBe(true);
+    expect($('lgAdd').hidden).toBe(false);
+  });
+
+  test('장부가 하나면 고르기가 없고, 서버가 처음부터 남의 장부(viewing)로 열면 그 업체로 묻는다', async () => {
+    await load();
+    expect($('lgSwitch').hidden).toBe(true);
+    jest.restoreAllMocks();
+    const calls = await load({
+      me: ok({
+        ...ME,
+        company_id: HQ,
+        level: 'read',
+        viewing: true,
+        can_write: false,
+        ledgers: [LEDGERS[1]],
+      }),
+    });
+    expect($('lgSwitch').hidden).toBe(true);
+    expect(calls.find((c) => c.url.startsWith(WORK + '/ledger/book')).url).toBe(
+      `${WORK}/ledger/book?month=2026-11&include_void=1&company=${HQ}`
+    );
+    expect($('lgReadonly').textContent).toBe('다담 공장 장부 — 보기만 합니다.');
   });
 });
