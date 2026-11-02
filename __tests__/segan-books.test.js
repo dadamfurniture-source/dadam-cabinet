@@ -168,6 +168,7 @@ async function load(options = {}) {
       const month = new URL(url).searchParams.get('month');
       return reply(await opts.books(month));
     }
+    if (url === WORK + '/ledger/me') return reply(opts.ledger || fail(403, 'not_entitled', 'x'));
     if (url === PAY + '/subscription') return reply(ok({ plan: 'free', status: 'active' }));
     if (url === PAY + '/plans') return reply(ok({ client_key: 'k', plans: [] }));
     if (url === WORK + '/me/projects') return reply(fail(404, 'not_found', 'x'));
@@ -623,5 +624,29 @@ describe('달 계산 (순수 함수)', () => {
     expect(summaryOf({ success: true, data: d })).toBe(d);
     expect(summaryOf(d)).toBeNull(); // 감싸지 않은 본문은 받지 않는다 ({ success, data })
     expect(summaryOf(null)).toBeNull();
+  });
+});
+
+describe('장부 줄 (segan/ledger.html)', () => {
+  const links = () => [...box().querySelectorAll('.me-pt-rows a')].map((a) => [a.textContent, a.getAttribute('href')]);
+
+  test('GET /ledger/me 가 대표 · 실장 + 자격(full · read)이면 장부 줄, 아니면 ERP 줄만', async () => {
+    for (const [ledger, want] of [
+      [ok({ money: true, level: 'full' }), true],
+      [ok({ money: true, level: 'read' }), true],
+      [ok({ money: false, level: 'full' }), false],
+      [fail(403, 'not_entitled', 'x'), false],
+      [new Error('offline'), false],
+    ]) {
+      // Error — 끊김 (fetch 가 던진다). 회계 칸은 그대로 그린다
+      const calls = await load({ ledger });
+      await flush();
+      expect(box().hidden).toBe(false);
+      const l = links();
+      expect(l.some(([, href]) => href === 'ledger.html')).toBe(want);
+      expect(l.at(-1)[1]).toBe('../erp.html');
+      expect(calls.fetch.filter((f) => f.url === WORK + '/ledger/me').length).toBe(1);
+      jest.restoreAllMocks();
+    }
   });
 });
