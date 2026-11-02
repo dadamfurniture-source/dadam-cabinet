@@ -16,7 +16,8 @@ SUPABASE_ANON_KEY = "sb_publishable_OV4D2-LwhTMj8YJ711HTvA_lA2jk_PW"
 CORS_ORIGINS = "https://dadamfurniture.com,http://localhost:8000,http://127.0.0.1:8000"
 
 # Claude — 모델 · 생각 정도 · 처리 지역. inference_geo "us" 는 모든 토큰 요금 1.1배 (src/meter.js)
-ANTHROPIC_MODEL = "claude-opus-5-5"
+# 모델은 claude-haiku-5-5 · claude-sonnet-5-5 · claude-opus-5-5 가운데 하나 — 요금표(src/meter.js RATES)에 없는 모델은 가장 비싼 값으로 센다
+ANTHROPIC_MODEL = "claude-haiku-5-5"
 EFFORT = "medium"
 INFERENCE_GEO = "us"
 # 한 차례 답의 최대 토큰 (생각 포함) — 예산 잡기도 이 값으로 어림한다
