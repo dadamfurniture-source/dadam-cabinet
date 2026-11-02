@@ -14,6 +14,7 @@ import {
   insertOne,
   updateById,
   restDelete,
+  asActor,
   assertDesignAccess,
   designAccess,
   companyAccess,
@@ -26,6 +27,7 @@ import {
 } from './supabase.js';
 import { assertCounterparty, NEED_SQL as COUNTERPARTY_NEED_SQL } from './counterparties.js';
 import { isMissingRelation } from './work-order-data.js';
+import { EVIDENCE_TYPES } from './ledger/checks.js';
 import { planStatusChange, requestStatusChange, applyStatusChange, statusPatch, statusClears, assertNoPendingEvent } from './order-events.js';
 
 export const ORDER_STATUSES = ['confirmed', 'in_production', 'delivered', 'completed', 'cancelled'];
@@ -426,6 +428,16 @@ export async function addCost(env, { orderId, user, body }) {
     vendor_name: body.vendor_name ? String(body.vendor_name).slice(0, 100) : null,
     created_by: user.id,
   };
+  // 금액은 부가세 뺀 공급가, 공제되는 부가세는 따로 (database/migrations/0027). 안 보내면 NULL — 「미기재」
+  if (body.vat_amount !== undefined && body.vat_amount !== null && body.vat_amount !== '') {
+    const vat = Number(body.vat_amount);
+    if (!Number.isSafeInteger(vat) || vat < 0) throw new ValidationError('vat_amount 는 0 이상 정수(원)여야 합니다');
+    row.vat_amount = vat;
+  }
+  if (body.evidence_type !== undefined && body.evidence_type !== null && body.evidence_type !== '') {
+    if (!EVIDENCE_TYPES.includes(body.evidence_type)) throw new ValidationError(`evidence_type 은 ${EVIDENCE_TYPES.join(', ')} 중 하나여야 합니다`);
+    row.evidence_type = body.evidence_type;
+  }
   // 돈을 낸 공급처 (2단계 — 외주 성적표). 고르면 이름도 그 공급처로 맞춘다. 수주 업체의 공급처만
   if (body.counterparty_id) {
     const s = await assertCounterparty(env, body.counterparty_id, 'supplier', order.company_id);
@@ -444,7 +456,8 @@ export async function addCost(env, { orderId, user, body }) {
     row.due_on = d.toISOString().slice(0, 10);
   }
   try {
-    return await insertOne(env, 'order_costs', row);
+    // 바꾼 사람 — 원가 줄은 장부 바꾼 기록(ledger_events)에 남는다
+    return await insertOne(asActor(env, user), 'order_costs', row);
   } catch (e) {
     if (isMissingRelation(e) && /due_on/.test(e.message)) throw new ValidationError('지급 예정일 칸이 아직 DB 에 없습니다 — database/management-phase2.sql 을 실행해 주세요');
     throw e;
@@ -455,6 +468,6 @@ export async function deleteCost(env, { orderId, costId, user }) {
   await loadOwnedOrder(env, orderId, user, { money: true });
   const cost = await selectOne(env, 'order_costs', { id: `eq.${costId}`, select: 'id,order_id' });
   if (!cost || cost.order_id !== orderId) throw new NotFoundError('원가 항목을 찾을 수 없습니다');
-  await restDelete(env, 'order_costs', { id: `eq.${costId}` });
+  await restDelete(asActor(env, user), 'order_costs', { id: `eq.${costId}` });
   return { deleted: costId };
 }
