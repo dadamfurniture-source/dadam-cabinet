@@ -251,6 +251,26 @@ SITE 문단(배관 · 전선은 벽 안으로), 카메라 · 벽 모서리 · �
 위치 검사 · 역판독 대조는 하지 않는다. 결과 칸 이름 `… · 빈 방`. 다듬기와 같이 오면 비우기가 이긴다. 간편 플래너는 결과를 원본 사진에 맞춰 바뀐 곳만 붙인 뒤
 그 위에 Blender 시안을 그린다.
 
+`planner_reform` (선택 객체, 2026-11-02 사장님 「리폼 연출 이어 진행」 · 방 비우기 「바뀌는 자리만 비우기」 · 방식 「시안 → 다듬기만」 — 간편 플래너 냉장고장(리폼)):
+지금 설치된 냉장고장을 왼쪽부터 칸으로 알린다. 비우기(`planner_clear`) · 다듬기(`options.polish`)일 때만 정리해 `options.reform` 에 둔다 (재생성은 원본 값을 잇는다).
+
+| 필드 | 형식 | 규칙 |
+|---|---|---|
+| `segs` | array | 왼쪽부터 최대 15. 모르는 `kind` · 폭이 1–5000 이 아닌 칸은 버린다. 냉장고 공간(`space`)이 하나도 없으면 객체째 버린다 |
+| `segs[].kind` | string | `wall`(양 끝 · 사이 벽, 늘 그대로) · `space`(냉장고 공간) · `mid`(중간판) |
+| `segs[].widthMm` | number | 1–5000 (반올림) |
+| `segs[].fridge` | string | `space` 만 — `keep` · `remove` · `new`(떼고 새 냉장고 — 시안에 밝은 회색 상자). 모르면 `keep` |
+| `segs[].upper` | string | `space` 만 — 그 위 상부장 `keep` · `doors`(몸통은 두고 도어만 새로) · `remove`. 모르면 `keep` |
+| `segs[].panel` | string | `mid` 만 — `keep` · `remove`. 모르면 `keep` |
+| `boardMm` · `moldingMm` | number | 선택 — 상부장 지판 높이 500–3000 · 상몰딩 0–400 (지금 모습을 말할 때만) |
+
+- 비우기: `buildPlannerClearPrompt` 가 `buildPlannerReformClearPrompt` 로 — 지금 냉장고장을 왼쪽부터 말하고(`EXISTING SURROUND`) **뗄 것만** 지운다
+  (냉장고 `remove` · `new`, 상부장 `remove`, 중간판 `remove`). 양 끝 벽 · 상몰딩 · 남는 중간판 · 상부장(도어만 바꾸는 것은 도어째)과 방 · 카메라는 그대로.
+  설계 벽 전체를 비우는 문장 · SITE 문단은 없다.
+- 다듬기 (빈 방 배경이 아닐 때): 남는 냉장고장 부분을 `KEEP EXACTLY` 에 적고, 정리(CLEAN UP)는 새 장 둘레로 남은 뗄 것 · 바꾸는 옛 도어만
+  ("Do not touch the parts of the surround that stay"). 새 냉장고(`new`)가 있으면 `NEW REFRIGERATOR` 줄 — 회색 상자를 그 크기 · 자리 그대로 빌트인 냉장고로.
+  빈 방 배경(`planner_cleared`)이면 예전 비운 방 다듬기 지시문 그대로 (뗄 것은 이미 지웠다).
+
 `kind` 별 영어 문장:
 
 | kind | 프롬프트 문구 |

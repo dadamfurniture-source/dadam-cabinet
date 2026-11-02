@@ -722,6 +722,8 @@ async function runPipeline(env, job, ck, save) {
     // 다듬기 배경이 비운 방이면 정리 줄을 뺀다 (worker.js options.cleared — 다듬기일 때만 기록)
     ...(polishOn && opts.cleared === true ? { cleared: true } : {}),
     ...(clear ? { clear: true } : {}),
+    // 냉장고장(리폼) (worker.js options.reform — 비우기 · 다듬기일 때만 기록): 비우기는 뗄 것만, 다듬기는 남은 뗄 것만 정리
+    ...((clear || polishOn) && opts.reform ? { reform: opts.reform } : {}),
   };
   const imageSize = env.GEMINI_IMAGE_SIZE || '2K';
   // 결과 비율은 방 사진을 따른다 (플래너 모드는 고른 비율). 추천안도 같은 비율로 그린다.
