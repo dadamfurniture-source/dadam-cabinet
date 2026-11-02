@@ -1,0 +1,183 @@
+/* ============================================================
+   segan/ledger.css — 업체 회계장부 (segan/ledger.html). 색 · 선은 shell.css 의 v5 토큰.
+   ============================================================ */
+
+.lg-keep {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-well);
+  color: var(--v5-ink);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.lg-state {
+  min-height: 1em;
+  margin: 0 0 12px;
+  color: var(--v5-ink-62);
+  font-size: 13px;
+}
+
+.lg-readonly {
+  margin: 0 0 16px;
+  color: var(--v5-tan);
+  font-size: 13px;
+}
+
+.lg-box {
+  margin: 0 0 20px;
+  padding: 16px;
+  border: 1px solid var(--v5-line);
+  background: var(--v5-paper);
+}
+
+/* mk-btn 같은 display 를 가진 칸도 hidden 이면 감춘다 */
+.lg [hidden] {
+  display: none !important;
+}
+
+.lg-box-title {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.lg-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.lg-row .mk-input {
+  flex: 1 1 140px;
+}
+
+.lg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.lg-reason {
+  grid-column: 1 / -1;
+}
+
+.lg-nav {
+  margin: 4px 0 12px;
+}
+
+.lg-sum {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.lg-sum div {
+  padding: 10px 12px;
+  border: 1px solid var(--v5-line);
+  background: var(--v5-paper);
+}
+
+.lg-sum dt {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+}
+
+.lg-sum dd {
+  margin: 4px 0 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.lg-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 12px 0 16px;
+}
+
+.lg-check {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--v5-ink-62);
+  font-size: 13px;
+}
+
+.lg-list {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.lg-item,
+.lg-empty {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.lg-empty {
+  color: var(--v5-ink-55);
+  font-size: 13px;
+}
+
+.lg-line {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.lg-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lg-main small,
+.lg-meta {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.lg-amt {
+  flex: none;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.lg-amt--in {
+  color: var(--v5-navy);
+}
+
+.lg-item--void .lg-main b,
+.lg-item--void .lg-amt {
+  color: var(--v5-ink-45);
+  text-decoration: line-through;
+}
+
+.lg-item-acts,
+.lg-void {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.lg-void input {
+  flex: 1 1 180px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--v5-line-18);
+  font: inherit;
+  font-size: 13px;
+}

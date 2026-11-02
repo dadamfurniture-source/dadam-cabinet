@@ -12,6 +12,7 @@
              미수 (금액 · 건수) · 상태별 수주 수 · 다가오는 수금 (수주 번호 · 단계 · 금액 · 날짜)
              달 바꾸기 (지난달 · 다음 달 — 이번 달 뒤로는 가지 않는다)
              수주 상세 · 원가 · 수금 입력은 PC ERP(erp.html) 로 보낸다
+             장부(segan/ledger.html) 줄 — workflow-api GET /ledger/me 가 그 업체 대표 · 실장에게 답할 때만 (Agent 업체 · 시험 업체)
    이름      수주 상태 = erp.html STATUS_LABELS = 워커 order-events.js ORDER_STATUS_LABELS
              수금 단계 = erp.html PAY_STAGE_LABELS = 워커 payments.js (segan/me.js PAY_STAGE 와 같다)
    못 읽으면  처음(403 · 404 · 오류 · 주소 없음 · 모양이 틀림) → 칸째 감춘다.
@@ -37,6 +38,7 @@
     ['actual_margin', '실제 마진'],
   ];
   var ERP_PAGE = '../erp.html';
+  var LEDGER_PAGE = 'ledger.html';
   var MONTH_RE = /^(\d{4})-(\d{2})$/;
   var FAIL_MSG = '이 달 회계를 불러오지 못했습니다.';
 
@@ -48,6 +50,7 @@
     data: null, // 마지막으로 읽은 data
     err: '',
     busy: false,
+    ledger: false, // 장부를 여는가 (GET /ledger/me)
   };
 
   var $ = function (id) {
@@ -253,7 +256,11 @@
       navHtml() +
       body +
       '</div>' +
-      '<ul class="sg-rows me-pt-rows"><li><a class="sg-row" href="' +
+      '<ul class="sg-rows me-pt-rows">' +
+      (B.ledger
+        ? '<li><a class="sg-row" href="' + LEDGER_PAGE + '">장부 — 수주 밖 비용 · 증빙</a></li>'
+        : '') +
+      '<li><a class="sg-row" href="' +
       ERP_PAGE +
       '">수주 상세 · 원가 · 수금 입력은 PC ERP에서</a></li></ul>';
     box.hidden = false;
@@ -282,6 +289,22 @@
       return summaryOf(await res.json());
     } catch {
       return null;
+    }
+  }
+
+  /** GET /ledger/me — 대표 · 실장이고 장부 자격(full · read)이 있으면 참. 못 읽으면 거짓 */
+  async function ledgerOpen() {
+    try {
+      var res = await fetch(B.base + '/ledger/me', {
+        headers: { Authorization: 'Bearer ' + (await token()) },
+        cache: 'no-store',
+      });
+      if (!res.ok) return false;
+      var b = await res.json();
+      var d = b && b.success === true ? b.data : null;
+      return !!(d && d.money === true && (d.level === 'full' || d.level === 'read'));
+    } catch {
+      return false;
     }
   }
 
@@ -318,7 +341,9 @@
     if (!B.base || !session || !canSee(me)) return;
     try {
       var month = thisMonth();
-      var d = await fetchSummary(month);
+      var got = await Promise.all([fetchSummary(month), ledgerOpen()]);
+      var d = got[0];
+      B.ledger = got[1];
       if (!d) return; // 403 · 404 · 오류 — 칸째 감춘다
       B.month = month;
       B.data = d;
