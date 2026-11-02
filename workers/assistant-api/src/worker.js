@@ -5,14 +5,15 @@
  *   GET  /assistant/me                              내 자리 · 자격 (화면이 비서 탭을 열지 정한다)
  *   GET  /assistant/conversations                   내 대화 (새것부터 20)
  *   POST /assistant/conversations                   새 대화 → 201 { conversation } (자격 full)
- *   GET  /assistant/conversations/:id               대화 + 메시지 (글만 — 생각 블록 · 내부 블록은 주지 않는다)
+ *   GET  /assistant/conversations/:id               대화 + 메시지 (글만 — 생각 블록 · 도구 블록 · 맥락 블록은 주지 않는다)
+ *                                                   한 차례의 비서 글(도구 앞뒤)은 한 메시지로 묶는다. running: 도는 차례 { turn, after } | null
  *   POST /assistant/conversations/:id/turns         { text } + X-Idempotency-Key → 202 { turn, after } (자격 full)
  *                                                   같은 키는 그 차례(200) · 도는 중이면 409 busy · 분 한도 429
  *   GET  /assistant/conversations/:id/events?after=N  사건 줄(NDJSON) — src/session.js
  *
  * 인증: Supabase 사용자 JWT (Authorization: Bearer). 사람 · 업체 · 자격은 src/access.js.
  * 표 · 함수는 database/migrations/0026 (assistant_*, company_entitled, assistant_budget_*).
- * 이 단계에는 도구가 없다 — 비서는 업체 자료를 읽지 않는다 (읽기 도구는 다음 단계).
+ * 읽기 도구(src/tools.js)는 묻는 사람의 토큰으로 workflow-api 를 부른다 — 토큰은 그 차례 동안 대화 객체의 메모리에만 둔다.
  */
 import {
   ok,
@@ -28,7 +29,7 @@ import {
 } from './http.js';
 import { verifyUser, selectMany, insertOne } from './db.js';
 import { assistantAccess, ownConversation } from './access.js';
-import { textOf } from './claude.js';
+import { textOf, userTextOf, isTurnStart } from './claude.js';
 import { maxTurns } from './session.js';
 
 export { AssistantSession } from './session.js';
@@ -98,22 +99,42 @@ async function createConversation(request, env, user) {
   return ok(request, env, { conversation: conversationView(row) }, 201);
 }
 
+/** 저장된 메시지 → 화면 메시지 — 사람 글 하나 · 그 차례 비서 글 하나씩 (도구 결과만 담긴 메시지는 건너뛴다) */
+export function messagesView(rows) {
+  const out = [];
+  for (const r of rows || []) {
+    if (r.role === 'user') {
+      if (!isTurnStart(r)) continue;
+      out.push({ seq: r.seq, role: 'user', text: userTextOf(r.content), created_at: r.created_at });
+      continue;
+    }
+    const text = textOf(r.content);
+    if (!text) continue;
+    const last = out[out.length - 1];
+    if (last && last.role === 'assistant') last.text += '\n\n' + text;
+    else out.push({ seq: r.seq, role: 'assistant', text, created_at: r.created_at });
+  }
+  return out;
+}
+
 async function getConversation(request, env, user, id) {
   const a = await assistantAccess(env, user);
   const conv = await ownConversation(env, a, user, id);
-  const rows = await selectMany(env, 'assistant_messages', {
-    conversation_id: `eq.${conv.id}`,
-    select: 'seq,role,content,created_at',
-    order: 'seq.asc',
-  });
+  const [rows, state] = await Promise.all([
+    selectMany(env, 'assistant_messages', {
+      conversation_id: `eq.${conv.id}`,
+      select: 'seq,role,content,created_at',
+      order: 'seq.asc',
+    }),
+    sessionStub(env, conv.id)
+      .fetch('https://assistant-session/state')
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null),
+  ]);
   return ok(request, env, {
     conversation: conversationView(conv),
-    messages: rows.map((r) => ({
-      seq: r.seq,
-      role: r.role,
-      text: textOf(r.content),
-      created_at: r.created_at,
-    })),
+    messages: messagesView(rows),
+    running: (state && state.running) || null,
   });
 }
 
@@ -135,6 +156,8 @@ async function sendTurn(request, env, user, id) {
       companyId: a.companyId,
       userId: user.id,
       role: a.role,
+      money: a.money,
+      token: user.token,
       text,
       key: rawKey || null,
     }),

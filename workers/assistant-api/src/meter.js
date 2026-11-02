@@ -82,7 +82,7 @@ export function costMicros(env, model, usage) {
  */
 export function estimateMicros(env, params) {
   const bytes = new TextEncoder().encode(
-    JSON.stringify({ system: params.system, messages: params.messages })
+    JSON.stringify({ system: params.system, tools: params.tools, messages: params.messages })
   ).length;
   const tokens = Math.ceil(bytes / 2);
   const r = rateOf(params.model, tokens);

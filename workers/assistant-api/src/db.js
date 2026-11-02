@@ -17,7 +17,7 @@ export class ConflictError extends DbError {
   }
 }
 
-/** Authorization: Bearer → { id } (Supabase 가 확인) */
+/** Authorization: Bearer → { id, token } (Supabase 가 확인). token 은 읽기 도구가 workflow-api 에 그대로 넘긴다 — 남기지 않는다 */
 export async function verifyUser(request, env) {
   const m = (request.headers.get('Authorization') || '').match(/^Bearer\s+(.+)$/i);
   if (!m) throw authError();
@@ -30,7 +30,7 @@ export async function verifyUser(request, env) {
   if (!res.ok) throw authError('로그인이 끝났습니다. 다시 로그인해 주세요');
   const user = await res.json();
   if (!user || !user.id) throw authError();
-  return { id: user.id };
+  return { id: user.id, token: m[1] };
 }
 
 function headers(env, prefer = 'return=representation') {

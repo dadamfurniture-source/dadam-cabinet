@@ -1,5 +1,5 @@
 /**
- * 시험 틀 — 가짜 Supabase(사람 · PostgREST · rpc) · 가짜 Durable Object · 가짜 Claude stream.
+ * 시험 틀 — 가짜 Supabase(사람 · PostgREST · rpc) · 가짜 Durable Object · 가짜 Claude stream · 가짜 workflow-api(서비스 바인딩).
  * 실제 네트워크는 쓰지 않는다 (globalThis.fetch 를 갈아 끼운다).
  */
 import { AssistantSession } from '../src/session.js';
@@ -284,8 +284,223 @@ export function reply(text, extra = {}) {
   };
 }
 
+/** 도구 쓰는 답 — 생각 블록 + (글) + tool_use */
+export function toolUse(name, input = {}, { id = 'tu-' + name, text = '', usage } = {}) {
+  const content = [{ type: 'thinking', thinking: '', signature: 'sig-t' }];
+  if (text) content.push({ type: 'text', text, citations: null });
+  content.push({ type: 'tool_use', id, name, input });
+  return {
+    chunks: text ? text.match(/.{1,3}/gsu) : [],
+    content,
+    stop_reason: 'tool_use',
+    usage: usage || {
+      input_tokens: 1000,
+      output_tokens: 50,
+      cache_read_input_tokens: 0,
+      cache_creation_input_tokens: 0,
+    },
+  };
+}
+
+export const ORDER_ID = 'e0000000-0000-4000-8000-000000000001';
+
+/** 기본 workflow-api 자료 — 경로마다 data */
+function workflowData() {
+  return {
+    '/company/consults': {
+      can_act: true,
+      items: [
+        {
+          id: 'c1',
+          created_at: '2026-11-01T01:00:00Z',
+          status: 'assigned',
+          name: '김고객',
+          phone: '010-1234-5678',
+          email: 'kim@example.com',
+          sido: '서울',
+          gugun: '강남구',
+          furniture_categories: ['sink'],
+          description: '상부장 교체',
+          quote_total: 3_300_000,
+          generation_image_url: 'https://signed.example/x.jpg',
+          assignment: {
+            id: 'a1',
+            state: 'waiting',
+            assigned_at: '2026-11-01T01:00:00Z',
+            expires_at: '2026-11-02T01:00:00Z',
+          },
+        },
+      ],
+    },
+    '/company/projects': {
+      company: { id: CO, name: '시험 업체' },
+      items: [
+        {
+          id: 'p1',
+          title: '강남 주방',
+          status: 'open',
+          created_at: '2026-10-30T00:00:00Z',
+          customer: { id: 'u1', name: '김고객', phone: '010-1234-5678' },
+          design_count: 2,
+        },
+      ],
+    },
+    '/orders': {
+      items: [
+        {
+          id: ORDER_ID,
+          order_no: 'O-1',
+          customer_name: '김고객',
+          status: 'confirmed',
+          ordered_at: '2026-11-01',
+          contract_amount: 5_500_000,
+          received_amount: 1_000_000,
+          note: '잔금 현장',
+        },
+        {
+          id: 'o2',
+          order_no: 'O-2',
+          customer_name: '이고객',
+          status: 'completed',
+          ordered_at: '2026-10-01',
+          contract_amount: 2_200_000,
+          received_amount: 2_200_000,
+        },
+      ],
+    },
+    ['/orders/' + ORDER_ID]: {
+      order: {
+        id: ORDER_ID,
+        order_no: 'O-1',
+        customer_name: '김고객',
+        status: 'confirmed',
+        ordered_at: '2026-11-01',
+        contract_amount: 5_500_000,
+        received_amount: 1_000_000,
+      },
+      costs: [
+        {
+          category: 'material',
+          description: '도어',
+          vendor_name: '예림',
+          amount: 800_000,
+          vat_amount: 80_000,
+          evidence_type: 'tax_invoice',
+          spent_on: '2026-11-02',
+        },
+      ],
+      margin: {
+        contract_amount: 5_500_000,
+        received_amount: 1_000_000,
+        outstanding: 4_500_000,
+        cost_total: 800_000,
+      },
+      payments: [
+        {
+          stage: 'deposit',
+          amount: 1_000_000,
+          due_on: '2026-11-01',
+          paid_on: '2026-11-01',
+          method: 'transfer',
+          memo: '계약금',
+        },
+      ],
+      reworks: [],
+    },
+    '/books/summary': {
+      month: '2026-11',
+      months: [{ month: '2026-11', contract_total: 5_500_000 }],
+      outstanding: { total: 0, count: 0 },
+    },
+    '/ledger/book': {
+      from: '2026-11-01',
+      to: '2026-11-30',
+      totals: { income: 909_091, expense: 800_000 },
+      rows: [
+        {
+          source: 'payment',
+          entry_date: '2026-11-01',
+          direction: 'income',
+          account: 'income.sales',
+          description: 'deposit',
+          amount: 909_091,
+          vat_amount: 90_909,
+        },
+        {
+          source: 'cost',
+          entry_date: '2026-11-02',
+          direction: 'expense',
+          account: 'expense.material',
+          description: '도어',
+          counterparty_name: '예림',
+          amount: 800_000,
+          vat_amount: 80_000,
+          evidence_type: 'tax_invoice',
+        },
+        {
+          source: 'entry',
+          entry_date: '2026-11-02',
+          direction: 'expense',
+          account: 'expense.material',
+          description: '취소된 줄',
+          amount: 999,
+          vat_amount: 0,
+          voided_at: '2026-11-02T05:00:00Z',
+        },
+      ],
+    },
+    '/ledger/accounts': {
+      items: [
+        { code: 'income.sales', name: '매출' },
+        { code: 'expense.material', name: '재료비' },
+      ],
+    },
+    '/ledger/documents': {
+      money: true,
+      items: [
+        { id: 'd1', review_status: 'pending', created_at: '2026-11-02T00:00:00Z' },
+        { id: 'd2', review_status: 'pending', created_at: '2026-11-01T00:00:00Z' },
+        { id: 'd3', review_status: 'posted', created_at: '2026-10-30T00:00:00Z' },
+      ],
+    },
+  };
+}
+
+/**
+ * 가짜 workflow-api — 경로(쿼리 빼고)마다 data 를 { success, data } 로. over: 경로 → data | (call) => Response.
+ * calls 에 { path, query, token } 을 적는다. 토큰이 없으면 401.
+ */
+export function makeWorkflow(over = {}) {
+  const routes = { ...workflowData(), ...over };
+  const wf = {
+    calls: [],
+    routes,
+    async fetch(request) {
+      const url = new URL(request.url);
+      const token = String(request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
+      const call = { path: url.pathname, query: url.search, token };
+      wf.calls.push(call);
+      if (!token) return new Response('{"success":false,"message":"로그인"}', { status: 401 });
+      const r = routes[url.pathname];
+      if (typeof r === 'function') return r(call);
+      if (r === undefined)
+        return new Response('{"success":false,"message":"Not found"}', { status: 404 });
+      return new Response(JSON.stringify({ success: true, data: r }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  };
+  return wf;
+}
+
 /** 워커 + env 한 벌 */
-export async function makeWorld({ db = makeDb(), claude = makeClaude(), env: extra = {} } = {}) {
+export async function makeWorld({
+  db = makeDb(),
+  claude = makeClaude(),
+  workflow = makeWorkflow(),
+  env: extra = {},
+} = {}) {
   const worker = (await import('../src/worker.js')).default;
   let env;
   const sessions = makeSessions(() => env);
@@ -295,6 +510,7 @@ export async function makeWorld({ db = makeDb(), claude = makeClaude(), env: ext
     CORS_ORIGINS: 'https://dadamfurniture.com',
     ASSISTANT_SESSION: sessions,
     ASSISTANT_CLAUDE: claude,
+    WORKFLOW_API: workflow,
     ...extra,
   };
   globalThis.fetch = db.fetch;
@@ -338,5 +554,5 @@ export async function makeWorld({ db = makeDb(), claude = makeClaude(), env: ext
         .map((l) => JSON.parse(l)),
     };
   };
-  return { worker, env, db, claude, sessions, call, events };
+  return { worker, env, db, claude, workflow, sessions, call, events };
 }

@@ -13,6 +13,7 @@
  *   글(text)만 보내고, 그 뒤는 그대로 보낸다. fallback 블록 자체는 빼도 된다 (Anthropic 대체 모델 안내).
  */
 import Anthropic from '@anthropic-ai/sdk';
+import { CONTEXT_OPEN } from './prompt.js';
 
 export const MODEL_DEFAULT = 'claude-haiku-5-5';
 export const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
@@ -31,7 +32,8 @@ export function claudeClient(env) {
   return new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, timeout: 120_000, maxRetries: 1 });
 }
 
-export function buildRequest(env, { system, messages }) {
+/** tools 는 대화 첫 차례에 정한 목록 그대로 (src/session.js frame) — 비었으면 싣지 않는다. tool_choice 는 기본 auto */
+export function buildRequest(env, { system, messages, tools }) {
   const model = env.ANTHROPIC_MODEL || MODEL_DEFAULT;
   return {
     model,
@@ -40,6 +42,7 @@ export function buildRequest(env, { system, messages }) {
     inference_geo: env.INFERENCE_GEO || 'us',
     output_config: { effort: env.EFFORT || 'medium' },
     system,
+    ...(tools && tools.length ? { tools } : {}),
     messages,
   };
 }
@@ -69,4 +72,23 @@ export function textOf(blocks) {
     .filter((b) => b && b.type === 'text' && typeof b.text === 'string')
     .map((b) => b.text)
     .join('');
+}
+
+/** 사람이 쓴 글만 — 시스템이 붙인 맥락 블록(<맥락>…)은 뺀다 */
+export function userTextOf(blocks) {
+  return textOf(
+    (Array.isArray(blocks) ? blocks : []).filter(
+      (b) => !(b && b.type === 'text' && String(b.text).startsWith(CONTEXT_OPEN))
+    )
+  );
+}
+
+/** 차례를 여는 사람 메시지인가 (도구 결과만 담긴 user 메시지는 아니다) */
+export function isTurnStart(row) {
+  return (
+    !!row &&
+    row.role === 'user' &&
+    Array.isArray(row.content) &&
+    row.content.some((b) => b && b.type === 'text')
+  );
 }
