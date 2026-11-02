@@ -2481,6 +2481,108 @@ export function buildPlannerPrompt(c) {
     .join('\n\n');
 }
 
+// ─── 냉장고장(리폼) (2026-11-02 사장님 「리폼 연출 이어 진행」 · 방 비우기 「바뀌는 자리만 비우기」 · 방식 「시안 → 다듬기만」) ───
+//   간편 플래너 냉장고장(리폼) — 지금 설치된 냉장고장의 벽과 벽 사이만 바꾼다 (양 끝 벽 · 상몰딩은 그대로). 요청 planner_reform 이
+//   지금 냉장고장을 왼쪽부터 칸으로 알려 준다: 칸마다 무엇을 떼고(remove) 무엇을 두는지(keep). 방 비우기는 뗄 것만 지우고,
+//   다듬기는 (빈 방 배경이 아니면) 새 부재 둘레로 남은 뗄 것만 정리한다. 남는 벽 · 상몰딩 · 중간판 · 상부장은 사진 그대로.
+/** planner_reform 칸 종류 · 칸마다 받는 값 */
+const REFORM_KINDS = ['wall', 'space', 'mid'];
+const REFORM_MAX_SEGS = 15;
+const reformPick = (v, list, def) => (list.includes(v) ? v : def);
+/** 쉼표가 든 구를 잇는다 — 세미콜론 */
+const reformList = (a) => (a.length <= 1 ? a.join('') : `${a.slice(0, -1).join('; ')}; and ${a[a.length - 1]}`);
+
+/**
+ * 요청 planner_reform → 정리한 값 (모르면 null).
+ *   { segs: [{ kind:'wall'|'space'|'mid', widthMm, fridge?:'keep'|'remove'|'new', upper?:'keep'|'doors'|'remove', panel?:'keep'|'remove' }],
+ *     boardMm?, moldingMm? } — 칸은 왼쪽부터 최대 15. 폭 1–5000 이 아니거나 모르는 종류의 칸은 버린다. 냉장고 공간이 없으면 null.
+ *   fridge = 그 공간의 냉장고 (new = 떼고 새 냉장고 — 시안에 회색 상자로 그려진다), upper = 그 위 상부장 (doors = 몸통은 두고 도어만 새로 —
+ *   비우기는 도어를 두고 시안이 새 도어를 덮는다), panel = 중간판. 모르는 값은 keep (지우지 않는다).
+ */
+export function normalizePlannerReform(raw) {
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.segs)) return null;
+  const segs = [];
+  for (const s of raw.segs.slice(0, REFORM_MAX_SEGS)) {
+    if (!s || !REFORM_KINDS.includes(s.kind)) continue;
+    const w = Math.round(Number(s.widthMm));
+    if (!(w >= 1 && w <= 5000)) continue;
+    if (s.kind === 'space') segs.push({ kind: 'space', widthMm: w, fridge: reformPick(s.fridge, ['keep', 'remove', 'new'], 'keep'), upper: reformPick(s.upper, ['keep', 'doors', 'remove'], 'keep') });
+    else if (s.kind === 'mid') segs.push({ kind: 'mid', widthMm: w, panel: reformPick(s.panel, ['keep', 'remove'], 'keep') });
+    else segs.push({ kind: 'wall', widthMm: w });
+  }
+  if (!segs.some((s) => s.kind === 'space')) return null;
+  const out = { segs };
+  const board = Math.round(Number(raw.boardMm));
+  if (board >= 500 && board <= 3000) out.boardMm = board;
+  const mold = Math.round(Number(raw.moldingMm));
+  if (mold >= 0 && mold <= 400 && raw.moldingMm != null && raw.moldingMm !== '') out.moldingMm = mold;
+  return out;
+}
+
+/**
+ * 리폼 칸 → 이름 · 지금 모습 · 뗄 것 · 둘 것 · 새 도어 · 새 냉장고 (영어 구). 냉장고 공간은 왼쪽부터 space 1, 2 …,
+ *   중간판 · 벽은 이웃 공간으로 (양 끝 벽은 left end · right end). polish = 다듬기 (도어만 바꾸는 상부장은 몸통만 둔다 — 옛 도어는 정리 대상),
+ *   아니면 비우기 (도어만 바꾸는 상부장은 도어째 둔다).
+ */
+function reformPartsOf(reform, polish) {
+  const segs = reform.segs;
+  const spaceNo = [];
+  let n = 0;
+  segs.forEach((s, i) => { if (s.kind === 'space') spaceNo[i] = ++n; });
+  const near = (i, dir) => { for (let j = i + dir; j >= 0 && j < segs.length; j += dir) if (segs[j].kind === 'space') return spaceNo[j]; return null; };
+  const between = (i) => {
+    const a = near(i, -1), b = near(i, 1);
+    return a && b ? `between space ${a} and space ${b}` : a ? `to the right of space ${a}` : b ? `to the left of space ${b}` : '';
+  };
+  const wallName = (i) => (i === 0 ? 'the side wall at the left end' : i === segs.length - 1 ? 'the side wall at the right end' : `the ${segs[i].widthMm} mm wall section ${between(i)}`);
+  const midName = (i) => `the ${segs[i].widthMm} mm divider panel ${between(i)}`;
+  const board = reform.boardMm ? ` from ${reform.boardMm} mm up to the crown moulding` : '';
+  const describe = segs.map((s, i) => {
+    if (s.kind === 'wall') return `a ${s.widthMm} mm side wall`;
+    if (s.kind === 'mid') return `a ${s.widthMm} mm divider panel`;
+    return `refrigerator space ${spaceNo[i]}, ${s.widthMm} mm wide, with a wall cabinet above it${board}`;
+  });
+  const remove = [];
+  const keep = [];
+  const doors = [];
+  const fresh = [];
+  segs.forEach((s, i) => {
+    if (s.kind === 'wall') keep.push(wallName(i));
+    else if (s.kind === 'mid') (s.panel === 'remove' ? remove : keep).push(midName(i));
+    else {
+      (s.fridge === 'keep' ? keep : remove).push(`the refrigerator in space ${spaceNo[i]}`);
+      if (s.fridge === 'new') fresh.push(spaceNo[i]);
+      if (s.upper === 'remove') remove.push(`the wall cabinet above space ${spaceNo[i]}, with its doors`);
+      else keep.push(`the wall cabinet above space ${spaceNo[i]}${s.upper === 'doors' && polish ? ' (its carcass)' : ', with its doors'}`);
+      if (s.upper === 'doors' && polish) doors.push(`the old doors of the wall cabinet above space ${spaceNo[i]}`);
+    }
+  });
+  if (reform.moldingMm !== 0) keep.push('the crown moulding along the top');
+  const moulding = reform.moldingMm ? ` A ${reform.moldingMm} mm crown moulding runs along the top.` : reform.moldingMm === 0 ? '' : ' A crown moulding runs along the top.';
+  return { describe: `${describe.join('; ')}.${moulding}`, remove, keep, doors, fresh };
+}
+
+/**
+ * 리폼 방 비우기 지시문 — 지금 냉장고장에서 뗄 것만 지운 사진 (나머지 냉장고장 · 방 · 카메라는 그대로).
+ *   간편 플래너가 받은 그림을 원본 사진에 맞춰 바뀐 곳만 붙이고 그 위에 Blender 시안(새 부재)을 그린다.
+ * @param {object} c buildPlannerPrompt 와 같은 ctx — reform · aspect 만 읽는다
+ */
+export function buildPlannerReformClearPrompt(c) {
+  const P = reformPartsOf(c.reform);
+  const wall = `the ${plannerWallName('main')}`;
+  return [
+    `You receive one image. IMAGE A — ROOM PHOTO: the customer's existing built-in refrigerator surround on ${wall}, before part of it is rebuilt.`,
+    `EXISTING SURROUND, from left to right: ${P.describe}`,
+    `TASK: show this same surround with only the parts listed under REMOVE taken out — one natural photograph taken with exactly the same camera.`,
+    P.remove.length
+      ? `REMOVE: ${reformList(P.remove)}. Remove each one completely, with its shadow, and continue the back wall, the floor, the side faces of the walls and panels that stay and the underside of the cabinets that stay in their own colour, material and texture, with no demolition marks, patches or ghost outlines.`
+      : `REMOVE: nothing — return the photograph as it is.`,
+    `KEEP EXACTLY as in IMAGE A: the camera position, lens, perspective and framing — do not widen, crop, zoom or shift the view; ${reformList(P.keep)} — each in its place with its size and finish; every wall corner, the ceiling and floor lines; the rest of the room and everything in it; and the lighting.`,
+    `DO NOT: add any furniture, cabinets, shelves, panels, appliances or decorations; add text, labels or watermarks.`,
+    `OUTPUT: one photorealistic photograph, ${resolvePlannerAspect(c.aspect)}, the same view as IMAGE A.`,
+  ].join('\n\n');
+}
+
 /**
  * 플래너 다듬기 지시문 (2026-11-01 사장님 「C로 작업 실행」 — 간편 플래너 Blender 시안을 실제 사진처럼, AI 는 보정 · 다듬기만).
  *   이미지는 시안 한 장(IMAGE A) — 기하를 알려 주는 출처를 하나로 (입면 IMAGE B · 덩어리 · 꺾인 벽 · 냉장고 사진은 보내지 않는다).
@@ -2491,24 +2593,37 @@ export function buildPlannerPrompt(c) {
  *     장에 가리거나 잘린 물건만 지우고 뒤의 벽 · 바닥 · 천장을 잇는다. 장과 떨어져 선 물건(냉장고 · 의자 · 화분 등)은 그대로.
  *   2026-11-01 사장님 「AI로 방을 먼저 정리 -> 블렌더 시안 -> AI 보정」 · 「무엇을 지울지: 추천 + 공사현장처럼 마감정리가 안 되어 있다면 클리어하게 정리」: 시안 배경이 비운 방(c.cleared)이면
  *     지울 것이 없다 — CLEAN UP 줄을 빼고 방 전체를 그대로 둔다 (정리 줄이 새 장까지 지우지 않게).
- * @param {object} c buildPlannerPrompt 와 같은 ctx — designSpec(finishes) · doorColor · doorFinish · aspect · cleared 만 읽는다
+ *   2026-11-02 냉장고장(리폼) (c.reform — 요청 planner_reform, 빈 방 배경이 아닐 때만): 새 장은 지금 냉장고장의 일부를 바꾼다 —
+ *     남는 벽 · 상몰딩 · 중간판 · 상부장은 그대로 두고, 정리는 새 장 둘레로 남은 뗄 것(냉장고 · 상부장 · 중간판 · 바꾸는 도어)만.
+ * @param {object} c buildPlannerPrompt 와 같은 ctx — designSpec(finishes) · doorColor · doorFinish · aspect · cleared · reform 만 읽는다
  */
 export function buildPlannerPolishPrompt(c) {
   const cleared = c.cleared === true;
+  const R = c.reform && !cleared ? reformPartsOf(c.reform, true) : null;
   const spec = c.designSpec && typeof c.designSpec === 'object' ? c.designSpec : {};
   const fin = spec.finishes || null;
   const door = designFinishPhrase(fin && fin.door) || `${c.doorColor || 'white'} ${c.doorFinish || 'matte'}`;
   const body = designFinishPhrase(fin && fin.body);
   const top = designFinishPhrase(fin && fin.top);
+  const gone = R ? [...R.remove, ...R.doors] : [];
   return [
-    `You receive one image. IMAGE A — ROOM PHOTO: the customer's real room with the new built-in units already rendered into it by our planner, using this photo's own camera. The units' position, size, depth, outline and every door and drawer division are final.`,
-    cleared
+    R
+      ? `You receive one image. IMAGE A — ROOM PHOTO: the customer's existing built-in refrigerator surround, with the new built-in units that rebuild part of it already rendered into it by our planner, using this photo's own camera. The units' position, size, depth, outline and every door division are final.`
+      : `You receive one image. IMAGE A — ROOM PHOTO: the customer's real room with the new built-in units already rendered into it by our planner, using this photo's own camera. The units' position, size, depth, outline and every door and drawer division are final.`,
+    R && `EXISTING SURROUND before the rebuild, from left to right: ${R.describe}`,
+    R
+      ? `TASK: retouch IMAGE A into one natural photograph, as if the rebuilt surround had been photographed with the same camera after the old parts it replaces were taken out. This is a polish, not a redesign.`
+      : cleared
       ? `TASK: retouch IMAGE A into one natural photograph, as if the finished units had been photographed in this room with the same camera. This is a polish, not a redesign.`
       : `TASK: retouch IMAGE A into one natural photograph, as if the finished units had been photographed in this room with the same camera after the old furniture they replace was taken out. This is a polish, not a redesign.`,
-    cleared
+    R
+      ? `KEEP EXACTLY as in IMAGE A: every outer edge, seam and door division of the units — the same number of doors with the same widths and heights, in the same place; the camera position, lens, perspective and framing; the parts of the existing surround that stay — ${reformList(R.keep)}; and the rest of the room — walls, floor, ceiling, windows, doors, tiles, pipes, wires and every object, with any marks or unfinished surfaces as they are. ${gone.length ? 'Apart from the clean-up below, do' : 'Do'} not move, stretch, add, remove, clean or redraw anything.`
+      : cleared
       ? `KEEP EXACTLY as in IMAGE A: every outer edge, seam and door or drawer division of the units — the same number of doors and drawers with the same widths and heights, in the same place; the countertop line; the camera position, lens, perspective and framing; and the whole room — walls, floor, ceiling, windows, doors, tiles, pipes, wires and every object, as they are. Do not move, stretch, add, remove, clean or redraw anything.`
       : `KEEP EXACTLY as in IMAGE A: every outer edge, seam and door or drawer division of the units — the same number of doors and drawers with the same widths and heights, in the same place; the countertop line; the camera position, lens, perspective and framing; and the rest of the room — walls, floor, ceiling, windows, doors, tiles, pipes, wires and every object that stands clear of the units, with any marks or unfinished surfaces as they are. Apart from the clean-up below, do not move, stretch, add, remove, clean or redraw anything.`,
-    !cleared && `CLEAN UP — the only change to the room: the new units replace whatever stood in their place. Remove the old built-in cabinets, shelves, hood and built-in appliances the units overlap, together with the rest of that same old run on that wall, and any other object the units now cover or cut through, so that no part of it still shows around, above, beside or between the units. Remove each one completely, with its shadow, and continue the wall, floor and ceiling behind it in their own colour and texture, with no demolition marks or ghost outlines. Free-standing objects that stand clear of the units — a refrigerator, chairs, carts, plants — stay where they are.`,
+    R && gone.length && `CLEAN UP — the only change: the units replace ${reformList(gone)}. Wherever any part of those old pieces still shows around, above, beside or between the units, remove it completely, with its shadow, and continue the back wall, the floor and the surround that stays behind it in their own colour and texture, with no demolition marks or ghost outlines. Do not touch the parts of the surround that stay.`,
+    R && R.fresh.length && `NEW REFRIGERATOR${R.fresh.length > 1 ? 'S' : ''}: the plain light-grey box${R.fresh.length > 1 ? 'es' : ''} in ${listJoinAnd(R.fresh.map((k) => `space ${k}`))} ${R.fresh.length > 1 ? 'are the new refrigerators' : 'is the new refrigerator'} — render ${R.fresh.length > 1 ? 'each' : 'it'} as a built-in refrigerator, its front flush with the doors, keeping exactly that size and position.`,
+    !cleared && !R && `CLEAN UP — the only change to the room: the new units replace whatever stood in their place. Remove the old built-in cabinets, shelves, hood and built-in appliances the units overlap, together with the rest of that same old run on that wall, and any other object the units now cover or cut through, so that no part of it still shows around, above, beside or between the units. Remove each one completely, with its shadow, and continue the wall, floor and ceiling behind it in their own colour and texture, with no demolition marks or ghost outlines. Free-standing objects that stand clear of the units — a refrigerator, chairs, carts, plants — stay where they are.`,
     `ON THE UNITS, CHANGE ONLY the look of light and surfaces: natural light falloff matching the room's light direction and colour temperature, soft contact shadows and ambient occlusion where the units meet the wall, floor and ceiling and in the door gaps, subtle reflections, fine material texture, and the same photographic grain and sharpness as the rest of the photo.`,
     `MATERIALS (keep the colour as rendered): fronts ${door}, the same on every door and drawer` +
       (body ? `; carcass and visible sides ${body}` : '') +
@@ -2530,6 +2645,7 @@ export function buildPlannerPolishPrompt(c) {
  * @param {object} c buildPlannerPrompt 와 같은 ctx — designSpec(walls) · existing · site · siteNotes · aspect 만 읽는다
  */
 export function buildPlannerClearPrompt(c) {
+  if (c.reform) return buildPlannerReformClearPrompt(c);   // 2026-11-02 냉장고장(리폼) — 뗄 것만 지운다
   const spec = c.designSpec && typeof c.designSpec === 'object' ? c.designSpec : {};
   const sides = plannerWalls(spec).map((w) => w.side);
   const layout = plannerLayout(spec);

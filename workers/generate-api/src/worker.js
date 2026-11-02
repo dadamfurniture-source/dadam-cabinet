@@ -33,6 +33,7 @@ import {
   cleanThemeNote,
   normalizeChat,
   normalizeDesignSpec,
+  normalizePlannerReform,
   resolveCategory,
   resolvePlannerAspect,
 } from './prompts.js';
@@ -396,6 +397,7 @@ async function createGeneration(request, env, headers) {
     planner_polish,
     planner_clear,
     planner_cleared,
+    planner_reform,
   } = body;
 
   // 입력 검사 (2026-10-26) — 크레딧 차감 전에. 방 사진 형식은 버킷 Content-Type 으로 그대로 가고,
@@ -427,7 +429,7 @@ async function createGeneration(request, env, headers) {
       user, parent, room_image, image_type, rawCategory, design_style, door_color, door_finish,
       wall_width_override, water_from_left_override, exhaust_from_left_override,
       fridge_options, design_spec, renders, aspect, title, image_provider, room_focal35, place_guide, planner_polish,
-      planner_clear, planner_cleared,
+      planner_clear, planner_cleared, planner_reform,
     });
   }
 
@@ -505,6 +507,8 @@ async function createGeneration(request, env, headers) {
  *         renders 의 elevation_labeled (번호 붙은 입면, 2026-10-19) — GPT 가 그릴 때만 IMAGE B 로 쓴다.
  *         planner_clear (2026-11-01, 방 비우기) — true 면 입면이 없어도 된다 (방 사진 한 장으로 빈 방을 그린다, options.clear).
  *         planner_cleared (2026-11-01) — 다듬기(planner_polish)일 때만, 시안 배경이 비운 방이면 true (options.cleared — 정리 줄을 뺀다).
+ *         planner_reform (2026-11-02, 간편 플래너 냉장고장(리폼)) — 지금 냉장고장 칸 · 뗄 것 / 둘 것 (prompts.js normalizePlannerReform).
+ *           비우기 · 다듬기일 때만 options.reform — 비우기는 뗄 것만 지우고, 다듬기는 남은 뗄 것만 정리한다. 재생성은 원본 값을 잇는다.
  *   받지 않음: reference_images. (realize · engine · control_* 는 2026-10-19 경로째 지웠다 — 어느 모드도 읽지 않는다)
  * 검증은 전부 크레딧 차감 전에 한다 — 틀린 요청으로 20 크레딧이 날아가지 않는다.
  * 추천안은 항상 끈다 (한 장이 결과물이다).
@@ -590,6 +594,12 @@ async function createPlannerGeneration(request, env, headers, p) {
     ...(polishOn && plannerFlagOn(p.planner_cleared, parent, 'cleared') ? { cleared: true } : {}),
     // 2026-11-01: 방 비우기 — 잡은 방 사진 한 장 + 비우기 지시문, 검사 · 대조 없음. **있을 때만** 키를 둔다
     ...(clear ? { clear: true } : {}),
+    // 2026-11-02: 냉장고장(리폼) — 비우기 · 다듬기일 때만 (뗄 것만 지우기 · 남은 뗄 것만 정리). **있을 때만** 키를 둔다. 재생성은 원본 값을 잇는다
+    ...(() => {
+      if (!clear && !polishOn) return {};
+      const r = p.planner_reform !== undefined ? normalizePlannerReform(p.planner_reform) : normalizePlannerReform(parent && parent.options && parent.options.reform);
+      return r ? { reform: r } : {};
+    })(),
     // 이미지 공급자 (2026-10-18 → 2026-10-19 기본 GPT) — 플래너 모드는 결정된 값을 **항상** 기록한다.
     //   요청 값 → 재생성 원본 값 → PLANNER_IMAGE_PROVIDER. 잡은 이 값만 읽는다 (없는 옛 행은 Gemini).
     image_provider: resolvePlannerProvider(env, p.image_provider, parent && parent.options && parent.options.image_provider),

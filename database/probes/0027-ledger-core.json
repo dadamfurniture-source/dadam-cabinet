@@ -1,0 +1,440 @@
+{
+  "title": "0027 회계장부 바탕 — 장부 표는 서버만 · 지우지 않는 장부(취소 한 번 · 고치기는 새 줄) · 사진 파일 칸 고정 · 사진 올리기 한 번 · 원가 줄을 지우면 사진은 확인 기다림 · 수주로 옮기기 · 장부 합치기(수금 부가세 계산 · 원가 계정 잇기) · 바꾼 기록(원가 · 수금 포함, 요청 머리 사람) (scripts/rls-probe.mjs)",
+  "ids": [
+    "company_x",
+    "design_x",
+    "snap_x",
+    "doc_x",
+    "order_x",
+    "cp_x",
+    "cost_x",
+    "doc_a",
+    "doc_b",
+    "entry_a"
+  ],
+  "users": [
+    "x_owner_user",
+    "x_staff_user",
+    "other_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_x}}, {{x_staff_user}}, 'staff', 'active')",
+    "INSERT INTO public.designs (id, user_id, name, company_id) VALUES ({{design_x}}, {{x_owner_user}}, 'probe', {{company_x}})",
+    "INSERT INTO public.design_snapshots (id, design_id, rev, content_hash, design_payload, bom_payload, item_count) VALUES ({{snap_x}}, {{design_x}}, 1, 'probe', '{}', '{}', 1)",
+    "INSERT INTO public.design_documents (id, design_id, snapshot_id, doc_type, rev, doc_no, title, render_payload, content_hash) VALUES ({{doc_x}}, {{design_x}}, {{snap_x}}, 'work_order', 1, 'probe-' || {{doc_x}}::text, 'probe', '{}', 'probe')",
+    "INSERT INTO public.orders (id, order_no, design_id, document_id, snapshot_id, contract_amount, company_id, customer_name) VALUES ({{order_x}}, 'probe-' || {{order_x}}::text, {{design_x}}, {{doc_x}}, {{snap_x}}, 0, {{company_x}}, 'probe')",
+    "INSERT INTO public.order_payments (order_id, stage, amount) VALUES ({{order_x}}, 'deposit', 1)",
+    "INSERT INTO public.order_costs (id, order_id, category, amount, spent_on) VALUES ({{cost_x}}, {{order_x}}, 'material', 1000, current_date)",
+    "INSERT INTO public.order_costs (order_id, category, amount) VALUES ({{order_x}}, 'material', 0)",
+    "INSERT INTO public.company_settings (company_id, settings) VALUES ({{company_x}}, '{}'::jsonb) ON CONFLICT (company_id) DO NOTHING",
+    "INSERT INTO public.counterparties (id, kind, name, company_id) VALUES ({{cp_x}}, 'supplier', 'probe-' || {{cp_x}}::text, {{company_x}})",
+    "INSERT INTO public.ledger_documents (id, company_id, uploaded_by, storage_path, mime, size_bytes, sha256) VALUES ({{doc_a}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_a}}::text, 'image/jpeg', 100, repeat('a', 64)), ({{doc_b}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_b}}::text, 'image/jpeg', 100, repeat('b', 64))",
+    "INSERT INTO public.ledger_evidence (company_id, document_id, cost_id) VALUES ({{company_x}}, {{doc_b}}, {{cost_x}})",
+    "UPDATE public.ledger_documents SET review_status = 'posted', decided_by = {{x_owner_user}}, decided_at = now() WHERE id = {{doc_b}}",
+    "INSERT INTO public.ledger_entries (id, company_id, entry_date, direction, account, amount, evidence_type, source, created_by) VALUES ({{entry_a}}, {{company_x}}, current_date, 'expense', 'admin.supplies', 5000, 'card', 'manual', {{x_owner_user}})"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "x_staff": {
+      "role": "authenticated",
+      "user": "x_staff_user"
+    },
+    "other": {
+      "role": "authenticated",
+      "user": "other_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "장부 · 사진 읽기는 서버만",
+      "sql": "select (select count(*) from public.ledger_entries where company_id = {{company_x}}) + (select count(*) from public.ledger_documents where company_id = {{company_x}}) + (select count(*) from public.ledger_evidence where company_id = {{company_x}})",
+      "expect": {
+        "service_role": 4,
+        "*": "deny"
+      }
+    },
+    {
+      "name": "계정 씨앗 23개 · 원가 잇기 6개 (노무 · 외주는 아직)",
+      "sql": "select (select count(*) from public.ledger_accounts) || '/' || (select count(*) from public.ledger_cost_accounts) || '/' || (select count(*) from public.ledger_cost_accounts where category in ('labor', 'outsourcing'))",
+      "expect": {
+        "service_role": "23/6/0",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "바꾼 기록은 누구도 직접 넣지 못한다",
+      "sql": "insert into public.ledger_events (table_name, row_id, op) values ('ledger_entries', {{entry_a}}, 'insert')",
+      "expect": {
+        "*": "deny"
+      }
+    },
+    {
+      "name": "장부 줄 넣기는 서버만",
+      "sql": "insert into public.ledger_entries (company_id, entry_date, direction, account, amount, evidence_type, source, created_by) values ({{company_x}}, current_date, 'expense', 'admin.supplies', 5000, 'card', 'manual', {{x_owner_user}})",
+      "expect": {
+        "service_role": "ok",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "계정과 맞지 않는 방향은 막는다 (일반관리비에 수입)",
+      "sql": "insert into public.ledger_entries (company_id, entry_date, direction, account, amount, evidence_type, source, created_by) values ({{company_x}}, current_date, 'income', 'admin.supplies', 5000, 'card', 'manual', {{x_owner_user}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:P0001"
+      }
+    },
+    {
+      "name": "자산 계정은 사기 · 팔기",
+      "sql": "insert into public.ledger_entries (company_id, entry_date, direction, account, amount, evidence_type, source, created_by) values ({{company_x}}, current_date, 'asset_buy', 'asset.tangible', 5000, 'card', 'manual', {{x_owner_user}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "금액 0 은 막는다",
+      "sql": "insert into public.ledger_entries (company_id, entry_date, direction, account, amount, evidence_type, source, created_by) values ({{company_x}}, current_date, 'expense', 'admin.supplies', 0, 'card', 'manual', {{x_owner_user}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "모르는 증빙 종류는 막는다",
+      "sql": "insert into public.ledger_entries (company_id, entry_date, direction, account, amount, evidence_type, source, created_by) values ({{company_x}}, current_date, 'expense', 'admin.supplies', 5000, 'photo', 'manual', {{x_owner_user}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "장부 줄 금액은 고치지 않는다",
+      "sql": "update public.ledger_entries set amount = 1 where id = {{entry_a}}",
+      "expect": {
+        "service_role": "err:P0001",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "장부 줄 취소는 된다",
+      "sql": "update public.ledger_entries set voided_at = now(), voided_by = {{x_owner_user}}, void_reason = 'probe' where id = {{entry_a}}",
+      "expect": {
+        "service_role": "rows:1",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "취소한 줄은 다시 바뀌지 않는다",
+      "sql": "update public.ledger_entries set voided_at = now(), voided_by = {{x_owner_user}} where id = {{entry_a}}; update public.ledger_entries set void_reason = 'again' where id = {{entry_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:P0001"
+      }
+    },
+    {
+      "name": "장부 줄은 지우지 않는다 (서버도)",
+      "sql": "delete from public.ledger_entries where id = {{entry_a}}",
+      "expect": {
+        "*": "deny"
+      }
+    },
+    {
+      "name": "사진 파일 칸은 고치지 않는다",
+      "sql": "update public.ledger_documents set sha256 = repeat('c', 64) where id = {{doc_a}}",
+      "expect": {
+        "service_role": "err:P0001",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "사진 상태는 서버가 고친다",
+      "sql": "update public.ledger_documents set review_status = 'returned', decision_reason = 'probe' where id = {{doc_a}}",
+      "expect": {
+        "service_role": "rows:1",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "같은 업체에 같은 사진 파일은 하나",
+      "sql": "insert into public.ledger_documents (company_id, uploaded_by, storage_path, mime, size_bytes, sha256) values ({{company_x}}, {{x_staff_user}}, 'probe/dup-' || {{doc_a}}::text, 'image/jpeg', 100, repeat('a', 64))",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "사진 형식은 JPEG · PNG 만",
+      "sql": "insert into public.ledger_documents (company_id, uploaded_by, storage_path, mime, size_bytes, sha256) values ({{company_x}}, {{x_staff_user}}, 'probe/heic-' || {{doc_a}}::text, 'image/heic', 100, repeat('d', 64))",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "사진은 지우지 않는다 (서버도)",
+      "sql": "delete from public.ledger_documents where id = {{doc_a}}",
+      "expect": {
+        "*": "deny"
+      }
+    },
+    {
+      "name": "증빙은 장부 줄 · 원가 줄 중 하나",
+      "sql": "insert into public.ledger_evidence (company_id, document_id) values ({{company_x}}, {{doc_a}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "사진 올리기 — 장부 줄로 (서버만)",
+      "sql": "select public.ledger_post_document({{doc_a}}, {{x_owner_user}}, jsonb_build_object('target', 'entry', 'entry', jsonb_build_object('entry_date', current_date, 'direction', 'expense', 'account', 'admin.supplies', 'amount', 3000, 'evidence_type', 'card')))->>'ok'",
+      "expect": {
+        "service_role": "true",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "사진 올리기는 한 번만",
+      "sql": "select public.ledger_post_document({{doc_a}}, {{x_owner_user}}, jsonb_build_object('target', 'entry', 'entry', jsonb_build_object('entry_date', current_date, 'direction', 'expense', 'account', 'admin.supplies', 'amount', 3000, 'evidence_type', 'card'))); select public.ledger_post_document({{doc_a}}, {{x_owner_user}}, jsonb_build_object('target', 'entry', 'entry', jsonb_build_object('entry_date', current_date, 'direction', 'expense', 'account', 'admin.supplies', 'amount', 3000, 'evidence_type', 'card')))->>'reason'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "not_pending"
+      }
+    },
+    {
+      "name": "사진 올리기 — 그 업체 수주 원가 줄로",
+      "sql": "select public.ledger_post_document({{doc_a}}, {{x_owner_user}}, jsonb_build_object('target', 'order_cost', 'order_id', {{order_x}}, 'cost', jsonb_build_object('category', 'material', 'amount', 1000, 'vat_amount', 100, 'evidence_type', 'tax_invoice', 'spent_on', current_date)))->>'ok'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "사진 올리기 — 그 업체 수주가 아니면 못 올린다",
+      "sql": "select public.ledger_post_document({{doc_a}}, {{x_owner_user}}, jsonb_build_object('target', 'order_cost', 'order_id', {{design_x}}, 'cost', jsonb_build_object('category', 'material', 'amount', 1000, 'vat_amount', 100, 'evidence_type', 'tax_invoice', 'spent_on', current_date)))->>'reason'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "order_not_found"
+      }
+    },
+    {
+      "name": "사진 올리기 — 이미 올린 원가 줄에 붙이기",
+      "sql": "select public.ledger_post_document({{doc_a}}, {{x_owner_user}}, jsonb_build_object('target', 'attach', 'cost_id', {{cost_x}}))->>'role'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "supporting"
+      }
+    },
+    {
+      "name": "원가 줄을 지우면 그 사진은 확인 기다림으로",
+      "sql": "delete from public.order_costs where id = {{cost_x}}; select review_status from public.ledger_documents where id = {{doc_b}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "pending"
+      }
+    },
+    {
+      "name": "수주로 옮기기 — 장부 줄 취소 + 원가 줄",
+      "sql": "select public.ledger_move_to_order({{entry_a}}, {{order_x}}, {{x_owner_user}}, 'other', 'probe'); select count(*) from public.ledger_entries where id = {{entry_a}} and voided_at is not null",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": 1
+      }
+    },
+    {
+      "name": "고치기 — 취소 + 새 줄(replaces_id)",
+      "sql": "select public.ledger_correct_entry({{entry_a}}, {{x_owner_user}}, '{\"amount\":4000}'::jsonb, 'probe'); select count(*) from public.ledger_entries where replaces_id = {{entry_a}} and amount = 4000 and account = 'admin.supplies'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": 1
+      }
+    },
+    {
+      "name": "장부 합치기 — 일반과세 업체 수금은 공급가 · 부가세 계산값",
+      "sql": "update public.company_settings set settings = '{\"tax\":{\"vat_type\":\"general\"}}'::jsonb where company_id = {{company_x}}; update public.order_payments set amount = 11000, paid_on = current_date where order_id = {{order_x}}; select sum(amount) || '/' || sum(vat_amount) || '/' || bool_and(vat_computed) from public.ledger_book({{company_x}}, current_date, current_date) where source = 'payment'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "10000/1000/true"
+      }
+    },
+    {
+      "name": "장부 합치기 — 과세 유형을 모르면 수금은 그대로",
+      "sql": "update public.order_payments set amount = 11000, paid_on = current_date where order_id = {{order_x}}; select sum(amount) || '/' || count(vat_amount) from public.ledger_book({{company_x}}, current_date, current_date) where source = 'payment'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "11000/0"
+      }
+    },
+    {
+      "name": "장부 합치기 — 원가 계정은 업종으로 (제조 → 재료비 매입, 낸 날 없는 줄은 뺌)",
+      "sql": "update public.company_settings set settings = '{\"tax\":{\"business_kind\":\"manufacturing\"}}'::jsonb where company_id = {{company_x}}; select string_agg(coalesce(account, '-'), ',') from public.ledger_book({{company_x}}, current_date, current_date) where source = 'cost'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "purchase.materials"
+      }
+    },
+    {
+      "name": "장부 합치기 — 도소매는 상품매입",
+      "sql": "update public.company_settings set settings = '{\"tax\":{\"business_kind\":\"retail\"}}'::jsonb where company_id = {{company_x}}; select string_agg(coalesce(account, '-'), ',') from public.ledger_book({{company_x}}, current_date, current_date) where source = 'cost'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "purchase.goods"
+      }
+    },
+    {
+      "name": "장부 합치기 — 업종을 모르면 계정 비움",
+      "sql": "select string_agg(coalesce(account, '-'), ',') from public.ledger_book({{company_x}}, current_date, current_date) where source = 'cost'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "-"
+      }
+    },
+    {
+      "name": "장부 합치기 — 취소 줄은 빼고, 원하면 넣는다",
+      "sql": "update public.ledger_entries set voided_at = now(), voided_by = {{x_owner_user}} where id = {{entry_a}}; select (select count(*) from public.ledger_book({{company_x}}, current_date, current_date) where source = 'entry') || '/' || (select count(*) from public.ledger_book({{company_x}}, current_date, current_date, true) where source = 'entry')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "0/1"
+      }
+    },
+    {
+      "name": "장부 합치기도 서버만",
+      "sql": "select count(*) from public.ledger_book({{company_x}}, current_date, current_date)",
+      "expect": {
+        "service_role": 2,
+        "*": "deny"
+      }
+    },
+    {
+      "name": "바꾼 기록 — 수금 줄도, 바꾼 사람은 요청 머리 x-actor-id",
+      "sql": "select set_config('request.headers', json_build_object('x-actor-id', {{x_owner_user}})::text, true); update public.order_payments set memo = 'probe' where order_id = {{order_x}}; select count(*) from public.ledger_events where table_name = 'order_payments' and op = 'update' and actor = {{x_owner_user}} and company_id = {{company_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": 1
+      }
+    },
+    {
+      "name": "바꾼 기록 — 원가 줄 지우기는 옛 값으로",
+      "sql": "delete from public.order_costs where id = {{cost_x}}; select (old_row ->> 'amount') from public.ledger_events where table_name = 'order_costs' and op = 'delete' and row_id = {{cost_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "1000"
+      }
+    },
+    {
+      "name": "바꾼 기록 — 장부 줄 넣기",
+      "sql": "insert into public.ledger_entries (company_id, entry_date, direction, account, amount, evidence_type, source, created_by) values ({{company_x}}, current_date, 'expense', 'admin.supplies', 5000, 'card', 'manual', {{x_owner_user}}); select count(*) from public.ledger_events where table_name = 'ledger_entries' and op = 'insert' and company_id = {{company_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": 2
+      }
+    },
+    {
+      "name": "바꾼 기록 읽기는 서버만",
+      "sql": "select count(*) > 0 from public.ledger_events where company_id = {{company_x}}",
+      "expect": {
+        "service_role": "true",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "거래처 사업자번호는 10자리",
+      "sql": "update public.counterparties set biz_no = '123' where id = {{cp_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "같은 업체 안 사업자번호는 하나",
+      "sql": "update public.counterparties set biz_no = '1234567890' where id = {{cp_x}}; insert into public.counterparties (kind, name, company_id, biz_no) values ('supplier', 'probe-2-' || {{cp_x}}::text, {{company_x}}, '1234567890')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "원가 부가세는 0 이상",
+      "sql": "update public.order_costs set vat_amount = -1 where id = {{cost_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "사진 버킷은 비공개 · 5MB · JPEG/PNG",
+      "sql": "select b.public::text || '/' || b.file_size_limit || '/' || array_to_string(b.allowed_mime_types, ',') from storage.buckets b where b.id = 'ledger-evidence'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "false/5242880/image/jpeg,image/png"
+      }
+    }
+  ]
+}

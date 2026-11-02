@@ -801,7 +801,8 @@ export function cashflowOf({ balances, payments, costs, orders, installs, overhe
   }
   for (const c of costs || []) {
     if (c.spent_on || !c.due_on) continue;
-    put(String(c.due_on).slice(0, 10), num(c.amount), 'outflow');
+    // 원가 줄 금액은 공급가 — 나갈 돈은 부가세까지 (옛 줄은 부가세가 NULL 이라 금액 그대로)
+    put(String(c.due_on).slice(0, 10), num(c.amount) + num(c.vat_amount), 'outflow');
   }
   const weeklyOverhead = Math.round((num(overheadMonthly) * 12) / 52);
   const latest = balances.slice().sort((a, b) => String(b.as_of).localeCompare(String(a.as_of)) || String(b.created_at || '').localeCompare(String(a.created_at || ''))).at(0) || null;
@@ -1208,7 +1209,7 @@ const pair = (value, prev) => ({ value, prev });
  * @param {Array}  p.outsource      한 해 동안의 외주 · 상판 발주 보고 (status · period_start · period_end · metrics)
  * @param {Array|null} p.balances   통장 잔액 기록 (as_of · amount). 표가 없으면 null
  * @param {Array|null} p.payments   수금 일정 (order_id · stage · amount · due_on · paid_on). 표가 없으면 null
- * @param {Array}  p.dueCosts       아직 안 낸 원가 줄 (amount · due_on · spent_on)
+ * @param {Array}  p.dueCosts       아직 안 낸 원가 줄 (amount 공급가 · vat_amount · due_on · spent_on)
  * @param {Array}  p.cashOrders     현금용 수주 (취소 아닌 것 — contract_amount · received_amount · 납품/완료일)
  * @param {Map}    p.installs       design_id → 가장 이른 설치일 (KST)
  * @param {Array|null} p.schedules  일정 (design_id · type · status · scheduled_at · planned_at · completed_at). 칸이 없으면 null

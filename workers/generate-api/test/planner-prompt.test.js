@@ -30,6 +30,8 @@ import {
   buildPlannerPrompt,
   buildPlannerPolishPrompt,
   buildPlannerClearPrompt,
+  buildPlannerReformClearPrompt,
+  normalizePlannerReform,
   buildQcPrompt,
   normalizeDesignSpec,
   parseQc,
@@ -720,4 +722,60 @@ test('다듬기 지시문 — 시안 배경이 비운 방(cleared)이면 정리 
   assert.ok(p.includes('as if the finished units had been photographed in this room with the same camera. This is a polish, not a redesign.'));
   assert.ok(p.includes('ON THE UNITS, CHANGE ONLY the look of light and surfaces:'));
   assert.ok(buildPlannerPolishPrompt(d1Ctx({ aspect: '4:3' })).includes('CLEAN UP — the only change to the room'), '비운 방이 아니면 정리 줄 그대로');
+});
+
+// 2026-11-02: 냉장고장(리폼) (사장님 「리폼 연출 이어 진행」 · 방 비우기 「바뀌는 자리만 비우기」 · 방식 「시안 → 다듬기만」)
+test('리폼 — planner_reform 정리: 아는 칸 · 폭 1–5000 만, 모르는 값은 keep, 냉장고 공간이 없으면 null', () => {
+  assert.equal(normalizePlannerReform(null), null);
+  assert.equal(normalizePlannerReform({ segs: [{ kind: 'wall', widthMm: 100 }] }), null, '냉장고 공간이 없다');
+  const r = normalizePlannerReform({
+    segs: [{ kind: 'wall', widthMm: 100.4 }, { kind: 'space', widthMm: 1070, fridge: 'burn', upper: 'doors' }, { kind: 'shelf', widthMm: 300 }, { kind: 'mid', widthMm: 0 }, { kind: 'mid', widthMm: 20, panel: 'remove' }, { kind: 'space', widthMm: 1070, fridge: 'new' }],
+    boardMm: 1980, moldingMm: 60,
+  });
+  assert.deepEqual(r, {
+    segs: [{ kind: 'wall', widthMm: 100 }, { kind: 'space', widthMm: 1070, fridge: 'keep', upper: 'doors' }, { kind: 'mid', widthMm: 20, panel: 'remove' }, { kind: 'space', widthMm: 1070, fridge: 'new', upper: 'keep' }],
+    boardMm: 1980, moldingMm: 60,
+  });
+  assert.equal(normalizePlannerReform({ segs: Array.from({ length: 30 }, () => ({ kind: 'space', widthMm: 500 })) }).segs.length, 15, '칸은 15 까지');
+  assert.deepEqual(Object.keys(normalizePlannerReform({ segs: [{ kind: 'space', widthMm: 900 }], boardMm: 99, moldingMm: 'x' })), ['segs']);
+});
+
+test('리폼 비우기 지시문 — 지금 냉장고장을 왼쪽부터 말하고 뗄 것만 지운다 (도어만 바꾸는 상부장은 도어째 둔다), 설계 벽 전체 비우기 문장 없음', () => {
+  const reform = normalizePlannerReform({
+    segs: [{ kind: 'wall', widthMm: 100 }, { kind: 'space', widthMm: 1070, fridge: 'remove', upper: 'remove' }, { kind: 'mid', widthMm: 20, panel: 'remove' }, { kind: 'space', widthMm: 1070, fridge: 'new', upper: 'doors' }, { kind: 'wall', widthMm: 100 }],
+    boardMm: 1980, moldingMm: 60,
+  });
+  const p = buildPlannerClearPrompt(d1Ctx({ aspect: '4:3', reform, existing: 'old fridge surround' }));
+  assert.equal(p, buildPlannerReformClearPrompt({ aspect: '4:3', reform }), '비우기는 리폼이면 리폼 지시문 (분석 existing 은 쓰지 않는다)');
+  assert.ok(p.includes('EXISTING SURROUND, from left to right: a 100 mm side wall; refrigerator space 1, 1070 mm wide, with a wall cabinet above it from 1980 mm up to the crown moulding; a 20 mm divider panel;'));
+  assert.ok(p.includes('A 60 mm crown moulding runs along the top.'));
+  assert.ok(p.includes('REMOVE: the refrigerator in space 1; the wall cabinet above space 1, with its doors; the 20 mm divider panel between space 1 and space 2; and the refrigerator in space 2.'));
+  assert.ok(p.includes('the side wall at the left end; the wall cabinet above space 2, with its doors; the side wall at the right end; and the crown moulding along the top — each in its place'));
+  assert.ok(p.endsWith('OUTPUT: one photorealistic photograph, 4:3, the same view as IMAGE A.'));
+  for (const gone of ['every old built-in cabinet', 'SITE:', 'MATERIALS', 'HANDLES']) assert.ok(!p.includes(gone), gone);
+  // 뗄 것이 없으면 그대로
+  const keepAll = normalizePlannerReform({ segs: [{ kind: 'space', widthMm: 900 }] });
+  assert.ok(buildPlannerReformClearPrompt({ reform: keepAll }).includes('REMOVE: nothing — return the photograph as it is.'));
+});
+
+test('리폼 다듬기 지시문 — 남는 냉장고장은 그대로, 정리는 남은 뗄 것 · 옛 도어만, 새 냉장고 상자, 비운 방 배경이면 예전 비운 방 지시문', () => {
+  const reform = normalizePlannerReform({
+    segs: [{ kind: 'wall', widthMm: 100 }, { kind: 'space', widthMm: 942, fridge: 'new', upper: 'remove' }, { kind: 'mid', widthMm: 20, panel: 'keep' }, { kind: 'space', widthMm: 1198, fridge: 'remove', upper: 'doors' }, { kind: 'wall', widthMm: 100 }],
+    boardMm: 1980, moldingMm: 60,
+  });
+  const p = buildPlannerPolishPrompt(d1Ctx({ aspect: '4:3', reform }));
+  assert.match(p, /^You receive one image\. IMAGE A — ROOM PHOTO: the customer's existing built-in refrigerator surround, with the new built-in units that rebuild part of it already rendered into it by our planner/);
+  assert.ok(p.includes('EXISTING SURROUND before the rebuild, from left to right: a 100 mm side wall; refrigerator space 1, 942 mm wide'));
+  assert.ok(p.includes('the parts of the existing surround that stay — the side wall at the left end; the 20 mm divider panel between space 1 and space 2; the wall cabinet above space 2 (its carcass); the side wall at the right end; and the crown moulding along the top;'));
+  assert.ok(p.includes('CLEAN UP — the only change: the units replace the refrigerator in space 1; the wall cabinet above space 1, with its doors; the refrigerator in space 2; and the old doors of the wall cabinet above space 2.'));
+  assert.ok(p.includes('Do not touch the parts of the surround that stay.'));
+  assert.ok(p.includes('NEW REFRIGERATOR: the plain light-grey box in space 1 is the new refrigerator — render it as a built-in refrigerator, its front flush with the doors, keeping exactly that size and position.'));
+  assert.ok(!p.includes('together with the rest of that same old run'), '옛 줄 전체를 지우는 문장은 없다');
+  assert.ok(p.indexOf('KEEP EXACTLY') < p.indexOf('CLEAN UP') && p.indexOf('CLEAN UP') < p.indexOf('ON THE UNITS, CHANGE ONLY'));
+  // 비운 방 배경 — 뗄 것은 이미 지웠다 (예전 비운 방 다듬기 그대로)
+  assert.equal(buildPlannerPolishPrompt(d1Ctx({ aspect: '4:3', reform, cleared: true })), buildPlannerPolishPrompt(d1Ctx({ aspect: '4:3', cleared: true })));
+  // 뗄 것이 없으면 정리 줄 없이
+  const keepAll = normalizePlannerReform({ segs: [{ kind: 'space', widthMm: 900 }] });
+  const k = buildPlannerPolishPrompt({ reform: keepAll });
+  assert.ok(!k.includes('CLEAN UP') && k.includes('Do not move, stretch, add, remove, clean or redraw anything.'));
 });

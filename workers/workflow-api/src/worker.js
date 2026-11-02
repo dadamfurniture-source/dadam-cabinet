@@ -30,7 +30,11 @@
  *   GET  /company/my-score — 업체 쪽 상담 (src/distribution/company.js)
  *   GET|POST /company/projects · PUT /designs/:designId/project — 업체 고객 · 프로젝트, 설계 잇기 (src/company-projects.js)
  *
- *   GET  /public/confirm                   — 고객 열람 (X-Share-Token)
+ *   GET  /ledger/me · /ledger/accounts · /ledger/book · GET|PUT /ledger/settings
+ *   POST /ledger/entries · /ledger/entries/:id/void · /ledger/entries/:id/correct
+ *   GET|POST /ledger/documents — 회계장부 (src/ledger/)
+ *
+ *   GET  /public/confirm                  — 고객 열람 (X-Share-Token)
  *   POST /public/confirm/decision          — 고객 승인/수정요청
  *
  * 인증: 내부 API 는 Supabase 사용자 JWT (Authorization: Bearer).
@@ -47,6 +51,8 @@ import {
   ValidationError,
   ConflictError,
   GoneError,
+  TooLargeError,
+  RateLimitError,
   DbError,
   verifyJwt,
   assertDesignAccess,
@@ -115,6 +121,9 @@ import {
   assertHqProduction,
 } from './production/service.js';
 import { getBooksSummary } from './books.js';
+import { createEntry, voidEntry, correctEntry, getBook, listAccounts } from './ledger/entries.js';
+import { uploadDocument, listDocuments as listLedgerDocuments } from './ledger/documents.js';
+import { ledgerMe, getLedgerSettings, putLedgerSettings } from './ledger/settings.js';
 import {
   createWorkerLink,
   listWorkerLinks,
@@ -648,6 +657,70 @@ async function handleBooksSummary(request, env, { user }) {
   return jsonResponse(request, env, { success: true, data: await getBooksSummary(env, { user, month: url.searchParams.get('month') }) }, 200, NO_STORE);
 }
 
+// ===== 회계장부 (src/ledger/) — 금액 · 사진 상태가 담겨 캐시에 남기지 않는다 =====
+
+async function handleLedgerMe(request, env, { user }) {
+  return jsonResponse(request, env, { success: true, data: await ledgerMe(env, { user }) }, 200, NO_STORE);
+}
+
+async function handleLedgerAccounts(request, env, { user }) {
+  return jsonResponse(request, env, { success: true, data: await listAccounts(env, { user }) }, 200, NO_STORE);
+}
+
+async function handleLedgerBook(request, env, { user }) {
+  const q = new URL(request.url).searchParams;
+  const data = await getBook(env, {
+    user,
+    month: q.get('month'),
+    from: q.get('from'),
+    to: q.get('to'),
+    includeVoid: q.get('include_void') === '1',
+  });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleGetLedgerSettings(request, env, { user }) {
+  return jsonResponse(request, env, { success: true, data: await getLedgerSettings(env, { user }) }, 200, NO_STORE);
+}
+
+async function handlePutLedgerSettings(request, env, { user }) {
+  const body = await readJson(request);
+  return jsonResponse(request, env, { success: true, data: await putLedgerSettings(env, { user, body }) }, 200, NO_STORE);
+}
+
+async function handleCreateLedgerEntry(request, env, { user }) {
+  const body = await readJson(request);
+  const { entry, reused } = await createEntry(env, { user, body, idempotencyKey: request.headers.get('X-Idempotency-Key') });
+  return jsonResponse(request, env, { success: true, data: { entry, reused } }, reused ? 200 : 201, NO_STORE);
+}
+
+async function handleVoidLedgerEntry(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await voidEntry(env, { user, entryId: params.id, body }) }, 200, NO_STORE);
+}
+
+async function handleCorrectLedgerEntry(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await correctEntry(env, { user, entryId: params.id, body }) }, 201, NO_STORE);
+}
+
+async function handleUploadLedgerDocument(request, env, { user }) {
+  const { document, reused } = await uploadDocument(env, { user, request });
+  return jsonResponse(request, env, { success: true, data: { document, reused } }, reused ? 200 : 201, NO_STORE);
+}
+
+async function handleListLedgerDocuments(request, env, { user }) {
+  const q = new URL(request.url).searchParams;
+  const data = await listLedgerDocuments(env, {
+    user,
+    status: q.get('status'),
+    mine: q.get('mine') === '1',
+    before: q.get('before'),
+    limit: q.get('limit'),
+  });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
 // 경영 대시보드 (Claude 프로젝트 문서 "다담 경영 대시보드" 1단계) — 관리자만, 회사 전체
 async function handleManagementSummary(request, env, { user }) {
   const url = new URL(request.url);
@@ -1089,6 +1162,18 @@ const router = createRouter([
   // 업체 장부 요약 (그 업체 대표 · 실장)
   { method: 'GET',   path: '/books/summary',      auth: 'jwt', handler: handleBooksSummary },
 
+  // 회계장부 (Agent 업체 — 자격은 company_entitled. 금액 · 장부는 대표 · 실장, 사진 올리기는 구성원 누구나)
+  { method: 'GET',  path: '/ledger/me',                 auth: 'jwt', handler: handleLedgerMe },
+  { method: 'GET',  path: '/ledger/accounts',           auth: 'jwt', handler: handleLedgerAccounts },
+  { method: 'GET',  path: '/ledger/book',               auth: 'jwt', handler: handleLedgerBook },
+  { method: 'GET',  path: '/ledger/settings',           auth: 'jwt', handler: handleGetLedgerSettings },
+  { method: 'PUT',  path: '/ledger/settings',           auth: 'jwt', handler: handlePutLedgerSettings },
+  { method: 'POST', path: '/ledger/entries',            auth: 'jwt', handler: handleCreateLedgerEntry },
+  { method: 'POST', path: '/ledger/entries/:id/void',   auth: 'jwt', handler: handleVoidLedgerEntry },
+  { method: 'POST', path: '/ledger/entries/:id/correct', auth: 'jwt', handler: handleCorrectLedgerEntry },
+  { method: 'GET',  path: '/ledger/documents',          auth: 'jwt', handler: handleListLedgerDocuments },
+  { method: 'POST', path: '/ledger/documents',          auth: 'jwt', handler: handleUploadLedgerDocument },
+
   // 거래처 · 공급처 (그 업체 대표 · 실장, 본사 목록은 관리자도)
   { method: 'GET',   path: '/counterparties',     auth: 'jwt', handler: handleListCounterparties },
   { method: 'POST',  path: '/counterparties',     auth: 'jwt', handler: handleCreateCounterparty },
@@ -1189,7 +1274,7 @@ const router = createRouter([
 export const DAILY_BRIEF_CRON = '0 22 * * SUN-THU';
 
 function errorResponse(request, env, err) {
-  const known = [AuthError, ForbiddenError, NotFoundError, ValidationError, ConflictError, GoneError];
+  const known = [AuthError, ForbiddenError, NotFoundError, ValidationError, ConflictError, GoneError, TooLargeError, RateLimitError];
   if (known.some((C) => err instanceof C)) {
     return jsonResponse(
       request,

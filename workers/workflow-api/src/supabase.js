@@ -60,6 +60,24 @@ export class GoneError extends Error {
   }
 }
 
+/** 본문이 너무 크다 (413) — 장부 사진 올리기 */
+export class TooLargeError extends Error {
+  constructor(message = '요청 본문이 너무 큽니다', code = 'too_large') {
+    super(message);
+    this.statusCode = 413;
+    this.code = code;
+  }
+}
+
+/** 너무 잦다 (429) — code: rate_limited(분 한도) · daily_limit(하루 장수) */
+export class RateLimitError extends Error {
+  constructor(message = '요청이 너무 잦습니다. 잠시 뒤 다시 시도해 주세요', code = 'rate_limited') {
+    super(message);
+    this.statusCode = 429;
+    this.code = code;
+  }
+}
+
 export class DbError extends Error {
   constructor(message, statusCode = 500) {
     super(message);
@@ -95,12 +113,21 @@ export async function verifyJwt(request, env) {
   };
 }
 
+/**
+ * 장부 바꾼 기록(ledger_events)에 남길 사람 — 이 env 로 부르는 요청은 PostgREST 머리 x-actor-id 를 싣는다.
+ * DB 트리거가 그 머리를 읽는다 (database/migrations/0027 ledger_actor). 서비스 키 요청이라 사용자는 이 머리를 못 보낸다.
+ */
+export function asActor(env, user) {
+  return { ...env, ACTOR_ID: user && user.id ? String(user.id) : null };
+}
+
 function restHeaders(env, prefer = 'return=representation') {
   return {
     apikey: env.SUPABASE_SERVICE_ROLE_KEY,
     Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
     'Content-Type': 'application/json',
     Prefer: prefer,
+    ...(env.ACTOR_ID ? { 'x-actor-id': env.ACTOR_ID } : {}),
   };
 }
 

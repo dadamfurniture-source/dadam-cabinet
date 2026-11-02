@@ -41,3 +41,20 @@ export async function createSignedUrls(env, bucket, paths, expiresIn = SIGNED_UR
   }
   return out;
 }
+
+/**
+ * 비공개 버킷에 파일 하나 올리기 (service role). upsert 가 아니면 같은 경로가 있을 때 실패한다.
+ */
+export async function uploadObject(env, bucket, path, bytes, contentType, { upsert = false } = {}) {
+  const res = await fetch(`${env.SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
+    method: 'POST',
+    headers: {
+      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+      'Content-Type': contentType,
+      'x-upsert': upsert ? 'true' : 'false',
+    },
+    body: bytes,
+  });
+  if (!res.ok) throw new DbError(`Storage upload ${res.status}: ${await res.text()}`, res.status);
+}
