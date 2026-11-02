@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>비서 · SEGAN</title>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026110301" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110301" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110301" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110301" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="shell.css?v=2026110301" />
+    <link rel="stylesheet" href="make.css?v=2026110301" />
+    <link rel="stylesheet" href="assistant.css?v=2026110301" />
+    <!-- 업체 AI 비서 — assistant-api /assistant/* (자격이 있는 업체 구성원. 대화는 자격 full 만) -->
+    <script src="../js/config.js?v=2026110301"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <!-- 관리 탭 — 관리자에게만 연다 (segan/shell.js applyAdminTab) -->
+    <script src="../js/admin-access.js?v=2026110301"></script>
+    <!-- 작업 탭 — 작업자에게만 연다 (segan/shell.js applyRoleTabs · GET /work/me) -->
+    <script src="../js/mypage-work.js?v=2026110301"></script>
+    <script src="shell.js?v=2026110301" defer></script>
+    <script src="assistant.js?v=2026110301" defer></script>
+  </head>
+  <body class="sg-app" data-tab="assistant">
+    <div data-segan-shell="header"></div>
+
+    <main class="sg-main as" id="main">
+      <h1 class="sg-h1" id="asTitle">비서</h1>
+
+      <div class="sg-checking" data-auth-view="checking">
+        <p class="sg-note">확인하는 중…</p>
+      </div>
+      <div data-auth-view="signed-out" hidden>
+        <div data-segan-shell="gate"></div>
+      </div>
+      <div data-auth-view="signed-in" hidden>
+        <p class="as-state" id="asState" role="status"></p>
+
+        <div id="asBody" hidden>
+          <p class="as-readonly" id="asReadonly" hidden>지금은 지난 대화를 보기만 할 수 있습니다.</p>
+
+          <!-- 대화 목록 — 새것부터 20개 -->
+          <section class="as-list" id="asListView" aria-labelledby="asListTitle">
+            <div class="as-head">
+              <h2 class="as-sub" id="asListTitle">대화</h2>
+              <button type="button" class="mk-btn mk-btn--solid" id="asNew">새 대화</button>
+            </div>
+            <ul class="as-convs" id="asConvs" aria-label="대화 목록"></ul>
+          </section>
+
+          <!-- 대화 한 개 -->
+          <section class="as-chat" id="asChat" hidden aria-labelledby="asConvTitle">
+            <div class="as-head">
+              <button type="button" class="mk-link" id="asBack">‹ 대화 목록</button>
+              <h2 class="as-sub" id="asConvTitle">새 대화</h2>
+            </div>
+            <ol class="as-msgs" id="asMsgs" aria-label="대화" aria-live="polite"></ol>
+            <p class="as-tool" id="asTool" role="status" hidden></p>
+            <p class="as-end" id="asEnd" role="alert" hidden></p>
+            <form class="as-form" id="asForm" novalidate>
+              <label class="mk-input as-input"
+                ><span>보낼 글</span
+                ><textarea id="asText" maxlength="4000" rows="2" placeholder="궁금한 것을 적어 주세요"></textarea>
+              </label>
+              <button type="submit" class="mk-btn mk-btn--solid" id="asSend">보내기</button>
+            </form>
+            <p class="mk-note as-warn">AI가 만든 내용은 틀릴 수 있습니다. 숫자는 장부 · 수주 화면에서 확인하세요</p>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+  </body>
+</html>

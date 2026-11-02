@@ -67,6 +67,15 @@ async function load(options = {}) {
         json: async () => ({ success: true, data: { ready: true, worker: null } }),
       };
     }
+    // 셸의 비서 탭 판정(GET /assistant/me)도 따로 센다 — 비서 자격 없음
+    if (url.endsWith('/assistant/me')) {
+      calls.assistantMe = (calls.assistantMe || 0) + 1;
+      return {
+        ok: false,
+        status: 403,
+        json: async () => ({ success: false, code: 'not_member' }),
+      };
+    }
     calls.fetch.push({ url, auth: (init.headers || {}).Authorization });
     const r = opts.replies[url];
     if (r instanceof Error) throw r;

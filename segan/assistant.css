@@ -1,0 +1,206 @@
+/* ============================================================
+   segan/assistant.css — 업체 AI 비서 (segan/assistant.html). 색 · 선은 shell.css 의 v5 토큰.
+   ============================================================ */
+
+/* mk-btn 같은 display 를 가진 칸도 hidden 이면 감춘다 */
+.as [hidden] {
+  display: none !important;
+}
+
+.as-state {
+  min-height: 1em;
+  margin: 0 0 12px;
+  color: var(--v5-ink-62);
+  font-size: 13px;
+}
+
+.as-readonly {
+  margin: 0 0 16px;
+  color: var(--v5-tan);
+  font-size: 13px;
+}
+
+.as-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 12px;
+}
+
+.as-sub {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+/* ── 대화 목록 ── */
+.as-convs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.as-convs li {
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.as-conv {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--v5-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.as-conv b {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.as-conv small {
+  flex: none;
+  color: var(--v5-ink-45);
+  font-size: 12px;
+}
+
+.as-conv:hover b,
+.as-conv:focus-visible b {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.as-empty {
+  padding: 16px 4px;
+  color: var(--v5-ink-60);
+  font-size: 13px;
+}
+
+/* ── 대화 ── */
+.as-msgs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.as-msg {
+  max-width: min(88%, 760px);
+  padding: 10px 14px;
+}
+
+.as-msg--user {
+  align-self: flex-end;
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
+.as-msg--ai {
+  align-self: flex-start;
+  border: 1px solid var(--v5-line);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+}
+
+.as-tag {
+  display: block;
+  margin: 0 0 4px;
+  color: var(--v5-tan);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+/* 글은 받은 그대로 — 줄 바꿈을 지키고 HTML 로 바꾸지 않는다 (assistant.js textContent) */
+.as-text {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.as-msg--wait .as-text {
+  color: var(--v5-ink-45);
+}
+
+.as-tool {
+  margin: 0 0 10px;
+  color: var(--v5-ink-55);
+  font-size: 12px;
+}
+
+.as-end {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-well);
+  color: var(--v5-ink);
+  font-size: 13px;
+}
+
+/* 입력 칸 — 폰은 아래 탭 바로 위, PC 는 화면 아래에 붙는다 */
+.as-form {
+  position: sticky;
+  bottom: calc(var(--sg-tab) + env(safe-area-inset-bottom));
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  margin: 0 0 8px;
+  padding: 10px 0;
+  background: var(--v5-invert);
+}
+
+.as-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.as-input > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.as-input textarea {
+  min-height: 48px;
+  max-height: 40vh;
+}
+
+.as-form .mk-btn {
+  flex: none;
+}
+
+.as-warn {
+  margin: 0;
+}
+
+@media (min-width: 768px) {
+  .as-form {
+    bottom: 0;
+  }
+}
