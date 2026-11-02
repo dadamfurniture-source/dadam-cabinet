@@ -3,6 +3,7 @@
  *
  * 넣지 않는 것: 고객 이름 · 전화 · 주소 · 금액 · 설계 제목(제목에 이름이 들어갈 수 있다).
  *   새 상담 배정(consult_assigned)만 품목 · 시/군/구를 싣는다 — 정해진 목록 · 모양에 맞는 값만.
+ *   장부 알림(ledger_*)은 사진 수만 싣는다 — 금액 · 상호 · 메모 · 돌려보낸 이유는 없다.
  * 수주 번호는 서버가 만든 모양(SO-YYYYMMDD-XXXX: 날짜 + 설계 id 앞 4자)일 때만 싣는다 (safeOrderNo).
  * 열 곳은 앱 안(/segan/…)만 — DB 도 ^/segan/ 만 받는다.
  *
@@ -12,7 +13,10 @@
  * 시험이 이 파일과 같은지 본다 — 글을 바꾸면 세 곳을 같이 바꾼다.
  */
 
-/** DB notification_outbox_kind_check 와 같다 (작업자 넷은 0023) */
+/**
+ * DB notification_outbox_kind_check 의 앞부분 (작업자 넷은 0023, 장부 둘은 0030).
+ * 0030 의 assistant_brief 는 아직 이 워커가 넣지 않는다.
+ */
 export const NOTIFICATION_KINDS = Object.freeze([
   'order_request',
   'order_request_decided',
@@ -25,6 +29,8 @@ export const NOTIFICATION_KINDS = Object.freeze([
   'work_registration',
   'work_assigned',
   'work_schedule',
+  'ledger_pending',
+  'ledger_returned',
 ]);
 
 /** 작업자 알림 — 업체 없이(company_id 비움) 넣고 업체 없는 기기로 간다 (DB notification_outbox_company_check, 0023) */
@@ -228,6 +234,27 @@ function workSchedule(p) {
   return { title: '작업 일정 바뀜', body, url: j.url };
 }
 
+/** 장부 화면 (내 정보 › 회계 › 장부 — 대표 · 실장은 「확인할 사진」, 직원은 올린 사진 상태) */
+export const LEDGER_URL = '/segan/ledger.html';
+/** 확인할 사진 수 — 이보다 많으면 「N장 넘게」 */
+export const LEDGER_PENDING_MAX = 999;
+
+/** 확인할 사진 — 업체 대표 · 실장에게. { count } (확인 기다리는 사진 수, 1 이상) */
+function ledgerPending({ count } = {}) {
+  if (!Number.isInteger(count) || count < 1) return null;
+  const n = count > LEDGER_PENDING_MAX ? `${LEDGER_PENDING_MAX}장 넘게` : `${count}장`;
+  return { title: '확인할 사진', body: `확인할 영수증 · 명세표 사진이 ${n} 있습니다.`, url: LEDGER_URL };
+}
+
+/** 돌려받은 사진 — 사진을 올린 사람에게 (이유는 싣지 않는다 — 장부 화면에서 본다) */
+function ledgerReturned() {
+  return {
+    title: '돌려받은 사진',
+    body: '올린 영수증 · 명세표 사진이 돌려보내졌습니다. 이유를 확인해 주세요.',
+    url: LEDGER_URL,
+  };
+}
+
 const BUILDERS = Object.freeze({
   order_request: orderRequest,
   order_request_decided: orderRequestDecided,
@@ -240,6 +267,8 @@ const BUILDERS = Object.freeze({
   work_registration: workRegistration,
   work_assigned: workAssigned,
   work_schedule: workSchedule,
+  ledger_pending: ledgerPending,
+  ledger_returned: ledgerReturned,
 });
 
 /**

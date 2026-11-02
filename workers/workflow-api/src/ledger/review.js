@@ -5,7 +5,8 @@
  *                                           + 최근 읽기 시도(상태 · 읽은 칸 · 검사) + 10분 서명 주소. ?company= 본사 보기만
  *   POST /ledger/documents/:id/post         확인한 사진 올리기 { target: entry | order_cost | attach, … } → ledger_post_document
  *                                           그 뒤 읽은 값과 올린 값이 다른 칸을 ledger_extraction_feedback 에 한 줄 (실패해도 올리기는 끝)
- *   POST /ledger/documents/:id/return       돌려보내기 { reason } — 확인 기다리는 사진만 (아니면 409)
+ *   POST /ledger/documents/:id/return       돌려보내기 { reason } — 확인 기다리는 사진만 (아니면 409).
+ *                                           응답 뒤 올린 사람에게 앱 알림 ledger_returned (src/push/ledger-hooks.js — 이유는 싣지 않는다)
  *   POST /ledger/documents/:id/reject       버리기 { reason } — 같다
  *   POST /ledger/documents/:id/reread       다시 읽기 (실패 · 거절 · 한도 뒤) → 202 { queued }
  *   POST /ledger/review/post                한꺼번에 올리기 { items: [{ id, …올리기 본문 }] } 20장까지, 장마다 따로 → [{ id, ok, … }]
@@ -30,6 +31,8 @@ import {
   ConflictError,
 } from '../supabase.js';
 import { createSignedUrls } from '../storage.js';
+import { later } from '../push/work-hooks.js';
+import { notifyLedgerReturned } from '../push/ledger-hooks.js';
 import { requestExtract } from './extract.js';
 import { COST_CATEGORIES } from '../orders.js';
 import { assertCounterparty } from '../counterparties.js';
@@ -335,7 +338,7 @@ export async function postBatch(env, { user, body }) {
 }
 
 /** POST /ledger/documents/:id/return · /reject */
-export async function decideDocument(env, { user, documentId, body, status }) {
+export async function decideDocument(env, { user, documentId, body, status, ctx = null }) {
   if (status !== 'returned' && status !== 'rejected') throw new ValidationError('status 가 올바르지 않습니다');
   const access = await writer(env, user);
   const reason = reasonOf(body && body.reason);
@@ -347,6 +350,8 @@ export async function decideDocument(env, { user, documentId, body, status }) {
     { review_status: status, decided_by: user.id, decided_at: new Date().toISOString(), decision_reason: reason },
   );
   if (!rows || !rows.length) throw new ConflictError('이미 확인한 사진입니다', { code: 'not_pending' });
+  // 돌려보내면 올린 사람에게 알림 — 응답 뒤에, 실패해도 결정은 그대로 (던지지 않는다)
+  if (status === 'returned') await later(ctx, notifyLedgerReturned(env, { document: rows[0], actorId: user.id }));
   return { document: documentView(rows[0], true) };
 }
 

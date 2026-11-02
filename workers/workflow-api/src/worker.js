@@ -127,6 +127,7 @@ import { createEntry, voidEntry, correctEntry, getBook, listAccounts } from './l
 import { uploadDocument, listDocuments as listLedgerDocuments } from './ledger/documents.js';
 import { listReview, postDocument, postBatch, decideDocument, rereadDocument, businessStatus } from './ledger/review.js';
 import { runExtractDue } from './ledger/extract.js';
+import { runLedgerPendingNotices } from './push/ledger-hooks.js';
 import { ledgerMe, getLedgerSettings, putLedgerSettings } from './ledger/settings.js';
 import {
   createWorkerLink,
@@ -754,9 +755,9 @@ async function handlePostLedgerBatch(request, env, { user }) {
   return jsonResponse(request, env, { success: true, data: await postBatch(env, { user, body }) }, 200, NO_STORE);
 }
 
-async function handleReturnLedgerDocument(request, env, { params, user }) {
+async function handleReturnLedgerDocument(request, env, { params, user, ctx }) {
   const body = (await readJson(request)) || {};
-  return jsonResponse(request, env, { success: true, data: await decideDocument(env, { user, documentId: params.id, body, status: 'returned' }) }, 200, NO_STORE);
+  return jsonResponse(request, env, { success: true, data: await decideDocument(env, { user, documentId: params.id, body, status: 'returned', ctx }) }, 200, NO_STORE);
 }
 
 async function handleRejectLedgerDocument(request, env, { params, user }) {
@@ -1378,7 +1379,8 @@ export default {
    *   DAILY_BRIEF_CRON — 평일 아침 7시(KST) 생산 요약 · 월 마감
    *   PUSH_SEND_CRON   — 1분마다 앱 알림 보내기, 하루 한 번 그 1분에 끝난 알림 정리 (src/push/sender.js),
    *                      24시간 지난 상담 배정 되돌리기 (src/distribution/company.js runAssignmentExpiry),
-   *                      장부 사진 읽기 다시 걸기 (src/ledger/extract.js runExtractDue),
+   *                      장부 사진 읽기 다시 걸기 (src/ledger/extract.js runExtractDue) · 확인할 사진 알림
+   *                      (src/push/ledger-hooks.js runLedgerPendingNotices),
    *                      분이 5의 배수면 새 상담 · 새 업체 신청 Slack 알림 (src/consult-notify.js)
    */
   async scheduled(event, env, ctx) {
@@ -1387,8 +1389,13 @@ export default {
         runPushSender(env, { nowMs: event.scheduledTime }).catch((e) => console.error('push sender failed:', e && e.statusCode ? e.statusCode : 'error')),
       );
       // 장부 사진 읽기 — 올린 직후 걸기가 빠졌거나 읽기가 실패 · 멈춘 사진을 다시 건다 (src/ledger/extract.js, 던지지 않는다).
-      // assistant-api 바인딩이 있을 때만 (없으면 걸 곳이 없다)
-      if (env.ASSISTANT) ctx.waitUntil(runExtractDue(env));
+      // 같이: 읽기가 막 끝난 업체의 대표 · 실장에게 확인할 사진 알림 (src/push/ledger-hooks.js, 던지지 않는다).
+      // assistant-api 바인딩이 있을 때만 (없으면 걸 곳도, 새로 끝나는 읽기도 없다)
+      if (env.ASSISTANT) {
+        ctx.waitUntil(
+          Promise.all([runExtractDue(env), runLedgerPendingNotices(env, { nowMs: event.scheduledTime })]),
+        );
+      }
       // 24시간 지난 상담 배정 → 무응답, 본사 상담은 다시 대기 (src/distribution/company.js)
       ctx.waitUntil(
         runAssignmentExpiry(env, { nowMs: event.scheduledTime }).catch((e) => console.error('assignment expiry failed:', e && e.statusCode ? e.statusCode : 'error')),
