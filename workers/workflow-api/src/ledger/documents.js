@@ -8,6 +8,7 @@
  *       → 버킷 ledger-evidence `{업체}/{yyyy}/{mm}/{사진 id}.jpg|png` → 줄
  *   GET  /ledger/documents   대표 · 실장: 업체 사진 전부 (?status= · ?mine=1 · ?before= · ?limit=).
  *                            직원: 자기가 올린 것의 일자 · 상태 · 돌려보낸 이유만 — 금액 · 메모 · 파일 칸 · 주소는 없다
+ *                            ?company= — 본사 대표 · 실장이 공장 사진 목록을 볼 때 (access.js, 보기만)
  *
  * 사진은 지우지 않는다 (DB 트리거). 파일 주소(서명 URL)는 이 단계에서 주지 않는다.
  */
@@ -188,8 +189,8 @@ export async function uploadDocument(env, { user, request }) {
 }
 
 /** 사진 목록 */
-export async function listDocuments(env, { user, status, mine, before, limit }) {
-  const access = await ledgerAccess(env, user);
+export async function listDocuments(env, { user, company, status, mine, before, limit }) {
+  const access = await ledgerAccess(env, user, { company });
   const n = Math.min(Math.max(Number(limit) || 50, 1), LIST_MAX);
   const q = { company_id: `eq.${access.companyId}`, select: DOC_COLS, order: 'created_at.desc', limit: String(n) };
   if (!access.money || mine) q.uploaded_by = `eq.${user.id}`;

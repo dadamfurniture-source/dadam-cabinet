@@ -660,17 +660,20 @@ async function handleBooksSummary(request, env, { user }) {
 // ===== 회계장부 (src/ledger/) — 금액 · 사진 상태가 담겨 캐시에 남기지 않는다 =====
 
 async function handleLedgerMe(request, env, { user }) {
-  return jsonResponse(request, env, { success: true, data: await ledgerMe(env, { user }) }, 200, NO_STORE);
+  const company = new URL(request.url).searchParams.get('company') || undefined;
+  return jsonResponse(request, env, { success: true, data: await ledgerMe(env, { user, company }) }, 200, NO_STORE);
 }
 
 async function handleLedgerAccounts(request, env, { user }) {
-  return jsonResponse(request, env, { success: true, data: await listAccounts(env, { user }) }, 200, NO_STORE);
+  const company = new URL(request.url).searchParams.get('company') || undefined;
+  return jsonResponse(request, env, { success: true, data: await listAccounts(env, { user, company }) }, 200, NO_STORE);
 }
 
 async function handleLedgerBook(request, env, { user }) {
   const q = new URL(request.url).searchParams;
   const data = await getBook(env, {
     user,
+    company: q.get('company') || undefined,
     month: q.get('month'),
     from: q.get('from'),
     to: q.get('to'),
@@ -680,7 +683,8 @@ async function handleLedgerBook(request, env, { user }) {
 }
 
 async function handleGetLedgerSettings(request, env, { user }) {
-  return jsonResponse(request, env, { success: true, data: await getLedgerSettings(env, { user }) }, 200, NO_STORE);
+  const company = new URL(request.url).searchParams.get('company') || undefined;
+  return jsonResponse(request, env, { success: true, data: await getLedgerSettings(env, { user, company }) }, 200, NO_STORE);
 }
 
 async function handlePutLedgerSettings(request, env, { user }) {
@@ -713,6 +717,7 @@ async function handleListLedgerDocuments(request, env, { user }) {
   const q = new URL(request.url).searchParams;
   const data = await listLedgerDocuments(env, {
     user,
+    company: q.get('company') || undefined,
     status: q.get('status'),
     mine: q.get('mine') === '1',
     before: q.get('before'),
