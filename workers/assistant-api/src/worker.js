@@ -10,6 +10,7 @@
  *   POST /assistant/conversations/:id/turns         { text } + X-Idempotency-Key → 202 { turn, after } (자격 full)
  *                                                   같은 키는 그 차례(200) · 도는 중이면 409 busy · 분 한도 429
  *   GET  /assistant/conversations/:id/events?after=N  사건 줄(NDJSON) — src/session.js
+ *   scheduled (하루 한 번)                          시작한 지 90일 지난 대화 지우기 — src/retention.js
  *
  * 인증: Supabase 사용자 JWT (Authorization: Bearer). 사람 · 업체 · 자격은 src/access.js.
  * 표 · 함수는 database/migrations/0026 (assistant_*, company_entitled, assistant_budget_*).
@@ -31,6 +32,7 @@ import { verifyUser, selectMany, insertOne } from './db.js';
 import { assistantAccess, ownConversation } from './access.js';
 import { textOf, userTextOf, isTurnStart } from './claude.js';
 import { maxTurns } from './session.js';
+import { runRetention } from './retention.js';
 
 export { AssistantSession } from './session.js';
 
@@ -230,5 +232,10 @@ export default {
     } catch (e) {
       return errorResponse(request, env, e);
     }
+  },
+
+  /** 하루 한 번 (wrangler [triggers] crons) — 90일 지난 대화 지우기 (src/retention.js) */
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runRetention(env, { nowMs: event.scheduledTime }));
   },
 };
