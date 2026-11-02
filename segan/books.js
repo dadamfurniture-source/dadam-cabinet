@@ -1,8 +1,8 @@
 /* ============================================================
    segan/books.js — 「내 정보 › 업체」 안의 회계 (segan/me.html #meBooks)
 
-   누가 보나  업체 대표 · 실장만 — account-api GET /partner/me 의 company.role.
-             직원 · 업체 없음 · 본사 구성원은 칸이 없다. segan/me.js 가 업체 칸(segan/partner.js)을
+   누가 보나  회계 요약은 협력업체 대표 · 실장만 — account-api GET /partner/me 의 company.role.
+             직원 · 본사 · 공장 구성원은 아래 장부 · 사진 줄만, 업체 없음은 칸이 없다. segan/me.js 가 업체 칸(segan/partner.js)을
              읽은 뒤 SeganBooks.load(sb, session, partnerMe) 를 부른다 (/partner/me 를 두 번 묻지 않는다).
    데이터    workflow-api GET /books/summary?month=YYYY-MM (본인 토큰) → { success, data }
              data = { company, month, months: [이번 달, 지난달], outstanding, status_counts, upcoming }
@@ -15,6 +15,7 @@
              장부(segan/ledger.html) 줄 — workflow-api GET /ledger/me 가 그 업체 대표 · 실장에게 답할 때만 (Agent 업체 · 시험 업체)
              다담 본사 · 공장 구성원(/partner/me 에 협력업체가 없다)은 회계 요약 없이 장부 줄만 — 역시 /ledger/me 가 답할 때.
              그때는 업체 칸(#partner)도 연다 (공장 구성원은 segan/partner.js 가 감춰 둔다)
+             직원(협력업체 · 본사 · 공장)은 /ledger/me 가 can_upload 로 답할 때 「영수증 올리기」 줄만 — 금액 · 요약 없이
    이름      수주 상태 = erp.html STATUS_LABELS = 워커 order-events.js ORDER_STATUS_LABELS
              수금 단계 = erp.html PAY_STAGE_LABELS = 워커 payments.js (segan/me.js PAY_STAGE 와 같다)
    못 읽으면  처음(403 · 404 · 오류 · 주소 없음 · 모양이 틀림) → 칸째 감춘다.
@@ -294,31 +295,35 @@
     }
   }
 
-  /** GET /ledger/me — 대표 · 실장이고 장부 자격(full · read)이 있으면 참. 못 읽으면 거짓 */
+  /** GET /ledger/me → 'book' 대표 · 실장이고 장부 자격(full · read) · 'upload' 사진만 올림 · '' 못 연다(못 읽음 포함) */
   async function ledgerOpen() {
     try {
       var res = await fetch(B.base + '/ledger/me', {
         headers: { Authorization: 'Bearer ' + (await token()) },
         cache: 'no-store',
       });
-      if (!res.ok) return false;
+      if (!res.ok) return '';
       var b = await res.json();
       var d = b && b.success === true ? b.data : null;
-      return !!(d && d.money === true && (d.level === 'full' || d.level === 'read'));
+      if (d && d.money === true && (d.level === 'full' || d.level === 'read')) return 'book';
+      if (d && d.can_upload === true) return 'upload';
+      return '';
     } catch {
-      return false;
+      return '';
     }
   }
 
-  /** 회계 요약 없이 장부 줄만 (다담 본사 · 공장 대표 · 실장) */
-  function renderLedgerOnly() {
+  /** 회계 요약 없이 장부 줄만 (다담 본사 · 공장 대표 · 실장) · 사진 올리기 줄만 (직원) */
+  function renderLedgerOnly(kind) {
     var box = $('meBooks');
     if (!box) return;
     box.innerHTML =
       '<h3 class="me-pt-sub" id="meBooksTitle">회계</h3>' +
       '<ul class="sg-rows me-pt-rows"><li><a class="sg-row" href="' +
       LEDGER_PAGE +
-      '">장부 — 수주 밖 비용 · 증빙</a></li></ul>';
+      '">' +
+      (kind === 'upload' ? '영수증 · 명세표 사진 올리기' : '장부 — 수주 밖 비용 · 증빙') +
+      '</a></li></ul>';
     box.hidden = false;
     var section = $('partner');
     if (section) section.hidden = false;
@@ -356,15 +361,17 @@
     B.session = session;
     if (!B.base || !session) return;
     if (!canSee(me)) {
-      // 협력업체가 없는 구성원(다담 본사 · 공장) — 장부를 열면 장부 줄만. 협력업체 직원은 묻지 않는다
-      if (me && typeof me === 'object' && !me.company && (await ledgerOpen())) renderLedgerOnly();
+      // 협력업체가 없는 구성원(다담 본사 · 공장)과 협력업체 직원 — 장부를 열면 장부 줄, 사진만 올리면 올리기 줄
+      if (!me || typeof me !== 'object') return;
+      var kind = await ledgerOpen();
+      if (kind) renderLedgerOnly(kind);
       return;
     }
     try {
       var month = thisMonth();
       var got = await Promise.all([fetchSummary(month), ledgerOpen()]);
       var d = got[0];
-      B.ledger = got[1];
+      B.ledger = got[1] === 'book';
       if (!d) return; // 403 · 404 · 오류 — 칸째 감춘다
       B.month = month;
       B.data = d;

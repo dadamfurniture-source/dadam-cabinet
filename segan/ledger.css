@@ -186,3 +186,85 @@
   font: inherit;
   font-size: 13px;
 }
+
+/* 영수증 · 명세표 사진 */
+/* 파일 칸은 단추가 연다 — display:none 이면 일부 iOS 가 click() 을 받지 않아 보이지 않게만 둔다 */
+.lg-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  opacity: 0;
+}
+
+.lg-note {
+  display: block;
+  max-width: 420px;
+}
+
+.lg-up-state {
+  min-height: 1em;
+  margin: 0 0 6px;
+  color: var(--v5-ink);
+  font-size: 13px;
+}
+
+.lg-up-fail {
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  color: var(--v5-tan);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.lg-up-fail li + li {
+  margin-top: 4px;
+}
+
+.lg-sub {
+  margin: 16px 0 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.lg-docs {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.lg-doc {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.lg-doc-line {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+}
+
+.lg-doc-line span {
+  color: var(--v5-ink-62);
+}
+
+.lg-doc b {
+  font-weight: 500;
+}
+
+.lg-doc[data-status='returned'] b {
+  color: var(--v5-tan);
+}
+
+.lg-doc small {
+  display: block;
+  margin-top: 2px;
+  color: var(--v5-ink-62);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}

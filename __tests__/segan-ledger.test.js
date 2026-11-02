@@ -8,6 +8,9 @@
  *   화면    「종이 원본 5년 보관」 · 과세 설정 · 달 요약 · 장부 줄(직접 · 수금 · 수주 원가), 취소한 줄은 켜야 보인다
  *   쓰기    직접 입력은 X-Idempotency-Key, 고치기는 바뀐 칸 + 이유만, 취소는 이유 필수
  *   고르기  ledgers 가 둘 이상(다담 본사 대표 · 실장)이면 장부 고르기 — 남의 장부는 ?company= · 보기만
+ *   사진    can_upload 면 찍기 · 앨범 → JPEG 로 다시 그려(긴 변 2576 · 375만 화소) 한 장씩 POST /ledger/documents
+ *           (사진마다 X-Idempotency-Key, 메모는 X-Ledger-Note). 429 면 남은 사진을 멈춰 두고 다시 올리기,
+ *           413 · 422 · 못 여는 사진은 다시 올리지 않는다. 직원은 사진 칸만 (장부 · 계정을 묻지 않는다)
  */
 const fs = require('fs');
 const path = require('path');
@@ -148,6 +151,8 @@ async function load(options = {}) {
     accounts: ok({ items: ACCOUNTS }),
     book: (month) => ok(BOOK(month)),
     write: () => ok({ entry: { id: 'new' }, reused: false }, 201),
+    docs: () => ok({ items: [], money: true }),
+    upload: () => ok({ document: { id: 'd-new' }, reused: false }, 201),
     ...options,
   };
   jest.spyOn(Date, 'now').mockReturnValue(NOW);
@@ -174,16 +179,23 @@ async function load(options = {}) {
     calls.push({
       url,
       method: init.method || 'GET',
-      body: init.body ? JSON.parse(init.body) : null,
+      body: typeof init.body === 'string' ? JSON.parse(init.body) : null,
+      raw: init.body && typeof init.body !== 'string' ? init.body : null,
       key: headers['X-Idempotency-Key'] || null,
       auth: headers.Authorization,
+      headers,
     });
-    const reply = (r) => ({ ok: r.ok, status: r.status, json: async () => r.body });
+    const reply = (r) => {
+      if (r instanceof Error) throw r;
+      return { ok: r.ok, status: r.status, json: async () => r.body };
+    };
     if (url.startsWith(WORK + '/ledger/me'))
       return reply(typeof opts.me === 'function' ? opts.me(url) : opts.me);
     if (url === WORK + '/ledger/accounts') return reply(opts.accounts);
     if (url.startsWith(WORK + '/ledger/book'))
       return reply(opts.book(new URL(url).searchParams.get('month')));
+    if (url.startsWith(WORK + '/ledger/documents'))
+      return reply(init.method === 'POST' ? opts.upload(url, init) : opts.docs(url));
     if (url.startsWith(WORK + '/ledger/')) return reply(opts.write(url, init));
     return reply(ok({ ready: true, worker: null })); // /work/me
   });
@@ -283,7 +295,14 @@ describe('보기', () => {
   test('직원 · 구성원 아님 · 자격 없음 — 이유 한 줄, 장부를 묻지 않는다', async () => {
     for (const [me, text] of [
       [
-        ok({ ...ME, role: 'staff', money: false, can_write: false, tax: undefined }),
+        ok({
+          ...ME,
+          role: 'staff',
+          money: false,
+          can_upload: false,
+          can_write: false,
+          tax: undefined,
+        }),
         '장부는 업체 대표 · 실장만 봅니다.',
       ],
       [fail(403, 'not_member', 'x'), '장부는 업체 구성원만 씁니다.'],
@@ -293,6 +312,7 @@ describe('보기', () => {
       const calls = await load({ me });
       expect($('lgState').textContent).toBe(text);
       expect($('lgBody').hidden).toBe(true);
+      expect($('lgPhotos').hidden).toBe(true);
       expect(ledgerCalls(calls).map((c) => c.url)).toEqual([WORK + '/ledger/me']);
       jest.restoreAllMocks();
     }
@@ -305,6 +325,8 @@ describe('보기', () => {
     expect($('lgTaxSave').hidden).toBe(true);
     expect($('lgVatType').disabled).toBe(true);
     expect($('lgList').querySelector('[data-act]')).toBeNull();
+    expect($('lgPhotos').hidden).toBe(false);
+    expect($('lgUp').hidden).toBe(true);
   });
 });
 
@@ -511,6 +533,10 @@ describe('장부 고르기 (다담 본사 → 다담 공장)', () => {
     expect($('lgAdd').hidden).toBe(true);
     expect($('lgTaxSave').hidden).toBe(true);
     expect($('lgList').querySelector('[data-act]')).toBeNull();
+    expect($('lgUp').hidden).toBe(true);
+    expect(calls.filter((c) => c.url.startsWith(WORK + '/ledger/documents')).at(-1).url).toBe(
+      `${WORK}/ledger/documents?limit=20&company=${HQ}`
+    );
     set('lgCompany', PF);
     await flush();
     expect(calls.filter((c) => c.url.startsWith(WORK + '/ledger/book')).at(-1).url).toBe(
@@ -518,6 +544,10 @@ describe('장부 고르기 (다담 본사 → 다담 공장)', () => {
     );
     expect($('lgReadonly').hidden).toBe(true);
     expect($('lgAdd').hidden).toBe(false);
+    expect($('lgUp').hidden).toBe(false);
+    expect(calls.filter((c) => c.url.startsWith(WORK + '/ledger/documents')).at(-1).url).toBe(
+      `${WORK}/ledger/documents?limit=20`
+    );
   });
 
   test('장부가 하나면 고르기가 없고, 서버가 처음부터 남의 장부(viewing)로 열면 그 업체로 묻는다', async () => {
@@ -539,5 +569,227 @@ describe('장부 고르기 (다담 본사 → 다담 공장)', () => {
       `${WORK}/ledger/book?month=2026-11&include_void=1&company=${HQ}`
     );
     expect($('lgReadonly').textContent).toBe('다담 공장 장부 — 보기만 합니다.');
+  });
+});
+
+describe('사진', () => {
+  const at = (h, m) => `2026-11-02T0${h}:${m}:00Z`;
+  const docs = () => [...$('lgDocs').querySelectorAll('.lg-doc')];
+  const posts = (calls) =>
+    calls.filter((c) => c.method === 'POST' && c.url === WORK + '/ledger/documents');
+  const jpg = (name) => new window.File(['x'], name, { type: 'image/jpeg' });
+  /** 기기 열기 · JPEG 로 다시 그리기 흉내 — 이름에 'broken' 이 들어가면 못 연다 */
+  function fakeMedia(size = { width: 4032, height: 3024 }) {
+    const encoded = [];
+    window.SeganLedger.media.decode = jest.fn(async (file) => {
+      if (/broken|\.heic$/.test(file.name)) throw new Error('decode');
+      return { source: { name: file.name }, ...size, release: jest.fn() };
+    });
+    window.SeganLedger.media.encode = jest.fn(async (source, width, height) => {
+      const blob = new window.Blob(['jpeg:' + source.name], { type: 'image/jpeg' });
+      encoded.push({ name: source.name, width, height, blob });
+      return blob;
+    });
+    return encoded;
+  }
+  function pick(files, id = 'lgFiles') {
+    Object.defineProperty($(id), 'files', { value: files, configurable: true });
+    $(id).dispatchEvent(new window.Event('change'));
+  }
+
+  test('대표 — 사진 칸 · 올린 사진 목록(상태 · 메모 · 돌려보낸 이유), 더 보기는 마지막 사진 앞', async () => {
+    const page = Array.from({ length: 20 }, (_, i) => ({
+      id: 'd' + i,
+      created_at: at(3, String(59 - i).padStart(2, '0')),
+      review_status: i === 1 ? 'returned' : 'pending',
+      note: i === 0 ? '현장 A 자재' : null,
+      decision_reason: i === 1 ? '흐림' : null,
+    }));
+    const calls = await load({
+      docs: (url) =>
+        new URL(url).searchParams.get('before')
+          ? ok({
+              items: [{ id: 'old', created_at: at(1, '00'), review_status: 'posted' }],
+              money: true,
+            })
+          : ok({ items: page, money: true }),
+    });
+    expect($('lgPhotos').hidden).toBe(false);
+    expect($('lgUp').hidden).toBe(false);
+    expect($('lgPhotosNote').textContent).toContain('지금은 사진을 모아 두고');
+    expect(calls.find((c) => c.url.startsWith(WORK + '/ledger/documents')).url).toBe(
+      WORK + '/ledger/documents?limit=20'
+    );
+    expect(docs().length).toBe(20);
+    expect(docs()[0].querySelector('.lg-doc-line').textContent).toBe('11.02 12:59확인 기다림');
+    expect(docs()[0].querySelector('small').textContent).toBe('현장 A 자재');
+    expect(docs()[1].querySelector('b').textContent).toBe('돌려보냄');
+    expect(docs()[1].querySelector('small').textContent).toBe('이유: 흐림');
+    expect($('lgDocsMore').hidden).toBe(false);
+    $('lgDocsMore').click();
+    await flush();
+    expect(calls.at(-1).url).toBe(
+      WORK + '/ledger/documents?limit=20&before=' + encodeURIComponent(at(3, '40'))
+    );
+    expect(docs().length).toBe(21);
+    expect(docs()[20].querySelector('b').textContent).toBe('장부에 올림');
+    expect($('lgDocsMore').hidden).toBe(true);
+  });
+
+  test('직원 — 사진 칸만 (장부 · 계정을 묻지 않는다), 자기 사진 상태 · 돌려보낸 이유', async () => {
+    const calls = await load({
+      me: ok({
+        company_id: 'c1',
+        role: 'staff',
+        money: false,
+        level: 'full',
+        viewing: false,
+        can_upload: true,
+        can_write: false,
+      }),
+      docs: () =>
+        ok({
+          items: [
+            { id: 'a', created_at: at(3, '10'), status: 'uploaded', reason: null },
+            { id: 'b', created_at: at(2, '10'), status: 'returned', reason: '다시 찍어 주세요' },
+            { id: 'c', created_at: at(1, '10'), status: 'posted', reason: null },
+          ],
+          money: false,
+        }),
+    });
+    expect($('lgTitle').textContent).toBe('영수증 올리기');
+    expect($('lgBody').hidden).toBe(true);
+    expect($('lgPhotos').hidden).toBe(false);
+    expect($('lgUp').hidden).toBe(false);
+    expect($('lgPhotosNote').textContent).toContain('금액은 대표 · 실장만 봅니다');
+    expect(ledgerCalls(calls).map((c) => c.url)).toEqual([
+      WORK + '/ledger/me',
+      WORK + '/ledger/documents?limit=20',
+    ]);
+    expect(docs().map((li) => li.querySelector('b').textContent)).toEqual([
+      '올림',
+      '돌려보냄',
+      '확인됨',
+    ]);
+    expect(docs()[1].querySelector('small').textContent).toBe('이유: 다시 찍어 주세요');
+    expect(docs()[0].querySelector('small')).toBeNull();
+  });
+
+  test('올리기 — 줄인 JPEG 를 한 장씩, 사진마다 키 · 메모 머리, 못 여는 사진(HEIC)은 안내만 · 다시 올리지 않는다', async () => {
+    const calls = await load();
+    const encoded = fakeMedia();
+    $('lgNote').value = '  302호 현장  ';
+    pick([jpg('a.jpg'), new window.File(['x'], 'b.heic', { type: 'image/heic' }), jpg('c.jpg')]);
+    await flush();
+    const sent = posts(calls);
+    expect(sent.length).toBe(2);
+    expect(encoded.map((e) => [e.name, e.width, e.height])).toEqual([
+      ['a.jpg', 2236, 1677],
+      ['c.jpg', 2236, 1677],
+    ]);
+    expect(sent[0].raw).toBe(encoded[0].blob);
+    expect(sent[1].raw).toBe(encoded[1].blob);
+    expect(sent[0].headers['Content-Type']).toBe('image/jpeg');
+    expect(sent[0].headers['X-Ledger-Note']).toBe(encodeURIComponent('302호 현장'));
+    expect(sent[0].url).toBe(WORK + '/ledger/documents');
+    expect(sent[0].key).toBeTruthy();
+    expect(sent[0].key).not.toBe(sent[1].key);
+    expect($('lgUpState').textContent).toBe('2장 올림 · 1장 못 올림');
+    expect($('lgUpFail').textContent).toContain('b.heic');
+    expect($('lgUpFail').textContent).toContain('「높은 호환성」');
+    expect($('lgRetry').hidden).toBe(true);
+    expect(window.SeganLedger.media.decode.mock.results.length).toBe(3);
+    // 올린 뒤 목록을 다시 읽는다
+    expect(calls.at(-1).url).toBe(WORK + '/ledger/documents?limit=20');
+    expect($('lgFiles').value).toBe('');
+  });
+
+  test('429 — 남은 사진은 멈춰 두고, 다시 올리기는 같은 키로 · 같은 사진은 「이미 올린 사진」', async () => {
+    let n = 0;
+    const calls = await load({
+      upload: () => {
+        n += 1;
+        if (n === 2)
+          return fail(429, 'rate_limited', '요청이 너무 잦습니다. 잠시 뒤 다시 시도해 주세요');
+        if (n === 3) return ok({ document: { id: 'd' }, reused: true });
+        return ok({ document: { id: 'd' + n }, reused: false }, 201);
+      },
+    });
+    fakeMedia({ width: 1000, height: 800 });
+    pick([jpg('a.jpg'), jpg('b.jpg'), jpg('c.jpg')], 'lgCamera');
+    await flush();
+    expect(posts(calls).length).toBe(2);
+    expect($('lgUpState').textContent).toBe('1장 올림 · 2장 못 올림');
+    expect($('lgUpFail').textContent).toContain('잠시 뒤 다시 시도해 주세요');
+    expect($('lgRetry').hidden).toBe(false);
+    const keyB = posts(calls)[1].key;
+    $('lgRetry').click();
+    await flush();
+    const again = posts(calls).slice(2);
+    expect(again.length).toBe(2);
+    expect(again[0].key).toBe(keyB);
+    // 다시 올릴 때는 다시 그리지 않는다 (처음 그린 JPEG 그대로)
+    expect(window.SeganLedger.media.encode.mock.calls.length).toBe(3);
+    expect(window.SeganLedger.media.encode.mock.calls[0].slice(1)).toEqual([1000, 800]);
+    expect($('lgUpState').textContent).toBe('1장 올림 · 1장은 이미 올린 사진');
+    expect($('lgRetry').hidden).toBe(true);
+  });
+
+  test('413 · 422 · 끊김 — 서버 말을 보이고, 형식 · 크기 거절은 다시 올리지 않는다 (끊긴 사진만 같은 키로)', async () => {
+    let n = 0;
+    const calls = await load({
+      upload: () => {
+        n += 1;
+        if (n === 1) return fail(413, 'too_large', '사진은 5MB 까지 올립니다');
+        if (n === 2)
+          return {
+            ok: false,
+            status: 422,
+            body: {
+              success: false,
+              message: '사진은 JPEG · PNG 만 받습니다',
+              details: { code: 'bad_type' },
+            },
+          };
+        if (n === 3) return new Error('offline');
+        return ok({ document: { id: 'd' }, reused: false }, 201);
+      },
+    });
+    fakeMedia({ width: 800, height: 600 });
+    pick([jpg('a.jpg'), jpg('b.jpg'), jpg('c.jpg')]);
+    await flush();
+    expect($('lgUpFail').textContent).toContain('사진은 5MB 까지 올립니다');
+    expect($('lgUpFail').textContent).toContain('사진은 JPEG · PNG 만 받습니다');
+    expect($('lgUpFail').textContent).toContain('연결이 끊겼습니다.');
+    expect($('lgUpState').textContent).toBe('3장 못 올림');
+    expect($('lgRetry').hidden).toBe(false);
+    const keyC = posts(calls)[2].key;
+    $('lgRetry').click();
+    await flush();
+    const again = posts(calls).slice(3);
+    expect(again.length).toBe(1);
+    expect(again[0].key).toBe(keyC);
+    expect($('lgUpState').textContent).toBe('1장 올림');
+    expect($('lgRetry').hidden).toBe(true);
+  });
+
+  test('순수 — 줄이는 크기 (긴 변 2576 · 375만 화소, 키우지 않는다) · 한국 시간', () => {
+    const { fitSize, stamp } = window.SeganLedger;
+    expect(fitSize(1000, 800)).toEqual({ width: 1000, height: 800 });
+    expect(fitSize(4032, 3024)).toEqual({ width: 2236, height: 1677 });
+    expect(fitSize(6000, 1000)).toEqual({ width: 2576, height: 429 });
+    for (const [w, h] of [
+      [4032, 3024],
+      [3024, 4032],
+      [8000, 6000],
+      [2576, 2576],
+      [12000, 300],
+    ]) {
+      const s = fitSize(w, h);
+      expect(Math.max(s.width, s.height)).toBeLessThanOrEqual(2576);
+      expect(s.width * s.height).toBeLessThanOrEqual(3750000);
+    }
+    expect(stamp('2026-11-02T03:05:00Z')).toBe('11.02 12:05');
+    expect(stamp('엉터리')).toBe('');
   });
 });
