@@ -6,6 +6,7 @@
  *   - 탭 4개: 만들기 · 시공사례 · 내 연출컷 · 내 정보 (순서 · 주소), 페이지마다 현재 탭 aria-current
  *     + 관리 탭 — 처음엔 감추고 관리자(AdminAccess.isAdmin)에게만 연다, 탭 페이지마다 AdminAccess 를 싣는다
  *     + 작업 탭 — 처음엔 감추고 작업자(GET /work/me + DadamMyPageWork.shouldShow)에게만 연다
+ *     + 비서 탭 — 처음엔 감추고 AI 비서 자격(GET /assistant/me level full · read)이 있으면 연다
  *   - 내 연출컷 · 내 정보는 로그인이 없으면 「로그인이 필요합니다」 + login.html?redirect=(이 페이지)
  *   - 내 정보의 역할 메뉴는 기존 모듈 판정(AdminAccess · DetailDesignAccess · DadamMyPageWork)을 따른다
  *     — 페이지가 싣는 실제 js/ 파일을 그대로 올리고 Supabase · /work/me 만 가짜로 둔다
@@ -27,6 +28,7 @@ const TAB_PAGES = {
 const LABELS = ['만들기', '시공사례', '내 연출컷', '내 정보'];
 const HREFS = ['./', 'collection.html', 'renders.html', 'me.html'];
 const SESSION = { access_token: 'tok-1', user: { id: 'user-1', email: 'customer@example.com' } };
+const ASSISTANT_ME = 'https://dadam-assistant-api.dadamfurniture.workers.dev/assistant/me';
 
 function fakeClient(opts, calls) {
   return {
@@ -60,6 +62,7 @@ function fakeClient(opts, calls) {
 /**
  * segan 페이지를 올린다 — 페이지가 싣는 ../js/ 모듈을 HTML 순서대로 실제로 실행하고 shell.js 를 돌린다.
  * opts: session · isAdmin · profile · workMe(/work/me data) · workFail · noSupabase
+ *       assistant(/assistant/me data — 없으면 403 not_member, 'fail' 이면 끊김) · keepStorage
  */
 async function load(page, options = {}) {
   const opts = {
@@ -69,6 +72,8 @@ async function load(page, options = {}) {
     workMe: { ready: true, worker: null },
     workFail: false,
     noSupabase: false,
+    assistant: null,
+    keepStorage: false,
     ...options,
   };
   const html = read(`segan/${page}`);
@@ -77,7 +82,7 @@ async function load(page, options = {}) {
   for (const a of [...document.body.attributes]) document.body.removeAttribute(a.name);
   for (const a of [...doc.body.attributes]) document.body.setAttribute(a.name, a.value);
 
-  sessionStorage.clear();
+  if (!opts.keepStorage) sessionStorage.clear();
   for (const k of [
     'AdminAccess',
     'DetailDesignAccess',
@@ -95,6 +100,12 @@ async function load(page, options = {}) {
   window.fetch = jest.fn(async (url, init) => {
     calls.fetch.push({ url, auth: init && init.headers && init.headers.Authorization });
     if (opts.workFail) throw new TypeError('Failed to fetch');
+    if (String(url).endsWith('/assistant/me')) {
+      if (opts.assistant === 'fail') throw new TypeError('Failed to fetch');
+      return opts.assistant
+        ? { ok: true, status: 200, json: async () => ({ success: true, data: opts.assistant }) }
+        : { ok: false, status: 403, json: async () => ({ success: false, code: 'not_member' }) };
+    }
     return { ok: true, json: async () => ({ success: true, data: opts.workMe }) };
   });
 
@@ -127,13 +138,14 @@ describe('탭 4개 — 순서 · 주소 · 현재 탭', () => {
         expect(nav).not.toBeNull();
         expect(nav.getAttribute('aria-label')).toBe('주 메뉴');
         const all = [...nav.querySelectorAll('a')];
-        // 관리 탭은 맨 뒤에 감춰져 있다 (로그인 전 · 관리자 아님)
+        // 비서 · 관리 · 작업 탭은 맨 뒤에 감춰져 있다 (로그인 전 · 자격 없음)
         expect(all.map((a) => a.getAttribute('data-tab-link'))).toEqual([
           ...Object.keys(TAB_PAGES),
+          'assistant',
           'admin',
           'work',
         ]);
-        expect(all.slice(-2).map((a) => a.hidden)).toEqual([true, true]);
+        expect(all.slice(-3).map((a) => a.hidden)).toEqual([true, true, true]);
         const links = all.filter((a) => !a.hidden);
         expect(links.map((a) => a.textContent.trim())).toEqual(LABELS);
         expect(links.map((a) => a.getAttribute('href'))).toEqual(HREFS);
@@ -159,7 +171,12 @@ describe('탭 4개 — 순서 · 주소 · 현재 탭', () => {
   test('아래 탭 아이콘은 꾸밈 (aria-hidden), 이름은 글자로', async () => {
     await load('index.html');
     for (const svg of $$('.sg-tabbar svg')) expect(svg.getAttribute('aria-hidden')).toBe('true');
-    expect($$('.sg-tabbar a span').map((s) => s.textContent)).toEqual([...LABELS, '관리', '작업']);
+    expect($$('.sg-tabbar a span').map((s) => s.textContent)).toEqual([
+      ...LABELS,
+      '비서',
+      '관리',
+      '작업',
+    ]);
     expect(
       $$('.sg-tabbar a')
         .filter(visible)
@@ -229,6 +246,44 @@ describe('탭 4개 — 순서 · 주소 · 현재 탭', () => {
     expect(tab().hidden).toBe(false);
   });
 
+  test('비서 탭 — 자격(level full · read)이 있으면 연다, none · 403 · 끊김 · 로그인 전이면 감춘다', async () => {
+    const tab = () => $('nav.sg-tabbar a[data-tab-link="assistant"]');
+    const full = { company_id: 'c1', role: 'owner', money: true, level: 'full', can_chat: true };
+    const on = await load('index.html', { session: SESSION, assistant: full });
+    expect(tab().hidden).toBe(false);
+    expect(tab().textContent.trim()).toBe('비서');
+    expect(tab().getAttribute('href')).toBe('assistant.html');
+    expect($('.sg-header nav.sg-nav a[data-tab-link="assistant"]').hidden).toBe(false);
+    expect(on.result.assistant).toBe(true);
+    expect(on.calls.fetch).toContainEqual({ url: ASSISTANT_ME, auth: 'Bearer tok-1' });
+    await load('me.html', {
+      session: SESSION,
+      assistant: { ...full, level: 'read', can_chat: false },
+    });
+    expect(tab().hidden).toBe(false);
+    for (const assistant of [{ ...full, level: 'none', can_chat: false }, null, 'fail']) {
+      const r = await load('collection.html', { session: SESSION, assistant });
+      expect(tab().hidden).toBe(true);
+      expect(r.result.assistant).toBe(false);
+    }
+    const guest = await load('renders.html', { session: null, assistant: full });
+    expect(tab().hidden).toBe(true);
+    expect(guest.calls.fetch).toEqual([]);
+  });
+
+  test('비서 탭 — 참은 1분 기억한다 (탭을 옮길 때마다 묻지 않는다), 로그아웃하면 지운다', async () => {
+    const full = { company_id: 'c1', role: 'owner', money: true, level: 'full', can_chat: true };
+    await load('index.html', { session: SESSION, assistant: full });
+    const again = await load('collection.html', { session: SESSION, keepStorage: true });
+    expect($('nav.sg-tabbar a[data-tab-link="assistant"]').hidden).toBe(false);
+    expect(again.calls.fetch.map((f) => f.url)).not.toContain(ASSISTANT_ME);
+    jest.spyOn(Date, 'now').mockReturnValue(Date.now() + 61000);
+    const later = await load('collection.html', { session: SESSION, keepStorage: true });
+    expect($('nav.sg-tabbar a[data-tab-link="assistant"]').hidden).toBe(true);
+    expect(later.calls.fetch.map((f) => f.url)).toContain(ASSISTANT_ME);
+    jest.restoreAllMocks();
+  });
+
   test('아래 탭은 감춘 탭 자리를 두지 않는다 (칸 수를 정하지 않고 보이는 탭만큼)', () => {
     const css = read('segan/shell.css');
     const m = css.match(/^\.sg-tabbar \{([^}]*)\}/m);
@@ -240,6 +295,8 @@ describe('탭 4개 — 순서 · 주소 · 현재 탭', () => {
     expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'admin.js')");
     expect(read('segan/sw.js')).toContain("SCOPE + 'work.html'");
     expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'work.css')");
+    expect(read('segan/sw.js')).toContain("SCOPE + 'assistant.html'");
+    expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'assistant.js')");
   });
 });
 
@@ -407,6 +464,7 @@ describe('내 정보 — 역할 메뉴는 기존 판정 모듈을 따른다', ()
     expect(roleShown()).toEqual({ detail: false, admin: false, worker: true });
     expect(calls.fetch).toEqual([
       { url: 'https://work.example.workers.dev/work/me', auth: 'Bearer tok-1' },
+      { url: ASSISTANT_ME, auth: 'Bearer tok-1' },
     ]);
   });
 

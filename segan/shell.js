@@ -5,6 +5,8 @@
      + 관리 (관리자에게만 — 내 정보 역할 메뉴와 같은 AdminAccess.isAdmin 이 참일 때 연다, 처음엔 감춤)
      + 작업 (작업자에게만 — 같은 역할 메뉴 판정 GET /work/me + DadamMyPageWork.shouldShow, 처음엔 감춤.
             예전 worker.html 작업자 포털을 앱 안 segan/work.html 로 옮겼다)
+     + 비서 (AI 비서 자격이 있는 업체 구성원에게만 — assistant-api GET /assistant/me 의 level 이 full · read 일 때,
+            처음엔 감춤. 참만 1분 기억)
      - 폰(좁은 화면): 아래 고정 탭 막대
      - PC(넓은 화면): v5 헤더 모양의 위 메뉴 + 사업자 정보 푸터
        폰에서는 사업자 정보를 내 정보 안에 둔다.
@@ -12,7 +14,7 @@
    「로그인이 필요합니다」와 로그인 버튼(돌아올 곳 = 지금 페이지)을 보인다.
 
    쓰는 법 (segan/*.html):
-     <body data-tab="make">            <!-- make | collection | renders | me | admin -->
+     <body data-tab="make">            <!-- make | collection | renders | me | assistant | admin | work -->
        <div data-segan-shell="header"></div>
        <main id="main">…</main>
        <div data-segan-shell="footer"></div>
@@ -45,6 +47,14 @@
     },
     { key: 'renders', label: '내 연출컷', href: 'renders.html', target: 'segan/renders.html' },
     { key: 'me', label: '내 정보', href: 'me.html', target: 'segan/me.html' },
+    // AI 비서 자격이 있는 업체 구성원 — 판정 전에는 감춘다 (applyRoleTabs · hasAssistant)
+    {
+      key: 'assistant',
+      label: '비서',
+      href: 'assistant.html',
+      target: 'segan/assistant.html',
+      assistant: true,
+    },
     // 관리자 전용 — 판정 전에는 감춘다 (applyAdminTab)
     { key: 'admin', label: '관리', href: 'admin.html', target: 'segan/admin.html', admin: true },
     // 작업자 전용 — 판정 전에는 감춘다 (applyRoleTabs)
@@ -61,6 +71,11 @@
 
   // 로그인 — 기존 login.html 의 ?redirect= (js/auth-redirect.js 가 같은 사이트 *.html 만 받는다)
   var LOGIN_PAGE = '../login.html';
+
+  // AI 비서 워커 (workers/assistant-api) — js/config.js 에 assistantApi.url 이 있으면 그 주소
+  var ASSISTANT_API = 'https://dadam-assistant-api.dadamfurniture.workers.dev';
+  var ASSISTANT_MEMO = 'segan.assistant.on.'; // + 사용자 id → 참으로 판정한 때 (sessionStorage)
+  var ASSISTANT_MEMO_MS = 60000;
 
   // 사업자 정보 — js/site-shell.js 의 BIZ 와 같은 값이다 (시험이 사이트 푸터와 비교한다).
   var BIZ = {
@@ -102,6 +117,7 @@
       '<rect x="3.5" y="5.5" width="17" height="13"/><path d="M3.5 16l4.8-4.8 3.7 3.7 2.4-2.4 6.1 6"/>' +
       '<circle cx="15.6" cy="9.4" r="1.3"/>',
     me: '<circle cx="12" cy="8.4" r="3.4"/><path d="M5 19.5c0-3.5 3.1-5.6 7-5.6s7 2.1 7 5.6"/>',
+    assistant: '<path d="M4.5 5.5h15v10h-8.2l-3.8 3.3v-3.3h-3z"/><path d="M8.5 10.5h7"/>',
     admin: '<rect x="5.5" y="4.5" width="13" height="15"/><path d="M9 9h6M9 12.5h6M9 16h3.5"/>',
     work: '<rect x="4.5" y="8.5" width="15" height="10"/><path d="M9.5 8.5V6h5v2.5M4.5 13h15"/>',
   };
@@ -124,7 +140,7 @@
         t.key +
         '"' +
         (t.key === current ? ' aria-current="page"' : '') +
-        (t.admin || t.worker ? ' hidden' : '') +
+        (t.admin || t.worker || t.assistant ? ' hidden' : '') +
         '>' +
         (withIcon ? icon(t.key) : '') +
         '<span>' +
@@ -137,7 +153,7 @@
   function headerHTML(current) {
     return (
       '<header class="sg-header">' +
-      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110206" alt="SEGAN" width="477" height="75" /></a>' +
+      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110301" alt="SEGAN" width="477" height="75" /></a>' +
       '<nav class="sg-nav" aria-label="주 메뉴">' +
       links(current, false) +
       '</nav>' +
@@ -280,6 +296,48 @@
     }
   }
 
+  /** AI 비서 워커 주소 */
+  function assistantBase() {
+    var cfg = window.DADAM_CONFIG || {};
+    return (cfg.assistantApi && cfg.assistantApi.url) || ASSISTANT_API;
+  }
+
+  /**
+   * 비서 탭을 여나 — GET /assistant/me 가 200 이고 level 이 full · read 일 때만 (none · 403 · 실패는 false).
+   * 참만 이 탭(sessionStorage)에 1분 기억한다 — 탭을 옮길 때마다 묻지 않게.
+   */
+  async function hasAssistant(session) {
+    try {
+      var token = session && session.access_token;
+      if (!token) return false;
+      var memo = ASSISTANT_MEMO + ((session.user && session.user.id) || '');
+      try {
+        var at = Number(window.sessionStorage.getItem(memo));
+        if (at && Date.now() - at < ASSISTANT_MEMO_MS) return true;
+      } catch {
+        /* 기억 못 하면 묻는다 */
+      }
+      var res = await fetch(assistantBase() + '/assistant/me', {
+        headers: { Authorization: 'Bearer ' + token },
+        cache: 'no-store',
+      });
+      if (!res.ok) return false;
+      var body = await res.json();
+      var level = body && body.success && body.data ? body.data.level : '';
+      var on = level === 'full' || level === 'read';
+      if (on) {
+        try {
+          window.sessionStorage.setItem(memo, String(Date.now()));
+        } catch {
+          /* 다음에 다시 묻는다 */
+        }
+      }
+      return on;
+    } catch {
+      return false;
+    }
+  }
+
   /** 역할 메뉴 판정 — 기존 사이트 모듈에 맡긴다. 모르면 감춘다 */
   async function detectRoles(sb, session) {
     var out = { detail: false, admin: false, worker: false };
@@ -335,6 +393,10 @@
         try {
           if (window.AdminAccess) window.AdminAccess.clearCache();
           if (window.DetailDesignAccess) window.DetailDesignAccess.clearCache();
+          for (var i = window.sessionStorage.length - 1; i >= 0; i--) {
+            var k = window.sessionStorage.key(i);
+            if (k && k.indexOf(ASSISTANT_MEMO) === 0) window.sessionStorage.removeItem(k);
+          }
         } catch {
           /* noop */
         }
@@ -370,16 +432,18 @@
   }
 
   /**
-   * 관리 · 작업 탭 — 관리자 · 작업자에게만 연다. 내 정보는 역할 메뉴 판정(roles)을 그대로 쓰고,
-   * 다른 탭은 AdminAccess.isAdmin(sb) (참만 1분 기억 — js/admin-access.js) · GET /work/me 를 묻는다.
+   * 관리 · 작업 · 비서 탭 — 관리자 · 작업자 · AI 비서 자격이 있는 업체 구성원에게만 연다.
+   * 내 정보는 역할 메뉴 판정(roles)을 그대로 쓰고, 다른 탭은 AdminAccess.isAdmin(sb)
+   * (참만 1분 기억 — js/admin-access.js) · GET /work/me 를 묻는다. 비서는 어느 탭이든 GET /assistant/me.
    * 모르면(로그인 전 · 모듈 없음 · 실패) 감춘 채 둔다.
    */
   async function applyRoleTabs(r) {
-    var on = { admin: false, work: false };
+    var on = { admin: false, work: false, assistant: false };
     try {
       if (r && r.roles) {
         on.admin = r.roles.admin === true;
         on.work = r.roles.worker === true;
+        on.assistant = await hasAssistant(r.session);
       } else if (window.AdminAccess || window.DadamMyPageWork) {
         // 판정 모듈이 실린 페이지만 세션을 묻는다
         var sb = (r && r.sb) || client();
@@ -397,19 +461,20 @@
                 )
               : false,
             isWorker(session),
+            hasAssistant(session),
           ]);
           on.admin = got[0] === true;
           on.work = got[1] === true;
+          on.assistant = got[2] === true;
         }
       }
     } catch {
-      on = { admin: false, work: false };
+      on = { admin: false, work: false, assistant: false };
     }
-    document.querySelectorAll('[data-tab-link="admin"]').forEach(function (a) {
-      a.hidden = !on.admin;
-    });
-    document.querySelectorAll('[data-tab-link="work"]').forEach(function (a) {
-      a.hidden = !on.work;
+    ['admin', 'work', 'assistant'].forEach(function (key) {
+      document.querySelectorAll('[data-tab-link="' + key + '"]').forEach(function (a) {
+        a.hidden = !on[key];
+      });
     });
     return on;
   }
@@ -430,6 +495,7 @@
       return applyRoleTabs(r).then(function (on) {
         r.admin = on.admin;
         r.worker = on.work;
+        r.assistant = on.assistant;
         return r;
       });
     });
@@ -462,6 +528,7 @@
     BIZ: BIZ,
     loginHref: loginHref,
     detectRoles: detectRoles,
+    assistantBase: assistantBase,
     ready: ready,
   };
 })();
