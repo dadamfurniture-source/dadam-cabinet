@@ -99,6 +99,15 @@ export async function updateWhere(env, table, filter, patch) {
   );
 }
 
+/** 조건에 맞는 줄 지우기 — 조건이 비면 던진다 (전체를 지우지 않는다) */
+export async function deleteWhere(env, table, filter) {
+  if (!filter || !Object.keys(filter).length) throw new Error('deleteWhere: filter required');
+  return rest(env, `/${table}?${new URLSearchParams(filter)}`, {
+    method: 'DELETE',
+    headers: headers(env, 'return=minimal'),
+  });
+}
+
 export async function callRpc(env, fn, args = {}) {
   return rest(env, `/rpc/${encodeURIComponent(fn)}`, {
     method: 'POST',
