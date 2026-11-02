@@ -763,3 +763,32 @@ test('방 비우기 — planner_clear:true 면 입면 없이 받고 options.clea
   assert.equal((await post({ parent_id: base.id })).status, 202);
   assert.equal(calls.inserted.options.clear, true, '재생성은 원본 비우기를 잇는다');
 });
+
+// 2026-11-02: 냉장고장(리폼) (사장님 「리폼 연출 이어 진행」) — planner_reform 은 비우기 · 다듬기일 때만 options.reform (정리한 값)
+test('리폼 — planner_reform 은 비우기 · 다듬기일 때만 options.reform, 깨진 값은 키 없음, 재생성은 원본을 잇는다', async () => {
+  const reform = { segs: [{ kind: 'wall', widthMm: 100 }, { kind: 'space', widthMm: 1070, fridge: 'new', upper: 'remove', extra: 'x' }, { kind: 'wall', widthMm: 100 }], boardMm: 1980, moldingMm: 60 };
+  const want = { segs: [{ kind: 'wall', widthMm: 100 }, { kind: 'space', widthMm: 1070, fridge: 'new', upper: 'remove' }, { kind: 'wall', widthMm: 100 }], boardMm: 1980, moldingMm: 60 };
+  const comp = { role: 'composite', base64: PNG, mime: 'image/jpeg' };
+  install();
+  assert.equal((await post(plannerBody({ planner_clear: true, planner_reform: reform, renders: [] }))).status, 202);
+  assert.deepEqual(calls.inserted.options.reform, want, '비우기');
+  install();
+  await post(plannerBody({ planner_polish: true, planner_reform: reform, renders: [...plannerBody().renders, comp] }));
+  assert.deepEqual(calls.inserted.options.reform, want, '다듬기');
+  install();
+  await post(plannerBody({ planner_reform: reform }));
+  assert.equal('reform' in calls.inserted.options, false, '비우기 · 다듬기가 아니면 키 없음');
+  install();
+  await post(plannerBody({ planner_clear: true, planner_reform: { segs: [{ kind: 'wall', widthMm: 100 }] }, renders: [] }));
+  assert.equal('reform' in calls.inserted.options, false, '냉장고 공간이 없는 값은 버린다');
+  const base = {
+    id: '55555555-5555-4555-8555-555555555555',
+    user_id: USER_ID,
+    category: 'fridge',
+    inputs: { room: { path: 'p/room.jpg', url: 'u', mime: 'image/jpeg' }, refs: [], renders: [] },
+    options: { design_spec: { version: 1, category: 'fridge', wallRunMm: 2360 }, mode: 'planner', aspect: '4:3', variants: false, clear: true, reform: want },
+  };
+  install({ parent: base });
+  assert.equal((await post({ parent_id: base.id })).status, 202);
+  assert.deepEqual(calls.inserted.options.reform, want, '재생성은 원본 리폼을 잇는다');
+});
