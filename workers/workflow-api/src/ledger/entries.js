@@ -34,14 +34,14 @@ export async function loadAccounts(env) {
 }
 
 /** 그 계정이 있고 쓰이며 그 방향을 받는가 — 아니면 422 (DB 트리거와 같은 판정을 먼저 한다) */
-async function checkAccount(env, account, direction) {
+export async function checkAccount(env, account, direction) {
   const a = (await loadAccounts(env)).find((x) => x.code === account);
   if (!a || !a.active) throw new ValidationError('없는 계정입니다');
   if (!groupTakes(a.grp, direction)) throw new ValidationError(`「${a.name}」 계정은 이 방향(${direction})에 쓰지 않습니다`);
 }
 
 /** 거래처를 골랐으면 그 업체 거래처여야 한다. 이름 · 사업자번호를 안 적었으면 거래처 것을 남긴다 */
-async function withCounterparty(env, companyId, input) {
+export async function withCounterparty(env, companyId, input) {
   if (!input.counterparty_id) return input;
   const cp = await selectOne(env, 'counterparties', { id: `eq.${input.counterparty_id}`, company_id: `eq.${companyId}`, select: 'id,name,biz_no' });
   if (!cp) throw new ValidationError('이 업체 거래처가 아닙니다');
