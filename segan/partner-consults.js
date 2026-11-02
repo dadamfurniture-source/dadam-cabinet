@@ -1033,11 +1033,13 @@
     var list = $('partner-consults');
     var set = $('partnerConsultSettings');
     var projects = $('partnerProjects'); // segan/partner-projects.js 도 이 칸을 연다
+    var books = $('meBooks'); // segan/books.js 장부 줄도
     if (section)
       section.hidden = !(
         (list && !list.hidden) ||
         (set && !set.hidden) ||
-        (projects && !projects.hidden)
+        (projects && !projects.hidden) ||
+        (books && !books.hidden)
       );
   }
 

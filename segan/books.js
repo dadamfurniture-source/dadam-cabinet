@@ -13,6 +13,8 @@
              달 바꾸기 (지난달 · 다음 달 — 이번 달 뒤로는 가지 않는다)
              수주 상세 · 원가 · 수금 입력은 PC ERP(erp.html) 로 보낸다
              장부(segan/ledger.html) 줄 — workflow-api GET /ledger/me 가 그 업체 대표 · 실장에게 답할 때만 (Agent 업체 · 시험 업체)
+             다담 본사 · 공장 구성원(/partner/me 에 협력업체가 없다)은 회계 요약 없이 장부 줄만 — 역시 /ledger/me 가 답할 때.
+             그때는 업체 칸(#partner)도 연다 (공장 구성원은 segan/partner.js 가 감춰 둔다)
    이름      수주 상태 = erp.html STATUS_LABELS = 워커 order-events.js ORDER_STATUS_LABELS
              수금 단계 = erp.html PAY_STAGE_LABELS = 워커 payments.js (segan/me.js PAY_STAGE 와 같다)
    못 읽으면  처음(403 · 404 · 오류 · 주소 없음 · 모양이 틀림) → 칸째 감춘다.
@@ -308,6 +310,20 @@
     }
   }
 
+  /** 회계 요약 없이 장부 줄만 (다담 본사 · 공장 대표 · 실장) */
+  function renderLedgerOnly() {
+    var box = $('meBooks');
+    if (!box) return;
+    box.innerHTML =
+      '<h3 class="me-pt-sub" id="meBooksTitle">회계</h3>' +
+      '<ul class="sg-rows me-pt-rows"><li><a class="sg-row" href="' +
+      LEDGER_PAGE +
+      '">장부 — 수주 밖 비용 · 증빙</a></li></ul>';
+    box.hidden = false;
+    var section = $('partner');
+    if (section) section.hidden = false;
+  }
+
   async function go(month) {
     if (B.busy || !MONTH_RE.test(month) || month > thisMonth()) return;
     B.busy = true;
@@ -338,7 +354,12 @@
     B.base = (cfg.workflowApi && cfg.workflowApi.url) || '';
     B.sb = sb;
     B.session = session;
-    if (!B.base || !session || !canSee(me)) return;
+    if (!B.base || !session) return;
+    if (!canSee(me)) {
+      // 협력업체가 없는 구성원(다담 본사 · 공장) — 장부를 열면 장부 줄만. 협력업체 직원은 묻지 않는다
+      if (me && typeof me === 'object' && !me.company && (await ledgerOpen())) renderLedgerOnly();
+      return;
+    }
     try {
       var month = thisMonth();
       var got = await Promise.all([fetchSummary(month), ledgerOpen()]);

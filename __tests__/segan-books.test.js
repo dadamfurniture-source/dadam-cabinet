@@ -650,3 +650,35 @@ describe('장부 줄 (segan/ledger.html)', () => {
     }
   });
 });
+
+describe('장부 줄 — 다담 본사 · 공장 구성원 (회계 요약 없이)', () => {
+  const ledgerHref = () => [...box().querySelectorAll('.me-pt-rows a')].map((a) => a.getAttribute('href'));
+
+  test('공장 · 본사 대표 · 실장 — /ledger/me 가 답하면 장부 줄만, 업체 칸도 연다. 회계 요약은 묻지 않는다', async () => {
+    for (const partner of [
+      ok({ hq_member: true, company: null, application: null, members: [], invites: [] }),
+      ok({ company: null, application: null, members: [], invites: [] }),
+    ]) {
+      const calls = await load({ partner, ledger: ok({ money: true, level: 'full' }) });
+      await flush();
+      expect(box().hidden).toBe(false);
+      expect(ledgerHref()).toEqual(['ledger.html']);
+      expect(box().querySelector('.me-bk-table')).toBeNull();
+      expect(document.getElementById('partner').hidden).toBe(false);
+      expect(bookGets(calls).length).toBe(0);
+      jest.restoreAllMocks();
+    }
+  });
+
+  test('고객(업체 없음) — /ledger/me 403 이면 칸이 없다. 협력업체 직원은 묻지 않는다', async () => {
+    const none = await load({ partner: ok({ company: null, application: null, members: [], invites: [] }) });
+    await flush();
+    expect(box().hidden).toBe(true);
+    expect(none.fetch.filter((f) => f.url === WORK + '/ledger/me').length).toBe(1);
+    jest.restoreAllMocks();
+    const staff = await load({ partner: partnerMe({ role: 'staff' }), ledger: ok({ money: true, level: 'full' }) });
+    await flush();
+    expect(box().hidden).toBe(true);
+    expect(staff.fetch.filter((f) => f.url === WORK + '/ledger/me').length).toBe(0);
+  });
+});
