@@ -146,10 +146,11 @@ test('차례 — 202 → 알람이 예산 잡기 · Claude · 저장 · 정산 �
   // Claude 에 보낸 것
   assert.equal(claude.calls.length, 1);
   const p = claude.calls[0];
-  assert.equal(p.model, 'claude-opus-5-5');
+  assert.equal(p.model, 'claude-haiku-5-5');
   assert.equal(p.max_tokens, 8000);
-  assert.deepEqual(p.betas, ['server-side-fallback-2026-07-01']);
-  assert.equal(p.fallbacks, 'default');
+  // Haiku 5.5 는 서버 대체가 없다 — fallbacks · 베타를 보내지 않는다 (보내면 400)
+  assert.equal(p.betas, undefined);
+  assert.equal(p.fallbacks, undefined);
   assert.equal(p.inference_geo, 'us');
   assert.deepEqual(p.output_config, { effort: 'medium' });
   assert.equal(p.thinking, undefined);
@@ -175,16 +176,16 @@ test('차례 — 202 → 알람이 예산 잡기 · Claude · 저장 · 정산 �
   assert.equal(u.key, `chat:${id}:1`);
   assert.equal(u.purpose, 'chat');
   assert.equal(u.user, OWNER);
-  assert.ok(u.reserved >= 8000 * 20 * 1.1, String(u.reserved));
-  assert.equal(u.cost, Math.ceil((1000 * 4 + 200 * 20) * 1.1));
+  assert.ok(u.reserved >= 8000 * 0.5 * 1.1, String(u.reserved));
+  assert.equal(u.cost, Math.ceil((1000 * 0.1 + 200 * 0.5) * 1.1));
   assert.equal(u.usage.input_tokens, 1000);
-  assert.equal(u.usage.model, 'claude-opus-5-5');
+  assert.equal(u.usage.model, 'claude-haiku-5-5');
 
   // 기록 — 숫자만, 글은 넣지 않는다
   const t = w.db.audit.find((a) => a.kind === 'turn');
   assert.equal(t.company_id, CO);
   assert.equal(t.conversation_id, id);
-  assert.equal(t.name, 'claude-opus-5-5');
+  assert.equal(t.name, 'claude-haiku-5-5');
   assert.equal(t.detail.output_tokens, 200);
   assert.ok(!JSON.stringify(w.db.audit).includes('안녕'));
 
@@ -307,7 +308,7 @@ test('거절(refusal) — refused, 메시지는 넣지 않고 비용은 정산�
   const { list } = await w.events(id);
   assert.equal(list.at(-1).type, 'refused');
   assert.equal(w.db.messages.length, 0);
-  assert.equal(w.db.usage[0].cost, Math.ceil((1000 * 4 + 200 * 20) * 1.1));
+  assert.equal(w.db.usage[0].cost, Math.ceil((1000 * 0.1 + 200 * 0.5) * 1.1));
   assert.deepEqual(
     w.db.audit.map((a) => [a.kind, a.name]),
     [['blocked', 'refusal']]
@@ -339,7 +340,7 @@ test('글 없는 답 · Claude 오류 — error, 메시지는 넣지 않는다 (
     ['empty', 'claude']
   );
   assert.equal(w.db.messages.length, 0);
-  assert.equal(w.db.usage[1].cost, Math.ceil((1000 * 4 + 1 * 20) * 1.1));
+  assert.equal(w.db.usage[1].cost, Math.ceil((1000 * 0.1 + 1 * 0.5) * 1.1));
   assert.deepEqual(
     w.db.audit.map((a) => [a.kind, a.name]),
     [
@@ -409,13 +410,65 @@ test('요금 — 모델 앞머리 · 1.1배 · 모르는 모델은 가장 비싼
   );
   assert.equal(costMicros({}, 'claude-opus-5-5', null), 0);
   const params = buildRequest(
-    {},
+    { ANTHROPIC_MODEL: 'claude-opus-5-5' },
     {
       system: '가'.repeat(100),
       messages: [{ role: 'user', content: [{ type: 'text', text: '나' }] }],
     }
   );
   assert.ok(estimateMicros({}, params) > 8000 * 20 * 1.1);
+});
+
+test('Haiku 5.5 — 보낸 글 10만 토큰까지 · 넘으면 long 값, Sonnet 5 는 Sonnet 5.5 와 따로', () => {
+  const haiku = RATES['claude-haiku-5-5'];
+  assert.equal(rateOf('claude-haiku-5-5'), haiku);
+  assert.equal(rateOf('claude-haiku-5-5', 100_000), haiku);
+  assert.equal(rateOf('claude-haiku-5-5', 100_001), haiku.long);
+  assert.equal(rateOf('claude-opus-5-5', 500_000), RATES['claude-opus-5-5']);
+  assert.equal(rateOf('claude-sonnet-5-5'), RATES['claude-sonnet-5-5']);
+  assert.equal(rateOf('claude-sonnet-5'), RATES['claude-sonnet-5']);
+  assert.equal(RATES['claude-sonnet-5'].cache_read, 0.2);
+
+  // 입력 · 캐시 읽기 · 캐시 쓰기를 합쳐 10만을 넘으면 모든 칸이 long 값
+  const short = {
+    input_tokens: 60_000,
+    output_tokens: 1000,
+    cache_read_input_tokens: 40_000,
+    cache_creation_input_tokens: 0,
+  };
+  assert.equal(
+    costMicros({}, 'claude-haiku-5-5', short),
+    Math.ceil((60_000 * 0.1 + 1000 * 0.5 + 40_000 * 0.01) * 1.1)
+  );
+  const long = { ...short, cache_creation_input_tokens: 1 };
+  assert.equal(
+    costMicros({}, 'claude-haiku-5-5', long),
+    Math.ceil((60_000 * 0.5 + 1000 * 2.5 + 40_000 * 0.05 + 1 * 0.625) * 1.1)
+  );
+
+  // 어림도 같은 값 — 짧은 글은 짧은 값, 긴 글은 long 값
+  const ask = (text) =>
+    buildRequest(
+      {},
+      { system: '', messages: [{ role: 'user', content: [{ type: 'text', text }] }] }
+    );
+  const small = estimateMicros({}, ask('나'));
+  assert.ok(small >= 8000 * 0.5 * 1.1 && small < 8000 * 2.5 * 1.1, String(small));
+  assert.ok(estimateMicros({}, ask('a'.repeat(300_000))) > 150_000 * 0.5 * 1.1);
+});
+
+test('서버 대체 — Haiku 5.5 는 fallbacks · 베타를 보내지 않고, Opus 5.5 · Sonnet 5.5 는 보낸다', () => {
+  const body = { system: '', messages: [] };
+  assert.equal(buildRequest({}, body).model, 'claude-haiku-5-5');
+  for (const model of ['claude-haiku-5-5', 'claude-haiku-5-5-20261101']) {
+    const p = buildRequest({ ANTHROPIC_MODEL: model }, body);
+    assert.ok(!('fallbacks' in p) && !('betas' in p), model);
+  }
+  for (const model of ['claude-opus-5-5', 'claude-sonnet-5-5']) {
+    const p = buildRequest({ ANTHROPIC_MODEL: model }, body);
+    assert.equal(p.fallbacks, 'default', model);
+    assert.deepEqual(p.betas, ['server-side-fallback-2026-07-01'], model);
+  }
 });
 
 test('다시 보내기 — fallback 블록이 있으면 그 앞은 글만, 뒤는 그대로', () => {

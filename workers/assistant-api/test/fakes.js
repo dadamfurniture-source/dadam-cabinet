@@ -223,12 +223,13 @@ export function makeClaude(scripts = []) {
         stream(params) {
           claude.calls.push(structuredClone(params));
           const s = queue.shift() || reply('네.');
+          const model = s.model || params.model; // 대본에 모델이 없으면 받은 모델로 답한다
           return {
             async *[Symbol.asyncIterator]() {
               yield {
                 type: 'message_start',
                 message: {
-                  model: s.model,
+                  model,
                   usage: s.startUsage || { input_tokens: s.usage.input_tokens, output_tokens: 1 },
                 },
               };
@@ -249,7 +250,7 @@ export function makeClaude(scripts = []) {
             },
             async finalMessage() {
               return {
-                model: s.model,
+                model,
                 content: s.content,
                 stop_reason: s.stop_reason,
                 usage: s.usage,
@@ -267,7 +268,6 @@ export function makeClaude(scripts = []) {
 export function reply(text, extra = {}) {
   const chunks = text.match(/.{1,3}/gsu) || [text];
   return {
-    model: 'claude-opus-5-5',
     chunks,
     content: [
       { type: 'thinking', thinking: '', signature: 'sig-1' },

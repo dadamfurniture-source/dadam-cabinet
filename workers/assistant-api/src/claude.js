@@ -1,9 +1,10 @@
 /**
  * Claude 부르기 — 공식 SDK(@anthropic-ai/sdk) Messages API.
  *
- *   모델 ANTHROPIC_MODEL (기본 claude-opus-5-5), effort EFFORT (기본 medium), 생각은 기본(adaptive — 끌 수 없다).
+ *   모델 ANTHROPIC_MODEL (기본 claude-haiku-5-5), effort EFFORT (기본 medium), 생각은 기본(adaptive).
  *   inference_geo INFERENCE_GEO (기본 us — 미국 안에서만 처리, 요금 1.1배).
  *   거절(stop_reason refusal)이면 서버가 기본 대체 모델로 다시 돈다 — fallbacks "default" + 베타 server-side-fallback-2026-07-01.
+ *   Haiku 5.5 는 서버 대체가 없어 fallbacks 를 보내면 400 이다 — 보내지 않고, 거절은 그대로 refused 로 끝난다.
  *   키는 시크릿 ANTHROPIC_API_KEY. 이 객체는 미국 콜로에서 뜨므로 직접 부른다 (src/session.js).
  *
  * 지난 대화 다시 보내기 (echoContent)
@@ -13,8 +14,15 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 
-export const MODEL_DEFAULT = 'claude-opus-5-5';
+export const MODEL_DEFAULT = 'claude-haiku-5-5';
 export const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
+const NO_SERVER_FALLBACK = ['claude-haiku-5-5'];
+
+/** 서버 대체(fallbacks)를 받는 모델인가 (날짜가 붙은 id 도) */
+export function hasServerFallback(model) {
+  const id = String(model || '');
+  return !NO_SERVER_FALLBACK.some((k) => id === k || id.startsWith(k + '-'));
+}
 
 /** SDK 클라이언트 — 시험은 env.ASSISTANT_CLAUDE 에 가짜를 끼운다 (wrangler vars 는 글자라 운영에는 생기지 않는다) */
 export function claudeClient(env) {
@@ -24,11 +32,11 @@ export function claudeClient(env) {
 }
 
 export function buildRequest(env, { system, messages }) {
+  const model = env.ANTHROPIC_MODEL || MODEL_DEFAULT;
   return {
-    model: env.ANTHROPIC_MODEL || MODEL_DEFAULT,
+    model,
     max_tokens: Number(env.MAX_OUTPUT_TOKENS) || 8000,
-    betas: [FALLBACK_BETA],
-    fallbacks: 'default',
+    ...(hasServerFallback(model) ? { betas: [FALLBACK_BETA], fallbacks: 'default' } : {}),
     inference_geo: env.INFERENCE_GEO || 'us',
     output_config: { effort: env.EFFORT || 'medium' },
     system,

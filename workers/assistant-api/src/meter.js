@@ -2,8 +2,9 @@
  * 월 한도 — 부르기 전에 예산을 잡고(assistant_budget_reserve), 끝나면 실제 비용으로 정산(assistant_budget_settle).
  * 금액 단위는 US 달러 백만분의 1(micros). 함수 · 표는 database/migrations/0026.
  *
- * 요금 (Anthropic 요금표 platform.claude.com/docs/en/about-claude/pricing, 2026-11-02 확인 — 100만 토큰당 달러 = 토큰 하나당 micros)
+ * 요금 (Anthropic 요금표 platform.claude.com/docs/en/about-claude/pricing, 2026-11-03 확인 — 100만 토큰당 달러 = 토큰 하나당 micros)
  *   cache_write 는 5분 캐시 값. inference_geo "us" 는 모든 칸 1.1배 (같은 요금표 Data residency pricing).
+ *   Haiku 5.5 는 보낸 글(입력 + 캐시 쓰기 + 캐시 읽기)이 10만 토큰을 넘는 요청이면 long 값 (같은 요금표 Long context pricing).
  *   응답의 model 이 표에 없으면(서버 대체 모델 등) 표에서 가장 비싼 값으로 센다 — 한도를 넘겨 쓰지 않게.
  */
 import { callRpc } from './db.js';
@@ -14,6 +15,21 @@ export const RATES = Object.freeze({
   // 거절 대체 모델 — fallbacks "default" 는 사이버 분류 거절을 Opus 4.8 로 돌린다
   'claude-opus-4-8': { input: 5, cache_write: 6.25, cache_read: 0.5, output: 25 },
   'claude-sonnet-5-5': { input: 2, cache_write: 2.5, cache_read: 0.1, output: 10 },
+  // Sonnet 5.5 의 거절 대체 모델 — fallbacks "default" 는 cyber · frontier_llm 거절을 Sonnet 5 로 돌린다
+  'claude-sonnet-5': { input: 2, cache_write: 2.5, cache_read: 0.2, output: 10 },
+  'claude-haiku-5-5': Object.freeze({
+    input: 0.1,
+    cache_write: 0.125,
+    cache_read: 0.01,
+    output: 0.5,
+    long: Object.freeze({
+      over: 100_000,
+      input: 0.5,
+      cache_write: 0.625,
+      cache_read: 0.05,
+      output: 2.5,
+    }),
+  }),
 });
 export const US_GEO_MULTIPLIER = 1.1;
 
@@ -29,13 +45,14 @@ const MAX_RATE = Object.freeze(
   )
 );
 
-/** 모델 id → 요금 (날짜가 붙은 id 도 — 가장 긴 앞머리가 맞는 것) */
-export function rateOf(model) {
+/** 모델 id · 보낸 글 토큰 수 → 요금 (날짜가 붙은 id 도 — 가장 긴 앞머리가 맞는 것) */
+export function rateOf(model, promptTokens = 0) {
   const id = String(model || '');
   const key = Object.keys(RATES)
     .filter((k) => id === k || id.startsWith(k + '-'))
     .sort((a, b) => b.length - a.length)[0];
-  return key ? RATES[key] : MAX_RATE;
+  const rate = key ? RATES[key] : MAX_RATE;
+  return rate.long && promptTokens > rate.long.over ? rate.long : rate;
 }
 
 function geo(env) {
@@ -47,7 +64,10 @@ const n = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : 0);
 /** Claude usage → micros (올림) */
 export function costMicros(env, model, usage) {
   const u = usage || {};
-  const r = rateOf(model);
+  const r = rateOf(
+    model,
+    n(u.input_tokens) + n(u.cache_creation_input_tokens) + n(u.cache_read_input_tokens)
+  );
   const raw =
     n(u.input_tokens) * r.input +
     n(u.cache_creation_input_tokens) * r.cache_write +
@@ -64,11 +84,9 @@ export function estimateMicros(env, params) {
   const bytes = new TextEncoder().encode(
     JSON.stringify({ system: params.system, messages: params.messages })
   ).length;
-  const r = rateOf(params.model);
-  return Math.max(
-    1,
-    Math.ceil((Math.ceil(bytes / 2) * r.input + n(params.max_tokens) * r.output) * geo(env))
-  );
+  const tokens = Math.ceil(bytes / 2);
+  const r = rateOf(params.model, tokens);
+  return Math.max(1, Math.ceil((tokens * r.input + n(params.max_tokens) * r.output) * geo(env)));
 }
 
 /** → { ok, id?, repeat?, reason? } (reason: no_limit · not_entitled · over_limit · off) */
