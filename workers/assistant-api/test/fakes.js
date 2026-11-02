@@ -33,6 +33,9 @@ export function makeDb(over = {}) {
     usage: [],
     limit: 10_000_000, // 업체 월 한도 micros
     reserveReason: null, // 정하면 잡기가 그 이유로 실패
+    extractions: [], // ledger_extractions
+    documents: {}, // 사진 id → { company_id, storage_path, mime, review_status }
+    photos: {}, // 버킷 경로 → Uint8Array
     calls: [],
     ...over,
   };
@@ -57,6 +60,13 @@ export function makeDb(over = {}) {
     const body = init.body ? JSON.parse(init.body) : null;
     db.calls.push({ method, path: url.pathname, query: url.search, body });
     if (url.origin !== SUPA) throw new Error('fake: unexpected host ' + url.href);
+
+    const PHOTO = '/storage/v1/object/ledger-evidence/';
+    if (url.pathname.startsWith(PHOTO)) {
+      const p = decodeURIComponent(url.pathname.slice(PHOTO.length));
+      const bytes = db.photos[p];
+      return bytes ? new Response(bytes, { status: 200 }) : new Response('{}', { status: 404 });
+    }
 
     if (url.pathname === '/auth/v1/user') {
       const tok = String((init.headers || {}).Authorization || '').replace(/^Bearer\s+/i, '');
@@ -95,6 +105,39 @@ export function makeDb(over = {}) {
       db.usage.push(row);
       return ok({ ok: true, id: row.id, repeat: false });
     }
+    if (path === 'rpc/ledger_extract_begin') {
+      // 0029 ledger_extract_begin 과 같은 판정
+      const doc = db.documents[body.p_document];
+      if (!doc) return ok({ ok: false, reason: 'not_found' });
+      if (doc.review_status !== 'pending') return ok({ ok: false, reason: 'not_pending' });
+      const mine = db.extractions.filter((x) => x.document_id === body.p_document);
+      const last = mine.sort((a, b) => b.attempt - a.attempt)[0];
+      if (last) {
+        if (last.status === 'running' || last.status === 'done')
+          return ok({ ok: false, reason: last.status, id: last.id });
+        if (['refused', 'skipped_budget'].includes(last.status) && !body.p_again)
+          return ok({ ok: false, reason: last.status, id: last.id });
+        if (last.attempt >= (body.p_again ? 5 : body.p_max_attempts))
+          return ok({ ok: false, reason: 'max_attempts', id: last.id });
+      }
+      const row = {
+        id: newId(),
+        document_id: body.p_document,
+        company_id: doc.company_id,
+        attempt: last ? last.attempt + 1 : 1,
+        status: 'running',
+      };
+      db.extractions.push(row);
+      return ok({
+        ok: true,
+        id: row.id,
+        attempt: row.attempt,
+        company_id: doc.company_id,
+        storage_path: doc.storage_path,
+        mime: doc.mime,
+        uploaded_by: doc.uploaded_by || null,
+      });
+    }
     if (path === 'rpc/assistant_budget_settle') {
       const row = db.usage.find((u) => u.id === body.p_id);
       if (!row) return ok({ ok: false, reason: 'not_found' });
@@ -110,6 +153,7 @@ export function makeDb(over = {}) {
       assistant_messages: db.messages,
       assistant_audit: db.audit,
       assistant_playbooks: db.playbooks,
+      ledger_extractions: db.extractions,
     };
     const rows = tables[path];
     if (!rows) throw new Error('fake: unknown table ' + path);
@@ -220,6 +264,18 @@ export function makeClaude(scripts = []) {
     push: (...s) => queue.push(...s),
     beta: {
       messages: {
+        /** 한 번에 받는 답 (사진 읽기) — 대본에 throwError 가 있으면 던진다 */
+        async create(params) {
+          claude.calls.push(structuredClone(params));
+          const s = queue.shift() || reply('{}');
+          if (s.throwError) throw s.throwError;
+          return {
+            model: s.model || params.model,
+            content: s.content,
+            stop_reason: s.stop_reason,
+            usage: s.usage,
+          };
+        },
         stream(params) {
           claude.calls.push(structuredClone(params));
           const s = queue.shift() || reply('네.');
