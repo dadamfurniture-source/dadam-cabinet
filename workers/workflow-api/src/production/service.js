@@ -194,9 +194,14 @@ export async function assertHqMoney(env, user) {
   }
 }
 
-/** 업체 설정 저장 — 보낸 묶음만 남긴다 (예전 개인 설정과 같은 방식). 권한은 부르는 쪽이 확인한다 */
+/**
+ * 업체 설정 저장 — 보낸 묶음만 남긴다 (예전 개인 설정과 같은 방식). 권한은 부르는 쪽이 확인한다.
+ * 장부 과세 묶음(tax — src/ledger/settings.js 가 따로 쓴다)은 이 화면이 보내지 않으므로 저장된 것을 그대로 둔다.
+ */
 export async function writeCompanySettings(env, { companyId, user, body }) {
   const clean = sanitizeSettings(body);
+  const prev = await selectOne(env, 'company_settings', { company_id: `eq.${companyId}`, select: 'settings' });
+  if (prev && prev.settings && prev.settings.tax) clean.tax = prev.settings.tax;
   const row = await upsertOne(env, 'company_settings', {
     company_id: companyId,
     settings: clean,

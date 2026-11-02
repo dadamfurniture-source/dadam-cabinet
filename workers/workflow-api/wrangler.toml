@@ -44,3 +44,12 @@ PRICING_CACHE_TTL_SEC = "300"
 #   wrangler secret put VAPID_PUBLIC_KEY         (앱 알림 — base64url 비압축 P-256 점, 개인 키와 짝)
 #   wrangler secret put VAPID_SUBJECT            (앱 알림 — https 주소)
 # ─────────────────────────────────────────────────────────────
+
+# 요청 한도 — Workers Rate Limiting (src/ledger/documents.js). 대시보드 설정 없이 배포로 생긴다 (wrangler 4.36+).
+#   키는 로그인 사용자 id, Cloudflare 위치(콜로)마다 대략적으로 센다. period 는 10 또는 60 초만 된다.
+#   넘으면 429 rate_limited. 바인딩이 없으면 세지 않는다. namespace_id 는 계정 안에서 겹치지 않는 정수 (generate-api 73xx).
+# POST /ledger/documents — 영수증 · 거래명세표 사진 한 장마다. 하루 장수 상한은 코드(DAILY_USER_MAX · DAILY_COMPANY_MAX)
+[[ratelimits]]
+name = "LEDGER_UPLOAD_LIMIT"
+namespace_id = "7401"
+simple = { limit = 30, period = 60 }
