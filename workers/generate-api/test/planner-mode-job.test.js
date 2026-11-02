@@ -586,3 +586,38 @@ test('planner 다듬기 + 비운 방 배경(cleared): 정리 줄 없는 다듬�
   assert.doesNotMatch(call.prompt, /CLEAN UP/);
   assert.match(call.prompt, /and the whole room — walls, floor, ceiling/);
 });
+
+// ─── 2026-11-02: 냉장고장(리폼) (options.reform — 사장님 「리폼 연출 이어 진행」 · 「바뀌는 자리만 비우기」 · 「시안 → 다듬기만」) ───
+
+const REFORM = { segs: [{ kind: 'wall', widthMm: 100 }, { kind: 'space', widthMm: 1070, fridge: 'new', upper: 'remove' }, { kind: 'mid', widthMm: 20, panel: 'keep' }, { kind: 'space', widthMm: 1070, fridge: 'keep', upper: 'keep' }, { kind: 'wall', widthMm: 100 }], boardMm: 1980, moldingMm: 60 };
+
+test('planner 리폼 방 비우기: 방 사진 한 장 + 뗄 것만 지우는 지시문 (남는 벽 · 상몰딩 · 중간판 · 상부장은 그대로)', async () => {
+  install({ qcIssues: [] });
+  await run({ ...PLANNER_OPTIONS, clear: true, reform: REFORM }, { ...PLANNER_INPUTS, renders: [] });
+  const call = calls.image[0];
+  assert.deepEqual(call.images.map((i) => Buffer.from(i.data, 'base64').toString()), ['ROOM']);
+  assert.match(call.prompt, /^You receive one image\. IMAGE A — ROOM PHOTO: the customer's existing built-in refrigerator surround on the back wall, before part of it is rebuilt\./);
+  assert.ok(call.prompt.includes('REMOVE: the refrigerator in space 1; and the wall cabinet above space 1, with its doors.'));
+  assert.ok(call.prompt.includes('the 20 mm divider panel between space 1 and space 2; the refrigerator in space 2; the wall cabinet above space 2, with its doors;'));
+  assert.doesNotMatch(call.prompt, /every old built-in cabinet/, '설계 벽 전체를 비우는 문장은 없다');
+});
+
+test('planner 리폼 다듬기 + 시안: 남은 뗄 것만 정리 · 새 냉장고 상자, 비운 방 배경이면 정리 없이', async () => {
+  install({ qcIssues: [] });
+  BYTES['render-composite'] = 'COMP';
+  try {
+    await run({ ...PLANNER_OPTIONS, place_render: true, polish: true, reform: REFORM }, { ...PLANNER_INPUTS, renders: [...PLANNER_INPUTS.renders, COMPOSITE] });
+  } finally { delete BYTES['render-composite']; }
+  const call = calls.image[0];
+  assert.deepEqual(call.images.map((i) => Buffer.from(i.data, 'base64').toString()), ['COMP']);
+  assert.ok(call.prompt.includes('CLEAN UP — the only change: the units replace the refrigerator in space 1; and the wall cabinet above space 1, with its doors.'));
+  assert.ok(call.prompt.includes('NEW REFRIGERATOR: the plain light-grey box in space 1 is the new refrigerator'));
+  assert.doesNotMatch(call.prompt, /together with the rest of that same old run/);
+  install({ qcIssues: [] });
+  BYTES['render-composite'] = 'COMP';
+  try {
+    await run({ ...PLANNER_OPTIONS, place_render: true, polish: true, cleared: true, reform: REFORM }, { ...PLANNER_INPUTS, renders: [...PLANNER_INPUTS.renders, COMPOSITE] });
+  } finally { delete BYTES['render-composite']; }
+  assert.doesNotMatch(calls.image[0].prompt, /CLEAN UP|EXISTING SURROUND/);
+  assert.match(calls.image[0].prompt, /and the whole room — walls, floor, ceiling/);
+});
