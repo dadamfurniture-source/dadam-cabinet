@@ -7,16 +7,18 @@
  *     X-Idempotency-Key 가 같거나, 같은 업체에 같은 파일(sha256)이 있으면 처음 사진을 돌려준다 (200 reused).
  *     순서: 분 한도(LEDGER_UPLOAD_LIMIT) → 같은 키 → 하루 장수 → 본문(5MB, 읽으면서 센다) → 형식 · 크기 → 같은 파일
  *       → 버킷 ledger-evidence `{업체}/{yyyy}/{mm}/{사진 id}.jpg|png` → 줄
+ *     새 사진이면 그 자리에서 읽기를 건다 (extract.js requestExtract, ctx.waitUntil — 응답을 기다리게 하지 않는다)
  *   GET  /ledger/documents   대표 · 실장: 업체 사진 전부 (?status= · ?mine=1 · ?before= · ?limit=).
  *                            직원: 자기가 올린 것의 일자 · 상태 · 돌려보낸 이유만 — 금액 · 메모 · 파일 칸 · 주소는 없다
  *                            ?company= — 본사 대표 · 실장이 공장 사진 목록을 볼 때 (access.js, 보기만)
  *
- * 사진은 지우지 않는다 (DB 트리거). 파일 주소(서명 URL)는 이 단계에서 주지 않는다.
+ * 사진은 지우지 않는다 (DB 트리거). 파일 주소(서명 URL)는 확인 목록(review.js)이 대표 · 실장에게만 준다.
  */
 import { selectOne, selectMany, insertOne, asActor, ValidationError, ConflictError, TooLargeError, RateLimitError } from '../supabase.js';
 import { kstDate } from '../production/service.js';
 import { uploadObject } from '../storage.js';
 import { ledgerAccess, assertWritable } from './access.js';
+import { requestExtract } from './extract.js';
 import { sniffImage, idempotencyKeyOf, PHOTO_MAX_BYTES, PHOTO_MAX_EDGE, PHOTO_MAX_PIXELS } from './checks.js';
 
 export const LEDGER_BUCKET = 'ledger-evidence';
@@ -139,8 +141,8 @@ async function documentBy(env, companyId, filter) {
   return selectOne(env, 'ledger_documents', { company_id: `eq.${companyId}`, ...filter, select: DOC_COLS });
 }
 
-/** 사진 올리기 → { document, reused } */
-export async function uploadDocument(env, { user, request }) {
+/** 사진 올리기 → { document, reused }. ctx 가 있으면 새 사진의 읽기를 건다 */
+export async function uploadDocument(env, { user, request, ctx }) {
   const access = await ledgerAccess(env, user);
   assertWritable(access);
   await enforceRateLimit(env.LEDGER_UPLOAD_LIMIT, user.id);
@@ -182,8 +184,9 @@ export async function uploadDocument(env, { user, request }) {
     note,
     idempotency_key: key,
   };
+  let saved;
   try {
-    return { document: documentView(await insertOne(asActor(env, user), 'ledger_documents', row), access.money), reused: false };
+    saved = await insertOne(asActor(env, user), 'ledger_documents', row);
   } catch (e) {
     // 같은 파일 · 같은 키가 동시에 — 먼저 들어간 줄 (올린 파일은 경로가 달라 남는다)
     if (e instanceof ConflictError) {
@@ -193,6 +196,8 @@ export async function uploadDocument(env, { user, request }) {
     }
     throw e;
   }
+  if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(requestExtract(env, id));
+  return { document: documentView(saved, access.money), reused: false };
 }
 
 /** 사진 목록 */

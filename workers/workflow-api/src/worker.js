@@ -33,6 +33,8 @@
  *   GET  /ledger/me · /ledger/accounts · /ledger/book · GET|PUT /ledger/settings
  *   POST /ledger/entries · /ledger/entries/:id/void · /ledger/entries/:id/correct
  *   GET|POST /ledger/documents — 회계장부 (src/ledger/)
+ *   GET  /ledger/review · POST /ledger/review/post · POST /ledger/documents/:id/post|return|reject|reread
+ *   GET  /ledger/business-status — 사진 확인 · 국세청 사업자 상태 (src/ledger/review.js, 읽기 걸기 src/ledger/extract.js)
  *
  *   GET  /public/confirm                  — 고객 열람 (X-Share-Token)
  *   POST /public/confirm/decision          — 고객 승인/수정요청
@@ -123,6 +125,8 @@ import {
 import { getBooksSummary } from './books.js';
 import { createEntry, voidEntry, correctEntry, getBook, listAccounts } from './ledger/entries.js';
 import { uploadDocument, listDocuments as listLedgerDocuments } from './ledger/documents.js';
+import { listReview, postDocument, postBatch, decideDocument, rereadDocument, businessStatus } from './ledger/review.js';
+import { runExtractDue } from './ledger/extract.js';
 import { ledgerMe, getLedgerSettings, putLedgerSettings } from './ledger/settings.js';
 import {
   createWorkerLink,
@@ -708,8 +712,8 @@ async function handleCorrectLedgerEntry(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data: await correctEntry(env, { user, entryId: params.id, body }) }, 201, NO_STORE);
 }
 
-async function handleUploadLedgerDocument(request, env, { user }) {
-  const { document, reused } = await uploadDocument(env, { user, request });
+async function handleUploadLedgerDocument(request, env, { user, ctx }) {
+  const { document, reused } = await uploadDocument(env, { user, request, ctx });
   return jsonResponse(request, env, { success: true, data: { document, reused } }, reused ? 200 : 201, NO_STORE);
 }
 
@@ -724,6 +728,49 @@ async function handleListLedgerDocuments(request, env, { user }) {
     limit: q.get('limit'),
   });
   return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+// 사진 확인 (src/ledger/review.js) — 읽은 칸 · 금액 · 서명 주소가 담겨 캐시에 남기지 않는다
+
+async function handleLedgerReview(request, env, { user }) {
+  const q = new URL(request.url).searchParams;
+  const data = await listReview(env, {
+    user,
+    company: q.get('company') || undefined,
+    status: q.get('status'),
+    before: q.get('before'),
+    limit: q.get('limit'),
+  });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handlePostLedgerDocument(request, env, { params, user }) {
+  const body = await readJson(request);
+  return jsonResponse(request, env, { success: true, data: await postDocument(env, { user, documentId: params.id, body }) }, 201, NO_STORE);
+}
+
+async function handlePostLedgerBatch(request, env, { user }) {
+  const body = await readJson(request);
+  return jsonResponse(request, env, { success: true, data: await postBatch(env, { user, body }) }, 200, NO_STORE);
+}
+
+async function handleReturnLedgerDocument(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await decideDocument(env, { user, documentId: params.id, body, status: 'returned' }) }, 200, NO_STORE);
+}
+
+async function handleRejectLedgerDocument(request, env, { params, user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await decideDocument(env, { user, documentId: params.id, body, status: 'rejected' }) }, 200, NO_STORE);
+}
+
+async function handleRereadLedgerDocument(request, env, { params, user }) {
+  return jsonResponse(request, env, { success: true, data: await rereadDocument(env, { user, documentId: params.id }) }, 202, NO_STORE);
+}
+
+async function handleBusinessStatus(request, env, { user }) {
+  const bizNo = new URL(request.url).searchParams.get('biz_no');
+  return jsonResponse(request, env, { success: true, data: await businessStatus(env, { user, bizNo }) }, 200, NO_STORE);
 }
 
 // 경영 대시보드 (Claude 프로젝트 문서 "다담 경영 대시보드" 1단계) — 관리자만, 회사 전체
@@ -1178,6 +1225,13 @@ const router = createRouter([
   { method: 'POST', path: '/ledger/entries/:id/correct', auth: 'jwt', handler: handleCorrectLedgerEntry },
   { method: 'GET',  path: '/ledger/documents',          auth: 'jwt', handler: handleListLedgerDocuments },
   { method: 'POST', path: '/ledger/documents',          auth: 'jwt', handler: handleUploadLedgerDocument },
+  { method: 'GET',  path: '/ledger/review',             auth: 'jwt', handler: handleLedgerReview },
+  { method: 'POST', path: '/ledger/review/post',        auth: 'jwt', handler: handlePostLedgerBatch },
+  { method: 'POST', path: '/ledger/documents/:id/post', auth: 'jwt', handler: handlePostLedgerDocument },
+  { method: 'POST', path: '/ledger/documents/:id/return', auth: 'jwt', handler: handleReturnLedgerDocument },
+  { method: 'POST', path: '/ledger/documents/:id/reject', auth: 'jwt', handler: handleRejectLedgerDocument },
+  { method: 'POST', path: '/ledger/documents/:id/reread', auth: 'jwt', handler: handleRereadLedgerDocument },
+  { method: 'GET',  path: '/ledger/business-status',    auth: 'jwt', handler: handleBusinessStatus },
 
   // 거래처 · 공급처 (그 업체 대표 · 실장, 본사 목록은 관리자도)
   { method: 'GET',   path: '/counterparties',     auth: 'jwt', handler: handleListCounterparties },
@@ -1324,6 +1378,7 @@ export default {
    *   DAILY_BRIEF_CRON — 평일 아침 7시(KST) 생산 요약 · 월 마감
    *   PUSH_SEND_CRON   — 1분마다 앱 알림 보내기, 하루 한 번 그 1분에 끝난 알림 정리 (src/push/sender.js),
    *                      24시간 지난 상담 배정 되돌리기 (src/distribution/company.js runAssignmentExpiry),
+   *                      장부 사진 읽기 다시 걸기 (src/ledger/extract.js runExtractDue),
    *                      분이 5의 배수면 새 상담 · 새 업체 신청 Slack 알림 (src/consult-notify.js)
    */
   async scheduled(event, env, ctx) {
@@ -1331,6 +1386,9 @@ export default {
       ctx.waitUntil(
         runPushSender(env, { nowMs: event.scheduledTime }).catch((e) => console.error('push sender failed:', e && e.statusCode ? e.statusCode : 'error')),
       );
+      // 장부 사진 읽기 — 올린 직후 걸기가 빠졌거나 읽기가 실패 · 멈춘 사진을 다시 건다 (src/ledger/extract.js, 던지지 않는다).
+      // assistant-api 바인딩이 있을 때만 (없으면 걸 곳이 없다)
+      if (env.ASSISTANT) ctx.waitUntil(runExtractDue(env));
       // 24시간 지난 상담 배정 → 무응답, 본사 상담은 다시 대기 (src/distribution/company.js)
       ctx.waitUntil(
         runAssignmentExpiry(env, { nowMs: event.scheduledTime }).catch((e) => console.error('assignment expiry failed:', e && e.statusCode ? e.statusCode : 'error')),
