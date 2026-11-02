@@ -2,7 +2,8 @@
  * 회계장부 — 영수증 · 거래명세표 사진.
  *
  *   POST /ledger/documents   사진 원본 바이트 (Content-Type 은 보지 않고 첫 바이트로 JPEG · PNG 를 가린다)
- *     업체 구성원 누구나 (직원도), 자격 full. 쿼리 ?note= 올린 사람 메모(300자).
+ *     업체 구성원 누구나 (직원도), 자격 full. 머리 X-Ledger-Note 올린 사람 메모(300자, encodeURIComponent 한 UTF-8).
+ *       메모에는 현장 · 고객 이야기가 들어갈 수 있어 주소(쿼리)에 두지 않는다.
  *     X-Idempotency-Key 가 같거나, 같은 업체에 같은 파일(sha256)이 있으면 처음 사진을 돌려준다 (200 reused).
  *     순서: 분 한도(LEDGER_UPLOAD_LIMIT) → 같은 키 → 하루 장수 → 본문(5MB, 읽으면서 센다) → 형식 · 크기 → 같은 파일
  *       → 버킷 ledger-evidence `{업체}/{yyyy}/{mm}/{사진 id}.jpg|png` → 줄
@@ -107,9 +108,15 @@ async function sha256Hex(u8) {
   return [...digest].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-function noteOf(value) {
-  if (value === null || value === undefined) return null;
-  const s = String(value).trim();
+/** X-Ledger-Note 머리 → 메모 | null */
+function noteOf(header) {
+  if (header === null || header === undefined) return null;
+  let s;
+  try {
+    s = decodeURIComponent(String(header)).trim();
+  } catch {
+    throw new ValidationError('메모를 읽지 못했습니다');
+  }
   if (s.length > 300) throw new ValidationError('메모는 300자 이하입니다');
   return s || null;
 }
@@ -138,7 +145,7 @@ export async function uploadDocument(env, { user, request }) {
   assertWritable(access);
   await enforceRateLimit(env.LEDGER_UPLOAD_LIMIT, user.id);
   const key = idempotencyKeyOf(request.headers.get('X-Idempotency-Key'));
-  const note = noteOf(new URL(request.url).searchParams.get('note'));
+  const note = noteOf(request.headers.get('X-Ledger-Note'));
   if (key) {
     const prev = await documentBy(env, access.companyId, { idempotency_key: `eq.${key}` });
     if (prev) return { document: documentView(prev, access.money), reused: true };

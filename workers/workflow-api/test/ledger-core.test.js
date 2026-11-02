@@ -505,7 +505,7 @@ test('GET /ledger/accounts — 쓰는 계정만 차례대로', async () => {
 
 test('POST /ledger/documents — 직원도 올린다: 버킷 경로 · 줄 · 바꾼 사람, 응답은 직원 모양', async () => {
   const db = makeDb();
-  const r = await call(db, `/ledger/documents?note=${encodeURIComponent('  현장 A 자재  ')}`, STAFF, { method: 'POST', raw: jpeg(1200, 1600), headers: { 'X-Idempotency-Key': 'photo-1' } });
+  const r = await call(db, '/ledger/documents', STAFF, { method: 'POST', raw: jpeg(1200, 1600), headers: { 'X-Idempotency-Key': 'photo-1', 'X-Ledger-Note': encodeURIComponent('  현장 A 자재  ') } });
   assert.equal(r.status, 201, r.text);
   assert.equal(db.uploads.length, 1);
   const today = kstDate();
@@ -723,4 +723,23 @@ test('남의 장부 — 본사 직원 · 공장 · 협력업체는 403, 공장 �
   } finally {
     LEVEL[PLATFORM] = 'full';
   }
+});
+
+test('POST /ledger/documents — 메모는 X-Ledger-Note 머리만 읽는다 (주소의 ?note= 는 보지 않는다) · 깨진 값 · 300자 넘음은 422', async () => {
+  const db = makeDb();
+  const q = await call(db, `/ledger/documents?note=${encodeURIComponent('주소 메모')}`, STAFF, { method: 'POST', raw: jpeg(100, 100) });
+  assert.equal(q.status, 201, q.text);
+  assert.equal(db.documents[0].note, null);
+
+  const bad = await call(db, '/ledger/documents', STAFF, { method: 'POST', raw: jpeg(101, 100), headers: { 'X-Ledger-Note': '%E0%A4%A' } });
+  assert.equal(bad.status, 422, bad.text);
+  assert.equal(bad.body.message, '메모를 읽지 못했습니다');
+
+  const long = await call(db, '/ledger/documents', STAFF, { method: 'POST', raw: jpeg(102, 100), headers: { 'X-Ledger-Note': encodeURIComponent('가'.repeat(301)) } });
+  assert.equal(long.status, 422, long.text);
+  assert.equal(db.documents.length, 1);
+  assert.equal(db.uploads.length, 1);
+
+  const pre = await worker.fetch(new Request('https://api.test/ledger/documents', { method: 'OPTIONS', headers: { Origin: 'https://dadamfurniture.com' } }), ENV, { waitUntil() {} });
+  assert.match(pre.headers.get('Access-Control-Allow-Headers'), /X-Ledger-Note/);
 });
