@@ -9,6 +9,7 @@
  *   사진     첫 바이트로 JPEG · PNG, HEIC 422, 5MB 413, 크기 422, 같은 파일 · 같은 키는 한 장, 분 한도 · 하루 장수 429
  *   기록     쓰는 요청마다 x-actor-id 머리 (ledger_events 의 바꾼 사람)
  *   설정     과세 묶음(tax)만 바꾸고 원가 설정은 그대로. 원가 설정 저장도 tax 를 지우지 않는다
+ *   본사     다담 본사 대표 · 실장은 다담 공장 장부도 본다 (?company=, 보기만). 본사 직원 · 공장 · 협력업체는 남의 장부 403
  */
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -34,6 +35,16 @@ const ADMIN = 'u-admin';
 const R_OWNER = 'u-read-owner';
 const R_STAFF = 'u-read-staff';
 const N_OWNER = 'u-none-owner';
+const PLATFORM = 'c0000000-0000-4000-8000-0000000000b1';
+const HQ = 'c0000000-0000-4000-8000-0000000000b2';
+const PF_OWNER = 'u-platform-owner';
+const PF_STAFF = 'u-platform-staff';
+const HQ_OWNER = 'u-hq-owner';
+const COMPANIES = [
+  { id: CO, name: '한빛인테리어', kind: 'partner' },
+  { id: PLATFORM, name: '다담 본사', kind: 'platform' },
+  { id: HQ, name: '다담 공장', kind: 'hq' },
+];
 const MEMBERS = [
   { user_id: OWNER, company_id: CO, role: 'owner', status: 'active' },
   { user_id: MANAGER, company_id: CO, role: 'manager', status: 'active' },
@@ -43,8 +54,12 @@ const MEMBERS = [
   { user_id: R_OWNER, company_id: CO_READ, role: 'owner', status: 'active' },
   { user_id: R_STAFF, company_id: CO_READ, role: 'staff', status: 'active' },
   { user_id: N_OWNER, company_id: CO_NONE, role: 'owner', status: 'active' },
+  { user_id: PF_OWNER, company_id: PLATFORM, role: 'owner', status: 'active' },
+  { user_id: PF_STAFF, company_id: PLATFORM, role: 'staff', status: 'active' },
+  { user_id: HQ_OWNER, company_id: HQ, role: 'owner', status: 'active' },
 ];
-const LEVEL = { [CO]: 'full', [CO_READ]: 'read', [CO_NONE]: 'none' };
+/** 업체 자격 — 시험이 바꾼다 (본사 · 공장은 시험 예외로 full) */
+const LEVEL = { [CO]: 'full', [CO_READ]: 'read', [CO_NONE]: 'none', [PLATFORM]: 'full', [HQ]: 'full' };
 const ACCOUNTS = [
   { code: 'income.sales', name: '매출액', grp: 'income', sort: 10, note: null, active: true },
   { code: 'purchase.materials', name: '재료비 매입', grp: 'purchase', sort: 40, note: '제조', active: true },
@@ -84,7 +99,12 @@ function makeDb({ entries = [], documents = [], settings = {}, book = [] } = {})
     if (path.startsWith('/company_members?')) {
       return json(MEMBERS.filter((m) => match(q, m, ['user_id', 'status'])).map((m) => ({ company_id: m.company_id, role: m.role })));
     }
-    if (path.startsWith('/companies?')) return json([{ id: 'c0000000-0000-4000-8000-0000000000ff' }]);
+    if (path.startsWith('/companies?')) {
+      const kind = eq(q, 'kind');
+      if (kind) return json(COMPANIES.filter((c) => c.kind === kind).map((c) => ({ id: c.id })));
+      const ids = (q.get('id') || '').replace(/^in\.\(|\)$/g, '').split(',');
+      return json(COMPANIES.filter((c) => ids.includes(c.id)));
+    }
     if (path.startsWith('/admin_roles?')) return json(eq(q, 'user_id') === ADMIN ? [{ role: 'admin' }] : []);
     if (path === '/rpc/company_entitled') {
       state.rpc.push({ fn: 'company_entitled', body });
@@ -285,9 +305,13 @@ test('GET /ledger/me — 구성원만 · 자격 none 403 · 할 수 있는 것',
   const owner = await call(db, '/ledger/me', OWNER);
   assert.equal(owner.status, 200, owner.text);
   assert.equal(owner.cache, 'no-store, private');
-  assert.deepEqual(owner.body.data, { company_id: CO, role: 'owner', money: true, level: 'full', can_upload: true, can_write: true, tax: { vat_type: 'general', business_kind: 'manufacturing' } });
+  assert.deepEqual(owner.body.data, {
+    company_id: CO, role: 'owner', money: true, level: 'full', viewing: false, can_upload: true, can_write: true,
+    tax: { vat_type: 'general', business_kind: 'manufacturing' },
+    ledgers: [{ company_id: CO, name: '한빛인테리어', kind: 'partner', own: true }],
+  });
   const staff = await call(db, '/ledger/me', STAFF);
-  assert.deepEqual(staff.body.data, { company_id: CO, role: 'staff', money: false, level: 'full', can_upload: true, can_write: false });
+  assert.deepEqual(staff.body.data, { company_id: CO, role: 'staff', money: false, level: 'full', viewing: false, can_upload: true, can_write: false });
   const read = await call(db, '/ledger/me', R_OWNER);
   assert.equal(read.body.data.level, 'read');
   assert.equal(read.body.data.can_upload, false);
@@ -622,4 +646,81 @@ test('원가 설정 저장(POST /production/settings)은 장부 과세 묶음을
   const r = await call(db, '/production/settings', OWNER, { method: 'POST', body: { quote: { marginRate: 0.25 } } });
   assert.equal(r.status, 200, r.text);
   assert.deepEqual(db.settings[CO], { quote: { marginRate: 0.25 }, tax: { vat_type: 'general', business_kind: 'manufacturing' } });
+});
+
+// ── 본사 → 공장 장부 보기 ─────────────────────────────────────
+
+test('본사 대표 · 실장 — 자기 장부와 공장 장부 목록, ?company= 로 공장 장부를 보기만', async () => {
+  const db = makeDb({ book: [{ source: 'entry', id: 'x', entry_date: '2026-11-01', direction: 'expense', account: 'admin.rent', amount: 1, vat_amount: 0 }] });
+  const me = await call(db, '/ledger/me', PF_OWNER);
+  assert.equal(me.status, 200, me.text);
+  assert.equal(me.body.data.company_id, PLATFORM);
+  assert.equal(me.body.data.viewing, false);
+  assert.deepEqual(me.body.data.ledgers, [
+    { company_id: PLATFORM, name: '다담 본사', kind: 'platform', own: true },
+    { company_id: HQ, name: '다담 공장', kind: 'hq', own: false },
+  ]);
+  const view = await call(db, `/ledger/me?company=${HQ}`, PF_OWNER);
+  assert.equal(view.status, 200, view.text);
+  assert.equal(view.body.data.company_id, HQ);
+  assert.equal(view.body.data.viewing, true);
+  assert.equal(view.body.data.level, 'read');
+  assert.equal(view.body.data.can_write, false);
+  assert.equal(view.body.data.can_upload, false);
+  const ent = db.rpc.filter((x) => x.fn === 'company_entitled' && x.body.p_company === HQ);
+  assert.ok(ent.length && ent.every((x) => !('p_user' in x.body)), '공장 자격은 사람 없이 본다');
+
+  const book = await call(db, `/ledger/book?month=2026-11&company=${HQ}`, PF_OWNER);
+  assert.equal(book.status, 200, book.text);
+  assert.equal(db.rpc.filter((x) => x.fn === 'ledger_book').at(-1).body.p_company, HQ);
+  assert.equal(book.body.data.viewing, true);
+  assert.equal(book.body.data.company_id, HQ);
+  for (const path of ['/ledger/accounts', '/ledger/settings']) {
+    const r = await call(db, `${path}?company=${HQ}`, PF_OWNER);
+    assert.equal(r.status, 200, `${path} ${r.text}`);
+  }
+  const docs = await call(db, `/ledger/documents?company=${HQ}`, PF_OWNER);
+  assert.equal(docs.status, 200, docs.text);
+  assert.equal(new URL(docs.calls.find((c) => c.url.includes('/ledger_documents?')).url).searchParams.get('company_id'), `eq.${HQ}`);
+});
+
+test('본사 → 공장 — 쓰기는 자기 업체에만 (company 를 붙여도 공장에 쓰지 않는다)', async () => {
+  const db = makeDb();
+  const r = await call(db, `/ledger/entries?company=${HQ}`, PF_OWNER, { method: 'POST', body: entryBody() });
+  assert.equal(r.status, 201, r.text);
+  assert.equal(db.entries[0].company_id, PLATFORM);
+  const put = await call(db, `/ledger/settings?company=${HQ}`, PF_OWNER, { method: 'PUT', body: { vat_type: 'general', business_kind: 'manufacturing' } });
+  assert.equal(put.status, 200, put.text);
+  assert.deepEqual(Object.keys(db.settings), [PLATFORM]);
+});
+
+test('남의 장부 — 본사 직원 · 공장 · 협력업체는 403, 공장 자격이 없으면 본사도 못 보고, 본사 자격이 없으면 /ledger/me 가 공장 장부로', async () => {
+  const db = makeDb();
+  for (const [who, company] of [[PF_STAFF, HQ], [HQ_OWNER, PLATFORM], [OWNER, HQ], [OWNER, PLATFORM], [PF_OWNER, CO], [PF_OWNER, 'nope']]) {
+    const r = await call(db, `/ledger/book?company=${company}`, who);
+    assert.equal(r.status, 403, `${who} → ${company} ${r.text}`);
+  }
+  assert.equal(db.rpc.filter((x) => x.fn === 'ledger_book').length, 0);
+  LEVEL[HQ] = 'none';
+  try {
+    const r = await call(db, `/ledger/book?company=${HQ}`, PF_OWNER);
+    assert.equal(r.status, 403, r.text);
+    const me = await call(db, '/ledger/me', PF_OWNER);
+    assert.deepEqual(me.body.data.ledgers.map((x) => x.company_id), [PLATFORM]);
+  } finally {
+    LEVEL[HQ] = 'full';
+  }
+  LEVEL[PLATFORM] = 'none';
+  try {
+    const me = await call(db, '/ledger/me', PF_OWNER);
+    assert.equal(me.status, 200, me.text);
+    assert.equal(me.body.data.company_id, HQ);
+    assert.equal(me.body.data.viewing, true);
+    assert.deepEqual(me.body.data.ledgers.map((x) => x.company_id), [HQ]);
+    const staff = await call(db, '/ledger/me', PF_STAFF);
+    assert.equal(staff.status, 403, staff.text);
+    assert.equal(staff.body.code, 'not_entitled');
+  } finally {
+    LEVEL[PLATFORM] = 'full';
+  }
 });
