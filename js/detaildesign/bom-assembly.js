@@ -297,7 +297,8 @@
 
   /**
    * 도어 세로 자리 (밑단 y). 플래너 addFrontPanel:
-   *   상부장 — 도어 내림: 윗변 = 몸통 상단, 밑단이 (도어 H − 장H) 만큼 아래로 (BOM 장H + 내림)
+   *   상부장 — 도어 내림: 윗변 = 몸통 상단, 밑단이 (도어 H − 장H) 만큼 아래로 (BOM 장H + 내림).
+   *            내림 0 (2026-11-03 하부장 위 수납장 「몸통과 같게」)이면 밑단 = 몸통 바닥
    *   하부장 — 목찬넬 상단 틈: 밑단 = 몸통 바닥, 윗변이 몸통 상단보다 내려옴 (BOM 장H − 30)
    *   갭만 둔 도어 (장H − 4) — 위아래 2 씩
    * 그 밖은 null.
@@ -305,7 +306,7 @@
   function doorYOf(pos, H, h) {
     const G = C.DOOR_GAP;
     if (h === H - G) return G / 2;
-    if (pos === 'upper' && h > H) return H - h;
+    if (pos === 'upper' && h >= H) return H - h;
     if (pos === 'lower' && h < H) return 0;
     return null;
   }

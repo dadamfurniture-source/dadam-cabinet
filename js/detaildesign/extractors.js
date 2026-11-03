@@ -755,6 +755,42 @@
       const bomIsBenchModule = (m) => !!m && String(m.moduleKind || '') === 'bench';
       /** 키큰장 도어 전신거울 — 2026-10-29 사장님 "5T · 도어 사방 여백 50", 양문은 "한 짝만 — 좌 · 우 고름" (mod.mirror 'single' | 'left' | 'right') */
       const BOM_MIRROR = Object.freeze({ T: 5, MARGIN: 50, MATERIAL: '거울', SIDES: Object.freeze(['single', 'left', 'right']) });
+      /**
+       * 하부장 위 수납장 (2026-11-03 사장님 「밑에 2개의 하부장 위에 1개의 수납장을 올리려고」 → 질문 답 「몸통 위에 바로」):
+       *   위에 수납장이 올라간 하부장(브리지 mod.cabinetOnTop)은 밴드 2 대신 천판 — 키큰장 단 · 하부 밥솥장과 같은 짜임 (addLowerCarcassRows topPanel),
+       *   그 칸 위에는 상판이 없다 (상판 폭에서 뺀다). 위 수납장은 상부장 짜임의 따로 짠 상자 (pos upper — 모듈 라이브러리가 높이 · 깊이를 준다).
+       */
+      const bomCabinetOnTop = (m) => !!m && m.cabinetOnTop === true;
+      /**
+       * 상부장 도어 내림 — 모듈 값(mod.doorOverlap, 0 이상)이 있으면 그 값, 없으면 품목 사양 upperDoorOverlap (기본 15).
+       *   2026-11-03 사장님 (하부장 위 수납장 도어 아래 끝): 「아랫장이 목찬넬이면 5내림, 아니면 몸통과 같게」 — 브리지가 0 · 5 를 싣는다.
+       *   사양 값은 예전처럼 0 이면 15 로 떨어진다 (옛 저장 설계 그대로).
+       */
+      const bomUpperOverlapOf = (mod, specs) => {
+        const v = mod && mod.doorOverlap != null && mod.doorOverlap !== '' ? Number(mod.doorOverlap) : NaN;
+        return Number.isFinite(v) && v >= 0 ? v : (parseFloat(specs && specs.upperDoorOverlap) || 15);
+      };
+      /**
+       * 콘센트 — 2026-11-03 사장님 (하부장 전자제품): 전자제품을 넣은 하부장마다 「콘센트 자재 + 뒤판 타공」 · 「모듈마다 1개 (2구)」 ·
+       *   타공 「50*80」 · 위치는 「모듈 칸에서 높이 적기」 (브리지 mod.outlet = { h: 바닥에서 mm | null } — 없으면 현장 확인).
+       */
+      const BOM_OUTLET = Object.freeze({ CATEGORY: '전기', ITEM: '콘센트 2구 (매립)', SPEC: '2구', HOLE_W: 50, HOLE_H: 80 });
+      const bomOutletOf = (m) => (m && m.outlet && typeof m.outlet === 'object' ? m.outlet : null);
+      /** 콘센트 뒤판 타공 비고 — 높이는 바닥에서 (플래너가 적은 값), 가로 자리는 정하지 않았다 */
+      const bomOutletNoteOf = (o) => {
+        const h = Number(o && o.h);
+        return `콘센트 타공 ${BOM_OUTLET.HOLE_W}×${BOM_OUTLET.HOLE_H} — ${Number.isFinite(h) && h > 0 ? `바닥에서 ${Math.round(h)}` : '위치 현장 확인'} (가로 자리 현장 확인)`;
+      };
+      /**
+       * 알루미늄 프레임 유리 도어 — 2026-11-03 사장님 (하부장 위 수납장 종류 「유리 도어」 → 「알루미늄 프레임 + 유리」): 사서 단다.
+       *   도어 판 행을 구매품 행으로 바꾼다 — 크기 = 엔진 도어 재단 치수 그대로, 칠하지 않는다 (거울처럼 slot back). 경첩은 엔진 경첩 규칙 그대로.
+       */
+      const BOM_GLASS_DOOR = Object.freeze({
+        KIND: 'alu', MATERIAL: '알루미늄 프레임 유리',
+        NOTE: '구매품 — 알루미늄 프레임 유리 도어 (크기 = 도어 재단 치수) [확인 필요] 프레임 두께',
+        HINGE_NOTE: '[확인 필요] 알루미늄 프레임 도어 경첩 품번',
+      });
+      const bomGlassDoorOf = (m) => !!m && m.glassDoor === BOM_GLASS_DOOR.KIND;
 
       /**
        * 도어 수 기본값 — 2026-10-13 사장님: 플래너와 같게. 도어 한 장 최대 600 (MASTER_RULES.DOOR_W_MAX) —
@@ -1262,6 +1298,9 @@
             }
             // 2026-10-19: 기둥·배관 따내기 — 그 모듈의 해당 판 비고에 적는다 (재단기는 사각 판만 자른다)
             this.applyCutoutNotes(item, materials, beforeLen, itemIdx);
+            // 2026-11-03 사장님: 콘센트 뒤판 타공 (그 모듈 뒷판 비고) · 알루미늄 프레임 유리 도어 (도어 판 행 → 구매품 행)
+            this.applyOutletNotes(item, materials, beforeLen, itemIdx);
+            this.applyGlassDoors(item, materials, beforeLen, itemIdx);
             // ★ 새로 추가된 자재에 품목 라벨 태깅
             for (let i = beforeLen; i < materials.length; i++) {
               materials[i].itemLabel = itemLabel;
@@ -1287,6 +1326,32 @@
          *   치수·수량은 바꾸지 않는다: 원판에서 사각으로 자르고 따내기는 가공이다. 측판은 두 장이 한 행이라
          *   비고가 어느 쪽(좌·우) 판인지 적는다. 그 판 행이 없으면(하부장 천판) 비고 없이 dlog 로 남긴다.
          */
+        /** 콘센트 — 그 모듈 뒷판 행 비고에 타공 50 × 80 · 높이 (BOM_OUTLET). 뒷판 행이 없으면(오픈장 등) dlog 만 */
+        applyOutletNotes(item, materials, fromIdx, itemIdx) {
+          (item.modules || []).forEach((mod) => {
+            const o = bomOutletOf(mod);
+            if (!o || mod.id === undefined || mod.id === null) return;
+            const moduleKey = `${itemIdx | 0}-${String(mod.id)}`;
+            const row = materials.slice(fromIdx).find((r) => r.moduleKey === moduleKey && r.part === '뒷판');
+            const note = bomOutletNoteOf(o);
+            if (!row) { dlog(`[Outlet] ${moduleKey}: ${note} 를 붙일 뒷판 행이 없다`); return; }
+            row.note = row.note ? `${row.note} · ${note}` : note;
+          });
+        }
+
+        /** 알루미늄 프레임 유리 도어 — 그 모듈 도어 판 행을 구매품 행으로 (BOM_GLASS_DOOR). 치수 · 수량 · 부재 이름은 그대로 (조립 명세가 도어 자리에 놓는다) */
+        applyGlassDoors(item, materials, fromIdx, itemIdx) {
+          (item.modules || []).forEach((mod) => {
+            if (!bomGlassDoorOf(mod) || mod.id === undefined || mod.id === null) return;
+            const moduleKey = `${itemIdx | 0}-${String(mod.id)}`;
+            materials.slice(fromIdx).filter((r) => r.moduleKey === moduleKey && r.part === '도어').forEach((r) => {
+              const edges = bomEdgeSidesOf('-', r.w, r.h);
+              Object.assign(r, { material: BOM_GLASS_DOOR.MATERIAL, edge: '-', note: BOM_GLASS_DOOR.NOTE, finishCode: '', slot: 'back',
+                edges, edgeLen: bomEdgeLenOf(edges, r.w, r.h), edgeT: bomEdgeThicknessOf('back'), edgeCode: null, glassDoor: true });
+            });
+          });
+        }
+
         applyCutoutNotes(item, materials, fromIdx, itemIdx) {
           const PART = { left: '측판', right: '측판', top: '천판', bottom: '지판' };
           (item.modules || []).forEach((mod) => {
@@ -1652,6 +1717,7 @@
             this.add(materials, label, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
             if (topPanel) {
               // 2026-10-30 사장님 「지금 짜임에서 밴드만 천판으로」: 상판 밑이 아닌 몸통(키큰장 가운데 · 위 단)은 밴드 2 대신 천판 — 지판과 같은 판
+              //   2026-11-03 사장님: 위에 수납장이 올라간 하부장도 같다 (bomCabinetOnTop — 「몸통 위에 바로」)
               this.add(materials, label, '천판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
             } else if (standBack && FixtureRules) {
               // 앞 · 뒤 한 장씩 — 앞은 보통 앞 밴드 자리에 눕고(폭 50), 뒤는 뒤끝에 선다 (폭 70 이 높이 방향)
@@ -2420,7 +2486,8 @@
               this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H + overlap, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준) — 목대를 덮는다: doorW + 15 − 4 (corner.md §3.5.1)', mod);
               this.addBlindFrontParts(materials, modLabel, mod, H, H - T * 2, H + overlap);   // 휠라(멍판) = 도어 (내림 15 포함 — 2026-10-27 사장님)
             } else if (doorCount > 0) {
-              const overlap = parseFloat(specs.upperDoorOverlap) || 15;
+              // 2026-11-03: 하부장 위 수납장은 모듈 내림 (0 · 5 — bomUpperOverlapOf)
+              const overlap = bomUpperOverlapOf(mod, specs);
               const doorW = Math.floor(W / doorCount) - 4;
               this.add(materials, modLabel, '도어', 'MDF', 18, doorW, H + overlap, doorCount, '4면', '', mod);
             }
@@ -2459,7 +2526,7 @@
             // 몸통 — 측판 2 (하부장: 사쿠리 없음, 목찬넬이면 따내기 비고) · 지판 · 밴드 2 · 뒷판(측판 뒤 덮음) · 처짐방지목.
             //   위 도어 + 아래 서랍은 두 몸통 (2026-10-25, addLowerCarcassRows). 멍장은 가운데 처짐방지목 대신 ㄱ자 기둥 (2026-10-26)
             this.addLowerCarcassRows(materials, modLabel, W, H, T, modD, drawerLayout, !!(isWoodChannel && DrawerRules), '', isBlindModule(mod, 'lower'),
-              !!(FixtureRules && FixtureRules.hasStandingBackBand(mod)), isDrawer ? 0 : bomBraceCutOf(mod, W, modD, T), undefined, bomBraceOffOf(mod, W, T));
+              !!(FixtureRules && FixtureRules.hasStandingBackBand(mod)), isDrawer ? 0 : bomBraceCutOf(mod, W, modD, T), bomCabinetOnTop(mod) || undefined, bomBraceOffOf(mod, W, T));
             const bandH = isWoodChannel ? H - T * 2 - DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : H - T * 2;
             // 선반 (서랍/EL/오픈장 없으면 1개, 하부장: 사쿠리 없음). 2026-10-26: 설비장 개수대도 없다 (예전 type 'sink' 와 같다)
             if (!isDrawer && !isEL && !isOpen && mod.type !== 'sink' && !(FixtureRules && FixtureRules.noShelf(mod))) {
@@ -2559,8 +2626,9 @@
           //   "보통 벽마다 한장씩, 두장으로 나뉨. 상판 외주업체에서 결정." 의 나누기는 상판 업체가 한다). 상판 발주 요청서
           //   (workers/workflow-api/src/countertop.js)도 이 한 행으로 요청 한 장(평면 · 벽 길이 · 타공)을 만든다. 벽마다 나누지 않는다.
           //   쿡탑장(type cook)은 몸통을 안 내지만 상판은 그 위를 지나가므로 폭에 넣는다 (걸레받이 effectiveW 는 예전대로 뺀다).
+          //   2026-11-03 사장님 (하부장 위 수납장 「몸통 위에 바로」): 위에 수납장이 올라간 하부장 칸은 상판이 없다 — 폭에서 뺀다.
           const topLineW = (item.modules || [])
-            .filter((m) => m.pos === 'lower' && !bomTallTierOf(m))
+            .filter((m) => m.pos === 'lower' && !bomTallTierOf(m) && !bomCabinetOnTop(m))
             .reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0)
             || (lowerModules.length ? 0 : effectiveW);
           if (topLineW > 0) {
@@ -3166,7 +3234,7 @@
             if (drawerLayout && drawerLayout.warnings.length) dlog(`[Drawer] ${modLabel}: ${drawerLayout.warnings.join(' / ')}`);
             // 몸통 — 위 도어 + 아래 서랍은 두 몸통 (2026-10-25, addLowerCarcassRows)
             this.addLowerCarcassRows(materials, modLabel, W, H, T, modD, drawerLayout, !!(isWoodChannel && DrawerRules), floatH > 0 ? BOM_FLOAT_DRAWER_NOTE : '',
-              false, false, isDrawer ? 0 : bomBraceCutOf(mod, W, modD, T), undefined, !isDrawer && bomBraceOffOf(mod, W, T));
+              false, false, isDrawer ? 0 : bomBraceCutOf(mod, W, modD, T), bomCabinetOnTop(mod) || undefined, !isDrawer && bomBraceOffOf(mod, W, T));
             const shelf = bomSimpleShelfQtyOf(mod, rules);
             this.addShelfRows(materials, modLabel, mod, W, H, T, modD, modD - T, shelf.qty, shelf.defaulted ? shelfNote : '');
             // 2026-10-29 세로칸막이 · 속서랍 (서랍장에는 없다) — 칸막이 깊이 = 지판 깊이 D
@@ -3213,8 +3281,10 @@
           // 상판 — 단순 상자 품목은 상판 규칙이 없어 내지 않았다 (§6.5). 2026-10-28 사장님: 화장대 기본 12T 인조대리석 · 신발장은 있을 때 18T MDF —
           //   품목 스펙에 상판 재질(topMaterial)이 있고 두께가 0 보다 클 때만 (예전 스펙엔 재질이 없다 → 예전과 같다).
           //   폭 = 하부 라인(키큰장 단 제외) + 하부 도면 마감재 (싱크와 같다), 깊이 = 몸통 + 앞 자리 (사장님 "380 = 몸통 + 앞 자리").
-          if (specs.topMaterial && topT > 0 && effectiveW > 0) {
-            const topW = effectiveW + (Array.isArray(specs.drawnFinishes) ? specs.drawnFinishes : [])
+          //   2026-11-03 사장님: 위에 수납장이 올라간 하부장 칸은 상판이 없다 (bomCabinetOnTop — 싱크와 같다)
+          const topLineW = lineLowerModules.filter((m) => !bomCabinetOnTop(m)).reduce((sum, m) => sum + (parseFloat(m.w) || 0), 0);
+          if (specs.topMaterial && topT > 0 && topLineW > 0) {
+            const topW = topLineW + (Array.isArray(specs.drawnFinishes) ? specs.drawnFinishes : [])
               .filter((f) => f && f.area === 'lower').reduce((s, f) => s + (Number(f.W) > 0 ? Number(f.W) : 0), 0);
             const bodyD = Math.max(...lineLowerModules.map((m) => bomSimpleDepthOf(m, 'lower', item, rules)));
             const topMat = String(specs.topMaterial);
@@ -3567,7 +3637,7 @@
             const upperOverlap = parseFloat(specs.upperDoorOverlap) || 15;
             const tallTier = mod.pos === 'lower' ? bomTallTierOf(mod) : null;
             if (tallTier) doorH = bomTallTierDoorH(mod, tallTier, specs);
-            else if (mod.pos === 'upper') doorH = (mod.h || specs.upperH - upperOverlap) + upperOverlap;
+            else if (mod.pos === 'upper') doorH = (mod.h || specs.upperH - upperOverlap) + bomUpperOverlapOf(mod, specs);   // 2026-11-03 모듈 내림 (하부장 위 수납장)
             else if (mod.pos === 'lower') doorH = (mod.h || (specs.lowerH || 870) - (parseFloat(specs.topThickness) || 12) - (parseFloat(specs.sinkLegHeight) || 150)) - 30;
             else doorH = mod.h || 700;
             if (simpleDoorH !== null) doorH = simpleDoorH; // B3 서랍장 여닫이 도어 — 자재 행의 hingeDoorH
@@ -3595,7 +3665,7 @@
               spec: `${hingesPerDoor}구`,
               qty: hingesPerDoor * doorCount,
               unit: 'EA',
-              note: `${mod.name || mod.type} (보링: ${boring.join(', ')})${shortNote}`,
+              note: `${mod.name || mod.type} (보링: ${boring.join(', ')})${shortNote}${bomGlassDoorOf(mod) ? ` ${BOM_GLASS_DOOR.HINGE_NOTE}` : ''}`,
               // B4: 구조화 — 작업지시서가 비고 글자를 파싱하지 않아도 된다 (도어 상단 기준 mm)
               ...this.moduleTagOf(mod),
               boring: boring.slice(),
@@ -3922,6 +3992,17 @@
         extractOthers(item, hardware) {
           // 도어 댐퍼 미사용 (사내 규정)
 
+          // 2026-11-03 사장님: 콘센트 — 전자제품을 넣은 하부장마다 2구 하나 (BOM_OUTLET), 뒤판 타공은 자재 행 비고 (applyOutletNotes)
+          (item.modules || []).forEach((mod) => {
+            const o = bomOutletOf(mod);
+            if (!o) return;
+            hardware.push({
+              category: BOM_OUTLET.CATEGORY, item: BOM_OUTLET.ITEM, manufacturer: '-', spec: BOM_OUTLET.SPEC, qty: 1, unit: 'EA',
+              note: `${mod.name || mod.type} · 뒤판 ${bomOutletNoteOf(o)}`,
+              ...this.moduleTagOf(mod),
+            });
+          });
+
           // 2026-10-13 사장님: 걸레받이카바(18T 투명) — 한 개 2400mm, 걸레받이 전체 길이로 센다.
           //   자재 표의 '걸레받이'·'좌대 걸레받이' 행의 긴 변 × 수량 합 ÷ 2400 올림.
           //   2026-10-20: 걸레받이는 벽마다 나뉜다(addKickBoards) — 길이는 w 다. 나머지 조각(예 47)이 높이 145 보다
@@ -4191,6 +4272,8 @@
           BOM_SHOERACK_DEFAULTS, BOM_SIMPLE_TOP_FRONT, bomSimpleTopTOf, bomFloatEndFinishOf, bomFloatSideDepthOf,
           // 2026-10-29 신발장 벤치 · 키큰장 도어 전신거울
           BOM_BENCH, BOM_MIRROR, bomIsBenchModule,
+          // 2026-11-03 하부장 위 수납장 (천판 · 상판 빼기 · 도어 내림) · 콘센트 · 알루미늄 프레임 유리 도어
+          bomCabinetOnTop, bomUpperOverlapOf, BOM_OUTLET, bomOutletNoteOf, BOM_GLASS_DOOR,
           // 2026-10-13 플랩 가스쇼바 — 규격표·자동 선택
           BOM_GAS_STRUTS, bomGasStrutFor,
           // 2026-10-18 사전 오류 검사(bom-preflight.js)가 컵 간격 문턱을 여기서 읽는다
