@@ -1,0 +1,166 @@
+{
+  "title": "0031 사진 읽기 · 새 판으로 다시 읽기 — 더 낮은 판으로 읽은 사진만 다시(p_again) + 판으로 다시 읽음 · 같은 판 · 다시 없음 · 판 없음은 막음 · 다시도 시도 5까지 · 매분 다시 걸 사진에 낮은 판 사진(reread)을 시도 없음 · 실패 뒤에 · 옛 인자로도 0029 그대로 · 서버만 (scripts/rls-probe.mjs)",
+  "ids": [
+    "company_x",
+    "doc_a",
+    "doc_c",
+    "doc_d"
+  ],
+  "users": [
+    "x_owner_user",
+    "x_staff_user",
+    "other_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_x}}, {{x_staff_user}}, 'staff', 'active')",
+    "INSERT INTO public.ledger_documents (id, company_id, uploaded_by, storage_path, mime, size_bytes, sha256, created_at) VALUES ({{doc_a}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_a}}::text, 'image/jpeg', 100, repeat('a', 64), now() - interval '3651 days'), ({{doc_c}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_c}}::text, 'image/jpeg', 100, repeat('c', 64), now() - interval '3652 days'), ({{doc_d}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_d}}::text, 'image/jpeg', 100, repeat('d', 64), now() - interval '3650 days')",
+    "UPDATE public.ledger_documents SET review_status = 'rejected', decided_by = {{x_owner_user}}, decided_at = now(), decision_reason = 'probe' WHERE id = {{doc_c}}"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "x_staff": {
+      "role": "authenticated",
+      "user": "x_staff_user"
+    },
+    "other": {
+      "role": "authenticated",
+      "user": "other_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "함수는 이름마다 하나 — 0029 의 옛 인자 함수는 없다",
+      "sql": "select string_agg(p.proname || '(' || p.pronargs || ')', ',' order by p.proname) from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('ledger_extract_begin', 'ledger_extract_due')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ledger_extract_begin(4),ledger_extract_due(5)"
+      }
+    },
+    {
+      "name": "옛 인자로도 0029 그대로 — 확인 기다리는 사진에 시도 1 (서버만)",
+      "sql": "select public.ledger_extract_begin({{doc_a}}, 2) ->> 'attempt'",
+      "expect": {
+        "service_role": "1",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "더 낮은 판으로 읽은 사진은 다시 + 판으로 다시 읽는다 (서버만)",
+      "sql": "select public.ledger_extract_begin({{doc_a}}, 2); update public.ledger_extractions set status = 'done', result = '{}'::jsonb, schema_version = 1 where document_id = {{doc_a}} and status = 'running'; select public.ledger_extract_begin({{doc_a}}, 2, true, 2) ->> 'attempt'",
+      "expect": {
+        "service_role": "2",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "새 판으로 다시 읽은 사진은 또 읽지 않는다",
+      "sql": "select public.ledger_extract_begin({{doc_a}}, 2); update public.ledger_extractions set status = 'done', result = '{}'::jsonb, schema_version = 1 where document_id = {{doc_a}} and status = 'running'; select public.ledger_extract_begin({{doc_a}}, 2, true, 2); update public.ledger_extractions set status = 'done', result = '{}'::jsonb, schema_version = 2 where document_id = {{doc_a}} and status = 'running'; select public.ledger_extract_begin({{doc_a}}, 2, true, 2) ->> 'reason'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "done"
+      }
+    },
+    {
+      "name": "다시(p_again) 없이는 판이 낮아도 읽지 않는다",
+      "sql": "select public.ledger_extract_begin({{doc_a}}, 2); update public.ledger_extractions set status = 'done', result = '{}'::jsonb, schema_version = 1 where document_id = {{doc_a}} and status = 'running'; select public.ledger_extract_begin({{doc_a}}, 2, false, 2) ->> 'reason'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "done"
+      }
+    },
+    {
+      "name": "판이 없으면 0029 그대로 — 읽은 사진은 다시 = true 여도 막는다",
+      "sql": "select public.ledger_extract_begin({{doc_a}}, 2); update public.ledger_extractions set status = 'done', result = '{}'::jsonb, schema_version = 1 where document_id = {{doc_a}} and status = 'running'; select public.ledger_extract_begin({{doc_a}}, 2, true) ->> 'reason'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "done"
+      }
+    },
+    {
+      "name": "다시 읽기도 시도 5까지",
+      "sql": "insert into public.ledger_extractions (document_id, company_id, attempt) values ({{doc_a}}, {{company_x}}, 5); update public.ledger_extractions set status = 'done', result = '{}'::jsonb, schema_version = 1 where document_id = {{doc_a}} and status = 'running'; select public.ledger_extract_begin({{doc_a}}, 2, true, 2) ->> 'reason'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "max_attempts"
+      }
+    },
+    {
+      "name": "판은 1 이상",
+      "sql": "select public.ledger_extract_begin({{doc_a}}, 2, true, 0)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:P0001"
+      }
+    },
+    {
+      "name": "다시 걸 사진 — 낮은 판으로 읽은 사진은 reread, 시도 없는 사진이 먼저 (끝난 사진은 아니다 · 서버만)",
+      "sql": "select public.ledger_extract_begin({{doc_a}}, 2); update public.ledger_extractions set status = 'done', result = '{}'::jsonb, schema_version = 1 where document_id = {{doc_a}} and status = 'running'; select string_agg(case d.document_id when {{doc_a}} then 'a' when {{doc_c}} then 'c' when {{doc_d}} then 'd' end || ':' || d.reread::text, ',' order by d.n) from public.ledger_extract_due(100, 60, 600, 2, 2) with ordinality as d(document_id, company_id, reread, n) where d.document_id in ({{doc_a}}, {{doc_c}}, {{doc_d}})",
+      "expect": {
+        "service_role": "d:false,a:true",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "다시 걸 사진 — 옛 인자(다시 읽을 판 없음)는 0029 그대로, 읽은 사진은 주지 않는다",
+      "sql": "select public.ledger_extract_begin({{doc_a}}, 2); update public.ledger_extractions set status = 'done', result = '{}'::jsonb, schema_version = 1 where document_id = {{doc_a}} and status = 'running'; select string_agg(case d.document_id when {{doc_a}} then 'a' when {{doc_c}} then 'c' when {{doc_d}} then 'd' end || ':' || d.reread::text, ',' order by d.n) from public.ledger_extract_due(100, 60, 600, 2) with ordinality as d(document_id, company_id, reread, n) where d.document_id in ({{doc_a}}, {{doc_c}}, {{doc_d}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "d:false"
+      }
+    },
+    {
+      "name": "다시 걸 사진 — 새 판으로 읽은 사진은 주지 않는다",
+      "sql": "select public.ledger_extract_begin({{doc_a}}, 2); update public.ledger_extractions set status = 'done', result = '{}'::jsonb, schema_version = 2 where document_id = {{doc_a}} and status = 'running'; select string_agg(case d.document_id when {{doc_a}} then 'a' when {{doc_c}} then 'c' when {{doc_d}} then 'd' end || ':' || d.reread::text, ',' order by d.n) from public.ledger_extract_due(100, 60, 600, 2, 2) with ordinality as d(document_id, company_id, reread, n) where d.document_id in ({{doc_a}}, {{doc_c}}, {{doc_d}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "d:false"
+      }
+    },
+    {
+      "name": "다시 걸 사진 — 시도 5에서 읽은 사진은 주지 않는다",
+      "sql": "insert into public.ledger_extractions (document_id, company_id, attempt) values ({{doc_a}}, {{company_x}}, 5); update public.ledger_extractions set status = 'done', result = '{}'::jsonb, schema_version = 1 where document_id = {{doc_a}} and status = 'running'; select string_agg(case d.document_id when {{doc_a}} then 'a' when {{doc_c}} then 'c' when {{doc_d}} then 'd' end || ':' || d.reread::text, ',' order by d.n) from public.ledger_extract_due(100, 60, 600, 2, 2) with ordinality as d(document_id, company_id, reread, n) where d.document_id in ({{doc_a}}, {{doc_c}}, {{doc_d}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "d:false"
+      }
+    },
+    {
+      "name": "다시 읽을 판은 1 이상",
+      "sql": "select count(*) from public.ledger_extract_due(1, 60, 600, 2, 0)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:P0001"
+      }
+    }
+  ]
+}

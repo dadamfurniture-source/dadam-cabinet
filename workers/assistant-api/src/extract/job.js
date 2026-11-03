@@ -5,8 +5,9 @@
  *     부르는 쪽(사진 올린 직후 · 매분 cron)은 기다리지 않는다. 같은 사진을 여러 번 불러도 시작 함수가 하나만 돌린다.
  *
  *   ExtractJob 알람 → runExtract
- *     1. 시작 — DB 함수 ledger_extract_begin(사진, EXTRACT_MAX_ATTEMPTS, again) 이 running 시도 한 줄을 만든다.
- *        막히면(도는 중 · 읽음 · 확인 끝남 · 최대 시도 · 거절 · 한도) 아무것도 하지 않는다
+ *     1. 시작 — DB 함수 ledger_extract_begin(사진, EXTRACT_MAX_ATTEMPTS, again, again 이면 SCHEMA_VERSION) 이 running 시도 한 줄을 만든다.
+ *        막히면(도는 중 · 읽음 · 확인 끝남 · 최대 시도 · 거절 · 한도) 아무것도 하지 않는다.
+ *        읽은 사진도 again 이고 더 낮은 판으로 읽은 것이면 이 판으로 다시 읽는다 (database/migrations/0031)
  *     2. 예산 — purpose extract, 키 extract:{시도 id}. 안 되면 시도를 skipped_budget(error = 이유)로 닫는다
  *     3. 사진 — 비공개 버킷 ledger-evidence 를 서비스 키로 읽는다 (서명 주소는 만들지 않는다)
  *     4. 방향 — Claude 에 글자가 똑바로 서려면 시계 방향으로 몇 도 돌려야 하는지 묻는다(ORIENT_SCHEMA, 생각 low).
@@ -224,6 +225,8 @@ export async function runExtract(env, { documentId, again }) {
     p_document: documentId,
     p_max_attempts: maxAttempts(env),
     p_again: again === true,
+    // 다시 읽기면 판을 넘긴다 — 더 낮은 판으로 읽은 사진은 이 판으로 다시 읽는다
+    ...(again === true ? { p_schema_version: SCHEMA_VERSION } : {}),
   });
   if (!begin || !begin.ok) return { started: false, reason: (begin && begin.reason) || 'failed' };
 
