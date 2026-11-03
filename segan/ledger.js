@@ -13,7 +13,8 @@
              GET  /ledger/documents?limit=&before= — 대표 · 실장은 업체 사진 전부, 직원은 자기 것만 (서버가 가린다)
    사진      찍기(capture) · 앨범(여러 장). 캔버스로 다시 그려 JPEG 로 — 위치 같은 EXIF 가 빠지고, 긴 변 2576px ·
              375만 화소 이하로 줄인다 (워커 checks.js 와 같은 한도). 이 기기에서 못 여는 사진(HEIC 등)은 안내만 하고
-             올리지 않는다. 한 장씩 차례로 올리고, 429(분 · 하루 한도)면 남은 사진은 멈춰 두었다가 「다시 올리기」.
+             올리지 않는다. 한 장씩 차례로 올린다. 분 한도(429 rate_limited)면 RESUME_MS 쉬었다가 그 사진부터 같은 키로
+             이어 올리고(화면이 열려 있는 동안), 하루 한도(429 daily_limit)면 남은 사진은 멈춰 두었다가 「다시 올리기」.
              형식 · 크기로 거절된 사진(413 · 422)은 다시 올리지 않는다.
    사진 확인  대표 · 실장만 (직원은 묻지 않는다). GET /ledger/review?status=pending&limit=&before= — 확인 기다리는 사진
              + 10분 서명 주소 + 최근 읽기 시도(상태 · 읽은 칸 · 검사). 사진을 누르면 읽은 칸으로 채운 칸을 고쳐
@@ -98,6 +99,8 @@
   var REVIEW_PAGE = 50;
   var BATCH_MAX = 20;
   var POLL_MS = 10000;
+  // 사진 올리기 분 한도(429 rate_limited)에 걸리면 쉬는 시간 — 워커 wrangler.toml LEDGER_UPLOAD_LIMIT 의 period
+  var RESUME_MS = 60000;
   // 읽기 시도 상태 (ledger_extractions.status, 시도가 아직 없으면 none)
   var READ_STATE = {
     none: '읽는 중',
@@ -165,6 +168,7 @@
     up: [], // 올릴 사진 [{ name, file, blob, key, note, status: wait|prep|send|done|same|fail, msg, final }]
     uploading: false,
     upAt: 0, // 올리는 사진 차례 (L.up 안)
+    upWait: false, // 분 한도로 쉬는 중 (RESUME_MS 뒤 이어 올린다)
     review: [], // GET /ledger/review items (확인 기다리는 사진, 새것부터)
     reviewMore: false,
     reviewFail: false,
@@ -797,6 +801,15 @@
   }
 
   // ── 사진 ───────────────────────────────────────────────
+  /** 기다리기 — 시험이 바꿔 낀다 (SeganLedger.timer) */
+  var timer = {
+    sleep: function (ms) {
+      return new Promise(function (resolve) {
+        window.setTimeout(resolve, ms);
+      });
+    },
+  };
+
   /** 기기에서 열기 · JPEG 로 다시 그리기 — 시험이 바꿔 낀다 (SeganLedger.media) */
   var media = {
     /** → Promise<{ source, width, height, release() }> — 못 열면 거절 */
@@ -874,7 +887,14 @@
       }).length;
     };
     var text = '';
-    if (L.uploading) {
+    if (L.uploading && L.upWait) {
+      text =
+        L.upAt +
+        1 +
+        ' / ' +
+        L.up.length +
+        '장 — 1분에 올릴 수 있는 장수를 넘어 잠시 쉬었다가 이어 올립니다. 화면을 켜 두세요.';
+    } else if (L.uploading) {
       text = L.upAt + 1 + ' / ' + L.up.length + '장 올리는 중…';
     } else if (L.up.length) {
       text = [
@@ -933,12 +953,22 @@
         item.blob = null;
         continue;
       }
+      if (r.status === 429 && r.code === 'rate_limited') {
+        // 분 한도 — 쉬었다가 이 사진부터 이어 올린다 (같은 키 · 처음 그린 JPEG 그대로)
+        item.status = 'wait';
+        L.upWait = true;
+        renderUp();
+        await timer.sleep(RESUME_MS);
+        L.upWait = false;
+        i -= 1;
+        continue;
+      }
       item.status = 'fail';
       item.msg = r.message || (r.status === 0 ? '연결이 끊겼습니다.' : '올리지 못했습니다.');
       // 형식 · 크기로 거절된 사진은 다시 올려도 같다
       item.final = r.status === 413 || r.status === 422;
       if (r.status === 429) {
-        // 분 · 하루 한도 — 남은 사진은 멈춰 두고 「다시 올리기」로
+        // 하루 한도 — 남은 사진은 멈춰 두고 「다시 올리기」로
         for (var j = i + 1; j < L.up.length; j++) {
           if (L.up[j].status !== 'wait') continue;
           L.up[j].status = 'fail';
@@ -1867,6 +1897,8 @@
     fitSize: fitSize,
     stamp: stamp,
     media: media,
+    timer: timer,
+    RESUME_MS: RESUME_MS,
     bizNoValid: bizNoValid,
     prefillEntry: prefillEntry,
     warningsOf: warningsOf,

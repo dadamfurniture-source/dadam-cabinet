@@ -203,7 +203,7 @@ async function load(options = {}) {
       return res(200, {
         success: true,
         share_url: 'https://dadamfurniture.com/design-share.html#t=new',
-        expires_at: '2026-11-03T00:00:00Z',
+        expires_at: new Date(Date.now() + 7 * 86400000).toISOString(), // 늘 앞날 (고정 날짜는 그날이 지나면 깨진다)
       });
     }
     if (
