@@ -419,9 +419,16 @@
   width: 100%;
   margin: 0 0 10px;
   padding: 0;
+  overflow: hidden; /* 90 · 270 도 돌린 사진의 원래 상자가 넘치지 않게 */
   border: 1px solid var(--v5-line);
   background: var(--v5-photo);
   cursor: zoom-in;
+}
+
+/* 사진 돌리기 — 사진 바로 아래 오른쪽 */
+.lg-rv-rotate {
+  margin: -4px 0 10px;
+  text-align: right;
 }
 
 .lg-rv-photo img {

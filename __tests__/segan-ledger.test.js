@@ -1357,6 +1357,52 @@ describe('사진 확인 (대표 · 실장)', () => {
     delete document.visibilityState;
   });
 
+  test('사진 돌리기 — 90도씩 화면에서만 돌리고, 돌린 사진이 상자에 맞는다 · 사진마다 기억', async () => {
+    await load({ review: () => ok({ items: [doc(1, done()), doc(2, done())] }) });
+    const img = $('lgRvPhoto');
+    const size = (el, key, value) => Object.defineProperty(el, key, { value, configurable: true });
+    size(img, 'naturalWidth', 3000);
+    size(img, 'naturalHeight', 4000);
+    size($('lgRvPhotoBtn'), 'clientWidth', 400);
+    await open(1);
+    expect($('lgRvRotateRow').hidden).toBe(false);
+    expect(img.getAttribute('data-rot')).toBe('0');
+    expect(img.getAttribute('style')).toBeNull();
+    const turn = () => $('lgRvRotate').click();
+    // 90 — 세로 사진(3:4)이 누워 폭 400 · 높이 300
+    turn();
+    expect(img.getAttribute('data-rot')).toBe('90');
+    expect(img.style.transform).toBe('rotate(90deg) translateY(-100%)');
+    expect([img.style.width, img.style.height, img.style.marginBottom, img.style.left]).toEqual([
+      '300px',
+      '400px',
+      '-100px',
+      '0px',
+    ]);
+    // 180 · 270 · 다시 0
+    turn();
+    expect(img.style.transform).toBe('rotate(180deg)');
+    expect(img.style.width).toBe('');
+    turn();
+    expect(img.style.transform).toBe('rotate(270deg) translateX(-100%)');
+    turn();
+    expect(img.getAttribute('style')).toBeNull();
+    // 가로 사진(4:3)을 90 — 작게 보기면 돌린 뒤 높이 320 안, 가운데 · 크게 보기면 폭 가득
+    size(img, 'naturalWidth', 4000);
+    size(img, 'naturalHeight', 3000);
+    turn();
+    expect([img.style.width, img.style.height, img.style.left]).toEqual(['320px', '240px', '80px']);
+    $('lgRvPhotoBtn').click();
+    expect([img.style.width, img.style.height, img.style.left]).toEqual(['533px', '400px', '0px']);
+    // 다른 사진은 돌리지 않은 채로, 돌아오면 돌린 그대로
+    $('lgRvClose').click();
+    await open(2);
+    expect(img.getAttribute('data-rot')).toBe('0');
+    $('lgRvClose').click();
+    await open(1);
+    expect(img.getAttribute('data-rot')).toBe('90');
+  });
+
   describe('사진 주소가 끝날 때 (서명 주소 10분)', () => {
     const URL2 = URL1.replace('token=t', 'token=t2');
     let clock;
