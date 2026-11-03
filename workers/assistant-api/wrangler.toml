@@ -58,6 +58,11 @@ new_sqlite_classes = ["AssistantSession"]
 tag = "v2"
 new_sqlite_classes = ["ExtractJob"]
 
+# 사진 읽기 전에 돌리기 (src/extract/job.js rotatePhoto) — 방향을 물어 0 이 아니면 돌린 JPEG 를 읽는다. 버킷의 사진은 그대로.
+# Images 무료 플랜: 달마다 서로 다른 변환 5,000개까지 (넘으면 새 변환이 9422 오류 → 그 시도는 rotate_failed_9422)
+[images]
+binding = "IMAGES"
+
 # 차례 보내기 분 한도 — 사람마다. 넘으면 429 rate_limited. namespace_id 는 계정 안에서 겹치지 않는 정수
 [[ratelimits]]
 name = "ASSISTANT_TURN_LIMIT"
