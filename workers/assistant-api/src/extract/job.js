@@ -71,7 +71,7 @@ export function buildExtractRequest(env, { mime, data }) {
   const model = env.EXTRACT_MODEL || MODEL_DEFAULT;
   return {
     model,
-    max_tokens: Number(env.EXTRACT_MAX_TOKENS) || 4000,
+    max_tokens: Number(env.EXTRACT_MAX_TOKENS) || 8000,
     ...(hasServerFallback(model) ? { betas: [FALLBACK_BETA], fallbacks: 'default' } : {}),
     inference_geo: env.INFERENCE_GEO || 'us',
     output_config: {

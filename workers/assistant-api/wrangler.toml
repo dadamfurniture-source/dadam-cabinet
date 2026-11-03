@@ -30,7 +30,7 @@ SESSION_LOCATION = "enam"
 # 영수증 · 명세표 사진 읽기 (src/extract/) — 모델 · 생각 정도 · 최대 답 토큰 · 사진마다 자동 시도 수(매분 cron 다시 걸기)
 EXTRACT_MODEL = "claude-haiku-5-5"
 EXTRACT_EFFORT = "medium"
-EXTRACT_MAX_TOKENS = "4000"
+EXTRACT_MAX_TOKENS = "8000"
 EXTRACT_MAX_ATTEMPTS = "2"
 
 # 읽기 도구 — workflow-api 를 묻는 사람의 토큰으로 부른다 (src/tools.js). 같은 계정 워커끼리는 주소 대신 서비스 바인딩
