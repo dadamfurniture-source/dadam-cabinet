@@ -366,7 +366,7 @@ test('매분 cron — ledger_extract_due 가 준 사진마다 건다(낮은 판�
     const assistant = makeAssistant();
     assert.deepEqual(await runExtractDue({ ...ENV, ASSISTANT: assistant }), { due: 3, queued: 2 });
     assert.deepEqual(db.rpc[0].body, { p_limit: DUE_LIMIT, p_wait_sec: DUE_WAIT_SEC, p_stuck_sec: DUE_STUCK_SEC, p_max_attempts: MAX_ATTEMPTS, p_reread_below: REREAD_BELOW });
-    assert.deepEqual([DUE_LIMIT, DUE_WAIT_SEC, DUE_STUCK_SEC, MAX_ATTEMPTS, REREAD_BELOW], [5, 120, 600, 2, 2]);
+    assert.deepEqual([DUE_LIMIT, DUE_WAIT_SEC, DUE_STUCK_SEC, MAX_ATTEMPTS, REREAD_BELOW], [5, 120, 600, 2, 3]);
     assert.deepEqual(assistant.calls, [{ documentId: D1, again: false }, { documentId: D2, again: true }]);
 
     assert.deepEqual(await runExtractDue(ENV), { due: 0, queued: 0, skipped: 'no_binding' });
