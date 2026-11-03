@@ -33,9 +33,9 @@ export async function loadAccounts(env) {
   return (await selectMany(env, 'ledger_accounts', { select: 'code,name,grp,sort,note,active', order: 'sort.asc' })) || [];
 }
 
-/** 그 계정이 있고 쓰이며 그 방향을 받는가 — 아니면 422 (DB 트리거와 같은 판정을 먼저 한다) */
-export async function checkAccount(env, account, direction) {
-  const a = (await loadAccounts(env)).find((x) => x.code === account);
+/** 그 계정이 있고 쓰이며 그 방향을 받는가 — 아니면 422 (DB 트리거와 같은 판정을 먼저 한다). accounts 를 주면 다시 읽지 않는다 */
+export async function checkAccount(env, account, direction, accounts = null) {
+  const a = (accounts || (await loadAccounts(env))).find((x) => x.code === account);
   if (!a || !a.active) throw new ValidationError('없는 계정입니다');
   if (!groupTakes(a.grp, direction)) throw new ValidationError(`「${a.name}」 계정은 이 방향(${direction})에 쓰지 않습니다`);
 }
