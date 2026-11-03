@@ -39,6 +39,84 @@
 }
 
 /* ── 대화 목록 ── */
+/* 장부 알림 — 카드는 버튼 하나(누르면 장부로). 바로 알림은 빨강 줄, 아침 묶음은 노랑 줄, 본 것은 흐리게 */
+.as-notices {
+  margin: 0 0 24px;
+}
+
+.as-ncards {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.as-ncard {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--v5-line-18);
+  border-left: 3px solid #c9952b;
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.as-ncard--now {
+  border-left-color: #93301f;
+}
+
+.as-ncard--seen {
+  border-left-color: var(--v5-line-25);
+  color: var(--v5-ink-62);
+}
+
+.as-ncard:focus-visible {
+  outline: 2px solid var(--v5-navy);
+  outline-offset: 2px;
+}
+
+.as-ncard-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.as-ncard-top b {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.as-ncard-top small {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.as-ncard-body {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.as-ncard-go {
+  color: var(--v5-navy);
+  font-size: 12px;
+}
+
+.as-nmore {
+  margin-top: 8px;
+}
+
+.as-nnote {
+  margin-top: 8px;
+}
+
 .as-convs {
   margin: 0;
   padding: 0;

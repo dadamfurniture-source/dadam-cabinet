@@ -16,6 +16,9 @@
    보이기    모든 글은 textContent 로만 넣는다 (사람 글 · AI 글 모두 — HTML · 링크로 바꾸지 않는다).
              비서 말풍선에는 「AI가 만든 내용」, 입력 칸 아래 늘 「틀릴 수 있습니다」 안내.
    주소      연 대화는 #c=<대화 id> — 새로 고쳐도 그 대화를 다시 연다.
+   장부 알림 대표 · 실장(me.money)이면 workflow-api GET /ledger/notices — 서버가 센 숫자로 카드를 만든다(AI 글 아님).
+             카드를 누르면 POST /ledger/notices/seen { ids } 뒤 장부로, 「모두 봤어요」는 안 본 것 한꺼번에.
+             알림을 못 받으면(403 · 0033 전 · 끊김) 칸을 숨긴다 — 대화는 그대로.
    로그인 · 클라이언트는 segan/shell.js 가 맡는다 (SeganShell.ready 의 sb · session).
    ============================================================ */
 /* global window, document, fetch, crypto, location, history, setTimeout, AbortController, TextDecoder */
@@ -52,6 +55,25 @@
   var TEXT_MAX = 4000; // 워커 src/worker.js TEXT_MAX
   var LIST_MAX = 20; // 워커가 주는 대화 수
   var CONV_RE = /^#c=([0-9a-fA-F-]{36})$/;
+  var NOTICE_SHOW = 5; // 처음 보이는 알림 카드 수 (나머지는 「모두 보기」)
+  var SEEN_MAX = 50; // 워커 src/ledger/notices.js SEEN_MAX
+  // 장부 알림 종류 — 워커 src/ledger/notices.js · DB 0033 ledger_notices.kind
+  var NOTICE_KIND = {
+    duplicate: '중복 의심',
+    large_amount: '평소와 다른 큰 금액',
+    new_supplier: '새 거래처',
+    supplier_status: '거래처 상태 바뀜',
+    price_change: '단가 변동',
+    evidence_risk: '증빙 경고',
+  };
+  var NTS_NAME = {
+    active: '계속 사업자',
+    suspended: '휴업',
+    closed: '폐업',
+    unregistered: '국세청에 없는 번호',
+  };
+  var EVIDENCE_NAME = { simple_receipt: '간이영수증', statement: '거래명세표', none: '증빙 없음' };
+  var LEDGER_PAGE = 'ledger.html';
 
   // 사건 줄 다시 열기 — 끊김(또는 새 사건 없이 곧바로 닫힘)이 이어지면 기다림을 2배씩, retry 번 넘으면 그만둔다
   var T = { retry: 5, waitMs: 1000, quickMs: 1000 };
@@ -72,6 +94,9 @@
     ai: null, // 이 차례의 비서 말풍선
     gen: 0, // 대화를 열거나 떠날 때마다 늘린다 — 옛 응답 · 사건 줄을 버린다
     ctl: null, // 지금 읽는 사건 줄의 AbortController
+    work: '', // workflow-api 주소 (장부 알림)
+    notices: [], // GET /ledger/notices items (새것부터)
+    noticesAll: false, // 「모두 보기」를 눌렀나
   };
 
   var $ = function (id) {
@@ -139,14 +164,14 @@
     return A.session ? A.session.access_token : '';
   }
 
-  /** → { ok, status, data, code, message } (끊김은 status 0) */
+  /** → { ok, status, data, code, message } (끊김은 status 0). opts.base 를 주면 그 서버(장부 알림 — workflow-api) */
   async function api(path, opts) {
     var o = opts || {};
     var headers = { Authorization: 'Bearer ' + (await token()) };
     if (o.body !== undefined) headers['Content-Type'] = 'application/json';
     if (o.key) headers['X-Idempotency-Key'] = o.key;
     try {
-      var res = await fetch(A.base + path, {
+      var res = await fetch((o.base || A.base) + path, {
         method: o.method || 'GET',
         headers: headers,
         body: o.body === undefined ? undefined : JSON.stringify(o.body),
@@ -267,6 +292,148 @@
   function setTitle(title) {
     if (A.conv) A.conv.title = title || '';
     $('asConvTitle').textContent = title || '새 대화';
+  }
+
+  // ── 장부 알림 ─────────────────────────────────────────
+  function money(n) {
+    var v = Number(n);
+    return isFinite(v) && n !== null && n !== '' ? v.toLocaleString('ko-KR') + '원' : '';
+  }
+
+  /** 카드 한 줄 (순수) — 서버가 준 숫자로만 */
+  function noticeText(n) {
+    var d = (n && n.data) || {};
+    var who = d.supplier || (d.biz_no ? String(d.biz_no) : '거래처');
+    if (n.kind === 'duplicate')
+      return (
+        who +
+        ' — 같은 날짜 · 금액 사진이 이미 있습니다' +
+        (d.of && d.of.created_at ? ' (' + stamp(d.of.created_at) + ' 사진)' : '')
+      );
+    if (n.kind === 'large_amount')
+      return (
+        who +
+        ' ' +
+        money(d.total) +
+        ' — 최근 ' +
+        d.n +
+        '번 중앙값 ' +
+        money(d.median) +
+        '의 ' +
+        d.ratio +
+        '배'
+      );
+    if (n.kind === 'new_supplier') return who + ' — 처음 올라온 거래처입니다';
+    if (n.kind === 'supplier_status') {
+      var s = '국세청 조회: ' + (NTS_NAME[d.status] || d.status || '');
+      if (d.closed_on && d.status === 'closed') s += ' (' + d.closed_on + ')';
+      if (d.old_tax_type && d.tax_type && d.old_tax_type !== d.tax_type)
+        s += ' · 과세 유형 ' + d.old_tax_type + ' → ' + d.tax_type;
+      return who + ' — ' + s;
+    }
+    if (n.kind === 'price_change') {
+      var pct =
+        Number(d.old) > 0
+          ? Math.round(((Number(d.new) - Number(d.old)) / Number(d.old)) * 100)
+          : null;
+      return (
+        who +
+        ' ' +
+        (d.item || '') +
+        ' 단가 ' +
+        money(d.old) +
+        ' → ' +
+        money(d.new) +
+        (pct === null ? '' : ' (' + (pct > 0 ? '+' : '') + pct + '%)') +
+        ' · 읽은 값 기준'
+      );
+    }
+    if (n.kind === 'evidence_risk')
+      return (
+        who +
+        ' ' +
+        money(d.total) +
+        ' — ' +
+        (EVIDENCE_NAME[d.evidence_type] || '적격증빙 아님') +
+        ' (3만원 넘음) · 가산세 2% 위험 참고'
+      );
+    return who;
+  }
+
+  function renderNotices() {
+    var list = A.notices;
+    $('asNotices').hidden = !list.length;
+    var unseen = list.filter(function (n) {
+      return !n.seen_at;
+    });
+    $('asNoticesTitle').textContent =
+      '장부 알림' + (unseen.length ? ' ' + unseen.length + '건 새로' : '');
+    $('asNoticesSeen').hidden = !unseen.length;
+    var shown = A.noticesAll ? list : list.slice(0, NOTICE_SHOW);
+    $('asNoticesMore').hidden = shown.length >= list.length;
+    $('asNoticesMore').textContent = '알림 ' + list.length + '건 모두 보기';
+    var ul = $('asNoticeList');
+    ul.textContent = '';
+    shown.forEach(function (n) {
+      var li = document.createElement('li');
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className =
+        'as-ncard as-ncard--' +
+        (n.urgency === 'now' ? 'now' : 'am') +
+        (n.seen_at ? ' as-ncard--seen' : '');
+      b.setAttribute('data-notice', n.id);
+      var top = document.createElement('span');
+      top.className = 'as-ncard-top';
+      var k = document.createElement('b');
+      k.textContent = NOTICE_KIND[n.kind] || n.kind;
+      var w = document.createElement('small');
+      w.textContent = stamp(n.created_at);
+      top.appendChild(k);
+      top.appendChild(w);
+      var body = document.createElement('span');
+      body.className = 'as-ncard-body';
+      body.textContent = noticeText(n);
+      var go = document.createElement('span');
+      go.className = 'as-ncard-go';
+      go.textContent = '장부에서 보기 ›';
+      b.appendChild(top);
+      b.appendChild(body);
+      b.appendChild(go);
+      li.appendChild(b);
+      ul.appendChild(li);
+    });
+  }
+
+  async function loadNotices() {
+    if (!A.work || !A.me || !A.me.money) return;
+    var r = await api('/ledger/notices?limit=30', { base: A.work });
+    A.notices = r.ok ? (r.data && r.data.items) || [] : [];
+    renderNotices();
+  }
+
+  /** 본 표시 — 실패해도 화면은 그대로 둔다 (다음에 다시 받는다) */
+  async function markSeen(ids) {
+    if (!ids.length) return;
+    var r = await api('/ledger/notices/seen', {
+      base: A.work,
+      method: 'POST',
+      body: { ids: ids.slice(0, SEEN_MAX) },
+    });
+    if (!r.ok) return;
+    var now = new Date().toISOString();
+    A.notices.forEach(function (n) {
+      if (ids.indexOf(n.id) >= 0 && !n.seen_at) n.seen_at = now;
+    });
+    renderNotices();
+  }
+
+  async function onNoticeClick(e) {
+    var b = e.target && e.target.closest ? e.target.closest('[data-notice]') : null;
+    if (!b) return;
+    var id = b.getAttribute('data-notice');
+    await markSeen([id]);
+    exported.go(LEDGER_PAGE);
   }
 
   // ── 주소 (#c=대화) ─────────────────────────────────────
@@ -611,6 +778,22 @@
       if (b) openConv(b.getAttribute('data-id'));
     });
     $('asForm').addEventListener('submit', send);
+    $('asNoticeList').addEventListener('click', onNoticeClick);
+    $('asNoticesSeen').addEventListener('click', function () {
+      markSeen(
+        A.notices
+          .filter(function (n) {
+            return !n.seen_at;
+          })
+          .map(function (n) {
+            return n.id;
+          })
+      );
+    });
+    $('asNoticesMore').addEventListener('click', function () {
+      A.noticesAll = true;
+      renderNotices();
+    });
     $('asText').addEventListener('keydown', function (e) {
       // PC — Ctrl · ⌘ + Enter 로 보낸다 (Enter 는 줄 바꿈)
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -627,6 +810,8 @@
     var shell = window.SeganShell;
     A.base = shell && shell.assistantBase ? shell.assistantBase() : '';
     if (!A.base) return setState(FAIL_MSG);
+    var cfg = window.DADAM_CONFIG || {};
+    A.work = (cfg.workflowApi && cfg.workflowApi.url) || '';
     var me = await api('/assistant/me');
     if (!me.ok) return setState(DENY[me.code] || FAIL_MSG);
     A.me = me.data || {};
@@ -636,7 +821,7 @@
     $('asNew').hidden = !canChat();
     $('asForm').hidden = !canChat();
     $('asBody').hidden = false;
-    await loadList();
+    await Promise.all([loadList(), loadNotices()]);
     var m = CONV_RE.exec(location.hash || '');
     if (m) await openConv(m[1]);
   }
@@ -647,6 +832,11 @@
     timing: T,
     stamp: stamp,
     takeLines: takeLines,
+    noticeText: noticeText,
+    // 장부로 가기 — 시험이 갈아 끼운다
+    go: function (url) {
+      location.href = url;
+    },
   };
   window.SeganAssistant = exported;
   exported.ready = (

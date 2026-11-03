@@ -9,28 +9,28 @@
     <title>비서 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026110307" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026110307" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026110307" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110307" />
+    <link rel="icon" href="icons/icon.svg?v=2026110308" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110308" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110308" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110308" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026110307" />
-    <link rel="stylesheet" href="make.css?v=2026110307" />
-    <link rel="stylesheet" href="assistant.css?v=2026110307" />
+    <link rel="stylesheet" href="shell.css?v=2026110308" />
+    <link rel="stylesheet" href="make.css?v=2026110308" />
+    <link rel="stylesheet" href="assistant.css?v=2026110308" />
     <!-- 업체 AI 비서 — assistant-api /assistant/* (자격이 있는 업체 구성원. 대화는 자격 full 만) -->
-    <script src="../js/config.js?v=2026110307"></script>
+    <script src="../js/config.js?v=2026110308"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <!-- 관리 탭 — 관리자에게만 연다 (segan/shell.js applyAdminTab) -->
-    <script src="../js/admin-access.js?v=2026110307"></script>
+    <script src="../js/admin-access.js?v=2026110308"></script>
     <!-- 작업 탭 — 작업자에게만 연다 (segan/shell.js applyRoleTabs · GET /work/me) -->
-    <script src="../js/mypage-work.js?v=2026110307"></script>
-    <script src="shell.js?v=2026110307" defer></script>
-    <script src="assistant.js?v=2026110307" defer></script>
+    <script src="../js/mypage-work.js?v=2026110308"></script>
+    <script src="shell.js?v=2026110308" defer></script>
+    <script src="assistant.js?v=2026110308" defer></script>
   </head>
   <body class="sg-app" data-tab="assistant">
     <div data-segan-shell="header"></div>
@@ -49,6 +49,19 @@
 
         <div id="asBody" hidden>
           <p class="as-readonly" id="asReadonly" hidden>지금은 지난 대화를 보기만 할 수 있습니다.</p>
+
+          <!-- 장부 알림 — workflow-api GET /ledger/notices (대표 · 실장). 서버가 센 숫자로 만든 카드 — AI 가 쓴 글이 아니다 -->
+          <section class="as-notices" id="asNotices" hidden aria-labelledby="asNoticesTitle">
+            <div class="as-head">
+              <h2 class="as-sub" id="asNoticesTitle">장부 알림</h2>
+              <button type="button" class="mk-link" id="asNoticesSeen" hidden>모두 봤어요</button>
+            </div>
+            <ul class="as-ncards" id="asNoticeList" aria-label="장부 알림"></ul>
+            <button type="button" class="mk-link as-nmore" id="asNoticesMore" hidden>모두 보기</button>
+            <p class="mk-note as-nnote">
+              숫자는 서버가 센 값입니다. 단가는 사진에서 읽은 값이라 사진으로 확인해 주세요.
+            </p>
+          </section>
 
           <!-- 대화 목록 — 새것부터 20개 -->
           <section class="as-list" id="asListView" aria-labelledby="asListTitle">
