@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import worker from '../src/worker.js';
 import { clearHqCompanyCache } from '../src/supabase.js';
 import { clearAdminCache } from '../src/reports/admin.js';
-import { runExtractDue, DUE_LIMIT, DUE_WAIT_SEC, DUE_STUCK_SEC, MAX_ATTEMPTS } from '../src/ledger/extract.js';
+import { runExtractDue, DUE_LIMIT, DUE_WAIT_SEC, DUE_STUCK_SEC, MAX_ATTEMPTS, REREAD_BELOW } from '../src/ledger/extract.js';
 import { feedbackFields, ntsRow, parseCostInput, BATCH_MAX, PHOTO_URL_TTL_SEC } from '../src/ledger/review.js';
 
 const ENV = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 's' };
@@ -348,16 +348,16 @@ test('올린 직후 — 걸기가 실패해도 올리기는 201', async () => {
   assert.ok(lines.some((l) => l.includes('[Ledger] extract request failed')));
 });
 
-test('매분 cron — ledger_extract_due 가 준 사진마다 건다, 함수 · 바인딩이 없거나 오류면 건너뛴다 (던지지 않는다)', async () => {
+test('매분 cron — ledger_extract_due 가 준 사진마다 건다(낮은 판으로 읽은 사진은 다시로), 함수 · 바인딩이 없거나 오류면 건너뛴다 (던지지 않는다)', async () => {
   const original = globalThis.fetch;
   try {
-    const db = makeDb({ due: [{ document_id: D1, company_id: CO }, { document_id: D2, company_id: CO }, { document_id: 'x', company_id: CO }] });
+    const db = makeDb({ due: [{ document_id: D1, company_id: CO, reread: false }, { document_id: D2, company_id: CO, reread: true }, { document_id: 'x', company_id: CO, reread: true }] });
     globalThis.fetch = async (url, init = {}) => db.route(decodeURIComponent(String(url)), init.method || 'GET', init.body ? JSON.parse(init.body) : null);
     const assistant = makeAssistant();
     assert.deepEqual(await runExtractDue({ ...ENV, ASSISTANT: assistant }), { due: 3, queued: 2 });
-    assert.deepEqual(db.rpc[0].body, { p_limit: DUE_LIMIT, p_wait_sec: DUE_WAIT_SEC, p_stuck_sec: DUE_STUCK_SEC, p_max_attempts: MAX_ATTEMPTS });
-    assert.deepEqual([DUE_LIMIT, DUE_WAIT_SEC, DUE_STUCK_SEC, MAX_ATTEMPTS], [5, 120, 600, 2]);
-    assert.deepEqual(assistant.calls, [{ documentId: D1, again: false }, { documentId: D2, again: false }]);
+    assert.deepEqual(db.rpc[0].body, { p_limit: DUE_LIMIT, p_wait_sec: DUE_WAIT_SEC, p_stuck_sec: DUE_STUCK_SEC, p_max_attempts: MAX_ATTEMPTS, p_reread_below: REREAD_BELOW });
+    assert.deepEqual([DUE_LIMIT, DUE_WAIT_SEC, DUE_STUCK_SEC, MAX_ATTEMPTS, REREAD_BELOW], [5, 120, 600, 2, 2]);
+    assert.deepEqual(assistant.calls, [{ documentId: D1, again: false }, { documentId: D2, again: true }]);
 
     assert.deepEqual(await runExtractDue(ENV), { due: 0, queued: 0, skipped: 'no_binding' });
 

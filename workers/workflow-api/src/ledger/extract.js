@@ -3,12 +3,13 @@
  *
  *   서비스 바인딩 ASSISTANT → dadam-assistant-api 의 이름 있는 진입점 LedgerExtract, RPC extract({ documentId, again }).
  *   곧바로 { ok: true, queued: true } | { ok: false, reason } — 미국 Durable Object 에 줄을 세울 뿐이고 읽기는 따로 돈다.
- *   그 객체가 ledger_extract_begin 으로 시도를 잡고 ledger_extractions 에 결과를 쓴다 (database/migrations/0029).
+ *   그 객체가 ledger_extract_begin 으로 시도를 잡고 ledger_extractions 에 결과를 쓴다 (database/migrations/0029 · 0031).
  *   바인딩이 없으면(로컬 · 시험) 한 번만 적고 건너뛴다 — 사진 올리기 · 확인은 그대로 된다.
  *
  *   올린 직후   새 사진이면 uploadDocument(documents.js)가 ctx.waitUntil(requestExtract) — 같은 사진을 다시 올린 reused 는 걸지 않는다
- *   매분 cron   runExtractDue — rpc ledger_extract_due(DUE_LIMIT 장, DUE_WAIT_SEC 기다림, DUE_STUCK_SEC 멈춤, MAX_ATTEMPTS)가
- *               준 사진마다 건다 (올린 직후 걸기가 실패했거나 읽기가 실패 · 멈춘 사진)
+ *   매분 cron   runExtractDue — rpc ledger_extract_due(DUE_LIMIT 장, DUE_WAIT_SEC 기다림, DUE_STUCK_SEC 멈춤, MAX_ATTEMPTS,
+ *               REREAD_BELOW 판)가 준 사진마다 건다 (올린 직후 걸기가 실패했거나 읽기가 실패 · 멈춘 사진,
+ *               REREAD_BELOW 보다 낮은 판으로 읽은 확인 기다리는 사진 — 이것은 다시(again)로 걸어 새 판으로 읽는다)
  */
 import { callRpc } from '../supabase.js';
 import { isUuid } from './checks.js';
@@ -18,6 +19,8 @@ export const DUE_LIMIT = 5;
 export const DUE_WAIT_SEC = 120;
 export const DUE_STUCK_SEC = 600;
 export const MAX_ATTEMPTS = 2;
+/** 이 판보다 낮게 읽은 확인 기다리는 사진은 다시 건다 — 판 2 는 방향을 먼저 보고 돌려 읽는다 (assistant-api SCHEMA_VERSION) */
+export const REREAD_BELOW = 2;
 
 let warnedNoBinding = false;
 
@@ -59,10 +62,11 @@ export async function runExtractDue(env) {
       p_wait_sec: DUE_WAIT_SEC,
       p_stuck_sec: DUE_STUCK_SEC,
       p_max_attempts: MAX_ATTEMPTS,
+      p_reread_below: REREAD_BELOW,
     });
   } catch (e) {
     if (isMissingFunction(e)) {
-      console.warn('[Ledger] ledger_extract_due missing — apply database/migrations/0029');
+      console.warn('[Ledger] ledger_extract_due missing — apply database/migrations/0031');
       return { due: 0, queued: 0, skipped: 'no_function' };
     }
     console.error('[Ledger] extract due failed:', e && e.statusCode ? e.statusCode : 'error');
@@ -72,7 +76,7 @@ export async function runExtractDue(env) {
   let queued = 0;
   for (const r of list) {
     if (!r || !isUuid(r.document_id)) continue;
-    const out = await requestExtract(env, r.document_id);
+    const out = await requestExtract(env, r.document_id, { again: r.reread === true });
     if (out.ok) queued += 1;
   }
   return { due: list.length, queued };
