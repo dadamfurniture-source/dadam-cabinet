@@ -25,10 +25,10 @@ def collect(f, K_, sample=None):
 | 칸 | 값 |
 |---|---|
 | `brand` | 한글 브랜드 이름 그대로 (`하츠` · `SK매직` · `린나이` · `백조` · `보쉬` …) |
-| `category` | `microwave` · `oven` · `dishwasher` · `cooktop` · `hood` · `rice_cooker` · `sink` · `range` (빌트인 가스오븐레인지 — 위 버너 + 아래 오븐) · `faucet` (주방 수전) |
+| `category` | `microwave` · `oven` · `dishwasher` · `cooktop` · `hood` · `rice_cooker` · `sink` · `range` (빌트인 가스오븐레인지 — 위 버너 + 아래 오븐) · `faucet` (주방 수전) · 하부장 가전 (2026-11-03) `robot_vacuum` (로봇청소기 빌트인 스테이션) · `food_disposer` (싱크대 아래 음식물처리기) · `water_purifier` (언더싱크 정수기) · `wine_cellar` (빌트인 · 언더카운터 와인셀러) |
 | `category_subtype` | 아래 목록 안의 값만. 맞는 값이 없으면 `None` 으로 두고 `product_type_raw` 에 원문 |
 | `install_type` | `freestanding` · `built_in` · `None` |
-| `width_mm` · `height_mm` · `depth_mm` | `K.put_dims` 로만 넣는다 (외경). 싱크볼 H = 볼 깊이 · 수전 W = 본체 폭(지름) · H = 전체 높이 · D = 토수구 길이 |
+| `width_mm` · `height_mm` · `depth_mm` | `K.put_dims` 로만 넣는다 (외경). 싱크볼 H = 볼 깊이 · 수전 W = 본체 폭(지름) · H = 전체 높이 · D = 토수구 길이 · 하부장 가전 = 장 안에 들어가는 본체 (스테이션 · 2차 처리기 · 정수 본체 · 와인셀러) |
 | `niche_min/max_{w,h,d}_mm` | 빌트인 설치 공간 (제조사가 적은 값) · 원문은 `niche_raw` |
 | `cutout_w_mm` · `cutout_d_mm` · `cutout_r_mm` | 상판 타공 (쿡탑 · 싱크볼) · 원문은 `cutout_raw` |
 | `faucet_hole_mm` | 수전 타공(상판 · 싱크볼 구멍) 지름. 범위로 적혀 있으면(Φ33~38) 작은 값 + `치수범위` 태그, 원문은 `cutout_raw` |
@@ -38,7 +38,7 @@ def collect(f, K_, sample=None):
 | `model_codes` | 판매 모델 코드 (색상 변형 모두) |
 | `tags` | 아래 검증 태그 |
 
-세부 구분 (DB 검사 `database/appliance-models-kitchen.sql` 과 같은 목록):
+세부 구분 (DB 검사 `database/appliance-models-kitchen.sql` · 하부장 가전은 `database/migrations/0032_appliance_lower_categories.sql` 과 같은 목록):
 
 | 종류 | subtype |
 |---|---|
@@ -51,6 +51,10 @@ def collect(f, K_, sample=None):
 | sink | (아직 없음 — `None`. 제조사 구분 원문은 `product_type_raw`) |
 | range | `gas` · `induction` · `hybrid` · `highlight` (위 화구 방식 — 쿡탑과 같은 목록) |
 | faucet | (없음 — `None`. 원홀 · 투홀 · 벽부형 · 풀아웃 같은 원문은 `product_type_raw`) |
+| robot_vacuum | `toe_kick` 걸레받이(하부장 아래) 히든 스테이션 · `built_in` 하부장 안 빌트인 스테이션 (프리스탠딩 스테이션은 모으지 않는다) |
+| food_disposer | `grinder` 분쇄 + 회수 · `grinder_microbial` 분쇄 + 미생물 2차 처리기 · `microbial` 미생물 분해 · `dryer` 건조 · 분쇄건조 (싱크대 위에 두는 것은 모으지 않는다) |
+| water_purifier | `purify` 정수 · `cold` 냉정수 · `hot` 온정수 · `hot_cold` 냉온정수 — 얼음 · 탄산은 `product_type_raw` (언더싱크만) |
+| wine_cellar | `under_counter` 언더카운터 (상판 아래 · 앞 배기) · `built_in` 가구장 매립 (높이 950 이하 — 키 큰 컬럼은 냉장고 `wine`) |
 
 ## 검증 태그 (`tags`) — 하나라도 붙으면 미검증
 

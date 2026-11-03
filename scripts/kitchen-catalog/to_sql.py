@@ -47,7 +47,9 @@ HOLD_BRANDS = {'보쉬', '지멘스'}
 # 이 태그가 붙은 행은 SQL 에 넣지 않는다 — 종류별 치수 범위를 벗어났다 (collect.py BOUNDS)
 SKIP_TAGS = {'치수확인필요'}
 CAT_LABEL = {'microwave': '전자레인지', 'oven': '오븐', 'dishwasher': '식기세척기', 'cooktop': '쿡탑', 'hood': '후드',
-             'rice_cooker': '밥솥', 'sink': '싱크볼', 'range': '가스오븐레인지', 'faucet': '수전'}
+             'rice_cooker': '밥솥', 'sink': '싱크볼', 'range': '가스오븐레인지', 'faucet': '수전',
+             'robot_vacuum': '로봇청소기 스테이션', 'food_disposer': '음식물처리기', 'water_purifier': '정수기',
+             'wine_cellar': '와인셀러'}
 
 
 def is_faucet_only(r):
@@ -185,6 +187,44 @@ def build(raw_rows):
     return [x for x, _ in ok], [(x, why) for x, why in skipped]
 
 
+# 2026-11-03 하부장 가전 — DB 종류는 database/migrations/0032_appliance_lower_categories.sql
+LOWER_CATS = {'robot_vacuum', 'food_disposer', 'water_purifier', 'wine_cellar'}
+
+
+def wine_payload(ok):
+    """와인셀러 행의 (브랜드 · 구분 · 코드) → JSON (가져오기 SQL 안에 그대로 넣는다)."""
+    rows = [{'brand': r['brand'], 'subtype': r['subtype'], 'model_codes': r['model_codes']} for r in ok if r['category'] == 'wine_cellar']
+    chunk = json.dumps(rows, ensure_ascii=False)
+    assert '$kitchen$' not in chunk
+    return chunk
+
+
+# 가져오기 함수는 같은 브랜드 · 겹치는 코드를 찾으면 그 행을 고치고 종류(category)는 그대로 둔다.
+#   와인셀러는 냉장고 수집기가 냉장고 wine 으로 먼저 넣은 모델이 있다 (SKS 아일랜드 · 리페르 · 하이얼 …) —
+#   빌트인 · 언더카운터로 모은 모델은 가져오기 전에 그 냉장고 wine 행을 와인셀러로 옮긴다 (같은 브랜드 · 겹치는 코드만).
+WINE_MOVE_SQL = (
+    "UPDATE appliance_models m SET category = 'wine_cellar', subtype = x.subtype"
+    " FROM jsonb_to_recordset($kitchen$__ROWS__$kitchen$::jsonb) AS x(brand text, subtype text, model_codes jsonb)"
+    " WHERE m.category = 'refrigerator' AND m.subtype = 'wine' AND m.brand = x.brand"
+    " AND (m.model_codes && ARRAY(SELECT jsonb_array_elements_text(x.model_codes))"
+    " OR m.model_code = ANY(ARRAY(SELECT jsonb_array_elements_text(x.model_codes))));"
+)
+WINE_LEFT_SQL = (
+    "SELECT m.id, m.brand, m.model_code, m.subtype FROM appliance_models m"
+    " JOIN jsonb_to_recordset($kitchen$__ROWS__$kitchen$::jsonb) AS x(brand text, subtype text, model_codes jsonb)"
+    " ON m.brand = x.brand AND (m.model_codes && ARRAY(SELECT jsonb_array_elements_text(x.model_codes))"
+    " OR m.model_code = ANY(ARRAY(SELECT jsonb_array_elements_text(x.model_codes))))"
+    " WHERE m.category <> 'wine_cellar';"
+)
+
+
+def wine_moves(ok):
+    if not any(r['category'] == 'wine_cellar' for r in ok):
+        return []
+    return ['-- 냉장고 wine 으로 이미 있는 빌트인 · 언더카운터 와인셀러를 와인셀러 종류로 옮긴다 (가져오기 함수는 종류를 바꾸지 않는다)',
+            WINE_MOVE_SQL.replace('__ROWS__', wine_payload(ok)), '']
+
+
 def main(paths):
     # --json <파일>: SQL 대신 가져올 행(사장님 기록 반영 뒤)을 JSON 으로 — 모듈 라이브러리 data/microwaves.json 이 쓴다
     json_out = None
@@ -201,22 +241,31 @@ def main(paths):
         json.dump(ok, open(json_out, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
         print(f'{json_out}: 행 {len(ok)}', file=sys.stderr)
         return
+    lower = [r for r in ok if r['category'] in LOWER_CATS]
     lines = [
         '-- 주방가전 모델 가져오기 — scripts/kitchen-catalog/to_sql.py 가 만든 파일',
         f'-- 행 {len(ok)}개 (검증 {sum(1 for r in ok if r["verified"])} · 미검증 {sum(1 for r in ok if not r["verified"])}) · 건너뜀 {len(skipped)}개',
         '-- 먼저 database/appliance-models-kitchen.sql 을 실행해 두어야 한다 (밥솥 종류 · 종류별 세부 구분 · 타공 가져오기).',
-        '-- 여러 번 실행해도 중복이 생기지 않는다.',
     ]
+    if lower:
+        lines.append(f'-- 하부장 가전 {len(lower)}행 (로봇청소기 스테이션 · 음식물처리기 · 정수기 · 와인셀러) — '
+                     'database/migrations/0032_appliance_lower_categories.sql 이 먼저 적용돼 있어야 한다.')
+    lines.append('-- 여러 번 실행해도 중복이 생기지 않는다.')
     for row, why in skipped:
         lines.append(f"--   건너뜀 [{why}] {row['brand']} {CAT_LABEL.get(row['category'], row['category'])} {row['model_name']} {','.join(row['model_codes'][:3])}")
     lines.append('')
+    lines += wine_moves(ok)
     for i in range(0, len(ok), BATCH):
         chunk = json.dumps(ok[i:i + BATCH], ensure_ascii=False)
         assert '$kitchen$' not in chunk
         lines.append(f'SELECT import_appliance_models($kitchen${chunk}$kitchen$::jsonb);')
     lines.append('')
+    cats = sorted({r['category'] for r in ok} | ({'microwave', 'oven', 'dishwasher', 'cooktop', 'hood', 'rice_cooker', 'sink', 'range', 'faucet'} if len(lower) < len(ok) else set()))
     lines.append("SELECT category, subtype, brand, count(*), count(*) FILTER (WHERE verified) AS verified FROM appliance_models"
-                 " WHERE category IN ('microwave', 'oven', 'dishwasher', 'cooktop', 'hood', 'rice_cooker', 'sink', 'range', 'faucet') GROUP BY 1, 2, 3 ORDER BY 1, 2, 3;")
+                 f" WHERE category IN ({', '.join(repr(c) for c in cats)}) GROUP BY 1, 2, 3 ORDER BY 1, 2, 3;")
+    if any(r['category'] == 'wine_cellar' for r in ok):
+        lines.append('-- 와인셀러로 모은 코드가 아직 냉장고 종류에 남아 있으면 여기 나온다 (냉장고 wine 이 아닌 구분이라 옮기지 않은 행) — 0행이어야 한다')
+        lines.append(WINE_LEFT_SQL.replace('__ROWS__', wine_payload(ok)))
     sys.stdout.reconfigure(encoding='utf-8')
     print('\n'.join(lines))
 

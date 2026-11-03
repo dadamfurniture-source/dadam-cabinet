@@ -123,7 +123,7 @@
     <div class="main-content" id="mainContent">
       <div class="header">
         <h1>가전 모델 관리</h1>
-        <div style="font-size: 13px; color: #666">refrigerator · hood · dishwasher · sink · cooktop · oven · microwave · rice_cooker · range · faucet</div>
+        <div style="font-size: 13px; color: #666">refrigerator · hood · dishwasher · sink · cooktop · oven · microwave · rice_cooker · range · faucet · robot_vacuum · food_disposer · water_purifier · wine_cellar</div>
       </div>
 
       <div class="tabs">
@@ -140,6 +140,11 @@
         <!-- 2026-10-25 사장님 답: 빌트인 가스오븐레인지는 따로 종류 · 수전 구멍은 수전 기준 -->
         <button type="button" data-cat="range">🔥 가스오븐레인지</button>
         <button type="button" data-cat="faucet">🚰 수전</button>
+        <!-- 2026-11-03 사장님: 하부장 안에 들어가는 가전도 모델까지 — database/migrations/0032_appliance_lower_categories.sql 을 먼저 적용 -->
+        <button type="button" data-cat="robot_vacuum">🤖 로봇청소기 스테이션</button>
+        <button type="button" data-cat="food_disposer">🗑️ 음식물처리기</button>
+        <button type="button" data-cat="water_purifier">💧 정수기</button>
+        <button type="button" data-cat="wine_cellar">🍷 와인셀러</button>
       </div>
 
       <div class="toolbar">
@@ -207,6 +212,10 @@
               <option value="rice_cooker">🍚 밥솥</option>
               <option value="range">🔥 가스오븐레인지</option>
               <option value="faucet">🚰 수전</option>
+              <option value="robot_vacuum">🤖 로봇청소기 스테이션</option>
+              <option value="food_disposer">🗑️ 음식물처리기</option>
+              <option value="water_purifier">💧 정수기 (언더싱크)</option>
+              <option value="wine_cellar">🍷 와인셀러 (빌트인)</option>
             </select>
           </div>
           <div class="field">
@@ -355,7 +364,7 @@
         french_4door: '4도어', side_by_side: '양문형', two_door: '일반 2도어', one_door: '1도어',
         built_in: '빌트인', kimchi_stand: '김치 스탠드', kimchi_lid: '김치 뚜껑형', wine: '와인셀러', small: '소형',
       };
-      // 종류별 세부 구분 — DB 검사 appliance_models_subtype_chk (database/appliance-models-kitchen.sql) 와 같은 목록
+      // 종류별 세부 구분 — DB 검사 appliance_models_subtype_chk (database/appliance-models-kitchen.sql · migrations/0032) 와 같은 목록
       const SUBTYPES = {
         refrigerator: FRIDGE_SUBTYPES,
         microwave: { solo: '전자레인지', combi: '광파 · 오븐 겸용' },
@@ -365,6 +374,11 @@
         hood: { chimney: '침니형', slim: '슬림형', built_in: '빌트인', island: '아일랜드' },
         rice_cooker: { pressure_ih: 'IH 압력', ih: 'IH', pressure: '압력', electric: '전기 (마이컴)' },
         range: { gas: '가스', induction: '인덕션', hybrid: '하이브리드', highlight: '하이라이트' },
+        // 하부장 가전 (database/migrations/0032_appliance_lower_categories.sql)
+        robot_vacuum: { toe_kick: '걸레받이 히든 스테이션', built_in: '하부장 빌트인 스테이션' },
+        food_disposer: { grinder: '분쇄 · 회수', grinder_microbial: '분쇄 + 미생물', microbial: '미생물 분해', dryer: '건조 · 분쇄건조' },
+        water_purifier: { purify: '정수', cold: '냉정수', hot: '온정수', hot_cold: '냉온정수' },
+        wine_cellar: { under_counter: '언더카운터', built_in: '빌트인' },
       };
       // 대량 수집 칸(구분 · 설치 방식 · 라인 · 코드 · 니치 · 뒤 여유 · 사진 원본)을 쓰는 종류 — 수집기가 모으는 종류
       const COLLECTED_CATS = [...Object.keys(SUBTYPES), 'faucet'];   // 수전은 세부 구분 없이 수집 칸만
