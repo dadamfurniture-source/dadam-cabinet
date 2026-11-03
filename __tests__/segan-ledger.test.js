@@ -9,7 +9,8 @@
  *   쓰기    직접 입력은 X-Idempotency-Key, 고치기는 바뀐 칸 + 이유만, 취소는 이유 필수
  *   고르기  ledgers 가 둘 이상(다담 본사 대표 · 실장)이면 장부 고르기 — 남의 장부는 ?company= · 보기만
  *   사진    can_upload 면 찍기 · 앨범 → JPEG 로 다시 그려(긴 변 2576 · 375만 화소) 한 장씩 POST /ledger/documents
- *           (사진마다 X-Idempotency-Key, 메모는 X-Ledger-Note). 429 면 남은 사진을 멈춰 두고 다시 올리기,
+ *           (사진마다 X-Idempotency-Key, 메모는 X-Ledger-Note). 분 한도 429 면 쉬었다가 이어 올리기,
+ *           하루 한도 429 면 남은 사진을 멈춰 두고 다시 올리기,
  *           413 · 422 · 못 여는 사진은 다시 올리지 않는다. 직원은 사진 칸만 (장부 · 계정을 묻지 않는다)
  */
 const fs = require('fs');
@@ -715,13 +716,49 @@ describe('사진', () => {
     expect($('lgFiles').value).toBe('');
   });
 
-  test('429 — 남은 사진은 멈춰 두고, 다시 올리기는 같은 키로 · 같은 사진은 「이미 올린 사진」', async () => {
+  test('분 한도 429 — 1분 쉬었다가 그 사진부터 같은 키 · 같은 JPEG 로 이어 올린다', async () => {
     let n = 0;
     const calls = await load({
       upload: () => {
         n += 1;
         if (n === 2)
           return fail(429, 'rate_limited', '요청이 너무 잦습니다. 잠시 뒤 다시 시도해 주세요');
+        return ok({ document: { id: 'd' + n }, reused: false }, 201);
+      },
+    });
+    fakeMedia({ width: 1000, height: 800 });
+    let wake;
+    const sleep = jest.fn(() => new Promise((r) => (wake = r)));
+    window.SeganLedger.timer.sleep = sleep;
+    pick([jpg('a.jpg'), jpg('b.jpg'), jpg('c.jpg')]);
+    await flush();
+    // 쉬는 동안 — 기다리는 시간은 분 한도 period, 단추는 잠긴다
+    expect(sleep).toHaveBeenCalledWith(window.SeganLedger.RESUME_MS);
+    expect(window.SeganLedger.RESUME_MS).toBe(60000);
+    expect(posts(calls).length).toBe(2);
+    expect($('lgUpState').textContent).toBe(
+      '2 / 3장 — 1분에 올릴 수 있는 장수를 넘어 잠시 쉬었다가 이어 올립니다. 화면을 켜 두세요.'
+    );
+    expect($('lgUpFail').textContent).toBe('');
+    expect($('lgRetry').hidden).toBe(true);
+    expect($('lgPick').disabled).toBe(true);
+    wake();
+    await flush();
+    const sent = posts(calls);
+    expect(sent.length).toBe(4);
+    expect(sent[2].key).toBe(sent[1].key);
+    expect(sent[2].raw).toBe(sent[1].raw);
+    expect(window.SeganLedger.media.encode.mock.calls.length).toBe(3);
+    expect($('lgUpState').textContent).toBe('3장 올림');
+    expect($('lgPick').disabled).toBe(false);
+  });
+
+  test('하루 한도 429 — 남은 사진은 멈춰 두고, 다시 올리기는 같은 키로 · 같은 사진은 「이미 올린 사진」', async () => {
+    let n = 0;
+    const calls = await load({
+      upload: () => {
+        n += 1;
+        if (n === 2) return fail(429, 'daily_limit', '업체마다 하루 300장까지 올립니다');
         if (n === 3) return ok({ document: { id: 'd' }, reused: true });
         return ok({ document: { id: 'd' + n }, reused: false }, 201);
       },
@@ -731,7 +768,7 @@ describe('사진', () => {
     await flush();
     expect(posts(calls).length).toBe(2);
     expect($('lgUpState').textContent).toBe('1장 올림 · 2장 못 올림');
-    expect($('lgUpFail').textContent).toContain('잠시 뒤 다시 시도해 주세요');
+    expect($('lgUpFail').textContent).toContain('업체마다 하루 300장까지 올립니다');
     expect($('lgRetry').hidden).toBe(false);
     const keyB = posts(calls)[1].key;
     $('lgRetry').click();
