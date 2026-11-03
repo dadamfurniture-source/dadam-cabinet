@@ -13,6 +13,8 @@
  *     4. 방향 — Claude 에 글자가 똑바로 서려면 시계 방향으로 몇 도 돌려야 하는지 묻는다(ORIENT_SCHEMA, 생각 low).
  *        0 이 아니면 Cloudflare Images 바인딩(IMAGES)으로 그만큼 돌린 JPEG 를 만든다 — 버킷의 사진(증빙)은 그대로 둔다
  *     5. Claude — (돌린) 사진 + 스키마(output_config.format json_schema). 도구 없음. 거절이면 refused, 잘림 · 틀린 JSON 이면 failed
+ *        스키마에는 계정 제안 account_hint — 고를 거리는 ledger_accounts(쓰는 중인 매입 · 제조 · 판관 · 자산, sort 차례),
+ *        업종은 company_settings 에서. 시작 뒤 한 번 읽어 예산 어림 · 읽기에 같이 쓴다 (목록이 없으면 failed no_accounts)
  *        (방향을 묻다 거절 · 잘림 · 틀린 답이면 error 앞에 orient_)
  *     6. 다듬기 · 검사 (checks.js) → 시도를 done 으로 (result + rotate · checks · 두 번 부른 usage 합 · 비용 합 · 모델 · 판) → 정산
  *   실패하면 시도를 failed(error = 짧은 까닭)로 닫는다 — 매분 cron 이 최대 시도까지 다시 건다.
@@ -20,14 +22,16 @@
  *
  * Claude 는 홍콩 콜로에서 403 이라 이 객체는 SESSION_LOCATION(기본 enam)에 만든다 (대화와 같다).
  */
-import { callRpc, updateWhere } from '../db.js';
+import { callRpc, updateWhere, selectMany, selectOne } from '../db.js';
 import { reserveBudget, settleBudget, costMicros, rateOf, US_GEO_MULTIPLIER } from '../meter.js';
 import { claudeClient, hasServerFallback, FALLBACK_BETA, textOf } from '../claude.js';
 import {
   SCHEMA,
   SCHEMA_VERSION,
-  SYSTEM,
   ASK,
+  ACCOUNT_GROUPS,
+  extractSchema,
+  extractSystem,
   ORIENT_SCHEMA,
   ORIENT_SYSTEM,
   ORIENT_ASK,
@@ -67,8 +71,8 @@ export async function queueExtract(env, input) {
   return res.ok ? { ok: true, queued: true } : { ok: false, reason: 'queue_failed' };
 }
 
-/** Claude 요청 — 사진 한 장 + 스키마 */
-export function buildExtractRequest(env, { mime, data }) {
+/** Claude 요청 — 사진 한 장 + 스키마 (accounts 는 loadAccounts, businessKind 는 loadBusinessKind) */
+export function buildExtractRequest(env, { mime, data, accounts, businessKind = null }) {
   const model = env.EXTRACT_MODEL || MODEL_DEFAULT;
   return {
     model,
@@ -77,9 +81,9 @@ export function buildExtractRequest(env, { mime, data }) {
     inference_geo: env.INFERENCE_GEO || 'us',
     output_config: {
       effort: env.EXTRACT_EFFORT || 'medium',
-      format: { type: 'json_schema', schema: SCHEMA },
+      format: { type: 'json_schema', schema: extractSchema(accounts) },
     },
-    system: SYSTEM,
+    system: extractSystem(businessKind),
     messages: [
       {
         role: 'user',
@@ -115,6 +119,31 @@ export function buildOrientRequest(env, { mime, data }) {
       },
     ],
   };
+}
+
+/** 계정 제안의 고를 거리 — 쓰는 중인 매입 · 제조 · 판관 · 자산 계정, sort 차례 */
+export async function loadAccounts(env) {
+  const rows = await selectMany(env, 'ledger_accounts', {
+    select: 'code,name,grp,note,sort',
+    active: 'eq.true',
+    grp: `in.(${ACCOUNT_GROUPS.join(',')})`,
+  });
+  const list = (rows || [])
+    .slice()
+    .sort((a, b) => a.sort - b.sort || (a.code < b.code ? -1 : 1))
+    .map(({ code, name, note }) => ({ code, name, note: note || null }));
+  if (!list.length) throw new ExtractFail('no_accounts');
+  return list;
+}
+
+/** 업체 업종 — company_settings.settings.tax.business_kind (manufacturing · retail, 모르면 null) */
+export async function loadBusinessKind(env, companyId) {
+  const row = await selectOne(env, 'company_settings', {
+    company_id: `eq.${companyId}`,
+    select: 'settings',
+  });
+  const kind = row && row.settings && row.settings.tax && row.settings.tax.business_kind;
+  return ['manufacturing', 'retail'].includes(kind) ? kind : null;
 }
 
 /** 잡을 금액 — 사진은 IMAGE_TOKENS 로 어림(base64 글자 수로 세지 않는다) + 글 + 최대 답 */
@@ -259,10 +288,13 @@ export async function runExtract(env, { documentId, again }) {
     return { started: true, status: patch.status };
   };
   try {
+    // 계정 제안의 고를 거리 · 업종 — 한 번 읽어 어림 · 읽기에 같이 쓴다
+    const accounts = await loadAccounts(env);
+    const businessKind = await loadBusinessKind(env, begin.company_id);
     // 예산은 두 번 부를 몫을 한 번에 잡는다 (키 하나 — 알람이 다시 울려도 두 번 깎지 않는다)
     const plan = [
       buildOrientRequest(env, { mime: begin.mime, data: '' }),
-      buildExtractRequest(env, { mime: begin.mime, data: '' }),
+      buildExtractRequest(env, { mime: begin.mime, data: '', accounts, businessKind }),
     ];
     model = plan[1].model;
     reserve = await reserveBudget(env, {
@@ -295,9 +327,11 @@ export async function runExtract(env, { documentId, again }) {
       mime = 'image/jpeg';
     }
 
-    const a = readAnswer(await call(buildExtractRequest(env, { mime, data: toBase64(photo) })));
+    const a = readAnswer(
+      await call(buildExtractRequest(env, { mime, data: toBase64(photo), accounts, businessKind }))
+    );
     if (!a.raw) return await finish({ status: a.status, error: a.error });
-    const { result, redacted } = normalize(a.raw);
+    const { result, redacted } = normalize(a.raw, { accountCodes: accounts.map((x) => x.code) });
     const checks = checkResult(result, { redacted });
     return await finish({ status: 'done', result: { ...result, rotate }, checks, error: null });
   } catch (e) {

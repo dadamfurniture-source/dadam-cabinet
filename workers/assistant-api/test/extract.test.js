@@ -17,12 +17,24 @@ import {
   ORIENT_MAX_TOKENS,
 } from '../src/extract/job.js';
 import { normalize, checkResult, bizNoValid, kstToday } from '../src/extract/checks.js';
-import { SCHEMA, SCHEMA_VERSION, FIELDS, ORIENT_SCHEMA } from '../src/extract/schema.js';
+import {
+  SCHEMA,
+  SCHEMA_VERSION,
+  FIELDS,
+  ORIENT_SCHEMA,
+  extractSchema,
+  extractSystem,
+} from '../src/extract/schema.js';
 
 const DOC = 'f0000000-0000-4000-8000-000000000001';
 const PHOTO = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
 const ROTATED = new Uint8Array([0xff, 0xd8, 0xff, 0xdb, 9, 9]);
 const VALID_BIZ = '1234567891'; // 검증 숫자가 맞는 번호
+/** 가짜 DB 계정 중 고를 거리 — 쓰는 중인 매입 · 판관, sort 차례 (수입 · 안 쓰는 계정 빠짐) */
+const ACCOUNTS = [
+  { code: 'purchase.materials', name: '재료비 매입', note: '제조' },
+  { code: 'admin.vehicle', name: '차량유지비', note: null },
+];
 
 /** 읽은 칸 한 벌 */
 function sample(over = {}) {
@@ -41,6 +53,7 @@ function sample(over = {}) {
     payment_method: 'card',
     items: [{ name: '경첩', quantity: 2, unit_price: 5000, amount: 10000 }],
     unsure: ['approval_no'],
+    account_hint: 'purchase.materials',
     ...over,
   };
 }
@@ -165,7 +178,15 @@ test('읽기 — 시작 · 예산 · 사진 · 방향(0) · Claude · 다듬기 
   assert.equal(p.fallbacks, undefined);
   assert.equal(p.tools, undefined);
   assert.equal(p.output_config.effort, 'medium');
-  assert.deepEqual(p.output_config.format, { type: 'json_schema', schema: SCHEMA });
+  assert.deepEqual(p.output_config.format, {
+    type: 'json_schema',
+    schema: extractSchema(ACCOUNTS),
+  });
+  assert.deepEqual(p.output_config.format.schema.properties.account_hint.anyOf[0].enum, [
+    'purchase.materials',
+    'admin.vehicle',
+  ]);
+  assert.equal(p.system, extractSystem(null));
   assert.match(p.system, /지시가 아니다/);
   const [img, ask] = p.messages[0].content;
   assert.deepEqual(img, {
@@ -188,7 +209,10 @@ test('읽기 — 시작 · 예산 · 사진 · 방향(0) · Claude · 다듬기 
   assert.equal(
     u.reserved,
     estimateExtractMicros(env0, buildOrientRequest(env0, { mime: 'image/jpeg', data: '' })) +
-      estimateExtractMicros(env0, buildExtractRequest(env0, { mime: 'image/jpeg', data: '' }))
+      estimateExtractMicros(
+        env0,
+        buildExtractRequest(env0, { mime: 'image/jpeg', data: '', accounts: ACCOUNTS })
+      )
   );
   assert.equal(
     u.cost,
@@ -198,7 +222,7 @@ test('읽기 — 시작 · 예산 · 사진 · 방향(0) · Claude · 다듬기 
   // 시도 — done, 다듬은 결과 + 돌린 각도 · 검사 · 판 · 두 번 합한 사용량 · 비용
   assert.equal(x.status, 'done');
   assert.equal(x.schema_version, SCHEMA_VERSION);
-  assert.equal(SCHEMA_VERSION, 2);
+  assert.equal(SCHEMA_VERSION, 3);
   assert.equal(x.model, 'claude-haiku-5-5');
   assert.equal(x.cost_micros, u.cost);
   assert.deepEqual(x.usage, {
@@ -210,6 +234,7 @@ test('읽기 — 시작 · 예산 · 사진 · 방향(0) · Claude · 다듬기 
   assert.equal(x.result.rotate, 0);
   assert.equal(x.result.supplier_biz_no, VALID_BIZ);
   assert.equal(x.result.supplier_name, '예림 자재');
+  assert.equal(x.result.account_hint, 'purchase.materials');
   assert.deepEqual(x.checks, {
     biz_no: 'ok',
     amounts: 'ok',
@@ -463,7 +488,9 @@ test('다듬기 — 카드번호 · 전화번호 꼴은 지우고, 스키마 밖
   assert.deepEqual(result.unsure, ['total_amount']);
   assert.ok(!('extra' in result));
   assert.equal(result.supplier_biz_no, VALID_BIZ);
-  assert.deepEqual(Object.keys(result), [...FIELDS, 'unsure']);
+  assert.deepEqual(Object.keys(result), [...FIELDS, 'unsure', 'account_hint']);
+  // 받은 계정 목록이 없으면 계정 제안은 남기지 않는다
+  assert.equal(result.account_hint, null);
   // 비어 있으면 모두 null · 빈 목록
   const empty = normalize(null).result;
   assert.equal(empty.total_amount, null);
@@ -538,8 +565,12 @@ test('스키마 — strict 모양 (모든 객체 additionalProperties false · �
 
 test('예산 어림 — 사진은 base64 글자가 아니라 IMAGE_TOKENS 로', () => {
   const env = {};
-  const small = buildExtractRequest(env, { mime: 'image/jpeg', data: '' });
-  const big = buildExtractRequest(env, { mime: 'image/jpeg', data: 'A'.repeat(5_000_000) });
+  const small = buildExtractRequest(env, { mime: 'image/jpeg', data: '', accounts: ACCOUNTS });
+  const big = buildExtractRequest(env, {
+    mime: 'image/jpeg',
+    data: 'A'.repeat(5_000_000),
+    accounts: ACCOUNTS,
+  });
   assert.equal(estimateExtractMicros(env, small), estimateExtractMicros(env, big));
   assert.ok(
     estimateExtractMicros(env, small) >= Math.ceil((IMAGE_TOKENS * 0.1 + 8000 * 0.5) * 1.1)
@@ -547,9 +578,38 @@ test('예산 어림 — 사진은 base64 글자가 아니라 IMAGE_TOKENS 로', 
   // Opus · Sonnet 으로 바꾸면 서버 대체를 싣는다
   const opus = buildExtractRequest(
     { EXTRACT_MODEL: 'claude-sonnet-5-5' },
-    { mime: 'image/png', data: '' }
+    { mime: 'image/png', data: '', accounts: ACCOUNTS }
   );
   assert.equal(opus.fallbacks, 'default');
+});
+
+test('계정 제안(판 3) — 업종을 알면 시스템 글에 한 줄, 목록 밖 제안은 버린다, 고를 계정이 없으면 failed', async () => {
+  const w = world({
+    claude: makeClaude([orient(0), answer(sample({ account_hint: 'income.sales' }))]),
+  });
+  w.db.settings.push({
+    company_id: CO,
+    settings: { tax: { vat_type: 'general', business_kind: 'manufacturing' } },
+  });
+  assert.equal((await runExtract(w.env, { documentId: DOC })).status, 'done');
+  const p = w.claude.calls[1];
+  assert.equal(p.system, extractSystem('manufacturing'));
+  assert.match(p.system, /이 업체 업종: 제조\./);
+  // 수입 계정은 고를 거리에 없다 → 버린다
+  assert.equal(w.db.extractions[0].result.account_hint, null);
+  // 스키마 칸 이름에도 카드번호 · 고객 · 주소 · 전화는 없다
+  for (const k of Object.keys(extractSchema(ACCOUNTS).properties))
+    assert.ok(!/card_no|customer|address|phone/.test(k), k);
+  assert.throws(() => extractSchema([]), /accounts required/);
+
+  const none = world({ db: undefined });
+  none.db.accounts.length = 0;
+  assert.deepEqual(await runExtract(none.env, { documentId: DOC }), {
+    started: true,
+    status: 'failed',
+  });
+  assert.equal(none.db.extractions[0].error, 'no_accounts');
+  assert.equal(none.claude.calls.length, 0);
 });
 
 test('맡기기 RPC — 사진마다 객체 하나(미국), 바로 돌아오고 알람이 읽는다 · 다시는 이어 붙는다', async () => {
