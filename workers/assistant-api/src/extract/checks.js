@@ -1,7 +1,8 @@
 /**
  * 읽은 칸 다듬기 · 정해진 검사 (AI 가 아니라 서버 계산, 순수 함수).
  *
- *   normalize(raw)  스키마 밖 값 버리기 · 사업자번호는 숫자만 · 카드번호 · 전화번호 꼴은 [지움] 으로 바꾼다 (redacted 수)
+ *   normalize(raw, { accountCodes })  스키마 밖 값 버리기 · 사업자번호는 숫자만 · 카드번호 · 전화번호 꼴은 [지움] 으로 바꾼다 (redacted 수)
+ *                   계정 제안 account_hint 는 받은 계정 목록 안에 있을 때만 남긴다
  *   checkResult(r, today)
  *     biz_no   ok · bad(10자리가 아니거나 검증 숫자 틀림) · missing — 국세청 검증 숫자: 가중치 1,3,7,1,3,7,1,3,5
  *     amounts  ok · mismatch · incomplete — 공급가 + 부가세 + 면세 + 봉사료 = 합계 (공급가 · 합계가 없으면 incomplete)
@@ -37,7 +38,7 @@ const intOrNull = (v) => (Number.isInteger(v) ? v : null);
 const numOrNull = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 /** Claude 가 준 값 → 저장할 result. { result, redacted } */
-export function normalize(raw) {
+export function normalize(raw, { accountCodes = [] } = {}) {
   const r = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
   const count = { n: 0 };
   const out = {
@@ -67,6 +68,7 @@ export function normalize(raw) {
   out.unsure = [
     ...new Set((Array.isArray(r.unsure) ? r.unsure : []).filter((f) => FIELDS.includes(f))),
   ];
+  out.account_hint = accountCodes.includes(r.account_hint) ? r.account_hint : null;
   return { result: out, redacted: count.n };
 }
 

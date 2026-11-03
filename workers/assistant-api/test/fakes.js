@@ -34,6 +34,28 @@ export function makeDb(over = {}) {
     limit: 10_000_000, // 업체 월 한도 micros
     reserveReason: null, // 정하면 잡기가 그 이유로 실패
     extractions: [], // ledger_extractions
+    // ledger_accounts — 읽기가 고를 거리 (수입 · 쓰지 않는 계정은 빠져야 한다)
+    accounts: [
+      {
+        code: 'admin.vehicle',
+        name: '차량유지비',
+        grp: 'admin',
+        note: null,
+        sort: 170,
+        active: true,
+      },
+      {
+        code: 'purchase.materials',
+        name: '재료비 매입',
+        grp: 'purchase',
+        note: '제조',
+        sort: 40,
+        active: true,
+      },
+      { code: 'income.sales', name: '매출액', grp: 'income', note: null, sort: 10, active: true },
+      { code: 'admin.old', name: '옛 계정', grp: 'admin', note: null, sort: 300, active: false },
+    ],
+    settings: [], // company_settings { company_id, settings }
     documents: {}, // 사진 id → { company_id, storage_path, mime, review_status }
     photos: {}, // 버킷 경로 → Uint8Array
     calls: [],
@@ -163,6 +185,8 @@ export function makeDb(over = {}) {
       assistant_audit: db.audit,
       assistant_playbooks: db.playbooks,
       ledger_extractions: db.extractions,
+      ledger_accounts: db.accounts,
+      company_settings: db.settings,
     };
     const rows = tables[path];
     if (!rows) throw new Error('fake: unknown table ' + path);
