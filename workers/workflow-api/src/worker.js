@@ -35,6 +35,7 @@
  *   GET|POST /ledger/documents — 회계장부 (src/ledger/)
  *   GET  /ledger/review · POST /ledger/review/post · POST /ledger/documents/:id/post|return|reject|reread
  *   GET  /ledger/business-status — 사진 확인 · 국세청 사업자 상태 (src/ledger/review.js, 읽기 걸기 src/ledger/extract.js)
+ *   GET  /ledger/notices · POST /ledger/notices/seen — 장부 알림 (src/ledger/notices.js, 만드는 것은 DB 0033)
  *
  *   GET  /public/confirm                  — 고객 열람 (X-Share-Token)
  *   POST /public/confirm/decision          — 고객 승인/수정요청
@@ -127,6 +128,7 @@ import { createEntry, voidEntry, correctEntry, getBook, listAccounts } from './l
 import { uploadDocument, listDocuments as listLedgerDocuments } from './ledger/documents.js';
 import { listReview, postDocument, postBatch, decideDocument, rereadDocument, businessStatus } from './ledger/review.js';
 import { runExtractDue } from './ledger/extract.js';
+import { runLedgerNotices, listNotices, markNoticesSeen } from './ledger/notices.js';
 import { runLedgerPendingNotices } from './push/ledger-hooks.js';
 import { ledgerMe, getLedgerSettings, putLedgerSettings } from './ledger/settings.js';
 import {
@@ -769,6 +771,17 @@ async function handleRereadLedgerDocument(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data: await rereadDocument(env, { user, documentId: params.id }) }, 202, NO_STORE);
 }
 
+async function handleLedgerNotices(request, env, { user }) {
+  const q = new URL(request.url).searchParams;
+  const data = await listNotices(env, { user, company: q.get('company') || undefined, limit: q.get('limit') });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleLedgerNoticesSeen(request, env, { user }) {
+  const body = (await readJson(request)) || {};
+  return jsonResponse(request, env, { success: true, data: await markNoticesSeen(env, { user, body }) }, 200, NO_STORE);
+}
+
 async function handleBusinessStatus(request, env, { user }) {
   const bizNo = new URL(request.url).searchParams.get('biz_no');
   return jsonResponse(request, env, { success: true, data: await businessStatus(env, { user, bizNo }) }, 200, NO_STORE);
@@ -1233,6 +1246,8 @@ const router = createRouter([
   { method: 'POST', path: '/ledger/documents/:id/reject', auth: 'jwt', handler: handleRejectLedgerDocument },
   { method: 'POST', path: '/ledger/documents/:id/reread', auth: 'jwt', handler: handleRereadLedgerDocument },
   { method: 'GET',  path: '/ledger/business-status',    auth: 'jwt', handler: handleBusinessStatus },
+  { method: 'GET',  path: '/ledger/notices',            auth: 'jwt', handler: handleLedgerNotices },
+  { method: 'POST', path: '/ledger/notices/seen',       auth: 'jwt', handler: handleLedgerNoticesSeen },
 
   // 거래처 · 공급처 (그 업체 대표 · 실장, 본사 목록은 관리자도)
   { method: 'GET',   path: '/counterparties',     auth: 'jwt', handler: handleListCounterparties },
@@ -1396,6 +1411,8 @@ export default {
           Promise.all([runExtractDue(env), runLedgerPendingNotices(env, { nowMs: event.scheduledTime })]),
         );
       }
+      // 장부 알림 — 분마다 나눠 훑기 · 국세청 · 아침 묶음 (src/ledger/notices.js, 던지지 않는다)
+      ctx.waitUntil(runLedgerNotices(env, { nowMs: event.scheduledTime }));
       // 24시간 지난 상담 배정 → 무응답, 본사 상담은 다시 대기 (src/distribution/company.js)
       ctx.waitUntil(
         runAssignmentExpiry(env, { nowMs: event.scheduledTime }).catch((e) => console.error('assignment expiry failed:', e && e.statusCode ? e.statusCode : 'error')),

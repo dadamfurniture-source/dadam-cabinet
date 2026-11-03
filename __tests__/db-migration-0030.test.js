@@ -60,8 +60,8 @@ describe('0030 — 장부 · AI 비서 앱 알림', () => {
     const block = /NOTIFICATION_KINDS = Object\.freeze\(\[([\s\S]*?)\]\)/.exec(msg);
     expect(block).not.toBeNull();
     const names = [...block[1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]);
-    // 서버가 먼저 바뀌기 전(이 DB 변경만 들어간 때)에는 서버 목록이 0023 그대로다
+    // 서버가 넣는 종류는 이 목록에 있거나, 뒤 번호(0033 ledger_notice)에서 더한 것이다 (db-migration-0033 시험이 본다)
     const db = kindsOf(S, 'notification_outbox_kind_check');
-    expect(db.slice(0, names.length)).toEqual(names);
+    expect(names.filter((k) => !db.includes(k))).toEqual(['ledger_notice']);
   });
 });

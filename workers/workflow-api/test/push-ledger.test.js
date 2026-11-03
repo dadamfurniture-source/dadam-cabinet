@@ -265,7 +265,7 @@ test('돌려받은 사진 — 올린 사람에게 사진마다 한 번, 돌려�
 });
 
 test('보낼 때 다시 — 확인할 사진은 active 업체의 대표 · 실장만, 돌려받은 사진은 구성원이면', () => {
-  assert.deepEqual(MONEY_KINDS, ['ledger_pending']);
+  assert.deepEqual(MONEY_KINDS, ['ledger_pending', 'ledger_notice']);
   const m = (user_id, role, status = 'active') => ({
     user_id,
     company_id: CO,
@@ -279,6 +279,8 @@ test('보낼 때 다시 — 확인할 사진은 active 업체의 대표 · 실�
   assert.equal(isEligible(row('ledger_pending', STAFF), members), false);
   assert.equal(isEligible(row('ledger_pending', LEFT), members), false);
   assert.equal(isEligible(row('ledger_pending', OWNER), [m(OWNER, 'owner', 'suspended')]), false);
+  assert.equal(isEligible(row('ledger_notice', MANAGER), members), true);
+  assert.equal(isEligible(row('ledger_notice', STAFF), members), false);
   assert.equal(isEligible(row('ledger_returned', STAFF), members), true);
   assert.equal(isEligible(row('ledger_returned', LEFT), members), false);
   assert.equal(isEligible(row('ledger_returned', STAFF), [m(STAFF, 'staff', 'suspended')]), false);
