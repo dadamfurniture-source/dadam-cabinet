@@ -1403,6 +1403,42 @@ describe('사진 확인 (대표 · 실장)', () => {
     expect(img.getAttribute('data-rot')).toBe('90');
   });
 
+  test('읽을 때 돌린 사진(result.rotate) — 처음부터 그만큼 돌려 보이고(썸네일도), 「사진 돌리기」는 거기서 90도씩', async () => {
+    await load({
+      review: () =>
+        ok({
+          items: [
+            doc(1, done({ ...RESULT, rotate: 90 })),
+            doc(2, done({ ...RESULT, rotate: 0 })),
+            doc(3, done({ ...RESULT, rotate: 45 })),
+            doc(4, { id: 'y', attempt: 1, status: 'running' }),
+          ],
+        }),
+    });
+    const thumb = (n) => rowOf(n).querySelector('img.lg-rv-thumb').style.transform;
+    expect([1, 2, 3, 4].map(thumb)).toEqual(['rotate(90deg)', '', '', '']);
+    const img = $('lgRvPhoto');
+    await open(1);
+    expect(img.getAttribute('data-rot')).toBe('90');
+    const turn = () => $('lgRvRotate').click();
+    turn();
+    expect(img.getAttribute('data-rot')).toBe('180');
+    turn();
+    turn();
+    // 0 으로 고친 것도 기억한다 (읽을 때 각도로 돌아가지 않는다)
+    expect(img.getAttribute('data-rot')).toBe('0');
+    $('lgRvClose').click();
+    await open(1);
+    expect(img.getAttribute('data-rot')).toBe('0');
+    $('lgRvClose').click();
+    // 0 · 모르는 값 · 읽는 중은 돌리지 않는다
+    for (const n of [2, 3, 4]) {
+      await open(n);
+      expect(img.getAttribute('data-rot')).toBe('0');
+      $('lgRvClose').click();
+    }
+  });
+
   describe('사진 주소가 끝날 때 (서명 주소 10분)', () => {
     const URL2 = URL1.replace('token=t', 'token=t2');
     let clock;

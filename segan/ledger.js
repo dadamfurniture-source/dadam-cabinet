@@ -20,6 +20,7 @@
              + 10분 서명 주소 + 최근 읽기 시도(상태 · 읽은 칸 · 검사). 사진을 누르면 읽은 칸으로 채운 칸을 고쳐
              POST /ledger/documents/:id/post { target: entry | order_cost } · /return · /reject { reason } · /reread.
              시트 사진은 「사진 돌리기」로 90도씩 돌려 본다 (화면에서만 — 올린 사진 파일은 그대로, 이 화면이 열린 동안 기억).
+             비서가 방향을 보고 돌려 읽은 사진(읽은 칸 result.rotate)은 처음부터 그만큼 돌려 보인다 (썸네일도).
              경고 없이 다 읽은 사진은 골라 POST /ledger/review/post (한 번에 BATCH_MAX 장, 계정 하나를 골라 함께).
              읽는 중인 사진이 있으면 화면이 보일 때 POLL_MS 마다 목록을 다시 읽는다.
              서명 주소가 끝나기 PHOTO_MARGIN_MS 전부터는 사진을 열 때 · 화면이 다시 보일 때 · 썸네일이 안 열릴 때
@@ -181,7 +182,7 @@
     reviewFail: false,
     reviewAt: 0, // 확인 목록 첫 쪽을 받은 때 — 사진 서명 주소가 가장 오래된 쪽 (더 보기는 늦추지 않는다)
     reviewLoading: false, // 사진 주소를 새로 받는 중
-    rot: {}, // 시트 사진을 돌린 각도 — 사진 id → 90 · 180 · 270 (화면에서만)
+    rot: {}, // 「사진 돌리기」로 고친 각도 — 사진 id → 0 · 90 · 180 · 270 (화면에서만)
     picked: {}, // 한꺼번에 올릴 사진 id → true
     sheet: null, // 여는 사진 { doc, prefill }
     decide: '', // 이유를 적는 중 — returned | rejected
@@ -342,6 +343,17 @@
   /** 사진의 읽기 상태 — 시도가 아직 없으면 none */
   function readState(doc) {
     return doc && doc.extraction && doc.extraction.status ? doc.extraction.status : 'none';
+  }
+
+  /** 읽을 때 돌린 각도 — 비서가 방향을 보고 돌려 읽은 사진(result.rotate, 시계 방향). 화면도 그만큼 돌리면 똑바로 */
+  function readRotate(doc) {
+    var r = readState(doc) === 'done' ? doc.extraction.result || {} : {};
+    return [90, 180, 270].indexOf(r.rotate) >= 0 ? r.rotate : 0;
+  }
+
+  /** 보이는 각도 — 「사진 돌리기」로 고친 것이 먼저, 없으면 읽을 때 돌린 각도 */
+  function rotOf(doc) {
+    return Object.prototype.hasOwnProperty.call(L.rot, doc.id) ? L.rot[doc.id] : readRotate(doc);
   }
 
   /** 다 읽은 사진의 경고 [{ key, text }] — 검사(checks)와 확실하지 않은 칸(unsure) */
@@ -1175,6 +1187,9 @@
       img.alt = '';
       img.setAttribute('referrerpolicy', 'no-referrer');
       img.src = url;
+      // 정사각 썸네일은 돌려도 자리가 같다
+      var turn = rotOf(doc);
+      if (turn) img.style.transform = 'rotate(' + turn + 'deg)';
       open.appendChild(img);
     } else {
       open.appendChild(el('span', 'lg-rv-thumb lg-rv-thumb--none', '사진 없음'));
@@ -1516,7 +1531,7 @@
   function applyRotation() {
     var img = $('lgRvPhoto');
     var box = $('lgRvPhotoBtn');
-    var deg = (L.sheet && L.rot[L.sheet.doc.id]) || 0;
+    var deg = L.sheet ? rotOf(L.sheet.doc) : 0;
     img.removeAttribute('style');
     img.setAttribute('data-rot', String(deg));
     if (deg === 180) img.style.transform = 'rotate(180deg)';
@@ -1845,8 +1860,7 @@
     });
     $('lgRvRotate').addEventListener('click', function () {
       if (!L.sheet) return;
-      var id = L.sheet.doc.id;
-      L.rot[id] = ((L.rot[id] || 0) + 90) % 360;
+      L.rot[L.sheet.doc.id] = (rotOf(L.sheet.doc) + 90) % 360;
       applyRotation();
     });
     $('lgRvPhoto').addEventListener('load', applyRotation);
