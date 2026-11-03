@@ -21,6 +21,8 @@
              POST /ledger/documents/:id/post { target: entry | order_cost } · /return · /reject { reason } · /reread.
              경고 없이 다 읽은 사진은 골라 POST /ledger/review/post (한 번에 BATCH_MAX 장, 계정 하나를 골라 함께).
              읽는 중인 사진이 있으면 화면이 보일 때 POLL_MS 마다 목록을 다시 읽는다.
+             서명 주소가 끝나기 PHOTO_MARGIN_MS 전부터는 사진을 열 때 · 화면이 다시 보일 때 · 썸네일이 안 열릴 때
+             불러온 장수만큼(더 보기로 연 쪽까지) 목록을 새로 받는다.
              GET /ledger/business-status?biz_no= — 국세청 상태 (서버에 키가 없으면 available false → 단추를 감춘다)
              금액 채우기는 세무사 확인 전 기준: 공제되는 부가세 증빙(세금계산서 · 카드 · 현금영수증)에 공급가 · 부가세가 있으면
              금액 = 공급가 · 부가세 = 부가세, 아니면 금액 = 합계 · 부가세 0
@@ -99,6 +101,8 @@
   var REVIEW_PAGE = 50;
   var BATCH_MAX = 20;
   var POLL_MS = 10000;
+  // 사진 서명 주소(photo_expires_in, 워커 PHOTO_URL_TTL_SEC)가 끝나기 이만큼 전부터 목록을 새로 받는다
+  var PHOTO_MARGIN_MS = 60000;
   // 사진 올리기 분 한도(429 rate_limited)에 걸리면 쉬는 시간 — 워커 wrangler.toml LEDGER_UPLOAD_LIMIT 의 period
   var RESUME_MS = 60000;
   // 읽기 시도 상태 (ledger_extractions.status, 시도가 아직 없으면 none)
@@ -172,6 +176,8 @@
     review: [], // GET /ledger/review items (확인 기다리는 사진, 새것부터)
     reviewMore: false,
     reviewFail: false,
+    reviewAt: 0, // 확인 목록 첫 쪽을 받은 때 — 사진 서명 주소가 가장 오래된 쪽 (더 보기는 늦추지 않는다)
+    reviewLoading: false, // 사진 주소를 새로 받는 중
     picked: {}, // 한꺼번에 올릴 사진 id → true
     sheet: null, // 여는 사진 { doc, prefill }
     decide: '', // 이유를 적는 중 — returned | rejected
@@ -1253,16 +1259,28 @@
     await loadReview();
   }
 
-  /** 확인할 사진 — 새것부터 REVIEW_PAGE 장, 더 보기는 마지막 사진보다 앞선 것 */
-  async function loadReview(more) {
-    var last = more && L.review.length ? L.review[L.review.length - 1].created_at : '';
-    var r = await api(
+  /** 확인할 사진 한 쪽 — before 보다 앞선 것 REVIEW_PAGE 장 (before 가 없으면 새것부터) */
+  function reviewPage(before) {
+    return api(
       withCompany(
         '/ledger/review?status=pending&limit=' +
           REVIEW_PAGE +
-          (last ? '&before=' + encodeURIComponent(last) : '')
+          (before ? '&before=' + encodeURIComponent(before) : '')
       )
     );
+  }
+
+  function prunePicked() {
+    Object.keys(L.picked).forEach(function (id) {
+      if (!reviewById(id)) delete L.picked[id];
+    });
+  }
+
+  /** 확인할 사진 — 새것부터 REVIEW_PAGE 장, 더 보기는 마지막 사진보다 앞선 것 */
+  async function loadReview(more) {
+    var last = more && L.review.length ? L.review[L.review.length - 1].created_at : '';
+    var at = Date.now();
+    var r = await reviewPage(last);
     if (!r.ok) {
       if (!more) L.review = [];
       L.reviewFail = !more;
@@ -1274,11 +1292,57 @@
     L.review = last ? L.review.concat(got) : got;
     L.reviewMore = got.length === REVIEW_PAGE;
     L.reviewFail = false;
-    Object.keys(L.picked).forEach(function (id) {
-      if (!reviewById(id)) delete L.picked[id];
-    });
+    if (!last) L.reviewAt = at;
+    prunePicked();
     renderReview();
     schedulePoll();
+  }
+
+  /** 사진 서명 주소가 곧 끝나는가 — 워커가 준 photo_expires_in 기준 */
+  function photosStale() {
+    var ttl = L.review.length ? Number(L.review[0].photo_expires_in) : 0;
+    if (!ttl || !L.reviewAt) return false;
+    return Date.now() - L.reviewAt > ttl * 1000 - PHOTO_MARGIN_MS;
+  }
+
+  /** 불러온 장수만큼 처음부터 다시 받는다 — 새 사진 주소 (더 보기로 연 쪽까지, 다 받은 뒤 한 번 그린다) */
+  async function refreshReview() {
+    if (L.reviewLoading) return;
+    L.reviewLoading = true;
+    var want = L.review.length;
+    var at = Date.now();
+    var got = [];
+    var more = true;
+    while (more && got.length < want) {
+      var r = await reviewPage(got.length ? got[got.length - 1].created_at : '');
+      if (!r.ok) {
+        // 받지 못하면 목록은 그대로 둔다 — 다음에 열 때 다시
+        L.reviewLoading = false;
+        return;
+      }
+      var items = r.data && Array.isArray(r.data.items) ? r.data.items : [];
+      got = got.concat(items);
+      more = items.length === REVIEW_PAGE;
+    }
+    L.reviewLoading = false;
+    L.review = got;
+    L.reviewMore = more;
+    L.reviewFail = false;
+    L.reviewAt = at;
+    prunePicked();
+    renderReview();
+    schedulePoll();
+  }
+
+  /** 사진 주소가 곧 끝나면 목록을 새로 받은 뒤 연다 */
+  async function openReview(id) {
+    if (photosStale()) await refreshReview();
+    openSheet(id);
+  }
+
+  /** 칸을 고치는 중 · 올리는 중이 아니면 사진 주소를 새로 받는다 */
+  function refreshIfStale() {
+    if (photosStale() && !L.sheet && !L.reviewBusy) refreshReview();
   }
 
   // 시트 — 사진 하나
@@ -1707,7 +1771,7 @@
       return renderBatch();
     }
     var open = t.closest ? t.closest('[data-act="rv-open"]') : null;
-    if (open && !L.reviewBusy) openSheet(open.getAttribute('data-id'));
+    if (open && !L.reviewBusy && !L.reviewLoading) openReview(open.getAttribute('data-id'));
   }
 
   function fillBatchAccounts() {
@@ -1727,6 +1791,14 @@
     fillSelect('lgRvCategory', COST_CATEGORY);
     fillBatchAccounts();
     $('lgReviewList').addEventListener('click', onReviewClick);
+    // 썸네일이 안 열리면(서명 주소가 끝남) 새로 받는다 — error 는 올라오지 않아 붙잡기로 듣는다
+    $('lgReviewList').addEventListener(
+      'error',
+      function (e) {
+        if (e.target && e.target.tagName === 'IMG') refreshIfStale();
+      },
+      true
+    );
     $('lgReviewMore').addEventListener('click', function () {
       loadReview(true);
     });
@@ -1757,8 +1829,9 @@
     });
     $('lgRvReread').addEventListener('click', reread);
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'hidden') stopPoll();
-      else if (!L.pollTimer) schedulePoll();
+      if (document.visibilityState === 'hidden') return stopPoll();
+      if (!L.pollTimer) schedulePoll();
+      refreshIfStale(); // 오래 두었다 돌아오면 사진 주소부터 새로
     });
   }
 
@@ -1904,6 +1977,7 @@
     warningsOf: warningsOf,
     batchReady: batchReady,
     poll: { tick: pollTick, stop: stopPoll, POLL_MS: POLL_MS },
+    PHOTO_MARGIN_MS: PHOTO_MARGIN_MS,
   };
   window.SeganLedger = exported;
   exported.ready = (
