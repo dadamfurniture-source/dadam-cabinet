@@ -794,6 +794,9 @@
       })
       .join('');
     $('lgCompany').value = L.me.company_id;
+    // 회계 한눈에 — 지금 보는 장부 그대로
+    $('lgBoardLink').href = withCompany('ledger-board.html');
+    $('lgBoardLink').hidden = false;
   }
 
   // ── 입력 칸 ────────────────────────────────────────────

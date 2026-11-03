@@ -42,6 +42,7 @@
   ];
   var ERP_PAGE = '../erp.html';
   var LEDGER_PAGE = 'ledger.html';
+  var BOARD_PAGE = 'ledger-board.html'; // 회계 한눈에 — 매출 · 매입 그래프
   var MONTH_RE = /^(\d{4})-(\d{2})$/;
   var FAIL_MSG = '이 달 회계를 불러오지 못했습니다.';
 
@@ -261,7 +262,12 @@
       '</div>' +
       '<ul class="sg-rows me-pt-rows">' +
       (B.ledger
-        ? '<li><a class="sg-row" href="' + LEDGER_PAGE + '">장부 — 수주 밖 비용 · 증빙</a></li>'
+        ? '<li><a class="sg-row" href="' +
+          BOARD_PAGE +
+          '">회계 한눈에 — 매출 · 매입 그래프</a></li>' +
+          '<li><a class="sg-row" href="' +
+          LEDGER_PAGE +
+          '">장부 — 수주 밖 비용 · 증빙</a></li>'
         : '') +
       '<li><a class="sg-row" href="' +
       ERP_PAGE +
