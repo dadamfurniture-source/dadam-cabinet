@@ -83,6 +83,8 @@ async function load(options = {}) {
         { n: 3, type: 'done', turn: 1 }
       ),
     hash: '',
+    notices: () => ok({ items: [], unseen: 0, available: true }),
+    seen: (body) => ok({ seen: body.ids.length }),
     ...options,
   };
   window.history.replaceState(null, '', '/segan/assistant.html' + opts.hash);
@@ -124,7 +126,12 @@ async function load(options = {}) {
         body: v.stream || null,
       };
     };
-    if (url.startsWith(WORK)) return reply(ok({ ready: true, worker: null })); // /work/me
+    if (url.startsWith(WORK)) {
+      const wp = new URL(url).pathname;
+      if (wp === '/ledger/notices') return reply(opts.notices());
+      if (wp === '/ledger/notices/seen') return reply(opts.seen(JSON.parse(init.body)));
+      return reply(ok({ ready: true, worker: null })); // /work/me
+    }
     const u = new URL(url);
     const p = u.pathname;
     if (u.origin !== AS) throw new Error('unexpected ' + url);
@@ -554,6 +561,100 @@ describe('보내기 · 사건', () => {
       ['ai', '<b>두 건</b>입니다.\n둘째 줄'],
     ]);
     expect($('asSend').disabled).toBe(false);
+  });
+});
+
+describe('장부 알림', () => {
+  const N = (n, over = {}) => ({
+    id: `b0000000-0000-4000-8000-${String(n).padStart(12, '0')}`,
+    kind: 'large_amount',
+    urgency: 'now',
+    document_id: null,
+    entry_id: null,
+    cost_id: null,
+    data: { supplier: '가나목재', total: 2480000, median: 860000, n: 6, ratio: 2.9 },
+    created_at: '2026-11-03T05:00:00Z',
+    seen_at: null,
+    ...over,
+  });
+  const cards = () => [...$('asNoticeList').querySelectorAll('.as-ncard')];
+
+  test('대표 — 서버 숫자로 카드(바로 알림 · 아침 묶음 · 본 것), 다섯 장 뒤는 「모두 보기」', async () => {
+    const items = [
+      N(1),
+      N(2, {
+        kind: 'price_change',
+        urgency: 'digest',
+        data: { supplier: '가나목재', item: 'PB 18T', old: 32000, new: 35000 },
+      }),
+      N(3, {
+        kind: 'supplier_status',
+        urgency: 'digest',
+        data: { supplier: '다라철물', status: 'closed', closed_on: '2026-10-15' },
+      }),
+      N(4, {
+        kind: 'evidence_risk',
+        urgency: 'digest',
+        data: { supplier: '마바', total: 54000, evidence_type: 'simple_receipt' },
+      }),
+      N(5, {
+        kind: 'duplicate',
+        data: { supplier: '사아', of: { created_at: '2026-11-01T00:10:00Z' } },
+      }),
+      N(6, {
+        kind: 'new_supplier',
+        urgency: 'digest',
+        data: { supplier: '자차' },
+        seen_at: '2026-11-03T06:00:00Z',
+      }),
+    ];
+    const calls = await load({ notices: () => ok({ items, unseen: 5, available: true }) });
+    expect(calls.filter((c) => c.url === WORK + '/ledger/notices?limit=30').length).toBe(1);
+    expect($('asNotices').hidden).toBe(false);
+    expect($('asNoticesTitle').textContent).toBe('장부 알림 5건 새로');
+    expect(cards().map((c) => c.querySelector('.as-ncard-body').textContent)).toEqual([
+      '가나목재 2,480,000원 — 최근 6번 중앙값 860,000원의 2.9배',
+      '가나목재 PB 18T 단가 32,000원 → 35,000원 (+9%) · 읽은 값 기준',
+      '다라철물 — 국세청 조회: 폐업 (2026-10-15)',
+      '마바 54,000원 — 간이영수증 (3만원 넘음) · 가산세 2% 위험 참고',
+      '사아 — 같은 날짜 · 금액 사진이 이미 있습니다 (11.01 09:10 사진)',
+    ]);
+    expect(cards()[0].className).toBe('as-ncard as-ncard--now');
+    expect(cards()[1].className).toBe('as-ncard as-ncard--am');
+    expect($('asNoticesMore').hidden).toBe(false);
+    $('asNoticesMore').click();
+    expect(cards().length).toBe(6);
+    expect(cards()[5].classList.contains('as-ncard--seen')).toBe(true);
+  });
+
+  test('카드를 누르면 본 표시 뒤 장부로, 「모두 봤어요」는 안 본 것 한꺼번에', async () => {
+    const items = [N(1), N(2, { urgency: 'digest' }), N(3, { seen_at: '2026-11-03T06:00:00Z' })];
+    const calls = await load({ notices: () => ok({ items, unseen: 2, available: true }) });
+    const go = jest.fn();
+    window.SeganAssistant.go = go;
+    cards()[0].click();
+    await flush();
+    const seen = calls.filter((c) => c.url === WORK + '/ledger/notices/seen');
+    expect(seen.map((c) => c.body)).toEqual([{ ids: [items[0].id] }]);
+    expect(seen[0].method).toBe('POST');
+    expect(go).toHaveBeenCalledWith('ledger.html');
+    expect(cards()[0].classList.contains('as-ncard--seen')).toBe(true);
+    $('asNoticesSeen').click();
+    await flush();
+    expect(calls.filter((c) => c.url === WORK + '/ledger/notices/seen').map((c) => c.body)).toEqual(
+      [{ ids: [items[0].id] }, { ids: [items[1].id] }]
+    );
+    expect($('asNoticesSeen').hidden).toBe(true);
+    expect($('asNoticesTitle').textContent).toBe('장부 알림');
+  });
+
+  test('직원(돈 정보 없음)은 묻지 않고, 알림을 못 받으면(403) 칸을 숨긴다 — 대화는 그대로', async () => {
+    const staff = await load({ me: ok({ ...ME, role: 'staff', money: false }) });
+    expect(staff.some((c) => c.url.startsWith(WORK + '/ledger/'))).toBe(false);
+    expect($('asNotices').hidden).toBe(true);
+    await load({ notices: () => fail(403, 'not_money', '대표 · 실장만 봅니다') });
+    expect($('asNotices').hidden).toBe(true);
+    expect($('asConvs').querySelectorAll('[data-id]').length).toBe(1);
   });
 });
 
