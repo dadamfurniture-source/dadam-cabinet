@@ -36,6 +36,7 @@
  *   GET  /ledger/review · POST /ledger/review/post · POST /ledger/documents/:id/post|return|reject|reread
  *   GET  /ledger/business-status — 사진 확인 · 국세청 사업자 상태 (src/ledger/review.js, 읽기 걸기 src/ledger/extract.js)
  *   GET  /ledger/notices · POST /ledger/notices/seen — 장부 알림 (src/ledger/notices.js, 만드는 것은 DB 0033)
+ *   GET  /ledger/dashboard — 회계 한눈에 (src/ledger/dashboard.js, 묶음은 DB 0034)
  *
  *   GET  /public/confirm                  — 고객 열람 (X-Share-Token)
  *   POST /public/confirm/decision          — 고객 승인/수정요청
@@ -129,6 +130,7 @@ import { uploadDocument, listDocuments as listLedgerDocuments } from './ledger/d
 import { listReview, postDocument, postBatch, decideDocument, rereadDocument, businessStatus } from './ledger/review.js';
 import { runExtractDue } from './ledger/extract.js';
 import { runLedgerNotices, listNotices, markNoticesSeen } from './ledger/notices.js';
+import { ledgerDashboard } from './ledger/dashboard.js';
 import { runLedgerPendingNotices } from './push/ledger-hooks.js';
 import { ledgerMe, getLedgerSettings, putLedgerSettings } from './ledger/settings.js';
 import {
@@ -771,6 +773,12 @@ async function handleRereadLedgerDocument(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data: await rereadDocument(env, { user, documentId: params.id }) }, 202, NO_STORE);
 }
 
+async function handleLedgerDashboard(request, env, { user }) {
+  const q = new URL(request.url).searchParams;
+  const data = await ledgerDashboard(env, { user, company: q.get('company') || undefined, month: q.get('month') || undefined, months: q.get('months') });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
 async function handleLedgerNotices(request, env, { user }) {
   const q = new URL(request.url).searchParams;
   const data = await listNotices(env, { user, company: q.get('company') || undefined, limit: q.get('limit') });
@@ -1247,6 +1255,7 @@ const router = createRouter([
   { method: 'POST', path: '/ledger/documents/:id/reread', auth: 'jwt', handler: handleRereadLedgerDocument },
   { method: 'GET',  path: '/ledger/business-status',    auth: 'jwt', handler: handleBusinessStatus },
   { method: 'GET',  path: '/ledger/notices',            auth: 'jwt', handler: handleLedgerNotices },
+  { method: 'GET',  path: '/ledger/dashboard',          auth: 'jwt', handler: handleLedgerDashboard },
   { method: 'POST', path: '/ledger/notices/seen',       auth: 'jwt', handler: handleLedgerNoticesSeen },
 
   // 거래처 · 공급처 (그 업체 대표 · 실장, 본사 목록은 관리자도)
