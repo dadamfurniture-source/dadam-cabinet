@@ -14,8 +14,8 @@
  */
 
 /**
- * DB notification_outbox_kind_check 의 앞부분 (작업자 넷은 0023, 장부 둘은 0030).
- * 0030 의 assistant_brief 는 아직 이 워커가 넣지 않는다.
+ * DB notification_outbox_kind_check 의 종류 (작업자 넷은 0023, 장부 둘은 0030, 장부 알림 ledger_notice 는 0033).
+ * 0030 의 assistant_brief 는 아직 이 워커가 넣지 않는다 (AI 비서 아침 브리핑 몫).
  */
 export const NOTIFICATION_KINDS = Object.freeze([
   'order_request',
@@ -31,6 +31,7 @@ export const NOTIFICATION_KINDS = Object.freeze([
   'work_schedule',
   'ledger_pending',
   'ledger_returned',
+  'ledger_notice',
 ]);
 
 /** 작업자 알림 — 업체 없이(company_id 비움) 넣고 업체 없는 기기로 간다 (DB notification_outbox_company_check, 0023) */
@@ -246,6 +247,21 @@ function ledgerPending({ count } = {}) {
   return { title: '확인할 사진', body: `확인할 영수증 · 명세표 사진이 ${n} 있습니다.`, url: LEDGER_URL };
 }
 
+/** 장부 알림 카드가 쌓이는 곳 — 비서 탭 「장부 알림」 */
+export const LEDGER_NOTICE_URL = '/segan/assistant.html';
+
+/**
+ * 장부 알림 — 업체 대표 · 실장에게. { count, digest } (아직 안 본 알림 수, 1 이상).
+ * digest 면 아침 묶음(단가 · 새 거래처 · 휴업/폐업 · 증빙), 아니면 바로 알림(중복 의심 · 평소와 다른 큰 금액). 금액 · 상호 없음
+ */
+function ledgerNotice({ count, digest } = {}) {
+  if (!Number.isInteger(count) || count < 1) return null;
+  const n = count > LEDGER_PENDING_MAX ? `${LEDGER_PENDING_MAX}건 넘게` : `${count}건`;
+  return digest
+    ? { title: '장부에 바뀐 점', body: `장부에 바뀐 점이 ${n} 있습니다. 비서 탭에서 확인해 주세요.`, url: LEDGER_NOTICE_URL }
+    : { title: '장부 확인 필요', body: `중복 의심 · 평소와 다른 큰 금액이 ${n} 있습니다. 비서 탭에서 확인해 주세요.`, url: LEDGER_NOTICE_URL };
+}
+
 /** 돌려받은 사진 — 사진을 올린 사람에게 (이유는 싣지 않는다 — 장부 화면에서 본다) */
 function ledgerReturned() {
   return {
@@ -269,6 +285,7 @@ const BUILDERS = Object.freeze({
   work_schedule: workSchedule,
   ledger_pending: ledgerPending,
   ledger_returned: ledgerReturned,
+  ledger_notice: ledgerNotice,
 });
 
 /**

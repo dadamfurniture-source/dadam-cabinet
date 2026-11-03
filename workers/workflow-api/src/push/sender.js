@@ -35,7 +35,7 @@ const CONCURRENCY = 6;
 /** 이 종류는 업체가 정지돼도 대표에게 간다 */
 export const OWNER_KINDS = Object.freeze(['billing_failed', 'company_suspended']);
 /** 이 종류는 보낼 때도 대표 · 실장이어야 한다 (supabase.js MONEY_ROLES) */
-export const MONEY_KINDS = Object.freeze(['ledger_pending']);
+export const MONEY_KINDS = Object.freeze(['ledger_pending', 'ledger_notice']);
 /** 끝난 줄을 남겨 두는 기간 */
 export const RETAIN_DAYS = 30;
 /** 하루 한 번 정리하는 시각 (UTC 18:17 = KST 03:17) */

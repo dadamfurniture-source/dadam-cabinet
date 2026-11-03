@@ -4,7 +4,9 @@
  * PostgREST 는 src/push/* 가 쓰는 만큼만 흉내 낸다:
  *   필터 eq · neq · in · is · lt · lte · gt · gte, select(+ company:companies(status) 끼워 넣기), order, limit,
  *   POST (on_conflict + resolution=merge-duplicates | ignore-duplicates, return=minimal), PATCH, DELETE,
- *   rpc/claim_notifications (database/migrations/0016 의 SQL 과 같은 규칙).
+ *   rpc/claim_notifications (database/migrations/0016 의 SQL 과 같은 규칙). 그 밖의 rpc 는 rpc(이름, 본문) 으로 —
+ *   값을 돌려주면 그 값, { status, body } 면 그 상태로 답한다.
+ * Supabase 밖 주소(국세청 등)는 external(url, init) 이 Response 를 주면 그것, 아니면 푸시 서비스로 본다.
  * 유니크: push_subscriptions.endpoint · notification_outbox.dedupe_key (같으면 23505).
  * 푸시 서비스는 받는 주소마다 정한 상태로 답한다 (pushStatus — 숫자 · 'throw' · 함수).
  * 시험 데이터는 모두 가짜다.
@@ -68,7 +70,7 @@ const newId = () => {
  *   pushStatus  받는 주소 → 상태 숫자 | 'throw' | (call) => 상태. 없으면 201
  *   failDb   (method, table) => 상태 숫자면 그 요청을 실패시킨다
  */
-export function createFake({ tables = {}, users = {}, nowMs = Date.now(), pushStatus = {}, failDb = null } = {}) {
+export function createFake({ tables = {}, users = {}, nowMs = Date.now(), pushStatus = {}, failDb = null, rpc = null, external = null } = {}) {
   const db = {
     companies: [],
     company_members: [],
@@ -171,6 +173,11 @@ export function createFake({ tables = {}, users = {}, nowMs = Date.now(), pushSt
     if (failed) return jsonRes({ code: 'XX000', message: 'boom' }, failed);
 
     if (path === 'rpc/claim_notifications') return jsonRes(claim(body && body.p_limit));
+    if (rpc && path.startsWith('rpc/')) {
+      const r = rpc(path.slice(4), body);
+      if (r && typeof r === 'object' && Number.isInteger(r.status)) return jsonRes(r.body, r.status);
+      return jsonRes(r === undefined ? null : r);
+    }
     const table = path;
     if (!db[table]) throw new Error(`fake: table ${table}`);
     const params = url.searchParams;
@@ -235,6 +242,10 @@ export function createFake({ tables = {}, users = {}, nowMs = Date.now(), pushSt
       const auth = new Headers(init.headers || {}).get('Authorization') || '';
       const who = users[auth.replace(/^Bearer\s+/i, '')];
       return who ? jsonRes(who) : jsonRes({ message: 'bad jwt' }, 401);
+    }
+    if (external) {
+      const r = await external(url, init);
+      if (r) return r;
     }
     // 푸시 서비스
     const endpoint = String(input);
