@@ -9,10 +9,12 @@
  *   books_summary   GET /books/summary?month=    업체 장부 요약 (대표 · 실장)
  *   ledger_month    GET /ledger/book?month=      회계장부 한 달 — 합계 · 계정별 합 · 줄 (대표 · 실장)
  *   ledger_photos   GET /ledger/documents        올린 영수증 · 명세표 사진의 상태별 장수 (직원은 자기 것만)
+ *   ledger_notices  GET /ledger/notices          장부 알림 — 중복 · 큰 금액 · 단가 · 새 거래처 · 휴업/폐업 · 증빙 (대표 · 실장).
+ *                                                숫자는 서버(DB 0033)가 센 값 그대로 — 비서는 설명만 한다
  *
  * 결과는 필요한 칸만 골라 줄인다 — 고객 전화 · 이메일 · 사진 주소는 싣지 않는다 (Claude 에 보낼 까닭이 없다).
  * 직원이면 workflow-api 가 빼지 않는 견적 합(quote_total)도 뺀다. 결과 글은 RESULT_MAX 자를 넘지 않는다.
- * 돈 도구(books_summary · ledger_month)는 대화를 대표 · 실장이 시작했을 때만 목록에 넣는다 (toolDefs).
+ * 돈 도구(books_summary · ledger_month · ledger_notices)는 대화를 대표 · 실장이 시작했을 때만 목록에 넣는다 (toolDefs).
  *
  * 도구 입력은 strict 스키마라 모양이 맞게 오지만, 실행 전에 다시 확인한다 (checkInput).
  * eager_input_streaming 은 켜지 않는다 — 입력이 몇 글자라 미리 흘려받을 것이 없고, strict 의 검사를 그대로 받는다.
@@ -22,6 +24,7 @@ export const CONSULTS_MAX = 50;
 export const PROJECTS_MAX = 100;
 export const ORDERS_MAX = 100;
 export const LEDGER_ROWS_MAX = 80;
+export const NOTICES_MAX = 30;
 export const RESULT_MAX = 30_000;
 export const ORDER_STATUSES = Object.freeze([
   'confirmed',
@@ -120,6 +123,16 @@ const TOOLS = [
       `회계장부 한 달: 합계(수입 · 비용 · 부가세) · 계정별 합 · 장부 줄(최근 ${LEDGER_ROWS_MAX}줄). ` +
       '수주 수금 · 원가도 돈이 오간 날로 들어 있다. 금액은 공급가, 부가세는 따로다.',
     input_schema: MONTH_INPUT,
+  },
+  {
+    name: 'ledger_notices',
+    label: '장부 알림 보는 중',
+    money: true,
+    description:
+      `장부 알림(최근 ${NOTICES_MAX}건): 중복 의심 · 평소와 다른 큰 금액(그 거래처 최근 합계 중앙값의 몇 배) · 단가 변동(읽은 값 기준) · ` +
+      '새 거래처 · 휴업/폐업/과세 유형 바뀜(국세청) · 증빙 경고(3만원 넘는 간이영수증 · 명세표 · 증빙 없음 — 가산세 참고). ' +
+      '숫자는 서버가 센 값 그대로이니 이 숫자로만 설명한다. seen 이 false 면 아직 아무도 안 본 알림이다.',
+    input_schema: NO_INPUT,
   },
   {
     name: 'ledger_photos',
@@ -347,6 +360,33 @@ async function ledgerMonth(env, token, input) {
   };
 }
 
+/** 장부 알림 종류 → 이름 (워커 src/ledger/notices.js · DB 0033 ledger_notices.kind) */
+const NOTICE_KIND = {
+  duplicate: '중복 의심',
+  large_amount: '평소와 다른 큰 금액',
+  new_supplier: '새 거래처',
+  supplier_status: '휴업 · 폐업 · 과세 유형 바뀜',
+  price_change: '단가 변동 (읽은 값 기준)',
+  evidence_risk: '증빙 경고',
+};
+
+async function ledgerNotices(env, token) {
+  const data = (await wf(env, token, `/ledger/notices?limit=${NOTICES_MAX}`)) || {};
+  const items = Array.isArray(data.items) ? data.items : [];
+  return {
+    total: items.length,
+    unseen: Number(data.unseen) || 0,
+    items: items.slice(0, NOTICES_MAX).map((n) => ({
+      kind: n.kind,
+      kind_name: NOTICE_KIND[n.kind] || n.kind,
+      urgent: n.urgency === 'now',
+      created_at: n.created_at,
+      seen: !!n.seen_at,
+      data: n.data && typeof n.data === 'object' ? n.data : {},
+    })),
+  };
+}
+
 async function ledgerPhotos(env, token) {
   const data = (await wf(env, token, '/ledger/documents?limit=100')) || {};
   const items = Array.isArray(data.items) ? data.items : [];
@@ -368,6 +408,7 @@ const RUN = {
   books_summary: booksSummary,
   ledger_month: ledgerMonth,
   ledger_photos: ledgerPhotos,
+  ledger_notices: ledgerNotices,
 };
 
 /** 결과 → 글 (RESULT_MAX 를 넘으면 목록을 반씩 줄인다) */
