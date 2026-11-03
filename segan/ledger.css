@@ -11,6 +11,11 @@
   --lg-crit: #93301f; /* 중복 · 폐업 */
 }
 
+.lg-board-link {
+  display: inline-block;
+  margin: 0 0 12px;
+}
+
 .lg-keep {
   margin: 0 0 16px;
   padding: 10px 12px;
