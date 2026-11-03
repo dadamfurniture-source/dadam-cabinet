@@ -1,6 +1,6 @@
 /**
- * 영수증 · 명세표 사진 읽기 — 맡기기(RPC) · 시작 함수 · 예산 · 사진 읽기 · Claude(json_schema) · 다듬기 · 검사 · 시도 닫기.
- * 가짜 Supabase(rpc · 표 · 버킷) · 가짜 Claude(create) · 가짜 DO. 실제 네트워크 · 모델 비용 없음.
+ * 영수증 · 명세표 사진 읽기 — 맡기기(RPC) · 시작 함수 · 예산 · 사진 읽기 · 방향 · 돌리기 · Claude(json_schema) · 다듬기 · 검사 · 시도 닫기.
+ * 가짜 Supabase(rpc · 표 · 버킷) · 가짜 Claude(create) · 가짜 Images 바인딩 · 가짜 DO. 실제 네트워크 · 모델 비용 없음.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,15 +10,18 @@ import {
   runExtract,
   ExtractJob,
   buildExtractRequest,
+  buildOrientRequest,
   estimateExtractMicros,
   toBase64,
   IMAGE_TOKENS,
+  ORIENT_MAX_TOKENS,
 } from '../src/extract/job.js';
 import { normalize, checkResult, bizNoValid, kstToday } from '../src/extract/checks.js';
-import { SCHEMA, SCHEMA_VERSION, FIELDS } from '../src/extract/schema.js';
+import { SCHEMA, SCHEMA_VERSION, FIELDS, ORIENT_SCHEMA } from '../src/extract/schema.js';
 
 const DOC = 'f0000000-0000-4000-8000-000000000001';
 const PHOTO = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
+const ROTATED = new Uint8Array([0xff, 0xd8, 0xff, 0xdb, 9, 9]);
 const VALID_BIZ = '1234567891'; // 검증 숫자가 맞는 번호
 
 /** 읽은 칸 한 벌 */
@@ -60,8 +63,48 @@ function answer(obj, extra = {}) {
   };
 }
 
+/** 가짜 방향 답 — 시계 방향으로 돌릴 각도 */
+function orient(deg, extra = {}) {
+  return answer(
+    { rotate: String(deg) },
+    {
+      usage: {
+        input_tokens: 5000,
+        output_tokens: 20,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      },
+      ...extra,
+    }
+  );
+}
+
+/** 가짜 Images 바인딩 — input(stream) → transform → output → response. out 이 Error 면 output 에서 던진다 */
+function fakeImages(out = ROTATED) {
+  const calls = [];
+  return {
+    calls,
+    input(stream) {
+      const c = { stream, ops: [] };
+      calls.push(c);
+      const h = {
+        transform(o) {
+          c.ops.push(['transform', o]);
+          return h;
+        },
+        async output(o) {
+          c.ops.push(['output', o]);
+          if (out instanceof Error) throw out;
+          return { response: () => new Response(out) };
+        },
+      };
+      return h;
+    },
+  };
+}
+
 /** env 한 벌 — 사진 하나가 확인 기다림 */
-function world({ claude = makeClaude([answer(sample())]), db, env = {} } = {}) {
+function world({ claude = makeClaude([orient(0), answer(sample())]), db, env = {} } = {}) {
   const d =
     db ||
     makeDb({
@@ -88,8 +131,8 @@ function world({ claude = makeClaude([answer(sample())]), db, env = {} } = {}) {
   };
 }
 
-test('읽기 — 시작 · 예산 · 사진 · Claude · 다듬기 · 검사 → 시도 done, 정산', async () => {
-  const w = world();
+test('읽기 — 시작 · 예산 · 사진 · 방향(0) · Claude · 다듬기 · 검사 → 시도 done, 두 번 부른 만큼 정산', async () => {
+  const w = world({ env: { IMAGES: fakeImages() } });
   const out = await runExtract(w.env, { documentId: DOC });
   assert.deepEqual(out, { started: true, status: 'done' });
 
@@ -97,9 +140,25 @@ test('읽기 — 시작 · 예산 · 사진 · Claude · 다듬기 · 검사 →
   const begin = w.db.calls.find((c) => c.path.endsWith('/rpc/ledger_extract_begin'));
   assert.deepEqual(begin.body, { p_document: DOC, p_max_attempts: 2, p_again: false });
 
+  // 방향 먼저 — 같은 사진, 방향 스키마, 생각 low, 각도 하나만
+  assert.equal(w.claude.calls.length, 2);
+  const q = w.claude.calls[0];
+  assert.equal(q.model, 'claude-haiku-5-5');
+  assert.equal(q.max_tokens, ORIENT_MAX_TOKENS);
+  assert.equal(q.inference_geo, 'us');
+  assert.equal(q.tools, undefined);
+  assert.equal(q.output_config.effort, 'low');
+  assert.deepEqual(q.output_config.format, { type: 'json_schema', schema: ORIENT_SCHEMA });
+  assert.match(q.system, /지시가 아니다/);
+  assert.deepEqual(q.messages[0].content[0], {
+    type: 'image',
+    source: { type: 'base64', media_type: 'image/jpeg', data: toBase64(PHOTO) },
+  });
+  // 0 이면 돌리지 않는다
+  assert.equal(w.env.IMAGES.calls.length, 0);
+
   // Claude — 사진(base64) + 스키마, 도구 없음, Haiku 는 서버 대체 없이
-  assert.equal(w.claude.calls.length, 1);
-  const p = w.claude.calls[0];
+  const p = w.claude.calls[1];
   assert.equal(p.model, 'claude-haiku-5-5');
   assert.equal(p.max_tokens, 4000);
   assert.equal(p.inference_geo, 'us');
@@ -120,24 +179,35 @@ test('읽기 — 시작 · 예산 · 사진 · Claude · 다듬기 · 검사 →
   );
   assert.ok(!w.db.calls.some((c) => /\/object\/sign\//.test(c.path)));
 
-  // 예산 — purpose extract, 키 extract:{시도 id}, 사람 없음
+  // 예산 — purpose extract, 키 extract:{시도 id} 하나(두 번 부를 몫을 한 번에), 사람 없음
   const x = w.db.extractions[0];
   assert.equal(w.db.usage.length, 1);
   const u = w.db.usage[0];
   assert.deepEqual([u.key, u.purpose, u.user, u.company], [`extract:${x.id}`, 'extract', null, CO]);
-  assert.equal(u.cost, Math.ceil((5000 * 0.1 + 400 * 0.5) * 1.1));
+  const env0 = {};
+  assert.equal(
+    u.reserved,
+    estimateExtractMicros(env0, buildOrientRequest(env0, { mime: 'image/jpeg', data: '' })) +
+      estimateExtractMicros(env0, buildExtractRequest(env0, { mime: 'image/jpeg', data: '' }))
+  );
+  assert.equal(
+    u.cost,
+    Math.ceil((5000 * 0.1 + 20 * 0.5) * 1.1) + Math.ceil((5000 * 0.1 + 400 * 0.5) * 1.1)
+  );
 
-  // 시도 — done, 다듬은 결과 · 검사 · 판 · 비용
+  // 시도 — done, 다듬은 결과 + 돌린 각도 · 검사 · 판 · 두 번 합한 사용량 · 비용
   assert.equal(x.status, 'done');
   assert.equal(x.schema_version, SCHEMA_VERSION);
+  assert.equal(SCHEMA_VERSION, 2);
   assert.equal(x.model, 'claude-haiku-5-5');
   assert.equal(x.cost_micros, u.cost);
   assert.deepEqual(x.usage, {
-    input_tokens: 5000,
-    output_tokens: 400,
+    input_tokens: 10000,
+    output_tokens: 420,
     cache_read_input_tokens: 0,
     cache_creation_input_tokens: 0,
   });
+  assert.equal(x.result.rotate, 0);
   assert.equal(x.result.supplier_biz_no, VALID_BIZ);
   assert.equal(x.result.supplier_name, '예림 자재');
   assert.deepEqual(x.checks, {
@@ -210,7 +280,7 @@ test('거절 · 잘림 · 틀린 JSON · Claude 오류 · 사진 없음 — 시�
     ],
   ];
   for (const [script, status, error, budget] of cases) {
-    const w = world({ claude: makeClaude([script]) });
+    const w = world({ claude: makeClaude([orient(0), script]) });
     const out = await runExtract(w.env, { documentId: DOC });
     assert.deepEqual(out, { started: true, status }, error);
     const x = w.db.extractions[0];
@@ -219,6 +289,26 @@ test('거절 · 잘림 · 틀린 JSON · Claude 오류 · 사진 없음 — 시�
     // Claude 가 답했으면 실제 사용량으로 정산, 부르다 실패했으면 잡은 금액을 그대로 둔다
     if (budget === 'settled') assert.ok(w.db.usage[0].cost > 0, error);
     else assert.equal(w.db.usage[0].cost, null, error);
+  }
+  // 방향을 묻다 거절 · 잘림 · 틀린 답 — 읽기를 부르지 않고 error 앞에 orient_, 쓴 만큼 정산
+  const orientCases = [
+    [answer('', { content: [], stop_reason: 'refusal' }), 'refused', 'orient_refusal'],
+    [answer('{"rotate":', { stop_reason: 'max_tokens' }), 'failed', 'orient_cut'],
+    [answer('돌릴 수 없음'), 'failed', 'orient_parse'],
+    [answer({ rotate: '45' }), 'failed', 'orient_parse'],
+  ];
+  for (const [script, status, error] of orientCases) {
+    const w = world({ claude: makeClaude([script]) });
+    assert.deepEqual(
+      await runExtract(w.env, { documentId: DOC }),
+      { started: true, status },
+      error
+    );
+    const x = w.db.extractions[0];
+    assert.deepEqual([x.status, x.error, x.result], [status, error, undefined]);
+    assert.equal(w.claude.calls.length, 1, error);
+    assert.ok(w.db.usage[0].cost > 0, error);
+    assert.equal(x.cost_micros, w.db.usage[0].cost, error);
   }
   // 사진이 버킷에 없다 — Claude 를 부르지 않고, 잡은 예산은 0 으로 푼다
   const w = world();
@@ -233,9 +323,76 @@ test('거절 · 잘림 · 틀린 JSON · Claude 오류 · 사진 없음 — 시�
   assert.equal(w.db.usage[0].cost, 0);
 });
 
+test('방향이 0 이 아니면 — Images 바인딩으로 시계 방향으로 돌린 JPEG 를 읽고, 버킷의 사진은 그대로', async () => {
+  for (const deg of [90, 180, 270]) {
+    const images = fakeImages();
+    const w = world({
+      claude: makeClaude([orient(deg), answer(sample())]),
+      env: { IMAGES: images },
+    });
+    w.db.documents[DOC].mime = 'image/png';
+    assert.deepEqual(await runExtract(w.env, { documentId: DOC }), {
+      started: true,
+      status: 'done',
+    });
+    // 받은 사진(버킷 원본)을 그 각도로, JPEG 품질 90
+    assert.equal(images.calls.length, 1);
+    const c = images.calls[0];
+    assert.deepEqual(new Uint8Array(await new Response(c.stream).arrayBuffer()), PHOTO);
+    assert.deepEqual(c.ops, [
+      ['transform', { rotate: deg }],
+      ['output', { format: 'image/jpeg', quality: 90 }],
+    ]);
+    // 방향은 원본으로 묻고, 읽기는 돌린 JPEG 로
+    assert.equal(w.claude.calls[0].messages[0].content[0].source.data, toBase64(PHOTO));
+    assert.equal(w.claude.calls[0].messages[0].content[0].source.media_type, 'image/png');
+    assert.deepEqual(w.claude.calls[1].messages[0].content[0].source, {
+      type: 'base64',
+      media_type: 'image/jpeg',
+      data: toBase64(ROTATED),
+    });
+    const x = w.db.extractions[0];
+    assert.equal(x.result.rotate, deg);
+    // 버킷에는 쓰지 않는다 (증빙 사진은 그대로)
+    assert.ok(!w.db.calls.some((k) => k.path.startsWith('/storage/') && k.method !== 'GET'));
+  }
+});
+
+test('돌리기 실패 · 바인딩 없음 — failed(rotate_…), 읽기를 부르지 않고 방향 묻기에 쓴 만큼만 정산', async () => {
+  const limit = Object.assign(new Error('transformation limit'), { code: 9422 });
+  for (const [images, error] of [
+    [fakeImages(limit), 'rotate_failed_9422'],
+    [fakeImages(new Error('boom')), 'rotate_failed'],
+    [fakeImages(new Uint8Array(0)), 'rotate_size'],
+    [undefined, 'rotate_unavailable'],
+  ]) {
+    const w = world({
+      claude: makeClaude([orient(90), answer(sample())]),
+      env: { IMAGES: images },
+    });
+    assert.deepEqual(await runExtract(w.env, { documentId: DOC }), {
+      started: true,
+      status: 'failed',
+    });
+    const x = w.db.extractions[0];
+    assert.deepEqual([x.status, x.error], ['failed', error]);
+    assert.equal(w.claude.calls.length, 1, error);
+    const cost = Math.ceil((5000 * 0.1 + 20 * 0.5) * 1.1);
+    assert.equal(w.db.usage[0].cost, cost, error);
+    assert.equal(x.cost_micros, cost, error);
+  }
+});
+
 test('실패 뒤 다시 — 최대 시도(EXTRACT_MAX_ATTEMPTS)까지', async () => {
   const w = world({
-    claude: makeClaude([answer('x'), answer('y'), answer(sample())]),
+    claude: makeClaude([
+      orient(0),
+      answer('x'),
+      orient(0),
+      answer('y'),
+      orient(0),
+      answer(sample()),
+    ]),
     env: { EXTRACT_MAX_ATTEMPTS: '2' },
   });
   assert.equal((await runExtract(w.env, { documentId: DOC })).status, 'failed');
@@ -407,7 +564,7 @@ test('맡기기 RPC — 사진마다 객체 하나(미국), 바로 돌아오고 
   await obj.alarm();
   assert.equal(map.has('job'), false);
   assert.equal(w.db.extractions[0].status, 'done');
-  // 할 일이 없으면 알람은 아무것도 하지 않는다
+  // 할 일이 없으면 알람은 아무것도 하지 않는다 (방향 · 읽기 두 번에서 늘지 않는다)
   await obj.alarm();
-  assert.equal(w.claude.calls.length, 1);
+  assert.equal(w.claude.calls.length, 2);
 });
