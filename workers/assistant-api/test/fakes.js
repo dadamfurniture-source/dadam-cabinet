@@ -554,6 +554,29 @@ function workflowData() {
         { code: 'expense.material', name: '재료비' },
       ],
     },
+    '/ledger/notices': {
+      unseen: 1,
+      items: [
+        {
+          id: 'n1',
+          kind: 'large_amount',
+          urgency: 'now',
+          created_at: '2026-11-03T05:00:00Z',
+          seen_at: null,
+          document_id: 'd1',
+          data: { supplier: '예림', total: 2480000, median: 860000, n: 6, ratio: 2.9 },
+        },
+        {
+          id: 'n2',
+          kind: 'price_change',
+          urgency: 'digest',
+          created_at: '2026-11-03T04:00:00Z',
+          seen_at: '2026-11-03T04:30:00Z',
+          document_id: 'd2',
+          data: { supplier: '예림', item: 'PB 18T', old: 32000, new: 35000, basis: 'read' },
+        },
+      ],
+    },
     '/ledger/documents': {
       money: true,
       items: [
