@@ -5,7 +5,7 @@
  *     업체 구성원 누구나 (직원도), 자격 full. 머리 X-Ledger-Note 올린 사람 메모(300자, encodeURIComponent 한 UTF-8).
  *       메모에는 현장 · 고객 이야기가 들어갈 수 있어 주소(쿼리)에 두지 않는다.
  *     X-Idempotency-Key 가 같거나, 같은 업체에 같은 파일(sha256)이 있으면 처음 사진을 돌려준다 (200 reused).
- *     순서: 분 한도(LEDGER_UPLOAD_LIMIT) → 같은 키 → 하루 장수 → 본문(5MB, 읽으면서 센다) → 형식 · 크기 → 같은 파일
+ *     순서: 분 한도(LEDGER_UPLOAD_LIMIT) → 같은 키 → 하루 장수(업체) → 본문(5MB, 읽으면서 센다) → 형식 · 크기 → 같은 파일
  *       → 버킷 ledger-evidence `{업체}/{yyyy}/{mm}/{사진 id}.jpg|png` → 줄
  *     새 사진이면 그 자리에서 읽기를 건다 (extract.js requestExtract, ctx.waitUntil — 응답을 기다리게 하지 않는다)
  *   GET  /ledger/documents   대표 · 실장: 업체 사진 전부 (?status= · ?mine=1 · ?before= · ?limit=).
@@ -22,8 +22,7 @@ import { requestExtract } from './extract.js';
 import { sniffImage, idempotencyKeyOf, PHOTO_MAX_BYTES, PHOTO_MAX_EDGE, PHOTO_MAX_PIXELS } from './checks.js';
 
 export const LEDGER_BUCKET = 'ledger-evidence';
-/** 하루(KST) 올리는 장수 — 사람마다 · 업체마다 */
-export const DAILY_USER_MAX = 100;
+/** 하루(KST) 올리는 장수 — 업체마다 (사람마다 따로 세지 않는다: 한 사람이 업체 몫을 다 올릴 수 있다) */
 export const DAILY_COMPANY_MAX = 300;
 export const LIST_MAX = 100;
 export const REVIEW_STATUSES = Object.freeze(['pending', 'posted', 'returned', 'rejected', 'skipped_budget']);
@@ -124,17 +123,14 @@ function noteOf(header) {
 }
 
 /** 하루(KST) 장수 — 넘으면 429 daily_limit */
-async function checkDaily(env, companyId, userId, today) {
+async function checkDaily(env, companyId, today) {
   const rows = (await selectMany(env, 'ledger_documents', {
     company_id: `eq.${companyId}`,
     created_at: `gte.${today}T00:00:00+09:00`,
-    select: 'uploaded_by',
+    select: 'id',
     limit: String(DAILY_COMPANY_MAX),
   })) || [];
   if (rows.length >= DAILY_COMPANY_MAX) throw new RateLimitError(`업체마다 하루 ${DAILY_COMPANY_MAX}장까지 올립니다`, 'daily_limit');
-  if (rows.filter((r) => r.uploaded_by === userId).length >= DAILY_USER_MAX) {
-    throw new RateLimitError(`한 사람이 하루 ${DAILY_USER_MAX}장까지 올립니다`, 'daily_limit');
-  }
 }
 
 async function documentBy(env, companyId, filter) {
@@ -153,7 +149,7 @@ export async function uploadDocument(env, { user, request, ctx }) {
     if (prev) return { document: documentView(prev, access.money), reused: true };
   }
   const today = kstDate();
-  await checkDaily(env, access.companyId, user.id, today);
+  await checkDaily(env, access.companyId, today);
 
   const bytes = await readBodyCapped(request, PHOTO_MAX_BYTES);
   if (!bytes.byteLength) throw new ValidationError('사진 본문이 비었습니다', { code: 'empty' });
