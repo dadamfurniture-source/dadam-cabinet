@@ -3,6 +3,7 @@
  *
  *   GET  /ledger/review                    확인할 사진 (?status= 기본 pending · ?before= · ?limit= 20, 50까지)
  *                                           + 최근 읽기 시도(상태 · 읽은 칸 · 검사) + 10분 서명 주소. ?company= 본사 보기만
+ *                                           확인 기다리는 사진은 hints — 거래처 기억 · 경고 · 올릴 값 · 바로 올려도 되는가 (hints.js, DB 0033)
  *   POST /ledger/documents/:id/post         확인한 사진 올리기 { target: entry | order_cost | attach, … } → ledger_post_document
  *                                           그 뒤 읽은 값과 올린 값이 다른 칸을 ledger_extraction_feedback 에 한 줄 (실패해도 올리기는 끝)
  *   POST /ledger/documents/:id/return       돌려보내기 { reason } — 확인 기다리는 사진만 (아니면 409).
@@ -10,6 +11,9 @@
  *   POST /ledger/documents/:id/reject       버리기 { reason } — 같다
  *   POST /ledger/documents/:id/reread       다시 읽기 (실패 · 거절 · 한도 뒤) → 202 { queued }
  *   POST /ledger/review/post                한꺼번에 올리기 { items: [{ id, …올리기 본문 }] } 20장까지, 장마다 따로 → [{ id, ok, … }]
+ *                                           바로 올리기는 { id, ready: true, entry: 앱이 본 올릴 값 } — 서버가 힌트를 다시 세어
+ *                                           아직 바로 올릴 수 있고 값이 같을 때만 그 값으로 올린다 (아니면 409 not_ready · changed)
+ *   올리기는 사진 · 계정 · 읽기 시도 · 힌트를 한 번씩 읽고(postContext), 고친 칸 기록도 한 번에 넣는다 — 20장도 하위 요청 50개 안
  *   GET  /ledger/business-status?biz_no=    국세청 사업자 상태 (공공데이터포털 사업자등록정보 상태조회).
  *                                           시크릿 NTS_SERVICE_KEY 가 없으면 { available: false }. 24시간 캐시(nts_business_status),
  *                                           조회하면 이 업체의 같은 사업자번호 거래처 칸(nts_status · tax_type · nts_checked_at)도 고친다.
@@ -21,7 +25,7 @@
 import {
   selectOne,
   selectMany,
-  insertOne,
+  insertMany,
   updateBy,
   upsertOne,
   callRpc,
@@ -37,7 +41,8 @@ import { requestExtract } from './extract.js';
 import { COST_CATEGORIES } from '../orders.js';
 import { assertCounterparty } from '../counterparties.js';
 import { ledgerAccess, assertMoney, assertWritable } from './access.js';
-import { checkAccount, withCounterparty } from './entries.js';
+import { checkAccount, withCounterparty, loadAccounts } from './entries.js';
+import { hintView, loadHints, proposalFor, sameProposal } from './hints.js';
 import { LEDGER_BUCKET, REVIEW_STATUSES, documentView } from './documents.js';
 import { parseEntryInput, reasonOf, isUuid, isDate, normalizeBizNo, bizNoValid, EVIDENCE_TYPES } from './checks.js';
 
@@ -97,6 +102,13 @@ export async function listReview(env, { user, company, status, before, limit }) 
     const cur = latest.get(x.document_id);
     if (!cur || x.attempt > cur.attempt) latest.set(x.document_id, x);
   }
+  // 확인 기다리는 사진 — 거래처 기억 · 경고 · 올릴 값 (0033 이 없으면 기억 없이 읽은 값만)
+  let accounts = [];
+  let hints = { map: new Map(), available: false };
+  if (st === 'pending') {
+    accounts = await loadAccounts(env);
+    hints = await loadHints(env, access.companyId, ids);
+  }
   // 서명 주소 — 못 만들면 사진 칸만 비고 목록은 준다 (주소는 로그에 남기지 않는다)
   let urls = new Map();
   try {
@@ -110,6 +122,7 @@ export async function listReview(env, { user, company, status, before, limit }) 
       photo_url: urls.get(r.storage_path) || null,
       photo_expires_in: PHOTO_URL_TTL_SEC,
       extraction: extractionView(latest.get(r.id)),
+      ...(st === 'pending' ? { hints: hintView(latest.get(r.id), hints.map.get(r.id) || null, accounts, { available: hints.available }) } : {}),
     })),
     level: access.level,
     viewing: access.viewing,
@@ -164,13 +177,13 @@ export function parseCostInput(body) {
   return out;
 }
 
-/** 올리기 본문 → ledger_post_document 의 p_payload */
-async function postPayload(env, access, body) {
+/** 올리기 본문 → ledger_post_document 의 p_payload (accounts 는 postContext 가 읽은 계정 목록) */
+async function postPayload(env, access, body, accounts) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new ValidationError('JSON 본문이 필요합니다');
   const target = body.target;
   if (target === 'entry') {
     let entry = parseEntryInput(body.entry);
-    await checkAccount(env, entry.account, entry.direction);
+    await checkAccount(env, entry.account, entry.direction, accounts);
     entry = await withCounterparty(env, access.companyId, entry);
     return { target, entry };
   }
@@ -201,6 +214,14 @@ const NOT_FOUND_REASONS = {
   cost_not_found: '원가 줄을 찾을 수 없습니다',
 };
 
+/** postContext 가 읽은 사진 — 없으면 404, 확인 기다림이 아니면 409 not_pending */
+function pendingFrom(ctx, documentId) {
+  const doc = ctx.docs.get(documentId);
+  if (!doc) throw new NotFoundError('사진을 찾을 수 없습니다');
+  if (doc.review_status !== 'pending') throw new ConflictError('이미 확인한 사진입니다', { code: 'not_pending', status: doc.review_status });
+  return doc;
+}
+
 /** 그 업체의 사진 — 없으면 404, 확인 기다림이 아니면 409 not_pending */
 async function pendingDocument(env, companyId, documentId) {
   const doc = isUuid(documentId)
@@ -211,26 +232,6 @@ async function pendingDocument(env, companyId, documentId) {
   return doc;
 }
 
-/** 읽은 칸 ↔ 올린 칸 (올린 곳마다) */
-const FEEDBACK_MAP = {
-  entry: [
-    ['issue_date', 'entry_date'],
-    ['supplier_name', 'counterparty_name'],
-    ['supplier_biz_no', 'counterparty_biz_no'],
-    ['supply_amount', 'amount'],
-    ['vat_amount', 'vat_amount'],
-    ['evidence_type', 'evidence_type'],
-    ['payment_method', 'payment_method'],
-  ],
-  order_cost: [
-    ['issue_date', 'spent_on'],
-    ['supplier_name', 'vendor_name'],
-    ['supply_amount', 'amount'],
-    ['vat_amount', 'vat_amount'],
-    ['evidence_type', 'evidence_type'],
-  ],
-  attach: [],
-};
 
 const same = (a, b) => {
   const norm = (v) => (v === null || v === undefined || v === '' ? null : typeof v === 'string' ? v.trim() : v);
@@ -242,49 +243,104 @@ const same = (a, b) => {
 };
 
 /**
- * 고친 칸 (순수) — 읽은 값과 올린 값이 다른 칸만 { 읽은 칸: { read, posted } }.
- * 장부 금액은 공제 안 되는 부가세를 합친 부담 금액일 수 있어 공급가와 다를 수 있다 — 그대로 남겨 평가가 가린다.
+ * 고친 칸 (순수) — 화면이 채운 값과 올린 값이 다른 칸만 { 칸: { read, posted } }.
+ *   일자 · 상호 · 사업자번호 · 증빙 · 결제 수단은 읽은 값, 금액 · 부가세 · 계정은 화면이 채운 값(made — 공제 증빙 규칙 · 기억 · AI 제안),
+ *   합계는 읽은 합계 ↔ 올린 금액 + 부가세. 계정이 다르면 그 제안이 어디서 왔는지(source)도 남긴다
  */
-export function feedbackFields(target, result, payload) {
-  const posted = target === 'entry' ? payload.entry || {} : target === 'order_cost' ? payload.cost || {} : {};
+export function feedbackFields(target, result, payload, made = null) {
+  if (target !== 'entry' && target !== 'order_cost') return {};
+  const r = result || {};
+  const shown = (made || proposalFor(r, null, [])).proposal;
+  const posted = target === 'entry' ? payload.entry || {} : payload.cost || {};
+  const total = Number.isSafeInteger(posted.amount) ? posted.amount + (Number(posted.vat_amount) || 0) : null;
+  const pairs =
+    target === 'entry'
+      ? [
+          ['issue_date', r.issue_date, posted.entry_date],
+          ['supplier_name', r.supplier_name, posted.counterparty_name],
+          ['supplier_biz_no', r.supplier_biz_no, posted.counterparty_biz_no],
+          ['amount', shown.amount, posted.amount],
+          ['vat_amount', shown.vat_amount, posted.vat_amount],
+          ['total_amount', r.total_amount, total],
+          ['evidence_type', r.evidence_type, posted.evidence_type],
+          ['payment_method', r.payment_method, posted.payment_method],
+          ['account', shown.account, posted.account],
+        ]
+      : [
+          ['issue_date', r.issue_date, posted.spent_on],
+          ['supplier_name', r.supplier_name, posted.vendor_name],
+          ['amount', shown.amount, posted.amount],
+          ['vat_amount', shown.vat_amount, posted.vat_amount],
+          ['total_amount', r.total_amount, total],
+          ['evidence_type', r.evidence_type, posted.evidence_type],
+        ];
   const fields = {};
-  for (const [readKey, postedKey] of FEEDBACK_MAP[target] || []) {
-    const read = result ? result[readKey] ?? null : null;
-    const put = posted[postedKey] ?? null;
-    if (!same(read, put)) fields[readKey] = { read, posted: put };
-  }
+  for (const [k, read, put] of pairs) if (!same(read, put)) fields[k] = { read: read ?? null, posted: put ?? null };
+  if (fields.account) fields.account.source = (made && made.sources.account) || null;
   return fields;
 }
 
-/** 고친 칸 한 줄 — 읽은(done) 시도가 있을 때만. 실패해도 던지지 않는다 */
-async function recordFeedback(env, { access, user, documentId, payload }) {
+/**
+ * 고친 칸 한 줄 (순수) — 읽은(done) 시도가 있을 때만, 아니면 null.
+ * fields._meta 에 계정 제안 출처 · 읽은 판을 남긴다 (맞힌 장도 평가에 쓰게). changed_count 는 _meta 를 뺀 수
+ */
+export function feedbackRow(access, user, documentId, payload, done, made) {
+  if (!done) return null;
+  const fields = feedbackFields(payload.target, done.result, payload, made);
+  return {
+    company_id: access.companyId,
+    document_id: documentId,
+    extraction_id: done.id,
+    target: payload.target,
+    fields: { ...fields, _meta: { account_source: made ? made.sources.account : null, schema_version: done.schema_version ?? null } },
+    changed_count: Object.keys(fields).length,
+    created_by: user.id,
+  };
+}
+
+/** 고친 칸 기록 넣기 — 실패해도 던지지 않는다 (올리기는 끝났다) */
+async function saveFeedback(env, rows) {
+  const list = rows.filter(Boolean);
+  if (!list.length) return;
   try {
-    const x = await selectOne(env, 'ledger_extractions', {
-      document_id: `eq.${documentId}`,
-      status: 'eq.done',
-      select: 'id,result',
-      order: 'attempt.desc',
-    });
-    if (!x) return;
-    const fields = feedbackFields(payload.target, x.result, payload);
-    await insertOne(env, 'ledger_extraction_feedback', {
-      company_id: access.companyId,
-      document_id: documentId,
-      extraction_id: x.id,
-      target: payload.target,
-      fields,
-      changed_count: Object.keys(fields).length,
-      created_by: user.id,
-    });
+    await insertMany(env, 'ledger_extraction_feedback', list);
   } catch (e) {
     console.error('[Ledger] feedback failed:', e && e.statusCode ? e.statusCode : 'error');
   }
 }
 
-/** 한 장 올리기 (자격 · 역할은 부른 쪽이 봤다) */
-async function postOne(env, access, user, documentId, body) {
-  await pendingDocument(env, access.companyId, documentId);
-  const payload = await postPayload(env, access, body);
+/** 올리기 바탕 — 사진 · 계정 · 읽기 시도 · 힌트를 한 번씩 읽는다 */
+async function postContext(env, companyId, ids) {
+  const valid = [...new Set(ids.filter(isUuid))];
+  const ctx = { docs: new Map(), latest: new Map(), done: new Map(), accounts: [], hints: { map: new Map(), available: false } };
+  if (!valid.length) return ctx;
+  const inIds = `in.(${valid.join(',')})`;
+  const docs = (await selectMany(env, 'ledger_documents', { id: inIds, company_id: `eq.${companyId}`, select: 'id,company_id,review_status' })) || [];
+  for (const d of docs) ctx.docs.set(d.id, d);
+  ctx.accounts = await loadAccounts(env);
+  const attempts = (await selectMany(env, 'ledger_extractions', { document_id: inIds, select: 'id,document_id,attempt,status,schema_version,result,checks', order: 'attempt.desc' })) || [];
+  for (const x of attempts) {
+    const cur = ctx.latest.get(x.document_id);
+    if (!cur || x.attempt > cur.attempt) ctx.latest.set(x.document_id, x);
+    const d = ctx.done.get(x.document_id);
+    if (x.status === 'done' && (!d || x.attempt > d.attempt)) ctx.done.set(x.document_id, x);
+  }
+  const pending = docs.filter((d) => d.review_status === 'pending').map((d) => d.id);
+  ctx.hints = await loadHints(env, companyId, pending);
+  return ctx;
+}
+
+/** 한 장 올리기 (자격 · 역할은 부른 쪽이 봤다) → { out, feedback } */
+async function postOne(env, access, user, documentId, body, ctx) {
+  pendingFrom(ctx, documentId);
+  const view = hintView(ctx.latest.get(documentId), ctx.hints.map.get(documentId) || null, ctx.accounts, { available: ctx.hints.available });
+  if (body && body.ready === true) {
+    // 바로 올리기 — 앱이 본 값이 지금 값과 같고 아직 바로 올릴 수 있을 때만, 서버 값으로
+    if (!view || !view.ready) throw new ConflictError('바로 올릴 수 없는 사진입니다 — 열어서 확인해 주세요', { code: 'not_ready', blockers: view ? view.blockers : ['not_read'] });
+    if (!sameProposal(view.proposal, body.entry)) throw new ConflictError('목록을 본 뒤 값이 바뀌었습니다 — 다시 확인해 주세요', { code: 'changed' });
+    body = { target: 'entry', entry: view.proposal };
+  }
+  const payload = await postPayload(env, access, body, ctx.accounts);
   const r = await callRpc(asActor(env, user), 'ledger_post_document', { p_document: documentId, p_actor: user.id, p_payload: payload });
   if (!r || r.ok !== true) {
     const reason = (r && r.reason) || 'failed';
@@ -292,8 +348,12 @@ async function postOne(env, access, user, documentId, body) {
     if (NOT_FOUND_REASONS[reason]) throw new NotFoundError(NOT_FOUND_REASONS[reason]);
     throw new ConflictError('사진을 올리지 못했습니다', { code: reason });
   }
-  await recordFeedback(env, { access, user, documentId, payload });
-  return { document_id: documentId, target: payload.target, entry_id: r.entry_id || null, cost_id: r.cost_id || null, role: r.role || null };
+  const done = ctx.done.get(documentId) || null;
+  const made = done ? proposalFor(done.result, ctx.hints.map.get(documentId) || null, ctx.accounts) : null;
+  return {
+    out: { document_id: documentId, target: payload.target, entry_id: r.entry_id || null, cost_id: r.cost_id || null, role: r.role || null },
+    feedback: feedbackRow(access, user, documentId, payload, done, made),
+  };
 }
 
 async function writer(env, user) {
@@ -305,7 +365,11 @@ async function writer(env, user) {
 
 /** POST /ledger/documents/:id/post */
 export async function postDocument(env, { user, documentId, body }) {
-  return postOne(env, await writer(env, user), user, documentId, body);
+  const access = await writer(env, user);
+  const ctx = await postContext(env, access.companyId, [documentId]);
+  const { out, feedback } = await postOne(env, access, user, documentId, body, ctx);
+  await saveFeedback(env, [feedback]);
+  return out;
 }
 
 /** POST /ledger/review/post — 장마다 따로, 실패한 장은 그 이유 */
@@ -314,8 +378,10 @@ export async function postBatch(env, { user, body }) {
   const items = body && Array.isArray(body.items) ? body.items : null;
   if (!items || !items.length) throw new ValidationError('items 가 필요합니다');
   if (items.length > BATCH_MAX) throw new ValidationError(`한 번에 ${BATCH_MAX}장까지 올립니다`);
+  const ctx = await postContext(env, access.companyId, items.map((i) => i && i.id).filter((id) => typeof id === 'string'));
   const ids = new Set();
   const out = [];
+  const feedback = [];
   for (const item of items) {
     const id = item && item.id;
     if (ids.has(id)) {
@@ -326,7 +392,11 @@ export async function postBatch(env, { user, body }) {
     try {
       const rest = { ...(item || {}) };
       delete rest.id;
-      out.push({ id, ok: true, ...(await postOne(env, access, user, id, rest)) });
+      const done = await postOne(env, access, user, id, rest, ctx);
+      out.push({ id, ok: true, ...done.out });
+      feedback.push(done.feedback);
+      // 같은 묶음 안에서 두 번 올리지 않게 — 올린 사진은 이제 확인 기다림이 아니다
+      ctx.docs.set(id, { ...ctx.docs.get(id), review_status: 'posted' });
     } catch (e) {
       // 앞 장은 이미 올랐다 — 서버 오류여도 던지지 않고 그 장만 실패로 적는다
       const known = e && e.statusCode && e.statusCode < 500;
@@ -334,6 +404,7 @@ export async function postBatch(env, { user, body }) {
       out.push({ id, ok: false, status: known ? e.statusCode : 500, message: known ? e.message : '올리지 못했습니다', code: known ? (e.details && e.details.code) || e.code || null : null });
     }
   }
+  await saveFeedback(env, feedback);
   return { items: out, posted: out.filter((x) => x.ok).length };
 }
 

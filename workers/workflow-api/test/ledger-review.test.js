@@ -16,6 +16,7 @@ import { clearHqCompanyCache } from '../src/supabase.js';
 import { clearAdminCache } from '../src/reports/admin.js';
 import { runExtractDue, DUE_LIMIT, DUE_WAIT_SEC, DUE_STUCK_SEC, MAX_ATTEMPTS, REREAD_BELOW } from '../src/ledger/extract.js';
 import { feedbackFields, ntsRow, parseCostInput, BATCH_MAX, PHOTO_URL_TTL_SEC } from '../src/ledger/review.js';
+import { proposalFor } from '../src/ledger/hints.js';
 
 const ENV = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 's' };
 const CO = 'c0000000-0000-4000-8000-0000000000a1';
@@ -123,6 +124,8 @@ function makeDb(over = {}) {
     nts_api: [],
     ntsReply: null,
     uploads: [],
+    // ledger_review_hints (DB 0033) — 사진 id → 힌트. null 이면 함수가 없다(적용 전)
+    hints: {},
     ...over,
   };
   const eq = (q, key) => {
@@ -174,7 +177,8 @@ function makeDb(over = {}) {
     }
     if (path.startsWith('/ledger_documents')) {
       if (method === 'GET') {
-        let rows = state.documents.filter((r) => match(q, r, ['id', 'company_id', 'review_status', 'sha256', 'idempotency_key', 'uploaded_by']));
+        const ids = inList(q, 'id');
+        let rows = state.documents.filter((r) => (ids ? ids.includes(r.id) : true) && match(q, r, ['id', 'company_id', 'review_status', 'sha256', 'idempotency_key', 'uploaded_by']));
         const c = q.get('created_at');
         if (c && c.startsWith('lt.')) rows = rows.filter((r) => r.created_at < c.slice(3));
         if (c && c.startsWith('gte.')) rows = rows.filter((r) => r.created_at >= new Date(c.slice(4).replace(' ', '+')).toISOString());
@@ -200,8 +204,9 @@ function makeDb(over = {}) {
     }
     if (path.startsWith('/ledger_extraction_feedback')) {
       if (state.feedbackFails) return fail(500, { message: 'boom' });
-      state.feedback.push(body);
-      return json([body], 201);
+      const list = Array.isArray(body) ? body : [body];
+      state.feedback.push(...list);
+      return json(list, 201);
     }
     if (path.startsWith('/nts_business_status')) {
       if (method === 'GET') return json(state.nts.filter((r) => match(q, r, ['biz_no'])));
@@ -221,6 +226,11 @@ function makeDb(over = {}) {
       if (p.target === 'attach' && p.entry_id && p.entry_id !== ENTRY) return json({ ok: false, reason: 'entry_not_found' });
       d.review_status = 'posted';
       return json({ ok: true, entry_id: p.target === 'entry' ? ENTRY : p.entry_id || null, cost_id: p.target === 'order_cost' ? 'cost-new' : p.cost_id || null, role: p.target === 'attach' ? 'supporting' : 'primary' });
+    }
+    if (path === '/rpc/ledger_review_hints') {
+      state.rpc.push({ fn: 'ledger_review_hints', body });
+      if (state.hints === null) return fail(404, { code: 'PGRST202', message: 'Could not find the function public.ledger_review_hints' });
+      return json(body.p_documents.filter((id) => state.hints[id]).map((id) => ({ document_id: id, hints: state.hints[id] })));
     }
     if (path === '/rpc/ledger_extract_due') {
       state.rpc.push({ fn: 'ledger_extract_due', body });
@@ -506,15 +516,20 @@ test('장부 줄로 올리기 — 계정 · 거래처를 먼저 보고 DB 함수
   assert.equal(rpc.body.p_payload.target, 'entry');
   assert.equal(rpc.body.p_payload.entry.amount, 110000);
   assert.equal(rpc.body.p_payload.entry.counterparty_biz_no, BIZ_OK);
-  // 고친 칸 — 공급가 100,000 을 110,000 으로 (부가세를 합친 부담 금액)
+  // 고친 칸 — 화면이 채운 금액 100,000 을 110,000 으로 · 합계 · 계정(기억 · AI 제안 없음)
   assert.deepEqual(db.feedback, [
     {
       company_id: CO,
       document_id: D1,
       extraction_id: X2,
       target: 'entry',
-      fields: { supply_amount: { read: 100000, posted: 110000 } },
-      changed_count: 1,
+      fields: {
+        amount: { read: 100000, posted: 110000 },
+        total_amount: { read: 110000, posted: 120000 },
+        account: { read: null, posted: 'admin.supplies', source: null },
+        _meta: { account_source: null, schema_version: 1 },
+      },
+      changed_count: 3,
       created_by: OWNER,
     },
   ]);
@@ -558,6 +573,7 @@ test('수주 원가로 올리기 — 공급처 이름은 그 공급처, 고친 �
   assert.deepEqual(db.feedback[0].fields, {
     issue_date: { read: '2026-11-01', posted: '2026-11-02' },
     supplier_name: { read: '한빛목재', posted: '예림' },
+    _meta: { account_source: null, schema_version: 1 },
   });
   assert.equal(db.feedback[0].changed_count, 2);
 
@@ -571,7 +587,7 @@ test('이미 있는 줄에 붙이기 — supporting, 고친 칸은 빈 줄 / 읽
   const r = await call(db, `/ledger/documents/${D1}/post`, OWNER, { method: 'POST', body: { target: 'attach', entry_id: ENTRY } });
   assert.equal(r.status, 201, r.text);
   assert.equal(r.body.data.role, 'supporting');
-  assert.deepEqual(db.feedback.map((f) => [f.target, f.changed_count, f.fields]), [['attach', 0, {}]]);
+  assert.deepEqual(db.feedback.map((f) => [f.target, f.changed_count, f.fields]), [['attach', 0, { _meta: { account_source: null, schema_version: 1 } }]]);
 
   const none = makeDb();
   const r2 = await call(none, `/ledger/documents/${D2}/post`, OWNER, { method: 'POST', body: entryBody() });
@@ -729,13 +745,127 @@ test('ntsRow — 01 계속 · 02 휴업 · 03 폐업 · 그 밖 미등록(과세
   assert.equal(ntsRow(BIZ_OK, { b_stt_cd: '01', tax_type: 'y'.repeat(80) }).tax_type.length, 60);
 });
 
-test('feedbackFields — 다른 칸만, 빈 값 · 공백 · 숫자 글은 같게 본다', () => {
-  assert.deepEqual(feedbackFields('entry', READ, entryBody({ amount: 100000, counterparty_name: ' 한빛목재 ' })), {});
-  assert.deepEqual(feedbackFields('entry', { ...READ, supply_amount: '100000' }, entryBody({ amount: 100000 })), {});
-  assert.deepEqual(feedbackFields('entry', { ...READ, payment_method: null }, entryBody({ amount: 100000, payment_method: null })), {});
-  assert.deepEqual(feedbackFields('entry', { ...READ, supplier_biz_no: null }, entryBody({ amount: 100000 })), { supplier_biz_no: { read: null, posted: BIZ_OK } });
-  assert.deepEqual(feedbackFields('attach', READ, { target: 'attach', entry_id: ENTRY }), {});
-  assert.deepEqual(feedbackFields('entry', null, entryBody()).supply_amount, { read: null, posted: 110000 });
+test('feedbackFields — 화면이 채운 값과 다른 칸만, 빈 값 · 공백 · 숫자 글은 같게 본다, 공제 안 되는 증빙은 합계로', () => {
+  const made = proposalFor({ ...READ, account_hint: 'admin.supplies' }, null, ACCOUNTS);
+  assert.deepEqual(feedbackFields('entry', READ, entryBody({ amount: 100000, counterparty_name: ' 한빛목재 ' }), made), {});
+  assert.deepEqual(feedbackFields('entry', { ...READ, total_amount: '110000' }, entryBody({ amount: 100000 }), made), {});
+  assert.deepEqual(feedbackFields('entry', { ...READ, payment_method: null }, entryBody({ amount: 100000, payment_method: null }), made), {});
+  assert.deepEqual(feedbackFields('entry', { ...READ, supplier_biz_no: null }, entryBody({ amount: 100000 }), made), { supplier_biz_no: { read: null, posted: BIZ_OK } });
+  assert.deepEqual(feedbackFields('attach', READ, { target: 'attach', entry_id: ENTRY }, made), {});
+  assert.deepEqual(feedbackFields('entry', null, entryBody()).amount, { read: null, posted: 110000 });
+  // 계정이 다르면 제안이 어디서 왔는지
+  const memo = { proposal: { ...made.proposal, account: 'income.sales' }, sources: { ...made.sources, account: 'memory' } };
+  assert.deepEqual(feedbackFields('entry', READ, entryBody({ amount: 100000 }), memo).account, { read: 'income.sales', posted: 'admin.supplies', source: 'memory' });
+  // 간이영수증 — 화면은 합계 · 부가세 0 으로 채운다 (공급가와 비교해 틀렸다고 남기지 않는다)
+  const simple = { ...READ, evidence_type: 'simple_receipt', account_hint: 'admin.supplies' };
+  assert.deepEqual(feedbackFields('entry', simple, entryBody({ amount: 110000, vat_amount: 0, evidence_type: 'simple_receipt' }), proposalFor(simple, null, ACCOUNTS)), {});
+});
+
+// ── 확인 힌트 · 바로 올리기 (DB 0033) ─────────────────────
+
+/** 믿을 만한 거래처 — 장부 줄 3번 같은 계정 · 증빙 */
+const TRUSTED = {
+  read: true,
+  supplier: { biz_no: BIZ_OK, name: '한빛목재' },
+  memory: {
+    posts: 3,
+    entry_posts: 3,
+    last: { src: 'entry', account: 'admin.supplies', evidence_type: 'card', payment_method: 'card', display_name: '한빛 목재', on_date: '2026-10-20' },
+    last_entry: { src: 'entry', account: 'admin.supplies', evidence_type: 'card', payment_method: 'card', display_name: '한빛 목재', on_date: '2026-10-20' },
+  },
+  trusted: true,
+  first_time: false,
+  large: null,
+  duplicate: null,
+  evidence_risk: false,
+  nts: null,
+};
+const SHOWN = {
+  entry_date: '2026-11-01',
+  direction: 'expense',
+  account: 'admin.supplies',
+  description: '합판',
+  counterparty_name: '한빛 목재',
+  counterparty_biz_no: BIZ_OK,
+  amount: 100000,
+  vat_amount: 10000,
+  evidence_type: 'card',
+  payment_method: 'card',
+};
+
+test('확인 목록 힌트 — 기억으로 채운 올릴 값 · 바로 올려도 되는가, 0033 이 없으면 읽은 값만', async () => {
+  const db = makeDb({ hints: { [D1]: TRUSTED } });
+  const r = await call(db, '/ledger/review', OWNER);
+  assert.equal(r.status, 200, r.text);
+  const one = r.body.data.items.find((d) => d.id === D1);
+  assert.deepEqual(one.hints.proposal, SHOWN);
+  assert.deepEqual(one.hints.sources, { account: 'memory', counterparty_name: 'memory', evidence_type: 'read', payment_method: 'read' });
+  assert.equal(one.hints.ready, true);
+  assert.deepEqual(one.hints.blockers, []);
+  assert.equal(one.hints.target, 'entry');
+  // 읽지 않은 사진은 힌트 없음 · 힌트는 한 번에
+  assert.equal(r.body.data.items.find((d) => d.id === D2).hints, null);
+  assert.deepEqual(rpcCalls(r.calls, 'ledger_review_hints').map((c) => c.body.p_documents.sort()), [[D1, D2]]);
+
+  // 경고 · 꼭 볼 칸이 「확실하지 않음」 · 지난번이 수주 원가면 바로 올리지 않는다
+  const cases = [
+    [{ ...TRUSTED, duplicate: { document_id: D2 } }, READ, ['warning']],
+    [{ ...TRUSTED, trusted: false }, READ, ['not_trusted']],
+    [TRUSTED, { ...READ, unsure: ['vat_amount'] }, ['unsure']],
+    [TRUSTED, { ...READ, evidence_type: 'cash_receipt' }, ['evidence_changed']],
+    [{ ...TRUSTED, memory: { ...TRUSTED.memory, last: { ...TRUSTED.memory.last, src: 'cost', category: 'material' } } }, READ, ['target']],
+  ];
+  for (const [h, result, blockers] of cases) {
+    const d = makeDb({ hints: { [D1]: h } });
+    d.extractions[1].result = result;
+    const x = (await call(d, '/ledger/review', OWNER)).body.data.items.find((i) => i.id === D1);
+    assert.deepEqual(x.hints.blockers, blockers, JSON.stringify(h));
+    assert.equal(x.hints.ready, false);
+  }
+
+  // 0033 적용 전 — 목록은 그대로, 기억 없이 읽은 값으로만
+  const old = makeDb({ hints: null });
+  const { out, lines } = await withLogs(() => call(old, '/ledger/review', OWNER));
+  assert.equal(out.status, 200);
+  const h = out.body.data.items.find((d) => d.id === D1).hints;
+  assert.deepEqual([h.available, h.ready, h.blockers, h.proposal.account, h.proposal.counterparty_name], [false, false, ['no_hints'], null, '한빛목재']);
+  assert.ok(lines.some((l) => l.includes('apply database/migrations/0033')));
+});
+
+test('바로 올리기 — 서버가 다시 세어 같은 값일 때만 그 값으로, 바뀌었거나 바로 올릴 수 없으면 409', async () => {
+  const db = makeDb({ hints: { [D1]: TRUSTED } });
+  const r = await call(db, '/ledger/review/post', OWNER, { method: 'POST', body: { items: [{ id: D1, ready: true, entry: SHOWN }] } });
+  assert.equal(r.status, 200, r.text);
+  assert.equal(r.body.data.posted, 1);
+  const [rpc] = rpcCalls(r.calls, 'ledger_post_document');
+  assert.equal(rpc.body.p_payload.target, 'entry');
+  for (const [k, v] of Object.entries(SHOWN)) assert.deepEqual(rpc.body.p_payload.entry[k], v, k);
+  assert.equal(db.feedback[0].fields._meta.account_source, 'memory');
+  assert.equal(db.feedback[0].changed_count, 1); // 읽은 상호 한빛목재 → 확인된 상호 한빛 목재
+
+  const changed = makeDb({ hints: { [D1]: TRUSTED } });
+  const c = await call(changed, '/ledger/review/post', OWNER, { method: 'POST', body: { items: [{ id: D1, ready: true, entry: { ...SHOWN, amount: 99000 } }] } });
+  assert.deepEqual(c.body.data.items.map((x) => [x.ok, x.status, x.code]), [[false, 409, 'changed']]);
+  const notReady = makeDb({ hints: { [D1]: { ...TRUSTED, large: { median: 50000, n: 3, ratio: 2.2 } } } });
+  const n = await call(notReady, '/ledger/review/post', OWNER, { method: 'POST', body: { items: [{ id: D1, ready: true, entry: SHOWN }] } });
+  assert.deepEqual(n.body.data.items.map((x) => [x.ok, x.status, x.code]), [[false, 409, 'not_ready']]);
+  assert.equal(rpcCalls(c.calls.concat(n.calls), 'ledger_post_document').length, 0);
+});
+
+test('한꺼번에 올리기 20장 — 사진 · 계정 · 시도 · 힌트 · 고친 칸을 한 번씩 (하위 요청 50개 안)', async () => {
+  const ids = Array.from({ length: BATCH_MAX }, (_, i) => `d1000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`);
+  const db = makeDb({
+    documents: ids.map((id) => doc(id, CO)),
+    extractions: ids.map((id, i) => ({ id: `f1000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`, document_id: id, attempt: 1, status: 'done', model: 'claude-haiku-5-5', schema_version: 3, result: READ, checks: CHECKS, error: null, started_at: '2026-11-01T01:12:00Z', finished_at: '2026-11-01T01:12:30Z' })),
+    hints: Object.fromEntries(ids.map((id) => [id, TRUSTED])),
+  });
+  const r = await call(db, '/ledger/review/post', OWNER, { method: 'POST', body: { items: ids.map((id) => ({ id, ready: true, entry: SHOWN })) } });
+  assert.equal(r.status, 200, r.text);
+  assert.equal(r.body.data.posted, BATCH_MAX);
+  assert.equal(rpcCalls(r.calls, 'ledger_post_document').length, BATCH_MAX);
+  assert.equal(db.feedback.length, BATCH_MAX);
+  assert.equal(r.calls.filter((c) => c.url.includes('/ledger_extraction_feedback')).length, 1);
+  assert.ok(r.calls.length < 50, `subrequests ${r.calls.length}`);
 });
 
 test('parseCostInput — 수주 원가 넣기와 같은 칸', () => {
