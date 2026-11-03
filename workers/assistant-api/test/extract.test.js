@@ -407,6 +407,35 @@ test('실패 뒤 다시 — 최대 시도(EXTRACT_MAX_ATTEMPTS)까지', async ()
   );
 });
 
+test('더 낮은 판으로 읽은 사진 — 다시(again)면 판을 넘겨 새 판으로 다시 읽고, 같은 판 · 다시 없음은 막는다', async () => {
+  const w = world({
+    claude: makeClaude([orient(0), answer(sample()), orient(90), answer(sample())]),
+    env: { IMAGES: fakeImages() },
+  });
+  assert.equal((await runExtract(w.env, { documentId: DOC })).status, 'done');
+  // 같은 판으로 읽은 사진은 다시여도 막는다
+  assert.equal((await runExtract(w.env, { documentId: DOC, again: true })).reason, 'done');
+  // 예전 판(1)으로 읽은 사진이면 — 다시 없이는 막고, 다시면 이 판으로 읽는다
+  w.db.extractions[0].schema_version = 1;
+  assert.equal((await runExtract(w.env, { documentId: DOC })).reason, 'done');
+  assert.equal((await runExtract(w.env, { documentId: DOC, again: true })).status, 'done');
+  // 새 판으로 읽었으니 또 읽지 않는다
+  assert.equal((await runExtract(w.env, { documentId: DOC, again: true })).reason, 'done');
+  const begins = w.db.calls.filter((c) => c.path.endsWith('/rpc/ledger_extract_begin'));
+  assert.deepEqual(
+    begins.map((c) => c.body.p_schema_version),
+    [undefined, SCHEMA_VERSION, undefined, SCHEMA_VERSION, SCHEMA_VERSION]
+  );
+  assert.deepEqual(
+    w.db.extractions.map((x) => [x.attempt, x.status, x.schema_version, x.result.rotate]),
+    [
+      [1, 'done', 1, 0],
+      [2, 'done', SCHEMA_VERSION, 90],
+    ]
+  );
+  assert.equal(w.claude.calls.length, 4);
+});
+
 test('다듬기 — 카드번호 · 전화번호 꼴은 지우고, 스키마 밖 값은 버린다', () => {
   const { result, redacted } = normalize(
     sample({
