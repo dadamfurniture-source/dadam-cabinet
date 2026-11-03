@@ -762,13 +762,18 @@
        */
       const bomCabinetOnTop = (m) => !!m && m.cabinetOnTop === true;
       /**
-       * 상부장 도어 내림 — 모듈 값(mod.doorOverlap, 0 이상)이 있으면 그 값, 없으면 품목 사양 upperDoorOverlap (기본 15).
-       *   2026-11-03 사장님 (하부장 위 수납장 도어 아래 끝): 「아랫장이 목찬넬이면 5내림, 아니면 몸통과 같게」 — 브리지가 0 · 5 를 싣는다.
-       *   사양 값은 예전처럼 0 이면 15 로 떨어진다 (옛 저장 설계 그대로).
+       * 하부장 위 수납장 도어 아래 끝 — 2026-11-03 사장님 「아랫장이 목찬넬이면 5내림, 아니면 몸통과 같게」.
+       *   목찬넬은 품목 손잡이(specs.handle)다 — 아래 하부장이 같은 품목이라 같은 손잡이.
+       */
+      const BOM_STACK_BOX = Object.freeze({ DOOR_DROP_CHANNEL: 5, DOOR_DROP_OTHER: 0 });
+      /** 하부장 위 수납장 (상부 짜임 상자 — 브리지 mod.stackBox) */
+      const bomStackBoxOf = (m) => !!m && m.stackBox === true;
+      /**
+       * 상부장 도어 내림 — 하부장 위 수납장이면 BOM_STACK_BOX (목찬넬 5 · 그 밖 0), 아니면 품목 사양 upperDoorOverlap (기본 15).
        */
       const bomUpperOverlapOf = (mod, specs) => {
-        const v = mod && mod.doorOverlap != null && mod.doorOverlap !== '' ? Number(mod.doorOverlap) : NaN;
-        return Number.isFinite(v) && v >= 0 ? v : (parseFloat(specs && specs.upperDoorOverlap) || 15);
+        if (bomStackBoxOf(mod)) return String((specs && specs.handle) || '').includes('목찬넬') ? BOM_STACK_BOX.DOOR_DROP_CHANNEL : BOM_STACK_BOX.DOOR_DROP_OTHER;
+        return parseFloat(specs && specs.upperDoorOverlap) || 15;
       };
       /**
        * 콘센트 — 2026-11-03 사장님 (하부장 전자제품): 전자제품을 넣은 하부장마다 「콘센트 자재 + 뒤판 타공」 · 「모듈마다 1개 (2구)」 ·
@@ -2486,7 +2491,7 @@
               this.add(materials, modLabel, '도어', 'MDF', 18, blindDoorW, H + overlap, mod.doorCount || 1, '4면', '멍장 도어(도어폭 기준) — 목대를 덮는다: doorW + 15 − 4 (corner.md §3.5.1)', mod);
               this.addBlindFrontParts(materials, modLabel, mod, H, H - T * 2, H + overlap);   // 휠라(멍판) = 도어 (내림 15 포함 — 2026-10-27 사장님)
             } else if (doorCount > 0) {
-              // 2026-11-03: 하부장 위 수납장은 모듈 내림 (0 · 5 — bomUpperOverlapOf)
+              // 2026-11-03: 하부장 위 수납장은 목찬넬이면 5 · 아니면 0 (bomUpperOverlapOf)
               const overlap = bomUpperOverlapOf(mod, specs);
               const doorW = Math.floor(W / doorCount) - 4;
               this.add(materials, modLabel, '도어', 'MDF', 18, doorW, H + overlap, doorCount, '4면', '', mod);
@@ -3637,7 +3642,7 @@
             const upperOverlap = parseFloat(specs.upperDoorOverlap) || 15;
             const tallTier = mod.pos === 'lower' ? bomTallTierOf(mod) : null;
             if (tallTier) doorH = bomTallTierDoorH(mod, tallTier, specs);
-            else if (mod.pos === 'upper') doorH = (mod.h || specs.upperH - upperOverlap) + bomUpperOverlapOf(mod, specs);   // 2026-11-03 모듈 내림 (하부장 위 수납장)
+            else if (mod.pos === 'upper') doorH = (mod.h || specs.upperH - upperOverlap) + bomUpperOverlapOf(mod, specs);   // 2026-11-03 하부장 위 수납장 내림 (5 · 0)
             else if (mod.pos === 'lower') doorH = (mod.h || (specs.lowerH || 870) - (parseFloat(specs.topThickness) || 12) - (parseFloat(specs.sinkLegHeight) || 150)) - 30;
             else doorH = mod.h || 700;
             if (simpleDoorH !== null) doorH = simpleDoorH; // B3 서랍장 여닫이 도어 — 자재 행의 hingeDoorH
@@ -4273,7 +4278,7 @@
           // 2026-10-29 신발장 벤치 · 키큰장 도어 전신거울
           BOM_BENCH, BOM_MIRROR, bomIsBenchModule,
           // 2026-11-03 하부장 위 수납장 (천판 · 상판 빼기 · 도어 내림) · 콘센트 · 알루미늄 프레임 유리 도어
-          bomCabinetOnTop, bomUpperOverlapOf, BOM_OUTLET, bomOutletNoteOf, BOM_GLASS_DOOR,
+          bomCabinetOnTop, bomStackBoxOf, BOM_STACK_BOX, bomUpperOverlapOf, BOM_OUTLET, bomOutletNoteOf, BOM_GLASS_DOOR,
           // 2026-10-13 플랩 가스쇼바 — 규격표·자동 선택
           BOM_GAS_STRUTS, bomGasStrutFor,
           // 2026-10-18 사전 오류 검사(bom-preflight.js)가 컵 간격 문턱을 여기서 읽는다

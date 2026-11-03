@@ -1788,10 +1788,10 @@
             //   표시가 없는 모듈은 예전 payload 그대로.
             if (m.stackTop === 'rice' && pos === 'lower') out[out.length - 1].stackTop = 'rice';
             // 2026-11-03 사장님 (하부장 위 수납장 「몸통 위에 바로」): 위에 수납장이 올라간 하부장 — BOM 이 밴드 대신 천판, 그 칸 상판 없음.
-            //   위 수납장(상부 짜임 상자)의 도어 내림 = 구조 s.doorOverlap (「아랫장이 목찬넬이면 5내림, 아니면 몸통과 같게」 — 0 · 5).
+            //   위 수납장(상부 짜임 상자) = 구조 s.stackBox — 도어 내림은 BOM 이 손잡이로 정한다 (「아랫장이 목찬넬이면 5내림, 아니면 몸통과 같게」).
             //   표시가 없는 모듈의 payload 는 예전과 같다.
             if (m.cabinetOnTop === true && pos === 'lower') out[out.length - 1].cabinetOnTop = true;
-            if (pos === 'upper' && s && s.doorOverlap != null && Number.isFinite(Number(s.doorOverlap)) && Number(s.doorOverlap) >= 0) out[out.length - 1].doorOverlap = Number(s.doorOverlap);
+            if (pos === 'upper' && s && s.stackBox === true) out[out.length - 1].stackBox = true;
             // 2026-11-03 사장님 (하부장 전자제품): 콘센트 — 구조 s.outlet { h: 바닥에서 mm | null } (모듈마다 2구 하나, BOM 자재 + 뒤판 타공)
             if (s && s.outlet && typeof s.outlet === 'object') out[out.length - 1].outlet = { h: Number(s.outlet.h) > 0 ? Number(s.outlet.h) : null };
             // 2026-11-03 사장님: 알루미늄 프레임 유리 도어 — 구조 s.glassDoor 'alu' (BOM 이 도어 판 대신 구매품 행)

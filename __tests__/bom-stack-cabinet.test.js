@@ -6,7 +6,7 @@
  *   「밑에 2개의 하부장 위에 1개의 수납장을 올리려고」 → 질문 답:
  *     쌓는 방식   「몸통 위에 바로」 — 아래 하부장은 밴드 2 대신 천판 (키큰장 단 · 하부 밥솥장 짜임), 그 칸 위 상판 없음
  *     위 수납장   상부장 짜임의 따로 짠 상자 (pos upper — 높이 · 깊이는 간편 플래너 · 모듈 라이브러리가 준다)
- *     도어 아래 끝 「아랫장이 목찬넬이면 5내림, 아니면 몸통과 같게」 — 브리지 s.doorOverlap 5 · 0
+ *     도어 아래 끝 「아랫장이 목찬넬이면 5내림, 아니면 몸통과 같게」 — 구조 s.stackBox, 내림은 BOM 이 품목 손잡이로 (5 · 0)
  *   「하부장 … 전자제품 … 콘센트 … BOM」 → 「콘센트 자재 + 뒤판 타공」 · 「모듈마다 1개 (2구)」 · 타공 「50*80」 · 높이는 모듈 칸에서
  *   유리 도어 → 「알루미늄 프레임 + 유리」 — 사서 단다 (도어 판 행 대신 같은 치수의 구매품 행, 경첩은 엔진 규칙 그대로)
  */
@@ -51,7 +51,7 @@ const upper2 = (W, extra) =>
 /**
  * 하부 줄: 2도어 600 · 2도어 600 (둘 위에 수납장) · 2도어 600 (상판).
  *   위 수납장 1200 — 몸통 윗면 858 ~ 상몰딩 밑 2240 = 1382 (+ 상몰딩 60 = 플래너 H 1442).
- * @param {object} [o]  handle · doorOverlap · glass · outlet (하부장 l2 에)
+ * @param {object} [o]  handle · glass · outlet (하부장 l2 에)
  */
 function line(o) {
   const opt = o || {};
@@ -94,10 +94,7 @@ function line(o) {
     l2: door2(600, opt.outlet !== undefined ? { outlet: opt.outlet } : {}),
     s1: upper2(
       1200,
-      Object.assign(
-        { moldingH: 60, doorOverlap: opt.doorOverlap == null ? 5 : opt.doorOverlap },
-        opt.glass ? { glassDoor: 'alu' } : {}
-      )
+      Object.assign({ moldingH: 60, stackBox: true }, opt.glass ? { glassDoor: 'alu' } : {})
     ),
   };
   const conv = loadConverter()._convertPlannerModules(
@@ -146,7 +143,7 @@ function line(o) {
 const parts = (rows) => rows.map((r) => `${r.part}${r.qty > 1 ? `×${r.qty}` : ''}`).sort();
 
 describe('브리지 — 하부장 위 수납장', () => {
-  test('아래 하부장 cabinetOnTop · 위 수납장 pos upper · 도어 내림 5 · 몸통 1382', () => {
+  test('아래 하부장 cabinetOnTop · 위 수납장 pos upper · stackBox · 몸통 1382', () => {
     const { conv, key } = line();
     const m = (id) => conv.modules.find((x) => x.id === key(id));
     expect([m('l0').cabinetOnTop, m('l1').cabinetOnTop, m('l2').cabinetOnTop]).toEqual([
@@ -154,7 +151,7 @@ describe('브리지 — 하부장 위 수납장', () => {
       true,
       undefined,
     ]);
-    expect([m('s1').pos, m('s1').h, m('s1').doorOverlap]).toEqual(['upper', 1382, 5]);
+    expect([m('s1').pos, m('s1').h, m('s1').stackBox]).toEqual(['upper', 1382, true]);
   });
 });
 
@@ -179,7 +176,7 @@ describe('BOM — 하부장 위 수납장', () => {
       parts(a.rowsOf('s1').filter((r) => ['측판', '천판', '지판', '뒷판'].includes(r.part)))
     ).toEqual(['뒷판', '지판', '천판', '측판×2']);
     expect(a.rowsOf('s1').find((r) => r.part === '도어').h).toBe(1382 + 5);
-    const b = line({ handle: '푸쉬', doorOverlap: 0 });
+    const b = line({ handle: '푸쉬' });
     expect(b.rowsOf('s1').find((r) => r.part === '도어').h).toBe(1382);
   });
 
@@ -192,7 +189,7 @@ describe('BOM — 하부장 위 수납장', () => {
   });
 
   test('조립 명세 — 아래 하부장 천판 · 위 수납장 도어(내림 5 · 0)가 자리에 놓인다', () => {
-    for (const o of [{}, { handle: '푸쉬', doorOverlap: 0 }]) {
+    for (const o of [{}, { handle: '푸쉬' }]) {
       const { spec, key } = line(o);
       // 선반 높이는 부르는 쪽(플래너 opts.shelfY)이 넘긴다 — 이 시험은 넘기지 않는다
       const un = (spec.items[0].unplaced || []).filter(
@@ -205,10 +202,7 @@ describe('BOM — 하부장 위 수납장', () => {
       const door = s1.parts.find((p) => p.part === '도어');
       expect(door).toBeTruthy();
       // 도어 윗변 = 몸통 상단 1382, 밑단 = 몸통 바닥 − 내림 (5 · 0)
-      expect([door.box.min[1] + 0, door.box.max[1]]).toEqual([
-        0 - (o.doorOverlap == null ? 5 : o.doorOverlap),
-        1382,
-      ]);
+      expect([door.box.min[1] + 0, door.box.max[1]]).toEqual([0 - (o.handle ? 0 : 5), 1382]);
       const l0 = spec.items[0].modules.find((m) => m.moduleKey === `0-${key('l0')}`);
       expect(l0.parts.some((p) => p.part === '천판')).toBe(true);
     }
