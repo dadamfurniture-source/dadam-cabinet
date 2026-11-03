@@ -1,0 +1,110 @@
+{
+  "title": "0034 회계 한눈에 — 달마다 매출(받은 돈 · 일반과세 공급가) · 매입 · 자산, 계정 미정 · 부가세 모름 · 증빙 경고 수, 계정별 · 지출 상대 상위(다듬은 상호로 묶음), 취소 줄 뺌, 기간 400일까지, 서버만 (scripts/rls-probe.mjs)",
+  "ids": [
+    "company_x",
+    "design_x",
+    "snap_x",
+    "doc_x",
+    "order_x",
+    "entry_void"
+  ],
+  "users": [
+    "x_owner_user",
+    "x_staff_user",
+    "other_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_x}}, {{x_staff_user}}, 'staff', 'active')",
+    "INSERT INTO public.company_settings (company_id, settings) VALUES ({{company_x}}, '{\"tax\":{\"vat_type\":\"general\",\"business_kind\":\"manufacturing\"}}'::jsonb) ON CONFLICT (company_id) DO UPDATE SET settings = EXCLUDED.settings",
+    "INSERT INTO public.designs (id, user_id, name, company_id) VALUES ({{design_x}}, {{x_owner_user}}, 'probe', {{company_x}})",
+    "INSERT INTO public.design_snapshots (id, design_id, rev, content_hash, design_payload, bom_payload, item_count) VALUES ({{snap_x}}, {{design_x}}, 1, 'probe', '{}', '{}', 1)",
+    "INSERT INTO public.design_documents (id, design_id, snapshot_id, doc_type, rev, doc_no, title, render_payload, content_hash) VALUES ({{doc_x}}, {{design_x}}, {{snap_x}}, 'work_order', 1, 'probe-' || {{doc_x}}::text, 'probe', '{}', 'probe')",
+    "INSERT INTO public.orders (id, order_no, design_id, document_id, snapshot_id, contract_amount, company_id, customer_name) VALUES ({{order_x}}, 'probe-' || {{order_x}}::text, {{design_x}}, {{doc_x}}, {{snap_x}}, 0, {{company_x}}, '고객A')",
+    "INSERT INTO public.order_payments (order_id, stage, amount, paid_on) VALUES ({{order_x}}, 'deposit', 1100000, '2026-09-10'), ({{order_x}}, 'balance', 2200000, '2026-10-05')",
+    "INSERT INTO public.order_costs (order_id, category, amount, vat_amount, evidence_type, vendor_name, spent_on) VALUES ({{order_x}}, 'material', 300000, 30000, 'tax_invoice', '가나목재', '2026-09-12'), ({{order_x}}, 'logistics', 50000, NULL, 'statement', '다라운송', '2026-10-03')",
+    "INSERT INTO public.ledger_entries (company_id, entry_date, direction, account, counterparty_name, amount, vat_amount, evidence_type, source, created_by) VALUES ({{company_x}}, '2026-10-20', 'expense', 'admin.supplies', '(주)가나목재', 40000, 0, 'simple_receipt', 'manual', {{x_owner_user}}), ({{company_x}}, '2026-10-21', 'expense', 'purchase.materials', '가나 목재', 500000, 50000, 'card', 'manual', {{x_owner_user}}), ({{company_x}}, '2026-10-22', 'asset_buy', 'asset.tangible', '라마기계', 1000000, 100000, 'card', 'manual', {{x_owner_user}})",
+    "INSERT INTO public.ledger_entries (id, company_id, entry_date, direction, account, counterparty_name, amount, evidence_type, source, created_by) VALUES ({{entry_void}}, {{company_x}}, '2026-10-23', 'expense', 'admin.supplies', '취소상호', 999999, 'card', 'manual', {{x_owner_user}})",
+    "UPDATE public.ledger_entries SET voided_at = now(), voided_by = {{x_owner_user}}, void_reason = 'probe' WHERE id = {{entry_void}}"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "x_staff": {
+      "role": "authenticated",
+      "user": "x_staff_user"
+    },
+    "other": {
+      "role": "authenticated",
+      "user": "other_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "서버만 — 9월: 받은 돈 공급가 · 부가세, 매입 · 부가세",
+      "sql": "select (q.s->'months'->0->>'month') || '/' || (q.s->'months'->0->>'income') || '/' || (q.s->'months'->0->>'income_vat') || '/' || (q.s->'months'->0->>'expense') || '/' || (q.s->'months'->0->>'expense_vat') || '/' || (q.s->'months'->0->>'account_unknown') || '/' || (q.s->'months'->0->>'vat_unknown') || '/' || (q.s->'months'->0->>'evidence_risk') from (select public.ledger_summary({{company_x}}, '2026-09-01', '2026-10-31') s) q",
+      "expect": {
+        "service_role": "2026-09/1000000/100000/300000/30000/0/0/0",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "10월 — 매입(원가 + 장부 줄) · 자산 따로 · 부가세 모름 원가 1 · 증빙 경고 2 · 취소 줄 뺌",
+      "sql": "select (q.s->'months'->1->>'income') || '/' || (q.s->'months'->1->>'expense') || '/' || (q.s->'months'->1->>'expense_vat') || '/' || (q.s->'months'->1->>'asset_buy') || '/' || (q.s->'months'->1->>'vat_unknown') || '/' || (q.s->'months'->1->>'evidence_risk') from (select public.ledger_summary({{company_x}}, '2026-09-01', '2026-10-31') s) q",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "2000000/590000/50000/1000000/1/2"
+      }
+    },
+    {
+      "name": "10월 지출 상대 — 자산 포함 · 다듬은 상호로 묶음 · 큰 차례 (고객 이름 · 취소 줄 없음)",
+      "sql": "select string_agg((e->>'name') || ':' || (e->>'amount'), ',' order by ord) from (select public.ledger_summary({{company_x}}, '2026-09-01', '2026-10-31') s) q, jsonb_array_elements(q.s->'suppliers') with ordinality t(e, ord) where e->>'month' = '2026-10'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "라마기계:1000000,(주)가나목재:540000,다라운송:50000"
+      }
+    },
+    {
+      "name": "계정별 — 원가 종류는 업종 잇기로 계정, 9월 재료비 매입 · 10월 운반비",
+      "sql": "select string_agg((e->>'month') || ' ' || coalesce(e->>'account', '-') || ' ' || (e->>'amount'), ',' order by ord) from (select public.ledger_summary({{company_x}}, '2026-09-01', '2026-10-31') s) q, jsonb_array_elements(q.s->'accounts') with ordinality t(e, ord)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "2026-09 purchase.materials 300000,2026-10 asset.tangible 1000000,2026-10 purchase.materials 500000,2026-10 admin.freight 50000,2026-10 admin.supplies 40000"
+      }
+    },
+    {
+      "name": "기간은 400일까지 · 끝이 처음보다 앞이면 거절",
+      "sql": "select public.ledger_summary({{company_x}}, '2025-01-01', '2026-10-31')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:P0001"
+      }
+    },
+    {
+      "name": "줄이 없는 업체는 빈 목록",
+      "sql": "select jsonb_array_length(public.ledger_summary({{entry_void}}, '2026-09-01', '2026-10-31')->'months')::text",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "0"
+      }
+    }
+  ]
+}
