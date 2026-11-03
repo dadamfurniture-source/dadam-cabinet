@@ -110,15 +110,20 @@ export function makeDb(over = {}) {
       return ok({ ok: true, id: row.id, repeat: false });
     }
     if (path === 'rpc/ledger_extract_begin') {
-      // 0029 ledger_extract_begin 과 같은 판정
+      // 0031 ledger_extract_begin 과 같은 판정
       const doc = db.documents[body.p_document];
       if (!doc) return ok({ ok: false, reason: 'not_found' });
       if (doc.review_status !== 'pending') return ok({ ok: false, reason: 'not_pending' });
       const mine = db.extractions.filter((x) => x.document_id === body.p_document);
       const last = mine.sort((a, b) => b.attempt - a.attempt)[0];
       if (last) {
-        if (last.status === 'running' || last.status === 'done')
-          return ok({ ok: false, reason: last.status, id: last.id });
+        if (last.status === 'running') return ok({ ok: false, reason: 'running', id: last.id });
+        // 읽은 사진은 다시 + 더 낮은 판일 때만
+        if (
+          last.status === 'done' &&
+          !(body.p_again && (last.schema_version || 0) < (body.p_schema_version || 0))
+        )
+          return ok({ ok: false, reason: 'done', id: last.id });
         if (['refused', 'skipped_budget'].includes(last.status) && !body.p_again)
           return ok({ ok: false, reason: last.status, id: last.id });
         if (last.attempt >= (body.p_again ? 5 : body.p_max_attempts))
