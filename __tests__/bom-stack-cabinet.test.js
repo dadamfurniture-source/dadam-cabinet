@@ -321,3 +321,54 @@ describe('BOM — 콘센트 · 상자 모듈 · 칸이 여럿인 모듈', () => 
     expect(hardware.filter((h) => h.item === BOM_OUTLET.ITEM).length).toBe(1);
   });
 });
+
+describe('상몰딩 — 위에 상부장이 있는 수납장은 상몰딩 자리에 서지 않는다 (bomStackUnderUpperOf)', () => {
+  /**
+   * 자리(plane)를 실은 payload — 간편 플래너 설계 BOM (모듈 라이브러리 designBomOf). 하부 600 · 600 (위에 수납장) · 600, 수납장 1200.
+   *   withUpper: 수납장 위에 상부장 1200 (수납장 = 858 ~ 상부장 도어 밑 1520, 상몰딩 없음) / 없으면 수납장이 상몰딩 밑까지 (+ 상몰딩 60)
+   */
+  function moldingRows(withUpper) {
+    const SPECS = Object.assign({}, LEDGER_SPECS, {
+      handle: '찬넬 (목찬넬)',
+      finishLeftType: 'None',
+      finishLeftWidth: 0,
+      finishRightType: 'None',
+      finishRightWidth: 0,
+    });
+    const at = (x, W, d, baseY) => ({ plane: { cx: x + W / 2, cy: BACK + d / 2 }, rotation: 0, baseY });
+    const low = (id, x, top) =>
+      Object.assign({ id, section: 'lower', W: 600, H: 870, D, x, y: BACK, areaH: 870 }, top ? { cabinetOnTop: true } : {}, at(x, 600, D, 150));
+    const sH = withUpper ? 662 : 1382 + 60;
+    const modules = [
+      low('l0', 0, true),
+      low('l1', 600, true),
+      low('l2', 1200, false),
+      Object.assign({ id: 's1', section: 'upper', W: 1200, H: sH, D, x: 0, y: BACK, areaH: sH }, at(0, 1200, D, 858)),
+    ];
+    const structures = {
+      l0: door2(600),
+      l1: door2(600),
+      l2: door2(600),
+      s1: upper2(1200, { moldingH: withUpper ? 0 : 60, stackBox: true }),
+    };
+    if (withUpper) {
+      modules.push(Object.assign({ id: 'u1', section: 'upper', W: 1200, H: 780, D: 295, x: 0, y: 0, areaH: 780 }, at(0, 1200, 295, 1520)));
+      structures.u1 = upper2(1200);
+    }
+    const conv = loadConverter()._convertPlannerModules({ modules, structures, hasStructures: true }, Object.assign({}, SPECS));
+    const item = { categoryId: 'sink', w: 1800, h: 2310, d: AREA_D, specs: Object.assign({}, SPECS), modules: conv.modules };
+    const { MaterialExtractor } = loadExtractors();
+    return new MaterialExtractor()
+      .extract({ items: [item] })
+      .materials.filter((r) => r.part === '상몰딩')
+      .map((r) => [r.w, r.h, r.qty]);
+  }
+
+  test('위에 상부장 없음 — 수납장이 상몰딩 밑까지, 상몰딩 1200 한 장 (예전과 같다)', () => {
+    expect(moldingRows(false)).toEqual([[60, 1200, 1]]);
+  });
+
+  test('위에 상부장 1200 — 상몰딩은 상부장 위 한 장 (수납장 몫이 더해져 두 장이 되지 않는다)', () => {
+    expect(moldingRows(true)).toEqual([[60, 1200, 1]]);
+  });
+});

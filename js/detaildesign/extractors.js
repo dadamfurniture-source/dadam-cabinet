@@ -769,6 +769,24 @@
       /** 하부장 위 수납장 (상부 짜임 상자 — 브리지 mod.stackBox) */
       const bomStackBoxOf = (m) => !!m && m.stackBox === true;
       /**
+       * 상몰딩 자리에 서지 않는 하부장 위 수납장 — 위에 상부장이 있는 것 (2026-11-03 사장님 높이 「위에 뭐 닿을 때까지」: 수납장 윗면이
+       *   그 상부장 도어 밑이라 상몰딩은 상부장 위에만 있다. 위에 아무것도 없으면 상몰딩 밑까지 올라가 상몰딩 자리에 선다 — 간편 플래너 layoutStack).
+       *   자리(_place)로 본다 — 같은 벽에서 진행 구간이 겹치는 상부장(수납장 아닌 것)이 있으면. 자리가 없으면(옛 도면 · 모듈 하나) 예전처럼 센다.
+       *   (없으면 상부장과 그 밑 수납장이 같은 자리에 상몰딩 두 장이 된다)
+       */
+      function bomStackUnderUpperOf(m, mods) {
+        if (!bomStackBoxOf(m) || !bomPlacedOf(m)) return false;
+        const s = bomRunSegOf(m);
+        const k = bomWallKeyOf(m);
+        return (mods || []).some((u) => {
+          if (!u || u === m || u.pos !== 'upper' || bomStackBoxOf(u) || !bomPlacedOf(u) || bomWallKeyOf(u) !== k) return false;
+          const g = bomRunSegOf(u);
+          return g.a < s.b - 1 && g.b > s.a + 1;
+        });
+      }
+      /** 상몰딩 자리를 세울 상부 모듈 — pos upper 에서 상부장 밑 수납장을 뺀다 (bomStackUnderUpperOf) */
+      const bomMoldingUppersOf = (mods) => (mods || []).filter((m) => m && m.pos === 'upper' && !bomStackUnderUpperOf(m, mods));
+      /**
        * 상부장 도어 내림 — 하부장 위 수납장이면 BOM_STACK_BOX (목찬넬 5 · 그 밖 0), 아니면 품목 사양 upperDoorOverlap (기본 15).
        */
       const bomUpperOverlapOf = (mod, specs) => {
@@ -2015,7 +2033,7 @@
           if (BOM_SINK_MOLDING_CATEGORIES.indexOf(cat) < 0) return null;
           const mods = (item && item.modules) || [];
           return bomSinkMoldingPlanOf(
-            mods.filter((m) => m && m.pos === 'upper'),
+            bomMoldingUppersOf(mods),
             mods.filter((m) => m && m.pos === 'lower' && m.type !== 'cook' && bomTallTierOf(m)),
             (item && item.specs) || {});
         }
@@ -2054,7 +2072,7 @@
               ? bomPlanPlaces(bomLinePlacesOf(lowerMods, (m) => lowerCounts(m) && !m.stackTop, (m) => lowerCounts(m) && !!m.stackTop)) : lower;
             return { molding: { places: bomPlanPlaces(p.places), joinedTalls: p.joinedTalls }, lower: { places: lower }, channel: { places: channel } };
           }
-          const uppers = bomPlanPlaces(bomLinePlacesOf(mods.filter((m) => m.pos === 'upper'), (m) => !bomIsBoxModule(m)));
+          const uppers = bomPlanPlaces(bomLinePlacesOf(bomMoldingUppersOf(mods), (m) => !bomIsBoxModule(m)));
           // 띄움 시공 — 바닥 줄 전체(키큰장 포함)가 떠 있다: 가림판 · 좌우 가림판 자리 (AsmRules.floatHOf).
           //   벤치는 빠진다 — 앉는 판 아래가 비어 있어(신발 놓는 자리) 가림판이 없고, 벤치 옆 키큰장 옆면이 줄 끝이 된다 (좌우 가림판)
           const float = AsmRules.floatHOf(item && item.specs) > 0
