@@ -1255,6 +1255,16 @@
           sideGap: n(a.sideGap), topGap: n(a.topGap), backGap: n(a.backGap), nicheW: n(a.nicheW), nicheH: n(a.nicheH) };
       }
 
+      /**
+       * 2026-11-03 사장님 (하부장 전자제품): 콘센트 — 구조 s.outlet { h: 바닥에서 mm | null } → BOM 모듈 outlet (자재 콘센트 2구 + 뒤판 타공).
+       *   상자 모듈(오픈장 · 밥솥장)과 도어 칸 모두. 없으면 null.
+       */
+      function _outletOf(s) {
+        const o = s && s.outlet;
+        if (!o || typeof o !== 'object') return null;
+        return { h: Number(o.h) > 0 ? Number(o.h) : null };
+      }
+
       /** 2026-10-20: 홈카페장 규칙 (fridge.md §11) — 플래너와 BOM 이 읽는 그 파일. */
       function _homecafeRules() {
         if (typeof DadamHomecafeRules !== 'undefined') return DadamHomecafeRules;
@@ -1467,6 +1477,7 @@
               _x: Number(m.x) || 0,
             });
             if (builtin) out[out.length - 1].builtinOven = true;   // 표시가 없는 모듈의 payload 는 예전과 같다
+            if (_outletOf(s) && pos === 'lower') out[out.length - 1].outlet = _outletOf(s);   // 2026-11-03 콘센트 (하부장)
             placeLast(m, 0, w);
             return;
           }
@@ -1518,6 +1529,7 @@
               _x: Number(m.x) || 0,
               ...(stacked ? { stacked: true, riceTopBatten: topBatten } : {}),
             });
+            if (_outletOf(s) && pos === 'lower') out[out.length - 1].outlet = _outletOf(s);   // 2026-11-03 콘센트 (하부 밥솥장 — 밥솥)
             placeLast(m, 0, w);
             return;
           }
@@ -1787,6 +1799,16 @@
             // 2026-10-26 사장님: 위에 밥솥장이 쌓인 하부 서랍 모듈 — 그 모듈이 상단 목찬넬 부재를 내고, 상판 아래 목찬넬 줄은 이 칸에서 끊긴다.
             //   표시가 없는 모듈은 예전 payload 그대로.
             if (m.stackTop === 'rice' && pos === 'lower') out[out.length - 1].stackTop = 'rice';
+            // 2026-11-03 사장님 (하부장 위 수납장 「몸통 위에 바로」): 위에 수납장이 올라간 하부장 — BOM 이 밴드 대신 천판, 그 칸 상판 없음.
+            //   위 수납장(상부 짜임 상자) = 구조 s.stackBox — 도어 내림은 BOM 이 손잡이로 정한다 (「아랫장이 목찬넬이면 5내림, 아니면 몸통과 같게」).
+            //   표시가 없는 모듈의 payload 는 예전과 같다.
+            if (m.cabinetOnTop === true && pos === 'lower') out[out.length - 1].cabinetOnTop = true;
+            if (pos === 'upper' && s && s.stackBox === true) out[out.length - 1].stackBox = true;
+            // 2026-11-03 사장님 (하부장 전자제품): 콘센트 — 구조 s.outlet { h: 바닥에서 mm | null } (모듈마다 2구 하나, BOM 자재 + 뒤판 타공)
+            //   모듈마다 하나 (사장님 「모듈마다 1개 (2구)」) — 칸이 여럿으로 나뉘어도 첫 칸에만
+            if (i === 0 && pos === 'lower' && _outletOf(s)) out[out.length - 1].outlet = _outletOf(s);
+            // 2026-11-03 사장님: 알루미늄 프레임 유리 도어 — 구조 s.glassDoor 'alu' (BOM 이 도어 판 대신 구매품 행)
+            if (!isOpen && s && s.glassDoor === 'alu') out[out.length - 1].glassDoor = 'alu';
             // 2026-10-26 사장님: 설비장 — 개수대 · 가스대(하부) · 후드장(상부) (bom-fixture-cabinet-rules.js). 구조 s.fixture 를 그대로 싣고
             //   BOM 이 밴드(앞 50 눕힘 · 뒤 세움) · 선반을 그 규칙으로 낸다. 후드장은 몸통이 HOOD.CUT 짧다 (윗선 고정, 밑이 올라간다 — 도어도 같이).
             //   설비가 그 줄의 것이 아니면(하부에 후드장 표시 등) 싣지 않는다. 표시가 없는 모듈의 payload 는 예전과 같다.
