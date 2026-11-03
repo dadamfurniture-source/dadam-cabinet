@@ -1357,6 +1357,95 @@ describe('사진 확인 (대표 · 실장)', () => {
     delete document.visibilityState;
   });
 
+  describe('사진 주소가 끝날 때 (서명 주소 10분)', () => {
+    const URL2 = URL1.replace('token=t', 'token=t2');
+    let clock;
+    afterEach(() => clock && clock.mockRestore());
+
+    test('사진을 열 때 — 9분 넘으면 불러온 장수만큼(더 보기 쪽까지) 다시 받아 새 주소로 연다', async () => {
+      let photo = URL1;
+      const first = Array.from({ length: 50 }, (_, k) => k + 1);
+      const calls = await load({
+        review: (url) =>
+          ok({
+            items: (url.includes('before=') ? [51, 52] : first).map((n) =>
+              doc(n, done(), { photo_url: photo })
+            ),
+          }),
+      });
+      $('lgReviewMore').click();
+      await flush();
+      expect(rows().length).toBe(52);
+      expect(window.SeganLedger.PHOTO_MARGIN_MS).toBe(60000);
+      const now = Date.now();
+      clock = jest.spyOn(Date, 'now');
+      // 8분 — 그대로 연다
+      clock.mockReturnValue(now + 8 * 60000);
+      await open(52);
+      expect(reviewGets(calls).length).toBe(2);
+      expect($('lgRvPhoto').getAttribute('src')).toBe(URL1);
+      $('lgRvClose').click();
+      // 9분 넘음 (10분 − 1분) — 두 쪽을 다시 받고 연다
+      photo = URL2;
+      clock.mockReturnValue(now + 9 * 60000 + 1000);
+      await open(52);
+      expect(
+        reviewGets(calls)
+          .slice(2)
+          .map((c) => c.url)
+      ).toEqual([
+        WORK + '/ledger/review?status=pending&limit=50',
+        WORK +
+          '/ledger/review?status=pending&limit=50&before=' +
+          encodeURIComponent(doc(50).created_at),
+      ]);
+      expect(rows().length).toBe(52);
+      expect($('lgSheet').hidden).toBe(false);
+      expect($('lgRvPhoto').getAttribute('src')).toBe(URL2);
+      expect(rowOf(1).querySelector('img').getAttribute('src')).toBe(URL2);
+    });
+
+    test('화면이 다시 보이거나 썸네일이 안 열리면 — 끝났을 때만 새로 받는다', async () => {
+      let photo = URL1;
+      const calls = await load({
+        review: () => ok({ items: [doc(1, done(), { photo_url: photo })] }),
+      });
+      const thumbError = () =>
+        rowOf(1).querySelector('img').dispatchEvent(new window.Event('error'));
+      const now = Date.now();
+      clock = jest.spyOn(Date, 'now');
+      // 1분 — 썸네일 오류여도 묻지 않는다
+      clock.mockReturnValue(now + 60000);
+      thumbError();
+      document.dispatchEvent(new window.Event('visibilitychange'));
+      await flush();
+      expect(reviewGets(calls).length).toBe(1);
+      // 10분 — 화면이 다시 보이면 새 주소 (앞 시험들이 남긴 듣는 곳도 같은 document 에 있어 묻는 수는 세지 않는다)
+      photo = URL2;
+      clock.mockReturnValue(now + 10 * 60000);
+      document.dispatchEvent(new window.Event('visibilitychange'));
+      await flush();
+      expect(rowOf(1).querySelector('img').getAttribute('src')).toBe(URL2);
+      const base = reviewGets(calls).length;
+      // 새로 받은 바로 뒤 — 오류가 나도 다시 묻지 않는다
+      thumbError();
+      await flush();
+      expect(reviewGets(calls).length).toBe(base);
+      // 또 끝나면 열 때 새로 — 칸을 고치는 중에는 썸네일 오류여도 그대로, 닫은 뒤에는 새로
+      clock.mockReturnValue(now + 20 * 60000);
+      await open(1);
+      expect(reviewGets(calls).length).toBe(base + 1);
+      clock.mockReturnValue(now + 30 * 60000);
+      thumbError();
+      await flush();
+      expect(reviewGets(calls).length).toBe(base + 1);
+      $('lgRvClose').click();
+      thumbError();
+      await flush();
+      expect(reviewGets(calls).length).toBe(base + 2);
+    });
+  });
+
   test('순수 — 채우기 기준 · 경고 · 한꺼번에 · 사업자번호', async () => {
     await load();
     const { prefillEntry, warningsOf, batchReady, bizNoValid } = window.SeganLedger;
