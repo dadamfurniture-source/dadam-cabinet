@@ -258,3 +258,66 @@ describe('BOM — 알루미늄 프레임 유리 도어', () => {
     expect(hinge.note).toMatch(/알루미늄 프레임 도어 경첩 품번/);
   });
 });
+
+describe('BOM — 콘센트 · 상자 모듈 · 칸이 여럿인 모듈', () => {
+  /** 하부 한 모듈만 — structure 를 그대로 받는다 */
+  function single(structure, W = 600) {
+    const SPECS = Object.assign({}, LEDGER_SPECS, {
+      finishLeftType: 'None',
+      finishLeftWidth: 0,
+      finishRightType: 'None',
+      finishRightWidth: 0,
+    });
+    const modules = [{ id: 'm1', section: 'lower', W, H: 870, D, x: 0, y: BACK, areaH: 870 }];
+    const conv = loadConverter()._convertPlannerModules(
+      { modules, structures: { m1: structure }, hasStructures: true },
+      Object.assign({}, SPECS)
+    );
+    const item = {
+      categoryId: 'sink',
+      w: W,
+      h: 2310,
+      d: AREA_D,
+      specs: Object.assign({}, SPECS),
+      modules: conv.modules,
+    };
+    const { MaterialExtractor, HardwareExtractor } = loadExtractors();
+    const materials = new MaterialExtractor().extract({ items: [item] }).materials;
+    const hardware = new HardwareExtractor().extract({ items: [item] }).hardware;
+    return { conv, materials, hardware };
+  }
+
+  test('오픈장 상자 — 콘센트 1 · 뒷판 비고', () => {
+    const { hardware, materials } = single(
+      {
+        moduleKind: 'open',
+        verticalCount: 1,
+        horizontalLayout: 'doorOnly',
+        areaTypes: ['open'],
+        areaDirections: ['left'],
+        areaWidths: [450],
+        areaIs2D: [false],
+        legH: 150,
+        shelves: [],
+        outlet: { h: 300 },
+      },
+      450
+    );
+    expect(hardware.filter((h) => h.item === BOM_OUTLET.ITEM).length).toBe(1);
+    expect(materials.find((r) => r.part === '뒷판').note).toMatch(/바닥에서 300/);
+  });
+
+  test('칸이 둘로 나뉜 하부장도 콘센트는 모듈마다 하나', () => {
+    const s = door2(900, {
+      verticalCount: 2,
+      areaTypes: ['door', 'door'],
+      areaDirections: ['left', 'right'],
+      areaWidths: [450, 450],
+      areaIs2D: [false, false],
+      outlet: { h: 500 },
+    });
+    const { conv, hardware } = single(s, 900);
+    expect(conv.modules.length).toBe(2);
+    expect(hardware.filter((h) => h.item === BOM_OUTLET.ITEM).length).toBe(1);
+  });
+});

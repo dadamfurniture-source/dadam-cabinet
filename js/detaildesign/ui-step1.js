@@ -1255,6 +1255,16 @@
           sideGap: n(a.sideGap), topGap: n(a.topGap), backGap: n(a.backGap), nicheW: n(a.nicheW), nicheH: n(a.nicheH) };
       }
 
+      /**
+       * 2026-11-03 사장님 (하부장 전자제품): 콘센트 — 구조 s.outlet { h: 바닥에서 mm | null } → BOM 모듈 outlet (자재 콘센트 2구 + 뒤판 타공).
+       *   상자 모듈(오픈장 · 밥솥장)과 도어 칸 모두. 없으면 null.
+       */
+      function _outletOf(s) {
+        const o = s && s.outlet;
+        if (!o || typeof o !== 'object') return null;
+        return { h: Number(o.h) > 0 ? Number(o.h) : null };
+      }
+
       /** 2026-10-20: 홈카페장 규칙 (fridge.md §11) — 플래너와 BOM 이 읽는 그 파일. */
       function _homecafeRules() {
         if (typeof DadamHomecafeRules !== 'undefined') return DadamHomecafeRules;
@@ -1467,6 +1477,7 @@
               _x: Number(m.x) || 0,
             });
             if (builtin) out[out.length - 1].builtinOven = true;   // 표시가 없는 모듈의 payload 는 예전과 같다
+            if (_outletOf(s) && pos === 'lower') out[out.length - 1].outlet = _outletOf(s);   // 2026-11-03 콘센트 (하부장)
             placeLast(m, 0, w);
             return;
           }
@@ -1518,6 +1529,7 @@
               _x: Number(m.x) || 0,
               ...(stacked ? { stacked: true, riceTopBatten: topBatten } : {}),
             });
+            if (_outletOf(s) && pos === 'lower') out[out.length - 1].outlet = _outletOf(s);   // 2026-11-03 콘센트 (하부 밥솥장 — 밥솥)
             placeLast(m, 0, w);
             return;
           }
@@ -1793,7 +1805,8 @@
             if (m.cabinetOnTop === true && pos === 'lower') out[out.length - 1].cabinetOnTop = true;
             if (pos === 'upper' && s && s.stackBox === true) out[out.length - 1].stackBox = true;
             // 2026-11-03 사장님 (하부장 전자제품): 콘센트 — 구조 s.outlet { h: 바닥에서 mm | null } (모듈마다 2구 하나, BOM 자재 + 뒤판 타공)
-            if (s && s.outlet && typeof s.outlet === 'object') out[out.length - 1].outlet = { h: Number(s.outlet.h) > 0 ? Number(s.outlet.h) : null };
+            //   모듈마다 하나 (사장님 「모듈마다 1개 (2구)」) — 칸이 여럿으로 나뉘어도 첫 칸에만
+            if (i === 0 && pos === 'lower' && _outletOf(s)) out[out.length - 1].outlet = _outletOf(s);
             // 2026-11-03 사장님: 알루미늄 프레임 유리 도어 — 구조 s.glassDoor 'alu' (BOM 이 도어 판 대신 구매품 행)
             if (!isOpen && s && s.glassDoor === 'alu') out[out.length - 1].glassDoor = 'alu';
             // 2026-10-26 사장님: 설비장 — 개수대 · 가스대(하부) · 후드장(상부) (bom-fixture-cabinet-rules.js). 구조 s.fixture 를 그대로 싣고
