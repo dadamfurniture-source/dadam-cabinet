@@ -19,8 +19,8 @@ export const DUE_LIMIT = 5;
 export const DUE_WAIT_SEC = 120;
 export const DUE_STUCK_SEC = 600;
 export const MAX_ATTEMPTS = 2;
-/** 이 판보다 낮게 읽은 확인 기다리는 사진은 다시 건다 — 판 2 는 방향을 먼저 보고 돌려 읽는다 (assistant-api SCHEMA_VERSION) */
-export const REREAD_BELOW = 2;
+/** 이 판보다 낮게 읽은 확인 기다리는 사진은 다시 건다 — 판 3 은 계정을 제안한다 (assistant-api SCHEMA_VERSION) */
+export const REREAD_BELOW = 3;
 
 let warnedNoBinding = false;
 
