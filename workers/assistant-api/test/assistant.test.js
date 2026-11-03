@@ -154,7 +154,7 @@ test('차례 — 202 → 알람이 예산 잡기 · Claude · 저장 · 정산 �
   assert.equal(p.inference_geo, 'us');
   assert.deepEqual(p.output_config, { effort: 'medium' });
   assert.equal(p.thinking, undefined);
-  // 대표 — 읽기 도구 일곱, 모두 strict
+  // 대표 — 읽기 도구 여덟, 모두 strict
   assert.deepEqual(
     p.tools.map((t) => t.name),
     [
@@ -164,6 +164,7 @@ test('차례 — 202 → 알람이 예산 잡기 · Claude · 저장 · 정산 �
       'get_order',
       'books_summary',
       'ledger_month',
+      'ledger_notices',
       'ledger_photos',
     ]
   );
@@ -273,7 +274,7 @@ test('직원 — 시스템 글에 돈 정보를 말하지 않는다는 줄', asy
   await w.sessions.runAlarms();
   assert.match(claude.calls[0].system, /업체 직원이다/);
   assert.match(claude.calls[0].system, /금액 · 원가 · 마진 · 수금 · 장부 정보를 말하지 않는다/);
-  // 돈 도구(장부 요약 · 회계장부)는 직원 대화에 없다
+  // 돈 도구(장부 요약 · 회계장부 · 장부 알림)는 직원 대화에 없다
   assert.deepEqual(
     claude.calls[0].tools.map((t) => t.name),
     ['list_consults', 'list_projects', 'list_orders', 'get_order', 'ledger_photos']

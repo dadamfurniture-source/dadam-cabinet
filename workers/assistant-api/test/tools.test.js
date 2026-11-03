@@ -224,6 +224,31 @@ test('회계장부 한 달 — 계정 이름 · 계정별 합, 취소 줄은 뺀
   assert.ok(!JSON.stringify(out).includes('취소된 줄'));
 });
 
+test('장부 알림 — 종류 이름 · 급함 · 본 표시 · 서버 숫자 그대로 (사진 id 는 싣지 않는다)', async () => {
+  const claude = makeClaude([toolUse('ledger_notices', {}), reply('네')]);
+  const w = await makeWorld({ claude });
+  const id = await newConversation(w);
+  await turn(w, id, '이번 주 장부에 바뀐 점은?');
+  await w.sessions.runAlarms();
+  assert.deepEqual(
+    w.workflow.calls.map((c) => c.path + c.query),
+    ['/ledger/notices?limit=30']
+  );
+  const out = JSON.parse(lastResults(claude)[0].content);
+  assert.equal(out.unseen, 1);
+  assert.deepEqual(out.items[0], {
+    kind: 'large_amount',
+    kind_name: '평소와 다른 큰 금액',
+    urgent: true,
+    created_at: '2026-11-03T05:00:00Z',
+    seen: false,
+    data: { supplier: '예림', total: 2480000, median: 860000, n: 6, ratio: 2.9 },
+  });
+  assert.equal(out.items[1].kind_name, '단가 변동 (읽은 값 기준)');
+  assert.equal(out.items[1].seen, true);
+  assert.ok(!JSON.stringify(out).includes('d1'));
+});
+
 test('올린 사진 · 장부 요약 · 고객 프로젝트 — 줄인 모양', async () => {
   const claude = makeClaude([
     toolUse('ledger_photos', {}, { id: 'a' }),
@@ -416,10 +441,10 @@ test('대화 보기 running — 도는 차례를 { turn, after } 로, 끝나면 
 test('toolDefs — 돈 도구는 대표 · 실장만, 모두 strict · additionalProperties false', () => {
   const all = toolDefs({ money: true });
   const staff = toolDefs({ money: false });
-  assert.equal(all.length, 7);
+  assert.equal(all.length, 8);
   assert.deepEqual(
     all.filter((t) => !staff.some((s) => s.name === t.name)).map((t) => t.name),
-    ['books_summary', 'ledger_month']
+    ['books_summary', 'ledger_month', 'ledger_notices']
   );
   for (const t of all) {
     assert.equal(t.strict, true);
