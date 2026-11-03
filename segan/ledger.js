@@ -19,6 +19,7 @@
    사진 확인  대표 · 실장만 (직원은 묻지 않는다). GET /ledger/review?status=pending&limit=&before= — 확인 기다리는 사진
              + 10분 서명 주소 + 최근 읽기 시도(상태 · 읽은 칸 · 검사). 사진을 누르면 읽은 칸으로 채운 칸을 고쳐
              POST /ledger/documents/:id/post { target: entry | order_cost } · /return · /reject { reason } · /reread.
+             시트 사진은 「사진 돌리기」로 90도씩 돌려 본다 (화면에서만 — 올린 사진 파일은 그대로, 이 화면이 열린 동안 기억).
              경고 없이 다 읽은 사진은 골라 POST /ledger/review/post (한 번에 BATCH_MAX 장, 계정 하나를 골라 함께).
              읽는 중인 사진이 있으면 화면이 보일 때 POLL_MS 마다 목록을 다시 읽는다.
              서명 주소가 끝나기 PHOTO_MARGIN_MS 전부터는 사진을 열 때 · 화면이 다시 보일 때 · 썸네일이 안 열릴 때
@@ -103,6 +104,8 @@
   var POLL_MS = 10000;
   // 사진 서명 주소(photo_expires_in, 워커 PHOTO_URL_TTL_SEC)가 끝나기 이만큼 전부터 목록을 새로 받는다
   var PHOTO_MARGIN_MS = 60000;
+  // 시트 사진 높이 — ledger.css .lg-rv-photo img 의 max-height 와 같다 (크게 보기면 없음)
+  var PHOTO_MAX_H = 320;
   // 사진 올리기 분 한도(429 rate_limited)에 걸리면 쉬는 시간 — 워커 wrangler.toml LEDGER_UPLOAD_LIMIT 의 period
   var RESUME_MS = 60000;
   // 읽기 시도 상태 (ledger_extractions.status, 시도가 아직 없으면 none)
@@ -178,6 +181,7 @@
     reviewFail: false,
     reviewAt: 0, // 확인 목록 첫 쪽을 받은 때 — 사진 서명 주소가 가장 오래된 쪽 (더 보기는 늦추지 않는다)
     reviewLoading: false, // 사진 주소를 새로 받는 중
+    rot: {}, // 시트 사진을 돌린 각도 — 사진 id → 90 · 180 · 270 (화면에서만)
     picked: {}, // 한꺼번에 올릴 사진 id → true
     sheet: null, // 여는 사진 { doc, prefill }
     decide: '', // 이유를 적는 중 — returned | rejected
@@ -1475,6 +1479,8 @@
     $('lgRvPhotoBtn').classList.remove('lg-rv-photo--big');
     if (url) $('lgRvPhoto').src = url;
     else $('lgRvPhoto').removeAttribute('src');
+    $('lgRvRotateRow').hidden = !url;
+    applyRotation();
     $('lgRvNoPhoto').hidden = !!url;
     $('lgRvRead').textContent = readText(doc);
     chipsInto($('lgRvChips'), doc);
@@ -1503,6 +1509,35 @@
     flagInputs(doc);
     setTarget('entry');
     $('lgSheet').hidden = false;
+  }
+
+  /** 시트 사진을 돌린 각도대로 그린다 (화면에서만). 90 · 270 은 돌린 뒤 가로가 상자 폭에 맞게
+   *  (작게 보기면 돌린 뒤 높이가 PHOTO_MAX_H 안에) 크기를 정하고, 아래 여백으로 상자 높이를 돌린 사진에 맞춘다 */
+  function applyRotation() {
+    var img = $('lgRvPhoto');
+    var box = $('lgRvPhotoBtn');
+    var deg = (L.sheet && L.rot[L.sheet.doc.id]) || 0;
+    img.removeAttribute('style');
+    img.setAttribute('data-rot', String(deg));
+    if (deg === 180) img.style.transform = 'rotate(180deg)';
+    if (deg !== 90 && deg !== 270) return;
+    var w = img.naturalWidth;
+    var h = img.naturalHeight;
+    var room = box.clientWidth;
+    // 사진이 아직 안 열렸으면 load 때 다시
+    if (!(w > 0 && h > 0 && room > 0)) return;
+    var big = box.classList.contains('lg-rv-photo--big');
+    var across = big ? room : Math.min(room, Math.floor((PHOTO_MAX_H * h) / w));
+    var down = Math.round((across * w) / h);
+    img.style.position = 'relative';
+    img.style.left = Math.floor((room - across) / 2) + 'px';
+    img.style.width = down + 'px';
+    img.style.height = across + 'px';
+    img.style.maxHeight = 'none';
+    img.style.marginBottom = down - across + 'px';
+    img.style.transformOrigin = '0 0';
+    img.style.transform =
+      deg === 90 ? 'rotate(90deg) translateY(-100%)' : 'rotate(270deg) translateX(-100%)';
   }
 
   function closeSheet() {
@@ -1806,6 +1841,17 @@
     $('lgRvClose').addEventListener('click', closeSheet);
     $('lgRvPhotoBtn').addEventListener('click', function () {
       $('lgRvPhotoBtn').classList.toggle('lg-rv-photo--big');
+      applyRotation();
+    });
+    $('lgRvRotate').addEventListener('click', function () {
+      if (!L.sheet) return;
+      var id = L.sheet.doc.id;
+      L.rot[id] = ((L.rot[id] || 0) + 90) % 360;
+      applyRotation();
+    });
+    $('lgRvPhoto').addEventListener('load', applyRotation);
+    window.addEventListener('resize', function () {
+      if (L.sheet) applyRotation();
     });
     $('lgRvTarget').addEventListener('change', function () {
       setTarget($('lgRvTarget').value);
