@@ -1,6 +1,15 @@
 /* ============================================================
    segan/ledger.css — 업체 회계장부 (segan/ledger.html). 색 · 선은 shell.css 의 v5 토큰.
+   사진 확인의 상태 색(확인 · 맞음 · 중복)만 여기서 정한다 — v5 에 상태 색이 없다.
    ============================================================ */
+
+:root {
+  --lg-warn: #6f4c0c; /* 「확인」 글 */
+  --lg-warn-bg: #fbefd4; /* 「확인」 칸 바탕 */
+  --lg-warn-line: #c9952b;
+  --lg-ok: #2f6b4f; /* ✓ */
+  --lg-crit: #93301f; /* 중복 · 폐업 */
+}
 
 .lg-keep {
   margin: 0 0 16px;
@@ -285,17 +294,6 @@
   border-bottom: 1px solid var(--v5-line);
 }
 
-.lg-rv-pick {
-  display: flex;
-  align-items: center;
-  min-height: 56px;
-}
-
-.lg-rv-pick input {
-  width: 20px;
-  height: 20px;
-}
-
 .lg-rv-open {
   display: flex;
   flex: 1 1 auto;
@@ -378,13 +376,55 @@
   white-space: nowrap;
 }
 
-.lg-batch {
-  align-items: flex-end;
+.lg-chip--warn {
+  border-color: var(--lg-warn-line);
+  background: var(--lg-warn-bg);
+  color: var(--lg-warn);
 }
 
-.lg-batch-account {
-  flex: 1 1 200px;
-  max-width: 320px;
+.lg-chip--crit {
+  border-color: var(--lg-crit);
+  color: var(--lg-crit);
+}
+
+.lg-chip--info {
+  border-color: var(--v5-line-25);
+  color: var(--v5-ink-62);
+}
+
+/* 바로 올려도 되는 사진 — 줄마다 올릴 값(일자 · 거래처 / 금액 · 계정) */
+.lg-ready {
+  margin: 0 0 12px;
+  border: 1px solid var(--v5-line-18);
+}
+
+.lg-ready-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--v5-well);
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.lg-ready .lg-rv-list {
+  padding: 0 12px;
+}
+
+.lg-ready .lg-rv:last-child {
+  border-bottom: 0;
+}
+
+.lg-rv-ready1 {
+  font-weight: 500;
+}
+
+.lg-rv-ready2 {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 사진 확인 시트 — 화면을 덮고, 시트 안만 넘긴다 */
@@ -462,7 +502,156 @@
   color: var(--v5-tan);
 }
 
-/* 확실하지 않은 칸 · 검사에 걸린 칸 */
+/* 꼭 볼 칸 — 일자 · 거래처 · 공급가 · 부가세 · 계정. 줄마다 [이름 | 칸 + 꼬리표 | ✓/확인] + 까닭 */
+.lg-rv-target {
+  margin: 12px 0 10px;
+}
+
+.lg-must-head {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.lg-must-head small {
+  margin-left: 6px;
+  color: var(--v5-ink-62);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.lg-must {
+  margin: 0 0 12px;
+  border-top: 1px solid var(--v5-line);
+}
+
+.lg-must-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  align-items: center;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.lg-must-row[hidden] {
+  display: none;
+}
+
+.lg-must-row.lg-flag {
+  background: var(--lg-warn-bg);
+}
+
+.lg-must-k {
+  color: var(--v5-ink-62);
+  font-size: 13px;
+}
+
+.lg-must-row.lg-flag .lg-must-k {
+  color: var(--lg-warn);
+  font-weight: 500;
+}
+
+.lg-must-v {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.lg-must-v input,
+.lg-must-v select {
+  box-sizing: border-box;
+  flex: 1 1 140px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--v5-line-18);
+  border-radius: 0;
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-must-row.lg-flag input,
+.lg-must-row.lg-flag select {
+  border-color: var(--lg-warn-line);
+}
+
+.lg-mark {
+  min-width: 32px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.lg-mark--ok {
+  color: var(--lg-ok);
+}
+
+.lg-mark--chk {
+  padding: 1px 6px;
+  border: 1px solid var(--lg-warn-line);
+  background: var(--v5-paper);
+  color: var(--lg-warn);
+  white-space: nowrap;
+}
+
+.lg-tag {
+  padding: 0 6px;
+  background: var(--v5-well);
+  color: var(--v5-ink-62);
+  font-size: 11px;
+  line-height: 1.8;
+  white-space: nowrap;
+}
+
+.lg-tag--ai {
+  background: var(--lg-warn-bg);
+  color: var(--lg-warn);
+}
+
+.lg-must-why {
+  grid-column: 2 / -1;
+  color: var(--lg-warn);
+  font-size: 12px;
+}
+
+.lg-must-row:not(.lg-flag) .lg-must-why {
+  color: var(--v5-ink-62);
+}
+
+/* 더 보기 — 의심 칸이 있으면 펼친다 */
+.lg-more {
+  margin: 0 0 12px;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.lg-more summary {
+  padding: 8px 0;
+  color: var(--v5-ink-62);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.lg-more summary:focus-visible {
+  outline: 2px solid var(--v5-navy);
+  outline-offset: 2px;
+}
+
+.lg-rv-items {
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  color: var(--v5-ink-62);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 더 보기 안의 확실하지 않은 칸 · 검사에 걸린 칸 */
 .lg-flag > span {
   color: var(--v5-tan);
 }
@@ -490,10 +679,6 @@
   .lg-rv-thumb {
     width: 72px;
     height: 72px;
-  }
-
-  .lg-rv-pick {
-    min-height: 72px;
   }
 
   .lg-rv-photo img {

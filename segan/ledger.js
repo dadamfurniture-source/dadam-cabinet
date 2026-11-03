@@ -111,7 +111,7 @@
   var RESUME_MS = 60000;
   // 읽기 시도 상태 (ledger_extractions.status, 시도가 아직 없으면 none)
   var READ_STATE = {
-    none: '읽는 중',
+    none: '읽기 기다림',
     running: '읽는 중',
     done: '읽음',
     failed: '못 읽음',
@@ -136,20 +136,47 @@
     closed: '폐업',
     unregistered: '국세청에 없는 번호',
   };
-  // 읽은 칸 → 확인 칸 (확실하지 않은 칸 · 검사에 걸린 칸을 표시한다)
-  var FLAG_INPUTS = {
-    issue_date: ['lgRvDate'],
-    supplier_name: ['lgRvCpName'],
-    supplier_biz_no: ['lgRvBiz'],
-    supply_amount: ['lgRvAmount', 'lgRvVat'],
-    vat_amount: ['lgRvAmount', 'lgRvVat'],
-    tax_free_amount: ['lgRvAmount'],
-    service_charge: ['lgRvAmount'],
-    total_amount: ['lgRvAmount'],
-    evidence_type: ['lgRvEvidence'],
-    payment_method: ['lgRvMethod'],
-    items: ['lgRvDesc'],
+  // 꼭 볼 칸(일자 · 거래처 · 공급가 · 부가세 · 계정) — 읽은 칸이 「확실하지 않음」이면 그 칸을 「확인」으로
+  var MUST_UNSURE = {
+    date: ['issue_date'],
+    cp: ['supplier_name'],
+    amount: ['supply_amount', 'total_amount', 'tax_free_amount', 'service_charge'],
+    vat: ['vat_amount'],
   };
+  // 더 보기 안의 칸 — 확실하지 않거나 검사에 걸리면 표시하고 더 보기를 펼친다
+  var MORE_FLAGS = {
+    evidence_type: 'lgRvEvidence',
+    payment_method: 'lgRvMethod',
+    items: 'lgRvDesc',
+    supplier_biz_no: 'lgRvBiz',
+  };
+  // 읽은 칸 이름 (「확실하지 않음: …」)
+  var FIELD_NAME = {
+    document_count: '장수',
+    evidence_type: '증빙',
+    issue_date: '일자',
+    supplier_name: '상호',
+    supplier_biz_no: '사업자번호',
+    supply_amount: '공급가',
+    vat_amount: '부가세',
+    tax_free_amount: '면세',
+    service_charge: '봉사료',
+    total_amount: '합계',
+    approval_no: '승인번호',
+    payment_method: '결제 수단',
+    items: '품목',
+  };
+  // 읽지 못한 까닭 (ledger_extractions.error) — 쉬운 말
+  var READ_FAIL = [
+    [/^cut$/, '답이 너무 길어 잘렸습니다'],
+    [/^orient_/, '사진 방향을 보지 못했습니다'],
+    [/^rotate_/, '사진을 돌리지 못했습니다'],
+    [/^photo_/, '사진 파일을 읽지 못했습니다'],
+    [/^claude_429/, 'AI 가 바빠 읽지 못했습니다'],
+    [/^claude/, 'AI 에 닿지 못했습니다'],
+    [/^stuck$/, '너무 오래 걸려 멈췄습니다'],
+    [/^parse$/, 'AI 답을 알아보지 못했습니다'],
+  ];
   var AMOUNT_KEYS = [
     'supply_amount',
     'vat_amount',
@@ -183,7 +210,6 @@
     reviewAt: 0, // 확인 목록 첫 쪽을 받은 때 — 사진 서명 주소가 가장 오래된 쪽 (더 보기는 늦추지 않는다)
     reviewLoading: false, // 사진 주소를 새로 받는 중
     rot: {}, // 「사진 돌리기」로 고친 각도 — 사진 id → 0 · 90 · 180 · 270 (화면에서만)
-    picked: {}, // 한꺼번에 올릴 사진 id → true
     sheet: null, // 여는 사진 { doc, prefill }
     decide: '', // 이유를 적는 중 — returned | rejected
     orders: null, // GET /orders items (수주 원가로 올릴 때 한 번)
@@ -356,20 +382,52 @@
     return Object.prototype.hasOwnProperty.call(L.rot, doc.id) ? L.rot[doc.id] : readRotate(doc);
   }
 
-  /** 다 읽은 사진의 경고 [{ key, text }] — 검사(checks)와 확실하지 않은 칸(unsure) */
+  /**
+   * 다 읽은 사진의 경고 [{ key, text, level }] — 서버 힌트(중복 · 큰 금액 · 증빙 · 국세청 · 처음 거래처)와
+   * 검사(checks) · 확실하지 않은 칸(unsure, 칸 이름으로). level: crit 빨강 · warn 노랑 · info 회색
+   */
   function warningsOf(doc) {
     if (readState(doc) !== 'done') return [];
     var x = doc.extraction;
     var c = x.checks || {};
     var r = x.result || {};
+    var h = doc.hints || {};
+    var w = h.warnings || {};
     var out = [];
-    if (c.biz_no === 'bad') out.push({ key: 'biz_no', text: '사업자번호 확인 필요' });
+    if (w.duplicate)
+      out.push({
+        key: 'duplicate',
+        level: 'crit',
+        text:
+          '중복 의심' +
+          (w.duplicate.created_at
+            ? ' — ' + stamp(w.duplicate.created_at) + ' 사진'
+            : w.duplicate.on_date
+              ? ' — ' + day(w.duplicate.on_date) + ' 장부 줄'
+              : ''),
+      });
+    if (w.nts && (w.nts.status === 'closed' || w.nts.status === 'suspended'))
+      out.push({ key: 'nts', level: 'crit', text: NTS_STATUS[w.nts.status] + ' 사업자' });
+    if (w.large)
+      out.push({ key: 'large', level: 'warn', text: '평소보다 큰 금액 (' + w.large.ratio + '배)' });
+    if (w.evidence_risk)
+      out.push({
+        key: 'evidence',
+        level: 'warn',
+        text: '증빙 경고 — 3만원 넘는 간이영수증 · 명세표',
+      });
+    if (c.biz_no === 'bad')
+      out.push({ key: 'biz_no', level: 'warn', text: '사업자번호 확인 필요' });
     if (c.amounts === 'mismatch' || c.items === 'mismatch')
-      out.push({ key: 'amounts', text: '금액 합이 안 맞음' });
-    if (c.date && c.date !== 'ok') out.push({ key: 'date', text: '날짜 확인' });
-    if (c.multiple) out.push({ key: 'multiple', text: '한 장씩 다시 찍기' });
-    var unsure = Array.isArray(r.unsure) ? r.unsure.length : 0;
-    if (unsure) out.push({ key: 'unsure', text: '확실하지 않은 칸 ' + unsure });
+      out.push({ key: 'amounts', level: 'warn', text: '금액 합이 안 맞음' });
+    if (c.date && c.date !== 'ok') out.push({ key: 'date', level: 'warn', text: '날짜 확인' });
+    if (c.multiple) out.push({ key: 'multiple', level: 'warn', text: '한 장씩 다시 찍기' });
+    var unsure = (Array.isArray(r.unsure) ? r.unsure : []).map(function (k) {
+      return FIELD_NAME[k] || k;
+    });
+    if (unsure.length)
+      out.push({ key: 'unsure', level: 'warn', text: '확실하지 않음: ' + unsure.join(' · ') });
+    if (h.first_time) out.push({ key: 'first', level: 'info', text: '처음 보는 거래처' });
     return out;
   }
 
@@ -403,33 +461,114 @@
     };
   }
 
-  /** 채운 칸 → 보낼 장부 줄 (빈 글은 null) */
-  function entryBody(p, account) {
+  /**
+   * 시트에 채울 값 — 서버가 정한 올릴 값(hints.proposal: 기억 · AI 계정 제안 · 공제 증빙 규칙)이 먼저,
+   * 없으면(서버가 힌트를 못 줌) 읽은 칸으로. 읽은 사업자번호가 검사에 걸려 서버 값이 비면 읽은 번호를 보여 고치게 한다
+   */
+  function prefillFor(doc) {
+    if (readState(doc) !== 'done') return prefillEntry(null);
+    var h = doc.hints;
+    var r = doc.extraction.result || {};
+    if (!h || !h.proposal) return prefillEntry(r);
+    var p = h.proposal;
     return {
-      entry_date: p.entry_date,
-      direction: p.direction || 'expense',
-      account: account,
-      description: p.description || null,
-      counterparty_name: p.counterparty_name || null,
-      counterparty_biz_no: p.counterparty_biz_no || null,
+      entry_date: p.entry_date || '',
+      direction: DIRECTION[p.direction] ? p.direction : 'expense',
+      account: p.account || '',
+      description: p.description || '',
+      counterparty_name: p.counterparty_name || '',
+      counterparty_biz_no:
+        p.counterparty_biz_no || (typeof r.supplier_biz_no === 'string' ? r.supplier_biz_no : ''),
       amount: p.amount,
-      vat_amount: p.vat_amount || 0,
-      evidence_type: p.evidence_type,
-      payment_method: p.payment_method || null,
+      vat_amount: p.vat_amount,
+      evidence_type: EVIDENCE[p.evidence_type] ? p.evidence_type : '',
+      payment_method: METHOD[p.payment_method] ? p.payment_method : '',
+      deductible: !!h.deductible,
     };
   }
 
-  /** 한꺼번에 올릴 수 있나 — 다 읽었고 경고가 없고 일자 · 금액 · 증빙이 있다 (사업자번호는 비었거나 맞다) */
-  function batchReady(doc) {
-    if (readState(doc) !== 'done' || warningsOf(doc).length) return false;
-    var p = prefillEntry(doc.extraction.result);
-    return !!(
-      p.entry_date &&
-      Number.isInteger(p.amount) &&
-      p.amount >= 1 &&
-      p.evidence_type &&
-      (!p.counterparty_biz_no || bizNoValid(p.counterparty_biz_no))
-    );
+  /**
+   * 꼭 볼 칸 표시 (순수) → { date | cp | amount | vat | account: { mark: ok | chk | '', why, tag } }.
+   * 읽지 않은 사진은 표시하지 않는다(직접 적는다). ✓ = 확실하게 읽었고 검사도 맞음, chk = 한 번 볼 칸
+   */
+  function mustMarks(doc) {
+    var out = {};
+    ['date', 'cp', 'amount', 'vat', 'account'].forEach(function (k) {
+      out[k] = { mark: '', why: '', tag: '' };
+    });
+    if (readState(doc) !== 'done') return out;
+    var r = doc.extraction.result || {};
+    var c = doc.extraction.checks || {};
+    var h = doc.hints || {};
+    var w = h.warnings || {};
+    var src = h.sources || {};
+    var p = prefillFor(doc);
+    var unsure = Array.isArray(r.unsure) ? r.unsure : [];
+    Object.keys(out).forEach(function (k) {
+      out[k].mark = 'ok';
+    });
+    function chk(k, why) {
+      if (out[k].mark === 'chk') return;
+      out[k].mark = 'chk';
+      out[k].why = why;
+    }
+    function shaky(k) {
+      return (MUST_UNSURE[k] || []).some(function (f) {
+        return unsure.indexOf(f) >= 0;
+      });
+    }
+    // 일자
+    if (shaky('date')) chk('date', 'AI 가 확실하지 않은 칸입니다');
+    else if (c.date === 'future') chk('date', '앞날 날짜입니다');
+    else if (c.date === 'too_old') chk('date', '5년 넘은 날짜입니다');
+    if (!p.entry_date) chk('date', '날짜를 읽지 못했습니다');
+    // 거래처
+    if (w.nts && (w.nts.status === 'closed' || w.nts.status === 'suspended'))
+      chk(
+        'cp',
+        '국세청 조회: ' +
+          NTS_STATUS[w.nts.status] +
+          (w.nts.closed_on ? ' (' + w.nts.closed_on + ')' : '')
+      );
+    if (shaky('cp')) chk('cp', 'AI 가 확실하지 않은 칸입니다');
+    if (c.biz_no === 'bad') chk('cp', '사업자번호 검증 숫자가 맞지 않습니다 (더 보기)');
+    if (!p.counterparty_name) chk('cp', '상호를 읽지 못했습니다');
+    if (src.counterparty_name === 'memory') out.cp.tag = '지난번대로';
+    else if (h.first_time) out.cp.tag = '처음';
+    // 금액 · 부가세
+    if (w.large)
+      chk(
+        'amount',
+        '평소보다 큰 금액입니다 (최근 중앙값 ' +
+          money(w.large.median) +
+          '의 ' +
+          w.large.ratio +
+          '배)'
+      );
+    if (shaky('amount')) chk('amount', 'AI 가 확실하지 않은 칸입니다');
+    if (c.amounts === 'mismatch') chk('amount', '공급가 + 부가세가 합계와 맞지 않습니다');
+    if (c.items === 'mismatch') chk('amount', '품목 합이 금액과 맞지 않습니다');
+    if (!(Number.isInteger(p.amount) && p.amount >= 1)) chk('amount', '금액을 읽지 못했습니다');
+    if (shaky('vat')) chk('vat', 'AI 가 확실하지 않은 칸입니다');
+    if (c.amounts === 'mismatch') chk('vat', '공급가 + 부가세가 합계와 맞지 않습니다');
+    if (out.vat.mark === 'ok' && !p.deductible)
+      out.vat.why = '공제 안 되는 증빙이라 0 — 합계를 금액에 적었습니다';
+    // 계정
+    if (src.account === 'memory') out.account.tag = '지난번대로';
+    else if (src.account === 'ai') {
+      out.account.tag = 'AI 제안';
+      chk('account', 'AI 가 품목을 보고 고른 계정 — 맞는지 봐 주세요');
+    }
+    if (!p.account) chk('account', '계정을 골라 주세요');
+    return out;
+  }
+
+  /** 바로 올려도 되는 사진 — 쓸 수 있고 서버가 ready 라 한 사진 (서버가 올릴 때 다시 센다) */
+  function readyDocs() {
+    if (!canWrite()) return [];
+    return L.review.filter(function (d) {
+      return readState(d) === 'done' && d.hints && d.hints.ready === true && d.hints.proposal;
+    });
   }
 
   // ── 서버 ───────────────────────────────────────────────
@@ -1145,7 +1284,7 @@
   function chipsInto(box, doc) {
     box.textContent = '';
     warningsOf(doc).forEach(function (w) {
-      var c = el('span', 'lg-chip', w.text);
+      var c = el('span', 'lg-chip lg-chip--' + w.level, w.text);
       c.setAttribute('data-warn', w.key);
       box.appendChild(c);
     });
@@ -1160,21 +1299,23 @@
       .join(' · ');
   }
 
-  function reviewItem(doc) {
+  /** 바로 올려도 되는 사진 한 줄의 값 — 일자 · 거래처 / 금액 + 부가세 · 계정 */
+  function readyLines(doc) {
+    var p = doc.hints.proposal;
+    return [
+      [day(p.entry_date), p.counterparty_name].filter(Boolean).join(' · '),
+      money(p.amount) +
+        (p.vat_amount ? ' + 부가세 ' + money(p.vat_amount) : '') +
+        ' · ' +
+        accountName(p.account),
+    ];
+  }
+
+  function reviewItem(doc, ready) {
     var state = readState(doc);
     var li = el('li', 'lg-rv');
     li.setAttribute('data-id', doc.id);
     li.setAttribute('data-read', state);
-    if (canWrite() && batchReady(doc)) {
-      var pick = el('label', 'lg-rv-pick');
-      var box = document.createElement('input');
-      box.type = 'checkbox';
-      box.setAttribute('data-pick', doc.id);
-      box.setAttribute('aria-label', '한꺼번에 올리기에 넣기');
-      box.checked = !!L.picked[doc.id];
-      pick.appendChild(box);
-      li.appendChild(pick);
-    }
     var open = el('button', 'lg-rv-open');
     open.type = 'button';
     open.setAttribute('data-act', 'rv-open');
@@ -1195,6 +1336,14 @@
       open.appendChild(el('span', 'lg-rv-thumb lg-rv-thumb--none', '사진 없음'));
     }
     var main = el('span', 'lg-rv-main');
+    if (ready) {
+      var two = readyLines(doc);
+      main.appendChild(el('b', 'lg-rv-ready1', two[0]));
+      main.appendChild(el('small', 'lg-rv-ready2', two[1]));
+      open.appendChild(main);
+      li.appendChild(open);
+      return li;
+    }
     var line = el('span', 'lg-rv-line');
     line.appendChild(el('span', '', stamp(doc.created_at)));
     line.appendChild(el('b', '', READ_STATE[state] || state));
@@ -1210,24 +1359,17 @@
     return li;
   }
 
-  function pickedIds() {
-    return L.review
-      .filter(function (d) {
-        return L.picked[d.id] && batchReady(d);
-      })
-      .map(function (d) {
-        return d.id;
-      });
-  }
-
-  function renderBatch() {
-    var any = canWrite() && L.review.some(batchReady);
-    $('lgBatch').hidden = !any;
-    var n = pickedIds().length;
-    $('lgBatchPost').disabled = L.reviewBusy || !n;
-    $('lgBatchPost').textContent = n
-      ? '선택한 사진 ' + n + '장 한꺼번에 올리기'
-      : '선택한 사진 한꺼번에 올리기';
+  function renderReady(list) {
+    var box = $('lgReady');
+    box.hidden = !list.length;
+    $('lgReadyTitle').textContent = '바로 올려도 되는 사진 ' + list.length + '장';
+    $('lgReadyPost').textContent = list.length + '장 올리기';
+    $('lgReadyPost').disabled = L.reviewBusy || !list.length;
+    var ul = $('lgReadyList');
+    ul.textContent = '';
+    list.forEach(function (d) {
+      ul.appendChild(reviewItem(d, true));
+    });
   }
 
   function renderReview() {
@@ -1240,15 +1382,16 @@
       : !n
         ? '확인할 사진이 없습니다.'
         : canWrite()
-          ? '사진을 눌러 읽은 칸을 확인하고 장부에 올립니다. 경고 없이 다 읽은 사진은 골라서 한꺼번에 올릴 수 있습니다.'
+          ? '사진을 눌러 꼭 볼 칸(일자 · 거래처 · 공급가 · 부가세 · 계정)을 확인하고 올립니다. 같은 거래처를 같은 계정으로 세 번 넘게 올렸고 걸리는 것이 없는 사진은 「바로 올려도 되는 사진」에 모입니다.'
           : '보기만 합니다.';
+    var ready = readyDocs();
+    renderReady(ready);
     var list = $('lgReviewList');
     list.textContent = '';
     L.review.forEach(function (d) {
-      list.appendChild(reviewItem(d));
+      if (ready.indexOf(d) < 0) list.appendChild(reviewItem(d, false));
     });
     $('lgReviewMore').hidden = !L.reviewMore;
-    renderBatch();
   }
 
   /** 읽는 중인 사진이 있으면 화면이 보일 때 다시 읽는다 */
@@ -1289,12 +1432,6 @@
     );
   }
 
-  function prunePicked() {
-    Object.keys(L.picked).forEach(function (id) {
-      if (!reviewById(id)) delete L.picked[id];
-    });
-  }
-
   /** 확인할 사진 — 새것부터 REVIEW_PAGE 장, 더 보기는 마지막 사진보다 앞선 것 */
   async function loadReview(more) {
     var last = more && L.review.length ? L.review[L.review.length - 1].created_at : '';
@@ -1312,7 +1449,6 @@
     L.reviewMore = got.length === REVIEW_PAGE;
     L.reviewFail = false;
     if (!last) L.reviewAt = at;
-    prunePicked();
     renderReview();
     schedulePoll();
   }
@@ -1348,7 +1484,6 @@
     L.reviewMore = more;
     L.reviewFail = false;
     L.reviewAt = at;
-    prunePicked();
     renderReview();
     schedulePoll();
   }
@@ -1417,26 +1552,77 @@
     if (target === 'order_cost' && canWrite()) loadOrders();
   }
 
-  /** 확실하지 않은 칸 · 검사에 걸린 칸 표시 */
-  function flagInputs(doc) {
-    [].forEach.call($('lgRvForm').querySelectorAll('.lg-flag'), function (n) {
+  /** 꼭 볼 칸 표시를 그린다 */
+  function renderMust(doc) {
+    var marks = mustMarks(doc);
+    Object.keys(marks).forEach(function (k) {
+      var row = $('lgRvMust').querySelector('[data-must="' + k + '"]');
+      if (!row) return;
+      var m = marks[k];
+      row.classList.toggle('lg-flag', m.mark === 'chk');
+      var mark = row.querySelector('[data-mark]');
+      mark.textContent = m.mark === 'ok' ? '✓' : m.mark === 'chk' ? '확인' : '';
+      mark.className = 'lg-mark' + (m.mark ? ' lg-mark--' + m.mark : '');
+      var why = row.querySelector('[data-why]');
+      why.textContent = m.why;
+      why.hidden = !m.why;
+      var tag = row.querySelector('[data-tag]');
+      tag.textContent = m.tag;
+      tag.hidden = !m.tag;
+      tag.className = 'lg-tag' + (m.tag === 'AI 제안' ? ' lg-tag--ai' : '');
+    });
+  }
+
+  /** 더 보기 안의 칸 표시 → 표시한 칸이 있으면 true (더 보기를 펼친다) */
+  function flagMore(doc) {
+    [].forEach.call($('lgRvMore').querySelectorAll('.lg-flag'), function (n) {
       n.classList.remove('lg-flag');
     });
-    $('lgRvAmounts').classList.remove('lg-flag');
-    if (readState(doc) !== 'done') return;
+    if (readState(doc) !== 'done') return false;
     var x = doc.extraction;
     var keys = ((x.result && x.result.unsure) || []).slice();
     var c = x.checks || {};
     if (c.biz_no === 'bad') keys.push('supplier_biz_no');
-    if (c.amounts === 'mismatch' || c.items === 'mismatch') keys.push('total_amount');
-    if (c.date && c.date !== 'ok') keys.push('issue_date');
+    var any = false;
     keys.forEach(function (k) {
-      (FLAG_INPUTS[k] || []).forEach(function (id) {
-        var label = $(id).closest('.mk-input');
-        if (label) label.classList.add('lg-flag');
-      });
-      if (AMOUNT_KEYS.indexOf(k) >= 0) $('lgRvAmounts').classList.add('lg-flag');
+      var id = MORE_FLAGS[k];
+      var label = id && $(id).closest('.mk-input');
+      if (label) {
+        label.classList.add('lg-flag');
+        any = true;
+      }
     });
+    return any || !!c.multiple;
+  }
+
+  /** 공급가 칸 이름 — 공제되는 증빙이면 공급가, 아니면 부가세 공제가 안 되는 금액 */
+  function renderAmountLabel() {
+    var ev = $('lgRvEvidence').value;
+    $('lgRvAmountLabel').textContent =
+      !ev || DEDUCT_EVIDENCE.indexOf(ev) >= 0 ? '공급가' : '금액 (부가세 공제 안 됨)';
+  }
+
+  /** 읽은 품목 줄 — 이름 · 수량 × 단가 = 금액 */
+  function itemsInto(doc) {
+    var ul = $('lgRvItems');
+    ul.textContent = '';
+    if (readState(doc) !== 'done') return;
+    var items = (doc.extraction.result && doc.extraction.result.items) || [];
+    items.forEach(function (i) {
+      if (!i || typeof i.name !== 'string') return;
+      var parts = [i.name];
+      if (i.quantity != null && i.unit_price != null)
+        parts.push(i.quantity + ' × ' + money(i.unit_price));
+      if (i.amount != null) parts.push('= ' + money(i.amount));
+      ul.appendChild(el('li', '', parts.join(' ')));
+    });
+  }
+
+  /** 읽지 못한 까닭 — 쉬운 말 */
+  function failText(error) {
+    var e = String(error || '');
+    for (var i = 0; i < READ_FAIL.length; i++) if (READ_FAIL[i][0].test(e)) return READ_FAIL[i][1];
+    return '';
   }
 
   function amountsText(doc) {
@@ -1460,15 +1646,18 @@
   function readText(doc) {
     var state = readState(doc);
     var x = doc.extraction;
-    if (state === 'none' || state === 'running')
+    if (state === 'none') return '아직 읽지 않았습니다 — 곧 읽습니다. 직접 적어 올려도 됩니다.';
+    if (state === 'running')
       return '읽는 중입니다. 다 읽으면 목록에 「읽음」이 보입니다 — 직접 적어 올려도 됩니다.';
-    if (state === 'done') return '읽음 — 칸을 확인하고 고쳐서 올려 주세요.';
+    if (state === 'done') return '읽음 — 꼭 볼 칸을 확인하고 올려 주세요.';
     if (state === 'skipped_budget')
       return '이달 사진 읽기 한도로 읽지 못했습니다. 직접 적어 올리거나 「다시 읽기」를 눌러 주세요.';
     if (state === 'refused') return '이 사진은 읽지 않았습니다. 직접 적어 올려 주세요.';
+    var why = failText(x && x.error);
     return (
       '읽지 못했습니다' +
       (x && x.attempt ? ' (' + x.attempt + '번째 시도)' : '') +
+      (why ? ' — ' + why : '') +
       '. 직접 적어 올리거나 「다시 읽기」를 눌러 주세요.'
     );
   }
@@ -1485,7 +1674,7 @@
   function openSheet(id) {
     var doc = reviewById(id);
     if (!doc) return;
-    var p = readState(doc) === 'done' ? prefillEntry(doc.extraction.result) : prefillEntry(null);
+    var p = prefillFor(doc);
     L.sheet = { doc: doc, prefill: p };
     L.decide = '';
     var url = safePhotoUrl(doc.photo_url);
@@ -1502,7 +1691,7 @@
     $('lgRvAmounts').textContent = amountsText(doc);
     $('lgRvDate').value = p.entry_date || '';
     $('lgRvDir').value = p.direction;
-    fillRvAccounts(p.direction, '');
+    fillRvAccounts(p.direction, p.account);
     $('lgRvDesc').value = p.description;
     $('lgRvCpName').value = p.counterparty_name;
     $('lgRvBiz').value = p.counterparty_biz_no;
@@ -1510,7 +1699,9 @@
     $('lgRvVat').value = p.vat_amount == null ? '' : p.vat_amount;
     $('lgRvEvidence').value = p.evidence_type;
     $('lgRvMethod').value = p.payment_method;
-    $('lgRvCategory').value = 'material';
+    var h = doc.hints || {};
+    $('lgRvCategory').value =
+      (h.target === 'order_cost' && COST_CATEGORY[h.category] && h.category) || 'material';
     $('lgRvBizState').textContent = '';
     $('lgRvReason').value = '';
     $('lgRvDecide').hidden = true;
@@ -1521,8 +1712,11 @@
     [].forEach.call($('lgRvForm').querySelectorAll('input, select'), function (n) {
       n.disabled = !w;
     });
-    flagInputs(doc);
-    setTarget('entry');
+    renderMust(doc);
+    itemsInto(doc);
+    renderAmountLabel();
+    $('lgRvMore').open = flagMore(doc);
+    setTarget(h.target === 'order_cost' ? 'order_cost' : 'entry');
     $('lgSheet').hidden = false;
   }
 
@@ -1625,7 +1819,6 @@
     L.review = L.review.filter(function (d) {
       return d.id !== id;
     });
-    delete L.picked[id];
     closeSheet();
     renderReview();
     await loadBook(L.month);
@@ -1705,6 +1898,8 @@
     });
     L.reviewBusy = false;
     if (!r.ok) return rvError(r.message || '다시 읽기를 걸지 못했습니다.');
+    if (r.data && r.data.queued === false)
+      return rvError('다시 읽기를 걸지 못했습니다. 잠시 뒤 다시 눌러 주세요.');
     closeSheet();
     setState('다시 읽는 중입니다.');
     await loadReview();
@@ -1739,18 +1934,15 @@
       .join(' · ');
   }
 
-  /** 고른 사진을 한꺼번에 — 계정 하나를 골라 함께, BATCH_MAX 장씩 */
-  async function postBatch() {
+  /** 바로 올려도 되는 사진을 한 번에 — 서버가 정한 값(hints.proposal) 그대로, BATCH_MAX 장씩. 서버가 다시 세어 바뀌었으면 그 장만 실패 */
+  async function postReady() {
     if (L.reviewBusy || !canWrite()) return;
-    var ids = pickedIds();
+    var ids = readyDocs().map(function (d) {
+      return d.id;
+    });
     if (!ids.length) return;
-    var account = $('lgBatchAccount').value;
-    if (!account) {
-      $('lgBatchState').textContent = '한꺼번에 올릴 계정을 골라 주세요.';
-      return;
-    }
     L.reviewBusy = true;
-    renderBatch();
+    $('lgReadyPost').disabled = true;
     $('lgBatchResult').textContent = '';
     var results = [];
     for (var i = 0; i < ids.length; i += BATCH_MAX) {
@@ -1761,11 +1953,7 @@
         method: 'POST',
         body: {
           items: chunk.map(function (id) {
-            return {
-              id: id,
-              target: 'entry',
-              entry: entryBody(prefillEntry(reviewById(id).extraction.result), account),
-            };
+            return { id: id, ready: true, entry: reviewById(id).hints.proposal };
           }),
         },
       });
@@ -1802,45 +1990,27 @@
     L.review = L.review.filter(function (d) {
       return okIds.indexOf(d.id) < 0;
     });
-    okIds.forEach(function (id) {
-      delete L.picked[id];
-    });
     renderReview();
     if (okIds.length) {
       await loadBook(L.month);
       await loadDocs();
     }
+    // 바뀐 사진(409)은 목록을 새로 받아 다시 센다
+    if (failed.length) await loadReview();
   }
 
   function onReviewClick(e) {
     var t = e.target;
-    var pick = t.closest ? t.closest('[data-pick]') : null;
-    if (pick) {
-      if (pick.checked) L.picked[pick.getAttribute('data-pick')] = true;
-      else delete L.picked[pick.getAttribute('data-pick')];
-      return renderBatch();
-    }
     var open = t.closest ? t.closest('[data-act="rv-open"]') : null;
     if (open && !L.reviewBusy && !L.reviewLoading) openReview(open.getAttribute('data-id'));
-  }
-
-  function fillBatchAccounts() {
-    var sel = $('lgBatchAccount');
-    var keep = sel.value;
-    sel.textContent = '';
-    sel.appendChild(new window.Option('고르기', ''));
-    accountsFor(L.accounts, 'expense').forEach(function (a) {
-      sel.appendChild(new window.Option(a.name + (a.note ? ' (' + a.note + ')' : ''), a.code));
-    });
-    sel.value = keep;
   }
 
   function bindReview() {
     fillSelect('lgRvEvidence', EVIDENCE, '고르기');
     fillSelect('lgRvMethod', METHOD, '고르지 않음');
     fillSelect('lgRvCategory', COST_CATEGORY);
-    fillBatchAccounts();
     $('lgReviewList').addEventListener('click', onReviewClick);
+    $('lgReadyList').addEventListener('click', onReviewClick);
     // 썸네일이 안 열리면(서명 주소가 끝남) 새로 받는다 — error 는 올라오지 않아 붙잡기로 듣는다
     $('lgReviewList').addEventListener(
       'error',
@@ -1852,7 +2022,7 @@
     $('lgReviewMore').addEventListener('click', function () {
       loadReview(true);
     });
-    $('lgBatchPost').addEventListener('click', postBatch);
+    $('lgReadyPost').addEventListener('click', postReady);
     $('lgRvClose').addEventListener('click', closeSheet);
     $('lgRvPhotoBtn').addEventListener('click', function () {
       $('lgRvPhotoBtn').classList.toggle('lg-rv-photo--big');
@@ -1874,6 +2044,7 @@
       fillRvAccounts($('lgRvDir').value);
     });
     $('lgRvBiz').addEventListener('input', renderBizRow);
+    $('lgRvEvidence').addEventListener('change', renderAmountLabel);
     $('lgRvBizCheck').addEventListener('click', checkBusiness);
     $('lgRvForm').addEventListener('submit', postSheet);
     $('lgRvReturn').addEventListener('click', function () {
@@ -1915,7 +2086,6 @@
     closeForm();
     closeSheet();
     L.review = [];
-    L.picked = {};
     L.orders = null;
     $('lgBatchResult').textContent = '';
     $('lgBatchState').textContent = '';
@@ -2035,7 +2205,9 @@
     bizNoValid: bizNoValid,
     prefillEntry: prefillEntry,
     warningsOf: warningsOf,
-    batchReady: batchReady,
+    prefillFor: prefillFor,
+    mustMarks: mustMarks,
+    readyDocs: readyDocs,
     poll: { tick: pollTick, stop: stopPoll, POLL_MS: POLL_MS },
     PHOTO_MARGIN_MS: PHOTO_MARGIN_MS,
   };
