@@ -160,7 +160,7 @@ test('읽기 — 시작 · 예산 · 사진 · 방향(0) · Claude · 다듬기 
   // Claude — 사진(base64) + 스키마, 도구 없음, Haiku 는 서버 대체 없이
   const p = w.claude.calls[1];
   assert.equal(p.model, 'claude-haiku-5-5');
-  assert.equal(p.max_tokens, 4000);
+  assert.equal(p.max_tokens, 8000);
   assert.equal(p.inference_geo, 'us');
   assert.equal(p.fallbacks, undefined);
   assert.equal(p.tools, undefined);
@@ -513,7 +513,7 @@ test('예산 어림 — 사진은 base64 글자가 아니라 IMAGE_TOKENS 로', 
   const big = buildExtractRequest(env, { mime: 'image/jpeg', data: 'A'.repeat(5_000_000) });
   assert.equal(estimateExtractMicros(env, small), estimateExtractMicros(env, big));
   assert.ok(
-    estimateExtractMicros(env, small) >= Math.ceil((IMAGE_TOKENS * 0.1 + 4000 * 0.5) * 1.1)
+    estimateExtractMicros(env, small) >= Math.ceil((IMAGE_TOKENS * 0.1 + 8000 * 0.5) * 1.1)
   );
   // Opus · Sonnet 으로 바꾸면 서버 대체를 싣는다
   const opus = buildExtractRequest(
