@@ -18,7 +18,7 @@ import { clearHqCompanyCache } from '../src/supabase.js';
 import { clearAdminCache } from '../src/reports/admin.js';
 import { bizNoValid, normalizeBizNo, sniffImage, parseEntryInput, groupTakes, PHOTO_MAX_BYTES } from '../src/ledger/checks.js';
 import { bookTotals, sortBook, bookRange } from '../src/ledger/entries.js';
-import { DAILY_USER_MAX } from '../src/ledger/documents.js';
+import { DAILY_COMPANY_MAX } from '../src/ledger/documents.js';
 import { kstDate } from '../src/production/service.js';
 
 const ENV = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 's' };
@@ -578,12 +578,17 @@ test('POST /ledger/documents — 분 한도(바인딩) · 하루 장수 429, 한
   assert.equal(broken.status, 201, broken.text);
 
   const now = new Date().toISOString();
-  const full = makeDb({ documents: Array.from({ length: DAILY_USER_MAX }, (_, k) => ({ id: `d${k}`, company_id: CO, uploaded_by: STAFF, sha256: `s${k}`, review_status: 'pending', created_at: now })) });
-  const daily = await call(full, '/ledger/documents', STAFF, { method: 'POST', raw: jpeg(100, 100) });
-  assert.equal(daily.status, 429, daily.text);
-  assert.equal(daily.body.code, 'daily_limit');
-  const other = await call(full, '/ledger/documents', STAFF2, { method: 'POST', raw: jpeg(100, 100) });
-  assert.equal(other.status, 201, other.text);
+  // 하루 장수는 업체 하나로 센다 — 한 사람이 업체 몫을 다 올릴 수 있고, 다 차면 누구도 못 올린다
+  const docs = (n) => Array.from({ length: n }, (_, k) => ({ id: `d${k}`, company_id: CO, uploaded_by: STAFF, sha256: `s${k}`, review_status: 'pending', created_at: now }));
+  const almost = makeDb({ documents: docs(DAILY_COMPANY_MAX - 1) });
+  const last = await call(almost, '/ledger/documents', STAFF, { method: 'POST', raw: jpeg(100, 100) });
+  assert.equal(last.status, 201, last.text);
+  const full = makeDb({ documents: docs(DAILY_COMPANY_MAX) });
+  for (const who of [STAFF, STAFF2]) {
+    const daily = await call(full, '/ledger/documents', who, { method: 'POST', raw: jpeg(100, 100) });
+    assert.equal(daily.status, 429, daily.text);
+    assert.equal(daily.body.code, 'daily_limit');
+  }
 });
 
 test('GET /ledger/documents — 직원은 자기 것의 일자 · 상태 · 돌려보낸 이유만 (돈 · 파일 칸이 어디에도 없다)', async () => {
