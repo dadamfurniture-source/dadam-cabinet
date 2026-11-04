@@ -975,3 +975,296 @@
     max-height: 420px;
   }
 }
+
+/* ── 매출 · 매입 판 (ledger-book.js) — 거름 · 찾기 · 표 + 옆 서랍, 폰은 서랍이 아래에서 올라온다 ── */
+.lg-bk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  margin: 0 0 12px;
+}
+
+.lg-seg {
+  display: inline-flex;
+  border: 1px solid var(--v5-line-25);
+}
+
+.lg-seg-btn {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  background: var(--v5-paper);
+  color: var(--v5-ink-62);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.lg-seg .lg-seg-btn + .lg-seg-btn {
+  border-left: 1px solid var(--v5-line-25);
+}
+
+#lgBkGroup {
+  border: 1px solid var(--v5-line-25);
+}
+
+.lg-seg-btn[aria-pressed='true'] {
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
+.lg-bk-find {
+  flex: 1 1 160px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--v5-line-25);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.lg-bk-bar #lgAdd {
+  margin-left: auto;
+}
+
+.lg-bk {
+  display: grid;
+  gap: 16px;
+}
+
+.lg-tbl-wrap {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--v5-line);
+  background: var(--v5-paper);
+}
+
+.lg-tbl {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-tbl th,
+.lg-tbl td {
+  padding: 8px;
+  border-bottom: 1px solid var(--v5-line);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.lg-tbl th {
+  background: var(--v5-well);
+  color: var(--v5-ink-62);
+  font-weight: 400;
+}
+
+.lg-tbl .l {
+  text-align: left;
+}
+
+.lg-tbl tbody .lg-tr {
+  cursor: pointer;
+}
+
+.lg-tbl tbody .lg-tr:hover,
+.lg-tbl tbody .lg-tr.is-on {
+  background: var(--v5-well);
+}
+
+.lg-tbl tbody .lg-tr:focus-visible {
+  outline: 2px solid var(--v5-navy);
+  outline-offset: -2px;
+}
+
+.lg-tr--void td {
+  color: var(--v5-ink-62);
+  text-decoration: line-through;
+}
+
+.lg-td-who {
+  max-width: 200px;
+  white-space: normal;
+}
+
+.lg-td-who b {
+  display: block;
+  font-weight: 500;
+}
+
+.lg-td-who small {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+}
+
+.lg-td-muted {
+  color: var(--v5-ink-62);
+}
+
+.lg-src {
+  padding: 0 6px;
+  border: 1px solid var(--v5-line-25);
+  color: var(--v5-ink-62);
+  font-size: 11px;
+}
+
+.lg-tbl tfoot td {
+  border-top: 1px solid var(--v5-line-25);
+  border-bottom: 0;
+  font-weight: 500;
+}
+
+.lg-tbl-empty {
+  padding: 24px 10px;
+  color: var(--v5-ink-62);
+  text-align: center !important;
+}
+
+/* 서랍 — 폰: 아래에서 올라오는 시트 */
+.lg-drawer-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(45, 42, 38, 0.32);
+}
+
+.lg-drawer {
+  width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 16px max(16px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  background: var(--v5-paper);
+}
+
+.lg-drawer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+.lg-drawer-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.lg-drawer .lg-list {
+  margin: 0 0 8px;
+}
+
+.lg-drawer .lg-grid {
+  grid-template-columns: 1fr;
+}
+
+.lg-erp {
+  padding: 8px 0;
+  color: var(--v5-ink-62);
+  font-size: 13px;
+  list-style: none;
+}
+
+/* 받을 돈 · 낼 돈 */
+.lg-mny-box {
+  margin-top: 20px;
+}
+
+.lg-mny-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.lg-mny-sum {
+  color: var(--v5-ink-62);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-mny-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lg-mny {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 13px;
+}
+
+.lg-mny:last-child {
+  border-bottom: 0;
+}
+
+.lg-mny-main small {
+  display: block;
+  color: var(--v5-ink-62);
+  font-size: 12px;
+}
+
+.lg-mny-main b {
+  font-weight: 500;
+}
+
+.lg-mny-amt {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lg-mny--late small,
+.lg-mny--late .lg-mny-amt {
+  color: var(--lg-crit);
+}
+
+.lg-mny-empty {
+  padding: 8px 0;
+  color: var(--v5-ink-62);
+  font-size: 13px;
+}
+
+/* PC — 표 옆에 서랍 (겹창 아님) */
+@media (min-width: 1100px) {
+  .lg-bk {
+    grid-template-columns: minmax(0, 1fr) 264px;
+    align-items: start;
+  }
+
+  .lg-drawer-wrap {
+    position: sticky;
+    top: 104px;
+    inset: auto;
+    z-index: 1;
+    display: block;
+    background: none;
+  }
+
+  .lg-drawer {
+    max-height: calc(100vh - 128px);
+    padding: 16px;
+    border: 1px solid var(--v5-line);
+  }
+
+  /* 서랍 옆에서는 표를 줄여 넣는다 (거래처 칸이 줄을 바꾼다) */
+  .lg-tbl {
+    min-width: 0;
+  }
+
+  .lg-bk:has(.lg-drawer-wrap[hidden]) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
