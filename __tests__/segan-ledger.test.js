@@ -1707,7 +1707,7 @@ describe('사진 확인 (대표 · 실장)', () => {
       expect(calls.filter((c) => c.url === WORK + '/ledger/held').length).toBeGreaterThanOrEqual(2);
     });
 
-    test('명세표만 줌 — 상자를 닫고 그대로 장부 줄로 올린다', async () => {
+    test('명세표만 줌 — 그대로 장부 줄로 올리고, 잘못 골랐으면 시트에서 다시 고른다', async () => {
       const calls = await load({
         review: () => ok({ items: [doc(1, done(STMT), { hints: askHints() })] }),
         suppliers: (url, init) =>
@@ -1728,9 +1728,22 @@ describe('사진 확인 (대표 · 실장)', () => {
         document_id: D(1),
         mode: 'statement_only',
       });
-      expect($('lgRvInv').hidden).toBe(true);
-      expect($('lgRvRead').textContent).toContain('명세표만 주는 곳으로 정했습니다');
+      expect($('lgRvInv').hidden).toBe(false);
+      expect($('lgRvInvTitle').textContent).toBe('예림 자재는 명세표만 주는 곳으로 정했습니다');
+      expect($('lgRvInvAsk').hidden).toBe(true);
+      expect($('lgRvInvRedoRow').hidden).toBe(false);
       expect($('lgRvPost').hidden).toBe(false);
+      // 잘못 눌렀으면 — 다시 묻고, 고른 것으로 서버에 다시 보낸다
+      $('lgRvInvRedo').click();
+      expect($('lgRvInvAsk').hidden).toBe(false);
+      expect($('lgRvInvRedoRow').hidden).toBe(true);
+      expect($('lgRvInvTitle').textContent).toBe('예림 자재는 세금계산서를 따로 주나요?');
+      $('lgRvInvSep').click();
+      await flush();
+      const puts = calls.filter((c) => c.method === 'PUT');
+      expect(puts.map((c) => c.body.mode)).toEqual(['statement_only', 'separate']);
+      expect($('lgRvInvHold').hidden).toBe(false);
+      expect($('lgRvInvRedoRow').hidden).toBe(false);
     });
 
     test('세금계산서 기다리는 명세표 — 거래처 · 달 묶음, 붙이기 창에서 맞춰 보고 고른 것만 붙인다', async () => {

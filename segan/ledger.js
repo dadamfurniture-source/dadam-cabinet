@@ -1625,25 +1625,35 @@
     }
   }
 
-  /** 시트 위 명세표 상자 — ask(묻기) · hold(모아 두기) */
+  /** 시트 위 명세표 상자 — ask(묻기) · hold(모아 두기, 다시 고르기) */
   function renderInvoice(doc) {
     var h = doc.hints || {};
     var route = h.invoice && h.invoice.route;
-    var name = (h.supplier && h.supplier.name) || '이 거래처';
-    L.sheet.candidates = null;
+    L.sheet.invName = (h.supplier && h.supplier.name) || '이 거래처';
     $('lgRvInv').hidden = !route || !canWrite();
-    $('lgRvInvAsk').hidden = route !== 'ask';
+    if (route === 'ask') return askInvoice();
+    L.sheet.candidates = null;
+    $('lgRvInvAsk').hidden = true;
     $('lgRvInvHold').hidden = route !== 'hold';
+    $('lgRvInvRedoRow').hidden = route !== 'hold';
     $('lgRvHold').textContent = '모아 두기';
-    if (route === 'ask') {
-      $('lgRvInvTitle').textContent = name + '는 세금계산서를 따로 주나요?';
-      $('lgRvInvNote').textContent =
-        '한 번만 고르면 이 거래처의 명세표는 앞으로 저절로 나뉩니다. 모르시면 세무사님께 물어보세요 (홈택스 자료로 바로 압니다).';
-    } else if (route === 'hold') {
+    if (route === 'hold') {
       $('lgRvInvTitle').textContent = '세금계산서를 따로 주는 거래처의 명세표입니다';
       $('lgRvInvNote').textContent =
         '장부 줄로 올리면 세금계산서와 두 번 잡힙니다. 모아 두었다가 세금계산서가 오면 그 줄에 붙이세요.';
     }
+  }
+
+  /** 묻기 — 처음 · 잘못 골라 다시 고를 때 (고른 것은 다시 고를 때까지 그대로) */
+  function askInvoice() {
+    L.sheet.candidates = null;
+    $('lgRvInvAsk').hidden = false;
+    $('lgRvInvHold').hidden = true;
+    $('lgRvInvRedoRow').hidden = true;
+    $('lgRvHold').textContent = '모아 두기';
+    $('lgRvInvTitle').textContent = L.sheet.invName + '는 세금계산서를 따로 주나요?';
+    $('lgRvInvNote').textContent =
+      '한 번만 고르면 이 거래처의 명세표는 앞으로 저절로 나뉩니다. 모르시면 세무사님께 물어보세요 (홈택스 자료로 바로 압니다).';
   }
 
   async function setSheetMode(mode) {
@@ -1657,11 +1667,20 @@
     L.reviewBusy = false;
     if (!r.ok) return rvError(r.message || '고르지 못했습니다.');
     loadSuppliers();
+    L.sheet.invName = r.data.name || L.sheet.invName;
+    $('lgRvInvRedoRow').hidden = false;
     if (mode === 'statement_only') {
-      $('lgRvInv').hidden = true;
-      $('lgRvRead').textContent =
-        (r.data.name || '이 거래처') +
-        '는 명세표만 주는 곳으로 정했습니다 — 장부 줄로 올리면 됩니다.';
+      // 앞서 따로 줌으로 모아 둔 명세표는 서버가 확인할 사진으로 돌렸다
+      if (r.data.released) {
+        loadHeld();
+        loadReview();
+      }
+      L.sheet.candidates = null;
+      $('lgRvInvAsk').hidden = true;
+      $('lgRvInvHold').hidden = true;
+      $('lgRvInvTitle').textContent = L.sheet.invName + '는 명세표만 주는 곳으로 정했습니다';
+      $('lgRvInvNote').textContent =
+        '이 명세표는 아래 「장부에 올리기」로 올리면 됩니다 (합계를 금액에 · 부가세 0). 잘못 골랐으면 다시 고르세요.';
       return;
     }
     var ids = Array.isArray(r.data.candidates) ? r.data.candidates.slice() : [];
@@ -1669,8 +1688,7 @@
     L.sheet.candidates = ids;
     $('lgRvInvAsk').hidden = true;
     $('lgRvInvHold').hidden = false;
-    $('lgRvInvTitle').textContent =
-      (r.data.name || '이 거래처') + '는 세금계산서를 따로 주는 곳으로 정했습니다';
+    $('lgRvInvTitle').textContent = L.sheet.invName + '는 세금계산서를 따로 주는 곳으로 정했습니다';
     $('lgRvInvNote').textContent =
       '이 거래처 명세표 ' +
       ids.length +
@@ -2539,6 +2557,9 @@
       setSheetMode('statement_only');
     });
     $('lgRvHold').addEventListener('click', holdSheet);
+    $('lgRvInvRedo').addEventListener('click', function () {
+      if (L.sheet && !L.reviewBusy) askInvoice();
+    });
     $('lgAtClose').addEventListener('click', closeAttach);
     $('lgAtEntry').addEventListener('change', compareAttach);
     $('lgAtDocs').addEventListener('change', function (e) {
