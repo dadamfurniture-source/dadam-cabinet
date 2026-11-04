@@ -1186,7 +1186,7 @@ describe('사진 확인 (대표 · 실장)', () => {
     ]);
     const why = $('lgRvOrder').closest('.lg-must-row').querySelector('[data-why]');
     expect(why.hidden).toBe(false);
-    expect(why.textContent).toContain('ERP 에서 수주를 먼저 만들거나');
+    expect(why.textContent).toContain('「수주 전환」해야 생깁니다');
     await submitSheet();
     expect($('lgRvError').textContent).toBe('이 업체에는 고를 수주가 없습니다.');
     expect(calls.some((c) => c.url.endsWith('/post'))).toBe(false);
