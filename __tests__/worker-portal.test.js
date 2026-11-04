@@ -992,6 +992,60 @@ describe('공장 (순수)', () => {
     expect(P.factoryHtml(factoryData({ roles: ['cutter'] }), { nowMs: NOW })).not.toContain('fw-role');
   });
 
+  test('공장 할 일 카드 — 내 공정 꾸러미(재단 · 라벨 / 조립) · 필수 확인 단추, 주문 id 가 없으면 없음', () => {
+    document.body.innerHTML = `<div id="x">${P.factoryHtml(factoryData(), { role: 'cutter', nowMs: NOW })}</div>`;
+    const box = document.getElementById('x');
+    const first = box.querySelectorAll('.card.job')[0];
+    expect([...first.querySelectorAll('[data-act="fw-pack"]')].map((b) => [b.getAttribute('data-pack'), b.textContent])).toEqual([['cut', '재단 지시서'], ['labels', '부재 라벨']]);
+    expect(first.querySelector('[data-act="fw-checks"]').getAttribute('data-order')).toBe(O1);
+    expect(P.factoryDocButtons('asm', O1)).toContain('data-pack="assembly"');
+    expect(P.factoryDocButtons('asm', O1)).not.toContain('data-pack="cut"');
+    expect(P.factoryDocButtons('cutter', 'not-uuid')).toBe('');
+  });
+
+  test('필수 확인 화면 — 역할마다 칸 × 항목 체크, 권장 · 사진 필수 표시, 글은 글자로, 저장 준비 전이면 잠금', () => {
+    const v = {
+      order_label: XSS,
+      document: { id: 'doc', doc_no: 'WO-1', rev: 1 },
+      list_version: 'v0',
+      db_ready: true,
+      roles: [
+        { role: 'cut', label: '재단', done: 1, total: 2, must_left: 1, cells: [{ scope_key: 'sheet:1', label: '원장 1 · PB 15T', items: [
+          { key: 'cut-sheet-cut', label: '재단', must: true, photo: 'none', checked: true },
+          { key: 'cut-sheet-x', label: XSS, must: false, photo: 'need', checked: false },
+        ] }] },
+        { role: 'edge', label: '엣지', done: 0, total: 0, must_left: 0, cells: [] },
+      ],
+    };
+    document.body.innerHTML = `<div id="x">${P.checksHtml(v)}</div>`;
+    const box = document.getElementById('x');
+    expect(box.querySelector('script')).toBe(null);
+    expect(box.textContent).toContain(XSS);
+    const inputs = box.querySelectorAll('input[data-ck-item]');
+    expect([...inputs].map((i) => [i.getAttribute('data-ck-role'), i.getAttribute('data-ck-scope'), i.getAttribute('data-ck-item'), i.checked, i.disabled])).toEqual([
+      ['cut', 'sheet:1', 'cut-sheet-cut', true, false],
+      ['cut', 'sheet:1', 'cut-sheet-x', false, false],
+    ]);
+    expect(box.textContent).toContain('1/2 · 필수 남음 1');
+    expect(box.textContent).toContain('권장');
+    expect(box.textContent).toContain('사진 필수');
+    expect(box.textContent).toContain('이 역할에 확인할 항목이 없습니다.');
+    expect(box.querySelector('[data-act="ck-back"]')).not.toBe(null);
+    document.body.innerHTML = `<div id="y">${P.checksHtml({ ...v, db_ready: false })}</div>`;
+    expect([...document.querySelectorAll('#y input[data-ck-item]')].every((i) => i.disabled)).toBe(true);
+    expect(document.getElementById('y').textContent).toContain('저장 준비가 안 되어');
+    expect(P.checksHtml(null)).toContain('불러오지 못했습니다');
+  });
+
+  test('내 작업 상세 — 설치 · 조립 작업은 확정 뒤에 지시서 · 필수 확인 단추', () => {
+    const my = { assignment_id: A1, assignment_status: 'confirmed' };
+    expect(P.jobDetailHtml(detail({ my, kind: 'install' }), NOW, 'mine')).toContain('data-act="as-pack"');
+    expect(P.jobDetailHtml(detail({ my, kind: 'install' }), NOW, 'mine')).toContain('시공 지시서');
+    expect(P.jobDetailHtml(detail({ my, kind: 'assembly' }), NOW, 'mine')).toContain('조립 지시서');
+    expect(P.jobDetailHtml(detail({ my, kind: 'as' }), NOW, 'mine')).not.toContain('data-act="as-pack"');
+    expect(P.jobDetailHtml(detail({ my: { assignment_id: A1, assignment_status: 'offered' }, kind: 'install' }), NOW, 'mine')).not.toContain('data-act="as-checks"');
+  });
+
   test('생산 링크 화면 — 같은 기기 저장 키에 토큰을 두고, 포털 「공장」 탭으로 잇기 안내', () => {
     const LINK_PAGE = fs.readFileSync(path.join(ROOT, 'production-worker.html'), 'utf8');
     expect(LINK_PAGE).toContain(`localStorage.setItem('${P.LINK_TOKEN_KEY}', token)`);
@@ -1108,6 +1162,45 @@ describe('페이지 — 공장 탭', () => {
     await settle();
     expect(box(FA1).checked).toBe(true);
     expect(document.getElementById('alert').textContent).toBe('잠시 뒤 다시');
+  });
+
+  test('필수 확인 — 할 일 카드에서 열고, 체크하면 POST 뒤 다시 받는다 · 새 판(409)이면 되돌리고 다시 연다 · 돌아가기', async () => {
+    let state = false;
+    let superseded = false;
+    const view = () => ({ data: {
+      order_label: '홍*동 (SO-1)', document: { id: 'doc-2', doc_no: 'WO-2', rev: 2 }, list_version: 'v0', db_ready: true,
+      roles: [{ role: 'cut', label: '재단', done: state ? 1 : 0, total: 1, must_left: state ? 0 : 1, cells: [{ scope_key: 'sheet:1', label: '원장 1', items: [{ key: 'cut-sheet-cut', label: '재단', must: true, photo: 'none', checked: state }] }] }],
+    } });
+    const calls = mount({
+      hash: '#tab=factory',
+      routes: {
+        'GET /work/me': FACTORY_ME,
+        'GET /work/factory': { data: factoryData() },
+        [`GET /work/factory/orders/${O1}/checks`]: view,
+        [`POST /work/factory/orders/${O1}/checks`]: () => {
+          if (superseded) return { status: 409, message: '작업지시서가 새 판으로 바뀌었습니다 — 다시 열어 주세요' };
+          state = true;
+          return { status: 201, data: { checked: true } };
+        },
+      },
+    });
+    await settle();
+    document.querySelector(`[data-act="fw-checks"][data-order="${O1}"]`).click();
+    await settle();
+    expect(document.getElementById('appBody').textContent).toContain('필수 확인 · 홍*동 (SO-1)');
+    document.querySelector('input[data-ck-item="cut-sheet-cut"]').click();
+    await settle();
+    expect(calls.find((c) => c.method === 'POST' && c.path === `/work/factory/orders/${O1}/checks`).body).toEqual({ document_id: 'doc-2', role: 'cut', scope_key: 'sheet:1', item_key: 'cut-sheet-cut', checked: true });
+    expect(document.querySelector('input[data-ck-item="cut-sheet-cut"]').checked).toBe(true);
+    expect(document.getElementById('appBody').textContent).toContain('1/1');
+    superseded = true;
+    document.querySelector('input[data-ck-item="cut-sheet-cut"]').click();
+    await settle();
+    expect(document.getElementById('alert').textContent).toContain('새 판');
+    expect(document.querySelector('input[data-ck-item="cut-sheet-cut"]').checked).toBe(true);
+    document.querySelector('[data-act="ck-back"]').click();
+    await settle();
+    expect(document.querySelector('[data-act="fw-checks"]')).not.toBe(null);
   });
 
   test('이 기기에 생산 링크가 있고 배정이 없으면 — 「내 계정에 잇기」, 이으면 링크를 지우고 공장 화면', async () => {

@@ -96,6 +96,12 @@
   // ── 공장 (서버 work/factory.js — 생산 링크 화면 production-worker.html 과 같은 일을 계정으로) ──
   const FACTORY_ROLE_LABEL = Object.freeze({ cutter: '재단', edge: '엣지', asm: '조립' });
   const FACTORY_UNIT_HINT = Object.freeze({ cutter: '원판 장', edge: '엣지 면', asm: '통·서랍 개' });
+  /** 공정 → 여는 작업지시서 꾸러미 (서버 work/checks.js PACKS_OF_ROLE 와 같다 — 재단 · 엣지 → 재단 · 라벨, 조립 → 조립) */
+  const FACTORY_PACKS = Object.freeze({ cutter: ['cut', 'labels'], edge: ['cut', 'labels'], asm: ['assembly'] });
+  const PACK_LABEL = Object.freeze({ cut: '재단 지시서', labels: '부재 라벨', assembly: '조립 지시서' });
+  /** 작업지시서 · 필수 확인을 여는 작업(모집 · 초대) — 설치는 시공 지시서, 조립은 조립 꾸러미 */
+  const DOC_JOB_KINDS = Object.freeze(['install', 'assembly']);
+  const DOC_ASSIGNMENT_STATUSES = Object.freeze(['confirmed', 'started', 'submitted', 'revision', 'accepted']);
   /** 이 기기의 생산 링크 토큰 — production-worker.html 이 localStorage 에 둔다. 있으면 「내 계정에 잇기」 */
   const LINK_TOKEN_KEY = 'dadamWorkerToken';
   /** 마지막에 고른 공정 · 진행 중 타이머 (이 기기 localStorage) */
@@ -547,6 +553,10 @@
         '<button type="submit" class="big stop">초대 거절</button></form></details>');
     }
     if (act.start) parts.push(`<button type="button" class="big go" data-act="start" data-id="${esc(my.assignment_id)}">작업 시작</button>`);
+    if (DOC_JOB_KINDS.includes(d.kind) && isUuid(my.assignment_id) && DOC_ASSIGNMENT_STATUSES.includes(my.assignment_status)) {
+      parts.push(`<div class="btns"><button type="button" class="big" data-act="as-pack" data-id="${esc(my.assignment_id)}">${d.kind === 'install' ? '시공 지시서' : '조립 지시서'}</button>` +
+        `<button type="button" class="big" data-act="as-checks" data-id="${esc(my.assignment_id)}">필수 확인</button></div>`);
+    }
     if (act.reports.length) parts.push(reportFormHtml(d, act.reports));
     if (act.release) {
       parts.push('<details class="fold danger"><summary>작업 포기</summary>' +
@@ -695,8 +705,37 @@
           `<div class="btns"><button type="button" class="big" data-act="fw-cancel" data-i="${i}">취소</button>` +
           `<button type="button" class="big stop" data-act="fw-done" data-i="${i}">완료 기록</button></div>`
         : `<button type="button" class="big go" data-act="fw-start" data-i="${i}">시작</button>`;
-      return `${head}<div class="card job"><div class="jt">${esc(j.label)}</div><div class="jd">${meta.join(' · ')}</div>${form}</div>`;
+      return `${head}<div class="card job"><div class="jt">${esc(j.label)}</div><div class="jd">${meta.join(' · ')}</div>${factoryDocButtons(role, j.orderId)}${form}</div>`;
     }).join('');
+  }
+
+  /** 할 일 카드의 작업지시서 꾸러미 · 필수 확인 단추 (주문 id 가 있을 때) */
+  function factoryDocButtons(role, orderId) {
+    if (!isUuid(orderId)) return '';
+    const packs = FACTORY_PACKS[role] || [];
+    return `<div class="btns fw-docs">${packs.map((p) => `<button type="button" class="big" data-act="fw-pack" data-pack="${esc(p)}" data-order="${esc(orderId)}">${esc(PACK_LABEL[p])}</button>`).join('')}` +
+      `<button type="button" class="big" data-act="fw-checks" data-order="${esc(orderId)}">필수 확인</button></div>`;
+  }
+
+  /**
+   * 필수 확인 화면 (GET …/checks — 서버 work/checks.js) — 역할마다 칸(원장 · 모듈 · 주문) × 항목 체크.
+   * 체크는 지우지 않고 기록으로 쌓인다. 저장 준비 전(db_ready false)이면 칸을 잠근다. 글은 전부 esc().
+   */
+  function checksHtml(v) {
+    if (!v || !v.document) return '<div class="card empty">필수 확인을 불러오지 못했습니다.</div>';
+    const parts = [
+      '<div class="btns"><button type="button" class="big" data-act="ck-back">← 돌아가기</button></div>',
+      `<div class="card"><h3>필수 확인 · ${esc(v.order_label)}</h3><p class="muted">작업지시서 ${esc(v.document.doc_no)} · 하고 나서 체크해 주세요. 체크는 지우지 않고 기록으로 남습니다.</p>` +
+        (v.db_ready ? '' : '<p class="warn">아직 저장 준비가 안 되어 체크를 남길 수 없습니다 (회사 DB 적용 전).</p>') + '</div>',
+    ];
+    (v.roles || []).forEach((r) => {
+      const head = `<h3>${esc(r.label || r.role)} <span class="muted">${esc(r.done)}/${esc(r.total)}${r.must_left ? ` · 필수 남음 ${esc(r.must_left)}` : ''}</span></h3>`;
+      const cells = (r.cells || []).map((c) => `<div class="ck-cell"><p class="muted fw-head">${esc(c.label)}</p>${(c.items || []).map((x) =>
+        `<label class="check${x.checked ? ' done' : ''}"><input type="checkbox" data-ck-role="${esc(r.role)}" data-ck-scope="${esc(c.scope_key)}" data-ck-item="${esc(x.key)}"${x.checked ? ' checked' : ''}${v.db_ready ? '' : ' disabled'} />` +
+        `<span>${esc(x.label)}${x.must ? '' : ' <small class="muted">권장</small>'}${x.photo === 'need' ? ' <small class="muted">사진 필수</small>' : ''}</span></label>`).join('')}</div>`).join('');
+      parts.push(`<div class="card">${head}${cells || '<p class="empty">이 역할에 확인할 항목이 없습니다.</p>'}</div>`);
+    });
+    return parts.join('');
   }
 
   /**
@@ -972,6 +1011,7 @@
 
     // ── 공장 탭 ──
     async function renderFactory(mySeq) {
+      checks = null;
       const body = $('appBody');
       if (!(me && me.factory)) {
         factoryData = null;
@@ -991,6 +1031,43 @@
       }
     }
     const factoryRole = () => factoryRoleOf(factoryData && factoryData.roles, store.get(FACTORY_ROLE_KEY));
+    /** 필수 확인 화면 — { base: '/work/factory/orders/<id>' | '/work/assignments/<id>', data } (null 이면 원래 화면) */
+    let checks = null;
+    async function openChecks(base) {
+      try {
+        checks = { base, data: await api(`${base}/checks`) };
+        $('appBody').innerHTML = checksHtml(checks.data);
+      } catch (err) {
+        if (await handleAuthError(err)) return;
+        say(err.message);
+      }
+    }
+    /** 꾸러미 HTML 은 로그인이 필요해 새 창 주소로 바로 열 수 없다 — 받아서 새 창에 쓴다 (상세설계 인쇄와 같은 방식) */
+    async function openPack(path) {
+      const win = window.open('', '_blank');
+      if (!win) {
+        say('새 창이 막혀 지시서를 열지 못했습니다. 팝업을 허용해 주세요.');
+        return;
+      }
+      try {
+        const t = await token();
+        if (!t) throw Object.assign(new Error('로그인이 필요합니다.'), { status: 401 });
+        const res = await fetch(API + path, { headers: { Authorization: `Bearer ${t}` }, cache: 'no-store' });
+        if (!res.ok) {
+          let msg = `지시서를 열지 못했습니다 (${res.status})`;
+          try { const b = await res.json(); if (b && b.message) msg = b.message; } catch (e) { /* 본문 없음 */ }
+          throw Object.assign(new Error(msg), { status: res.status });
+        }
+        const html = await res.text();
+        win.document.open();
+        win.document.write(html);
+        win.document.close();
+      } catch (err) {
+        win.close();
+        if (await handleAuthError(err)) return;
+        say(err.message);
+      }
+    }
     function drawFactory() {
       const role = factoryRole();
       const timers = {};
@@ -1040,6 +1117,15 @@
       }
     }
     function onFactoryAct(what, b) {
+      const order = b.getAttribute('data-order');
+      if (what === 'fw-pack' && isUuid(order)) {
+        openPack(`/work/factory/orders/${order}/pack?pack=${encodeURIComponent(b.getAttribute('data-pack') || '')}`);
+        return;
+      }
+      if (what === 'fw-checks' && isUuid(order)) {
+        openChecks(`/work/factory/orders/${order}`);
+        return;
+      }
       if (what === 'fw-link') {
         linkAccount();
         return;
@@ -1279,7 +1365,20 @@
         onFactoryAct(what, b);
         return;
       }
+      if (what === 'ck-back') {
+        checks = null;
+        renderRoute();
+        return;
+      }
       if (!isUuid(id)) return;
+      if (what === 'as-pack') {
+        openPack(`/work/assignments/${id}/pack`);
+        return;
+      }
+      if (what === 'as-checks') {
+        openChecks(`/work/assignments/${id}`);
+        return;
+      }
       if (what === 'withdraw') {
         if (!window.confirm('신청을 철회할까요?')) return;
         act(() => api(`/work/applications/${id}/withdraw`, { method: 'POST', body: {} }), '신청을 철회했습니다.');
@@ -1287,6 +1386,25 @@
         act(() => api(`/work/assignments/${id}/confirm`, { method: 'POST', body: {} }), '수락했습니다. 확정됐습니다.');
       } else if (what === 'start') {
         act(() => api(`/work/assignments/${id}/start`, { method: 'POST', body: {} }), '작업을 시작했습니다.');
+      }
+    });
+
+    // 필수 확인 체크 — 보내고 다시 받는다 (칸마다 마지막 줄이 지금 값). 지시서가 새 판이면(409) 새 판으로 다시 연다
+    appBody.addEventListener('change', async (e) => {
+      const c = e.target && e.target.closest && e.target.closest('input[data-ck-item]');
+      if (!c || !checks) return;
+      const base = checks.base;
+      try {
+        await api(`${base}/checks`, {
+          method: 'POST',
+          body: { document_id: checks.data.document.id, role: c.getAttribute('data-ck-role'), scope_key: c.getAttribute('data-ck-scope'), item_key: c.getAttribute('data-ck-item'), checked: c.checked },
+        });
+        await openChecks(base);
+      } catch (err) {
+        c.checked = !c.checked;
+        if (await handleAuthError(err)) return;
+        say(err.message);
+        if (err.status === 409) await openChecks(base);
       }
     });
 
@@ -1385,6 +1503,8 @@
     worklogBody,
     factoryLinkHtml,
     factoryJobsHtml,
+    factoryDocButtons,
+    checksHtml,
     factoryHtml,
     storeInvite,
     loadInvite,

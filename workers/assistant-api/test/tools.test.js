@@ -266,6 +266,7 @@ test('올린 사진 · 장부 요약 · 고객 프로젝트 — 줄인 모양', 
   assert.deepEqual(results[0], {
     counted: 3,
     by_status: { pending: 2, posted: 1 },
+    status_names: { pending: '확인 기다림', posted: '장부에 올림' },
     oldest_pending_at: '2026-11-01T00:00:00Z',
   });
   assert.equal(results[1].month, '2026-11');
