@@ -14,6 +14,7 @@
 
 import { esc, num, ymd, ymdhm, tr, thead, documentShell } from './html.js';
 import { PRINT_CSS, PRINT_TOOLBAR } from './print-css.js';
+import { checkListOfDoc, itemsFor } from '../work/check-items.js';
 
 const CATEGORY_NAMES = {
   sink: '싱크대',
@@ -117,7 +118,7 @@ function coverSheet(doc, snapshot, site) {
 
   <table class="sign">
     <tbody>
-      ${tr(['설치 담당', '', '검수', '', '고객 확인', ''])}
+      ${tr(itemsFor(checkListOfDoc(doc), 'install', 'order').flatMap((x) => [esc(x.label), '']))}
     </tbody>
   </table>
 </div>`;

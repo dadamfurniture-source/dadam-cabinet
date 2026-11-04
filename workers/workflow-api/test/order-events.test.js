@@ -15,6 +15,7 @@ import { clearHqCompanyCache } from '../src/supabase.js';
 import { clearAdminCache } from '../src/reports/admin.js';
 import { TRANSITIONS, ORDER_STATUS_LABELS, allowedMoves, transitionRule, cleanReason, statusPatch, statusClears } from '../src/order-events.js';
 import { issueDocument } from '../src/documents.js';
+import { frozenCheckList } from '../src/work/check-items.js';
 import worker from '../src/worker.js';
 import * as fx from './fixtures/work-order-v2.js';
 import { HQ, PARTNER, companyRoute } from './fixtures/company.js';
@@ -915,6 +916,7 @@ test('승인 전 작업지시서 — 설계 업체로 기록 한 줄(early_work_
     assert.ok(!('order_id' in posts(calls, 'order_events')[0].body), '수주 칸은 보내지 않는다');
     const doc = posts(calls, 'design_documents')[0];
     assert.equal(doc.body.render_payload.instructions, '고객 승인 전 발행 — 사유: 급한 현장');
+    assert.deepEqual(doc.body.render_payload.check_list, frozenCheckList(), '작업자 필수 확인 목록을 발행 때 고정 (src/work/check-items.js)');
     assert.ok(calls.indexOf(posts(calls, 'order_events')[0]) < calls.indexOf(doc), '기록이 문서보다 먼저');
   });
   const withNote = issueDb();
