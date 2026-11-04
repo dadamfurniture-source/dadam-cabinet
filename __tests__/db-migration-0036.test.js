@@ -266,4 +266,17 @@ describe('0036 — 거래명세표 모아 붙이기', () => {
     expect(p.split("ev.role IN ('primary', 'supporting')").length - 1).toBe(2);
     expect(p).toContain('ORDER BY s.prim DESC LIMIT 1');
   });
+
+  test('프로브 사진의 sha256 은 16진수 64자 (ledger_documents_sha_check)', () => {
+    const probe = fs.readFileSync(
+      path.join(__dirname, '..', 'database', 'probes', '0036-ledger-statements.json'),
+      'utf8'
+    );
+    const shas = [...probe.matchAll(/repeat\('(.)', (\d+)\)/g)];
+    expect(shas.length).toBe(7);
+    for (const [, ch, n] of shas) {
+      expect(ch).toMatch(/^[0-9a-f]$/);
+      expect(n).toBe('64');
+    }
+  });
 });
