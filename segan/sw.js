@@ -25,7 +25,7 @@
 /* global self, caches, fetch, Request, Response, URL */
 'use strict';
 
-const ASSET_VERSION = '2026110412';
+const ASSET_VERSION = '2026110413';
 const CACHE_PREFIX = 'segan-shell-';
 const CACHE = CACHE_PREFIX + ASSET_VERSION;
 const SCOPE = new URL('./', self.location.href).pathname; // '/segan/'
@@ -44,6 +44,7 @@ const SHELL = [
   SCOPE + 'pay.html', // 내 정보 — 수금 일정 결제 결과 (결제창이 돌아오는 곳)
   SCOPE + 'ledger.html', // 내 정보 › 회계 — 업체 장부 (대표 · 실장)
   SCOPE + 'ledger-board.html', // 내 정보 › 회계 — 회계 한눈에 (대표 · 실장)
+  SCOPE + 'ledger-report.html', // 회계 › 보고서 — 인쇄용 월 회계 보고서 (대표 · 실장)
   SCOPE + 'assistant.html', // 비서 — AI 비서 대화 (자격이 있는 업체 구성원에게만 탭이 보인다)
   OFFLINE,
   SCOPE + 'manifest.webmanifest',
@@ -66,6 +67,8 @@ const SHELL = [
   versioned(SCOPE + 'ledger-board.css'),
   versioned(SCOPE + 'ledger-board.js'),
   versioned(SCOPE + 'ledger-book.js'),
+  versioned(SCOPE + 'ledger-report.css'),
+  versioned(SCOPE + 'ledger-report.js'),
   versioned(SCOPE + 'assistant.css'),
   versioned(SCOPE + 'assistant.js'),
   versioned(SCOPE + 'partner-projects.js'),

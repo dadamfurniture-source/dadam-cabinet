@@ -32,6 +32,9 @@
              (한 장부를 방향으로 — 수입 · 자산 팔기 / 비용 · 자산 사기) · 사진(올리기 · 확인) · 설정(과세 · 거래처별 세금계산서).
              주소 #board · #sales · #buys · #photos · #settings 로 탭을 연다 (한눈에의 장부 상태 칩이 이 주소로 온다),
              ?month=YYYY-MM 은 처음 달. 직원은 탭 없이 사진 판만. 알림 한 줄(lgState)은 화면 아래 — 누르면 닫는다
+   보고      머리의 「보고서」(ledger-report.html?month= — 인쇄용 한 장) · 「내보내기」(세무사용 CSV 셋 — 이 달 · 반기 ·
+             기간 지정 366일까지, GET /ledger/book?from=&to= 를 받아 ledger-book.js csvFiles). 월초(1~7일)에는 한눈에 위에
+             지난달 보고서 카드
    사진 판    올리기 → 상태 거름(확인 기다림 · 장부에 올림 · 돌려보냄 · 쓰지 않음 · 전체 — 대표 · 실장) → 확인할 사진 ·
              올린 사진(GET /ledger/documents?status=). 세금계산서 기다리는 명세표는 매입 판에.
              사진 AI 읽기를 쓰지 않는 업체(/ledger/me ai false — Expert)는 「직접 적기」 — 읽기를 기다리지 않고 다시 묻지도 않는다
@@ -86,6 +89,9 @@
   var MONTH_RE = /^(\d{4})-(\d{2})$/;
   // 탭 — 매출 · 매입 판은 한 장부를 방향으로 나눠 보인다
   var TABS = ['board', 'sales', 'buys', 'photos', 'settings'];
+  // 내보내기 — 한 번에 받는 날 수 (워커 entries.js bookRange) · 월초 보고서 카드를 보이는 날까지
+  var EXPORT_MAX_DAYS = 366;
+  var MONTH_CARD_DAYS = 7;
   var BOOK_TABS = {
     sales: { title: '매출 — 받은 돈 · 수입', dirs: ['income', 'asset_sell'], dir: 'income' },
     buys: { title: '매입 — 낸 돈 · 비용', dirs: ['expense', 'asset_buy'], dir: 'expense' },
@@ -231,6 +237,8 @@
     month: '',
     tab: '', // 여는 탭 — TABS 중 하나 (직원은 비움)
     ph: 'pending', // 사진 판 상태 거름 — PH_FILTERS 중 하나
+    exportRange: 'month', // 내보내기 기간 — month · half · custom
+    exportCache: null, // { key: from~to, rows } — 같은 기간이면 다시 묻지 않는다
     bk: { source: 'all', query: '', group: false, selected: '' }, // 매출 · 매입 판 — 거름 · 찾기 · 매입처별 · 서랍에 연 줄 id
     money: {}, // receivables · payables → GET data (없으면 false — 상자를 감춘다)
     data: null, // GET /ledger/book data
@@ -731,6 +739,9 @@
     $('lgSumNote').textContent = notes.join(' ');
     $('lgSumNote').hidden = !notes.length;
     $('lgMonth').textContent = monthLabel(L.month);
+    $('lgReportLink').href = withCompany(
+      'ledger-report.html?month=' + encodeURIComponent(L.month || thisMonth())
+    );
     $('lgNext').disabled = L.busy || L.month >= thisMonth();
     $('lgPrev').disabled = L.busy;
   }
@@ -1023,6 +1034,112 @@
       await loadMoney(tab);
     }
     if (tab === 'board' && board()) await board().show(L.month);
+  }
+
+  /** 월초(1~MONTH_CARD_DAYS 일) — 한눈에 위에 지난달 보고서 카드 */
+  function renderMonthCard() {
+    var k = new Date(Date.now() + 9 * 3600 * 1000);
+    var card = $('lgMonthCard');
+    card.hidden = k.getUTCDate() > MONTH_CARD_DAYS;
+    if (card.hidden) return;
+    var prev = shiftMonth(thisMonth(), -1);
+    card.textContent = monthLabel(prev) + ' 회계 보고서가 나왔습니다 — 보고서 보기 ›';
+    card.href = withCompany('ledger-report.html?month=' + prev);
+  }
+
+  // ── 내보내기 (세무사용 CSV) ─────────────────────────────
+  /** 파일 받기 — 시험이 바꿔 낀다 (SeganLedger.files) */
+  var files = {
+    save: function (name, text) {
+      var blob = new window.Blob([text], { type: 'text/csv;charset=utf-8' });
+      var url = window.URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(function () {
+        window.URL.revokeObjectURL(url);
+      }, 1000);
+    },
+  };
+
+  /** 내보낼 기간 → { from, to } | { error } */
+  function exportRange() {
+    var m = L.month || thisMonth();
+    if (L.exportRange === 'month') return { from: m + '-01', to: m + '-' + lastDay(m) };
+    if (L.exportRange === 'half') {
+      var y = m.slice(0, 4);
+      return Number(m.slice(5)) <= 6
+        ? { from: y + '-01-01', to: y + '-06-30' }
+        : { from: y + '-07-01', to: y + '-12-31' };
+    }
+    var from = $('lgExFrom').value;
+    var to = $('lgExTo').value;
+    if (!from || !to) return { error: '시작 · 끝 날짜를 골라 주세요.' };
+    if (from > to) return { error: '시작이 끝보다 늦습니다.' };
+    var days = (Date.parse(to + 'T00:00:00Z') - Date.parse(from + 'T00:00:00Z')) / 86400000 + 1;
+    if (days > EXPORT_MAX_DAYS)
+      return { error: '한 번에 ' + EXPORT_MAX_DAYS + '일까지 받습니다. 기간을 나눠 받아 주세요.' };
+    return { from: from, to: to };
+  }
+
+  /** 'YYYY-MM' 의 마지막 날 'DD' */
+  function lastDay(month) {
+    var p = month.split('-').map(Number);
+    return String(new Date(Date.UTC(p[0], p[1], 0)).getUTCDate()).padStart(2, '0');
+  }
+
+  function exError(text) {
+    $('lgExError').textContent = text || '';
+    $('lgExError').hidden = !text;
+  }
+
+  function renderExport() {
+    [].forEach.call($('lgExRange').querySelectorAll('[data-range]'), function (b) {
+      b.setAttribute(
+        'aria-pressed',
+        b.getAttribute('data-range') === L.exportRange ? 'true' : 'false'
+      );
+    });
+    $('lgExCustom').hidden = L.exportRange !== 'custom';
+    var rg = exportRange();
+    $('lgExPeriod').textContent = rg.error ? '' : '기간 ' + rg.from + ' ~ ' + rg.to;
+  }
+
+  function openExport() {
+    L.exportRange = 'month';
+    exError('');
+    renderExport();
+    $('lgExport').hidden = false;
+  }
+
+  /** 그 기간 장부를 받아(같은 기간이면 다시 묻지 않는다) CSV 하나를 내려받는다 */
+  async function downloadCsv(kind) {
+    var rg = exportRange();
+    if (rg.error) return exError(rg.error);
+    exError('');
+    var key = rg.from + '~' + rg.to + '~' + L.company;
+    if (!L.exportCache || L.exportCache.key !== key) {
+      var r = await api(withCompany('/ledger/book?from=' + rg.from + '&to=' + rg.to));
+      if (!r.ok) return exError(r.message || '장부를 불러오지 못했습니다.');
+      L.exportCache = { key: key, rows: (r.data && r.data.rows) || [] };
+    }
+    var Book = window.SeganLedgerBook;
+    var out = Book.csvFiles(L.exportCache.rows, {
+      accountName: accountName,
+      evidenceName: function (c) {
+        return EVIDENCE[c] || c;
+      },
+      stageName: function (s) {
+        return PAY_STAGE[s] || s;
+      },
+    });
+    var name = { sales: '매출장', buys: '매입장', accounts: '계정별합계' }[kind];
+    var who = (ledgerName(L.me && L.me.company_id) || '회계').replace(/[\\/:*?"<>|\s]+/g, '');
+    files.save(who + '_' + name + '_' + rg.from + '_' + rg.to + '.csv', Book.toCsv(out[kind]));
+    setState(name + ' 파일을 받았습니다.');
   }
 
   /** 처음 여는 탭 — 주소 #탭, 없으면 한눈에 */
@@ -3027,6 +3144,24 @@
       if (e.key === 'Enter') pick(e);
     });
     $('lgDrawerClose').addEventListener('click', closeDrawer);
+    $('lgExportOpen').addEventListener('click', openExport);
+    $('lgExClose').addEventListener('click', function () {
+      $('lgExport').hidden = true;
+    });
+    $('lgExRange').addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-range]') : null;
+      if (!b) return;
+      L.exportRange = b.getAttribute('data-range');
+      exError('');
+      renderExport();
+    });
+    ['lgExFrom', 'lgExTo'].forEach(function (id) {
+      $(id).addEventListener('change', renderExport);
+    });
+    $('lgExport').addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-csv]') : null;
+      if (b) downloadCsv(b.getAttribute('data-csv'));
+    });
     $('lgAdd').addEventListener('click', function () {
       openForm('create');
     });
@@ -3088,6 +3223,8 @@
     renderPhotosBox();
     $('lgTabs').hidden = false;
     $('lgNav').hidden = false;
+    $('lgTopActs').hidden = false;
+    renderMonthCard();
     mountBoard();
     var asked = new URLSearchParams(location.search).get('month') || '';
     await loadBook(MONTH_RE.test(asked) && asked <= thisMonth() ? asked : thisMonth());
@@ -3119,6 +3256,7 @@
     mustMarks: mustMarks,
     readyDocs: readyDocs,
     showTab: showTab,
+    files: files,
     heldFor: heldFor,
     compareText: compareText,
     poll: { tick: pollTick, stop: stopPoll, POLL_MS: POLL_MS },
