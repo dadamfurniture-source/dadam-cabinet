@@ -731,11 +731,35 @@
     (v.roles || []).forEach((r) => {
       const head = `<h3>${esc(r.label || r.role)} <span class="muted">${esc(r.done)}/${esc(r.total)}${r.must_left ? ` · 필수 남음 ${esc(r.must_left)}` : ''}</span></h3>`;
       const cells = (r.cells || []).map((c) => `<div class="ck-cell"><p class="muted fw-head">${esc(c.label)}</p>${(c.items || []).map((x) =>
-        `<label class="check${x.checked ? ' done' : ''}"><input type="checkbox" data-ck-role="${esc(r.role)}" data-ck-scope="${esc(c.scope_key)}" data-ck-item="${esc(x.key)}"${x.checked ? ' checked' : ''}${v.db_ready ? '' : ' disabled'} />` +
-        `<span>${esc(x.label)}${x.must ? '' : ' <small class="muted">권장</small>'}${x.photo === 'need' ? ' <small class="muted">사진 필수</small>' : ''}</span></label>`).join('')}</div>`).join('');
+        `<label class="check${x.checked ? ' done' : ''}"><input type="checkbox" data-ck-role="${esc(r.role)}" data-ck-scope="${esc(c.scope_key)}" data-ck-item="${esc(x.key)}" data-ck-photo="${esc(x.photo || 'none')}"${x.checked ? ' checked' : ''}${v.db_ready ? '' : ' disabled'} />` +
+        `<span>${esc(x.label)}${x.must ? '' : ' <small class="muted">권장</small>'}${x.photo === 'need' ? ' <small class="muted">사진 필수</small>' : ''}${x.has_photo ? ' <small class="muted">· 사진 있음</small>' : ''}</span></label>` +
+        (x.photo === 'opt' && !x.checked && v.db_ready ? `<button type="button" class="link ck-photo" data-act="ck-photo" data-ck-role="${esc(r.role)}" data-ck-scope="${esc(c.scope_key)}" data-ck-item="${esc(x.key)}">사진 붙여 체크</button>` : '')).join('')}</div>`).join('');
       parts.push(`<div class="card">${head}${cells || '<p class="empty">이 역할에 확인할 항목이 없습니다.</p>'}</div>`);
     });
+    if ((v.roles || []).some((r) => (r.cells || []).some((c) => (c.items || []).some((x) => x.photo === 'need' || x.photo === 'opt')))) {
+      parts.push('<p class="muted">사진 필수 항목은 체크하면 사진 고르기가 열립니다. 사진은 회사만 봅니다.</p>');
+    }
+    parts.push('<input type="file" id="ckPhotoFile" accept="image/jpeg,image/png" capture="environment" hidden />');
     return parts.join('');
+  }
+
+  /** 사진 줄이기 — 긴 변 2048px · JPEG (서버 한도 긴 변 2576 · 375만 화소 · 5MB 안에). 줄일 수 없으면 원본 (서버가 이유를 알려 준다) */
+  async function shrinkPhoto(file) {
+    const MAX = 2048;
+    try {
+      if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') return file;
+      const bmp = await createImageBitmap(file);
+      const k = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
+      if (k === 1 && file.size <= 4 * 1024 * 1024 && /^image\/(jpeg|png)$/.test(file.type)) return file;
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(bmp.width * k));
+      c.height = Math.max(1, Math.round(bmp.height * k));
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      const blob = await new Promise((ok) => c.toBlob(ok, 'image/jpeg', 0.85));
+      return blob || file;
+    } catch (e) {
+      return file;
+    }
   }
 
   /**
@@ -1370,6 +1394,14 @@
         renderRoute();
         return;
       }
+      if (what === 'ck-photo' && checks) {
+        sendCheck(b, true, true).catch(async (err) => {
+          if (await handleAuthError(err)) return;
+          say(err.message);
+          if (err.status === 409) await openChecks(checks.base);
+        });
+        return;
+      }
       if (!isUuid(id)) return;
       if (what === 'as-pack') {
         openPack(`/work/assignments/${id}/pack`);
@@ -1389,22 +1421,54 @@
       }
     });
 
-    // 필수 확인 체크 — 보내고 다시 받는다 (칸마다 마지막 줄이 지금 값). 지시서가 새 판이면(409) 새 판으로 다시 연다
+    // 필수 확인 체크 — 보내고 다시 받는다 (칸마다 마지막 줄이 지금 값). 지시서가 새 판이면(409) 새 판으로 다시 연다.
+    //   사진 필수 항목은 체크할 때 사진 고르기를 열고, 사진을 올린 뒤 그 경로를 붙여 체크한다 (취소하면 되돌린다)
+    /** 사진 한 장 올리기 → photo_path (본문 = 줄인 사진) */
+    async function uploadCheckPhoto(base, file) {
+      const t = await token();
+      if (!t) throw Object.assign(new Error('로그인이 필요합니다.'), { status: 401 });
+      const blob = await shrinkPhoto(file);
+      const res = await fetch(`${API}${base}/checks/photo`, { method: 'POST', headers: { Authorization: `Bearer ${t}`, 'Content-Type': blob.type || 'image/jpeg' }, body: blob, cache: 'no-store' });
+      let body = null;
+      try { body = await res.json(); } catch (e) { body = null; }
+      if (!res.ok || !body || !body.success) throw Object.assign(new Error((body && body.message) || `사진을 올리지 못했습니다 (${res.status})`), { status: res.status });
+      return body.data.photo_path;
+    }
+    /** 사진 고르기 창 — 고르면 File, 취소하면 null */
+    function pickPhoto() {
+      const input = $('ckPhotoFile');
+      if (!input) return Promise.resolve(null);
+      input.value = '';
+      return new Promise((ok) => {
+        const done = () => { window.removeEventListener('focus', onFocus); ok(input.files && input.files[0] ? input.files[0] : null); };
+        const onFocus = () => setTimeout(() => { if (!(input.files && input.files.length)) done(); }, 800);
+        input.onchange = done;
+        window.addEventListener('focus', onFocus);
+        input.click();
+      });
+    }
+    async function sendCheck(el, checked, withPhoto) {
+      const base = checks.base;
+      const body = { document_id: checks.data.document.id, role: el.getAttribute('data-ck-role'), scope_key: el.getAttribute('data-ck-scope'), item_key: el.getAttribute('data-ck-item'), checked };
+      if (checked && withPhoto) {
+        const file = await pickPhoto();
+        if (!file) throw Object.assign(new Error('사진을 고르지 않아 체크하지 않았습니다.'), { status: 0, quiet: true });
+        say('사진을 올리는 중…', true);
+        body.photo_path = await uploadCheckPhoto(base, file);
+      }
+      await api(`${base}/checks`, { method: 'POST', body });
+      await openChecks(base);
+    }
     appBody.addEventListener('change', async (e) => {
       const c = e.target && e.target.closest && e.target.closest('input[data-ck-item]');
       if (!c || !checks) return;
-      const base = checks.base;
       try {
-        await api(`${base}/checks`, {
-          method: 'POST',
-          body: { document_id: checks.data.document.id, role: c.getAttribute('data-ck-role'), scope_key: c.getAttribute('data-ck-scope'), item_key: c.getAttribute('data-ck-item'), checked: c.checked },
-        });
-        await openChecks(base);
+        await sendCheck(c, c.checked, c.getAttribute('data-ck-photo') === 'need');
       } catch (err) {
         c.checked = !c.checked;
         if (await handleAuthError(err)) return;
         say(err.message);
-        if (err.status === 409) await openChecks(base);
+        if (err.status === 409) await openChecks(checks.base);
       }
     });
 
