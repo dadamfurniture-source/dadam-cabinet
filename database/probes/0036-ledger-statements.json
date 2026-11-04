@@ -1,0 +1,263 @@
+{
+  "title": "0036 거래명세표 모아 붙이기 — 거래처 고르기(사진 · 열쇠) · 힌트(invoice_mode · separate 명세표는 증빙 경고 아님) · 모아 두기 · 되돌리기 · 모아 둔 목록 · 붙일 줄 · 맞춰 보기(공급가 · 합계, 장 수만큼) · 한 번에 붙이기 · 다름 알림 · 줄 취소 → 다시 모아 둠 · 고치기는 새 줄로 · 세금계산서 없음 알림 · 붙인 명세표 단가 변동 · 모두 서버만 (scripts/rls-probe.mjs)",
+  "ids": [
+    "company_x",
+    "company_y",
+    "doc_s1",
+    "doc_s2",
+    "doc_s3",
+    "doc_t1",
+    "doc_t2",
+    "doc_so",
+    "doc_y",
+    "entry_inv",
+    "entry_y"
+  ],
+  "users": [
+    "x_owner_user",
+    "x_staff_user",
+    "other_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active'), ({{company_y}}, 'partner', 'probe Y', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_x}}, {{x_staff_user}}, 'staff', 'active')",
+    "INSERT INTO public.ledger_entries (id, company_id, entry_date, direction, account, counterparty_name, counterparty_biz_no, amount, vat_amount, evidence_type, payment_method, source, created_by) VALUES ({{entry_inv}}, {{company_x}}, date '2026-10-31', 'expense', 'purchase.materials', '(주)가나목재', '1234567891', 1000000, 100000, 'tax_invoice', 'transfer', 'manual', {{x_owner_user}}), ({{entry_y}}, {{company_y}}, date '2026-10-31', 'expense', 'purchase.materials', '가나목재', '1234567891', 1000000, 100000, 'tax_invoice', 'transfer', 'manual', {{x_owner_user}})",
+    "INSERT INTO public.ledger_documents (id, company_id, uploaded_by, storage_path, mime, size_bytes, sha256, created_at) VALUES ({{doc_s1}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_s1}}::text, 'image/jpeg', 100, repeat('a', 64), now() - interval '60 minutes'), ({{doc_s2}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_s2}}::text, 'image/jpeg', 100, repeat('b', 64), now() - interval '59 minutes'), ({{doc_s3}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_s3}}::text, 'image/jpeg', 100, repeat('c', 64), now() - interval '58 minutes'), ({{doc_t1}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_t1}}::text, 'image/jpeg', 100, repeat('d', 64), now() - interval '57 minutes'), ({{doc_t2}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_t2}}::text, 'image/jpeg', 100, repeat('e', 64), now() - interval '56 minutes'), ({{doc_so}}, {{company_x}}, {{x_staff_user}}, 'probe/' || {{doc_so}}::text, 'image/jpeg', 100, repeat('f', 64), now() - interval '55 minutes'), ({{doc_y}}, {{company_y}}, {{x_staff_user}}, 'probe/' || {{doc_y}}::text, 'image/jpeg', 100, repeat('g', 64), now() - interval '54 minutes')",
+    "INSERT INTO public.ledger_extractions (document_id, company_id, attempt) VALUES ({{doc_s1}}, {{company_x}}, 1), ({{doc_s2}}, {{company_x}}, 1), ({{doc_s3}}, {{company_x}}, 1), ({{doc_t1}}, {{company_x}}, 1), ({{doc_t2}}, {{company_x}}, 1), ({{doc_so}}, {{company_x}}, 1), ({{doc_y}}, {{company_y}}, 1)",
+    "UPDATE public.ledger_extractions SET status = 'done', schema_version = 3, result = '{\"supplier_name\":\"가나목재\",\"supplier_biz_no\":\"123-45-67891\",\"issue_date\":\"2026-10-07\",\"evidence_type\":\"statement\",\"supply_amount\":300000,\"vat_amount\":30000,\"total_amount\":330000,\"approval_no\":null,\"items\":[{\"name\":\"자작합판 18T\",\"quantity\":10,\"unit_price\":30000,\"amount\":300000}],\"unsure\":[]}'::jsonb, checks = '{\"biz_no\":\"ok\",\"amounts\":\"ok\",\"items\":\"ok\",\"date\":\"ok\",\"multiple\":false,\"redacted\":0}'::jsonb, finished_at = now() - interval '2 hours' WHERE document_id = {{doc_s1}} AND status = 'running'",
+    "UPDATE public.ledger_extractions SET status = 'done', schema_version = 3, result = '{\"supplier_name\":\"가나목재\",\"supplier_biz_no\":\"123-45-67891\",\"issue_date\":\"2026-10-15\",\"evidence_type\":\"statement\",\"supply_amount\":500000,\"vat_amount\":50000,\"total_amount\":550000,\"approval_no\":null,\"items\":[],\"unsure\":[]}'::jsonb, checks = '{\"biz_no\":\"ok\",\"amounts\":\"ok\",\"items\":\"none\",\"date\":\"ok\",\"multiple\":false,\"redacted\":0}'::jsonb, finished_at = now() - interval '2 hours' WHERE document_id = {{doc_s2}} AND status = 'running'",
+    "UPDATE public.ledger_extractions SET status = 'done', schema_version = 3, result = '{\"supplier_name\":\"가나목재\",\"supplier_biz_no\":\"123-45-67891\",\"issue_date\":\"2026-10-24\",\"evidence_type\":\"statement\",\"supply_amount\":200000,\"vat_amount\":20000,\"total_amount\":220000,\"approval_no\":null,\"items\":[{\"name\":\"자작합판 18T\",\"quantity\":10,\"unit_price\":20000,\"amount\":200000}],\"unsure\":[]}'::jsonb, checks = '{\"biz_no\":\"ok\",\"amounts\":\"ok\",\"items\":\"ok\",\"date\":\"ok\",\"multiple\":false,\"redacted\":0}'::jsonb, finished_at = now() - interval '2 hours' WHERE document_id = {{doc_s3}} AND status = 'running'",
+    "UPDATE public.ledger_extractions SET status = 'done', schema_version = 3, result = '{\"supplier_name\":\"가나목재\",\"supplier_biz_no\":\"123-45-67891\",\"issue_date\":\"2026-10-28\",\"evidence_type\":\"statement\",\"supply_amount\":null,\"vat_amount\":0,\"total_amount\":550001,\"approval_no\":null,\"items\":[],\"unsure\":[]}'::jsonb, checks = '{\"biz_no\":\"ok\",\"amounts\":\"ok\",\"items\":\"none\",\"date\":\"ok\",\"multiple\":false,\"redacted\":0}'::jsonb, finished_at = now() - interval '2 hours' WHERE document_id = {{doc_t1}} AND status = 'running'",
+    "UPDATE public.ledger_extractions SET status = 'done', schema_version = 3, result = '{\"supplier_name\":\"가나목재\",\"supplier_biz_no\":\"123-45-67891\",\"issue_date\":\"2026-10-29\",\"evidence_type\":\"statement\",\"supply_amount\":null,\"vat_amount\":0,\"total_amount\":550001,\"approval_no\":null,\"items\":[],\"unsure\":[]}'::jsonb, checks = '{\"biz_no\":\"ok\",\"amounts\":\"ok\",\"items\":\"none\",\"date\":\"ok\",\"multiple\":false,\"redacted\":0}'::jsonb, finished_at = now() - interval '2 hours' WHERE document_id = {{doc_t2}} AND status = 'running'",
+    "UPDATE public.ledger_extractions SET status = 'done', schema_version = 3, result = '{\"supplier_name\":\"다라 철물\",\"supplier_biz_no\":null,\"issue_date\":\"2026-10-20\",\"evidence_type\":\"statement\",\"supply_amount\":50000,\"vat_amount\":5000,\"total_amount\":55000,\"approval_no\":null,\"items\":[],\"unsure\":[]}'::jsonb, checks = '{\"biz_no\":\"missing\",\"amounts\":\"ok\",\"items\":\"none\",\"date\":\"ok\",\"multiple\":false,\"redacted\":0}'::jsonb, finished_at = now() - interval '2 hours' WHERE document_id = {{doc_so}} AND status = 'running'",
+    "UPDATE public.ledger_extractions SET status = 'done', schema_version = 3, result = '{\"supplier_name\":\"가나목재\",\"supplier_biz_no\":\"123-45-67891\",\"issue_date\":\"2026-10-07\",\"evidence_type\":\"statement\",\"supply_amount\":300000,\"vat_amount\":30000,\"total_amount\":330000,\"approval_no\":null,\"items\":[],\"unsure\":[]}'::jsonb, checks = '{\"biz_no\":\"ok\",\"amounts\":\"ok\",\"items\":\"none\",\"date\":\"ok\",\"multiple\":false,\"redacted\":0}'::jsonb, finished_at = now() - interval '2 hours' WHERE document_id = {{doc_y}} AND status = 'running'"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "x_staff": {
+      "role": "authenticated",
+      "user": "x_staff_user"
+    },
+    "other": {
+      "role": "authenticated",
+      "user": "other_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "거래처 고르기는 서버만 — 사진(읽은 번호)으로 고르면 열쇠 · 모아 둘 후보(그 거래처 확인 기다리는 명세표)",
+      "sql": "select (r->>'key') || '/' || (r->>'mode') || '/' || jsonb_array_length(r->'candidates') from public.ledger_set_supplier_mode({{company_x}}, {{x_owner_user}}, {{doc_s1}}, null, 'separate') r",
+      "expect": {
+        "service_role": "b1234567891/separate/5",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "힌트 — 거래처 열쇠 · 고른 것, separate 명세표는 3만원 넘어도 증빙 경고 아님",
+      "sql": "select public.ledger_set_supplier_mode({{company_x}}, {{x_owner_user}}, {{doc_s1}}, null, 'separate'); select (h.hints->>'supplier_key') || '/' || (h.hints->>'invoice_mode') || '/' || (h.hints->>'evidence_risk') from public.ledger_review_hints({{company_x}}, array[{{doc_s2}}]) h",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "b1234567891/separate/false"
+      }
+    },
+    {
+      "name": "힌트 — 안 고른 거래처 명세표는 고른 것 없음 · 증빙 경고 그대로 (상호 열쇠)",
+      "sql": "select coalesce(h.hints->>'invoice_mode', 'none') || '/' || (h.hints->>'evidence_risk') || '/' || (h.hints->>'supplier_key') from public.ledger_review_hints({{company_x}}, array[{{doc_so}}]) h",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "none/true/n다라철물"
+      }
+    },
+    {
+      "name": "모아 두기는 서버만 — 그 업체 확인 기다림만 (다른 업체 사진은 그대로)",
+      "sql": "select public.ledger_hold_documents({{company_x}}, {{x_owner_user}}, array[{{doc_s1}}, {{doc_s2}}, {{doc_s3}}, {{doc_y}}])::text || '/' || (select d.review_status from public.ledger_documents d where d.id = {{doc_y}})",
+      "expect": {
+        "service_role": "3/pending",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "모아 둔 목록 — 장 수 · 공급가 합 · 열쇠 · 고른 것 (읽은 값)",
+      "sql": "select public.ledger_set_supplier_mode({{company_x}}, {{x_owner_user}}, {{doc_s1}}, null, 'separate'); select public.ledger_hold_documents({{company_x}}, {{x_owner_user}}, array[{{doc_s1}}, {{doc_s2}}, {{doc_s3}}]); select count(*) || '/' || sum(h.supply_amount) || '/' || min(h.supplier_key) || '/' || min(h.invoice_mode) from public.ledger_held_documents({{company_x}}) h",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "3/1000000/b1234567891/separate"
+      }
+    },
+    {
+      "name": "되돌리기 — held 만 pending 으로",
+      "sql": "select public.ledger_hold_documents({{company_x}}, {{x_owner_user}}, array[{{doc_s1}}, {{doc_s2}}, {{doc_s3}}]); select public.ledger_unhold_documents({{company_x}}, {{x_owner_user}}, array[{{doc_s1}}, {{doc_so}}]); select (select d.review_status from public.ledger_documents d where d.id = {{doc_s1}}) || '/' || (select d.review_status from public.ledger_documents d where d.id = {{doc_s2}}) || '/' || (select d.review_status from public.ledger_documents d where d.id = {{doc_so}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "pending/held/pending"
+      }
+    },
+    {
+      "name": "붙일 줄 — 그 거래처의 취소 안 한 지출 줄 (번호가 같으면 상호 꼴이 달라도), 다른 업체 줄 없음",
+      "sql": "select string_agg(e.amount::text || ':' || e.evidence_type, ',') from public.ledger_supplier_entries({{company_x}}, '1234567891', '가나목재', 20) e",
+      "expect": {
+        "service_role": "1000000:tax_invoice",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "맞춰 보기 — 공급가 합 = 세금계산서 공급가면 같음 (쓰지 않는다)",
+      "sql": "select (c->>'basis') || '/' || (c->>'statements') || '/' || (c->>'invoice') || '/' || (c->>'match') from public.ledger_statements_compare({{entry_inv}}, array[{{doc_s1}}, {{doc_s2}}, {{doc_s3}}]) c",
+      "expect": {
+        "service_role": "supply/1000000/1000000/true",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "맞춰 보기 — 하나 빠지면 다름 (차이)",
+      "sql": "select (c->>'basis') || '/' || (c->>'statements') || '/' || (c->>'diff') || '/' || (c->>'match') from public.ledger_statements_compare({{entry_inv}}, array[{{doc_s1}}, {{doc_s2}}]) c",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "supply/800000/-200000/false"
+      }
+    },
+    {
+      "name": "맞춰 보기 — 공급가 없는 명세표면 합계로, 장 수만큼 원 차이까지 같음 · 다른 업체 사진은 셈에 안 듦",
+      "sql": "select (c->>'basis') || '/' || (c->>'statements') || '/' || (c->>'diff') || '/' || (c->>'match') || '/' || (c->>'n') from public.ledger_statements_compare({{entry_inv}}, array[{{doc_t1}}, {{doc_t2}}, {{doc_y}}]) c",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "total/1100002/2/true/2"
+      }
+    },
+    {
+      "name": "붙이기는 서버만 — 모아 둔 명세표를 한 번에 그 줄의 증빙으로, 맞으면 알림 없음",
+      "sql": "select public.ledger_set_supplier_mode({{company_x}}, {{x_owner_user}}, {{doc_s1}}, null, 'separate'); select public.ledger_hold_documents({{company_x}}, {{x_owner_user}}, array[{{doc_s1}}, {{doc_s2}}, {{doc_s3}}]); select public.ledger_attach_statements({{entry_inv}}, {{x_owner_user}}, array[{{doc_s1}}, {{doc_s2}}, {{doc_s3}}]); select (select string_agg(d.review_status, ',' order by d.created_at) from public.ledger_documents d where d.id = any(array[{{doc_s1}}, {{doc_s2}}, {{doc_s3}}])) || '/' || (select count(*) from public.ledger_evidence ev where ev.entry_id = {{entry_inv}} and ev.role = 'supporting') || '/' || (select count(*) from public.ledger_notices n where n.company_id = {{company_x}} and n.kind = 'statement_mismatch')",
+      "expect": {
+        "service_role": "posted,posted,posted/3/0",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "붙이기 — 다르면 statement_mismatch 알림 하나 (아침 묶음)",
+      "sql": "select public.ledger_attach_statements({{entry_inv}}, {{x_owner_user}}, array[{{doc_s1}}, {{doc_s2}}]); select n.kind || ':' || n.urgency || ':' || (n.data->>'diff') || ':' || (n.data->>'n') from public.ledger_notices n where n.company_id = {{company_x}} and n.kind = 'statement_mismatch'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "statement_mismatch:digest:-200000:2"
+      }
+    },
+    {
+      "name": "붙이기 — 다른 업체 사진이 섞이면 하나도 안 붙임",
+      "sql": "select (r->>'reason') || '/' || jsonb_array_length(r->'documents') || '/' || (select count(*) from public.ledger_evidence ev where ev.entry_id = {{entry_inv}}) from public.ledger_attach_statements({{entry_inv}}, {{x_owner_user}}, array[{{doc_s1}}, {{doc_y}}]) r",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "not_attachable/1/0"
+      }
+    },
+    {
+      "name": "세금계산서 줄을 취소하면 (커밋 때) 붙은 명세표는 연결을 풀고 다시 모아 둠",
+      "sql": "set constraints all deferred; select public.ledger_set_supplier_mode({{company_x}}, {{x_owner_user}}, {{doc_s1}}, null, 'separate'); select public.ledger_hold_documents({{company_x}}, {{x_owner_user}}, array[{{doc_s1}}, {{doc_s2}}, {{doc_s3}}]); select public.ledger_attach_statements({{entry_inv}}, {{x_owner_user}}, array[{{doc_s1}}, {{doc_s2}}, {{doc_s3}}]); update public.ledger_entries set voided_at = now(), voided_by = {{x_owner_user}}, void_reason = 'probe' where id = {{entry_inv}}; set constraints all immediate; select (select string_agg(d.review_status, ',' order by d.created_at) from public.ledger_documents d where d.id = any(array[{{doc_s1}}, {{doc_s2}}, {{doc_s3}}])) || '/' || (select count(*) from public.ledger_evidence ev where ev.entry_id = {{entry_inv}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "held,held,held/0"
+      }
+    },
+    {
+      "name": "고치기 — 증빙이 새 줄로 옮겨 가서 명세표는 올림 그대로",
+      "sql": "set constraints all deferred; select public.ledger_set_supplier_mode({{company_x}}, {{x_owner_user}}, {{doc_s1}}, null, 'separate'); select public.ledger_hold_documents({{company_x}}, {{x_owner_user}}, array[{{doc_s1}}, {{doc_s2}}, {{doc_s3}}]); select public.ledger_attach_statements({{entry_inv}}, {{x_owner_user}}, array[{{doc_s1}}, {{doc_s2}}, {{doc_s3}}]); select public.ledger_correct_entry({{entry_inv}}, {{x_owner_user}}, '{\"description\":\"probe\"}'::jsonb, 'probe'); set constraints all immediate; select (select string_agg(d.review_status, ',' order by d.created_at) from public.ledger_documents d where d.id = any(array[{{doc_s1}}, {{doc_s2}}, {{doc_s3}}])) || '/' || (select count(*) from public.ledger_evidence ev join public.ledger_entries e on e.id = ev.entry_id where e.replaces_id = {{entry_inv}} and ev.role = 'supporting')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "posted,posted,posted/3"
+      }
+    },
+    {
+      "name": "명세표만 주는 곳으로 바꾸면 (열쇠로) 모아 둔 명세표는 확인 기다림으로",
+      "sql": "select public.ledger_set_supplier_mode({{company_x}}, {{x_owner_user}}, {{doc_s1}}, null, 'separate'); select public.ledger_hold_documents({{company_x}}, {{x_owner_user}}, array[{{doc_s1}}, {{doc_s2}}, {{doc_s3}}]); select public.ledger_set_supplier_mode({{company_x}}, {{x_owner_user}}, null, 'b1234567891', 'statement_only'); select string_agg(d.review_status, ',' order by d.created_at) from public.ledger_documents d where d.id = any(array[{{doc_s1}}, {{doc_s2}}, {{doc_s3}}])",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "pending,pending,pending"
+      }
+    },
+    {
+      "name": "세금계산서 없음 알림은 서버만 — 그 달 모아 둔 명세표, 거래처 · 달마다 하나 (다시 돌려도), 다른 달은 없음",
+      "sql": "select public.ledger_set_supplier_mode({{company_x}}, {{x_owner_user}}, {{doc_s1}}, null, 'separate'); select public.ledger_hold_documents({{company_x}}, {{x_owner_user}}, array[{{doc_s1}}, {{doc_s2}}, {{doc_s3}}]); select public.ledger_invoice_missing_scan(date '2026-10-01'); select public.ledger_invoice_missing_scan(date '2026-10-15'); select public.ledger_invoice_missing_scan(date '2026-11-01'); select string_agg(n.kind || ':' || n.urgency || ':' || (n.data->>'count') || ':' || (n.data->>'month') || ':' || (n.data->>'supply'), ',') from public.ledger_notices n where n.company_id = {{company_x}} and n.kind = 'invoice_missing'",
+      "expect": {
+        "service_role": "invoice_missing:digest:3:2026-10:1000000",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "단가 변동 — 세금계산서 줄에 붙인 명세표의 품목 단가도 비교",
+      "sql": "select public.ledger_set_supplier_mode({{company_x}}, {{x_owner_user}}, {{doc_s1}}, null, 'separate'); select public.ledger_hold_documents({{company_x}}, {{x_owner_user}}, array[{{doc_s1}}, {{doc_s2}}, {{doc_s3}}]); select public.ledger_attach_statements({{entry_inv}}, {{x_owner_user}}, array[{{doc_s1}}, {{doc_s2}}, {{doc_s3}}]); update public.ledger_documents set decided_at = now() - interval '10 minutes' where id = {{doc_s1}}; update public.ledger_documents set decided_at = now() - interval '5 minutes' where id = {{doc_s3}}; update public.ledger_documents set decided_at = now() - interval '7 minutes' where id = {{doc_s2}}; update public.ledger_notice_cursor set at = now() - interval '20 minutes'; select public.ledger_notices_scan(); select string_agg(n.kind || ':' || (n.data->>'old') || '>' || (n.data->>'new'), ',') from public.ledger_notices n where n.company_id = {{company_x}} and n.kind in ('price_change', 'evidence_risk')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "price_change:30000>20000"
+      }
+    },
+    {
+      "name": "거래처 고르기 표는 서버만",
+      "sql": "select count(*) from public.ledger_supplier_modes m where m.company_id = {{company_x}}",
+      "expect": {
+        "service_role": "0",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "사진 상태 — 모아 둠(held)이 더해지고, 없는 값은 거절",
+      "sql": "update public.ledger_documents set review_status = 'parked' where id = {{doc_s1}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "알림 종류 둘 — 아침 묶음만 (now 는 거절)",
+      "sql": "insert into public.ledger_notices (company_id, kind, urgency, dedupe_key) values ({{company_x}}, 'invoice_missing', 'now', 'probe')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "알림 종류 둘 — 아침 묶음이면 넣어짐",
+      "sql": "insert into public.ledger_notices (company_id, kind, urgency, dedupe_key) values ({{company_x}}, 'statement_mismatch', 'digest', 'probe')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    }
+  ]
+}
