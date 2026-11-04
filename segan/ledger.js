@@ -178,8 +178,9 @@
     [/^parse$/, 'AI 답을 알아보지 못했습니다'],
   ];
   // 수주 원가로 — 이 업체에 고를 수주가 없을 때 할 일
+  //   수주는 상세설계 업무 루프에서 고객이 승인한 확인서를 「수주 전환」해야 생긴다 (ERP 는 있는 수주만 본다 — workers/workflow-api createOrderFromDocument)
   var NO_ORDERS_HINT =
-    'ERP 에서 수주를 먼저 만들거나, 수주에 붙지 않는 돈이면 「올릴 곳」을 장부 줄로 바꿔 올려 주세요.';
+    '수주는 PC 상세설계 화면에서 고객이 승인한 확인서를 「수주 전환」해야 생깁니다. 수주에 붙지 않는 돈이면 「올릴 곳」을 장부 줄로 바꿔 올려 주세요.';
   var AMOUNT_KEYS = [
     'supply_amount',
     'vat_amount',
