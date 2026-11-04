@@ -80,8 +80,8 @@ let seq = 0;
 const uuid = () => `e0000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`;
 
 /** 가짜 DB — 부르는 쪽이 상태를 본다 */
-function makeDb({ entries = [], documents = [], settings = {}, book = [] } = {}) {
-  const state = { entries, documents, settings, book, uploads: [], rpc: [] };
+function makeDb({ entries = [], documents = [], settings = {}, book = [], orders = [] } = {}) {
+  const state = { entries, documents, settings, book, orders, orderQueries: [], uploads: [], rpc: [] };
   const params = (u) => new URL(u).searchParams;
   const eq = (q, key) => {
     const v = q.get(key);
@@ -112,6 +112,10 @@ function makeDb({ entries = [], documents = [], settings = {}, book = [] } = {})
       return json(LEVEL[body.p_company] || 'none');
     }
     if (path.startsWith('/ledger_accounts?')) return json(ACCOUNTS);
+    if (path.startsWith('/orders?')) {
+      state.orderQueries.push(Object.fromEntries(q));
+      return json(state.orders.filter((o) => match(q, o, ['company_id']) && (q.get('status') !== 'neq.cancelled' || o.status !== 'cancelled')));
+    }
     if (path.startsWith('/counterparties?')) {
       const rows = [
         { id: CP_MINE, company_id: CO, name: '한빛목재', biz_no: BIZ_OK },
@@ -492,6 +496,27 @@ test('GET /ledger/book — DB 함수 ledger_book(업체 · 범위 · 취소 줄)
   assert.equal(r.body.data.totals.expense_vat, 30000);
   const far = await call(db, '/ledger/book?from=2025-01-01&to=2026-11-30', OWNER);
   assert.equal(far.status, 422, far.text);
+});
+
+test('GET /ledger/orders — 자기 업체의 취소 안 한 수주만, 금액 칸 없이 · 직원은 403', async () => {
+  const db = makeDb({
+    orders: [
+      { id: 'o1', company_id: CO, order_no: 'DD-1', customer_name: '가*나', status: 'confirmed', ordered_at: '2026-11-02T00:00:00Z', contract_amount: 1000 },
+      { id: 'o2', company_id: CO, order_no: 'DD-2', customer_name: '다*라', status: 'cancelled', ordered_at: '2026-11-01T00:00:00Z' },
+      { id: 'o3', company_id: HQ, order_no: 'HQ-1', customer_name: '마*바', status: 'confirmed', ordered_at: '2026-11-03T00:00:00Z' },
+    ],
+  });
+  const r = await call(db, '/ledger/orders', OWNER);
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual(r.body.data.items, [{ id: 'o1', order_no: 'DD-1', customer_name: '가*나', status: 'confirmed', ordered_at: '2026-11-02T00:00:00Z' }]);
+  const [q] = db.orderQueries;
+  assert.equal(q.company_id, `eq.${CO}`);
+  assert.equal(q.order, 'ordered_at.desc');
+  assert.equal(q.limit, '200');
+  assert.equal(q.select.includes('amount'), false);
+  const staff = await call(db, '/ledger/orders', STAFF);
+  assert.equal(staff.status, 403, staff.text);
+  assert.equal(staff.body.code, 'not_money');
 });
 
 test('GET /ledger/accounts — 쓰는 계정만 차례대로', async () => {
