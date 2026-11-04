@@ -19,11 +19,13 @@
 ALTER TABLE public.designs ADD COLUMN IF NOT EXISTS source text;
 ALTER TABLE public.designs ADD COLUMN IF NOT EXISTS source_ref text;
 
+-- 하나만 채우면 정규식 검사가 NULL 이 되어 CHECK 를 통과하므로, 둘 다 있는지 먼저 본다
 ALTER TABLE public.designs DROP CONSTRAINT IF EXISTS designs_source_check;
 ALTER TABLE public.designs
     ADD CONSTRAINT designs_source_check CHECK (
         (source IS NULL AND source_ref IS NULL)
-        OR (source ~ '^[a-z0-9-]{1,32}$' AND source_ref ~ '^[A-Za-z0-9_.:-]{1,128}$')
+        OR (source IS NOT NULL AND source_ref IS NOT NULL
+            AND source ~ '^[a-z0-9-]{1,32}$' AND source_ref ~ '^[A-Za-z0-9_.:-]{1,128}$')
     );
 
 CREATE UNIQUE INDEX IF NOT EXISTS designs_source_ref_key ON public.designs USING btree (company_id, source, source_ref) WHERE (source IS NOT NULL);
