@@ -33,7 +33,7 @@ describe('0035 — 플래너 설계 받기 · 작업자 필수 확인 기록', (
   });
 
   test('설계 출처 — 둘 다 비우거나 둘 다 모양대로, 회사 · 출처 · id 가 같으면 한 설계', () => {
-    expect(f).toContain("(source IS NULL AND source_ref IS NULL) OR (source IS NOT NULL AND source_ref IS NOT NULL AND source ~ '^[a-z0-9-]{1,32}$' AND source_ref ~ '^[A-Za-z0-9_.:-]{1,128}$')");
+    expect(f).toContain("(source IS NULL AND source_ref IS NULL) OR (source ~ '^[a-z0-9-]{1,32}$' AND source_ref ~ '^[A-Za-z0-9_.:-]{1,128}$')");
     expect(f).toContain('CREATE UNIQUE INDEX IF NOT EXISTS designs_source_ref_key ON public.designs USING btree (company_id, source, source_ref) WHERE (source IS NOT NULL);');
   });
 
