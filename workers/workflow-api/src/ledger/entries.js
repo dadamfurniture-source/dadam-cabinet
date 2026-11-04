@@ -6,6 +6,8 @@
  *   POST /ledger/entries/:id/correct   고치기 — 원래 줄 취소 + 바꾼 칸만 다른 새 줄 (DB 함수 ledger_correct_entry)
  *   GET  /ledger/book                  장부 줄 + 수주 수금 + 수주 원가를 합친 것 (DB 함수 ledger_book) — 대표 · 실장, 자격 read 도
  *   GET  /ledger/accounts              계정 목록 (국세청 서식 항목 그대로 — ledger_accounts)
+ *   GET  /ledger/orders                사진을 수주 원가로 올릴 때 고르는 수주 — 자기 업체의 취소 안 한 수주만
+ *                                      (ledger_post_document 가 사진과 같은 업체 수주만 받는다. GET /orders 는 업체를 가리지 않는다)
  *   보기 주소(book · accounts)는 ?company= 를 받는다 — 본사 대표 · 실장이 공장 장부를 볼 때 (access.js)
  *
  * 쓰기는 asActor 로 부른다 — 바꾼 사람이 ledger_events 에 남는다.
@@ -17,6 +19,8 @@ import { parseEntryInput, reasonOf, idempotencyKeyOf, groupTakes, isDate, isUuid
 
 export const ENTRY_COLS =
   'id,seq,entry_date,direction,account,description,counterparty_id,counterparty_name,counterparty_biz_no,amount,vat_amount,evidence_type,payment_method,source,created_by,created_at,voided_at,voided_by,void_reason,replaces_id';
+/** 수주 고르기 목록 — 최근 수주부터 */
+export const ORDER_PICK_LIMIT = 200;
 /** 장부 보기 한 번에 — 1년 */
 export const BOOK_MAX_DAYS = 366;
 const MONTH_RE = /^\d{4}-\d{2}$/;
@@ -209,6 +213,20 @@ export async function getBook(env, { user, company, month, from, to, includeVoid
 }
 
 /** GET /ledger/accounts — 쓰는 계정만 */
+/** 수주 원가로 올릴 수주 — 대표 · 실장, 자기 업체(쓰기는 언제나 자기 업체). 금액 칸은 싣지 않는다 */
+export async function listLedgerOrders(env, { user }) {
+  const access = await ledgerAccess(env, user);
+  assertMoney(access);
+  const rows = (await selectMany(env, 'orders', {
+    select: 'id,order_no,customer_name,status,ordered_at',
+    company_id: `eq.${access.companyId}`,
+    status: 'neq.cancelled',
+    order: 'ordered_at.desc',
+    limit: String(ORDER_PICK_LIMIT),
+  })) || [];
+  return { items: rows.map(({ id, order_no, customer_name, status, ordered_at }) => ({ id, order_no, customer_name, status, ordered_at })) };
+}
+
 export async function listAccounts(env, { user, company }) {
   const access = await ledgerAccess(env, user, { company });
   assertMoney(access);
