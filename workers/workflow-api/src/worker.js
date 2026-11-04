@@ -6,6 +6,7 @@
  * 라우트 (W11-2 범위):
  *   GET  /health
  *   POST /designs/:designId/snapshots   — 설계+BOM 동결 (멱등)
+ *   POST /planner/designs               — 간편 플래너 설계 받기 → 앱 설계 찾거나 만들고 동결 (본사 대표 · 실장 · 관리자, src/planner-handoff.js)
  *   GET  /designs/:designId/snapshots   — 스냅샷 목록
  *   GET  /snapshots/:snapshotId         — 스냅샷 단건 (payload 포함)
  *   POST /snapshots/:snapshotId/quote   — 견적 재계산 미리보기 (저장 안 함)
@@ -75,6 +76,7 @@ import { getManagementSummary } from './management/service.js';
 import { createOutsourceOrder, listOutsourceOrders, loadCountertopContext } from './reports/outsource.js';
 import { renderReportPrint } from './templates/report-print.js';
 import { createSnapshot, listSnapshots, getSnapshotForViewer, previewQuote, quoteForViewer } from './snapshots.js';
+import { receivePlannerDesign } from './planner-handoff.js';
 import { getFrozenAssembly, uploadCadArtifact, listCadArtifacts, customerExteriorUrl } from './cad-artifacts.js';
 import {
   issueDocument,
@@ -1169,6 +1171,7 @@ const router = createRouter([
   { method: 'DELETE', path: '/push/subscriptions', auth: 'jwt',  handler: handleDeletePushSubscription },
 
   { method: 'POST', path: '/designs/:designId/snapshots', auth: 'jwt', handler: handleCreateSnapshot },
+  { method: 'POST', path: '/planner/designs', auth: 'jwt', handler: workRoute(receivePlannerDesign, 201) },
   { method: 'GET', path: '/designs/:designId/snapshots', auth: 'jwt', handler: handleListSnapshots },
   { method: 'GET', path: '/snapshots/:snapshotId', auth: 'jwt', handler: handleGetSnapshot },
   { method: 'POST', path: '/snapshots/:snapshotId/quote', auth: 'jwt', handler: handleQuotePreview },
