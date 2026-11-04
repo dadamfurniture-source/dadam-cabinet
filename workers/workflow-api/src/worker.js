@@ -133,6 +133,7 @@ import { listReview, postDocument, postBatch, decideDocument, rereadDocument, bu
 import { runExtractDue } from './ledger/extract.js';
 import { runLedgerNotices, listNotices, markNoticesSeen } from './ledger/notices.js';
 import { ledgerDashboard } from './ledger/dashboard.js';
+import { listSupplierModes, setSupplierMode, holdDocuments, listHeld, supplierEntries, attachStatements } from './ledger/statements.js';
 import { runLedgerPendingNotices } from './push/ledger-hooks.js';
 import { ledgerMe, getLedgerSettings, putLedgerSettings } from './ledger/settings.js';
 import {
@@ -794,6 +795,42 @@ async function handleLedgerDashboard(request, env, { user }) {
   return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
 }
 
+async function handleLedgerSuppliers(request, env, { user }) {
+  const company = new URL(request.url).searchParams.get('company') || undefined;
+  return jsonResponse(request, env, { success: true, data: await listSupplierModes(env, { user, company }) }, 200, NO_STORE);
+}
+
+async function handlePutLedgerSupplier(request, env, { user }) {
+  const body = await readJson(request);
+  return jsonResponse(request, env, { success: true, data: await setSupplierMode(env, { user, body }) }, 200, NO_STORE);
+}
+
+async function handleHoldLedgerDocuments(request, env, { user }) {
+  const body = await readJson(request);
+  return jsonResponse(request, env, { success: true, data: await holdDocuments(env, { user, body }) }, 200, NO_STORE);
+}
+
+async function handleUnholdLedgerDocuments(request, env, { user }) {
+  const body = await readJson(request);
+  return jsonResponse(request, env, { success: true, data: await holdDocuments(env, { user, body, release: true }) }, 200, NO_STORE);
+}
+
+async function handleLedgerHeld(request, env, { user }) {
+  const company = new URL(request.url).searchParams.get('company') || undefined;
+  return jsonResponse(request, env, { success: true, data: await listHeld(env, { user, company }) }, 200, NO_STORE);
+}
+
+async function handleLedgerHeldEntries(request, env, { user }) {
+  const q = new URL(request.url).searchParams;
+  const data = await supplierEntries(env, { user, company: q.get('company') || undefined, bizNo: q.get('biz_no'), nameKey: q.get('name_key') });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleAttachLedgerStatements(request, env, { params, user }) {
+  const body = await readJson(request);
+  return jsonResponse(request, env, { success: true, data: await attachStatements(env, { user, entryId: params.id, body }) }, 200, NO_STORE);
+}
+
 async function handleLedgerNotices(request, env, { user }) {
   const q = new URL(request.url).searchParams;
   const data = await listNotices(env, { user, company: q.get('company') || undefined, limit: q.get('limit') });
@@ -1279,6 +1316,13 @@ const router = createRouter([
   { method: 'GET',  path: '/ledger/business-status',    auth: 'jwt', handler: handleBusinessStatus },
   { method: 'GET',  path: '/ledger/notices',            auth: 'jwt', handler: handleLedgerNotices },
   { method: 'GET',  path: '/ledger/dashboard',          auth: 'jwt', handler: handleLedgerDashboard },
+  { method: 'GET',  path: '/ledger/suppliers',          auth: 'jwt', handler: handleLedgerSuppliers },
+  { method: 'PUT',  path: '/ledger/suppliers',          auth: 'jwt', handler: handlePutLedgerSupplier },
+  { method: 'POST', path: '/ledger/documents/hold',     auth: 'jwt', handler: handleHoldLedgerDocuments },
+  { method: 'POST', path: '/ledger/documents/unhold',   auth: 'jwt', handler: handleUnholdLedgerDocuments },
+  { method: 'GET',  path: '/ledger/held',               auth: 'jwt', handler: handleLedgerHeld },
+  { method: 'GET',  path: '/ledger/held/entries',       auth: 'jwt', handler: handleLedgerHeldEntries },
+  { method: 'POST', path: '/ledger/entries/:id/attach', auth: 'jwt', handler: handleAttachLedgerStatements },
   { method: 'POST', path: '/ledger/notices/seen',       auth: 'jwt', handler: handleLedgerNoticesSeen },
 
   // 거래처 · 공급처 (그 업체 대표 · 실장, 본사 목록은 관리자도)
