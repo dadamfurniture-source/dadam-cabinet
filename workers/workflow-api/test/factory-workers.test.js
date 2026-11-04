@@ -160,6 +160,8 @@ function makeDb(over = {}) {
       { id: 'D-HQ', user_id: HQ_OWNER, company_id: HQ },
       { id: 'D-MGR', user_id: HQ_MANAGER, company_id: HQ },
     ],
+    // 작업지시서 — 없으면 필수 확인 막기(check-state.js)는 지나간다
+    design_documents: [],
     // /work/me 배지 — 비어 있으면 행마다 거르지 않는다
     work_jobs: [],
     work_assignments: [],

@@ -190,6 +190,8 @@ import {
   assignmentPack,
   getAssignmentChecks,
   postAssignmentCheck,
+  postFactoryPhoto,
+  postAssignmentPhoto,
   getOrderChecks,
 } from './work/checks.js';
 import { acceptConsultation, listMyProjects } from './projects.js';
@@ -1197,6 +1199,11 @@ async function handleMyProjects(request, env, { user }) {
 /** 작업자 이름 · 휴대폰이 담길 수 있어 중간 캐시 · 브라우저 캐시에 남기지 않는다 */
 const NO_STORE = { 'Cache-Control': 'no-store, private' };
 
+/** src/work/* 본문을 그대로 읽는 함수 (env, { user, params, request }) → data (작업자 필수 확인 사진 — work/checks.js) */
+function rawRoute(fn, status = 200) {
+  return async (request, env, { params, user }) => jsonResponse(request, env, { success: true, data: await fn(env, { user, params, request }) }, status, NO_STORE);
+}
+
 /** src/work/* HTML 함수 (env, { user, params, query }) → 인쇄 화면 (작업자 꾸러미 — work/checks.js) */
 function htmlRoute(fn) {
   return async (request, env, { params, user }) => htmlResponse(request, env, await fn(env, { user, params, query: queryOf(request) }));
@@ -1410,9 +1417,11 @@ const router = createRouter([
   { method: 'GET',   path: '/work/factory/orders/:orderId/pack',      auth: 'jwt', handler: htmlRoute(factoryPack) },
   { method: 'GET',   path: '/work/factory/orders/:orderId/checks',    auth: 'jwt', handler: workRoute(getFactoryChecks) },
   { method: 'POST',  path: '/work/factory/orders/:orderId/checks',    auth: 'jwt', handler: workRoute(postFactoryCheck, 201) },
+  { method: 'POST',  path: '/work/factory/orders/:orderId/checks/photo', auth: 'jwt', handler: rawRoute(postFactoryPhoto, 201) },
   { method: 'GET',   path: '/work/assignments/:id/pack',              auth: 'jwt', handler: htmlRoute(assignmentPack) },
   { method: 'GET',   path: '/work/assignments/:id/checks',            auth: 'jwt', handler: workRoute(getAssignmentChecks) },
   { method: 'POST',  path: '/work/assignments/:id/checks',            auth: 'jwt', handler: workRoute(postAssignmentCheck, 201) },
+  { method: 'POST',  path: '/work/assignments/:id/checks/photo',      auth: 'jwt', handler: rawRoute(postAssignmentPhoto, 201) },
   { method: 'GET',   path: '/production/factory-workers',             auth: 'jwt', handler: workRoute(listFactoryWorkers) },
   { method: 'POST',  path: '/production/factory-workers',             auth: 'jwt', handler: workRoute(assignFactoryWorker, 201) },
   { method: 'POST',  path: '/production/factory-workers/:id/end',     auth: 'jwt', handler: workRoute(endFactoryWorker) },
