@@ -363,7 +363,7 @@ function mount({ session = true, routes = {}, hash = '' } = {}) {
   global.fetch = jest.fn(async (url, opts = {}) => {
     const p = url.replace(API, '');
     const method = opts.method || 'GET';
-    const call = { method, path: p, body: opts.body ? JSON.parse(opts.body) : null, auth: opts.headers && opts.headers.Authorization };
+    const call = { method, path: p, body: typeof opts.body === 'string' ? JSON.parse(opts.body) : opts.body || null, auth: opts.headers && opts.headers.Authorization, type: opts.headers && opts.headers['Content-Type'] };
     if (opts.headers && opts.headers['X-Worker-Token']) call.worker = opts.headers['X-Worker-Token'];
     calls.push(call);
     const hit = routes[`${method} ${p}`];
@@ -1031,6 +1031,9 @@ describe('공장 (순수)', () => {
     expect(box.textContent).toContain('사진 필수');
     expect(box.textContent).toContain('이 역할에 확인할 항목이 없습니다.');
     expect(box.querySelector('[data-act="ck-back"]')).not.toBe(null);
+    expect([...inputs].map((i) => i.getAttribute('data-ck-photo'))).toEqual(['none', 'need']);
+    expect(box.querySelector('#ckPhotoFile')).not.toBe(null);
+    expect(box.textContent).toContain('사진 필수 항목은 체크하면 사진 고르기가 열립니다');
     document.body.innerHTML = `<div id="y">${P.checksHtml({ ...v, db_ready: false })}</div>`;
     expect([...document.querySelectorAll('#y input[data-ck-item]')].every((i) => i.disabled)).toBe(true);
     expect(document.getElementById('y').textContent).toContain('저장 준비가 안 되어');
@@ -1201,6 +1204,51 @@ describe('페이지 — 공장 탭', () => {
     document.querySelector('[data-act="ck-back"]').click();
     await settle();
     expect(document.querySelector('[data-act="fw-checks"]')).not.toBe(null);
+  });
+
+  test('필수 확인 사진 — 사진 필수 항목은 체크하면 사진 고르기 → 올리기 → 경로를 붙여 체크, 고르지 않으면 되돌린다', async () => {
+    let checked = false;
+    const view = () => ({ data: {
+      order_label: '홍*동 (SO-1)', document: { id: 'doc-1', doc_no: 'WO-1', rev: 1 }, list_version: 'v1', db_ready: true,
+      roles: [{ role: 'assembly', label: '조립', done: checked ? 1 : 0, total: 1, must_left: 0, cells: [{ scope_key: 'module:0:0', label: '싱크대 · 1 도어장', items: [
+        { key: 'asm-module-photo', label: '포장 전 정면 사진', must: false, photo: 'need', checked, has_photo: checked },
+      ] }] }],
+    } });
+    const calls = mount({
+      hash: '#tab=factory',
+      routes: {
+        'GET /work/me': FACTORY_ME,
+        'GET /work/factory': { data: factoryData() },
+        [`GET /work/factory/orders/${O1}/checks`]: view,
+        [`POST /work/factory/orders/${O1}/checks/photo`]: { status: 201, data: { photo_path: 'co/o/d/11111111-1111-4111-8111-111111111111.jpg' } },
+        [`POST /work/factory/orders/${O1}/checks`]: () => { checked = true; return { status: 201, data: { checked: true } }; },
+      },
+    });
+    await settle();
+    document.querySelector(`[data-act="fw-checks"][data-order="${O1}"]`).click();
+    await settle();
+    const input = document.getElementById('ckPhotoFile');
+    expect(input).not.toBe(null);
+    expect(input.getAttribute('accept')).toBe('image/jpeg,image/png');
+    // 고르지 않음 (창을 닫음) → 되돌린다
+    input.click = () => { Object.defineProperty(input, 'files', { configurable: true, value: [] }); input.onchange(); };
+    document.querySelector('input[data-ck-item="asm-module-photo"]').click();
+    await settle();
+    expect(document.querySelector('input[data-ck-item="asm-module-photo"]').checked).toBe(false);
+    expect(calls.some((c) => c.path.endsWith('/checks/photo'))).toBe(false);
+    // 고름 → 올리고 체크
+    const file = new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], 'a.jpg', { type: 'image/jpeg' });
+    const again = () => document.getElementById('ckPhotoFile');
+    again().click = function () { Object.defineProperty(this, 'files', { configurable: true, value: [file] }); this.onchange(); };
+    document.querySelector('input[data-ck-item="asm-module-photo"]').click();
+    await settle();
+    const up = calls.find((c) => c.method === 'POST' && c.path === `/work/factory/orders/${O1}/checks/photo`);
+    expect(up.auth).toBe('Bearer jwt-test');
+    expect(up.type).toBe('image/jpeg');
+    expect(calls.find((c) => c.method === 'POST' && c.path === `/work/factory/orders/${O1}/checks`).body).toEqual({
+      document_id: 'doc-1', role: 'assembly', scope_key: 'module:0:0', item_key: 'asm-module-photo', checked: true, photo_path: 'co/o/d/11111111-1111-4111-8111-111111111111.jpg',
+    });
+    expect(document.getElementById('appBody').textContent).toContain('사진 있음');
   });
 
   test('이 기기에 생산 링크가 있고 배정이 없으면 — 「내 계정에 잇기」, 이으면 링크를 지우고 공장 화면', async () => {
