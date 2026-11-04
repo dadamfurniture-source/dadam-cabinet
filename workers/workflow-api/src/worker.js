@@ -125,7 +125,7 @@ import {
   assertHqProduction,
 } from './production/service.js';
 import { getBooksSummary } from './books.js';
-import { createEntry, voidEntry, correctEntry, getBook, listAccounts } from './ledger/entries.js';
+import { createEntry, voidEntry, correctEntry, getBook, listAccounts, listLedgerOrders } from './ledger/entries.js';
 import { uploadDocument, listDocuments as listLedgerDocuments } from './ledger/documents.js';
 import { listReview, postDocument, postBatch, decideDocument, rereadDocument, businessStatus } from './ledger/review.js';
 import { runExtractDue } from './ledger/extract.js';
@@ -676,6 +676,10 @@ async function handleLedgerMe(request, env, { user }) {
 async function handleLedgerAccounts(request, env, { user }) {
   const company = new URL(request.url).searchParams.get('company') || undefined;
   return jsonResponse(request, env, { success: true, data: await listAccounts(env, { user, company }) }, 200, NO_STORE);
+}
+
+async function handleLedgerOrders(request, env, { user }) {
+  return jsonResponse(request, env, { success: true, data: await listLedgerOrders(env, { user }) }, 200, NO_STORE);
 }
 
 async function handleLedgerBook(request, env, { user }) {
@@ -1240,6 +1244,7 @@ const router = createRouter([
   { method: 'GET',  path: '/ledger/me',                 auth: 'jwt', handler: handleLedgerMe },
   { method: 'GET',  path: '/ledger/accounts',           auth: 'jwt', handler: handleLedgerAccounts },
   { method: 'GET',  path: '/ledger/book',               auth: 'jwt', handler: handleLedgerBook },
+  { method: 'GET',  path: '/ledger/orders',             auth: 'jwt', handler: handleLedgerOrders },
   { method: 'GET',  path: '/ledger/settings',           auth: 'jwt', handler: handleGetLedgerSettings },
   { method: 'PUT',  path: '/ledger/settings',           auth: 'jwt', handler: handlePutLedgerSettings },
   { method: 'POST', path: '/ledger/entries',            auth: 'jwt', handler: handleCreateLedgerEntry },
