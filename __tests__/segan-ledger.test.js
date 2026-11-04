@@ -164,16 +164,35 @@ async function load(options = {}) {
     suppliers: () => ok({ available: true, items: [] }),
     attach: () => ok({ attached: 0, compare: { n: 0 }, dry_run: true }),
     hold: () => ok({ held: 0 }),
+    // 한눈에 탭 (ledger-board.js) — 처음 여는 탭
+    dash: () =>
+      ok({
+        available: true,
+        vat_type: 'general',
+        months: [],
+        accounts: [],
+        suppliers: [],
+        pending_photos: 0,
+        held_statements: 0,
+      }),
+    booksSummary: () => ok({ months: [], outstanding: { total: 0, count: 0 }, upcoming: [] }),
     ...options,
   };
   jest.spyOn(Date, 'now').mockReturnValue(NOW);
-  window.history.replaceState(null, '', '/segan/ledger.html');
+  window.history.replaceState(null, '', '/segan/ledger.html' + (opts.search || ''));
   const doc = new DOMParser().parseFromString(read('segan/ledger.html'), 'text/html');
   document.body.innerHTML = doc.body.innerHTML;
   for (const a of [...document.body.attributes]) document.body.removeAttribute(a.name);
   for (const a of [...doc.body.attributes]) document.body.setAttribute(a.name, a.value);
   sessionStorage.clear();
-  for (const k of ['AdminAccess', 'DadamMyPageWork', 'SeganShell', 'SeganLedger']) delete window[k];
+  for (const k of [
+    'AdminAccess',
+    'DadamMyPageWork',
+    'SeganShell',
+    'SeganLedger',
+    'SeganLedgerBoard',
+  ])
+    delete window[k];
   window.DADAM_CONFIG = {
     supabase: { url: 'https://example.supabase.co', anonKey: 'anon' },
     workflowApi: { url: WORK },
@@ -200,6 +219,8 @@ async function load(options = {}) {
       if (r instanceof Error) throw r;
       return { ok: r.ok, status: r.status, json: async () => r.body };
     };
+    if (url.startsWith(WORK + '/ledger/dashboard')) return reply(opts.dash(url));
+    if (url.startsWith(WORK + '/books/summary')) return reply(opts.booksSummary(url));
     if (url.startsWith(WORK + '/ledger/me'))
       return reply(typeof opts.me === 'function' ? opts.me(url) : opts.me);
     if (url === WORK + '/ledger/accounts') return reply(opts.accounts);
@@ -226,6 +247,7 @@ async function load(options = {}) {
     (0, eval)(read(src.slice(3).split('?')[0]));
   }
   (0, eval)(read('segan/shell.js'));
+  (0, eval)(read('segan/ledger-board.js'));
   (0, eval)(read('segan/ledger.js'));
   await window.SeganShell.ready;
   await window.SeganLedger.ready;
@@ -258,7 +280,7 @@ describe('보기', () => {
   test('대표 — 안내 · 과세 설정 · 달 요약 · 장부 줄 (취소한 줄은 감춘다)', async () => {
     const calls = await load();
     expect($('lgKeep').textContent).toContain('종이 원본은 5년 보관');
-    expect($('lgBody').hidden).toBe(false);
+    expect($('lgTabs').hidden).toBe(false);
     expect($('lgTaxNote').textContent).toBe('일반과세 · 제조');
     expect($('lgMonth').textContent).toBe('2026년 11월');
     expect($('lgNext').disabled).toBe(true);
@@ -302,7 +324,11 @@ describe('보기', () => {
     const calls = await load();
     $('lgPrev').click();
     await flush();
-    expect(calls.at(-1).url).toBe(WORK + '/ledger/book?month=2026-10&include_void=1');
+    const books = calls.filter((c) => c.url.startsWith(WORK + '/ledger/book'));
+    expect(books.at(-1).url).toBe(WORK + '/ledger/book?month=2026-10&include_void=1');
+    // 한눈에 탭도 같은 달로
+    const dash = calls.filter((c) => c.url.startsWith(WORK + '/ledger/dashboard'));
+    expect(dash.at(-1).url).toBe(WORK + '/ledger/dashboard?month=2026-10&months=12');
     expect($('lgMonth').textContent).toBe('2026년 10월');
     expect($('lgList').textContent).toContain('이 달 장부 줄이 없습니다');
     $('lgNext').click();
@@ -328,12 +354,12 @@ describe('보기', () => {
         '장부는 업체 대표 · 실장만 봅니다.',
       ],
       [fail(403, 'not_member', 'x'), '장부는 업체 구성원만 씁니다.'],
-      [fail(403, 'not_entitled', 'x'), '장부는 Agent 업체가 씁니다.'],
+      [fail(403, 'not_entitled', 'x'), '회계는 Expert · Agent 업체가 씁니다.'],
       [fail(500, '', 'x'), '장부를 불러오지 못했습니다.'],
     ]) {
       const calls = await load({ me });
       expect($('lgState').textContent).toBe(text);
-      expect($('lgBody').hidden).toBe(true);
+      expect($('lgTabs').hidden).toBe(true);
       expect($('lgPhotos').hidden).toBe(true);
       expect(ledgerCalls(calls).map((c) => c.url)).toEqual([WORK + '/ledger/me']);
       jest.restoreAllMocks();
@@ -349,6 +375,106 @@ describe('보기', () => {
     expect($('lgList').querySelector('[data-act]')).toBeNull();
     expect($('lgPhotos').hidden).toBe(false);
     expect($('lgUp').hidden).toBe(true);
+  });
+});
+
+describe('탭 (한눈에 · 매출 · 매입 · 사진 · 설정)', () => {
+  const tabOn = () =>
+    document.querySelector('#lgTabs [aria-selected="true"]').getAttribute('data-tab');
+  const shown = () =>
+    ['lgPaneBoard', 'lgPaneBook', 'lgPanePhotos', 'lgPaneSettings'].filter((id) => !$(id).hidden);
+  const click = async (tab) => {
+    document.querySelector('#lgTabs [data-tab="' + tab + '"]').click();
+    await flush();
+  };
+
+  test('처음은 한눈에 — 같은 달 대시보드 · 수주 요약, 매출 · 매입은 한 장부를 방향으로 나눠 보인다', async () => {
+    const calls = await load();
+    expect($('lgTabs').hidden).toBe(false);
+    expect(tabOn()).toBe('board');
+    expect(shown()).toEqual(['lgPaneBoard']);
+    expect(calls.find((c) => c.url.startsWith(WORK + '/ledger/dashboard')).url).toBe(
+      WORK + '/ledger/dashboard?month=2026-11&months=12'
+    );
+    expect($('lbBody').hidden).toBe(false);
+    await click('sales');
+    expect(shown()).toEqual(['lgPaneBook']);
+    expect($('lgBookTitle').textContent).toBe('매출 — 받은 돈 · 수입');
+    expect(items().map((li) => li.getAttribute('data-id'))).toEqual(['p1']);
+    $('lgAdd').click();
+    expect($('lgDir').value).toBe('income');
+    $('lgCancel').click();
+    await click('buys');
+    expect($('lgBookTitle').textContent).toBe('매입 — 낸 돈 · 비용');
+    expect(items().map((li) => li.getAttribute('data-id'))).toEqual([E1, 'c1']);
+    $('lgAdd').click();
+    expect($('lgDir').value).toBe('expense');
+    await click('settings');
+    expect(shown()).toEqual(['lgPaneSettings']);
+    expect($('lgTaxNote').textContent).toBe('일반과세 · 제조');
+    // 다시 한눈에 — 그린 달이면 다시 묻지 않는다
+    const n = calls.filter((c) => c.url.startsWith(WORK + '/ledger/dashboard')).length;
+    await click('board');
+    expect(calls.filter((c) => c.url.startsWith(WORK + '/ledger/dashboard')).length).toBe(n);
+  });
+
+  test('주소 #photos · ?month= 로 열기 — 사진 판 · 그 달, 사진 탭 옆에 확인할 사진 수, 알림 한 줄은 누르면 닫는다', async () => {
+    const rv = (n) => ({
+      id: 'r' + n,
+      created_at: '2026-11-02T0' + n + ':00:00Z',
+      review_status: 'pending',
+      note: null,
+      photo_url: null,
+      photo_expires_in: 600,
+      extraction: null,
+    });
+    const calls = await load({
+      search: '?month=2026-09#photos',
+      review: () => ok({ items: [rv(1), rv(2)], level: 'full', viewing: false }),
+    });
+    expect(tabOn()).toBe('photos');
+    expect(shown()).toEqual(['lgPanePhotos']);
+    expect($('lgMonth').textContent).toBe('2026년 9월');
+    expect(calls.find((c) => c.url.startsWith(WORK + '/ledger/book')).url).toBe(
+      WORK + '/ledger/book?month=2026-09&include_void=1'
+    );
+    expect(calls.some((c) => c.url.startsWith(WORK + '/ledger/dashboard'))).toBe(false);
+    expect($('lgTabPhotosN').hidden).toBe(false);
+    expect($('lgTabPhotosN').textContent).toBe('2');
+    $('lgState').textContent = '저장했습니다.';
+    $('lgState').click();
+    expect($('lgState').textContent).toBe('');
+  });
+
+  test('한눈에의 막대를 누르면 화면 전체의 달이 바뀐다 (장부 · 한눈에)', async () => {
+    const calls = await load();
+    window.SeganLedgerBoard.state.onMonth('2026-10');
+    await flush();
+    expect($('lgMonth').textContent).toBe('2026년 10월');
+    expect(calls.filter((c) => c.url.startsWith(WORK + '/ledger/book')).at(-1).url).toBe(
+      WORK + '/ledger/book?month=2026-10&include_void=1'
+    );
+    expect(calls.filter((c) => c.url.startsWith(WORK + '/ledger/dashboard')).at(-1).url).toBe(
+      WORK + '/ledger/dashboard?month=2026-10&months=12'
+    );
+  });
+
+  test('직원 — 탭 없이 사진 판만 (한눈에 · 장부를 묻지 않는다)', async () => {
+    const calls = await load({
+      me: ok({
+        ...ME,
+        role: 'staff',
+        money: false,
+        can_upload: true,
+        can_write: false,
+        tax: undefined,
+      }),
+      docs: () => ok({ items: [], money: false }),
+    });
+    expect($('lgTabs').hidden).toBe(true);
+    expect($('lgPanePhotos').hidden).toBe(false);
+    expect($('lgPaneBoard').hidden).toBe(true);
+    expect(calls.some((c) => /\/ledger\/(dashboard|book)/.test(c.url))).toBe(false);
   });
 });
 
@@ -680,7 +806,7 @@ describe('사진', () => {
         }),
     });
     expect($('lgTitle').textContent).toBe('영수증 올리기');
-    expect($('lgBody').hidden).toBe(true);
+    expect($('lgTabs').hidden).toBe(true);
     expect($('lgPhotos').hidden).toBe(false);
     expect($('lgUp').hidden).toBe(false);
     expect($('lgPhotosNote').textContent).toContain('금액은 대표 · 실장만 봅니다');

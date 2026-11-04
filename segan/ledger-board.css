@@ -40,6 +40,11 @@
   font-size: 18px;
 }
 
+/* 장부 화면 「한눈에」 판 — 달 바꾸기는 장부 머리가 한다 */
+.lb-embedded .lb-nav {
+  display: none;
+}
+
 .lb-basis {
   color: var(--v5-ink-62);
   font-size: 12px;

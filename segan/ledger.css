@@ -11,11 +11,6 @@
   --lg-crit: #93301f; /* 중복 · 폐업 */
 }
 
-.lg-board-link {
-  display: inline-block;
-  margin: 0 0 12px;
-}
-
 .lg-keep {
   margin: 0 0 16px;
   padding: 10px 12px;
@@ -26,11 +21,156 @@
   font-weight: 400;
 }
 
+/* 알림 한 줄 — 화면 아래(폰은 아래 탭 위)에 띄운다, 누르면 닫는다 */
 .lg-state {
-  min-height: 1em;
-  margin: 0 0 12px;
-  color: var(--v5-ink-62);
+  position: fixed;
+  bottom: calc(var(--sg-tab) + env(safe-area-inset-bottom) + 12px);
+  left: 50%;
+  z-index: 45;
+  max-width: min(560px, calc(100% - 32px));
+  margin: 0;
+  padding: 10px 14px;
+  transform: translateX(-50%);
+  background: var(--v5-ink);
+  color: var(--v5-invert);
   font-size: 13px;
+  cursor: pointer;
+}
+
+.lg-state:empty {
+  display: none;
+}
+
+/* 머리 — 장부 고르기 · 달 · 보기만 */
+.lg-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+}
+
+.lg-top .lg-switch,
+.lg-top .lg-nav,
+.lg-top .lg-readonly {
+  margin: 0;
+}
+
+.lg-top .lg-readonly {
+  flex-basis: 100%;
+}
+
+/* 탭 — 폰은 위 가로 줄(붙어 있음), PC 는 왼쪽 세로 메뉴 */
+.lg-shell {
+  display: grid;
+  gap: 16px;
+}
+
+/* 탭 줄 · 판이 화면 폭을 늘리지 않게 (가로로 넘치면 탭 줄 안에서 민다) */
+.lg-shell > * {
+  min-width: 0;
+}
+
+.lg-tabs {
+  position: sticky;
+  top: calc(var(--sg-bar) + env(safe-area-inset-top));
+  z-index: 5;
+  display: flex;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--v5-line-18);
+  background: var(--v5-invert);
+}
+
+.lg-tab {
+  flex: 1 0 auto;
+  padding: 11px 8px;
+  border: 0;
+  background: none;
+  color: var(--v5-ink-62);
+  font: inherit;
+  font-size: 14px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lg-tab[aria-selected='true'] {
+  color: var(--v5-navy);
+  font-weight: 500;
+  box-shadow: inset 0 -2px 0 var(--v5-navy);
+}
+
+.lg-tab:focus-visible {
+  outline: 2px solid var(--v5-navy);
+  outline-offset: -2px;
+}
+
+.lg-tab-n {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 2px;
+  padding: 0 5px;
+  background: var(--lg-warn-bg);
+  color: var(--lg-warn);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-panes {
+  min-width: 0;
+}
+
+.lg-pane-title {
+  margin: 0 0 12px;
+  font-size: 17px;
+  font-weight: 400;
+}
+
+@media (min-width: 768px) {
+  .lg-state {
+    bottom: 24px;
+  }
+
+  .lg-tabs {
+    top: 88px;
+  }
+}
+
+@media (min-width: 900px) {
+  .lg-shell {
+    grid-template-areas:
+      'top top'
+      'tabs panes';
+    grid-template-columns: 168px minmax(0, 1fr);
+    gap: 20px 32px;
+    align-items: start;
+  }
+
+  .lg-top {
+    grid-area: top;
+  }
+
+  .lg-tabs {
+    grid-area: tabs;
+    flex-direction: column;
+    top: 104px;
+    overflow: visible;
+    border-right: 1px solid var(--v5-line-18);
+    border-bottom: 0;
+  }
+
+  .lg-tab {
+    flex: none;
+    padding: 12px 16px;
+    text-align: left;
+  }
+
+  .lg-tab[aria-selected='true'] {
+    background: var(--v5-well);
+    box-shadow: inset 3px 0 0 var(--v5-navy);
+  }
+
+  .lg-panes {
+    grid-area: panes;
+  }
 }
 
 .lg-readonly {
