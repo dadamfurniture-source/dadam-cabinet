@@ -1268,3 +1268,38 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ── 사진 판 — 상태 거름 · 사진 확인 창 PC 두 단 ── */
+/* 폰은 한 줄 — 넘치면 옆으로 민다 */
+.lg-ph-seg {
+  display: flex;
+  max-width: 100%;
+  margin: 0 0 12px;
+  overflow-x: auto;
+}
+
+.lg-ph-seg .lg-seg-btn {
+  flex: 0 0 auto;
+}
+
+@media (min-width: 1100px) {
+  .lg-sheet {
+    max-width: 1080px;
+  }
+
+  .lg-rv-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+
+  .lg-rv-left {
+    position: sticky;
+    top: 0;
+  }
+
+  .lg-rv-photo img {
+    max-height: 70vh;
+  }
+}

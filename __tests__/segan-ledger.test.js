@@ -656,6 +656,96 @@ describe('매출 · 매입 표', () => {
   });
 });
 
+describe('사진 판 (올리기 · 상태 거름 · 직접 적기)', () => {
+  const rv = (n, extraction = null) => ({
+    id: 'r' + n,
+    created_at: '2026-11-02T0' + n + ':00:00Z',
+    review_status: 'pending',
+    note: null,
+    photo_url: null,
+    photo_expires_in: 600,
+    extraction,
+  });
+  const chips = () => [...$('lgPhChips').querySelectorAll('[data-ph]')];
+
+  test('상태 거름 — 확인 기다림(수)은 확인할 사진, 나머지는 그 상태의 올린 사진을 묻는다', async () => {
+    const calls = await load({
+      search: '#photos',
+      review: () => ok({ items: [rv(1), rv(2)], level: 'full', viewing: false }),
+    });
+    expect($('lgPhChips').hidden).toBe(false);
+    expect(chips().map((b) => b.textContent)).toEqual([
+      '확인 기다림 2',
+      '장부에 올림',
+      '돌려보냄',
+      '쓰지 않음',
+      '전체',
+    ]);
+    expect($('lgReview').hidden).toBe(false);
+    expect($('lgDocsBox').hidden).toBe(true);
+    chips()[2].click();
+    await flush();
+    expect($('lgReview').hidden).toBe(true);
+    expect($('lgDocsBox').hidden).toBe(false);
+    expect($('lgDocsTitle').textContent).toBe('올린 사진 — 돌려보냄');
+    expect(calls.filter((c) => c.url.startsWith(WORK + '/ledger/documents?')).at(-1).url).toBe(
+      WORK + '/ledger/documents?limit=20&status=returned'
+    );
+    chips()[4].click();
+    await flush();
+    expect(calls.filter((c) => c.url.startsWith(WORK + '/ledger/documents?')).at(-1).url).toBe(
+      WORK + '/ledger/documents?limit=20'
+    );
+    chips()[0].click();
+    await flush();
+    expect($('lgReview').hidden).toBe(false);
+    expect($('lgDocsBox').hidden).toBe(true);
+  });
+
+  test('사진 AI 읽기를 쓰지 않는 업체(ai false) — 「직접 적기」, 읽기를 기다려 다시 묻지 않는다', async () => {
+    await load({
+      search: '#photos',
+      me: ok({ ...ME, ai: false }),
+      review: () => ok({ items: [rv(1)], level: 'full', viewing: false }),
+    });
+    expect($('lgReviewList').querySelector('.lg-rv-line b').textContent).toBe('직접 적기');
+    expect($('lgReviewNote').textContent).toBe(
+      '사진을 눌러 일자 · 거래처 · 공급가 · 부가세 · 계정을 적어 장부에 올립니다.'
+    );
+    expect($('lgPhotosNote').textContent).toContain('직접 적어');
+    expect(window.SeganLedger.state.pollTimer).toBeNull();
+    $('lgReviewList').querySelector('[data-act="rv-open"]').click();
+    await flush();
+    expect($('lgRvRead').textContent).toBe(
+      '사진을 보고 꼭 볼 칸을 직접 적어 올려 주세요. (사진 AI 읽기는 Agent 등급에서 씁니다)'
+    );
+  });
+
+  test('세금계산서 기다리는 명세표는 매입 판에만 · 직원은 거름 없이 자기 사진', async () => {
+    await load({ search: '#photos' });
+    expect($('lgHeldWrap').hidden).toBe(true);
+    await window.SeganLedger.showTab('buys');
+    expect($('lgHeldWrap').hidden).toBe(false);
+    await window.SeganLedger.showTab('sales');
+    expect($('lgHeldWrap').hidden).toBe(true);
+    jest.restoreAllMocks();
+    await load({
+      me: ok({
+        ...ME,
+        role: 'staff',
+        money: false,
+        can_upload: true,
+        can_write: false,
+        tax: undefined,
+      }),
+      docs: () => ok({ items: [], money: false }),
+    });
+    expect($('lgPhChips').hidden).toBe(true);
+    expect($('lgDocsBox').hidden).toBe(false);
+    expect($('lgDocsTitle').textContent).toBe('올린 사진');
+  });
+});
+
 describe('쓰기', () => {
   test('직접 입력 — 구분마다 계정, 확인 뒤 X-Idempotency-Key 와 함께 보내고 장부를 다시 읽는다', async () => {
     const calls = await load();

@@ -9,31 +9,31 @@
     <title>회계 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026110411" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026110411" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026110411" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110411" />
+    <link rel="icon" href="icons/icon.svg?v=2026110412" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110412" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110412" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110412" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026110411" />
-    <link rel="stylesheet" href="make.css?v=2026110411" />
-    <link rel="stylesheet" href="ledger-board.css?v=2026110411" />
-    <link rel="stylesheet" href="ledger.css?v=2026110411" />
+    <link rel="stylesheet" href="shell.css?v=2026110412" />
+    <link rel="stylesheet" href="make.css?v=2026110412" />
+    <link rel="stylesheet" href="ledger-board.css?v=2026110412" />
+    <link rel="stylesheet" href="ledger.css?v=2026110412" />
     <!-- 업체 회계 — workflow-api /ledger/* (대표 · 실장. 직원은 사진 올리기만). 한눈에 탭은 ledger-board.js 가 그린다 -->
-    <script src="../js/config.js?v=2026110411"></script>
+    <script src="../js/config.js?v=2026110412"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <!-- 관리 탭 — 관리자에게만 연다 (segan/shell.js applyAdminTab) -->
-    <script src="../js/admin-access.js?v=2026110411"></script>
+    <script src="../js/admin-access.js?v=2026110412"></script>
     <!-- 작업 탭 — 작업자에게만 연다 (segan/shell.js applyRoleTabs · GET /work/me) -->
-    <script src="../js/mypage-work.js?v=2026110411"></script>
-    <script src="shell.js?v=2026110411" defer></script>
-    <script src="ledger-board.js?v=2026110411" defer></script>
-    <script src="ledger-book.js?v=2026110411" defer></script>
-    <script src="ledger.js?v=2026110411" defer></script>
+    <script src="../js/mypage-work.js?v=2026110412"></script>
+    <script src="shell.js?v=2026110412" defer></script>
+    <script src="ledger-board.js?v=2026110412" defer></script>
+    <script src="ledger-book.js?v=2026110412" defer></script>
+    <script src="ledger.js?v=2026110412" defer></script>
   </head>
   <body class="sg-app" data-tab="me">
     <div data-segan-shell="header"></div>
@@ -306,34 +306,20 @@
                 </div>
                 <ul class="lg-mny-list" id="lgMoneyList"></ul>
               </section>
-            </section>
 
-            <!-- 사진 — 영수증 · 명세표 올리기 · 확인 (직원은 이 판만) -->
-            <section class="lg-pane" id="lgPanePhotos" role="tabpanel" aria-labelledby="lgTab-photos">
-              <p class="lg-keep" id="lgKeep">사진은 확인용입니다. 종이 원본은 5년 보관하세요.</p>
-              <!-- 확인할 사진 — 대표 · 실장. 읽은 칸으로 채운 칸을 고쳐 장부 · 수주 원가로 올린다 (직원에게는 없다) -->
-              <section class="lg-box lg-review" id="lgReview" hidden aria-labelledby="lgReviewTitle">
-                <h2 class="lg-box-title" id="lgReviewTitle">확인할 사진</h2>
-                <p class="mk-note" id="lgReviewNote"></p>
+              <!-- 매입 판만 — 세금계산서 기다리는 명세표 (거래처 · 달 묶음, GET /ledger/held). 세금계산서가 오면 그 장부 줄에 붙인다 -->
+              <section class="lg-box lg-held-box" id="lgHeldWrap" hidden>
                 <!-- 세금계산서 기다리는 명세표 — 거래처 · 달 묶음 (GET /ledger/held). 세금계산서가 오면 그 장부 줄에 증빙으로 붙인다 -->
                 <div class="lg-held" id="lgHeld" hidden>
                   <div class="lg-ready-head"><b id="lgHeldTitle">세금계산서 기다리는 명세표</b></div>
                   <ul class="lg-held-list" id="lgHeldList" aria-label="세금계산서 기다리는 명세표"></ul>
                 </div>
-                <!-- 바로 올려도 되는 사진 — 같은 거래처를 같은 계정 · 증빙으로 3번 넘게 올렸고 걸리는 것이 없는 사진 (서버 hints.ready) -->
-                <div class="lg-ready" id="lgReady" hidden>
-                  <div class="lg-ready-head">
-                    <b id="lgReadyTitle">바로 올려도 되는 사진</b>
-                    <button type="button" class="mk-btn mk-btn--solid" id="lgReadyPost">올리기</button>
-                  </div>
-                  <ul class="lg-rv-list" id="lgReadyList" aria-label="바로 올려도 되는 사진"></ul>
-                </div>
-                <p class="lg-up-state" id="lgBatchState" role="status" aria-live="polite"></p>
-                <ul class="lg-up-fail" id="lgBatchResult" aria-label="한꺼번에 올린 결과"></ul>
-                <ul class="lg-rv-list" id="lgReviewList" aria-label="확인할 사진"></ul>
-                <button type="button" class="mk-link" id="lgReviewMore" hidden>더 보기</button>
               </section>
+            </section>
 
+            <!-- 사진 — 영수증 · 명세표 올리기 · 확인 (직원은 이 판만) -->
+            <section class="lg-pane" id="lgPanePhotos" role="tabpanel" aria-labelledby="lgTab-photos">
+              <p class="lg-keep" id="lgKeep">사진은 확인용입니다. 종이 원본은 5년 보관하세요.</p>
               <!-- 영수증 · 거래명세표 사진 — 구성원 누구나 올린다 (직원은 자기가 올린 것의 상태만) -->
               <section class="lg-box lg-photos" id="lgPhotos" hidden aria-labelledby="lgPhotosTitle">
                 <h2 class="lg-box-title" id="lgPhotosTitle">영수증 · 명세표 사진</h2>
@@ -370,7 +356,32 @@
                   <button type="button" class="mk-btn" id="lgRetry" hidden>못 올린 사진 다시 올리기</button>
                 </div>
                 <p class="mk-note" id="lgPhotosNote"></p>
-                <h3 class="lg-sub">올린 사진</h3>
+              </section>
+
+              <!-- 사진 상태 거름 — 대표 · 실장 (확인 기다림은 확인할 사진 상자, 나머지는 올린 사진 상자) -->
+              <div class="lg-seg lg-ph-seg" id="lgPhChips" role="group" aria-label="사진 상태" hidden></div>
+
+              <!-- 확인할 사진 — 대표 · 실장. 읽은 칸으로 채운 칸을 고쳐 장부 · 수주 원가로 올린다 (직원에게는 없다) -->
+              <section class="lg-box lg-review" id="lgReview" hidden aria-labelledby="lgReviewTitle">
+                <h2 class="lg-box-title" id="lgReviewTitle">확인할 사진</h2>
+                <p class="mk-note" id="lgReviewNote"></p>
+                <!-- 바로 올려도 되는 사진 — 같은 거래처를 같은 계정 · 증빙으로 3번 넘게 올렸고 걸리는 것이 없는 사진 (서버 hints.ready) -->
+                <div class="lg-ready" id="lgReady" hidden>
+                  <div class="lg-ready-head">
+                    <b id="lgReadyTitle">바로 올려도 되는 사진</b>
+                    <button type="button" class="mk-btn mk-btn--solid" id="lgReadyPost">올리기</button>
+                  </div>
+                  <ul class="lg-rv-list" id="lgReadyList" aria-label="바로 올려도 되는 사진"></ul>
+                </div>
+                <p class="lg-up-state" id="lgBatchState" role="status" aria-live="polite"></p>
+                <ul class="lg-up-fail" id="lgBatchResult" aria-label="한꺼번에 올린 결과"></ul>
+                <ul class="lg-rv-list" id="lgReviewList" aria-label="확인할 사진"></ul>
+                <button type="button" class="mk-link" id="lgReviewMore" hidden>더 보기</button>
+              </section>
+
+              <!-- 올린 사진 — 대표 · 실장은 상태 거름(장부에 올림 · 돌려보냄 · 쓰지 않음 · 전체)으로, 직원은 자기가 올린 것 -->
+              <section class="lg-box lg-docs-box" id="lgDocsBox" hidden aria-labelledby="lgDocsTitle">
+                <h2 class="lg-box-title" id="lgDocsTitle">올린 사진</h2>
                 <ul class="lg-docs" id="lgDocs" aria-label="올린 사진"></ul>
                 <button type="button" class="mk-link" id="lgDocsMore" hidden>더 보기</button>
               </section>
@@ -424,144 +435,152 @@
               <h2 class="lg-box-title" id="lgSheetTitle">사진 확인</h2>
               <button type="button" class="mk-link" id="lgRvClose">닫기</button>
             </div>
-            <button type="button" class="lg-rv-photo" id="lgRvPhotoBtn" aria-label="사진 크게 보기">
-              <img id="lgRvPhoto" alt="영수증 · 명세표 사진" referrerpolicy="no-referrer" />
-            </button>
-            <p class="lg-rv-rotate" id="lgRvRotateRow" hidden>
-              <button type="button" class="mk-link" id="lgRvRotate">사진 돌리기 ↻</button>
-            </p>
-            <p class="mk-note" id="lgRvNoPhoto" hidden>사진을 불러오지 못했습니다. 닫았다가 다시 열어 주세요.</p>
-            <p class="lg-rv-read" id="lgRvRead" role="status"></p>
-            <div class="lg-chips" id="lgRvChips"></div>
-            <form class="lg-rv-form" id="lgRvForm" novalidate>
-              <label class="mk-input lg-rv-target"
-                ><span>올릴 곳</span
-                ><select id="lgRvTarget">
-                  <option value="entry">장부 줄</option>
-                  <option value="order_cost">수주 원가</option>
-                </select></label
-              >
-              <!-- 거래명세표 — 거래처가 세금계산서를 따로 주나 (hints.invoice.route: ask 묻기 · hold 모아 두기, 고른 뒤에도 다시 고르기) -->
-              <div class="lg-rv-inv" id="lgRvInv" hidden>
-                <b id="lgRvInvTitle"></b>
-                <p class="lg-rv-inv-note" id="lgRvInvNote"></p>
-                <div class="lg-acts" id="lgRvInvAsk">
-                  <button type="button" class="mk-btn mk-btn--solid" id="lgRvInvSep">따로 줌</button>
-                  <button type="button" class="mk-btn" id="lgRvInvOnly">명세표만 줌</button>
-                </div>
-                <div class="lg-acts" id="lgRvInvHold" hidden>
-                  <button type="button" class="mk-btn mk-btn--solid" id="lgRvHold">모아 두기</button>
-                </div>
-                <div class="lg-acts" id="lgRvInvRedoRow" hidden>
-                  <button type="button" class="mk-link" id="lgRvInvRedo">잘못 골랐어요 — 다시 고르기</button>
-                </div>
+            <div class="lg-rv-cols">
+              <div class="lg-rv-left">
+                <button type="button" class="lg-rv-photo" id="lgRvPhotoBtn" aria-label="사진 크게 보기">
+                  <img id="lgRvPhoto" alt="영수증 · 명세표 사진" referrerpolicy="no-referrer" />
+                </button>
+                <p class="lg-rv-rotate" id="lgRvRotateRow" hidden>
+                  <button type="button" class="mk-link" id="lgRvRotate">사진 돌리기 ↻</button>
+                </p>
+                <p class="mk-note" id="lgRvNoPhoto" hidden>사진을 불러오지 못했습니다. 닫았다가 다시 열어 주세요.</p>
               </div>
-              <!-- 꼭 볼 칸 — ✓ 는 AI 가 확실하게 읽고 검사도 맞은 칸, 「확인」은 한 번 볼 칸 (까닭은 아래 작은 글) -->
-              <p class="lg-must-head">꼭 볼 칸 <small>✓ 확실하게 읽음 · 「확인」은 한 번 봐 주세요</small></p>
-              <div class="lg-must" id="lgRvMust">
-                <div class="lg-must-row" data-must="date">
-                  <label class="lg-must-k" for="lgRvDate">일자</label>
-                  <div class="lg-must-v">
-                    <input type="date" id="lgRvDate" />
-                    <span class="lg-tag" data-tag hidden></span>
-                  </div>
-                  <span class="lg-mark" data-mark></span>
-                  <small class="lg-must-why" data-why hidden></small>
-                </div>
-                <div class="lg-must-row" data-must="cp">
-                  <label class="lg-must-k" for="lgRvCpName">거래처</label>
-                  <div class="lg-must-v">
-                    <input type="text" id="lgRvCpName" maxlength="100" placeholder="상호" />
-                    <span class="lg-tag" data-tag hidden></span>
-                  </div>
-                  <span class="lg-mark" data-mark></span>
-                  <small class="lg-must-why" data-why hidden></small>
-                </div>
-                <div class="lg-must-row" data-must="amount">
-                  <label class="lg-must-k" for="lgRvAmount" id="lgRvAmountLabel">공급가</label>
-                  <div class="lg-must-v">
-                    <input type="number" id="lgRvAmount" min="1" step="1" inputmode="numeric" />
-                    <span class="lg-tag" data-tag hidden></span>
-                  </div>
-                  <span class="lg-mark" data-mark></span>
-                  <small class="lg-must-why" data-why hidden></small>
-                </div>
-                <div class="lg-must-row" data-must="vat">
-                  <label class="lg-must-k" for="lgRvVat">부가세</label>
-                  <div class="lg-must-v">
-                    <input type="number" id="lgRvVat" min="0" step="1" inputmode="numeric" placeholder="0" />
-                    <span class="lg-tag" data-tag hidden></span>
-                  </div>
-                  <span class="lg-mark" data-mark></span>
-                  <small class="lg-must-why" data-why hidden></small>
-                </div>
-                <div class="lg-must-row" data-must="account" data-for="entry">
-                  <label class="lg-must-k" for="lgRvAccount">계정</label>
-                  <div class="lg-must-v">
-                    <select id="lgRvAccount"></select>
-                    <span class="lg-tag" data-tag hidden></span>
-                  </div>
-                  <span class="lg-mark" data-mark></span>
-                  <small class="lg-must-why" data-why hidden></small>
-                </div>
-                <div class="lg-must-row" data-must="order" data-for="order_cost">
-                  <label class="lg-must-k" for="lgRvOrder">수주</label>
-                  <div class="lg-must-v">
-                    <select id="lgRvOrder"></select>
-                    <select id="lgRvCategory" aria-label="원가 종류"></select>
-                    <span class="lg-tag" data-tag hidden></span>
-                  </div>
-                  <span class="lg-mark" data-mark></span>
-                  <small class="lg-must-why" data-why hidden></small>
-                </div>
-              </div>
-              <!-- 더 보기 — 의심 칸이 있으면 저절로 펼친다 -->
-              <details class="lg-more" id="lgRvMore">
-                <summary>더 보기 — 증빙 · 결제 수단 · 내용 · 품목 · 사업자번호</summary>
-                <div class="lg-grid">
-                  <label class="mk-input" data-for="entry"
-                    ><span>구분</span
-                    ><select id="lgRvDir">
-                      <option value="expense">비용</option>
-                      <option value="income">수입</option>
-                      <option value="asset_buy">자산 사기</option>
-                      <option value="asset_sell">자산 팔기</option>
+              <div class="lg-rv-right">
+                <p class="lg-rv-read" id="lgRvRead" role="status"></p>
+                <div class="lg-chips" id="lgRvChips"></div>
+                <form class="lg-rv-form" id="lgRvForm" novalidate>
+                  <label class="mk-input lg-rv-target"
+                    ><span>올릴 곳</span
+                    ><select id="lgRvTarget">
+                      <option value="entry">장부 줄</option>
+                      <option value="order_cost">수주 원가</option>
                     </select></label
                   >
-                  <label class="mk-input"
-                    ><span>증빙</span
-                    ><select id="lgRvEvidence"></select
-                  ></label>
-                  <label class="mk-input" data-for="entry"
-                    ><span>결제 수단</span
-                    ><select id="lgRvMethod"></select
-                  ></label>
-                  <label class="mk-input"><span>내용</span><input type="text" id="lgRvDesc" maxlength="200" /></label>
-                  <label class="mk-input" data-for="entry"
-                    ><span>사업자등록번호</span
-                    ><input type="text" id="lgRvBiz" inputmode="numeric" maxlength="12" placeholder="숫자 10자리"
-                  /></label>
-                </div>
-                <div class="lg-acts lg-rv-biz" id="lgRvBizRow" hidden>
-                  <button type="button" class="mk-link" id="lgRvBizCheck">사업자 상태 보기</button>
-                  <span class="lg-rv-biz-state" id="lgRvBizState" role="status"></span>
-                </div>
-                <p class="lg-rv-amounts" id="lgRvAmounts"></p>
-                <ul class="lg-rv-items" id="lgRvItems" aria-label="읽은 품목"></ul>
-              </details>
-              <p class="mk-error" id="lgRvError" hidden></p>
-              <div class="lg-acts" id="lgRvActs">
-                <button type="submit" class="mk-btn mk-btn--solid" id="lgRvPost">장부에 올리기</button>
-                <button type="button" class="mk-btn" id="lgRvReturn">돌려보내기</button>
-                <button type="button" class="mk-btn" id="lgRvReject">버리기</button>
-                <button type="button" class="mk-link" id="lgRvReread" hidden>다시 읽기</button>
+                  <!-- 거래명세표 — 거래처가 세금계산서를 따로 주나 (hints.invoice.route: ask 묻기 · hold 모아 두기, 고른 뒤에도 다시 고르기) -->
+                  <div class="lg-rv-inv" id="lgRvInv" hidden>
+                    <b id="lgRvInvTitle"></b>
+                    <p class="lg-rv-inv-note" id="lgRvInvNote"></p>
+                    <div class="lg-acts" id="lgRvInvAsk">
+                      <button type="button" class="mk-btn mk-btn--solid" id="lgRvInvSep">따로 줌</button>
+                      <button type="button" class="mk-btn" id="lgRvInvOnly">명세표만 줌</button>
+                    </div>
+                    <div class="lg-acts" id="lgRvInvHold" hidden>
+                      <button type="button" class="mk-btn mk-btn--solid" id="lgRvHold">모아 두기</button>
+                    </div>
+                    <div class="lg-acts" id="lgRvInvRedoRow" hidden>
+                      <button type="button" class="mk-link" id="lgRvInvRedo">잘못 골랐어요 — 다시 고르기</button>
+                    </div>
+                  </div>
+                  <!-- 꼭 볼 칸 — ✓ 는 AI 가 확실하게 읽고 검사도 맞은 칸, 「확인」은 한 번 볼 칸 (까닭은 아래 작은 글) -->
+                  <p class="lg-must-head">꼭 볼 칸 <small>✓ 확실하게 읽음 · 「확인」은 한 번 봐 주세요</small></p>
+                  <div class="lg-must" id="lgRvMust">
+                    <div class="lg-must-row" data-must="date">
+                      <label class="lg-must-k" for="lgRvDate">일자</label>
+                      <div class="lg-must-v">
+                        <input type="date" id="lgRvDate" />
+                        <span class="lg-tag" data-tag hidden></span>
+                      </div>
+                      <span class="lg-mark" data-mark></span>
+                      <small class="lg-must-why" data-why hidden></small>
+                    </div>
+                    <div class="lg-must-row" data-must="cp">
+                      <label class="lg-must-k" for="lgRvCpName">거래처</label>
+                      <div class="lg-must-v">
+                        <input type="text" id="lgRvCpName" maxlength="100" placeholder="상호" />
+                        <span class="lg-tag" data-tag hidden></span>
+                      </div>
+                      <span class="lg-mark" data-mark></span>
+                      <small class="lg-must-why" data-why hidden></small>
+                    </div>
+                    <div class="lg-must-row" data-must="amount">
+                      <label class="lg-must-k" for="lgRvAmount" id="lgRvAmountLabel">공급가</label>
+                      <div class="lg-must-v">
+                        <input type="number" id="lgRvAmount" min="1" step="1" inputmode="numeric" />
+                        <span class="lg-tag" data-tag hidden></span>
+                      </div>
+                      <span class="lg-mark" data-mark></span>
+                      <small class="lg-must-why" data-why hidden></small>
+                    </div>
+                    <div class="lg-must-row" data-must="vat">
+                      <label class="lg-must-k" for="lgRvVat">부가세</label>
+                      <div class="lg-must-v">
+                        <input type="number" id="lgRvVat" min="0" step="1" inputmode="numeric" placeholder="0" />
+                        <span class="lg-tag" data-tag hidden></span>
+                      </div>
+                      <span class="lg-mark" data-mark></span>
+                      <small class="lg-must-why" data-why hidden></small>
+                    </div>
+                    <div class="lg-must-row" data-must="account" data-for="entry">
+                      <label class="lg-must-k" for="lgRvAccount">계정</label>
+                      <div class="lg-must-v">
+                        <select id="lgRvAccount"></select>
+                        <span class="lg-tag" data-tag hidden></span>
+                      </div>
+                      <span class="lg-mark" data-mark></span>
+                      <small class="lg-must-why" data-why hidden></small>
+                    </div>
+                    <div class="lg-must-row" data-must="order" data-for="order_cost">
+                      <label class="lg-must-k" for="lgRvOrder">수주</label>
+                      <div class="lg-must-v">
+                        <select id="lgRvOrder"></select>
+                        <select id="lgRvCategory" aria-label="원가 종류"></select>
+                        <span class="lg-tag" data-tag hidden></span>
+                      </div>
+                      <span class="lg-mark" data-mark></span>
+                      <small class="lg-must-why" data-why hidden></small>
+                    </div>
+                  </div>
+                  <!-- 더 보기 — 의심 칸이 있으면 저절로 펼친다 -->
+                  <details class="lg-more" id="lgRvMore">
+                    <summary>더 보기 — 증빙 · 결제 수단 · 내용 · 품목 · 사업자번호</summary>
+                    <div class="lg-grid">
+                      <label class="mk-input" data-for="entry"
+                        ><span>구분</span
+                        ><select id="lgRvDir">
+                          <option value="expense">비용</option>
+                          <option value="income">수입</option>
+                          <option value="asset_buy">자산 사기</option>
+                          <option value="asset_sell">자산 팔기</option>
+                        </select></label
+                      >
+                      <label class="mk-input"
+                        ><span>증빙</span
+                        ><select id="lgRvEvidence"></select
+                      ></label>
+                      <label class="mk-input" data-for="entry"
+                        ><span>결제 수단</span
+                        ><select id="lgRvMethod"></select
+                      ></label>
+                      <label class="mk-input"
+                        ><span>내용</span><input type="text" id="lgRvDesc" maxlength="200"
+                      /></label>
+                      <label class="mk-input" data-for="entry"
+                        ><span>사업자등록번호</span
+                        ><input type="text" id="lgRvBiz" inputmode="numeric" maxlength="12" placeholder="숫자 10자리"
+                      /></label>
+                    </div>
+                    <div class="lg-acts lg-rv-biz" id="lgRvBizRow" hidden>
+                      <button type="button" class="mk-link" id="lgRvBizCheck">사업자 상태 보기</button>
+                      <span class="lg-rv-biz-state" id="lgRvBizState" role="status"></span>
+                    </div>
+                    <p class="lg-rv-amounts" id="lgRvAmounts"></p>
+                    <ul class="lg-rv-items" id="lgRvItems" aria-label="읽은 품목"></ul>
+                  </details>
+                  <p class="mk-error" id="lgRvError" hidden></p>
+                  <div class="lg-acts" id="lgRvActs">
+                    <button type="submit" class="mk-btn mk-btn--solid" id="lgRvPost">장부에 올리기</button>
+                    <button type="button" class="mk-btn" id="lgRvReturn">돌려보내기</button>
+                    <button type="button" class="mk-btn" id="lgRvReject">버리기</button>
+                    <button type="button" class="mk-link" id="lgRvReread" hidden>다시 읽기</button>
+                  </div>
+                  <div class="lg-void lg-rv-decide" id="lgRvDecide" hidden>
+                    <input type="text" id="lgRvReason" maxlength="300" aria-label="이유" placeholder="이유 · 필수" />
+                    <button type="button" class="mk-btn" id="lgRvDecideOk">돌려보내기</button>
+                    <button type="button" class="mk-link" id="lgRvDecideNo">그만</button>
+                  </div>
+                </form>
               </div>
-              <div class="lg-void lg-rv-decide" id="lgRvDecide" hidden>
-                <input type="text" id="lgRvReason" maxlength="300" aria-label="이유" placeholder="이유 · 필수" />
-                <button type="button" class="mk-btn" id="lgRvDecideOk">돌려보내기</button>
-                <button type="button" class="mk-link" id="lgRvDecideNo">그만</button>
-              </div>
-            </form>
+            </div>
           </section>
         </div>
 
