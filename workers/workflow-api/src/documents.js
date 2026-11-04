@@ -39,6 +39,7 @@ import { renderWorkOrder } from './templates/work-order.js';
 import { renderInstallationOrder } from './templates/installation-order.js';
 import { getSiteInfo, listSchedulesForDoc } from './site-info.js';
 import { gatherWorkOrderPayload, workOrderTotals } from './work-order-data.js';
+import { frozenCheckList } from './work/check-items.js';
 import { createSignedUrls, RENDERS_BUCKET, SIGNED_URL_TTL_SEC } from './storage.js';
 import { recordDocumentIssued } from './reports/service.js';
 
@@ -154,6 +155,10 @@ export async function issueDocument(env, { user, body }) {
   // 렌더를 다시 찍거나 카탈로그가 바뀌어도 이미 나간 지시서는 그대로여야 한다 (work-order-data.js).
   if (docType === 'work_order') {
     Object.assign(renderPayload, await gatherWorkOrderPayload(env, { designId, snapshot }));
+  }
+  // 작업자 필수 확인 목록 — 발행 때의 판을 고정한다 (src/work/check-items.js). 종이 칸과 작업자 포털 체크가 이 목록을 쓴다.
+  if (docType === 'work_order' || docType === 'installation_order') {
+    renderPayload.check_list = frozenCheckList();
   }
 
   const totals = quoteForDoc

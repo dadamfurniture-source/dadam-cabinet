@@ -36,6 +36,7 @@ import { countertopSheets } from './countertop-order.js';
 import { hasCountertop } from '../countertop.js';
 import { PRINT_CSS, PRINT_TOOLBAR } from './print-css.js';
 import { qrSvg } from '../util/qr.js';
+import { CHECK_LISTS, checkListOfDoc, itemsFor, itemApplies } from '../work/check-items.js';
 import {
   materialsOf,
   hardwareOf,
@@ -75,7 +76,7 @@ const MODULE_POS = { upper: '상부', lower: '하부', wardrobe: '붙박이' };
 
 export const LABELS_PER_SHEET = 24; // 3 × 8
 
-function itemLabel(item, index) {
+export function itemLabel(item, index) {
   return (
     item.labelName ||
     CATEGORY_NAMES[item.categoryId || item.category] ||
@@ -119,6 +120,8 @@ function buildContext(doc, snapshot, renderUrls) {
     isV2: Number(rp.work_order_version) >= 2,
     labor: rp.labor && typeof rp.labor === 'object' ? rp.labor : null, // 없으면(옛 문서) 예상 시간 생략
     rowById: new Map(materials.map((m, i) => [partIdOf(m, i), { row: m, index: i }])),
+    // 작업자 필수 확인 — 발행 때 고정한 판 (없으면 옛 문서 v0, src/work/check-items.js)
+    checkList: checkListOfDoc(doc),
   };
 }
 
@@ -794,7 +797,7 @@ function cutSheetBlock(ctx, sheet, labelNo) {
   <div class="cut-head">
     <b>시트 #${num(sheet.no)}</b> ${esc(sheet.material || '')} ${num(sheet.thickness)}T · ${esc(sheet.partClass || '')}
     · 원판 ${num(sheet.size && sheet.size.w)} × ${num(sheet.size && sheet.size.h)} · 조각 ${num(parts.length)} · 수율 ${fmtPct(sheet.yield)}${layout}
-    <span class="checks">재단 ☐ 엣지 표시 ☐</span>
+    <span class="checks">${itemsFor(ctx.checkList, 'cut', 'sheet').map((x) => `${esc(x.label)} ☐`).join(' ')}</span>
   </div>
   <div class="cut-sheet">
     <div class="cut-svg">${svg}</div>
@@ -1024,29 +1027,26 @@ export function boringRows(materials, hardware) {
 
 // ── ⑥ 조립 순서 체크 ─────────────────────────────────────────────
 
-/** 공장 단계 — 각자 자기 작업을 스스로 검수한다. 보링 공정은 없다 (컵 보링은 도어 외주). */
-export const ASSEMBLY_STEPS = ['재단', '엣지', '조립', '도어 달기', '서랍', '검수·포장'];
+/** 공장 단계 — 각자 자기 작업을 스스로 검수한다. 보링 공정은 없다 (컵 보링은 도어 외주). 정본은 src/work/check-items.js (v0 = 이 칸들). */
+export const ASSEMBLY_STEPS = itemsFor({ roles: CHECK_LISTS.v0 }, 'assembly', 'module').map((x) => x.label);
 
 function assemblySheet(ctx) {
   const box = '☐';
   const na = '—';
+  const steps = itemsFor(ctx.checkList, 'assembly', 'module');
   const rows = ctx.items.flatMap((item, i) => {
     const label = itemLabel(item, i);
     const modules = Array.isArray(item.modules) ? item.modules : [];
     return modules.map((m, mi) => {
-      const hasDoor = Number(m.doorCount) > 0;
-      const hasDrawer = Boolean(m.isDrawer);
+      const on = steps.map((x) => itemApplies(x, m));
       return tr(
         [
           esc(label),
           `<b>${num(mi + 1)}</b> ${esc(MODULE_POS[m.pos] || m.pos || '-')} ${esc(m.name || m.type || '-')} <span class="muted">${num(m.w)}×${num(m.h)}</span>`,
-          box, box, box,
-          hasDoor ? box : na,
-          hasDrawer ? box : na,
-          box,
+          ...on.map((y) => (y ? box : na)),
           '', '',
         ],
-        ['', '', 'box', 'box', 'box', hasDoor ? 'box' : 'na', hasDrawer ? 'box' : 'na', 'box', 'blank', 'blank'],
+        ['', '', ...on.map((y) => (y ? 'box' : 'na')), 'blank', 'blank'],
       );
     });
   });
@@ -1055,8 +1055,8 @@ function assemblySheet(ctx) {
 <div class="sheet">
   <div class="section-title">⑥ 조립 순서 체크 <span class="muted">— 칸은 해당 없음</span></div>
   <table class="check compact">
-    ${thead(['품목', '모듈', ...ASSEMBLY_STEPS, '완료일', '서명'])}
-    <tbody>${rows.join('') || tr(['모듈 없음', '', '', '', '', '', '', '', '', ''])}</tbody>
+    ${thead(['품목', '모듈', ...steps.map((x) => x.label), '완료일', '서명'])}
+    <tbody>${rows.join('') || tr(['모듈 없음', '', ...steps.map(() => ''), '', ''])}</tbody>
   </table>
 </div>`;
 }
@@ -1320,7 +1320,7 @@ function packHeader(ctx, pack) {
     </div>
   </div>
   <dl class="kv">
-    ${vendor ? '' : `<dt>설계</dt><dd>${esc(doc.title)} · 설계 rev ${esc(ctx.snapshot.rev)}</dd>`}
+    ${vendor ? '' : ctx.worker ? `<dt>주문</dt><dd>${esc(ctx.worker.orderLabel)} · 설계 rev ${esc(ctx.snapshot.rev)}</dd>` : `<dt>설계</dt><dd>${esc(doc.title)} · 설계 rev ${esc(ctx.snapshot.rev)}</dd>`}
     ${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}
   </dl>
   ${pack === 'cut' || pack === 'assembly' ? `<div class="section-title">정면도</div>${elevationBlock(ctx)}` : ''}
@@ -1368,10 +1368,12 @@ const PACK_SECTIONS = {
   labels: [(ctx) => packHeader(ctx, 'labels'), labelSheets],
 };
 
-export function renderWorkOrder(doc, snapshot, { toolbar = true, renderUrls = new Map(), pack = 'all', top = null } = {}) {
+export function renderWorkOrder(doc, snapshot, { toolbar = true, renderUrls = new Map(), pack = 'all', top = null, worker = null } = {}) {
   const key = normalizePack(pack) || 'all';
   const ctx = buildContext(doc, snapshot, renderUrls);
-  ctx.top = top; // 상판 요청서 — 발주 마감 · 업체 · 가전 모델 (인쇄 시점, worker.js)
+  ctx.top = top;
+  // 작업자 보기 (작업자 포털 — work/checks.js): 설계 제목 대신 가린 주문 이름 (홍*동 · 주문번호)
+  ctx.worker = worker && worker.orderLabel ? worker : null; // 상판 요청서 — 발주 마감 · 업체 · 가전 모델 (인쇄 시점, worker.js)
   const parts = PACK_SECTIONS[key].map((fn) => fn(ctx));
   // 꾸러미 머리는 따로 한 쪽을 쓰지 않는다 — 첫 섹션 쪽의 맨 위에 넣는다 (종이 한 장 아끼기)
   if (parts.length > 1 && parts[0].includes('class="pack-head"')) {
