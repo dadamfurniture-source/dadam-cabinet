@@ -182,6 +182,15 @@ import {
   assignFactoryWorker,
   endFactoryWorker,
 } from './work/factory.js';
+import {
+  factoryPack,
+  getFactoryChecks,
+  postFactoryCheck,
+  assignmentPack,
+  getAssignmentChecks,
+  postAssignmentCheck,
+  getOrderChecks,
+} from './work/checks.js';
 import { acceptConsultation, listMyProjects } from './projects.js';
 import {
   consultInbox,
@@ -1151,6 +1160,11 @@ async function handleMyProjects(request, env, { user }) {
 /** 작업자 이름 · 휴대폰이 담길 수 있어 중간 캐시 · 브라우저 캐시에 남기지 않는다 */
 const NO_STORE = { 'Cache-Control': 'no-store, private' };
 
+/** src/work/* HTML 함수 (env, { user, params, query }) → 인쇄 화면 (작업자 꾸러미 — work/checks.js) */
+function htmlRoute(fn) {
+  return async (request, env, { params, user }) => htmlResponse(request, env, await fn(env, { user, params, query: queryOf(request) }));
+}
+
 /** src/work/* 함수 (env, { user, params, body, query, ctx }) → data 를 라우트 핸들러로 */
 function workRoute(fn, status = 200) {
   return async (request, env, { params, user, ctx }) => {
@@ -1205,6 +1219,7 @@ const router = createRouter([
   { method: 'PATCH',  path: '/orders/:orderId',             auth: 'jwt', handler: handleUpdateOrder },
   // 수주 상태 기록 · 대표 승인 (src/order-events.js)
   { method: 'GET',    path: '/orders/:orderId/events',      auth: 'jwt', handler: handleListOrderEvents },
+  { method: 'GET',    path: '/orders/:orderId/checks',      auth: 'jwt', handler: workRoute(getOrderChecks) },
   { method: 'GET',    path: '/order-requests',              auth: 'jwt', handler: handleListOrderRequests },
   { method: 'POST',   path: '/order-events/:eventId/decide', auth: 'jwt', handler: handleDecideOrderEvent },
   { method: 'POST',   path: '/orders/:orderId/costs',       auth: 'jwt', handler: handleAddCost },
@@ -1347,6 +1362,13 @@ const router = createRouter([
   { method: 'POST',  path: '/work/factory/worklogs',                  auth: 'jwt', handler: workRoute(addFactoryWorklog, 201) },
   { method: 'POST',  path: '/work/factory/assignments/:id/done',      auth: 'jwt', handler: workRoute(markFactoryAssignmentDone) },
   { method: 'POST',  path: '/work/factory/link',                      auth: 'jwt', handler: handleFactoryLink },
+  // 작업자 꾸러미 · 필수 확인 (src/work/checks.js, DB 0035 work_checks) — 내 역할 꾸러미만, 체크는 지금 문서 판에
+  { method: 'GET',   path: '/work/factory/orders/:orderId/pack',      auth: 'jwt', handler: htmlRoute(factoryPack) },
+  { method: 'GET',   path: '/work/factory/orders/:orderId/checks',    auth: 'jwt', handler: workRoute(getFactoryChecks) },
+  { method: 'POST',  path: '/work/factory/orders/:orderId/checks',    auth: 'jwt', handler: workRoute(postFactoryCheck, 201) },
+  { method: 'GET',   path: '/work/assignments/:id/pack',              auth: 'jwt', handler: htmlRoute(assignmentPack) },
+  { method: 'GET',   path: '/work/assignments/:id/checks',            auth: 'jwt', handler: workRoute(getAssignmentChecks) },
+  { method: 'POST',  path: '/work/assignments/:id/checks',            auth: 'jwt', handler: workRoute(postAssignmentCheck, 201) },
   { method: 'GET',   path: '/production/factory-workers',             auth: 'jwt', handler: workRoute(listFactoryWorkers) },
   { method: 'POST',  path: '/production/factory-workers',             auth: 'jwt', handler: workRoute(assignFactoryWorker, 201) },
   { method: 'POST',  path: '/production/factory-workers/:id/end',     auth: 'jwt', handler: workRoute(endFactoryWorker) },

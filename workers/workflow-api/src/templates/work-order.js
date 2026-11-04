@@ -76,7 +76,7 @@ const MODULE_POS = { upper: '상부', lower: '하부', wardrobe: '붙박이' };
 
 export const LABELS_PER_SHEET = 24; // 3 × 8
 
-function itemLabel(item, index) {
+export function itemLabel(item, index) {
   return (
     item.labelName ||
     CATEGORY_NAMES[item.categoryId || item.category] ||
@@ -1320,7 +1320,7 @@ function packHeader(ctx, pack) {
     </div>
   </div>
   <dl class="kv">
-    ${vendor ? '' : `<dt>설계</dt><dd>${esc(doc.title)} · 설계 rev ${esc(ctx.snapshot.rev)}</dd>`}
+    ${vendor ? '' : ctx.worker ? `<dt>주문</dt><dd>${esc(ctx.worker.orderLabel)} · 설계 rev ${esc(ctx.snapshot.rev)}</dd>` : `<dt>설계</dt><dd>${esc(doc.title)} · 설계 rev ${esc(ctx.snapshot.rev)}</dd>`}
     ${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}
   </dl>
   ${pack === 'cut' || pack === 'assembly' ? `<div class="section-title">정면도</div>${elevationBlock(ctx)}` : ''}
@@ -1368,10 +1368,12 @@ const PACK_SECTIONS = {
   labels: [(ctx) => packHeader(ctx, 'labels'), labelSheets],
 };
 
-export function renderWorkOrder(doc, snapshot, { toolbar = true, renderUrls = new Map(), pack = 'all', top = null } = {}) {
+export function renderWorkOrder(doc, snapshot, { toolbar = true, renderUrls = new Map(), pack = 'all', top = null, worker = null } = {}) {
   const key = normalizePack(pack) || 'all';
   const ctx = buildContext(doc, snapshot, renderUrls);
-  ctx.top = top; // 상판 요청서 — 발주 마감 · 업체 · 가전 모델 (인쇄 시점, worker.js)
+  ctx.top = top;
+  // 작업자 보기 (작업자 포털 — work/checks.js): 설계 제목 대신 가린 주문 이름 (홍*동 · 주문번호)
+  ctx.worker = worker && worker.orderLabel ? worker : null; // 상판 요청서 — 발주 마감 · 업체 · 가전 모델 (인쇄 시점, worker.js)
   const parts = PACK_SECTIONS[key].map((fn) => fn(ctx));
   // 꾸러미 머리는 따로 한 쪽을 쓰지 않는다 — 첫 섹션 쪽의 맨 위에 넣는다 (종이 한 장 아끼기)
   if (parts.length > 1 && parts[0].includes('class="pack-head"')) {

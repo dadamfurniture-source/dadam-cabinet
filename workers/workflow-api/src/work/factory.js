@@ -72,8 +72,8 @@ export async function openFactoryOf(env, workerId) {
   });
 }
 
-/** 승인된 작업자 + 열린 공장 배정. 아니면 403 (not_worker · not_factory) */
-async function requireFactoryWorker(env, user) {
+/** 승인된 작업자 + 열린 공장 배정. 아니면 403 (not_worker · not_factory) — 꾸러미 · 필수 확인(checks.js)도 같다 */
+export async function requireFactoryWorker(env, user) {
   const worker = await loadSelfWorker(env, user);
   if (!worker || worker.status !== 'approved')
     throw new ForbiddenError('승인된 작업자만 공장 일을 할 수 있습니다', 'not_worker');
