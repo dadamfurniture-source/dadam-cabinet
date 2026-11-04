@@ -575,6 +575,15 @@ function workflowData() {
           document_id: 'd2',
           data: { supplier: '예림', item: 'PB 18T', old: 32000, new: 35000, basis: 'read' },
         },
+        {
+          id: 'n3',
+          kind: 'month_report',
+          urgency: 'digest',
+          created_at: '2026-11-01T07:50:00Z',
+          seen_at: '2026-11-01T09:00:00Z',
+          document_id: null,
+          data: { month: '2026-10', rows: 42, income: 48200000, expense: 31050000, profit: 17150000 },
+        },
       ],
     },
     '/ledger/documents': {
