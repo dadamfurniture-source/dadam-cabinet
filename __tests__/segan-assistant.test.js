@@ -655,6 +655,27 @@ describe('장부 알림', () => {
     ]);
   });
 
+  test('월 보고 — 서버 숫자 한 줄, 누르면 그 달 보고서로', async () => {
+    const items = [
+      N(1, {
+        kind: 'month_report',
+        urgency: 'digest',
+        data: { month: '2026-10', rows: 42, income: 48200000, expense: 31050000, profit: 17150000 },
+      }),
+    ];
+    await load({ notices: () => ok({ items, unseen: 1, available: true }) });
+    expect(cards()[0].querySelector('b').textContent).toBe('지난달 회계 보고');
+    expect(cards()[0].querySelector('.as-ncard-body').textContent).toBe(
+      '2026-10 — 매출 48,200,000원 · 매입 31,050,000원 · 장부 손익 17,150,000원'
+    );
+    expect(cards()[0].querySelector('.as-ncard-go').textContent).toBe('보고서 보기 ›');
+    const go = jest.fn();
+    window.SeganAssistant.go = go;
+    cards()[0].click();
+    await flush();
+    expect(go).toHaveBeenCalledWith('ledger-report.html?month=2026-10');
+  });
+
   test('카드를 누르면 본 표시 뒤 장부로, 「모두 봤어요」는 안 본 것 한꺼번에', async () => {
     const items = [N(1), N(2, { urgency: 'digest' }), N(3, { seen_at: '2026-11-03T06:00:00Z' })];
     const calls = await load({ notices: () => ok({ items, unseen: 2, available: true }) });

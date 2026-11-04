@@ -290,6 +290,8 @@ const set = (id, v) => {
 };
 
 afterEach(() => {
+  // 앞 시험의 읽기 기다림 타이머가 다음 시험의 가짜 서버를 부르지 않게
+  if (window.SeganLedger && window.SeganLedger.poll) window.SeganLedger.poll.stop();
   jest.restoreAllMocks();
 });
 
@@ -743,6 +745,86 @@ describe('사진 판 (올리기 · 상태 거름 · 직접 적기)', () => {
     expect($('lgPhChips').hidden).toBe(true);
     expect($('lgDocsBox').hidden).toBe(false);
     expect($('lgDocsTitle').textContent).toBe('올린 사진');
+  });
+});
+
+describe('보고 (보고서 · 세무사용 엑셀 · 월초 카드)', () => {
+  const ME_NAMED = {
+    ...ME,
+    ledgers: [{ company_id: 'c1', name: '한빛 인테리어', kind: 'partner', own: true }],
+  };
+
+  test('머리의 보고서 단추는 보는 달로, 월초(1~7일)에는 한눈에 위에 지난달 보고서 카드', async () => {
+    await load();
+    expect($('lgTopActs').hidden).toBe(false);
+    expect($('lgReportLink').getAttribute('href')).toBe('ledger-report.html?month=2026-11');
+    $('lgPrev').click();
+    await flush();
+    expect($('lgReportLink').getAttribute('href')).toBe('ledger-report.html?month=2026-10');
+    expect($('lgMonthCard').hidden).toBe(false);
+    expect($('lgMonthCard').textContent).toBe(
+      '2026년 10월 회계 보고서가 나왔습니다 — 보고서 보기 ›'
+    );
+    expect($('lgMonthCard').getAttribute('href')).toBe('ledger-report.html?month=2026-10');
+  });
+
+  test('내보내기 — 이 달 CSV 셋 (BOM · 매출장은 고객 이름 없이 주문번호, 취소 줄 뺌), 같은 기간은 한 번만 묻는다', async () => {
+    // 기간(from · to)으로 물으면 달이 없다 — 11월 장부를 준다
+    const calls = await load({ me: ok(ME_NAMED), book: (month) => ok(BOOK(month || '2026-11')) });
+    const saved = [];
+    window.SeganLedger.files.save = (name, text) => saved.push({ name, text });
+    $('lgExportOpen').click();
+    expect($('lgExport').hidden).toBe(false);
+    expect($('lgExPeriod').textContent).toBe('기간 2026-11-01 ~ 2026-11-30');
+    for (const kind of ['sales', 'buys', 'accounts']) {
+      $('lgExport').querySelector(`[data-csv="${kind}"]`).click();
+      await flush();
+    }
+    expect(saved.map((s) => s.name)).toEqual([
+      '한빛인테리어_매출장_2026-11-01_2026-11-30.csv',
+      '한빛인테리어_매입장_2026-11-01_2026-11-30.csv',
+      '한빛인테리어_계정별합계_2026-11-01_2026-11-30.csv',
+    ]);
+    expect(saved[0].text).toBe(
+      '\ufeff일자,구분,주문번호,계정,내용,공급가,부가세,합계,증빙\r\n2026-11-02,수금,SO-1,매출액,계약금,1000000,100000,1100000,\r\n'
+    );
+    expect(saved[0].text).not.toContain('고객');
+    expect(saved[1].text).toBe(
+      '\ufeff일자,구분,거래처,주문번호,계정,내용,공급가,부가세,합계,증빙\r\n' +
+        '2026-11-01,직접,건물주,,임차료,11월 임대료,1000000,100000,1100000,세금계산서\r\n' +
+        '2026-11-02,수주 원가,,SO-1,계정 미정,설치 인건비,300000,,300000,\r\n'
+    );
+    expect(saved[2].text).toBe(
+      '\ufeff구분,계정,공급가 합,부가세 합,합계,줄 수\r\n' +
+        '매출,매출액,1000000,100000,1100000,1\r\n' +
+        '매입,임차료,1000000,100000,1100000,1\r\n' +
+        '매입,계정 미정,300000,0,300000,1\r\n'
+    );
+    expect(
+      calls.filter((c) => c.url === WORK + '/ledger/book?from=2026-11-01&to=2026-11-30').length
+    ).toBe(1);
+    expect($('lgState').textContent).toBe('계정별합계 파일을 받았습니다.');
+  });
+
+  test('내보내기 기간 — 반기(1~6 · 7~12월), 기간 지정은 시작 · 끝 · 366일까지', async () => {
+    await load();
+    window.SeganLedger.files.save = () => {};
+    $('lgExportOpen').click();
+    $('lgExRange').querySelector('[data-range="half"]').click();
+    expect($('lgExPeriod').textContent).toBe('기간 2026-07-01 ~ 2026-12-31');
+    $('lgExRange').querySelector('[data-range="custom"]').click();
+    expect($('lgExCustom').hidden).toBe(false);
+    $('lgExport').querySelector('[data-csv="sales"]').click();
+    await flush();
+    expect($('lgExError').textContent).toBe('시작 · 끝 날짜를 골라 주세요.');
+    $('lgExFrom').value = '2026-01-01';
+    $('lgExTo').value = '2027-01-02';
+    $('lgExport').querySelector('[data-csv="sales"]').click();
+    await flush();
+    expect($('lgExError').textContent).toBe('한 번에 366일까지 받습니다. 기간을 나눠 받아 주세요.');
+    $('lgExTo').value = '2026-12-31';
+    $('lgExTo').dispatchEvent(new window.Event('change'));
+    expect($('lgExPeriod').textContent).toBe('기간 2026-01-01 ~ 2026-12-31');
   });
 });
 

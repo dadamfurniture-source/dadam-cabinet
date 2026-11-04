@@ -1303,3 +1303,45 @@
     max-height: 70vh;
   }
 }
+
+/* ── 보고 — 머리의 보고서 · 내보내기, 월초 지난달 보고서 카드, 내보내기 창 ── */
+.lg-top-acts {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.lg-top-acts .mk-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.lg-month-card {
+  display: block;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--v5-navy);
+  background: var(--v5-well);
+  color: var(--v5-navy);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.lg-export {
+  max-width: 520px;
+}
+
+.lg-ex-range {
+  margin: 4px 0 12px;
+}
+
+.lg-ex-period {
+  margin: 8px 0 12px;
+  color: var(--v5-ink-62);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
