@@ -43,7 +43,7 @@ const SHELL = [
   SCOPE + 'work.html', // 작업 (작업자에게만 탭이 보인다 — 예전 worker.html)
   SCOPE + 'pay.html', // 내 정보 — 수금 일정 결제 결과 (결제창이 돌아오는 곳)
   SCOPE + 'ledger.html', // 내 정보 › 회계 — 업체 장부 (대표 · 실장)
-  SCOPE + 'ledger-board.html', // 내 정보 › 회계 — 회계 한눈에 (대표 · 실장)
+  SCOPE + 'ledger-board.html', // 회계 한눈에 옛 주소 — 회계(ledger.html#board)로 넘긴다
   SCOPE + 'ledger-report.html', // 회계 › 보고서 — 인쇄용 월 회계 보고서 (대표 · 실장)
   SCOPE + 'assistant.html', // 비서 — AI 비서 대화 (자격이 있는 업체 구성원에게만 탭이 보인다)
   OFFLINE,
