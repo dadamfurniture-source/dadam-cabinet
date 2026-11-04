@@ -327,7 +327,7 @@ describe('상몰딩 — 위에 상부장이 있는 수납장은 상몰딩 자리
    * 자리(plane)를 실은 payload — 간편 플래너 설계 BOM (모듈 라이브러리 designBomOf). 하부 600 · 600 (위에 수납장) · 600, 수납장 1200.
    *   withUpper: 수납장 위에 상부장 1200 (수납장 = 858 ~ 상부장 도어 밑 1520, 상몰딩 없음) / 없으면 수납장이 상몰딩 밑까지 (+ 상몰딩 60)
    */
-  function moldingRows(withUpper) {
+  function moldingRows(withUpper, kind) {
     const SPECS = Object.assign({}, LEDGER_SPECS, {
       handle: '찬넬 (목찬넬)',
       finishLeftType: 'None',
@@ -349,7 +349,9 @@ describe('상몰딩 — 위에 상부장이 있는 수납장은 상몰딩 자리
       l0: door2(600),
       l1: door2(600),
       l2: door2(600),
-      s1: upper2(1200, { moldingH: withUpper ? 0 : 60, stackBox: true }),
+      // kind 'open' — 수납장이 오픈장 상자 (2026-11-04: 상자 분기가 stackBox 를 싣지 않아 상몰딩이 한 번 더 나왔다)
+      s1: upper2(1200, Object.assign({ moldingH: withUpper ? 0 : 60, stackBox: true },
+        kind === 'open' ? { moduleKind: 'open', areaTypes: ['open'], areaIs2D: [false], shelves: [] } : {})),
     };
     if (withUpper) {
       modules.push(Object.assign({ id: 'u1', section: 'upper', W: 1200, H: 780, D: 295, x: 0, y: 0, areaH: 780 }, at(0, 1200, 295, 1520)));
@@ -370,5 +372,10 @@ describe('상몰딩 — 위에 상부장이 있는 수납장은 상몰딩 자리
 
   test('위에 상부장 1200 — 상몰딩은 상부장 위 한 장 (수납장 몫이 더해져 두 장이 되지 않는다)', () => {
     expect(moldingRows(true)).toEqual([[60, 1200, 1]]);
+  });
+
+  test('수납장이 오픈장 상자여도 (하부장 위 오픈장) — 상부장 밑이면 상몰딩 한 장, 위가 비면 상자 위 한 장', () => {
+    expect(moldingRows(true, 'open')).toEqual([[60, 1200, 1]]);
+    expect(moldingRows(false, 'open')).toEqual([[60, 1200, 1]]);
   });
 });
