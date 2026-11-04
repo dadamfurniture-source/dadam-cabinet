@@ -28,7 +28,11 @@
              GET /ledger/business-status?biz_no= — 국세청 상태 (서버에 키가 없으면 available false → 단추를 감춘다)
              금액 채우기는 세무사 확인 전 기준: 공제되는 부가세 증빙(세금계산서 · 카드 · 현금영수증)에 공급가 · 부가세가 있으면
              금액 = 공급가 · 부가세 = 부가세, 아니면 금액 = 합계 · 부가세 0
-   보이는 것  늘 「종이 원본 5년 보관」 안내 · 과세 설정 · 달 바꾸기 · 달 요약(수입 · 비용 · 장부 손익 · 부가세)
+   탭        대표 · 실장 — 머리(장부 고르기 · 달) 아래 탭 다섯: 한눈에(ledger-board.js 를 판 안에 · 같은 달) · 매출 · 매입
+             (한 장부를 방향으로 — 수입 · 자산 팔기 / 비용 · 자산 사기) · 사진(올리기 · 확인) · 설정(과세 · 거래처별 세금계산서).
+             주소 #board · #sales · #buys · #photos · #settings 로 탭을 연다 (한눈에의 장부 상태 칩이 이 주소로 온다),
+             ?month=YYYY-MM 은 처음 달. 직원은 탭 없이 사진 판만. 알림 한 줄(lgState)은 화면 아래 — 누르면 닫는다
+   보이는 것  사진 판에 늘 「종이 원본 5년 보관」 안내 · 매출 · 매입 판에 달 요약(수입 · 비용 · 장부 손익 · 부가세)
              · 장부 줄 (직접 입력 · 수금 · 수주 원가 — 받은 날 · 낸 날 기준). 수금 · 원가 줄은 PC ERP 에서 고친다.
              취소한 줄은 「취소한 줄도 보기」를 켜야 보인다 (지우지 않는다).
    못 읽으면  /ledger/me 403 → 이유 한 줄 (구성원 아님 · 자격 없음 · 대표 · 실장 아님), 그 밖 → 「불러오지 못했습니다」
@@ -36,7 +40,7 @@
              남의 장부(viewing)는 보기 주소에 ?company= 를 붙이고 보기만 한다. 쓰기는 언제나 자기 업체
    로그인 · 클라이언트는 segan/shell.js 가 맡는다 (SeganShell.ready 의 sb · session).
    ============================================================ */
-/* global window, document, fetch, crypto */
+/* global window, document, fetch, crypto, location, history, URLSearchParams */
 (function () {
   'use strict';
 
@@ -70,11 +74,24 @@
   var BIZ_KIND = { manufacturing: '제조', retail: '도소매' };
   var DENY = {
     not_member: '장부는 업체 구성원만 씁니다.',
-    not_entitled: '장부는 Agent 업체가 씁니다.',
+    not_entitled: '회계는 Expert · Agent 업체가 씁니다.',
     not_money: '장부는 업체 대표 · 실장만 봅니다.',
   };
   var FAIL_MSG = '장부를 불러오지 못했습니다.';
   var MONTH_RE = /^(\d{4})-(\d{2})$/;
+  // 탭 — 매출 · 매입 판은 한 장부를 방향으로 나눠 보인다
+  var TABS = ['board', 'sales', 'buys', 'photos', 'settings'];
+  var BOOK_TABS = {
+    sales: { title: '매출 — 받은 돈 · 수입', dirs: ['income', 'asset_sell'], dir: 'income' },
+    buys: { title: '매입 — 낸 돈 · 비용', dirs: ['expense', 'asset_buy'], dir: 'expense' },
+  };
+  var PANE = {
+    board: 'lgPaneBoard',
+    sales: 'lgPaneBook',
+    buys: 'lgPaneBook',
+    photos: 'lgPanePhotos',
+    settings: 'lgPaneSettings',
+  };
   // 사진 — 워커 src/ledger/checks.js PHOTO_MAX_* 와 같다
   var PHOTO_MAX_EDGE = 2576;
   var PHOTO_MAX_PIXELS = 3750000;
@@ -199,6 +216,7 @@
     company: '', // 보는 남의 장부 업체 id (비면 자기 업체)
     accounts: [], // [{ code, name, grp, note }]
     month: '',
+    tab: '', // 여는 탭 — TABS 중 하나 (직원은 비움)
     data: null, // GET /ledger/book data
     showVoid: false,
     form: null, // { mode: 'create' | 'correct', row, key }
@@ -766,8 +784,9 @@
   }
 
   function renderList() {
+    var only = BOOK_TABS[L.tab];
     var rows = ((L.data && L.data.rows) || []).filter(function (r) {
-      return r && (L.showVoid || !r.voided_at);
+      return r && (L.showVoid || !r.voided_at) && (!only || only.dirs.indexOf(r.direction) >= 0);
     });
     $('lgList').innerHTML = rows.length
       ? rows.map(itemHtml).join('')
@@ -810,9 +829,67 @@
       })
       .join('');
     $('lgCompany').value = L.me.company_id;
-    // 회계 한눈에 — 지금 보는 장부 그대로
-    $('lgBoardLink').href = withCompany('ledger-board.html');
-    $('lgBoardLink').hidden = false;
+  }
+
+  // ── 탭 ─────────────────────────────────────────────────
+  /** 회계 한눈에 (ledger-board.js) — 이 화면의 토큰 · 주소 · 본사 보기 · 계정 이름 · 달을 넘긴다 */
+  function board() {
+    var b = window.SeganLedgerBoard;
+    return b && typeof b.mount === 'function' ? b : null;
+  }
+
+  function mountBoard() {
+    var b = board();
+    if (!b) return;
+    var names = {};
+    L.accounts.forEach(function (a) {
+      names[a.code] = a.name;
+    });
+    b.mount({
+      sb: L.sb,
+      session: L.session,
+      base: L.base,
+      company: L.company,
+      names: names,
+      // 막대를 누르면 화면 전체의 달을 바꾼다
+      onMonth: function (month) {
+        if (!L.busy && month <= thisMonth()) loadBook(month);
+      },
+    });
+  }
+
+  /** 탭 열기 — 판을 바꾸고 아직 안 그린 한눈에는 그린다 */
+  async function showTab(tab) {
+    if (TABS.indexOf(tab) < 0) tab = 'board';
+    L.tab = tab;
+    [].forEach.call(document.querySelectorAll('#lgTabs [data-tab]'), function (b) {
+      var on = b.getAttribute('data-tab') === tab;
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+      b.tabIndex = on ? 0 : -1;
+    });
+    Object.keys(PANE).forEach(function (k) {
+      $(PANE[k]).hidden = PANE[k] !== PANE[tab];
+    });
+    var only = BOOK_TABS[tab];
+    if (only) {
+      $('lgBookTitle').textContent = only.title;
+      $('lgPaneBook').setAttribute('aria-labelledby', 'lgTab-' + tab);
+      renderList();
+    }
+    if (tab === 'board' && board()) await board().show(L.month);
+  }
+
+  /** 처음 여는 탭 — 주소 #탭, 없으면 한눈에 */
+  function firstTab() {
+    var h = String(location.hash || '').replace(/^#/, '');
+    return TABS.indexOf(h) >= 0 ? h : 'board';
+  }
+
+  /** 사진 탭 옆 수 — 확인할 사진 */
+  function renderTabCount() {
+    var n = $('lgTabPhotosN');
+    n.hidden = !L.review.length;
+    n.textContent = L.review.length + (L.reviewMore ? '+' : '');
   }
 
   // ── 입력 칸 ────────────────────────────────────────────
@@ -858,7 +935,7 @@
     var r = row || {};
     $('lgFormTitle').textContent = mode === 'correct' ? '장부 줄 고치기' : '직접 입력';
     $('lgDate').value = r.entry_date || today();
-    $('lgDir').value = r.direction || 'expense';
+    $('lgDir').value = r.direction || (BOOK_TABS[L.tab] ? BOOK_TABS[L.tab].dir : 'expense');
     fillAccounts($('lgDir').value, r.account);
     $('lgDesc').value = r.description || '';
     $('lgCpName').value = r.counterparty_name || '';
@@ -953,6 +1030,7 @@
     L.data = r.ok ? r.data : { rows: [], totals: {} };
     setState(r.ok ? '' : FAIL_MSG);
     render();
+    if (L.tab === 'board' && board()) await board().show(month);
   }
 
   async function saveTax() {
@@ -1415,6 +1493,7 @@
       if (ready.indexOf(d) < 0) list.appendChild(reviewItem(d, false));
     });
     $('lgReviewMore').hidden = !L.reviewMore;
+    renderTabCount();
   }
 
   /** 읽는 중인 사진이 있으면 화면이 보일 때 다시 읽는다 */
@@ -2644,6 +2723,7 @@
     renderTax();
     renderSwitch();
     renderPhotosBox();
+    mountBoard();
     await loadBook(L.month);
     await loadReview();
     await loadHeld();
@@ -2704,6 +2784,20 @@
     $('lgCompany').addEventListener('change', function () {
       switchTo($('lgCompany').value);
     });
+    $('lgTabs').addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-tab]') : null;
+      if (!b) return;
+      var tab = b.getAttribute('data-tab');
+      if (history.replaceState) history.replaceState(null, '', '#' + tab);
+      showTab(tab);
+    });
+    // 한눈에의 장부 상태 칩 (#photos …) · 뒤로 가기
+    window.addEventListener('hashchange', function () {
+      showTab(firstTab());
+    });
+    $('lgState').addEventListener('click', function () {
+      setState('');
+    });
   }
 
   async function start(auth) {
@@ -2736,12 +2830,16 @@
     renderTax();
     renderSwitch();
     renderPhotosBox();
-    $('lgBody').hidden = false;
-    await loadBook(thisMonth());
+    $('lgTabs').hidden = false;
+    $('lgNav').hidden = false;
+    mountBoard();
+    var asked = new URLSearchParams(location.search).get('month') || '';
+    await loadBook(MONTH_RE.test(asked) && asked <= thisMonth() ? asked : thisMonth());
     await loadDocs();
     await loadReview();
     await loadHeld();
     await loadSuppliers();
+    await showTab(firstTab());
   }
 
   var exported = {
@@ -2764,6 +2862,7 @@
     prefillFor: prefillFor,
     mustMarks: mustMarks,
     readyDocs: readyDocs,
+    showTab: showTab,
     heldFor: heldFor,
     compareText: compareText,
     poll: { tick: pollTick, stop: stopPoll, POLL_MS: POLL_MS },

@@ -10,6 +10,10 @@
    보이기    고른 달 칸 넷(매출 · 매입 · 장부 손익 · 부가세 참고 — 일반과세만, 반기 합) · 12달 막대(손으로 쓴 SVG, 한 축,
              고른 달만 숫자, 막대마다 <title>, 막대를 누르면 그 달로, 표로 보기) · 계정별 · 지출 상대 가로 막대 · 수주 · 미수 ·
              장부 상태 줄. 숫자는 서버 값 그대로 — 이 화면이 더하는 것은 장부 손익(매출 − 매입)과 반기 부가세 참고뿐.
+   장부 화면 판  segan/ledger.html 의 「한눈에」 탭(#lgTabs 가 있으면)에서는 혼자 시작하지 않고 ledger.js 가
+             mount({ sb, session, base, company, names, onMonth }) · show(달) 로 부른다 — 달 바꾸기는 장부 머리가 하고
+             (판 안의 ‹ › 는 감춘다 — ledger-board.css .lb-embedded), 막대를 누르면 onMonth 로 화면 전체의 달을 바꾼다.
+             장부 상태 칩은 #photos (사진 탭)로
    글은 모두 textContent · createElementNS 로 넣는다 (HTML 글을 그대로 넣지 않는다).
    ============================================================ */
 /* global window, document, fetch, location, URLSearchParams */
@@ -18,7 +22,7 @@
 
   var DENY = {
     not_member: '회계 한눈에는 업체 구성원만 봅니다.',
-    not_entitled: '회계 한눈에는 Agent 업체가 봅니다.',
+    not_entitled: '회계 한눈에는 Expert · Agent 업체가 봅니다.',
     not_money: '회계 한눈에는 업체 대표 · 실장만 봅니다.',
   };
   var FAIL_MSG = '회계 한눈에를 불러오지 못했습니다.';
@@ -29,6 +33,8 @@
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   var PAY_STAGE = { deposit: '계약금', interim: '중도금', balance: '잔금', other: '기타' }; // segan/books.js 와 같다
   var NS = 'http://www.w3.org/2000/svg';
+  // 장부 화면의 「한눈에」 탭 안인가 (segan/ledger.html)
+  var EMBED = !!document.getElementById('lgTabs');
 
   var B = {
     sb: null,
@@ -40,6 +46,8 @@
     names: {}, // 계정 코드 → 이름
     books: null, // GET /books/summary data
     busy: false,
+    mounted: false, // 장부 화면 판 — mount 를 한 번 했다
+    onMonth: null, // 장부 화면 판 — 막대를 누르면 (달)
   };
 
   var $ = function (id) {
@@ -452,17 +460,10 @@
       } else li.textContent = text;
       ul.appendChild(li);
     };
-    add(
-      '확인 기다리는 사진 ' + (B.data.pending_photos || 0) + '장',
-      false,
-      withCompany('ledger.html')
-    );
+    var photos = EMBED ? '#photos' : withCompany('ledger.html');
+    add('확인 기다리는 사진 ' + (B.data.pending_photos || 0) + '장', false, photos);
     if (B.data.held_statements)
-      add(
-        '세금계산서 기다리는 명세표 ' + B.data.held_statements + '장',
-        false,
-        withCompany('ledger.html')
-      );
+      add('세금계산서 기다리는 명세표 ' + B.data.held_statements + '장', false, photos);
     add('증빙 경고 ' + (cur.evidence_risk || 0) + '건', cur.evidence_risk > 0);
     add('계정 미정 ' + (cur.account_unknown || 0) + '줄', cur.account_unknown > 0);
     add('부가세 모름 원가 ' + (cur.vat_unknown || 0) + '줄', cur.vat_unknown > 0);
@@ -508,7 +509,9 @@
 
   function onChartClick(e) {
     var g = e.target && e.target.closest ? e.target.closest('[data-month]') : null;
-    if (g && g.getAttribute('data-month') !== B.month) load(g.getAttribute('data-month'));
+    if (!g || g.getAttribute('data-month') === B.month) return;
+    if (B.onMonth) B.onMonth(g.getAttribute('data-month'));
+    else load(g.getAttribute('data-month'));
   }
 
   function bind() {
@@ -551,14 +554,46 @@
     await load(MONTH_RE.test(month) && month <= thisMonth() ? month : thisMonth());
   }
 
+  /** 장부 화면 판 — 토큰 · 주소 · 본사 보기 · 계정 이름 · 막대 누름. 보는 업체가 바뀌면 그린 것을 버린다 */
+  function mount(ctx) {
+    var c = ctx || {};
+    var company = UUID_RE.test(c.company || '') ? c.company : '';
+    if (company !== B.company) {
+      B.data = null;
+      B.books = null;
+      B.month = '';
+    }
+    B.sb = c.sb || null;
+    B.session = c.session || null;
+    B.base = c.base || '';
+    B.company = company;
+    B.names = c.names || {};
+    B.onMonth = typeof c.onMonth === 'function' ? c.onMonth : null;
+    if (!B.mounted) bind();
+    B.mounted = true;
+  }
+
+  /** 장부 화면 판 — 그 달을 보인다 (이미 그 달을 그렸으면 다시 묻지 않는다) */
+  function show(month) {
+    if (!B.mounted || !MONTH_RE.test(month || '')) return Promise.resolve();
+    if (B.data && B.month === month) return Promise.resolve();
+    return load(month);
+  }
+
   var exported = {
     state: B,
+    mount: mount,
+    show: show,
     shiftMonth: shiftMonth,
     vatHalf: vatHalf,
     monthLabel: monthLabel,
   };
   window.SeganLedgerBoard = exported;
-  exported.ready = (
-    window.SeganShell && window.SeganShell.ready ? window.SeganShell.ready : Promise.resolve(null)
-  ).then(start);
+  // 장부 화면 판이면 ledger.js 가 mount · show 로 부른다
+  exported.ready = EMBED
+    ? Promise.resolve(null)
+    : (window.SeganShell && window.SeganShell.ready
+        ? window.SeganShell.ready
+        : Promise.resolve(null)
+      ).then(start);
 })();
