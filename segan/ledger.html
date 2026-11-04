@@ -64,6 +64,11 @@
               <p class="me-bk-month" id="lgMonth" aria-live="polite"></p>
               <button type="button" class="mk-btn me-bk-step" id="lgNext" aria-label="다음 달">›</button>
             </div>
+            <!-- 보고서 · 세무사용 엑셀 — 대표 · 실장 -->
+            <div class="lg-top-acts" id="lgTopActs" hidden>
+              <a class="mk-btn" id="lgReportLink" href="ledger-report.html">보고서</a>
+              <button type="button" class="mk-btn" id="lgExportOpen">내보내기</button>
+            </div>
             <p class="lg-readonly" id="lgReadonly" hidden>지금 등급에서는 장부를 보기만 할 수 있습니다.</p>
           </div>
 
@@ -123,6 +128,8 @@
               aria-labelledby="lgTab-board"
               hidden
             >
+              <!-- 월초(1~7일) — 지난달 보고서 -->
+              <a class="lg-month-card" id="lgMonthCard" href="ledger-report.html" hidden></a>
               <p class="lb-state" id="lbState" role="status"></p>
 
               <div id="lbBody" hidden>
@@ -581,6 +588,35 @@
                 </form>
               </div>
             </div>
+          </section>
+        </div>
+
+        <!-- 세무사용 엑셀 내보내기 — GET /ledger/book?from=&to= 를 받아 이 기기에서 CSV 셋을 만든다 -->
+        <div class="lg-sheet-wrap" id="lgExport" hidden>
+          <section class="lg-box lg-sheet lg-export" role="dialog" aria-modal="true" aria-labelledby="lgExTitle">
+            <div class="lg-sheet-head">
+              <h2 class="lg-box-title" id="lgExTitle">세무사용 엑셀 내보내기</h2>
+              <button type="button" class="mk-link" id="lgExClose">닫기</button>
+            </div>
+            <p class="mk-note">
+              엑셀에서 바로 열리는 CSV 파일입니다. 매출장에는 고객 이름 대신 주문번호를 싣고, 취소한 줄은 넣지 않습니다.
+            </p>
+            <div class="lg-seg lg-ex-range" id="lgExRange" role="group" aria-label="기간">
+              <button type="button" class="lg-seg-btn" data-range="month" aria-pressed="true">이 달</button>
+              <button type="button" class="lg-seg-btn" data-range="half" aria-pressed="false">반기</button>
+              <button type="button" class="lg-seg-btn" data-range="custom" aria-pressed="false">기간 지정</button>
+            </div>
+            <div class="lg-row" id="lgExCustom" hidden>
+              <label class="mk-input"><span>시작</span><input type="date" id="lgExFrom" /></label>
+              <label class="mk-input"><span>끝</span><input type="date" id="lgExTo" /></label>
+            </div>
+            <p class="lg-ex-period" id="lgExPeriod"></p>
+            <div class="lg-acts">
+              <button type="button" class="mk-btn mk-btn--solid" data-csv="sales">매출장</button>
+              <button type="button" class="mk-btn mk-btn--solid" data-csv="buys">매입장</button>
+              <button type="button" class="mk-btn" data-csv="accounts">계정별 합계</button>
+            </div>
+            <p class="mk-error" id="lgExError" hidden></p>
           </section>
         </div>
 
