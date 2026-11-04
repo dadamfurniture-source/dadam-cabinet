@@ -205,7 +205,7 @@ async function load(options = {}) {
     if (/\/ledger\/documents\/[^/]+\/(post|return|reject|reread)$/.test(url))
       return reply(opts.decide(url, init));
     if (url.startsWith(WORK + '/ledger/business-status')) return reply(opts.business(url));
-    if (url === WORK + '/orders') return reply(opts.orders(url));
+    if (url === WORK + '/ledger/orders') return reply(opts.orders(url));
     if (url.startsWith(WORK + '/ledger/documents'))
       return reply(init.method === 'POST' ? opts.upload(url, init) : opts.docs(url));
     if (url.startsWith(WORK + '/ledger/')) return reply(opts.write(url, init));
@@ -1117,28 +1117,26 @@ describe('사진 확인 (대표 · 실장)', () => {
     });
   });
 
-  test('수주 원가로 — 수주(취소 빼고)를 골라 원가 종류와 함께', async () => {
+  test('수주 원가로 — 이 업체 수주(GET /ledger/orders)를 골라 원가 종류와 함께', async () => {
     const O1 = 'f0000000-0000-4000-8000-000000000001';
     const calls = await load({
       review: () => ok({ items: [doc(1, done()), doc(2, done())] }),
       orders: () =>
         ok({
-          items: [
-            { id: O1, order_no: 'SO-1', customer_name: '김고객', status: 'confirmed' },
-            { id: 'o-x', order_no: 'SO-2', customer_name: '이고객', status: 'cancelled' },
-          ],
+          items: [{ id: O1, order_no: 'SO-1', customer_name: '김고객', status: 'confirmed' }],
         }),
     });
     await open(1);
     set('lgRvTarget', 'order_cost');
     await flush();
-    expect(calls.filter((c) => c.url === WORK + '/orders').length).toBe(1);
+    expect(calls.filter((c) => c.url === WORK + '/ledger/orders').length).toBe(1);
     expect([...$('lgRvOrder').options].map((o) => [o.value, o.textContent])).toEqual([
       ['', '고르기'],
       [O1, 'SO-1 · 김고객'],
     ]);
     expect($('lgRvAccount').closest('.lg-must-row').hidden).toBe(true);
     expect($('lgRvOrder').closest('.lg-must-row').hidden).toBe(false);
+    expect($('lgRvOrder').closest('.lg-must-row').querySelector('[data-why]').hidden).toBe(true);
     expect($('lgRvPost').textContent).toBe('수주 원가로 올리기');
     expect([...$('lgRvCategory').options].map((o) => o.textContent)).toEqual([
       '자재',
@@ -1172,7 +1170,44 @@ describe('사진 확인 (대표 · 실장)', () => {
     await open(2);
     set('lgRvTarget', 'order_cost');
     await flush();
-    expect(calls.filter((c) => c.url === WORK + '/orders').length).toBe(1);
+    expect(calls.filter((c) => c.url === WORK + '/ledger/orders').length).toBe(1);
+  });
+
+  test('수주 원가로 — 이 업체 수주가 없으면 그렇다고 쓰고 할 일을 칸 아래에, 올리지 않는다', async () => {
+    const calls = await load({
+      review: () => ok({ items: [doc(1, done())] }),
+      orders: () => ok({ items: [] }),
+    });
+    await open(1);
+    set('lgRvTarget', 'order_cost');
+    await flush();
+    expect([...$('lgRvOrder').options].map((o) => [o.value, o.textContent])).toEqual([
+      ['', '이 업체 수주가 없습니다'],
+    ]);
+    const why = $('lgRvOrder').closest('.lg-must-row').querySelector('[data-why]');
+    expect(why.hidden).toBe(false);
+    expect(why.textContent).toContain('ERP 에서 수주를 먼저 만들거나');
+    await submitSheet();
+    expect($('lgRvError').textContent).toBe('이 업체에는 고를 수주가 없습니다.');
+    expect(calls.some((c) => c.url.endsWith('/post'))).toBe(false);
+  });
+
+  test('수주 원가로 — 수주 목록을 못 불러오면 그렇게 쓰고, 다시 고르면 다시 묻는다', async () => {
+    let n = 0;
+    const calls = await load({
+      review: () => ok({ items: [doc(1, done())] }),
+      orders: () => (++n === 1 ? fail(500, 'internal', 'x') : ok({ items: [] })),
+    });
+    await open(1);
+    set('lgRvTarget', 'order_cost');
+    await flush();
+    expect($('lgRvOrder').options[0].textContent).toBe('수주 목록을 불러오지 못했습니다');
+    expect($('lgRvError').textContent).toBe('수주 목록을 불러오지 못했습니다.');
+    set('lgRvTarget', 'entry');
+    set('lgRvTarget', 'order_cost');
+    await flush();
+    expect(calls.filter((c) => c.url === WORK + '/ledger/orders').length).toBe(2);
+    expect($('lgRvOrder').options[0].textContent).toBe('이 업체 수주가 없습니다');
   });
 
   test('돌려보내기 · 버리기 — 화면 안에서 이유를 받고(confirm 없음), 보낸 뒤 목록에서 뺀다', async () => {
