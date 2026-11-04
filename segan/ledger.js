@@ -177,6 +177,9 @@
     [/^stuck$/, '너무 오래 걸려 멈췄습니다'],
     [/^parse$/, 'AI 답을 알아보지 못했습니다'],
   ];
+  // 수주 원가로 — 이 업체에 고를 수주가 없을 때 할 일
+  var NO_ORDERS_HINT =
+    'ERP 에서 수주를 먼저 만들거나, 수주에 붙지 않는 돈이면 「올릴 곳」을 장부 줄로 바꿔 올려 주세요.';
   var AMOUNT_KEYS = [
     'supply_amount',
     'vat_amount',
@@ -212,7 +215,8 @@
     rot: {}, // 「사진 돌리기」로 고친 각도 — 사진 id → 0 · 90 · 180 · 270 (화면에서만)
     sheet: null, // 여는 사진 { doc, prefill }
     decide: '', // 이유를 적는 중 — returned | rejected
-    orders: null, // GET /orders items (수주 원가로 올릴 때 한 번)
+    orders: null, // GET /ledger/orders items — 이 업체 수주 (수주 원가로 올릴 때 한 번)
+    ordersFailed: false, // 수주 목록을 못 불러옴 — 다시 고르면 다시 묻는다
     ntsAvailable: null, // 국세청 상태 조회 — false 면 단추를 감춘다
     pollTimer: null,
     reviewBusy: false,
@@ -1522,25 +1526,44 @@
   function fillRvOrders() {
     var sel = $('lgRvOrder');
     var keep = sel.value;
+    var none = !!L.orders && !L.orders.length;
     sel.textContent = '';
-    sel.appendChild(new window.Option(L.orders ? '고르기' : '수주를 불러오는 중…', ''));
+    sel.appendChild(
+      new window.Option(
+        L.ordersFailed
+          ? '수주 목록을 불러오지 못했습니다'
+          : !L.orders
+            ? '수주를 불러오는 중…'
+            : none
+              ? '이 업체 수주가 없습니다'
+              : '고르기',
+        ''
+      )
+    );
     (L.orders || []).forEach(function (o) {
       sel.appendChild(
         new window.Option([o.order_no, o.customer_name].filter(Boolean).join(' · '), o.id)
       );
     });
     sel.value = keep;
+    // 수주가 없으면 그 칸 아래에 할 일을 쓴다 (꼭 볼 칸 표시는 이 칸을 그리지 않는다)
+    var why = sel.closest('.lg-must-row').querySelector('[data-why]');
+    why.textContent = none ? NO_ORDERS_HINT : '';
+    why.hidden = !none;
   }
 
+  // 사진과 같은 업체 수주만 받는다 (서버 ledger_post_document) — GET /orders 는 볼 수 있는 업체들의 수주를 섞는다
   async function loadOrders() {
     if (L.orders) return fillRvOrders();
+    L.ordersFailed = false;
     fillRvOrders();
-    var r = await api('/orders');
+    var r = await api('/ledger/orders');
     L.orders = r.ok
       ? ((r.data && r.data.items) || []).filter(function (o) {
-          return o && o.id && o.status !== 'cancelled';
+          return o && o.id;
         })
       : null;
+    L.ordersFailed = !r.ok;
     if (!r.ok) rvError('수주 목록을 불러오지 못했습니다.');
     fillRvOrders();
   }
@@ -1777,7 +1800,13 @@
     var desc = $('lgRvDesc').value.trim() || null;
     var name = $('lgRvCpName').value.trim() || null;
     if (target === 'order_cost') {
-      if (!$('lgRvOrder').value) return { error: '수주를 골라 주세요.' };
+      if (!$('lgRvOrder').value)
+        return {
+          error:
+            L.orders && !L.orders.length
+              ? '이 업체에는 고를 수주가 없습니다.'
+              : '수주를 골라 주세요.',
+        };
       return {
         body: {
           target: 'order_cost',
