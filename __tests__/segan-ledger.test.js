@@ -159,6 +159,11 @@ async function load(options = {}) {
     batch: () => ok({ items: [], posted: 0 }),
     business: () => ok({ available: false, biz_no: '' }),
     orders: () => ok({ items: [] }),
+    held: () => ok({ available: true, groups: [], count: 0 }),
+    heldEntries: () => ok({ items: [] }),
+    suppliers: () => ok({ available: true, items: [] }),
+    attach: () => ok({ attached: 0, compare: { n: 0 }, dry_run: true }),
+    hold: () => ok({ held: 0 }),
     ...options,
   };
   jest.spyOn(Date, 'now').mockReturnValue(NOW);
@@ -206,6 +211,11 @@ async function load(options = {}) {
       return reply(opts.decide(url, init));
     if (url.startsWith(WORK + '/ledger/business-status')) return reply(opts.business(url));
     if (url === WORK + '/ledger/orders') return reply(opts.orders(url));
+    if (url.startsWith(WORK + '/ledger/held/entries')) return reply(opts.heldEntries(url));
+    if (url.startsWith(WORK + '/ledger/held')) return reply(opts.held(url));
+    if (url.startsWith(WORK + '/ledger/suppliers')) return reply(opts.suppliers(url, init));
+    if (/\/ledger\/entries\/[^/]+\/attach$/.test(url)) return reply(opts.attach(url, init));
+    if (/\/ledger\/documents\/(hold|unhold)$/.test(url)) return reply(opts.hold(url, init));
     if (url.startsWith(WORK + '/ledger/documents'))
       return reply(init.method === 'POST' ? opts.upload(url, init) : opts.docs(url));
     if (url.startsWith(WORK + '/ledger/')) return reply(opts.write(url, init));
@@ -1579,6 +1589,284 @@ describe('사진 확인 (대표 · 실장)', () => {
       expect(img.getAttribute('data-rot')).toBe('0');
       $('lgRvClose').click();
     }
+  });
+
+  describe('거래명세표 모아 붙이기', () => {
+    const STMT = { ...RESULT, evidence_type: 'statement', items: [] };
+    const askHints = () =>
+      hints({
+        ready: false,
+        blockers: ['invoice_mode'],
+        invoice: { mode: null, route: 'ask' },
+        proposal: { ...PROPOSAL, evidence_type: 'statement', amount: 11000, vat_amount: 0 },
+      });
+    const G = {
+      supplier_key: 'b1234567891',
+      supplier_name: '가나목재',
+      biz_no: '1234567891',
+      name_key: '가나목재',
+      invoice_mode: 'separate',
+      month: '2026-10',
+      count: 2,
+      supply: 800000,
+      total: 880000,
+      late: true,
+      documents: [
+        {
+          id: D(1),
+          issue_date: '2026-10-07',
+          supply_amount: 300000,
+          vat_amount: 30000,
+          total_amount: 330000,
+          created_at: '2026-10-07T00:00:00Z',
+        },
+        {
+          id: D(2),
+          issue_date: '2026-10-15',
+          supply_amount: 500000,
+          vat_amount: 50000,
+          total_amount: 550000,
+          created_at: '2026-10-15T00:00:00Z',
+        },
+      ],
+    };
+    const ENTRY = {
+      entry_id: E1,
+      entry_date: '2026-10-31',
+      amount: 800000,
+      vat_amount: 80000,
+      evidence_type: 'tax_invoice',
+      counterparty_name: '(주)가나목재',
+      supporting: 0,
+    };
+    const attachReply = (url, init) =>
+      JSON.parse(init.body).dry_run
+        ? ok({
+            attached: 0,
+            compare: {
+              n: 2,
+              basis: 'supply',
+              statements: 800000,
+              invoice: 800000,
+              diff: 0,
+              match: true,
+              missing: 0,
+            },
+            dry_run: true,
+          })
+        : ok({
+            attached: 2,
+            compare: { n: 2, basis: 'supply', diff: 0, match: true },
+            dry_run: false,
+          });
+
+    test('거래처를 안 골랐으면 시트가 묻고, 따로 줌 → 그 거래처 명세표를 한 번에 모아 둔다', async () => {
+      const calls = await load({
+        review: () =>
+          ok({
+            items: [
+              doc(1, done(STMT), { hints: askHints() }),
+              doc(2, done(STMT), { hints: askHints() }),
+            ],
+          }),
+        suppliers: (url, init) =>
+          init && init.method === 'PUT'
+            ? ok({
+                key: 'b1234567891',
+                mode: 'separate',
+                name: '예림 자재',
+                released: 0,
+                candidates: [D(2)],
+              })
+            : ok({ available: true, items: [] }),
+        hold: () => ok({ held: 2 }),
+      });
+      expect(rowOf(1).textContent).toContain('명세표 — 세금계산서를 따로 주는지 고르기');
+      expect(readyRows()).toHaveLength(0);
+      await open(1);
+      expect($('lgRvInv').hidden).toBe(false);
+      expect($('lgRvInvTitle').textContent).toBe('예림 자재는 세금계산서를 따로 주나요?');
+      expect($('lgRvInvHold').hidden).toBe(true);
+      $('lgRvInvSep').click();
+      await flush();
+      const put = calls.find((c) => c.url === WORK + '/ledger/suppliers' && c.method === 'PUT');
+      expect(put.body).toEqual({ document_id: D(1), mode: 'separate' });
+      // 이 사진이 후보에 없어도 맨 앞에 넣는다
+      expect($('lgRvHold').textContent).toBe('2장 모아 두기');
+      expect($('lgRvInvNote').textContent).toContain('명세표 2장(이 사진 포함)');
+      $('lgRvHold').click();
+      await flush();
+      expect(calls.find((c) => c.url === WORK + '/ledger/documents/hold').body).toEqual({
+        document_ids: [D(1), D(2)],
+      });
+      expect($('lgSheet').hidden).toBe(true);
+      expect(rows()).toHaveLength(0);
+      expect($('lgState').textContent).toBe(
+        '명세표 2장을 모아 뒀습니다 — 세금계산서가 오면 붙입니다.'
+      );
+      expect(calls.filter((c) => c.url === WORK + '/ledger/held').length).toBeGreaterThanOrEqual(2);
+    });
+
+    test('명세표만 줌 — 상자를 닫고 그대로 장부 줄로 올린다', async () => {
+      const calls = await load({
+        review: () => ok({ items: [doc(1, done(STMT), { hints: askHints() })] }),
+        suppliers: (url, init) =>
+          init && init.method === 'PUT'
+            ? ok({
+                key: 'b1234567891',
+                mode: 'statement_only',
+                name: '예림 자재',
+                released: 0,
+                candidates: [],
+              })
+            : ok({ available: true, items: [] }),
+      });
+      await open(1);
+      $('lgRvInvOnly').click();
+      await flush();
+      expect(calls.find((c) => c.method === 'PUT').body).toEqual({
+        document_id: D(1),
+        mode: 'statement_only',
+      });
+      expect($('lgRvInv').hidden).toBe(true);
+      expect($('lgRvRead').textContent).toContain('명세표만 주는 곳으로 정했습니다');
+      expect($('lgRvPost').hidden).toBe(false);
+    });
+
+    test('세금계산서 기다리는 명세표 — 거래처 · 달 묶음, 붙이기 창에서 맞춰 보고 고른 것만 붙인다', async () => {
+      const calls = await load({
+        held: () => ok({ available: true, groups: [G], count: 2 }),
+        heldEntries: () => ok({ items: [ENTRY] }),
+        attach: attachReply,
+      });
+      expect($('lgHeld').hidden).toBe(false);
+      expect($('lgHeldTitle').textContent).toBe('세금계산서 기다리는 명세표 2장');
+      const row = $('lgHeldList').querySelector('.lg-held-row');
+      expect(row.textContent).toContain('가나목재 · 2026년 10월');
+      expect(row.textContent).toContain('2장 · 공급가 800,000원');
+      expect(row.textContent).toContain('11일이 지났는데 세금계산서가 아직 없습니다');
+      row.querySelector('[data-act="held-attach"]').click();
+      await flush();
+      expect($('lgAttach').hidden).toBe(false);
+      expect(calls.find((c) => c.url.startsWith(WORK + '/ledger/held/entries')).url).toBe(
+        WORK + '/ledger/held/entries?biz_no=1234567891&name_key=' + encodeURIComponent('가나목재')
+      );
+      expect($('lgAtEntry').value).toBe(E1);
+      const dry = calls.filter((c) => /\/attach$/.test(c.url));
+      expect(dry.at(-1).body).toEqual({ document_ids: [D(1), D(2)], dry_run: true });
+      expect($('lgAtRes').textContent).toContain('같습니다');
+      expect($('lgAtCmp').textContent).toContain('명세표 공급가 합 (2장)');
+      // 하나 빼면 다시 맞춰 본다
+      const box = $('lgAtDocs').querySelector(`[data-doc="${D(2)}"]`);
+      box.checked = false;
+      box.dispatchEvent(new window.Event('change', { bubbles: true }));
+      await flush();
+      expect(calls.filter((c) => /\/attach$/.test(c.url)).at(-1).body).toEqual({
+        document_ids: [D(1)],
+        dry_run: true,
+      });
+      $('lgAtGo').click();
+      await flush();
+      expect(calls.filter((c) => /\/attach$/.test(c.url)).at(-1).body).toEqual({
+        document_ids: [D(1)],
+      });
+      expect($('lgAttach').hidden).toBe(true);
+      expect($('lgState').textContent).toBe('명세표 2장을 세금계산서 줄에 붙였습니다.');
+    });
+
+    test('세금계산서 사진을 올리면 그 거래처 모아 둔 명세표를 붙일지 묻는다', async () => {
+      const TAX = { ...RESULT, evidence_type: 'tax_invoice', supplier_name: '가나목재' };
+      await load({
+        review: () =>
+          ok({
+            items: [
+              doc(1, done(TAX), {
+                hints: hints({
+                  ready: false,
+                  blockers: ['evidence_changed'],
+                  supplier: { name: '가나목재', biz_no: '1234567891', key: 'b1234567891' },
+                  proposal: { ...PROPOSAL, evidence_type: 'tax_invoice', entry_date: '2026-10-31' },
+                }),
+              }),
+            ],
+          }),
+        decide: () => ok({ document_id: D(1), target: 'entry', entry_id: E1 }, 201),
+        held: () => ok({ available: true, groups: [G], count: 2 }),
+        heldEntries: () => ok({ items: [ENTRY] }),
+        attach: attachReply,
+      });
+      await open(1);
+      await submitSheet();
+      expect($('lgSheet').hidden).toBe(true);
+      expect($('lgAttach').hidden).toBe(false);
+      expect($('lgAtEntry').value).toBe(E1);
+    });
+
+    test('거래처별 세금계산서 — 목록에서 바꾸면 열쇠로 고르고, 모아 둔 명세표가 돌아간 수를 알린다', async () => {
+      const calls = await load({
+        suppliers: (url, init) =>
+          init && init.method === 'PUT'
+            ? ok({
+                key: 'b1234567891',
+                mode: 'statement_only',
+                name: '가나목재',
+                released: 2,
+                candidates: [],
+              })
+            : ok({
+                available: true,
+                items: [
+                  {
+                    supplier_key: 'b1234567891',
+                    name: '가나목재',
+                    mode: 'separate',
+                    set_at: '2026-11-04T00:00:00Z',
+                  },
+                ],
+              }),
+      });
+      expect($('lgSup').hidden).toBe(false);
+      const sel = $('lgSupList').querySelector('select');
+      expect(sel.value).toBe('separate');
+      sel.value = 'statement_only';
+      sel.dispatchEvent(new window.Event('change', { bubbles: true }));
+      await flush();
+      expect(calls.find((c) => c.method === 'PUT').body).toEqual({
+        supplier_key: 'b1234567891',
+        mode: 'statement_only',
+      });
+      expect($('lgState').textContent).toBe(
+        '가나목재 — 명세표만 줌 (모아 둔 명세표 2장을 확인할 사진으로)'
+      );
+    });
+
+    test('맞춰 보기 글 — 다르면 차이 · 다 못 읽으면 그렇다고 (순수)', async () => {
+      await load();
+      const t = window.SeganLedger.compareText;
+      expect(
+        t({
+          n: 2,
+          basis: 'supply',
+          statements: 800000,
+          invoice: 1000000,
+          diff: -200000,
+          match: false,
+        }).res
+      ).toBe(
+        '200,000원 다릅니다 — 빠진 명세표가 있거나 세금계산서가 잘못됐을 수 있습니다. 그래도 붙일 수 있습니다.'
+      );
+      const total = t({
+        n: 2,
+        basis: 'total',
+        statements: null,
+        invoice: 1100000,
+        diff: null,
+        match: null,
+      });
+      expect(total.rows[0]).toEqual(['명세표 합계 합 (2장)', '읽지 못한 값이 있음']);
+      expect(total.good).toBe(null);
+      expect(t({ n: 0 }).rows).toEqual([]);
+    });
   });
 
   describe('사진 주소가 끝날 때 (서명 주소 10분)', () => {

@@ -177,6 +177,8 @@
     [/^stuck$/, '너무 오래 걸려 멈췄습니다'],
     [/^parse$/, 'AI 답을 알아보지 못했습니다'],
   ];
+  // 거래명세표 — 거래처가 세금계산서를 따로 주나 (워커 src/ledger/statements.js INVOICE_MODES)
+  var INVOICE_MODE = { separate: '세금계산서 따로 줌', statement_only: '명세표만 줌' };
   // 수주 원가로 — 이 업체에 고를 수주가 없을 때 할 일
   //   수주는 상세설계 업무 루프에서 고객이 승인한 확인서를 「수주 전환」해야 생긴다 (ERP 는 있는 수주만 본다 — workers/workflow-api createOrderFromDocument)
   var NO_ORDERS_HINT =
@@ -218,6 +220,10 @@
     decide: '', // 이유를 적는 중 — returned | rejected
     orders: null, // GET /ledger/orders items — 이 업체 수주 (수주 원가로 올릴 때 한 번)
     ordersFailed: false, // 수주 목록을 못 불러옴 — 다시 고르면 다시 묻는다
+    held: [], // GET /ledger/held groups — 세금계산서 기다리는 명세표 (거래처 · 달)
+    suppliers: [], // GET /ledger/suppliers items — 거래처별 고른 것
+    attach: null, // 붙이기 창 { group, entries, picked: { 사진 id: true }, seq }
+    attachAfter: null, // 「세금계산서 줄 넣고 붙이기」 — 직접 입력을 저장하면 이 묶음 붙이기 창을 연다
     ntsAvailable: null, // 국세청 상태 조회 — false 면 단추를 감춘다
     pollTimer: null,
     reviewBusy: false,
@@ -433,6 +439,11 @@
     if (unsure.length)
       out.push({ key: 'unsure', level: 'warn', text: '확실하지 않음: ' + unsure.join(' · ') });
     if (h.first_time) out.push({ key: 'first', level: 'info', text: '처음 보는 거래처' });
+    var route = h.invoice && h.invoice.route;
+    if (route === 'ask')
+      out.push({ key: 'invoice', level: 'info', text: '명세표 — 세금계산서를 따로 주는지 고르기' });
+    if (route === 'hold')
+      out.push({ key: 'invoice', level: 'info', text: '세금계산서 따로 받는 거래처 — 모아 두기' });
     return out;
   }
 
@@ -864,6 +875,7 @@
 
   function closeForm() {
     L.form = null;
+    L.attachAfter = null;
     $('lgForm').hidden = true;
     formError('');
   }
@@ -922,8 +934,11 @@
     L.busy = false;
     $('lgSave').disabled = false;
     if (!r.ok) return formError(r.message || '저장하지 못했습니다.');
+    var after = L.form.mode === 'create' ? L.attachAfter : null;
     closeForm();
     await loadBook(L.month);
+    // 「세금계산서 줄 넣고 붙이기」 — 방금 넣은 줄로 붙이기 창을 다시 연다
+    if (after && r.data && r.data.entry && r.data.entry.id) openAttach(after, r.data.entry.id);
   }
 
   // ── 읽기 · 행동 ─────────────────────────────────────────
@@ -1507,6 +1522,455 @@
     if (photosStale() && !L.sheet && !L.reviewBusy) refreshReview();
   }
 
+  // ── 거래명세표 모아 붙이기 ─────────────────────────────────
+  //   시트: 명세표인데 거래처를 안 골랐으면 묻고(ask), 따로 주는 거래처면 모아 두기(hold)
+  //   목록: 세금계산서 기다리는 명세표 (거래처 · 달) → 세금계산서 줄에 붙이기 · 명세표만 주는 곳으로
+  //   붙이기 창: 장부 줄 고르기 + 명세표 고르기 → 맞춰 보기(dry_run) → 붙이기
+
+  /** 이 사진 거래처의 모아 둔 명세표 묶음 — 그 달 것이 먼저 */
+  function heldFor(doc, entryDate) {
+    var key = doc && doc.hints && doc.hints.supplier && doc.hints.supplier.key;
+    if (!key) return null;
+    var same = L.held.filter(function (g) {
+      return g.supplier_key === key;
+    });
+    var month = String(entryDate || '').slice(0, 7);
+    return (
+      same.filter(function (g) {
+        return g.month === month;
+      })[0] ||
+      same[0] ||
+      null
+    );
+  }
+
+  function heldName(g) {
+    return (g.supplier_name || '거래처 모름') + ' · ' + monthLabel(g.month);
+  }
+
+  function renderHeld() {
+    var box = $('lgHeld');
+    var n = L.held.reduce(function (s, g) {
+      return s + g.count;
+    }, 0);
+    box.hidden = !n;
+    $('lgHeldTitle').textContent = '세금계산서 기다리는 명세표 ' + n + '장';
+    var ul = $('lgHeldList');
+    ul.textContent = '';
+    L.held.forEach(function (g, i) {
+      var li = el('li', 'lg-held-row');
+      var top = el('div', 'lg-held-top');
+      top.appendChild(el('b', '', heldName(g)));
+      top.appendChild(
+        el(
+          'span',
+          '',
+          g.count +
+            '장 · ' +
+            (g.supply != null ? '공급가 ' + money(g.supply) : '합계 ' + money(g.total))
+        )
+      );
+      li.appendChild(top);
+      if (g.late)
+        li.appendChild(el('small', 'lg-held-late', '11일이 지났는데 세금계산서가 아직 없습니다'));
+      if (canWrite()) {
+        var acts = el('div', 'lg-held-acts');
+        var go = el('button', 'mk-btn mk-btn--solid', '세금계산서 줄에 붙이기');
+        go.type = 'button';
+        go.setAttribute('data-act', 'held-attach');
+        go.setAttribute('data-i', String(i));
+        acts.appendChild(go);
+        if (g.supplier_key) {
+          var only = el('button', 'mk-link', '명세표만 주는 곳으로 바꾸기');
+          only.type = 'button';
+          only.setAttribute('data-act', 'held-only');
+          only.setAttribute('data-i', String(i));
+          acts.appendChild(only);
+        }
+        li.appendChild(acts);
+      }
+      ul.appendChild(li);
+    });
+  }
+
+  async function loadHeld() {
+    var r = await api(withCompany('/ledger/held'));
+    L.held = r.ok && r.data && Array.isArray(r.data.groups) ? r.data.groups : [];
+    renderHeld();
+  }
+
+  async function onHeldClick(e) {
+    var b = e.target.closest ? e.target.closest('[data-act]') : null;
+    if (!b || L.reviewBusy) return;
+    var g = L.held[Number(b.getAttribute('data-i'))];
+    if (!g) return;
+    if (b.getAttribute('data-act') === 'held-attach') return openAttach(g, '');
+    if (b.getAttribute('data-act') === 'held-only') {
+      L.reviewBusy = true;
+      var r = await api('/ledger/suppliers', {
+        method: 'PUT',
+        body: { supplier_key: g.supplier_key, mode: 'statement_only' },
+      });
+      L.reviewBusy = false;
+      if (!r.ok) return setState(r.message || '바꾸지 못했습니다.');
+      setState(
+        (g.supplier_name || '이 거래처') +
+          '는 명세표만 주는 곳으로 바꿨습니다 — 명세표 ' +
+          (r.data.released || 0) +
+          '장을 확인할 사진으로 돌렸습니다.'
+      );
+      await loadHeld();
+      await loadReview();
+      await loadSuppliers();
+    }
+  }
+
+  /** 시트 위 명세표 상자 — ask(묻기) · hold(모아 두기) */
+  function renderInvoice(doc) {
+    var h = doc.hints || {};
+    var route = h.invoice && h.invoice.route;
+    var name = (h.supplier && h.supplier.name) || '이 거래처';
+    L.sheet.candidates = null;
+    $('lgRvInv').hidden = !route || !canWrite();
+    $('lgRvInvAsk').hidden = route !== 'ask';
+    $('lgRvInvHold').hidden = route !== 'hold';
+    $('lgRvHold').textContent = '모아 두기';
+    if (route === 'ask') {
+      $('lgRvInvTitle').textContent = name + '는 세금계산서를 따로 주나요?';
+      $('lgRvInvNote').textContent =
+        '한 번만 고르면 이 거래처의 명세표는 앞으로 저절로 나뉩니다. 모르시면 세무사님께 물어보세요 (홈택스 자료로 바로 압니다).';
+    } else if (route === 'hold') {
+      $('lgRvInvTitle').textContent = '세금계산서를 따로 주는 거래처의 명세표입니다';
+      $('lgRvInvNote').textContent =
+        '장부 줄로 올리면 세금계산서와 두 번 잡힙니다. 모아 두었다가 세금계산서가 오면 그 줄에 붙이세요.';
+    }
+  }
+
+  async function setSheetMode(mode) {
+    if (!L.sheet || L.reviewBusy) return;
+    var doc = L.sheet.doc;
+    L.reviewBusy = true;
+    var r = await api('/ledger/suppliers', {
+      method: 'PUT',
+      body: { document_id: doc.id, mode: mode },
+    });
+    L.reviewBusy = false;
+    if (!r.ok) return rvError(r.message || '고르지 못했습니다.');
+    loadSuppliers();
+    if (mode === 'statement_only') {
+      $('lgRvInv').hidden = true;
+      $('lgRvRead').textContent =
+        (r.data.name || '이 거래처') +
+        '는 명세표만 주는 곳으로 정했습니다 — 장부 줄로 올리면 됩니다.';
+      return;
+    }
+    var ids = Array.isArray(r.data.candidates) ? r.data.candidates.slice() : [];
+    if (ids.indexOf(doc.id) < 0) ids.unshift(doc.id);
+    L.sheet.candidates = ids;
+    $('lgRvInvAsk').hidden = true;
+    $('lgRvInvHold').hidden = false;
+    $('lgRvInvTitle').textContent =
+      (r.data.name || '이 거래처') + '는 세금계산서를 따로 주는 곳으로 정했습니다';
+    $('lgRvInvNote').textContent =
+      '이 거래처 명세표 ' +
+      ids.length +
+      '장(이 사진 포함)을 장부에 넣지 않고 모아 둡니다. 세금계산서가 오면 그 줄에 붙입니다.';
+    $('lgRvHold').textContent = ids.length + '장 모아 두기';
+  }
+
+  async function holdSheet() {
+    if (!L.sheet || L.reviewBusy) return;
+    var ids = L.sheet.candidates || [L.sheet.doc.id];
+    L.reviewBusy = true;
+    var r = await api('/ledger/documents/hold', { method: 'POST', body: { document_ids: ids } });
+    L.reviewBusy = false;
+    if (!r.ok) return rvError(r.message || '모아 두지 못했습니다.');
+    L.review = L.review.filter(function (d) {
+      return ids.indexOf(d.id) < 0;
+    });
+    closeSheet();
+    renderReview();
+    await loadHeld();
+    await loadDocs();
+    setState('명세표 ' + (r.data.held || 0) + '장을 모아 뒀습니다 — 세금계산서가 오면 붙입니다.');
+  }
+
+  // 붙이기 창
+
+  function closeAttach() {
+    L.attach = null;
+    $('lgAttach').hidden = true;
+  }
+
+  function atError(text) {
+    $('lgAtError').textContent = text || '';
+    $('lgAtError').hidden = !text;
+  }
+
+  function entryLabel(x) {
+    return [
+      day(x.entry_date),
+      money(x.amount) + (x.vat_amount ? ' + 부가세 ' + money(x.vat_amount) : ''),
+      EVIDENCE[x.evidence_type] || x.evidence_type || '',
+      x.supporting ? '붙은 명세표 ' + x.supporting + '장' : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  /** 맞춰 보기 결과 → 글 (순수) */
+  function compareText(c) {
+    if (!c || !c.n) return { rows: [], res: '', good: null };
+    var supply = c.basis === 'supply';
+    var rows = [
+      [
+        (supply ? '명세표 공급가 합' : '명세표 합계 합') + ' (' + c.n + '장)',
+        c.statements == null ? '읽지 못한 값이 있음' : money(c.statements),
+      ],
+      [supply ? '세금계산서 공급가' : '장부 줄 합계 (금액 + 부가세)', money(c.invoice)],
+    ];
+    if (c.match === true)
+      return {
+        rows: rows,
+        res: '같습니다 — 붙이면 명세표 ' + c.n + '장이 이 줄의 증빙이 됩니다.',
+        good: true,
+      };
+    if (c.match === false)
+      return {
+        rows: rows,
+        res:
+          money(Math.abs(c.diff)) +
+          ' 다릅니다 — 빠진 명세표가 있거나 세금계산서가 잘못됐을 수 있습니다. 그래도 붙일 수 있습니다.',
+        good: false,
+      };
+    return {
+      rows: rows,
+      res: '명세표 금액을 다 읽지 못해 맞춰 볼 수 없습니다. 그래도 붙일 수 있습니다.',
+      good: null,
+    };
+  }
+
+  function renderAttach() {
+    var a = L.attach;
+    if (!a) return;
+    $('lgAtTitle').textContent = heldName(a.group) + ' — 세금계산서 줄에 붙이기';
+    var sel = $('lgAtEntry');
+    var keep = sel.value || a.entryId;
+    sel.textContent = '';
+    if (!a.entries) sel.appendChild(new window.Option('장부 줄을 불러오는 중…', ''));
+    else if (!a.entries.length)
+      sel.appendChild(new window.Option('이 거래처 장부 줄이 없습니다', ''));
+    (a.entries || []).forEach(function (x) {
+      sel.appendChild(new window.Option(entryLabel(x), x.entry_id));
+    });
+    if (keep) sel.value = keep;
+    $('lgAtNote').textContent =
+      a.entries && !a.entries.length
+        ? '세금계산서 장부 줄이 아직 없습니다. 「세금계산서 줄 넣고 붙이기」로 세금계산서를 먼저 적어 주세요.'
+        : '세금계산서 장부 줄을 고르고, 붙일 명세표를 확인하세요. 명세표는 장부 금액에 들어가지 않고 그 줄의 증빙이 됩니다.';
+    var ul = $('lgAtDocs');
+    ul.textContent = '';
+    a.group.documents.forEach(function (d) {
+      var li = el('li', 'lg-at-doc');
+      var label = document.createElement('label');
+      var box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = !!a.picked[d.id];
+      box.setAttribute('data-doc', d.id);
+      label.appendChild(box);
+      label.appendChild(el('span', '', (day(d.issue_date) || stamp(d.created_at)) + ' 명세표'));
+      label.appendChild(
+        el(
+          'span',
+          'lg-at-amt',
+          d.supply_amount != null ? money(d.supply_amount) : money(d.total_amount)
+        )
+      );
+      li.appendChild(label);
+      ul.appendChild(li);
+    });
+    $('lgAtGo').disabled = !$('lgAtEntry').value || !pickedIds().length;
+  }
+
+  function pickedIds() {
+    var a = L.attach;
+    if (!a) return [];
+    return a.group.documents
+      .map(function (d) {
+        return d.id;
+      })
+      .filter(function (id) {
+        return a.picked[id];
+      });
+  }
+
+  async function openAttach(group, entryId) {
+    var picked = {};
+    group.documents.forEach(function (d) {
+      picked[d.id] = true;
+    });
+    L.attach = { group: group, entryId: entryId || '', entries: null, picked: picked, seq: 0 };
+    $('lgAtCmp').textContent = '';
+    $('lgAtRes').textContent = '';
+    atError('');
+    renderAttach();
+    $('lgAttach').hidden = false;
+    var q = [];
+    if (group.biz_no) q.push('biz_no=' + encodeURIComponent(group.biz_no));
+    if (group.name_key) q.push('name_key=' + encodeURIComponent(group.name_key));
+    var r = q.length
+      ? await api(withCompany('/ledger/held/entries?' + q.join('&')))
+      : { ok: true, data: { items: [] } };
+    if (!L.attach || L.attach.group !== group) return;
+    var items = r.ok && r.data && Array.isArray(r.data.items) ? r.data.items : [];
+    L.attach.entries = items;
+    if (!L.attach.entryId) {
+      // 그 달 세금계산서 줄이 먼저, 없으면 가장 최근 줄
+      var pick =
+        items.filter(function (x) {
+          return (
+            x.evidence_type === 'tax_invoice' && String(x.entry_date).slice(0, 7) === group.month
+          );
+        })[0] || items[0];
+      L.attach.entryId = pick ? pick.entry_id : '';
+    }
+    if (!r.ok) atError(r.message || '장부 줄을 불러오지 못했습니다.');
+    renderAttach();
+    compareAttach();
+  }
+
+  /** 맞춰 보기 — 고른 줄 · 명세표가 바뀔 때마다 (늦게 온 답은 버린다) */
+  async function compareAttach() {
+    var a = L.attach;
+    if (!a) return;
+    var entry = $('lgAtEntry').value;
+    var ids = pickedIds();
+    $('lgAtGo').disabled = !entry || !ids.length;
+    $('lgAtCmp').textContent = '';
+    $('lgAtRes').textContent = '';
+    if (!entry || !ids.length) return;
+    var seq = ++a.seq;
+    var r = await api('/ledger/entries/' + encodeURIComponent(entry) + '/attach', {
+      method: 'POST',
+      body: { document_ids: ids, dry_run: true },
+    });
+    if (L.attach !== a || seq !== a.seq) return;
+    if (!r.ok) return atError(r.message || '맞춰 보지 못했습니다.');
+    atError('');
+    var t = compareText(r.data && r.data.compare);
+    var dl = $('lgAtCmp');
+    t.rows.forEach(function (row) {
+      dl.appendChild(el('dt', '', row[0]));
+      dl.appendChild(el('dd', '', row[1]));
+    });
+    $('lgAtRes').textContent = t.res;
+    $('lgAtRes').className =
+      'lg-at-res' +
+      (t.good === true ? ' lg-at-res--good' : t.good === false ? ' lg-at-res--bad' : '');
+  }
+
+  async function goAttach() {
+    var a = L.attach;
+    var entry = $('lgAtEntry').value;
+    var ids = pickedIds();
+    if (!a || !entry || !ids.length || L.reviewBusy) return;
+    L.reviewBusy = true;
+    $('lgAtGo').disabled = true;
+    var r = await api('/ledger/entries/' + encodeURIComponent(entry) + '/attach', {
+      method: 'POST',
+      body: { document_ids: ids },
+    });
+    L.reviewBusy = false;
+    if (!r.ok) {
+      $('lgAtGo').disabled = false;
+      if (r.status === 409) await loadHeld();
+      return atError(r.message || '붙이지 못했습니다.');
+    }
+    var c = r.data.compare || {};
+    closeAttach();
+    await loadHeld();
+    await loadBook(L.month);
+    setState(
+      '명세표 ' +
+        (r.data.attached || 0) +
+        '장을 세금계산서 줄에 붙였습니다.' +
+        (c.match === false ? ' 합계가 달라 비서 알림에 남겼습니다.' : '')
+    );
+  }
+
+  /** 세금계산서 장부 줄을 직접 넣고, 저장하면 이 묶음 붙이기 창을 다시 연다 */
+  function newInvoiceEntry() {
+    var a = L.attach;
+    if (!a || !canWrite()) return;
+    var g = a.group;
+    closeAttach();
+    openForm('create');
+    L.attachAfter = g;
+    $('lgCpName').value = g.supplier_name || '';
+    $('lgCpBiz').value = g.biz_no || '';
+    $('lgEvidence').value = 'tax_invoice';
+    $('lgDesc').value = monthLabel(g.month) + ' 세금계산서';
+    formError('');
+    $('lgForm').scrollIntoView({ block: 'start' });
+  }
+
+  // 거래처별 세금계산서 (장부 설정)
+
+  function renderSuppliers() {
+    var box = $('lgSup');
+    box.hidden = !L.suppliers.length;
+    var ul = $('lgSupList');
+    ul.textContent = '';
+    L.suppliers.forEach(function (s) {
+      var li = el('li', 'lg-sup-row');
+      li.appendChild(el('span', 'lg-sup-name', s.name || s.supplier_key));
+      var sel = document.createElement('select');
+      sel.setAttribute('data-key', s.supplier_key);
+      sel.setAttribute('aria-label', (s.name || '거래처') + ' 세금계산서');
+      sel.disabled = !canWrite();
+      Object.keys(INVOICE_MODE).forEach(function (k) {
+        sel.appendChild(new window.Option(INVOICE_MODE[k], k));
+      });
+      sel.value = s.mode;
+      li.appendChild(sel);
+      ul.appendChild(li);
+    });
+  }
+
+  async function loadSuppliers() {
+    var r = await api(withCompany('/ledger/suppliers'));
+    L.suppliers = r.ok && r.data && Array.isArray(r.data.items) ? r.data.items : [];
+    renderSuppliers();
+  }
+
+  async function onSupplierChange(e) {
+    var key = e.target && e.target.getAttribute ? e.target.getAttribute('data-key') : null;
+    if (!key || !canWrite()) return;
+    var mode = e.target.value;
+    var r = await api('/ledger/suppliers', {
+      method: 'PUT',
+      body: { supplier_key: key, mode: mode },
+    });
+    if (!r.ok) {
+      setState(r.message || '바꾸지 못했습니다.');
+      return loadSuppliers();
+    }
+    setState(
+      (r.data.name || '이 거래처') +
+        ' — ' +
+        INVOICE_MODE[mode] +
+        (r.data.released ? ' (모아 둔 명세표 ' + r.data.released + '장을 확인할 사진으로)' : '') +
+        (mode === 'separate' && r.data.candidates && r.data.candidates.length
+          ? ' — 확인할 사진의 이 거래처 명세표 ' +
+            r.data.candidates.length +
+            '장은 사진을 열어 모아 두세요'
+          : '')
+    );
+    await loadSuppliers();
+    await loadHeld();
+    await loadReview();
+  }
+
   // 시트 — 사진 하나
   function rvError(text) {
     $('lgRvError').textContent = text || '';
@@ -1740,6 +2204,7 @@
       n.disabled = !w;
     });
     renderMust(doc);
+    renderInvoice(doc);
     itemsInto(doc);
     renderAmountLabel();
     $('lgRvMore').open = flagMore(doc);
@@ -1881,10 +2346,21 @@
       }
       return rvError(r.message || '올리지 못했습니다.');
     }
+    var doc = L.sheet.doc;
     await afterDecided(
       id,
       got.body.target === 'order_cost' ? '수주 원가로 올렸습니다.' : '장부에 올렸습니다.'
     );
+    // 세금계산서를 올렸고 이 거래처 명세표를 모아 두었으면 — 붙일지 묻는다
+    if (
+      got.body.target === 'entry' &&
+      got.body.entry.evidence_type === 'tax_invoice' &&
+      r.data &&
+      r.data.entry_id
+    ) {
+      var g = heldFor(doc, got.body.entry.entry_date);
+      if (g) openAttach(g, r.data.entry_id);
+    }
   }
 
   function askDecide(status) {
@@ -2055,6 +2531,25 @@
     $('lgReviewMore').addEventListener('click', function () {
       loadReview(true);
     });
+    $('lgHeldList').addEventListener('click', onHeldClick);
+    $('lgRvInvSep').addEventListener('click', function () {
+      setSheetMode('separate');
+    });
+    $('lgRvInvOnly').addEventListener('click', function () {
+      setSheetMode('statement_only');
+    });
+    $('lgRvHold').addEventListener('click', holdSheet);
+    $('lgAtClose').addEventListener('click', closeAttach);
+    $('lgAtEntry').addEventListener('change', compareAttach);
+    $('lgAtDocs').addEventListener('change', function (e) {
+      var box = e.target && e.target.getAttribute ? e.target.getAttribute('data-doc') : null;
+      if (!box || !L.attach) return;
+      L.attach.picked[box] = !!e.target.checked;
+      compareAttach();
+    });
+    $('lgAtGo').addEventListener('click', goAttach);
+    $('lgAtNew').addEventListener('click', newInvoiceEntry);
+    $('lgSupList').addEventListener('change', onSupplierChange);
     $('lgReadyPost').addEventListener('click', postReady);
     $('lgRvClose').addEventListener('click', closeSheet);
     $('lgRvPhotoBtn').addEventListener('click', function () {
@@ -2120,6 +2615,9 @@
     closeSheet();
     L.review = [];
     L.orders = null;
+    L.held = [];
+    L.suppliers = [];
+    closeAttach();
     $('lgBatchResult').textContent = '';
     $('lgBatchState').textContent = '';
     renderTax();
@@ -2127,6 +2625,8 @@
     renderPhotosBox();
     await loadBook(L.month);
     await loadReview();
+    await loadHeld();
+    await loadSuppliers();
     await loadDocs();
   }
 
@@ -2219,6 +2719,8 @@
     await loadBook(thisMonth());
     await loadDocs();
     await loadReview();
+    await loadHeld();
+    await loadSuppliers();
   }
 
   var exported = {
@@ -2241,6 +2743,8 @@
     prefillFor: prefillFor,
     mustMarks: mustMarks,
     readyDocs: readyDocs,
+    heldFor: heldFor,
+    compareText: compareText,
     poll: { tick: pollTick, stop: stopPoll, POLL_MS: POLL_MS },
     PHOTO_MARGIN_MS: PHOTO_MARGIN_MS,
   };

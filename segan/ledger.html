@@ -9,28 +9,28 @@
     <title>장부 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026110403" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026110403" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026110403" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110403" />
+    <link rel="icon" href="icons/icon.svg?v=2026110404" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110404" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110404" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110404" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026110403" />
-    <link rel="stylesheet" href="make.css?v=2026110403" />
-    <link rel="stylesheet" href="ledger.css?v=2026110403" />
+    <link rel="stylesheet" href="shell.css?v=2026110404" />
+    <link rel="stylesheet" href="make.css?v=2026110404" />
+    <link rel="stylesheet" href="ledger.css?v=2026110404" />
     <!-- 업체 회계장부 — workflow-api /ledger/* (대표 · 실장. 직원은 사진 올리기만) -->
-    <script src="../js/config.js?v=2026110403"></script>
+    <script src="../js/config.js?v=2026110404"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <!-- 관리 탭 — 관리자에게만 연다 (segan/shell.js applyAdminTab) -->
-    <script src="../js/admin-access.js?v=2026110403"></script>
+    <script src="../js/admin-access.js?v=2026110404"></script>
     <!-- 작업 탭 — 작업자에게만 연다 (segan/shell.js applyRoleTabs · GET /work/me) -->
-    <script src="../js/mypage-work.js?v=2026110403"></script>
-    <script src="shell.js?v=2026110403" defer></script>
-    <script src="ledger.js?v=2026110403" defer></script>
+    <script src="../js/mypage-work.js?v=2026110404"></script>
+    <script src="shell.js?v=2026110404" defer></script>
+    <script src="ledger.js?v=2026110404" defer></script>
   </head>
   <body class="sg-app" data-tab="me">
     <div data-segan-shell="header"></div>
@@ -64,6 +64,11 @@
         <section class="lg-box lg-review" id="lgReview" hidden aria-labelledby="lgReviewTitle">
           <h2 class="lg-box-title" id="lgReviewTitle">확인할 사진</h2>
           <p class="mk-note" id="lgReviewNote"></p>
+          <!-- 세금계산서 기다리는 명세표 — 거래처 · 달 묶음 (GET /ledger/held). 세금계산서가 오면 그 장부 줄에 증빙으로 붙인다 -->
+          <div class="lg-held" id="lgHeld" hidden>
+            <div class="lg-ready-head"><b id="lgHeldTitle">세금계산서 기다리는 명세표</b></div>
+            <ul class="lg-held-list" id="lgHeldList" aria-label="세금계산서 기다리는 명세표"></ul>
+          </div>
           <!-- 바로 올려도 되는 사진 — 같은 거래처를 같은 계정 · 증빙으로 3번 넘게 올렸고 걸리는 것이 없는 사진 (서버 hints.ready) -->
           <div class="lg-ready" id="lgReady" hidden>
             <div class="lg-ready-head">
@@ -144,6 +149,16 @@
               >
               <button type="button" class="mk-btn" id="lgTaxSave">저장</button>
             </div>
+          </section>
+
+          <!-- 거래처별 세금계산서 — 명세표 사진을 열 때 고른 것 (GET · PUT /ledger/suppliers). 바꾸면 모아 둔 명세표가 같이 옮겨 간다 -->
+          <section class="lg-box" id="lgSup" hidden aria-labelledby="lgSupTitle">
+            <h2 class="lg-box-title" id="lgSupTitle">거래처별 세금계산서</h2>
+            <p class="mk-note">
+              세금계산서를 따로 주는 거래처의 명세표는 장부에 넣지 않고 모아 두었다가 세금계산서 줄에 붙입니다. 명세표만
+              주는 거래처는 명세표를 장부 줄로 올립니다.
+            </p>
+            <ul class="lg-sup-list" id="lgSupList" aria-label="거래처별 세금계산서"></ul>
           </section>
 
           <!-- 달 바꾸기 · 달 요약 -->
@@ -246,6 +261,18 @@
                   <option value="order_cost">수주 원가</option>
                 </select></label
               >
+              <!-- 거래명세표 — 거래처가 세금계산서를 따로 주나 (hints.invoice.route: ask 묻기 · hold 모아 두기) -->
+              <div class="lg-rv-inv" id="lgRvInv" hidden>
+                <b id="lgRvInvTitle"></b>
+                <p class="lg-rv-inv-note" id="lgRvInvNote"></p>
+                <div class="lg-acts" id="lgRvInvAsk">
+                  <button type="button" class="mk-btn mk-btn--solid" id="lgRvInvSep">따로 줌</button>
+                  <button type="button" class="mk-btn" id="lgRvInvOnly">명세표만 줌</button>
+                </div>
+                <div class="lg-acts" id="lgRvInvHold" hidden>
+                  <button type="button" class="mk-btn mk-btn--solid" id="lgRvHold">모아 두기</button>
+                </div>
+              </div>
               <!-- 꼭 볼 칸 — ✓ 는 AI 가 확실하게 읽고 검사도 맞은 칸, 「확인」은 한 번 볼 칸 (까닭은 아래 작은 글) -->
               <p class="lg-must-head">꼭 볼 칸 <small>✓ 확실하게 읽음 · 「확인」은 한 번 봐 주세요</small></p>
               <div class="lg-must" id="lgRvMust">
@@ -352,6 +379,29 @@
                 <button type="button" class="mk-link" id="lgRvDecideNo">그만</button>
               </div>
             </form>
+          </section>
+        </div>
+
+        <!-- 세금계산서 줄에 붙이기 — 모아 둔 명세표를 고른 장부 줄의 증빙으로 (POST /ledger/entries/:id/attach) -->
+        <div class="lg-sheet-wrap" id="lgAttach" hidden>
+          <section class="lg-box lg-sheet" role="dialog" aria-modal="true" aria-labelledby="lgAtTitle">
+            <div class="lg-sheet-head">
+              <h2 class="lg-box-title" id="lgAtTitle">세금계산서 줄에 붙이기</h2>
+              <button type="button" class="mk-link" id="lgAtClose">닫기</button>
+            </div>
+            <p class="mk-note" id="lgAtNote"></p>
+            <label class="mk-input"
+              ><span>붙일 장부 줄</span
+              ><select id="lgAtEntry"></select
+            ></label>
+            <ul class="lg-at-docs" id="lgAtDocs" aria-label="붙일 명세표"></ul>
+            <dl class="lg-at-cmp" id="lgAtCmp"></dl>
+            <p class="lg-at-res" id="lgAtRes" role="status" aria-live="polite"></p>
+            <p class="mk-error" id="lgAtError" hidden></p>
+            <div class="lg-acts">
+              <button type="button" class="mk-btn mk-btn--solid" id="lgAtGo">붙이기</button>
+              <button type="button" class="mk-btn" id="lgAtNew">세금계산서 줄 넣고 붙이기</button>
+            </div>
           </section>
         </div>
       </div>
