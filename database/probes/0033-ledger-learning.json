@@ -189,10 +189,9 @@
       }
     },
     {
-      "name": "알림은 지우지 않는다",
+      "name": "알림은 지우지 않는다 — 서버에도 지우기 권한이 없다 (트리거는 그 뒤 한 겹 더)",
       "sql": "insert into public.ledger_notices (company_id, kind, urgency, dedupe_key) values ({{company_x}}, 'new_supplier', 'digest', 'probe'); delete from public.ledger_notices where dedupe_key = 'probe'",
       "expect": {
-        "service_role": "err:P0001",
         "*": "deny"
       }
     },
