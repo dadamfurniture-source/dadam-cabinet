@@ -97,6 +97,16 @@
       "expect": {
         "service_role": "err:23514"
       }
+    },
+    {
+      "name": "설계 출처 — id 만 채워도 거절",
+      "sql": "insert into public.designs (id, user_id, name, company_id, source_ref) values ({{design_y}}, {{x_owner_user}}, 'probe4', {{company_x}}, 'p-1')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
     }
   ]
 }
