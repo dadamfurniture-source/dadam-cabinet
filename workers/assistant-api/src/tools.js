@@ -360,7 +360,7 @@ async function ledgerMonth(env, token, input) {
   };
 }
 
-/** 장부 알림 종류 → 이름 (워커 src/ledger/notices.js · DB 0033 ledger_notices.kind) */
+/** 장부 알림 종류 → 이름 (워커 src/ledger/notices.js · DB 0033 · 0036 ledger_notices.kind) */
 const NOTICE_KIND = {
   duplicate: '중복 의심',
   large_amount: '평소와 다른 큰 금액',
@@ -368,6 +368,19 @@ const NOTICE_KIND = {
   supplier_status: '휴업 · 폐업 · 과세 유형 바뀜',
   price_change: '단가 변동 (읽은 값 기준)',
   evidence_risk: '증빙 경고',
+  statement_mismatch: '명세표 합계와 세금계산서가 다름',
+  invoice_missing: '세금계산서가 아직 없는 명세표',
+};
+
+/** 장부 사진 상태 → 이름 (워커 src/ledger/documents.js REVIEW_STATUSES · 직원은 uploaded) */
+const PHOTO_STATUS = {
+  pending: '확인 기다림',
+  held: '세금계산서 기다리는 명세표(모아 둠)',
+  posted: '장부에 올림',
+  returned: '돌려보냄',
+  rejected: '버림',
+  skipped_budget: '한도로 아직 못 읽음',
+  uploaded: '올림(확인 중)',
 };
 
 async function ledgerNotices(env, token) {
@@ -397,7 +410,14 @@ async function ledgerPhotos(env, token) {
     if (d.review_status === 'pending' && (!oldestPending || d.created_at < oldestPending))
       oldestPending = d.created_at;
   }
-  return { counted: items.length, by_status: by, oldest_pending_at: oldestPending };
+  const names = {};
+  for (const k of Object.keys(by)) names[k] = PHOTO_STATUS[k] || k;
+  return {
+    counted: items.length,
+    by_status: by,
+    status_names: names,
+    oldest_pending_at: oldestPending,
+  };
 }
 
 const RUN = {
