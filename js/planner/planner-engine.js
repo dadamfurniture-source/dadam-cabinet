@@ -533,6 +533,56 @@ function distributeByDoorW(budget, doorW, opt) {
  * @param {number} n  선반 수
  * @param {number} [T] 판 두께 (기본 MASTER_RULES.BODY_T)
  */
+/**
+ * 키큰장 단 높이 — 단 하나하나를 따로 고르는 모듈(모듈 라이브러리 키큰장 단 TT-, 2026-11-04 사장님 「개별 모듈 형태 —
+ *   하부장을 포함한 중간장, 상부장 형태의 수납장」 · 「키큰장 가운데 단 모양인데, 천판, 지판을 포함하여 결합되는 모듈」)이 쓰는 식.
+ *
+ * 세 단 (하부장 · 중간장 · 상부장, 아래 → 위) — mockup-structure.html tallTiers 의 보존 단 없는 경우와 같은 식:
+ *   상부장 = min(FRIDGE_UPPER_H_MAX + 상몰딩, H), 몸통 = H − 상부장 − 좌대, 중간장 = floor(몸통 × MIDDLE_BODY_RATIO),
+ *   하부장 = 좌대 + (몸통 − 중간장). 몸통이 나오지 않으면 (H − 상몰딩 − FRIDGE_UPPER_H_MAX − 좌대 ≤ 0) 아무 단도 세우지 않는다.
+ * 두 단 (2026-11-04 사장님 「위 단이 가져감」 — 빠진 단 높이는 위 단이 가져간다):
+ *   아래 단(하부장)은 세 단일 때 높이 그대로, 위 단 = H − 하부장 (상몰딩 포함). 하부장 + 중간장 이면 중간장이 맨 위 단이라
+ *   상몰딩을 진다 (moldingH > 0 단 — sink.md §5.1 표의 상부장 단 규칙: 푸쉬 도어 · 상몰딩).
+ * 좌대는 맨 아래 단, 상몰딩은 맨 위 단만 진다 (§5.1 heightParts).
+ *
+ * @param {number} H 쌓을 자리 높이 (상몰딩 포함)
+ * @param {{moldingH:number, pedestalH:number, parts?:string[]}} o  parts = 쌓을 단 이름 (아래 → 위, 기본 세 단).
+ *   하부장이 맨 아래에 있고 2~3 단이어야 한다 (차례는 하부장 · 중간장 · 상부장).
+ * @returns {{part:string, H:number, baseY:number, pedestalH:number, moldingH:number}[]} 아래 → 위
+ */
+function tallTierSplitOf(H, o) {
+  const ORDER = ['하부장', '중간장', '상부장'];
+  const parts = (o && Array.isArray(o.parts)) ? o.parts : ORDER;
+  const ok = parts.length >= 2 && parts.length <= 3 && parts[0] === '하부장'
+    && parts.every((p, i) => ORDER.indexOf(p) >= 0 && (i === 0 || ORDER.indexOf(p) > ORDER.indexOf(parts[i - 1])));
+  if (!ok) throw new TypeError(`키큰장 단은 하부장부터 2~3 단입니다: ${JSON.stringify(parts)}`);
+  const molding = Math.max(0, Number(o && o.moldingH) || 0);
+  const pedestal = Math.max(0, Number(o && o.pedestalH) || 0);
+  const upperMax = MASTER_RULES.FRIDGE_UPPER_H_MAX;
+  if (!(H > 0) || H - molding - upperMax - pedestal <= 0) return [];
+  // 세 단 높이 (두 단도 아래 단은 이 값)
+  const upper = Math.min(upperMax + molding, H);
+  let room = H - upper;
+  let lower = Math.min(pedestal, room);
+  room -= lower;
+  const middle = Math.floor(room * MASTER_RULES.MIDDLE_BODY_RATIO);
+  lower += room - middle;
+  const heights = parts.length === 3
+    ? { 하부장: lower, 중간장: middle, 상부장: upper }
+    : { 하부장: lower, [parts[1]]: H - lower };
+  let y = 0;
+  return parts.map((part, i) => {
+    const h = heights[part];
+    const out = {
+      part, H: h, baseY: y,
+      pedestalH: i === 0 ? Math.min(pedestal, h) : 0,
+      moldingH: i === parts.length - 1 ? Math.min(molding, h) : 0,
+    };
+    y += h;
+    return out;
+  });
+}
+
 function shelvesEvenInner(H, n, T) {
   const t = Number.isFinite(T) ? T : MASTER_RULES.BODY_T;
   if (!(n > 0) || !(H > 0)) return [];
@@ -775,6 +825,7 @@ if (typeof window !== 'undefined') {
   window.distributeModules = distributeModules;
   window.calcDefaultShelves = calcDefaultShelves;
   window.shelvesEvenInner = shelvesEvenInner;
+  window.tallTierSplitOf = tallTierSplitOf;     // 2026-11-04 — 키큰장 단 모듈 (세 단 · 두 단)
   window.collectXRanges = collectXRanges;
   window.splitModuleByAppliance = splitModuleByAppliance;
   window.autoCalcModule = autoCalcModule;
@@ -797,7 +848,7 @@ if (typeof module !== 'undefined' && module.exports) {
     cornerAdjAir,
     MASTER_RULES,
     getMoldingH, effectiveLegH, effectiveMoldingH,
-    calcDoorCount, distributeModules, calcDefaultShelves, shelvesEvenInner,
+    calcDoorCount, distributeModules, calcDefaultShelves, shelvesEvenInner, tallTierSplitOf,
     collectXRanges, splitModuleByAppliance, autoCalcModule,
     deriveCornerArea, distributeByDoorW,
     jointSlack, spreadGapEqually,
