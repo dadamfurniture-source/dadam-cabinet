@@ -463,7 +463,11 @@
     var photos = EMBED ? '#photos' : withCompany('ledger.html');
     add('확인 기다리는 사진 ' + (B.data.pending_photos || 0) + '장', false, photos);
     if (B.data.held_statements)
-      add('세금계산서 기다리는 명세표 ' + B.data.held_statements + '장', false, photos);
+      add(
+        '세금계산서 기다리는 명세표 ' + B.data.held_statements + '장',
+        false,
+        EMBED ? '#buys' : withCompany('ledger.html')
+      );
     add('증빙 경고 ' + (cur.evidence_risk || 0) + '건', cur.evidence_risk > 0);
     add('계정 미정 ' + (cur.account_unknown || 0) + '줄', cur.account_unknown > 0);
     add('부가세 모름 원가 ' + (cur.vat_unknown || 0) + '줄', cur.vat_unknown > 0);

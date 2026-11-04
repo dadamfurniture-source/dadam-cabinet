@@ -32,6 +32,9 @@
              (한 장부를 방향으로 — 수입 · 자산 팔기 / 비용 · 자산 사기) · 사진(올리기 · 확인) · 설정(과세 · 거래처별 세금계산서).
              주소 #board · #sales · #buys · #photos · #settings 로 탭을 연다 (한눈에의 장부 상태 칩이 이 주소로 온다),
              ?month=YYYY-MM 은 처음 달. 직원은 탭 없이 사진 판만. 알림 한 줄(lgState)은 화면 아래 — 누르면 닫는다
+   사진 판    올리기 → 상태 거름(확인 기다림 · 장부에 올림 · 돌려보냄 · 쓰지 않음 · 전체 — 대표 · 실장) → 확인할 사진 ·
+             올린 사진(GET /ledger/documents?status=). 세금계산서 기다리는 명세표는 매입 판에.
+             사진 AI 읽기를 쓰지 않는 업체(/ledger/me ai false — Expert)는 「직접 적기」 — 읽기를 기다리지 않고 다시 묻지도 않는다
    보이는 것  사진 판에 늘 「종이 원본 5년 보관」 안내. 매출 · 매입 판(ledger-book.js 표)에 그 쪽 달 요약 · 거름(출처) ·
              찾기 · 표(일자 · 거래처 · 계정 · 공급가 · 부가세 · 합계 · 증빙 · 출처, 합계 줄) — 매입은 「매입처별」 묶음도.
              줄을 누르면 옆 서랍(폰은 아래)에 그 줄 — 직접 넣은 줄만 고치기 · 취소, 수금 · 원가 줄은 ERP 에서 고친다.
@@ -138,6 +141,14 @@
     skipped_budget: '한도로 못 읽음',
   };
   var REREAD = ['failed', 'refused', 'skipped_budget'];
+  // 사진 판 상태 거름 — 확인 기다림은 「확인할 사진」, 나머지는 「올린 사진」 (워커 documents.js ?status=)
+  var PH_FILTERS = [
+    ['pending', '확인 기다림'],
+    ['posted', '장부에 올림'],
+    ['returned', '돌려보냄'],
+    ['rejected', '쓰지 않음'],
+    ['all', '전체'],
+  ];
   // 세무사 확인 전 기준 — 이 증빙에 부가세가 있으면 공제되는 부가세로 본다
   var DEDUCT_EVIDENCE = ['tax_invoice', 'card', 'cash_receipt'];
   // 수주 원가 종류 — 워커 orders.js COST_CATEGORIES · erp.html 과 같다
@@ -219,6 +230,7 @@
     accounts: [], // [{ code, name, grp, note }]
     month: '',
     tab: '', // 여는 탭 — TABS 중 하나 (직원은 비움)
+    ph: 'pending', // 사진 판 상태 거름 — PH_FILTERS 중 하나
     bk: { source: 'all', query: '', group: false, selected: '' }, // 매출 · 매입 판 — 거름 · 찾기 · 매입처별 · 서랍에 연 줄 id
     money: {}, // receivables · payables → GET data (없으면 false — 상자를 감춘다)
     data: null, // GET /ledger/book data
@@ -997,6 +1009,7 @@
     Object.keys(PANE).forEach(function (k) {
       $(PANE[k]).hidden = PANE[k] !== PANE[tab];
     });
+    $('lgHeldWrap').hidden = tab !== 'buys';
     var only = BOOK_TABS[tab];
     if (only) {
       L.bk = { source: 'all', query: '', group: false, selected: '' };
@@ -1464,7 +1477,10 @@
     var last = more && L.docs.length ? L.docs[L.docs.length - 1].created_at : '';
     var r = await api(
       withCompany(
-        '/ledger/documents?limit=' + DOCS_PAGE + (last ? '&before=' + encodeURIComponent(last) : '')
+        '/ledger/documents?limit=' +
+          DOCS_PAGE +
+          docsStatus() +
+          (last ? '&before=' + encodeURIComponent(last) : '')
       )
     );
     if (!r.ok) {
@@ -1479,12 +1495,60 @@
   }
 
   function renderPhotosBox() {
+    var money = !!(L.me && L.me.money);
     $('lgPhotos').hidden = false;
     $('lgUp').hidden = !canUpload();
-    $('lgPhotosNote').textContent =
-      L.me && L.me.money
-        ? '올린 사진은 Claude가 읽어 칸을 채웁니다. 위 「확인할 사진」에서 칸을 확인한 뒤 장부에 올립니다.'
-        : '올린 사진은 대표 · 실장이 확인해 장부에 올립니다. 금액은 대표 · 실장만 봅니다.';
+    $('lgPhotosNote').textContent = !money
+      ? '올린 사진은 대표 · 실장이 확인해 장부에 올립니다. 금액은 대표 · 실장만 봅니다.'
+      : noAi()
+        ? '올린 사진은 아래 「확인할 사진」에서 칸을 직접 적어 장부에 올립니다.'
+        : '올린 사진은 Claude가 읽어 칸을 채웁니다. 아래 「확인할 사진」에서 칸을 확인한 뒤 장부에 올립니다.';
+    $('lgPhChips').hidden = !money;
+    $('lgDocsBox').hidden = money && L.ph === 'pending';
+    if (!money) $('lgDocsTitle').textContent = '올린 사진';
+    if (money) renderPhChips();
+  }
+
+  /** 사진 AI 읽기를 쓰지 않는 업체 (Expert — 워커 /ledger/me ai false). ai 를 주지 않는 서버면 지금처럼 */
+  function noAi() {
+    return !!(L.me && L.me.ai === false);
+  }
+
+  /** 올린 사진을 상태로 거를 때 붙이는 주소 칸 (대표 · 실장, 확인 기다림 · 전체는 거르지 않는다) */
+  function docsStatus() {
+    var ph = L.me && L.me.money ? L.ph : '';
+    return ph && ph !== 'pending' && ph !== 'all' ? '&status=' + encodeURIComponent(ph) : '';
+  }
+
+  /** 사진 상태 거름 단추 — 확인 기다림 옆에 수 */
+  function renderPhChips() {
+    var seg = $('lgPhChips');
+    seg.textContent = '';
+    PH_FILTERS.forEach(function (f) {
+      var n =
+        f[0] === 'pending' && L.review.length
+          ? ' ' + L.review.length + (L.reviewMore ? '+' : '')
+          : '';
+      var b = el('button', 'lg-seg-btn', f[1] + n);
+      b.type = 'button';
+      b.setAttribute('data-ph', f[0]);
+      b.setAttribute('aria-pressed', L.ph === f[0] ? 'true' : 'false');
+      seg.appendChild(b);
+    });
+  }
+
+  /** 사진 상태 거름 바꾸기 — 확인 기다림은 확인할 사진 상자, 나머지는 그 상태의 올린 사진 */
+  async function showPh(ph) {
+    L.ph = ph;
+    renderPhChips();
+    $('lgReview').hidden = ph !== 'pending';
+    $('lgDocsBox').hidden = ph === 'pending';
+    if (ph === 'pending') return;
+    var name = PH_FILTERS.filter(function (f) {
+      return f[0] === ph;
+    })[0];
+    $('lgDocsTitle').textContent = '올린 사진 — ' + (name ? name[1] : ph);
+    await loadDocs();
   }
 
   function bindPhotos() {
@@ -1590,7 +1654,9 @@
     }
     var line = el('span', 'lg-rv-line');
     line.appendChild(el('span', '', stamp(doc.created_at)));
-    line.appendChild(el('b', '', READ_STATE[state] || state));
+    line.appendChild(
+      el('b', '', state === 'none' && noAi() ? '직접 적기' : READ_STATE[state] || state)
+    );
     main.appendChild(line);
     if (doc.note) main.appendChild(el('small', 'lg-rv-memo', doc.note));
     var sum = readSummary(doc);
@@ -1617,7 +1683,7 @@
   }
 
   function renderReview() {
-    $('lgReview').hidden = false;
+    $('lgReview').hidden = L.ph !== 'pending';
     var n = L.review.length;
     $('lgReviewTitle').textContent =
       '확인할 사진' + (L.reviewFail ? '' : ' ' + n + (L.reviewMore ? '장 넘게' : '장'));
@@ -1625,9 +1691,11 @@
       ? '확인할 사진을 불러오지 못했습니다.'
       : !n
         ? '확인할 사진이 없습니다.'
-        : canWrite()
-          ? '사진을 눌러 꼭 볼 칸(일자 · 거래처 · 공급가 · 부가세 · 계정)을 확인하고 올립니다. 같은 거래처를 같은 계정으로 세 번 넘게 올렸고 걸리는 것이 없는 사진은 「바로 올려도 되는 사진」에 모입니다.'
-          : '보기만 합니다.';
+        : canWrite() && noAi()
+          ? '사진을 눌러 일자 · 거래처 · 공급가 · 부가세 · 계정을 적어 장부에 올립니다.'
+          : canWrite()
+            ? '사진을 눌러 꼭 볼 칸(일자 · 거래처 · 공급가 · 부가세 · 계정)을 확인하고 올립니다. 같은 거래처를 같은 계정으로 세 번 넘게 올렸고 걸리는 것이 없는 사진은 「바로 올려도 되는 사진」에 모입니다.'
+            : '보기만 합니다.';
     var ready = readyDocs();
     renderReady(ready);
     var list = $('lgReviewList');
@@ -1637,10 +1705,13 @@
     });
     $('lgReviewMore').hidden = !L.reviewMore;
     renderTabCount();
+    renderPhChips();
   }
 
   /** 읽는 중인 사진이 있으면 화면이 보일 때 다시 읽는다 */
   function needsPoll() {
+    // 직접 적는 업체 — 읽기를 기다리지 않는다
+    if (noAi()) return false;
     return L.review.some(function (d) {
       var s = readState(d);
       return s === 'none' || s === 'running';
@@ -2381,6 +2452,8 @@
   function readText(doc) {
     var state = readState(doc);
     var x = doc.extraction;
+    if (state === 'none' && noAi())
+      return '사진을 보고 꼭 볼 칸을 직접 적어 올려 주세요. (사진 AI 읽기는 Agent 등급에서 씁니다)';
     if (state === 'none') return '아직 읽지 않았습니다 — 곧 읽습니다. 직접 적어 올려도 됩니다.';
     if (state === 'running')
       return '읽는 중입니다. 다 읽으면 목록에 「읽음」이 보입니다 — 직접 적어 올려도 됩니다.';
@@ -2763,6 +2836,10 @@
     fillSelect('lgRvMethod', METHOD, '고르지 않음');
     fillSelect('lgRvCategory', COST_CATEGORY);
     $('lgReviewList').addEventListener('click', onReviewClick);
+    $('lgPhChips').addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-ph]') : null;
+      if (b) showPh(b.getAttribute('data-ph'));
+    });
     $('lgReadyList').addEventListener('click', onReviewClick);
     // 썸네일이 안 열리면(서명 주소가 끝남) 새로 받는다 — error 는 올라오지 않아 붙잡기로 듣는다
     $('lgReviewList').addEventListener(
@@ -2859,6 +2936,7 @@
     L.me = me.data;
     L.voiding = '';
     L.money = {};
+    L.ph = 'pending';
     L.bk.selected = '';
     closeForm();
     closeSheet();
