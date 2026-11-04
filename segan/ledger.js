@@ -32,9 +32,11 @@
              (한 장부를 방향으로 — 수입 · 자산 팔기 / 비용 · 자산 사기) · 사진(올리기 · 확인) · 설정(과세 · 거래처별 세금계산서).
              주소 #board · #sales · #buys · #photos · #settings 로 탭을 연다 (한눈에의 장부 상태 칩이 이 주소로 온다),
              ?month=YYYY-MM 은 처음 달. 직원은 탭 없이 사진 판만. 알림 한 줄(lgState)은 화면 아래 — 누르면 닫는다
-   보이는 것  사진 판에 늘 「종이 원본 5년 보관」 안내 · 매출 · 매입 판에 달 요약(수입 · 비용 · 장부 손익 · 부가세)
-             · 장부 줄 (직접 입력 · 수금 · 수주 원가 — 받은 날 · 낸 날 기준). 수금 · 원가 줄은 PC ERP 에서 고친다.
-             취소한 줄은 「취소한 줄도 보기」를 켜야 보인다 (지우지 않는다).
+   보이는 것  사진 판에 늘 「종이 원본 5년 보관」 안내. 매출 · 매입 판(ledger-book.js 표)에 그 쪽 달 요약 · 거름(출처) ·
+             찾기 · 표(일자 · 거래처 · 계정 · 공급가 · 부가세 · 합계 · 증빙 · 출처, 합계 줄) — 매입은 「매입처별」 묶음도.
+             줄을 누르면 옆 서랍(폰은 아래)에 그 줄 — 직접 넣은 줄만 고치기 · 취소, 수금 · 원가 줄은 ERP 에서 고친다.
+             「+ 매출 · + 매입」 · 고치기 칸도 서랍에 연다. 받을 돈(매출) · 낼 돈(매입)은 GET /ledger/receivables ·
+             payables (장부 서버가 모르면 상자를 감춘다). 취소한 줄은 「취소한 줄도 보기」를 켜야 보인다 (지우지 않는다).
    못 읽으면  /ledger/me 403 → 이유 한 줄 (구성원 아님 · 자격 없음 · 대표 · 실장 아님), 그 밖 → 「불러오지 못했습니다」
    여러 장부  /ledger/me 의 ledgers 가 둘 이상이면(다담 본사 대표 · 실장 — 본사 · 공장) 장부 고르기.
              남의 장부(viewing)는 보기 주소에 ?company= 를 붙이고 보기만 한다. 쓰기는 언제나 자기 업체
@@ -217,6 +219,8 @@
     accounts: [], // [{ code, name, grp, note }]
     month: '',
     tab: '', // 여는 탭 — TABS 중 하나 (직원은 비움)
+    bk: { source: 'all', query: '', group: false, selected: '' }, // 매출 · 매입 판 — 거름 · 찾기 · 매입처별 · 서랍에 연 줄 id
+    money: {}, // receivables · payables → GET data (없으면 false — 상자를 감춘다)
     data: null, // GET /ledger/book data
     showVoid: false,
     form: null, // { mode: 'create' | 'correct', row, key }
@@ -682,7 +686,8 @@
 
   function renderSummary() {
     var t = (L.data && L.data.totals) || {};
-    var items = [
+    var side = BOOK_TABS[L.tab] ? L.tab : '';
+    var items = sideSummary(side, t) || [
       ['수입', money(t.income)],
       ['비용', money(t.expense)],
       [
@@ -716,6 +721,23 @@
     $('lgMonth').textContent = monthLabel(L.month);
     $('lgNext').disabled = L.busy || L.month >= thisMonth();
     $('lgPrev').disabled = L.busy;
+  }
+
+  /** 매출 · 매입 판의 달 요약 — 그 쪽 공급가 · 부가세 · 합계 (자산은 있을 때만) */
+  function sideSummary(side, t) {
+    if (side === 'sales')
+      return [
+        ['매출 (공급가)', money(t.income)],
+        ['받은 부가세', money(t.income_vat)],
+        ['합계', money((Number(t.income) || 0) + (Number(t.income_vat) || 0))],
+      ].concat(Number(t.asset_sell) ? [['자산 팔기', money(t.asset_sell)]] : []);
+    if (side === 'buys')
+      return [
+        ['매입 (공급가)', money(t.expense)],
+        ['낸 부가세', money(t.expense_vat)],
+        ['합계', money((Number(t.expense) || 0) + (Number(t.expense_vat) || 0))],
+      ].concat(Number(t.asset_buy) ? [['자산 사기', money(t.asset_buy)]] : []);
+    return null;
   }
 
   function accountName(code) {
@@ -783,14 +805,119 @@
     );
   }
 
+  /** 매출 · 매입 판 — 거름 · 표(또는 매입처별) · 서랍의 고른 줄 (ledger-book.js) */
   function renderList() {
-    var only = BOOK_TABS[L.tab];
-    var rows = ((L.data && L.data.rows) || []).filter(function (r) {
-      return r && (L.showVoid || !r.voided_at) && (!only || only.dirs.indexOf(r.direction) >= 0);
+    var side = BOOK_TABS[L.tab] ? L.tab : '';
+    var Book = window.SeganLedgerBook;
+    renderBookBar(side);
+    var box = $('lgBkTable');
+    box.textContent = '';
+    if (side && Book) {
+      var rows = Book.rowsFor((L.data && L.data.rows) || [], side, {
+        showVoid: L.showVoid,
+        source: L.bk.source,
+        query: L.bk.query,
+      });
+      box.appendChild(
+        side === 'buys' && L.bk.group
+          ? Book.supplierTable(Book.bySupplier(rows))
+          : Book.bookTable(rows, {
+              accountName: accountName,
+              evidenceName: function (c) {
+                return EVIDENCE[c] || c;
+              },
+              selected: L.bk.selected,
+            })
+      );
+    }
+    renderPicked();
+  }
+
+  /** 거름 단추 · 매입처별 · 넣기 단추 */
+  function renderBookBar(side) {
+    var Book = window.SeganLedgerBook;
+    var seg = $('lgBkSrc');
+    seg.textContent = '';
+    $('lgBkGroup').hidden = side !== 'buys';
+    $('lgBkGroup').setAttribute('aria-pressed', L.bk.group ? 'true' : 'false');
+    $('lgAdd').textContent = side === 'sales' ? '+ 매출' : '+ 매입';
+    if (!side || !Book) return;
+    Book.SIDES[side].sources.forEach(function (s) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'lg-seg-btn';
+      b.setAttribute('data-src', s[0]);
+      b.setAttribute('aria-pressed', L.bk.source === s[0] ? 'true' : 'false');
+      b.textContent = s[1];
+      seg.appendChild(b);
     });
-    $('lgList').innerHTML = rows.length
-      ? rows.map(itemHtml).join('')
-      : '<li class="lg-empty">이 달 장부 줄이 없습니다.</li>';
+  }
+
+  /** 서랍에 연 줄 (모든 출처) */
+  function pickedRow() {
+    var rows = (L.data && L.data.rows) || [];
+    for (var i = 0; i < rows.length; i++)
+      if (L.bk.selected && rows[i].id === L.bk.selected) return rows[i];
+    return null;
+  }
+
+  /** 서랍 — 고른 줄 (고치기 · 취소는 직접 넣은 줄만, 수금 · 원가는 ERP) · 넣기 · 고치기 칸 */
+  function renderPicked() {
+    var row = pickedRow();
+    var note =
+      row && row.source !== 'entry'
+        ? '<li class="lg-erp">' +
+          esc(
+            (row.source === 'payment' ? '수금' : '수주 원가') +
+              ' 줄은 ERP에서 고칩니다' +
+              (row.order_no ? ' (주문 ' + row.order_no + ')' : '')
+          ) +
+          ' <a class="mk-link" href="../erp.html">ERP 열기</a></li>'
+        : '';
+    $('lgList').innerHTML = row ? itemHtml(row) + note : '';
+    $('lgList').hidden = !row || !!L.form;
+    $('lgDrawer').hidden = !row && !L.form;
+    if (row && !L.form) $('lgFormTitle').textContent = '줄 보기';
+  }
+
+  function closeDrawer() {
+    L.bk.selected = '';
+    L.voiding = '';
+    closeForm();
+    renderList();
+  }
+
+  /** 받을 돈(매출) · 낼 돈(매입) — 수주 일정. 장부 서버가 모르면(아직 배포 전) 상자를 감춘다 */
+  async function loadMoney(side) {
+    var key = side === 'sales' ? 'receivables' : 'payables';
+    if (!(key in L.money)) {
+      L.money[key] = null;
+      var r = await api(withCompany('/ledger/' + key));
+      L.money[key] = r.ok && r.data ? r.data : false;
+    }
+    renderMoney();
+  }
+
+  function renderMoney() {
+    var side = BOOK_TABS[L.tab] ? L.tab : '';
+    var d = side ? L.money[side === 'sales' ? 'receivables' : 'payables'] : null;
+    $('lgMoney').hidden = !d;
+    if (!d || !window.SeganLedgerBook) return;
+    $('lgMoneyTitle').textContent = side === 'sales' ? '받을 돈' : '낼 돈';
+    $('lgMoneySum').textContent =
+      money(d.total) +
+      ' · ' +
+      (d.count || 0) +
+      '건' +
+      (d.late_count ? ' · 늦음 ' + money(d.late_total) : '');
+    window.SeganLedgerBook.moneyList(
+      $('lgMoneyList'),
+      d,
+      side === 'sales' ? 'in' : 'out',
+      function (s) {
+        return PAY_STAGE[s] || s;
+      }
+    );
   }
 
   function render() {
@@ -872,9 +999,15 @@
     });
     var only = BOOK_TABS[tab];
     if (only) {
+      L.bk = { source: 'all', query: '', group: false, selected: '' };
+      L.voiding = '';
+      $('lgBkFind').value = '';
+      closeForm();
       $('lgBookTitle').textContent = only.title;
       $('lgPaneBook').setAttribute('aria-labelledby', 'lgTab-' + tab);
+      renderSummary();
       renderList();
+      await loadMoney(tab);
     }
     if (tab === 'board' && board()) await board().show(L.month);
   }
@@ -933,7 +1066,14 @@
   function openForm(mode, row) {
     L.form = { mode: mode, row: row || null, key: newKey() };
     var r = row || {};
-    $('lgFormTitle').textContent = mode === 'correct' ? '장부 줄 고치기' : '직접 입력';
+    $('lgFormTitle').textContent =
+      mode === 'correct'
+        ? '장부 줄 고치기'
+        : L.tab === 'sales'
+          ? '매출 넣기'
+          : L.tab === 'buys'
+            ? '매입 넣기'
+            : '직접 입력';
     $('lgDate').value = r.entry_date || today();
     $('lgDir').value = r.direction || (BOOK_TABS[L.tab] ? BOOK_TABS[L.tab].dir : 'expense');
     fillAccounts($('lgDir').value, r.account);
@@ -948,6 +1088,8 @@
     $('lgReasonRow').hidden = mode !== 'correct';
     formError('');
     $('lgForm').hidden = false;
+    $('lgList').hidden = true;
+    $('lgDrawer').hidden = false;
   }
 
   function closeForm() {
@@ -955,6 +1097,7 @@
     L.attachAfter = null;
     $('lgForm').hidden = true;
     formError('');
+    renderPicked();
   }
 
   /** 입력 칸 값 → 보낼 칸 (틀리면 { error }) */
@@ -2001,6 +2144,10 @@
     if (!a || !canWrite()) return;
     var g = a.group;
     closeAttach();
+    if (L.tab !== 'buys') {
+      if (history.replaceState) history.replaceState(null, '', '#buys');
+      showTab('buys');
+    }
     openForm('create');
     L.attachAfter = g;
     $('lgCpName').value = g.supplier_name || '';
@@ -2711,6 +2858,8 @@
     }
     L.me = me.data;
     L.voiding = '';
+    L.money = {};
+    L.bk.selected = '';
     closeForm();
     closeSheet();
     L.review = [];
@@ -2771,6 +2920,35 @@
       L.showVoid = $('lgShowVoid').checked;
       renderList();
     });
+    $('lgBkSrc').addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-src]') : null;
+      if (!b) return;
+      L.bk.source = b.getAttribute('data-src');
+      renderList();
+    });
+    $('lgBkGroup').addEventListener('click', function () {
+      L.bk.group = !L.bk.group;
+      renderList();
+    });
+    $('lgBkFind').addEventListener('input', function () {
+      L.bk.query = $('lgBkFind').value;
+      renderList();
+    });
+    // 표의 줄을 누르면 서랍에 (Enter 도)
+    var pick = function (e) {
+      var tr = e.target.closest ? e.target.closest('tr[data-id]') : null;
+      if (!tr || L.busy) return;
+      L.bk.selected = tr.getAttribute('data-id');
+      L.voiding = '';
+      L.form = null;
+      $('lgForm').hidden = true;
+      renderList();
+    };
+    $('lgBkTable').addEventListener('click', pick);
+    $('lgBkTable').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') pick(e);
+    });
+    $('lgDrawerClose').addEventListener('click', closeDrawer);
     $('lgAdd').addEventListener('click', function () {
       openForm('create');
     });
