@@ -2,7 +2,8 @@
  * 앱 알림 시험용 가짜 Supabase (PostgREST · Auth) + 가짜 푸시 서비스.
  *
  * PostgREST 는 src/push/* 가 쓰는 만큼만 흉내 낸다:
- *   필터 eq · neq · in · is · lt · lte · gt · gte, select(+ company:companies(status) 끼워 넣기), order, limit,
+ *   필터 eq · neq · in · is · lt · lte · gt · gte · not.<필터>, select(+ company:companies(status) 끼워 넣기,
+ *   <표>!inner(칸) 끼워 넣기 — <표 단수>_id 로 잇고 <표>.<칸> 필터로 거른다), order, limit,
  *   POST (on_conflict + resolution=merge-duplicates | ignore-duplicates, return=minimal), PATCH, DELETE,
  *   rpc/claim_notifications (database/migrations/0016 의 SQL 과 같은 규칙). 그 밖의 rpc 는 rpc(이름, 본문) 으로 —
  *   값을 돌려주면 그 값, { status, body } 면 그 상태로 답한다.
@@ -30,6 +31,8 @@ function matches(row, col, expr) {
   const raw = expr.slice(dot + 1);
   const v = row[col];
   switch (op) {
+    case 'not':
+      return !matches(row, col, raw);
     case 'eq':
       return v !== null && v !== undefined && String(v) === raw;
     case 'neq':
@@ -90,6 +93,12 @@ export function createFake({ tables = {}, users = {}, nowMs = Date.now(), pushSt
     if (!select || select === '*') return { ...row };
     const out = {};
     for (const item of select.split(/,(?![^(]*\))/)) {
+      const inner = item.match(/^(\w+)!inner\((.*)\)$/);
+      if (inner) {
+        const found = joined(inner[1], row);
+        out[inner[1]] = found ? project(inner[1], found, inner[2]) : null;
+        continue;
+      }
       const m = item.match(/^(\w+):(\w+)\((.*)\)$/);
       if (m) {
         const [, alias, target, cols] = m;
@@ -102,10 +111,22 @@ export function createFake({ tables = {}, users = {}, nowMs = Date.now(), pushSt
     return out;
   }
 
+  /** <표>!inner 끼워 넣기 — 이 줄의 <표 단수>_id 로 잇는 줄 */
+  function joined(target, row) {
+    const fk = `${target.replace(/s$/, '')}_id`;
+    return (db[target] || []).find((r) => r.id === row[fk]) || null;
+  }
+
   function filterRows(table, params) {
     let out = db[table].filter((row) => {
       for (const [k, v] of params) {
         if (RESERVED.has(k)) continue;
+        if (k.includes('.')) {
+          const [target, col] = k.split('.');
+          const j = joined(target, row);
+          if (!j || !matches(j, col, v)) return false;
+          continue;
+        }
         if (!matches(row, k, v)) return false;
       }
       return true;

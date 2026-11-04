@@ -42,6 +42,8 @@ const MEMBERS = [
   { user_id: PF_OWNER, company_id: PLATFORM, role: 'owner', status: 'active' },
 ];
 const LEVEL = { [CO]: 'full', [CO_READ]: 'read', [PLATFORM]: 'full', [HQ]: 'full' };
+/** 사진 AI 읽기 자격이 없는 업체 (Expert — DB 0038 ledger_ai none). 그 밖은 장부 자격과 같다 */
+const NO_AI = new Set();
 const ACCOUNTS = [
   { code: 'income.sales', name: '매출액', grp: 'income', sort: 10, note: null, active: true },
   { code: 'admin.supplies', name: '소모품비', grp: 'admin', sort: 190, note: null, active: true },
@@ -164,7 +166,10 @@ function makeDb(over = {}) {
       return json(COMPANIES.filter((c) => ids.includes(c.id)));
     }
     if (path.startsWith('/admin_roles?')) return json([]);
-    if (path === '/rpc/company_entitled') return json(LEVEL[body.p_company] || 'none');
+    if (path === '/rpc/company_entitled') {
+      if (body.p_feature === 'ledger_ai' && NO_AI.has(body.p_company)) return json('none');
+      return json(LEVEL[body.p_company] || 'none');
+    }
     if (path.startsWith('/ledger_accounts?')) return json(ACCOUNTS);
     if (path.startsWith('/counterparties')) {
       if (method === 'GET') return json(state.counterparties.filter((r) => match(q, r, ['id', 'company_id'])));
@@ -348,6 +353,22 @@ test('올린 직후 — 새 사진이면 그 사진의 읽기를 건다, 같은 
   const { out, lines } = await withLogs(() => call(db, '/ledger/documents', STAFF, { method: 'POST', raw: jpeg(800, 600, [8]) }));
   assert.equal(out.status, 201);
   assert.ok(lines.every((l) => !l.includes('extract request failed')));
+});
+
+test('올린 직후 — 사진 AI 읽기 자격이 없는 업체(Expert)는 걸지 않는다 (올리기는 201)', async () => {
+  NO_AI.add(CO);
+  try {
+    const db = makeDb({ documents: [] });
+    const assistant = makeAssistant();
+    const r = await call(db, '/ledger/documents', STAFF, { method: 'POST', raw: jpeg(800, 600, [11]), env: { ...ENV, ASSISTANT: assistant } });
+    assert.equal(r.status, 201, r.text);
+    assert.equal(r.waits, 1);
+    assert.deepEqual(assistant.calls, []);
+    const ai = db.rpc.filter((x) => x.fn === 'company_entitled' && x.body && x.body.p_feature === 'ledger_ai');
+    assert.ok(!ai.length || ai.every((x) => x.body.p_company === CO));
+  } finally {
+    NO_AI.delete(CO);
+  }
 });
 
 test('올린 직후 — 걸기가 실패해도 올리기는 201', async () => {
@@ -671,6 +692,18 @@ test('다시 읽기 — again true 로 건다 → 202, 바인딩이 없으면 qu
   assert.deepEqual(refused.body.data, { queued: false, reason: 'running' });
 
   assert.equal((await call(makeDb(), `/ledger/documents/${D3}/reread`, OWNER, { method: 'POST', env: { ...ENV, ASSISTANT: assistant } })).status, 409);
+
+  // 사진 AI 읽기 자격이 없는 업체(Expert) — 걸지 않고 not_entitled
+  NO_AI.add(CO);
+  try {
+    const before = assistant.calls.length;
+    const ex = await call(makeDb(), `/ledger/documents/${D1}/reread`, OWNER, { method: 'POST', env: { ...ENV, ASSISTANT: assistant } });
+    assert.equal(ex.status, 202, ex.text);
+    assert.deepEqual(ex.body.data, { queued: false, reason: 'not_entitled' });
+    assert.equal(assistant.calls.length, before);
+  } finally {
+    NO_AI.delete(CO);
+  }
 });
 
 // ── 국세청 사업자 상태 ────────────────────────────────────

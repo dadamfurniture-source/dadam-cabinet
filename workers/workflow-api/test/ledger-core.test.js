@@ -60,6 +60,8 @@ const MEMBERS = [
 ];
 /** 업체 자격 — 시험이 바꾼다 (본사 · 공장은 시험 예외로 full) */
 const LEVEL = { [CO]: 'full', [CO_READ]: 'read', [CO_NONE]: 'none', [PLATFORM]: 'full', [HQ]: 'full' };
+/** 사진 AI 읽기 자격 (DB 0038 ledger_ai) — Agent 업체 CO 만 */
+const AI = { [CO]: 'full' };
 const ACCOUNTS = [
   { code: 'income.sales', name: '매출액', grp: 'income', sort: 10, note: null, active: true },
   { code: 'purchase.materials', name: '재료비 매입', grp: 'purchase', sort: 40, note: '제조', active: true },
@@ -108,7 +110,8 @@ function makeDb({ entries = [], documents = [], settings = {}, book = [], orders
     if (path.startsWith('/admin_roles?')) return json(eq(q, 'user_id') === ADMIN ? [{ role: 'admin' }] : []);
     if (path === '/rpc/company_entitled') {
       state.rpc.push({ fn: 'company_entitled', body });
-      assert.equal(body.p_feature, 'ledger');
+      assert.ok(['ledger', 'ledger_ai'].includes(body.p_feature), body.p_feature);
+      if (body.p_feature === 'ledger_ai') return json(AI[body.p_company] || 'none');
       return json(LEVEL[body.p_company] || 'none');
     }
     if (path.startsWith('/ledger_accounts?')) return json(ACCOUNTS);
@@ -310,16 +313,17 @@ test('GET /ledger/me — 구성원만 · 자격 none 403 · 할 수 있는 것',
   assert.equal(owner.status, 200, owner.text);
   assert.equal(owner.cache, 'no-store, private');
   assert.deepEqual(owner.body.data, {
-    company_id: CO, role: 'owner', money: true, level: 'full', viewing: false, can_upload: true, can_write: true,
+    company_id: CO, role: 'owner', money: true, level: 'full', viewing: false, can_upload: true, can_write: true, ai: true,
     tax: { vat_type: 'general', business_kind: 'manufacturing' },
     ledgers: [{ company_id: CO, name: '한빛인테리어', kind: 'partner', own: true }],
   });
   const staff = await call(db, '/ledger/me', STAFF);
-  assert.deepEqual(staff.body.data, { company_id: CO, role: 'staff', money: false, level: 'full', viewing: false, can_upload: true, can_write: false });
+  assert.deepEqual(staff.body.data, { company_id: CO, role: 'staff', money: false, level: 'full', viewing: false, can_upload: true, can_write: false, ai: true });
   const read = await call(db, '/ledger/me', R_OWNER);
   assert.equal(read.body.data.level, 'read');
   assert.equal(read.body.data.can_upload, false);
   assert.equal(read.body.data.can_write, false);
+  assert.equal(read.body.data.ai, false);
   for (const [who, code] of [[REMOVED, 'not_member'], [STRANGER, 'not_member'], [ADMIN, 'not_member'], [N_OWNER, 'not_entitled']]) {
     const r = await call(db, '/ledger/me', who);
     assert.equal(r.status, 403, `${who} ${r.text}`);

@@ -2,6 +2,7 @@
  * 회계장부 — 내 자리 · 업체 과세 설정.
  *
  *   GET /ledger/me         구성원 누구나 — 역할 · 자격 · 할 수 있는 것 (화면이 무엇을 보일지 정한다)
+ *                          ai — 사진 AI 읽기(칸 채우기 · 바로 올리기)를 쓰는 업체인가 (Agent · 시험, DB 0038 ledger_ai)
  *                          대표 · 실장에게는 여는 장부 목록 ledgers (본사 대표 · 실장은 공장 장부도 — ?company= 로 연다, 보기만)
  *   GET /ledger/settings   대표 · 실장 — company_settings.settings.tax { vat_type, business_kind }
  *   PUT /ledger/settings   대표 · 실장, 자격 full — tax 묶음만 바꾸고 다른 설정(원가 · 견적 …)은 그대로 둔다
@@ -9,7 +10,7 @@
  *     business_kind  manufacturing 제조 · retail 도소매 — 수주 원가(자재 · 부속)의 계정을 고른다
  */
 import { selectOne, upsertOne, ValidationError } from '../supabase.js';
-import { ledgerAccess, ledgerList, assertMoney, assertWritable } from './access.js';
+import { ledgerAccess, ledgerList, ledgerAi, assertMoney, assertWritable } from './access.js';
 import { VAT_TYPES, BUSINESS_KINDS } from './checks.js';
 
 function taxOf(settings) {
@@ -43,6 +44,7 @@ export async function ledgerMe(env, { user, company }) {
     viewing: access.viewing,
     can_upload: access.level === 'full',
     can_write: access.money && access.level === 'full',
+    ai: await ledgerAi(env, access.companyId),
   };
   if (access.money) {
     out.tax = taxOf((await settingsRow(env, access.companyId) || {}).settings);
