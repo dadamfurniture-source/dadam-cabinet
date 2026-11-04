@@ -63,12 +63,17 @@ function rpcs({ claim = {}, missing = false, due = [], record = { saved: 0, adde
 }
 
 test('이 분에 할 일 — 훑기 2 · 국세청 3 (5분마다), 아침 묶음 08:00~08:29 (2 · 3 분 빼고)', () => {
-  assert.deepEqual(noticeJobs(kst('2026-11-03T14:02:00')), { scan: true, nts: false, digest: false });
-  assert.deepEqual(noticeJobs(kst('2026-11-03T14:13:00')), { scan: false, nts: true, digest: false });
-  assert.deepEqual(noticeJobs(kst('2026-11-03T08:00:00')), { scan: false, nts: false, digest: true });
-  assert.deepEqual(noticeJobs(kst('2026-11-03T08:07:00')), { scan: true, nts: false, digest: false });
-  assert.deepEqual(noticeJobs(kst('2026-11-03T08:29:00')), { scan: false, nts: false, digest: true });
-  assert.deepEqual(noticeJobs(kst('2026-11-03T08:30:00')), { scan: false, nts: false, digest: false });
+  assert.deepEqual(noticeJobs(kst('2026-11-03T14:02:00')), { scan: true, nts: false, digest: false, invoice: false });
+  assert.deepEqual(noticeJobs(kst('2026-11-03T14:13:00')), { scan: false, nts: true, digest: false, invoice: false });
+  assert.deepEqual(noticeJobs(kst('2026-11-03T08:00:00')), { scan: false, nts: false, digest: true, invoice: false });
+  assert.deepEqual(noticeJobs(kst('2026-11-03T08:07:00')), { scan: true, nts: false, digest: false, invoice: false });
+  assert.deepEqual(noticeJobs(kst('2026-11-03T08:29:00')), { scan: false, nts: false, digest: true, invoice: false });
+  assert.deepEqual(noticeJobs(kst('2026-11-03T08:30:00')), { scan: false, nts: false, digest: false, invoice: false });
+  // 세금계산서 없음 — 11일부터 07:55 (10일까지 · 다른 분은 아님)
+  assert.equal(noticeJobs(kst('2026-11-10T07:55:00')).invoice, false);
+  assert.equal(noticeJobs(kst('2026-11-11T07:55:00')).invoice, true);
+  assert.equal(noticeJobs(kst('2026-11-30T07:55:00')).invoice, true);
+  assert.equal(noticeJobs(kst('2026-11-11T07:56:00')).invoice, false);
   assert.equal(kstDay(kst('2026-11-04T00:10:00')), '20261104');
 });
 

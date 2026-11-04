@@ -16,6 +16,8 @@
  *     not_read 읽음이 아님 · checks 사업자번호 · 금액 합 · 날짜 · 한 장 검사 · unsure 꼭 볼 칸에 「확실하지 않음」
  *     warning 중복 · 큰 금액 · 증빙 경고 · 휴업/폐업 · not_trusted 믿을 만한 거래처 아님(장부 줄 3번 같은 계정 · 증빙)
  *     evidence_changed 증빙이 지난번과 다름 · target 지난번이 수주 원가 · incomplete 일자 · 금액 · 계정이 빔 · no_hints 0033 없음
+ *     invoice_mode 명세표인데 거래처를 아직 안 고름 · hold 세금계산서를 따로 주는 거래처의 명세표(모아 둔다 — statements.js)
+ *   명세표 길 (invoice.route, DB 0036 이 있을 때) ask 고르기 묻기 · hold 모아 두기 · null 그대로 올리기(명세표만 줌 · 명세표 아님)
  */
 import { callRpc } from '../supabase.js';
 
@@ -91,6 +93,13 @@ export function proposalFor(result, hints, accounts) {
   };
 }
 
+/** 명세표 길 — 0036 힌트(invoice_mode 칸)가 있을 때만: 안 고름 ask · 따로 줌 hold · 그 밖 null (순수) */
+export function invoiceRoute(evidence, hints) {
+  if (evidence !== 'statement' || !hints || !Object.prototype.hasOwnProperty.call(hints, 'invoice_mode')) return null;
+  if (!hints.invoice_mode) return 'ask';
+  return hints.invoice_mode === 'separate' ? 'hold' : null;
+}
+
 /** 바로 올려도 되는 사진인가 → 까닭 목록 (빈 목록이면 된다) (순수) */
 export function blockersOf(extraction, hints, made) {
   const out = [];
@@ -102,6 +111,9 @@ export function blockersOf(extraction, hints, made) {
   if (unsure.some((f) => MUST_FIELDS.includes(f))) out.push('unsure');
   const nts = hints.nts && hints.nts.status;
   if (hints.duplicate || hints.large || hints.evidence_risk || nts === 'suspended' || nts === 'closed') out.push('warning');
+  const route = invoiceRoute(made.proposal.evidence_type, hints);
+  if (route === 'ask') out.push('invoice_mode');
+  if (route === 'hold') out.push('hold');
   if (!hints.trusted) out.push('not_trusted');
   const last = hints.memory && hints.memory.last;
   if (last && last.src === 'cost') out.push('target');
@@ -121,7 +133,8 @@ export function hintView(extraction, hints, accounts, { available = true } = {})
   const blockers = available ? blockersOf(extraction, hints, made) : ['no_hints'];
   return {
     available: available && !!(hints && hints.read),
-    supplier: hints && hints.supplier ? { name: hints.supplier.name || null, biz_no: hints.supplier.biz_no || null } : null,
+    supplier: hints && hints.supplier ? { name: hints.supplier.name || null, biz_no: hints.supplier.biz_no || null, key: hints.supplier_key || null } : null,
+    invoice: { mode: (hints && hints.invoice_mode) || null, route: hints && hints.read ? invoiceRoute(made.proposal.evidence_type, hints) : null },
     memory: mem ? { posts: mem.posts || 0, entry_posts: mem.entry_posts || 0, last_target: last ? (last.src === 'cost' ? 'order_cost' : 'entry') : null, last_on: last ? last.on_date || null : null } : null,
     first_time: hints ? hints.first_time === true : false,
     trusted: hints ? hints.trusted === true : false,

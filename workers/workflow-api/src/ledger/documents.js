@@ -25,13 +25,14 @@ export const LEDGER_BUCKET = 'ledger-evidence';
 /** 하루(KST) 올리는 장수 — 업체마다 (사람마다 따로 세지 않는다: 한 사람이 업체 몫을 다 올릴 수 있다) */
 export const DAILY_COMPANY_MAX = 300;
 export const LIST_MAX = 100;
-export const REVIEW_STATUSES = Object.freeze(['pending', 'posted', 'returned', 'rejected', 'skipped_budget']);
+/** held = 모아 둠 — 세금계산서를 기다리는 명세표 (DB 0036, statements.js) */
+export const REVIEW_STATUSES = Object.freeze(['pending', 'posted', 'returned', 'rejected', 'skipped_budget', 'held']);
 
 const DOC_COLS = 'id,company_id,uploaded_by,storage_path,mime,size_bytes,sha256,width,height,note,review_status,decided_by,decided_at,decision_reason,created_at';
 
-/** 직원이 보는 상태 — 한도로 못 읽은 것도 「올림」 */
+/** 직원이 보는 상태 — 한도로 못 읽은 것 · 모아 둔 명세표도 「올림」 */
 function staffStatus(s) {
-  return s === 'pending' || s === 'skipped_budget' ? 'uploaded' : s;
+  return s === 'pending' || s === 'skipped_budget' || s === 'held' ? 'uploaded' : s;
 }
 
 /** 보는 사람에 맞춘 사진 줄 */

@@ -3,7 +3,7 @@
  *
  *   GET /ledger/dashboard?month=YYYY-MM&months=12   대표 · 실장 — 고른 달(기본 이번 달, 한국 시간)까지 months 달(1~12, 기본 12)
  *     → { month, from, to, vat_type, months: [12달 — 빈 달은 0], accounts · suppliers: [고른 달만],
- *         pending_photos(확인 기다리는 사진 수), available, level, viewing }
+ *         pending_photos(확인 기다리는 사진 수), held_statements(세금계산서 기다리는 명세표 수, DB 0036), available, level, viewing }
  *   매출은 받은 돈 · 매입은 낸 돈 기준(장부와 같다). 수주 금액 · 미수는 앱이 GET /books/summary 를 따로 부른다
  *   (본사 보기 ?company= 에서는 앱이 그 칸을 숨긴다 — books.js 는 본사 보기를 받지 않는다).
  *   0034 를 적용하기 전이면 { available: false } — 화면이 「준비 중」을 보인다.
@@ -74,11 +74,12 @@ export async function ledgerDashboard(env, { user, company, month, months, nowMs
   const s = summary && typeof summary === 'object' ? summary : {};
   const settings = await selectOne(env, 'company_settings', { company_id: `eq.${access.companyId}`, select: 'settings' });
   const vat = settings && settings.settings && settings.settings.tax && settings.settings.tax.vat_type;
-  const pending =
+  // 확인 기다림 · 모아 둔 명세표를 한 번에 센다
+  const waiting =
     (await selectMany(env, 'ledger_documents', {
       company_id: `eq.${access.companyId}`,
-      review_status: 'eq.pending',
-      select: 'id',
+      review_status: 'in.(pending,held)',
+      select: 'id,review_status',
       limit: String(PENDING_COUNT_LIMIT),
     })) || [];
   const inMonth = (rows) => (Array.isArray(rows) ? rows.filter((r) => r && r.month === m) : []);
@@ -89,6 +90,7 @@ export async function ledgerDashboard(env, { user, company, month, months, nowMs
     months: fillMonths(range.list, s.months),
     accounts: inMonth(s.accounts).map((a) => ({ direction: a.direction, account: a.account || null, amount: Number(a.amount) || 0, vat_amount: Number(a.vat_amount) || 0, n: Number(a.n) || 0 })),
     suppliers: inMonth(s.suppliers).map((x) => ({ name: x.name, amount: Number(x.amount) || 0, n: Number(x.n) || 0 })),
-    pending_photos: pending.length,
+    pending_photos: waiting.filter((r) => r.review_status === 'pending').length,
+    held_statements: waiting.filter((r) => r.review_status === 'held').length,
   };
 }
