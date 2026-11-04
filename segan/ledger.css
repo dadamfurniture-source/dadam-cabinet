@@ -432,6 +432,151 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 세금계산서 기다리는 명세표 — 거래처 · 달 묶음 */
+.lg-held {
+  margin: 0 0 12px;
+  border: 1px solid var(--v5-line-18);
+}
+
+.lg-held-list {
+  margin: 0;
+  padding: 0 12px;
+  list-style: none;
+}
+
+.lg-held-row {
+  display: grid;
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 13px;
+}
+
+.lg-held-row:last-child {
+  border-bottom: 0;
+}
+
+.lg-held-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.lg-held-top span {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-held-late {
+  color: var(--lg-warn);
+  font-size: 12px;
+}
+
+.lg-held-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+/* 시트 위 명세표 상자 — 세금계산서를 따로 주나 · 모아 두기 */
+.lg-rv-inv {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--v5-line-25);
+  background: var(--v5-well);
+  font-size: 13px;
+}
+
+.lg-rv-inv-note {
+  margin: 0;
+  color: var(--v5-ink-62);
+  font-size: 12px;
+}
+
+/* 붙이기 창 */
+.lg-at-docs {
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v5-line);
+}
+
+.lg-at-doc label {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-at-amt {
+  color: var(--v5-ink-62);
+}
+
+.lg-at-cmp {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-at-cmp dt {
+  color: var(--v5-ink-62);
+}
+
+.lg-at-cmp dd {
+  margin: 0;
+  font-weight: 500;
+  text-align: right;
+}
+
+.lg-at-res {
+  min-height: 1em;
+  margin: 6px 0;
+  font-size: 12px;
+}
+
+.lg-at-res--good {
+  color: var(--lg-ok);
+}
+
+.lg-at-res--bad {
+  color: var(--lg-crit);
+}
+
+/* 거래처별 세금계산서 */
+.lg-sup-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lg-sup-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 13px;
+}
+
+.lg-sup-row select {
+  min-height: 36px;
+}
+
 /* 사진 확인 시트 — 화면을 덮고, 시트 안만 넘긴다 */
 .lg-sheet-wrap {
   position: fixed;

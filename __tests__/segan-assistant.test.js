@@ -627,6 +627,34 @@ describe('장부 알림', () => {
     expect(cards()[5].classList.contains('as-ncard--seen')).toBe(true);
   });
 
+  test('명세표 알림 둘 — 합계 다름 · 세금계산서 없음 (서버 숫자)', async () => {
+    const items = [
+      N(1, {
+        kind: 'statement_mismatch',
+        urgency: 'digest',
+        data: {
+          supplier: '마바상사',
+          on_date: '2026-10-31',
+          n: 2,
+          basis: 'supply',
+          statements: 880000,
+          invoice: 1000000,
+          diff: -120000,
+        },
+      }),
+      N(2, {
+        kind: 'invoice_missing',
+        urgency: 'digest',
+        data: { supplier: '다라철물', month: '2026-10', count: 4, supply: 412000, total: 453200 },
+      }),
+    ];
+    await load({ notices: () => ok({ items, unseen: 2, available: true }) });
+    expect(cards().map((c) => c.querySelector('.as-ncard-body').textContent)).toEqual([
+      '마바상사 2026-10-31 — 명세표 2장 공급가 880,000원 · 세금계산서 1,000,000원',
+      '다라철물 2026-10 명세표 4장 · 공급가 412,000원 — 다음 달 10일 발급 기한이 지났습니다',
+    ]);
+  });
+
   test('카드를 누르면 본 표시 뒤 장부로, 「모두 봤어요」는 안 본 것 한꺼번에', async () => {
     const items = [N(1), N(2, { urgency: 'digest' }), N(3, { seen_at: '2026-11-03T06:00:00Z' })];
     const calls = await load({ notices: () => ok({ items, unseen: 2, available: true }) });

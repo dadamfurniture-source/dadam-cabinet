@@ -277,6 +277,18 @@ describe('회계 한눈에', () => {
     expect($('lbBack').getAttribute('href')).toBe(`ledger.html?company=${HQ}`);
   });
 
+  test('모아 둔 명세표가 있으면 장부 상태에 「세금계산서 기다리는 명세표」 (장부로)', async () => {
+    await load({
+      dash: (url) => ok({ ...DASH(new URL(url).searchParams.get('month')), held_statements: 3 }),
+    });
+    const chips = [...$('lbStatus').querySelectorAll('li')].map((li) => li.textContent);
+    expect(chips.slice(0, 2)).toEqual([
+      '확인 기다리는 사진 14장',
+      '세금계산서 기다리는 명세표 3장',
+    ]);
+    expect($('lbStatus').querySelectorAll('a')[1].getAttribute('href')).toBe('ledger.html');
+  });
+
   test('직원 403 · 0034 전 — 한 줄만', async () => {
     await load({ dash: () => fail(403, 'not_money', 'x') });
     expect($('lbBody').hidden).toBe(true);

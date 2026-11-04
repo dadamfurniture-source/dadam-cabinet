@@ -57,7 +57,7 @@
   var CONV_RE = /^#c=([0-9a-fA-F-]{36})$/;
   var NOTICE_SHOW = 5; // 처음 보이는 알림 카드 수 (나머지는 「모두 보기」)
   var SEEN_MAX = 50; // 워커 src/ledger/notices.js SEEN_MAX
-  // 장부 알림 종류 — 워커 src/ledger/notices.js · DB 0033 ledger_notices.kind
+  // 장부 알림 종류 — 워커 src/ledger/notices.js · DB 0033 · 0036 ledger_notices.kind
   var NOTICE_KIND = {
     duplicate: '중복 의심',
     large_amount: '평소와 다른 큰 금액',
@@ -65,6 +65,8 @@
     supplier_status: '거래처 상태 바뀜',
     price_change: '단가 변동',
     evidence_risk: '증빙 경고',
+    statement_mismatch: '명세표 합계와 세금계산서가 다름',
+    invoice_missing: '세금계산서가 아직 없는 명세표',
   };
   var NTS_NAME = {
     active: '계속 사업자',
@@ -356,6 +358,33 @@
         ' — ' +
         (EVIDENCE_NAME[d.evidence_type] || '적격증빙 아님') +
         ' (3만원 넘음) · 가산세 2% 위험 참고'
+      );
+    if (n.kind === 'statement_mismatch')
+      return (
+        who +
+        (d.on_date ? ' ' + d.on_date : '') +
+        ' — 명세표 ' +
+        d.n +
+        '장 ' +
+        (d.basis === 'supply' ? '공급가 ' : '합계 ') +
+        money(d.statements) +
+        ' · 세금계산서 ' +
+        money(d.invoice)
+      );
+    if (n.kind === 'invoice_missing')
+      return (
+        who +
+        ' ' +
+        (d.month || '') +
+        ' 명세표 ' +
+        d.count +
+        '장' +
+        (d.supply != null
+          ? ' · 공급가 ' + money(d.supply)
+          : d.total != null
+            ? ' · 합계 ' + money(d.total)
+            : '') +
+        ' — 다음 달 10일 발급 기한이 지났습니다'
       );
     return who;
   }
