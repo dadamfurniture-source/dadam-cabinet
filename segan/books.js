@@ -12,7 +12,8 @@
              미수 (금액 · 건수) · 상태별 수주 수 · 다가오는 수금 (수주 번호 · 단계 · 금액 · 날짜)
              달 바꾸기 (지난달 · 다음 달 — 이번 달 뒤로는 가지 않는다)
              수주 상세 · 원가 · 수금 입력은 PC ERP(erp.html) 로 보낸다
-             장부(segan/ledger.html) 줄 — workflow-api GET /ledger/me 가 그 업체 대표 · 실장에게 답할 때만 (Agent 업체 · 시험 업체)
+             회계(segan/ledger.html — 한눈에 · 매출 · 매입 · 사진 탭) · 이번 달 보고서(segan/ledger-report.html) 줄 —
+             workflow-api GET /ledger/me 가 그 업체 대표 · 실장에게 답할 때만 (Expert · Agent 업체 · 시험 업체)
              다담 본사 · 공장 구성원(/partner/me 에 협력업체가 없다)은 회계 요약 없이 장부 줄만 — 역시 /ledger/me 가 답할 때.
              그때는 업체 칸(#partner)도 연다 (공장 구성원은 segan/partner.js 가 감춰 둔다)
              직원(협력업체 · 본사 · 공장)은 /ledger/me 가 can_upload 로 답할 때 「영수증 올리기」 줄만 — 금액 · 요약 없이
@@ -42,7 +43,7 @@
   ];
   var ERP_PAGE = '../erp.html';
   var LEDGER_PAGE = 'ledger.html';
-  var BOARD_PAGE = 'ledger-board.html'; // 회계 한눈에 — 매출 · 매입 그래프
+  var REPORT_PAGE = 'ledger-report.html'; // 인쇄용 월 회계 보고서
   var MONTH_RE = /^(\d{4})-(\d{2})$/;
   var FAIL_MSG = '이 달 회계를 불러오지 못했습니다.';
 
@@ -263,11 +264,11 @@
       '<ul class="sg-rows me-pt-rows">' +
       (B.ledger
         ? '<li><a class="sg-row" href="' +
-          BOARD_PAGE +
-          '">회계 한눈에 — 매출 · 매입 그래프</a></li>' +
-          '<li><a class="sg-row" href="' +
           LEDGER_PAGE +
-          '">장부 — 수주 밖 비용 · 증빙</a></li>'
+          '">회계 — 한눈에 · 매출 · 매입 · 사진</a></li>' +
+          '<li><a class="sg-row" href="' +
+          REPORT_PAGE +
+          '">이번 달 회계 보고서 · 인쇄</a></li>'
         : '') +
       '<li><a class="sg-row" href="' +
       ERP_PAGE +
@@ -328,7 +329,7 @@
       '<ul class="sg-rows me-pt-rows"><li><a class="sg-row" href="' +
       LEDGER_PAGE +
       '">' +
-      (kind === 'upload' ? '영수증 · 명세표 사진 올리기' : '장부 — 수주 밖 비용 · 증빙') +
+      (kind === 'upload' ? '영수증 · 명세표 사진 올리기' : '회계 — 한눈에 · 매출 · 매입 · 사진') +
       '</a></li></ul>';
     box.hidden = false;
     var section = $('partner');

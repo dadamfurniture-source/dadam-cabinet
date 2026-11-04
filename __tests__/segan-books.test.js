@@ -645,6 +645,9 @@ describe('장부 줄 (segan/ledger.html)', () => {
       expect(box().hidden).toBe(false);
       const l = links();
       expect(l.some(([, href]) => href === 'ledger.html')).toBe(want);
+      // 회계(탭) · 이번 달 보고서 — 옛 「회계 한눈에」 주소는 쓰지 않는다
+      expect(l.some(([, href]) => href === 'ledger-report.html')).toBe(want);
+      expect(l.some(([, href]) => href === 'ledger-board.html')).toBe(false);
       expect(l.at(-1)[1]).toBe('../erp.html');
       expect(calls.fetch.filter((f) => f.url === WORK + '/ledger/me').length).toBe(1);
       jest.restoreAllMocks();
