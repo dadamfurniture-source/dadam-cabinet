@@ -797,7 +797,7 @@ function cutSheetBlock(ctx, sheet, labelNo) {
   <div class="cut-head">
     <b>시트 #${num(sheet.no)}</b> ${esc(sheet.material || '')} ${num(sheet.thickness)}T · ${esc(sheet.partClass || '')}
     · 원판 ${num(sheet.size && sheet.size.w)} × ${num(sheet.size && sheet.size.h)} · 조각 ${num(parts.length)} · 수율 ${fmtPct(sheet.yield)}${layout}
-    <span class="checks">${itemsFor(ctx.checkList, 'cut', 'sheet').map((x) => `${esc(x.label)} ☐`).join(' ')}</span>
+    <span class="checks">${itemsFor(ctx.checkList, 'cut', 'sheet').map((x) => `${esc(x.short || x.label)} ☐`).join(' ')}</span>
   </div>
   <div class="cut-sheet">
     <div class="cut-svg">${svg}</div>
@@ -872,6 +872,19 @@ function edgeTotalsTable(rows) {
 }
 
 /** vendor: 외주처용 판 — 사내 안내(도어재 행방·알바 메모)를 빼고 제목을 바꾼다. 부재·배치·엣지는 같다. */
+/**
+ * 주문 확인 칸 — 정본 목록(check-items.js)의 주문 범위 항목 (시작 전 · 끝). 조건(confirm · outlet)은 동결본으로 거른다. 없으면 빈 글.
+ */
+function orderChecksBlock(ctx, role) {
+  const list = itemsFor(ctx.checkList, role, 'order').filter((x) => x.paper !== 'sign' && itemApplies(x, null, ctx.snapshot));
+  if (!list.length) return '';
+  const line = (xs) => xs.map((x) => `${esc(x.label)}${x.must ? '' : ' <span class="muted">(권장)</span>'}${x.photo === 'need' ? ' <span class="muted">· 사진</span>' : ''} ☐`).join(' &nbsp; ');
+  const start = list.filter((x) => x.at === 'start');
+  const end = list.filter((x) => x.at === 'end');
+  const other = list.filter((x) => x.at !== 'start' && x.at !== 'end');
+  return `<div class="order-checks" style="margin:4px 0 8px;padding:4px 6px;border:1px solid #999;font-size:9.5pt;line-height:1.7"><b>주문 확인</b>${start.length ? ` <span class="muted">시작 전</span> ${line(start)}` : ''}${other.length ? ` ${line(other)}` : ''}${end.length ? ` <span class="muted">끝</span> ${line(end)}` : ''}</div>`;
+}
+
 function cutSheets(ctx, { vendor = false } = {}) {
   const counts = workCounts(ctx);
   const labelNo = labelNumbers(ctx.materials);
@@ -943,7 +956,7 @@ function cutSheets(ctx, { vendor = false } = {}) {
   <div class="section-title">${title} <span class="muted">사내 원판 ${num(sheets.length)}장${byMat ? ` (${byMat})` : ''} · 톱날 ${num(plan.kerf)} · 트림 ${num(plan.trim)}</span></div>
   <div class="muted">굵은 실선 = 엣지 0.6 · 이중선 = 엣지 1.0 · 선 없음 = 엣지 없음 · 굵은 숫자 = 라벨 번호. 표의 변 길이는 부재 기준 (회전해도 같다).</div>
   ${doorNote}
-  ${sheets.map((s) => cutSheetBlock(ctx, s, labelNo)).join('')}
+  ${vendor ? '' : orderChecksBlock(ctx, 'cut')}${sheets.map((s) => cutSheetBlock(ctx, s, labelNo)).join('')}
   ${offRows ? `<div class="sub-title">잔재 (60mm 이상)</div><table class="compact">${thead(['시트', '종류', 'w × h', 'x', 'y', '남는 쪽'], ['num', '', 'num', 'num', 'num', 'num'])}<tbody>${offRows}</tbody></table>` : ''}
   ${smallRows ? `<div class="sub-title">소부품 (원판 미배치 — 잔재에서 뽑는다)</div><table class="compact">${thead(['partId', '부품', '자재', 'w × h', '수량', '엣지', '비고'], ['', '', '', 'num', 'num', '', ''])}<tbody>${smallRows}</tbody></table>` : ''}
   ${unRows ? `<div class="sub-title">미배치 (원판 초과)</div><div class="warn">원판보다 큰 부재가 있다 — 별도 재단.</div><table class="compact">${thead(['partId', '부품', '자재', 'w × h', '수량'], ['', '', '', 'num', 'num'])}<tbody>${unRows}</tbody></table>` : ''}
@@ -1055,9 +1068,9 @@ function assemblySheet(ctx) {
 <div class="sheet">
   <div class="section-title">⑥ 조립 순서 체크 <span class="muted">— 칸은 해당 없음</span></div>
   <table class="check compact">
-    ${thead(['품목', '모듈', ...steps.map((x) => x.label), '완료일', '서명'])}
+    ${thead(['품목', '모듈', ...steps.map((x) => x.short || x.label), '완료일', '서명'])}
     <tbody>${rows.join('') || tr(['모듈 없음', '', ...steps.map(() => ''), '', ''])}</tbody>
-  </table>
+  </table>${orderChecksBlock(ctx, 'assembly')}
 </div>`;
 }
 

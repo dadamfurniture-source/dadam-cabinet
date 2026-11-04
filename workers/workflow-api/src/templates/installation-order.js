@@ -14,7 +14,7 @@
 
 import { esc, num, ymd, ymdhm, tr, thead, documentShell } from './html.js';
 import { PRINT_CSS, PRINT_TOOLBAR } from './print-css.js';
-import { checkListOfDoc, itemsFor } from '../work/check-items.js';
+import { checkListOfDoc, itemsFor, itemApplies } from '../work/check-items.js';
 import { SITE_NOTE } from '../work/reveal.js';
 
 const CATEGORY_NAMES = {
@@ -120,12 +120,19 @@ function coverSheet(doc, snapshot, site, worker) {
     <tbody>${summaryRows || tr(['-', '-', '-', '-'])}</tbody>
   </table>
 
-  <table class="sign">
+  ${installChecks(doc, snapshot)}<table class="sign">
     <tbody>
-      ${tr(itemsFor(checkListOfDoc(doc), 'install', 'order').flatMap((x) => [esc(x.label), '']))}
+      ${tr(itemsFor(checkListOfDoc(doc), 'install', 'order').filter((x) => x.paper === 'sign').flatMap((x) => [esc(x.label), '']))}
     </tbody>
   </table>
 </div>`;
+}
+
+/** 설치 확인 칸 — 정본 목록의 서명 아닌 항목 (v1). 조건(콘센트)은 동결본으로 거른다. v0 은 없다 */
+function installChecks(doc, snapshot) {
+  const list = itemsFor(checkListOfDoc(doc), 'install', 'order').filter((x) => x.paper !== 'sign' && itemApplies(x, null, snapshot));
+  if (!list.length) return '';
+  return `<h2>설치 확인</h2><div class="freetext">${list.map((x) => `${esc(x.label)}${x.must ? '' : ' <span class="muted">(권장)</span>'}${x.photo === 'need' ? ' <span class="muted">· 사진</span>' : ''} ☐`).join(' &nbsp; ')}</div>`;
 }
 
 /** 설치할 모듈 목록 — 자재가 아니라 "다는 것" 기준. */

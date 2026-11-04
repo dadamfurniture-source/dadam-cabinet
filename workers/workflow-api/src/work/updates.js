@@ -15,6 +15,7 @@ import { loadJob, needsReview, recordAssignmentChange, transitionAssignment } fr
 import { notifyWork } from './notify.js';
 import { COUNTED_STATUSES, workerUpdate } from './reveal.js';
 import { assertUuid, oneOf, optUuid, reqText } from './validate.js';
+import { assertChecksDone } from './check-state.js';
 
 const WORKER_KINDS = ['progress', 'issue', 'result'];
 const COMPANY_KINDS = ['correction', 'note'];
@@ -49,6 +50,8 @@ export async function addWorkerUpdate(env, { user, params, body, ctx }) {
   let after = assignment;
   if (kind === 'result') {
     if (!['started', 'revision'].includes(assignment.status)) throw new ConflictError('시작한 작업만 완료 보고할 수 있습니다');
+    // 필수 확인이 남았으면 완료 보고를 막는다 (2026-11-04 사장님 확정 「필수만 막음」 — 목록 판 v1, check-state.js). 설치 · 조립 작업만
+    if (job.order_id && (job.kind === 'install' || job.kind === 'assembly')) await assertChecksDone(env, { orderId: job.order_id, role: job.kind });
     const t = nowIso();
     // 공장 조립은 검수 없이 완료 보고로 끝난다 (각자 스스로 검수)
     const patch = needsReview(job.kind)

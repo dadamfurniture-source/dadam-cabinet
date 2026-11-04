@@ -10,17 +10,42 @@ import { ASSEMBLY_STEPS } from '../src/templates/work-order.js';
 
 const DOC = fs.readFileSync(new URL('../../../docs/design-rules/work-checks.md', import.meta.url), 'utf8');
 
-/** 문서의 판 표 줄 → [판, 역할, 키, 항목, 범위, 조건, 필수, 사진] */
+/** 문서의 판 줄 — 판 표 [판, 막기, 근거] · 항목 표 [판, 역할, 키, 항목, 짧은 이름, 범위, 조건, 때, 서명, 필수, 사진] */
 function docRows() {
   return DOC.split(/\r?\n/)
     .filter((l) => /^\| v\d+ \|/.test(l))
     .map((l) => l.split('|').slice(1, -1).map((c) => c.trim()));
 }
 
-test('문서 표 = 코드 정본 (판 · 역할 · 키 · 항목 · 범위 · 조건 · 필수 · 사진)', () => {
+test('문서 표 = 코드 정본 (판 막기 · 항목 — 역할 · 키 · 이름 · 짧은 이름 · 범위 · 조건 · 때 · 서명 · 필수 · 사진)', () => {
+  const rows = docRows();
+  assert.deepEqual(rows.filter((r) => r.length === 3).map((r) => [r[0], r[1]]), Object.entries(CHECK_LISTS).map(([v, l]) => [v, l.block]));
   const code = [];
-  Object.entries(CHECK_LISTS).forEach(([v, roles]) => CHECK_ROLES.forEach((r) => roles[r].forEach((x) => code.push([v, r, x.key, x.label, x.scope, x.when || '', x.must ? '예' : '아니오', x.photo]))));
-  assert.deepEqual(docRows(), code);
+  Object.entries(CHECK_LISTS).forEach(([v, roles]) => CHECK_ROLES.forEach((r) => roles[r].forEach((x) => code.push([v, r, x.key, x.label, x.short, x.scope, x.when || '', x.at || '', x.paper || '', x.must ? '예' : '아니오', x.photo]))));
+  assert.deepEqual(rows.filter((r) => r.length === 11), code);
+});
+
+test('v1 — 사장님 확정: 엣지 항목은 재단 기사 목록 · 엣지 역할 칸 없음 · 막기 must · 사진 필수 두 항목', () => {
+  const v1 = frozenCheckList('v1');
+  assert.equal(CHECK_LIST_VERSION, 'v1', '새 문서는 v1');
+  assert.equal(v1.block, 'must');
+  assert.equal(frozenCheckList('v0').block, 'none', 'v0 문서는 막지 않는다');
+  assert.ok(itemsFor(v1, 'cut').some((x) => x.key.startsWith('edge-')));
+  assert.deepEqual(itemsFor(v1, 'edge'), []);
+  assert.deepEqual(['cut', 'assembly', 'install'].flatMap((r) => itemsFor(v1, r).filter((x) => x.photo === 'need').map((x) => x.key)), ['asm-module-photo', 'inst-order-photo']);
+  assert.deepEqual(itemsFor(v1, 'install').filter((x) => x.paper === 'sign').map((x) => x.label), ['설치 담당', '검수', '고객 확인']);
+});
+
+test('v1 조건 — [확인 필요]가 있을 때만 · 콘센트를 넣었을 때만 (동결본)', () => {
+  const v1 = frozenCheckList('v1');
+  const confirm = itemsFor(v1, 'assembly').find((x) => x.when === 'confirm');
+  const outlet = itemsFor(v1, 'install').find((x) => x.when === 'outlet');
+  const snap = (notes, hw) => ({ bom_payload: { materials: notes.map((note) => ({ part: '측판', note })), hardware: hw } });
+  assert.equal(itemApplies(confirm, null, snap(['', '[확인 필요] 레일'], [])), true);
+  assert.equal(itemApplies(confirm, null, snap([''], [{ category: '경첩', note: '' }])), false);
+  assert.equal(itemApplies(outlet, null, snap([''], [{ category: '전기', item: '콘센트 2구' }])), true);
+  assert.equal(itemApplies(outlet, null, snap([''], [])), false);
+  assert.equal(itemApplies(outlet, null, { bom_payload: { materials: [] }, hardware_payload: { hardware: [{ category: '전기' }] } }), true, '부자재가 hardware_payload 에만 있어도');
 });
 
 test('항목 모양 — 키는 DB 모양 · 판 안에서 유일, 범위 · 사진 값', () => {
