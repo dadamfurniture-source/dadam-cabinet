@@ -1185,6 +1185,8 @@
         if (GRADES.includes(d.doorGrade)) out.doorGrade = d.doorGrade;
         // 2026-10-24 사장님 "서랍장 맨 위 칸도 서랍": 플래너 서랍장 표시 — 있을 때만 싣는다 (없는 모듈의 payload 는 예전과 같다)
         if (d.topDrawer === true) out.topDrawer = true;
+        // 2026-11-05 사장님 (위 서랍 + 아래 도어 — 한 몸통 · 경첩 여닫이): 서랍이 위, 도어가 아래 — 있을 때만 싣는다
+        if (d.drawerTop === true) out.drawerTop = true;
         // 2026-10-26 사장님 (가스대): 서랍 칸마다 레일 · 박스 크기 · 맨 위 속서랍 (bom-drawer-rules frontSpecs) — 있을 때만, 모르는 값은 버린다
         if (Array.isArray(d.fronts) && d.fronts.length) {
           out.fronts = d.fronts.map((f) => {
@@ -1477,6 +1479,8 @@
               _x: Number(m.x) || 0,
             });
             if (builtin) out[out.length - 1].builtinOven = true;   // 표시가 없는 모듈의 payload 는 예전과 같다
+            // 2026-11-05 사장님 (상부장 밑 오픈 칸): 상부장 몸통 밑에 붙은 오픈 상자 — BOM 상몰딩 자리에 서지 않는다 (extractors bomMoldingUppersOf)
+            if (pos === 'upper' && s && s.underUpper === true) out[out.length - 1].underUpper = true;
             if (_outletOf(s) && pos === 'lower') out[out.length - 1].outlet = _outletOf(s);   // 2026-11-03 콘센트 (하부장)
             // 2026-11-04: 하부장 위 수납장 상자(오픈장 · 밥솥장 · 홈카페장) — 아래 일반 칸 분기(stackBox)보다 먼저 돌아가므로 여기서도 싣는다.
             //   없으면 BOM 이 상부장 밑 상자를 상부 줄 모듈로 보고 상몰딩 자리를 한 번 더 세운다 (bomStackUnderUpperOf).
@@ -1775,6 +1779,14 @@
             //   자동계산 하부장(도어 + 아래 서랍)에는 표시가 없어 예전 그대로 위 칸 도어다.
             const topDrawer = !isOpen && drawerAtBottom && out[out.length - 1].drawer.topDrawer === true;
             if (topDrawer) Object.assign(out[out.length - 1], { drawerLayout: 'all', doorCount: 0 });
+            // 2026-11-05 사장님 (위 서랍 + 아래 도어): BOM drawerLayout 'drawerTop' (bom-drawer-rules layoutDrawerTop — 서랍 전면 기본 180 · 도어 나머지 · 한 몸통).
+            //   도어 수 = 칸 (양문 2 · 외짝 1, 경첩 방향은 아래 hingeSide 그대로)
+            if (!isOpen && drawerAtBottom && !topDrawer && out[out.length - 1].drawer.drawerTop === true) {
+              out[out.length - 1].drawerLayout = 'drawerTop';
+              if (s && Number(s.drawerHeight) > 0) out[out.length - 1].drawerHeight = Number(s.drawerHeight);
+            }
+            // 2026-11-05 사장님 (상부장 밑 오픈 칸 — 도어장 + 18T 오픈 상자 · 「도어 안 내려옴」): 밑에 오픈 상자가 붙은 상부장 — BOM 도어 내림 0
+            if (pos === 'upper' && s && s.openBelow === true) out[out.length - 1].openBelow = true;
             // 2026-10-13: 위로 여는 도어(플랩) — 칸 열림 방향 'up'. 상부장 단문 칸에만 뜻이 있다.
             //   BOM 은 경첩을 천판 쪽(도어 폭 기준)으로 보링하고 가스쇼바 2 를 낸다 (extractors.js flapHardwareOf).
             //   플랩이 아닌 칸은 필드를 붙이지 않는다 — 예전 payload 와 같다.
