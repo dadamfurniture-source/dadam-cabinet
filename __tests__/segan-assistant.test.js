@@ -85,6 +85,8 @@ async function load(options = {}) {
     hash: '',
     notices: () => ok({ items: [], unseen: 0, available: true }),
     seen: (body) => ok({ seen: body.ids.length }),
+    // 브리핑 — 기본은 못 받음(칸 숨김). 브리핑 시험이 갈아 끼운다
+    brief: () => fail(404, '', 'x'),
     ...options,
   };
   window.history.replaceState(null, '', '/segan/assistant.html' + opts.hash);
@@ -130,6 +132,7 @@ async function load(options = {}) {
       const wp = new URL(url).pathname;
       if (wp === '/ledger/notices') return reply(opts.notices());
       if (wp === '/ledger/notices/seen') return reply(opts.seen(JSON.parse(init.body)));
+      if (wp === '/brief/today') return reply(opts.brief());
       return reply(ok({ ready: true, worker: null })); // /work/me
     }
     const u = new URL(url);
@@ -704,6 +707,174 @@ describe('장부 알림', () => {
     await load({ notices: () => fail(403, 'not_money', '대표 · 실장만 봅니다') });
     expect($('asNotices').hidden).toBe(true);
     expect($('asConvs').querySelectorAll('[data-id]').length).toBe(1);
+  });
+});
+
+describe('오늘 브리핑', () => {
+  const BRIEF = (over = {}) => ({
+    date: '2026-11-05',
+    role: 'owner',
+    money: true,
+    count: 8,
+    items: {
+      consults: { count: 2, next_deadline: '2026-11-05T23:30:00.000Z' },
+      receivables: {
+        count: 2,
+        total: 500000,
+        late_count: 1,
+        late_total: 300000,
+        today_count: 1,
+        today_total: 200000,
+      },
+      schedules: {
+        count: 2,
+        items: [
+          {
+            type: 'delivery',
+            at: '2026-11-06T01:00:00Z',
+            status: 'scheduled',
+            order_no: 'SO-20261101-AAAA',
+          },
+          { type: 'installation', at: '2026-11-11T01:00:00Z', status: 'confirmed', order_no: null },
+        ],
+      },
+      requests: { count: 1 },
+      photos: { count: 0 },
+      notices: { count: 1 },
+    },
+    stages: {
+      projects: { consult: 1, render: 0, design: 2, quote: 1 },
+      orders: { confirmed: 1, in_production: 1, delivered: 0 },
+    },
+    work: [
+      {
+        order_no: 'SO-20261101-AAAA',
+        status: 'in_production',
+        roles: {
+          cut: { done: 1, total: 2, must_left: 0 },
+          edge: null,
+          assembly: { done: 0, total: 1, must_left: 1 },
+          install: null,
+        },
+      },
+    ],
+    ...over,
+  });
+  const lines = () =>
+    [...$('asBriefList').children].map((li) => [
+      li.getAttribute('data-brief'),
+      li.firstChild.textContent,
+      li.firstChild.getAttribute('href'),
+      li.querySelector('small') ? li.querySelector('small').textContent : '',
+    ]);
+
+  test('대표 — 수가 있는 볼 것만 한 줄씩(서버 수 그대로 · 바로 가기), 진행 단계 한 줄, 공장 · 설치 진행 표', async () => {
+    const calls = await load({ brief: () => ok(BRIEF()) });
+    expect(calls.filter((c) => c.url === WORK + '/brief/today').length).toBe(1);
+    expect($('asBrief').hidden).toBe(false);
+    expect($('asBriefTitle').textContent).toBe('오늘 브리핑 8건');
+    expect(lines()).toEqual([
+      [
+        'consults',
+        '응답 기다리는 상담 2건 ›',
+        'me.html#partner-consults',
+        '가장 이른 마감 11.06 08:30',
+      ],
+      [
+        'receivables',
+        '받을 수금 2건 · 500,000원 ›',
+        'ledger.html#sales',
+        '지남 1건 300,000원 · 오늘 1건 200,000원',
+      ],
+      [
+        'schedules',
+        '7일 안 납품 · 설치 2건',
+        null,
+        '11.06 10:00 납품 SO-20261101-AAAA · 11.11 10:00 설치',
+      ],
+      ['requests', '대표 결정 기다리는 수주 요청 1건 ›', 'me.html#partner', ''],
+      ['notices', '안 본 장부 알림 1건 ›', '#asNotices', ''],
+    ]);
+    expect($('asBriefNone').hidden).toBe(true);
+    expect($('asBriefStages').textContent).toBe(
+      '상담 1 · 설계 2 · 견적 1 · 수주 확정 1 · 제작 중 1'
+    );
+    expect(
+      [...$('asBriefWork').querySelectorAll('tr')].map((tr) =>
+        [...tr.children].map((c) => c.textContent)
+      )
+    ).toEqual([['SO-20261101-AAAA · 제작 중', '1/2', '—', '0/1', '—']]);
+    expect($('asBriefAsk').hidden).toBe(false);
+  });
+
+  test('직원 — 일정 · 현황만 (서버가 준 null 칸은 그리지 않는다), 대화할 수 없으면 묻기 단추 없음', async () => {
+    const b = BRIEF({
+      role: 'staff',
+      money: false,
+      count: 2,
+      work: [],
+      items: {
+        consults: null,
+        receivables: null,
+        schedules: BRIEF().items.schedules,
+        requests: null,
+        photos: null,
+        notices: null,
+      },
+    });
+    await load({
+      me: ok({ ...ME, role: 'staff', money: false, can_chat: false }),
+      brief: () => ok(b),
+    });
+    expect(lines().map((l) => l[0])).toEqual(['schedules']);
+    expect($('asBrief').textContent).not.toContain('원');
+    expect($('asBriefWorkWrap').hidden).toBe(true);
+    expect($('asBriefAsk').hidden).toBe(true);
+  });
+
+  test('볼 것이 없으면 한 줄, 못 받으면(403) 칸을 숨긴다 — 대화는 그대로', async () => {
+    const empty = BRIEF({
+      count: 0,
+      items: { consults: { count: 0, next_deadline: null }, schedules: { count: 0, items: [] } },
+      stages: { projects: { consult: 0 }, orders: { confirmed: 0 } },
+      work: [],
+    });
+    await load({ brief: () => ok(empty) });
+    expect($('asBrief').hidden).toBe(false);
+    expect($('asBriefTitle').textContent).toBe('오늘 브리핑');
+    expect($('asBriefNone').hidden).toBe(false);
+    expect($('asBriefStages').hidden).toBe(true);
+    await load({ brief: () => fail(403, 'not_entitled', '비서를 쓰는 업체만') });
+    expect($('asBrief').hidden).toBe(true);
+    expect($('asConvs').querySelectorAll('[data-id]').length).toBe(1);
+  });
+
+  test('비서에게 묻기 — 새 대화를 열고 정리를 묻는다', async () => {
+    const calls = await load({ brief: () => ok(BRIEF()) });
+    $('asBriefAsk').click();
+    await flush();
+    // 처음 목록 · 새 대화 (차례가 끝나면 목록을 다시 받는다)
+    expect(
+      asCalls(calls, /\/assistant\/conversations$/)
+        .map((c) => c.method)
+        .slice(0, 2)
+    ).toEqual(['GET', 'POST']);
+    const turn = calls.find((c) => /\/turns$/.test(c.url));
+    expect(turn.body).toEqual({ text: '오늘 브리핑을 정리해 주세요.' });
+    expect(window.location.hash).toBe('#c=' + C2);
+  });
+
+  test('묻기 — 새 대화를 못 열면 옛 대화에 보내지 않는다', async () => {
+    // 대화 하나를 연 채로 — 새 대화를 못 열면 그 대화에 보내면 안 된다
+    const calls = await load({
+      hash: '#c=' + C1,
+      brief: () => ok(BRIEF()),
+      create: () => fail(500, '', 'x'),
+    });
+    expect($('asChat').hidden).toBe(false);
+    $('asBriefAsk').click();
+    await flush();
+    expect(calls.some((c) => /\/turns$/.test(c.url))).toBe(false);
   });
 });
 
