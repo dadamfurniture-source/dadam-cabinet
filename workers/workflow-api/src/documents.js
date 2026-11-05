@@ -153,6 +153,8 @@ export async function issueDocument(env, { user, body }) {
     // 정면 렌더도 발행 때 고정 (2026-11-05 사장님 C · E — 설치 지시서에도 그림). 없으면 빈 목록
     const items = snapshot.design_payload && Array.isArray(snapshot.design_payload.items) ? snapshot.design_payload.items : [];
     renderPayload.renders = await collectRenders(env, designId, items);
+    const iso = await collectRenders(env, designId, items, 'iso');
+    if (iso.some((r) => r.path)) renderPayload.iso_renders = iso;
   }
 
   // B5: 작업지시서 v2 — 정면 렌더·색 스와치·재단 배치·부재 요약·이전 rev 차이를 발행 시점에 동결한다.
@@ -409,7 +411,9 @@ export function documentForViewer(doc, money) {
  */
 export async function resolvePrintAssets(env, doc) {
   const rp = doc && doc.render_payload;
-  const renders = doc && (doc.doc_type === 'work_order' || doc.doc_type === 'installation_order') && rp && Array.isArray(rp.renders) ? rp.renders : [];
+  const listOf = (v) => (doc && (doc.doc_type === 'work_order' || doc.doc_type === 'installation_order') && rp && Array.isArray(v) ? v : []);
+  // 정면 렌더 + 플래너 ISO 도면 · 상판 탑뷰 (2026-11-05)
+  const renders = [...listOf(rp && rp.renders), ...listOf(rp && rp.iso_renders), ...listOf(rp && rp.plan_renders)];
   const paths = renders.map((r) => r && r.path).filter((p) => typeof p === 'string' && p);
   if (paths.length === 0) return { renderUrls: new Map() };
   try {

@@ -28,6 +28,7 @@ import { COUNTED_STATUSES } from './reveal.js';
 import { assertUuid } from './validate.js';
 import { itemsFor, itemApplies, CHECK_ROLES } from './check-items.js';
 import { PACKS_OF_ROLE, docContext, cellsOf, roleChecks, checkRows } from './check-state.js';
+import { resolvePrintAssets } from '../documents.js';
 import { renderWorkOrder, normalizePack } from '../templates/work-order.js';
 import { renderInstallationOrder } from '../templates/installation-order.js';
 import { isMissingRelation } from '../work-order-data.js';
@@ -79,15 +80,17 @@ async function assignmentContext(env, user, rawId) {
   return { ...ctx, worker, order, roles: [role] };
 }
 
-/** 꾸러미 HTML — 내 역할의 꾸러미만, 작업자 보기 (가린 주문 이름 · 주소 · 연락처 없음) */
-function packHtml(ctx, rawPack) {
+/** 꾸러미 HTML — 내 역할의 꾸러미만, 작업자 보기 (가린 주문 이름 · 주소 · 연락처 없음). 그림(렌더 · ISO 도면)은 1시간 서명 주소 */
+async function packHtml(env, ctx, rawPack) {
   const allowed = ctx.roles.flatMap((r) => PACKS_OF_ROLE[r] || []);
   if (ctx.roles.includes('install')) {
-    return renderInstallationOrder(ctx.doc, ctx.snapshot, { toolbar: true, worker: { orderLabel: workerOrderLabel(ctx.order) } });
+    const { renderUrls } = await resolvePrintAssets(env, ctx.doc);
+    return renderInstallationOrder(ctx.doc, ctx.snapshot, { toolbar: true, renderUrls, worker: { orderLabel: workerOrderLabel(ctx.order) } });
   }
   const pack = rawPack ? normalizePack(rawPack) : allowed[0];
   if (!pack || allowed.indexOf(pack) < 0) throw new ForbiddenError('내 공정의 꾸러미만 엽니다', 'not_my_pack');
-  return renderWorkOrder(ctx.doc, ctx.snapshot, { toolbar: true, pack, worker: { orderLabel: workerOrderLabel(ctx.order) } });
+  const { renderUrls } = await resolvePrintAssets(env, ctx.doc);
+  return renderWorkOrder(ctx.doc, ctx.snapshot, { toolbar: true, pack, renderUrls, worker: { orderLabel: workerOrderLabel(ctx.order) } });
 }
 
 /** 작업자 보기 — 사진 경로 대신 있음 · 없음 */
@@ -170,7 +173,7 @@ async function addPhoto(env, ctx, request) {
 
 /** GET /work/factory/orders/:orderId/pack — HTML */
 export async function factoryPack(env, { user, params, query }) {
-  return packHtml(await factoryContext(env, user, params.orderId), query && query.pack);
+  return packHtml(env, await factoryContext(env, user, params.orderId), query && query.pack);
 }
 /** GET /work/factory/orders/:orderId/checks */
 export async function getFactoryChecks(env, { user, params }) {
@@ -187,7 +190,7 @@ export async function postFactoryPhoto(env, { user, params, request }) {
 }
 /** GET /work/assignments/:id/pack — HTML */
 export async function assignmentPack(env, { user, params }) {
-  return packHtml(await assignmentContext(env, user, params.id), null);
+  return packHtml(env, await assignmentContext(env, user, params.id), null);
 }
 /** GET /work/assignments/:id/checks */
 export async function getAssignmentChecks(env, { user, params }) {

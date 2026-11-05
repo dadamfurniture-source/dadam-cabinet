@@ -15,7 +15,7 @@
 import { esc, num, ymd, ymdhm, tr, thead, documentShell } from './html.js';
 import { PRINT_CSS, PRINT_TOOLBAR } from './print-css.js';
 import { modulePosLabel } from './elevation.js';
-import { elevationBlock, renderBoxes, specialNotesBox } from './work-order.js';
+import { elevationBlock, renderBoxes, specialNotesBox, drawingTitle } from './work-order.js';
 import { specialNotesOfDoc } from '../work/special-notes.js';
 import { materialsOf, isOutsourcedTopRow } from '../work-order-data.js';
 import { checkListOfDoc, itemsFor, itemApplies } from '../work/check-items.js';
@@ -194,14 +194,15 @@ function drawingSheet(doc, snapshot, renderUrls) {
   if (!items.length) return '';
   const rp = doc.render_payload || {};
   const renders = Array.isArray(rp.renders) && rp.renders.length ? rp.renders : null;
-  const ctx = { items, renders, renderUrls: renderUrls instanceof Map ? renderUrls : new Map(Object.entries(renderUrls || {})) };
+  const isoRenders = Array.isArray(rp.iso_renders) ? rp.iso_renders : null;
+  const ctx = { items, renders, isoRenders, renderUrls: renderUrls instanceof Map ? renderUrls : new Map(Object.entries(renderUrls || {})) };
   const lines = materialsOf(snapshot).filter(isLineRow);
   const lineRows = lines
     .map((m) => tr([esc(m.part || ''), `${esc(m.material || '')} ${num(m.thickness)}T`, `${num(m.w)} × ${num(m.h)}`, num(m.qty), isOutsourcedTopRow(m) ? '상판 업체 시공' : esc(m.note || '')], ['', '', 'num', 'num', '']))
     .join('');
   return `
 <div class="sheet">
-  <h2>정면도</h2>
+  <h2>${drawingTitle(ctx)}</h2>
   <p class="hint">번호 = 설치 모듈 명세 번호. 치수 mm.</p>
   ${elevationBlock(ctx)}
   ${renders ? `<h2>정면 렌더</h2>${renderBoxes(ctx)}` : ''}
