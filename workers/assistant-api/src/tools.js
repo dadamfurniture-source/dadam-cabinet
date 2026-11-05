@@ -8,7 +8,8 @@
  *   get_order       GET /orders/:id              수주 하나 — 대표 · 실장이면 원가 · 마진 · 수금 일정
  *   books_summary   GET /books/summary?month=    업체 장부 요약 (대표 · 실장)
  *   ledger_month    GET /ledger/book?month=      회계장부 한 달 — 합계 · 계정별 합 · 줄 (대표 · 실장)
- *   ledger_photos   GET /ledger/documents        올린 영수증 · 명세표 사진의 상태별 장수 (직원은 자기 것만)
+ *   ledger_photos   GET /ledger/documents        올린 영수증 · 명세표 사진의 상태별 장수 — 새것부터 PHOTO_PAGE 장씩 PHOTO_PAGES 번까지
+ *                                                끝까지 센다 (직원은 자기 것만). 확인 기다림(pending) ↔ 모아 둔 명세표(held)는 다른 것
  *   ledger_notices  GET /ledger/notices          장부 알림 — 중복 · 큰 금액 · 단가 · 새 거래처 · 휴업/폐업 · 증빙 (대표 · 실장).
  *                                                숫자는 서버(DB 0033)가 센 값 그대로 — 비서는 설명만 한다
  *   today_brief     GET /brief/today             아침 브리핑 — 오늘 볼 것 · 단계 현황 · 작업 진행 (역할에 없는 칸은 서버가 null)
@@ -38,6 +39,9 @@ export const ORDERS_MAX = 100;
 export const LEDGER_ROWS_MAX = 80;
 export const NOTICES_MAX = 30;
 export const DESIGNS_MAX = 100;
+/** 사진 상태 세기 — 한 번에 몇 장(workflow-api LIST_MAX) · 몇 번까지 (그보다 많으면 complete false) */
+export const PHOTO_PAGE = 100;
+export const PHOTO_PAGES = 10;
 export const RESULT_MAX = 30_000;
 export const ORDER_STATUSES = Object.freeze([
   'confirmed',
@@ -144,6 +148,7 @@ const TOOLS = [
     description:
       `장부 알림(최근 ${NOTICES_MAX}건): 중복 의심 · 평소와 다른 큰 금액(그 거래처 최근 합계 중앙값의 몇 배) · 단가 변동(읽은 값 기준) · ` +
       '새 거래처 · 휴업/폐업/과세 유형 바뀜(국세청) · 증빙 경고(3만원 넘는 간이영수증 · 명세표 · 증빙 없음 — 가산세 참고). ' +
+      '명세표는 거래명세표(= 거래명세서)다. ' +
       '숫자는 서버가 센 값 그대로이니 이 숫자로만 설명한다. seen 이 false 면 아직 아무도 안 본 알림이다.',
     input_schema: NO_INPUT,
   },
@@ -152,7 +157,9 @@ const TOOLS = [
     label: '올린 사진 보는 중',
     money: false,
     description:
-      '올린 영수증 · 명세표 사진(최근 100장)의 상태별 장수와 확인을 기다리는 가장 오래된 사진의 날짜. 직원이면 자기가 올린 것만.',
+      `올린 영수증 · 명세표 사진의 상태별 장수(새것부터 최대 ${PHOTO_PAGE * PHOTO_PAGES}장 — complete 가 false 면 그보다 많다)와 ` +
+      '확인을 기다리는 가장 오래된 사진의 날짜. 확인 기다림(pending)과 모아 둔 명세표(held — 확인은 끝났고 세금계산서를 기다린다)는 다른 것이다. ' +
+      '직원이면 자기가 올린 것만.',
     input_schema: NO_INPUT,
   },
   {
@@ -409,7 +416,7 @@ const NOTICE_KIND = {
 /** 장부 사진 상태 → 이름 (워커 src/ledger/documents.js REVIEW_STATUSES · 직원은 uploaded) */
 const PHOTO_STATUS = {
   pending: '확인 기다림',
-  held: '세금계산서 기다리는 명세표(모아 둠)',
+  held: '세금계산서 기다리는 명세표(모아 둠 — 확인은 끝남)',
   posted: '장부에 올림',
   returned: '돌려보냄',
   rejected: '버림',
@@ -470,19 +477,35 @@ async function listDesigns(env, token) {
 }
 
 async function ledgerPhotos(env, token) {
-  const data = (await wf(env, token, '/ledger/documents?limit=100')) || {};
-  const items = Array.isArray(data.items) ? data.items : [];
+  // 최근 100장만 세면 많이 올린 업체에서 상태 수가 틀린다 — 새것부터 끝까지 넘긴다
   const by = {};
   let oldestPending = null;
-  for (const d of items) {
-    by[d.review_status] = (by[d.review_status] || 0) + 1;
-    if (d.review_status === 'pending' && (!oldestPending || d.created_at < oldestPending))
-      oldestPending = d.created_at;
+  let counted = 0;
+  let complete = false;
+  let before = null;
+  for (let page = 0; page < PHOTO_PAGES; page++) {
+    const query =
+      `/ledger/documents?limit=${PHOTO_PAGE}` +
+      (before ? `&before=${encodeURIComponent(before)}` : '');
+    const data = (await wf(env, token, query)) || {};
+    const items = Array.isArray(data.items) ? data.items : [];
+    for (const d of items) {
+      by[d.review_status] = (by[d.review_status] || 0) + 1;
+      if (d.review_status === 'pending' && (!oldestPending || d.created_at < oldestPending))
+        oldestPending = d.created_at;
+    }
+    counted += items.length;
+    if (items.length < PHOTO_PAGE) {
+      complete = true;
+      break;
+    }
+    before = items[items.length - 1].created_at;
   }
   const names = {};
   for (const k of Object.keys(by)) names[k] = PHOTO_STATUS[k] || k;
   return {
-    counted: items.length,
+    counted,
+    complete,
     by_status: by,
     status_names: names,
     oldest_pending_at: oldestPending,
