@@ -9,28 +9,28 @@
     <title>비서 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026110505" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026110505" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026110505" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110505" />
+    <link rel="icon" href="icons/icon.svg?v=2026110506" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110506" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110506" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110506" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026110505" />
-    <link rel="stylesheet" href="make.css?v=2026110505" />
-    <link rel="stylesheet" href="assistant.css?v=2026110505" />
+    <link rel="stylesheet" href="shell.css?v=2026110506" />
+    <link rel="stylesheet" href="make.css?v=2026110506" />
+    <link rel="stylesheet" href="assistant.css?v=2026110506" />
     <!-- 업체 AI 비서 — assistant-api /assistant/* (자격이 있는 업체 구성원. 대화는 자격 full 만) -->
-    <script src="../js/config.js?v=2026110505"></script>
+    <script src="../js/config.js?v=2026110506"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <!-- 관리 탭 — 관리자에게만 연다 (segan/shell.js applyAdminTab) -->
-    <script src="../js/admin-access.js?v=2026110505"></script>
+    <script src="../js/admin-access.js?v=2026110506"></script>
     <!-- 작업 탭 — 작업자에게만 연다 (segan/shell.js applyRoleTabs · GET /work/me) -->
-    <script src="../js/mypage-work.js?v=2026110505"></script>
-    <script src="shell.js?v=2026110505" defer></script>
-    <script src="assistant.js?v=2026110505" defer></script>
+    <script src="../js/mypage-work.js?v=2026110506"></script>
+    <script src="shell.js?v=2026110506" defer></script>
+    <script src="assistant.js?v=2026110506" defer></script>
   </head>
   <body class="sg-app" data-tab="assistant">
     <div data-segan-shell="header"></div>
@@ -49,6 +49,34 @@
 
         <div id="asBody" hidden>
           <p class="as-readonly" id="asReadonly" hidden>지금은 지난 대화를 보기만 할 수 있습니다.</p>
+
+          <!-- 오늘 브리핑 — workflow-api GET /brief/today. 서버가 센 숫자로 만든 목록 — AI 가 쓴 글이 아니다 -->
+          <section class="as-brief" id="asBrief" hidden aria-labelledby="asBriefTitle">
+            <div class="as-head">
+              <h2 class="as-sub" id="asBriefTitle">오늘 브리핑</h2>
+              <button type="button" class="mk-link" id="asBriefAsk" hidden>비서에게 묻기</button>
+            </div>
+            <ul class="as-blines" id="asBriefList"></ul>
+            <p class="as-bline as-bline--muted" id="asBriefNone" hidden>오늘 볼 것이 없습니다.</p>
+            <h3 class="as-bsub" id="asBriefStagesTitle" hidden>진행 단계</h3>
+            <p class="as-bline" id="asBriefStages" hidden></p>
+            <h3 class="as-bsub" id="asBriefWorkTitle" hidden>공장 · 설치 진행 (필수 확인)</h3>
+            <div class="as-bwork-wrap" id="asBriefWorkWrap" hidden>
+              <table class="as-bwork">
+                <thead>
+                  <tr>
+                    <th scope="col">수주</th>
+                    <th scope="col">재단</th>
+                    <th scope="col">엣지</th>
+                    <th scope="col">조립</th>
+                    <th scope="col">설치</th>
+                  </tr>
+                </thead>
+                <tbody id="asBriefWork"></tbody>
+              </table>
+            </div>
+            <p class="mk-note as-nnote">숫자는 서버가 센 값입니다. 「—」는 지시서나 확인 항목이 없는 단계입니다.</p>
+          </section>
 
           <!-- 장부 알림 — workflow-api GET /ledger/notices (대표 · 실장). 서버가 센 숫자로 만든 카드 — AI 가 쓴 글이 아니다 -->
           <section class="as-notices" id="asNotices" hidden aria-labelledby="asNoticesTitle">

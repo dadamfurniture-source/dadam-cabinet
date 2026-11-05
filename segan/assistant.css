@@ -38,6 +38,70 @@
   overflow-wrap: anywhere;
 }
 
+/* 오늘 브리핑 — 볼 것 한 줄씩(누르면 그 화면으로), 진행 단계 한 줄, 공장 · 설치 진행 표 */
+.as-brief {
+  margin: 0 0 24px;
+}
+
+.as-blines {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.as-bline {
+  margin: 0;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.as-bline a {
+  color: var(--v5-navy);
+}
+
+.as-bline--muted,
+.as-bline small {
+  color: var(--v5-ink-62);
+}
+
+.as-bline small {
+  display: block;
+  font-size: 12px;
+}
+
+.as-bsub {
+  margin: 16px 0 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.as-bwork-wrap {
+  overflow-x: auto;
+}
+
+.as-bwork {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.as-bwork th,
+.as-bwork td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--v5-line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.as-bwork thead th {
+  color: var(--v5-ink-62);
+  font-weight: 500;
+}
+
 /* ── 대화 목록 ── */
 /* 장부 알림 — 카드는 버튼 하나(누르면 장부로). 바로 알림은 빨강 줄, 아침 묶음은 노랑 줄, 본 것은 흐리게 */
 .as-notices {

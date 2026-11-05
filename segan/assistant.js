@@ -16,6 +16,9 @@
    보이기    모든 글은 textContent 로만 넣는다 (사람 글 · AI 글 모두 — HTML · 링크로 바꾸지 않는다).
              비서 말풍선에는 「AI가 만든 내용」, 입력 칸 아래 늘 「틀릴 수 있습니다」 안내.
    주소      연 대화는 #c=<대화 id> — 새로 고쳐도 그 대화를 다시 연다.
+   오늘 브리핑 workflow-api GET /brief/today — 서버가 센 볼 것(상담 · 수금 · 7일 안 납품 · 설치 · 대표 결정 요청 · 사진 ·
+             장부 알림)과 진행 단계 · 공장 · 설치 필수 확인 진행. 역할에 없는 칸은 서버가 null 로 준다 (직원은 일정 · 현황만).
+             못 받으면(403 · 끊김) 칸을 숨긴다. 「비서에게 묻기」는 새 대화로 정리를 묻는다 (대화할 수 있을 때만).
    장부 알림 대표 · 실장(me.money)이면 workflow-api GET /ledger/notices — 서버가 센 숫자로 카드를 만든다(AI 글 아님).
              카드를 누르면 POST /ledger/notices/seen { ids } 뒤 장부로, 「모두 봤어요」는 안 본 것 한꺼번에.
              알림을 못 받으면(403 · 0033 전 · 끊김) 칸을 숨긴다 — 대화는 그대로.
@@ -100,6 +103,7 @@
     work: '', // workflow-api 주소 (장부 알림)
     notices: [], // GET /ledger/notices items (새것부터)
     noticesAll: false, // 「모두 보기」를 눌렀나
+    brief: null, // GET /brief/today data
   };
 
   var $ = function (id) {
@@ -443,6 +447,171 @@
       li.appendChild(b);
       ul.appendChild(li);
     });
+  }
+
+  // ── 오늘 브리핑 ──────────────────────────────────────────
+  var SCHEDULE_NAME = { delivery: '납품', installation: '설치' }; // 워커 src/brief.js · slack.js
+  var STAGE_LINE = [
+    ['projects', 'consult', '상담'],
+    ['projects', 'render', '연출'],
+    ['projects', 'design', '설계'],
+    ['projects', 'quote', '견적'],
+    ['orders', 'confirmed', '수주 확정'],
+    ['orders', 'in_production', '제작 중'],
+    ['orders', 'delivered', '납품'],
+  ];
+  var WORK_ROLES = ['cut', 'edge', 'assembly', 'install'];
+  var ORDER_STATUS_NAME = { in_production: '제작 중', delivered: '납품' };
+  var ASK_TEXT = '오늘 브리핑을 정리해 주세요.';
+
+  /** 볼 것 → [{ key, text, sub, href }] — 수가 있는 것만 (서버가 센 수 그대로) */
+  function briefLines(b) {
+    var it = (b && b.items) || {};
+    var out = [];
+    var has = function (x) {
+      return x && Number(x.count) > 0;
+    };
+    if (has(it.consults))
+      out.push({
+        key: 'consults',
+        text: '응답 기다리는 상담 ' + it.consults.count + '건',
+        sub: it.consults.next_deadline ? '가장 이른 마감 ' + stamp(it.consults.next_deadline) : '',
+        href: 'me.html#partner-consults',
+      });
+    if (has(it.receivables)) {
+      var r = it.receivables;
+      var parts = [];
+      if (r.late_count) parts.push('지남 ' + r.late_count + '건 ' + money(r.late_total));
+      if (r.today_count) parts.push('오늘 ' + r.today_count + '건 ' + money(r.today_total));
+      out.push({
+        key: 'receivables',
+        text: '받을 수금 ' + r.count + '건 · ' + money(r.total),
+        sub: parts.join(' · '),
+        href: 'ledger.html#sales',
+      });
+    }
+    if (has(it.schedules))
+      out.push({
+        key: 'schedules',
+        text: '7일 안 납품 · 설치 ' + it.schedules.count + '건',
+        sub: (it.schedules.items || [])
+          .map(function (s) {
+            return (
+              stamp(s.at) +
+              ' ' +
+              (SCHEDULE_NAME[s.type] || s.type) +
+              (s.order_no ? ' ' + s.order_no : '')
+            );
+          })
+          .join(' · '),
+        href: '',
+      });
+    if (has(it.requests))
+      out.push({
+        key: 'requests',
+        text: '대표 결정 기다리는 수주 요청 ' + it.requests.count + '건',
+        sub: '',
+        href: 'me.html#partner',
+      });
+    if (has(it.photos))
+      out.push({
+        key: 'photos',
+        text: '확인 기다리는 영수증 · 명세표 사진 ' + it.photos.count + '장',
+        sub: '',
+        href: 'ledger.html#photos',
+      });
+    if (has(it.notices))
+      out.push({
+        key: 'notices',
+        text: '안 본 장부 알림 ' + it.notices.count + '건',
+        sub: '',
+        href: '#asNotices',
+      });
+    return out;
+  }
+
+  /** 진행 단계 한 줄 — 0 인 단계는 뺀다 */
+  function stagesText(st) {
+    if (!st) return '';
+    return STAGE_LINE.filter(function (x) {
+      return st[x[0]] && Number(st[x[0]][x[1]]) > 0;
+    })
+      .map(function (x) {
+        return x[2] + ' ' + st[x[0]][x[1]];
+      })
+      .join(' · ');
+  }
+
+  /** 작업 진행 칸 — done/total, 지시서 · 항목이 없으면 — */
+  function workCell(x) {
+    return x && x.total ? x.done + '/' + x.total : '—';
+  }
+
+  function renderBrief() {
+    var b = A.brief;
+    $('asBrief').hidden = !b;
+    if (!b) return;
+    var lines = briefLines(b);
+    $('asBriefTitle').textContent = '오늘 브리핑' + (b.count ? ' ' + b.count + '건' : '');
+    $('asBriefNone').hidden = lines.length > 0;
+    $('asBriefAsk').hidden = !canChat();
+    var ul = $('asBriefList');
+    ul.textContent = '';
+    lines.forEach(function (l) {
+      var li = document.createElement('li');
+      li.className = 'as-bline';
+      li.setAttribute('data-brief', l.key);
+      var main = document.createElement(l.href ? 'a' : 'span');
+      if (l.href) main.setAttribute('href', l.href);
+      main.textContent = l.text + (l.href ? ' ›' : '');
+      li.appendChild(main);
+      if (l.sub) {
+        var s = document.createElement('small');
+        s.textContent = l.sub;
+        li.appendChild(s);
+      }
+      ul.appendChild(li);
+    });
+    var st = stagesText(b.stages);
+    $('asBriefStagesTitle').hidden = !st;
+    $('asBriefStages').hidden = !st;
+    $('asBriefStages').textContent = st;
+    var work = Array.isArray(b.work) ? b.work : [];
+    $('asBriefWorkTitle').hidden = !work.length;
+    $('asBriefWorkWrap').hidden = !work.length;
+    var tb = $('asBriefWork');
+    tb.textContent = '';
+    work.forEach(function (w) {
+      var tr = document.createElement('tr');
+      var th = document.createElement('th');
+      th.scope = 'row';
+      th.textContent =
+        (w.order_no || '수주') + ' · ' + (ORDER_STATUS_NAME[w.status] || w.status || '');
+      tr.appendChild(th);
+      WORK_ROLES.forEach(function (role) {
+        var td = document.createElement('td');
+        td.textContent = workCell(w.roles && w.roles[role]);
+        tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    });
+  }
+
+  async function loadBrief() {
+    if (!A.work) return;
+    var r = await api('/brief/today', { base: A.work });
+    A.brief = r.ok && r.data && r.data.items ? r.data : null;
+    renderBrief();
+  }
+
+  /** 비서에게 묻기 — 새 대화를 열고 정리를 묻는다 */
+  async function askBrief() {
+    if (!canChat() || A.creating || A.sending || A.turn) return;
+    var before = A.conv;
+    await newConv();
+    if (!A.conv || A.conv === before) return; // 새 대화를 못 열었다 — 옛 대화에 보내지 않는다
+    $('asText').value = ASK_TEXT;
+    await send();
   }
 
   async function loadNotices() {
@@ -827,6 +996,7 @@
     });
     $('asForm').addEventListener('submit', send);
     $('asNoticeList').addEventListener('click', onNoticeClick);
+    $('asBriefAsk').addEventListener('click', askBrief);
     $('asNoticesSeen').addEventListener('click', function () {
       markSeen(
         A.notices
@@ -869,7 +1039,7 @@
     $('asNew').hidden = !canChat();
     $('asForm').hidden = !canChat();
     $('asBody').hidden = false;
-    await Promise.all([loadList(), loadNotices()]);
+    await Promise.all([loadList(), loadBrief(), loadNotices()]);
     var m = CONV_RE.exec(location.hash || '');
     if (m) await openConv(m[1]);
   }
@@ -881,6 +1051,8 @@
     stamp: stamp,
     takeLines: takeLines,
     noticeText: noticeText,
+    briefLines: briefLines,
+    stagesText: stagesText,
     // 장부로 가기 — 시험이 갈아 끼운다
     go: function (url) {
       location.href = url;
