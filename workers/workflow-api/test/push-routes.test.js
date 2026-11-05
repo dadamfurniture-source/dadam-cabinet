@@ -128,6 +128,7 @@ test('글 — 종류마다 제목 · 본문 · 열 곳, DB 글자 수 안, /sega
     'ledger_pending',
     'ledger_returned',
     'ledger_notice',
+    'assistant_brief',
   ]);
 });
 

@@ -76,8 +76,8 @@ export function payablesOf(rows, today, names = new Map()) {
   return { today, ...totalsOf(items, today), items: items.slice(0, MONEY_MAX) };
 }
 
-/** 그 업체 · 취소 안 한 수주의 표 줄 (수주 끼워 넣기) */
-function openRows(env, table, companyId, cols, filters) {
+/** 그 업체 · 취소 안 한 수주의 표 줄 (수주 끼워 넣기) — 아침 브리핑(src/brief.js)도 쓴다 */
+export function openRows(env, table, companyId, cols, filters) {
   return selectMany(env, table, {
     select: `${cols},orders!inner(company_id,order_no,status)`,
     'orders.company_id': `eq.${companyId}`,

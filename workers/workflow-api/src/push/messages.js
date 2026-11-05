@@ -14,8 +14,8 @@
  */
 
 /**
- * DB notification_outbox_kind_check 의 종류 (작업자 넷은 0023, 장부 둘은 0030, 장부 알림 ledger_notice 는 0033).
- * 0030 의 assistant_brief 는 아직 이 워커가 넣지 않는다 (AI 비서 아침 브리핑 몫).
+ * DB notification_outbox_kind_check 의 종류 (작업자 넷은 0023, 장부 둘 · 아침 브리핑 assistant_brief 는 0030,
+ * 장부 알림 ledger_notice 는 0033).
  */
 export const NOTIFICATION_KINDS = Object.freeze([
   'order_request',
@@ -32,6 +32,7 @@ export const NOTIFICATION_KINDS = Object.freeze([
   'ledger_pending',
   'ledger_returned',
   'ledger_notice',
+  'assistant_brief',
 ]);
 
 /** 작업자 알림 — 업체 없이(company_id 비움) 넣고 업체 없는 기기로 간다 (DB notification_outbox_company_check, 0023) */
@@ -275,6 +276,18 @@ function ledgerReturned() {
   };
 }
 
+/** 아침 브리핑이 보이는 곳 — 비서 탭 맨 위 「오늘 브리핑」 (src/brief.js) */
+export const BRIEF_URL = '/segan/assistant.html';
+/** 볼 것 수 — 이보다 많으면 「N건 넘게」 */
+export const BRIEF_MAX = 999;
+
+/** 아침 브리핑 — 비서를 쓰는 업체 구성원에게. { count } (그 사람이 볼 것 수, 1 이상). 이름 · 금액 · 무엇인지는 싣지 않는다 */
+function assistantBrief({ count } = {}) {
+  if (!Number.isInteger(count) || count < 1) return null;
+  const n = count > BRIEF_MAX ? `${BRIEF_MAX}건 넘게` : `${count}건`;
+  return { title: '오늘 브리핑', body: `오늘 볼 것이 ${n} 있습니다. 비서 탭에서 확인해 주세요.`, url: BRIEF_URL };
+}
+
 const BUILDERS = Object.freeze({
   order_request: orderRequest,
   order_request_decided: orderRequestDecided,
@@ -290,6 +303,7 @@ const BUILDERS = Object.freeze({
   ledger_pending: ledgerPending,
   ledger_returned: ledgerReturned,
   ledger_notice: ledgerNotice,
+  assistant_brief: assistantBrief,
 });
 
 /**
