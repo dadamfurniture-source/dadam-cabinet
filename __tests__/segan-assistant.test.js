@@ -797,7 +797,7 @@ describe('오늘 브리핑', () => {
         '11.06 10:00 납품 SO-20261101-AAAA · 11.11 10:00 설치',
       ],
       ['requests', '대표 결정 기다리는 수주 요청 1건 ›', 'me.html#partner', ''],
-      ['notices', '안 본 장부 알림 1건 ›', '#asNotices', ''],
+      ['notices', '새 장부 알림 1건 ›', '#asNotices', '지난 24시간'],
     ]);
     expect($('asBriefNone').hidden).toBe(true);
     expect($('asBriefStages').textContent).toBe(
