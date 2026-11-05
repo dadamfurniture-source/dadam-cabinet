@@ -244,7 +244,7 @@
 ### 상부장 밑 오픈 칸 (2026-11-05 사장님, 정본 `extractors.js` bomUpperOverlapOf · bomMoldingUppersOf)
 
 새 모듈 정할 것 페이지 확정 (11-05): 「도어장 + 18T 오픈 상자」 · 「도어 안 내려옴」 · 메모 「높이 기본값 200」.
-- 상부장 자리 하나에 위 도어장 + 밑 오픈 상자 (오픈장 규칙 MDF 18T, `bom-open-cabinet-rules.js`). 두 상자를 쌓는 자리 · 높이(오픈 200)는 모듈 라이브러리가 준다 (단 자리 tiers).
+- 상부장 자리 하나에 위 도어장 + 밑 오픈 상자 (오픈장 규칙 MDF 18T, `bom-open-cabinet-rules.js`). 오픈 상자 높이 기본값 200 (`OPEN_CABINET_RULES.UNDER_UPPER_H` — 상부장 자리 높이 안, 위 도어장이 나머지). 두 상자를 쌓는 자리는 모듈 라이브러리가 준다 (단 자리 tiers).
 - 위 도어장 구조 `openBelow: true` → 도어 = 몸통 그대로 (내림 0 — 상부장 기본 15 대신). 경첩 · 조립 도어 자리도 그 도어 높이.
 - 밑 오픈 상자 구조 `underUpper: true` (상몰딩 0) → 상몰딩 자리에 서지 않는다 — 상몰딩은 위 도어장 위에만.
 
