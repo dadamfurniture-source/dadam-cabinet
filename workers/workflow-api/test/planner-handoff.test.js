@@ -137,6 +137,38 @@ test('정면 렌더 — 품목 uniqueId 마다 버킷 renders · design_renders 
   } finally { f.restore(); }
 });
 
+/** 합성 ISO 도면 — 플래너 js/iso.js 가 그리는 모양 (선 범례 · 패턴 참조) */
+const ISO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><defs><pattern id="h" width="4" height="4"/></defs>'
+  + '<path d="M10 10 L100 10" stroke="#000" stroke-width="0.5"/><path d="M10 20 L100 20" stroke="#000" stroke-width="0.25" stroke-dasharray="3 2"/>'
+  + '<rect fill="url(#h)" width="5" height="5"/><text x="10" y="40">외형선 0.5</text></svg>';
+
+test('ISO 도면 — kind iso SVG 는 버킷 renders (image/svg+xml) · design_renders iso, 스크립트 · 바깥 주소 SVG 는 동결 전에 422 (2026-11-05)', async () => {
+  let f = fakeSupabase();
+  try {
+    const r = await receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, png: PNG_1PX }, { item: 1, kind: 'iso', svg: ISO_SVG, width: 1400 }] }) });
+    assert.equal(r.renders_saved, 2);
+    assert.match(f.uploads[1].path, /^D-NEW\/1\/iso-\d+-1\.svg$/);
+    assert.equal(f.uploads[1].type, 'image/svg+xml');
+    assert.deepEqual([f.renderRows[0].kind, f.renderRows[1].kind, f.renderRows[1].width], ['front', 'iso', 1400]);
+  } finally { f.restore(); }
+
+  f = fakeSupabase();
+  try {
+    for (const svg of [
+      ISO_SVG.replace('</svg>', '<script>alert(1)</script></svg>'),
+      ISO_SVG.replace('<svg ', '<svg onload="x()" '),
+      ISO_SVG.replace('url(#h)', 'url(https://x.test/a.png)'),
+      ISO_SVG.replace('</svg>', '<a href="https://x.test">x</a></svg>'),
+      ISO_SVG.replace('</svg>', '<foreignObject><div/></foreignObject></svg>'),
+      '<div>not svg</div>',
+    ]) {
+      await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, kind: 'iso', svg }] }) }), (e) => e instanceof ValidationError, svg.slice(0, 60));
+    }
+    await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, kind: 'plan', svg: ISO_SVG }] }) }), (e) => e instanceof ValidationError);
+    assert.equal(f.designPosts.length + f.snapshotPosts.length + f.uploads.length, 0, '아무것도 쓰지 않는다');
+  } finally { f.restore(); }
+});
+
 test('다시 보내면 같은 앱 설계에 동결 — 새 설계를 만들지 않는다', async () => {
   const f = fakeSupabase({ existing: { id: 'D-OLD', user_id: OWNER, name: '시험 설계 (합성)' } });
   try {

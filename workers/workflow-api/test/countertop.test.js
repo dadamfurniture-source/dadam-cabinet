@@ -26,7 +26,7 @@ const COOK_M = '77777777-7777-4777-8777-777777777777';
 
 const TOP_ROW = { partId: '0-ep-top-0', module: '상판', part: '상판', slot: 'top', material: '인조대리석', thickness: 12, w: 3000, h: 600, qty: 1, finishCode: 'TOP-SNW', itemLabel: '싱크대' };
 
-/** 일자 싱크대: 좌측 EP 20 · [800 수납][900 개수대][600 쿡탑][700 수납] */
+/** 일자 싱크대: 좌측 EP 20 · [780 수납][900 개수대][600 쿡탑][700 수납] — 상판 3000 = EP 20 + 칸 2980 */
 function sinkSnapshot({ specs = {}, top = {} } = {}) {
   const base = fx.snapshot({ id: 's1' });
   return {
@@ -36,7 +36,7 @@ function sinkSnapshot({ specs = {}, top = {} } = {}) {
         name: '싱크대', categoryId: 'sink',
         specs: { finishLeftType: 'EP', finishLeftWidth: 20, finishRightType: 'Molding', finishRightWidth: 60, ...specs },
         modules: [
-          { id: 1, pos: 'lower', name: '수납', w: 800 },
+          { id: 1, pos: 'lower', name: '수납', w: 780 },
           { id: 2, pos: 'lower', name: '개수대', w: 900 },
           { id: 3, pos: 'lower', type: 'cook', name: '가스대', w: 600 },
           { id: 4, pos: 'lower', name: '수납', w: 700 },
@@ -76,12 +76,15 @@ test('요청 — 재질 · 두께 · 치수는 BOM 상판 행, 타공 중심은 
   assert.deepEqual([r.length, r.depth], [3000, 600]);
   assert.equal(r.shape, 'straight');
   const centers = Object.fromEntries(r.cutouts.filter((c) => c.center !== null).map((c) => [c.kind, c.center]));
-  assert.deepEqual(centers, { sink: 20 + 800 + 450, cooktop: 20 + 1700 + 300 });
+  assert.deepEqual(centers, { sink: 20 + 780 + 450, cooktop: 20 + 1680 + 300 });
+  assert.equal(r.bomGap, 0, '칸 + 마감 = BOM 상판 길이');
+  assert.deepEqual(r.modules.map((m) => [m.no, m.x, m.w, m.kind]), [[1, 20, 780, 'plain'], [2, 800, 900, 'sink'], [3, 1700, 600, 'cook'], [4, 2300, 700, 'plain']]);
+  assert.deepEqual(r.finishW, { left: 20, right: 0 });
   assert.equal(r.cutouts.find((c) => c.kind === 'faucet').at, '싱크볼 뒤 중앙');
   assert.equal(r.cutouts.find((c) => c.kind === 'sink').model, null, '모델 미지정 → 요청서에 [확인 필요]');
 });
 
-test('끊긴 상판 — 하부장 위 수납장 칸에서 끊기면 장마다 그 장 모듈로 타공 · 끊긴 쪽 · 키큰장 쪽은 장 옆 (2026-11-05)', () => {
+test('한 장 탑뷰 — 상판이 하부장 위 수납장 칸에서 끊겨도 품목마다 한 장 · 그 칸만 상판 없음 · 끊김 표시 없음 (2026-11-05)', () => {
   // [키큰장 600][개수대 1000][서랍 600 ← 밥솥장][가스대 600][서랍 450] — 엔진이 상판 1,000 · 1,050 두 행을 낸다
   const base = fx.snapshot({ id: 's2' });
   const snap = {
@@ -97,26 +100,49 @@ test('끊긴 상판 — 하부장 위 수납장 칸에서 끊기면 장마다 �
     bom_payload: { ...base.bom_payload, materials: [...base.bom_payload.materials,
       { ...TOP_ROW, partId: '0-ep-top-0', w: 1000, h: 650 }, { ...TOP_ROW, partId: '0-ep-top-1', w: 1050, h: 650 }] },
   };
-  const [r1, r2] = countertopRequests(snap);
-  assert.deepEqual([r1.length, r2.length], [1000, 1050]);
-  assert.deepEqual([r1.piece, r2.piece], [{ no: 1, of: 2 }, { no: 2, of: 2 }]);
-  assert.deepEqual(r1.cutouts.filter((c) => c.center !== null).map((c) => [c.kind, c.center]), [['sink', 500]]);
-  assert.deepEqual(r2.cutouts.filter((c) => c.center !== null).map((c) => [c.kind, c.center]), [['cooktop', 300]]);
-  assert.deepEqual([r1.finishes.sideLeft, r1.finishes.sideRight, r2.finishes.sideLeft, r2.finishes.sideRight], ['cabinet', 'cabinet', 'cabinet', 'exposed']);
+  const all = countertopRequests(snap);
+  assert.equal(all.length, 1, '엔진 상판 두 행 → 요청서 한 장');
+  const [r] = all;
+  assert.equal(r.piece, undefined, '끊김 표시 없음');
+  assert.deepEqual([r.length, r.topLength, r.bomGap], [2650, 2050, 0], '전체 = 개수대 1000 + 상판 없음 600 + 가스대 600 + 서랍 450');
+  assert.deepEqual(r.modules.map((m) => [m.no, m.x, m.w, m.kind]), [[2, 0, 1000, 'sink'], [3, 1000, 600, 'onTop'], [4, 1600, 600, 'cook'], [5, 2200, 450, 'plain']], '하부장만 · 배치 그대로 · 키큰장 빼고');
+  assert.deepEqual(r.cutouts.filter((c) => c.center !== null).map((c) => [c.kind, c.center, c.no]), [['sink', 500, 2], ['cooktop', 1900, 4]]);
+  assert.deepEqual([r.finishes.sideLeft, r.finishes.sideRight], ['cabinet', 'exposed'], '키큰장 쪽은 장 옆');
+  const svg = planSvg(r);
+  assert.ok(svg.includes('상판 없음') && svg.includes('개수대') && svg.includes('가스대'));
+  assert.ok(svg.includes('전체 2,650') || svg.includes('전체 2650'));
+  assert.ok(!svg.includes('키큰장'), '탑뷰에 키큰장 칸 없음');
   // 간편 플래너 부재 ID (line| 앞머리) 도 같은 품목으로 읽는다
   const planner = { ...snap, bom_payload: { ...snap.bom_payload, materials: snap.bom_payload.materials.map((m) => (m.part === '상판' ? { ...m, partId: `line|${m.partId}` } : m)) } };
-  assert.deepEqual(countertopRequests(planner).map((r) => [r.piece && r.piece.no, r.cutouts.filter((c) => c.center !== null).map((c) => c.kind).join()]), [[1, 'sink'], [2, 'cooktop']]);
-  // 예전 동결본(상판 한 행)은 예전 셈 그대로 — 행 수 ≠ 장 수
+  assert.deepEqual(countertopRequests(planner).map((x) => [x.length, x.cutouts.filter((c) => c.center !== null).map((c) => c.kind).join()]), [[2650, 'sink,cooktop']]);
+  // 예전 동결본(상판 한 행)도 같은 그림
   const old = { ...snap, bom_payload: { ...snap.bom_payload, materials: [...base.bom_payload.materials, { ...TOP_ROW, w: 2050, h: 650 }] } };
   const [o] = countertopRequests(old);
-  assert.equal(o.piece, null);
-  assert.equal(o.cutouts.find((c) => c.kind === 'cooktop').center, 1000 + 600 + 300);
+  assert.deepEqual([o.length, o.cutouts.find((c) => c.kind === 'cooktop').center], [2650, 1900]);
+  // BOM 길이와 그림이 어긋나면 [확인 필요]
+  const off = { ...snap, bom_payload: { ...snap.bom_payload, materials: [...base.bom_payload.materials, { ...TOP_ROW, w: 2000, h: 650 }] } };
+  assert.equal(countertopRequests(off)[0].bomGap, 50);
+});
+
+test('플래너 사양 — 마감 폭 · 상판 색 · 뒷선반(적은 크기만) · 수전 모델', () => {
+  const FAU_M = '88888888-8888-4888-8888-888888888888';
+  const models = new Map([...MODELS, [FAU_M, { id: FAU_M, category: 'faucet', brand: '대림', model_name: '원홀 수전', model_code: 'DL-1', faucet_hole_mm: 32 }]]);
+  const snap = sinkSnapshot({ specs: { topFinishLeftW: 20, topFinishRightW: 0, topColor: 'top-gmb', topRearShelf: 'on', topRearShelfD: 150, topRearShelfH: 120, sinkModelId: SINK_M, faucetModelId: FAU_M }, top: { finishCode: null } });
+  assert.deepEqual(countertopModelIds(snap), [SINK_M, FAU_M]);
+  const [r] = countertopRequests(snap, { models });
+  assert.equal(r.finishCode, 'TOP-GMB');
+  assert.deepEqual(r.finishes.rearShelf, { on: true, d: 150, h: 120 });
+  const fau = r.cutouts.find((c) => c.kind === 'faucet');
+  assert.equal(fau.dia, 32, '수전 모델 지름이 싱크볼 모델보다 먼저');
+  assert.equal(fau.model.name, '대림 원홀 수전');
+  const [n] = countertopRequests(sinkSnapshot({ specs: { topRearShelf: 'on' } }));
+  assert.deepEqual(n.finishes.rearShelf, { on: true, d: null, h: null }, '크기를 지어내지 않는다');
 });
 
 test('마감 기본값 — 뒷턱 50 · 앞턱 40 · 물끊기 · 옆면(몰딩 쪽 벽, EP 쪽 노출)', () => {
   const [r] = countertopRequests(sinkSnapshot());
   assert.deepEqual(r.finishes, {
-    backsplash: { on: true, h: 50 }, frontLip: { na: false, on: true, h: 40 }, drip: { on: true }, sideLeft: 'exposed', sideRight: 'wall',
+    backsplash: { on: true, h: 50 }, rearShelf: { on: false, d: null, h: null }, frontLip: { na: false, on: true, h: 40 }, drip: { on: true }, sideLeft: 'exposed', sideRight: 'wall',
   });
 });
 
@@ -174,10 +200,18 @@ test('?pack=top 종이 — 마감 · 업체 · 타공 · 마감 항목, 고객 �
   assert.ok(html.includes('10/20(화)'));
   assert.ok(html.includes('설치 10/26(월) − 4근무일'));
   assert.ok(html.includes('설치 당일 또는 다음 날'));
-  assert.ok(html.includes('타공 760 × 440 R10'));
-  assert.ok(html.includes('지름 35'));
+  assert.ok(html.includes('760 × 440 R10'));
+  assert.ok(html.includes('구멍 지름 35'));
+  assert.ok(html.includes('백조 SQ850') && html.includes('BJ-850'), '싱크볼 모델명 · 코드');
   assert.ok(html.includes('[확인 필요] 모델 미지정'), '쿡탑 모델은 안 골랐다');
   assert.ok(html.includes('있음 · 높이 50'));
+  assert.ok(html.includes('뒷선반 (벽 쪽 선반)</th><td>없음'));
+  assert.ok(html.includes('[확인 필요] 엘리베이터 미확인'));
+  assert.ok(html.includes('탑뷰') && html.includes('전체 3,000'));
+  assert.ok(!html.includes('끊긴 상판'));
+  const site = (v) => renderWorkOrder(doc, snap, { toolbar: false, pack: 'top', top: { today: '2026-10-19', vendors: {}, models: MODELS, siteInfo: { has_elevator: v } } });
+  assert.ok(site(true).includes('엘리베이터</dt><dd>있음'));
+  assert.ok(site(false).includes('계단 · 사다리차 검토'));
   assert.ok(html.includes('좌 노출 — 마감 · 우 벽 — 마감 안 함'));
   assert.ok(!html.includes('김고객'));
   assert.ok(!/원\b|₩|금액/.test(html.replace(/원판|원장/g, '')));
@@ -244,6 +278,7 @@ const routes = ({ settings = null, snap = sinkSnapshot() } = {}) => (u, m) => {
   if (u.includes('/orders?')) return json([{ id: O1 }]);
   if (u.includes('/design_schedules?')) return json([{ scheduled_at: '2026-10-26T01:00:00Z' }]);
   if (u.includes('/appliance_models?')) return json([...MODELS.values()]);
+  if (u.includes('/design_site_info?')) return json([{ design_id: D1, has_elevator: false }]);
   if (u.includes('/work_reports?') && m === 'GET') return json([]);
   if (u.endsWith('/work_reports') && m === 'POST') return json([{ id: 'new' }]);
   return null;
@@ -275,6 +310,7 @@ test('인쇄 자료 — 설치일 → 마감, 재질별 업체, 고른 모델', 
     assert.equal(ctx.deadline, '2026-10-19', '공휴일 10/22 를 건너뛴다');
     assert.equal(ctx.vendors.topMarble, '한샘스톤');
     assert.ok(ctx.models.get(SINK_M));
+    assert.deepEqual(ctx.siteInfo, { design_id: D1, has_elevator: false }, '현장 정보 — 엘리베이터');
     assert.ok(calls.some((c) => c.url.includes(`/appliance_models?id=in.(${SINK_M})`)));
   });
 });

@@ -202,6 +202,19 @@ test('collectRenders — 품목별 최신 정면만, 없는 품목은 path null'
   });
 });
 
+test('collectRenders — kind iso 는 플래너 ISO 도면만 찾는다 (2026-11-05)', async () => {
+  await withFetch((u) => {
+    if (/\/design_renders\?/.test(u)) {
+      assert.match(u, /kind=eq\.iso/);
+      return json([{ item_unique_id: 1, path: 'D1/1/iso-1.svg', width: 1400, height: null, created_at: '2026-11-05T02:00:00Z' }]);
+    }
+    return null;
+  }, async () => {
+    const out = await collectRenders(ENV, 'D1', [{ uniqueId: 1 }], 'iso');
+    assert.equal(out[0].path, 'D1/1/iso-1.svg');
+  });
+});
+
 test('collectRenders — design_renders 표가 없으면 전부 null (발행은 계속된다)', async () => {
   await withFetch((u) => (/\/design_renders\?/.test(u) ? fail(404, { code: 'PGRST205', message: 'Could not find the table' }) : null), async () => {
     const out = await collectRenders(ENV, 'D1', [{ uniqueId: 1 }]);
@@ -300,6 +313,7 @@ test('collectPrevRev — v2 문서면 parts_digest 로, v1 문서면 그 스냅�
 
 test('gatherWorkOrderPayload — v2 필드 전부 + cut_plan 은 스냅샷 값 그대로', async () => {
   await withFetch((u) => {
+    if (/\/design_renders\?/.test(u) && /kind=eq\.iso/.test(u)) return json([]);
     if (/\/design_renders\?/.test(u)) return json([{ item_unique_id: 1757900000123, path: 'D1/1757900000123/front.png', width: 2048, height: 1536, created_at: '2026-09-16T01:00:00Z' }]);
     if (/\/materials\?/.test(u)) return json([]);
     if (/\/design_documents\?/.test(u)) return json([]);
@@ -312,6 +326,15 @@ test('gatherWorkOrderPayload — v2 필드 전부 + cut_plan 은 스냅샷 값 �
     assert.deepEqual(out.cut_plan, fx.cutPlan());
     assert.equal(out.parts_digest.length, 5);
     assert.equal(out.prev_rev, null);
+    assert.equal(out.iso_renders, undefined, 'ISO 도면이 없으면 칸을 싣지 않는다');
+  });
+  await withFetch((u) => {
+    if (/\/design_renders\?/.test(u)) return json(/kind=eq\.iso/.test(u) ? [{ item_unique_id: 1757900000123, path: 'D1/1757900000123/iso.svg', width: 1400, height: 900, created_at: '2026-11-05T01:00:00Z' }] : []);
+    if (/\/(materials|design_documents)\?/.test(u)) return json([]);
+    return null;
+  }, async () => {
+    const out = await gatherWorkOrderPayload(ENV, { designId: 'D1', snapshot: fx.snapshot() });
+    assert.equal(out.iso_renders[0].path, 'D1/1757900000123/iso.svg');
   });
   await withFetch((u) => (/\/(design_renders|materials|design_documents)\?/.test(u) ? json([]) : null), async () => {
     const out = await gatherWorkOrderPayload(ENV, { designId: 'D1', snapshot: fx.snapshotV1() });
@@ -424,6 +447,33 @@ test('createSignedUrls — sign 엔드포인트에 경로 묶음을 보내고 �
     assert.equal(m.has('b/front.png'), false);
   });
   assert.equal((await createSignedUrls(ENV, 'renders', [])).size, 0);
+});
+
+test('resolvePrintAssets — 정면 렌더 + ISO 도면 경로를 한 번에 서명', async () => {
+  const doc = { ...fx.doc(), render_payload: { ...fx.doc().render_payload, iso_renders: [{ item_index: 0, path: 'D1/1/iso.svg' }] } };
+  await withFetch((u, init) => {
+    if (/\/object\/sign\/renders/.test(u)) {
+      const { paths } = JSON.parse(init.body);
+      assert.ok(paths.includes('D1/1/iso.svg'));
+      return json(paths.map((p) => ({ path: p, signedURL: `/object/sign/renders/${p}?token=t` })));
+    }
+    return null;
+  }, async () => {
+    const out = await resolvePrintAssets(ENV, doc);
+    assert.equal(out.renderUrls.get('D1/1/iso.svg'), `${ENV.SUPABASE_URL}/storage/v1/object/sign/renders/D1/1/iso.svg?token=t`);
+  });
+});
+
+test('ISO 도면 — 있으면 정면도 대신 <img> (작업지시서 · 설치 지시서), 서명 못 하면 정면도 그대로 (2026-11-05)', () => {
+  const doc = { ...fx.doc(), render_payload: { ...fx.doc().render_payload, iso_renders: [{ item_index: 0, item_unique_id: 1757900000123, path: 'D1/1/iso.svg' }] } };
+  const urls = new Map([['D1/1/iso.svg', 'https://x.supabase.co/storage/v1/object/sign/renders/D1/1/iso.svg?token=T']]);
+  const html = renderWorkOrder(doc, fx.snapshot(), { renderUrls: urls, pack: 'assembly' });
+  assert.ok(html.includes('<img src="https://x.supabase.co/storage/v1/object/sign/renders/D1/1/iso.svg?token=T"'));
+  assert.ok(html.includes('ISO 뷰 — 플래너 도면'));
+  const plain = renderWorkOrder(doc, fx.snapshot(), { pack: 'assembly' });
+  assert.ok(!plain.includes('ISO 뷰 — 플래너 도면') && plain.includes('정면도'), '서명 주소가 없으면 정면도');
+  const io = renderDocument({ ...doc, doc_type: 'installation_order' }, fx.snapshot(), { renderUrls: urls });
+  assert.ok(io.includes('iso.svg?token=T'));
 });
 
 test('resolvePrintAssets — 서명 실패해도 빈 Map (인쇄는 된다), 작업지시서가 아니면 조회 없음', async () => {

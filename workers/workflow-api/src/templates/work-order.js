@@ -118,6 +118,7 @@ function buildContext(doc, snapshot, renderUrls) {
     hardware,
     labelOrder,
     renders: Array.isArray(rp.renders) ? rp.renders : null,
+    isoRenders: Array.isArray(rp.iso_renders) ? rp.iso_renders : null,
     renderUrls: renderUrls instanceof Map ? renderUrls : new Map(Object.entries(renderUrls || {})),
     swatches,
     swatchByCode: new Map(swatches.map((s) => [s.code, s])),
@@ -464,7 +465,7 @@ function coverSheet(ctx) {
     <dt>설계 해시</dt><dd class="doc-no">${esc(String(snapshot.content_hash).slice(0, 12))}</dd>
   </dl>
 
-  <div class="section-title">정면도</div>
+  <div class="section-title">${drawingTitle(ctx)}</div>
   ${elevationBlock(ctx)}
 
   <div class="section-title">정면 렌더 <span class="muted">참고</span></div>
@@ -542,12 +543,26 @@ function moduleSheets(ctx) {
 
 // ── 정면도 · ⑪ 모듈 치수도 (elevation.js) ─────────────────────────
 
-/** 품목마다 치수 정면도 + 안내(위치 정보 없음 등). 빨간 검증 경고는 그림 안에 있다. */
+/** 품목 i 의 플래너 ISO 도면 서명 주소 — 발행 때 고정한 것 (없으면 null) */
+function isoUrlOf(ctx, i) {
+  const r = Array.isArray(ctx.isoRenders) ? ctx.isoRenders.find((x) => x && x.item_index === i) : null;
+  return r && r.path && ctx.renderUrls ? ctx.renderUrls.get(r.path) || null : null;
+}
+
+/** 도면 칸 제목 — 플래너 ISO 도면이 하나라도 있으면 「도면 (ISO 뷰)」, 아니면 정면도 */
+export function drawingTitle(ctx) {
+  return (ctx.items || []).some((_, i) => isoUrlOf(ctx, i)) ? '도면 <span class="muted">ISO 뷰 — 플래너 도면</span>' : '정면도';
+}
+
+/** 품목마다 치수 정면도 + 안내(위치 정보 없음 등). 빨간 검증 경고는 그림 안에 있다.
+ *  플래너 ISO 도면이 있으면 그것을 싣는다 (2026-11-05 사장님 「정면도 말고 iso 뷰」 — 선 굵기 범례 · 치수는 플래너 그림 안에) */
 export function elevationBlock(ctx) {
   if (ctx.items.length === 0) return '<div class="muted">품목 없음</div>';
   return ctx.items
     .map((item, i) => {
       const label = esc(itemLabel(item, i));
+      const iso = isoUrlOf(ctx, i);
+      if (iso) return `<div class="elev-box iso-plan"><img src="${esc(iso)}" alt="${label} ISO 도면" style="width:100%;height:auto"><div class="elev-cap">${label} · ISO 뷰 (플래너 도면 · mm) · 번호 = 모듈 명세 번호</div></div>`;
       // 사장님 결정 Q4: 벽이 둘 이상인 코너 품목은 아이소메트릭 (isometric.js)
       if (isCornerItem(item)) {
         const runs = runLengths(item)
@@ -1518,7 +1533,7 @@ function packHeader(ctx, pack) {
     ${vendor ? '' : ctx.worker ? `<dt>주문</dt><dd>${esc(ctx.worker.orderLabel)} · 설계 rev ${esc(ctx.snapshot.rev)}</dd>` : `<dt>설계</dt><dd>${esc(doc.title)} · 설계 rev ${esc(ctx.snapshot.rev)}</dd>`}
     ${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}
   </dl>
-  ${pack === 'cut' || pack === 'assembly' ? `<div class="section-title">정면도</div>${elevationBlock(ctx)}` : ''}
+  ${pack === 'cut' || pack === 'assembly' ? `<div class="section-title">${drawingTitle(ctx)}</div>${elevationBlock(ctx)}` : ''}
   ${showRenders ? `<div class="section-title">정면 렌더 <span class="muted">참고</span></div>${renderBoxes(ctx)}` : ''}
   ${!vendor && doc.render_payload?.instructions ? `<div class="section-title">특기사항</div><div class="note">${esc(doc.render_payload.instructions)}</div>` : ''}
 </div>`;

@@ -12,6 +12,7 @@ import { getDocumentForOwner } from '../documents.js';
 import { outsourceCounts } from '../templates/work-order.js';
 import { workdays } from '../production/planner.js';
 import { companySettings } from '../production/service.js';
+import { getSiteInfo } from '../site-info.js';
 import { OUTSOURCE_PACKS, kstDay, reportFromOutsource } from './record.js';
 
 const TABLE = 'work_reports';
@@ -124,11 +125,12 @@ export async function listOutsourceOrders(env, { user, documentId }) {
 }
 
 /**
- * 상판 요청서 인쇄 시점 자료 — 설계가 속한 업체의 설정(업체 · 기본값 · 마감 근무일 · 공휴일), 가장 이른 설치일, 고른 가전 모델.
+ * 상판 요청서 인쇄 시점 자료 — 설계가 속한 업체의 설정(업체 · 기본값 · 마감 근무일 · 공휴일), 가장 이른 설치일, 고른 가전 모델,
+ * 현장 정보(엘리베이터 — 2026-11-05 사장님 「엘리베이터 있는지 여부도 확인」, 인쇄할 때 값 · 못 읽으면 발행 때 값).
  * 하나라도 못 읽으면 그 칸만 [확인 필요] 로 남기고 종이는 나온다.
  */
 export async function loadCountertopContext(env, { doc, snapshot }) {
-  const ctx = { today: kstDay(), installDate: null, deadline: null, leadDays: 4, vendors: {}, countertop: null, models: new Map() };
+  const ctx = { today: kstDay(), installDate: null, deadline: null, leadDays: 4, vendors: {}, countertop: null, models: new Map(), siteInfo: (doc.render_payload && doc.render_payload.site_info) || null };
   try {
     const design = await selectOne(env, 'designs', { id: `eq.${doc.design_id}`, select: 'company_id' });
     const { settings } = await companySettings(env, design ? design.company_id : null);
@@ -144,6 +146,12 @@ export async function loadCountertopContext(env, { doc, snapshot }) {
     }
   } catch (e) {
     console.warn('countertop context (settings/schedule) failed:', e && e.message);
+  }
+  try {
+    const site = await getSiteInfo(env, doc.design_id);
+    if (site) ctx.siteInfo = site;
+  } catch (e) {
+    console.warn('countertop context (site info) failed:', e && e.message);
   }
   const ids = countertopModelIds(snapshot);
   if (ids.length) {
