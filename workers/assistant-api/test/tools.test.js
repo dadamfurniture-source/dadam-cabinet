@@ -251,6 +251,24 @@ test('장부 알림 — 종류 이름 · 급함 · 본 표시 · 서버 숫자 �
   assert.ok(!JSON.stringify(out).includes('d1'));
 });
 
+test('오늘 브리핑 — 서버가 센 값 그대로 + 코드 이름, 직원 대화에도 있다', async () => {
+  const claude = makeClaude([toolUse('today_brief', {}), reply('네')]);
+  const w = await makeWorld({ claude });
+  const id = await newConversation(w);
+  await turn(w, id, '오늘 브리핑 정리해 줘');
+  await w.sessions.runAlarms();
+  assert.deepEqual(w.workflow.calls.map((c) => c.path + c.query), ['/brief/today']);
+  const out = JSON.parse(lastResults(claude)[0].content);
+  assert.equal(out.date, '2026-11-05');
+  assert.equal(out.count, 4);
+  assert.deepEqual(out.items.receivables, { count: 1, total: 300000, late_count: 1, late_total: 300000, today_count: 0, today_total: 0 });
+  assert.equal(out.items.notices, null);
+  assert.deepEqual(out.work[0].roles.cut, { done: 1, total: 2, must_left: 0 });
+  assert.equal(out.names.work_role.cut, '재단');
+  assert.equal(out.names.schedule.installation, '설치');
+  assert.ok(toolDefs({ money: false }).some((t) => t.name === 'today_brief'));
+});
+
 test('올린 사진 · 장부 요약 · 고객 프로젝트 — 줄인 모양', async () => {
   const claude = makeClaude([
     toolUse('ledger_photos', {}, { id: 'a' }),
@@ -444,7 +462,7 @@ test('대화 보기 running — 도는 차례를 { turn, after } 로, 끝나면 
 test('toolDefs — 돈 도구는 대표 · 실장만, 모두 strict · additionalProperties false', () => {
   const all = toolDefs({ money: true });
   const staff = toolDefs({ money: false });
-  assert.equal(all.length, 8);
+  assert.equal(all.length, 9);
   assert.deepEqual(
     all.filter((t) => !staff.some((s) => s.name === t.name)).map((t) => t.name),
     ['books_summary', 'ledger_month', 'ledger_notices']

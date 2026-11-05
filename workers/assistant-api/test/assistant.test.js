@@ -166,6 +166,7 @@ test('차례 — 202 → 알람이 예산 잡기 · Claude · 저장 · 정산 �
       'ledger_month',
       'ledger_notices',
       'ledger_photos',
+      'today_brief',
     ]
   );
   assert.ok(
@@ -277,7 +278,7 @@ test('직원 — 시스템 글에 돈 정보를 말하지 않는다는 줄', asy
   // 돈 도구(장부 요약 · 회계장부 · 장부 알림)는 직원 대화에 없다
   assert.deepEqual(
     claude.calls[0].tools.map((t) => t.name),
-    ['list_consults', 'list_projects', 'list_orders', 'get_order', 'ledger_photos']
+    ['list_consults', 'list_projects', 'list_orders', 'get_order', 'ledger_photos', 'today_brief']
   );
 });
 

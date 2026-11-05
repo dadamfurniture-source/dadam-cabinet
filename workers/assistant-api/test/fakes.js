@@ -586,6 +586,22 @@ function workflowData() {
         },
       ],
     },
+    '/brief/today': {
+      date: '2026-11-05',
+      role: 'owner',
+      money: true,
+      count: 4,
+      items: {
+        consults: { count: 1, next_deadline: '2026-11-05T23:30:00.000Z' },
+        receivables: { count: 1, total: 300000, late_count: 1, late_total: 300000, today_count: 0, today_total: 0 },
+        schedules: { count: 1, items: [{ type: 'delivery', at: '2026-11-06T01:00:00Z', status: 'scheduled', order_no: 'SO-20261101-AAAA' }] },
+        requests: { count: 0 },
+        photos: { count: 1 },
+        notices: null,
+      },
+      stages: { projects: { consult: 1, render: 0, design: 2, quote: 0 }, orders: { confirmed: 1, in_production: 1, delivered: 0 } },
+      work: [{ order_no: 'SO-20261101-AAAA', status: 'in_production', roles: { cut: { done: 1, total: 2, must_left: 0 }, edge: null, assembly: null, install: null } }],
+    },
     '/ledger/documents': {
       money: true,
       items: [
