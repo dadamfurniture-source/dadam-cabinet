@@ -289,6 +289,25 @@ describe('회계 한눈에', () => {
     expect($('lbStatus').querySelectorAll('a')[1].getAttribute('href')).toBe('ledger.html');
   });
 
+  test('지출 상대 — 서버가 10곳을 줘도 한눈에는 큰 5곳만 (보고서가 10곳)', async () => {
+    const ten = Array.from({ length: 10 }, (_, i) => ({
+      name: `상호${i + 1}`,
+      amount: (10 - i) * 100000,
+      n: 1,
+    }));
+    await load({
+      dash: (url) => ok({ ...DASH(new URL(url).searchParams.get('month')), suppliers: ten }),
+    });
+    expect([...$('lbSuppliers').querySelectorAll('.lb-hb-n')].map((n) => n.textContent)).toEqual([
+      '상호1',
+      '상호2',
+      '상호3',
+      '상호4',
+      '상호5',
+    ]);
+    expect($('lbSupTitle').textContent).toBe('11월 지출 상대 · 상위 5 (만원)');
+  });
+
   test('직원 403 · 0034 전 — 한 줄만', async () => {
     await load({ dash: () => fail(403, 'not_money', 'x') });
     expect($('lbBody').hidden).toBe(true);
