@@ -87,6 +87,8 @@ async function load(options = {}) {
     seen: (body) => ok({ seen: body.ids.length }),
     // 브리핑 — 기본은 못 받음(칸 숨김). 브리핑 시험이 갈아 끼운다
     brief: () => fail(404, '', 'x'),
+    // 승인 카드 승인 · 거절 — 카드 시험이 갈아 끼운다
+    decide: () => fail(404, '', 'x'),
     ...options,
   };
   window.history.replaceState(null, '', '/segan/assistant.html' + opts.hash);
@@ -145,6 +147,8 @@ async function load(options = {}) {
     if (m) return reply(opts.conv(m[1]));
     m = /^\/assistant\/conversations\/([^/]+)\/turns$/.exec(p);
     if (m) return reply(opts.turn(JSON.parse(init.body), headers['X-Idempotency-Key'], m[1]));
+    m = /^\/assistant\/actions\/([^/]+)\/(approve|reject)$/.exec(p);
+    if (m) return reply(opts.decide(m[1], m[2]));
     m = /^\/assistant\/conversations\/([^/]+)\/events$/.exec(p);
     if (m) return reply(opts.events(Number(u.searchParams.get('after')), m[1]));
     throw new Error('unexpected ' + url);
@@ -875,6 +879,226 @@ describe('오늘 브리핑', () => {
     $('asBriefAsk').click();
     await flush();
     expect(calls.some((c) => /\/turns$/.test(c.url))).toBe(false);
+  });
+});
+
+describe('승인 카드', () => {
+  const K1 = 'f0000000-0000-4000-8000-000000000001';
+  const K2 = 'f0000000-0000-4000-8000-000000000002';
+  const K3 = 'f0000000-0000-4000-8000-000000000003';
+  const ACT = (id, over = {}) => ({
+    id,
+    kind: 'order_status',
+    state: 'proposed',
+    state_name: '승인 기다림',
+    card: {
+      title: '수주 상태 바꾸기',
+      subject: 'SO-20261101-AAAA',
+      fields: [
+        { label: '수주', value: 'SO-20261101-AAAA' },
+        { label: '바꿀 상태', value: '제작 중' },
+      ],
+    },
+    created_at: '2026-11-05T01:00:03Z',
+    expires_at: '2026-11-06T01:00:03Z',
+    decided_at: null,
+    finished_at: null,
+    result: null,
+    ...over,
+  });
+  const CONV_WITH = (actions) =>
+    ok({
+      conversation: { id: C1, title: '지난 대화', created_at: 'x', updated_at: 'x' },
+      messages: [
+        { seq: 1, role: 'user', text: '제작 중으로 바꿔 줘', created_at: '2026-11-05T01:00:05Z' },
+        {
+          seq: 2,
+          role: 'assistant',
+          text: '카드를 만들었습니다',
+          created_at: '2026-11-05T01:00:05Z',
+        },
+        { seq: 5, role: 'user', text: '고마워', created_at: '2026-11-05T01:05:00Z' },
+        { seq: 6, role: 'assistant', text: '네', created_at: '2026-11-05T01:05:00Z' },
+      ],
+      running: null,
+      actions,
+    });
+  const order = () =>
+    [...$('asMsgs').children].map((li) =>
+      li.getAttribute('data-card')
+        ? 'card:' + li.getAttribute('data-card').slice(-1)
+        : li.querySelector('.as-text').textContent
+    );
+  const acts = (id) =>
+    [
+      ...$('asMsgs')
+        .querySelector('[data-card="' + id + '"]')
+        .querySelectorAll('[data-act]'),
+    ].map((b) => b.textContent);
+
+  test('다시 열면 카드를 그 차례 비서 말풍선 아래에 — 기다림은 승인 · 거절 · 기한, 완료는 상태와 결과만, 초안은 복사', async () => {
+    await load({
+      hash: '#c=' + C1,
+      conv: () =>
+        CONV_WITH([
+          ACT(K1),
+          ACT(K2, { state: 'done', state_name: '완료', result: { message: null, pending: false } }),
+          ACT(K3, {
+            kind: 'draft',
+            state: 'draft',
+            state_name: '초안',
+            card: { title: '고객 연락 초안', subject: '실측', text: '내일 10시 방문드립니다.' },
+            created_at: '2026-11-05T01:04:59Z',
+          }),
+        ]),
+    });
+    expect(order()).toEqual([
+      '제작 중으로 바꿔 줘',
+      '카드를 만들었습니다',
+      'card:1',
+      'card:2',
+      '고마워',
+      '네',
+      'card:3',
+    ]);
+    const k1 = $('asMsgs').querySelector('[data-card="' + K1 + '"]');
+    expect(k1.querySelector('.as-tag').textContent).toBe('승인 카드');
+    expect(k1.querySelector('.as-card-title').textContent).toBe('수주 상태 바꾸기승인 기다림');
+    expect([...k1.querySelectorAll('dd')].map((d) => d.textContent)).toEqual([
+      'SO-20261101-AAAA',
+      '제작 중',
+    ]);
+    expect(acts(K1)).toEqual(['승인', '거절']);
+    expect(k1.querySelector('.as-card-acts small').textContent).toBe('11.06 10:00까지');
+    expect(acts(K2)).toEqual([]);
+    expect($('asMsgs').querySelector('[data-card="' + K2 + '"]').className).toBe(
+      'as-card as-card--done'
+    );
+    expect(acts(K3)).toEqual(['복사']);
+    expect($('asMsgs').querySelector('[data-card="' + K3 + '"] .as-card-draft').textContent).toBe(
+      '내일 10시 방문드립니다.'
+    );
+  });
+
+  test('차례 중 사건 card — 맨 아래에 붙는다', async () => {
+    await load({
+      events: () =>
+        lines(
+          { n: 1, type: 'start', turn: 1 },
+          { n: 2, type: 'card', turn: 1, action: ACT(K1) },
+          { n: 3, type: 'text', turn: 1, text: '카드를 만들었습니다' },
+          { n: 4, type: 'done', turn: 1 }
+        ),
+    });
+    $('asNew').click();
+    await flush();
+    type('제작 중으로');
+    $('asSend').click();
+    await flush();
+    expect(order()).toEqual(['제작 중으로', '카드를 만들었습니다', 'card:1']);
+    expect(acts(K1)).toEqual(['승인', '거절']);
+  });
+
+  test('승인 — POST approve, 받은 카드로 다시 그린다 (단추 없음 · 상태), 거절도 같다', async () => {
+    const decided = [];
+    const calls = await load({
+      hash: '#c=' + C1,
+      conv: () => CONV_WITH([ACT(K1), ACT(K2)]),
+      decide: (id, act) => {
+        decided.push([id, act]);
+        return ok({
+          action:
+            act === 'approve'
+              ? ACT(id, {
+                  state: 'done',
+                  state_name: '완료',
+                  result: { message: null, pending: false },
+                })
+              : ACT(id, { state: 'rejected', state_name: '거절함' }),
+        });
+      },
+    });
+    $('asMsgs')
+      .querySelector('[data-card="' + K1 + '"] [data-act="approve"]')
+      .click();
+    await flush();
+    $('asMsgs')
+      .querySelector('[data-card="' + K2 + '"] [data-act="reject"]')
+      .click();
+    await flush();
+    expect(decided).toEqual([
+      [K1, 'approve'],
+      [K2, 'reject'],
+    ]);
+    expect(asCalls(calls, /\/assistant\/actions\//).map((c) => c.method)).toEqual(['POST', 'POST']);
+    expect(acts(K1)).toEqual([]);
+    expect($('asMsgs').querySelector('[data-card="' + K1 + '"] .as-card-state').textContent).toBe(
+      '완료'
+    );
+    expect($('asMsgs').querySelector('[data-card="' + K2 + '"]').className).toBe(
+      'as-card as-card--rejected'
+    );
+  });
+
+  test('승인 — 기한 지남(409)이면 서버 문구와 함께 닫고, 끊기면 다시 누를 수 있게 둔다', async () => {
+    let n = 0;
+    await load({
+      hash: '#c=' + C1,
+      conv: () => CONV_WITH([ACT(K1), ACT(K2)]),
+      decide: (id) => {
+        n += 1;
+        return id === K1
+          ? fail(409, 'expired', '기한(24시간)이 지난 카드입니다')
+          : new Error('offline');
+      },
+    });
+    $('asMsgs')
+      .querySelector('[data-card="' + K1 + '"] [data-act="approve"]')
+      .click();
+    await flush();
+    const k1 = $('asMsgs').querySelector('[data-card="' + K1 + '"]');
+    expect(k1.className).toBe('as-card as-card--expired');
+    expect(k1.querySelector('.as-card-note').textContent).toBe('기한(24시간)이 지난 카드입니다');
+    expect(acts(K1)).toEqual([]);
+    $('asMsgs')
+      .querySelector('[data-card="' + K2 + '"] [data-act="approve"]')
+      .click();
+    await flush();
+    expect(acts(K2)).toEqual(['승인', '거절']);
+    expect($('asMsgs').querySelector('[data-card="' + K2 + '"] .as-card-note').textContent).toBe(
+      '처리하지 못했습니다. 잠시 뒤 다시 눌러 주세요.'
+    );
+    expect(n).toBe(2);
+  });
+
+  test('초안 복사 — 클립보드에 글 그대로, 못 쓰면 길게 눌러 복사 안내', async () => {
+    const draft = ACT(K3, {
+      kind: 'draft',
+      state: 'draft',
+      state_name: '초안',
+      card: { title: '고객 연락 초안', text: '내일 10시 방문드립니다.' },
+    });
+    await load({ hash: '#c=' + C1, conv: () => CONV_WITH([draft]) });
+    const written = [];
+    Object.defineProperty(window.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async (s) => written.push(s) },
+    });
+    $('asMsgs').querySelector('[data-act="copy"]').click();
+    await flush();
+    expect(written).toEqual(['내일 10시 방문드립니다.']);
+    expect($('asMsgs').querySelector('[data-card="' + K3 + '"] .as-card-note').textContent).toBe(
+      '복사했습니다'
+    );
+    Object.defineProperty(window.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async () => Promise.reject(new Error('no')) },
+    });
+    $('asMsgs').querySelector('[data-act="copy"]').click();
+    await flush();
+    expect($('asMsgs').querySelector('[data-card="' + K3 + '"] .as-card-note').textContent).toBe(
+      '복사하지 못했습니다 — 글을 길게 눌러 복사해 주세요'
+    );
   });
 });
 
