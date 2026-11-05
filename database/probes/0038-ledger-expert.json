@@ -15,7 +15,7 @@
     "other_user"
   ],
   "setup": [
-    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_e}}, 'partner', 'probe E', 'expert', 'active'), ({{company_a}}, 'partner', 'probe A', 'agent', 'active'), ({{company_n}}, 'partner', 'probe N', NULL, 'active'), ({{company_t}}, 'partner', 'probe T', NULL, 'active')",
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_e}}, 'partner', 'probe E', 'expert', 'active'), ({{company_a}}, 'partner', 'probe A', 'agent', 'active'), ({{company_n}}, 'partner', 'probe N', 'expert', 'suspended'), ({{company_t}}, 'partner', 'probe T', 'expert', 'active')",
     "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_e}}, {{e_owner_user}}, 'owner', 'active')",
     "INSERT INTO public.assistant_settings (company_id, enabled, trial, monthly_limit_micros) VALUES ({{company_e}}, true, false, 1000000), ({{company_a}}, true, false, 1000000), ({{company_t}}, false, true, NULL)",
     "INSERT INTO public.ledger_documents (id, company_id, uploaded_by, storage_path, mime, size_bytes, sha256, created_at) VALUES ({{doc_e}}, {{company_e}}, {{e_owner_user}}, 'probe/' || {{doc_e}}::text, 'image/jpeg', 100, repeat('1', 64), now() - interval '3650 days'), ({{doc_a}}, {{company_a}}, {{e_owner_user}}, 'probe/' || {{doc_a}}::text, 'image/jpeg', 100, repeat('2', 64), now() - interval '3650 days')",
@@ -39,7 +39,7 @@
   },
   "checks": [
     {
-      "name": "자격 — Expert 는 장부 full · AI 읽기 none, Agent · 시험은 둘 다 full, 등급 없고 장부도 없는 업체는 none (서버만)",
+      "name": "자격 — Expert 는 장부 full · AI 읽기 none, Agent 와 시험 예외(Expert 라도)는 둘 다 full, 활성 아닌(정지) 업체는 장부 · 사진이 없으면 none (서버만)",
       "sql": "select public.company_entitled({{company_e}}, 'ledger') || '/' || public.company_entitled({{company_e}}, 'ledger_ai') || ',' || public.company_entitled({{company_a}}, 'ledger') || '/' || public.company_entitled({{company_a}}, 'ledger_ai') || ',' || public.company_entitled({{company_n}}, 'ledger') || '/' || public.company_entitled({{company_n}}, 'ledger_ai') || ',' || public.company_entitled({{company_t}}, 'ledger') || '/' || public.company_entitled({{company_t}}, 'ledger_ai')",
       "expect": {
         "service_role": "full/none,full/full,none/none,full/full",
