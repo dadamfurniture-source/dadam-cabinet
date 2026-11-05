@@ -11,6 +11,7 @@
  *   ledger_photos   GET /ledger/documents        올린 영수증 · 명세표 사진의 상태별 장수 (직원은 자기 것만)
  *   ledger_notices  GET /ledger/notices          장부 알림 — 중복 · 큰 금액 · 단가 · 새 거래처 · 휴업/폐업 · 증빙 (대표 · 실장).
  *                                                숫자는 서버(DB 0033)가 센 값 그대로 — 비서는 설명만 한다
+ *   today_brief     GET /brief/today             아침 브리핑 — 오늘 볼 것 · 단계 현황 · 작업 진행 (역할에 없는 칸은 서버가 null)
  *
  * 결과는 필요한 칸만 골라 줄인다 — 고객 전화 · 이메일 · 사진 주소는 싣지 않는다 (Claude 에 보낼 까닭이 없다).
  * 직원이면 workflow-api 가 빼지 않는 견적 합(quote_total)도 뺀다. 결과 글은 RESULT_MAX 자를 넘지 않는다.
@@ -140,6 +141,17 @@ const TOOLS = [
     money: false,
     description:
       '올린 영수증 · 명세표 사진(최근 100장)의 상태별 장수와 확인을 기다리는 가장 오래된 사진의 날짜. 직원이면 자기가 올린 것만.',
+    input_schema: NO_INPUT,
+  },
+  {
+    name: 'today_brief',
+    label: '오늘 브리핑 보는 중',
+    money: false,
+    description:
+      '오늘 브리핑(서버가 센 값): 오늘 볼 것 — 응답 기다리는 상담(가장 이른 마감) · 받을 날이 오늘이거나 지난 수금 · ' +
+      '7일 안 납품 · 설치 일정 · 대표 결정 기다리는 수주 요청 · 확인 기다리는 사진 · 안 본 장부 알림, ' +
+      '현황 — 수주 없는 진행 중 프로젝트의 단계별 수 · 수주 상태별 수 · 제작 중 수주의 재단 · 엣지 · 조립 · 설치 필수 확인 진행(done/total). ' +
+      'null 칸은 이 사람 역할에 없는 칸이다. 숫자는 서버 값 그대로 말한다.',
     input_schema: NO_INPUT,
   },
 ];
@@ -401,6 +413,26 @@ async function ledgerNotices(env, token) {
   };
 }
 
+/** 브리핑 코드 → 이름 (워커 src/brief.js · projects.js PROJECT_STAGES · work/check-items.js 역할) */
+const BRIEF_NAMES = Object.freeze({
+  schedule: { delivery: '납품', installation: '설치' },
+  stage: { consult: '상담', render: '연출', design: '설계', quote: '견적' },
+  order_status: { confirmed: '확정', in_production: '제작 중', delivered: '납품' },
+  work_role: { cut: '재단', edge: '엣지', assembly: '조립', install: '설치' },
+});
+
+async function todayBrief(env, token) {
+  const d = (await wf(env, token, '/brief/today')) || {};
+  return {
+    date: d.date || null,
+    count: Number(d.count) || 0,
+    items: d.items || {},
+    stages: d.stages || null,
+    work: Array.isArray(d.work) ? d.work : [],
+    names: BRIEF_NAMES,
+  };
+}
+
 async function ledgerPhotos(env, token) {
   const data = (await wf(env, token, '/ledger/documents?limit=100')) || {};
   const items = Array.isArray(data.items) ? data.items : [];
@@ -430,6 +462,7 @@ const RUN = {
   ledger_month: ledgerMonth,
   ledger_photos: ledgerPhotos,
   ledger_notices: ledgerNotices,
+  today_brief: todayBrief,
 };
 
 /** 결과 → 글 (RESULT_MAX 를 넘으면 목록을 반씩 줄인다) */
