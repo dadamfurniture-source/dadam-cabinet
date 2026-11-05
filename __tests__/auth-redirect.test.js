@@ -586,6 +586,9 @@ describe('login.html', () => {
         'http://localhost/login.html?redirect=worker.html%23invite%3Dabc'
       );
     }
+    // Google 은 늘 계정 고르기 (로그인된 계정으로 바로 넘어가지 않음), 카카오는 그대로
+    expect(calls[0].options.queryParams).toEqual({ prompt: 'select_account' });
+    expect(calls[1].options.queryParams).toBeUndefined();
   });
 
   test('redirect 가 없으면 OAuth 는 예전처럼 /index.html', async () => {
@@ -765,6 +768,9 @@ describe('signup.html', () => {
         'http://localhost/login.html?redirect=worker.html%23invite%3Dabc'
       );
     }
+    // Google 은 늘 계정 고르기 (로그인된 계정으로 바로 넘어가지 않음), 카카오는 그대로
+    expect(calls[0].options.queryParams).toEqual({ prompt: 'select_account' });
+    expect(calls[1].options.queryParams).toBeUndefined();
   });
 
   test('redirect 가 없거나 나쁘면 /index.html', async () => {

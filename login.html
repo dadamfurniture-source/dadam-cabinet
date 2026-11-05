@@ -1015,6 +1015,8 @@
             provider: 'google',
             options: {
               redirectTo: oauthRedirectTo(),
+              // 이 브라우저에 로그인된 Google 계정으로 바로 넘어가지 않고 늘 계정을 고르게 한다 (다른 계정으로 들어가기)
+              queryParams: { prompt: 'select_account' },
             },
           });
 
