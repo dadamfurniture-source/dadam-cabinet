@@ -132,6 +132,25 @@ describe('0038 — Expert 회계 · 월 보고 알림', () => {
     expect(f).not.toMatch(/TO (anon|authenticated)\b/);
   });
 
+  test('프로브 협력업체는 등급이 expert · agent (companies_partner_plan_check · companies_plan_check)', () => {
+    const probe = JSON.parse(
+      fs.readFileSync(
+        path.join(__dirname, '..', 'database', 'probes', '0038-ledger-expert.json'),
+        'utf8'
+      )
+    );
+    const rows = probe.setup
+      .join('\n')
+      .matchAll(/\(\{\{(company_\w+)\}\}, '(\w+)', '[^']*', ([^,]+), '(\w+)'\)/g);
+    const companies = [...rows].map(([, id, kind, plan, status]) => [id, kind, plan, status]);
+    expect(companies).toEqual([
+      ['company_e', 'partner', "'expert'", 'active'],
+      ['company_a', 'partner', "'agent'", 'active'],
+      ['company_n', 'partner', "'expert'", 'suspended'],
+      ['company_t', 'partner', "'expert'", 'active'],
+    ]);
+  });
+
   test('프로브 사진의 sha256 은 16진수 64자 (ledger_documents_sha_check)', () => {
     const probe = fs.readFileSync(
       path.join(__dirname, '..', 'database', 'probes', '0038-ledger-expert.json'),
