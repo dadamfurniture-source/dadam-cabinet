@@ -98,6 +98,37 @@ table.compact th, table.compact td { padding: 2pt 3pt; font-size: 8.5pt; }
 .pack-head { margin-bottom: 8pt; padding-bottom: 4pt; border-bottom: 0.8pt solid #000; }
 .cut-head .checks { float: right; font-size: 10pt; letter-spacing: .5pt; }
 
+/* 도어재 발주서 — 도어마다 앞모습 (2026-11-05) */
+.door-grid { display: flex; flex-wrap: wrap; gap: 6pt 10pt; align-items: flex-end; }
+.door-card { break-inside: avoid; page-break-inside: avoid; max-width: 48%; }
+.door-card svg.door-drawing { display: block; max-width: 100%; height: auto; }
+.door-card .door-cap { max-width: 60mm; }
+.door-card .door-cap { font-size: 8pt; line-height: 1.35; }
+
+/* 특별 지시 — 지시서 맨 위 빨간 상자 (2026-11-05 사장님 「자동 + 사무실 글」) */
+.special-notes { border: 1.6pt solid #b3261e; padding: 4pt 7pt; margin: 4pt 0 8pt; break-inside: avoid; page-break-inside: avoid; }
+.special-notes .sn-title { font-weight: 700; color: #b3261e; margin-bottom: 1pt; }
+.special-notes .sn-item { font-size: 10pt; line-height: 1.6; }
+.special-notes .sn-src { font-size: 7.5pt; color: #555; border: 0.5pt solid #999; border-radius: 2pt; padding: 0 3pt; margin-left: 3pt; }
+
+/* 재단 원장 묶음 — 묶음마다 새 쪽 · 화면에서 [그림] [표] [둘 다] · [이 묶음만 인쇄] (2026-11-05 사장님) */
+.cut-group-next { break-before: page; page-break-before: always; }
+.cut-group-head { display: flex; align-items: baseline; gap: 6pt; flex-wrap: wrap; border-bottom: 1pt solid #000; padding-bottom: 2pt; margin: 8pt 0 4pt; }
+.cut-btns { margin-left: auto; display: inline-flex; gap: 3pt; flex-wrap: wrap; }
+.cut-btns button { font: inherit; font-size: 8.5pt; padding: 1pt 7pt; border: 0.6pt solid #1d4f91; background: #fff; color: #1d4f91; border-radius: 3pt; cursor: pointer; }
+.cut-btns button[aria-pressed="true"] { background: #1d4f91; color: #fff; }
+.cut-tabs { display: flex; flex-wrap: wrap; gap: 4pt; margin: 4pt 0; }
+.cut-tabs a { font-size: 8.5pt; border: 0.6pt solid #888; border-radius: 3pt; padding: 1pt 6pt; color: #000; text-decoration: none; }
+.cut-group[data-view="draw"] .cut-parts { display: none; }
+.cut-group[data-view="draw"] .cut-sheet .cut-svg { flex: 1 1 100%; }
+.cut-group[data-view="draw"] .cut-sheet .cut-svg svg { max-height: 230mm; }
+.cut-group[data-view="table"] .cut-svg { display: none; }
+@media print {
+  body.print-group .sheet:not(:has(.print-target)) { display: none !important; }
+  body.print-group .cut-group:not(.print-target) { display: none !important; }
+  body.print-group .print-target.cut-group-next { break-before: auto; page-break-before: auto; }
+}
+
 /* 치수 정면도 · 모듈 치수도 카드 (elevation.js) */
 .elev-box { border: 0.4pt solid #000; padding: 3pt; margin: 2pt 0 6pt; break-inside: avoid; page-break-inside: avoid; font-size: 8.5pt; }
 .elev-box svg.elevation { display: block; width: 100%; height: auto; max-height: 120mm; }
@@ -247,5 +278,6 @@ table.check td.na { text-align: center; color: #666; background: repeating-linea
   <div class="sub-title">삭제 (1)</div><table class="compact"><thead><tr><th>부재 ID</th><th>품목</th><th>모듈</th><th>부품</th><th class="num">w × h × t</th><th class="num">수량</th><th>마감</th></tr></thead><tbody><tr><td><span class="mono">0-l1-shelf#0-0</span></td><td>싱크대</td><td>하부장-개수대</td><td>선반</td><td class="num">970 × 500 × 15</td><td class="num">1</td><td>-</td></tr></tbody></table>
   <div class="sub-title">변경 (1)</div><table class="compact"><thead><tr><th>부재 ID</th><th>모듈</th><th>부품</th><th>변경</th></tr></thead><tbody><tr><td><span class="mono">0-l1-door#0-0</span></td><td>하부장-개수대</td><td>도어</td><td>마감: PET-WHITE-M → PET-OAK-M · 수량: 1 → 2</td></tr></tbody></table>
 </div>
+
 </body>
 </html>

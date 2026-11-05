@@ -25,8 +25,8 @@ const json = (rows, status = 200) => ({ ok: true, status, headers: { get: () => 
 const fail = (status, body) => ({ ok: false, status, headers: { get: () => 'application/json' }, text: async () => JSON.stringify(body) });
 
 /** PostgREST 흉내 — designs 찾기 · 만들기, 동결 (cut-plan.test.js 와 같은 길) */
-function fakeSupabase({ existing = null, missing = false } = {}) {
-  const calls = { designPosts: [], snapshotPosts: [], designFinds: 0 };
+function fakeSupabase({ existing = null, missing = false, uploadFails = false } = {}) {
+  const calls = { designPosts: [], snapshotPosts: [], designFinds: 0, uploads: [], renderRows: [] };
   const original = globalThis.fetch;
   globalThis.fetch = async (url, init = {}) => {
     const u = String(url);
@@ -55,6 +55,15 @@ function fakeSupabase({ existing = null, missing = false } = {}) {
     if (/\/pricing_rule_sets\?/.test(u)) return json([{ id: 'RS1', name: 'seed', is_active: true }]);
     if (/\/pricing_rules\?/.test(u)) return json([]);
     if (method === 'GET' && /\/design_snapshots\?/.test(u)) return json([]);
+    if (method === 'POST' && /\/storage\/v1\/object\/renders\//.test(path)) {
+      if (uploadFails) return fail(500, { message: 'storage down' });
+      calls.uploads.push({ path: path.split('/object/renders/')[1], type: init.headers['Content-Type'], bytes: init.body.length });
+      return json({ Key: path });
+    }
+    if (method === 'POST' && /\/design_renders$/.test(path)) {
+      calls.renderRows.push(JSON.parse(init.body));
+      return json([{ id: 'R1', ...JSON.parse(init.body) }], 201);
+    }
     if (method === 'POST' && /\/design_snapshots$/.test(path)) {
       const body = JSON.parse(init.body);
       calls.snapshotPosts.push(body);
@@ -96,6 +105,35 @@ test('처음 보내면 앱 설계를 만든다 — 출처 planner-lite · 플래
     assert.equal(f.snapshotPosts.length, 1);
     assert.equal(f.snapshotPosts[0].design_id, 'D-NEW');
     assert.equal(f.snapshotPosts[0].bom_payload.materials.length, 2, 'BOM 은 플래너가 보낸 그대로');
+  } finally { f.restore(); }
+});
+
+/** 1×1 PNG (합성) */
+const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==';
+
+test('정면 렌더 — 품목 uniqueId 마다 버킷 renders · design_renders front 에 넣는다, 모양이 틀리면 동결 전에 422, 못 올려도 동결은 그대로 (2026-11-05)', async () => {
+  let f = fakeSupabase();
+  try {
+    const r = await receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, png: `data:image/png;base64,${PNG_1PX}`, width: 1536, height: 900 }] }) });
+    assert.equal(r.renders_saved, 1);
+    assert.equal(f.uploads.length, 1);
+    assert.match(f.uploads[0].path, /^D-NEW\/1\/front-\d+-0\.png$/);
+    assert.equal(f.uploads[0].type, 'image/png');
+    assert.deepEqual([f.renderRows[0].design_id, f.renderRows[0].item_unique_id, f.renderRows[0].kind, f.renderRows[0].width], ['D-NEW', 1, 'front', 1536]);
+  } finally { f.restore(); }
+
+  f = fakeSupabase();
+  try {
+    await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, png: btoa('not a png') }] }) }), (e) => e instanceof ValidationError);
+    await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 0, png: PNG_1PX }] }) }), (e) => e instanceof ValidationError);
+    assert.equal(f.designPosts.length + f.snapshotPosts.length + f.uploads.length, 0, '아무것도 쓰지 않는다');
+  } finally { f.restore(); }
+
+  f = fakeSupabase({ uploadFails: true });
+  try {
+    const r = await receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, png: PNG_1PX }] }) });
+    assert.deepEqual([r.snapshot_id, r.renders_saved], ['S1', 0]);
+    assert.equal(f.renderRows.length, 0);
   } finally { f.restore(); }
 });
 

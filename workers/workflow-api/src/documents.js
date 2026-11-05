@@ -38,8 +38,9 @@ import { renderCustomerConfirmation } from './templates/customer-confirmation.js
 import { renderWorkOrder } from './templates/work-order.js';
 import { renderInstallationOrder } from './templates/installation-order.js';
 import { getSiteInfo, listSchedulesForDoc } from './site-info.js';
-import { gatherWorkOrderPayload, workOrderTotals } from './work-order-data.js';
+import { gatherWorkOrderPayload, workOrderTotals, collectRenders } from './work-order-data.js';
 import { frozenCheckList } from './work/check-items.js';
+import { specialNotesOf, withNoteChecks } from './work/special-notes.js';
 import { createSignedUrls, RENDERS_BUCKET, SIGNED_URL_TTL_SEC } from './storage.js';
 import { recordDocumentIssued } from './reports/service.js';
 
@@ -149,6 +150,9 @@ export async function issueDocument(env, { user, body }) {
   if (docType === 'installation_order') {
     renderPayload.site_info = await getSiteInfo(env, designId);
     renderPayload.schedules = await listSchedulesForDoc(env, designId);
+    // 정면 렌더도 발행 때 고정 (2026-11-05 사장님 C · E — 설치 지시서에도 그림). 없으면 빈 목록
+    const items = snapshot.design_payload && Array.isArray(snapshot.design_payload.items) ? snapshot.design_payload.items : [];
+    renderPayload.renders = await collectRenders(env, designId, items);
   }
 
   // B5: 작업지시서 v2 — 정면 렌더·색 스와치·재단 배치·부재 요약·이전 rev 차이를 발행 시점에 동결한다.
@@ -156,9 +160,18 @@ export async function issueDocument(env, { user, body }) {
   if (docType === 'work_order') {
     Object.assign(renderPayload, await gatherWorkOrderPayload(env, { designId, snapshot }));
   }
+  // 라벨 번호 차례 — 재단 차례로 고정 (2026-11-05 사장님 A 「재단 차례」 — 원장 1 조각부터). 옛 문서는 이 칸이 없어 자재 행 차례 그대로
+  if (docType === 'work_order') renderPayload.label_order = 'cut';
   // 작업자 필수 확인 목록 — 발행 때의 판을 고정한다 (src/work/check-items.js). 종이 칸과 작업자 포털 체크가 이 목록을 쓴다.
+  //   특별 지시(자동 + 사무실 글 body.notes, src/work/special-notes.js)도 이때 고정 — 재단 · 조립 · 설치 지시는 필수 확인 항목으로도 들어간다
   if (docType === 'work_order' || docType === 'installation_order') {
-    renderPayload.check_list = frozenCheckList();
+    if (body.notes !== undefined && body.notes !== null && (typeof body.notes !== 'object' || Array.isArray(body.notes))) {
+      throw new ValidationError('notes 는 { cut, assembly, door, top, install } 글 묶음이어야 합니다');
+    }
+    const roles = docType === 'work_order' ? ['cut', 'assembly', 'door', 'top'] : ['install'];
+    const notes = specialNotesOf(snapshot, body.notes, { roles, cutPlan: renderPayload.cut_plan || null });
+    renderPayload.special_notes = notes;
+    renderPayload.check_list = withNoteChecks(frozenCheckList(), notes);
   }
 
   const totals = quoteForDoc
@@ -396,7 +409,7 @@ export function documentForViewer(doc, money) {
  */
 export async function resolvePrintAssets(env, doc) {
   const rp = doc && doc.render_payload;
-  const renders = doc && doc.doc_type === 'work_order' && rp && Array.isArray(rp.renders) ? rp.renders : [];
+  const renders = doc && (doc.doc_type === 'work_order' || doc.doc_type === 'installation_order') && rp && Array.isArray(rp.renders) ? rp.renders : [];
   const paths = renders.map((r) => r && r.path).filter((p) => typeof p === 'string' && p);
   if (paths.length === 0) return { renderUrls: new Map() };
   try {

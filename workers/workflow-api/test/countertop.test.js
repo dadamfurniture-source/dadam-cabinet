@@ -103,6 +103,9 @@ test('끊긴 상판 — 하부장 위 수납장 칸에서 끊기면 장마다 �
   assert.deepEqual(r1.cutouts.filter((c) => c.center !== null).map((c) => [c.kind, c.center]), [['sink', 500]]);
   assert.deepEqual(r2.cutouts.filter((c) => c.center !== null).map((c) => [c.kind, c.center]), [['cooktop', 300]]);
   assert.deepEqual([r1.finishes.sideLeft, r1.finishes.sideRight, r2.finishes.sideLeft, r2.finishes.sideRight], ['cabinet', 'cabinet', 'cabinet', 'exposed']);
+  // 간편 플래너 부재 ID (line| 앞머리) 도 같은 품목으로 읽는다
+  const planner = { ...snap, bom_payload: { ...snap.bom_payload, materials: snap.bom_payload.materials.map((m) => (m.part === '상판' ? { ...m, partId: `line|${m.partId}` } : m)) } };
+  assert.deepEqual(countertopRequests(planner).map((r) => [r.piece && r.piece.no, r.cutouts.filter((c) => c.center !== null).map((c) => c.kind).join()]), [[1, 'sink'], [2, 'cooktop']]);
   // 예전 동결본(상판 한 행)은 예전 셈 그대로 — 행 수 ≠ 장 수
   const old = { ...snap, bom_payload: { ...snap.bom_payload, materials: [...base.bom_payload.materials, { ...TOP_ROW, w: 2050, h: 650 }] } };
   const [o] = countertopRequests(old);

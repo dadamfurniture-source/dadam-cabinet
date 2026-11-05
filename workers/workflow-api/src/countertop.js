@@ -111,12 +111,14 @@ export function countertopRequests(snapshot, { countertop = DEFAULT_COUNTERTOP, 
   const def = { ...DEFAULT_COUNTERTOP, ...(countertop || {}) };
   const items = (snapshot && snapshot.design_payload && Array.isArray(snapshot.design_payload.items)) ? snapshot.design_payload.items : [];
   const rows = materialsOf(snapshot).filter((m) => m.slot === 'top' || m.part === '상판');
+  // 품목 순번 = 엔진 partId 맨 앞 숫자. 간편 플래너 줄 부재는 `line|0-ep-top-0` (앞머리 line| 를 뗀다, 2026-11-05)
+  const idxOf = (row) => parseInt(String(row.partId || '').replace(/^line\|/, ''), 10);
   const itemIndexOf = (row, i) => {
-    const idx = parseInt(String(row.partId || ''), 10);
+    const idx = idxOf(row);
     return Number.isInteger(idx) ? idx : i;
   };
   return rows.map((row, i) => {
-    const idx = parseInt(String(row.partId || ''), 10);
+    const idx = idxOf(row);
     const item = items[Number.isInteger(idx) ? idx : i] || items[i] || {};
     const specs = item.specs || {};
     const modules = Array.isArray(item.modules) ? item.modules : [];
