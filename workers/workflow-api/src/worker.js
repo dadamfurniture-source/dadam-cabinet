@@ -38,6 +38,7 @@
  *   GET  /ledger/business-status — 사진 확인 · 국세청 사업자 상태 (src/ledger/review.js, 읽기 걸기 src/ledger/extract.js)
  *   GET  /ledger/notices · POST /ledger/notices/seen — 장부 알림 (src/ledger/notices.js, 만드는 것은 DB 0033)
  *   GET  /ledger/dashboard — 회계 한눈에 (src/ledger/dashboard.js, 묶음은 DB 0034)
+ *   GET  /brief/today — 아침 브리핑 본문 (비서를 쓰는 업체 구성원, src/brief.js)
  *
  *   GET  /public/confirm                  — 고객 열람 (X-Share-Token)
  *   POST /public/confirm/decision          — 고객 승인/수정요청
@@ -133,6 +134,7 @@ import { listReview, postDocument, postBatch, decideDocument, rereadDocument, bu
 import { runExtractDue } from './ledger/extract.js';
 import { runLedgerNotices, listNotices, markNoticesSeen } from './ledger/notices.js';
 import { ledgerDashboard } from './ledger/dashboard.js';
+import { getBrief, runMorningBrief } from './brief.js';
 import { listReceivables, listPayables } from './ledger/money.js';
 import { listSupplierModes, setSupplierMode, holdDocuments, listHeld, supplierEntries, attachStatements } from './ledger/statements.js';
 import { runLedgerPendingNotices } from './push/ledger-hooks.js';
@@ -844,6 +846,10 @@ async function handleAttachLedgerStatements(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data: await attachStatements(env, { user, entryId: params.id, body }) }, 200, NO_STORE);
 }
 
+async function handleBrief(request, env, { user }) {
+  return jsonResponse(request, env, { success: true, data: await getBrief(env, { user }) }, 200, NO_STORE);
+}
+
 async function handleLedgerNotices(request, env, { user }) {
   const q = new URL(request.url).searchParams;
   const data = await listNotices(env, { user, company: q.get('company') || undefined, limit: q.get('limit') });
@@ -1334,6 +1340,8 @@ const router = createRouter([
   { method: 'GET',  path: '/ledger/business-status',    auth: 'jwt', handler: handleBusinessStatus },
   { method: 'GET',  path: '/ledger/notices',            auth: 'jwt', handler: handleLedgerNotices },
   { method: 'GET',  path: '/ledger/dashboard',          auth: 'jwt', handler: handleLedgerDashboard },
+  // 아침 브리핑 (src/brief.js)
+  { method: 'GET',  path: '/brief/today',               auth: 'jwt', handler: handleBrief },
   { method: 'GET',  path: '/ledger/receivables',        auth: 'jwt', handler: handleLedgerReceivables },
   { method: 'GET',  path: '/ledger/payables',           auth: 'jwt', handler: handleLedgerPayables },
   { method: 'GET',  path: '/ledger/suppliers',          auth: 'jwt', handler: handleLedgerSuppliers },
@@ -1501,7 +1509,8 @@ export default {
    *                      24시간 지난 상담 배정 되돌리기 (src/distribution/company.js runAssignmentExpiry),
    *                      장부 사진 읽기 다시 걸기 (src/ledger/extract.js runExtractDue) · 확인할 사진 알림
    *                      (src/push/ledger-hooks.js runLedgerPendingNotices),
-   *                      분이 5의 배수면 새 상담 · 새 업체 신청 Slack 알림 (src/consult-notify.js)
+   *                      분이 5의 배수면 새 상담 · 새 업체 신청 Slack 알림 (src/consult-notify.js),
+   *                      08:00~08:09(KST) 아침 브리핑 알림 (src/brief.js runMorningBrief)
    */
   async scheduled(event, env, ctx) {
     if (event.cron === PUSH_SEND_CRON) {
@@ -1518,6 +1527,8 @@ export default {
       }
       // 장부 알림 — 분마다 나눠 훑기 · 국세청 · 아침 묶음 (src/ledger/notices.js, 던지지 않는다)
       ctx.waitUntil(runLedgerNotices(env, { nowMs: event.scheduledTime }));
+      // 아침 브리핑 — 08:00 부터 업체마다 정해진 분에 「오늘 볼 것 N건」 (src/brief.js, 던지지 않는다)
+      ctx.waitUntil(runMorningBrief(env, { nowMs: event.scheduledTime }));
       // 24시간 지난 상담 배정 → 무응답, 본사 상담은 다시 대기 (src/distribution/company.js)
       ctx.waitUntil(
         runAssignmentExpiry(env, { nowMs: event.scheduledTime }).catch((e) => console.error('assignment expiry failed:', e && e.statusCode ? e.statusCode : 'error')),

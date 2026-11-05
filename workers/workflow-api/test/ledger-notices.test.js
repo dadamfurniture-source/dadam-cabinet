@@ -46,7 +46,7 @@ const tables = (over = {}) => ({
 });
 
 /** rpc 흉내 — 부른 차례를 남긴다 */
-function rpcs({ claim = {}, missing = false, due = [], record = { saved: 0, added: 0 } } = {}) {
+function rpcs({ claim = {}, missing = false, due = [], record = { saved: 0, added: 0 }, assistant = 'none' } = {}) {
   const calls = [];
   const fn = (name, body) => {
     calls.push({ name, body });
@@ -55,7 +55,7 @@ function rpcs({ claim = {}, missing = false, due = [], record = { saved: 0, adde
     if (name === 'ledger_notices_claim') return claim[body.p_urgency] || [];
     if (name === 'ledger_nts_due') return due.map((b) => ({ biz_no: b }));
     if (name === 'ledger_nts_record') return record;
-    if (name === 'company_entitled') return 'full';
+    if (name === 'company_entitled') return body.p_feature === 'assistant' ? assistant : 'full';
     return undefined;
   };
   fn.calls = calls;
@@ -124,7 +124,11 @@ test('아침 묶음 — 안 본 수만, 하루 한 번 · 다른 분에는 아�
   const rpc = rpcs({ claim: { digest: [{ company_id: CO, notices: 4, unseen: 3 }] } });
   const fake = createFake({ tables: tables(), rpc });
   await withFake(fake, () => runLedgerNotices(ENV, { nowMs: kst('2026-11-03T08:01:00') }));
-  assert.deepEqual(rpc.calls.map((c) => [c.name, c.body.p_urgency, c.body.p_companies]), [['ledger_notices_claim', 'digest', DIGEST_COMPANIES], ['company_entitled', undefined, undefined]]);
+  assert.deepEqual(rpc.calls.map((c) => [c.name, c.body.p_urgency || c.body.p_feature, c.body.p_companies]), [
+    ['ledger_notices_claim', 'digest', DIGEST_COMPANIES],
+    ['company_entitled', 'assistant', undefined],
+    ['company_entitled', 'ledger_ai', undefined],
+  ]);
   const box = fake.db.notification_outbox;
   assert.equal(box.length, 2);
   assert.equal(box[0].title, '장부에 바뀐 점');
@@ -133,6 +137,19 @@ test('아침 묶음 — 안 본 수만, 하루 한 번 · 다른 분에는 아�
   rpc.calls.length = 0;
   await withFake(fake, () => runLedgerNotices(ENV, { nowMs: kst('2026-11-03T14:01:00') }));
   assert.deepEqual(rpc.calls, []);
+});
+
+test('아침 묶음 — 비서를 쓰는 업체는 보내지 않는다 (아침 브리핑에 실린다), 잡기는 그대로', async () => {
+  const rpc = rpcs({ claim: { digest: [{ company_id: CO, notices: 4, unseen: 3 }] }, assistant: 'full' });
+  const fake = createFake({ tables: tables(), rpc });
+  await withFake(fake, () => runLedgerNotices(ENV, { nowMs: kst('2026-11-03T08:01:00') }));
+  assert.equal(rpc.calls[0].name, 'ledger_notices_claim');
+  assert.equal(fake.db.notification_outbox.length, 0);
+  // 바로 알림(중복 · 큰 금액)은 비서 업체에도 그대로 간다
+  const now = rpcs({ claim: { now: [{ company_id: CO, notices: 1, unseen: 1 }] }, assistant: 'full' });
+  const fake2 = createFake({ tables: tables(), rpc: now });
+  await withFake(fake2, () => runLedgerNotices(ENV, { nowMs: kst('2026-11-03T14:02:00') }));
+  assert.equal(fake2.db.notification_outbox.length, 2);
 });
 
 test('월 보고 — 매달 1일 07:50 지난달로 ledger_month_report_scan 하나, 0038 전이면 건너뛴다', async () => {
