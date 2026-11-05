@@ -24,7 +24,7 @@ const SPECS = Object.assign({}, LEDGER_SPECS, {
 });
 
 /** 위 서랍 + 아래 도어 하부장 하나 (900 양문 · 450 외짝) — 플래너 · 모듈 라이브러리 구조 모양 */
-function drawerTop(W, extra, category) {
+function drawerTop(W, extra, category, handle) {
   const two = W >= 900;
   const modules = [{ id: 'l0', section: 'lower', W, H: 870, D, x: 0, y: BACK, areaH: 870 }];
   const structures = {
@@ -46,8 +46,9 @@ function drawerTop(W, extra, category) {
       extra || {}
     ),
   };
-  const conv = loadConverter()._convertPlannerModules({ modules, structures, hasStructures: true }, Object.assign({}, SPECS));
-  const item = { categoryId: category || 'sink', w: W, h: 2310, d: AREA_D, specs: Object.assign({}, SPECS), modules: conv.modules };
+  const specs = Object.assign({}, SPECS, handle ? { handle } : {});
+  const conv = loadConverter()._convertPlannerModules({ modules, structures, hasStructures: true }, Object.assign({}, specs));
+  const item = { categoryId: category || 'sink', w: W, h: 2310, d: AREA_D, specs: Object.assign({}, specs), modules: conv.modules };
   const { MaterialExtractor, HardwareExtractor } = loadExtractors();
   const materials = new MaterialExtractor().extract({ items: [item] }).materials;
   const hardware = new HardwareExtractor().extract({ items: [item] }).hardware;
@@ -83,15 +84,15 @@ describe('위 서랍 + 아래 도어 — 브리지 · BOM · 조립', () => {
     expect([one.doorCount, one.hingeSide]).toEqual([1, 'left']);
   });
 
-  test('900 — 서랍도어 896 × 180 · 도어 446 × 468 × 2 · 중간 목찬넬 ㄴ자 · 몸통 하나 · 처짐방지목 없음 + [확인 필요]', () => {
+  test('900 — 서랍도어 896 × 180 · 도어 446 × 468 × 2 · 중간 목찬넬 ㄴ자 · 몸통 하나 · 처짐방지목은 아래 도어 칸에만 (지판 위 ~ 중간 따내기 밑 413)', () => {
     const r = drawerTop(900);
     expect(r.part('서랍도어').map((x) => [x.w, x.h, x.qty])).toEqual([[896, 180, 1]]);
     expect(r.part('도어').map((x) => [x.w, x.h, x.qty])).toEqual([[446, 468, 2]]);
     expect(r.part('목찬넬(중간 전면)').map((x) => [x.w, x.h, x.qty])).toEqual([[72, 900, 1]]);
     expect(r.part('측판').length).toBe(1);
-    expect(r.part('밴드(처짐방지)')).toEqual([]);
-    expect(r.part('측판')[0].note).toMatch(/\[확인 필요\] 위 서랍 \+ 아래 도어 — 처짐방지목/);
-    expect(r.rows.some((x) => /레일 여유 부족/.test(x.note || ''))).toBe(false);
+    // 708 − 지판 15 − (중간 목찬넬 190 + 따내기 90) = 413 (2026-11-05 사장님 「아래 도어 칸에만」)
+    expect(r.part('밴드(처짐방지)').map((x) => [x.w, x.h, x.qty])).toEqual([[70, 413, 1]]);
+    expect(r.rows.some((x) => /\[확인 필요\]|레일 여유 부족/.test(x.note || ''))).toBe(false);
   });
 
   test('450 — 처짐방지목 문턱 밑이라 [확인 필요] 없음 · 도어 446 × 468 한 장', () => {
@@ -124,6 +125,17 @@ describe('위 서랍 + 아래 도어 — 브리지 · BOM · 조립', () => {
     const front = m.parts.find((p) => p.part === '서랍도어');
     expect(door.length).toBe(2);
     expect(Math.max(...door.map((p) => p.box.max[1]))).toBeLessThan(front.box.min[1]);
+    // 처짐방지목 — 지판 위에 서고, 윗끝이 위 서랍 박스 밑 (박스와 겹치지 않는다)
+    const brace = m.parts.find((p) => p.part === '밴드(처짐방지)');
+    const boxes = m.parts.filter((p) => /서랍(전후판|측판)/.test(p.part));
+    expect(brace).toBeTruthy();
+    expect(brace.box.max[1]).toBeLessThanOrEqual(Math.min(...boxes.map((p) => p.box.min[1])));
+  });
+
+  test('찬넬(알루미늄) 손잡이면 처짐방지목은 위 서랍 존 밑까지 (따내기가 없다)', () => {
+    const r = drawerTop(900, null, null, '찬넬 (알루미늄)');
+    const zoneBottom = DR.layoutDrawerTop({ areaH: 870, topT: 12, legH: 150, T: 15, rail: 'ball' }).fronts[0].zone.bottom;
+    expect(r.part('밴드(처짐방지)').map((x) => x.h)).toEqual([708 - 15 - zoneBottom]);
   });
 });
 
