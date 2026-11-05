@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeWorld, makeClaude, makeWorkflow, reply, toolUse, ORDER_ID, CO } from './fakes.js';
-import { toolDefs, checkInput, resultText, runTool, ToolError, RESULT_MAX } from '../src/tools.js';
+import { toolDefs, checkInput, resultText, runTool, ToolError, RESULT_MAX, PHOTO_PAGE, PHOTO_PAGES } from '../src/tools.js';
 import { MAX_TOOL_ROUNDS } from '../src/session.js';
 import { contextBlock } from '../src/prompt.js';
 import { userTextOf, isTurnStart } from '../src/claude.js';
@@ -285,6 +285,7 @@ test('올린 사진 · 장부 요약 · 고객 프로젝트 — 줄인 모양', 
     .map((p) => JSON.parse(p.messages.at(-1).content[0].content));
   assert.deepEqual(results[0], {
     counted: 3,
+    complete: true,
     by_status: { pending: 2, posted: 1 },
     status_names: { pending: '확인 기다림', posted: '장부에 올림' },
     oldest_pending_at: '2026-11-01T00:00:00Z',
@@ -303,6 +304,59 @@ test('올린 사진 · 장부 요약 · 고객 프로젝트 — 줄인 모양', 
     w.workflow.calls.map((c) => c.path + c.query),
     ['/ledger/documents?limit=100', '/books/summary', '/company/projects']
   );
+});
+
+/** 사진 n 장 — 새것부터 (1분씩 앞), 상태는 status(i) */
+function photos(n, start, status) {
+  return Array.from({ length: n }, (_, i) => ({
+    id: `d${start + i}`,
+    review_status: status(start + i),
+    created_at: new Date(Date.UTC(2026, 10, 5) - (start + i) * 60_000).toISOString(),
+  }));
+}
+/** 가짜 사진 목록 — before 를 따라 넘긴다 */
+function photoRoute(all) {
+  return (call) => {
+    const before = new URLSearchParams(call.query).get('before');
+    const rest = before ? all.filter((d) => d.created_at < before) : all;
+    return new Response(JSON.stringify({ success: true, data: { money: true, items: rest.slice(0, PHOTO_PAGE) } }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+}
+
+test('올린 사진 — 최근 100장이 아니라 끝까지 센다 (확인 기다림 ↔ 모아 둔 명세표)', async () => {
+  const all = photos(130, 0, (i) => (i === 129 ? 'pending' : i % 2 ? 'held' : 'posted'));
+  const workflow = makeWorkflow({ '/ledger/documents': photoRoute(all) });
+  const claude = makeClaude([toolUse('ledger_photos', {}, { id: 'a' }), reply('네')]);
+  const w = await makeWorld({ claude, workflow });
+  const id = await newConversation(w);
+  await turn(w, id, '사진');
+  await w.sessions.runAlarms();
+  const out = JSON.parse(claude.calls[1].messages.at(-1).content[0].content);
+  assert.equal(out.counted, 130);
+  assert.equal(out.complete, true);
+  assert.deepEqual(out.by_status, { posted: 65, held: 64, pending: 1 });
+  assert.equal(out.status_names.held, '세금계산서 기다리는 명세표(모아 둠 — 확인은 끝남)');
+  assert.equal(out.oldest_pending_at, all[129].created_at);
+  const docCalls = w.workflow.calls.filter((c) => c.path === '/ledger/documents');
+  assert.equal(docCalls.length, 2);
+  assert.equal(new URLSearchParams(docCalls[1].query).get('before'), all[99].created_at);
+});
+
+test('올린 사진 — PHOTO_PAGES 번을 넘으면 거기까지만 세고 complete false', async () => {
+  const all = photos(PHOTO_PAGE * PHOTO_PAGES + 5, 0, () => 'posted');
+  const workflow = makeWorkflow({ '/ledger/documents': photoRoute(all) });
+  const claude = makeClaude([toolUse('ledger_photos', {}, { id: 'a' }), reply('네')]);
+  const w = await makeWorld({ claude, workflow });
+  const id = await newConversation(w);
+  await turn(w, id, '사진');
+  await w.sessions.runAlarms();
+  const out = JSON.parse(claude.calls[1].messages.at(-1).content[0].content);
+  assert.equal(out.counted, PHOTO_PAGE * PHOTO_PAGES);
+  assert.equal(out.complete, false);
+  assert.equal(w.workflow.calls.filter((c) => c.path === '/ledger/documents').length, PHOTO_PAGES);
 });
 
 test('도구 오류 — workflow-api 거절 문구 · 틀린 입력은 is_error 결과로, 차례는 계속된다', async () => {
