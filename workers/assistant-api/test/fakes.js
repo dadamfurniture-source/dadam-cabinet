@@ -34,6 +34,7 @@ export function makeDb(over = {}) {
     limit: 10_000_000, // 업체 월 한도 micros
     reserveReason: null, // 정하면 잡기가 그 이유로 실패
     extractions: [], // ledger_extractions
+    actions: [], // assistant_actions (DB 0041)
     // ledger_accounts — 읽기가 고를 거리 (수입 · 쓰지 않는 계정은 빠져야 한다)
     accounts: [
       {
@@ -67,12 +68,14 @@ export function makeDb(over = {}) {
     for (const [k, v] of new URLSearchParams(q)) out[k] = v;
     return out;
   }
-  // eq · lt · in.( ) 만
+  // eq · lt · gt · lte · in.( ) 만
   const eq = (row, filters) =>
     Object.entries(filters).every(([k, v]) => {
       if (['select', 'order', 'limit'].includes(k)) return true;
       if (v.startsWith('eq.')) return String(row[k]) === v.slice(3);
       if (v.startsWith('lt.')) return String(row[k]) < v.slice(3);
+      if (v.startsWith('gt.')) return String(row[k]) > v.slice(3);
+      if (v.startsWith('lte.')) return String(row[k]) <= v.slice(4);
       if (v.startsWith('in.(') && v.endsWith(')'))
         return v.slice(4, -1).split(',').includes(String(row[k]));
       throw new Error('fake: unsupported filter — ' + k + '=' + v);
@@ -187,12 +190,15 @@ export function makeDb(over = {}) {
       ledger_extractions: db.extractions,
       ledger_accounts: db.accounts,
       company_settings: db.settings,
+      assistant_actions: db.actions,
     };
     const rows = tables[path];
     if (!rows) throw new Error('fake: unknown table ' + path);
     if (method === 'GET') {
       let out = rows.filter((r) => eq(r, q));
       if (q.order === 'seq.asc') out = out.slice().sort((a, b) => a.seq - b.seq);
+      if (q.order === 'created_at.asc')
+        out = out.slice().sort((a, b) => (a.created_at < b.created_at ? -1 : 1));
       if (q.order === 'updated_at.desc')
         out = out.slice().sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
       if (q.order === 'key.asc,version.desc')
@@ -209,6 +215,16 @@ export function makeDb(over = {}) {
         id: r.id || newId(),
         created_at: now,
         updated_at: now,
+        // assistant_actions 기본값 (DB 0041) — 기한 24시간
+        ...(path === 'assistant_actions'
+          ? {
+              state: 'proposed',
+              result: null,
+              decided_at: null,
+              finished_at: null,
+              expires_at: new Date(Date.parse(now) + 24 * 3600 * 1000).toISOString(),
+            }
+          : {}),
         ...r,
       }));
       if (path === 'assistant_messages') {
@@ -626,6 +642,13 @@ export function makeWorkflow(over = {}) {
       const url = new URL(request.url);
       const token = String(request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
       const call = { path: url.pathname, query: url.search, token };
+      // 쓰기(승인 카드 실행)만 메서드 · 키 · 본문을 남긴다
+      if (request.method !== 'GET') {
+        const text = await request.text();
+        call.method = request.method;
+        call.idem = request.headers.get('X-Idempotency-Key');
+        call.body = text ? JSON.parse(text) : null;
+      }
       wf.calls.push(call);
       if (!token) return new Response('{"success":false,"message":"로그인"}', { status: 401 });
       const r = routes[url.pathname];

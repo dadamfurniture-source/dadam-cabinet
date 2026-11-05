@@ -462,10 +462,21 @@ test('대화 보기 running — 도는 차례를 { turn, after } 로, 끝나면 
 test('toolDefs — 돈 도구는 대표 · 실장만, 모두 strict · additionalProperties false', () => {
   const all = toolDefs({ money: true });
   const staff = toolDefs({ money: false });
-  assert.equal(all.length, 9);
+  assert.equal(all.length, 19);
   assert.deepEqual(
     all.filter((t) => !staff.some((s) => s.name === t.name)).map((t) => t.name),
-    ['books_summary', 'ledger_month', 'ledger_notices']
+    [
+      'books_summary',
+      'ledger_month',
+      'ledger_notices',
+      'propose_consult_accept',
+      'propose_consult_decline',
+      'propose_ledger_post',
+      'propose_project_create',
+      'propose_design_link',
+      'propose_payment_received',
+      'propose_cost_add',
+    ]
   );
   for (const t of all) {
     assert.equal(t.strict, true);

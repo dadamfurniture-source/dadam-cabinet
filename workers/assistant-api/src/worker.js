@@ -7,9 +7,12 @@
  *   POST /assistant/conversations                   새 대화 → 201 { conversation } (자격 full)
  *   GET  /assistant/conversations/:id               대화 + 메시지 (글만 — 생각 블록 · 도구 블록 · 맥락 블록은 주지 않는다)
  *                                                   한 차례의 비서 글(도구 앞뒤)은 한 메시지로 묶는다. running: 도는 차례 { turn, after } | null
+ *                                                   actions: 이 대화의 승인 카드 · 연락 초안 (오래된 것부터)
  *   POST /assistant/conversations/:id/turns         { text } + X-Idempotency-Key → 202 { turn, after } (자격 full)
  *                                                   같은 키는 그 차례(200) · 도는 중이면 409 busy · 분 한도 429
  *   GET  /assistant/conversations/:id/events?after=N  사건 줄(NDJSON) — src/session.js
+ *   POST /assistant/actions/:id/approve             승인 카드 실행 — 대화한 본인 · 자격 full · 기한 안, 한 번만 (src/actions.js)
+ *   POST /assistant/actions/:id/reject              승인 카드 거절
  *   scheduled (하루 한 번)                          시작한 지 90일 지난 대화 지우기 — src/retention.js
  *
  * 인증: Supabase 사용자 JWT (Authorization: Bearer). 사람 · 업체 · 자격은 src/access.js.
@@ -33,6 +36,7 @@ import { assistantAccess, ownConversation } from './access.js';
 import { textOf, userTextOf, isTurnStart } from './claude.js';
 import { maxTurns } from './session.js';
 import { runRetention } from './retention.js';
+import { conversationActions, ownAction, approveAction, rejectAction } from './actions.js';
 
 export { AssistantSession } from './session.js';
 
@@ -122,7 +126,7 @@ export function messagesView(rows) {
 async function getConversation(request, env, user, id) {
   const a = await assistantAccess(env, user);
   const conv = await ownConversation(env, a, user, id);
-  const [rows, state] = await Promise.all([
+  const [rows, state, actions] = await Promise.all([
     selectMany(env, 'assistant_messages', {
       conversation_id: `eq.${conv.id}`,
       select: 'seq,role,content,created_at',
@@ -132,12 +136,29 @@ async function getConversation(request, env, user, id) {
       .fetch('https://assistant-session/state')
       .then((r) => (r.ok ? r.json() : null))
       .catch(() => null),
+    // 카드를 못 읽어도 대화는 연다 (DB 0041 전 · 끊김)
+    conversationActions(env, conv.id).catch((e) => {
+      console.error('[assistant] actions read failed:', e && e.message);
+      return [];
+    }),
   ]);
   return ok(request, env, {
     conversation: conversationView(conv),
     messages: messagesView(rows),
     running: (state && state.running) || null,
+    actions,
   });
+}
+
+/** 승인 · 거절 — 승인은 지금도 비서 자격 full 이어야 한다 */
+async function decideAction(request, env, user, id, decision) {
+  const a = await assistantAccess(env, user, { chat: decision === 'approve' });
+  const row = await ownAction(env, a, user, id);
+  const action =
+    decision === 'approve'
+      ? await approveAction(env, { access: a, user, row })
+      : await rejectAction(env, { user, row });
+  return ok(request, env, { action });
 }
 
 async function sendTurn(request, env, user, id) {
@@ -193,6 +214,7 @@ async function streamEvents(request, env, user, id) {
 
 // ── 길 찾기 ─────────────────────────────────────────────
 const CONV_RE = /^\/assistant\/conversations\/([^/]+)(\/turns|\/events)?$/;
+const ACTION_RE = /^\/assistant\/actions\/([^/]+)\/(approve|reject)$/;
 
 async function route(request, env) {
   const url = new URL(request.url);
@@ -221,6 +243,9 @@ async function route(request, env) {
     if (tail === '/events' && method === 'GET')
       return streamEvents(request, env, await verifyUser(request, env), id);
   }
+  const act = ACTION_RE.exec(path);
+  if (act && method === 'POST')
+    return decideAction(request, env, await verifyUser(request, env), act[1], act[2]);
   throw notFound('주소가 없습니다');
 }
 
