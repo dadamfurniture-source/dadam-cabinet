@@ -20,7 +20,7 @@
              비서 말풍선에는 「AI가 만든 내용」, 입력 칸 아래 늘 「틀릴 수 있습니다」 안내.
    주소      연 대화는 #c=<대화 id> — 새로 고쳐도 그 대화를 다시 연다.
    오늘 브리핑 workflow-api GET /brief/today — 서버가 센 볼 것(상담 · 수금 · 7일 안 납품 · 설치 · 대표 결정 요청 · 사진 ·
-             장부 알림)과 진행 단계 · 공장 · 설치 필수 확인 진행. 역할에 없는 칸은 서버가 null 로 준다 (직원은 일정 · 현황만).
+             지난 24시간에 새로 생긴 안 본 장부 알림)과 진행 단계 · 공장 · 설치 필수 확인 진행. 역할에 없는 칸은 서버가 null 로 준다 (직원은 일정 · 현황만).
              못 받으면(403 · 끊김) 칸을 숨긴다. 「비서에게 묻기」는 새 대화로 정리를 묻는다 (대화할 수 있을 때만).
    장부 알림 대표 · 실장(me.money)이면 workflow-api GET /ledger/notices — 서버가 센 숫자로 카드를 만든다(AI 글 아님).
              카드를 누르면 POST /ledger/notices/seen { ids } 뒤 장부로, 「모두 봤어요」는 안 본 것 한꺼번에.
@@ -672,8 +672,8 @@
     if (has(it.notices))
       out.push({
         key: 'notices',
-        text: '안 본 장부 알림 ' + it.notices.count + '건',
-        sub: '',
+        text: '새 장부 알림 ' + it.notices.count + '건',
+        sub: '지난 24시간',
         href: '#asNotices',
       });
     return out;
