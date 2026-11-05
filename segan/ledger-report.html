@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>회계 보고서 · SEGAN</title>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026110501" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110501" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110501" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110501" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="shell.css?v=2026110501" />
+    <link rel="stylesheet" href="make.css?v=2026110501" />
+    <link rel="stylesheet" href="ledger-report.css?v=2026110501" />
+    <!-- 인쇄용 월 회계 보고서 — workflow-api /ledger/me · dashboard · accounts · receivables · payables (대표 · 실장) -->
+    <script src="../js/config.js?v=2026110501"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <!-- 관리 탭 — 관리자에게만 연다 (segan/shell.js applyAdminTab) -->
+    <script src="../js/admin-access.js?v=2026110501"></script>
+    <!-- 작업 탭 — 작업자에게만 연다 (segan/shell.js applyRoleTabs · GET /work/me) -->
+    <script src="../js/mypage-work.js?v=2026110501"></script>
+    <script src="shell.js?v=2026110501" defer></script>
+    <!-- 달 · 반기 부가세 셈은 회계 한눈에(ledger-board.js)와 같은 것을 쓴다 -->
+    <script src="ledger-board.js?v=2026110501" defer></script>
+    <script src="ledger-report.js?v=2026110501" defer></script>
+  </head>
+  <body class="sg-app" data-tab="me">
+    <div data-segan-shell="header"></div>
+
+    <main class="sg-main lr" id="main">
+      <div class="lr-actions">
+        <a class="mk-link mk-back" id="lrBack" href="ledger.html">‹ 회계</a>
+        <div class="lr-nav">
+          <button type="button" class="mk-link" id="lrPrev" aria-label="앞 달">‹</button>
+          <b id="lrMonth"></b>
+          <button type="button" class="mk-link" id="lrNext" aria-label="다음 달">›</button>
+        </div>
+        <button type="button" class="mk-btn mk-btn--solid" id="lrPrint">인쇄 · PDF 저장</button>
+      </div>
+
+      <div class="sg-checking" data-auth-view="checking">
+        <p class="sg-note">확인하는 중…</p>
+      </div>
+      <div data-auth-view="signed-out" hidden>
+        <div data-segan-shell="gate"></div>
+      </div>
+      <div data-auth-view="signed-in" hidden>
+        <p class="lr-state" id="lrState" role="status"></p>
+        <p class="mk-note lr-tip">폰 앱에서 인쇄가 열리지 않으면 PC에서 열어 「PDF로 저장」을 고르세요.</p>
+
+        <!-- A4 한 장 -->
+        <article class="lr-page" id="lrBody" hidden>
+          <header class="lr-head">
+            <h1 class="lr-title" id="lrTitle">회계 보고</h1>
+            <p class="lr-made" id="lrMade"></p>
+          </header>
+
+          <dl class="lr-tiles" id="lrTiles"></dl>
+
+          <div class="lr-cols">
+            <section class="lr-sec" aria-labelledby="lrMonthsTitle">
+              <h2 class="lr-sec-title" id="lrMonthsTitle">최근 6달</h2>
+              <div id="lrMonths"></div>
+            </section>
+            <section class="lr-sec" aria-labelledby="lrAccTitle">
+              <h2 class="lr-sec-title" id="lrAccTitle">이 달 매입 · 계정별</h2>
+              <div id="lrAccounts"></div>
+            </section>
+            <section class="lr-sec" aria-labelledby="lrSupTitle">
+              <h2 class="lr-sec-title" id="lrSupTitle">이 달 지출 상대 · 상위 5</h2>
+              <div id="lrSuppliers"></div>
+            </section>
+            <section class="lr-sec" aria-labelledby="lrTodoTitle">
+              <h2 class="lr-sec-title" id="lrTodoTitle">받을 돈 · 낼 돈 · 남은 할 일</h2>
+              <div id="lrMoneyBox" hidden><dl class="lr-kv" id="lrMoney"></dl></div>
+              <ul class="lr-todo" id="lrTodo"></ul>
+            </section>
+          </div>
+
+          <p class="lr-foot">
+            매출은 실제로 받은 날, 매입은 실제로 낸 날 기준입니다. 부가세 예상은 세무사 확인 전 참고 숫자입니다. 종이
+            원본은 5년 보관하세요.
+          </p>
+        </article>
+      </div>
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+  </body>
+</html>

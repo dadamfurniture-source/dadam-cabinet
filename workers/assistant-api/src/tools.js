@@ -360,7 +360,7 @@ async function ledgerMonth(env, token, input) {
   };
 }
 
-/** 장부 알림 종류 → 이름 (워커 src/ledger/notices.js · DB 0033 · 0036 ledger_notices.kind) */
+/** 장부 알림 종류 → 이름 (워커 src/ledger/notices.js · DB 0033 · 0036 · 0038 ledger_notices.kind) */
 const NOTICE_KIND = {
   duplicate: '중복 의심',
   large_amount: '평소와 다른 큰 금액',
@@ -370,6 +370,7 @@ const NOTICE_KIND = {
   evidence_risk: '증빙 경고',
   statement_mismatch: '명세표 합계와 세금계산서가 다름',
   invoice_missing: '세금계산서가 아직 없는 명세표',
+  month_report: '지난달 회계 보고 (매출 · 매입 · 장부 손익)',
 };
 
 /** 장부 사진 상태 → 이름 (워커 src/ledger/documents.js REVIEW_STATUSES · 직원은 uploaded) */

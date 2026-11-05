@@ -246,6 +246,8 @@ test('장부 알림 — 종류 이름 · 급함 · 본 표시 · 서버 숫자 �
   });
   assert.equal(out.items[1].kind_name, '단가 변동 (읽은 값 기준)');
   assert.equal(out.items[1].seen, true);
+  assert.equal(out.items[2].kind_name, '지난달 회계 보고 (매출 · 매입 · 장부 손익)');
+  assert.deepEqual(out.items[2].data, { month: '2026-10', rows: 42, income: 48200000, expense: 31050000, profit: 17150000 });
   assert.ok(!JSON.stringify(out).includes('d1'));
 });
 

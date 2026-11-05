@@ -947,7 +947,7 @@
 
       /**
        * 한 모듈의 여닫이 도어 수·재단 높이 — 자재 행(extractSimpleBox)과 철물(HardwareExtractor 경첩·손잡이)이 같은 답을 낸다.
-       *   상부장   bomSimpleDoorCountOf · H + overlap
+       *   상부장   bomSimpleDoorCountOf · H + overlap (하부장 위 수납장은 bomUpperOverlapOf — 목찬넬 5 · 그 밖 0)
        *   하부장   서랍장이면 서랍 아래 여닫이(hingeDoorH > 50 → round(W/450)) · 그 높이, 아니면 bomSimpleDoorCountOf · H − 30
        *   키큰장 단  doorCount 그대로 · bomTallTierDoorH (addTallTierParts 와 같다)
        * @returns {{count:number, doorH:number}}
@@ -968,7 +968,8 @@
         if (m.pos === 'upper') {
           const overlap = parseFloat(s.upperDoorOverlap) || 15;
           const H = parseFloat(m.h) || (parseFloat(s.upperH) || 720) - overlap;
-          return { count: bomSimpleDoorCountOf(m, W).count, doorH: H + overlap };
+          // 하부장 위 수납장 내림 (5 · 0) — 자재 행(extractSimpleBox)과 같다
+          return { count: bomSimpleDoorCountOf(m, W).count, doorH: H + bomUpperOverlapOf(m, s) };
         }
         const H = parseFloat(m.h) || (parseFloat(s.lowerH) || 870) - bomSimpleTopTOf(s) - (floatH > 0 ? floatH : (parseFloat(s.sinkLegHeight) || 150));
         if (m.isDrawer) {
@@ -3202,7 +3203,8 @@
             const door = bomSimpleDoorCountOf(mod, W);
             const name = mod.name || `${W}/${door.count}도어`;
             const modLabel = `${prefix}상부장-${name}`;
-            this.addSimpleSakuriBox(materials, modLabel, mod, W, H, modD, T, rules, overlap, notes);
+            // 하부장 위 수납장은 도어 내림이 목찬넬 5 · 그 밖 0 — 싱크와 같다 (2026-11-03 사장님 「모든 품목」, bomUpperOverlapOf)
+            this.addSimpleSakuriBox(materials, modLabel, mod, W, H, modD, T, rules, bomUpperOverlapOf(mod, specs), notes);
           });
 
           // ===== 하부장 모듈 — bom-protocol.md §3-1 하부장 (사쿠리 없음) · 키큰장 단은 sink.md §5.1 =====
@@ -3258,7 +3260,9 @@
             // 몸통 — 위 도어 + 아래 서랍은 두 몸통 (2026-10-25, addLowerCarcassRows)
             this.addLowerCarcassRows(materials, modLabel, W, H, T, modD, drawerLayout, !!(isWoodChannel && DrawerRules), floatH > 0 ? BOM_FLOAT_DRAWER_NOTE : '',
               false, false, isDrawer ? 0 : bomBraceCutOf(mod, W, modD, T), bomCabinetOnTop(mod) || undefined, !isDrawer && bomBraceOffOf(mod, W, T));
-            const shelf = bomSimpleShelfQtyOf(mod, rules);
+            // 서랍장은 선반이 없다 — 싱크 하부장 서랍 규칙 그대로 (2026-10-22 사장님 카드 "싱크 규칙으로 통일", extractSink 선반 조건).
+            //   플래너 구조는 서랍 모듈에도 선반(shelves)을 남겨 shelfCount 가 실려 온다 — 서랍장 몸통에 선반 한 장이 더 나갔다
+            const shelf = isDrawer ? { qty: 0, defaulted: false } : bomSimpleShelfQtyOf(mod, rules);
             this.addShelfRows(materials, modLabel, mod, W, H, T, modD, modD - T, shelf.qty, shelf.defaulted ? shelfNote : '');
             // 2026-10-29 세로칸막이 · 속서랍 (서랍장에는 없다) — 칸막이 깊이 = 지판 깊이 D
             if (!isDrawer) this.addInteriorRows(materials, modLabel, mod, W, H, T, modD, modD, (isWoodChannel && DrawerRules) ? DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : 0);

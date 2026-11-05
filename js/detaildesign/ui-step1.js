@@ -1478,6 +1478,9 @@
             });
             if (builtin) out[out.length - 1].builtinOven = true;   // 표시가 없는 모듈의 payload 는 예전과 같다
             if (_outletOf(s) && pos === 'lower') out[out.length - 1].outlet = _outletOf(s);   // 2026-11-03 콘센트 (하부장)
+            // 2026-11-04: 하부장 위 수납장 상자(오픈장 · 밥솥장 · 홈카페장) — 아래 일반 칸 분기(stackBox)보다 먼저 돌아가므로 여기서도 싣는다.
+            //   없으면 BOM 이 상부장 밑 상자를 상부 줄 모듈로 보고 상몰딩 자리를 한 번 더 세운다 (bomStackUnderUpperOf).
+            if (pos === 'upper' && s && s.stackBox === true) out[out.length - 1].stackBox = true;
             placeLast(m, 0, w);
             return;
           }
@@ -1530,6 +1533,7 @@
               ...(stacked ? { stacked: true, riceTopBatten: topBatten } : {}),
             });
             if (_outletOf(s) && pos === 'lower') out[out.length - 1].outlet = _outletOf(s);   // 2026-11-03 콘센트 (하부 밥솥장 — 밥솥)
+            if (pos === 'upper' && s && s.stackBox === true) out[out.length - 1].stackBox = true;   // 하부장 위 상자 (위 오픈장과 같은 까닭)
             placeLast(m, 0, w);
             return;
           }
@@ -1571,6 +1575,7 @@
             // 2026-10-29: 외짝 도어 경첩 방향 = 칸 열림 방향 좌 ◀ / 우 ▶ (셀 도어와 같은 2026-10-23 4-1 C — 조립 명세가 경첩 컵 자리를 그 변에)
             const hcDirs = Array.isArray(s.areaDirections) ? s.areaDirections : [];
             if (doors === 1 && (hcDirs[0] === 'left' || hcDirs[0] === 'right')) out[out.length - 1].hingeSide = hcDirs[0];
+            if (pos === 'upper' && s && s.stackBox === true) out[out.length - 1].stackBox = true;   // 하부장 위 상자 (위 오픈장과 같은 까닭)
             placeLast(m, 0, w);
             return;
           }

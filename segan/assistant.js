@@ -57,7 +57,7 @@
   var CONV_RE = /^#c=([0-9a-fA-F-]{36})$/;
   var NOTICE_SHOW = 5; // 처음 보이는 알림 카드 수 (나머지는 「모두 보기」)
   var SEEN_MAX = 50; // 워커 src/ledger/notices.js SEEN_MAX
-  // 장부 알림 종류 — 워커 src/ledger/notices.js · DB 0033 · 0036 ledger_notices.kind
+  // 장부 알림 종류 — 워커 src/ledger/notices.js · DB 0033 · 0036 · 0038 ledger_notices.kind
   var NOTICE_KIND = {
     duplicate: '중복 의심',
     large_amount: '평소와 다른 큰 금액',
@@ -67,6 +67,7 @@
     evidence_risk: '증빙 경고',
     statement_mismatch: '명세표 합계와 세금계산서가 다름',
     invoice_missing: '세금계산서가 아직 없는 명세표',
+    month_report: '지난달 회계 보고',
   };
   var NTS_NAME = {
     active: '계속 사업자',
@@ -371,6 +372,16 @@
         ' · 세금계산서 ' +
         money(d.invoice)
       );
+    if (n.kind === 'month_report')
+      return (
+        (d.month || '') +
+        ' — 매출 ' +
+        money(d.income) +
+        ' · 매입 ' +
+        money(d.expense) +
+        ' · 장부 손익 ' +
+        money(d.profit)
+      );
     if (n.kind === 'invoice_missing')
       return (
         who +
@@ -425,7 +436,7 @@
       body.textContent = noticeText(n);
       var go = document.createElement('span');
       go.className = 'as-ncard-go';
-      go.textContent = '장부에서 보기 ›';
+      go.textContent = n.kind === 'month_report' ? '보고서 보기 ›' : '장부에서 보기 ›';
       b.appendChild(top);
       b.appendChild(body);
       b.appendChild(go);
@@ -461,8 +472,16 @@
     var b = e.target && e.target.closest ? e.target.closest('[data-notice]') : null;
     if (!b) return;
     var id = b.getAttribute('data-notice');
+    var n = A.notices.filter(function (x) {
+      return x.id === id;
+    })[0];
     await markSeen([id]);
-    exported.go(LEDGER_PAGE);
+    // 월 보고 — 그 달 보고서 (ledger-report.html)
+    var month =
+      n && n.kind === 'month_report' && n.data && /^\d{4}-\d{2}$/.test(n.data.month)
+        ? n.data.month
+        : '';
+    exported.go(month ? 'ledger-report.html?month=' + month : LEDGER_PAGE);
   }
 
   // ── 주소 (#c=대화) ─────────────────────────────────────
