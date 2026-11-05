@@ -12,6 +12,9 @@
  *   ledger_notices  GET /ledger/notices          장부 알림 — 중복 · 큰 금액 · 단가 · 새 거래처 · 휴업/폐업 · 증빙 (대표 · 실장).
  *                                                숫자는 서버(DB 0033)가 센 값 그대로 — 비서는 설명만 한다
  *   today_brief     GET /brief/today             아침 브리핑 — 오늘 볼 것 · 단계 현황 · 작업 진행 (역할에 없는 칸은 서버가 null)
+ *   list_designs    GET /company/designs         업체 설계 — 이름 · 이은 프로젝트 · 수주 여부 (설계 잇기 카드가 고를 설계)
+ *
+ * 승인 카드 도구(propose_* · draft_customer_message)는 src/actions.js — 바꾸는 일은 카드로만, 실행은 사람이 승인할 때.
  *
  * 결과는 필요한 칸만 골라 줄인다 — 고객 전화 · 이메일 · 사진 주소는 싣지 않는다 (Claude 에 보낼 까닭이 없다).
  * 직원이면 workflow-api 가 빼지 않는 견적 합(quote_total)도 뺀다. 결과 글은 RESULT_MAX 자를 넘지 않는다.
@@ -21,11 +24,20 @@
  * eager_input_streaming 은 켜지 않는다 — 입력이 몇 글자라 미리 흘려받을 것이 없고, strict 의 검사를 그대로 받는다.
  */
 
+import {
+  actionToolDefs,
+  actionToolLabel,
+  isActionTool,
+  proposeAction,
+  ActionError,
+} from './actions.js';
+
 export const CONSULTS_MAX = 50;
 export const PROJECTS_MAX = 100;
 export const ORDERS_MAX = 100;
 export const LEDGER_ROWS_MAX = 80;
 export const NOTICES_MAX = 30;
+export const DESIGNS_MAX = 100;
 export const RESULT_MAX = 30_000;
 export const ORDER_STATUSES = Object.freeze([
   'confirmed',
@@ -144,6 +156,13 @@ const TOOLS = [
     input_schema: NO_INPUT,
   },
   {
+    name: 'list_designs',
+    label: '설계 목록 보는 중',
+    money: false,
+    description: `업체 설계 목록(최근 고친 순 ${DESIGNS_MAX}개): 이름 · 이은 프로젝트 id · 수주가 생겼나. 수주가 생긴 설계는 프로젝트를 바꾸지 못한다.`,
+    input_schema: NO_INPUT,
+  },
+  {
     name: 'today_brief',
     label: '오늘 브리핑 보는 중',
     money: false,
@@ -160,17 +179,19 @@ const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
 
 /** Messages API tools — 대화를 시작한 사람의 역할로 한 번 정하고 대화 내내 그대로 보낸다 */
 export function toolDefs({ money }) {
-  return TOOLS.filter((t) => money || !t.money).map((t) => ({
-    name: t.name,
-    description: t.description,
-    input_schema: t.input_schema,
-    strict: true,
-  }));
+  return TOOLS.filter((t) => money || !t.money)
+    .map((t) => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.input_schema,
+      strict: true,
+    }))
+    .concat(actionToolDefs({ money }));
 }
 
 export function toolLabel(name) {
   const t = BY_NAME.get(name);
-  return t ? t.label : '자료 보는 중';
+  return t ? t.label : actionToolLabel(name) || '자료 보는 중';
 }
 
 /** 입력 다시 확인 → 고친 입력 (틀리면 ToolError) */
@@ -433,6 +454,21 @@ async function todayBrief(env, token) {
   };
 }
 
+async function listDesigns(env, token) {
+  const data = (await wf(env, token, '/company/designs')) || {};
+  const items = Array.isArray(data.items) ? data.items : [];
+  return {
+    total: items.length,
+    items: items.slice(0, DESIGNS_MAX).map((d) => ({
+      id: d.id,
+      name: clip(d.name, 100),
+      project_id: d.project_id || null,
+      updated_at: d.updated_at || null,
+      has_order: d.has_order === true,
+    })),
+  };
+}
+
 async function ledgerPhotos(env, token) {
   const data = (await wf(env, token, '/ledger/documents?limit=100')) || {};
   const items = Array.isArray(data.items) ? data.items : [];
@@ -463,6 +499,7 @@ const RUN = {
   ledger_photos: ledgerPhotos,
   ledger_notices: ledgerNotices,
   today_brief: todayBrief,
+  list_designs: listDesigns,
 };
 
 /** 결과 → 글 (RESULT_MAX 를 넘으면 목록을 반씩 줄인다) */
@@ -482,10 +519,24 @@ export function resultText(value) {
 
 /**
  * tool_use 블록 하나 → tool_result 블록. 던지지 않는다 — 실패는 is_error 결과로.
- * @param {{ token: string, money: boolean, allowed: Set<string> }} ctx allowed: 이 대화의 도구 이름
+ * 카드 도구면 블록에 card(화면에 보일 카드)를 붙인다 — 부른 쪽이 사건으로 보내고 떼어 낸다 (Claude 에 보내지 않는다).
+ * @param {{ token: string, money: boolean, allowed: Set<string>, conversationId?, companyId?, userId? }} ctx allowed: 이 대화의 도구 이름
  */
 export async function runTool(env, block, ctx) {
   const base = { type: 'tool_result', tool_use_id: block.id };
+  if (isActionTool(block.name)) {
+    try {
+      if (!ctx.allowed.has(block.name))
+        throw new ActionError(`이 대화에서 쓸 수 없는 도구입니다: ${block.name}`);
+      const { value, view } = await proposeAction(env, block.name, block.input, ctx);
+      return { ...base, content: resultText(value), card: view };
+    } catch (e) {
+      const message = e instanceof ActionError ? e.message : '카드를 만들지 못했습니다';
+      if (!(e instanceof ActionError))
+        console.error('[assistant] action tool failed:', block.name, e && e.message);
+      return { ...base, content: message, is_error: true };
+    }
+  }
   try {
     if (!ctx.allowed.has(block.name) || !RUN[block.name])
       throw new ToolError(`이 대화에서 쓸 수 없는 도구입니다: ${block.name}`);

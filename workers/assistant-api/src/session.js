@@ -16,7 +16,8 @@
  * 사건 (n 은 이 대화 안에서 1부터 늘어난다. 최근 EVENT_KEEP 개만 둔다)
  *   사건 줄은 끊긴 화면이 이어 받는 데만 쓴다 — 차례가 끝나고 EVENT_TTL_MS 뒤 알람이 모두 지운다(번호 lastN 은 남긴다).
  *   답 글은 assistant_messages 에 있으므로 객체에는 개인 정보가 오래 남지 않는다 (90일 보관은 src/retention.js).
- *   start { turn } · text { turn, text } · tool { turn, name, label } · done { turn, stop_reason }
+ *   start { turn } · text { turn, text } · tool { turn, name, label } · card { turn, action } · done { turn, stop_reason }
+ *     card — 승인 카드 · 연락 초안을 만들었다 (src/actions.js actionView). 승인 · 거절은 워커 주소로 한다 (사건 없음)
  *   끝 — blocked { turn, reason } · refused { turn } · error { turn, code, message }
  *     blocked reason: not_entitled · conversation_full · no_limit · over_limit · off (예산 함수의 이유 그대로)
  *
@@ -42,6 +43,7 @@ import { audit } from './audit.js';
 import { claudeClient, buildRequest, historyOf, textOf, isTurnStart } from './claude.js';
 import { systemPrompt, loadPlaybooks, contextBlock } from './prompt.js';
 import { toolDefs, toolLabel, runTool } from './tools.js';
+import { conversationActions, actionsContext } from './actions.js';
 
 export const EVENT_KEEP = 500;
 export const STREAM_MS = 55_000;
@@ -239,7 +241,19 @@ export class AssistantSession {
     const frame = await this.frame(cur);
     const allowed = new Set(frame.tools.map((t) => t.name));
     const history = historyOf(rows);
-    const added = [{ role: 'user', content: [contextBlock(), { type: 'text', text: cur.text }] }];
+    // 이 대화의 카드 상태 — 사람이 승인 · 거절한 결과를 비서가 알게 맥락 블록에 싣는다 (못 읽으면 카드 없이)
+    const cards = await conversationActions(env, cur.conversationId)
+      .then(actionsContext)
+      .catch((e) => {
+        console.error('[assistant] actions read failed:', e && e.message);
+        return [];
+      });
+    const added = [
+      {
+        role: 'user',
+        content: [contextBlock(Date.now(), cards), { type: 'text', text: cur.text }],
+      },
+    ];
     const started = Date.now();
     const sum = { input_tokens: 0, output_tokens: 0, cost_micros: 0, calls: 0, tools: 0 };
     let rounds = 0;
@@ -308,7 +322,19 @@ export class AssistantSession {
         }
         await this.emit('tool', { turn: cur.turn, name: b.name, label: toolLabel(b.name) });
         sum.tools += 1;
-        results.push(await runTool(env, b, { token, money: cur.money, allowed }));
+        const r = await runTool(env, b, {
+          token,
+          money: cur.money,
+          allowed,
+          conversationId: cur.conversationId,
+          companyId: cur.companyId,
+          userId: cur.userId,
+        });
+        if (r.card) {
+          await this.emit('card', { turn: cur.turn, action: r.card });
+          delete r.card;
+        }
+        results.push(r);
       }
       rounds += 1;
       added.push({ role: 'user', content: results });
