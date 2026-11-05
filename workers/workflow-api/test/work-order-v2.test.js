@@ -465,14 +465,16 @@ test('① 표지 — 렌더가 없으면 자리표시, 경로는 있는데 서�
   assert.ok(unsigned.includes('렌더를 불러올 수 없음'));
 });
 
-test('② 키팅 — 품목 → 모듈 묶음, partId·마감 칩·엣지 도식·그 모듈의 경첩', () => {
+test('② 키팅 — 품목 → 모듈 묶음, 라벨 번호·마감 칩·엣지 도식·그 모듈의 경첩', () => {
   const groups = groupByItemModule(fx.materials());
   assert.equal(groups.length, 1);
   assert.deepEqual(groups[0].modules.map((m) => m.module), ['하부장-개수대', '상부장-후드장']);
 
   const html = renderWorkOrder(fx.doc(), fx.snapshot());
   assert.ok(html.includes('② 모듈별 키팅 — 싱크대'));
-  assert.ok(html.includes('<span class="mono">0-l1-body:side-0</span>'));
+  // 라벨 번호 (수량 2 = 이어진 번호), 부재 ID 는 data-pid 에만
+  assert.ok(html.includes('<td class="num"><span data-pid="0-l1-body:side-0">1–2</span></td><td>측판</td>'));
+  assert.ok(!html.includes('<span class="mono">0-l1-body:side-0</span>'));
   assert.ok(html.includes('class="edge-svg"'));
   assert.ok(html.includes('PET 18T'));
   // 개수대 모듈 블록 안에 개수대 경첩이, 후드장 블록 안에 후드장 경첩이 있다

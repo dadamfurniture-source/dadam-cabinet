@@ -10,7 +10,7 @@
  *
  * v2 (B5, 계획 §4.6 · §5 B5) — 같은 work_order 문서에 섹션을 더했다:
  *   ① 표지: 기존 + 품목별 정면 렌더 + 색 스와치 범례
- *   ② 모듈별 키팅 시트 (partId · 치수 · 마감 칩 · 엣지 면 도식 · 그 모듈의 철물)
+ *   ② 모듈별 키팅 시트 (라벨 번호 · 치수 · 마감 칩 · 엣지 면 도식 · 그 모듈의 철물)
  *   ③ 시트별 재단표 (배치 SVG 축소판 + 부재 표 + 잔재)
  *   ④ 철물·체결구 (기존)
  *   ⑤ (꾸러미 개편에서 ⑩ 로 옮김 — 보링 공정이 없고 컵 보링은 도어 외주처가 한다)
@@ -120,6 +120,8 @@ function buildContext(doc, snapshot, renderUrls) {
     isV2: Number(rp.work_order_version) >= 2,
     labor: rp.labor && typeof rp.labor === 'object' ? rp.labor : null, // 없으면(옛 문서) 예상 시간 생략
     rowById: new Map(materials.map((m, i) => [partIdOf(m, i), { row: m, index: i }])),
+    // 조각 id → 라벨 번호 — 표에는 긴 부재 ID 대신 이 번호 (부재 ID 는 라벨 QR · CSV · 재단 배치에 그대로)
+    labelNo: labelNumbers(materials),
     // 작업자 필수 확인 — 발행 때 고정한 판 (없으면 옛 문서 v0, src/work/check-items.js)
     checkList: checkListOfDoc(doc),
   };
@@ -588,12 +590,47 @@ function hardwareModuleName(h) {
   return null;
 }
 
+/** 라벨 번호 목록 → 글 (12 · 12–14 · 3, 7–9). 이어진 번호는 줄인다. */
+function labelRunsText(nos) {
+  const sorted = [...new Set(nos)].sort((a, b) => a - b);
+  const runs = [];
+  for (const n of sorted) {
+    const last = runs[runs.length - 1];
+    if (last && n === last[1] + 1) last[1] = n;
+    else runs.push([n, n]);
+  }
+  return runs.map(([a, b]) => (a === b ? num(a) : `${num(a)}–${num(b)}`)).join(', ');
+}
+
+/** 라벨 칸 — 보이는 것은 번호, 부재 ID 는 data-pid 에만 (인쇄에 안 나오고 찾기 · 시험이 쓴다) */
+function labelNoCell(text, pid) {
+  return `<span data-pid="${esc(pid)}">${text}</span>`;
+}
+
+/** 자재 행의 라벨 칸 — 낱개(`partId#k`)마다 번호 하나. ks 를 주면 그 낱개만 (배치에 없는 부재). */
+function rowLabelText(ctx, m, index, ks = null) {
+  const base = partIdOf(m, index);
+  const list = ks || Array.from({ length: qtyOf(m) }, (_, k) => k);
+  return labelNoCell(labelRunsText(list.map((k) => ctx.labelNo.get(`${base}#${k}`)).filter(Boolean)), base);
+}
+
+/** 조각 id 들 (`partId#k`, 소부품은 partId + 수량) → 라벨 칸 */
+function pieceLabelText(ctx, ids, qty = 0) {
+  const nos = [];
+  for (const raw of ids) {
+    const id = String(raw || '');
+    if (ctx.labelNo.has(id)) nos.push(ctx.labelNo.get(id));
+    else for (let k = 0; k < qty; k++) { const n = ctx.labelNo.get(`${id}#${k}`); if (n) nos.push(n); }
+  }
+  return labelNoCell(labelRunsText(nos), ids.join(' '));
+}
+
 function partsTable(ctx, rows) {
   const body = rows
     .map(({ row: m, index }) =>
       tr(
         [
-          `<span class="mono">${esc(partIdOf(m, index))}</span>`,
+          rowLabelText(ctx, m, index),
           esc(m.part || ''),
           `${esc(m.material || '')} ${num(m.thickness)}T`,
           `${num(m.w)} × ${num(m.h)}`,
@@ -602,13 +639,13 @@ function partsTable(ctx, rows) {
           edgeCell(m),
           esc(m.note || ''),
         ],
-        ['', '', '', 'num', 'num', '', '', ''],
+        ['num', '', '', 'num', 'num', '', '', ''],
       ),
     )
     .join('');
   return `<table class="compact">${thead(
-    ['partId', '부품', '자재', '가로 × 세로', '수량', '마감', '엣지', '비고'],
-    ['', '', '', 'num', 'num', '', '', ''],
+    ['라벨', '부품', '자재', '가로 × 세로', '수량', '마감', '엣지', '비고'],
+    ['num', '', '', 'num', 'num', '', '', ''],
   )}<tbody>${body}</tbody></table>`;
 }
 
@@ -771,8 +808,7 @@ function cutSheetBlock(ctx, sheet, labelNo) {
       const no = labelNo.get(p.partId);
       return tr(
         [
-          no ? num(no) : '',
-          `<span class="mono">${esc(p.partId || '')}</span>`,
+          labelNoCell(no ? num(no) : '', p.partId || ''),
           esc(p.part || ''),
           `${num(p.w)} × ${num(p.h)}`,
           num(p.x),
@@ -781,7 +817,7 @@ function cutSheetBlock(ctx, sheet, labelNo) {
           m ? `${edgeSvg(rowEdges(m))}${edgeText(m)}` : '<span class="muted">행 미확인</span>',
           m ? esc(m.note || '') : '',
         ],
-        ['num', '', '', 'num', 'num', 'num', '', '', ''],
+        ['num', '', 'num', 'num', 'num', '', '', ''],
       );
     })
     .join('');
@@ -802,18 +838,18 @@ function cutSheetBlock(ctx, sheet, labelNo) {
   <div class="cut-sheet">
     <div class="cut-svg">${svg}</div>
     <div class="cut-parts">
-      <table class="compact">${thead(['라벨', 'partId', '부품', 'w × h', 'x', 'y', '회전', '엣지 (두께 · 변 길이×개수)', '비고'], ['num', '', '', 'num', 'num', 'num', '', '', ''])}<tbody>${rows}</tbody></table>
+      <table class="compact">${thead(['라벨', '부품', 'w × h', 'x', 'y', '회전', '엣지 (두께 · 변 길이×개수)', '비고'], ['num', '', 'num', 'num', 'num', '', '', ''])}<tbody>${rows}</tbody></table>
     </div>
   </div>`;
 }
 
-/** 배치가 없을 때의 폴백 — 자재 재단 목록 (+ 엣지). */
+/** 배치가 없을 때의 폴백 — 자재 재단 목록 (+ 엣지). ks = 그 행에서 실을 낱개 (배치에 없는 부재), 없으면 전부. */
 function flatMaterialTable(ctx, rows) {
   const body = rows
-    .map(({ row: m, index }) =>
+    .map(({ row: m, index, ks }) =>
       tr(
         [
-          `<span class="mono">${esc(partIdOf(m, index))}</span>`,
+          rowLabelText(ctx, m, index, ks),
           esc(m.itemLabel || ''),
           esc(m.module || ''),
           esc(m.part || ''),
@@ -825,13 +861,13 @@ function flatMaterialTable(ctx, rows) {
           `${edgeSvg(rowEdges(m))}${edgeText(m)}`,
           esc(m.note || ''),
         ],
-        ['', '', '', '', '', 'num', 'num', 'num', 'num', '', ''],
+        ['num', '', '', '', '', 'num', 'num', 'num', 'num', '', ''],
       ),
     )
     .join('');
   return `<table class="compact">${thead(
-    ['partId', '품목', '모듈', '부품', '자재', '두께', '가로', '세로', '수량', '엣지', '비고'],
-    ['', '', '', '', '', 'num', 'num', 'num', 'num', '', ''],
+    ['라벨', '품목', '모듈', '부품', '자재', '두께', '가로', '세로', '수량', '엣지', '비고'],
+    ['num', '', '', '', '', 'num', 'num', 'num', 'num', '', ''],
   )}<tbody>${body}</tbody></table>`;
 }
 
@@ -938,7 +974,7 @@ function cutSheets(ctx, { vendor = false } = {}) {
   const smallRows = smalls
     .map((s) => {
       const hit = ctx.rowById.get(s.partId);
-      return tr([`<span class="mono">${esc(s.partId || '')}</span>`, esc(s.part || ''), `${esc(s.material || '')} ${num(s.thickness)}T`, `${num(s.w)} × ${num(s.h)}`, num(s.qty), hit ? edgeText(hit.row) : '', hit ? esc(hit.row.note || '') : ''], ['', '', '', 'num', 'num', '', '']);
+      return tr([pieceLabelText(ctx, [s.partId], qtyOf(s)), esc(s.part || ''), `${esc(s.material || '')} ${num(s.thickness)}T`, `${num(s.w)} × ${num(s.h)}`, num(s.qty), hit ? edgeText(hit.row) : '', hit ? esc(hit.row.note || '') : ''], ['num', '', '', 'num', 'num', '', '']);
     })
     .join('');
   const missingRows = uncoveredInHouse(ctx.materials, plan);
@@ -948,7 +984,7 @@ function cutSheets(ctx, { vendor = false } = {}) {
     return !(ids.length && ids.every((id) => isOutsourcedCutRow(rowOfPiece(ctx, { partId: id }))));
   });
   const unRows = unalloc
-    .map((u) => tr([esc(Array.isArray(u.partIds) ? u.partIds.join(', ') : ''), esc(Array.isArray(u.parts) ? u.parts.join(', ') : ''), `${esc(u.material || '')} ${num(u.thickness)}T`, `${num(u.w)} × ${num(u.h)}`, num(u.qty)], ['', '', '', 'num', 'num']))
+    .map((u) => tr([pieceLabelText(ctx, Array.isArray(u.partIds) ? u.partIds : []), esc(Array.isArray(u.parts) ? u.parts.join(', ') : ''), `${esc(u.material || '')} ${num(u.thickness)}T`, `${num(u.w)} × ${num(u.h)}`, num(u.qty)], ['num', '', '', 'num', 'num']))
     .join('');
 
   return `
@@ -958,10 +994,10 @@ function cutSheets(ctx, { vendor = false } = {}) {
   ${doorNote}
   ${vendor ? '' : orderChecksBlock(ctx, 'cut')}${sheets.map((s) => cutSheetBlock(ctx, s, labelNo)).join('')}
   ${offRows ? `<div class="sub-title">잔재 (60mm 이상)</div><table class="compact">${thead(['시트', '종류', 'w × h', 'x', 'y', '남는 쪽'], ['num', '', 'num', 'num', 'num', 'num'])}<tbody>${offRows}</tbody></table>` : ''}
-  ${smallRows ? `<div class="sub-title">소부품 (원판 미배치 — 잔재에서 뽑는다)</div><table class="compact">${thead(['partId', '부품', '자재', 'w × h', '수량', '엣지', '비고'], ['', '', '', 'num', 'num', '', ''])}<tbody>${smallRows}</tbody></table>` : ''}
-  ${unRows ? `<div class="sub-title">미배치 (원판 초과)</div><div class="warn">원판보다 큰 부재가 있다 — 별도 재단.</div><table class="compact">${thead(['partId', '부품', '자재', 'w × h', '수량'], ['', '', '', 'num', 'num'])}<tbody>${unRows}</tbody></table>` : ''}
+  ${smallRows ? `<div class="sub-title">소부품 (원판 미배치 — 잔재에서 뽑는다)</div><table class="compact">${thead(['라벨', '부품', '자재', 'w × h', '수량', '엣지', '비고'], ['num', '', '', 'num', 'num', '', ''])}<tbody>${smallRows}</tbody></table>` : ''}
+  ${unRows ? `<div class="sub-title">미배치 (원판 초과)</div><div class="warn">원판보다 큰 부재가 있다 — 별도 재단.</div><table class="compact">${thead(['라벨', '부품', '자재', 'w × h', '수량'], ['num', '', '', 'num', 'num'])}<tbody>${unRows}</tbody></table>` : ''}
   ${outsourcedBlock}
-  ${missingRows.length ? `<div class="sub-title">배치에 없는 부재</div><div class="warn">재단 배치와 자재표가 어긋난다 (스냅샷 재발행 권장) — 아래 부재는 목록대로 따로 재단.</div>${flatMaterialTable(ctx, missingRows.map(({ row, index, missing }) => ({ row: { ...row, qty: missing.length }, index })))}` : ''}
+  ${missingRows.length ? `<div class="sub-title">배치에 없는 부재</div><div class="warn">재단 배치와 자재표가 어긋난다 (스냅샷 재발행 권장) — 아래 부재는 목록대로 따로 재단.</div>${flatMaterialTable(ctx, missingRows.map(({ row, index, missing }) => ({ row: { ...row, qty: missing.length }, index, ks: missing })))}` : ''}
   ${totalsBlock}
 </div>`;
 }
@@ -1090,7 +1126,8 @@ function diffSheet(ctx) {
   const d = p.diff || { added: [], removed: [], changed: [] };
   const partRow = (r) =>
     tr([`<span class="mono">${esc(r.partId || r.key || '')}</span>`, esc(r.itemLabel || ''), esc(r.module || ''), esc(r.part || ''), `${num(r.w)} × ${num(r.h)} × ${num(r.thickness)}`, num(r.qty), esc(r.finishCode || '-')], ['', '', '', '', 'num', 'num', '']);
-  const head = thead(['partId', '품목', '모듈', '부품', 'w × h × t', '수량', '마감'], ['', '', '', '', 'num', 'num', '']);
+  // rev 차이는 부재 ID 그대로 — 라벨 번호는 rev 마다 다시 매겨져 두 rev 를 잇지 못한다
+  const head = thead(['부재 ID', '품목', '모듈', '부품', 'w × h × t', '수량', '마감'], ['', '', '', '', 'num', 'num', '']);
   const changedRows = (d.changed || [])
     .map((r) =>
       tr([
@@ -1110,7 +1147,7 @@ function diffSheet(ctx) {
   ${nothing ? '<div class="muted" style="margin-top:6pt">부재 변경 없음</div>' : ''}
   ${(d.added || []).length ? `<div class="sub-title">추가 (${num(d.added.length)})</div><table class="compact">${head}<tbody>${d.added.map(partRow).join('')}</tbody></table>` : ''}
   ${(d.removed || []).length ? `<div class="sub-title">삭제 (${num(d.removed.length)})</div><table class="compact">${head}<tbody>${d.removed.map(partRow).join('')}</tbody></table>` : ''}
-  ${(d.changed || []).length ? `<div class="sub-title">변경 (${num(d.changed.length)})</div><table class="compact">${thead(['partId', '모듈', '부품', '변경'])}<tbody>${changedRows}</tbody></table>` : ''}
+  ${(d.changed || []).length ? `<div class="sub-title">변경 (${num(d.changed.length)})</div><table class="compact">${thead(['부재 ID', '모듈', '부품', '변경'])}<tbody>${changedRows}</tbody></table>` : ''}
 </div>`;
 }
 
@@ -1255,7 +1292,7 @@ function doorOrderSheet(ctx) {
           const b = boringById.get(pid);
           return tr(
             [
-              `<span class="mono">${esc(pid)}</span>`,
+              rowLabelText(ctx, m, index),
               `${esc(m.itemLabel || '')} · ${esc(moduleNameOf(m.module) || m.module || '')}`,
               esc(m.part || ''),
               `${num(m.w)} × ${num(m.h)} × ${num(m.thickness)}`,
@@ -1264,13 +1301,13 @@ function doorOrderSheet(ctx) {
               b ? `${num(b.count)}구 · ${esc(b.positions.join(', '))}${b.side === 'top' ? ' <span class="muted">(플랩 — 천판 쪽 폭 변)</span>' : ''}${b.warn ? ` <span class="warn">${esc(b.warn)}</span>` : ''}`
                 : isMaidaRow(ctx.materials, m, ctx.hardware) ? '<span class="muted">마이다 — 보링 없음</span>' : '',
             ],
-            ['', '', '', 'num', 'num', '', ''],
+            ['num', '', '', 'num', 'num', '', ''],
           );
         })
         .join('');
       return `
   <div class="sub-title">${head} <span class="muted">${num(list.length)}종 · ${num(pieces)}장</span></div>
-  <table class="compact">${thead(['partId', '품목 · 모듈', '부품', '가로 × 세로 × 두께', '수량', '엣지', '경첩 컵 (상단 기준 mm)'], ['', '', '', 'num', 'num', '', ''])}<tbody>${body}</tbody></table>`;
+  <table class="compact">${thead(['라벨', '품목 · 모듈', '부품', '가로 × 세로 × 두께', '수량', '엣지', '경첩 컵 (상단 기준 mm)'], ['num', '', '', 'num', 'num', '', ''])}<tbody>${body}</tbody></table>`;
     })
     .join('');
 

@@ -140,7 +140,9 @@ test('cut — 배치에 없는 사내 부재는 빠뜨리지 않고 따로 싣�
   assert.deepEqual(miss.map((m) => [partIdOfRow(m), m.missing]), [['0-l1-back-0', [0]]]);
   const html = render('cut');
   assert.ok(html.includes('배치에 없는 부재'));
-  assert.ok(html.includes('<span class="mono">0-l1-back-0</span>'));
+  // 표에는 라벨 번호 (부재 ID 는 data-pid 에만 — 2026-11-05 긴 부재 ID 칸을 뺐다)
+  assert.ok(html.includes('<span data-pid="0-l1-back-0">4</span>'));
+  assert.ok(!html.includes('<span class="mono">0-l1-back-0</span>'));
 
   const plan = fx.cutPlan();
   plan.sheets.push({ no: 3, material: 'MDF', thickness: 2.7, partClass: '뒷판', size: { w: 1220, h: 2440 }, trim: 10, parts: [{ partId: '0-l1-back-0#0', part: '뒷판', w: 970, h: 705, x: 10, y: 10, rot: false }], yield: 0.2 });
@@ -236,7 +238,7 @@ test('labels — 라벨만, 사내 먼저 · 재단표와 같은 번호', () => 
   assert.equal(nums.get('0-l1-back-0#0'), 4);
   assert.equal(nums.get('0-l1-door#0-0#0'), 5);
   const cut = render('cut');
-  assert.ok(cut.includes('<td class="num">1</td><td><span class="mono">0-l1-body:side-0#0</span>'), '재단표의 라벨 칸');
+  assert.ok(cut.includes('<td class="num"><span data-pid="0-l1-body:side-0#0">1</span></td><td>측판</td>'), '재단표의 라벨 칸 — 번호만 보이고 조각 id 는 data-pid');
 });
 
 test('all — 전체 문서는 표지 + 모든 섹션, 표지에 사내/도어재 시트와 예상 시간', () => {
