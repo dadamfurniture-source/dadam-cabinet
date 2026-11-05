@@ -51,6 +51,7 @@ function expectedInstances(materials) {
   const ids = [];
   materials.forEach((m, i) => {
     if (!(m.w > 70 && m.h > 70) || !(m.qty > 0)) return;
+    if (NestingEngine.isOutsourcedTop(m)) return; // 석재 상판은 skipped (2026-11-05)
     const base = m.partId != null && m.partId !== '' ? String(m.partId) : `row-${i}`;
     for (let k = 0; k < Math.round(m.qty); k++) ids.push(`${base}#${k}`);
   });
@@ -96,7 +97,9 @@ describe('NestingEngine.plan — 골든 자재 (sink15)', () => {
 
   test('수량 보존 — 원판 대상 partId#k 가 정확히 한 번씩 (배치 + 미배치)', () => {
     expect(placedInstances(plan)).toEqual(expectedInstances(SINK));
-    // 미배치는 원판보다 큰 것뿐 (걸레받이 3500 · 상판 4130)
+    // 석재 상판은 배치하지 않고 skipped — 원판 대상 + skipped = 전부
+    expect(plan.skipped.map((s) => s.partId)).toEqual(SINK.filter((m) => NestingEngine.isOutsourcedTop(m)).map((m) => m.partId));
+    // 미배치는 원판보다 큰 것뿐 (걸레받이 3500)
     plan.unallocated.forEach((u) => expect(Math.max(u.w, u.h)).toBeGreaterThan(1220 - 20));
     expect(plan.summary.partsPlaced + plan.summary.unallocatedCount).toBe(plan.summary.partsTotal);
   });
@@ -239,10 +242,37 @@ describe('NestingEngine.plan — 옵션', () => {
   });
 
   test('원판보다 큰 부재는 unallocated 에 partIds·parts 와 함께 남는다', () => {
-    const plan = NestingEngine.plan([{ partId: 'big', part: '상판', material: '인조대리석', thickness: 12, w: 4000, h: 600, qty: 1 }]);
+    const plan = NestingEngine.plan([{ partId: 'big', part: '상판', material: 'MDF', thickness: 18, w: 4000, h: 600, qty: 1 }]);
     expect(plan.sheets).toEqual([]);
     expect(plan.unallocated).toEqual([expect.objectContaining({ partIds: ['big#0'], parts: ['상판'], qty: 1 })]);
-    expect(plan.summary.sheetsByMaterial).toEqual({ '인조대리석_12': 0 });
+    expect(plan.summary.sheetsByMaterial).toEqual({ 'MDF_18': 0 });
+  });
+
+  test('석재 상판(인조대리석 · 엔지니어드 스톤 · 세라믹)은 배치하지 않고 skipped 로 — 상판 업체 발주 (2026-11-05)', () => {
+    const plan = NestingEngine.plan([
+      { partId: 'top-a', slot: 'top', part: '상판', material: '인조대리석', thickness: 12, w: 1000, h: 650, qty: 1 },
+      { partId: 'top-b', part: '상판', material: '세라믹', thickness: 12, w: 1050, h: 650, qty: 1 },
+      { partId: 'top-c', slot: 'top', part: '상판', material: '엔지니어드 스톤', thickness: 20, w: 4000, h: 650, qty: 1 },
+      { partId: 'top-m', slot: 'top', part: '상판', material: 'MDF', thickness: 18, w: 1000, h: 600, qty: 1 },
+    ]);
+    expect(plan.skipped.map((s) => [s.partId, s.reason])).toEqual([['top-a', 'outsourced-top'], ['top-b', 'outsourced-top'], ['top-c', 'outsourced-top']]);
+    expect(plan.summary.skippedCount).toBe(3);
+    expect(plan.unallocated).toEqual([]);
+    expect(plan.sheets.flatMap((s) => s.parts.map((p) => p.partId))).toEqual(['top-m#0']);
+    expect(NestingEngine.isOutsourcedTop({ part: '측판', material: '인조대리석' })).toBe(false);
+  });
+
+  test('5T 이상 뒷판은 같은 두께 몸통 판과 한 원장 — 얇은 뒷판 · 서랍밑판은 그대로 따로 (2026-11-05)', () => {
+    const plan = NestingEngine.plan([
+      { partId: 'side', part: '측판', material: 'MDF', thickness: 18, w: 550, h: 500, qty: 2 },
+      { partId: 'back18', part: '뒷판', material: 'MDF', thickness: 18, w: 414, h: 200, qty: 1 },
+      { partId: 'back3', part: '뒷판', material: 'MDF', thickness: 3, w: 970, h: 705, qty: 1 },
+    ]);
+    const classes = plan.sheets.map((s) => [s.material, s.thickness, s.partClass, s.parts.map((p) => p.partId).sort().join(',')]);
+    expect(classes).toEqual([
+      ['MDF', 3, '뒷판', 'back3#0'],
+      ['MDF', 18, '본체', 'back18#0,side#0,side#1'],
+    ]);
   });
 
   test('partId 가 없는 행은 row-<index> 로, 잘못된 행(치수 0·qty 0)은 건너뛴다', () => {
@@ -264,6 +294,12 @@ describe('NestingEngine.plan — 옵션', () => {
     expect(NestingEngine.partClassOf('걸레받이')).toBe('도어');
     expect(NestingEngine.partClassOf('측판')).toBe('본체');
     expect(NestingEngine.partClassOf('')).toBe('본체');
+    // 두께 — 5T 이상 뒷판은 몸통 (오픈 상자 · 밥솥장 18T 뒷판), 두께를 모르면 이름만
+    expect(NestingEngine.partClassOf('뒷판', 3)).toBe('뒷판');
+    expect(NestingEngine.partClassOf('서랍밑판', 3)).toBe('뒷판');
+    expect(NestingEngine.partClassOf('뒷판', 18)).toBe('본체');
+    expect(NestingEngine.partClassOf('뒷판', 15)).toBe('본체');
+    expect(NestingEngine.partClassOf('도어', 18)).toBe('도어');
   });
 });
 

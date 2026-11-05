@@ -96,12 +96,24 @@ function numOrNull(v) {
  * (시험이 두 함수를 대조한다). '도어' 그룹(도어·몰딩·걸레받이·목찬넬·마감)은 도어 외주로 가고,
  * '본체'·'뒷판' 은 사내 재단이다.
  */
-export function partClassOf(partName) {
+export function partClassOf(partName, thickness) {
   const s = String(partName || '');
   if (/도어/.test(s)) return '도어';
-  if (/뒷판|서랍밑판/.test(s)) return '뒷판';
+  // 5T 이상 뒷판(오픈 상자 · 밥솥장 18T 뒷판)은 몸통 원장 — 2026-11-05 사장님 (엔진 THIN_BACK_LIMIT 와 같다)
+  if (/뒷판|서랍밑판/.test(s)) return Number(thickness) >= 5 ? '본체' : '뒷판';
   if (/몰딩|걸레받이|목찬넬|마감/.test(s)) return '도어';
   return '본체';
+}
+
+/**
+ * 상판 업체에 발주하는 석재 상판 — 사내 재단 · 라벨에서 뺀다 (엔진 nesting-engine.js isOutsourcedTop 과 같은 규칙,
+ * 2026-11-05 사장님 「석재 상판은 사내 재단 원장에서 뺀다」). MDF · PB 상판은 사내 재단 그대로. 발주는 상판 발주 요청서.
+ */
+export const OUTSOURCED_TOP_MATERIALS = Object.freeze(['인조대리석', '엔지니어드 스톤', '세라믹']);
+export function isOutsourcedTopRow(row) {
+  if (!row) return false;
+  const isTop = row.slot === 'top' || String(row.part || '') === '상판';
+  return isTop && OUTSOURCED_TOP_MATERIALS.includes(String(row.material || '').trim());
 }
 
 export function isDoorClass(row) {
@@ -424,7 +436,8 @@ export async function gatherWorkOrderPayload(env, { designId, snapshot }) {
 /** 문서 totals 에 더할 수량 — 시트 수(배치 있을 때)와 라벨 수(Σ qty). */
 export function workOrderTotals(snapshot, cutPlan) {
   const materials = materialsOf(snapshot);
-  const labelCount = materials.reduce((s, m) => s + Math.max(0, Math.round(numOrNull(m.qty) || 0)), 0);
+  // 석재 상판은 상판 업체가 가져와 라벨을 붙이지 않는다
+  const labelCount = materials.filter((m) => !isOutsourcedTopRow(m)).reduce((s, m) => s + Math.max(0, Math.round(numOrNull(m.qty) || 0)), 0);
   const sheetCount = cutPlan && Array.isArray(cutPlan.sheets)
     ? cutPlan.sheets.length
     : (snapshot && Number.isFinite(Number(snapshot.sheet_count)) && snapshot.sheet_count !== null

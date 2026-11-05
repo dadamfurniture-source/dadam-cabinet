@@ -50,6 +50,7 @@ import {
   partClassOf,
   isDoorClass,
   isOutsourcedCutRow,
+  isOutsourcedTopRow,
   pieceBaseId,
 } from '../work-order-data.js';
 import { laborEstimate, fmtMinutes } from '../labor-standards.js';
@@ -161,9 +162,9 @@ function isDrawerFrontRow(m) {
 }
 
 /** 꾸러미 머리 숫자의 재료 — 사내/도어재 시트·행, 통·서랍·도어 수. (순수, 시험용으로 노출) */
-/** 사내에서 자르는 행 — 도어재(외주)와 밥솥장·홈카페장·오픈장 MDF 18T 몸통(재단 외주)을 뺀 나머지. */
+/** 사내에서 자르는 행 — 도어재(외주) · 밥솥장·홈카페장·오픈장 MDF 18T 몸통(재단 외주) · 석재 상판(상판 업체)을 뺀 나머지. */
 function isInHouseRow(m) {
-  return !isDoorClass(m) && !isOutsourcedCutRow(m);
+  return !isDoorClass(m) && !isOutsourcedCutRow(m) && !isOutsourcedTopRow(m);
 }
 
 /** 재단 시트에서 재단 외주 조각을 뺀다. 다 빠지면 null (그 원판은 사내에서 자르지 않는다). */
@@ -610,6 +611,8 @@ function labelNoCell(text, pid) {
 /** 자재 행의 라벨 칸 — 낱개(`partId#k`)마다 번호 하나. ks 를 주면 그 낱개만 (배치에 없는 부재). */
 function rowLabelText(ctx, m, index, ks = null) {
   const base = partIdOf(m, index);
+  // 석재 상판은 라벨이 없다 — 상판 업체가 가져온다 (2026-11-05)
+  if (isOutsourcedTopRow(m)) return labelNoCell('<span class="muted">상판 업체</span>', base);
   const list = ks || Array.from({ length: qtyOf(m) }, (_, k) => k);
   return labelNoCell(labelRunsText(list.map((k) => ctx.labelNo.get(`${base}#${k}`)).filter(Boolean)), base);
 }
@@ -1166,13 +1169,17 @@ export function labelUnits(materials) {
   return units;
 }
 
-/** 라벨 순서 — 사내 재단 부재 먼저(재단 직후 부착), MDF 18T 재단 외주·도어재는 뒤(입고 시 부착). */
+/**
+ * 라벨 순서 — 사내 재단 부재 먼저(재단 직후 부착), MDF 18T 재단 외주·도어재는 뒤(입고 시 부착).
+ * 석재 상판(top)은 상판 업체가 가져와 현장에서 얹는다 — 라벨 없음 (묶음은 부재 보존을 세려고 남긴다).
+ */
 export function labelGroups(materials) {
   const units = labelUnits(materials);
   return {
     inHouse: units.filter((u) => isInHouseRow(u.row)),
     outsourced: units.filter((u) => isOutsourcedCutRow(u.row)),
     door: units.filter((u) => isDoorClass(u.row)),
+    top: units.filter((u) => isOutsourcedTopRow(u.row)),
   };
 }
 

@@ -72,7 +72,7 @@ function line(o) {
       x: 0,
       y: BACK,
       areaH: 870,
-      cabinetOnTop: true,
+      ...(opt.middle ? {} : { cabinetOnTop: true }),
     },
     {
       id: 'l1',
@@ -86,14 +86,17 @@ function line(o) {
       cabinetOnTop: true,
     },
     { id: 'l2', section: 'lower', W: 600, H: 870, D, x: 1200, y: BACK, areaH: 870 },
-    { id: 's1', section: 'upper', W: 1200, H: 1382 + 60, D, x: 0, y: BACK, areaH: 1442 },
+    // opt.middle — 가운데 하부장(l1) 위에만 수납장 600 (상판이 양옆 두 장으로 끊긴다, 2026-11-05)
+    opt.middle
+      ? { id: 's1', section: 'upper', W: 600, H: 1382 + 60, D, x: 600, y: BACK, areaH: 1442 }
+      : { id: 's1', section: 'upper', W: 1200, H: 1382 + 60, D, x: 0, y: BACK, areaH: 1442 },
   ];
   const structures = {
     l0: door2(600),
     l1: door2(600),
     l2: door2(600, opt.outlet !== undefined ? { outlet: opt.outlet } : {}),
     s1: upper2(
-      1200,
+      opt.middle ? 600 : 1200,
       Object.assign({ moldingH: 60, stackBox: true }, opt.glass ? { glassDoor: 'alu' } : {})
     ),
   };
@@ -168,6 +171,17 @@ describe('BOM — 하부장 위 수납장', () => {
     const { materials } = line();
     const top = materials.filter((r) => r.part === '상판');
     expect(top.map((r) => r.w)).toEqual([600]);
+  });
+
+  test('가운데 하부장 위에 수납장 — 상판은 끊긴 자리마다 한 장 (600 · 600, 2026-11-05 사장님)', () => {
+    const { materials } = line({ middle: true });
+    const top = materials.filter((r) => r.part === '상판');
+    expect(top.map((r) => [r.w, r.qty])).toEqual([[600, 1], [600, 1]]);
+    expect(new Set(top.map((r) => r.partId)).size).toBe(2);
+    expect(top.map((r) => r.note.slice(0, 11))).toEqual(['하부 라인 1/2 장', '하부 라인 2/2 장']);
+    // 끊긴 뒤 한 장만 남으면(수납장이 줄 끝) 예전 비고 그대로
+    const one = line().materials.filter((r) => r.part === '상판');
+    expect(one.map((r) => r.note.slice(0, 7))).toEqual(['하부 라인 한']);
   });
 
   test('위 수납장 — 상부장 짜임 (천판 · 지판 · 뒷판), 도어 = 몸통 + 5 (목찬넬) · 몸통 그대로 (목찬넬 아님)', () => {
