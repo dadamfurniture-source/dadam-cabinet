@@ -51,7 +51,7 @@ const upper2 = (W, extra) =>
 /**
  * 하부 줄: 2도어 600 · 2도어 600 (둘 위에 수납장) · 2도어 600 (상판).
  *   위 수납장 1200 — 몸통 윗면 858 ~ 상몰딩 밑 2240 = 1382 (+ 상몰딩 60 = 플래너 H 1442).
- * @param {object} [o]  handle · glass · outlet (하부장 l2 에)
+ * @param {object} [o]  handle · glass · outlet (하부장 l2 에) · category (품목 — 비우면 싱크대)
  */
 function line(o) {
   const opt = o || {};
@@ -102,7 +102,7 @@ function line(o) {
     Object.assign({}, SPECS)
   );
   const item = {
-    categoryId: 'sink',
+    categoryId: opt.category || 'sink',
     w: 1800,
     h: 2310,
     d: AREA_D,
@@ -178,6 +178,19 @@ describe('BOM — 하부장 위 수납장', () => {
     expect(a.rowsOf('s1').find((r) => r.part === '도어').h).toBe(1382 + 5);
     const b = line({ handle: '푸쉬' });
     expect(b.rowsOf('s1').find((r) => r.part === '도어').h).toBe(1382);
+  });
+
+  test('수납장 · 화장대 품목도 도어 = 몸통 + 5 (목찬넬) · 몸통 그대로 — 단순 상자 규칙도 같은 내림 (2026-11-03 「모든 품목」)', () => {
+    for (const category of ['storage', 'vanity']) {
+      const a = line({ category });
+      expect(a.rowsOf('s1').find((r) => r.part === '도어').h).toBe(1382 + 5);
+      const b = line({ category, handle: '푸쉬' });
+      expect(b.rowsOf('s1').find((r) => r.part === '도어').h).toBe(1382);
+      // 경첩 도어 높이도 같은 내림 — 보링이 도어 안에
+      const hinge = b.hardware.find((h) => h.category === '경첩' && h.moduleKey === `0-${b.key('s1')}`);
+      expect(hinge).toBeTruthy();
+      expect(Math.max(...hinge.boring)).toBeLessThan(1382);
+    }
   });
 
   test('경첩 도어 높이도 몸통 + 모듈 내림 (자재 도어 행과 같다)', () => {
