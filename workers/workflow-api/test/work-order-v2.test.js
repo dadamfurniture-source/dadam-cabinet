@@ -31,6 +31,7 @@ import {
   boringRows,
   labelUnits,
   groupByItemModule,
+  kittingHtml,
   LABELS_PER_SHEET,
 } from '../src/templates/work-order.js';
 import { issueDocument, resolvePrintAssets, renderDocument } from '../src/documents.js';
@@ -465,12 +466,13 @@ test('① 표지 — 렌더가 없으면 자리표시, 경로는 있는데 서�
   assert.ok(unsigned.includes('렌더를 불러올 수 없음'));
 });
 
-test('② 키팅 — 품목 → 모듈 묶음, 라벨 번호·마감 칩·엣지 도식·그 모듈의 경첩', () => {
+test('② 키팅 (검증만 — 종이에는 없음, 2026-11-05) — 품목 → 모듈 묶음, 라벨 번호·마감 칩·엣지 도식·그 모듈의 경첩', () => {
   const groups = groupByItemModule(fx.materials());
   assert.equal(groups.length, 1);
   assert.deepEqual(groups[0].modules.map((m) => m.module), ['하부장-개수대', '상부장-후드장']);
+  assert.ok(!renderWorkOrder(fx.doc(), fx.snapshot()).includes('② 모듈별 키팅'), '전체 꾸러미에 싣지 않는다');
 
-  const html = renderWorkOrder(fx.doc(), fx.snapshot());
+  const html = kittingHtml(fx.doc(), fx.snapshot());
   assert.ok(html.includes('② 모듈별 키팅 — 싱크대'));
   // 라벨 번호 (수량 2 = 이어진 번호), 부재 ID 는 data-pid 에만
   assert.ok(html.includes('<td class="num"><span data-pid="0-l1-body:side-0">1–2</span></td><td>측판</td>'));
@@ -625,7 +627,7 @@ test('⑧ 라벨 — 부재 낱개마다 QR + partId#k + 품목/모듈/부품 + 
 
 test('구 문서(v1 payload + v1 스냅샷) 도 전 섹션이 렌더된다 — 렌더 없음·코드만 범례·row-N 라벨·문자열 엣지', () => {
   const html = renderWorkOrder(fx.docV1(), fx.snapshotV1());
-  for (const s of ['정면 렌더 없음', '② 모듈별 키팅', '③ 재단·엣지 지시서', '재단 배치 없음', '④ 철물·체결구', '⑥ 조립 순서 체크', '⑦ 이전 rev 와의 차이', '⑩ 도어재 발주서', '⑧ 부재 라벨']) {
+  for (const s of ['정면 렌더 없음', '③ 재단·엣지 지시서', '재단 배치 없음', '④ 철물·체결구', '⑥ 조립 순서 체크', '⑦ 이전 rev 와의 차이', '⑩ 도어재 발주서', '⑧ 부재 라벨']) {
     assert.ok(html.includes(s), s);
   }
   assert.ok(html.includes('<span class="chip none"></span><span class="mono">PET-OAK-M</span>'), '카탈로그 조회가 없던 문서는 코드만');
