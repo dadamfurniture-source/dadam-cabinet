@@ -470,7 +470,8 @@
         }
         case 'body:brace': {
           // 두 몸통이면 도어 모듈 안 (지판 위). 두 몸통이 아닌 서랍 모듈(레이아웃 없음 등)은 자리를 모른다
-          if (mod.isDrawer && !grp) { skip(row, 'pending-owner D2'); return; }
+          //   위 서랍 + 아래 도어 (한 몸통 — 2026-11-05 「아래 도어 칸에만」)는 지판 위 — BOM 길이가 서랍 밑에서 끝난다
+          if (mod.isDrawer && !grp && mod.drawerLayout !== 'drawerTop') { skip(row, 'pending-owner D2'); return; }
           if (grp && inDrawerMod(row)) { skip(row, 'pending-owner D2'); return; }
           for (let k = 0; k < row.qty; k++) {
             // 폭 가운데, 앞면 = 측판 앞선, 지판 위 (속서랍이 있으면 그 상판 위 — braceLift)

@@ -612,8 +612,19 @@
        * @param {object|null} layout  drawerLayoutOf 결과
        */
       const bomAllDrawers = (layout) => !!(layout && layout.fronts && layout.fronts.length && layout.fronts[0].kind === 'drawer');
-      /** 위 서랍 + 아래 도어 (2026-11-05) 처짐방지목 — 맨 위가 서랍이라 가운데 목대를 세우지 않는다, 아래 도어 칸에만 세울지는 정본에 없다 */
-      const BOM_DRAWER_TOP_BRACE_NOTE = '[확인 필요] 위 서랍 + 아래 도어 — 처짐방지목 없음 (가운데 목대가 위 서랍 박스를 막는다 · 아래 도어 칸에만 세울지 확인)';
+      /**
+       * 위 서랍 + 아래 도어 처짐방지목 (2026-11-05 사장님 「아래 도어 칸에만」) — 지판 위에서 서랍 밑까지: 목찬넬이면 중간 따내기 아랫선
+       *   (목찬넬 ㄴ자 지면판 밑), 아니면 위 서랍 존 밑. 몸통 처짐방지목 식(H − 2T − 상단 따내기)에서 뺄 길이(braceCut 자리)를 낸다.
+       *   조립은 보통처럼 지판 위에 세운다 (bom-assembly body:brace).
+       * @param {object} L  drawerLayoutOf (drawerTop)
+       */
+      function bomDrawerTopBraceCutOf(L, H, T, channel) {
+        const R = DrawerRules.DRAWER_RULES;
+        const mid = (L.channels || []).find((c) => c.kind === 'mid');
+        const top = channel && mid ? mid.y + mid.notchH : (L.fronts[0] && L.fronts[0].zone ? L.fronts[0].zone.bottom : 0);
+        const full = channel ? H - T * 2 - R.CHANNEL_TOP_NOTCH_H : H - T * 2;
+        return Math.max(0, full - (H - T - top));
+      }
       /**
        * 2026-10-29 사장님 (간편 플래너 세로칸막이 · 속서랍 — bom-interior-rules.js): 모듈 속 부재 표시 { mids, cols, inner } 또는 null.
        *   표시가 있는 모듈은 사람이 속을 정했다 — 선반 수도 구조 그대로(mod.shelfCount)이고 싱크 상부 2 · 하부 1 고정을 타지 않는다.
@@ -1775,7 +1786,7 @@
          */
         addLowerCarcassRows(materials, modLabel, W, H, T, modD, L, channel, extraNote, blind, standBack, braceCut, topPanel, braceOff) {
           const notchH = DrawerRules ? DrawerRules.DRAWER_RULES.CHANNEL_TOP_NOTCH_H : 0;
-          const carcass = (label, h, note, brace) => {
+          const carcass = (label, h, note, brace, cut) => {
             this.add(materials, label, '측판', 'PB', T, modD, h, 2, '3면', note);
             this.add(materials, label, '지판', 'PB', T, W - T * 2, modD, 1, '1면(전)');
             if (topPanel) {
@@ -1792,7 +1803,7 @@
             this.addBackPanel(materials, label, W, h, false);
             // 밴드(처짐방지목) — 목찬넬이면 −70. W ≥ 800 이면 1장, 모듈 중앙 (bomBraceQtyOf)
             //   2026-10-29 사장님: 속서랍이 있으면 그 상판 위부터 (braceCut = 속서랍 구역 — 서랍이 앞 가운데 목대에 걸리지 않는다)
-            const bandH = (channel ? h - T * 2 - notchH : h - T * 2) - (Number(braceCut) > 0 ? Number(braceCut) : 0);
+            const bandH = (channel ? h - T * 2 - notchH : h - T * 2) - (cut != null ? cut : (Number(braceCut) > 0 ? Number(braceCut) : 0));
             const braceQty = brace ? bomBraceQtyOf(W, 'lower') : 0;
             if (braceQty > 0) this.add(materials, label, '밴드(처짐방지)', 'PB', T, ASM.BRACE_W, bandH, braceQty, '2면(장)');
           };
@@ -1802,8 +1813,11 @@
             if (channel && DrawerRules) notes.push(DrawerRules.notchNote(L));
             if (extraNote) notes.push(extraNote);
             // 전부 서랍이면 처짐방지목 없음 (D2) · 멍장은 ㄱ자 기둥이 대신 · 가운데 세로칸막이가 대신 (2026-10-30 사장님 「가운데 칸막이가 있으면 처짐방지목 빼기」)
-            //   위 서랍 + 아래 도어 (2026-11-05)도 맨 위가 서랍이라 같은 까닭으로 없다 — 처짐방지목 문턱 폭이면 [확인 필요] (아래 도어 칸에만 세울지 정본에 없다)
-            if (L && L.drawerTop && bomBraceQtyOf(W, 'lower') > 0) notes.push(BOM_DRAWER_TOP_BRACE_NOTE);
+            //   위 서랍 + 아래 도어 (2026-11-05 사장님 「아래 도어 칸에만」): 지판 위 ~ 서랍 밑 (목찬넬이면 중간 따내기 아랫선, 아니면 서랍 존 밑) — 위 서랍 박스를 막지 않는다
+            if (L && L.drawerTop) {
+              carcass(modLabel, H, notes.join(' · '), !blind && !braceOff, bomDrawerTopBraceCutOf(L, H, T, channel));
+              return;
+            }
             carcass(modLabel, H, notes.join(' · '), !bomAllDrawers(L) && !blind && !braceOff);
             return;
           }
