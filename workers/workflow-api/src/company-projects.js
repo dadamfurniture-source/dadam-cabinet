@@ -31,6 +31,7 @@ import {
   updateBy,
 } from './supabase.js';
 import { companyOf } from './distribution/company.js';
+import { idempotencyKeyOf } from './ledger/checks.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
@@ -127,10 +128,24 @@ export async function listCompanyProjects(env, { user }) {
   };
 }
 
-/** POST /company/projects */
-export async function createCompanyProject(env, { user, body }) {
+/** 같은 업체 · 같은 키로 이미 만든 프로젝트 (DB 0041 projects.idempotency_key) */
+function projectByKey(env, companyId, key) {
+  return selectOne(env, 'projects', {
+    company_id: `eq.${companyId}`,
+    idempotency_key: `eq.${key}`,
+    select: 'id,customer_id',
+  });
+}
+
+/** POST /company/projects — X-Idempotency-Key 가 같으면 먼저 만든 프로젝트를 그대로 (reused) */
+export async function createCompanyProject(env, { user, body, idempotencyKey }) {
   const { company } = await projectCompanyOf(env, user, { manage: true });
   if (!isPlainObject(body)) throw new ValidationError('JSON 본문이 필요합니다');
+  const key = idempotencyKeyOf(idempotencyKey);
+  if (key) {
+    const prev = await projectByKey(env, company.id, key);
+    if (prev) return { project_id: prev.id, customer_id: prev.customer_id, reused: true };
+  }
   const title = textOf(body.title, 'title', PROJECT_TITLE_MAX);
   const hasId = body.customer_id !== undefined && body.customer_id !== null;
   const hasNew = body.customer !== undefined && body.customer !== null;
@@ -174,20 +189,23 @@ export async function createCompanyProject(env, { user, body }) {
   const undo = async () => {
     if (created) await restDelete(env, 'customers', { id: `eq.${customerId}` });
   };
-  const project = await insertOne(env, 'projects', {
-    company_id: company.id,
-    customer_id: customerId,
-    title,
-    status: 'active',
-  }).catch(async (err) => {
+  const row = { company_id: company.id, customer_id: customerId, title, status: 'active' };
+  if (key) row.idempotency_key = key;
+  let project;
+  try {
+    project = await insertOne(env, 'projects', row);
+  } catch (err) {
     await undo();
+    // 같은 키로 동시에 두 번 — 먼저 만든 프로젝트 (이번에 만든 고객 행은 지웠다)
+    const prev = err instanceof ConflictError && key ? await projectByKey(env, company.id, key) : null;
+    if (prev) return { project_id: prev.id, customer_id: prev.customer_id, reused: true };
     throw err;
-  });
+  }
   if (!project || !project.id) {
     await undo();
     throw new DbError('프로젝트를 만들지 못했습니다');
   }
-  return { project_id: project.id, customer_id: customerId };
+  return { project_id: project.id, customer_id: customerId, reused: false };
 }
 
 /** PUT /designs/:id/project */
@@ -222,6 +240,13 @@ export async function linkDesignProject(env, { user, designId, body }) {
 
   const current = design.project_id || null;
   if (current === target) return { design_id: design.id, project_id: target };
+  // expect_project_id (AI 비서 승인 카드) — 보낸 사람이 본 프로젝트. 그 사이 바뀌었으면 409 stale (이미 바라는 프로젝트면 위에서 성공)
+  if (Object.prototype.hasOwnProperty.call(body, 'expect_project_id')) {
+    const expect = body.expect_project_id;
+    if (expect !== null && !isUuid(expect))
+      throw new ValidationError('expect_project_id 가 올바르지 않습니다', { field: 'expect_project_id' });
+    if (current !== expect) throw conflict('그 사이 설계의 프로젝트가 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요', 'stale');
+  }
   // 수주가 생긴 설계는 프로젝트를 바꾸지 않는다 (수주는 설계의 프로젝트를 그대로 갖는다 — orders.js)
   const order = await selectOne(env, 'orders', { design_id: `eq.${design.id}`, select: 'id' });
   if (order) throw conflict('수주가 생긴 설계는 프로젝트를 바꿀 수 없습니다', 'has_order');

@@ -897,7 +897,8 @@ async function handleGetOrder(request, env, { params, user }) {
 
 async function handleAddPayment(request, env, { params, user }) {
   const body = (await readJson(request)) || {};
-  return jsonResponse(request, env, { success: true, data: await addPayment(env, { orderId: params.orderId, user, body }) }, 201);
+  const data = await addPayment(env, { orderId: params.orderId, user, body, idempotencyKey: request.headers.get('X-Idempotency-Key') });
+  return jsonResponse(request, env, { success: true, data }, data.reused ? 200 : 201);
 }
 
 async function handleUpdatePayment(request, env, { params, user }) {
@@ -1034,8 +1035,8 @@ async function handleDecideOrderEvent(request, env, { params, user, ctx }) {
 
 async function handleAddCost(request, env, { params, user }) {
   const body = (await readJson(request)) || {};
-  const cost = await addCost(env, { orderId: params.orderId, user, body });
-  return jsonResponse(request, env, { success: true, data: cost }, 201);
+  const { cost, reused } = await addCost(env, { orderId: params.orderId, user, body, idempotencyKey: request.headers.get('X-Idempotency-Key') });
+  return jsonResponse(request, env, { success: true, data: cost }, reused ? 200 : 201);
 }
 
 async function handleDeleteCost(request, env, { params, user }) {
@@ -1194,8 +1195,8 @@ async function handleCompanyProjects(request, env, { user }) {
 
 async function handleCreateCompanyProject(request, env, { user }) {
   const body = await readJson(request);
-  const data = await createCompanyProject(env, { user, body });
-  return jsonResponse(request, env, { success: true, data }, 201, NO_STORE);
+  const data = await createCompanyProject(env, { user, body, idempotencyKey: request.headers.get('X-Idempotency-Key') });
+  return jsonResponse(request, env, { success: true, data }, data.reused ? 200 : 201, NO_STORE);
 }
 
 async function handleLinkDesignProject(request, env, { params, user }) {

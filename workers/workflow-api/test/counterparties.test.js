@@ -180,7 +180,7 @@ test('원가 줄에 공급처를 고르면 이름도 그 공급처로 맞춘다'
   await withFetch((u, method, body) => owned(u, method)
     || (u.includes('/counterparties?') ? json([{ id: S1, kind: 'supplier', name: '상일', company_id: HQ }]) : null)
     || (method === 'POST' && u.endsWith('/order_costs') ? json([{ id: 'C1', ...body }], 201) : null), async () => {
-    const row = await addCost(ENV, { orderId: 'O1', user: { id: 'U1' }, body: { category: 'outsourcing', amount: 920000, vendor_name: '상일도어?', counterparty_id: S1 } });
+    const { cost: row } = await addCost(ENV, { orderId: 'O1', user: { id: 'U1' }, body: { category: 'outsourcing', amount: 920000, vendor_name: '상일도어?', counterparty_id: S1 } });
     assert.equal(row.counterparty_id, S1);
     assert.equal(row.vendor_name, '상일');
   });

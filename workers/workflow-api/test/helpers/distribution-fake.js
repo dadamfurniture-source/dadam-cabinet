@@ -187,6 +187,16 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
       )
         return fail('23505', 409);
     }
+    // 두 번 실행 막기 키 (DB 0041) — 프로젝트는 업체, 수금 · 원가는 수주 안에서 하나
+    const idemScope = { projects: 'company_id', order_payments: 'order_id', order_costs: 'order_id' }[table];
+    if (idemScope && row.idempotency_key) {
+      if (
+        (db[table] || []).some(
+          (x) => x !== self && x[idemScope] === row[idemScope] && x.idempotency_key === row.idempotency_key
+        )
+      )
+        return fail('23505', 409);
+    }
     if (table === 'notification_outbox' && row.dedupe_key) {
       if (db.notification_outbox.some((x) => x !== self && x.dedupe_key === row.dedupe_key))
         return fail('23505', 409);
@@ -345,12 +355,12 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
  * 워커로 한 번 부른다 — fetch 를 갈아 끼우고, 응답 뒤 일(waitUntil)까지 기다린다.
  * @returns {Promise<{ status, json, headers }>}
  */
-export async function callWorker(worker, fake, path, token, { method = 'GET', body } = {}) {
+export async function callWorker(worker, fake, path, token, { method = 'GET', body, headers: extra = {} } = {}) {
   const original = globalThis.fetch;
   globalThis.fetch = fake.fetch;
   const later = [];
   try {
-    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const headers = { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...extra };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     const r = await worker.fetch(
       new Request(`https://api.test${path}`, {

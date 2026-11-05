@@ -77,7 +77,7 @@ export function reasonRequiredError(message = '사유를 적어 주세요') {
   return codedError(ValidationError, message, 'reason_required');
 }
 
-function staleError(message = '그 사이 수주 상태가 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요') {
+export function staleError(message = '그 사이 수주 상태가 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요') {
   return codedError(ConflictError, message, 'stale');
 }
 

@@ -125,8 +125,8 @@ function tables() {
 
 const fakeOf = (opts = {}) => createFake({ tables: tables(), admins: [ADMIN], ...opts });
 const call = (fake, path, token, init) => callWorker(worker, fake, path, token, init);
-const create = (fake, body, token = OWNER_A) =>
-  call(fake, '/company/projects', token, { method: 'POST', body });
+const create = (fake, body, token = OWNER_A, headers = {}) =>
+  call(fake, '/company/projects', token, { method: 'POST', body, headers });
 const link = (fake, designId, body, token = OWNER_A) =>
   call(fake, `/designs/${designId}/project`, token, { method: 'PUT', body });
 
@@ -270,6 +270,28 @@ test('만들기 — 프로젝트를 못 만들면 이번에 만든 고객 행을
 
 // ── 설계 잇기 ──────────────────────────────────────────────────
 
+test('만들기 — 같은 X-Idempotency-Key 는 한 번만 (두 번째 200 · 같은 프로젝트 · 고객도 하나), 키 없으면 따로, 틀린 키 422', async () => {
+  const fake = fakeOf();
+  const body = { title: '거실장', customer: { name: '박고객', phone: '' } };
+  const key = { 'X-Idempotency-Key': 'act:00000000-0000-4000-8000-000000000001' };
+  const a = await create(fake, body, OWNER_A, key);
+  assert.equal(a.status, 201, JSON.stringify(a.json));
+  assert.equal(a.json.data.reused, false);
+  const b = await create(fake, body, OWNER_A, key);
+  assert.equal(b.status, 200);
+  assert.deepEqual(b.json.data, { ...a.json.data, reused: true });
+  assert.equal(fake.db.projects.filter((p) => p.title === '거실장').length, 1);
+  assert.equal(fake.db.customers.filter((c) => c.name === '박고객').length, 1);
+  // 다른 업체는 같은 키도 따로
+  const other = await create(fake, { title: '거실장', customer_id: CUS_B1 }, OWNER_B, key);
+  assert.equal(other.status, 201);
+  // 키가 없으면 예전처럼 부를 때마다
+  await create(fake, body);
+  assert.equal(fake.db.projects.filter((p) => p.title === '거실장' && p.company_id === A).length, 2);
+  const bad = await create(fake, body, OWNER_A, { 'X-Idempotency-Key': 'bad key!' });
+  assert.equal(bad.status, 422);
+});
+
 test('잇기 — 대표가 같은 업체 프로젝트에 잇고 풀기, 같은 값이면 쓰지 않는다', async () => {
   const fake = fakeOf();
   const r = await link(fake, D_A_STAFF, { project_id: PRJ_A1 });
@@ -321,6 +343,24 @@ test('잇기 — 다담 공장 설계: 대표 · 관리자만, 설계를 만든 
   const admin = await link(fake, D_HQ_CUSTOMER, { project_id: PRJ_F1 }, ADMIN);
   assert.equal(admin.status, 200);
   assert.equal(fake.db.designs.find((d) => d.id === D_HQ_CUSTOMER).project_id, PRJ_F1);
+});
+
+test('잇기 — expect_project_id: 그 사이 바뀌었으면 409 stale (쓰지 않음), 이미 바라는 프로젝트면 200, 틀린 값 422', async () => {
+  const fake = fakeOf();
+  const ok = await link(fake, D_A_STAFF, { project_id: PRJ_A1, expect_project_id: null });
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+  // 끊겨 다시 보낸 승인 — 이미 PRJ_A1 이라 그대로 성공
+  const again = await link(fake, D_A_STAFF, { project_id: PRJ_A1, expect_project_id: null });
+  assert.equal(again.status, 200);
+  // 카드는 「안 이은 설계」로 봤는데 지금은 PRJ_A1 — 풀지 않는다
+  const before = writesOf(fake).length;
+  const stale = await link(fake, D_A_STAFF, { project_id: null, expect_project_id: null });
+  assert.equal(stale.status, 409);
+  assert.equal(stale.json.code, 'stale');
+  assert.equal(writesOf(fake).length, before);
+  assert.equal(fake.db.designs.find((d) => d.id === D_A_STAFF).project_id, PRJ_A1);
+  const bad = await link(fake, D_A_STAFF, { project_id: null, expect_project_id: 'x' });
+  assert.equal(bad.status, 422);
 });
 
 test('잇기 — 틀린 본문 422, 없는 설계 404', async () => {
