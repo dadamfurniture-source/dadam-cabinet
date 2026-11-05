@@ -76,6 +76,8 @@
     }),
     RAIL_DEFAULT: 'under',
     FRONT_DEFAULT_H: 200,         // 도어 + 하부 서랍 하부장의 서랍 전면 (플래너 drawerHeight 기본값과 같다)
+    // 2026-11-05 사장님 (위 서랍 + 아래 도어 하부장 — 1단 · 한 몸통 · 경첩 여닫이 · 사이 목찬넬): 위 서랍 전면 기본값 180 (layoutDrawerTop)
+    TOP_DRAWER_FRONT_H: 180,
     TOP_SLOT: 30,                 // 상단 슬롯 (도어 H−30)
     MID_SLOT: 30,                 // 중간 슬롯
     UPPER_DROP: 20,               // 위 전면이 중간 따내기 윗선 아래로 내려오는 길이
@@ -421,6 +423,32 @@
     return { fronts, channels, midCount, boxes, warnings, rail, split };
   }
 
+  /**
+   * 2026-11-05 사장님: 위 서랍 + 아래 도어 하부장 — 확정 「1단 · 한 몸통 · 경첩 여닫이 · 서랍과 도어 사이 목찬넬 있음」 · 「서랍 높이 기본값 180」.
+   *   전면 영역(frontAreaOf — 배치 H − 상판 − 받침보정 − 30 × 목찬넬 2 곳: 상단 · 중간)에서 위 서랍 = drawerH (기본 TOP_DRAWER_FRONT_H),
+   *   아래 도어 = 나머지. 나누는 몸통이 없다 (split 없음 — 한 몸통). 존 · 박스 · 목찬넬 자리는 layoutDrawerModule 그대로.
+   * @param {object} o  areaH · topT · legH · pedestalH · T · rail · frontSpecs · drawerH (위 서랍 전면, 비우면 기본값)
+   * @returns layoutDrawerModule 결과 + front (영역) · drawerTop: true
+   */
+  function layoutDrawerTop(o) {
+    const R = DRAWER_RULES;
+    const a = frontAreaOf(Object.assign({}, o, { channelCount: channelCountFor(2) }));
+    const want = Number(o.drawerH) > 0 ? Number(o.drawerH) : R.TOP_DRAWER_FRONT_H;
+    const area = Math.max(0, a.area);
+    const drawerH = Math.min(want, area);
+    const warnings = [];
+    if (a.area <= 0) warnings.push(`전면 영역이 ${a.area} 다 — 배치 높이 ${a.areaH} 에 목찬넬 ${a.channelCount} 곳은 들어가지 않는다`);
+    const L = layoutDrawerModule(Object.assign({}, o, {
+      H: Math.max(0, a.base - a.support),
+      fronts: [{ kind: 'drawer', h: drawerH }, { kind: 'door', h: area - drawerH }],
+      frontGap: 0,
+    }));
+    L.front = Object.assign({}, a, { fronts: L.fronts.map((f) => ({ kind: f.kind, h: f.h })) });
+    L.warnings = warnings.concat(L.warnings);
+    L.drawerTop = true;
+    return L;
+  }
+
   /** 레일 길이 — 규격 중 모듈 깊이 − 50 이하의 최대. 가장 짧은 규격도 안 들어가면 null. */
   function railLengthFor(D) {
     const R = DRAWER_RULES;
@@ -533,6 +561,6 @@
     };
   }
 
-  return { DRAWER_RULES, layoutDrawerModule, splitNotchNotes, layoutByGrades, distributeFronts, frontAreaOf, channelCountFor, gradeOf,
+  return { DRAWER_RULES, layoutDrawerModule, layoutDrawerTop, splitNotchNotes, layoutByGrades, distributeFronts, frontAreaOf, channelCountFor, gradeOf,
     assignChannels, pickBox, autoGradeFor, gradesFromRatio, ratioOf, railOf, railKeyOf, notchNote, railLengthFor, drawerBoxDims, boxGroupsOf };
 });

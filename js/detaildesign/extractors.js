@@ -612,6 +612,8 @@
        * @param {object|null} layout  drawerLayoutOf 결과
        */
       const bomAllDrawers = (layout) => !!(layout && layout.fronts && layout.fronts.length && layout.fronts[0].kind === 'drawer');
+      /** 위 서랍 + 아래 도어 (2026-11-05) 처짐방지목 — 맨 위가 서랍이라 가운데 목대를 세우지 않는다, 아래 도어 칸에만 세울지는 정본에 없다 */
+      const BOM_DRAWER_TOP_BRACE_NOTE = '[확인 필요] 위 서랍 + 아래 도어 — 처짐방지목 없음 (가운데 목대가 위 서랍 박스를 막는다 · 아래 도어 칸에만 세울지 확인)';
       /**
        * 2026-10-29 사장님 (간편 플래너 세로칸막이 · 속서랍 — bom-interior-rules.js): 모듈 속 부재 표시 { mids, cols, inner } 또는 null.
        *   표시가 있는 모듈은 사람이 속을 정했다 — 선반 수도 구조 그대로(mod.shelfCount)이고 싱크 상부 2 · 하부 1 고정을 타지 않는다.
@@ -790,11 +792,14 @@
        */
       const bomStackOpenTopOf = (m) => bomStackBoxOf(m) && !!m.heightParts && Number(m.heightParts.moldingH) === 0;
       /** 상몰딩 자리를 세울 상부 모듈 — pos upper 에서 상부장 밑 수납장 (bomStackUnderUpperOf) · 위가 빈 수납장 (bomStackOpenTopOf) 을 뺀다 */
-      const bomMoldingUppersOf = (mods) => (mods || []).filter((m) => m && m.pos === 'upper' && !bomStackUnderUpperOf(m, mods) && !bomStackOpenTopOf(m));
+      //   상부장 밑 오픈 상자 (underUpper — 2026-11-05 사장님 「상부장 밑 오픈 칸」)도 뺀다 — 위 상부장 몸통 밑이라 상몰딩은 그 상부장 위에만
+      const bomMoldingUppersOf = (mods) => (mods || []).filter((m) => m && m.pos === 'upper' && !bomStackUnderUpperOf(m, mods) && !bomStackOpenTopOf(m) && m.underUpper !== true);
       /**
        * 상부장 도어 내림 — 하부장 위 수납장이면 BOM_STACK_BOX (목찬넬 5 · 그 밖 0), 아니면 품목 사양 upperDoorOverlap (기본 15).
        */
       const bomUpperOverlapOf = (mod, specs) => {
+        // 2026-11-05 사장님 (상부장 밑 오픈 칸 — 확정 「도어장 + 18T 오픈 상자」 · 「도어 안 내려옴」): 밑에 오픈 상자가 붙은 상부장 도어는 몸통 그대로
+        if (mod && mod.openBelow === true) return 0;
         if (bomStackBoxOf(mod)) return String((specs && specs.handle) || '').includes('목찬넬') ? BOM_STACK_BOX.DOOR_DROP_CHANNEL : BOM_STACK_BOX.DOOR_DROP_OTHER;
         return parseFloat(specs && specs.upperDoorOverlap) || 15;
       };
@@ -1196,7 +1201,24 @@
        */
       function bomIsMaidaModule(mod) {
         // 2026-10-24: 키큰장 서랍 단(맨 아래 단)도 싱크 서랍장과 같다 — 전면이 서랍 레이아웃이다
-        return Boolean(mod && mod.isDrawer && mod.pos === 'lower' && (!bomTallTierOf(mod) || bomTallDrawerTier(mod)));
+        //   2026-11-05: 위 서랍 + 아래 도어는 아래 도어가 경첩 여닫이 (사장님 확정 「경첩 여닫이」) — 경첩은 그 도어만 (bomDrawerTopDoorH)
+        return Boolean(mod && mod.isDrawer && mod.pos === 'lower' && !bomDrawerTopOf(mod) && (!bomTallTierOf(mod) || bomTallDrawerTier(mod)));
+      }
+      /** 위 서랍 + 아래 도어 하부장인가 (2026-11-05 사장님 — 브리지 drawerLayout 'drawerTop') */
+      function bomDrawerTopOf(mod) {
+        return Boolean(mod && mod.isDrawer && mod.drawerLayout === 'drawerTop');
+      }
+      /**
+       * 위 서랍 + 아래 도어의 도어 — 경첩 수 · 보링이 자재 행 도어 높이와 같게 (레이아웃 아래 전면, MaterialExtractor.drawerLayoutOf 와 같은 답).
+       * @returns {number|null} 도어 재단 높이 (레이아웃이 없으면 null)
+       */
+      function bomDrawerTopDoorH(mod, specs) {
+        if (!bomDrawerTopOf(mod) || !DrawerRules) return null;
+        const me = new MaterialExtractor();
+        const T = me.thicknessFor(specs || {});
+        const L = me.drawerLayoutOf(mod, parseFloat(mod.h) || 0, T);
+        const f = L && L.fronts.find((x) => x.kind === 'door');
+        return f ? f.h : null;
       }
 
       /** 경첩 컵 사이 최소 간격(mm) — 이보다 가까우면 비고에 [확인 필요] (끝 110 규칙이 짧은 도어에서 무너진다). */
@@ -1665,6 +1687,18 @@
           const tallTier = bomTallTierOf(mod);
           if (tallTier && !bomTallDrawerTier(mod)) return null;
           const areaH = tallTier ? H : (Number(mod.areaH) > 0 ? Number(mod.areaH) : (Number(mod.totalH) || 0));
+          // 2026-11-05 사장님: 위 서랍 + 아래 도어 (한 몸통 · 서랍 전면 기본 180 — bom-drawer-rules layoutDrawerTop). 하부 라인만 (키큰장 단은 아니다)
+          if (bomDrawerTopOf(mod) && !tallTier) {
+            const hp = (mod.heightParts && typeof mod.heightParts === 'object') ? mod.heightParts : {};
+            if (areaH > 0) {
+              return DrawerRules.layoutDrawerTop({
+                areaH, topT: hp.topT, legH: hp.legH, pedestalH: hp.pedestalH, T, rail: rules.rail, frontSpecs: rules.fronts, drawerH: mod.drawerHeight,
+              });
+            }
+            const top = Object.assign(DrawerRules.layoutDrawerModule({ H, T, rail: rules.rail, frontSpecs: rules.fronts,
+              fronts: [{ kind: 'drawer', h: Number(mod.drawerHeight) > 0 ? Number(mod.drawerHeight) : R.TOP_DRAWER_FRONT_H }, { kind: 'door' }] }), { drawerTop: true });
+            return top;
+          }
           if (areaH > 0) {
             const hp = (!tallTier && mod.heightParts && typeof mod.heightParts === 'object') ? mod.heightParts : {};
             const graded = fronts.map((fr, i) => ({
@@ -1768,6 +1802,8 @@
             if (channel && DrawerRules) notes.push(DrawerRules.notchNote(L));
             if (extraNote) notes.push(extraNote);
             // 전부 서랍이면 처짐방지목 없음 (D2) · 멍장은 ㄱ자 기둥이 대신 · 가운데 세로칸막이가 대신 (2026-10-30 사장님 「가운데 칸막이가 있으면 처짐방지목 빼기」)
+            //   위 서랍 + 아래 도어 (2026-11-05)도 맨 위가 서랍이라 같은 까닭으로 없다 — 처짐방지목 문턱 폭이면 [확인 필요] (아래 도어 칸에만 세울지 정본에 없다)
+            if (L && L.drawerTop && bomBraceQtyOf(W, 'lower') > 0) notes.push(BOM_DRAWER_TOP_BRACE_NOTE);
             carcass(modLabel, H, notes.join(' · '), !bomAllDrawers(L) && !blind && !braceOff);
             return;
           }
@@ -3673,6 +3709,9 @@
             else if (mod.pos === 'lower') doorH = (mod.h || (specs.lowerH || 870) - (parseFloat(specs.topThickness) || 12) - (parseFloat(specs.sinkLegHeight) || 150)) - 30;
             else doorH = mod.h || 700;
             if (simpleDoorH !== null) doorH = simpleDoorH; // B3 서랍장 여닫이 도어 — 자재 행의 hingeDoorH
+            // 2026-11-05: 위 서랍 + 아래 도어 — 도어 = 레이아웃 아래 전면 (자재 행과 같다)
+            const drawerTopH = bomDrawerTopDoorH(mod, specs);
+            if (drawerTopH != null) doorH = drawerTopH;
             if (riceDoor) doorH = riceDoor.h;
             if (wardrobeDoor) doorH = wardrobeDoor.h;
 
