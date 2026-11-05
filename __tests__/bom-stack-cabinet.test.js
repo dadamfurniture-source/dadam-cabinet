@@ -339,8 +339,9 @@ describe('상몰딩 — 위에 상부장이 있는 수납장은 상몰딩 자리
   /**
    * 자리(plane)를 실은 payload — 간편 플래너 설계 BOM (모듈 라이브러리 designBomOf). 하부 600 · 600 (위에 수납장) · 600, 수납장 1200.
    *   withUpper: 수납장 위에 상부장 1200 (수납장 = 858 ~ 상부장 도어 밑 1520, 상몰딩 없음) / 없으면 수납장이 상몰딩 밑까지 (+ 상몰딩 60)
+   *   openTop: 위에 아무것도 없지만 수납장이 낮다 (몸통 500 · 상몰딩 0 — 가전 칸 · 사람이 적은 높이, 위가 빈다)
    */
-  function moldingRows(withUpper, kind) {
+  function moldingRows(withUpper, kind, openTop) {
     const SPECS = Object.assign({}, LEDGER_SPECS, {
       handle: '찬넬 (목찬넬)',
       finishLeftType: 'None',
@@ -351,7 +352,7 @@ describe('상몰딩 — 위에 상부장이 있는 수납장은 상몰딩 자리
     const at = (x, W, d, baseY) => ({ plane: { cx: x + W / 2, cy: BACK + d / 2 }, rotation: 0, baseY });
     const low = (id, x, top) =>
       Object.assign({ id, section: 'lower', W: 600, H: 870, D, x, y: BACK, areaH: 870 }, top ? { cabinetOnTop: true } : {}, at(x, 600, D, 150));
-    const sH = withUpper ? 662 : 1382 + 60;
+    const sH = withUpper ? 662 : openTop ? 500 : 1382 + 60;
     const modules = [
       low('l0', 0, true),
       low('l1', 600, true),
@@ -363,7 +364,7 @@ describe('상몰딩 — 위에 상부장이 있는 수납장은 상몰딩 자리
       l1: door2(600),
       l2: door2(600),
       // kind 'open' — 수납장이 오픈장 상자 (2026-11-04: 상자 분기가 stackBox 를 싣지 않아 상몰딩이 한 번 더 나왔다)
-      s1: upper2(1200, Object.assign({ moldingH: withUpper ? 0 : 60, stackBox: true },
+      s1: upper2(1200, Object.assign({ moldingH: withUpper || openTop ? 0 : 60, stackBox: true },
         kind === 'open' ? { moduleKind: 'open', areaTypes: ['open'], areaIs2D: [false], shelves: [] } : {})),
     };
     if (withUpper) {
@@ -390,5 +391,10 @@ describe('상몰딩 — 위에 상부장이 있는 수납장은 상몰딩 자리
   test('수납장이 오픈장 상자여도 (하부장 위 오픈장) — 상부장 밑이면 상몰딩 한 장, 위가 비면 상자 위 한 장', () => {
     expect(moldingRows(true, 'open')).toEqual([[60, 1200, 1]]);
     expect(moldingRows(false, 'open')).toEqual([[60, 1200, 1]]);
+  });
+
+  test('수납장이 닿는 곳보다 낮아 위가 비면 (상몰딩 0 — 가전 칸 · 사람이 적은 높이) 상몰딩 자리에 서지 않는다 (2026-11-05 「남는 위는 비움」)', () => {
+    expect(moldingRows(false, null, true)).toEqual([]);
+    expect(moldingRows(false, 'open', true)).toEqual([]);
   });
 });

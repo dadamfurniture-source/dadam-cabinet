@@ -784,8 +784,13 @@
           return g.a < s.b - 1 && g.b > s.a + 1;
         });
       }
-      /** 상몰딩 자리를 세울 상부 모듈 — pos upper 에서 상부장 밑 수납장을 뺀다 (bomStackUnderUpperOf) */
-      const bomMoldingUppersOf = (mods) => (mods || []).filter((m) => m && m.pos === 'upper' && !bomStackUnderUpperOf(m, mods));
+      /**
+       * 위가 빈 하부장 위 수납장 — 닿는 곳(상몰딩 밑)보다 낮아 제 상몰딩이 0 인 것 (가전 칸 — 2026-11-05 사장님 「남는 위는 비움」 · 사람이 적은 높이).
+       *   상몰딩은 위까지 올라간 장 위에만 선다 (「위에 뭐 닿을 때까지」 — 간편 플래너 layoutStack 이 그때만 상몰딩을 준다). 상몰딩 값이 없는 옛 도면은 예전처럼 센다.
+       */
+      const bomStackOpenTopOf = (m) => bomStackBoxOf(m) && !!m.heightParts && Number(m.heightParts.moldingH) === 0;
+      /** 상몰딩 자리를 세울 상부 모듈 — pos upper 에서 상부장 밑 수납장 (bomStackUnderUpperOf) · 위가 빈 수납장 (bomStackOpenTopOf) 을 뺀다 */
+      const bomMoldingUppersOf = (mods) => (mods || []).filter((m) => m && m.pos === 'upper' && !bomStackUnderUpperOf(m, mods) && !bomStackOpenTopOf(m));
       /**
        * 상부장 도어 내림 — 하부장 위 수납장이면 BOM_STACK_BOX (목찬넬 5 · 그 밖 0), 아니면 품목 사양 upperDoorOverlap (기본 15).
        */
