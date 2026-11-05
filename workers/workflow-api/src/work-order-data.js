@@ -274,7 +274,7 @@ export function doorRowsForHinge(materials, hingeRow) {
 
 // ── DB 조회 (발행 시점) ──────────────────────────────────────────
 
-/** 품목별 최신 렌더 (kind front = 정면 PNG · iso = 플래너 ISO 도면 SVG). 표가 없으면 전부 path null. */
+/** 품목별 최신 렌더 (kind front = 정면 PNG · iso = 플래너 ISO 도면 SVG · plan = 플래너 상판 탑뷰 SVG). 표가 없으면 전부 path null. */
 export async function collectRenders(env, designId, items, kind = 'front') {
   const list = Array.isArray(items) ? items : [];
   const out = list.map((item, i) => ({
@@ -293,7 +293,7 @@ export async function collectRenders(env, designId, items, kind = 'front') {
     rows = await selectMany(env, 'design_renders', {
       design_id: `eq.${designId}`,
       item_unique_id: `in.(${ids.join(',')})`,
-      kind: `eq.${kind === 'iso' ? 'iso' : 'front'}`,
+      kind: `eq.${kind === 'iso' || kind === 'plan' ? kind : 'front'}`,
       select: 'item_unique_id,path,width,height,created_at',
       order: 'created_at.desc',
       limit: String(Math.max(50, ids.length * 5)),
@@ -408,9 +408,10 @@ export async function gatherWorkOrderPayload(env, { designId, snapshot }) {
   const materials = materialsOf(snapshot);
   const digest = partsDigest(materials);
 
-  const [renders, isoRenders, swatches, prevRev] = await Promise.all([
+  const [renders, isoRenders, planRenders, swatches, prevRev] = await Promise.all([
     collectRenders(env, designId, items),
     collectRenders(env, designId, items, 'iso'),
+    collectRenders(env, designId, items, 'plan'),
     collectSwatches(env, materials),
     collectPrevRev(env, designId, digest),
   ]);
@@ -427,6 +428,7 @@ export async function gatherWorkOrderPayload(env, { designId, snapshot }) {
     renders,
     // 플래너 ISO 도면 (2026-11-05) — 있을 때만 싣는다 (옛 설계 · 상세설계는 정면도 그대로)
     ...(isoRenders.some((r) => r.path) ? { iso_renders: isoRenders } : {}),
+    ...(planRenders.some((r) => r.path) ? { plan_renders: planRenders } : {}),
     swatches,
     cut_plan: cutPlan,
     parts_digest: digest,

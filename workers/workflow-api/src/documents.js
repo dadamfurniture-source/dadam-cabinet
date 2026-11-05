@@ -412,8 +412,8 @@ export function documentForViewer(doc, money) {
 export async function resolvePrintAssets(env, doc) {
   const rp = doc && doc.render_payload;
   const listOf = (v) => (doc && (doc.doc_type === 'work_order' || doc.doc_type === 'installation_order') && rp && Array.isArray(v) ? v : []);
-  // 정면 렌더 + 플래너 ISO 도면 (2026-11-05)
-  const renders = [...listOf(rp && rp.renders), ...listOf(rp && rp.iso_renders)];
+  // 정면 렌더 + 플래너 ISO 도면 · 상판 탑뷰 (2026-11-05)
+  const renders = [...listOf(rp && rp.renders), ...listOf(rp && rp.iso_renders), ...listOf(rp && rp.plan_renders)];
   const paths = renders.map((r) => r && r.path).filter((p) => typeof p === 'string' && p);
   if (paths.length === 0) return { renderUrls: new Map() };
   try {

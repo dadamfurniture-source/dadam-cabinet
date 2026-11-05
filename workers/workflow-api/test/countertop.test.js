@@ -124,6 +124,42 @@ test('한 장 탑뷰 — 상판이 하부장 위 수납장 칸에서 끊겨도 �
   assert.equal(countertopRequests(off)[0].bomGap, 50);
 });
 
+test('플래너 코너 — 하부장이 두 벽(품목 둘)이면 한 요청 · 벽마다 타공 자리 · 그림은 플래너 탑뷰, 없으면 [확인 필요] (2026-11-05)', () => {
+  const base = fx.snapshot({ id: 's3' });
+  const snap = {
+    ...base,
+    design_payload: { source: 'planner-lite', items: [
+      { name: '벽 A', labelName: '벽 A', uniqueId: 1, categoryId: 'sink', specs: {}, modules: [
+        { pos: 'upper', name: '상부장', w: 800, _x: 0 },
+        { pos: 'lower', type: 'sink', name: '개수대 900', w: 900, _x: 0 },
+        { pos: 'lower', type: 'door', name: '도어장 600', w: 600, _x: 900 },
+      ] },
+      { name: '벽 B', labelName: '벽 B', uniqueId: 2, categoryId: 'sink', specs: {}, modules: [
+        { pos: 'lower', type: 'cooktop', name: '가스대 600', w: 600, _x: 700 },
+        { pos: 'lower', type: 'tall', name: '키큰장', w: 600, _x: 1300 },
+      ] },
+    ] },
+    bom_payload: { ...base.bom_payload, materials: [...base.bom_payload.materials,
+      { ...TOP_ROW, partId: 'line|0-ep-top-0', w: 1500, h: 650 }, { ...TOP_ROW, partId: 'line|0-ep-top-1', w: 1300, h: 650 }] },
+  };
+  const all = countertopRequests(snap);
+  assert.equal(all.length, 1);
+  const [r] = all;
+  assert.deepEqual([r.shape, r.length, r.bomGap], ['corner', 2800, 0]);
+  assert.deepEqual(r.cutouts.map((c) => [c.kind, c.at]), [['sink', '벽 A 2번 칸 가운데'], ['cooktop', '벽 B 1번 칸 가운데'], ['faucet', '싱크볼 뒤 중앙']]);
+  assert.deepEqual(r.walls.map((w) => [w.label, w.length]), [['벽 A', 1500], ['벽 B', 600]], '키큰장 · 상부장 빼고');
+  const svg = planSvg(r);
+  assert.ok(svg.includes('[확인 필요] 코너 상판 탑뷰 그림 없음'));
+  // 플래너 탑뷰가 있으면 그 그림
+  const doc = { ...fx.doc({ id: DOC, design_id: D1 }), render_payload: { ...fx.doc().render_payload, plan_renders: [{ item_index: 0, item_unique_id: 1, path: 'D1/1/plan.svg' }] } };
+  const html = renderWorkOrder(doc, snap, { toolbar: false, pack: 'top', renderUrls: new Map([['D1/1/plan.svg', 'https://x.supabase.co/storage/v1/object/sign/renders/D1/1/plan.svg?token=T']]), top: { vendors: {}, models: MODELS } });
+  assert.ok(html.includes('plan.svg?token=T') && html.includes('플래너 탑뷰'));
+  assert.ok(!html.includes('코너 상판 탑뷰 그림 없음'));
+  // 일자 플래너 설계(하부장 한 벽)는 앱이 그린다
+  const one = { ...snap, design_payload: { items: [snap.design_payload.items[0]] } };
+  assert.equal(countertopRequests(one)[0].shape, 'straight');
+});
+
 test('플래너 사양 — 마감 폭 · 상판 색 · 뒷선반(적은 크기만) · 수전 모델', () => {
   const FAU_M = '88888888-8888-4888-8888-888888888888';
   const models = new Map([...MODELS, [FAU_M, { id: FAU_M, category: 'faucet', brand: '대림', model_name: '원홀 수전', model_code: 'DL-1', faucet_hole_mm: 32 }]]);

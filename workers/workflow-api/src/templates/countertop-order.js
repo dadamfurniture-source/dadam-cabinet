@@ -25,6 +25,11 @@ export function planSvg(req) {
   const W = 640;
   const H = 260;
   const pad = 30;
+  // 플래너 코너(벽마다 품목) — 앱이 벽 사이 자리를 모른다. 플래너 탑뷰 그림이 없으면 벽마다 하부장 폭만 (지어내지 않는다)
+  if (req.shape === 'corner' && Array.isArray(req.walls) && req.walls.length) {
+    const lines = req.walls.map((w, i) => `<text x="${pad}" y="${44 + i * 18}" font-size="11">${esc(w.label)} — 하부장 ${w.mods.map((m) => `${num(m.no)} ${esc(m.name)} ${num(m.w)}`).join(' · ')} (합 ${num(w.length)})</text>`).join('');
+    return `<svg class="top-plan" viewBox="0 0 ${W} ${60 + req.walls.length * 18}" width="100%" role="img" aria-label="코너 상판 — 벽마다 하부장"><text x="${pad}" y="20" font-size="11" fill="#b45309">${CHECK} 코너 상판 탑뷰 그림 없음 — 플래너에서 다시 보내 주세요 · 펼친 길이 ${num(req.length)}</text>${lines}</svg>`;
+  }
   if (req.shape === 'corner' && Array.isArray(req.plan) && req.plan.length) {
     const xs = req.plan.flatMap((b) => [b.x0, b.x1]);
     const ys = req.plan.flatMap((b) => [b.y0, b.y1]);
@@ -142,6 +147,13 @@ function elevatorText(site) {
 
 const modelName = (m) => (m ? `${esc(m.name)}${m.code ? ` <span class="mono">${esc(m.code)}</span>` : ''}` : `<span class="warn">${CHECK} 모델 미지정</span>`);
 
+/** 플래너가 그려 보낸 상판 탑뷰 (코너 — 발행 때 고정 · 인쇄 때 서명). 없으면 '' → 앱 그림 */
+function planImgOf(ctx, req) {
+  const r = Array.isArray(ctx.planRenders) ? ctx.planRenders.find((x) => x && x.item_index === req.index) : null;
+  const url = r && r.path && ctx.renderUrls ? ctx.renderUrls.get(r.path) : null;
+  return url ? `<div class="top-plan-img"><img src="${esc(url)}" alt="상판 탑뷰 (플래너 그림)" style="width:100%;height:auto"><div class="muted">플래너 탑뷰 — 하부장 배치 · 타공 · 치수 mm</div></div>` : '';
+}
+
 function requestSheet(ctx, req, k, total) {
   const doc = ctx.doc;
   const top = ctx.top || {};
@@ -179,7 +191,7 @@ function requestSheet(ctx, req, k, total) {
     <dt>엘리베이터</dt><dd>${elevatorText(ctx.top && ctx.top.siteInfo)}</dd>
   </dl>
   <div class="section-title">탑뷰 <span class="muted">하부장 배치 그대로 · 위에서 본 모습</span></div>
-  ${planSvg(req)}
+  ${planImgOf(ctx, req) || planSvg(req)}
   <div class="section-title">싱크볼 · 수전 · 쿡탑</div>
   <table class="compact"><thead><tr><th scope="col">설비</th><th scope="col">모델</th><th scope="col">위치</th><th scope="col">타공</th></tr></thead><tbody>${cutRows}</tbody></table>
   <div class="section-title">마감</div>

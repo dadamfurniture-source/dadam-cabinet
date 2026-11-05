@@ -16,6 +16,8 @@
  *   ISO 도면 (2026-11-05 사장님 「도면 표현은 플래너의 도면을 거의 그대로 · 선 굵기 종류 · 치수 정확하게 · 정면도 말고 iso 뷰」):
  *     renders [{ item, kind: 'iso', svg }] — 플래너가 그린 SVG 그대로. 버킷 renders (image/svg+xml) · design_renders kind iso.
  *     스크립트 · 바깥 주소 · 이벤트 속성이 든 SVG 는 422 (서명 주소를 바로 열어도 안전하게).
+ *   상판 탑뷰 (같은 날 — ㄱ · ㄷ자처럼 하부장이 두 벽 이상): renders [{ item, kind: 'plan', svg }] — 같은 검사 · design_renders kind plan.
+ *     앱 상판 발주서가 코너 상판 그림으로 싣는다 (일자는 앱이 그린다).
  *   조립 명세 (D): bom.assembly 는 createSnapshot 의 validateAssembly 를 그대로 거친다.
  * 숫자는 플래너(엔진)가 낸 BOM 그대로 — 여기서 다시 계산하지 않는다 (견적은 createSnapshot 이 활성 단가로).
  */
@@ -66,11 +68,11 @@ export function plannerRendersOf(list) {
     const item = Number(r && r.item);
     if (!Number.isInteger(item) || item < 1 || item > 1e9) throw new ValidationError(`renders[${i}].item 은 품목 uniqueId (양의 정수) 여야 합니다`);
     const dim = (v) => (Number.isInteger(Number(v)) && Number(v) > 0 && Number(v) < 20000 ? Number(v) : null);
-    if (r.kind === 'iso') {
+    if (r.kind === 'iso' || r.kind === 'plan') {
       const svg = safeIsoSvg(r.svg, i);
-      return { item, kind: 'iso', bytes: new TextEncoder().encode(svg), contentType: 'image/svg+xml', ext: 'svg', width: dim(r.width), height: dim(r.height) };
+      return { item, kind: r.kind, bytes: new TextEncoder().encode(svg), contentType: 'image/svg+xml', ext: 'svg', width: dim(r.width), height: dim(r.height) };
     }
-    if (r.kind !== undefined && r.kind !== null && r.kind !== 'front') throw new ValidationError(`renders[${i}].kind 는 front · iso 중 하나여야 합니다`);
+    if (r.kind !== undefined && r.kind !== null && r.kind !== 'front') throw new ValidationError(`renders[${i}].kind 는 front · iso · plan 중 하나여야 합니다`);
     const b64 = String((r && r.png) || '').replace(/^data:image\/png;base64,/, '');
     if (!/^[A-Za-z0-9+/]+=*$/.test(b64)) throw new ValidationError(`renders[${i}].png 는 PNG base64 여야 합니다`);
     const bin = atob(b64);
@@ -92,7 +94,7 @@ async function saveRenders(env, designId, renders) {
       await insertOne(env, 'design_renders', { design_id: designId, item_unique_id: r.item, kind: r.kind, path, width: r.width, height: r.height });
       saved += 1;
     } catch (e) {
-      console.warn(`[planner-handoff] ${r.kind === 'iso' ? 'ISO 도면' : '정면 렌더'}을 넣지 못했습니다 — 없이 발행합니다:`, e && e.message);
+      console.warn(`[planner-handoff] ${r.kind === 'iso' ? 'ISO 도면' : r.kind === 'plan' ? '상판 탑뷰' : '정면 렌더'}을 넣지 못했습니다 — 없이 발행합니다:`, e && e.message);
     }
   }
   return saved;

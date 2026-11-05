@@ -145,11 +145,12 @@ const ISO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><
 test('ISO 도면 — kind iso SVG 는 버킷 renders (image/svg+xml) · design_renders iso, 스크립트 · 바깥 주소 SVG 는 동결 전에 422 (2026-11-05)', async () => {
   let f = fakeSupabase();
   try {
-    const r = await receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, png: PNG_1PX }, { item: 1, kind: 'iso', svg: ISO_SVG, width: 1400 }] }) });
-    assert.equal(r.renders_saved, 2);
+    const r = await receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, png: PNG_1PX }, { item: 1, kind: 'iso', svg: ISO_SVG, width: 1400 }, { item: 1, kind: 'plan', svg: ISO_SVG }] }) });
+    assert.equal(r.renders_saved, 3);
     assert.match(f.uploads[1].path, /^D-NEW\/1\/iso-\d+-1\.svg$/);
     assert.equal(f.uploads[1].type, 'image/svg+xml');
-    assert.deepEqual([f.renderRows[0].kind, f.renderRows[1].kind, f.renderRows[1].width], ['front', 'iso', 1400]);
+    assert.match(f.uploads[2].path, /^D-NEW\/1\/plan-\d+-2\.svg$/, '상판 탑뷰 (코너)');
+    assert.deepEqual([f.renderRows[0].kind, f.renderRows[1].kind, f.renderRows[1].width, f.renderRows[2].kind], ['front', 'iso', 1400, 'plan']);
   } finally { f.restore(); }
 
   f = fakeSupabase();
@@ -164,7 +165,7 @@ test('ISO 도면 — kind iso SVG 는 버킷 renders (image/svg+xml) · design_r
     ]) {
       await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, kind: 'iso', svg }] }) }), (e) => e instanceof ValidationError, svg.slice(0, 60));
     }
-    await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, kind: 'plan', svg: ISO_SVG }] }) }), (e) => e instanceof ValidationError);
+    await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: OWNER }, body: body({ renders: [{ item: 1, kind: 'module', svg: ISO_SVG }] }) }), (e) => e instanceof ValidationError);
     assert.equal(f.designPosts.length + f.snapshotPosts.length + f.uploads.length, 0, '아무것도 쓰지 않는다');
   } finally { f.restore(); }
 });

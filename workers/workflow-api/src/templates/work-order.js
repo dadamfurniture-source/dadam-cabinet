@@ -119,6 +119,7 @@ function buildContext(doc, snapshot, renderUrls) {
     labelOrder,
     renders: Array.isArray(rp.renders) ? rp.renders : null,
     isoRenders: Array.isArray(rp.iso_renders) ? rp.iso_renders : null,
+    planRenders: Array.isArray(rp.plan_renders) ? rp.plan_renders : null,
     renderUrls: renderUrls instanceof Map ? renderUrls : new Map(Object.entries(renderUrls || {})),
     swatches,
     swatchByCode: new Map(swatches.map((s) => [s.code, s])),

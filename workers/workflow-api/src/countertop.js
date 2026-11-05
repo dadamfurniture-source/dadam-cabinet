@@ -167,6 +167,27 @@ export function countertopRequests(snapshot, { countertop = DEFAULT_COUNTERTOP, 
     const cabinetLeft = tallAt(x0, true) || (planMods.length > 0 && planMods[0].kind === 'onTop');
     const cabinetRight = tallAt(x1, false) || (planMods.length > 0 && planMods[planMods.length - 1].kind === 'onTop');
 
+    // 간편 플래너 코너 — 품목이 벽마다라(앱 품목 = 벽) 상판 줄 부재(line|)는 설계 전체 한 번. 하부장이 두 벽 이상이면 벽마다 모듈을 모으고
+    //   그림은 플래너가 그려 보낸 탑뷰(plan 렌더)로 — 앱은 벽 사이 자리를 모른다 (2026-11-05)
+    const plannerWalls = list.every((r) => /^line\|/.test(String(r.partId || ''))) ? items
+      .map((it) => ({ it, lower: (Array.isArray(it.modules) ? it.modules : []).filter((m) => m && m.pos === 'lower' && m.type !== 'tall') }))
+      .filter((x) => x.lower.length) : [];
+    const multiWall = plannerWalls.length > 1;
+    if (multiWall) {
+      cutouts.length = 0;
+      plannerWalls.forEach(({ it, lower }) => {
+        const label = it.labelName || it.name || '';
+        const mods = Array.isArray(it.modules) ? it.modules : [];
+        lower.filter((m) => !isOnTop(m)).forEach((m) => {
+          const no = mods.indexOf(m) + 1;
+          if (isSinkModule(m)) cutouts.push({ kind: 'sink', label: '싱크볼', center: null, at: `${label} ${no}번 칸 가운데`, no, model: sinkModel });
+          else if (isCookModule(m)) cutouts.push({ kind: 'cooktop', label: '쿡탑', center: null, at: `${label} ${no}번 칸 가운데`, no, model: cookModel });
+        });
+      });
+      if (cutouts.some((c) => c.kind === 'sink')) {
+        cutouts.push({ kind: 'faucet', label: '수전', center: null, at: '싱크볼 뒤 중앙', dia: faucetModel && faucetModel.faucet ? faucetModel.faucet : sinkModel ? sinkModel.faucet : null, model: faucetModel || null, sinkModel });
+      }
+    }
     const lipNa = thickness >= 50; // 50T 는 앞에서 이미 두껍다 — 앞턱(등뜨기) 해당 없음
     const rearOn = specs.topRearShelf === 'on' || specs.topRearShelf === true;
     const finishCode = row.finishCode || (/^TOP-/i.test(String(specs.topColor || '')) ? String(specs.topColor).toUpperCase() : null);
@@ -177,16 +198,21 @@ export function countertopRequests(snapshot, { countertop = DEFAULT_COUNTERTOP, 
       vendorKey: TOP_VENDOR_KEY[row.material] || 'topMarble',
       thickness,
       finishCode,
-      length,
+      length: multiWall ? topLength : length,
       topLength,
-      bomGap: Math.abs(bomGap) > 1 ? bomGap : 0,
+      bomGap: !multiWall && Math.abs(bomGap) > 1 ? bomGap : 0,
       depth: Math.round(num(row.h) || 0),
-      shape: corner ? 'corner' : 'straight',
+      shape: corner || multiWall ? 'corner' : 'straight',
       runs: corner ? runLengths(item) : [],
       plan: corner ? isoModel(item).boxes.filter((b) => !(b.m && (b.m.pos === 'upper' || b.m.type === 'tall'))).map((b) => ({
         x0: b.x0, x1: b.x1, y0: b.y0, y1: b.y1, front: b.front, sink: isSinkModule(b.m), cook: isCookModule(b.m),
       })) : null,
-      modules: corner ? [] : planMods,
+      modules: corner || multiWall ? [] : planMods,
+      ...(multiWall ? { walls: plannerWalls.map(({ it, lower }) => ({
+        label: it.labelName || it.name || '',
+        length: Math.round(lower.reduce((s2, m) => s2 + (num(m.w) || 0), 0)),
+        mods: lower.map((m) => ({ no: (it.modules || []).indexOf(m) + 1, name: String(m.name || '').split(' — ')[0], w: Math.round(num(m.w) || 0), onTop: isOnTop(m) })),
+      })) } : {}),
       finishW: { left: Math.round(leftFin), right: Math.round(rightFin) },
       cutouts,
       finishes: {
