@@ -4,9 +4,10 @@
  *   업체 active 구성원만 (한 사람에 업체 하나 — 0003 company_members_one_active_company). 아니면 403 not_member.
  *     관리자여도 구성원이 아니면 못 본다 — 장부는 그 업체 것이다.
  *   업체 자격은 DB 함수 company_entitled(업체, 'ledger', 사람) 하나로 본다 (database/migrations/0026):
- *     full  Agent 협력업체(또는 시험 예외) · active — 쓰기 · 읽기
+ *     full  Expert · Agent 협력업체(또는 시험 예외) · active — 쓰기 · 읽기 (DB 0038)
  *     read  등급이 내려감 — 보기 · 내보내기만 (장부 · 증빙 5년 보관). 쓰면 403 read_only
  *     none  403 not_entitled
+ *   사진 AI 읽기는 따로 company_entitled(업체, 'ledger_ai') — Agent · 시험 업체만 (ledgerAi, DB 0038).
  *   대표 · 실장(MONEY_ROLES): 장부 · 금액 · 설정. 직원: 사진 올리기와 자기가 올린 사진의 상태만 — 금액 · 장부는 403 not_money
  *
  *   다른 업체 장부 보기 (?company=) — 다담 본사(platform) 대표 · 실장만 다담 공장(hq) 장부를 본다.
@@ -69,6 +70,11 @@ export async function ledgerList(env, user) {
 /** 금액 · 장부 · 설정 — 대표 · 실장만 */
 export function assertMoney(access) {
   if (!access.money) throw new ForbiddenError('장부는 업체 대표 · 실장만 봅니다', 'not_money');
+}
+
+/** 사진 AI 읽기 자격 — DB 0038 company_entitled(업체, 'ledger_ai') 가 full (Agent · 시험 업체) */
+export async function ledgerAi(env, companyId) {
+  return (await callRpc(env, 'company_entitled', { p_company: companyId, p_feature: 'ledger_ai' })) === 'full';
 }
 
 /** 쓰기 — 자격이 full 일 때만 (다른 업체 장부 보기는 늘 read) */

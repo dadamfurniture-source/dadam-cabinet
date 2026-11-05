@@ -7,7 +7,8 @@
  *     X-Idempotency-Key 가 같거나, 같은 업체에 같은 파일(sha256)이 있으면 처음 사진을 돌려준다 (200 reused).
  *     순서: 분 한도(LEDGER_UPLOAD_LIMIT) → 같은 키 → 하루 장수(업체) → 본문(5MB, 읽으면서 센다) → 형식 · 크기 → 같은 파일
  *       → 버킷 ledger-evidence `{업체}/{yyyy}/{mm}/{사진 id}.jpg|png` → 줄
- *     새 사진이면 그 자리에서 읽기를 건다 (extract.js requestExtract, ctx.waitUntil — 응답을 기다리게 하지 않는다)
+ *     새 사진이면 그 자리에서 읽기를 건다 — 사진 AI 읽기 자격(Agent · 시험)이 있는 업체만
+ *       (extract.js requestExtractIfAi, ctx.waitUntil — 응답을 기다리게 하지 않는다)
  *   GET  /ledger/documents   대표 · 실장: 업체 사진 전부 (?status= · ?mine=1 · ?before= · ?limit=).
  *                            직원: 자기가 올린 것의 일자 · 상태 · 돌려보낸 이유만 — 금액 · 메모 · 파일 칸 · 주소는 없다
  *                            ?company= — 본사 대표 · 실장이 공장 사진 목록을 볼 때 (access.js, 보기만)
@@ -18,7 +19,7 @@ import { selectOne, selectMany, insertOne, asActor, ValidationError, ConflictErr
 import { kstDate } from '../production/service.js';
 import { uploadObject } from '../storage.js';
 import { ledgerAccess, assertWritable } from './access.js';
-import { requestExtract } from './extract.js';
+import { requestExtractIfAi } from './extract.js';
 import { sniffImage, idempotencyKeyOf, PHOTO_MAX_BYTES, PHOTO_MAX_EDGE, PHOTO_MAX_PIXELS } from './checks.js';
 
 export const LEDGER_BUCKET = 'ledger-evidence';
@@ -193,7 +194,7 @@ export async function uploadDocument(env, { user, request, ctx }) {
     }
     throw e;
   }
-  if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(requestExtract(env, id));
+  if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(requestExtractIfAi(env, access.companyId, id));
   return { document: documentView(saved, access.money), reused: false };
 }
 

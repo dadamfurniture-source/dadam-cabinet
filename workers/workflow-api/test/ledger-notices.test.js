@@ -10,7 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/worker.js';
-import { buildMessage, isValidMessage, LEDGER_NOTICE_URL } from '../src/push/messages.js';
+import { buildMessage, isValidMessage, LEDGER_NOTICE_URL, LEDGER_URL } from '../src/push/messages.js';
 import { runLedgerNotices, noticeJobs, kstDay, NOW_COMPANIES, DIGEST_COMPANIES, NTS_BATCH, NTS_STALE_DAYS } from '../src/ledger/notices.js';
 import { createFake, withFake, SB } from './helpers/push-fake.js';
 
@@ -63,17 +63,22 @@ function rpcs({ claim = {}, missing = false, due = [], record = { saved: 0, adde
 }
 
 test('이 분에 할 일 — 훑기 2 · 국세청 3 (5분마다), 아침 묶음 08:00~08:29 (2 · 3 분 빼고)', () => {
-  assert.deepEqual(noticeJobs(kst('2026-11-03T14:02:00')), { scan: true, nts: false, digest: false, invoice: false });
-  assert.deepEqual(noticeJobs(kst('2026-11-03T14:13:00')), { scan: false, nts: true, digest: false, invoice: false });
-  assert.deepEqual(noticeJobs(kst('2026-11-03T08:00:00')), { scan: false, nts: false, digest: true, invoice: false });
-  assert.deepEqual(noticeJobs(kst('2026-11-03T08:07:00')), { scan: true, nts: false, digest: false, invoice: false });
-  assert.deepEqual(noticeJobs(kst('2026-11-03T08:29:00')), { scan: false, nts: false, digest: true, invoice: false });
-  assert.deepEqual(noticeJobs(kst('2026-11-03T08:30:00')), { scan: false, nts: false, digest: false, invoice: false });
+  assert.deepEqual(noticeJobs(kst('2026-11-03T14:02:00')), { scan: true, nts: false, digest: false, invoice: false, month: false });
+  assert.deepEqual(noticeJobs(kst('2026-11-03T14:13:00')), { scan: false, nts: true, digest: false, invoice: false, month: false });
+  assert.deepEqual(noticeJobs(kst('2026-11-03T08:00:00')), { scan: false, nts: false, digest: true, invoice: false, month: false });
+  assert.deepEqual(noticeJobs(kst('2026-11-03T08:07:00')), { scan: true, nts: false, digest: false, invoice: false, month: false });
+  assert.deepEqual(noticeJobs(kst('2026-11-03T08:29:00')), { scan: false, nts: false, digest: true, invoice: false, month: false });
+  assert.deepEqual(noticeJobs(kst('2026-11-03T08:30:00')), { scan: false, nts: false, digest: false, invoice: false, month: false });
   // 세금계산서 없음 — 11일부터 07:55 (10일까지 · 다른 분은 아님)
   assert.equal(noticeJobs(kst('2026-11-10T07:55:00')).invoice, false);
   assert.equal(noticeJobs(kst('2026-11-11T07:55:00')).invoice, true);
   assert.equal(noticeJobs(kst('2026-11-30T07:55:00')).invoice, true);
   assert.equal(noticeJobs(kst('2026-11-11T07:56:00')).invoice, false);
+  // 월 보고 — 매달 1일 07:50 만
+  assert.equal(noticeJobs(kst('2026-12-01T07:50:00')).month, true);
+  assert.equal(noticeJobs(kst('2026-12-01T07:51:00')).month, false);
+  assert.equal(noticeJobs(kst('2026-12-02T07:50:00')).month, false);
+  assert.equal(noticeJobs(kst('2026-12-01T07:50:00')).scan, false);
   assert.equal(kstDay(kst('2026-11-04T00:10:00')), '20261104');
 });
 
@@ -86,6 +91,11 @@ test('앱 알림 글 — 수만, 금액 · 상호 없이, 비서 탭으로', () 
   assert.ok(isValidMessage(now) && isValidMessage(am));
   assert.equal(LEDGER_NOTICE_URL, '/segan/assistant.html');
   assert.equal(buildMessage('ledger_notice', { count: 0 }), null);
+  // 사진 AI 읽기 · 비서가 없는 업체(Expert) — 회계 화면으로
+  const ex = buildMessage('ledger_notice', { count: 1, digest: true, ai: false });
+  assert.deepEqual(ex, { title: '장부 알림', body: '장부에 새 알림이 1건 있습니다. 회계 화면에서 확인해 주세요.', url: LEDGER_URL });
+  assert.ok(isValidMessage(ex));
+  assert.deepEqual(buildMessage('ledger_notice', { count: 2, ai: true }), now);
 });
 
 test('훑는 분 — 훑고 바로 알림을 잡아 대표 · 실장에게 (한 시간에 한 번, 직원 · 안 본 것 없는 업체는 아니다)', async () => {
@@ -93,7 +103,8 @@ test('훑는 분 — 훑고 바로 알림을 잡아 대표 · 실장에게 (한 
   const fake = createFake({ tables: tables(), rpc });
   const at = kst('2026-11-03T14:02:00');
   const out = await withFake(fake, () => runLedgerNotices(ENV, { nowMs: at }));
-  assert.deepEqual(rpc.calls.map((c) => c.name), ['ledger_notices_scan', 'ledger_notices_claim']);
+  assert.deepEqual(rpc.calls.map((c) => c.name), ['ledger_notices_scan', 'ledger_notices_claim', 'company_entitled']);
+  assert.deepEqual(rpc.calls[2].body, { p_company: CO, p_feature: 'ledger_ai' });
   assert.deepEqual(rpc.calls[1].body, { p_urgency: 'now', p_companies: NOW_COMPANIES });
   assert.equal(out.pushed, 2);
   const box = fake.db.notification_outbox;
@@ -113,7 +124,7 @@ test('아침 묶음 — 안 본 수만, 하루 한 번 · 다른 분에는 아�
   const rpc = rpcs({ claim: { digest: [{ company_id: CO, notices: 4, unseen: 3 }] } });
   const fake = createFake({ tables: tables(), rpc });
   await withFake(fake, () => runLedgerNotices(ENV, { nowMs: kst('2026-11-03T08:01:00') }));
-  assert.deepEqual(rpc.calls.map((c) => [c.name, c.body.p_urgency, c.body.p_companies]), [['ledger_notices_claim', 'digest', DIGEST_COMPANIES]]);
+  assert.deepEqual(rpc.calls.map((c) => [c.name, c.body.p_urgency, c.body.p_companies]), [['ledger_notices_claim', 'digest', DIGEST_COMPANIES], ['company_entitled', undefined, undefined]]);
   const box = fake.db.notification_outbox;
   assert.equal(box.length, 2);
   assert.equal(box[0].title, '장부에 바뀐 점');
@@ -122,6 +133,27 @@ test('아침 묶음 — 안 본 수만, 하루 한 번 · 다른 분에는 아�
   rpc.calls.length = 0;
   await withFake(fake, () => runLedgerNotices(ENV, { nowMs: kst('2026-11-03T14:01:00') }));
   assert.deepEqual(rpc.calls, []);
+});
+
+test('월 보고 — 매달 1일 07:50 지난달로 ledger_month_report_scan 하나, 0038 전이면 건너뛴다', async () => {
+  const calls = [];
+  const rpc = (name, body) => {
+    calls.push({ name, body });
+    if (name === 'ledger_month_report_scan') return 3;
+    return undefined;
+  };
+  const fake = createFake({ tables: tables(), rpc });
+  const out = await withFake(fake, () => runLedgerNotices(ENV, { nowMs: kst('2026-12-01T07:50:00') }));
+  assert.deepEqual(calls, [{ name: 'ledger_month_report_scan', body: { p_month: '2026-11-01' } }]);
+  assert.equal(out.month, 3);
+  // 1월 1일이면 지난해 12월
+  calls.length = 0;
+  await withFake(fake, () => runLedgerNotices(ENV, { nowMs: kst('2027-01-01T07:50:00') }));
+  assert.deepEqual(calls[0].body, { p_month: '2026-12-01' });
+  // 0038 전 — 함수가 없으면 던지지 않는다
+  const gone = createFake({ tables: tables(), rpc: rpcs({ missing: true }) });
+  const r = await withFake(gone, () => runLedgerNotices(ENV, { nowMs: kst('2026-12-01T07:50:00') }));
+  assert.equal(r.skipped, 'no_function');
 });
 
 test('국세청 분 — 키가 있으면 묵은 번호를 한 번에 묻고 기록, 없으면 묻지 않는다 (키 · 주소는 로그에 없다)', async () => {

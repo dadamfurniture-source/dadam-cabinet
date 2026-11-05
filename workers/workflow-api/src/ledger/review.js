@@ -10,6 +10,7 @@
  *                                           응답 뒤 올린 사람에게 앱 알림 ledger_returned (src/push/ledger-hooks.js — 이유는 싣지 않는다)
  *   POST /ledger/documents/:id/reject       버리기 { reason } — 같다
  *   POST /ledger/documents/:id/reread       다시 읽기 (실패 · 거절 · 한도 뒤) → 202 { queued }
+ *                                           사진 AI 읽기 자격이 없으면(Expert) { queued: false, reason: 'not_entitled' }
  *   POST /ledger/review/post                한꺼번에 올리기 { items: [{ id, …올리기 본문 }] } 20장까지, 장마다 따로 → [{ id, ok, … }]
  *                                           바로 올리기는 { id, ready: true, entry: 앱이 본 올릴 값 } — 서버가 힌트를 다시 세어
  *                                           아직 바로 올릴 수 있고 값이 같을 때만 그 값으로 올린다 (아니면 409 not_ready · changed)
@@ -37,7 +38,7 @@ import {
 import { createSignedUrls } from '../storage.js';
 import { later } from '../push/work-hooks.js';
 import { notifyLedgerReturned } from '../push/ledger-hooks.js';
-import { requestExtract } from './extract.js';
+import { requestExtractIfAi } from './extract.js';
 import { COST_CATEGORIES } from '../orders.js';
 import { assertCounterparty } from '../counterparties.js';
 import { ledgerAccess, assertMoney, assertWritable } from './access.js';
@@ -430,7 +431,7 @@ export async function decideDocument(env, { user, documentId, body, status, ctx 
 export async function rereadDocument(env, { user, documentId }) {
   const access = await writer(env, user);
   await pendingDocument(env, access.companyId, documentId);
-  const out = await requestExtract(env, documentId, { again: true });
+  const out = await requestExtractIfAi(env, access.companyId, documentId, { again: true });
   return { queued: out.ok === true, reason: out.ok === true ? null : out.reason || null };
 }
 

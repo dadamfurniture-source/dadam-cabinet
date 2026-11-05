@@ -251,12 +251,16 @@ function ledgerPending({ count } = {}) {
 export const LEDGER_NOTICE_URL = '/segan/assistant.html';
 
 /**
- * 장부 알림 — 업체 대표 · 실장에게. { count, digest } (아직 안 본 알림 수, 1 이상).
+ * 장부 알림 — 업체 대표 · 실장에게. { count, digest, ai } (아직 안 본 알림 수, 1 이상).
+ * ai false(사진 AI 읽기 · 비서가 없는 Expert 업체)면 비서 탭 대신 회계 화면으로 — 월 보고 · 명세표 알림이 거기 보인다.
  * digest 면 아침 묶음(단가 · 새 거래처 · 휴업/폐업 · 증빙), 아니면 바로 알림(중복 의심 · 평소와 다른 큰 금액). 금액 · 상호 없음
  */
-function ledgerNotice({ count, digest } = {}) {
+function ledgerNotice({ count, digest, ai } = {}) {
   if (!Number.isInteger(count) || count < 1) return null;
   const n = count > LEDGER_PENDING_MAX ? `${LEDGER_PENDING_MAX}건 넘게` : `${count}건`;
+  if (ai === false) {
+    return { title: '장부 알림', body: `장부에 새 알림이 ${n} 있습니다. 회계 화면에서 확인해 주세요.`, url: LEDGER_URL };
+  }
   return digest
     ? { title: '장부에 바뀐 점', body: `장부에 바뀐 점이 ${n} 있습니다. 비서 탭에서 확인해 주세요.`, url: LEDGER_NOTICE_URL }
     : { title: '장부 확인 필요', body: `중복 의심 · 평소와 다른 큰 금액이 ${n} 있습니다. 비서 탭에서 확인해 주세요.`, url: LEDGER_NOTICE_URL };

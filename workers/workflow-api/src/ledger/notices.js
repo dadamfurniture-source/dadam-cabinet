@@ -12,6 +12,9 @@
  *                   분 % 5 가 2 · 3 인 분은 건너뛴다 (훑기 · 국세청과 겹치지 않게)
  *     07:55         매달 INVOICE_DAY(11)일부터 — 지난달 · 그 앞 달 모아 둔 명세표에 세금계산서가 없으면 invoice_missing
  *                   (DB 0036 ledger_invoice_missing_scan — 거래처 · 달마다 하나라 매일 불러도 하나). 8시 묶음에 실린다
+ *     07:50         매달 1일 — 지난달 월 보고 month_report (DB 0038 ledger_month_report_scan — 그 달 장부 줄이 있는
+ *                   회계 자격 업체마다 하나). 8시 묶음에 실린다
+ *   앱 알림은 사진 AI 읽기 업체(Agent)면 비서 탭으로, 아니면(Expert) 회계 화면으로 보낸다 (access.js ledgerAi)
  *   GET  /ledger/notices         대표 · 실장 — 최근 알림 (?limit= 30, 100까지) + 그 안의 안 본 수. ?company= 본사 보기
  *   POST /ledger/notices/seen    대표 · 실장 — { ids } 본 표시 (업체에 하나, 자기 업체만)
  * 0033 을 적용하기 전에는 함수 · 표가 없다 — 경고를 한 번만 남기고 건너뛴다 (목록은 빈 목록).
@@ -21,7 +24,7 @@ import { selectMany, updateBy, callRpc, MONEY_ROLES, ValidationError } from '../
 import { buildMessage } from '../push/messages.js';
 import { notifyRoles } from '../push/outbox.js';
 import { kstHour } from '../push/ledger-hooks.js';
-import { ledgerAccess, assertMoney } from './access.js';
+import { ledgerAccess, ledgerAi, assertMoney } from './access.js';
 import { isUuid } from './checks.js';
 import { NTS_URL, ntsRow } from './review.js';
 import { isMissingFunction } from './hints.js';
@@ -39,6 +42,9 @@ export const NOW_COMPANIES = 10;
 export const INVOICE_HOUR = 7;
 export const INVOICE_MINUTE = 55;
 export const INVOICE_MONTHS = 2;
+/** 월 보고 — 매달 1일 아침 묶음 바로 앞 (분 % 5 가 0 이라 훑기 · 국세청과 안 겹친다) */
+export const MONTH_HOUR = 7;
+export const MONTH_MINUTE = 50;
 /** 국세청 — 한 번에 묻는 번호 수(API 한도 100) · 다시 물을 날 */
 export const NTS_BATCH = 100;
 export const NTS_STALE_DAYS = 30;
@@ -77,6 +83,7 @@ export function noticeJobs(nowMs) {
     nts: m % 5 === NTS_MINUTE,
     digest: h === DIGEST_HOUR && m < DIGEST_MINUTES && m % 5 !== SCAN_MINUTE && m % 5 !== NTS_MINUTE,
     invoice: h === INVOICE_HOUR && m === INVOICE_MINUTE && k.getUTCDate() >= INVOICE_DAY,
+    month: h === MONTH_HOUR && m === MONTH_MINUTE && k.getUTCDate() === 1,
   };
 }
 
@@ -96,7 +103,7 @@ async function pushClaimed(env, rows, { digest, nowMs }) {
   let sent = 0;
   for (const r of Array.isArray(rows) ? rows : []) {
     if (!r || !isUuid(r.company_id) || !Number.isInteger(r.unseen) || r.unseen < 1) continue;
-    const message = buildMessage('ledger_notice', { count: r.unseen, digest });
+    const message = buildMessage('ledger_notice', { count: r.unseen, digest, ai: await ledgerAi(env, r.company_id) });
     if (!message) continue;
     sent += await notifyRoles(env, {
       companyId: r.company_id,
@@ -149,8 +156,9 @@ export async function refreshNts(env) {
 /** 매분 cron — 던지지 않는다 → { scan, pushed, nts, skipped? } */
 export async function runLedgerNotices(env, { nowMs = Date.now() } = {}) {
   const jobs = noticeJobs(nowMs);
-  const out = { scan: null, pushed: 0, nts: null, invoice: null };
+  const out = { scan: null, pushed: 0, nts: null, invoice: null, month: null };
   try {
+    if (jobs.month) out.month = await callRpc(env, 'ledger_month_report_scan', { p_month: `${shiftMonth(kstMonth(nowMs), -1)}-01` });
     if (jobs.invoice) out.invoice = await scanInvoiceMissing(env, nowMs);
     if (jobs.scan) {
       out.scan = await callRpc(env, 'ledger_notices_scan', {});

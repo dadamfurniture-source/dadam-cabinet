@@ -133,6 +133,7 @@ import { listReview, postDocument, postBatch, decideDocument, rereadDocument, bu
 import { runExtractDue } from './ledger/extract.js';
 import { runLedgerNotices, listNotices, markNoticesSeen } from './ledger/notices.js';
 import { ledgerDashboard } from './ledger/dashboard.js';
+import { listReceivables, listPayables } from './ledger/money.js';
 import { listSupplierModes, setSupplierMode, holdDocuments, listHeld, supplierEntries, attachStatements } from './ledger/statements.js';
 import { runLedgerPendingNotices } from './push/ledger-hooks.js';
 import { ledgerMe, getLedgerSettings, putLedgerSettings } from './ledger/settings.js';
@@ -797,6 +798,16 @@ async function handleLedgerDashboard(request, env, { user }) {
   return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
 }
 
+async function handleLedgerReceivables(request, env, { user }) {
+  const company = new URL(request.url).searchParams.get('company') || undefined;
+  return jsonResponse(request, env, { success: true, data: await listReceivables(env, { user, company }) }, 200, NO_STORE);
+}
+
+async function handleLedgerPayables(request, env, { user }) {
+  const company = new URL(request.url).searchParams.get('company') || undefined;
+  return jsonResponse(request, env, { success: true, data: await listPayables(env, { user, company }) }, 200, NO_STORE);
+}
+
 async function handleLedgerSuppliers(request, env, { user }) {
   const company = new URL(request.url).searchParams.get('company') || undefined;
   return jsonResponse(request, env, { success: true, data: await listSupplierModes(env, { user, company }) }, 200, NO_STORE);
@@ -1302,7 +1313,7 @@ const router = createRouter([
   // 업체 장부 요약 (그 업체 대표 · 실장)
   { method: 'GET',   path: '/books/summary',      auth: 'jwt', handler: handleBooksSummary },
 
-  // 회계장부 (Agent 업체 — 자격은 company_entitled. 금액 · 장부는 대표 · 실장, 사진 올리기는 구성원 누구나)
+  // 회계장부 (Expert · Agent 업체 — 자격은 company_entitled, 사진 AI 읽기는 Agent. 금액 · 장부는 대표 · 실장, 사진 올리기는 구성원 누구나)
   { method: 'GET',  path: '/ledger/me',                 auth: 'jwt', handler: handleLedgerMe },
   { method: 'GET',  path: '/ledger/accounts',           auth: 'jwt', handler: handleLedgerAccounts },
   { method: 'GET',  path: '/ledger/book',               auth: 'jwt', handler: handleLedgerBook },
@@ -1323,6 +1334,8 @@ const router = createRouter([
   { method: 'GET',  path: '/ledger/business-status',    auth: 'jwt', handler: handleBusinessStatus },
   { method: 'GET',  path: '/ledger/notices',            auth: 'jwt', handler: handleLedgerNotices },
   { method: 'GET',  path: '/ledger/dashboard',          auth: 'jwt', handler: handleLedgerDashboard },
+  { method: 'GET',  path: '/ledger/receivables',        auth: 'jwt', handler: handleLedgerReceivables },
+  { method: 'GET',  path: '/ledger/payables',           auth: 'jwt', handler: handleLedgerPayables },
   { method: 'GET',  path: '/ledger/suppliers',          auth: 'jwt', handler: handleLedgerSuppliers },
   { method: 'PUT',  path: '/ledger/suppliers',          auth: 'jwt', handler: handlePutLedgerSupplier },
   { method: 'POST', path: '/ledger/documents/hold',     auth: 'jwt', handler: handleHoldLedgerDocuments },

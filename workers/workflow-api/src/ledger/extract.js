@@ -6,13 +6,16 @@
  *   그 객체가 ledger_extract_begin 으로 시도를 잡고 ledger_extractions 에 결과를 쓴다 (database/migrations/0029 · 0031).
  *   바인딩이 없으면(로컬 · 시험) 한 번만 적고 건너뛴다 — 사진 올리기 · 확인은 그대로 된다.
  *
- *   올린 직후   새 사진이면 uploadDocument(documents.js)가 ctx.waitUntil(requestExtract) — 같은 사진을 다시 올린 reused 는 걸지 않는다
+ *   올린 직후   새 사진이면 uploadDocument(documents.js)가 ctx.waitUntil(requestExtractIfAi) — 같은 사진을 다시 올린 reused 는 걸지 않는다
+ *   AI 읽기 자격  사진 AI 읽기는 Agent · 시험 업체만 (DB 0038 ledger_ai). 올린 직후 · 다시 읽기는 requestExtractIfAi 가 먼저 보고,
+ *               매분 cron 은 DB ledger_extract_due 가 ledger_ai 업체 사진만 준다. Expert 사진은 사람이 직접 적는다
  *   매분 cron   runExtractDue — rpc ledger_extract_due(DUE_LIMIT 장, DUE_WAIT_SEC 기다림, DUE_STUCK_SEC 멈춤, MAX_ATTEMPTS,
  *               REREAD_BELOW 판)가 준 사진마다 건다 (올린 직후 걸기가 실패했거나 읽기가 실패 · 멈춘 사진,
  *               REREAD_BELOW 보다 낮은 판으로 읽은 확인 기다리는 사진 — 이것은 다시(again)로 걸어 새 판으로 읽는다)
  */
 import { callRpc } from '../supabase.js';
 import { isUuid } from './checks.js';
+import { ledgerAi } from './access.js';
 
 /** 매분 cron — 한 번에 걸 사진 · 올린 뒤 기다릴 초 · 멈췄다고 볼 초 · 사진마다 자동 시도 */
 export const DUE_LIMIT = 5;
@@ -46,6 +49,17 @@ export async function requestExtract(env, documentId, { again = false } = {}) {
     console.error('[Ledger] extract request failed:', e && e.message);
     return { ok: false, reason: 'failed' };
   }
+}
+
+/** 사진 AI 읽기 자격(ledger_ai)이 있는 업체만 읽기를 건다 — 던지지 않는다 → { ok, queued?, reason? } (자격 없음 reason not_entitled) */
+export async function requestExtractIfAi(env, companyId, documentId, opts) {
+  try {
+    if (!(await ledgerAi(env, companyId))) return { ok: false, reason: 'not_entitled' };
+  } catch (e) {
+    console.error('[Ledger] ledger_ai check failed:', e && e.statusCode ? e.statusCode : 'error');
+    return { ok: false, reason: 'failed' };
+  }
+  return requestExtract(env, documentId, opts);
 }
 
 /** PostgREST 가 함수를 모른다 (0029 를 적용하기 전) */
