@@ -1,0 +1,60 @@
+{
+  "title": "0040 설계 출처 칸 둘은 같이 — 하나만 채우면 거절, 둘 다 비움 · 둘 다 모양대로는 그대로 (scripts/rls-probe.mjs --migration database/migrations/0040_designs_source_pair.sql)",
+  "ids": [
+    "company_x",
+    "design_a",
+    "design_b",
+    "design_c",
+    "design_d",
+    "design_e"
+  ],
+  "users": [
+    "x_owner_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active')"
+  ],
+  "roles": {
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "source 만 채우면 거절",
+      "sql": "insert into public.designs (id, user_id, name, company_id, source) values ({{design_a}}, {{x_owner_user}}, 'probe-a', {{company_x}}, 'planner-lite')",
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "source_ref 만 채우면 거절",
+      "sql": "insert into public.designs (id, user_id, name, company_id, source_ref) values ({{design_b}}, {{x_owner_user}}, 'probe-b', {{company_x}}, 'probe-design-1')",
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "둘 다 비움 — 상세설계 화면 설계 그대로",
+      "sql": "insert into public.designs (id, user_id, name, company_id) values ({{design_c}}, {{x_owner_user}}, 'probe-c', {{company_x}})",
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "둘 다 모양대로 — 플래너 설계 그대로",
+      "sql": "insert into public.designs (id, user_id, name, company_id, source, source_ref) values ({{design_d}}, {{x_owner_user}}, 'probe-d', {{company_x}}, 'planner-lite', 'probe-design-2')",
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "모양이 틀리면 거절 (0035 그대로)",
+      "sql": "insert into public.designs (id, user_id, name, company_id, source, source_ref) values ({{design_e}}, {{x_owner_user}}, 'probe-e', {{company_x}}, 'Planner Lite', 'probe-design-3')",
+      "expect": {
+        "service_role": "err:23514"
+      }
+    }
+  ]
+}
