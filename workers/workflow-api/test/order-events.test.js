@@ -926,6 +926,23 @@ test('승인 전 작업지시서 — 설계 업체로 기록 한 줄(early_work_
   });
 });
 
+test('작업지시서 발행 — 라벨 재단 차례 고정 · 특별 지시(사무실 글) 고정 + 필수 확인 note-cut-n, notes 모양이 틀리면 422 (2026-11-05)', async () => {
+  const fake = issueDb({ approvedCC: true });
+  await withFetch(fake.route, async (calls) => {
+    await issueDocument(ENV, { user: { id: P_STAFF }, body: { doc_type: 'work_order', snapshot_id: 'S2', notes: { cut: '원장 4 는 자투리 판으로', install: '이건 시공 지시서 몫' } } });
+    const rp = posts(calls, 'design_documents')[0].body.render_payload;
+    assert.equal(rp.label_order, 'cut');
+    assert.deepEqual(rp.special_notes.cut.at(-1), { text: '원장 4 는 자투리 판으로', src: 'office' });
+    assert.ok(!rp.special_notes.install, '작업지시서에는 설치 지시를 싣지 않는다');
+    const note = rp.check_list.roles.cut.find((x) => x.note);
+    assert.deepEqual([note.key, note.must, note.scope], ['note-cut-1', true, 'order']);
+  });
+  const bad = issueDb({ approvedCC: true });
+  await withFetch(bad.route, async () => {
+    await assert.rejects(() => issueDocument(ENV, { user: { id: P_STAFF }, body: { doc_type: 'work_order', snapshot_id: 'S2', notes: '그냥 글' } }), (e) => /notes/.test(e.message));
+  });
+});
+
 test('고객이 확인서를 승인했으면 사유를 묻지 않고 기록도 남기지 않는다 · 확인서 발행은 상관없다', async () => {
   const approved = issueDb({ approvedCC: true });
   await withFetch(approved.route, async (calls) => {

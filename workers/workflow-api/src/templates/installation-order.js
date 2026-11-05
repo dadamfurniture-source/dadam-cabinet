@@ -15,6 +15,9 @@
 import { esc, num, ymd, ymdhm, tr, thead, documentShell } from './html.js';
 import { PRINT_CSS, PRINT_TOOLBAR } from './print-css.js';
 import { modulePosLabel } from './elevation.js';
+import { elevationBlock, renderBoxes, specialNotesBox } from './work-order.js';
+import { specialNotesOfDoc } from '../work/special-notes.js';
+import { materialsOf, isOutsourcedTopRow } from '../work-order-data.js';
 import { checkListOfDoc, itemsFor, itemApplies } from '../work/check-items.js';
 import { SITE_NOTE } from '../work/reveal.js';
 
@@ -97,6 +100,8 @@ function coverSheet(doc, snapshot, site, worker) {
     </tbody>
   </table>
 
+  ${specialNotesBox(specialNotesOfDoc(doc), ['install'])}
+
   <h2>현장 정보</h2>
   <table class="meta">
     <tbody>
@@ -130,7 +135,8 @@ function coverSheet(doc, snapshot, site, worker) {
 
 /** 설치 확인 칸 — 정본 목록의 서명 아닌 항목 (v1). 조건(콘센트)은 동결본으로 거른다. v0 은 없다 */
 function installChecks(doc, snapshot) {
-  const list = itemsFor(checkListOfDoc(doc), 'install', 'order').filter((x) => x.paper !== 'sign' && itemApplies(x, null, snapshot));
+  // 특별 지시 항목(note)은 표지 위 빨간 상자에 있다
+  const list = itemsFor(checkListOfDoc(doc), 'install', 'order').filter((x) => !x.note && x.paper !== 'sign' && itemApplies(x, null, snapshot));
   if (!list.length) return '';
   return `<h2>설치 확인</h2><div class="freetext">${list.map((x) => `${esc(x.label)}${x.must ? '' : ' <span class="muted">(권장)</span>'}${x.photo === 'need' ? ' <span class="muted">· 사진</span>' : ''} ☐`).join(' &nbsp; ')}</div>`;
 }
@@ -143,7 +149,7 @@ function moduleSheet(snapshot) {
 
   items.forEach((item, i) => {
     const label = itemLabel(item, i);
-    (Array.isArray(item.modules) ? item.modules : []).forEach((m) => {
+    (Array.isArray(item.modules) ? item.modules : []).forEach((m, mi) => {
       const notes = [];
       if (m.isDrawer) notes.push(`서랍 ${num(m.drawerCount) || 1}단`);
       if (m.isEL) notes.push('EL');
@@ -153,6 +159,7 @@ function moduleSheet(snapshot) {
       rows.push(
         tr([
           esc(label),
+          num(mi + 1),
           esc(modulePosLabel(m)),
           esc(m.name || '-'),
           `${num(m.w)} × ${num(m.h)} × ${num(m.d)}`,
@@ -168,9 +175,37 @@ function moduleSheet(snapshot) {
   <h2>설치 모듈 명세</h2>
   <p class="hint">H 는 몸통(카카스) 치수입니다. 전체 높이는 비고를 참고하세요.</p>
   <table>
-    ${thead(['품목', '위치', '모듈', 'W × H × D (mm)', '도어', '비고'])}
-    <tbody>${rows.join('') || tr(['-', '-', '-', '-', '-', '-'])}</tbody>
+    ${thead(['품목', '번호', '위치', '모듈', 'W × H × D (mm)', '도어', '비고'])}
+    <tbody>${rows.join('') || tr(['-', '-', '-', '-', '-', '-', '-'])}</tbody>
   </table>
+</div>`;
+}
+
+/** 줄 부재 행 — 품목 단위 (엔진 moduleKey `…-ep`, 간편 플래너 「줄 부재」) */
+const isLineRow = (m) => (m.moduleKey && /-ep$/.test(String(m.moduleKey))) || String(m.module || '') === '줄 부재';
+
+/**
+ * 정면도 · 정면 렌더 · 줄 부재 (2026-11-05 사장님 E 「설치 지시서에 정면도 · 모듈 목록 · 상판 · 줄 부재」 · 메모 「작업 지시서 내에서는 무조건 그림」).
+ *   정면도 번호 = 설치 모듈 명세 번호. 렌더는 발행 때 고정한 것 (없으면 칸을 그리지 않는다).
+ */
+function drawingSheet(doc, snapshot, renderUrls) {
+  const design = snapshot.design_payload || {};
+  const items = Array.isArray(design.items) ? design.items : [];
+  if (!items.length) return '';
+  const rp = doc.render_payload || {};
+  const renders = Array.isArray(rp.renders) && rp.renders.length ? rp.renders : null;
+  const ctx = { items, renders, renderUrls: renderUrls instanceof Map ? renderUrls : new Map(Object.entries(renderUrls || {})) };
+  const lines = materialsOf(snapshot).filter(isLineRow);
+  const lineRows = lines
+    .map((m) => tr([esc(m.part || ''), `${esc(m.material || '')} ${num(m.thickness)}T`, `${num(m.w)} × ${num(m.h)}`, num(m.qty), isOutsourcedTopRow(m) ? '상판 업체 시공' : esc(m.note || '')], ['', '', 'num', 'num', '']))
+    .join('');
+  return `
+<div class="sheet">
+  <h2>정면도</h2>
+  <p class="hint">번호 = 설치 모듈 명세 번호. 치수 mm.</p>
+  ${elevationBlock(ctx)}
+  ${renders ? `<h2>정면 렌더</h2>${renderBoxes(ctx)}` : ''}
+  ${lineRows ? `<h2>줄 부재 <span class="hint">현장에서 붙이는 것</span></h2><table>${thead(['부품', '자재', '가로 × 세로', '수량', '비고'])}<tbody>${lineRows}</tbody></table>` : ''}
 </div>`;
 }
 
@@ -201,11 +236,12 @@ function scheduleSheet(schedules, worker) {
 </div>`;
 }
 
-export function renderInstallationOrder(doc, snapshot, { toolbar = true, site = null, schedules = null, worker = null } = {}) {
+export function renderInstallationOrder(doc, snapshot, { toolbar = true, site = null, schedules = null, worker = null, renderUrls = new Map() } = {}) {
   const w = worker && worker.orderLabel ? worker : null;
   const body = [
     toolbar ? PRINT_TOOLBAR : '',
     coverSheet(doc, snapshot, site || (doc.render_payload || {}).site_info, w),
+    drawingSheet(doc, snapshot, renderUrls),
     moduleSheet(snapshot),
     scheduleSheet(schedules || (doc.render_payload || {}).schedules, w),
   ]
