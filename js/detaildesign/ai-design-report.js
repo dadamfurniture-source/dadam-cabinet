@@ -1291,18 +1291,20 @@
       // CNC 재단 목록 탭
       // 부품명 → 원판 유형 분류 (본체/도어/뒷판)
       // B4: 원판을 가르는 부재 구분(본체/도어/뒷판)은 nesting-engine.js 가 정본이다 — 규격 목록과 배치가 같은 그룹을 본다.
-      function getPartType(partName) {
-        return NestingEngine.partClassOf(partName);
+      function getPartType(partName, thickness) {
+        return NestingEngine.partClassOf(partName, thickness);
       }
 
-      function generateCNCTab(materials) {
+      function generateCNCTab(allMaterials) {
+        // 석재 상판은 상판 업체 발주라 재단 목록에서 뺀다 — 배치(NestingEngine.plan)와 같은 규칙 (2026-11-05)
+        const materials = allMaterials.filter(m => !NestingEngine.isOutsourcedTop(m));
         // 70mm 이하 얇은 부품(밴드, 보강재 등) 분리
         const cncParts = materials.filter(m => m.w > 70 && m.h > 70);
         // 소부품(보강목, 덧대 등) 수집 — 잔재에서 추출 대상
         const smallParts = materials.filter(m => (m.w <= 70 || m.h <= 70) && m.w > 0 && m.h > 0);
         const smallByGroup = new Map();
         smallParts.forEach(m => {
-          const gKey = `${m.material} ${m.thickness}T [${getPartType(m.part)}]`;
+          const gKey = `${m.material} ${m.thickness}T [${getPartType(m.part, m.thickness)}]`;
           if (!smallByGroup.has(gKey)) smallByGroup.set(gKey, []);
           const list = smallByGroup.get(gKey);
           const existing = list.find(s => s.part === m.part && s.w === m.w && s.h === m.h);
@@ -1316,7 +1318,7 @@
         // 자재+두께+유형+가로+세로 기준으로 합산 (엣지도 보존)
         const map = new Map();
         cncParts.forEach(m => {
-          const pType = getPartType(m.part);
+          const pType = getPartType(m.part, m.thickness);
           const key = `${m.material}|${m.thickness}|${pType}|${m.w}|${m.h}`;
           if (map.has(key)) {
             const agg = map.get(key);

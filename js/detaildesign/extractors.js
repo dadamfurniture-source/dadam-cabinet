@@ -775,6 +775,39 @@
        */
       const bomCabinetOnTop = (m) => !!m && m.cabinetOnTop === true;
       /**
+       * 상판 장 — 하부장 위 수납장(cabinetOnTop)이 올라간 칸에서 상판이 끊긴다 (2026-11-05 사장님 「끊긴 자리마다 한 장」).
+       *   mods = 상판이 지나가는 하부 모듈 (키큰장 단 뺀, 줄 차례 — 모두 _x 가 있으면 _x 차례).
+       *   끊긴 칸이 없으면 null — 예전처럼 한 장 (품목당 한 장 · 이음은 업체 판단, 2026-09-15 · 10-26 그대로, ㄱ·ㄷ자 포함).
+       *   있으면 [{ w }] — 끊긴 칸 사이 이어진 모듈마다 한 장. 하부 도면 마감재는 위치(x)가 있으면 그 장 끝과 1mm 안에 붙은 것만 더하고,
+       *   위치가 없으면 왼쪽(edge left) 마감재는 첫 장 · 그 밖은 마지막 장에 더한다.
+       */
+      function bomTopRunsOf(mods, fins) {
+        if (!(mods || []).some(bomCabinetOnTop)) return null;
+        const xs = mods.every((m) => m && m._x != null && Number.isFinite(Number(m._x)));
+        const list = xs ? mods.slice().sort((a, b) => Number(a._x) - Number(b._x)) : mods;
+        const runs = [];
+        let cur = null;
+        list.forEach((m) => {
+          if (bomCabinetOnTop(m)) { cur = null; return; }
+          const w = parseFloat(m.w) || 0;
+          const x0 = xs ? Number(m._x) : NaN;
+          if (!cur) { cur = { w: 0, x0, x1: x0 }; runs.push(cur); }
+          cur.w += w;
+          cur.x1 = xs ? x0 + w : NaN;
+        });
+        (Array.isArray(fins) ? fins : []).filter((f) => f && f.area === 'lower' && Number(f.W) > 0).forEach((f) => {
+          let run = null;
+          if (xs && Number.isFinite(Number(f.x))) {
+            const fx0 = Number(f.x), fx1 = fx0 + Number(f.W);
+            run = runs.find((r) => Math.abs(fx1 - r.x0) <= 1 || Math.abs(fx0 - r.x1) <= 1) || null;
+          } else if (runs.length) {
+            run = f.edge === 'left' ? runs[0] : runs[runs.length - 1];
+          }
+          if (run) run.w += Number(f.W);
+        });
+        return runs.filter((r) => r.w > 0).map((r) => ({ w: r.w }));
+      }
+      /**
        * 하부장 위 수납장 도어 아래 끝 — 2026-11-03 사장님 「아랫장이 목찬넬이면 5내림, 아니면 몸통과 같게」.
        *   목찬넬은 품목 손잡이(specs.handle)다 — 아래 하부장이 같은 품목이라 같은 손잡이.
        */
@@ -2722,9 +2755,16 @@
             const topMat = Object.prototype.hasOwnProperty.call(BOM_TOP_MATERIALS, specs.topMaterial) ? specs.topMaterial : '인조대리석';
             const topTs = BOM_TOP_MATERIALS[topMat];
             const topOk = topTs.includes(topT);
-            this.add(materials, `${prefix}상판`, '상판', topMat, topT, topW, topD, 1, '-',
-                     '하부 라인 한 장(도면 마감재 폭 포함) · 깊이 = 도면 · 이음은 상판 업체 판단'
-                     + (topOk ? '' : ` [확인 필요] ${topMat} 상판 두께는 ${topTs.join(' · ')}T — 지정 값 ${topT}`));
+            const topWarn = topOk ? '' : ` [확인 필요] ${topMat} 상판 두께는 ${topTs.join(' · ')}T — 지정 값 ${topT}`;
+            // 2026-11-05 사장님: 하부장 위 수납장이 올라간 칸에서 끊기면 끊긴 자리마다 한 장 (bomTopRunsOf) — 이어진 줄은 위처럼 한 장
+            const topRuns = bomTopRunsOf((item.modules || []).filter((m) => m.pos === 'lower' && !bomTallTierOf(m)), specs.drawnFinishes);
+            if (topRuns && topRuns.length > 1) {
+              topRuns.forEach((r, k) => this.add(materials, `${prefix}상판`, '상판', topMat, topT, r.w, topD, 1, '-',
+                `하부 라인 ${k + 1}/${topRuns.length} 장 — 하부장 위 수납장 자리에서 끊김 (2026-11-05 사장님) · 도면 마감재 폭 포함 · 깊이 = 도면 · 이음은 상판 업체 판단` + topWarn));
+            } else {
+              this.add(materials, `${prefix}상판`, '상판', topMat, topT, topRuns && topRuns.length ? topRuns[0].w : topW, topD, 1, '-',
+                       '하부 라인 한 장(도면 마감재 폭 포함) · 깊이 = 도면 · 이음은 상판 업체 판단' + topWarn);
+            }
           }
 
           // 좌·우 마감 (휠라/몰딩/EP) — 2026-10-24 D9: 도면 마감재 그대로 (addDrawnFinishes)
@@ -3372,9 +3412,16 @@
             const topMat = String(specs.topMaterial);
             const topTs = BOM_TOP_MATERIALS[topMat];
             const topOk = !!topTs && topTs.includes(topT);
-            this.add(materials, `${prefix}상판`, '상판', topMat, topT, topW, bodyD + BOM_SIMPLE_TOP_FRONT, 1, '-',
-              `하부 라인 한 장(도면 마감재 폭 포함) · 깊이 = 몸통 + 앞 자리 ${BOM_SIMPLE_TOP_FRONT} (2026-10-28 사장님)`
-              + (topOk ? '' : ` [확인 필요] ${topMat} 상판 두께 목록 ${topTs ? topTs.join(' · ') : '없음'} — 지정 값 ${topT}`));
+            const topWarn = topOk ? '' : ` [확인 필요] ${topMat} 상판 두께 목록 ${topTs ? topTs.join(' · ') : '없음'} — 지정 값 ${topT}`;
+            // 2026-11-05 사장님: 하부장 위 수납장 칸에서 끊기면 끊긴 자리마다 한 장 (싱크와 같다 — bomTopRunsOf)
+            const topRuns = bomTopRunsOf(lineLowerModules, specs.drawnFinishes);
+            if (topRuns && topRuns.length > 1) {
+              topRuns.forEach((r, k) => this.add(materials, `${prefix}상판`, '상판', topMat, topT, r.w, bodyD + BOM_SIMPLE_TOP_FRONT, 1, '-',
+                `하부 라인 ${k + 1}/${topRuns.length} 장 — 하부장 위 수납장 자리에서 끊김 (2026-11-05 사장님) · 도면 마감재 폭 포함 · 깊이 = 몸통 + 앞 자리 ${BOM_SIMPLE_TOP_FRONT}` + topWarn));
+            } else {
+              this.add(materials, `${prefix}상판`, '상판', topMat, topT, topRuns && topRuns.length ? topRuns[0].w : topW, bodyD + BOM_SIMPLE_TOP_FRONT, 1, '-',
+                `하부 라인 한 장(도면 마감재 폭 포함) · 깊이 = 몸통 + 앞 자리 ${BOM_SIMPLE_TOP_FRONT} (2026-10-28 사장님)` + topWarn);
+            }
           }
 
           // 좌·우 마감 — 2026-10-24 사장님 D9: 도면 마감재 그대로 (addDrawnFinishes). simple-categories.md §2 의 스펙 기본(Filler 60)은 발주에 쓰지 않는다.

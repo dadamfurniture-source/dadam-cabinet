@@ -502,7 +502,7 @@ cutPlan = {
   kerf: 4, trim: 10,          // 톱날 · 네 변 가장자리 트림(mm)
   sheets: [ {                 // 낱장 — 겹침 재단(stack)도 한 장씩 늘어놓는다
     no,                       // 1부터, 전체 고유
-    material, thickness, partClass,   // partClass ∈ 본체 | 도어 | 뒷판 (원판을 섞지 않는 그룹)
+    material, thickness, partClass,   // partClass ∈ 본체 | 도어 | 뒷판 (원판을 섞지 않는 그룹) — 뒷판은 5T 미만만, 5T 이상 뒷판은 본체 (2026-11-05)
     size: {w, h}, trim,
     layout: { no, stack, index, dir, rotated },   // 같은 그룹에서 같은 layout.no = 같은 배치를 stack 장 겹침. dir ∈ H(가로→세로) | V
     strips: [ { no, offset, size, used, remain } ],  // 1차 재단 스트립 (H: offset=y·size=높이, V: offset=x·size=너비)
@@ -513,7 +513,8 @@ cutPlan = {
   groups:  [ { key, material, thickness, partClass, sheetSize, sheetCount, firstSheetNo, needed, placed } ],
   smallParts:  [ { partId, part, material, thickness, partClass, w, h, qty, itemLabel } ],  // 한 변 ≤ 70 — 원판에 놓지 않는다
   unallocated: [ { material, thickness, partClass, w, h, qty, parts, partIds } ],           // 원판보다 큰 부재 등
-  summary: { sheetsByMaterial: {'PB_15': n}, sheetCount, totalYield, partsTotal, partsPlaced, smallCount, unallocatedCount }
+  skipped:     [ { partId, part, material, thickness, w, h, qty, reason } ],                 // 배치 안 함 — reason 'outsourced-top' = 석재 상판 (상판 업체 발주, 2026-11-05)
+  summary: { sheetsByMaterial: {'PB_15': n}, sheetCount, totalYield, partsTotal, partsPlaced, smallCount, unallocatedCount, skippedCount }
 }
 ```
 

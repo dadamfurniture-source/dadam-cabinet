@@ -34,8 +34,12 @@ describe('정상 설계는 통과한다', () => {
   test('원판보다 긴 상판·걸레받이는 오류가 아니라 안내다', () => {
     const s = snap('sink15');
     const r = BomPreflight.check(s.materials, s.hardware);
-    expect(codes(r, 'info')).toContain('long-part');
+    // 석재 상판은 재단 배치에서 빠지고 안내만 (2026-11-05 — 예전 long-part 자리)
+    expect(codes(r, 'info')).toContain('outsourced-top');
     expect(codes(r)).not.toContain('oversize');
+    // MDF 상판처럼 사내에서 자르는 긴 줄 부재는 그대로 long-part 안내
+    const mdf = s.materials.map((m) => (m.part === '상판' ? { ...m, material: 'MDF', thickness: 18 } : m));
+    expect(codes(BomPreflight.check(mdf, s.hardware), 'info')).toContain('long-part');
   });
 
   // 2026-10-20 플래너 점검: 오픈장·밥솥장은 천판·지판을 '천지판' 한 줄로 낸다 — 지판 없음 경고가 뜨면 안 된다.
