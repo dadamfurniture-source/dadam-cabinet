@@ -1,0 +1,237 @@
+{
+  "title": "0041 AI 비서 승인 카드 · 두 번 실행 막기 키 — 카드는 서버만, 정해진 상태 이동만 · 만든 칸은 그대로 · 24시간 기한 · 대화와 함께 지움, 프로젝트(업체) · 수금 · 원가(수주) 키 하나, 기록 종류 action (scripts/rls-probe.mjs)",
+  "ids": [
+    "company_x",
+    "company_y",
+    "conv_x",
+    "cust_x",
+    "cust_y",
+    "proj_x",
+    "design_x",
+    "snap_x",
+    "doc_x",
+    "doc_y",
+    "order_x",
+    "order_y",
+    "act_a",
+    "act_b",
+    "act_d"
+  ],
+  "users": [
+    "x_owner_user",
+    "other_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active'), ({{company_y}}, 'partner', 'probe Y', 'expert', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.assistant_conversations (id, company_id, user_id, title) VALUES ({{conv_x}}, {{company_x}}, {{x_owner_user}}, 'probe')",
+    "INSERT INTO public.customers (id, company_id, name) VALUES ({{cust_x}}, {{company_x}}, 'probe 고객'), ({{cust_y}}, {{company_y}}, 'probe 고객')",
+    "INSERT INTO public.projects (id, company_id, customer_id, title, idempotency_key) VALUES ({{proj_x}}, {{company_x}}, {{cust_x}}, 'probe', 'act:k1')",
+    "INSERT INTO public.designs (id, user_id, name, company_id) VALUES ({{design_x}}, {{x_owner_user}}, 'probe', {{company_x}})",
+    "INSERT INTO public.design_snapshots (id, design_id, rev, content_hash, design_payload, bom_payload, item_count) VALUES ({{snap_x}}, {{design_x}}, 1, 'probe', '{}', '{}', 1)",
+    "INSERT INTO public.design_documents (id, design_id, snapshot_id, doc_type, rev, doc_no, title, render_payload, content_hash) VALUES ({{doc_x}}, {{design_x}}, {{snap_x}}, 'work_order', 1, 'probe-' || {{doc_x}}::text, 'probe', '{}', 'probe'), ({{doc_y}}, {{design_x}}, {{snap_x}}, 'work_order', 2, 'probe-' || {{doc_y}}::text, 'probe', '{}', 'probe')",
+    "INSERT INTO public.orders (id, order_no, design_id, document_id, snapshot_id, contract_amount, company_id, customer_name) VALUES ({{order_x}}, 'probe-' || {{order_x}}::text, {{design_x}}, {{doc_x}}, {{snap_x}}, 0, {{company_x}}, '고객A')",
+    "INSERT INTO public.orders (id, order_no, design_id, document_id, snapshot_id, contract_amount, company_id, customer_name) VALUES ({{order_y}}, 'probe-' || {{order_y}}::text, {{design_x}}, {{doc_y}}, {{snap_x}}, 0, {{company_x}}, '고객B')",
+    "INSERT INTO public.order_payments (order_id, stage, amount, due_on, idempotency_key) VALUES ({{order_x}}, 'deposit', 1000000, '2026-11-10', 'act:k1')",
+    "INSERT INTO public.order_costs (order_id, category, amount, idempotency_key) VALUES ({{order_x}}, 'material', 300000, 'act:k1')",
+    "INSERT INTO public.assistant_actions (id, company_id, conversation_id, user_id, kind, state, params, expect, card) VALUES ({{act_a}}, {{company_x}}, {{conv_x}}, {{x_owner_user}}, 'order_status', 'proposed', '{\"order_id\":\"o\"}'::jsonb, '{\"status\":\"confirmed\"}'::jsonb, '{\"title\":\"t\"}'::jsonb), ({{act_b}}, {{company_x}}, {{conv_x}}, {{x_owner_user}}, 'consult_accept', 'proposed', '{\"order_id\":\"o\"}'::jsonb, '{\"status\":\"confirmed\"}'::jsonb, '{\"title\":\"t\"}'::jsonb), ({{act_d}}, {{company_x}}, {{conv_x}}, {{x_owner_user}}, 'draft', 'draft', '{\"order_id\":\"o\"}'::jsonb, '{\"status\":\"confirmed\"}'::jsonb, '{\"title\":\"t\"}'::jsonb)"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "other": {
+      "role": "authenticated",
+      "user": "other_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "카드 — 서버만 읽는다 (구성원 · 남 · 익명 모두 deny)",
+      "sql": "select count(*) from public.assistant_actions where conversation_id = {{conv_x}}",
+      "expect": {
+        "service_role": "3",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "카드 — 서버만 쓴다",
+      "sql": "update public.assistant_actions set state = 'rejected' where id = {{act_b}}",
+      "roles": [
+        "anon",
+        "x_owner",
+        "other"
+      ],
+      "expect": {
+        "*": "deny"
+      }
+    },
+    {
+      "name": "상태 이동 — proposed → running → done, 승인 · 끝 시각은 트리거가 찍는다, 결과는 끝날 때",
+      "sql": "update public.assistant_actions set state = 'running' where id = {{act_a}}; update public.assistant_actions set state = 'done', result = '{\"order_id\":\"o\"}'::jsonb where id = {{act_a}}; select state || '/' || (decided_at is not null) || '/' || (finished_at is not null) || '/' || (result->>'order_id') from public.assistant_actions where id = {{act_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "done/true/true/o"
+      }
+    },
+    {
+      "name": "상태 이동 — 거절 · 기한 지남은 proposed 에서만, 끝난 카드는 다시 못 연다",
+      "sql": "update public.assistant_actions set state = 'rejected' where id = {{act_b}}; update public.assistant_actions set state = 'running' where id = {{act_b}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "상태 이동 — running 에서 거절로는 못 간다 · 한 번 잡은 카드를 다시 잡지 못한다",
+      "sql": "update public.assistant_actions set state = 'running' where id = {{act_b}}; update public.assistant_actions set state = 'running' where id = {{act_b}} and state = 'proposed'; select state from public.assistant_actions where id = {{act_b}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "running"
+      }
+    },
+    {
+      "name": "만든 칸은 그대로 — 값 · 카드 · 기한을 고치면 거절",
+      "sql": "update public.assistant_actions set params = '{\"order_id\":\"x\"}'::jsonb where id = {{act_b}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "결과는 실행이 끝날 때만 — 거절하며 결과를 쓰면 거절",
+      "sql": "update public.assistant_actions set state = 'rejected', result = '{}'::jsonb where id = {{act_b}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "초안은 늘 draft — 다른 상태로 못 간다",
+      "sql": "update public.assistant_actions set state = 'running' where id = {{act_d}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "종류 · 상태 — 초안이 아닌 카드는 draft 가 될 수 없다",
+      "sql": "insert into public.assistant_actions (company_id, conversation_id, user_id, kind, state) values ({{company_x}}, {{conv_x}}, {{x_owner_user}}, 'order_status', 'draft')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "종류 — 모르는 종류(문서 발행)는 거절",
+      "sql": "insert into public.assistant_actions (company_id, conversation_id, user_id, kind) values ({{company_x}}, {{conv_x}}, {{x_owner_user}}, 'document_issue')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "기한 — 기본 24시간",
+      "sql": "select (expires_at - created_at) = interval '24 hours' from public.assistant_actions where id = {{act_b}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "대화를 지우면 카드도 지운다",
+      "sql": "delete from public.assistant_conversations where id = {{conv_x}}; select count(*) from public.assistant_actions where conversation_id = {{conv_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "0"
+      }
+    },
+    {
+      "name": "프로젝트 키 — 같은 업체 같은 키는 하나",
+      "sql": "insert into public.projects (company_id, customer_id, title, idempotency_key) values ({{company_x}}, {{cust_x}}, 'probe 2', 'act:k1')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "프로젝트 키 — 다른 업체는 같은 키도 되고, 키 없는 줄은 여럿",
+      "sql": "insert into public.projects (company_id, customer_id, title, idempotency_key) values ({{company_y}}, {{cust_y}}, 'probe', 'act:k1'), ({{company_x}}, {{cust_x}}, 'probe 3', null), ({{company_x}}, {{cust_x}}, 'probe 4', null)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "수금 키 — 같은 수주 같은 키는 하나, 다른 수주는 된다",
+      "sql": "insert into public.order_payments (order_id, stage, amount, due_on, idempotency_key) values ({{order_y}}, 'deposit', 5, '2026-11-10', 'act:k1'); insert into public.order_payments (order_id, stage, amount, due_on, idempotency_key) values ({{order_x}}, 'balance', 5, '2026-11-10', 'act:k1')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "원가 키 — 같은 수주 같은 키는 하나, 다른 수주는 된다",
+      "sql": "insert into public.order_costs (order_id, category, amount, idempotency_key) values ({{order_y}}, 'material', 5, 'act:k1'); insert into public.order_costs (order_id, category, amount, idempotency_key) values ({{order_x}}, 'hardware', 5, 'act:k1')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "키 길이 — 200자 넘으면 거절",
+      "sql": "insert into public.order_costs (order_id, category, amount, idempotency_key) values ({{order_y}}, 'material', 5, repeat('k', 201))",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "기록 종류 action",
+      "sql": "insert into public.assistant_audit (company_id, user_id, kind, name, detail) values ({{company_x}}, {{x_owner_user}}, 'action', 'order_status', '{\"state\":\"done\"}'::jsonb)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    }
+  ]
+}
