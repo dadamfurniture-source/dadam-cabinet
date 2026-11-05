@@ -10,7 +10,8 @@
  *
  * v2 (B5, 계획 §4.6 · §5 B5) — 같은 work_order 문서에 섹션을 더했다:
  *   ① 표지: 기존 + 품목별 정면 렌더 + 색 스와치 범례
- *   ② 모듈별 키팅 시트 (라벨 번호 · 치수 · 마감 칩 · 엣지 면 도식 · 그 모듈의 철물)
+ *   ② 모듈별 키팅 시트 (라벨 번호 · 치수 · 마감 칩 · 엣지 면 도식 · 그 모듈의 철물) — 2026-11-05 사장님 「굳이 보여줄 필요는 없다 ·
+ *      검증 차원에서 시스템에서는 돌아가지만」 → 종이(전체 · 조립 꾸러미)에서 뺐다. 묶는 함수(groupByItemModule · kittingHtml)는 시험이 계속 돌린다
  *   ③ 시트별 재단표 (배치 SVG 축소판 + 부재 표 + 잔재)
  *   ④ 철물·체결구 (기존)
  *   ⑤ (꾸러미 개편에서 ⑩ 로 옮김 — 보링 공정이 없고 컵 보링은 도어 외주처가 한다)
@@ -22,7 +23,7 @@
  *   cut       재단·엣지 지시서 — ③ 에 엣지 변 표시·엣지 합계를 합쳤다. 사내 재단(본체·뒷판)만.
  *             엣지 붙일 변 표시는 재단 기사가 자르면서 한다 (2026-10-13 사장님).
  *   cut-vendor 같은 재단·엣지를 외주처(일성합판)로 보낼 때 — 고객 이름·설계 제목·특기사항·정면도·시간 없음
- *   assembly  조립 지시서 — 모듈 명세 · ② 키팅 · ④ 철물 · ⑥ 조립 체크 · ⑦ 차이
+ *   assembly  조립 지시서 — 모듈 명세 · ④ 철물 · ⑥ 조립 체크 · ⑦ 차이 (② 키팅은 2026-11-05 부터 싣지 않는다)
  *   door      ⑩ 도어재 발주서 — 도어 그룹(도어·몰딩·걸레받이·목찬넬·마감) 부재 + 경첩 컵 위치. 고객 이름 없음
  *   labels    ⑧ 라벨 — 사내 부재 먼저, 도어재는 뒤 (입고 시 부착)
  *   all       전부 (사무실 보관)
@@ -686,6 +687,11 @@ function hardwareRowsTable(rows) {
     .map((h) => tr([esc(h.category || ''), esc(h.item || ''), esc(h.spec || ''), num(h.qty), esc(h.unit || ''), esc(h.note || '')], ['', '', '', 'num', '', '']))
     .join('');
   return `<table class="compact">${thead(['철물', '품목', '규격', '수량', '단위', '비고'], ['', '', '', 'num', '', ''])}<tbody>${body}</tbody></table>`;
+}
+
+/** 키팅 시트 HTML — 종이에는 싣지 않고(2026-11-05) 검증 · 시험용으로만 (모듈마다 판재 · 철물이 제 모듈로 묶이는지) */
+export function kittingHtml(doc, snapshot) {
+  return kittingSheets(buildContext(doc, snapshot, new Map()));
 }
 
 function kittingSheets(ctx) {
@@ -1545,13 +1551,14 @@ function moduleSectionsSection(ctx) {
 }
 
 const PACK_SECTIONS = {
-  all: [(ctx) => withTopBox(coverSheet(ctx), specialNotesBox(ctx.specialNotes, ['cut', 'assembly', 'door', 'top'])), moduleSheets, (ctx) => moduleDrawingsSheet(ctx) + moduleSectionsSection(ctx), kittingSheets, (ctx) => cutSheets(ctx) + partDrawingsSection(ctx), hardwareSheet, assemblySheet, diffSheet, doorOrderSheet, labelSheets, (ctx) => (hasCountertop(ctx.snapshot && ctx.snapshot.bom_payload) ? countertopSheets(ctx) : '')],
+  all: [(ctx) => withTopBox(coverSheet(ctx), specialNotesBox(ctx.specialNotes, ['cut', 'assembly', 'door', 'top'])), moduleSheets, (ctx) => moduleDrawingsSheet(ctx) + moduleSectionsSection(ctx), (ctx) => cutSheets(ctx) + partDrawingsSection(ctx), hardwareSheet, assemblySheet, diffSheet, doorOrderSheet, labelSheets, (ctx) => (hasCountertop(ctx.snapshot && ctx.snapshot.bom_payload) ? countertopSheets(ctx) : '')],
   // 판재 도면은 재단 쪽 바로 뒤에 붙인다 (없으면 '' — 옛 스냅샷의 묶음은 바이트 그대로)
   cut: [(ctx) => packHeader(ctx, 'cut') + specialNotesBox(ctx.specialNotes, ['cut']), (ctx) => cutSheets(ctx) + partDrawingsSection(ctx)],
   // 외주처 종이 — 고객 이름·설계 제목·특기사항·정면도·시간 없음 (door 와 같은 원칙)
   'cut-vendor': [(ctx) => packHeader(ctx, 'cut-vendor') + specialNotesBox(ctx.specialNotes, ['cut']), (ctx) => cutSheets(ctx, { vendor: true })],
   // 모듈 단면도는 치수도 바로 뒤에 붙인다 (없으면 '' — 옛 스냅샷의 묶음은 바이트 그대로)
-  assembly: [(ctx) => packHeader(ctx, 'assembly') + specialNotesBox(ctx.specialNotes, ['assembly']), moduleSheets, (ctx) => moduleDrawingsSheet(ctx) + moduleSectionsSection(ctx), kittingSheets, hardwareSheet, assemblySheet, diffSheet],
+  // ② 키팅은 싣지 않는다 (2026-11-05 사장님 — 검증만, kittingHtml)
+  assembly: [(ctx) => packHeader(ctx, 'assembly') + specialNotesBox(ctx.specialNotes, ['assembly']), moduleSheets, (ctx) => moduleDrawingsSheet(ctx) + moduleSectionsSection(ctx), hardwareSheet, assemblySheet, diffSheet],
   door: [(ctx) => withTopBox(doorOrderSheet(ctx), specialNotesBox(ctx.specialNotes, ['door']))], // 외주처 종이 — 고객 정보가 든 머리를 붙이지 않는다
   top: [(ctx) => withTopBox(countertopSheets(ctx), specialNotesBox(ctx.specialNotes, ['top']))], // 상판 업체 종이 — 도어재 발주서와 같은 원칙
   labels: [(ctx) => packHeader(ctx, 'labels'), labelSheets],

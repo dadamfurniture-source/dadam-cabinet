@@ -245,10 +245,11 @@ test('door — 도어재 발주서: 고객 이름·설계 제목·금액 없음,
   assert.ok(orphan.includes('없는장'));
 });
 
-test('assembly — 조립 지시서: 키팅·철물·조립 체크·차이, 재단표·라벨 없음, 조립 시간', () => {
+test('assembly — 조립 지시서: 철물·조립 체크·차이, 키팅 · 재단표·라벨 없음, 조립 시간', () => {
   const html = render('assembly');
   assert.ok(html.includes('<h1>조립 지시서</h1>'));
-  for (const s of ['모듈 명세', '② 모듈별 키팅', '④ 철물·체결구', '⑥ 조립 순서 체크', '⑦ 이전 rev 와의 차이']) assert.ok(html.includes(s), s);
+  for (const s of ['모듈 명세', '④ 철물·체결구', '⑥ 조립 순서 체크', '⑦ 이전 rev 와의 차이']) assert.ok(html.includes(s), s);
+  assert.ok(!html.includes('② 모듈별 키팅'), '키팅은 종이에 싣지 않는다 (2026-11-05 — 검증만)');
   for (const s of ['③ 재단·엣지 지시서', '⑩ 도어재 발주서', '⑧ 부재 라벨']) assert.ok(!html.includes(s), `assembly 에 ${s} 없음`);
   assert.ok(html.includes('2통 · 서랍 0 · 도어 4짝'));
   // 2통×12 + 서랍 0 + 도어 4×1 + 2통×5 = 38분
@@ -272,7 +273,7 @@ test('labels — 라벨만, 사내 먼저 · 재단표와 같은 번호', () => 
 
 test('all — 전체 문서는 표지 + 모든 섹션, 표지에 사내/도어재 시트와 예상 시간', () => {
   const html = render('all');
-  for (const s of ['<h1>작 업 지 시 서</h1>', '② 모듈별 키팅', '③ 재단·엣지 지시서', '④ 철물·체결구', '⑥ 조립 순서 체크', '⑦ 이전 rev 와의 차이', '⑩ 도어재 발주서', '⑧ 부재 라벨']) {
+  for (const s of ['<h1>작 업 지 시 서</h1>', '③ 재단·엣지 지시서', '④ 철물·체결구', '⑥ 조립 순서 체크', '⑦ 이전 rev 와의 차이', '⑩ 도어재 발주서', '⑧ 부재 라벨']) {
     assert.ok(html.includes(s), s);
   }
   assert.ok(html.includes('(사내 1 · 도어재 1)'));

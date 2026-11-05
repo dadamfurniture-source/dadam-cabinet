@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createSnapshot } from '../src/snapshots.js';
 import { workloadFromSnapshot, bomWithHardware } from '../src/production/workload.js';
-import { renderWorkOrder, labelGroups } from '../src/templates/work-order.js';
+import { renderWorkOrder, labelGroups, kittingHtml } from '../src/templates/work-order.js';
 import { isOutsourcedCutRow } from '../src/work-order-data.js';
 import { calculateSheetQuote } from '../src/quote-sheet.js';
 import * as fx from './fixtures/work-order-v2.js';
@@ -312,9 +312,8 @@ test('재단 지시서 — 밥솥장 MDF 18T 몸통은 사내 재단 목록에�
   assert.ok(html.includes('입고 후 사내 조립'));
   assert.ok(html.indexOf('0-planner-tall-1-rice-body:side-0') > at, '밥솥장 측판은 외주 목록에만');
   assert.ok(html.indexOf('0-planner-tall-0-el-body:side-0') < at, 'EL장 PB 측판은 사내 목록');
-  // 조립은 사내 — 조립 지시서에는 그대로 남는다
-  const asm = renderWorkOrder(doc, snap, { toolbar: false, pack: 'assembly' });
-  assert.ok(asm.includes('밥솥장'));
+  // 조립은 사내 — 모듈 묶음(키팅, 2026-11-05 부터 종이에는 없고 검증만)에 그대로 남는다
+  assert.ok(kittingHtml(doc, snap).includes('밥솥장'));
 });
 
 test('재단 지시서(배치 있음) — 외주 조각만 든 원판은 사내 원판 수에서 빠진다', () => {
