@@ -29,7 +29,7 @@
  *   GET  /admin/companies · GET|PUT /admin/companies/:id/evaluation — 다담 본사 상담 분배 (src/distribution/)
  *   GET  /company/consults · POST /company/consults/:id/accept|decline · GET|PUT /company/service-settings
  *   GET  /company/my-score — 업체 쪽 상담 (src/distribution/company.js)
- *   GET|POST /company/projects · PUT /designs/:designId/project — 업체 고객 · 프로젝트, 설계 잇기 (src/company-projects.js)
+ *   GET|POST /company/projects · GET /company/designs · PUT /designs/:designId/project — 업체 고객 · 프로젝트, 설계 목록 · 잇기 (src/company-projects.js)
  *
  *   GET  /ledger/me · /ledger/accounts · /ledger/book · GET|PUT /ledger/settings
  *   POST /ledger/entries · /ledger/entries/:id/void · /ledger/entries/:id/correct
@@ -216,7 +216,7 @@ import {
   putServiceSettings,
   myScore,
 } from './distribution/company.js';
-import { listCompanyProjects, createCompanyProject, linkDesignProject } from './company-projects.js';
+import { listCompanyProjects, listCompanyDesigns, createCompanyProject, linkDesignProject } from './company-projects.js';
 import { handlePushKey, handleSavePushSubscription, handleDeletePushSubscription } from './push/routes.js';
 import { runPushSender, runPushCleanup, isPushCleanupTime, PUSH_SEND_CRON } from './push/sender.js';
 import { notifyOrderRequest, notifyOrderRequestDecided, notifyConfirmationDecided } from './push/hooks.js';
@@ -897,7 +897,8 @@ async function handleGetOrder(request, env, { params, user }) {
 
 async function handleAddPayment(request, env, { params, user }) {
   const body = (await readJson(request)) || {};
-  return jsonResponse(request, env, { success: true, data: await addPayment(env, { orderId: params.orderId, user, body }) }, 201);
+  const data = await addPayment(env, { orderId: params.orderId, user, body, idempotencyKey: request.headers.get('X-Idempotency-Key') });
+  return jsonResponse(request, env, { success: true, data }, data.reused ? 200 : 201);
 }
 
 async function handleUpdatePayment(request, env, { params, user }) {
@@ -1034,8 +1035,8 @@ async function handleDecideOrderEvent(request, env, { params, user, ctx }) {
 
 async function handleAddCost(request, env, { params, user }) {
   const body = (await readJson(request)) || {};
-  const cost = await addCost(env, { orderId: params.orderId, user, body });
-  return jsonResponse(request, env, { success: true, data: cost }, 201);
+  const { cost, reused } = await addCost(env, { orderId: params.orderId, user, body, idempotencyKey: request.headers.get('X-Idempotency-Key') });
+  return jsonResponse(request, env, { success: true, data: cost }, reused ? 200 : 201);
 }
 
 async function handleDeleteCost(request, env, { params, user }) {
@@ -1194,8 +1195,12 @@ async function handleCompanyProjects(request, env, { user }) {
 
 async function handleCreateCompanyProject(request, env, { user }) {
   const body = await readJson(request);
-  const data = await createCompanyProject(env, { user, body });
-  return jsonResponse(request, env, { success: true, data }, 201, NO_STORE);
+  const data = await createCompanyProject(env, { user, body, idempotencyKey: request.headers.get('X-Idempotency-Key') });
+  return jsonResponse(request, env, { success: true, data }, data.reused ? 200 : 201, NO_STORE);
+}
+
+async function handleCompanyDesigns(request, env, { user }) {
+  return jsonResponse(request, env, { success: true, data: await listCompanyDesigns(env, { user }) }, 200, NO_STORE);
 }
 
 async function handleLinkDesignProject(request, env, { params, user }) {
@@ -1315,6 +1320,7 @@ const router = createRouter([
   // 업체 고객 · 프로젝트 — 목록은 구성원, 만들기는 대표 · 실장 (다담 공장 · Expert 이상 협력업체)
   { method: 'GET',  path: '/company/projects',                    auth: 'jwt', handler: handleCompanyProjects },
   { method: 'POST', path: '/company/projects',                    auth: 'jwt', handler: handleCreateCompanyProject },
+  { method: 'GET',  path: '/company/designs',                     auth: 'jwt', handler: handleCompanyDesigns },
 
   // 업체 장부 요약 (그 업체 대표 · 실장)
   { method: 'GET',   path: '/books/summary',      auth: 'jwt', handler: handleBooksSummary },

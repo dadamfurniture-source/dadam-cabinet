@@ -27,8 +27,8 @@ import {
 } from './supabase.js';
 import { assertCounterparty, NEED_SQL as COUNTERPARTY_NEED_SQL } from './counterparties.js';
 import { isMissingRelation } from './work-order-data.js';
-import { EVIDENCE_TYPES } from './ledger/checks.js';
-import { planStatusChange, requestStatusChange, applyStatusChange, statusPatch, statusClears, assertNoPendingEvent } from './order-events.js';
+import { EVIDENCE_TYPES, idempotencyKeyOf } from './ledger/checks.js';
+import { planStatusChange, requestStatusChange, applyStatusChange, statusPatch, statusClears, assertNoPendingEvent, staleError } from './order-events.js';
 
 export const ORDER_STATUSES = ['confirmed', 'in_production', 'delivered', 'completed', 'cancelled'];
 
@@ -339,9 +339,17 @@ export function summarizeMargin(order, costs, quote) {
  *   대표 승인이 필요한데 대표가 아니면 요청만 남기고 수주는 손대지 않는다 (같이 보낸 다른 칸도) → { pending: true, event }
  *   승인을 기다리는 요청이 있으면 누구도(대표도) 상태를 못 바꾼다 — 409 pending_exists (먼저 승인 · 반려).
  *   지금 상태와 같은 status 는 바꾸기가 아니다 — 다른 칸만 고친다.
+ *   expect_status (AI 비서 승인 카드) — 보낸 사람이 본 상태. 지금 상태가 그것도 아니고 바꿀 상태도 아니면 409 stale
+ *   (이미 바꿀 상태면 위처럼 그대로 성공 — 끊겨 다시 보낸 승인이 두 번 바꾸지 않는다).
  */
 export async function updateOrder(env, { orderId, user, patch }) {
   const { order, money } = await orderAccess(env, orderId, user);
+  if (patch.expect_status !== undefined) {
+    if (!ORDER_STATUSES.includes(patch.expect_status)) {
+      throw new ValidationError(`expect_status 는 ${ORDER_STATUSES.join(', ')} 중 하나여야 합니다`);
+    }
+    if (order.status !== patch.expect_status && order.status !== patch.status) throw staleError();
+  }
   if (patch.received_amount !== undefined && !money) {
     throw new ForbiddenError('원가 · 수금은 업체 대표 · 실장만 볼 수 있습니다');
   }
@@ -414,8 +422,19 @@ export async function updateOrder(env, { orderId, user, patch }) {
   }
 }
 
-export async function addCost(env, { orderId, user, body }) {
+/** 같은 수주 · 같은 키로 이미 넣은 원가 줄 (DB 0041 order_costs.idempotency_key) */
+function costByKey(env, orderId, key) {
+  return selectOne(env, 'order_costs', { order_id: `eq.${orderId}`, idempotency_key: `eq.${key}`, select: '*' });
+}
+
+/** 원가 줄 넣기 → { cost, reused } — X-Idempotency-Key 가 같으면 먼저 넣은 줄을 그대로 돌려준다 */
+export async function addCost(env, { orderId, user, body, idempotencyKey }) {
   const order = await loadOwnedOrder(env, orderId, user, { money: true });
+  const key = idempotencyKeyOf(idempotencyKey);
+  if (key) {
+    const prev = await costByKey(env, orderId, key);
+    if (prev) return { cost: prev, reused: true };
+  }
   const category = String(body.category || '').trim();
   if (!COST_CATEGORIES.includes(category)) {
     throw new ValidationError(`category 는 ${COST_CATEGORIES.join(', ')} 중 하나여야 합니다`);
@@ -455,10 +474,16 @@ export async function addCost(env, { orderId, user, body }) {
     if (Number.isNaN(d.getTime())) throw new ValidationError('due_on 이 올바르지 않습니다');
     row.due_on = d.toISOString().slice(0, 10);
   }
+  if (key) row.idempotency_key = key;
   try {
     // 바꾼 사람 — 원가 줄은 장부 바꾼 기록(ledger_events)에 남는다
-    return await insertOne(asActor(env, user), 'order_costs', row);
+    return { cost: await insertOne(asActor(env, user), 'order_costs', row), reused: false };
   } catch (e) {
+    // 같은 키로 동시에 두 번 — 먼저 들어간 줄
+    if (e instanceof ConflictError && key) {
+      const prev = await costByKey(env, orderId, key);
+      if (prev) return { cost: prev, reused: true };
+    }
     if (isMissingRelation(e) && /due_on/.test(e.message)) throw new ValidationError('지급 예정일 칸이 아직 DB 에 없습니다 — database/management-phase2.sql 을 실행해 주세요');
     throw e;
   }

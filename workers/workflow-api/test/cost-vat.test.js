@@ -55,7 +55,7 @@ beforeEach(() => {
 test('원가 줄 — 부가세 · 증빙을 받고, 안 보내면 칸을 싣지 않는다(미기재). 바꾼 사람 머리', async () => {
   const route = (u, method, body) => owned(u, method) || (method === 'POST' && u.endsWith('/order_costs') ? json([{ id: 'C1', ...body }], 201) : null);
   await withFetch(route, async (calls) => {
-    const row = await addCost(ENV, { orderId: 'O1', user: USER, body: { category: 'material', amount: 1000000, vat_amount: 100000, evidence_type: 'tax_invoice' } });
+    const { cost: row } = await addCost(ENV, { orderId: 'O1', user: USER, body: { category: 'material', amount: 1000000, vat_amount: 100000, evidence_type: 'tax_invoice' } });
     assert.equal(row.vat_amount, 100000);
     assert.equal(row.evidence_type, 'tax_invoice');
     const [w] = writes(calls);
