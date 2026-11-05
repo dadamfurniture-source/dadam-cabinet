@@ -123,8 +123,10 @@ table.check td.na { text-align: center; color: #666; background: repeating-linea
   overflow: hidden; break-inside: avoid; page-break-inside: avoid;
 }
 .label svg.qr { width: 24mm; height: 24mm; flex: 0 0 24mm; }
-.label .lt { font-size: 7.5pt; line-height: 1.3; min-width: 0; }
-.label .lt .pid { font-family: 'Consolas', monospace; font-size: 7pt; word-break: break-all; }
+.label .lt { font-size: 7.5pt; line-height: 1.3; min-width: 0; flex: 1 1 auto; }
+.label .lt .no { display: flex; align-items: baseline; gap: 1.5mm; min-width: 0; }
+.label .lt .no b { font-size: 16pt; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.label .lt .no .mod { font-size: 7pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .label .lt .dim { font-size: 10pt; font-weight: 700; }
 .label .lt .edge-line .edge-svg { width: 14pt; height: 9pt; }
 

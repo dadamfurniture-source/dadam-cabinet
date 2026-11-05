@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { elevationModel, elevationSvg, bandsOf, lineOf, moduleDrawingSvg } from '../src/templates/elevation.js';
+import { elevationModel, elevationSvg, bandsOf, lineOf, moduleDrawingSvg, modulePosLabel } from '../src/templates/elevation.js';
 import { renderWorkOrder } from '../src/templates/work-order.js';
 import * as ef from './fixtures/elevation.js';
 import * as fx from './fixtures/work-order-v2.js';
@@ -97,6 +97,45 @@ test('어긋난 설계 — 폭 초과 · 상부가 하부를 파고듦 · 위치
   assert.equal(m.positioned, false);
   assert.ok(m.notes.some((x) => x.text.startsWith('배치 위치가 겹쳐')));
   assert.deepEqual(errors(m), [], '순서대로 붙이면 합은 3000 그대로');
+});
+
+test('하부장 위 모듈(stackBox) — 셋째 줄, 아래 하부장 윗면에서 선다 · 상부장과 가로로 겹쳐도 배치를 믿는다 (2026-11-05)', () => {
+  const it = ef.sink3000();
+  // 서랍장 l3(1400~2000) 위 밥솥장 600 — 상부장 u3 · u4 아래, 브리지 모양 그대로 pos upper + stackBox
+  it.modules.push({ id: 'planner-s1', type: 'storage', name: '밥솥장', pos: 'upper', stackBox: true, w: 600, h: 500, totalH: 500, d: 550, _x: 1400, doorCount: 0, isOpen: true });
+  assert.equal(lineOf(it.modules[8]), 'counter');
+  assert.equal(modulePosLabel(it.modules[8]), '하부장 위');
+  assert.equal(modulePosLabel(it.modules[0]), '상부');
+  const m = elevationModel(it);
+  assert.equal(m.positioned, true, '가로만 겹치고 세로는 비켜 선다');
+  const s = m.placed.find((e) => e.no === 9);
+  assert.deepEqual([s.line, s.x, s.y0], ['counter', 1400, 850]);
+  assert.deepEqual(errors(m), []);
+  // 너무 높으면 상부장 아래 끝을 파고든다는 경고
+  it.modules[8] = { ...it.modules[8], h: 900, totalH: 900 };
+  assert.ok(errors(elevationModel(it)).some((x) => x.text.startsWith('상부 3 아래 끝') && x.text.includes('하부장 위 9')));
+  // baseY 가 있으면 그 높이에서 (_place.z0 도 같다)
+  it.modules[8] = { ...it.modules[8], h: 500, totalH: 500, baseY: 870 };
+  assert.equal(elevationModel(it).placed.find((e) => e.no === 9).y0, 870);
+});
+
+test('바닥 줄 모듈의 baseY — 키큰장 단 묶음은 같은 자리에 쌓여도 겹침이 아니다 · 폭 사슬은 한 번 (2026-11-05)', () => {
+  const tier = (id, baseY, h, hp) => ({ id: `planner-${id}`, type: 'tall', name: '키큰장 단', pos: 'lower', w: 600, h, totalH: h + (hp.pedestalH || 0) + (hp.moldingH || 0), heightParts: hp, d: 580, _x: 0, baseY, doorCount: 1 });
+  const it = { uniqueId: 2, categoryId: 'sink', w: 1200, h: 2300, d: 600, modules: [
+    tier('t0', 0, 800, { pedestalH: 60 }),
+    tier('t1', 860, 700, {}),
+    tier('t2', 1560, 680, { moldingH: 60 }),
+    { id: 'planner-l1', type: 'storage', name: '하부장', pos: 'lower', w: 600, h: 688, totalH: 850, heightParts: { legH: 150, topT: 12 }, d: 580, _x: 600, doorCount: 1 },
+  ] };
+  const m = elevationModel(it);
+  assert.equal(m.positioned, true);
+  assert.deepEqual(m.placed.slice(0, 3).map((e) => e.y0), [0, 860, 1560]);
+  assert.deepEqual(errors(m), []);
+  const svg = elevationSvg(it);
+  assert.equal((svg.match(/>600<\/text>/g) || []).length, 2, '키큰장 600 · 하부장 600 — 단마다 600 을 다시 적지 않는다');
+  // 진짜 겹침(같은 높이)은 예전처럼 순서대로 붙인다
+  it.modules[1] = { ...it.modules[1], baseY: 0 };
+  assert.equal(elevationModel(it).positioned, false);
 });
 
 test('모듈이 없거나 치수가 0 이면 그리지 않는다 · 이름은 이스케이프', () => {

@@ -259,7 +259,7 @@ test('labels — 라벨만, 사내 먼저 · 재단표와 같은 번호', () => 
   const html = render('labels');
   assert.ok(html.includes('<h1>부재 라벨</h1>'));
   assert.ok(html.includes('라벨</dt><dd>사내 4 · 도어재 4 (A4 2쪽)'));
-  assert.equal(html.split('<div class="label">').length - 1, 8);
+  assert.equal(html.split('<div class="label" data-pid=').length - 1, 8);
   assert.ok(!html.includes('③ 재단·엣지 지시서'));
 
   const nums = labelNumbers(fx.materials());
