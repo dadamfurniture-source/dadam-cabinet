@@ -14,6 +14,7 @@
 
 import { esc, num, ymd, ymdhm, tr, thead, documentShell } from './html.js';
 import { PRINT_CSS, PRINT_TOOLBAR } from './print-css.js';
+import { modulePosLabel } from './elevation.js';
 import { checkListOfDoc, itemsFor, itemApplies } from '../work/check-items.js';
 import { SITE_NOTE } from '../work/reveal.js';
 
@@ -31,7 +32,6 @@ const CATEGORY_NAMES = {
   custom: '비규격장',
 };
 
-const MODULE_POS = { upper: '상부', lower: '하부' };
 
 const SCHEDULE_TYPES = {
   measurement: '실측',
@@ -153,7 +153,7 @@ function moduleSheet(snapshot) {
       rows.push(
         tr([
           esc(label),
-          esc(MODULE_POS[m.pos] || m.pos || '-'),
+          esc(modulePosLabel(m)),
           esc(m.name || '-'),
           `${num(m.w)} × ${num(m.h)} × ${num(m.d)}`,
           `${num(m.doorCount) || 0}`,

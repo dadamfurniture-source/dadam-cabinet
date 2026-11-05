@@ -81,6 +81,35 @@ test('요청 — 재질 · 두께 · 치수는 BOM 상판 행, 타공 중심은 
   assert.equal(r.cutouts.find((c) => c.kind === 'sink').model, null, '모델 미지정 → 요청서에 [확인 필요]');
 });
 
+test('끊긴 상판 — 하부장 위 수납장 칸에서 끊기면 장마다 그 장 모듈로 타공 · 끊긴 쪽 · 키큰장 쪽은 장 옆 (2026-11-05)', () => {
+  // [키큰장 600][개수대 1000][서랍 600 ← 밥솥장][가스대 600][서랍 450] — 엔진이 상판 1,000 · 1,050 두 행을 낸다
+  const base = fx.snapshot({ id: 's2' });
+  const snap = {
+    ...base,
+    design_payload: { items: [{ name: '싱크대', categoryId: 'sink', specs: {}, modules: [
+      { id: 't', pos: 'lower', type: 'tall', name: '키큰장', w: 600, _x: 0 },
+      { id: 'a', pos: 'lower', type: 'sink', name: '개수대', w: 1000, _x: 600 },
+      { id: 'b', pos: 'lower', type: 'drawer', name: '서랍 3단', w: 600, _x: 1600, cabinetOnTop: true },
+      { id: 'c', pos: 'lower', type: 'cooktop', name: '가스대', w: 600, _x: 2200 },
+      { id: 'd', pos: 'lower', type: 'drawer', name: '서랍', w: 450, _x: 2800 },
+      { id: 's', pos: 'upper', stackBox: true, name: '밥솥장', w: 600, _x: 1600 },
+    ] }] },
+    bom_payload: { ...base.bom_payload, materials: [...base.bom_payload.materials,
+      { ...TOP_ROW, partId: '0-ep-top-0', w: 1000, h: 650 }, { ...TOP_ROW, partId: '0-ep-top-1', w: 1050, h: 650 }] },
+  };
+  const [r1, r2] = countertopRequests(snap);
+  assert.deepEqual([r1.length, r2.length], [1000, 1050]);
+  assert.deepEqual([r1.piece, r2.piece], [{ no: 1, of: 2 }, { no: 2, of: 2 }]);
+  assert.deepEqual(r1.cutouts.filter((c) => c.center !== null).map((c) => [c.kind, c.center]), [['sink', 500]]);
+  assert.deepEqual(r2.cutouts.filter((c) => c.center !== null).map((c) => [c.kind, c.center]), [['cooktop', 300]]);
+  assert.deepEqual([r1.finishes.sideLeft, r1.finishes.sideRight, r2.finishes.sideLeft, r2.finishes.sideRight], ['cabinet', 'cabinet', 'cabinet', 'exposed']);
+  // 예전 동결본(상판 한 행)은 예전 셈 그대로 — 행 수 ≠ 장 수
+  const old = { ...snap, bom_payload: { ...snap.bom_payload, materials: [...base.bom_payload.materials, { ...TOP_ROW, w: 2050, h: 650 }] } };
+  const [o] = countertopRequests(old);
+  assert.equal(o.piece, null);
+  assert.equal(o.cutouts.find((c) => c.kind === 'cooktop').center, 1000 + 600 + 300);
+});
+
 test('마감 기본값 — 뒷턱 50 · 앞턱 40 · 물끊기 · 옆면(몰딩 쪽 벽, EP 쪽 노출)', () => {
   const [r] = countertopRequests(sinkSnapshot());
   assert.deepEqual(r.finishes, {

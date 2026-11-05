@@ -601,10 +601,14 @@ test('⑧ 라벨 — 부재 낱개마다 QR + partId#k + 품목/모듈/부품 + 
   assert.deepEqual(units.slice(0, 3).map((u) => u.id), ['0-l1-body:side-0#0', '0-l1-body:side-0#1', '0-l1-body:bottom-0#0']);
 
   const html = renderWorkOrder(fx.doc(), fx.snapshot());
-  assert.equal(html.split('<div class="label">').length - 1, 8);
+  assert.equal(html.split('<div class="label" data-pid=').length - 1, 8);
   assert.equal(html.split('<svg class="qr"').length - 1, 8);
-  assert.ok(html.includes('<div class="pid"><b>6</b> · 0-l1-door#0-0#1</div>'), '사내 4장(1–4) 뒤에 도어재 — 개수대 도어 둘째 장은 6번');
-  assert.ok(html.includes('<div class="dim">496 × 716 × 18</div>'));
+  // 번호는 크게 한 줄, 부재 ID 는 QR 안 · data-pid 에만 (2026-11-05 — 긴 ID 가 번호를 밀어내던 것)
+  assert.ok(html.includes('<div class="label" data-pid="0-l1-door#0-0#1">'), '사내 4장(1–4) 뒤에 도어재 — 개수대 도어 둘째 장');
+  assert.ok(html.includes('<div class="no"><b>6</b><span class="mod">싱크대 · 하부장-개수대</span></div>'), '둘째 장은 6번');
+  assert.ok(!html.includes('<div class="pid">'));
+  assert.ok(html.includes('<div><b>도어</b> · PET 18T</div>'));
+  assert.ok(html.includes('<div class="dim">496 × 716</div>'));
   assert.ok(html.includes('⑧ 부재 라벨 — 사내 재단 (재단 직후 부착) <span class="muted">1–4 / 8'));
   assert.ok(html.includes('⑧ 부재 라벨 — 도어재 (입고 시 부착) <span class="muted">5–8 / 8'));
   assert.ok(html.includes('0.6 · 720×1 · 550×2'), '라벨에 붙일 변');
@@ -625,7 +629,7 @@ test('구 문서(v1 payload + v1 스냅샷) 도 전 섹션이 렌더된다 — �
     assert.ok(html.includes(s), s);
   }
   assert.ok(html.includes('<span class="chip none"></span><span class="mono">PET-OAK-M</span>'), '카탈로그 조회가 없던 문서는 코드만');
-  assert.ok(html.includes('· row-0#0</div>'));
+  assert.ok(html.includes('<div class="label" data-pid="row-0#0">'));
   assert.ok(html.includes('재단 시트</dt><dd>배치 없음'));
   assert.ok(html.includes('class="edge-svg"'), '옛 행도 문자열 edge 로 도식을 그린다');
   assert.ok(!html.includes('528,000'));

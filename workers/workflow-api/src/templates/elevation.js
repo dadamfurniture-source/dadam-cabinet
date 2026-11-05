@@ -13,6 +13,10 @@
  *
  * 세로 위치: 하부·키큰장·붙박이장은 바닥에서, 상부장은 천장(item.h)에 매단다 (플래너의 천장 기준).
  * 브리지가 플래너의 세로 좌표를 넘기지 않으므로 상부장 아래 끝은 천장 − 전체 높이다.
+ * 2026-11-05 (작업지시서 손보기 3): 하부장 위 모듈(stackBox — 하부장 몸통 위에 바로 선 수납장 · 밥솥장 · 가전 칸)은 셋째 줄
+ *   'counter' — 아래 하부장 윗면에서 선다. 바닥 줄 모듈이 바닥보다 위에서 시작하면(키큰장 단 묶음의 위 단 · 위장 아래) baseY
+ *   (없으면 _place.z0) 가 아래 끝이다. 배치 좌표는 가로 · 세로가 함께 겹칠 때만 믿지 않는다 (예전: 가로만 보고 하부장 위 모듈이
+ *   상부장과 겹친다며 순서대로 붙여 그렸다).
  *
  * 검증을 그림에 남긴다: 모듈이 품목 폭을 넘거나, 위치가 없어 폭 합을 대조하는데 어긋나면
  * 그 자리에 빨간 글을 그린다 — 그림이 BOM 의 문제를 감추지 않게.
@@ -32,9 +36,24 @@ function pos0(v) {
   return x !== null && x > 0 ? x : 0;
 }
 
-/** 모듈 → 줄. 바닥에 서는 것(하부·키큰장·붙박이장)과 천장에 매다는 것(상부). */
+/** 모듈 → 줄. 바닥에 서는 것(하부·키큰장·붙박이장) · 하부장 위(stackBox) · 천장에 매다는 것(상부). */
 export function lineOf(m) {
-  return m && m.pos === 'upper' ? 'upper' : 'floor';
+  if (!m || m.pos !== 'upper') return 'floor';
+  return m.stackBox ? 'counter' : 'upper';
+}
+
+/** 모듈 자리 이름 — 표 「위치」 칸 (하부 · 상부 · 붙박이 · 하부장 위) */
+const POS_LABEL = { upper: '상부', lower: '하부', wardrobe: '붙박이' };
+export function modulePosLabel(m) {
+  if (m && m.pos === 'upper' && m.stackBox) return '하부장 위';
+  return (m && (POS_LABEL[m.pos] || m.pos)) || '-';
+}
+
+/** 바닥에서 모듈 아래 끝 (mm) — baseY, 없으면 _place.z0. 둘 다 없으면 null */
+function baseYOf(m) {
+  const b = n(m && m.baseY);
+  if (b !== null) return b;
+  return n(m && m._place && m._place.z0);
 }
 
 function kindOf(m) {
@@ -83,22 +102,38 @@ export function elevationModel(item) {
     .map((m, i) => ({ m, no: i + 1, line: lineOf(m), w: pos0(m && m.w), ...bandsOf(m || {}) }))
     .filter((e) => e.w > 0 && e.total > 0);
 
-  // 가로 위치 — 모두 _x 가 있고 줄마다 겹치지 않을 때만 배치 좌표를 믿는다
+  // 바닥 쪽(바닥 줄 · 하부장 위) 세로 자리 — 바닥 줄은 baseY(없으면 0), 하부장 위는 baseY 또는 가로로 겹친 하부장 윗면
+  const placeFloorY = () => {
+    entries.filter((e) => e.line === 'floor').forEach((e) => { e.y0 = Math.max(0, baseYOf(e.m) || 0); });
+    const lowerTops = entries.filter((f) => f.line === 'floor' && f.kind === 'lower');
+    entries.filter((e) => e.line === 'counter').forEach((e) => {
+      const b = baseYOf(e.m);
+      if (b !== null && b > 0) { e.y0 = b; return; }
+      const under = lowerTops.filter((f) => f.x < e.x + e.w - 1 && e.x < f.x + f.w - 1);
+      e.y0 = Math.max(0, ...(under.length ? under : lowerTops).map((f) => f.y0 + f.total));
+    });
+  };
+  const overlapX = (a, b) => a.x < b.x + b.w - 2 && b.x < a.x + a.w - 2;
+  const overlapY = (a, b) => a.y0 < b.y0 + b.total - 2 && b.y0 < a.y0 + a.total - 2;
+
+  // 가로 위치 — 모두 _x 가 있고, 바닥 쪽은 가로 · 세로가 함께 겹치지 않고 상부 줄은 가로로 겹치지 않을 때만 배치 좌표를 믿는다
   const xsKnown = entries.length > 0 && entries.every((e) => n(e.m._x) !== null);
   let positioned = false;
   if (xsKnown) {
     const minX = Math.min(...entries.map((e) => n(e.m._x)));
     entries.forEach((e) => { e.x = n(e.m._x) - minX; });
-    positioned = ['floor', 'upper'].every((line) => {
-      const row = entries.filter((e) => e.line === line).sort((a, b) => a.x - b.x);
-      return row.every((e, i) => i === 0 || e.x >= row[i - 1].x + row[i - 1].w - 2);
-    });
+    placeFloorY();
+    const low = entries.filter((e) => e.line !== 'upper');
+    const up = entries.filter((e) => e.line === 'upper');
+    positioned = low.every((a, i) => low.every((b, j) => j <= i || !(overlapX(a, b) && overlapY(a, b)))) &&
+      up.every((a, i) => up.every((b, j) => j <= i || !overlapX(a, b)));
   }
   if (!positioned) {
-    for (const line of ['floor', 'upper']) {
+    for (const line of ['floor', 'counter', 'upper']) {
       let x = 0;
       entries.filter((e) => e.line === line).forEach((e) => { e.x = x; x += e.w; });
     }
+    placeFloorY();
     if (entries.length) {
       notes.push({
         level: 'info',
@@ -120,18 +155,18 @@ export function elevationModel(item) {
     }
   }
 
-  // 세로
-  const floorTop = Math.max(0, ...entries.filter((e) => e.line === 'floor').map((e) => e.total));
+  // 세로 — 바닥 쪽은 위에서 정했다 (placeFloorY), 상부장은 천장에 매단다
+  const floorTop = Math.max(0, ...entries.filter((e) => e.line !== 'upper').map((e) => e.y0 + e.total));
   const upperTotal = Math.max(0, ...entries.filter((e) => e.line === 'upper').map((e) => e.total));
   const H = pos0(item && item.h) || Math.max(DEFAULT_CEILING, floorTop + upperTotal);
-  entries.forEach((e) => { e.y0 = e.line === 'upper' ? H - e.total : 0; });
+  entries.filter((e) => e.line === 'upper').forEach((e) => { e.y0 = H - e.total; });
 
-  const lowers = entries.filter((e) => e.kind === 'lower');
+  const lowers = entries.filter((e) => e.kind === 'lower' || e.line === 'counter');
   const uppers = entries.filter((e) => e.line === 'upper');
   for (const u of uppers) {
-    const clash = lowers.find((l) => u.x < l.x + l.w && l.x < u.x + u.w && u.y0 < l.total);
+    const clash = lowers.find((l) => u.x < l.x + l.w && l.x < u.x + u.w && u.y0 < l.y0 + l.total - 1);
     if (clash) {
-      notes.push({ level: 'error', text: `상부 ${u.no} 아래 끝(${num(u.y0)})이 하부 ${clash.no} 위 끝(${num(clash.total)})보다 낮습니다` });
+      notes.push({ level: 'error', text: `상부 ${u.no} 아래 끝(${num(u.y0)})이 ${clash.line === 'counter' ? '하부장 위' : '하부'} ${clash.no} 위 끝(${num(clash.y0 + clash.total)})보다 낮습니다` });
     }
   }
 
@@ -189,9 +224,10 @@ function vChain(segs, x, fs, toY) {
     .join('');
 }
 
-/** 줄의 가로 사슬 — 모듈 폭과 사이 틈(배치 위치를 믿을 때만), 끝까지의 나머지. */
+/** 줄의 가로 사슬 — 모듈 폭과 사이 틈(배치 위치를 믿을 때만), 끝까지의 나머지. 같은 자리에 쌓인 모듈(키큰장 단)은 한 번만. */
 function chainSegs(entries, W, positioned) {
-  const row = entries.slice().sort((a, b) => a.x - b.x);
+  const row = entries.slice().sort((a, b) => a.x - b.x || a.y0 - b.y0)
+    .filter((e, i, all) => i === 0 || !(Math.abs(e.x - all[i - 1].x) < 1 && Math.abs(e.w - all[i - 1].w) < 1));
   const segs = [];
   let cur = 0;
   for (const e of row) {
@@ -229,7 +265,7 @@ export function elevationSvg(item, { warnings = true } = {}) {
   // 세로 치수의 대표: 일반 하부(없으면 바닥 첫 모듈) · 첫 상부. 둘이 세로로 겹치면 열을 하나 더 쓴다
   const lower = floor.find((e) => e.kind === 'lower') || floor[0];
   const up = upper[0];
-  const split = Boolean(lower && up && lower.total > up.y0);
+  const split = Boolean(lower && up && lower.y0 + lower.total > up.y0);
   const ml = fs * 1.5;
   const mr = fs * (split ? 14.8 : 9.2);
   const mt = fs * 3.2;
@@ -298,7 +334,7 @@ export function elevationSvg(item, { warnings = true } = {}) {
   };
   const lowSegs = lower ? bandSegs(lower, '몸통') : [];
   if (up) {
-    const lowTop = lower ? lower.total : 0;
+    const lowTop = lower ? lower.y0 + lower.total : 0;
     const upSegs = bandSegs(up, '상부 몸통');
     if (!split) {
       if (up.y0 - lowTop > 0) lowSegs.push({ y0: lowTop, h: up.y0 - lowTop, label: `사이 ${num(up.y0 - lowTop)}`, muted: true });

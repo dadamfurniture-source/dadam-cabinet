@@ -68,7 +68,7 @@ export function planSvg(req) {
 </svg>`;
 }
 
-const side = (v) => (v === 'wall' ? '벽 — 마감 안 함' : '노출 — 마감');
+const side = (v) => (v === 'wall' ? '벽 — 마감 안 함' : v === 'cabinet' ? '장 옆 — 마감 안 함' : '노출 — 마감');
 
 function requestSheet(ctx, req, k, total) {
   const doc = ctx.doc;
@@ -101,7 +101,7 @@ function requestSheet(ctx, req, k, total) {
     <dt>시공</dt><dd>설치 당일 또는 다음 날 (현장 결정)</dd>
     <dt>재질</dt><dd>${esc(req.material)} · 두께 <b>${num(req.thickness)}T</b></dd>
     <dt>색</dt><dd>${req.finishCode ? `<span class="mono">${esc(req.finishCode)}</span> ${esc((sw && sw.color_name) || '')}${sw && sw.vendor_code ? ` · 업체 코드 <span class="mono">${esc(sw.vendor_code)}</span>` : ''}` : `<span class="warn">${CHECK} 색 미지정</span>`}</dd>
-    <dt>치수</dt><dd>${req.shape === 'corner' ? '코너 — ' : '일자 — '}길이 <b>${num(req.length)}</b> × 깊이 <b>${num(req.depth)}</b> <span class="muted">(도면 치수 그대로 발주 · 이음은 업체 판단)</span></dd>
+    <dt>치수</dt><dd>${req.shape === 'corner' ? '코너 — ' : '일자 — '}길이 <b>${num(req.length)}</b> × 깊이 <b>${num(req.depth)}</b> <span class="muted">(도면 치수 그대로 발주 · 이음은 업체 판단)</span>${req.piece ? ` <span class="warn">하부장 위 수납장 자리에서 끊긴 상판 ${num(req.piece.no)}/${num(req.piece.of)}</span>` : ''}</dd>
   </dl>
   <div class="section-title">평면</div>
   ${planSvg(req)}

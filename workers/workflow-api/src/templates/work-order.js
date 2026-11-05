@@ -54,7 +54,7 @@ import {
   pieceBaseId,
 } from '../work-order-data.js';
 import { laborEstimate, fmtMinutes } from '../labor-standards.js';
-import { elevationSvg, elevationModel, moduleDrawingSvg } from './elevation.js';
+import { elevationSvg, elevationModel, moduleDrawingSvg, modulePosLabel } from './elevation.js';
 import { partDrawingsSheet } from './part-drawing.js';
 import { moduleSectionsSheet } from './module-section.js';
 import { isCornerItem, isoSvg, runLengths } from './isometric.js';
@@ -73,7 +73,6 @@ const CATEGORY_NAMES = {
   custom: '비규격장',
 };
 
-const MODULE_POS = { upper: '상부', lower: '하부', wardrobe: '붙박이' };
 
 export const LABELS_PER_SHEET = 24; // 3 × 8
 
@@ -477,7 +476,7 @@ function moduleSheets(ctx) {
           [
             esc(label),
             `<b>${num(mi + 1)}</b>`,
-            esc(MODULE_POS[m.pos] || m.pos || '-'),
+            esc(modulePosLabel(m)),
             esc(m.name || m.type || '-'),
             dims3(m.w, m.h, m.d),
             num(m.doorCount || 0),
@@ -552,7 +551,7 @@ function moduleDrawingsSheet(ctx) {
       ].filter(Boolean);
       return `
     <div class="module-card">
-      <div class="mc-head"><b>${num(mi + 1)}</b> ${esc(label)} · ${esc(MODULE_POS[m.pos] || m.pos || '-')} ${esc(m.name || m.type || '-')}</div>
+      <div class="mc-head"><b>${num(mi + 1)}</b> ${esc(label)} · ${esc(modulePosLabel(m))} ${esc(m.name || m.type || '-')}</div>
       ${svg || '<div class="ph">치수 없음</div>'}
       <div class="mc-foot">몸통 ${dims3(m.w, m.h, m.d)}${bits.length ? ` · ${esc(bits.join(' · '))}` : ''}</div>
     </div>`;
@@ -1094,7 +1093,7 @@ function assemblySheet(ctx) {
       return tr(
         [
           esc(label),
-          `<b>${num(mi + 1)}</b> ${esc(MODULE_POS[m.pos] || m.pos || '-')} ${esc(m.name || m.type || '-')} <span class="muted">${num(m.w)}×${num(m.h)}</span>`,
+          `<b>${num(mi + 1)}</b> ${esc(modulePosLabel(m))} ${esc(m.name || m.type || '-')} <span class="muted">${num(m.w)}×${num(m.h)}</span>`,
           ...on.map((y) => (y ? box : na)),
           '', '',
         ],
@@ -1200,14 +1199,15 @@ function labelCell(unit, no, ctx) {
   const s = ctx.swatchByCode.get(m.finishCode);
   const hex = normalizeHex(s && s.color_hex);
   const sides = edgeSidesText(m);
+  // 2026-11-05 (작업지시서 손보기 2): 번호를 크게 한 줄 — 긴 부재 ID 가 번호를 밀어내던 것. 부재 ID 는 QR 안에만 (data-pid 는 찾기용)
+  const where = [m.itemLabel, m.module].map((v) => String(v || '').trim()).filter(Boolean).join(' · ');
   return `
-  <div class="label">
+  <div class="label" data-pid="${esc(unit.id)}">
     ${qr}
     <div class="lt">
-      <div class="pid"><b>${num(no)}</b> · ${esc(unit.id)}</div>
-      <div>${esc(m.itemLabel || '')} · ${esc(m.module || '')}</div>
-      <div><b>${esc(m.part || '')}</b> · ${esc(m.material || '')}</div>
-      <div class="dim">${num(m.w)} × ${num(m.h)} × ${num(m.thickness)}</div>
+      <div class="no"><b>${num(no)}</b><span class="mod">${esc(where)}</span></div>
+      <div><b>${esc(m.part || '')}</b> · ${esc(m.material || '')} ${num(m.thickness)}T</div>
+      <div class="dim">${num(m.w)} × ${num(m.h)}</div>
       <div>${m.finishCode ? `${hex ? `<span class="chip" style="background:${hex}"></span>` : ''}<span class="mono">${esc(m.finishCode)}</span>` : '<span class="muted">마감 기본</span>'}</div>
       <div class="edge-line">${edgeSvg(rowEdges(m))}${sides === '없음' ? '엣지 없음' : `${fmtEdgeT(m.edgeT)} · ${esc(sides)}`}</div>
     </div>
@@ -1360,7 +1360,8 @@ function packHeader(ctx, pack) {
     if (labor) facts.push(['예상 시간', `조립 ${fmtMinutes(labor.assemblyMin)}`]);
   } else if (pack === 'labels') {
     const g = labelGroups(ctx.materials);
-    facts.push(['라벨', `사내 ${num(g.inHouse.length)} · 도어재 ${num(g.door.length)} (A4 ${num(Math.ceil(g.inHouse.length / LABELS_PER_SHEET) + Math.ceil(g.door.length / LABELS_PER_SHEET))}쪽)`]);
+    const pages = [g.inHouse, g.outsourced, g.door].reduce((s, list) => s + Math.ceil(list.length / LABELS_PER_SHEET), 0);
+    facts.push(['라벨', `사내 ${num(g.inHouse.length)}${g.outsourced.length ? ` · 재단 외주 ${num(g.outsourced.length)}` : ''} · 도어재 ${num(g.door.length)} (A4 ${num(pages)}쪽)`]);
   }
   const showRenders = pack === 'assembly'; // 재단은 치수 정면도만 — 3D 렌더는 조립 참고용
   return `
