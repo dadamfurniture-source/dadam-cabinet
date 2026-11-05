@@ -407,7 +407,8 @@
     $('lbAccTitle').textContent = mon + ' 매입 · 계정별 (만원)';
     $('lbSupTitle').textContent = mon + ' 지출 상대 · 상위 5 (만원)';
     bars($('lbAccounts'), acc, '이 달 매입이 없습니다.');
-    bars($('lbSuppliers'), d.suppliers || [], '이 달 지출 상대가 없습니다.');
+    // 서버는 보고서 몫으로 10곳까지 준다 — 한눈에는 5곳만
+    bars($('lbSuppliers'), (d.suppliers || []).slice(0, 5), '이 달 지출 상대가 없습니다.');
   }
 
   function kv(box, pairs) {

@@ -5,7 +5,8 @@
             합계 · 증빙 · 출처. 거름(출처) · 찾기(거래처 · 내용 · 주문번호) · 합계 줄. 매입은 「매입처별」 묶음
             (줄 수 · 공급가 · 부가세 · 합계 · 세금계산서 있음). 받을 돈(GET /ledger/receivables) · 낼 돈(/ledger/payables) 목록
    숫자     서버 값 그대로 — 이 파일이 더하는 것은 합계(공급가 + 부가세)와 합계 줄 · 묶음 합뿐. 부가세를 모르는 줄은 「모름」
-   내보내기 세무사용 CSV 셋 (csvFiles · toCsv) — 매출장(고객 이름 없이 주문번호) · 매입장 · 계정별 합계. 취소 줄은 뺀다.
+   내보내기 세무사용 CSV 셋 (csvFiles · toCsv) — 매출장(고객 이름 없이 주문번호) · 매입장(거래처 사업자번호 000-00-00000) ·
+            계정별 합계. 취소 줄은 뺀다.
             엑셀이 한글을 읽게 앞에 BOM, 줄 끝 CRLF
    글은 모두 textContent 로 넣는다 (HTML 글을 그대로 넣지 않는다).
    ============================================================ */
@@ -328,6 +329,12 @@
     );
   }
 
+  /** 사업자번호 10자리 → 000-00-00000 (없거나 꼴이 다르면 빈 칸) */
+  function bizNo(v) {
+    var d = typeof v === 'string' ? v : '';
+    return /^[0-9]{10}$/.test(d) ? d.slice(0, 3) + '-' + d.slice(3, 5) + '-' + d.slice(5) : '';
+  }
+
   /**
    * 세무사용 CSV 셋 — rows: GET /ledger/book rows, ctx: { accountName, evidenceName, stageName }
    * → { sales, buys, accounts } (각각 머리 줄 + 줄). 매출장은 고객 이름을 싣지 않는다 (주문번호만)
@@ -374,13 +381,26 @@
       })
     );
     var buys = [
-      ['일자', '구분', '거래처', '주문번호', '계정', '내용', '공급가', '부가세', '합계', '증빙'],
+      [
+        '일자',
+        '구분',
+        '거래처',
+        '사업자번호',
+        '주문번호',
+        '계정',
+        '내용',
+        '공급가',
+        '부가세',
+        '합계',
+        '증빙',
+      ],
     ].concat(
       rowsFor(live, 'buys', {}).map(function (r) {
         return [
           r.entry_date,
           kind(r),
           r.counterparty_name || '',
+          bizNo(r.counterparty_biz_no),
           r.order_no || '',
           acc(r.account),
           desc(r),
@@ -416,6 +436,7 @@
 
   window.SeganLedgerBook = {
     csvFiles: csvFiles,
+    bizNo: bizNo,
     toCsv: toCsv,
     SIDES: SIDES,
     rowsFor: rowsFor,

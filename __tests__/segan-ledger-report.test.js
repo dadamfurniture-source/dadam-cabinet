@@ -239,6 +239,20 @@ describe('회계 보고서', () => {
     expect($('lrMonth').textContent).toBe('2026년 9월');
   });
 
+  test('지출 상대 — 상위 10곳까지', async () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({
+      name: `상호${i + 1}`,
+      amount: (12 - i) * 100000,
+      n: 1,
+    }));
+    await load({
+      search: '?month=2026-10',
+      dash: (url) => ok({ ...DASH(new URL(url).searchParams.get('month')), suppliers: many }),
+    });
+    expect($('lrSupTitle').textContent).toBe('이 달 지출 상대 · 상위 10');
+    expect(rows('lrSuppliers').map((r) => r[0])).toEqual(many.slice(0, 10).map((s) => s.name));
+  });
+
   test('직원 · 자격 없음 — 이유 한 줄', async () => {
     for (const [me, text] of [
       [ok({ ...ME, role: 'staff', money: false }), '회계 보고서는 업체 대표 · 실장만 봅니다.'],

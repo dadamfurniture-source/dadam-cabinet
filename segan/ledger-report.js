@@ -5,7 +5,7 @@
    데이터    GET /ledger/me (업체 이름 — ledgers) · /ledger/dashboard?month=&months=12 · /ledger/accounts ·
              /ledger/receivables · /ledger/payables (장부 서버가 모르면 그 줄은 뺀다)
    보이기    A4 한 장 — 칸 넷(매출 · 매입 · 장부 손익 · 부가세 예상 — 일반과세만, 반기) · 최근 6달 표 · 매입 계정별 ·
-             지출 상대 상위 5 · 받을 돈 · 낼 돈 · 남은 할 일. 숫자는 서버 값 그대로 — 이 화면이 더하는 것은 장부 손익과
+             지출 상대 상위 10 · 받을 돈 · 낼 돈 · 남은 할 일. 숫자는 서버 값 그대로 — 이 화면이 더하는 것은 장부 손익과
              반기 부가세 참고뿐 (SeganLedgerBoard.vatHalf — 회계 한눈에와 같은 셈)
    인쇄      「인쇄 · PDF 저장」 = window.print. 앱 머리 · 아래 탭 · 단추는 인쇄에서 뺀다 (ledger-report.css)
    글은 모두 textContent 로 넣는다.
@@ -264,7 +264,7 @@
     table(
       $('lrSuppliers'),
       ['지출 상대', '금액', '줄'],
-      (d.suppliers || []).map(function (s) {
+      (d.suppliers || []).slice(0, 10).map(function (s) {
         return [s.name || '-', won(s.amount), String(s.n || 0)];
       }),
       '이 달 지출 상대가 없습니다.'
