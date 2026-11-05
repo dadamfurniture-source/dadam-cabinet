@@ -363,6 +363,33 @@ test('잇기 — expect_project_id: 그 사이 바뀌었으면 409 stale (쓰지
   assert.equal(bad.status, 422);
 });
 
+test('설계 목록 — 내 업체 설계만 최근 고친 순, 이은 프로젝트 · 수주 여부, 직원도 본다 · 다담 본사는 403', async () => {
+  const fake = fakeOf();
+  fake.db.designs.forEach((d, i) => {
+    d.name = '설계 ' + (i + 1);
+    d.updated_at = at(10 + i);
+  });
+  const r = await call(fake, '/company/designs', STAFF_A);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const items = r.json.data.items;
+  assert.ok(items.every((d) => fake.db.designs.find((x) => x.id === d.id).company_id === A));
+  assert.deepEqual(
+    items.map((d) => d.id),
+    [rid(26), rid(25), D_A_ORDER, D_A_STAFF]
+  );
+  assert.deepEqual(items.find((d) => d.id === D_A_ORDER), {
+    id: D_A_ORDER,
+    name: '설계 2',
+    project_id: PRJ_A1,
+    created_at: null,
+    updated_at: at(11),
+    has_order: true,
+  });
+  assert.equal(items.find((d) => d.id === D_A_STAFF).has_order, false);
+  const platform = await call(fake, '/company/designs', PLATFORM_STAFF);
+  assert.equal(platform.status, 403);
+});
+
 test('잇기 — 틀린 본문 422, 없는 설계 404', async () => {
   const fake = fakeOf();
   for (const body of [null, {}, { project_id: 'nope' }, { project_id: 7 }]) {

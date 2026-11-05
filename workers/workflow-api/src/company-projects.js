@@ -7,6 +7,8 @@
  *   POST /company/projects       새 프로젝트 (대표 · 실장) { title, customer_id } | { title, customer: { name, phone } }
  *                                → { project_id, customer_id }. 새 고객은 이름 · 전화로 늘 새 행 (이름 · 전화가 같다고
  *                                기존 고객에 잇지 않는다 — projects.js 상담 확정과 같다)
+ *   GET  /company/designs        내 업체 설계 목록 (active 구성원) — 이름 · 이은 프로젝트 · 수주가 생겼나, 최근 고친 순 200개
+ *                                (AI 비서 「설계 잇기」 카드가 고를 설계)
  *   PUT  /designs/:id/project    설계를 프로젝트에 잇기 · 풀기 { project_id | null } → { design_id, project_id }
  *       잇는 사람: 설계 업체의 대표 · 실장 (다담 공장 설계는 관리자도), 협력업체 설계는 만든 사람(그 업체 구성원)도.
  *       다담 공장 설계를 만든 일반 고객은 잇지 못한다 — 고객 설계 잇기는 아직 없다.
@@ -135,6 +137,33 @@ function projectByKey(env, companyId, key) {
     idempotency_key: `eq.${key}`,
     select: 'id,customer_id',
   });
+}
+
+/** GET /company/designs */
+export async function listCompanyDesigns(env, { user }) {
+  const { company } = await projectCompanyOf(env, user);
+  const designs =
+    (await selectMany(env, 'designs', {
+      company_id: `eq.${company.id}`,
+      select: 'id,name,project_id,created_at,updated_at',
+      order: 'updated_at.desc',
+      limit: String(COMPANY_PROJECTS_LIMIT),
+    })) || [];
+  const ids = designs.map((d) => d.id);
+  const orders = ids.length
+    ? (await selectMany(env, 'orders', { design_id: `in.(${ids.join(',')})`, select: 'design_id' })) || []
+    : [];
+  const ordered = new Set(orders.map((o) => o.design_id));
+  return {
+    items: designs.map((d) => ({
+      id: d.id,
+      name: d.name || null,
+      project_id: d.project_id || null,
+      created_at: d.created_at,
+      updated_at: d.updated_at,
+      has_order: ordered.has(d.id),
+    })),
+  };
 }
 
 /** POST /company/projects — X-Idempotency-Key 가 같으면 먼저 만든 프로젝트를 그대로 (reused) */
