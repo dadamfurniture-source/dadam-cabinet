@@ -10,7 +10,10 @@
                   연결이 끊겨 한 번 더 보낼 때는 같은 키 (서버가 같은 차례로 답한다)
              GET  /assistant/conversations/:id/events?after=N — 사건 줄(NDJSON, 한 줄에 사건 하나 · 번호 n).
                   서버가 차례 끝 · 약 55초에 닫는다. 이 차례의 끝 사건 없이 닫히면 마지막으로 받은 n 부터 다시 연다.
-   사건      start · text(글 조각을 잇는다) · tool(「… 보는 중」 한 줄, 다음 tool · text 가 오면 바뀐다) · done
+   사건      start · text(글 조각을 잇는다) · tool(「… 보는 중」 한 줄, 다음 tool · text 가 오면 바뀐다) · card(승인 카드 · 연락 초안) · done
+   카드      서버(DB 값)가 만든 칸 그대로 — AI 글이 아니다. 승인 기다림이면 「승인」 · 「거절」(POST /assistant/actions/:id/approve · reject),
+             승인은 대화한 본인만 · 한 번만 (서버가 막는다). 연락 초안은 「복사」만 — 보내기 없음.
+             다시 열면 대화 보기의 actions — 카드를 만든 차례의 비서 말풍선(그 뒤 첫 비서 말풍선) 아래에 둔다.
              끝 — blocked(reason) · refused · error(message). 서버는 실패한 차례를 저장하지 않으므로
              보낸 말풍선을 거두고 글을 입력 칸에 되돌린다. 모르는 사건은 넘긴다.
    보이기    모든 글은 textContent 로만 넣는다 (사람 글 · AI 글 모두 — HTML · 링크로 바꾸지 않는다).
@@ -24,7 +27,7 @@
              알림을 못 받으면(403 · 0033 전 · 끊김) 칸을 숨긴다 — 대화는 그대로.
    로그인 · 클라이언트는 segan/shell.js 가 맡는다 (SeganShell.ready 의 sb · session).
    ============================================================ */
-/* global window, document, fetch, crypto, location, history, setTimeout, AbortController, TextDecoder */
+/* global window, document, fetch, crypto, location, history, navigator, setTimeout, AbortController, TextDecoder */
 (function () {
   'use strict';
 
@@ -54,6 +57,13 @@
   var LOST_MSG = '답을 받지 못했습니다. 대화를 다시 열어 주세요.';
   var EMPTY_MSG = '보낼 글을 적어 주세요.';
   var AI_TAG = 'AI가 만든 내용';
+  // 승인 카드 — 워커 src/actions.js 상태 이름 (state_name) 을 그대로 쓴다
+  var CARD_TAG = '승인 카드';
+  var DRAFT_TAG = '고객 연락 초안 — 복사해서 직접 보내 주세요';
+  var CARD_RUNNING = '실행하는 중…';
+  var CARD_FAIL = '처리하지 못했습니다. 잠시 뒤 다시 눌러 주세요.';
+  var COPY_OK = '복사했습니다';
+  var COPY_FAIL = '복사하지 못했습니다 — 글을 길게 눌러 복사해 주세요';
   var WAIT_TEXT = '답을 만드는 중…';
   var TEXT_MAX = 4000; // 워커 src/worker.js TEXT_MAX
   var LIST_MAX = 20; // 워커가 주는 대화 수
@@ -104,6 +114,7 @@
     notices: [], // GET /ledger/notices items (새것부터)
     noticesAll: false, // 「모두 보기」를 눌렀나
     brief: null, // GET /brief/today data
+    cards: {}, // 이 대화의 카드 id → actionView
   };
 
   var $ = function (id) {
@@ -254,6 +265,144 @@
     $('asMsgs').appendChild(li);
     scrollEnd(li);
     return li;
+  }
+
+  // ── 승인 카드 ─────────────────────────────────────────
+  function cardNode(id) {
+    return $('asMsgs').querySelector('[data-card="' + id + '"]');
+  }
+
+  /** 카드 안을 그린다 (순수 그리기 — 글은 textContent 로만) */
+  function paintCard(li, a, note) {
+    var c = a.card || {};
+    var draft = a.kind === 'draft';
+    li.className = 'as-card as-card--' + a.state;
+    li.textContent = '';
+    var tag = document.createElement('span');
+    tag.className = 'as-tag';
+    tag.textContent = draft ? DRAFT_TAG : CARD_TAG;
+    li.appendChild(tag);
+    var head = document.createElement('p');
+    head.className = 'as-card-title';
+    head.textContent = c.title || '';
+    if (!draft) {
+      var st = document.createElement('span');
+      st.className = 'as-card-state';
+      st.textContent = a.state_name || a.state;
+      head.appendChild(st);
+    }
+    li.appendChild(head);
+    if (Array.isArray(c.fields) && c.fields.length) {
+      var dl = document.createElement('dl');
+      dl.className = 'as-card-fields';
+      c.fields.forEach(function (f) {
+        var dt = document.createElement('dt');
+        dt.textContent = f.label || '';
+        var dd = document.createElement('dd');
+        dd.textContent = f.value || '';
+        dl.appendChild(dt);
+        dl.appendChild(dd);
+      });
+      li.appendChild(dl);
+    }
+    if (draft) {
+      var body = document.createElement('p');
+      body.className = 'as-text as-card-draft';
+      body.textContent = c.text || '';
+      li.appendChild(body);
+    }
+    var msg = note || (a.result && a.result.message) || '';
+    if (msg) {
+      var m = document.createElement('p');
+      m.className = 'as-card-note';
+      m.textContent = msg;
+      li.appendChild(m);
+    }
+    var acts = document.createElement('div');
+    acts.className = 'as-card-acts';
+    var add = function (act, label, solid) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'mk-btn' + (solid ? ' mk-btn--solid' : '');
+      b.setAttribute('data-act', act);
+      b.textContent = label;
+      acts.appendChild(b);
+    };
+    if (draft) add('copy', '복사', true);
+    else if (a.state === 'proposed') {
+      add('approve', '승인', true);
+      add('reject', '거절', false);
+      if (a.expires_at) {
+        var exp = document.createElement('small');
+        exp.textContent = stamp(a.expires_at) + '까지';
+        acts.appendChild(exp);
+      }
+    }
+    if (acts.childNodes.length) li.appendChild(acts);
+  }
+
+  /** 카드 하나 — 있으면 다시 그리고, 없으면 after 다음(없으면 맨 아래)에 넣는다 */
+  function putCard(a, after) {
+    if (!a || !a.id) return null;
+    A.cards[a.id] = a;
+    var li = cardNode(a.id);
+    if (!li) {
+      li = document.createElement('li');
+      li.setAttribute('data-card', a.id);
+      var box = $('asMsgs');
+      if (after && after.parentNode === box) box.insertBefore(li, after.nextSibling);
+      else box.appendChild(li);
+    }
+    paintCard(li, a);
+    return li;
+  }
+
+  /** 승인 · 거절 · 복사 */
+  async function onCardClick(e) {
+    var b = e.target && e.target.closest ? e.target.closest('[data-act]') : null;
+    var li = b ? b.closest('[data-card]') : null;
+    if (!li) return;
+    var a = A.cards[li.getAttribute('data-card')];
+    if (!a) return;
+    var act = b.getAttribute('data-act');
+    if (act === 'copy') return copyDraft(li, a);
+    if (act !== 'approve' && act !== 'reject') return;
+    li.querySelectorAll('[data-act]').forEach(function (x) {
+      x.disabled = true;
+    });
+    if (act === 'approve') paintCard(li, Object.assign({}, a, { state_name: CARD_RUNNING }), '');
+    var r = await api('/assistant/actions/' + encodeURIComponent(a.id) + '/' + act, {
+      method: 'POST',
+    });
+    if (r.ok && r.data && r.data.action) {
+      putCard(r.data.action);
+      return;
+    }
+    // 이미 승인 · 거절 · 기한 지남 (409) — 단추를 거둔다. 권한 · 끊김은 다시 누를 수 있게 둔다
+    var closed = a;
+    if (r.status === 409) {
+      var st = r.code === 'expired' ? 'expired' : 'closed';
+      closed = Object.assign({}, a, {
+        state: st,
+        state_name: st === 'expired' ? '기한 지남' : '처리됨',
+      });
+    }
+    A.cards[a.id] = closed;
+    paintCard(li, closed, r.message || CARD_FAIL);
+  }
+
+  async function copyDraft(li, a) {
+    var text = (a.card && a.card.text) || '';
+    var okCopy = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        okCopy = true;
+      }
+    } catch {
+      okCopy = false;
+    }
+    paintCard(li, a, okCopy ? COPY_OK : COPY_FAIL);
   }
 
   /** 답을 기다리는 비서 말풍선 — 첫 글 조각이 오면 기다림 글을 지운다 */
@@ -718,13 +867,28 @@
     clearHash();
   }
 
-  /** 대화 화면으로 — 메시지를 다시 그린다 */
-  function enterConv(conv, messages) {
+  /** 대화 화면으로 — 메시지를 다시 그리고, 카드는 그 차례 비서 말풍선 아래에 */
+  function enterConv(conv, messages, actions) {
     A.conv = { id: conv.id, title: conv.title || '' };
     setTitle(A.conv.title);
     $('asMsgs').textContent = '';
-    (messages || []).forEach(function (m) {
-      bubble(m.role, m.text);
+    A.cards = {};
+    var drawn = (messages || []).map(function (m) {
+      return { m: m, li: bubble(m.role, m.text) };
+    });
+    // 메시지는 차례가 끝날 때 저장된다 — 카드를 만든 뒤 처음 저장된 비서 말풍선이 그 차례 답이다
+    var last = {};
+    (actions || []).forEach(function (a) {
+      var hit = null;
+      for (var i = 0; i < drawn.length; i++) {
+        var d = drawn[i];
+        if (d.m.role === 'assistant' && String(d.m.created_at) >= String(a.created_at)) {
+          hit = d;
+          break;
+        }
+      }
+      var key = hit ? String(drawn.indexOf(hit)) : 'end';
+      last[key] = putCard(a, last[key] || (hit ? hit.li : null));
     });
     setEnd('');
     setTool('');
@@ -745,7 +909,7 @@
       return;
     }
     setState('');
-    enterConv(r.data.conversation, r.data.messages);
+    enterConv(r.data.conversation, r.data.messages, r.data.actions);
     var run = r.data.running;
     if (run && Number(run.turn) > 0) {
       // 새로 고치기 전에 보낸 차례가 아직 돈다 — 그 차례의 사건을 이어 받는다
@@ -850,6 +1014,8 @@
       scrollEnd(li);
     } else if (ev.type === 'tool') {
       setTool(ev.label == null ? '' : String(ev.label));
+    } else if (ev.type === 'card') {
+      scrollEnd(putCard(ev.action));
     } else if (ev.type === 'done') {
       doneTurn(turn);
     } else if (ev.type === 'blocked') {
@@ -997,6 +1163,7 @@
     $('asForm').addEventListener('submit', send);
     $('asNoticeList').addEventListener('click', onNoticeClick);
     $('asBriefAsk').addEventListener('click', askBrief);
+    $('asMsgs').addEventListener('click', onCardClick);
     $('asNoticesSeen').addEventListener('click', function () {
       markSeen(
         A.notices

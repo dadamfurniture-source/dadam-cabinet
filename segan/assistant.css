@@ -282,6 +282,94 @@
   overflow-wrap: anywhere;
 }
 
+/* 승인 카드 — 서버가 만든 칸 · 승인 · 거절. 초안은 복사만 */
+.as-card {
+  align-self: flex-start;
+  width: min(88%, 520px);
+  padding: 10px 14px;
+  border: 1px solid var(--v5-line-18);
+  border-left: 3px solid var(--v5-navy);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+}
+
+.as-card--draft {
+  border-left-color: var(--v5-tan);
+}
+
+.as-card--done {
+  border-left-color: #2e6b45;
+}
+
+.as-card--failed,
+.as-card--unknown {
+  border-left-color: #93301f;
+}
+
+.as-card--rejected,
+.as-card--expired,
+.as-card--closed {
+  border-left-color: var(--v5-line-25);
+  color: var(--v5-ink-62);
+}
+
+.as-card-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  justify-content: space-between;
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.as-card-state {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.as-card-fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.as-card-fields dt {
+  color: var(--v5-ink-62);
+}
+
+.as-card-fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.as-card-draft {
+  margin-top: 6px;
+}
+
+.as-card-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.as-card-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.as-card-acts small {
+  color: var(--v5-ink-62);
+  font-size: 12px;
+}
+
 .as-msg--wait .as-text {
   color: var(--v5-ink-45);
 }
