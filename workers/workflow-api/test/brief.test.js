@@ -1,7 +1,8 @@
 /**
  * 아침 브리핑 (src/brief.js) — 비서를 쓰는 업체 구성원의 「오늘 볼 것」.
  *
- *   - 볼 것: 상담(응답 기다림) · 수금(오늘 · 늦음) · 7일 안 납품 · 설치 · 대표 결정 요청 · 확인할 사진 · 안 본 장부 알림
+ *   - 볼 것: 상담(응답 기다림) · 수금(오늘 · 늦음) · 7일 안 납품 · 설치 · 대표 결정 요청 · 확인할 사진
+ *     · 지난 24시간에 새로 생긴 안 본 장부 알림 (묵은 안 본 알림은 세지 않는다)
  *   - 역할마다: 대표는 모두, 실장은 요청 빼고, 직원은 일정만 (돈 · 상담 · 회계 없음)
  *   - 현황: 수주 없는 프로젝트 단계 · 수주 상태별 수 · 제작 중 수주의 재단 · 엣지 · 조립 · 설치 필수 확인 진행
  *   - GET /brief/today — 비서 자격 full 업체 구성원만, 고객 이름 없음
@@ -21,7 +22,9 @@ import {
   briefSlot,
   slotOf,
   runMorningBrief,
+  loadBrief,
   BRIEF_MINUTES,
+  NOTICE_HOURS,
 } from '../src/brief.js';
 import { buildMessage, isValidMessage } from '../src/push/messages.js';
 import { createFake, withFake, SB } from './helpers/push-fake.js';
@@ -119,8 +122,10 @@ function tables() {
       { id: id('05', 3), company_id: CO, review_status: 'posted' },
     ],
     ledger_notices: [
-      { id: id('06', 1), company_id: CO, seen_at: null },
-      { id: id('06', 2), company_id: CO, seen_at: '2026-11-04T00:00:00Z' },
+      // 11-05 07:00 · 본 것 · 11-04 08:00 (AT 보다 24시간 넘게 앞 — 묵은 안 본 알림)
+      { id: id('06', 1), company_id: CO, seen_at: null, created_at: '2026-11-04T22:00:00Z' },
+      { id: id('06', 2), company_id: CO, seen_at: '2026-11-04T00:00:00Z', created_at: '2026-11-03T22:00:00Z' },
+      { id: id('06', 3), company_id: CO, seen_at: null, created_at: '2026-11-03T23:00:00Z' },
     ],
     projects: [
       { id: P(1), company_id: CO, status: 'active', created_at: '2026-10-01T00:00:00Z' },
@@ -157,13 +162,27 @@ function world(t = tables()) {
   });
 }
 
+/** GET 은 서버 시계(Date.now)로 센다 — 시험은 AT 에 고정한다 */
 async function call(fake, token) {
+  const realNow = Date.now;
+  Date.now = () => AT;
+  try {
+    return await get(fake, token);
+  } finally {
+    Date.now = realNow;
+  }
+}
+
+async function get(fake, token) {
   return withFake(fake, async () => {
     const res = await worker.fetch(new Request('https://api.test/brief/today', { headers: { Authorization: `Bearer ${token}` } }), ENV, { waitUntil() {} });
     const text = await res.text();
     return { status: res.status, json: text ? JSON.parse(text) : null, cache: res.headers.get('Cache-Control') };
   });
 }
+
+/** 장부 알림 수만 — 그 시각에 센다 */
+const noticesAt = (nowMs, t = tables()) => withFake(world(t), () => loadBrief(ENV, CO, { nowMs, keys: ['notices'] }));
 
 // ── 순수 ─────────────────────────────────────────────────
 
@@ -325,6 +344,16 @@ test('GET /brief/today — 비서 자격이 없는 업체는 403 not_entitled, �
   const b = await call(world(), 't_nobody');
   assert.equal(b.status, 403);
   assert.equal(b.json.code, 'not_member');
+});
+
+test('장부 알림 — 지난 NOTICE_HOURS 시간에 생긴 안 본 것만, 다음 날 아침에는 어제 센 알림을 다시 세지 않는다', async () => {
+  assert.equal(NOTICE_HOURS, 24);
+  assert.deepEqual((await noticesAt(AT)).notices, { count: 1 });
+  // 꼭 24시간 앞에 생긴 것까지 든다
+  const t = tables();
+  t.ledger_notices.push({ id: id('06', 4), company_id: CO, seen_at: null, created_at: new Date(AT - 24 * 3600 * 1000).toISOString() });
+  assert.deepEqual((await noticesAt(AT, t)).notices, { count: 2 });
+  assert.deepEqual((await noticesAt(kst('2026-11-06T08:02:00'))).notices, { count: 0 });
 });
 
 // ── 매분 cron ───────────────────────────────────────────
