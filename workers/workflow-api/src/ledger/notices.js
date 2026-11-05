@@ -11,7 +11,7 @@
  *                   「장부에 바뀐 점 N건」 (아직 안 본 수, 0 이면 보내지 않는다 — 하루 한 번, 꼬리 dYYYYMMDD).
  *                   분 % 5 가 2 · 3 인 분은 건너뛴다 (훑기 · 국세청과 겹치지 않게).
  *                   비서를 쓰는 업체(company_entitled 'assistant' full)는 이 알림을 보내지 않는다 — 같은 시각의 아침 브리핑
- *                   「오늘 볼 것 N건」에 안 본 장부 알림 수가 든다 (src/brief.js, 2026-11-05 대표님 결정). 잡기는 그대로 한다
+ *                   「오늘 볼 것 N건」에 지난 하루 새로 생긴 안 본 장부 알림 수가 든다 (src/brief.js, 2026-11-05 대표님 결정). 잡기는 그대로 한다
  *     07:55         매달 INVOICE_DAY(11)일부터 — 지난달 · 그 앞 달 모아 둔 명세표에 세금계산서가 없으면 invoice_missing
  *                   (DB 0036 ledger_invoice_missing_scan — 거래처 · 달마다 하나라 매일 불러도 하나). 8시 묶음에 실린다
  *     07:50         매달 1일 — 지난달 월 보고 month_report (DB 0038 ledger_month_report_scan — 그 달 장부 줄이 있는

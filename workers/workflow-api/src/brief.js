@@ -13,7 +13,9 @@
  *     schedules    모두        오늘부터 SCHEDULE_DAYS 일 안의 납품 · 설치 일정 (design_schedules delivery · installation, 끝남 · 취소 뺌)
  *     requests     대표        결정 기다리는 수주 요청 (order_events pending)
  *     photos       대표 · 실장  확인 기다리는 영수증 · 명세표 사진 (ledger_documents pending)
- *     notices      대표 · 실장  아직 안 본 장부 알림 (ledger_notices seen_at 없음)
+ *     notices      대표 · 실장  지난 NOTICE_HOURS 시간에 새로 생긴 안 본 장부 알림 (ledger_notices seen_at 없음 · created_at)
+ *                              — 업체마다 늘 같은 분에 세니 알림 하나는 아침 브리핑 한 번에만 든다. 그보다 묵은 안 본 알림은
+ *                              비서 탭 「장부 알림」 칸에만 (2026-11-05 대표님 결정 — 안 본 알림이 쌓이면 매일 같은 수가 갔다)
  *   현황 (알림 숫자에 들지 않는다 — 비서 탭에서만)
  *     stages  진행 중(active) 프로젝트 중 수주가 없는 것의 단계 수 (상담 · 연출 · 설계 · 견적 — projects.js projectStage)
  *             + 수주 상태별 수 (확정 · 제작 중 · 납품)
@@ -42,6 +44,8 @@ export const SCHEDULE_DAYS = 7;
 export const SCHEDULE_SHOW = 10;
 /** 작업 진행 — 보는 수주 수 (최근 수주순) */
 export const WORK_ORDERS = 8;
+/** 장부 알림 — 지난 몇 시간에 새로 생긴 것 (브리핑 사이 하루) */
+export const NOTICE_HOURS = 24;
 /** 읽는 줄 수 상한 */
 const FETCH = '500';
 const PROJECT_FETCH = '200';
@@ -238,6 +242,7 @@ export async function loadBrief(env, companyId, { nowMs = Date.now(), keys = ALL
   const want = new Set(keys);
   const today = kstDateOf(nowMs);
   const range = { from: dayStartIso(today), to: dayStartIso(today, SCHEDULE_DAYS) };
+  const noticeFrom = new Date(nowMs - NOTICE_HOURS * 3600 * 1000).toISOString();
   const co = `eq.${companyId}`;
   const [orders, consults, due, schedules, requests, photos, notices, pr] = await Promise.all([
     detail
@@ -266,7 +271,7 @@ export async function loadBrief(env, companyId, { nowMs = Date.now(), keys = ALL
       : null,
     want.has('requests') ? selectMany(env, 'order_events', { company_id: co, state: 'eq.pending', select: 'id', limit: FETCH }) : null,
     want.has('photos') ? orNull(selectMany(env, 'ledger_documents', { company_id: co, review_status: 'eq.pending', select: 'id', limit: '1000' })) : null,
-    want.has('notices') ? orNull(selectMany(env, 'ledger_notices', { company_id: co, seen_at: 'is.null', select: 'id', limit: '1000' })) : null,
+    want.has('notices') ? orNull(selectMany(env, 'ledger_notices', { company_id: co, seen_at: 'is.null', created_at: `gte.${noticeFrom}`, select: 'id', limit: '1000' })) : null,
     detail ? projectRows(env, companyId) : null,
   ]);
   const open = orders || [];
