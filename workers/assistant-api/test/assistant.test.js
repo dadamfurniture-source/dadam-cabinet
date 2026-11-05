@@ -573,4 +573,6 @@ test('시스템 글 — 플레이북은 키마다 가장 높은 판만 붙는다
   assert.ok(!sys.includes('옛 판'));
   assert.match(sys, /<playbook key="usage" version="1">/);
   assert.match(systemPrompt({ role: 'manager', playbooks: [] }), /업체 실장이다/);
+  // 앱은 답을 글 그대로 그린다 — 마크다운 꾸밈을 쓰지 않게
+  assert.match(sys, /마크다운 꾸밈 기호\(굵게 \*\* · 제목 # · 코드 ` · 표 \|\)를 쓰지 않는다/);
 });
