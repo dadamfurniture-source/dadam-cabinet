@@ -27,10 +27,11 @@
    일반 상담 (주소에 ?g= 가 없을 때 — 연출컷 없이): 사이트 consultation.html 과 같은 신청서다.
      같은 칸 — 상담 유형(ai-design · detail-design · estimate · other) · 이름 · 연락처 · 이메일 · 시공 지역 ·
        도어 마감 · 철거 · 가격대 · 상담 제목 · 상세 내용 · 가구 종류 · 설치 공간 · 예산 범위 · 공간 크기 · 선호 스타일 ·
-       상세설계 권한 신청 · 시공 완료 희망 날짜 · 희망 날짜 · 시간대
+       시공 완료 희망 날짜 · 희망 날짜 · 시간대
+       (consultation.html 의 「상세설계 권한 신청」만 앱에 두지 않는다 — request_detail_design 은 보내지 않고
+        DB 기본값(false), profiles.detaildesign_requested_at 도 적지 않는다)
      같은 검사 · 같은 글 (consultation.html missingMessage), 같은 동의 둘 (수집 · 이용 필수, 업체 제공 선택 — v2)
-     같은 저장 — consultations insert 한 줄 (같은 칸 이름 · 같은 값), 상세설계 권한 신청이면 로그인한 사람의
-       profiles.detaildesign_requested_at 을 적는다 (실패해도 넘긴다)
+     같은 저장 — consultations insert 한 줄 (같은 칸 이름 · 같은 값, 위 한 칸만 빼고)
      로그인 없이도 보낸다 (user_id 없음 — insert 정책이 받는다). 로그인했으면 가입 정보(user_metadata)로
        이름 · 이메일 · 연락처 · 거주지역을 채운다 (consultation.html checkAuthState)
    ============================================================ */
@@ -424,7 +425,8 @@
     return parseInt($(id).value, 10) || null;
   }
 
-  /** consultations 한 줄 — consultation.html submitConsultation 의 insert 와 같은 칸 · 같은 값 */
+  /** consultations 한 줄 — consultation.html submitConsultation 의 insert 와 같은 칸 · 같은 값
+   *  (request_detail_design 만 뺀다) */
   function buildGeneralRow() {
     var u = (C.session && C.session.user) || null;
     var now = new Date().toISOString();
@@ -452,7 +454,6 @@
       space_depth_mm: intOrNull('csgDepth'),
       budget_range: $('csgBudget').value || null,
       style_preference: $('csgStyle').value || null,
-      request_detail_design: $('csgDetailDesign').checked,
       sido: $('csgSido').value,
       gugun: $('csgGugun').value,
       door_finish: pickedIn('csgDoor', DOOR_FINISHES),
@@ -495,17 +496,6 @@
     try {
       var r = await C.sb.from('consultations').insert(row);
       if (r && r.error) throw r.error;
-      // 상세설계 권한 신청 — 로그인한 사람만 프로필에 신청 시각을 남긴다 (실패해도 넘긴다)
-      if (row.request_detail_design && row.user_id) {
-        try {
-          await C.sb
-            .from('profiles')
-            .update({ detaildesign_requested_at: new Date().toISOString() })
-            .eq('id', row.user_id);
-        } catch {
-          /* 신청 시각을 못 적어도 상담은 접수됐다 */
-        }
-      }
       done(row);
     } catch (err) {
       var m = (err && err.message) || '';
