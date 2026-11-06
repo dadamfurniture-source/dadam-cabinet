@@ -3,7 +3,8 @@
  * 프로젝트를 가질 수 있는 업체: 다담 공장(hq) · active 협력업체(plan expert · agent). 다담 본사(platform)는 아니다
  * — 프로젝트 저장은 Expert 이상이고, 협력업체는 plan 이 곧 등급이다.
  *
- *   GET  /company/projects       내 업체 프로젝트 목록 (active 구성원) — 고객 이름 · 전화, 이어진 설계 수, 최신 200개
+ *   GET  /company/projects       내 업체 프로젝트 목록 (active 구성원) — 고객 이름 · 전화, 이어진 설계 수, 담당자, 최신 200개
+ *                                + 지금 구성원 members [{ user_id, name, role }] (담당자 고르기 — src/company-assignee.js, DB 0042)
  *   POST /company/projects       새 프로젝트 (대표 · 실장) { title, customer_id } | { title, customer: { name, phone } }
  *                                → { project_id, customer_id }. 새 고객은 이름 · 전화로 늘 새 행 (이름 · 전화가 같다고
  *                                기존 고객에 잇지 않는다 — projects.js 상담 확정과 같다)
@@ -34,6 +35,8 @@ import {
 } from './supabase.js';
 import { companyOf } from './distribution/company.js';
 import { idempotencyKeyOf } from './ledger/checks.js';
+import { membersOf } from './company-assignee.js';
+import { isMissingRelation } from './work-order-data.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
@@ -86,13 +89,25 @@ function textOf(value, field, max) {
 /** GET /company/projects */
 export async function listCompanyProjects(env, { user }) {
   const { company, canAct } = await projectCompanyOf(env, user);
-  const projects =
-    (await selectMany(env, 'projects', {
+  const query = (cols) =>
+    selectMany(env, 'projects', {
       company_id: `eq.${company.id}`,
-      select: 'id,customer_id,title,status,created_at,closed_at',
+      select: cols,
       order: 'created_at.desc',
       limit: String(COMPANY_PROJECTS_LIMIT),
-    })) || [];
+    });
+  // 담당자 칸(DB 0042) — 적용 전이면 담당자 없이 (assignee_ready false)
+  let assigneeReady = true;
+  let projects;
+  try {
+    projects = (await query('id,customer_id,title,status,created_at,closed_at,assignee_id')) || [];
+  } catch (e) {
+    if (!isMissingRelation(e)) throw e;
+    assigneeReady = false;
+    projects = (await query('id,customer_id,title,status,created_at,closed_at')) || [];
+  }
+  const members = await membersOf(env, company.id);
+  const memberOf = new Map(members.map((m) => [m.user_id, m]));
   const ids = projects.map((p) => p.id);
   const customerIds = [...new Set(projects.map((p) => p.customer_id).filter(Boolean))];
   const customers = customerIds.length
@@ -115,6 +130,8 @@ export async function listCompanyProjects(env, { user }) {
   return {
     company: { id: company.id, name: company.name, kind: company.kind, plan: company.plan || null },
     can_manage: canAct,
+    assignee_ready: assigneeReady,
+    members,
     items: projects.map((p) => {
       const c = customerOf.get(p.customer_id);
       return {
@@ -125,6 +142,8 @@ export async function listCompanyProjects(env, { user }) {
         closed_at: p.closed_at || null,
         customer: c ? { id: c.id, name: c.name || null, phone: c.phone || null } : null,
         design_count: designCount.get(p.id) || 0,
+        // 나간 구성원이면 이름 없이 id 만 (removed — 바꾸는 것은 사람이 한다)
+        assignee: p.assignee_id ? memberOf.get(p.assignee_id) || { user_id: p.assignee_id, name: null, role: null } : null,
       };
     }),
   };

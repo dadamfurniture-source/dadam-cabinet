@@ -30,6 +30,7 @@
  *   GET  /company/consults · POST /company/consults/:id/accept|decline · GET|PUT /company/service-settings
  *   GET  /company/my-score — 업체 쪽 상담 (src/distribution/company.js)
  *   GET|POST /company/projects · GET /company/designs · PUT /designs/:designId/project — 업체 고객 · 프로젝트, 설계 목록 · 잇기 (src/company-projects.js)
+ *   PUT /company/projects/:id/assignee · GET /company/projects/:id/assignee-candidates — 프로젝트 담당자 (src/company-assignee.js, DB 0042)
  *
  *   GET  /ledger/me · /ledger/accounts · /ledger/book · GET|PUT /ledger/settings
  *   POST /ledger/entries · /ledger/entries/:id/void · /ledger/entries/:id/correct
@@ -219,6 +220,7 @@ import {
   myScore,
 } from './distribution/company.js';
 import { listCompanyProjects, listCompanyDesigns, createCompanyProject, linkDesignProject } from './company-projects.js';
+import { setProjectAssignee, assigneeCandidates } from './company-assignee.js';
 import { handlePushKey, handleSavePushSubscription, handleDeletePushSubscription } from './push/routes.js';
 import { runPushSender, runPushCleanup, isPushCleanupTime, PUSH_SEND_CRON } from './push/sender.js';
 import { notifyOrderRequest, notifyOrderRequestDecided, notifyConfirmationDecided } from './push/hooks.js';
@@ -1218,6 +1220,19 @@ async function handleLinkDesignProject(request, env, { params, user }) {
   return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
 }
 
+/** 프로젝트 담당자 정하기 · 비우기 — 대표 · 실장 (src/company-assignee.js) */
+async function handleSetProjectAssignee(request, env, { params, user }) {
+  const body = await readJson(request);
+  const data = await setProjectAssignee(env, { user, projectId: params.id, body });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+/** 담당자 후보 · 추천 차례 — 대표 · 실장 */
+async function handleAssigneeCandidates(request, env, { params, user }) {
+  const data = await assigneeCandidates(env, { user, projectId: params.id });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
 /** 로그인한 사람의 고객 행에 걸린 프로젝트 — 금액 · 일정이 담겨 캐시에 남기지 않는다 */
 async function handleMyProjects(request, env, { user }) {
   // data 는 프로젝트 배열 그대로 (앱 화면 계약)
@@ -1329,6 +1344,8 @@ const router = createRouter([
   // 업체 고객 · 프로젝트 — 목록은 구성원, 만들기는 대표 · 실장 (다담 공장 · Expert 이상 협력업체)
   { method: 'GET',  path: '/company/projects',                    auth: 'jwt', handler: handleCompanyProjects },
   { method: 'POST', path: '/company/projects',                    auth: 'jwt', handler: handleCreateCompanyProject },
+  { method: 'PUT',  path: '/company/projects/:id/assignee',       auth: 'jwt', handler: handleSetProjectAssignee },
+  { method: 'GET',  path: '/company/projects/:id/assignee-candidates', auth: 'jwt', handler: handleAssigneeCandidates },
   { method: 'GET',  path: '/company/designs',                     auth: 'jwt', handler: handleCompanyDesigns },
 
   // 업체 장부 요약 (그 업체 대표 · 실장)

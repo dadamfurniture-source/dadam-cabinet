@@ -1,6 +1,7 @@
 /**
  * 업체 고객 · 프로젝트 — src/company-projects.js 를 워커로 부른다.
  *   GET|POST /company/projects · PUT /designs/:designId/project
+ *   PUT /company/projects/:id/assignee · GET /company/projects/:id/assignee-candidates (src/company-assignee.js, DB 0042)
  * 가짜 Supabase 는 test/helpers/distribution-fake.js. 시험 데이터는 모두 가짜다.
  */
 import { test, beforeEach } from 'node:test';
@@ -9,6 +10,7 @@ import worker from '../src/worker.js';
 import { clearHqCompanyCache } from '../src/supabase.js';
 import { clearAdminCache } from '../src/reports/admin.js';
 import { canHoldProjects, COMPANY_PROJECTS_LIMIT } from '../src/company-projects.js';
+import { rankCandidates, CANDIDATE_DAYS } from '../src/company-assignee.js';
 import { createFake, callWorker, writesOf } from './helpers/distribution-fake.js';
 import { HQ as FACTORY } from './fixtures/company.js';
 
@@ -82,6 +84,7 @@ function tables() {
         title: '싱크대',
         status: 'active',
         created_at: at(10),
+        assignee_id: STAFF_A,
       },
       {
         id: PRJ_A2,
@@ -120,7 +123,22 @@ function tables() {
     orders: [
       { id: rid(31), company_id: A, design_id: D_A_ORDER, project_id: PRJ_A1, status: 'confirmed' },
     ],
+    profiles: [
+      { id: OWNER_A, name: '가대표' },
+      { id: MANAGER_A, name: '다실장' },
+      { id: STAFF_A, name: '나직원' },
+    ],
+    design_schedules: [
+      { id: rid(41), design_id: D_A_ORDER, type: 'installation', status: 'scheduled', scheduled_at: soon(2) },
+      { id: rid(42), design_id: D_A_ORDER, type: 'delivery', status: 'scheduled', scheduled_at: soon(CANDIDATE_DAYS + 3) },
+      { id: rid(43), design_id: D_A_ORDER, type: 'installation', status: 'cancelled', scheduled_at: soon(1) },
+    ],
   };
+}
+
+/** 지금부터 며칠 뒤 (일정 — 추천은 오늘부터 CANDIDATE_DAYS 일) */
+function soon(days) {
+  return new Date(Date.now() + days * 86400000).toISOString();
 }
 
 const fakeOf = (opts = {}) => createFake({ tables: tables(), admins: [ADMIN], ...opts });
@@ -399,4 +417,99 @@ test('잇기 — 틀린 본문 422, 없는 설계 404', async () => {
   }
   assert.equal((await link(fake, rid(98), { project_id: PRJ_A1 })).status, 404);
   assert.equal((await link(fake, 'not-a-uuid', { project_id: PRJ_A1 })).status, 404);
+});
+
+// ── 담당자 (DB 0042, 2026-11-06 작업 분배 ①~④) ─────────────────────────────
+
+test('목록 — 담당자 · 지금 구성원(역할 → 이름 차례), 직원도 본다', async () => {
+  const fake = fakeOf();
+  const r = await call(fake, '/company/projects', STAFF_A);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const d = r.json.data;
+  assert.equal(d.assignee_ready, true);
+  assert.deepEqual(d.members.map((m) => [m.user_id, m.name, m.role]), [
+    [OWNER_A, '가대표', 'owner'],
+    [MANAGER_A, '다실장', 'manager'],
+    [STAFF_A, '나직원', 'staff'],
+    [STAFF_A2, null, 'staff'],
+  ]);
+  const by = Object.fromEntries(d.items.map((p) => [p.id, p.assignee]));
+  assert.deepEqual(by[PRJ_A1], { user_id: STAFF_A, name: '나직원', role: 'staff' });
+  assert.equal(by[PRJ_A2], null);
+});
+
+test('목록 — DB 0042 전이면 담당자 없이 (assignee_ready false)', async () => {
+  const fake = fakeOf({
+    before: (method, table, params) =>
+      method === 'GET' && table === 'projects' && String(params.get('select') || '').includes('assignee_id')
+        ? new Response(JSON.stringify({ code: '42703', message: 'column projects.assignee_id does not exist' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
+        : null,
+  });
+  const r = await call(fake, '/company/projects', OWNER_A);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.data.assignee_ready, false);
+  assert.ok(r.json.data.items.every((p) => p.assignee === null));
+});
+
+test('담당자 정하기 — 대표 · 실장만, 지금 구성원만, 같으면 그대로, 본 담당자가 바뀌었으면 409 stale, 비우기', async () => {
+  const fake = fakeOf();
+  const put = (id, body, token = OWNER_A) => call(fake, `/company/projects/${id}/assignee`, token, { method: 'PUT', body });
+  const ok = await put(PRJ_A2, { assignee_id: MANAGER_A });
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+  assert.equal(ok.json.data.assignee_id, MANAGER_A);
+  const row = fake.db.projects.find((p) => p.id === PRJ_A2);
+  assert.deepEqual([row.assignee_id, row.assigned_by], [MANAGER_A, OWNER_A]);
+
+  const staff = await put(PRJ_A2, { assignee_id: STAFF_A }, STAFF_A);
+  assert.deepEqual([staff.status, staff.json.code], [403, 'not_manager']);
+  const outsider = await put(PRJ_A2, { assignee_id: OWNER_B });
+  assert.deepEqual([outsider.status, outsider.json.details && outsider.json.details.code], [422, 'not_member']);
+  const other = await put(PRJ_B1, { assignee_id: OWNER_A });
+  assert.equal(other.status, 404, '남의 업체 프로젝트');
+  const bad = await put(PRJ_A2, { assignee: MANAGER_A });
+  assert.equal(bad.status, 422);
+
+  const writes = fake.calls.filter((c) => c.method === 'PATCH' && c.table === 'projects').length;
+  const same = await put(PRJ_A2, { assignee_id: MANAGER_A, expect_assignee_id: null }, MANAGER_A);
+  assert.equal(same.status, 200, '이미 그 사람이면 그대로 성공');
+  assert.equal(fake.calls.filter((c) => c.method === 'PATCH' && c.table === 'projects').length, writes, '쓰지 않는다');
+  const stale = await put(PRJ_A2, { assignee_id: STAFF_A, expect_assignee_id: null });
+  assert.deepEqual([stale.status, stale.json.code], [409, 'stale']);
+  const moved = await put(PRJ_A2, { assignee_id: STAFF_A, expect_assignee_id: MANAGER_A });
+  assert.equal(moved.status, 200);
+  const cleared = await put(PRJ_A2, { assignee_id: null });
+  assert.equal(cleared.status, 200);
+  assert.equal(fake.db.projects.find((p) => p.id === PRJ_A2).assignee_id, null);
+});
+
+test('담당자 후보 — 진행 중 담당이 적은 사람 → 이레 안 일정이 적은 사람 → 이름(없으면 뒤), 대표 · 실장만', async () => {
+  const fake = fakeOf();
+  const r = await call(fake, `/company/projects/${PRJ_A2}/assignee-candidates`, MANAGER_A);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const d = r.json.data;
+  assert.deepEqual([d.project_id, d.assignee_id, d.days], [PRJ_A2, null, CANDIDATE_DAYS]);
+  assert.deepEqual(d.candidates.map((c) => [c.user_id, c.active_projects, c.week_schedules]), [
+    [OWNER_A, 0, 0],
+    [MANAGER_A, 0, 0],
+    [STAFF_A2, 0, 0],
+    [STAFF_A, 1, 1],
+  ]);
+  const staff = await call(fake, `/company/projects/${PRJ_A2}/assignee-candidates`, STAFF_A);
+  assert.deepEqual([staff.status, staff.json.code], [403, 'not_manager']);
+});
+
+test('추천 차례 (순수) — 담당 수 → 일정 수 → 이름', () => {
+  const members = [
+    { user_id: 'u1', name: '다', role: 'staff' },
+    { user_id: 'u2', name: '가', role: 'staff' },
+    { user_id: 'u3', name: '나', role: 'owner' },
+  ];
+  const projects = [{ id: 'p1', assignee_id: 'u2' }, { id: 'p2', assignee_id: 'u1' }];
+  const designs = [{ id: 'd1', project_id: 'p1' }, { id: 'd2', project_id: 'p2' }];
+  const schedules = [{ design_id: 'd1' }, { design_id: 'd1' }];
+  assert.deepEqual(rankCandidates(members, projects, schedules, designs).map((c) => [c.user_id, c.active_projects, c.week_schedules]), [
+    ['u3', 0, 0],
+    ['u1', 1, 0],
+    ['u2', 1, 2],
+  ]);
 });
