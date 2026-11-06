@@ -2,7 +2,7 @@
  * 작업자 필수 확인 v1 (2026-11-04 사장님 확정 — src/work/check-items.js v1, check-state.js, checks.js, DB 0035 · 0037).
  *
  *   엣지 항목은 재단 기사 목록 · 「사진 필수」는 사진을 붙여야 체크 (사진은 서버가 비공개 버킷에, 이 주문 · 문서 경로만)
- *   · 필수가 남으면 공장 「완료 기록」(주문 있는 기록) · 설치 「완료 보고」 409 checks_left, v0 문서 · 주문 없는 기록은 막지 않는다
+ *   · 필수가 남으면 설치 「완료 보고」 · 주문 끝 항목(v2) 409 checks_left — 공장 하루 「완료 기록」은 막지 않는다 (2026-11-06)
  *   · [확인 필요] · 콘센트 조건 · 종이에 주문 확인 · 설치 확인 칸 · 본사는 사진 서명 주소.
  * 사람 · 주문은 모두 지어낸 시험 값이다.
  */
@@ -186,24 +186,43 @@ test('사진 필수 — 사진 없이 체크하면 422, 서버가 비공개 버�
   });
 });
 
-test('완료 막기 — 필수가 남으면 공장 완료 기록 · 설치 완료 보고 409 checks_left (쓰지 않음), 다 체크하면 된다', async () => {
-  const db = makeDb();
+test('완료 막기 (v2) — 공장 하루 기록은 막지 않고, 필수가 남으면 주문 끝 항목 · 설치 완료 보고 409 checks_left, 다 체크하면 된다', async () => {
+  const db = makeDb({ version: 'v2' });
   await withDb(db, async (calls) => {
+    // 여러 날 걸리는 주문 — 필수가 남아도 하루 기록은 남긴다 (2026-11-06 사장님 「주문 끝 완료를 따로 둠」)
+    await addFactoryWorklog(ENV, { user: cut, body: { role: 'cutter', units: 1, minutes: 30, order_id: O1, order_label: 'SO-1' } });
+    await addFactoryWorklog(ENV, { user: cut, body: { role: 'asm', units: 1, minutes: 30, order_id: O1 } });
+    assert.equal(db.production_worklogs.length, 2);
+    const end = (role, key, checked = true) => postFactoryCheck(ENV, { user: cut, params: { orderId: O1 }, body: { document_id: DOC_WO, role, scope_key: '', item_key: key, checked } });
     const before = restWrites(calls).length;
-    await assert.rejects(() => addFactoryWorklog(ENV, { user: cut, body: { role: 'cutter', units: 1, minutes: 30, order_id: O1, order_label: 'SO-1' } }), (e) => e.statusCode === 409 && e.details.code === 'checks_left' && e.details.left > 0);
+    await assert.rejects(() => end('cut', 'cut-order-done'), (e) => e.statusCode === 409 && e.details.code === 'checks_left' && e.details.left > 0);
     await assert.rejects(() => addWorkerUpdate(ENV, { user: inst, params: { id: A_START }, body: { kind: 'result', body: '끝났습니다' } }), (e) => e.statusCode === 409 && e.details.code === 'checks_left');
     assert.equal(restWrites(calls).length, before, '막히면 아무것도 쓰지 않는다');
-    // 주문 없는 「다른 작업 기록」은 막지 않는다
-    await addFactoryWorklog(ENV, { user: cut, body: { role: 'cutter', units: 1, minutes: 10, order_label: '청소' } });
-    // 재단 필수를 다 체크하면 재단 완료 기록이 된다 (조립 필수는 남아도 — 역할마다)
+    // 주문 끝 항목은 화면에 finish 로 · 필수 수에는 들지 않는다
     const v = await getFactoryChecks(ENV, { user: cut, params: { orderId: O1 } });
     const cutRole = v.roles.find((r) => r.role === 'cut');
+    const fin = cutRole.cells.flatMap((c) => c.items).find((x) => x.key === 'cut-order-done');
+    assert.equal(fin.finish, true);
+    assert.equal(fin.must, false);
+    // 재단 필수를 다 체크하면 재단 주문 끝이 된다 (조립 필수는 남아도 — 역할마다)
     for (const c of cutRole.cells) for (const x of c.items.filter((i) => i.must)) {
       await postFactoryCheck(ENV, { user: cut, params: { orderId: O1 }, body: { document_id: DOC_WO, role: 'cut', scope_key: c.scope_key, item_key: x.key, checked: true } });
     }
+    await end('cut', 'cut-order-done');
+    await assert.rejects(() => end('assembly', 'asm-order-done'), (e) => e.details && e.details.code === 'checks_left');
+    // 끝 표시를 거두는 것은 막지 않는다
+    await end('cut', 'cut-order-done', false);
+    const after = (await getFactoryChecks(ENV, { user: cut, params: { orderId: O1 } })).roles.find((r) => r.role === 'cut');
+    assert.equal(after.must_left, 0);
+  });
+});
+
+test('완료 막기 (v1 문서) — 하루 기록은 막지 않고, 설치 완료 보고는 필수가 남으면 409', async () => {
+  const db = makeDb({ version: 'v1' });
+  await withDb(db, async () => {
     await addFactoryWorklog(ENV, { user: cut, body: { role: 'cutter', units: 1, minutes: 30, order_id: O1, order_label: 'SO-1' } });
-    await assert.rejects(() => addFactoryWorklog(ENV, { user: cut, body: { role: 'asm', units: 1, minutes: 30, order_id: O1 } }), (e) => e.details && e.details.code === 'checks_left');
-    assert.equal(db.production_worklogs.length, 2);
+    assert.equal(db.production_worklogs.length, 1);
+    await assert.rejects(() => addWorkerUpdate(ENV, { user: inst, params: { id: A_START }, body: { kind: 'result', body: '끝났습니다' } }), (e) => e.statusCode === 409 && e.details.code === 'checks_left');
   });
 });
 

@@ -16,6 +16,7 @@
  *   본사 · 업체: GET /orders/:orderId/checks — 설계를 볼 수 있는 사람이 역할 전부의 지금 값 (사진은 서명 주소 1시간).
  *
  * 작업자 화면의 주문 이름은 가린 이름(홍*동 · 주문번호), 금액은 없다. 체크는 지금 문서 판에만 (새 판이 나오면 409 superseded).
+ * 주문 끝 항목(목록 v2 finish — 「이 주문 재단 · 엣지 끝」 · 「이 주문 조립 끝」)은 그 역할의 필수가 남았으면 409 checks_left.
  * 사진: 「사진 필수」 항목은 사진을 붙여야 체크된다 (v1 확정 — 「선택」은 붙여도 되고 안 붙여도 된다). 사진은 비공개 버킷
  * work-check-photos (DB 0037) 에 서버가 올린다 — 경로 <회사>/<주문>/<문서>/<uuid>.jpg|png. 0035 · 0037 적용 전이면 409 db_pending.
  */
@@ -127,6 +128,12 @@ async function addCheck(env, ctx, user, body) {
   const photoPath = b.photo_path == null || b.photo_path === '' ? null : String(b.photo_path);
   if (photoPath && (item.photo === 'none' || !photoPathRe(ctx).test(photoPath))) throw new ValidationError('이 항목에 붙일 수 없는 사진입니다', { field: 'photo_path' });
   if (item.photo === 'need' && b.checked && !photoPath) throw new ValidationError('사진이 필요한 항목입니다 — 사진을 붙여 체크해 주세요', { field: 'photo', code: 'photo_required' });
+  // 주문 끝 항목(v2 finish) — 그 역할의 필수를 다 체크해야 (2026-11-06 사장님 「주문 끝 완료를 따로 둠」)
+  if (item.finish && b.checked && ctx.list.block === 'must') {
+    const rows = await checkRows(env, ctx.doc.id, [b.role]);
+    const left = rows === null ? 0 : roleChecks(ctx, b.role, rows).must_left;
+    if (left > 0) throw new ConflictError(`필수 확인이 ${left}개 남았습니다 — 필수를 다 체크한 뒤 주문 끝을 체크해 주세요`, { code: 'checks_left', left });
+  }
   try {
     await insertOne(env, 'work_checks', {
       company_id: ctx.order.company_id,

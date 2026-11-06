@@ -43,7 +43,6 @@ import {
 import { maskOrderLabel, workerAssignmentText } from '../production/redact.js';
 import { loadSelfWorker } from './access.js';
 import { assertUuid } from './validate.js';
-import { assertChecksDone } from './check-state.js';
 
 /** 작업자 종류 → 공장 공정 (생산 기록의 role). 공장 조립은 조립 종류로 함께 쓴다 */
 export const FACTORY_ROLE_OF_KIND = Object.freeze({
@@ -52,8 +51,6 @@ export const FACTORY_ROLE_OF_KIND = Object.freeze({
   assembly: 'asm',
 });
 const ROLE_ORDER = ['cutter', 'edge', 'asm'];
-/** 공정 → 필수 확인 역할 (work/checks.js 와 같다) */
-const FACTORY_CHECK_ROLE = Object.freeze({ cutter: 'cut', edge: 'edge', asm: 'assembly' });
 
 /** 작업자 종류 → 기록할 수 있는 공정 (재단 · 엣지 · 조립 차례) */
 export function factoryRolesOf(kinds) {
@@ -152,8 +149,8 @@ export async function addFactoryWorklog(env, { user, body }) {
     throw new ValidationError('작업자 종류에 없는 공정은 기록할 수 없습니다', { field: 'role' });
   const owner = { user_id: factory.plan_user_id };
   if (v.order_id) await assertOwnHqOrder(env, owner, v.order_id);
-  // 필수 확인이 남았으면 막는다 (2026-11-04 사장님 확정 「필수만 막음」 — 목록 판 v1, check-state.js). 주문 없는 기록은 그대로
-  if (v.order_id) await assertChecksDone(env, { orderId: v.order_id, role: FACTORY_CHECK_ROLE[v.role] });
+  // 하루 기록은 필수 확인으로 막지 않는다 (2026-11-06 사장님 「여러 날 걸리는 주문 — 주문 끝 완료를 따로 둠」).
+  //   필수는 주문 끝 항목(필수 확인 「이 주문 재단 · 엣지 끝」 · 「이 주문 조립 끝」)에서 막는다 — work/checks.js
   const row = await insertOne(env, 'production_worklogs', {
     ...v,
     user_id: factory.plan_user_id,

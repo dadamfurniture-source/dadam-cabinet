@@ -27,13 +27,25 @@ test('문서 표 = 코드 정본 (판 막기 · 항목 — 역할 · 키 · 이�
 
 test('v1 — 사장님 확정: 엣지 항목은 재단 기사 목록 · 엣지 역할 칸 없음 · 막기 must · 사진 필수 두 항목', () => {
   const v1 = frozenCheckList('v1');
-  assert.equal(CHECK_LIST_VERSION, 'v1', '새 문서는 v1');
   assert.equal(v1.block, 'must');
   assert.equal(frozenCheckList('v0').block, 'none', 'v0 문서는 막지 않는다');
   assert.ok(itemsFor(v1, 'cut').some((x) => x.key.startsWith('edge-')));
   assert.deepEqual(itemsFor(v1, 'edge'), []);
   assert.deepEqual(['cut', 'assembly', 'install'].flatMap((r) => itemsFor(v1, r).filter((x) => x.photo === 'need').map((x) => x.key)), ['asm-module-photo', 'inst-order-photo']);
   assert.deepEqual(itemsFor(v1, 'install').filter((x) => x.paper === 'sign').map((x) => x.label), ['설치 담당', '검수', '고객 확인']);
+});
+
+test('v2 — 사장님 확정 (2026-11-06 주문 끝 완료를 따로 둠): v1 + 주문 끝 항목 둘 · 새 문서는 v2', () => {
+  const v1 = frozenCheckList('v1');
+  const v2 = frozenCheckList('v2');
+  assert.equal(CHECK_LIST_VERSION, 'v2', '새 문서는 v2');
+  assert.equal(v2.block, 'must');
+  const fin = (l, r) => itemsFor(l, r).filter((x) => x.finish).map((x) => [x.key, x.scope, x.at, x.must]);
+  assert.deepEqual(fin(v2, 'cut'), [['cut-order-done', 'order', 'end', false]]);
+  assert.deepEqual(fin(v2, 'assembly'), [['asm-order-done', 'order', 'end', false]]);
+  assert.deepEqual(fin(v2, 'install'), [], '설치는 작업 완료 보고가 주문 끝');
+  assert.deepEqual(fin(v1, 'cut'), [], 'v1 문서에는 주문 끝 항목이 없다');
+  ['cut', 'edge', 'assembly', 'install'].forEach((r) => assert.deepEqual(itemsFor(v2, r).filter((x) => !x.finish), itemsFor(v1, r), `v2 의 ${r} 나머지 = v1`));
 });
 
 test('v1 조건 — [확인 필요]가 있을 때만 · 콘센트를 넣었을 때만 (동결본)', () => {
