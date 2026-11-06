@@ -1,7 +1,8 @@
 /**
  * 간편 플래너 설계 받기 — POST /planner/designs (src/planner-handoff.js, DB 0035 designs.source · source_ref).
  *
- *   본사 대표 · 실장 · 관리자만 (아니면 403 not_planner_sender) · 같은 플래너 설계 = 같은 앱 설계 (없으면 만들고, 있으면 그대로)
+ *   본사 대표 · 실장 · 관리자 → 본사 설계, 플래너 팩토리(Expert · Agent · MANAGER) 대표 · 실장 → 그 팩토리 설계 (아니면 403 not_planner_sender)
+ *   · 같은 플래너 설계 = 같은 앱 설계 (없으면 만들고, 있으면 그대로)
  *   · 부재 ID 가 겹치면 INSERT 전에 422 · 0035 적용 전이면 409 db_pending · 동결은 createSnapshot 그대로.
  * 사람 · 설계는 모두 지어낸 시험 값이다.
  */
@@ -11,15 +12,28 @@ import { clearHqCompanyCache, ForbiddenError, ValidationError, ConflictError } f
 import { clearAdminCache } from '../src/reports/admin.js';
 import { receivePlannerDesign, duplicatePartIds, PLANNER_SOURCE } from '../src/planner-handoff.js';
 import worker from '../src/worker.js';
-import { HQ, companyRoute } from './fixtures/company.js';
+import { HQ, PARTNER, companyRoute } from './fixtures/company.js';
 
 const ENV = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'k' };
 const OWNER = 'a0000000-0000-4000-8000-000000000001';
 const STAFF = 'a0000000-0000-4000-8000-000000000003';
+const P_OWNER = 'a0000000-0000-4000-8000-000000000011';
+const P_STAFF = 'a0000000-0000-4000-8000-000000000012';
+const S_OWNER = 'a0000000-0000-4000-8000-000000000021';
+const STANDARD = 'f0000000-0000-4000-8000-0000000000cc';
 const MEMBERS = [
   { user_id: OWNER, company_id: HQ, role: 'owner', status: 'active' },
   { user_id: STAFF, company_id: HQ, role: 'staff', status: 'active' },
+  { user_id: P_OWNER, company_id: PARTNER, role: 'owner', status: 'active' },
+  { user_id: P_STAFF, company_id: PARTNER, role: 'staff', status: 'active' },
+  { user_id: S_OWNER, company_id: STANDARD, role: 'owner', status: 'active' },
 ];
+/** 업체 행 — 플래너를 쓰나 (planner-drafts.js canUsePlanner) */
+const COMPANIES = {
+  [HQ]: { id: HQ, kind: 'hq', name: '다담 공장', plan: null, status: 'active' },
+  [PARTNER]: { id: PARTNER, kind: 'partner', name: '가나 팩토리', plan: 'expert', status: 'active' },
+  [STANDARD]: { id: STANDARD, kind: 'partner', name: '다라 팩토리', plan: 'standard', status: 'active' },
+};
 
 const json = (rows, status = 200) => ({ ok: true, status, headers: { get: () => 'application/json' }, json: async () => rows, text: async () => JSON.stringify(rows) });
 const fail = (status, body) => ({ ok: false, status, headers: { get: () => 'application/json' }, text: async () => JSON.stringify(body) });
@@ -32,6 +46,10 @@ function fakeSupabase({ existing = null, missing = false, uploadFails = false } 
     const u = String(url);
     const method = init.method || 'GET';
     const path = u.split('?')[0];
+    if (/\/companies\?/.test(u) && /kind/.test(new URL(u).searchParams.get('select') || '')) {
+      const row = COMPANIES[(new URL(u).searchParams.get('id') || '').replace(/^eq\./, '')];
+      return json(row ? [row] : []);
+    }
     if (companyRoute(u, { members: MEMBERS })) return companyRoute(u, { members: MEMBERS });
     if (/\/admin_roles\?/.test(u)) return json([]);
     if (method === 'GET' && /\/designs\?/.test(u)) {
@@ -184,6 +202,27 @@ test('본사 직원(대표 · 실장 아님)은 보내지 못한다 — 403 not_
   const f = fakeSupabase();
   try {
     await assert.rejects(() => receivePlannerDesign(ENV, { user: { id: STAFF }, body: body() }), (e) => e instanceof ForbiddenError && e.code === 'not_planner_sender');
+    assert.equal(f.designPosts.length + f.snapshotPosts.length + f.designFinds, 0);
+  } finally { f.restore(); }
+});
+
+test('플래너 팩토리(Expert) 대표 — 그 팩토리 설계로 만든다, 주인은 보낸 사람', async () => {
+  const f = fakeSupabase();
+  try {
+    const r = await receivePlannerDesign(ENV, { user: { id: P_OWNER }, body: body() });
+    assert.deepEqual([r.design_id, r.created, r.snapshot_id], ['D-NEW', true, 'S1']);
+    const d = f.designPosts[0];
+    assert.deepEqual([d.company_id, d.user_id, d.source, d.source_ref], [PARTNER, P_OWNER, PLANNER_SOURCE, 'proj-test-1']);
+    assert.equal(f.snapshotPosts[0].design_id, 'D-NEW');
+  } finally { f.restore(); }
+});
+
+test('팩토리 직원 · 플래너를 못 쓰는 팩토리(Standard) 대표는 보내지 못한다 — 403 not_planner_sender, 아무것도 쓰지 않는다', async () => {
+  const f = fakeSupabase();
+  try {
+    for (const id of [P_STAFF, S_OWNER]) {
+      await assert.rejects(() => receivePlannerDesign(ENV, { user: { id }, body: body() }), (e) => e instanceof ForbiddenError && e.code === 'not_planner_sender');
+    }
     assert.equal(f.designPosts.length + f.snapshotPosts.length + f.designFinds, 0);
   } finally { f.restore(); }
 });
