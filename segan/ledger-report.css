@@ -177,6 +177,25 @@
   font-size: 12px;
 }
 
+/* 월 마감 메모 — 손볼 곳 한 줄 + 줄마다 작은 글 (2026-11-06 6-L3) */
+.lr-memo-note {
+  margin: 0 0 4px;
+  color: var(--v5-ink-62);
+  font-size: 11px;
+}
+
+.lr-memo {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+
+.lr-memo small {
+  display: block;
+  color: var(--v5-ink-62);
+  font-size: 11px;
+}
+
 .lr-foot {
   margin: 0;
   padding-top: 10px;
