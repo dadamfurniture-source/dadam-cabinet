@@ -236,9 +236,9 @@ describe('누가', () => {
   });
 
   test.each([
-    ['구성원 아님', fail(403, 'not_member', 'x'), '비서는 업체 구성원만 씁니다.'],
-    ['자격 없음 (403)', fail(403, 'not_entitled', 'x'), '비서를 쓸 수 없는 업체입니다.'],
-    ['자격 none', ok({ ...ME, level: 'none', can_chat: false }), '비서를 쓸 수 없는 업체입니다.'],
+    ['구성원 아님', fail(403, 'not_member', 'x'), '비서는 팩토리 구성원만 씁니다.'],
+    ['자격 없음 (403)', fail(403, 'not_entitled', 'x'), '비서를 쓸 수 없는 팩토리입니다.'],
+    ['자격 none', ok({ ...ME, level: 'none', can_chat: false }), '비서를 쓸 수 없는 팩토리입니다.'],
     ['서버 오류', fail(500, '', 'x'), '비서를 불러오지 못했습니다.'],
   ])('%s — 이유 한 줄, 목록을 묻지 않는다', async (_name, me, msg) => {
     const calls = await load({ me });
@@ -406,7 +406,7 @@ describe('보내기 · 사건', () => {
     [
       'blocked not_entitled',
       { n: 2, type: 'blocked', turn: 1, reason: 'not_entitled' },
-      '비서를 쓸 수 없는 업체입니다',
+      '비서를 쓸 수 없는 팩토리입니다',
     ],
     ['refused', { n: 2, type: 'refused', turn: 1 }, '이 내용에는 답할 수 없습니다'],
     [
@@ -438,7 +438,7 @@ describe('보내기 · 사건', () => {
   test.each([
     ['409 busy', fail(409, 'busy', 'x'), '앞 답을 만드는 중입니다'],
     ['429', fail(429, 'rate_limited', 'x'), '잠시 뒤 다시 보내 주세요'],
-    ['403 not_entitled', fail(403, 'not_entitled', 'x'), '비서를 쓸 수 없는 업체입니다'],
+    ['403 not_entitled', fail(403, 'not_entitled', 'x'), '비서를 쓸 수 없는 팩토리입니다'],
     ['422', fail(422, '', '글은 4000자까지 보냅니다'), '글은 4000자까지 보냅니다'],
   ])(
     '보내기 %s — 이유 한 줄, 말풍선 없이 글을 되돌린다, 사건 줄을 열지 않는다',

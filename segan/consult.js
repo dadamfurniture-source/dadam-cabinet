@@ -51,7 +51,7 @@
   var DOOR_FINISHES = ['pet', 'highgloss', 'paint', 'veneer', 'ceramic', 'unknown'];
   var PRICE_TIERS = ['basic', 'mid', 'high', 'unknown'];
   var DONE_TEXT = {
-    partner: '다담 본사가 확인한 뒤 가까운 업체를 연결해 드립니다.',
+    partner: '다담 본사가 확인한 뒤 가까운 팩토리를 연결해 드립니다.',
     hq: '다담 본사가 확인한 뒤 남기신 연락처로 직접 연락드립니다.',
   };
 

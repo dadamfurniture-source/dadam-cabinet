@@ -463,7 +463,7 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
     expect($('csDoneBack').getAttribute('href')).toBe(`./?g=${ID}#result`);
   });
 
-  test('업체 제공 동의 — 같은 시각으로 third_party_agreed_at · consent_version v2, 접수 화면은 「가까운 업체를 연결」', async () => {
+  test('업체 제공 동의 — 같은 시각으로 third_party_agreed_at · consent_version v2, 접수 화면은 「가까운 팩토리를 연결」', async () => {
     const calls = await load();
     fillRequired();
     $('csAgreeThird').checked = true;
@@ -473,10 +473,10 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
     expect(row.third_party_agreed_at).toBe(row.privacy_agreed_at);
     expect(row.consent_version).toBe('v2');
     expect($('csDoneText').textContent).toBe(
-      '다담 본사가 확인한 뒤 가까운 업체를 연결해 드립니다.'
+      '다담 본사가 확인한 뒤 가까운 팩토리를 연결해 드립니다.'
     );
     // 특정 업체를 약속하지 않는다
-    expect($('csDoneText').textContent).not.toMatch(/협력업체|공장|업체 이름/);
+    expect($('csDoneText').textContent).not.toMatch(/협력업체|공장|팩토리 이름/);
   });
 
   test('품목 여러 개 — 목록 차례대로 furniture_categories, 미리 고른 것을 빼도 된다', async () => {

@@ -426,10 +426,10 @@ describe('보기', () => {
           can_write: false,
           tax: undefined,
         }),
-        '장부는 업체 대표 · 실장만 봅니다.',
+        '장부는 팩토리 대표 · 실장만 봅니다.',
       ],
-      [fail(403, 'not_member', 'x'), '장부는 업체 구성원만 씁니다.'],
-      [fail(403, 'not_entitled', 'x'), '회계는 Expert · Agent 업체가 씁니다.'],
+      [fail(403, 'not_member', 'x'), '장부는 팩토리 구성원만 씁니다.'],
+      [fail(403, 'not_entitled', 'x'), '회계는 Expert · Agent 팩토리가 씁니다.'],
       [fail(500, '', 'x'), '장부를 불러오지 못했습니다.'],
     ]) {
       const calls = await load({ me });
@@ -1612,7 +1612,7 @@ describe('사진 확인 (대표 · 실장)', () => {
     });
   });
 
-  test('수주 원가로 — 이 업체 수주(GET /ledger/orders)를 골라 원가 종류와 함께', async () => {
+  test('수주 원가로 — 이 팩토리 수주(GET /ledger/orders)를 골라 원가 종류와 함께', async () => {
     const O1 = 'f0000000-0000-4000-8000-000000000001';
     const calls = await load({
       review: () => ok({ items: [doc(1, done()), doc(2, done())] }),
@@ -1668,7 +1668,7 @@ describe('사진 확인 (대표 · 실장)', () => {
     expect(calls.filter((c) => c.url === WORK + '/ledger/orders').length).toBe(1);
   });
 
-  test('수주 원가로 — 이 업체 수주가 없으면 그렇다고 쓰고 할 일을 칸 아래에, 올리지 않는다', async () => {
+  test('수주 원가로 — 이 팩토리 수주가 없으면 그렇다고 쓰고 할 일을 칸 아래에, 올리지 않는다', async () => {
     const calls = await load({
       review: () => ok({ items: [doc(1, done())] }),
       orders: () => ok({ items: [] }),
@@ -1677,13 +1677,13 @@ describe('사진 확인 (대표 · 실장)', () => {
     set('lgRvTarget', 'order_cost');
     await flush();
     expect([...$('lgRvOrder').options].map((o) => [o.value, o.textContent])).toEqual([
-      ['', '이 업체 수주가 없습니다'],
+      ['', '이 팩토리 수주가 없습니다'],
     ]);
     const why = $('lgRvOrder').closest('.lg-must-row').querySelector('[data-why]');
     expect(why.hidden).toBe(false);
     expect(why.textContent).toContain('「수주 전환」해야 생깁니다');
     await submitSheet();
-    expect($('lgRvError').textContent).toBe('이 업체에는 고를 수주가 없습니다.');
+    expect($('lgRvError').textContent).toBe('이 팩토리에는 고를 수주가 없습니다.');
     expect(calls.some((c) => c.url.endsWith('/post'))).toBe(false);
   });
 
@@ -1702,7 +1702,7 @@ describe('사진 확인 (대표 · 실장)', () => {
     set('lgRvTarget', 'order_cost');
     await flush();
     expect(calls.filter((c) => c.url === WORK + '/ledger/orders').length).toBe(2);
-    expect($('lgRvOrder').options[0].textContent).toBe('이 업체 수주가 없습니다');
+    expect($('lgRvOrder').options[0].textContent).toBe('이 팩토리 수주가 없습니다');
   });
 
   test('돌려보내기 · 버리기 — 화면 안에서 이유를 받고(confirm 없음), 보낸 뒤 목록에서 뺀다', async () => {

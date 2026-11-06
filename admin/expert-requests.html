@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>업체 신청 - 다담가구 관리자</title>
+    <title>팩토리 신청 - 다담가구 관리자</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -12,7 +12,7 @@
     />
     <script src="../js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026110602"></script>
+    <script src="../js/admin-access.js?v=2026110603"></script>
     <style>
       * {
         margin: 0;
@@ -556,7 +556,7 @@
       </div>
 
       <ul class="nav-menu" id="adminNav"></ul>
-      <script src="../js/admin-shell.js?v=2026110602"></script>
+      <script src="../js/admin-shell.js?v=2026110603"></script>
 
       <div class="sidebar-footer">
         <a href="../index.html">← 메인 사이트로</a>
@@ -574,7 +574,7 @@
 
       <div id="pageContent" style="display: none">
         <header class="header">
-          <h2>업체 신청</h2>
+          <h2>팩토리 신청</h2>
         </header>
 
         <div class="status-line" id="statusLine" role="status"></div>
@@ -585,7 +585,7 @@
             <div>
               <h3>Agent 신청</h3>
               <p>
-                신청 → 현장 미팅 → 승인. 승인된 새 업체는 대표가 앱에서 카드를 등록하고 첫 달을 결제하면 시작합니다.
+                신청 → 현장 미팅 → 승인. 승인된 새 팩토리는 대표가 앱에서 카드를 등록하고 첫 달을 결제하면 시작합니다.
               </p>
             </div>
           </div>
@@ -621,10 +621,10 @@
         <section class="section">
           <div class="section-head">
             <div>
-              <h3>협력업체</h3>
-              <p>「업체로 만들기」는 구독 없이 업체와 대표를 만듭니다. 대표가 결제하면 구독이 시작됩니다.</p>
+              <h3>팩토리</h3>
+              <p>「팩토리로 만들기」는 구독 없이 팩토리와 대표를 만듭니다. 대표가 결제하면 구독이 시작됩니다.</p>
             </div>
-            <button type="button" class="btn btn-primary" id="createCompanyBtn">업체로 만들기</button>
+            <button type="button" class="btn btn-primary" id="createCompanyBtn">팩토리로 만들기</button>
           </div>
 
           <div class="card">
@@ -632,7 +632,7 @@
               <table class="company-table">
                 <thead>
                   <tr>
-                    <th scope="col">업체 이름</th>
+                    <th scope="col">팩토리 이름</th>
                     <th scope="col">등급</th>
                     <th scope="col">상태</th>
                     <th scope="col">지역</th>
@@ -698,7 +698,7 @@
     <div class="modal" id="companyModal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>업체로 만들기</h3>
+          <h3>팩토리로 만들기</h3>
           <button type="button" class="modal-close" data-close="companyModal" aria-label="닫기">&times;</button>
         </div>
         <div class="modal-body">
@@ -713,7 +713,7 @@
             <div class="found-user" id="cmFound" hidden></div>
           </div>
           <div class="form-group">
-            <label for="cmName">업체 이름</label>
+            <label for="cmName">팩토리 이름</label>
             <input type="text" id="cmName" maxlength="100" />
           </div>
           <div class="form-group">
@@ -737,7 +737,7 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-close="companyModal">취소</button>
-          <button type="button" class="btn btn-primary" id="cmSubmit" disabled>업체 만들기</button>
+          <button type="button" class="btn btn-primary" id="cmSubmit" disabled>팩토리 만들기</button>
         </div>
       </div>
     </div>
@@ -771,7 +771,7 @@
         held: '보류',
         withdrawn: '거둠',
       };
-      const KIND_LABEL = { new: '새 업체', upgrade: 'Expert→Agent' };
+      const KIND_LABEL = { new: '새 팩토리', upgrade: 'Expert→Agent' };
       const PLAN_LABEL = { expert: 'Expert', agent: 'Agent' };
       const COMPANY_STATUS_LABEL = { active: '이용 중', suspended: '정지 (결제 멈춤)', closed: '해지' };
       const SUB_STATUS_LABEL = {
@@ -940,7 +940,7 @@
           items.push(
             a.kind === 'upgrade'
               ? info('Agent 예약', a.used_at ? formatDate(a.used_at) : '-')
-              : info('결제 · 업체 시작', a.used_at ? formatDate(a.used_at) : '결제 전')
+              : info('결제 · 팩토리 시작', a.used_at ? formatDate(a.used_at) : '결제 전')
           );
         }
         items.push(info('하는 일', a.intro || '-', true));
@@ -1022,13 +1022,13 @@
       function openDecide(id, action) {
         const a = findApplication(id);
         pending = { id, action };
-        const name = (a && a.company_name) || '이 업체';
+        const name = (a && a.company_name) || '이 팩토리';
         let text;
         if (action === 'approve') {
           text =
             a && a.kind === 'upgrade'
               ? `${name} — 승인하면 다음 결제일부터 Agent 금액 · 크레딧이 됩니다.`
-              : `${name} — 승인하면 대표가 앱에서 카드를 등록하고 첫 달을 결제할 때 Agent 업체가 시작됩니다.`;
+              : `${name} — 승인하면 대표가 앱에서 카드를 등록하고 첫 달을 결제할 때 Agent 팩토리가 시작됩니다.`;
         } else {
           text = `${name} — 보류하면 이 신청은 닫힙니다. 신청자는 다시 신청할 수 있습니다.`;
         }
@@ -1082,11 +1082,11 @@
           const data = await accountApi('/admin/partner/companies');
           rows = Array.isArray(data) ? data : [];
         } catch (e) {
-          tbody.innerHTML = `<tr><td colspan="8" class="empty">업체를 불러올 수 없습니다 — ${esc(e.message)}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="8" class="empty">팩토리를 불러올 수 없습니다 — ${esc(e.message)}</td></tr>`;
           return;
         }
         if (!rows.length) {
-          tbody.innerHTML = '<tr><td colspan="8" class="empty">협력업체가 없습니다.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="8" class="empty">팩토리가 없습니다.</td></tr>';
           return;
         }
         tbody.innerHTML = rows.map(renderCompany).join('');
@@ -1186,7 +1186,7 @@
           gugun: $('cmGugun').value.trim(),
         };
         if (!body.name || body.name.length > 100) {
-          $('companyError').textContent = '업체 이름을 1~100자로 넣어 주세요.';
+          $('companyError').textContent = '팩토리 이름을 1~100자로 넣어 주세요.';
           return;
         }
         if (!PLAN_LABEL[body.plan]) {
@@ -1209,7 +1209,7 @@
         }
         closeModal('companyModal');
         foundMember = null;
-        setStatus(`${body.name} 업체를 만들었습니다.`, 'ok');
+        setStatus(`${body.name} 팩토리를 만들었습니다.`, 'ok');
         await loadCompanies();
       }
 

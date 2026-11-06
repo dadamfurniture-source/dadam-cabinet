@@ -299,7 +299,7 @@ describe('크레딧 · 구독', () => {
     expect($('meCredits').textContent).toBe('-');
   });
 
-  test('업체 실장 · 직원 — 구독 칸 없이 company 만 오면 「업체 구독은 대표가 관리합니다」', async () => {
+  test('업체 실장 · 직원 — 구독 칸 없이 company 만 오면 「팩토리 구독은 대표가 관리합니다」', async () => {
     await load({
       subBody: {
         success: true,
@@ -308,7 +308,7 @@ describe('크레딧 · 구독', () => {
         role: 'staff',
       },
     });
-    expect($('meSub').textContent).toBe('업체 구독은 대표가 관리합니다');
+    expect($('meSub').textContent).toBe('팩토리 구독은 대표가 관리합니다');
   });
 
   test.each([
@@ -404,7 +404,7 @@ describe('내 프로젝트 — GET /me/projects', () => {
     const order = [...document.querySelectorAll('[data-auth-view="signed-in"] section h2')].map(
       (h) => h.textContent
     );
-    expect(order.slice(0, 3)).toEqual(['내 프로젝트', '업체', '상담 내역']);
+    expect(order.slice(0, 3)).toEqual(['내 프로젝트', '팩토리', '상담 내역']);
   });
 
   test('단계 6칸 — 상담 · 연출컷 · 설계 · 견적 · 수주 · 시공 완료, 지금 단계까지 채운다', async () => {

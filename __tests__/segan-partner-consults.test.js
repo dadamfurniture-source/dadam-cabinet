@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /* global require, describe, test, expect, afterEach, __dirname, document, window, DOMParser, sessionStorage, jest, setTimeout, Element, URL */
 /**
- * SEGAN 「내 정보 › 업체」 안의 상담 · 상담 설정 · 내 평가 (segan/partner-consults.js + segan/me.html)
+ * SEGAN 「내 정보 › 팩토리」 안의 상담 · 상담 설정 · 내 평가 (segan/partner-consults.js + segan/me.html)
  *
  *   누가    Agent 협력업체 구성원 (account-api GET /partner/me 의 company). 목록은 구성원 모두,
  *           받기 · 못 받음 · 내 평가 · 상담 설정은 대표 · 실장. 정지된 업체는 읽기만.
@@ -891,7 +891,7 @@ describe('상담 설정', () => {
     expect(setBox().hidden).toBe(false);
     expect(chips()).toEqual([]);
     expect(setBox().querySelector('.me-empty').textContent).toBe(
-      '비워 두면 업체 주소의 시/군/구 상담만 받습니다.'
+      '비워 두면 팩토리 주소의 시/군/구 상담만 받습니다.'
     );
     expect(Object.values(checkedItems()).every((v) => v === 'no')).toBe(true);
     expect(form().querySelector('input[name="monthly_limit"]').value).toBe('');

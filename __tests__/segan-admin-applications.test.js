@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /* global require, describe, test, expect, afterEach, __dirname, document, window, DOMParser, sessionStorage, jest, setTimeout, HashChangeEvent */
 /**
- * SEGAN 「관리 › 새 업체 신청」 (segan/admin-applications.js + segan/admin.html#applications)
+ * SEGAN 「관리 › 새 팩토리 신청」 (segan/admin-applications.js + segan/admin.html#applications)
  *
- *   들어오기  관리 › 오늘 할 일 「새 업체 신청」 줄 = #applications. 「‹ 관리」로 돌아오면 수를 다시 읽는다
+ *   들어오기  관리 › 오늘 할 일 「새 팩토리 신청」 줄 = #applications. 「‹ 관리」로 돌아오면 수를 다시 읽는다
  *   서버      account-api GET /admin/partner/applications?status=applied,meeting ·
  *             POST /admin/partner/applications/:id { action: meeting, meeting_at } | { action: approve | hold }
  *   화면      열린 신청 카드 — PC admin/expert-requests.html 과 같은 일 · 같은 되묻는 글, 되묻기는 화면 안에서
@@ -129,7 +129,7 @@ afterEach(() => {
 });
 
 describe('들어오기', () => {
-  test('오늘 할 일의 「새 업체 신청」 줄은 #applications, 열면 첫 화면을 감춘다', async () => {
+  test('오늘 할 일의 「새 팩토리 신청」 줄은 #applications, 열면 첫 화면을 감춘다', async () => {
     await load({ hash: '' });
     expect(document.querySelector('[data-today="applications"] a').getAttribute('href')).toBe(
       '#applications'
@@ -165,7 +165,7 @@ describe('목록', () => {
     );
     expect(ids).toEqual([A1, A2]);
     expect(card(A1).querySelector('b').textContent).toBe('가나 인테리어');
-    expect(card(A1).querySelector('small').textContent).toBe('새 업체 · 신청 접수');
+    expect(card(A1).querySelector('small').textContent).toBe('새 팩토리 · 신청 접수');
     expect(card(A2).querySelector('small').textContent).toBe('Expert→Agent · 미팅 예정');
     expect(facts(A1)).toEqual([
       ['대표자', '김대표'],
@@ -188,7 +188,7 @@ describe('목록', () => {
 
   test('비면 안내, 못 읽으면 한 줄 안내', async () => {
     await load({ list: () => ok([]) });
-    expect($('adApplicationsBody').textContent).toContain('열린 업체 신청이 없습니다.');
+    expect($('adApplicationsBody').textContent).toContain('열린 팩토리 신청이 없습니다.');
     await load({ list: () => fail(403, 'x') });
     expect($('adApplicationsBody').textContent).toContain('신청을 불러오지 못했습니다.');
   });
@@ -198,8 +198,8 @@ describe('목록', () => {
     const pc = read('admin/expert-requests.html');
     const P = window.SeganAdminApplications;
     for (const [k, v] of Object.entries(P.STATUS_LABEL)) expect(pc).toContain(`${k}: '${v}'`);
-    expect(pc).toContain("const KIND_LABEL = { new: '새 업체', upgrade: 'Expert→Agent' };");
-    expect(P.KIND_LABEL).toEqual({ new: '새 업체', upgrade: 'Expert→Agent' });
+    expect(pc).toContain("const KIND_LABEL = { new: '새 팩토리', upgrade: 'Expert→Agent' };");
+    expect(P.KIND_LABEL).toEqual({ new: '새 팩토리', upgrade: 'Expert→Agent' });
   });
 });
 
@@ -214,7 +214,7 @@ describe('처리', () => {
     });
     await click(A1, 'approve');
     expect(card(A1).querySelector('[data-panel="approve"] .mk-note').textContent).toBe(
-      '가나 인테리어 — 승인하면 대표가 앱에서 카드를 등록하고 첫 달을 결제할 때 Agent 업체가 시작됩니다.'
+      '가나 인테리어 — 승인하면 대표가 앱에서 카드를 등록하고 첫 달을 결제할 때 Agent 팩토리가 시작됩니다.'
     );
     expect(sent).toBeNull();
     await click(A1, 'approve-yes');

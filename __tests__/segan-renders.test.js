@@ -511,13 +511,13 @@ describe('다시 생성 — 크레딧이 다시 든다', () => {
     expect(window.SeganRenders.go).not.toHaveBeenCalled();
   });
 
-  test('402 company_inactive — 업체 구독이 멈췄다는 서버 안내 (만들기 ③ 과 같다)', async () => {
+  test('402 company_inactive — 팩토리 구독이 멈췄다는 서버 안내 (만들기 ③ 과 같다)', async () => {
     await load({
       url: `/segan/renders.html?g=${ID2}`,
       regen: res(402, {
         success: false,
         code: 'company_inactive',
-        error: '업체 구독이 멈춰 있어 연출컷을 만들 수 없습니다. 결제를 확인해 주세요.',
+        error: '팩토리 구독이 멈춰 있어 연출컷을 만들 수 없습니다. 결제를 확인해 주세요.',
       }),
     });
     $('rdRegen').click();
@@ -525,7 +525,7 @@ describe('다시 생성 — 크레딧이 다시 든다', () => {
     $('rdRegenYes').click();
     await flush();
     expect($('rdMsg').textContent).toBe(
-      '업체 구독이 멈춰 있어 연출컷을 만들 수 없습니다. 결제를 확인해 주세요.'
+      '팩토리 구독이 멈춰 있어 연출컷을 만들 수 없습니다. 결제를 확인해 주세요.'
     );
     expect(window.SeganRenders.go).not.toHaveBeenCalled();
   });

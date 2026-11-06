@@ -5,7 +5,7 @@
  *
  *   - 토큰은 이 탭(sessionStorage)에만 두고, 로그인이 없으면 login.html?redirect=segan/join.html#t=… 로 다녀온다
  *     (js/auth-redirect.js 가 받는 같은 사이트 주소 — 작업자 포털 초대와 같은 방법)
- *   - 로그인했으면 주소창에서 토큰을 지우고 POST /partner/invites/peek → 업체 이름 · 역할 · 기한
+ *   - 로그인했으면 주소창에서 토큰을 지우고 POST /partner/invites/peek → 팩토리 이름 · 역할 · 기한
  *   - 「수락」 → POST /partner/invites/accept → 내 정보 업체 칸(me.html#partner)
  *   - 410 · 409(code 별) 는 한국어 안내
  */
@@ -128,7 +128,7 @@ describe('토큰 · 로그인', () => {
     expect(calls).toEqual([]);
   });
 
-  test('로그인했으면 주소창에서 토큰을 지우고 peek — 업체 이름 · 역할 · 기한(한국 날짜)', async () => {
+  test('로그인했으면 주소창에서 토큰을 지우고 peek — 팩토리 이름 · 역할 · 기한(한국 날짜)', async () => {
     const calls = await load();
     expect(window.location.hash).toBe('');
     expect(calls).toEqual([
@@ -152,7 +152,7 @@ describe('토큰 · 로그인', () => {
     expect(view()).toEqual(['invite']);
   });
 
-  test('업체 이름은 글자로만 넣는다', async () => {
+  test('팩토리 이름은 글자로만 넣는다', async () => {
     const bad = '<img src=x onerror=alert(1)>';
     await load({ peek: ok({ company_name: bad, role: 'staff', expires_at: null }) });
     expect(document.querySelector('main img')).toBeNull();
@@ -207,9 +207,9 @@ describe('수락', () => {
 
   test.each([
     [fail(410, 'invite_invalid', 'x'), '쓸 수 없는 초대 링크입니다'],
-    [fail(409, 'company_inactive', 'x'), '지금은 이 업체에 들어갈 수 없습니다'],
-    [fail(409, 'already_member', 'x'), '이미 업체에 속해 있습니다'],
-    [fail(409, 'application_open', 'x'), '진행 중인 업체 신청이 있습니다'],
+    [fail(409, 'company_inactive', 'x'), '지금은 이 팩토리에 들어갈 수 없습니다'],
+    [fail(409, 'already_member', 'x'), '이미 팩토리에 속해 있습니다'],
+    [fail(409, 'application_open', 'x'), '진행 중인 팩토리 신청이 있습니다'],
   ])('%j → %s', async (accept, title) => {
     await load({ accept });
     $('jnAccept').click();

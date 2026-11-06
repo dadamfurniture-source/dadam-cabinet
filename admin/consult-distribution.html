@@ -15,7 +15,7 @@
     />
     <script src="../js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026110602"></script>
+    <script src="../js/admin-access.js?v=2026110603"></script>
     <!--
       상담 분배 — 고객 상담은 다담 본사로 들어온다. 본사(관리자)가 여기서 업체 풀(활동 중인 Agent 협력업체 · 다담 공장)의
       1~3순위와 점수 내역을 보고 한 업체를 골라 배정한다. 업체는 24시간 안에 받기 · 못 받음을 고르고,
@@ -531,7 +531,7 @@
         <span>관리자 패널</span>
       </div>
       <ul class="nav-menu" id="adminNav"></ul>
-      <script src="../js/admin-shell.js?v=2026110602"></script>
+      <script src="../js/admin-shell.js?v=2026110603"></script>
       <div class="sidebar-footer"><a href="../index.html">← 메인 사이트로</a></div>
     </nav>
 
@@ -547,12 +547,12 @@
           <div>
             <h2>상담 분배</h2>
             <div class="muted">
-              본사로 들어온 상담을 업체 점수 순위로 나눕니다. 업체가 24시간 안에 받기 · 못 받음을 고르고, 못 받거나 답이
+              본사로 들어온 상담을 팩토리 점수 순위로 나눕니다. 팩토리가 24시간 안에 받기 · 못 받음을 고르고, 못 받거나 답이
               없으면 대기로 돌아옵니다.
             </div>
           </div>
           <div class="header-actions">
-            <a class="btn btn-light" href="partner-eval.html">업체 평가</a>
+            <a class="btn btn-light" href="partner-eval.html">팩토리 평가</a>
             <button class="btn btn-light" id="btnReload" type="button">새로고침</button>
           </div>
         </header>
@@ -591,11 +591,11 @@
     <!-- 배정 확인 — 브라우저 확인 창 대신 화면 안에서 묻는다 -->
     <div class="modal" id="assignModal">
       <div class="modal-content">
-        <div class="modal-header"><h3>업체에 배정</h3></div>
+        <div class="modal-header"><h3>팩토리에 배정</h3></div>
         <div class="modal-body">
           <p id="assignText"></p>
           <p class="muted">
-            배정하면 고객 연락처와 상담 내용이 그 업체에 넘어가고, 업체가 24시간 안에 받기 · 못 받음을 고릅니다.
+            배정하면 고객 연락처와 상담 내용이 그 팩토리에 넘어가고, 팩토리가 24시간 안에 받기 · 못 받음을 고릅니다.
           </p>
           <div class="status-line" id="assignStatus"></div>
         </div>
@@ -667,14 +667,14 @@
         const KIND_LABEL = { hq: '다담 공장', partner: 'Agent' };
         /** 걸러진 이유 — [이름표, 풀이] */
         const FILTER_REASON = {
-          region: ['지역 밖', '고객 지역이 업체의 상담 받는 지역에 없음'],
-          item: ['품목 안 함', '고객 품목을 업체가 하지 않음'],
-          limit: ['한도', '이번 달 배정 수가 업체의 한 달 한도에 닿음'],
-          period: ['기간 없음', '업체가 고객 확정 ~ 시공 완료 기간을 정하지 않음'],
+          region: ['지역 밖', '고객 지역이 팩토리의 상담 받는 지역에 없음'],
+          item: ['품목 안 함', '고객 품목을 팩토리가 하지 않음'],
+          limit: ['한도', '이번 달 배정 수가 팩토리의 한 달 한도에 닿음'],
+          period: ['기간 없음', '팩토리가 고객 확정 ~ 시공 완료 기간을 정하지 않음'],
           docs: ['서류 미확인', '배상 책임 보험 · 표준 계약서를 본사가 아직 확인하지 않음'],
-          tier: ['자격', '업체 풀 밖(활동 중인 Agent · 다담 공장이 아님)'],
-          inactive: ['활동 안 함', '업체가 지금 활동 중이 아님'],
-          tried: ['거친 업체', '이 상담을 이미 못 받음 · 시간 지남으로 돌려보낸 업체'],
+          tier: ['자격', '팩토리 풀 밖(활동 중인 Agent · 다담 공장이 아님)'],
+          inactive: ['활동 안 함', '팩토리가 지금 활동 중이 아님'],
+          tried: ['거친 팩토리', '이 상담을 이미 못 받음 · 시간 지남으로 돌려보낸 팩토리'],
         };
         /** 위치 점수 까닭 */
         const LOCATION_WHY = { same_gugun: '같은 시/군/구', same_sido: '같은 시/도', other: '그 밖' };
@@ -832,7 +832,7 @@
               `${esc(a.company_name || '-')} <span class="left-time" data-expires="${esc(a.expires_at || '')}">${esc(leftText(a.expires_at))}</span>`
             );
           }
-          if (tried) meta2.push(`거친 업체 ${tried}`);
+          if (tried) meta2.push(`거친 팩토리 ${tried}`);
           return `<button type="button" class="consult-item${sel ? ' active' : ''}" data-id="${esc(c.id)}" aria-pressed="${sel}">
             <span class="ci-top"><span class="ci-name">${esc(c.name || '이름 없음')}</span><span class="badge st-${esc(statusKey)}">${esc(label(STATUS_LABEL, statusKey, '-'))}</span></span>
             <span class="ci-meta">${esc(region(c))} · ${esc(items.length ? items.join(' · ') : '품목 없음')}</span>
@@ -922,7 +922,7 @@
           $('assignCard').innerHTML = `
             <h3>배정</h3>
             ${now}
-            <div class="muted">거친 업체</div>
+            <div class="muted">거친 팩토리</div>
             <div>${
               tried.length
                 ? tried
@@ -974,7 +974,7 @@
             </div>
             ${SCORE_GROUPS.map((g) => groupHtml(g, x.score && x.score[g.key])).join('')}
             <div class="cand-actions">
-              <button class="btn btn-primary btn-sm" type="button" data-assign="${esc(x.company_id)}"${allow ? '' : ' disabled'}>이 업체에 배정</button>
+              <button class="btn btn-primary btn-sm" type="button" data-assign="${esc(x.company_id)}"${allow ? '' : ' disabled'}>이 팩토리에 배정</button>
               <a href="partner-eval.html#company=${encodeURIComponent(x.company_id || '')}">평가 보기</a>
             </div>
           </article>`;
@@ -989,8 +989,8 @@
           }
           const items = state.cand.items;
           if (!items.length) {
-            box.innerHTML = `<div class="no-cand">남는 업체 없음 — 고객에게 직접 연락
-              <div class="muted">조건에 맞는 업체가 없습니다. 상담은 대기로 둡니다${c.phone ? ` · 전화 ${esc(c.phone)}` : ''}</div></div>`;
+            box.innerHTML = `<div class="no-cand">남는 팩토리 없음 — 고객에게 직접 연락
+              <div class="muted">조건에 맞는 팩토리가 없습니다. 상담은 대기로 둡니다${c.phone ? ` · 전화 ${esc(c.phone)}` : ''}</div></div>`;
           } else {
             const why = waiting(c)
               ? '<div class="muted" style="margin-bottom:8px">답을 기다리는 배정이 있어 지금은 배정할 수 없습니다.</div>'
@@ -1003,7 +1003,7 @@
           $('filteredCard').hidden = !filtered.length;
           $('filteredCard').innerHTML = filtered.length
             ? `<details>
-                <summary>걸러진 업체 ${filtered.length}</summary>
+                <summary>걸러진 팩토리 ${filtered.length}</summary>
                 <ul class="filtered">${filtered
                   .map(
                     (f) =>
@@ -1075,7 +1075,7 @@
             });
             closeAssign();
             await loadInbox();
-            setStatus('statusLine', `「${p.companyName}」에 배정했습니다. 업체가 24시간 안에 답합니다.`, 'ok');
+            setStatus('statusLine', `「${p.companyName}」에 배정했습니다. 팩토리가 24시간 안에 답합니다.`, 'ok');
           } catch (e) {
             if (e.code === 'open_assignment' || e.status === 409) {
               closeAssign();

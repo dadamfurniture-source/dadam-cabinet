@@ -26,13 +26,13 @@
       '기한이 지났거나, 취소됐거나, 이미 쓴 링크입니다. 대표에게 새 링크를 받아 주세요.',
     ],
     company_inactive: [
-      '지금은 이 업체에 들어갈 수 없습니다',
-      '업체 구독이 멈춰 있거나 해지된 업체입니다. 대표에게 문의해 주세요.',
+      '지금은 이 팩토리에 들어갈 수 없습니다',
+      '팩토리 구독이 멈춰 있거나 해지된 팩토리입니다. 대표에게 문의해 주세요.',
     ],
-    already_member: ['이미 업체에 속해 있습니다', '한 사람은 한 업체에서만 함께할 수 있습니다.'],
+    already_member: ['이미 팩토리에 속해 있습니다', '한 사람은 한 팩토리에서만 함께할 수 있습니다.'],
     application_open: [
-      '진행 중인 업체 신청이 있습니다',
-      '「내 정보 › 업체」에서 신청을 거둔 뒤 이 링크를 다시 열어 주세요.',
+      '진행 중인 팩토리 신청이 있습니다',
+      '「내 정보 › 팩토리」에서 신청을 거둔 뒤 이 링크를 다시 열어 주세요.',
     ],
     bad_link: ['초대 링크가 올바르지 않습니다', '받은 링크 전체를 그대로 열어 주세요.'],
     no_server: ['지금은 초대를 확인할 수 없습니다', '잠시 후 이 링크를 다시 열어 주세요.'],
@@ -171,7 +171,7 @@
     if (!d || typeof d !== 'object') return failed(r);
     J.invite = d;
     var role = ROLE_LABEL[d.role] || String(d.role || '');
-    $('jnTitle').textContent = (d.company_name || '업체') + '에서 함께하자고 초대했습니다';
+    $('jnTitle').textContent = (d.company_name || '팩토리') + '에서 함께하자고 초대했습니다';
     $('jnCompany').textContent = d.company_name || '';
     $('jnRole').textContent = role;
     $('jnExpires').textContent = kstDay(d.expires_at) ? kstDay(d.expires_at) + '까지' : '';

@@ -1,5 +1,5 @@
 /**
- * 관리자 「업체 평가」 (admin/partner-eval.html).
+ * 관리자 「팩토리 평가」 (admin/partner-eval.html).
  *   업체 풀 GET /admin/companies?pool=1 → 업체를 고르면 GET /admin/companies/:id/evaluation
  *   → 평가표 10묶음(항목 이름은 서버 catalog) → 저장 PUT /admin/companies/:id/evaluation
  * 페이지 스크립트를 jsdom 에 올리고 업무 서버(workflow-api)는 가짜 fetch 로 대신한다.
@@ -250,7 +250,7 @@ describe('들어오기 · 업체 풀', () => {
       ['다담 공장', '다담 공장', '경기도 김포시', 'A', '2026-10-20', '확인됨', '마침'],
       ['한빛가구', 'Agent', '서울특별시 강남구', '없음', '-', '미확인', '안 함'],
     ]);
-    expect($('statusLine').textContent).toBe('업체 2곳');
+    expect($('statusLine').textContent).toBe('팩토리 2곳');
     expect($('editor').hidden).toBe(true);
   });
 });
@@ -763,7 +763,7 @@ describe('그 밖', () => {
     expect($('setupNotice').hidden).toBe(false);
     expect($('setupNotice').textContent).toContain('아직 배포되지 않았습니다');
     expect(document.querySelector('#poolTable tbody').textContent).toContain(
-      '업체 풀이 비었습니다'
+      '팩토리 풀이 비었습니다'
     );
   });
 
@@ -778,7 +778,7 @@ describe('그 밖', () => {
     expect($('editorEmpty').textContent).toContain('아직 배포되지 않았습니다');
   });
 
-  test('넣는 값은 모두 esc — 업체 이름 · catalog 이름 · 이력', async () => {
+  test('넣는 값은 모두 esc — 팩토리 이름 · catalog 이름 · 이력', async () => {
     const evil = '<img src=x onerror=alert(1)>';
     POOL.push({ id: 'x"><i>', name: evil, kind: 'partner', plan: evil, sido: evil });
     try {

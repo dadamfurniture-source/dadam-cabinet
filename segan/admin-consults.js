@@ -66,7 +66,7 @@
     docs: '서류 미확인',
     tier: '자격',
     inactive: '활동 안 함',
-    tried: '거친 업체',
+    tried: '거친 팩토리',
   };
   var LOCATION_WHY = { same_gugun: '같은 시/군/구', same_sido: '같은 시/도', other: '그 밖' };
   var SCORE_GROUPS = [
@@ -116,7 +116,7 @@
     loadFail: '상담을 불러오지 못했습니다.',
     candFail: '순위를 불러오지 못했습니다.',
     candLoading: '순위를 계산하는 중…',
-    noCand: '남는 업체 없음 — 고객에게 직접 연락해 주세요. 상담은 대기로 둡니다.',
+    noCand: '남는 팩토리 없음 — 고객에게 직접 연락해 주세요. 상담은 대기로 둡니다.',
     waitingNow: '답을 기다리는 배정이 있어 지금은 배정할 수 없습니다.',
     pendingOnly: '대기 상담만 배정할 수 있습니다.',
     openAssignment: '이미 답을 기다리는 배정이 있습니다. 목록을 다시 불러왔습니다.',
@@ -322,7 +322,7 @@
       : '<p class="ad-assign" data-assign-now>지금 배정 없음</p>';
     var tried = arr(c.tried);
     var triedHtml = tried.length
-      ? '<p class="mk-note" data-tried>거친 업체 — ' +
+      ? '<p class="mk-note" data-tried>거친 팩토리 — ' +
         esc(
           tried
             .map(function (t) {
@@ -389,7 +389,7 @@
                 : allow
                   ? '<div class="rd-acts"><button type="button" class="mk-btn" data-act="assign" data-company="' +
                     esc(x.company_id) +
-                    '">이 업체에 배정</button></div>'
+                    '">이 팩토리에 배정</button></div>'
                   : '') +
               '</li>'
             );
@@ -399,7 +399,7 @@
       : '<p class="me-pt-msg" role="status">' + esc(TEXT.noCand) + '</p>';
     var filtered = arr(C.cand.filtered);
     var filteredHtml = filtered.length
-      ? '<details class="ad-filtered"><summary>걸러진 업체 ' +
+      ? '<details class="ad-filtered"><summary>걸러진 팩토리 ' +
         filtered.length +
         '</summary><ul>' +
         filtered
@@ -437,7 +437,7 @@
     if (waiting(c))
       sub.push((c.assignment.company_name || '-') + ' ' + leftText(c.assignment.expires_at));
     var tried = arr(c.tried).length;
-    if (tried) sub.push('거친 업체 ' + tried);
+    if (tried) sub.push('거친 팩토리 ' + tried);
     return (
       '<li class="me-cs-item" data-consult="' +
       esc(c.id) +
@@ -490,7 +490,7 @@
       body +
       '<ul class="sg-rows ad-more"><li><a class="sg-row" href="' +
       PC_PAGE +
-      '">전체 상담 · 업체 평가는 PC에서</a></li></ul>';
+      '">전체 상담 · 팩토리 평가는 PC에서</a></li></ul>';
   }
 
   // ── 서버 ───────────────────────────────────────────────
@@ -586,7 +586,7 @@
     C.busy = false;
     if (r.ok) {
       C.confirm = null;
-      C.msg = '「' + p.companyName + '」에 배정했습니다. 업체가 24시간 안에 답합니다.';
+      C.msg = '「' + p.companyName + '」에 배정했습니다. 팩토리가 24시간 안에 답합니다.';
       await reload();
       return;
     }

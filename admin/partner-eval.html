@@ -6,7 +6,7 @@
     <!-- 업체 평가 · 메모가 담긴다 — 색인 · 참조자 노출을 막는다 -->
     <meta name="robots" content="noindex, nofollow, noarchive" />
     <meta name="referrer" content="no-referrer" />
-    <title>업체 평가 - 다담가구 관리자</title>
+    <title>팩토리 평가 - 다담가구 관리자</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -15,7 +15,7 @@
     />
     <script src="../js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026110602"></script>
+    <script src="../js/admin-access.js?v=2026110603"></script>
     <!--
       업체 평가 — 상담 분배 순위의 「본사 평가」 · 거르기의 「서류」 근거. 업체 풀(활동 중인 Agent 협력업체 · 다담 공장)을
       보고 한 업체의 평가표(설비 · 인력 · 마감 · 자재(분야별 메모) · 설계 · 가격대 · 품질 · 서비스 · 신뢰 · 서류 · 등급 · 메모)를 고친다.
@@ -492,7 +492,7 @@
         <span>관리자 패널</span>
       </div>
       <ul class="nav-menu" id="adminNav"></ul>
-      <script src="../js/admin-shell.js?v=2026110602"></script>
+      <script src="../js/admin-shell.js?v=2026110603"></script>
       <div class="sidebar-footer"><a href="../index.html">← 메인 사이트로</a></div>
     </nav>
 
@@ -506,9 +506,9 @@
       <div id="pageContent" style="display: none">
         <header class="header">
           <div>
-            <h2>업체 평가</h2>
+            <h2>팩토리 평가</h2>
             <div class="muted">
-              상담 분배 순위의 본사 평가와 서류 확인 근거입니다. 업체 풀은 활동 중인 Agent 협력업체와 다담 공장입니다.
+              상담 분배 순위의 본사 평가와 서류 확인 근거입니다. 팩토리 풀은 활동 중인 Agent 팩토리와 다담 공장입니다.
             </div>
           </div>
           <div class="header-actions">
@@ -528,7 +528,7 @@
 
         <div class="split">
           <section class="card">
-            <h3>업체 풀</h3>
+            <h3>팩토리 풀</h3>
             <div class="tbl-wrap">
               <table class="tbl" id="poolTable">
                 <thead>
@@ -548,11 +548,11 @@
           </section>
 
           <section>
-            <div class="card empty-mini" id="editorEmpty">왼쪽에서 업체를 고르세요.</div>
+            <div class="card empty-mini" id="editorEmpty">왼쪽에서 팩토리를 고르세요.</div>
             <div class="card" id="editor" hidden>
               <div class="ev-head">
                 <div>
-                  <h3 id="evTitle">업체</h3>
+                  <h3 id="evTitle">팩토리</h3>
                   <div class="muted" id="evSub"></div>
                 </div>
               </div>
@@ -612,7 +612,7 @@
           rework_rate: '재작업 수주',
           orders_done: '완료 수주',
         };
-        const ROUTE_MISSING = '업무 서버에 업체 평가 기능이 아직 배포되지 않았습니다. 배포가 끝나면 새로고침해 주세요.';
+        const ROUTE_MISSING = '업무 서버에 팩토리 평가 기능이 아직 배포되지 않았습니다. 배포가 끝나면 새로고침해 주세요.';
 
         const state = {
           sb: null,
@@ -708,7 +708,7 @@
         function renderPool() {
           const tb = $('poolTable').querySelector('tbody');
           if (!state.companies.length) {
-            tb.innerHTML = '<tr><td colspan="7" class="muted">업체 풀이 비었습니다.</td></tr>';
+            tb.innerHTML = '<tr><td colspan="7" class="muted">팩토리 풀이 비었습니다.</td></tr>';
             return;
           }
           tb.innerHTML = state.companies
@@ -742,7 +742,7 @@
           }
           showSetup(false);
           renderPool();
-          setStatus('statusLine', `업체 ${state.companies.length}곳`);
+          setStatus('statusLine', `팩토리 ${state.companies.length}곳`);
           return true;
         }
 
@@ -812,7 +812,7 @@
           const c = state.companies.find((x) => x.id === state.selectedId) || {};
           $('editorEmpty').hidden = true;
           $('editor').hidden = false;
-          $('evTitle').textContent = c.name || '업체';
+          $('evTitle').textContent = c.name || '팩토리';
           $('evSub').textContent =
             `${kindText(c)} · 마지막 평가 ${ev.evaluated_at ? fmtDateTime(ev.evaluated_at) : '없음'}`;
 
