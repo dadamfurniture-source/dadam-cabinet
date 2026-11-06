@@ -5,7 +5,9 @@
  * 찾거나 만들고, 지금 동결 함수(createSnapshot) 그대로 동결본을 만든다. 그 뒤 확인서 → 고객 승인 → 수주 → 작업지시서 발행은
  * 지금 앱 흐름 그대로 (상세설계 화면과 같은 라우트).
  *
- *   누가: 본사 대표 · 실장 · 관리자 (본사 설정을 다루는 사람 — assertSettingsEditor). 아니면 403 not_planner_sender.
+ *   누가: 본사 대표 · 실장 · 관리자 (본사 설정을 다루는 사람 — assertSettingsEditor) → 본사 설계,
+ *         플래너를 쓰는 팩토리(Expert · Agent · MANAGER — planner-drafts.js plannerCompanyOf)의 대표 · 실장 → 그 팩토리 설계.
+ *         아니면 403 not_planner_sender.
  *   설계 주인: 처음 보낸 사람 (생산 계획 · 공장 작업자는 그 사람의 본사 수주를 본다 — orders.js ownHqDesignIds).
  *   같은 플래너 설계 = 같은 앱 설계 (DB 0035 designs_source_ref_key). 동결본은 내용이 같으면 그대로 다시 쓴다 (snapshots.js 해시).
  *   판재 행 부재 ID(partId)가 겹치면 422 — 작업지시서 · 재단 배치가 행을 부재 ID 로 찾는다.
@@ -33,6 +35,7 @@ import { assertSettingsEditor } from './production/service.js';
 import { createSnapshot } from './snapshots.js';
 import { isMissingRelation } from './work-order-data.js';
 import { uploadObject, RENDERS_BUCKET } from './storage.js';
+import { plannerCompanyOf } from './planner-drafts.js';
 
 /** 한 번에 받는 렌더 — 벽(품목)마다 정면 PNG + ISO SVG, PNG 는 장마다 4MB · SVG 는 2MB 까지 */
 export const RENDER_MAX = 16;
@@ -119,6 +122,30 @@ export function duplicatePartIds(materials) {
   return [...dup];
 }
 
+/**
+ * 설계를 넣을 업체 — 본사 대표 · 실장 · 관리자면 본사, 플래너를 쓰는 팩토리의 대표 · 실장이면 그 팩토리.
+ * 본사 직원 · 팩토리 직원 · 플래너를 못 쓰는 팩토리는 403 not_planner_sender.
+ */
+async function senderCompanyOf(env, user) {
+  const hq = await hqCompanyId(env);
+  try {
+    await assertSettingsEditor(env, user, hq);
+    return hq;
+  } catch (e) {
+    if (!(e instanceof ForbiddenError)) throw e;
+  }
+  try {
+    const { company, canManage } = await plannerCompanyOf(env, user);
+    if (company.kind === 'partner' && canManage) return company.id;
+  } catch (e) {
+    if (!(e instanceof ForbiddenError)) throw e;
+  }
+  throw new ForbiddenError(
+    '플래너 설계는 본사 대표 · 실장 · 관리자, Expert · Agent 팩토리 대표 · 실장이 보냅니다',
+    'not_planner_sender'
+  );
+}
+
 /** 같은 출처 · 같은 id 의 앱 설계 (없으면 null) */
 async function findDesign(env, hq, ref) {
   try {
@@ -146,19 +173,13 @@ export async function receivePlannerDesign(env, { user, body }) {
   const name = typeof b.title === 'string' ? b.title.trim().slice(0, NAME_MAX) : '';
   if (!name) throw new ValidationError('title(설계 이름)이 필요합니다');
 
-  const hq = await hqCompanyId(env);
-  try {
-    await assertSettingsEditor(env, user, hq);
-  } catch (e) {
-    if (e instanceof ForbiddenError) throw new ForbiddenError('플래너 설계는 본사 대표 · 실장 · 관리자만 보냅니다', 'not_planner_sender');
-    throw e;
-  }
+  const companyId = await senderCompanyOf(env, user);
 
   const dup = duplicatePartIds(b.bom && b.bom.materials);
   if (dup.length) throw new ValidationError('BOM 부재 ID 가 겹칩니다', dup.slice(0, 20));
   const renders = plannerRendersOf(b.renders);
 
-  let design = await findDesign(env, hq, ref);
+  let design = await findDesign(env, companyId, ref);
   let created = false;
   if (!design) {
     const items = b.design && Array.isArray(b.design.items) ? b.design.items : [];
@@ -166,7 +187,7 @@ export async function receivePlannerDesign(env, { user, body }) {
       design = await insertOne(env, 'designs', {
         name,
         user_id: user.id,
-        company_id: hq,
+        company_id: companyId,
         status: 'draft',
         app_version: PLANNER_SOURCE,
         total_items: items.length,
@@ -178,7 +199,7 @@ export async function receivePlannerDesign(env, { user, body }) {
     } catch (e) {
       if (isMissingRelation(e)) throw dbPending();
       if (!(e instanceof ConflictError)) throw e;
-      design = await findDesign(env, hq, ref); // 같은 설계를 동시에 보냈다 — 먼저 만든 것을 쓴다
+      design = await findDesign(env, companyId, ref); // 같은 설계를 동시에 보냈다 — 먼저 만든 것을 쓴다
       if (!design) throw e;
     }
   }
