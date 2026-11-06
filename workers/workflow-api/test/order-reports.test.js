@@ -11,7 +11,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { clearHqCompanyCache } from '../src/supabase.js';
 import { clearAdminCache } from '../src/reports/admin.js';
-import { addOrderReport, addReportPhoto, listOrderReports, listReportsAdmin, reportOf, PHOTOS_MAX } from '../src/order-reports.js';
+import { addOrderReport, addReportPhoto, listOrderReports, listReportsAdmin, reportOf, learnConsentOf, PHOTOS_MAX } from '../src/order-reports.js';
 import { HQ, PARTNER, companyRoute } from './fixtures/company.js';
 
 const ENV = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 's' };
@@ -41,7 +41,7 @@ function png(w = 4, h = 3) {
 }
 const photoRequest = (bytes) => new Request('https://w.example/x', { method: 'POST', body: bytes, headers: { 'Content-Type': 'image/png' } });
 
-function makeDb({ reports = true } = {}) {
+function makeDb({ reports = true, consultations = [] } = {}) {
   return {
     orders: [{ id: O1, order_no: 'SO-1', customer_name: '홍길동', design_id: 'D1', company_id: PARTNER, project_id: PRJ, status: 'delivered' }],
     designs: [{ id: 'D1', user_id: OWNER, company_id: PARTNER }],
@@ -49,6 +49,7 @@ function makeDb({ reports = true } = {}) {
     named: [{ id: PARTNER, name: '가나 팩토리', kind: 'partner' }, { id: HQ, name: '다담 공장', kind: 'hq' }],
     admin_roles: [{ user_id: ADMIN, role: 'admin' }],
     order_reports: reports ? [] : null,
+    consultations,
     uploads: [],
   };
 }
@@ -180,5 +181,33 @@ test('DB 0043 전 — 쓰기 409 db_pending, 보기 ready false', async () => {
     assert.deepEqual(v, { ready: false, can_report: false, items: [] });
     const a = await listReportsAdmin(ENV, { user: u(ADMIN), query: {} });
     assert.equal(a.ready, false);
+  });
+});
+
+test('학습 동의 (⑥ 동의한 수주의 사진만) — 그 프로젝트 상담 · 사본이면 원래 상담, 못 찾거나 0044 전이면 모름(null)', async () => {
+  const C1 = 'c1000000-0000-4000-8000-000000000001';
+  const C0 = 'c1000000-0000-4000-8000-000000000000';
+  const direct = makeDb({ consultations: [{ id: C1, project_id: PRJ, origin_consultation_id: null, photo_learn_agreed_at: '2026-11-06T00:00:00Z' }] });
+  await withDb(direct, async () => {
+    const m = await learnConsentOf(ENV, [{ id: O1, project_id: PRJ }, { id: 'o2', project_id: null }]);
+    assert.deepEqual([m.get(O1), m.get('o2')], [true, null]);
+    await addOrderReport(ENV, { user: u(OWNER), params: p, body: { kind: 'install_done' } });
+    assert.equal((await listOrderReports(ENV, { user: u(OWNER), params: p })).learn_ok, true);
+    assert.equal((await listReportsAdmin(ENV, { user: u(ADMIN), query: {} })).items[0].learn_ok, true);
+  });
+  const copy = makeDb({ consultations: [
+    { id: C1, project_id: PRJ, origin_consultation_id: C0, photo_learn_agreed_at: null },
+    { id: C0, project_id: null, origin_consultation_id: null, photo_learn_agreed_at: null },
+  ] });
+  await withDb(copy, async () => {
+    assert.equal((await learnConsentOf(ENV, [{ id: O1, project_id: PRJ }])).get(O1), false, '원래 상담에 동의가 없으면 false');
+  });
+  const none = makeDb({ consultations: [] });
+  await withDb(none, async () => {
+    assert.equal((await learnConsentOf(ENV, [{ id: O1, project_id: PRJ }])).get(O1), null, '상담을 못 찾으면 모름');
+  });
+  const before = makeDb({ consultations: null });
+  await withDb(before, async () => {
+    assert.equal((await learnConsentOf(ENV, [{ id: O1, project_id: PRJ }])).get(O1), null, '0044 전이면 모름');
   });
 });

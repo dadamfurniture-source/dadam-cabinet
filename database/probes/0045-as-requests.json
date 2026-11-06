@@ -1,0 +1,189 @@
+{
+  "title": "0045 고객 A/S 접수 — 서버만 쓴다, 고객은 자기 것 · 팩토리 구성원은 자기 팩토리 것만 읽는다, 간 곳(담당자 · 대표 · 실장)과 담당자 칸은 같이, 상태는 requested → received → done · requested → cancelled 만 · 때는 트리거, 내용은 그대로, 지우기 없음, 비공개 사진 버킷 (scripts/rls-probe.mjs --migration database/migrations/0043_order_reports.sql --migration database/migrations/0045_as_requests.sql)",
+  "ids": [
+    "company_x",
+    "company_y",
+    "design_x",
+    "snap_x",
+    "doc_x",
+    "order_x",
+    "as_a",
+    "as_b"
+  ],
+  "users": [
+    "x_owner_user",
+    "x_staff_user",
+    "y_owner_user",
+    "customer_user",
+    "other_customer"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active'), ({{company_y}}, 'partner', 'probe Y', 'expert', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_x}}, {{x_staff_user}}, 'staff', 'active'), ({{company_y}}, {{y_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.designs (id, user_id, name, company_id) VALUES ({{design_x}}, {{x_owner_user}}, 'probe', {{company_x}})",
+    "INSERT INTO public.design_snapshots (id, design_id, rev, content_hash, design_payload, bom_payload, item_count) VALUES ({{snap_x}}, {{design_x}}, 1, 'probe', '{}', '{}', 1)",
+    "INSERT INTO public.design_documents (id, design_id, snapshot_id, doc_type, rev, doc_no, title, render_payload, content_hash) VALUES ({{doc_x}}, {{design_x}}, {{snap_x}}, 'work_order', 1, 'probe-' || {{doc_x}}::text, 'probe', '{}', 'probe')",
+    "INSERT INTO public.orders (id, order_no, design_id, document_id, snapshot_id, contract_amount, company_id, customer_name) VALUES ({{order_x}}, 'probe-' || {{order_x}}::text, {{design_x}}, {{doc_x}}, {{snap_x}}, 0, {{company_x}}, '고객A')",
+    "INSERT INTO public.as_requests (id, company_id, order_id, customer_user_id, body, route, assignee_id) VALUES ({{as_a}}, {{company_x}}, {{order_x}}, {{customer_user}}, '문이 안 닫혀요', 'assignee', {{x_staff_user}})"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "customer": {
+      "role": "authenticated",
+      "user": "customer_user"
+    },
+    "other": {
+      "role": "authenticated",
+      "user": "other_customer"
+    },
+    "x_staff": {
+      "role": "authenticated",
+      "user": "x_staff_user"
+    },
+    "y_owner": {
+      "role": "authenticated",
+      "user": "y_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "읽기 — 고객 자기 것 · 그 팩토리 구성원 (남 · 남의 팩토리 0, 익명 deny)",
+      "sql": "select count(*) from public.as_requests where id = {{as_a}}",
+      "expect": {
+        "customer": "1",
+        "x_staff": "1",
+        "other": "0",
+        "y_owner": "0",
+        "anon": "deny",
+        "service_role": "1"
+      }
+    },
+    {
+      "name": "고객 · 구성원은 쓰지 못한다",
+      "sql": "insert into public.as_requests (company_id, order_id, customer_user_id, body, route) values ({{company_x}}, {{order_x}}, {{customer_user}}, '또', 'owners')",
+      "roles": [
+        "customer",
+        "x_staff"
+      ],
+      "expect": {
+        "customer": "deny",
+        "x_staff": "deny"
+      }
+    },
+    {
+      "name": "서버 — 대표 · 실장에게 간 접수 (담당자 칸 비움)",
+      "sql": "insert into public.as_requests (id, company_id, order_id, customer_user_id, body, route) values ({{as_b}}, {{company_x}}, {{order_x}}, {{customer_user}}, '서랍이 걸려요', 'owners')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "간 곳이 담당자인데 담당자 칸이 비면 거절",
+      "sql": "insert into public.as_requests (company_id, order_id, customer_user_id, body, route) values ({{company_x}}, {{order_x}}, {{customer_user}}, '내용', 'assignee')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "빈 내용은 거절",
+      "sql": "insert into public.as_requests (company_id, order_id, customer_user_id, body, route) values ({{company_x}}, {{order_x}}, {{customer_user}}, '   ', 'owners')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "같은 팩토리 수주만",
+      "sql": "insert into public.as_requests (company_id, order_id, customer_user_id, body, route) values ({{company_y}}, {{order_x}}, {{customer_user}}, '내용', 'owners')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "받기 → 끝 — 때는 트리거가 찍는다",
+      "sql": "update public.as_requests set state = 'received', received_by = {{x_staff_user}} where id = {{as_a}}; update public.as_requests set state = 'done' where id = {{as_a}}; select state || '/' || (received_at is not null) || '/' || (done_at is not null) from public.as_requests where id = {{as_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "done/true/true"
+      }
+    },
+    {
+      "name": "받지 않고 바로 끝은 안 된다",
+      "sql": "update public.as_requests set state = 'done' where id = {{as_b}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "고객이 거두기 — 접수 상태에서만",
+      "sql": "update public.as_requests set state = 'cancelled' where id = {{as_b}}; select state || '/' || (cancelled_at is not null) from public.as_requests where id = {{as_b}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "cancelled/true"
+      }
+    },
+    {
+      "name": "내용은 바꿀 수 없다",
+      "sql": "update public.as_requests set body = '바꿈' where id = {{as_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "48시간 알림 시각은 상태와 따로 적는다",
+      "sql": "update public.as_requests set alerted_at = now() where id = {{as_a}}; select (alerted_at is not null)::text from public.as_requests where id = {{as_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "지우기는 서버도 못 한다",
+      "sql": "delete from public.as_requests where id = {{as_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "사진 버킷 — 비공개 · 5MB · JPEG · PNG",
+      "sql": "select public || '/' || file_size_limit || '/' || array_to_string(allowed_mime_types, ',') from storage.buckets where id = 'as-request-photos'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "false/5242880/image/jpeg,image/png"
+      }
+    }
+  ]
+}
