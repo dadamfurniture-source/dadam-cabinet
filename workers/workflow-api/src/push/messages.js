@@ -33,6 +33,7 @@ export const NOTIFICATION_KINDS = Object.freeze([
   'ledger_returned',
   'ledger_notice',
   'assistant_brief',
+  'as_request',
 ]);
 
 /** 작업자 알림 — 업체 없이(company_id 비움) 넣고 업체 없는 기기로 간다 (DB notification_outbox_company_check, 0023) */
@@ -288,6 +289,14 @@ function assistantBrief({ count } = {}) {
   return { title: '오늘 브리핑', body: `오늘 볼 것이 ${n} 있습니다. 비서 탭에서 확인해 주세요.`, url: BRIEF_URL };
 }
 
+/** 팩토리 A/S함 (내 정보 › 팩토리 — 2026-11-06 A/S 접수) */
+export const AS_URL = '/segan/me.html#as';
+
+/** 새 A/S 접수 — 그 수주의 담당자(없으면 대표 · 실장)에게. { orderNo } — 고객 이름 · 내용은 싣지 않는다 */
+function asRequest({ orderNo } = {}) {
+  return { title: 'A/S 접수', body: `${orderPart(orderNo)} A/S 접수가 들어왔습니다. A/S함에서 받아 주세요.`, url: AS_URL };
+}
+
 const BUILDERS = Object.freeze({
   order_request: orderRequest,
   order_request_decided: orderRequestDecided,
@@ -304,6 +313,7 @@ const BUILDERS = Object.freeze({
   ledger_returned: ledgerReturned,
   ledger_notice: ledgerNotice,
   assistant_brief: assistantBrief,
+  as_request: asRequest,
 });
 
 /**

@@ -217,7 +217,7 @@ test('5분 cron: 상담 · 업체 신청을 각각 한 메시지로 보낸다', 
   const { out } = await runCron((c) =>
     isConsultRpc(c) ? json({ stale: 0, rows: [CONSULT_ROW] }) : isPartnerRpc(c) ? json({ stale: 0, rows: [NEW_ROW] }) : c.url === HOOK ? plain(200, 'ok') : null,
   );
-  assert.equal(out.waits, 6, '앱 알림 · 장부 알림 · 아침 브리핑 · 상담 배정 되돌리기 · 상담 · 업체 신청');
+  assert.equal(out.waits, 7, '앱 알림 · 장부 알림 · 아침 브리핑 · 상담 배정 되돌리기 · 상담 · 업체 신청 · A/S 48시간 알림');
   const texts = slackCalls(out.calls).map((c) => c.body.text).sort();
   assert.equal(texts.length, 2);
   assert.ok(texts.some((t) => t.startsWith('[다담] 새 상담 1건')));

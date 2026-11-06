@@ -541,7 +541,7 @@ test('me/projects — 확인서 단계는 회수(revoked) 문서를 빼고 읽�
 test('me/projects — 수주는 최신 것 하나와 그 수금 일정, 설치일은 취소 안 된 가장 이른 설치', async () => {
   const r = await call(myDb(), '/me/projects', MEMBER);
   const p5 = r.json.data.find((p) => p.id === 'p-5');
-  assert.deepEqual(p5.order, { order_no: 'SO-5B', status: 'in_production', contract_amount: 1100000, ordered_at: '2026-10-20T00:00:00Z', completed_at: null });
+  assert.deepEqual(p5.order, { id: 'o5', order_no: 'SO-5B', status: 'in_production', contract_amount: 1100000, ordered_at: '2026-10-20T00:00:00Z', completed_at: null });
   assert.deepEqual(p5.payments, [
     { id: 'pay2', stage: 'deposit', amount: 500000, due_on: '2026-10-20', paid_on: '2026-10-20', payable: false, online: null },
     { id: 'pay1', stage: 'balance', amount: 600000, due_on: '2026-11-20', paid_on: null, payable: false, online: null },
@@ -558,7 +558,7 @@ test('me/projects — 원가 · 마진 · 수금 합계 · 내부 메모 · 담�
   const r = await call(fake, '/me/projects', MEMBER);
   for (const p of r.json.data) {
     assert.deepEqual(Object.keys(p).sort(), ['company_name', 'created_at', 'id', 'install_at', 'order', 'payments', 'stage', 'status', 'title']);
-    if (p.order) assert.deepEqual(Object.keys(p.order).sort(), ['completed_at', 'contract_amount', 'order_no', 'ordered_at', 'status']);
+    if (p.order) assert.deepEqual(Object.keys(p.order).sort(), ['completed_at', 'contract_amount', 'id', 'order_no', 'ordered_at', 'status']);
     for (const x of p.payments) assert.deepEqual(Object.keys(x).sort(), ['amount', 'due_on', 'id', 'online', 'paid_on', 'payable', 'stage']);
   }
   const text = JSON.stringify(r.json);

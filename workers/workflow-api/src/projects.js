@@ -294,6 +294,8 @@ export async function listMyProjects(env, { user }) {
       }),
       order: latest
         ? {
+            // id — 고객 A/S 접수가 이 수주에 건다 (POST /me/orders/:orderId/as-requests, src/as-requests.js)
+            id: latest.id,
             order_no: latest.order_no,
             status: latest.status,
             contract_amount: latest.contract_amount,
