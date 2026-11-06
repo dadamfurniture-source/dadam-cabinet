@@ -7,6 +7,7 @@
  *   GET  /health
  *   POST /designs/:designId/snapshots   — 설계+BOM 동결 (멱등)
  *   POST /planner/designs               — 간편 플래너 설계 받기 → 앱 설계 찾거나 만들고 동결 (본사 대표 · 실장 · 관리자, src/planner-handoff.js)
+ *   GET /planner/access · /planner/drafts(…) · /planner/my-modules(…) · /planner/recommend — 간편 플래너 웹판 저장소 (src/planner-drafts.js, DB 0046)
  *   GET  /designs/:designId/snapshots   — 스냅샷 목록
  *   GET  /snapshots/:snapshotId         — 스냅샷 단건 (payload 포함)
  *   POST /snapshots/:snapshotId/quote   — 견적 재계산 미리보기 (저장 안 함)
@@ -226,6 +227,23 @@ import {
 } from './distribution/company.js';
 import { listCompanyProjects, listCompanyDesigns, createCompanyProject, linkDesignProject } from './company-projects.js';
 import { setProjectAssignee, assigneeCandidates } from './company-assignee.js';
+import {
+  plannerAccess,
+  listDrafts,
+  getDraft,
+  saveDraft,
+  discardDraft,
+  getAppState,
+  putAppState,
+  addPhoto as addPlannerPhoto,
+  readPhoto as readPlannerPhoto,
+  deletePhoto as deletePlannerPhoto,
+  listMyModules,
+  saveMyModule,
+  deleteMyModule,
+  recommendOf,
+  SAVE_BODY_MAX_BYTES,
+} from './planner-drafts.js';
 import { handlePushKey, handleSavePushSubscription, handleDeletePushSubscription } from './push/routes.js';
 import { runPushSender, runPushCleanup, isPushCleanupTime, PUSH_SEND_CRON } from './push/sender.js';
 import { notifyOrderRequest, notifyOrderRequestDecided, notifyConfirmationDecided } from './push/hooks.js';
@@ -1269,6 +1287,28 @@ function workRoute(fn, status = 200) {
   };
 }
 
+/** 간편 플래너 설계 저장 — 본문을 상한까지만 읽는다 (설계 5MB) */
+async function handleSavePlannerDraft(request, env, { user }) {
+  const declared = Number(request.headers.get('Content-Length'));
+  if (Number.isFinite(declared) && declared > SAVE_BODY_MAX_BYTES) throw new TooLargeError('설계가 너무 큽니다');
+  const text = await request.text();
+  if (new TextEncoder().encode(text).length > SAVE_BODY_MAX_BYTES) throw new TooLargeError('설계가 너무 큽니다');
+  let body = null;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    body = null;
+  }
+  const data = await saveDraft(env, { user, body: body || {} });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+/** 간편 플래너 설계 사진 — 이미지 바이트 그대로 (비공개, 캐시 없음) */
+async function handleReadPlannerPhoto(request, env, { params, user }) {
+  const { bytes, mime } = await readPlannerPhoto(env, { user, params });
+  return new Response(bytes, { status: 200, headers: { ...corsHeaders(request, env), ...NO_STORE, 'Content-Type': mime } });
+}
+
 // ===== 라우팅 =====
 
 const router = createRouter([
@@ -1281,6 +1321,21 @@ const router = createRouter([
 
   { method: 'POST', path: '/designs/:designId/snapshots', auth: 'jwt', handler: handleCreateSnapshot },
   { method: 'POST', path: '/planner/designs', auth: 'jwt', handler: workRoute(receivePlannerDesign, 201) },
+  // 간편 플래너 웹판 저장소 (src/planner-drafts.js, DB 0046)
+  { method: 'GET',    path: '/planner/access',                     auth: 'jwt', handler: workRoute(plannerAccess) },
+  { method: 'GET',    path: '/planner/drafts',                     auth: 'jwt', handler: workRoute(listDrafts) },
+  { method: 'POST',   path: '/planner/drafts',                     auth: 'jwt', handler: handleSavePlannerDraft },
+  { method: 'GET',    path: '/planner/drafts/:id',                 auth: 'jwt', handler: workRoute(getDraft) },
+  { method: 'POST',   path: '/planner/drafts/:id/discard',         auth: 'jwt', handler: workRoute(discardDraft) },
+  { method: 'GET',    path: '/planner/drafts/:id/app-state',       auth: 'jwt', handler: workRoute(getAppState) },
+  { method: 'PUT',    path: '/planner/drafts/:id/app-state',       auth: 'jwt', handler: workRoute(putAppState) },
+  { method: 'POST',   path: '/planner/drafts/:id/photos',          auth: 'jwt', handler: rawRoute(addPlannerPhoto, 201) },
+  { method: 'GET',    path: '/planner/drafts/:id/photos/:file',    auth: 'jwt', handler: handleReadPlannerPhoto },
+  { method: 'DELETE', path: '/planner/drafts/:id/photos/:file',    auth: 'jwt', handler: workRoute(deletePlannerPhoto) },
+  { method: 'GET',    path: '/planner/my-modules',                 auth: 'jwt', handler: workRoute(listMyModules) },
+  { method: 'POST',   path: '/planner/my-modules',                 auth: 'jwt', handler: workRoute(saveMyModule, 201) },
+  { method: 'DELETE', path: '/planner/my-modules/:id',             auth: 'jwt', handler: workRoute(deleteMyModule) },
+  { method: 'GET',    path: '/planner/recommend',                  auth: 'jwt', handler: workRoute(recommendOf) },
   { method: 'GET', path: '/designs/:designId/snapshots', auth: 'jwt', handler: handleListSnapshots },
   { method: 'GET', path: '/snapshots/:snapshotId', auth: 'jwt', handler: handleGetSnapshot },
   { method: 'POST', path: '/snapshots/:snapshotId/quote', auth: 'jwt', handler: handleQuotePreview },
