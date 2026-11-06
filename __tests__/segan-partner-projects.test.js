@@ -8,6 +8,7 @@
  *   데이터  workflow-api GET /company/projects (본인 토큰) → { company, can_manage, items }
  *   만들기  can_manage 일 때 「새 고객 · 프로젝트」 → POST /company/projects
  *           { title, customer: { name, phone } } | { title, customer_id }, 보내기 전 서버와 같은 검사
+ *   담당자  assignee_ready 일 때 줄마다 「담당 이름 (역할)」 · 대표 · 실장은 「담당자」 → PUT /company/projects/:id/assignee
  */
 const fs = require('fs');
 const path = require('path');
@@ -24,6 +25,8 @@ const P1 = '22222222-2222-4222-8222-222222222221';
 const P2 = '22222222-2222-4222-8222-222222222222';
 const C1 = '33333333-3333-4333-8333-333333333331';
 const C2 = '33333333-3333-4333-8333-333333333332';
+const M1 = '44444444-4444-4444-8444-444444444441';
+const M2 = '44444444-4444-4444-8444-444444444442';
 
 const ok = (data, status = 200) => ({ ok: true, status, body: { success: true, data } });
 const fail = (status, code, message) => ({
@@ -82,6 +85,7 @@ async function load(options = {}) {
     partner: partnerMe(),
     list: () => ok(projects()),
     create: () => ok({ project_id: P1, customer_id: C2 }, 201),
+    assign: (body) => ok({ project_id: P1, assignee_id: body.assignee_id, assigned_at: '2026-11-06T00:00:00Z' }),
     workflowUrl: WORK,
     ...options,
   };
@@ -143,6 +147,8 @@ async function load(options = {}) {
     if (url === ACC + '/partner/me') return reply(opts.partner);
     if (url === WORK + '/company/projects')
       return reply(await ((init.method || 'GET') === 'POST' ? opts.create(body) : opts.list()));
+    if (url.startsWith(WORK + '/company/projects/') && url.endsWith('/assignee'))
+      return reply(await opts.assign(body, url));
     if (url === PAY + '/subscription') return reply(ok({ plan: 'free', status: 'active' }));
     if (url === PAY + '/plans') return reply(ok({ client_key: 'k', plans: [] }));
     if (url === WORK + '/me/projects') return reply(fail(404, 'not_found', 'x'));
@@ -389,5 +395,90 @@ describe('새 고객 · 프로젝트', () => {
     expect(box().querySelector('input[name="name"]').value).toBe('박고객');
     box().querySelector('[data-act="close"]').click();
     expect(box().querySelector('form[data-form="project"]')).toBeNull();
+  });
+});
+
+describe('담당자 (DB 0042 · 2026-11-06 작업 분배)', () => {
+  const members = [
+    { user_id: M1, name: '나직원', role: 'staff' },
+    { user_id: M2, name: '다실장', role: 'manager' },
+  ];
+  const withAssignee = (extra = {}) => {
+    const d = projects({ assignee_ready: true, members, ...extra });
+    d.items[1].assignee = { user_id: M1, name: '나직원', role: 'staff' };
+    d.items[0].assignee = null;
+    return d;
+  };
+  const owners = () => [...box().querySelectorAll('[data-assignee]')].map((el) => el.textContent);
+
+  test('이름표 · 보낼 본문 (순수)', async () => {
+    await load();
+    const P = window.SeganPartnerProjects;
+    expect(P.personLabel({ name: '나직원', role: 'staff' })).toBe('나직원 (직원)');
+    expect(P.personLabel({ name: '', role: 'manager' })).toBe('실장');
+    expect(P.personLabel({ name: null, role: null })).toBe('나간 구성원');
+    expect(P.assignBodyOf('', members)).toEqual({ body: { assignee_id: null } });
+    expect(P.assignBodyOf(M2, members)).toEqual({ body: { assignee_id: M2 } });
+    expect(P.assignBodyOf(C1, members).error).toBeTruthy();
+  });
+
+  test('줄마다 「담당 이름 (역할)」 · 없으면 「담당자 없음」, 대표 · 실장은 「담당자」 단추, 직원은 없다', async () => {
+    await load({ list: () => ok(withAssignee()) });
+    expect(owners()).toEqual(['담당자 없음', '담당 나직원 (직원)']);
+    expect(box().querySelectorAll('[data-act="assign"]').length).toBe(2);
+    await load({ list: () => ok(withAssignee({ can_manage: false })) });
+    expect(owners()).toEqual(['담당자 없음', '담당 나직원 (직원)']);
+    expect(box().querySelector('[data-act="assign"]')).toBeNull();
+  });
+
+  test('서버가 담당자 칸을 못 받으면(assignee_ready 아님) 적지도 고르지도 않는다', async () => {
+    await load({ list: () => ok(projects({ assignee_ready: false, members })) });
+    expect(owners()).toEqual([]);
+    expect(box().querySelector('[data-act="assign"]')).toBeNull();
+  });
+
+  test('고르기 — 지금 담당자가 골라진 채 열고, 다른 사람으로 저장하면 PUT · 목록 다시 읽기 · 알림, 비우기는 null', async () => {
+    let list = withAssignee();
+    const calls = await load({ list: () => ok(list) });
+    box().querySelector('[data-act="assign"][data-for="' + P1 + '"]').click();
+    await flush();
+    const form = () => box().querySelector('form[data-form="assign"]');
+    const sel = () => form().querySelector('[name="assignee_id"]');
+    expect([...sel().options].map((o) => o.textContent)).toEqual(['담당자 없음', '나직원 (직원)', '다실장 (실장)']);
+    expect(sel().value).toBe(M1);
+    sel().value = M2;
+    list = withAssignee();
+    list.items[1].assignee = { user_id: M2, name: '다실장', role: 'manager' };
+    form().dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flush();
+    const put = calls.fetch.filter((c) => c.method === 'PUT');
+    expect(put.map((c) => [c.url, c.body])).toEqual([[WORK + '/company/projects/' + P1 + '/assignee', { assignee_id: M2 }]]);
+    expect(put[0].auth).toBe('Bearer tok-1');
+    expect(box().textContent).toContain('담당자를 정했습니다.');
+    expect(owners()).toEqual(['담당자 없음', '담당 다실장 (실장)']);
+    expect(form()).toBeNull();
+
+    box().querySelector('[data-act="assign"][data-for="' + P1 + '"]').click();
+    await flush();
+    sel().value = '';
+    form().dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flush();
+    expect(calls.fetch.filter((c) => c.method === 'PUT').at(-1).body).toEqual({ assignee_id: null });
+    expect(box().textContent).toContain('담당자를 비웠습니다.');
+  });
+
+  test('서버가 못 정하면 서버 글을 그 자리에 · 칸은 열어 둔다, 닫기', async () => {
+    await load({
+      list: () => ok(withAssignee()),
+      assign: () => fail(409, 'stale', '그 사이 담당자가 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요'),
+    });
+    box().querySelector('[data-act="assign"][data-for="' + P2 + '"]').click();
+    await flush();
+    box().querySelector('form[data-form="assign"]').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flush();
+    expect(box().querySelector('form[data-form="assign"] [data-err]').textContent).toBe('그 사이 담당자가 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요');
+    box().querySelector('[data-act="assign-close"]').click();
+    await flush();
+    expect(box().querySelector('form[data-form="assign"]')).toBeNull();
   });
 });
