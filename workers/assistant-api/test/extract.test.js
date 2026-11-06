@@ -4,6 +4,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { makeDb, makeClaude, CO, SUPA } from './fakes.js';
 import {
   queueExtract,
@@ -581,6 +582,46 @@ test('예산 어림 — 사진은 base64 글자가 아니라 IMAGE_TOKENS 로', 
     { mime: 'image/png', data: '', accounts: ACCOUNTS }
   );
   assert.equal(opus.fallbacks, 'default');
+});
+
+test('모델 — 방향은 ORIENT_MODEL, 읽기는 EXTRACT_MODEL (예산 · 정산 · 시도 모델은 부른 모델마다)', async () => {
+  const env = { EXTRACT_MODEL: 'claude-sonnet-5-5', ORIENT_MODEL: 'claude-haiku-5-5' };
+  const w = world({ env });
+  assert.equal((await runExtract(w.env, { documentId: DOC })).status, 'done');
+  const [q, p] = w.claude.calls;
+  // 방향 — Haiku 는 서버 대체 없이
+  assert.equal(q.model, 'claude-haiku-5-5');
+  assert.equal(q.fallbacks, undefined);
+  // 읽기 — Sonnet 은 서버 대체를 싣는다
+  assert.equal(p.model, 'claude-sonnet-5-5');
+  assert.equal(p.fallbacks, 'default');
+  const u = w.db.usage[0];
+  assert.equal(
+    u.reserved,
+    estimateExtractMicros(env, buildOrientRequest(env, { mime: 'image/jpeg', data: '' })) +
+      estimateExtractMicros(
+        env,
+        buildExtractRequest(env, { mime: 'image/jpeg', data: '', accounts: ACCOUNTS })
+      )
+  );
+  assert.equal(
+    u.cost,
+    Math.ceil((5000 * 0.1 + 20 * 0.5) * 1.1) + Math.ceil((5000 * 2 + 400 * 10) * 1.1)
+  );
+  const x = w.db.extractions[0];
+  assert.equal(x.model, 'claude-sonnet-5-5');
+  assert.equal(x.cost_micros, u.cost);
+  // EXTRACT_MODEL 만 바꿔도 방향은 Haiku 그대로
+  assert.equal(
+    buildOrientRequest({ EXTRACT_MODEL: 'claude-sonnet-5-5' }, { mime: 'image/jpeg', data: '' }).model,
+    'claude-haiku-5-5'
+  );
+});
+
+test('wrangler.toml — 읽기 Sonnet 5.5 · 방향 Haiku 5.5', () => {
+  const toml = fs.readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8');
+  assert.match(toml, /^EXTRACT_MODEL = "claude-sonnet-5-5"\r?$/m);
+  assert.match(toml, /^ORIENT_MODEL = "claude-haiku-5-5"\r?$/m);
 });
 
 test('계정 제안(판 3) — 업종을 알면 시스템 글에 한 줄, 목록 밖 제안은 버린다, 고를 계정이 없으면 failed', async () => {

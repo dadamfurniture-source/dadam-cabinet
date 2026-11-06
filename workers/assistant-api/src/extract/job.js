@@ -10,9 +10,9 @@
  *        읽은 사진도 again 이고 더 낮은 판으로 읽은 것이면 이 판으로 다시 읽는다 (database/migrations/0031)
  *     2. 예산 — purpose extract, 키 extract:{시도 id}. 안 되면 시도를 skipped_budget(error = 이유)로 닫는다
  *     3. 사진 — 비공개 버킷 ledger-evidence 를 서비스 키로 읽는다 (서명 주소는 만들지 않는다)
- *     4. 방향 — Claude 에 글자가 똑바로 서려면 시계 방향으로 몇 도 돌려야 하는지 묻는다(ORIENT_SCHEMA, 생각 low).
+ *     4. 방향 — Claude(ORIENT_MODEL)에 글자가 똑바로 서려면 시계 방향으로 몇 도 돌려야 하는지 묻는다(ORIENT_SCHEMA, 생각 low).
  *        0 이 아니면 Cloudflare Images 바인딩(IMAGES)으로 그만큼 돌린 JPEG 를 만든다 — 버킷의 사진(증빙)은 그대로 둔다
- *     5. Claude — (돌린) 사진 + 스키마(output_config.format json_schema). 도구 없음. 거절이면 refused, 잘림 · 틀린 JSON 이면 failed
+ *     5. Claude(EXTRACT_MODEL) — (돌린) 사진 + 스키마(output_config.format json_schema). 도구 없음. 거절이면 refused, 잘림 · 틀린 JSON 이면 failed
  *        스키마에는 계정 제안 account_hint — 고를 거리는 ledger_accounts(쓰는 중인 매입 · 제조 · 판관 · 자산, sort 차례),
  *        업종은 company_settings 에서. 시작 뒤 한 번 읽어 예산 어림 · 읽기에 같이 쓴다 (목록이 없으면 failed no_accounts)
  *        (방향을 묻다 거절 · 잘림 · 틀린 답이면 error 앞에 orient_)
@@ -41,6 +41,8 @@ import { normalize, checkResult } from './checks.js';
 
 export const BUCKET = 'ledger-evidence';
 export const MODEL_DEFAULT = 'claude-haiku-5-5';
+/** 방향 묻기 모델 — 읽기 모델(EXTRACT_MODEL)과 따로 정한다 (ORIENT_MODEL) */
+export const ORIENT_MODEL_DEFAULT = 'claude-haiku-5-5';
 /** 사진 한 장의 입력 토큰 어림 — 앱이 긴 변 2576 · 375만 화소로 줄여 올린다. 넉넉히 잡고 정산에서 바꾼다 */
 export const IMAGE_TOKENS = 6000;
 const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
@@ -98,7 +100,7 @@ export function buildExtractRequest(env, { mime, data, accounts, businessKind = 
 
 /** Claude 요청 — 사진 한 장의 방향만 (읽기 전에 한 번) */
 export function buildOrientRequest(env, { mime, data }) {
-  const model = env.EXTRACT_MODEL || MODEL_DEFAULT;
+  const model = env.ORIENT_MODEL || ORIENT_MODEL_DEFAULT;
   return {
     model,
     max_tokens: ORIENT_MAX_TOKENS,
