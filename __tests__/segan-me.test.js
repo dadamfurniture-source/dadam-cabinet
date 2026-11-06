@@ -404,7 +404,8 @@ describe('내 프로젝트 — GET /me/projects', () => {
     const order = [...document.querySelectorAll('[data-auth-view="signed-in"] section h2')].map(
       (h) => h.textContent
     );
-    expect(order.slice(0, 3)).toEqual(['내 프로젝트', '팩토리', '상담 내역']);
+    // 내 A/S 접수(segan/as-requests.js)는 내 프로젝트 바로 아래
+    expect(order.slice(0, 4)).toEqual(['내 프로젝트', 'A/S 접수', '팩토리', '상담 내역']);
   });
 
   test('단계 6칸 — 상담 · 연출컷 · 설계 · 견적 · 수주 · 시공 완료, 지금 단계까지 채운다', async () => {

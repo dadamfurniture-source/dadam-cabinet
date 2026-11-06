@@ -129,7 +129,11 @@ test('글 — 종류마다 제목 · 본문 · 열 곳, DB 글자 수 안, /sega
     'ledger_returned',
     'ledger_notice',
     'assistant_brief',
+    'as_request',
   ]);
+  // 새 A/S 접수 (2026-11-06) — 주문번호만, 고객 이름 · 내용 없음, 팩토리 A/S함으로
+  assert.deepEqual(buildMessage('as_request', { orderNo: 'SO-20261106-AB12' }), { title: 'A/S 접수', body: '수주 SO-20261106-AB12 A/S 접수가 들어왔습니다. A/S함에서 받아 주세요.', url: '/segan/me.html#as' });
+  assert.equal(buildMessage('as_request', { orderNo: '홍길동' }).body, '수주 A/S 접수가 들어왔습니다. A/S함에서 받아 주세요.');
 });
 
 test('글 — 고객 이름 · 설계 제목 같은 값은 받지 않는다. 모르는 종류 · 값은 null', () => {

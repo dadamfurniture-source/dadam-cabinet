@@ -7,9 +7,9 @@
     <meta name="robots" content="noindex, nofollow, noarchive" />
     <meta name="referrer" content="no-referrer" />
     <title>수주 · 원가 · 마진 · 다담가구</title>
-    <link rel="stylesheet" href="css/nav.css?v=2026110606" />
+    <link rel="stylesheet" href="css/nav.css?v=2026110608" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="js/config.js?v=2026110606"></script>
+    <script src="js/config.js?v=2026110608"></script>
     <style>
       :root {
         --bg: #eef0f3;
@@ -247,6 +247,20 @@
           </div>
         </div>
 
+        <div style="font-weight: 600; margin: 18px 0 8px">설치 · A/S 완료 보고 <span class="muted">— 본사에 기록으로 갑니다 (검수 없음)</span></div>
+        <div id="reportNeedSql" class="muted" hidden>완료 보고는 DB 적용(0043) 뒤에 됩니다.</div>
+        <div class="row" id="reportForm" hidden>
+          <select id="selReportKind" aria-label="종류">
+            <option value="install_done">설치 완료</option>
+            <option value="as_done">A/S 완료</option>
+          </select>
+          <input id="inpReportNote" type="text" maxlength="500" placeholder="메모 (없어도 됩니다)" aria-label="메모" style="min-width: 240px" />
+          <input id="inpReportPhotos" type="file" accept="image/jpeg,image/png" multiple aria-label="사진 (10장까지)" />
+          <button type="button" class="primary" id="btnAddReport">보고</button>
+        </div>
+        <div id="reportMsg" class="muted" style="margin-top: 6px"></div>
+        <div id="reportRows" style="margin-top: 8px"></div>
+
         <div style="font-weight: 600; margin: 18px 0 8px">설치 후 한 문항</div>
         <div id="feedbackBox" class="muted"></div>
         <div class="row" style="margin-top: 8px">
@@ -267,7 +281,7 @@
         var sb = null;
         // cp = 거래처 · 공급처 목록 (내 업체 것 — 대표 · 실장, 본사는 관리자도. 표가 없거나 권한이 없으면 null — 고르기 칸을 숨긴다)
         // events = 열어 본 수주의 상태 기록 · 바꿀 수 있는 상태 (못 불러오면 null), requests = 대표 승인 기다림
-        var state = { orders: [], current: null, detail: null, cp: undefined, events: null, requests: [] };
+        var state = { orders: [], current: null, detail: null, cp: undefined, events: null, requests: [], reports: null };
 
         // 수주 상태 — 워커 order-events.js ORDER_STATUS_LABELS 와 같은 이름
         var STATUS_LABELS = {
@@ -687,6 +701,7 @@
             renderPayments();
             renderReworks();
             renderFeedback();
+            await loadReports();
             await loadCounterparties();
             renderCounterparties();
             await loadEvents();
@@ -758,6 +773,115 @@
         }
 
         // 설치 후 한 문항 — "지인에게 다담가구를 소개하시겠어요?" 0~10. 링크는 문자로 직접 보낸다
+        // ── 수주 완료 보고 (워커 order-reports.js — DB 0043, 2026-11-06 작업 분배 ⑤) ──
+        //   담당자나 대표 · 실장이 「설치 완료」 · 「A/S 완료」 + 사진을 올린다. 본사는 기록만. 수주 상태는 바뀌지 않는다.
+        var REPORT_PHOTOS_MAX = 10;
+
+        async function loadReports() {
+          state.reports = null;
+          if (!state.current) return renderReports();
+          try {
+            state.reports = await api('/orders/' + encodeURIComponent(state.current) + '/reports');
+          } catch (e) {
+            state.reports = { ready: true, can_report: false, items: [], error: e.message };
+          }
+          renderReports();
+        }
+
+        /** 한국 시간 'YYYY-MM-DD HH:mm' */
+        function kstStamp(iso) {
+          var t = Date.parse(iso);
+          if (isNaN(t)) return '';
+          return new Date(t + 9 * 3600 * 1000).toISOString().slice(0, 16).replace('T', ' ');
+        }
+
+        function renderReports() {
+          var r = state.reports;
+          el('reportNeedSql').hidden = !(r && r.ready === false);
+          el('reportForm').hidden = !(r && r.ready !== false && r.can_report);
+          var box = el('reportRows');
+          box.textContent = '';
+          if (!r || r.ready === false) return;
+          if (r.error) { el('reportMsg').textContent = r.error; return; }
+          if (!r.items.length) { box.textContent = '아직 보고가 없습니다.'; return; }
+          r.items.forEach(function (x) {
+            var row = document.createElement('div');
+            row.className = 'row';
+            row.style.marginBottom = '6px';
+            var head = document.createElement('span');
+            head.textContent = kstStamp(x.created_at) + ' · ' + (x.label || x.kind) + (x.note ? ' · ' + x.note : '');
+            row.appendChild(head);
+            (x.photo_urls || []).forEach(function (u, i) {
+              var a = document.createElement('a');
+              a.href = u;
+              a.target = '_blank';
+              a.rel = 'noopener';
+              a.textContent = '사진 ' + (i + 1);
+              row.appendChild(a);
+            });
+            box.appendChild(row);
+          });
+        }
+
+        /** 사진 줄이기 — 긴 변 2048px · JPEG (서버 한도 긴 변 2576 · 5MB 안에, 작업자 포털과 같다). 못 줄이면 원본 */
+        async function shrinkPhoto(file) {
+          var MAX = 2048;
+          try {
+            if (typeof createImageBitmap !== 'function') return file;
+            var bmp = await createImageBitmap(file);
+            var k = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
+            if (k === 1 && file.size <= 4 * 1024 * 1024 && /^image\/(jpeg|png)$/.test(file.type)) return file;
+            var c = document.createElement('canvas');
+            c.width = Math.max(1, Math.round(bmp.width * k));
+            c.height = Math.max(1, Math.round(bmp.height * k));
+            c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+            var blob = await new Promise(function (ok) { c.toBlob(ok, 'image/jpeg', 0.85); });
+            return blob || file;
+          } catch (e) {
+            return file;
+          }
+        }
+
+        async function uploadReportPhoto(blob) {
+          var t = await token();
+          if (!t) throw new Error('로그인이 필요합니다.');
+          var res = await fetch(API + '/orders/' + encodeURIComponent(state.current) + '/reports/photo', {
+            method: 'POST',
+            headers: { Authorization: 'Bearer ' + t, 'Content-Type': blob.type || 'image/jpeg' },
+            body: blob,
+          });
+          var body = null;
+          try { body = await res.json(); } catch (e) { body = null; }
+          if (!res.ok || !body || !body.success) throw new Error((body && body.message) || '사진을 올리지 못했습니다 (' + res.status + ')');
+          return body.data.photo_path;
+        }
+
+        async function addReport() {
+          if (!state.current) return;
+          var files = Array.prototype.slice.call(el('inpReportPhotos').files || []);
+          if (files.length > REPORT_PHOTOS_MAX) { el('reportMsg').textContent = '사진은 ' + REPORT_PHOTOS_MAX + '장까지입니다.'; return; }
+          var btn = el('btnAddReport');
+          btn.disabled = true;
+          el('reportMsg').textContent = files.length ? '사진 올리는 중…' : '보내는 중…';
+          try {
+            var paths = [];
+            for (var i = 0; i < files.length; i++) paths.push(await uploadReportPhoto(await shrinkPhoto(files[i])));
+            var kind = el('selReportKind').value;
+            await api('/orders/' + encodeURIComponent(state.current) + '/reports', {
+              method: 'POST',
+              body: { kind: kind, note: el('inpReportNote').value || null, photo_paths: paths },
+            });
+            el('inpReportNote').value = '';
+            el('inpReportPhotos').value = '';
+            el('reportMsg').textContent = (kind === 'as_done' ? 'A/S 완료' : '설치 완료') + ' 보고를 남겼습니다.';
+            await loadReports();
+          } catch (e) {
+            el('reportMsg').textContent = e.message;
+          } finally {
+            btn.disabled = false;
+          }
+        }
+
         function renderFeedback() {
           var d = state.detail;
           if (!d) return;
@@ -1036,6 +1160,7 @@
         el('selTier').addEventListener('change', renderCounterparties);
         el('selSupplier').addEventListener('change', function () { el('inpVendor').hidden = !!el('selSupplier').value; });
         el('btnFeedbackLink').addEventListener('click', createFeedbackLink);
+        el('btnAddReport').addEventListener('click', addReport);
         el('btnCopyFeedback').addEventListener('click', copyFeedbackLink);
 
         if (!API) {

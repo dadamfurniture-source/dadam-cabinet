@@ -1118,12 +1118,12 @@
   }
 
   /**
-   * 로그인 안내의 로그인 단추 — me.html#partner · #partner-consults(새 상담 알림)로 왔으면
+   * 로그인 안내의 로그인 단추 — me.html#partner · #partner-consults(새 상담 알림) · #as(새 A/S 알림)로 왔으면
    * 돌아올 곳에 그 # 를 붙인다
    */
   function keepHashOnGate() {
     var hash = location.hash;
-    if (hash !== '#partner' && hash !== '#partner-consults') return;
+    if (hash !== '#partner' && hash !== '#partner-consults' && hash !== '#as') return;
     var a = document.querySelector('[data-auth-view="signed-out"] a.sg-btn');
     if (a)
       a.setAttribute(

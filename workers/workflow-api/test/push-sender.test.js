@@ -510,7 +510,7 @@ test('scheduled(): 1분 cron 은 앱 알림 보내기, 정리 시각이면 정�
 
   // 5의 배수 분 — 앱 알림 + 새 상담 + 새 팩토리 신청 (상담 쪽 실패는 그 안에서 잡힌다)
   r = await scheduled(PUSH_SEND_CRON, Date.parse('2026-10-29T03:05:00Z'));
-  assert.equal(r.waits, 6);
+  assert.equal(r.waits, 7);
   assert.ok(r.fake.calls.rest.some((c) => c.path === 'rpc/claim_notifications'));
 
   r = await scheduled('*/5 * * * *', Date.parse('2026-10-29T03:00:00Z'));

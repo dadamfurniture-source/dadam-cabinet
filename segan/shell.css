@@ -941,6 +941,58 @@ a.sg-row.ad-row::after {
   margin-top: 10px;
 }
 
+/* A/S 접수 (segan/as-requests.js) — 내 프로젝트 줄의 신청 · 내 접수 · 팩토리 A/S함 */
+.me-as-slot {
+  margin-top: 12px;
+}
+
+.me-as-slot .me-pt-msg {
+  margin: 0 0 8px;
+}
+
+.me-as-item {
+  padding: 12px 0 14px;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.me-as-body {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--v5-ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.me-as-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.me-as-photos img {
+  display: block;
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  background: var(--v5-photo);
+}
+
+.me-as-item .rd-acts,
+.me-as-row .rd-acts {
+  margin-top: 10px;
+}
+
+.me-as-ask {
+  align-items: center;
+}
+
+.me-as-ask span {
+  font-size: 13px;
+}
+
 /* 업체 › 상담 · 상담 설정 (segan/partner-consults.js) — 고르는 칸은 make.css 의 cs-choice */
 .me-cs > .mk-note {
   margin-bottom: 10px;

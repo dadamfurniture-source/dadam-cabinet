@@ -1,0 +1,20 @@
+{
+  "title": "0044 상담 신청 시공 사진 학습 활용 동의 칸 — timestamptz · 비워도 된다 (scripts/rls-probe.mjs --migration database/migrations/0044_consult_photo_learn.sql)",
+  "ids": [],
+  "users": [],
+  "setup": [],
+  "roles": {
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "칸 모양 — timestamp with time zone · 비워도 된다",
+      "sql": "select data_type || '/' || is_nullable from information_schema.columns where table_schema = 'public' and table_name = 'consultations' and column_name = 'photo_learn_agreed_at'",
+      "expect": {
+        "service_role": "timestamp with time zone/YES"
+      }
+    }
+  ]
+}
