@@ -19,6 +19,8 @@ const ROOT = path.join(__dirname, '..');
 const SEGAN = path.join(ROOT, 'segan');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const MANIFEST = JSON.parse(read('segan/manifest.webmanifest'));
+/** 검색에 여는 앱 화면 — 사이트맵 · _redirects 의 대상과 같다 */
+const PUBLIC_PAGES = ['segan/index.html', 'segan/collection.html', 'segan/consult.html'];
 const SEGAN_PAGES = fs
   .readdirSync(SEGAN)
   .filter((n) => n.endsWith('.html'))
@@ -247,9 +249,17 @@ describe('segan 페이지 — 숨김 · 설치 정보', () => {
     expect(SEGAN_PAGES).toEqual(expect.arrayContaining(['segan/index.html', 'segan/offline.html']));
   });
 
-  test.each(SEGAN_PAGES)('%s — noindex,nofollow · 매니페스트 · theme-color · 아이콘', (page) => {
+  test.each(SEGAN_PAGES)('%s — 검색(공개 셋만 연다) · 매니페스트 · theme-color · 아이콘', (page) => {
     const html = read(page);
-    expect(html).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
+    if (PUBLIC_PAGES.includes(page)) {
+      expect(html).not.toMatch(/name="robots"/);
+      const url = `https://dadamfurniture.com/${page.replace(/(index)?\.html$/, '')}`;
+      expect(html).toContain(`<link rel="canonical" href="${url}" />`);
+      expect(html).toContain(`<meta property="og:url" content="${url}" />`);
+      expect(html).toMatch(/<meta name="description" content="[^"]{10,}" \/>/);
+    } else {
+      expect(html).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
+    }
     expect(html).toMatch(/<link rel="manifest" href="(?:\/segan\/)?manifest\.webmanifest" \/>/);
     expect(html).toMatch(/<meta name="theme-color" content="#F6F3EE" \/>/);
     expect(html).toMatch(
@@ -317,7 +327,7 @@ describe('전환 — 옛 주소는 앱으로', () => {
     const want = {
       '/': '/segan/', index: '/segan/', 'ai-design': '/segan/', collection: '/segan/collection',
       material: '/segan/collection#material', consultation: '/segan/consult', 'partner-recommendation': '/segan/consult',
-      'my-designs': '/segan/renders', mypage: '/segan/settings', pricing: '/segan/me#partner', billing: '/segan/billing', worker: '/segan/work',
+      'my-designs': '/segan/renders', mypage: '/segan/me', pricing: '/segan/me#partner', billing: '/segan/billing', worker: '/segan/work',
     };
     for (const [page, to] of Object.entries(want)) {
       if (page === '/') {

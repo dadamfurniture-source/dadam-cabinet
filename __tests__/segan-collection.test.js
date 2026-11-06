@@ -403,9 +403,10 @@ describe('자재 — 시공사례 화면 안의 둘째 칸 (사이트 material.h
 });
 
 describe('페이지', () => {
-  test('collection.html 이 config · supabase · shell · collection.js 를 싣고 noindex', () => {
+  test('collection.html 이 config · supabase · shell · collection.js 를 싣고 검색에 열린다 (canonical)', () => {
     const html = read('segan/collection.html');
-    expect(html).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
+    expect(html).not.toMatch(/name="robots"/);
+    expect(html).toContain('<link rel="canonical" href="https://dadamfurniture.com/segan/collection" />');
     expect(html).toMatch(/<script src="\.\.\/js\/config\.js\?v=\d+"><\/script>/);
     expect(html).toMatch(/<script src="collection\.js\?v=\d+" defer><\/script>/);
     expect(html).toMatch(/<body class="sg-app" data-tab="collection">/);

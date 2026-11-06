@@ -3,16 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <!-- 출시 전까지 숨겨 둔다: 검색에 올리지 않고, 기존 사이트 어디에서도 링크하지 않는다 -->
-    <meta name="robots" content="noindex,nofollow" />
+    <!-- 사이트 첫 화면 — 검색에 연다 (옛 주소는 _redirects 가 여기로 넘긴다) -->
+    <meta name="description" content="공간 사진을 올리면 맞춤 가구가 들어간 연출컷을 만들어 드립니다. 다담가구 SEGAN." />
+    <link rel="canonical" href="https://dadamfurniture.com/segan/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SEGAN" />
+    <meta property="og:title" content="SEGAN" />
+    <meta property="og:description" content="공간 사진을 올리면 맞춤 가구가 들어간 연출컷을 만들어 드립니다. 다담가구 SEGAN." />
+    <meta property="og:url" content="https://dadamfurniture.com/segan/" />
+    <meta property="og:image" content="https://dadamfurniture.com/segan/icons/icon-512.png" />
     <meta name="theme-color" content="#F6F3EE" />
     <title>SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026110711" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026110711" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026110711" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110711" />
+    <link rel="icon" href="icons/icon.svg?v=2026110712" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110712" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110712" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110712" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
@@ -22,17 +29,17 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@300&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="shell.css?v=2026110711" />
-    <link rel="stylesheet" href="make.css?v=2026110711" />
+    <link rel="stylesheet" href="shell.css?v=2026110712" />
+    <link rel="stylesheet" href="make.css?v=2026110712" />
     <!-- 로그인 · 크레딧 · 생성 — 기존 사이트와 같은 설정 · 라이브러리 -->
-    <script src="../js/config.js?v=2026110711"></script>
+    <script src="../js/config.js?v=2026110712"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <!-- 관리 탭 — 관리자에게만 연다 (segan/shell.js applyAdminTab) -->
-    <script src="../js/admin-access.js?v=2026110711"></script>
+    <script src="../js/admin-access.js?v=2026110712"></script>
     <!-- 작업 탭 — 작업자에게만 연다 (segan/shell.js applyRoleTabs · GET /work/me) -->
-    <script src="../js/mypage-work.js?v=2026110711"></script>
-    <script src="shell.js?v=2026110711" defer></script>
-    <script src="make.js?v=2026110711" defer></script>
+    <script src="../js/mypage-work.js?v=2026110712"></script>
+    <script src="shell.js?v=2026110712" defer></script>
+    <script src="make.js?v=2026110712" defer></script>
   </head>
   <body class="sg-app" data-tab="make">
     <div data-segan-shell="header"></div>

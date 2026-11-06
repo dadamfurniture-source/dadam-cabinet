@@ -25,7 +25,7 @@
 /* global self, caches, fetch, Request, Response, URL */
 'use strict';
 
-const ASSET_VERSION = '2026110711';
+const ASSET_VERSION = '2026110712';
 const CACHE_PREFIX = 'segan-shell-';
 const CACHE = CACHE_PREFIX + ASSET_VERSION;
 const SCOPE = new URL('./', self.location.href).pathname; // '/segan/'
@@ -188,6 +188,8 @@ self.addEventListener('fetch', (event) => {
   if (!url.pathname.startsWith(SCOPE)) return;
   if (req.headers.has('Authorization')) return;
   if (url.pathname === SCOPE + 'sw.js') return;
+  // 간편 플래너(/segan/planner/ — 다른 Worker, 출입증 쿠키 · 큰 라이브러리)는 담지 않는다
+  if (url.pathname.startsWith(SCOPE + 'planner/') || url.pathname === SCOPE + 'planner') return;
 
   if (req.mode === 'navigate' || url.pathname.endsWith('/') || url.pathname.endsWith('.html')) {
     event.respondWith(pageNetworkFirst(event, url));

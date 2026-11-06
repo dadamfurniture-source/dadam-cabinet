@@ -514,9 +514,10 @@ describe('사업자 정보 — 사이트 푸터(js/site-shell.js)와 같다', ()
 describe('숨김 · 접근성 · 안전 영역', () => {
   const PAGES = fs.readdirSync(path.join(ROOT, 'segan')).filter((n) => n.endsWith('.html'));
 
-  test.each(PAGES)('%s — noindex,nofollow · 매니페스트 · 아이콘', (page) => {
+  test.each(PAGES)('%s — 검색(공개 셋 index · collection · consult 만 연다) · 매니페스트 · 아이콘', (page) => {
     const html = read(`segan/${page}`);
-    expect(html).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
+    if (['index.html', 'collection.html', 'consult.html'].includes(page)) expect(html).not.toMatch(/name="robots"/);
+    else expect(html).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
     expect(html).toMatch(/rel="manifest"/);
     expect(html).toMatch(/rel="apple-touch-icon"/);
   });
