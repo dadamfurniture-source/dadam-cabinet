@@ -5,6 +5,8 @@
             합계 · 증빙 · 출처. 거름(출처) · 찾기(거래처 · 내용 · 주문번호) · 합계 줄. 매입은 「매입처별」 묶음
             (줄 수 · 공급가 · 부가세 · 합계 · 세금계산서 있음). 받을 돈(GET /ledger/receivables) · 낼 돈(/ledger/payables) 목록
    숫자     서버 값 그대로 — 이 파일이 더하는 것은 합계(공급가 + 부가세)와 합계 줄 · 묶음 합뿐. 부가세를 모르는 줄은 「모름」
+   옛 원가  부가세 칸이 생기기 전 수주 원가 줄(원가 · 부가세 비어 있음)은 적힌 금액이 부가세 포함 합계다 (2026-11-06 사장님) —
+            공급가 · 부가세는 「모름」으로 두고 합계 칸에만 싣는다 (isOldCost). 공급가 합에는 넣지 않고 합계 합에는 넣는다
    내보내기 세무사용 CSV 셋 (csvFiles · toCsv) — 매출장(고객 이름 없이 주문번호) · 매입장(거래처 사업자번호 000-00-00000) ·
             계정별 합계. 취소 줄은 뺀다.
             엑셀이 한글을 읽게 앞에 BOM, 줄 끝 CRLF
@@ -81,15 +83,28 @@
     });
   }
 
-  /** 합계 줄 — 취소한 줄은 빼고 센다. 부가세를 모르는 줄은 수만 */
+  /** 옛 원가 줄 — 부가세 칸이 생기기 전 수주 원가 (부가세 비어 있음). 적힌 금액 = 부가세 포함 합계 (2026-11-06 사장님) */
+  function isOldCost(r) {
+    return !!r && r.source === 'cost' && r.vat_amount == null;
+  }
+
+  /** 줄의 공급가 — 옛 원가는 모른다(null) */
+  function supplyOf(r) {
+    return isOldCost(r) ? null : num(r.amount);
+  }
+
+  /** 합계 줄 — 취소한 줄은 빼고 센다. 부가세를 모르는 줄은 수만, 옛 원가는 합계에만 */
   function totalsOf(rows) {
-    var t = { n: 0, amount: 0, vat: 0, total: 0, vatUnknown: 0 };
+    var t = { n: 0, amount: 0, vat: 0, total: 0, vatUnknown: 0, oldCost: 0 };
     (rows || []).forEach(function (r) {
       if (!r || r.voided_at) return;
       t.n += 1;
-      t.amount += num(r.amount);
-      if (r.vat_amount == null) t.vatUnknown += 1;
-      else t.vat += num(r.vat_amount);
+      if (isOldCost(r)) t.oldCost += 1;
+      else {
+        t.amount += num(r.amount);
+        if (r.vat_amount == null) t.vatUnknown += 1;
+        else t.vat += num(r.vat_amount);
+      }
       t.total += num(r.amount) + num(r.vat_amount);
     });
     return t;
@@ -116,7 +131,7 @@
       }
       var g = map[key];
       g.n += 1;
-      g.amount += num(r.amount);
+      g.amount += supplyOf(r) || 0;
       g.vat += num(r.vat_amount);
       g.total += num(r.amount) + num(r.vat_amount);
       if (r.evidence_type === 'tax_invoice' || r.evidence_type === 'invoice') g.taxInvoice = true;
@@ -180,12 +195,13 @@
       if (sub) who.appendChild(el('small', '', sub));
       tr.appendChild(who);
       cell(tr, c.accountName ? c.accountName(r.account) : r.account || '', 'l');
-      cell(tr, won(r.amount), 'n');
+      cell(tr, isOldCost(r) ? '모름' : won(r.amount), 'n');
       cell(
         tr,
         r.vat_amount == null ? '모름' : won(r.vat_amount) + (r.vat_computed ? '*' : ''),
         'n'
       );
+      if (isOldCost(r)) tr.title = '옛 원가 줄 — 적힌 금액은 부가세 포함 합계입니다';
       cell(tr, won(num(r.amount) + num(r.vat_amount)), 'n');
       cell(
         tr,
@@ -217,7 +233,11 @@
     var label = el(
       'td',
       'l',
-      '합계 ' + t.n + '줄' + (t.vatUnknown ? ' · 부가세 모름 ' + t.vatUnknown : '')
+      '합계 ' +
+        t.n +
+        '줄' +
+        (t.vatUnknown ? ' · 부가세 모름 ' + t.vatUnknown : '') +
+        (t.oldCost ? ' · 옛 원가(부가세 포함) ' + t.oldCost : '')
     );
     label.colSpan = 3;
     tr.appendChild(label);
@@ -358,6 +378,11 @@
     var vat = function (r) {
       return r.vat_amount == null ? '' : num(r.vat_amount);
     };
+    // 공급가 칸 — 옛 원가 줄은 모른다 (빈 칸, 합계에만)
+    var supply = function (r) {
+      var v = supplyOf(r);
+      return v == null ? '' : v;
+    };
     var kind = function (r) {
       return r.direction === 'asset_sell' || r.direction === 'asset_buy'
         ? DIR_NAME[r.direction]
@@ -373,7 +398,7 @@
           r.order_no || '',
           acc(r.account),
           desc(r),
-          num(r.amount),
+          supply(r),
           vat(r),
           num(r.amount) + num(r.vat_amount),
           ev(r.evidence_type),
@@ -404,7 +429,7 @@
           r.order_no || '',
           acc(r.account),
           desc(r),
-          num(r.amount),
+          supply(r),
           vat(r),
           num(r.amount) + num(r.vat_amount),
           ev(r.evidence_type),
@@ -415,8 +440,9 @@
     live.forEach(function (r) {
       var k = r.direction + '|' + (r.account || '');
       if (!map[k]) map[k] = { dir: r.direction, account: r.account, amount: 0, vat: 0, n: 0 };
-      map[k].amount += num(r.amount);
+      map[k].amount += supplyOf(r) || 0;
       map[k].vat += num(r.vat_amount);
+      map[k].total = (map[k].total || 0) + num(r.amount) + num(r.vat_amount);
       map[k].n += 1;
     });
     var groups = Object.keys(map)
@@ -428,7 +454,7 @@
       });
     var accounts = [['구분', '계정', '공급가 합', '부가세 합', '합계', '줄 수']].concat(
       groups.map(function (g) {
-        return [DIR_NAME[g.dir] || g.dir, acc(g.account), g.amount, g.vat, g.amount + g.vat, g.n];
+        return [DIR_NAME[g.dir] || g.dir, acc(g.account), g.amount, g.vat, g.total, g.n];
       })
     );
     return { sales: sales, buys: buys, accounts: accounts };
@@ -436,6 +462,7 @@
 
   window.SeganLedgerBook = {
     csvFiles: csvFiles,
+    isOldCost: isOldCost,
     bizNo: bizNo,
     toCsv: toCsv,
     SIDES: SIDES,

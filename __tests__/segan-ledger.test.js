@@ -331,15 +331,15 @@ describe('보기', () => {
       '11.02',
       '-설치 인건비 · 주문 SO-1',
       '계정 미정',
-      '300,000',
+      '모름',
       '모름',
       '300,000',
       '',
       '원가',
     ]);
     expect([...$('lgBkTable').querySelectorAll('tfoot td')].map((td) => td.textContent)).toEqual([
-      '합계 2줄 · 부가세 모름 1',
-      '1,300,000',
+      '합계 2줄 · 옛 원가(부가세 포함) 1',
+      '1,000,000',
       '100,000',
       '1,400,000',
       '',
@@ -574,7 +574,7 @@ describe('매출 · 매입 표', () => {
     $('lgBkGroup').click();
     expect([...$('lgBkTable').querySelectorAll('tbody tr')].map(cells)).toEqual([
       ['건물주', '1', '1,000,000', '100,000', '1,100,000', '있음'],
-      ['거래처 없음', '1', '300,000', '0', '300,000', '없음'],
+      ['거래처 없음', '1', '0', '0', '300,000', '없음'],
     ]);
     await window.SeganLedger.showTab('sales');
     expect($('lgBkGroup').hidden).toBe(true);
@@ -647,10 +647,11 @@ describe('매출 · 매입 표', () => {
     expect(B.rowsFor(ROWS, 'sales', { query: 'so-1' }).map((r) => r.id)).toEqual(['p1']);
     expect(B.totalsOf(B.rowsFor(ROWS, 'buys', { showVoid: true }))).toEqual({
       n: 2,
-      amount: 1300000,
+      amount: 1000000,
       vat: 100000,
       total: 1400000,
-      vatUnknown: 1,
+      vatUnknown: 0,
+      oldCost: 1,
     });
     expect(B.bySupplier(B.rowsFor(ROWS, 'buys', {})).map((g) => g.name)).toEqual([
       '건물주',
@@ -799,13 +800,13 @@ describe('보고 (보고서 · 세무사용 엑셀 · 월초 카드)', () => {
     expect(saved[1].text).toBe(
       '\ufeff일자,구분,거래처,사업자번호,주문번호,계정,내용,공급가,부가세,합계,증빙\r\n' +
         '2026-11-01,직접,건물주,123-45-67890,,임차료,11월 임대료,1000000,100000,1100000,세금계산서\r\n' +
-        '2026-11-02,수주 원가,,,SO-1,계정 미정,설치 인건비,300000,,300000,\r\n'
+        '2026-11-02,수주 원가,,,SO-1,계정 미정,설치 인건비,,,300000,\r\n'
     );
     expect(saved[2].text).toBe(
       '\ufeff구분,계정,공급가 합,부가세 합,합계,줄 수\r\n' +
         '매출,매출액,1000000,100000,1100000,1\r\n' +
         '매입,임차료,1000000,100000,1100000,1\r\n' +
-        '매입,계정 미정,300000,0,300000,1\r\n'
+        '매입,계정 미정,0,0,300000,1\r\n'
     );
     expect(
       calls.filter((c) => c.url === WORK + '/ledger/book?from=2026-11-01&to=2026-11-30').length

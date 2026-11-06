@@ -141,7 +141,7 @@
       ['세금계산서 기다리는 명세표', Number(data.held_statements) || 0, '장'],
       ['증빙 경고', Number(cur.evidence_risk) || 0, '건'],
       ['계정 미정', Number(cur.account_unknown) || 0, '줄'],
-      ['부가세 모름 원가', Number(cur.vat_unknown) || 0, '줄'],
+      ['부가세 포함 합계로 적힌 원가', Number(cur.vat_unknown) || 0, '줄'],
     ].filter(function (x) {
       return x[1] > 0;
     });
