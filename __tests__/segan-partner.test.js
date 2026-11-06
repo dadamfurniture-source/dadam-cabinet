@@ -852,7 +852,8 @@ describe('e. 업체 있음', () => {
     const billing = [...root().querySelectorAll('a.sg-row')].find(
       (a) => a.textContent === '결제 관리'
     );
-    expect(billing.getAttribute('href')).toBe('../billing.html');
+    expect(billing.getAttribute('href')).toBe('billing.html');
+    expect(fs.existsSync(path.join(ROOT, 'segan', 'billing.html'))).toBe(true);
   });
 
   test('다음 결제일부터 바뀌는 등급', async () => {

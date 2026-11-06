@@ -590,6 +590,33 @@ a.sg-row.ad-row::after {
   color: var(--v5-ink-60);
 }
 
+/* 내 정보 › 구독 관리 (segan/billing.js) — 안내 칸 · 단추 줄 · 해지 단추 (billing.html 과 같은 색) */
+.bl-status {
+  margin: 16px 0 0;
+  padding: 12px 15px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-well);
+  font-size: 12.5px;
+  font-weight: 300;
+  line-height: 1.8;
+  color: var(--v5-ink-62);
+  white-space: pre-line;
+}
+
+.bl-status.err {
+  border-color: rgba(192, 57, 43, 0.3);
+  color: #c0392b;
+}
+
+.bl-acts {
+  margin-top: 14px;
+}
+
+.mk-btn.bl-danger {
+  border-color: #d9b0ab;
+  color: #a54034;
+}
+
 /* 내 프로젝트 — 제목 · 회사 / 단계 6칸 / 계약 금액 · 다음 결제 · 설치일 */
 .me-project {
   padding: 14px 0 16px;

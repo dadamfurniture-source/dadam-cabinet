@@ -16,7 +16,7 @@
      크레딧    RPC my_credit_wallet (업체 구성원이면 업체 통장, 아니면 내 통장) + credit_costs 로 「생성 N회」
                 — segan/make.js 의 loadWallet 을 한 번 불러 업체 칸과 함께 쓴다
      구독      billing.html 과 같은 payments-api GET /subscription, 등급은 profiles.tier.
-                상태 이름은 billing.html STATUS_KO 와 같다. 바꾸기는 billing.html(구독 관리)에서.
+                상태 이름은 billing.html STATUS_KO 와 같다. 바꾸기는 앱 안 구독 관리(segan/billing.html)에서.
                 업체 실장 · 직원은 구독 칸 없이 company 만 온다 — 「팩토리 구독은 대표가 관리합니다」
    ============================================================ */
 /* global window, document, fetch */

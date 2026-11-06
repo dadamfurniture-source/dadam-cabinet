@@ -42,13 +42,7 @@ async function load(options = {}) {
   for (const a of [...document.body.attributes]) document.body.removeAttribute(a.name);
   for (const a of [...doc.body.attributes]) document.body.setAttribute(a.name, a.value);
   sessionStorage.clear();
-  for (const k of [
-    'AdminAccess',
-    'DadamMyPageWork',
-    'SeganShell',
-    'SeganRegions',
-    'SeganSettings',
-  ])
+  for (const k of ['AdminAccess', 'DadamMyPageWork', 'SeganShell', 'SeganRegions', 'SeganSettings'])
     delete window[k];
   window.DADAM_CONFIG = {
     supabase: { url: 'https://example.supabase.co', anonKey: 'anon' },
@@ -120,7 +114,8 @@ async function load(options = {}) {
 }
 
 const $ = (id) => document.getElementById(id);
-const texts = (sel) => [...document.querySelectorAll(sel)].map((el) => el.textContent.trim());
+const texts = (sel) =>
+  [...document.querySelectorAll(sel)].map((el) => el.textContent.replace(/\s+/g, ' ').trim());
 const setVal = (id, v) => {
   $(id).value = v;
   $(id).dispatchEvent(new window.Event('input', { bubbles: true }));
@@ -152,7 +147,9 @@ describe('화면 — 내 정보 탭 안', () => {
     expect(
       document.querySelector('nav.sg-tabbar a[aria-current="page"]').getAttribute('data-tab-link')
     ).toBe('me');
-    expect(read('segan/settings.html')).toContain('<meta name="robots" content="noindex,nofollow" />');
+    expect(read('segan/settings.html')).toContain(
+      '<meta name="robots" content="noindex,nofollow" />'
+    );
     const sw = read('segan/sw.js');
     expect(sw).toContain("SCOPE + 'settings.html'");
     expect(sw).toContain("versioned(SCOPE + 'settings.js')");
@@ -217,7 +214,10 @@ describe('프로필 수정 — mypage.html submitEditProfile', () => {
     const gugunData = Function(`return ${m[1]}`)();
     expect(window.SeganRegions).toEqual(gugunData);
     $('stEditOpen').click();
-    expect([...$('stEditSido').options].map((o) => o.value)).toEqual(['', ...Object.keys(gugunData)]);
+    expect([...$('stEditSido').options].map((o) => o.value)).toEqual([
+      '',
+      ...Object.keys(gugunData),
+    ]);
     // mypage.html 프로필 수정 시/도 목록과도 같다
     const sidoBlock = MYPAGE.slice(MYPAGE.indexOf('<select id="editSido"'));
     const sidoHtml = sidoBlock.slice(0, sidoBlock.indexOf('</select>'));
@@ -364,7 +364,13 @@ describe('회원탈퇴 — mypage.html submitWithdraw', () => {
   test.each([
     [
       '서버가 거절',
-      { deleteRes: { ok: false, status: 401, body: { success: false, error: '로그인이 필요합니다' } } },
+      {
+        deleteRes: {
+          ok: false,
+          status: 401,
+          body: { success: false, error: '로그인이 필요합니다' },
+        },
+      },
       '로그인이 필요합니다',
     ],
     [
@@ -392,7 +398,9 @@ describe('회원탈퇴 — mypage.html submitWithdraw', () => {
     // 화면을 연 뒤 세션이 끝남
     window.SeganSettings.state.sb.auth.getSession = async () => ({ data: { session: null } });
     await press();
-    expect($('stWithdrawStatus').textContent).toBe('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+    expect($('stWithdrawStatus').textContent).toBe(
+      '로그인이 만료되었습니다. 다시 로그인해 주세요.'
+    );
     expect(calls.fetch.some((f) => f.url === ACCOUNT + '/delete')).toBe(false);
   });
 });

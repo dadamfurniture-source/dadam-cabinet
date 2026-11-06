@@ -350,7 +350,9 @@ describe('신청서', () => {
     ]);
     expect($('csAgreeThird').checked).toBe(false);
     expect($('csAgreePhoto').checked).toBe(false);
-    expect([...$('csPhotoDetail').querySelectorAll('li')].map((li) => li.textContent.trim())).toEqual([
+    expect(
+      [...$('csPhotoDetail').querySelectorAll('li')].map((li) => li.textContent.trim())
+    ).toEqual([
       '쓰는 것: 설치 · A/S 를 마친 팩토리가 올린 완료 사진 (가구 모습)',
       '목적: SEGAN 설계 · 연출 학습',
       '사진 말고 이름 · 전화 · 주소는 함께 쓰지 않습니다',
@@ -469,7 +471,9 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
     expect(row).not.toHaveProperty('consult_target');
     expect(row).not.toHaveProperty('company_id');
     // 보내는 칸은 consultation.html 이 쓰는 칸 + SQL 파일 · 0019 가 더하는 칸뿐
-    const allowed = new Set(siteKeys().concat(sqlColumns(), COLUMNS_0019, COLUMNS_0021, COLUMNS_0044));
+    const allowed = new Set(
+      siteKeys().concat(sqlColumns(), COLUMNS_0019, COLUMNS_0021, COLUMNS_0044)
+    );
     for (const k of Object.keys(row)) expect([k, allowed.has(k)]).toEqual([k, true]);
     if (MIGRATION_0019) {
       for (const c of COLUMNS_0019)
@@ -687,9 +691,9 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
     expect(radioPairs(document, 'csgDemolition')).toEqual(radioPairs(SITE, 'demolition'));
     expect(radioPairs(document, 'csgPrice')).toEqual(radioPairs(SITE, 'priceTier'));
     expect(radioPairs(document, 'csgItem')).toEqual(radioPairs(SITE, 'furnitureCategory'));
-    expect([...document.querySelectorAll('input[name="csgItem"]')].every((el) => el.type === 'checkbox')).toBe(
-      true
-    );
+    expect(
+      [...document.querySelectorAll('input[name="csgItem"]')].every((el) => el.type === 'checkbox')
+    ).toBe(true);
     for (const [app, site] of [
       ['csgSpace', 'spaceType'],
       ['csgBudget', 'budgetRange'],
@@ -753,7 +757,10 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
 
   test('로그인했으면 가입 정보(user_metadata)로 채운다 — 거주지역은 목록에 있을 때만', async () => {
     const meta = { name: '메타 이름', phone: '010-9999-0000', sido: '대구광역시', gugun: '북구' };
-    await load({ url: GENERAL, session: { ...SESSION, user: { ...SESSION.user, user_metadata: meta } } });
+    await load({
+      url: GENERAL,
+      session: { ...SESSION, user: { ...SESSION.user, user_metadata: meta } },
+    });
     expect($('csgName').value).toBe('메타 이름');
     expect($('csgEmail').value).toBe('customer@example.com');
     expect($('csgPhone').value).toBe('010-9999-0000');
@@ -761,7 +768,10 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
     expect($('csgGugun').value).toBe('북구');
     await load({
       url: GENERAL,
-      session: { ...SESSION, user: { ...SESSION.user, user_metadata: { sido: '없는시', gugun: '북구' } } },
+      session: {
+        ...SESSION,
+        user: { ...SESSION.user, user_metadata: { sido: '없는시', gugun: '북구' } },
+      },
     });
     expect($('csgSido').value).toBe('');
     expect($('csgGugun').value).toBe('');
@@ -864,7 +874,9 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
     expect(u.row.detaildesign_requested_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(u.eq).toEqual([['id', 'user-1']]);
     // 사이트 신청서도 같은 칸을 적는다
-    expect(read('consultation.html')).toContain(".update({ detaildesign_requested_at: new Date().toISOString() })");
+    expect(read('consultation.html')).toContain(
+      '.update({ detaildesign_requested_at: new Date().toISOString() })'
+    );
 
     const guest = await load({ url: GENERAL, session: null });
     fillGeneral();
@@ -900,7 +912,9 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
 
   test('검사 차례 = consultation.html missingMessage', async () => {
     await load({ url: GENERAL, session: null });
-    const fn = read('consultation.html').match(/function missingMessage\(f\) \{([\s\S]*?)\n\s*\}/)[1];
+    const fn = read('consultation.html').match(
+      /function missingMessage\(f\) \{([\s\S]*?)\n\s*\}/
+    )[1];
     const order = [...fn.matchAll(/return '([^']+)'/g)].map((m) => m[1]);
     const E = window.SeganConsult.GENERAL_ERR;
     expect(order).toEqual([E.required, E.region, E.door, E.demolition, E.price, E.privacy]);

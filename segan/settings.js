@@ -245,7 +245,8 @@
       var body = await res.json().catch(function () {
         return {};
       });
-      if (!res.ok || !body || !body.success) throw new Error((body && body.error) || TEXT.withdrawFail);
+      if (!res.ok || !body || !body.success)
+        throw new Error((body && body.error) || TEXT.withdrawFail);
 
       // 계정이 사라졌으므로 남은 세션도 지우고 첫 화면으로
       try {
