@@ -23,6 +23,16 @@
    앱 칸(generation_id · quote · sido · gugun)은 database/consultations-app.sql, 도어 마감 · 철거 · 가격대 ·
    업체 제공 동의 칸은 database/migrations/0019, 시공 완료 희망 날짜 칸은 0021 이 더한다. 그 칸이 아직 없으면 신청서 대신
    「아직 받을 수 없습니다」 + 전화를 보인다.
+
+   일반 상담 (주소에 ?g= 가 없을 때 — 연출컷 없이): 사이트 consultation.html 과 같은 신청서다.
+     같은 칸 — 상담 유형(ai-design · detail-design · estimate · other) · 이름 · 연락처 · 이메일 · 시공 지역 ·
+       도어 마감 · 철거 · 가격대 · 상담 제목 · 상세 내용 · 가구 종류 · 설치 공간 · 예산 범위 · 공간 크기 · 선호 스타일 ·
+       상세설계 권한 신청 · 시공 완료 희망 날짜 · 희망 날짜 · 시간대
+     같은 검사 · 같은 글 (consultation.html missingMessage), 같은 동의 둘 (수집 · 이용 필수, 업체 제공 선택 — v2)
+     같은 저장 — consultations insert 한 줄 (같은 칸 이름 · 같은 값), 상세설계 권한 신청이면 로그인한 사람의
+       profiles.detaildesign_requested_at 을 적는다 (실패해도 넘긴다)
+     로그인 없이도 보낸다 (user_id 없음 — insert 정책이 받는다). 로그인했으면 가입 정보(user_metadata)로
+       이름 · 이메일 · 연락처 · 거주지역을 채운다 (consultation.html checkAuthState)
    ============================================================ */
 /* global window, document, location, fetch, URLSearchParams */
 (function () {
@@ -56,9 +66,23 @@
     partner: '다담 본사가 확인한 뒤 가까운 팩토리를 연결해 드립니다.',
     hq: '다담 본사가 확인한 뒤 남기신 연락처로 직접 연락드립니다.',
   };
+  // 일반 상담 — consultation.html 의 상담 유형 값 · 검사 글 · 저장 실패 글
+  var CONSULT_TYPES = ['ai-design', 'detail-design', 'estimate', 'other'];
+  var GENERAL_ERR = {
+    required: '필수 항목을 모두 입력해주세요.',
+    region: '시공 지역(시/도 · 시/군/구)을 골라 주세요.',
+    door: '원하는 도어 마감을 골라 주세요.',
+    demolition: '철거가 필요한지 골라 주세요.',
+    price: '원하는 가격대를 골라 주세요.',
+    privacy: '개인정보 수집·이용에 동의해 주세요.',
+    noTable: '상담 신청 기능을 이용하려면 관리자에게 문의하세요. (데이터베이스 설정 필요)',
+    failed: '신청 중 오류가 발생했습니다: ',
+    noClient: '서비스에 연결할 수 없습니다.',
+  };
 
   var C = {
     id: '',
+    general: false, // 주소에 ?g= 가 없다 — 일반 상담
     sb: null,
     session: null,
     gen: null,
@@ -72,6 +96,11 @@
   function genId() {
     var g = new URLSearchParams(location.search).get('g');
     return g && UUID_RE.test(g) ? g : '';
+  }
+
+  /** 주소에 ?g= 가 있는가 — 없으면 일반 상담 (값이 틀리면 연출컷 상담의 「찾지 못했습니다」) */
+  function hasGen() {
+    return new URLSearchParams(location.search).has('g');
   }
 
   function telHref(tel) {
@@ -121,9 +150,9 @@
   }
 
   // ── 시공 지역 ──────────────────────────────────────────
-  function fillSido(selected) {
+  function fillSido(selected, id) {
     var R = window.SeganRegions || {};
-    var sel = $('csSido');
+    var sel = $(id || 'csSido');
     sel.innerHTML =
       '<option value="">시/도 선택</option>' +
       Object.keys(R)
@@ -134,10 +163,10 @@
     sel.value = R[selected] ? selected : '';
   }
 
-  function fillGugun(selected) {
+  function fillGugun(selected, sidoId, gugunId) {
     var R = window.SeganRegions || {};
-    var list = R[$('csSido').value] || [];
-    var sel = $('csGugun');
+    var list = R[$(sidoId || 'csSido').value] || [];
+    var sel = $(gugunId || 'csGugun');
     sel.innerHTML =
       '<option value="">시/군/구 선택</option>' +
       list
@@ -375,7 +404,147 @@
         '</a>' +
         (b.hours ? ' (' + b.hours + ')' : '')
       : '';
-    $('csDoneBack').setAttribute('href', './?g=' + encodeURIComponent(C.id) + '#result');
+    if (C.general) {
+      $('csDoneBack').setAttribute('href', './');
+      $('csDoneBack').textContent = '만들기로 가기';
+    } else {
+      $('csDoneBack').setAttribute('href', './?g=' + encodeURIComponent(C.id) + '#result');
+    }
+  }
+
+  // ── 일반 상담 (연출컷 없이) — consultation.html 과 같은 칸 · 검사 · 동의 · 저장 ─────
+  /** 고른 라디오 값 — 목록 안 값만, 없으면 null (consultation.html pickedValue) */
+  function pickedIn(name, allowed) {
+    var el = document.querySelector('input[name="' + name + '"]:checked');
+    return el && allowed.indexOf(el.value) >= 0 ? el.value : null;
+  }
+
+  /** 숫자 칸 — consultation.html 과 같이 parseInt, 못 읽거나 0 이면 null */
+  function intOrNull(id) {
+    return parseInt($(id).value, 10) || null;
+  }
+
+  /** consultations 한 줄 — consultation.html submitConsultation 의 insert 와 같은 칸 · 같은 값 */
+  function buildGeneralRow() {
+    var u = (C.session && C.session.user) || null;
+    var now = new Date().toISOString();
+    var third = $('csgAgreeThird').checked;
+    var items = [];
+    document.querySelectorAll('input[name="csgItem"]:checked').forEach(function (el) {
+      items.push(el.value);
+    });
+    return {
+      user_id: (u && u.id) || null,
+      name: $('csgName').value.trim(),
+      email: $('csgEmail').value.trim(),
+      phone: $('csgPhone').value.trim(),
+      consultation_type: pickedIn('csgType', CONSULT_TYPES),
+      title: $('csgTitle').value.trim(),
+      description: $('csgDesc').value.trim() || null,
+      preferred_date: $('csgPrefDate').value || null,
+      preferred_time: $('csgTime').value || null,
+      wanted_done_date: $('csgWantDate').value || null,
+      status: 'pending',
+      furniture_categories: items.length ? items : null,
+      space_type: $('csgSpace').value || null,
+      space_width_mm: intOrNull('csgWidth'),
+      space_height_mm: intOrNull('csgHeight'),
+      space_depth_mm: intOrNull('csgDepth'),
+      budget_range: $('csgBudget').value || null,
+      style_preference: $('csgStyle').value || null,
+      request_detail_design: $('csgDetailDesign').checked,
+      sido: $('csgSido').value,
+      gugun: $('csgGugun').value,
+      door_finish: pickedIn('csgDoor', DOOR_FINISHES),
+      demolition_needed: pickedIn('csgDemolition', ['yes', 'no']) === 'yes',
+      wanted_price_tier: pickedIn('csgPrice', PRICE_TIERS),
+      privacy_agreed_at: now,
+      // 업체 제공 동의 — 안 하면 둘 다 비운다 (다담 본사가 직접 상담)
+      third_party_agreed_at: third ? now : null,
+      consent_version: third ? CONSENT_VERSION : null,
+    };
+  }
+
+  /** 빠진 필수 항목 — consultation.html missingMessage 와 같은 차례 · 같은 글, 다 있으면 '' */
+  function checkGeneral(row) {
+    if (!row.name || !row.phone || !row.email || !row.title) return GENERAL_ERR.required;
+    if (!(row.sido && row.gugun)) return GENERAL_ERR.region;
+    if (!row.door_finish) return GENERAL_ERR.door;
+    if (!pickedIn('csgDemolition', ['yes', 'no'])) return GENERAL_ERR.demolition;
+    if (!row.wanted_price_tier) return GENERAL_ERR.price;
+    if (!$('csgAgree').checked) return GENERAL_ERR.privacy;
+    return '';
+  }
+
+  function generalError(msg) {
+    $('csgError').textContent = msg || '';
+    $('csgError').hidden = !msg;
+  }
+
+  async function submitGeneral(e) {
+    if (e) e.preventDefault();
+    if (C.sending) return;
+    var row = buildGeneralRow();
+    var msg = checkGeneral(row);
+    if (msg) return generalError(msg);
+    if (!C.sb) return generalError(GENERAL_ERR.failed + GENERAL_ERR.noClient);
+    generalError('');
+    C.sending = true;
+    $('csgSubmit').disabled = true;
+    $('csgSubmit').textContent = '신청 중...';
+    try {
+      var r = await C.sb.from('consultations').insert(row);
+      if (r && r.error) throw r.error;
+      // 상세설계 권한 신청 — 로그인한 사람만 프로필에 신청 시각을 남긴다 (실패해도 넘긴다)
+      if (row.request_detail_design && row.user_id) {
+        try {
+          await C.sb
+            .from('profiles')
+            .update({ detaildesign_requested_at: new Date().toISOString() })
+            .eq('id', row.user_id);
+        } catch {
+          /* 신청 시각을 못 적어도 상담은 접수됐다 */
+        }
+      }
+      done(row);
+    } catch (err) {
+      var m = (err && err.message) || '';
+      generalError(m.indexOf('consultations') >= 0 ? GENERAL_ERR.noTable : GENERAL_ERR.failed + m);
+    }
+    C.sending = false;
+    $('csgSubmit').disabled = false;
+    $('csgSubmit').textContent = '상담 신청하기';
+  }
+
+  /** 로그인했으면 가입 정보로 채운다 — 거주지역은 목록에 있을 때만 (consultation.html checkAuthState) */
+  function prefillGeneral() {
+    var u = C.session && C.session.user;
+    if (!u) return;
+    var meta = u.user_metadata || {};
+    $('csgName').value = meta.name || meta.full_name || '';
+    $('csgEmail').value = u.email || '';
+    $('csgPhone').value = meta.phone || '';
+    var R = window.SeganRegions || {};
+    if (meta.sido && R[meta.sido]) {
+      fillSido(meta.sido, 'csgSido');
+      fillGugun(meta.gugun, 'csgSido', 'csgGugun');
+    }
+  }
+
+  function startGeneral() {
+    C.general = true;
+    $('csTitle').textContent = '상담 신청';
+    $('csBack').hidden = true;
+    fillSido('', 'csgSido');
+    fillGugun('', 'csgSido', 'csgGugun');
+    $('csgSido').addEventListener('change', function () {
+      fillGugun('', 'csgSido', 'csgGugun');
+    });
+    $('csgWantDate').min = kstToday();
+    $('csgPrefDate').min = kstToday();
+    $('csgForm').addEventListener('submit', submitGeneral);
+    prefillGeneral();
+    show('general');
   }
 
   // ── 시작 ───────────────────────────────────────────────
@@ -408,6 +577,8 @@
         C.session = null;
       }
     }
+    // ?g= 가 없으면 일반 상담 — 로그인 없이도 받는다 (consultation.html 과 같다)
+    if (!hasGen()) return startGeneral();
     if (!C.session) {
       $('csLogin').setAttribute(
         'href',
@@ -440,6 +611,9 @@
     DOOR_FINISHES: DOOR_FINISHES,
     PRICE_TIERS: PRICE_TIERS,
     DONE_TEXT: DONE_TEXT,
+    CONSULT_TYPES: CONSULT_TYPES,
+    GENERAL_ERR: GENERAL_ERR,
+    buildGeneralRow: buildGeneralRow,
     genId: genId,
     telHref: telHref,
     titleFor: titleFor,

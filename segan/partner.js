@@ -40,7 +40,7 @@
   var SIGNUP_KEY = 'partnerSignup'; // billing-success.html 이 읽는다
   var INVITE_PATH = '/segan/join.html#t=';
   var BILLING_PAGE = '../billing.html';
-  var CONSULT_PAGE = '../consultation.html';
+  var CONSULT_PAGE = 'consult.html'; // 앱 안 일반 상담 신청서 (consultation.html 과 같은 칸)
   var FAIL_PATH = '/segan/me.html?failed=1';
   var RETURN_TO = '/segan/me.html#partner'; // billing-success.html 의 「돌아가기」
 
