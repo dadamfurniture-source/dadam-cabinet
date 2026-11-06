@@ -19,7 +19,7 @@ export const PUSH_URL = '/segan/me.html#partner';
 export function billingFailedMessage() {
   return {
     title: '결제 실패',
-    body: '업체 구독 결제가 되지 않았습니다. 결제 관리에서 결제 수단을 확인해 주세요.',
+    body: '팩토리 구독 결제가 되지 않았습니다. 결제 관리에서 결제 수단을 확인해 주세요.',
     url: PUSH_URL,
   };
 }
@@ -27,8 +27,8 @@ export function billingFailedMessage() {
 /** 업체 정지 알림 글 */
 export function companySuspendedMessage() {
   return {
-    title: '업체 정지',
-    body: '결제가 되지 않아 업체가 정지되었습니다. 결제 관리에서 확인해 주세요.',
+    title: '팩토리 정지',
+    body: '결제가 되지 않아 팩토리가 정지되었습니다. 결제 관리에서 확인해 주세요.',
     url: PUSH_URL,
   };
 }

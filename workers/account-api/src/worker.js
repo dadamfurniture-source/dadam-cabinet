@@ -170,7 +170,7 @@ async function soleOwnerBlock(request, env, userId) {
   return jsonResponse(
     request,
     env,
-    { success: false, code: 'sole_owner', error: '업체 대표를 다른 분께 넘긴 뒤 탈퇴할 수 있습니다.' },
+    { success: false, code: 'sole_owner', error: '팩토리 대표를 다른 분께 넘긴 뒤 탈퇴할 수 있습니다.' },
     409
   );
 }

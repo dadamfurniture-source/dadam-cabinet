@@ -153,7 +153,7 @@ const personLabel = (m) => (m ? `${m.name || '이름 없음'} (${ROLE_NAMES[m.ro
 
 async function consultCard(env, token, input) {
   const data = (await read(env, token, '/company/consults')) || {};
-  if (!data.can_act) throw new ActionError('상담 받기 · 거절은 업체 대표 · 실장만 합니다');
+  if (!data.can_act) throw new ActionError('상담 받기 · 거절은 팩토리 대표 · 실장만 합니다');
   const c = (Array.isArray(data.items) ? data.items : []).find(
     (x) => x && x.id === input.consult_id
   );
@@ -345,7 +345,7 @@ export const KINDS = Object.freeze({
     label: '프로젝트 카드 만드는 중',
     money: true,
     description:
-      '업체 고객 · 프로젝트를 새로 만드는 승인 카드를 만든다. 있는 고객이면 customer_id(list_projects 의 고객 id), ' +
+      '팩토리 고객 · 프로젝트를 새로 만드는 승인 카드를 만든다. 있는 고객이면 customer_id(list_projects 의 고객 id), ' +
       '새 고객이면 customer_name(과 customer_phone) — 둘 중 하나만.',
     input_schema: {
       type: 'object',
@@ -365,7 +365,7 @@ export const KINDS = Object.freeze({
       const name = clip(input.customer_name, 50);
       if (hasId === !!name) throw new ActionError('customer_id 와 customer_name 중 하나만 주세요');
       const data = (await read(env, token, '/company/projects')) || {};
-      if (!data.can_manage) throw new ActionError('프로젝트 만들기는 업체 대표 · 실장만 합니다');
+      if (!data.can_manage) throw new ActionError('프로젝트 만들기는 팩토리 대표 · 실장만 합니다');
       let customer;
       if (hasId) {
         const p = (data.items || []).find(
@@ -401,7 +401,7 @@ export const KINDS = Object.freeze({
     label: '설계 잇기 카드 만드는 중',
     money: true,
     description:
-      '업체 설계를 같은 업체 프로젝트에 잇는 승인 카드를 만든다. 설계는 list_designs, 프로젝트는 list_projects 의 id. 수주가 생긴 설계는 바꾸지 못한다.',
+      '팩토리 설계를 같은 팩토리 프로젝트에 잇는 승인 카드를 만든다. 설계는 list_designs, 프로젝트는 list_projects 의 id. 수주가 생긴 설계는 바꾸지 못한다.',
     input_schema: {
       type: 'object',
       properties: {
@@ -450,7 +450,7 @@ export const KINDS = Object.freeze({
     label: '담당자 카드 만드는 중',
     money: true,
     description:
-      '업체 프로젝트의 담당자를 정하는 승인 카드를 만든다 — 비서는 추천만 하고 대표 · 실장이 승인해야 정해진다. ' +
+      '팩토리 프로젝트의 담당자를 정하는 승인 카드를 만든다 — 비서는 추천만 하고 대표 · 실장이 승인해야 정해진다. ' +
       'project_id 는 list_projects 의 id. assignee_id 를 비우면 추천 1순위(진행 중 담당이 적은 사람 → 이레 안 일정이 적은 사람)로, ' +
       '다른 사람을 원하면 list_projects 의 members 의 user_id. 카드에 근거 숫자가 함께 나온다.',
     input_schema: {
@@ -471,7 +471,7 @@ export const KINDS = Object.freeze({
       if (!list.length) throw new ActionError('담당자가 될 구성원이 없습니다');
       const picked = input.assignee_id ? list.find((m) => m.user_id === input.assignee_id) : list[0];
       if (!picked)
-        throw new ActionError('그 사람은 이 업체의 지금 구성원이 아닙니다 — list_projects 의 members 를 쓰세요');
+        throw new ActionError('그 사람은 이 팩토리의 지금 구성원이 아닙니다 — list_projects 의 members 를 쓰세요');
       const current = (c && c.assignee_id) || null;
       if (picked.user_id === current) throw new ActionError('이미 그 사람이 담당자입니다');
       const p = ((projects && projects.items) || []).find((x) => x && x.id === input.project_id) || {};
@@ -526,7 +526,7 @@ export const KINDS = Object.freeze({
       const od = (await read(env, token, `/orders/${input.order_id}`)) || {};
       const order = od.order;
       if (!order) throw new ActionError('그 수주를 찾지 못했습니다');
-      if (!Array.isArray(od.payments)) throw new ActionError('수금은 업체 대표 · 실장만 적습니다');
+      if (!Array.isArray(od.payments)) throw new ActionError('수금은 팩토리 대표 · 실장만 적습니다');
       const head = [field('수주', order.order_no), field('고객', order.customer_name || '-')];
       if (input.payment_id) {
         const p = od.payments.find((x) => x && x.id === input.payment_id);
@@ -620,7 +620,7 @@ export const KINDS = Object.freeze({
       const od = (await read(env, token, `/orders/${input.order_id}`)) || {};
       const order = od.order;
       if (!order) throw new ActionError('그 수주를 찾지 못했습니다');
-      if (!Array.isArray(od.costs)) throw new ActionError('원가는 업체 대표 · 실장만 적습니다');
+      if (!Array.isArray(od.costs)) throw new ActionError('원가는 팩토리 대표 · 실장만 적습니다');
       const params = { order_id: input.order_id, category: input.category, amount: input.amount };
       for (const k of ['vat_amount', 'evidence_type', 'spent_on', 'due_on'])
         if (input[k] !== undefined) params[k] = input[k];
@@ -842,7 +842,7 @@ export async function approveAction(env, { access, user, row, now = Date.now() }
   }
   assertOpen(row);
   if (k.money && !access.money)
-    throw forbidden('이 카드는 업체 대표 · 실장만 승인합니다', 'not_money');
+    throw forbidden('이 카드는 팩토리 대표 · 실장만 승인합니다', 'not_money');
   const claimed = await updateWhere(
     env,
     'assistant_actions',

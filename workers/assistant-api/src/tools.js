@@ -79,7 +79,7 @@ const TOOLS = [
     label: '상담 목록 보는 중',
     money: false,
     description:
-      `우리 업체에 배정된 상담 목록(최근 ${CONSULTS_MAX}건). 고객 이름 · 지역 · 품목 · 문 마감 · 철거 · 희망 일정 · 상담 설명 · ` +
+      `우리 팩토리에 배정된 상담 목록(최근 ${CONSULTS_MAX}건). 고객 이름 · 지역 · 품목 · 문 마감 · 철거 · 희망 일정 · 상담 설명 · ` +
       '배정 상태(waiting 이면 expires_at 이 응답 마감)를 준다. 연락처는 주지 않는다.',
     input_schema: NO_INPUT,
   },
@@ -87,7 +87,7 @@ const TOOLS = [
     name: 'list_projects',
     label: '고객 · 프로젝트 보는 중',
     money: false,
-    description: `업체 고객 · 프로젝트 목록(최근 ${PROJECTS_MAX}건). 제목 · 상태 · 고객 이름 · 이어진 설계 수를 준다.`,
+    description: `팩토리 고객 · 프로젝트 목록(최근 ${PROJECTS_MAX}건). 제목 · 상태 · 고객 이름 · 이어진 설계 수를 준다.`,
     input_schema: NO_INPUT,
   },
   {
@@ -128,7 +128,7 @@ const TOOLS = [
     label: '장부 요약 보는 중',
     money: true,
     description:
-      '업체 장부 요약(한 달과 그 앞 달): 계약 합 · 받은 돈 · 견적 마진 · 실적 마진 · 밀린 돈 · 30일 안에 받을 돈 · 상태별 수주 수. ' +
+      '팩토리 장부 요약(한 달과 그 앞 달): 계약 합 · 받은 돈 · 견적 마진 · 실적 마진 · 밀린 돈 · 30일 안에 받을 돈 · 상태별 수주 수. ' +
       '달 묶음은 수주한 달이다.',
     input_schema: MONTH_INPUT,
   },
@@ -166,7 +166,7 @@ const TOOLS = [
     name: 'list_designs',
     label: '설계 목록 보는 중',
     money: false,
-    description: `업체 설계 목록(최근 고친 순 ${DESIGNS_MAX}개): 이름 · 이은 프로젝트 id · 수주가 생겼나. 수주가 생긴 설계는 프로젝트를 바꾸지 못한다.`,
+    description: `팩토리 설계 목록(최근 고친 순 ${DESIGNS_MAX}개): 이름 · 이은 프로젝트 id · 수주가 생겼나. 수주가 생긴 설계는 프로젝트를 바꾸지 못한다.`,
     input_schema: NO_INPUT,
   },
   {

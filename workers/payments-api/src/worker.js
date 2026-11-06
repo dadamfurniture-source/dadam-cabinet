@@ -243,16 +243,16 @@ async function resolveCompanyForPayment(env, user, plan, body) {
   if (member) {
     const c = member.company;
     if (c.kind !== 'partner') {
-      return refuse(409, 'hq_member', '본사 구성원은 협력업체 구독을 시작할 수 없습니다.');
+      return refuse(409, 'hq_member', '본사 구성원은 팩토리 구독을 시작할 수 없습니다.');
     }
     if (member.role !== 'owner') {
-      return refuse(403, 'not_owner', '업체 구독은 대표만 결제할 수 있습니다.');
+      return refuse(403, 'not_owner', '팩토리 구독은 대표만 결제할 수 있습니다.');
     }
     if (await liveCompanySubscription(env, c.id)) {
-      return refuse(409, 'already_subscribed', '이미 이용 중인 업체 구독이 있습니다.');
+      return refuse(409, 'already_subscribed', '이미 이용 중인 팩토리 구독이 있습니다.');
     }
     if (c.plan !== plan) {
-      return refuse(409, 'plan_mismatch', '업체 등급과 같은 등급으로만 결제할 수 있습니다.');
+      return refuse(409, 'plan_mismatch', '팩토리 등급과 같은 등급으로만 결제할 수 있습니다.');
     }
     return { company: c };
   }
@@ -275,7 +275,7 @@ async function resolveCompanyForPayment(env, user, plan, body) {
   }
   const input = readCompanyInput(body.company);
   if (!input.value) {
-    return refuse(422, 'invalid', '업체 이름과 지역(시·도, 시·군·구)을 확인해 주세요.', {
+    return refuse(422, 'invalid', '팩토리 이름과 지역(시·도, 시·군·구)을 확인해 주세요.', {
       field: input.field,
     });
   }
@@ -634,7 +634,7 @@ function notOwner(request, env) {
   return jsonResponse(
     request,
     env,
-    { success: false, code: 'not_owner', message: '업체 구독은 대표만 관리할 수 있습니다.' },
+    { success: false, code: 'not_owner', message: '팩토리 구독은 대표만 관리할 수 있습니다.' },
     403
   );
 }

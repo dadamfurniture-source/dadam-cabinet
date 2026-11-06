@@ -95,8 +95,8 @@ const TIME_FIELDS = new Set([
 /** 형식이 틀린 칸마다 한 문장 */
 const FIELD_ERRORS = Object.freeze({
   body: '요청 내용이 올바르지 않습니다.',
-  company_name: '업체 이름을 1~100자로 적어 주세요.',
-  name: '업체 이름을 1~100자로 적어 주세요.',
+  company_name: '팩토리 이름을 1~100자로 적어 주세요.',
+  name: '팩토리 이름을 1~100자로 적어 주세요.',
   representative_name: '대표자 이름을 1~50자로 적어 주세요.',
   contact_phone: '연락처는 숫자와 - 로 적어 주세요.',
   sido: '시·도를 골라 주세요.',
@@ -114,11 +114,11 @@ const FIELD_ERRORS = Object.freeze({
 });
 
 const MSG = Object.freeze({
-  hq_member: '본사 구성원은 협력업체를 신청하거나 들어갈 수 없습니다.',
+  hq_member: '본사 구성원은 팩토리를 신청하거나 들어갈 수 없습니다.',
   application_open: '이미 진행 중인 신청이 있습니다.',
-  already_member: '이미 업체 구성원입니다.',
-  not_owner: '업체 대표만 할 수 있습니다.',
-  company_inactive: '업체가 활동 중이 아니어서 할 수 없습니다.',
+  already_member: '이미 팩토리 구성원입니다.',
+  not_owner: '팩토리 대표만 할 수 있습니다.',
+  company_inactive: '팩토리가 활동 중이 아니어서 할 수 없습니다.',
   invalid_plan_change: '지금 등급에서는 그렇게 바꿀 수 없습니다.',
   invite_invalid: '초대 링크가 만료되었거나 더 이상 쓸 수 없습니다.',
   invalid_transition: '지금 신청 상태에서는 할 수 없는 처리입니다.',
