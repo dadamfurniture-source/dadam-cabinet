@@ -284,3 +284,45 @@ describe('수금 일정 · 지급 예정 (경영 대시보드 2단계 PR-9)', ()
     expect(ERP).toMatch(/id="payNeedSql" class="muted" hidden/);
   });
 });
+
+describe('수주 완료 보고 (2026-11-06 작업 분배 ⑤ — 워커 order-reports.js · DB 0043)', () => {
+  const LF = ERP.replace(/\r\n/g, '\n');
+  const fn = (name) => LF.slice(LF.indexOf(`function ${name}`), LF.indexOf('\n        }\n', LF.indexOf(`function ${name}`)));
+  test('칸 — 종류 둘(설치 완료 · A/S 완료) · 메모 · 사진 여러 장 · 보고 단추, DB 전 안내', () => {
+    for (const id of ['reportNeedSql', 'reportForm', 'selReportKind', 'inpReportNote', 'inpReportPhotos', 'btnAddReport', 'reportMsg', 'reportRows']) {
+      expect(ERP).toMatch(new RegExp(`id="${id}"`));
+    }
+    expect(ERP).toMatch(/<option value="install_done">설치 완료<\/option>/);
+    expect(ERP).toMatch(/<option value="as_done">A\/S 완료<\/option>/);
+    expect(ERP).toMatch(/본사에 기록으로 갑니다 \(검수 없음\)/);
+  });
+  test('수주를 열면 보고를 읽고, 보고할 수 있는 사람(can_report)에게만 칸을 연다', () => {
+    expect(ERP).toMatch(/await loadReports\(\);/);
+    expect(fn('loadReports')).toMatch(/'\/orders\/' \+ encodeURIComponent\(state\.current\) \+ '\/reports'/);
+    expect(fn('renderReports')).toMatch(/r\.can_report/);
+    expect(fn('renderReports')).toMatch(/r\.ready === false/);
+  });
+  test('보내기 — 사진은 줄여서 하나씩 먼저 올리고(…/reports/photo), 그 경로를 붙여 보고 · 10장까지', () => {
+    const add = fn('addReport');
+    expect(add).toMatch(/REPORT_PHOTOS_MAX/);
+    expect(add.indexOf('uploadReportPhoto')).toBeLessThan(add.indexOf("'/reports'"));
+    expect(add).toMatch(/photo_paths: paths/);
+    expect(fn('uploadReportPhoto')).toMatch(/'\/reports\/photo'/);
+  });
+  test('보고 목록은 글자(textContent)로만 그린다', () => {
+    const r = fn('renderReports');
+    expect(r).toMatch(/textContent/);
+    expect(r).not.toMatch(/innerHTML/);
+  });
+});
+
+describe('본사 완료 보고 모아 보기 (admin/order-reports.html)', () => {
+  const PAGE = fs.readFileSync(path.join(ROOT, 'admin/order-reports.html'), 'utf8');
+  test('관리자만 · 워커 /admin/order-reports?days= · 화면 값은 esc · 색인 막기', () => {
+    expect(PAGE).toMatch(/window\.AdminAccess\.isAdmin/);
+    expect(PAGE).toMatch(/\/admin\/order-reports\?days=/);
+    expect(PAGE).toMatch(/esc\(x\.company_name/);
+    expect(PAGE).toMatch(/noindex, nofollow, noarchive/);
+    expect(PAGE).toMatch(/DB 0043 적용 뒤에 보입니다/);
+  });
+});
