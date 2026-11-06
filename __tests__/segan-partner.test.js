@@ -822,14 +822,14 @@ describe('c. 승인 — 결제하고 시작 (Agent)', () => {
 });
 
 describe('d. 보류 — 안내 · 상담 신청 · 다시 신청', () => {
-  test('보류 안내 + 상담 신청(사이트 상담 신청서) + 시작 카드', async () => {
+  test('보류 안내 + 상담 신청(앱 안 일반 상담 신청서) + 시작 카드', async () => {
     await load({ partner: ok(meData({ application: app({ status: 'held' }) })) });
     const held = root().querySelector('[data-view="held"]');
     expect(held.querySelector('.me-pt-title').textContent).toBe('보류되었습니다');
     const link = held.querySelector('a');
     expect(link.textContent).toBe('상담 신청');
-    expect(link.getAttribute('href')).toBe('../consultation.html');
-    expect(fs.existsSync(path.join(ROOT, 'segan', '../consultation.html'))).toBe(true);
+    expect(link.getAttribute('href')).toBe('consult.html');
+    expect(fs.existsSync(path.join(ROOT, 'segan', 'consult.html'))).toBe(true);
     expect(root().querySelectorAll('.me-pt-card')).toHaveLength(2);
   });
 });

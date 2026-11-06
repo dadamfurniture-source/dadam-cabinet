@@ -11,6 +11,7 @@
  *   - 시공 지역 목록 = signup.html, 연락 시간 값 = consultation.html
  *   - 보내는 칸은 consultation.html 이 쓰는 칸 + SQL 파일 · 0019 가 더하는 칸뿐
  *   - 새 칸이 없으면 신청서 대신 「아직 받을 수 없습니다」 + 전화
+ *   - ?g= 가 없으면 일반 상담 — consultation.html 과 같은 칸 · 검사 · 동의 · insert, 로그인 없이도
  */
 const fs = require('fs');
 const path = require('path');
@@ -97,17 +98,26 @@ async function load(options = {}) {
     supabase: { url: 'https://example.supabase.co', anonKey: 'anon' },
     generateApi: { url: API },
   };
-  const calls = { inserts: [], probes: [], fetch: [] };
+  const calls = { inserts: [], probes: [], fetch: [], updates: [] };
   window.supabase = {
     createClient: () => ({
       auth: { getSession: async () => ({ data: { session: opts.session } }) },
       from: (table) => {
+        const q = { table, eq: [] };
         const chain = {
           select: (cols) => {
             if (table === 'consultations') calls.probes.push(cols);
             return chain;
           },
-          eq: () => chain,
+          update: (row) => {
+            q.row = row;
+            calls.updates.push(q);
+            return chain;
+          },
+          eq: (c, v) => {
+            q.eq.push([c, v]);
+            return chain;
+          },
           limit: async () =>
             opts.columnsMissing
               ? {
@@ -189,8 +199,8 @@ describe('들어오기 전', () => {
     expect(calls.probes).toEqual([]);
   });
 
-  test('연출컷 id 가 없으면 — 만들기로 가는 길과 전화', async () => {
-    await load({ url: '/segan/consult.html' });
+  test('연출컷 id 가 틀리면 — 만들기로 가는 길과 전화 (?g= 가 아예 없으면 일반 상담)', async () => {
+    await load({ url: '/segan/consult.html?g=not-a-uuid' });
     expect(view()).toEqual(['no-gen']);
     expect(visible($('csTelLine'))).toBe(true);
     expect($('csTelLine').querySelector('a').getAttribute('href')).toBe('tel:01077386822');
@@ -259,7 +269,7 @@ describe('신청서', () => {
     expect(form.replace(/시공 완료 희망 날짜/g, '')).not.toMatch(
       /예산|상담 유형|가구 종류|희망 날짜|설치 공간/
     );
-    expect([...document.querySelectorAll('input[type="date"]')].map((el) => el.id)).toEqual([
+    expect([...$('csForm').querySelectorAll('input[type="date"]')].map((el) => el.id)).toEqual([
       'csWantDate',
     ]);
   });
@@ -601,6 +611,324 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
     expect(view()).toEqual(['form']);
     expect($('csError').textContent).toContain('신청을 보내지 못했습니다');
     expect($('csSubmit').disabled).toBe(false);
+  });
+});
+
+describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)', () => {
+  const GENERAL = '/segan/consult.html';
+  const SITE = new DOMParser().parseFromString(read('consultation.html'), 'text/html');
+  const norm = (t) => String(t).replace(/\s+/g, ' ').trim();
+  const siteKeys = () => {
+    const block = read('consultation.html').match(
+      /from\('consultations'\)\.insert\(\{([\s\S]*?)\}\);/
+    )[1];
+    return [...block.matchAll(/^\s+(\w+):/gm)].map((m) => m[1]);
+  };
+  const options = (sel) => [...sel.options].map((o) => [o.value, norm(o.textContent)]);
+  const radioPairs = (root, name) =>
+    [...root.querySelectorAll(`input[name="${name}"]`)].map((el) => [
+      el.value,
+      norm(el.closest('label').textContent),
+    ]);
+  const sendGeneral = async () => {
+    $('csgForm').dispatchEvent(new window.Event('submit', { cancelable: true }));
+    await flush();
+    await flush();
+  };
+  const choose = (name, value) => {
+    document.querySelector(`input[name="${name}"][value="${value}"]`).checked = true;
+  };
+  /** 필수를 모두 채운다 (consultation.html 시험의 fillRequired 와 같은 값) */
+  const fillGeneral = () => {
+    $('csgName').value = '이고객';
+    $('csgPhone').value = '010-4444-5555';
+    $('csgEmail').value = 'guest@example.com';
+    $('csgTitle').value = '주방 싱크대 교체 문의';
+    $('csgSido').value = '서울특별시';
+    $('csgSido').dispatchEvent(new window.Event('change'));
+    $('csgGugun').value = '강남구';
+    choose('csgDoor', 'paint');
+    choose('csgDemolition', 'yes');
+    choose('csgPrice', 'mid');
+    $('csgAgree').checked = true;
+  };
+
+  test('로그인 없이도 연다 — 연출컷 · 칸 확인을 묻지 않는다, 전화 한 줄', async () => {
+    const calls = await load({ url: GENERAL, session: null });
+    expect(view()).toEqual(['general']);
+    expect($('csTitle').textContent).toBe('상담 신청');
+    expect($('csBack').hidden).toBe(true);
+    expect(calls.fetch).toEqual([]);
+    expect(calls.probes).toEqual([]);
+    expect(visible($('csTelLine'))).toBe(true);
+    expect($('csTelLine').querySelector('a').getAttribute('href')).toBe('tel:01077386822');
+  });
+
+  test('상담 유형 4개 = consultation.html (값 · 이름 · 설명), 처음엔 AI 설계 상담', async () => {
+    await load({ url: GENERAL, session: null });
+    const site = [...SITE.querySelectorAll('input[name="consultationType"]')].map((el) => [
+      el.value,
+      norm(el.closest('label').querySelector('h4').textContent),
+      norm(el.closest('label').querySelector('p').textContent),
+    ]);
+    const app = [...document.querySelectorAll('input[name="csgType"]')].map((el) => [
+      el.value,
+      norm(el.closest('label').querySelector('b').textContent),
+      norm(el.closest('label').querySelector('small').textContent),
+    ]);
+    expect(app).toEqual(site);
+    expect(window.SeganConsult.CONSULT_TYPES).toEqual(site.map((x) => x[0]));
+    expect(document.querySelector('input[name="csgType"]:checked').value).toBe('ai-design');
+  });
+
+  test('고르는 칸 = consultation.html — 도어 마감 · 철거 · 가격대 · 가구 종류 · 설치 공간 · 예산 · 스타일 · 시간대', async () => {
+    await load({ url: GENERAL, session: null });
+    expect(radioPairs(document, 'csgDoor')).toEqual(radioPairs(SITE, 'doorFinish'));
+    expect(radioPairs(document, 'csgDemolition')).toEqual(radioPairs(SITE, 'demolition'));
+    expect(radioPairs(document, 'csgPrice')).toEqual(radioPairs(SITE, 'priceTier'));
+    expect(radioPairs(document, 'csgItem')).toEqual(radioPairs(SITE, 'furnitureCategory'));
+    expect([...document.querySelectorAll('input[name="csgItem"]')].every((el) => el.type === 'checkbox')).toBe(
+      true
+    );
+    for (const [app, site] of [
+      ['csgSpace', 'spaceType'],
+      ['csgBudget', 'budgetRange'],
+      ['csgStyle', 'stylePreference'],
+      ['csgTime', 'preferredTime'],
+    ])
+      expect([app, options($(app))]).toEqual([app, options(SITE.getElementById(site))]);
+    // 처음엔 아무것도 골라 두지 않는다
+    for (const n of ['csgDoor', 'csgDemolition', 'csgPrice', 'csgItem'])
+      expect(document.querySelector(`input[name="${n}"]:checked`)).toBeNull();
+  });
+
+  test('필수 칸 = consultation.html 의 required, 이메일은 이메일 칸, 날짜는 오늘(KST)부터', async () => {
+    await load({ url: GENERAL, session: null });
+    const pairs = [
+      ['csgName', 'name'],
+      ['csgPhone', 'phone'],
+      ['csgEmail', 'email'],
+      ['csgSido', 'sido'],
+      ['csgGugun', 'gugun'],
+      ['csgTitle', 'title'],
+      ['csgDesc', 'description'],
+      ['csgAgree', 'agreePrivacy'],
+      ['csgAgreeThird', 'agreeThirdParty'],
+      ['csgDetailDesign', 'requestDetailDesign'],
+      ['csgWantDate', 'wantedDoneDate'],
+      ['csgPrefDate', 'preferredDate'],
+    ];
+    for (const [app, site] of pairs) {
+      expect([app, $(app).required]).toEqual([app, SITE.getElementById(site).required]);
+      expect([app, $(app).type]).toEqual([app, SITE.getElementById(site).type]);
+    }
+    for (const [app, site] of [
+      ['csgDoor', 'doorFinish'],
+      ['csgDemolition', 'demolition'],
+      ['csgPrice', 'priceTier'],
+    ])
+      expect(document.querySelector(`input[name="${app}"]`).required).toBe(
+        SITE.querySelector(`input[name="${site}"]`).required
+      );
+    expect($('csgWantDate').min).toBe(kstDay(0));
+    expect($('csgPrefDate').min).toBe(kstDay(0));
+    // 원래 신청서는 브라우저 검사를 쓴다 — 일반 상담 신청서도 끄지 않는다
+    expect($('csgForm').noValidate).toBe(false);
+  });
+
+  test('동의 둘 — 글 · 수집하는 내용 · 제공하는 내용 = consultation.html, 시공 사진 학습 동의는 없다', async () => {
+    await load({ url: GENERAL, session: null });
+    expect(norm($('csgAgree').closest('label').textContent)).toBe(
+      norm(SITE.getElementById('agreePrivacy').closest('label').textContent)
+    );
+    expect(norm($('csgAgreeThird').closest('label').textContent)).toBe(
+      norm(SITE.getElementById('agreeThirdParty').closest('label').textContent)
+    );
+    const lis = (ul) => [...ul.querySelectorAll('li')].map((li) => norm(li.textContent));
+    expect(lis($('csgPrivacyDetail'))).toEqual(lis(SITE.querySelector('.consent-detail ul')));
+    expect(lis($('csgThirdDetail'))).toEqual(lis(SITE.getElementById('thirdPartyDetail')));
+    expect($('csgForm').querySelectorAll('.cs-agree')).toHaveLength(2);
+    expect($('csgForm').textContent).not.toMatch(/설계 학습/);
+  });
+
+  test('로그인했으면 가입 정보(user_metadata)로 채운다 — 거주지역은 목록에 있을 때만', async () => {
+    const meta = { name: '메타 이름', phone: '010-9999-0000', sido: '대구광역시', gugun: '북구' };
+    await load({ url: GENERAL, session: { ...SESSION, user: { ...SESSION.user, user_metadata: meta } } });
+    expect($('csgName').value).toBe('메타 이름');
+    expect($('csgEmail').value).toBe('customer@example.com');
+    expect($('csgPhone').value).toBe('010-9999-0000');
+    expect($('csgSido').value).toBe('대구광역시');
+    expect($('csgGugun').value).toBe('북구');
+    await load({
+      url: GENERAL,
+      session: { ...SESSION, user: { ...SESSION.user, user_metadata: { sido: '없는시', gugun: '북구' } } },
+    });
+    expect($('csgSido').value).toBe('');
+    expect($('csgGugun').value).toBe('');
+    expect($('csgGugun').disabled).toBe(true);
+  });
+
+  test('보내기 — consultation.html 의 insert 와 같은 칸 · 같은 값, 로그인 없으면 user_id null', async () => {
+    const calls = await load({ url: GENERAL, session: null });
+    fillGeneral();
+    choose('csgType', 'estimate');
+    $('csgDesc').value = ' 다음 달 입주 ';
+    for (const v of ['wardrobe', 'sink']) choose('csgItem', v);
+    $('csgSpace').value = 'kitchen';
+    $('csgBudget').value = '500_1000';
+    $('csgStyle').value = 'modern';
+    $('csgWidth').value = '3000';
+    $('csgHeight').value = '';
+    $('csgDepth').value = '650';
+    $('csgWantDate').value = kstDay(40);
+    $('csgPrefDate').value = kstDay(3);
+    $('csgTime').value = '09:00-12:00';
+    await sendGeneral();
+    expect(calls.inserts).toHaveLength(1);
+    const { table, row } = calls.inserts[0];
+    expect(table).toBe('consultations');
+    expect(Object.keys(row)).toEqual(siteKeys());
+    expect(row).toEqual({
+      user_id: null,
+      name: '이고객',
+      email: 'guest@example.com',
+      phone: '010-4444-5555',
+      consultation_type: 'estimate',
+      title: '주방 싱크대 교체 문의',
+      description: '다음 달 입주',
+      preferred_date: kstDay(3),
+      preferred_time: '09:00-12:00',
+      wanted_done_date: kstDay(40),
+      status: 'pending',
+      furniture_categories: ['sink', 'wardrobe'],
+      space_type: 'kitchen',
+      space_width_mm: 3000,
+      space_height_mm: null,
+      space_depth_mm: 650,
+      budget_range: '500_1000',
+      style_preference: 'modern',
+      request_detail_design: false,
+      sido: '서울특별시',
+      gugun: '강남구',
+      door_finish: 'paint',
+      demolition_needed: true,
+      wanted_price_tier: 'mid',
+      privacy_agreed_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+      third_party_agreed_at: null,
+      consent_version: null,
+    });
+    // 회사 · 연출컷은 보내지 않는다 (company_id 는 DB 기본값 — 다담 본사)
+    expect(row).not.toHaveProperty('company_id');
+    expect(row).not.toHaveProperty('generation_id');
+    expect(calls.updates).toEqual([]);
+    expect(view()).toEqual(['done']);
+    expect($('csDoneText').textContent).toBe(window.SeganConsult.DONE_TEXT.hq);
+    expect($('csDoneBack').getAttribute('href')).toBe('./');
+    expect($('csDoneBack').textContent).toBe('만들기로 가기');
+  });
+
+  test('비운 선택 칸은 null, 업체 제공에 동의하면 같은 시각 · v2 · 「가까운 팩토리」', async () => {
+    const calls = await load({ url: GENERAL, session: null });
+    fillGeneral();
+    choose('csgDemolition', 'no');
+    $('csgAgreeThird').checked = true;
+    await sendGeneral();
+    const { row } = calls.inserts[0];
+    expect(row).toMatchObject({
+      description: null,
+      preferred_date: null,
+      preferred_time: null,
+      wanted_done_date: null,
+      furniture_categories: null,
+      space_type: null,
+      space_width_mm: null,
+      budget_range: null,
+      style_preference: null,
+      demolition_needed: false,
+      consent_version: 'v2',
+    });
+    expect(row.third_party_agreed_at).toBe(row.privacy_agreed_at);
+    expect($('csDoneText').textContent).toBe(window.SeganConsult.DONE_TEXT.partner);
+  });
+
+  test('상세설계 권한 신청 — 로그인했으면 profiles.detaildesign_requested_at, 로그인 없으면 적지 않는다', async () => {
+    const calls = await load({ url: GENERAL });
+    fillGeneral();
+    $('csgDetailDesign').checked = true;
+    await sendGeneral();
+    expect(calls.inserts[0].row).toMatchObject({ user_id: 'user-1', request_detail_design: true });
+    expect(calls.updates).toHaveLength(1);
+    const u = calls.updates[0];
+    expect(u.table).toBe('profiles');
+    expect(Object.keys(u.row)).toEqual(['detaildesign_requested_at']);
+    expect(u.row.detaildesign_requested_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(u.eq).toEqual([['id', 'user-1']]);
+    // 사이트 신청서도 같은 칸을 적는다
+    expect(read('consultation.html')).toContain(".update({ detaildesign_requested_at: new Date().toISOString() })");
+
+    const guest = await load({ url: GENERAL, session: null });
+    fillGeneral();
+    $('csgDetailDesign').checked = true;
+    await sendGeneral();
+    expect(guest.inserts[0].row.request_detail_design).toBe(true);
+    expect(guest.updates).toEqual([]);
+  });
+
+  const uncheck = (name) => () =>
+    document.querySelectorAll(`input[name="${name}"]`).forEach((el) => (el.checked = false));
+  test.each([
+    ['이름 없음', () => ($('csgName').value = ' '), 'required'],
+    ['연락처 없음', () => ($('csgPhone').value = ''), 'required'],
+    ['이메일 없음', () => ($('csgEmail').value = ''), 'required'],
+    ['상담 제목 없음', () => ($('csgTitle').value = ''), 'required'],
+    ['시/군/구 없음', () => ($('csgGugun').value = ''), 'region'],
+    ['도어 마감 안 고름', uncheck('csgDoor'), 'door'],
+    ['철거 안 고름', uncheck('csgDemolition'), 'demolition'],
+    ['가격대 안 고름', uncheck('csgPrice'), 'price'],
+    ['동의 안 함', () => ($('csgAgree').checked = false), 'privacy'],
+  ])('%s → 보내지 않고 consultation.html 과 같은 글', async (_n, change, key) => {
+    const calls = await load({ url: GENERAL, session: null });
+    fillGeneral();
+    change();
+    await sendGeneral();
+    expect(calls.inserts).toEqual([]);
+    const msg = window.SeganConsult.GENERAL_ERR[key];
+    expect(read('consultation.html')).toContain(`'${msg}'`);
+    expect(visible($('csgError'))).toBe(true);
+    expect($('csgError').textContent).toBe(msg);
+  });
+
+  test('검사 차례 = consultation.html missingMessage', async () => {
+    await load({ url: GENERAL, session: null });
+    const fn = read('consultation.html').match(/function missingMessage\(f\) \{([\s\S]*?)\n\s*\}/)[1];
+    const order = [...fn.matchAll(/return '([^']+)'/g)].map((m) => m[1]);
+    const E = window.SeganConsult.GENERAL_ERR;
+    expect(order).toEqual([E.required, E.region, E.door, E.demolition, E.price, E.privacy]);
+    // 아무것도 안 적으면 첫 글
+    await sendGeneral();
+    expect($('csgError').textContent).toBe(E.required);
+  });
+
+  test.each([
+    [{ message: 'relation "consultations" does not exist' }, 'noTable'],
+    [{ message: 'permission denied' }, null],
+  ])('저장 실패 %j — consultation.html 과 같은 글, 다시 누를 수 있다', async (err, key) => {
+    const calls = await load({ url: GENERAL, session: null, insertError: err });
+    fillGeneral();
+    await sendGeneral();
+    expect(calls.inserts).toHaveLength(1);
+    expect(view()).toEqual(['general']);
+    const E = window.SeganConsult.GENERAL_ERR;
+    expect($('csgError').textContent).toBe(key ? E[key] : E.failed + err.message);
+    expect($('csgSubmit').disabled).toBe(false);
+    expect($('csgSubmit').textContent).toBe('상담 신청하기');
+  });
+
+  test('연출컷 상담 신청서는 그대로 — ?g= 가 있으면 일반 상담 칸은 감춘다', async () => {
+    await load();
+    expect(view()).toEqual(['form']);
+    expect($('csgForm').hidden).toBe(true);
+    expect($('csTitle').textContent).toBe('이 연출컷으로 상담받기');
   });
 });
 
