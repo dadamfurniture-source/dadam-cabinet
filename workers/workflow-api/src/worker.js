@@ -38,6 +38,7 @@
  *   GET  /ledger/business-status — 사진 확인 · 국세청 사업자 상태 (src/ledger/review.js, 읽기 걸기 src/ledger/extract.js)
  *   GET  /ledger/notices · POST /ledger/notices/seen — 장부 알림 (src/ledger/notices.js, 만드는 것은 DB 0033)
  *   GET  /ledger/dashboard — 회계 한눈에 (src/ledger/dashboard.js, 묶음은 DB 0034)
+ *   GET  /ledger/close-memo — 월 마감 메모 (src/ledger/close-memo.js — 서버가 센 손볼 곳, AI 없음)
  *   GET  /brief/today — 아침 브리핑 본문 (비서를 쓰는 업체 구성원, src/brief.js)
  *
  *   GET  /public/confirm                  — 고객 열람 (X-Share-Token)
@@ -136,6 +137,7 @@ import { runLedgerNotices, listNotices, markNoticesSeen } from './ledger/notices
 import { ledgerDashboard } from './ledger/dashboard.js';
 import { getBrief, runMorningBrief } from './brief.js';
 import { listReceivables, listPayables } from './ledger/money.js';
+import { getCloseMemo } from './ledger/close-memo.js';
 import { listSupplierModes, setSupplierMode, holdDocuments, listHeld, supplierEntries, attachStatements } from './ledger/statements.js';
 import { runLedgerPendingNotices } from './push/ledger-hooks.js';
 import { ledgerMe, getLedgerSettings, putLedgerSettings } from './ledger/settings.js';
@@ -810,6 +812,13 @@ async function handleLedgerPayables(request, env, { user }) {
   return jsonResponse(request, env, { success: true, data: await listPayables(env, { user, company }) }, 200, NO_STORE);
 }
 
+/** 월 마감 메모 — ?month= (기본 지난달, 한국 시간) · ?company= 본사 보기 */
+async function handleLedgerCloseMemo(request, env, { user }) {
+  const q = new URL(request.url).searchParams;
+  const data = await getCloseMemo(env, { user, company: q.get('company') || undefined, month: q.get('month') || undefined });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
 async function handleLedgerSuppliers(request, env, { user }) {
   const company = new URL(request.url).searchParams.get('company') || undefined;
   return jsonResponse(request, env, { success: true, data: await listSupplierModes(env, { user, company }) }, 200, NO_STORE);
@@ -1350,6 +1359,7 @@ const router = createRouter([
   { method: 'GET',  path: '/brief/today',               auth: 'jwt', handler: handleBrief },
   { method: 'GET',  path: '/ledger/receivables',        auth: 'jwt', handler: handleLedgerReceivables },
   { method: 'GET',  path: '/ledger/payables',           auth: 'jwt', handler: handleLedgerPayables },
+  { method: 'GET',  path: '/ledger/close-memo',         auth: 'jwt', handler: handleLedgerCloseMemo },
   { method: 'GET',  path: '/ledger/suppliers',          auth: 'jwt', handler: handleLedgerSuppliers },
   { method: 'PUT',  path: '/ledger/suppliers',          auth: 'jwt', handler: handlePutLedgerSupplier },
   { method: 'POST', path: '/ledger/documents/hold',     auth: 'jwt', handler: handleHoldLedgerDocuments },
