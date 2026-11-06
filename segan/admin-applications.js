@@ -23,14 +23,14 @@
     held: '보류',
     withdrawn: '거둠',
   }; // admin/expert-requests.html
-  var KIND_LABEL = { new: '새 업체', upgrade: 'Expert→Agent' }; // admin/expert-requests.html
+  var KIND_LABEL = { new: '새 팩토리', upgrade: 'Expert→Agent' }; // admin/expert-requests.html
   var OPEN = ['applied', 'meeting'];
   var PC_PAGE = '../admin/expert-requests.html';
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   var TEXT = {
     loadFail: '신청을 불러오지 못했습니다.',
-    empty: '열린 업체 신청이 없습니다.',
+    empty: '열린 팩토리 신청이 없습니다.',
     meetingPick: '미팅 날짜와 시각을 골라 주세요.',
     generic: '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
   };
@@ -124,12 +124,12 @@
 
   /** 되묻는 글 — PC admin/expert-requests.html openDecide 와 같다 */
   function decideText(a, action) {
-    var name = (a && a.company_name) || '이 업체';
+    var name = (a && a.company_name) || '이 팩토리';
     if (action === 'approve') {
       return a && a.kind === 'upgrade'
         ? name + ' — 승인하면 다음 결제일부터 Agent 금액 · 크레딧이 됩니다.'
         : name +
-            ' — 승인하면 대표가 앱에서 카드를 등록하고 첫 달을 결제할 때 Agent 업체가 시작됩니다.';
+            ' — 승인하면 대표가 앱에서 카드를 등록하고 첫 달을 결제할 때 Agent 팩토리가 시작됩니다.';
     }
     return name + ' — 보류하면 이 신청은 닫힙니다. 신청자는 다시 신청할 수 있습니다.';
   }
@@ -248,7 +248,7 @@
       body +
       '<ul class="sg-rows ad-more"><li><a class="sg-row" href="' +
       PC_PAGE +
-      '">보류 · 승인한 신청과 협력업체는 PC에서</a></li></ul>';
+      '">보류 · 승인한 신청과 팩토리는 PC에서</a></li></ul>';
   }
 
   // ── 서버 ───────────────────────────────────────────────

@@ -1,7 +1,7 @@
 /**
  * 관리자 「상담 분배」 (admin/consult-distribution.html).
  *   본사 상담 목록 GET /admin/consult-inbox?state=… → 상담을 고르면 GET /admin/consultations/:id/candidates
- *   → 1~3순위 · 점수 내역 · 걸러진 업체 → 「이 업체에 배정」(화면 안 확인) → POST /admin/consultations/:id/assign
+ *   → 1~3순위 · 점수 내역 · 걸러진 팩토리 → 「이 팩토리에 배정」(화면 안 확인) → POST /admin/consultations/:id/assign
  * 페이지 스크립트를 jsdom 에 올리고 업무 서버(workflow-api)는 가짜 fetch 로 대신한다.
  */
 const fs = require('fs');
@@ -220,7 +220,7 @@ describe('들어오기 · 목록', () => {
     expect(t).toContain('대기');
     expect(t).toContain('경기도 성남시 · 싱크대 · 붙박이장');
     expect(t).toContain('010-1111-2222');
-    expect(t).toContain('거친 업체 1');
+    expect(t).toContain('거친 팩토리 1');
     expect($('statusLine').textContent).toBe('1건');
     expect($('detailBody').hidden).toBe(true);
   });
@@ -283,7 +283,7 @@ describe('상담 고르기 — 고객 · 배정 · 순위', () => {
     ).toBe(true);
   });
 
-  test('배정 칸: 지금 배정 없음 · 거친 업체와 결과', async () => {
+  test('배정 칸: 지금 배정 없음 · 거친 팩토리와 결과', async () => {
     await start();
     await pick('c1');
     expect(text('#assignCard')).toContain('지금 배정 없음');
@@ -324,7 +324,7 @@ describe('상담 고르기 — 고객 · 배정 · 순위', () => {
     expect(cards[2].querySelector('.sg[data-group="location"] .sg-parts').textContent).toBe(
       '같은 시/도'
     );
-    // 업체 평가 화면으로 가는 링크
+    // 팩토리 평가 화면으로 가는 링크
     expect(c.querySelector('.cand-actions a').getAttribute('href')).toBe(
       'partner-eval.html#company=p1'
     );
@@ -346,11 +346,11 @@ describe('상담 고르기 — 고객 · 배정 · 순위', () => {
     expect(parts[2]).toBe('등급 10/16 · 고객 만족 6/12 · 재작업 3/6 · 응답 3/6');
   });
 
-  test('걸러진 업체 — 이유를 우리말로 (지역 밖 · 품목 안 함 · 한도 · 기간 없음 · 서류 미확인 · 자격 · 활동 안 함 · 거친 업체)', async () => {
+  test('걸러진 팩토리 — 이유를 우리말로 (지역 밖 · 품목 안 함 · 한도 · 기간 없음 · 서류 미확인 · 자격 · 활동 안 함 · 거친 팩토리)', async () => {
     await start();
     await pick('c1');
     expect($('filteredCard').hidden).toBe(false);
-    expect(text('#filteredCard summary')).toBe('걸러진 업체 3');
+    expect(text('#filteredCard summary')).toBe('걸러진 팩토리 3');
     const rows = [...document.querySelectorAll('#filteredCard .filtered li')].map((li) => [
       li.querySelector('span').textContent,
       [...li.querySelectorAll('.reason')].map((r) => r.textContent),
@@ -358,14 +358,14 @@ describe('상담 고르기 — 고객 · 배정 · 순위', () => {
     expect(rows).toEqual([
       ['먼가구', ['지역 밖', '한도', '기간 없음']],
       ['서류업체', ['서류 미확인', '활동 안 함', '자격', '품목 안 함']],
-      ['거친가구', ['거친 업체']],
+      ['거친가구', ['거친 팩토리']],
     ]);
     expect(document.querySelector('#filteredCard .reason').getAttribute('title')).toContain(
       '상담 받는 지역'
     );
   });
 
-  test('후보가 없으면 「남는 업체 없음 — 고객에게 직접 연락」', async () => {
+  test('후보가 없으면 「남는 팩토리 없음 — 고객에게 직접 연락」', async () => {
     await start({
       handler: defaultHandler({
         '/candidates$': () => ok({ items: [], filtered: CANDS.filtered }),
@@ -373,7 +373,7 @@ describe('상담 고르기 — 고객 · 배정 · 순위', () => {
     });
     await pick('c1');
     expect(document.querySelectorAll('#candidates .cand')).toHaveLength(0);
-    expect(text('#candidates .no-cand')).toContain('남는 업체 없음 — 고객에게 직접 연락');
+    expect(text('#candidates .no-cand')).toContain('남는 팩토리 없음 — 고객에게 직접 연락');
     expect(text('#candidates .no-cand')).toContain('010-1111-2222');
     expect($('filteredCard').hidden).toBe(false);
   });
@@ -440,7 +440,7 @@ describe('상담 고르기 — 고객 · 배정 · 순위', () => {
     await settle();
     expect(text('#customerCard h3')).toContain('이고객');
     expect(document.querySelectorAll('#candidates .cand')).toHaveLength(0);
-    expect(text('#candidates')).toContain('남는 업체 없음');
+    expect(text('#candidates')).toContain('남는 팩토리 없음');
   });
 });
 
@@ -482,7 +482,7 @@ describe('배정 — 화면 안에서 묻고 POST', () => {
     expect(calls.filter((c) => c.path.startsWith('/admin/consult-inbox'))).toHaveLength(2);
     expect($('assignModal').classList.contains('active')).toBe(false);
     expect($('statusLine').textContent).toBe(
-      '「다담 공장」에 배정했습니다. 업체가 24시간 안에 답합니다.'
+      '「다담 공장」에 배정했습니다. 팩토리가 24시간 안에 답합니다.'
     );
     // 대기 목록에서 빠지면 상세도 닫힌다
     expect($('detailBody').hidden).toBe(true);
@@ -581,7 +581,7 @@ describe('서버가 아직 없을 때 · 오류', () => {
 });
 
 describe('넣는 값은 모두 esc', () => {
-  test('고객 · 업체 이름 · 모르는 이유 키', async () => {
+  test('고객 · 팩토리 이름 · 모르는 이유 키', async () => {
     const evil = '<img src=x onerror=alert(1)>';
     await start({
       handler: defaultHandler({
@@ -678,7 +678,7 @@ describe('소스 · 메뉴 · 상담 관리 안내', () => {
     expect(SCRIPT).not.toMatch(/\balert\(/);
   });
 
-  test('관리자 메뉴에 「업체 평가」 · 「상담 분배」 — 상담 분배는 상담 관리 바로 앞', () => {
+  test('관리자 메뉴에 「팩토리 평가」 · 「상담 분배」 — 상담 분배는 상담 관리 바로 앞', () => {
     document.body.innerHTML = '<ul class="nav-menu" id="adminNav"></ul>';
     window.history.replaceState(null, '', '/admin/consult-distribution.html');
     (0, eval)(read('js/admin-shell.js'));
@@ -691,7 +691,7 @@ describe('소스 · 메뉴 · 상담 관리 안내', () => {
     const active = links.find((a) => a.classList.contains('active'));
     expect(active.textContent).toBe('🔀상담 분배');
     expect(links.find((a) => a.getAttribute('href') === 'partner-eval.html').textContent).toBe(
-      '🏅업체 평가'
+      '🏅팩토리 평가'
     );
   });
 

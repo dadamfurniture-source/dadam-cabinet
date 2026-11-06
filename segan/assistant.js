@@ -32,12 +32,12 @@
   'use strict';
 
   var DENY = {
-    not_member: '비서는 업체 구성원만 씁니다.',
-    not_entitled: '비서를 쓸 수 없는 업체입니다.',
+    not_member: '비서는 팩토리 구성원만 씁니다.',
+    not_entitled: '비서를 쓸 수 없는 팩토리입니다.',
   };
   // 차례 끝 이유 — 워커 src/session.js blocked reason
   var BLOCKED = {
-    not_entitled: '비서를 쓸 수 없는 업체입니다',
+    not_entitled: '비서를 쓸 수 없는 팩토리입니다',
     conversation_full: '대화가 길어졌습니다. 새 대화를 시작해 주세요',
     no_limit: '이달 비서 한도가 정해지지 않았습니다',
     over_limit: '이달 비서 한도를 다 썼습니다',

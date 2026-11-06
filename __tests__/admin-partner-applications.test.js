@@ -1,14 +1,14 @@
 /**
- * 관리자 「업체 신청」(admin/expert-requests.html — 주소는 예전 Expert 승급 관리 그대로).
+ * 관리자 「팩토리 신청」(admin/expert-requests.html — 주소는 예전 Expert 승급 관리 그대로).
  *
  *   신청 목록 · 미팅 잡기 · 승인 · 보류, 협력업체 목록 · 업체로 만들기 — 모두 계정 서버(account-api /admin/partner/*)
  *   를 관리자 JWT 로 부른다. 신청 · 업체 쓰기는 service_role 만 할 수 있어 화면이 DB 에 직접 쓰지 않는다.
  *   업체로 만들기의 회원 찾기만 profiles 를 이메일로 읽는다.
  *   미팅 시각: datetime-local(브라우저 = 한국 시간) → new Date(v).toISOString().
- *   확인은 페이지 안 창으로 한다. 신청자가 적은 글(업체 이름 · 대표자 · 소개 …)은 글자로만 그린다.
+ *   확인은 페이지 안 창으로 한다. 신청자가 적은 글(팩토리 이름 · 대표자 · 소개 …)은 글자로만 그린다.
  *
- * 대시보드(admin/index.html)의 「업체 신청 대기」 = partner_applications 의 applied + meeting 건수,
- * 관리자 메뉴 글자 = 「업체 신청」 도 여기서 본다.
+ * 대시보드(admin/index.html)의 「팩토리 신청 대기」 = partner_applications 의 applied + meeting 건수,
+ * 관리자 메뉴 글자 = 「팩토리 신청」 도 여기서 본다.
  * 페이지 스크립트를 jsdom 에 올리고 가짜 Supabase · 가짜 fetch 로 돌린다 (admin-consult-accept.test.js 와 같은 방식).
  */
 const fs = require('fs');
@@ -150,7 +150,7 @@ const $ = (id) => document.getElementById(id);
 const gets = (calls, p) => calls.filter((c) => c.method === 'GET' && c.path === p);
 const posts = (calls) => calls.filter((c) => c.method === 'POST');
 
-describe('admin/expert-requests.html — 업체 신청', () => {
+describe('admin/expert-requests.html — 팩토리 신청', () => {
   beforeEach(() => {
     delete window.__pwned;
   });
@@ -177,7 +177,7 @@ describe('admin/expert-requests.html — 업체 신청', () => {
     expect(db.map((e) => e.table)).not.toEqual(expect.arrayContaining(['expert_requests']));
   });
 
-  test('신청 카드 — 업체 이름 · 대표자 · 연락처 · 지역 · 사업자번호 · 소개 · 이메일 · 신청일 · 종류', async () => {
+  test('신청 카드 — 팩토리 이름 · 대표자 · 연락처 · 지역 · 사업자번호 · 소개 · 이메일 · 신청일 · 종류', async () => {
     boot({
       route: (c) =>
         c.path === '/admin/partner/applications'
@@ -209,7 +209,7 @@ describe('admin/expert-requests.html — 업체 신청', () => {
       '123-45-67890',
       '주방 · 붙박이장 시공',
       'owner@example.test',
-      '새 업체',
+      '새 팩토리',
       '신청 접수',
     ])
       expect(t).toContain(s);
@@ -283,7 +283,7 @@ describe('admin/expert-requests.html — 업체 신청', () => {
     ]);
     expect(cards[0].querySelector('[data-act="meeting"]').textContent).toBe('미팅 잡기');
     expect(cards[1].querySelector('[data-act="meeting"]').textContent).toBe('미팅 바꾸기');
-    // 승인된 새 업체 — 결제 전이면 그렇게 보인다
+    // 승인된 새 팩토리 — 결제 전이면 그렇게 보인다
     expect(cards[2].textContent).toContain('결제 전');
   });
 
@@ -361,7 +361,7 @@ describe('admin/expert-requests.html — 업체 신청', () => {
     expect($('decideModal').classList.contains('active')).toBe(true);
     expect($('decideTitle').textContent).toBe('신청 승인');
     expect($('decideText').textContent).toContain(
-      '카드를 등록하고 첫 달을 결제할 때 Agent 업체가 시작됩니다'
+      '카드를 등록하고 첫 달을 결제할 때 Agent 팩토리가 시작됩니다'
     );
     expect(posts(calls)).toHaveLength(0); // 확인 전에는 보내지 않는다
     $('decideSubmit').click();
@@ -502,7 +502,7 @@ describe('admin/expert-requests.html — 협력업체 · 업체로 만들기', (
     expect(document.querySelector('#companyList b')).toBeNull();
   });
 
-  test('이메일로 회원을 찾아(profiles) 업체 이름 · 등급 · 지역을 보낸다', async () => {
+  test('이메일로 회원을 찾아(profiles) 팩토리 이름 · 등급 · 지역을 보낸다', async () => {
     const member = {
       id: '55555555-5555-4555-8555-555555555555',
       name: '박대표',
@@ -543,7 +543,7 @@ describe('admin/expert-requests.html — 협력업체 · 업체로 만들기', (
       gugun: '포항시',
     });
     expect($('companyModal').classList.contains('active')).toBe(false);
-    expect($('statusLine').textContent).toBe('박가구 인테리어 업체를 만들었습니다.');
+    expect($('statusLine').textContent).toBe('박가구 인테리어 팩토리를 만들었습니다.');
     expect(gets(calls, '/admin/partner/companies')).toHaveLength(2);
   });
 
@@ -577,7 +577,7 @@ describe('admin/expert-requests.html — 협력업체 · 업체로 만들기', (
     $('cmFind').click();
     await flush();
     expect($('cmPlan').value).toBe('expert');
-    $('cmName').value = '새 업체';
+    $('cmName').value = '새 팩토리';
     $('cmSubmit').click();
     await flush();
     expect(posts(calls)).toHaveLength(0);
@@ -592,7 +592,7 @@ describe('admin/expert-requests.html — 협력업체 · 업체로 만들기', (
   });
 });
 
-describe('admin/index.html — 업체 신청 대기 건수', () => {
+describe('admin/index.html — 팩토리 신청 대기 건수', () => {
   const INDEX = read('admin/index.html');
 
   test('partner_applications 의 applied + meeting 건수를 센다 (expert_requests 는 읽지 않는다)', async () => {
@@ -625,21 +625,21 @@ describe('admin/index.html — 업체 신청 대기 건수', () => {
     expect(pa[0].calls).toEqual(expect.arrayContaining([['in', 'status', ['applied', 'meeting']]]));
     expect(db.some((e) => e.table === 'expert_requests')).toBe(false);
     expect($('pendingExpertCount').textContent).toBe('대기 중 2건');
-    expect($('pendingUpgrades').textContent).toBe('업체 신청 대기 2건');
+    expect($('pendingUpgrades').textContent).toBe('팩토리 신청 대기 2건');
     expect($('pendingItems').textContent).toBe('2');
     expect(document.querySelector('a[href="expert-requests.html"] h4').textContent).toBe(
-      '업체 신청 검토'
+      '팩토리 신청 검토'
     );
   });
 });
 
-describe('관리자 메뉴 — 「업체 신청」', () => {
-  test('expert-requests.html 메뉴 글자는 「업체 신청」', () => {
+describe('관리자 메뉴 — 「팩토리 신청」', () => {
+  test('expert-requests.html 메뉴 글자는 「팩토리 신청」', () => {
     document.body.innerHTML = '<ul class="nav-menu" id="adminNav"></ul>';
     window.history.replaceState(null, '', '/admin/expert-requests.html');
     (0, eval)(read('js/admin-shell.js'));
     const a = document.querySelector('#adminNav a.active');
     expect(a.getAttribute('href')).toBe('expert-requests.html');
-    expect(a.textContent).toBe('⭐업체 신청');
+    expect(a.textContent).toBe('⭐팩토리 신청');
   });
 });

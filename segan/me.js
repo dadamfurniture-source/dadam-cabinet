@@ -16,7 +16,7 @@
                 — segan/make.js 의 loadWallet 을 한 번 불러 업체 칸과 함께 쓴다
      구독      billing.html 과 같은 payments-api GET /subscription, 등급은 profiles.tier.
                 상태 이름은 billing.html STATUS_KO 와 같다. 바꾸기는 billing.html(구독 관리)에서.
-                업체 실장 · 직원은 구독 칸 없이 company 만 온다 — 「업체 구독은 대표가 관리합니다」
+                업체 실장 · 직원은 구독 칸 없이 company 만 온다 — 「팩토리 구독은 대표가 관리합니다」
    ============================================================ */
 /* global window, document, fetch */
 (function () {
@@ -276,7 +276,7 @@
       var body = await res.json();
       var sub = body && body.data ? body.data : null;
       if (!sub && body && body.company) {
-        $('meSub').textContent = '업체 구독은 대표가 관리합니다';
+        $('meSub').textContent = '팩토리 구독은 대표가 관리합니다';
       } else if (!sub || sub.plan === 'free') {
         $('meSub').textContent = '없음';
       } else {

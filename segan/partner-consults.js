@@ -102,7 +102,7 @@
     reasonLong: '까닭은 ' + REASON_MAX + '자까지 적을 수 있습니다.',
     late: '응답 시간이 지났습니다',
     settingsLead: '설정을 마쳐야 상담을 배정받을 수 있어요.',
-    regionsEmpty: '비워 두면 업체 주소의 시/군/구 상담만 받습니다.',
+    regionsEmpty: '비워 두면 팩토리 주소의 시/군/구 상담만 받습니다.',
     regionPick: '시/도와 시/군/구를 골라 주세요.',
     regionMax: '지역은 ' + REGION_MAX + '곳까지 둘 수 있습니다.',
     limitBad: '한 달 한도는 0~' + LIMIT_MAX + ' 사이 숫자로 적어 주세요.',

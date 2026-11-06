@@ -5,7 +5,7 @@
  *
  *   누가     관리자 — segan/shell.js 가 AdminAccess.isAdmin 으로 가린다 (SeganShell.ready 의 admin)
  *            로그인 전 → 셸의 로그인 안내, 관리자 아님 → 「관리자만 볼 수 있습니다」 (서버를 묻지 않는다)
- *   오늘 할 일 새 업체 신청 (account-api) · 배정을 기다리는 상담 · 업체 답을 기다리는 배정 (consult-inbox) ·
+ *   오늘 할 일 새 팩토리 신청 (account-api) · 배정을 기다리는 상담 · 팩토리 답을 기다리는 배정 (consult-inbox) ·
  *            결정할 생산 제안 (reports/summary). 못 읽은 줄은 「불러오지 못함」, 상한 200 이면 「200+건」
  *   PC에서 열기 PC 에 남기는 관리자 화면 10개 — 이름 · 주소는 js/admin-shell.js ADMIN_NAV 와 같다
  */
@@ -137,9 +137,9 @@ describe('오늘 할 일', () => {
     expect(tab.hidden).toBe(false);
     expect(tab.getAttribute('aria-current')).toBe('page');
     expect(today()).toEqual([
-      ['applications', '새 업체 신청', '3건', true, '#applications'],
+      ['applications', '새 팩토리 신청', '3건', true, '#applications'],
       ['pending', '배정을 기다리는 상담', '2건', true, '#consults'],
-      ['assigned', '업체 답을 기다리는 배정', '200+건', true, '#consults-assigned'],
+      ['assigned', '팩토리 답을 기다리는 배정', '200+건', true, '#consults-assigned'],
       ['proposals', '결정할 생산 제안', '0건', false, '#reports'],
     ]);
     expect(calls.fetch.map((f) => f.auth)).toEqual(Array(4).fill('Bearer tok-1'));
@@ -198,7 +198,7 @@ describe('PC에서 열기', () => {
       expect(nav).toMatch(new RegExp(`href: '${file.replace('.', '\\.')}'[^}]*label: '${label}'`));
       expect(fs.existsSync(path.join(ROOT, 'admin', file))).toBe(true);
     }
-    // 앱으로 옮기는 넷(업체 신청 · 상담 · 작업 보고 · 회원)은 PC 목록에 두지 않는다
+    // 앱으로 옮기는 넷(팩토리 신청 · 상담 · 작업 보고 · 회원)은 PC 목록에 두지 않는다
     for (const moved of [
       'expert-requests',
       'consultations',

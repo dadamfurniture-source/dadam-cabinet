@@ -15,8 +15,8 @@
                        정지(suspended) 「결제가 멈춰 있어 읽기만 됩니다」, 해지(closed) 「해지된 업체입니다」
      신청 접수 · 미팅   단계 3칸 (신청 접수 → 미팅 예정 → 승인), 미팅 시각은 한국 시간, 「신청 거두기」
      승인(새 업체)      「결제하고 시작」 (Agent)
-     보류              안내 + 상담 신청 링크, 아래에 「업체로 시작하기」 카드 (다시 신청할 수 있다)
-     그 밖             「업체로 시작하기」 카드 둘
+     보류              안내 + 상담 신청 링크, 아래에 「팩토리로 시작하기」 카드 (다시 신청할 수 있다)
+     그 밖             「팩토리로 시작하기」 카드 둘
                        Expert — 결제하면 바로 시작: 업체 이름 · 시·도 · 시·군·구 → 카드 등록
                        Agent  — 신청 → 현장 미팅 → 본사 승인: 신청 칸 7개 → POST /partner/apply
 
@@ -56,7 +56,7 @@
 
   // Agent 신청 칸 — company: 업그레이드(Expert 업체 → Agent)면 업체 값을 쓴다 (서버도 업체 값으로 채운다)
   var APPLY_FIELDS = [
-    { name: 'company_name', label: '업체 이름', max: 100, company: 'name' },
+    { name: 'company_name', label: '팩토리 이름', max: 100, company: 'name' },
     { name: 'representative_name', label: '대표자 이름', max: 50 },
     {
       name: 'contact_phone',
@@ -208,9 +208,9 @@
     var name = String(v.name == null ? '' : v.name).trim();
     var sido = String(v.sido == null ? '' : v.sido).trim();
     var gugun = String(v.gugun == null ? '' : v.gugun).trim();
-    if (!name) return { field: 'name', error: '업체 이름을 적어 주세요.' };
+    if (!name) return { field: 'name', error: '팩토리 이름을 적어 주세요.' };
     if (name.length > 100)
-      return { field: 'name', error: '업체 이름은 100자까지 적을 수 있습니다.' };
+      return { field: 'name', error: '팩토리 이름은 100자까지 적을 수 있습니다.' };
     if (!sido || sido.length > 20)
       return { field: 'sido', error: '시·도와 시·군·구를 골라 주세요.' };
     if (!gugun || gugun.length > 40)
@@ -338,7 +338,7 @@
     gugun.disabled = !list.length;
   }
 
-  // ── 화면: 업체로 시작하기 ───────────────────────────────
+  // ── 화면: 팩토리로 시작하기 ───────────────────────────────
   function card(plan, how, label, act) {
     var on = P.open === plan;
     return (
@@ -360,7 +360,7 @@
     return (
       '<form class="me-pt-form" data-form="expert" novalidate>' +
       '<p class="me-pt-title">Expert 로 시작하기</p>' +
-      input('name', '업체 이름', { max: 100, auto: 'organization' }) +
+      input('name', '팩토리 이름', { max: 100, auto: 'organization' }) +
       regionHtml() +
       '<p class="mk-note">카드를 등록하면 첫 달이 결제되고 바로 시작합니다.</p>' +
       errBox() +
@@ -378,9 +378,9 @@
     return (
       '<form class="me-pt-form" data-form="apply" novalidate>' +
       '<p class="me-pt-title">' +
-      (up ? 'Agent 로 바꾸기 신청' : 'Agent 업체 신청') +
+      (up ? 'Agent 로 바꾸기 신청' : 'Agent 팩토리 신청') +
       '</p>' +
-      (up ? '' : input('company_name', '업체 이름', { max: 100, auto: 'organization' })) +
+      (up ? '' : input('company_name', '팩토리 이름', { max: 100, auto: 'organization' })) +
       input('representative_name', '대표자 이름', { max: 50, auto: 'name' }) +
       input('contact_phone', '연락처', {
         type: 'tel',
@@ -408,9 +408,9 @@
 
   function startHtml() {
     return (
-      '<p class="me-pt-lead">업체로 시작하면 직원과 크레딧을 함께 씁니다.</p>' +
+      '<p class="me-pt-lead">팩토리로 시작하면 직원과 크레딧을 함께 씁니다.</p>' +
       '<div class="me-pt-cards">' +
-      card('expert', '결제하면 바로 시작', '업체로 시작하기', 'open-expert') +
+      card('expert', '결제하면 바로 시작', '팩토리로 시작하기', 'open-expert') +
       card('agent', '신청 → 현장 미팅 → 본사 승인', '신청하기', 'open-agent') +
       '</div>' +
       (P.open === 'expert' ? expertFormHtml() : '') +
@@ -442,7 +442,7 @@
   function pendingHtml(a, upgrade) {
     var facts = [];
     if (!upgrade) {
-      facts.push(fact('업체 이름', a.company_name));
+      facts.push(fact('팩토리 이름', a.company_name));
       if (region(a)) facts.push(fact('지역', region(a)));
     }
     if (kstDay(a.created_at)) facts.push(fact('신청일', kstDay(a.created_at)));
@@ -455,7 +455,7 @@
     return (
       '<div class="me-pt-box" data-view="pending">' +
       '<p class="me-pt-title">' +
-      (upgrade ? 'Agent 로 바꾸기 신청' : 'Agent 업체 신청') +
+      (upgrade ? 'Agent 로 바꾸기 신청' : 'Agent 팩토리 신청') +
       '</p>' +
       appStepsHtml(a) +
       '<dl class="me-facts">' +
@@ -475,7 +475,7 @@
   }
 
   function approvedHtml(a) {
-    var facts = [fact('업체 이름', a.company_name)];
+    var facts = [fact('팩토리 이름', a.company_name)];
     if (region(a)) facts.push(fact('지역', region(a)));
     facts.push(fact('등급', planName('agent')));
     return (
@@ -485,7 +485,7 @@
       facts.join('') +
       '</dl>' +
       infoLine('agent') +
-      '<p class="mk-note">카드를 등록하고 첫 달을 결제하면 바로 Agent 업체로 시작합니다.</p>' +
+      '<p class="mk-note">카드를 등록하고 첫 달을 결제하면 바로 Agent 팩토리로 시작합니다.</p>' +
       errBox() +
       acts(btn('pay-agent', '결제하고 시작', true)) +
       '</div>'
@@ -497,7 +497,7 @@
       '<div class="me-pt-box" data-view="held">' +
       '<p class="me-pt-title">보류되었습니다</p>' +
       '<p class="mk-note">' +
-      (upgrade ? 'Agent 로 바꾸기 신청이' : '업체 신청이') +
+      (upgrade ? 'Agent 로 바꾸기 신청이' : '팩토리 신청이') +
       ' 보류되었습니다. 궁금한 점은 상담으로 물어봐 주세요. 다시 신청할 수도 있습니다.</p>' +
       acts('<a class="mk-btn" href="' + CONSULT_PAGE + '">상담 신청</a>') +
       '</div>'
@@ -549,7 +549,7 @@
             ? askOr(
                 key,
                 '',
-                who + josa(who) + ' 내보낼까요? 내보내면 업체 크레딧을 함께 쓰지 못합니다.',
+                who + josa(who) + ' 내보낼까요? 내보내면 팩토리 크레딧을 함께 쓰지 못합니다.',
                 '내보내기'
               )
             : '') +
@@ -688,7 +688,7 @@
     var c = d.company;
     var owner = c.role === 'owner';
     var active = c.status === 'active';
-    var facts = [fact('업체 이름', c.name)];
+    var facts = [fact('팩토리 이름', c.name)];
     if (owner) {
       facts.push(
         fact(
@@ -704,7 +704,7 @@
 
     var notice = '';
     if (c.status === 'suspended') notice = '결제가 멈춰 있어 읽기만 됩니다.';
-    else if (c.status === 'closed') notice = '해지된 업체입니다.';
+    else if (c.status === 'closed') notice = '해지된 팩토리입니다.';
 
     var out =
       '<div class="me-pt-box" data-view="company">' +

@@ -81,9 +81,9 @@
   var VAT_TYPE = { general: '일반과세', simplified: '간이과세', exempt: '면세' };
   var BIZ_KIND = { manufacturing: '제조', retail: '도소매' };
   var DENY = {
-    not_member: '장부는 업체 구성원만 씁니다.',
-    not_entitled: '회계는 Expert · Agent 업체가 씁니다.',
-    not_money: '장부는 업체 대표 · 실장만 봅니다.',
+    not_member: '장부는 팩토리 구성원만 씁니다.',
+    not_entitled: '회계는 Expert · Agent 팩토리가 씁니다.',
+    not_money: '장부는 팩토리 대표 · 실장만 봅니다.',
   };
   var FAIL_MSG = '장부를 불러오지 못했습니다.';
   var MONTH_RE = /^(\d{4})-(\d{2})$/;
@@ -2432,7 +2432,7 @@
           : !L.orders
             ? '수주를 불러오는 중…'
             : none
-              ? '이 업체 수주가 없습니다'
+              ? '이 팩토리 수주가 없습니다'
               : '고르기',
         ''
       )
@@ -2704,7 +2704,7 @@
         return {
           error:
             L.orders && !L.orders.length
-              ? '이 업체에는 고를 수주가 없습니다.'
+              ? '이 팩토리에는 고를 수주가 없습니다.'
               : '수주를 골라 주세요.',
         };
       return {

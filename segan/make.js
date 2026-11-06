@@ -862,7 +862,7 @@
     }
     if (body && body.code === 'company_inactive')
       return new Error(
-        body.error || '업체 구독이 멈춰 있어 연출컷을 만들 수 없습니다. 결제를 확인해 주세요.'
+        body.error || '팩토리 구독이 멈춰 있어 연출컷을 만들 수 없습니다. 결제를 확인해 주세요.'
       );
     return new Error('크레딧이 부족합니다. 구독을 올리면 더 만들 수 있습니다.');
   }

@@ -6,7 +6,7 @@
  *   데이터  account-api GET /partner/me · payments-api GET /plans (금액) · credit_plans (월 크레딧)
  *           · RPC my_credit_wallet (업체 통장) — 금액 · 크레딧을 적어 두지 않는다
  *   감춤    /partner/me 를 못 읽으면(404 · 오류 · 주소 없음) · 본사 구성원이면 칸째 감춘다
- *   화면    a 업체로 시작하기(Expert · Agent) / b 신청 접수 · 미팅 / c 승인 / d 보류 / e 업체 있음
+ *   화면    a 팩토리로 시작하기(Expert · Agent) / b 신청 접수 · 미팅 / c 승인 / d 보류 / e 업체 있음
  *   결제    billing.html(결제 관리)과 같은 토스 requestBillingAuth → billing-success.html?plan=…,
  *           떠나기 전 sessionStorage partnerSignup = { plan, company?, returnTo: '/segan/me.html#partner' }
  *   주소    me.html#partner 로 오면 업체 칸으로 내려간다, ?failed=1 이면 안내
@@ -353,7 +353,7 @@ describe('칸 자리 · 감춤', () => {
     expect(sec).not.toBeNull();
     expect(sec.hasAttribute('hidden')).toBe(true);
     expect(sec.previousElementSibling.id).toBe('meProjectSection');
-    expect(sec.querySelector('h2').textContent).toBe('업체');
+    expect(sec.querySelector('h2').textContent).toBe('팩토리');
     // 토스 결제창 · 지역 목록 · 업체 칸 스크립트를 싣는다 (billing.html 과 같은 토스 주소)
     const srcs = [...doc.querySelectorAll('script[src]')].map((s) => s.getAttribute('src'));
     const toss = read('billing.html').match(
@@ -417,7 +417,7 @@ describe('칸 자리 · 감춤', () => {
   });
 });
 
-describe('a. 업체로 시작하기 — 카드 둘', () => {
+describe('a. 팩토리로 시작하기 — 카드 둘', () => {
   test('Expert · Agent — 월 금액은 /plans, 월 크레딧은 credit_plans, 시작 방법', async () => {
     const calls = await load({ partner: ok(meData()) });
     const cards = [...root().querySelectorAll('.me-pt-card')].map((c) => ({
@@ -433,7 +433,7 @@ describe('a. 업체로 시작하기 — 카드 둘', () => {
         name: 'Expert',
         info: '월 99,000원 · 크레딧 월 1,000',
         how: '결제하면 바로 시작',
-        btn: '업체로 시작하기',
+        btn: '팩토리로 시작하기',
       },
       {
         plan: 'agent',
@@ -490,14 +490,14 @@ describe('a. 업체로 시작하기 — 카드 둘', () => {
   });
 });
 
-describe('Expert — 업체 이름 · 지역 → 토스 카드 등록', () => {
+describe('Expert — 팩토리 이름 · 지역 → 토스 카드 등록', () => {
   const open = async (extra = {}) => {
     const calls = await load({ partner: ok(meData()), ...extra });
-    await press('업체로 시작하기');
+    await press('팩토리로 시작하기');
     return calls;
   };
 
-  test('입력 칸 — 업체 이름 · 시·도(signup.html 과 같은 목록) · 시·군·구(시·도 고른 뒤)', async () => {
+  test('입력 칸 — 팩토리 이름 · 시·도(signup.html 과 같은 목록) · 시·군·구(시·도 고른 뒤)', async () => {
     await open();
     const form = formOf('expert');
     expect(form).not.toBeNull();
@@ -513,13 +513,13 @@ describe('Expert — 업체 이름 · 지역 → 토스 카드 등록', () => {
       window.SeganRegions['대구광역시']
     );
     // 다시 누르면 닫힌다
-    await press('업체로 시작하기');
+    await press('팩토리로 시작하기');
     expect(formOf('expert')).toBeNull();
   });
 
   test.each([
-    [{}, '업체 이름을 적어 주세요.', 'name'],
-    [{ name: '   ' }, '업체 이름을 적어 주세요.', 'name'],
+    [{}, '팩토리 이름을 적어 주세요.', 'name'],
+    [{ name: '   ' }, '팩토리 이름을 적어 주세요.', 'name'],
     [{ name: '다담 협력' }, '시·도와 시·군·구를 골라 주세요.', 'sido'],
     [{ name: '다담 협력', sido: '대구광역시' }, '시·도와 시·군·구를 골라 주세요.', 'gugun'],
   ])('빠진 칸 %j → 안내, 결제창을 열지 않는다', async (values, msg, field) => {
@@ -621,7 +621,7 @@ describe('Agent 신청 — 칸 7개 → POST /partner/apply', () => {
     return calls;
   };
 
-  test('칸 7개 (업체 이름 · 대표자 이름 · 연락처 · 시·도 · 시·군·구 · 사업자등록번호 · 하는 일 한 줄)', async () => {
+  test('칸 7개 (팩토리 이름 · 대표자 이름 · 연락처 · 시·도 · 시·군·구 · 사업자등록번호 · 하는 일 한 줄)', async () => {
     await open();
     const form = formOf('apply');
     expect([...form.querySelectorAll('input, select')].map((x) => x.name)).toEqual([
@@ -634,7 +634,7 @@ describe('Agent 신청 — 칸 7개 → POST /partner/apply', () => {
       'intro',
     ]);
     expect([...form.querySelectorAll('label > span')].map((s) => s.textContent)).toEqual([
-      '업체 이름',
+      '팩토리 이름',
       '대표자 이름',
       '연락처',
       '시·도',
@@ -728,7 +728,7 @@ describe('Agent 신청 — 칸 7개 → POST /partner/apply', () => {
 });
 
 describe('b. 신청 접수 · 미팅 — 단계 3칸 · 신청 거두기', () => {
-  test('신청 접수 — 첫 칸이 지금, 업체 이름 · 지역 · 신청일(한국 날짜)', async () => {
+  test('신청 접수 — 첫 칸이 지금, 팩토리 이름 · 지역 · 신청일(한국 날짜)', async () => {
     await load({ partner: ok(meData({ application: app() })) });
     expect(steps()).toEqual([
       { label: '신청 접수', done: true, now: true },
@@ -736,7 +736,7 @@ describe('b. 신청 접수 · 미팅 — 단계 3칸 · 신청 거두기', () =>
       { label: '승인', done: false, now: false },
     ]);
     expect(facts()).toEqual({
-      '업체 이름': '다담 협력 주방',
+      '팩토리 이름': '다담 협력 주방',
       지역: '대구광역시 북구',
       신청일: '2026.10.20',
     });
@@ -837,11 +837,11 @@ describe('e. 업체 있음', () => {
   const owner = (extra = {}, data = {}) =>
     ok(meData({ company: company(extra), members: MEMBERS, invites: INVITES, ...data }));
 
-  test('대표 — 업체 이름 · 등급 · 상태 · 내 역할 · 크레딧(업체 통장)', async () => {
+  test('대표 — 팩토리 이름 · 등급 · 상태 · 내 역할 · 크레딧(업체 통장)', async () => {
     await load({ partner: owner(), wallet: companyWallet() });
     const box = root().querySelector('[data-view="company"]');
     expect(facts(box)).toEqual({
-      '업체 이름': '다담 협력 주방',
+      '팩토리 이름': '다담 협력 주방',
       등급: 'Agent',
       상태: '이용 중',
       '내 역할': '대표',
@@ -1034,7 +1034,7 @@ describe('e. 업체 있음', () => {
     }
   );
 
-  test('Expert → Agent 신청 (kind upgrade) — 업체 이름 · 지역 칸 없이, 업체 값으로 보낸다', async () => {
+  test('Expert → Agent 신청 (kind upgrade) — 팩토리 이름 · 지역 칸 없이, 업체 값으로 보낸다', async () => {
     const calls = await load({
       partner: owner({ plan: 'expert' }),
       posts: {
@@ -1090,14 +1090,14 @@ describe('e. 업체 있음', () => {
     expect(buttons()).toContain('Agent 신청');
   });
 
-  test('실장 · 직원 — 업체 이름 · 내 역할 · 크레딧만 (직원 목록 · 초대 · 결제 관리 없음)', async () => {
+  test('실장 · 직원 — 팩토리 이름 · 내 역할 · 크레딧만 (직원 목록 · 초대 · 결제 관리 없음)', async () => {
     for (const role of ['manager', 'staff']) {
       await load({
         partner: ok(meData({ company: company({ role }) })),
         wallet: companyWallet(),
       });
       expect(facts()).toEqual({
-        '업체 이름': '다담 협력 주방',
+        '팩토리 이름': '다담 협력 주방',
         '내 역할': role === 'manager' ? '실장' : '직원',
         크레딧: '2,400 크레딧 · 월 3,000',
       });
@@ -1120,13 +1120,13 @@ describe('e. 업체 있음', () => {
     expect(buttons()).toEqual([]);
   });
 
-  test('해지 — 「해지된 업체입니다」', async () => {
+  test('해지 — 「해지된 팩토리입니다」', async () => {
     await load({ partner: owner({ status: 'closed' }) });
-    expect(root().querySelector('.me-pt-warn').textContent).toBe('해지된 업체입니다.');
+    expect(root().querySelector('.me-pt-warn').textContent).toBe('해지된 팩토리입니다.');
     expect(facts(root().querySelector('[data-view="company"]'))['상태']).toBe('해지됨');
   });
 
-  test('서버 글은 글자로만 넣는다 (업체 이름 · 직원 이름 · 이메일)', async () => {
+  test('서버 글은 글자로만 넣는다 (팩토리 이름 · 직원 이름 · 이메일)', async () => {
     const bad = '<img src=x onerror=alert(1)>';
     await load({
       partner: ok(
@@ -1201,7 +1201,7 @@ describe('판정 · 본문 (순수 함수)', () => {
         business_number: '1234567890',
         intro: 'i',
       })
-    ).toEqual({ field: 'company_name', error: '업체 이름은 100자까지 적을 수 있습니다.' });
+    ).toEqual({ field: 'company_name', error: '팩토리 이름은 100자까지 적을 수 있습니다.' });
     expect(expertCompany({ name: ' A ', sido: 'S', gugun: 'G' })).toEqual({
       company: { name: 'A', sido: 'S', gugun: 'G' },
     });

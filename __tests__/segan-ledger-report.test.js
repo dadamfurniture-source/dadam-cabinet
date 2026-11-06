@@ -3,7 +3,7 @@
 /**
  * SEGAN 인쇄용 월 회계 보고서 (segan/ledger-report.html + segan/ledger-report.js)
  *
- *   데이터  GET /ledger/me (업체 이름) · /ledger/dashboard?month=&months=12 · /ledger/accounts · /ledger/receivables · /ledger/payables
+ *   데이터  GET /ledger/me (팩토리 이름) · /ledger/dashboard?month=&months=12 · /ledger/accounts · /ledger/receivables · /ledger/payables
  *   보이기  칸 넷(매출 · 매입 · 장부 손익 · 부가세 예상 — 일반과세만) · 최근 6달 · 매입 계정별 · 지출 상대 · 받을 돈 · 낼 돈 · 남은 할 일
  *   그 밖   인쇄 단추(window.print), 달 바꾸기, 받을 돈 · 낼 돈을 모르면 그 줄을 뺀다, 대표 · 실장만
  */
@@ -255,8 +255,8 @@ describe('회계 보고서', () => {
 
   test('직원 · 자격 없음 — 이유 한 줄', async () => {
     for (const [me, text] of [
-      [ok({ ...ME, role: 'staff', money: false }), '회계 보고서는 업체 대표 · 실장만 봅니다.'],
-      [fail(403, 'not_entitled', 'x'), '회계 보고서는 Expert · Agent 업체가 봅니다.'],
+      [ok({ ...ME, role: 'staff', money: false }), '회계 보고서는 팩토리 대표 · 실장만 봅니다.'],
+      [fail(403, 'not_entitled', 'x'), '회계 보고서는 Expert · Agent 팩토리가 봅니다.'],
     ]) {
       await load({ me });
       expect($('lrState').textContent).toBe(text);

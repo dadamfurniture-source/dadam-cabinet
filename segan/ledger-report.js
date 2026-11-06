@@ -15,9 +15,9 @@
   'use strict';
 
   var DENY = {
-    not_member: '회계 보고서는 업체 구성원만 봅니다.',
-    not_entitled: '회계 보고서는 Expert · Agent 업체가 봅니다.',
-    not_money: '회계 보고서는 업체 대표 · 실장만 봅니다.',
+    not_member: '회계 보고서는 팩토리 구성원만 봅니다.',
+    not_entitled: '회계 보고서는 Expert · Agent 팩토리가 봅니다.',
+    not_money: '회계 보고서는 팩토리 대표 · 실장만 봅니다.',
   };
   var FAIL_MSG = '회계 보고서를 불러오지 못했습니다.';
   var NOT_READY_MSG = '회계 보고서를 준비하는 중입니다. 잠시 뒤 다시 열어 주세요.';

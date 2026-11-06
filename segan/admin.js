@@ -22,9 +22,9 @@
 
   var INBOX_LIMIT = 200; // 워커 distribution/admin.js INBOX_LIMIT
   var TODAY = [
-    { key: 'applications', label: '새 업체 신청', href: '#applications' },
+    { key: 'applications', label: '새 팩토리 신청', href: '#applications' },
     { key: 'pending', label: '배정을 기다리는 상담', href: '#consults' },
-    { key: 'assigned', label: '업체 답을 기다리는 배정', href: '#consults-assigned' },
+    { key: 'assigned', label: '팩토리 답을 기다리는 배정', href: '#consults-assigned' },
     { key: 'proposals', label: '결정할 생산 제안', href: '#reports' },
   ];
   // PC 에 남기는 화면 — 이름은 js/admin-shell.js ADMIN_NAV 와 같다 (시험이 본다)
@@ -34,7 +34,7 @@
     { href: '../admin/gallery.html', label: '시공사례 관리' },
     { href: '../admin/reference-images.html', label: '참고 이미지' },
     { href: '../admin/dataset.html', label: '학습 데이터셋' },
-    { href: '../admin/partner-eval.html', label: '업체 평가' },
+    { href: '../admin/partner-eval.html', label: '팩토리 평가' },
     { href: '../admin/appliances.html', label: '가전 모델 관리' },
     { href: '../admin/work-jobs.html', label: '작업 배정' },
     { href: '../admin/logs.html', label: '활동 로그' },

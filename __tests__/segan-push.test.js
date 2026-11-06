@@ -3,7 +3,7 @@
 /**
  * SEGAN 「내 정보 › 알림」 (segan/push.js + segan/me.html #mePush) — 업무 알림(web push) 구독 · 끄기
  *
- *   누가    GET /partner/me 로 — 협력업체 구성원(역할 무관) · 본사 구성원 · 업체 신청 중(applied · meeting · approved)
+ *   누가    GET /partner/me 로 — 협력업체 구성원(역할 무관) · 본사 구성원 · 팩토리 신청 중(applied · meeting · approved)
  *   서버    workflow-api GET /push/key (로그인 없이) · POST /push/subscriptions · DELETE /push/subscriptions (Bearer)
  *           키를 못 읽으면 칸째 감춘다
  *   화면    아이폰(홈 화면 앱 아님) → 홈 화면에 추가하는 법 / 못 받는 브라우저 / 막힌 권한 / 켜짐(끄기) / 꺼짐(알림 켜기)
@@ -53,7 +53,7 @@ const application = (status) => ({
   id: '66666666-6666-4666-8666-666666666666',
   kind: 'new',
   status,
-  company_name: '새 업체',
+  company_name: '새 팩토리',
   sido: '대구광역시',
   gugun: '북구',
   created_at: '2026-10-20T03:00:00Z',
@@ -300,7 +300,7 @@ describe('자리', () => {
   });
 });
 
-describe('누가 보나 — 협력업체 구성원 · 본사 구성원 · 업체 신청 중', () => {
+describe('누가 보나 — 협력업체 구성원 · 본사 구성원 · 팩토리 신청 중', () => {
   test.each([
     ['대표', partnerMe({ company: company() })],
     ['실장', partnerMe({ company: company({ role: 'manager' }) })],
@@ -451,7 +451,7 @@ describe('꺼짐 → 알림 켜기', () => {
     expect(calls.subscribe).toEqual([]);
   });
 
-  test('서버가 403 no_company — 이 기기 구독을 풀고 「업체 구성원만…」', async () => {
+  test('서버가 403 no_company — 이 기기 구독을 풀고 「팩토리 구성원만…」', async () => {
     const { calls, sub } = await load({
       postRes: fail(403, 'no_company', '업체 구성원이 아닙니다'),
     });
@@ -460,7 +460,7 @@ describe('꺼짐 → 알림 켜기', () => {
     expect(sub()).toBeNull();
     expect(view()).toBe('off');
     expect(body().querySelector('.mk-error').textContent).toBe(
-      '업체 구성원만 알림을 받을 수 있습니다.'
+      '팩토리 구성원만 알림을 받을 수 있습니다.'
     );
   });
 
@@ -580,7 +580,7 @@ describe('열 때 다시 적기 — 이 기기에 구독이 있으면 POST 한 �
     expect(body().querySelector('.mk-error')).toBeNull();
   });
 
-  test('업체 신청 중에 켠 사람이 업체 구성원이 된 뒤 — 열면 다시 적힌다', async () => {
+  test('팩토리 신청 중에 켠 사람이 업체 구성원이 된 뒤 — 열면 다시 적힌다', async () => {
     const { calls } = await load({
       subscribed: true,
       permission: 'granted',

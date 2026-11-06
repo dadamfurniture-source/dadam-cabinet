@@ -311,7 +311,7 @@ describe('회계 한눈에', () => {
   test('직원 403 · 0034 전 — 한 줄만', async () => {
     await load({ dash: () => fail(403, 'not_money', 'x') });
     expect($('lbBody').hidden).toBe(true);
-    expect($('lbState').textContent).toBe('회계 한눈에는 업체 대표 · 실장만 봅니다.');
+    expect($('lbState').textContent).toBe('회계 한눈에는 팩토리 대표 · 실장만 봅니다.');
     await load({ dash: () => ok({ available: false, month: '2026-11' }) });
     expect($('lbBody').hidden).toBe(true);
     expect($('lbState').textContent).toBe(

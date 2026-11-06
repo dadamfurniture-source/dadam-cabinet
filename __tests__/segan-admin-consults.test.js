@@ -3,11 +3,11 @@
 /**
  * SEGAN 「관리 › 상담 배정」 (segan/admin-consults.js + segan/admin.html#consults)
  *
- *   들어오기  오늘 할 일 「배정을 기다리는 상담」 = #consults, 「업체 답을 기다리는 배정」 = #consults-assigned
+ *   들어오기  오늘 할 일 「배정을 기다리는 상담」 = #consults, 「팩토리 답을 기다리는 배정」 = #consults-assigned
  *   서버      workflow-api GET /admin/consult-inbox?state= · GET /admin/consultations/:id/candidates ·
  *             POST /admin/consultations/:id/assign { company_id }
- *   화면      대기 · 답 기다림 탭 → 상담 줄 → 누르면 고객 칸 · 지금 배정 · 거친 업체 · 순위 · 걸러진 업체 ·
- *             「이 업체에 배정」(되묻기는 화면 안에서). 이름표 · 점수 묶음은 PC admin/consult-distribution.html 과 같다
+ *   화면      대기 · 답 기다림 탭 → 상담 줄 → 누르면 고객 칸 · 지금 배정 · 거친 팩토리 · 순위 · 걸러진 팩토리 ·
+ *             「이 팩토리에 배정」(되묻기는 화면 안에서). 이름표 · 점수 묶음은 PC admin/consult-distribution.html 과 같다
  */
 const fs = require('fs');
 const path = require('path');
@@ -193,7 +193,7 @@ describe('들어오기 · 목록', () => {
     expect(href('assigned')).toBe('#consults-assigned');
   });
 
-  test('#consults — 대기 탭, 상담 줄(이름 · 지역 · 품목 · 신청일 · 거친 업체 · 상태)', async () => {
+  test('#consults — 대기 탭, 상담 줄(이름 · 지역 · 품목 · 신청일 · 거친 팩토리 · 상태)', async () => {
     const calls = await load();
     expect($('adConsults').hidden).toBe(false);
     expect($('adToday').hidden).toBe(true);
@@ -205,14 +205,14 @@ describe('들어오기 · 목록', () => {
     expect(tab.textContent).toBe('대기');
     const line = (id) => item(id).querySelector('small').textContent;
     expect(line(C1)).toBe('대구광역시 북구 · 싱크대 · 붙박이장 · 2026.11.01');
-    expect(line(C2)).toBe('대구광역시 북구 · 싱크대 · 붙박이장 · 2026.11.01 · 거친 업체 1');
+    expect(line(C2)).toBe('대구광역시 북구 · 싱크대 · 붙박이장 · 2026.11.01 · 거친 팩토리 1');
     expect(item(C1).querySelector('.ad-status').textContent).toBe('대기');
     expect(document.querySelector('#adConsults .ad-more a').getAttribute('href')).toBe(
       '../admin/consult-distribution.html'
     );
   });
 
-  test('#consults-assigned — 답 기다림 탭, 업체 이름 · 남은 시간 · 상태 「배정됨」', async () => {
+  test('#consults-assigned — 답 기다림 탭, 팩토리 이름 · 남은 시간 · 상태 「배정됨」', async () => {
     await load({ hash: '#consults-assigned' });
     expect(body().querySelector('[aria-selected="true"]').textContent).toBe('답 기다림');
     expect(item(C1).querySelector('small').textContent).toContain('가나 인테리어 22시간 0분 남음');
@@ -234,7 +234,7 @@ describe('들어오기 · 목록', () => {
 });
 
 describe('상담 열기', () => {
-  test('누르면 그 자리에 고객 칸 · 지금 배정 · 거친 업체 · 순위(점수 내역) · 걸러진 업체', async () => {
+  test('누르면 그 자리에 고객 칸 · 지금 배정 · 거친 팩토리 · 순위(점수 내역) · 걸러진 팩토리', async () => {
     await load();
     await pick(C2);
     const facts = [...item(C2).querySelectorAll('.me-facts div')].map((d) => [
@@ -258,7 +258,7 @@ describe('상담 열기', () => {
     expect(item(C2).querySelector('a[href="tel:01011112222"]')).not.toBeNull();
     expect(item(C2).querySelector('[data-assign-now]').textContent).toBe('지금 배정 없음');
     expect(item(C2).querySelector('[data-tried]').textContent).toBe(
-      '거친 업체 — 다라 가구 못 받음'
+      '거친 팩토리 — 다라 가구 못 받음'
     );
     const cands = [...item(C2).querySelectorAll('.ad-cand')];
     expect(cands.map((c) => c.querySelector('.ad-cand-head').textContent)).toEqual([
@@ -271,7 +271,7 @@ describe('상담 열기', () => {
       '위치 15/15 (같은 시/군/구)',
       '기타 7/10 (일감 고르게 5/5 · 처리 여유 2/5)',
     ]);
-    expect(item(C2).querySelector('.ad-filtered summary').textContent).toBe('걸러진 업체 1');
+    expect(item(C2).querySelector('.ad-filtered summary').textContent).toBe('걸러진 팩토리 1');
     expect(item(C2).querySelector('.ad-filtered li').textContent).toBe(
       '멈춘 가구 — 활동 안 함 · 서류 미확인'
     );
@@ -290,12 +290,12 @@ describe('상담 열기', () => {
     expect(item(C1).textContent).toContain('답을 기다리는 배정이 있어 지금은 배정할 수 없습니다.');
     await load({ candidates: () => ok({ items: [], filtered: [] }) });
     await pick(C1);
-    expect(item(C1).textContent).toContain('남는 업체 없음 — 고객에게 직접 연락해 주세요.');
+    expect(item(C1).textContent).toContain('남는 팩토리 없음 — 고객에게 직접 연락해 주세요.');
   });
 });
 
 describe('배정', () => {
-  test('「이 업체에 배정」 → 화면 안 되묻기 → 보내고 목록을 다시 읽어 알린다', async () => {
+  test('「이 팩토리에 배정」 → 화면 안 되묻기 → 보내고 목록을 다시 읽어 알린다', async () => {
     let sent = null;
     const calls = await load({
       assign: (id, b) => {
@@ -316,7 +316,7 @@ describe('배정', () => {
     expect(sent).toEqual([C1, { company_id: CO_A }]);
     expect(inboxCalls(calls)).toHaveLength(2);
     expect(body().querySelector('.me-pt-msg').textContent).toBe(
-      '「가나 인테리어」에 배정했습니다. 업체가 24시간 안에 답합니다.'
+      '「가나 인테리어」에 배정했습니다. 팩토리가 24시간 안에 답합니다.'
     );
   });
 

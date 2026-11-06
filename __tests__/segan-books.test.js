@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /* global require, describe, test, expect, afterEach, __dirname, document, window, DOMParser, sessionStorage, jest, setTimeout, Element */
 /**
- * SEGAN 「내 정보 › 업체」 안의 회계 (segan/books.js + segan/me.html #meBooks)
+ * SEGAN 「내 정보 › 팩토리」 안의 회계 (segan/books.js + segan/me.html #meBooks)
  *
- *   누가    회계 요약은 업체 대표 · 실장만 (account-api GET /partner/me 의 company.role).
+ *   누가    회계 요약은 팩토리 대표 · 실장만 (account-api GET /partner/me 의 company.role).
  *           직원 · 본사 · 공장 구성원은 /ledger/me 가 답할 때 장부 줄(대표 · 실장) 또는 사진 올리기 줄(직원)만.
  *           업체 없음 · /partner/me 를 못 읽음 → 칸이 없다
  *   데이터  workflow-api GET /books/summary?month=YYYY-MM (본인 토큰) → { success, data }

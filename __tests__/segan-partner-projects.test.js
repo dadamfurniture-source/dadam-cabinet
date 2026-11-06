@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /* global require, describe, test, expect, afterEach, __dirname, document, window, DOMParser, sessionStorage, jest, setTimeout, Element, Event */
 /**
- * SEGAN 「내 정보 › 업체」 안의 프로젝트 (segan/partner-projects.js + segan/me.html #partnerProjects)
+ * SEGAN 「내 정보 › 팩토리」 안의 프로젝트 (segan/partner-projects.js + segan/me.html #partnerProjects)
  *
  *   누가    다담 공장 구성원 · Expert · Agent 협력업체 구성원 (account-api GET /partner/me)
  *           업체 없음 · /partner/me 를 못 읽음 → 묻지도 않고 칸이 없다. 서버 403 → 칸째 감춘다
@@ -379,13 +379,13 @@ describe('새 고객 · 프로젝트', () => {
   });
 
   test('서버가 못 만들면 서버 글을 그 자리에 · 칸은 열어 둔다', async () => {
-    await load({ create: () => fail(403, 'not_manager', '업체 대표 · 실장만 할 수 있습니다') });
+    await load({ create: () => fail(403, 'not_manager', '팩토리 대표 · 실장만 할 수 있습니다') });
     await flush();
     box().querySelector('[data-act="open"]').click();
     setValue('input[name="title"]', '거실장');
     setValue('input[name="name"]', '박고객');
     await submit();
-    expect(box().querySelector('[data-err]').textContent).toBe('업체 대표 · 실장만 할 수 있습니다');
+    expect(box().querySelector('[data-err]').textContent).toBe('팩토리 대표 · 실장만 할 수 있습니다');
     expect(box().querySelector('input[name="name"]').value).toBe('박고객');
     box().querySelector('[data-act="close"]').click();
     expect(box().querySelector('form[data-form="project"]')).toBeNull();
