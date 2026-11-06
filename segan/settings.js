@@ -8,6 +8,8 @@
      프로필 수정 이름(필수) · 연락처 · 거주지역 시/도 · 시/군/구 (mypage.html submitEditProfile)
                  목록은 segan/regions.js — mypage.html gugunData 와 같은 목록이다 (시험이 본다)
                  auth.updateUser({ data }) 로 저장하고 profiles 도 같은 값으로 고친다 (profiles 실패는 넘긴다)
+     비밀번호    앱에서 바꾸지 않는다 — 안내 한 줄과 로그인 화면의 「비밀번호 찾기」(reset-password.html) 링크만
+                 (settings.html 에 적혀 있다, 여기서는 하는 일이 없다)
      회원탈퇴    지우는 것 · 남는 것 안내 + 확인 문구 「탈퇴합니다」를 그대로 적어야 단추가 열린다 (mypage.html submitWithdraw)
                  account-api POST /delete (본인 토큰만 — 대상 id 를 보내지 않는다, 보내면 남의 계정을 지목할 수 있다).
                  되면 남은 세션을 지우고 앱 첫 화면으로 간다

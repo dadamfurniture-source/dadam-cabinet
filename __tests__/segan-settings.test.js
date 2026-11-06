@@ -309,6 +309,32 @@ describe('프로필 수정 — mypage.html submitEditProfile', () => {
   });
 });
 
+describe('비밀번호 — 앱에서 바꾸지 않는다', () => {
+  test('안내 한 줄 + 로그인 화면 「비밀번호 찾기」와 같은 곳(reset-password.html)으로', async () => {
+    await load();
+    // login.html 의 「비밀번호 찾기」가 가리키는 곳 (정본)
+    const login = read('login.html').match(
+      /<a href="([^"]+)" class="forgot-link">비밀번호 찾기<\/a>/
+    );
+    expect(login).not.toBeNull();
+    const a = $('stPwLink');
+    expect(a.textContent).toBe('비밀번호 찾기');
+    expect(a.getAttribute('href')).toBe('../' + login[1]);
+    expect(fs.existsSync(path.join(ROOT, 'segan', a.getAttribute('href')))).toBe(true);
+    expect($('stPwNote').textContent.replace(/\s+/g, ' ').trim()).toBe(
+      '비밀번호는 앱에서 바꾸지 않습니다. 로그인 화면의 「비밀번호 찾기」에서 가입한 이메일로 재설정 링크를 받아 바꿀 수 있습니다.'
+    );
+  });
+
+  test('비밀번호 칸 · 바꾸기 호출이 없다 (새 재설정 흐름을 만들지 않는다)', async () => {
+    const calls = await load();
+    expect(document.querySelectorAll('input[type="password"]')).toHaveLength(0);
+    const src = read('segan/settings.js').replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
+    expect(src).not.toMatch(/password|resetPasswordForEmail/i);
+    expect(calls.updateUser).toEqual([]);
+  });
+});
+
 describe('회원탈퇴 — mypage.html submitWithdraw', () => {
   const open = () => $('stWithdrawOpen').click();
   const press = async () => {
