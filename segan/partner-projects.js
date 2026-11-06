@@ -7,11 +7,16 @@
              segan/me.js 가 업체 칸(segan/partner.js)을 읽은 뒤 SeganPartnerProjects.load(sb, session, partnerMe) 를
              부른다 (/partner/me 를 두 번 묻지 않는다). 다담 공장 구성원이면 이 칸을 그렸을 때 업체 칸(#partner)을 연다.
    서버      workflow-api (본인 토큰 · 응답은 { success, data } · 오류는 { success:false, message, code })
-               GET  /company/projects   { company, can_manage, items[{ id, title, status, created_at, closed_at,
-                                          customer { id, name, phone } | null, design_count }] }
+               GET  /company/projects   { company, can_manage, assignee_ready, members[{ user_id, name, role }],
+                                          items[{ id, title, status, created_at, closed_at,
+                                          customer { id, name, phone } | null, design_count, assignee | null }] }
                POST /company/projects   { title, customer: { name, phone } } | { title, customer_id }
                                         → 201 { project_id, customer_id }
-   화면      프로젝트 한 줄마다 이름 · 상태(진행 중은 적지 않는다) · 고객 이름 · 전화 · 만든 날 · 이어진 설계 수
+               PUT  /company/projects/:id/assignee  { assignee_id | null } (대표 · 실장 — DB 0042)
+   화면      프로젝트 한 줄마다 이름 · 상태(진행 중은 적지 않는다) · 고객 이름 · 전화 · 만든 날 · 이어진 설계 수 · 담당자
+             담당자 (2026-11-06 작업 분배 ① Expert · Agent 모두 ② 프로젝트에 한 명 ③ 대표 · 실장 · 직원):
+               대표 · 실장은 줄의 「담당자」 → 지금 구성원 중 고르기 · 비우기 (Agent 의 비서 추천은 비서 대화의 승인 카드).
+               서버가 담당자 칸을 아직 못 받으면(assignee_ready false — DB 0042 전) 담당자를 적지도 고르지도 않는다.
              새 고객 · 프로젝트 — 프로젝트 이름 + 「새 고객」(이름 · 전화) 또는 「있는 고객」(목록에 나온 고객 중 고르기)
    이름      상태 = segan/me.js PROJECT_STATUS 와 같다 (active 는 적지 않는다)
    못 읽으면  처음(403 · 404 · 오류 · 끊김 · 모양이 틀림) → 칸째 감춘다. 만들기를 못 하면 서버 글을 그 자리에.
@@ -23,6 +28,7 @@
   var MEMBER_ROLES = ['owner', 'manager', 'staff'];
   var PLANS = ['expert', 'agent']; // 프로젝트를 가지는 협력업체 (Expert 이상) — 워커 company-projects.js
   var PROJECT_STATUS = { closed: '끝남', cancelled: '취소', handed_over: '넘김' }; // segan/me.js 와 같다
+  var ROLE_NAME = { owner: '대표', manager: '실장', staff: '직원' }; // 업체 안 역할 — manager 는 화면 「실장」
   var TITLE_MAX = 100; // 워커 PROJECT_TITLE_MAX
   var NAME_MAX = 50; // 워커 CUSTOMER_NAME_MAX
   var PHONE_RE = /^[0-9][0-9-]{7,19}$/; // 워커 PHONE_RE (account-api partner.js 와 같은 꼴)
@@ -38,6 +44,9 @@
     phoneBad: '전화는 숫자와 - 로 8~20자로 적어 주세요.',
     pickCustomer: '고객을 골라 주세요.',
     created: '프로젝트를 만들었습니다.',
+    assigned: '담당자를 정했습니다.',
+    unassigned: '담당자를 비웠습니다.',
+    noAssignee: '담당자 없음',
     generic: '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
   };
 
@@ -48,6 +57,7 @@
     me: null,
     data: null, // { company, can_manage, items }
     open: false, // 새 고객 · 프로젝트 칸
+    assignFor: '', // 담당자를 고르는 프로젝트 id
     mode: 'new', // new | existing
     err: '',
     msg: '',
@@ -107,10 +117,33 @@
     return {
       company: d.company && typeof d.company === 'object' ? d.company : null,
       manage: d.can_manage === true,
+      // 담당자 칸 — 서버가 assignee_ready true 로 답할 때만 (DB 0042 전 · 옛 서버면 없음)
+      assignee: d.assignee_ready === true,
+      members: (Array.isArray(d.members) ? d.members : []).filter(function (m) {
+        return m && typeof m === 'object' && UUID_RE.test(String(m.user_id || ''));
+      }),
       items: d.items.filter(function (p) {
         return p && typeof p === 'object' && UUID_RE.test(String(p.id || ''));
       }),
     };
+  }
+
+  /** 사람 이름표 — 이름(없으면 역할) · 역할 */
+  function personLabel(m) {
+    if (!m || typeof m !== 'object') return '';
+    var role = ROLE_NAME[m.role] || '';
+    if (m.name) return role ? m.name + ' (' + role + ')' : String(m.name);
+    return role || '나간 구성원';
+  }
+
+  /** 담당자 고르기 칸 값 → 보낼 본문 (빈 값 = 비우기) | { error } */
+  function assignBodyOf(value, members) {
+    var v = String(value || '');
+    if (!v) return { body: { assignee_id: null } };
+    var ok = (members || []).some(function (m) {
+      return m && m.user_id === v;
+    });
+    return ok ? { body: { assignee_id: v } } : { error: TEXT.generic };
   }
 
   /** 목록에 나온 고객 (id 차례 그대로, 한 번씩) — 「있는 고객」 고르기 */
@@ -149,12 +182,19 @@
 
   // ── 그리기 ─────────────────────────────────────────────
   function rowHtml(p) {
+    var d = J.data || {};
     var c = p.customer && typeof p.customer === 'object' ? p.customer : null;
     var who = c && c.name ? String(c.name) : '';
     var sub = [who, kstDay(p.created_at), '설계 ' + (Number(p.design_count) || 0) + '개']
       .filter(Boolean)
       .join(' · ');
     var status = PROJECT_STATUS[p.status] || '';
+    var owner = d.assignee
+      ? '<small class="me-pt-owner" data-assignee>' +
+        esc(p.assignee ? '담당 ' + personLabel(p.assignee) : TEXT.noAssignee) +
+        '</small>'
+      : '';
+    var canAssign = d.assignee && d.manage;
     return (
       '<li class="me-pt-row" data-project="' +
       esc(p.id) +
@@ -166,9 +206,56 @@
       (c && c.phone
         ? '<small><a href="' + esc(telHref(c.phone)) + '">' + esc(c.phone) + '</a></small>'
         : '') +
+      owner +
       '</span>' +
       (status ? '<span class="me-pr-status">' + esc(status) + '</span>' : '') +
-      '</span></li>'
+      '</span>' +
+      (canAssign && J.assignFor !== p.id
+        ? '<div class="rd-acts"><button type="button" class="mk-btn" data-act="assign" data-for="' +
+          esc(p.id) +
+          '">담당자</button></div>'
+        : '') +
+      (canAssign && J.assignFor === p.id ? assignHtml(p) : '') +
+      '</li>'
+    );
+  }
+
+  /** 담당자 고르기 — 지금 구성원(역할 차례) · 비우기 */
+  function assignHtml(p) {
+    var cur = p.assignee && p.assignee.user_id ? p.assignee.user_id : '';
+    var members = (J.data && J.data.members) || [];
+    return (
+      '<form class="me-pt-form me-pr-form" data-form="assign" data-for="' +
+      esc(p.id) +
+      '" novalidate>' +
+      '<label class="mk-input"><span>담당자</span><select name="assignee_id"><option value="">' +
+      esc(TEXT.noAssignee) +
+      '</option>' +
+      members
+        .map(function (m) {
+          return (
+            '<option value="' +
+            esc(m.user_id) +
+            '"' +
+            (m.user_id === cur ? ' selected' : '') +
+            '>' +
+            esc(personLabel(m)) +
+            '</option>'
+          );
+        })
+        .join('') +
+      '</select></label>' +
+      '<p class="mk-error" data-err role="alert"' +
+      (J.err ? '' : ' hidden') +
+      '>' +
+      esc(J.err) +
+      '</p>' +
+      '<div class="rd-acts"><button type="submit" class="mk-btn mk-btn--solid"' +
+      (J.busy ? ' disabled' : '') +
+      '>저장</button><button type="button" class="mk-btn" data-act="assign-close"' +
+      (J.busy ? ' disabled' : '') +
+      '>닫기</button></div>' +
+      '</form>'
     );
   }
 
@@ -342,6 +429,35 @@
     if (el.focus) el.focus();
   }
 
+  /** 담당자 저장 — PUT /company/projects/:id/assignee → 목록 다시 읽기 */
+  async function submitAssign(form) {
+    if (J.busy) return;
+    var id = form.getAttribute('data-for') || '';
+    var sel = form.querySelector('[name="assignee_id"]');
+    var got = assignBodyOf(sel ? sel.value : '', (J.data && J.data.members) || []);
+    if (!UUID_RE.test(id) || got.error) {
+      J.err = got.error || TEXT.generic;
+      render();
+      return;
+    }
+    J.busy = true;
+    J.err = '';
+    render();
+    var r = await call('PUT', '/company/projects/' + id + '/assignee', got.body);
+    if (!r.ok) {
+      J.busy = false;
+      J.err = errText(r);
+      render();
+      return;
+    }
+    var list = await fetchList();
+    J.busy = false;
+    J.assignFor = '';
+    J.msg = got.body.assignee_id ? TEXT.assigned : TEXT.unassigned;
+    if (list) J.data = list;
+    render();
+  }
+
   async function submit(form) {
     if (J.busy) return;
     var v = valuesOf(form);
@@ -391,6 +507,16 @@
       J.open = false;
       J.err = '';
       render();
+    } else if (act === 'assign') {
+      J.assignFor = el.getAttribute('data-for') || '';
+      J.open = false;
+      J.err = '';
+      J.msg = '';
+      render();
+    } else if (act === 'assign-close') {
+      J.assignFor = '';
+      J.err = '';
+      render();
     }
   }
 
@@ -407,7 +533,13 @@
 
   function onSubmit(e) {
     var form = e.target;
-    if (!form || form.getAttribute('data-form') !== 'project') return;
+    var kind = form && form.getAttribute('data-form');
+    if (kind === 'assign') {
+      e.preventDefault();
+      submitAssign(form);
+      return;
+    }
+    if (kind !== 'project') return;
     e.preventDefault();
     submit(form);
   }
@@ -425,6 +557,7 @@
     J.me = me;
     J.data = null;
     J.open = false;
+    J.assignFor = '';
     J.mode = 'new';
     J.err = '';
     J.msg = '';
@@ -458,6 +591,8 @@
     listOf: listOf,
     customersOf: customersOf,
     bodyOf: bodyOf,
+    personLabel: personLabel,
+    assignBodyOf: assignBodyOf,
     load: load,
   };
 })();
