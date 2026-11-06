@@ -28,7 +28,9 @@ MAX_TURNS = "30"
 SESSION_LOCATION = "enam"
 
 # 영수증 · 명세표 사진 읽기 (src/extract/) — 모델 · 생각 정도 · 최대 답 토큰 · 사진마다 자동 시도 수(매분 cron 다시 걸기)
-EXTRACT_MODEL = "claude-haiku-5-5"
+# 읽기는 Sonnet 5.5, 읽기 전 방향 묻기는 Haiku 5.5 (각도 하나만 답한다)
+EXTRACT_MODEL = "claude-sonnet-5-5"
+ORIENT_MODEL = "claude-haiku-5-5"
 EXTRACT_EFFORT = "medium"
 EXTRACT_MAX_TOKENS = "8000"
 EXTRACT_MAX_ATTEMPTS = "2"
