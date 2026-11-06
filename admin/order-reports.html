@@ -17,6 +17,7 @@
       완료 보고 모아 보기 — 2026-11-06 사장님 결정 (작업 분배 ⑤): 팩토리가 설치 · A/S 를 자기 사람으로 하고 수주에서
       「설치 완료」 · 「A/S 완료」 + 사진으로 보고한다. 본사는 받아서 기록만 한다 (검수 없음).
       읽기는 workflow-api GET /admin/order-reports?days= (관리자만, DB 0043). 사진은 서버의 서명 주소(1시간).
+      학습 칸 = 서버 learn_ok (⑥ 고객이 「시공 사진 학습 활용」에 동의한 상담의 수주만 true, DB 0044) — 동의 · 안 함 · 모름.
       화면에 넣는 값은 전부 esc() 를 거친다.
     -->
     <style>
@@ -99,7 +100,7 @@
 
         <section class="card">
           <div class="tbl-wrap"><table class="tbl" id="tblReports">
-            <thead><tr><th scope="col">보고한 때</th><th scope="col">팩토리</th><th scope="col">주문번호</th><th scope="col">종류</th><th scope="col">메모</th><th scope="col">사진</th></tr></thead>
+            <thead><tr><th scope="col">보고한 때</th><th scope="col">팩토리</th><th scope="col">주문번호</th><th scope="col">종류</th><th scope="col">메모</th><th scope="col">사진</th><th scope="col">학습</th></tr></thead>
             <tbody></tbody>
           </table></div>
         </section>
@@ -140,6 +141,9 @@
           return `${k.slice(5, 7)}.${k.slice(8, 10)} ${k.slice(11, 16)}`;
         }
 
+        /** 학습 동의 — true 동의 · false 안 함 · 그 밖(null — 상담을 못 찾음 · 0044 전) 모름 */
+        const learnLabel = (v) => (v === true ? '동의' : v === false ? '안 함' : '모름');
+
         function render() {
           const d = state.data || { ready: true, items: [] };
           $('needSql').hidden = d.ready !== false;
@@ -147,8 +151,8 @@
           const items = d.items || [];
           tb.innerHTML = items.length
             ? items.map((x) => `<tr><td>${esc(when(x.created_at))}</td><td>${esc(x.company_name || '-')}</td><td>${esc(x.order_no || '-')}</td><td>${esc(x.label || x.kind)}</td><td>${esc(x.note || '')}</td>` +
-              `<td><div class="photos">${(x.photo_urls || []).map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="${esc(x.label || '')} 사진" loading="lazy" /></a>`).join('')}</div></td></tr>`).join('')
-            : '<tr><td colspan="6" class="empty-state">이 기간에 들어온 보고가 없습니다.</td></tr>';
+              `<td><div class="photos">${(x.photo_urls || []).map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="${esc(x.label || '')} 사진" loading="lazy" /></a>`).join('')}</div></td><td>${esc(learnLabel(x.learn_ok))}</td></tr>`).join('')
+            : '<tr><td colspan="7" class="empty-state">이 기간에 들어온 보고가 없습니다.</td></tr>';
           if (d.ready !== false) setStatus(`${items.length}건 · 최근 ${d.days || ''}일`);
         }
 
@@ -182,7 +186,7 @@
           await load();
         }
 
-        window.OrderReports = { init, render, state, when };
+        window.OrderReports = { init, render, state, when, learnLabel };
         if (!window.__ORDER_REPORTS_NO_AUTOSTART) {
           if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
           else init();
