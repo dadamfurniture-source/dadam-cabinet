@@ -299,7 +299,10 @@ test('올린 사진 · 장부 요약 · 고객 프로젝트 — 줄인 모양', 
     closed_at: null,
     customer_name: '김고객',
     design_count: 2,
+    assignee: null,
   });
+  assert.equal(results[2].assignee_ready, true);
+  assert.deepEqual(results[2].members, []);
   assert.deepEqual(
     w.workflow.calls.map((c) => c.path + c.query),
     ['/ledger/documents?limit=100', '/books/summary', '/company/projects']
@@ -516,7 +519,7 @@ test('대화 보기 running — 도는 차례를 { turn, after } 로, 끝나면 
 test('toolDefs — 돈 도구는 대표 · 실장만, 모두 strict · additionalProperties false', () => {
   const all = toolDefs({ money: true });
   const staff = toolDefs({ money: false });
-  assert.equal(all.length, 19);
+  assert.equal(all.length, 20);
   assert.deepEqual(
     all.filter((t) => !staff.some((s) => s.name === t.name)).map((t) => t.name),
     [
@@ -528,6 +531,7 @@ test('toolDefs — 돈 도구는 대표 · 실장만, 모두 strict · additiona
       'propose_ledger_post',
       'propose_project_create',
       'propose_design_link',
+      'propose_project_assign',
       'propose_payment_received',
       'propose_cost_add',
     ]
