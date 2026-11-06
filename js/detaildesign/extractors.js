@@ -156,6 +156,18 @@
         '거울':            { key: 'mirror',           slot: 'back' },
       };
 
+      /**
+       * 2026-11-06 사장님 (작업지시서 마무리 「몰딩 · 걸레받이 · 목찬넬 색」 → 도어 색을 따라감):
+       *   디테일 모델에 제 색이 없는 이 부재들은 그 자리의 도어 색(디테일 모델 부재 > 모듈 > 섹션 > 품목)을 받는다.
+       *   몰딩 = 마감재 칸에서 이름에 몰딩이 든 부재 (상몰딩 · 좌우측몰딩 · 덧대 · 코너 · 멍판), 걸레받이 = kick 키 (걸레받이 · 좌대 걸레받이),
+       *   목찬넬 = 손잡이 칸 전부. EP · 휠라 · 멍가림판 · 좌대 · 가림판 · 내부서랍 좌우몰딩(몸통)은 그대로다.
+       */
+      const BOM_TRIM_FOLLOWS_DOOR = Object.freeze(Object.keys(BOM_PART_DEFS).reduce((m, name) => {
+        const d = BOM_PART_DEFS[name];
+        if ((d.slot === 'finishing' && /몰딩/.test(name)) || d.key === 'kick' || d.slot === 'handle') m[name] = true;
+        return m;
+      }, {}));
+
       /** 2026-10-20: 아일랜드 몸통 깊이는 사장님 값 대기 — 측판 비고에 붙인다 (extract 'island'). */
       const BOM_ISLAND_DEPTH_NOTE = '[확인 필요] 아일랜드 몸통 깊이';
       /** 2026-10-20: 도어교체 품목이 내는 판 — 도어·서랍 전면 (extract 'door'). */
@@ -1626,6 +1638,10 @@
           } else if (resolved) {
             // 몸통·상판·손잡이·마감재·걸레받이: 디테일 모델이 정한 때만 코드. 자재·비고는 그대로.
             finishCode = resolved.code;
+          } else if (BOM_TRIM_FOLLOWS_DOOR[part]) {
+            // 몰딩 · 걸레받이 · 목찬넬 — 제 색이 없으면 그 자리 도어 색 (BOM_TRIM_FOLLOWS_DOOR). 자재 · 비고 · 밴드 색은 그대로.
+            const door = this.resolveFinish('door', ctx.moduleId, ctx.section, 'door');
+            if (door) finishCode = door.code;
           } else if (slot === 'top') {
             // P1-3: 상판은 디테일 모델이 없으면 품목 사양 topColor 의 카탈로그 코드(TOP-*)로 떨어진다.
             finishCode = bomTopCodeOf(ctx.specs.topColor);
@@ -4394,7 +4410,7 @@
         module.exports = {
           MaterialExtractor, HardwareExtractor, DrawingVisualizer,
           // B1 도우미 — 시험이 표·해석기를 직접 본다
-          BOM_PART_DEFS, bomPartDefOf,
+          BOM_PART_DEFS, bomPartDefOf, BOM_TRIM_FOLLOWS_DOOR,
           BOM_PART_KEY_ALIASES, bomFinishResolveEmbedded, bomFinishCandidates, bomDetailOf,
           bomEdgeSidesOf, bomEdgeLenOf, bomEdgeThicknessOf,
           // B3 단순 카테고리 — 규칙표·선반/도어/깊이/레일 도우미 (bom-golden-simple.test.js)

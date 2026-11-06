@@ -55,7 +55,7 @@
 - `price_key`(`PET-M`, `MFB` …) 로만 단가표(`FINISH_BASE_PRICE` / `pricing_rules`)에 연결. 가격은 카탈로그에 두지 않는다.
 - **불변조건 I6**: 코드는 더하기만. 이름 변경·삭제 금지 — 과거 작업지시서·단가에 박혀 있다.
 - 기존 한글 사양값(`specs.doorColorUpper='화이트'`, `doorFinishUpper='무광'`)은 계속 읽힌다. 단 `'무광'` 은 기판(PET/도장…)을 모르므로 코드를 짐작하지 않고 `MDF-DEFAULT` 로 두며 톤·색 코드만 채운다 — 판매 라인이 정해지면 `LEGACY_FINISH_MAP` 한 줄로 기본 기판을 지정한다 [확인 필요].
-- **행의 `finishCode` 우선순위 (B1, `extractors.js add()`)**: ① 디테일 마감 모델 `item.detail` (부재 > 모듈 > 섹션 > 품목 — `planner-finish.js plannerFinishResolve` 와 같은 해석, §7-1 의 partKey 로 부재를 가리킨다) → ② 모듈 `mod.doorFinish/doorColor/doorMaterialCode` → ③ 품목 사양 `specs.doorFinishUpper/Lower + doorColorUpper/Lower` (상/하 묶음은 `upper·hood → Upper`, 나머지 `Lower`). ②③ 은 도어·서랍도어에만 적용되고 `resolveDoorMaterial` 을 거치므로 한글 값은 코드가 비어 있다. 몸통·상판·손잡이·마감재·걸레받이는 ① 이 정한 때만 코드가 있고, 뒷판·서랍밑판(`slot: back`)은 언제나 빈 값이다.
+- **행의 `finishCode` 우선순위 (B1, `extractors.js add()`)**: ① 디테일 마감 모델 `item.detail` (부재 > 모듈 > 섹션 > 품목 — `planner-finish.js plannerFinishResolve` 와 같은 해석, §7-1 의 partKey 로 부재를 가리킨다) → ② 모듈 `mod.doorFinish/doorColor/doorMaterialCode` → ③ 품목 사양 `specs.doorFinishUpper/Lower + doorColorUpper/Lower` (상/하 묶음은 `upper·hood → Upper`, 나머지 `Lower`). ②③ 은 도어·서랍도어에만 적용되고 `resolveDoorMaterial` 을 거치므로 한글 값은 코드가 비어 있다. 몸통·상판·손잡이·마감재·걸레받이는 ① 이 정한 때만 코드가 있고, 뒷판·서랍밑판(`slot: back`)은 언제나 빈 값이다. 다만 **몰딩 · 걸레받이 · 목찬넬** (`BOM_TRIM_FOLLOWS_DOOR` — 마감재 칸의 몰딩 이름 · `kick` 키 · 손잡이 칸) 은 ① 에 제 색이 없으면 ① 의 그 자리 도어 색(`door` 슬롯, 부재 > 모듈 > 섹션 > 품목)을 받는다 (2026-11-06 사장님 「도어 색을 따라감」). EP · 휠라 · 멍가림판 · 좌대 · 가림판은 그대로다.
 
 ## 3. 카테고리별 BOM 산출 공식
 
