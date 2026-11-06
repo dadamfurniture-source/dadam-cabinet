@@ -572,6 +572,24 @@ a.sg-row.ad-row::after {
   color: var(--v5-ink-45);
 }
 
+/* 내 정보 › 설정 (segan/settings.js) — 프로필 수정 · 회원탈퇴 안내 */
+.st-lead {
+  margin: 0 0 8px;
+}
+
+.st-done {
+  margin-top: 10px;
+}
+
+.st-list {
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.7;
+  color: var(--v5-ink-60);
+}
+
 /* 내 프로젝트 — 제목 · 회사 / 단계 6칸 / 계약 금액 · 다음 결제 · 설치일 */
 .me-project {
   padding: 14px 0 16px;

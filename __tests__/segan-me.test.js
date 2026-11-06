@@ -8,7 +8,7 @@
  *   크레딧    RPC my_credit_wallet (업체 구성원이면 업체 통장) + credit_costs
  *   구독      payments-api GET /subscription (billing.html 과 같은 호출), 상태 이름 = billing.html
  *   업체 칸(segan/partner.js)은 __tests__/segan-partner.test.js — 여기서는 순서만 본다
- *   설정은 사이트 mypage.html, 구독 바꾸기는 billing.html 로 보낸다
+ *   설정은 앱 안 settings.html (__tests__/segan-settings.test.js), 구독 바꾸기는 billing.html 로 보낸다
  */
 const fs = require('fs');
 const path = require('path');
@@ -332,7 +332,7 @@ describe('크레딧 · 구독', () => {
     expect($('meSub').textContent).toBe('불러오지 못했습니다');
   });
 
-  test('구독 관리 → billing.html, 설정 → mypage.html (기존 페이지)', async () => {
+  test('구독 관리 → billing.html (기존 페이지), 설정 → 앱 안 settings.html', async () => {
     await load();
     const billing = [...document.querySelectorAll('a.sg-row')].find(
       (a) => a.textContent === '구독 관리'
@@ -341,8 +341,8 @@ describe('크레딧 · 구독', () => {
       /설정/.test(a.textContent)
     );
     expect(billing.getAttribute('href')).toBe('../billing.html');
-    expect(settings.getAttribute('href')).toBe('../mypage.html');
-    for (const href of ['../billing.html', '../mypage.html'])
+    expect(settings.getAttribute('href')).toBe('settings.html');
+    for (const href of ['../billing.html', 'settings.html'])
       expect(fs.existsSync(path.join(ROOT, 'segan', href))).toBe(true);
   });
 });
