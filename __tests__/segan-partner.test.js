@@ -347,12 +347,13 @@ const formError = (form) => form.querySelector('[data-err]');
 afterEach(() => jest.restoreAllMocks());
 
 describe('칸 자리 · 감춤', () => {
-  test('me.html — 내 프로젝트 바로 아래 id="partner" 칸, 처음엔 감춰 둔다', () => {
+  test('me.html — 내 프로젝트 · 내 A/S 접수 바로 아래 id="partner" 칸, 처음엔 감춰 둔다', () => {
     const doc = new DOMParser().parseFromString(read('segan/me.html'), 'text/html');
     const sec = doc.getElementById('partner');
     expect(sec).not.toBeNull();
     expect(sec.hasAttribute('hidden')).toBe(true);
-    expect(sec.previousElementSibling.id).toBe('meProjectSection');
+    expect(sec.previousElementSibling.id).toBe('meAsSection');
+    expect(sec.previousElementSibling.previousElementSibling.id).toBe('meProjectSection');
     expect(sec.querySelector('h2').textContent).toBe('팩토리');
     // 토스 결제창 · 지역 목록 · 업체 칸 스크립트를 싣는다 (billing.html 과 같은 토스 주소)
     const srcs = [...doc.querySelectorAll('script[src]')].map((s) => s.getAttribute('src'));

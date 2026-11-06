@@ -295,6 +295,7 @@ describe('자리 · 이름', () => {
       'partner-consults',
       'partnerConsultSettings',
       'partnerProjects', // 프로젝트 (segan/partner-projects.js)
+      'as', // A/S함 (segan/as-requests.js)
       'meBooks',
     ]);
     for (const id of ['partner-consults', 'partnerConsultSettings'])
