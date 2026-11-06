@@ -40,6 +40,7 @@
  *   GET  /ledger/notices · POST /ledger/notices/seen — 장부 알림 (src/ledger/notices.js, 만드는 것은 DB 0033)
  *   GET  /ledger/dashboard — 회계 한눈에 (src/ledger/dashboard.js, 묶음은 DB 0034)
  *   GET  /ledger/close-memo — 월 마감 메모 (src/ledger/close-memo.js — 서버가 센 손볼 곳, AI 없음)
+ *   GET|POST /orders/:orderId/reports · POST …/reports/photo · GET /admin/order-reports — 수주 완료 보고 (src/order-reports.js, DB 0043)
  *   GET  /brief/today — 아침 브리핑 본문 (비서를 쓰는 업체 구성원, src/brief.js)
  *
  *   GET  /public/confirm                  — 고객 열람 (X-Share-Token)
@@ -139,6 +140,7 @@ import { ledgerDashboard } from './ledger/dashboard.js';
 import { getBrief, runMorningBrief } from './brief.js';
 import { listReceivables, listPayables } from './ledger/money.js';
 import { getCloseMemo } from './ledger/close-memo.js';
+import { addOrderReport, addReportPhoto, listOrderReports, listReportsAdmin } from './order-reports.js';
 import { listSupplierModes, setSupplierMode, holdDocuments, listHeld, supplierEntries, attachStatements } from './ledger/statements.js';
 import { runLedgerPendingNotices } from './push/ledger-hooks.js';
 import { ledgerMe, getLedgerSettings, putLedgerSettings } from './ledger/settings.js';
@@ -1309,6 +1311,11 @@ const router = createRouter([
   { method: 'PATCH',  path: '/orders/:orderId',             auth: 'jwt', handler: handleUpdateOrder },
   // 수주 상태 기록 · 대표 승인 (src/order-events.js)
   { method: 'GET',    path: '/orders/:orderId/events',      auth: 'jwt', handler: handleListOrderEvents },
+  // 수주 완료 보고 (src/order-reports.js, DB 0043)
+  { method: 'GET',    path: '/orders/:orderId/reports',     auth: 'jwt', handler: workRoute(listOrderReports) },
+  { method: 'POST',   path: '/orders/:orderId/reports',     auth: 'jwt', handler: workRoute(addOrderReport, 201) },
+  { method: 'POST',   path: '/orders/:orderId/reports/photo', auth: 'jwt', handler: rawRoute(addReportPhoto, 201) },
+  { method: 'GET',    path: '/admin/order-reports',         auth: 'jwt', handler: workRoute(listReportsAdmin) },
   { method: 'GET',    path: '/orders/:orderId/checks',      auth: 'jwt', handler: workRoute(getOrderChecks) },
   { method: 'GET',    path: '/order-requests',              auth: 'jwt', handler: handleListOrderRequests },
   { method: 'POST',   path: '/order-events/:eventId/decide', auth: 'jwt', handler: handleDecideOrderEvent },
