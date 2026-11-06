@@ -24,7 +24,8 @@
     "INSERT INTO public.design_snapshots (id, design_id, rev, content_hash, design_payload, bom_payload, item_count) VALUES ({{snap_x}}, {{design_x}}, 1, 'probe', '{}', '{}', 1)",
     "INSERT INTO public.design_documents (id, design_id, snapshot_id, doc_type, rev, doc_no, title, render_payload, content_hash) VALUES ({{doc_x}}, {{design_x}}, {{snap_x}}, 'work_order', 1, 'probe-' || {{doc_x}}::text, 'probe', '{}', 'probe')",
     "INSERT INTO public.orders (id, order_no, design_id, document_id, snapshot_id, contract_amount, company_id, customer_name) VALUES ({{order_x}}, 'probe-' || {{order_x}}::text, {{design_x}}, {{doc_x}}, {{snap_x}}, 0, {{company_x}}, '고객A')",
-    "INSERT INTO public.as_requests (id, company_id, order_id, customer_user_id, body, route, assignee_id) VALUES ({{as_a}}, {{company_x}}, {{order_x}}, {{customer_user}}, '문이 안 닫혀요', 'assignee', {{x_staff_user}})"
+    "INSERT INTO public.as_requests (id, company_id, order_id, customer_user_id, body, route, assignee_id) VALUES ({{as_a}}, {{company_x}}, {{order_x}}, {{customer_user}}, '문이 안 닫혀요', 'assignee', {{x_staff_user}})",
+    "INSERT INTO public.as_requests (id, company_id, order_id, customer_user_id, body, route) VALUES ({{as_b}}, {{company_x}}, {{order_x}}, {{customer_user}}, '서랍이 걸려요', 'owners')"
   ],
   "roles": {
     "anon": {
@@ -77,7 +78,7 @@
     },
     {
       "name": "서버 — 대표 · 실장에게 간 접수 (담당자 칸 비움)",
-      "sql": "insert into public.as_requests (id, company_id, order_id, customer_user_id, body, route) values ({{as_b}}, {{company_x}}, {{order_x}}, {{customer_user}}, '서랍이 걸려요', 'owners')",
+      "sql": "insert into public.as_requests (company_id, order_id, customer_user_id, body, route) values ({{company_x}}, {{order_x}}, {{customer_user}}, '서랍이 걸려요', 'owners')",
       "roles": [
         "service_role"
       ],
