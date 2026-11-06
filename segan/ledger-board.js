@@ -471,7 +471,7 @@
       );
     add('증빙 경고 ' + (cur.evidence_risk || 0) + '건', cur.evidence_risk > 0);
     add('계정 미정 ' + (cur.account_unknown || 0) + '줄', cur.account_unknown > 0);
-    add('부가세 모름 원가 ' + (cur.vat_unknown || 0) + '줄', cur.vat_unknown > 0);
+    add('부가세 포함 합계로 적힌 원가 ' + (cur.vat_unknown || 0) + '줄', cur.vat_unknown > 0);
   }
 
   function render() {

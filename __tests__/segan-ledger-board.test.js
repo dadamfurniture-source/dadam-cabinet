@@ -242,7 +242,7 @@ describe('회계 한눈에', () => {
       ['확인 기다리는 사진 14장', 'lb-chip'],
       ['증빙 경고 3건', 'lb-chip lb-chip--warn'],
       ['계정 미정 2줄', 'lb-chip lb-chip--warn'],
-      ['부가세 모름 원가 1줄', 'lb-chip lb-chip--warn'],
+      ['부가세 포함 합계로 적힌 원가 1줄', 'lb-chip lb-chip--warn'],
     ]);
     expect($('lbStatus').querySelector('a').getAttribute('href')).toBe('ledger.html');
   });
