@@ -1,0 +1,133 @@
+{
+  "title": "0043 수주 완료 보고 — 서버만 쓴다(추가만, 고치기 · 지우기 없음), 그 팩토리 구성원만 읽는다, 종류 둘 · 사진 10장까지 · 같은 팩토리 수주만, 비공개 사진 버킷 (scripts/rls-probe.mjs --migration database/migrations/0043_order_reports.sql)",
+  "ids": [
+    "company_x",
+    "company_y",
+    "design_x",
+    "snap_x",
+    "doc_x",
+    "order_x",
+    "rep_a"
+  ],
+  "users": [
+    "x_owner_user",
+    "y_owner_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'agent', 'active'), ({{company_y}}, 'partner', 'probe Y', 'expert', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_y}}, {{y_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.designs (id, user_id, name, company_id) VALUES ({{design_x}}, {{x_owner_user}}, 'probe', {{company_x}})",
+    "INSERT INTO public.design_snapshots (id, design_id, rev, content_hash, design_payload, bom_payload, item_count) VALUES ({{snap_x}}, {{design_x}}, 1, 'probe', '{}', '{}', 1)",
+    "INSERT INTO public.design_documents (id, design_id, snapshot_id, doc_type, rev, doc_no, title, render_payload, content_hash) VALUES ({{doc_x}}, {{design_x}}, {{snap_x}}, 'work_order', 1, 'probe-' || {{doc_x}}::text, 'probe', '{}', 'probe')",
+    "INSERT INTO public.orders (id, order_no, design_id, document_id, snapshot_id, contract_amount, company_id, customer_name) VALUES ({{order_x}}, 'probe-' || {{order_x}}::text, {{design_x}}, {{doc_x}}, {{snap_x}}, 0, {{company_x}}, '고객A')",
+    "INSERT INTO public.order_reports (id, company_id, order_id, kind, note, photos, reported_by) VALUES ({{rep_a}}, {{company_x}}, {{order_x}}, 'install_done', '설치 끝', '[\"x/o/a.jpg\"]'::jsonb, {{x_owner_user}})"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "y_owner": {
+      "role": "authenticated",
+      "user": "y_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "읽기 — 그 팩토리 구성원만 (남의 팩토리 0 · 익명 deny)",
+      "sql": "select count(*) from public.order_reports where order_id = {{order_x}}",
+      "expect": {
+        "x_owner": "1",
+        "y_owner": "0",
+        "anon": "deny",
+        "service_role": "1"
+      }
+    },
+    {
+      "name": "구성원은 쓰지 못한다",
+      "sql": "insert into public.order_reports (company_id, order_id, kind) values ({{company_x}}, {{order_x}}, 'as_done')",
+      "roles": [
+        "x_owner"
+      ],
+      "expect": {
+        "x_owner": "deny"
+      }
+    },
+    {
+      "name": "서버 — A/S 완료 보고 (사진 없이도)",
+      "sql": "insert into public.order_reports (company_id, order_id, kind) values ({{company_x}}, {{order_x}}, 'as_done')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "종류는 둘만",
+      "sql": "insert into public.order_reports (company_id, order_id, kind) values ({{company_x}}, {{order_x}}, 'inspect')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "사진 10장까지",
+      "sql": "insert into public.order_reports (company_id, order_id, kind, photos) values ({{company_x}}, {{order_x}}, 'install_done', (select jsonb_agg('p' || g) from generate_series(1, 11) g))",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "같은 팩토리 수주만 (남의 팩토리 id 로는 거절)",
+      "sql": "insert into public.order_reports (company_id, order_id, kind) values ({{company_y}}, {{order_x}}, 'install_done')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "고치기 · 지우기는 서버도 못 한다",
+      "sql": "update public.order_reports set note = '바꿈' where id = {{rep_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "지우기도 못 한다",
+      "sql": "delete from public.order_reports where id = {{rep_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "사진 버킷 — 비공개 · 5MB · JPEG · PNG",
+      "sql": "select public || '/' || file_size_limit || '/' || array_to_string(allowed_mime_types, ',') from storage.buckets where id = 'order-report-photos'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "false/5242880/image/jpeg,image/png"
+      }
+    }
+  ]
+}
