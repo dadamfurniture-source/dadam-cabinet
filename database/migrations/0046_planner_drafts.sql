@@ -7,6 +7,7 @@
 -- 바꾸는 것:
 --   1) planner_drafts — 설계 하나 = 한 줄 (업체 · 플래너 설계 id). 형식은 플래너 저장 형식(dadam.planner-lite/1) 그대로 model 에.
 --        rev        고친 차례 — 고칠 때마다 하나씩 오른다 (서버가 「보낸 rev = 저장된 rev」 일 때만 덮어쓴다 → 아니면 409)
+--        summary    목록 · 추천에 쓰는 요약 (벽 수 · 모듈 수 · 수주번호 · 시공 완료 · 쓴 라이브러리 모듈 id) — 서버가 model 에서 낸다
 --        app_state  마지막으로 앱에 보낸 설계 · 동결본 (플래너의 <id>/app.json 자리)
 --        discarded_at  버린 설계 — 지우지 않고 표시만 한다. 한 번 적으면 그대로
 --   2) planner_draft_photos — 설계 사진 한 장 = 한 줄. 바이트는 비공개 버킷 planner-photos 의 <업체 id>/<설계 id>/<파일>.
@@ -25,6 +26,7 @@ CREATE TABLE IF NOT EXISTS public.planner_drafts (
     item text DEFAULT 'sink'::text NOT NULL,
     model jsonb NOT NULL,
     rev integer DEFAULT 1 NOT NULL,
+    summary jsonb DEFAULT '{}'::jsonb NOT NULL,
     app_state jsonb,
     created_by uuid,
     updated_by uuid,
@@ -37,6 +39,7 @@ CREATE TABLE IF NOT EXISTS public.planner_drafts (
     CONSTRAINT planner_drafts_item_check CHECK (item ~ '^[a-z_]{1,40}$'::text),
     CONSTRAINT planner_drafts_model_check CHECK ((jsonb_typeof(model) = 'object'::text) AND (octet_length(model::text) <= 5242880)),
     CONSTRAINT planner_drafts_rev_check CHECK (rev >= 1),
+    CONSTRAINT planner_drafts_summary_check CHECK ((jsonb_typeof(summary) = 'object'::text) AND (octet_length(summary::text) <= 16384)),
     CONSTRAINT planner_drafts_app_state_check CHECK ((app_state IS NULL) OR ((jsonb_typeof(app_state) = 'object'::text) AND (octet_length(app_state::text) <= 65536))),
     CONSTRAINT planner_drafts_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id),
     CONSTRAINT planner_drafts_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL,
@@ -61,8 +64,8 @@ BEGIN
   END IF;
   IF OLD.discarded_at IS NOT NULL THEN
     -- 사람이 지워져 사람 칸이 비는 것(ON DELETE SET NULL)만 된다
-    IF (NEW.name, NEW.item, NEW.model, NEW.rev, NEW.app_state, NEW.discarded_at)
-       IS DISTINCT FROM (OLD.name, OLD.item, OLD.model, OLD.rev, OLD.app_state, OLD.discarded_at)
+    IF (NEW.name, NEW.item, NEW.model, NEW.rev, NEW.summary, NEW.app_state, NEW.discarded_at)
+       IS DISTINCT FROM (OLD.name, OLD.item, OLD.model, OLD.rev, OLD.summary, OLD.app_state, OLD.discarded_at)
        OR (NEW.updated_by IS NOT NULL AND NEW.updated_by IS DISTINCT FROM OLD.updated_by) THEN
       RAISE EXCEPTION 'planner_drafts: 버린 설계는 바뀌지 않습니다' USING ERRCODE = '22023';
     END IF;
