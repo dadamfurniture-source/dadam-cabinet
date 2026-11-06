@@ -354,7 +354,7 @@ export async function designAccess(env, designId, user) {
  */
 export async function assertDesignAccess(env, designId, user, { money = false } = {}) {
   const access = await designAccess(env, designId, user);
-  if (money && !access.money) throw new ForbiddenError('원가 · 수금은 업체 대표 · 실장만 볼 수 있습니다');
+  if (money && !access.money) throw new ForbiddenError('원가 · 수금은 팩토리 대표 · 실장만 볼 수 있습니다');
   return access.design;
 }
 

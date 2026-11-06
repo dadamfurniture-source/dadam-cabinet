@@ -284,7 +284,7 @@ test('보내기 — POST, VAPID · aes128gcm · TTL 86400 · Urgency high, 넘�
   const { env, publicKey } = await makeVapidEnv();
   const v = await loadVapid(env);
   const dev = await deviceSub();
-  const message = { title: '업체 신청', body: '업체 신청이 승인되었습니다.', url: '/segan/me.html#partner', tag: 'partner_application:x' };
+  const message = { title: '팩토리 신청', body: '팩토리 신청이 승인되었습니다.', url: '/segan/me.html#partner', tag: 'partner_application:x' };
   const cache = new Map();
   const res = await withFetch(
     () => new Response(null, { status: 201 }),

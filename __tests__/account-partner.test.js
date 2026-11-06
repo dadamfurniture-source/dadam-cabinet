@@ -1583,7 +1583,7 @@ describe('관리자 — 신청 · 앱 알림', () => {
       expect(r).toMatchObject({
         kind: 'partner_application',
         company_id: null,
-        title: '업체 신청',
+        title: '팩토리 신청',
         url: '/segan/me.html#partner',
       });
       expect(Msg.isValidMessage(r)).toBe(true);

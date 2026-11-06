@@ -351,11 +351,11 @@ export async function updateOrder(env, { orderId, user, patch }) {
     if (order.status !== patch.expect_status && order.status !== patch.status) throw staleError();
   }
   if (patch.received_amount !== undefined && !money) {
-    throw new ForbiddenError('원가 · 수금은 업체 대표 · 실장만 볼 수 있습니다');
+    throw new ForbiddenError('원가 · 수금은 팩토리 대표 · 실장만 볼 수 있습니다');
   }
   const view = await viewOf(env, order);
   if (view.partner && ORDER_HQ_FIELDS.some((k) => patch[k] !== undefined)) {
-    throw new ValidationError('협력업체 수주에는 구분(고객 · 거래처) · 거래처를 적지 않습니다');
+    throw new ValidationError('팩토리 수주에는 구분(고객 · 거래처) · 거래처를 적지 않습니다');
   }
   const allowed = {};
   let plan = null;

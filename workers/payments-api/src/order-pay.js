@@ -131,7 +131,7 @@ async function syncReceived(env, orderId) {
 export async function startCheckout(env, { user, body }) {
   const { line, order } = await loadOwnLine(env, user, body && body.payment_id);
   if (order.company_id !== (await hqCompanyId(env))) {
-    throw new OrderPayError(403, 'not_payable', '이 수주는 시공 업체에 직접 내 주세요.');
+    throw new OrderPayError(403, 'not_payable', '이 수주는 시공 팩토리에 직접 내 주세요.');
   }
   if (order.status === 'cancelled')
     throw new OrderPayError(409, 'order_cancelled', '취소된 수주입니다.');

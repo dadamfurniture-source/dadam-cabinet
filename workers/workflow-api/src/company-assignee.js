@@ -78,7 +78,7 @@ async function projectOf(env, companyId, projectId) {
     if (isMissingRelation(e)) throw dbPending();
     throw e;
   }
-  if (!project) throw new NotFoundError('이 업체의 프로젝트를 찾을 수 없습니다');
+  if (!project) throw new NotFoundError('이 팩토리의 프로젝트를 찾을 수 없습니다');
   return project;
 }
 
@@ -172,7 +172,7 @@ export async function setProjectAssignee(env, { user, projectId, body }) {
       status: 'eq.active',
       select: 'user_id',
     });
-    if (!member) throw new ValidationError('이 업체의 지금 구성원만 담당자가 됩니다', { field: 'assignee_id', code: 'not_member' });
+    if (!member) throw new ValidationError('이 팩토리의 지금 구성원만 담당자가 됩니다', { field: 'assignee_id', code: 'not_member' });
   }
   let rows;
   try {

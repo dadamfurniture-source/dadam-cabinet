@@ -94,7 +94,7 @@ export async function acceptConsultation(env, { user, consultationId, body }) {
   if (consultation.company_id !== hq) {
     // 다담 본사(platform)로 들어온 상담은 여기서 확정하지 않는다 — 업체에 배정(/admin/consultations/:id/assign)한다
     if (consultation.company_id === (await platformCompanyId(env))) {
-      const err = new ConflictError('본사로 들어온 상담은 업체에 배정해 그 업체가 받습니다', { status: consultation.status });
+      const err = new ConflictError('본사로 들어온 상담은 팩토리에 배정해 그 팩토리가 받습니다', { status: consultation.status });
       err.code = 'platform_consult';
       throw err;
     }

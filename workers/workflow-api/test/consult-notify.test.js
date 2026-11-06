@@ -117,7 +117,7 @@ const slackCalls = (calls) => calls.filter((c) => c.url === HOOK);
 test('한 건: 품목 · 경로 · 상담받을 곳 / 지역 · 연락 희망 · 접수 시각(KST)', () => {
   assert.equal(
     noticeLines(APP_ROW),
-    '*싱크대 (AI 설계)* · 앱 · 협력업체 상담\n경기도 성남시 · 연락 희망 오후 (15:00~18:00) · 10/27(화) 14:05 접수',
+    '*싱크대 (AI 설계)* · 앱 · 팩토리 상담\n경기도 성남시 · 연락 희망 오후 (15:00~18:00) · 10/27(화) 14:05 접수',
   );
   assert.equal(
     noticeLines(SITE_ROW),
@@ -308,7 +308,7 @@ async function runScheduled(cron, scheduledTime = NOW) {
   );
 }
 
-test('scheduled(): 1분 cron 은 앱 알림 + 상담 배정 되돌리기 + 5분마다 새 상담 · 새 업체 신청 알림(따로 돈다), 아침 cron 은 생산 요약만, 모르는 cron 은 아무것도', async () => {
+test('scheduled(): 1분 cron 은 앱 알림 + 상담 배정 되돌리기 + 5분마다 새 상담 · 새 팩토리 신청 알림(따로 돈다), 아침 cron 은 생산 요약만, 모르는 cron 은 아무것도', async () => {
   const CONSULT_RPCS = [
     'https://x.supabase.co/rest/v1/rpc/claim_consultation_notices',
     'https://x.supabase.co/rest/v1/rpc/claim_partner_application_notices',

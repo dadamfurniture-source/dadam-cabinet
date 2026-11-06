@@ -1,7 +1,7 @@
 /**
- * 새 업체 신청 Slack 알림 (src/consult-notify.js 의 runPartnerApplicationNotices · 상담 알림과 같은 5분 cron).
+ * 새 팩토리 신청 Slack 알림 (src/consult-notify.js 의 runPartnerApplicationNotices · 상담 알림과 같은 5분 cron).
  *
- *   - 메시지: 「새 업체 신청 N건 (새 업체 a · Expert→Agent b) — 관리자 화면에서 확인」 + 관리자 화면 링크
+ *   - 메시지: 「새 팩토리 신청 N건 (새 팩토리 a · Expert→Agent b) — 관리자 화면에서 확인」 + 관리자 화면 링크
  *   - 업체 이름 · 대표자 · 연락처 · 사업자번호 · 소개는 없다 — 칸이 넘어와도
  *   - 잡기: DB 함수 claim_partner_application_notices 를 service_role 로 한 번, 상담과 같은 24시간 창 · 건수 상한
  *   - 0건이면 보내지 않는다 / Slack 실패는 건수만 로그, 다시 보내지 않는다 / 웹훅이 없으면 잡지 않는다
@@ -87,17 +87,17 @@ const slackCalls = (calls) => calls.filter((c) => c.url === HOOK);
 
 test('메시지: 건수 · 종류별 건수 · 관리자 화면 링크', () => {
   const msg = buildPartnerApplicationNotice([NEW_ROW, UP_ROW, NEW_ROW], { adminUrl: partnerAdminUrl(ENV) });
-  const line = '새 업체 신청 3건 (새 업체 2 · Expert→Agent 1) — 관리자 화면에서 확인';
+  const line = '새 팩토리 신청 3건 (새 팩토리 2 · Expert→Agent 1) — 관리자 화면에서 확인';
   assert.equal(msg.text, `${line}\n${ADMIN_URL}`);
   assert.deepEqual(msg.blocks.map((b) => b.type), ['section', 'actions']);
   assert.equal(msg.blocks[0].text.text, line);
   assert.equal(msg.blocks[1].elements[0].url, ADMIN_URL);
-  assert.deepEqual(PARTNER_KIND_LABELS, { new: '새 업체', upgrade: 'Expert→Agent' });
+  assert.deepEqual(PARTNER_KIND_LABELS, { new: '새 팩토리', upgrade: 'Expert→Agent' });
 });
 
 test('메시지: 한 종류만 있어도 두 종류를 다 적는다 · 링크가 없으면 글만', () => {
   const msg = buildPartnerApplicationNotice([UP_ROW]);
-  assert.equal(msg.text, '새 업체 신청 1건 (새 업체 0 · Expert→Agent 1) — 관리자 화면에서 확인');
+  assert.equal(msg.text, '새 팩토리 신청 1건 (새 팩토리 0 · Expert→Agent 1) — 관리자 화면에서 확인');
   assert.deepEqual(msg.blocks.map((b) => b.type), ['section']);
   assert.equal(partnerAdminUrl({}), '');
   assert.equal(partnerAdminUrl({ PUBLIC_BASE_URL: 'https://dadamfurniture.com' }), ADMIN_URL);
@@ -123,7 +123,7 @@ test('잡기: service_role 로 DB 함수 한 번 — 상담과 같은 24시간 �
       assert.equal(rpc.body.p_fresh_since, '2026-10-27T05:30:00.000Z');
       const posts = slackCalls(calls);
       assert.equal(posts.length, 1);
-      assert.equal(posts[0].body.blocks[0].text.text, '새 업체 신청 2건 (새 업체 1 · Expert→Agent 1) — 관리자 화면에서 확인');
+      assert.equal(posts[0].body.blocks[0].text.text, '새 팩토리 신청 2건 (새 팩토리 1 · Expert→Agent 1) — 관리자 화면에서 확인');
       return res;
     }),
   );
@@ -141,7 +141,7 @@ test('0건이면 보내지 않는다 — 밀린 행(24시간 지남)은 건수�
     );
     assert.deepEqual(out, { posted: 0, failed: 0, stale });
     assert.equal(lines.length, logs);
-    if (logs) assert.match(lines[0], /24시간 지난 미알림 업체 신청 4건/);
+    if (logs) assert.match(lines[0], /24시간 지난 미알림 팩토리 신청 4건/);
   }
 });
 
@@ -158,7 +158,7 @@ test('Slack 이 받지 않으면 건수만 로그 — 개인정보 · 응답 본
   assert.deepEqual(out, { posted: 0, failed: 2, stale: 0 });
   const err = lines.filter((l) => l.startsWith('error:'));
   assert.equal(err.length, 1);
-  assert.match(err[0], /업체 신청 2건 알림을 보내지 못함, 다시 보내지 않음 \(400\)/);
+  assert.match(err[0], /팩토리 신청 2건 알림을 보내지 못함, 다시 보내지 않음 \(400\)/);
   for (const v of PII_VALUES) assert.equal(lines.join('\n').includes(v), false, v);
 });
 
@@ -181,7 +181,7 @@ test('DB 함수가 없거나 실패하면 Slack 에 보내지 않고 상태 · �
   );
   assert.deepEqual(out, { posted: 0, failed: 0, stale: 0, error: '404 PGRST202' });
   assert.equal(lines.length, 1);
-  assert.match(lines[0], /^error: \[partner-notify\] 업체 신청 잡기 실패 \(404 PGRST202\)$/);
+  assert.match(lines[0], /^error: \[partner-notify\] 팩토리 신청 잡기 실패 \(404 PGRST202\)$/);
 });
 
 // ── 같은 cron · 상담 알림은 그대로 ─────────────────────
@@ -221,7 +221,7 @@ test('5분 cron: 상담 · 업체 신청을 각각 한 메시지로 보낸다', 
   const texts = slackCalls(out.calls).map((c) => c.body.text).sort();
   assert.equal(texts.length, 2);
   assert.ok(texts.some((t) => t.startsWith('[다담] 새 상담 1건')));
-  assert.ok(texts.some((t) => t.startsWith('새 업체 신청 1건 (새 업체 1 · Expert→Agent 0)')));
+  assert.ok(texts.some((t) => t.startsWith('새 팩토리 신청 1건 (새 팩토리 1 · Expert→Agent 0)')));
 });
 
 test('5분 cron: 업체 신청 쪽이 실패해도(함수 없음 · 네트워크 오류) 상담 알림은 그대로 보낸다', async () => {
@@ -241,5 +241,5 @@ test('5분 cron: 상담 쪽이 실패해도 업체 신청 알림은 보낸다', 
   );
   const posts = slackCalls(out.calls);
   assert.equal(posts.length, 1);
-  assert.ok(posts[0].body.text.startsWith('새 업체 신청 1건 (새 업체 0 · Expert→Agent 1)'));
+  assert.ok(posts[0].body.text.startsWith('새 팩토리 신청 1건 (새 팩토리 0 · Expert→Agent 1)'));
 });

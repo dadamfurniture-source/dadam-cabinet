@@ -36,9 +36,9 @@ export async function assistantAccess(env, user, { chat = false } = {}) {
     status: 'eq.active',
     select: 'company_id,role',
   });
-  if (!m) throw forbidden('비서는 업체 구성원만 씁니다', 'not_member');
+  if (!m) throw forbidden('비서는 팩토리 구성원만 씁니다', 'not_member');
   const level = await entitledLevel(env, m.company_id, user.id);
-  if (chat && level !== 'full') throw forbidden('이 업체는 비서를 쓸 수 없습니다', 'not_entitled');
+  if (chat && level !== 'full') throw forbidden('이 팩토리는 비서를 쓸 수 없습니다', 'not_entitled');
   return { companyId: m.company_id, role: m.role, money: MONEY_ROLES.includes(m.role), level };
 }
 

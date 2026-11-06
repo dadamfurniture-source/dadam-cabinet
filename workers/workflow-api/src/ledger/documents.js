@@ -132,7 +132,7 @@ async function checkDaily(env, companyId, today) {
     select: 'id',
     limit: String(DAILY_COMPANY_MAX),
   })) || [];
-  if (rows.length >= DAILY_COMPANY_MAX) throw new RateLimitError(`업체마다 하루 ${DAILY_COMPANY_MAX}장까지 올립니다`, 'daily_limit');
+  if (rows.length >= DAILY_COMPANY_MAX) throw new RateLimitError(`팩토리마다 하루 ${DAILY_COMPANY_MAX}장까지 올립니다`, 'daily_limit');
 }
 
 async function documentBy(env, companyId, filter) {

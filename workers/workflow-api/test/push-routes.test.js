@@ -97,13 +97,13 @@ test('글 — 종류마다 제목 · 본문 · 열 곳, DB 글자 수 안, /sega
     ['order_request_decided', { eventKind: 'revert', approved: false }, '요청 결과', '수주 완료 되돌리기 요청이 반려되었습니다.'],
     ['confirmation_decided', { approved: true }, '고객 확인서', '고객이 확인서를 승인했습니다.'],
     ['confirmation_decided', { approved: false }, '고객 확인서', '고객이 확인서를 반려했습니다. 수정 요청을 확인해 주세요.'],
-    ['partner_application', { status: 'meeting' }, '업체 신청', '업체 신청 미팅이 잡혔습니다. 내 정보에서 일정을 확인해 주세요.'],
-    ['partner_application', { status: 'meeting', rescheduled: true }, '업체 신청', '업체 신청 미팅 일정이 바뀌었습니다. 내 정보에서 확인해 주세요.'],
-    ['partner_application', { status: 'approved' }, '업체 신청', '업체 신청이 승인되었습니다. 내 정보에서 다음 단계를 확인해 주세요.'],
-    ['partner_application', { status: 'approved', upgrade: true }, '업체 신청', 'Agent 등급 신청이 승인되었습니다. 다음 결제일부터 바뀝니다.'],
-    ['partner_application', { status: 'held' }, '업체 신청', '업체 신청이 보류되었습니다. 내 정보에서 확인해 주세요.'],
-    ['billing_failed', {}, '결제 실패', '업체 구독 결제가 되지 않았습니다. 결제 관리에서 결제 수단을 확인해 주세요.'],
-    ['company_suspended', {}, '업체 정지', '결제가 되지 않아 업체가 정지되었습니다. 결제 관리에서 확인해 주세요.'],
+    ['partner_application', { status: 'meeting' }, '팩토리 신청', '팩토리 신청 미팅이 잡혔습니다. 내 정보에서 일정을 확인해 주세요.'],
+    ['partner_application', { status: 'meeting', rescheduled: true }, '팩토리 신청', '팩토리 신청 미팅 일정이 바뀌었습니다. 내 정보에서 확인해 주세요.'],
+    ['partner_application', { status: 'approved' }, '팩토리 신청', '팩토리 신청이 승인되었습니다. 내 정보에서 다음 단계를 확인해 주세요.'],
+    ['partner_application', { status: 'approved', upgrade: true }, '팩토리 신청', 'Agent 등급 신청이 승인되었습니다. 다음 결제일부터 바뀝니다.'],
+    ['partner_application', { status: 'held' }, '팩토리 신청', '팩토리 신청이 보류되었습니다. 내 정보에서 확인해 주세요.'],
+    ['billing_failed', {}, '결제 실패', '팩토리 구독 결제가 되지 않았습니다. 결제 관리에서 결제 수단을 확인해 주세요.'],
+    ['company_suspended', {}, '팩토리 정지', '결제가 되지 않아 팩토리가 정지되었습니다. 결제 관리에서 확인해 주세요.'],
   ];
   for (const [kind, params, title, body] of cases) {
     const m = buildMessage(kind, params);

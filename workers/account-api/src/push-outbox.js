@@ -17,18 +17,18 @@ export function partnerApplicationMessage({ status, upgrade = false, rescheduled
   let body;
   if (status === 'meeting') {
     body = rescheduled
-      ? '업체 신청 미팅 일정이 바뀌었습니다. 내 정보에서 확인해 주세요.'
-      : '업체 신청 미팅이 잡혔습니다. 내 정보에서 일정을 확인해 주세요.';
+      ? '팩토리 신청 미팅 일정이 바뀌었습니다. 내 정보에서 확인해 주세요.'
+      : '팩토리 신청 미팅이 잡혔습니다. 내 정보에서 일정을 확인해 주세요.';
   } else if (status === 'approved') {
     body = upgrade
       ? 'Agent 등급 신청이 승인되었습니다. 다음 결제일부터 바뀝니다.'
-      : '업체 신청이 승인되었습니다. 내 정보에서 다음 단계를 확인해 주세요.';
+      : '팩토리 신청이 승인되었습니다. 내 정보에서 다음 단계를 확인해 주세요.';
   } else if (status === 'held') {
-    body = '업체 신청이 보류되었습니다. 내 정보에서 확인해 주세요.';
+    body = '팩토리 신청이 보류되었습니다. 내 정보에서 확인해 주세요.';
   } else {
     return null;
   }
-  return { title: '업체 신청', body, url: PUSH_URL };
+  return { title: '팩토리 신청', body, url: PUSH_URL };
 }
 
 /**

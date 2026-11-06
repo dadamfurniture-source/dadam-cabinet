@@ -138,8 +138,8 @@ function outbox(user_id, company_id, kind, extra = {}) {
     user_id,
     company_id,
     kind,
-    title: '업체 신청',
-    body: '업체 신청이 보류되었습니다. 내 정보에서 확인해 주세요.',
+    title: '팩토리 신청',
+    body: '팩토리 신청이 보류되었습니다. 내 정보에서 확인해 주세요.',
     url: '/segan/me.html#partner',
     ref_id: REF,
     dedupe_key: null,
@@ -508,7 +508,7 @@ test('scheduled(): 1분 cron 은 앱 알림 보내기, 정리 시각이면 정�
   assert.equal(r.waits, 5);
   assert.ok(r.fake.calls.rest.some((c) => c.method === 'DELETE' && c.path === 'notification_outbox'));
 
-  // 5의 배수 분 — 앱 알림 + 새 상담 + 새 업체 신청 (상담 쪽 실패는 그 안에서 잡힌다)
+  // 5의 배수 분 — 앱 알림 + 새 상담 + 새 팩토리 신청 (상담 쪽 실패는 그 안에서 잡힌다)
   r = await scheduled(PUSH_SEND_CRON, Date.parse('2026-10-29T03:05:00Z'));
   assert.equal(r.waits, 6);
   assert.ok(r.fake.calls.rest.some((c) => c.path === 'rpc/claim_notifications'));

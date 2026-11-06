@@ -417,7 +417,7 @@ test('협력업체 수주 — 구분 · 거래처는 응답에 없고, 적으려
     for (const body of [{ price_tier: 'customer' }, { price_tier: null }, { partner_id: null }, { partner_id: '11111111-1111-4111-8111-111111111111', note: '메모' }]) {
       const r = await callWorker('/orders/O1', who, tieredOrderRoute('d-p', PARTNER), { method: 'PATCH', body });
       assert.equal(r.status, 422, `${who} ${JSON.stringify(body)}`);
-      assert.match(JSON.parse(r.text).message, /협력업체 수주에는 구분/);
+      assert.match(JSON.parse(r.text).message, /팩토리 수주에는 구분/);
       assert.ok(!r.calls.some((c) => c.method !== 'GET' && !c.url.includes('/auth/')), '아무것도 쓰지 않는다');
     }
     // 다른 칸은 예전처럼

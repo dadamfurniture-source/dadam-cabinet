@@ -107,7 +107,7 @@ export async function pushCompanyFor(env, userId) {
   const workers =
     (await selectMany(env, 'workers', { user_id: `eq.${userId}`, status: 'in.(pending,approved,suspended)', select: 'id' })) || [];
   if (workers.length) return { companyId: null };
-  throw new ForbiddenError('업체 구성원만 알림을 받을 수 있습니다', 'no_company');
+  throw new ForbiddenError('팩토리 구성원만 알림을 받을 수 있습니다', 'no_company');
 }
 
 /** POST /push/subscriptions */
