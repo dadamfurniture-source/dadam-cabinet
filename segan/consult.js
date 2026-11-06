@@ -13,6 +13,7 @@
    (consultation.html 과 같은 값), 시공 완료 희망 날짜(예: 입주 날, 선택 → wanted_done_date), 요청 사항, 동의 둘:
      개인정보 수집 · 이용 (필수) → privacy_agreed_at
      다담 협력업체 목록 중 다담이 정한 업체에 제공 (선택) → third_party_agreed_at · consent_version 'v2'
+     시공 사진 학습 활용 (선택, 2026-11-06 작업 분배 ⑥) → photo_learn_agreed_at (DB 0044) — 동의한 수주의 완료 사진만 학습에 쓴다
        (v2 = 제공 항목에 시공 완료 희망 날짜를 더한 판)
        동의하지 않아도 신청은 간다 — 다담 본사가 직접 상담한다 (두 칸은 비운다).
    저절로 채우는 것: 이메일(로그인 계정), 상담 제목(「AI 연출컷 상담 — 품목」), 상담 유형 'ai-design',
@@ -32,7 +33,8 @@
   // 넣는 칸 중 consultation.html 에 없는 것 — 하나라도 없으면 신청서를 열지 않는다
   var NEW_COLUMNS =
     'generation_id,quote,sido,gugun,privacy_agreed_at,' +
-    'door_finish,demolition_needed,wanted_price_tier,third_party_agreed_at,consent_version,wanted_done_date';
+    'door_finish,demolition_needed,wanted_price_tier,third_party_agreed_at,consent_version,wanted_done_date,' +
+    'photo_learn_agreed_at';
   var LOGIN_PAGE = '../login.html';
   // 업체 제공 동의 문구 판 — consult.html 「제공하는 내용 보기」를 바꾸면 올린다
   var CONSENT_VERSION = 'v2';
@@ -290,6 +292,7 @@
     var now = new Date().toISOString();
     var demolition = picked('demolition');
     var third = $('csAgreeThird').checked;
+    var photoLearn = $('csAgreePhoto').checked;
     return {
       user_id: u.id || null,
       name: $('csName').value.trim(),
@@ -314,6 +317,8 @@
       // 업체 제공 동의 — 안 하면 둘 다 비운다 (다담 본사가 직접 상담)
       third_party_agreed_at: third ? now : null,
       consent_version: third ? CONSENT_VERSION : null,
+      // 시공 사진 학습 활용 동의 — 안 하면 비운다 (상담 · 시공은 똑같다)
+      photo_learn_agreed_at: photoLearn ? now : null,
     };
   }
 
