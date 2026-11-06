@@ -3,7 +3,7 @@
  * (서비스 바인딩 WORKFLOW_API). 그래서 비서는 그 사람이 앱에서 볼 수 있는 것만 본다 — 직원의 돈 칸은 workflow-api 가 뺀다.
  *
  *   list_consults   GET /company/consults        배정된 상담 (최근 CONSULTS_MAX)
- *   list_projects   GET /company/projects        업체 고객 · 프로젝트 (최근 PROJECTS_MAX)
+ *   list_projects   GET /company/projects        업체 고객 · 프로젝트 (최근 PROJECTS_MAX) · 담당자 · 지금 구성원(members)
  *   list_orders     GET /orders                  수주 (최근 ORDERS_MAX, 상태로 거르기)
  *   get_order       GET /orders/:id              수주 하나 — 대표 · 실장이면 원가 · 마진 · 수금 일정
  *   books_summary   GET /books/summary?month=    업체 장부 요약 (대표 · 실장)
@@ -293,7 +293,11 @@ async function listProjects(env, token) {
       closed_at: p.closed_at || null,
       customer_name: (p.customer && p.customer.name) || null,
       design_count: p.design_count || 0,
+      assignee: p.assignee ? { user_id: p.assignee.user_id, name: p.assignee.name || null, role: p.assignee.role || null } : null,
     })),
+    // 담당자로 고를 수 있는 사람 (DB 0042 전이면 assignee_ready false — 담당자 카드를 만들지 못한다)
+    assignee_ready: data.assignee_ready !== false,
+    members: (Array.isArray(data.members) ? data.members : []).map((m) => ({ user_id: m.user_id, name: m.name || null, role: m.role })),
   };
 }
 

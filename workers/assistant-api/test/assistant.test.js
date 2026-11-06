@@ -174,6 +174,7 @@ test('차례 — 202 → 알람이 예산 잡기 · Claude · 저장 · 정산 �
       'propose_ledger_post',
       'propose_project_create',
       'propose_design_link',
+      'propose_project_assign',
       'propose_payment_received',
       'propose_cost_add',
       'draft_customer_message',

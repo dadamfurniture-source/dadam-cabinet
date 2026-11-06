@@ -18,6 +18,9 @@ const C1 = 'e0000000-0000-4000-8000-0000000000d1';
 const PRJ = 'e0000000-0000-4000-8000-0000000000e1';
 const CUS = 'e0000000-0000-4000-8000-0000000000e2';
 const D1 = 'e0000000-0000-4000-8000-0000000000f1';
+const U_STAFF = 'e0000000-0000-4000-8000-0000000000f2';
+const U_MANAGER = 'e0000000-0000-4000-8000-0000000000f3';
+const U_OTHER = 'e0000000-0000-4000-8000-0000000000f4';
 const json = (data, status = 200) =>
   new Response(JSON.stringify(status < 300 ? { success: true, data } : data), {
     status,
@@ -119,6 +122,20 @@ function routes(over = {}) {
       items: [{ id: D1, name: '주방 설계', project_id: null, has_order: false }],
     },
     ['/designs/' + D1 + '/project']: over.link || (() => json({ design_id: D1, project_id: PRJ })),
+    ['/company/projects/' + PRJ + '/assignee-candidates']:
+      over.candidates ||
+      (() =>
+        json({
+          project_id: PRJ,
+          assignee_id: null,
+          days: 7,
+          candidates: [
+            { user_id: U_STAFF, name: '나직원', role: 'staff', active_projects: 0, week_schedules: 1 },
+            { user_id: U_MANAGER, name: '다실장', role: 'manager', active_projects: 2, week_schedules: 0 },
+          ],
+        })),
+    ['/company/projects/' + PRJ + '/assignee']:
+      over.assign || ((call) => json({ project_id: PRJ, assignee_id: call.body && call.body.assignee_id, assigned_at: '2026-11-06T01:00:00Z' })),
     ['/orders/' + O + '/costs']: over.cost || (() => json({ id: 'cost1' }, 201)),
     ['/orders/' + O + '/payments']:
       over.newPay ||
@@ -476,4 +493,57 @@ test('다음 차례 — 맥락 블록에 이 대화 카드 상태 (승인 결과
   await w.sessions.runAlarms();
   const ctx = w.claude.calls.at(-1).messages.at(-1).content[0].text;
   assert.match(ctx, /이 대화의 카드: 「수주 상태 바꾸기 · SO-20261101-AAAA」 완료/);
+});
+
+// ── 담당자 정하기 (2026-11-06 작업 분배 — 비서는 추천만, 대표 · 실장 승인) ──────────────
+
+test('담당자 카드 — 비우면 추천 1순위 · 근거 숫자, 승인하면 PUT assignee + expect, 다른 사람 · 없는 사람 · 이미 그 사람', async () => {
+  let { w, row, result } = await propose('propose_project_assign', { project_id: PRJ });
+  assert.ok(!result.is_error, JSON.stringify(result));
+  assert.equal(row.kind, 'project_assign');
+  assert.deepEqual(row.params, { project_id: PRJ, assignee_id: U_STAFF });
+  assert.deepEqual(row.expect, { assignee_id: null });
+  assert.equal(row.card.title, '프로젝트 담당자 정하기');
+  assert.deepEqual(
+    row.card.fields.map((f) => [f.label, f.value]),
+    [
+      ['프로젝트', '싱크대'],
+      ['지금 담당자', '(없음)'],
+      ['정할 담당자', '나직원 (직원)'],
+      ['근거', '진행 중 담당 0개 · 7일 안 일정 1개 (추천 1순위)'],
+    ]
+  );
+  const r = await approve(w, row.id);
+  assert.equal(r.status, 200, r.text);
+  const call = w.workflow.calls.find((c) => c.method === 'PUT');
+  assert.equal(call.path, '/company/projects/' + PRJ + '/assignee');
+  assert.deepEqual(call.body, { assignee_id: U_STAFF, expect_assignee_id: null });
+
+  ({ row, result } = await propose('propose_project_assign', { project_id: PRJ, assignee_id: U_MANAGER }));
+  assert.equal(row.params.assignee_id, U_MANAGER);
+  assert.equal(row.card.fields[3].value, '진행 중 담당 2개 · 7일 안 일정 0개');
+
+  ({ result } = await propose('propose_project_assign', { project_id: PRJ, assignee_id: U_OTHER }));
+  assert.equal(result.is_error, true);
+  assert.match(JSON.stringify(result.content), /지금 구성원이 아닙니다/);
+
+  ({ result } = await propose('propose_project_assign', { project_id: PRJ, assignee_id: U_STAFF }, {
+    over: {
+      candidates: () =>
+        json({ project_id: PRJ, assignee_id: U_STAFF, days: 7, candidates: [{ user_id: U_STAFF, name: '나직원', role: 'staff', active_projects: 1, week_schedules: 0 }] }),
+    },
+  }));
+  assert.equal(result.is_error, true);
+  assert.match(JSON.stringify(result.content), /이미 그 사람이 담당자/);
+
+  ({ result } = await propose('propose_project_assign', { project_id: PRJ }, {
+    over: { candidates: () => json({ success: false, code: 'db_pending', message: 'DB 0042 적용 전입니다 — 담당자는 적용 뒤에 정할 수 있습니다' }, 409) },
+  }));
+  assert.equal(result.is_error, true);
+  assert.match(JSON.stringify(result.content), /0042/);
+});
+
+test('담당자 카드 — 직원은 도구가 없다 (대표 · 실장만)', async () => {
+  const { result } = await propose('propose_project_assign', { project_id: PRJ }, { token: 't-staff' });
+  assert.equal(result.is_error, true);
 });

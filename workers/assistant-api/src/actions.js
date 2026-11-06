@@ -3,6 +3,7 @@
  * 이 워커가 그 사람의 토큰으로 workflow-api 의 기존 주소를 부른다.
  * 2026-11-05 대표님 결정:
  *   종류  상담 받기 · 거절, 수주 상태 바꾸기, 영수증 사진 장부에 올리기, 프로젝트 만들기 · 설계 잇기 · 수금 받음 · 원가 줄,
+ *         프로젝트 담당자 정하기 (2026-11-06 작업 분배 — 비서는 추천만, 대표 · 실장이 승인),
  *         고객 연락 초안(실행 없음 — 복사만). 문서 발행은 넣지 않는다 (다시 발행하면 옛 공유 링크가 닫힌다)
  *   승인  대화한 본인만. 권한 밖 일은 도구 목록에 없어 카드를 만들지 않는다 (직원은 수주 상태 · 초안만)
  *   기한  만든 뒤 24시간 (DB 기본값 expires_at) — 지난 proposed 는 읽거나 승인할 때 expired 로 닫는다
@@ -144,6 +145,9 @@ async function send(env, token, method, path, { body, key } = {}) {
 }
 
 const field = (label, value) => ({ label, value: clip(value, 300) });
+/** 업체 안 역할 — 화면 이름 (manager 는 「실장」) */
+const ROLE_NAMES = Object.freeze({ owner: '대표', manager: '실장', staff: '직원' });
+const personLabel = (m) => (m ? `${m.name || '이름 없음'} (${ROLE_NAMES[m.role] || '구성원'})` : '(없음)');
 
 // ── 종류마다: 도구 · 카드 만들기 · 실행 ───────────────────────
 
@@ -439,6 +443,62 @@ export const KINDS = Object.freeze({
     run: (env, token, row) =>
       send(env, token, 'PUT', `/designs/${row.params.design_id}/project`, {
         body: { project_id: row.params.project_id, expect_project_id: row.expect.project_id },
+      }),
+  },
+  project_assign: {
+    tool: 'propose_project_assign',
+    label: '담당자 카드 만드는 중',
+    money: true,
+    description:
+      '업체 프로젝트의 담당자를 정하는 승인 카드를 만든다 — 비서는 추천만 하고 대표 · 실장이 승인해야 정해진다. ' +
+      'project_id 는 list_projects 의 id. assignee_id 를 비우면 추천 1순위(진행 중 담당이 적은 사람 → 이레 안 일정이 적은 사람)로, ' +
+      '다른 사람을 원하면 list_projects 의 members 의 user_id. 카드에 근거 숫자가 함께 나온다.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        project_id: uuidProp('list_projects 의 프로젝트 id'),
+        assignee_id: uuidProp('담당자로 정할 구성원 (list_projects 의 members user_id) — 비우면 추천 1순위'),
+      },
+      required: ['project_id'],
+      additionalProperties: false,
+    },
+    async build(env, token, input) {
+      const [c, projects] = await Promise.all([
+        read(env, token, `/company/projects/${input.project_id}/assignee-candidates`),
+        read(env, token, '/company/projects'),
+      ]);
+      const list = (c && Array.isArray(c.candidates) ? c.candidates : []).filter((m) => m && m.user_id);
+      if (!list.length) throw new ActionError('담당자가 될 구성원이 없습니다');
+      const picked = input.assignee_id ? list.find((m) => m.user_id === input.assignee_id) : list[0];
+      if (!picked)
+        throw new ActionError('그 사람은 이 업체의 지금 구성원이 아닙니다 — list_projects 의 members 를 쓰세요');
+      const current = (c && c.assignee_id) || null;
+      if (picked.user_id === current) throw new ActionError('이미 그 사람이 담당자입니다');
+      const p = ((projects && projects.items) || []).find((x) => x && x.id === input.project_id) || {};
+      const now = current ? list.find((m) => m.user_id === current) || { name: null, role: null } : null;
+      const days = Number(c && c.days) || 7;
+      return {
+        params: { project_id: input.project_id, assignee_id: picked.user_id },
+        expect: { assignee_id: current },
+        card: {
+          title: '프로젝트 담당자 정하기',
+          subject: p.title || '프로젝트',
+          fields: [
+            field('프로젝트', p.title || '-'),
+            field('지금 담당자', now ? personLabel(now) : '(없음)'),
+            field('정할 담당자', personLabel(picked)),
+            field(
+              '근거',
+              `진행 중 담당 ${Number(picked.active_projects) || 0}개 · ${days}일 안 일정 ${Number(picked.week_schedules) || 0}개` +
+                (input.assignee_id ? '' : ' (추천 1순위)')
+            ),
+          ],
+        },
+      };
+    },
+    run: (env, token, row) =>
+      send(env, token, 'PUT', `/company/projects/${row.params.project_id}/assignee`, {
+        body: { assignee_id: row.params.assignee_id, expect_assignee_id: row.expect.assignee_id },
       }),
   },
   payment_received: {
