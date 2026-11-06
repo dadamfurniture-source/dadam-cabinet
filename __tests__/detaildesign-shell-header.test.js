@@ -30,8 +30,8 @@ describe('상세설계는 메인 사이트 헤더를 쓴다', () => {
     expect(i2).toBeGreaterThan(i1);
   });
 
-  test('셸 헤더의 워드마크는 홈으로 간다', () => {
-    expect(shell).toMatch(/class="v5-mark" href="[^"]+\.html" aria-label="다담가구 홈"/);
+  test('셸 헤더의 워드마크는 홈(SEGAN 앱 첫 화면 segan/)으로 간다', () => {
+    expect(shell).toMatch(/class="v5-mark" href="segan\/" aria-label="다담가구 홈"/);
   });
 
   test("data-nav='detail' 이면 DETAIL DESIGN 링크가 현재 위치가 된다", () => {

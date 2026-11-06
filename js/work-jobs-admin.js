@@ -536,9 +536,9 @@
   }
 
   // ── 공유 ──
-  /** 작업자 화면의 작업 주소 (worker.html#job=<id>) */
+  /** 작업자 화면의 작업 주소 (앱 「작업」 segan/work.html#job=<id> — 옛 worker.html 은 앱으로 넘긴다) */
   function workerJobUrl(id, baseHref) {
-    return new URL(`../worker.html#job=${encodeURIComponent(id)}`, baseHref).href;
+    return new URL(`../segan/work.html#job=${encodeURIComponent(id)}`, baseHref).href;
   }
   /**
    * [카톡으로 공유] 문구 — 종류 · 시/구 · 날짜 · 지원 종료일(있으면) · 링크만 (계획 §9-1 「Slack, 공유 문구」 줄).

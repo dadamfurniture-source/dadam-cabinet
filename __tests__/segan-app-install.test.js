@@ -6,7 +6,7 @@
  *   - 매니페스트 값과 아이콘 파일 (크기 · 마스커블 안전 영역 · 가운데 S)
  *   - segan 페이지는 모두 noindex · 매니페스트 · 아이콘을 갖고, 로컬 참조 파일이 다 있다
  *   - 서비스 워커는 segan/shell.js 가 /segan/ 범위로만 등록한다. 기존 사이트는 등록하지 않는다
- *   - 기존 사이트 어디에서도 segan/ 을 링크하지 않는다
+ *   - 기존 사이트는 정해 둔 곳(사이트 셸 · 첫 화면 · 결제 성공 · 작업 관리)에서만 segan/ 을 가리키고, 옛 주소는 _redirects 가 앱으로 넘긴다
  *   - 아이콘 · 워드마크 파일이 scripts/segan-icons.mjs 출력과 같다 (다시 만들면 같은 그림)
  */
 const fs = require('fs');
@@ -296,15 +296,62 @@ describe('서비스 워커 범위', () => {
   });
 });
 
-describe('숨김 — 기존 사이트에서 segan 으로 가는 길이 없다', () => {
-  test('루트 · admin 페이지와 js/ 가 segan/ 을 가리키지 않는다', () => {
-    const offenders = [...SITE_PAGES, ...SITE_SCRIPTS].filter((f) => /segan\//i.test(read(f)));
+/** 기존 사이트에서 segan/ 을 가리켜도 되는 곳 — 사이트 셸 메뉴 · 첫 화면 넘기기 · 결제 성공 기본 링크 · 작업 관리 작업 주소 */
+const SITE_TO_APP = ['index.html', 'billing-success.html', 'js/site-shell.js', 'js/work-jobs-admin.js'];
+
+/** _redirects — [옛 주소, 앱 주소, 상태] */
+const REDIRECTS = read('_redirects')
+  .split(/\r?\n/)
+  .map((l) => l.trim())
+  .filter((l) => l && !l.startsWith('#'))
+  .map((l) => l.split(/\s+/));
+
+describe('전환 — 옛 주소는 앱으로', () => {
+  test('정해 둔 곳 말고는 루트 · admin 페이지와 js/ 가 segan/ 을 가리키지 않는다', () => {
+    const offenders = [...SITE_PAGES, ...SITE_SCRIPTS].filter((f) => !SITE_TO_APP.includes(f) && /segan\//i.test(read(f)));
     expect(offenders).toEqual([]);
   });
 
-  test('robots.txt · 사이트맵에 segan 이 없다', () => {
-    const files = ['robots.txt', 'sitemap.xml'].filter((f) => fs.existsSync(path.join(ROOT, f)));
-    for (const f of files) expect(read(f)).not.toMatch(/segan/i);
+  test('_redirects — 옛 주소마다 .html 과 확장자 없는 것 둘 다 앱 짝으로 301', () => {
+    const map = Object.fromEntries(REDIRECTS.map(([from, to, status]) => [from, `${to} ${status}`]));
+    const want = {
+      '/': '/segan/', index: '/segan/', 'ai-design': '/segan/', collection: '/segan/collection',
+      material: '/segan/collection#material', consultation: '/segan/consult', 'partner-recommendation': '/segan/consult',
+      'my-designs': '/segan/renders', mypage: '/segan/settings', pricing: '/segan/me#partner', billing: '/segan/billing', worker: '/segan/work',
+    };
+    for (const [page, to] of Object.entries(want)) {
+      if (page === '/') {
+        expect(map['/']).toBe(`${to} 301`);
+        continue;
+      }
+      expect(map[`/${page}`]).toBe(`${to} 301`);
+      expect(map[`/${page}.html`]).toBe(`${to} 301`);
+    }
+    expect(REDIRECTS.length).toBe(1 + (Object.keys(want).length - 1) * 2);
+    expect(REDIRECTS.every((r) => r.length === 3 && r[2] === '301')).toBe(true);
+  });
+
+  test('_redirects — 앱 짝은 있는 앱 화면 (확장자 없이)', () => {
+    for (const [, to] of REDIRECTS) {
+      const p = to.split('#')[0].replace(/^\/segan\/?/, '') || 'index';
+      expect(fs.existsSync(path.join(SEGAN, `${p}.html`))).toBe(true);
+      expect(to).not.toMatch(/\.html/);
+    }
+  });
+
+  test('_redirects — 그대로 두는 화면(로그인 · 확인서 · 설문 · 공유 · 결제 돌아옴 · ERP · 생산 · 관리자 · 상세설계)은 넘기지 않는다', () => {
+    const froms = REDIRECTS.map(([from]) => from.replace(/\.html$/, ''));
+    for (const keep of ['/login', '/signup', '/reset-password', '/confirm', '/feedback', '/design-share', '/billing-success', '/erp', '/production', '/production-worker', '/detaildesign', '/admin'])
+      expect(froms).not.toContain(keep);
+  });
+
+  test('robots.txt — 사이트맵 줄 · docs · admin 막기, 사이트맵은 앱 공개 화면 셋', () => {
+    const robots = read('robots.txt');
+    expect(robots).toMatch(/^Sitemap: https:\/\/dadamfurniture\.com\/sitemap\.xml$/m);
+    expect(robots).toMatch(/^Disallow: \/docs\/$/m);
+    expect(robots).toMatch(/^Disallow: \/admin\/$/m);
+    const locs = [...read('sitemap.xml').matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+    expect(locs).toEqual(['https://dadamfurniture.com/segan/', 'https://dadamfurniture.com/segan/collection', 'https://dadamfurniture.com/segan/consult']);
   });
 });
 
