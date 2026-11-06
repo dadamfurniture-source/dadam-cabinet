@@ -1,0 +1,211 @@
+{
+  "title": "0046 간편 플래너 웹판 저장소 — 설계 초안 · 사진 · 내 모듈은 서버만, 고친 차례는 하나씩, 버린 설계 · 사진 내용은 그대로, 지우기 없음(내 모듈만), 비공개 사진 버킷 (scripts/rls-probe.mjs --migration database/migrations/0046_planner_drafts.sql)",
+  "ids": [
+    "company_x",
+    "company_y"
+  ],
+  "users": [
+    "x_owner_user",
+    "y_owner_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_x}}, 'partner', 'probe X', 'expert', 'active'), ({{company_y}}, 'partner', 'probe Y', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_x}}, {{x_owner_user}}, 'owner', 'active'), ({{company_y}}, {{y_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.planner_drafts (company_id, id, name, item, model, created_by, updated_by) VALUES ({{company_x}}, 'd-probe-a', '거실장', 'sink', '{\"format\":\"dadam.planner-lite/1\",\"walls\":[]}'::jsonb, {{x_owner_user}}, {{x_owner_user}})",
+    "INSERT INTO public.planner_drafts (company_id, id, model, created_by, discarded_at) VALUES ({{company_x}}, 'd-probe-gone', '{\"walls\":[]}'::jsonb, {{x_owner_user}}, now())",
+    "INSERT INTO public.planner_draft_photos (company_id, draft_id, file, mime, bytes, sha256, created_by) VALUES ({{company_x}}, 'd-probe-a', 'photo-probe-1.jpg', 'image/jpeg', 1000, repeat('a', 64), {{x_owner_user}})",
+    "INSERT INTO public.planner_my_modules (user_id, id, company_id, payload) VALUES ({{x_owner_user}}, 'my-probe01', {{company_x}}, '{\"libId\":\"LB-D2-900\",\"W\":900}'::jsonb)"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "x_owner": {
+      "role": "authenticated",
+      "user": "x_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "읽기 — 서버만 (익명 · 구성원 deny)",
+      "sql": "select count(*) from public.planner_drafts where company_id = {{company_x}}",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "2"
+      }
+    },
+    {
+      "name": "사진 · 내 모듈 읽기 — 서버만",
+      "sql": "select (select count(*) from public.planner_draft_photos) + (select count(*) from public.planner_my_modules where user_id = {{x_owner_user}})",
+      "expect": {
+        "anon": "deny",
+        "x_owner": "deny",
+        "service_role": "2"
+      }
+    },
+    {
+      "name": "구성원은 쓰지 못한다",
+      "sql": "insert into public.planner_drafts (company_id, id, model) values ({{company_x}}, 'd-probe-b', '{}'::jsonb)",
+      "roles": [
+        "x_owner"
+      ],
+      "expect": {
+        "x_owner": "deny"
+      }
+    },
+    {
+      "name": "서버 — 새 설계 (같은 id 도 다른 업체면 따로)",
+      "sql": "insert into public.planner_drafts (company_id, id, model) values ({{company_y}}, 'd-probe-a', '{}'::jsonb)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "설계 id 모양이 아니면 거절",
+      "sql": "insert into public.planner_drafts (company_id, id, model) values ({{company_x}}, '../x', '{}'::jsonb)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "고치기 — 내용이 바뀌면 rev 하나, 고친 때가 찍힌다",
+      "sql": "update public.planner_drafts set model = '{\"walls\":[1]}'::jsonb, rev = 2, updated_at = '2000-01-01' where company_id = {{company_x}} and id = 'd-probe-a'; select rev || '/' || (updated_at > '2001-01-01') from public.planner_drafts where company_id = {{company_x}} and id = 'd-probe-a'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "2/true"
+      }
+    },
+    {
+      "name": "rev 를 건너뛰면 거절",
+      "sql": "update public.planner_drafts set model = '{\"walls\":[2]}'::jsonb, rev = 3 where company_id = {{company_x}} and id = 'd-probe-a'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "내용이 그대로면 rev 도 그대로",
+      "sql": "update public.planner_drafts set rev = 2 where company_id = {{company_x}} and id = 'd-probe-a'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "만든 사람은 바꿀 수 없다",
+      "sql": "update public.planner_drafts set created_by = {{y_owner_user}} where company_id = {{company_x}} and id = 'd-probe-a'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "버린 설계는 바뀌지 않는다",
+      "sql": "update public.planner_drafts set model = '{\"walls\":[3]}'::jsonb, rev = 2 where company_id = {{company_x}} and id = 'd-probe-gone'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "설계 지우기는 서버도 못 한다",
+      "sql": "delete from public.planner_drafts where company_id = {{company_x}} and id = 'd-probe-a'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "사진은 같은 업체 설계에만",
+      "sql": "insert into public.planner_draft_photos (company_id, draft_id, file, mime, bytes, sha256) values ({{company_y}}, 'd-probe-gone', 'photo-probe-2.jpg', 'image/jpeg', 1000, repeat('b', 64))",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "사진 내용은 바꿀 수 없다",
+      "sql": "update public.planner_draft_photos set bytes = 2000 where company_id = {{company_x}} and file = 'photo-probe-1.jpg'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "사진 지우기 — 표시만 한 번",
+      "sql": "update public.planner_draft_photos set deleted_at = now() where company_id = {{company_x}} and file = 'photo-probe-1.jpg'; select (deleted_at is not null)::text from public.planner_draft_photos where company_id = {{company_x}} and file = 'photo-probe-1.jpg'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "사진 줄 지우기는 서버도 못 한다",
+      "sql": "delete from public.planner_draft_photos where company_id = {{company_x}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "내 모듈 — 고치기는 못 하고 지우기는 된다",
+      "sql": "update public.planner_my_modules set payload = '{}'::jsonb where user_id = {{x_owner_user}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "내 모듈 지우기",
+      "sql": "delete from public.planner_my_modules where user_id = {{x_owner_user}} and id = 'my-probe01'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "사진 버킷 — 비공개 · 15MB · JPEG · PNG · WEBP",
+      "sql": "select public || '/' || file_size_limit || '/' || array_to_string(allowed_mime_types, ',') from storage.buckets where id = 'planner-photos'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "false/15728640/image/jpeg,image/png,image/webp"
+      }
+    }
+  ]
+}
