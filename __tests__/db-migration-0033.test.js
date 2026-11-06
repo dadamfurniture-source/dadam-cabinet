@@ -242,7 +242,7 @@ describe('0033 — 장부 사진 확인 · 거래처 기억 · 장부 알림', (
     );
     expect(f).toContain('DROP CONSTRAINT IF EXISTS notification_outbox_kind_check;');
     expect(kindsOf(S, 'notification_outbox_kind_check')).toEqual([...before, 'ledger_notice']);
-    // 서버가 넣는 종류(push/messages.js)는 모두 이 목록에 있다 (assistant_brief 는 서버가 아직 넣지 않는다)
+    // 서버가 넣는 종류(push/messages.js)는 이 목록에 있거나, 뒤 번호(0045 as_request)에서 더한 것이다 (db-migration-0045 시험이 본다)
     const msg = fs.readFileSync(
       path.join(__dirname, '..', 'workers', 'workflow-api', 'src', 'push', 'messages.js'),
       'utf8'
@@ -253,7 +253,7 @@ describe('0033 — 장부 사진 확인 · 거래처 기억 · 장부 알림', (
         .matchAll(/'([a-z_]+)'/g),
     ].map((x) => x[1]);
     const all = kindsOf(S, 'notification_outbox_kind_check');
-    expect(names.filter((k) => !all.includes(k))).toEqual([]);
+    expect(names.filter((k) => !all.includes(k))).toEqual(['as_request']);
     expect(names).toContain('ledger_notice');
   });
 
