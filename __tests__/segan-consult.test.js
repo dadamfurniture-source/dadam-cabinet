@@ -744,7 +744,7 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
     expect($('csgForm').noValidate).toBe(false);
   });
 
-  test('동의 둘 — 글 · 수집하는 내용 · 제공하는 내용 = consultation.html, 시공 사진 학습 동의는 없다', async () => {
+  test('동의 셋 — 수집 · 업체 제공 = consultation.html, 시공 사진 학습 = 연출컷 신청서와 같은 글', async () => {
     await load({ url: GENERAL, session: null });
     expect(norm($('csgAgree').closest('label').textContent)).toBe(
       norm(SITE.getElementById('agreePrivacy').closest('label').textContent)
@@ -759,8 +759,31 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
     );
     expect($('csgPrivacyDetail').textContent).not.toContain('상세설계');
     expect(lis($('csgThirdDetail'))).toEqual(lis(SITE.getElementById('thirdPartyDetail')));
-    expect($('csgForm').querySelectorAll('.cs-agree')).toHaveLength(2);
-    expect($('csgForm').textContent).not.toMatch(/설계 학습/);
+    // 시공 사진 학습 활용 동의 (선택) — 연출컷 신청서(csAgreePhoto · csPhotoDetail)와 같은 글 · 같은 내용
+    expect(
+      [...$('csgForm').querySelectorAll('.cs-agree')].map((l) => l.querySelector('input').id)
+    ).toEqual(['csgAgree', 'csgAgreeThird', 'csgAgreePhoto']);
+    expect(norm($('csgAgreePhoto').closest('label').textContent)).toBe(
+      norm($('csAgreePhoto').closest('label').textContent)
+    );
+    expect(lis($('csgPhotoDetail'))).toEqual(lis($('csPhotoDetail')));
+    expect($('csgAgreePhoto').required).toBe(false);
+    expect($('csgAgreePhoto').checked).toBe(false);
+  });
+
+  test('시공 사진 학습 동의 — 하면 같은 시각으로 photo_learn_agreed_at, 안 하면 null (업체 제공과 따로)', async () => {
+    const calls = await load({ url: GENERAL, session: null });
+    fillGeneral();
+    $('csgAgreePhoto').checked = true;
+    await sendGeneral();
+    const { row } = calls.inserts[0];
+    expect(row.photo_learn_agreed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(row.photo_learn_agreed_at).toBe(row.privacy_agreed_at);
+    expect(row.third_party_agreed_at).toBeNull();
+    // 칸 이름은 연출컷 신청서 · DB 0044 와 같다
+    expect(COLUMNS_0044).toEqual(['photo_learn_agreed_at']);
+    if (MIGRATION_0044)
+      expect(MIGRATION_0044).toContain('ADD COLUMN IF NOT EXISTS photo_learn_agreed_at ');
   });
 
   test('로그인했으면 가입 정보(user_metadata)로 채운다 — 거주지역은 목록에 있을 때만', async () => {
@@ -805,9 +828,14 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
     expect(calls.inserts).toHaveLength(1);
     const { table, row } = calls.inserts[0];
     expect(table).toBe('consultations');
-    // consultation.html insert 칸과 같은 차례 — 앱에 없는 request_detail_design 만 뺀다 (DB 기본값 false)
+    // consultation.html insert 칸과 같은 차례 — 앱에 없는 request_detail_design 만 뺀다 (DB 기본값 false),
+    //   끝에 앱의 시공 사진 학습 동의 칸 (연출컷 신청서와 같은 photo_learn_agreed_at)
     expect(siteKeys()).toContain(NOT_IN_APP);
-    expect(Object.keys(row)).toEqual(siteKeys().filter((k) => k !== NOT_IN_APP));
+    expect(Object.keys(row)).toEqual(
+      siteKeys()
+        .filter((k) => k !== NOT_IN_APP)
+        .concat(COLUMNS_0044)
+    );
     expect(row).toEqual({
       user_id: null,
       name: '이고객',
@@ -835,6 +863,7 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
       privacy_agreed_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
       third_party_agreed_at: null,
       consent_version: null,
+      photo_learn_agreed_at: null,
     });
     // 회사 · 연출컷은 보내지 않는다 (company_id 는 DB 기본값 — 다담 본사)
     expect(row).not.toHaveProperty('company_id');
