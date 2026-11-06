@@ -56,6 +56,13 @@ describe('0045 — 고객 A/S 접수', () => {
     expect(f).toContain("WHERE ((state = 'requested'::text) AND (alerted_at IS NULL))");
   });
 
+  test('앱 알림 종류 — 0033 목록 그대로 + as_request', () => {
+    const m = /notification_outbox_kind_check CHECK \(kind = ANY \(ARRAY\[(.*?)\]\)\)/.exec(f);
+    const kinds = [...m[1].matchAll(/'([a-z_]+)'::text/g)].map((x) => x[1]);
+    expect(kinds.slice(-2)).toEqual(['ledger_notice', 'as_request']);
+    expect(kinds.length).toBe(16);
+  });
+
   test('비공개 사진 버킷 as-request-photos', () => {
     expect(f).toContain("VALUES ('as-request-photos', 'as-request-photos', false, 5242880, ARRAY['image/jpeg', 'image/png'])");
   });
