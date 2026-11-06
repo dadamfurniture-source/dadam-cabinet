@@ -39,6 +39,13 @@ const MIGRATION_0021 = (() => {
   const f = fs.readdirSync(dir).find((n) => /^0021_.*\.sql$/.test(n));
   return f ? read('database/migrations/' + f) : null;
 })();
+// 0044 시공 사진 학습 활용 동의 (2026-11-06 작업 분배 ⑥)
+const COLUMNS_0044 = ['photo_learn_agreed_at'];
+const MIGRATION_0044 = (() => {
+  const dir = path.join(ROOT, 'database/migrations');
+  const f = fs.readdirSync(dir).find((n) => /^0044_.*.sql$/.test(n));
+  return f ? read('database/migrations/' + f) : null;
+})();
 const ID = '11111111-2222-4333-8444-555555555555';
 const API = 'https://gen.example.workers.dev/api/generate';
 const SESSION = {
@@ -194,7 +201,7 @@ describe('들어오기 전', () => {
     expect(view()).toEqual(['unavailable']);
     expect(calls.probes).toEqual([
       'generation_id,quote,sido,gugun,privacy_agreed_at,' +
-        'door_finish,demolition_needed,wanted_price_tier,third_party_agreed_at,consent_version,wanted_done_date',
+        'door_finish,demolition_needed,wanted_price_tier,third_party_agreed_at,consent_version,wanted_done_date,photo_learn_agreed_at',
     ]);
     expect(visible($('csTelLine'))).toBe(true);
     expect(calls.inserts).toEqual([]);
@@ -317,7 +324,7 @@ describe('신청서', () => {
     }
   });
 
-  test('동의 둘 — 수집 · 이용(필수) · 다담이 정한 업체에 제공(선택), 제공 내용', async () => {
+  test('동의 셋 — 수집 · 이용(필수) · 다담이 정한 업체에 제공(선택) · 시공 사진 학습(선택), 제공 · 쓰는 내용', async () => {
     await load();
     const agrees = [...$('csFields').querySelectorAll('.cs-agree')].map((l) => [
       l.querySelector('input').id,
@@ -329,8 +336,16 @@ describe('신청서', () => {
         'csAgreeThird',
         '다담 협력업체 목록 중 다담이 정한 업체에 상담 정보를 제공하는 데 동의합니다 (선택)',
       ],
+      ['csAgreePhoto', '시공이 끝난 뒤 찍은 사진을 SEGAN 설계 학습에 쓰는 데 동의합니다 (선택)'],
     ]);
     expect($('csAgreeThird').checked).toBe(false);
+    expect($('csAgreePhoto').checked).toBe(false);
+    expect([...$('csPhotoDetail').querySelectorAll('li')].map((li) => li.textContent.trim())).toEqual([
+      '쓰는 것: 설치 · A/S 를 마친 팩토리가 올린 완료 사진 (가구 모습)',
+      '목적: SEGAN 설계 · 연출 학습',
+      '사진 말고 이름 · 전화 · 주소는 함께 쓰지 않습니다',
+      '동의하지 않아도 상담 · 시공은 똑같이 받습니다',
+    ]);
     const lis = [...$('csThirdDetail').querySelectorAll('li')].map((li) =>
       li.textContent.replace(/\s+/g, ' ').trim()
     );
@@ -438,12 +453,13 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
       wanted_price_tier: 'mid',
       third_party_agreed_at: null,
       consent_version: null,
+      photo_learn_agreed_at: null,
     });
     // 상담받을 곳 · 회사는 보내지 않는다 (company_id 는 DB 기본값 — 다담 본사)
     expect(row).not.toHaveProperty('consult_target');
     expect(row).not.toHaveProperty('company_id');
     // 보내는 칸은 consultation.html 이 쓰는 칸 + SQL 파일 · 0019 가 더하는 칸뿐
-    const allowed = new Set(siteKeys().concat(sqlColumns(), COLUMNS_0019, COLUMNS_0021));
+    const allowed = new Set(siteKeys().concat(sqlColumns(), COLUMNS_0019, COLUMNS_0021, COLUMNS_0044));
     for (const k of Object.keys(row)) expect([k, allowed.has(k)]).toEqual([k, true]);
     if (MIGRATION_0019) {
       for (const c of COLUMNS_0019)
@@ -453,6 +469,10 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
       for (const c of COLUMNS_0021)
         expect([c, MIGRATION_0021.includes(`ADD COLUMN IF NOT EXISTS ${c} `)]).toEqual([c, true]);
     }
+    if (MIGRATION_0044) {
+      for (const c of COLUMNS_0044)
+        expect([c, MIGRATION_0044.includes(`ADD COLUMN IF NOT EXISTS ${c} `)]).toEqual([c, true]);
+    }
     // 접수 화면 — 업체 제공에 동의하지 않았으면 본사가 직접 · 전화 · 결과로
     expect(view()).toEqual(['done']);
     expect($('csDoneTitle').textContent).toBe('상담 신청이 접수되었습니다');
@@ -461,6 +481,16 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
     );
     expect($('csDoneTel').querySelector('a').getAttribute('href')).toBe('tel:01077386822');
     expect($('csDoneBack').getAttribute('href')).toBe(`./?g=${ID}#result`);
+  });
+
+  test('시공 사진 학습 동의 — 같은 시각으로 photo_learn_agreed_at, 업체 제공 동의와 따로 (2026-11-06 작업 분배 ⑥)', async () => {
+    const calls = await load();
+    fillRequired();
+    $('csAgreePhoto').checked = true;
+    await send();
+    const { row } = calls.inserts[0];
+    expect(row.photo_learn_agreed_at).toBe(row.privacy_agreed_at);
+    expect(row.third_party_agreed_at).toBeNull();
   });
 
   test('업체 제공 동의 — 같은 시각으로 third_party_agreed_at · consent_version v2, 접수 화면은 「가까운 팩토리를 연결」', async () => {

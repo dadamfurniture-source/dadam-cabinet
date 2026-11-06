@@ -8,29 +8,29 @@
     <title>상담 신청 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026110608" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026110608" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026110608" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110608" />
+    <link rel="icon" href="icons/icon.svg?v=2026110701" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110701" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110701" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110701" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026110608" />
-    <link rel="stylesheet" href="make.css?v=2026110608" />
+    <link rel="stylesheet" href="shell.css?v=2026110701" />
+    <link rel="stylesheet" href="make.css?v=2026110701" />
     <!-- 로그인 · 상담 저장(consultations, consultation.html 과 같은 길) · 연출컷 읽기(generate-api) -->
-    <script src="../js/config.js?v=2026110608"></script>
+    <script src="../js/config.js?v=2026110701"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <!-- 관리 탭 — 관리자에게만 연다 (segan/shell.js applyAdminTab) -->
-    <script src="../js/admin-access.js?v=2026110608"></script>
+    <script src="../js/admin-access.js?v=2026110701"></script>
     <!-- 작업 탭 — 작업자에게만 연다 (segan/shell.js applyRoleTabs · GET /work/me) -->
-    <script src="../js/mypage-work.js?v=2026110608"></script>
-    <script src="shell.js?v=2026110608" defer></script>
-    <script src="make.js?v=2026110608" defer></script>
-    <script src="regions.js?v=2026110608" defer></script>
-    <script src="consult.js?v=2026110608" defer></script>
+    <script src="../js/mypage-work.js?v=2026110701"></script>
+    <script src="shell.js?v=2026110701" defer></script>
+    <script src="make.js?v=2026110701" defer></script>
+    <script src="regions.js?v=2026110701" defer></script>
+    <script src="consult.js?v=2026110701" defer></script>
   </head>
   <!-- ④ 상담 신청 — 만들기의 마지막 단계라 만들기 탭에 둔다. consult.html?g=<연출컷 id> -->
   <body class="sg-app" data-tab="make">
@@ -203,6 +203,20 @@
               <li>목적: 상담 · 견적 · 시공</li>
               <li>보유: 상담 목적을 이룰 때까지</li>
               <li>동의하지 않으면 다담 본사가 직접 상담합니다</li>
+            </ul>
+          </details>
+          <!-- 시공 사진 학습 활용 동의 (2026-11-06 작업 분배 ⑥) — 체크하면 photo_learn_agreed_at 을 남긴다. 안 해도 상담 · 시공은 똑같다 -->
+          <label class="cs-agree">
+            <input type="checkbox" id="csAgreePhoto" />
+            <span>시공이 끝난 뒤 찍은 사진을 SEGAN 설계 학습에 쓰는 데 동의합니다 (선택)</span>
+          </label>
+          <details class="cs-agree-detail">
+            <summary>쓰는 내용 보기</summary>
+            <ul id="csPhotoDetail">
+              <li>쓰는 것: 설치 · A/S 를 마친 팩토리가 올린 완료 사진 (가구 모습)</li>
+              <li>목적: SEGAN 설계 · 연출 학습</li>
+              <li>사진 말고 이름 · 전화 · 주소는 함께 쓰지 않습니다</li>
+              <li>동의하지 않아도 상담 · 시공은 똑같이 받습니다</li>
             </ul>
           </details>
         </section>
