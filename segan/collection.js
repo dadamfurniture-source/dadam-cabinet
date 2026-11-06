@@ -10,8 +10,12 @@
    그 뒤에 잇는다 — 앱은 최신순이 끝까지 이어지게). 처음 9장 · 6장씩 더(같다) + 「더 보기」 단추,
    누르면 앱 안에서 크게 본다.
    이미지는 배경으로만 그린다 — 다운로드 단추 · 링크는 두지 않는다. 관리자 「내리기」는 사이트에만 있다.
+
+   자재 — 같은 화면 안의 둘째 칸 (탭 막대는 넷 그대로). 글 · 사진은 사이트 material.html 그대로이고
+   collection.html 에 적혀 있다 (여기서는 고르기만). 주소가 collection.html#material 이면 자재로 연다,
+   고르면 주소의 #material 을 붙이거나 뗀다 (새 기록을 쌓지 않는다).
    ============================================================ */
-/* global window, document, IntersectionObserver */
+/* global window, document, location, history, IntersectionObserver */
 (function () {
   'use strict';
 
@@ -49,6 +53,7 @@
     sb: null,
     open: -1, // 크게 보는 사례
     back: null, // 닫으면 초점을 돌려줄 곳
+    panel: 'cases', // 보이는 칸 — cases(시공사례) | material(자재)
   };
 
   var $ = function (id) {
@@ -215,7 +220,64 @@
     if (S.back && S.back.focus) S.back.focus();
   }
 
+  // ── 시공사례 · 자재 고르기 ───────────────────────────────
+  var PANELS = { cases: ['clTabCases', 'clCases'], material: ['clTabMaterial', 'clMaterial'] };
+  var MATERIAL_HASH = '#material';
+
+  function panelOfHash() {
+    return location.hash === MATERIAL_HASH ? 'material' : 'cases';
+  }
+
+  /** 칸 하나만 보인다. keepHash 가 아니면 주소의 #material 을 맞춘다 */
+  function showPanel(name, keepHash) {
+    if (!PANELS[name]) name = 'cases';
+    Object.keys(PANELS).forEach(function (k) {
+      var tab = $(PANELS[k][0]);
+      var panel = $(PANELS[k][1]);
+      if (!tab || !panel) return;
+      var on = k === name;
+      tab.setAttribute('aria-selected', on ? 'true' : 'false');
+      tab.tabIndex = on ? 0 : -1;
+      panel.hidden = !on;
+    });
+    S.panel = name;
+    if (!keepHash && panelOfHash() !== name) {
+      try {
+        history.replaceState(
+          null,
+          '',
+          location.pathname + location.search + (name === 'material' ? MATERIAL_HASH : '')
+        );
+      } catch {
+        /* 주소를 못 바꿔도 화면은 바뀐다 */
+      }
+    }
+  }
+
+  function bindPanels() {
+    Object.keys(PANELS).forEach(function (k) {
+      var tab = $(PANELS[k][0]);
+      if (!tab) return;
+      tab.addEventListener('click', function () {
+        showPanel(k);
+      });
+      // 왼쪽 · 오른쪽 화살표로 옆 칸 (tablist)
+      tab.addEventListener('keydown', function (e) {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        var next = k === 'cases' ? 'material' : 'cases';
+        showPanel(next);
+        $(PANELS[next][0]).focus();
+        e.preventDefault();
+      });
+    });
+    window.addEventListener('hashchange', function () {
+      showPanel(panelOfHash(), true);
+    });
+    showPanel(panelOfHash(), true);
+  }
+
   function bind() {
+    bindPanels();
     $('clTiles').addEventListener('click', function (e) {
       var b = e.target.closest('[data-open]');
       if (b) openView(Number(b.getAttribute('data-open')));
@@ -288,6 +350,7 @@
     loadMore: loadMore,
     openView: openView,
     closeView: closeView,
+    showPanel: showPanel,
   };
   window.SeganCollection = api;
   api.ready = new Promise(function (resolve) {
