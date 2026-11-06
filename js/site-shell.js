@@ -35,13 +35,12 @@
     { label: 'Material', href: 'material.html' },
   ];
 
-  // TODO(콘텐츠): FAQ · terms.html · privacy.html 이 아직 없다.
-  // 기존 index 푸터도 이 셋을 `#` 로 두고 있었다 — 없는 파일을 가리켜
-  // 404 를 만드는 대신, 페이지가 생길 때까지 같은 자리표시자를 유지한다.
+  // TODO(콘텐츠): FAQ 페이지는 아직 없다 — 없는 파일을 가리켜 404 를 만드는 대신
+  // 페이지가 생길 때까지 `#` 자리표시자를 유지한다. 약관·처리방침은 terms.html · privacy.html.
   var FOOT_SUPPORT = [
     { label: '자주 묻는 질문', href: '#' },
-    { label: '이용 약관', href: '#' },
-    { label: '개인정보처리방침', href: '#' },
+    { label: '이용 약관', href: 'terms.html' },
+    { label: '개인정보처리방침', href: 'privacy.html' },
   ];
 
   // 계정 메뉴 — 예전 index/material 내비의 user-dropdown 에 있던 항목들.
