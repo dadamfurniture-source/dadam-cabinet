@@ -608,7 +608,7 @@ test('초대 링크 — 1회용 · 만료 410 · 없는 토큰 404 · 이미 작
   assert.equal(bad.status, 422, '지난 만료일');
   const inv = await call('POST', '/work/admin/invites', { token: 'tok-admin', body: { kinds_preset: ['as'], display_name_preset: '시험초대', expires_at: '2099-01-01T00:00:00Z' } });
   assert.equal(inv.status, 201);
-  assert.match(inv.data.url, /^https:\/\/dadam\.test\/worker\.html#invite=[A-Za-z0-9_-]{30,}$/);
+  assert.match(inv.data.url, /^https:\/\/dadam\.test\/segan\/work\.html#invite=[A-Za-z0-9_-]{30,}$/);
   const token = inv.data.url.split('#invite=')[1];
   const stored = rowOf('worker_invites', inv.data.id);
   assert.equal(stored.token_hash, await hashInviteToken(ENV, token));
