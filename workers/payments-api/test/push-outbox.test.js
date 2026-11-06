@@ -120,7 +120,7 @@ test('첫 실패(재시도 시작) — 업체 대표에게만 billing_failed 한
       company_id: C1,
       kind: 'billing_failed',
       title: '결제 실패',
-      body: '업체 구독 결제가 되지 않았습니다. 결제 관리에서 결제 수단을 확인해 주세요.',
+      body: '팩토리 구독 결제가 되지 않았습니다. 결제 관리에서 결제 수단을 확인해 주세요.',
       url: '/segan/me.html#partner',
       ref_id: S1,
       dedupe_key: `billing_failed:${S1}:${OWNER}:${STAMP}:past_due`,
