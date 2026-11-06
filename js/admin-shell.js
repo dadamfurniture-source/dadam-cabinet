@@ -25,6 +25,7 @@
     { href: 'consult-distribution.html', icon: '🔀', label: '상담 분배' },
     { href: 'consultations.html', icon: '💬', label: '상담 관리' },
     { href: 'order-reports.html', icon: '📸', label: '완료 보고' },
+    { href: 'as-requests.html', icon: '🛠️', label: 'A/S 접수' },
     { href: 'appliances.html', icon: '🧊', label: '가전 모델 관리' },
     { href: 'work-reports.html', icon: '📑', label: '작업 지시 보고' },
     { href: 'work-jobs.html', icon: '🧰', label: '작업 배정' },
