@@ -5,7 +5,8 @@
    데이터    GET /ledger/me (업체 이름 — ledgers) · /ledger/dashboard?month=&months=12 · /ledger/accounts ·
              /ledger/receivables · /ledger/payables (장부 서버가 모르면 그 줄은 뺀다)
    보이기    A4 한 장 — 칸 넷(매출 · 매입 · 장부 손익 · 부가세 예상 — 일반과세만, 반기) · 최근 6달 표 · 매입 계정별 ·
-             지출 상대 상위 10 · 받을 돈 · 낼 돈 · 남은 할 일. 숫자는 서버 값 그대로 — 이 화면이 더하는 것은 장부 손익과
+             지출 상대 상위 10 · 받을 돈 · 낼 돈 · 남은 할 일 · 월 마감 메모(GET /ledger/close-memo — 2026-11-06 6-L3,
+             서버가 센 손볼 곳 그대로, 0 인 것은 뺀다). 숫자는 서버 값 그대로 — 이 화면이 더하는 것은 장부 손익과
              반기 부가세 참고뿐 (SeganLedgerBoard.vatHalf — 회계 한눈에와 같은 셈)
    인쇄      「인쇄 · PDF 저장」 = window.print. 앱 머리 · 아래 탭 · 단추는 인쇄에서 뺀다 (ledger-report.css)
    글은 모두 textContent 로 넣는다.
@@ -37,6 +38,7 @@
     names: {}, // 계정 코드 → 이름
     recv: null, // GET /ledger/receivables data (없으면 null)
     pay: null, // GET /ledger/payables data
+    memo: null, // GET /ledger/close-memo data (모르면 null — 칸째 감춘다)
     busy: false,
   };
 
@@ -146,6 +148,62 @@
   }
 
   // ── 그리기 ─────────────────────────────────────────────
+  /** 월 마감 메모 — 몇 장 · 몇 건 */
+  var MEMO_UNIT = { noevid: '건', simple30k: '건', invoice: '장', photos: '장', late: '건', dup: '건' };
+  /** 수금 단계 — 워커 order_payments.stage */
+  var PAY_STAGE = { deposit: '계약금', interim: '중도금', balance: '잔금', other: '기타' };
+
+  /** 'YYYY-MM-DD…' → 'MM.DD' */
+  function mmdd(s) {
+    var v = String(s || '');
+    return v.length >= 10 ? v.slice(5, 7) + '.' + v.slice(8, 10) : '';
+  }
+
+  /**
+   * 월 마감 메모 줄 (순수) — 서버 items 차례 그대로, 0 인 것은 뺀다 → [{ text, rows: [글] }]
+   *   부가세는 일반과세일 때 (받은 − 낸) 를, 부가세 모르는 줄은 늘. 바뀐 계정은 줄이 있을 때.
+   */
+  function memoLines(memo, names) {
+    var out = [];
+    ((memo && memo.items) || []).forEach(function (x) {
+      if (!x || !x.key) return;
+      var n = Number(x.n) || 0;
+      if (x.key === 'vat') {
+        if (x.counted)
+          out.push({ text: '부가세 (받은 − 낸) ' + won(x.amount) + (n ? ' · 부가세 모르는 줄 ' + n + '줄' : ''), rows: [] });
+        else if (n) out.push({ text: '부가세 모르는 줄 ' + n + '줄', rows: [] });
+        return;
+      }
+      if (x.key === 'acct') {
+        var list = x.rows || [];
+        if (!list.length) return;
+        out.push({
+          text: x.label,
+          rows: list.map(function (r) {
+            var nm = r.account ? (names && names[r.account]) || r.account : '계정 미정';
+            var rate = r.rate == null ? '' : ' · ' + (r.rate >= 0 ? '+' : '') + r.rate + '%';
+            return nm + ' ' + won(r.amount) + ' (전달 ' + won(r.prev) + rate + ')';
+          }),
+        });
+        return;
+      }
+      if (!n) return;
+      var money = x.amount != null && x.key !== 'invoice' && x.key !== 'photos' ? ' · ' + won(x.amount) : '';
+      out.push({
+        text: x.label + ' ' + n + (MEMO_UNIT[x.key] || '건') + money,
+        rows: (x.rows || []).map(function (r) {
+          if (x.key === 'late')
+            return [r.order_no || '-', PAY_STAGE[r.stage] || r.stage || '', r.due_on ? mmdd(r.due_on) + '까지' : '', won(r.amount)]
+              .filter(Boolean)
+              .join(' · ');
+          if (x.key === 'dup') return [mmdd(r.date), r.name || '-'].filter(Boolean).join(' · ');
+          return [mmdd(r.date), r.name || '-', won(r.amount)].filter(Boolean).join(' · ');
+        }),
+      });
+    });
+    return out;
+  }
+
   function tile(box, label, value, sub) {
     var div = el('div', 'lr-tile');
     div.appendChild(el('dt', '', label));
@@ -304,6 +362,22 @@
     list.forEach(function (x) {
       ul.appendChild(el('li', '', x[0] + ' ' + x[1] + x[2]));
     });
+
+    // 월 마감 메모 — 서버가 모르면(0034 전 · 오류) 칸째 감춘다
+    $('lrMemoBox').hidden = !R.memo;
+    var mu = $('lrMemo');
+    mu.textContent = '';
+    if (R.memo) {
+      var lines = memoLines(R.memo, R.names);
+      if (!lines.length) mu.appendChild(el('li', '', '손볼 곳이 없습니다.'));
+      lines.forEach(function (x) {
+        var li = el('li', '', x.text);
+        x.rows.forEach(function (r) {
+          li.appendChild(el('small', '', r));
+        });
+        mu.appendChild(li);
+      });
+    }
   }
 
   // ── 불러오기 ───────────────────────────────────────────
@@ -324,8 +398,10 @@
     R.month = month;
     var recv = await api(withCompany('/ledger/receivables'));
     var pay = await api(withCompany('/ledger/payables'));
+    var memo = await api(withCompany('/ledger/close-memo?month=' + month));
     R.recv = recv.ok ? recv.data : null;
     R.pay = pay.ok ? pay.data : null;
+    R.memo = memo.ok && memo.data && memo.data.available === true ? memo.data : null;
     R.busy = false;
     setState('');
     $('lrBody').hidden = false;
@@ -366,7 +442,7 @@
     await load(MONTH_RE.test(month) && month <= today().slice(0, 7) ? month : today().slice(0, 7));
   }
 
-  var exported = { state: R, lastMonths: lastMonths, todos: todos };
+  var exported = { state: R, lastMonths: lastMonths, todos: todos, memoLines: memoLines };
   window.SeganLedgerReport = exported;
   exported.ready = (
     window.SeganShell && window.SeganShell.ready ? window.SeganShell.ready : Promise.resolve(null)

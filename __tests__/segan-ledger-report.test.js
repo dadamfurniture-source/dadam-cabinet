@@ -6,6 +6,7 @@
  *   데이터  GET /ledger/me (팩토리 이름) · /ledger/dashboard?month=&months=12 · /ledger/accounts · /ledger/receivables · /ledger/payables
  *   보이기  칸 넷(매출 · 매입 · 장부 손익 · 부가세 예상 — 일반과세만) · 최근 6달 · 매입 계정별 · 지출 상대 · 받을 돈 · 낼 돈 · 남은 할 일
  *   그 밖   인쇄 단추(window.print), 달 바꾸기, 받을 돈 · 낼 돈을 모르면 그 줄을 뺀다, 대표 · 실장만
+ *   월 마감 메모  GET /ledger/close-memo?month= (2026-11-06 6-L3) — 서버가 센 손볼 곳, 0 은 뺀다, 모르면 칸째 감춘다
  */
 const fs = require('fs');
 const path = require('path');
@@ -107,6 +108,7 @@ async function load(options = {}) {
     }),
     recv: () => ok(RECV),
     pay: () => ok(PAY),
+    memo: () => ok({ available: false }),
     search: '',
     ...options,
   };
@@ -144,6 +146,7 @@ async function load(options = {}) {
     if (url === WORK + '/ledger/accounts') return reply(opts.accounts);
     if (url.startsWith(WORK + '/ledger/receivables')) return reply(opts.recv(url));
     if (url.startsWith(WORK + '/ledger/payables')) return reply(opts.pay(url));
+    if (url.startsWith(WORK + '/ledger/close-memo')) return reply(opts.memo(url));
     return reply(ok({ ready: true, worker: null }));
   });
   for (const src of [...doc.querySelectorAll('script[src]')].map((s) => s.getAttribute('src'))) {
@@ -270,5 +273,56 @@ describe('회계 보고서', () => {
     const sw = read('segan/sw.js');
     expect(sw).toContain("SCOPE + 'ledger-report.html'");
     expect(sw).toContain("versioned(SCOPE + 'ledger-report.js')");
+  });
+});
+
+describe('월 마감 메모 (2026-11-06 6-L3)', () => {
+  const MEMO = (month = '2026-10') => ({
+    month,
+    prev_month: '2026-09',
+    available: true,
+    vat_type: 'general',
+    items: [
+      { key: 'noevid', label: '증빙 없는 지출', n: 1, amount: 55000, rows: [{ date: '2026-10-05', name: '가나상사', account: null, amount: 55000 }] },
+      { key: 'simple30k', label: '3만 원 넘는데 간이영수증', n: 0, amount: 0, rows: [] },
+      { key: 'invoice', label: '세금계산서 기다리는 명세표', n: 2 },
+      { key: 'photos', label: '확인 안 한 사진', n: 0 },
+      { key: 'late', label: '늦은 받을 돈', n: 1, amount: 4500000, rows: [{ order_no: '2610-03', stage: 'interim', due_on: '2026-10-25', amount: 4500000 }] },
+      { key: 'vat', label: '부가세', n: 1, amount: 1960000, income_vat: 4820000, expense_vat: 2860000, counted: true },
+      { key: 'acct', label: '전달보다 크게 바뀐 계정', n: 1, rows: [{ account: 'purchase.materials', amount: 22400000, prev: 15000000, diff: 7400000, rate: 49.3 }] },
+      { key: 'dup', label: '중복 의심', n: 1, rows: [{ date: '2026-10-01', name: '가나목재' }] },
+    ],
+  });
+
+  test('그 달 메모를 묻고, 0 인 것은 빼고 서버 차례대로 · 줄마다 작은 글', async () => {
+    const calls = await load({ search: '?month=2026-10', memo: (url) => ok(MEMO(new URL(url).searchParams.get('month'))) });
+    expect(calls.some((c) => c.url === WORK + '/ledger/close-memo?month=2026-10')).toBe(true);
+    expect($('lrMemoBox').hidden).toBe(false);
+    const items = [...$('lrMemo').children].map((li) => [li.firstChild.textContent, [...li.querySelectorAll('small')].map((s) => s.textContent)]);
+    expect(items).toEqual([
+      ['증빙 없는 지출 1건 · 55,000원', ['10.05 · 가나상사 · 55,000원']],
+      ['세금계산서 기다리는 명세표 2장', []],
+      ['늦은 받을 돈 1건 · 4,500,000원', ['2610-03 · 중도금 · 10.25까지 · 4,500,000원']],
+      ['부가세 (받은 − 낸) 1,960,000원 · 부가세 모르는 줄 1줄', []],
+      ['전달보다 크게 바뀐 계정', ['재료비 매입 22,400,000원 (전달 15,000,000원 · +49.3%)']],
+      ['중복 의심 1건', ['10.01 · 가나목재']],
+    ]);
+  });
+
+  test('손볼 곳이 없으면 한 줄, 서버가 모르면(0034 전 · 오류) 칸째 감춘다', async () => {
+    const empty = { ...MEMO(), items: MEMO().items.map((x) => ({ ...x, n: 0, rows: [], counted: false })) };
+    await load({ search: '?month=2026-10', memo: () => ok(empty) });
+    expect($('lrMemoBox').hidden).toBe(false);
+    expect($('lrMemo').textContent).toBe('손볼 곳이 없습니다.');
+    await load({ search: '?month=2026-10', memo: () => fail(500, 'x', 'boom') });
+    expect($('lrMemoBox').hidden).toBe(true);
+    await load({ search: '?month=2026-10' });
+    expect($('lrMemoBox').hidden).toBe(true);
+  });
+
+  test('본사 보기(?company=)도 그 장부의 메모', async () => {
+    const C = '11111111-1111-4111-8111-111111111111';
+    const calls = await load({ search: '?month=2026-10&company=' + C, memo: () => ok(MEMO()) });
+    expect(calls.some((c) => c.url === WORK + '/ledger/close-memo?month=2026-10&company=' + C)).toBe(true);
   });
 });
