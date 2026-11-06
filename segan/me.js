@@ -10,6 +10,7 @@
                 빈 날 뒤) · 설치일. 수금 단계 이름은 erp.html PAY_STAGE_LABELS · 워커 payments.js 와 같다.
                 다음 결제 줄 아래 결제 칸 — 결제 버튼 · 가상계좌 입금 안내 · 확인 중 (segan/pay.js, 다담 공장 수주만)
                 못 읽으면(오류 · 404 · 주소 없음) 칸째 감춘다 — 가짜 값을 그리지 않는다
+                시공 완료 줄 아래 「A/S 신청」 · 「A/S 접수」 칸 · 팩토리 A/S함은 segan/as-requests.js
      상담 내역  consultations (본인 — RLS 「Users can view own consultations」), 최신순.
                 상태 이름은 admin/consultations.html STATUS_LABELS 와 같다
      크레딧    RPC my_credit_wallet (업체 구성원이면 업체 통장, 아니면 내 통장) + credit_costs 로 「생성 N회」
@@ -145,6 +146,7 @@
       stepsHtml(p.stage) +
       (facts.length ? '<dl class="me-facts">' + facts.join('') + '</dl>' : '') +
       payBox +
+      (window.SeganAs ? window.SeganAs.slotHtml(p) : '') +
       '</li>'
     );
   }
@@ -310,8 +312,11 @@
     var Books = window.SeganBooks;
     var Projects = window.SeganPartnerProjects;
     var Push = window.SeganPush;
+    var As = window.SeganAs;
     await Promise.all([
       loadProjects(auth.session),
+      // 내 A/S 접수 — 업체 칸과 상관없다 (segan/as-requests.js)
+      As && As.loadMine ? As.loadMine(auth.sb, auth.session) : null,
       // 업체 › 상담 · 회계 · 알림 — 업체 칸이 읽은 /partner/me 로 가린다
       //   상담 = Agent 업체 · 다담 공장 구성원 (segan/partner-consults.js), 회계 = 대표 · 실장 (segan/books.js),
       //   프로젝트 = 다담 공장 · Expert · Agent 업체 구성원 (segan/partner-projects.js),
@@ -322,6 +327,8 @@
           Consults && Consults.load ? Consults.load(auth.sb, auth.session, me) : null,
           Books && Books.load ? Books.load(auth.sb, auth.session, me) : null,
           Projects && Projects.load ? Projects.load(auth.sb, auth.session, me) : null,
+          // A/S함 = 다담 공장 · Expert · Agent 구성원 (segan/as-requests.js)
+          As && As.load ? As.load(auth.sb, auth.session, me) : null,
           // 작업자도 알림 칸 — 셸의 작업 탭 판정을 그대로 넘긴다
           Push && Push.load
             ? Push.load(auth.sb, auth.session, me, { worker: !!(auth.roles && auth.roles.worker) })

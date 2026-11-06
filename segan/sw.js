@@ -72,6 +72,7 @@ const SHELL = [
   versioned(SCOPE + 'assistant.css'),
   versioned(SCOPE + 'assistant.js'),
   versioned(SCOPE + 'partner-projects.js'),
+  versioned(SCOPE + 'as-requests.js'),
   versioned(SCOPE + 'join.js'),
   versioned(SCOPE + 'admin.js'),
   versioned(SCOPE + 'admin-applications.js'),
