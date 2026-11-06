@@ -11,6 +11,8 @@
  *   GET  /admin/order-reports?days=       본사 관리자 — 모든 팩토리의 최근 보고 (팩토리 이름 · 주문번호 · 종류 · 메모 · 사진)
  *
  * 사진은 서버가 비공개 버킷에 올린다 — 경로 <팩토리 id>/<수주 id>/<uuid>.jpg|png, 5MB · 긴 변 · 화소 한도는 장부 사진과 같다.
+ * 학습 동의(learn_ok — ⑥ 고객이 동의한 수주의 사진만 학습에): 그 수주 프로젝트의 상담(팩토리 사본이면 원래 상담)에
+ *   photo_learn_agreed_at(DB 0044)이 있으면 true, 없으면 false, 상담을 못 찾거나 0044 전이면 null(모름 — 쓰지 않는다).
  * 수주 상태는 바꾸지 않는다 (보고는 기록이다). 0043 적용 전이면 409 db_pending.
  */
 import { ConflictError, ForbiddenError, ValidationError, companyAccess, insertOne, selectMany, selectOne } from './supabase.js';
@@ -129,6 +131,40 @@ export async function addOrderReport(env, { user, params, body }) {
   return { id: row.id, kind: row.kind, note: row.note || null, photo_count: r.photos.length, created_at: row.created_at };
 }
 
+/**
+ * 수주마다 학습 동의 — Map(수주 id → true | false | null). orders: [{ id, project_id }]
+ *   상담: project_id 가 같은 상담. 사본(origin_consultation_id)이면 원래 상담의 동의를 본다.
+ */
+export async function learnConsentOf(env, orders) {
+  const out = new Map((orders || []).map((o) => [o.id, null]));
+  const projectIds = [...new Set((orders || []).map((o) => o.project_id).filter(Boolean))];
+  if (!projectIds.length) return out;
+  let consults;
+  try {
+    consults = (await selectMany(env, 'consultations', {
+      project_id: `in.(${projectIds.join(',')})`,
+      select: 'id,project_id,origin_consultation_id,photo_learn_agreed_at',
+      limit: '500',
+    })) || [];
+  } catch (e) {
+    if (isMissingRelation(e)) return out; // 0044 전 — 모름
+    throw e;
+  }
+  const originIds = [...new Set(consults.map((c) => c.origin_consultation_id).filter(Boolean))];
+  const origins = originIds.length
+    ? (await selectMany(env, 'consultations', { id: `in.(${originIds.join(',')})`, select: 'id,photo_learn_agreed_at' })) || []
+    : [];
+  const originAgreed = new Map(origins.map((c) => [c.id, !!c.photo_learn_agreed_at]));
+  const byProject = new Map();
+  for (const c of consults) {
+    const agreed = c.origin_consultation_id ? originAgreed.get(c.origin_consultation_id) : !!c.photo_learn_agreed_at;
+    if (agreed === undefined) continue;
+    byProject.set(c.project_id, (byProject.get(c.project_id) || false) || agreed);
+  }
+  for (const o of orders || []) if (o.project_id && byProject.has(o.project_id)) out.set(o.id, byProject.get(o.project_id));
+  return out;
+}
+
 /** 줄들의 사진 → 서명 주소 (1시간) — 실패하면 주소 없이 */
 async function signPhotos(env, rows) {
   const paths = rows.flatMap((r) => (Array.isArray(r.photos) ? r.photos : []));
@@ -161,9 +197,11 @@ export async function listOrderReports(env, { user, params }) {
     throw e;
   }
   const photosOf = await signPhotos(env, rows);
+  const learn = await learnConsentOf(env, [order]);
   return {
     ready: true,
     can_report: await canReport(env, user, order),
+    learn_ok: learn.get(order.id),
     items: rows.map((r) => ({ id: r.id, kind: r.kind, label: REPORT_KIND_LABEL[r.kind] || r.kind, note: r.note || null, photo_urls: photosOf(r), created_at: r.created_at, mine: r.reported_by === user.id })),
   };
 }
@@ -190,11 +228,12 @@ export async function listReportsAdmin(env, { user, query, nowMs = Date.now() })
   const orderIds = [...new Set(rows.map((r) => r.order_id))];
   const [companies, orders] = await Promise.all([
     companyIds.length ? selectMany(env, 'companies', { id: `in.(${companyIds.join(',')})`, select: 'id,name,kind' }) : [],
-    orderIds.length ? selectMany(env, 'orders', { id: `in.(${orderIds.join(',')})`, select: 'id,order_no' }) : [],
+    orderIds.length ? selectMany(env, 'orders', { id: `in.(${orderIds.join(',')})`, select: 'id,order_no,project_id' }) : [],
   ]);
   const nameOf = new Map((companies || []).map((c) => [c.id, c.name || null]));
   const noOf = new Map((orders || []).map((o) => [o.id, o.order_no || null]));
   const photosOf = await signPhotos(env, rows);
+  const learn = await learnConsentOf(env, orders || []);
   return {
     ready: true,
     days: raw,
@@ -206,6 +245,7 @@ export async function listReportsAdmin(env, { user, query, nowMs = Date.now() })
       label: REPORT_KIND_LABEL[r.kind] || r.kind,
       note: r.note || null,
       photo_urls: photosOf(r),
+      learn_ok: learn.has(r.order_id) ? learn.get(r.order_id) : null,
       created_at: r.created_at,
     })),
   };
