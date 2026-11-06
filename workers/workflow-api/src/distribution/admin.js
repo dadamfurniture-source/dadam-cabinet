@@ -128,7 +128,7 @@ function conflict(message, code, details = null) {
 }
 
 function notEligible(reasons) {
-  const err = new ValidationError('이 업체는 지금 배정할 수 없습니다 (거르기를 통과하지 못함)', {
+  const err = new ValidationError('이 팩토리는 지금 배정할 수 없습니다 (거르기를 통과하지 못함)', {
     reasons,
   });
   err.code = 'not_eligible';
@@ -321,7 +321,7 @@ export async function assignConsultation(env, { user, consultationId, body, nowM
     select: 'id',
   });
   if (open || consult.status === 'assigned')
-    throw conflict('이미 업체의 답을 기다리는 배정이 있습니다', 'open_assignment');
+    throw conflict('이미 팩토리의 답을 기다리는 배정이 있습니다', 'open_assignment');
   if (consult.status !== 'pending') {
     throw conflict('대기 중인 상담만 배정할 수 있습니다', 'not_pending', {
       status: consult.status,
@@ -385,7 +385,7 @@ export async function assignConsultation(env, { user, consultationId, body, nowM
     }
     // 같은 상담에 기다리는 배정이 이미 있으면(유니크 색인) 상태는 그 배정의 것이라 그대로 둔다
     if (stage === 'assignment' && err instanceof ConflictError)
-      throw conflict('이미 업체의 답을 기다리는 배정이 있습니다', 'open_assignment');
+      throw conflict('이미 팩토리의 답을 기다리는 배정이 있습니다', 'open_assignment');
     await updateBy(
       env,
       'consultations',
@@ -449,10 +449,10 @@ export async function listCompaniesAdmin(env, { user, query = {} }) {
 
 /** 평가할 수 있는 업체 (다담 공장 · 협력업체) — 아니면 404 */
 async function loadEvaluableCompany(env, companyId) {
-  if (!isUuid(companyId)) throw new NotFoundError('업체를 찾을 수 없습니다');
+  if (!isUuid(companyId)) throw new NotFoundError('팩토리를 찾을 수 없습니다');
   const c = await selectOne(env, 'companies', { id: `eq.${companyId}`, select: COMPANY_COLUMNS });
   if (!c || (c.kind !== 'hq' && c.kind !== 'partner'))
-    throw new NotFoundError('업체를 찾을 수 없습니다');
+    throw new NotFoundError('팩토리를 찾을 수 없습니다');
   return c;
 }
 

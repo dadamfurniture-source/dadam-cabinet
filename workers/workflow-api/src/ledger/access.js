@@ -39,14 +39,14 @@ async function viewableHq(env, m) {
  */
 export async function ledgerAccess(env, user, { company } = {}) {
   const [m] = await activeMemberships(env, user);
-  if (!m) throw new ForbiddenError('장부는 업체 구성원만 씁니다', 'not_member');
+  if (!m) throw new ForbiddenError('장부는 팩토리 구성원만 씁니다', 'not_member');
   if (company && company !== m.company_id) {
     const hq = isUuid(company) ? await viewableHq(env, m) : null;
-    if (!hq || company !== hq) throw new ForbiddenError('이 업체 장부는 열 수 없습니다', 'not_member');
+    if (!hq || company !== hq) throw new ForbiddenError('이 팩토리 장부는 열 수 없습니다', 'not_member');
     return { companyId: hq, role: m.role, money: true, level: 'read', viewing: true };
   }
   const level = await entitled(env, m.company_id, user.id);
-  if (!LEDGER_LEVELS.includes(level)) throw new ForbiddenError('이 업체는 장부를 쓸 수 없습니다', 'not_entitled');
+  if (!LEDGER_LEVELS.includes(level)) throw new ForbiddenError('이 팩토리는 장부를 쓸 수 없습니다', 'not_entitled');
   return { companyId: m.company_id, role: m.role, money: MONEY_ROLES.includes(m.role), level, viewing: false };
 }
 
@@ -69,7 +69,7 @@ export async function ledgerList(env, user) {
 
 /** 금액 · 장부 · 설정 — 대표 · 실장만 */
 export function assertMoney(access) {
-  if (!access.money) throw new ForbiddenError('장부는 업체 대표 · 실장만 봅니다', 'not_money');
+  if (!access.money) throw new ForbiddenError('장부는 팩토리 대표 · 실장만 봅니다', 'not_money');
 }
 
 /** 사진 AI 읽기 자격 — DB 0038 company_entitled(업체, 'ledger_ai') 가 full (Agent · 시험 업체) */

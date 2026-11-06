@@ -89,7 +89,7 @@ export const SIDO = Object.freeze([
 /** 시/군/구 — 목록 값은 모두 한글 한 낱말 + 시 · 군 · 구 (시험이 segan/regions.js 와 견준다) */
 const GUGUN_RE = /^[가-힣]{1,10}(?:시|군|구)$/;
 
-const TARGET_LABELS = Object.freeze({ hq: '본사', partner: '협력업체' });
+const TARGET_LABELS = Object.freeze({ hq: '본사', partner: '팩토리' });
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 const has = (obj, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(obj, k);
 
@@ -231,7 +231,7 @@ export async function runConsultNotices(env, { now = Date.now(), limit = CLAIM_L
 // 메시지에는 건수와 종류별 건수만 싣는다 — 업체 이름 · 대표자 · 연락처 · 사업자번호는 넣지 않는다.
 
 /** 신청 종류 — new: 새 업체, upgrade: Expert 업체가 Agent 로 */
-export const PARTNER_KIND_LABELS = Object.freeze({ new: '새 업체', upgrade: 'Expert→Agent' });
+export const PARTNER_KIND_LABELS = Object.freeze({ new: '새 팩토리', upgrade: 'Expert→Agent' });
 
 /** 관리자 업체 신청 화면 링크 */
 export function partnerAdminUrl(env) {
@@ -247,13 +247,13 @@ export function buildPartnerApplicationNotice(rows, { adminUrl = '' } = {}) {
   const list = Array.isArray(rows) ? rows : [];
   const count = (kind) => list.filter((r) => r && r.kind === kind).length;
   const line =
-    `새 업체 신청 ${list.length}건 (${PARTNER_KIND_LABELS.new} ${count('new')} · ` +
+    `새 팩토리 신청 ${list.length}건 (${PARTNER_KIND_LABELS.new} ${count('new')} · ` +
     `${PARTNER_KIND_LABELS.upgrade} ${count('upgrade')}) — 관리자 화면에서 확인`;
   const blocks = [{ type: 'section', text: { type: 'mrkdwn', text: line } }];
   if (adminUrl) {
     blocks.push({
       type: 'actions',
-      elements: [{ type: 'button', text: { type: 'plain_text', text: '업체 신청 열기', emoji: true }, url: adminUrl }],
+      elements: [{ type: 'button', text: { type: 'plain_text', text: '팩토리 신청 열기', emoji: true }, url: adminUrl }],
     });
   }
   return { text: adminUrl ? `${line}\n${adminUrl}` : line, blocks };
@@ -279,20 +279,20 @@ export async function runPartnerApplicationNotices(env, { now = Date.now(), limi
     });
   } catch (e) {
     const reason = reasonOf(e);
-    console.error(`[partner-notify] 업체 신청 잡기 실패 (${reason})`);
+    console.error(`[partner-notify] 팩토리 신청 잡기 실패 (${reason})`);
     return { ...result, error: reason };
   }
 
   result.stale = Number(out && out.stale) || 0;
   const rows = Array.isArray(out && out.rows) ? out.rows : [];
-  if (result.stale) console.log(`[partner-notify] 24시간 지난 미알림 업체 신청 ${result.stale}건 — 알리지 않고 표시만 함`);
+  if (result.stale) console.log(`[partner-notify] 24시간 지난 미알림 팩토리 신청 ${result.stale}건 — 알리지 않고 표시만 함`);
   if (!rows.length) return result;
 
   const sent = await postToWebhook(env, buildPartnerApplicationNotice(rows, { adminUrl: partnerAdminUrl(env) }));
   if (!sent || !sent.ok) {
     result.failed = rows.length;
     console.error(
-      `[partner-notify] Slack 전송 실패 — 업체 신청 ${rows.length}건 알림을 보내지 못함, 다시 보내지 않음 (${reasonOf(sent && sent.error)})`,
+      `[partner-notify] Slack 전송 실패 — 팩토리 신청 ${rows.length}건 알림을 보내지 못함, 다시 보내지 않음 (${reasonOf(sent && sent.error)})`,
     );
     return result;
   }

@@ -79,10 +79,10 @@ function conflict(message, code, details = null) {
 export async function companyOf(env, user, { manage = false } = {}) {
   const memberships = await activeMemberships(env, user);
   const m = memberships[0];
-  if (!m) throw new ForbiddenError('업체 구성원만 볼 수 있습니다', 'not_member');
+  if (!m) throw new ForbiddenError('팩토리 구성원만 볼 수 있습니다', 'not_member');
   const canAct = MONEY_ROLES.includes(m.role);
   if (manage && !canAct)
-    throw new ForbiddenError('업체 대표 · 실장만 할 수 있습니다', 'not_manager');
+    throw new ForbiddenError('팩토리 대표 · 실장만 할 수 있습니다', 'not_manager');
   return { companyId: m.company_id, role: m.role, canAct };
 }
 
@@ -273,7 +273,7 @@ async function resolveCompanyCustomer(env, companyId, copy, originUserId) {
     });
     if (inserted) return { id: inserted.id, created: true, owned: false };
     const again = await find();
-    if (!again) throw new DbError('업체 고객 행을 만들지 못했습니다');
+    if (!again) throw new DbError('팩토리 고객 행을 만들지 못했습니다');
     return { id: again.id, created: false, owned: false };
   }
   const row = await insertOne(env, 'customers', {

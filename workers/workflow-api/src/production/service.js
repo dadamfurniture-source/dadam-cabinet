@@ -153,9 +153,9 @@ async function checkSettingsEditor(env, user, companyId, membership, hq) {
   if (membership && membership.company_id === companyId && MONEY_ROLES.includes(membership.role)) return;
   if (companyId === hq && (await isAdmin(env, user))) return;
   if (membership && membership.company_id === companyId) {
-    throw new ForbiddenError('원가 설정은 업체 대표 · 실장만 다룹니다', 'not_money');
+    throw new ForbiddenError('원가 설정은 팩토리 대표 · 실장만 다룹니다', 'not_money');
   }
-  throw new ForbiddenError('이 업체의 원가 설정을 다룰 권한이 없습니다', 'not_member');
+  throw new ForbiddenError('이 팩토리의 원가 설정을 다룰 권한이 없습니다', 'not_member');
 }
 
 /**
@@ -171,7 +171,7 @@ export async function settingsCompanyOf(env, user) {
     return membership.company_id;
   }
   if (await isAdmin(env, user)) return hq;
-  throw new ForbiddenError('업체 구성원만 원가 설정을 다룹니다', 'not_member');
+  throw new ForbiddenError('팩토리 구성원만 원가 설정을 다룹니다', 'not_member');
 }
 
 /** companyId 설정을 다룰 수 없으면 403 (작업자 보정 → 본사 설정) */

@@ -48,7 +48,7 @@ export async function checkAccount(env, account, direction, accounts = null) {
 export async function withCounterparty(env, companyId, input) {
   if (!input.counterparty_id) return input;
   const cp = await selectOne(env, 'counterparties', { id: `eq.${input.counterparty_id}`, company_id: `eq.${companyId}`, select: 'id,name,biz_no' });
-  if (!cp) throw new ValidationError('이 업체 거래처가 아닙니다');
+  if (!cp) throw new ValidationError('이 팩토리 거래처가 아닙니다');
   const out = { ...input };
   if (!out.counterparty_name) out.counterparty_name = cp.name || null;
   if (!out.counterparty_biz_no && cp.biz_no) out.counterparty_biz_no = cp.biz_no;

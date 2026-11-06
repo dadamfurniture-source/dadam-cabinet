@@ -299,9 +299,9 @@ export async function loadBrief(env, companyId, { nowMs = Date.now(), keys = ALL
 /** GET /brief/today — 비서를 쓰는 업체의 active 구성원 (역할에 맞는 칸만) */
 export async function getBrief(env, { user, nowMs = Date.now() }) {
   const [m] = await activeMemberships(env, user);
-  if (!m) throw new ForbiddenError('브리핑은 업체 구성원만 봅니다', 'not_member');
+  if (!m) throw new ForbiddenError('브리핑은 팩토리 구성원만 봅니다', 'not_member');
   const level = await callRpc(env, 'company_entitled', { p_company: m.company_id, p_feature: 'assistant', p_user: user.id });
-  if (level !== 'full') throw new ForbiddenError('비서를 쓰는 업체만 브리핑을 봅니다', 'not_entitled');
+  if (level !== 'full') throw new ForbiddenError('비서를 쓰는 팩토리만 브리핑을 봅니다', 'not_entitled');
   const data = await loadBrief(env, m.company_id, { nowMs, keys: briefKeysFor(m.role), detail: true });
   return { date: data.today, ...briefFor(data, m.role) };
 }

@@ -44,7 +44,7 @@ export async function counterpartyCompanyOf(env, user) {
   const m = (await activeMemberships(env, user)).find((x) => MONEY_ROLES.includes(x.role));
   if (m) return m.company_id;
   if (await isAdmin(env, user)) return hqCompanyId(env);
-  throw new ForbiddenError('거래처 · 공급처는 업체 대표 · 실장 · 관리자만 다룹니다');
+  throw new ForbiddenError('거래처 · 공급처는 팩토리 대표 · 실장 · 관리자만 다룹니다');
 }
 
 /** 입력 검증 (순수). partial 이면 온 칸만 */

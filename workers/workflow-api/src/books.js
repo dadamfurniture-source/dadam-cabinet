@@ -32,8 +32,8 @@ export async function booksCompanyOf(env, user) {
   const memberships = await activeMemberships(env, user);
   const m = memberships.find((x) => MONEY_ROLES.includes(x.role));
   if (m) return m.company_id;
-  if (memberships.length) throw new ForbiddenError('장부는 업체 대표 · 실장만 봅니다', 'not_money');
-  throw new ForbiddenError('장부는 업체 대표 · 실장만 봅니다', 'not_member');
+  if (memberships.length) throw new ForbiddenError('장부는 팩토리 대표 · 실장만 봅니다', 'not_money');
+  throw new ForbiddenError('장부는 팩토리 대표 · 실장만 봅니다', 'not_member');
 }
 
 /** 한 달 칸 (순수) — 월 손익과 같은 매출 · 견적 원가 (summarizeMonth) 위에 받은 돈 · 실적 마진 */
@@ -113,7 +113,7 @@ export async function getBooksSummary(env, { user, month }) {
   const today = kstDate();
   const m = MONTH_RE.test(String(month || '')) ? month : today.slice(0, 7);
   const company = await selectOne(env, 'companies', { id: `eq.${companyId}`, select: 'id,name' });
-  if (!company) throw new NotFoundError('업체를 찾을 수 없습니다');
+  if (!company) throw new NotFoundError('팩토리를 찾을 수 없습니다');
 
   const [orders, payments] = await Promise.all([
     selectMany(env, 'orders', {

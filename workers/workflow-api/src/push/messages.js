@@ -98,18 +98,18 @@ function partnerApplication({ status, upgrade = false, rescheduled = false } = {
   let body;
   if (status === 'meeting') {
     body = rescheduled
-      ? '업체 신청 미팅 일정이 바뀌었습니다. 내 정보에서 확인해 주세요.'
-      : '업체 신청 미팅이 잡혔습니다. 내 정보에서 일정을 확인해 주세요.';
+      ? '팩토리 신청 미팅 일정이 바뀌었습니다. 내 정보에서 확인해 주세요.'
+      : '팩토리 신청 미팅이 잡혔습니다. 내 정보에서 일정을 확인해 주세요.';
   } else if (status === 'approved') {
     body = upgrade
       ? 'Agent 등급 신청이 승인되었습니다. 다음 결제일부터 바뀝니다.'
-      : '업체 신청이 승인되었습니다. 내 정보에서 다음 단계를 확인해 주세요.';
+      : '팩토리 신청이 승인되었습니다. 내 정보에서 다음 단계를 확인해 주세요.';
   } else if (status === 'held') {
-    body = '업체 신청이 보류되었습니다. 내 정보에서 확인해 주세요.';
+    body = '팩토리 신청이 보류되었습니다. 내 정보에서 확인해 주세요.';
   } else {
     return null;
   }
-  return { title: '업체 신청', body, url: PARTNER_URL };
+  return { title: '팩토리 신청', body, url: PARTNER_URL };
 }
 
 /**
@@ -119,7 +119,7 @@ function partnerApplication({ status, upgrade = false, rescheduled = false } = {
 function billingFailed() {
   return {
     title: '결제 실패',
-    body: '업체 구독 결제가 되지 않았습니다. 결제 관리에서 결제 수단을 확인해 주세요.',
+    body: '팩토리 구독 결제가 되지 않았습니다. 결제 관리에서 결제 수단을 확인해 주세요.',
     url: PARTNER_URL,
   };
 }
@@ -127,8 +127,8 @@ function billingFailed() {
 /** 업체 정지 — 업체 대표에게 */
 function companySuspended() {
   return {
-    title: '업체 정지',
-    body: '결제가 되지 않아 업체가 정지되었습니다. 결제 관리에서 확인해 주세요.',
+    title: '팩토리 정지',
+    body: '결제가 되지 않아 팩토리가 정지되었습니다. 결제 관리에서 확인해 주세요.',
     url: PARTNER_URL,
   };
 }

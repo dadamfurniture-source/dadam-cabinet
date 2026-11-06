@@ -74,7 +74,7 @@ async function projectCompanyOf(env, user, { manage = false } = {}) {
     select: 'id,kind,name,plan,status',
   });
   if (!canHoldProjects(company))
-    throw new ForbiddenError('프로젝트를 쓸 수 있는 업체가 아닙니다', 'not_project_company');
+    throw new ForbiddenError('프로젝트를 쓸 수 있는 팩토리가 아닙니다', 'not_project_company');
   return { company, canAct };
 }
 
@@ -212,7 +212,7 @@ export async function createCompanyProject(env, { user, body, idempotencyKey }) 
       company_id: `eq.${company.id}`,
       select: 'id',
     });
-    if (!row) throw new NotFoundError('이 업체의 고객을 찾을 수 없습니다');
+    if (!row) throw new NotFoundError('이 팩토리의 고객을 찾을 수 없습니다');
     customerId = row.id;
   } else {
     if (!isPlainObject(body.customer))
@@ -276,7 +276,7 @@ export async function linkDesignProject(env, { user, designId, body }) {
     design.company_id !== hq && user && design.user_id === user.id && all.has(design.company_id);
   if (!money.has(design.company_id) && !maker)
     throw new ForbiddenError(
-      '설계를 프로젝트에 잇는 것은 업체 대표 · 실장과 설계를 만든 사람만 할 수 있습니다',
+      '설계를 프로젝트에 잇는 것은 팩토리 대표 · 실장과 설계를 만든 사람만 할 수 있습니다',
       'not_linker'
     );
   const company = await selectOne(env, 'companies', {
@@ -284,7 +284,7 @@ export async function linkDesignProject(env, { user, designId, body }) {
     select: 'id,kind,plan,status',
   });
   if (!canHoldProjects(company))
-    throw new ForbiddenError('프로젝트를 쓸 수 있는 업체가 아닙니다', 'not_project_company');
+    throw new ForbiddenError('프로젝트를 쓸 수 있는 팩토리가 아닙니다', 'not_project_company');
 
   const current = design.project_id || null;
   if (current === target) return { design_id: design.id, project_id: target };
@@ -304,7 +304,7 @@ export async function linkDesignProject(env, { user, designId, body }) {
       company_id: `eq.${design.company_id}`,
       select: 'id',
     });
-    if (!project) throw new NotFoundError('이 업체의 프로젝트를 찾을 수 없습니다');
+    if (!project) throw new NotFoundError('이 팩토리의 프로젝트를 찾을 수 없습니다');
   }
   await updateBy(
     env,
