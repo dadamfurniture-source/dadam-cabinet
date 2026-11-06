@@ -10,7 +10,7 @@
 global.dlog = () => {};
 
 const {
-  MaterialExtractor, HardwareExtractor, DrawingVisualizer, BOM_PART_DEFS, bomPartDefOf,
+  MaterialExtractor, HardwareExtractor, DrawingVisualizer, BOM_PART_DEFS, bomPartDefOf, BOM_TRIM_FOLLOWS_DOOR,
 } = require('../js/detaildesign/extractors.js');
 const { FIXTURES } = require('../test-utils/bom-golden/fixtures');
 
@@ -216,7 +216,30 @@ describe('finishCode — 디테일 모델(부재 > 모듈 > 섹션 > 품목) > �
     expect(code('하부장-EL장', '뒷판')).toBe('');
     expect(code('하부장-서랍장-서랍모듈', '서랍밑판')).toBe('');
     expect(rowsOf(rows, 'EP', '걸레받이').map((r) => r.finishCode)).toEqual(['PNT-BLK-M', 'PNT-BLK-M']); // 2400 넘는 자리는 나뉜다 — 품목 kick
-    expect(rowsOf(rows, 'EP', '상몰딩').map((r) => r.finishCode)).toEqual(['', '']);   // finishing 지정 없음 (조각 2300 + 1200)
+    expect(rowsOf(rows, 'EP', '상몰딩').map((r) => r.finishCode)).toEqual(['PNT-WHT-M', 'PNT-WHT-M']); // finishing 지정 없음 → 상부 도어 색 (조각 2300 + 1200)
+  });
+  test('몰딩 · 걸레받이 · 목찬넬은 제 색이 없으면 그 자리 도어 색 — EP · 휠라 · 몸통은 그대로 (2026-11-06)', () => {
+    const d = F.plannerFinishEmpty();
+    F.plannerFinishSet(d, 'item', 'door', 'PET-OAK-M');
+    F.plannerFinishSet(d, 'section', 'door', 'PNT-WHT-M', { section: 'upper' });
+    const r = extractRows(sinkWith(d));
+    expect(rowsOf(r, 'EP', '상몰딩').map((m) => m.finishCode)).toEqual(['PNT-WHT-M', 'PNT-WHT-M']);   // 상부 줄 = 상부 도어 색
+    expect(rowsOf(r, 'EP', '걸레받이').map((m) => m.finishCode)).toEqual(['PET-OAK-M', 'PET-OAK-M']); // 하부 줄 = 품목 도어 색
+    ['목찬넬(전면)', '목찬넬(지면)'].forEach((p) => expect(rowsOf(r, 'EP', p).every((m) => m.finishCode === 'PET-OAK-M')).toBe(true));
+    expect(oneRow(r, '하부장-서랍장-서랍모듈', '목찬넬(중간 전면)').finishCode).toBe('PET-OAK-M');
+    expect(oneRow(r, 'EP', '휠라(좌)').finishCode).toBe('');
+    expect(oneRow(r, '하부장-EL장', '측판').finishCode).toBe('');
+    // 자재 · 밴드 색은 그대로 — 색 코드만 받는다
+    expect(oneRow(r, 'EP', '휠라(좌)').material).toBe('MDF');
+    rowsOf(r, 'EP', '걸레받이').forEach((m) => expect(m.edgeCode).toBeNull());
+    // 디테일 모델이 없으면 예전처럼 빈 값
+    const none = extractRows(sinkWith(null));
+    expect(rowsOf(none, 'EP', '상몰딩').map((m) => m.finishCode)).toEqual(['', '']);
+    expect(Object.keys(BOM_TRIM_FOLLOWS_DOOR).sort()).toEqual(Object.keys(BOM_PART_DEFS).filter((n) =>
+      (BOM_PART_DEFS[n].slot === 'finishing' && /몰딩/.test(n)) || BOM_PART_DEFS[n].key === 'kick' || BOM_PART_DEFS[n].slot === 'handle').sort());
+    expect(BOM_TRIM_FOLLOWS_DOOR['내부서랍 좌우몰딩']).toBeUndefined();
+    expect(BOM_TRIM_FOLLOWS_DOOR['좌대 전후']).toBeUndefined();
+    expect(BOM_TRIM_FOLLOWS_DOOR['EP(좌)']).toBeUndefined();
   });
   test('플래너 셀 모듈(planner-X-2)은 X 의 모듈·부재 지정을 받는다', () => {
     const r = extractRows(sinkWith(detailFixture(), (item) => {
