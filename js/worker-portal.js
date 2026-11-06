@@ -717,6 +717,9 @@
       `<button type="button" class="big" data-act="fw-checks" data-order="${esc(orderId)}">필수 확인</button></div>`;
   }
 
+  /** 주문 끝 항목(목록 v2 finish) — 필수가 남았으면 잠근다 (서버도 409 checks_left, 2026-11-06 사장님 「주문 끝 완료를 따로 둠」) */
+  const finishLocked = (r, x) => !!(x && x.finish && !x.checked && Number(r && r.must_left) > 0);
+
   /**
    * 필수 확인 화면 (GET …/checks — 서버 work/checks.js) — 역할마다 칸(원장 · 모듈 · 주문) × 항목 체크.
    * 체크는 지우지 않고 기록으로 쌓인다. 저장 준비 전(db_ready false)이면 칸을 잠근다. 글은 전부 esc().
@@ -731,8 +734,8 @@
     (v.roles || []).forEach((r) => {
       const head = `<h3>${esc(r.label || r.role)} <span class="muted">${esc(r.done)}/${esc(r.total)}${r.must_left ? ` · 필수 남음 ${esc(r.must_left)}` : ''}</span></h3>`;
       const cells = (r.cells || []).map((c) => `<div class="ck-cell"><p class="muted fw-head">${esc(c.label)}</p>${(c.items || []).map((x) =>
-        `<label class="check${x.checked ? ' done' : ''}"><input type="checkbox" data-ck-role="${esc(r.role)}" data-ck-scope="${esc(c.scope_key)}" data-ck-item="${esc(x.key)}" data-ck-photo="${esc(x.photo || 'none')}"${x.checked ? ' checked' : ''}${v.db_ready ? '' : ' disabled'} />` +
-        `<span>${esc(x.label)}${x.must ? '' : ' <small class="muted">권장</small>'}${x.photo === 'need' ? ' <small class="muted">사진 필수</small>' : ''}${x.has_photo ? ' <small class="muted">· 사진 있음</small>' : ''}</span></label>` +
+        `<label class="check${x.checked ? ' done' : ''}"><input type="checkbox" data-ck-role="${esc(r.role)}" data-ck-scope="${esc(c.scope_key)}" data-ck-item="${esc(x.key)}" data-ck-photo="${esc(x.photo || 'none')}"${x.checked ? ' checked' : ''}${v.db_ready && !finishLocked(r, x) ? '' : ' disabled'} />` +
+        `<span>${esc(x.label)}${x.finish ? ` <small class="muted">${finishLocked(r, x) ? '주문 끝 — 필수를 다 체크하면 누를 수 있습니다' : '주문 끝'}</small>` : x.must ? '' : ' <small class="muted">권장</small>'}${x.photo === 'need' ? ' <small class="muted">사진 필수</small>' : ''}${x.has_photo ? ' <small class="muted">· 사진 있음</small>' : ''}</span></label>` +
         (x.photo === 'opt' && !x.checked && v.db_ready ? `<button type="button" class="link ck-photo" data-act="ck-photo" data-ck-role="${esc(r.role)}" data-ck-scope="${esc(c.scope_key)}" data-ck-item="${esc(x.key)}">사진 붙여 체크</button>` : '')).join('')}</div>`).join('');
       parts.push(`<div class="card">${head}${cells || '<p class="empty">이 역할에 확인할 항목이 없습니다.</p>'}</div>`);
     });

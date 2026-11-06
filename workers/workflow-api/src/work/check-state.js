@@ -5,6 +5,7 @@
  *   칸: 원장(문서에 고정된 재단 배치) · 모듈(동결 설계, 도어 · 서랍) · 주문 — 항목 조건은 check-items.js itemApplies.
  *   지금 값: work_checks (DB 0035) 같은 칸의 마지막 줄.
  *   완료 막기 (2026-11-04 사장님 확정 「필수만 막음」, 목록 판 block 'must' — v1): 그 역할의 필수가 남았으면 409 checks_left.
+ *     2026-11-06 「주문 끝 완료를 따로 둠」(v2): 공장 하루 기록은 막지 않는다 — 주문 끝 항목(finish) 체크 · 설치 · 조립 작업 완료 보고만.
  *     지시서가 없거나 · 목록이 막지 않는 판(v0)이거나 · 그 역할 항목이 없거나 · DB 0035 적용 전이면 막지 않는다.
  */
 import { selectOne, selectMany, ConflictError, NotFoundError } from '../supabase.js';
@@ -73,7 +74,7 @@ export function roleChecks(ctx, role, rows) {
     label: c.label,
     items: items.filter((x) => x.scope === scope && itemApplies(x, c.module, ctx.snapshot)).map((x) => {
       const r = latest.get(`${role}|${c.scope_key}|${x.key}`);
-      return { key: x.key, label: x.label, must: x.must, photo: x.photo, checked: !!(r && r.checked), at: r ? r.created_at : null, memo: r ? r.memo || null : null, photo_path: r && r.checked ? r.photo_path || null : null };
+      return { key: x.key, label: x.label, must: x.must, photo: x.photo, finish: !!x.finish, checked: !!(r && r.checked), at: r ? r.created_at : null, memo: r ? r.memo || null : null, photo_path: r && r.checked ? r.photo_path || null : null };
     }),
   }))).filter((c) => c.items.length);
   const all = cells.flatMap((c) => c.items);
