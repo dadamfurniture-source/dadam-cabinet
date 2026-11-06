@@ -2,7 +2,7 @@
  * 상담 분배 시험용 가짜 Supabase (PostgREST · Auth · Storage 서명).
  *
  * PostgREST 는 src/distribution/* · src/push/outbox.js · src/projects.js 가 쓰는 만큼만 흉내 낸다:
- *   거르기 eq · neq · in · is · gt · gte · lt · lte, select 칸 고르기(+ 「별명:칸->키」 JSON 꺼내기), order(여러 칸), limit,
+ *   거르기 eq · neq · in · is · gt · gte · lt · lte · not.<거르기>, select 칸 고르기(+ 「별명:칸->키」 JSON 꺼내기), order(여러 칸), limit,
  *   POST (배열 · on_conflict + resolution=merge-duplicates | ignore-duplicates · return=minimal), PATCH, DELETE.
  * DB 규칙 (database/migrations/0003 · 0016 · 0018 · 0019 와 같게):
  *   consult_assignments  본사 상담당 기다리는(assigned) 배정 하나 (23505) · state 가 assigned 이면 responded_at 없음 (23514)
@@ -34,6 +34,8 @@ function matches(row, col, expr) {
   const raw = expr.slice(dot + 1);
   const v = row[col];
   switch (op) {
+    case 'not':
+      return !matches(row, col, raw);
     case 'eq':
       return v !== null && v !== undefined && String(v) === raw;
     case 'neq':
