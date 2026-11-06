@@ -7,6 +7,7 @@
  *     · DB 사례 뒤에 같은 STATIC
  *   - source 'ai_render' 는 「AI 연출컷」, 다운로드 단추 · 링크 없음, 관리자 「내리기」 없음
  *   - 누르면 앱 안에서 크게 (닫기 · 이전 · 다음 · Esc)
+ *   - 자재 — 같은 화면 안의 둘째 칸 (탭 막대는 넷 그대로), 글 · 사진 = 사이트 material.html, #material 로 연다
  */
 const fs = require('fs');
 const path = require('path');
@@ -26,11 +27,12 @@ function rows(n) {
 
 /** opts.db: DB 줄(최신순), opts.noRegion: region 칸이 없는 DB, opts.noSupabase */
 async function load(options = {}) {
-  const opts = { db: rows(30), noRegion: false, noSupabase: false, ...options };
+  const opts = { db: rows(30), noRegion: false, noSupabase: false, hash: '', ...options };
   const doc = new DOMParser().parseFromString(read('segan/collection.html'), 'text/html');
   document.body.innerHTML = doc.body.innerHTML;
   for (const a of [...document.body.attributes]) document.body.removeAttribute(a.name);
   for (const a of [...doc.body.attributes]) document.body.setAttribute(a.name, a.value);
+  window.history.replaceState(null, '', '/segan/collection.html' + opts.hash);
   for (const k of ['SeganShell', 'SeganCollection']) delete window[k];
   window.DADAM_CONFIG = { supabase: { url: 'https://example.supabase.co', anonKey: 'anon' } };
   const calls = { selects: [], orders: [], limits: [], lts: [], auth: 0, writes: 0 };
@@ -227,6 +229,176 @@ describe('크게 보기 — 앱 안에서', () => {
     expect($('clNext').disabled).toBe(true);
     $('clView').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
     expect($('clView').hidden).toBe(true);
+  });
+});
+
+describe('자재 — 시공사례 화면 안의 둘째 칸 (사이트 material.html)', () => {
+  const SITE = new DOMParser().parseFromString(read('material.html'), 'text/html');
+  const norm = (t) => String(t).replace(/\s+/g, ' ').trim();
+  const panel = () => $('clMaterial');
+  const tab = (id) => $(id);
+  const urlsOf = (root) =>
+    [...root.querySelectorAll('[style*="background-image"]')].map(
+      (el) => el.getAttribute('style').match(/url\('([^']+)'\)/)[1]
+    );
+
+  test('처음엔 시공사례 칸 — 고르는 칸 둘, 자재는 감춤', async () => {
+    await load();
+    expect(
+      [...document.querySelectorAll('.cl-seg [role="tab"]')].map((b) => b.textContent.trim())
+    ).toEqual(['시공사례', '자재']);
+    expect(tab('clTabCases').getAttribute('aria-selected')).toBe('true');
+    expect(tab('clTabMaterial').getAttribute('aria-selected')).toBe('false');
+    expect($('clCases').hidden).toBe(false);
+    expect(panel().hidden).toBe(true);
+    expect(tab('clTabMaterial').getAttribute('aria-controls')).toBe('clMaterial');
+    expect(panel().getAttribute('role')).toBe('tabpanel');
+  });
+
+  test('자재를 누르면 자재만 보이고 주소에 #material, 시공사례를 누르면 뗀다', async () => {
+    await load();
+    tab('clTabMaterial').click();
+    expect(panel().hidden).toBe(false);
+    expect($('clCases').hidden).toBe(true);
+    expect(tab('clTabMaterial').getAttribute('aria-selected')).toBe('true');
+    expect(window.location.hash).toBe('#material');
+    tab('clTabCases').click();
+    expect(panel().hidden).toBe(true);
+    expect($('clCases').hidden).toBe(false);
+    expect(window.location.hash).toBe('');
+    // 화살표로 옆 칸
+    tab('clTabCases').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight' }));
+    expect(panel().hidden).toBe(false);
+    expect(document.activeElement).toBe(tab('clTabMaterial'));
+  });
+
+  test('collection.html#material 로 오면 자재로 연다, 주소의 # 이 바뀌면 따라간다', async () => {
+    await load({ hash: '#material' });
+    expect(panel().hidden).toBe(false);
+    expect($('clCases').hidden).toBe(true);
+    window.history.replaceState(null, '', '/segan/collection.html');
+    window.dispatchEvent(new window.HashChangeEvent('hashchange'));
+    expect($('clCases').hidden).toBe(false);
+    // 시공사례는 그대로 읽는다
+    expect(tiles()).toHaveLength(9);
+  });
+
+  test('아래 탭은 넷 그대로 — 자재 탭을 따로 만들지 않는다', async () => {
+    await load();
+    const keys = [...document.querySelectorAll('nav.sg-tabbar a:not([hidden])')].map((a) =>
+      a.getAttribute('data-tab-link')
+    );
+    expect(keys).toEqual(['make', 'collection', 'renders', 'me']);
+    expect(
+      document.querySelector('nav.sg-tabbar [aria-current="page"]').getAttribute('data-tab-link')
+    ).toBe('collection');
+  });
+
+  test('글 = material.html (제목 · 설명 · 시험 결과 · 성적서 · 재고 · 레하우 · 특장점 · 테마)', async () => {
+    await load();
+    const text = norm(panel().textContent);
+    const selectors = [
+      '.material-hero .subtitle',
+      '.material-hero h1',
+      '.material-hero p',
+      '.section-header .tag',
+      '.section-header h2',
+      '.section-header p',
+      '.board-highlight-text .badge-mr',
+      '.board-highlight-text h3',
+      '.board-highlight-text p',
+      '.improvement-note',
+      '.test-chart h4',
+      '.bar-value',
+      '.test-certs h4',
+      '.test-cert-card span',
+      '.eco-table-wrap + h3',
+      '.inventory-card h4',
+      '.inventory-card p',
+      '.rehau-text .partner',
+      '.rehau-text h3',
+      '.rehau-text p',
+      '.feature-card h4',
+      '.feature-card p',
+      '.theme-intro .year',
+      '.theme-intro h2',
+      '.theme-intro p',
+      '.theme-number',
+      '.theme-text h3',
+      '.theme-text p',
+    ];
+    let count = 0;
+    for (const sel of selectors) {
+      const els = [...SITE.querySelectorAll(sel)];
+      expect([sel, els.length > 0]).toEqual([sel, true]);
+      for (const el of els) {
+        const t = norm(el.textContent);
+        count++;
+        expect([sel, text.includes(t)]).toEqual([sel, true]);
+      }
+    }
+    expect(count).toBeGreaterThan(50);
+  });
+
+  test('표 = material.html (친환경 등급 · 보드 사양, 칸마다 같은 글 · 같은 ✔)', async () => {
+    await load();
+    const cells = (table) =>
+      [...table.querySelectorAll('tr')].map((tr) =>
+        [...tr.children].map((c) => norm(c.textContent))
+      );
+    const site = [...SITE.querySelectorAll('table')].map(cells);
+    const app = [...panel().querySelectorAll('table')].map(cells);
+    expect(app).toEqual(site);
+    expect(site).toHaveLength(2);
+    // 칸 합치기(rowspan)도 같다
+    const spans = (root) =>
+      [...root.querySelectorAll('[rowspan]')].map((c) => c.getAttribute('rowspan'));
+    expect(spans(panel())).toEqual(spans(SITE));
+    // 좁은 화면에서는 표만 옆으로 민다
+    for (const t of panel().querySelectorAll('table'))
+      expect(t.parentElement.className).toBe('mt-table-wrap');
+  });
+
+  test('테마 키워드 · 색 이름 · 색 = material.html', async () => {
+    await load();
+    const texts = (root, sel) => [...root.querySelectorAll(sel)].map((el) => norm(el.textContent));
+    expect(texts(panel(), '.mt-keys span')).toEqual(texts(SITE, '.theme-keywords span'));
+    expect(texts(panel(), '.mt-chips li')).toEqual(texts(SITE, '.color-chip .name'));
+    const colors = (root, sel) =>
+      [...root.querySelectorAll(sel)].map(
+        (el) => el.getAttribute('style').match(/#[0-9a-f]{6}/i)[0]
+      );
+    expect(colors(panel(), '.mt-swatch')).toEqual(colors(SITE, '.color-chip .swatch'));
+  });
+
+  test('사진 = material.html 의 사진 (같은 파일 · 같은 설명), 저장소에 없는 한 장만 뺐다', async () => {
+    await load();
+    const site = [...SITE.querySelectorAll('img')].map((img) => [
+      img.getAttribute('src'),
+      img.getAttribute('alt'),
+    ]);
+    const app = [...panel().querySelectorAll('.mt-img')].map((el) => [
+      el.getAttribute('style').match(/url\('([^']+)'\)/)[1],
+      el.getAttribute('aria-label'),
+    ]);
+    // segan/ 에서 보므로 ../
+    const missing = site.filter(([src]) => !fs.existsSync(path.join(ROOT, src)));
+    expect(missing.map((m) => m[0])).toEqual(['app/material/board-stat-area.jpg']);
+    expect(app).toEqual(
+      site
+        .filter(([src]) => fs.existsSync(path.join(ROOT, src)))
+        .map(([src, alt]) => ['../' + src, alt])
+    );
+    for (const u of urlsOf(panel()))
+      expect([u, fs.existsSync(path.join(ROOT, 'segan', u))]).toEqual([u, true]);
+    // 사진은 배경으로만 — img 를 쓰지 않는다 (시공사례와 같다), 설명은 role="img" + aria-label
+    expect(panel().querySelectorAll('img, a')).toHaveLength(0);
+    for (const el of panel().querySelectorAll('.mt-img'))
+      expect(el.getAttribute('role')).toBe('img');
+  });
+
+  test('material.html 은 그대로 (사이트 페이지는 앱 주소를 모른다)', () => {
+    expect(read('material.html')).not.toMatch(/segan/i);
   });
 });
 
