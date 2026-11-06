@@ -8,29 +8,29 @@
     <title>상담 신청 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026110703" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026110703" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026110703" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110703" />
+    <link rel="icon" href="icons/icon.svg?v=2026110705" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110705" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110705" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110705" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026110703" />
-    <link rel="stylesheet" href="make.css?v=2026110703" />
+    <link rel="stylesheet" href="shell.css?v=2026110705" />
+    <link rel="stylesheet" href="make.css?v=2026110705" />
     <!-- 로그인 · 상담 저장(consultations, consultation.html 과 같은 길) · 연출컷 읽기(generate-api) -->
-    <script src="../js/config.js?v=2026110703"></script>
+    <script src="../js/config.js?v=2026110705"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <!-- 관리 탭 — 관리자에게만 연다 (segan/shell.js applyAdminTab) -->
-    <script src="../js/admin-access.js?v=2026110703"></script>
+    <script src="../js/admin-access.js?v=2026110705"></script>
     <!-- 작업 탭 — 작업자에게만 연다 (segan/shell.js applyRoleTabs · GET /work/me) -->
-    <script src="../js/mypage-work.js?v=2026110703"></script>
-    <script src="shell.js?v=2026110703" defer></script>
-    <script src="make.js?v=2026110703" defer></script>
-    <script src="regions.js?v=2026110703" defer></script>
-    <script src="consult.js?v=2026110703" defer></script>
+    <script src="../js/mypage-work.js?v=2026110705"></script>
+    <script src="shell.js?v=2026110705" defer></script>
+    <script src="make.js?v=2026110705" defer></script>
+    <script src="regions.js?v=2026110705" defer></script>
+    <script src="consult.js?v=2026110705" defer></script>
   </head>
   <!-- ④ 상담 신청 — 만들기의 마지막 단계라 만들기 탭에 둔다. consult.html?g=<연출컷 id>.
        ?g= 가 없으면 일반 상담 신청서 (consultation.html 과 같은 칸, 로그인 없이도) -->
@@ -267,13 +267,7 @@
           /></label>
           <label class="mk-input"
             ><span>연락처 · 필수</span
-            ><input
-              type="tel"
-              id="csgPhone"
-              required
-              autocomplete="tel"
-              inputmode="tel"
-              placeholder="010-1234-5678"
+            ><input type="tel" id="csgPhone" required autocomplete="tel" inputmode="tel" placeholder="010-1234-5678"
           /></label>
           <label class="mk-input"
             ><span>이메일 · 필수</span
@@ -285,17 +279,23 @@
           <legend>시공 정보</legend>
           <div class="cs-region">
             <label class="mk-input"
-              ><span>시공 지역 · 시/도 · 필수</span><select id="csgSido" required></select
+              ><span>시공 지역 · 시/도 · 필수</span
+              ><select id="csgSido" required></select
             ></label>
             <label class="mk-input"
-              ><span>시/군/구 · 필수</span><select id="csgGugun" required disabled></select
+              ><span>시/군/구 · 필수</span
+              ><select id="csgGugun" required disabled></select
             ></label>
           </div>
           <fieldset class="cs-set cs-pick">
             <legend>원하는 도어 마감 · 필수</legend>
             <div class="cs-choices">
-              <label class="cs-choice"><input type="radio" name="csgDoor" value="pet" required /><span>PET</span></label>
-              <label class="cs-choice"><input type="radio" name="csgDoor" value="highgloss" /><span>하이그로시</span></label>
+              <label class="cs-choice"
+                ><input type="radio" name="csgDoor" value="pet" required /><span>PET</span></label
+              >
+              <label class="cs-choice"
+                ><input type="radio" name="csgDoor" value="highgloss" /><span>하이그로시</span></label
+              >
               <label class="cs-choice"><input type="radio" name="csgDoor" value="paint" /><span>도장</span></label>
               <label class="cs-choice"><input type="radio" name="csgDoor" value="veneer" /><span>무늬목</span></label>
               <label class="cs-choice"><input type="radio" name="csgDoor" value="ceramic" /><span>세라믹</span></label>
@@ -344,14 +344,24 @@
             <legend>가구 종류 (중복 선택 가능)</legend>
             <div class="cs-choices" id="csgItems">
               <label class="cs-choice"><input type="checkbox" name="csgItem" value="sink" /><span>싱크대</span></label>
-              <label class="cs-choice"><input type="checkbox" name="csgItem" value="island" /><span>아일랜드</span></label>
+              <label class="cs-choice"
+                ><input type="checkbox" name="csgItem" value="island" /><span>아일랜드</span></label
+              >
               <label class="cs-choice"
                 ><input type="checkbox" name="csgItem" value="wardrobe" /><span>붙박이장</span></label
               >
-              <label class="cs-choice"><input type="checkbox" name="csgItem" value="fridge" /><span>냉장고장</span></label>
-              <label class="cs-choice"><input type="checkbox" name="csgItem" value="shoerack" /><span>신발장</span></label>
-              <label class="cs-choice"><input type="checkbox" name="csgItem" value="vanity" /><span>화장대</span></label>
-              <label class="cs-choice"><input type="checkbox" name="csgItem" value="storage" /><span>수납장</span></label>
+              <label class="cs-choice"
+                ><input type="checkbox" name="csgItem" value="fridge" /><span>냉장고장</span></label
+              >
+              <label class="cs-choice"
+                ><input type="checkbox" name="csgItem" value="shoerack" /><span>신발장</span></label
+              >
+              <label class="cs-choice"
+                ><input type="checkbox" name="csgItem" value="vanity" /><span>화장대</span></label
+              >
+              <label class="cs-choice"
+                ><input type="checkbox" name="csgItem" value="storage" /><span>수납장</span></label
+              >
               <label class="cs-choice"><input type="checkbox" name="csgItem" value="other" /><span>기타</span></label>
             </div>
           </fieldset>
@@ -384,14 +394,16 @@
             <legend>공간 크기 (mm, 선택)</legend>
             <div class="cs-size">
               <label class="mk-input"
-                ><span>가로 (W)</span><input type="number" id="csgWidth" min="0" inputmode="numeric" placeholder="가로 (W)"
+                ><span>가로 (W)</span
+                ><input type="number" id="csgWidth" min="0" inputmode="numeric" placeholder="가로 (W)"
               /></label>
               <label class="mk-input"
                 ><span>높이 (H)</span
                 ><input type="number" id="csgHeight" min="0" inputmode="numeric" placeholder="높이 (H)"
               /></label>
               <label class="mk-input"
-                ><span>깊이 (D)</span><input type="number" id="csgDepth" min="0" inputmode="numeric" placeholder="깊이 (D)"
+                ><span>깊이 (D)</span
+                ><input type="number" id="csgDepth" min="0" inputmode="numeric" placeholder="깊이 (D)"
               /></label>
             </div>
             <p class="mk-note">예) 싱크대 가로 3000 × 높이 2310 × 깊이 650</p>
@@ -457,8 +469,8 @@
             <ul id="csgPrivacyDetail">
               <li>필수: 이름, 연락처, 이메일, 상담 유형, 상담 제목, 시공 지역, 도어 마감, 철거, 가격대</li>
               <li>
-                선택: 상세 내용, 가구 종류, 설치 공간, 예산 범위, 공간 크기, 선호 스타일, 상세설계 권한 신청, 희망 날짜 ·
-                시간대, 시공 완료 희망 날짜
+                선택: 상세 내용, 가구 종류, 설치 공간, 예산 범위, 공간 크기, 선호 스타일, 상세설계 권한 신청, 희망 날짜
+                · 시간대, 시공 완료 희망 날짜
               </li>
               <li>목적: 상담 신청 처리</li>
               <li>보유 기간: 상담이 끝난 뒤 3년</li>
