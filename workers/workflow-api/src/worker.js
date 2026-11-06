@@ -41,6 +41,8 @@
  *   GET  /ledger/dashboard — 회계 한눈에 (src/ledger/dashboard.js, 묶음은 DB 0034)
  *   GET  /ledger/close-memo — 월 마감 메모 (src/ledger/close-memo.js — 서버가 센 손볼 곳, AI 없음)
  *   GET|POST /orders/:orderId/reports · POST …/reports/photo · GET /admin/order-reports — 수주 완료 보고 (src/order-reports.js, DB 0043)
+ *   POST /me/orders/:orderId/as-requests(/photo) · GET /me/as-requests · POST /me/as-requests/:id/cancel ·
+ *   GET /company/as-requests · POST /company/as-requests/:id/receive|done · GET /admin/as-requests — 고객 A/S 접수 (src/as-requests.js, DB 0045)
  *   GET  /brief/today — 아침 브리핑 본문 (비서를 쓰는 업체 구성원, src/brief.js)
  *
  *   GET  /public/confirm                  — 고객 열람 (X-Share-Token)
@@ -141,6 +143,7 @@ import { getBrief, runMorningBrief } from './brief.js';
 import { listReceivables, listPayables } from './ledger/money.js';
 import { getCloseMemo } from './ledger/close-memo.js';
 import { addOrderReport, addReportPhoto, listOrderReports, listReportsAdmin } from './order-reports.js';
+import { addAsPhoto, addAsRequest, listMyAsRequests, cancelMyAsRequest, listCompanyAsRequests, receiveAsRequest, finishAsRequest, listAsAdmin, runAsAlerts } from './as-requests.js';
 import { listSupplierModes, setSupplierMode, holdDocuments, listHeld, supplierEntries, attachStatements } from './ledger/statements.js';
 import { runLedgerPendingNotices } from './push/ledger-hooks.js';
 import { ledgerMe, getLedgerSettings, putLedgerSettings } from './ledger/settings.js';
@@ -1316,6 +1319,15 @@ const router = createRouter([
   { method: 'POST',   path: '/orders/:orderId/reports',     auth: 'jwt', handler: workRoute(addOrderReport, 201) },
   { method: 'POST',   path: '/orders/:orderId/reports/photo', auth: 'jwt', handler: rawRoute(addReportPhoto, 201) },
   { method: 'GET',    path: '/admin/order-reports',         auth: 'jwt', handler: workRoute(listReportsAdmin) },
+  // 고객 A/S 접수 (src/as-requests.js, DB 0045)
+  { method: 'POST',   path: '/me/orders/:orderId/as-requests/photo', auth: 'jwt', handler: rawRoute(addAsPhoto, 201) },
+  { method: 'POST',   path: '/me/orders/:orderId/as-requests', auth: 'jwt', handler: workRoute(addAsRequest, 201) },
+  { method: 'GET',    path: '/me/as-requests',              auth: 'jwt', handler: workRoute(listMyAsRequests) },
+  { method: 'POST',   path: '/me/as-requests/:id/cancel',   auth: 'jwt', handler: workRoute(cancelMyAsRequest) },
+  { method: 'GET',    path: '/company/as-requests',         auth: 'jwt', handler: workRoute(listCompanyAsRequests) },
+  { method: 'POST',   path: '/company/as-requests/:id/receive', auth: 'jwt', handler: workRoute(receiveAsRequest) },
+  { method: 'POST',   path: '/company/as-requests/:id/done', auth: 'jwt', handler: workRoute(finishAsRequest) },
+  { method: 'GET',    path: '/admin/as-requests',           auth: 'jwt', handler: workRoute(listAsAdmin) },
   { method: 'GET',    path: '/orders/:orderId/checks',      auth: 'jwt', handler: workRoute(getOrderChecks) },
   { method: 'GET',    path: '/order-requests',              auth: 'jwt', handler: handleListOrderRequests },
   { method: 'POST',   path: '/order-events/:eventId/decide', auth: 'jwt', handler: handleDecideOrderEvent },
@@ -1586,6 +1598,8 @@ export default {
         ctx.waitUntil(
           runPartnerApplicationNotices(env).catch((e) => console.error('partner application notice failed:', e && e.message)),
         );
+        // A/S 접수 — 48시간 넘게 아무도 안 받은 것을 본사 Slack 에 (src/as-requests.js, 던지지 않는다)
+        ctx.waitUntil(runAsAlerts(env, { nowMs: event.scheduledTime }));
       }
       return;
     }
