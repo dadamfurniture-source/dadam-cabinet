@@ -31,7 +31,8 @@
        (consultation.html 의 「상세설계 권한 신청」만 앱에 두지 않는다 — request_detail_design 은 보내지 않고
         DB 기본값(false), profiles.detaildesign_requested_at 도 적지 않는다)
      같은 검사 · 같은 글 (consultation.html missingMessage), 같은 동의 둘 (수집 · 이용 필수, 업체 제공 선택 — v2)
-     같은 저장 — consultations insert 한 줄 (같은 칸 이름 · 같은 값, 위 한 칸만 빼고)
+     + 시공 사진 학습 활용 동의 (선택 — 연출컷 신청서와 같은 글, photo_learn_agreed_at)
+     같은 저장 — consultations insert 한 줄 (같은 칸 이름 · 같은 값, 위 한 칸만 빼고 + photo_learn_agreed_at)
      로그인 없이도 보낸다 (user_id 없음 — insert 정책이 받는다). 로그인했으면 가입 정보(user_metadata)로
        이름 · 이메일 · 연락처 · 거주지역을 채운다 (consultation.html checkAuthState)
    ============================================================ */
@@ -431,6 +432,7 @@
     var u = (C.session && C.session.user) || null;
     var now = new Date().toISOString();
     var third = $('csgAgreeThird').checked;
+    var photoLearn = $('csgAgreePhoto').checked;
     var items = [];
     document.querySelectorAll('input[name="csgItem"]:checked').forEach(function (el) {
       items.push(el.value);
@@ -463,6 +465,8 @@
       // 업체 제공 동의 — 안 하면 둘 다 비운다 (다담 본사가 직접 상담)
       third_party_agreed_at: third ? now : null,
       consent_version: third ? CONSENT_VERSION : null,
+      // 시공 사진 학습 활용 동의 — 연출컷 신청서와 같다. 안 하면 비운다 (상담 · 시공은 똑같다)
+      photo_learn_agreed_at: photoLearn ? now : null,
     };
   }
 
