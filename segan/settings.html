@@ -8,28 +8,28 @@
     <title>설정 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026110703" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026110703" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026110703" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110703" />
+    <link rel="icon" href="icons/icon.svg?v=2026110711" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110711" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110711" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110711" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026110703" />
+    <link rel="stylesheet" href="shell.css?v=2026110711" />
     <!-- 입력 · 버튼 — 만들기 탭과 같은 모양 -->
-    <link rel="stylesheet" href="make.css?v=2026110703" />
+    <link rel="stylesheet" href="make.css?v=2026110711" />
     <!-- 로그인 · 프로필 저장(auth.updateUser · profiles) · 탈퇴(account-api) — mypage.html 과 같은 길 -->
-    <script src="../js/config.js?v=2026110703"></script>
+    <script src="../js/config.js?v=2026110711"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <!-- 관리 · 작업 탭 — 관리자 · 작업자에게만 연다 (segan/shell.js applyRoleTabs) -->
-    <script src="../js/admin-access.js?v=2026110703"></script>
-    <script src="../js/mypage-work.js?v=2026110703"></script>
-    <script src="shell.js?v=2026110703" defer></script>
-    <script src="regions.js?v=2026110703" defer></script>
-    <script src="settings.js?v=2026110703" defer></script>
+    <script src="../js/admin-access.js?v=2026110711"></script>
+    <script src="../js/mypage-work.js?v=2026110711"></script>
+    <script src="shell.js?v=2026110711" defer></script>
+    <script src="regions.js?v=2026110711" defer></script>
+    <script src="settings.js?v=2026110711" defer></script>
   </head>
   <!-- 내 정보 › 설정 · 프로필 · 탈퇴 — 내 정보 탭 안의 화면이라 그 탭을 켠다 -->
   <body class="sg-app" data-tab="me">
@@ -50,11 +50,21 @@
         <section class="sg-section" aria-labelledby="stInfoTitle">
           <h2 id="stInfoTitle">계정 정보</h2>
           <ul class="sg-rows">
-            <li><span class="sg-row">이름<span class="me-val" id="stName">-</span></span></li>
-            <li><span class="sg-row">이메일<span class="me-val" id="stEmail">-</span></span></li>
-            <li><span class="sg-row">연락처<span class="me-val" id="stPhone">-</span></span></li>
-            <li><span class="sg-row">거주지역<span class="me-val" id="stPlace">-</span></span></li>
-            <li><span class="sg-row">가입일<span class="me-val" id="stJoined">-</span></span></li>
+            <li>
+              <span class="sg-row">이름<span class="me-val" id="stName">-</span></span>
+            </li>
+            <li>
+              <span class="sg-row">이메일<span class="me-val" id="stEmail">-</span></span>
+            </li>
+            <li>
+              <span class="sg-row">연락처<span class="me-val" id="stPhone">-</span></span>
+            </li>
+            <li>
+              <span class="sg-row">거주지역<span class="me-val" id="stPlace">-</span></span>
+            </li>
+            <li>
+              <span class="sg-row">가입일<span class="me-val" id="stJoined">-</span></span>
+            </li>
             <li><button type="button" class="sg-row" id="stEditOpen">프로필 수정</button></li>
           </ul>
           <p class="mk-note st-done" id="stEditDone" role="status" hidden>프로필이 수정되었습니다.</p>
@@ -63,17 +73,20 @@
           <form class="me-pt-form" id="stEditForm" novalidate hidden>
             <p class="me-pt-title">프로필 수정</p>
             <label class="mk-input"
-              ><span>이름 *</span><input type="text" id="stEditName" autocomplete="name" placeholder="이름을 입력하세요"
+              ><span>이름 *</span
+              ><input type="text" id="stEditName" autocomplete="name" placeholder="이름을 입력하세요"
             /></label>
             <label class="mk-input"
               ><span>연락처</span
               ><input type="tel" id="stEditPhone" autocomplete="tel" inputmode="tel" placeholder="010-0000-0000"
             /></label>
             <label class="mk-input"
-              ><span>거주지역 (시/도)</span><select id="stEditSido"></select
+              ><span>거주지역 (시/도)</span
+              ><select id="stEditSido"></select
             ></label>
             <label class="mk-input"
-              ><span>거주지역 (시/군/구)</span><select id="stEditGugun"></select
+              ><span>거주지역 (시/군/구)</span
+              ><select id="stEditGugun"></select
             ></label>
             <p class="mk-error" id="stEditError" role="alert" hidden></p>
             <div class="rd-acts">
@@ -81,6 +94,19 @@
               <button type="submit" class="mk-btn mk-btn--solid" id="stEditSave">저장</button>
             </div>
           </form>
+        </section>
+
+        <!-- 비밀번호 — 앱에서 바꾸지 않는다. 로그인 화면(login.html)의 「비밀번호 찾기」와 같은 곳
+             (reset-password.html — 가입한 이메일로 재설정 링크를 받는다)으로 보낸다 -->
+        <section class="sg-section" aria-labelledby="stPwTitle">
+          <h2 id="stPwTitle">비밀번호</h2>
+          <p class="me-pt-how st-lead" id="stPwNote">
+            비밀번호는 앱에서 바꾸지 않습니다. 로그인 화면의 「비밀번호 찾기」에서 가입한 이메일로 재설정 링크를 받아
+            바꿀 수 있습니다.
+          </p>
+          <ul class="sg-rows">
+            <li><a class="sg-row" id="stPwLink" href="../reset-password.html">비밀번호 찾기</a></li>
+          </ul>
         </section>
 
         <!-- 회원탈퇴 — mypage.html 「회원탈퇴」와 같은 안내 · 확인 문구 · account-api POST /delete -->
@@ -103,14 +129,18 @@
             </ul>
             <p class="me-pt-info">아래 정보는 남습니다.</p>
             <ul class="st-list" id="stWithdrawKeep">
-              <li>시공사례에 공개된 AI 연출컷은 작성자 정보 없이 남습니다. 남기지 않으려면 탈퇴 전에 「내 연출컷」에서 내려 주세요.</li>
+              <li>
+                시공사례에 공개된 AI 연출컷은 작성자 정보 없이 남습니다. 남기지 않으려면 탈퇴 전에 「내 연출컷」에서
+                내려 주세요.
+              </li>
               <li>계약(고객 확인서 · 수주)과 결제 기록은 법에 따라 5년 동안 보관합니다.</li>
             </ul>
             <p class="me-pt-info">
               계속하시려면 아래에 <strong id="stWithdrawWord">탈퇴합니다</strong> 를 그대로 입력해 주세요.
             </p>
             <label class="mk-input"
-              ><span>확인 문구</span><input type="text" id="stWithdrawInput" autocomplete="off" placeholder="탈퇴합니다"
+              ><span>확인 문구</span
+              ><input type="text" id="stWithdrawInput" autocomplete="off" placeholder="탈퇴합니다"
             /></label>
             <p class="mk-error" id="stWithdrawStatus" role="alert" hidden></p>
             <div class="rd-acts">

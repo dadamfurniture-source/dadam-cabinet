@@ -12,6 +12,7 @@
  *   - 보내는 칸은 consultation.html 이 쓰는 칸 + SQL 파일 · 0019 가 더하는 칸뿐
  *   - 새 칸이 없으면 신청서 대신 「아직 받을 수 없습니다」 + 전화
  *   - ?g= 가 없으면 일반 상담 — consultation.html 과 같은 칸 · 검사 · 동의 · insert, 로그인 없이도
+ *     (consultation.html 의 「상세설계 권한 신청」 한 칸만 앱에 두지 않는다 — 견줄 때 그 칸만 뺀다)
  */
 const fs = require('fs');
 const path = require('path');
@@ -350,7 +351,9 @@ describe('신청서', () => {
     ]);
     expect($('csAgreeThird').checked).toBe(false);
     expect($('csAgreePhoto').checked).toBe(false);
-    expect([...$('csPhotoDetail').querySelectorAll('li')].map((li) => li.textContent.trim())).toEqual([
+    expect(
+      [...$('csPhotoDetail').querySelectorAll('li')].map((li) => li.textContent.trim())
+    ).toEqual([
       '쓰는 것: 설치 · A/S 를 마친 팩토리가 올린 완료 사진 (가구 모습)',
       '목적: SEGAN 설계 · 연출 학습',
       '사진 말고 이름 · 전화 · 주소는 함께 쓰지 않습니다',
@@ -469,7 +472,9 @@ describe('보내기 — consultations insert (consultation.html 과 같은 길)'
     expect(row).not.toHaveProperty('consult_target');
     expect(row).not.toHaveProperty('company_id');
     // 보내는 칸은 consultation.html 이 쓰는 칸 + SQL 파일 · 0019 가 더하는 칸뿐
-    const allowed = new Set(siteKeys().concat(sqlColumns(), COLUMNS_0019, COLUMNS_0021, COLUMNS_0044));
+    const allowed = new Set(
+      siteKeys().concat(sqlColumns(), COLUMNS_0019, COLUMNS_0021, COLUMNS_0044)
+    );
     for (const k of Object.keys(row)) expect([k, allowed.has(k)]).toEqual([k, true]);
     if (MIGRATION_0019) {
       for (const c of COLUMNS_0019)
@@ -624,6 +629,10 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
     )[1];
     return [...block.matchAll(/^\s+(\w+):/gm)].map((m) => m[1]);
   };
+  // 앱 신청서에 두지 않는 consultation.html 칸 — 「상세설계 권한 신청」 (request_detail_design).
+  //   앱은 이 칸을 보내지 않고 profiles.detaildesign_requested_at 도 적지 않는다. 견줄 때 이것만 뺀다.
+  const NOT_IN_APP = 'request_detail_design';
+  const NOT_IN_APP_LABEL = '상세설계 권한 신청, ';
   const options = (sel) => [...sel.options].map((o) => [o.value, norm(o.textContent)]);
   const radioPairs = (root, name) =>
     [...root.querySelectorAll(`input[name="${name}"]`)].map((el) => [
@@ -687,9 +696,9 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
     expect(radioPairs(document, 'csgDemolition')).toEqual(radioPairs(SITE, 'demolition'));
     expect(radioPairs(document, 'csgPrice')).toEqual(radioPairs(SITE, 'priceTier'));
     expect(radioPairs(document, 'csgItem')).toEqual(radioPairs(SITE, 'furnitureCategory'));
-    expect([...document.querySelectorAll('input[name="csgItem"]')].every((el) => el.type === 'checkbox')).toBe(
-      true
-    );
+    expect(
+      [...document.querySelectorAll('input[name="csgItem"]')].every((el) => el.type === 'checkbox')
+    ).toBe(true);
     for (const [app, site] of [
       ['csgSpace', 'spaceType'],
       ['csgBudget', 'budgetRange'],
@@ -714,7 +723,6 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
       ['csgDesc', 'description'],
       ['csgAgree', 'agreePrivacy'],
       ['csgAgreeThird', 'agreeThirdParty'],
-      ['csgDetailDesign', 'requestDetailDesign'],
       ['csgWantDate', 'wantedDoneDate'],
       ['csgPrefDate', 'preferredDate'],
     ];
@@ -736,7 +744,7 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
     expect($('csgForm').noValidate).toBe(false);
   });
 
-  test('동의 둘 — 글 · 수집하는 내용 · 제공하는 내용 = consultation.html, 시공 사진 학습 동의는 없다', async () => {
+  test('동의 셋 — 수집 · 업체 제공 = consultation.html, 시공 사진 학습 = 연출컷 신청서와 같은 글', async () => {
     await load({ url: GENERAL, session: null });
     expect(norm($('csgAgree').closest('label').textContent)).toBe(
       norm(SITE.getElementById('agreePrivacy').closest('label').textContent)
@@ -745,15 +753,45 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
       norm(SITE.getElementById('agreeThirdParty').closest('label').textContent)
     );
     const lis = (ul) => [...ul.querySelectorAll('li')].map((li) => norm(li.textContent));
-    expect(lis($('csgPrivacyDetail'))).toEqual(lis(SITE.querySelector('.consent-detail ul')));
+    // 수집하는 내용 — consultation.html 과 같다, 앱에 없는 「상세설계 권한 신청」만 뺀다
+    expect(lis($('csgPrivacyDetail'))).toEqual(
+      lis(SITE.querySelector('.consent-detail ul')).map((t) => t.replace(NOT_IN_APP_LABEL, ''))
+    );
+    expect($('csgPrivacyDetail').textContent).not.toContain('상세설계');
     expect(lis($('csgThirdDetail'))).toEqual(lis(SITE.getElementById('thirdPartyDetail')));
-    expect($('csgForm').querySelectorAll('.cs-agree')).toHaveLength(2);
-    expect($('csgForm').textContent).not.toMatch(/설계 학습/);
+    // 시공 사진 학습 활용 동의 (선택) — 연출컷 신청서(csAgreePhoto · csPhotoDetail)와 같은 글 · 같은 내용
+    expect(
+      [...$('csgForm').querySelectorAll('.cs-agree')].map((l) => l.querySelector('input').id)
+    ).toEqual(['csgAgree', 'csgAgreeThird', 'csgAgreePhoto']);
+    expect(norm($('csgAgreePhoto').closest('label').textContent)).toBe(
+      norm($('csAgreePhoto').closest('label').textContent)
+    );
+    expect(lis($('csgPhotoDetail'))).toEqual(lis($('csPhotoDetail')));
+    expect($('csgAgreePhoto').required).toBe(false);
+    expect($('csgAgreePhoto').checked).toBe(false);
+  });
+
+  test('시공 사진 학습 동의 — 하면 같은 시각으로 photo_learn_agreed_at, 안 하면 null (업체 제공과 따로)', async () => {
+    const calls = await load({ url: GENERAL, session: null });
+    fillGeneral();
+    $('csgAgreePhoto').checked = true;
+    await sendGeneral();
+    const { row } = calls.inserts[0];
+    expect(row.photo_learn_agreed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(row.photo_learn_agreed_at).toBe(row.privacy_agreed_at);
+    expect(row.third_party_agreed_at).toBeNull();
+    // 칸 이름은 연출컷 신청서 · DB 0044 와 같다
+    expect(COLUMNS_0044).toEqual(['photo_learn_agreed_at']);
+    if (MIGRATION_0044)
+      expect(MIGRATION_0044).toContain('ADD COLUMN IF NOT EXISTS photo_learn_agreed_at ');
   });
 
   test('로그인했으면 가입 정보(user_metadata)로 채운다 — 거주지역은 목록에 있을 때만', async () => {
     const meta = { name: '메타 이름', phone: '010-9999-0000', sido: '대구광역시', gugun: '북구' };
-    await load({ url: GENERAL, session: { ...SESSION, user: { ...SESSION.user, user_metadata: meta } } });
+    await load({
+      url: GENERAL,
+      session: { ...SESSION, user: { ...SESSION.user, user_metadata: meta } },
+    });
     expect($('csgName').value).toBe('메타 이름');
     expect($('csgEmail').value).toBe('customer@example.com');
     expect($('csgPhone').value).toBe('010-9999-0000');
@@ -761,7 +799,10 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
     expect($('csgGugun').value).toBe('북구');
     await load({
       url: GENERAL,
-      session: { ...SESSION, user: { ...SESSION.user, user_metadata: { sido: '없는시', gugun: '북구' } } },
+      session: {
+        ...SESSION,
+        user: { ...SESSION.user, user_metadata: { sido: '없는시', gugun: '북구' } },
+      },
     });
     expect($('csgSido').value).toBe('');
     expect($('csgGugun').value).toBe('');
@@ -787,7 +828,14 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
     expect(calls.inserts).toHaveLength(1);
     const { table, row } = calls.inserts[0];
     expect(table).toBe('consultations');
-    expect(Object.keys(row)).toEqual(siteKeys());
+    // consultation.html insert 칸과 같은 차례 — 앱에 없는 request_detail_design 만 뺀다 (DB 기본값 false),
+    //   끝에 앱의 시공 사진 학습 동의 칸 (연출컷 신청서와 같은 photo_learn_agreed_at)
+    expect(siteKeys()).toContain(NOT_IN_APP);
+    expect(Object.keys(row)).toEqual(
+      siteKeys()
+        .filter((k) => k !== NOT_IN_APP)
+        .concat(COLUMNS_0044)
+    );
     expect(row).toEqual({
       user_id: null,
       name: '이고객',
@@ -807,7 +855,6 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
       space_depth_mm: 650,
       budget_range: '500_1000',
       style_preference: 'modern',
-      request_detail_design: false,
       sido: '서울특별시',
       gugun: '강남구',
       door_finish: 'paint',
@@ -816,6 +863,7 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
       privacy_agreed_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
       third_party_agreed_at: null,
       consent_version: null,
+      photo_learn_agreed_at: null,
     });
     // 회사 · 연출컷은 보내지 않는다 (company_id 는 DB 기본값 — 다담 본사)
     expect(row).not.toHaveProperty('company_id');
@@ -851,27 +899,22 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
     expect($('csDoneText').textContent).toBe(window.SeganConsult.DONE_TEXT.partner);
   });
 
-  test('상세설계 권한 신청 — 로그인했으면 profiles.detaildesign_requested_at, 로그인 없으면 적지 않는다', async () => {
+  test('상세설계 권한 신청은 앱에 없다 — 칸 · 글이 없고, request_detail_design · profiles 를 쓰지 않는다', async () => {
     const calls = await load({ url: GENERAL });
+    // 사이트 신청서에는 그대로 있다 (사이트는 바꾸지 않는다)
+    expect(SITE.getElementById('requestDetailDesign')).not.toBeNull();
+    expect(document.querySelector('#csgDetailDesign, #requestDetailDesign')).toBeNull();
+    expect(document.getElementById('main').textContent).not.toMatch(
+      /상세설계\(CAD\/BOM\)|권한 신청/
+    );
     fillGeneral();
-    $('csgDetailDesign').checked = true;
     await sendGeneral();
-    expect(calls.inserts[0].row).toMatchObject({ user_id: 'user-1', request_detail_design: true });
-    expect(calls.updates).toHaveLength(1);
-    const u = calls.updates[0];
-    expect(u.table).toBe('profiles');
-    expect(Object.keys(u.row)).toEqual(['detaildesign_requested_at']);
-    expect(u.row.detaildesign_requested_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    expect(u.eq).toEqual([['id', 'user-1']]);
-    // 사이트 신청서도 같은 칸을 적는다
-    expect(read('consultation.html')).toContain(".update({ detaildesign_requested_at: new Date().toISOString() })");
-
-    const guest = await load({ url: GENERAL, session: null });
-    fillGeneral();
-    $('csgDetailDesign').checked = true;
-    await sendGeneral();
-    expect(guest.inserts[0].row.request_detail_design).toBe(true);
-    expect(guest.updates).toEqual([]);
+    expect(calls.inserts[0].row.user_id).toBe('user-1');
+    expect(calls.inserts[0].row).not.toHaveProperty(NOT_IN_APP);
+    expect(calls.updates).toEqual([]);
+    // 주석을 뺀 코드에 그 칸 이름이 없다
+    const src = read('segan/consult.js').replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
+    expect(src).not.toMatch(/detaildesign_requested_at|request_detail_design|csgDetailDesign/);
   });
 
   const uncheck = (name) => () =>
@@ -900,7 +943,9 @@ describe('일반 상담 — ?g= 없이 (consultation.html 과 같은 신청서)'
 
   test('검사 차례 = consultation.html missingMessage', async () => {
     await load({ url: GENERAL, session: null });
-    const fn = read('consultation.html').match(/function missingMessage\(f\) \{([\s\S]*?)\n\s*\}/)[1];
+    const fn = read('consultation.html').match(
+      /function missingMessage\(f\) \{([\s\S]*?)\n\s*\}/
+    )[1];
     const order = [...fn.matchAll(/return '([^']+)'/g)].map((m) => m[1]);
     const E = window.SeganConsult.GENERAL_ERR;
     expect(order).toEqual([E.required, E.region, E.door, E.demolition, E.price, E.privacy]);

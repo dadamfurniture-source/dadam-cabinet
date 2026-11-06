@@ -590,6 +590,136 @@ a.sg-row.ad-row::after {
   color: var(--v5-ink-60);
 }
 
+/* 내 정보 › 구독 관리 (segan/billing.js) — 안내 칸 · 단추 줄 · 해지 단추 (billing.html 과 같은 색) */
+.bl-status {
+  margin: 16px 0 0;
+  padding: 12px 15px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-well);
+  font-size: 12.5px;
+  font-weight: 300;
+  line-height: 1.8;
+  color: var(--v5-ink-62);
+  white-space: pre-line;
+}
+
+.bl-status.err {
+  border-color: rgba(192, 57, 43, 0.3);
+  color: #c0392b;
+}
+
+.bl-acts {
+  margin-top: 14px;
+}
+
+.mk-btn.bl-danger {
+  border-color: #d9b0ab;
+  color: #a54034;
+}
+
+/* 내 정보 › 내 활동 (segan/activity.js) — 저장한 추천 팩토리 · 시공 평가 · 내 시공사례 */
+.ac-lead {
+  margin: 0 0 10px;
+}
+
+.ac-lead a {
+  color: var(--v5-ink);
+}
+
+.ac-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 0;
+}
+
+.ac-chips span {
+  padding: 2px 8px;
+  border: 1px solid var(--v5-line-18);
+  font-size: 11.5px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+}
+
+.ac-partner .rd-acts,
+.ac-partner .me-pt-ask {
+  margin-top: 10px;
+}
+
+.ac-range input[type='range'] {
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  accent-color: var(--v5-ink);
+}
+
+.ac-range b {
+  font-weight: 500;
+  color: var(--v5-ink);
+}
+
+.ac-file input[type='file'] {
+  padding: 12px;
+}
+
+.ac-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  background: var(--v5-well);
+}
+
+.ac-cases {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 10px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ac-case {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ac-thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  background: var(--v5-photo);
+}
+
+.ac-meta {
+  margin: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--v5-ink-60);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ac-case .rd-acts .mk-btn {
+  flex: 1 1 auto;
+  min-height: 40px;
+  padding: 0 10px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+/* 학습 동의 — 켜져 있을 때만 눈에 띈다 (mypage.html 과 같은 뜻) */
+.ac-consent[aria-pressed='true'] {
+  border-color: var(--v5-ink);
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
 /* 내 프로젝트 — 제목 · 회사 / 단계 6칸 / 계약 금액 · 다음 결제 · 설치일 */
 .me-project {
   padding: 14px 0 16px;
@@ -1413,6 +1543,295 @@ a.sg-row.ad-row::after {
 
 body.cl-locked {
   overflow: hidden;
+}
+
+/* 시공사례 · 자재 고르기 (segan/collection.js) — 탭 막대는 그대로 넷, 이 화면 안에서 둘로 나눈다 */
+.cl-seg {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0 0 20px;
+  border: 1px solid var(--v5-line-18);
+}
+
+.cl-seg button {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--v5-ink-60);
+  font-size: 13.5px;
+  font-weight: 300;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.cl-seg button + button {
+  border-left: 1px solid var(--v5-line-18);
+}
+
+.cl-seg button[aria-selected='true'] {
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
+/* 자재 (사이트 material.html 의 글 · 사진) — 라운드 · 섀도 없이, 헤어라인만 */
+.mt {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.mt-hero,
+.mt-sec,
+.mt-block,
+.mt-theme {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mt-sec {
+  padding-top: 28px;
+  border-top: 1px solid var(--v5-line);
+}
+
+.mt-tag {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 300;
+  letter-spacing: 0.24em;
+  color: var(--v5-tan);
+}
+
+.mt-h {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 300;
+  letter-spacing: 0.02em;
+}
+
+.mt-sub {
+  margin: 8px 0 0;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.mt-lead,
+.mt-text {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 300;
+  line-height: 1.8;
+  color: var(--v5-ink-62);
+}
+
+.mt-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--v5-ink-45);
+}
+
+.mt-badge {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border: 1px solid var(--v5-ink);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+}
+
+.mt-box {
+  margin: 4px 0 0;
+  padding: 14px 16px;
+  background: var(--v5-well);
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.8;
+}
+
+.mt-box strong,
+.mt-text strong {
+  font-weight: 500;
+}
+
+/* 사진 — 배경으로만 (시공사례와 같다), 비율은 원본 사진 그대로 */
+.mt-img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  background-color: var(--v5-photo);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.mt-img--doc {
+  background-color: var(--v5-paper);
+  background-size: contain;
+}
+
+.mt-img--circle {
+  max-width: 420px;
+  margin: 8px auto 0;
+  background-color: transparent;
+}
+
+.mt-figs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mt-fig {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.mt-fig figcaption {
+  font-size: 12px;
+  font-weight: 300;
+  text-align: center;
+  color: var(--v5-ink-60);
+}
+
+/* 실제 테스트 결과 — 막대 둘 */
+.mt-bars {
+  display: grid;
+  gap: 10px;
+}
+
+.mt-bar {
+  display: grid;
+  grid-template-columns: 7.5em minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  font-weight: 300;
+}
+
+.mt-bar-track {
+  display: block;
+  background: var(--v5-well);
+}
+
+.mt-bar-fill {
+  display: block;
+  padding: 6px 8px;
+  background: var(--v5-ink-32);
+  color: var(--v5-paper);
+  font-size: 12px;
+  text-align: right;
+}
+
+.mt-bar-fill--new {
+  background: var(--v5-ink);
+}
+
+.mt-axis {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 0 0 calc(7.5em + 10px);
+  font-size: 11px;
+  color: var(--v5-ink-45);
+}
+
+/* 표 — 좁은 화면에서는 표만 옆으로 민다 */
+.mt-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--v5-line-12);
+}
+
+.mt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  font-weight: 300;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.mt-table th,
+.mt-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.mt-table thead th {
+  background: var(--v5-well);
+  font-weight: 400;
+}
+
+.mt-table tbody th {
+  font-weight: 400;
+  text-align: left;
+}
+
+.mt-table small {
+  font-size: 11px;
+  color: var(--v5-ink-45);
+}
+
+.mt-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.mt-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+}
+
+.mt-card .mt-sub {
+  margin-top: 0;
+}
+
+/* Mega Theme — 키워드 · 색 */
+.mt-theme {
+  padding-top: 20px;
+}
+
+.mt-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+
+.mt-keys span {
+  padding: 3px 10px;
+  border: 1px solid var(--v5-line-18);
+  font-size: 12px;
+  font-weight: 300;
+}
+
+.mt-chips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  font-weight: 300;
+}
+
+.mt-chips li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mt-swatch {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--v5-line-12);
 }
 
 /* ── PC ── */

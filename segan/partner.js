@@ -10,7 +10,7 @@
 
    화면 (위에서부터 먼저 맞는 것)
      업체 있음         업체 이름 · 등급(다음 결제일부터 바뀌는 등급) · 상태 · 내 역할 · 크레딧
-                       대표: 직원(내보내기) · 직원 초대(링크) · 등급 바꾸기 · 결제 관리(billing.html)
+                       대표: 직원(내보내기) · 직원 초대(링크) · 등급 바꾸기 · 결제 관리(segan/billing.html)
                        실장 · 직원: 업체 이름 · 내 역할 · 크레딧만
                        정지(suspended) 「결제가 멈춰 있어 읽기만 됩니다」, 해지(closed) 「해지된 업체입니다」
      신청 접수 · 미팅   단계 3칸 (신청 접수 → 미팅 예정 → 승인), 미팅 시각은 한국 시간, 「신청 거두기」
@@ -39,7 +39,7 @@
 
   var SIGNUP_KEY = 'partnerSignup'; // billing-success.html 이 읽는다
   var INVITE_PATH = '/segan/join.html#t=';
-  var BILLING_PAGE = '../billing.html';
+  var BILLING_PAGE = 'billing.html'; // 앱 안 구독 관리 (segan/billing.html — billing.html 과 같은 화면)
   var CONSULT_PAGE = 'consult.html'; // 앱 안 일반 상담 신청서 (consultation.html 과 같은 칸)
   var FAIL_PATH = '/segan/me.html?failed=1';
   var RETURN_TO = '/segan/me.html#partner'; // billing-success.html 의 「돌아가기」

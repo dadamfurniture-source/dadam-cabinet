@@ -42,13 +42,7 @@ async function load(options = {}) {
   for (const a of [...document.body.attributes]) document.body.removeAttribute(a.name);
   for (const a of [...doc.body.attributes]) document.body.setAttribute(a.name, a.value);
   sessionStorage.clear();
-  for (const k of [
-    'AdminAccess',
-    'DadamMyPageWork',
-    'SeganShell',
-    'SeganRegions',
-    'SeganSettings',
-  ])
+  for (const k of ['AdminAccess', 'DadamMyPageWork', 'SeganShell', 'SeganRegions', 'SeganSettings'])
     delete window[k];
   window.DADAM_CONFIG = {
     supabase: { url: 'https://example.supabase.co', anonKey: 'anon' },
@@ -120,7 +114,8 @@ async function load(options = {}) {
 }
 
 const $ = (id) => document.getElementById(id);
-const texts = (sel) => [...document.querySelectorAll(sel)].map((el) => el.textContent.trim());
+const texts = (sel) =>
+  [...document.querySelectorAll(sel)].map((el) => el.textContent.replace(/\s+/g, ' ').trim());
 const setVal = (id, v) => {
   $(id).value = v;
   $(id).dispatchEvent(new window.Event('input', { bubbles: true }));
@@ -152,7 +147,9 @@ describe('화면 — 내 정보 탭 안', () => {
     expect(
       document.querySelector('nav.sg-tabbar a[aria-current="page"]').getAttribute('data-tab-link')
     ).toBe('me');
-    expect(read('segan/settings.html')).toContain('<meta name="robots" content="noindex,nofollow" />');
+    expect(read('segan/settings.html')).toContain(
+      '<meta name="robots" content="noindex,nofollow" />'
+    );
     const sw = read('segan/sw.js');
     expect(sw).toContain("SCOPE + 'settings.html'");
     expect(sw).toContain("versioned(SCOPE + 'settings.js')");
@@ -217,7 +214,10 @@ describe('프로필 수정 — mypage.html submitEditProfile', () => {
     const gugunData = Function(`return ${m[1]}`)();
     expect(window.SeganRegions).toEqual(gugunData);
     $('stEditOpen').click();
-    expect([...$('stEditSido').options].map((o) => o.value)).toEqual(['', ...Object.keys(gugunData)]);
+    expect([...$('stEditSido').options].map((o) => o.value)).toEqual([
+      '',
+      ...Object.keys(gugunData),
+    ]);
     // mypage.html 프로필 수정 시/도 목록과도 같다
     const sidoBlock = MYPAGE.slice(MYPAGE.indexOf('<select id="editSido"'));
     const sidoHtml = sidoBlock.slice(0, sidoBlock.indexOf('</select>'));
@@ -309,6 +309,32 @@ describe('프로필 수정 — mypage.html submitEditProfile', () => {
   });
 });
 
+describe('비밀번호 — 앱에서 바꾸지 않는다', () => {
+  test('안내 한 줄 + 로그인 화면 「비밀번호 찾기」와 같은 곳(reset-password.html)으로', async () => {
+    await load();
+    // login.html 의 「비밀번호 찾기」가 가리키는 곳 (정본)
+    const login = read('login.html').match(
+      /<a href="([^"]+)" class="forgot-link">비밀번호 찾기<\/a>/
+    );
+    expect(login).not.toBeNull();
+    const a = $('stPwLink');
+    expect(a.textContent).toBe('비밀번호 찾기');
+    expect(a.getAttribute('href')).toBe('../' + login[1]);
+    expect(fs.existsSync(path.join(ROOT, 'segan', a.getAttribute('href')))).toBe(true);
+    expect($('stPwNote').textContent.replace(/\s+/g, ' ').trim()).toBe(
+      '비밀번호는 앱에서 바꾸지 않습니다. 로그인 화면의 「비밀번호 찾기」에서 가입한 이메일로 재설정 링크를 받아 바꿀 수 있습니다.'
+    );
+  });
+
+  test('비밀번호 칸 · 바꾸기 호출이 없다 (새 재설정 흐름을 만들지 않는다)', async () => {
+    const calls = await load();
+    expect(document.querySelectorAll('input[type="password"]')).toHaveLength(0);
+    const src = read('segan/settings.js').replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
+    expect(src).not.toMatch(/password|resetPasswordForEmail/i);
+    expect(calls.updateUser).toEqual([]);
+  });
+});
+
 describe('회원탈퇴 — mypage.html submitWithdraw', () => {
   const open = () => $('stWithdrawOpen').click();
   const press = async () => {
@@ -364,7 +390,13 @@ describe('회원탈퇴 — mypage.html submitWithdraw', () => {
   test.each([
     [
       '서버가 거절',
-      { deleteRes: { ok: false, status: 401, body: { success: false, error: '로그인이 필요합니다' } } },
+      {
+        deleteRes: {
+          ok: false,
+          status: 401,
+          body: { success: false, error: '로그인이 필요합니다' },
+        },
+      },
       '로그인이 필요합니다',
     ],
     [
@@ -392,7 +424,9 @@ describe('회원탈퇴 — mypage.html submitWithdraw', () => {
     // 화면을 연 뒤 세션이 끝남
     window.SeganSettings.state.sb.auth.getSession = async () => ({ data: { session: null } });
     await press();
-    expect($('stWithdrawStatus').textContent).toBe('로그인이 만료되었습니다. 다시 로그인해 주세요.');
+    expect($('stWithdrawStatus').textContent).toBe(
+      '로그인이 만료되었습니다. 다시 로그인해 주세요.'
+    );
     expect(calls.fetch.some((f) => f.url === ACCOUNT + '/delete')).toBe(false);
   });
 });
