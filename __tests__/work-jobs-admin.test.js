@@ -297,7 +297,7 @@ describe('js/work-jobs-admin.js — 순수 함수', () => {
 
   test('공유 문구 — 종류 · 시/구 · 날짜 · 지원 종료일(있으면) · 링크만 (제목 · 상세 · 금액 · 이름 없음)', () => {
     const url = W.workerJobUrl(J1, 'https://dadam.example/admin/work-jobs.html?job=x');
-    expect(url).toBe(`https://dadam.example/worker.html#job=${J1}`);
+    expect(url).toBe(`https://dadam.example/segan/work.html#job=${J1}`);
     const text = W.shareText(JOB1, url);
     expect(text).toBe(`[다담가구 작업] 설치 · 가상시 시험구\n10/21(수) 09:00~18:00\n지원 종료일 1/1(목) 09:00\n${url}`);
     // 지원 종료일이 없으면 그 줄이 없다 · D-n 꼬리표는 싣지 않는다 (대화방에서 나중에 읽으면 틀린 말)
@@ -683,7 +683,7 @@ describe('admin/work-jobs.html — 페이지', () => {
     expect(writeText).toHaveBeenCalledTimes(1);
     const text = writeText.mock.calls[0][0];
     expect(text).toContain('[다담가구 작업] 설치 · 가상시 시험구');
-    expect(text).toContain(`/worker.html#job=${J1}`);
+    expect(text).toContain(`/segan/work.html#job=${J1}`);
     expect(text).not.toContain('싱크대');
     expect($('jobStatus').textContent).toContain('복사했습니다');
 
@@ -879,7 +879,7 @@ describe('admin/work-jobs.html — 페이지', () => {
     setNav('clipboard', { writeText });
     await click($('jobModal').querySelector('[data-act="job-share"]'));
     expect(writeText.mock.calls[0][0].split('\n')).toEqual([
-      '[다담가구 작업] 설치 · 가상시 시험구', '10/21(수) 09:00~18:00', '지원 종료일 1/1(목) 09:00', `${window.location.origin}/worker.html#job=${J1}`,
+      '[다담가구 작업] 설치 · 가상시 시험구', '10/21(수) 09:00~18:00', '지원 종료일 1/1(목) 09:00', `${window.location.origin}/segan/work.html#job=${J1}`,
     ]);
 
     $('jobModal').classList.remove('active');

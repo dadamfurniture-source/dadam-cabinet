@@ -1,2 +1,5 @@
 User-agent: *
 Disallow: /docs/
+Disallow: /admin/
+
+Sitemap: https://dadamfurniture.com/sitemap.xml

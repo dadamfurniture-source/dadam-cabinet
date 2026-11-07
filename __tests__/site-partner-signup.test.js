@@ -249,7 +249,7 @@ describe('billing-success.html — partnerSignup 을 함께 보낸다', () => {
     expect($('title').textContent).toBe('구독이 시작되었습니다');
     expect($('detail').textContent).toContain('다온 인테리어');
     expect($('primary').hidden).toBe(false);
-    expect($('primary').getAttribute('href')).toBe('ai-design.html');
+    expect($('primary').getAttribute('href')).toBe('segan/');
   });
 
   test('Agent — company 없이 plan 만 (이름 · 지역은 승인된 신청 값을 서버가 쓴다)', async () => {
@@ -267,7 +267,7 @@ describe('billing-success.html — partnerSignup 을 함께 보낸다', () => {
     const calls = bootSuccess({ search: '?plan=expert&customerKey=dadam-u1&authKey=ak_3' });
     await flush();
     expect(calls[0].body).toEqual({ auth_key: 'ak_3', customer_key: 'dadam-u1', plan: 'expert' });
-    expect($('primary').getAttribute('href')).toBe('ai-design.html');
+    expect($('primary').getAttribute('href')).toBe('segan/');
   });
 
   test.each([
@@ -293,7 +293,7 @@ describe('billing-success.html — partnerSignup 을 함께 보낸다', () => {
       expect($('msg').className).toBe('bs-msg err');
       expect(window.sessionStorage.getItem('partnerSignup')).toBeNull();
       expect($('secondary').hidden).toBe(false);
-      expect($('secondary').getAttribute('href')).toBe('pricing.html');
+      expect($('secondary').getAttribute('href')).toBe('segan/me#partner');
     }
   );
 
@@ -311,7 +311,7 @@ describe('billing-success.html — partnerSignup 을 함께 보낸다', () => {
     expect($('msg').textContent).toContain(
       '결제가 이루어졌는데 이 화면이 보인다면 고객센터로 문의해 주세요.'
     );
-    expect($('secondary').getAttribute('href')).toBe('pricing.html');
+    expect($('secondary').getAttribute('href')).toBe('segan/me#partner');
   });
 
   test('주소에서 온 등급 글자는 글자로만 그린다', async () => {
@@ -402,8 +402,12 @@ describe('billing-success.html — partnerSignup 을 함께 보낸다', () => {
       expect($('back').getAttribute('href')).toBe(long);
     });
 
-    test('사이트 페이지 코드에 새 앱 주소를 적지 않는다', () => {
-      expect(read('billing-success.html')).not.toMatch(/segan/i);
+    test('기본 링크는 앱 주소 — 돌아가기 · AI 스튜디오 = segan/, 요금제 = segan/me#partner', () => {
+      const html = read('billing-success.html');
+      expect(html).toContain('id="back" href="segan/"');
+      expect(html).toContain('id="primary" href="segan/"');
+      expect(html).toContain('id="secondary" href="segan/me#partner"');
+      expect(html).not.toMatch(/href="(ai-design|pricing)\.html"/);
     });
   });
 });
