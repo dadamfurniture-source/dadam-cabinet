@@ -8,8 +8,8 @@
  *     + 작업 탭 — 처음엔 감추고 작업자(GET /work/me + DadamMyPageWork.shouldShow)에게만 연다
  *     + 비서 탭 — 처음엔 감추고 AI 비서 자격(GET /assistant/me level full · read)이 있으면 연다
  *   - 내 연출컷 · 내 정보는 로그인이 없으면 「로그인이 필요합니다」 + login.html?redirect=(이 페이지)
- *   - 내 정보의 역할 메뉴는 기존 모듈 판정(AdminAccess · DetailDesignAccess · DadamMyPageWork)을 따른다
- *     — 페이지가 싣는 실제 js/ 파일을 그대로 올리고 Supabase · /work/me 만 가짜로 둔다
+ *   - 내 정보의 역할 메뉴는 기존 판정(AdminAccess · DadamMyPageWork · 워크플로 API GET /planner/access)을 따른다
+ *     — 페이지가 싣는 실제 js/ 파일을 그대로 올리고 Supabase · /work/me · /planner/access 만 가짜로 둔다
  *   - 사업자 정보는 사이트 푸터(js/site-shell.js)와 같다
  */
 const fs = require('fs');
@@ -62,6 +62,7 @@ function fakeClient(opts, calls) {
 /**
  * segan 페이지를 올린다 — 페이지가 싣는 ../js/ 모듈을 HTML 순서대로 실제로 실행하고 shell.js 를 돌린다.
  * opts: session · isAdmin · profile · workMe(/work/me data) · workFail · noSupabase
+ *       planner(/planner/access data — 없으면 403 not_planner_company, 'fail' 이면 끊김)
  *       assistant(/assistant/me data — 없으면 403 not_member, 'fail' 이면 끊김) · keepStorage
  */
 async function load(page, options = {}) {
@@ -73,6 +74,7 @@ async function load(page, options = {}) {
     workFail: false,
     noSupabase: false,
     assistant: null,
+    planner: null,
     keepStorage: false,
     ...options,
   };
@@ -105,6 +107,12 @@ async function load(page, options = {}) {
       return opts.assistant
         ? { ok: true, status: 200, json: async () => ({ success: true, data: opts.assistant }) }
         : { ok: false, status: 403, json: async () => ({ success: false, code: 'not_member' }) };
+    }
+    if (String(url).endsWith('/planner/access')) {
+      if (opts.planner === 'fail') throw new TypeError('Failed to fetch');
+      return opts.planner
+        ? { ok: true, status: 200, json: async () => ({ success: true, data: opts.planner }) }
+        : { ok: false, status: 403, json: async () => ({ success: false, code: 'not_planner_company' }) };
     }
     return { ok: true, json: async () => ({ success: true, data: opts.workMe }) };
   });
@@ -374,36 +382,31 @@ describe('로그인 안내 — 내 연출컷 · 내 정보', () => {
 describe('내 정보 — 역할 메뉴는 기존 판정 모듈을 따른다', () => {
   const roleShown = () =>
     Object.fromEntries(
-      ['detail', 'admin', 'worker'].map((k) => [k, visible($(`[data-role="${k}"]`))])
+      ['planner', 'admin', 'worker'].map((k) => [k, visible($(`[data-role="${k}"]`))])
     );
 
-  test('me.html 이 판정 모듈을 싣는다 (admin-access · detaildesign-access · mypage-work)', async () => {
+  test('me.html 이 판정 모듈을 싣는다 (admin-access · mypage-work) — 상세설계 판정 모듈은 싣지 않는다', async () => {
     const { scripts } = await load('me.html');
     const bare = scripts.map((s) => s.split('?')[0]);
-    for (const f of [
-      '../js/config.js',
-      '../js/admin-access.js',
-      '../js/detaildesign-access.js',
-      '../js/mypage-work.js',
-    ]) {
+    for (const f of ['../js/config.js', '../js/admin-access.js', '../js/mypage-work.js']) {
       expect(bare).toContain(f);
     }
-    // DetailDesignAccess 가 AdminAccess 를 부르므로 admin-access 가 먼저
-    const order = bare.filter((s) => /admin-access|detaildesign-access/.test(s));
-    expect(order).toEqual(['../js/admin-access.js', '../js/detaildesign-access.js']);
+    expect(bare).not.toContain('../js/detaildesign-access.js');
     // 셸 다음에 내 정보 탭 스크립트 (상담 내역 · 크레딧 · 구독)
     expect(bare.slice(-3)).toEqual(['shell.js', 'make.js', 'me.js']);
   });
 
-  test('링크 주소 — 상세설계 · 관리자 화면 · 작업자 포털 (기존 페이지)', async () => {
+  test('링크 주소 — 설계(간편 플래너) · 관리자 화면 · 작업자 포털', async () => {
     await load('me.html', { session: SESSION });
     const links = $$('#sgRoles a').map((a) => [a.textContent, a.getAttribute('href')]);
     expect(links).toEqual([
-      ['상세설계', '../detaildesign.html'],
+      ['설계', 'planner/'],
       ['관리자 화면', '../admin/index.html'],
       ['작업', 'work.html'],
     ]);
-    for (const [, href] of links) expect(fs.existsSync(path.join(ROOT, 'segan', href))).toBe(true);
+    // 설계는 /segan/planner/ — 이 저장소 밖 플래너 Worker 가 받는다 (서비스 워커도 건드리지 않는다)
+    expect(read('segan/sw.js')).toMatch(/startsWith\(SCOPE \+ 'planner\/'\)/);
+    for (const [, href] of links.slice(1)) expect(fs.existsSync(path.join(ROOT, 'segan', href))).toBe(true);
   });
 
   test('역할이 없는 회원 — 업무 칸 자체를 감춘다', async () => {
@@ -411,39 +414,33 @@ describe('내 정보 — 역할 메뉴는 기존 판정 모듈을 따른다', ()
       session: SESSION,
       profile: { tier: null, detaildesign_approved: false },
     });
-    expect(roleShown()).toEqual({ detail: false, admin: false, worker: false });
+    expect(roleShown()).toEqual({ planner: false, admin: false, worker: false });
     expect($('#sgRoles').hidden).toBe(true);
   });
 
-  test.each(['standard', 'expert', 'agent', null, 'unknown'])(
-    '상세설계 — 등급 %s 은 DetailDesignAccess.decide 와 같은 결과',
-    async (tier) => {
-      await load('me.html', { session: SESSION, profile: { tier, detaildesign_approved: false } });
-      const expected = window.DetailDesignAccess.decide({
-        isAdmin: false,
-        tier,
-        approved: false,
-      }).allowed;
-      expect(roleShown().detail).toBe(expected);
-      expect(roleShown().admin).toBe(false);
-      expect($('#sgRoles').hidden).toBe(!expected);
-    }
-  );
-
-  test('상세설계 — 본사 승인 계정은 decide 의 approved 규칙을 따른다', async () => {
-    await load('me.html', {
+  test('설계 — GET /planner/access 가 200 이면 연다 (본인 토큰으로 워크플로 API 에 묻는다)', async () => {
+    const { calls } = await load('me.html', {
       session: SESSION,
-      profile: { tier: null, detaildesign_approved: true },
+      planner: { company: { id: 'c1', name: '팩토리', kind: 'partner', plan: 'expert' }, role: 'owner', can_manage: true },
     });
-    expect(roleShown().detail).toBe(
-      window.DetailDesignAccess.decide({ tier: null, approved: true }).allowed
-    );
+    expect(roleShown()).toEqual({ planner: true, admin: false, worker: false });
+    expect(visible($('#sgRoles'))).toBe(true);
+    expect(calls.fetch).toContainEqual({ url: 'https://work.example.workers.dev/planner/access', auth: 'Bearer tok-1' });
   });
 
-  test('관리자 (is_admin RPC 참) — 관리자 화면 + 상세설계', async () => {
+  test.each([
+    ['대상 업체 아님 (403)', {}],
+    ['요청 실패', { planner: 'fail' }],
+  ])('설계 감춤 — %s', async (_name, extra) => {
+    await load('me.html', { session: SESSION, ...extra });
+    expect(roleShown().planner).toBe(false);
+    expect($('#sgRoles').hidden).toBe(true);
+  });
+
+  test('관리자 (is_admin RPC 참) — 관리자 화면 (설계는 서버 판정 /planner/access 를 따른다)', async () => {
     const { calls } = await load('me.html', { session: SESSION, isAdmin: true });
     expect(calls.rpc).toContain('is_admin');
-    expect(roleShown()).toEqual({ detail: true, admin: true, worker: false });
+    expect(roleShown()).toEqual({ planner: false, admin: true, worker: false });
     expect(visible($('#sgRoles'))).toBe(true);
   });
 
@@ -461,8 +458,9 @@ describe('내 정보 — 역할 메뉴는 기존 판정 모듈을 따른다', ()
       session: SESSION,
       workMe: { ready: true, worker: { id: 'w1', status: 'approved', display_name: '작업자' } },
     });
-    expect(roleShown()).toEqual({ detail: false, admin: false, worker: true });
+    expect(roleShown()).toEqual({ planner: false, admin: false, worker: true });
     expect(calls.fetch).toEqual([
+      { url: 'https://work.example.workers.dev/planner/access', auth: 'Bearer tok-1' },
       { url: 'https://work.example.workers.dev/work/me', auth: 'Bearer tok-1' },
       { url: ASSISTANT_ME, auth: 'Bearer tok-1' },
     ]);
@@ -477,13 +475,14 @@ describe('내 정보 — 역할 메뉴는 기존 판정 모듈을 따른다', ()
     expect(roleShown().worker).toBe(false);
   });
 
-  test('관리자이면서 작업자 — 셋 다', async () => {
+  test('관리자이면서 작업자, 설계 가능 — 셋 다', async () => {
     await load('me.html', {
       session: SESSION,
       isAdmin: true,
       workMe: { ready: true, worker: { id: 'w1', status: 'approved' } },
+      planner: { company: { id: 'hq', name: '다담 공장', kind: 'hq', plan: null }, role: 'admin', can_manage: true },
     });
-    expect(roleShown()).toEqual({ detail: true, admin: true, worker: true });
+    expect(roleShown()).toEqual({ planner: true, admin: true, worker: true });
   });
 });
 

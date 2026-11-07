@@ -23,12 +23,13 @@
    로그인이 필요한 페이지는 [data-auth-view="checking|signed-out|signed-in"] 세 칸을 둔다.
    signed-out 칸 안의 [data-segan-shell="gate"] 는 이 파일이 로그인 안내로 채운다.
 
-   역할 메뉴(내 정보)는 기존 사이트 판정을 그대로 쓴다 — 새 규칙을 만들지 않는다.
-     상세설계   js/detaildesign-access.js  DetailDesignAccess.fetchStatus(…).approved
-                (관리자는 언제나, 그 밖은 profiles.tier 가 POLICY.minTier 이상 또는 본사 승인)
+   역할 메뉴(내 정보)는 기존 판정을 그대로 쓴다 — 새 규칙을 만들지 않는다.
+     설계       워크플로 API GET /planner/access  (200 이면 연다 — 다담 공장 · Expert · Agent · MANAGER 업체 구성원 · 관리자,
+                판정은 workers/workflow-api/src/planner-drafts.js canUsePlanner. 403 · 실패는 감춘다)
+                주소 planner/ = 간편 플래너 웹판 (/segan/planner/ — 다른 Worker, 이 저장소 밖)
      관리자 화면 js/admin-access.js        AdminAccess.isAdmin(sb)  (is_admin RPC)
      작업자 포털 js/mypage-work.js         DadamMyPageWork.shouldShow(GET /work/me)
-   링크 주소는 js/site-shell.js 와 같다 (detaildesign.html · admin/index.html · worker.html).
+   관리자 화면 주소는 js/site-shell.js 와 같다 (admin/index.html).
 
    서비스 워커 등록 — 범위는 /segan/ 하나뿐이다. 기존 사이트는 서비스 워커를 쓰지 않는다.
    ============================================================ */
@@ -61,10 +62,10 @@
     { key: 'work', label: '작업', href: 'work.html', target: 'segan/work.html', worker: true },
   ];
 
-  // 역할 메뉴 — 주소는 js/site-shell.js(DETAIL DESIGN · ACCOUNT_MENU 관리자 페이지)와
-  // js/mypage-work.js(작업자 페이지 열기)가 쓰는 페이지 그대로
+  // 역할 메뉴 — 설계는 간편 플래너 웹판(/segan/planner/), 관리자 화면은 js/site-shell.js(ACCOUNT_MENU)와
+  // 같은 페이지, 작업은 앱 안 탭
   var ROLE_LINKS = [
-    { key: 'detail', label: '상세설계', href: '../detaildesign.html' },
+    { key: 'planner', label: '설계', href: 'planner/' }, // 간편 플래너 — 예전 상세설계 자리
     { key: 'admin', label: '관리자 화면', href: '../admin/index.html' },
     { key: 'worker', label: '작업', href: 'work.html' }, // 작업자 포털 — 앱 안 「작업」 탭
   ];
@@ -153,7 +154,7 @@
   function headerHTML(current) {
     return (
       '<header class="sg-header">' +
-      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110712" alt="SEGAN" width="477" height="75" /></a>' +
+      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110713" alt="SEGAN" width="477" height="75" /></a>' +
       '<nav class="sg-nav" aria-label="주 메뉴">' +
       links(current, false) +
       '</nav>' +
@@ -296,6 +297,25 @@
     }
   }
 
+  /** 간편 플래너를 쓸 수 있나 — GET /planner/access 가 200 이고 success 일 때만. 403 · 실패는 false */
+  async function canPlan(session) {
+    try {
+      var cfg = window.DADAM_CONFIG || {};
+      var base = (cfg.workflowApi && cfg.workflowApi.url) || '';
+      var token = session && session.access_token;
+      if (!base || !token) return false;
+      var res = await fetch(base + '/planner/access', {
+        headers: { Authorization: 'Bearer ' + token },
+        cache: 'no-store',
+      });
+      if (!res.ok) return false;
+      var body = await res.json();
+      return !!(body && body.success);
+    } catch {
+      return false;
+    }
+  }
+
   /** AI 비서 워커 주소 */
   function assistantBase() {
     var cfg = window.DADAM_CONFIG || {};
@@ -338,20 +358,16 @@
     }
   }
 
-  /** 역할 메뉴 판정 — 기존 사이트 모듈에 맡긴다. 모르면 감춘다 */
+  /** 역할 메뉴 판정 — 기존 판정(사이트 모듈 · 워크플로 API)에 맡긴다. 모르면 감춘다 */
   async function detectRoles(sb, session) {
-    var out = { detail: false, admin: false, worker: false };
+    var out = { planner: false, admin: false, worker: false };
     if (!sb || !session) return out;
-    var userId = session.user && session.user.id;
     var jobs = [
       (async function () {
         if (window.AdminAccess) out.admin = (await window.AdminAccess.isAdmin(sb)) === true;
       })(),
       (async function () {
-        if (window.DetailDesignAccess && userId) {
-          var st = await window.DetailDesignAccess.fetchStatus(sb, userId);
-          out.detail = !!(st && st.approved);
-        }
+        out.planner = await canPlan(session);
       })(),
       (async function () {
         out.worker = await isWorker(session);
