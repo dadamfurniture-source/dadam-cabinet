@@ -28,9 +28,9 @@ function toBase64Url(bytes) {
 
 export const hashInviteToken = (env, token) => pepperedHash(env.SHARE_TOKEN_PEPPER, 'worker-invite', token);
 
-/** 토큰은 fragment 에 — 링크 미리보기 · Referer · 접속 로그로 새지 않게 */
+/** 토큰은 fragment 에 — 링크 미리보기 · Referer · 접속 로그로 새지 않게. 받는 곳은 앱 「작업」 (옛 worker.html 은 앱으로 넘긴다) */
 export function inviteUrl(env, token) {
-  return `${String(env.PUBLIC_BASE_URL || '').replace(/\/+$/, '')}/worker.html#invite=${token}`;
+  return `${String(env.PUBLIC_BASE_URL || '').replace(/\/+$/, '')}/segan/work.html#invite=${token}`;
 }
 
 /** POST /work/admin/invites — { kinds_preset[], display_name_preset?, expires_at } → { id, url, expires_at } */
