@@ -417,8 +417,8 @@ describe('마이페이지 역할 판정 — 기존 판정 모듈을 따른다 (S
       expect(bare).toContain(f);
     }
     expect(bare).not.toContain('../js/detaildesign-access.js');
-    // 셸 다음에 마이페이지 스크립트 (메뉴 · 상담 내역 · 크레딧 · 구독)
-    expect(bare.slice(-3)).toEqual(['shell.js', 'make.js', 'me.js']);
+    // 셸 · SEGAN 비서 다음에 마이페이지 스크립트 (메뉴 · 상담 내역 · 크레딧 · 구독)
+    expect(bare.slice(-4)).toEqual(['shell.js', 'guide.js', 'make.js', 'me.js']);
   });
 
   test('링크 — 설계(간편 플래너) · 비서 · 작업 · 관리(앱) · 관리자 화면 (PC), 마이페이지 메뉴 묶음', async () => {

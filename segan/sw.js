@@ -25,7 +25,7 @@
 /* global self, caches, fetch, Request, Response, URL */
 'use strict';
 
-const ASSET_VERSION = '2026110807';
+const ASSET_VERSION = '2026110808';
 const CACHE_PREFIX = 'segan-shell-';
 const CACHE = CACHE_PREFIX + ASSET_VERSION;
 const SCOPE = new URL('./', self.location.href).pathname; // '/segan/'
@@ -56,6 +56,7 @@ const SHELL = [
   SCOPE + 'manifest.webmanifest',
   versioned(SCOPE + 'shell.css'),
   versioned(SCOPE + 'shell.js'),
+  versioned(SCOPE + 'guide.js'), // SEGAN 비서 — 셸 화면마다 (위 막대 「비서」 · PC 아래 입력 줄)
   versioned(SCOPE + 'info.css'),
   versioned(SCOPE + 'plans.js'),
   versioned(SCOPE + 'make.css'),

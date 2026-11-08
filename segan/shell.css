@@ -1897,6 +1897,347 @@ body.sg-locked {
   }
 }
 
+/* ── SEGAN 비서 (segan/guide.js) ──
+   폰 · 태블릿: 위 막대 오른쪽 「비서」 → 아래 시트 (90dvh — 입력 칸이 늘 아래에)
+   PC(1024px~ — 글 위 메뉴가 보이는 폭): 본문 아래 가운데 고정 입력 줄 → 오른쪽 옆 패널 420px (아래 1024px 칸)
+   라운드 · 섀도 없음, 헤어라인만. 받은 글은 그대로 (pre-wrap — HTML 로 읽지 않는다) */
+.sg-ai-btn {
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  margin-left: auto;
+  padding: 0 16px;
+  border: 1px solid var(--v5-line-25);
+  background: transparent;
+  color: var(--v5-ink);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sg-ai-btn:hover,
+.sg-ai-btn:focus-visible {
+  border-color: var(--v5-ink);
+}
+
+/* PC 입력 줄 — 폰 · 태블릿에는 없다 (1024px 칸에서 연다) */
+.sg-ai-bar {
+  display: none;
+}
+
+.sg-ai-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* 시트 안 — 위 줄(남은 수 · 업무 비서) · 대화(안만 넘긴다) · 아래 입력 */
+.sg-sheet-wrap.sg-ai-wrap .sg-sheet-body {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.sg-ai {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.sg-ai-checking {
+  margin: 0;
+  padding: 20px max(20px, env(safe-area-inset-right)) 20px max(20px, env(safe-area-inset-left));
+  font-size: 14px;
+  color: var(--v5-ink-60);
+}
+
+.sg-ai-top {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 16px;
+  min-height: 44px;
+  padding: 0 max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left));
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.sg-ai-count {
+  margin: 0;
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  color: var(--v5-ink-60);
+}
+
+.sg-ai-acts {
+  display: flex;
+  align-items: center;
+  gap: 0 16px;
+  margin-left: auto;
+}
+
+.sg-ai-biz,
+.sg-ai-fresh {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--v5-ink);
+  font-size: 13px;
+  font-weight: 400;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.sg-ai-fresh:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.sg-ai-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px max(20px, env(safe-area-inset-right)) 16px max(20px, env(safe-area-inset-left));
+}
+
+.sg-ai-hello,
+.sg-ai-lead {
+  margin: 0 0 16px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--v5-ink-60);
+}
+
+.sg-ai-log {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sg-ai-msg {
+  max-width: 92%;
+  padding: 10px 14px;
+}
+
+.sg-ai-msg--user {
+  align-self: flex-end;
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+}
+
+.sg-ai-msg--ai {
+  align-self: flex-start;
+  border: 1px solid var(--v5-line-16);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+}
+
+.sg-ai-tag {
+  display: block;
+  margin: 0 0 4px;
+  color: var(--v5-tan);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.sg-ai-text,
+.sg-ai-a {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.sg-ai-msg--wait .sg-ai-text {
+  color: var(--v5-ink-45);
+}
+
+.sg-ai-note {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--v5-ink-60);
+}
+
+.sg-ai-msg--user .sg-ai-note {
+  color: var(--v5-on-dark-60);
+}
+
+.sg-ai-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.sg-ai-foot {
+  flex: none;
+  padding: 10px max(20px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom))
+    max(20px, env(safe-area-inset-left));
+  border-top: 1px solid var(--v5-line);
+  background: var(--v5-paper);
+}
+
+.sg-ai-block,
+.sg-ai-end {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-well);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.sg-ai-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.sg-ai-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 폰은 16px — 그보다 작으면 iOS 가 칸을 누를 때 화면을 키운다 */
+.sg-ai-input {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  max-height: 30vh;
+  padding: 12px;
+  border: 1px solid var(--v5-line-18);
+  border-radius: 0;
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 300;
+  line-height: 1.5;
+  resize: none;
+}
+
+.sg-ai-input:focus {
+  border-color: var(--v5-ink);
+  outline: none;
+}
+
+.sg-ai-send {
+  flex: none;
+  min-width: 72px;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--v5-ink);
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.sg-ai-send:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.sg-ai-warn {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: var(--v5-ink-55);
+}
+
+/* 로그인 전 — 자주 묻는 것 (정해 둔 답) */
+.sg-ai-faq {
+  border-top: 1px solid var(--v5-line);
+}
+
+.sg-ai-q {
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.sg-ai-q summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  font-size: 14.5px;
+  font-weight: 400;
+  list-style: none;
+  cursor: pointer;
+}
+
+.sg-ai-q summary::-webkit-details-marker {
+  display: none;
+}
+
+/* 펼침 표시 — 글자 없이 선으로 (읽어 주지 않게) */
+.sg-ai-q summary::after {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: 0 4px 4px 0;
+  border-right: 1px solid var(--v5-ink-45);
+  border-bottom: 1px solid var(--v5-ink-45);
+  transform: rotate(45deg);
+}
+
+.sg-ai-q[open] summary::after {
+  margin-bottom: -4px;
+  transform: rotate(-135deg);
+}
+
+.sg-ai-q .sg-ai-a {
+  padding: 0 0 16px;
+}
+
+.sg-ai-login {
+  margin-top: 24px;
+}
+
+.sg-ai-login-note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.sg-ai-login-btn {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 12px;
+  text-decoration: none;
+}
+
+/* 폰 · 태블릿 — 비서 시트는 내용이 적어도 90dvh (입력 칸이 늘 같은 자리) */
+@media (max-width: 1023.98px) {
+  .sg-ai-wrap .sg-sheet {
+    height: 90vh;
+    height: 90dvh;
+  }
+}
+
 /* 시공사례 · 자재 고르기 (segan/collection.js) — 탭 막대는 그대로 넷, 이 화면 안에서 둘로 나눈다 */
 .cl-seg {
   display: grid;
@@ -2241,5 +2582,124 @@ body.sg-locked {
 
   .sg-footer {
     display: block;
+  }
+
+  /* SEGAN 비서 — 위 막대 버튼 대신 본문 아래 가운데 입력 줄, 여는 것은 오른쪽 옆 패널 (segan/guide.js) */
+  .sg-ai-btn {
+    display: none;
+  }
+
+  .sg-ai-bar {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    z-index: 45; /* 본문 · 위 메뉴(30) 위, 시트 · 옆 패널(70) 아래 */
+    display: flex;
+    width: min(560px, calc(100% - 96px));
+    transform: translateX(-50%);
+    border: 1px solid var(--v5-line-25);
+    background: var(--v5-paper);
+  }
+
+  .sg-ai-bar:focus-within {
+    border-color: var(--v5-ink);
+  }
+
+  .sg-ai-bar-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 46px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--v5-ink);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 300;
+  }
+
+  .sg-ai-bar-input:focus {
+    outline: none;
+  }
+
+  .sg-ai-bar-send {
+    flex: none;
+    min-width: 72px;
+    min-height: 46px;
+    padding: 0 16px;
+    border: 0;
+    border-left: 1px solid var(--v5-line-18);
+    background: transparent;
+    color: var(--v5-ink);
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+  }
+
+  .sg-ai-bar-send:hover,
+  .sg-ai-bar-send:focus-visible {
+    background: var(--v5-ink);
+    color: var(--v5-invert);
+  }
+
+  /* 화면 아래에 붙는 버튼 줄(만들기 · 상담 신청 .mk-bar, 업무 비서 입력 .as-form)이 있는 동안은 감춘다 */
+  body:has(.mk-bar:not([hidden])) .sg-ai-bar,
+  body:has(.as-form) .sg-ai-bar {
+    display: none;
+  }
+
+  /* 시트 · 옆 패널 · 가운데 창이 열린 동안 (비서 패널이면 그 안에 입력 칸이 있다) */
+  body.sg-locked .sg-ai-bar {
+    display: none;
+  }
+
+  /* 푸터 맨 아래 줄이 입력 줄 뒤로 숨지 않게 */
+  body.sg-ai-on .sg-footer-in {
+    padding-bottom: 104px;
+  }
+
+  /* 1024 ~ 1099px 도 오른쪽 옆 패널 (셸 시트는 1100px 부터 옆 패널) */
+  .sg-sheet-wrap--panel.sg-ai-wrap {
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: flex-end;
+    padding-top: 0;
+    background: rgba(45, 42, 38, 0.16);
+  }
+
+  .sg-sheet-wrap--panel.sg-ai-wrap .sg-sheet {
+    width: 420px;
+    max-width: 100%;
+    height: 100%;
+    max-height: none;
+    border-top: 0;
+    border-left: 1px solid var(--v5-line-18);
+    animation-name: sg-sheet-side;
+  }
+
+  .sg-sheet-wrap--panel.sg-ai-wrap .sg-sheet-head {
+    padding: 4px 12px 4px 24px;
+  }
+
+  .sg-ai-top,
+  .sg-ai-scroll,
+  .sg-ai-foot,
+  .sg-ai-checking {
+    padding-right: 24px;
+    padding-left: 24px;
+  }
+
+  .sg-ai-input {
+    font-size: 14px;
+  }
+}
+
+/* 인쇄 — 비서 버튼 · 입력 줄은 종이에 넣지 않는다 (회계 보고서 등) */
+@media print {
+  .sg-ai-btn,
+  .sg-ai-bar {
+    display: none !important;
   }
 }
