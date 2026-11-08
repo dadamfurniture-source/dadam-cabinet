@@ -3,9 +3,11 @@
  *
  * 고정하는 것:
  *   1) 올릴지: COLLECTION_AUTO_POST 'on' · AI 스튜디오(플래너 모드 아님) · 기본안 있음 · 아는 품목 — 품목 짝은 표 그대로
- *   2) 무엇을: 기본안(base) 한 장을 service_role 로 읽어 공개 버킷 collection '{user}/gen-{id}.{ext}' 에 복사,
- *      행은 그 공개 URL(generations · 서명 URL 아님) · source 'ai_render' · generation_id · ON CONFLICT DO NOTHING
- *   3) 멱등 · 실패: 이미 있으면 그대로, 행을 못 넣으면 복사본을 지운다(행이 있다고 확인될 때만 남긴다), 던지지 않는다
+ *   2) 무엇을: 기본안(base) 한 장을 service_role 로 읽어 공개 버킷 collection 'ai/{무작위 UUID}.{ext}' 에 복사
+ *      (주소에 회원 id · 연출컷 id 없음 — DB 0052), 행은 그 공개 URL(generations · 서명 URL 아님) · source 'ai_render' ·
+ *      generation_id · ON CONFLICT DO NOTHING
+ *   3) 멱등 · 실패: 이미 있으면 행은 그대로 두고 방금 올린 복사본을 지운다, 행을 못 넣으면 복사본을 지운다(그 경로를
+ *      가리키는 행이 있다고 확인될 때만 남긴다), 던지지 않는다
  *   4) 잡: done 패치를 보낸 뒤에 올리고, 게시가 실패해도 done 은 그대로 · 재시도 없음. 플래너 모드는 올리지 않는다.
  *      fail() 의 기본안 있는 done 도 올리고, done 패치가 실패했으면 올리지 않는다
  *   5) 연출컷 삭제(DELETE /api/generate/:id)는 게시물 행과 복사본을 먼저 지운다
@@ -158,9 +160,18 @@ test('올릴지: on · AI 스튜디오 · 기본안 · 아는 품목일 때만',
   assert.equal(collectionPostPlan(ENV, { ...JOB, category: 'kitchen_island_x' }, CK).reason, 'unknown_category');
 });
 
-test('경로: {user_id}/gen-{generation_id}.{확장자}', () => {
-  assert.equal(collectionPath(USER_ID, ROW_ID, 'image/png'), `${USER_ID}/gen-${ROW_ID}.png`);
-  assert.equal(collectionPath(USER_ID, ROW_ID, 'image/jpeg'), `${USER_ID}/gen-${ROW_ID}.jpg`);
+const AI_PATH = /^ai\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(png|jpg|webp)$/;
+
+test('경로: ai/{무작위 UUID}.{확장자} — 회원 id · 연출컷 id 가 없고, 부를 때마다 새 경로', () => {
+  const png = collectionPath('image/png');
+  const jpg = collectionPath('image/jpeg');
+  assert.match(png, AI_PATH);
+  assert.ok(png.endsWith('.png'));
+  assert.ok(jpg.endsWith('.jpg'));
+  assert.notEqual(collectionPath('image/png'), png);
+  for (const p of [png, jpg]) {
+    assert.ok(!p.includes(USER_ID) && !p.includes(ROW_ID), p);
+  }
 });
 
 // ─── 2) 무엇을 ───
@@ -168,11 +179,15 @@ test('경로: {user_id}/gen-{generation_id}.{확장자}', () => {
 test('게시: 기본안을 읽어 collection 에 복사하고 공개 URL 로 행 하나 — ON CONFLICT DO NOTHING', async () => {
   const calls = installSupabase();
   const out = await postToCollection(ENV, JOB, CK);
-  assert.deepEqual(out, { posted: true, reason: undefined, path: `${USER_ID}/gen-${ROW_ID}.png` });
+  assert.equal(out.posted, true);
+  assert.equal(out.reason, undefined);
+  assert.match(out.path, AI_PATH);
+  assert.ok(out.path.endsWith('.png'));
+  const path = out.path;
   assert.deepEqual(calls.map((c) => c.kind), ['read', 'member', 'upload', 'insert']);
   assert.equal(calls[0].url, `${SB}/storage/v1/object/generations/${BASE.path}`, '기본안만 읽는다 (v1·방 사진 아님)');
   const up = calls[2];
-  assert.equal(up.url, `${SB}/storage/v1/object/collection/${USER_ID}/gen-${ROW_ID}.png`);
+  assert.equal(up.url, `${SB}/storage/v1/object/collection/${path}`);
   assert.equal(up.headers.Authorization, 'Bearer service');
   assert.equal(up.headers['Content-Type'], 'image/png');
   assert.equal(up.headers['x-upsert'], 'true');
@@ -183,8 +198,8 @@ test('게시: 기본안을 읽어 collection 에 복사하고 공개 URL 로 행
   assert.equal(ins.headers.Prefer, 'resolution=ignore-duplicates,return=representation');
   assert.deepEqual(ins.body, {
     user_id: USER_ID,
-    image_url: `${SB}/storage/v1/object/public/collection/${USER_ID}/gen-${ROW_ID}.png`,
-    storage_path: `${USER_ID}/gen-${ROW_ID}.png`,
+    image_url: `${SB}/storage/v1/object/public/collection/${path}`,
+    storage_path: path,
     category: 'builtin',
     source: 'ai_render',
     generation_id: ROW_ID,
@@ -193,16 +208,23 @@ test('게시: 기본안을 읽어 collection 에 복사하고 공개 URL 로 행
     company_id: null,
   });
   assert.ok(!/generations|token=|object\/sign/.test(ins.body.image_url), 'generations 주소·서명 URL 을 저장하지 않는다');
+  for (const v of [ins.body.image_url, ins.body.storage_path, up.url]) {
+    assert.ok(!v.includes(USER_ID) && !v.includes(ROW_ID), `공개 주소에 회원 id · 연출컷 id 가 없다: ${v}`);
+  }
 });
 
 // ─── 3) 멱등 · 실패 ───
 
-test('멱등: 이미 올라가 있으면(ON CONFLICT) 그대로 — 파일도 지우지 않는다', async () => {
+test('멱등: 이미 올라가 있으면(ON CONFLICT) 행은 그대로 — 방금 올린 복사본만 지운다', async () => {
   const calls = installSupabase({ insert: 'dup' });
   const out = await postToCollection(ENV, JOB, CK);
-  assert.equal(out.posted, false);
-  assert.equal(out.reason, 'duplicate');
-  assert.equal(calls.filter((c) => c.kind === 'file-delete').length, 0);
+  assert.deepEqual(out, { posted: false, reason: 'duplicate' });
+  const up = calls.find((c) => c.kind === 'upload');
+  const del = calls.filter((c) => c.kind === 'file-delete');
+  assert.equal(del.length, 1);
+  assert.equal(del[0].url, `${SB}/storage/v1/object/collection`);
+  assert.deepEqual(JSON.parse(del[0].body), { prefixes: [up.url.slice(`${SB}/storage/v1/object/collection/`.length)] });
+  assert.deepEqual(calls.map((c) => c.kind), ['read', 'member', 'upload', 'insert', 'file-delete']);
 });
 
 test('실패: 행을 못 넣으면 복사본을 지운다 — 던지지 않는다', async () => {
@@ -210,17 +232,22 @@ test('실패: 행을 못 넣으면 복사본을 지운다 — 던지지 않는�
   const calls = installSupabase({ insert: 'error', existing: [] });
   const out = await postToCollection(ENV, JOB, CK);
   assert.deepEqual(out, { posted: false, reason: 'error' });
+  const path = calls.find((c) => c.kind === 'upload').url.slice(`${SB}/storage/v1/object/collection/`.length);
+  assert.match(path, AI_PATH);
   const del = calls.find((c) => c.kind === 'file-delete');
   assert.ok(del, '복사본 삭제');
   assert.equal(del.url, `${SB}/storage/v1/object/collection`);
-  assert.deepEqual(JSON.parse(del.body), { prefixes: [`${USER_ID}/gen-${ROW_ID}.png`] });
+  assert.deepEqual(JSON.parse(del.body), { prefixes: [path] });
 });
 
-test('실패: 같은 연출컷 행이 이미 있다고 확인되면 그 행의 파일이라 남긴다', async () => {
+test('실패: 같은 연출컷 행이 방금 올린 경로를 가리킨다고 확인되면 남긴다 — 연출컷 id 와 경로로 묻는다', async () => {
   console.warn = () => {};
   const calls = installSupabase({ insert: 'error', existing: [{ id: 'p0' }] });
   await postToCollection(ENV, JOB, CK);
   assert.equal(calls.filter((c) => c.kind === 'file-delete').length, 0);
+  const path = calls.find((c) => c.kind === 'upload').url.slice(`${SB}/storage/v1/object/collection/`.length);
+  const sel = calls.find((c) => c.kind === 'select');
+  assert.equal(sel.url, `${SB}/rest/v1/collection_posts?generation_id=eq.${ROW_ID}&storage_path=eq.${path}&select=id`);
 });
 
 test('실패: 기본안을 못 읽으면 올리지도 넣지도 않는다', async () => {

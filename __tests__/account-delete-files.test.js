@@ -5,9 +5,11 @@
  *
  * 고정하는 것:
  *   1) purgeUserFiles — generations · design-images · collection 의 '{user_id}/' 폴더를 끝까지 따라가 지운다.
- *      keep 으로 준 경로는 남기고, skip 한 버킷은 건드리지 않는다. 다른 회원 · 다른 버킷은 그대로. UUID 가 아니면 아무것도 안 한다
+ *      keep 으로 준 경로는 남기고, skip 한 버킷은 건드리지 않는다. 다른 회원 · 다른 버킷은 그대로. UUID 가 아니면 아무것도 안 한다.
+ *      회원 폴더가 없는 collection 새 경로('p/…' · 'ai/…', DB 0052)는 owned 로 받은 파일 하나 모양만 지운다
  *   2) prepareWithdrawal — 공개 AI 연출컷(ai_render) 행 · 파일은 남기고, 직접 올린 시공사례(upload) 행과 나머지 파일은 지운다.
- *      남길 것을 못 읽으면 collection 버킷은 건드리지 않는다. 던지지 않고 수만 돌려준다
+ *      남길 것을 못 읽으면 collection 버킷은 건드리지 않는다. 새 경로 파일은 주인(owner_id — collection_owned_objects)으로
+ *      찾는다 (행의 storage_path 로 찾지 않는다). 던지지 않고 수만 돌려준다
  *   3) /delete · /admin/delete — 정리 → admin_logs(정본 열, 지운 수 · 남긴 수) → 계정 삭제. 일부 실패해도 탈퇴는 한다.
  *      로그 · 기록에 경로 · 이메일 · 회원 id(로그) 를 남기지 않는다
  *   4) database/withdrawal-retention.sql — 남길 FK 는 SET NULL, 문의는 CASCADE, 구독 결제 키는 트리거로 지운다
@@ -94,6 +96,7 @@ function jsonRes(body, status = 200) {
 /**
  * Supabase 흉내 — Storage 버킷(경로 목록) · list · delete · collection_posts · auth · admin_logs · is_admin.
  *   failDelete / failList: Storage 가 500 인 버킷   failPosts: { read?: true, del?: true } collection_posts 가 500
+ *   owners: { collection 새 경로: 주인 회원 id } (DB 0052 owner_id)   failOwned: collection_owned_objects 가 404
  */
 function fakeSupabase(
   files,
@@ -102,6 +105,8 @@ function fakeSupabase(
     failDelete = [],
     failList = [],
     failPosts = {},
+    owners = {},
+    failOwned = false,
     admin = false,
     designs = DESIGNS(),
     failDesigns = {},
@@ -159,6 +164,14 @@ function fakeSupabase(
       const hit = rows.filter((r) => r.user_id === uid && r.source === source);
       if (method === 'DELETE') for (const r of hit) rows.splice(rows.indexOf(r), 1);
       return jsonRes(hit.map((r) => ({ id: r.id, storage_path: r.storage_path })));
+    }
+    // collection 새 경로('p/…' · 'ai/…')의 주인 — DB 0052 collection_owned_objects
+    if (u.endsWith('/rest/v1/rpc/collection_owned_objects')) {
+      const { p_user_id } = JSON.parse(init.body);
+      calls.push({ kind: 'owned_read', uid: p_user_id, auth });
+      if (failOwned) return jsonRes({ message: 'function does not exist' }, 404);
+      const mine = [...(store.collection || [])].filter((p) => owners[p] === p_user_id && /^(p|ai)\//.test(p));
+      return jsonRes(mine.sort().map((p) => ({ path: p })));
     }
     // 설계 — 계약 기록 판정(RPC)과 지우기
     if (u.endsWith('/rest/v1/rpc/withdrawal_designs')) {
@@ -317,6 +330,23 @@ describe('purgeUserFiles', () => {
     expect(sb2.store.generations.size).toBe(1);
   });
 
+  test('owned 로 받은 새 경로(p/ · ai/ 파일 하나)도 지운다 — keep 은 그대로 걸리고, 다른 모양은 받지 않는다', async () => {
+    const files = { collection: [`${UID}/1700000000-a.jpg`, 'p/u1.jpg', 'ai/a1.png', 'ai/a2.png', `${OTHER}/x.jpg`, 'p/sub/c.jpg'] };
+    const sb = fakeSupabase(files, []);
+    global.fetch = sb.fetchImpl;
+    const r = await P.purgeUserFiles(ENV, UID, {
+      buckets: ['collection'],
+      keep: { collection: new Set(['ai/a1.png']) },
+      owned: { collection: ['p/u1.jpg', 'ai/a1.png', 'ai/a2.png', '', '..', 'p/', 'p/sub/c.jpg', `${OTHER}/x.jpg`, 'x/y.jpg', null] },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.buckets.collection).toEqual({ found: 4, deleted: 3, kept: 1, failed: 0 });
+    expect([...sb.store.collection].sort()).toEqual(['ai/a1.png', `${OTHER}/x.jpg`, 'p/sub/c.jpg'].sort());
+    expect(sb.calls.filter((c) => c.kind === 'delete').flatMap((c) => c.paths).sort()).toEqual(
+      [`${UID}/1700000000-a.jpg`, 'ai/a2.png', 'p/u1.jpg'].sort()
+    );
+  });
+
   test('쪽 넘김 · 나눠 지우기', async () => {
     const many = Array.from({ length: 7 }, (_, i) => `${UID}/f${i}.jpg`);
     const sb = fakeSupabase({ collection: many }, []);
@@ -373,6 +403,44 @@ describe('prepareWithdrawal', () => {
     expect(sb.calls[0].source).toBe('ai_render');
     expect(sb.calls[1].source).toBe('upload');
     expect(sb.calls.slice(0, 2).every((c) => c.auth === 'Bearer service')).toBe(true);
+  });
+
+  test('새 경로(DB 0052) — 주인(owner_id)으로 찾은 이 회원 파일을 지우고, 공개된 AI 연출컷 복사본은 남긴다', async () => {
+    const files = FILES();
+    files.collection = [...files.collection, 'p/up-new.jpg', 'ai/ai-new.png', 'ai/ai-unposted.png', 'p/other-new.jpg'];
+    const owners = { 'p/up-new.jpg': UID, 'ai/ai-new.png': UID, 'ai/ai-unposted.png': UID, 'p/other-new.jpg': OTHER };
+    // 직접 올린 행의 storage_path 는 회원이 적은 값 — 남의 파일을 가리켜도 그 파일은 지우지 않는다
+    const posts = [
+      ...POSTS(),
+      { id: 'p-ai-new', user_id: UID, source: 'ai_render', storage_path: 'ai/ai-new.png' },
+      { id: 'p-up-new', user_id: UID, source: 'upload', storage_path: 'p/up-new.jpg' },
+      { id: 'p-up-forged', user_id: UID, source: 'upload', storage_path: 'p/other-new.jpg' },
+    ];
+    const sb = fakeSupabase(files, posts, { owners });
+    global.fetch = sb.fetchImpl;
+    const w = await Wd.prepareWithdrawal(ENV, UID);
+    expect(w.complete).toBe(true);
+    expect(w.posts).toEqual({ upload_deleted: 3, ai_render_kept: 2 });
+    expect([...sb.store.collection].sort()).toEqual(
+      [`${UID}/gen-g1.png`, `${OTHER}/x.jpg`, 'ai/ai-new.png', 'p/other-new.jpg'].sort()
+    );
+    // 회원 폴더 3 (gen-g1 · gen-g2 · 직접 올린 사진) + 주인으로 찾은 새 경로 3 — 남긴 것은 공개된 복사본 둘
+    expect(w.files.buckets.collection).toEqual({ found: 6, deleted: 4, kept: 2, failed: 0 });
+    const owned = sb.calls.find((c) => c.kind === 'owned_read');
+    expect(owned).toMatchObject({ uid: UID, auth: 'Bearer service' });
+  });
+
+  test('새 경로 주인을 못 읽으면 그 파일은 남기고 기록에 남긴다 — 회원 폴더는 그대로 지운다', async () => {
+    const files = FILES();
+    files.collection = [...files.collection, 'p/up-new.jpg'];
+    const sb = fakeSupabase(files, POSTS(), { owners: { 'p/up-new.jpg': UID }, failOwned: true });
+    global.fetch = sb.fetchImpl;
+    const w = await Wd.prepareWithdrawal(ENV, UID);
+    expect(w.complete).toBe(false);
+    expect(w.errors).toEqual(['collection_owned_read']);
+    expect(sb.store.collection.has('p/up-new.jpg')).toBe(true);
+    expect(sb.store.collection.has(`${UID}/1700000000-a.jpg`)).toBe(false);
+    expect(w.files.buckets.collection).toEqual({ found: 3, deleted: 2, kept: 1, failed: 0 });
   });
 
   test('남길 것을 못 읽으면 collection 버킷은 건드리지 않는다 — 나머지는 지운다', async () => {

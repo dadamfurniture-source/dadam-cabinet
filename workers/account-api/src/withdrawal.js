@@ -23,6 +23,10 @@
  * 회사의 마지막 대표(active owner)는 탈퇴하지 않는다 — soleOwnerCompanies 로 먼저 본다 (worker.js).
  * 그 함수를 못 부르면 어느 설계도 지우지 않는다 — 계약 기록을 잃는 것보다 더 남기는 쪽이 안전하다.
  * 남길 AI 연출컷 복사본은 collection_posts 행으로 정한다. 그 행을 못 읽으면 collection 버킷은 건드리지 않는다.
+ * collection 새 경로('p/…' · 'ai/…', DB 0052)에는 회원 폴더가 없다 — 이 회원이 주인(storage.objects.owner_id)인 파일을
+ * DB 함수 collection_owned_objects 로 찾아 회원 폴더와 함께 지운다 (남길 복사본은 그대로 뺀다). 게시물 행의
+ * storage_path 로 찾지 않는다 — 직접 올린 행의 경로는 회원이 적은 값이라 남의 파일을 가리킬 수 있다.
+ * 그 함수를 못 부르면 새 경로 파일은 남고 기록에 남긴다 (회원 폴더는 그대로 지운다).
  * 던지지 않는다. 결과에는 수만 담는다 (경로 · 개인 정보 없음).
  */
 import { UUID_RE, makePurgeContext, purgeDesignFiles, purgeSummary, purgeUserFiles } from './storage-purge.js';
@@ -196,12 +200,23 @@ export async function prepareWithdrawal(env, userId) {
     out.errors.push('customers');
   }
 
-  // 5) 파일 — 하위 요청 상한은 둘이 나눠 쓴다
+  // 5) 파일 — collection 새 경로('p/…' · 'ai/…')는 주인(owner_id)으로 찾는다 (DB 0052). 하위 요청 상한은 둘이 나눠 쓴다
+  let owned = [];
+  if (keep) {
+    try {
+      const rows = await rest(env, 'rpc/collection_owned_objects', 'POST', { p_user_id: userId });
+      owned = rows.map((r) => r && r.path).filter(Boolean);
+    } catch {
+      out.errors.push('collection_owned_read');
+    }
+  }
   const ctx = makePurgeContext();
   out.files = await purgeUserFiles(
     env,
     userId,
-    keep ? { ctx, keep: { collection: keep } } : { ctx, skip: { collection: 'keep_unknown' } }
+    keep
+      ? { ctx, keep: { collection: keep }, owned: { collection: owned } }
+      : { ctx, skip: { collection: 'keep_unknown' } }
   );
   // 지운 설계의 renders · cad 만. 남긴(계약) 설계와 못 지운 설계의 파일은 그대로 둔다.
   out.designFiles = await purgeDesignFiles(env, goneDesigns, { ctx });

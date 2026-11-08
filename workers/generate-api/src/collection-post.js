@@ -10,10 +10,13 @@
  *
  * 어떻게:
  *   generations 버킷은 비공개다 — 그 주소를 쓰지 않는다. service_role 로 기본안을 읽어 공개 버킷 `collection` 의
- *   '{user_id}/gen-{generation_id}.{ext}' 에 복사하고, 그 공개 URL 로 collection_posts 행을 만든다
- *   (source 'ai_render', generation_id). 경로가 정해져 있어 다시 올려도 같은 파일이다.
+ *   'ai/{무작위 UUID}.{ext}' 에 복사하고, 그 공개 URL 로 collection_posts 행을 만든다 (source 'ai_render', generation_id).
+ *   공개 주소에 회원 id · 연출컷 id 를 넣지 않는다 (2026-11-09, DB 0052 — 옛 경로 '{user_id}/gen-{generation_id}.{ext}'
+ *   는 주소만 보고 올린 사람마다 묶을 수 있었다). 파일 주인(owner_id)은 DB 트리거가 게시물 주인으로 채운다 —
+ *   회원이 「시공사례에서 내리기」로 그 파일을 지운다 (0052 trg_collection_posts_ai_owner · collection_delete_owner).
  *   행은 generation_id UNIQUE 에 ignore-duplicates 로 넣는다 — 'done' 이 두 번 와도 게시물은 하나다
- *   (database/collection-auto-post.sql). 행을 못 넣으면 복사한 파일을 지운다.
+ *   (database/collection-auto-post.sql). 경로가 부를 때마다 새로 정해지므로, 게시물이 이미 있어 행이 들어가지
+ *   않았거나 행을 못 넣었으면 방금 올린 파일을 지운다.
  *
  * 사진 정보 (2026-11-08, DB 0049 — 앱 시공사례에서 사진을 누르면 보이는 장소 · 색상 · 업체):
  *   place_label  품목 이름 (COLLECTION_PLACE_LABEL). 지역은 넣지 않는다 — 연출컷의 방은 고객 집이다
@@ -116,8 +119,12 @@ export async function posterCompanyId(env, userId) {
   return (Array.isArray(rows) && rows[0] && rows[0].company_id) || null;
 }
 
-export function collectionPath(userId, generationId, mimeType) {
-  return `${userId}/gen-${generationId}.${extOf(mimeType)}`;
+/** 공개 버킷 collection 안 AI 연출컷 복사본 폴더 — 회원이 올리는 사진은 'p/' (DB 0052) */
+export const COLLECTION_AI_PREFIX = 'ai';
+
+/** 'ai/{무작위 UUID}.{ext}' — 부를 때마다 새 경로. 회원 id · 연출컷 id 를 넣지 않는다 */
+export function collectionPath(mimeType) {
+  return `${COLLECTION_AI_PREFIX}/${crypto.randomUUID()}.${extOf(mimeType)}`;
 }
 
 /**
@@ -150,7 +157,7 @@ export async function postToCollection(env, job, ck) {
     const img = await fetchObjectBase64(env, plan.base.path);
     // 업체는 파일을 올리기 전에 — 못 읽으면 아무것도 올리지 않고 건너뛴다
     const companyId = await posterCompanyId(env, job.userId);
-    path = collectionPath(job.userId, job.id, img.mimeType);
+    path = collectionPath(img.mimeType);
     await uploadBytes(env, COLLECTION_BUCKET, path, base64ToBytes(img.base64), img.mimeType, COLLECTION_CACHE_CONTROL);
     const row = await insertIgnoreDuplicate(
       env,
@@ -168,15 +175,24 @@ export async function postToCollection(env, job, ck) {
       'generation_id'
     );
     console.log(`[Job ${job.id}] collection: ${row ? 'posted' : 'already posted'} ${path}`);
-    return { posted: !!row, reason: row ? undefined : 'duplicate', path };
+    if (!row) {
+      // 이미 있는 게시물은 그때 올린 다른 경로를 가리킨다 — 방금 올린 파일은 주인 없는 공개 파일이라 지운다
+      await removeObjects(env, [path], COLLECTION_BUCKET);
+      return { posted: false, reason: 'duplicate' };
+    }
+    return { posted: true, reason: undefined, path };
   } catch (e) {
     console.warn(`[Job ${job.id}] collection post skipped:`, e.message);
-    // 행이 없으면 방금 올린 파일은 주인 없는 공개 파일이다 — 지운다. 같은 연출컷의 행이 있다고 확인될 때만
-    //   (그 행이 가리키는 같은 경로라) 남긴다. 확인을 못 하면 지운다.
+    // 행이 없으면 방금 올린 파일은 주인 없는 공개 파일이다 — 지운다. 같은 연출컷의 행이 이 경로를 가리킨다고
+    //   확인될 때만 (행은 들어갔는데 응답을 못 받은 때) 남긴다. 확인을 못 하면 지운다.
     if (path) {
       let keep = false;
       try {
-        const existing = await selectMany(env, 'collection_posts', { generation_id: `eq.${job.id}`, select: 'id' });
+        const existing = await selectMany(env, 'collection_posts', {
+          generation_id: `eq.${job.id}`,
+          storage_path: `eq.${path}`,
+          select: 'id',
+        });
         keep = Array.isArray(existing) && existing.length > 0;
       } catch (e2) {
         console.warn(`[Job ${job.id}] collection cleanup check failed:`, e2.message);
