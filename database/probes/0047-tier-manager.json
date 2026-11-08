@@ -1,0 +1,175 @@
+{
+  "title": "0047 새 등급 manager — 등급 · plan 값 목록 · 크레딧 500 · 장부 full 은 Agent · 시험만(Expert 는 장부가 있으면 read) · profile_stats manager_users (scripts/rls-probe.mjs)",
+  "ids": [
+    "company_m",
+    "company_e",
+    "company_x",
+    "company_a",
+    "company_t",
+    "entry_e",
+    "entry_a",
+    "entry_t"
+  ],
+  "users": [
+    "m_owner_user",
+    "a_owner_user",
+    "other_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_m}}, 'partner', 'probe M', 'manager', 'active'), ({{company_e}}, 'partner', 'probe E', 'expert', 'active'), ({{company_x}}, 'partner', 'probe X', 'expert', 'active'), ({{company_a}}, 'partner', 'probe A', 'agent', 'active'), ({{company_t}}, 'partner', 'probe T', 'expert', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_m}}, {{m_owner_user}}, 'owner', 'active'), ({{company_a}}, {{a_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.assistant_settings (company_id, enabled, trial, monthly_limit_micros) VALUES ({{company_t}}, false, true, NULL)",
+    "INSERT INTO public.ledger_entries (id, company_id, entry_date, direction, account, counterparty_name, amount, vat_amount, evidence_type, payment_method, source, created_by) VALUES ({{entry_e}}, {{company_e}}, date '2026-10-15', 'income', 'income.sales', NULL, 500000, 50000, 'tax_invoice', 'transfer', 'manual', {{other_user}}), ({{entry_a}}, {{company_a}}, date '2026-10-16', 'income', 'income.sales', NULL, 300000, 30000, 'tax_invoice', 'transfer', 'manual', {{a_owner_user}}), ({{entry_t}}, {{company_t}}, date '2026-10-17', 'income', 'income.sales', NULL, 100000, 10000, 'tax_invoice', 'transfer', 'manual', {{other_user}})"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "m_owner": {
+      "role": "authenticated",
+      "user": "m_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "자격 (장부/사진 읽기) — Manager none, Expert 는 장부 줄이 있으면 read · 없으면 none, Agent full, 시험 예외 Expert full (서버만)",
+      "sql": "select public.company_entitled({{company_m}}, 'ledger') || '/' || public.company_entitled({{company_m}}, 'ledger_ai') || ',' || public.company_entitled({{company_e}}, 'ledger') || '/' || public.company_entitled({{company_e}}, 'ledger_ai') || ',' || public.company_entitled({{company_x}}, 'ledger') || '/' || public.company_entitled({{company_x}}, 'ledger_ai') || ',' || public.company_entitled({{company_a}}, 'ledger') || '/' || public.company_entitled({{company_a}}, 'ledger_ai') || ',' || public.company_entitled({{company_t}}, 'ledger') || '/' || public.company_entitled({{company_t}}, 'ledger_ai')",
+      "expect": {
+        "service_role": "none/none,read/none,none/none,full/full,full/full",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "등급 맞추기 — Manager 업체 대표의 profiles.tier 는 manager (업체에서 받은 등급)",
+      "sql": "select p.tier || '/' || p.tier_source from public.profiles p where p.id = {{m_owner_user}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "manager/company"
+      }
+    },
+    {
+      "name": "Agent → Manager 로 내리면 구성원 등급도 manager, 장부 줄이 있으니 장부는 read",
+      "sql": "update public.companies set plan = 'manager' where id = {{company_a}}; select p.tier || '/' || public.company_entitled({{company_a}}, 'ledger') from public.profiles p where p.id = {{a_owner_user}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "manager/read"
+      }
+    },
+    {
+      "name": "크레딧 지급표 — manager 500 (누구나 읽기)",
+      "sql": "select cp.monthly_credits from public.credit_plans cp where cp.tier = 'manager'",
+      "expect": {
+        "*": "500"
+      }
+    },
+    {
+      "name": "구독 — plan manager 넣어짐",
+      "sql": "insert into public.subscriptions (company_id, plan, status) values ({{company_m}}, 'manager', 'active')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "구독 — 모르는 plan 은 거절",
+      "sql": "insert into public.subscriptions (company_id, plan, status) values ({{company_m}}, 'pro', 'active')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "업체 — 다음 등급 manager 넣어짐 (Agent 업체)",
+      "sql": "update public.companies set next_plan = 'manager' where id = {{company_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "업체 — 다음 등급이 지금 등급과 같으면 거절 (Manager → manager)",
+      "sql": "update public.companies set next_plan = 'manager' where id = {{company_m}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "Agent 신청 — agent 는 넣어짐",
+      "sql": "insert into public.partner_applications (user_id, kind, plan, company_name, representative_name, contact_phone, sido, gugun, business_number, intro) values ({{other_user}}, 'new', 'agent', 'probe', 'probe', '010-0000-0000', '서울', '강남구', '000-00-00000', 'probe')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "Agent 신청 — manager 신청은 거절 (신청은 그대로 agent 만)",
+      "sql": "insert into public.partner_applications (user_id, kind, plan, company_name, representative_name, contact_phone, sido, gugun, business_number, intro) values ({{other_user}}, 'new', 'manager', 'probe', 'probe', '010-0000-0000', '서울', '강남구', '000-00-00000', 'probe')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "구성원 직책 manager(실장)는 그대로 넣어짐",
+      "sql": "insert into public.company_members (company_id, user_id, role, status) values ({{company_x}}, {{other_user}}, 'manager', 'active')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "회원 통계 뷰 — 끝 열 manager_users, security_invoker 그대로",
+      "sql": "select (select a.attname::text from pg_attribute a where a.attrelid = 'public.profile_stats'::regclass and a.attnum > 0 and not a.attisdropped order by a.attnum desc limit 1) || '/' || array_to_string((select c.reloptions from pg_class c where c.oid = 'public.profile_stats'::regclass), ',')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "manager_users/security_invoker=on"
+      }
+    },
+    {
+      "name": "회원 통계 뷰 — 비로그인은 못 읽고, 서버는 manager 회원을 센다",
+      "sql": "select s.manager_users >= 1 from public.profile_stats s",
+      "roles": [
+        "anon",
+        "service_role"
+      ],
+      "expect": {
+        "anon": "deny",
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "월 보고 — 장부 줄이 있어도 Expert 업체는 받지 않고, Agent · 시험 예외는 받는다 (Expert/Agent/시험)",
+      "sql": "select public.ledger_month_report_scan(date '2026-10-01'); select (select count(*) from public.ledger_notices n where n.company_id = {{company_e}} and n.kind = 'month_report') || '/' || (select count(*) from public.ledger_notices n where n.company_id = {{company_a}} and n.kind = 'month_report') || '/' || (select count(*) from public.ledger_notices n where n.company_id = {{company_t}} and n.kind = 'month_report')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "0/1/1"
+      }
+    }
+  ]
+}
