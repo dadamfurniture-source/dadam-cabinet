@@ -137,6 +137,10 @@
           (window.DADAM_CONFIG && window.DADAM_CONFIG.generateApi && window.DADAM_CONFIG.generateApi.url) ||
           'https://dadam-generate-api.dadamfurniture.workers.dev/api/generate'
         ).replace(/\/api\/generate\/?$/, '');
+        // 그림 주소가 이 API 의 /api/share/image/<n> 이면 토큰을 X-Share-Token 헤더로 실어 받아 그린다
+        //   (<img src> 는 헤더를 싣지 못하고, 토큰은 주소에 넣지 않는다). 토큰은 이 API 에만 보낸다 —
+        //   그 밖 주소는 예전처럼 <img src> 그대로.
+        var SHARE_IMAGE = API_BASE + '/api/share/image/';
         var LABELS = {
           sink: '싱크대',
           island: '아일랜드',
@@ -183,6 +187,16 @@
           var m = /(?:^|&)t=([^&]+)/.exec(String(location.hash || '').replace(/^#/, ''));
           return m ? decodeURIComponent(m[1]) : '';
         }
+        /** 토큰을 헤더로 실어 그림을 받아 blob 주소로 — 못 받으면 그 칸은 비워 둔다 */
+        async function loadShot(img, url, token) {
+          try {
+            var res = await fetch(url, { headers: { 'X-Share-Token': token } });
+            if (!res.ok) return;
+            img.src = URL.createObjectURL(await res.blob());
+          } catch (e) {
+            /* 그 칸만 비운다 */
+          }
+        }
         function fail(title, text) {
           $('loading').hidden = true;
           $('errorTitle').textContent = title;
@@ -212,12 +226,16 @@
           var g = data.generation;
           $('title').textContent = g.title || (LABELS[g.category] || g.category) + ' 연출컷';
           $('sub').textContent = when(g.created_at) + (g.expires_at ? ' · ' + when(g.expires_at) + ' 까지 열람' : '');
-          $('shots').innerHTML = (g.images || [])
+          var shots = (g.images || []).filter(function (im) {
+            return im && typeof im.url === 'string' && im.url;
+          });
+          $('shots').innerHTML = shots
             .map(function (im, i) {
+              var viaApi = im.url.indexOf(SHARE_IMAGE) === 0;
               return (
-                '<figure><img src="' +
-                esc(im.url) +
-                '" alt="' +
+                '<figure><img ' +
+                (viaApi ? 'data-shot="' + i + '"' : 'src="' + esc(im.url) + '"') +
+                ' alt="' +
                 esc(im.label) +
                 '" loading="' +
                 (i ? 'lazy' : 'eager') +
@@ -231,6 +249,9 @@
               );
             })
             .join('');
+          Array.prototype.forEach.call($('shots').querySelectorAll('img[data-shot]'), function (img) {
+            loadShot(img, shots[Number(img.getAttribute('data-shot'))].url, token);
+          });
           var q = g.quote;
           $('quote').innerHTML = q
             ? '<p class="v5-lede-eyebrow" style="margin:0 0 6px">ESTIMATE · 예상 견적</p>' +
