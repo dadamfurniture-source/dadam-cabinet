@@ -16,6 +16,7 @@
              부른다 (/partner/me 를 두 번 묻지 않는다).
    서버      workflow-api (본인 토큰 · 응답은 { success, data } · 오류는 { success:false, message, code })
                GET  /company/consults               { items[], can_act? } 내 업체에 배정된 상담 (본사 상담의 사본)
+               GET  /company/consults/:id/image     연출컷 첫 장 (그림 그대로 — has_generation_image 인 상담만)
                POST /company/consults/:id/accept    받기 → { customer_id, project_id } (업체 고객 · 프로젝트를 만든다)
                POST /company/consults/:id/decline   못 받음 { reason } → 204
                GET/PUT /company/service-settings    { regions[{sido,gugun}], items{품목: do|outsource|no},
@@ -26,6 +27,8 @@
        상담 한 건마다 품목 · 시/군/구 · 희망 시기(시공 완료 희망 날짜) · 희망 상담일 · 연락 시간 · 도어 마감 ·
        철거 · 가격대 · 예상 견적 ·
        상세 설계 요청 · 요청 사항 · 연출컷 · 이름 · 전화 · 남은 시간(배정 기록의 expires_at — 배정 뒤 24시간)
+       연출컷은 본인 토큰으로 …/image 를 받아 blob 주소로 그린다 (<img src> 는 Authorization 을 싣지 못한다).
+         상담마다 한 번 받아 두고, 목록에서 빠지면 · 칸을 다시 채우면(load) 놓아준다(revokeObjectURL)
        기다리는 상담(assignment.state assigned): 「받기」 · 「못 받음」(까닭을 적는 칸이 그 자리에서 열린다)
        돌려보낸 상담(status returned · 못 받음 · 시간 넘김): 연락처 없이 흐리게 (서버도 연락처를 지워서 준다)
      내 평가 — 상담 칸 위 한 줄: 등급 · 고객 만족 · 응답률 (못 읽으면 줄째 뺀다)
@@ -135,6 +138,8 @@
     setErr: '',
     busy: false,
     timer: null,
+    shots: {}, // 상담 id → 연출컷 blob 주소 (null 받는 중 · false 못 받음)
+    shotGen: 0, // load 마다 늘린다 — 앞 load 의 늦은 응답은 버린다
   };
 
   var $ = function (id) {
@@ -437,15 +442,18 @@
     return f.length ? '<dl class="me-facts">' + f.join('') + '</dl>' : '';
   }
 
+  /** 연출컷 칸 — 받기 전에는 빈 칸, 받으면 paintShot 이 주소를 채운다. 못 받았으면 칸째 없다 */
   function shotHtml(x) {
-    var u = x.generation_image_url;
-    if (typeof u !== 'string' || !/^https:\/\/[^\s"'<>]+$/.test(u)) return '';
+    if (x.has_generation_image !== true || P.shots[x.id] === false) return '';
+    var u = P.shots[x.id];
     return (
-      '<a class="me-cs-shotlink" href="' +
-      esc(u) +
-      '" target="_blank" rel="noopener"><img class="me-cs-shot" src="' +
-      esc(u) +
-      '" alt="고객 연출컷" loading="lazy" /></a>'
+      '<a class="me-cs-shotlink" data-shot="' +
+      esc(x.id) +
+      '"' +
+      (u ? ' href="' + esc(u) + '"' : '') +
+      ' target="_blank" rel="noopener"><img class="me-cs-shot"' +
+      (u ? ' src="' + esc(u) + '"' : '') +
+      ' alt="고객 연출컷" /></a>'
     );
   }
 
@@ -507,6 +515,7 @@
   function renderList() {
     var box = $('partner-consults');
     if (!box) return;
+    pruneShots();
     if (!P.items) {
       box.hidden = true;
       box.innerHTML = '';
@@ -539,6 +548,7 @@
         : '<p class="me-empty">' + esc(TEXT.empty) + '</p>');
     box.hidden = false;
     startTick();
+    loadShots();
   }
 
   // ── 상담 설정 ──────────────────────────────────────────
@@ -819,6 +829,76 @@
     return { ok: res.ok && b.success === true, status: res.status, body: b };
   }
 
+  /** GET /company/consults/:id/image → blob 주소 | '' (못 받음) */
+  async function fetchShot(id) {
+    try {
+      var res = await fetch(P.base + '/company/consults/' + encodeURIComponent(id) + '/image', {
+        headers: { Authorization: 'Bearer ' + (await token()) },
+        cache: 'no-store',
+      });
+      if (!res.ok) return '';
+      return window.URL.createObjectURL(await res.blob());
+    } catch {
+      return '';
+    }
+  }
+
+  /** 받은 연출컷을 그 상담 칸에 채운다 — 못 받았으면 칸째 뺀다 */
+  function paintShot(id) {
+    var box = $('partner-consults');
+    var a = box && box.querySelector('[data-shot="' + id + '"]');
+    if (!a) return;
+    var u = P.shots[id];
+    if (!u) {
+      a.remove();
+      return;
+    }
+    a.href = u;
+    var img = a.querySelector('img');
+    if (img) img.src = u;
+  }
+
+  /** 목록의 연출컷 중 아직 받지 않은 것을 받는다 (상담마다 한 번) */
+  function loadShots() {
+    var gen = P.shotGen;
+    (P.items || []).forEach(function (x) {
+      if (x.has_generation_image !== true || Object.prototype.hasOwnProperty.call(P.shots, x.id))
+        return;
+      P.shots[x.id] = null;
+      fetchShot(x.id).then(function (u) {
+        // 그사이 칸을 다시 채웠거나(load) 목록에서 빠졌으면 놓아준다
+        if (gen !== P.shotGen || P.shots[x.id] !== null) {
+          if (u) window.URL.revokeObjectURL(u);
+          return;
+        }
+        P.shots[x.id] = u || false;
+        paintShot(x.id);
+      });
+    });
+  }
+
+  /** 목록에서 빠졌거나 연출컷이 없어진 상담의 blob 주소를 놓아준다 */
+  function pruneShots() {
+    var keep = {};
+    (P.items || []).forEach(function (x) {
+      if (x.has_generation_image === true) keep[x.id] = true;
+    });
+    Object.keys(P.shots).forEach(function (id) {
+      if (keep[id]) return;
+      if (P.shots[id]) window.URL.revokeObjectURL(P.shots[id]);
+      delete P.shots[id];
+    });
+  }
+
+  /** 칸을 다시 채울 때(load) — 받아 둔 연출컷을 모두 놓아준다 */
+  function resetShots() {
+    Object.keys(P.shots).forEach(function (id) {
+      if (P.shots[id]) window.URL.revokeObjectURL(P.shots[id]);
+    });
+    P.shots = {};
+    P.shotGen += 1;
+  }
+
   function errText(r) {
     var m = r && r.body && r.body.message;
     return typeof m === 'string' && m ? m : TEXT.generic;
@@ -1075,6 +1155,7 @@
       set.hidden = true;
       set.innerHTML = '';
     }
+    resetShots();
     var cfg = window.DADAM_CONFIG || {};
     P.base = (cfg.workflowApi && cfg.workflowApi.url) || '';
     P.sb = sb;

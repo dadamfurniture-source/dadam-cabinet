@@ -28,7 +28,8 @@
  *
  *   GET  /admin/consult-inbox · /admin/consultations/:id/candidates · POST /admin/consultations/:id/assign
  *   GET  /admin/companies · GET|PUT /admin/companies/:id/evaluation — 다담 본사 상담 분배 (src/distribution/)
- *   GET  /company/consults · POST /company/consults/:id/accept|decline · GET|PUT /company/service-settings
+ *   GET  /company/consults · GET /company/consults/:id/image · POST /company/consults/:id/accept|decline
+ *   GET|PUT /company/service-settings
  *   GET  /company/my-score — 업체 쪽 상담 (src/distribution/company.js)
  *   GET|POST /company/projects · GET /company/designs · PUT /designs/:designId/project — 업체 고객 · 프로젝트, 설계 목록 · 잇기 (src/company-projects.js)
  *   PUT /company/projects/:id/assignee · GET /company/projects/:id/assignee-candidates — 프로젝트 담당자 (src/company-assignee.js, DB 0042)
@@ -221,6 +222,7 @@ import {
 } from './distribution/admin.js';
 import {
   listCompanyConsults,
+  readCompanyConsultImage,
   acceptCompanyConsult,
   declineCompanyConsult,
   runAssignmentExpiry,
@@ -1198,6 +1200,15 @@ async function handleCompanyConsults(request, env, { user }) {
   return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
 }
 
+/** 상담 연출컷 첫 장 — 이미지 그대로 (앱이 본인 토큰으로 받아 blob 주소로 그린다) */
+async function handleCompanyConsultImage(request, env, { params, user }) {
+  const { bytes, mime } = await readCompanyConsultImage(env, { user, consultationId: params.id });
+  return new Response(bytes, {
+    status: 200,
+    headers: { ...corsHeaders(request, env), ...NO_STORE, 'Content-Type': mime, 'X-Content-Type-Options': 'nosniff' },
+  });
+}
+
 async function handleAcceptCompanyConsult(request, env, { params, user }) {
   const data = await acceptCompanyConsult(env, { user, consultationId: params.id });
   return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
@@ -1416,6 +1427,7 @@ const router = createRouter([
 
   // 업체 쪽 상담 — 목록 · 설정 읽기는 구성원, 받기 · 못 받음 · 설정 고치기 · 내 점수는 대표 · 실장
   { method: 'GET',  path: '/company/consults',                    auth: 'jwt', handler: handleCompanyConsults },
+  { method: 'GET',  path: '/company/consults/:id/image',          auth: 'jwt', handler: handleCompanyConsultImage },
   { method: 'POST', path: '/company/consults/:id/accept',         auth: 'jwt', handler: handleAcceptCompanyConsult },
   { method: 'POST', path: '/company/consults/:id/decline',        auth: 'jwt', handler: handleDeclineCompanyConsult },
   { method: 'GET',  path: '/company/service-settings',            auth: 'jwt', handler: handleGetServiceSettings },

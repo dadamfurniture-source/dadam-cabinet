@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-/* global require, describe, test, expect, afterEach, __dirname, document, window, DOMParser, sessionStorage, jest, setTimeout, Element, URL */
+/* global require, describe, test, expect, afterEach, __dirname, document, window, DOMParser, sessionStorage, jest, setTimeout, Element, URL, Blob */
 /**
  * SEGAN 「내 정보 › 팩토리」 안의 상담 · 상담 설정 · 내 평가 (segan/partner-consults.js + segan/me.html)
  *
@@ -8,6 +8,7 @@
  *           직원은 목록만 · Manager · 업체 없음 · 본사 구성원 · /partner/me 를 못 읽음 → 묻지도 않고 칸이 없다
  *   데이터  workflow-api GET /company/consults · POST …/accept · …/decline { reason } ·
  *           GET/PUT /company/service-settings · GET /company/my-score (본인 토큰, { success, data })
+ *           연출컷 GET /company/consults/:id/image (본인 토큰 → blob 주소, 서명 주소를 받지 않는다)
  *   못 읽음 403 · 404 · 오류 · 끊김 · 모양이 틀림 → 그 칸째 감춘다
  *   알림    /segan/me.html#partner-consults 로 오면 상담 칸으로 내려간다, # 만 바뀌면 다시 읽는다
  */
@@ -71,7 +72,7 @@ const waiting = (extra = {}) => ({
   description: '다음 달 입주라 급해요',
   request_detail_design: true,
   quote_total: 3128400,
-  generation_image_url: 'https://example.supabase.co/storage/v1/sign/g1.png?token=t',
+  has_generation_image: true,
   assignment: {
     id: 'dddddddd-4444-4444-8444-444444444444',
     state: 'assigned',
@@ -88,7 +89,7 @@ const returned = (extra = {}) =>
     name: '박돌림',
     phone: '010-9999-8888',
     furniture_categories: ['fridge'],
-    generation_image_url: null,
+    has_generation_image: false,
     assignment: {
       id: 'eeeeeeee-5555-4555-8555-555555555555',
       state: 'declined',
@@ -102,7 +103,7 @@ const accepted = (extra = {}) =>
     id: C3,
     status: 'confirmed',
     furniture_categories: ['shoerack'],
-    generation_image_url: null,
+    has_generation_image: false,
     assignment: {
       id: 'ffffffff-6666-4666-8666-666666666666',
       state: 'accepted',
@@ -136,6 +137,7 @@ async function load(options = {}) {
     put: (body) => ok(body),
     accept: () => ok({ customer_id: 'cu-1', project_id: 'pr-1' }),
     decline: () => noContent(),
+    image: () => ({ ok: true, status: 200 }),
     workflowUrl: WORK,
     ...options,
   };
@@ -166,7 +168,10 @@ async function load(options = {}) {
     paymentsApi: { url: PAY },
     accountApi: { url: ACC },
   };
-  const calls = { fetch: [] };
+  const calls = { fetch: [], images: [] };
+  let blobs = 0;
+  window.URL.createObjectURL = jest.fn(() => `blob:shot-${++blobs}`);
+  window.URL.revokeObjectURL = jest.fn();
   window.supabase = {
     createClient: () => ({
       auth: { getSession: async () => ({ data: { session: opts.session } }) },
@@ -187,6 +192,18 @@ async function load(options = {}) {
   let listCalls = 0;
   window.fetch = jest.fn(async (url, init = {}) => {
     const method = init.method || 'GET';
+    // 연출컷 그림은 따로 센다 (목록 · 받기 · 설정 요청 수를 보는 시험이 많다)
+    const shot = /^\/company\/consults\/([^/]+)\/image$/.exec(url.slice(WORK.length));
+    if (url.startsWith(WORK) && shot) {
+      calls.images.push({ id: shot[1], method, auth: (init.headers || {}).Authorization });
+      const r = await opts.image(shot[1]);
+      if (r instanceof Error) throw r;
+      return {
+        ok: r.ok,
+        status: r.status,
+        blob: async () => new Blob(['png'], { type: 'image/png' }),
+      };
+    }
     const body = init.body ? JSON.parse(init.body) : undefined;
     calls.fetch.push({ url, method, auth: (init.headers || {}).Authorization, body });
     const reply = (r) => {
@@ -568,14 +585,14 @@ describe('상담 목록 (계속)', () => {
 describe('상담 목록', () => {
   test('기다리는 상담 — 품목 · 지역 · 신청일 · 남은 시간 · 연출컷 · 내용 · 이름 · 전화', async () => {
     await load();
+    await flush();
     const el = item(C1);
     expect(el.querySelector('.me-c-main b').textContent).toBe('싱크대 · 붙박이장');
     expect(el.querySelector('.me-c-main small').textContent).toBe('대구광역시 수성구 · 2026.10.30');
     expect(el.querySelector('.me-badge').textContent).toBe('새 상담');
     expect(el.querySelector('.me-cs-left').textContent).toBe('남은 시간 23시간 30분');
-    expect(el.querySelector('img.me-cs-shot').getAttribute('src')).toBe(
-      waiting().generation_image_url
-    );
+    expect(el.querySelector('img.me-cs-shot').getAttribute('src')).toBe('blob:shot-1');
+    expect(el.querySelector('a.me-cs-shotlink').getAttribute('href')).toBe('blob:shot-1');
     expect(facts(el)).toEqual({
       '희망 시기': '2027.01.15 시공 완료',
       '희망 상담일': '2026.11.20',
@@ -593,6 +610,59 @@ describe('상담 목록', () => {
     // 이메일은 그리지 않는다
     expect(el.textContent).not.toContain('customer@example.com');
     expect(el.classList.contains('me-cs-item--off')).toBe(false);
+  });
+
+  test('연출컷 — 본인 토큰으로 …/image 를 받아 blob 주소로, 연출컷 없는 상담은 묻지 않는다', async () => {
+    const calls = await load();
+    await flush();
+    expect(calls.images).toEqual([{ id: C1, method: 'GET', auth: 'Bearer tok-1' }]);
+    expect(window.URL.createObjectURL).toHaveBeenCalledTimes(1);
+    expect(item(C2).querySelector('.me-cs-shotlink')).toBeNull();
+    expect(item(C3).querySelector('.me-cs-shotlink')).toBeNull();
+  });
+
+  test('연출컷 — 목록에 서명 주소(generation_image_url)가 와도 쓰지 않는다', async () => {
+    const signed =
+      'https://example.supabase.co/storage/v1/object/sign/generations/u/g/base.png?token=t';
+    const calls = await load({
+      list: ok({
+        items: [waiting({ has_generation_image: undefined, generation_image_url: signed })],
+      }),
+    });
+    await flush();
+    expect(item(C1).querySelector('.me-cs-shotlink')).toBeNull();
+    expect(calls.images).toEqual([]);
+    expect(box().innerHTML).not.toContain('supabase');
+  });
+
+  test.each([
+    ['404', () => ({ ok: false, status: 404 })],
+    ['끊김', () => new TypeError('Failed to fetch')],
+  ])('연출컷을 못 받으면(%s) 그 칸째 뺀다 — 다시 그려도 다시 묻지 않는다', async (_, image) => {
+    const calls = await load({ image });
+    await flush();
+    expect(item(C1).querySelector('.me-cs-shotlink')).toBeNull();
+    expect(window.URL.createObjectURL).not.toHaveBeenCalled();
+    await press(item(C1), '못 받음');
+    expect(item(C1).querySelector('.me-cs-shotlink')).toBeNull();
+    expect(calls.images).toHaveLength(1);
+  });
+
+  test('연출컷 — 다시 그려도 받아 둔 주소를 쓰고, 목록에서 연출컷이 빠지면 놓아준다', async () => {
+    const calls = await load({
+      list: [ok({ items: [waiting()] }), ok({ items: [returned({ id: C1 })] })],
+    });
+    await flush();
+    expect(item(C1).querySelector('img.me-cs-shot').getAttribute('src')).toBe('blob:shot-1');
+    await press(item(C1), '못 받음'); // 까닭 칸 — 목록을 다시 그린다
+    expect(item(C1).querySelector('img.me-cs-shot').getAttribute('src')).toBe('blob:shot-1');
+    expect(calls.images).toHaveLength(1);
+    expect(window.URL.revokeObjectURL).not.toHaveBeenCalled();
+    item(C1).querySelector('textarea').value = '일정';
+    await press(item(C1), '못 받음 보내기'); // 다시 읽은 목록 — 돌려보낸 상담은 연출컷이 없다
+    expect(item(C1).querySelector('.me-cs-shotlink')).toBeNull();
+    expect(window.URL.revokeObjectURL).toHaveBeenCalledWith('blob:shot-1');
+    expect(calls.images).toHaveLength(1);
   });
 
   test('돌려보낸 상담 — 흐리게, 연락처(이름 · 전화)를 그리지 않고 단추 · 남은 시간도 없다', async () => {
@@ -646,7 +716,7 @@ describe('상담 목록', () => {
             description: '  ',
             request_detail_design: false,
             quote_total: null,
-            generation_image_url: 'http://insecure.example/x.png',
+            has_generation_image: false,
           }),
         ],
       }),
