@@ -315,13 +315,13 @@ test('scheduled(): 1분 cron 은 앱 알림 + 상담 배정 되돌리기 + 5분�
   ];
   // NOW = 05:30Z — 5의 배수 분
   const minute5 = (await runScheduled(PUSH_SEND_CRON, NOW)).out;
-  assert.equal(minute5.waits, 7);
+  assert.equal(minute5.waits, 8);
   const urls5 = minute5.calls.map((c) => c.url);
-  // 앱 알림 보내기 · 장부 알림 · 아침 브리핑 · 상담 배정 되돌리기도 같은 실행에서 돈다(waits 7 — A/S 48시간 알림 포함) — 여기 ENV 에는 서명 키가 없어 앱 알림은 DB 까지 가지 않는다 (push-sender.test.js 가 본다)
+  // 앱 알림 보내기 · 장부 알림 · 아침 브리핑 · 상담 배정 되돌리기 · 제작 의뢰 답 없음도 같은 실행에서 돈다(waits 8 — A/S 48시간 알림 포함) — 여기 ENV 에는 서명 키가 없어 앱 알림은 DB 까지 가지 않는다 (push-sender.test.js 가 본다)
   for (const u of CONSULT_RPCS) assert.ok(urls5.includes(u), u);
 
   const minute3 = (await runScheduled(PUSH_SEND_CRON, NOW + 3 * 60 * 1000)).out;
-  assert.equal(minute3.waits, 4);
+  assert.equal(minute3.waits, 5);
   assert.ok(!minute3.calls.some((c) => CONSULT_RPCS.includes(c.url)));
   // 24시간 지난 상담 배정 되돌리기는 매분 (src/distribution/company.js)
   assert.ok(minute3.calls.some((c) => c.url.includes('/rest/v1/consult_assignments?')));
