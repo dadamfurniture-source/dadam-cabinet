@@ -25,7 +25,7 @@
 /* global self, caches, fetch, Request, Response, URL */
 'use strict';
 
-const ASSET_VERSION = '2026110902';
+const ASSET_VERSION = '2026110903';
 const CACHE_PREFIX = 'segan-shell-';
 const CACHE = CACHE_PREFIX + ASSET_VERSION;
 const SCOPE = new URL('./', self.location.href).pathname; // '/segan/'
@@ -35,7 +35,7 @@ const versioned = (p) => `${p}?v=${ASSET_VERSION}`;
 const SHELL = [
   SCOPE, // AI 연출컷 — 만들기 (index.html = start_url)
   SCOPE + 'collection.html', // 시공사례
-  SCOPE + 'blog.html', // 블로그 (글 준비 중)
+  SCOPE + 'blog.html', // 매거진 (글 준비 중)
   SCOPE + 'about.html', // AI 시스템 소개 (폰 탭 SEGAN)
   SCOPE + 'plans.html', // 구독 (폰 탭 SEGAN 안 [소개 | 구독])
   SCOPE + 'renders.html', // 마이페이지 › 내 연출컷

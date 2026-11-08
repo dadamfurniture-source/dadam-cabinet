@@ -1,5 +1,5 @@
 /* ============================================================
-   segan/info.css — 알리는 화면: AI 시스템 소개(about.html) · 구독(plans.html) · 블로그(blog.html)
+   segan/info.css — 알리는 화면: AI 시스템 소개(about.html) · 구독(plans.html) · 매거진(blog.html)
    v5 토큰만 쓴다 (segan/shell.css). 라운드 · 섀도 없음, 헤어라인 보더만, tan 은 꾸밈에만,
    navy 는 강조 하나(금액). 폰 먼저 — 누르는 곳은 44px 이상.
    ============================================================ */
@@ -294,7 +294,7 @@
   word-break: keep-all;
 }
 
-/* ── 블로그 ── */
+/* ── 매거진 ── */
 .bl-cats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -390,7 +390,8 @@ describe('사진 보기 — 시트 (장소 · 색상 · 업체 · 좋아요 · �
     ]);
     await openTile(3); // AI 연출컷 · 업체 있음 — 업체 이름, 제목은 AI 연출컷
     expect(sheet().querySelector('.sg-sheet-title').textContent).toBe('AI 연출컷');
-    expect(facts()).toContainEqual(['업체', '다담 공장']);
+    // 본사 업체(DB 이름 「다담 공장」)는 고객에게 「다담가구」
+    expect(facts()).toContainEqual(['업체', '다담가구']);
     await openTile(2); // 직접 올린 사진 · 업체 없음 · 장소 없음 · 색상 없음 — 줄이 없다
     expect(sheet().querySelector('.pv-facts')).toBeNull();
     expect(sheet().textContent).not.toMatch(/다담가구/);
@@ -557,7 +558,7 @@ describe('페이지', () => {
     expect(html).toMatch(/<body class="sg-app" data-tab="collection">/);
   });
 
-  test('자재 칸은 뺐다 — 고르는 칸 · 자재 글 없음, /material 은 블로그로 (material.html 파일은 그대로)', async () => {
+  test('자재 칸은 뺐다 — 고르는 칸 · 자재 글 없음, /material 은 매거진으로 (material.html 파일은 그대로)', async () => {
     await load();
     expect($('clMaterial')).toBeNull();
     expect(document.querySelector('.cl-seg, [role="tablist"]')).toBeNull();
