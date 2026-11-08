@@ -68,7 +68,8 @@ async function writeAdminLog(env, row) {
  * 받으면 남의 계정을 지목할 수 있게 된다.
  *
  * 계정을 지우기 **전에** withdrawal.js 가 정리한다 (2026-10-27):
- *   지운다 — Storage 회원 폴더(generations · design-images 전부, collection 은 공개 AI 연출컷 복사본 빼고),
+ *   지운다 — Storage 회원 폴더(generations · design-images 전부, collection 은 공개 AI 연출컷 복사본 빼고 —
+ *            회원 폴더가 없는 새 경로는 주인 owner_id 로 찾는다, DB 0052),
  *            직접 올린 시공사례 행(source 'upload'), 계약 기록이 없는 설계 행과 그 renders · cad 파일
  *   남긴다 — 시공사례에 공개된 AI 연출컷(source 'ai_render'), 결제 · 구독 기록, 계약 기록이 있는 설계
  *            (고객 확인서 · 수주가 딸린 설계)와 크레딧 원장. auth 사용자를 지울 때 FK 가 회원과 떼어 놓는다

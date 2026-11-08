@@ -7,8 +7,12 @@
  * 대상 버킷 — 첫 폴더가 회원 id 인 것 ({user_id}/…):
  *   generations     '{user_id}/{generation_id}/{file}'      AI 연출컷 입력·결과·중간 산출물 전부 (workers/generate-api)
  *   design-images   '{user_id}/{type}/{file}'               설계 사진 (js/supabase-utils.js 등)
- *   collection      '{user_id}/{file}'                      직접 올린 시공사례 사진 · 연출컷 자동 게시 복사본
+ *   collection      '{user_id}/{file}'                      직접 올린 시공사례 사진 · 연출컷 자동 게시 복사본 (옛 경로)
  *   카탈로그 버킷은 회원 것이 아니다.
+ * 회원 폴더가 없는 경로 — 부르는 쪽이 opts.owned[bucket] 으로 준다 (2026-11-09, DB 0052):
+ *   collection      'p/{uuid}.{ext}' · 'ai/{uuid}.{ext}'    새 경로 (공개 주소에 회원 id 를 넣지 않는다). 주인은
+ *                                                           storage.objects.owner_id — withdrawal.js 가
+ *                                                           collection_owned_objects 로 찾는다. OWNED_PATH_RE 모양만 받는다
  * 설계 폴더를 쓰는 버킷 — 첫 폴더가 설계 id 인 것 (purgeDesignFiles, 2026-10-27):
  *   renders         '{design_id}/{item_unique_id}/{file}'   플래너 렌더 스냅샷
  *   cad             '{design_id}/{snapshot_id}/{file}' · 'exterior/{design_id}/{snapshot_id}/{file}'
@@ -17,8 +21,8 @@
  * 남길 파일은 부르는 쪽이 opts.keep[bucket] 으로 준다 — 시공사례에 공개된 AI 연출컷 복사본(withdrawal.js).
  *
  * 폴더를 따라 내려가며 목록을 읽고(service_role, POST /storage/v1/object/list/{bucket}), 모아서 지운다
- * (DELETE /storage/v1/object/{bucket}). 회원 id 는 UUID 여야 하고, 지우는 경로는 반드시 '{user_id}/' 로 시작한다 —
- * 빈 접두사로 버킷 전체를 지우는 일이 없게.
+ * (DELETE /storage/v1/object/{bucket}). 회원 id 는 UUID 여야 하고, 지우는 경로는 반드시 '{user_id}/' 로 시작하거나
+ * opts.owned 로 받은 'p/{파일}' · 'ai/{파일}' 이다 — 빈 접두사로 버킷 전체를 지우는 일이 없게.
  *
  * 던지지 않는다. 결과(버킷마다 찾은 수 · 지운 수 · 남긴 수 · 실패 수)를 돌려준다 — 경로나 개인 정보는 담지 않는다.
  * 이 파일은 import 가 없다 — 시험(__tests__/account-delete-files.test.js)이 export 를 떼고 평가한다.
@@ -35,6 +39,8 @@ export const MAX_DEPTH = 4;
 export const MAX_STORAGE_CALLS = 900;
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** opts.owned 로 받는 경로 — collection 새 경로의 파일 하나 ('p/{파일}' · 'ai/{파일}', 하위 폴더 없음) */
+export const OWNED_PATH_RE = /^(p|ai)\/[^/]+$/;
 
 function headers(env) {
   return {
@@ -129,6 +135,8 @@ async function removeFiles(env, bucket, paths, ctx) {
  *   buckets   지울 버킷 (기본 USER_FOLDER_BUCKETS)
  *   keep      { [bucket]: Set<string> } 남길 경로 — 그 버킷에서 이 경로는 지우지 않는다
  *   skip      { [bucket]: string } 이 버킷은 건드리지 않는다 (값은 결과에 남길 사유)
+ *   owned     { [bucket]: string[] } 회원 폴더 밖의 이 회원 파일 (OWNED_PATH_RE 모양만) — 폴더 목록과 함께 지운다.
+ *             keep 은 여기에도 걸린다
  * @returns {Promise<{ok: boolean, truncated: boolean, calls: number,
  *   buckets: Object<string, {found: number, deleted: number, kept: number, failed: number, error?: string}>}>}
  *   ok — 모든 버킷을 끝까지 읽고 지울 파일을 전부 지웠다
@@ -137,6 +145,7 @@ export async function purgeUserFiles(env, userId, opts = {}) {
   const buckets = opts.buckets || USER_FOLDER_BUCKETS;
   const keepOf = opts.keep || {};
   const skipOf = opts.skip || {};
+  const ownedOf = opts.owned || {};
   const ctx = opts.ctx || makePurgeContext(opts);
   const result = { ok: false, truncated: false, calls: 0, buckets: {} };
   if (typeof userId !== 'string' || !UUID_RE.test(userId)) {
@@ -159,7 +168,9 @@ export async function purgeUserFiles(env, userId, opts = {}) {
     }
     try {
       const keep = keepOf[bucket] || new Set();
-      const paths = (await listTree(env, bucket, userId, ctx)).filter((p) => p.startsWith(`${userId}/`));
+      const owned = (ownedOf[bucket] || []).filter((p) => typeof p === 'string' && OWNED_PATH_RE.test(p));
+      const listed = (await listTree(env, bucket, userId, ctx)).filter((p) => p.startsWith(`${userId}/`));
+      const paths = [...new Set([...listed, ...owned])];
       b.found = paths.length;
       const doomed = paths.filter((p) => !keep.has(p));
       b.kept = paths.length - doomed.length;
