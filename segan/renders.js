@@ -11,10 +11,12 @@
    그 화면(segan/make.js)에 있다.
    옛 「하나 열기」 주소(renders.html?g=<id>)는 목록을 그리기 전에 그 결과 주소로 넘긴다.
    만들지 못한 연출컷은 크레딧을 돌려드린다는 안내를 붙인다 (워커가 기본안 없이 끝나면 환불한다).
+   결과 화면에서 지우고 오면 「삭제했습니다」를 한 번 알린다 — make.js 가 sessionStorage 에 남긴 코드를
+   읽자마자 지운다 (새로 고치면 다시 보이지 않는다). 알림 칸은 role="status".
 
    로그인 · 클라이언트는 segan/shell.js 가 맡는다 (SeganShell.ready 의 sb · session).
    ============================================================ */
-/* global window, document, location, setTimeout, clearTimeout, URLSearchParams */
+/* global window, document, location, sessionStorage, setTimeout, clearTimeout, URLSearchParams */
 (function () {
   'use strict';
 
@@ -39,6 +41,9 @@
   var COLUMNS =
     'id,status,progress,step_label,category,title,images,share_expires_at,share_revoked_at,created_at';
   var REFUND_NOTE = '만들지 못한 연출컷의 크레딧은 돌려드립니다.';
+  // 한 번 보일 알림 — segan/make.js LIST_NOTICE_KEY 와 같은 열쇠. 아는 코드만 글로 바꾼다
+  var NOTICE_KEY = 'segan.renders.notice';
+  var NOTICES = { deleted: '삭제했습니다' };
 
   var R = {
     sb: null,
@@ -220,8 +225,24 @@
     $('rdEmpty').hidden = R.rows.length > 0;
   }
 
+  /** 결과 화면이 남긴 알림 — 한 번 읽고 지운다. 모르는 코드 · 못 읽으면 아무것도 보이지 않는다 */
+  function takeNotice() {
+    var code = '';
+    try {
+      code = sessionStorage.getItem(NOTICE_KEY) || '';
+      sessionStorage.removeItem(NOTICE_KEY);
+    } catch {
+      return '';
+    }
+    return Object.prototype.hasOwnProperty.call(NOTICES, code) ? NOTICES[code] : '';
+  }
+
   // ── 시작 ───────────────────────────────────────────────
   async function start(auth) {
+    // 알림 칸(role="status")은 처음부터 비어 있다 — 글을 나중에 넣어야 화면 읽기가 읽어 준다
+    var note = $('rdNotice');
+    var text = takeNotice();
+    if (note && text) note.textContent = text;
     if (!auth || !auth.session || !auth.sb || !$('rdGrid')) return;
     R.sb = auth.sb;
     R.session = auth.session;
@@ -233,6 +254,7 @@
     load: load,
     resultHref: resultHref,
     REFUND_NOTE: REFUND_NOTE,
+    NOTICE_KEY: NOTICE_KEY,
   };
   window.SeganRenders = api;
   api.ready = (

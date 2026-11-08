@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-/* global require, describe, test, expect, afterEach, __dirname, document, window, DOMParser, jest */
+/* global require, describe, test, expect, afterEach, __dirname, document, window, DOMParser, jest, sessionStorage */
 /**
  * SEGAN 「내 연출컷」 탭 (segan/renders.html + segan/renders.js) — 목록만.
  *
@@ -264,6 +264,36 @@ describe('하나 열기 = 만들기 ③ 결과 화면 (결과 화면은 하나)'
     expect(read('segan/make.css')).not.toMatch(
       /\.rd-(detail|shot|box|link|acts|confirm|title|sub)\b/
     );
+  });
+});
+
+describe('결과 화면에서 지우고 왔을 때 — 「삭제했습니다」 한 번 (role="status")', () => {
+  const KEY = 'segan.renders.notice';
+  afterEach(() => sessionStorage.removeItem(KEY));
+
+  test('make.js 가 남긴 코드를 읽어 알리고 바로 지운다 — 다시 열면 없다', async () => {
+    sessionStorage.setItem(KEY, 'deleted');
+    await load();
+    const note = $('rdNotice');
+    expect(note.getAttribute('role')).toBe('status');
+    expect(visible(note)).toBe(true);
+    expect(note.textContent).toBe('삭제했습니다');
+    expect(sessionStorage.getItem(KEY)).toBeNull();
+    expect(window.SeganRenders.NOTICE_KEY).toBe(KEY);
+    // 목록 수 · 불러오는 중 줄(rdState)과는 다른 칸이라 덮이지 않는다
+    expect($('rdState').textContent).toBe('3건');
+    expect(note.textContent).toBe('삭제했습니다');
+    await load();
+    expect($('rdNotice').textContent).toBe('');
+  });
+
+  test('알림 칸은 처음부터 문서에 있고 비어 있다 (글을 나중에 넣어야 화면 읽기가 읽는다) · 모르는 코드는 보이지 않는다', async () => {
+    const html = read('segan/renders.html');
+    expect(html).toMatch(/<p class="rd-notice" id="rdNotice" role="status"><\/p>/);
+    sessionStorage.setItem(KEY, '<b>아무 글</b>');
+    await load();
+    expect($('rdNotice').textContent).toBe('');
+    expect(sessionStorage.getItem(KEY)).toBeNull();
   });
 });
 

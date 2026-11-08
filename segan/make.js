@@ -14,7 +14,8 @@
      다시 생성  POST /api/generate { parent_id, design_style, door_color } (ai-design.html ?regen=1 과 같은 호출,
                 크레딧이 다시 든다 — 화면 안에서 단가 · 남은 횟수를 보이고 한 번 더 묻는다) → 새 결과 주소로
      삭제       DELETE /api/generate/:id (워커가 공유 링크 · 시공사례 게시물 · 파일까지 지운다) — 가운데 창으로 묻고
-                내 연출컷 목록으로
+                내 연출컷 목록으로 (목록이 「삭제했습니다」를 한 번 보인다 — sessionStorage LIST_NOTICE_KEY)
+     다시 생성 · 삭제 칸은 생성이 끝나거나 실패한 뒤에만 보인다 (진행 중에는 감춘다)
      내려받기   받기 직전에 서명 URL 을 다시 확인한다 (js/storage-urls.js)
    만들지 못한 연출컷(실패 · 12분 넘게 멈춘 잡)은 크레딧을 돌려드린다는 안내를 붙인다.
    로그인 없이 결과 주소를 열면 로그인으로 보내고, 로그인하면 같은 결과 주소로 돌아온다.
@@ -94,6 +95,8 @@
   var MAX_SHOTS = 4; // 기본안 + 추천안 (ai-design.html 과 같이 넷까지)
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   var LIST_PAGE = 'renders.html'; // 내 연출컷 목록
+  // 목록에 한 번 보일 알림 — segan/renders.js 가 읽고 바로 지운다 (같은 열쇠 · 같은 코드)
+  var LIST_NOTICE_KEY = 'segan.renders.notice';
   var ACTIVE = ['queued', 'analyzing', 'rendering', 'qc', 'variants']; // my-designs.html 과 같다
   var STALE_MS = 12 * 60000; // 12분 넘게 진행 중이면 멈춘 잡으로 본다 (워커와 같은 기준)
   var REFUND_NOTE = '만들지 못한 연출컷의 크레딧은 돌려드립니다.';
@@ -587,7 +590,6 @@
     var g = S.gen;
     var on = !!g && S.phase !== 'signin';
     var done = on && S.phase === 'done';
-    var loading = S.phase === 'loading';
 
     // 공유 링크 — 완료된 것만 (워커도 그렇게 막는다)
     $('mkShareBox').hidden = !done;
@@ -611,11 +613,11 @@
     $('mkConsentBox').hidden = !(on && S.consent !== null);
     if (S.consent !== null) paintConsent(S.consent);
 
-    // 다시 생성 · 삭제 — 진행 중에는 막는다 (my-designs.html 과 같다)
-    $('mkManage').hidden = !on;
-    $('mkRegen').disabled = loading;
-    $('mkDelete').disabled = loading;
-    $('mkRegenAsk').hidden = !(on && !loading && S.regenAsk);
+    // 다시 생성 · 삭제 — 진행 중에는 칸째 감추고, 끝나거나(완료) 실패하면 보인다
+    // (my-designs.html 은 막아 두지만, 누를 수 없는 버튼을 보이지 않는다)
+    var settled = on && (S.phase === 'done' || S.phase === 'failed');
+    $('mkManage').hidden = !settled;
+    $('mkRegenAsk').hidden = !(settled && S.regenAsk);
     $('mkRegenText').textContent = S.regenAsk;
     $('mkBoxMsg').textContent = S.boxMsg;
     $('mkBoxMsg').hidden = !S.boxMsg;
@@ -898,6 +900,12 @@
     if (fail) {
       boxMsg(fail);
       return;
+    }
+    // 목록에서 「삭제했습니다」를 한 번 보인다
+    try {
+      sessionStorage.setItem(LIST_NOTICE_KEY, 'deleted');
+    } catch {
+      /* 알림 없이 목록으로 간다 */
     }
     // 지운 결과로 뒤로 가지 않게 지금 칸을 목록으로 바꾼다
     api.go(LIST_PAGE, true);
@@ -1590,6 +1598,7 @@
     DRAFT_KEY: DRAFT_KEY,
     REFUND_NOTE: REFUND_NOTE,
     DELETE_ASK: DELETE_ASK,
+    LIST_NOTICE_KEY: LIST_NOTICE_KEY,
     state: S,
     readImage: readImage,
     exifFocal35: exifFocal35,

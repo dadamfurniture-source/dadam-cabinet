@@ -265,26 +265,52 @@ describe('목록에서 연 결과 — 내 연출컷 「하나 열기」에 있�
     expect(calls.fetch.filter((f) => f.method === 'GET')).toHaveLength(1);
   });
 
-  test('진행 중 — 다시 생성 · 삭제를 막는다 (my-designs.html 과 같다)', async () => {
+  test('진행 중 — 관리(다시 생성 · 삭제) 칸을 감추고, 끝나면 보인다 (막힌 버튼을 보이지 않는다)', async () => {
     jest.useFakeTimers();
+    const running = gen({
+      status: 'rendering',
+      progress: 40,
+      images: [img(0)],
+      quote: null,
+      created_at: new Date().toISOString(),
+    });
+    const { calls } = await load({ noWait: true, gets: [running, gen()] });
+    await jest.advanceTimersByTimeAsync(0);
+    expect(visible($('mkProgress'))).toBe(true);
+    expect($('mkManage').hidden).toBe(true);
+    expect($('mkRegenAsk').hidden).toBe(true);
+    expect($('mkRefund').hidden).toBe(true);
+    // 3초 뒤 다시 읽어 완료 — 관리 칸이 나오고 버튼은 누를 수 있다
+    await jest.advanceTimersByTimeAsync(3000);
+    expect(calls.fetch.filter((f) => f.method === 'GET' && f.url === `${API}/${ID}`)).toHaveLength(
+      2
+    );
+    expect(visible($('mkManage'))).toBe(true);
+    expect($('mkRegen').disabled).toBe(false);
+    expect($('mkDelete').disabled).toBe(false);
+  });
+
+  test('진행 중 → 실패해도 관리 칸이 나온다 (다시 생성 · 삭제)', async () => {
+    jest.useFakeTimers();
+    const running = gen({
+      status: 'rendering',
+      progress: 40,
+      images: [],
+      quote: null,
+      created_at: new Date().toISOString(),
+    });
     await load({
       noWait: true,
       gets: [
-        gen({
-          status: 'rendering',
-          progress: 40,
-          images: [img(0)],
-          quote: null,
-          created_at: new Date().toISOString(),
-        }),
+        running,
+        gen({ status: 'failed', error: '만들지 못했습니다', images: [], quote: null }),
       ],
     });
     await jest.advanceTimersByTimeAsync(0);
-    expect(visible($('mkProgress'))).toBe(true);
+    expect($('mkManage').hidden).toBe(true);
+    await jest.advanceTimersByTimeAsync(3000);
+    expect(visible($('mkResError'))).toBe(true);
     expect(visible($('mkManage'))).toBe(true);
-    expect($('mkRegen').disabled).toBe(true);
-    expect($('mkDelete').disabled).toBe(true);
-    expect($('mkRefund').hidden).toBe(true);
   });
 });
 
@@ -566,6 +592,10 @@ describe('삭제 — 가운데 창으로 묻고 DELETE /api/generate/:id (my-des
     expect(seen).toEqual([
       { url: 'renders.html', replace: true, dialogOpen: false, sheetEntry: false },
     ]);
+    // 목록이 한 번 보일 알림 코드 (segan/renders.js 와 같은 열쇠)
+    expect(M.LIST_NOTICE_KEY).toBe('segan.renders.notice');
+    expect(sessionStorage.getItem('segan.renders.notice')).toBe('deleted');
+    expect(read('segan/renders.js')).toContain("var NOTICE_KEY = 'segan.renders.notice';");
     // 화면 안 확인 줄은 없다 — 창으로만 묻는다
     expect(document.getElementById('mkDeleteAsk')).toBeNull();
   });
@@ -579,6 +609,7 @@ describe('삭제 — 가운데 창으로 묻고 DELETE /api/generate/:id (my-des
     await until(() => !dialog() && $('mkBoxMsg').textContent);
     expect($('mkBoxMsg').textContent).toBe('본인 것만 지울 수 있습니다');
     expect(M.go).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem('segan.renders.notice')).toBeNull(); // 못 지웠으면 알림도 없다
     expect(visible($('mkResultTitle'))).toBe(true);
   });
 

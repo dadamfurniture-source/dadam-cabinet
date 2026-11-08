@@ -786,6 +786,133 @@ describe('시트 · 옆 패널 · 가운데 창 — SeganShell.sheet', () => {
     expect(pagePop).not.toHaveBeenCalled();
   });
 
+  /**
+   * 기록 모형 — 'jsdom' 은 jsdom 그대로(pushState 가 걸린 뒤로 가기를 취소한다),
+   * 'browser' 는 브라우저 차례: 뒤로 가기는 늦게 돌고, 그 사이 pushState 가 와도 취소되지 않으며,
+   * 돌 때의 칸에서 한 칸 뒤로 간다 (옛 셸은 이때 새 시트를 닫았다).
+   */
+  function useHistory(mode) {
+    if (mode === 'jsdom') return () => {};
+    const h = window.history;
+    const entries = [h.state];
+    let at = 0;
+    const go = (n) =>
+      setTimeout(() => {
+        const to = Math.max(0, Math.min(entries.length - 1, at + n));
+        if (to === at) return;
+        at = to;
+        window.dispatchEvent(new window.PopStateEvent('popstate', { state: entries[at] }));
+      }, 0);
+    const own = {
+      state: { get: () => entries[at], configurable: true },
+      length: { get: () => entries.length, configurable: true },
+      pushState: {
+        value: (st) => {
+          entries.splice(at + 1);
+          entries.push(st);
+          at++;
+        },
+        configurable: true,
+      },
+      replaceState: {
+        value: (st) => {
+          entries[at] = st;
+        },
+        configurable: true,
+      },
+      go: { value: go, configurable: true },
+      back: { value: () => go(-1), configurable: true },
+    };
+    Object.defineProperties(h, own);
+    return () => Object.keys(own).forEach((k) => delete h[k]);
+  }
+  const restores = [];
+  afterEach(() => {
+    while (restores.length) restores.pop()();
+  });
+
+  describe.each(['jsdom', 'browser'])('닫고 바로 열기 — 기록 모형 %s', (mode) => {
+    test('시트를 닫고(뒤로 가기가 돌아오기 전) 바로 새 시트 — 새 시트는 열린 채, 기록 칸은 하나', async () => {
+      const { S, pagePop } = await setup();
+      restores.push(useHistory(mode));
+      const len = window.history.length;
+      const a = S.open({ title: 'A', body: 'a' });
+      expect(window.history.length).toBe(len + 1);
+      const closing = a.close();
+      const onCloseB = jest.fn();
+      const b = S.open({ title: 'B', body: para('b'), onClose: onCloseB });
+      expect(wraps()).toHaveLength(1); // 창은 바로 그린다
+      expect(b.isOpen()).toBe(true);
+      await closing; // 닫기의 뒤로 가기가 돌아왔다 (한도 1.5초를 기다리지 않는다)
+      await tick();
+      expect(b.isOpen()).toBe(true);
+      expect(onCloseB).not.toHaveBeenCalled();
+      expect(wraps()).toHaveLength(1);
+      expect(atSheet()).toBe(true);
+      expect(window.history.state.page).toBe('base');
+      expect(window.history.length).toBe(len + 1); // [base, B] — A 의 칸은 남지 않는다
+      // 뒤로 가기 한 번이면 B 를 닫고 처음 칸이다
+      window.history.back();
+      await until(() => !b.isOpen());
+      expect(onCloseB).toHaveBeenCalledWith('back');
+      expect(window.history.state).toEqual({ page: 'base' });
+      await tick();
+      expect(pagePop).not.toHaveBeenCalled();
+    });
+
+    test('창(dialog)을 닫고 바로 다른 시트 — 새 시트가 앞 시트의 칸을 쓴다', async () => {
+      const { S, pagePop } = await setup();
+      restores.push(useHistory(mode));
+      const len = window.history.length;
+      const a = S.open({ title: 'A', kind: 'sheet', body: 'a' });
+      const ask = S.open({ title: '지울까요?', kind: 'dialog', body: 'x' });
+      expect(window.history.length).toBe(len + 2);
+      const closing = ask.close();
+      const b = S.open({ title: 'B', kind: 'sheet', body: 'b' });
+      expect(a.isOpen()).toBe(false);
+      await closing;
+      await tick();
+      expect(b.isOpen()).toBe(true);
+      expect(atSheet()).toBe(true);
+      expect(window.history.state.sgSheet).not.toBeUndefined();
+      await b.close();
+      expect(window.history.state).toEqual({ page: 'base' });
+      await tick();
+      expect(pagePop).not.toHaveBeenCalled();
+    });
+
+    test('창을 닫고 바로 아래 시트도 닫기 — 둘 다 칸을 되돌린다 (남은 표시 칸 없음)', async () => {
+      const { S, pagePop } = await setup();
+      restores.push(useHistory(mode));
+      const a = S.open({ title: 'A', kind: 'sheet', body: 'a' });
+      const ask = S.open({ title: '지울까요?', kind: 'dialog', body: 'x' });
+      const both = Promise.all([ask.close(), a.close()]);
+      expect(wraps()).toHaveLength(0);
+      await both;
+      expect(atSheet()).toBe(false);
+      expect(window.history.state).toEqual({ page: 'base' });
+      await tick();
+      expect(pagePop).not.toHaveBeenCalled();
+    });
+
+    test('닫는 중에 연 시트를 바로 닫기 — 칸을 넣지 않고 끝난다', async () => {
+      const { S, pagePop } = await setup();
+      restores.push(useHistory(mode));
+      const len = window.history.length;
+      const a = S.open({ title: 'A', body: 'a' });
+      const closingA = a.close();
+      const b = S.open({ title: 'B', body: 'b' });
+      const closingB = b.close();
+      expect(wraps()).toHaveLength(0);
+      await Promise.all([closingA, closingB]);
+      await tick();
+      expect(atSheet()).toBe(false);
+      expect(window.history.state).toEqual({ page: 'base' });
+      expect(window.history.length).toBe(len + 1); // 앞으로 칸(A)만 남는다 — 새 칸은 없다
+      expect(pagePop).not.toHaveBeenCalled();
+    });
+  });
+
   test('dismissible: false — Esc · 바깥 · 닫기 버튼으로 닫지 않는다 (뒤로 가기는 닫는다)', async () => {
     const { S } = await setup();
     const onClose = jest.fn();
