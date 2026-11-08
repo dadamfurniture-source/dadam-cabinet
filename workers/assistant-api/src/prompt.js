@@ -51,14 +51,19 @@ export async function loadPlaybooks(env) {
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 export const CONTEXT_OPEN = '<맥락>';
 
-/** 사람 메시지 앞에 붙는 맥락 블록 — 오늘 날짜 (한국 시간) */
-export function contextBlock(now = Date.now(), cards = []) {
+/** 「오늘은 2026-11-08 (일), 한국 시간이다.」 — 맥락 블록 첫 줄 (안내 모드 src/guide.js 도 쓴다) */
+export function todayText(now = Date.now()) {
   const kst = new Date(now + 9 * 3600 * 1000);
   const day = kst.toISOString().slice(0, 10);
+  return `오늘은 ${day} (${DAYS[kst.getUTCDay()]}), 한국 시간이다.`;
+}
+
+/** 사람 메시지 앞에 붙는 맥락 블록 — 오늘 날짜 (한국 시간) */
+export function contextBlock(now = Date.now(), cards = []) {
   const list = cards && cards.length ? ` 이 대화의 카드: ${cards.join(' · ')}.` : '';
   return {
     type: 'text',
-    text: `${CONTEXT_OPEN}오늘은 ${day} (${DAYS[kst.getUTCDay()]}), 한국 시간이다.${list}</맥락>`,
+    text: `${CONTEXT_OPEN}${todayText(now)}${list}</맥락>`,
   };
 }
 

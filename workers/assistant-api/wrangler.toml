@@ -24,8 +24,14 @@ INFERENCE_GEO = "us"
 MAX_OUTPUT_TOKENS = "8000"
 # 한 대화의 최대 차례 — 넘으면 새 대화를 시작한다 (차례마다 지난 대화 전부를 다시 보내므로 비용이 커진다)
 MAX_TURNS = "30"
-# 대화 객체를 만드는 곳 (Durable Object locationHint) — 사진 읽기 객체도 같은 곳
+# 대화 객체를 만드는 곳 (Durable Object locationHint) — 사진 읽기 객체 · 안내 모드 객체도 같은 곳
 SESSION_LOCATION = "enam"
+
+# 안내 모드 (src/guide.js) — 로그인한 누구나 앱 쓰는 법을 묻는다. 도구 없음 · 짧은 답이라 생각 정도 low · 답 3000 토큰까지
+# 하루 질문 수 한도 · 끄기는 DB(assistant_global.guide_daily_limit · guide_on, database/migrations/0048) — 배포 없이 바꾼다
+GUIDE_MODEL = "claude-haiku-5-5"
+GUIDE_EFFORT = "low"
+GUIDE_MAX_OUTPUT_TOKENS = "3000"
 
 # 영수증 · 명세표 사진 읽기 (src/extract/) — 모델 · 생각 정도 · 최대 답 토큰 · 사진마다 자동 시도 수(매분 cron 다시 걸기)
 # 읽기는 Sonnet 5.5, 읽기 전 방향 묻기는 Haiku 5.5 (각도 하나만 답한다)
@@ -52,6 +58,11 @@ class_name = "AssistantSession"
 name = "EXTRACT_JOB"
 class_name = "ExtractJob"
 
+# 안내 모드 — 사람마다 하나 (idFromName('guide:' + 사람)). 저장소는 쓰지 않는다
+[[durable_objects.bindings]]
+name = "GUIDE_SESSION"
+class_name = "GuideSession"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["AssistantSession"]
@@ -60,12 +71,16 @@ new_sqlite_classes = ["AssistantSession"]
 tag = "v2"
 new_sqlite_classes = ["ExtractJob"]
 
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["GuideSession"]
+
 # 사진 읽기 전에 돌리기 (src/extract/job.js rotatePhoto) — 방향을 물어 0 이 아니면 돌린 JPEG 를 읽는다. 버킷의 사진은 그대로.
 # Images 무료 플랜: 달마다 서로 다른 변환 5,000개까지 (넘으면 새 변환이 9422 오류 → 그 시도는 rotate_failed_9422)
 [images]
 binding = "IMAGES"
 
-# 차례 보내기 분 한도 — 사람마다. 넘으면 429 rate_limited. namespace_id 는 계정 안에서 겹치지 않는 정수
+# 차례 보내기 분 한도 — 사람마다(안내 모드 질문은 키 guide:사람 으로 따로 센다). 넘으면 429 rate_limited. namespace_id 는 계정 안에서 겹치지 않는 정수
 [[ratelimits]]
 name = "ASSISTANT_TURN_LIMIT"
 namespace_id = "7501"

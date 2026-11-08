@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /* global require, describe, test, expect, afterEach, __dirname, document, window, DOMParser, sessionStorage, jest, File, Event, Storage, setTimeout, URL */
 /**
- * SEGAN 만들기 — ① 사진 · ② 가구 · 로그인 전 임시 보관 (segan/index.html + segan/make.js).
+ * SEGAN 만들기 — 진행 단계 6칸 · ① 사진 · ② 품목 · 로그인 전 임시 보관 (segan/index.html + segan/make.js).
+ * ③ 참고 사진은 segan-make-refs.test.js, 결과(4 생성 · 5 견적서)는 segan-make-result*.test.js.
  *
  *   - 품목 · 스타일 · 도어 색 · 냉장고 선택지가 ai-design.html 과 같다 (새 선택지를 만들지 않는다)
- *   - 사진 찍기(카메라) · 앨범 → 미리보기 · 다시 선택, 다음 단계
+ *   - 사진 찍기(카메라) · 앨범 → 미리보기(칸 안에 원본 전체 · 채워 보기) · 다시 선택, 다음 단계
  *   - 크레딧 안내 (credit_costs · 남은 횟수 = my_credit_wallet 잔액) 와 시공사례 안내 문장
  *   - 로그인 전 생성 → sessionStorage 에만 담고 login.html?redirect= 로. 돌아오면 같은 단계로 되살리고
  *     저절로 생성하지 않는다. 로그인 전에는 아무것도 올리지 않는다 (fetch 없음)
@@ -188,6 +189,70 @@ describe('선택지 — ai-design.html 과 같다', () => {
   });
 });
 
+describe('진행 단계 6칸 — 1 사진 · 2 품목 · 3 참고 사진 · 4 생성 · 5 견적서 · 6 상담 신청', () => {
+  const marks = () =>
+    [...document.querySelectorAll('.mk-steps [data-mark]')].map((b) => ({
+      mark: b.getAttribute('data-mark'),
+      text: b.textContent.trim(),
+      done: b.classList.contains('mk-stepnav--done'),
+      current: b.getAttribute('aria-current') === 'step',
+      disabled: b.disabled,
+    }));
+
+  test('여섯 칸 글 · 차례, 화면 단계는 넷 (#photo · #kind · #refs · #result)', async () => {
+    const { M } = await load();
+    expect(marks().map((m) => m.text)).toEqual([
+      '1 사진',
+      '2 품목',
+      '3 참고 사진',
+      '4 생성',
+      '5 견적서',
+      '6 상담 신청',
+    ]);
+    expect(M.STEPS).toEqual(['photo', 'kind', 'refs', 'result']);
+    expect(M.MARKS).toEqual(['photo', 'kind', 'refs', 'make', 'quote', 'consult']);
+    expect(
+      [...document.querySelectorAll('.mk-steps [data-goto]')].map((b) =>
+        b.getAttribute('data-goto')
+      )
+    ).toEqual(['photo', 'kind', 'refs', 'result', 'result', 'consult']);
+    expect([...document.querySelectorAll('[data-step]')].map((s) => s.dataset.step)).toEqual(
+      M.STEPS
+    );
+    const css = read('segan/make.css');
+    expect(css).toMatch(/\.mk-steps\s*\{[^}]*grid-template-columns:\s*repeat\(6,/);
+  });
+
+  test('사진 → 품목 → 참고 사진 — 지금 칸까지 켜지고, 지나온 칸만 누를 수 있다', async () => {
+    await load();
+    let m = marks();
+    expect(m.filter((x) => x.current).map((x) => x.mark)).toEqual(['photo']);
+    expect(m.filter((x) => x.done).map((x) => x.mark)).toEqual(['photo']);
+    expect(m.every((x) => x.disabled)).toBe(true);
+    await choose('mkAlbumInput');
+    $('mkNext').click();
+    expect(window.location.hash).toBe('#kind');
+    $('mkNext').click();
+    expect(window.location.hash).toBe('#refs');
+    expect(visible($('mkRefsTitle'))).toBe(true);
+    m = marks();
+    expect(m.filter((x) => x.current).map((x) => x.mark)).toEqual(['refs']);
+    expect(m.filter((x) => x.done).map((x) => x.mark)).toEqual(['photo', 'kind', 'refs']);
+    expect(m.filter((x) => !x.disabled).map((x) => x.mark)).toEqual(['photo', 'kind']);
+    // 2 품목을 누르면 되돌아간다
+    document.querySelector('[data-mark="kind"]').click();
+    expect(window.location.hash).toBe('#kind');
+    expect(visible($('mkKindTitle'))).toBe(true);
+  });
+
+  test('누르는 칸은 44px 이상, 좁은 폭에서 글이 낱말 중간에서 끊기지 않는다', () => {
+    const css = read('segan/make.css');
+    const m = css.match(/\n\.mk-stepnav\s*\{([^}]*)\}/)[1];
+    expect(m).toMatch(/min-height:\s*44px/);
+    expect(m).toMatch(/word-break:\s*keep-all/);
+  });
+});
+
 describe('① 사진', () => {
   test('처음 — 사진 단계만, 다음 버튼은 막힘, 진행 단계 1', async () => {
     await load();
@@ -239,6 +304,29 @@ describe('① 사진', () => {
     expect(draft() && draft().photo).toBeFalsy();
   });
 
+  test('칸 안에 원본 전체 (전체 보기 기본) · 채워 보기는 보기만 바꾼다 — 칸 모양 · 담는 사진은 그대로', async () => {
+    await load();
+    expect($('mkFitRow').hidden).toBe(true); // 사진이 없으면 감춘다
+    await choose('mkAlbumInput');
+    expect(visible($('mkFitRow'))).toBe(true);
+    expect(pressed('mkFit')).toEqual(['전체 보기']);
+    expect($('mkDrop').classList.contains('mk-drop--fill')).toBe(false);
+    // 칸을 사진 비율로 바꾸지 않는다 — 칸(4:3) 안에 contain 으로 전체를 보인다
+    expect($('mkDrop').getAttribute('style') || '').not.toMatch(/aspect-ratio/);
+    expect(MAKE).not.toMatch(/aspectRatio/);
+    expect(read('segan/make.css')).toMatch(/\n\.mk-drop\s*\{[^}]*aspect-ratio:\s*4 \/ 3/);
+    const before = sessionStorage.getItem(KEY);
+    document.querySelector('[data-fit="cover"]').click();
+    expect(pressed('mkFit')).toEqual(['채워 보기']);
+    expect($('mkDrop').classList.contains('mk-drop--fill')).toBe(true);
+    expect(sessionStorage.getItem(KEY)).toBe(before); // 사진을 자르지 않는다
+    document.querySelector('[data-fit="contain"]').click();
+    expect($('mkDrop').classList.contains('mk-drop--fill')).toBe(false);
+    const css = read('segan/make.css');
+    expect(css).toMatch(/\.mk-photo\s*\{[^}]*position:\s*absolute;[^}]*object-fit:\s*contain/);
+    expect(css).toMatch(/\.mk-drop--fill \.mk-photo\s*\{[^}]*object-fit:\s*cover/);
+  });
+
   test('다시 선택 — 사진을 버리고 담아 둔 사진도 지운다 (고른 값은 남는다)', async () => {
     await load();
     await choose('mkAlbumInput');
@@ -253,7 +341,7 @@ describe('① 사진', () => {
   });
 });
 
-describe('② 가구', () => {
+describe('② 품목', () => {
   async function toKind(opts) {
     const r = await load(opts);
     await choose('mkAlbumInput');
@@ -261,17 +349,32 @@ describe('② 가구', () => {
     return r;
   }
 
-  test('다음 → 가구 단계 (#kind), 진행 단계 2, 1 은 눌러 되돌아갈 수 있다', async () => {
+  test('다음 → 품목 단계 (#kind), 진행 단계 2, 1 은 눌러 되돌아갈 수 있다', async () => {
     await toKind();
     expect(window.location.hash).toBe('#kind');
     expect(visible($('mkKindTitle'))).toBe(true);
     expect(visible($('mkPhotoTitle'))).toBe(false);
     expect(document.querySelector('[aria-current="step"]').getAttribute('data-goto')).toBe('kind');
     expect(document.querySelector('[data-goto="photo"]').disabled).toBe(false);
+    expect(document.querySelector('[data-goto="refs"]').disabled).toBe(true);
     expect(document.querySelector('[data-goto="result"]').disabled).toBe(true);
+    expect(document.querySelector('[data-goto="consult"]').disabled).toBe(true);
     document.querySelector('[data-goto="photo"]').click();
     expect(visible($('mkPhotoTitle'))).toBe(true);
     expect(visible($('mkPhoto'))).toBe(true); // 사진은 그대로
+  });
+
+  test('품목 단계의 아래 버튼은 「다음 · 참고 사진 고르기」 — 생성 버튼 · 크레딧 줄은 ③ 에', async () => {
+    await toKind();
+    expect(visible($('mkNext'))).toBe(true);
+    expect($('mkNext').textContent).toBe('다음 · 참고 사진 고르기');
+    expect($('mkRun').hidden).toBe(true);
+    expect($('mkCost').hidden).toBe(true);
+    expect($('mkPost').hidden).toBe(true);
+    $('mkNext').click();
+    expect(window.location.hash).toBe('#refs');
+    expect($('mkNext').hidden).toBe(true);
+    expect(visible($('mkRun'))).toBe(true);
   });
 
   test('가구 10종 · 기본 싱크대 · 스타일 5 · 도어 색 7, 하나씩만 눌림', async () => {
@@ -378,11 +481,13 @@ describe('시트 · 옆 패널 기록 칸 (segan/shell.js SeganShell.sheet) — 
   });
 });
 
-describe('크레딧 안내 — 생성 버튼 위', () => {
+describe('크레딧 안내 — 생성 버튼 위 (③ 참고 사진 단계)', () => {
   async function kindWith(opts) {
     const r = await load(opts);
     await choose('mkAlbumInput');
     $('mkNext').click();
+    $('mkNext').click();
+    expect(window.location.hash).toBe('#refs');
     return r;
   }
 
@@ -445,6 +550,7 @@ describe('로그인 문 — 크레딧을 쓰는 버튼에서만', () => {
     $('mkNext').click();
     document.querySelector('[data-kind="fridge"]').click();
     document.querySelector('[data-door="walnut woodgrain"]').click();
+    $('mkNext').click();
     $('mkRun').click();
     await flush();
     expect(M.go).toHaveBeenCalledTimes(1);
@@ -455,9 +561,10 @@ describe('로그인 문 — 크레딧을 쓰는 버튼에서만', () => {
     expect(AuthRedirect.fromSearch(url.search)).toBe('segan/index.html');
     expect(draft()).toMatchObject({
       v: 1,
-      step: 'kind',
+      step: 'refs',
       photo: { base64: 'QUJD', name: 'kitchen.jpg' },
       choices: { kind: 'fridge', door: 'walnut woodgrain' },
+      refs: [],
     });
     expect(calls.fetch).toEqual([]);
     expect(calls.writes).toEqual([]);
@@ -469,7 +576,7 @@ describe('로그인 문 — 크레딧을 쓰는 버튼에서만', () => {
       balance: 1000,
       draft: {
         v: 1,
-        step: 'kind',
+        step: 'refs',
         photo: PHOTO,
         choices: {
           kind: 'fridge',
@@ -483,7 +590,8 @@ describe('로그인 문 — 크레딧을 쓰는 버튼에서만', () => {
     });
     const start = jest.spyOn(M, 'start');
     await flush();
-    expect(visible($('mkKindTitle'))).toBe(true);
+    expect(visible($('mkRefsTitle'))).toBe(true);
+    expect(window.location.hash).toBe('#refs');
     expect($('mkPhoto').getAttribute('src')).toBe('data:image/jpeg;base64,QUJD');
     expect(pressed('mkKinds')).toEqual(['냉장고장']);
     expect(pressed('mkStyles')).toEqual(['클래식']);
@@ -498,10 +606,19 @@ describe('로그인 문 — 크레딧을 쓰는 버튼에서만', () => {
     expect(M.go).not.toHaveBeenCalled();
   });
 
+  test('예전에 담은 것(가구 단계 · 참고 사진 칸 없음)도 그대로 되살린다', async () => {
+    const { M } = await load({
+      draft: { v: 1, step: 'kind', photo: PHOTO, choices: { kind: 'wardrobe' } },
+    });
+    expect(visible($('mkKindTitle'))).toBe(true);
+    expect(pressed('mkKinds')).toEqual(['붙박이장']);
+    expect(M.state.refs).toEqual([]);
+  });
+
   test('로그인한 채 생성 → 로그인으로 보내지 않고 생성 단계(start)로 간다', async () => {
     const { M } = await load({
       session: SESSION,
-      draft: { v: 1, step: 'kind', photo: PHOTO, choices: {} },
+      draft: { v: 1, step: 'refs', photo: PHOTO, choices: {} },
     });
     const start = jest.spyOn(M, 'start').mockResolvedValue(undefined);
     $('mkRun').click();
@@ -533,6 +650,7 @@ describe('로그인 문 — 크레딧을 쓰는 버튼에서만', () => {
     const { M } = await load();
     await choose('mkAlbumInput');
     $('mkNext').click();
+    $('mkNext').click();
     const real = Storage.prototype.setItem;
     jest.spyOn(Storage.prototype, 'setItem').mockImplementation(function (k, v) {
       if (String(v).includes('QUJD')) throw new Error('QuotaExceededError');
@@ -545,11 +663,13 @@ describe('로그인 문 — 크레딧을 쓰는 버튼에서만', () => {
     expect(M.go).toHaveBeenCalledTimes(1);
   });
 
-  test('Supabase 라이브러리가 없어도 사진 · 가구는 고를 수 있다 (생성은 로그인으로)', async () => {
+  test('Supabase 라이브러리가 없어도 사진 · 품목은 고를 수 있다 (생성은 로그인으로)', async () => {
     const { M } = await load({ noSupabase: true });
     await choose('mkAlbumInput');
     $('mkNext').click();
     expect(visible($('mkKindTitle'))).toBe(true);
+    $('mkNext').click();
+    expect(visible($('mkRefsTitle'))).toBe(true);
     expect($('mkCost').hidden).toBe(true); // 단가를 모르면 줄을 감춘다
     $('mkRun').click();
     await flush();
