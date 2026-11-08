@@ -8,41 +8,43 @@
     <title>마이페이지 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026110807" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026110807" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026110807" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110807" />
+    <link rel="icon" href="icons/icon.svg?v=2026110809" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110809" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110809" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110809" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026110807" />
+    <link rel="stylesheet" href="shell.css?v=2026110809" />
     <!-- 업체 칸의 입력 · 버튼 — 만들기 탭과 같은 모양 (consult.html · renders.html 처럼 싣는다) -->
-    <link rel="stylesheet" href="make.css?v=2026110807" />
+    <link rel="stylesheet" href="make.css?v=2026110809" />
     <!-- 로그인 상태 · 역할 링크 판정 — 기존 사이트의 판정 모듈을 그대로 싣는다 (segan/shell.js 머리말).
          설계(간편 플래너)는 모듈 없이 워크플로 API GET /planner/access 로 판정한다 -->
-    <script src="../js/config.js?v=2026110807"></script>
+    <script src="../js/config.js?v=2026110809"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026110807"></script>
-    <script src="../js/mypage-work.js?v=2026110807"></script>
+    <script src="../js/admin-access.js?v=2026110809"></script>
+    <script src="../js/mypage-work.js?v=2026110809"></script>
     <!-- 업체 칸: Manager · Expert 카드 등록 · Agent 결제 · 다시 시작 — pricing.html 과 같은 토스 결제창 -->
     <script src="https://js.tosspayments.com/v1/payment" defer></script>
     <!-- 내 정보 › 알림 (web push) — 셸의 로그아웃이 이 기기 구독을 지우려 SeganPush.forget 을 부른다 -->
-    <script src="push.js?v=2026110807" defer></script>
-    <script src="regions.js?v=2026110807" defer></script>
-    <script src="partner.js?v=2026110807" defer></script>
-    <script src="partner-consults.js?v=2026110807" defer></script>
-    <script src="books.js?v=2026110807" defer></script>
-    <script src="partner-projects.js?v=2026110807" defer></script>
+    <script src="push.js?v=2026110809" defer></script>
+    <script src="regions.js?v=2026110809" defer></script>
+    <script src="partner.js?v=2026110809" defer></script>
+    <script src="partner-consults.js?v=2026110809" defer></script>
+    <script src="books.js?v=2026110809" defer></script>
+    <script src="partner-projects.js?v=2026110809" defer></script>
     <!-- A/S 접수 — 내 프로젝트의 「A/S 신청」 · 내 접수 · 팩토리 A/S함 (segan/as-requests.js) -->
-    <script src="as-requests.js?v=2026110807" defer></script>
+    <script src="as-requests.js?v=2026110809" defer></script>
     <!-- 내 프로젝트 다음 결제 — 결제 칸 · 토스 결제창 (위 v1 결제 모듈) -->
-    <script src="pay.js?v=2026110807" defer></script>
-    <script src="shell.js?v=2026110807" defer></script>
-    <script src="make.js?v=2026110807" defer></script>
-    <script src="me.js?v=2026110807" defer></script>
+    <script src="pay.js?v=2026110809" defer></script>
+    <!-- 내 것 › 좋아요 — 시공사례와 같은 타일 · 사진 보기 (segan/collection-view.js) -->
+    <script src="collection-view.js?v=2026110809" defer></script>
+    <script src="shell.js?v=2026110809" defer></script>
+    <script src="make.js?v=2026110809" defer></script>
+    <script src="me.js?v=2026110809" defer></script>
   </head>
   <body class="sg-app" data-tab="me">
     <div data-segan-shell="header"></div>
@@ -101,12 +103,14 @@
               <ul class="sg-rows" id="meHqRows"></ul>
             </section>
 
-            <!-- 내 것 — 누구나 (내 프로젝트 · A/S 접수 · 알림은 그 칸을 읽었을 때만) -->
+            <!-- 내 것 — 누구나 (내 프로젝트 · A/S 접수 · 알림은 그 칸을 읽었을 때만), 좋아요는 늘 -->
             <section class="sg-section me-group" id="meGroupMine" aria-labelledby="meGroupMineTitle">
               <h2 id="meGroupMineTitle">내 것</h2>
               <ul class="sg-rows">
                 <!-- 내 연출컷 — 예전 아래 탭 「내 연출컷」 (목록 renders.html, 하나는 만들기 ③ 결과로 연다) -->
                 <li data-me-item="renders"><a class="sg-row" href="renders.html" id="meRenders">내 연출컷</a></li>
+                <!-- 좋아요 — 시공사례에서 ♡ 한 사진 (#likes) -->
+                <li data-me-item="likes"><a class="sg-row" href="#likes" data-me-go="likes">좋아요</a></li>
                 <li data-me-item="consults"><a class="sg-row" href="#consults" data-me-go="consults">상담 내역</a></li>
                 <li data-me-item="projects-mine" hidden><a class="sg-row" href="#projects-mine" data-me-go="projects-mine">내 프로젝트</a></li>
                 <li data-me-item="as-mine" hidden><a class="sg-row" href="#as-mine" data-me-go="as-mine">A/S 접수</a></li>
@@ -168,6 +172,18 @@
               <div class="me-pt-group me-as" id="as" hidden></div>
               <!-- 업체 › 회계 — workflow-api GET /books/summary. 대표 · 실장만, 읽은 뒤에만 보인다 (segan/books.js) -->
               <div class="me-pt-group me-bk" id="meBooks" hidden></div>
+            </section>
+
+            <!-- 좋아요 (#likes) — 시공사례에서 ♡ 한 사진. RPC collection_my_likes (본인 것만, 좋아한 때 최신순 30장씩 —
+                 처음 열 때 읽는다). 누르면 시공사례와 같은 사진 보기 (segan/collection-view.js), ♡ 를 풀고 닫으면 뺀다 -->
+            <section class="sg-section me-screen" id="meLikeSection" aria-labelledby="meLikeTitle">
+              <h2 id="meLikeTitle">좋아요</h2>
+              <div class="cl-grid" id="meLikes"></div>
+              <p class="me-empty" id="meLikeEmpty" hidden>
+                아직 좋아요한 사진이 없습니다. 시공사례에서 ♡ 를 누르면 여기에 모입니다.
+              </p>
+              <p class="cl-state" id="meLikeState" role="status"></p>
+              <button type="button" class="sg-btn cl-more" id="meLikeMore" hidden>더 보기</button>
             </section>
 
             <!-- 상담 내역 (#consults) — 본인 consultations (최신순) -->

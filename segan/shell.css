@@ -1594,66 +1594,60 @@ a.sg-row.ad-row::after {
   color: var(--v5-on-dark-42);
 }
 
-/* ── 시공사례 (collection.html) — 사이트 v5-tile 과 같은 모양 ── */
-.cl-tiles {
+/* ── 시공사례 (segan/collection.js · 마이페이지 좋아요 — 타일은 segan/collection-view.js) ──
+   사진을 정사각 칸으로 — 폰 3칸 · PC(1024px~) 4칸, 칸 사이 2px (768px~ 3px).
+   폰은 좌우 여백 없이 화면 끝까지 (안전 영역 안에서). 라운드 · 섀도 없음 */
+.cl-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px 10px;
-  margin-top: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+  margin: 16px calc(env(safe-area-inset-right) - max(var(--sg-px), env(safe-area-inset-right))) 0
+    calc(env(safe-area-inset-left) - max(var(--sg-px), env(safe-area-inset-left)));
 }
 
 .cl-tile {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-}
-
-.cl-open {
+  position: relative;
   display: block;
   width: 100%;
+  aspect-ratio: 1 / 1;
   padding: 0;
   border: 0;
-  background: none;
-  cursor: zoom-in;
-}
-
-.cl-img {
-  display: block;
-  aspect-ratio: 1 / 1;
-  background-color: var(--v5-photo);
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
-}
-
-.cl-cap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.cl-brand {
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-
-.cl-dot {
-  flex: none;
-  width: 12px;
-  height: 1px;
-  background: var(--v5-line-25);
-}
-
-.cl-region {
   overflow: hidden;
-  font-size: 11.5px;
-  font-weight: 300;
-  color: var(--v5-ink-55);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  background: var(--v5-photo);
+  cursor: pointer;
+}
+
+.cl-tile img,
+.pv-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  -webkit-touch-callout: none; /* 길게 눌러 저장 막기 — 다운로드 단추 · 링크를 두지 않는 것과 같은 뜻 */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.cl-tile img {
+  object-fit: cover;
+}
+
+.cl-tile:focus-visible {
+  outline: 2px solid var(--v5-ink);
+  outline-offset: -2px;
+}
+
+/* AI 연출컷 — 귀퉁이 표시 (실제 시공 사진으로 오해하지 않게) */
+.cl-mark {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 1px 5px;
+  background: rgba(24, 22, 20, 0.62);
+  color: var(--v5-on-dark);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
 }
 
 .cl-state {
@@ -1673,63 +1667,101 @@ a.sg-row.ad-row::after {
   height: 1px;
 }
 
-/* 크게 보기 — 앱 안 겹창. 다운로드 없음 */
-.cl-view {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-  flex-direction: column;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
-    env(safe-area-inset-left);
-  background: #181614; /* 불투명 — 뒤 화면 · 아래 탭이 비치지 않게 */
+/* 사진 보기 (segan/collection-view.js — SeganShell.sheet: 폰 아래 시트 · PC 옆 패널).
+   사진은 시트 폭 끝까지, 자리는 누른 타일의 그림 크기로 먼저 잡는다 (aspect-ratio — 밀림 없음) */
+.pv {
+  display: grid;
+  gap: 16px;
 }
 
-.cl-view-img {
-  flex: 1;
-  min-height: 0;
-  margin: 16px;
-  background-position: center;
-  background-size: contain;
-  background-repeat: no-repeat;
+.pv-photo {
+  max-height: 62vh;
+  margin: -16px calc(-1 * max(20px, env(safe-area-inset-right))) 0
+    calc(-1 * max(20px, env(safe-area-inset-left)));
+  background: var(--v5-photo);
 }
 
-.cl-view-bar {
+.pv-photo img {
+  object-fit: contain;
+}
+
+.pv-bar {
   display: flex;
   align-items: center;
+  margin-top: -6px;
+}
+
+.pv-like {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
-  padding: 8px 12px 14px;
-  color: var(--v5-on-dark);
-}
-
-.cl-view-cap {
-  flex: 1;
-  margin: 0;
-  text-align: center;
-  font-size: 13px;
-  font-weight: 300;
-}
-
-.cl-view-btn {
   min-width: 44px;
   min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--v5-on-dark-12);
-  border-radius: 0;
+  padding: 0 4px 0 0;
+  border: 0;
   background: transparent;
-  color: var(--v5-on-dark);
-  font: inherit;
+  color: var(--v5-ink);
   font-size: 14px;
+  font-weight: 300;
+  letter-spacing: 0.02em;
   cursor: pointer;
 }
 
-.cl-view-btn:disabled {
-  opacity: 0.35;
-  cursor: default;
+.pv-like[aria-pressed='true'] .pv-heart {
+  fill: currentColor;
 }
 
-/* 겹창이 열린 동안 뒤 화면은 넘어가지 않는다 — cl-: 크게 보기, sg-: 시트 · 옆 패널 · 가운데 창 */
-body.cl-locked,
+.pv-like:focus-visible {
+  outline: 1px solid var(--v5-ink);
+  outline-offset: 2px;
+}
+
+.pv-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.pv-error {
+  margin: -8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--v5-ink-60);
+}
+
+.pv-facts {
+  margin: 0;
+  border-top: 1px solid var(--v5-line);
+}
+
+.pv-facts div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--v5-line);
+  font-size: 14px;
+}
+
+.pv-facts dt {
+  flex: none;
+  color: var(--v5-ink-55);
+}
+
+.pv-facts dd {
+  min-width: 0;
+  margin: 0;
+  text-align: right;
+}
+
+.pv-make {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.pv-login .sg-btn {
+  margin-top: 16px;
+}
+
+/* 겹창이 열린 동안 뒤 화면은 넘어가지 않는다 — 시트 · 옆 패널 · 가운데 창 */
 body.sg-locked {
   overflow: hidden;
 }
@@ -1887,6 +1919,10 @@ body.sg-locked {
   .sg-sheet-wrap--panel .sg-sheet-body {
     padding: 20px 24px 24px;
   }
+
+  .sg-sheet-wrap .pv-photo {
+    margin: -20px -24px 0;
+  }
 }
 
 /* 움직임 줄이기 — 미끄러짐 · 흐려짐 없이 바로 */
@@ -1897,7 +1933,7 @@ body.sg-locked {
   }
 }
 
-/* 시공사례 · 자재 고르기 (segan/collection.js) — 탭 막대는 그대로 넷, 이 화면 안에서 둘로 나눈다 */
+/* 칸 둘 고르기 — 만들기 ③ 참고 사진 고르기 창의 시공사례 · 테마 (segan/make.js · make.css .mk-pick) */
 .cl-seg {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1926,271 +1962,11 @@ body.sg-locked {
   color: var(--v5-invert);
 }
 
-/* 자재 (사이트 material.html 의 글 · 사진) — 라운드 · 섀도 없이, 헤어라인만 */
-.mt {
-  display: flex;
-  flex-direction: column;
-  gap: 40px;
-}
-
-.mt-hero,
-.mt-sec,
-.mt-block,
-.mt-theme {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.mt-sec {
-  padding-top: 28px;
-  border-top: 1px solid var(--v5-line);
-}
-
-.mt-tag {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 300;
-  letter-spacing: 0.24em;
-  color: var(--v5-tan);
-}
-
-.mt-h {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 300;
-  letter-spacing: 0.02em;
-}
-
-.mt-sub {
-  margin: 8px 0 0;
-  font-size: 15px;
-  font-weight: 400;
-}
-
-.mt-lead,
-.mt-text {
-  margin: 0;
-  font-size: 13.5px;
-  font-weight: 300;
-  line-height: 1.8;
-  color: var(--v5-ink-62);
-}
-
-.mt-note {
-  margin: 0;
-  font-size: 12px;
-  color: var(--v5-ink-45);
-}
-
-.mt-badge {
-  align-self: flex-start;
-  padding: 2px 8px;
-  border: 1px solid var(--v5-ink);
-  font-size: 11px;
-  letter-spacing: 0.1em;
-}
-
-.mt-box {
-  margin: 4px 0 0;
-  padding: 14px 16px;
-  background: var(--v5-well);
-  font-size: 13px;
-  font-weight: 300;
-  line-height: 1.8;
-}
-
-.mt-box strong,
-.mt-text strong {
-  font-weight: 500;
-}
-
-/* 사진 — 배경으로만 (시공사례와 같다), 비율은 원본 사진 그대로 */
-.mt-img {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  background-color: var(--v5-photo);
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
-}
-
-.mt-img--doc {
-  background-color: var(--v5-paper);
-  background-size: contain;
-}
-
-.mt-img--circle {
-  max-width: 420px;
-  margin: 8px auto 0;
-  background-color: transparent;
-}
-
-.mt-figs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.mt-fig {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 0;
-}
-
-.mt-fig figcaption {
-  font-size: 12px;
-  font-weight: 300;
-  text-align: center;
-  color: var(--v5-ink-60);
-}
-
-/* 실제 테스트 결과 — 막대 둘 */
-.mt-bars {
-  display: grid;
-  gap: 10px;
-}
-
-.mt-bar {
-  display: grid;
-  grid-template-columns: 7.5em minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-  font-size: 12.5px;
-  font-weight: 300;
-}
-
-.mt-bar-track {
-  display: block;
-  background: var(--v5-well);
-}
-
-.mt-bar-fill {
-  display: block;
-  padding: 6px 8px;
-  background: var(--v5-ink-32);
-  color: var(--v5-paper);
-  font-size: 12px;
-  text-align: right;
-}
-
-.mt-bar-fill--new {
-  background: var(--v5-ink);
-}
-
-.mt-axis {
-  display: flex;
-  justify-content: space-between;
-  margin: 0 0 0 calc(7.5em + 10px);
-  font-size: 11px;
-  color: var(--v5-ink-45);
-}
-
-/* 표 — 좁은 화면에서는 표만 옆으로 민다 */
-.mt-table-wrap {
-  overflow-x: auto;
-  border: 1px solid var(--v5-line-12);
-}
-
-.mt-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12.5px;
-  font-weight: 300;
-  text-align: center;
-  white-space: nowrap;
-}
-
-.mt-table th,
-.mt-table td {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--v5-line);
-}
-
-.mt-table thead th {
-  background: var(--v5-well);
-  font-weight: 400;
-}
-
-.mt-table tbody th {
-  font-weight: 400;
-  text-align: left;
-}
-
-.mt-table small {
-  font-size: 11px;
-  color: var(--v5-ink-45);
-}
-
-.mt-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 12px;
-}
-
-.mt-card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 16px;
-  border: 1px solid var(--v5-line-18);
-  background: var(--v5-paper);
-}
-
-.mt-card .mt-sub {
-  margin-top: 0;
-}
-
-/* Mega Theme — 키워드 · 색 */
-.mt-theme {
-  padding-top: 20px;
-}
-
-.mt-keys {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0;
-}
-
-.mt-keys span {
-  padding: 3px 10px;
-  border: 1px solid var(--v5-line-18);
-  font-size: 12px;
-  font-weight: 300;
-}
-
-.mt-chips {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: 4px 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 12.5px;
-  font-weight: 300;
-}
-
-.mt-chips li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.mt-swatch {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  border: 1px solid var(--v5-line-12);
-}
-
 /* ── PC ── */
 @media (min-width: 768px) {
-  .cl-tiles {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 26px;
+  .cl-grid {
+    gap: 3px;
+    margin: 20px 0 0;
   }
 
   /* 넓은 본문 폭 — 만들기 · 상담 신청은 make.css .sg-main.mk */
@@ -2208,6 +1984,11 @@ body.sg-locked {
 @media (min-width: 1024px) {
   .sg-app {
     padding-bottom: 0;
+  }
+
+  /* 시공사례 · 좋아요 — PC 는 4칸 */
+  .cl-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .sg-header {

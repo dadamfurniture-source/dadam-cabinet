@@ -332,7 +332,7 @@ describe('전환 — 옛 주소는 앱으로', () => {
     const map = Object.fromEntries(REDIRECTS.map(([from, to, status]) => [from, `${to} ${status}`]));
     const want = {
       '/': '/segan/', index: '/segan/', 'ai-design': '/segan/', collection: '/segan/collection',
-      material: '/segan/collection#material', consultation: '/segan/consult', 'partner-recommendation': '/segan/consult',
+      material: '/segan/blog', consultation: '/segan/consult', 'partner-recommendation': '/segan/consult',
       'my-designs': '/segan/renders', mypage: '/segan/me', pricing: '/segan/plans', billing: '/segan/billing', worker: '/segan/work',
     };
     for (const [page, to] of Object.entries(want)) {

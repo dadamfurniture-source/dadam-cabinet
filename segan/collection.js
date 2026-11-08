@@ -1,27 +1,27 @@
 /* ============================================================
    segan/collection.js — 「시공사례」 탭 (segan/collection.html)
 
-   사이트 collection.html 과 같은 방식으로 읽는다 — 누구나(로그인 없이) 본다:
-     collection_posts 를 최신순(created_at DESC), 24줄씩 키셋으로 (idx_collection_posts_created)
-     region 칸이 없는 DB 면 region 없이 다시 묻는다
-     DB 사례를 앞에, 자체 시공 사진(STATIC, 같은 목록)을 뒤에
-     source 'ai_render'(AI 스튜디오 자동 게시)는 「AI 연출컷」 으로 적는다 (실제 시공 사진으로 오해하지 않게)
-   사이트와 다른 점: 정적 사진은 DB 사례를 다 받은 뒤에 붙인다 (사이트는 첫 24줄 뒤에 두고 다음 DB 줄을
-   그 뒤에 잇는다 — 앱은 최신순이 끝까지 이어지게). 처음 9장 · 6장씩 더(같다) + 「더 보기」 단추,
-   누르면 앱 안에서 크게 본다.
-   이미지는 배경으로만 그린다 — 다운로드 단추 · 링크는 두지 않는다. 관리자 「내리기」는 사이트에만 있다.
-
-   자재 — 같은 화면 안의 둘째 칸 (탭 막대는 넷 그대로). 글 · 사진은 사이트 material.html 그대로이고
-   collection.html 에 적혀 있다 (여기서는 고르기만). 주소가 collection.html#material 이면 자재로 연다,
-   고르면 주소의 #material 을 붙이거나 뗀다 (새 기록을 쌓지 않는다).
+   사진을 인스타그램처럼 정사각 칸으로 늘어놓는다 — 폰 3칸 · PC(1024px~) 4칸, 칸 사이 2~3px (segan/shell.css .cl-grid).
+   누구나(로그인 없이) 본다:
+     collection_posts 최신순(created_at DESC), 24줄씩 키셋 (idx_collection_posts_created) — 공개 칸만 읽는다
+       id · image_url · place_label · door_color · company_id · like_count · source · created_at (DB 0049)
+     업체 이름은 RPC collection_post_companies (업체가 있는 게시물만, 쪽마다 한 번)
+     로그인했으면 이 쪽에서 내가 좋아한 것 — collection_likes post_id (본인 줄만 읽힌다)
+     DB 사례를 다 받은 뒤에 자체 시공 사진(STATIC — 사이트 collection.html 과 같은 목록)을 붙인다
+       (최신순이 끝까지 이어지고, 이미 그린 자리 사이로 새 줄이 끼어들지 않는다)
+   처음 24장 · 24장씩 더 — 아래까지 내리면 저절로(IntersectionObserver), 없으면 「더 보기」 단추.
+   누르면 사진 보기(장소 · 색상 · 업체 · 좋아요 · 이 스타일로 연출컷) — segan/collection-view.js (SeganPostView)
+   AI 연출컷(source 'ai_render')은 타일 귀퉁이에 「AI」 — 실제 시공 사진으로 오해하지 않게.
+   다운로드 단추 · 링크는 두지 않는다. 관리자 「내리기」는 사이트에만 있다.
+   자재 칸은 여기서 뺐다 — 자재 글은 블로그로 옮긴다 (/material 은 /segan/blog 로 넘긴다, _redirects).
    ============================================================ */
-/* global window, document, location, history, IntersectionObserver */
+/* global window, document, IntersectionObserver */
 (function () {
   'use strict';
 
-  var FIRST = 9; // 처음 노출 (collection.html 과 같다)
-  var STEP = 6; // 더 보기마다
-  var PAGE = 24; // 서버에서 한 번에
+  var PAGE = 24; // 서버에서 한 번에 · 처음 노출 · 더 보기마다 (3칸 · 4칸 모두 줄이 꽉 찬다)
+  var COLS = 'id,image_url,place_label,door_color,company_id,like_count,source,created_at';
+  var SELF = 'collection'; // 로그인 뒤 돌아올 곳 (segan/shell.js loginHref)
 
   // collection.html STATIC 과 같은 목록 (segan/ 에서 보므로 ../)
   var STATIC = [
@@ -43,113 +43,86 @@
   ];
 
   var S = {
-    db: [], // DB 사례 (최신순)
+    db: [], // DB 사례 (최신순, SeganPostView 모양)
     posts: [], // 화면 순서 = DB 사례 + (DB 를 다 받았으면) 정적 사례
     shown: 0,
     loading: false,
     exhausted: false,
     cursor: null,
-    hasRegion: true,
     sb: null,
-    open: -1, // 크게 보는 사례
-    back: null, // 닫으면 초점을 돌려줄 곳
-    panel: 'cases', // 보이는 칸 — cases(시공사례) | material(자재)
+    userId: '', // 로그인한 사람 (없으면 '')
+    liked: {}, // 게시물 id → true (내가 좋아한 것)
+    sheet: null, // 열린 사진 보기
   };
 
   var $ = function (id) {
     return document.getElementById(id);
   };
 
-  function esc(s) {
-    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-    });
+  function PV() {
+    return window.SeganPostView;
   }
 
-  /** CSS url() 안에 넣을 주소 — 따옴표 · 괄호 · 역슬래시를 막는다 */
-  function cssUrl(u) {
-    return 'url("' + String(u || '').replace(/["\\\n\r()]/g, encodeURIComponent) + '")';
+  function loginHref() {
+    var Shell = window.SeganShell;
+    return Shell && Shell.loginHref ? Shell.loginHref(SELF) : '../login.html';
   }
 
   // ── 서버 ───────────────────────────────────────────────
-  function queryPage(withRegion) {
+  function queryPage() {
     var q = S.sb
       .from('collection_posts')
-      .select(
-        withRegion ? 'id, image_url, region, source, created_at' : 'id, image_url, created_at'
-      )
+      .select(COLS)
       .order('created_at', { ascending: false })
       .limit(PAGE);
     if (S.cursor) q = q.lt('created_at', S.cursor);
     return q;
   }
 
+  /** 다음 쪽 — 게시물 + 업체 이름 + (로그인했으면) 내 좋아요. 못 읽으면 더 묻지 않는다 */
   async function fetchPage() {
     if (!S.sb || S.exhausted) return [];
     var res;
     try {
-      res = await queryPage(S.hasRegion);
-      if (res.error && S.hasRegion) {
-        S.hasRegion = false;
-        res = await queryPage(false);
-      }
+      res = await queryPage();
     } catch (e) {
       res = { error: e };
     }
-    if (res.error) {
+    if (!res || res.error) {
       S.exhausted = true;
       return [];
     }
-    var rows = res.data || [];
-    if (rows.length < PAGE) S.exhausted = true;
+    var rows = (res.data || []).filter(function (r) {
+      return r && r.id && r.image_url;
+    });
+    if ((res.data || []).length < PAGE) S.exhausted = true;
     if (rows.length) S.cursor = rows[rows.length - 1].created_at;
-    return rows;
+    var ids = rows.map(function (r) {
+      return r.id;
+    });
+    var withCompany = rows
+      .filter(function (r) {
+        return !!r.company_id;
+      })
+      .map(function (r) {
+        return r.id;
+      });
+    var both = await Promise.all([
+      PV().companies(S.sb, withCompany),
+      PV().myLikes(S.sb, S.userId, ids),
+    ]);
+    Object.keys(both[1]).forEach(function (id) {
+      S.liked[id] = true;
+    });
+    return rows.map(function (r) {
+      return PV().fromRow(r, both[0][r.id]);
+    });
   }
 
   // ── 그리기 ─────────────────────────────────────────────
-  function caption(p) {
-    var ai = p.source === 'ai_render';
-    var region = ai ? '' : String(p.region || '').trim();
-    return { brand: ai ? 'AI 연출컷' : '다담가구', region: region, ai: ai };
-  }
-
-  function label(p) {
-    var c = caption(p);
-    return c.ai
-      ? 'AI 연출컷'
-      : c.region
-        ? '다담가구 시공 사례 · ' + c.region
-        : '다담가구 시공 사례';
-  }
-
-  function tileHTML(p, i) {
-    var c = caption(p);
-    return (
-      '<figure class="cl-tile' +
-      (c.ai ? ' cl-tile--ai' : '') +
-      '">' +
-      '<button type="button" class="cl-open" data-open="' +
-      i +
-      '" aria-label="' +
-      esc(label(p)) +
-      ' 크게 보기"><span class="cl-img" style="background-image:' +
-      esc(cssUrl(p.image_url)) +
-      '"></span></button>' +
-      '<figcaption class="cl-cap"><span class="cl-brand">' +
-      esc(c.brand) +
-      '</span>' +
-      (c.region
-        ? '<span class="cl-dot" aria-hidden="true"></span><span class="cl-region">' +
-          esc(c.region) +
-          '</span>'
-        : '') +
-      '</figcaption></figure>'
-    );
-  }
-
   function render(from) {
     var html = '';
-    for (var i = from; i < S.shown; i++) html += tileHTML(S.posts[i], i);
+    for (var i = from; i < S.shown; i++) html += PV().tileHTML(S.posts[i], i);
     $('clTiles').insertAdjacentHTML('beforeend', html);
   }
 
@@ -160,20 +133,15 @@
   function updateState() {
     $('clState').textContent = S.loading
       ? '불러오는 중'
-      : atEnd()
-        ? S.posts.length
-          ? '마지막 사례입니다'
-          : ''
-        : S.shown + ' / ' + S.posts.length + (S.exhausted ? '' : '+');
+      : atEnd() && S.posts.length
+        ? '마지막 사례입니다'
+        : '';
     $('clMore').hidden = S.loading || atEnd();
   }
 
-  /**
-   * DB 사례를 모두 받은 뒤에 정적 사례를 붙인다 — 최신순이 끝까지 지켜지고, 이미 그린 자리 사이로
-   * 새 줄이 끼어들지 않는다 (사이트는 첫 묶음 뒤에 정적 사례를 두고 다음 DB 줄을 그 뒤에 잇는다).
-   */
+  /** DB 사례를 모두 받은 뒤에 정적 사례를 붙인다 */
   function syncPosts() {
-    S.posts = S.exhausted ? S.db.concat(STATIC) : S.db.slice();
+    S.posts = S.exhausted ? S.db.concat(STATIC.map(PV().fromStatic)) : S.db.slice();
   }
 
   /** 다음 묶음 — 실제 레코드 수에서 멈춘다 (되풀이하지 않는다) */
@@ -194,121 +162,43 @@
     updateState();
   }
 
-  // ── 크게 보기 ──────────────────────────────────────────
-  function openView(i) {
+  // ── 사진 보기 ──────────────────────────────────────────
+  function openPost(i, tile) {
     var p = S.posts[i];
-    if (!p) return;
-    if (S.open < 0) S.back = document.activeElement;
-    S.open = i;
-    $('clViewImg').style.backgroundImage = cssUrl(p.image_url);
-    $('clViewImg').setAttribute('aria-label', label(p));
-    var c = caption(p);
-    $('clViewCap').textContent = c.region ? c.brand + ' · ' + c.region : c.brand;
-    $('clPrev').disabled = i <= 0;
-    $('clNext').disabled = i >= S.shown - 1;
-    $('clView').hidden = false;
-    document.body.classList.add('cl-locked');
-    $('clClose').focus();
-  }
-
-  function closeView() {
-    if (S.open < 0) return;
-    S.open = -1;
-    $('clView').hidden = true;
-    $('clViewImg').style.backgroundImage = '';
-    document.body.classList.remove('cl-locked');
-    if (S.back && S.back.focus) S.back.focus();
-  }
-
-  // ── 시공사례 · 자재 고르기 ───────────────────────────────
-  var PANELS = { cases: ['clTabCases', 'clCases'], material: ['clTabMaterial', 'clMaterial'] };
-  var MATERIAL_HASH = '#material';
-
-  function panelOfHash() {
-    return location.hash === MATERIAL_HASH ? 'material' : 'cases';
-  }
-
-  /** 칸 하나만 보인다. keepHash 가 아니면 주소의 #material 을 맞춘다 */
-  function showPanel(name, keepHash) {
-    if (!PANELS[name]) name = 'cases';
-    Object.keys(PANELS).forEach(function (k) {
-      var tab = $(PANELS[k][0]);
-      var panel = $(PANELS[k][1]);
-      if (!tab || !panel) return;
-      var on = k === name;
-      tab.setAttribute('aria-selected', on ? 'true' : 'false');
-      tab.tabIndex = on ? 0 : -1;
-      panel.hidden = !on;
+    if (!p || !PV()) return null;
+    S.sheet = PV().open(p, {
+      sb: S.sb,
+      userId: S.userId,
+      liked: !!(p.id && S.liked[p.id]),
+      loginHref: loginHref(),
+      img: tile ? tile.querySelector('img') : null,
+      onLike: function (post, on) {
+        if (on) S.liked[post.id] = true;
+        else delete S.liked[post.id];
+      },
+      onClose: function () {
+        S.sheet = null;
+      },
     });
-    S.panel = name;
-    if (!keepHash && panelOfHash() !== name) {
-      try {
-        history.replaceState(
-          null,
-          '',
-          location.pathname + location.search + (name === 'material' ? MATERIAL_HASH : '')
-        );
-      } catch {
-        /* 주소를 못 바꿔도 화면은 바뀐다 */
-      }
-    }
-  }
-
-  function bindPanels() {
-    Object.keys(PANELS).forEach(function (k) {
-      var tab = $(PANELS[k][0]);
-      if (!tab) return;
-      tab.addEventListener('click', function () {
-        showPanel(k);
-      });
-      // 왼쪽 · 오른쪽 화살표로 옆 칸 (tablist)
-      tab.addEventListener('keydown', function (e) {
-        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-        var next = k === 'cases' ? 'material' : 'cases';
-        showPanel(next);
-        $(PANELS[next][0]).focus();
-        e.preventDefault();
-      });
-    });
-    window.addEventListener('hashchange', function () {
-      showPanel(panelOfHash(), true);
-    });
-    showPanel(panelOfHash(), true);
+    return S.sheet;
   }
 
   function bind() {
-    bindPanels();
     $('clTiles').addEventListener('click', function (e) {
       var b = e.target.closest('[data-open]');
-      if (b) openView(Number(b.getAttribute('data-open')));
+      if (b) openPost(Number(b.getAttribute('data-open')), b);
     });
+    PV().guardImages($('clTiles'));
     $('clMore').addEventListener('click', function () {
-      loadMore(STEP);
-    });
-    $('clClose').addEventListener('click', closeView);
-    $('clPrev').addEventListener('click', function () {
-      openView(S.open - 1);
-    });
-    $('clNext').addEventListener('click', function () {
-      openView(S.open + 1);
-    });
-    // 바깥(어두운 곳)을 눌러도 닫는다
-    $('clView').addEventListener('click', function (e) {
-      if (e.target === $('clView')) closeView();
-    });
-    document.addEventListener('keydown', function (e) {
-      if (S.open < 0) return;
-      if (e.key === 'Escape') closeView();
-      else if (e.key === 'ArrowLeft' && S.open > 0) openView(S.open - 1);
-      else if (e.key === 'ArrowRight' && S.open < S.shown - 1) openView(S.open + 1);
+      loadMore(PAGE);
     });
     // 아래까지 내리면 저절로 더 (지원하는 브라우저만 — 없으면 「더 보기」 단추)
     if (typeof IntersectionObserver === 'function') {
       var io = new IntersectionObserver(
         function (entries) {
-          if (entries[0].isIntersecting && !S.loading && !atEnd()) loadMore(STEP);
+          if (entries[0].isIntersecting && !S.loading && !atEnd()) loadMore(PAGE);
         },
-        { rootMargin: '300px' }
+        { rootMargin: '600px' }
       );
       io.observe($('clSentinel'));
     }
@@ -328,29 +218,42 @@
     return null;
   }
 
+  /** 로그인한 사람 — 이 기기의 세션만 본다 (없으면 '') */
+  async function userOf(sb) {
+    if (!sb || !sb.auth || typeof sb.auth.getSession !== 'function') return '';
+    try {
+      var r = await sb.auth.getSession();
+      var s = r && r.data ? r.data.session : null;
+      return (s && s.user && s.user.id) || '';
+    } catch {
+      return '';
+    }
+  }
+
   async function init() {
-    if (!$('clTiles')) return;
+    if (!$('clTiles') || !PV()) return;
     bind();
     S.sb = client();
     S.loading = true;
     updateState();
+    S.userId = await userOf(S.sb);
     var rows = await fetchPage();
     S.db = rows;
     if (!S.sb) S.exhausted = true;
     syncPosts();
     S.loading = false;
-    S.shown = Math.min(FIRST, S.posts.length);
+    S.shown = Math.min(PAGE, S.posts.length);
     render(0);
     updateState();
   }
 
   var api = {
     STATIC: STATIC,
+    PAGE: PAGE,
+    COLS: COLS,
     state: S,
     loadMore: loadMore,
-    openView: openView,
-    closeView: closeView,
-    showPanel: showPanel,
+    openPost: openPost,
   };
   window.SeganCollection = api;
   api.ready = new Promise(function (resolve) {

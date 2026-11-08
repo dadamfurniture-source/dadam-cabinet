@@ -12,8 +12,8 @@
              · 회계 ledger.html — segan/books.js 가 GET /ledger/me 로 장부(full · read)를 열 때
                (사진만 올리면 「영수증 · 명세표 올리기」) · 설계 · 비서 — 셸 판정 (SeganShell.ROLE_LINKS group company)
        본사  관리 · 관리자 화면 (PC) — 셸 판정 is_admin (ROLE_LINKS group hq)
-       내 것 내 연출컷 · 상담 내역 #consults · 내 프로젝트 #projects-mine · A/S 접수 #as-mine (둘은 그 칸을 읽었을 때만) ·
-             크레딧 · 구독(billing.html) · 내 활동 · 알림 #notify (push.js 가 칸을 열 때만) · 설정
+       내 것 내 연출컷 · 좋아요 #likes · 상담 내역 #consults · 내 프로젝트 #projects-mine · A/S 접수 #as-mine
+             (둘은 그 칸을 읽었을 때만) · 크레딧 · 구독(billing.html) · 내 활동 · 알림 #notify (push.js 가 칸을 열 때만) · 설정
    하위 화면 (SCREENS — 주소 #이름)
      폰 · 태블릿은 하나만 (메뉴를 감추고 위에 「‹ 마이페이지」 · 그 화면 이름), PC 는 오른쪽 칸 —
      # 가 없으면 업체 구성원은 업체 묶음의 첫 칸(대개 팩토리), 아니면 상담 내역. 다른 페이지(연출컷 · 구독 · 설정 · 활동 ·
@@ -26,13 +26,16 @@
    업체 칸은 segan/partner.js 가 그린다 (여기서 로그인 뒤 SeganPartner.load 를 부른다). 업체 › 상담 · 상담 설정은
    segan/partner-consults.js, 업체 › 회계는 segan/books.js, 알림 칸은 segan/push.js 가 그린다 (업체 칸을 읽은 뒤
    SeganPartnerConsults.load · SeganBooks.load · SeganPush.load 에 그 /partner/me 를 넘긴다). 로그아웃 · 사업자 정보는
-   segan/shell.js. 여기서는 넷을 채운다:
+   segan/shell.js. 여기서는 다섯을 채운다:
      내 프로젝트 workflow-api GET /me/projects (본인 토큰). 단계 6칸 · 끝난 상태 · 계약 금액 ·
                 다음 결제(안 낸 것 중 낼 날이 가장 이른 것 — 워커 payments.js 와 같은 due_on 오름차순 ·
                 빈 날 뒤) · 설치일. 수금 단계 이름은 erp.html PAY_STAGE_LABELS · 워커 payments.js 와 같다.
                 다음 결제 줄 아래 결제 칸 — 결제 버튼 · 가상계좌 입금 안내 · 확인 중 (segan/pay.js, 다담 공장 수주만)
                 못 읽으면(오류 · 404 · 주소 없음) 칸째 감춘다 — 가짜 값을 그리지 않는다
                 시공 완료 줄 아래 「A/S 신청」 · 「A/S 접수」 칸 · 팩토리 A/S함은 segan/as-requests.js
+     좋아요    시공사례에서 ♡ 한 사진 — RPC collection_my_likes (DB 0049 — 본인 것만, 좋아한 때 liked_at 최신순).
+                30장씩, 다음 쪽은 마지막 liked_at 을 p_before 로. 화면(#likes)을 처음 열 때 읽는다.
+                타일 · 사진 보기 · ♡ 는 시공사례와 같다 (segan/collection-view.js SeganPostView) — ♡ 를 풀고 닫으면 뺀다
      상담 내역  consultations (본인 — RLS 「Users can view own consultations」), 최신순.
                 상태 이름은 admin/consultations.html STATUS_LABELS 와 같다
      크레딧    RPC my_credit_wallet (업체 구성원이면 업체 통장, 아니면 내 통장) + credit_costs 로 「생성 N회」
@@ -55,6 +58,8 @@
   // 등급 이름 — segan/billing.js PLAN_KO · segan/plans.html 과 같다 (profiles.tier, DB 0047)
   var TIER_NAME = { standard: 'Standard', manager: 'Manager', expert: 'Expert', agent: 'Agent' };
   var LIMIT = 20;
+  var LIKE_PAGE = 30; // 좋아요 한 쪽 (collection_my_likes p_limit)
+  var LIKE_RETURN = 'segan/me.html#likes'; // 좋아요 화면 로그인 뒤 돌아올 곳
 
   // 내 프로젝트 — GET /me/projects 의 stage 순서 그대로 (상담 → 시공 완료)
   var PROJECT_STAGES = [
@@ -324,6 +329,93 @@
     }
   }
 
+  // ── 좋아요 (#likes) ─────────────────────────────────────
+  // posts = 그린 차례 (♡ 를 풀고 닫은 것은 null — 타일 차례 번호를 그대로 둔다), before = 다음 쪽 기준 liked_at
+  var LK = { posts: [], before: null, done: false, loading: false, started: false, failed: false };
+
+  function likeUser() {
+    return (H.session && H.session.user && H.session.user.id) || '';
+  }
+
+  function paintLikes() {
+    var left = LK.posts.filter(Boolean).length;
+    $('meLikeEmpty').hidden = LK.loading || LK.failed || !LK.done || left > 0;
+    $('meLikeState').textContent = LK.loading ? TEXT.likesLoading : LK.failed ? TEXT.likesFail : '';
+    var more = $('meLikeMore');
+    more.hidden = LK.loading || (LK.done && !LK.failed);
+    more.textContent = LK.failed ? TEXT.likesRetry : TEXT.likesMore;
+  }
+
+  /** 다음 쪽 — collection_my_likes(p_limit, p_before). 못 읽으면 「다시 불러오기」 */
+  async function loadLikes() {
+    var PV = window.SeganPostView;
+    if (!H.sb || !PV || !$('meLikes') || LK.loading || (LK.done && !LK.failed)) return;
+    LK.started = true;
+    LK.loading = true;
+    LK.failed = false;
+    paintLikes();
+    var args = { p_limit: LIKE_PAGE };
+    if (LK.before) args.p_before = LK.before;
+    var rows = null;
+    try {
+      var res = await H.sb.rpc('collection_my_likes', args);
+      if (res && !res.error && Array.isArray(res.data)) rows = res.data;
+    } catch {
+      rows = null;
+    }
+    LK.loading = false;
+    if (!rows) {
+      LK.failed = true;
+      paintLikes();
+      return;
+    }
+    var last = rows.length ? rows[rows.length - 1].liked_at : null;
+    if (last) LK.before = last;
+    // 한 쪽이 덜 찼거나 · 다음 쪽 기준이 없으면 끝
+    LK.done = rows.length < LIKE_PAGE || !last;
+    var from = LK.posts.length;
+    rows.forEach(function (r) {
+      if (r && r.post_id && r.image_url) LK.posts.push(PV.fromLike(r));
+    });
+    var html = '';
+    for (var i = from; i < LK.posts.length; i++) html += PV.tileHTML(LK.posts[i], i);
+    $('meLikes').insertAdjacentHTML('beforeend', html);
+    paintLikes();
+  }
+
+  /** 타일을 누르면 사진 보기 — ♡ 를 풀고 닫으면 목록에서 뺀다 */
+  function onLikesClick(e) {
+    var b = e.target && e.target.closest ? e.target.closest('[data-open]') : null;
+    var PV = window.SeganPostView;
+    if (!b || !PV) return;
+    var i = Number(b.getAttribute('data-open'));
+    var p = LK.posts[i];
+    if (!p) return;
+    PV.open(p, {
+      sb: H.sb,
+      userId: likeUser(),
+      liked: true,
+      loginHref: '../login.html?redirect=' + encodeURIComponent(LIKE_RETURN),
+      img: b.querySelector('img'),
+      onClose: function (why, liked) {
+        if (liked) return;
+        LK.posts[i] = null;
+        if (b.parentNode) b.parentNode.removeChild(b);
+        paintLikes();
+      },
+    });
+  }
+
+  function bindLikes() {
+    var grid = $('meLikes');
+    if (!grid || grid.getAttribute('data-bound')) return;
+    grid.setAttribute('data-bound', '1');
+    grid.addEventListener('click', onLikesClick);
+    if (window.SeganPostView) window.SeganPostView.guardImages(grid);
+    var more = $('meLikeMore');
+    if (more) more.addEventListener('click', loadLikes);
+  }
+
   // ── 메뉴 · 하위 화면 ─────────────────────────────────────
   // section = 그 화면의 칸 · parts = 업체 칸(#partner) 안에서 보일 부분(그중 하나가 보여야 연다) ·
   // filled = 이 칸이 비어 있지 않아야 연다 (공장 구성원은 업체 내용 없이 상담 · 프로젝트 · A/S함만 온다) ·
@@ -348,13 +440,21 @@
       label: 'partnerProjectsTitle',
     },
     as: { title: 'A/S함', section: 'partner', parts: ['as'], label: 'asTitle' },
+    likes: { title: '좋아요', section: 'meLikeSection' },
     consults: { title: '상담 내역', section: 'meConsultSection' },
     'projects-mine': { title: '내 프로젝트', section: 'meProjectSection' },
     'as-mine': { title: 'A/S 접수', section: 'meAsSection' },
     notify: { title: '알림', section: 'mePush' },
   };
   var COMPANY_SCREENS = ['partner', 'partner-consults', 'partner-projects', 'as']; // 업체 묶음 차례
-  var SECTIONS = ['meProjectSection', 'meAsSection', 'partner', 'meConsultSection', 'mePush'];
+  var SECTIONS = [
+    'meProjectSection',
+    'meAsSection',
+    'partner',
+    'meLikeSection',
+    'meConsultSection',
+    'mePush',
+  ];
   var PARTNER_PARTS = [
     'mePartnerTitle',
     'mePartner',
@@ -381,6 +481,10 @@
     seeMine: '작업 화면 「내 작업」에서 확인하세요',
     pending: '승인 대기 — 회사가 확인하면 작업을 볼 수 있습니다', // js/mypage-work.js summaryHtml 과 같은 글
     rejected: '신청이 승인되지 않았습니다',
+    likesLoading: '불러오는 중',
+    likesFail: '좋아요를 불러오지 못했습니다.',
+    likesMore: '더 보기',
+    likesRetry: '다시 불러오기',
   };
 
   var H = {
@@ -388,6 +492,8 @@
     loaded: false, // 칸을 모두 읽었다 (못 여는 화면 안내를 그때부터)
     partnerKnown: false, // /partner/me 를 읽었다 (PC 첫 칸을 그때 고른다)
     roles: null, // 셸 판정
+    sb: null, // 로그인한 클라이언트 · 세션 (좋아요 화면이 쓴다)
+    session: null,
   };
 
   function shown(id) {
@@ -489,6 +595,7 @@
     // PC 는 왼쪽 메뉴가 늘 보여 「마이페이지」 그대로, 폰 · 태블릿은 그 화면 이름
     if (title) title.textContent = asked && !wide ? SCREENS[asked].title : HUB_TITLE;
     document.title = (asked ? SCREENS[asked].title + ' · ' : '') + HUB_TITLE + ' · SEGAN';
+    if (open && name === 'likes' && !LK.started) loadLikes(); // 좋아요 — 처음 열 때 읽는다
   }
 
   function toTop() {
@@ -751,6 +858,9 @@
       keepHashOnGate();
       return;
     }
+    H.sb = auth.sb;
+    H.session = auth.session;
+    bindLikes();
     initHub(auth);
     // 크레딧 통장 — 크레딧 줄과 업체 칸이 같은 값을 쓴다 (한 번만 묻는다)
     var M = window.SeganMake;
@@ -816,6 +926,8 @@
     PAY_STAGE: PAY_STAGE,
     subLabel: subLabel,
     nextPayment: nextPayment,
+    likes: LK,
+    loadLikes: loadLikes,
     projectHtml: projectHtml,
   };
   window.SeganMe = api;
