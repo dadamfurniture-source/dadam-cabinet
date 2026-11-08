@@ -15,7 +15,8 @@
 
 /**
  * DB notification_outbox_kind_check 의 종류 (작업자 넷은 0023, 장부 둘 · 아침 브리핑 assistant_brief 는 0030,
- * 장부 알림 ledger_notice 는 0033, A/S 접수 as_request 는 0045, 제작 의뢰 셋 production_* 은 0050).
+ * 장부 알림 ledger_notice 는 0033, A/S 접수 as_request 는 0045, 제작 의뢰 셋 production_* 은 0050,
+ * 제작 의뢰 거둠 production_cancelled 는 0053).
  */
 export const NOTIFICATION_KINDS = Object.freeze([
   'order_request',
@@ -37,6 +38,7 @@ export const NOTIFICATION_KINDS = Object.freeze([
   'production_recommended',
   'production_offered',
   'production_answered',
+  'production_cancelled',
 ]);
 
 /** 작업자 알림 — 업체 없이(company_id 비움) 넣고 업체 없는 기기로 간다 (DB notification_outbox_company_check, 0023) */
@@ -317,12 +319,26 @@ function productionRecommended({ count } = {}) {
   };
 }
 
+/** 제작 의뢰 품목 이름 — 상담 품목 키만, 목록 밖이면 '' */
+const productionItem = (item) =>
+  typeof item === 'string' && Object.prototype.hasOwnProperty.call(CONSULT_ITEM_LABELS, item) ? CONSULT_ITEM_LABELS[item] : '';
+
 /** 새 제작 의뢰 — Manager 가 고른 팩토리 대표 · 실장에게. { item } (품목 키 — 목록 밖이면 뺀다). 업체 이름 · 메모 · 설계 이름 없음 */
 function productionOffered({ item } = {}) {
-  const label = typeof item === 'string' && Object.prototype.hasOwnProperty.call(CONSULT_ITEM_LABELS, item) ? CONSULT_ITEM_LABELS[item] : '';
+  const label = productionItem(item);
   return {
     title: '새 제작 의뢰',
     body: `${label ? `${label} ` : ''}제작 의뢰가 왔습니다. 24시간 안에 받기 · 못 받음을 골라 주세요.`,
+    url: FACTORY_REQUESTS_URL,
+  };
+}
+
+/** 의뢰 거둠 — 답을 기다리던(chosen) 팩토리 대표 · 실장에게. { item } (품목 키 — 목록 밖이면 뺀다). 업체 이름 · 메모 · 설계 이름 없음 */
+function productionCancelled({ item } = {}) {
+  const label = productionItem(item);
+  return {
+    title: '제작 의뢰 거둠',
+    body: `의뢰한 업체가 ${label ? `${label} ` : ''}제작 의뢰를 거뒀습니다. 받기 · 못 받음을 고르지 않아도 됩니다.`,
     url: FACTORY_REQUESTS_URL,
   };
 }
@@ -361,6 +377,7 @@ const BUILDERS = Object.freeze({
   production_recommended: productionRecommended,
   production_offered: productionOffered,
   production_answered: productionAnswered,
+  production_cancelled: productionCancelled,
 });
 
 /**

@@ -154,7 +154,7 @@ describe('0050 — Manager 업체 제작 의뢰', () => {
     );
   });
 
-  test('앱 알림 종류 — 0045 목록 그대로 + 제작 의뢰 셋, 서버가 넣는 종류는 모두 목록에', () => {
+  test('앱 알림 종류 — 0045 목록 그대로 + 제작 의뢰 셋, 서버가 넣는 종류는 이 목록에 있거나 뒤 번호에서 더한 것', () => {
     const m = /notification_outbox_kind_check CHECK \(kind = ANY \(ARRAY\[(.*?)\]\)\)/.exec(f);
     const kinds = [...m[1].matchAll(/'([a-z_]+)'::text/g)].map((x) => x[1]);
     const prev = /notification_outbox_kind_check CHECK \(kind = ANY \(ARRAY\[(.*?)\]\)\)/.exec(
@@ -174,7 +174,8 @@ describe('0050 — Manager 업체 제작 의뢰', () => {
         .exec(msg)[1]
         .matchAll(/'([a-z_]+)'/g),
     ].map((x) => x[1]);
-    expect(names.filter((k) => !kinds.includes(k))).toEqual([]);
+    // 뒤 번호 0053 이 제작 의뢰 거둠을 더한다 (db-migration-0053 시험이 본다)
+    expect(names.filter((k) => !kinds.includes(k))).toEqual(['production_cancelled']);
   });
 
   test('프로브 — 서버만 읽기 · 쓰기, 설계 · 열린 의뢰 · 차례 · 기한 · 받기 · 다시 추천 · 알림 종류', () => {

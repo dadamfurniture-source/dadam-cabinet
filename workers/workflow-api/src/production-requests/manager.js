@@ -7,9 +7,10 @@
  *        앱 설계가 플래너에서 온 것이면 그 플래너 설계를, 플래너 설계에 앱 설계가 있으면 그 앱 설계 · 프로젝트를 같이 잇는다.
  *        같은 설계로 열린 의뢰(받음 · 거둠 전)는 하나뿐 (409 open_request). 본사에 Slack 알림.
  *   GET  /production-requests                 내 업체 의뢰 목록 (구성원) → { ready, can_act, can_create, items }
+ *                                             items[].expires_at — 팩토리 답 기다림(chosen)이면 답할 기한, 아니면 null
  *   GET  /production-requests/:id             의뢰 하나 + 지금 차례 추천 팩토리(이름 · 지역 · 하는 품목 · 본사 소개 — 점수 없음) + 고른 기록
  *   POST /production-requests/:id/choose      { company_id } 추천 팩토리 하나 고르기 (대표 · 실장) → 그 팩토리 대표 · 실장에게 앱 알림
- *   POST /production-requests/:id/cancel      거두기 (대표 · 실장, 받음 전에는 언제든)
+ *   POST /production-requests/:id/cancel      거두기 (대표 · 실장, 받음 전에는 언제든) → 답 기다리던 팩토리가 있으면 그 대표 · 실장에게 앱 알림
  *
  * 의뢰를 내는 것은 plan manager(등급) 업체만 — company_members.role 의 manager 는 직책(실장)이다.
  * 보기 · 고르기 · 거두기는 그 의뢰를 낸 업체의 구성원 (등급이 바뀌어도 낸 의뢰는 그 업체 것).
@@ -275,10 +276,17 @@ export async function listMyRequests(env, { user }) {
         ...head,
         items: rows.map((r) => {
           const factory = r.factory_company_id ? companies.get(r.factory_company_id) || null : null;
+          const now = currentRecs(r, recs);
+          // 답 기다림이면 고른 팩토리 줄의 기한 (화면이 의뢰마다 따로 읽지 않게)
+          const waiting =
+            r.status === 'chosen'
+              ? now.find((x) => x.chosen && x.company_id === r.factory_company_id) || null
+              : null;
           return {
             ...requestBase(r, { drafts, projects }),
-            recommendation_count: currentRecs(r, recs).length,
+            recommendation_count: now.length,
             factory: factory ? { company_id: factory.id, name: factory.name } : null,
+            expires_at: waiting ? expiresAtOf(waiting) : null,
             can_cancel: canAct && canCancel(r),
             can_choose: canAct && r.status === 'recommended',
           };
@@ -410,7 +418,7 @@ export async function chooseFactory(env, { user, params, body, ctx }) {
 }
 
 /** POST /production-requests/:id/cancel */
-export async function cancelMyRequest(env, { user, params }) {
+export async function cancelMyRequest(env, { user, params, ctx }) {
   return guard(async () => {
     const { req } = await myRequestOf(env, user, params.id, { act: true });
     if (req.status === 'cancelled') return { id: req.id, status: 'cancelled' };
@@ -433,11 +441,22 @@ export async function cancelMyRequest(env, { user, params }) {
     );
     if (!locked || !locked.length)
       throw conflict('그사이 의뢰가 바뀌었습니다. 다시 불러오세요', 'stale');
-    // 답을 기다리던 팩토리 줄은 거둠으로 닫는다
+    // 답을 기다리던 팩토리 줄은 거둠으로 닫고, 그 팩토리 대표 · 실장에게 앱 알림 (DB 0053 production_cancelled)
     if (req.status === 'chosen') {
       const open = (await recsOf(env, [req.id])).filter((r) => r.chosen && !r.response);
       for (const r of open)
         await closeStale(env, r, { ...req, status: 'cancelled', factory_company_id: null });
+      const offer = open.find((r) => r.company_id === req.factory_company_id);
+      if (offer)
+        await later(
+          ctx,
+          notifyActors(env, {
+            companyId: req.factory_company_id,
+            kind: 'production_cancelled',
+            params: { item: req.item },
+            refId: offer.id,
+          })
+        );
     }
     return { id: req.id, status: 'cancelled' };
   });

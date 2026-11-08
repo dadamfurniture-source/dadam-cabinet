@@ -1,0 +1,48 @@
+{
+  "title": "0053 제작 의뢰 거둠 앱 알림 종류 — 0050 의 19개 그대로 + production_cancelled, 모르는 종류는 거절 (scripts/rls-probe.mjs --migration database/migrations/0053_production_cancelled_notice.sql)",
+  "ids": [
+    "company_f"
+  ],
+  "users": [
+    "f_owner_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_f}}, 'partner', 'probe F', 'expert', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_f}}, {{f_owner_user}}, 'owner', 'active')"
+  ],
+  "roles": {
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "앱 알림 종류 — 20개 (0050 의 19개 + production_cancelled)",
+      "sql": "select count(*) from pg_constraint c, regexp_matches(pg_get_constraintdef(c.oid), '''([a-z_]+)''::text', 'g') m where c.conname = 'notification_outbox_kind_check' and c.conrelid = 'public.notification_outbox'::regclass",
+      "expect": {
+        "service_role": "20"
+      }
+    },
+    {
+      "name": "앱 알림 — 제작 의뢰 거둠(production_cancelled) 넣어짐",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{f_owner_user}}, {{company_f}}, 'production_cancelled', '제작 의뢰 거둠', '의뢰한 업체가 싱크대 제작 의뢰를 거뒀습니다. 받기 · 못 받음을 고르지 않아도 됩니다.', '/segan/me.html#factory-requests')",
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "앱 알림 — 앞 종류는 그대로 (production_offered)",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{f_owner_user}}, {{company_f}}, 'production_offered', '새 제작 의뢰', '제작 의뢰가 왔습니다.', '/segan/me.html#factory-requests')",
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "앱 알림 — 모르는 종류는 거절",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{f_owner_user}}, {{company_f}}, 'production_probe', 'probe', 'probe', '/segan/me.html')",
+      "expect": {
+        "service_role": "err:23514"
+      }
+    }
+  ]
+}
