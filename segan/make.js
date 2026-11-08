@@ -1,11 +1,27 @@
 /* ============================================================
-   segan/make.js — 만들기 탭: ① 사진 → ② 가구 → ③ 결과
+   segan/make.js — 만들기 탭, 진행 단계 6칸:
+     1 사진 → 2 품목 → 3 참고 사진 → 4 생성 → 5 견적서 → 6 상담 신청
+   화면 단계는 넷이다 (주소 # — photo · kind · refs · result). 4 생성 · 5 견적서는 결과 화면 안에서 차례로 켜지고
+   (진행 → 완료 + 예상 견적서), 6 상담 신청은 consult.html?g=<id> 로 간다 (결과의 「상담 신청」 버튼과 같다).
 
    생성 백엔드는 ai-design.html 이 쓰는 그대로다 (generate-api: POST /api/generate → 202, GET 으로 읽기).
    품목 · 스타일 · 도어 색 · 냉장고 · 치수 값도 ai-design.html 과 같은 목록이다 (시험이 둘을 비교한다).
    새 API 칸 · 품목 · 선택지를 만들지 않는다.
 
-   ③ 결과(./?g=<id>#result)가 연출컷 결과 화면 하나다 — 방금 만든 것도, 내 연출컷 목록(renders.html)에서
+   ① 사진 — 고른 사진은 칸 안에 원본 전체가 보이게 그린다(전체 보기, 기본). 채워 보기는 보기만 바꾼다 —
+   올리는 사진은 자르지 않는다 (긴 변 1600 JPEG 로 줄이기만 한다, ai-design.html 과 같다).
+
+   ③ 참고 사진 (고르지 않아도 된다) — 시트(SeganShell.sheet)의 두 칸에서 최대 5장 (워커 MAX_REFS 와 같다):
+     시공사례  collection_posts (AI 연출컷 source 'ai_render' 는 뺀다 — ai-design.html loadGallery 와 같다) + 자체 시공
+               사진(segan/collection.js STATIC 과 같은 목록). 고른 품목의 사례가 있으면 그것만, 없으면 전체
+     테마      theme_images (관리자가 고른 것 — status approved · is_active, 누구나 읽는다) 썸네일
+   보낼 때 사진을 받아 방 사진처럼 긴 변 1600 JPEG 로 줄여 reference_images 로 싣는다 (ai-design.html run() 과 같은 모양):
+     { base64, mimeType, role: 'style'(시공사례) | 'theme'(테마), note?(테마 설명 — 테마일 때만) }
+   못 받은 사진은 빼고 만든다 (그렇다고 알린다). 크레딧은 그대로 한 번 단가다.
+   고른 것은 이 기기(sessionStorage)에 id · 주소 · 이름만 담는다 — 그림 자료는 담지 않는다.
+   ?ref=<시공사례 id> (또는 ?refs=a,b — 자체 시공 사진은 파일 이름, 예: kitchen-n1-1) 로 열면 그 사진을 미리 담는다.
+
+   결과(./?g=<id>#result)가 연출컷 결과 화면 하나다 — 방금 만든 것도, 내 연출컷 목록(renders.html)에서
    연 것도 여기서 본다. 내 연출컷에 있던 관리는 이 화면으로 옮겼다 (같은 호출 · 같은 글, my-designs.html 과 같다):
      공유 링크  POST /api/generate/:id/share (만들기 · 새로 만들면 예전 링크는 막힌다), DELETE 같은 경로 (중단)
      시공사례   collection_posts (본인 · source ai_render) 가 있으면 「시공사례에서 내리기」 — 가운데 창으로 묻고
@@ -20,7 +36,7 @@
    만들지 못한 연출컷(실패 · 12분 넘게 멈춘 잡)은 크레딧을 돌려드린다는 안내를 붙인다.
    로그인 없이 결과 주소를 열면 로그인으로 보내고, 로그인하면 같은 결과 주소로 돌아온다.
 
-   로그인 문 — 누구나 사진을 고르고 가구를 고를 수 있다. 크레딧을 쓰는 버튼(연출컷 생성)을 누를 때
+   로그인 문 — 누구나 사진 · 품목 · 참고 사진을 고를 수 있다. 크레딧을 쓰는 버튼(연출컷 생성)을 누를 때
    로그인이 없으면, 사진과 고른 값을 이 기기(sessionStorage)에만 담고 기존 login.html 로 보낸다
    (돌아올 곳 = 이 페이지). 돌아오면 같은 단계 · 같은 사진 · 같은 선택으로 되살린다 — 다시 한 번
    누르기만 하면 된다. 저절로 생성하지 않는다. 로그인 전에는 아무것도 올리지 않는다.
@@ -76,13 +92,57 @@
   ];
   // 급수 · 배기 실측값은 주방(싱크대 · 아일랜드)만 워커가 받는다
   var KITCHEN_KINDS = ['sink', 'island'];
+  // ③ 시공사례를 고른 품목으로 거를 때 쓰는 collection_posts.category (ai-design.html KINDS[].collection 과 같다)
+  var CASE_KINDS = {
+    sink: ['kitchen'],
+    island: ['kitchen'],
+    wardrobe: ['builtin'],
+    storage: ['storage'],
+    fridge: ['kitchen'],
+    vanity: ['interior'],
+    shoe: ['builtin'],
+    office: ['other'],
+    study: ['other'],
+    bedroom: ['builtin'],
+  };
+  // 자체 시공 사진 — segan/collection.js STATIC 과 같은 사진 · 지역 (분류는 ai-design.html CASE_STATIC 과 같다)
+  var CASE_STATIC = [
+    { image_url: '../app/portfolio/kitchen-n1-1.jpg', region: '서울 논현', category: 'kitchen' },
+    { image_url: '../app/portfolio/kitchen-n1-2.jpg', region: '서울 성수', category: 'kitchen' },
+    { image_url: '../app/portfolio/kitchen-n1-3.jpg', region: '서울 성수', category: 'kitchen' },
+    { image_url: '../app/portfolio/kitchen-n1-4.jpg', region: '서울 반포', category: 'kitchen' },
+    { image_url: '../app/portfolio/kitchen-n3-2.jpg', region: '성남 분당', category: 'kitchen' },
+    { image_url: '../app/portfolio/kitchen-n3-3.jpg', region: '인천 송도', category: 'kitchen' },
+    { image_url: '../app/portfolio/kitchen-n4-1.jpg', region: '성남 판교', category: 'kitchen' },
+    { image_url: '../app/portfolio/kitchen-n6-1.jpg', region: '고양 일산', category: 'kitchen' },
+    { image_url: '../app/portfolio/kitchen-n6-2.jpg', region: '용인 수지', category: 'kitchen' },
+    { image_url: '../app/portfolio/kitchen-n6-3.jpg', region: '고양 일산', category: 'kitchen' },
+    { image_url: '../app/portfolio/kitchen-n7-1.jpg', region: '하남 위례', category: 'kitchen' },
+    { image_url: '../app/portfolio/kitchen-n7-2.jpg', region: '수원 광교', category: 'kitchen' },
+    { image_url: '../app/portfolio/kitchen-n7-3.jpg', region: '서울 마포', category: 'kitchen' },
+    { image_url: '../app/portfolio/kitchen-n7-4.jpg', region: '수원 광교', category: 'kitchen' },
+    { image_url: '../app/portfolio/funiture-n4-1.jpg', region: '서울 논현', category: 'builtin' },
+  ];
 
   var MAX_BYTES = 20 * 1024 * 1024;
   var MAX_EDGE = 1600; // 업로드 전 축소 (ai-design.html 과 같다)
   var DRAFT_KEY = 'segan.make.draft.v1';
   var LOGIN_PAGE = '../login.html';
   var RETURN_TARGET = 'segan/index.html'; // login.html ?redirect= — js/auth-redirect.js 가 받는 같은 사이트 *.html
-  var STEPS = ['photo', 'kind', 'result'];
+  var STEPS = ['photo', 'kind', 'refs', 'result'];
+  // 진행 단계 줄 6칸 — 4 생성 · 5 견적서는 결과 화면(result) 안, 6 상담 신청은 consult.html
+  var MARKS = ['photo', 'kind', 'refs', 'make', 'quote', 'consult'];
+  var CONSULT_PAGE = 'consult.html';
+
+  // ③ 참고 사진
+  var MAX_REFS = 5; // generate-api worker.js MAX_REFS 와 같다 (넘는 것은 워커가 버린다)
+  var REF_EDGE = MAX_EDGE; // 보내기 전 긴 변 — 방 사진과 같은 1600 JPEG (ai-design.html 업로드 참고 이미지와 같다)
+  var REF_PAGE = 12; // 고르기 창에 한 번에 그리는 장 수 (「더 보기」마다 더)
+  var REF_ROWS = 300; // 서버에서 읽는 줄 수 (ai-design.html loadGallery 와 같다)
+  var THEME_BUCKET = 'theme-images'; // js/reference-images.js BUCKET 과 같다
+  var REF_FULL = '최대 ' + MAX_REFS + '장까지 고를 수 있습니다';
+  var REF_ID_RE = /^(c:[0-9a-f-]{36}|t:[0-9a-f-]{36}|s:[a-z0-9-]{1,40})$/i;
+  var STATIC_STEM_RE = /^[a-z0-9-]{1,40}$/i;
 
   // 생성 API — ai-design.html 과 같은 주소 · 같은 흐름 (POST → 202 + id, GET 으로 3초마다 읽기)
   var API =
@@ -124,7 +184,13 @@
   var S = {
     step: 'photo',
     photo: null, // { base64, mime, name, width, height, focal35 }
+    fit: 'contain', // ① 사진 보기 — contain(전체 보기) | cover(채워 보기). 보기만 바꾼다
     choices: Object.assign({}, DEFAULTS),
+    refs: [], // ③ 고른 참고 사진 (고른 차례) — [{ id, src, label, note? }]. id: c:<게시물> · s:<자체 사진> · t:<테마>
+    cases: null, // 시공사례 목록 (읽기 전 null) — [{ id, src, label, category }]
+    themes: null, // 테마 목록 (읽기 전 null) — [{ id, src, label, note? }]
+    casesFailed: false, // 지난번에 못 읽었다 — 고르기 창을 다시 열면 다시 읽는다
+    themesFailed: false,
     sb: null,
     session: null,
     cost: null, // 생성 1회 크레딧 — credit_costs (ai-design.html 과 같은 출처)
@@ -301,23 +367,49 @@
     };
   }
 
+  /** 담아 둔 참고 사진 — id · 주소 · 이름(· 테마 설명)만. 모양이 이상한 것은 버린다 (최대 5장, 같은 id 는 하나) */
+  function cleanRefs(list) {
+    if (!Array.isArray(list)) return [];
+    var out = [];
+    list.forEach(function (r) {
+      if (out.length >= MAX_REFS || !r || typeof r !== 'object') return;
+      if (typeof r.id !== 'string' || !REF_ID_RE.test(r.id) || refIndexIn(out, r.id) >= 0) return;
+      if (!safeSrc(r.src)) return;
+      var ref = {
+        id: r.id,
+        src: r.src,
+        label: typeof r.label === 'string' ? r.label.slice(0, 80) : '',
+      };
+      if (refRole(ref) === 'theme' && typeof r.note === 'string' && r.note)
+        ref.note = r.note.slice(0, 200);
+      out.push(ref);
+    });
+    return out;
+  }
+
   function readDraft() {
     try {
       var d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null');
       if (!d || d.v !== 1) return null;
       return {
-        step: STEPS.indexOf(d.step) >= 0 ? d.step : 'photo',
+        step: STEPS.indexOf(d.step) >= 0 && d.step !== 'result' ? d.step : 'photo',
         choices: cleanChoices(d.choices),
         photo: cleanPhoto(d.photo),
+        refs: cleanRefs(d.refs),
       };
     } catch {
       return null;
     }
   }
 
-  /** 지금 상태를 담는다. 사진이 너무 커서 못 담으면 고른 값만 담고 false */
+  /** 지금 상태를 담는다. 사진이 너무 커서 못 담으면 고른 값만 담고 false. 참고 사진은 id · 주소만 */
   function saveDraft() {
-    var base = { v: 1, step: S.step === 'result' ? 'kind' : S.step, choices: S.choices };
+    var base = {
+      v: 1,
+      step: S.step === 'result' ? 'refs' : S.step,
+      choices: S.choices,
+      refs: cleanRefs(S.refs),
+    };
     var started = S.genId && S.phase !== 'signin'; // 로그인 전에 연 결과 주소는 시작한 생성이 아니다
     try {
       sessionStorage.setItem(
@@ -335,7 +427,7 @@
     }
   }
 
-  /** 담아 둔 사진만 지운다 (고른 값은 남긴다) */
+  /** 담아 둔 사진만 지운다 (고른 값 · 참고 사진은 남긴다) */
   function dropDraftPhoto() {
     var d = readDraft();
     try {
@@ -343,11 +435,82 @@
       else
         sessionStorage.setItem(
           DRAFT_KEY,
-          JSON.stringify({ v: 1, step: 'photo', choices: d.choices, photo: null })
+          JSON.stringify({ v: 1, step: 'photo', choices: d.choices, refs: d.refs, photo: null })
         );
     } catch {
       /* noop */
     }
+  }
+
+  // ── ③ 참고 사진 — 공용 ────────────────────────────────
+  /** 시공사례(c: · s:)는 설치 참고 'style', 테마(t:)는 색감만 'theme' (워커 normalizeRefs 의 두 역할) */
+  function refRole(r) {
+    return /^t:/.test(r.id) ? 'theme' : 'style';
+  }
+
+  function refIndexIn(list, id) {
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return i;
+    return -1;
+  }
+
+  function refIndex(id) {
+    return refIndexIn(S.refs, id);
+  }
+
+  /** 담거나 그릴 수 있는 주소 — https 주소 또는 자체 시공 사진(../app/portfolio/…) */
+  function safeSrc(u) {
+    return (
+      typeof u === 'string' &&
+      u.length <= 1000 &&
+      (/^https:\/\/[^\s"'()\\<>]+$/.test(u) || /^\.\.\/app\/portfolio\/[\w.-]+\.jpg$/.test(u))
+    );
+  }
+
+  /** CSS url() 안에 넣을 주소 — 따옴표 · 괄호 · 역슬래시를 막는다 (segan/collection.js 와 같다) */
+  function cssUrl(u) {
+    return 'url("' + String(u || '').replace(/["\\\n\r()]/g, encodeURIComponent) + '")';
+  }
+
+  /** 화면에 그리는 작은 그림 — 자체 시공 사진은 가벼운 사본(app/portfolio/display/), 그 밖은 그대로 */
+  function refThumb(r) {
+    var m = /^s:(.+)$/.exec(r.id);
+    return m ? '../app/portfolio/display/' + m[1] + '.jpg' : r.src;
+  }
+
+  function caseLabel(region) {
+    var g = String(region || '').trim();
+    return g ? '다담가구 · ' + g : '다담가구'; // ai-design.html caseLabel 과 같다
+  }
+
+  function staticCase(row) {
+    var stem = row.image_url.replace(/^.*\//, '').replace(/\.jpg$/, '');
+    return {
+      id: 's:' + stem,
+      src: row.image_url,
+      label: caseLabel(row.region),
+      category: row.category,
+    };
+  }
+
+  function themeLabel(key) {
+    var R = window.DadamRefImages;
+    if (R && typeof R.themeLabel === 'function') return R.themeLabel(key) || '테마';
+    return String(key || '') || '테마';
+  }
+
+  /** 테마 썸네일 공개 주소 (버킷 theme-images 는 공개 — ai-design.html 이 getPublicUrl 로 만드는 것과 같은 주소) */
+  function themeUrl(path) {
+    var base =
+      window.DADAM_CONFIG && window.DADAM_CONFIG.supabase && window.DADAM_CONFIG.supabase.url;
+    if (!base || !path) return '';
+    var bucket = (window.DadamRefImages && window.DadamRefImages.BUCKET) || THEME_BUCKET;
+    return (
+      String(base).replace(/\/+$/, '') +
+      '/storage/v1/object/public/' +
+      bucket +
+      '/' +
+      String(path).split('/').map(encodeURIComponent).join('/')
+    );
   }
 
   // ── 화면 ────────────────────────────────────────────────
@@ -370,15 +533,33 @@
       .join('');
   }
 
+  /** 진행 단계 줄에서 지금 칸 — 결과 화면은 끝나고 견적서가 오면 5, 그 전(진행 · 실패)은 4 */
+  function currentMark() {
+    if (S.step !== 'result') return S.step;
+    return S.phase === 'done' && S.quote ? 'quote' : 'make';
+  }
+
+  function consultHref() {
+    return CONSULT_PAGE + '?g=' + encodeURIComponent(S.genId);
+  }
+
   function renderSteps() {
     var at = STEPS.indexOf(S.step);
-    document.querySelectorAll('[data-goto]').forEach(function (b) {
-      var i = STEPS.indexOf(b.getAttribute('data-goto'));
-      b.classList.toggle('mk-stepnav--done', i <= at);
-      if (i === at) b.setAttribute('aria-current', 'step');
+    var mark = MARKS.indexOf(currentMark());
+    document.querySelectorAll('[data-mark]').forEach(function (b) {
+      var i = MARKS.indexOf(b.getAttribute('data-mark'));
+      b.classList.toggle('mk-stepnav--done', i <= mark);
+      if (i === mark) b.setAttribute('aria-current', 'step');
       else b.removeAttribute('aria-current');
-      // 지나온 단계만 누를 수 있다 (되돌아가기). 결과는 생성이 시작된 뒤에는 다시 갈 수 있다
-      b.disabled = i === at || (i > at && !(STEPS[i] === 'result' && S.genId));
+      var to = b.getAttribute('data-goto');
+      if (to === 'consult') {
+        // 6 상담 신청 — 연출컷이 끝난 뒤에만 (결과의 「상담 신청」 버튼과 같은 곳으로 간다)
+        b.disabled = !(S.phase === 'done' && S.genId);
+        return;
+      }
+      // 지나온 단계만 누를 수 있다 (되돌아가기). 결과(4 · 5)는 생성이 시작된 뒤에는 다시 갈 수 있다
+      var t = STEPS.indexOf(to);
+      b.disabled = t === at || (t > at && !(to === 'result' && S.genId));
     });
     document.querySelectorAll('[data-step]').forEach(function (sec) {
       sec.hidden = sec.getAttribute('data-step') !== S.step;
@@ -390,16 +571,355 @@
     $('mkEmpty').hidden = !!p;
     $('mkPhoto').hidden = !p;
     $('mkFileRow').hidden = !p;
+    $('mkFitRow').hidden = !p;
     $('mkDrop').classList.toggle('mk-drop--photo', !!p);
+    // 칸은 늘 같은 모양(4:3) — 원본 전체를 칸 안에 보인다(contain). 채워 보기(cover)는 보기만 바꾼다
+    $('mkDrop').classList.toggle('mk-drop--fill', !!p && S.fit === 'cover');
+    $('mkFit')
+      .querySelectorAll('[data-fit]')
+      .forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b.getAttribute('data-fit') === S.fit));
+      });
     if (p) {
       $('mkPhoto').src = 'data:' + p.mime + ';base64,' + p.base64;
-      $('mkDrop').style.aspectRatio = p.width && p.height ? p.width + ' / ' + p.height : '';
       $('mkFile').textContent = p.name + ' · 준비됨';
     } else {
       $('mkPhoto').removeAttribute('src');
-      $('mkDrop').style.aspectRatio = '';
       $('mkFile').textContent = '';
     }
+    var n = S.refs.length;
+    $('mkRefNote').hidden = !n;
+    $('mkRefNote').textContent = n
+      ? '참고 사진 ' + n + '장을 담아 두었습니다 · 3 참고 사진에서 바꿀 수 있습니다'
+      : '';
+  }
+
+  // ── ③ 참고 사진 ────────────────────────────────────────
+  function renderRefs() {
+    var box = $('mkRefs');
+    if (!box) return;
+    $('mkRefCount').textContent = S.refs.length + ' / ' + MAX_REFS;
+    box.innerHTML = S.refs.length
+      ? S.refs
+          .map(function (r) {
+            var kind = refRole(r) === 'theme' ? '테마' : '시공사례';
+            return (
+              '<figure class="mk-ref"><span class="mk-ref-img" style="background-image:' +
+              esc(cssUrl(refThumb(r))) +
+              '"></span><figcaption class="mk-ref-cap">' +
+              esc(kind + (r.label ? ' · ' + r.label : '')) +
+              '</figcaption><button type="button" class="mk-btn mk-ref-x" data-unref="' +
+              esc(r.id) +
+              '" aria-label="' +
+              esc(kind + ' ' + (r.label || '사진') + ' 빼기') +
+              '">빼기</button></figure>'
+            );
+          })
+          .join('')
+      : '<p class="mk-note mk-refs-empty">고른 사진이 없습니다</p>';
+  }
+
+  function removeRef(id) {
+    var i = refIndex(id);
+    if (i < 0) return;
+    S.refs.splice(i, 1);
+    saveDraft();
+    renderRefs();
+    renderPhoto();
+    syncPicker();
+  }
+
+  /**
+   * 시공사례 — collection_posts 최신순 (AI 연출컷은 뺀다 · ai-design.html loadGallery 와 같다) + 자체 시공 사진.
+   * 못 읽으면 자체 시공 사진만 보이고, 다음에 창을 열 때 다시 읽는다.
+   */
+  async function loadCases() {
+    if (S.cases) return S.cases;
+    var rows = [];
+    var failed = false;
+    if (S.sb) {
+      try {
+        var res = await S.sb
+          .from('collection_posts')
+          .select('id, image_url, region, category, source')
+          .neq('source', 'ai_render')
+          .order('created_at', { ascending: false })
+          .limit(REF_ROWS);
+        if (res && !res.error) rows = res.data || [];
+        else failed = true;
+      } catch {
+        failed = true; // 자체 시공 사진만
+      }
+    }
+    S.cases = rows
+      .filter(function (r) {
+        return r && UUID_RE.test(r.id) && safeSrc(r.image_url) && r.source !== 'ai_render';
+      })
+      .map(function (r) {
+        return {
+          id: 'c:' + r.id,
+          src: r.image_url,
+          label: caseLabel(r.region),
+          category: r.category || '',
+        };
+      })
+      .concat(CASE_STATIC.map(staticCase));
+    S.casesFailed = failed;
+    return S.cases;
+  }
+
+  /** 테마 — theme_images (관리자가 고른 것만 · 누구나 읽는다). 썸네일을 그리고, 그것을 보낸다 (ai-design.html 과 같다) */
+  async function loadThemes() {
+    if (S.themes) return S.themes;
+    var rows = [];
+    var failed = !S.sb;
+    if (S.sb) {
+      try {
+        var res = await S.sb
+          .from('theme_images')
+          .select('id, theme, thumb_path, note')
+          .eq('status', 'approved')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(REF_ROWS);
+        if (res && !res.error) rows = res.data || [];
+        else failed = true;
+      } catch {
+        failed = true;
+      }
+    }
+    S.themes = rows
+      .filter(function (r) {
+        return r && UUID_RE.test(r.id) && r.thumb_path;
+      })
+      .map(function (r) {
+        var t = { id: 't:' + r.id, src: themeUrl(r.thumb_path), label: themeLabel(r.theme) };
+        if (r.note) t.note = String(r.note).slice(0, 200); // 관리자가 적은 사진 설명 — 색감을 뽑을 때 힌트
+        return t;
+      })
+      .filter(function (t) {
+        return safeSrc(t.src);
+      });
+    S.themesFailed = failed;
+    return S.themes;
+  }
+
+  /** 고른 품목의 시공사례만 — 없으면 전체 (ai-design.html caseByKind 와 같다) */
+  function caseScope() {
+    var all = S.cases || [];
+    var cats = CASE_KINDS[S.choices.kind] || [];
+    var hit = all.filter(function (r) {
+      return cats.indexOf(r.category) >= 0;
+    });
+    return hit.length ? { list: hit, filtered: true } : { list: all, filtered: false };
+  }
+
+  function kindLabel() {
+    for (var i = 0; i < KINDS.length; i++)
+      if (KINDS[i].key === S.choices.kind) return KINDS[i].label;
+    return '';
+  }
+
+  // 고르기 창 (시트 · PC 옆 패널) — 열려 있는 동안만 P 가 있다
+  var P = null;
+
+  function pickTile(r) {
+    return (
+      '<button type="button" class="mk-pick-tile" data-ref="' +
+      esc(r.id) +
+      '" aria-pressed="false" aria-label="' +
+      esc(r.label || '사진') +
+      '"><span class="mk-pick-img" style="background-image:' +
+      esc(cssUrl(refThumb(r))) +
+      '"></span><span class="mk-pick-cap">' +
+      esc(r.label) +
+      '</span><span class="mk-pick-no" aria-hidden="true"></span></button>'
+    );
+  }
+
+  function pickList(tab) {
+    if (tab === 'theme') return S.themes;
+    return S.cases ? caseScope().list : null;
+  }
+
+  /** 지금 칸을 다시 그린다 (칸을 바꿨거나 목록이 왔을 때) */
+  function paintPicker() {
+    if (!P) return;
+    var b = P.body;
+    var tab = P.tab;
+    b.querySelectorAll('[data-reftab]').forEach(function (t) {
+      t.setAttribute('aria-selected', String(t.getAttribute('data-reftab') === tab));
+    });
+    b.querySelector('[data-pick-about]').textContent =
+      tab === 'theme'
+        ? '분위기 · 색감만 빌려 추천안 한 장을 만듭니다. 다담이 고른 사진만 씁니다.'
+        : '다담가구 시공 사진 — 도어 색 · 마감 · 분위기를 참고합니다.';
+    var list = pickList(tab);
+    var grid = b.querySelector('[data-pick-grid]');
+    var hint = b.querySelector('[data-pick-hint]');
+    var more = b.querySelector('[data-pick-more]');
+    if (!list) {
+      grid.innerHTML = '';
+      hint.textContent = '불러오는 중…';
+      more.hidden = true;
+      return;
+    }
+    var shown = list.slice(0, P.shown[tab]);
+    grid.innerHTML = shown.map(pickTile).join('');
+    P.drawn[tab] = shown.length;
+    paintHint();
+    syncPicker();
+  }
+
+  function paintHint() {
+    var b = P.body;
+    var tab = P.tab;
+    var list = pickList(tab) || [];
+    var n = P.drawn[tab];
+    var hint = b.querySelector('[data-pick-hint]');
+    if (!list.length) {
+      hint.textContent =
+        tab === 'theme'
+          ? S.themesFailed
+            ? '테마 사진을 불러오지 못했습니다 · 창을 다시 열면 다시 읽습니다'
+            : '아직 준비된 테마 사진이 없습니다'
+          : '아직 시공사례가 없습니다';
+    } else if (tab === 'case') {
+      var scope = caseScope();
+      var k = kindLabel();
+      hint.textContent =
+        (scope.filtered ? k + ' 사례 ' : k ? k + ' 사례가 아직 없어 전체 ' : '전체 ') +
+        n +
+        ' / ' +
+        list.length;
+    } else {
+      hint.textContent = n + ' / ' + list.length;
+    }
+    b.querySelector('[data-pick-more]').hidden = n >= list.length;
+  }
+
+  /** 누른 표시 · 고른 차례 번호 · 장수 — 그림판은 다시 그리지 않는다 (다시 그리면 스크롤이 맨 위로 튄다) */
+  function syncPicker() {
+    if (!P) return;
+    P.body.querySelectorAll('[data-ref]').forEach(function (t) {
+      var i = refIndex(t.getAttribute('data-ref'));
+      t.setAttribute('aria-pressed', String(i >= 0));
+      t.querySelector('.mk-pick-no').textContent = i >= 0 ? String(i + 1) : '';
+    });
+    P.body.querySelector('[data-pick-count]').textContent =
+      S.refs.length + ' / ' + MAX_REFS + ' 선택';
+    var msg = P.body.querySelector('[data-pick-msg]');
+    msg.textContent = P.msg;
+    msg.hidden = !P.msg;
+  }
+
+  function findRef(id) {
+    var lists = [S.cases || [], S.themes || []];
+    for (var k = 0; k < lists.length; k++) {
+      var i = refIndexIn(lists[k], id);
+      if (i >= 0) return lists[k][i];
+    }
+    return null;
+  }
+
+  function toggleRef(id) {
+    var i = refIndex(id);
+    P.msg = '';
+    if (i >= 0) S.refs.splice(i, 1);
+    else if (S.refs.length >= MAX_REFS) P.msg = REF_FULL;
+    else {
+      var r = findRef(id);
+      if (!r) return;
+      var ref = { id: r.id, src: r.src, label: r.label };
+      if (r.note) ref.note = r.note;
+      S.refs.push(ref);
+    }
+    saveDraft();
+    syncPicker();
+    renderRefs();
+    renderPhoto();
+  }
+
+  async function pickTab(tab) {
+    if (!P) return;
+    P.tab = tab;
+    P.msg = '';
+    paintPicker();
+    if (pickList(tab)) return;
+    await (tab === 'theme' ? loadThemes() : loadCases());
+    if (P && P.tab === tab) paintPicker();
+  }
+
+  function onPickClick(e) {
+    var t = e.target.closest('[data-reftab]');
+    if (t) {
+      api.picking = pickTab(t.getAttribute('data-reftab'));
+      return;
+    }
+    var tile = e.target.closest('[data-ref]');
+    if (tile) {
+      toggleRef(tile.getAttribute('data-ref'));
+      return;
+    }
+    if (e.target.closest('[data-pick-more]')) {
+      var list = pickList(P.tab) || [];
+      var from = P.drawn[P.tab];
+      var next = list.slice(from, from + REF_PAGE);
+      P.body
+        .querySelector('[data-pick-grid]')
+        .insertAdjacentHTML('beforeend', next.map(pickTile).join(''));
+      P.drawn[P.tab] = from + next.length;
+      P.shown[P.tab] = P.drawn[P.tab];
+      paintHint();
+      syncPicker();
+      return;
+    }
+    if (e.target.closest('[data-pick-done]')) P.h.close();
+  }
+
+  /** 「참고 사진 고르기」 — 시트(폰) · 옆 패널(PC). 뒤로 가기는 창만 닫는다 (셸이 기록 칸을 맡는다) */
+  function openPicker() {
+    var sheet = window.SeganShell && window.SeganShell.sheet;
+    if (!sheet || P) return null;
+    // 지난번에 못 읽은 목록은 다시 읽는다
+    if (S.casesFailed) S.cases = null;
+    if (S.themesFailed) S.themes = null;
+    var body = document.createElement('div');
+    body.className = 'mk-pick';
+    body.innerHTML =
+      '<div class="cl-seg" role="tablist" aria-label="참고 사진 종류">' +
+      '<button type="button" role="tab" data-reftab="case" aria-selected="true">시공사례</button>' +
+      '<button type="button" role="tab" data-reftab="theme" aria-selected="false">테마</button>' +
+      '</div>' +
+      '<p class="mk-note" data-pick-about></p>' +
+      '<div class="mk-pick-grid" data-pick-grid></div>' +
+      '<p class="mk-note" data-pick-hint></p>' +
+      '<button type="button" class="mk-btn mk-btn--wide" data-pick-more hidden>더 보기</button>' +
+      '<div class="mk-pick-foot">' +
+      '<span class="mk-pick-count" data-pick-count aria-live="polite"></span>' +
+      '<span class="mk-pick-msg" data-pick-msg role="status" hidden></span>' +
+      '<button type="button" class="mk-btn mk-btn--solid" data-pick-done>완료</button>' +
+      '</div>';
+    P = {
+      body: body,
+      tab: 'case',
+      shown: { case: REF_PAGE, theme: REF_PAGE },
+      drawn: { case: 0, theme: 0 },
+      msg: '',
+    };
+    body.addEventListener('click', onPickClick);
+    var mine = P;
+    P.h = sheet.open({
+      title: '참고 사진 고르기',
+      body: body,
+      kind: 'sheet',
+      onClose: function () {
+        if (P === mine) P = null;
+        renderRefs();
+      },
+    });
+    api.picking = pickTab('case');
+    return P.h;
   }
 
   function renderKind() {
@@ -427,12 +947,16 @@
 
   function renderBar() {
     var kind = S.step === 'kind';
-    $('mkNext').hidden = S.step !== 'photo';
+    var refs = S.step === 'refs';
+    // ① → ② → ③ 은 「다음」, ③ 에서 「연출컷 생성」 (참고 사진은 고르지 않아도 된다)
+    $('mkNext').hidden = !(S.step === 'photo' || kind);
     $('mkNext').disabled = !S.photo;
-    $('mkRun').hidden = !kind;
-    $('mkRun').disabled = !S.photo;
-    $('mkPost').hidden = !kind;
-    var cost = kind ? costText() : '';
+    $('mkNext').textContent = kind ? '다음 · 참고 사진 고르기' : '다음 · 품목 고르기';
+    $('mkRun').hidden = !refs;
+    // 참고 사진을 준비하거나 요청을 보내는 동안은 막는다 (시작된 뒤 누르면 결과 화면으로 간다)
+    $('mkRun').disabled = !S.photo || (S.phase === 'loading' && !S.genId);
+    $('mkPost').hidden = !refs;
+    var cost = refs ? costText() : '';
     $('mkCost').hidden = !cost;
     $('mkCost').textContent = cost;
     $('mkNotice').textContent = S.notice;
@@ -444,6 +968,7 @@
     renderSteps();
     renderPhoto();
     renderKind();
+    renderRefs();
     renderBar();
     renderResult();
   }
@@ -911,7 +1436,7 @@
     api.go(LIST_PAGE, true);
   }
 
-  /** 예상 견적 — ai-design.html 과 같은 줄(품목 · 금액)과 합계 (VAT 포함) */
+  /** 5 견적서 (예상 견적) — ai-design.html 과 같은 줄(품목 · 금액)과 합계 (VAT 포함) */
   function renderQuote() {
     var q = S.quote;
     var box = $('mkQuote');
@@ -930,7 +1455,7 @@
       })
       .join('');
     $('mkQuoteTotal').textContent = won(q.total);
-    $('mkConsult').setAttribute('href', 'consult.html?g=' + encodeURIComponent(S.genId));
+    $('mkConsult').setAttribute('href', consultHref());
   }
 
   // ── 단계 이동 ───────────────────────────────────────────
@@ -941,8 +1466,8 @@
   }
 
   function setStep(step, push) {
-    if (step === 'result' && !S.genId) step = 'kind';
-    if (step === 'kind' && !S.photo) step = 'photo';
+    if (step === 'result' && !S.genId) step = 'refs';
+    if ((step === 'kind' || step === 'refs') && !S.photo) step = 'photo';
     S.step = step;
     S.notice = '';
     var hash = step === 'photo' ? '' : '#' + step;
@@ -974,6 +1499,7 @@
       $('mkPhotoError').hidden = false;
       return;
     }
+    S.fit = 'contain'; // 새 사진은 전체 보기부터
     saveDraft();
     render();
   }
@@ -1006,8 +1532,8 @@
     }
     if (!S.photo) return;
     if (!S.session) {
-      // 로그인 전: 이 기기에만 담고 로그인하러 간다. 돌아오면 같은 단계로 되살린다.
-      S.step = 'kind';
+      // 로그인 전: 이 기기에만 담고 로그인하러 간다. 돌아오면 같은 단계로 되살린다 (참고 사진은 id · 주소만).
+      S.step = 'refs';
       if (!saveDraft()) {
         S.notice =
           '사진이 커서 이 기기에 잠시 담지 못했습니다. 로그인한 뒤 사진을 다시 골라 주세요.';
@@ -1034,8 +1560,11 @@
     return h;
   }
 
-  /** 요청 본문 — ai-design.html run() 과 같은 칸 (참고 이미지 · 상세 요청은 앱에서 뺐다) */
-  function buildBody() {
+  /**
+   * 요청 본문 — ai-design.html run() 과 같은 칸. 상세 요청(customer_request)은 앱에서 뺐다.
+   * refs: 보낼 참고 사진 (encodeRefs) — [{ base64, mimeType, role, note? }]. 없으면 칸째 뺀다 (예전과 같은 본문)
+   */
+  function buildBody(refs) {
     var c = S.choices;
     var p = S.photo;
     var kitchen = KITCHEN_KINDS.indexOf(c.kind) >= 0;
@@ -1045,6 +1574,7 @@
       category: c.kind,
       design_style: c.style,
       door_color: c.door,
+      reference_images: refs && refs.length ? refs : undefined,
       wall_width_override: c.wallW || undefined,
       room_focal35: p.focal35 || undefined,
       water_from_left_override: (kitchen && c.water) || undefined,
@@ -1056,6 +1586,83 @@
       if (models.length) body.fridge_options.models = models;
     }
     return body;
+  }
+
+  /** 긴 변을 max 까지 줄인 크기 (키우지는 않는다) — js/reference-images.js fitLongEdge 와 같은 셈 */
+  function fitEdge(w, h, max) {
+    var long = Math.max(w, h);
+    if (!long || long <= max) return { w: Math.round(w), h: Math.round(h) };
+    var k = max / long;
+    return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
+  }
+
+  /** 그림 파일(Blob) → 긴 변 REF_EDGE 의 JPEG base64. 투명한 곳은 흰 바탕 (JPEG 는 투명이 없다) */
+  function shrinkBlob(blob) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(blob); // 같은 출처 주소라 캔버스가 더럽혀지지 않는다
+      var img = new Image();
+      var done = function () {
+        URL.revokeObjectURL(url);
+      };
+      img.onerror = function () {
+        done();
+        reject(new Error('이미지를 열지 못했습니다'));
+      };
+      img.onload = function () {
+        try {
+          var size = fitEdge(img.naturalWidth, img.naturalHeight, REF_EDGE);
+          var cv = document.createElement('canvas');
+          cv.width = size.w;
+          cv.height = size.h;
+          var ctx = cv.getContext('2d');
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, size.w, size.h);
+          ctx.drawImage(img, 0, 0, size.w, size.h);
+          resolve({
+            base64: cv.toDataURL('image/jpeg', 0.9).split(',')[1],
+            mimeType: 'image/jpeg',
+          });
+        } catch (e) {
+          reject(e);
+        }
+        done();
+      };
+      img.src = url;
+    });
+  }
+
+  /**
+   * 참고 사진 하나 → { base64, mimeType }. 주소에서 받아(ai-design.html fetchAsBase64 와 같이) 줄인다.
+   * 시험이 바꿔 끼운다 (api.readRef)
+   */
+  async function readRef(ref) {
+    var res = await fetch(ref.src, { cache: 'force-cache' });
+    if (!res.ok) throw new Error('참고 사진을 받지 못했습니다');
+    return shrinkBlob(await res.blob());
+  }
+
+  /**
+   * 고른 참고 사진을 보낼 모양으로 (고른 차례) — 못 받은 것은 뺀다. { list, skipped }
+   * 한 장씩 차례로 줄인다 — 폰에서 큰 사진 다섯 장을 한꺼번에 풀면 메모리가 모자랄 수 있다
+   */
+  async function encodeRefs() {
+    var picked = S.refs.slice(0, MAX_REFS);
+    var list = [];
+    for (var i = 0; i < picked.length; i++) {
+      var r = picked[i];
+      try {
+        var img = await api.readRef(r);
+        if (!img || typeof img.base64 !== 'string' || !img.base64) continue;
+        var role = refRole(r);
+        var ref = { base64: img.base64, mimeType: img.mimeType || 'image/jpeg', role: role };
+        // 테마 사진의 설명은 색감을 뽑을 때 힌트로 쓴다 (워커 cleanThemeNote — 테마일 때만 받는다)
+        if (role === 'theme' && r.note) ref.note = r.note;
+        list.push(ref);
+      } catch {
+        /* 이 한 장만 뺀다 */
+      }
+    }
+    return { list: list, skipped: picked.length - list.length };
   }
 
   function wait(ms) {
@@ -1151,10 +1758,15 @@
     S.genId = null;
     resetResult();
     S.progressLabel = '생성을 요청하는 중';
-    var body = buildBody();
+    // 참고 사진을 받아 줄이는 동안 — 버튼은 막고 안내한다 (renderBar)
+    S.notice = S.refs.length ? '참고 사진을 준비하는 중' : '';
     renderBar();
     try {
       $('mkRun').disabled = true;
+      var refs = await encodeRefs();
+      var body = buildBody(refs.list);
+      S.notice = '';
+      renderBar();
       var res = await fetch(API, {
         method: 'POST',
         headers: await authHeaders(),
@@ -1170,6 +1782,7 @@
       if (res.status !== 202 || !data.id) throw new Error('생성에 실패했습니다');
       S.genId = data.id;
       if (data.credit && data.credit.balance != null) S.balance = data.credit.balance;
+      if (refs.skipped) S.resMsg = '참고 사진 ' + refs.skipped + '장을 불러오지 못해 빼고 만듭니다';
       // 시작됐다 — 이 기기에 담아 둔 사진을 지운다 (화면의 사진은 실패 때 다시 시도하려고 남긴다)
       dropDraftPhoto();
       try {
@@ -1186,10 +1799,10 @@
     } catch (e) {
       failed(e);
       if (!S.genId) {
-        // 시작도 못 했다 — 가구 단계에서 안내하고 다시 누를 수 있게
+        // 시작도 못 했다 — 생성 버튼이 있는 참고 사진 단계에서 안내하고 다시 누를 수 있게
         S.phase = 'idle';
         S.notice = S.error;
-        S.step = 'kind';
+        S.step = 'refs';
         render();
         return;
       }
@@ -1486,16 +2099,38 @@
     };
     $('mkClear').onclick = clearPhoto;
     bindDrop($('mkDrop'));
+    // 전체 보기 · 채워 보기 — 보기만 바꾼다
+    $('mkFit').onclick = function (e) {
+      var b = e.target.closest('[data-fit]');
+      if (!b) return;
+      S.fit = b.getAttribute('data-fit') === 'cover' ? 'cover' : 'contain';
+      renderPhoto();
+    };
 
     $('mkNext').onclick = function () {
-      if (S.photo) setStep('kind', true);
+      if (!S.photo) return;
+      if (S.step === 'photo') setStep('kind', true);
+      else if (S.step === 'kind') setStep('refs', true);
     };
     $('mkRun').onclick = run;
 
+    // ③ 참고 사진
+    $('mkRefPick').onclick = openPicker;
+    $('mkRefs').onclick = function (e) {
+      var b = e.target.closest('[data-unref]');
+      if (b) removeRef(b.getAttribute('data-unref'));
+    };
+
+    // 진행 단계 줄 — 누를 수 있는 칸만 (renderSteps). 6 상담 신청은 consult.html 로
     document.querySelectorAll('[data-goto]').forEach(function (b) {
       b.onclick = function () {
+        if (b.disabled) return;
         var to = b.getAttribute('data-goto');
-        if (STEPS.indexOf(to) < STEPS.indexOf(S.step)) setStep(to, true);
+        if (to === 'consult') {
+          if (S.genId && S.phase === 'done') api.go(consultHref());
+          return;
+        }
+        if (to !== S.step) setStep(to, true);
       };
     });
 
@@ -1544,7 +2179,7 @@
     $('mkShare').onclick = share;
     $('mkAgain').onclick = restart;
     $('mkRetry').onclick = function () {
-      setStep(S.photo ? 'kind' : 'photo', true);
+      setStep(S.photo ? 'refs' : 'photo', true);
     };
     // 결과 관리
     $('mkShareMake').onclick = makeShare;
@@ -1568,17 +2203,99 @@
     });
   }
 
+  /**
+   * ?ref=<시공사례 id> · ?refs=a,b — 시공사례 화면의 「이 스타일로 연출컷」. 읽고 주소에서 뗀다
+   * (새로 고쳐도 다시 담지 않게 — 고른 것은 이 기기에 담는다). 자체 시공 사진은 파일 이름(kitchen-n1-1)
+   */
+  function takeLinkRefs() {
+    var q = new URLSearchParams(location.search);
+    var raw = [];
+    ['ref', 'refs'].forEach(function (k) {
+      q.getAll(k).forEach(function (v) {
+        String(v || '')
+          .split(',')
+          .forEach(function (t) {
+            t = t.trim();
+            if (t && raw.indexOf(t) < 0) raw.push(t);
+          });
+      });
+      q.delete(k);
+    });
+    if (!raw.length) return [];
+    try {
+      var rest = q.toString();
+      history.replaceState(
+        history.state,
+        '',
+        location.pathname + (rest ? '?' + rest : '') + location.hash
+      );
+    } catch {
+      /* noop */
+    }
+    return raw.slice(0, MAX_REFS * 2);
+  }
+
+  /** 주소로 받은 시공사례를 고른 차례대로 담는다 — AI 연출컷 · 없는 글은 건너뛴다. 담은 장수 */
+  async function addLinkRefs(tokens) {
+    var ids = tokens.filter(function (t) {
+      return UUID_RE.test(t);
+    });
+    var rows = {};
+    if (ids.length && S.sb) {
+      try {
+        var res = await S.sb
+          .from('collection_posts')
+          .select('id, image_url, region, category, source')
+          .in('id', ids);
+        ((res && !res.error && res.data) || []).forEach(function (r) {
+          if (r && r.source !== 'ai_render' && safeSrc(r.image_url))
+            rows[String(r.id).toLowerCase()] = r;
+        });
+      } catch {
+        /* 못 읽으면 담지 않는다 */
+      }
+    }
+    var added = 0;
+    tokens.forEach(function (t) {
+      if (S.refs.length >= MAX_REFS) return;
+      var ref = null;
+      if (UUID_RE.test(t)) {
+        var r = rows[t.toLowerCase()];
+        if (r) ref = { id: 'c:' + r.id, src: r.image_url, label: caseLabel(r.region) };
+      } else {
+        var stem = t.replace(/^s:/, '');
+        if (STATIC_STEM_RE.test(stem)) {
+          CASE_STATIC.forEach(function (row) {
+            var c = staticCase(row);
+            if (c.id === 's:' + stem) ref = { id: c.id, src: c.src, label: c.label };
+          });
+        }
+      }
+      if (ref && refIndex(ref.id) < 0) {
+        S.refs.push(ref);
+        added++;
+      }
+    });
+    return added;
+  }
+
   async function init() {
     if (!$('mkDrop')) return;
     var d = readDraft();
     if (d) {
       S.choices = d.choices;
       S.photo = d.photo;
-      S.step = d.photo && d.step !== 'photo' ? 'kind' : 'photo';
+      S.refs = d.refs;
+      S.step = d.photo && d.step !== 'photo' ? d.step : 'photo';
     }
+    var linked = takeLinkRefs();
     bind();
     S.sb = client();
     setStep(S.step, false);
+    if (linked.length && (await addLinkRefs(linked))) {
+      saveDraft();
+      render();
+    }
     await loadAccount();
     // 저장된 결과 (?g=<id>) — 생성 직후 새로 고쳤거나, 내 연출컷 목록 · 상담 신청에서 돌아왔을 때. 읽기만 한다
     var g = new URLSearchParams(location.search).get('g');
@@ -1596,6 +2313,12 @@
     FRIDGE_BRANDS: FRIDGE_BRANDS,
     FRIDGE_POS: FRIDGE_POS,
     DRAFT_KEY: DRAFT_KEY,
+    STEPS: STEPS,
+    MARKS: MARKS,
+    MAX_REFS: MAX_REFS,
+    REF_EDGE: REF_EDGE,
+    CASE_KINDS: CASE_KINDS,
+    CASE_STATIC: CASE_STATIC,
     REFUND_NOTE: REFUND_NOTE,
     DELETE_ASK: DELETE_ASK,
     LIST_NOTICE_KEY: LIST_NOTICE_KEY,
@@ -1615,6 +2338,11 @@
     start: start,
     buildBody: buildBody,
     setPhoto: setPhoto,
+    /** ③ 참고 사진 — 고르기 창 열기 · 사진 하나 받기(시험이 바꿔 끼운다) · 긴 변 줄이기 */
+    openPicker: openPicker,
+    readRef: readRef,
+    fitEdge: fitEdge,
+    picking: null, // 고르기 창의 목록 읽기 (시험이 기다린다)
     ready: null,
   };
   window.SeganMake = api;

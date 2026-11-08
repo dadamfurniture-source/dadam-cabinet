@@ -16,10 +16,10 @@
     <title>SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026110806" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026110806" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026110806" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110806" />
+    <link rel="icon" href="icons/icon.svg?v=2026110807" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110807" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110807" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110807" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
@@ -29,34 +29,46 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@300&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="shell.css?v=2026110806" />
-    <link rel="stylesheet" href="make.css?v=2026110806" />
+    <link rel="stylesheet" href="shell.css?v=2026110807" />
+    <link rel="stylesheet" href="make.css?v=2026110807" />
     <!-- 로그인 · 크레딧 · 생성 — 기존 사이트와 같은 설정 · 라이브러리 -->
-    <script src="../js/config.js?v=2026110806"></script>
+    <script src="../js/config.js?v=2026110807"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <!-- 관리 탭 — 관리자에게만 연다 (segan/shell.js applyAdminTab) -->
-    <script src="../js/admin-access.js?v=2026110806"></script>
+    <script src="../js/admin-access.js?v=2026110807"></script>
     <!-- 작업 탭 — 작업자에게만 연다 (segan/shell.js applyRoleTabs · GET /work/me) -->
-    <script src="../js/mypage-work.js?v=2026110806"></script>
+    <script src="../js/mypage-work.js?v=2026110807"></script>
     <!-- 결과 내려받기 직전 서명 URL 다시 확인 (내 연출컷 목록 · my-designs.html 과 같다) -->
-    <script src="../js/storage-urls.js?v=2026110806"></script>
-    <script src="shell.js?v=2026110806" defer></script>
-    <script src="make.js?v=2026110806" defer></script>
+    <script src="../js/storage-urls.js?v=2026110807"></script>
+    <!-- ③ 참고 사진의 테마 이름 · 버킷 (ai-design.html · admin/reference-images.html 과 같은 공용 파일) -->
+    <script src="../js/reference-images.js?v=2026110807"></script>
+    <script src="shell.js?v=2026110807" defer></script>
+    <script src="make.js?v=2026110807" defer></script>
   </head>
   <body class="sg-app" data-tab="make">
     <div data-segan-shell="header"></div>
 
     <main class="sg-main mk" id="main">
-      <!-- 진행 단계 — 지나온 단계를 누르면 되돌아간다 -->
+      <!-- 진행 단계 6칸 — 지나온 단계를 누르면 되돌아간다. 화면은 넷(① 사진 · ② 품목 · ③ 참고 사진 · 결과):
+           4 생성 · 5 견적서는 결과 화면 안에서 차례로 켜지고, 6 상담 신청은 consult.html 로 간다 -->
       <nav class="mk-steps" aria-label="진행 단계">
-        <button type="button" class="mk-stepnav" data-goto="photo">
+        <button type="button" class="mk-stepnav" data-goto="photo" data-mark="photo">
           <span class="mk-stepbar" aria-hidden="true"></span><span>1 사진</span>
         </button>
-        <button type="button" class="mk-stepnav" data-goto="kind">
-          <span class="mk-stepbar" aria-hidden="true"></span><span>2 가구</span>
+        <button type="button" class="mk-stepnav" data-goto="kind" data-mark="kind">
+          <span class="mk-stepbar" aria-hidden="true"></span><span>2 품목</span>
         </button>
-        <button type="button" class="mk-stepnav" data-goto="result">
-          <span class="mk-stepbar" aria-hidden="true"></span><span>3 결과</span>
+        <button type="button" class="mk-stepnav" data-goto="refs" data-mark="refs">
+          <span class="mk-stepbar" aria-hidden="true"></span><span>3 참고 사진</span>
+        </button>
+        <button type="button" class="mk-stepnav" data-goto="result" data-mark="make">
+          <span class="mk-stepbar" aria-hidden="true"></span><span>4 생성</span>
+        </button>
+        <button type="button" class="mk-stepnav" data-goto="result" data-mark="quote">
+          <span class="mk-stepbar" aria-hidden="true"></span><span>5 견적서</span>
+        </button>
+        <button type="button" class="mk-stepnav" data-goto="consult" data-mark="consult">
+          <span class="mk-stepbar" aria-hidden="true"></span><span>6 상담 신청</span>
         </button>
       </nav>
 
@@ -81,20 +93,30 @@
           </div>
           <img class="mk-photo" id="mkPhoto" alt="올린 공간 사진" hidden />
         </div>
+        <!-- 칸 안에 원본 전체를 보인다(기본). 채워 보기는 보기만 바꾼다 — 올리는 사진은 자르지 않는다 -->
+        <div class="mk-fit" id="mkFitRow" hidden>
+          <div class="mk-chips" id="mkFit" role="group" aria-label="사진 보기">
+            <button type="button" class="mk-chip" data-fit="contain" aria-pressed="true">전체 보기</button>
+            <button type="button" class="mk-chip" data-fit="cover" aria-pressed="false">채워 보기</button>
+          </div>
+          <span class="mk-opt">보기만 바뀝니다 · 사진은 자르지 않습니다</span>
+        </div>
         <div class="mk-file" id="mkFileRow" hidden>
           <span id="mkFile"></span>
           <button type="button" class="mk-btn" id="mkClear">다시 선택</button>
         </div>
         <p class="mk-error" id="mkPhotoError" role="alert" hidden></p>
+        <!-- 시공사례에서 「이 스타일로」 연 때(?ref=) — 담아 둔 참고 사진 -->
+        <p class="mk-note" id="mkRefNote" hidden></p>
         <!-- 폰: 사진 찍기는 카메라를 바로 연다. 사진은 로그인 전에는 이 기기 밖으로 나가지 않는다 -->
         <input type="file" id="mkCameraInput" accept="image/*" capture="environment" hidden />
         <input type="file" id="mkAlbumInput" accept="image/jpeg,image/png" hidden />
       </section>
 
-      <!-- ② 가구 -->
+      <!-- ② 품목 -->
       <section class="mk-step" data-step="kind" aria-labelledby="mkKindTitle" hidden>
-        <h1 class="mk-h1" id="mkKindTitle">배치할 가구를 골라주세요</h1>
-        <div class="mk-kinds" id="mkKinds" role="group" aria-label="가구 종류"></div>
+        <h1 class="mk-h1" id="mkKindTitle">배치할 품목을 골라주세요</h1>
+        <div class="mk-kinds" id="mkKinds" role="group" aria-label="품목"></div>
 
         <section class="mk-adv" aria-labelledby="mkAdvTitle">
           <h2 class="mk-h2" id="mkAdvTitle"><span>고급 설정</span><span class="mk-opt">선택</span></h2>
@@ -160,7 +182,27 @@
         </section>
       </section>
 
-      <!-- ③ 결과 — 연출컷 결과 화면은 여기 하나 (./?g=<id>#result, 내 연출컷 목록도 여기로 연다) -->
+      <!-- ③ 참고 사진 (고르지 않아도 된다) — 시공사례 · 테마 사진을 최대 5장. 고르기는 시트(SeganShell.sheet) -->
+      <section class="mk-step" data-step="refs" aria-labelledby="mkRefsTitle" hidden>
+        <div class="mk-head">
+          <h1 class="mk-h1" id="mkRefsTitle">참고할 사진을 골라주세요</h1>
+          <p class="mk-sub">
+            시공사례 · 테마 사진을 최대 5장까지 고르면 연출컷 디자인에 반영합니다. 고르지 않아도 만들 수 있습니다.
+          </p>
+        </div>
+        <div class="mk-refs-head">
+          <span class="mk-label">고른 사진</span>
+          <span class="mk-opt" id="mkRefCount" aria-live="polite">0 / 5</span>
+        </div>
+        <div class="mk-refs" id="mkRefs"></div>
+        <button type="button" class="mk-btn mk-btn--wide" id="mkRefPick">참고 사진 고르기</button>
+        <p class="mk-note">
+          시공사례 사진은 도어 색 · 마감 · 분위기를 참고하고, 테마 사진은 색감만 빌려 추천안 한 장을 만듭니다. 배치는 내
+          공간 사진을 따릅니다.
+        </p>
+      </section>
+
+      <!-- 결과 (4 생성 · 5 견적서) — 연출컷 결과 화면은 여기 하나 (./?g=<id>#result, 내 연출컷 목록도 여기로 연다) -->
       <section class="mk-step" data-step="result" aria-labelledby="mkResultTitle" hidden>
         <div class="mk-res-head">
           <h1 class="mk-res-title" id="mkResultTitle">Results</h1>
@@ -189,12 +231,12 @@
         <p class="mk-msg" id="mkResMsg" role="status" hidden></p>
         <p class="mk-error" id="mkResError" role="alert" hidden></p>
         <p class="mk-note" id="mkRefund" hidden></p>
-        <button type="button" class="mk-btn" id="mkRetry" hidden>가구 단계로 돌아가기</button>
+        <button type="button" class="mk-btn" id="mkRetry" hidden>참고 사진 단계로 돌아가기</button>
         <p class="mk-note">생성 이미지는 실제 시공 결과와 다를 수 있습니다. 정확한 치수·자재는 상담에서 확정합니다.</p>
 
-        <!-- 예상 견적 + 상담 신청 (버튼은 이것 하나) -->
+        <!-- 5 견적서 (예상 견적) + 6 상담 신청 (버튼은 이것 하나) -->
         <section class="mk-quote" id="mkQuote" aria-labelledby="mkQuoteTitle" hidden>
-          <h2 class="mk-quote-title" id="mkQuoteTitle">예상 견적</h2>
+          <h2 class="mk-quote-title" id="mkQuoteTitle">예상 견적서</h2>
           <div class="mk-qrows" id="mkQuoteRows"></div>
           <div class="mk-qrow mk-qrow--total"><span>합계 (VAT 포함)</span><span id="mkQuoteTotal"></span></div>
           <p class="mk-note">실측 후 확정됩니다.</p>
@@ -262,7 +304,7 @@
         <p class="mk-cost" id="mkCost" hidden></p>
         <p class="mk-post" id="mkPost" hidden>완성되면 대표 연출컷 1장이 시공사례에 올라갑니다</p>
         <p class="mk-notice" id="mkNotice" role="status" hidden></p>
-        <button type="button" class="mk-btn mk-btn--solid mk-btn--lg" id="mkNext" disabled>다음 · 가구 고르기</button>
+        <button type="button" class="mk-btn mk-btn--solid mk-btn--lg" id="mkNext" disabled>다음 · 품목 고르기</button>
         <button type="button" class="mk-btn mk-btn--solid mk-btn--lg" id="mkRun" hidden>연출컷 생성</button>
       </div>
     </main>

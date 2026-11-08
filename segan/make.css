@@ -1,5 +1,5 @@
 /* ============================================================
-   segan/make.css — 만들기 탭 (① 사진 → ② 가구 → ③ 결과)
+   segan/make.css — 만들기 탭 (1 사진 · 2 품목 · 3 참고 사진 · 4 생성 · 5 견적서 · 6 상담 신청)
    디자인: 앱 시안 「안 B」(B-Photo · B-Kind · B-Result). v5 토큰만 쓴다 (segan/shell.css).
    라운드 · 섀도 없음, 헤어라인 보더만. 누르는 곳은 44px 이상.
    ============================================================ */
@@ -13,11 +13,11 @@
   padding-bottom: 0; /* 버튼 줄이 아래 탭 바로 위에 붙게 */
 }
 
-/* ── 진행 단계 ── */
+/* ── 진행 단계 (6칸 — 폰 폭에서는 두 줄 글자까지) ── */
 .mk-steps {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
 }
 
 .mk-stepnav {
@@ -25,14 +25,17 @@
   flex-direction: column;
   justify-content: flex-start;
   gap: 6px;
+  min-width: 0;
   min-height: 44px;
   padding: 0;
   border: 0;
   background: none;
   font: inherit;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 300;
+  line-height: 1.35;
   text-align: left;
+  word-break: keep-all;
   color: var(--mk-dim);
   cursor: pointer;
 }
@@ -216,11 +219,27 @@
   gap: 8px;
 }
 
+/* 칸(4:3)을 꽉 채우는 상자 안에 원본 전체 (contain). 칸 높이가 화면에 막혀도 사진이 잘리지 않게 칸에 붙인다 */
 .mk-photo {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+/* 채워 보기 — 보기만 바꾼다 (올리는 사진은 그대로) */
+.mk-drop--fill .mk-photo {
+  object-fit: cover;
+}
+
+.mk-fit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
 }
 
 .mk-file {
@@ -361,6 +380,160 @@
   flex-direction: column;
   gap: 14px;
   padding-bottom: 8px;
+}
+
+/* ── ③ 참고 사진 ── */
+.mk-refs-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mk-refs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 8px;
+}
+
+.mk-refs-empty {
+  grid-column: 1 / -1;
+  padding: 18px 0;
+  border-top: 1px solid var(--v5-line);
+  border-bottom: 1px solid var(--v5-line);
+  text-align: center;
+}
+
+.mk-ref {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+}
+
+.mk-ref-img,
+.mk-pick-img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background-color: var(--v5-photo);
+  background-position: center;
+  background-size: cover;
+}
+
+.mk-ref-cap,
+.mk-pick-cap {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--mk-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mk-ref-x {
+  width: 100%;
+  padding: 0 8px;
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+}
+
+/* 고르기 창 (SeganShell.sheet — 폰 아래 시트 · PC 옆 패널). 탭은 셸의 .cl-seg */
+.mk-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mk-pick .cl-seg {
+  margin: 0;
+}
+
+.mk-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px 8px;
+}
+
+.mk-pick-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mk-pick-tile[aria-pressed='true'] .mk-pick-img {
+  outline: 2px solid var(--v5-ink);
+  outline-offset: -2px;
+}
+
+.mk-pick-tile[aria-pressed='true'] .mk-pick-cap {
+  color: var(--v5-ink);
+}
+
+.mk-pick-tile:focus-visible {
+  outline: 2px solid var(--v5-tan);
+  outline-offset: 2px;
+}
+
+/* 고른 차례 — 네모 번호 (라운드 없음) */
+.mk-pick-no {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  background: var(--v5-ink);
+  color: var(--v5-invert);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mk-pick-no:empty {
+  display: none;
+}
+
+/* 장수 · 완료 — 창 안에서 넘겨도 아래에 붙는다 */
+.mk-pick-foot {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px 0 4px;
+  border-top: 1px solid var(--v5-line);
+  background: var(--v5-paper);
+}
+
+.mk-pick-count {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+
+.mk-pick-msg {
+  flex: 1 1 140px;
+  font-size: 12.5px;
+  color: var(--v5-tan);
+}
+
+.mk-pick-foot .mk-btn {
+  margin-left: auto;
+  min-width: 96px;
 }
 
 /* ── 아래 버튼 줄 ──
@@ -1069,6 +1242,20 @@
 
   .mk-kinds {
     grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .mk-stepnav {
+    font-size: 12px;
+  }
+
+  .mk-refs {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .mk-step[data-step='refs'] > .mk-btn--wide {
+    align-self: flex-start;
+    width: auto;
+    min-width: 240px;
   }
 
   /* 넓은 본문 여백 안에 — 아래 탭 위에 붙는 것(bottom)은 1024px 까지 그대로 */

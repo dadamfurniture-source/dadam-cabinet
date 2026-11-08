@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /* global require, describe, test, expect, beforeEach, afterEach, __dirname, document, window, DOMParser, sessionStorage, jest */
 /**
- * SEGAN 만들기 — ③ 결과 (segan/make.js 생성 부분). ④ 상담 신청은 segan-consult.test.js.
+ * SEGAN 만들기 — 결과 (4 생성 · 5 견적서, segan/make.js 생성 부분). 6 상담 신청은 segan-consult.test.js.
  *
  * 생성 백엔드는 ai-design.html 이 쓰는 그대로다:
  *   POST {generateApi.url} → 202 { id }, 3초마다 GET {base}/api/generate/:id, 서명 URL 이미지, 견적은 잡 결과
@@ -94,7 +94,7 @@ function fakeClient(opts) {
 async function load(options = {}) {
   const opts = {
     session: SESSION,
-    draft: { v: 1, step: 'kind', photo: PHOTO, choices: {} },
+    draft: { v: 1, step: 'refs', photo: PHOTO, choices: {} },
     url: '/segan/',
     post: res(202, { success: true, id: ID, credit: { balance: 980 } }),
     gets: [RUNNING, DONE],
@@ -152,11 +152,11 @@ afterEach(() => {
 });
 
 describe('생성 요청 — ai-design.html 과 같은 모양', () => {
-  test('싱크대: 본문 칸 · 값, 로그인 토큰, 참고 이미지 · 상세 요청은 보내지 않는다', async () => {
+  test('싱크대: 본문 칸 · 값, 로그인 토큰 — 참고 사진을 안 고르면 reference_images 칸이 없다, 상세 요청은 보내지 않는다', async () => {
     const { calls } = await load({
       draft: {
         v: 1,
-        step: 'kind',
+        step: 'refs',
         photo: PHOTO,
         choices: {
           kind: 'sink',
@@ -187,11 +187,97 @@ describe('생성 요청 — ai-design.html 과 같은 모양', () => {
     });
   });
 
+  test('참고 사진 — reference_images [{ base64, mimeType, role, note? }] · 고른 차례 · 시공사례 style · 테마 theme', async () => {
+    const T1 = 't:aaaaaaaa-1111-4111-8111-111111111111';
+    const C1 = 'c:bbbbbbbb-2222-4222-8222-222222222222';
+    const refs = [
+      {
+        id: C1,
+        src: 'https://example.supabase.co/storage/v1/object/public/collection/a.jpg',
+        label: '다담가구 · 서울 논현',
+      },
+      {
+        id: T1,
+        src: 'https://example.supabase.co/storage/v1/object/public/theme-images/x/thumb.jpg',
+        label: '꽃',
+        note: '봄 꽃 색',
+      },
+      {
+        id: 's:kitchen-n1-1',
+        src: '../app/portfolio/kitchen-n1-1.jpg',
+        label: '다담가구 · 서울 논현',
+      },
+    ];
+    const { calls, M } = await load({
+      draft: { v: 1, step: 'refs', photo: PHOTO, choices: { kind: 'sink' }, refs },
+    });
+    const read = jest.fn(async (r) => ({
+      base64: 'B64-' + r.id.slice(0, 1),
+      mimeType: 'image/jpeg',
+    }));
+    M.readRef = read;
+    $('mkRun').click();
+    await tick();
+    expect(read.mock.calls.map((c) => c[0].id)).toEqual([C1, T1, 's:kitchen-n1-1']);
+    const body = JSON.parse(posts(calls)[0].body);
+    expect(body.reference_images).toEqual([
+      { base64: 'B64-c', mimeType: 'image/jpeg', role: 'style' },
+      { base64: 'B64-t', mimeType: 'image/jpeg', role: 'theme', note: '봄 꽃 색' },
+      { base64: 'B64-s', mimeType: 'image/jpeg', role: 'style' },
+    ]);
+    expect(body.room_image).toBe('QUJD');
+    // 시작되면 이 기기에는 사진을 지우고 참고 사진(id · 주소)은 남긴다 — 그림 자료는 담지 않는다
+    const d = JSON.parse(sessionStorage.getItem(KEY));
+    expect(d.photo).toBeNull();
+    expect(d.refs.map((r) => r.id)).toEqual([C1, T1, 's:kitchen-n1-1']);
+    expect(JSON.stringify(d)).not.toMatch(/B64-/);
+  });
+
+  test('못 받은 참고 사진은 빼고 만든다 — 결과 화면에 몇 장 뺐는지 알린다', async () => {
+    const refs = [
+      { id: 's:kitchen-n1-1', src: '../app/portfolio/kitchen-n1-1.jpg', label: 'a' },
+      { id: 's:kitchen-n1-2', src: '../app/portfolio/kitchen-n1-2.jpg', label: 'b' },
+    ];
+    const { calls, M } = await load({
+      draft: { v: 1, step: 'refs', photo: PHOTO, choices: {}, refs },
+    });
+    M.readRef = jest.fn(async (r) => {
+      if (r.id === 's:kitchen-n1-2') throw new Error('404');
+      return { base64: 'OK', mimeType: 'image/jpeg' };
+    });
+    $('mkRun').click();
+    await tick();
+    const body = JSON.parse(posts(calls)[0].body);
+    expect(body.reference_images).toEqual([
+      { base64: 'OK', mimeType: 'image/jpeg', role: 'style' },
+    ]);
+    expect(visible($('mkResMsg'))).toBe(true);
+    expect($('mkResMsg').textContent).toBe('참고 사진 1장을 불러오지 못해 빼고 만듭니다');
+  });
+
+  test('다 못 받으면 reference_images 없이 보낸다 · 크레딧 단가는 그대로 (생성 1회)', async () => {
+    const { calls, M } = await load({
+      draft: {
+        v: 1,
+        step: 'refs',
+        photo: PHOTO,
+        choices: {},
+        refs: [{ id: 's:kitchen-n1-1', src: '../app/portfolio/kitchen-n1-1.jpg', label: 'a' }],
+      },
+    });
+    expect($('mkCost').textContent).toBe('20 크레딧 차감 · 남은 50회');
+    M.readRef = jest.fn(async () => null);
+    $('mkRun').click();
+    await tick();
+    expect(posts(calls)).toHaveLength(1);
+    expect(JSON.parse(posts(calls)[0].body)).not.toHaveProperty('reference_images');
+  });
+
   test('냉장고장: fridge_options(브랜드 · 위치 · 고른 모델), 급수 · 배기는 보내지 않는다', async () => {
     const { calls } = await load({
       draft: {
         v: 1,
-        step: 'kind',
+        step: 'refs',
         photo: PHOTO,
         choices: { kind: 'fridge', fBrand: 'lg', fPos: 'right', fModel: 'M874GBB', water: '800' },
       },
@@ -212,7 +298,7 @@ describe('생성 요청 — ai-design.html 과 같은 모양', () => {
     const { M } = await load({
       draft: {
         v: 1,
-        step: 'kind',
+        step: 'refs',
         photo: PHOTO,
         choices: { kind: 'fridge', wallW: '3000', fModel: 'A1' },
       },
@@ -296,7 +382,7 @@ describe('진행 → 결과', () => {
     expect($('mkShots').querySelector('.mk-shot--main img').getAttribute('src')).toBe(first);
   });
 
-  test('잡이 실패하면 서버 문구 + 가구 단계로 돌아가는 버튼', async () => {
+  test('잡이 실패하면 서버 문구 + 참고 사진 단계(생성 버튼)로 돌아가는 버튼', async () => {
     await load({
       gets: [{ id: ID, status: 'failed', error: '사진에서 벽을 찾지 못했습니다', images: [] }],
     });
@@ -305,13 +391,65 @@ describe('진행 → 결과', () => {
     await tick(3000);
     expect(visible($('mkResError'))).toBe(true);
     expect($('mkResError').textContent).toBe('사진에서 벽을 찾지 못했습니다');
+    expect($('mkRetry').textContent).toBe('참고 사진 단계로 돌아가기');
     $('mkRetry').click();
-    expect(visible($('mkKindTitle'))).toBe(true);
+    expect(visible($('mkRefsTitle'))).toBe(true);
+    expect(visible($('mkRun'))).toBe(true);
     expect($('mkRun').disabled).toBe(false); // 화면의 사진은 남아 있어 다시 누를 수 있다
   });
 });
 
-describe('시작하지 못했을 때 — 가구 단계에서 안내, 사진은 남긴다', () => {
+describe('진행 단계 줄 — 4 생성 → 5 견적서 → 6 상담 신청', () => {
+  const current = () =>
+    [...document.querySelectorAll('.mk-steps [aria-current="step"]')].map((b) => b.dataset.mark);
+  const done = () =>
+    [...document.querySelectorAll('.mk-steps .mk-stepnav--done')].map((b) => b.dataset.mark);
+
+  test('만드는 중은 4, 끝나고 견적서가 오면 5 (1~5 켜짐) · 6 은 그때부터 상담 신청으로 간다', async () => {
+    const { M } = await load();
+    const consult = document.querySelector('[data-mark="consult"]');
+    $('mkRun').click();
+    await tick();
+    expect(current()).toEqual(['make']);
+    expect(done()).toEqual(['photo', 'kind', 'refs', 'make']);
+    expect(consult.disabled).toBe(true);
+    await tick(3000);
+    await tick(3000);
+    expect(current()).toEqual(['quote']);
+    expect(done()).toEqual(['photo', 'kind', 'refs', 'make', 'quote']);
+    expect(document.querySelector('[data-mark="make"]').disabled).toBe(true);
+    expect(consult.disabled).toBe(false);
+    consult.click();
+    expect(M.go).toHaveBeenCalledWith(`consult.html?g=${ID}`);
+    // 결과의 「상담 신청」 버튼과 같은 곳
+    expect($('mkConsult').getAttribute('href')).toBe(`consult.html?g=${ID}`);
+  });
+
+  test('실패하면 4 에 머문다 · 6 은 막힌다', async () => {
+    await load({ gets: [{ id: ID, status: 'failed', error: 'x', images: [] }] });
+    $('mkRun').click();
+    await tick();
+    await tick(3000);
+    expect(current()).toEqual(['make']);
+    expect(document.querySelector('[data-mark="consult"]').disabled).toBe(true);
+  });
+
+  test('되돌아간 뒤에는 4 · 5 를 눌러 결과 화면으로 다시 간다', async () => {
+    await load({ gets: [DONE] });
+    $('mkRun').click();
+    await tick();
+    await tick(3000);
+    document.querySelector('[data-mark="kind"]').click();
+    expect(visible($('mkKindTitle'))).toBe(true);
+    const quote = document.querySelector('[data-mark="quote"]');
+    expect(quote.disabled).toBe(false);
+    quote.click();
+    expect(window.location.hash).toBe('#result');
+    expect(visible($('mkResultTitle'))).toBe(true);
+  });
+});
+
+describe('시작하지 못했을 때 — 참고 사진 단계에서 안내, 사진은 남긴다', () => {
   test.each([
     [
       402,
@@ -338,7 +476,8 @@ describe('시작하지 못했을 때 — 가구 단계에서 안내, 사진은 �
     const { calls } = await load({ post: res(status, body) });
     $('mkRun').click();
     await tick();
-    expect(visible($('mkKindTitle'))).toBe(true);
+    expect(visible($('mkRefsTitle'))).toBe(true);
+    expect($('mkRun').disabled).toBe(false);
     expect($('mkNotice').textContent).toBe(message);
     expect(JSON.parse(sessionStorage.getItem(KEY)).photo).not.toBeNull();
     expect(gets(calls)).toEqual([]);
@@ -350,7 +489,9 @@ describe('두 번 차감하지 않는다 · 저절로 생성하지 않는다', (
     const { calls } = await load();
     $('mkRun').click();
     await tick();
-    document.querySelector('[data-goto="kind"]').click();
+    document.querySelector('[data-goto="refs"]').click();
+    expect(visible($('mkRun'))).toBe(true);
+    expect($('mkRun').disabled).toBe(false); // 시작된 뒤에는 눌러서 결과 화면으로 간다
     $('mkRun').click();
     await tick();
     expect(posts(calls)).toHaveLength(1);
@@ -389,6 +530,7 @@ describe('두 번 차감하지 않는다 · 저절로 생성하지 않는다', (
     expect(visible($('mkPhotoTitle'))).toBe(true);
     M.readImage = jest.fn(async () => PHOTO);
     await M.setPhoto({ name: 'k.jpg' });
+    $('mkNext').click();
     $('mkNext').click();
     $('mkRun').click();
     expect(M.go).toHaveBeenCalledWith('../login.html?redirect=segan%2Findex.html');
