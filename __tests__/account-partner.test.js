@@ -7,15 +7,17 @@
  *   1) 응답 모양 — 성공 { success, data }, 실패 { success:false, code, error } (+ 422 는 field), Cache-Control: no-store, private,
  *      시각은 ISO(UTC). 로그인 안 됨 401 unauthorized · 관리자 아님 403 not_admin · 서버 키 없음 503 not_configured
  *   2) GET /partner/me — 협력업체만 company 로, 본사 구성원은 company null + hq_member. 직원 목록 · 초대는 대표에게만
- *   3) 신청 — 본사 409 · 열린 신청 409 · Expert 대표는 upgrade(업체 값으로 채움, 이력 agent_applied) · 그 밖 구성원 409 ·
+ *   3) 신청 — 본사 409 · 열린 신청 409 · Manager · Expert 대표는 upgrade(업체 값으로 채움, 이력 agent_applied) · 그 밖 구성원 409 ·
  *      형식 422(앞뒤 공백 자름, 연락처 · 사업자번호는 숫자와 -). 거두기
- *   4) 등급 예약 — Agent → Expert 예약 · 예약 취소, 대표만, 이력 plan_change_requested
+ *   4) 등급 예약 — 낮은 등급으로 내리기(Agent → Expert · Manager, Expert → Manager) · Manager → Expert 올리기 ·
+ *      예약 취소, Agent 로는 신청으로만(422), 승인된 Agent 예약은 다른 등급으로 덮지 않는다(409 agent_reserved, 취소는 된다),
+ *      대표만, 이력 plan_change_requested
  *   5) 직원 초대 — 토큰은 발급 때 한 번만(DB 에는 sha256 hex), 7일. 미리 보기 · 수락(한 번만, 동시 수락은 되돌림) · 거두기 · 내보내기
  *   6) 관리자 — 신청 목록(이메일) · 미팅 · 승인(upgrade 면 next_plan agent + used_at) · 보류 · 업체 목록 · 업체로 만들기
  *   7) profiles.tier 를 쓰지 않는다 · company_events 에 개인정보가 없다
  *
  * Supabase REST 는 표를 메모리에 둔 작은 흉내(fakeDb)로 대신한다 — 필터(eq · neq · in · is · gt · lt) · select(+ 업체 끼워 넣기) ·
- * order · limit · 유니크(23505) · FK(23503) · CHECK(23514) 를 0011 마이그레이션과 같게 흉내 낸다. 시험 데이터는 모두 가짜다.
+ * order · limit · 유니크(23505) · FK(23503) · CHECK(23514) 를 0011 마이그레이션(등급 값은 0047)과 같게 흉내 낸다. 시험 데이터는 모두 가짜다.
  * ESM 을 jest(CJS) 에서 읽기 위해 import · export 를 떼고, import 하던 것은 인자로 넣어 평가한다.
  */
 
@@ -118,6 +120,7 @@ const U = {
   suspOwner: 'a0000000-0000-4000-8000-000000000007', // 정지된 업체 대표
   newbie: 'a0000000-0000-4000-8000-000000000008', // 아무 데도 없음
   left: 'a0000000-0000-4000-8000-000000000009', // Expert 업체에서 나간 사람
+  mgrOwner: 'a0000000-0000-4000-8000-00000000000a', // Manager 업체 대표 (withManager 로 넣는다)
 };
 const TOKENS = Object.fromEntries(
   Object.entries(U).map(([k, id]) => [`t-${k}`, { id, email: `${k}@example.test` }])
@@ -130,6 +133,7 @@ const CO = {
   expert: 'c0000000-0000-4000-8000-000000000002',
   agent: 'c0000000-0000-4000-8000-000000000003',
   susp: 'c0000000-0000-4000-8000-000000000004',
+  manager: 'c0000000-0000-4000-8000-000000000005', // withManager 로 넣는다
 };
 
 const T0 = '2026-10-01T00:00:00.000Z';
@@ -408,13 +412,13 @@ function violation(tables, table, row, self) {
       return { code: '23505', status: 409 };
   }
   if (table === 'companies') {
-    if (row.kind === 'partner' && !row.plan) return { code: '23514', status: 400 };
+    // 0047: companies_plan_check · companies_next_plan_check
+    const PLANS = ['manager', 'expert', 'agent'];
+    if (row.kind === 'partner' && !PLANS.includes(row.plan)) return { code: '23514', status: 400 };
     if (
       row.next_plan !== null &&
       row.next_plan !== undefined &&
-      (row.kind !== 'partner' ||
-        !['expert', 'agent'].includes(row.next_plan) ||
-        row.next_plan === row.plan)
+      (row.kind !== 'partner' || !PLANS.includes(row.next_plan) || row.next_plan === row.plan)
     ) {
       return { code: '23514', status: 400 };
     }
@@ -681,6 +685,30 @@ function addApp(tables, row) {
   return full;
 }
 
+/** Manager 업체(CO.manager) + 대표(U.mgrOwner). 목록 시험이 바뀌지 않게 seed 에는 넣지 않는다 */
+function withManager(tables, row = {}) {
+  tables.companies.push({
+    id: CO.manager,
+    kind: 'partner',
+    name: '대구가구',
+    plan: 'manager',
+    next_plan: null,
+    status: 'active',
+    sido: '대구광역시',
+    gugun: '수성구',
+    created_at: at(40),
+    ...row,
+  });
+  tables.company_members.push({
+    id: 'm0000000-0000-4000-8000-000000000008',
+    company_id: CO.manager,
+    user_id: U.mgrOwner,
+    role: 'owner',
+    status: 'active',
+    created_at: at(41),
+  });
+}
+
 function addInvite(tables, token, row = {}) {
   const hash = nodeCrypto.createHash('sha256').update(token).digest('hex');
   const full = {
@@ -936,6 +964,36 @@ describe('POST /partner/apply', () => {
     for (const v of [...Object.values(PII), '홍길동', '주방 가구']) expect(ev).not.toContain(v);
   });
 
+  test('Manager 업체 대표도 Agent 로는 신청 — kind upgrade, 업체 값으로, 이력 agent_applied', async () => {
+    use({ mutate: withManager });
+    const r = await call('POST', '/partner/apply', 'mgrOwner', {
+      ...APPLY_BODY(),
+      company_name: '딴이름',
+    });
+    expect(r.status).toBe(201);
+    expect(r.json.data.application).toMatchObject({
+      kind: 'upgrade',
+      company_name: '대구가구',
+      sido: '대구광역시',
+      gugun: '수성구',
+    });
+    expect(db.tables.partner_applications[0]).toMatchObject({
+      company_id: CO.manager,
+      plan: 'agent',
+    });
+    expect(db.tables.company_events).toEqual([
+      expect.objectContaining({ company_id: CO.manager, type: 'agent_applied', payload: {} }),
+    ]);
+  });
+
+  test('정지된 Manager 업체 대표 409 already_member', async () => {
+    use({ mutate: (t) => withManager(t, { status: 'suspended' }) });
+    const r = await call('POST', '/partner/apply', 'mgrOwner', APPLY_BODY());
+    expect(r.status).toBe(409);
+    expect(r.json.code).toBe('already_member');
+    expect(db.tables.partner_applications).toEqual([]);
+  });
+
   test('본사 구성원 409 hq_member · 협력업체의 다른 구성원 409 already_member — 저장하지 않는다', async () => {
     expect((await call('POST', '/partner/apply', 'hq', APPLY_BODY())).json).toMatchObject({
       code: 'hq_member',
@@ -1116,6 +1174,156 @@ describe('POST /partner/plan', () => {
       expect(r.json).toMatchObject({ code: 'invalid', field: 'next_plan' });
     }
     expect(db.writes()).toEqual([]);
+  });
+});
+
+describe('POST /partner/plan — Manager', () => {
+  test('내리기는 낮은 등급 아무거나 — Agent → Manager · Expert → Manager', async () => {
+    let r = await call('POST', '/partner/plan', 'agentOwner', { next_plan: 'manager' });
+    expect(r.status).toBe(200);
+    expect(r.json.data.company).toMatchObject({
+      id: CO.agent,
+      plan: 'agent',
+      next_plan: 'manager',
+    });
+    r = await call('POST', '/partner/plan', 'owner', { next_plan: 'manager' });
+    expect(r.status).toBe(200);
+    expect(r.json.data.company).toMatchObject({
+      id: CO.expert,
+      plan: 'expert',
+      next_plan: 'manager',
+    });
+    expect(db.tables.company_events.map((e) => e.payload)).toEqual([
+      { next_plan: 'manager' },
+      { next_plan: 'manager' },
+    ]);
+  });
+
+  test('Manager → Expert 올리기는 신청 없이 예약 (다음 결제일부터) — 이력 plan_change_requested', async () => {
+    use({ mutate: withManager });
+    const r = await call('POST', '/partner/plan', 'mgrOwner', { next_plan: 'expert' });
+    expect(r.status).toBe(200);
+    expect(r.json.data.company).toMatchObject({
+      id: CO.manager,
+      plan: 'manager',
+      next_plan: 'expert',
+      role: 'owner',
+    });
+    expect(db.tables.companies.find((c) => c.id === CO.manager)).toMatchObject({
+      plan: 'manager',
+      next_plan: 'expert',
+    });
+    expect(db.tables.company_events).toEqual([
+      expect.objectContaining({
+        company_id: CO.manager,
+        actor_user_id: U.mgrOwner,
+        type: 'plan_change_requested',
+        payload: { next_plan: 'expert' },
+      }),
+    ]);
+    // 예약 취소도 된다
+    const off = await call('POST', '/partner/plan', 'mgrOwner', { next_plan: null });
+    expect(off.json.data.company.next_plan).toBeNull();
+  });
+
+  test('Manager 업체가 manager 예약 409 · agent 는 신청으로만 422 — 쓰지 않는다', async () => {
+    use({ mutate: withManager });
+    const same = await call('POST', '/partner/plan', 'mgrOwner', { next_plan: 'manager' });
+    expect(same.status).toBe(409);
+    expect(same.json.code).toBe('invalid_plan_change');
+    for (const who of ['mgrOwner', 'owner']) {
+      const r = await call('POST', '/partner/plan', who, { next_plan: 'agent' });
+      expect(r.status).toBe(422);
+      expect(r.json).toMatchObject({ code: 'invalid', field: 'next_plan' });
+    }
+    expect(db.writes()).toEqual([]);
+  });
+
+  test('그사이 업체 등급이 바뀌었으면 409 invalid_plan_change — 고른 등급을 본 그 등급일 때만 쓴다', async () => {
+    use({
+      mutate: withManager,
+      onRequest: (c, t) => {
+        if (c.method === 'PATCH' && c.table === 'companies')
+          t.companies.find((x) => x.id === CO.manager).plan = 'expert';
+      },
+    });
+    const r = await call('POST', '/partner/plan', 'mgrOwner', { next_plan: 'expert' });
+    expect(r.status).toBe(409);
+    expect(r.json.code).toBe('invalid_plan_change');
+    expect(db.tables.companies.find((c) => c.id === CO.manager).next_plan).toBeNull();
+    expect(db.tables.company_events).toEqual([]);
+  });
+});
+
+describe('POST /partner/plan — 승인된 Agent 예약', () => {
+  /** 업체에 승인으로 생긴 Agent 예약 (승인된 upgrade 신청 + next_plan agent) */
+  function approvedAgent(t, companyId, userId) {
+    t.companies.find((c) => c.id === companyId).next_plan = 'agent';
+    addApp(t, {
+      user_id: userId,
+      kind: 'upgrade',
+      company_id: companyId,
+      status: 'approved',
+      decided_by: U.admin,
+      decided_at: at(50),
+      used_at: at(50),
+    });
+  }
+
+  test('Agent 예약이 있으면 다른 등급 예약은 409 agent_reserved — 예약 · 신청 · 이력을 건드리지 않는다', async () => {
+    use({
+      mutate: (t) => {
+        withManager(t);
+        approvedAgent(t, CO.expert, U.owner);
+        approvedAgent(t, CO.manager, U.mgrOwner);
+      },
+    });
+    for (const [who, id, next_plan] of [
+      ['owner', CO.expert, 'manager'],
+      ['mgrOwner', CO.manager, 'expert'],
+    ]) {
+      const r = await call('POST', '/partner/plan', who, { next_plan });
+      expect(r.status).toBe(409);
+      expect(r.json).toEqual({
+        success: false,
+        code: 'agent_reserved',
+        error: 'Agent 승인 예약이 있습니다 — 먼저 예약을 취소해 주세요.',
+      });
+      expect(db.tables.companies.find((c) => c.id === id).next_plan).toBe('agent');
+    }
+    expect(db.writes()).toEqual([]);
+    expect(db.tables.partner_applications.every((a) => a.status === 'approved')).toBe(true);
+  });
+
+  test('취소(null)는 그대로 된다 — 예약이 풀리고, 그다음에는 다른 등급을 예약할 수 있다', async () => {
+    use({ mutate: (t) => approvedAgent(t, CO.expert, U.owner) });
+    const off = await call('POST', '/partner/plan', 'owner', { next_plan: null });
+    expect(off.status).toBe(200);
+    expect(off.json.data.company.next_plan).toBeNull();
+    const r = await call('POST', '/partner/plan', 'owner', { next_plan: 'manager' });
+    expect(r.status).toBe(200);
+    expect(r.json.data.company.next_plan).toBe('manager');
+  });
+
+  test('Agent 가 아닌 예약은 다른 등급으로 바꿀 수 있다 (Agent 업체의 expert 예약 → manager)', async () => {
+    db.tables.companies.find((c) => c.id === CO.agent).next_plan = 'expert';
+    const r = await call('POST', '/partner/plan', 'agentOwner', { next_plan: 'manager' });
+    expect(r.status).toBe(200);
+    expect(db.tables.companies.find((c) => c.id === CO.agent).next_plan).toBe('manager');
+  });
+
+  test('읽은 뒤 승인으로 Agent 예약이 생기면 덮지 않는다 — 409 invalid_plan_change', async () => {
+    use({
+      onRequest: (c, t) => {
+        if (c.method === 'PATCH' && c.table === 'companies')
+          t.companies.find((x) => x.id === CO.expert).next_plan = 'agent';
+      },
+    });
+    const r = await call('POST', '/partner/plan', 'owner', { next_plan: 'manager' });
+    expect(r.status).toBe(409);
+    expect(r.json.code).toBe('invalid_plan_change');
+    expect(db.tables.companies.find((c) => c.id === CO.expert).next_plan).toBe('agent');
+    expect(db.tables.company_events).toEqual([]);
   });
 });
 
@@ -1491,6 +1699,45 @@ describe('관리자 — 신청', () => {
     expect(db.tables.partner_applications[0].used_at).toBeTruthy();
   });
 
+  test('승인(upgrade, Manager 업체) — 업체 next_plan agent (plan 은 manager 그대로), 신청 used_at', async () => {
+    const d = use({ mutate: withManager });
+    const a = addApp(d.tables, { user_id: U.mgrOwner, kind: 'upgrade', company_id: CO.manager });
+    const r = await call('POST', `/admin/partner/applications/${a.id}`, 'admin', {
+      action: 'approve',
+    });
+    expect(r.status).toBe(200);
+    expect(r.json.data.application.used_at).toMatch(ISO_RE);
+    expect(d.tables.companies.find((c) => c.id === CO.manager)).toMatchObject({
+      plan: 'manager',
+      next_plan: 'agent',
+    });
+    expect(d.tables.company_events).toEqual([
+      expect.objectContaining({ company_id: CO.manager, type: 'agent_approved' }),
+    ]);
+  });
+
+  test('승인(upgrade) — Manager 업체가 Expert 예약 중이어도 Agent 예약으로 바꾼다, 되돌릴 때는 원래 예약', async () => {
+    let d = use({ mutate: (t) => withManager(t, { next_plan: 'expert' }) });
+    let a = addApp(d.tables, { user_id: U.mgrOwner, kind: 'upgrade', company_id: CO.manager });
+    let r = await call('POST', `/admin/partner/applications/${a.id}`, 'admin', {
+      action: 'approve',
+    });
+    expect(r.status).toBe(200);
+    expect(d.tables.companies.find((c) => c.id === CO.manager).next_plan).toBe('agent');
+
+    d = use({
+      mutate: (t) => withManager(t, { next_plan: 'expert' }),
+      onRequest: (c, t) => {
+        if (c.method === 'PATCH' && c.table === 'partner_applications')
+          t.partner_applications[0].status = 'withdrawn';
+      },
+    });
+    a = addApp(d.tables, { user_id: U.mgrOwner, kind: 'upgrade', company_id: CO.manager });
+    r = await call('POST', `/admin/partner/applications/${a.id}`, 'admin', { action: 'approve' });
+    expect(r.json.code).toBe('invalid_transition');
+    expect(d.tables.companies.find((c) => c.id === CO.manager).next_plan).toBe('expert');
+  });
+
   test('승인(upgrade) — 업체가 active 아님 409 company_inactive · 이미 Agent 409 invalid_plan_change, 아무것도 바꾸지 않는다', async () => {
     let d = use();
     let a = addApp(d.tables, { user_id: U.suspOwner, kind: 'upgrade', company_id: CO.susp });
@@ -1784,6 +2031,31 @@ describe('관리자 — 업체', () => {
       'POST company_events',
     ]);
     expect(db.calls.some((c) => c.table === 'subscriptions')).toBe(false);
+  });
+
+  test('업체로 만들기 — Manager 등급도 만든다 (manager · expert · agent 만, 그 밖은 422 plan)', async () => {
+    const r = await call('POST', '/admin/partner/companies', 'admin', {
+      user_id: U.newbie,
+      name: '작은가구',
+      plan: 'manager',
+      sido: '경기도',
+      gugun: '수원시',
+    });
+    expect(r.status).toBe(201);
+    expect(r.json.data.company).toMatchObject({ plan: 'manager', next_plan: null });
+    expect(db.tables.companies.find((c) => c.id === r.json.data.company.id).plan).toBe('manager');
+    for (const plan of ['standard', 'free', 'Manager', 'constructor', null]) {
+      const bad = await call('POST', '/admin/partner/companies', 'admin', {
+        user_id: U.left,
+        name: 'x',
+        plan,
+        sido: '경기도',
+        gugun: '수원시',
+      });
+      expect(bad.status).toBe(422);
+      expect(bad.json).toMatchObject({ code: 'invalid', field: 'plan' });
+      expect(bad.json.error).toContain('Manager');
+    }
   });
 
   test('업체로 만들기 — 이미 구성원(본사 포함) 409 already_member · 없는 회원 404 · 형식 422', async () => {

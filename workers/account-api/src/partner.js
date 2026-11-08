@@ -42,6 +42,19 @@ export const APPLICATION_STATUSES = Object.freeze([
 ]);
 const LIVE_SUBSCRIPTION = ['active', 'past_due', 'trialing'];
 
+/**
+ * 협력업체 등급 — 낮은 것부터 (database/migrations/0047 · payments-api src/plans.js 와 같은 값).
+ * company_members.role 의 'manager'(실장)는 업체 안 직책이라 이 목록과 섞지 않는다.
+ */
+const PLANS = Object.freeze(['manager', 'expert', 'agent']);
+/** 신청 없이 바로 결제해 시작하는 등급. 서로 바꾸기도 대표가 next_plan 예약으로 한다 (다음 결제일부터) */
+const SELF_SERVE_PLANS = Object.freeze(['manager', 'expert']);
+/** 업체 신청 → 미팅 → 본사 승인으로만 가는 등급 (partner_applications.plan 은 이것만) */
+const APPLICATION_PLAN = 'agent';
+const planRank = (p) => (typeof p === 'string' ? PLANS.indexOf(p) : -1);
+/** a 가 b 보다 낮은 등급인가 (둘 다 아는 등급일 때만) */
+const isLowerPlan = (a, b) => planRank(a) >= 0 && planRank(b) >= 0 && planRank(a) < planRank(b);
+
 /** 회원에게 돌려주는 신청 칸 */
 const APP_FIELDS = [
   'id',
@@ -105,7 +118,7 @@ const FIELD_ERRORS = Object.freeze({
   intro: '하는 일을 1~200자로 적어 주세요.',
   role: '역할은 실장 또는 직원 중에서 골라 주세요.',
   next_plan: '바꿀 등급이 올바르지 않습니다.',
-  plan: '등급은 Expert 또는 Agent 중에서 골라 주세요.',
+  plan: '등급은 Manager · Expert · Agent 중에서 골라 주세요.',
   user_id: '대상 회원이 올바르지 않습니다.',
   id: '대상이 올바르지 않습니다.',
   action: '처리할 동작이 올바르지 않습니다.',
@@ -120,6 +133,7 @@ const MSG = Object.freeze({
   not_owner: '팩토리 대표만 할 수 있습니다.',
   company_inactive: '팩토리가 활동 중이 아니어서 할 수 없습니다.',
   invalid_plan_change: '지금 등급에서는 그렇게 바꿀 수 없습니다.',
+  agent_reserved: 'Agent 승인 예약이 있습니다 — 먼저 예약을 취소해 주세요.',
   invite_invalid: '초대 링크가 만료되었거나 더 이상 쓸 수 없습니다.',
   invalid_transition: '지금 신청 상태에서는 할 수 없는 처리입니다.',
   cannot_remove_self: '자기 자신은 내보낼 수 없습니다.',
@@ -420,15 +434,21 @@ async function apply(env, { user, body }) {
   if (await hasOpenApplication(env, user.id))
     throw fail(409, 'application_open', MSG.application_open);
 
+  // 신청은 Agent 하나 — 활동 중인 Manager · Expert 업체 대표는 upgrade 로 신청한다
   let company = null;
   if (m) {
     const c = m.company;
-    if (isPartner(m) && m.role === 'owner' && c.plan === 'expert' && c.status === 'active')
+    if (
+      isPartner(m) &&
+      m.role === 'owner' &&
+      isLowerPlan(c.plan, APPLICATION_PLAN) &&
+      c.status === 'active'
+    )
       company = c;
     else throw fail(409, 'already_member', MSG.already_member);
   }
 
-  // Expert → Agent 신청은 업체 이름 · 지역을 업체 값으로 채운다 (보낸 값은 보지 않는다)
+  // Manager · Expert → Agent 신청은 업체 이름 · 지역을 업체 값으로 채운다 (보낸 값은 보지 않는다)
   const b = obj(body);
   const row = {
     user_id: user.id,
@@ -476,22 +496,38 @@ async function withdraw(env, { user }) {
   return { data: { application: appView(rows[0]) } };
 }
 
-/** POST /partner/plan — { next_plan: 'expert' | null }. 다음 결제일부터 바꿀 등급을 예약 · 취소한다 */
+/**
+ * POST /partner/plan — { next_plan: 'manager' | 'expert' | null }. 다음 결제일부터 바꿀 등급을 예약 · 취소한다.
+ *   내리기: 지금보다 낮은 등급이면 무엇이든 (Agent → Expert · Manager, Expert → Manager)
+ *   올리기: 신청 없이 시작하는 등급끼리만 (Manager → Expert). 일할 계산 없이 다음 결제일부터 그 금액이다
+ *   Agent 로 올리기는 여기서 하지 않는다 — 신청 · 승인으로 (그래서 'agent' 는 422)
+ *   승인으로 들어간 Agent 예약(next_plan agent — 이 길은 agent 를 넣지 않아 승인만 넣는다)이 있으면
+ *     다른 등급 예약은 409 agent_reserved. 덮어쓰면 승인이 말없이 사라진다
+ *   null: 예약 취소 (승인으로 들어간 Agent 예약도 — 취소하면 승인도 풀린다, 다시 신청)
+ */
 async function changePlan(env, { user, body }) {
   const b = obj(body);
   if (
     !Object.prototype.hasOwnProperty.call(b, 'next_plan') ||
-    (b.next_plan !== 'expert' && b.next_plan !== null)
+    (b.next_plan !== null && !SELF_SERVE_PLANS.includes(b.next_plan))
   ) {
     throw invalid('next_plan');
   }
   const m = await partnerOwner(env, user.id);
   const c = m.company;
   if (c.status !== 'active') throw fail(409, 'company_inactive', MSG.company_inactive);
-  if (b.next_plan === 'expert' && c.plan !== 'agent')
+  // 지금 등급과 같은 예약은 없다 (DB CHECK next_plan IS DISTINCT FROM plan)
+  if (b.next_plan !== null && (planRank(c.plan) < 0 || c.plan === b.next_plan))
     throw fail(409, 'invalid_plan_change', MSG.invalid_plan_change);
+  if (b.next_plan !== null && c.next_plan === APPLICATION_PLAN)
+    throw fail(409, 'agent_reserved', MSG.agent_reserved);
 
-  const filter = `id=eq.${c.id}&kind=eq.partner&status=eq.active${b.next_plan === 'expert' ? '&plan=eq.agent' : ''}`;
+  // 읽은 등급 · 예약을 보고 판단했으니, 그사이 바뀌었으면(등급 변경 · 승인으로 Agent 예약) 쓰지 않는다
+  const seen =
+    b.next_plan === null
+      ? ''
+      : `&plan=eq.${c.plan}&next_plan=${c.next_plan ? `eq.${c.next_plan}` : 'is.null'}`;
+  const filter = `id=eq.${c.id}&kind=eq.partner&status=eq.active${seen}`;
   const rows = await db(env, 'PATCH', `companies?${filter}&select=${COMPANY_COLS}`, {
     next_plan: b.next_plan,
   });
@@ -726,8 +762,10 @@ async function adminDecide(env, { user, params, body }) {
   else if (action === 'hold') patch = { status: 'held', decided_by: user.id, decided_at: now };
   else patch = { status: 'approved', decided_by: user.id, decided_at: now };
 
-  // Expert → Agent 승인: 업체 next_plan = agent (다음 결제일부터), 신청은 쓴 것으로
+  // Manager · Expert → Agent 승인: 업체 next_plan = 신청 등급(agent, 다음 결제일부터), 신청은 쓴 것으로.
+  // 업체가 신청 등급보다 낮을 때만 (그사이 올라갔거나 같아졌으면 409)
   let company = null;
+  let target = null;
   if (action === 'approve' && cur.kind === 'upgrade') {
     const cid =
       typeof cur.company_id === 'string' && UUID_RE.test(cur.company_id) ? cur.company_id : null;
@@ -737,12 +775,14 @@ async function adminDecide(env, { user, params, body }) {
     if (!company || company.kind !== 'partner' || company.status !== 'active') {
       throw fail(409, 'company_inactive', MSG.company_inactive);
     }
-    if (company.plan !== 'expert') throw fail(409, 'invalid_plan_change', MSG.invalid_plan_change);
+    target = cur.plan === APPLICATION_PLAN ? cur.plan : null;
+    if (!target || !isLowerPlan(company.plan, target))
+      throw fail(409, 'invalid_plan_change', MSG.invalid_plan_change);
     const set = await db(
       env,
       'PATCH',
-      `companies?id=eq.${company.id}&kind=eq.partner&status=eq.active&plan=eq.expert&select=id`,
-      { next_plan: 'agent' }
+      `companies?id=eq.${company.id}&kind=eq.partner&status=eq.active&plan=eq.${company.plan}&select=id`,
+      { next_plan: target }
     );
     if (!set.length) throw fail(409, 'invalid_plan_change', MSG.invalid_plan_change);
     patch.used_at = now;
@@ -767,7 +807,7 @@ async function adminDecide(env, { user, params, body }) {
         await db(
           env,
           'PATCH',
-          `companies?id=eq.${company.id}&next_plan=eq.agent`,
+          `companies?id=eq.${company.id}&next_plan=eq.${target}`,
           { next_plan: company.next_plan ?? null },
           { prefer: 'return=minimal' }
         );
@@ -864,7 +904,7 @@ async function adminCreateCompany(env, { user, body }) {
   const target = uuidParam(b.user_id, 'user_id');
   const name = text(b.name, 'name', 100);
   const plan = b.plan;
-  if (plan !== 'expert' && plan !== 'agent') throw invalid('plan');
+  if (!PLANS.includes(plan)) throw invalid('plan');
   const sido = text(b.sido, 'sido', 20);
   const gugun = text(b.gugun, 'gugun', 40);
 
