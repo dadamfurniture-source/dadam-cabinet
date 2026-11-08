@@ -23,18 +23,18 @@
 
   // ── 정본 ─────────────────────────────────────────────
   // 링크를 한 곳에만 적는다. 페이지마다 적으면 또 어긋난다.
-  // 만들기 · 시공사례(자재 포함) · 내 정보 · 내 연출컷 · 구독 관리는 SEGAN 앱(segan/)이다. 옛 주소는 호스팅이 앱으로 넘기므로(_redirects)
+  // 만들기 · 시공사례 · 자재(앱 블로그로 옮긴다) · 내 정보 · 내 연출컷 · 구독 관리는 SEGAN 앱(segan/)이다. 옛 주소는 호스팅이 앱으로 넘기므로(_redirects)
   // 바로 앱 주소를 적는다 — 확장자 없이 (호스팅이 .html 을 308 넘긴다).
   var NAV = [
     { key: 'ai', label: 'AI DESIGN', href: 'segan/' },
     { key: 'collection', label: 'COLLECTION', href: 'segan/collection' },
-    { key: 'material', label: 'MATERIAL', href: 'segan/collection#material' },
+    { key: 'material', label: 'MATERIAL', href: 'segan/blog' },
   ];
 
   var FOOT_MENU = [
     { label: 'AI Design', href: 'segan/' },
     { label: 'Collection', href: 'segan/collection' },
-    { label: 'Material', href: 'segan/collection#material' },
+    { label: 'Material', href: 'segan/blog' },
   ];
 
   // TODO(콘텐츠): FAQ · terms.html · privacy.html 이 아직 없다.

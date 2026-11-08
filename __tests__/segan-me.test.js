@@ -405,9 +405,10 @@ describe('내 프로젝트 — GET /me/projects', () => {
     const rows = [...document.querySelectorAll('#meGroupMine li:not([hidden]) .sg-row')].map(
       (a) => [a.textContent, a.getAttribute('href')]
     );
-    // 내 연출컷(예전 아래 탭) · 상담 내역 · 내 프로젝트 — 내 A/S 접수(segan/as-requests.js)는 접수가 있을 때 그 아래
-    expect(rows.slice(0, 3)).toEqual([
+    // 내 연출컷(예전 아래 탭) · 좋아요 · 상담 내역 · 내 프로젝트 — 내 A/S 접수(segan/as-requests.js)는 접수가 있을 때 그 아래
+    expect(rows.slice(0, 4)).toEqual([
       ['내 연출컷', 'renders.html'],
+      ['좋아요', '#likes'],
       ['상담 내역', '#consults'],
       ['내 프로젝트', '#projects-mine'],
     ]);

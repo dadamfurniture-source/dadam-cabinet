@@ -3,493 +3,55 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="description" content="다담가구가 시공한 맞춤 가구 사례와 자재를 봅니다." />
+    <meta name="description" content="맞춤 가구 시공사례와 AI 연출컷을 사진으로 봅니다." />
     <link rel="canonical" href="https://dadamfurniture.com/segan/collection" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="SEGAN" />
     <meta property="og:title" content="시공사례 · SEGAN" />
-    <meta property="og:description" content="다담가구가 시공한 맞춤 가구 사례와 자재를 봅니다." />
+    <meta property="og:description" content="맞춤 가구 시공사례와 AI 연출컷을 사진으로 봅니다." />
     <meta property="og:url" content="https://dadamfurniture.com/segan/collection" />
     <meta property="og:image" content="https://dadamfurniture.com/segan/icons/icon-512.png" />
     <meta name="theme-color" content="#F6F3EE" />
     <title>시공사례 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026110808" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026110808" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026110808" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110808" />
+    <link rel="icon" href="icons/icon.svg?v=2026110902" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110902" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110902" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110902" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026110808" />
-    <!-- 시공사례 — 기존 사이트와 같은 설정 · 라이브러리 (collection_posts 는 로그인 없이 읽는다) -->
-    <script src="../js/config.js?v=2026110808"></script>
+    <link rel="stylesheet" href="shell.css?v=2026110902" />
+    <!-- 시공사례 — 기존 사이트와 같은 설정 · 라이브러리 (collection_posts 공개 칸은 로그인 없이 읽는다, 좋아요는 로그인한 사람만) -->
+    <script src="../js/config.js?v=2026110902"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <!-- 관리 탭 — 관리자에게만 연다 (segan/shell.js applyAdminTab) -->
-    <script src="../js/admin-access.js?v=2026110808"></script>
+    <script src="../js/admin-access.js?v=2026110902"></script>
     <!-- 작업 탭 — 작업자에게만 연다 (segan/shell.js applyRoleTabs · GET /work/me) -->
-    <script src="../js/mypage-work.js?v=2026110808"></script>
-    <script src="shell.js?v=2026110808" defer></script>
+    <script src="../js/mypage-work.js?v=2026110902"></script>
+    <script src="shell.js?v=2026110902" defer></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026110808" defer></script>
-    <script src="collection.js?v=2026110808" defer></script>
+    <script src="guide.js?v=2026110902" defer></script>
+    <script src="collection-view.js?v=2026110902" defer></script>
+    <script src="collection.js?v=2026110902" defer></script>
   </head>
   <body class="sg-app" data-tab="collection">
     <div data-segan-shell="header"></div>
 
     <main class="sg-main" id="main">
       <h1 class="sg-h1">시공사례</h1>
-      <!-- 시공사례 · 자재 — 탭 막대는 넷 그대로, 이 화면 안에서 고른다. collection.html#material 이면 자재 (segan/collection.js) -->
-      <div class="cl-seg" role="tablist" aria-label="시공사례 · 자재">
-        <button type="button" role="tab" id="clTabCases" aria-controls="clCases" aria-selected="true">시공사례</button>
-        <button
-          type="button"
-          role="tab"
-          id="clTabMaterial"
-          aria-controls="clMaterial"
-          aria-selected="false"
-          tabindex="-1"
-        >
-          자재
-        </button>
-      </div>
-
-      <section id="clCases" role="tabpanel" aria-labelledby="clTabCases">
-        <div class="cl-tiles" id="clTiles"></div>
+      <!-- 사진을 정사각 칸으로 — 폰 3칸 · PC 4칸 (segan/collection.js). 누르면 사진 보기 시트 (segan/collection-view.js) -->
+      <section id="clCases" aria-label="시공사례 사진">
+        <div class="cl-grid" id="clTiles"></div>
         <p class="cl-state" id="clState" role="status"></p>
         <button type="button" class="sg-btn cl-more" id="clMore" hidden>더 보기</button>
         <div id="clSentinel" class="cl-sentinel"></div>
       </section>
-
-      <!-- 자재 — 사이트 material.html 의 글 · 사진을 그대로 (사진은 ../app/material/). 사진은 시공사례처럼 배경으로만 그린다.
-           material.html 의 첫 사진(board-stat-area.jpg)은 저장소에 파일이 없어 뺐다 -->
-      <section class="mt" id="clMaterial" role="tabpanel" aria-labelledby="clTabMaterial" hidden>
-        <header class="mt-hero">
-          <p class="mt-tag">Premium Materials</p>
-          <h2 class="mt-h">다담가구의 자재</h2>
-          <p class="mt-lead">예림보드 럭스&trade; &times; 레하우 엣지의 프리미엄 조합으로 완벽한 품질을 제공합니다</p>
-        </header>
-
-        <!-- 1. 예림보드 럭스 MR -->
-        <section class="mt-sec" aria-labelledby="mtBoardTitle">
-          <p class="mt-tag">Yerim Board</p>
-          <h3 class="mt-h" id="mtBoardTitle">YERIM BOARD LUX <sup>MR</sup></h3>
-          <p class="mt-lead">
-            예림보드 럭스는 단순한 표면 장식의 화려함을 넘어, 본질적인 가치를 추구합니다.<br />
-            트렌드의 흐름에 맞는 새로운 감성을 통해 브랜드 가치와 깊이 있는 제품의 품질을 제공합니다.
-          </p>
-          <div class="mt-block">
-            <span class="mt-badge">MR</span>
-            <h4 class="mt-sub">예림보드 럭스<sup>MR</sup> (내수보드)</h4>
-            <p class="mt-text">
-              습기에 더 강력한 내구성으로, 오래동안 변형없이 안전하게 사용할 수 있는 예림보드 럭스를 만나보세요.
-            </p>
-            <p class="mt-note">MR = Moisture Resistance의 약자</p>
-            <p class="mt-box">
-              내수성을 평가하는 지표인 두께 팽창률<br />
-              기존 9% &#9654; <strong>7% 이하 수준</strong>으로 대폭 강화<br />
-              습기 테스트 결과 <strong>6.5%</strong> 달성
-            </p>
-          </div>
-          <div class="mt-block">
-            <h4 class="mt-sub">실제 테스트 결과</h4>
-            <div class="mt-bars">
-              <div class="mt-bar">
-                <span class="mt-bar-label">기존 예림보드 럭스</span>
-                <span class="mt-bar-track"><span class="mt-bar-fill" style="width: 92%">9.2%</span></span>
-              </div>
-              <div class="mt-bar">
-                <span class="mt-bar-label">예림보드 럭스<sup>MR</sup></span>
-                <span class="mt-bar-track"
-                  ><span class="mt-bar-fill mt-bar-fill--new" style="width: 65%">6.5%</span></span
-                >
-              </div>
-            </div>
-            <p class="mt-axis" aria-hidden="true">
-              <span>0</span><span>2</span><span>4</span><span>6</span><span>8</span><span>10</span>
-            </p>
-          </div>
-          <div class="mt-block">
-            <h4 class="mt-sub">흡수 두께 팽창률 시험 성적서</h4>
-            <div class="mt-figs">
-              <figure class="mt-fig">
-                <span
-                  class="mt-img mt-img--doc"
-                  role="img"
-                  aria-label="18T E0 보드 성적서"
-                  style="aspect-ratio: 403 / 693; background-image: url('../app/material/cert-18t-e0.jpg')"
-                ></span>
-                <figcaption>18T E0 보드 성적서</figcaption>
-              </figure>
-              <figure class="mt-fig">
-                <span
-                  class="mt-img mt-img--doc"
-                  role="img"
-                  aria-label="18T E0 MR 보드 성적서"
-                  style="aspect-ratio: 551 / 693; background-image: url('../app/material/cert-18t-mr.jpg')"
-                ></span>
-                <figcaption>18T E0 MR 보드 성적서</figcaption>
-              </figure>
-            </div>
-          </div>
-        </section>
-
-        <!-- 2. 친환경 등급 · 보드 사양 · 재고 -->
-        <section class="mt-sec" aria-labelledby="mtEcoTitle">
-          <p class="mt-tag">Eco-Friendly</p>
-          <h3 class="mt-h" id="mtEcoTitle">차별화된 친환경 자재</h3>
-          <p class="mt-lead">자연 상태에 가장 가까운 SEO/E0 등급으로 더 안전하게 친환경 자재만을 사용합니다</p>
-          <div class="mt-table-wrap">
-            <table class="mt-table">
-              <thead>
-                <tr>
-                  <th>목적 / 적용 환경 등급</th>
-                  <th>SEO</th>
-                  <th>E0</th>
-                  <th>E1</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th scope="row">포름알데히드 방출량</th>
-                  <td>0.3mg/L 이하</td>
-                  <td>0.5mg/L 이하</td>
-                  <td>1.5mg/L 이하</td>
-                </tr>
-                <tr>
-                  <th scope="row">용도</th>
-                  <td>무제한 / 친환경 최상급</td>
-                  <td>가구 / 건축 내장재</td>
-                  <td>일반 가구</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <h4 class="mt-sub">업그레이드된 보드 사양</h4>
-          <div class="mt-table-wrap">
-            <table class="mt-table mt-table--spec">
-              <thead>
-                <tr>
-                  <th>구분</th>
-                  <th>카테고리</th>
-                  <th>보드 등급</th>
-                  <th>MR</th>
-                  <th>내오염</th>
-                  <th>내지문</th>
-                  <th>MLS (내스크래치)</th>
-                  <th>항균</th>
-                  <th>일체형 엣지</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th scope="rowgroup" rowspan="4">Prestige<br /><small>프레스티지</small></th>
-                  <td>Deco</td>
-                  <td>E0</td>
-                  <td>&#10004;</td>
-                  <td>&#10004;</td>
-                  <td>&#10004;</td>
-                  <td></td>
-                  <td>&#10004;</td>
-                  <td>&#10004;</td>
-                </tr>
-                <tr>
-                  <td>MVO</td>
-                  <td>SEO</td>
-                  <td>&#10004;</td>
-                  <td>&#10004;</td>
-                  <td>&#10004;</td>
-                  <td></td>
-                  <td>&#10004;</td>
-                  <td>&#10004;</td>
-                </tr>
-                <tr>
-                  <td>MP</td>
-                  <td>SEO</td>
-                  <td>&#10004;</td>
-                  <td></td>
-                  <td>&#10004;</td>
-                  <td></td>
-                  <td>&#10004;</td>
-                  <td>&#10004;</td>
-                </tr>
-                <tr>
-                  <td>PET</td>
-                  <td>SEO</td>
-                  <td>&#10004;</td>
-                  <td></td>
-                  <td>&#10004;</td>
-                  <td></td>
-                  <td>&#10004;</td>
-                  <td></td>
-                </tr>
-                <tr>
-                  <th scope="rowgroup" rowspan="2">Supreme<br /><small>슈프림</small></th>
-                  <td>HP</td>
-                  <td>E0</td>
-                  <td>&#10004;</td>
-                  <td></td>
-                  <td>&#10004;</td>
-                  <td></td>
-                  <td>&#10004;</td>
-                  <td></td>
-                </tr>
-                <tr>
-                  <td>PET</td>
-                  <td>E0</td>
-                  <td>&#10004;</td>
-                  <td></td>
-                  <td>&#10004;</td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                </tr>
-                <tr>
-                  <th scope="row">Deco<br /><small>데코</small></th>
-                  <td>PVC</td>
-                  <td>E0</td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                </tr>
-                <tr>
-                  <th scope="rowgroup" rowspan="2">Prime<br /><small>프라임</small></th>
-                  <td>MPB</td>
-                  <td>E0</td>
-                  <td></td>
-                  <td></td>
-                  <td>&#10004;</td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                </tr>
-                <tr>
-                  <td>LW</td>
-                  <td>E1</td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="mt-cards">
-            <div class="mt-card">
-              <h4 class="mt-sub">특대 사이즈 (4x9) 재고 운영</h4>
-              <p class="mt-text"><strong>제품 규격:</strong> 1,220mm(W) x 2,745mm(H) x 18T / E0 이상</p>
-              <p class="mt-text"><strong>재고 운영:</strong> 16가지(PET) 색상, 8가지 이상 상시 재고 운영</p>
-              <p class="mt-text">
-                <strong>그 외 주문제:</strong> 잔여 색, 결고리 기준 가격 으로 제작 가능, 상한 재고 추가
-              </p>
-            </div>
-            <div class="mt-card">
-              <h4 class="mt-sub">방염 자재 재고 운영</h4>
-              <p class="mt-text"><strong>제품 규격:</strong> 1,220mm(W) x 2,440mm(H) x 18T / E0 이상</p>
-              <p class="mt-text"><strong>재고 운영:</strong> 다양한 MPB 소프트, 프레스티지 색상 운영</p>
-            </div>
-          </div>
-        </section>
-
-        <!-- 3. 레하우 엣지 -->
-        <section class="mt-sec" aria-labelledby="mtRehauTitle">
-          <p class="mt-tag">YERIM &times; REHAU</p>
-          <h3 class="mt-h" id="mtRehauTitle">완벽한 일체감</h3>
-          <p class="mt-lead">
-            REHAU는 1948년에 설립된 독일의 글로벌 엣지 전문 기업입니다.<br />
-            혁신 기술로 더 나은 삶을 만들어 갑니다.
-          </p>
-          <div class="mt-block">
-            <span
-              class="mt-img"
-              role="img"
-              aria-label="REHAU 엣지 제품"
-              style="aspect-ratio: 4494 / 2070; background-image: url('../app/material/rehau-product.jpg')"
-            ></span>
-            <p class="mt-tag">The Perfect Component</p>
-            <h4 class="mt-sub">예림보드 럭스 × 레하우 엣지</h4>
-            <p class="mt-text">
-              엣지까지 일체화된 완성도, 완벽한 컬러 매칭과 선명한 고해상도 인쇄 기술로 보드와 엣지의 경계가 사라집니다.
-            </p>
-            <p class="mt-text">
-              감열 방식을 적용한 레이저 공법으로 보드의 컬러와 디자인을 완벽하게 재현하여 자연스러운 마감을 제공합니다.
-            </p>
-          </div>
-          <div class="mt-block">
-            <span
-              class="mt-img"
-              role="img"
-              aria-label="레하우 엣지 vs 일반 엣지 비교"
-              style="aspect-ratio: 3326 / 1066; background-image: url('../app/material/edge-compare.jpg')"
-            ></span>
-            <h4 class="mt-sub">완벽한 일체감!</h4>
-            <p class="mt-text">엣지까지 일체화된 완성도, 기술의 차이로 컬러의 흐름까지 설계합니다.</p>
-            <p class="mt-text">
-              압출 방식을 적용한 레이저 공법으로 전면과 이질감 없는 코어 색상, 개별 인쇄 방식으로 선명한 해상도로 고품질
-              인쇄 퀄리티를 제공합니다.
-            </p>
-          </div>
-          <div class="mt-cards">
-            <div class="mt-card">
-              <h4 class="mt-sub">고해상도 인쇄</h4>
-              <p class="mt-text">개별 인쇄 방식으로 선명한 색감과 그라데이션 처리, 높은 품질의 인쇄 퀄리티</p>
-            </div>
-            <div class="mt-card">
-              <h4 class="mt-sub">노블매트 코팅</h4>
-              <p class="mt-text">
-                극우광 매트와 내지문 기능이 결합된 최상의 코팅, 품질과 디자인을 모두 갖춘 프리미엄 소재
-              </p>
-            </div>
-            <div class="mt-card">
-              <h4 class="mt-sub">내지문 &middot; 내오염</h4>
-              <p class="mt-text">MLS 내스크래치, 항균, 내지문 기능이 결합된 최상의 표면 처리</p>
-            </div>
-            <div class="mt-card">
-              <h4 class="mt-sub">GREENGUARD 인증</h4>
-              <p class="mt-text">세계적인 인증 기관인 UL에서 발급하는 인증서로, 환경 안전을 보장</p>
-            </div>
-          </div>
-          <div class="mt-figs">
-            <figure class="mt-fig">
-              <span
-                class="mt-img mt-img--doc"
-                role="img"
-                aria-label="GREENGUARD - Edgeband Décor"
-                style="aspect-ratio: 633 / 540; background-image: url('../app/material/cert-decor.jpg')"
-              ></span>
-              <figcaption>Edgeband D&eacute;cor</figcaption>
-            </figure>
-            <figure class="mt-fig">
-              <span
-                class="mt-img mt-img--doc"
-                role="img"
-                aria-label="GREENGUARD - Edgeband Uni"
-                style="aspect-ratio: 638 / 540; background-image: url('../app/material/cert-uni.jpg')"
-              ></span>
-              <figcaption>Edgeband Uni</figcaption>
-            </figure>
-          </div>
-        </section>
-
-        <!-- 4. 2025 — 2026 Mega Theme -->
-        <section class="mt-sec" aria-labelledby="mtThemeTitle">
-          <p class="mt-tag">2025 &mdash; 2026</p>
-          <h3 class="mt-h" id="mtThemeTitle">Mega Theme</h3>
-          <p class="mt-lead">
-            스마트 기술이 공간 혁신하는 동시에, 지속 가능한 소재와 자연 친화적 디자인이 소비자의 니즈를 충족하며
-            다목적성과 감각적 즐거움을 제공하는 요소로 더욱 중요해질 전망입니다.
-          </p>
-          <span
-            class="mt-img mt-img--circle"
-            role="img"
-            aria-label="Mega Theme 다이어그램"
-            style="aspect-ratio: 4045 / 3763; background-image: url('../app/material/mega-theme-circle.jpg')"
-          ></span>
-
-          <div class="mt-theme">
-            <span
-              class="mt-img"
-              role="img"
-              aria-label="Forward 테마"
-              style="
-                aspect-ratio: 1887 / 1882;
-                background-color: #c9b99a;
-                background-image: url('../app/material/theme-forward-photo.jpg');
-              "
-            ></span>
-            <p class="mt-tag">Theme 01</p>
-            <h4 class="mt-sub">Forward</h4>
-            <p class="mt-text">
-              자연스럽게 스며든 세련된 기술. AI 시대에서 최첨단 기술은 부각되지지 않고 두 번째에 놓이지만, 인간과 공간의
-              관계를 더욱 부드럽고 세련되게 만들어갑니다.
-            </p>
-            <p class="mt-keys"><span>Beige-and-Walnut</span><span>Warmth</span><span>미래지향 기술</span></p>
-            <ul class="mt-chips">
-              <li><span class="mt-swatch" style="background: #7a6450"></span>몽블랑 체스넛</li>
-              <li><span class="mt-swatch" style="background: #5c3d2e"></span>메탈 쉐도우 코퍼브라운</li>
-              <li><span class="mt-swatch" style="background: #6b6b6b"></span>메탈 쉐도우 그라파이트</li>
-              <li><span class="mt-swatch" style="background: #d5cfc5"></span>에크루</li>
-            </ul>
-          </div>
-
-          <div class="mt-theme">
-            <span
-              class="mt-img"
-              role="img"
-              aria-label="Pause 테마"
-              style="
-                aspect-ratio: 1887 / 1882;
-                background-color: #b8c4a8;
-                background-image: url('../app/material/theme-pause-photo.jpg');
-              "
-            ></span>
-            <p class="mt-tag">Theme 02</p>
-            <h4 class="mt-sub">Pause</h4>
-            <p class="mt-text">
-              자연과 조화된 지속 가능한 일상 공간. 자연적이고 친환경적 가치관이 확산 중이며 한때 트렌드에 머물렀던 자연
-              소재와 조합, 자연을 감싸 안는 공간 디자인이 일상으로 들어옵니다.
-            </p>
-            <p class="mt-keys">
-              <span>Discovery/Pebble</span><span>Prestige</span><span>자연 &middot; 지속 가능</span>
-            </p>
-            <ul class="mt-chips">
-              <li><span class="mt-swatch" style="background: #c8b68a"></span>밤부</li>
-              <li><span class="mt-swatch" style="background: #c4a050"></span>세이 오크</li>
-              <li><span class="mt-swatch" style="background: #d8d0c8"></span>부클레</li>
-              <li><span class="mt-swatch" style="background: #c8a868"></span>세이 메이플</li>
-            </ul>
-          </div>
-
-          <div class="mt-theme">
-            <span
-              class="mt-img"
-              role="img"
-              aria-label="Play 테마"
-              style="
-                aspect-ratio: 1887 / 1882;
-                background-color: #e07040;
-                background-image: url('../app/material/theme-play-photo.jpg');
-              "
-            ></span>
-            <p class="mt-tag">Theme 03</p>
-            <h4 class="mt-sub">Play</h4>
-            <p class="mt-text">
-              취향을 넘어서고 영감을 주는 맞춤형 공간. 컬러는 더 깊어지고 대담해지며 디자인 소재의 가능성은 한없이
-              넓어집니다. LUX 취향과 니즈를 담은 실험적이고 감각적인 공간입니다.
-            </p>
-            <p class="mt-keys"><span>Upholstery</span><span>Earthy</span><span>리치 &middot; 크리에이티브</span></p>
-            <ul class="mt-chips">
-              <li><span class="mt-swatch" style="background: #c0522a"></span>아크 마멀레이드</li>
-              <li><span class="mt-swatch" style="background: #2d5040"></span>아크 포레스트그린</li>
-              <li><span class="mt-swatch" style="background: #d0ccc5"></span>스톤 화이트</li>
-              <li><span class="mt-swatch" style="background: #e0ddd8"></span>콘크리트 화이트</li>
-            </ul>
-          </div>
-        </section>
-      </section>
     </main>
-
-    <!-- 크게 보기 — 앱 안에서만. 다운로드 단추 · 링크는 두지 않는다 -->
-    <div class="cl-view" id="clView" role="dialog" aria-modal="true" aria-labelledby="clViewCap" hidden>
-      <div class="cl-view-img" id="clViewImg" role="img"></div>
-      <div class="cl-view-bar">
-        <button type="button" class="cl-view-btn" id="clPrev" aria-label="이전 사례">‹</button>
-        <p class="cl-view-cap" id="clViewCap"></p>
-        <button type="button" class="cl-view-btn" id="clNext" aria-label="다음 사례">›</button>
-        <button type="button" class="cl-view-btn cl-view-close" id="clClose">닫기</button>
-      </div>
-    </div>
 
     <div data-segan-shell="footer"></div>
     <div data-segan-shell="tabbar"></div>

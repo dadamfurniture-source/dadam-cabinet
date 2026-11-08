@@ -236,7 +236,7 @@ const partnerParts = () =>
     .filter((el) => !el.hidden && !el.classList.contains('me-off'))
     .map((el) => el.id);
 
-const MINE = ['내 연출컷', '상담 내역', '크레딧 · 구독없음', '내 활동', '설정'];
+const MINE = ['내 연출컷', '좋아요', '상담 내역', '크레딧 · 구독없음', '내 활동', '설정'];
 
 afterEach(() => {
   jest.restoreAllMocks();
@@ -281,7 +281,16 @@ describe('메뉴 — 쓸 수 있는 줄만', () => {
     });
     expect(hub()[0]).toEqual([
       '내 것',
-      ['내 연출컷', '상담 내역', '내 프로젝트', 'A/S 접수', '크레딧 · 구독없음', '내 활동', '설정'],
+      [
+        '내 연출컷',
+        '좋아요',
+        '상담 내역',
+        '내 프로젝트',
+        'A/S 접수',
+        '크레딧 · 구독없음',
+        '내 활동',
+        '설정',
+      ],
     ]);
     expect(row('내 프로젝트').getAttribute('href')).toBe('#projects-mine');
     expect(row('A/S 접수').getAttribute('href')).toBe('#as-mine');
