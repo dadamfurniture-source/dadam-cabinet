@@ -12,13 +12,17 @@
 
 ## 업체 구독
 
-Expert · Agent 결제는 모두 협력업체(`companies.kind = 'partner'`)의 구독이다 (`src/company.js`).
+Manager · Expert · Agent 결제는 모두 협력업체(`companies.kind = 'partner'`)의 구독이다 (`src/company.js`).
+
+- 등급 · 가격 · 승인 등급은 `src/plans.js` 하나: 낮은 것부터 manager < expert < agent, 월 가격은 `wrangler.toml [vars]` 의 `TOSS_PRICE_MANAGER_KRW` · `TOSS_PRICE_EXPERT_KRW` · `TOSS_PRICE_AGENT_KRW`.
+  Manager · Expert 는 신청 없이 바로 결제하고, 승인 등급(`APPROVAL_PLANS` = Agent)만 본사 승인된 신청이 있어야 한다.
+  등급이 그대로인 구독은 구독 행에 저장된 금액으로 계속 결제한다 — 가격을 바꾸면 새 결제와 등급을 바꾸는 결제(`next_plan`)부터 새 값이다.
 
 - 등급(`profiles.tier`)은 DB 트리거가 업체 plan · status 로 맞춘다 — 워커는 `profiles` 를 쓰지 않는다.
 - 크레딧은 업체 통장(`company_credits`) 하나를 구성원이 함께 쓴다. 새 달 크레딧 = 업체 통장 기간 끊기.
 - `/issue-billing-key` `{ auth_key, customer_key, plan, company?: { name, sido, gugun } }` — 결제 전에 막는다:
   본사 구성원 409 `hq_member` · 협력업체 실장/직원 403 `not_owner` · 업체에 살아 있는 구독 409 `already_subscribed` ·
-  업체 등급과 다른 plan 409 `plan_mismatch` · Expert 업체 이름/지역 없음 422 `invalid`(+`field`) · Agent 승인 없음 403 `agent_not_approved`.
+  업체 등급과 다른 plan 409 `plan_mismatch` · Manager · Expert 업체 이름/지역 없음 422 `invalid`(+`field`) · Agent 승인 없음 403 `agent_not_approved`.
   - 구성원이 아니면 결제 뒤 업체(active) → 대표 구성원 → (Agent) 승인된 신청 `used_at` → 구독 행 → 업체 이력 `subscribed`.
   - 협력업체 대표면 그 업체로 (정지 · 해지였으면 active 로, 업체 통장 기간 끊기).
 - `/subscription` — 대표: 업체 구독 + `company` + `role`, 실장 · 직원: `data: null` + `company` + `role`.

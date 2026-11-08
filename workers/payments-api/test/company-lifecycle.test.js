@@ -5,6 +5,7 @@
  *   1) 정기 결제 성공 — 업체 통장 기간을 끊는다. profiles · user_credits 는 건드리지 않는다
  *   2) next_plan 이 있으면 그 등급 금액으로 결제 → 성공하면 구독 plan · amount, 업체 plan 을 옮기고 next_plan 을 비운다.
  *      실패면 아무것도 바꾸지 않는다 (재시도도 next_plan 금액)
+ *      등급이 그대로면 구독 행에 저장된 금액 그대로 (가격이 오르기 전에 시작한 구독은 예전 금액). Manager 도 같은 길
  *   3) 마지막 실패 → 업체 suspended, 해지 기간 끝 → closed (같은 업체에 살아 있는 구독이 있으면 그대로)
  *   4) 결과를 모르던 결제는 실제로 결제된 금액으로 기록한다 — 두 번 결제하지 않는다.
  *      업체 등급 옮기기 · 기간 넘기기가 중간에 실패해도 다음 실행이 이어서 한다
@@ -81,7 +82,7 @@ function seed({ nextPlan = null, status = 'active', periodEnd = PERIOD_END, extr
     provider: 'toss',
     billing_key: 'bk_1',
     provider_customer_id: `dadam-${U1}`,
-    amount_krw: 99000,
+    amount_krw: 199000,
     current_period_start: iso(Date.parse(periodEnd) - 30 * DAY),
     current_period_end: periodEnd,
     next_charge_at: status === 'cancelled' ? null : periodEnd,
@@ -131,7 +132,7 @@ test('정기 결제 성공: 기간 +30일 · 업체 통장 기간 끊기 · 등�
   const summary = await run(T0);
   assert.equal(summary.charged, 1);
   const [charge] = be.charges();
-  assert.equal(charge.body.amount, 99000);
+  assert.equal(charge.body.amount, 199000);
   assert.equal(charge.body.orderName, PLAN_NAMES.expert);
 
   assert.equal(sub().status, 'active');
@@ -148,16 +149,16 @@ test('next_plan 이 있으면 그 등급 금액으로 결제 → 구독 plan · 
   const summary = await run(T0);
   assert.equal(summary.charged, 1);
   const [charge] = be.charges();
-  assert.equal(charge.body.amount, 199000);
+  assert.equal(charge.body.amount, 299000);
   assert.equal(charge.body.orderName, PLAN_NAMES.agent);
 
   assert.equal(sub().plan, 'agent');
-  assert.equal(sub().amount_krw, 199000);
+  assert.equal(sub().amount_krw, 299000);
   assert.equal(company().plan, 'agent');
   assert.equal(company().next_plan, null);
   const h = be.db.payment_history[0];
   assert.equal(h.plan, 'agent');
-  assert.equal(h.amount_krw, 199000);
+  assert.equal(h.amount_krw, 299000);
   assert.equal(be.db.company_credits[0].period_end, iso(T0));
   assertNoTierOrPersonalCredit();
 });
@@ -165,13 +166,83 @@ test('next_plan 이 있으면 그 등급 금액으로 결제 → 구독 plan · 
 test('Agent → Expert 내리기도 다음 결제일부터 (Expert 금액)', async () => {
   seed();
   Object.assign(company(), { plan: 'agent', next_plan: 'expert' });
-  Object.assign(sub(), { plan: 'agent', amount_krw: 199000 });
+  Object.assign(sub(), { plan: 'agent', amount_krw: 299000 });
   await run(T0);
-  assert.equal(be.charges()[0].body.amount, 99000);
+  assert.equal(be.charges()[0].body.amount, 199000);
   assert.equal(company().plan, 'expert');
   assert.equal(company().next_plan, null);
   assert.equal(sub().plan, 'expert');
-  assert.equal(sub().amount_krw, 99000);
+  assert.equal(sub().amount_krw, 199000);
+});
+
+test('예전 가격(99,000)으로 시작한 Expert 구독은 등급이 그대로면 저장된 금액 그대로 결제한다', async () => {
+  seed();
+  sub().amount_krw = 99000;
+  await run(T0);
+  assert.equal(be.charges()[0].body.amount, 99000);
+  assert.equal(sub().plan, 'expert');
+  assert.equal(sub().amount_krw, 99000, '금액을 새 가격으로 올리지 않는다');
+  assert.equal(be.db.payment_history[0].amount_krw, 99000);
+  assert.equal(restCalls('companies', 'PATCH').length, 0);
+});
+
+test('예전 가격 Expert 가 Agent 로 올라가면 그 결제부터 지금 Agent 가격', async () => {
+  seed({ nextPlan: 'agent' });
+  sub().amount_krw = 99000;
+  await run(T0);
+  assert.equal(be.charges()[0].body.amount, 299000);
+  assert.equal(sub().plan, 'agent');
+  assert.equal(sub().amount_krw, 299000);
+  assert.equal(company().plan, 'agent');
+});
+
+test('Manager 정기 결제: Manager 금액 · 이름으로, 등급 · 업체는 그대로', async () => {
+  seed();
+  Object.assign(company(), { plan: 'manager' });
+  Object.assign(sub(), { plan: 'manager', amount_krw: 99000 });
+  const summary = await run(T0);
+  assert.equal(summary.charged, 1);
+  const [charge] = be.charges();
+  assert.equal(charge.body.amount, 99000);
+  assert.equal(charge.body.orderName, PLAN_NAMES.manager);
+  assert.equal(sub().plan, 'manager');
+  assert.equal(be.db.payment_history[0].plan, 'manager');
+  assert.equal(restCalls('companies', 'PATCH').length, 0);
+  assertNoTierOrPersonalCredit();
+});
+
+test('Manager → Expert 올리기도 next_plan 으로 다음 결제일부터 (Expert 금액, 일할 계산 없음)', async () => {
+  seed({ nextPlan: 'expert' });
+  Object.assign(company(), { plan: 'manager' });
+  Object.assign(sub(), { plan: 'manager', amount_krw: 99000 });
+  await run(T0);
+  assert.equal(be.charges().length, 1);
+  assert.equal(be.charges()[0].body.amount, 199000);
+  assert.equal(be.charges()[0].body.orderName, PLAN_NAMES.expert);
+  assert.equal(company().plan, 'expert');
+  assert.equal(company().next_plan, null);
+  assert.equal(sub().plan, 'expert');
+  assert.equal(sub().amount_krw, 199000);
+});
+
+test('Expert · Agent → Manager 내리기도 다음 결제일부터 (Manager 금액)', async () => {
+  for (const [from, amount] of [
+    ['expert', 199000],
+    ['agent', 299000],
+  ]) {
+    be = createBackend({ nowMs: T0 });
+    restoreFetch();
+    restoreFetch = installFetch(be);
+    seed({ nextPlan: 'manager' });
+    Object.assign(company(), { plan: from });
+    Object.assign(sub(), { plan: from, amount_krw: amount });
+    await run(T0);
+    assert.equal(be.charges()[0].body.amount, 99000, from);
+    assert.equal(company().plan, 'manager', from);
+    assert.equal(company().next_plan, null, from);
+    assert.equal(sub().plan, 'manager', from);
+    assert.equal(sub().amount_krw, 99000, from);
+  }
 });
 
 test('next_plan 결제가 거절되면 아무것도 바꾸지 않고, 재시도도 next_plan 금액 → 성공하면 옮긴다', async () => {
@@ -181,17 +252,17 @@ test('next_plan 결제가 거절되면 아무것도 바꾸지 않고, 재시도�
   assert.equal(summary.retry_scheduled, 1);
   assert.equal(sub().status, 'past_due');
   assert.equal(sub().plan, 'expert');
-  assert.equal(sub().amount_krw, 99000);
+  assert.equal(sub().amount_krw, 199000);
   assert.equal(company().plan, 'expert');
   assert.equal(company().next_plan, 'agent');
   assert.equal(company().status, 'active', '재시도 동안 업체는 그대로');
   assert.equal(be.db.payment_history[0].status, 'failed');
-  assert.equal(be.db.payment_history[0].amount_krw, 199000);
+  assert.equal(be.db.payment_history[0].amount_krw, 299000);
   assert.equal(be.db.company_credits[0].period_end, iso(T0 + 20 * DAY));
 
   summary = await run(T0 + DAY);
   assert.equal(summary.charged, 1);
-  assert.equal(be.charges()[1].body.amount, 199000);
+  assert.equal(be.charges()[1].body.amount, 299000);
   assert.equal(sub().plan, 'agent');
   assert.equal(company().plan, 'agent');
   assert.equal(company().next_plan, null);
@@ -272,7 +343,7 @@ test('결과를 모르던 결제(Expert 금액)가 실제로 됐으면, 그 사�
   const summary = await run(T0 + DAY);
   assert.equal(summary.charged, 1);
   assert.equal(be.charges().length, 1, '다시 결제하지 않는다');
-  assert.equal(be.db.payment_history[0].amount_krw, 99000);
+  assert.equal(be.db.payment_history[0].amount_krw, 199000);
   assert.equal(be.db.payment_history[0].plan, 'expert');
   assert.equal(sub().plan, 'expert');
   assert.equal(company().plan, 'expert');
@@ -296,7 +367,7 @@ test('업체 등급 옮기기가 실패하면 기간을 넘기지 않고, 다음
   assert.equal(company().plan, 'agent');
   assert.equal(company().next_plan, null);
   assert.equal(sub().plan, 'agent');
-  assert.equal(sub().amount_krw, 199000);
+  assert.equal(sub().amount_krw, 299000);
   assert.equal(sub().current_period_end, iso(Date.parse(PERIOD_END) + 30 * DAY));
   assert.equal(be.db.payment_history.length, 1);
 });
@@ -315,7 +386,7 @@ test('업체 등급은 옮겼는데 기간 넘기기가 실패해도, 다음 실
   assert.equal(second.charged, 1);
   assert.equal(be.charges().length, 1, '다시 결제하지 않는다');
   assert.equal(sub().plan, 'agent');
-  assert.equal(sub().amount_krw, 199000);
+  assert.equal(sub().amount_krw, 299000);
   assert.equal(sub().current_period_end, iso(Date.parse(PERIOD_END) + 30 * DAY));
 });
 
@@ -368,7 +439,7 @@ test('대표의 지금 다시 결제: next_plan 금액으로 결제하고 등급
   seedPastDue({ nextPlan: 'agent' });
   const res = await post('/subscription/retry', 'owner-token');
   assert.equal(res.status, 200, await res.clone().text());
-  assert.equal(be.charges()[0].body.amount, 199000);
+  assert.equal(be.charges()[0].body.amount, 299000);
   assert.equal(sub().status, 'active');
   assert.equal(sub().plan, 'agent');
   assert.equal(company().plan, 'agent');
@@ -409,7 +480,7 @@ function seedPayment(ledger = []) {
     order_id: 'dadam-sub-x',
     payment_key: 'pk_1',
     plan: 'expert',
-    amount_krw: 99000,
+    amount_krw: 199000,
     status: 'done',
     created_at: paidAt,
   });

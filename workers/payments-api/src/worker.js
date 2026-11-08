@@ -21,7 +21,7 @@
  *
  * customerKey 규칙: `dadam-${supabase_user.id}`
  * 첫 과금: 빌링키 발급 즉시 1회차 + next_charge_at = now+30d
- * Expert · Agent 결제는 모두 업체 구독이다 (src/company.js). 등급은 DB 트리거가 맞춘다 — profiles 를 쓰지 않는다.
+ * Manager · Expert · Agent 결제는 모두 업체 구독이다 (src/company.js). 등급은 DB 트리거가 맞춘다 — profiles 를 쓰지 않는다.
  */
 
 import { handleOptions, jsonResponse } from './cors.js';
@@ -51,7 +51,7 @@ import {
   updateBy,
   deleteBy,
 } from './supabase.js';
-import { PLAN_NAMES, PAID_PLANS, priceFor } from './plans.js';
+import { PLAN_NAMES, PLAN_LABELS, PAID_PLANS, APPROVAL_PLANS, priceFor } from './plans.js';
 import {
   runDailyLifecycle,
   refundPayment,
@@ -164,7 +164,7 @@ async function handlePlans(request, env) {
       client_key: env.TOSS_CLIENT_KEY || '',
       plans: PAID_PLANS.map((id) => ({
         id,
-        name: id === 'expert' ? 'Expert' : 'Agent',
+        name: PLAN_LABELS[id],
         price_krw: priceFor(env, id),
         order_name: PLAN_NAMES[id],
       })),
@@ -234,8 +234,8 @@ function refuse(status, code, message, extra = {}) {
  * 결제 전 판단 — 어느 업체로 결제하는가. 막을 것은 모두 여기서 막는다 (결제 뒤에 막으면 되돌릴 일이 생긴다).
  *   본사 구성원 → hq_member
  *   협력업체 구성원 → 대표만, 살아 있는 구독이 없고, 업체 등급과 같은 plan 일 때 그 업체로 (다시 시작 · 관리자가 만든 업체)
- *   구성원 아님 → 새 업체. Expert 는 body.company (이름 · 시·도 · 시·군·구),
- *                 Agent 는 승인된 새 업체 신청(아직 안 씀)이 있어야 하고 이름 · 지역은 신청 값.
+ *   구성원 아님 → 새 업체. Manager · Expert 는 신청 없이 body.company (이름 · 시·도 · 시·군·구),
+ *                 승인 등급(APPROVAL_PLANS — Agent)은 승인된 새 업체 신청(아직 안 씀)이 있어야 하고 이름 · 지역은 신청 값.
  * 돌려주는 값: { refuse } | { company } (기존 업체) | { create, application? } (새 업체)
  */
 async function resolveCompanyForPayment(env, user, plan, body) {
@@ -256,7 +256,7 @@ async function resolveCompanyForPayment(env, user, plan, body) {
     }
     return { company: c };
   }
-  if (plan === 'agent') {
+  if (APPROVAL_PLANS.includes(plan)) {
     const application = await selectOne(env, 'partner_applications', {
       user_id: `eq.${user.id}`,
       kind: 'eq.new',
@@ -266,7 +266,12 @@ async function resolveCompanyForPayment(env, user, plan, body) {
       order: 'created_at.desc',
     });
     if (!application) {
-      return refuse(403, 'agent_not_approved', 'Agent 는 본사 승인을 받은 뒤 결제할 수 있습니다.');
+      // 코드는 화면이 읽는 값이라 그대로 둔다 (승인 등급은 지금 Agent 하나)
+      return refuse(
+        403,
+        'agent_not_approved',
+        `${PLAN_LABELS[plan]} 는 본사 승인을 받은 뒤 결제할 수 있습니다.`
+      );
     }
     return {
       create: { name: application.company_name, sido: application.sido, gugun: application.gugun },
@@ -332,7 +337,7 @@ async function handleIssueBillingKey(request, env) {
 
   // 3. 저장. 여기서 실패하면 방금 한 결제를 토스에서 취소하고 만든 행을 지운다 —
   //    카드는 긁혔는데 구독이 없는 상태를 남기지 않는다.
-  //    순서: 결제 기록 → (새 업체) 업체 → 대표 구성원 → (Agent) 신청 씀 / (기존 업체) 다시 active
+  //    순서: 결제 기록 → (새 업체) 업체 → 대표 구성원 → (승인 등급) 신청 씀 / (기존 업체) 다시 active
   //          → 구독 행(마지막).
   //    구독 행은 cron 이 다음 달에 결제하는 근거다. 마지막에 써야, 중간에 실패해서
   //    결제를 취소했는데 구독 행만 남아 다음 달에 다시 결제되는 일이 없다.

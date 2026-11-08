@@ -2,8 +2,9 @@
  * 첫 결제 (POST /issue-billing-key) = 업체 구독 시작 · 해지 (POST /cancel).
  *
  * 고정하는 것:
- *   - Expert · Agent 결제는 모두 업체 구독이다. 결제 전에 막는다: 본사 구성원 · 대표 아님 · 이미 구독 중 ·
- *     업체 등급과 다른 plan · Expert 업체 이름 · 지역 없음 · Agent 승인 없음 — 토스를 부르지 않는다
+ *   - Manager · Expert · Agent 결제는 모두 업체 구독이다. 결제 전에 막는다: 본사 구성원 · 대표 아님 · 이미 구독 중 ·
+ *     업체 등급과 다른 plan · Manager · Expert 업체 이름 · 지역 없음 · Agent 승인 없음 — 토스를 부르지 않는다
+ *   - Manager · Expert 는 신청 없이 바로 결제하고 시작한다. 본사 승인은 Agent 만
  *   - 새 업체는 결제가 된 뒤에 만든다: 업체 → 대표 구성원 → (Agent) 신청 씀 → 구독 행 → 업체 이력(맨 끝)
  *   - 기존 업체(다시 시작 · 관리자가 만든 업체)는 업체를 새로 만들지 않고 active 로 · 업체 통장 기간을 끊는다
  *   - profiles(등급) · user_credits(개인 크레딧)는 쓰지 않는다 — 등급은 DB 트리거가 맞춘다
@@ -135,7 +136,7 @@ test('Expert 첫 결제: 결제 기록 → 업체 → 대표 → 구독 → 이�
   assert.equal(res.status, 200, JSON.stringify(body));
 
   const [charge] = be.charges();
-  assert.equal(charge.body.amount, 99000);
+  assert.equal(charge.body.amount, 199000);
   assert.equal(charge.idempotencyKey, charge.body.orderId);
 
   assert.equal(be.db.companies.length, 1);
@@ -161,7 +162,7 @@ test('Expert 첫 결제: 결제 기록 → 업체 → 대표 → 구독 → 이�
   assert.equal(sub.company_id, c.id);
   assert.equal(sub.user_id, U1);
   assert.equal(sub.plan, 'expert');
-  assert.equal(sub.amount_krw, 99000);
+  assert.equal(sub.amount_krw, 199000);
   assert.equal(sub.status, 'active');
   assert.equal(sub.billing_key, 'bk_new');
   assert.equal(sub.failed_attempts, 0);
@@ -223,6 +224,87 @@ test('Expert: 업체 이름 · 지역이 없거나 길면 422 invalid + field, �
   assert.equal(be.db.companies.length, 0);
 });
 
+// ───────────── 새 업체 (Manager) ─────────────
+
+test('Manager 첫 결제: 신청 없이 바로 — Manager 금액으로 업체 · 대표 · 구독을 만든다', async () => {
+  seed();
+  const res = await subscribe({ plan: 'manager', company: COMPANY });
+  const body = await res.json();
+  assert.equal(res.status, 200, JSON.stringify(body));
+
+  const [charge] = be.charges();
+  assert.equal(charge.body.amount, 99000);
+  assert.equal(charge.body.orderName, '다담가구 Manager 등급 (월간)');
+
+  assert.equal(be.db.companies.length, 1);
+  const c = be.db.companies[0];
+  assert.equal(c.plan, 'manager');
+  assert.equal(c.name, '좋은가구');
+  assert.equal(c.status, 'active');
+  assert.equal(
+    be.db.company_members[0].role,
+    'owner',
+    '결제한 사람은 대표 — 직책 manager(실장)가 아니다'
+  );
+
+  const sub = be.db.subscriptions[0];
+  assert.equal(sub.plan, 'manager');
+  assert.equal(sub.amount_krw, 99000);
+  assert.equal(be.db.payment_history[0].plan, 'manager');
+  assert.deepEqual(be.db.company_events[0].payload, { plan: 'manager' });
+
+  assert.equal(restCalls('partner_applications').length, 0, '신청을 보지 않는다');
+  assertNoProfileOrPersonalCredit();
+  assert.equal(body.data.plan, 'manager');
+  assert.equal(body.data.amount_krw, 99000);
+  assert.equal(body.data.company.plan, 'manager');
+});
+
+test('Manager: 업체 이름 · 지역이 없으면 422 invalid, 토스를 부르지 않는다', async () => {
+  seed();
+  const res = await subscribe({ plan: 'manager' });
+  const body = await res.json();
+  assert.equal(res.status, 422);
+  assert.equal(body.code, 'invalid');
+  assert.equal(body.field, 'name');
+  assert.equal(be.calls.toss.length, 0);
+});
+
+test('Manager: 승인된 Agent 신청이 있어도 Manager 결제는 그 신청을 쓰지 않는다', async () => {
+  seed();
+  seedApplication();
+  const res = await subscribe({ plan: 'manager', company: COMPANY });
+  assert.equal(res.status, 200, await res.clone().text());
+  assert.equal(be.db.companies[0].name, '좋은가구', 'body 의 업체 값');
+  const app = be.db.partner_applications[0];
+  assert.equal(app.used_at, null);
+  assert.equal(app.company_id, null);
+});
+
+test('Manager 업체 다시 시작은 Manager 로만 — 다른 plan 이면 409 plan_mismatch', async () => {
+  seed();
+  seedCompany({ plan: 'manager', status: 'closed' });
+  const res = await subscribe({ plan: 'expert' });
+  assert.equal(res.status, 409);
+  assert.equal((await res.json()).code, 'plan_mismatch');
+  assert.equal(be.calls.toss.length, 0);
+
+  const ok = await subscribe({ plan: 'manager' });
+  assert.equal(ok.status, 200, await ok.clone().text());
+  assert.equal(be.charges()[0].body.amount, 99000);
+  assert.equal(be.db.companies.length, 1);
+  assert.equal(be.db.companies[0].status, 'active');
+});
+
+test('결제 등급이 아닌 plan(standard · free · 없는 이름)은 400, 토스를 부르지 않는다', async () => {
+  seed();
+  for (const plan of ['standard', 'free', 'constructor', 'MANAGER']) {
+    const res = await subscribe({ plan, company: COMPANY });
+    assert.equal(res.status, 400, plan);
+  }
+  assert.equal(be.calls.toss.length, 0);
+});
+
 // ───────────── 새 업체 (Agent) ─────────────
 
 test('Agent: 승인된 새 업체 신청이 없으면 403 agent_not_approved, 토스를 부르지 않는다', async () => {
@@ -250,7 +332,7 @@ test('Agent: 승인된 신청이 있으면 신청 값으로 업체를 만들고 
   const res = await subscribe({ plan: 'agent', company: COMPANY });
   const body = await res.json();
   assert.equal(res.status, 200, JSON.stringify(body));
-  assert.equal(be.charges()[0].body.amount, 199000);
+  assert.equal(be.charges()[0].body.amount, 299000);
 
   const c = be.db.companies[0];
   assert.equal(c.name, '바른인테리어');
@@ -264,7 +346,7 @@ test('Agent: 승인된 신청이 있으면 신청 값으로 업체를 만들고 
   assert.equal(app.status, 'approved');
 
   assert.equal(be.db.subscriptions[0].plan, 'agent');
-  assert.equal(be.db.subscriptions[0].amount_krw, 199000);
+  assert.equal(be.db.subscriptions[0].amount_krw, 299000);
   assert.equal(be.db.company_events.at(-1).type, 'subscribed');
   assertNoProfileOrPersonalCredit();
 });
@@ -374,7 +456,7 @@ test('관리자가 만든 업체(active, 구독 없음)의 첫 결제: 업체 st
   seedCompany({ plan: 'agent' });
   const res = await subscribe({ plan: 'agent' });
   assert.equal(res.status, 200);
-  assert.equal(be.charges()[0].body.amount, 199000);
+  assert.equal(be.charges()[0].body.amount, 299000);
   assert.equal(restCalls('companies', 'PATCH').length, 0);
   assert.equal(be.db.subscriptions[0].company_id, C1);
   assert.equal(be.db.subscriptions[0].plan, 'agent');
@@ -609,12 +691,47 @@ test('구성원이 아니면 업체 구독 행을 자기 구독으로 보지 않
   assert.equal(be.db.subscriptions[0].status, 'active');
 });
 
+// ───────────── GET /plans ─────────────
+
+test('GET /plans: Manager · Expert · Agent 를 낮은 것부터, 이름 · 가격 · 주문 이름', async () => {
+  const res = await call('/plans', undefined, 'GET');
+  const body = await res.json();
+  assert.equal(res.status, 200);
+  assert.deepEqual(body.data.plans, [
+    {
+      id: 'manager',
+      name: 'Manager',
+      price_krw: 99000,
+      order_name: '다담가구 Manager 등급 (월간)',
+    },
+    { id: 'expert', name: 'Expert', price_krw: 199000, order_name: '다담가구 Expert 등급 (월간)' },
+    { id: 'agent', name: 'Agent', price_krw: 299000, order_name: '다담가구 Agent 등급 (월간)' },
+  ]);
+});
+
+test('가격 값이 없으면 기본값 Manager 99,000 · Expert 199,000 · Agent 299,000', async () => {
+  const env = { ...ENV };
+  delete env.TOSS_PRICE_MANAGER_KRW;
+  delete env.TOSS_PRICE_EXPERT_KRW;
+  delete env.TOSS_PRICE_AGENT_KRW;
+  const res = await worker.fetch(new Request('https://payments.example/plans'), env, {});
+  const body = await res.json();
+  assert.deepEqual(
+    body.data.plans.map((p) => [p.id, p.price_krw]),
+    [
+      ['manager', 99000],
+      ['expert', 199000],
+      ['agent', 299000],
+    ]
+  );
+});
+
 // ───────────── GET /subscription ─────────────
 
 test('GET /subscription: 업체 대표는 업체 구독 + company + role', async () => {
   seed();
   seedCompany({ plan: 'agent', nextPlan: 'expert' });
-  seedCompanySub({ plan: 'agent', amount_krw: 199000, billing_key: 'bk_secret' });
+  seedCompanySub({ plan: 'agent', amount_krw: 299000, billing_key: 'bk_secret' });
   const res = await call('/subscription', undefined, 'GET');
   const text = await res.text();
   const body = JSON.parse(text);
