@@ -10,7 +10,8 @@
  *   3) 신청 — 본사 409 · 열린 신청 409 · Manager · Expert 대표는 upgrade(업체 값으로 채움, 이력 agent_applied) · 그 밖 구성원 409 ·
  *      형식 422(앞뒤 공백 자름, 연락처 · 사업자번호는 숫자와 -). 거두기
  *   4) 등급 예약 — 낮은 등급으로 내리기(Agent → Expert · Manager, Expert → Manager) · Manager → Expert 올리기 ·
- *      예약 취소, Agent 로는 신청으로만(422), 대표만, 이력 plan_change_requested
+ *      예약 취소, Agent 로는 신청으로만(422), 승인된 Agent 예약은 다른 등급으로 덮지 않는다(409 agent_reserved, 취소는 된다),
+ *      대표만, 이력 plan_change_requested
  *   5) 직원 초대 — 토큰은 발급 때 한 번만(DB 에는 sha256 hex), 7일. 미리 보기 · 수락(한 번만, 동시 수락은 되돌림) · 거두기 · 내보내기
  *   6) 관리자 — 신청 목록(이메일) · 미팅 · 승인(upgrade 면 next_plan agent + used_at) · 보류 · 업체 목록 · 업체로 만들기
  *   7) profiles.tier 를 쓰지 않는다 · company_events 에 개인정보가 없다
@@ -1250,6 +1251,78 @@ describe('POST /partner/plan — Manager', () => {
     expect(r.status).toBe(409);
     expect(r.json.code).toBe('invalid_plan_change');
     expect(db.tables.companies.find((c) => c.id === CO.manager).next_plan).toBeNull();
+    expect(db.tables.company_events).toEqual([]);
+  });
+});
+
+describe('POST /partner/plan — 승인된 Agent 예약', () => {
+  /** 업체에 승인으로 생긴 Agent 예약 (승인된 upgrade 신청 + next_plan agent) */
+  function approvedAgent(t, companyId, userId) {
+    t.companies.find((c) => c.id === companyId).next_plan = 'agent';
+    addApp(t, {
+      user_id: userId,
+      kind: 'upgrade',
+      company_id: companyId,
+      status: 'approved',
+      decided_by: U.admin,
+      decided_at: at(50),
+      used_at: at(50),
+    });
+  }
+
+  test('Agent 예약이 있으면 다른 등급 예약은 409 agent_reserved — 예약 · 신청 · 이력을 건드리지 않는다', async () => {
+    use({
+      mutate: (t) => {
+        withManager(t);
+        approvedAgent(t, CO.expert, U.owner);
+        approvedAgent(t, CO.manager, U.mgrOwner);
+      },
+    });
+    for (const [who, id, next_plan] of [
+      ['owner', CO.expert, 'manager'],
+      ['mgrOwner', CO.manager, 'expert'],
+    ]) {
+      const r = await call('POST', '/partner/plan', who, { next_plan });
+      expect(r.status).toBe(409);
+      expect(r.json).toEqual({
+        success: false,
+        code: 'agent_reserved',
+        error: 'Agent 승인 예약이 있습니다 — 먼저 예약을 취소해 주세요.',
+      });
+      expect(db.tables.companies.find((c) => c.id === id).next_plan).toBe('agent');
+    }
+    expect(db.writes()).toEqual([]);
+    expect(db.tables.partner_applications.every((a) => a.status === 'approved')).toBe(true);
+  });
+
+  test('취소(null)는 그대로 된다 — 예약이 풀리고, 그다음에는 다른 등급을 예약할 수 있다', async () => {
+    use({ mutate: (t) => approvedAgent(t, CO.expert, U.owner) });
+    const off = await call('POST', '/partner/plan', 'owner', { next_plan: null });
+    expect(off.status).toBe(200);
+    expect(off.json.data.company.next_plan).toBeNull();
+    const r = await call('POST', '/partner/plan', 'owner', { next_plan: 'manager' });
+    expect(r.status).toBe(200);
+    expect(r.json.data.company.next_plan).toBe('manager');
+  });
+
+  test('Agent 가 아닌 예약은 다른 등급으로 바꿀 수 있다 (Agent 업체의 expert 예약 → manager)', async () => {
+    db.tables.companies.find((c) => c.id === CO.agent).next_plan = 'expert';
+    const r = await call('POST', '/partner/plan', 'agentOwner', { next_plan: 'manager' });
+    expect(r.status).toBe(200);
+    expect(db.tables.companies.find((c) => c.id === CO.agent).next_plan).toBe('manager');
+  });
+
+  test('읽은 뒤 승인으로 Agent 예약이 생기면 덮지 않는다 — 409 invalid_plan_change', async () => {
+    use({
+      onRequest: (c, t) => {
+        if (c.method === 'PATCH' && c.table === 'companies')
+          t.companies.find((x) => x.id === CO.expert).next_plan = 'agent';
+      },
+    });
+    const r = await call('POST', '/partner/plan', 'owner', { next_plan: 'manager' });
+    expect(r.status).toBe(409);
+    expect(r.json.code).toBe('invalid_plan_change');
+    expect(db.tables.companies.find((c) => c.id === CO.expert).next_plan).toBe('agent');
     expect(db.tables.company_events).toEqual([]);
   });
 });

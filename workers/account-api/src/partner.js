@@ -133,6 +133,7 @@ const MSG = Object.freeze({
   not_owner: '팩토리 대표만 할 수 있습니다.',
   company_inactive: '팩토리가 활동 중이 아니어서 할 수 없습니다.',
   invalid_plan_change: '지금 등급에서는 그렇게 바꿀 수 없습니다.',
+  agent_reserved: 'Agent 승인 예약이 있습니다 — 먼저 예약을 취소해 주세요.',
   invite_invalid: '초대 링크가 만료되었거나 더 이상 쓸 수 없습니다.',
   invalid_transition: '지금 신청 상태에서는 할 수 없는 처리입니다.',
   cannot_remove_self: '자기 자신은 내보낼 수 없습니다.',
@@ -500,7 +501,9 @@ async function withdraw(env, { user }) {
  *   내리기: 지금보다 낮은 등급이면 무엇이든 (Agent → Expert · Manager, Expert → Manager)
  *   올리기: 신청 없이 시작하는 등급끼리만 (Manager → Expert). 일할 계산 없이 다음 결제일부터 그 금액이다
  *   Agent 로 올리기는 여기서 하지 않는다 — 신청 · 승인으로 (그래서 'agent' 는 422)
- *   null: 예약 취소 (승인으로 들어간 Agent 예약도)
+ *   승인으로 들어간 Agent 예약(next_plan agent — 이 길은 agent 를 넣지 않아 승인만 넣는다)이 있으면
+ *     다른 등급 예약은 409 agent_reserved. 덮어쓰면 승인이 말없이 사라진다
+ *   null: 예약 취소 (승인으로 들어간 Agent 예약도 — 취소하면 승인도 풀린다, 다시 신청)
  */
 async function changePlan(env, { user, body }) {
   const b = obj(body);
@@ -516,9 +519,15 @@ async function changePlan(env, { user, body }) {
   // 지금 등급과 같은 예약은 없다 (DB CHECK next_plan IS DISTINCT FROM plan)
   if (b.next_plan !== null && (planRank(c.plan) < 0 || c.plan === b.next_plan))
     throw fail(409, 'invalid_plan_change', MSG.invalid_plan_change);
+  if (b.next_plan !== null && c.next_plan === APPLICATION_PLAN)
+    throw fail(409, 'agent_reserved', MSG.agent_reserved);
 
-  // 고른 등급을 보고 판단했으니, 그사이 업체 등급이 바뀌었으면 쓰지 않는다
-  const filter = `id=eq.${c.id}&kind=eq.partner&status=eq.active${b.next_plan !== null ? `&plan=eq.${c.plan}` : ''}`;
+  // 읽은 등급 · 예약을 보고 판단했으니, 그사이 바뀌었으면(등급 변경 · 승인으로 Agent 예약) 쓰지 않는다
+  const seen =
+    b.next_plan === null
+      ? ''
+      : `&plan=eq.${c.plan}&next_plan=${c.next_plan ? `eq.${c.next_plan}` : 'is.null'}`;
+  const filter = `id=eq.${c.id}&kind=eq.partner&status=eq.active${seen}`;
   const rows = await db(env, 'PATCH', `companies?${filter}&select=${COMPANY_COLS}`, {
     next_plan: b.next_plan,
   });
