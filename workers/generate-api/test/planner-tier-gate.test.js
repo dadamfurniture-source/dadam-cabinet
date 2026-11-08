@@ -1,12 +1,12 @@
 /**
- * POST /api/generate { mode:'planner' } — 등급 관문 (사장님 결정 2026-10-20).
+ * POST /api/generate { mode:'planner' } — 등급 관문 (사장님 결정 2026-10-20 · 2026-11-08 Manager 부터).
  *
- * 플래너 「사진으로 만들기」는 profiles.tier 가 expert · agent 이거나 admin_roles 가 admin · super_admin 인
+ * 플래너 「사진으로 만들기」는 profiles.tier 가 manager · expert · agent 이거나 admin_roles 가 admin · super_admin 인
  * 사용자만 쓴다. 정본은 이 워커(src/tier-gate.js) — 화면(js/planner/ai-photo.js)은 같은 규칙의 사본이다.
  *
  * 고정하는 것:
  *   1) standard 는 403 planner_tier, **크레딧 차감 전** (rpc 0 · 행 0 · 업로드 0)
- *   2) expert · agent 는 통과, admin_roles 의 admin · super_admin 은 등급과 상관없이 통과
+ *   2) manager · expert · agent 는 통과, admin_roles 의 admin · super_admin 은 등급과 상관없이 통과
  *   3) profiles 조회가 실패하면 fail-closed (관리자도 아니면 403)
  *   4) 재생성(parent 가 planner)도 같은 관문
  *   5) 일반 경로(mode 없음)는 profiles · admin_roles 를 읽지도 않는다 — 바이트 그대로
@@ -16,7 +16,7 @@
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/worker.js';
-import { plannerTierAllowed, PLANNER_MIN_TIER, TIER_RANK } from '../src/tier-gate.js';
+import { plannerTierAllowed, PLANNER_MIN_TIER, PLANNER_TIER_MESSAGE, TIER_RANK } from '../src/tier-gate.js';
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const ROW_ID = '22222222-2222-4222-8222-222222222222';
@@ -174,10 +174,12 @@ function assertUntouched() {
 
 // ─── 1. 순수 판정 ───
 
-test('plannerTierAllowed — expert · agent · admin · super_admin 만 참, 모르는 값은 거짓', () => {
-  assert.equal(PLANNER_MIN_TIER, 'expert');
-  assert.deepEqual(TIER_RANK, { standard: 0, expert: 1, agent: 2 });
+test('plannerTierAllowed — manager · expert · agent · admin · super_admin 만 참, 모르는 값은 거짓', () => {
+  assert.equal(PLANNER_MIN_TIER, 'manager');
+  assert.deepEqual(TIER_RANK, { standard: 0, manager: 1, expert: 2, agent: 3 });
+  assert.equal(PLANNER_TIER_MESSAGE, '사진으로 만들기는 Manager 등급부터 쓸 수 있습니다');
   assert.equal(plannerTierAllowed({ tier: 'standard' }), false);
+  assert.equal(plannerTierAllowed({ tier: 'manager' }), true);
   assert.equal(plannerTierAllowed({ tier: 'expert' }), true);
   assert.equal(plannerTierAllowed({ tier: 'agent' }), true);
   assert.equal(plannerTierAllowed({ tier: null }), false);
@@ -197,7 +199,7 @@ test('standard 는 403 planner_tier — 크레딧 차감 전, 한국어 메시�
   const body = await res.json();
   assert.equal(body.success, false);
   assert.equal(body.code, 'planner_tier');
-  assert.match(body.error, /Expert 등급부터/);
+  assert.match(body.error, /Manager 등급부터/);
   assertUntouched();
 });
 
@@ -217,6 +219,15 @@ test('expert 는 통과 — admin_roles 는 묻지 않는다', async () => {
   assert.equal(calls.admin, 0);
   assert.deepEqual(calls.rpc.filter((f) => f === 'consume_credit').length, 1);
   assert.equal(calls.inserted.options.mode, 'planner');
+});
+
+test('manager 는 통과 (2026-11-08) — admin_roles 는 묻지 않는다', async () => {
+  install({ tier: 'manager' });
+  const res = await post(plannerBody());
+  assert.equal(res.status, 202);
+  assert.equal(calls.profiles, 1);
+  assert.equal(calls.admin, 0);
+  assert.equal(calls.rpc.filter((f) => f === 'consume_credit').length, 1);
 });
 
 test('agent 는 통과', async () => {
@@ -254,16 +265,18 @@ test('profiles 조회가 실패해도 관리자면 통과, admin_roles 까지 �
   assertUntouched();
 });
 
-test('재생성(parent 가 planner)도 같은 관문 — standard 403, expert 202', async () => {
+test('재생성(parent 가 planner)도 같은 관문 — standard 403, manager · expert 202', async () => {
   install({ tier: 'standard', parent: PLANNER_PARENT });
   const res = await post({ parent_id: PARENT_ID });
   assert.equal(res.status, 403);
   assert.equal((await res.json()).code, 'planner_tier');
   assertUntouched();
 
-  install({ tier: 'expert', parent: PLANNER_PARENT });
-  assert.equal((await post({ parent_id: PARENT_ID })).status, 202);
-  assert.equal(calls.inserted.parent_id, PARENT_ID);
+  for (const tier of ['manager', 'expert']) {
+    install({ tier, parent: PLANNER_PARENT });
+    assert.equal((await post({ parent_id: PARENT_ID })).status, 202, tier);
+    assert.equal(calls.inserted.parent_id, PARENT_ID);
+  }
 });
 
 test('일반 경로(mode 없음)는 standard 도 그대로 202 — profiles · admin_roles 를 읽지 않는다', async () => {

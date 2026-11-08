@@ -1,24 +1,24 @@
 /**
- * 플래너 「사진으로 만들기」 등급 관문 (사장님 결정 2026-10-20).
+ * 플래너 「사진으로 만들기」 등급 관문 (사장님 결정 2026-10-20 · 2026-11-08 Manager 부터).
  *
- *   플래너 모드(mode:'planner', 재생성 포함)는 profiles.tier 가 expert · agent 이거나
+ *   플래너 모드(mode:'planner', 재생성 포함)는 profiles.tier 가 manager · expert · agent 이거나
  *   admin_roles 가 admin · super_admin 인 사용자만 쓴다. 일반 연출컷(ai-design.html, mode 없음)은 관문이 없다.
  *
  * 정본은 여기다 — 화면(js/planner/ai-photo.js)은 같은 순서를 사본으로 들고 버튼만 잠근다.
- *   등급 순서: database/tier-agent.sql profiles_tier_check · js/detaildesign-access.js TIER_RANK 와 같다.
+ *   등급 순서: database/migrations/0047_tier_manager.sql profiles_tier_check · js/detaildesign-access.js TIER_RANK 와 같다.
  *   관리자 판정: src/appliance-image.js assertApplianceAdmin 과 같은 admin · super_admin.
  * JWT 의 metadata tier 는 믿지 않는다 — service role 로 profiles 본인 행을 읽는다.
  * profiles 조회 실패는 fail-closed (거절) — 관리자 행이 읽히면 그것으로 통과한다.
  */
 import { selectOne, ForbiddenError } from './supabase.js';
 
-/** profiles_tier_check 의 등급 순서 (database/tier-agent.sql). */
-export const TIER_RANK = Object.freeze({ standard: 0, expert: 1, agent: 2 });
+/** profiles_tier_check 의 등급 순서 (DB 0047 — standard < manager < expert < agent). */
+export const TIER_RANK = Object.freeze({ standard: 0, manager: 1, expert: 2, agent: 3 });
 /** 이 등급 이상에게 연다. */
-export const PLANNER_MIN_TIER = 'expert';
+export const PLANNER_MIN_TIER = 'manager';
 export const ADMIN_ROLES = Object.freeze(['admin', 'super_admin']);
 export const PLANNER_TIER_CODE = 'planner_tier';
-export const PLANNER_TIER_MESSAGE = '사진으로 만들기는 Expert 등급부터 쓸 수 있습니다';
+export const PLANNER_TIER_MESSAGE = '사진으로 만들기는 Manager 등급부터 쓸 수 있습니다';
 
 /**
  * 순수 판정. 모르는 등급·역할은 막는다.

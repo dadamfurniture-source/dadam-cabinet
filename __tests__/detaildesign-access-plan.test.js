@@ -69,6 +69,7 @@ describe('decide — 판정표', () => {
     [{ isAdmin: true, tier: 'standard', approved: false }, true, 'admin'],
     [{ tier: 'agent', approved: false }, true, 'plan'],
     [{ tier: 'expert', approved: false }, true, 'plan'],
+    [{ tier: 'manager', approved: false }, true, 'plan'], // DB 0047 새 등급 (standard < manager < expert < agent)
     [{ tier: 'standard', approved: false }, true, 'plan'],
     [{ tier: null, approved: true }, true, 'approved'],
     [{ tier: 'business', approved: false }, false, 'plan_required'], // 옛 등급 이름은 모른다
