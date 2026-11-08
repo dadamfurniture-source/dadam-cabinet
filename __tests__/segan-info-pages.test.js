@@ -1,14 +1,14 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /* global require, describe, test, expect, afterEach, __dirname, document, window, DOMParser, jest */
 /**
- * SEGAN 알리는 화면 — 구독(segan/plans.html + plans.js) · AI 시스템 소개(about.html) · 블로그(blog.html).
+ * SEGAN 알리는 화면 — 구독(segan/plans.html + plans.js) · AI 시스템 소개(about.html) · 매거진(blog.html).
  *
  *   - 구독: 등급 넷(Standard 무료 · Manager · Expert · Agent), 도구는 아래 등급에 더해 늘어난다.
  *     이름 · 월 금액은 payments-api GET /plans, 월 크레딧은 credit_plans, 연출컷 횟수는 credit_costs(generate) 로 나눈다.
  *     /plans 를 못 읽으면 금액 없이 표만 + 알림 (숫자를 지어내지 않는다). 가입 단추는 모두 me.html#partner
  *   - 소개: 흐름 상자(그림 없이) · 강점 · 「AI 연출컷 시작」 · 「구독 보기」
  *   - 소개 · 구독 위 [소개 | 구독] (폰 · 태블릿만 — PC 는 위 메뉴에 둘 다), 폰 탭 SEGAN 이 두 화면에서 켜진다
- *   - 블로그: 분류 넷 · 「글을 준비하고 있습니다」 · 검색에 내지 않는다
+ *   - 매거진: 분류 넷 · 「글을 준비하고 있습니다」 · 검색에 내지 않는다
  */
 const fs = require('fs');
 const path = require('path');
@@ -335,7 +335,7 @@ describe('AI 시스템 소개 (about.html)', () => {
   });
 });
 
-describe('블로그 (blog.html)', () => {
+describe('매거진 (blog.html)', () => {
   test('분류 넷(자재 · 설치 · 하드웨어 · 주방기기) · 「글을 준비하고 있습니다」 · 검색에 내지 않는다', async () => {
     await load('blog.html');
     expect($$('.bl-cat h2').map(text)).toEqual(['자재', '설치', '하드웨어', '주방기기']);
@@ -344,7 +344,7 @@ describe('블로그 (blog.html)', () => {
     expect(html).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
     expect(html).not.toMatch(/rel="canonical"/);
     expect(read('sitemap.xml')).not.toContain('/segan/blog');
-    expect(text($('.sg-tabbar a[aria-current="page"]'))).toBe('블로그');
+    expect(text($('.sg-tabbar a[aria-current="page"]'))).toBe('매거진');
   });
 });
 

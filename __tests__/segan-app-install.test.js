@@ -361,7 +361,7 @@ describe('전환 — 옛 주소는 앱으로', () => {
       expect(froms).not.toContain(keep);
   });
 
-  test('robots.txt — 사이트맵 줄 · docs · admin 막기, 사이트맵은 앱 공개 화면 (블로그는 글이 생긴 뒤)', () => {
+  test('robots.txt — 사이트맵 줄 · docs · admin 막기, 사이트맵은 앱 공개 화면 (매거진은 글이 생긴 뒤)', () => {
     const robots = read('robots.txt');
     expect(robots).toMatch(/^Sitemap: https:\/\/dadamfurniture\.com\/sitemap\.xml$/m);
     expect(robots).toMatch(/^Disallow: \/docs\/$/m);

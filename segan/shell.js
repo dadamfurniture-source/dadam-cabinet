@@ -2,8 +2,8 @@
    segan/shell.js — SEGAN 앱 셸 (헤더 · 아래 탭 · 푸터 · 로그인 상태 · 서비스 워커)
 
    메뉴 (순서 고정 — TABS)
-     PC 위 메뉴(1024px~):  AI 연출컷 · 시공사례 · 블로그 · AI 시스템 소개 · 구독        오른쪽 끝에 마이페이지
-     폰 아래 탭(~1023px):  연출컷 · 시공사례 · 블로그 · SEGAN · 마이 (다섯 — SEGAN 은 소개 · 구독 둘 다,
+     PC 위 메뉴(1024px~):  AI 연출컷 · 시공사례 · 매거진 · AI 시스템 소개 · 구독        오른쪽 끝에 마이페이지
+     폰 아래 탭(~1023px):  연출컷 · 시공사례 · 매거진 · SEGAN · 마이 (다섯 — SEGAN 은 소개 · 구독 둘 다,
                            두 화면 위의 [소개 | 구독] 으로 오간다)
      PC 글(label)과 폰 글(short)이 다를 수 있다. 탭 하나가 여러 화면에서 켜진다 (pages):
        연출컷 = 만들기 · 상담 신청(consult, data-tab make), SEGAN = 소개 · 구독(폰), 마이 = 마이페이지와 그 안 화면
@@ -66,7 +66,7 @@
       href: 'collection.html',
       target: 'segan/collection.html',
     },
-    { key: 'blog', label: '블로그', href: 'blog.html', target: 'segan/blog.html' },
+    { key: 'blog', label: '매거진', href: 'blog.html', target: 'segan/blog.html' },
     // 폰은 SEGAN 하나가 소개 · 구독 둘 다 (두 화면 위 [소개 | 구독])
     {
       key: 'about',
@@ -221,7 +221,7 @@
   function headerHTML(current) {
     return (
       '<header class="sg-header">' +
-      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110902" alt="SEGAN" width="477" height="75" /></a>' +
+      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110903" alt="SEGAN" width="477" height="75" /></a>' +
       '<nav class="sg-nav" aria-label="주 메뉴">' +
       links(current, 'pc') +
       '</nav>' +

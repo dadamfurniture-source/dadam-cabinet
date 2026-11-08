@@ -78,7 +78,8 @@
       thumb: str(row.image_url),
       place_label: str(row.place_label),
       door_color: str(row.door_color),
-      company_name: str(c.company_name),
+      // 본사(다담) 일은 고객에게 「다담가구」로 보인다 — DB 의 본사 업체 이름(다담 공장)은 내부 이름
+      company_name: str(c.company_kind) === 'hq' ? TEXT.hq : str(c.company_name),
       company_kind: str(c.company_kind),
       source: str(row.source) || 'upload',
       like_count: num(row.like_count),
@@ -136,7 +137,7 @@
     };
   }
 
-  /** 사진 이름 (타일 단추 · 사진 대체 글) — 「시공사례 · 인천 연수구 · 주방 · 다담 공장」 */
+  /** 사진 이름 (타일 단추 · 사진 대체 글) — 「시공사례 · 인천 연수구 · 주방 · 다담가구」 */
   function nameOf(p) {
     var l = labels(p);
     var parts = [l.title];

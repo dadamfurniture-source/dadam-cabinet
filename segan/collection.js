@@ -13,7 +13,7 @@
    누르면 사진 보기(장소 · 색상 · 업체 · 좋아요 · 이 스타일로 연출컷) — segan/collection-view.js (SeganPostView)
    AI 연출컷(source 'ai_render')은 타일 귀퉁이에 「AI」 — 실제 시공 사진으로 오해하지 않게.
    다운로드 단추 · 링크는 두지 않는다. 관리자 「내리기」는 사이트에만 있다.
-   자재 칸은 여기서 뺐다 — 자재 글은 블로그로 옮긴다 (/material 은 /segan/blog 로 넘긴다, _redirects).
+   자재 칸은 여기서 뺐다 — 자재 글은 매거진으로 옮긴다 (/material 은 /segan/blog 로 넘긴다, _redirects).
    ============================================================ */
 /* global window, document, IntersectionObserver */
 (function () {

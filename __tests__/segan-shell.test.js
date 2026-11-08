@@ -3,8 +3,8 @@
 /**
  * SEGAN 앱 셸 (segan/shell.js + segan/*.html) — jsdom 에 페이지를 올려 확인한다.
  *
- *   - 메뉴: PC 위 메뉴 여섯(AI 연출컷 · 시공사례 · 블로그 · AI 시스템 소개 · 구독 + 오른쪽 끝 마이페이지),
- *     폰 아래 탭 다섯(연출컷 · 시공사례 · 블로그 · SEGAN · 마이) — 순서 · 주소 · 글, 화면마다 켜지는 탭 하나
+ *   - 메뉴: PC 위 메뉴 여섯(AI 연출컷 · 시공사례 · 매거진 · AI 시스템 소개 · 구독 + 오른쪽 끝 마이페이지),
+ *     폰 아래 탭 다섯(연출컷 · 시공사례 · 매거진 · SEGAN · 마이) — 순서 · 주소 · 글, 화면마다 켜지는 탭 하나
  *     (SEGAN 은 소개 · 구독 둘 다, 마이는 마이페이지 안 화면들). 내 연출컷 · 비서 · 관리 · 작업은 막대에 없다
  *   - 마이페이지 · 내 연출컷은 로그인이 없으면 「로그인이 필요합니다」 + login.html?redirect=(이 페이지)
  *   - 마이페이지의 역할 판정(SeganShell.ready 의 roles)은 기존 판정(AdminAccess · DadamMyPageWork · 워크플로 API
@@ -28,7 +28,7 @@ const AuthRedirect = require('../js/auth-redirect.js');
 const PC_TABS = [
   ['make', 'AI 연출컷', './'],
   ['collection', '시공사례', 'collection.html'],
-  ['blog', '블로그', 'blog.html'],
+  ['blog', '매거진', 'blog.html'],
   ['about', 'AI 시스템 소개', 'about.html'],
   ['plans', '구독', 'plans.html'],
   ['me', '마이페이지', 'me.html'],
@@ -37,7 +37,7 @@ const PC_TABS = [
 const PHONE_TABS = [
   ['make', '연출컷', './'],
   ['collection', '시공사례', 'collection.html'],
-  ['blog', '블로그', 'blog.html'],
+  ['blog', '매거진', 'blog.html'],
   ['about', 'SEGAN', 'about.html'],
   ['me', '마이', 'me.html'],
 ];
@@ -382,7 +382,7 @@ describe('로그인 안내 — 마이페이지 · 내 연출컷 · 비서 · 관
     expect($('#meGroupMine li a').id).toBe('meRenders');
   });
 
-  test('로그인 칸이 없는 화면 (AI 연출컷 · 시공사례 · 블로그 · 소개 · 구독) 은 로그인과 상관없이 열린다', async () => {
+  test('로그인 칸이 없는 화면 (AI 연출컷 · 시공사례 · 매거진 · 소개 · 구독) 은 로그인과 상관없이 열린다', async () => {
     for (const page of ['index.html', 'collection.html', 'blog.html', 'about.html', 'plans.html']) {
       await load(page, { noSupabase: true });
       expect([page, $$('[data-auth-view]').length]).toEqual([page, 0]);
