@@ -198,7 +198,7 @@
 
         // 업체 구독 — 협력업체 구성원이면 GET /subscription 이 company { id, name, plan, next_plan, status } 를 함께 준다.
         //   대표(owner): 업체 구독 + 카드 바꾸기 · 해지 · 다시 결제. 실장 · 직원: 구독 칸 없이 업체 정보만 (role).
-        var PLAN_KO = { expert: 'Expert', agent: 'Agent', standard: 'Standard' };
+        var PLAN_KO = { manager: 'Manager', expert: 'Expert', agent: 'Agent', standard: 'Standard' };
         var COMPANY_STATUS_KO = {
           active: '이용 중',
           suspended: '결제가 멈춰 읽기만 됩니다',

@@ -3,7 +3,7 @@
 /**
  * SEGAN 「내 정보 › 팩토리」 안의 프로젝트 (segan/partner-projects.js + segan/me.html #partnerProjects)
  *
- *   누가    다담 공장 구성원 · Expert · Agent 협력업체 구성원 (account-api GET /partner/me)
+ *   누가    다담 공장 구성원 · Manager · Expert · Agent 협력업체 구성원 (account-api GET /partner/me)
  *           업체 없음 · /partner/me 를 못 읽음 → 묻지도 않고 칸이 없다. 서버 403 → 칸째 감춘다
  *   데이터  workflow-api GET /company/projects (본인 토큰) → { company, can_manage, items }
  *   만들기  can_manage 일 때 「새 고객 · 프로젝트」 → POST /company/projects
@@ -239,13 +239,19 @@ describe('자리 · 이름', () => {
 });
 
 describe('누가 보나', () => {
-  test('판정 — 다담 공장 구성원 · Expert · Agent 구성원만', async () => {
+  test('판정 — 다담 공장 구성원 · Manager · Expert · Agent 구성원만', async () => {
     await load();
     const { canSee } = window.SeganPartnerProjects;
     expect(canSee({ hq_member: true, company: null })).toBe(true);
     expect(canSee({ company: company() })).toBe(true);
     expect(canSee({ company: company({ plan: 'agent', role: 'staff' }) })).toBe(true);
+    expect(canSee({ company: company({ plan: 'manager' }) })).toBe(true); // 등급 Manager (2026-11-08)
+    expect(canSee({ company: company({ plan: 'manager', role: 'manager' }) })).toBe(true); // 실장
     expect(canSee({ company: company({ plan: 'standard' }) })).toBe(false);
+    // 워커 프로젝트 등급과 같다
+    expect(read('workers/workflow-api/src/company-projects.js')).toContain(
+      "export const PROJECT_PLANS = Object.freeze(['manager', 'expert', 'agent']);"
+    );
     expect(canSee({ company: company({ role: 'guest' }) })).toBe(false);
     expect(canSee({ company: null })).toBe(false);
     expect(canSee({ hq_member: 'yes' })).toBe(false);

@@ -429,7 +429,7 @@ describe('보기', () => {
         '장부는 팩토리 대표 · 실장만 봅니다.',
       ],
       [fail(403, 'not_member', 'x'), '장부는 팩토리 구성원만 씁니다.'],
-      [fail(403, 'not_entitled', 'x'), '회계는 Expert · Agent 팩토리가 씁니다.'],
+      [fail(403, 'not_entitled', 'x'), '회계는 Agent 팩토리가 씁니다.'],
       [fail(500, '', 'x'), '장부를 불러오지 못했습니다.'],
     ]) {
       const calls = await load({ me });
@@ -444,6 +444,11 @@ describe('보기', () => {
   test('자격 read — 보기만 (입력 · 고치기 · 취소 · 설정 저장 없음)', async () => {
     await load({ me: ok({ ...ME, level: 'read', can_upload: false, can_write: false }) });
     expect($('lgReadonly').hidden).toBe(false);
+    // 회계(장부 쓰기)는 Agent 만 (DB 0047) — 등급 비교로 이어 준다
+    expect($('lgReadonly').textContent).toBe(
+      '지금 등급에서는 장부를 볼 수만 있습니다 — 장부를 쓰려면 Agent 등급이어야 합니다. 등급 비교'
+    );
+    expect($('lgReadonly').querySelector('a').getAttribute('href')).toBe('plans.html');
     expect($('lgAdd').hidden).toBe(true);
     expect($('lgTaxSave').hidden).toBe(true);
     expect($('lgVatType').disabled).toBe(true);

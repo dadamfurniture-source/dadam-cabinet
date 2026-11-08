@@ -6,7 +6,7 @@
  *   데이터  account-api GET /partner/me · payments-api GET /plans (금액) · credit_plans (월 크레딧)
  *           · RPC my_credit_wallet (업체 통장) — 금액 · 크레딧을 적어 두지 않는다
  *   감춤    /partner/me 를 못 읽으면(404 · 오류 · 주소 없음) · 본사 구성원이면 칸째 감춘다
- *   화면    a 팩토리로 시작하기(Expert · Agent) / b 신청 접수 · 미팅 / c 승인 / d 보류 / e 업체 있음
+ *   화면    a 팩토리로 시작하기(Manager · Expert · Agent) / b 신청 접수 · 미팅 / c 승인 / d 보류 / e 업체 있음
  *   결제    billing.html(결제 관리)과 같은 토스 requestBillingAuth → billing-success.html?plan=…,
  *           떠나기 전 sessionStorage partnerSignup = { plan, company?, returnTo: '/segan/me.html#partner' }
  *   주소    me.html#partner 로 오면 업체 칸으로 내려간다, ?failed=1 이면 안내
@@ -35,13 +35,15 @@ const PLANS = {
   data: {
     client_key: 'test_ck_1',
     plans: [
-      { id: 'expert', name: 'Expert', price_krw: 99000, order_name: 'x' },
-      { id: 'agent', name: 'Agent', price_krw: 199000, order_name: 'y' },
+      { id: 'manager', name: 'Manager', price_krw: 99000, order_name: 'm' },
+      { id: 'expert', name: 'Expert', price_krw: 199000, order_name: 'x' },
+      { id: 'agent', name: 'Agent', price_krw: 299000, order_name: 'y' },
     ],
   },
 };
 const CREDIT_PLANS = [
   { tier: 'standard', monthly_credits: 100 },
+  { tier: 'manager', monthly_credits: 500 },
   { tier: 'expert', monthly_credits: 1000 },
   { tier: 'agent', monthly_credits: 3000 },
 ];
@@ -315,6 +317,13 @@ const press = async (label) => {
   b.click();
   await flush();
 };
+/** 시작 카드(등급) 안의 단추 */
+const pressCard = async (plan) => {
+  const b = root().querySelector(`.me-pt-card[data-plan="${plan}"] button`);
+  expect([plan, !!b]).toEqual([plan, true]);
+  b.click();
+  await flush();
+};
 const facts = (scope = root()) =>
   Object.fromEntries(
     [...scope.querySelectorAll('.me-facts div')].map((d) => [
@@ -418,8 +427,8 @@ describe('칸 자리 · 감춤', () => {
   });
 });
 
-describe('a. 팩토리로 시작하기 — 카드 둘', () => {
-  test('Expert · Agent — 월 금액은 /plans, 월 크레딧은 credit_plans, 시작 방법', async () => {
+describe('a. 팩토리로 시작하기 — 카드 셋', () => {
+  test('Manager · Expert · Agent — 월 금액은 /plans, 월 크레딧은 credit_plans, 시작 방법', async () => {
     const calls = await load({ partner: ok(meData()) });
     const cards = [...root().querySelectorAll('.me-pt-card')].map((c) => ({
       plan: c.getAttribute('data-plan'),
@@ -430,16 +439,23 @@ describe('a. 팩토리로 시작하기 — 카드 둘', () => {
     }));
     expect(cards).toEqual([
       {
+        plan: 'manager',
+        name: 'Manager',
+        info: '월 99,000원 · 크레딧 월 500',
+        how: '결제하면 바로 시작',
+        btn: '결제하고 시작',
+      },
+      {
         plan: 'expert',
         name: 'Expert',
-        info: '월 99,000원 · 크레딧 월 1,000',
+        info: '월 199,000원 · 크레딧 월 1,000',
         how: '결제하면 바로 시작',
-        btn: '팩토리로 시작하기',
+        btn: '결제하고 시작',
       },
       {
         plan: 'agent',
         name: 'Agent',
-        info: '월 199,000원 · 크레딧 월 3,000',
+        info: '월 299,000원 · 크레딧 월 3,000',
         how: '신청 → 현장 미팅 → 본사 승인',
         btn: '신청하기',
       },
@@ -448,32 +464,47 @@ describe('a. 팩토리로 시작하기 — 카드 둘', () => {
     expect(calls.fetch.find((f) => f.url === PAY + '/plans').auth).toBeUndefined(); // 공개 주소
   });
 
+  test('등급 비교 — 앱 안 구독 화면(segan/plans.html)으로', async () => {
+    await load({ partner: ok(meData()) });
+    const links = [...root().querySelectorAll('a.mk-link')];
+    expect(links.map((a) => [a.textContent, a.getAttribute('href')])).toEqual([
+      ['등급별 도구 · 금액 비교', 'plans.html'],
+    ]);
+    expect(fs.existsSync(path.join(ROOT, 'segan', 'plans.html'))).toBe(true);
+    // 구독 화면의 가입 단추는 이 칸으로 온다 (돌아오는 길)
+    expect(read('segan/plans.html')).toContain('href="me.html#partner" data-signup="manager"');
+  });
+
   test('금액 · 크레딧을 적어 두지 않는다 — 서버 값이 바뀌면 화면도 바뀐다', async () => {
     await load({
       partner: ok(meData()),
       plans: ok({
         client_key: 'k',
         plans: [
+          { id: 'manager', price_krw: 77000 },
           { id: 'expert', price_krw: 123000 },
           { id: 'agent', price_krw: 456000 },
         ],
       }),
       credits: [
+        { tier: 'manager', monthly_credits: 700 },
         { tier: 'expert', monthly_credits: 1500 },
         { tier: 'agent', monthly_credits: 4500 },
       ],
     });
     expect([...root().querySelectorAll('.me-pt-info')].map((x) => x.textContent)).toEqual([
+      '월 77,000원 · 크레딧 월 700',
       '월 123,000원 · 크레딧 월 1,500',
       '월 456,000원 · 크레딧 월 4,500',
     ]);
     const src = read('segan/partner.js');
-    expect(src).not.toMatch(/99,?000|199,?000|[^\d]1,000[^\d]|3,000/);
+    expect(src).not.toMatch(/99,?000|199,?000|299,?000|[^\d]1,000[^\d]|3,000|[^\d]500[^\d]/);
   });
 
   test('금액을 못 읽으면 금액만 빠진다', async () => {
     await load({ partner: ok(meData()), plans: fail(500, 'x', 'x') });
     expect([...root().querySelectorAll('.me-pt-info')].map((x) => x.textContent)).toEqual([
+      '크레딧 월 500',
       '크레딧 월 1,000',
       '크레딧 월 3,000',
     ]);
@@ -486,22 +517,28 @@ describe('a. 팩토리로 시작하기 — 카드 둘', () => {
       app({ kind: 'upgrade', status: 'approved', used_at: '2026-10-21T00:00:00Z' }),
     ]) {
       await load({ partner: ok(meData({ application: a })) });
-      expect(root().querySelectorAll('.me-pt-card')).toHaveLength(2);
+      expect(root().querySelectorAll('.me-pt-card')).toHaveLength(3);
     }
   });
 });
 
-describe('Expert — 팩토리 이름 · 지역 → 토스 카드 등록', () => {
+describe.each([
+  ['manager', 'Manager'],
+  ['expert', 'Expert'],
+])('%s — 팩토리 이름 · 지역 → 토스 카드 등록', (plan, label) => {
   const open = async (extra = {}) => {
     const calls = await load({ partner: ok(meData()), ...extra });
-    await press('팩토리로 시작하기');
+    await pressCard(plan);
     return calls;
   };
 
   test('입력 칸 — 팩토리 이름 · 시·도(signup.html 과 같은 목록) · 시·군·구(시·도 고른 뒤)', async () => {
     await open();
-    const form = formOf('expert');
+    const form = formOf(plan);
     expect(form).not.toBeNull();
+    expect(form.querySelector('.me-pt-title').textContent).toBe(`${label} 로 시작하기`);
+    // 열린 카드 단추만 「닫힘」 모양 (다른 등급 양식은 없다)
+    expect(root().querySelectorAll('.me-pt-form')).toHaveLength(1);
     const sido = form.querySelector('select[name="sido"]');
     const gugun = form.querySelector('select[name="gugun"]');
     expect([...sido.options].slice(1).map((o) => o.value)).toEqual(
@@ -514,8 +551,8 @@ describe('Expert — 팩토리 이름 · 지역 → 토스 카드 등록', () =>
       window.SeganRegions['대구광역시']
     );
     // 다시 누르면 닫힌다
-    await press('팩토리로 시작하기');
-    expect(formOf('expert')).toBeNull();
+    await pressCard(plan);
+    expect(formOf(plan)).toBeNull();
   });
 
   test.each([
@@ -525,7 +562,7 @@ describe('Expert — 팩토리 이름 · 지역 → 토스 카드 등록', () =>
     [{ name: '다담 협력', sido: '대구광역시' }, '시·도와 시·군·구를 골라 주세요.', 'gugun'],
   ])('빠진 칸 %j → 안내, 결제창을 열지 않는다', async (values, msg, field) => {
     const calls = await open();
-    const form = formOf('expert');
+    const form = formOf(plan);
     fill(form, values);
     await submit(form);
     expect(formError(form).hidden).toBe(false);
@@ -537,7 +574,7 @@ describe('Expert — 팩토리 이름 · 지역 → 토스 카드 등록', () =>
 
   test('다 적으면 partnerSignup 을 두고 billing.html 과 같은 토스 카드 등록', async () => {
     const calls = await open();
-    const form = formOf('expert');
+    const form = formOf(plan);
     fill(form, { name: '  다담 협력 주방 ', sido: '대구광역시', gugun: '북구' });
     await submit(form);
     expect(calls.toss).toHaveLength(1);
@@ -546,12 +583,12 @@ describe('Expert — 팩토리 이름 · 지역 → 토스 카드 등록', () =>
     expect(t.method).toBe('CARD');
     expect(t.params).toEqual({
       customerKey: 'dadam-user-1',
-      successUrl: `${ORIGIN}/billing-success.html?plan=expert`,
+      successUrl: `${ORIGIN}/billing-success.html?plan=${plan}`,
       failUrl: `${ORIGIN}/segan/me.html?failed=1`,
     });
     // 결제창을 열기 전에 이미 담겨 있다
     expect(JSON.parse(t.signup)).toEqual({
-      plan: 'expert',
+      plan,
       company: { name: '다담 협력 주방', sido: '대구광역시', gugun: '북구' },
       returnTo: '/segan/me.html#partner', // billing-success.html 의 「돌아가기」
     });
@@ -568,7 +605,7 @@ describe('Expert — 팩토리 이름 · 지역 → 토스 카드 등록', () =>
     await open({
       toss: () => Promise.reject(Object.assign(new Error('취소'), { code: 'USER_CANCEL' })),
     });
-    let form = formOf('expert');
+    let form = formOf(plan);
     fill(form, { name: '다담', sido: '대구광역시', gugun: '북구' });
     await submit(form);
     expect(sessionStorage.getItem('partnerSignup')).toBeNull();
@@ -577,14 +614,14 @@ describe('Expert — 팩토리 이름 · 지역 → 토스 카드 등록', () =>
     await open({
       toss: () => Promise.reject(Object.assign(new Error('잘못된 키'), { code: 'X' })),
     });
-    form = formOf('expert');
+    form = formOf(plan);
     fill(form, { name: '다담', sido: '대구광역시', gugun: '북구' });
     await submit(form);
     expect(sessionStorage.getItem('partnerSignup')).toBeNull();
     expect(formError(form).textContent).toBe('결제창을 열지 못했습니다. 잘못된 키');
 
     await open({ toss: new Error('던짐') });
-    form = formOf('expert');
+    form = formOf(plan);
     fill(form, { name: '다담', sido: '대구광역시', gugun: '북구' });
     await submit(form);
     expect(sessionStorage.getItem('partnerSignup')).toBeNull();
@@ -596,7 +633,7 @@ describe('Expert — 팩토리 이름 · 지역 → 토스 카드 등록', () =>
     ['토스 모듈 없음', { noToss: true }],
   ])('%s — 결제 모듈 안내, partnerSignup 을 두지 않는다', async (_name, extra) => {
     await open(extra);
-    const form = formOf('expert');
+    const form = formOf(plan);
     fill(form, { name: '다담', sido: '대구광역시', gugun: '북구' });
     await submit(form);
     expect(formError(form).textContent).toBe(
@@ -773,7 +810,7 @@ describe('b. 신청 접수 · 미팅 — 단계 3칸 · 신청 거두기', () =>
     await press('신청 거두기'); // 확인 칸의 단추
     expect(posts(calls).map((p) => p.url)).toEqual([ACC + '/partner/apply/withdraw']);
     expect(root().querySelector('.me-pt-msg').textContent).toBe('신청을 거두었습니다.');
-    expect(root().querySelectorAll('.me-pt-card')).toHaveLength(2); // 다시 신청할 수 있다
+    expect(root().querySelectorAll('.me-pt-card')).toHaveLength(3); // 다시 신청할 수 있다
   });
 
   test('거둘 신청이 없으면(404) 다시 읽고 서버 안내', async () => {
@@ -794,7 +831,7 @@ describe('c. 승인 — 결제하고 시작 (Agent)', () => {
       partner: ok(meData({ application: app({ status: 'approved' }) })),
     });
     expect(root().querySelector('.me-pt-title').textContent).toBe('승인되었습니다');
-    expect(root().querySelector('.me-pt-info').textContent).toBe('월 199,000원 · 크레딧 월 3,000');
+    expect(root().querySelector('.me-pt-info').textContent).toBe('월 299,000원 · 크레딧 월 3,000');
     await press('결제하고 시작');
     expect(calls.toss).toHaveLength(1);
     expect(JSON.parse(calls.toss[0].signup)).toEqual({
@@ -830,7 +867,7 @@ describe('d. 보류 — 안내 · 상담 신청 · 다시 신청', () => {
     expect(link.textContent).toBe('상담 신청');
     expect(link.getAttribute('href')).toBe('consult.html');
     expect(fs.existsSync(path.join(ROOT, 'segan', 'consult.html'))).toBe(true);
-    expect(root().querySelectorAll('.me-pt-card')).toHaveLength(2);
+    expect(root().querySelectorAll('.me-pt-card')).toHaveLength(3);
   });
 });
 
@@ -861,6 +898,23 @@ describe('e. 업체 있음', () => {
     expect(facts(root().querySelector('[data-view="company"]'))['등급']).toBe(
       'Agent · 다음 결제일부터 Expert'
     );
+    await load({ partner: owner({ next_plan: 'manager' }) });
+    expect(facts(root().querySelector('[data-view="company"]'))['등급']).toBe(
+      'Agent · 다음 결제일부터 Manager'
+    );
+  });
+
+  test('등급 Manager 와 직책 실장은 다른 이름 — company.plan manager · company.role manager', async () => {
+    await load({ partner: owner({ plan: 'manager' }), wallet: companyWallet() });
+    const box = root().querySelector('[data-view="company"]');
+    expect(facts(box)['등급']).toBe('Manager');
+    expect(facts(box)['내 역할']).toBe('대표');
+    // 구성원의 직책 manager 는 「실장」
+    const row = root().querySelector(`[data-member="${U2}"] .me-badge`);
+    expect(row.textContent).toBe('실장 · 활동 중');
+
+    await load({ partner: ok(meData({ company: company({ plan: 'manager', role: 'manager' }) })) });
+    expect(facts()).toEqual({ '팩토리 이름': '다담 협력 주방', '내 역할': '실장' });
   });
 
   test('다른 통장(내 통장 · 다른 업체)이면 크레딧 줄을 적지 않는다', async () => {
@@ -999,35 +1053,90 @@ describe('e. 업체 있음', () => {
     expect(formError(formOf('invite')).hidden).toBe(false);
   });
 
-  test('등급 바꾸기 — Agent → 다음 결제일부터 Expert (Expert 금액 · 크레딧), 한 번 더 묻는다', async () => {
-    const calls = await load({ partner: [owner(), owner({ next_plan: 'expert' })] });
-    const group = [...root().querySelectorAll('.me-pt-group')].find(
-      (g) => g.querySelector('.me-pt-sub').textContent === '등급 바꾸기'
-    );
-    expect(group.querySelector('.me-pt-info').textContent).toBe('월 99,000원 · 크레딧 월 1,000');
-    await press('다음 결제일부터 Expert 로 내리기');
+  /** 등급 바꾸기 칸 */
+  const LABEL = { manager: 'Manager', expert: 'Expert', agent: 'Agent' };
+  const planGroup = () => root().querySelector('[data-group="plan"]');
+  const planButtons = () => [...planGroup().querySelectorAll('button')].map((b) => b.textContent);
+  const changeInfo = (plan) =>
+    planGroup().querySelector(`[data-change="${plan}"] .me-pt-info`).textContent;
+
+  test.each([
+    ['agent', ['다음 결제일부터 Manager 로 내리기', '다음 결제일부터 Expert 로 내리기']],
+    ['expert', ['다음 결제일부터 Manager 로 내리기', 'Agent 신청']],
+    ['manager', ['다음 결제일부터 Expert 로 올리기', 'Agent 신청']],
+  ])('등급 사다리 — 지금 %s 이면 %j', async (plan, labels) => {
+    await load({ partner: owner({ plan }) });
+    expect(planButtons()).toEqual(labels);
+    // 등급마다 그 등급의 금액 · 크레딧 (서버 값), 아래에 등급 비교 링크
+    const info = {
+      manager: '월 99,000원 · 크레딧 월 500',
+      expert: '월 199,000원 · 크레딧 월 1,000',
+      agent: '월 299,000원 · 크레딧 월 3,000',
+    };
+    for (const p of ['manager', 'expert', 'agent'].filter((x) => x !== plan))
+      expect(changeInfo(p)).toBe(info[p]);
+    expect(planGroup().querySelector('a.mk-link').getAttribute('href')).toBe('plans.html');
+  });
+
+  test.each([
+    ['agent', 'expert', '내리기', '내릴까요?'],
+    ['agent', 'manager', '내리기', '내릴까요?'],
+    ['expert', 'manager', '내리기', '내릴까요?'],
+    ['manager', 'expert', '올리기', '올릴까요?'],
+  ])(
+    '등급 바꾸기 — 지금 %s → 다음 결제일부터 %s (%s), 한 번 더 묻는다',
+    async (plan, next, verb, ask) => {
+      const calls = await load({ partner: [owner({ plan }), owner({ plan, next_plan: next })] });
+      await press(`다음 결제일부터 ${LABEL[next]} 로 ${verb}`);
+      expect(planGroup().querySelector('.me-pt-ask').textContent).toContain(
+        `다음 결제일부터 ${LABEL[next]} 로 ${ask}`
+      );
+      expect(posts(calls)).toEqual([]);
+      await press(`${LABEL[next]} 로 ${verb}`);
+      expect(posts(calls).map((p) => [p.url, p.body, p.auth])).toEqual([
+        [`${ACC}/partner/plan`, { next_plan: next }, 'Bearer tok-1'],
+      ]);
+      expect(root().querySelector('.me-pt-msg').textContent).toBe(
+        `다음 결제일부터 ${LABEL[next]} 로 바뀝니다.`
+      );
+      expect(planButtons()).toContain('예약 취소');
+      // 예약한 등급은 다시 고르지 않는다
+      expect(planButtons()).not.toContain(`다음 결제일부터 ${LABEL[next]} 로 ${verb}`);
+    }
+  );
+
+  test('그만두기 — 보내지 않는다', async () => {
+    const calls = await load({ partner: owner() });
+    await press('다음 결제일부터 Manager 로 내리기');
+    await press('그만두기');
+    expect(planGroup().querySelector('.me-pt-ask')).toBeNull();
     expect(posts(calls)).toEqual([]);
-    await press('Expert 로 내리기');
-    expect(posts(calls).map((p) => [p.url, p.body])).toEqual([
-      [`${ACC}/partner/plan`, { next_plan: 'expert' }],
-    ]);
-    expect(root().querySelector('.me-pt-msg').textContent).toBe(
-      '다음 결제일부터 Expert 로 바뀝니다.'
-    );
-    expect(buttons()).toContain('예약 취소');
+  });
+
+  test('Manager · Expert 예약이 있어도 다른 등급으로 바꿀 수 있다 (예약을 덮는다)', async () => {
+    const calls = await load({ partner: owner({ plan: 'agent', next_plan: 'expert' }) });
+    expect(planButtons()).toEqual(['예약 취소', '다음 결제일부터 Manager 로 내리기']);
+    await press('다음 결제일부터 Manager 로 내리기');
+    await press('Manager 로 내리기');
+    expect(posts(calls).map((p) => p.body)).toEqual([{ next_plan: 'manager' }]);
   });
 
   test.each([
     ['expert', 'agent'],
     ['agent', 'expert'],
+    ['agent', 'manager'],
+    ['manager', 'expert'],
   ])(
     '예약 취소 (지금 %s, 예약 %s) → POST /partner/plan { next_plan: null }',
     async (plan, next) => {
       const calls = await load({ partner: owner({ plan, next_plan: next }) });
-      expect(root().textContent).toContain(
-        `다음 결제일부터 ${next === 'agent' ? 'Agent' : 'Expert'} 로 바뀝니다.`
-      );
+      expect(planGroup().textContent).toContain(`다음 결제일부터 ${LABEL[next]} 로 바뀝니다.`);
       await press('예약 취소');
+      expect(planGroup().querySelector('.me-pt-ask').textContent).toContain(
+        next === 'agent'
+          ? 'Agent 로 바꾸려면 다시 신청해야 합니다.'
+          : '지금 등급 그대로 이어집니다.'
+      );
       await press('예약 취소');
       expect(posts(calls).map((p) => [p.url, p.body])).toEqual([
         [`${ACC}/partner/plan`, { next_plan: null }],
@@ -1036,43 +1145,113 @@ describe('e. 업체 있음', () => {
     }
   );
 
-  test('Expert → Agent 신청 (kind upgrade) — 팩토리 이름 · 지역 칸 없이, 업체 값으로 보낸다', async () => {
+  test('승인된 Agent 예약 — 다른 등급은 고르지 못하고 「예약 취소」 먼저', async () => {
+    for (const plan of ['expert', 'manager']) {
+      await load({ partner: owner({ plan, next_plan: 'agent' }) });
+      expect(planGroup().textContent).toContain('본사 승인으로 다음 결제일부터 Agent 로 바뀝니다.');
+      expect(planGroup().textContent).toContain(
+        '다른 등급으로 바꾸려면 먼저 이 예약을 취소해 주세요.'
+      );
+      expect(planButtons()).toEqual(['예약 취소']);
+    }
+  });
+
+  test('409 agent_reserved — 서버 글을 등급 칸에, 「예약 취소」로 이어 간다', async () => {
+    const MSG = 'Agent 승인 예약이 있습니다 — 먼저 예약을 취소해 주세요.';
+    const calls = await load({
+      partner: [owner({ plan: 'expert' }), owner({ plan: 'expert', next_plan: 'agent' })],
+      posts: { '/partner/plan': fail(409, 'agent_reserved', MSG) },
+    });
+    await press('다음 결제일부터 Manager 로 내리기');
+    await press('Manager 로 내리기');
+    expect(meGets(calls)).toHaveLength(2); // 다시 읽는다
+    expect(planGroup().querySelector('.mk-error').textContent).toBe(MSG);
+    expect(root().querySelector('.me-pt-err')).toBeNull(); // 위 칸이 아니라 등급 칸에
+    expect(planButtons()).toEqual(['예약 취소']); // 단추 하나
+    await press('예약 취소');
+    expect(planGroup().querySelector('.mk-error').textContent).toBe(MSG); // 묻는 동안 안내는 그대로
+    await press('예약 취소');
+    expect(posts(calls).map((p) => p.body)).toEqual([
+      { next_plan: 'manager' },
+      { next_plan: null },
+    ]);
+  });
+
+  test('409 agent_reserved — 다시 읽은 업체에 예약이 안 보여도 「예약 취소」가 곁에 있다', async () => {
     const calls = await load({
       partner: owner({ plan: 'expert' }),
+      posts: { '/partner/plan': fail(409, 'agent_reserved', '') },
+    });
+    await press('다음 결제일부터 Manager 로 내리기');
+    await press('Manager 로 내리기');
+    expect(planGroup().querySelector('.mk-error').textContent).toBe(
+      'Agent 승인 예약이 있습니다 — 먼저 예약을 취소해 주세요.'
+    );
+    await press('예약 취소');
+    await press('예약 취소');
+    expect(posts(calls).map((p) => p.body)).toEqual([
+      { next_plan: 'manager' },
+      { next_plan: null },
+    ]);
+  });
+
+  test('그 밖의 실패는 위에 서버 안내', async () => {
+    await load({
+      partner: owner(),
       posts: {
-        '/partner/apply': ok({ application: app({ kind: 'upgrade' }) }, 201),
+        '/partner/plan': fail(
+          409,
+          'invalid_plan_change',
+          '지금 등급에서는 그렇게 바꿀 수 없습니다.'
+        ),
       },
     });
-    expect(root().querySelector('.me-pt-group:last-of-type .me-pt-info')).not.toBeNull();
-    await press('Agent 신청');
-    const form = formOf('apply');
-    expect([...form.querySelectorAll('input, select')].map((x) => x.name)).toEqual([
-      'representative_name',
-      'contact_phone',
-      'business_number',
-      'intro',
-    ]);
-    fill(form, {
-      representative_name: '김대표',
-      contact_phone: '053-123-4567',
-      business_number: '1234567890',
-      intro: '주방 시공',
-    });
-    await submit(form);
-    expect(posts(calls)[0].body).toEqual({
-      company_name: '다담 협력 주방',
-      representative_name: '김대표',
-      contact_phone: '053-123-4567',
-      sido: '대구광역시',
-      gugun: '북구',
-      business_number: '1234567890',
-      intro: '주방 시공',
-    });
-    // 업체 칸 안에서 진행 단계를 보인다
-    const pending = root().querySelector('[data-view="pending"]');
-    expect(pending.querySelector('.me-pt-title').textContent).toBe('Agent 로 바꾸기 신청');
-    expect(root().querySelector('[data-view="company"]')).not.toBeNull();
+    await press('다음 결제일부터 Expert 로 내리기');
+    await press('Expert 로 내리기');
+    expect(root().querySelector('.me-pt-err').textContent).toBe(
+      '지금 등급에서는 그렇게 바꿀 수 없습니다.'
+    );
   });
+
+  test.each(['expert', 'manager'])(
+    '%s → Agent 신청 (kind upgrade) — 팩토리 이름 · 지역 칸 없이, 업체 값으로 보낸다',
+    async (plan) => {
+      const calls = await load({
+        partner: owner({ plan }),
+        posts: {
+          '/partner/apply': ok({ application: app({ kind: 'upgrade' }) }, 201),
+        },
+      });
+      await press('Agent 신청');
+      const form = formOf('apply');
+      expect([...form.querySelectorAll('input, select')].map((x) => x.name)).toEqual([
+        'representative_name',
+        'contact_phone',
+        'business_number',
+        'intro',
+      ]);
+      fill(form, {
+        representative_name: '김대표',
+        contact_phone: '053-123-4567',
+        business_number: '1234567890',
+        intro: '주방 시공',
+      });
+      await submit(form);
+      expect(posts(calls)[0].body).toEqual({
+        company_name: '다담 협력 주방',
+        representative_name: '김대표',
+        contact_phone: '053-123-4567',
+        sido: '대구광역시',
+        gugun: '북구',
+        business_number: '1234567890',
+        intro: '주방 시공',
+      });
+      // 업체 칸 안에서 진행 단계를 보인다
+      const pending = root().querySelector('[data-view="pending"]');
+      expect(pending.querySelector('.me-pt-title').textContent).toBe('Agent 로 바꾸기 신청');
+      expect(root().querySelector('[data-view="company"]')).not.toBeNull();
+    }
+  );
 
   test('Expert 업체의 열린 Agent 신청 · 보류된 신청', async () => {
     await load({
@@ -1084,6 +1263,8 @@ describe('e. 업체 있음', () => {
     expect(steps().map((s) => s.now)).toEqual([false, true, false]);
     expect(buttons()).toContain('신청 거두기');
     expect(buttons()).not.toContain('Agent 신청');
+    // 신청 중에도 내리기는 고른다
+    expect(buttons()).toContain('다음 결제일부터 Manager 로 내리기');
 
     await load({
       partner: owner({ plan: 'expert' }, { application: app({ kind: 'upgrade', status: 'held' }) }),
@@ -1108,11 +1289,17 @@ describe('e. 업체 있음', () => {
     }
   });
 
-  test('결제 멈춤 — 읽기만: 대표에게 결제 관리, 초대 · 등급 · 내보내기 없음', async () => {
+  test('결제 멈춤 — 읽기만: 대표에게 다시 시작 · 결제 관리, 초대 · 등급 바꾸기 · 내보내기 없음', async () => {
     await load({ partner: owner({ status: 'suspended' }) });
     expect(root().querySelector('.me-pt-warn').textContent).toBe('결제가 멈춰 있어 읽기만 됩니다.');
     expect(facts(root().querySelector('[data-view="company"]'))['상태']).toBe('결제 멈춤');
-    expect(buttons()).toEqual(['결제 관리']);
+    expect(buttons()).toEqual([
+      'Manager 로 다시 시작',
+      'Expert 로 다시 시작',
+      'Agent 로 다시 시작',
+      '결제 관리',
+    ]);
+    expect(root().querySelector('[data-group="plan"]')).toBeNull();
     expect(root().querySelectorAll('[data-member]')).toHaveLength(3);
 
     await load({
@@ -1126,6 +1313,59 @@ describe('e. 업체 있음', () => {
     await load({ partner: owner({ status: 'closed' }) });
     expect(root().querySelector('.me-pt-warn').textContent).toBe('해지된 팩토리입니다.');
     expect(facts(root().querySelector('[data-view="company"]'))['상태']).toBe('해지됨');
+  });
+
+  const restartCards = () =>
+    [...root().querySelectorAll('[data-group="restart"] .me-pt-card')].map((c) => ({
+      plan: c.getAttribute('data-plan'),
+      info: c.querySelector('.me-pt-info').textContent,
+      how: c.querySelector('.me-pt-how').textContent,
+    }));
+
+  test.each([
+    ['expert', null, ['manager', 'expert']],
+    ['manager', null, ['manager', 'expert']],
+    ['expert', 'agent', ['manager', 'expert', 'agent']],
+    ['agent', 'expert', ['manager', 'expert', 'agent']],
+  ])(
+    '다시 시작 — 지금 %s · 예약 %s 이면 %j (Agent 는 지금 Agent · 승인된 예약일 때만)',
+    async (plan, next, list) => {
+      for (const status of ['suspended', 'closed']) {
+        await load({ partner: owner({ plan, next_plan: next, status }) });
+        const cards = restartCards();
+        expect(cards.map((c) => c.plan)).toEqual(list);
+        expect(cards.find((c) => c.plan === plan).how).toBe('지금 등급');
+        if (next === 'agent') expect(cards.find((c) => c.plan === 'agent').how).toBe('승인된 예약');
+        expect(cards.find((c) => c.plan === 'manager').info).toBe('월 99,000원 · 크레딧 월 500');
+        const link = root().querySelector('[data-group="restart"] a.mk-link');
+        expect(link.getAttribute('href')).toBe('plans.html');
+      }
+    }
+  );
+
+  test('다시 시작 — 다른 등급을 고르면 그 등급으로 카드 등록 (업체를 새로 만들지 않는다)', async () => {
+    const calls = await load({ partner: owner({ plan: 'agent', status: 'closed' }) });
+    await press('Manager 로 다시 시작');
+    expect(calls.toss).toHaveLength(1);
+    expect(calls.toss[0].params).toEqual({
+      customerKey: 'dadam-user-1',
+      successUrl: `${ORIGIN}/billing-success.html?plan=manager`,
+      failUrl: `${ORIGIN}/segan/me.html?failed=1`,
+    });
+    expect(JSON.parse(calls.toss[0].signup)).toEqual({
+      plan: 'manager',
+      returnTo: '/segan/me.html#partner',
+    });
+    expect(posts(calls)).toEqual([]); // 업체는 결제 서버가 다시 연다
+  });
+
+  test('다시 시작 — 결제 모듈이 없으면 그 칸에 안내', async () => {
+    await load({ partner: owner({ plan: 'expert', status: 'suspended' }), noToss: true });
+    await press('Expert 로 다시 시작');
+    expect(root().querySelector('[data-group="restart"] [data-err]').textContent).toBe(
+      '결제 모듈을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'
+    );
+    expect(sessionStorage.getItem('partnerSignup')).toBeNull();
   });
 
   test('서버 글은 글자로만 넣는다 (팩토리 이름 · 직원 이름 · 이메일)', async () => {
@@ -1189,9 +1429,9 @@ describe('판정 · 본문 (순수 함수)', () => {
     expect(viewOf(meData({ application: app({ status: 'withdrawn' }) }))).toBe('start');
   });
 
-  test('applyBody · expertCompany · openInvites', async () => {
+  test('applyBody · startCompany · openInvites', async () => {
     await load();
-    const { applyBody, expertCompany, openInvites } = window.SeganPartner;
+    const { applyBody, startCompany, openInvites } = window.SeganPartner;
     expect(applyBody({}).field).toBe('company_name');
     expect(
       applyBody({
@@ -1204,13 +1444,46 @@ describe('판정 · 본문 (순수 함수)', () => {
         intro: 'i',
       })
     ).toEqual({ field: 'company_name', error: '팩토리 이름은 100자까지 적을 수 있습니다.' });
-    expect(expertCompany({ name: ' A ', sido: 'S', gugun: 'G' })).toEqual({
+    expect(startCompany({ name: ' A ', sido: 'S', gugun: 'G' })).toEqual({
       company: { name: 'A', sido: 'S', gugun: 'G' },
     });
     expect(openInvites(INVITES, Date.parse('2026-10-28T00:00:00Z')).map((i) => i.id)).toEqual([
       INV1,
     ]);
     expect(openInvites(null)).toEqual([]);
+  });
+
+  test('등급 사다리 — planChanges · restartPlans (payments-api · account-api 와 같은 판단)', async () => {
+    await load();
+    const { planChanges, restartPlans, PLAN_LADDER, PLAN_LABEL, ROLE_LABEL } = window.SeganPartner;
+    // DB 0047 · payments-api src/plans.js PAID_PLANS 와 같은 순서
+    expect(PLAN_LADDER).toEqual(['manager', 'expert', 'agent']);
+    expect(PLAN_LABEL).toEqual({ manager: 'Manager', expert: 'Expert', agent: 'Agent' });
+    expect(ROLE_LABEL.manager).toBe('실장'); // 직책 manager 는 등급이 아니다
+    const plans = read('workers/payments-api/src/plans.js');
+    expect(plans).toContain("export const PAID_PLANS = ['manager', 'expert', 'agent'];");
+    expect(plans).toContain("export const APPROVAL_PLANS = ['agent'];");
+    const ch = (c) => planChanges(c).map((x) => x.plan + ':' + x.how);
+    expect(ch({ plan: 'agent', next_plan: null })).toEqual(['manager:down', 'expert:down']);
+    expect(ch({ plan: 'expert', next_plan: null })).toEqual(['manager:down', 'agent:apply']);
+    expect(ch({ plan: 'manager', next_plan: null })).toEqual(['expert:up', 'agent:apply']);
+    expect(ch({ plan: 'agent', next_plan: 'manager' })).toEqual(['expert:down']);
+    expect(ch({ plan: 'expert', next_plan: 'agent' })).toEqual([]);
+    expect(ch({ plan: 'standard', next_plan: null })).toEqual([]);
+    expect(ch(null)).toEqual([]);
+    expect(restartPlans({ plan: 'expert', next_plan: null })).toEqual(['manager', 'expert']);
+    expect(restartPlans({ plan: 'manager', next_plan: 'expert' })).toEqual(['manager', 'expert']);
+    expect(restartPlans({ plan: 'expert', next_plan: 'agent' })).toEqual([
+      'manager',
+      'expert',
+      'agent',
+    ]);
+    expect(restartPlans({ plan: 'agent', next_plan: null })).toEqual([
+      'manager',
+      'expert',
+      'agent',
+    ]);
+    expect(restartPlans(null)).toEqual([]);
   });
 
   test('partnerSignup 키 이름 — billing-success.html 이 읽는 이름', async () => {

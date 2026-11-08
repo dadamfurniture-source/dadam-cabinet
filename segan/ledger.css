@@ -180,6 +180,13 @@
   font-size: 13px;
 }
 
+/* 보기만 안내의 등급 비교 링크 (segan/plans.html) */
+.lg-readonly-link {
+  min-height: 0;
+  padding: 0;
+  color: inherit;
+}
+
 .lg-box {
   margin: 0 0 20px;
   padding: 16px;

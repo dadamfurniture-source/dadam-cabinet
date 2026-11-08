@@ -30,6 +30,8 @@
     past_due: '결제 실패 · 재시도 중',
     expired: '종료됨',
   }; // billing.html
+  // 등급 이름 — segan/billing.js PLAN_KO · segan/plans.html 과 같다 (profiles.tier, DB 0047)
+  var TIER_NAME = { standard: 'Standard', manager: 'Manager', expert: 'Expert', agent: 'Agent' };
   var LIMIT = 20;
 
   // 내 프로젝트 — GET /me/projects 의 stage 순서 그대로 (상담 → 시공 완료)
@@ -247,7 +249,7 @@
     } catch {
       /* 등급을 못 읽으면 standard 로 적는다 (billing.html 과 같다) */
     }
-    $('meTier').textContent = tier.toUpperCase();
+    $('meTier').textContent = TIER_NAME[tier] || String(tier).toUpperCase();
 
     try {
       var w = await wallet;
@@ -318,8 +320,8 @@
       // 내 A/S 접수 — 업체 칸과 상관없다 (segan/as-requests.js)
       As && As.loadMine ? As.loadMine(auth.sb, auth.session) : null,
       // 업체 › 상담 · 회계 · 알림 — 업체 칸이 읽은 /partner/me 로 가린다
-      //   상담 = Agent 업체 · 다담 공장 구성원 (segan/partner-consults.js), 회계 = 대표 · 실장 (segan/books.js),
-      //   프로젝트 = 다담 공장 · Expert · Agent 업체 구성원 (segan/partner-projects.js),
+      //   상담 = Expert · Agent 업체 · 다담 공장 구성원 (segan/partner-consults.js), 회계 = 대표 · 실장 (segan/books.js),
+      //   프로젝트 = 다담 공장 · Manager · Expert · Agent 업체 구성원 (segan/partner-projects.js),
       //   알림 = 업체 구성원 · 본사 · 신청 중 (segan/push.js)
       Promise.resolve(partner).then(function () {
         var me = Partner && Partner.state ? Partner.state.me : null;

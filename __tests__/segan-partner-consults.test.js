@@ -3,9 +3,9 @@
 /**
  * SEGAN 「내 정보 › 팩토리」 안의 상담 · 상담 설정 · 내 평가 (segan/partner-consults.js + segan/me.html)
  *
- *   누가    Agent 협력업체 구성원 (account-api GET /partner/me 의 company). 목록은 구성원 모두,
+ *   누가    Expert · Agent 협력업체 구성원 (account-api GET /partner/me 의 company — 상담 풀 등급). 목록은 구성원 모두,
  *           받기 · 못 받음 · 내 평가 · 상담 설정은 대표 · 실장. 정지된 업체는 읽기만.
- *           직원은 목록만 · Expert · 업체 없음 · 본사 구성원 · /partner/me 를 못 읽음 → 묻지도 않고 칸이 없다
+ *           직원은 목록만 · Manager · 업체 없음 · 본사 구성원 · /partner/me 를 못 읽음 → 묻지도 않고 칸이 없다
  *   데이터  workflow-api GET /company/consults · POST …/accept · …/decline { reason } ·
  *           GET/PUT /company/service-settings · GET /company/my-score (본인 토큰, { success, data })
  *   못 읽음 403 · 404 · 오류 · 끊김 · 모양이 틀림 → 그 칸째 감춘다
@@ -364,6 +364,18 @@ describe('누가 보나', () => {
     expect(setBox().hidden).toBe(false);
   });
 
+  test('Expert 업체도 상담을 나눠 받는다 — 상담 · 내 평가 · 상담 설정 (2026-11-08 상담 풀 Expert · Agent)', async () => {
+    const calls = await load({ partner: partnerMe({ plan: 'expert' }) });
+    expect(workCalls(calls)).toHaveLength(3);
+    expect(box().hidden).toBe(false);
+    expect(btnIn(item(C1), '받기')).toBeTruthy();
+    expect(setBox().hidden).toBe(false);
+    // 워커 상담 풀 등급과 같다
+    expect(read('workers/workflow-api/src/distribution/rules.js')).toContain(
+      "export const POOL_PLANS = Object.freeze(['expert', 'agent']);"
+    );
+  });
+
   test('직원 — 목록만 (단추 · 내 평가 · 상담 설정 없음, 묻지도 않는다)', async () => {
     const calls = await load({ partner: partnerMe({ role: 'staff' }) });
     expect(workCalls(calls).map((f) => f.url)).toEqual([WORK + '/company/consults']);
@@ -390,7 +402,7 @@ describe('누가 보나', () => {
   });
 
   test.each([
-    ['Expert 업체', { partner: partnerMe({ plan: 'expert' }) }],
+    ['Manager 업체 (등급 — 실장 직책과 다르다)', { partner: partnerMe({ plan: 'manager' }) }],
     ['업체 없음', { partner: ok({ company: null, application: null, members: [], invites: [] }) }],
     ['/partner/me 404', { partner: fail(404, 'not_found', 'x') }],
     ['/partner/me 끊김', { partner: new TypeError('Failed to fetch') }],
@@ -428,7 +440,10 @@ describe('누가 보나', () => {
     expect(canAct(me({ role: 'owner' }))).toBe(true);
     expect(canAct(me({ role: 'owner', status: 'suspended' }))).toBe(false);
     expect(canAct(me({ role: 'owner', status: 'closed' }))).toBe(false);
-    expect(canSee(me({ role: 'owner', plan: 'expert' }))).toBe(false);
+    expect(canSee(me({ role: 'owner', plan: 'expert' }))).toBe(true);
+    expect(canSee(me({ role: 'owner', plan: 'manager' }))).toBe(false);
+    expect(canSee(me({ role: 'manager', plan: 'manager' }))).toBe(false);
+    expect(isManager(me({ role: 'manager', plan: 'expert' }))).toBe(true);
     // 다담 공장 구성원 — 보지만 역할을 모르니 단추는 서버 can_act 를 따른다
     const hq = { hq_member: true, company: null };
     expect(canSee(hq)).toBe(true);

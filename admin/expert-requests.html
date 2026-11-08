@@ -12,7 +12,7 @@
     />
     <script src="../js/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
-    <script src="../js/admin-access.js?v=2026110804"></script>
+    <script src="../js/admin-access.js?v=2026110805"></script>
     <style>
       * {
         margin: 0;
@@ -556,7 +556,7 @@
       </div>
 
       <ul class="nav-menu" id="adminNav"></ul>
-      <script src="../js/admin-shell.js?v=2026110804"></script>
+      <script src="../js/admin-shell.js?v=2026110805"></script>
 
       <div class="sidebar-footer">
         <a href="../index.html">← 메인 사이트로</a>
@@ -579,7 +579,7 @@
 
         <div class="status-line" id="statusLine" role="status"></div>
 
-        <!-- Agent 신청 (새 업체 · Expert→Agent) -->
+        <!-- Agent 신청 (새 업체 · Manager · Expert 업체의 Agent 로 올리기) -->
         <section class="section">
           <div class="section-head">
             <div>
@@ -719,6 +719,7 @@
           <div class="form-group">
             <label for="cmPlan">등급</label>
             <select id="cmPlan">
+              <option value="manager">Manager</option>
               <option value="expert">Expert</option>
               <option value="agent">Agent</option>
             </select>
@@ -771,8 +772,8 @@
         held: '보류',
         withdrawn: '거둠',
       };
-      const KIND_LABEL = { new: '새 팩토리', upgrade: 'Expert→Agent' };
-      const PLAN_LABEL = { expert: 'Expert', agent: 'Agent' };
+      const KIND_LABEL = { new: '새 팩토리', upgrade: 'Agent 로 올리기' };
+      const PLAN_LABEL = { manager: 'Manager', expert: 'Expert', agent: 'Agent' };
       const COMPANY_STATUS_LABEL = { active: '이용 중', suspended: '정지 (결제 멈춤)', closed: '해지' };
       const SUB_STATUS_LABEL = {
         active: '이용 중',
@@ -936,7 +937,7 @@
         if (a.meeting_at) items.push(info('미팅 (한국 시간)', formatDate(a.meeting_at)));
         if (a.decided_at) items.push(info('결정일', formatDate(a.decided_at)));
         if (a.status === 'approved') {
-          // used_at — 새 업체: 결제로 업체를 만든 때 / Expert→Agent: 다음 결제일 Agent 예약을 넣은 때
+          // used_at — 새 업체: 결제로 업체를 만든 때 / Agent 로 올리기(Manager · Expert 업체): 다음 결제일 Agent 예약을 넣은 때
           items.push(
             a.kind === 'upgrade'
               ? info('Agent 예약', a.used_at ? formatDate(a.used_at) : '-')
@@ -1069,7 +1070,7 @@
         btn.disabled = false;
         closeModal(modalId);
         setStatus(okMsg, 'ok');
-        // Expert→Agent 승인은 업체의 다음 결제일 등급을 바꾼다 — 업체 목록도 새로 읽는다
+        // Agent 로 올리기 승인은 업체의 다음 결제일 등급을 바꾼다 — 업체 목록도 새로 읽는다
         await Promise.all([loadApplications(), body.action === 'approve' ? loadCompanies() : null]);
       }
 

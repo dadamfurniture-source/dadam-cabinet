@@ -7,7 +7,7 @@
  *           POST /me/orders/:id/as-requests/photo (사진 본문) → POST /me/orders/:id/as-requests { body, photo_paths }
  *           「A/S 접수」 칸 — GET /me/as-requests, 아직 받지 않은 접수는 「거두기」(한 번 더 묻는다) → POST …/cancel
  *   팩토리  내 정보 › 팩토리 › A/S함 (#as) — GET /company/as-requests, 받기 · 끝은 can_handle 일 때만
- *           다담 공장 · Expert · Agent 구성원, 접수가 없으면 다담 공장 · Agent 만 빈 칸
+ *           다담 공장 · Expert · Agent 구성원 (Manager 는 아직 없음), 접수가 없으면 상담을 받는 다담 공장 · Expert · Agent 만 빈 칸
  *   못 읽으면  403 · 404 · 오류 · ready false → 칸째 감춘다
  * 사람 · 주문은 모두 지어낸 시험 값이다.
  */
@@ -399,12 +399,19 @@ describe('팩토리 — A/S함', () => {
     expect($('as').querySelector('[role="alert"]').textContent).toBe('그 사이 바뀌었습니다 — 새로 불러온 뒤 다시 해 주세요');
   });
 
-  test('접수가 없으면 — Agent · 다담 공장은 빈 칸, Expert 는 감춘다', async () => {
-    await load({ partner: partnerMe({ plan: 'agent' }) });
-    expect($('as').hidden).toBe(false);
-    expect($('as').querySelector('.me-empty').textContent).toBe('아직 A/S 접수가 없습니다.');
-    await load({ partner: partnerMe({ plan: 'expert' }) });
+  test('접수가 없으면 — 상담을 받는 Expert · Agent · 다담 공장은 빈 칸', async () => {
+    for (const plan of ['agent', 'expert']) {
+      await load({ partner: partnerMe({ plan }) });
+      expect($('as').hidden).toBe(false);
+      expect($('as').querySelector('.me-empty').textContent).toBe('아직 A/S 접수가 없습니다.');
+    }
+  });
+
+  test('Manager 업체는 A/S함을 묻지 않는다 (Manager A/S 길은 아직 없다)', async () => {
+    const calls = await load({ partner: partnerMe({ plan: 'manager' }) });
+    expect(calls.fetch.filter((f) => f.url === WORK + '/company/as-requests')).toEqual([]);
     expect($('as').hidden).toBe(true);
+    expect(window.SeganAs.canSee({ company: { plan: 'manager', role: 'owner' } })).toBe(false);
   });
 
   test('못 읽으면 · DB 전 · 업체 아님 → 감춘다 (업체가 아니면 묻지도 않는다)', async () => {

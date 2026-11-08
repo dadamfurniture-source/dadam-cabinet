@@ -258,7 +258,7 @@ describe('내 구독 (업체 아님)', () => {
   test('이용 중 — 등급 · 크레딧(생성 N회) · 구독 상태 · 월 결제액 · 기간 · 다음 결제일, 등급 변경 · 해지', async () => {
     const calls = await load();
     expect(rows()).toEqual([
-      ['현재 등급', 'EXPERT'],
+      ['현재 등급', 'Expert'],
       ['남은 크레딧', '1,000 (생성 50회)'],
       ['구독 상태', '이용 중'],
       ['월 결제액', '49,000원'],
@@ -266,7 +266,7 @@ describe('내 구독 (업체 아님)', () => {
       ['다음 결제일', day(SUB.next_charge_at)],
     ]);
     expect(actions()).toEqual([
-      ['등급 변경', '../pricing.html'],
+      ['등급 변경', 'plans.html'],
       ['구독 해지', 'blCancelBtn'],
     ]);
     expect(status()).toBe('');
@@ -276,7 +276,10 @@ describe('내 구독 (업체 아님)', () => {
     expect(calls.tables).toEqual(
       expect.arrayContaining(['profiles', 'credit_costs', 'payment_history'])
     );
-    expect(fs.existsSync(path.join(ROOT, 'segan', '../pricing.html'))).toBe(true);
+    // 등급 비교 = 앱 안 「구독」 (금액은 그 화면이 GET /plans 에서 읽는다)
+    expect(fs.existsSync(path.join(ROOT, 'segan', 'plans.html'))).toBe(true);
+    expect(read('segan/billing.js')).not.toMatch(/pricing\.html['"]/);
+    expect(read('segan/billing.js')).not.toMatch(/99,?000|199,?000|299,?000/);
   });
 
   test('구독 없음 — 등급 올리기, 본사 승인 등급이면 그 안내', async () => {
@@ -285,7 +288,7 @@ describe('내 구독 (업체 아님)', () => {
       profile: { tier: 'expert', tier_source: 'manual' },
     });
     expect(rows()).toContainEqual(['구독', '없음']);
-    expect(actions()).toEqual([['등급 올리기', '../pricing.html']]);
+    expect(actions()).toEqual([['등급 올리기', 'plans.html']]);
     expect(status()).toBe(
       '현재 등급은 본사 승인으로 부여된 등급입니다. 구독 결제와는 별개로 유지됩니다.'
     );
@@ -305,7 +308,7 @@ describe('내 구독 (업체 아님)', () => {
     });
     expect(rows()).toContainEqual(['구독 상태', '종료됨']);
     expect(rows()).toContainEqual(['종료일', day('2026-11-26T00:00:00Z')]);
-    expect(actions()).toEqual([['다시 구독하기', '../pricing.html']]);
+    expect(actions()).toEqual([['다시 구독하기', 'plans.html']]);
   });
 
   test('결제 내역 — 날짜 · 등급 · 실패/환불 표시 · 금액, 없으면 안내, 못 읽으면 안내', async () => {
@@ -510,7 +513,7 @@ describe('업체 구독', () => {
       ['업체 크레딧', '1,000 (생성 50회)'],
     ]);
     expect(actions()).toEqual([
-      ['등급 변경', '../pricing.html'],
+      ['등급 변경', 'plans.html'],
       ['구독 해지', 'blCancelBtn'],
     ]);
   });
@@ -569,7 +572,11 @@ describe('업체 구독', () => {
         company: { ...COMPANY, status: 'suspended' },
       },
     });
-    expect(actions()).toEqual([['다시 결제', 'blPayBtn']]);
+    // 다시 결제 = 지금 등급, 다른 등급(Manager · Expert)은 팩토리 칸에서 골라 다시 시작
+    expect(actions()).toEqual([
+      ['다시 결제', 'blPayBtn'],
+      ['다른 등급으로 다시 시작', 'me.html#partner'],
+    ]);
     expect(rows()).toContainEqual(['업체 상태', '결제가 멈춰 읽기만 됩니다']);
     expect(status()).toContain('업체가 정지되어 읽기만 됩니다.');
     await load({

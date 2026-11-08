@@ -23,7 +23,8 @@
     held: '보류',
     withdrawn: '거둠',
   }; // admin/expert-requests.html
-  var KIND_LABEL = { new: '새 팩토리', upgrade: 'Expert→Agent' }; // admin/expert-requests.html
+  // 종류 — upgrade 는 Manager · Expert 업체의 Agent 신청 (2026-11-08 등급 Manager) — admin/expert-requests.html
+  var KIND_LABEL = { new: '새 팩토리', upgrade: 'Agent 로 올리기' };
   var OPEN = ['applied', 'meeting'];
   var PC_PAGE = '../admin/expert-requests.html';
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

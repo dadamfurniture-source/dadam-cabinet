@@ -22,7 +22,7 @@
 
   var DENY = {
     not_member: '회계 한눈에는 팩토리 구성원만 봅니다.',
-    not_entitled: '회계 한눈에는 Expert · Agent 팩토리가 봅니다.',
+    not_entitled: '회계 한눈에는 Agent 팩토리가 봅니다.',
     not_money: '회계 한눈에는 팩토리 대표 · 실장만 봅니다.',
   };
   var FAIL_MSG = '회계 한눈에를 불러오지 못했습니다.';

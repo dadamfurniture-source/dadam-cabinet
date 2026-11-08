@@ -12,7 +12,10 @@
                — billing-success.html 의 「돌아가기」가 이 화면으로 온다
    토스가 돌아오는 곳은 이 화면이다: ?card=ok|fail (카드 바꾸기) · ?pay=fail (업체 결제 카드 등록 실패).
    돌아온 값은 주소창에서 바로 지운다 — 새로 고침으로 같은 authKey 를 다시 보내지 않게.
-   등급 올리기 · 등급 변경 · 다시 구독하기는 사이트와 같은 요금제 화면(pricing.html)으로 간다.
+   등급 올리기 · 등급 변경 · 다시 구독하기는 앱 안 「구독」(segan/plans.html — 등급 넷 비교)으로 간다.
+     결제 · 신청 · 등급 바꾸기 흐름은 plans.html 의 단추가 여는 마이페이지 팩토리 칸(me.html#partner, segan/partner.js).
+   정지 · 해지된 업체는 「다시 결제」(지금 등급) 옆에 「다른 등급으로 다시 시작」(me.html#partner — Manager · Expert 중 고르기).
+   등급 이름은 Standard · Manager · Expert · Agent (company.plan 의 manager 는 등급, 구성원 역할 manager 는 실장).
    로그인 · 탭 · 로그인 안내는 segan/shell.js (data-tab="me"), 로그인 안내의 돌아올 곳만 이 화면으로 바꾼다.
    ============================================================ */
 /* global window, document, location, history, fetch, sessionStorage, URLSearchParams */
@@ -22,7 +25,8 @@
   var LOGIN_PAGE = '../login.html';
   var SELF = 'segan/billing.html';
   var SELF_PATH = '/segan/billing.html'; // 토스 · 결제 완료 화면이 돌아오는 곳
-  var PRICING = '../pricing.html'; // 사이트 billing.html 의 요금제 화면 (같은 곳)
+  var PLANS_PAGE = 'plans.html'; // 앱 안 「구독」 — 등급 비교 (금액은 GET /plans 에서, 이 화면은 적지 않는다)
+  var PARTNER_PAGE = 'me.html#partner'; // 업체 등급 바꾸기 · 다시 시작 (segan/partner.js)
   var SUCCESS_PATH = '/billing-success.html?plan='; // 업체 첫 결제 · 다시 결제 — 사이트 결제 완료 화면
   var SIGNUP_KEY = 'partnerSignup'; // billing-success.html 이 읽는다
 
@@ -32,7 +36,7 @@
     past_due: '결제 실패 · 재시도 중',
     expired: '종료됨',
   }; // billing.html
-  var PLAN_KO = { expert: 'Expert', agent: 'Agent', standard: 'Standard' };
+  var PLAN_KO = { manager: 'Manager', expert: 'Expert', agent: 'Agent', standard: 'Standard' };
   var COMPANY_STATUS_KO = {
     active: '이용 중',
     suspended: '결제가 멈춰 읽기만 됩니다',
@@ -195,7 +199,7 @@
       if (company.next_plan) rows += row('다음 결제일부터', planName(company.next_plan));
       rows += row('업체 상태', COMPANY_STATUS_KO[company.status] || company.status || '-');
     } else {
-      rows += row('현재 등급', (tier || 'standard').toUpperCase());
+      rows += row('현재 등급', planName(tier || 'standard'));
     }
     if (credits != null) {
       rows += row(
@@ -223,7 +227,7 @@
         B.flash = null;
         return;
       }
-      setActions(link(PRICING, '등급 올리기', 'mk-btn--solid'));
+      setActions(link(PLANS_PAGE, '등급 올리기', 'mk-btn--solid'));
       if (tierSource === 'manual' && tier !== 'standard') {
         say('현재 등급은 본사 승인으로 부여된 등급입니다. 구독 결제와는 별개로 유지됩니다.');
       }
@@ -259,14 +263,18 @@
           button('blCancelBtn', '구독 해지', 'bl-danger')
       );
     } else if (sub.status === 'active') {
-      setActions(link(PRICING, '등급 변경') + button('blCancelBtn', '구독 해지', 'bl-danger'));
+      setActions(link(PLANS_PAGE, '등급 변경') + button('blCancelBtn', '구독 해지', 'bl-danger'));
     } else if (company) {
       // 정지 · 해지된 업체만 다시 결제한다. 업체가 아직 이용 중이면(해지 예약 — 이용 종료일까지) 단추를 두지 않는다
+      //   다시 결제 = 지금 등급, 다른 등급(Manager · Expert)은 팩토리 칸에서 골라 다시 시작한다
       setActions(
-        company.status !== 'active' ? button('blPayBtn', '다시 결제', 'mk-btn--solid') : ''
+        company.status !== 'active'
+          ? button('blPayBtn', '다시 결제', 'mk-btn--solid') +
+              link(PARTNER_PAGE, '다른 등급으로 다시 시작')
+          : ''
       );
     } else {
-      setActions(link(PRICING, '다시 구독하기', 'mk-btn--solid'));
+      setActions(link(PLANS_PAGE, '다시 구독하기', 'mk-btn--solid'));
     }
   }
 

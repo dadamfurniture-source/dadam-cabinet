@@ -259,7 +259,7 @@ describe('회계 보고서', () => {
   test('직원 · 자격 없음 — 이유 한 줄', async () => {
     for (const [me, text] of [
       [ok({ ...ME, role: 'staff', money: false }), '회계 보고서는 팩토리 대표 · 실장만 봅니다.'],
-      [fail(403, 'not_entitled', 'x'), '회계 보고서는 Expert · Agent 팩토리가 봅니다.'],
+      [fail(403, 'not_entitled', 'x'), '회계 보고서는 Agent 팩토리가 봅니다.'],
     ]) {
       await load({ me });
       expect($('lrState').textContent).toBe(text);

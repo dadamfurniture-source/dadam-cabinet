@@ -166,7 +166,7 @@ describe('목록', () => {
     expect(ids).toEqual([A1, A2]);
     expect(card(A1).querySelector('b').textContent).toBe('가나 인테리어');
     expect(card(A1).querySelector('small').textContent).toBe('새 팩토리 · 신청 접수');
-    expect(card(A2).querySelector('small').textContent).toBe('Expert→Agent · 미팅 예정');
+    expect(card(A2).querySelector('small').textContent).toBe('Agent 로 올리기 · 미팅 예정');
     expect(facts(A1)).toEqual([
       ['대표자', '김대표'],
       ['연락처', '010-1111-2222'],
@@ -198,8 +198,8 @@ describe('목록', () => {
     const pc = read('admin/expert-requests.html');
     const P = window.SeganAdminApplications;
     for (const [k, v] of Object.entries(P.STATUS_LABEL)) expect(pc).toContain(`${k}: '${v}'`);
-    expect(pc).toContain("const KIND_LABEL = { new: '새 팩토리', upgrade: 'Expert→Agent' };");
-    expect(P.KIND_LABEL).toEqual({ new: '새 팩토리', upgrade: 'Expert→Agent' });
+    expect(pc).toContain("const KIND_LABEL = { new: '새 팩토리', upgrade: 'Agent 로 올리기' };");
+    expect(P.KIND_LABEL).toEqual({ new: '새 팩토리', upgrade: 'Agent 로 올리기' });
   });
 });
 

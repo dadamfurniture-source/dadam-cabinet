@@ -37,7 +37,7 @@
              지난달 보고서 카드
    사진 판    올리기 → 상태 거름(확인 기다림 · 장부에 올림 · 돌려보냄 · 쓰지 않음 · 전체 — 대표 · 실장) → 확인할 사진 ·
              올린 사진(GET /ledger/documents?status=). 세금계산서 기다리는 명세표는 매입 판에.
-             사진 AI 읽기를 쓰지 않는 업체(/ledger/me ai false — Expert)는 「직접 적기」 — 읽기를 기다리지 않고 다시 묻지도 않는다
+             사진 AI 읽기를 쓰지 않는 업체(/ledger/me ai false)는 「직접 적기」 — 읽기를 기다리지 않고 다시 묻지도 않는다
    보이는 것  사진 판에 늘 「종이 원본 5년 보관」 안내. 매출 · 매입 판(ledger-book.js 표)에 그 쪽 달 요약 · 거름(출처) ·
              찾기 · 표(일자 · 거래처 · 계정 · 공급가 · 부가세 · 합계 · 증빙 · 출처, 합계 줄) — 매입은 「매입처별」 묶음도.
              줄을 누르면 옆 서랍(폰은 아래)에 그 줄 — 직접 넣은 줄만 고치기 · 취소, 수금 · 원가 줄은 ERP 에서 고친다.
@@ -82,10 +82,14 @@
   var BIZ_KIND = { manufacturing: '제조', retail: '도소매' };
   var DENY = {
     not_member: '장부는 팩토리 구성원만 씁니다.',
-    not_entitled: '회계는 Expert · Agent 팩토리가 씁니다.',
+    not_entitled: '회계는 Agent 팩토리가 씁니다.',
     not_money: '장부는 팩토리 대표 · 실장만 봅니다.',
   };
   var FAIL_MSG = '장부를 불러오지 못했습니다.';
+  // 자기 장부를 보기만 할 때 (level read — 장부 줄 · 사진이 있는데 등급이 내려감, DB 0047 회계 쓰기는 Agent 만)
+  var READ_ONLY_MSG =
+    '지금 등급에서는 장부를 볼 수만 있습니다 — 장부를 쓰려면 Agent 등급이어야 합니다.';
+  var PLANS_PAGE = 'plans.html'; // 등급 비교 (segan/plans.html)
   var MONTH_RE = /^(\d{4})-(\d{2})$/;
   // 탭 — 매출 · 매입 판은 한 장부를 방향으로 나눠 보인다
   var TABS = ['board', 'sales', 'buys', 'photos', 'settings'];
@@ -947,11 +951,21 @@
     renderSummary();
     renderList();
     $('lgAdd').hidden = !canWrite();
-    $('lgReadonly').hidden = !(L.me && L.me.level === 'read');
-    $('lgReadonly').textContent =
-      L.me && L.me.viewing
-        ? (ledgerName(L.me.company_id) || '이') + ' 장부 — 보기만 합니다.'
-        : '지금 등급에서는 장부를 보기만 할 수 있습니다.';
+    renderReadonly();
+  }
+
+  /** 보기만 — 남의 장부(viewing)는 그 이름, 자기 장부면 Agent 안내 + 등급 비교 링크 */
+  function renderReadonly() {
+    var box = $('lgReadonly');
+    box.hidden = !(L.me && L.me.level === 'read');
+    if (L.me && L.me.viewing) {
+      box.textContent = (ledgerName(L.me.company_id) || '이') + ' 장부 — 보기만 합니다.';
+      return;
+    }
+    box.textContent = READ_ONLY_MSG + ' ';
+    var a = el('a', 'mk-link lg-readonly-link', '등급 비교');
+    a.setAttribute('href', PLANS_PAGE);
+    box.appendChild(a);
   }
 
   function ledgerName(id) {
