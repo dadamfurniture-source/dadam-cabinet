@@ -1,0 +1,182 @@
+{
+  "title": "0051 시공사례 게시물 칸 단위 읽기 — 누구나 공개 칸 · 로그인하면 본인 화면 칸 · 나머지는 서버만, 정책 · 쓰기 · 함수는 그대로 (scripts/rls-probe.mjs)",
+  "ids": [
+    "gen_c",
+    "post_up",
+    "post_ai",
+    "post_hq"
+  ],
+  "users": [
+    "cust_user",
+    "other_user"
+  ],
+  "setup": [
+    "INSERT INTO public.generations (id, user_id, category, options) VALUES ({{gen_c}}, {{cust_user}}, 'sink', '{\"door_color\": \"oak woodgrain\"}')",
+    "INSERT INTO public.collection_posts (id, user_id, image_url, storage_path, title, category, region, source, generation_id, design_id, consent_training, place_label, door_color, company_id) VALUES ({{post_up}}, {{cust_user}}, 'https://probe.invalid/u.jpg', 'probe/u.jpg', 'probe', 'kitchen', '인천 연수구', 'upload', NULL, NULL, false, '인천 연수구 · 주방', NULL, NULL), ({{post_ai}}, {{cust_user}}, 'https://probe.invalid/a.png', 'probe/a.png', '', 'kitchen', '', 'ai_render', {{gen_c}}, NULL, NULL, '싱크대', '오크', NULL), ({{post_hq}}, NULL, 'https://probe.invalid/h.jpg', 'probe/h.jpg', '', 'kitchen', '', 'upload', NULL, NULL, NULL, '주방', NULL, public.hq_company_id())"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "cust": {
+      "role": "authenticated",
+      "user": "cust_user"
+    },
+    "other": {
+      "role": "authenticated",
+      "user": "other_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "권한 표 — 표 전체 SELECT 없음, 칸마다 (anon 공개 10칸 · authenticated 공개 10칸 + 본인 화면 5칸, 나머지 4칸은 아무도)",
+      "sql": "select string_agg(r.rolname || ':' || (has_table_privilege(r.rolname, 'public.collection_posts', 'SELECT'))::text || ':' || (select string_agg(a.attname, ',' order by a.attname) from pg_attribute a where a.attrelid = 'public.collection_posts'::regclass and a.attnum > 0 and not a.attisdropped and has_column_privilege(r.rolname, 'public.collection_posts', a.attname, 'SELECT')), ' | ' order by r.rolname) from pg_roles r where r.rolname in ('anon', 'authenticated')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "anon:false:category,company_id,created_at,door_color,id,image_url,like_count,place_label,region,source | authenticated:false:category,company_id,consent_training,created_at,design_id,door_color,generation_id,id,image_url,like_count,place_label,region,source,storage_path,user_id"
+      }
+    },
+    {
+      "name": "시공사례 탭 질의 (segan/collection.js) — 누구나, 최신순 · 키셋",
+      "sql": "select count(*) from (select p.id, p.image_url, p.place_label, p.door_color, p.company_id, p.like_count, p.source, p.created_at from public.collection_posts p where p.id in ({{post_up}}, {{post_ai}}, {{post_hq}}) and p.created_at < now() + interval '1 day' order by p.created_at desc limit 24) s",
+      "expect": {
+        "*": "3"
+      }
+    },
+    {
+      "name": "공개 칸 값 — 장소 · 문짝 색 · 좋아요 수 · 출처 · 지역 · 구분",
+      "sql": "select p.place_label || '/' || coalesce(p.door_color, '-') || '/' || p.like_count || '/' || p.source || '/' || p.region || '/' || p.category from public.collection_posts p where p.id = {{post_up}}",
+      "expect": {
+        "*": "인천 연수구 · 주방/-/0/upload/인천 연수구/kitchen"
+      }
+    },
+    {
+      "name": "만들기 ③ 참고 사진 질의 (segan/make.js loadCases · addLinkRefs) — 누구나, AI 연출컷은 빼고",
+      "sql": "select count(*) from (select p.id, p.image_url, p.region, p.category, p.source from public.collection_posts p where p.source <> 'ai_render' and p.id in ({{post_up}}, {{post_ai}}, {{post_hq}}) order by p.created_at desc) s",
+      "expect": {
+        "*": "2"
+      }
+    },
+    {
+      "name": "업체 이름 함수는 그대로 누구나 (SECURITY DEFINER — 칸 권한과 상관없다)",
+      "sql": "select count(*) from public.collection_post_companies(array[{{post_up}}, {{post_hq}}])",
+      "expect": {
+        "*": "1"
+      }
+    },
+    {
+      "name": "select * — 표 전체는 서버만",
+      "sql": "select count(*) from (select * from public.collection_posts p where p.id = {{post_up}}) s",
+      "expect": {
+        "anon": "deny",
+        "cust": "deny",
+        "other": "deny",
+        "service_role": "1"
+      }
+    },
+    {
+      "name": "올린 사람 (user_id) — 로그인 전에는 못 읽는다 (읽기 · 거르기 모두)",
+      "sql": "select count(*) from public.collection_posts p where p.user_id = {{cust_user}} and p.id = {{post_up}}",
+      "expect": {
+        "anon": "deny",
+        "*": "1"
+      }
+    },
+    {
+      "name": "파일 경로 · 연출컷 · 설계 · 학습 동의 — 로그인 전에는 못 읽는다",
+      "sql": "select p.storage_path || '/' || coalesce(p.generation_id::text, '-') || '/' || coalesce(p.design_id::text, '-') || '/' || coalesce(p.consent_training::text, '-') from public.collection_posts p where p.id = {{post_up}}",
+      "expect": {
+        "anon": "deny",
+        "*": "probe/u.jpg/-/-/false"
+      }
+    },
+    {
+      "name": "제목 · 설명 · 항목 번호 · 고친 때 — 서버만",
+      "sql": "select p.title || '/' || p.description || '/' || coalesce(p.item_unique_id::text, '-') || '/' || (p.updated_at is not null)::text from public.collection_posts p where p.id = {{post_up}}",
+      "expect": {
+        "service_role": "probe//-/true",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "내 시공사례 질의 (segan/activity.js loadCases) — 본인 직접 올린 사진",
+      "sql": "select count(*) from (select p.id, p.image_url, p.storage_path, p.region, p.created_at, p.consent_training, p.design_id from public.collection_posts p where p.user_id = auth.uid() and p.source <> 'ai_render' order by p.created_at desc) s",
+      "roles": [
+        "anon",
+        "cust",
+        "other"
+      ],
+      "expect": {
+        "anon": "deny",
+        "cust": "1",
+        "other": "0"
+      }
+    },
+    {
+      "name": "내 연출컷 시공사례 표시 질의 (segan/renders.js · make.js 결과 관리) — 본인 AI 연출컷",
+      "sql": "select p.storage_path from public.collection_posts p where p.user_id = auth.uid() and p.source = 'ai_render' and p.generation_id = {{gen_c}}",
+      "roles": [
+        "anon",
+        "cust",
+        "other"
+      ],
+      "expect": {
+        "anon": "deny",
+        "cust": "probe/a.png",
+        "other": "(없음)"
+      }
+    },
+    {
+      "name": "학습 동의 고치기 (segan/activity.js) — 본인 행만 (id 로 거름, 정책 그대로)",
+      "sql": "update public.collection_posts set consent_training = true where id = {{post_up}}",
+      "roles": [
+        "cust",
+        "other"
+      ],
+      "expect": {
+        "cust": "rows:1",
+        "other": "rows:0"
+      }
+    },
+    {
+      "name": "내리기 (segan/make.js · activity.js) — 본인 행만, RETURNING id 는 된다",
+      "sql": "delete from public.collection_posts where id = {{post_ai}} returning id",
+      "roles": [
+        "cust",
+        "other"
+      ],
+      "expect": {
+        "cust": "rows:1",
+        "other": "rows:0"
+      }
+    },
+    {
+      "name": "직접 올리기 (segan/activity.js submitCase) — RETURNING 없이 들어간다, 로그인 전은 정책이 막는다",
+      "sql": "insert into public.collection_posts (user_id, image_url, storage_path, region, category, consent_training, design_id) values (auth.uid(), 'https://probe.invalid/n.jpg', 'probe/n.jpg', '서울 강남구', 'kitchen', false, NULL)",
+      "roles": [
+        "anon",
+        "cust"
+      ],
+      "expect": {
+        "anon": "deny",
+        "cust": "ok"
+      }
+    },
+    {
+      "name": "좋아요 넣기 — 게시물 칸 권한과 상관없이 되고, 좋아요 수가 오른다",
+      "sql": "insert into public.collection_likes (user_id, post_id) values (auth.uid(), {{post_hq}}); select p.like_count from public.collection_posts p where p.id = {{post_hq}}",
+      "roles": [
+        "cust",
+        "other"
+      ],
+      "expect": {
+        "*": "1"
+      }
+    }
+  ]
+}
