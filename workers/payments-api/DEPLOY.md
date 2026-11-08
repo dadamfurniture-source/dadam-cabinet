@@ -26,7 +26,7 @@ Manager · Expert · Agent 결제는 모두 협력업체(`companies.kind = 'part
   - 구성원이 아니면 결제 뒤 업체(active) → 대표 구성원 → (Agent) 승인된 신청 `used_at` → 구독 행 → 업체 이력 `subscribed`.
   - 협력업체 대표면 그 업체로 (정지 · 해지였으면 active 로, 업체 통장 기간 끊기).
     active 업체는 등급이 다르면 409 `plan_mismatch` (등급은 예약 `next_plan` 으로만 바꾼다). 정지 · 해지된 업체는 Manager · Expert 로 다른 등급으로 다시 시작할 수 있고
-    (업체 `plan` 을 그 등급으로, 새 가격, 같은 등급 예약은 비운다), Agent 로는 승인 예약(`next_plan` agent + 승인된 upgrade 신청)이 있을 때만 (없으면 403 `agent_not_approved`).
+    (업체 `plan` 을 그 등급으로, 새 가격. 남은 Manager · Expert 예약은 비우고 승인으로 생긴 Agent 예약만 남긴다), Agent 로는 승인 예약(`next_plan` agent + 승인된 upgrade 신청)이 있을 때만 (없으면 403 `agent_not_approved`).
 - `/subscription` — 대표: 업체 구독 + `company` + `role`, 실장 · 직원: `data: null` + `company` + `role`.
 - `/subscription/retry` · `/subscription/card` · `/cancel` — 업체 구독은 대표만 (403 `not_owner`).
 
