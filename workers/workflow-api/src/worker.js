@@ -45,6 +45,9 @@
  *   POST /me/orders/:orderId/as-requests(/photo) · GET /me/as-requests · POST /me/as-requests/:id/cancel ·
  *   GET /company/as-requests · POST /company/as-requests/:id/receive|done · GET /admin/as-requests — 고객 A/S 접수 (src/as-requests.js, DB 0045)
  *   GET  /brief/today — 아침 브리핑 본문 (비서를 쓰는 업체 구성원, src/brief.js)
+ *   POST|GET /production-requests · GET /production-requests/:id · POST …/:id/choose|cancel — Manager 업체 제작 의뢰
+ *   GET /admin/production-requests · POST …/:id/review|recommend · GET …/:id/suggestions — 본사 추천
+ *   GET /factory/production-requests · POST …/:id/accept|decline — 고른 팩토리의 받기 (src/production-requests/, DB 0050)
  *
  *   GET  /public/confirm                  — 고객 열람 (X-Share-Token)
  *   POST /public/confirm/decision          — 고객 승인/수정요청
@@ -244,6 +247,9 @@ import {
   recommendOf,
   SAVE_BODY_MAX_BYTES,
 } from './planner-drafts.js';
+import { createRequest, listMyRequests, getMyRequest, chooseFactory, cancelMyRequest } from './production-requests/manager.js';
+import { listRequestsAdmin, reviewRequest, suggestionsFor, recommendFactories } from './production-requests/admin.js';
+import { listFactoryRequests, acceptFactoryRequest, declineFactoryRequest, runProductionOfferExpiry } from './production-requests/factory.js';
 import { handlePushKey, handleSavePushSubscription, handleDeletePushSubscription } from './push/routes.js';
 import { runPushSender, runPushCleanup, isPushCleanupTime, PUSH_SEND_CRON } from './push/sender.js';
 import { notifyOrderRequest, notifyOrderRequestDecided, notifyConfirmationDecided } from './push/hooks.js';
@@ -1422,6 +1428,21 @@ const router = createRouter([
   { method: 'GET',  path: '/company/projects/:id/assignee-candidates', auth: 'jwt', handler: handleAssigneeCandidates },
   { method: 'GET',  path: '/company/designs',                     auth: 'jwt', handler: handleCompanyDesigns },
 
+  // Manager 업체 제작 의뢰 (src/production-requests/, DB 0050) — 내기 · 고르기 · 거두기는 Manager 업체 대표 · 실장,
+  // 본사 추천은 관리자, 받기 · 못 받음은 고른 팩토리의 대표 · 실장
+  { method: 'POST', path: '/production-requests',                 auth: 'jwt', handler: workRoute(createRequest, 201) },
+  { method: 'GET',  path: '/production-requests',                 auth: 'jwt', handler: workRoute(listMyRequests) },
+  { method: 'GET',  path: '/production-requests/:id',             auth: 'jwt', handler: workRoute(getMyRequest) },
+  { method: 'POST', path: '/production-requests/:id/choose',      auth: 'jwt', handler: workRoute(chooseFactory) },
+  { method: 'POST', path: '/production-requests/:id/cancel',      auth: 'jwt', handler: workRoute(cancelMyRequest) },
+  { method: 'GET',  path: '/admin/production-requests',           auth: 'jwt', handler: workRoute(listRequestsAdmin) },
+  { method: 'POST', path: '/admin/production-requests/:id/review', auth: 'jwt', handler: workRoute(reviewRequest) },
+  { method: 'GET',  path: '/admin/production-requests/:id/suggestions', auth: 'jwt', handler: workRoute(suggestionsFor) },
+  { method: 'POST', path: '/admin/production-requests/:id/recommend', auth: 'jwt', handler: workRoute(recommendFactories, 201) },
+  { method: 'GET',  path: '/factory/production-requests',         auth: 'jwt', handler: workRoute(listFactoryRequests) },
+  { method: 'POST', path: '/factory/production-requests/:id/accept', auth: 'jwt', handler: workRoute(acceptFactoryRequest) },
+  { method: 'POST', path: '/factory/production-requests/:id/decline', auth: 'jwt', handler: workRoute(declineFactoryRequest) },
+
   // 업체 장부 요약 (그 업체 대표 · 실장)
   { method: 'GET',   path: '/books/summary',      auth: 'jwt', handler: handleBooksSummary },
 
@@ -1614,6 +1635,7 @@ export default {
    *   DAILY_BRIEF_CRON — 평일 아침 7시(KST) 생산 요약 · 월 마감
    *   PUSH_SEND_CRON   — 1분마다 앱 알림 보내기, 하루 한 번 그 1분에 끝난 알림 정리 (src/push/sender.js),
    *                      24시간 지난 상담 배정 되돌리기 (src/distribution/company.js runAssignmentExpiry),
+   *                      24시간 지난 제작 의뢰 답 기다림 → 답 없음 (src/production-requests/factory.js runProductionOfferExpiry),
    *                      장부 사진 읽기 다시 걸기 (src/ledger/extract.js runExtractDue) · 확인할 사진 알림
    *                      (src/push/ledger-hooks.js runLedgerPendingNotices),
    *                      분이 5의 배수면 새 상담 · 새 업체 신청 Slack 알림 (src/consult-notify.js),
@@ -1640,6 +1662,8 @@ export default {
       ctx.waitUntil(
         runAssignmentExpiry(env, { nowMs: event.scheduledTime }).catch((e) => console.error('assignment expiry failed:', e && e.statusCode ? e.statusCode : 'error')),
       );
+      // 24시간 지난 제작 의뢰 답 기다림 → 답 없음, 본사가 다시 추천 (src/production-requests/factory.js, 던지지 않는다)
+      ctx.waitUntil(runProductionOfferExpiry(env, { nowMs: event.scheduledTime }));
       if (isPushCleanupTime(event.scheduledTime)) {
         ctx.waitUntil(
           runPushCleanup(env, { nowMs: event.scheduledTime }).catch((e) => console.error('push cleanup failed:', e && e.statusCode ? e.statusCode : 'error')),

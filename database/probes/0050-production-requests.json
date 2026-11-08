@@ -1,0 +1,398 @@
+{
+  "title": "0050 Manager 업체 제작 의뢰 — 의뢰 · 본사 추천은 서버만, 같은 업체 설계 · 열린 의뢰 하나, 상태 차례 · 다음 차례 추천 · 답 기다림 하나 · 기한 24시간 · 답은 한 번, 받은 팩토리 프로젝트 · 설계 사본, 지우기 없음, 앱 알림 종류 셋 (scripts/rls-probe.mjs --migration database/migrations/0050_production_requests.sql)",
+  "ids": [
+    "company_m",
+    "company_m2",
+    "company_f",
+    "company_g",
+    "cust_m",
+    "cust_f",
+    "project_m",
+    "proj_f",
+    "design_m",
+    "req_a",
+    "req_b",
+    "req_c",
+    "rec_c1",
+    "rec_c2"
+  ],
+  "users": [
+    "m_owner_user",
+    "f_owner_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_m}}, 'partner', 'probe M', 'manager', 'active'), ({{company_m2}}, 'partner', 'probe M2', 'manager', 'active'), ({{company_f}}, 'partner', 'probe F', 'expert', 'active'), ({{company_g}}, 'partner', 'probe G', 'agent', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_m}}, {{m_owner_user}}, 'owner', 'active'), ({{company_f}}, {{f_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.planner_drafts (company_id, id, name, item, model, rev, created_by) VALUES ({{company_m}}, 'd-probe-a', 'probe', 'sink', '{\"id\":\"d-probe-a\"}'::jsonb, 2, {{m_owner_user}}), ({{company_m}}, 'd-probe-b', 'probe', 'sink', '{\"id\":\"d-probe-b\"}'::jsonb, 1, {{m_owner_user}}), ({{company_m}}, 'd-probe-c', 'probe', 'wardrobe', '{\"id\":\"d-probe-c\"}'::jsonb, 1, {{m_owner_user}}), ({{company_m}}, 'd-probe-d', 'probe', 'sink', '{\"id\":\"d-probe-d\"}'::jsonb, 1, {{m_owner_user}}), ({{company_f}}, 'd-probe-f', 'probe', 'sink', '{\"id\":\"d-probe-f\"}'::jsonb, 1, {{f_owner_user}}), ({{company_f}}, 'd-probe-f2', 'probe', 'sink', '{\"id\":\"d-probe-f2\"}'::jsonb, 1, {{f_owner_user}})",
+    "INSERT INTO public.customers (id, company_id, name) VALUES ({{cust_m}}, {{company_m}}, 'probe'), ({{cust_f}}, {{company_f}}, 'probe M')",
+    "INSERT INTO public.projects (id, company_id, customer_id, title) VALUES ({{project_m}}, {{company_m}}, {{cust_m}}, 'probe'), ({{proj_f}}, {{company_f}}, {{cust_f}}, 'probe')",
+    "INSERT INTO public.designs (id, user_id, name, company_id) VALUES ({{design_m}}, {{m_owner_user}}, 'probe', {{company_m}})",
+    "INSERT INTO public.production_requests (id, company_id, draft_id, draft_rev, design_id, project_id, item, note, created_by) VALUES ({{req_a}}, {{company_m}}, 'd-probe-a', 2, {{design_m}}, {{project_m}}, 'sink', 'probe', {{m_owner_user}}), ({{req_b}}, {{company_m}}, 'd-probe-b', 1, NULL, NULL, 'sink', NULL, {{m_owner_user}}), ({{req_c}}, {{company_m}}, 'd-probe-c', 1, NULL, NULL, 'wardrobe', NULL, {{m_owner_user}})",
+    "INSERT INTO public.production_recommendations (id, request_id, company_id, round, rank, note) VALUES ({{rec_c1}}, {{req_c}}, {{company_f}}, 1, 1, 'probe'), ({{rec_c2}}, {{req_c}}, {{company_g}}, 1, 2, NULL)",
+    "UPDATE public.production_requests SET status = 'recommended', round = 1 WHERE id = {{req_c}}",
+    "UPDATE public.production_recommendations SET chosen = true WHERE id = {{rec_c1}}",
+    "UPDATE public.production_requests SET status = 'chosen', factory_company_id = {{company_f}} WHERE id = {{req_c}}"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "m_owner": {
+      "role": "authenticated",
+      "user": "m_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "의뢰 읽기 — 서버만 (익명 · 의뢰한 업체 대표도 deny)",
+      "sql": "select count(*) from public.production_requests where company_id = {{company_m}}",
+      "expect": {
+        "anon": "deny",
+        "m_owner": "deny",
+        "service_role": "3"
+      }
+    },
+    {
+      "name": "추천 읽기 — 서버만",
+      "sql": "select count(*) from public.production_recommendations where request_id = {{req_c}}",
+      "expect": {
+        "anon": "deny",
+        "m_owner": "deny",
+        "service_role": "2"
+      }
+    },
+    {
+      "name": "구성원은 넣지 못한다",
+      "sql": "insert into public.production_requests (company_id, draft_id, draft_rev) values ({{company_m}}, 'd-probe-b', 1)",
+      "roles": [
+        "m_owner"
+      ],
+      "expect": {
+        "m_owner": "deny"
+      }
+    },
+    {
+      "name": "구성원은 고치지 못한다",
+      "sql": "update public.production_requests set status = 'cancelled' where id = {{req_b}}",
+      "roles": [
+        "m_owner"
+      ],
+      "expect": {
+        "m_owner": "deny"
+      }
+    },
+    {
+      "name": "지우기 없음 — 서버도 (의뢰)",
+      "sql": "delete from public.production_requests where id = {{req_b}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "지우기 없음 — 서버도 (추천)",
+      "sql": "delete from public.production_recommendations where id = {{rec_c2}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "설계 없는 의뢰는 거절",
+      "sql": "insert into public.production_requests (company_id) values ({{company_m}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "남의 업체 플래너 설계는 거절 (복합 FK)",
+      "sql": "insert into public.production_requests (company_id, draft_id, draft_rev) values ({{company_m2}}, 'd-probe-a', 1)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "남의 업체 프로젝트는 거절 (복합 FK)",
+      "sql": "insert into public.production_requests (company_id, draft_id, draft_rev, project_id) values ({{company_m}}, 'd-probe-d', 1, {{proj_f}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "같은 플래너 설계로 열린 의뢰는 하나",
+      "sql": "insert into public.production_requests (company_id, draft_id, draft_rev) values ({{company_m}}, 'd-probe-a', 2)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "같은 앱 설계로 열린 의뢰는 하나",
+      "sql": "insert into public.production_requests (company_id, design_id) values ({{company_m}}, {{design_m}})",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "거둔 의뢰의 설계는 다시 의뢰할 수 있다",
+      "sql": "update public.production_requests set status = 'cancelled' where id = {{req_b}}; insert into public.production_requests (company_id, draft_id, draft_rev) values ({{company_m}}, 'd-probe-b', 1)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "의뢰 내용은 그대로",
+      "sql": "update public.production_requests set note = 'probe 2' where id = {{req_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "검토 시작 submitted → recommending",
+      "sql": "update public.production_requests set status = 'recommending' where id = {{req_b}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "건너뛰기는 거절 (submitted → chosen)",
+      "sql": "update public.production_requests set status = 'chosen', factory_company_id = {{company_f}} where id = {{req_b}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "되돌리기는 거절 (chosen → recommended)",
+      "sql": "update public.production_requests set status = 'recommended', factory_company_id = NULL where id = {{req_c}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "추천 — 다음 차례 줄을 넣고 의뢰를 recommended 로",
+      "sql": "insert into public.production_recommendations (request_id, company_id, round, rank) values ({{req_b}}, {{company_f}}, 1, 1), ({{req_b}}, {{company_g}}, 1, 2); update public.production_requests set status = 'recommended', round = 1, hq_note = 'probe' where id = {{req_b}}; select r.status || '/' || r.round || '/' || (select count(*) from public.production_recommendations x where x.request_id = r.id) from public.production_requests r where r.id = {{req_b}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "recommended/1/2"
+      }
+    },
+    {
+      "name": "추천 차례는 추천할 때만 (recommending 그대로 round 1 은 거절)",
+      "sql": "update public.production_requests set round = 1 where id = {{req_a}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "지금 차례 이하 추천은 거절",
+      "sql": "insert into public.production_recommendations (request_id, company_id, round, rank) values ({{req_c}}, {{company_m2}}, 1, 3)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "새 추천은 고르기 · 답 없이",
+      "sql": "insert into public.production_recommendations (request_id, company_id, round, rank, chosen) values ({{req_c}}, {{company_g}}, 2, 1, true)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "같은 차례에 같은 팩토리 두 번은 거절",
+      "sql": "insert into public.production_recommendations (request_id, company_id, round, rank) values ({{req_c}}, {{company_g}}, 2, 1), ({{req_c}}, {{company_g}}, 2, 2)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "고른 줄 — 기한은 고른 때 + 24시간 (트리거가 찍는다)",
+      "sql": "select extract(epoch from (x.expires_at - x.chosen_at))::int from public.production_recommendations x where x.id = {{rec_c1}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "86400"
+      }
+    },
+    {
+      "name": "답 기다리는 줄은 의뢰에 하나",
+      "sql": "update public.production_recommendations set chosen = true where id = {{rec_c2}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23505"
+      }
+    },
+    {
+      "name": "고른 줄은 되돌리지 못한다",
+      "sql": "update public.production_recommendations set chosen = false where id = {{rec_c1}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "받기 — 의뢰 accepted + 팩토리 프로젝트, 추천 줄 답 · 답한 때",
+      "sql": "update public.production_requests set status = 'accepted', factory_project_id = {{proj_f}} where id = {{req_c}}; update public.production_recommendations set response = 'accepted', responded_by = {{f_owner_user}} where id = {{rec_c1}}; select r.status || '/' || (x.responded_at is not null)::text from public.production_requests r join public.production_recommendations x on x.request_id = r.id where x.id = {{rec_c1}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "accepted/true"
+      }
+    },
+    {
+      "name": "받기 — 다른 업체 프로젝트로는 잇지 못한다 (복합 FK)",
+      "sql": "update public.production_requests set status = 'accepted', factory_project_id = {{project_m}} where id = {{req_c}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23503"
+      }
+    },
+    {
+      "name": "받은 뒤 설계 사본 한 번 적기",
+      "sql": "update public.production_requests set status = 'accepted', factory_project_id = {{proj_f}} where id = {{req_c}}; update public.production_requests set factory_draft_id = 'd-probe-f' where id = {{req_c}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "설계 사본은 바꾸지 못한다",
+      "sql": "update public.production_requests set status = 'accepted', factory_project_id = {{proj_f}} where id = {{req_c}}; update public.production_requests set factory_draft_id = 'd-probe-f' where id = {{req_c}}; update public.production_requests set factory_draft_id = 'd-probe-f2' where id = {{req_c}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "못 받음 → 고른 팩토리를 비우고 다음 차례로 다시 추천",
+      "sql": "update public.production_requests set status = 'declined' where id = {{req_c}}; update public.production_recommendations set response = 'declined', reason = 'probe' where id = {{rec_c1}}; insert into public.production_recommendations (request_id, company_id, round, rank) values ({{req_c}}, {{company_g}}, 2, 1); update public.production_requests set status = 'recommended', round = 2, factory_company_id = NULL where id = {{req_c}}; select status || '/' || round || '/' || coalesce(factory_company_id::text, 'none') from public.production_requests where id = {{req_c}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "recommended/2/none"
+      }
+    },
+    {
+      "name": "다시 추천하며 고른 팩토리를 남기면 거절",
+      "sql": "update public.production_requests set status = 'declined' where id = {{req_c}}; update public.production_requests set status = 'recommended', round = 2 where id = {{req_c}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "팩토리 답은 한 번",
+      "sql": "update public.production_recommendations set response = 'declined' where id = {{rec_c1}}; update public.production_recommendations set response = 'accepted' where id = {{rec_c1}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "사유는 못 받음만",
+      "sql": "update public.production_recommendations set response = 'expired', reason = 'probe' where id = {{rec_c1}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "끝난 의뢰는 그대로 (거둔 뒤 다시 열기 거절)",
+      "sql": "update public.production_requests set status = 'cancelled' where id = {{req_b}}; update public.production_requests set status = 'recommending' where id = {{req_b}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "앱 알림 — 새 제작 의뢰(production_offered) 넣어짐",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{f_owner_user}}, {{company_f}}, 'production_offered', '새 제작 의뢰', '제작 의뢰가 왔습니다.', '/segan/me.html#factory-requests')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "앱 알림 — 모르는 종류는 거절",
+      "sql": "insert into public.notification_outbox (user_id, company_id, kind, title, body, url) values ({{f_owner_user}}, {{company_f}}, 'production_probe', 'probe', 'probe', '/segan/me.html')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    }
+  ]
+}
