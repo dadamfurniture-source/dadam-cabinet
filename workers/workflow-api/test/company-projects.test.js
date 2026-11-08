@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import worker from '../src/worker.js';
 import { clearHqCompanyCache } from '../src/supabase.js';
 import { clearAdminCache } from '../src/reports/admin.js';
-import { canHoldProjects, COMPANY_PROJECTS_LIMIT } from '../src/company-projects.js';
+import { canHoldProjects, COMPANY_PROJECTS_LIMIT, PROJECT_PLANS } from '../src/company-projects.js';
 import { rankCandidates, CANDIDATE_DAYS } from '../src/company-assignee.js';
 import { createFake, callWorker, writesOf } from './helpers/distribution-fake.js';
 import { HQ as FACTORY } from './fixtures/company.js';
@@ -29,6 +29,7 @@ const STAFF_A = uid(13);
 const STAFF_A2 = uid(14);
 const OWNER_B = uid(21);
 const OWNER_S = uid(51);
+const OWNER_M = uid(52);
 const PLATFORM_STAFF = uid(61);
 const FACTORY_OWNER = uid(41);
 const CUSTOMER = uid(31);
@@ -39,6 +40,7 @@ const PLATFORM = cid(100);
 const A = cid(1); // Agent
 const B = cid(2); // Expert
 const S = cid(3); // 멈춘 협력업체
+const M = cid(4); // Manager (DB 0047)
 
 const CUS_A1 = rid(1);
 const CUS_B1 = rid(2);
@@ -61,6 +63,7 @@ function tables() {
       { id: A, kind: 'partner', name: '가나 인테리어', plan: 'agent', status: 'active' },
       { id: B, kind: 'partner', name: '다라 가구', plan: 'expert', status: 'active' },
       { id: S, kind: 'partner', name: '멈춘 가구', plan: 'expert', status: 'suspended' },
+      { id: M, kind: 'partner', name: '사아 인테리어', plan: 'manager', status: 'active' },
     ],
     company_members: [
       { company_id: A, user_id: OWNER_A, role: 'owner', status: 'active' },
@@ -69,6 +72,7 @@ function tables() {
       { company_id: A, user_id: STAFF_A2, role: 'staff', status: 'active' },
       { company_id: B, user_id: OWNER_B, role: 'owner', status: 'active' },
       { company_id: S, user_id: OWNER_S, role: 'owner', status: 'active' },
+      { company_id: M, user_id: OWNER_M, role: 'owner', status: 'active' },
       { company_id: PLATFORM, user_id: PLATFORM_STAFF, role: 'owner', status: 'active' },
       { company_id: FACTORY, user_id: FACTORY_OWNER, role: 'owner', status: 'active' },
     ],
@@ -150,12 +154,16 @@ const link = (fake, designId, body, token = OWNER_A) =>
 
 // ── 프로젝트를 가질 수 있는 업체 ──────────────────────────────────
 
-test('프로젝트를 가지는 업체 — 다담 공장 · active 협력업체 Expert · Agent 만', () => {
+test('프로젝트를 가지는 업체 — 다담 공장 · active 협력업체 Manager · Expert · Agent 만', () => {
+  assert.deepEqual([...PROJECT_PLANS], ['manager', 'expert', 'agent']);
   assert.equal(canHoldProjects({ kind: 'hq', status: 'active' }), true);
   assert.equal(canHoldProjects({ kind: 'partner', plan: 'agent', status: 'active' }), true);
   assert.equal(canHoldProjects({ kind: 'partner', plan: 'expert', status: 'active' }), true);
+  assert.equal(canHoldProjects({ kind: 'partner', plan: 'manager', status: 'active' }), true, 'Manager 부터 (DB 0047)');
+  assert.equal(canHoldProjects({ kind: 'partner', plan: null, status: 'active' }), false);
   assert.equal(canHoldProjects({ kind: 'partner', plan: 'standard', status: 'active' }), false);
   assert.equal(canHoldProjects({ kind: 'partner', plan: 'expert', status: 'suspended' }), false);
+  assert.equal(canHoldProjects({ kind: 'partner', plan: 'manager', status: 'suspended' }), false);
   assert.equal(canHoldProjects({ kind: 'platform', status: 'active' }), false);
   assert.equal(canHoldProjects(null), false);
 });
@@ -203,6 +211,17 @@ test('목록 — 내 업체 프로젝트만 최신 순, 고객 이름 · 전화 
   );
   const b = await call(fake, '/company/projects', OWNER_B);
   assert.deepEqual(b.json.data.items[0].customer, { id: CUS_B1, name: '이고객', phone: null });
+});
+
+test('Manager 업체도 프로젝트를 본다 · 만든다 (2026-11-08, DB 0047)', async () => {
+  const fake = fakeOf();
+  const list = await call(fake, '/company/projects', OWNER_M);
+  assert.equal(list.status, 200, JSON.stringify(list.json));
+  assert.deepEqual(list.json.data.company, { id: M, name: '사아 인테리어', kind: 'partner', plan: 'manager' });
+  assert.deepEqual(list.json.data.items, []);
+  const r = await create(fake, { title: '현관 신발장', customer: { name: '정고객', phone: '010-5555-6666' } }, OWNER_M);
+  assert.equal(r.status, 201, JSON.stringify(r.json));
+  assert.equal(fake.db.projects.find((p) => p.id === r.json.data.project_id).company_id, M);
 });
 
 // ── 만들기 ─────────────────────────────────────────────────────

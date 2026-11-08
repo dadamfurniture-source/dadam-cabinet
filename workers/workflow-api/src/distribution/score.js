@@ -4,7 +4,7 @@
  * 숫자 · 대표 확인 대기 규칙은 rules.js, 자료 읽기는 data.js.
  *
  * 거르기 (모두 통과해야 순위에 오른다)
- *   tier · inactive  업체 풀 — 다담 공장, 또는 활동 중(status active)인 Agent 협력업체. Expert 는 tier.
+ *   tier · inactive  업체 풀 — 다담 공장, 또는 활동 중(status active)인 Expert · Agent 협력업체 (rules.js POOL_PLANS). Manager 는 tier.
  *                    풀 밖 업체는 이 이유만 싣는다 (다른 거르기는 풀 안 업체의 것).
  *   region           고객 시/도 + 시/군/구가 업체 「상담 받는 지역」에 있음 (지역을 비워 두면 업체 주소의 시/군/구 하나)
  *   item             고객 품목이 모두 업체 「하는 품목」에서 함 · 외주
@@ -59,7 +59,7 @@ export function customerItems(consult) {
 export function poolReasons(company) {
   if (!company || company.kind === 'hq') return [];
   const reasons = [];
-  if (company.kind !== 'partner' || company.plan !== 'agent') reasons.push('tier');
+  if (company.kind !== 'partner' || !R.POOL_PLANS.includes(company.plan)) reasons.push('tier');
   if (company.status !== 'active') reasons.push('inactive');
   return reasons;
 }

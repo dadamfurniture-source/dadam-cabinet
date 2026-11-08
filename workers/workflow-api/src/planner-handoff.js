@@ -141,7 +141,7 @@ async function senderCompanyOf(env, user) {
     if (!(e instanceof ForbiddenError)) throw e;
   }
   throw new ForbiddenError(
-    '플래너 설계는 본사 대표 · 실장 · 관리자, Expert · Agent 팩토리 대표 · 실장이 보냅니다',
+    '플래너 설계는 본사 대표 · 실장 · 관리자, Manager · Expert · Agent 팩토리 대표 · 실장이 보냅니다',
     'not_planner_sender'
   );
 }

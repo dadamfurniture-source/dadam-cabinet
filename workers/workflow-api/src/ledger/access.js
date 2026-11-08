@@ -4,7 +4,7 @@
  *   업체 active 구성원만 (한 사람에 업체 하나 — 0003 company_members_one_active_company). 아니면 403 not_member.
  *     관리자여도 구성원이 아니면 못 본다 — 장부는 그 업체 것이다.
  *   업체 자격은 DB 함수 company_entitled(업체, 'ledger', 사람) 하나로 본다 (database/migrations/0026):
- *     full  Expert · Agent 협력업체(또는 시험 예외) · active — 쓰기 · 읽기 (DB 0038)
+ *     full  Agent 협력업체(또는 시험 예외) · active — 쓰기 · 읽기 (DB 0038 의 Expert · Agent 에서 DB 0047 로 Agent 만)
  *     read  등급이 내려감 — 보기 · 내보내기만 (장부 · 증빙 5년 보관). 쓰면 403 read_only
  *     none  403 not_entitled
  *   사진 AI 읽기는 따로 company_entitled(업체, 'ledger_ai') — Agent · 시험 업체만 (ledgerAi, DB 0038).

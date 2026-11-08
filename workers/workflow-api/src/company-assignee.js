@@ -1,6 +1,6 @@
 /**
  * 프로젝트 담당자 — 팩토리 안 담당자 칸 (2026-11-06 사장님 결정 · 작업 분배 묶음, DB 0042 projects.assignee_id).
- *   ① Expert · Agent 모두 — Expert 는 대표 · 실장이 손으로 고르고, Agent 는 비서가 추천 → 대표 · 실장 승인 (승인 카드 project_assign)
+ *   ① Manager · Expert · Agent 모두 — Manager · Expert 는 대표 · 실장이 손으로 고르고, Agent 는 비서가 추천 → 대표 · 실장 승인 (승인 카드 project_assign)
  *   ② 프로젝트에 한 명 ③ 그 업체의 대표 · 실장 · 직원 모두 (지금 구성원)
  *   ④ 비서 추천 기준 「일감 고르게 + 일정」 — 추천만 하고 사람이 승인해야 정해진다. 카드에 근거 숫자를 함께 보인다.
  *

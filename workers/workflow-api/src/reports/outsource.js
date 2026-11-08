@@ -4,11 +4,12 @@
  * Step 4 의 외주 꾸러미(도어재 발주서 · 재단·엣지 의뢰서)는 지금껏 뽑을 수만 있었다 — 보냈다는 기록이 없었다.
  * [발주 처리] 가 업체 · 입고 예정일 · 수량을 outsource_order 한 행으로 남기고, 보관함에서 입고/취소로 바꾼다.
  * 도어재 발주가 된 주문은 생산 계획의 '도어 발주 마감' 추천 · 아침 경고에서 빠진다 (production/service.js doorOrderedIds).
+ * [발주 처리] 는 협력업체면 Expert 이상만 (2026-11-08, documents.js OUTSOURCE_PLANS) — 403 plan_required.
  */
 
 import { ConflictError, ValidationError, insertOne, selectMany, selectOne } from '../supabase.js';
 import { countertopRequests, countertopModelIds, countertopQty, workdaysBefore, TOP_VENDOR_KEY } from '../countertop.js';
-import { getDocumentForOwner } from '../documents.js';
+import { OUTSOURCE_PLANS, assertCompanyPlan, getDocumentForOwner } from '../documents.js';
 import { outsourceCounts } from '../templates/work-order.js';
 import { workdays } from '../production/planner.js';
 import { companySettings } from '../production/service.js';
@@ -58,6 +59,8 @@ export async function createOutsourceOrder(env, { user, documentId, body = {} })
   // 외주 발주 기록은 업체 · 수량 · 날짜뿐 — 업체 구성원 누구나
   const { doc, snapshot, design } = await getDocumentForOwner(env, { documentId, user });
   if (doc.doc_type !== 'work_order') throw new ValidationError('작업지시서에서만 외주 발주를 처리합니다');
+  // 협력업체는 Expert 이상 (작업지시서와 같다 — documents.js OUTSOURCE_PLANS). 다담 공장 설계는 그대로. 지난 발주 보기(목록)는 막지 않는다
+  await assertCompanyPlan(env, design.company_id, OUTSOURCE_PLANS, '외주 발주는');
 
   const today = kstDay();
   const expected = body.expected_on ? String(body.expected_on).slice(0, 10) : null;
