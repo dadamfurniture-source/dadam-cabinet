@@ -297,6 +297,8 @@ describe('자리 · 이름', () => {
       'partnerProjects', // 프로젝트 (segan/partner-projects.js)
       'as', // A/S함 (segan/as-requests.js)
       'meBooks',
+      'production-requests', // 제작 의뢰 (segan/production-requests.js)
+      'factory-requests', // 제작 의뢰함 (segan/factory-requests.js)
     ]);
     for (const id of ['partner-consults', 'partnerConsultSettings'])
       expect(doc.getElementById(id).hasAttribute('hidden')).toBe(true);

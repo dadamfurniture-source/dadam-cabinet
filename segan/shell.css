@@ -420,12 +420,14 @@ a.sg-row.ad-row::after {
   margin-top: 16px;
 }
 
-/* 관리 › 상담 배정 — 상담 줄을 누르면 그 자리에 고객 칸 · 순위 */
+/* 관리 › 상담 배정 — 상담 줄을 누르면 그 자리에 고객 칸 · 순위.
+   업체 › 제작 의뢰 (me-prq-, segan/production-requests.js)도 같은 모양 — 줄을 누르면 그 자리에 의뢰 · 추천 팩토리 */
 .ad-tabs {
   margin-top: 8px;
 }
 
-.ad-pick {
+.ad-pick,
+.me-prq-pick {
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -446,7 +448,8 @@ a.sg-row.ad-row::after {
   color: var(--v5-ink-60);
 }
 
-.ad-detail {
+.ad-detail,
+.me-prq-detail {
   display: grid;
   gap: 10px;
 }
@@ -457,25 +460,30 @@ a.sg-row.ad-row::after {
 }
 
 .ad-cands,
-.ad-score {
+.ad-score,
+.me-prq-recs,
+.me-prq-offers {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.ad-cands {
+.ad-cands,
+.me-prq-recs {
   display: grid;
   gap: 10px;
 }
 
-.ad-cand {
+.ad-cand,
+.me-prq-rec {
   display: grid;
   gap: 6px;
   padding: 12px;
   border: 1px solid var(--v5-line);
 }
 
-.ad-cand-head {
+.ad-cand-head,
+.me-prq-rec-head {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 10px;
@@ -483,13 +491,15 @@ a.sg-row.ad-row::after {
   font-size: 14px;
 }
 
-.ad-cand-head span {
+.ad-cand-head span,
+.me-prq-rec-head span {
   margin-left: auto;
   color: var(--v5-ink-60);
   font-variant-numeric: tabular-nums;
 }
 
-.ad-score {
+.ad-score,
+.me-prq-offers {
   font-size: 12px;
   font-weight: 300;
   color: var(--v5-ink-60);
@@ -1123,6 +1133,34 @@ a.sg-row.ad-row::after {
 
 .me-steps--3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* 업체 › 제작 의뢰 단계 — 접수 · 본사 검토 · 추천 도착 · 팩토리 답 기다림 · 받음 */
+.me-steps--5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+/* 업체 › 제작 의뢰 — 의뢰 칸(시트 · 옆 패널 안), 추천 카드 안 단계 · 사실 칸, 제작 의뢰함 「지난 의뢰」 */
+.me-prq-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.me-prq-detail .me-steps,
+.me-prq-rec .me-facts {
+  margin-top: 0;
+}
+
+.me-prq-detail .me-pt-msg,
+.me-prq-rec .me-pt-msg,
+.me-prq-rec .me-pt-warn {
+  margin: 0;
+}
+
+.me-prq-past {
+  margin-top: 20px;
+  margin-bottom: 8px;
 }
 
 /* 업체 › 회계 (segan/books.js) — 달 바꾸기 · 이번 달 · 지난달 표 · 미수 · 상태별 수주 · 다가오는 수금 */
