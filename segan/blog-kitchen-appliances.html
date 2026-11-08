@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- 매거진 글 — 올린 글을 화면에서 살펴본 뒤 검색에 낸다. 그때까지 noindex, 사이트맵 · canonical 도 없다 -->
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>싱크볼 · 수전 · 후드 · 쿡탑, 가구보다 먼저 정하는 이유 · 매거진 · SEGAN</title>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026110905" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110905" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110905" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110905" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="shell.css?v=2026110905" />
+    <link rel="stylesheet" href="info.css?v=2026110905" />
+    <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
+         열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
+    <script src="../js/config.js?v=2026110905"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
+    <script src="shell.js?v=2026110905" defer></script>
+    <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
+    <script src="guide.js?v=2026110905" defer></script>
+  </head>
+  <!-- 매거진 글 하나 — 매거진 탭을 켠다. 글 목록은 blog.html -->
+  <body class="sg-app" data-tab="blog">
+    <div data-segan-shell="header"></div>
+
+    <main class="sg-main ma" id="main">
+      <a class="ma-back" href="blog.html">‹ 매거진</a>
+
+      <article class="ma-article" data-slug="kitchen-appliances" data-category="주방기기">
+        <header class="ma-head">
+          <p class="ma-cat">주방기기</p>
+          <h1 class="sg-h1 ma-title">싱크볼 · 수전 · 후드 · 쿡탑, 가구보다 먼저 정하는 이유</h1>
+          <p class="ma-dek">기기 모델이 상판 구멍과 장 크기를 정합니다. 종류와 브랜드, 사양서 읽는 법을 정리합니다.</p>
+          <p class="ma-meta">읽는 시간 약 5분</p>
+        </header>
+
+        <p>
+          주방기기는 가구 설계 전에 정해 두면 좋습니다. 싱크볼 · 수전 · 쿡탑은 상판에 뚫을 구멍 크기를 정하고, 후드는
+          후드장 크기를 정합니다. 모델이 늦게 정해지면 이미 정한 구멍이나 장 크기와 맞지 않을 수 있습니다.
+        </p>
+
+        <section>
+          <h2>싱크볼: 설치 방식 세 가지</h2>
+          <div class="ma-table" role="region" aria-label="싱크볼 설치 방식" tabindex="0">
+            <table>
+              <caption>
+                싱크볼 설치 방식
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">방식</th>
+                  <th scope="col">볼과 상판</th>
+                  <th scope="col">겉모습</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">언더</th>
+                  <td>볼을 상판 아래에 붙입니다.</td>
+                  <td>상판 단면이 볼 둘레로 드러납니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">인셋</th>
+                  <td>볼 테두리(날개)를 상판 위에 얹습니다.</td>
+                  <td>볼 테두리가 상판 위로 보입니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">레이온</th>
+                  <td>볼과 스테인리스 상판이 한 판입니다.</td>
+                  <td>상판 전체가 볼과 같은 스테인리스입니다.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            국내 싱크볼 브랜드로는 백조씽크와 리젠스가 있습니다. 백조씽크는 독일 Blanco, 이탈리아 Apell · Elleci(합성
+            볼)를 함께 팝니다. 리젠스는 네덜란드 Reginox, 이탈리아 Altainox를 수입합니다. 하츠도 사각 싱크볼을 냅니다.
+            리젠스는 엠보(오돌토돌한 무늬) 제품을 긁힘에 강한 표면으로 소개합니다.
+          </p>
+          <p>
+            사양서의 높이는 브랜드마다 뜻이 다릅니다. 백조는 날개 윗면부터 볼 바닥까지 전체 높이를, 리젠스는 볼 깊이를
+            적습니다. 두 숫자를 그대로 비교하면 안 됩니다. 리젠스는 제품마다 권장 하부장 폭도 적어 두니, 볼 크기와
+            하부장 폭을 함께 봅니다.
+          </p>
+        </section>
+
+        <section>
+          <h2>수전: 상판 구멍 지름은 제조사마다 다릅니다</h2>
+          <p>
+            주방 수전은 상판이나 싱크볼에 구멍을 내고 세우는 대붙이와 벽에 다는 벽붙이가 있습니다. 대붙이 수전은
+            제조사가 상판 구멍 지름을 정해 둡니다. 상판 구멍은 고른 수전의 설치 설명서에 맞춰 뚫습니다.
+          </p>
+          <div class="ma-table" role="region" aria-label="수전 구멍 지름(제조사 자료 표기)" tabindex="0">
+            <table>
+              <caption>
+                수전 구멍 지름(제조사 자료 표기)
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">브랜드</th>
+                  <th scope="col">구멍 지름</th>
+                  <th scope="col">참고</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">백조</th>
+                  <td>Φ33~38 권장</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <th scope="row">블랑코(백조 유통)</th>
+                  <td>Φ33~35 권장</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <th scope="row">리젠스</th>
+                  <td>최소 36 · 최대 40</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <th scope="row">대림바스</th>
+                  <td>Φ35~43</td>
+                  <td>모델마다 다르고, 제품마다 시공도면이 있습니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">콜러</th>
+                  <td>Φ33~40</td>
+                  <td>—</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="ma-note">
+            <small>단위 mm. 각 제조사 상품 페이지 · 시공도면 · 설치설명서 기준(2026년 10월 확인).</small>
+          </p>
+          <p>
+            표처럼 구멍 지름은 범위로 적힙니다. 「권장」인지 「최소 · 최대」인지도 봅니다. 나중에 수전을 바꿀 때도 이미
+            뚫린 구멍에 맞는 모델을 골라야 합니다. 수전과 벽 사이 거리에 제조사 권장값이 있는지도 봅니다. 손잡이를
+            돌리거나 헤드를 뺄 때 벽에 닿지 않아야 합니다.
+          </p>
+        </section>
+
+        <section>
+          <h2>후드: 생김새와 후드장</h2>
+          <div class="ma-table" role="region" aria-label="후드 생김새" tabindex="0">
+            <table>
+              <caption>
+                후드 생김새
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">종류</th>
+                  <th scope="col">설치 모습</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">침니</th>
+                  <td>벽에 붙고, 덕트를 감싼 기둥이 천장까지 올라갑니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">슬림</th>
+                  <td>얇은 몸체로 상부장 밑에 붙습니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">빌트인</th>
+                  <td>상부장 안에 묻고 아랫면만 드러납니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">아일랜드</th>
+                  <td>천장에 매달아 가운데 조리대 위에 씁니다.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            슬림 후드와 빌트인 후드는 상부장 줄 안의 후드장에 붙거나 들어갑니다. 후드장 폭은 600~900 범위에서 고른 후드
+            크기에 맞춥니다. 그래서 후드 모델이 정해져야 후드장 크기와 옆 상부장 배치가 정해집니다.
+          </p>
+          <p>
+            후드는 배기 덕트와 이어집니다. 집의 환풍구 위치와 후드 위치가 맞는지, 덕트가 어느 쪽으로 나가는지 실측 때
+            확인합니다.
+          </p>
+        </section>
+
+        <section>
+          <h2>쿡탑: 가열 방식 네 가지</h2>
+          <div class="ma-table" role="region" aria-label="쿡탑 가열 방식" tabindex="0">
+            <table class="ma-cols-4">
+              <caption>
+                쿡탑 가열 방식
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">종류</th>
+                  <th scope="col">가열 방식</th>
+                  <th scope="col">쓸 수 있는 용기</th>
+                  <th scope="col">설치 때 볼 것</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">인덕션</th>
+                  <td>자기장으로 용기를 직접 데웁니다.</td>
+                  <td>
+                    바닥에 자석이 붙는 용기(철 · 법랑 · IH 표시). 알루미늄 · 양은 · 내열유리 · 뚝배기는 쓸 수 없습니다.
+                  </td>
+                  <td>전용 전원. 예: 삼성 빌트인 인덕션 한 모델은 16A 접지 콘센트에 단독으로 연결하도록 안내합니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">하이라이트</th>
+                  <td>열선으로 상판을 데워 용기를 데웁니다.</td>
+                  <td>용기를 가리지 않습니다.</td>
+                  <td>전원 조건은 모델 설명서</td>
+                </tr>
+                <tr>
+                  <th scope="row">하이브리드</th>
+                  <td>인덕션과 하이라이트(또는 가스)를 한 판에 둡니다.</td>
+                  <td>화구마다 다릅니다.</td>
+                  <td>화구 구성</td>
+                </tr>
+                <tr>
+                  <th scope="row">가스</th>
+                  <td>가스 불꽃으로 데웁니다.</td>
+                  <td>—</td>
+                  <td>도시가스(LNG)용과 프로판(LPG)용 모델이 따로 있습니다.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="ma-note"><small>LG전자 · 삼성전자 고객지원과 제품 페이지, 나비엔 매직 카탈로그 기준.</small></p>
+          <p>
+            빌트인 쿡탑은 상판에 구멍을 내고 넣습니다. 상판 구멍 크기(타공 크기)와 상판 아래로 들어가는 깊이(매입
+            깊이)는 모델마다 정해져 있습니다. 예를 들어 삼성 빌트인 인덕션 한 모델은 타공 크기를 560 × 480으로
+            안내합니다. 하츠는 한 카탈로그에서 매입 깊이를 75mm 이상 두도록 안내합니다. 쿡탑 바로 아래 서랍이 이 깊이와
+            겹치지 않는지 물어봅니다.
+          </p>
+          <p>
+            인덕션은 전기 조건을 모델 설명서로 확인합니다. 전용 콘센트가 필요한 모델이라면 주방에 그 자리가 있는지, 전기
+            공사가 따로 필요한지 미리 확인합니다. 가스 쿡탑은 집에 들어오는 가스 종류(LNG · LPG)에 맞는 모델을 고릅니다.
+          </p>
+          <p>
+            나비엔 매직은 경동나비엔이 2024년 SK매직의 가스 · 전기레인지 · 전기오븐 사업을 넘겨받아 만든 브랜드입니다.
+          </p>
+        </section>
+
+        <section>
+          <h2>브랜드 한눈에 보기</h2>
+          <div class="ma-table" role="region" aria-label="주방기기 브랜드와 품목" tabindex="0">
+            <table class="ma-cols-6">
+              <caption>
+                주방기기 브랜드와 품목
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">브랜드</th>
+                  <th scope="col">싱크볼</th>
+                  <th scope="col">수전</th>
+                  <th scope="col">후드</th>
+                  <th scope="col">쿡탑</th>
+                  <th scope="col">참고</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">백조씽크</th>
+                  <td>●</td>
+                  <td>●</td>
+                  <td>●</td>
+                  <td>—</td>
+                  <td>Blanco · Apell · Elleci 국내 유통</td>
+                </tr>
+                <tr>
+                  <th scope="row">블랑코</th>
+                  <td>●</td>
+                  <td>●</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>독일, 백조 유통</td>
+                </tr>
+                <tr>
+                  <th scope="row">아펠 · 엘레치</th>
+                  <td>●</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>이탈리아, 백조 유통</td>
+                </tr>
+                <tr>
+                  <th scope="row">리젠스</th>
+                  <td>●</td>
+                  <td>●</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>Reginox · Altainox 정식 수입</td>
+                </tr>
+                <tr>
+                  <th scope="row">레지녹스 · 알타이녹스</th>
+                  <td>●</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>네덜란드 · 이탈리아, 리젠스 수입</td>
+                </tr>
+                <tr>
+                  <th scope="row">대림바스 · 콜러</th>
+                  <td>—</td>
+                  <td>●</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <th scope="row">하츠</th>
+                  <td>●</td>
+                  <td>—</td>
+                  <td>●</td>
+                  <td>●</td>
+                  <td>후드: 침니 · 슬림 · 빌트인 · 아일랜드</td>
+                </tr>
+                <tr>
+                  <th scope="row">린나이</th>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>●</td>
+                  <td>●</td>
+                  <td>가스 쿡탑 LNG · LPG</td>
+                </tr>
+                <tr>
+                  <th scope="row">삼성</th>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>●</td>
+                  <td>●</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <th scope="row">LG</th>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>●</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <th scope="row">나비엔 매직</th>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>●</td>
+                  <td>●</td>
+                  <td>경동나비엔. 가스 종류마다 모델 코드가 다릅니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">쿠쿠 · 쿠첸 · 위니아 · 밀레</th>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>●</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <th scope="row">가게나우 · 스메그 · 일렉트로룩스 · 데이코</th>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>●</td>
+                  <td>●</td>
+                  <td>수입 브랜드</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="ma-note">
+            <small
+              >● 공식 누리집이나 카탈로그에서 그 품목을 확인함(2026년 10월). 「—」은 이 글에서 확인하지 않은 칸입니다.
+              회사에 따라 그 품목도 팔 수 있습니다.</small
+            >
+          </p>
+        </section>
+
+        <section>
+          <h2>사양서 읽는 법</h2>
+          <p>기기 모델을 고르면 사양서에서 아래 칸을 찾아 제작 업체에 넘깁니다.</p>
+          <div class="ma-table" role="region" aria-label="기기별로 볼 칸" tabindex="0">
+            <table>
+              <caption>
+                기기별로 볼 칸
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">기기</th>
+                  <th scope="col">사양서에서 볼 칸</th>
+                  <th scope="col">헷갈리기 쉬운 점</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">싱크볼</th>
+                  <td>바깥 크기, 상판 따내기 크기, 높이, 권장 하부장 폭</td>
+                  <td>높이가 전체 높이인지 볼 깊이인지 브랜드마다 다릅니다.</td>
+                </tr>
+                <tr>
+                  <th scope="row">수전</th>
+                  <td>상판 구멍 지름, 대붙이 · 벽붙이</td>
+                  <td>지름이 「권장」인지 「최소 · 최대」인지</td>
+                </tr>
+                <tr>
+                  <th scope="row">후드</th>
+                  <td>폭, 생김새</td>
+                  <td>후드장 폭(600~900)과 맞는지</td>
+                </tr>
+                <tr>
+                  <th scope="row">쿡탑</th>
+                  <td>타공 크기, 매입 깊이, 전원 · 가스 종류</td>
+                  <td>제품 바깥 크기와 타공 크기는 다릅니다.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>자주 놓치는 것은 이렇습니다.</p>
+          <ul>
+            <li>가구를 계약한 뒤에 기기 모델을 정합니다.</li>
+            <li>쿡탑 제품 크기를 상판 구멍 크기로 압니다.</li>
+            <li>집의 가스 종류를 확인하지 않고 가스 쿡탑을 삽니다.</li>
+            <li>두 브랜드 싱크볼의 높이 숫자를 그대로 비교합니다.</li>
+          </ul>
+        </section>
+
+        <section class="ma-final" aria-labelledby="maCheckTitle">
+          <h2 id="maCheckTitle">고객이 확인할 것</h2>
+          <ul class="ma-check">
+            <li>싱크볼 설치 방식(언더 · 인셋 · 레이온)과 상판 따내기 크기</li>
+            <li>볼 크기에 맞는 하부장 폭, 높이 표기가 전체 높이인지 볼 깊이인지</li>
+            <li>수전 구멍 지름과 수전 · 벽 사이 거리</li>
+            <li>후드 생김새, 후드장 폭, 환풍구 위치</li>
+            <li>쿡탑 타공 크기 · 매입 깊이, 전기 조건이나 가스 종류(LNG · LPG)</li>
+            <li>고른 기기의 모델명을 제작 업체에 넘겼는지</li>
+            <li>국내 판매 · A/S 창구가 있는 모델인지</li>
+          </ul>
+        </section>
+      </article>
+
+      <nav class="ma-more" aria-labelledby="maMoreTitle">
+        <h2 class="in-h2" id="maMoreTitle">다른 글</h2>
+        <ul class="bl-posts">
+          <li>
+            <a class="bl-post" href="blog-materials.html">
+              <small class="bl-post-cat">자재</small>
+              <b class="bl-post-title">보드부터 엣지까지, 가구 자재 읽는 법</b>
+              <small class="bl-post-time">읽는 시간 약 5분</small>
+            </a>
+          </li>
+          <li>
+            <a class="bl-post" href="blog-edge-finish.html">
+              <small class="bl-post-cat">설치</small>
+              <b class="bl-post-title">몰딩 · 휠라 · 쫄 · 무몰딩, 가구 끝 마감 구분하기</b>
+              <small class="bl-post-time">읽는 시간 약 4분</small>
+            </a>
+          </li>
+          <li>
+            <a class="bl-post" href="blog-hardware.html">
+              <small class="bl-post-cat">하드웨어</small>
+              <b class="bl-post-title">서랍레일 · 망장 · 쇼바 · 리프트업, 여닫는 철물 고르기</b>
+              <small class="bl-post-time">읽는 시간 약 5분</small>
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+  </body>
+</html>

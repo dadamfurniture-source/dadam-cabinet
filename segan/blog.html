@@ -3,31 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <!-- 글이 아직 없다 — 글을 올리기 전까지 검색에 내지 않는다 (사이트맵에도 없다) -->
+    <!-- 매거진 글 목록 — 올린 글을 화면에서 살펴본 뒤 검색에 낸다. 그때까지 noindex, 사이트맵 · canonical 도 없다
+         (글 화면 blog-*.html 도 같다) -->
     <meta name="robots" content="noindex,nofollow" />
     <meta name="theme-color" content="#F6F3EE" />
     <title>매거진 · SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026110904" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026110904" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026110904" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110904" />
+    <link rel="icon" href="icons/icon.svg?v=2026110905" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110905" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110905" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110905" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="shell.css?v=2026110904" />
-    <link rel="stylesheet" href="info.css?v=2026110904" />
+    <link rel="stylesheet" href="shell.css?v=2026110905" />
+    <link rel="stylesheet" href="info.css?v=2026110905" />
     <!-- 읽기만 하는 화면 — 화면은 로그인 · 데이터를 묻지 않는다. 설정 · Supabase 는 SEGAN 비서(guide.js)가
          열릴 때만 로그인을 본다 (늦게 실어도 된다 — defer) -->
-    <script src="../js/config.js?v=2026110904"></script>
+    <script src="../js/config.js?v=2026110905"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45" defer></script>
-    <script src="shell.js?v=2026110904" defer></script>
+    <script src="shell.js?v=2026110905" defer></script>
     <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
-    <script src="guide.js?v=2026110904" defer></script>
+    <script src="guide.js?v=2026110905" defer></script>
   </head>
   <body class="sg-app" data-tab="blog">
     <div data-segan-shell="header"></div>
@@ -36,24 +37,64 @@
       <h1 class="sg-h1">매거진</h1>
       <p class="in-lead">맞춤 가구를 고르고 짓는 데 필요한 이야기를 네 갈래로 모읍니다.</p>
 
-      <p class="pl-state">글을 준비하고 있습니다.</p>
-
+      <!-- 분류 넷 — 분류마다 그 분류의 글 (글 화면은 blog-<이름>.html, 새 글은 그 분류 목록에 더한다) -->
       <ul class="bl-cats" aria-label="매거진 분류">
         <li class="bl-cat">
           <h2>자재</h2>
-          <p>글 준비 중</p>
+          <ul class="bl-posts">
+            <li>
+              <a class="bl-post" href="blog-materials.html">
+                <b class="bl-post-title">보드부터 엣지까지, 가구 자재 읽는 법</b>
+                <span class="bl-post-dek"
+                  >몸통 보드, 친환경 등급, 표면재, 엣지. 네 가지만 알면 견적서의 자재 칸이 읽힙니다.</span
+                >
+                <small class="bl-post-time">읽는 시간 약 5분</small>
+              </a>
+            </li>
+          </ul>
         </li>
         <li class="bl-cat">
           <h2>설치</h2>
-          <p>글 준비 중</p>
+          <ul class="bl-posts">
+            <li>
+              <a class="bl-post" href="blog-edge-finish.html">
+                <b class="bl-post-title">몰딩 · 휠라 · 쫄 · 무몰딩, 가구 끝 마감 구분하기</b>
+                <span class="bl-post-dek"
+                  >붙박이 가구가 벽 · 천장 · 바닥과 만나는 자리를 무엇으로 메우는지, 도면과 견적서에서 무엇을 볼지
+                  정리합니다.</span
+                >
+                <small class="bl-post-time">읽는 시간 약 4분</small>
+              </a>
+            </li>
+          </ul>
         </li>
         <li class="bl-cat">
           <h2>하드웨어</h2>
-          <p>글 준비 중</p>
+          <ul class="bl-posts">
+            <li>
+              <a class="bl-post" href="blog-hardware.html">
+                <b class="bl-post-title">서랍레일 · 망장 · 쇼바 · 리프트업, 여닫는 철물 고르기</b>
+                <span class="bl-post-dek"
+                  >레일 · 망 · 쇼바 · 리프트 장치의 종류, 국내에서 볼 수 있는 브랜드, 견적서에서 물어볼 것.</span
+                >
+                <small class="bl-post-time">읽는 시간 약 5분</small>
+              </a>
+            </li>
+          </ul>
         </li>
         <li class="bl-cat">
           <h2>주방기기</h2>
-          <p>글 준비 중</p>
+          <ul class="bl-posts">
+            <li>
+              <a class="bl-post" href="blog-kitchen-appliances.html">
+                <b class="bl-post-title">싱크볼 · 수전 · 후드 · 쿡탑, 가구보다 먼저 정하는 이유</b>
+                <span class="bl-post-dek"
+                  >기기 모델이 상판 구멍과 장 크기를 정합니다. 종류와 브랜드, 사양서 읽는 법을 정리합니다.</span
+                >
+                <small class="bl-post-time">읽는 시간 약 5분</small>
+              </a>
+            </li>
+          </ul>
         </li>
       </ul>
 
