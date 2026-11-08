@@ -197,7 +197,7 @@ test('거친 업체 — 같은 상담을 못 받음 · 무응답으로 돌려보
   assert.deepEqual(filterReasons(base), []);
   assert.deepEqual(filterReasons({ ...base, tried: true }), ['tried']);
   assert.deepEqual(
-    filterReasons({ ...base, company: company('a', { plan: 'expert' }), tried: true }),
+    filterReasons({ ...base, company: company('a', { plan: 'manager' }), tried: true }),
     ['tier'],
     '풀 밖 업체는 풀 이유만'
   );
@@ -223,12 +223,15 @@ test('거친 업체 — 같은 상담을 못 받음 · 무응답으로 돌려보
 
 // ── 거르기 ────────────────────────────────────────────────────
 
-test('업체 풀 — 다담 공장 · 활동 중 Agent. Expert 는 tier, 정지 · 해지 · 신청 중은 inactive', () => {
+test('업체 풀 — 다담 공장 · 활동 중 Expert · Agent. Manager · plan 없음은 tier, 정지 · 해지 · 신청 중은 inactive', () => {
+  assert.deepEqual([...R.POOL_PLANS], ['expert', 'agent']);
   assert.deepEqual(poolReasons({ kind: 'hq', plan: null, status: 'active' }), []);
   assert.deepEqual(poolReasons(company('a')), []);
-  assert.deepEqual(poolReasons(company('e', { plan: 'expert' })), ['tier']);
+  assert.deepEqual(poolReasons(company('e', { plan: 'expert' })), [], 'Expert 도 상담을 받는다 (2026-11-08)');
+  assert.deepEqual(poolReasons(company('g', { plan: 'manager' })), ['tier'], 'Manager 는 상담을 받지 않는다');
+  assert.deepEqual(poolReasons(company('n', { plan: null })), ['tier']);
   assert.deepEqual(poolReasons(company('s', { status: 'suspended' })), ['inactive']);
-  assert.deepEqual(poolReasons(company('x', { plan: 'expert', status: 'closed' })), [
+  assert.deepEqual(poolReasons(company('x', { plan: 'manager', status: 'closed' })), [
     'tier',
     'inactive',
   ]);
@@ -245,7 +248,7 @@ test('풀 밖 업체는 풀 이유만 싣는다', () => {
   const r = filterReasons({
     consult: consult({ sido: '부산광역시' }),
     items: ['sink'],
-    company: company('e', { plan: 'expert' }),
+    company: company('g', { plan: 'manager' }),
     settings: null,
     evaluation: null,
     stats: null,
@@ -643,7 +646,8 @@ test('순위 — 총점 높은 순, 걸러진 업체는 이유와 따로', () =>
     { company: company('low', { name: '가' }), evaluation: { grade: 'C', docs: DOCS } },
     { company: company('high', { name: '나' }), evaluation: { grade: 'S', docs: DOCS } },
     { company: company('mid', { name: '다' }), evaluation: { grade: 'A', docs: DOCS } },
-    { company: company('exp', { name: '라', plan: 'expert' }) },
+    { company: company('mgr', { name: '라', plan: 'manager' }) },
+    { company: company('exp', { name: '바', plan: 'expert' }), evaluation: { grade: 'B', docs: DOCS } },
     { company: company('nodocs', { name: '마' }), evaluation: { grade: 'S' } },
   ]);
   assert.deepEqual(
@@ -651,11 +655,12 @@ test('순위 — 총점 높은 순, 걸러진 업체는 이유와 따로', () =>
     [
       ['high', 1],
       ['mid', 2],
-      ['low', 3],
+      ['exp', 3],
+      ['low', 4],
     ]
   );
   assert.deepEqual(filtered, [
-    { company_id: 'exp', company_name: '라', reasons: ['tier'] },
+    { company_id: 'mgr', company_name: '라', reasons: ['tier'] },
     { company_id: 'nodocs', company_name: '마', reasons: ['docs'] },
   ]);
 });

@@ -155,9 +155,9 @@ function tables() {
       },
       partner(A, '가나 인테리어'),
       partner(B, '다라 가구', { gugun: '송파구' }),
-      partner(C, '마바 공방', { sido: '경기도', gugun: '성남시' }),
+      partner(C, '마바 공방', { sido: '경기도', gugun: '성남시', plan: 'expert' }), // Expert 도 풀 안 (DB 0047)
       partner(D, '사아 가구'),
-      partner(E, '자차 가구', { plan: 'expert' }),
+      partner(E, '자차 가구', { plan: 'manager' }), // Manager 는 상담을 받지 않는다 — tier
       partner(F, '카타 가구', { status: 'suspended' }),
       partner(G, '파하 가구'),
     ],
@@ -666,7 +666,7 @@ test('배정 — 배정 기록을 못 남기면 사본을 지우고 본사 상�
 
 // ── 업체 · 평가표 ───────────────────────────────────────────────
 
-test('업체 목록 — pool=1 은 다담 공장 + 활동 중 Agent, 등급 · 서류 · 상담 설정 여부', async () => {
+test('업체 목록 — pool=1 은 다담 공장 + 활동 중 Expert · Agent, 등급 · 서류 · 상담 설정 여부', async () => {
   const fake = fakeOf();
   const r = await call(fake, '/admin/companies?pool=1');
   assert.equal(r.status, 200, JSON.stringify(r.json));

@@ -1,7 +1,7 @@
 /**
  * 상담 분배 — 거르기 · 점수 상수와 규칙 (이 파일 한 곳).
  *
- * 다담 본사가 받은 상담을 업체 풀(활동 중인 Agent 협력업체 + 다담 공장)에 나눌 때 쓰는 값.
+ * 다담 본사가 받은 상담을 업체 풀(활동 중인 Expert · Agent 협력업체 + 다담 공장)에 나눌 때 쓰는 값.
  * 계산 순서 · 자료 읽기는 score.js · data.js — 숫자와 규칙은 여기만 고친다.
  *
  * ★ 대표 확인 (2026-10-30, 추천값 그대로) — 아래 넷. 바꿀 때는 이 파일만 고친다.
@@ -29,7 +29,7 @@
  */
 
 /** 이 규칙 묶음의 판 — 배정 기록(consult_assignments.score)에 같이 남겨 나중에 기준을 견준다 */
-export const RULES_VERSION = '2026-10-31c';
+export const RULES_VERSION = '2026-11-08';
 
 /** 순위에 올리는 업체 수 (1~3순위) */
 export const TOP_N = 3;
@@ -50,6 +50,12 @@ export const FILTER_REASONS = Object.freeze([
   'inactive',
   'tried',
 ]);
+
+/**
+ * 업체 풀에 드는 협력업체 등급 (companies.plan) — Expert · Agent (2026-11-08, DB 0047). Manager 는 상담을 받지 않는다 (tier).
+ * 다담 공장(hq)은 plan 없이 언제나 풀 안. company_members.role 의 manager(실장)와는 다른 값이다
+ */
+export const POOL_PLANS = Object.freeze(['expert', 'agent']);
 
 /** 품목 거르기 — 업체 「하는 품목」 값 중 통과하는 것 (함 · 외주). 「안 함(no)」 · 빈 값은 탈락 */
 export const ITEM_PASS = Object.freeze(['do', 'outsource']);

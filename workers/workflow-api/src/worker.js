@@ -1415,7 +1415,7 @@ const router = createRouter([
   { method: 'GET',  path: '/company/service-settings',            auth: 'jwt', handler: handleGetServiceSettings },
   { method: 'PUT',  path: '/company/service-settings',            auth: 'jwt', handler: handlePutServiceSettings },
   { method: 'GET',  path: '/company/my-score',                    auth: 'jwt', handler: handleMyScore },
-  // 업체 고객 · 프로젝트 — 목록은 구성원, 만들기는 대표 · 실장 (다담 공장 · Expert 이상 협력업체)
+  // 업체 고객 · 프로젝트 — 목록은 구성원, 만들기는 대표 · 실장 (다담 공장 · Manager 이상 협력업체)
   { method: 'GET',  path: '/company/projects',                    auth: 'jwt', handler: handleCompanyProjects },
   { method: 'POST', path: '/company/projects',                    auth: 'jwt', handler: handleCreateCompanyProject },
   { method: 'PUT',  path: '/company/projects/:id/assignee',       auth: 'jwt', handler: handleSetProjectAssignee },
@@ -1425,7 +1425,7 @@ const router = createRouter([
   // 업체 장부 요약 (그 업체 대표 · 실장)
   { method: 'GET',   path: '/books/summary',      auth: 'jwt', handler: handleBooksSummary },
 
-  // 회계장부 (Expert · Agent 업체 — 자격은 company_entitled, 사진 AI 읽기는 Agent. 금액 · 장부는 대표 · 실장, 사진 올리기는 구성원 누구나)
+  // 회계장부 (Agent 업체 — 자격은 company_entitled(DB 0047), 사진 AI 읽기도 Agent. 금액 · 장부는 대표 · 실장, 사진 올리기는 구성원 누구나)
   { method: 'GET',  path: '/ledger/me',                 auth: 'jwt', handler: handleLedgerMe },
   { method: 'GET',  path: '/ledger/accounts',           auth: 'jwt', handler: handleLedgerAccounts },
   { method: 'GET',  path: '/ledger/book',               auth: 'jwt', handler: handleLedgerBook },

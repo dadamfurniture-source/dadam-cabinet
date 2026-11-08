@@ -14,6 +14,7 @@ import {
   ForbiddenError,
   assertDesignAccess,
   designAccess,
+  hqCompanyId,
   insertOne,
   selectOne,
   selectMany,
@@ -48,6 +49,52 @@ import { recordDocumentIssued } from './reports/service.js';
 // DB 의 design_documents_doc_type_check 와 renderDocument 분기(아래)가 함께 맞아야 한다.
 export const DOC_TYPES = ['customer_confirmation', 'work_order', 'installation_order'];
 const DOC_TYPE_CODE = { customer_confirmation: 'CC', work_order: 'WO', installation_order: 'IO' };
+
+/**
+ * 문서를 낼 수 있는 협력업체 등급 (companies.plan, 2026-11-08 · DB 0047 — manager < expert < agent).
+ *   고객 확인서 Manager 이상 · 작업지시서 · 설치 지시서 Expert 이상 (외주 발주도 Expert 이상 — OUTSOURCE_PLANS).
+ * 설계 업체가 다담 공장(hq) · 다담 본사(platform)면 등급을 보지 않는다 (관리자는 본사 설계만 연다 — designAccess).
+ * ★ 업체 plan 만 본다 — company_members.role 의 manager(실장)는 등급이 아니다.
+ * 막는 것은 새로 내기(issueDocument) · 외주 발주 처리뿐 — 이미 낸 문서 보기 · 인쇄 · 회수 · 고객 링크는 그대로.
+ */
+export const DOC_PLANS = Object.freeze({
+  customer_confirmation: Object.freeze(['manager', 'expert', 'agent']),
+  work_order: Object.freeze(['expert', 'agent']),
+  installation_order: Object.freeze(['expert', 'agent']),
+});
+/** 외주 발주(reports/outsource.js) — 작업지시서와 같다 */
+export const OUTSOURCE_PLANS = DOC_PLANS.work_order;
+export const PLAN_REQUIRED_CODE = 'plan_required';
+const DOC_LABELS = { customer_confirmation: '고객 확인서', work_order: '작업지시서', installation_order: '설치 지시서' };
+const PLAN_LABELS = { manager: 'Manager', expert: 'Expert', agent: 'Agent' };
+
+/** 순수 판정 — 업체 행 { kind, plan } 이 plans 등급 안인가. 다담 공장 · 본사는 언제나, 모르는 업체 · 등급은 아니다 */
+export function companyPlanAllows(company, plans) {
+  if (!company) return false;
+  if (company.kind === 'hq' || company.kind === 'platform') return true;
+  return company.kind === 'partner' && Array.isArray(plans) && plans.includes(company.plan);
+}
+
+/**
+ * 설계 업체의 등급 확인 — 모자라면 403 plan_required (details { min_plan }).
+ * what 은 글에 쓰는 이름 (예: '작업지시서는'), 다담 공장 설계는 업체 행을 읽지 않는다.
+ */
+export async function assertCompanyPlan(env, companyId, plans, what) {
+  if (companyId && companyId === (await hqCompanyId(env))) return;
+  const company = companyId
+    ? await selectOne(env, 'companies', { id: `eq.${companyId}`, select: 'id,kind,plan' })
+    : null;
+  if (companyPlanAllows(company, plans)) return;
+  const min = plans[0];
+  const err = new ForbiddenError(`${what} ${PLAN_LABELS[min]} 등급 팩토리부터 쓸 수 있습니다`, PLAN_REQUIRED_CODE);
+  err.details = { min_plan: min };
+  throw err;
+}
+
+/** 이 설계에 이 종류 문서를 낼 수 있어야 한다 */
+export function assertDocPlan(env, design, docType) {
+  return assertCompanyPlan(env, design && design.company_id, DOC_PLANS[docType], `${DOC_LABELS[docType]}는`);
+}
 
 function todayCompact() {
   return new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -110,6 +157,8 @@ export async function issueDocument(env, { user, body }) {
   // 설계 접근까지 확인한다 (업체 구성원 누구나 발행한다 — 응답의 totals 는 고객 금액뿐)
   const { snapshot, design } = await getSnapshotWithDesign(env, { snapshotId: body.snapshot_id, user });
   const designId = snapshot.design_id;
+  // 협력업체 등급 — 확인서 Manager 이상, 작업지시서 · 설치 지시서 Expert 이상 (DOC_PLANS). 아무것도 쓰기 전에
+  await assertDocPlan(env, design, docType);
 
   // 제작 작업지시서는 고객이 확인서를 승인한 뒤가 기본이다. 그 전이면 사유를 받아 기록하고 특기사항에 남긴다
   const earlyReason = docType === 'work_order' ? await earlyWorkOrderReason(env, { designId, body }) : null;

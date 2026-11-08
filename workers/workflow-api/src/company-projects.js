@@ -1,7 +1,8 @@
 /**
  * 업체 고객 · 프로젝트 — 상담 없이 온 고객(전화 · 방문)도 업체가 고객 · 프로젝트를 만들고, 설계를 프로젝트에 잇는다.
- * 프로젝트를 가질 수 있는 업체: 다담 공장(hq) · active 협력업체(plan expert · agent). 다담 본사(platform)는 아니다
- * — 프로젝트 저장은 Expert 이상이고, 협력업체는 plan 이 곧 등급이다.
+ * 프로젝트를 가질 수 있는 업체: 다담 공장(hq) · active 협력업체(plan manager · expert · agent). 다담 본사(platform)는 아니다
+ * — 프로젝트 저장은 Manager 이상이고 (2026-11-08, DB 0047), 협력업체는 plan 이 곧 등급이다.
+ *   plan 의 manager 는 등급이다 — company_members.role 의 manager(실장)와 다르다.
  *
  *   GET  /company/projects       내 업체 프로젝트 목록 (active 구성원) — 고객 이름 · 전화, 이어진 설계 수, 담당자, 최신 200개
  *                                + 지금 구성원 members [{ user_id, name, role }] (담당자 고르기 — src/company-assignee.js, DB 0042)
@@ -50,8 +51,8 @@ export const PROJECT_TITLE_MAX = 100;
 export const CUSTOMER_NAME_MAX = 50;
 /** 전화 — account-api partner.js PHONE_RE 와 같은 꼴 (숫자 · 하이픈 8~20자) */
 export const PHONE_RE = /^[0-9][0-9-]{7,19}$/;
-/** 프로젝트를 가질 수 있는 협력업체 plan (Expert 이상) */
-export const PROJECT_PLANS = Object.freeze(['expert', 'agent']);
+/** 프로젝트를 가질 수 있는 협력업체 plan (Manager 이상) */
+export const PROJECT_PLANS = Object.freeze(['manager', 'expert', 'agent']);
 
 function conflict(message, code) {
   const err = new ConflictError(message);
@@ -59,7 +60,7 @@ function conflict(message, code) {
   return err;
 }
 
-/** 다담 공장 · active 협력업체(Expert 이상)만 프로젝트를 가진다 */
+/** 다담 공장 · active 협력업체(Manager 이상)만 프로젝트를 가진다 */
 export function canHoldProjects(company) {
   if (!company || company.status !== 'active') return false;
   return (
