@@ -307,9 +307,17 @@
         background: #e0e0e0;
         color: #616161;
       }
+      .badge.manager {
+        background: #e3f2fd;
+        color: #1565c0;
+      }
       .badge.expert {
         background: #fff3e0;
         color: #f57c00;
+      }
+      .badge.agent {
+        background: #ede7f6;
+        color: #5e35b1;
       }
       .badge.business {
         background: #e8f5e9;
@@ -520,7 +528,7 @@
           <div class="stat-card expert">
             <div class="stat-icon">⭐</div>
             <div class="stat-value" id="expertUsers">-</div>
-            <div class="stat-label">Expert 회원</div>
+            <div class="stat-label">Manager 이상 회원</div>
             <div class="stat-change" id="pendingUpgrades">팩토리 신청 대기 0건</div>
           </div>
 
@@ -723,6 +731,9 @@
         }
       }
 
+      // 등급 회원으로 세는 등급 (profiles.tier — DB 0047 standard < manager < expert < agent)
+      const PAID_TIERS = ['manager', 'expert', 'agent'];
+
       async function loadUserStats() {
         let pendingExpert = 0;
         let pendingConsult = 0;
@@ -733,14 +744,16 @@
 
           if (!error && stats) {
             document.getElementById('totalUsers').textContent = stats.total_users || 0;
-            document.getElementById('expertUsers').textContent = (stats.expert_users || 0) + (stats.agent_users || 0);
+            // 등급 회원 = Manager · Expert · Agent (DB 0047 profile_stats.manager_users — 0047 전이면 0)
+            document.getElementById('expertUsers').textContent =
+              (stats.manager_users || 0) + (stats.expert_users || 0) + (stats.agent_users || 0);
             document.getElementById('newUsersToday').textContent = `오늘 +${stats.today_signups || 0}명`;
           } else {
             // 뷰가 없으면 profiles 테이블에서 직접 조회
             const { data: profiles, count } = await supabaseClient.from('profiles').select('tier', { count: 'exact' });
 
             if (profiles) {
-              const expertCount = profiles.filter((p) => p.tier === 'expert' || p.tier === 'agent').length;
+              const expertCount = profiles.filter((p) => PAID_TIERS.includes(p.tier)).length;
               document.getElementById('totalUsers').textContent = count || profiles.length;
               document.getElementById('expertUsers').textContent = expertCount;
             }

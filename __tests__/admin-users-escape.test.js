@@ -72,3 +72,35 @@ describe('admin/users.html renderUsers', () => {
     expect(row.querySelector('.user-details span').textContent).toBe('test@example.test');
   });
 });
+
+describe('admin/users.html 등급 (DB 0047 — standard < manager < expert < agent)', () => {
+  beforeEach(() => boot());
+
+  test('등급 거름 · 회원 정보 창 — Standard · Manager · Expert · Agent', () => {
+    const opts = (id) =>
+      [...document.getElementById(id).options].map((o) => [o.value, o.textContent]);
+    expect(opts('tierFilter')).toEqual([
+      ['', '전체'],
+      ['standard', 'Standard'],
+      ['manager', 'Manager'],
+      ['expert', 'Expert'],
+      ['agent', 'Agent'],
+    ]);
+    expect(opts('modalTier')).toEqual([
+      ['standard', 'Standard'],
+      ['manager', 'Manager'],
+      ['expert', 'Expert'],
+      ['agent', 'Agent'],
+    ]);
+  });
+
+  test('Manager 회원 배지 — badge manager · 「Manager」, 색이 정해져 있다', () => {
+    window.renderUsers([
+      { id: UID, name: '김', email: 'm@example.test', tier: 'manager', created_at: null },
+    ]);
+    const badge = document.querySelector('#usersTableBody .badge.manager');
+    expect(badge.textContent).toBe('Manager');
+    expect(HTML).toMatch(/\.badge\.manager \{/);
+    expect(HTML).toMatch(/\.badge\.agent \{/);
+  });
+});
