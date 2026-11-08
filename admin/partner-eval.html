@@ -17,7 +17,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <script src="../js/admin-access.js?v=2026110805"></script>
     <!--
-      업체 평가 — 상담 분배 순위의 「본사 평가」 · 거르기의 「서류」 근거. 업체 풀(활동 중인 Agent 협력업체 · 다담 공장)을
+      업체 평가 — 상담 분배 순위의 「본사 평가」 · 거르기의 「서류」 근거. 업체 풀(활동 중인 Expert · Agent 협력업체 · 다담 공장)을
       보고 한 업체의 평가표(설비 · 인력 · 마감 · 자재(분야별 메모) · 설계 · 가격대 · 품질 · 서비스 · 신뢰 · 서류 · 등급 · 메모)를 고친다.
       항목 이름은 서버가 주는 catalog 를 그대로 쓴다 — 서버 상수에 항목을 더하면 이 화면도 따라온다.
       본사 등급은 손으로 고르지 않는다 — 저장할 때 서버가 평가표 영역별 점수로 매기고(score), 이 화면은 그것을 보여 준다.
@@ -508,7 +508,7 @@
           <div>
             <h2>팩토리 평가</h2>
             <div class="muted">
-              상담 분배 순위의 본사 평가와 서류 확인 근거입니다. 팩토리 풀은 활동 중인 Agent 팩토리와 다담 공장입니다.
+              상담 분배 순위의 본사 평가와 서류 확인 근거입니다. 팩토리 풀은 활동 중인 Expert · Agent 팩토리와 다담 공장입니다.
             </div>
           </div>
           <div class="header-actions">
@@ -603,7 +603,7 @@
           { key: 'contract', name: '표준 계약서' },
         ];
         const KIND_LABEL = { hq: '다담 공장' };
-        const PLAN_LABEL = { agent: 'Agent', expert: 'Expert' };
+        const PLAN_LABEL = { agent: 'Agent', expert: 'Expert', manager: 'Manager' };
         /** 서버가 주는 자동 지표 이름 — 모르는 키는 키 그대로 보인다 */
         const METRIC_LABEL = {
           satisfaction: '고객 만족',

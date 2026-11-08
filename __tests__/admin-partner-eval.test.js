@@ -253,6 +253,23 @@ describe('들어오기 · 업체 풀', () => {
     expect($('statusLine').textContent).toBe('팩토리 2곳');
     expect($('editor').hidden).toBe(true);
   });
+
+  test('팩토리 풀은 Expert · Agent 팩토리 + 다담 공장 (2026-11-08 상담 풀) — 등급 이름', async () => {
+    expect(document.body.textContent).toContain(
+      '팩토리 풀은 활동 중인 Expert · Agent 팩토리와 다담 공장입니다.'
+    );
+    const pool = [
+      { ...POOL[1], id: 'p2', name: '둘째', plan: 'expert' },
+      { ...POOL[1], id: 'p3', name: '셋째', plan: 'manager' },
+    ];
+    await start({
+      handler: defaultHandler({ 'GET /admin/companies[?]pool=1$': () => ok({ items: pool }) }),
+    });
+    const kinds = [...document.querySelectorAll('#poolTable tbody tr')].map(
+      (tr) => tr.cells[1].textContent
+    );
+    expect(kinds).toEqual(['Expert', 'Manager']);
+  });
 });
 
 describe('평가표 — 10묶음, 항목은 서버 catalog', () => {
