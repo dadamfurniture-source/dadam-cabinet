@@ -573,6 +573,167 @@ a.sg-row.ad-row::after {
   color: var(--v5-ink-45);
 }
 
+/* ── 마이페이지 메뉴 · 하위 화면 (segan/me.js) ──
+   폰 · 태블릿(~1099px): 메뉴(주소에 # 없음) → 하위 화면 하나 (main[data-me-screen] 이 그 이름)
+   PC(1100px~): 왼쪽 메뉴 + 오른쪽 하위 화면 (시트가 옆 패널이 되는 폭과 같다) */
+.me-profile {
+  display: grid;
+  gap: 4px;
+  padding: 4px 0 20px;
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.me-name {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.me-profile-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 300;
+}
+
+.me-profile-facts div {
+  display: flex;
+  gap: 8px;
+}
+
+.me-profile-facts dt {
+  color: var(--v5-ink-45);
+}
+
+.me-profile-facts dd {
+  margin: 0;
+  color: var(--v5-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 오늘 작업 — 작업자 맨 위 카드 (누르면 작업 화면) */
+.me-work {
+  display: grid;
+  gap: 6px;
+  min-height: 44px;
+  margin-top: 24px;
+  padding: 16px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  text-decoration: none;
+}
+
+.me-work-title {
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.me-work-title::after {
+  content: '›';
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--v5-ink-45);
+}
+
+.me-work-body {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: var(--v5-ink-60);
+}
+
+.me-work-line {
+  display: block;
+}
+
+.me-logout {
+  margin-top: 32px;
+}
+
+/* 메뉴 줄의 값 (팩토리 이름 · 구독 상태) — 줄 글이 먼저, 값은 남는 폭에 */
+.me-hub .sg-row .me-val {
+  min-width: 0;
+}
+
+/* 하위 화면 — 한 번에 하나 (me-off = 지금 화면이 아닌 칸 · 업체 칸 안의 다른 부분) */
+.me-pane .me-off {
+  display: none;
+}
+
+.me-pane-note {
+  margin-top: 32px;
+}
+
+/* 알림 · 결제가 여는 주소(#partner · #partner-consults · #as)는 모듈이 그 칸으로 내려간다 —
+   이제 그 칸이 화면 맨 위라 위 막대 · 「‹ 마이페이지」 · 제목이 밀려 올라가지 않게 */
+.me-pane .me-screen,
+.me-pane .me-pt-group {
+  scroll-margin-top: 240px;
+}
+
+@media (max-width: 1099.98px) {
+  .me-main[data-me-screen=''] .me-pane {
+    display: none;
+  }
+
+  .me-main:not([data-me-screen='']) .me-hub {
+    display: none;
+  }
+
+  /* 하위 화면 이름은 맨 위 제목이 보인다 — 칸 머리글은 두 번 적지 않는다 */
+  .me-main:not([data-me-screen='']) .me-pane .me-screen > h2 {
+    display: none;
+  }
+
+  .me-main:not([data-me-screen='']) .me-pane .me-screen,
+  .me-main:not([data-me-screen='']) .me-pane-note {
+    margin-top: 16px;
+  }
+}
+
+@media (min-width: 1100px) {
+  .me-layout {
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: 0 64px;
+    align-items: start;
+    margin-top: 24px;
+  }
+
+  .me-back {
+    display: none;
+  }
+
+  /* 왼쪽 메뉴 — 지금 화면 줄은 흰 바탕 */
+  .me-hub .sg-row {
+    padding: 0 12px;
+  }
+
+  .me-hub .sg-row[aria-current='page'] {
+    background: var(--v5-paper);
+    font-weight: 400;
+  }
+
+  .me-hub .me-profile,
+  .me-hub .me-group > h2 {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .me-pane > .me-screen:not(.me-off),
+  .me-pane-note {
+    margin-top: 0;
+  }
+}
+
 /* 내 정보 › 설정 (segan/settings.js) — 프로필 수정 · 회원탈퇴 안내 */
 .st-lead {
   margin: 0 0 8px;

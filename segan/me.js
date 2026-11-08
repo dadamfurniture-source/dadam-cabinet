@@ -1,10 +1,32 @@
 /* ============================================================
-   segan/me.js — 「내 정보」 탭의 내 프로젝트 · 상담 내역 · 크레딧 · 구독 (segan/me.html)
+   segan/me.js — 「마이」 탭 마이페이지 (segan/me.html) — 메뉴(첫 화면) + 하위 화면
 
-   역할 메뉴 · 로그아웃 · 사업자 정보는 segan/shell.js 가 그린다. 업체 칸은 segan/partner.js 가 그린다
-   (여기서 로그인 뒤 SeganPartner.load 를 부른다). 업체 › 상담 · 상담 설정은 segan/partner-consults.js,
-   업체 › 회계는 segan/books.js, 알림 칸은 segan/push.js 가 그린다 (업체 칸을 읽은 뒤
-   SeganPartnerConsults.load · SeganBooks.load · SeganPush.load 에 그 /partner/me 를 넘긴다). 여기서는 넷을 채운다:
+   메뉴 (주소에 # 없음 · PC 1100px~ 에서는 왼쪽에 늘 보인다) — 쓸 수 있는 줄만 연다
+     내 정보    이름(profiles.name) · 이메일 · 등급(profiles.tier — segan/billing.js PLAN_KO 와 같은 이름,
+                업체 직책 「실장」과 다르다) · 남은 크레딧
+     오늘 작업  작업자만 — 셸 판정 roles.workMe(GET /work/me) 의 건수 · 다음 작업을 js/mypage-work.js
+                (summaryCounts · nextJobText · SUSPENDED_NOTE) 로 적는다, 누르면 작업 화면(work.html)
+     묶음 — 업체 구성원(협력업체 · 다담 공장)은 업체 · 본사 · 내 것 차례, 아니면 내 것 · 업체 · 본사. 맨 아래 로그아웃
+       업체  팩토리 #partner (업체가 없으면 「팩토리로 시작하기」, 신청 중이면 「팩토리 신청」) · 상담 #partner-consults ·
+             프로젝트 #partner-projects · A/S함 #as — 그 칸을 그렸을 때만 (segan/partner*.js · as-requests.js 의 판정)
+             · 회계 ledger.html — segan/books.js 가 GET /ledger/me 로 장부(full · read)를 열 때
+               (사진만 올리면 「영수증 · 명세표 올리기」) · 설계 · 비서 — 셸 판정 (SeganShell.ROLE_LINKS group company)
+       본사  관리 · 관리자 화면 (PC) — 셸 판정 is_admin (ROLE_LINKS group hq)
+       내 것 내 연출컷 · 상담 내역 #consults · 내 프로젝트 #projects-mine · A/S 접수 #as-mine (둘은 그 칸을 읽었을 때만) ·
+             크레딧 · 구독(billing.html) · 내 활동 · 알림 #notify (push.js 가 칸을 열 때만) · 설정
+   하위 화면 (SCREENS — 주소 #이름)
+     폰 · 태블릿은 하나만 (메뉴를 감추고 위에 「‹ 마이페이지」 · 그 화면 이름), PC 는 오른쪽 칸 —
+     # 가 없으면 업체 구성원은 업체 묶음의 첫 칸(대개 팩토리), 아니면 상담 내역. 다른 페이지(연출컷 · 구독 · 설정 · 활동 ·
+     회계 · 작업 · 관리 · 비서 · 설계)는 그대로 페이지 이동 (설계는 PC 브라우저에서만 새 탭 — SeganShell.desktopTab).
+     알림 · 결제가 여는 주소(me.html#partner · #partner-consults · #as · ?failed=1)는 그대로 그 화면이다.
+     메뉴에서 누르면 기록을 하나 넣는다(pushState — 뒤로 가기가 메뉴로 돌아온다). 「‹ 마이페이지」 는 메뉴에서 왔으면
+     뒤로, 알림 · 새로 고침으로 바로 왔으면 그 기록을 메뉴로 바꾼다(replaceState). 칸마다 「읽은 뒤에만 보인다」(hidden)는
+     각 모듈이 정한다 — 메뉴 줄은 그 칸이 보일 때만 열고, 못 여는 화면으로 오면 「볼 수 있는 내용이 없습니다」.
+
+   업체 칸은 segan/partner.js 가 그린다 (여기서 로그인 뒤 SeganPartner.load 를 부른다). 업체 › 상담 · 상담 설정은
+   segan/partner-consults.js, 업체 › 회계는 segan/books.js, 알림 칸은 segan/push.js 가 그린다 (업체 칸을 읽은 뒤
+   SeganPartnerConsults.load · SeganBooks.load · SeganPush.load 에 그 /partner/me 를 넘긴다). 로그아웃 · 사업자 정보는
+   segan/shell.js. 여기서는 넷을 채운다:
      내 프로젝트 workflow-api GET /me/projects (본인 토큰). 단계 6칸 · 끝난 상태 · 계약 금액 ·
                 다음 결제(안 낸 것 중 낼 날이 가장 이른 것 — 워커 payments.js 와 같은 due_on 오름차순 ·
                 빈 날 뒤) · 설치일. 수금 단계 이름은 erp.html PAY_STAGE_LABELS · 워커 payments.js 와 같다.
@@ -15,11 +37,11 @@
                 상태 이름은 admin/consultations.html STATUS_LABELS 와 같다
      크레딧    RPC my_credit_wallet (업체 구성원이면 업체 통장, 아니면 내 통장) + credit_costs 로 「생성 N회」
                 — segan/make.js 의 loadWallet 을 한 번 불러 업체 칸과 함께 쓴다
-     구독      billing.html 과 같은 payments-api GET /subscription, 등급은 profiles.tier.
+     구독      billing.html 과 같은 payments-api GET /subscription, 등급 · 이름은 profiles.
                 상태 이름은 billing.html STATUS_KO 와 같다. 바꾸기는 앱 안 구독 관리(segan/billing.html)에서.
                 업체 실장 · 직원은 구독 칸 없이 company 만 온다 — 「팩토리 구독은 대표가 관리합니다」
    ============================================================ */
-/* global window, document, fetch */
+/* global window, document, fetch, location, history, MutationObserver */
 (function () {
   'use strict';
 
@@ -244,8 +266,15 @@
   async function loadPlan(sb, session, wallet) {
     var tier = 'standard';
     try {
-      var p = await sb.from('profiles').select('tier').eq('id', session.user.id).maybeSingle();
+      var p = await sb
+        .from('profiles')
+        .select('tier, name')
+        .eq('id', session.user.id)
+        .maybeSingle();
       if (p && p.data && p.data.tier) tier = p.data.tier;
+      var name = p && p.data && typeof p.data.name === 'string' ? p.data.name.trim() : '';
+      $('meName').textContent = name;
+      $('meName').hidden = !name;
     } catch {
       /* 등급을 못 읽으면 standard 로 적는다 (billing.html 과 같다) */
     }
@@ -295,13 +324,434 @@
     }
   }
 
+  // ── 메뉴 · 하위 화면 ─────────────────────────────────────
+  // section = 그 화면의 칸 · parts = 업체 칸(#partner) 안에서 보일 부분(그중 하나가 보여야 연다) ·
+  // filled = 이 칸이 비어 있지 않아야 연다 (공장 구성원은 업체 내용 없이 상담 · 프로젝트 · A/S함만 온다) ·
+  // label = 업체 칸 이름을 그 화면 제목으로 (모듈이 그리는 h3)
+  var SCREENS = {
+    partner: {
+      title: '팩토리',
+      section: 'partner',
+      parts: ['mePartnerTitle', 'mePartner', 'meBooks'],
+      filled: 'mePartner',
+    },
+    'partner-consults': {
+      title: '상담',
+      section: 'partner',
+      parts: ['partner-consults', 'partnerConsultSettings'],
+      label: 'partnerConsultsTitle',
+    },
+    'partner-projects': {
+      title: '프로젝트',
+      section: 'partner',
+      parts: ['partnerProjects'],
+      label: 'partnerProjectsTitle',
+    },
+    as: { title: 'A/S함', section: 'partner', parts: ['as'], label: 'asTitle' },
+    consults: { title: '상담 내역', section: 'meConsultSection' },
+    'projects-mine': { title: '내 프로젝트', section: 'meProjectSection' },
+    'as-mine': { title: 'A/S 접수', section: 'meAsSection' },
+    notify: { title: '알림', section: 'mePush' },
+  };
+  var COMPANY_SCREENS = ['partner', 'partner-consults', 'partner-projects', 'as']; // 업체 묶음 차례
+  var SECTIONS = ['meProjectSection', 'meAsSection', 'partner', 'meConsultSection', 'mePush'];
+  var PARTNER_PARTS = [
+    'mePartnerTitle',
+    'mePartner',
+    'partner-consults',
+    'partnerConsultSettings',
+    'partnerProjects',
+    'as',
+    'meBooks',
+  ];
+  var GROUP_ORDER = {
+    member: ['meGroupCompany', 'meGroupHq', 'meGroupMine'],
+    other: ['meGroupMine', 'meGroupCompany', 'meGroupHq'],
+  };
+  var WIDE = '(min-width: 1100px)'; // shell.css 두 칸 — 시트가 옆 패널이 되는 폭과 같다
+  var HUB_TITLE = '마이페이지';
+  var TEXT = {
+    wait: '확인하는 중…',
+    none: '볼 수 있는 내용이 없습니다.',
+    start: '팩토리로 시작하기',
+    applying: '팩토리 신청',
+    ledger: '회계',
+    upload: '영수증 · 명세표 올리기',
+    noJob: '없음',
+    seeMine: '작업 화면 「내 작업」에서 확인하세요',
+    pending: '승인 대기 — 회사가 확인하면 작업을 볼 수 있습니다', // js/mypage-work.js summaryHtml 과 같은 글
+    rejected: '신청이 승인되지 않았습니다',
+  };
+
+  var H = {
+    on: false, // 로그인해 메뉴를 그렸다
+    loaded: false, // 칸을 모두 읽었다 (못 여는 화면 안내를 그때부터)
+    partnerKnown: false, // /partner/me 를 읽었다 (PC 첫 칸을 그때 고른다)
+    roles: null, // 셸 판정
+  };
+
+  function shown(id) {
+    var el = $(id);
+    return !!el && !el.hidden;
+  }
+
+  function own(o, k) {
+    return Object.prototype.hasOwnProperty.call(o, k);
+  }
+
+  /** 그 화면을 보일 수 있나 — 칸을 그 모듈이 열었을 때만 */
+  function available(name) {
+    var s = own(SCREENS, name) ? SCREENS[name] : null;
+    if (!s || !shown(s.section)) return false;
+    if (s.filled) {
+      var f = $(s.filled);
+      return !!f && f.children.length > 0;
+    }
+    if (s.parts) return s.parts.some(shown);
+    return true;
+  }
+
+  function isWide() {
+    try {
+      return typeof window.matchMedia === 'function' && window.matchMedia(WIDE).matches;
+    } catch {
+      return false;
+    }
+  }
+
+  /** 주소의 # 가 고른 화면 — 모르는 # 는 메뉴 */
+  function askedScreen() {
+    var h = String(location.hash || '').slice(1);
+    return own(SCREENS, h) ? h : '';
+  }
+
+  /** 업체 칸 판정 (segan/partner.js) → { me, view } */
+  function partnerOf() {
+    var P = window.SeganPartner;
+    var me = P && P.state ? P.state.me : null;
+    return { me: me, view: P && P.viewOf ? P.viewOf(me) : 'hidden' };
+  }
+
+  /** 업체 구성원 — 협력업체가 있거나 다담 공장 구성원 */
+  function isMember() {
+    var p = partnerOf();
+    return p.view === 'company' || !!(p.me && p.me.hq_member === true);
+  }
+
+  /** PC 에서 # 없이 열면 — 업체 구성원은 업체 묶음의 첫 칸, 아니면 상담 내역 */
+  function defaultScreen() {
+    if (isMember()) {
+      for (var i = 0; i < COMPANY_SCREENS.length; i++)
+        if (available(COMPANY_SCREENS[i])) return COMPANY_SCREENS[i];
+    }
+    return 'consults';
+  }
+
+  function off(id, yes) {
+    var el = $(id);
+    if (el) el.classList.toggle('me-off', yes);
+  }
+
+  /** 지금 주소 · 폭에 맞는 화면을 보인다 ('' = 메뉴만, 폰 · 태블릿) */
+  function apply() {
+    var main = $('main');
+    if (!main || !H.on) return;
+    var asked = askedScreen();
+    var wide = isWide();
+    var name = asked || (wide && H.partnerKnown ? defaultScreen() : '');
+    var s = name ? SCREENS[name] : null;
+    var open = !!name && available(name); // 못 여는 화면이면 칸 없이 안내만
+    main.setAttribute('data-me-screen', name);
+    SECTIONS.forEach(function (id) {
+      off(id, !open || s.section !== id);
+    });
+    PARTNER_PARTS.forEach(function (id) {
+      off(id, !s || !s.parts || s.parts.indexOf(id) < 0);
+    });
+    var sec = $('partner');
+    if (sec)
+      sec.setAttribute('aria-labelledby', s && s.label && $(s.label) ? s.label : 'mePartnerTitle');
+    var note = $('mePaneNote');
+    if (note) {
+      var text = '';
+      if (name && !open) text = H.loaded ? TEXT.none : TEXT.wait;
+      else if (!name && wide) text = TEXT.wait; // PC — 업체 칸을 읽는 동안 첫 칸을 고르지 않는다
+      note.textContent = text;
+      note.hidden = !text;
+    }
+    document.querySelectorAll('#meHub a[data-me-go]').forEach(function (a) {
+      if (name && a.getAttribute('data-me-go') === name) a.setAttribute('aria-current', 'page');
+      else a.removeAttribute('aria-current');
+    });
+    var back = $('meBack');
+    if (back) back.hidden = !asked;
+    var title = $('meTitle');
+    // PC 는 왼쪽 메뉴가 늘 보여 「마이페이지」 그대로, 폰 · 태블릿은 그 화면 이름
+    if (title) title.textContent = asked && !wide ? SCREENS[asked].title : HUB_TITLE;
+    document.title = (asked ? SCREENS[asked].title + ' · ' : '') + HUB_TITLE + ' · SEGAN';
+  }
+
+  function toTop() {
+    var se = document.scrollingElement || document.documentElement;
+    if (se) se.scrollTop = 0;
+  }
+
+  /** 메뉴에서 그 화면으로 — 기록을 하나 넣는다 (meFrom = 넣기 전 화면, '' 이면 메뉴) */
+  function go(name) {
+    var from = askedScreen();
+    if (name === from) return;
+    try {
+      history.pushState({ meFrom: from }, '', '#' + name);
+    } catch {
+      location.hash = name;
+      return;
+    }
+    apply();
+    toTop();
+  }
+
+  /** 「‹ 마이페이지」 — 메뉴에서 왔으면 뒤로, 아니면(알림 · 새로 고침) 이 기록을 메뉴로 바꾼다 */
+  function backToHub(e) {
+    if (e) e.preventDefault();
+    var st = history.state;
+    if (st && typeof st === 'object' && st.meFrom === '') {
+      history.back(); // popstate → apply
+      return;
+    }
+    try {
+      history.replaceState(null, '', location.pathname + location.search);
+    } catch {
+      /* 그래도 메뉴를 보인다 */
+    }
+    apply();
+    toTop();
+  }
+
+  function onHubClick(e) {
+    var a = e.target && e.target.closest ? e.target.closest('a[data-me-go]') : null;
+    if (!a || e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+      return;
+    e.preventDefault();
+    go(a.getAttribute('data-me-go'));
+  }
+
+  function onPop(e) {
+    var Shell = window.SeganShell;
+    if (Shell && Shell.sheet && Shell.sheet.isSheetState(e && e.state)) return; // 시트 표시 칸 (segan/shell.js)
+    apply();
+  }
+
+  /** 로그인 안내의 로그인 단추 — 하위 화면 주소(#partner · 알림의 #partner-consults · #as 등)로 왔으면 그 # 로 돌아온다 */
+  function keepHashOnGate() {
+    var name = askedScreen();
+    if (!name) return;
+    var a = document.querySelector('[data-auth-view="signed-out"] a.sg-btn');
+    if (a)
+      a.setAttribute(
+        'href',
+        '../login.html?redirect=' + encodeURIComponent('segan/me.html#' + name)
+      );
+  }
+
+  /** 역할 링크 — 셸 ROLE_LINKS 의 group company · hq 를 그 묶음 끝에 (처음엔 감춘다) */
+  function roleRows() {
+    var Shell = window.SeganShell || {};
+    (Shell.ROLE_LINKS || []).forEach(function (r) {
+      var ul = r.group === 'company' ? $('meCompanyRows') : r.group === 'hq' ? $('meHqRows') : null;
+      if (!ul || ul.querySelector('[data-role="' + r.key + '"]')) return;
+      var li = document.createElement('li');
+      li.setAttribute('data-role', r.key);
+      li.hidden = true;
+      li.innerHTML =
+        '<a class="sg-row" href="' +
+        esc(r.href) +
+        '"' +
+        (r.desktopTab ? ' data-desktop-tab' : '') +
+        '>' +
+        esc(r.label) +
+        '</a>';
+      ul.appendChild(li);
+      if (r.desktopTab && Shell.applyLinkTarget) Shell.applyLinkTarget(li.firstChild);
+    });
+  }
+
+  /** 오늘 작업 — GET /work/me 요약 (js/mypage-work.js 의 건수 · 다음 작업 글) */
+  function workLines(me) {
+    var W = window.DadamMyPageWork;
+    var w = (me && me.worker) || {};
+    if (!W) return [];
+    if (w.status === 'approved' || w.status === 'suspended') {
+      var c = W.summaryCounts(me);
+      var lines = [
+        '예정 · 진행 ' +
+          c.mine +
+          '건 · 보완요청 ' +
+          c.revision +
+          '건 · 새 소식 ' +
+          c.newEvents +
+          '건' +
+          (w.status === 'suspended' ? '' : ' · 모집중 ' + c.open + '건'),
+      ];
+      if (w.status === 'suspended') lines.push(W.SUSPENDED_NOTE);
+      var job = me.next_job;
+      var next = TEXT.noJob;
+      if (job && typeof job === 'object') next = W.nextJobText(job);
+      else if (c.mine > 0) next = TEXT.seeMine;
+      lines.push('다음 작업 ' + next);
+      return lines;
+    }
+    if (w.status === 'pending') return [TEXT.pending];
+    if (w.status === 'rejected') return [TEXT.rejected];
+    return [];
+  }
+
+  function renderWork(roles) {
+    var card = $('meWork');
+    if (!card) return;
+    var me = roles && roles.workMe;
+    card.hidden = !me;
+    if (!me) return;
+    var link = (window.SeganShell && window.SeganShell.ROLE_LINKS) || [];
+    for (var i = 0; i < link.length; i++)
+      if (link[i].group === 'work') card.setAttribute('href', link[i].href);
+    try {
+      $('meWorkBody').innerHTML = workLines(me)
+        .map(function (t) {
+          return '<span class="me-work-line">' + esc(t) + '</span>';
+        })
+        .join('');
+    } catch {
+      $('meWorkBody').innerHTML = ''; // 모양이 틀린 응답 — 제목 · 링크만
+    }
+  }
+
+  function item(key, on) {
+    var li = document.querySelector('#meHub [data-me-item="' + key + '"]');
+    if (li) li.hidden = !on;
+    return li;
+  }
+
+  /** 메뉴 줄 · 묶음을 지금 칸 상태에 맞춘다 (모듈이 칸을 열고 닫을 때마다) */
+  function sync() {
+    if (!H.on) return;
+    Object.keys(SCREENS).forEach(function (name) {
+      item(name, available(name));
+    });
+    // 팩토리 줄 — 업체 이름, 업체가 없으면 「팩토리로 시작하기」, 신청 중이면 「팩토리 신청」
+    var p = partnerOf();
+    var label = $('mePartnerLabel');
+    if (label)
+      label.textContent =
+        p.view === 'start'
+          ? TEXT.start
+          : p.view === 'company' || p.view === 'hidden'
+            ? SCREENS.partner.title
+            : TEXT.applying;
+    var val = $('mePartnerVal');
+    if (val)
+      val.textContent =
+        p.view === 'company' && p.me.company && p.me.company.name ? p.me.company.name : '';
+    // 회계 — segan/books.js 의 GET /ledger/me 답
+    var B = window.SeganBooks;
+    var kind = B && B.state ? B.state.ledgerKind : '';
+    var ledger = item('ledger', kind === 'book' || kind === 'upload');
+    if (ledger && $('meLedger'))
+      $('meLedger').textContent = kind === 'upload' ? TEXT.upload : TEXT.ledger;
+    // 역할 링크 — 셸 판정
+    var roles = H.roles || {};
+    ((window.SeganShell && window.SeganShell.ROLE_LINKS) || []).forEach(function (r) {
+      var li = document.querySelector('#meHub [data-role="' + r.key + '"]');
+      if (li) li.hidden = roles[r.role || r.key] !== true;
+    });
+    // 묶음 — 연 줄이 없으면 묶음째 감춘다, 업체 구성원은 업체가 먼저
+    ['meGroupCompany', 'meGroupHq', 'meGroupMine'].forEach(function (id) {
+      var g = $(id);
+      if (g) g.hidden = !g.querySelector('li:not([hidden])');
+    });
+    var hub = $('meHub');
+    var tail = hub ? hub.querySelector('.me-logout') : null;
+    if (hub && tail) {
+      var order = GROUP_ORDER[isMember() ? 'member' : 'other'];
+      var now = [].filter
+        .call(hub.children, function (g) {
+          return g.classList.contains('me-group');
+        })
+        .map(function (g) {
+          return g.id;
+        });
+      if (now.join() !== order.join())
+        order.forEach(function (id) {
+          if ($(id)) hub.insertBefore($(id), tail); // 차례가 바뀔 때만 옮긴다 (누른 줄의 초점을 지키게)
+        });
+    }
+    apply();
+  }
+
+  /** 모듈이 칸을 열고 닫으면(hidden) · 업체 내용을 다시 그리면 메뉴를 맞춘다 */
+  function watch() {
+    if (typeof MutationObserver !== 'function') return;
+    var mo = new MutationObserver(sync);
+    SECTIONS.concat(PARTNER_PARTS).forEach(function (id) {
+      var el = $(id);
+      if (el) mo.observe(el, { attributes: true, attributeFilter: ['hidden'] });
+    });
+    if ($('mePartner')) mo.observe($('mePartner'), { childList: true });
+  }
+
+  /** 로그인 뒤 한 번 — 메뉴를 그리고 주소 · 폭 · 칸 변화를 듣는다 */
+  function initHub(auth) {
+    H.on = true;
+    H.roles = auth.roles || null;
+    roleRows();
+    renderWork(H.roles);
+    var hub = $('meHub');
+    if (hub && !hub.getAttribute('data-bound')) {
+      hub.setAttribute('data-bound', '1');
+      hub.addEventListener('click', onHubClick);
+    }
+    var back = $('meBack');
+    if (back && !back.getAttribute('data-bound')) {
+      back.setAttribute('data-bound', '1');
+      back.addEventListener('click', backToHub);
+    }
+    // 손잡이는 하나만 (스크립트를 다시 실어도 겹치지 않게)
+    if (window.__seganMeOff) window.__seganMeOff();
+    var mq = null;
+    try {
+      mq = typeof window.matchMedia === 'function' ? window.matchMedia(WIDE) : null;
+    } catch {
+      mq = null;
+    }
+    window.addEventListener('popstate', onPop);
+    window.addEventListener('hashchange', apply);
+    if (mq && mq.addEventListener) mq.addEventListener('change', apply);
+    else if (mq && mq.addListener) mq.addListener(apply);
+    window.__seganMeOff = function () {
+      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('hashchange', apply);
+      if (mq && mq.removeEventListener) mq.removeEventListener('change', apply);
+      else if (mq && mq.removeListener) mq.removeListener(apply);
+    };
+    watch();
+    sync();
+  }
+
+  /** 모듈 하나를 다 읽으면 메뉴를 맞춘다 (상태만 바뀌는 것 — 회계 자격 · 업체 판정) */
+  function synced(p) {
+    return Promise.resolve(p).then(function (v) {
+      sync();
+      return v;
+    });
+  }
+
   async function start(auth) {
     var Partner = window.SeganPartner;
     if (!auth || !auth.session || !auth.sb || !$('meConsults')) {
-      // me.html#partner · #partner-consults → 로그인 뒤 같은 곳
-      if (Partner && Partner.keepHashOnGate) Partner.keepHashOnGate();
+      // me.html#partner · #partner-consults · #as 등 → 로그인 뒤 같은 화면
+      keepHashOnGate();
       return;
     }
+    initHub(auth);
     // 크레딧 통장 — 크레딧 줄과 업체 칸이 같은 값을 쓴다 (한 번만 묻는다)
     var M = window.SeganMake;
     var wallet = Promise.resolve(M && M.loadWallet ? M.loadWallet(auth.sb) : null).catch(
@@ -310,39 +760,55 @@
       }
     );
     var partner = Partner && Partner.load ? Partner.load(auth.sb, auth.session, wallet) : null;
+    apply(); // 업체 칸이 ?failed=1 을 #partner 로 바꾼 뒤 — 그 화면부터
     var Consults = window.SeganPartnerConsults;
     var Books = window.SeganBooks;
     var Projects = window.SeganPartnerProjects;
     var Push = window.SeganPush;
     var As = window.SeganAs;
     await Promise.all([
-      loadProjects(auth.session),
+      synced(loadProjects(auth.session)),
       // 내 A/S 접수 — 업체 칸과 상관없다 (segan/as-requests.js)
-      As && As.loadMine ? As.loadMine(auth.sb, auth.session) : null,
+      synced(As && As.loadMine ? As.loadMine(auth.sb, auth.session) : null),
       // 업체 › 상담 · 회계 · 알림 — 업체 칸이 읽은 /partner/me 로 가린다
       //   상담 = Expert · Agent 업체 · 다담 공장 구성원 (segan/partner-consults.js), 회계 = 대표 · 실장 (segan/books.js),
       //   프로젝트 = 다담 공장 · Manager · Expert · Agent 업체 구성원 (segan/partner-projects.js),
       //   알림 = 업체 구성원 · 본사 · 신청 중 (segan/push.js)
       Promise.resolve(partner).then(function () {
+        H.partnerKnown = true;
+        sync();
         var me = Partner && Partner.state ? Partner.state.me : null;
         return Promise.all([
-          Consults && Consults.load ? Consults.load(auth.sb, auth.session, me) : null,
-          Books && Books.load ? Books.load(auth.sb, auth.session, me) : null,
-          Projects && Projects.load ? Projects.load(auth.sb, auth.session, me) : null,
+          synced(Consults && Consults.load ? Consults.load(auth.sb, auth.session, me) : null),
+          synced(Books && Books.load ? Books.load(auth.sb, auth.session, me) : null),
+          synced(Projects && Projects.load ? Projects.load(auth.sb, auth.session, me) : null),
           // A/S함 = 다담 공장 · Expert · Agent 구성원 (segan/as-requests.js)
-          As && As.load ? As.load(auth.sb, auth.session, me) : null,
+          synced(As && As.load ? As.load(auth.sb, auth.session, me) : null),
           // 작업자도 알림 칸 — 셸의 작업 탭 판정을 그대로 넘긴다
-          Push && Push.load
-            ? Push.load(auth.sb, auth.session, me, { worker: !!(auth.roles && auth.roles.worker) })
-            : null,
+          synced(
+            Push && Push.load
+              ? Push.load(auth.sb, auth.session, me, {
+                  worker: !!(auth.roles && auth.roles.worker),
+                })
+              : null
+          ),
         ]);
       }),
       loadConsults(auth.sb, auth.session),
       loadPlan(auth.sb, auth.session, wallet),
     ]);
+    H.loaded = true;
+    H.partnerKnown = true;
+    sync();
   }
 
   var api = {
+    SCREENS: SCREENS,
+    COMPANY_SCREENS: COMPANY_SCREENS,
+    TEXT: TEXT,
+    state: H,
+    available: available,
+    apply: apply,
     CONSULT_STATUS: CONSULT_STATUS,
     SUB_STATUS: SUB_STATUS,
     PROJECT_STAGES: PROJECT_STAGES,

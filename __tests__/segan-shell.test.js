@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-/* global require, describe, test, expect, __dirname, document, window, DOMParser, sessionStorage, jest, console, URL, setTimeout */
+/* global require, describe, test, expect, __dirname, document, window, DOMParser, sessionStorage, jest, console, URL, setTimeout, afterEach */
 /**
  * SEGAN 앱 셸 (segan/shell.js + segan/*.html) — jsdom 에 페이지를 올려 확인한다.
  *
@@ -7,9 +7,11 @@
  *     폰 아래 탭 다섯(연출컷 · 시공사례 · 블로그 · SEGAN · 마이) — 순서 · 주소 · 글, 화면마다 켜지는 탭 하나
  *     (SEGAN 은 소개 · 구독 둘 다, 마이는 마이페이지 안 화면들). 내 연출컷 · 비서 · 관리 · 작업은 막대에 없다
  *   - 마이페이지 · 내 연출컷은 로그인이 없으면 「로그인이 필요합니다」 + login.html?redirect=(이 페이지)
- *   - 마이페이지의 역할 메뉴(업무)는 기존 판정(AdminAccess · DadamMyPageWork · 워크플로 API GET /planner/access ·
- *     assistant-api GET /assistant/me)을 따른다 — 설계 · 비서 · 작업 · 관리 · 관리자 화면 (PC)
+ *   - 마이페이지의 역할 판정(SeganShell.ready 의 roles)은 기존 판정(AdminAccess · DadamMyPageWork · 워크플로 API
+ *     GET /planner/access · assistant-api GET /assistant/me)을 따른다 — 설계 · 비서 · 작업 · 관리 · 관리자 화면 (PC).
+ *     링크(ROLE_LINKS)는 마이페이지 메뉴 묶음에 segan/me.js 가 그린다 (__tests__/segan-me.test.js)
  *     — 페이지가 싣는 실제 js/ 파일을 그대로 올리고 Supabase · /work/me · /planner/access · /assistant/me 만 가짜로 둔다
+ *   - 설계(간편 플래너)는 PC 브라우저(pointer fine · 1100px~ · 설치한 앱 아님)에서만 새 탭 — SeganShell.desktopTab
  *   - 사업자 정보는 사이트 푸터(js/site-shell.js)와 같다
  *   - PC 위 메뉴는 1024px 부터 (768px 폭에는 여섯 칸이 빠듯하다), 그 아래는 아래 탭
  *   - 시트 · 옆 패널 · 가운데 창 (SeganShell.sheet) — 열기 · 닫기 · Esc · 바깥 · 뒤로 가기(페이지 처리기는 모른다)
@@ -359,7 +361,7 @@ describe('로그인 안내 — 마이페이지 · 내 연출컷 · 비서 · 관
     expect(view('signed-in').hidden).toBe(true);
   });
 
-  test('로그인했으면 안내 대신 내용 (마이페이지는 계정 이메일 · 맨 위에 내 연출컷)', async () => {
+  test('로그인했으면 안내 대신 내용 (마이페이지는 계정 이메일 · 「내 것」 묶음 맨 위에 내 연출컷)', async () => {
     await load('renders.html', { session: SESSION });
     expect(view('signed-out').hidden).toBe(true);
     expect(visible(view('signed-in'))).toBe(true);
@@ -372,13 +374,12 @@ describe('로그인 안내 — 마이페이지 · 내 연출컷 · 비서 · 관
     for (const label of ['상담 내역', '크레딧 · 구독', '설정', '로그아웃']) {
       expect(view('signed-in').textContent).toContain(label);
     }
-    // 내 연출컷 — 계정 이메일 바로 다음 칸 (예전 아래 탭)
+    // 내 연출컷 — 「내 것」 묶음의 첫 줄 (예전 아래 탭)
     const renders = $('#meRenders');
     expect(renders.textContent).toBe('내 연출컷');
     expect(renders.getAttribute('href')).toBe('renders.html');
     expect(visible(renders)).toBe(true);
-    const first = view('signed-in').querySelector('section.sg-section');
-    expect(first.contains(renders)).toBe(true);
+    expect($('#meGroupMine li a').id).toBe('meRenders');
   });
 
   test('로그인 칸이 없는 화면 (AI 연출컷 · 시공사례 · 블로그 · 소개 · 구독) 은 로그인과 상관없이 열린다', async () => {
@@ -400,10 +401,13 @@ describe('로그인 안내 — 마이페이지 · 내 연출컷 · 비서 · 관
   });
 });
 
-describe('마이페이지 업무 — 역할 메뉴는 기존 판정 모듈을 따른다', () => {
+describe('마이페이지 역할 판정 — 기존 판정 모듈을 따른다 (SeganShell.ready 의 roles)', () => {
   const KEYS = ['planner', 'assistant', 'worker', 'admin-app', 'admin'];
-  const roleShown = () =>
-    Object.fromEntries(KEYS.map((k) => [k, visible($(`[data-role="${k}"]`))]));
+  /** 역할 링크마다 판정 — ROLE_LINKS 의 role(없으면 key) 로 roles 를 읽는다 (segan/me.js 가 그 줄을 연다) */
+  const roleShown = (result) =>
+    Object.fromEntries(
+      window.SeganShell.ROLE_LINKS.map((r) => [r.key, result.roles[r.role || r.key] === true])
+    );
   const none = Object.fromEntries(KEYS.map((k) => [k, false]));
 
   test('me.html 이 판정 모듈을 싣는다 (admin-access · mypage-work) — 상세설계 판정 모듈은 싣지 않는다', async () => {
@@ -413,41 +417,44 @@ describe('마이페이지 업무 — 역할 메뉴는 기존 판정 모듈을 �
       expect(bare).toContain(f);
     }
     expect(bare).not.toContain('../js/detaildesign-access.js');
-    // 셸 다음에 마이페이지 스크립트 (상담 내역 · 크레딧 · 구독)
+    // 셸 다음에 마이페이지 스크립트 (메뉴 · 상담 내역 · 크레딧 · 구독)
     expect(bare.slice(-3)).toEqual(['shell.js', 'make.js', 'me.js']);
   });
 
-  test('링크 — 설계(간편 플래너) · 비서 · 작업 · 관리(앱) · 관리자 화면 (PC)', async () => {
+  test('링크 — 설계(간편 플래너) · 비서 · 작업 · 관리(앱) · 관리자 화면 (PC), 마이페이지 메뉴 묶음', async () => {
     await load('me.html', { session: SESSION });
-    const links = $$('#sgRoles li').map((li) => [
-      li.getAttribute('data-role'),
-      li.querySelector('a').textContent,
-      li.querySelector('a').getAttribute('href'),
-    ]);
+    const links = window.SeganShell.ROLE_LINKS.map((r) => [r.key, r.label, r.href, r.group]);
     expect(links).toEqual([
-      ['planner', '설계', 'planner/'],
-      ['assistant', '비서', 'assistant.html'],
-      ['worker', '작업', 'work.html'],
-      ['admin-app', '관리', 'admin.html'],
-      ['admin', '관리자 화면 (PC)', '../admin/index.html'],
+      ['planner', '설계', 'planner/', 'company'],
+      ['assistant', '비서', 'assistant.html', 'company'],
+      ['worker', '작업', 'work.html', 'work'],
+      ['admin-app', '관리', 'admin.html', 'hq'],
+      ['admin', '관리자 화면 (PC)', '../admin/index.html', 'hq'],
+    ]);
+    // 새 탭은 설계만 (PC 브라우저에서)
+    expect(window.SeganShell.ROLE_LINKS.filter((r) => r.desktopTab).map((r) => r.key)).toEqual([
+      'planner',
     ]);
     // 설계는 /segan/planner/ — 이 저장소 밖 플래너 Worker 가 받는다 (서비스 워커도 건드리지 않는다)
     expect(read('segan/sw.js')).toMatch(/startsWith\(SCOPE \+ 'planner\/'\)/);
     for (const [, , href] of links.slice(1))
       expect(fs.existsSync(path.join(ROOT, 'segan', href))).toBe(true);
+    // 따로 있던 「업무」 칸은 없다 — 링크는 메뉴 묶음(업체 · 본사 · 오늘 작업)에
+    expect(read('segan/me.html')).not.toContain('data-segan-shell="roles"');
+    expect($('#sgRoles')).toBeNull();
   });
 
-  test('역할이 없는 회원 — 업무 칸 자체를 감춘다', async () => {
-    await load('me.html', {
+  test('역할이 없는 회원 — 판정이 모두 거짓', async () => {
+    const { result } = await load('me.html', {
       session: SESSION,
       profile: { tier: null, detaildesign_approved: false },
     });
-    expect(roleShown()).toEqual(none);
-    expect($('#sgRoles').hidden).toBe(true);
+    expect(roleShown(result)).toEqual(none);
+    expect(result.roles.workMe).toBeNull();
   });
 
   test('설계 — GET /planner/access 가 200 이면 연다 (본인 토큰으로 워크플로 API 에 묻는다)', async () => {
-    const { calls } = await load('me.html', {
+    const { calls, result } = await load('me.html', {
       session: SESSION,
       planner: {
         company: { id: 'c1', name: '팩토리', kind: 'partner', plan: 'expert' },
@@ -455,8 +462,7 @@ describe('마이페이지 업무 — 역할 메뉴는 기존 판정 모듈을 �
         can_manage: true,
       },
     });
-    expect(roleShown()).toEqual({ ...none, planner: true });
-    expect(visible($('#sgRoles'))).toBe(true);
+    expect(roleShown(result)).toEqual({ ...none, planner: true });
     expect(calls.fetch).toContainEqual({
       url: 'https://work.example.workers.dev/planner/access',
       auth: 'Bearer tok-1',
@@ -467,33 +473,32 @@ describe('마이페이지 업무 — 역할 메뉴는 기존 판정 모듈을 �
     ['대상 업체 아님 (403)', {}],
     ['요청 실패', { planner: 'fail' }],
   ])('설계 감춤 — %s', async (_name, extra) => {
-    await load('me.html', { session: SESSION, ...extra });
-    expect(roleShown().planner).toBe(false);
-    expect($('#sgRoles').hidden).toBe(true);
+    const { result } = await load('me.html', { session: SESSION, ...extra });
+    expect(roleShown(result).planner).toBe(false);
   });
 
   test('관리자 (is_admin RPC 참) — 관리(앱 화면) · 관리자 화면 (PC) 둘 다 (설계는 서버 판정 /planner/access 를 따른다)', async () => {
     const { calls, result } = await load('me.html', { session: SESSION, isAdmin: true });
     expect(calls.rpc).toContain('is_admin');
-    expect(roleShown()).toEqual({ ...none, 'admin-app': true, admin: true });
-    expect(visible($('#sgRoles'))).toBe(true);
+    expect(roleShown(result)).toEqual({ ...none, 'admin-app': true, admin: true });
     expect(result.admin).toBe(true);
   });
 
   test('관리자 아님 (is_admin 거짓) — 관리 · 관리자 화면은 감춘다', async () => {
-    await load('me.html', {
+    const { result } = await load('me.html', {
       session: SESSION,
       isAdmin: false,
       profile: { tier: 'agent', detaildesign_approved: false },
     });
-    expect(roleShown()['admin-app']).toBe(false);
-    expect(roleShown().admin).toBe(false);
+    expect(roleShown(result)['admin-app']).toBe(false);
+    expect(roleShown(result).admin).toBe(false);
   });
 
-  test('작업자 (GET /work/me 에 작업자 행) — 작업, 본인 토큰으로 묻는다 (설계 · 작업 · 비서 판정 한 번씩)', async () => {
+  test('작업자 (GET /work/me 에 작업자 행) — 작업 · 그 응답(오늘 작업 카드 요약), 본인 토큰으로 묻는다 (설계 · 작업 · 비서 판정 한 번씩)', async () => {
     const { calls, result } = await load('me.html', { session: SESSION, workMe: WORKER });
-    expect(roleShown()).toEqual({ ...none, worker: true });
+    expect(roleShown(result)).toEqual({ ...none, worker: true });
     expect(result.worker).toBe(true);
+    expect(result.roles.workMe).toEqual(WORKER);
     expect(calls.fetch).toEqual([
       { url: 'https://work.example.workers.dev/planner/access', auth: 'Bearer tok-1' },
       { url: 'https://work.example.workers.dev/work/me', auth: 'Bearer tok-1' },
@@ -506,23 +511,24 @@ describe('마이페이지 업무 — 역할 메뉴는 기존 판정 모듈을 �
     ['표가 아직 없음', { workMe: { ready: false, worker: { id: 'w1' } } }],
     ['요청 실패', { workFail: true }],
   ])('작업 감춤 — %s', async (_name, extra) => {
-    await load('me.html', { session: SESSION, ...extra });
-    expect(roleShown().worker).toBe(false);
+    const { result } = await load('me.html', { session: SESSION, ...extra });
+    expect(roleShown(result).worker).toBe(false);
+    expect(result.roles.workMe).toBeNull();
   });
 
   test('비서 — 자격(level full · read)이 있으면 연다, none · 403 · 끊김이면 감춘다', async () => {
     const on = await load('me.html', { session: SESSION, assistant: FULL });
-    expect(roleShown()).toEqual({ ...none, assistant: true });
+    expect(roleShown(on.result)).toEqual({ ...none, assistant: true });
     expect(on.result.assistant).toBe(true);
     expect(on.calls.fetch).toContainEqual({ url: ASSISTANT_ME, auth: 'Bearer tok-1' });
-    await load('me.html', {
+    const readOnly = await load('me.html', {
       session: SESSION,
       assistant: { ...FULL, level: 'read', can_chat: false },
     });
-    expect(roleShown().assistant).toBe(true);
+    expect(roleShown(readOnly.result).assistant).toBe(true);
     for (const assistant of [{ ...FULL, level: 'none', can_chat: false }, null, 'fail']) {
       const r = await load('me.html', { session: SESSION, assistant });
-      expect(roleShown().assistant).toBe(false);
+      expect(roleShown(r.result).assistant).toBe(false);
       expect(r.result.assistant).toBe(false);
     }
   });
@@ -530,17 +536,17 @@ describe('마이페이지 업무 — 역할 메뉴는 기존 판정 모듈을 �
   test('비서 — 참은 1분 기억한다 (마이페이지를 다시 열 때마다 묻지 않는다)', async () => {
     await load('me.html', { session: SESSION, assistant: FULL });
     const again = await load('me.html', { session: SESSION, keepStorage: true });
-    expect(roleShown().assistant).toBe(true);
+    expect(roleShown(again.result).assistant).toBe(true);
     expect(again.calls.fetch.map((f) => f.url)).not.toContain(ASSISTANT_ME);
     jest.spyOn(Date, 'now').mockReturnValue(Date.now() + 61000);
     const later = await load('me.html', { session: SESSION, keepStorage: true });
-    expect(roleShown().assistant).toBe(false);
+    expect(roleShown(later.result).assistant).toBe(false);
     expect(later.calls.fetch.map((f) => f.url)).toContain(ASSISTANT_ME);
     jest.restoreAllMocks();
   });
 
   test('관리자이면서 작업자, 설계 · 비서 가능 — 다섯 다', async () => {
-    await load('me.html', {
+    const { result } = await load('me.html', {
       session: SESSION,
       isAdmin: true,
       workMe: { ready: true, worker: { id: 'w1', status: 'approved' } },
@@ -551,7 +557,65 @@ describe('마이페이지 업무 — 역할 메뉴는 기존 판정 모듈을 �
         can_manage: true,
       },
     });
-    expect(roleShown()).toEqual(Object.fromEntries(KEYS.map((k) => [k, true])));
+    expect(roleShown(result)).toEqual(Object.fromEntries(KEYS.map((k) => [k, true])));
+  });
+});
+
+describe('새 탭 — 설계는 PC 브라우저에서만 (SeganShell.desktopTab)', () => {
+  /** matchMedia 가짜 — 물음별 참거짓 */
+  const media = (on) => (q) => ({
+    matches: !!on[q],
+    media: q,
+    addEventListener() {},
+    removeEventListener() {},
+  });
+  const PC = { '(pointer: fine)': true, '(min-width: 1100px)': true };
+  afterEach(() => {
+    delete window.matchMedia;
+    delete window.navigator.standalone;
+  });
+
+  test.each([
+    ['PC 브라우저 (마우스 · 1100px~)', PC, true],
+    ['좁은 PC 창 (1100px 아래)', { '(pointer: fine)': true }, false],
+    ['폰 · 태블릿 (손가락)', { '(min-width: 1100px)': true }, false],
+    ['설치한 앱 (display-mode standalone)', { ...PC, '(display-mode: standalone)': true }, false],
+  ])('%s → 새 탭 %s', async (_name, on, tab) => {
+    await load('me.html');
+    window.matchMedia = media(on);
+    expect(window.SeganShell.desktopTab()).toBe(tab);
+    const a = document.createElement('a');
+    a.href = 'planner/';
+    a.setAttribute('data-desktop-tab', '');
+    a.setAttribute('target', '_blank');
+    document.body.appendChild(a);
+    window.SeganShell.applyLinkTarget(a);
+    expect([a.getAttribute('target'), a.getAttribute('rel')]).toEqual(
+      tab ? ['_blank', 'noopener'] : [null, null]
+    );
+  });
+
+  test('matchMedia 가 없으면 · iOS 홈 화면 앱이면 같은 창', async () => {
+    await load('me.html');
+    expect(window.SeganShell.desktopTab()).toBe(false);
+    window.matchMedia = media(PC);
+    Object.defineProperty(window.navigator, 'standalone', { value: true, configurable: true });
+    expect(window.SeganShell.desktopTab()).toBe(false);
+  });
+
+  test('누르는 순간 다시 정한다 — 창 폭을 바꾼 뒤에도 맞다', async () => {
+    await load('me.html');
+    const a = document.createElement('a');
+    a.href = '#x';
+    a.setAttribute('data-desktop-tab', '');
+    a.innerHTML = '<span>설계</span>';
+    document.body.appendChild(a);
+    window.matchMedia = media(PC);
+    a.querySelector('span').click();
+    expect(a.getAttribute('target')).toBe('_blank');
+    window.matchMedia = media({ '(pointer: fine)': true });
+    a.click();
+    expect(a.getAttribute('target')).toBeNull();
   });
 });
 
@@ -1044,10 +1108,14 @@ describe('시트 · 옆 패널 · 가운데 창 — SeganShell.sheet', () => {
     expect(block('.sg-sheet-body')).toMatch(/env\(safe-area-inset-bottom\)/);
     expect(block('.sg-sheet-x')).toMatch(/min-height:\s*44px/);
     expect(css).toMatch(/body\.sg-locked\s*\{\s*overflow:\s*hidden;/);
-    const wide = css.split('@media (min-width: 1100px)');
-    expect(wide).toHaveLength(2);
-    expect(wide[1]).toMatch(/\.sg-sheet-wrap--panel \.sg-sheet\s*\{[^}]*width:\s*420px/);
-    expect(wide[1]).toMatch(/border-left:\s*1px solid/);
+    // PC 1100px~ 칸 — 시트 · 패널 (마이페이지 두 칸도 같은 폭에서 연다)
+    const wide = css
+      .split('@media (min-width: 1100px)')
+      .slice(1)
+      .find((b) => b.includes('.sg-sheet-wrap--panel'));
+    expect(wide).toBeDefined();
+    expect(wide).toMatch(/\.sg-sheet-wrap--panel \.sg-sheet\s*\{[^}]*width:\s*420px/);
+    expect(wide).toMatch(/border-left:\s*1px solid/);
     const calm = css.split('@media (prefers-reduced-motion: reduce)')[1];
     expect(calm).toMatch(/\.sg-sheet-wrap \.sg-sheet\s*\{\s*animation:\s*none;/);
   });

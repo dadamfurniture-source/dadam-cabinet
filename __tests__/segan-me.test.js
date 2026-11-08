@@ -333,15 +333,15 @@ describe('크레딧 · 구독', () => {
     expect($('meSub').textContent).toBe('불러오지 못했습니다');
   });
 
-  test('구독 관리 → 앱 안 billing.html, 설정 → 앱 안 settings.html', async () => {
+  test('메뉴 「크레딧 · 구독」(구독 상태) → 앱 안 billing.html, 설정 → 앱 안 settings.html', async () => {
     await load();
-    const billing = [...document.querySelectorAll('a.sg-row')].find(
-      (a) => a.textContent === '구독 관리'
+    const billing = $('mePlan');
+    const settings = [...document.querySelectorAll('a.sg-row')].find(
+      (a) => a.textContent === '설정'
     );
-    const settings = [...document.querySelectorAll('a.sg-row')].find((a) =>
-      /설정/.test(a.textContent)
-    );
+    expect(billing.textContent).toBe('크레딧 · 구독이용 중 · 다음 결제 2026.11.20');
     expect(billing.getAttribute('href')).toBe('billing.html');
+    expect(billing.closest('#meGroupMine')).not.toBeNull();
     expect(settings.getAttribute('href')).toBe('settings.html');
     for (const href of ['billing.html', 'settings.html'])
       expect(fs.existsSync(path.join(ROOT, 'segan', href))).toBe(true);
@@ -394,7 +394,7 @@ describe('내 프로젝트 — GET /me/projects', () => {
     expect(window.SeganMe.PAY_STAGE).toEqual(worker);
   });
 
-  test('본인 토큰으로 workflow-api 에 묻고, 칸이 맨 위(상담 내역 앞)에 보인다', async () => {
+  test('본인 토큰으로 workflow-api 에 묻고, 「내 것」 메뉴에 내 프로젝트 줄이 열린다 (상담 내역 다음)', async () => {
     const calls = await load(ok([project()]));
     expect(calls.fetch.find((f) => f.url === WORK + '/me/projects')).toEqual({
       url: WORK + '/me/projects',
@@ -402,11 +402,15 @@ describe('내 프로젝트 — GET /me/projects', () => {
     });
     expect(section().hidden).toBe(false);
     expect($('meProjectTitle').textContent).toBe('내 프로젝트');
-    const order = [...document.querySelectorAll('[data-auth-view="signed-in"] section h2')].map(
-      (h) => h.textContent
+    const rows = [...document.querySelectorAll('#meGroupMine li:not([hidden]) .sg-row')].map(
+      (a) => [a.textContent, a.getAttribute('href')]
     );
-    // 맨 위는 내 연출컷 한 줄(예전 아래 탭), 그다음 내 프로젝트 — 내 A/S 접수(segan/as-requests.js)는 그 바로 아래
-    expect(order.slice(0, 5)).toEqual(['연출컷', '내 프로젝트', 'A/S 접수', '팩토리', '상담 내역']);
+    // 내 연출컷(예전 아래 탭) · 상담 내역 · 내 프로젝트 — 내 A/S 접수(segan/as-requests.js)는 접수가 있을 때 그 아래
+    expect(rows.slice(0, 3)).toEqual([
+      ['내 연출컷', 'renders.html'],
+      ['상담 내역', '#consults'],
+      ['내 프로젝트', '#projects-mine'],
+    ]);
   });
 
   test('단계 6칸 — 상담 · 연출컷 · 설계 · 견적 · 수주 · 시공 완료, 지금 단계까지 채운다', async () => {
@@ -647,11 +651,13 @@ describe('로그인 · 나머지', () => {
     expect($('meProjectSection').hidden).toBe(true);
   });
 
-  test('로그아웃 · 역할 메뉴 · 사업자 정보는 그대로 있다', async () => {
+  test('로그아웃(메뉴 맨 아래) · 사업자 정보(폰 맨 아래)는 그대로 있다, 따로 있던 「업무」 칸은 없다', async () => {
     await load();
     expect($('sgLogout')).not.toBeNull();
-    expect(document.getElementById('sgRoles')).not.toBeNull();
+    expect($('meHub').lastElementChild.contains($('sgLogout'))).toBe(true);
+    expect(document.getElementById('sgRoles')).toBeNull();
     expect(document.querySelector('.sg-biz')).not.toBeNull();
+    expect($('main').lastElementChild.classList.contains('sg-biz')).toBe(true);
     expect(document.querySelectorAll('.sg-soon')).toHaveLength(0); // 「준비 중」 자리표시가 남지 않았다
   });
 });
