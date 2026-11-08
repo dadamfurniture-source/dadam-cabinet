@@ -13,9 +13,14 @@
  *   GET  /assistant/conversations/:id/events?after=N  사건 줄(NDJSON) — src/session.js
  *   POST /assistant/actions/:id/approve             승인 카드 실행 — 대화한 본인 · 자격 full · 기한 안, 한 번만 (src/actions.js)
  *   POST /assistant/actions/:id/reject              승인 카드 거절
+ *   GET  /assistant/guide                           안내 모드 — 오늘 쓴 질문 수 · 한도 (로그인한 누구나, src/guide.js)
+ *   POST /assistant/guide/turns                     안내 모드 질문 { text, history? } → NDJSON 답 · 분 한도 429 rate_limited
+ *                                                   · 하루 한도 429 guide_limit · 끔 403 guide_off
  *   scheduled (하루 한 번)                          시작한 지 90일 지난 대화 지우기 — src/retention.js
  *
  * 인증: Supabase 사용자 JWT (Authorization: Bearer). 사람 · 업체 · 자격은 src/access.js.
+ *   /assistant/me 는 업무 모드 자격만 답한다 (구성원 아님 403 · level full | none 그대로) — 안내 모드는 /assistant/guide 따로라
+ *   안내 모드를 쓰는 사람에게 업무 비서 탭이 열리지 않는다 (segan/shell.js hasAssistant 는 level full · read 만 연다).
  * 표 · 함수는 database/migrations/0026 (assistant_*, company_entitled, assistant_budget_*).
  * 읽기 도구(src/tools.js)는 묻는 사람의 토큰으로 workflow-api 를 부른다 — 토큰은 그 차례 동안 대화 객체의 메모리에만 둔다.
  */
@@ -37,6 +42,7 @@ import { textOf, userTextOf, isTurnStart } from './claude.js';
 import { maxTurns } from './session.js';
 import { runRetention } from './retention.js';
 import { conversationActions, ownAction, approveAction, rejectAction } from './actions.js';
+import { guideStatus, guideTurn } from './guide.js';
 
 export { AssistantSession } from './session.js';
 
@@ -196,6 +202,12 @@ async function sendTurn(request, env, user, id) {
   );
 }
 
+/** 안내 모드 질문 — 분 한도(업무 차례와 같은 한도기, 키만 따로) 다음 src/guide.js */
+async function sendGuideTurn(request, env, user) {
+  await enforceRateLimit(env.ASSISTANT_TURN_LIMIT, 'guide:' + user.id);
+  return guideTurn(request, env, user);
+}
+
 async function streamEvents(request, env, user, id) {
   const a = await assistantAccess(env, user);
   const conv = await ownConversation(env, a, user, id);
@@ -229,6 +241,10 @@ async function route(request, env) {
   }
   if (path === '/assistant/me' && method === 'GET')
     return me(request, env, await verifyUser(request, env));
+  if (path === '/assistant/guide' && method === 'GET')
+    return guideStatus(request, env, await verifyUser(request, env));
+  if (path === '/assistant/guide/turns' && method === 'POST')
+    return sendGuideTurn(request, env, await verifyUser(request, env));
   if (path === '/assistant/conversations') {
     if (method === 'GET') return listConversations(request, env, await verifyUser(request, env));
     if (method === 'POST') return createConversation(request, env, await verifyUser(request, env));

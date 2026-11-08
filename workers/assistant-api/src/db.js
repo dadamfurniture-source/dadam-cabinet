@@ -108,6 +108,25 @@ export async function deleteWhere(env, table, filter) {
   });
 }
 
+/**
+ * 묻는 사람의 토큰으로 rpc — 그 사람 권한 그대로(auth.uid()). 안내 모드가 my_credit_wallet 을 읽는다 (src/guide.js).
+ * 토큰은 남기지 않는다.
+ */
+export async function callRpcAs(env, token, fn, args = {}) {
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/${encodeURIComponent(fn)}`, {
+    method: 'POST',
+    headers: {
+      apikey: env.SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(args),
+  });
+  if (!res.ok) throw new DbError(`Supabase ${res.status}: ${await res.text()}`, res.status);
+  const ct = res.headers.get('Content-Type') || '';
+  return ct.includes('application/json') ? res.json() : null;
+}
+
 export async function callRpc(env, fn, args = {}) {
   return rest(env, `/rpc/${encodeURIComponent(fn)}`, {
     method: 'POST',
