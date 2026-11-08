@@ -282,14 +282,19 @@ afterEach(() => {
 });
 
 describe('자리', () => {
-  test('me.html — #mePush 「알림」 칸, 업무(역할 메뉴) 아래 · 계정 위, 처음엔 감춘다', () => {
+  test('me.html — #mePush 「알림」 하위 화면(#notify), 마이페이지 하위 화면 칸 맨 끝 · 상담 내역 다음, 처음엔 감춘다', () => {
     const doc = new DOMParser().parseFromString(read('segan/me.html'), 'text/html');
     const sec = doc.getElementById('mePush');
     expect(sec.hasAttribute('hidden')).toBe(true);
     expect(sec.querySelector('h2').textContent).toBe('알림');
     expect(sec.querySelector('#mePushBody')).not.toBeNull();
-    expect(sec.previousElementSibling.getAttribute('data-segan-shell')).toBe('roles');
-    expect(sec.nextElementSibling.querySelector('h2').textContent).toBe('계정');
+    expect(sec.parentElement.id).toBe('mePane');
+    expect(sec.previousElementSibling.id).toBe('meConsultSection');
+    expect(sec.nextElementSibling).toBeNull();
+    // 메뉴 「내 것」 의 알림 줄 — 칸이 열릴 때만 보인다 (segan/me.js)
+    const row = doc.querySelector('#meGroupMine [data-me-item="notify"]');
+    expect(row.hasAttribute('hidden')).toBe(true);
+    expect(row.querySelector('a').getAttribute('href')).toBe('#notify');
     // push.js 를 셸 · me.js 보다 먼저 싣는다 (셸 로그아웃이 SeganPush.forget 을 부른다)
     const srcs = [...doc.querySelectorAll('script[src]')].map((s) => s.getAttribute('src'));
     const at = (name) => srcs.findIndex((s) => s.startsWith(name + '?v='));

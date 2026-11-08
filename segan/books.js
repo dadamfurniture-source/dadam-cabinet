@@ -61,6 +61,8 @@
     err: '',
     busy: false,
     ledger: false, // 장부를 여는가 (GET /ledger/me)
+    // GET /ledger/me 의 답 — 'book' 장부(full · read) · 'upload' 사진만 올림 · '' 못 연다. 마이페이지 메뉴 「회계」 (segan/me.js)
+    ledgerKind: '',
     readOnly: '', // 장부를 보기만 할 때 (level read) 그 까닭 한 줄
   };
 
@@ -402,6 +404,7 @@
     if (!box) return;
     box.hidden = true;
     box.innerHTML = '';
+    B.ledgerKind = '';
     var cfg = window.DADAM_CONFIG || {};
     B.base = (cfg.workflowApi && cfg.workflowApi.url) || '';
     B.sb = sb;
@@ -411,6 +414,7 @@
       // 협력업체가 없는 구성원(다담 본사 · 공장)과 협력업체 직원 — 장부를 열면 장부 줄, 사진만 올리면 올리기 줄
       if (!me || typeof me !== 'object') return;
       var open = await ledgerOpen();
+      B.ledgerKind = open.kind;
       if (open.kind) renderLedgerOnly(open.kind);
       return;
     }
@@ -418,6 +422,7 @@
       var month = thisMonth();
       var got = await Promise.all([fetchSummary(month), ledgerOpen()]);
       var d = got[0];
+      B.ledgerKind = got[1].kind;
       B.ledger = got[1].kind === 'book';
       B.readOnly = B.ledger && got[1].read ? readOnlyNote(me.company) : '';
       if (!d) return; // 403 · 404 · 오류 — 칸째 감춘다

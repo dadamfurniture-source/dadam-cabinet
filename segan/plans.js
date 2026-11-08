@@ -12,7 +12,7 @@
 
    가입 단추: Manager · Expert 「결제하고 시작」, Agent 「신청하기」 — 모두 me.html#partner
    (결제 · 신청 흐름은 마이페이지 팩토리 칸 segan/partner.js. 로그인이 없으면 그 화면의 로그인 안내가
-   돌아올 곳에 #partner 를 붙인다 — partner.js keepHashOnGate).
+   돌아올 곳에 #partner 를 붙인다 — me.js keepHashOnGate).
    ============================================================ */
 /* global window, document, fetch */
 (function () {

@@ -230,10 +230,9 @@ describe('구독 (plans.html) — 등급 넷', () => {
       ['agent', '신청하기', 'me.html#partner'],
     ]);
     expect(window.SeganPlans.SIGNUP).toBe('me.html#partner');
-    // 로그인 없이 me.html#partner 를 열면 로그인 안내가 돌아올 곳에 #partner 를 붙인다 (segan/partner.js)
-    expect(read('segan/partner.js')).toMatch(
-      /if \(hash !== '#partner' && hash !== '#partner-consults' && hash !== '#as'\) return;/
-    );
+    // 로그인 없이 me.html#partner 를 열면 로그인 안내가 돌아올 곳에 #partner 를 붙인다 (segan/me.js keepHashOnGate —
+    // 마이페이지 하위 화면 주소 모두, 동작은 __tests__/segan-partner.test.js)
+    expect(read('segan/me.js')).toContain("encodeURIComponent('segan/me.html#' + name)");
     // Standard 는 무료 — 결제 단추 없이 AI 연출컷으로
     expect(tier('standard').querySelector('[data-signup]')).toBeNull();
     expect(tier('standard').querySelector('a').getAttribute('href')).toBe('./');

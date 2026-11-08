@@ -9,8 +9,9 @@
        연출컷 = 만들기 · 상담 신청(consult, data-tab make), SEGAN = 소개 · 구독(폰), 마이 = 마이페이지와 그 안 화면
        (내 연출컷 · 비서 · 관리 · 작업 — body data-tab 이 그 이름, 설정 · 구독 관리 · 회계 · 결제 · 초대 등은 data-tab me).
      같은 막대에 그 화면 이름의 탭이 있으면 그것이 먼저 켜진다 (구독 화면 — PC 는 「구독」, 폰은 「SEGAN」).
-     내 연출컷 · 비서 · 관리 · 작업은 막대에 두지 않는다 — 마이페이지에서 간다
-       (내 연출컷은 맨 위 줄, 비서 · 관리 · 작업은 「업무」 역할 메뉴. 화면 파일 · 주소는 그대로).
+     내 연출컷 · 비서 · 관리 · 작업은 막대에 두지 않는다 — 마이페이지 메뉴에서 간다
+       (내 연출컷은 「내 것」, 비서 · 설계는 「업체」, 관리는 「본사」, 작업은 맨 위 「오늘 작업」 카드 — segan/me.js.
+       화면 파일 · 주소는 그대로).
      관리 화면(admin.js)이 쓰는 관리자 판정(SeganShell.ready 의 admin)은 그대로 싣는다.
      - 폰 · 태블릿(~1023px): 위 막대(워드마크) + 아래 고정 탭 막대
      - PC(1024px~): v5 헤더 모양의 위 메뉴 + 사업자 정보 푸터. 위 메뉴는 1024px 부터 연다 — Chrome 에서
@@ -30,12 +31,15 @@
    로그인이 필요한 페이지는 [data-auth-view="checking|signed-out|signed-in"] 세 칸을 둔다.
    signed-out 칸 안의 [data-segan-shell="gate"] 는 이 파일이 로그인 안내로 채운다.
 
-   역할 메뉴(마이페이지 「업무」)는 기존 판정을 그대로 쓴다 — 새 규칙을 만들지 않는다.
+   역할 링크(ROLE_LINKS — 마이페이지 메뉴의 설계 · 비서 · 작업 · 관리)는 기존 판정을 그대로 쓴다 — 새 규칙을 만들지 않는다.
+   판정은 이 파일이 마이페이지에서만 묻고(SeganShell.ready 의 roles), 메뉴는 segan/me.js 가 그린다.
      설계       워크플로 API GET /planner/access  (200 이면 연다 — 다담 공장 · Manager · Expert · Agent 업체 구성원 · 관리자,
                 판정은 workers/workflow-api/src/planner-drafts.js canUsePlanner. 403 · 실패는 감춘다)
-                주소 planner/ = 간편 플래너 웹판 (/segan/planner/ — 다른 Worker, 이 저장소 밖)
+                주소 planner/ = 간편 플래너 웹판 (/segan/planner/ — 다른 Worker, 이 저장소 밖).
+                PC 브라우저에서만 새 탭으로 연다 (desktopTab — 아래 「새 탭」), 폰 · 태블릿 · 설치한 앱은 같은 창
      비서       assistant-api GET /assistant/me 의 level 이 full · read 일 때 (참만 1분 기억 — hasAssistant)
      작업       js/mypage-work.js         DadamMyPageWork.shouldShow(GET /work/me) — 앱 안 segan/work.html
+                (그 응답은 roles.workMe 로 넘긴다 — 마이페이지 「오늘 작업」 카드의 요약)
      관리       js/admin-access.js        AdminAccess.isAdmin(sb)  (is_admin RPC) — 앱 안 관리 화면 segan/admin.html
      관리자 화면 (PC)  같은 판정 — 사이트 관리자 화면 admin/index.html (js/site-shell.js 와 같은 주소)
 
@@ -89,14 +93,16 @@
     work: { label: '작업', target: 'segan/work.html' },
   };
 
-  // 역할 메뉴 (마이페이지 「업무」) — role = 여는 판정(없으면 key). 설계는 간편 플래너 웹판(/segan/planner/),
-  // 비서 · 작업 · 관리는 앱 안 화면, 관리자 화면 (PC) 는 js/site-shell.js(ACCOUNT_MENU)와 같은 사이트 관리자 화면
+  // 역할 링크 (마이페이지 메뉴) — role = 여는 판정(없으면 key), group = 마이페이지 메뉴의 묶음
+  //   (company 업체 · hq 본사 · work 맨 위 「오늘 작업」 카드 — segan/me.js), desktopTab = PC 브라우저에서만 새 탭.
+  // 설계는 간편 플래너 웹판(/segan/planner/), 비서 · 작업 · 관리는 앱 안 화면,
+  // 관리자 화면 (PC) 는 js/site-shell.js(ACCOUNT_MENU)와 같은 사이트 관리자 화면
   var ROLE_LINKS = [
-    { key: 'planner', label: '설계', href: 'planner/' }, // 간편 플래너 — 예전 상세설계 자리
-    { key: 'assistant', label: '비서', href: 'assistant.html' }, // AI 비서 — 예전 「비서」 탭
-    { key: 'worker', label: '작업', href: 'work.html' }, // 작업자 포털 — 예전 「작업」 탭
-    { key: 'admin-app', role: 'admin', label: '관리', href: 'admin.html' }, // 앱 안 관리 — 예전 「관리」 탭
-    { key: 'admin', label: '관리자 화면 (PC)', href: '../admin/index.html' },
+    { key: 'planner', label: '설계', href: 'planner/', group: 'company', desktopTab: true }, // 간편 플래너 — 예전 상세설계 자리
+    { key: 'assistant', label: '비서', href: 'assistant.html', group: 'company' }, // AI 비서 — 예전 「비서」 탭
+    { key: 'worker', label: '작업', href: 'work.html', group: 'work' }, // 작업자 포털 — 예전 「작업」 탭
+    { key: 'admin-app', role: 'admin', label: '관리', href: 'admin.html', group: 'hq' }, // 앱 안 관리 — 예전 「관리」 탭
+    { key: 'admin', label: '관리자 화면 (PC)', href: '../admin/index.html', group: 'hq' },
   ];
 
   // 로그인 — 기존 login.html 의 ?redirect= (js/auth-redirect.js 가 같은 사이트 *.html 만 받는다)
@@ -210,7 +216,7 @@
   function headerHTML(current) {
     return (
       '<header class="sg-header">' +
-      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110805" alt="SEGAN" width="477" height="75" /></a>' +
+      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110806" alt="SEGAN" width="477" height="75" /></a>' +
       '<nav class="sg-nav" aria-label="주 메뉴">' +
       links(current, 'pc') +
       '</nav>' +
@@ -266,26 +272,40 @@
     );
   }
 
-  /** 마이페이지의 역할 메뉴 — 처음엔 모두 감추고, 판정이 참인 줄만 연다 */
-  function rolesHTML() {
-    return (
-      '<section class="sg-section" id="sgRoles" aria-labelledby="sgRolesTitle" hidden>' +
-      '<h2 id="sgRolesTitle">업무</h2>' +
-      '<ul class="sg-rows">' +
-      ROLE_LINKS.map(function (r) {
-        return (
-          '<li data-role="' +
-          r.key +
-          '" hidden><a class="sg-row" href="' +
-          r.href +
-          '">' +
-          esc(r.label) +
-          '</a></li>'
-        );
-      }).join('') +
-      '</ul>' +
-      '</section>'
-    );
+  // ── 새 탭 ─────────────────────────────────────────────
+  /**
+   * PC 브라우저인가 — 마우스(pointer: fine) · 1100px 이상 · 설치한 앱(display-mode standalone)이 아님.
+   * 그때만 새 탭으로 여는 링크(ROLE_LINKS desktopTab — 설계)를 새 탭으로, 아니면 같은 창. 모르면(matchMedia 없음) 같은 창
+   */
+  function desktopTab() {
+    try {
+      var mm = window.matchMedia;
+      if (typeof mm !== 'function') return false;
+      if (!mm.call(window, '(pointer: fine)').matches) return false;
+      if (!mm.call(window, '(min-width: 1100px)').matches) return false;
+      if (mm.call(window, '(display-mode: standalone)').matches) return false;
+      return navigator.standalone !== true; // iOS 홈 화면 앱
+    } catch {
+      return false;
+    }
+  }
+
+  /** a[data-desktop-tab] — PC 브라우저면 새 탭(target _blank · rel noopener), 아니면 같은 창 */
+  function applyLinkTarget(a) {
+    if (!a || !a.setAttribute) return;
+    if (desktopTab()) {
+      a.setAttribute('target', '_blank');
+      a.setAttribute('rel', 'noopener');
+    } else {
+      a.removeAttribute('target');
+      a.removeAttribute('rel');
+    }
+  }
+
+  /** 누르는 그 순간의 화면으로 다시 정한다 (창 폭을 바꾼 뒤에도 맞게) — 이동은 클릭 처리 뒤에 일어난다 */
+  function onLinkTargetClick(e) {
+    var a = e.target && e.target.closest ? e.target.closest('a[data-desktop-tab]') : null;
+    if (a) applyLinkTarget(a);
   }
 
   /** 은/는 — 마지막 글자에 받침이 있으면 「은」 */
@@ -334,22 +354,25 @@
     }
   }
 
-  /** 작업자인가 — 마이페이지와 같은 GET /work/me + DadamMyPageWork.shouldShow. 실패하면 false */
-  async function isWorker(session) {
+  /**
+   * 작업자인가 — 사이트 마이페이지와 같은 GET /work/me + DadamMyPageWork.shouldShow.
+   * 작업자면 그 응답(data — 「오늘 작업」 카드의 요약), 아니면 · 실패하면 null
+   */
+  async function workerOf(session) {
     try {
       var cfg = window.DADAM_CONFIG || {};
       var base = (cfg.workflowApi && cfg.workflowApi.url) || '';
       var token = session && session.access_token;
-      if (!base || !token || !window.DadamMyPageWork) return false;
+      if (!base || !token || !window.DadamMyPageWork) return null;
       var res = await fetch(base + '/work/me', {
         headers: { Authorization: 'Bearer ' + token },
         cache: 'no-store',
       });
       var body = await res.json();
-      if (!res.ok || !body || !body.success) return false;
-      return window.DadamMyPageWork.shouldShow(body.data);
+      if (!res.ok || !body || !body.success) return null;
+      return window.DadamMyPageWork.shouldShow(body.data) ? body.data : null;
     } catch {
-      return false;
+      return null;
     }
   }
 
@@ -414,9 +437,12 @@
     }
   }
 
-  /** 역할 메뉴 판정 — 기존 판정(사이트 모듈 · 워크플로 API · 비서 API)에 맡긴다. 모르면 감춘다 */
+  /**
+   * 역할 판정 — 기존 판정(사이트 모듈 · 워크플로 API · 비서 API)에 맡긴다. 모르면 거짓.
+   * workMe = 작업자면 GET /work/me 의 data (아니면 null)
+   */
   async function detectRoles(sb, session) {
-    var out = { planner: false, admin: false, worker: false, assistant: false };
+    var out = { planner: false, admin: false, worker: false, assistant: false, workMe: null };
     if (!sb || !session) return out;
     var jobs = [
       (async function () {
@@ -426,7 +452,8 @@
         out.planner = await canPlan(session);
       })(),
       (async function () {
-        out.worker = await isWorker(session);
+        out.workMe = await workerOf(session);
+        out.worker = !!out.workMe;
       })(),
       (async function () {
         out.assistant = await hasAssistant(session);
@@ -479,17 +506,8 @@
       };
     }
 
-    var roles = await detectRoles(sb, session);
-    var any = false;
-    ROLE_LINKS.forEach(function (r) {
-      var on = roles[r.role || r.key] === true;
-      var item = document.querySelector('[data-role="' + r.key + '"]');
-      if (item) item.hidden = !on;
-      if (on) any = true;
-    });
-    var section = document.getElementById('sgRoles');
-    if (section) section.hidden = !any;
-    return roles;
+    // 역할 링크는 segan/me.js 가 메뉴 묶음(업체 · 본사 · 오늘 작업)에 그린다 — 판정만 넘긴다
+    return detectRoles(sb, session);
   }
 
   async function applyAuth(current) {
@@ -539,7 +557,6 @@
       else if (kind === 'footer') slot.outerHTML = footerHTML();
       else if (kind === 'biz') slot.outerHTML = bizHTML();
       else if (kind === 'gate') slot.outerHTML = gateHTML(current);
-      else if (kind === 'roles') slot.outerHTML = rolesHTML();
     });
     return applyAuth(current).then(function (r) {
       return roleFlags(r).then(function (on) {
@@ -917,9 +934,12 @@
   // capture — 페이지가 먼저 popstate 를 달아도 셸이 먼저 받는다
   window.addEventListener('popstate', onSheetPop, true);
   document.addEventListener('keydown', onSheetKey);
+  // 새 탭 링크(a[data-desktop-tab]) — 누르는 순간 PC 브라우저인지 다시 본다 (capture — 페이지 처리기보다 먼저)
+  document.addEventListener('click', onLinkTargetClick, true);
   window.__seganSheetOff = function () {
     window.removeEventListener('popstate', onSheetPop, true);
     document.removeEventListener('keydown', onSheetKey);
+    document.removeEventListener('click', onLinkTargetClick, true);
   };
 
   function registerServiceWorker() {
@@ -951,6 +971,8 @@
     BIZ: BIZ,
     loginHref: loginHref,
     detectRoles: detectRoles,
+    desktopTab: desktopTab,
+    applyLinkTarget: applyLinkTarget,
     assistantBase: assistantBase,
     ready: ready,
     sheet: {
