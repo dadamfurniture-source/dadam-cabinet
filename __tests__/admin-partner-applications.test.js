@@ -375,7 +375,7 @@ describe('admin/expert-requests.html — 팩토리 신청', () => {
     expect(gets(calls, '/admin/partner/companies')).toHaveLength(2);
   });
 
-  test('Expert→Agent 승인 확인 글 — 다음 결제일부터 Agent', async () => {
+  test('Agent 로 올리기 승인 확인 글 — 다음 결제일부터 Agent', async () => {
     boot({
       route: (c) =>
         c.path === '/admin/partner/applications'
@@ -545,6 +545,49 @@ describe('admin/expert-requests.html — 협력업체 · 업체로 만들기', (
     expect($('companyModal').classList.contains('active')).toBe(false);
     expect($('statusLine').textContent).toBe('박가구 인테리어 팩토리를 만들었습니다.');
     expect(gets(calls, '/admin/partner/companies')).toHaveLength(2);
+  });
+
+  test('등급 고르기 — Manager · Expert · Agent (DB 0047), Manager 회원이면 Manager 로 만든다', async () => {
+    const member = {
+      id: '55555555-5555-4555-8555-555555555555',
+      name: '김실장',
+      email: 'm@example.test',
+      tier: 'manager',
+      company_name: '김가구',
+      sido: '대구광역시',
+      gugun: '북구',
+    };
+    const { calls } = boot({ profiles: { data: [member], error: null } });
+    await window.initAdmin();
+    expect([...$('cmPlan').options].map((o) => [o.value, o.textContent])).toEqual([
+      ['manager', 'Manager'],
+      ['expert', 'Expert'],
+      ['agent', 'Agent'],
+    ]);
+    $('createCompanyBtn').click();
+    $('cmEmail').value = 'm@example.test';
+    $('cmFind').click();
+    await flush();
+    expect($('cmPlan').value).toBe('manager');
+    $('cmSubmit').click();
+    await flush();
+    expect(posts(calls)[0].body.plan).toBe('manager');
+  });
+
+  test('Manager 팩토리 — 목록 등급 「Manager」', async () => {
+    boot({
+      route: (c) =>
+        c.path === '/admin/partner/companies'
+          ? json(200, {
+              success: true,
+              data: [{ ...COMPANY, plan: 'manager', next_plan: 'expert' }],
+            })
+          : undefined,
+    });
+    await window.initAdmin();
+    const t = document.querySelector('#companyList tr').textContent;
+    expect(t).toContain('Manager');
+    expect(t).toContain('다음 결제일부터 Expert');
   });
 
   test('회원이 없으면 보내지 않는다', async () => {
