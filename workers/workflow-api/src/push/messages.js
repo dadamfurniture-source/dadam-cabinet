@@ -15,7 +15,7 @@
 
 /**
  * DB notification_outbox_kind_check 의 종류 (작업자 넷은 0023, 장부 둘 · 아침 브리핑 assistant_brief 는 0030,
- * 장부 알림 ledger_notice 는 0033).
+ * 장부 알림 ledger_notice 는 0033, A/S 접수 as_request 는 0045, 제작 의뢰 셋 production_* 은 0050).
  */
 export const NOTIFICATION_KINDS = Object.freeze([
   'order_request',
@@ -34,6 +34,9 @@ export const NOTIFICATION_KINDS = Object.freeze([
   'ledger_notice',
   'assistant_brief',
   'as_request',
+  'production_recommended',
+  'production_offered',
+  'production_answered',
 ]);
 
 /** 작업자 알림 — 업체 없이(company_id 비움) 넣고 업체 없는 기기로 간다 (DB notification_outbox_company_check, 0023) */
@@ -297,6 +300,47 @@ function asRequest({ orderNo } = {}) {
   return { title: 'A/S 접수', body: `${orderPart(orderNo)} A/S 접수가 들어왔습니다. A/S함에서 받아 주세요.`, url: AS_URL };
 }
 
+/** Manager 업체 › 제작 의뢰 (내 정보 — 2026-11-08 제작 의뢰) */
+export const PRODUCTION_REQUESTS_URL = '/segan/me.html#production-requests';
+/** 팩토리 › 제작 의뢰함 (내 정보 › 팩토리) */
+export const FACTORY_REQUESTS_URL = '/segan/me.html#factory-requests';
+/** 한 번에 추천하는 팩토리 수 상한 (production-requests/common.js RECOMMEND_MAX 와 같다) */
+export const PRODUCTION_RECOMMEND_MAX = 5;
+
+/** 추천 도착 — 의뢰한 Manager 업체 대표 · 실장에게. { count } (추천한 팩토리 수). 팩토리 이름은 싣지 않는다 */
+function productionRecommended({ count } = {}) {
+  const n = Number.isInteger(count) && count >= 1 && count <= PRODUCTION_RECOMMEND_MAX ? `${count}곳을` : '';
+  return {
+    title: '제작 의뢰 추천',
+    body: n ? `본사가 제작 의뢰에 팩토리 ${n} 추천했습니다. 맡길 곳을 골라 주세요.` : '본사가 제작 의뢰에 팩토리를 추천했습니다. 맡길 곳을 골라 주세요.',
+    url: PRODUCTION_REQUESTS_URL,
+  };
+}
+
+/** 새 제작 의뢰 — Manager 가 고른 팩토리 대표 · 실장에게. { item } (품목 키 — 목록 밖이면 뺀다). 업체 이름 · 메모 · 설계 이름 없음 */
+function productionOffered({ item } = {}) {
+  const label = typeof item === 'string' && Object.prototype.hasOwnProperty.call(CONSULT_ITEM_LABELS, item) ? CONSULT_ITEM_LABELS[item] : '';
+  return {
+    title: '새 제작 의뢰',
+    body: `${label ? `${label} ` : ''}제작 의뢰가 왔습니다. 24시간 안에 받기 · 못 받음을 골라 주세요.`,
+    url: FACTORY_REQUESTS_URL,
+  };
+}
+
+/** 팩토리 답 — 의뢰한 Manager 업체 대표 · 실장에게. { answer: accepted | declined | expired } */
+function productionAnswered({ answer } = {}) {
+  if (answer === 'accepted') {
+    return { title: '제작 의뢰 받음', body: '고른 팩토리가 제작 의뢰를 받았습니다. 제작 의뢰에서 확인해 주세요.', url: PRODUCTION_REQUESTS_URL };
+  }
+  if (answer === 'declined') {
+    return { title: '제작 의뢰 못 받음', body: '고른 팩토리가 제작 의뢰를 받지 못했습니다. 본사가 다시 추천해 드립니다.', url: PRODUCTION_REQUESTS_URL };
+  }
+  if (answer === 'expired') {
+    return { title: '제작 의뢰 답 없음', body: '고른 팩토리가 24시간 안에 답하지 않았습니다. 본사가 다시 추천해 드립니다.', url: PRODUCTION_REQUESTS_URL };
+  }
+  return null;
+}
+
 const BUILDERS = Object.freeze({
   order_request: orderRequest,
   order_request_decided: orderRequestDecided,
@@ -314,6 +358,9 @@ const BUILDERS = Object.freeze({
   ledger_notice: ledgerNotice,
   assistant_brief: assistantBrief,
   as_request: asRequest,
+  production_recommended: productionRecommended,
+  production_offered: productionOffered,
+  production_answered: productionAnswered,
 });
 
 /**

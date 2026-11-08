@@ -11,6 +11,11 @@
  *   notification_outbox  dedupe_key 유니크
  *   company_evaluations  company_id 기본 키, 넣거나 고치면 company_evaluation_history 에 한 줄 (트리거)
  *   company_service_settings  company_id 기본 키
+ *   planner_drafts       (company_id, id) 기본 키
+ *   production_requests  (0050) 같은 설계로 열린 의뢰 하나 · 상태 차례 · 고른 팩토리 칸 · 차례는 추천 때만 (지킴이와 같게),
+ *                        상태 · 차례가 바뀌면 status_at
+ *   production_recommendations (0050) 차례마다 팩토리 · 순서 하나 · 답 기다림 하나 · 새 추천은 다음 차례로만 · 고르기 · 답은 한 번,
+ *                        고르면 chosen_at · expires_at(+24시간), 답하면 responded_at
  * Auth: Bearer 토큰이 곧 user id. admin/users/:id 는 { id, email }.
  * 시험 데이터는 모두 가짜다.
  */
@@ -83,6 +88,7 @@ export const fakeId = () => {
  *   before   (method, table, params, body) → Response 면 그 요청을 그 응답으로 끝낸다 (경합 · 실패 흉내)
  */
 export function createFake({ tables = {}, admins = [], nowMs = Date.now(), before = null } = {}) {
+  let now = nowMs;
   const db = {
     companies: [],
     company_members: [],
@@ -100,10 +106,14 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
     customers: [],
     projects: [],
     notification_outbox: [],
+    planner_drafts: [],
+    designs: [],
+    production_requests: [],
+    production_recommendations: [],
     ...JSON.parse(JSON.stringify(tables)),
   };
   const calls = [];
-  const nowIso = () => new Date(nowMs).toISOString();
+  const nowIso = () => new Date(now).toISOString();
 
   function project(row, select) {
     if (!select || select === '*') return { ...row };
@@ -199,11 +209,109 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
       )
         return fail('23505', 409);
     }
+    if (table === 'planner_drafts') {
+      if (db.planner_drafts.some((x) => x !== self && x.company_id === row.company_id && x.id === row.id)) return fail('23505', 409);
+    }
+    if (table === 'production_requests') {
+      const bad = productionRequestRule(row, self);
+      if (bad) return fail(bad[0], bad[0] === '23505' ? 409 : 400, bad[1]);
+    }
+    if (table === 'production_recommendations') {
+      const bad = productionRecRule(row, self);
+      if (bad) return fail(bad[0], bad[0] === '23505' ? 409 : 400, bad[1]);
+    }
     if (table === 'notification_outbox' && row.dedupe_key) {
       if (db.notification_outbox.some((x) => x !== self && x.dedupe_key === row.dedupe_key))
         return fail('23505', 409);
     }
     return null;
+  }
+
+  // ── 0050 지킴이 · 제약 (database/migrations/0050_production_requests.sql 과 같게) ──
+  const OPEN_DONE = ['accepted', 'cancelled'];
+  const MOVES = {
+    submitted: ['recommending', 'recommended', 'cancelled'],
+    recommending: ['recommended', 'cancelled'],
+    recommended: ['chosen', 'cancelled'],
+    chosen: ['accepted', 'declined', 'expired', 'cancelled'],
+    declined: ['recommended', 'cancelled'],
+    expired: ['recommended', 'cancelled'],
+    accepted: [],
+    cancelled: [],
+  };
+  const same0 = (a, b) => (a ?? null) === (b ?? null);
+  function productionRequestRule(row, old) {
+    const factoryStates = ['chosen', 'accepted', 'declined', 'expired'];
+    if (factoryStates.includes(row.status) !== Boolean(row.factory_company_id)) return ['23514', 'production_requests_factory_check'];
+    if ((row.factory_project_id || row.factory_draft_id) && row.status !== 'accepted') return ['23514', 'production_requests_factory_check'];
+    if (row.status !== 'cancelled' && ['submitted', 'recommending'].includes(row.status) !== (row.round === 0))
+      return ['23514', 'production_requests_round_check'];
+    if (!row.draft_id && !row.design_id) return ['23514', 'production_requests_design_ref_check'];
+    const open = (x) => !OPEN_DONE.includes(x.status);
+    if (open(row)) {
+      if (row.draft_id && db.production_requests.some((x) => x !== old && open(x) && x.company_id === row.company_id && x.draft_id === row.draft_id))
+        return ['23505', 'production_requests_one_open_draft'];
+      if (row.design_id && db.production_requests.some((x) => x !== old && open(x) && x.design_id === row.design_id))
+        return ['23505', 'production_requests_one_open_design'];
+    }
+    if (!old) return null;
+    for (const k of ['id', 'company_id', 'draft_id', 'draft_rev', 'design_id', 'project_id', 'item', 'note', 'sido', 'gugun', 'wanted_done_date', 'created_at'])
+      if (!same0(row[k], old[k])) return ['22023', `production_requests: ${k}`];
+    if (OPEN_DONE.includes(old.status)) {
+      for (const k of ['status', 'round', 'hq_note', 'factory_company_id', 'factory_project_id'])
+        if (!same0(row[k], old[k])) return ['22023', 'production_requests: 끝난 의뢰'];
+      if (!same0(row.factory_draft_id, old.factory_draft_id) && !(old.status === 'accepted' && !old.factory_draft_id))
+        return ['22023', 'production_requests: 설계 사본'];
+      return null;
+    }
+    if (row.status !== old.status && !MOVES[old.status].includes(row.status)) return ['22023', `production_requests: ${old.status} -> ${row.status}`];
+    if ((row.round !== old.round || !same0(row.hq_note, old.hq_note)) && !(row.round > old.round && row.status === 'recommended'))
+      return ['22023', 'production_requests: 차례'];
+    if (!same0(row.factory_company_id, old.factory_company_id)) {
+      const ok =
+        (old.status === 'recommended' && row.status === 'chosen' && row.factory_company_id) ||
+        (!row.factory_company_id && ['recommended', 'cancelled'].includes(row.status));
+      if (!ok) return ['22023', 'production_requests: 고른 팩토리'];
+    }
+    if (!same0(row.factory_project_id, old.factory_project_id) && !(old.status === 'chosen' && row.status === 'accepted'))
+      return ['22023', 'production_requests: 프로젝트'];
+    if (!same0(row.factory_draft_id, old.factory_draft_id) && !(old.status === 'chosen' && row.status === 'accepted'))
+      return ['22023', 'production_requests: 설계 사본'];
+    return null;
+  }
+  function productionRecRule(row, old) {
+    const same = (x) => x !== old && x.request_id === row.request_id;
+    if (db.production_recommendations.some((x) => same(x) && x.round === row.round && x.company_id === row.company_id)) return ['23505', 'round_company'];
+    if (db.production_recommendations.some((x) => same(x) && x.round === row.round && x.rank === row.rank)) return ['23505', 'round_rank'];
+    if (row.chosen && !row.response && db.production_recommendations.some((x) => same(x) && x.chosen && !x.response)) return ['23505', 'one_open'];
+    if (row.response && !row.chosen) return ['23514', 'response_check'];
+    if (row.reason && row.response !== 'declined') return ['23514', 'reason_check'];
+    if (!old) {
+      const req = db.production_requests.find((r) => r.id === row.request_id);
+      if (!req) return ['23503', 'request_fkey'];
+      if (!(row.round > req.round)) return ['22023', '다음 차례로만'];
+      if (row.chosen || row.response) return ['22023', '고르기 · 답 없이'];
+      return null;
+    }
+    for (const k of ['id', 'request_id', 'company_id', 'round', 'rank', 'note', 'created_at'])
+      if (!same0(row[k], old[k])) return ['22023', `production_recommendations: ${k}`];
+    if (old.chosen && !row.chosen) return ['22023', '고른 줄은 그대로'];
+    if (old.response && row.response !== old.response) return ['22023', '답은 한 번'];
+    return null;
+  }
+  /** 고친 뒤 DB 지킴이가 찍는 때 */
+  function stamp(table, row, old) {
+    if (table === 'production_requests') {
+      if (row.status !== old.status || row.round !== old.round) row.status_at = nowIso();
+      row.updated_at = nowIso();
+    }
+    if (table === 'production_recommendations') {
+      if (row.chosen && !old.chosen) {
+        row.chosen_at = nowIso();
+        row.expires_at = new Date(now + 24 * 3600 * 1000).toISOString();
+      }
+      if (row.response && !old.response) row.responded_at = nowIso();
+    }
   }
 
   function defaults(table) {
@@ -232,6 +340,36 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
     if (table === 'notification_outbox') return { ...base, state: 'queued', created_at: nowIso() };
     if (table === 'company_evaluations') return { evaluated_at: nowIso() };
     if (table === 'company_service_settings') return { updated_at: nowIso() };
+    if (table === 'planner_drafts') return { created_at: nowIso(), updated_at: nowIso(), discarded_at: null, app_state: null };
+    if (table === 'production_requests')
+      return {
+        ...base,
+        status: 'submitted',
+        round: 0,
+        hq_note: null,
+        draft_id: null,
+        draft_rev: null,
+        design_id: null,
+        project_id: null,
+        factory_company_id: null,
+        factory_project_id: null,
+        factory_draft_id: null,
+        created_at: nowIso(),
+        updated_at: nowIso(),
+        status_at: nowIso(),
+      };
+    if (table === 'production_recommendations')
+      return {
+        ...base,
+        chosen: false,
+        chosen_at: null,
+        expires_at: null,
+        response: null,
+        reason: null,
+        responded_at: null,
+        responded_by: null,
+        created_at: nowIso(),
+      };
     return { ...base, created_at: nowIso() };
   }
 
@@ -304,7 +442,9 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
         if (bad) return bad;
       }
       for (const r of hit) {
+        const old = { ...r };
         Object.assign(r, body);
+        stamp(table, r, old);
         afterWrite(table, r);
       }
       return reply(
@@ -350,7 +490,15 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
     throw new Error(`fake: 모르는 주소 ${url}`);
   }
 
-  return { db, calls, fetch: fetchImpl };
+  return {
+    db,
+    calls,
+    fetch: fetchImpl,
+    /** DB now() 를 옮긴다 (기한 시험) */
+    setNow(ms) {
+      now = ms;
+    },
+  };
 }
 
 /**
