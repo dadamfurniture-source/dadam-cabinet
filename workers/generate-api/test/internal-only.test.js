@@ -339,15 +339,19 @@ test('공유 열람: 붙박이장 내부 보기의 칸 구성·추천 이유를 
     options: {},
     share_expires_at: future(),
     images: [
-      { slot: 'base', label: '붙박이장 · 기본안', url: 'u0', qc: { ok: true } },
-      { slot: 'v2', label: '내부 보기 · 기본 구조', url: 'u2', structure: { kind: 'standard', plan: '짧은옷 2단 · 긴옷 + 서랍 2' } },
-      { slot: 'v3', label: '내부 보기 · 추천 구조 · 월넛', url: 'u3', structure: { kind: 'recommended', plan: '선반형 (상 2 · 하 2)', concept: '수납 중심', reason: '서랍을 늘렸다', by: 'claude-opus-5' } },
+      { slot: 'base', label: '붙박이장 · 기본안', path: `${USER_ID}/${ROW_ID}/base.png`, qc: { ok: true } },
+      { slot: 'v2', label: '내부 보기 · 기본 구조', path: `${USER_ID}/${ROW_ID}/v2.jpg`, structure: { kind: 'standard', plan: '짧은옷 2단 · 긴옷 + 서랍 2' } },
+      { slot: 'v3', label: '내부 보기 · 추천 구조 · 월넛', path: `${USER_ID}/${ROW_ID}/v3.jpg`, structure: { kind: 'recommended', plan: '선반형 (상 2 · 하 2)', concept: '수납 중심', reason: '서랍을 늘렸다', by: 'claude-opus-5' } },
     ],
   });
   const res = await worker.fetch(new Request('https://api.test/api/share', { headers: { 'X-Share-Token': 'tok' } }), { ...ENV });
   assert.equal(res.status, 200);
   const imgs = (await res.json()).generation.images;
-  assert.deepEqual(imgs[0], { slot: 'base', label: '붙박이장 · 기본안', url: 'u0' }, '기본안은 예전 모양 그대로 (qc 도 싣지 않는다)');
+  assert.deepEqual(
+    imgs[0],
+    { slot: 'base', label: '붙박이장 · 기본안', url: 'https://api.test/api/share/image/0' },
+    '기본안은 slot · label · url 만 (qc 도 싣지 않는다)'
+  );
   assert.deepEqual(imgs[1].structure, { kind: 'standard', plan: '짧은옷 2단 · 긴옷 + 서랍 2' });
   assert.deepEqual(imgs[2].structure, { kind: 'recommended', plan: '선반형 (상 2 · 하 2)', concept: '수납 중심', reason: '서랍을 늘렸다' });
 });

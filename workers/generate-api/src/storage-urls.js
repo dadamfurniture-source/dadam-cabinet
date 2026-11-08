@@ -7,12 +7,13 @@
  *
  * 화면 쪽 js/storage-urls.js 의 toStorageRef 와 같은 규칙이다 (워커는 저장소 밖 파일을 import 하지 않는다).
  * 서명을 못 하면(요청 실패·그 경로만 실패) 저장된 URL 을 그대로 둔다 — 지금(공개 버킷)과 같은 결과다.
+ *
+ * 서명 URL 에는 버킷 경로(<user_id>/<generation_id>/…)가 그대로 보인다 — 본인 화면에만 쓴다.
+ * 공유 열람(GET /api/share)은 서명 URL 대신 워커 주소 /api/share/image/:n 을 싣는다 (2026-11-09, worker.js).
  */
 
 /** 본인 화면 (GET /api/generate/:id — ai-design.html · 플래너 사진 패널) */
 export const OWNER_SIGNED_TTL_SEC = 3600;
-/** 공유 열람 (GET /api/share) — 링크가 남은 시간과 이 값 중 짧은 쪽 */
-export const SHARE_SIGNED_MAX_SEC = 3600;
 
 // /storage/v1/object/public|sign|authenticated/<bucket>/<path>[?…]
 const OBJECT_URL_RE = /\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/?#]+)\/([^?#]+)/;
@@ -86,15 +87,4 @@ export async function signImageUrls(env, images, bucket, expiresIn) {
     const url = r && r.bucket === bucket ? signed.get(r.path) : null;
     return url ? { ...im, url } : im;
   });
-}
-
-/**
- * 공유 열람의 서명 수명(초) — 링크가 남은 시간, 최대 SHARE_SIGNED_MAX_SEC.
- * share_expires_at 이 없으면(열람 검사가 만료를 보지 않는 행) 최대값.
- */
-export function shareSignedTtl(expiresAt, now = Date.now()) {
-  const end = expiresAt ? new Date(expiresAt).getTime() : NaN;
-  if (!Number.isFinite(end)) return SHARE_SIGNED_MAX_SEC;
-  const left = Math.floor((end - now) / 1000);
-  return Math.max(1, Math.min(SHARE_SIGNED_MAX_SEC, left));
 }
