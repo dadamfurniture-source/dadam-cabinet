@@ -1,0 +1,301 @@
+{
+  "title": "0049 시공사례 사진 정보 — 장소 · 색상 · 업체 칸 · 지킴이(업체 · 좋아요 수 · 출처는 서버 값) · 좋아요는 본인 줄만 · 업체 이름 · 내 좋아요 함수 (scripts/rls-probe.mjs)",
+  "ids": [
+    "company_p",
+    "company_s",
+    "design_c",
+    "snap_c",
+    "doc_c",
+    "order_c",
+    "gen_m",
+    "gen_c",
+    "post_ai_m",
+    "post_ai_c",
+    "post_up_c",
+    "post_s",
+    "post_hq"
+  ],
+  "users": [
+    "cust_user",
+    "member_user",
+    "other_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_p}}, 'partner', 'probe P', 'expert', 'active'), ({{company_s}}, 'partner', 'probe S', 'expert', 'suspended')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_p}}, {{member_user}}, 'staff', 'active')",
+    "INSERT INTO public.designs (id, user_id, name, company_id) VALUES ({{design_c}}, {{cust_user}}, 'probe', {{company_p}})",
+    "INSERT INTO public.design_snapshots (id, design_id, rev, content_hash, design_payload, bom_payload, item_count) VALUES ({{snap_c}}, {{design_c}}, 1, 'probe', '{}', '{}', 1)",
+    "INSERT INTO public.design_documents (id, design_id, snapshot_id, doc_type, rev, doc_no, title, render_payload, content_hash) VALUES ({{doc_c}}, {{design_c}}, {{snap_c}}, 'work_order', 1, 'probe-' || {{doc_c}}::text, 'probe', '{}', 'probe')",
+    "INSERT INTO public.orders (id, order_no, design_id, document_id, snapshot_id, contract_amount, company_id, status, completed_at) VALUES ({{order_c}}, 'probe-' || {{order_c}}::text, {{design_c}}, {{doc_c}}, {{snap_c}}, 0, {{company_p}}, 'completed', now())",
+    "INSERT INTO public.generations (id, user_id, category, options) VALUES ({{gen_m}}, {{member_user}}, 'sink', '{\"door_color\": \"oak woodgrain\"}'), ({{gen_c}}, {{cust_user}}, 'wardrobe', '{\"door_color\": \"white\"}')",
+    "INSERT INTO public.collection_posts (id, user_id, image_url, category, source, generation_id, region, place_label, door_color, company_id) VALUES ({{post_ai_m}}, {{member_user}}, 'https://probe.invalid/m.png', 'kitchen', 'ai_render', {{gen_m}}, '', '싱크대', '오크', {{company_p}}), ({{post_ai_c}}, {{cust_user}}, 'https://probe.invalid/c.png', 'builtin', 'ai_render', {{gen_c}}, '', '붙박이장', '화이트', NULL), ({{post_up_c}}, {{cust_user}}, 'https://probe.invalid/u.jpg', 'kitchen', 'upload', NULL, '인천 연수구', '인천 연수구 · 주방', NULL, NULL), ({{post_s}}, {{other_user}}, 'https://probe.invalid/s.jpg', 'kitchen', 'upload', NULL, '', '주방', NULL, {{company_s}}), ({{post_hq}}, NULL, 'https://probe.invalid/h.jpg', 'kitchen', 'upload', NULL, '', '주방', NULL, public.hq_company_id())",
+    "INSERT INTO public.collection_likes (user_id, post_id, created_at) VALUES ({{other_user}}, {{post_ai_m}}, now()), ({{cust_user}}, {{post_ai_c}}, now()), ({{cust_user}}, {{post_ai_m}}, now() - interval '1 day')"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "cust": {
+      "role": "authenticated",
+      "user": "cust_user"
+    },
+    "member": {
+      "role": "authenticated",
+      "user": "member_user"
+    },
+    "other": {
+      "role": "authenticated",
+      "user": "other_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "게시물 읽기 — 새 칸 셋(장소 · 문짝 색 · 업체 id)은 누구나 (anon 포함), 좋아요 수는 트리거가 센 값",
+      "sql": "select p.place_label || '/' || p.door_color || '/' || (p.company_id = {{company_p}})::text || '/' || p.like_count from public.collection_posts p where p.id = {{post_ai_m}}",
+      "expect": {
+        "*": "싱크대/오크/true/2"
+      }
+    },
+    {
+      "name": "좋아요 읽기 — 본인 줄만 (anon 은 권한 없음, 서버는 모두)",
+      "sql": "select count(*) from public.collection_likes l where l.post_id in ({{post_ai_m}}, {{post_ai_c}})",
+      "expect": {
+        "anon": "deny",
+        "cust": "2",
+        "member": "0",
+        "other": "1",
+        "service_role": "3"
+      }
+    },
+    {
+      "name": "좋아요 넣기 — 본인 줄은 들어가고 그 게시물 좋아요 수가 하나 오른다 (남의 게시물이어도)",
+      "sql": "insert into public.collection_likes (user_id, post_id) values (auth.uid(), {{post_up_c}}); select p.like_count from public.collection_posts p where p.id = {{post_up_c}}",
+      "roles": [
+        "anon",
+        "cust",
+        "member"
+      ],
+      "expect": {
+        "anon": "deny",
+        "cust": "1",
+        "member": "1"
+      }
+    },
+    {
+      "name": "좋아요 넣기 — 남의 이름으로는 안 된다",
+      "sql": "insert into public.collection_likes (user_id, post_id) values ({{other_user}}, {{post_up_c}})",
+      "roles": [
+        "cust",
+        "member"
+      ],
+      "expect": {
+        "*": "deny"
+      }
+    },
+    {
+      "name": "좋아요 지우기 — 본인 줄만 지워진다",
+      "sql": "delete from public.collection_likes l where l.post_id = {{post_ai_m}}",
+      "expect": {
+        "anon": "deny",
+        "cust": "rows:1",
+        "member": "rows:0",
+        "other": "rows:1",
+        "service_role": "rows:2"
+      }
+    },
+    {
+      "name": "좋아요 지우기 — 지우면 좋아요 수가 하나 내려간다",
+      "sql": "delete from public.collection_likes l where l.post_id = {{post_ai_m}}; select p.like_count from public.collection_posts p where p.id = {{post_ai_m}}",
+      "roles": [
+        "cust",
+        "member",
+        "other"
+      ],
+      "expect": {
+        "cust": "1",
+        "member": "2",
+        "other": "1"
+      }
+    },
+    {
+      "name": "좋아요 고치기 — 아무도(회원) 못 한다",
+      "sql": "update public.collection_likes set post_id = {{post_up_c}} where post_id = {{post_ai_c}}",
+      "roles": [
+        "anon",
+        "cust"
+      ],
+      "expect": {
+        "*": "deny"
+      }
+    },
+    {
+      "name": "내 좋아요 — 본인 것만 센다 (anon 은 권한 없음)",
+      "sql": "select count(*) from public.collection_my_likes()",
+      "expect": {
+        "anon": "deny",
+        "cust": "2",
+        "member": "0",
+        "other": "1",
+        "service_role": "0"
+      }
+    },
+    {
+      "name": "내 좋아요 — 좋아한 때 최신순 · p_before 다음 쪽 · 개수 · 업체 이름",
+      "sql": "select ((select l.post_id from public.collection_my_likes() l limit 1) = {{post_ai_c}})::text || '/' || ((select l.post_id from public.collection_my_likes(30, now() - interval '1 hour') l limit 1) = {{post_ai_m}})::text || '/' || (select count(*) from public.collection_my_likes(1))::text || '/' || (select l.company_name || ':' || l.company_kind || ':' || l.place_label from public.collection_my_likes() l where l.post_id = {{post_ai_m}}) || '/' || (select coalesce(l.company_name, '-') from public.collection_my_likes() l where l.post_id = {{post_ai_c}})",
+      "roles": [
+        "cust"
+      ],
+      "expect": {
+        "cust": "true/true/1/probe P:partner:싱크대/-"
+      }
+    },
+    {
+      "name": "업체 이름 — 본사 · 활동 중 협력업체만 (정지 업체 · 업체 없는 게시물은 없음), 누구나",
+      "sql": "select string_agg(c.company_kind || ':' || case when c.company_kind = 'partner' then c.company_name else 'hq' end, ',' order by c.company_kind desc) from public.collection_post_companies(array[{{post_ai_m}}, {{post_ai_c}}, {{post_up_c}}, {{post_s}}, {{post_hq}}]) c",
+      "expect": {
+        "*": "partner:probe P,hq:hq"
+      }
+    },
+    {
+      "name": "업체 이름 — 본사 이름은 companies 의 본사 이름 그대로",
+      "sql": "select (select c.company_name from public.collection_post_companies(array[{{post_hq}}]) c) = (select co.name from public.companies co where co.kind = 'hq')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true"
+      }
+    },
+    {
+      "name": "업체 이름 — 앞 100개만 본다",
+      "sql": "select (select count(*) from public.collection_post_companies(array_fill('00000000-0000-0000-0000-000000000000'::uuid, array[99]) || {{post_ai_m}}))::text || '/' || (select count(*) from public.collection_post_companies(array_fill('00000000-0000-0000-0000-000000000000'::uuid, array[100]) || {{post_ai_m}}))::text",
+      "roles": [
+        "anon",
+        "service_role"
+      ],
+      "expect": {
+        "*": "1/0"
+      }
+    },
+    {
+      "name": "직접 올리기 — 보낸 업체 · 좋아요 수 · 장소는 버리고 서버 값 (고객은 업체 없음, 구성원은 자기 업체), 문짝 색은 받는다",
+      "sql": "insert into public.collection_posts (user_id, image_url, region, category, source, like_count, company_id, place_label, door_color) values (auth.uid(), 'https://probe.invalid/9.jpg', '인천 연수구', 'kitchen', 'upload', 99, {{company_s}}, '가짜 장소', '오크'); select coalesce((p.company_id = {{company_p}})::text, '-') || '/' || p.like_count || '/' || p.place_label || '/' || p.door_color from public.collection_posts p where p.user_id = auth.uid() and p.image_url = 'https://probe.invalid/9.jpg'",
+      "roles": [
+        "anon",
+        "cust",
+        "member"
+      ],
+      "expect": {
+        "anon": "deny",
+        "cust": "-/0/인천 연수구 · 주방/오크",
+        "member": "true/0/인천 연수구 · 주방/오크"
+      }
+    },
+    {
+      "name": "직접 올리기 — 고른 본인 설계에 시공 완료 수주가 있으면 그 업체 (남의 설계면 업체 없음)",
+      "sql": "insert into public.collection_posts (user_id, image_url, category, design_id) values (auth.uid(), 'https://probe.invalid/8.jpg', 'builtin', {{design_c}}); select coalesce((p.company_id = {{company_p}})::text, '-') || '/' || p.place_label from public.collection_posts p where p.user_id = auth.uid() and p.image_url = 'https://probe.invalid/8.jpg'",
+      "roles": [
+        "cust",
+        "other"
+      ],
+      "expect": {
+        "cust": "true/붙박이장",
+        "other": "-/붙박이장"
+      }
+    },
+    {
+      "name": "직접 올리기 — 자동 게시 행으로는 못 넣는다 (그대로)",
+      "sql": "insert into public.collection_posts (user_id, image_url, category, source) values (auth.uid(), 'https://probe.invalid/7.png', 'kitchen', 'ai_render')",
+      "roles": [
+        "cust"
+      ],
+      "expect": {
+        "cust": "deny"
+      }
+    },
+    {
+      "name": "고치기 — 본인 사진은 고쳐지지만 좋아요 수 · 업체는 그대로, 장소는 region · category 로 다시",
+      "sql": "update public.collection_posts set consent_training = true, like_count = 50, company_id = {{company_p}}, place_label = '가짜', region = '부산 해운대구', category = 'builtin' where id = {{post_up_c}}; select p.like_count || '/' || coalesce(p.company_id::text, '-') || '/' || p.place_label || '/' || p.consent_training from public.collection_posts p where p.id = {{post_up_c}}",
+      "roles": [
+        "cust"
+      ],
+      "expect": {
+        "cust": "0/-/부산 해운대구 · 붙박이장/true"
+      }
+    },
+    {
+      "name": "고치기 — 남의 사진 · 비로그인은 0줄",
+      "sql": "update public.collection_posts set consent_training = true where id = {{post_up_c}}",
+      "roles": [
+        "anon",
+        "member",
+        "other"
+      ],
+      "expect": {
+        "*": "rows:0"
+      }
+    },
+    {
+      "name": "고치기 — 자동 게시 행을 직접 올린 사진으로 바꾸지 못한다 (출처 · 연출컷은 그대로라 정책이 거절)",
+      "sql": "update public.collection_posts set source = 'upload', generation_id = null, image_url = 'https://probe.invalid/x.jpg' where id = {{post_ai_c}}",
+      "roles": [
+        "cust"
+      ],
+      "expect": {
+        "cust": "deny"
+      }
+    },
+    {
+      "name": "서버 넣기 — 생성 서버가 보낸 장소 · 문짝 색 · 업체는 그대로",
+      "sql": "insert into public.collection_posts (user_id, image_url, category, source, place_label, door_color, company_id) values ({{member_user}}, 'https://probe.invalid/6.png', 'kitchen', 'ai_render', '아일랜드', '월넛', {{company_p}}); select p.place_label || '/' || p.door_color || '/' || (p.company_id = {{company_p}})::text || '/' || p.like_count from public.collection_posts p where p.image_url = 'https://probe.invalid/6.png'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "아일랜드/월넛/true/0"
+      }
+    },
+    {
+      "name": "연출컷을 지우면 게시물의 연출컷 칸이 빈다 (FK SET NULL 은 지킴이를 거치지 않는다)",
+      "sql": "delete from public.generations where id = {{gen_c}}; select coalesce(p.generation_id::text, '-') || '/' || p.source from public.collection_posts p where p.id = {{post_ai_c}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "-/ai_render"
+      }
+    },
+    {
+      "name": "업체 고르기 함수 — 부른 사람 본인 것만 (active 업체 / 본인 설계 + 시공 완료)",
+      "sql": "select coalesce((public.collection_my_post_company() = {{company_p}})::text, '-') || '/' || coalesce((public.collection_my_post_company({{design_c}}) = {{company_p}})::text, '-')",
+      "expect": {
+        "anon": "deny",
+        "cust": "-/true",
+        "member": "true/true",
+        "other": "-/-",
+        "service_role": "deny"
+      }
+    },
+    {
+      "name": "장소 표시 — region 은 한글 두 낱말까지 (넘거나 숫자가 섞이면 공간만), other 는 공간 없음",
+      "sql": "select public.collection_place_label('인천 연수구', 'kitchen') || '|' || public.collection_place_label('서울 강남구 역삼동 123', 'builtin') || '|' || coalesce(public.collection_place_label('', 'other'), '-') || '|' || public.collection_place_label('세종', 'other') || '|' || public.collection_place_label(' 경기 성남시 ', 'interior') || '|' || public.collection_place_label('101동', 'storage')",
+      "expect": {
+        "anon": "deny",
+        "*": "인천 연수구 · 주방|붙박이장|-|세종|경기 성남시 · 인테리어|수납장"
+      }
+    },
+    {
+      "name": "권한 — 업체 이름은 누구나, 내 좋아요는 로그인만, 트리거 함수는 아무도, 좋아요 표는 anon 없음 · 고치기 없음",
+      "sql": "select has_function_privilege('anon', 'public.collection_post_companies(uuid[])', 'execute') || '/' || has_function_privilege('anon', 'public.collection_my_likes(integer, timestamp with time zone)', 'execute') || '/' || has_function_privilege('authenticated', 'public.collection_my_likes(integer, timestamp with time zone)', 'execute') || '/' || has_function_privilege('authenticated', 'public.update_like_count()', 'execute') || '/' || has_function_privilege('authenticated', 'public.collection_posts_info_guard()', 'execute') || '/' || has_table_privilege('anon', 'public.collection_likes', 'select') || '/' || has_table_privilege('authenticated', 'public.collection_likes', 'update') || '/' || has_table_privilege('authenticated', 'public.collection_likes', 'insert')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true/false/true/false/false/false/false/true"
+      }
+    }
+  ]
+}
