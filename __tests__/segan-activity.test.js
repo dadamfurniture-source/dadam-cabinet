@@ -244,11 +244,14 @@ describe('화면 — 내 정보 탭 안', () => {
     expect(
       [...me.querySelectorAll('a.sg-row')].some((a) => a.getAttribute('href') === 'activity.html')
     ).toBe(true);
-    // 아래 탭은 넷 그대로
+    // 아래 탭은 다섯 그대로 — 마이페이지 안 화면이라 「마이」가 켜진다
     const keys = [...document.querySelectorAll('nav.sg-tabbar a:not([hidden])')].map((a) =>
       a.getAttribute('data-tab-link')
     );
-    expect(keys).toEqual(['make', 'collection', 'renders', 'me']);
+    expect(keys).toEqual(['make', 'collection', 'blog', 'about', 'me']);
+    expect(
+      document.querySelector('nav.sg-tabbar [aria-current="page"]').getAttribute('data-tab-link')
+    ).toBe('me');
   });
 
   test('로그인 없으면 아무것도 읽지 않고, 로그인 안내는 이 화면으로 돌아온다', async () => {

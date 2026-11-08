@@ -139,7 +139,8 @@ button {
 }
 
 /* ============================================================
-   앱 셸 — 폰: 위 막대(워드마크) + 아래 탭 4개 / PC(768px~): v5 헤더 위 메뉴 + 푸터
+   앱 셸 — 폰 · 태블릿: 위 막대(워드마크) + 아래 탭 다섯 / PC(1024px~): v5 헤더 위 메뉴 + 푸터
+   위 메뉴 여섯 칸(오른쪽 끝 마이페이지)은 768px 폭에 거의 꽉 차서 1024px 부터 연다 (segan/shell.js 머리말)
    ============================================================ */
 
 .sg-app {
@@ -211,7 +212,7 @@ button {
   left: 0;
   z-index: 40;
   display: grid;
-  /* 탭 4개 + 관리자면 관리 — 감춘 탭은 자리를 차지하지 않는다 */
+  /* 탭 다섯 — 칸 수를 적지 않고 보이는 탭만큼 같은 폭으로 */
   grid-auto-columns: minmax(0, 1fr);
   grid-auto-flow: column;
   padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -2001,13 +2002,26 @@ body.sg-locked {
 
 /* ── PC ── */
 @media (min-width: 768px) {
-  .sg-app {
-    padding-bottom: 0;
-  }
-
   .cl-tiles {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 26px;
+  }
+
+  /* 넓은 본문 폭 — 만들기 · 상담 신청은 make.css .sg-main.mk */
+  .sg-main {
+    max-width: 1200px;
+    padding: 64px 48px 96px;
+  }
+
+  .sg-h1 {
+    font-size: 28px;
+  }
+}
+
+/* PC — 위 메뉴 + 푸터, 아래 탭 없음 (위 메뉴 여섯 칸이 들어가는 폭부터) */
+@media (min-width: 1024px) {
+  .sg-app {
+    padding-bottom: 0;
   }
 
   .sg-header {
@@ -2021,22 +2035,18 @@ body.sg-locked {
 
   .sg-nav {
     display: flex;
+    flex: 1;
     align-items: center;
     gap: 34px;
   }
 
+  /* 마이페이지 — 오른쪽 끝 */
+  .sg-nav .sg-nav-end {
+    margin-left: auto;
+  }
+
   .sg-tabbar {
     display: none;
-  }
-
-  /* PC 본문 폭 — 만들기 · 상담 신청은 make.css .sg-main.mk */
-  .sg-main {
-    max-width: 1200px;
-    padding: 64px 48px 96px;
-  }
-
-  .sg-h1 {
-    font-size: 28px;
   }
 
   .sg-biz {

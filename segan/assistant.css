@@ -429,7 +429,8 @@
   margin: 0;
 }
 
-@media (min-width: 768px) {
+/* 아래 탭이 없는 폭 (segan/shell.css 1024px~) */
+@media (min-width: 1024px) {
   .as-form {
     bottom: 0;
   }

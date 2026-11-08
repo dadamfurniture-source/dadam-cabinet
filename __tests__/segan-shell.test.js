@@ -3,14 +3,15 @@
 /**
  * SEGAN 앱 셸 (segan/shell.js + segan/*.html) — jsdom 에 페이지를 올려 확인한다.
  *
- *   - 탭 4개: 만들기 · 시공사례 · 내 연출컷 · 내 정보 (순서 · 주소), 페이지마다 현재 탭 aria-current
- *     + 관리 탭 — 처음엔 감추고 관리자(AdminAccess.isAdmin)에게만 연다, 탭 페이지마다 AdminAccess 를 싣는다
- *     + 작업 탭 — 처음엔 감추고 작업자(GET /work/me + DadamMyPageWork.shouldShow)에게만 연다
- *     + 비서 탭 — 처음엔 감추고 AI 비서 자격(GET /assistant/me level full · read)이 있으면 연다
- *   - 내 연출컷 · 내 정보는 로그인이 없으면 「로그인이 필요합니다」 + login.html?redirect=(이 페이지)
- *   - 내 정보의 역할 메뉴는 기존 판정(AdminAccess · DadamMyPageWork · 워크플로 API GET /planner/access)을 따른다
- *     — 페이지가 싣는 실제 js/ 파일을 그대로 올리고 Supabase · /work/me · /planner/access 만 가짜로 둔다
+ *   - 메뉴: PC 위 메뉴 여섯(AI 연출컷 · 시공사례 · 블로그 · AI 시스템 소개 · 구독 + 오른쪽 끝 마이페이지),
+ *     폰 아래 탭 다섯(연출컷 · 시공사례 · 블로그 · SEGAN · 마이) — 순서 · 주소 · 글, 화면마다 켜지는 탭 하나
+ *     (SEGAN 은 소개 · 구독 둘 다, 마이는 마이페이지 안 화면들). 내 연출컷 · 비서 · 관리 · 작업은 막대에 없다
+ *   - 마이페이지 · 내 연출컷은 로그인이 없으면 「로그인이 필요합니다」 + login.html?redirect=(이 페이지)
+ *   - 마이페이지의 역할 메뉴(업무)는 기존 판정(AdminAccess · DadamMyPageWork · 워크플로 API GET /planner/access ·
+ *     assistant-api GET /assistant/me)을 따른다 — 설계 · 비서 · 작업 · 관리 · 관리자 화면 (PC)
+ *     — 페이지가 싣는 실제 js/ 파일을 그대로 올리고 Supabase · /work/me · /planner/access · /assistant/me 만 가짜로 둔다
  *   - 사업자 정보는 사이트 푸터(js/site-shell.js)와 같다
+ *   - PC 위 메뉴는 1024px 부터 (768px 폭에는 여섯 칸이 빠듯하다), 그 아래는 아래 탭
  *   - 시트 · 옆 패널 · 가운데 창 (SeganShell.sheet) — 열기 · 닫기 · Esc · 바깥 · 뒤로 가기(페이지 처리기는 모른다)
  *     · 옆 패널 하나만 · 초점 돌려주기 · dialog
  */
@@ -21,16 +22,61 @@ const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const AuthRedirect = require('../js/auth-redirect.js');
 
-const TAB_PAGES = {
-  make: 'index.html',
-  collection: 'collection.html',
-  renders: 'renders.html',
-  me: 'me.html',
+/** PC 위 메뉴 — [탭, 글, 주소] (오른쪽 끝 마이페이지) */
+const PC_TABS = [
+  ['make', 'AI 연출컷', './'],
+  ['collection', '시공사례', 'collection.html'],
+  ['blog', '블로그', 'blog.html'],
+  ['about', 'AI 시스템 소개', 'about.html'],
+  ['plans', '구독', 'plans.html'],
+  ['me', '마이페이지', 'me.html'],
+];
+/** 폰 아래 탭 — 다섯 */
+const PHONE_TABS = [
+  ['make', '연출컷', './'],
+  ['collection', '시공사례', 'collection.html'],
+  ['blog', '블로그', 'blog.html'],
+  ['about', 'SEGAN', 'about.html'],
+  ['me', '마이', 'me.html'],
+];
+/** 탭 화면 (위 메뉴 · 아래 탭의 주소) */
+const TAB_PAGES = [
+  'index.html',
+  'collection.html',
+  'blog.html',
+  'about.html',
+  'plans.html',
+  'me.html',
+];
+/** 화면 → [PC 위 메뉴에서 켜지는 탭, 폰 아래 탭에서 켜지는 탭] — 셸 막대가 있는 segan 화면 전부 */
+const CURRENT = {
+  'index.html': ['make', 'make'],
+  'consult.html': ['make', 'make'],
+  'collection.html': ['collection', 'collection'],
+  'blog.html': ['blog', 'blog'],
+  'about.html': ['about', 'about'],
+  'plans.html': ['plans', 'about'],
+  'me.html': ['me', 'me'],
+  'renders.html': ['me', 'me'],
+  'assistant.html': ['me', 'me'],
+  'admin.html': ['me', 'me'],
+  'work.html': ['me', 'me'],
+  'billing.html': ['me', 'me'],
+  'settings.html': ['me', 'me'],
+  'activity.html': ['me', 'me'],
+  'pay.html': ['me', 'me'],
+  'join.html': ['me', 'me'],
+  'ledger.html': ['me', 'me'],
+  'ledger-board.html': ['me', 'me'],
+  'ledger-report.html': ['me', 'me'],
 };
-const LABELS = ['만들기', '시공사례', '내 연출컷', '내 정보'];
-const HREFS = ['./', 'collection.html', 'renders.html', 'me.html'];
+/** 막대에서 뺀 탭 — 화면은 남는다 (마이페이지에서 간다) */
+const GONE = ['renders', 'assistant', 'admin', 'work'];
+const PUBLIC = ['index.html', 'collection.html', 'consult.html', 'about.html', 'plans.html'];
 const SESSION = { access_token: 'tok-1', user: { id: 'user-1', email: 'customer@example.com' } };
 const ASSISTANT_ME = 'https://dadam-assistant-api.dadamfurniture.workers.dev/assistant/me';
+const FULL = { company_id: 'c1', role: 'owner', money: true, level: 'full', can_chat: true };
+const WORKER = { ready: true, worker: { id: 'w1', status: 'approved', display_name: '작업자' } };
 
 function fakeClient(opts, calls) {
   return {
@@ -114,7 +160,11 @@ async function load(page, options = {}) {
       if (opts.planner === 'fail') throw new TypeError('Failed to fetch');
       return opts.planner
         ? { ok: true, status: 200, json: async () => ({ success: true, data: opts.planner }) }
-        : { ok: false, status: 403, json: async () => ({ success: false, code: 'not_planner_company' }) };
+        : {
+            ok: false,
+            status: 403,
+            json: async () => ({ success: false, code: 'not_planner_company' }),
+          };
     }
     return { ok: true, json: async () => ({ success: true, data: opts.workMe }) };
   });
@@ -136,184 +186,145 @@ const visible = (el) => {
   return true;
 };
 const view = (name) => $(`[data-auth-view="${name}"]`);
+const BARS = [
+  ['.sg-header nav.sg-nav', PC_TABS, 0],
+  ['nav.sg-tabbar', PHONE_TABS, 1],
+];
 
-describe('탭 4개 — 순서 · 주소 · 현재 탭', () => {
-  test.each(Object.entries(TAB_PAGES))(
-    '%s (%s) — 위 메뉴 · 아래 탭 모두 4개, 현재 탭만 aria-current',
-    async (key, page) => {
+describe('메뉴 — PC 위 메뉴 여섯 · 폰 아래 탭 다섯', () => {
+  test('셸 막대가 있는 segan 화면은 모두 켤 탭이 정해져 있다 (새 화면은 여기에 적는다)', () => {
+    const pages = fs
+      .readdirSync(path.join(ROOT, 'segan'))
+      .filter(
+        (n) => n.endsWith('.html') && read(`segan/${n}`).includes('data-segan-shell="tabbar"')
+      );
+    expect(pages.sort()).toEqual(Object.keys(CURRENT).sort());
+  });
+
+  test.each(Object.entries(CURRENT))(
+    '%s — 위 메뉴 · 아래 탭의 순서 · 글 · 주소, 켜진 탭은 하나 (%s)',
+    async (page, on) => {
       await load(page);
-      expect(document.body.dataset.tab).toBe(key);
-      for (const sel of ['.sg-header nav.sg-nav', 'nav.sg-tabbar']) {
+      for (const [sel, tabs, i] of BARS) {
         const nav = $(sel);
         expect(nav).not.toBeNull();
         expect(nav.getAttribute('aria-label')).toBe('주 메뉴');
         const all = [...nav.querySelectorAll('a')];
-        // 비서 · 관리 · 작업 탭은 맨 뒤에 감춰져 있다 (로그인 전 · 자격 없음)
-        expect(all.map((a) => a.getAttribute('data-tab-link'))).toEqual([
-          ...Object.keys(TAB_PAGES),
-          'assistant',
-          'admin',
-          'work',
-        ]);
-        expect(all.slice(-3).map((a) => a.hidden)).toEqual([true, true, true]);
-        const links = all.filter((a) => !a.hidden);
-        expect(links.map((a) => a.textContent.trim())).toEqual(LABELS);
-        expect(links.map((a) => a.getAttribute('href'))).toEqual(HREFS);
-        const current = links.filter((a) => a.getAttribute('aria-current') === 'page');
-        expect(current).toHaveLength(1);
-        expect(current[0].getAttribute('data-tab-link')).toBe(key);
-        expect(links.every(visible)).toBe(true); // 로그인 전에도 보인다
+        expect(
+          all.map((a) => [
+            a.getAttribute('data-tab-link'),
+            a.textContent.trim(),
+            a.getAttribute('href'),
+          ])
+        ).toEqual(tabs);
+        expect(all.every((a) => !a.hidden && visible(a))).toBe(true); // 로그인 전에도 보인다 · 감춘 탭 없음
+        const current = all.filter((a) => a.getAttribute('aria-current') === 'page');
+        expect(current.map((a) => a.getAttribute('data-tab-link'))).toEqual([on[i]]);
       }
       expect($('main#main')).not.toBeNull();
-      expect($$('h1').filter(visible)).toHaveLength(1); // 만들기는 단계마다 제목이 있고 지금 단계만 보인다
       expect($$('[data-segan-shell]')).toHaveLength(0); // 자리표시가 모두 채워졌다
     }
   );
 
-  test('탭 주소는 segan/ 안의 실제 페이지다 (만들기 = start_url /segan/)', () => {
-    expect(HREFS.map((h) => (h === './' ? 'index.html' : h))).toEqual(Object.values(TAB_PAGES));
-    for (const page of Object.values(TAB_PAGES))
-      expect(fs.existsSync(path.join(ROOT, 'segan', page))).toBe(true);
-    const manifest = JSON.parse(read('segan/manifest.webmanifest'));
-    expect(new URL(HREFS[0], 'https://x/segan/').pathname).toBe(manifest.start_url);
+  test.each(TAB_PAGES)('%s — h1 이 하나 보인다', async (page) => {
+    await load(page);
+    expect($$('h1').filter(visible)).toHaveLength(1); // 만들기는 단계마다 제목이 있고 지금 단계만 보인다
   });
 
-  test('아래 탭 아이콘은 꾸밈 (aria-hidden), 이름은 글자로', async () => {
+  test('PC 위 메뉴는 마이페이지만 오른쪽 끝 (sg-nav-end) · 폰 탭에는 구독이 없다 (SEGAN 안 [소개 | 구독])', async () => {
     await load('index.html');
-    for (const svg of $$('.sg-tabbar svg')) expect(svg.getAttribute('aria-hidden')).toBe('true');
-    expect($$('.sg-tabbar a span').map((s) => s.textContent)).toEqual([
-      ...LABELS,
-      '비서',
-      '관리',
-      '작업',
-    ]);
-    expect(
-      $$('.sg-tabbar a')
-        .filter(visible)
-        .map((a) => a.textContent.trim())
-    ).toEqual(LABELS);
+    expect($$('.sg-nav a.sg-nav-end').map((a) => a.getAttribute('data-tab-link'))).toEqual(['me']);
+    expect($$('.sg-tabbar a.sg-nav-end')).toHaveLength(0);
+    expect($('.sg-tabbar a[data-tab-link="plans"]')).toBeNull();
+    expect($$('.sg-tabbar a')).toHaveLength(5);
   });
 
-  test.each([
-    'index.html',
-    'collection.html',
-    'consult.html',
-    'join.html',
-    'renders.html',
-    'me.html',
-    'admin.html',
-    'work.html',
-  ])(
-    '관리 탭 — %s 는 AdminAccess 를 싣고, 관리자면 위 메뉴 · 아래 탭에 「관리」를 연다',
-    async (page) => {
-      const { scripts } = await load(page, { session: SESSION, isAdmin: true });
-      expect(scripts.some((s) => s.startsWith('../js/admin-access.js?v='))).toBe(true);
-      expect(scripts.some((s) => s.startsWith('../js/mypage-work.js?v='))).toBe(true);
-      for (const sel of ['.sg-header nav.sg-nav', 'nav.sg-tabbar']) {
-        const admin = $(sel + ' a[data-tab-link="admin"]');
-        expect(admin.hidden).toBe(false);
-        expect(admin.textContent.trim()).toBe('관리');
-        expect(admin.getAttribute('href')).toBe('admin.html');
-      }
-    }
-  );
-
-  test('관리 탭 — 관리자가 아니거나 로그인 전이면 감춘 채, 로그인 전에는 is_admin 을 묻지 않는다', async () => {
-    const member = await load('index.html', { session: SESSION, isAdmin: false });
-    expect($('nav.sg-tabbar a[data-tab-link="admin"]').hidden).toBe(true);
-    expect(member.calls.rpc).toEqual(['is_admin']);
-    expect(member.result.admin).toBe(false);
-    const guest = await load('collection.html', { session: null });
-    expect($('nav.sg-tabbar a[data-tab-link="admin"]').hidden).toBe(true);
-    expect(guest.calls.rpc).toEqual([]);
-    const admin = await load('me.html', { session: SESSION, isAdmin: true });
-    expect(admin.result.admin).toBe(true);
+  test('탭 하나가 여러 화면에서 켜진다 — SeganShell.currentTab (같은 이름의 탭이 먼저)', async () => {
+    await load('index.html');
+    const { currentTab } = window.SeganShell;
+    expect(currentTab('about', 'phone')).toBe('about');
+    expect(currentTab('plans', 'phone')).toBe('about'); // SEGAN = 소개 · 구독
+    expect(currentTab('plans', 'pc')).toBe('plans'); // PC 는 「구독」
+    expect(currentTab('about', 'pc')).toBe('about');
+    for (const page of ['me', 'renders', 'assistant', 'admin', 'work'])
+      for (const bar of ['pc', 'phone'])
+        expect([page, bar, currentTab(page, bar)]).toEqual([page, bar, 'me']);
+    expect(currentTab('make', 'phone')).toBe('make');
+    expect(currentTab('nothing', 'pc')).toBe('');
   });
 
-  test('작업 탭 — 작업자(승인 · 대기 포함, shouldShow)면 연다, 아니면 · 로그인 전 · /work/me 실패면 감춘다', async () => {
-    const worker = {
-      ready: true,
-      worker: { id: 'w', status: 'approved', display_name: '김작업', kinds: ['install'] },
-    };
-    const tab = () => $('nav.sg-tabbar a[data-tab-link="work"]');
-    const on = await load('index.html', { session: SESSION, workMe: worker });
-    expect(tab().hidden).toBe(false);
-    expect(tab().textContent.trim()).toBe('작업');
-    expect(tab().getAttribute('href')).toBe('work.html');
-    expect(on.result.worker).toBe(true);
-    expect(on.calls.fetch.map((f) => f.url)).toContain('https://work.example.workers.dev/work/me');
-    await load('collection.html', { session: SESSION, workMe: { ready: true, worker: null } });
-    expect(tab().hidden).toBe(true);
-    const guest = await load('renders.html', { session: null, workMe: worker });
-    expect(tab().hidden).toBe(true);
-    expect(guest.calls.fetch).toEqual([]);
-    await load('index.html', { session: SESSION, workFail: true });
-    expect(tab().hidden).toBe(true);
-    // 작업 화면 — 셸 탭은 작업 · 포털은 그 안에서 (본문은 worker-portal 시험이 본다)
-    await load('work.html', { session: SESSION, workMe: worker });
-    expect(document.body.dataset.tab).toBe('work');
-    expect(tab().getAttribute('aria-current')).toBe('page');
-    expect(tab().hidden).toBe(false);
-  });
-
-  test('비서 탭 — 자격(level full · read)이 있으면 연다, none · 403 · 끊김 · 로그인 전이면 감춘다', async () => {
-    const tab = () => $('nav.sg-tabbar a[data-tab-link="assistant"]');
-    const full = { company_id: 'c1', role: 'owner', money: true, level: 'full', can_chat: true };
-    const on = await load('index.html', { session: SESSION, assistant: full });
-    expect(tab().hidden).toBe(false);
-    expect(tab().textContent.trim()).toBe('비서');
-    expect(tab().getAttribute('href')).toBe('assistant.html');
-    expect($('.sg-header nav.sg-nav a[data-tab-link="assistant"]').hidden).toBe(false);
-    expect(on.result.assistant).toBe(true);
-    expect(on.calls.fetch).toContainEqual({ url: ASSISTANT_ME, auth: 'Bearer tok-1' });
-    await load('me.html', {
+  test('막대에서 뺀 탭(내 연출컷 · 비서 · 관리 · 작업) — 관리자 · 작업자 · 비서 자격이 있어도 막대에 없다, 화면은 남는다', async () => {
+    const r = await load('me.html', {
       session: SESSION,
-      assistant: { ...full, level: 'read', can_chat: false },
+      isAdmin: true,
+      workMe: WORKER,
+      assistant: FULL,
+      planner: {
+        company: { id: 'hq', name: '다담 공장', kind: 'hq', plan: null },
+        role: 'admin',
+        can_manage: true,
+      },
     });
-    expect(tab().hidden).toBe(false);
-    for (const assistant of [{ ...full, level: 'none', can_chat: false }, null, 'fail']) {
-      const r = await load('collection.html', { session: SESSION, assistant });
-      expect(tab().hidden).toBe(true);
-      expect(r.result.assistant).toBe(false);
+    for (const key of GONE) expect($$(`[data-tab-link="${key}"]`)).toEqual([]);
+    expect([r.result.admin, r.result.worker, r.result.assistant]).toEqual([true, true, true]);
+    const sw = read('segan/sw.js');
+    for (const page of ['renders.html', 'assistant.html', 'admin.html', 'work.html']) {
+      expect(fs.existsSync(path.join(ROOT, 'segan', page))).toBe(true);
+      expect(sw).toContain(`SCOPE + '${page}'`);
     }
-    const guest = await load('renders.html', { session: null, assistant: full });
-    expect(tab().hidden).toBe(true);
-    expect(guest.calls.fetch).toEqual([]);
+    for (const asset of ['renders.js', 'assistant.js', 'admin.js', 'work.css'])
+      expect(sw).toContain(`versioned(SCOPE + '${asset}')`);
   });
 
-  test('비서 탭 — 참은 1분 기억한다 (탭을 옮길 때마다 묻지 않는다), 로그아웃하면 지운다', async () => {
-    const full = { company_id: 'c1', role: 'owner', money: true, level: 'full', can_chat: true };
-    await load('index.html', { session: SESSION, assistant: full });
-    const again = await load('collection.html', { session: SESSION, keepStorage: true });
-    expect($('nav.sg-tabbar a[data-tab-link="assistant"]').hidden).toBe(false);
-    expect(again.calls.fetch.map((f) => f.url)).not.toContain(ASSISTANT_ME);
-    jest.spyOn(Date, 'now').mockReturnValue(Date.now() + 61000);
-    const later = await load('collection.html', { session: SESSION, keepStorage: true });
-    expect($('nav.sg-tabbar a[data-tab-link="assistant"]').hidden).toBe(true);
-    expect(later.calls.fetch.map((f) => f.url)).toContain(ASSISTANT_ME);
-    jest.restoreAllMocks();
+  test('탭 주소는 segan/ 안의 실제 페이지다 (AI 연출컷 = start_url /segan/)', () => {
+    for (const [, , href] of [...PC_TABS, ...PHONE_TABS]) {
+      const file = href === './' ? 'index.html' : href;
+      expect([href, fs.existsSync(path.join(ROOT, 'segan', file))]).toEqual([href, true]);
+    }
+    const manifest = JSON.parse(read('segan/manifest.webmanifest'));
+    expect(new URL(PC_TABS[0][2], 'https://x/segan/').pathname).toBe(manifest.start_url);
   });
 
-  test('아래 탭은 감춘 탭 자리를 두지 않는다 (칸 수를 정하지 않고 보이는 탭만큼)', () => {
+  test('아래 탭 아이콘은 꾸밈 (aria-hidden), 이름은 글자로 · 위 메뉴는 글만', async () => {
+    await load('index.html');
+    expect($$('.sg-tabbar svg')).toHaveLength(5);
+    for (const svg of $$('.sg-tabbar svg')) expect(svg.getAttribute('aria-hidden')).toBe('true');
+    expect($$('.sg-tabbar a span').map((s) => s.textContent)).toEqual(PHONE_TABS.map((t) => t[1]));
+    expect($$('.sg-nav svg')).toHaveLength(0);
+  });
+
+  test('관리자 판정(관리 화면 admin.js 가 쓰는 ready.admin) — 로그인 칸이 있는 화면만 is_admin 을 묻고, 작업 · 비서는 묻지 않는다', async () => {
+    const admin = await load('admin.html', { session: SESSION, isAdmin: true });
+    expect(admin.result.admin).toBe(true);
+    expect(admin.calls.rpc).toEqual(['is_admin']);
+    expect(admin.calls.fetch).toEqual([]); // /work/me · /assistant/me 는 마이페이지에서만
+    const member = await load('admin.html', { session: SESSION, isAdmin: false });
+    expect(member.result.admin).toBe(false);
+    const open = await load('index.html', { session: SESSION, isAdmin: true });
+    expect(open.result.admin).toBe(false); // 로그인 칸 없는 화면 — 묻지 않는다
+    expect(open.calls.rpc).toEqual([]);
+    expect(open.calls.fetch).toEqual([]);
+    const guest = await load('renders.html', { session: null, isAdmin: true });
+    expect(guest.calls.rpc).toEqual([]);
+    expect(guest.result.admin).toBe(false);
+  });
+
+  test('아래 탭은 칸 수를 정하지 않고 보이는 탭만큼 같은 폭', () => {
     const css = read('segan/shell.css');
     const m = css.match(/^\.sg-tabbar \{([^}]*)\}/m);
     expect(m).not.toBeNull();
     const rule = m[1];
     expect(rule).toContain('grid-auto-flow: column');
     expect(rule).not.toContain('grid-template-columns');
-    expect(read('segan/sw.js')).toContain("SCOPE + 'admin.html'");
-    expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'admin.js')");
-    expect(read('segan/sw.js')).toContain("SCOPE + 'work.html'");
-    expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'work.css')");
-    expect(read('segan/sw.js')).toContain("SCOPE + 'assistant.html'");
-    expect(read('segan/sw.js')).toContain("versioned(SCOPE + 'assistant.js')");
   });
 });
 
-describe('로그인 안내 — 내 연출컷 · 내 정보', () => {
+describe('로그인 안내 — 마이페이지 · 내 연출컷 · 비서 · 관리', () => {
   test.each([
     ['renders.html', 'segan/renders.html', '내 연출컷은'],
-    ['me.html', 'segan/me.html', '내 정보는'],
+    ['me.html', 'segan/me.html', '마이페이지는'],
+    ['assistant.html', 'segan/assistant.html', '비서는'],
+    ['admin.html', 'segan/admin.html', '관리는'],
   ])(
     '%s — 로그인 없으면 안내 + 로그인 버튼(돌아올 곳 = 이 페이지)',
     async (page, target, phrase) => {
@@ -348,7 +359,7 @@ describe('로그인 안내 — 내 연출컷 · 내 정보', () => {
     expect(view('signed-in').hidden).toBe(true);
   });
 
-  test('로그인했으면 안내 대신 내용 (내 정보는 계정 이메일)', async () => {
+  test('로그인했으면 안내 대신 내용 (마이페이지는 계정 이메일 · 맨 위에 내 연출컷)', async () => {
     await load('renders.html', { session: SESSION });
     expect(view('signed-out').hidden).toBe(true);
     expect(visible(view('signed-in'))).toBe(true);
@@ -356,16 +367,24 @@ describe('로그인 안내 — 내 연출컷 · 내 정보', () => {
     await load('me.html', { session: SESSION });
     expect(view('signed-out').hidden).toBe(true);
     expect(visible(view('signed-in'))).toBe(true);
+    expect($('h1').textContent).toBe('마이페이지');
     expect($('#sgAccountEmail').textContent).toBe('customer@example.com');
     for (const label of ['상담 내역', '크레딧 · 구독', '설정', '로그아웃']) {
       expect(view('signed-in').textContent).toContain(label);
     }
+    // 내 연출컷 — 계정 이메일 바로 다음 칸 (예전 아래 탭)
+    const renders = $('#meRenders');
+    expect(renders.textContent).toBe('내 연출컷');
+    expect(renders.getAttribute('href')).toBe('renders.html');
+    expect(visible(renders)).toBe(true);
+    const first = view('signed-in').querySelector('section.sg-section');
+    expect(first.contains(renders)).toBe(true);
   });
 
-  test('만들기 · 시공사례는 로그인과 상관없이 열린다 (로그인 칸이 없다)', async () => {
-    for (const page of ['index.html', 'collection.html']) {
+  test('로그인 칸이 없는 화면 (AI 연출컷 · 시공사례 · 블로그 · 소개 · 구독) 은 로그인과 상관없이 열린다', async () => {
+    for (const page of ['index.html', 'collection.html', 'blog.html', 'about.html', 'plans.html']) {
       await load(page, { noSupabase: true });
-      expect($$('[data-auth-view]')).toHaveLength(0);
+      expect([page, $$('[data-auth-view]').length]).toEqual([page, 0]);
       expect($('.sg-gate')).toBeNull();
     }
   });
@@ -381,11 +400,11 @@ describe('로그인 안내 — 내 연출컷 · 내 정보', () => {
   });
 });
 
-describe('내 정보 — 역할 메뉴는 기존 판정 모듈을 따른다', () => {
+describe('마이페이지 업무 — 역할 메뉴는 기존 판정 모듈을 따른다', () => {
+  const KEYS = ['planner', 'assistant', 'worker', 'admin-app', 'admin'];
   const roleShown = () =>
-    Object.fromEntries(
-      ['planner', 'admin', 'worker'].map((k) => [k, visible($(`[data-role="${k}"]`))])
-    );
+    Object.fromEntries(KEYS.map((k) => [k, visible($(`[data-role="${k}"]`))]));
+  const none = Object.fromEntries(KEYS.map((k) => [k, false]));
 
   test('me.html 이 판정 모듈을 싣는다 (admin-access · mypage-work) — 상세설계 판정 모듈은 싣지 않는다', async () => {
     const { scripts } = await load('me.html');
@@ -394,21 +413,28 @@ describe('내 정보 — 역할 메뉴는 기존 판정 모듈을 따른다', ()
       expect(bare).toContain(f);
     }
     expect(bare).not.toContain('../js/detaildesign-access.js');
-    // 셸 다음에 내 정보 탭 스크립트 (상담 내역 · 크레딧 · 구독)
+    // 셸 다음에 마이페이지 스크립트 (상담 내역 · 크레딧 · 구독)
     expect(bare.slice(-3)).toEqual(['shell.js', 'make.js', 'me.js']);
   });
 
-  test('링크 주소 — 설계(간편 플래너) · 관리자 화면 · 작업자 포털', async () => {
+  test('링크 — 설계(간편 플래너) · 비서 · 작업 · 관리(앱) · 관리자 화면 (PC)', async () => {
     await load('me.html', { session: SESSION });
-    const links = $$('#sgRoles a').map((a) => [a.textContent, a.getAttribute('href')]);
+    const links = $$('#sgRoles li').map((li) => [
+      li.getAttribute('data-role'),
+      li.querySelector('a').textContent,
+      li.querySelector('a').getAttribute('href'),
+    ]);
     expect(links).toEqual([
-      ['설계', 'planner/'],
-      ['관리자 화면', '../admin/index.html'],
-      ['작업', 'work.html'],
+      ['planner', '설계', 'planner/'],
+      ['assistant', '비서', 'assistant.html'],
+      ['worker', '작업', 'work.html'],
+      ['admin-app', '관리', 'admin.html'],
+      ['admin', '관리자 화면 (PC)', '../admin/index.html'],
     ]);
     // 설계는 /segan/planner/ — 이 저장소 밖 플래너 Worker 가 받는다 (서비스 워커도 건드리지 않는다)
     expect(read('segan/sw.js')).toMatch(/startsWith\(SCOPE \+ 'planner\/'\)/);
-    for (const [, href] of links.slice(1)) expect(fs.existsSync(path.join(ROOT, 'segan', href))).toBe(true);
+    for (const [, , href] of links.slice(1))
+      expect(fs.existsSync(path.join(ROOT, 'segan', href))).toBe(true);
   });
 
   test('역할이 없는 회원 — 업무 칸 자체를 감춘다', async () => {
@@ -416,18 +442,25 @@ describe('내 정보 — 역할 메뉴는 기존 판정 모듈을 따른다', ()
       session: SESSION,
       profile: { tier: null, detaildesign_approved: false },
     });
-    expect(roleShown()).toEqual({ planner: false, admin: false, worker: false });
+    expect(roleShown()).toEqual(none);
     expect($('#sgRoles').hidden).toBe(true);
   });
 
   test('설계 — GET /planner/access 가 200 이면 연다 (본인 토큰으로 워크플로 API 에 묻는다)', async () => {
     const { calls } = await load('me.html', {
       session: SESSION,
-      planner: { company: { id: 'c1', name: '팩토리', kind: 'partner', plan: 'expert' }, role: 'owner', can_manage: true },
+      planner: {
+        company: { id: 'c1', name: '팩토리', kind: 'partner', plan: 'expert' },
+        role: 'owner',
+        can_manage: true,
+      },
     });
-    expect(roleShown()).toEqual({ planner: true, admin: false, worker: false });
+    expect(roleShown()).toEqual({ ...none, planner: true });
     expect(visible($('#sgRoles'))).toBe(true);
-    expect(calls.fetch).toContainEqual({ url: 'https://work.example.workers.dev/planner/access', auth: 'Bearer tok-1' });
+    expect(calls.fetch).toContainEqual({
+      url: 'https://work.example.workers.dev/planner/access',
+      auth: 'Bearer tok-1',
+    });
   });
 
   test.each([
@@ -439,28 +472,28 @@ describe('내 정보 — 역할 메뉴는 기존 판정 모듈을 따른다', ()
     expect($('#sgRoles').hidden).toBe(true);
   });
 
-  test('관리자 (is_admin RPC 참) — 관리자 화면 (설계는 서버 판정 /planner/access 를 따른다)', async () => {
-    const { calls } = await load('me.html', { session: SESSION, isAdmin: true });
+  test('관리자 (is_admin RPC 참) — 관리(앱 화면) · 관리자 화면 (PC) 둘 다 (설계는 서버 판정 /planner/access 를 따른다)', async () => {
+    const { calls, result } = await load('me.html', { session: SESSION, isAdmin: true });
     expect(calls.rpc).toContain('is_admin');
-    expect(roleShown()).toEqual({ planner: false, admin: true, worker: false });
+    expect(roleShown()).toEqual({ ...none, 'admin-app': true, admin: true });
     expect(visible($('#sgRoles'))).toBe(true);
+    expect(result.admin).toBe(true);
   });
 
-  test('관리자 아님 (is_admin 거짓) — 관리자 화면은 감춘다', async () => {
+  test('관리자 아님 (is_admin 거짓) — 관리 · 관리자 화면은 감춘다', async () => {
     await load('me.html', {
       session: SESSION,
       isAdmin: false,
       profile: { tier: 'agent', detaildesign_approved: false },
     });
+    expect(roleShown()['admin-app']).toBe(false);
     expect(roleShown().admin).toBe(false);
   });
 
-  test('작업자 (GET /work/me 에 작업자 행) — 작업자 포털, 본인 토큰으로 묻는다', async () => {
-    const { calls } = await load('me.html', {
-      session: SESSION,
-      workMe: { ready: true, worker: { id: 'w1', status: 'approved', display_name: '작업자' } },
-    });
-    expect(roleShown()).toEqual({ planner: false, admin: false, worker: true });
+  test('작업자 (GET /work/me 에 작업자 행) — 작업, 본인 토큰으로 묻는다 (설계 · 작업 · 비서 판정 한 번씩)', async () => {
+    const { calls, result } = await load('me.html', { session: SESSION, workMe: WORKER });
+    expect(roleShown()).toEqual({ ...none, worker: true });
+    expect(result.worker).toBe(true);
     expect(calls.fetch).toEqual([
       { url: 'https://work.example.workers.dev/planner/access', auth: 'Bearer tok-1' },
       { url: 'https://work.example.workers.dev/work/me', auth: 'Bearer tok-1' },
@@ -472,24 +505,58 @@ describe('내 정보 — 역할 메뉴는 기존 판정 모듈을 따른다', ()
     ['작업자 행 없음', { workMe: { ready: true, worker: null } }],
     ['표가 아직 없음', { workMe: { ready: false, worker: { id: 'w1' } } }],
     ['요청 실패', { workFail: true }],
-  ])('작업자 포털 감춤 — %s', async (_name, extra) => {
+  ])('작업 감춤 — %s', async (_name, extra) => {
     await load('me.html', { session: SESSION, ...extra });
     expect(roleShown().worker).toBe(false);
   });
 
-  test('관리자이면서 작업자, 설계 가능 — 셋 다', async () => {
+  test('비서 — 자격(level full · read)이 있으면 연다, none · 403 · 끊김이면 감춘다', async () => {
+    const on = await load('me.html', { session: SESSION, assistant: FULL });
+    expect(roleShown()).toEqual({ ...none, assistant: true });
+    expect(on.result.assistant).toBe(true);
+    expect(on.calls.fetch).toContainEqual({ url: ASSISTANT_ME, auth: 'Bearer tok-1' });
+    await load('me.html', {
+      session: SESSION,
+      assistant: { ...FULL, level: 'read', can_chat: false },
+    });
+    expect(roleShown().assistant).toBe(true);
+    for (const assistant of [{ ...FULL, level: 'none', can_chat: false }, null, 'fail']) {
+      const r = await load('me.html', { session: SESSION, assistant });
+      expect(roleShown().assistant).toBe(false);
+      expect(r.result.assistant).toBe(false);
+    }
+  });
+
+  test('비서 — 참은 1분 기억한다 (마이페이지를 다시 열 때마다 묻지 않는다)', async () => {
+    await load('me.html', { session: SESSION, assistant: FULL });
+    const again = await load('me.html', { session: SESSION, keepStorage: true });
+    expect(roleShown().assistant).toBe(true);
+    expect(again.calls.fetch.map((f) => f.url)).not.toContain(ASSISTANT_ME);
+    jest.spyOn(Date, 'now').mockReturnValue(Date.now() + 61000);
+    const later = await load('me.html', { session: SESSION, keepStorage: true });
+    expect(roleShown().assistant).toBe(false);
+    expect(later.calls.fetch.map((f) => f.url)).toContain(ASSISTANT_ME);
+    jest.restoreAllMocks();
+  });
+
+  test('관리자이면서 작업자, 설계 · 비서 가능 — 다섯 다', async () => {
     await load('me.html', {
       session: SESSION,
       isAdmin: true,
       workMe: { ready: true, worker: { id: 'w1', status: 'approved' } },
-      planner: { company: { id: 'hq', name: '다담 공장', kind: 'hq', plan: null }, role: 'admin', can_manage: true },
+      assistant: FULL,
+      planner: {
+        company: { id: 'hq', name: '다담 공장', kind: 'hq', plan: null },
+        role: 'admin',
+        can_manage: true,
+      },
     });
-    expect(roleShown()).toEqual({ planner: true, admin: true, worker: true });
+    expect(roleShown()).toEqual(Object.fromEntries(KEYS.map((k) => [k, true])));
   });
 });
 
 describe('사업자 정보 — 사이트 푸터(js/site-shell.js)와 같다', () => {
-  test('PC 푸터와 폰 내 정보에 같은 사업자 정보가 있고, 사이트 푸터 글과 같다', async () => {
+  test('PC 푸터와 폰 마이페이지에 같은 사업자 정보가 있고, 사이트 푸터 글과 같다', async () => {
     await load('me.html');
     const biz = { ...window.SeganShell.BIZ };
     const footer = $('footer.sg-footer').textContent;
@@ -498,7 +565,7 @@ describe('사업자 정보 — 사이트 푸터(js/site-shell.js)와 같다', ()
       expect(footer).toContain(v);
       expect(inMe).toContain(v);
     }
-    // 다른 탭에는 내 정보 안 사업자 칸이 없다 (푸터만)
+    // 다른 탭에는 마이페이지 안 사업자 칸이 없다 (푸터만)
     await load('index.html');
     expect($('.sg-biz')).toBeNull();
     expect($('footer.sg-footer')).not.toBeNull();
@@ -515,25 +582,25 @@ describe('사업자 정보 — 사이트 푸터(js/site-shell.js)와 같다', ()
 describe('숨김 · 접근성 · 안전 영역', () => {
   const PAGES = fs.readdirSync(path.join(ROOT, 'segan')).filter((n) => n.endsWith('.html'));
 
-  test.each(PAGES)('%s — 검색(공개 셋 index · collection · consult 만 연다) · 매니페스트 · 아이콘', (page) => {
-    const html = read(`segan/${page}`);
-    if (['index.html', 'collection.html', 'consult.html'].includes(page)) expect(html).not.toMatch(/name="robots"/);
-    else expect(html).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
-    expect(html).toMatch(/rel="manifest"/);
-    expect(html).toMatch(/rel="apple-touch-icon"/);
-  });
-
-  test.each(Object.values(TAB_PAGES))(
-    '%s — 공용 셸(shell.css · shell.js)과 자리표시 4종',
+  test.each(PAGES)(
+    '%s — 검색(공개 index · collection · consult · about · plans 만 연다) · 매니페스트 · 아이콘',
     (page) => {
       const html = read(`segan/${page}`);
-      expect(html).toMatch(/<link rel="stylesheet" href="shell\.css\?v=\d+" \/>/);
-      expect(html).toMatch(/<script src="shell\.js\?v=\d+" defer><\/script>/);
-      for (const slot of ['header', 'footer', 'tabbar'])
-        expect(html).toContain(`data-segan-shell="${slot}"`);
-      expect(html).toMatch(/<body class="sg-app" data-tab="\w+">/);
+      if (PUBLIC.includes(page)) expect(html).not.toMatch(/name="robots"/);
+      else expect(html).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
+      expect(html).toMatch(/rel="manifest"/);
+      expect(html).toMatch(/rel="apple-touch-icon"/);
     }
   );
+
+  test.each(TAB_PAGES)('%s — 공용 셸(shell.css · shell.js)과 자리표시 4종', (page) => {
+    const html = read(`segan/${page}`);
+    expect(html).toMatch(/<link rel="stylesheet" href="shell\.css\?v=\d+" \/>/);
+    expect(html).toMatch(/<script src="shell\.js\?v=\d+" defer><\/script>/);
+    for (const slot of ['header', 'footer', 'tabbar'])
+      expect(html).toContain(`data-segan-shell="${slot}"`);
+    expect(html).toMatch(/<body class="sg-app" data-tab="\w+">/);
+  });
 
   test('누르는 곳은 44px 이상 · 아래 탭은 안전 영역(env(safe-area-inset-bottom))을 띄운다', () => {
     const css = read('segan/shell.css');
@@ -562,15 +629,38 @@ describe('숨김 · 접근성 · 안전 영역', () => {
     expect(rule('.sg-app')).toMatch(/env\(safe-area-inset-bottom\)/); // 본문이 탭 뒤로 숨지 않게
   });
 
-  test('폰은 아래 탭, PC(768px~)는 위 메뉴 + 푸터', () => {
+  test('폰 · 태블릿은 아래 탭, PC(1024px~)는 위 메뉴 + 푸터 — 768px 칸에는 메뉴 · 탭 규칙이 없다', () => {
     const css = read('segan/shell.css');
-    const parts = css.split('@media (min-width: 768px)');
+    const parts = css.split('@media (min-width: 1024px)');
     expect(parts).toHaveLength(2);
     const wide = parts[1];
     expect(wide).toMatch(/\.sg-tabbar\s*\{\s*display:\s*none;/);
     expect(wide).toMatch(/\.sg-nav\s*\{[^}]*display:\s*flex;/);
+    expect(wide).toMatch(/\.sg-nav \.sg-nav-end\s*\{\s*margin-left:\s*auto;/);
     expect(wide).toMatch(/\.sg-footer\s*\{\s*display:\s*block;/);
     expect(wide).toMatch(/\.sg-biz\s*\{\s*display:\s*none;/);
+    expect(wide).toMatch(/\.sg-app\s*\{\s*padding-bottom:\s*0;/);
+    const mid = css.split('@media (min-width: 768px)')[1].split('@media (min-width: 1024px)')[0];
+    for (const sel of ['.sg-tabbar', '.sg-nav', '.sg-footer', '.sg-biz', '.sg-app', '.sg-header'])
+      expect([sel, new RegExp(`\\${sel}\\s*\\{`).test(mid)]).toEqual([sel, false]);
+  });
+
+  test('아래 탭 위에 붙는 것(버튼 줄 · 비서 입력 · 장부 알림)은 탭이 없어지는 1024px 부터 아래로 내린다', () => {
+    const at1024 = (file) =>
+      (read(file).split('@media (min-width: 1024px)')[1] || '').split('@media')[0];
+    const at768 = (file) =>
+      read(file)
+        .split('@media (min-width: 768px)')
+        .slice(1)
+        .map((part) => part.split('@media')[0])
+        .join('');
+    expect(at1024('segan/make.css')).toMatch(/\.mk-bar\s*\{\s*bottom:\s*0;/);
+    expect(at768('segan/make.css')).not.toMatch(/\.mk-bar\s*\{[^}]*bottom/);
+    expect(at1024('segan/assistant.css')).toMatch(/\.as-form\s*\{\s*bottom:\s*0;/);
+    expect(at768('segan/assistant.css')).not.toMatch(/\.as-form\s*\{/);
+    expect(at1024('segan/ledger.css')).toMatch(/\.lg-state\s*\{\s*bottom:\s*24px;/);
+    expect(at1024('segan/ledger.css')).toMatch(/\.lg-tabs\s*\{\s*top:\s*88px;/); // 위 메뉴 높이
+    expect(at768('segan/ledger.css')).not.toMatch(/\.lg-(state|tabs)\s*\{/);
   });
 });
 

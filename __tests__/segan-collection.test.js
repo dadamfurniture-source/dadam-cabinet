@@ -283,12 +283,12 @@ describe('자재 — 시공사례 화면 안의 둘째 칸 (사이트 material.h
     expect(tiles()).toHaveLength(9);
   });
 
-  test('아래 탭은 넷 그대로 — 자재 탭을 따로 만들지 않는다', async () => {
+  test('아래 탭은 다섯 그대로 — 자재 탭을 따로 만들지 않는다', async () => {
     await load();
     const keys = [...document.querySelectorAll('nav.sg-tabbar a:not([hidden])')].map((a) =>
       a.getAttribute('data-tab-link')
     );
-    expect(keys).toEqual(['make', 'collection', 'renders', 'me']);
+    expect(keys).toEqual(['make', 'collection', 'blog', 'about', 'me']);
     expect(
       document.querySelector('nav.sg-tabbar [aria-current="page"]').getAttribute('data-tab-link')
     ).toBe('collection');

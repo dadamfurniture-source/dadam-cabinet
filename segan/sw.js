@@ -25,7 +25,7 @@
 /* global self, caches, fetch, Request, Response, URL */
 'use strict';
 
-const ASSET_VERSION = '2026110803';
+const ASSET_VERSION = '2026110804';
 const CACHE_PREFIX = 'segan-shell-';
 const CACHE = CACHE_PREFIX + ASSET_VERSION;
 const SCOPE = new URL('./', self.location.href).pathname; // '/segan/'
@@ -33,26 +33,31 @@ const OFFLINE = SCOPE + 'offline.html';
 const versioned = (p) => `${p}?v=${ASSET_VERSION}`;
 
 const SHELL = [
-  SCOPE, // 만들기 (index.html = start_url)
+  SCOPE, // AI 연출컷 — 만들기 (index.html = start_url)
   SCOPE + 'collection.html', // 시공사례
-  SCOPE + 'renders.html', // 내 연출컷
-  SCOPE + 'me.html', // 내 정보
-  SCOPE + 'settings.html', // 내 정보 › 설정 · 프로필 · 탈퇴
-  SCOPE + 'billing.html', // 내 정보 › 구독 관리 (토스 카드 등록이 돌아오는 곳)
-  SCOPE + 'activity.html', // 내 정보 › 내 활동 (추천 팩토리 · 시공 평가 · 내 시공사례)
+  SCOPE + 'blog.html', // 블로그 (글 준비 중)
+  SCOPE + 'about.html', // AI 시스템 소개 (폰 탭 SEGAN)
+  SCOPE + 'plans.html', // 구독 (폰 탭 SEGAN 안 [소개 | 구독])
+  SCOPE + 'renders.html', // 마이페이지 › 내 연출컷
+  SCOPE + 'me.html', // 마이페이지
+  SCOPE + 'settings.html', // 마이페이지 › 설정 · 프로필 · 탈퇴
+  SCOPE + 'billing.html', // 마이페이지 › 구독 관리 (토스 카드 등록이 돌아오는 곳)
+  SCOPE + 'activity.html', // 마이페이지 › 내 활동 (추천 팩토리 · 시공 평가 · 내 시공사례)
   SCOPE + 'consult.html', // 만들기 ④ 상담 신청
-  SCOPE + 'join.html', // 내 정보 — 업체 직원 초대 받기
-  SCOPE + 'admin.html', // 관리 (관리자에게만 탭이 보인다)
-  SCOPE + 'work.html', // 작업 (작업자에게만 탭이 보인다 — 예전 worker.html)
-  SCOPE + 'pay.html', // 내 정보 — 수금 일정 결제 결과 (결제창이 돌아오는 곳)
-  SCOPE + 'ledger.html', // 내 정보 › 회계 — 업체 장부 (대표 · 실장)
+  SCOPE + 'join.html', // 마이페이지 — 업체 직원 초대 받기
+  SCOPE + 'admin.html', // 마이페이지 › 업무 › 관리 (관리자)
+  SCOPE + 'work.html', // 마이페이지 › 업무 › 작업 (작업자 — 예전 worker.html)
+  SCOPE + 'pay.html', // 마이페이지 — 수금 일정 결제 결과 (결제창이 돌아오는 곳)
+  SCOPE + 'ledger.html', // 마이페이지 › 회계 — 업체 장부 (대표 · 실장)
   SCOPE + 'ledger-board.html', // 회계 한눈에 옛 주소 — 회계(ledger.html#board)로 넘긴다
   SCOPE + 'ledger-report.html', // 회계 › 보고서 — 인쇄용 월 회계 보고서 (대표 · 실장)
-  SCOPE + 'assistant.html', // 비서 — AI 비서 대화 (자격이 있는 업체 구성원에게만 탭이 보인다)
+  SCOPE + 'assistant.html', // 마이페이지 › 업무 › 비서 — AI 비서 대화 (자격이 있는 업체 구성원)
   OFFLINE,
   SCOPE + 'manifest.webmanifest',
   versioned(SCOPE + 'shell.css'),
   versioned(SCOPE + 'shell.js'),
+  versioned(SCOPE + 'info.css'),
+  versioned(SCOPE + 'plans.js'),
   versioned(SCOPE + 'make.css'),
   versioned(SCOPE + 'make.js'),
   versioned(SCOPE + 'consult.js'),

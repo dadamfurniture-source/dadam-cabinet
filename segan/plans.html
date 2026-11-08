@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="Standard · Manager · Expert · Agent 등급의 도구와 월 금액 비교" />
+    <link rel="canonical" href="https://dadamfurniture.com/segan/plans" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SEGAN" />
+    <meta property="og:title" content="구독 · SEGAN" />
+    <meta property="og:description" content="Standard · Manager · Expert · Agent 등급의 도구와 월 금액 비교" />
+    <meta property="og:url" content="https://dadamfurniture.com/segan/plans" />
+    <meta property="og:image" content="https://dadamfurniture.com/segan/icons/icon-512.png" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>구독 · SEGAN</title>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026110804" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110804" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110804" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110804" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="shell.css?v=2026110804" />
+    <link rel="stylesheet" href="info.css?v=2026110804" />
+    <!-- 금액 · 이름은 payments-api GET /plans, 월 크레딧은 credit_plans · credit_costs (로그인 없이 읽는다) -->
+    <script src="../js/config.js?v=2026110804"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
+    <script src="shell.js?v=2026110804" defer></script>
+    <script src="plans.js?v=2026110804" defer></script>
+  </head>
+  <body class="sg-app" data-tab="plans">
+    <div data-segan-shell="header"></div>
+
+    <main class="sg-main" id="main">
+      <!-- 폰 · 태블릿 — 아래 탭 SEGAN 하나에 소개 · 구독 (PC 는 위 메뉴에 둘 다 있어 감춘다) -->
+      <nav class="in-seg" aria-label="SEGAN">
+        <a href="about.html">소개</a>
+        <a href="plans.html" aria-current="page">구독</a>
+      </nav>
+
+      <h1 class="sg-h1">구독</h1>
+      <p class="in-lead">
+        Standard 는 무료로 씁니다. 등급이 올라갈수록 아래 등급의 도구에 더해 쓸 수 있는 도구가 늘어납니다.
+      </p>
+
+      <!-- 금액을 못 읽으면 금액 없이 표만 보이고 이 줄에 알린다 (segan/plans.js) -->
+      <p class="pl-state" id="plState" role="status"></p>
+
+      <div class="pl-tiers" id="plTiers">
+        <article class="pl-tier" data-tier="standard" aria-labelledby="plName-standard">
+          <h2 class="pl-name" id="plName-standard">Standard</h2>
+          <p class="pl-price">무료</p>
+          <p class="pl-credit" data-credit="standard"></p>
+          <p class="pl-inherit">누구나</p>
+          <ul class="pl-feats">
+            <li>AI 연출컷 (월 횟수 제한)</li>
+            <li>예상 견적</li>
+            <li>상담 신청</li>
+            <li>업체 추천</li>
+          </ul>
+          <a class="in-btn" href="./">AI 연출컷 시작</a>
+        </article>
+
+        <article class="pl-tier" data-tier="manager" aria-labelledby="plName-manager">
+          <h2 class="pl-name" id="plName-manager" data-name="manager">Manager</h2>
+          <p class="pl-price" data-price="manager"></p>
+          <p class="pl-credit" data-credit="manager"></p>
+          <p class="pl-inherit">Standard 의 모든 것에 더해</p>
+          <ul class="pl-feats">
+            <li>플래너</li>
+            <li>프로젝트 관리</li>
+            <li>렌더링</li>
+            <li>가구제작 업체 매칭 (본사 추천 중 선택)</li>
+            <li>상세 견적</li>
+          </ul>
+          <a class="in-btn in-btn--solid" href="me.html#partner" data-signup="manager">결제하고 시작</a>
+          <p class="in-note pl-after">결제하면 바로 시작합니다.</p>
+        </article>
+
+        <article class="pl-tier" data-tier="expert" aria-labelledby="plName-expert">
+          <h2 class="pl-name" id="plName-expert" data-name="expert">Expert</h2>
+          <p class="pl-price" data-price="expert"></p>
+          <p class="pl-credit" data-credit="expert"></p>
+          <p class="pl-inherit">Manager 의 모든 것에 더해</p>
+          <ul class="pl-feats">
+            <li>플래너 AI 학습</li>
+            <li>설계 제안</li>
+            <li>BOM 산출</li>
+            <li>발주서</li>
+            <li>작업지시서</li>
+            <li>재고 관리</li>
+            <li>고객 상담 배분</li>
+          </ul>
+          <a class="in-btn in-btn--solid" href="me.html#partner" data-signup="expert">결제하고 시작</a>
+          <p class="in-note pl-after">결제하면 바로 시작합니다.</p>
+        </article>
+
+        <article class="pl-tier" data-tier="agent" aria-labelledby="plName-agent">
+          <h2 class="pl-name" id="plName-agent" data-name="agent">Agent</h2>
+          <p class="pl-price" data-price="agent"></p>
+          <p class="pl-credit" data-credit="agent"></p>
+          <p class="pl-inherit">Expert 의 모든 것에 더해</p>
+          <ul class="pl-feats">
+            <li>업무 일정 AI</li>
+            <li>작업자 분배 AI</li>
+            <li>회계 관리</li>
+            <li>인력 관리</li>
+            <li>작업자 대시보드</li>
+            <li>AI 비서 업무 모드</li>
+          </ul>
+          <a class="in-btn in-btn--solid" href="me.html#partner" data-signup="agent">신청하기</a>
+          <p class="in-note pl-after">신청 → 현장 미팅 → 본사 승인 뒤 시작합니다.</p>
+        </article>
+      </div>
+
+      <ul class="pl-notes">
+        <li>Manager · Expert · Agent 는 팩토리(업체) 구독입니다. 결제 · 신청은 마이페이지 › 팩토리에서 합니다.</li>
+        <li>표시 금액은 월 구독료이며 VAT 포함입니다. 카드가 등록되면 매월 자동 결제됩니다.</li>
+        <li>크레딧은 매월 새로 지급되며 이월되지 않습니다. 생성이 실패하면 차감분은 돌려드립니다.</li>
+        <li>해지는 마이페이지 › 구독 관리에서 언제든 할 수 있고, 이미 결제한 기간까지는 그대로 씁니다.</li>
+      </ul>
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+  </body>
+</html>

@@ -124,7 +124,8 @@
   font-weight: 400;
 }
 
-@media (min-width: 768px) {
+/* 아래 탭이 없고 위 메뉴가 88px 인 폭 (segan/shell.css 1024px~) */
+@media (min-width: 1024px) {
   .lg-state {
     bottom: 24px;
   }

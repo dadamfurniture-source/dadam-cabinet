@@ -20,7 +20,13 @@ const SEGAN = path.join(ROOT, 'segan');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const MANIFEST = JSON.parse(read('segan/manifest.webmanifest'));
 /** 검색에 여는 앱 화면 — 사이트맵 · _redirects 의 대상과 같다 */
-const PUBLIC_PAGES = ['segan/index.html', 'segan/collection.html', 'segan/consult.html'];
+const PUBLIC_PAGES = [
+  'segan/index.html',
+  'segan/collection.html',
+  'segan/consult.html',
+  'segan/about.html',
+  'segan/plans.html',
+];
 const SEGAN_PAGES = fs
   .readdirSync(SEGAN)
   .filter((n) => n.endsWith('.html'))
@@ -327,7 +333,7 @@ describe('전환 — 옛 주소는 앱으로', () => {
     const want = {
       '/': '/segan/', index: '/segan/', 'ai-design': '/segan/', collection: '/segan/collection',
       material: '/segan/collection#material', consultation: '/segan/consult', 'partner-recommendation': '/segan/consult',
-      'my-designs': '/segan/renders', mypage: '/segan/me', pricing: '/segan/me#partner', billing: '/segan/billing', worker: '/segan/work',
+      'my-designs': '/segan/renders', mypage: '/segan/me', pricing: '/segan/plans', billing: '/segan/billing', worker: '/segan/work',
     };
     for (const [page, to] of Object.entries(want)) {
       if (page === '/') {
@@ -355,13 +361,26 @@ describe('전환 — 옛 주소는 앱으로', () => {
       expect(froms).not.toContain(keep);
   });
 
-  test('robots.txt — 사이트맵 줄 · docs · admin 막기, 사이트맵은 앱 공개 화면 셋', () => {
+  test('robots.txt — 사이트맵 줄 · docs · admin 막기, 사이트맵은 앱 공개 화면 (블로그는 글이 생긴 뒤)', () => {
     const robots = read('robots.txt');
     expect(robots).toMatch(/^Sitemap: https:\/\/dadamfurniture\.com\/sitemap\.xml$/m);
     expect(robots).toMatch(/^Disallow: \/docs\/$/m);
     expect(robots).toMatch(/^Disallow: \/admin\/$/m);
     const locs = [...read('sitemap.xml').matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
-    expect(locs).toEqual(['https://dadamfurniture.com/segan/', 'https://dadamfurniture.com/segan/collection', 'https://dadamfurniture.com/segan/consult']);
+    expect(locs).toEqual([
+      'https://dadamfurniture.com/segan/',
+      'https://dadamfurniture.com/segan/collection',
+      'https://dadamfurniture.com/segan/consult',
+      'https://dadamfurniture.com/segan/about',
+      'https://dadamfurniture.com/segan/plans',
+    ]);
+    // 사이트맵 = 검색에 여는 앱 화면 (주소는 확장자 없이)
+    const pageOf = (u) => {
+      const rest = u.replace('https://dadamfurniture.com/segan/', '');
+      return `segan/${rest || 'index'}.html`;
+    };
+    expect(locs.map(pageOf)).toEqual(PUBLIC_PAGES);
+    expect(locs).not.toContain('https://dadamfurniture.com/segan/blog');
   });
 });
 

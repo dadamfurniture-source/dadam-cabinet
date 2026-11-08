@@ -118,13 +118,14 @@ describe('누가 보나', () => {
     expect(calls.fetch).toHaveLength(0);
   });
 
-  test('관리자가 아니면 「관리자만 볼 수 있습니다」, 수를 묻지 않는다 · 탭도 감춘다', async () => {
+  test('관리자가 아니면 「관리자만 볼 수 있습니다」, 수를 묻지 않는다', async () => {
     const calls = await load({ isAdmin: false });
     expect($('adDenied').hidden).toBe(false);
     expect($('adToday').hidden).toBe(true);
     expect($('adPc').hidden).toBe(true);
     expect(calls.fetch).toHaveLength(0);
-    expect(document.querySelector('nav.sg-tabbar a[data-tab-link="admin"]').hidden).toBe(true);
+    // 관리는 막대에 탭이 없다 — 마이페이지 「업무」에서 온다, 막대는 「마이」가 켜진다
+    expect(document.querySelector('[data-tab-link="admin"]')).toBeNull();
   });
 });
 
@@ -133,9 +134,12 @@ describe('오늘 할 일', () => {
     const calls = await load();
     expect($('adDenied').hidden).toBe(true);
     expect($('adToday').hidden).toBe(false);
-    const tab = document.querySelector('nav.sg-tabbar a[data-tab-link="admin"]');
-    expect(tab.hidden).toBe(false);
-    expect(tab.getAttribute('aria-current')).toBe('page');
+    // 관리 화면은 마이페이지 안 — 막대에는 관리 탭 없이 「마이」 · 「마이페이지」가 켜진다
+    expect(document.querySelector('[data-tab-link="admin"]')).toBeNull();
+    for (const sel of ['nav.sg-tabbar', '.sg-header nav.sg-nav'])
+      expect(
+        document.querySelector(sel + ' [aria-current="page"]').getAttribute('data-tab-link')
+      ).toBe('me');
     expect(today()).toEqual([
       ['applications', '새 팩토리 신청', '3건', true, '#applications'],
       ['pending', '배정을 기다리는 상담', '2건', true, '#consults'],

@@ -1071,8 +1071,8 @@
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
+  /* 넓은 본문 여백 안에 — 아래 탭 위에 붙는 것(bottom)은 1024px 까지 그대로 */
   .mk-bar {
-    bottom: 0;
     margin: auto 0 0;
     padding: 14px 0 18px;
   }
@@ -1080,5 +1080,12 @@
   .rd-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 26px;
+  }
+}
+
+/* 아래 탭이 없는 폭 (segan/shell.css 1024px~) — 버튼 줄은 화면 아래에 */
+@media (min-width: 1024px) {
+  .mk-bar {
+    bottom: 0;
   }
 }
