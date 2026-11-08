@@ -130,6 +130,11 @@
     bottom: 24px;
   }
 
+  /* SEGAN 비서 입력 줄(segan/guide.js — 화면 아래 20px · 높이 48px) 위로 */
+  body.sg-ai-on .lg-state {
+    bottom: 92px;
+  }
+
   .lg-tabs {
     top: 88px;
   }
