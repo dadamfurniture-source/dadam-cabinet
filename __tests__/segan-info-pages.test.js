@@ -8,7 +8,9 @@
  *     /plans 를 못 읽으면 금액 없이 표만 + 알림 (숫자를 지어내지 않는다). 가입 단추는 모두 me.html#partner
  *   - 소개: 흐름 상자(그림 없이) · 강점 · 「AI 연출컷 시작」 · 「구독 보기」
  *   - 소개 · 구독 위 [소개 | 구독] (폰 · 태블릿만 — PC 는 위 메뉴에 둘 다), 폰 탭 SEGAN 이 두 화면에서 켜진다
- *   - 매거진: 분류 넷 · 「글을 준비하고 있습니다」 · 검색에 내지 않는다
+ *   - 매거진: 분류 넷마다 그 분류의 글 (제목 · 한 줄 소개 · 읽는 시간 → blog-<이름>.html)
+ *   - 매거진 글: 매거진 탭이 켜진다 · 「‹ 매거진」 · 검토용 표시(확인 필요 · 메모 · 그림 제안)가 없다 · 표는 칸마다 옆으로 넘긴다
+ *     · 끝에 「고객이 확인할 것」 · 다른 글 링크. 목록도 글도 아직 검색에 내지 않는다 (noindex · 사이트맵 없음)
  */
 const fs = require('fs');
 const path = require('path');
@@ -335,16 +337,207 @@ describe('AI 시스템 소개 (about.html)', () => {
   });
 });
 
-describe('매거진 (blog.html)', () => {
-  test('분류 넷(자재 · 설치 · 하드웨어 · 주방기기) · 「글을 준비하고 있습니다」 · 검색에 내지 않는다', async () => {
+/** 매거진 글 — [이름, 분류, 제목, 읽는 시간(분)] (목록 차례). 글 화면은 segan/blog-<이름>.html */
+const ARTICLES = [
+  ['materials', '자재', '보드부터 엣지까지, 가구 자재 읽는 법', 5],
+  ['edge-finish', '설치', '몰딩 · 휠라 · 쫄 · 무몰딩, 가구 끝 마감 구분하기', 4],
+  ['hardware', '하드웨어', '서랍레일 · 망장 · 쇼바 · 리프트업, 여닫는 철물 고르기', 5],
+  ['kitchen-appliances', '주방기기', '싱크볼 · 수전 · 후드 · 쿡탑, 가구보다 먼저 정하는 이유', 5],
+];
+const articlePage = (slug) => `blog-${slug}.html`;
+/** 표 하나 — 캡션 글로 찾는다 */
+const tableOf = (caption) =>
+  $$('article table').find((t) => text(t.querySelector('caption')) === caption);
+/** 아직 검색에 내지 않는다 — noindex · canonical 없음 · 사이트맵에 없음 */
+const expectHidden = (page) => {
+  const html = read(`segan/${page}`);
+  expect(html).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
+  expect(html).not.toMatch(/rel="canonical"/);
+  expect(read('sitemap.xml')).not.toContain(`/segan/${page.replace(/\.html$/, '')}`);
+};
+
+describe('매거진 (blog.html) — 글 목록', () => {
+  test('분류 넷(자재 · 설치 · 하드웨어 · 주방기기)마다 그 분류의 글 — 제목 · 한 줄 소개 · 읽는 시간 → 글 화면', async () => {
     await load('blog.html');
     expect($$('.bl-cat h2').map(text)).toEqual(['자재', '설치', '하드웨어', '주방기기']);
-    expect(document.body.textContent).toContain('글을 준비하고 있습니다');
-    const html = read('segan/blog.html');
-    expect(html).toMatch(/<meta name="robots" content="noindex,nofollow" \/>/);
-    expect(html).not.toMatch(/rel="canonical"/);
-    expect(read('sitemap.xml')).not.toContain('/segan/blog');
+    const listed = $$('.bl-cat').map((cat) => [
+      text(cat.querySelector('h2')),
+      [...cat.querySelectorAll('a.bl-post')].map((a) => [
+        a.getAttribute('href'),
+        text(a.querySelector('.bl-post-title')),
+        text(a.querySelector('.bl-post-time')),
+      ]),
+    ]);
+    expect(listed).toEqual(
+      ARTICLES.map(([slug, cat, title, min]) => [
+        cat,
+        [[articlePage(slug), title, `읽는 시간 약 ${min}분`]],
+      ])
+    );
+    for (const a of $$('a.bl-post')) {
+      expect(text(a.querySelector('.bl-post-dek')).length).toBeGreaterThan(20);
+      expect(fs.existsSync(path.join(ROOT, 'segan', a.getAttribute('href')))).toBe(true);
+    }
+    // 빈 목록 때의 글은 남지 않는다
+    expect(document.body.textContent).not.toMatch(/글을 준비하고 있습니다|글 준비 중/);
     expect(text($('.sg-tabbar a[aria-current="page"]'))).toBe('매거진');
+    expect($('.sg-nav a[aria-current="page"]').getAttribute('href')).toBe('blog.html');
+  });
+
+  test('목록의 한 줄 소개는 글 머리의 한 줄 소개와 같다', async () => {
+    await load('blog.html');
+    const deks = $$('a.bl-post').map((a) => [
+      a.getAttribute('href'),
+      text(a.querySelector('.bl-post-dek')),
+    ]);
+    for (const [page, dek] of deks) {
+      await load(page);
+      expect([page, text($('.ma-dek'))]).toEqual([page, dek]);
+    }
+  });
+
+  test('아직 검색에 내지 않는다 — noindex · canonical 없음 · 사이트맵에 없음 (글 화면도)', () => {
+    expectHidden('blog.html');
+    expect(read('sitemap.xml')).not.toContain('/segan/blog');
+  });
+});
+
+describe.each(ARTICLES)('매거진 글 (blog-%s.html)', (slug, cat, title, min) => {
+  const page = articlePage(slug);
+
+  test('매거진 탭이 켜진다 · 머리(분류 · 제목 · 읽는 시간) · 「‹ 매거진」 · 셸 + SEGAN 비서만 싣는다', async () => {
+    const { calls, scripts } = await load(page);
+    expect(document.body.getAttribute('data-tab')).toBe('blog');
+    expect(text($('.sg-tabbar a[aria-current="page"]'))).toBe('매거진');
+    expect($('.sg-nav a[aria-current="page"]').getAttribute('href')).toBe('blog.html');
+    expect($$('h1').map(text)).toEqual([title]);
+    expect(text($('.ma-cat'))).toBe(cat);
+    expect(text($('.ma-meta'))).toBe(`읽는 시간 약 ${min}분`);
+    const back = $('a.ma-back');
+    expect([text(back), back.getAttribute('href')]).toEqual(['‹ 매거진', 'blog.html']);
+    expect(read(`segan/${page}`)).toContain(`<title>${title} · 매거진 · SEGAN</title>`);
+    // 읽기만 하는 화면 — 로그인 · 데이터를 묻지 않는다
+    expect(scripts.map((s) => s.split('?')[0])).toEqual([
+      '../js/config.js',
+      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45',
+      'shell.js',
+      'guide.js',
+    ]);
+    expect(calls.fetch).toEqual([]);
+  });
+
+  test('검토용 표시가 없다 — 확인 필요 · mark · 메모 상자 · 그림 제안 (HTML 주석까지)', async () => {
+    const html = read(`segan/${page}`);
+    expect(html).not.toMatch(/<mark\b/);
+    expect(html).not.toMatch(/<aside\b/);
+    expect(html).not.toMatch(/class="[^"]*\b(?:memo|cn|fig-idea|review)\b/);
+    for (const word of ['확인 필요', '그림 제안', '검토 메모', '싣지 않음'])
+      expect([word, html.includes(word)]).toEqual([word, false]);
+    await load(page);
+    expect($$('mark, .memo, aside, a.cn')).toHaveLength(0);
+  });
+
+  test('글 안에는 회사 · 앱 알림이 없고, 링크는 다른 매거진 글로만', async () => {
+    await load(page);
+    const article = $('article.ma-article');
+    expect(article.getAttribute('data-slug')).toBe(slug);
+    expect(text(article)).not.toMatch(/다담|SEGAN|저희|상담 신청|연출컷/);
+    for (const a of article.querySelectorAll('a'))
+      expect(a.getAttribute('href')).toMatch(/^blog-[a-z-]+\.html$/);
+  });
+
+  test('표는 칸마다 옆으로 넘기는 상자 안 · 끝에 「고객이 확인할 것」 · 아래에 다른 글 셋', async () => {
+    await load(page);
+    const tables = $$('article table');
+    expect(tables.length).toBeGreaterThan(1);
+    for (const t of tables) {
+      const box = t.parentElement;
+      expect(box.classList.contains('ma-table')).toBe(true);
+      expect(box.getAttribute('tabindex')).toBe('0'); // 키보드로도 넘긴다
+      expect(box.getAttribute('role')).toBe('region');
+      expect(box.getAttribute('aria-label')).toBe(text(t.querySelector('caption')));
+      const cols = t.querySelectorAll('thead th[scope="col"]').length;
+      if (cols >= 4) expect(t.classList.contains(`ma-cols-${cols}`)).toBe(true);
+    }
+    const sections = $$('article.ma-article > section');
+    const last = sections[sections.length - 1];
+    expect(last.classList.contains('ma-final')).toBe(true);
+    expect(text(last.querySelector('h2'))).toBe('고객이 확인할 것');
+    expect(last.querySelectorAll('ul.ma-check > li').length).toBeGreaterThanOrEqual(5);
+    expect($$('.ma-final')).toHaveLength(1);
+    expect($$('.ma-more a.bl-post').map((a) => a.getAttribute('href'))).toEqual(
+      ARTICLES.filter(([s]) => s !== slug).map(([s]) => articlePage(s))
+    );
+  });
+
+  test('아직 검색에 내지 않는다 — noindex · canonical 없음 · 사이트맵에 없음', () => {
+    expectHidden(page);
+  });
+});
+
+describe('매거진 글 — 실을 때 고친 곳', () => {
+  test('자재 — 몸통 15T 문장은 그대로, 가구 안전기준 1.5 mg/L 문장은 뺀다 (등급 표 · SE0 끝 글자 문장은 남긴다)', async () => {
+    await load('blog-materials.html');
+    const body = text($('article'));
+    expect(body).toContain(
+      '몸통 판은 보통 15T를 씁니다. 더 두꺼운 판을 쓰는 업체도 있으니, 견적서에 몸통 · 도어 · 뒷판의 보드와 두께가 따로 적혀 있는지 봅니다.'
+    );
+    expect(body).not.toContain('가구 안전기준');
+    expect(body).not.toContain('E1이 이 선에 있고');
+    expect(body).toContain('SE0의 끝 글자는 숫자 0입니다. Super E0를 줄인 말입니다.');
+    const grades = tableOf('포름알데히드 방출 등급');
+    expect([...grades.querySelectorAll('tbody tr')].map((tr) => text(tr))).toEqual([
+      'SE0 0.3 mg/L 이하 0.4 mg/L 이하 세 등급 가운데 방출량이 가장 적습니다.',
+      'E0 0.5 mg/L 이하 0.7 mg/L 이하 SE0 다음으로 적습니다.',
+      'E1 1.5 mg/L 이하 2.1 mg/L 이하 세 등급 가운데 방출량이 가장 많습니다.',
+    ]);
+  });
+
+  test('하드웨어 — 리프트업 움직임 이름은 그대로, Grass 는 Kinvaro 이름만 (모델 기호 · 카탈로그 문장 없음)', async () => {
+    await load('blog-hardware.html');
+    const lift = tableOf('리프트업 움직임과 브랜드별 제품');
+    expect([...lift.querySelectorAll('tbody th')].map(text)).toEqual([
+      '고정식',
+      '평행 리프트',
+      '스윙 업',
+      '이중 접이',
+    ]);
+    expect([...lift.querySelectorAll('tbody tr')].map((tr) => text(tr.lastElementChild))).toEqual([
+      '—',
+      'Kinvaro',
+      'Kinvaro',
+      'Kinvaro',
+    ]);
+    const grass = [...tableOf('국내에서 볼 수 있는 철물 브랜드').querySelectorAll('tbody tr')].find(
+      (tr) => text(tr.querySelector('th')).startsWith('Grass')
+    );
+    expect(text(grass.lastElementChild)).toBe('Kinvaro');
+    const body = text($('article'));
+    expect(body).toContain(
+      '움직임 이름은 이 글에서 설명하려고 붙인 말이라 업체마다 부르는 말이 다를 수 있습니다.'
+    );
+    expect(body).not.toMatch(/L-80|S-35|F-20/);
+    expect(body).not.toContain('카탈로그 기준');
+  });
+
+  test('설치 — 엣지 이야기는 자재 글로 잇는다', async () => {
+    await load('blog-edge-finish.html');
+    const link = $$('article a').find((a) => text(a) === '보드부터 엣지까지, 가구 자재 읽는 법');
+    expect(link.getAttribute('href')).toBe('blog-materials.html');
+  });
+
+  test('info.css — 표 상자만 옆으로 넘긴다 (본문은 390px 에서도 옆으로 밀리지 않는다)', () => {
+    const css = read('segan/info.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(css).toMatch(/\.ma-table\s*\{[^}]*overflow-x:\s*auto;/);
+    expect(css).toMatch(/\.ma-table\s*\{[^}]*max-width:\s*100%;/);
+    // 최소 폭은 표 상자 안(표 · 줄 머리)에만 — 상자 · 본문에는 없다
+    const mins = [...css.matchAll(/([^{}]+)\{[^}]*min-width:[^}]*\}/g)].map((m) => m[1].trim());
+    expect(mins).toEqual([
+      '.ma-table .ma-cols-4',
+      '.ma-table .ma-cols-5',
+      '.ma-table .ma-cols-6',
+      '.ma-table tbody th',
+    ]);
   });
 });
 
@@ -363,7 +556,12 @@ describe('주소 — 옛 /pricing 은 구독 화면으로, 서비스 워커가 �
 
   test('sw.js — 새 화면 · 스크립트 · 스타일을 미리 담는다', () => {
     const sw = read('segan/sw.js');
-    for (const page of ['about.html', 'plans.html', 'blog.html'])
+    for (const page of [
+      'about.html',
+      'plans.html',
+      'blog.html',
+      ...ARTICLES.map(([s]) => articlePage(s)),
+    ])
       expect(sw).toContain(`SCOPE + '${page}'`);
     for (const asset of ['plans.js', 'info.css'])
       expect(sw).toContain(`versioned(SCOPE + '${asset}')`);

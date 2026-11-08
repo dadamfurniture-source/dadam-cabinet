@@ -56,6 +56,11 @@ const CURRENT = {
   'consult.html': ['make', 'make'],
   'collection.html': ['collection', 'collection'],
   'blog.html': ['blog', 'blog'],
+  // 매거진 글 — 매거진 탭
+  'blog-materials.html': ['blog', 'blog'],
+  'blog-edge-finish.html': ['blog', 'blog'],
+  'blog-hardware.html': ['blog', 'blog'],
+  'blog-kitchen-appliances.html': ['blog', 'blog'],
   'about.html': ['about', 'about'],
   'plans.html': ['plans', 'about'],
   'me.html': ['me', 'me'],

@@ -361,7 +361,7 @@ describe('전환 — 옛 주소는 앱으로', () => {
       expect(froms).not.toContain(keep);
   });
 
-  test('robots.txt — 사이트맵 줄 · docs · admin 막기, 사이트맵은 앱 공개 화면 (매거진은 글이 생긴 뒤)', () => {
+  test('robots.txt — 사이트맵 줄 · docs · admin 막기, 사이트맵은 앱 공개 화면 (매거진 목록 · 글은 올린 글을 살펴본 뒤)', () => {
     const robots = read('robots.txt');
     expect(robots).toMatch(/^Sitemap: https:\/\/dadamfurniture\.com\/sitemap\.xml$/m);
     expect(robots).toMatch(/^Disallow: \/docs\/$/m);
@@ -381,6 +381,7 @@ describe('전환 — 옛 주소는 앱으로', () => {
     };
     expect(locs.map(pageOf)).toEqual(PUBLIC_PAGES);
     expect(locs).not.toContain('https://dadamfurniture.com/segan/blog');
+    expect(locs.filter((u) => u.includes('/segan/blog'))).toEqual([]); // 글(blog-*) 도 아직
   });
 });
 
