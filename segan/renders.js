@@ -652,7 +652,10 @@
       $('rdUnpostAsk').hidden = true;
     });
     $('rdUnpostYes').addEventListener('click', unpost);
-    window.addEventListener('popstate', function () {
+    window.addEventListener('popstate', function (e) {
+      // 시트 · 옆 패널이 넣은 기록 칸 (shell.js SeganShell.sheet) — 주소가 그대로라 화면을 바꾸지 않는다
+      var sheet = window.SeganShell && window.SeganShell.sheet;
+      if (sheet && sheet.isSheetState(e && e.state)) return;
       var g = new URLSearchParams(location.search).get('g');
       if (g && UUID_RE.test(g)) showDetail(g, false);
       else showList(false);

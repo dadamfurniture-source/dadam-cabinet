@@ -32,6 +32,8 @@
    관리자 화면 주소는 js/site-shell.js 와 같다 (admin/index.html).
 
    서비스 워커 등록 — 범위는 /segan/ 하나뿐이다. 기존 사이트는 서비스 워커를 쓰지 않는다.
+
+   시트 · 옆 패널 · 가운데 창 — SeganShell.sheet (아래 「시트」 칸에 규칙과 쓰는 법)
    ============================================================ */
 /* global window, document, navigator, location, fetch, CustomEvent */
 (function () {
@@ -154,7 +156,7 @@
   function headerHTML(current) {
     return (
       '<header class="sg-header">' +
-      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110713" alt="SEGAN" width="477" height="75" /></a>' +
+      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110801" alt="SEGAN" width="477" height="75" /></a>' +
       '<nav class="sg-nav" aria-label="주 메뉴">' +
       links(current, false) +
       '</nav>' +
@@ -517,6 +519,339 @@
     });
   }
 
+  // ── 시트 · 옆 패널 · 가운데 창 ───────────────────────────
+  /*
+     버튼이 여는 것 (앱 전체 규칙)
+       1. 화면 전환 — 기본. 주소가 바뀌고 뒤로 가기가 돌아온다 (이 도우미를 쓰지 않는다)
+       2. 시트 · 옆 패널 (kind 'sheet' · 'panel') — 지금 화면을 둔 채 짧게 보기 · 고치기.
+          폰은 아래에서 올라오는 시트, PC(1100px~)는 오른쪽 옆 패널. 한 번에 하나만 — 새로 열면 앞의 것을 닫는다
+       3. 가운데 작은 창 (kind 'dialog') — 막는 확인만 (지우기 확인 · 동의 · 로그인 필요 · 크레딧 부족).
+          시트 위에 겹쳐 열 수 있다
+     열면 방문 기록에 표시 칸 하나만 넣는다 — history.pushState({ sgSheet: n }, '') (주소 · # 은 그대로라
+     hashchange 가 없다). 뒤로 가기는 맨 위 창을 닫고, 그 popstate 는 페이지 처리기에 넘기지 않는다.
+     popstate 를 듣는 페이지는 맨 앞에서 SeganShell.sheet.isSheetState(e.state) 면 돌아간다
+     (닫은 뒤 「앞으로」로 남은 표시 칸에 다시 들어온 때).
+
+     쓰는 법
+       var h = SeganShell.sheet.open({ title: '사진 보기', body: node, kind: 'sheet',
+                                       onClose: function (why) {} });
+       h.close();   // 약속 — 표시 칸을 되돌린 뒤 풀린다. 닫고 바로 화면을 옮기면 이것을 기다린다
+     why: 'close'(h.close) · 'button'(닫기) · 'escape' · 'backdrop'(바깥) · 'back'(뒤로 가기) · 'replaced'(새 시트)
+     dismissible: false — Esc · 바깥 누르기 · 닫기 버튼으로 닫지 않는다 (뒤로 가기는 닫는다)
+     initialFocus: 창 안의 요소 — 없으면 창 자체에 초점
+  */
+  var SHEET_KEY = 'sgSheet';
+  var SHEET_KINDS = { sheet: true, panel: true, dialog: true };
+  var SHEET_POP_WAIT = 1500; // 닫기로 부른 history.back() 의 popstate 를 기다리는 한도 (ms)
+  var FOCUSABLE =
+    'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), ' +
+    'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  var sheetSeq = Date.now(); // 표시 번호 — 새로 고치기 전에 남은 옛 표시보다 늘 크다
+  var layers = []; // 열린 창 (아래 → 위)
+  var popWaits = []; // 닫기로 부른 history.back() — 돌아올 popstate 하나씩
+
+  function isSheetState(state) {
+    return !!state && typeof state === 'object' && typeof state[SHEET_KEY] === 'number';
+  }
+
+  /** 지금 기록 칸 값 + 새 표시 번호 (페이지가 둔 값은 그대로 둔다) */
+  function sheetState() {
+    var cur = window.history.state;
+    var out = {};
+    if (cur && typeof cur === 'object') {
+      for (var k in cur) if (Object.prototype.hasOwnProperty.call(cur, k)) out[k] = cur[k];
+    }
+    out[SHEET_KEY] = ++sheetSeq;
+    return out;
+  }
+
+  function focusables(root) {
+    return [].filter.call(root.querySelectorAll(FOCUSABLE), function (n) {
+      return !n.closest('[hidden]');
+    });
+  }
+
+  /** layers[from..] 를 위에서부터 닫는다 — 방문 기록은 건드리지 않는다. 닫은 창들을 돌려준다 */
+  function dropLayers(from, why) {
+    var gone = layers.splice(from);
+    if (!layers.length) document.body.classList.remove('sg-locked');
+    var errors = [];
+    for (var i = gone.length - 1; i >= 0; i--) {
+      var L = gone[i];
+      L.open = false;
+      if (L.wrap.parentNode) L.wrap.parentNode.removeChild(L.wrap);
+      if (why !== 'replaced' && L.opener && L.opener.isConnected && L.opener.focus) {
+        try {
+          L.opener.focus();
+        } catch {
+          /* 초점을 못 돌려도 닫는다 */
+        }
+      }
+      if (typeof L.onClose === 'function') {
+        try {
+          L.onClose(why);
+        } catch (err) {
+          errors.push(err);
+        }
+      }
+    }
+    // 닫는 처리기 오류는 다른 창을 다 닫은 뒤에 알린다
+    errors.forEach(function (err) {
+      window.setTimeout(function () {
+        throw err;
+      }, 0);
+    });
+    return gone;
+  }
+
+  /** 닫은 창의 표시 칸이 기록 맨 위에 있으면 그만큼 뒤로 — 돌아오는 popstate 는 이 셸이 받는다 */
+  function popEntries(gone) {
+    var st = window.history.state;
+    var cur = isSheetState(st) ? st[SHEET_KEY] : null;
+    var mine = gone.some(function (L) {
+      return L.entry === cur;
+    });
+    if (!mine) return Promise.resolve();
+    var n = gone.filter(function (L) {
+      return L.entry <= cur;
+    }).length;
+    return new Promise(function (resolve) {
+      var wait = { resolve: resolve };
+      wait.timer = window.setTimeout(function () {
+        var k = popWaits.indexOf(wait);
+        if (k >= 0) popWaits.splice(k, 1);
+        resolve();
+      }, SHEET_POP_WAIT);
+      popWaits.push(wait);
+      try {
+        if (n === 1) window.history.back();
+        else window.history.go(-n);
+      } catch {
+        window.clearTimeout(wait.timer);
+        popWaits.splice(popWaits.indexOf(wait), 1);
+        resolve();
+      }
+    });
+  }
+
+  function closeLayer(L, why) {
+    var i = layers.indexOf(L);
+    if (i < 0) return Promise.resolve();
+    return popEntries(dropLayers(i, why));
+  }
+
+  /** 뒤로 가기 — 지금 칸보다 뒤에 넣은 창을 닫고, 그 popstate 는 페이지 처리기에 넘기지 않는다 */
+  function onSheetPop(e) {
+    var st = e.state;
+    var at = isSheetState(st) ? st[SHEET_KEY] : -Infinity;
+    var handled = false;
+    if (popWaits.length) {
+      var wait = popWaits.shift();
+      window.clearTimeout(wait.timer);
+      wait.resolve();
+      handled = true;
+    }
+    for (var i = 0; i < layers.length; i++) {
+      if (layers[i].entry > at) {
+        dropLayers(i, 'back');
+        handled = true;
+        break;
+      }
+    }
+    if (handled) e.stopImmediatePropagation();
+  }
+
+  /** 창 안에서만 Tab 이 돈다 */
+  function trapTab(e, L) {
+    var list = focusables(L.box);
+    var active = document.activeElement;
+    var inside = L.box.contains(active);
+    if (!list.length) {
+      e.preventDefault();
+      L.box.focus();
+      return;
+    }
+    var first = list[0];
+    var last = list[list.length - 1];
+    if (e.shiftKey) {
+      if (!inside || active === first || active === L.box) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else if (!inside || active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
+  function onSheetKey(e) {
+    var L = layers[layers.length - 1];
+    if (!L) return;
+    if (e.key === 'Escape' || e.key === 'Esc') {
+      // 한글 조합 중 Esc 는 조합만 끝낸다
+      if (e.defaultPrevented || e.isComposing || !L.dismissible) return;
+      e.preventDefault();
+      closeLayer(L, 'escape');
+    } else if (e.key === 'Tab') {
+      trapTab(e, L);
+    }
+  }
+
+  /**
+   * 시트 · 옆 패널 · 가운데 창을 연다.
+   * @param {{ title?: string, body?: Node|string, kind?: 'sheet'|'panel'|'dialog',
+   *           onClose?: function(string), dismissible?: boolean, initialFocus?: Element }} opts
+   * @returns {{ kind: string, el: Element, body: Element, close: function(string=): Promise<void>,
+   *             isOpen: function(): boolean }}
+   */
+  function openSheet(opts) {
+    opts = opts || {};
+    var kind = SHEET_KINDS[opts.kind] ? opts.kind : 'sheet';
+    var opener = document.activeElement;
+    var reuse = false;
+    if (kind !== 'dialog') {
+      // 시트 · 옆 패널은 하나만 — 앞의 것(과 그 위 창)을 닫고, 그 표시 칸을 새 시트가 쓴다
+      for (var i = 0; i < layers.length; i++) {
+        if (layers[i].kind === 'dialog') continue;
+        var below = layers[i];
+        if (
+          layers.slice(i).some(function (L) {
+            return L.wrap.contains(opener);
+          })
+        )
+          opener = below.opener;
+        var cur = isSheetState(window.history.state) ? window.history.state[SHEET_KEY] : null;
+        reuse = dropLayers(i, 'replaced').some(function (L) {
+          return L.entry === cur;
+        });
+        break;
+      }
+    }
+
+    var state = sheetState();
+    var titleId = 'sgSheetTitle' + state[SHEET_KEY];
+    var wrap = document.createElement('div');
+    wrap.className = 'sg-sheet-wrap sg-sheet-wrap--' + kind;
+    var box = document.createElement('section');
+    box.className = 'sg-sheet';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.setAttribute('aria-labelledby', titleId);
+    box.tabIndex = -1;
+    var head = document.createElement('header');
+    head.className = 'sg-sheet-head';
+    var title = document.createElement('h2');
+    title.className = 'sg-sheet-title';
+    title.id = titleId;
+    title.textContent = opts.title || '';
+    var x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'sg-sheet-x';
+    x.textContent = '닫기';
+    head.appendChild(title);
+    head.appendChild(x);
+    var body = document.createElement('div');
+    body.className = 'sg-sheet-body';
+    if (opts.body && typeof opts.body === 'object' && opts.body.nodeType) {
+      body.appendChild(opts.body);
+    } else if (opts.body != null) {
+      body.textContent = String(opts.body);
+    }
+    box.appendChild(head);
+    box.appendChild(body);
+    wrap.appendChild(box);
+
+    var L = {
+      kind: kind,
+      wrap: wrap,
+      box: box,
+      entry: state[SHEET_KEY],
+      opener: opener && opener !== document.body ? opener : null,
+      onClose: opts.onClose,
+      dismissible: opts.dismissible !== false,
+      open: true,
+      downOnBack: null,
+    };
+    x.hidden = !L.dismissible;
+    x.addEventListener('click', function () {
+      closeLayer(L, 'button');
+    });
+    // 바깥 누르기 — 창 안에서 누르기 시작해 바깥에서 뗀 것은 치지 않는다
+    wrap.addEventListener('pointerdown', function (e) {
+      L.downOnBack = e.target === wrap;
+    });
+    wrap.addEventListener('click', function (e) {
+      var down = L.downOnBack;
+      L.downOnBack = null;
+      if (e.target !== wrap || down === false || !L.dismissible) return;
+      closeLayer(L, 'backdrop');
+    });
+
+    try {
+      // 주소 인자는 넘기지 않는다 — '' 를 넘기면 # 이 떨어진다
+      if (reuse) window.history.replaceState(state, '');
+      else window.history.pushState(state, '');
+    } catch {
+      /* 기록을 못 넣어도 창은 연다 (뒤로 가기만 창을 닫지 못한다) */
+    }
+    layers.push(L);
+    document.body.appendChild(wrap);
+    document.body.classList.add('sg-locked');
+    var focus = opts.initialFocus && box.contains(opts.initialFocus) ? opts.initialFocus : box;
+    try {
+      focus.focus();
+    } catch {
+      /* noop */
+    }
+
+    return {
+      kind: kind,
+      el: box,
+      body: body,
+      close: function (why) {
+        return closeLayer(L, why || 'close');
+      },
+      isOpen: function () {
+        return L.open;
+      },
+    };
+  }
+
+  /** 맨 위 창 — 없으면 null */
+  function currentSheet() {
+    var L = layers[layers.length - 1];
+    return L ? { kind: L.kind, el: L.box } : null;
+  }
+
+  /** 새로 고치면 창은 없다 — 기록 칸에 남은 표시만 지운다 (페이지가 둔 값은 그대로) */
+  function clearStaleSheetState() {
+    try {
+      var st = window.history.state;
+      if (!isSheetState(st)) return;
+      var kept = null;
+      for (var k in st) {
+        if (k === SHEET_KEY || !Object.prototype.hasOwnProperty.call(st, k)) continue;
+        kept = kept || {};
+        kept[k] = st[k];
+      }
+      window.history.replaceState(kept, '');
+    } catch {
+      /* noop */
+    }
+  }
+
+  clearStaleSheetState();
+
+  // 셸이 두 번 실려도(시험 · 잘못 넣은 태그) 처리기는 하나 — 앞 것을 뗀다
+  if (typeof window.__seganSheetOff === 'function') window.__seganSheetOff();
+  // capture — 페이지가 먼저 popstate 를 달아도 셸이 먼저 받는다
+  window.addEventListener('popstate', onSheetPop, true);
+  document.addEventListener('keydown', onSheetKey);
+  window.__seganSheetOff = function () {
+    window.removeEventListener('popstate', onSheetPop, true);
+    document.removeEventListener('keydown', onSheetKey);
+  };
+
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
     window.addEventListener('load', function () {
@@ -546,5 +881,11 @@
     detectRoles: detectRoles,
     assistantBase: assistantBase,
     ready: ready,
+    sheet: {
+      open: openSheet,
+      isSheetState: isSheetState,
+      current: currentSheet,
+      STATE_KEY: SHEET_KEY,
+    },
   };
 })();

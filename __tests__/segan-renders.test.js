@@ -300,6 +300,16 @@ describe('하나 열기 — 컷 · 견적 · 상담 신청', () => {
     expect(visible($('rdList'))).toBe(true);
   });
 
+  test('시트 · 옆 패널 기록 칸의 popstate 는 무시한다 (shell.js SeganShell.sheet) — 연 연출컷 그대로', async () => {
+    await load({ url: `/segan/renders.html?g=${ID2}` });
+    expect(visible($('rdDetail'))).toBe(true);
+    window.history.replaceState(null, '', '/segan/renders.html');
+    window.dispatchEvent(new window.PopStateEvent('popstate', { state: { sgSheet: 1 } }));
+    expect(visible($('rdDetail'))).toBe(true);
+    window.dispatchEvent(new window.PopStateEvent('popstate', { state: null }));
+    expect(visible($('rdList'))).toBe(true);
+  });
+
   test('주소에 ?g=<id> 가 있으면 바로 그 연출컷', async () => {
     await load({ url: `/segan/renders.html?g=${ID2}` });
     expect(visible($('rdDetail'))).toBe(true);

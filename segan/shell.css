@@ -1541,8 +1541,173 @@ a.sg-row.ad-row::after {
   cursor: default;
 }
 
-body.cl-locked {
+/* 겹창이 열린 동안 뒤 화면은 넘어가지 않는다 — cl-: 크게 보기, sg-: 시트 · 옆 패널 · 가운데 창 */
+body.cl-locked,
+body.sg-locked {
   overflow: hidden;
+}
+
+/* ── 시트 · 옆 패널 · 가운데 창 (shell.js SeganShell.sheet) ──
+   폰: 아래에서 올라오는 시트 (화면 90 % 까지, 시트 안만 넘긴다) · PC(1100px~): 오른쪽 옆 패널 420px.
+   가운데 창(dialog)은 어느 폭에서나 가운데 작은 창. 라운드 · 섀도 없음, 헤어라인만 */
+.sg-sheet-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 70; /* 위 막대(30) · 아래 탭(40) · 크게 보기(60) 위 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-top: env(safe-area-inset-top);
+  background: rgba(45, 42, 38, 0.32);
+  animation: sg-sheet-fade 0.18s ease-out;
+}
+
+.sg-sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 640px;
+  max-height: 90vh;
+  max-height: 90dvh;
+  border-top: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  outline: none;
+  animation: sg-sheet-up 0.24s ease-out;
+}
+
+.sg-sheet-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 4px max(8px, env(safe-area-inset-right)) 4px max(20px, env(safe-area-inset-left));
+  border-bottom: 1px solid var(--v5-line);
+}
+
+.sg-sheet-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.sg-sheet-x {
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--v5-ink-62);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.sg-sheet-x:hover,
+.sg-sheet-x:focus-visible {
+  color: var(--v5-ink);
+}
+
+.sg-sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px max(20px, env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom))
+    max(20px, env(safe-area-inset-left));
+}
+
+/* 가운데 작은 창 — 막는 확인만 (지우기 확인 · 동의 · 로그인 필요 · 크레딧 부족) */
+.sg-sheet-wrap--dialog {
+  z-index: 80; /* 시트 위에 겹친다 */
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+
+.sg-sheet-wrap--dialog .sg-sheet {
+  max-width: 400px;
+  max-height: 100%;
+  border: 1px solid var(--v5-line-18);
+  animation: none;
+}
+
+.sg-sheet-wrap--dialog .sg-sheet-body {
+  padding: 16px 20px 20px;
+}
+
+@keyframes sg-sheet-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sg-sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes sg-sheet-side {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* PC — 시트 · 패널은 오른쪽 옆 패널 (한 번에 하나) */
+@media (min-width: 1100px) {
+  .sg-sheet-wrap--sheet,
+  .sg-sheet-wrap--panel {
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: flex-end;
+    padding-top: 0;
+    background: rgba(45, 42, 38, 0.16);
+  }
+
+  .sg-sheet-wrap--sheet .sg-sheet,
+  .sg-sheet-wrap--panel .sg-sheet {
+    width: 420px;
+    max-width: 100%;
+    height: 100%;
+    max-height: none;
+    border-top: 0;
+    border-left: 1px solid var(--v5-line-18);
+    animation-name: sg-sheet-side;
+  }
+
+  .sg-sheet-wrap--sheet .sg-sheet-head,
+  .sg-sheet-wrap--panel .sg-sheet-head {
+    padding: 4px 12px 4px 24px;
+  }
+
+  .sg-sheet-wrap--sheet .sg-sheet-body,
+  .sg-sheet-wrap--panel .sg-sheet-body {
+    padding: 20px 24px 24px;
+  }
+}
+
+/* 움직임 줄이기 — 미끄러짐 · 흐려짐 없이 바로 */
+@media (prefers-reduced-motion: reduce) {
+  .sg-sheet-wrap,
+  .sg-sheet-wrap .sg-sheet {
+    animation: none;
+  }
 }
 
 /* 시공사례 · 자재 고르기 (segan/collection.js) — 탭 막대는 그대로 넷, 이 화면 안에서 둘로 나눈다 */
