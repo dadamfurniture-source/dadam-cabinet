@@ -11,7 +11,7 @@
                         그 설계의 시공사례 사진을 고르면 post_id)
      내 시공사례         collection_posts (본인, source 가 ai_render 가 아닌 것 — 연출컷은 내 연출컷에서 내린다).
                         올리기 = 사진(JPG · PNG, 20MB 이하, 긴 변 1600 으로 줄여) → 'collection' 버킷
-                        <본인 id>/<시각>-<무작위>.<확장자> → 공개 주소로 collection_posts insert
+                        p/<무작위 UUID>.<확장자> (주소에 회원 id 를 넣지 않는다 — 주인은 Storage 의 owner_id) → 공개 주소로 collection_posts insert
                         (지역 「시/도 줄임 시/군/구」 · 구분 · 고른 설계 design_id · 학습 동의 consent_training =
                         체크했을 때만 true). 줄을 못 넣으면 올린 파일을 지운다.
                         학습 동의 켜고 끄기 = consent_training update (true 일 때만 켜진 것)
@@ -595,11 +595,6 @@
     });
   }
 
-  function randomPart() {
-    var c = typeof crypto !== 'undefined' ? crypto : null;
-    var s = c && c.randomUUID ? c.randomUUID() : Math.random().toString(36).slice(2);
-    return s.replace(/-/g, '');
-  }
 
   async function submitCase(e) {
     if (e) e.preventDefault();
@@ -616,8 +611,8 @@
     try {
       var blob = await api.shrinkImage(A.caseFile, CASE_MAX_EDGE);
       var ext = blob.type === 'image/png' ? 'png' : 'jpg';
-      // 첫 칸이 반드시 본인 id 여야 한다 — collection_insert_own 정책이 그걸 본다
-      var path = A.user.id + '/' + Date.now() + '-' + randomPart() + '.' + ext;
+      // 'p/<소문자 UUID>.<jpg|png>' 한 칸 — collection_insert_photo 정책이 이 모양 · owner_id = 본인만 받는다 (DB 0052)
+      var path = 'p/' + crypto.randomUUID() + '.' + ext;
       var bucket = A.sb.storage.from(CASE_BUCKET);
       var up = await bucket.upload(path, blob, {
         cacheControl: '3600',
