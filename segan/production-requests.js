@@ -19,7 +19,7 @@
                GET  /planner/drafts                   의뢰할 설계 고르기 (내 업체 간편 플래너 설계)
                GET  /company/projects                 이어 둘 프로젝트 고르기 (진행 중만 — 고르지 않아도 된다)
    화면      목록 — 의뢰 한 줄마다 품목 · 설계 이름 · 현장 지역 · 의뢰일 · 상태. 답 기다림이면 답 기한 · 남은 시간
-               (목록 응답에는 기한이 없어 답 기다림 의뢰만 하나씩 더 읽는다)
+               (기한은 목록 줄의 expires_at — 펼친 의뢰만 더 읽는다)
              「제작 의뢰」 — 시트(폰) · 옆 패널(PC, SeganShell.sheet)로 설계 · 프로젝트 · 현장 지역(팩토리 주소로 채운다) ·
                시공 완료 희망 날짜 · 요청 메모. 플래너 설계는 팩토리에 사본으로 가고 사진은 보내지 않는다
                (워커 production-requests/factory.js copyDraftToFactory).
@@ -359,9 +359,10 @@
     return x.item_label ? x.item_label + ' · ' + name : name;
   }
 
-  /** 답 기다림 의뢰의 기한 — 읽어 둔 의뢰 하나의 고른 팩토리 줄에서 */
-  function expiresOf(id) {
-    var d = S.detail[id];
+  /** 답 기다림 의뢰의 기한 — 목록 줄의 expires_at (workflow-api 목록), 없으면 읽어 둔 의뢰의 고른 팩토리 줄에서 */
+  function expiresOf(x) {
+    if (x && x.expires_at) return x.expires_at;
+    var d = x ? S.detail[x.id] : null;
     if (!d || typeof d !== 'object') return '';
     var recs = arr(d.recommendations);
     for (var i = 0; i < recs.length; i++) {
@@ -553,7 +554,7 @@
       line =
         (f && f.name
           ? '<p class="me-pt-msg">' + esc('「' + f.name + '」 답 기다림') + '</p>'
-          : '') + leftHtml(expiresOf(x.id), now);
+          : '') + leftHtml(expiresOf(x), now);
     } else if (x.status === 'recommended' && Number(x.recommendation_count) > 0) {
       line =
         '<p class="me-pt-msg">' +
@@ -1024,12 +1025,12 @@
     return d && typeof d === 'object' && d.id === id ? d : null;
   }
 
-  /** 펼친 의뢰 · 답 기다림 의뢰(기한)를 읽는다 */
+  /** 펼친 의뢰를 읽는다 (답 기한은 목록 줄이 준다) */
   async function loadDetails() {
     var items = (S.data && S.data.items) || [];
     var want = items
       .filter(function (x) {
-        return x.id === S.pick || x.status === 'chosen';
+        return x.id === S.pick;
       })
       .map(function (x) {
         return x.id;
