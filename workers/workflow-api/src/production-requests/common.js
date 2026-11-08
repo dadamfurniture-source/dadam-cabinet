@@ -1,5 +1,6 @@
 /**
- * Manager 업체 제작 의뢰 — 함께 쓰는 값 · 읽기 · 화면 줄 · 알림 (DB 0050 production_requests · production_recommendations).
+ * Manager 업체 제작 의뢰 — 함께 쓰는 값 · 읽기 · 화면 줄 · 알림 (DB 0050 production_requests · production_recommendations,
+ * 추천 줄의 예상 가격대 · 제작 기간 칸 price_min · price_max · lead_days 는 0055).
  *
  * 2026-11-08 사장님 결정: Manager 등급(인테리어 업체)의 제작 의뢰는 다담 본사로 왔다가, 본사가 상담 내용을 파악한 뒤
  * 추천하는 업체(팩토리) 가운데 Manager 가 선택할 수 있도록 한다.
@@ -110,7 +111,7 @@ export const REQUEST_COLUMNS =
   'id,company_id,draft_id,draft_rev,design_id,project_id,item,note,sido,gugun,wanted_done_date,status,round,hq_note,' +
   'factory_company_id,factory_project_id,factory_draft_id,created_by,created_at,updated_at,status_at';
 export const REC_COLUMNS =
-  'id,request_id,company_id,round,rank,note,chosen,chosen_at,expires_at,response,reason,responded_at,created_at';
+  'id,request_id,company_id,round,rank,note,price_min,price_max,lead_days,chosen,chosen_at,expires_at,response,reason,responded_at,created_at';
 
 export function conflict(message, code, details = null) {
   const err = new ConflictError(message, details);
@@ -367,7 +368,17 @@ export function requestBase(req, { drafts = new Map(), projects = new Map() } = 
   };
 }
 
-/** 추천 팩토리 한 줄 — Manager 화면: 이름 · 지역 · 하는 품목 · 본사 소개 (점수 없음) */
+/**
+ * 본사가 적은 예상 가격대(원) · 제작 기간(일) — 적지 않은 값은 null (DB 0055).
+ * Manager 추천 카드 · 본사 화면에만 싣는다 (팩토리 화면 factory.js 에는 싣지 않는다).
+ */
+export const estimateOf = (rec) => ({
+  price_min: rec && rec.price_min != null ? rec.price_min : null,
+  price_max: rec && rec.price_max != null ? rec.price_max : null,
+  lead_days: rec && rec.lead_days != null ? rec.lead_days : null,
+});
+
+/** 추천 팩토리 한 줄 — Manager 화면: 이름 · 지역 · 하는 품목 · 본사 소개 · 예상 가격대 · 제작 기간 (점수 없음) */
 export function factoryView(rec, req, { companies, items }) {
   const c = companies.get(rec.company_id) || null;
   return {
@@ -378,6 +389,7 @@ export function factoryView(rec, req, { companies, items }) {
     region: c ? regionOf(c) : '',
     items: (items && items.get(rec.company_id)) || [],
     note: rec.note || null,
+    ...estimateOf(rec),
     rank: rec.rank,
     chosen: rec.chosen === true,
     offer: rec.chosen

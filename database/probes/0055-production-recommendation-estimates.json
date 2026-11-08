@@ -1,0 +1,246 @@
+{
+  "title": "0055 제작 의뢰 본사 추천 예상 가격대 · 제작 기간 — 칸 셋(원 · 일), 0 이상 · 최소 ≤ 최대 · 1일 이상, 셋 다 비워도 된다, 넣은 뒤 바꿀 수 없다, 서버만 읽기, 지킴이 나머지 그대로 (scripts/rls-probe.mjs --migration database/migrations/0055_production_recommendation_estimates.sql)",
+  "ids": [
+    "company_m",
+    "company_f",
+    "company_g",
+    "company_h",
+    "req_a",
+    "rec_1",
+    "rec_2"
+  ],
+  "users": [
+    "m_owner_user"
+  ],
+  "setup": [
+    "INSERT INTO public.companies (id, kind, name, plan, status) VALUES ({{company_m}}, 'partner', 'probe M', 'manager', 'active'), ({{company_f}}, 'partner', 'probe F', 'expert', 'active'), ({{company_g}}, 'partner', 'probe G', 'agent', 'active'), ({{company_h}}, 'partner', 'probe H', 'expert', 'active')",
+    "INSERT INTO public.company_members (company_id, user_id, role, status) VALUES ({{company_m}}, {{m_owner_user}}, 'owner', 'active')",
+    "INSERT INTO public.planner_drafts (company_id, id, name, item, model, rev, created_by) VALUES ({{company_m}}, 'd-probe-e', 'probe', 'sink', '{\"id\":\"d-probe-e\"}'::jsonb, 1, {{m_owner_user}})",
+    "INSERT INTO public.production_requests (id, company_id, draft_id, draft_rev, item, created_by) VALUES ({{req_a}}, {{company_m}}, 'd-probe-e', 1, 'sink', {{m_owner_user}})",
+    "INSERT INTO public.production_recommendations (id, request_id, company_id, round, rank, note, price_min, price_max, lead_days) VALUES ({{rec_1}}, {{req_a}}, {{company_f}}, 1, 1, 'probe', 12000000, 15000000, 20), ({{rec_2}}, {{req_a}}, {{company_g}}, 1, 2, NULL, NULL, NULL, NULL)",
+    "UPDATE public.production_requests SET status = 'recommended', round = 1 WHERE id = {{req_a}}"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "m_owner": {
+      "role": "authenticated",
+      "user": "m_owner_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "칸 셋 — price_min · price_max 는 bigint(원), lead_days 는 integer(일)",
+      "sql": "select string_agg(column_name || ':' || data_type, ',' order by column_name) from information_schema.columns where table_schema = 'public' and table_name = 'production_recommendations' and column_name in ('price_min', 'price_max', 'lead_days')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "lead_days:integer,price_max:bigint,price_min:bigint"
+      }
+    },
+    {
+      "name": "검사 제약 — 0050 의 다섯 + 가격대 · 제작 기간 둘",
+      "sql": "select string_agg(conname, ',' order by conname) from pg_constraint where conrelid = 'public.production_recommendations'::regclass and contype = 'c'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "production_recommendations_chosen_check,production_recommendations_lead_days_check,production_recommendations_note_check,production_recommendations_price_check,production_recommendations_reason_check,production_recommendations_response_check,production_recommendations_round_check"
+      }
+    },
+    {
+      "name": "읽기 — 서버만 (익명 · 의뢰한 업체 대표도 deny)",
+      "sql": "select price_min from public.production_recommendations where id = {{rec_1}}",
+      "expect": {
+        "anon": "deny",
+        "m_owner": "deny",
+        "service_role": "12000000"
+      }
+    },
+    {
+      "name": "적은 값 그대로 — 최소 / 최대 / 제작 기간",
+      "sql": "select price_min || '/' || price_max || '/' || lead_days from public.production_recommendations where id = {{rec_1}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "12000000/15000000/20"
+      }
+    },
+    {
+      "name": "적지 않은 칸은 비어 있다",
+      "sql": "select coalesce(price_min::text, 'none') || '/' || coalesce(price_max::text, 'none') || '/' || coalesce(lead_days::text, 'none') from public.production_recommendations where id = {{rec_2}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "none/none/none"
+      }
+    },
+    {
+      "name": "한쪽만 — 최소만 · 최대만 · 제작 기간만 넣어짐",
+      "sql": "insert into public.production_recommendations (request_id, company_id, round, rank, price_min, price_max, lead_days) values ({{req_a}}, {{company_f}}, 2, 1, 12000000, NULL, NULL), ({{req_a}}, {{company_g}}, 2, 2, NULL, 15000000, NULL), ({{req_a}}, {{company_h}}, 2, 3, NULL, NULL, 20)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "최소 = 최대 · 0 원 · 1일 넣어짐",
+      "sql": "insert into public.production_recommendations (request_id, company_id, round, rank, price_min, price_max, lead_days) values ({{req_a}}, {{company_f}}, 2, 1, 0, 0, 1), ({{req_a}}, {{company_g}}, 2, 2, 15000000, 15000000, 365)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "ok"
+      }
+    },
+    {
+      "name": "최소가 최대보다 크면 거절",
+      "sql": "insert into public.production_recommendations (request_id, company_id, round, rank, price_min, price_max) values ({{req_a}}, {{company_f}}, 2, 1, 15000000, 12000000)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "음수 가격은 거절 (최소)",
+      "sql": "insert into public.production_recommendations (request_id, company_id, round, rank, price_min) values ({{req_a}}, {{company_f}}, 2, 1, -1)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "음수 가격은 거절 (최대)",
+      "sql": "insert into public.production_recommendations (request_id, company_id, round, rank, price_max) values ({{req_a}}, {{company_f}}, 2, 1, -1)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "제작 기간 0일은 거절",
+      "sql": "insert into public.production_recommendations (request_id, company_id, round, rank, lead_days) values ({{req_a}}, {{company_f}}, 2, 1, 0)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "추천 내용은 그대로 — 가격대 최소 바꾸기 거절",
+      "sql": "update public.production_recommendations set price_min = 11000000 where id = {{rec_1}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "추천 내용은 그대로 — 가격대 최대 바꾸기 거절",
+      "sql": "update public.production_recommendations set price_max = 16000000 where id = {{rec_1}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "추천 내용은 그대로 — 제작 기간 바꾸기 거절",
+      "sql": "update public.production_recommendations set lead_days = 30 where id = {{rec_1}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "추천 내용은 그대로 — 비어 있던 칸을 나중에 채우기도 거절",
+      "sql": "update public.production_recommendations set lead_days = 10 where id = {{rec_2}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "추천 내용은 그대로 — 소개 바꾸기 거절 (0050 그대로)",
+      "sql": "update public.production_recommendations set note = 'probe 2' where id = {{rec_1}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "고르기는 그대로 — 기한은 고른 때 + 24시간, 가격대 · 제작 기간은 남는다",
+      "sql": "update public.production_recommendations set chosen = true where id = {{rec_1}}; select extract(epoch from (x.expires_at - x.chosen_at))::int || '/' || x.price_min || '/' || x.price_max || '/' || x.lead_days from public.production_recommendations x where x.id = {{rec_1}}",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "86400/12000000/15000000/20"
+      }
+    },
+    {
+      "name": "새 추천은 고르기 · 답 없이 (0050 그대로)",
+      "sql": "insert into public.production_recommendations (request_id, company_id, round, rank, price_min, chosen) values ({{req_a}}, {{company_f}}, 2, 1, 12000000, true)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "지금 차례 이하 추천은 거절 (0050 그대로)",
+      "sql": "insert into public.production_recommendations (request_id, company_id, round, rank, price_min) values ({{req_a}}, {{company_h}}, 1, 3, 12000000)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:22023"
+      }
+    },
+    {
+      "name": "지킴이 함수는 서버도 부르지 못한다 (권한 그대로)",
+      "sql": "select has_function_privilege('service_role', 'public.production_recommendations_guard()', 'EXECUTE')::text",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "false"
+      }
+    },
+    {
+      "name": "구성원은 넣지 못한다",
+      "sql": "insert into public.production_recommendations (request_id, company_id, round, rank, price_min) values ({{req_a}}, {{company_f}}, 2, 1, 1)",
+      "roles": [
+        "m_owner"
+      ],
+      "expect": {
+        "m_owner": "deny"
+      }
+    }
+  ]
+}

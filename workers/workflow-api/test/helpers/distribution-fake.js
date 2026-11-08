@@ -15,7 +15,8 @@
  *   production_requests  (0050) 같은 설계로 열린 의뢰 하나 · 상태 차례 · 고른 팩토리 칸 · 차례는 추천 때만 (지킴이와 같게),
  *                        상태 · 차례가 바뀌면 status_at
  *   production_recommendations (0050) 차례마다 팩토리 · 순서 하나 · 답 기다림 하나 · 새 추천은 다음 차례로만 · 고르기 · 답은 한 번,
- *                        고르면 chosen_at · expires_at(+24시간), 답하면 responded_at
+ *                        고르면 chosen_at · expires_at(+24시간), 답하면 responded_at,
+ *                        (0055) 예상 가격대 price_min · price_max 0 이상 · 최소 ≤ 최대, 제작 기간 lead_days 1 이상, 넣은 뒤 그대로
  * Auth: Bearer 토큰이 곧 user id. admin/users/:id 는 { id, email }.
  * 시험 데이터는 모두 가짜다.
  */
@@ -287,6 +288,10 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
     if (row.chosen && !row.response && db.production_recommendations.some((x) => same(x) && x.chosen && !x.response)) return ['23505', 'one_open'];
     if (row.response && !row.chosen) return ['23514', 'response_check'];
     if (row.reason && row.response !== 'declined') return ['23514', 'reason_check'];
+    const won = (v) => v === null || v === undefined || v >= 0;
+    if (!won(row.price_min) || !won(row.price_max) || (row.price_min != null && row.price_max != null && row.price_min > row.price_max))
+      return ['23514', 'production_recommendations_price_check'];
+    if (row.lead_days != null && !(row.lead_days >= 1)) return ['23514', 'production_recommendations_lead_days_check'];
     if (!old) {
       const req = db.production_requests.find((r) => r.id === row.request_id);
       if (!req) return ['23503', 'request_fkey'];
@@ -294,7 +299,7 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
       if (row.chosen || row.response) return ['22023', '고르기 · 답 없이'];
       return null;
     }
-    for (const k of ['id', 'request_id', 'company_id', 'round', 'rank', 'note', 'created_at'])
+    for (const k of ['id', 'request_id', 'company_id', 'round', 'rank', 'note', 'price_min', 'price_max', 'lead_days', 'created_at'])
       if (!same0(row[k], old[k])) return ['22023', `production_recommendations: ${k}`];
     if (old.chosen && !row.chosen) return ['22023', '고른 줄은 그대로'];
     if (old.response && row.response !== old.response) return ['22023', '답은 한 번'];
@@ -362,6 +367,10 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
     if (table === 'production_recommendations')
       return {
         ...base,
+        note: null,
+        price_min: null,
+        price_max: null,
+        lead_days: null,
         chosen: false,
         chosen_at: null,
         expires_at: null,

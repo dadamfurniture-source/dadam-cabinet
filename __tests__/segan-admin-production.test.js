@@ -5,10 +5,11 @@
  *
  *   들어오기  오늘 할 일 「추천할 제작 의뢰」 = #production (#production-waiting · -done = 그 탭)
  *   서버      workflow-api GET /admin/production-requests?state= · POST …/:id/review ·
- *             GET …/:id/suggestions · POST …/:id/recommend { company_ids[1~5], note?, notes? }
+ *             GET …/:id/suggestions · POST …/:id/recommend { company_ids[1~5], note?, notes?, estimates? }
  *   화면      할 일 · 답 기다림 · 끝 탭 → 의뢰 줄 → 누르면 의뢰 내용 · 지금 추천 · 고른 기록(못 받음 사유 — 본사만) ·
  *             돌려보낸 팩토리 · 「추천 후보 보기」(접수면 검토 시작 먼저) → 순위 위 3곳을 미리 골라 둔다 · 1~5곳 ·
- *             소개 · Manager 에게 남길 말. 지역 · 품목으로 걸러진 팩토리는 이유를 적고 고를 수 있게 둔다
+ *             소개 · 예상 가격대 최소 · 최대(만 원 → 원) · 제작 기간(일) · Manager 에게 남길 말.
+ *             지역 · 품목으로 걸러진 팩토리는 이유를 적고 고를 수 있게 둔다
  * 업체 · 사람은 모두 지어낸 시험 값이다.
  */
 const fs = require('fs');
@@ -74,6 +75,9 @@ const declined = (id) =>
         name: '마바 목공',
         rank: 1,
         note: '빠릅니다',
+        price_min: 12000000,
+        price_max: 15000000,
+        lead_days: 20,
         chosen: true,
         state: 'declined',
       },
@@ -308,6 +312,51 @@ describe('자리 · 값', () => {
       '소개는 200자까지입니다.'
     );
     expect(A.defaultPicks(A.suggestionsOf(suggestions().body))).toEqual([F(1), F(2), F(3)]);
+    // 예상 가격대 · 제작 기간 — 만 원 글 → 원 (× 10,000), 쉼표 · 빈칸은 빼고 읽는다, 비운 칸 · 빈 팩토리는 보내지 않는다
+    expect(A.MAN_WON).toBe(10000);
+    expect(
+      A.recommendBodyOf({
+        ids: [F(1), F(2), F(3), F(4)],
+        estimates: {
+          [F(1)]: { price_min: ' 1,200 ', price_max: '1500', lead_days: '20' },
+          [F(2)]: { price_min: '', price_max: '', lead_days: '' },
+          [F(3)]: { price_max: '0' },
+          [F(4)]: { lead_days: '1' },
+          [F(9)]: { price_min: '100' }, // 고르지 않은 팩토리는 보내지 않는다
+        },
+      })
+    ).toEqual({
+      body: {
+        company_ids: [F(1), F(2), F(3), F(4)],
+        estimates: {
+          [F(1)]: { price_min: 12000000, price_max: 15000000, lead_days: 20 },
+          [F(3)]: { price_max: 0 },
+          [F(4)]: { lead_days: 1 },
+        },
+      },
+    });
+    const est = (e) => A.recommendBodyOf({ ids: [F(1)], estimates: { [F(1)]: e } });
+    for (const bad of ['-5', '1200.5', '1,2a0', '천이백'])
+      expect(est({ price_min: bad })).toEqual({
+        error: '가격대는 0 이상 정수(만 원)로 적어 주세요.',
+        company: F(1),
+      });
+    expect(est({ price_max: '1e3' }).error).toBe('가격대는 0 이상 정수(만 원)로 적어 주세요.');
+    expect(est({ price_min: '1500', price_max: '1200' })).toEqual({
+      error: '가격대 최소가 최대보다 큽니다.',
+      company: F(1),
+    });
+    for (const bad of ['0', '2.5', '-3', '이십'])
+      expect(est({ lead_days: bad })).toEqual({
+        error: '제작 기간은 1일 이상 정수(일)로 적어 주세요.',
+        company: F(1),
+      });
+    expect(est({ price_min: '1200', price_max: '1200', lead_days: '400' }).body.estimates).toEqual({
+      [F(1)]: { price_min: 12000000, price_max: 12000000, lead_days: 400 },
+    });
+    // 소개 칸 안내에서 가격대 · 제작 기간은 뺐다 (따로 칸이 있다)
+    expect(A.TEXT.profilePh).toBe('소개 (Manager 에게 보입니다) — 예: 잘하는 품목');
+    expect(read('segan/admin-production.js')).not.toMatch(/예: 가격대/);
     expect(A.listOf({ success: true, data: { ready: false, items: [] } })).toBe('pending');
   });
 });
@@ -366,7 +415,7 @@ describe('목록 · 탭', () => {
     expect(d.textContent).toContain('김고객 주방 · 벽 2 · 모듈 9 · 3차 저장 · 의뢰 뒤 고침');
     expect(d.textContent).toContain('대구 근처 두 곳입니다.');
     expect(d.querySelector('[data-recs]').textContent).toBe(
-      '1. 마바 목공 · 고름 · 못 받음 · 소개: 빠릅니다2. 가나 공방'
+      '1. 마바 목공 · 고름 · 못 받음 · 가격대 1,200만~1,500만 원 · 제작 기간 약 20일 · 소개: 빠릅니다2. 가나 공방'
     );
     expect(d.querySelector('[data-offers]').textContent).toBe(
       '1차 마바 목공 · 못 받음 · 고름 2026.11.08 11:00 · 답 2026.11.08 12:00 · 사유: 이번 달 일정이 꽉 찼습니다'
@@ -407,6 +456,35 @@ describe('추천 — 검토 시작 · 후보 · 1~5곳', () => {
       [F(6), false, false],
     ]);
     expect(submitBtn().textContent).toBe('3곳 추천');
+    // 고른 팩토리마다 소개 · 가격대 최소 · 최대(만 원) · 제작 기간(일) 칸, 고르지 않은 줄에는 없다
+    const picked = body().querySelector(`.ad-cand[data-company="${F(1)}"]`);
+    expect([...picked.querySelectorAll('.mk-input > span')].map((s) => s.textContent)).toEqual([
+      '소개',
+      '가격대 최소 (만 원)',
+      '가격대 최대 (만 원)',
+      '제작 기간 (일)',
+    ]);
+    expect(
+      [...picked.querySelectorAll('[data-est-for]')].map((el) => [
+        el.getAttribute('data-est'),
+        el.getAttribute('inputmode'),
+      ])
+    ).toEqual([
+      ['price_min', 'numeric'],
+      ['price_max', 'numeric'],
+      ['lead_days', 'numeric'],
+    ]);
+    expect(picked.querySelector(`[data-note-for="${F(1)}"]`).getAttribute('placeholder')).toBe(
+      '소개 (Manager 에게 보입니다) — 예: 잘하는 품목'
+    );
+    expect(
+      body()
+        .querySelector(`.ad-cand[data-company="${F(4)}"]`)
+        .querySelector('[data-est-for]')
+    ).toBeNull();
+    expect(body().querySelector('[data-est-note]').textContent).toBe(
+      '고른 팩토리마다 적은 가격대(만 원) · 제작 기간(일)은 Manager 추천 카드에 보입니다. 모르는 값은 비워 두세요.'
+    );
     // 순위 줄 — 점수 내역은 상담 배정과 같은 묶음 글
     const first = body().querySelector(`.ad-cand[data-company="${F(1)}"]`);
     expect(first.querySelector('.ad-cand-head b').textContent).toBe('1순위 가나 공방 · 82점');
@@ -438,14 +516,25 @@ describe('추천 — 검토 시작 · 후보 · 1~5곳', () => {
     expect(submitBtn().disabled).toBe(true);
   });
 
-  test('보내기 — 고른 차례 · 소개(적은 것만) · 남길 말, 다시 그려도 적던 글은 남는다, 보낸 뒤 목록을 다시 읽는다', async () => {
+  test('보내기 — 고른 차례 · 소개 · 가격대(만 원 → 원) · 제작 기간(적은 것만) · 남길 말, 다시 그려도 적던 글은 남는다, 보낸 뒤 목록을 다시 읽는다', async () => {
     const calls = await openSug(await load());
+    const estOf = (n, key) => body().querySelector(`[data-est-for="${F(n)}"][data-est="${key}"]`);
     body().querySelector(`[data-note-for="${F(1)}"]`).value = '세라믹 상판 경험이 많습니다';
+    estOf(1, 'price_min').value = '1,200';
+    estOf(1, 'price_max').value = '1500';
+    estOf(1, 'lead_days').value = '20';
+    estOf(3, 'lead_days').value = '14';
     body().querySelector('textarea[name="hq_note"]').value = '대구 근처 세 곳입니다.';
     await toggle(6); // 다시 그린다 — 적던 글은 남는다
     expect(body().querySelector(`[data-note-for="${F(1)}"]`).value).toBe(
       '세라믹 상판 경험이 많습니다'
     );
+    expect(['price_min', 'price_max', 'lead_days'].map((k) => estOf(1, k).value)).toEqual([
+      '1,200',
+      '1500',
+      '20',
+    ]);
+    expect(estOf(3, 'lead_days').value).toBe('14');
     expect(body().querySelector('textarea[name="hq_note"]').value).toBe('대구 근처 세 곳입니다.');
     await toggle(2);
     const before = calls.fetch.filter(
@@ -462,6 +551,10 @@ describe('추천 — 검토 시작 · 후보 · 1~5곳', () => {
           company_ids: [F(1), F(3), F(6)],
           note: '대구 근처 세 곳입니다.',
           notes: { [F(1)]: '세라믹 상판 경험이 많습니다' },
+          estimates: {
+            [F(1)]: { price_min: 12000000, price_max: 15000000, lead_days: 20 },
+            [F(3)]: { lead_days: 14 },
+          },
         },
       ],
     ]);
@@ -485,6 +578,24 @@ describe('추천 — 검토 시작 · 후보 · 1~5곳', () => {
     expect(body().querySelector('[data-err]').textContent).toBe('소개는 200자까지입니다.');
     expect(posts(calls, /\/recommend$/)).toHaveLength(0);
     body().querySelector(`[data-note-for="${F(2)}"]`).value = '';
+    // 가격대 최소가 최대보다 크면 · 제작 기간이 0일이면 보내지 않는다 (적던 글은 남는다)
+    const estOf = (key) => body().querySelector(`[data-est-for="${F(2)}"][data-est="${key}"]`);
+    estOf('price_min').value = '1500';
+    estOf('price_max').value = '1200';
+    send();
+    await flush();
+    expect(body().querySelector('[data-err]').textContent).toBe('가격대 최소가 최대보다 큽니다.');
+    expect(estOf('price_min').value).toBe('1500');
+    estOf('price_min').value = '';
+    estOf('price_max').value = '';
+    estOf('lead_days').value = '0';
+    send();
+    await flush();
+    expect(body().querySelector('[data-err]').textContent).toBe(
+      '제작 기간은 1일 이상 정수(일)로 적어 주세요.'
+    );
+    expect(posts(calls, /\/recommend$/)).toHaveLength(0);
+    estOf('lead_days').value = '';
     send();
     await until(
       () =>

@@ -7,7 +7,8 @@
  *            GET /production-requests · GET /production-requests/:id · POST /production-requests ·
  *            POST …/:id/choose { company_id } · POST …/:id/cancel
  *            「제작 의뢰」 = 시트(설계 · 프로젝트 · 현장 지역 = 팩토리 주소 · 희망 날짜 · 메모, 사진은 보내지 않는다)
- *            추천 카드 = 이름 · 다담 공장/팩토리 · 지역 · 하는 품목 · 본사 소개, 품목 · 지역이 다르면 확인 한 줄(막지 않는다)
+ *            추천 카드 = 이름 · 다담 공장/팩토리 · 지역 · 예상 가격대 · 제작 기간(본사가 적은 것만 — DB 0055) · 하는 품목 ·
+ *            본사 소개, 품목 · 지역이 다르면 확인 한 줄(막지 않는다)
  *            고르기 · 거두기 = 가운데 창. 팩토리가 못 받은 사유는 그리지 않는다
  *   팩토리   내 정보 › 업체 › 제작 의뢰함 (#factory-requests) — 다담 공장 · Expert · Agent 구성원
  *            GET /factory/production-requests · POST …/:id/accept · POST …/:id/decline { reason? }
@@ -100,8 +101,22 @@ const detail = (id, extra = {}) => ({
   ...req(id),
   hq_note: '세 곳 모두 대구 근처입니다.',
   recommendations: [
-    rec(F1, '가나 공방', { note: '세라믹 상판 경험이 많습니다', rank: 1 }),
-    rec(F2, '다라 가구', { region: '경상북도 경산시', items: ['붙박이장'], rank: 2 }),
+    rec(F1, '가나 공방', {
+      note: '세라믹 상판 경험이 많습니다',
+      rank: 1,
+      price_min: 12000000,
+      price_max: 15000000,
+      lead_days: 20,
+    }),
+    rec(F2, '다라 가구', {
+      region: '경상북도 경산시',
+      items: ['붙박이장'],
+      rank: 2,
+      price_min: null,
+      price_max: 15000000,
+      lead_days: null,
+    }),
+    // 예상 가격대 · 제작 기간 칸이 없는 응답 (0055 전 서버) — 그 줄 없이 그린다
     rec(F3, '다담 공장', {
       kind: 'hq',
       factory_label: '다담 공장',
@@ -523,13 +538,55 @@ describe('Manager — 목록 · 단계 · 추천 카드', () => {
     expect(cards[0].querySelectorAll('[data-hint]')).toHaveLength(0);
     expect(cards[2].querySelectorAll('[data-hint]')).toHaveLength(0); // 하는 품목 · 지역을 모르면 적지 않는다
     expect(cards.every((c) => c.querySelector('[data-act="choose"]'))).toBe(true);
-    // 가격대 · 제작 기간은 서버가 주지 않는다 — 지어 쓰지 않는다
-    expect(d.textContent).not.toMatch(/가격대|제작 기간|원~|일 소요/);
+    // 본사가 적은 예상 가격대 · 제작 기간 — 이름 줄 바로 아래 한 줄, 적은 값만, 칸이 없는 응답은 그 줄이 없다
+    expect(
+      cards.map((c) => {
+        const el = c.querySelector('[data-estimate]');
+        return el ? el.textContent : null;
+      })
+    ).toEqual(['가격대 1,200만~1,500만 원 · 제작 기간 약 20일', '가격대 1,500만 원까지', null]);
+    expect(
+      cards[0].querySelector('.me-prq-rec-head').nextElementSibling.hasAttribute('data-estimate')
+    ).toBe(true);
+    expect(cards[2].textContent).not.toMatch(/가격대|제작 기간/);
     // 고른 기록 — 차례 · 이름 · 답, 사유 없음 (본사만 본다)
     expect(d.querySelector('[data-offers]').textContent).toBe(
       '1차 마바 목공 · 못 받음 · 고름 2026.11.08 11:00 · 답 2026.11.08 12:00'
     );
     expect(document.body.textContent).not.toContain('이번 달 일정이 꽉 찼습니다');
+  });
+
+  test('예상 가격대 · 제작 기간 한 줄 (순수) — 적은 값만 · 한쪽만이면 그 끝만 · 만 원으로 떨어지면 「만 원」, 본사 화면과 같은 글', async () => {
+    await load();
+    const P = window.SeganProduction;
+    const cases = [
+      [
+        { price_min: 12000000, price_max: 15000000, lead_days: 20 },
+        '가격대 1,200만~1,500만 원 · 제작 기간 약 20일',
+      ],
+      [{ price_min: 12000000, price_max: null, lead_days: null }, '가격대 1,200만 원부터'],
+      [{ price_max: 15000000 }, '가격대 1,500만 원까지'],
+      [{ lead_days: 20 }, '제작 기간 약 20일'],
+      [
+        { price_min: 15000000, price_max: 15000000, lead_days: 1 },
+        '가격대 1,500만 원 · 제작 기간 약 1일',
+      ],
+      [{ price_min: 0, price_max: 120000000 }, '가격대 0~12,000만 원'],
+      [{ price_min: 0 }, '가격대 0원부터'],
+      [{ price_min: 12345678, price_max: 13000000 }, '가격대 12,345,678~1,300만 원'],
+      [{ price_max: 12345678 }, '가격대 12,345,678원까지'],
+      [{}, ''],
+      [{ price_min: null, price_max: null, lead_days: null }, ''],
+      // 모양이 틀린 값은 적지 않은 것으로 (서버는 이런 값을 주지 않는다)
+      [{ price_min: -1, price_max: '15000000', lead_days: 0 }, ''],
+      [{ price_min: 1.5, lead_days: 2.5 }, ''],
+    ];
+    for (const [f, want] of cases) expect([f, P.estimateText(f)]).toEqual([f, want]);
+    // 본사 「관리 › 제작 의뢰」(segan/admin-production.js) 줄에도 같은 글
+    delete window.SeganAdminProduction;
+    (0, eval)(read('segan/admin-production.js'));
+    for (const [f, want] of cases)
+      expect([f, window.SeganAdminProduction.estimateText(f)]).toEqual([f, want]);
   });
 
   test('못 받음 · 답 없음 — 본사 검토 칸으로, 사유 없이 「본사가 다시 추천합니다」, 지난 추천 카드는 감춘다', async () => {
