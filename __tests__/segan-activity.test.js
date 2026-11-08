@@ -110,6 +110,8 @@ async function load(options = {}) {
   for (const k of ['AdminAccess', 'DadamMyPageWork', 'SeganShell', 'SeganRegions', 'SeganActivity'])
     delete window[k];
   window.DADAM_CONFIG = { supabase: { url: 'https://example.supabase.co', anonKey: 'anon' } };
+  // jsdom 의 crypto 에는 randomUUID 가 없다 — 브라우저처럼 쓰도록 Node 의 것을 단다 (사진 경로 'p/<UUID>')
+  if (typeof window.crypto.randomUUID !== 'function') window.crypto.randomUUID = () => require('crypto').randomUUID();
   const calls = { q: [], inserts: [], updates: [], deletes: [], uploads: [], removes: [], rpc: [] };
   const resultOf = (q) => {
     const t = q.table;
@@ -608,7 +610,7 @@ describe('내 시공사례 — collection_posts (mypage.html 「내 시공사례
     $('acCaseFile').dispatchEvent(new window.Event('change'));
   };
 
-  test('올리기 — collection 버킷 <본인 id>/… 에 올리고 공개 주소로 collection_posts 한 줄 (mypage.html 과 같은 칸)', async () => {
+  test('올리기 — collection 버킷 p/<UUID>(회원 id 없음) 에 올리고 공개 주소로 collection_posts 한 줄 (mypage.html 과 같은 칸)', async () => {
     const calls = await load();
     $('acCaseOpen').click();
     await flush();
@@ -625,7 +627,9 @@ describe('내 시공사례 — collection_posts (mypage.html 「내 시공사례
     expect(calls.uploads).toHaveLength(1);
     const up = calls.uploads[0];
     expect(up.bucket).toBe('collection');
-    expect(up.path).toMatch(/^u1\/\d+-[0-9a-z]+\.png$/);
+    // 주소에 회원 id 가 없다 — 'p/<소문자 UUID>.png' (DB 0052 collection_insert_photo)
+    expect(up.path).toMatch(/^p\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.png$/);
+    expect(up.path).not.toContain('u1');
     expect(up.opts).toEqual({ cacheControl: '3600', upsert: false, contentType: 'image/png' });
     const ins = calls.inserts.find((i) => i.table === 'collection_posts');
     expect(ins.row).toEqual({
