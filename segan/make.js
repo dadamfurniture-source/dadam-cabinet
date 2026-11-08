@@ -503,6 +503,12 @@
   }
 
   // ── 단계 이동 ───────────────────────────────────────────
+  /** popstate 가 시트 · 옆 패널의 기록 칸인가 (segan/shell.js SeganShell.sheet.isSheetState) */
+  function sheetEntry(e) {
+    var sheet = window.SeganShell && window.SeganShell.sheet;
+    return !!(sheet && sheet.isSheetState(e && e.state));
+  }
+
   function setStep(step, push) {
     if (step === 'result' && !S.genId) step = 'kind';
     if (step === 'kind' && !S.photo) step = 'photo';
@@ -1051,7 +1057,9 @@
       setStep(S.photo ? 'kind' : 'photo', true);
     };
 
-    window.addEventListener('popstate', function () {
+    window.addEventListener('popstate', function (e) {
+      // 시트 · 옆 패널이 넣은 기록 칸 (shell.js SeganShell.sheet) — 주소가 그대로라 단계를 바꾸지 않는다
+      if (sheetEntry(e)) return;
       var to = (location.hash || '').slice(1);
       setStep(STEPS.indexOf(to) >= 0 ? to : 'photo', false);
     });

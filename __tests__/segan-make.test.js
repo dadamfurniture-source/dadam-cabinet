@@ -333,6 +333,51 @@ describe('② 가구', () => {
   });
 });
 
+describe('시트 · 옆 패널 기록 칸 (segan/shell.js SeganShell.sheet) — 단계를 바꾸지 않는다', () => {
+  /** 가구 단계까지 간 뒤 셸을 올린다 (셸 popstate 처리기는 make.js 다음에 붙지만 capture 라 먼저 받는다) */
+  async function kindWithShell() {
+    const r = await load();
+    await choose('mkAlbumInput');
+    $('mkNext').click();
+    delete window.SeganShell;
+    (0, eval)(read('segan/shell.js'));
+    await window.SeganShell.ready;
+    return r;
+  }
+  async function until(fn) {
+    for (let i = 0; i < 100; i++) {
+      if (fn()) return;
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    throw new Error('기다린 상태가 오지 않았다');
+  }
+
+  test('시트 표시 칸의 popstate 는 무시한다 — 주소에 # 이 없어도 사진 단계로 되돌리지 않는다', async () => {
+    await kindWithShell();
+    window.history.replaceState(null, '', '/segan/');
+    window.dispatchEvent(new window.PopStateEvent('popstate', { state: { sgSheet: 1 } }));
+    expect(visible($('mkKindTitle'))).toBe(true);
+    expect(visible($('mkPhotoTitle'))).toBe(false);
+    // 페이지 칸이면 예전처럼 사진 단계로
+    window.dispatchEvent(new window.PopStateEvent('popstate', { state: null }));
+    expect(visible($('mkPhotoTitle'))).toBe(true);
+  });
+
+  test('시트를 열고 뒤로 가기 — 시트만 닫히고 만들기는 그대로 (단계 · 주소 · 기록 칸을 건드리지 않는다)', async () => {
+    await kindWithShell();
+    const replace = jest.spyOn(window.history, 'replaceState');
+    const h = window.SeganShell.sheet.open({ title: '고른 사진', body: 'x' });
+    expect(window.location.hash).toBe('#kind');
+    window.history.back();
+    await until(() => !h.isOpen());
+    await flush();
+    expect(window.location.hash).toBe('#kind');
+    expect(visible($('mkKindTitle'))).toBe(true);
+    expect(replace).not.toHaveBeenCalled(); // setStep 이 돌았다면 replaceState({ mk }) 를 불렀다
+    expect(window.history.state).toEqual({ mk: 'kind' });
+  });
+});
+
 describe('크레딧 안내 — 생성 버튼 위', () => {
   async function kindWith(opts) {
     const r = await load(opts);

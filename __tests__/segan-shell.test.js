@@ -11,6 +11,8 @@
  *   - 내 정보의 역할 메뉴는 기존 판정(AdminAccess · DadamMyPageWork · 워크플로 API GET /planner/access)을 따른다
  *     — 페이지가 싣는 실제 js/ 파일을 그대로 올리고 Supabase · /work/me · /planner/access 만 가짜로 둔다
  *   - 사업자 정보는 사이트 푸터(js/site-shell.js)와 같다
+ *   - 시트 · 옆 패널 · 가운데 창 (SeganShell.sheet) — 열기 · 닫기 · Esc · 바깥 · 뒤로 가기(페이지 처리기는 모른다)
+ *     · 옆 패널 하나만 · 초점 돌려주기 · dialog
  */
 const fs = require('fs');
 const path = require('path');
@@ -569,5 +571,267 @@ describe('숨김 · 접근성 · 안전 영역', () => {
     expect(wide).toMatch(/\.sg-nav\s*\{[^}]*display:\s*flex;/);
     expect(wide).toMatch(/\.sg-footer\s*\{\s*display:\s*block;/);
     expect(wide).toMatch(/\.sg-biz\s*\{\s*display:\s*none;/);
+  });
+});
+
+describe('시트 · 옆 패널 · 가운데 창 — SeganShell.sheet', () => {
+  const URL0 = '/segan/collection.html#x';
+  const wraps = () => $$('.sg-sheet-wrap');
+  const atSheet = () => window.SeganShell.sheet.isSheetState(window.history.state);
+  const tick = (ms = 20) => new Promise((r) => setTimeout(r, ms));
+  /** 뒤로 가기는 비동기다 — 셸이 popstate 를 받으면 시험 처리기에는 안 오니 상태를 기다린다 */
+  async function until(fn) {
+    for (let i = 0; i < 100; i++) {
+      if (fn()) return;
+      await tick(5);
+    }
+    throw new Error('기다린 상태가 오지 않았다');
+  }
+  /** 셸을 올리고, 화면에 여는 버튼 · 페이지 popstate 처리기를 둔다 */
+  async function setup() {
+    // 새 칸을 넣어 앞 시험이 남긴 「앞으로」 칸을 지운다 — 칸 수(history.length)를 셀 수 있게
+    window.history.pushState({ page: 'base' }, '', URL0);
+    await load('collection.html');
+    const opener = document.createElement('button');
+    opener.textContent = '열기';
+    $('#main').appendChild(opener);
+    opener.focus();
+    const pagePop = jest.fn();
+    window.addEventListener('popstate', pagePop);
+    pops.push(pagePop);
+    return { S: window.SeganShell.sheet, opener, pagePop };
+  }
+  const pops = [];
+  afterEach(() => {
+    while (pops.length) window.removeEventListener('popstate', pops.pop());
+  });
+  const para = (text) => {
+    const p = document.createElement('p');
+    p.textContent = text;
+    return p;
+  };
+  const key = (k, extra = {}) =>
+    document.activeElement.dispatchEvent(
+      new window.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...extra })
+    );
+
+  test('열기 — 제목 · 본문 · aria, 주소(# 포함)는 그대로 기록 칸만 하나, 뒤 화면 잠금, 초점은 창 안', async () => {
+    const { S, opener } = await setup();
+    const len = window.history.length;
+    const body = para('사진 설명');
+    const h = S.open({ title: '사진 보기', body });
+    expect(wraps()).toHaveLength(1);
+    const box = h.el;
+    expect(box.getAttribute('role')).toBe('dialog');
+    expect(box.getAttribute('aria-modal')).toBe('true');
+    expect(document.getElementById(box.getAttribute('aria-labelledby')).textContent).toBe(
+      '사진 보기'
+    );
+    expect(h.body.contains(body)).toBe(true);
+    expect(wraps()[0].classList.contains('sg-sheet-wrap--sheet')).toBe(true);
+    expect(window.location.pathname + window.location.hash).toBe(URL0);
+    expect(window.history.length).toBe(len + 1);
+    expect(atSheet()).toBe(true);
+    expect(window.history.state.page).toBe('base'); // 페이지가 둔 값은 그대로
+    expect(document.body.classList.contains('sg-locked')).toBe(true);
+    expect(box.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).not.toBe(opener);
+    expect(S.current().el).toBe(box);
+  });
+
+  test('닫기(h.close · 닫기 버튼) — 창을 떼고 기록 칸을 되돌린다, 페이지 처리기는 모른다, 초점은 연 버튼으로', async () => {
+    const { S, opener, pagePop } = await setup();
+    const onClose = jest.fn();
+    const h = S.open({ title: '보기', body: para('x'), onClose });
+    await h.close();
+    expect(wraps()).toHaveLength(0);
+    expect(h.isOpen()).toBe(false);
+    expect(onClose).toHaveBeenCalledWith('close');
+    expect(document.body.classList.contains('sg-locked')).toBe(false);
+    expect(window.history.state).toEqual({ page: 'base' });
+    expect(window.location.pathname + window.location.hash).toBe(URL0);
+    expect(document.activeElement).toBe(opener);
+    expect(S.current()).toBeNull();
+    await h.close(); // 두 번 닫아도 그대로
+    const onClose2 = jest.fn();
+    S.open({ title: '보기', body: 'x', onClose: onClose2 });
+    $('.sg-sheet-x').click();
+    expect(onClose2).toHaveBeenCalledWith('button');
+    await until(() => !atSheet());
+    await tick();
+    expect(pagePop).not.toHaveBeenCalled();
+    expect(window.history.state).toEqual({ page: 'base' });
+  });
+
+  test('Esc 로 닫는다 (한글 조합 중 Esc 는 닫지 않는다)', async () => {
+    const { S, opener, pagePop } = await setup();
+    const onClose = jest.fn();
+    S.open({ title: '보기', body: 'x', onClose });
+    key('Escape', { isComposing: true });
+    expect(wraps()).toHaveLength(1);
+    key('Escape');
+    expect(wraps()).toHaveLength(0);
+    expect(onClose).toHaveBeenCalledWith('escape');
+    expect(document.activeElement).toBe(opener);
+    await until(() => !atSheet());
+    await tick();
+    expect(pagePop).not.toHaveBeenCalled();
+  });
+
+  test('바깥(뒤 막) 누르기로 닫는다 — 창 안 누르기 · 안에서 눌러 바깥에서 뗀 것은 닫지 않는다', async () => {
+    const { S } = await setup();
+    const onClose = jest.fn();
+    const h = S.open({ title: '보기', body: para('x'), onClose });
+    const wrap = wraps()[0];
+    h.body.firstChild.click();
+    expect(wraps()).toHaveLength(1);
+    h.el.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true }));
+    wrap.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    expect(wraps()).toHaveLength(1);
+    wrap.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true }));
+    wrap.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    expect(wraps()).toHaveLength(0);
+    expect(onClose).toHaveBeenCalledWith('backdrop');
+    await until(() => !atSheet());
+  });
+
+  test('뒤로 가기(popstate)가 창을 닫고 페이지 처리기는 돌지 않는다 — 한 번 더 뒤로는 페이지 것', async () => {
+    const { S, opener, pagePop } = await setup();
+    window.history.pushState({ page: 'two' }, '');
+    const onClose = jest.fn();
+    S.open({ title: '보기', body: 'x', onClose });
+    window.history.back();
+    await until(() => wraps().length === 0);
+    expect(onClose).toHaveBeenCalledWith('back');
+    expect(window.history.state).toEqual({ page: 'two' });
+    expect(window.location.pathname + window.location.hash).toBe(URL0);
+    expect(document.activeElement).toBe(opener);
+    await tick();
+    expect(pagePop).not.toHaveBeenCalled();
+    window.history.back();
+    await until(() => pagePop.mock.calls.length === 1);
+    expect(pagePop.mock.calls[0][0].state).toEqual({ page: 'base' });
+  });
+
+  test('옆 패널은 하나만 — 새로 열면 앞의 것을 닫고 그 기록 칸을 쓴다, 초점은 처음 연 버튼으로', async () => {
+    const { S, opener, pagePop } = await setup();
+    const len = window.history.length;
+    const firstClose = jest.fn();
+    const a = S.open({ title: 'A', kind: 'panel', body: para('a'), onClose: firstClose });
+    const inA = document.createElement('button');
+    a.body.appendChild(inA);
+    inA.focus();
+    const b = S.open({ title: 'B', kind: 'panel', body: para('b') });
+    expect(firstClose).toHaveBeenCalledWith('replaced');
+    expect(a.isOpen()).toBe(false);
+    expect(wraps()).toHaveLength(1);
+    expect(wraps()[0].classList.contains('sg-sheet-wrap--panel')).toBe(true);
+    expect(wraps()[0].textContent).toContain('B');
+    expect(window.history.length).toBe(len + 1); // 칸이 늘지 않는다
+    // 시트도 같은 자리 — 패널이 열린 채 시트를 열면 패널을 닫는다
+    const c = S.open({ title: 'C', kind: 'sheet', body: 'c' });
+    expect(b.isOpen()).toBe(false);
+    expect(wraps()).toHaveLength(1);
+    expect(window.history.length).toBe(len + 1);
+    window.history.back();
+    await until(() => wraps().length === 0);
+    expect(c.isOpen()).toBe(false);
+    expect(window.history.state).toEqual({ page: 'base' });
+    expect(document.activeElement).toBe(opener);
+    await tick();
+    expect(pagePop).not.toHaveBeenCalled();
+  });
+
+  test('Tab 은 창 안에서만 돈다 · initialFocus', async () => {
+    const { S } = await setup();
+    const body = document.createElement('div');
+    body.innerHTML =
+      '<button type="button" id="t1">하나</button><button type="button" id="t2">둘</button>';
+    const h = S.open({ title: '보기', body, initialFocus: body.querySelector('#t2') });
+    expect(document.activeElement.id).toBe('t2');
+    key('Tab');
+    expect(document.activeElement).toBe(h.el.querySelector('.sg-sheet-x')); // 처음 = 닫기 버튼
+    key('Tab', { shiftKey: true });
+    expect(document.activeElement.id).toBe('t2');
+  });
+
+  test('가운데 창(dialog) — 시트 위에 겹친다, Esc · 뒤로 가기는 맨 위 창만 닫는다', async () => {
+    const { S, pagePop } = await setup();
+    const sheet = S.open({ title: '사진', kind: 'sheet', body: para('사진') });
+    const sheetEntry = () => window.history.state && window.history.state.sgSheet;
+    const below = sheetEntry();
+    const del = document.createElement('button');
+    sheet.body.appendChild(del);
+    del.focus();
+    const ask = S.open({ title: '지울까요?', kind: 'dialog', body: para('되돌릴 수 없습니다') });
+    expect(wraps()).toHaveLength(2);
+    expect(wraps()[1].classList.contains('sg-sheet-wrap--dialog')).toBe(true);
+    expect(S.current().kind).toBe('dialog');
+    expect(sheet.isOpen()).toBe(true); // 창은 시트를 닫지 않는다
+    key('Escape');
+    expect(ask.isOpen()).toBe(false);
+    expect(sheet.isOpen()).toBe(true);
+    expect(document.activeElement).toBe(del); // 창을 연 시트 안 버튼으로
+    await until(() => sheetEntry() === below); // 창의 기록 칸만 되돌렸다
+    // 다시 열고 뒤로 가기 — 창만 닫히고 시트는 남는다
+    const ask2 = S.open({ title: '지울까요?', kind: 'dialog', body: 'x' });
+    window.history.back();
+    await until(() => !ask2.isOpen());
+    expect(sheet.isOpen()).toBe(true);
+    expect(atSheet()).toBe(true);
+    await sheet.close();
+    expect(wraps()).toHaveLength(0);
+    expect(window.history.state).toEqual({ page: 'base' });
+    await tick();
+    expect(pagePop).not.toHaveBeenCalled();
+  });
+
+  test('dismissible: false — Esc · 바깥 · 닫기 버튼으로 닫지 않는다 (뒤로 가기는 닫는다)', async () => {
+    const { S } = await setup();
+    const onClose = jest.fn();
+    const h = S.open({ title: '동의', kind: 'dialog', body: 'x', dismissible: false, onClose });
+    expect(h.el.querySelector('.sg-sheet-x').hidden).toBe(true);
+    key('Escape');
+    wraps()[0].click();
+    expect(h.isOpen()).toBe(true);
+    window.history.back();
+    await until(() => !h.isOpen());
+    expect(onClose).toHaveBeenCalledWith('back');
+  });
+
+  test('isSheetState — 셸이 넣은 칸만 참 · 새로 고친 뒤 남은 표시는 지운다', async () => {
+    const { S } = await setup();
+    expect(S.STATE_KEY).toBe('sgSheet');
+    expect(S.isSheetState({ sgSheet: 3 })).toBe(true);
+    expect(S.isSheetState({ mk: 'kind', sgSheet: 3 })).toBe(true);
+    for (const st of [null, undefined, {}, { mk: 'kind' }, { sgSheet: '3' }, 'sgSheet'])
+      expect(S.isSheetState(st)).toBe(false);
+    window.history.replaceState({ mk: 'kind', sgSheet: 3 }, '');
+    await load('collection.html');
+    expect(window.history.state).toEqual({ mk: 'kind' });
+    expect(window.location.pathname + window.location.hash).toBe(URL0);
+  });
+
+  test('스타일 — 폰 아래 시트(90dvh · 안만 넘김 · 안전 영역), PC 1100px~ 오른쪽 420px, 움직임 줄이기, 44px', () => {
+    const css = read('segan/shell.css');
+    const block = (sel) => {
+      const m = css.match(
+        new RegExp(`(?:^|\\n)${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`)
+      );
+      expect([sel, !!m]).toEqual([sel, true]);
+      return m[1];
+    };
+    expect(block('.sg-sheet-wrap')).toMatch(/position:\s*fixed/);
+    expect(block('.sg-sheet')).toMatch(/max-height:\s*90dvh/);
+    expect(block('.sg-sheet-body')).toMatch(/overflow-y:\s*auto/);
+    expect(block('.sg-sheet-body')).toMatch(/env\(safe-area-inset-bottom\)/);
+    expect(block('.sg-sheet-x')).toMatch(/min-height:\s*44px/);
+    expect(css).toMatch(/body\.sg-locked\s*\{\s*overflow:\s*hidden;/);
+    const wide = css.split('@media (min-width: 1100px)');
+    expect(wide).toHaveLength(2);
+    expect(wide[1]).toMatch(/\.sg-sheet-wrap--panel \.sg-sheet\s*\{[^}]*width:\s*420px/);
+    expect(wide[1]).toMatch(/border-left:\s*1px solid/);
+    const calm = css.split('@media (prefers-reduced-motion: reduce)')[1];
+    expect(calm).toMatch(/\.sg-sheet-wrap \.sg-sheet\s*\{\s*animation:\s*none;/);
   });
 });
