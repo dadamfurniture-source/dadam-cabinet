@@ -653,6 +653,49 @@ describe('장부 줄 (segan/ledger.html)', () => {
       jest.restoreAllMocks();
     }
   });
+
+  test('보기만(level read) — 「Expert 등급은 장부를 볼 수만 있습니다 — 쓰려면 Agent」 + 등급 비교(plans.html)', async () => {
+    const note = () => box().querySelector('.me-bk-ro');
+    const READ = ok({ money: true, level: 'read', viewing: false, can_write: false });
+    for (const [plan, name] of [
+      ['expert', 'Expert'],
+      ['manager', 'Manager'],
+    ]) {
+      await load({ partner: partnerMe({ plan }), ledger: READ });
+      await flush();
+      expect(note().textContent).toBe(
+        `${name} 등급은 장부를 볼 수만 있습니다 — 장부를 쓰려면 Agent 등급이어야 합니다. 등급 비교`
+      );
+      expect(note().querySelector('a').getAttribute('href')).toBe('plans.html');
+      expect(fs.existsSync(path.join(ROOT, 'segan', 'plans.html'))).toBe(true);
+      jest.restoreAllMocks();
+    }
+    // 이용 중이 아닌 Agent 업체 — 등급 안내 · 링크 없이 까닭만
+    await load({ partner: partnerMe({ status: 'suspended' }), ledger: READ });
+    await flush();
+    expect(note().textContent).toBe('팩토리가 이용 중이 아니어서 장부를 볼 수만 있습니다.');
+    expect(note().querySelector('a')).toBeNull();
+    jest.restoreAllMocks();
+    // 쓸 수 있으면(full) 안내가 없다
+    await load({ partner: partnerMe(), ledger: ok({ money: true, level: 'full' }) });
+    await flush();
+    expect(note()).toBeNull();
+  });
+
+  test('readOnlyNote — 순수 판정 (등급 Manager 는 직책 실장과 다르다)', async () => {
+    await load();
+    const { readOnlyNote } = window.SeganBooks;
+    expect(readOnlyNote({ plan: 'expert', status: 'active' }).text).toMatch(/^Expert 등급은/);
+    expect(readOnlyNote({ plan: 'manager', status: 'active', role: 'manager' }).text).toMatch(
+      /^Manager 등급은/
+    );
+    expect(readOnlyNote({ plan: 'agent', status: 'active' }).text).toMatch(/^지금 등급에서는/);
+    expect(readOnlyNote(null)).toEqual({
+      text: '지금 등급에서는 장부를 볼 수만 있습니다 — 장부를 쓰려면 Agent 등급이어야 합니다.',
+      plans: true,
+    });
+    expect(readOnlyNote({ plan: 'expert', status: 'closed' }).plans).toBe(false);
+  });
 });
 
 describe('장부 줄 — 다담 본사 · 공장 구성원 (회계 요약 없이)', () => {

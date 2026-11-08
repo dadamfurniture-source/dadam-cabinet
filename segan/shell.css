@@ -838,6 +838,21 @@ a.sg-row.ad-row::after {
   color: var(--v5-ink-60);
 }
 
+/* 등급 비교 링크 (segan/plans.html) — 카드 · 등급 바꾸기 · 다시 시작 아래 */
+.me-pt-more {
+  margin: 8px 0 0;
+}
+
+.me-pt-more .mk-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+}
+
+.me-pt-group .me-pt-cards {
+  margin-top: 10px;
+}
+
 .me-pt-form,
 .me-pt-box {
   display: flex;
@@ -1017,6 +1032,16 @@ a.sg-row.ad-row::after {
   font-size: 11px;
   color: var(--v5-tan);
   white-space: normal;
+}
+
+/* 장부 보기만 (level read) — 회계 줄 아래 한 줄 + 등급 비교 */
+.me-bk-ro {
+  margin: 10px 0 0;
+}
+
+.me-bk-ro .mk-link {
+  min-height: 0;
+  padding: 0;
 }
 
 .me-bk-sr {

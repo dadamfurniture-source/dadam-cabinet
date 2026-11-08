@@ -57,7 +57,8 @@
     declined: '못 받음',
     expired: '시간 지남',
   };
-  var KIND_LABEL = { hq: '다담 공장', partner: 'Agent' };
+  // 후보 종류 — 협력 팩토리는 상담 풀 Expert · Agent (워커 distribution POOL_PLANS), 후보 줄에 등급은 오지 않는다
+  var KIND_LABEL = { hq: '다담 공장', partner: '협력 팩토리' };
   var FILTER_REASON = {
     region: '지역 밖',
     item: '품목 안 함',

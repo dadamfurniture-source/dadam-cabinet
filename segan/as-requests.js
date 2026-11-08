@@ -14,8 +14,8 @@
        GET  /company/as-requests                    { ready, items[{ id, order_no, body, photo_urls, state, label, mine, can_handle, … }] }
        POST /company/as-requests/:id/receive        받기
        POST /company/as-requests/:id/done           끝
-     다담 공장 구성원 · Expert · Agent 구성원 (segan/partner-projects.js 와 같은 판정). 접수가 없으면
-     다담 공장 · Agent 만 빈 칸을 보인다 (Expert 는 앱 상담 수주가 없다).
+     다담 공장 구성원 · Expert · Agent 구성원 (Manager 는 아직 A/S 길이 없다 — 프로젝트 칸은 Manager 부터라 다르다).
+     접수가 없으면 앱 상담을 나눠 받는 다담 공장 · Expert · Agent 만 빈 칸을 보인다 (워커 distribution POOL_PLANS).
    못 읽으면  (403 · 404 · 오류 · 끊김 · ready false — DB 0045 전) 칸째 감춘다.
    segan/me.js 가 내 프로젝트 줄마다 slotHtml(p) 를 붙이고, loadMine · load 를 부른다.
    ============================================================ */
@@ -30,7 +30,8 @@
   var HASH = '#as';
   var STATE_LABEL = { requested: '접수', received: '받음', done: '끝', cancelled: '거둠' }; // 워커 AS_STATE_LABEL
   var MEMBER_ROLES = ['owner', 'manager', 'staff'];
-  var PLANS = ['expert', 'agent']; // segan/partner-projects.js 와 같다
+  var PLANS = ['expert', 'agent']; // A/S함은 Expert 이상 (Manager 는 아직 — segan/partner-projects.js 는 Manager 부터)
+  var POOL_PLANS = ['expert', 'agent']; // 앱 상담을 나눠 받는 등급 — segan/partner-consults.js 와 같다
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   var TEXT = {
@@ -114,9 +115,9 @@
     );
   }
 
-  /** 접수가 없어도 빈 A/S함을 보이나 — 앱 상담을 받는 다담 공장 · Agent */
+  /** 접수가 없어도 빈 A/S함을 보이나 — 앱 상담을 나눠 받는 다담 공장 · Expert · Agent */
   function showsEmpty(me) {
-    return isHq(me) || !!(me && me.company && me.company.plan === 'agent');
+    return isHq(me) || !!(me && me.company && POOL_PLANS.indexOf(me.company.plan) >= 0);
   }
 
   // ── 서버 ───────────────────────────────────────────────

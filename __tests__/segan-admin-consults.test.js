@@ -262,7 +262,7 @@ describe('상담 열기', () => {
     );
     const cands = [...item(C2).querySelectorAll('.ad-cand')];
     expect(cands.map((c) => c.querySelector('.ad-cand-head').textContent)).toEqual([
-      '1순위 가나 인테리어Agent · 79.5점',
+      '1순위 가나 인테리어협력 팩토리 · 79.5점',
       '2순위 다담 공장다담 공장 · 70점',
     ]);
     expect([...cands[0].querySelectorAll('.ad-score li')].map((l) => l.textContent)).toEqual([

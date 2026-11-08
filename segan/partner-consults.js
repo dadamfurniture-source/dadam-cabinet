@@ -2,14 +2,16 @@
    segan/partner-consults.js — 「내 정보 › 업체」 안의 상담 · 상담 설정 · 내 평가 (segan/me.html)
 
    누가 보나  다담 본사가 상담을 나누는 업체 풀의 구성원 — account-api GET /partner/me 로 가린다.
-               Agent 협력업체 구성원 (company.plan agent): 상담 목록은 구성원 모두, 내 평가 · 상담 설정은 대표 · 실장만.
+               Expert · Agent 협력업체 구성원 (company.plan expert · agent — 워커 distribution/rules.js POOL_PLANS):
+                 상담 목록은 구성원 모두, 내 평가 · 상담 설정은 대표 · 실장만.
                다담 공장 구성원 (hq_member — company 없이 온다): 세 칸을 모두 묻고 서버가 가린다
                  (403 이면 그 칸만 감춘다). 결제 · 구성원 같은 협력업체 칸(segan/partner.js)은 그대로 감추고,
                  업체 칸(#partner)은 이 세 칸 중 하나라도 그렸을 때만 보인다.
              받기 · 못 받음 · 설정 저장 단추: 서버 응답(목록 · 설정)의 can_act 를 따른다. 없으면 대표 · 실장이고
                업체가 이용 중(active)일 때 — 정지 · 해지된 업체는 읽기만 (segan/partner.js 「결제가 멈춰 있어
                읽기만 됩니다」와 같다). 다담 공장 구성원은 역할을 모르므로 can_act 가 없으면 읽기만.
-             업체 없음 · Expert 업체는 칸이 없다 (업체 풀은 Agent 업체 + 다담 공장).
+             업체 없음 · Manager 업체는 칸이 없다 (업체 풀은 Expert · Agent 업체 + 다담 공장).
+             ★ company.plan 의 manager(등급)와 company.role 의 manager(실장)는 다르다 — 아래 ROLES 는 직책이다.
              segan/me.js 가 업체 칸(segan/partner.js)을 읽은 뒤 SeganPartnerConsults.load(sb, session, partnerMe) 를
              부른다 (/partner/me 를 두 번 묻지 않는다).
    서버      workflow-api (본인 토큰 · 응답은 { success, data } · 오류는 { success:false, message, code })
@@ -41,6 +43,7 @@
 
   var ROLES = ['owner', 'manager']; // 대표 · 실장 — 받기 · 못 받음 · 설정 · 내 평가
   var MEMBER_ROLES = ['owner', 'manager', 'staff'];
+  var POOL_PLANS = ['expert', 'agent']; // 상담을 나눠 받는 등급 — 워커 distribution/rules.js POOL_PLANS
   var HASH = '#partner-consults';
 
   // 품목 — workflow-api consult-notify.js FURNITURE_LABELS (시험이 같은지 본다)
@@ -187,11 +190,11 @@
     return !!me && typeof me === 'object' && !Array.isArray(me) && me.hq_member === true;
   }
 
-  /** 상담 칸을 보이나 — Agent 협력업체 구성원 · 다담 공장 구성원 */
+  /** 상담 칸을 보이나 — Expert · Agent 협력업체 구성원 · 다담 공장 구성원 */
   function canSee(me) {
     if (isHq(me)) return true;
     var c = companyOf(me);
-    return !!(c && c.plan === 'agent' && MEMBER_ROLES.indexOf(c.role) >= 0);
+    return !!(c && POOL_PLANS.indexOf(c.plan) >= 0 && MEMBER_ROLES.indexOf(c.role) >= 0);
   }
 
   /** 협력업체 대표 · 실장 (company.role) */

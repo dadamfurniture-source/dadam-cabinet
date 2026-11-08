@@ -31,7 +31,7 @@
    signed-out 칸 안의 [data-segan-shell="gate"] 는 이 파일이 로그인 안내로 채운다.
 
    역할 메뉴(마이페이지 「업무」)는 기존 판정을 그대로 쓴다 — 새 규칙을 만들지 않는다.
-     설계       워크플로 API GET /planner/access  (200 이면 연다 — 다담 공장 · Expert · Agent · MANAGER 업체 구성원 · 관리자,
+     설계       워크플로 API GET /planner/access  (200 이면 연다 — 다담 공장 · Manager · Expert · Agent 업체 구성원 · 관리자,
                 판정은 workers/workflow-api/src/planner-drafts.js canUsePlanner. 403 · 실패는 감춘다)
                 주소 planner/ = 간편 플래너 웹판 (/segan/planner/ — 다른 Worker, 이 저장소 밖)
      비서       assistant-api GET /assistant/me 의 level 이 full · read 일 때 (참만 1분 기억 — hasAssistant)
@@ -210,7 +210,7 @@
   function headerHTML(current) {
     return (
       '<header class="sg-header">' +
-      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110804" alt="SEGAN" width="477" height="75" /></a>' +
+      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110805" alt="SEGAN" width="477" height="75" /></a>' +
       '<nav class="sg-nav" aria-label="주 메뉴">' +
       links(current, 'pc') +
       '</nav>' +

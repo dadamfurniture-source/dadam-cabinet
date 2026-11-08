@@ -3,21 +3,29 @@
 
    데이터 (segan/me.js 가 로그인 뒤 SeganPartner.load 를 부른다)
      account-api  GET /partner/me     내 업체 · 내 가장 최근 신청 · (대표면) 구성원 · 초대
-     payments-api GET /plans          Expert · Agent 월 금액 · 토스 client_key (pricing.html 과 같은 호출)
-     credit_plans                     등급별 월 크레딧 (pricing.html 과 같은 표) — 금액 · 크레딧을 적어 두지 않는다
+     payments-api GET /plans          Manager · Expert · Agent 월 금액 · 토스 client_key (segan/plans.html 과 같은 호출)
+     credit_plans                     등급별 월 크레딧 (segan/plans.html 과 같은 표) — 금액 · 크레딧을 적어 두지 않는다
      RPC my_credit_wallet             업체 통장 잔액 (segan/make.js loadWallet — 내 정보의 크레딧 줄과 같은 값)
    /partner/me 를 못 읽으면(오류 · 404 · 주소 없음) · 본사 구성원(hq_member)이면 칸째 감춘다 — 내 프로젝트와 같다.
+
+   등급 (낮은 것부터, DB 0047 · payments-api src/plans.js): Manager < Expert < Agent
+     Manager · Expert 는 신청 없이 결제하고 시작, Agent 는 신청 → 현장 미팅 → 본사 승인.
+     ★ company.plan 의 manager(등급 「Manager」)와 company.role 의 manager(직책 「실장」)는 다른 낱말이다 — 섞지 않는다.
 
    화면 (위에서부터 먼저 맞는 것)
      업체 있음         업체 이름 · 등급(다음 결제일부터 바뀌는 등급) · 상태 · 내 역할 · 크레딧
                        대표: 직원(내보내기) · 직원 초대(링크) · 등급 바꾸기 · 결제 관리(segan/billing.html)
                        실장 · 직원: 업체 이름 · 내 역할 · 크레딧만
                        정지(suspended) 「결제가 멈춰 있어 읽기만 됩니다」, 해지(closed) 「해지된 업체입니다」
+     등급 바꾸기(대표 · 이용 중) — 다음 결제일부터 (일할 계산 없음, account-api POST /partner/plan)
+                       낮은 등급이면 무엇이든 「내리기」, Manager → Expert 「올리기」, Agent 는 「Agent 신청」(kind upgrade)
+                       승인으로 들어간 Agent 예약이 있으면 다른 예약은 막힌다 (409 agent_reserved) — 「예약 취소」 먼저
+     다시 시작(대표 · 정지 · 해지) — Manager · Expert 중 고르고 결제 (Agent 는 지금 Agent 이거나 승인된 Agent 예약이 있을 때만)
      신청 접수 · 미팅   단계 3칸 (신청 접수 → 미팅 예정 → 승인), 미팅 시각은 한국 시간, 「신청 거두기」
      승인(새 업체)      「결제하고 시작」 (Agent)
      보류              안내 + 상담 신청 링크, 아래에 「팩토리로 시작하기」 카드 (다시 신청할 수 있다)
-     그 밖             「팩토리로 시작하기」 카드 둘
-                       Expert — 결제하면 바로 시작: 업체 이름 · 시·도 · 시·군·구 → 카드 등록
+     그 밖             「팩토리로 시작하기」 카드 셋 + 등급 비교(segan/plans.html) 링크
+                       Manager · Expert — 결제하고 시작: 업체 이름 · 시·도 · 시·군·구 → 카드 등록
                        Agent  — 신청 → 현장 미팅 → 본사 승인: 신청 칸 7개 → POST /partner/apply
 
    결제 — pricing.html 과 같은 토스 requestBillingAuth → billing-success.html?plan=…
@@ -30,7 +38,11 @@
 (function () {
   'use strict';
 
-  var PLAN_LABEL = { expert: 'Expert', agent: 'Agent' };
+  // 등급 이름 (company.plan) — 직책 이름 ROLE_LABEL 의 manager(실장)와 다르다
+  var PLAN_LABEL = { manager: 'Manager', expert: 'Expert', agent: 'Agent' };
+  var PLAN_LADDER = ['manager', 'expert', 'agent']; // 낮은 것부터 (DB 0047)
+  var SELF_SERVE = ['manager', 'expert']; // 신청 없이 결제하고 시작 · 서로 예약으로 바꾸기 (payments-api APPROVAL_PLANS 밖)
+  var APPLY_PLAN = 'agent'; // 신청 → 미팅 → 본사 승인으로만
   var ROLE_LABEL = { owner: '대표', manager: '실장', staff: '직원' };
   var COMPANY_STATUS = { active: '이용 중', suspended: '결제 멈춤', closed: '해지됨' };
   var MEMBER_STATUS = { active: '활동 중', removed: '내보냄' };
@@ -40,6 +52,7 @@
   var SIGNUP_KEY = 'partnerSignup'; // billing-success.html 이 읽는다
   var INVITE_PATH = '/segan/join.html#t=';
   var BILLING_PAGE = 'billing.html'; // 앱 안 구독 관리 (segan/billing.html — billing.html 과 같은 화면)
+  var PLANS_PAGE = 'plans.html'; // 앱 안 「구독」 — 등급 넷의 도구 · 금액 비교 (segan/plans.html)
   var CONSULT_PAGE = 'consult.html'; // 앱 안 일반 상담 신청서 (consultation.html 과 같은 칸)
   var FAIL_PATH = '/segan/me.html?failed=1';
   var RETURN_TO = '/segan/me.html#partner'; // billing-success.html 의 「돌아가기」
@@ -53,8 +66,10 @@
   var GENERIC_ERR = '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
   var PAY_MODULE_ERR = '결제 모듈을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';
   var FAILED_MSG = '결제가 완료되지 않았습니다. 다시 시도해 주세요.'; // pricing.html 과 같은 글
+  // account-api partner.js MSG.agent_reserved 와 같은 글 (서버 글이 없을 때만)
+  var AGENT_RESERVED_MSG = 'Agent 승인 예약이 있습니다 — 먼저 예약을 취소해 주세요.';
 
-  // Agent 신청 칸 — company: 업그레이드(Expert 업체 → Agent)면 업체 값을 쓴다 (서버도 업체 값으로 채운다)
+  // Agent 신청 칸 — company: 업그레이드(Manager · Expert 업체 → Agent)면 업체 값을 쓴다 (서버도 업체 값으로 채운다)
   var APPLY_FIELDS = [
     { name: 'company_name', label: '팩토리 이름', max: 100, company: 'name' },
     { name: 'representative_name', label: '대표자 이름', max: 50 },
@@ -84,8 +99,10 @@
     plans: null, // GET /plans data { client_key, plans: [{ id, price_krw }] }
     credits: {}, // credit_plans tier → monthly_credits
     wallet: null, // my_credit_wallet 한 줄
-    open: null, // 'expert' | 'agent' | 'upgrade' | 'invite'
-    ask: null, // 한 번 더 묻는 동작 키 ('withdraw' · 'remove:<id>' · 'revoke:<id>' · 'plan:expert' · 'plan:cancel')
+    open: null, // 'manager' | 'expert' | 'agent' | 'upgrade' | 'invite'
+    // 한 번 더 묻는 동작 키 ('withdraw' · 'remove:<id>' · 'revoke:<id>' · 'plan:manager' · 'plan:expert' · 'plan:cancel')
+    ask: null,
+    planErr: '', // 등급 바꾸기 칸의 서버 안내 (409 agent_reserved — 「예약 취소」를 함께 보인다)
     invite: null, // 방금 만든 초대 { id, role, expires_at, link }
     msg: '',
     err: '',
@@ -154,6 +171,43 @@
     return PLAN_LABEL[plan] || String(plan || '');
   }
 
+  /** 등급 순서 (모르는 등급은 -1) */
+  function planRank(plan) {
+    return PLAN_LADDER.indexOf(plan);
+  }
+
+  /**
+   * 이용 중인 업체의 등급 바꾸기 — [{ plan, how }] (낮은 것부터). how:
+   *   down  지금보다 낮은 등급 — 다음 결제일부터 내리기 (예약)
+   *   up    신청 없이 시작하는 등급끼리 올리기 (Manager → Expert) — 다음 결제일부터 (예약)
+   *   apply Agent — 신청 → 현장 미팅 → 본사 승인 (kind upgrade)
+   * 이미 예약한 등급은 뺀다. 승인으로 들어간 Agent 예약이 있으면 아무것도 없다 (서버 409 agent_reserved — 예약 취소 먼저).
+   * account-api POST /partner/plan · /partner/apply 와 같은 판단 (서버가 다시 본다).
+   */
+  function planChanges(c) {
+    if (!c || planRank(c.plan) < 0 || c.next_plan === APPLY_PLAN) return [];
+    var out = [];
+    PLAN_LADDER.forEach(function (p) {
+      if (p === c.plan || p === c.next_plan) return;
+      if (planRank(p) < planRank(c.plan)) out.push({ plan: p, how: 'down' });
+      else if (SELF_SERVE.indexOf(p) >= 0) out.push({ plan: p, how: 'up' });
+      else if (p === APPLY_PLAN) out.push({ plan: p, how: 'apply' });
+    });
+    return out;
+  }
+
+  /**
+   * 정지 · 해지된 업체가 다시 시작할 수 있는 등급 (낮은 것부터) — payments-api restartWithOtherPlan 과 같은 판단:
+   * Manager · Expert 는 언제나, Agent 는 지금 등급이 Agent 이거나 승인된 Agent 예약(next_plan agent)이 있을 때만
+   */
+  function restartPlans(c) {
+    if (!c) return [];
+    return PLAN_LADDER.filter(function (p) {
+      if (SELF_SERVE.indexOf(p) >= 0) return true;
+      return c.plan === p || c.next_plan === p;
+    });
+  }
+
   function region(x) {
     return [x && x.sido, x && x.gugun].filter(Boolean).join(' ');
   }
@@ -202,8 +256,8 @@
     return c >= 0 && c < 11172 && c % 28 !== 0 ? '을' : '를';
   }
 
-  /** Expert 시작 — 업체 이름 · 시·도 · 시·군·구 → { company } | { field, error } */
-  function expertCompany(values) {
+  /** Manager · Expert 시작 — 업체 이름 · 시·도 · 시·군·구 → { company } | { field, error } */
+  function startCompany(values) {
     var v = values || {};
     var name = String(v.name == null ? '' : v.name).trim();
     var sido = String(v.sido == null ? '' : v.sido).trim();
@@ -356,10 +410,24 @@
     );
   }
 
-  function expertFormHtml() {
+  /** 등급 비교 링크 — segan/plans.html (등급마다 쓸 수 있는 도구 · 금액) */
+  function compareLink() {
     return (
-      '<form class="me-pt-form" data-form="expert" novalidate>' +
-      '<p class="me-pt-title">Expert 로 시작하기</p>' +
+      '<p class="me-pt-more"><a class="mk-link" href="' +
+      PLANS_PAGE +
+      '">등급별 도구 · 금액 비교</a></p>'
+    );
+  }
+
+  /** Manager · Expert 시작 — 업체 이름 · 지역 → 카드 등록 (data-form 은 등급) */
+  function startFormHtml(plan) {
+    return (
+      '<form class="me-pt-form" data-form="' +
+      plan +
+      '" novalidate>' +
+      '<p class="me-pt-title">' +
+      esc(planName(plan) + ' 로 시작하기') +
+      '</p>' +
       input('name', '팩토리 이름', { max: 100, auto: 'organization' }) +
       regionHtml() +
       '<p class="mk-note">카드를 등록하면 첫 달이 결제되고 바로 시작합니다.</p>' +
@@ -372,7 +440,7 @@
     );
   }
 
-  /** Agent 신청 — company 가 있으면 업그레이드(Expert 업체 → Agent): 업체 이름 · 지역 칸이 없다 */
+  /** Agent 신청 — company 가 있으면 업그레이드(Manager · Expert 업체 → Agent): 업체 이름 · 지역 칸이 없다 */
   function applyFormHtml(company) {
     var up = !!company;
     return (
@@ -410,10 +478,12 @@
     return (
       '<p class="me-pt-lead">팩토리로 시작하면 직원과 크레딧을 함께 씁니다.</p>' +
       '<div class="me-pt-cards">' +
-      card('expert', '결제하면 바로 시작', '팩토리로 시작하기', 'open-expert') +
+      card('manager', '결제하면 바로 시작', '결제하고 시작', 'open-manager') +
+      card('expert', '결제하면 바로 시작', '결제하고 시작', 'open-expert') +
       card('agent', '신청 → 현장 미팅 → 본사 승인', '신청하기', 'open-agent') +
       '</div>' +
-      (P.open === 'expert' ? expertFormHtml() : '') +
+      compareLink() +
+      (SELF_SERVE.indexOf(P.open) >= 0 ? startFormHtml(P.open) : '') +
       (P.open === 'agent' ? applyFormHtml(null) : '')
     );
   }
@@ -637,51 +707,146 @@
     );
   }
 
-  /** 등급 바꾸기 — Agent → Expert 예약 · 예약 취소 · Expert → Agent 신청(kind upgrade) */
+  /** 예약 취소 단추 (한 번 더 묻는다) — Agent 예약이면 다시 신청해야 한다고 알린다 */
+  function cancelPlanHtml(next) {
+    return askOr(
+      'plan:cancel',
+      acts(btn('ask-plan-cancel', '예약 취소')),
+      next === APPLY_PLAN
+        ? '예약을 취소할까요? Agent 로 바꾸려면 다시 신청해야 합니다.'
+        : '예약을 취소할까요? 지금 등급 그대로 이어집니다.',
+      '예약 취소'
+    );
+  }
+
+  /** 내리기 · 올리기 한 칸 — 그 등급의 금액 · 크레딧 + 다음 결제일부터 (한 번 더 묻는다) */
+  function changeHtml(c, x) {
+    var name = planName(x.plan);
+    var verb = x.how === 'down' ? '내리기' : '올리기';
+    var ask = x.how === 'down' ? '내릴까요?' : '올릴까요?';
+    return (
+      '<div class="me-pt-box" data-change="' +
+      x.plan +
+      '">' +
+      infoLine(x.plan) +
+      '<p class="mk-note">' +
+      esc(
+        '다음 결제일부터 ' +
+          name +
+          ' 금액 · 크레딧으로 바뀝니다. 그때까지는 ' +
+          planName(c.plan) +
+          ' 그대로입니다.'
+      ) +
+      '</p>' +
+      askOr(
+        'plan:' + x.plan,
+        acts(
+          btn(
+            'ask-plan',
+            '다음 결제일부터 ' + name + ' 로 ' + verb,
+            false,
+            ' data-plan="' + x.plan + '"'
+          )
+        ),
+        '다음 결제일부터 ' + name + ' 로 ' + ask,
+        name + ' 로 ' + verb
+      ) +
+      '</div>'
+    );
+  }
+
+  /** Agent 신청 한 칸 — 열린 신청이면 단계, 보류면 안내 + 다시 신청 */
+  function applyChangeHtml(c, a) {
+    var up = a && a.kind === 'upgrade' ? a : null;
+    if (up && (up.status === 'applied' || up.status === 'meeting')) return pendingHtml(up, true);
+    return (
+      (up && up.status === 'held' ? heldHtml(true) : '') +
+      (P.open === 'upgrade'
+        ? applyFormHtml(c)
+        : '<div class="me-pt-box" data-change="' +
+          APPLY_PLAN +
+          '">' +
+          infoLine(APPLY_PLAN) +
+          '<p class="mk-note">Agent 는 신청 → 현장 미팅 → 본사 승인 뒤 다음 결제일부터 바뀝니다.</p>' +
+          acts(btn('open-upgrade', 'Agent 신청')) +
+          '</div>')
+    );
+  }
+
+  /**
+   * 등급 바꾸기 (대표 · 이용 중) — 예약 · 예약 취소, 낮은 등급으로 내리기 · Manager → Expert 올리기 (다음 결제일부터),
+   * Agent 신청 (kind upgrade). 승인된 Agent 예약이 있으면 예약 취소만 (다른 예약은 서버가 409 agent_reserved).
+   */
   function planHtml(d) {
     var c = d.company;
-    var a = d.application;
     var body = '';
-    if (c.next_plan) {
-      body =
-        '<p class="mk-note">' +
-        esc('다음 결제일부터 ' + planName(c.next_plan) + ' 로 바뀝니다.') +
+    if (P.planErr) {
+      // 409 agent_reserved — 서버 글 + 예약 취소 (예약이 아래에 보이면 그 단추를 쓴다)
+      body +=
+        '<p class="mk-error" role="alert">' +
+        esc(P.planErr) +
         '</p>' +
-        askOr(
-          'plan:cancel',
-          acts(btn('ask-plan-cancel', '예약 취소')),
-          c.next_plan === 'agent'
-            ? '예약을 취소할까요? Agent 로 바꾸려면 다시 신청해야 합니다.'
-            : '예약을 취소할까요? 지금 등급 그대로 이어집니다.',
-          '예약 취소'
-        );
-    } else if (c.plan === 'agent') {
-      body =
-        infoLine('expert') +
-        '<p class="mk-note">다음 결제일부터 Expert 금액 · 크레딧으로 바뀝니다. 그때까지는 Agent 그대로입니다.</p>' +
-        askOr(
-          'plan:expert',
-          acts(btn('ask-plan-expert', '다음 결제일부터 Expert 로 내리기')),
-          '다음 결제일부터 Expert 로 내릴까요?',
-          'Expert 로 내리기'
-        );
-    } else if (c.plan === 'expert') {
-      var up = a && a.kind === 'upgrade' ? a : null;
-      if (up && (up.status === 'applied' || up.status === 'meeting')) {
-        body = pendingHtml(up, true);
-      } else {
-        body =
-          (up && up.status === 'held' ? heldHtml(true) : '') +
-          (P.open === 'upgrade'
-            ? applyFormHtml(c)
-            : infoLine('agent') +
-              '<p class="mk-note">Agent 는 신청 → 현장 미팅 → 본사 승인 뒤 다음 결제일부터 바뀝니다.</p>' +
-              acts(btn('open-upgrade', 'Agent 신청')));
-      }
+        (c.next_plan ? '' : cancelPlanHtml(APPLY_PLAN));
     }
+    if (c.next_plan) {
+      body +=
+        '<p class="mk-note">' +
+        esc(
+          (c.next_plan === APPLY_PLAN ? '본사 승인으로 ' : '') +
+            '다음 결제일부터 ' +
+            planName(c.next_plan) +
+            ' 로 바뀝니다.'
+        ) +
+        '</p>' +
+        (c.next_plan === APPLY_PLAN
+          ? '<p class="mk-note">다른 등급으로 바꾸려면 먼저 이 예약을 취소해 주세요.</p>'
+          : '') +
+        cancelPlanHtml(c.next_plan);
+    }
+    planChanges(c).forEach(function (x) {
+      body += x.how === 'apply' ? applyChangeHtml(c, d.application) : changeHtml(c, x);
+    });
     return body
-      ? '<div class="me-pt-group"><p class="me-pt-sub">등급 바꾸기</p>' + body + '</div>'
+      ? '<div class="me-pt-group" data-group="plan"><p class="me-pt-sub">등급 바꾸기</p>' +
+          body +
+          compareLink() +
+          '</div>'
       : '';
+  }
+
+  /**
+   * 다시 시작 (대표 · 정지 · 해지) — 고른 등급으로 카드 등록 · 첫 달 결제 (payments-api 가 업체를 다시 연다).
+   * 업체를 새로 만들지 않으니 partnerSignup 에는 plan 만 둔다.
+   */
+  function restartHtml(c) {
+    var list = restartPlans(c);
+    if (!list.length) return '';
+    return (
+      '<div class="me-pt-group" data-group="restart"><p class="me-pt-sub">다시 시작하기</p>' +
+      '<p class="mk-note">등급을 고르고 카드를 등록하면 첫 달이 결제되고 바로 다시 시작합니다.</p>' +
+      '<div class="me-pt-cards">' +
+      list
+        .map(function (p) {
+          return (
+            '<div class="me-pt-card" data-plan="' +
+            p +
+            '"><b class="me-pt-name">' +
+            esc(planName(p)) +
+            '</b>' +
+            infoLine(p) +
+            '<p class="me-pt-how">' +
+            esc(p === c.plan ? '지금 등급' : p === APPLY_PLAN ? '승인된 예약' : '바로 시작') +
+            '</p>' +
+            btn('restart', planName(p) + ' 로 다시 시작', p === c.plan, ' data-plan="' + p + '"') +
+            '</div>'
+          );
+        })
+        .join('') +
+      '</div>' +
+      errBox() +
+      compareLink() +
+      '</div>'
+    );
   }
 
   function companyHtml(d) {
@@ -716,6 +881,7 @@
     if (owner) {
       out += membersHtml(d, active);
       if (active) out += invitesHtml(d) + planHtml(d);
+      else if (c.status === 'suspended' || c.status === 'closed') out += restartHtml(c);
       out +=
         '<ul class="sg-rows me-pt-rows"><li><a class="sg-row" href="' +
         BILLING_PAGE +
@@ -819,11 +985,13 @@
     return out;
   }
 
-  async function refresh(err, msg) {
+  /** 다시 읽고 그린다 — planErr 는 등급 바꾸기 칸 안에 (예약 취소와 함께) */
+  async function refresh(err, msg, planErr) {
     var d = await fetchMe();
     if (d) P.me = d;
     P.err = err || '';
     P.msg = msg || '';
+    P.planErr = planErr || '';
     P.ask = null;
     P.open = null;
     render();
@@ -883,7 +1051,7 @@
     var key = P.plans && P.plans.client_key;
     if (!key || typeof window.TossPayments !== 'function') return boxError(box, PAY_MODULE_ERR);
     try {
-      // 모든 업체 결제(Expert · Agent)에 돌아올 곳을 함께 둔다
+      // 모든 업체 결제(Manager · Expert · Agent · 다시 시작)에 돌아올 곳을 함께 둔다
       var data = Object.assign({}, signup, { returnTo: RETURN_TO });
       sessionStorage.setItem(SIGNUP_KEY, JSON.stringify(data));
     } catch {
@@ -936,15 +1104,23 @@
     boxError(form, errText(res), res.status === 422 ? res.body.field : null);
   }
 
-  function submitExpert(form) {
-    var r = expertCompany({
+  /** Manager · Expert 시작 — 새 업체 이름 · 지역을 partnerSignup 에 두고 카드 등록 */
+  function submitStart(form, plan) {
+    var r = startCompany({
       name: form.elements.name ? form.elements.name.value : '',
       sido: form.elements.sido ? form.elements.sido.value : '',
       gugun: form.elements.gugun ? form.elements.gugun.value : '',
     });
     if (r.error) return boxError(form, r.error, r.field);
     boxError(form, '');
-    startBilling('expert', { plan: 'expert', company: r.company }, form);
+    startBilling(plan, { plan: plan, company: r.company }, form);
+  }
+
+  /** 정지 · 해지된 업체 다시 시작 — 고를 수 있는 등급일 때만 (서버가 다시 본다) */
+  function restart(plan, box) {
+    var c = P.me && P.me.company;
+    if (!c || restartPlans(c).indexOf(plan) < 0) return;
+    startBilling(plan, { plan: plan }, box);
   }
 
   async function makeInvite(box) {
@@ -1011,12 +1187,21 @@
       ok = m[1] === 'remove' ? '내보냈습니다.' : '초대를 취소했습니다.';
       return res.ok ? refresh('', ok) : refresh(errText(res));
     }
-    if (key === 'plan:expert' || key === 'plan:cancel') {
-      var next = key === 'plan:expert' ? 'expert' : null;
+    var plan = /^plan:(manager|expert|cancel)$/.exec(key);
+    if (plan) {
+      var next = plan[1] === 'cancel' ? null : plan[1];
       res = await call('/partner/plan', { method: 'POST', body: { next_plan: next } });
       setBusy(false);
-      ok = next ? '다음 결제일부터 Expert 로 바뀝니다.' : '예약을 취소했습니다.';
-      return res.ok ? refresh('', ok) : refresh(errText(res));
+      ok = next ? '다음 결제일부터 ' + planName(next) + ' 로 바뀝니다.' : '예약을 취소했습니다.';
+      if (res.ok) return refresh('', ok);
+      // 승인된 Agent 예약이 그사이 들어왔다 — 그 칸에 서버 글과 「예약 취소」
+      if (res.status === 409 && res.body.code === 'agent_reserved')
+        return refresh(
+          '',
+          '',
+          (typeof res.body.error === 'string' && res.body.error) || AGENT_RESERVED_MSG
+        );
+      return refresh(errText(res));
     }
     setBusy(false);
     P.ask = null;
@@ -1033,19 +1218,25 @@
       P.ask = null;
       P.msg = '';
       P.err = '';
+      P.planErr = '';
       render();
       var f = $('mePartner').querySelector('[data-form] input, [data-form] select');
       if (P.open && f && f.focus) f.focus();
     };
-    if (act === 'open-expert') return toggle('expert');
-    if (act === 'open-agent') return toggle('agent');
-    if (act === 'open-upgrade') return toggle('upgrade');
-    if (act === 'open-invite') return toggle('invite');
+    var open = {
+      'open-manager': 'manager',
+      'open-expert': 'expert',
+      'open-agent': 'agent',
+      'open-upgrade': 'upgrade',
+      'open-invite': 'invite',
+    }[act];
+    if (open) return toggle(open);
     if (act === 'close') {
       P.open = null;
       return render();
     }
     if (act === 'pay-agent') return startBilling('agent', { plan: 'agent' }, box);
+    if (act === 'restart') return restart(el.getAttribute('data-plan'), box);
     if (act === 'make-invite') return makeInvite(box);
     if (act === 'copy-invite') return copyInvite(box);
     if (act === 'no') {
@@ -1054,17 +1245,20 @@
     }
     if (act === 'yes') return P.ask ? confirmed(P.ask) : null;
     var id = el.getAttribute('data-id') || '';
+    var to = el.getAttribute('data-plan') || '';
     var ask = {
       'ask-withdraw': 'withdraw',
       'ask-remove': 'remove:' + id,
       'ask-revoke': 'revoke:' + id,
-      'ask-plan-expert': 'plan:expert',
+      'ask-plan': SELF_SERVE.indexOf(to) >= 0 ? 'plan:' + to : null,
       'ask-plan-cancel': 'plan:cancel',
     }[act];
     if (ask) {
       P.ask = ask;
       P.msg = '';
       P.err = '';
+      // agent_reserved 안내의 「예약 취소」는 그 안내 곁에서 묻는다 — 안내를 지우지 않는다
+      if (ask !== 'plan:cancel') P.planErr = '';
       render();
     }
   }
@@ -1076,7 +1270,7 @@
     if (!kind) return;
     e.preventDefault();
     if (P.busy) return;
-    if (kind === 'expert') return submitExpert(form);
+    if (SELF_SERVE.indexOf(kind) >= 0) return submitStart(form, kind);
     if (kind === 'apply') return submitApply(form);
   }
 
@@ -1175,13 +1369,17 @@
     SIGNUP_KEY: SIGNUP_KEY,
     RETURN_TO: RETURN_TO,
     PLAN_LABEL: PLAN_LABEL,
+    PLAN_LADDER: PLAN_LADDER,
     ROLE_LABEL: ROLE_LABEL,
     COMPANY_STATUS: COMPANY_STATUS,
     APPLY_FIELDS: APPLY_FIELDS,
+    PLANS_PAGE: PLANS_PAGE,
     state: P,
     viewOf: viewOf,
     applyBody: applyBody,
-    expertCompany: expertCompany,
+    startCompany: startCompany,
+    planChanges: planChanges,
+    restartPlans: restartPlans,
     inviteLink: inviteLink,
     openInvites: openInvites,
     kstTime: kstTime,

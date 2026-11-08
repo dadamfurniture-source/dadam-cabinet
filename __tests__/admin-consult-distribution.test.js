@@ -298,7 +298,7 @@ describe('상담 고르기 — 고객 · 배정 · 순위', () => {
     const c = cards[0];
     expect(c.querySelector('.rank').textContent).toBe('1순위');
     expect(c.querySelector('.cand-name').textContent).toBe('한빛가구');
-    expect(c.querySelector('.kind-chip').textContent).toBe('Agent');
+    expect(c.querySelector('.kind-chip').textContent).toBe('협력 팩토리');
     expect(c.querySelector('.total').textContent.replace(/\s+/g, '')).toBe('83점');
     // 묶음 이름 | 묶음 점수/만점 | 세부 항목
     const g = (k) => {

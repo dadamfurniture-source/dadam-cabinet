@@ -215,7 +215,7 @@ describe('admin/expert-requests.html — 팩토리 신청', () => {
       expect(t).toContain(s);
     // 신청일 · 미팅은 한국 시간 (UTC 01:00 → 10:00, 05:30 → 14:30)
     expect(t).toMatch(/2026\. 10\. 27\. 오전 10:00/);
-    expect(cards[1].textContent).toContain('Expert→Agent');
+    expect(cards[1].textContent).toContain('Agent 로 올리기');
     expect(cards[1].textContent).toContain('미팅 예정');
     expect(cards[1].textContent).toMatch(/2026\. 11\. 03\. 오후 02:30/);
   });

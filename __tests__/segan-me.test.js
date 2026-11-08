@@ -259,7 +259,7 @@ describe('상담 내역', () => {
 describe('크레딧 · 구독', () => {
   test('등급 · 남은 크레딧(생성 N회) · 구독 이용 중(다음 결제일)', async () => {
     const calls = await load();
-    expect($('meTier').textContent).toBe('EXPERT');
+    expect($('meTier').textContent).toBe('Expert'); // segan/plans.html 과 같은 이름
     expect($('meCredits').textContent).toBe('1,000 크레딧 · 생성 50회');
     expect($('meSub').textContent).toBe('이용 중 · 다음 결제 2026.11.20');
     expect(calls.fetch.find((f) => f.url === PAY + '/subscription')).toEqual({

@@ -1,7 +1,8 @@
 /* ============================================================
    segan/partner-projects.js — 「내 정보 › 업체」 안의 프로젝트 (segan/me.html #partnerProjects)
 
-   누가 보나  다담 공장 구성원 · Expert · Agent 협력업체 구성원 — account-api GET /partner/me 로 가린다.
+   누가 보나  다담 공장 구성원 · Manager · Expert · Agent 협력업체 구성원 — account-api GET /partner/me 로 가린다.
+             (프로젝트 저장은 Manager 이상 — 2026-11-08 DB 0047. company.plan 의 manager 는 등급, role 의 manager 는 실장)
              목록은 구성원 모두, 「새 고객 · 프로젝트」는 서버 응답의 can_manage(대표 · 실장)일 때만.
              서버가 403(다담 본사 · 멈춘 업체 · 구성원 아님)이면 칸째 감춘다.
              segan/me.js 가 업체 칸(segan/partner.js)을 읽은 뒤 SeganPartnerProjects.load(sb, session, partnerMe) 를
@@ -26,7 +27,7 @@
   'use strict';
 
   var MEMBER_ROLES = ['owner', 'manager', 'staff'];
-  var PLANS = ['expert', 'agent']; // 프로젝트를 가지는 협력업체 (Expert 이상) — 워커 company-projects.js
+  var PLANS = ['manager', 'expert', 'agent']; // 프로젝트를 가지는 협력업체 (Manager 이상) — 워커 company-projects.js PROJECT_PLANS
   var PROJECT_STATUS = { closed: '끝남', cancelled: '취소', handed_over: '넘김' }; // segan/me.js 와 같다
   var ROLE_NAME = { owner: '대표', manager: '실장', staff: '직원' }; // 업체 안 역할 — manager 는 화면 「실장」
   var TITLE_MAX = 100; // 워커 PROJECT_TITLE_MAX
@@ -97,7 +98,7 @@
     return !!me && typeof me === 'object' && !Array.isArray(me) && me.hq_member === true;
   }
 
-  /** 프로젝트 칸을 보이나 — 다담 공장 구성원 · Expert · Agent 협력업체 구성원 */
+  /** 프로젝트 칸을 보이나 — 다담 공장 구성원 · Manager · Expert · Agent 협력업체 구성원 */
   function canSee(me) {
     if (isHq(me)) return true;
     if (!me || typeof me !== 'object' || Array.isArray(me)) return false;

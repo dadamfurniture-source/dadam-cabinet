@@ -13,7 +13,9 @@
              달 바꾸기 (지난달 · 다음 달 — 이번 달 뒤로는 가지 않는다)
              수주 상세 · 원가 · 수금 입력은 PC ERP(erp.html) 로 보낸다
              회계(segan/ledger.html — 한눈에 · 매출 · 매입 · 사진 탭) · 이번 달 보고서(segan/ledger-report.html) 줄 —
-             workflow-api GET /ledger/me 가 그 업체 대표 · 실장에게 답할 때만 (Expert · Agent 업체 · 시험 업체)
+             workflow-api GET /ledger/me 가 그 업체 대표 · 실장에게 답할 때만 (회계 = Agent 업체 · 시험 업체,
+             DB 0047). 장부 줄 · 사진이 있는데 등급이 내려간 업체(Expert 로 쓰던 업체 등)는 level read — 보기만:
+             「Expert 등급은 장부를 볼 수만 있습니다 — 장부를 쓰려면 Agent 등급이어야 합니다」 + 등급 비교(segan/plans.html)
              다담 본사 · 공장 구성원(/partner/me 에 협력업체가 없다)은 회계 요약 없이 장부 줄만 — 역시 /ledger/me 가 답할 때.
              그때는 업체 칸(#partner)도 연다 (공장 구성원은 segan/partner.js 가 감춰 둔다)
              직원(협력업체 · 본사 · 공장)은 /ledger/me 가 can_upload 로 답할 때 「영수증 올리기」 줄만 — 금액 · 요약 없이
@@ -44,6 +46,9 @@
   var ERP_PAGE = '../erp.html';
   var LEDGER_PAGE = 'ledger.html';
   var REPORT_PAGE = 'ledger-report.html'; // 인쇄용 월 회계 보고서
+  var PLANS_PAGE = 'plans.html'; // 등급 비교 (segan/plans.html)
+  // 등급 이름 (company.plan) — segan/partner.js PLAN_LABEL 과 같다. ROLES 의 manager(실장)와 다르다
+  var PLAN_LABEL = { manager: 'Manager', expert: 'Expert', agent: 'Agent' };
   var MONTH_RE = /^(\d{4})-(\d{2})$/;
   var FAIL_MSG = '이 달 회계를 불러오지 못했습니다.';
 
@@ -56,6 +61,7 @@
     err: '',
     busy: false,
     ledger: false, // 장부를 여는가 (GET /ledger/me)
+    readOnly: '', // 장부를 보기만 할 때 (level read) 그 까닭 한 줄
   };
 
   var $ = function (id) {
@@ -122,6 +128,34 @@
     if (!me || typeof me !== 'object' || me.hq_member) return false;
     var c = me.company;
     return !!(c && typeof c === 'object' && ROLES.indexOf(c.role) >= 0);
+  }
+
+  /**
+   * 장부를 보기만 할 때(level read)의 한 줄 — 회계(장부 쓰기)는 이용 중인 Agent 팩토리만 (DB 0047).
+   * → { text, plans } (plans: 등급 비교 링크를 붙이나)
+   */
+  function readOnlyNote(company) {
+    var c = company && typeof company === 'object' ? company : null;
+    if (c && c.status && c.status !== 'active')
+      return { text: '팩토리가 이용 중이 아니어서 장부를 볼 수만 있습니다.', plans: false };
+    var name = c && c.plan !== 'agent' ? PLAN_LABEL[c.plan] : '';
+    return {
+      text:
+        (name ? name + ' 등급은' : '지금 등급에서는') +
+        ' 장부를 볼 수만 있습니다 — 장부를 쓰려면 Agent 등급이어야 합니다.',
+      plans: true,
+    };
+  }
+
+  function readOnlyHtml() {
+    if (!B.readOnly) return '';
+    var n = B.readOnly;
+    return (
+      '<p class="mk-note me-bk-ro" role="note">' +
+      esc(n.text) +
+      (n.plans ? ' <a class="mk-link" href="' + PLANS_PAGE + '">등급 비교</a>' : '') +
+      '</p>'
+    );
   }
 
   /** GET /books/summary 본문 → data | null (모양이 틀리면 null) */
@@ -272,7 +306,8 @@
         : '') +
       '<li><a class="sg-row" href="' +
       ERP_PAGE +
-      '">수주 상세 · 원가 · 수금 입력은 PC ERP에서</a></li></ul>';
+      '">수주 상세 · 원가 · 수금 입력은 PC ERP에서</a></li></ul>' +
+      (B.ledger ? readOnlyHtml() : '');
     box.hidden = false;
   }
 
@@ -302,21 +337,26 @@
     }
   }
 
-  /** GET /ledger/me → 'book' 대표 · 실장이고 장부 자격(full · read) · 'upload' 사진만 올림 · '' 못 연다(못 읽음 포함) */
+  /**
+   * GET /ledger/me → { kind, read }. kind: 'book' 대표 · 실장이고 장부 자격(full · read) · 'upload' 사진만 올림 ·
+   * '' 못 연다(못 읽음 포함). read: 자기 업체 장부를 보기만 한다 (level read · 남의 장부 보기 아님)
+   */
   async function ledgerOpen() {
+    var none = { kind: '', read: false };
     try {
       var res = await fetch(B.base + '/ledger/me', {
         headers: { Authorization: 'Bearer ' + (await token()) },
         cache: 'no-store',
       });
-      if (!res.ok) return '';
+      if (!res.ok) return none;
       var b = await res.json();
       var d = b && b.success === true ? b.data : null;
-      if (d && d.money === true && (d.level === 'full' || d.level === 'read')) return 'book';
-      if (d && d.can_upload === true) return 'upload';
-      return '';
+      if (d && d.money === true && (d.level === 'full' || d.level === 'read'))
+        return { kind: 'book', read: d.level === 'read' && d.viewing !== true };
+      if (d && d.can_upload === true) return { kind: 'upload', read: false };
+      return none;
     } catch {
-      return '';
+      return none;
     }
   }
 
@@ -370,15 +410,16 @@
     if (!canSee(me)) {
       // 협력업체가 없는 구성원(다담 본사 · 공장)과 협력업체 직원 — 장부를 열면 장부 줄, 사진만 올리면 올리기 줄
       if (!me || typeof me !== 'object') return;
-      var kind = await ledgerOpen();
-      if (kind) renderLedgerOnly(kind);
+      var open = await ledgerOpen();
+      if (open.kind) renderLedgerOnly(open.kind);
       return;
     }
     try {
       var month = thisMonth();
       var got = await Promise.all([fetchSummary(month), ledgerOpen()]);
       var d = got[0];
-      B.ledger = got[1] === 'book';
+      B.ledger = got[1].kind === 'book';
+      B.readOnly = B.ledger && got[1].read ? readOnlyNote(me.company) : '';
       if (!d) return; // 403 · 404 · 오류 — 칸째 감춘다
       B.month = month;
       B.data = d;
@@ -400,6 +441,7 @@
     PAY_STAGE: PAY_STAGE,
     state: B,
     canSee: canSee,
+    readOnlyNote: readOnlyNote,
     summaryOf: summaryOf,
     monthRow: monthRow,
     thisMonth: thisMonth,
