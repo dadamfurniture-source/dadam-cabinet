@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- 글이 아직 없다 — 글을 올리기 전까지 검색에 내지 않는다 (사이트맵에도 없다) -->
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#F6F3EE" />
+    <title>블로그 · SEGAN</title>
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg?v=2026110803" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110803" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110803" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110803" />
+    <meta name="apple-mobile-web-app-title" content="SEGAN" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="shell.css?v=2026110803" />
+    <link rel="stylesheet" href="info.css?v=2026110803" />
+    <!-- 읽기만 하는 화면 — 로그인 · 데이터를 묻지 않아 셸만 싣는다 -->
+    <script src="shell.js?v=2026110803" defer></script>
+  </head>
+  <body class="sg-app" data-tab="blog">
+    <div data-segan-shell="header"></div>
+
+    <main class="sg-main" id="main">
+      <h1 class="sg-h1">블로그</h1>
+      <p class="in-lead">맞춤 가구를 고르고 짓는 데 필요한 이야기를 네 갈래로 모읍니다.</p>
+
+      <p class="pl-state">글을 준비하고 있습니다.</p>
+
+      <ul class="bl-cats" aria-label="블로그 분류">
+        <li class="bl-cat">
+          <h2>자재</h2>
+          <p>글 준비 중</p>
+        </li>
+        <li class="bl-cat">
+          <h2>설치</h2>
+          <p>글 준비 중</p>
+        </li>
+        <li class="bl-cat">
+          <h2>하드웨어</h2>
+          <p>글 준비 중</p>
+        </li>
+        <li class="bl-cat">
+          <h2>주방기기</h2>
+          <p>글 준비 중</p>
+        </li>
+      </ul>
+
+      <div class="in-acts">
+        <a class="in-btn" href="collection.html">시공사례 보기</a>
+      </div>
+    </main>
+
+    <div data-segan-shell="footer"></div>
+    <div data-segan-shell="tabbar"></div>
+  </body>
+</html>

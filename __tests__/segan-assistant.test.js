@@ -199,7 +199,7 @@ afterEach(() => {
 });
 
 describe('누가', () => {
-  test('대화 자격(full) — 목록 · 새 대화 · 입력 칸, 비서 탭도 열린다', async () => {
+  test('대화 자격(full) — 목록 · 새 대화 · 입력 칸 (막대에는 비서 탭이 없고 「마이」가 켜진다)', async () => {
     const calls = await load();
     expect($('asBody').hidden).toBe(false);
     expect($('asReadonly').hidden).toBe(true);
@@ -210,12 +210,10 @@ describe('누가', () => {
     expect(item.getAttribute('data-id')).toBe(C1);
     expect(item.querySelector('b').textContent).toBe('지난 대화');
     expect(item.querySelector('small').textContent).toBe('11.02 12:04'); // 한국 시간
-    expect(document.querySelector('nav.sg-tabbar a[data-tab-link="assistant"]').hidden).toBe(false);
+    expect(document.querySelector('[data-tab-link="assistant"]')).toBeNull();
     expect(
-      document
-        .querySelector('nav.sg-tabbar a[data-tab-link="assistant"]')
-        .getAttribute('aria-current')
-    ).toBe('page');
+      document.querySelector('nav.sg-tabbar [aria-current="page"]').getAttribute('data-tab-link')
+    ).toBe('me');
     const me = asCalls(calls, /\/assistant\/me$/);
     expect(me.length).toBeGreaterThanOrEqual(1);
     expect(me.every((c) => c.auth === 'Bearer tok-1')).toBe(true);
@@ -245,7 +243,7 @@ describe('누가', () => {
     expect($('asState').textContent).toBe(msg);
     expect($('asBody').hidden).toBe(true);
     expect(asCalls(calls, /\/assistant\/conversations/)).toEqual([]);
-    expect(document.querySelector('nav.sg-tabbar a[data-tab-link="assistant"]').hidden).toBe(true);
+    expect(document.querySelector('[data-tab-link="assistant"]')).toBeNull();
   });
 });
 
