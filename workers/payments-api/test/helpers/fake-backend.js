@@ -18,8 +18,9 @@ export const ENV = {
   SUPABASE_SERVICE_ROLE_KEY: 'service',
   TOSS_SECRET_KEY: 'test_sk_dummy',
   TOSS_CLIENT_KEY: 'test_ck_dummy',
-  TOSS_PRICE_EXPERT_KRW: '99000',
-  TOSS_PRICE_AGENT_KRW: '199000',
+  TOSS_PRICE_MANAGER_KRW: '99000',
+  TOSS_PRICE_EXPERT_KRW: '199000',
+  TOSS_PRICE_AGENT_KRW: '299000',
   CORS_ORIGINS: 'https://dadamfurniture.com',
 };
 
