@@ -3,7 +3,7 @@
  *
  * 관리자가 신청을 미팅 · 승인 · 보류로 바꾸면 신청한 사람에게 알림 한 줄을 notification_outbox 에 넣는다
  * (database/migrations/0016_app_notifications.sql). 보내기는 workflow-api 의 1분 cron 이 한다.
- *   업체 id: Expert → Agent 신청(upgrade)이면 그 업체, 새 업체 신청이면 비움 (업체 없는 기기로 간다)
+ *   업체 id: Manager · Expert → Agent 신청(upgrade)이면 그 업체, 새 업체 신청이면 비움 (업체 없는 기기로 간다)
  *   dedupe_key: partner_application:신청 id:사람 id:상태 — 미팅은 미팅 시각까지 붙여 일정이 바뀌면 다시 알린다
  * 글은 workers/workflow-api/src/push/messages.js 와 같다 (시험이 본다) — 이름 · 연락처 · 업체 이름을 넣지 않는다.
  * 넣기가 실패해도 처리는 그대로다 — 던지지 않고 상태 코드만 로그에 남긴다.
