@@ -3,10 +3,12 @@
  */
 
 export class HttpError extends Error {
-  constructor(statusCode, message, code) {
+  /** data — 오류 본문에 함께 싣는 값 (예: 안내 모드 하루 한도의 reset_at) */
+  constructor(statusCode, message, code, data) {
     super(message);
     this.statusCode = statusCode;
     this.code = code || undefined;
+    this.data = data || undefined;
   }
 }
 
@@ -64,7 +66,12 @@ export function errorResponse(request, env, err) {
     return json(
       request,
       env,
-      { success: false, message: err.message, code: err.code },
+      {
+        success: false,
+        message: err.message,
+        code: err.code,
+        ...(err.data ? { data: err.data } : {}),
+      },
       err.statusCode
     );
   }

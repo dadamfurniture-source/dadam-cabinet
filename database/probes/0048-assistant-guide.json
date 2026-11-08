@@ -1,0 +1,216 @@
+{
+  "title": "0048 AI 비서 안내 모드 — 사람 × 한국 날짜 사용량은 서버만 읽고 함수로만 쓴다 · 하루 한도까지 세고 넘으면 over_limit · 스위치 끔은 off · 서버 쪽 실패는 하나 돌려준다 (scripts/rls-probe.mjs)",
+  "ids": [],
+  "users": [
+    "g_user",
+    "other_user"
+  ],
+  "setup": [
+    "INSERT INTO public.assistant_guide_usage (user_id, day, used) VALUES ({{g_user}}, date '2026-01-01', 0)"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "g": {
+      "role": "authenticated",
+      "user": "g_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "사용량 표 — 서버만 읽는다 (본인 · 익명 모두 deny)",
+      "sql": "select count(*) from public.assistant_guide_usage where user_id = {{g_user}}",
+      "expect": {
+        "service_role": "1",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "사용량 표 — 서버도 바로 넣지 못한다 (함수로만)",
+      "sql": "insert into public.assistant_guide_usage (user_id, day, used) values ({{g_user}}, date '2026-01-02', 0)",
+      "expect": {
+        "*": "deny"
+      }
+    },
+    {
+      "name": "사용량 표 — 서버도 바로 고치지 못한다 (함수로만)",
+      "sql": "update public.assistant_guide_usage set used = 0 where user_id = {{g_user}}",
+      "expect": {
+        "*": "deny"
+      }
+    },
+    {
+      "name": "함수 — 서버만 부른다 (상태 · 세기 · 정산)",
+      "sql": "select (public.assistant_guide_status({{g_user}})->>'used') || '/' || (public.assistant_guide_settle({{g_user}}, date '2026-01-01', 0, '{}'::jsonb, false)->>'ok')",
+      "expect": {
+        "service_role": "0/true",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "세기 함수 — 익명 · 로그인 사용자는 부르지 못한다",
+      "sql": "select public.assistant_guide_take({{g_user}})->>'ok'",
+      "roles": [
+        "anon",
+        "g"
+      ],
+      "expect": {
+        "*": "deny"
+      }
+    },
+    {
+      "name": "새 칸 기본값 — 안내 켬 · 하루 20",
+      "sql": "select g.guide_on || '/' || g.guide_daily_limit from public.assistant_global g where g.id",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true/20"
+      }
+    },
+    {
+      "name": "첫 질문 — used 1 · 날짜는 한국 날짜 · reset_at 은 다음 한국 0시",
+      "sql": "select (r->>'ok') || '/' || (r->>'used') || '/' || (r->>'limit') || '/' || ((r->>'day')::date = (now() AT TIME ZONE 'Asia/Seoul')::date) || '/' || ((r->>'reset_at')::timestamptz = (((now() AT TIME ZONE 'Asia/Seoul')::date + 1)::timestamp AT TIME ZONE 'Asia/Seoul')) from (select public.assistant_guide_take({{g_user}}) as r) s",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "true/1/20/true/true"
+      }
+    },
+    {
+      "name": "하루 한도 2 — 셋째는 over_limit, 쓴 수는 2 그대로",
+      "sql": "update public.assistant_global set guide_daily_limit = 2 where id; select public.assistant_guide_take({{g_user}}); select public.assistant_guide_take({{g_user}}); select (r->>'ok') || '/' || (r->>'reason') || '/' || (r->>'used') || '/' || (r->>'limit') from (select public.assistant_guide_take({{g_user}}) as r) s",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "false/over_limit/2/2"
+      }
+    },
+    {
+      "name": "하루 한도 2 — 넘긴 질문은 세지 않는다 (줄의 used 2)",
+      "sql": "update public.assistant_global set guide_daily_limit = 2 where id; select public.assistant_guide_take({{g_user}}); select public.assistant_guide_take({{g_user}}); select public.assistant_guide_take({{g_user}}); select u.used from public.assistant_guide_usage u where u.user_id = {{g_user}} and u.day = (now() AT TIME ZONE 'Asia/Seoul')::date",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "2"
+      }
+    },
+    {
+      "name": "사람마다 따로 — 한도 1 을 다 쓴 사람이 있어도 다른 사람은 된다",
+      "sql": "update public.assistant_global set guide_daily_limit = 1 where id; select public.assistant_guide_take({{g_user}}); select (public.assistant_guide_take({{g_user}})->>'ok') || '/' || (public.assistant_guide_take({{other_user}})->>'ok')",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "false/true"
+      }
+    },
+    {
+      "name": "돌려주기 — 서버 쪽 실패는 하나 돌려주고 토큰 · 비용은 더한다",
+      "sql": "select public.assistant_guide_take({{g_user}}); select public.assistant_guide_take({{g_user}}); select public.assistant_guide_settle({{g_user}}, (now() AT TIME ZONE 'Asia/Seoul')::date, 120, '{\"input_tokens\":1000,\"output_tokens\":200,\"cache_read_input_tokens\":3000,\"cache_creation_input_tokens\":50}'::jsonb, true); select u.used || '/' || u.input_tokens || '/' || u.output_tokens || '/' || u.cache_read_tokens || '/' || u.cache_write_tokens || '/' || u.cost_micros from public.assistant_guide_usage u where u.user_id = {{g_user}} and u.day = (now() AT TIME ZONE 'Asia/Seoul')::date",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "1/1000/200/3000/50/120"
+      }
+    },
+    {
+      "name": "정산 — 돌려주기는 0 아래로 내려가지 않는다",
+      "sql": "select public.assistant_guide_settle({{g_user}}, date '2026-01-01', 0, '{}'::jsonb, true)->>'used'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "0"
+      }
+    },
+    {
+      "name": "정산 — 그 날 줄이 없으면 not_found (줄을 만들지 않는다)",
+      "sql": "select public.assistant_guide_settle({{other_user}}, date '2026-01-01', 5, '{}'::jsonb, false)->>'reason'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "not_found"
+      }
+    },
+    {
+      "name": "정산 — 음수 비용은 거절",
+      "sql": "select public.assistant_guide_settle({{g_user}}, date '2026-01-01', -1, '{}'::jsonb, false)",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:P0001"
+      }
+    },
+    {
+      "name": "스위치 끔 — off",
+      "sql": "update public.assistant_global set guide_on = false where id; select public.assistant_guide_take({{g_user}})->>'reason'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "off"
+      }
+    },
+    {
+      "name": "스위치 끔 — 세지 않는다 (오늘 줄 없음)",
+      "sql": "update public.assistant_global set guide_on = false where id; select public.assistant_guide_take({{g_user}}); select count(*) from public.assistant_guide_usage u where u.user_id = {{g_user}} and u.day = (now() AT TIME ZONE 'Asia/Seoul')::date",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "0"
+      }
+    },
+    {
+      "name": "한도 0 — over_limit",
+      "sql": "update public.assistant_global set guide_daily_limit = 0 where id; select public.assistant_guide_take({{g_user}})->>'reason'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "over_limit"
+      }
+    },
+    {
+      "name": "한도 0 — 줄을 만들지 않는다",
+      "sql": "update public.assistant_global set guide_daily_limit = 0 where id; select public.assistant_guide_take({{g_user}}); select count(*) from public.assistant_guide_usage u where u.user_id = {{g_user}} and u.day = (now() AT TIME ZONE 'Asia/Seoul')::date",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "0"
+      }
+    },
+    {
+      "name": "한도 칸 — 1000 을 넘으면 거절",
+      "sql": "update public.assistant_global set guide_daily_limit = 1001 where id",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    },
+    {
+      "name": "한도 칸 — 음수는 거절",
+      "sql": "update public.assistant_global set guide_daily_limit = -1 where id",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "err:23514"
+      }
+    }
+  ]
+}
