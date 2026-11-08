@@ -444,8 +444,8 @@ export function slackName(name) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') || '이름 없는 업체';
 }
 
-/** 본사 관리자 화면 (다음 PR) */
-export const ADMIN_PAGE = '/admin/production-requests.html';
+/** 본사 관리자 화면 — 앱 「관리 › 제작 의뢰」 (segan/admin.html#production, segan/admin-production.js) */
+export const ADMIN_PAGE = '/segan/admin.html#production';
 
 /**
  * 본사 Slack 한 메시지 (순수). kind: new(새 의뢰) | declined(못 받음) | expired(답 없음).

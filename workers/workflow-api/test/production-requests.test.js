@@ -1,5 +1,5 @@
 /**
- * Manager 업체 제작 의뢰 — src/production-requests/* 를 워커로 부른다 (DB 0050).
+ * Manager 업체 제작 의뢰 — src/production-requests/* 를 워커로 부른다 (DB 0050 · 거둠 알림 종류 0053).
  *   Manager: POST|GET /production-requests · GET /production-requests/:id · POST …/:id/choose|cancel
  *   본사:    GET /admin/production-requests · POST …/:id/review|recommend · GET …/:id/suggestions
  *   팩토리:  GET /factory/production-requests · POST …/:id/accept|decline · 1분 cron 답 없음
@@ -401,6 +401,12 @@ test('흐름 — 실장이 의뢰 → 본사 검토 · 추천 → Manager 고름
       (n) => n.company_id === E && n.url === '/segan/me.html#factory-requests'
     )
   );
+  // Manager 목록 — 답 기다림 의뢰는 답할 기한을 같이 싣는다 (의뢰마다 따로 읽지 않게)
+  const waitingList = await call(fake, '/production-requests', M_STAFF);
+  assert.deepEqual(
+    waitingList.json.data.items.map((i) => [i.id, i.status, i.expires_at]),
+    [[req.id, 'chosen', chose.json.data.offer.expires_at]]
+  );
 
   // 7) 팩토리 목록 — E 대표는 받기 가능, E 직원은 보기만, A(안 골림)는 아무것도 안 보인다
   const list = await call(fake, '/factory/production-requests', E_OWNER);
@@ -483,9 +489,11 @@ test('흐름 — 실장이 의뢰 → 본사 검토 · 추천 → Manager 고름
       myList.json.data.can_create,
       myList.json.data.items[0].status,
       myList.json.data.items[0].factory.name,
+      myList.json.data.items[0].expires_at,
     ],
-    [true, 'accepted', '마바 가구']
+    [true, 'accepted', '마바 가구', null]
   );
+  assert.equal(kindsOf(fake, 'production_cancelled').length, 0);
 });
 
 test('같은 Manager 의 다음 의뢰를 받으면 팩토리 고객 줄을 다시 쓴다', async () => {
@@ -703,8 +711,13 @@ test('추천 — 풀 안 팩토리만 (Manager · 정지 · 모르는 업체 · 
     body: { company_id: A },
   });
   assert.deepEqual([old.status, old.json.code], [422, 'not_recommended_company']);
-  // 끝난 의뢰는 추천하지 못한다
+  // 끝난 의뢰는 추천하지 못한다 (고른 팩토리가 없어 거둠 알림도 없다)
+  assert.equal(
+    (await call(fake, `/production-requests/${id}`, M_OWNER)).json.data.status,
+    'recommended'
+  );
   await call(fake, `/production-requests/${id}/cancel`, M_OWNER, { method: 'POST' });
+  assert.equal(kindsOf(fake, 'production_cancelled').length, 0);
   const closed = await rec({ company_ids: [E] });
   assert.deepEqual([closed.status, closed.json.code], [409, 'not_recommendable']);
 });
@@ -883,7 +896,7 @@ test('답 없음 — cron 이 돌기 전이라도 기한이 지난 의뢰는 받
 
 // ── 거두기 ────────────────────────────────────────────────────
 
-test('거두기 — 답 기다리는 중에도, 팩토리 줄은 거둠으로 닫히고 받기는 409, 받은 의뢰는 못 거둔다', async () => {
+test('거두기 — 답 기다리는 중에도, 팩토리 줄은 거둠으로 닫히고 그 팩토리 대표 · 실장에게 알림, 받기는 409, 받은 의뢰는 못 거둔다', async () => {
   const fake = fresh();
   const id = await recommended(fake, [E]);
   await call(fake, `/production-requests/${id}/choose`, M_OWNER, {
@@ -894,9 +907,23 @@ test('거두기 — 답 기다리는 중에도, 팩토리 줄은 거둠으로 �
   assert.deepEqual([c.status, c.json.data.status], [200, 'cancelled']);
   const req = fake.db.production_requests.find((r) => r.id === id);
   assert.deepEqual([req.status, req.factory_company_id], ['cancelled', null]);
+  const chosen = fake.db.production_recommendations.find((r) => r.request_id === id && r.chosen);
+  assert.equal(chosen.response, 'cancelled');
+  // 답을 기다리던 팩토리 E 의 대표 · 실장에게 (직원 · Manager 쪽은 아니다)
+  const gone = kindsOf(fake, 'production_cancelled');
+  assert.deepEqual(gone.map((n) => n.user_id).sort(), [E_OWNER, E_CHIEF].sort());
+  assert.ok(
+    gone.every(
+      (n) =>
+        n.company_id === E &&
+        n.ref_id === chosen.id &&
+        n.title === '제작 의뢰 거둠' &&
+        n.url === '/segan/me.html#factory-requests'
+    )
+  );
   assert.equal(
-    fake.db.production_recommendations.find((r) => r.request_id === id && r.chosen).response,
-    'cancelled'
+    gone[0].body,
+    '의뢰한 업체가 싱크대 제작 의뢰를 거뒀습니다. 받기 · 못 받음을 고르지 않아도 됩니다.'
   );
   const acc = await call(fake, `/factory/production-requests/${id}/accept`, E_OWNER, {
     method: 'POST',
@@ -909,11 +936,12 @@ test('거두기 — 답 기다리는 중에도, 팩토리 줄은 거둠으로 �
     ]),
     [['cancelled', null]]
   );
-  // 두 번 눌러도 같다
+  // 두 번 눌러도 같다 (알림도 한 번)
   assert.equal(
     (await call(fake, `/production-requests/${id}/cancel`, M_CHIEF, { method: 'POST' })).status,
     200
   );
+  assert.equal(kindsOf(fake, 'production_cancelled').length, 2);
   // 받은 의뢰
   const id2 = await recommended(fake, [A], { draft_id: 'd-closet-02' });
   await call(fake, `/production-requests/${id2}/choose`, M_OWNER, {
@@ -923,6 +951,21 @@ test('거두기 — 답 기다리는 중에도, 팩토리 줄은 거둠으로 �
   await call(fake, `/factory/production-requests/${id2}/accept`, A_OWNER, { method: 'POST' });
   const no = await call(fake, `/production-requests/${id2}/cancel`, M_OWNER, { method: 'POST' });
   assert.deepEqual([no.status, no.json.code], [409, 'not_cancellable']);
+  // 팩토리가 이미 못 받은 의뢰를 거두면 알리지 않는다 (답을 기다리는 팩토리가 없다)
+  const id3 = await recommended(fake, [E]);
+  await call(fake, `/production-requests/${id3}/choose`, M_OWNER, {
+    method: 'POST',
+    body: { company_id: E },
+  });
+  await call(fake, `/factory/production-requests/${id3}/decline`, E_OWNER, {
+    method: 'POST',
+    body: {},
+  });
+  const after = await call(fake, `/production-requests/${id3}/cancel`, M_OWNER, {
+    method: 'POST',
+  });
+  assert.deepEqual([after.status, after.json.data.status], [200, 'cancelled']);
+  assert.equal(kindsOf(fake, 'production_cancelled').length, 2);
 });
 
 test('고르기 — 추천 도착 전 · 이미 고른 의뢰는 409, 그사이 팩토리가 정지되면 422', async () => {
@@ -1106,7 +1149,11 @@ test('본사 Slack — 새 의뢰 · 못 받음 · 답 없음 (업체 이름 · 
   assert.equal(posts.length, 1);
   assert.equal(
     posts[0].text,
-    '새 제작 의뢰 — 가나 인테리어 · 싱크대 · 서울특별시 강남구. 검토해 팩토리를 추천해 주세요.\nhttps://dadamfurniture.com/admin/production-requests.html'
+    '새 제작 의뢰 — 가나 인테리어 · 싱크대 · 서울특별시 강남구. 검토해 팩토리를 추천해 주세요.\nhttps://dadamfurniture.com/segan/admin.html#production'
+  );
+  assert.equal(
+    posts[0].blocks[0].text.text,
+    '새 제작 의뢰 — 가나 인테리어 · 싱크대 · 서울특별시 강남구. 검토해 팩토리를 추천해 주세요.\n<https://dadamfurniture.com/segan/admin.html#production|제작 의뢰 열기>'
   );
   assert.ok(!JSON.stringify(posts[0]).includes('김고객'), '메모 · 설계 이름을 싣지 않는다');
   assert.equal(
@@ -1122,7 +1169,7 @@ test('본사 Slack — 새 의뢰 · 못 받음 · 답 없음 (업체 이름 · 
   assert.equal([...slackName('가'.repeat(80))].length, 40);
 });
 
-test('알림 글 — 제작 의뢰 셋 (이름 · 메모 없음, DB 글자 수 안, 앱 안 주소)', () => {
+test('알림 글 — 제작 의뢰 넷 (이름 · 메모 없음, DB 글자 수 안, 앱 안 주소)', () => {
   const cases = [
     [
       'production_recommended',
@@ -1173,6 +1220,20 @@ test('알림 글 — 제작 의뢰 셋 (이름 · 메모 없음, DB 글자 수 �
       '고른 팩토리가 24시간 안에 답하지 않았습니다. 본사가 다시 추천해 드립니다.',
       '/segan/me.html#production-requests',
     ],
+    [
+      'production_cancelled',
+      { item: 'fridge' },
+      '제작 의뢰 거둠',
+      '의뢰한 업체가 냉장고장 제작 의뢰를 거뒀습니다. 받기 · 못 받음을 고르지 않아도 됩니다.',
+      '/segan/me.html#factory-requests',
+    ],
+    [
+      'production_cancelled',
+      { item: '김고객' },
+      '제작 의뢰 거둠',
+      '의뢰한 업체가 제작 의뢰를 거뒀습니다. 받기 · 못 받음을 고르지 않아도 됩니다.',
+      '/segan/me.html#factory-requests',
+    ],
   ];
   for (const [kind, params, title, body, url] of cases) {
     const m = buildMessage(kind, params);
@@ -1180,7 +1241,12 @@ test('알림 글 — 제작 의뢰 셋 (이름 · 메모 없음, DB 글자 수 �
     assert.ok(isValidMessage(m));
   }
   assert.equal(buildMessage('production_answered', { answer: 'cancelled' }), null);
-  for (const k of ['production_recommended', 'production_offered', 'production_answered'])
+  for (const k of [
+    'production_recommended',
+    'production_offered',
+    'production_answered',
+    'production_cancelled',
+  ])
     assert.ok(NOTIFICATION_KINDS.includes(k));
   assert.equal(PRODUCTION_RECOMMEND_MAX, RECOMMEND_MAX);
 });
