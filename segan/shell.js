@@ -210,7 +210,7 @@
   function headerHTML(current) {
     return (
       '<header class="sg-header">' +
-      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110803" alt="SEGAN" width="477" height="75" /></a>' +
+      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110804" alt="SEGAN" width="477" height="75" /></a>' +
       '<nav class="sg-nav" aria-label="주 메뉴">' +
       links(current, 'pc') +
       '</nav>' +
@@ -561,6 +561,8 @@
           시트 위에 겹쳐 열 수 있다
      열면 방문 기록에 표시 칸 하나만 넣는다 — history.pushState({ sgSheet: n }, '') (주소 · # 은 그대로라
      hashchange 가 없다). 뒤로 가기는 맨 위 창을 닫고, 그 popstate 는 페이지 처리기에 넘기지 않는다.
+     닫기가 부른 history.back() 은 늦게 돌아온다 — 그 사이에 연 창은 바로 그리고, 표시 칸은 그 popstate 가
+     돌아온 뒤에 넣는다(닫기 · 열기를 차례로 줄 세운다). 돌아온 popstate 는 아직 칸이 없는 새 창을 닫지 않는다.
      popstate 를 듣는 페이지는 맨 앞에서 SeganShell.sheet.isSheetState(e.state) 면 돌아간다
      (닫은 뒤 「앞으로」로 남은 표시 칸에 다시 들어온 때).
 
@@ -581,20 +583,37 @@
   var sheetSeq = Date.now(); // 표시 번호 — 새로 고치기 전에 남은 옛 표시보다 늘 크다
   var layers = []; // 열린 창 (아래 → 위)
   var popWaits = []; // 닫기로 부른 history.back() — 돌아올 popstate 하나씩
+  var historyJobs = []; // popstate 를 기다리는 동안 미룬 기록 일 (표시 칸 넣기 · 되돌리기) — 차례대로
 
   function isSheetState(state) {
     return !!state && typeof state === 'object' && typeof state[SHEET_KEY] === 'number';
   }
 
-  /** 지금 기록 칸 값 + 새 표시 번호 (페이지가 둔 값은 그대로 둔다) */
-  function sheetState() {
+  /** 지금 기록 칸 값 + 표시 번호 n (페이지가 둔 값은 그대로 둔다) */
+  function sheetState(n) {
     var cur = window.history.state;
     var out = {};
     if (cur && typeof cur === 'object') {
       for (var k in cur) if (Object.prototype.hasOwnProperty.call(cur, k)) out[k] = cur[k];
     }
-    out[SHEET_KEY] = ++sheetSeq;
+    out[SHEET_KEY] = n;
     return out;
+  }
+
+  /** 기록 일 — 돌아올 popstate 가 없으면 바로, 있으면 그것이 돌아온 뒤 차례대로 한다 */
+  function afterPops(job) {
+    if (!popWaits.length && !historyJobs.length) job();
+    else historyJobs.push(job);
+  }
+
+  /** 기다리던 popstate 하나가 끝났다 (돌아옴 · 한도 넘김 · 실패) — 미룬 일을 이어서 한다 */
+  function endWait(wait) {
+    var k = popWaits.indexOf(wait);
+    if (k >= 0) popWaits.splice(k, 1);
+    window.clearTimeout(wait.timer);
+    wait.resolve();
+    // 미룬 일이 다시 뒤로 가면(popWaits 가 생기면) 남은 일은 그 popstate 를 또 기다린다
+    while (!popWaits.length && historyJobs.length) historyJobs.shift()();
   }
 
   function focusables(root) {
@@ -636,34 +655,55 @@
     return gone;
   }
 
-  /** 닫은 창의 표시 칸이 기록 맨 위에 있으면 그만큼 뒤로 — 돌아오는 popstate 는 이 셸이 받는다 */
+  /**
+   * 닫은 창의 표시 칸이 기록 맨 위에 있으면 그만큼 뒤로 — 돌아오는 popstate 는 이 셸이 받는다.
+   * 앞서 부른 뒤로 가기가 아직 돌아오지 않았으면 그것이 돌아온 뒤에 본다 (그때의 맨 위 칸으로).
+   */
   function popEntries(gone) {
+    return new Promise(function (resolve) {
+      afterPops(function () {
+        var st = window.history.state;
+        var cur = isSheetState(st) ? st[SHEET_KEY] : null;
+        var mine = gone.some(function (L) {
+          return L.pushed && L.entry === cur;
+        });
+        if (!mine) return resolve();
+        var n = gone.filter(function (L) {
+          return L.pushed && L.entry <= cur;
+        }).length;
+        var wait = { resolve: resolve };
+        wait.timer = window.setTimeout(function () {
+          endWait(wait);
+        }, SHEET_POP_WAIT);
+        popWaits.push(wait);
+        try {
+          if (n === 1) window.history.back();
+          else window.history.go(-n);
+        } catch {
+          endWait(wait);
+        }
+      });
+    });
+  }
+
+  /**
+   * 새 창의 표시 칸을 넣는다 — 바꾼 시트의 칸이 맨 위면 그 칸을 쓴다(replaceState), 아니면 하나 넣는다.
+   * 그 사이 닫힌 창은 칸을 넣지 않는다.
+   */
+  function pushEntry(L, replaced) {
+    if (!L.open) return;
     var st = window.history.state;
     var cur = isSheetState(st) ? st[SHEET_KEY] : null;
-    var mine = gone.some(function (L) {
-      return L.entry === cur;
-    });
-    if (!mine) return Promise.resolve();
-    var n = gone.filter(function (L) {
-      return L.entry <= cur;
-    }).length;
-    return new Promise(function (resolve) {
-      var wait = { resolve: resolve };
-      wait.timer = window.setTimeout(function () {
-        var k = popWaits.indexOf(wait);
-        if (k >= 0) popWaits.splice(k, 1);
-        resolve();
-      }, SHEET_POP_WAIT);
-      popWaits.push(wait);
-      try {
-        if (n === 1) window.history.back();
-        else window.history.go(-n);
-      } catch {
-        window.clearTimeout(wait.timer);
-        popWaits.splice(popWaits.indexOf(wait), 1);
-        resolve();
-      }
-    });
+    var reuse = cur !== null && replaced.indexOf(cur) >= 0;
+    var state = sheetState(L.entry);
+    L.pushed = true;
+    try {
+      // 주소 인자는 넘기지 않는다 — '' 를 넘기면 # 이 떨어진다
+      if (reuse) window.history.replaceState(state, '');
+      else window.history.pushState(state, '');
+    } catch {
+      /* 기록을 못 넣어도 창은 연다 (뒤로 가기만 창을 닫지 못한다) */
+    }
   }
 
   function closeLayer(L, why) {
@@ -672,25 +712,26 @@
     return popEntries(dropLayers(i, why));
   }
 
-  /** 뒤로 가기 — 지금 칸보다 뒤에 넣은 창을 닫고, 그 popstate 는 페이지 처리기에 넘기지 않는다 */
+  /**
+   * 뒤로 가기 — 지금 칸보다 뒤에 넣은 창을 닫고, 그 popstate 는 페이지 처리기에 넘기지 않는다.
+   * 칸을 아직 넣지 않은 창(닫기의 뒤로 가기를 기다리며 연 새 창)은 이 popstate 로 닫지 않는다.
+   */
   function onSheetPop(e) {
     var st = e.state;
     var at = isSheetState(st) ? st[SHEET_KEY] : -Infinity;
     var handled = false;
-    if (popWaits.length) {
-      var wait = popWaits.shift();
-      window.clearTimeout(wait.timer);
-      wait.resolve();
-      handled = true;
-    }
+    var wait = popWaits.length ? popWaits[0] : null;
+    if (wait) handled = true;
     for (var i = 0; i < layers.length; i++) {
-      if (layers[i].entry > at) {
+      if (layers[i].pushed && layers[i].entry > at) {
         dropLayers(i, 'back');
         handled = true;
         break;
       }
     }
     if (handled) e.stopImmediatePropagation();
+    // 기다리던 popstate — 미룬 기록 일(새 창의 칸 넣기 등)을 이제 한다
+    if (wait) endWait(wait);
   }
 
   /** 창 안에서만 Tab 이 돈다 */
@@ -740,7 +781,7 @@
     opts = opts || {};
     var kind = SHEET_KINDS[opts.kind] ? opts.kind : 'sheet';
     var opener = document.activeElement;
-    var reuse = false;
+    var replaced = []; // 바꾼 시트 · 패널이 넣은 표시 칸 — 맨 위면 새 시트가 그 칸을 쓴다
     if (kind !== 'dialog') {
       // 시트 · 옆 패널은 하나만 — 앞의 것(과 그 위 창)을 닫고, 그 표시 칸을 새 시트가 쓴다
       for (var i = 0; i < layers.length; i++) {
@@ -752,16 +793,15 @@
           })
         )
           opener = below.opener;
-        var cur = isSheetState(window.history.state) ? window.history.state[SHEET_KEY] : null;
-        reuse = dropLayers(i, 'replaced').some(function (L) {
-          return L.entry === cur;
+        dropLayers(i, 'replaced').forEach(function (L) {
+          if (L.pushed) replaced.push(L.entry);
         });
         break;
       }
     }
 
-    var state = sheetState();
-    var titleId = 'sgSheetTitle' + state[SHEET_KEY];
+    var entry = ++sheetSeq;
+    var titleId = 'sgSheetTitle' + entry;
     var wrap = document.createElement('div');
     wrap.className = 'sg-sheet-wrap sg-sheet-wrap--' + kind;
     var box = document.createElement('section');
@@ -797,7 +837,8 @@
       kind: kind,
       wrap: wrap,
       box: box,
-      entry: state[SHEET_KEY],
+      entry: entry,
+      pushed: false, // 표시 칸을 넣었나 — 앞 닫기의 뒤로 가기를 기다리는 동안은 false
       opener: opener && opener !== document.body ? opener : null,
       onClose: opts.onClose,
       dismissible: opts.dismissible !== false,
@@ -819,14 +860,11 @@
       closeLayer(L, 'backdrop');
     });
 
-    try {
-      // 주소 인자는 넘기지 않는다 — '' 를 넘기면 # 이 떨어진다
-      if (reuse) window.history.replaceState(state, '');
-      else window.history.pushState(state, '');
-    } catch {
-      /* 기록을 못 넣어도 창은 연다 (뒤로 가기만 창을 닫지 못한다) */
-    }
     layers.push(L);
+    // 앞 닫기의 뒤로 가기가 아직 돌아오지 않았으면 칸은 그 뒤에 넣는다 (창은 지금 그린다)
+    afterPops(function () {
+      pushEntry(L, replaced);
+    });
     document.body.appendChild(wrap);
     document.body.classList.add('sg-locked');
     var focus = opts.initialFocus && box.contains(opts.initialFocus) ? opts.initialFocus : box;

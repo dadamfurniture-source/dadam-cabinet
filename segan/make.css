@@ -970,6 +970,23 @@
   display: none;
 }
 
+.rd-notice {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--v5-line-18);
+  background: var(--v5-paper);
+  font-size: 14px;
+  color: var(--v5-ink);
+  word-break: keep-all;
+}
+
+.rd-notice:empty {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
 .rd-state {
   margin: 0;
   font-size: 12px;
