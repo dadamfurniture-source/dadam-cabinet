@@ -7,6 +7,8 @@
  *   - Manager · Expert 는 신청 없이 바로 결제하고 시작한다. 본사 승인은 Agent 만
  *   - 새 업체는 결제가 된 뒤에 만든다: 업체 → 대표 구성원 → (Agent) 신청 씀 → 구독 행 → 업체 이력(맨 끝)
  *   - 기존 업체(다시 시작 · 관리자가 만든 업체)는 업체를 새로 만들지 않고 active 로 · 업체 통장 기간을 끊는다
+ *   - 해지 · 정지된 업체는 Manager · Expert 로 다른 등급으로 다시 시작할 수 있다 (업체 plan 을 그 등급으로, 새 가격).
+ *     Agent 로는 승인으로 생긴 예약(next_plan agent + 승인된 upgrade 신청)이 있을 때만. active 업체는 plan_mismatch
  *   - profiles(등급) · user_credits(개인 크레딧)는 쓰지 않는다 — 등급은 DB 트리거가 맞춘다
  *   - 결제 뒤 저장이 실패하면 그 결제를 토스에서 취소하고 만든 행을 지운다 (구성원 → 업체 순, 이력은 남기지 않는다)
  *   - 해지: 등급은 그대로, 결제 실패 재시도 중(past_due)에도 해지할 수 있다. 업체 구독은 대표만
@@ -281,19 +283,15 @@ test('Manager: 승인된 Agent 신청이 있어도 Manager 결제는 그 신청�
   assert.equal(app.company_id, null);
 });
 
-test('Manager 업체 다시 시작은 Manager 로만 — 다른 plan 이면 409 plan_mismatch', async () => {
+test('해지된 Manager 업체를 Manager 로 다시 시작: 업체 등급 그대로, Manager 금액', async () => {
   seed();
   seedCompany({ plan: 'manager', status: 'closed' });
-  const res = await subscribe({ plan: 'expert' });
-  assert.equal(res.status, 409);
-  assert.equal((await res.json()).code, 'plan_mismatch');
-  assert.equal(be.calls.toss.length, 0);
-
   const ok = await subscribe({ plan: 'manager' });
   assert.equal(ok.status, 200, await ok.clone().text());
   assert.equal(be.charges()[0].body.amount, 99000);
   assert.equal(be.db.companies.length, 1);
   assert.equal(be.db.companies[0].status, 'active');
+  assert.equal(be.db.companies[0].plan, 'manager');
 });
 
 test('결제 등급이 아닌 plan(standard · free · 없는 이름)은 400, 토스를 부르지 않는다', async () => {
@@ -397,13 +395,178 @@ test('업체에 살아 있는 구독이 있으면 409 already_subscribed', async
   }
 });
 
-test('업체 등급과 다른 plan 이면 409 plan_mismatch', async () => {
+test('active 업체(구독 없음)는 업체 등급과 다른 plan 이면 409 plan_mismatch — 등급 바꾸기는 예약으로', async () => {
+  for (const [from, to] of [
+    ['agent', 'expert'],
+    ['manager', 'expert'],
+    ['expert', 'manager'],
+    ['expert', 'agent'],
+  ]) {
+    be = createBackend();
+    restoreFetch();
+    restoreFetch = installFetch(be);
+    seed();
+    seedCompany({ plan: from, nextPlan: to === 'agent' ? 'agent' : null });
+    if (to === 'agent')
+      seedApplication({ kind: 'upgrade', company_id: C1, used_at: iso(Date.now()) });
+    const res = await subscribe({ plan: to, company: COMPANY });
+    assert.equal(res.status, 409, `${from}→${to}`);
+    assert.equal((await res.json()).code, 'plan_mismatch');
+    assert.equal(be.calls.toss.length, 0);
+    assert.equal(be.db.companies[0].plan, from);
+  }
+});
+
+// ───────────── 다른 등급으로 다시 시작 (해지 · 정지된 업체) ─────────────
+
+const companyPatches = () => restCalls('companies', 'PATCH');
+
+test('해지된 Manager 업체 → Expert 로 다시 시작: Expert 금액, 업체 plan expert · active (등급 · 통장은 트리거)', async () => {
   seed();
-  seedCompany({ plan: 'agent', status: 'closed' });
+  seedCompany({ plan: 'manager', status: 'closed' });
+  be.db.company_credits.push({
+    company_id: C1,
+    balance: 100,
+    period_end: iso(Date.now() + 5 * DAY),
+  });
   const res = await subscribe({ plan: 'expert' });
-  assert.equal(res.status, 409);
-  assert.equal((await res.json()).code, 'plan_mismatch');
-  assert.equal(be.calls.toss.length, 0);
+  const body = await res.json();
+  assert.equal(res.status, 200, JSON.stringify(body));
+
+  const [charge] = be.charges();
+  assert.equal(charge.body.amount, 199000);
+  assert.equal(charge.body.orderName, '다담가구 Expert 등급 (월간)');
+  assert.equal(be.db.companies.length, 1, '업체를 새로 만들지 않는다');
+  assert.equal(be.db.companies[0].plan, 'expert');
+  assert.equal(be.db.companies[0].status, 'active');
+  assert.equal(be.db.companies[0].next_plan, null);
+  const [patch] = companyPatches();
+  assert.deepEqual(patch.body, { status: 'active', plan: 'expert', next_plan: null });
+
+  const s = be.db.subscriptions[0];
+  assert.equal(s.plan, 'expert');
+  assert.equal(s.amount_krw, 199000);
+  assert.equal(s.company_id, C1);
+  assert.equal(be.db.payment_history[0].plan, 'expert');
+  assert.equal(be.db.payment_history[0].amount_krw, 199000);
+  assert.deepEqual(be.db.company_events[0].payload, { plan: 'expert' });
+  assert.ok(
+    Date.parse(be.db.company_credits[0].period_end) <= Date.now(),
+    '업체 통장 기간을 끊는다'
+  );
+  assertNoProfileOrPersonalCredit();
+  assert.deepEqual(body.data.company, {
+    id: C1,
+    name: '좋은가구',
+    plan: 'expert',
+    next_plan: null,
+    status: 'active',
+  });
+});
+
+test('정지된 Expert · 해지된 Agent 업체 → Manager 로 다시 시작: Manager 금액, 업체 plan manager', async () => {
+  for (const [from, status] of [
+    ['expert', 'suspended'],
+    ['agent', 'closed'],
+  ]) {
+    be = createBackend();
+    restoreFetch();
+    restoreFetch = installFetch(be);
+    seed();
+    seedCompany({ plan: from, status });
+    const res = await subscribe({ plan: 'manager' });
+    assert.equal(res.status, 200, `${from} ${await res.clone().text()}`);
+    assert.equal(be.charges()[0].body.amount, 99000, from);
+    assert.equal(be.db.companies[0].plan, 'manager', from);
+    assert.equal(be.db.companies[0].status, 'active', from);
+    assert.equal(be.db.subscriptions[0].plan, 'manager', from);
+    assert.equal(be.db.subscriptions[0].amount_krw, 99000, from);
+    assert.equal(
+      restCalls('partner_applications').length,
+      0,
+      '승인 없는 등급은 신청을 보지 않는다'
+    );
+  }
+});
+
+test('다른 등급으로 다시 시작할 때 예약(next_plan)은 그대로, 새 등급과 같으면 비운다', async () => {
+  seed();
+  seedCompany({ plan: 'agent', nextPlan: 'expert', status: 'closed' });
+  let res = await subscribe({ plan: 'manager' });
+  assert.equal(res.status, 200, await res.clone().text());
+  assert.equal(be.db.companies[0].plan, 'manager');
+  assert.equal(be.db.companies[0].next_plan, 'expert');
+
+  be = createBackend();
+  restoreFetch();
+  restoreFetch = installFetch(be);
+  seed();
+  seedCompany({ plan: 'agent', nextPlan: 'expert', status: 'closed' });
+  res = await subscribe({ plan: 'expert' });
+  assert.equal(res.status, 200, await res.clone().text());
+  assert.equal(be.db.companies[0].plan, 'expert');
+  assert.equal(be.db.companies[0].next_plan, null, 'DB CHECK — 예약과 등급이 같을 수 없다');
+});
+
+test('해지된 업체가 Agent 로 다시 시작하려면 승인 예약이 있어야 — 없으면 403 agent_not_approved, 토스를 부르지 않는다', async () => {
+  const approvedApp = { kind: 'upgrade', company_id: C1, used_at: iso(Date.now() - DAY) };
+  for (const [label, nextPlan, app] of [
+    ['예약 · 신청 없음', null, null],
+    ['예약만 (승인된 신청 없음)', 'agent', null],
+    ['예약만 (신청이 보류)', 'agent', { ...approvedApp, status: 'held', used_at: null }],
+    ['승인된 신청만 (예약 없음)', null, approvedApp],
+    ['다른 업체의 승인', 'agent', { ...approvedApp, company_id: HQ }],
+  ]) {
+    be = createBackend();
+    restoreFetch();
+    restoreFetch = installFetch(be);
+    seed();
+    seedCompany({ plan: 'expert', nextPlan, status: 'closed' });
+    if (app) seedApplication(app);
+    const res = await subscribe({ plan: 'agent' });
+    const body = await res.json();
+    assert.equal(res.status, 403, label);
+    assert.equal(body.code, 'agent_not_approved', label);
+    assert.equal(be.calls.toss.length, 0, label);
+    assert.equal(be.db.companies[0].plan, 'expert', label);
+    assert.equal(be.db.companies[0].status, 'closed', label);
+  }
+});
+
+test('승인 예약(next_plan agent + 승인된 upgrade 신청)이 있는 정지된 업체는 Agent 로 다시 시작 — Agent 금액, 예약을 비운다', async () => {
+  seed();
+  seedCompany({ plan: 'manager', nextPlan: 'agent', status: 'suspended' });
+  seedApplication({ kind: 'upgrade', company_id: C1, used_at: iso(Date.now() - DAY) });
+  const res = await subscribe({ plan: 'agent' });
+  const body = await res.json();
+  assert.equal(res.status, 200, JSON.stringify(body));
+  assert.equal(be.charges()[0].body.amount, 299000);
+  assert.equal(be.db.companies[0].plan, 'agent');
+  assert.equal(be.db.companies[0].next_plan, null);
+  assert.equal(be.db.companies[0].status, 'active');
+  assert.equal(be.db.subscriptions[0].plan, 'agent');
+  assert.equal(be.db.subscriptions[0].amount_krw, 299000);
+  assert.equal(be.db.partner_applications[0].company_id, C1, '신청은 그대로 (이미 쓴 신청)');
+  assert.equal(body.data.company.plan, 'agent');
+  assert.equal(body.data.company.next_plan, null);
+});
+
+test('읽은 뒤 업체 등급이 바뀌었으면 다시 시작을 저장하지 않고 결제를 취소한다', async () => {
+  seed();
+  seedCompany({ plan: 'manager', status: 'closed' });
+  const inner = be.fetch;
+  globalThis.fetch = async (input, init = {}) => {
+    const u = new URL(typeof input === 'string' ? input : input.url);
+    if (u.pathname === '/rest/v1/companies' && init.method === 'PATCH')
+      be.db.companies[0].plan = 'agent';
+    return inner(input, init);
+  };
+  const res = await subscribe({ plan: 'expert' });
+  assert.equal(res.status, 500);
+  assert.equal(be.cancels().length, 1);
+  assert.equal(be.db.companies[0].status, 'closed');
+  assert.equal(be.db.companies[0].plan, 'agent', '다른 쪽이 바꾼 값을 덮지 않는다');
+  assert.equal(be.db.subscriptions.length, 0);
 });
 
 test('정지된 업체 다시 시작: 업체를 새로 만들지 않고 active 로, 업체 통장 기간을 끊는다', async () => {
@@ -546,6 +709,20 @@ test('다시 시작 저장이 실패하면 업체 status 를 되돌린다', asyn
   assert.equal(be.db.companies.length, 1, '기존 업체는 지우지 않는다');
   assert.equal(be.db.companies[0].status, 'closed');
   assert.equal(be.db.company_members.length, 1, '기존 구성원도 그대로');
+  assert.equal(be.db.subscriptions.length, 0);
+});
+
+test('다른 등급으로 다시 시작한 저장이 실패하면 업체 status · 등급 · 예약을 되돌린다', async () => {
+  seed();
+  seedCompany({ plan: 'agent', nextPlan: 'manager', status: 'closed' });
+  be.state.failDb = (method, table) => method === 'POST' && table === 'subscriptions';
+  const res = await subscribe({ plan: 'expert' });
+  assert.equal(res.status, 500);
+  assert.equal(be.cancels().length, 1);
+  const c = be.db.companies[0];
+  assert.equal(c.status, 'closed');
+  assert.equal(c.plan, 'agent');
+  assert.equal(c.next_plan, 'manager');
   assert.equal(be.db.subscriptions.length, 0);
 });
 

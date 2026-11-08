@@ -230,13 +230,47 @@ function refuse(status, code, message, extra = {}) {
   return { refuse: { status, body: { success: false, code, message, ...extra } } };
 }
 
+function agentNotApproved(plan) {
+  // 코드는 화면이 읽는 값이라 그대로 둔다 (승인 등급은 지금 Agent 하나)
+  return refuse(
+    403,
+    'agent_not_approved',
+    `${PLAN_LABELS[plan]} 는 본사 승인을 받은 뒤 결제할 수 있습니다.`
+  );
+}
+
+/**
+ * 해지 · 정지된(active 아닌) 업체를 다른 등급으로 다시 시작할 때의 판단.
+ *   Manager · Expert(승인 없는 등급) → 그 등급으로
+ *   승인 등급(Agent) → 승인으로 생긴 예약이 있을 때만: 업체 next_plan 이 그 등급이고 그 업체의 승인된 upgrade 신청이 있다
+ * next_plan 은 그대로 두되, 새 등급과 같으면 비운다 (DB CHECK next_plan IS DISTINCT FROM plan — 예약을 이번 결제로 쓴 것).
+ * 돌려주는 값: { refuse } | { planChange: { nextPlan } }
+ */
+async function restartWithOtherPlan(env, c, plan) {
+  if (APPROVAL_PLANS.includes(plan)) {
+    const approved =
+      c.next_plan === plan &&
+      (await selectOne(env, 'partner_applications', {
+        company_id: `eq.${c.id}`,
+        kind: 'eq.upgrade',
+        plan: `eq.${plan}`,
+        status: 'eq.approved',
+        select: 'id',
+      }));
+    if (!approved) return agentNotApproved(plan);
+  }
+  return { planChange: { nextPlan: c.next_plan === plan ? null : (c.next_plan ?? null) } };
+}
+
 /**
  * 결제 전 판단 — 어느 업체로 결제하는가. 막을 것은 모두 여기서 막는다 (결제 뒤에 막으면 되돌릴 일이 생긴다).
  *   본사 구성원 → hq_member
- *   협력업체 구성원 → 대표만, 살아 있는 구독이 없고, 업체 등급과 같은 plan 일 때 그 업체로 (다시 시작 · 관리자가 만든 업체)
+ *   협력업체 구성원 → 대표만, 살아 있는 구독이 없을 때 그 업체로 (다시 시작 · 관리자가 만든 업체).
+ *     업체 등급과 같은 plan 이면 그대로. 다른 plan 은 해지 · 정지된(active 아닌) 업체만 (restartWithOtherPlan),
+ *     active 업체의 등급 바꾸기는 예약(account-api POST /partner/plan · 승인)으로만 → plan_mismatch
  *   구성원 아님 → 새 업체. Manager · Expert 는 신청 없이 body.company (이름 · 시·도 · 시·군·구),
  *                 승인 등급(APPROVAL_PLANS — Agent)은 승인된 새 업체 신청(아직 안 씀)이 있어야 하고 이름 · 지역은 신청 값.
- * 돌려주는 값: { refuse } | { company } (기존 업체) | { create, application? } (새 업체)
+ * 돌려주는 값: { refuse } | { company, planChange? } (기존 업체) | { create, application? } (새 업체)
  */
 async function resolveCompanyForPayment(env, user, plan, body) {
   const member = await readMembership(env, user.id);
@@ -251,10 +285,13 @@ async function resolveCompanyForPayment(env, user, plan, body) {
     if (await liveCompanySubscription(env, c.id)) {
       return refuse(409, 'already_subscribed', '이미 이용 중인 팩토리 구독이 있습니다.');
     }
-    if (c.plan !== plan) {
+    if (c.plan === plan) return { company: c };
+    if (c.status === 'active') {
       return refuse(409, 'plan_mismatch', '팩토리 등급과 같은 등급으로만 결제할 수 있습니다.');
     }
-    return { company: c };
+    const change = await restartWithOtherPlan(env, c, plan);
+    if (change.refuse) return change;
+    return { company: c, planChange: change.planChange };
   }
   if (APPROVAL_PLANS.includes(plan)) {
     const application = await selectOne(env, 'partner_applications', {
@@ -265,14 +302,7 @@ async function resolveCompanyForPayment(env, user, plan, body) {
       select: 'id,company_name,sido,gugun',
       order: 'created_at.desc',
     });
-    if (!application) {
-      // 코드는 화면이 읽는 값이라 그대로 둔다 (승인 등급은 지금 Agent 하나)
-      return refuse(
-        403,
-        'agent_not_approved',
-        `${PLAN_LABELS[plan]} 는 본사 승인을 받은 뒤 결제할 수 있습니다.`
-      );
-    }
+    if (!application) return agentNotApproved(plan);
     return {
       create: { name: application.company_name, sido: application.sido, gugun: application.gugun },
       application,
@@ -351,6 +381,8 @@ async function handleIssueBillingKey(request, env) {
     memberAttempted: false,
     applicationId: null,
     prevStatus: null,
+    prevPlan: null, // 다른 등급으로 다시 시작했으면 { plan, next_plan } (되돌릴 값)
+    newPlan: null,
     subscriptionAttempted: false,
   };
   let subId = null;
@@ -392,14 +424,22 @@ async function handleIssueBillingKey(request, env) {
         if (!used || !used.length) throw new Error('application is no longer usable');
       }
     } else if (target.company.status !== 'active') {
-      // 정지 · 해지된 업체를 다시 시작한다
-      done.prevStatus = target.company.status;
-      const reopened = await updateBy(
-        env,
-        'companies',
-        { id: `eq.${companyId}`, status: `eq.${target.company.status}` },
-        { status: 'active' }
-      );
+      // 정지 · 해지된 업체를 다시 시작한다. 다른 등급이면 업체 등급도 그 등급으로 —
+      // 구성원 등급(profiles.tier) · 업체 통장은 DB 트리거가 맞춘다 (0011 company_tier_sync · company_credits_reset_on_plan)
+      const c = target.company;
+      done.prevStatus = c.status;
+      const filter = { id: `eq.${companyId}`, status: `eq.${c.status}` };
+      const patch = { status: 'active' };
+      if (target.planChange) {
+        // 읽은 등급 · 예약 그대로일 때만 (승인 예약을 보고 판단했다)
+        filter.plan = `eq.${c.plan}`;
+        filter.next_plan = c.next_plan ? `eq.${c.next_plan}` : 'is.null';
+        patch.plan = body.plan;
+        patch.next_plan = target.planChange.nextPlan;
+        done.prevPlan = { plan: c.plan, next_plan: c.next_plan ?? null };
+        done.newPlan = body.plan;
+      }
+      const reopened = await updateBy(env, 'companies', filter, patch);
       if (!reopened || !reopened.length) throw new Error('company status changed');
     }
 
@@ -479,7 +519,11 @@ async function handleIssueBillingKey(request, env) {
   );
 
   const company = target.company
-    ? { ...publicCompany(target.company), status: 'active' }
+    ? {
+        ...publicCompany(target.company),
+        status: 'active',
+        ...(target.planChange ? { plan: body.plan, next_plan: target.planChange.nextPlan } : {}),
+      }
     : publicCompany({ id: companyId, name: target.create.name, plan: body.plan, status: 'active' });
   return jsonResponse(request, env, {
     success: true,
@@ -550,12 +594,17 @@ async function undoFirstPayment(
     );
   }
   if (done.prevStatus) {
+    // 다른 등급으로 다시 시작했으면 등급 · 예약도 되돌린다
     await bestEffort('undo company status', () =>
       updateBy(
         env,
         'companies',
-        { id: `eq.${companyId}`, status: 'eq.active' },
-        { status: done.prevStatus }
+        {
+          id: `eq.${companyId}`,
+          status: 'eq.active',
+          ...(done.prevPlan ? { plan: `eq.${done.newPlan}` } : {}),
+        },
+        { status: done.prevStatus, ...(done.prevPlan || {}) }
       )
     );
   }
