@@ -12,6 +12,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+const AuthRedirect = require('../js/auth-redirect.js');
 const AI = read('ai-design.html');
 const MAKE = read('segan/make.js');
 const KEY = 'segan.make.draft.v1';
@@ -363,10 +364,35 @@ describe('두 번 차감하지 않는다 · 저절로 생성하지 않는다', (
     expect(gets(calls)).toHaveLength(1);
     expect(visible($('mkResultTitle'))).toBe(true);
     expect($('mkResState').textContent).toBe('4 / 4');
+    expect(visible($('mkResGate'))).toBe(false);
+  });
 
-    const out = await load({ session: null, url: `/segan/?g=${ID}`, draft: null });
-    expect(out.calls).toEqual([]);
+  test('로그인 없이 결과 주소 — 아무것도 읽지 않고 로그인 안내, 돌아올 곳은 같은 결과 주소', async () => {
+    const { calls } = await load({ session: null, url: `/segan/?g=${ID}#result`, draft: null });
+    expect(calls).toEqual([]);
+    expect(visible($('mkResultTitle'))).toBe(true);
+    expect(visible($('mkResGate'))).toBe(true);
+    expect(visible($('mkShots'))).toBe(false);
+    expect(visible($('mkManage'))).toBe(false);
+    const href = $('mkResLogin').getAttribute('href');
+    expect(href).toBe(
+      '../login.html?redirect=' + encodeURIComponent(`segan/index.html?g=${ID}#result`)
+    );
+    // login.html 이 받는 같은 사이트 주소 (js/auth-redirect.js) — 그대로 돌아온다
+    const target = new URLSearchParams(href.split('?')[1]).get('redirect');
+    expect(AuthRedirect.sanitize(target)).toBe(`segan/index.html?g=${ID}#result`);
+  });
+
+  test('로그인 없이 결과 주소를 연 뒤 사진을 골라 생성 → 사진은 이 기기에 담고 로그인으로', async () => {
+    const { M } = await load({ session: null, url: `/segan/?g=${ID}#result`, draft: null });
+    document.querySelector('[data-goto="photo"]').click();
     expect(visible($('mkPhotoTitle'))).toBe(true);
+    M.readImage = jest.fn(async () => PHOTO);
+    await M.setPhoto({ name: 'k.jpg' });
+    $('mkNext').click();
+    $('mkRun').click();
+    expect(M.go).toHaveBeenCalledWith('../login.html?redirect=segan%2Findex.html');
+    expect(JSON.parse(sessionStorage.getItem(KEY)).photo).toEqual(PHOTO);
   });
 
   test('id 모양이 아니면 무시한다', async () => {
