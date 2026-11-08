@@ -10,7 +10,8 @@
  *     'p/<uuid>.(jpg|png)'  회원이 올린다 — 넣기 정책 collection_insert_photo (이름 모양 · owner_id = 본인)
  *     'ai/<uuid>.<확장자>'  서버가 올린다 — 트리거 trg_collection_posts_ai_owner 가 게시물 주인을 owner_id 로
  *     지우기 collection_delete_owner — 'p/' · 'ai/' 중 owner_id = 본인
- *   옛 '<user_id>/…' 정책은 그대로 (지금 앱이 쓴다). 탈퇴 정리 함수 collection_owned_objects 는 service_role 만.
+ *   옛 '<user_id>/…' 정책은 이 파일에서는 그대로 (그때 앱이 썼다 — 뒤 번호 0054 가 거둔다, db-migration-0054 시험이 본다).
+ *   탈퇴 정리 함수 collection_owned_objects 는 service_role 만.
  *   워커와 맞물리는 것: generate-api collectionPath → 'ai/<uuid>', account-api 가 부르는 함수 이름 · 칸 · 받는 경로 모양.
  *   역할별 동작은 database/probes/0052-collection-anon-paths.json 이 실DB 트랜잭션에서 본다.
  */
@@ -66,7 +67,8 @@ describe('0052 — collection 버킷 새 경로 (회원 id 없음)', () => {
       expect(top.indexOf(`DROP POLICY IF EXISTS ${name} `)).toBeLessThan(
         top.indexOf(`CREATE POLICY ${name} `)
       );
-    // 옛 정책(첫 칸 = 본인 id)은 기준선에 있고, 이 파일은 손대지 않는다 — 앱이 새 경로로 바꾼 뒤 다음 번호에서 거둔다
+    // 옛 정책(첫 칸 = 본인 id)은 기준선에 있고, 이 파일은 손대지 않는다 — 앱이 새 경로로 바꾼 다음 뒤 번호 0054 가 셋을 거둔다
+    // (읽기 · 관리자 지우기는 남는다 — db-migration-0054 시험이 본다)
     for (const old of [
       'collection_insert_own',
       'collection_update_own',
