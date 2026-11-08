@@ -3,6 +3,7 @@
  * 실제 네트워크는 쓰지 않는다 (globalThis.fetch 를 갈아 끼운다).
  */
 import { AssistantSession } from '../src/session.js';
+import { GuideSession } from '../src/guide.js';
 
 export const SUPA = 'https://x.supabase.co';
 export const CO = 'c0000000-0000-4000-8000-000000000001';
@@ -59,6 +60,10 @@ export function makeDb(over = {}) {
     settings: [], // company_settings { company_id, settings }
     documents: {}, // 사진 id → { company_id, storage_path, mime, review_status }
     photos: {}, // 버킷 경로 → Uint8Array
+    // 안내 모드 (DB 0048) — assistant_global.guide_on · guide_daily_limit, assistant_guide_usage 줄
+    guide: { on: true, limit: 20, rows: [] },
+    // my_credit_wallet — 사람마다 (그 사람 토큰으로만 읽는다). 'fail' 이면 500
+    wallets: {},
     calls: [],
     ...over,
   };
@@ -171,6 +176,68 @@ export function makeDb(over = {}) {
         mime: doc.mime,
         uploaded_by: doc.uploaded_by || null,
       });
+    }
+    // 안내 모드 (0048 assistant_guide_*) 와 같은 판정 — 날짜는 한국 시간
+    const kstDay = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+    const resetAt = (day) =>
+      new Date(Date.parse(day + 'T00:00:00+09:00') + 86400000).toISOString();
+    const guideRow = (user, day) =>
+      db.guide.rows.find((r) => r.user_id === user && r.day === day);
+    if (path === 'rpc/assistant_guide_status') {
+      const day = kstDay();
+      const row = guideRow(body.p_user, day);
+      return ok({
+        on: db.guide.on,
+        used: row ? row.used : 0,
+        limit: db.guide.limit,
+        day,
+        reset_at: resetAt(day),
+      });
+    }
+    if (path === 'rpc/assistant_guide_take') {
+      const day = kstDay();
+      const base = { day, reset_at: resetAt(day) };
+      if (!db.guide.on) return ok({ ok: false, reason: 'off', ...base });
+      let row = guideRow(body.p_user, day);
+      if (db.guide.limit >= 1 && (!row || row.used < db.guide.limit)) {
+        if (!row) {
+          row = {
+            user_id: body.p_user,
+            day,
+            used: 0,
+            input_tokens: 0,
+            output_tokens: 0,
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
+            cost_micros: 0,
+          };
+          db.guide.rows.push(row);
+        }
+        row.used += 1;
+        return ok({ ok: true, used: row.used, limit: db.guide.limit, ...base });
+      }
+      const used = row ? row.used : 0;
+      return ok({ ok: false, reason: 'over_limit', used, limit: db.guide.limit, ...base });
+    }
+    if (path === 'rpc/assistant_guide_settle') {
+      const row = guideRow(body.p_user, body.p_day);
+      if (!row) return ok({ ok: false, reason: 'not_found' });
+      const u = body.p_usage || {};
+      if (body.p_give_back) row.used = Math.max(row.used - 1, 0);
+      row.input_tokens += u.input_tokens || 0;
+      row.output_tokens += u.output_tokens || 0;
+      row.cache_read_tokens += u.cache_read_input_tokens || 0;
+      row.cache_write_tokens += u.cache_creation_input_tokens || 0;
+      row.cost_micros += body.p_cost_micros;
+      return ok({ ok: true, used: row.used });
+    }
+    if (path === 'rpc/my_credit_wallet') {
+      // 사람 토큰으로만 — 토큰이 없으면 auth.uid() 가 없어 빈 목록
+      const tok = String((init.headers || {}).Authorization || '').replace(/^Bearer\s+/i, '');
+      const who = TOKENS[tok];
+      if (!who) return ok([]);
+      if (db.wallets[who] === 'fail') return ok({ message: 'boom' }, 500);
+      return ok(db.wallets[who] ? [db.wallets[who]] : []);
     }
     if (path === 'rpc/assistant_budget_settle') {
       const row = db.usage.find((u) => u.id === body.p_id);
@@ -285,8 +352,8 @@ function makeStorage() {
   };
 }
 
-/** 가짜 DO 이름공간 — 이름마다 객체 하나. hints 에 locationHint 를 적는다 */
-export function makeSessions(envRef) {
+/** 가짜 DO 이름공간 — 이름마다 객체 하나. hints 에 locationHint 를 적는다 (Klass — 업무 대화 · 안내 모드) */
+export function makeSessions(envRef, Klass = AssistantSession) {
   const objects = new Map();
   const ns = {
     hints: [],
@@ -296,8 +363,8 @@ export function makeSessions(envRef) {
       ns.hints.push(opts.locationHint || null);
       if (!objects.has(id.name)) {
         const storage = makeStorage();
-        const ctx = { storage, blockConcurrencyWhile: (fn) => fn() };
-        objects.set(id.name, { obj: new AssistantSession(ctx, envRef()), storage });
+        const ctx = { storage, blockConcurrencyWhile: (fn) => fn(), waitUntil: () => {} };
+        objects.set(id.name, { obj: new Klass(ctx, envRef()), storage });
       }
       const { obj } = objects.get(id.name);
       return { fetch: (url, init) => obj.fetch(new Request(url, init)) };
@@ -340,6 +407,10 @@ export function makeClaude(scripts = []) {
           const s = queue.shift() || reply('네.');
           const model = s.model || params.model; // 대본에 모델이 없으면 받은 모델로 답한다
           return {
+            /** SDK MessageStream.abort — 안내 모드가 사람이 끊고 나가면 부른다 (claude.aborted 에 센다) */
+            abort() {
+              claude.aborted = (claude.aborted || 0) + 1;
+            },
             async *[Symbol.asyncIterator]() {
               yield {
                 type: 'message_start',
@@ -674,11 +745,13 @@ export async function makeWorld({
   const worker = (await import('../src/worker.js')).default;
   let env;
   const sessions = makeSessions(() => env);
+  const guides = makeSessions(() => env, GuideSession);
   env = {
     SUPABASE_URL: SUPA,
     SUPABASE_SERVICE_ROLE_KEY: 's',
     CORS_ORIGINS: 'https://dadamfurniture.com',
     ASSISTANT_SESSION: sessions,
+    GUIDE_SESSION: guides,
     ASSISTANT_CLAUDE: claude,
     WORKFLOW_API: workflow,
     ...extra,
@@ -724,5 +797,5 @@ export async function makeWorld({
         .map((l) => JSON.parse(l)),
     };
   };
-  return { worker, env, db, claude, workflow, sessions, call, events };
+  return { worker, env, db, claude, workflow, sessions, guides, call, events };
 }

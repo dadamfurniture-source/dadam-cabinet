@@ -46,6 +46,10 @@
    서비스 워커 등록 — 범위는 /segan/ 하나뿐이다. 기존 사이트는 서비스 워커를 쓰지 않는다.
 
    시트 · 옆 패널 · 가운데 창 — SeganShell.sheet (아래 「시트」 칸에 규칙과 쓰는 법)
+
+   SEGAN 비서 (위 막대 「비서」 · PC 아래 입력 줄 · 안내 모드)는 segan/guide.js — 이 파일 뒤에 싣는다.
+   그 파일이 쓰는 것: SeganShell.client(이 화면의 Supabase 클라이언트 하나) · hasAssistant(업무 비서 판정) ·
+   assistantBase · sheet. 로그아웃은 그 대화 기록(sessionStorage segan.guide.)도 지운다.
    ============================================================ */
 /* global window, document, navigator, location, fetch, CustomEvent */
 (function () {
@@ -111,6 +115,7 @@
   // AI 비서 워커 (workers/assistant-api) — js/config.js 에 assistantApi.url 이 있으면 그 주소
   var ASSISTANT_API = 'https://dadam-assistant-api.dadamfurniture.workers.dev';
   var ASSISTANT_MEMO = 'segan.assistant.on.'; // + 사용자 id → 참으로 판정한 때 (sessionStorage)
+  var GUIDE_MEMO = 'segan.guide.'; // SEGAN 비서 안내 대화 기록 (segan/guide.js — sessionStorage)
   var ASSISTANT_MEMO_MS = 60000;
 
   // 사업자 정보 — js/site-shell.js 의 BIZ 와 같은 값이다 (시험이 사이트 푸터와 비교한다).
@@ -216,7 +221,7 @@
   function headerHTML(current) {
     return (
       '<header class="sg-header">' +
-      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110809" alt="SEGAN" width="477" height="75" /></a>' +
+      '<a class="sg-brand" href="./"><img src="icons/wordmark.svg?v=2026110902" alt="SEGAN" width="477" height="75" /></a>' +
       '<nav class="sg-nav" aria-label="주 메뉴">' +
       links(current, 'pc') +
       '</nav>' +
@@ -330,10 +335,13 @@
   }
 
   // ── 로그인 상태 ───────────────────────────────────────
+  var sbClient = null; // 이 화면의 클라이언트 하나 — 셸 · SEGAN 비서(segan/guide.js)가 같이 쓴다
+
   function client() {
+    if (sbClient) return sbClient;
     try {
       if (window.DADAM_CONFIG && window.supabase) {
-        return window.supabase.createClient(
+        sbClient = window.supabase.createClient(
           window.DADAM_CONFIG.supabase.url,
           window.DADAM_CONFIG.supabase.anonKey
         );
@@ -341,7 +349,7 @@
     } catch {
       /* 클라이언트가 없으면 로그인 안 된 것으로 본다 */
     }
-    return null;
+    return sbClient;
   }
 
   async function sessionOf(sb) {
@@ -497,7 +505,8 @@
           if (window.DetailDesignAccess) window.DetailDesignAccess.clearCache();
           for (var i = window.sessionStorage.length - 1; i >= 0; i--) {
             var k = window.sessionStorage.key(i);
-            if (k && k.indexOf(ASSISTANT_MEMO) === 0) window.sessionStorage.removeItem(k);
+            if (k && (k.indexOf(ASSISTANT_MEMO) === 0 || k.indexOf(GUIDE_MEMO) === 0))
+              window.sessionStorage.removeItem(k);
           }
         } catch {
           /* noop */
@@ -974,6 +983,8 @@
     desktopTab: desktopTab,
     applyLinkTarget: applyLinkTarget,
     assistantBase: assistantBase,
+    hasAssistant: hasAssistant,
+    client: client,
     ready: ready,
     sheet: {
       open: openSheet,

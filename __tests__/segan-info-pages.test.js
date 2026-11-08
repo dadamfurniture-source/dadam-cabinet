@@ -318,13 +318,19 @@ describe('AI 시스템 소개 (about.html)', () => {
     ]);
   });
 
-  test('「AI 연출컷 시작」(./) · 「구독 보기」(plans.html) · 셸만 싣는다 (로그인 · 데이터를 묻지 않는다)', async () => {
+  test('「AI 연출컷 시작」(./) · 「구독 보기」(plans.html) · 셸 + SEGAN 비서만 싣는다 (로그인 · 데이터를 묻지 않는다)', async () => {
     const { calls, scripts } = await load('about.html');
     expect($$('.in-acts a').map((a) => [text(a), a.getAttribute('href')])).toEqual([
       ['AI 연출컷 시작', './'],
       ['구독 보기', 'plans.html'],
     ]);
-    expect(scripts.map((s) => s.split('?')[0])).toEqual(['shell.js']);
+    // 설정 · Supabase 는 SEGAN 비서가 열릴 때만 로그인을 본다 (segan/guide.js) — 화면은 아무것도 묻지 않는다
+    expect(scripts.map((s) => s.split('?')[0])).toEqual([
+      '../js/config.js',
+      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45',
+      'shell.js',
+      'guide.js',
+    ]);
     expect(calls.fetch).toEqual([]);
   });
 });

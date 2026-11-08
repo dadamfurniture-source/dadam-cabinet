@@ -15,6 +15,15 @@
  *   행은 generation_id UNIQUE 에 ignore-duplicates 로 넣는다 — 'done' 이 두 번 와도 게시물은 하나다
  *   (database/collection-auto-post.sql). 행을 못 넣으면 복사한 파일을 지운다.
  *
+ * 사진 정보 (2026-11-08, DB 0049 — 앱 시공사례에서 사진을 누르면 보이는 장소 · 색상 · 업체):
+ *   place_label  품목 이름 (COLLECTION_PLACE_LABEL). 지역은 넣지 않는다 — 연출컷의 방은 고객 집이다
+ *   door_color   문짝 색 이름 (COLLECTION_DOOR_COLOR, options.door_color). 모르는 값이면 비운다
+ *   company_id   올린 사람이 active 구성원인 업체 (본사 · 협력업체), 아니면 비운다 — 고객 혼자 만든 연출컷.
+ *                generations.company_id 는 쓰지 않는다 (이 서버가 넣지 않아 늘 기본값 본사다).
+ *                직접 올린 사진의 같은 규칙은 DB 지킴이 collection_posts_info_guard 가 맡는다 (0049 머리말)
+ *   이름 글은 화면 글 그대로다 (ai-design.html KINDS · #doorColor, segan/make.js) — 0049 의 채우기와 같은 표.
+ *   새 칸은 DB 0049 가 만든다 — 0049 를 적용한 뒤에 배포한다 (없으면 행 넣기가 실패해 게시가 빠진다).
+ *
  * 실패해도 연출컷은 그대로다: 'done' 패치를 보낸 뒤에 부르고, 여기서는 던지지 않는다 (로그만).
  * 켜고 끄기: wrangler.toml COLLECTION_AUTO_POST — 'on' 일 때만 올린다.
  */
@@ -53,6 +62,60 @@ export const COLLECTION_CATEGORY = Object.freeze({
   study: 'other',
 });
 
+/**
+ * 생성 품목 → 장소 표시(collection_posts.place_label). 화면 품목 이름 그대로 (ai-design.html · segan/make.js KINDS).
+ * DB 0049 의 채우기(generations.category CASE)와 같은 표다 — 시험이 견준다.
+ */
+export const COLLECTION_PLACE_LABEL = Object.freeze({
+  sink: '싱크대',
+  island: '아일랜드',
+  wardrobe: '붙박이장',
+  storage: '수납장',
+  fridge: '냉장고장',
+  vanity: '화장대',
+  shoe: '신발장',
+  office: '사무실',
+  study: '서재',
+  bedroom: '침실',
+});
+
+/**
+ * 문짝 색 값(prompts.js DOOR_COLORS) → 화면 이름(collection_posts.door_color). ai-design.html #doorColor · segan/make.js DOORS 글 그대로.
+ * DB 0049 의 채우기(options.door_color CASE)와 같은 표다.
+ */
+export const COLLECTION_DOOR_COLOR = Object.freeze({
+  white: '화이트',
+  cream: '크림',
+  'light grey': '라이트 그레이',
+  greige: '그레이지',
+  'oak woodgrain': '오크',
+  'walnut woodgrain': '월넛',
+  charcoal: '차콜',
+});
+
+/** 게시물의 장소 · 문짝 색 이름 — 모르는 값이면 null */
+export function collectionPostInfo(job) {
+  const opts = (job && job.options) || {};
+  return {
+    place_label: COLLECTION_PLACE_LABEL[job && job.category] || null,
+    door_color: COLLECTION_DOOR_COLOR[opts.door_color] || null,
+  };
+}
+
+/**
+ * 올린 사람의 업체 — active 구성원인 업체 id (한 사람은 active 업체 하나뿐, 0003 부분 유니크). 아니면 null.
+ * service_role 로 company_members 를 읽는다. 실패는 던진다 (postToCollection 이 게시를 건너뛴다).
+ */
+export async function posterCompanyId(env, userId) {
+  const rows = await selectMany(env, 'company_members', {
+    user_id: `eq.${userId}`,
+    status: 'eq.active',
+    select: 'company_id',
+    limit: '1',
+  });
+  return (Array.isArray(rows) && rows[0] && rows[0].company_id) || null;
+}
+
 export function collectionPath(userId, generationId, mimeType) {
   return `${userId}/gen-${generationId}.${extOf(mimeType)}`;
 }
@@ -85,6 +148,8 @@ export async function postToCollection(env, job, ck) {
   let path = null;
   try {
     const img = await fetchObjectBase64(env, plan.base.path);
+    // 업체는 파일을 올리기 전에 — 못 읽으면 아무것도 올리지 않고 건너뛴다
+    const companyId = await posterCompanyId(env, job.userId);
     path = collectionPath(job.userId, job.id, img.mimeType);
     await uploadBytes(env, COLLECTION_BUCKET, path, base64ToBytes(img.base64), img.mimeType, COLLECTION_CACHE_CONTROL);
     const row = await insertIgnoreDuplicate(
@@ -97,6 +162,8 @@ export async function postToCollection(env, job, ck) {
         category: plan.category,
         source: 'ai_render',
         generation_id: job.id,
+        ...collectionPostInfo(job),
+        company_id: companyId,
       },
       'generation_id'
     );

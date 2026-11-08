@@ -9,15 +9,22 @@
  *   4) 잡: done 패치를 보낸 뒤에 올리고, 게시가 실패해도 done 은 그대로 · 재시도 없음. 플래너 모드는 올리지 않는다.
  *      fail() 의 기본안 있는 done 도 올리고, done 패치가 실패했으면 올리지 않는다
  *   5) 연출컷 삭제(DELETE /api/generate/:id)는 게시물 행과 복사본을 먼저 지운다
+ *   6) 사진 정보 (DB 0049): place_label = 품목 이름, door_color = 문짝 색 이름 (모르면 null), company_id = 올린 사람의
+ *      active 업체 (없으면 null) — 업체는 파일을 올리기 전에 읽고, 못 읽으면 아무것도 올리지 않는다.
+ *      이름 표는 화면 글 · DB 0049 채우기 표와 같다
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { GenerateJob } from '../src/job.js';
 import worker from '../src/worker.js';
-import { CATEGORIES } from '../src/prompts.js';
+import { CATEGORIES, DOOR_COLORS } from '../src/prompts.js';
 import {
   COLLECTION_CATEGORY,
+  COLLECTION_DOOR_COLOR,
+  COLLECTION_PLACE_LABEL,
   collectionPath,
+  collectionPostInfo,
   collectionPostPlan,
   postToCollection,
   removeCollectionPostsFor,
@@ -35,7 +42,8 @@ const ENV = {
   COLLECTION_AUTO_POST: 'on',
 };
 const BASE = { label: '신발장 · 기본안', path: `${USER_ID}/${ROW_ID}/base.png`, url: 'stored' };
-const JOB = { id: ROW_ID, userId: USER_ID, category: 'shoe', options: { design_style: 'modern' } };
+const COMPANY_ID = '33333333-3333-4333-8333-333333333333';
+const JOB = { id: ROW_ID, userId: USER_ID, category: 'shoe', options: { design_style: 'modern', door_color: 'walnut woodgrain' } };
 const CK = { images: { base: BASE, v1: { path: `${USER_ID}/${ROW_ID}/v1.jpg` } } };
 
 const realFetch = globalThis.fetch;
@@ -55,8 +63,9 @@ const b64 = (s) => Buffer.from(s).toString('base64');
 /**
  * Supabase 흉내. collection 쪽 호출을 calls 에 차례로 남긴다.
  *   insert: 'ok' | 'dup' | 'error'   existing: 정리 때 보이는 행
+ *   members: company_members 읽기 결과 (기본 없음 = 고객) | 'error'
  */
-function installSupabase({ insert = 'ok', existing = [], baseRead = 'ok', patchFail = false } = {}) {
+function installSupabase({ insert = 'ok', existing = [], baseRead = 'ok', patchFail = false, members = [] } = {}) {
   const calls = [];
   globalThis.fetch = async (url, init = {}) => {
     const u = String(url);
@@ -70,6 +79,11 @@ function installSupabase({ insert = 'ok', existing = [], baseRead = 'ok', patchF
     if (u.startsWith(`${SB}/storage/v1/object/collection`)) {
       calls.push({ kind: method === 'DELETE' ? 'file-delete' : 'upload', url: u, headers: init.headers, body: init.body });
       return jsonRes({ Key: 'ok' });
+    }
+    if (u.startsWith(`${SB}/rest/v1/company_members`)) {
+      calls.push({ kind: 'member', url: decodeURIComponent(u), headers: init.headers, method });
+      if (members === 'error') return jsonRes({ message: 'boom' }, 500);
+      return jsonRes(members);
     }
     if (u.startsWith(`${SB}/rest/v1/collection_posts`)) {
       if (method === 'POST') {
@@ -155,16 +169,16 @@ test('게시: 기본안을 읽어 collection 에 복사하고 공개 URL 로 행
   const calls = installSupabase();
   const out = await postToCollection(ENV, JOB, CK);
   assert.deepEqual(out, { posted: true, reason: undefined, path: `${USER_ID}/gen-${ROW_ID}.png` });
-  assert.deepEqual(calls.map((c) => c.kind), ['read', 'upload', 'insert']);
+  assert.deepEqual(calls.map((c) => c.kind), ['read', 'member', 'upload', 'insert']);
   assert.equal(calls[0].url, `${SB}/storage/v1/object/generations/${BASE.path}`, '기본안만 읽는다 (v1·방 사진 아님)');
-  const up = calls[1];
+  const up = calls[2];
   assert.equal(up.url, `${SB}/storage/v1/object/collection/${USER_ID}/gen-${ROW_ID}.png`);
   assert.equal(up.headers.Authorization, 'Bearer service');
   assert.equal(up.headers['Content-Type'], 'image/png');
   assert.equal(up.headers['x-upsert'], 'true');
   assert.equal(up.headers['Cache-Control'], 'max-age=3600');
   assert.equal(Buffer.from(up.body).toString(), 'PNGBYTES');
-  const ins = calls[2];
+  const ins = calls[3];
   assert.equal(ins.url, `${SB}/rest/v1/collection_posts?on_conflict=generation_id`);
   assert.equal(ins.headers.Prefer, 'resolution=ignore-duplicates,return=representation');
   assert.deepEqual(ins.body, {
@@ -174,6 +188,9 @@ test('게시: 기본안을 읽어 collection 에 복사하고 공개 URL 로 행
     category: 'builtin',
     source: 'ai_render',
     generation_id: ROW_ID,
+    place_label: '신발장',
+    door_color: '월넛',
+    company_id: null,
   });
   assert.ok(!/generations|token=|object\/sign/.test(ins.body.image_url), 'generations 주소·서명 URL 을 저장하지 않는다');
 });
@@ -212,6 +229,59 @@ test('실패: 기본안을 못 읽으면 올리지도 넣지도 않는다', asyn
   const out = await postToCollection(ENV, JOB, CK);
   assert.deepEqual(out, { posted: false, reason: 'error' });
   assert.deepEqual(calls.map((c) => c.kind), ['read']);
+});
+
+// ─── 6) 사진 정보 (DB 0049) ───
+
+test('사진 정보: 업체 구성원이면 그 업체 id — service_role 로 active 구성원 줄 하나만 읽는다', async () => {
+  const calls = installSupabase({ members: [{ company_id: COMPANY_ID }] });
+  const out = await postToCollection(ENV, JOB, CK);
+  assert.equal(out.posted, true);
+  const member = calls.find((c) => c.kind === 'member');
+  assert.equal(member.method, 'GET');
+  assert.equal(member.headers.Authorization, 'Bearer service');
+  assert.equal(member.url, `${SB}/rest/v1/company_members?user_id=eq.${USER_ID}&status=eq.active&select=company_id&limit=1`);
+  const ins = calls.find((c) => c.kind === 'insert');
+  assert.equal(ins.body.company_id, COMPANY_ID);
+  assert.ok(!('region' in ins.body), '지역은 넣지 않는다 (연출컷의 방은 고객 집)');
+});
+
+test('사진 정보: 업체를 못 읽으면 파일도 행도 올리지 않는다 — 던지지 않는다', async () => {
+  console.warn = () => {};
+  const calls = installSupabase({ members: 'error' });
+  const out = await postToCollection(ENV, JOB, CK);
+  assert.deepEqual(out, { posted: false, reason: 'error' });
+  assert.deepEqual(calls.map((c) => c.kind), ['read', 'member']);
+});
+
+test('사진 정보: 품목 이름 · 문짝 색 이름 — 모르는 값이면 null', () => {
+  assert.deepEqual(collectionPostInfo(JOB), { place_label: '신발장', door_color: '월넛' });
+  assert.deepEqual(collectionPostInfo({ category: 'sink', options: { door_color: 'oak woodgrain' } }), { place_label: '싱크대', door_color: '오크' });
+  assert.deepEqual(collectionPostInfo({ category: 'sink', options: {} }), { place_label: '싱크대', door_color: null });
+  assert.deepEqual(collectionPostInfo({ category: 'mystery', options: { door_color: 'pink' } }), { place_label: null, door_color: null });
+  assert.deepEqual(collectionPostInfo({ category: 'sink' }), { place_label: '싱크대', door_color: null });
+});
+
+test('사진 정보: 이름 표는 품목 · 문짝 색 전부를 덮고, DB 0049 채우기 표 · 화면 글과 같다', () => {
+  assert.deepEqual(Object.keys(COLLECTION_PLACE_LABEL).sort(), Object.keys(CATEGORIES).sort(), '빠진 품목이 없다');
+  assert.deepEqual(Object.keys(COLLECTION_DOOR_COLOR), [...DOOR_COLORS], '받는 문짝 색 전부');
+  const sql = fs.readFileSync(new URL('../../../database/migrations/0049_collection_info.sql', import.meta.url), 'utf8');
+  const pairs = (expr) => {
+    const at = sql.indexOf(`CASE ${expr}`);
+    assert.ok(at > 0, expr);
+    const out = {};
+    for (const m of sql.slice(at, sql.indexOf('END', at)).matchAll(/WHEN '([^']+)' THEN '([^']+)'/g)) out[m[1]] = m[2];
+    return out;
+  };
+  assert.deepEqual(pairs('g.category'), { ...COLLECTION_PLACE_LABEL });
+  assert.deepEqual(pairs("g.options ->> 'door_color'"), { ...COLLECTION_DOOR_COLOR });
+  const html = fs.readFileSync(new URL('../../../ai-design.html', import.meta.url), 'utf8');
+  const sel = /<select id="doorColor">([\s\S]*?)<\/select>/.exec(html)[1];
+  const doors = Object.fromEntries([...sel.matchAll(/<option value="([^"]+)">([^<]+)<\/option>/g)].map((m) => [m[1], m[2]]));
+  assert.deepEqual(doors, { ...COLLECTION_DOOR_COLOR });
+  const kinds = {};
+  for (const m of html.matchAll(/key: '(\w+)',\s*label: '([^']+)'/g)) kinds[m[1]] = m[2];
+  assert.deepEqual(kinds, { ...COLLECTION_PLACE_LABEL });
 });
 
 test('플래너 모드·꺼짐은 아무 요청도 하지 않는다', async () => {

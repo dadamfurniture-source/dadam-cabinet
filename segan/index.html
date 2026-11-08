@@ -16,10 +16,10 @@
     <title>SEGAN</title>
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg?v=2026110809" type="image/svg+xml" />
-    <link rel="icon" href="icons/favicon-32.png?v=2026110809" sizes="32x32" type="image/png" />
-    <link rel="icon" href="icons/favicon-16.png?v=2026110809" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110809" />
+    <link rel="icon" href="icons/icon.svg?v=2026110902" type="image/svg+xml" />
+    <link rel="icon" href="icons/favicon-32.png?v=2026110902" sizes="32x32" type="image/png" />
+    <link rel="icon" href="icons/favicon-16.png?v=2026110902" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=2026110902" />
     <meta name="apple-mobile-web-app-title" content="SEGAN" />
     <meta name="mobile-web-app-capable" content="yes" />
 
@@ -29,21 +29,23 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Cormorant+Garamond:wght@300&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="shell.css?v=2026110809" />
-    <link rel="stylesheet" href="make.css?v=2026110809" />
+    <link rel="stylesheet" href="shell.css?v=2026110902" />
+    <link rel="stylesheet" href="make.css?v=2026110902" />
     <!-- 로그인 · 크레딧 · 생성 — 기존 사이트와 같은 설정 · 라이브러리 -->
-    <script src="../js/config.js?v=2026110809"></script>
+    <script src="../js/config.js?v=2026110902"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45"></script>
     <!-- 관리 탭 — 관리자에게만 연다 (segan/shell.js applyAdminTab) -->
-    <script src="../js/admin-access.js?v=2026110809"></script>
+    <script src="../js/admin-access.js?v=2026110902"></script>
     <!-- 작업 탭 — 작업자에게만 연다 (segan/shell.js applyRoleTabs · GET /work/me) -->
-    <script src="../js/mypage-work.js?v=2026110809"></script>
+    <script src="../js/mypage-work.js?v=2026110902"></script>
     <!-- 결과 내려받기 직전 서명 URL 다시 확인 (내 연출컷 목록 · my-designs.html 과 같다) -->
-    <script src="../js/storage-urls.js?v=2026110809"></script>
+    <script src="../js/storage-urls.js?v=2026110902"></script>
     <!-- ③ 참고 사진의 테마 이름 · 버킷 (ai-design.html · admin/reference-images.html 과 같은 공용 파일) -->
-    <script src="../js/reference-images.js?v=2026110809"></script>
-    <script src="shell.js?v=2026110809" defer></script>
-    <script src="make.js?v=2026110809" defer></script>
+    <script src="../js/reference-images.js?v=2026110902"></script>
+    <script src="shell.js?v=2026110902" defer></script>
+    <!-- SEGAN 비서 — 위 막대 「비서」 · PC 아래 입력 줄 (안내 모드, 로그인 전에는 자주 묻는 것) -->
+    <script src="guide.js?v=2026110902" defer></script>
+    <script src="make.js?v=2026110902" defer></script>
   </head>
   <body class="sg-app" data-tab="make">
     <div data-segan-shell="header"></div>
