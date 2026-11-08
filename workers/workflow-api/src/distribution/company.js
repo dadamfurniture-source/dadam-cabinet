@@ -3,6 +3,7 @@
  * 업체 풀(협력업체 · 다담 공장)의 구성원 모두 같은 길을 쓴다. 목록 · 설정 응답의 can_act 는 대표 · 실장인지.
  *
  *   GET  /company/consults                 내 업체 상담 목록 (active 구성원)
+ *   GET  /company/consults/:id/image       그 상담의 연출컷 첫 장 (목록과 같은 구성원 · 같은 상담만)
  *   POST /company/consults/:id/accept      받기 (대표 · 실장) → { customer_id, project_id }
  *   POST /company/consults/:id/decline     못 받음 { reason } (대표 · 실장) → 204
  *   GET  /company/service-settings         상담 설정 읽기 (구성원)
@@ -19,8 +20,9 @@
  * 못 받음 · 무응답 — 배정 기록 declined · expired, 사본 status returned + 이름 · 전화 · 이메일 지움,
  *   본사 상담은 다시 pending (다음 순위).
  *
- * 연출컷 — 사본에 연출컷을 잇지 않는다 (표 권한이 생기지 않게). 목록이 원래 상담 연출컷 첫 장의 짧은 서명 주소를
- *   싣는다 (돌려보낸 상담은 싣지 않는다).
+ * 연출컷 — 사본에 연출컷을 잇지 않는다 (표 권한이 생기지 않게). 목록은 원래 상담 연출컷 첫 장이 있는지만
+ *   (has_generation_image) 싣고, 그림은 GET /company/consults/:id/image 가 service_role 로 읽어 준다
+ *   (돌려보낸 상담은 없다). 버킷 경로(<user_id>/<generation_id>/…)나 그 서명 주소는 업체에 내보내지 않는다.
  */
 
 import {
@@ -39,7 +41,6 @@ import {
   updateBy,
   upsertOne,
 } from '../supabase.js';
-import { createSignedUrls } from '../storage.js';
 import { ASSIGNMENT_TTL_HOURS } from './rules.js';
 import { companyMetrics } from './score.js';
 import { loadStats, SETTINGS_COLUMNS } from './data.js';
@@ -52,8 +53,6 @@ const HOUR_MS = 3600 * 1000;
 
 /** 목록 한 번에 */
 export const COMPANY_CONSULTS_LIMIT = 200;
-/** 연출컷 서명 주소 수명 (초) */
-export const RENDER_URL_TTL_SEC = 3600;
 /** cron 한 번에 되돌리는 배정 수 — 남으면 다음 1분 */
 export const EXPIRE_BATCH = 50;
 /** 못 받음 사유 글자 수 (DB consult_assignments_reason_check) */
@@ -113,52 +112,73 @@ export function renderRef(images, defaultBucket) {
   }
 }
 
-/** 사본 id → 서명 주소 (원래 상담의 연출컷 첫 장). 서명을 못 하면 빈 칸 */
-async function renderUrls(env, copies) {
+/** 사본 id → { bucket, path } (원래 상담의 연출컷 첫 장). 돌려보낸 사본 · 연출컷 없는 상담은 빠진다 */
+async function renderRefs(env, copies) {
   const out = new Map();
   const live = copies.filter((c) => c.status !== 'returned' && isUuid(c.origin_consultation_id));
   if (!live.length) return out;
-  try {
-    const origins =
-      (await selectMany(env, 'consultations', {
-        id: `in.(${[...new Set(live.map((c) => c.origin_consultation_id))].join(',')})`,
-        select: 'id,generation_id',
-      })) || [];
-    const genOf = new Map(
-      origins.filter((o) => o.generation_id).map((o) => [o.id, o.generation_id])
-    );
-    if (!genOf.size) return out;
-    const gens =
-      (await selectMany(env, 'generations', {
-        id: `in.(${[...new Set(genOf.values())].join(',')})`,
-        select: 'id,images',
-      })) || [];
-    const bucketDefault = env.GENERATIONS_BUCKET || 'generations';
-    const refOf = new Map(
-      gens.map((g) => [g.id, renderRef(g.images, bucketDefault)]).filter(([, r]) => r)
-    );
-    const byBucket = new Map();
-    for (const ref of refOf.values()) {
-      if (!byBucket.has(ref.bucket)) byBucket.set(ref.bucket, []);
-      byBucket.get(ref.bucket).push(ref.path);
-    }
-    const signed = new Map();
-    for (const [bucket, paths] of byBucket) {
-      const urls = await createSignedUrls(env, bucket, paths, RENDER_URL_TTL_SEC);
-      for (const [path, url] of urls) signed.set(`${bucket}/${path}`, url);
-    }
-    for (const c of live) {
-      const ref = refOf.get(genOf.get(c.origin_consultation_id));
-      const url = ref ? signed.get(`${ref.bucket}/${ref.path}`) : null;
-      if (url) out.set(c.id, url);
-    }
-  } catch (err) {
-    console.warn(
-      '[company-consults] 연출컷 서명 실패 — 연출컷 없이 보냅니다:',
-      err && err.statusCode ? err.statusCode : 'error'
-    );
+  const origins =
+    (await selectMany(env, 'consultations', {
+      id: `in.(${[...new Set(live.map((c) => c.origin_consultation_id))].join(',')})`,
+      select: 'id,generation_id',
+    })) || [];
+  const genOf = new Map(origins.filter((o) => o.generation_id).map((o) => [o.id, o.generation_id]));
+  if (!genOf.size) return out;
+  const gens =
+    (await selectMany(env, 'generations', {
+      id: `in.(${[...new Set(genOf.values())].join(',')})`,
+      select: 'id,images',
+    })) || [];
+  const bucketDefault = env.GENERATIONS_BUCKET || 'generations';
+  const refOf = new Map(
+    gens.map((g) => [g.id, renderRef(g.images, bucketDefault)]).filter(([, r]) => r)
+  );
+  for (const c of live) {
+    const ref = refOf.get(genOf.get(c.origin_consultation_id));
+    if (ref) out.set(c.id, ref);
   }
   return out;
+}
+
+/** 목록용 — 연출컷이 있는 사본 id. 읽지 못하면 연출컷 없이 */
+async function renderIds(env, copies) {
+  try {
+    return new Set((await renderRefs(env, copies)).keys());
+  } catch (err) {
+    console.warn(
+      '[company-consults] 연출컷 확인 실패 — 연출컷 없이 보냅니다:',
+      err && err.statusCode ? err.statusCode : 'error'
+    );
+    return new Set();
+  }
+}
+
+/**
+ * GET /company/consults/:id/image → { bytes, mime } (라우트가 이미지로 돌려준다).
+ * 목록과 같은 검사 — 내 업체(active 구성원) 사본이고 돌려보내지 않은 상담. 그 밖은 404.
+ * 앱은 본인 토큰으로 받아 blob 주소로 그린다 (<img src> 는 Authorization 을 싣지 못한다).
+ */
+export async function readCompanyConsultImage(env, { user, consultationId }) {
+  const { companyId } = await companyOf(env, user);
+  if (!isUuid(consultationId)) throw new NotFoundError('연출컷이 없습니다');
+  const copy = await selectOne(env, 'consultations', {
+    id: `eq.${consultationId}`,
+    company_id: `eq.${companyId}`,
+    select: 'id,status,origin_consultation_id',
+  });
+  const ref = copy ? (await renderRefs(env, [copy])).get(copy.id) : null;
+  if (!ref) throw new NotFoundError('연출컷이 없습니다');
+  const res = await fetch(`${env.SUPABASE_URL}/storage/v1/object/${ref.bucket}/${ref.path}`, {
+    headers: {
+      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+  });
+  if (!res.ok) throw new NotFoundError('연출컷이 없습니다');
+  return {
+    bytes: new Uint8Array(await res.arrayBuffer()),
+    mime: res.headers.get('Content-Type') || 'application/octet-stream',
+  };
 }
 
 /** GET /company/consults — can_act: 받기 · 못 받음을 할 수 있나 (대표 · 실장) */
@@ -182,7 +202,7 @@ export async function listCompanyConsults(env, { user }) {
   const assignmentOf = new Map();
   for (const a of assignments)
     if (!assignmentOf.has(a.copy_consultation_id)) assignmentOf.set(a.copy_consultation_id, a);
-  const urls = await renderUrls(env, rows);
+  const withImage = await renderIds(env, rows);
 
   return {
     can_act: canAct,
@@ -210,7 +230,8 @@ export async function listCompanyConsults(env, { user }) {
         request_detail_design: r.request_detail_design === true,
         quote_total: quoteTotal(r.quote),
         project_id: r.project_id ?? null,
-        generation_image_url: urls.get(r.id) || null,
+        // 그림은 GET /company/consults/:id/image — 버킷 경로 · 서명 주소는 싣지 않는다
+        has_generation_image: withImage.has(r.id),
         assignment: a
           ? {
               id: a.id,

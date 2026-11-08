@@ -1,6 +1,7 @@
 /**
  * 업체 쪽 상담 — src/distribution/company.js 를 워커로 부른다.
- *   GET /company/consults · POST /company/consults/:id/accept|decline · 1분 cron 무응답 되돌리기
+ *   GET /company/consults · GET /company/consults/:id/image · POST /company/consults/:id/accept|decline
+ *   1분 cron 무응답 되돌리기
  *   GET|PUT /company/service-settings · GET /company/my-score
  * 가짜 Supabase 는 test/helpers/distribution-fake.js. 시험 데이터는 모두 가짜다.
  */
@@ -203,7 +204,7 @@ test('목록 — 구성원이 아니면 403 not_member, 직원도 본다', async
   assert.equal(staff.json.data.can_act, false, '직원은 받기 · 못 받음을 못 한다');
 });
 
-test('목록 — 내 업체 상담만, 배정 · 답할 기한 · 연출컷 서명 주소 · 돌려보낸 상담은 연락처 없이', async () => {
+test('목록 — 내 업체 상담만, 배정 · 답할 기한 · 연출컷 있음 · 돌려보낸 상담은 연락처 없이', async () => {
   const fake = fakeOf();
   const r = await call(fake, '/company/consults', OWNER_A);
   assert.equal(r.status, 200, JSON.stringify(r.json));
@@ -228,11 +229,10 @@ test('목록 — 내 업체 상담만, 배정 · 답할 기한 · 연출컷 서�
     Date.parse(c1.assignment.expires_at) - Date.parse(c1.assignment.assigned_at),
     24 * HOUR
   );
-  assert.equal(
-    c1.generation_image_url,
-    `https://x.supabase.co/storage/v1/object/sign/generations/${CUSTOMER}/gen-1/base.png?token=t3600`
-  );
+  assert.equal(c1.has_generation_image, true);
+  assert.equal(items.find((i) => i.id === C2).has_generation_image, false, '연출컷 없는 상담');
   for (const key of [
+    'generation_image_url',
     'user_id',
     'origin_consultation_id',
     'customer_id',
@@ -250,19 +250,79 @@ test('목록 — 내 업체 상담만, 배정 · 답할 기한 · 연출컷 서�
   assert.equal(c4.name, null);
   assert.equal(c4.phone, null);
   assert.equal(c4.email, null);
-  assert.equal(c4.generation_image_url, null);
+  assert.equal(c4.has_generation_image, false, '돌려보낸 상담은 연출컷도 없이');
   assert.equal(c4.assignment.state, 'declined');
   assert.equal(items.find((i) => i.id === OLD).assignment, null);
 
-  const signs = fake.calls.filter((c) => c.method === 'SIGN');
-  assert.equal(signs.length, 1);
-  assert.deepEqual(
-    signs[0].body.paths,
-    [`${CUSTOMER}/gen-1/base.png`],
-    '살아 있는 사본의 연출컷만'
+  // 고객 회원 id · 버킷 경로 · 서명 주소는 업체에 나가지 않는다
+  const text = JSON.stringify(r.json);
+  assert.ok(!text.includes(CUSTOMER), '고객 회원 id 없음');
+  assert.ok(!text.includes('/storage/v1/'), '버킷 주소 없음');
+  assert.equal(fake.calls.filter((c) => c.method === 'SIGN').length, 0, '서명하지 않는다');
+  assert.equal(
+    fake.calls.filter((c) => c.table.startsWith('storage:')).length,
+    0,
+    '목록은 버킷을 읽지 않는다'
   );
-  assert.equal(signs[0].body.expiresIn, 3600);
   assert.equal(writesOf(fake).length, 0);
+});
+
+// ── 연출컷 그림 ────────────────────────────────────────────────
+
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
+const withImage = () =>
+  fakeOf({
+    objects: { [`generations/${CUSTOMER}/gen-1/base.png`]: { bytes: PNG, type: 'image/png' } },
+  });
+const image = (fake, id, token) => call(fake, `/company/consults/${id}/image`, token);
+const storageReads = (fake) => fake.calls.filter((c) => c.table.startsWith('storage:'));
+
+test('연출컷 그림 — 내 업체 구성원(직원도)은 원래 상담 연출컷 첫 장을 받는다, 캐시에 남기지 않는다', async () => {
+  for (const token of [OWNER_A, STAFF_A]) {
+    const fake = withImage();
+    const r = await image(fake, C1, token);
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.bytes, PNG);
+    assert.equal(r.headers.get('Content-Type'), 'image/png');
+    assert.equal(r.headers.get('Cache-Control'), 'no-store, private');
+    assert.equal(r.headers.get('X-Content-Type-Options'), 'nosniff');
+    const reads = storageReads(fake);
+    assert.deepEqual(
+      reads.map((c) => [c.table, c.path]),
+      [['storage:generations', `${CUSTOMER}/gen-1/base.png`]]
+    );
+    assert.equal(reads[0].auth, 'Bearer service-key', 'service_role 로 읽는다');
+    assert.equal(writesOf(fake).length, 0);
+  }
+});
+
+test('연출컷 그림 — 구성원 아님 403 · 다른 업체 · 다담 공장 · 돌려보낸 상담 · 연출컷 없음 · 원래 상담 없음 · 틀린 id 404', async () => {
+  const fake = withImage();
+  const nobody = await image(fake, C1, NOBODY);
+  assert.equal(nobody.status, 403);
+  assert.equal(nobody.json.code, 'not_member');
+  for (const [id, token] of [
+    [C1, OWNER_B],
+    [C1, FACTORY_STAFF],
+    [C4, OWNER_A],
+    [C2, OWNER_A],
+    [OLD, OWNER_A],
+    ['nope', OWNER_A],
+  ]) {
+    const r = await image(fake, id, token);
+    assert.equal(r.status, 404, `${id} ${token}`);
+    assert.ok(!JSON.stringify(r.json).includes(CUSTOMER), '오류 글에 고객 회원 id 없음');
+  }
+  assert.equal(storageReads(fake).length, 0, '그림을 읽지 않는다');
+  assert.equal((await image(fake, C1, null)).status, 401);
+});
+
+test('연출컷 그림 — 버킷에 객체가 없으면 404', async () => {
+  const fake = fakeOf();
+  const r = await image(fake, C1, OWNER_A);
+  assert.equal(r.status, 404);
+  assert.equal(storageReads(fake).length, 1);
+  assert.ok(!JSON.stringify(r.json).includes(CUSTOMER));
 });
 
 test('연출컷 첫 장 — path, 없으면 저장된 Storage 주소에서', () => {

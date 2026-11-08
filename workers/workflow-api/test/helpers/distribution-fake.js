@@ -86,8 +86,9 @@ export const fakeId = () => {
  *   admins   관리자 user_id 목록
  *   nowMs    DB now()
  *   before   (method, table, params, body) → Response 면 그 요청을 그 응답으로 끝낸다 (경합 · 실패 흉내)
+ *   objects  버킷 객체 { '<bucket>/<path>': { bytes: Uint8Array, type } } — 없는 객체는 Storage 처럼 400
  */
-export function createFake({ tables = {}, admins = [], nowMs = Date.now(), before = null } = {}) {
+export function createFake({ tables = {}, admins = [], nowMs = Date.now(), before = null, objects = {} } = {}) {
   let now = nowMs;
   const db = {
     companies: [],
@@ -487,6 +488,15 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
         }))
       );
     }
+    const obj = url.pathname.match(/^\/storage\/v1\/object\/([^/]+)\/(.+)$/);
+    if (obj && (init.method || 'GET') === 'GET') {
+      const key = `${obj[1]}/${decodeURIComponent(obj[2])}`;
+      calls.push({ method: 'GET', table: `storage:${obj[1]}`, path: decodeURIComponent(obj[2]), auth });
+      const o = objects[key];
+      return o
+        ? new Response(o.bytes, { status: 200, headers: { 'Content-Type': o.type } })
+        : json({ statusCode: '404', error: 'not_found', message: 'Object not found' }, 400);
+    }
     throw new Error(`fake: 모르는 주소 ${url}`);
   }
 
@@ -503,7 +513,7 @@ export function createFake({ tables = {}, admins = [], nowMs = Date.now(), befor
 
 /**
  * 워커로 한 번 부른다 — fetch 를 갈아 끼우고, 응답 뒤 일(waitUntil)까지 기다린다.
- * @returns {Promise<{ status, json, headers }>}
+ * @returns {Promise<{ status, json, headers, bytes? }>}
  */
 export async function callWorker(worker, fake, path, token, { method = 'GET', body, headers: extra = {} } = {}) {
   const original = globalThis.fetch;
@@ -522,6 +532,9 @@ export async function callWorker(worker, fake, path, token, { method = 'GET', bo
       { waitUntil: (p) => later.push(p) }
     );
     await Promise.all(later);
+    // 이미지 응답은 바이트 그대로 (GET /company/consults/:id/image)
+    if ((r.headers.get('Content-Type') || '').startsWith('image/'))
+      return { status: r.status, json: null, bytes: new Uint8Array(await r.arrayBuffer()), headers: r.headers };
     const text = await r.text();
     return { status: r.status, json: text ? JSON.parse(text) : null, headers: r.headers };
   } finally {
