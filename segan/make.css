@@ -629,6 +629,70 @@
   min-height: 48px;
 }
 
+.mk-res-foot a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
+
+.mk-res-info {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 300;
+  color: var(--mk-dim);
+}
+
+/* 결과 관리 — 공유 링크 · 시공사례 · AI 학습 · 다시 생성 · 삭제 (예전 내 연출컷 하나 열기) */
+.mk-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--v5-line);
+}
+
+.mk-box[hidden],
+.mk-sharelink[hidden],
+.mk-confirm[hidden] {
+  display: none;
+}
+
+.mk-box-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.mk-sharelink {
+  display: flex;
+  gap: 8px;
+}
+
+.mk-sharelink input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--v5-line-18);
+  border-radius: 0;
+  background: var(--v5-paper);
+  color: var(--v5-ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.mk-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* 화면 안 확인(다시 생성) · 가운데 창 확인(삭제 · 시공사례에서 내리기 — SeganShell.sheet) */
+.mk-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 /* ── ④ 상담 신청 (consult.html) ── */
 .mk-back {
   display: inline-flex;
@@ -895,19 +959,14 @@
   color: var(--mk-dim);
 }
 
-/* ── 내 연출컷 (renders.html) ── */
-.rd-list,
-.rd-detail {
+/* ── 내 연출컷 (renders.html) — 목록만, 하나는 ③ 결과로 연다 ── */
+.rd-list {
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-.rd-list[hidden],
-.rd-detail[hidden],
-.rd-box[hidden],
-.rd-link[hidden],
-.rd-confirm[hidden] {
+.rd-list[hidden] {
   display: none;
 }
 
@@ -984,97 +1043,6 @@
   color: var(--v5-tan);
 }
 
-.rd-title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 400;
-}
-
-.rd-sub,
-.rd-progress {
-  margin: 0;
-  font-size: 12.5px;
-  font-weight: 300;
-  color: var(--mk-dim);
-}
-
-.rd-progress {
-  color: var(--v5-ink);
-}
-
-.rd-shots {
-  display: grid;
-  gap: 12px;
-}
-
-.rd-shot {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-}
-
-.rd-shot img {
-  display: block;
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
-  background: var(--v5-photo);
-}
-
-.rd-shot figcaption {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 12.5px;
-  font-weight: 300;
-  color: var(--mk-dim);
-}
-
-.rd-box {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-top: 16px;
-  border-top: 1px solid var(--v5-line);
-}
-
-.rd-box-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 400;
-}
-
-.rd-link {
-  display: flex;
-  gap: 8px;
-}
-
-.rd-link input {
-  flex: 1;
-  min-width: 0;
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--v5-line-18);
-  border-radius: 0;
-  background: var(--v5-paper);
-  color: var(--v5-ink);
-  font: inherit;
-  font-size: 13px;
-}
-
-.rd-acts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.rd-confirm {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 /* ── PC ── */
 @media (min-width: 768px) {
   .sg-main.mk {
@@ -1095,9 +1063,5 @@
   .rd-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 26px;
-  }
-
-  .rd-shots {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

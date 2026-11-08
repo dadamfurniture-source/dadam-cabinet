@@ -5,6 +5,20 @@
    품목 · 스타일 · 도어 색 · 냉장고 · 치수 값도 ai-design.html 과 같은 목록이다 (시험이 둘을 비교한다).
    새 API 칸 · 품목 · 선택지를 만들지 않는다.
 
+   ③ 결과(./?g=<id>#result)가 연출컷 결과 화면 하나다 — 방금 만든 것도, 내 연출컷 목록(renders.html)에서
+   연 것도 여기서 본다. 내 연출컷에 있던 관리는 이 화면으로 옮겼다 (같은 호출 · 같은 글, my-designs.html 과 같다):
+     공유 링크  POST /api/generate/:id/share (만들기 · 새로 만들면 예전 링크는 막힌다), DELETE 같은 경로 (중단)
+     시공사례   collection_posts (본인 · source ai_render) 가 있으면 「시공사례에서 내리기」 — 가운데 창으로 묻고
+                행을 먼저 지우고 collection 버킷 파일을 지운다
+     학습 동의  generations.consent_training 을 켜고 끈다
+     다시 생성  POST /api/generate { parent_id, design_style, door_color } (ai-design.html ?regen=1 과 같은 호출,
+                크레딧이 다시 든다 — 화면 안에서 단가 · 남은 횟수를 보이고 한 번 더 묻는다) → 새 결과 주소로
+     삭제       DELETE /api/generate/:id (워커가 공유 링크 · 시공사례 게시물 · 파일까지 지운다) — 가운데 창으로 묻고
+                내 연출컷 목록으로
+     내려받기   받기 직전에 서명 URL 을 다시 확인한다 (js/storage-urls.js)
+   만들지 못한 연출컷(실패 · 12분 넘게 멈춘 잡)은 크레딧을 돌려드린다는 안내를 붙인다.
+   로그인 없이 결과 주소를 열면 로그인으로 보내고, 로그인하면 같은 결과 주소로 돌아온다.
+
    로그인 문 — 누구나 사진을 고르고 가구를 고를 수 있다. 크레딧을 쓰는 버튼(연출컷 생성)을 누를 때
    로그인이 없으면, 사진과 고른 값을 이 기기(sessionStorage)에만 담고 기존 login.html 로 보낸다
    (돌아올 곳 = 이 페이지). 돌아오면 같은 단계 · 같은 사진 · 같은 선택으로 되살린다 — 다시 한 번
@@ -79,6 +93,17 @@
   var POLL_MS = 3000;
   var MAX_SHOTS = 4; // 기본안 + 추천안 (ai-design.html 과 같이 넷까지)
   var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  var LIST_PAGE = 'renders.html'; // 내 연출컷 목록
+  var ACTIVE = ['queued', 'analyzing', 'rendering', 'qc', 'variants']; // my-designs.html 과 같다
+  var STALE_MS = 12 * 60000; // 12분 넘게 진행 중이면 멈춘 잡으로 본다 (워커와 같은 기준)
+  var REFUND_NOTE = '만들지 못한 연출컷의 크레딧은 돌려드립니다.';
+  // my-designs.html 과 같은 글
+  var CONSENT_ON = '이 연출컷과 함께 올린 사진이 다담 AI 학습에 쓰입니다. 누르면 끕니다.';
+  var CONSENT_OFF = '학습에 쓰이지 않습니다. 누르면 켭니다.';
+  var DELETE_ASK =
+    '이 연출컷을 삭제할까요? 이미지와 공유 링크, 시공사례에 올라간 사진이 함께 사라집니다.';
+  var UNPOST_ASK = '내린 뒤에는 다시 올릴 수 없습니다. 내릴까요?';
+  var REGEN_ASK = '같은 사진 · 같은 설정으로 다시 만듭니다.';
 
   var DEFAULTS = {
     kind: 'sink',
@@ -104,7 +129,7 @@
     notice: '',
     fridgeRows: null,
     // ③ 결과
-    phase: 'idle', // idle | loading | done | failed
+    phase: 'idle', // idle | loading | done | failed | signin (로그인 없이 결과 주소를 열었다)
     genId: null,
     results: [], // [{ src, path, label }]
     sel: 0, // 크게 보는 컷
@@ -113,6 +138,13 @@
     progressLabel: '',
     error: '',
     resMsg: '',
+    // 결과 관리 (예전 내 연출컷 하나 열기)
+    gen: null, // 서버가 준 행 — { id, status, error, category, title, options, created_at, share_* }
+    consent: null, // generations.consent_training — 못 읽으면 null (칸을 감춘다)
+    post: null, // 시공사례에 올라간 게시물 — { id, storage_path } | null
+    shareUrl: '', // 방금 만든 공유 링크 (예전 링크는 다시 볼 수 없다 — 토큰은 해시로만 남는다)
+    regenAsk: '', // 다시 생성 확인 글 — 비어 있으면 감춘다
+    boxMsg: '',
   };
 
   var $ = function (id) {
@@ -283,10 +315,11 @@
   /** 지금 상태를 담는다. 사진이 너무 커서 못 담으면 고른 값만 담고 false */
   function saveDraft() {
     var base = { v: 1, step: S.step === 'result' ? 'kind' : S.step, choices: S.choices };
+    var started = S.genId && S.phase !== 'signin'; // 로그인 전에 연 결과 주소는 시작한 생성이 아니다
     try {
       sessionStorage.setItem(
         DRAFT_KEY,
-        JSON.stringify(Object.assign({}, base, { photo: S.genId ? null : S.photo })) // 생성이 시작되면 사진은 다시 담지 않는다
+        JSON.stringify(Object.assign({}, base, { photo: started ? null : S.photo })) // 생성이 시작되면 사진은 다시 담지 않는다
       );
       return true;
     } catch {
@@ -421,13 +454,71 @@
     return r && r.label ? r.label : '연출컷';
   }
 
+  function when(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return '';
+    return (
+      d.getFullYear() +
+      '.' +
+      String(d.getMonth() + 1).padStart(2, '0') +
+      '.' +
+      String(d.getDate()).padStart(2, '0')
+    );
+  }
+
+  /** 연출컷 이름 — 제목, 없으면 「품목 연출컷」 (내 연출컷 목록과 같다) */
+  function genLabel(g) {
+    if (g.title) return g.title;
+    for (var i = 0; i < KINDS.length; i++) {
+      if (KINDS[i].key === g.category) return KINDS[i].label + ' 연출컷';
+    }
+    return (g.category || '가구') + ' 연출컷';
+  }
+
+  /** 12분 넘게 진행 중인 잡 — 멈춘 것으로 본다 (내 연출컷 목록 · 워커와 같은 기준) */
+  function staleJob(g) {
+    return (
+      ACTIVE.indexOf(g.status) >= 0 && Date.now() - new Date(g.created_at).getTime() >= STALE_MS
+    );
+  }
+
+  function jobFailed(g) {
+    return !!g && (g.status === 'failed' || staleJob(g));
+  }
+
+  function isShared(g) {
+    return !!(
+      g.share_expires_at &&
+      !g.share_revoked_at &&
+      new Date(g.share_expires_at) > new Date()
+    );
+  }
+
+  /** 로그인하면 돌아올 곳 — 같은 결과 주소 (js/auth-redirect.js 가 받는 같은 사이트 *.html) */
+  function resultLoginHref(id) {
+    return (
+      LOGIN_PAGE +
+      '?redirect=' +
+      encodeURIComponent(RETURN_TARGET + '?g=' + encodeURIComponent(id) + '#result')
+    );
+  }
+
   function renderResult() {
     var box = $('mkShots');
     if (!box) return;
     var loading = S.phase === 'loading';
     var done = S.phase === 'done';
+    var gate = S.phase === 'signin';
     var n = S.results.length;
     if (S.sel >= n) S.sel = 0;
+
+    // 로그인 없이 연 결과 주소 — 로그인 안내만
+    $('mkResGate').hidden = !gate;
+    if (gate) $('mkResLogin').setAttribute('href', resultLoginHref(S.genId));
+    $('mkResInfo').hidden = !S.gen;
+    $('mkResInfo').textContent = S.gen
+      ? genLabel(S.gen) + (S.gen.created_at ? ' · ' + when(S.gen.created_at) : '')
+      : '';
 
     // 만드는 중에는 진행 줄(서버의 단계 안내 · 진행률)만, 끝나면 장수
     $('mkResState').textContent = loading ? '약 1~2분 걸립니다' : done ? n + ' / ' + MAX_SHOTS : '';
@@ -467,17 +558,349 @@
       })
       .join('');
     box.innerHTML = mainHTML + '<div class="mk-thumbs">' + thumbHTML + '</div>';
-    box.hidden = S.phase === 'failed' && !n;
+    box.hidden = gate || (S.phase === 'failed' && !n);
 
     var err = $('mkResError');
     err.hidden = S.phase !== 'failed';
     err.textContent = S.error;
+    // 잡이 실패했거나 멈췄으면 크레딧을 돌려드린다 (워커가 기본안 없이 끝나면 환불한다)
+    $('mkRefund').hidden = !(S.phase === 'failed' && jobFailed(S.gen));
+    $('mkRefund').textContent = REFUND_NOTE;
     $('mkRetry').hidden = S.phase !== 'failed';
     $('mkResMsg').textContent = S.resMsg;
     $('mkResMsg').hidden = !S.resMsg;
 
     renderQuote();
+    renderManage();
     $('mkResFoot').hidden = !(done || S.phase === 'failed');
+  }
+
+  // ── 결과 관리 — 공유 링크 · 시공사례 · AI 학습 · 다시 생성 · 삭제 ──
+  function paintConsent(on) {
+    var b = $('mkConsent');
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.textContent = on ? 'AI 학습 허용' : 'AI 학습 안 함';
+    $('mkConsentNote').textContent = on ? CONSENT_ON : CONSENT_OFF;
+  }
+
+  function renderManage() {
+    var g = S.gen;
+    var on = !!g && S.phase !== 'signin';
+    var done = on && S.phase === 'done';
+    var loading = S.phase === 'loading';
+
+    // 공유 링크 — 완료된 것만 (워커도 그렇게 막는다)
+    $('mkShareBox').hidden = !done;
+    if (done) {
+      var shared = isShared(g);
+      $('mkShareState').textContent = S.shareUrl
+        ? '아래 링크를 보내면 로그인 없이 볼 수 있습니다 · ' + when(g.share_expires_at) + ' 까지'
+        : shared
+          ? '공유 중 · ' +
+            when(g.share_expires_at) +
+            ' 까지. 링크를 다시 보려면 새로 만드세요 (예전 링크는 막힙니다).'
+          : '링크를 만들면 로그인 없이 이 연출컷을 볼 수 있습니다.';
+      $('mkLinkRow').hidden = !S.shareUrl;
+      $('mkLink').value = S.shareUrl;
+      $('mkShareMake').textContent = shared || S.shareUrl ? '새 링크 만들기' : '공유 링크 만들기';
+      $('mkShareStop').hidden = !shared;
+    }
+
+    // 시공사례에서 내리기 · AI 학습 동의 — 읽은 것만 그린다
+    $('mkPostBox').hidden = !(on && S.post);
+    $('mkConsentBox').hidden = !(on && S.consent !== null);
+    if (S.consent !== null) paintConsent(S.consent);
+
+    // 다시 생성 · 삭제 — 진행 중에는 막는다 (my-designs.html 과 같다)
+    $('mkManage').hidden = !on;
+    $('mkRegen').disabled = loading;
+    $('mkDelete').disabled = loading;
+    $('mkRegenAsk').hidden = !(on && !loading && S.regenAsk);
+    $('mkRegenText').textContent = S.regenAsk;
+    $('mkBoxMsg').textContent = S.boxMsg;
+    $('mkBoxMsg').hidden = !S.boxMsg;
+  }
+
+  function boxMsg(text) {
+    S.boxMsg = text || '';
+    renderManage();
+  }
+
+  /** 시공사례 게시물 · 학습 동의 — 생성 API 가 싣지 않는 칸이라 Supabase 에서 읽는다 (내 연출컷과 같은 표) */
+  async function loadExtras() {
+    var g = S.gen;
+    if (!g || !S.sb || !S.session || !S.session.user) return;
+    var uid = S.session.user.id;
+    var consent = null;
+    var post = null;
+    try {
+      var c = await S.sb
+        .from('generations')
+        .select('consent_training')
+        .eq('id', g.id)
+        .eq('user_id', uid)
+        .maybeSingle();
+      if (c && !c.error && c.data) consent = c.data.consent_training === true;
+    } catch {
+      /* 못 읽으면 칸을 감춘다 */
+    }
+    try {
+      var p = await S.sb
+        .from('collection_posts')
+        .select('id, generation_id, storage_path')
+        .eq('user_id', uid)
+        .eq('source', 'ai_render')
+        .eq('generation_id', g.id);
+      if (p && !p.error && Array.isArray(p.data)) post = p.data[0] || null;
+    } catch {
+      /* 못 읽으면 내리기를 그리지 않는다 */
+    }
+    if (S.gen !== g) return; // 그 사이 다른 결과로 바뀌었다
+    S.consent = consent;
+    S.post = post;
+  }
+
+  /** 가운데 작은 창으로 묻는다 (segan/shell.js SeganShell.sheet, kind 'dialog') — 막는 확인만 */
+  function confirmDialog(title, text, yesLabel, onYes) {
+    var sheet = window.SeganShell && window.SeganShell.sheet;
+    if (!sheet) return null;
+    var body = document.createElement('div');
+    body.className = 'mk-confirm';
+    var p = document.createElement('p');
+    p.className = 'mk-note';
+    p.textContent = text;
+    var acts = document.createElement('div');
+    acts.className = 'mk-acts';
+    var yes = document.createElement('button');
+    yes.type = 'button';
+    yes.className = 'mk-btn mk-btn--solid';
+    yes.setAttribute('data-confirm', 'yes');
+    yes.textContent = yesLabel;
+    var no = document.createElement('button');
+    no.type = 'button';
+    no.className = 'mk-btn';
+    no.setAttribute('data-confirm', 'no');
+    no.textContent = '취소';
+    acts.appendChild(yes);
+    acts.appendChild(no);
+    body.appendChild(p);
+    body.appendChild(acts);
+    var h = sheet.open({ title: title, body: body, kind: 'dialog', initialFocus: no });
+    no.addEventListener('click', function () {
+      h.close();
+    });
+    yes.addEventListener('click', function () {
+      yes.disabled = true;
+      no.disabled = true;
+      onYes(h);
+    });
+    return h;
+  }
+
+  // 공유 링크 — 만들기 · 복사 · 중단
+  async function makeShare() {
+    var g = S.gen;
+    if (!g || S.phase !== 'done') return;
+    $('mkShareMake').disabled = true;
+    try {
+      var res = await fetch(API_BASE + '/api/generate/' + g.id + '/share', {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: '{}',
+      });
+      var data = await res.json();
+      if (!res.ok || !data.share_url)
+        throw new Error(data.error || '공유 링크를 만들지 못했습니다');
+      S.shareUrl = data.share_url;
+      g.share_expires_at = data.expires_at || g.share_expires_at;
+      g.share_revoked_at = null;
+      S.boxMsg = '';
+    } catch (e) {
+      S.boxMsg = e.message || '공유 링크를 만들지 못했습니다';
+    }
+    $('mkShareMake').disabled = false;
+    renderManage();
+  }
+
+  async function copyShare() {
+    try {
+      await navigator.clipboard.writeText(S.shareUrl);
+      boxMsg('공유 링크를 복사했습니다');
+    } catch {
+      $('mkLink').select();
+      boxMsg('링크를 길게 눌러 복사해 주세요');
+    }
+  }
+
+  async function stopShare() {
+    var g = S.gen;
+    if (!g) return;
+    $('mkShareStop').disabled = true;
+    try {
+      var res = await fetch(API_BASE + '/api/generate/' + g.id + '/share', {
+        method: 'DELETE',
+        headers: await authHeaders(),
+      });
+      var data = await res.json().catch(function () {
+        return {};
+      });
+      if (!res.ok) throw new Error(data.error || '공유를 중단하지 못했습니다');
+      g.share_revoked_at = new Date().toISOString();
+      S.shareUrl = '';
+      S.boxMsg = '공유를 중단했습니다 — 보낸 링크는 더 이상 열리지 않습니다';
+    } catch (e) {
+      S.boxMsg = e.message || '공유를 중단하지 못했습니다';
+    }
+    $('mkShareStop').disabled = false;
+    renderManage();
+  }
+
+  // 시공사례에서 내리기 (my-designs.html unpost 와 같은 순서 — 행을 먼저 지우고 파일을 지운다)
+  function askUnpost() {
+    if (!S.gen || !S.post) return;
+    confirmDialog('시공사례에서 내리기', UNPOST_ASK, '내리기', unpost);
+  }
+
+  async function unpost(h) {
+    var post = S.post;
+    var fail = '';
+    try {
+      var res = await S.sb.from('collection_posts').delete().eq('id', post.id).select('id');
+      if (res.error || !res.data || !res.data.length)
+        fail = '시공사례에서 내리지 못했습니다' + (res.error ? ' — ' + res.error.message : '');
+    } catch (e) {
+      fail = '시공사례에서 내리지 못했습니다' + (e && e.message ? ' — ' + e.message : '');
+    }
+    if (!fail && post.storage_path) {
+      try {
+        await S.sb.storage.from('collection').remove([post.storage_path]);
+      } catch {
+        /* 행은 지웠다 — 파일이 남아도 목록에는 안 보인다 */
+      }
+    }
+    await h.close();
+    if (!fail && S.post === post) S.post = null;
+    boxMsg(fail || '시공사례에서 내렸습니다');
+  }
+
+  // AI 학습 동의 (my-designs.html toggleConsent 와 같은 칸 · 같은 글)
+  async function toggleConsent() {
+    var g = S.gen;
+    if (!g || S.consent === null) return;
+    var prev = S.consent;
+    var next = !prev;
+    S.consent = next;
+    paintConsent(next);
+    $('mkConsent').disabled = true;
+    var res;
+    try {
+      res = await S.sb.from('generations').update({ consent_training: next }).eq('id', g.id);
+    } catch (e) {
+      res = { error: e };
+    }
+    $('mkConsent').disabled = false;
+    if (S.gen !== g) return;
+    if (res && res.error) {
+      S.consent = prev;
+      boxMsg('학습 동의를 바꾸지 못했습니다');
+      return;
+    }
+    boxMsg(next ? '학습에 사용하도록 켰습니다' : '학습에서 뺐습니다');
+  }
+
+  // 다시 생성 — 크레딧이 다시 든다. 단가 · 남은 횟수는 만들기 ② 와 같은 출처 (credit_costs · my_credit_wallet)
+  async function askRegen() {
+    var g = S.gen;
+    if (!g || S.phase === 'loading') return;
+    S.regenAsk = REGEN_ASK + ' 크레딧이 다시 차감됩니다.';
+    renderManage();
+    try {
+      var cc = await S.sb
+        .from('credit_costs')
+        .select('credits')
+        .eq('action', 'generate')
+        .maybeSingle();
+      var cost = cc && cc.data ? cc.data.credits : null;
+      var left = await loadBalance(S.sb);
+      if (left != null) S.balance = left;
+      if (cost && S.regenAsk && S.gen === g) {
+        S.regenAsk =
+          REGEN_ASK +
+          ' ' +
+          cost +
+          ' 크레딧이 차감됩니다' +
+          (left != null ? ' · 남은 ' + Math.floor(left / cost) + '회' : '') +
+          '.';
+      }
+    } catch {
+      /* 단가를 못 읽으면 일반 안내 */
+    }
+    renderManage();
+  }
+
+  /** ai-design.html ?regen=1 과 같은 호출 — parent_id 와 원본의 스타일 · 도어 색 */
+  async function regen() {
+    var g = S.gen;
+    if (!g || S.phase === 'loading') return;
+    var o = g.options || {};
+    $('mkRegenYes').disabled = true;
+    try {
+      var res = await fetch(API, {
+        method: 'POST',
+        headers: await authHeaders(),
+        body: JSON.stringify({
+          parent_id: g.id,
+          design_style: o.design_style || 'modern-minimal',
+          door_color: o.door_color || 'white',
+        }),
+      });
+      // 402 — 크레딧 부족 · 업체 구독 멈춤 (생성과 같은 안내)
+      if (res.status === 402) throw await paymentRequiredError(res);
+      if (res.status === 409)
+        throw new Error('이미 생성 중인 작업이 있습니다. 끝난 뒤 다시 시도해 주세요.');
+      var data = await res.json();
+      if (!res.ok || !data.success || !data.id)
+        throw new Error((data && data.error) || '다시 생성하지 못했습니다');
+      // 새 결과 주소 — 이 화면이 읽어 진행을 보여 준다 (읽기만 한다)
+      api.go('./?g=' + encodeURIComponent(data.id) + '#result');
+    } catch (e) {
+      S.regenAsk = '';
+      boxMsg(e.message || '다시 생성하지 못했습니다');
+    }
+    $('mkRegenYes').disabled = false;
+  }
+
+  // 삭제 (my-designs.html remove 와 같은 경로 · 같은 확인 글) — 지우면 내 연출컷 목록으로
+  function askDelete() {
+    if (!S.gen || S.phase === 'loading') return;
+    S.regenAsk = '';
+    renderManage();
+    confirmDialog('연출컷 삭제', DELETE_ASK, '삭제', remove);
+  }
+
+  async function remove(h) {
+    var g = S.gen;
+    var fail = '';
+    try {
+      var res = await fetch(API_BASE + '/api/generate/' + g.id, {
+        method: 'DELETE',
+        headers: await authHeaders(),
+      });
+      var data = await res.json().catch(function () {
+        return {};
+      });
+      if (!res.ok) fail = data.error || '삭제하지 못했습니다';
+    } catch (e) {
+      fail = (e && e.message) || '삭제하지 못했습니다';
+    }
+    // 창의 기록 칸을 먼저 되돌린다 — 그 뒤에 주소를 바꾼다
+    await h.close();
+    if (fail) {
+      boxMsg(fail);
+      return;
+    }
+    // 지운 결과로 뒤로 가지 않게 지금 칸을 목록으로 바꾼다
+    api.go(LIST_PAGE, true);
   }
 
   /** 예상 견적 — ai-design.html 과 같은 줄(품목 · 금액)과 합계 (VAT 포함) */
@@ -649,6 +1072,39 @@
     });
     S.quote = g.quote || null;
     S.progress = Number(g.progress) || 0;
+    // 결과 관리에 쓰는 칸 (생성 API GET 이 싣는 그대로)
+    S.gen = {
+      id: g.id,
+      status: g.status,
+      error: g.error || '',
+      category: g.category || null,
+      title: g.title || null,
+      options: g.options || {},
+      created_at: g.created_at || null,
+      share_expires_at: g.share_expires_at || null,
+      share_revoked_at: g.share_revoked_at || null,
+    };
+  }
+
+  /** 결과 화면 상태를 비운다 (새 생성 · 다른 결과 열기 · 처음부터) */
+  function resetResult() {
+    S.results = [];
+    S.quote = null;
+    S.sel = 0;
+    S.progress = 0;
+    S.error = '';
+    S.resMsg = '';
+    S.gen = null;
+    S.consent = null;
+    S.post = null;
+    S.shareUrl = '';
+    S.regenAsk = '';
+    S.boxMsg = '';
+  }
+
+  /** 멈춘 잡(12분 넘게 진행 중)은 실패로 본다 — 더 읽지 않는다 */
+  function failIfStale(g) {
+    if (staleJob(g)) throw new Error(g.error || '연출컷을 만들지 못했습니다');
   }
 
   /** 잡이 끝날 때까지 3초마다 읽는다 */
@@ -668,6 +1124,7 @@
         return;
       }
       if (g.status === 'failed') throw new Error(g.error || '생성에 실패했습니다');
+      failIfStale(g);
       S.progressLabel = (g.step_label || '생성 중') + ' · ' + (g.progress || 0) + '%';
       renderResult();
     }
@@ -684,12 +1141,7 @@
     if (S.phase === 'loading' || !S.photo || !S.session) return;
     S.phase = 'loading';
     S.genId = null;
-    S.results = [];
-    S.quote = null;
-    S.sel = 0;
-    S.progress = 0;
-    S.error = '';
-    S.resMsg = '';
+    resetResult();
     S.progressLabel = '생성을 요청하는 중';
     var body = buildBody();
     renderBar();
@@ -734,6 +1186,7 @@
         return;
       }
     }
+    await loadExtras(); // 끝나면 시공사례에 올라간다 — 그 게시물 · 학습 동의를 읽는다
     render();
   }
 
@@ -741,6 +1194,7 @@
   async function openGeneration(id) {
     S.genId = id;
     S.phase = 'loading';
+    resetResult();
     S.progressLabel = '불러오는 중';
     setStep('result', false);
     try {
@@ -750,12 +1204,15 @@
         throw new Error(data && data.error ? data.error : '불러오지 못했습니다');
       var g = data.generation;
       applyGeneration(g);
+      await loadExtras();
       if (g.status === 'done') S.phase = 'done';
       else if (g.status === 'failed') failed(new Error(g.error || '생성에 실패했습니다'));
       else {
+        failIfStale(g);
         S.progressLabel = (g.step_label || '생성 중') + ' · ' + (g.progress || 0) + '%';
         renderResult();
         await poll(id);
+        await loadExtras();
       }
     } catch (e) {
       failed(e);
@@ -763,15 +1220,20 @@
     render();
   }
 
+  /** 로그인 없이 결과 주소를 열었다 — 로그인 안내만 (로그인하면 같은 주소로 돌아온다) */
+  function showSignin(id) {
+    S.genId = id;
+    S.phase = 'signin';
+    resetResult();
+    setStep('result', false);
+  }
+
   /** 다른 사진으로 다시 만들기 — 처음부터 (고른 가구 · 설정은 남긴다) */
   function restart() {
     S.photo = null;
     S.genId = null;
     S.phase = 'idle';
-    S.results = [];
-    S.quote = null;
-    S.error = '';
-    S.resMsg = '';
+    resetResult();
     dropDraftPhoto();
     try {
       history.replaceState({ mk: 'photo' }, '', location.pathname);
@@ -782,20 +1244,33 @@
   }
 
   async function download() {
-    var r = S.results[S.sel];
+    var i = S.sel;
+    var r = S.results[i];
     if (!r) return;
+    // 오래 열어 둔 화면이면 서명이 낡았을 수 있다 — 받기 직전에 다시 확인한다 (js/storage-urls.js)
+    var src = r.src;
+    if (window.DadamStorageUrls && S.sb) {
+      try {
+        src = (await window.DadamStorageUrls.signUrl(S.sb, r.src)) || r.src;
+      } catch {
+        src = r.src;
+      }
+    }
+    var kind = (S.gen && S.gen.category) || S.choices.kind;
     try {
-      var blob = await (await fetch(r.src)).blob();
+      var blob = await (await fetch(src)).blob();
       var url = URL.createObjectURL(blob);
       var a = document.createElement('a');
       a.href = url;
-      a.download = 'segan-' + S.choices.kind + (blob.type === 'image/png' ? '.png' : '.jpg');
+      // 기본안은 segan-<품목>, 추천안은 -2 · -3 …
+      a.download =
+        'segan-' + kind + (i ? '-' + (i + 1) : '') + (blob.type === 'image/png' ? '.png' : '.jpg');
       a.click();
       setTimeout(function () {
         URL.revokeObjectURL(url);
       }, 10000);
     } catch {
-      window.open(r.src, '_blank');
+      window.open(src, '_blank');
     }
   }
 
@@ -810,6 +1285,13 @@
       });
       var data = await res.json();
       if (!res.ok || !data.share_url) throw new Error('공유 링크를 만들지 못했습니다');
+      // 새 링크를 만들면 예전 링크는 막힌다 — 아래 공유 링크 칸도 이 링크로 바꾼다
+      S.shareUrl = data.share_url;
+      if (S.gen) {
+        S.gen.share_expires_at = data.expires_at || S.gen.share_expires_at;
+        S.gen.share_revoked_at = null;
+      }
+      renderManage();
       if (navigator.share) {
         await navigator.share({ title: 'SEGAN 연출컷', url: data.share_url });
       } else {
@@ -1056,6 +1538,19 @@
     $('mkRetry').onclick = function () {
       setStep(S.photo ? 'kind' : 'photo', true);
     };
+    // 결과 관리
+    $('mkShareMake').onclick = makeShare;
+    $('mkCopy').onclick = copyShare;
+    $('mkShareStop').onclick = stopShare;
+    $('mkUnpost').onclick = askUnpost;
+    $('mkConsent').onclick = toggleConsent;
+    $('mkRegen').onclick = askRegen;
+    $('mkRegenNo').onclick = function () {
+      S.regenAsk = '';
+      renderManage();
+    };
+    $('mkRegenYes').onclick = regen;
+    $('mkDelete').onclick = askDelete;
 
     window.addEventListener('popstate', function (e) {
       // 시트 · 옆 패널이 넣은 기록 칸 (shell.js SeganShell.sheet) — 주소가 그대로라 단계를 바꾸지 않는다
@@ -1077,9 +1572,12 @@
     S.sb = client();
     setStep(S.step, false);
     await loadAccount();
-    // 저장된 결과 (?g=<id>) — 생성 직후 새로 고쳤거나 다시 들어왔을 때. 읽기만 한다
+    // 저장된 결과 (?g=<id>) — 생성 직후 새로 고쳤거나, 내 연출컷 목록 · 상담 신청에서 돌아왔을 때. 읽기만 한다
     var g = new URLSearchParams(location.search).get('g');
-    if (g && UUID_RE.test(g) && S.session) api.opening = openGeneration(g);
+    if (g && UUID_RE.test(g)) {
+      if (S.session) api.opening = openGeneration(g);
+      else showSignin(g);
+    }
     window.dispatchEvent(new CustomEvent('segan:make-ready'));
   }
 
@@ -1090,17 +1588,20 @@
     FRIDGE_BRANDS: FRIDGE_BRANDS,
     FRIDGE_POS: FRIDGE_POS,
     DRAFT_KEY: DRAFT_KEY,
+    REFUND_NOTE: REFUND_NOTE,
+    DELETE_ASK: DELETE_ASK,
     state: S,
     readImage: readImage,
     exifFocal35: exifFocal35,
-    /** 크레딧 통장 · 남은 크레딧 — my_credit_wallet (내 정보 · 내 연출컷 탭도 쓴다) */
+    /** 크레딧 통장 · 남은 크레딧 — my_credit_wallet (내 정보 탭도 쓴다) */
     loadWallet: loadWallet,
     loadBalance: loadBalance,
     paymentRequiredError: paymentRequiredError,
     loginHref: loginHref,
-    /** 페이지 이동 — 시험이 바꿔 끼운다 */
-    go: function (url) {
-      location.assign(url);
+    /** 페이지 이동 — replace 면 지금 기록 칸을 바꾼다. 시험이 바꿔 끼운다 */
+    go: function (url, replace) {
+      if (replace) location.replace(url);
+      else location.assign(url);
     },
     start: start,
     buildBody: buildBody,
