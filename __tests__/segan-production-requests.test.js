@@ -555,7 +555,7 @@ describe('Manager — 목록 · 단계 · 추천 카드', () => {
     expect(document.body.textContent).not.toContain('이번 달 일정이 꽉 찼습니다');
   });
 
-  test('답 기다림 — 펼치지 않아도 줄 위에 답 기한 · 남은 시간 (의뢰 하나를 더 읽는다), 고른 카드는 「고름 · 답 기다림」', async () => {
+  test('답 기다림 — 펼치지 않아도 줄 위에 답 기한 · 남은 시간 (목록 줄의 expires_at, 더 읽지 않는다), 고른 카드는 「고름 · 답 기다림」', async () => {
     const calls = await load({
       list: () =>
         ok({
@@ -568,12 +568,13 @@ describe('Manager — 목록 · 단계 · 추천 카드', () => {
               label: '팩토리 답 기다림',
               can_choose: false,
               factory: { company_id: F2, name: '다라 가구' },
+              expires_at: '2026-11-10T01:00:00Z', // 한국 시간 11-10 10:00 — 22시간 남음
             }),
           ],
         }),
       detail: (id) => ok(chosenDetail(id)),
     });
-    expect(gets(calls, `/production-requests/${R1}`)).toHaveLength(1);
+    expect(gets(calls, `/production-requests/${R1}`)).toHaveLength(0); // 목록이 기한을 준다
     const item = box().querySelector(`[data-request="${R1}"]`);
     expect(item.textContent).toContain('「다라 가구」 답 기다림');
     expect(item.querySelector('[data-expires]').textContent).toBe(
