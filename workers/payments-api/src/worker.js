@@ -240,10 +240,23 @@ function agentNotApproved(plan) {
 }
 
 /**
+ * 다시 시작할 때 남길 예약 (next_plan).
+ *   승인으로 생긴 예약(승인 등급 — Agent)은 남긴다: 다른 등급으로 다시 시작해도 다음 결제일부터 Agent 로 간다
+ *     (승인은 신청 · 미팅을 거친 것이라 말없이 지우지 않는다. 대표가 예약 취소로 지운다 — account-api POST /partner/plan null)
+ *   Manager · Expert 예약(대표가 해지 전에 넣은 내리기 · 올리기)은 지운다: 등급을 새로 골라 결제했으니 옛 예약은 뜻이 없다
+ *   새 등급과 같은 예약은 지운다 (DB CHECK next_plan IS DISTINCT FROM plan — 예약을 이번 결제로 쓴 것)
+ */
+function keptReservation(c, plan) {
+  const next = c.next_plan ?? null;
+  if (!next || next === plan) return null;
+  return APPROVAL_PLANS.includes(next) ? next : null;
+}
+
+/**
  * 해지 · 정지된(active 아닌) 업체를 다른 등급으로 다시 시작할 때의 판단.
  *   Manager · Expert(승인 없는 등급) → 그 등급으로
  *   승인 등급(Agent) → 승인으로 생긴 예약이 있을 때만: 업체 next_plan 이 그 등급이고 그 업체의 승인된 upgrade 신청이 있다
- * next_plan 은 그대로 두되, 새 등급과 같으면 비운다 (DB CHECK next_plan IS DISTINCT FROM plan — 예약을 이번 결제로 쓴 것).
+ * 예약(next_plan)은 승인 예약(Agent)만 남긴다 — keptReservation.
  * 돌려주는 값: { refuse } | { planChange: { nextPlan } }
  */
 async function restartWithOtherPlan(env, c, plan) {
@@ -259,7 +272,7 @@ async function restartWithOtherPlan(env, c, plan) {
       }));
     if (!approved) return agentNotApproved(plan);
   }
-  return { planChange: { nextPlan: c.next_plan === plan ? null : (c.next_plan ?? null) } };
+  return { planChange: { nextPlan: keptReservation(c, plan) } };
 }
 
 /**
