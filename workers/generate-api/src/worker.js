@@ -535,7 +535,7 @@ function plannerFocalOption(given, parent) {
 
 async function createPlannerGeneration(request, env, headers, p) {
   const { user, parent, room_image, image_type } = p;
-  // 등급 관문 (사장님 결정 2026-10-20, src/tier-gate.js): expert · agent · 관리자만. 진입 직후 — 검증·크레딧 차감보다
+  // 등급 관문 (사장님 결정 2026-10-20 · 2026-11-08, src/tier-gate.js): manager · expert · agent · 관리자만. 진입 직후 — 검증·크레딧 차감보다
   //   앞이라 거절(403 planner_tier)되면 아무것도 차감되지 않는다. 재생성도 여기를 지난다. 일반 경로는 관문이 없다.
   await assertPlannerTier(env, user);
   const category = resolveCategory(p.rawCategory || (parent && parent.category) || 'sink');
