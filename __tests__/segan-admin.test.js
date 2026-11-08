@@ -6,7 +6,8 @@
  *   누가     관리자 — segan/shell.js 가 AdminAccess.isAdmin 으로 가린다 (SeganShell.ready 의 admin)
  *            로그인 전 → 셸의 로그인 안내, 관리자 아님 → 「관리자만 볼 수 있습니다」 (서버를 묻지 않는다)
  *   오늘 할 일 새 팩토리 신청 (account-api) · 배정을 기다리는 상담 · 팩토리 답을 기다리는 배정 (consult-inbox) ·
- *            결정할 생산 제안 (reports/summary). 못 읽은 줄은 「불러오지 못함」, 상한 200 이면 「200+건」
+ *            추천할 제작 의뢰 (production-requests?state=todo) · 결정할 생산 제안 (reports/summary).
+ *            못 읽은 줄은 「불러오지 못함」(제작 의뢰는 DB 0050 전 ready false 도), 상한 200 이면 「200+건」
  *   PC에서 열기 PC 에 남기는 관리자 화면 10개 — 이름 · 주소는 js/admin-shell.js ADMIN_NAV 와 같다
  */
 const fs = require('fs');
@@ -32,6 +33,11 @@ async function load(options = {}) {
       [ACC + '/admin/partner/applications?status=applied,meeting']: ok(many(3)),
       [WORK + '/admin/consult-inbox?state=pending']: ok({ items: many(2) }),
       [WORK + '/admin/consult-inbox?state=assigned']: ok({ items: many(200) }),
+      [WORK + '/admin/production-requests?state=todo']: ok({
+        ready: true,
+        state: 'todo',
+        items: many(1),
+      }),
       [WORK + '/reports/summary']: ok({ pendingProposals: 0, scope: 'all' }),
     },
     ...options,
@@ -130,7 +136,7 @@ describe('누가 보나', () => {
 });
 
 describe('오늘 할 일', () => {
-  test('관리자 — 수 넷을 본인 토큰으로 묻고, 상한이면 200+, 할 일이 있으면 진하게, 줄은 PC 화면으로', async () => {
+  test('관리자 — 수 다섯을 본인 토큰으로 묻고, 상한이면 200+, 할 일이 있으면 진하게, 줄은 PC 화면으로', async () => {
     const calls = await load();
     expect($('adDenied').hidden).toBe(true);
     expect($('adToday').hidden).toBe(false);
@@ -144,9 +150,10 @@ describe('오늘 할 일', () => {
       ['applications', '새 팩토리 신청', '3건', true, '#applications'],
       ['pending', '배정을 기다리는 상담', '2건', true, '#consults'],
       ['assigned', '팩토리 답을 기다리는 배정', '200+건', true, '#consults-assigned'],
+      ['production', '추천할 제작 의뢰', '1건', true, '#production'],
       ['proposals', '결정할 생산 제안', '0건', false, '#reports'],
     ]);
-    expect(calls.fetch.map((f) => f.auth)).toEqual(Array(4).fill('Bearer tok-1'));
+    expect(calls.fetch.map((f) => f.auth)).toEqual(Array(5).fill('Bearer tok-1'));
   });
 
   test('못 읽은 줄은 「불러오지 못함」 (0 으로 채우지 않는다), 다른 줄은 그대로', async () => {
@@ -155,6 +162,11 @@ describe('오늘 할 일', () => {
         [ACC + '/admin/partner/applications?status=applied,meeting']: fail(403),
         [WORK + '/admin/consult-inbox?state=pending']: new Error('offline'),
         [WORK + '/admin/consult-inbox?state=assigned']: ok({ items: [] }),
+        [WORK + '/admin/production-requests?state=todo']: ok({
+          ready: false,
+          state: 'todo',
+          items: [],
+        }),
         [WORK + '/reports/summary']: ok({ pendingProposals: 'x' }),
       },
     });
@@ -162,6 +174,7 @@ describe('오늘 할 일', () => {
       '불러오지 못함',
       '불러오지 못함',
       '0건',
+      '불러오지 못함',
       '불러오지 못함',
     ]);
   });
@@ -176,12 +189,19 @@ describe('오늘 할 일', () => {
     expect(A.inboxOf({ success: true, data: [] })).toBeNull();
     expect(A.proposalsOf({ success: true, data: { pendingProposals: 4 } })).toBe(4);
     expect(A.proposalsOf({ success: true, data: { pendingProposals: -1 } })).toBeNull();
+    expect(A.productionOf({ success: true, data: { ready: true, items: many(3) } })).toBe(3);
+    expect(A.productionOf({ success: true, data: { ready: false, items: [] } })).toBeNull();
+    expect(A.productionOf({ success: true, data: [] })).toBeNull();
+    expect(A.countText(200, A.PRODUCTION_LIMIT)).toBe('200+건');
     expect(A.countText(null)).toBe('불러오지 못함');
     expect(A.countText(7, 200)).toBe('7건');
     expect(A.countText(250, 200)).toBe('200+건');
     // 상한은 워커 consult-inbox 와 같다
     expect(read('workers/workflow-api/src/distribution/admin.js')).toContain(
       `export const INBOX_LIMIT = ${A.INBOX_LIMIT};`
+    );
+    expect(read('workers/workflow-api/src/production-requests/common.js')).toContain(
+      `export const LIST_LIMIT = ${A.PRODUCTION_LIMIT};`
     );
   });
 });

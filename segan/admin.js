@@ -3,12 +3,15 @@
 
    누가 보나  관리자 — segan/shell.js 가 AdminAccess.isAdmin 으로 가려 SeganShell.ready 의 admin 에 싣는다.
              관리자가 아니면 「관리자만 볼 수 있습니다」만 (서버도 관리자만 답한다).
-   오늘 할 일  수 넷 — 서버가 준 그대로 센다. 못 읽은 줄은 「불러오지 못함」 (0 으로 채우지 않는다)
+   오늘 할 일  수 다섯 — 서버가 준 그대로 센다. 못 읽은 줄은 「불러오지 못함」 (0 으로 채우지 않는다)
                새 업체 신청            account-api  GET /admin/partner/applications?status=applied,meeting  (data 배열)
                배정을 기다리는 상담    workflow-api GET /admin/consult-inbox?state=pending   (data.items)
                업체 답을 기다리는 배정  workflow-api GET /admin/consult-inbox?state=assigned  (data.items)
+               추천할 제작 의뢰        workflow-api GET /admin/production-requests?state=todo  (data.items —
+                                       DB 0050 적용 전 ready false 는 「불러오지 못함」)
                결정할 생산 제안        workflow-api GET /reports/summary  (data.pendingProposals)
-             목록 한 번 상한(INBOX_LIMIT 200 — 워커 distribution/admin.js)에 닿으면 「200+」.
+             목록 한 번 상한(INBOX_LIMIT 200 — 워커 distribution/admin.js, 제작 의뢰는 LIST_LIMIT 200 —
+             워커 production-requests/common.js)에 닿으면 「200+」.
              줄을 누르면 그 일을 하는 화면 — 앱 화면이 있으면 #화면(새 업체 신청 #applications),
              아직 없으면 PC 관리자 화면(admin/*.html).
    앱 화면    주소의 # 로 고른다 (VIEWS). 화면을 열면 오늘 할 일 · PC에서 열기를 감추고, 「‹ 관리」로 돌아오면
@@ -21,10 +24,12 @@
   'use strict';
 
   var INBOX_LIMIT = 200; // 워커 distribution/admin.js INBOX_LIMIT
+  var PRODUCTION_LIMIT = 200; // 워커 production-requests/common.js LIST_LIMIT
   var TODAY = [
     { key: 'applications', label: '새 팩토리 신청', href: '#applications' },
     { key: 'pending', label: '배정을 기다리는 상담', href: '#consults' },
     { key: 'assigned', label: '팩토리 답을 기다리는 배정', href: '#consults-assigned' },
+    { key: 'production', label: '추천할 제작 의뢰', href: '#production' },
     { key: 'proposals', label: '결정할 생산 제안', href: '#reports' },
   ];
   // PC 에 남기는 화면 — 이름은 js/admin-shell.js ADMIN_NAV 와 같다 (시험이 본다)
@@ -45,6 +50,7 @@
   var VIEWS = {
     applications: ['adApplications', 'SeganAdminApplications'],
     consults: ['adConsults', 'SeganAdminConsults'], // #consults-assigned = 답 기다림 탭으로
+    production: ['adProduction', 'SeganAdminProduction'], // #production-waiting · -done = 그 탭으로
     reports: ['adReports', 'SeganAdminReports'],
     members: ['adMembers', 'SeganAdminMembers'],
   };
@@ -80,6 +86,14 @@
   function inboxOf(body) {
     var d = body && body.success === true ? body.data : null;
     return d && typeof d === 'object' && Array.isArray(d.items) ? d.items.length : null;
+  }
+
+  /** workflow-api production-requests 본문 → 수 | null (DB 0050 적용 전 ready false 도 null) */
+  function productionOf(body) {
+    var d = body && body.success === true ? body.data : null;
+    return d && typeof d === 'object' && d.ready === true && Array.isArray(d.items)
+      ? d.items.length
+      : null;
   }
 
   /** workflow-api reports/summary 본문 → 결정할 생산 제안 수 | null */
@@ -124,13 +138,15 @@
       getJson(acc, '/admin/partner/applications?status=applied,meeting'),
       getJson(work, '/admin/consult-inbox?state=pending'),
       getJson(work, '/admin/consult-inbox?state=assigned'),
+      getJson(work, '/admin/production-requests?state=todo'),
       getJson(work, '/reports/summary'),
     ]);
     return {
       applications: applicationsOf(got[0]),
       pending: inboxOf(got[1]),
       assigned: inboxOf(got[2]),
-      proposals: proposalsOf(got[3]),
+      production: productionOf(got[3]),
+      proposals: proposalsOf(got[4]),
     };
   }
 
@@ -138,7 +154,12 @@
   function todayHtml(counts) {
     return TODAY.map(function (t) {
       var n = counts[t.key];
-      var limit = t.key === 'pending' || t.key === 'assigned' ? INBOX_LIMIT : 0;
+      var limit =
+        t.key === 'pending' || t.key === 'assigned'
+          ? INBOX_LIMIT
+          : t.key === 'production'
+            ? PRODUCTION_LIMIT
+            : 0;
       var on = Number(n) > 0;
       return (
         '<li data-today="' +
@@ -217,11 +238,13 @@
     TODAY: TODAY,
     PC_PAGES: PC_PAGES,
     INBOX_LIMIT: INBOX_LIMIT,
+    PRODUCTION_LIMIT: PRODUCTION_LIMIT,
     VIEWS: VIEWS,
     state: A,
     countText: countText,
     applicationsOf: applicationsOf,
     inboxOf: inboxOf,
+    productionOf: productionOf,
     proposalsOf: proposalsOf,
   };
   window.SeganAdmin = api;

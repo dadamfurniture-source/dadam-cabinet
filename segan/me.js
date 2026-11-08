@@ -8,7 +8,9 @@
                 (summaryCounts · nextJobText · SUSPENDED_NOTE) 로 적는다, 누르면 작업 화면(work.html)
      묶음 — 업체 구성원(협력업체 · 다담 공장)은 업체 · 본사 · 내 것 차례, 아니면 내 것 · 업체 · 본사. 맨 아래 로그아웃
        업체  팩토리 #partner (업체가 없으면 「팩토리로 시작하기」, 신청 중이면 「팩토리 신청」) · 상담 #partner-consults ·
-             프로젝트 #partner-projects · A/S함 #as — 그 칸을 그렸을 때만 (segan/partner*.js · as-requests.js 의 판정)
+             프로젝트 #partner-projects · 제작 의뢰 #production-requests (Manager 등급) ·
+             제작 의뢰함 #factory-requests (다담 공장 · Expert · Agent) · A/S함 #as — 그 칸을 그렸을 때만
+             (segan/partner*.js · production-requests.js · factory-requests.js · as-requests.js 의 판정)
              · 회계 ledger.html — segan/books.js 가 GET /ledger/me 로 장부(full · read)를 열 때
                (사진만 올리면 「영수증 · 명세표 올리기」) · 설계 · 비서 — 셸 판정 (SeganShell.ROLE_LINKS group company)
        본사  관리 · 관리자 화면 (PC) — 셸 판정 is_admin (ROLE_LINKS group hq)
@@ -18,14 +20,17 @@
      폰 · 태블릿은 하나만 (메뉴를 감추고 위에 「‹ 마이페이지」 · 그 화면 이름), PC 는 오른쪽 칸 —
      # 가 없으면 업체 구성원은 업체 묶음의 첫 칸(대개 팩토리), 아니면 상담 내역. 다른 페이지(연출컷 · 구독 · 설정 · 활동 ·
      회계 · 작업 · 관리 · 비서 · 설계)는 그대로 페이지 이동 (설계는 PC 브라우저에서만 새 탭 — SeganShell.desktopTab).
-     알림 · 결제가 여는 주소(me.html#partner · #partner-consults · #as · ?failed=1)는 그대로 그 화면이다.
+     알림 · 결제가 여는 주소(me.html#partner · #partner-consults · #as · #production-requests · #factory-requests ·
+     ?failed=1)는 그대로 그 화면이다.
      메뉴에서 누르면 기록을 하나 넣는다(pushState — 뒤로 가기가 메뉴로 돌아온다). 「‹ 마이페이지」 는 메뉴에서 왔으면
      뒤로, 알림 · 새로 고침으로 바로 왔으면 그 기록을 메뉴로 바꾼다(replaceState). 칸마다 「읽은 뒤에만 보인다」(hidden)는
      각 모듈이 정한다 — 메뉴 줄은 그 칸이 보일 때만 열고, 못 여는 화면으로 오면 「볼 수 있는 내용이 없습니다」.
 
    업체 칸은 segan/partner.js 가 그린다 (여기서 로그인 뒤 SeganPartner.load 를 부른다). 업체 › 상담 · 상담 설정은
-   segan/partner-consults.js, 업체 › 회계는 segan/books.js, 알림 칸은 segan/push.js 가 그린다 (업체 칸을 읽은 뒤
-   SeganPartnerConsults.load · SeganBooks.load · SeganPush.load 에 그 /partner/me 를 넘긴다). 로그아웃 · 사업자 정보는
+   segan/partner-consults.js, 업체 › 회계는 segan/books.js, 업체 › 제작 의뢰 · 제작 의뢰함은
+   segan/production-requests.js · factory-requests.js, 알림 칸은 segan/push.js 가 그린다 (업체 칸을 읽은 뒤
+   SeganPartnerConsults.load · SeganBooks.load · SeganProduction.load · SeganFactoryRequests.load · SeganPush.load 에
+   그 /partner/me 를 넘긴다). 로그아웃 · 사업자 정보는
    segan/shell.js. 여기서는 다섯을 채운다:
      내 프로젝트 workflow-api GET /me/projects (본인 토큰). 단계 6칸 · 끝난 상태 · 계약 금액 ·
                 다음 결제(안 낸 것 중 낼 날이 가장 이른 것 — 워커 payments.js 와 같은 due_on 오름차순 ·
@@ -439,6 +444,18 @@
       parts: ['partnerProjects'],
       label: 'partnerProjectsTitle',
     },
+    'production-requests': {
+      title: '제작 의뢰',
+      section: 'partner',
+      parts: ['production-requests'],
+      label: 'productionTitle',
+    },
+    'factory-requests': {
+      title: '제작 의뢰함',
+      section: 'partner',
+      parts: ['factory-requests'],
+      label: 'factoryRequestsTitle',
+    },
     as: { title: 'A/S함', section: 'partner', parts: ['as'], label: 'asTitle' },
     likes: { title: '좋아요', section: 'meLikeSection' },
     consults: { title: '상담 내역', section: 'meConsultSection' },
@@ -446,7 +463,15 @@
     'as-mine': { title: 'A/S 접수', section: 'meAsSection' },
     notify: { title: '알림', section: 'mePush' },
   };
-  var COMPANY_SCREENS = ['partner', 'partner-consults', 'partner-projects', 'as']; // 업체 묶음 차례
+  // 업체 묶음 차례
+  var COMPANY_SCREENS = [
+    'partner',
+    'partner-consults',
+    'partner-projects',
+    'production-requests',
+    'factory-requests',
+    'as',
+  ];
   var SECTIONS = [
     'meProjectSection',
     'meAsSection',
@@ -463,6 +488,8 @@
     'partnerProjects',
     'as',
     'meBooks',
+    'production-requests',
+    'factory-requests',
   ];
   var GROUP_ORDER = {
     member: ['meGroupCompany', 'meGroupHq', 'meGroupMine'],
@@ -876,6 +903,8 @@
     var Projects = window.SeganPartnerProjects;
     var Push = window.SeganPush;
     var As = window.SeganAs;
+    var Production = window.SeganProduction;
+    var Factory = window.SeganFactoryRequests;
     await Promise.all([
       synced(loadProjects(auth.session)),
       // 내 A/S 접수 — 업체 칸과 상관없다 (segan/as-requests.js)
@@ -894,6 +923,10 @@
           synced(Projects && Projects.load ? Projects.load(auth.sb, auth.session, me) : null),
           // A/S함 = 다담 공장 · Expert · Agent 구성원 (segan/as-requests.js)
           synced(As && As.load ? As.load(auth.sb, auth.session, me) : null),
+          // 제작 의뢰 = Manager 등급 업체 구성원 (segan/production-requests.js),
+          // 제작 의뢰함 = 다담 공장 · Expert · Agent 구성원 (segan/factory-requests.js)
+          synced(Production && Production.load ? Production.load(auth.sb, auth.session, me) : null),
+          synced(Factory && Factory.load ? Factory.load(auth.sb, auth.session, me) : null),
           // 작업자도 알림 칸 — 셸의 작업 탭 판정을 그대로 넘긴다
           synced(
             Push && Push.load
