@@ -5,22 +5,15 @@
  *   1) toStorageRef: 저장된 공개 URL · 서명 URL · 버킷 안 경로 → { bucket, path }. 그 밖은 null
  *   2) createSignedUrls: service_role 로 sign 엔드포인트에 경로 묶음을 한 번 보내고 절대 URL 로 돌려준다
  *   3) signImageUrls: path(없으면 url)로 서명해 url 만 바꾼다. 다른 버킷·외부 주소는 그대로, 실패하면 저장된 URL 그대로
- *   4) shareSignedTtl: 링크가 남은 시간, 최대 1시간
- *   5) 경로: GET /api/share 는 링크 남은 시간으로, GET /api/generate/:id 는 1시간으로 서명한 url 을 싣는다
- *   6) generations 버킷 업로드는 Cache-Control: private, max-age=3600 (예전 public · 1년 · immutable)
+ *   4) 경로: GET /api/generate/:id(본인)는 1시간으로 서명한 url 을 싣는다
+ *      (공유 열람 GET /api/share 는 서명하지 않는다 — share-image.test.js)
+ *   5) generations 버킷 업로드는 Cache-Control: private, max-age=3600 (예전 public · 1년 · immutable)
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/worker.js';
 import { OBJECT_CACHE_CONTROL, uploadObject } from '../src/supabase.js';
-import {
-  OWNER_SIGNED_TTL_SEC,
-  SHARE_SIGNED_MAX_SEC,
-  createSignedUrls,
-  shareSignedTtl,
-  signImageUrls,
-  toStorageRef,
-} from '../src/storage-urls.js';
+import { OWNER_SIGNED_TTL_SEC, createSignedUrls, signImageUrls, toStorageRef } from '../src/storage-urls.js';
 
 const SB = 'https://example.supabase.co';
 const ENV = {
@@ -188,18 +181,7 @@ test('signImageUrls: 그 경로만 서명에 실패하면 그 칸만 저장된 U
   assert.equal(out[1].url, pub(`${PREFIX}/v3.jpg`));
 });
 
-// ─── 4) shareSignedTtl ───
-
-test('shareSignedTtl: 링크가 남은 시간, 최대 1시간 · 만료 시각이 없으면 최대값 · 최소 1초', () => {
-  const now = Date.parse('2026-10-26T00:00:00Z');
-  assert.equal(SHARE_SIGNED_MAX_SEC, 3600);
-  assert.equal(shareSignedTtl('2026-10-26T00:10:00Z', now), 600);
-  assert.equal(shareSignedTtl('2026-11-25T00:00:00Z', now), 3600);
-  assert.equal(shareSignedTtl(null, now), 3600);
-  assert.equal(shareSignedTtl('2026-10-26T00:00:00.400Z', now), 1);
-});
-
-// ─── 5) 경로 ───
+// ─── 4) 경로 ───
 
 const IMAGES = [
   { slot: 'base', label: '싱크대 · 기본안', path: `${PREFIX}/base.png`, url: pub(`${PREFIX}/base.png`), qc: { ok: true } },
@@ -216,40 +198,6 @@ function installRoute(row, signs) {
     throw new Error(`unexpected fetch ${u}`);
   };
 }
-
-test('GET /api/share: 링크가 10분 남았으면 10분짜리 서명 URL — 싣는 칸은 예전 그대로', async () => {
-  const signs = [];
-  const expires = new Date(Date.now() + 10 * 60_000).toISOString();
-  installRoute({ id: ROW_ID, user_id: USER_ID, status: 'done', category: 'sink', options: {}, images: IMAGES, share_expires_at: expires }, signs);
-  const res = await worker.fetch(new Request('https://api.test/api/share', { headers: { 'X-Share-Token': 'tok' } }), { ...ENV });
-  assert.equal(res.status, 200);
-  const { generation } = await res.json();
-  assert.equal(signs.length, 1, '공유 열람도 목록은 한 번에 서명');
-  const ttl = signs[0].body.expiresIn;
-  assert.ok(ttl > 590 && ttl <= 600, `expiresIn ${ttl}`);
-  assert.equal(signs[0].headers.Authorization, 'Bearer service', '익명 열람은 워커가 service_role 로 서명');
-  assert.deepEqual(generation.images, [
-    { slot: 'base', label: '싱크대 · 기본안', url: signedOf(`${PREFIX}/base.png`, ttl) },
-    { slot: 'v2', label: '추천 · 월넛', url: signedOf(`${PREFIX}/v2.jpg`, ttl) },
-  ]);
-});
-
-test('GET /api/share: 링크가 30일 남았어도 서명은 최대 1시간', async () => {
-  const signs = [];
-  const expires = new Date(Date.now() + 30 * 86_400_000).toISOString();
-  installRoute({ id: ROW_ID, user_id: USER_ID, status: 'done', category: 'sink', options: {}, images: IMAGES, share_expires_at: expires }, signs);
-  const res = await worker.fetch(new Request('https://api.test/api/share', { headers: { 'X-Share-Token': 'tok' } }), { ...ENV });
-  assert.equal(res.status, 200);
-  assert.equal(signs[0].body.expiresIn, SHARE_SIGNED_MAX_SEC);
-});
-
-test('GET /api/share: 만료·회수된 링크는 서명하지 않는다 (410)', async () => {
-  const signs = [];
-  installRoute({ id: ROW_ID, user_id: USER_ID, status: 'done', options: {}, images: IMAGES, share_expires_at: new Date(Date.now() - 1000).toISOString() }, signs);
-  const res = await worker.fetch(new Request('https://api.test/api/share', { headers: { 'X-Share-Token': 'tok' } }), { ...ENV });
-  assert.equal(res.status, 410);
-  assert.equal(signs.length, 0);
-});
 
 test('GET /api/generate/:id: 본인 조회는 1시간짜리 서명 URL, path 는 그대로 싣는다', async () => {
   const signs = [];
@@ -269,7 +217,7 @@ test('GET /api/generate/:id: 본인 조회는 1시간짜리 서명 URL, path 는
   assert.equal(generation.images[1].url, signedOf(`${PREFIX}/v2.jpg`, 3600));
 });
 
-// ─── 6) 업로드 캐시 ───
+// ─── 5) 업로드 캐시 ───
 
 test('uploadObject: generations 버킷 업로드는 Cache-Control: private, max-age=3600', async () => {
   const seen = [];

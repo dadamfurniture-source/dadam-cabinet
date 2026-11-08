@@ -257,6 +257,21 @@ export async function fetchObjectBase64(env, path, bucket = bucketName(env)) {
   return { base64: bytesToBase64(buf), mimeType: res.headers.get('Content-Type') || 'image/jpeg' };
 }
 
+/**
+ * 저장된 객체의 응답을 본문을 읽지 않고 그대로 (2026-11-09: 공유 열람 그림 — worker.js getSharedImage 가 흘려보낸다).
+ * 없으면 NotFoundError. 오류 글에 경로를 싣지 않는다 — 경로에 회원 id 가 있고 오류 글은 응답으로 나간다.
+ */
+export async function openObject(env, path, bucket = bucketName(env)) {
+  const key = serviceKey(env);
+  const res = await fetch(`${env.SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
+    headers: { apikey: key, Authorization: `Bearer ${key}` },
+  });
+  // Storage 는 없는 객체를 400(statusCode "404") 로도 준다
+  if (res.status === 400 || res.status === 404) throw new NotFoundError('그림이 없습니다');
+  if (!res.ok) throw new DbError(`Storage read ${res.status}`, 502);
+  return res;
+}
+
 // ─── base64 ───
 
 export function base64ToBytes(b64) {

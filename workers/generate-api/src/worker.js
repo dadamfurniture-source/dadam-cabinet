@@ -8,6 +8,7 @@
  *   DELETE /api/generate/:id/share    공유 회수                    (JWT, 본인)
  *   POST   /api/generate/:id/layout   구성 분석 → 플래너용 layout  (JWT, 본인, 완료된 결과만)
  *   GET    /api/share                 공유 열람                    (X-Share-Token)
+ *   GET    /api/share/image/:n        공유 열람의 그림 n 번째      (X-Share-Token)
  *   POST   /api/admin/appliance-image 가전 모델 제품 사진 가져오기 (JWT, admin · super_admin)
  *   GET    /health                    진단 (모델·콜로)
  *
@@ -47,6 +48,7 @@ import {
   uploadObject,
   removeObjects,
   fetchObjectBase64,
+  openObject,
   extOf,
   bucketName,
   NotFoundError,
@@ -67,7 +69,7 @@ import {
   checkShareAccessible,
   isInternalOnly,
 } from './share.js';
-import { OWNER_SIGNED_TTL_SEC, shareSignedTtl, signImageUrls } from './storage-urls.js';
+import { OWNER_SIGNED_TTL_SEC, signImageUrls, toStorageRef } from './storage-urls.js';
 import { removeCollectionPostsFor } from './collection-post.js';
 
 // Durable Object 클래스는 워커 진입점에서 export 되어야 런타임이 찾는다.
@@ -277,6 +279,10 @@ export default {
 
       if (url.pathname === '/api/share' && request.method === 'GET') {
         return json(await getShared(request, env), 200, headers);
+      }
+      const shareImage = url.pathname.match(/^\/api\/share\/image\/(\d{1,3})$/);
+      if (shareImage && request.method === 'GET') {
+        return await getSharedImage(request, env, Number(shareImage[1]), headers);
       }
 
       // 2026-10-20: 가전 모델 제품 사진 — 관리자가 제조사 사진을 우리 버킷으로 가져온다 (appliance-image.js)
@@ -864,13 +870,14 @@ const SHARE_MESSAGES = {
   internal_only: '공유할 수 없는 결과입니다',
 };
 
-async function getShared(request, env) {
+/** X-Share-Token → 열 수 있는 행. 토큰이 없으면 401, 닫힌 링크면 checkShareAccessible 의 상태코드 */
+async function sharedRow(request, env, select) {
   const token = request.headers.get('X-Share-Token') || '';
   if (!token) throw new AuthError('공유 토큰이 없습니다');
   const hash = await hashShareToken(env, token);
   const row = await selectOne(env, 'generations', {
     share_token_hash: `eq.${hash}`,
-    select: '*',
+    select,
   });
   const check = checkShareAccessible(row);
   if (!check.ok) {
@@ -879,10 +886,23 @@ async function getShared(request, env) {
     err.code = check.reason;
     throw err;
   }
-  // 서명 URL (2026-10-26) — 수명은 링크가 남은 시간, 최대 1시간 (storage-urls.js shareSignedTtl).
-  //   토큰을 가진 사람만 여기까지 온다. 회수·만료되면 이 응답이 410 이 되고, 버킷이 비공개면 이미 받은 URL 도
-  //   길어야 1시간 안에 닫힌다.
-  const signed = await signImageUrls(env, row.images, bucketName(env), shareSignedTtl(row.share_expires_at));
+  return row;
+}
+
+/** 공유 열람 그림 한 장의 버킷 안 경로 (path, 없으면 저장된 URL 에서) — 이 버킷 것이 아니면 null */
+function sharedImagePath(env, im) {
+  const bucket = bucketName(env);
+  const ref = im ? toStorageRef(im.path, bucket) || toStorageRef(im.url) : null;
+  return ref && ref.bucket === bucket ? ref.path : null;
+}
+
+async function getShared(request, env) {
+  const row = await sharedRow(request, env, '*');
+  // 그림 주소는 이 워커의 GET /api/share/image/:n (2026-11-09) — 버킷 경로(<user_id>/<generation_id>/…)를
+  //   공유받은 사람에게 내보내지 않는다. 그림도 같은 토큰을 X-Share-Token 헤더로 받아 매번 이 행을 다시 검사하므로
+  //   회수·만료되면 그 순간부터 그림도 닫힌다.
+  const origin = new URL(request.url).origin;
+  const images = Array.isArray(row.images) ? row.images : [];
   return {
     success: true,
     generation: {
@@ -890,10 +910,10 @@ async function getShared(request, env) {
       title: row.title,
       options: { design_style: row.options && row.options.design_style },
       // 붙박이장 내부 보기의 칸 구성·추천 이유도 싣는다 (2026-10-20). 고른 모델(by)은 공유하지 않는다.
-      images: signed.map((im) => ({
+      images: images.map((im, i) => ({
         slot: im.slot,
         label: im.label,
-        url: im.url,
+        url: sharedImagePath(env, im) ? `${origin}/api/share/image/${i}` : null,
         ...(im.structure && im.structure.plan
           ? {
               structure: {
@@ -910,4 +930,26 @@ async function getShared(request, env) {
       expires_at: row.share_expires_at,
     },
   };
+}
+
+/**
+ * GET /api/share/image/:n — 공유 열람 그림 n 번째 (images 차례, 0부터). 토큰 검사는 GET /api/share 와 같다.
+ * 버킷은 비공개라 service_role 로 읽어 그대로 흘려보낸다. 주소가 모든 링크에서 같으므로(/image/0 …)
+ * 브라우저 캐시에 남기지 않는다 — 다른 링크의 그림이 섞여 나오지 않게.
+ */
+async function getSharedImage(request, env, n, headers) {
+  const row = await sharedRow(request, env, 'status,options,images,share_expires_at,share_revoked_at');
+  const images = Array.isArray(row.images) ? row.images : [];
+  const path = n < images.length ? sharedImagePath(env, images[n]) : null;
+  if (!path) throw new NotFoundError('그림이 없습니다');
+  const res = await openObject(env, path);
+  return new Response(res.body, {
+    status: 200,
+    headers: {
+      ...headers,
+      'Content-Type': res.headers.get('Content-Type') || 'application/octet-stream',
+      'Cache-Control': 'no-store, private',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
 }
