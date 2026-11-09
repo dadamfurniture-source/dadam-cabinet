@@ -363,7 +363,7 @@ describe('칸 자리 · 감춤', () => {
     expect(sec.hasAttribute('hidden')).toBe(true);
     expect(sec.previousElementSibling.id).toBe('meAsSection');
     expect(sec.previousElementSibling.previousElementSibling.id).toBe('meProjectSection');
-    expect(sec.querySelector('h2').textContent).toBe('팩토리');
+    expect(sec.querySelector('h2').textContent).toBe('내 팩토리'); // 기본 정보 › 내 팩토리
     // 토스 결제창 · 지역 목록 · 업체 칸 스크립트를 싣는다 (billing.html 과 같은 토스 주소)
     const srcs = [...doc.querySelectorAll('script[src]')].map((s) => s.getAttribute('src'));
     const toss = read('billing.html').match(
@@ -910,8 +910,14 @@ describe('e. 업체 있음', () => {
     const box = root().querySelector('[data-view="company"]');
     expect(facts(box)['등급']).toBe('Manager');
     expect(facts(box)['내 역할']).toBe('대표');
-    // 구성원의 직책 manager 는 「실장」
-    const row = root().querySelector(`[data-member="${U2}"] .me-badge`);
+    // Manager · Expert 는 인력 도구(직원 · 초대)가 없다 — 인력 관리는 Agent (2026-11-09)
+    expect(root().querySelector('.me-pt-staff')).toBeNull();
+    expect(root().querySelector('[data-member]')).toBeNull();
+    await load({ partner: owner({ plan: 'expert' }) });
+    expect(root().querySelector('.me-pt-staff')).toBeNull();
+    // 구성원의 직책 manager 는 「실장」 (Agent 업체의 직원 칸)
+    await load({ partner: owner() });
+    const row = root().querySelector(`.me-pt-staff [data-member="${U2}"] .me-badge`);
     expect(row.textContent).toBe('실장 · 활동 중');
 
     await load({ partner: ok(meData({ company: company({ plan: 'manager', role: 'manager' }) })) });

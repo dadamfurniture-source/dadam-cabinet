@@ -247,12 +247,12 @@ describe('자리 · 이름', () => {
     expect(el).not.toBeNull();
     expect(el.hasAttribute('hidden')).toBe(true);
     expect(el.closest('section').id).toBe('partner');
-    // 업체 내용 · 상담 · 상담 설정(segan/partner-consults.js) · 프로젝트 · A/S함 아래,
-    // 그 뒤는 제작 의뢰 · 제작 의뢰함 칸뿐 (segan/production-requests.js · factory-requests.js)
+    // 업체 칸의 맨 끝 — 업체 내용 · 상담 · 제작 의뢰함 · 제작 의뢰 · 프로젝트 · 상담 설정 · A/S함 아래
+    // (칸 차례가 곧 화면 안 차례 — 2026-11-09 메뉴 나무, segan/me.html 머리말)
     const ids = [...el.parentElement.children].map((x) => x.id);
     const pos = (id) => ids.findIndex((x) => x === id);
     expect(pos('meBooks')).toBeGreaterThan(pos('mePartner'));
-    expect(ids.slice(pos('meBooks') + 1)).toEqual(['production-requests', 'factory-requests']);
+    expect(ids.slice(pos('meBooks') + 1)).toEqual([]);
     // books.js 를 업체 칸 스크립트 뒤 · me.js 앞에 싣는다
     const srcs = [...doc.querySelectorAll('script[src]')].map((s) => s.getAttribute('src'));
     const at = (name) => srcs.findIndex((s) => s.startsWith(name + '?v='));
