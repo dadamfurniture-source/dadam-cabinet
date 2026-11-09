@@ -54,7 +54,7 @@ export function fillMonths(list, rows) {
 
 /** GET /ledger/dashboard */
 export async function ledgerDashboard(env, { user, company, month, months, nowMs = Date.now() }) {
-  const access = await ledgerAccess(env, user, { company });
+  const access = await ledgerAccess(env, user, { company, report: true });
   assertMoney(access);
   const m = month || kstMonth(nowMs);
   if (!MONTH_RE.test(m)) throw new ValidationError('month 는 YYYY-MM 입니다');

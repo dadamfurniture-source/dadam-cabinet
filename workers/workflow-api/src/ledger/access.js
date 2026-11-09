@@ -13,8 +13,13 @@
  *   다른 업체 장부 보기 (?company=) — 다담 본사(platform) 대표 · 실장만 다담 공장(hq) 장부를 본다.
  *     보기만 (level read · viewing). 공장 장부 자격은 사람 없이 본다 (본사 사람은 공장 구성원이 아니다).
  *     쓰기 주소는 company 를 받지 않는다 — 언제나 자기 업체에 쓴다.
+ *   협력업체 월 보고서 (?company= + report) — 본사 대표 · 실장은 협력업체(kind partner)의 월 보고서도 본다.
+ *     report 는 보고서 주소만 넘긴다: GET /ledger/me(?company= 가 있을 때) · /ledger/dashboard · /ledger/receivables ·
+ *     /ledger/payables · /ledger/close-memo. 그 밖의 장부 주소(장부 · 사진 · 확인 · 명세표 · 거래처 · 알림 · 설정 …)는 지금처럼 403 not_member.
+ *     보기만 (level read · viewing · report). 자격은 공장처럼 사람 없이 본다 — full · read 면 열고, none 이면 403 no_ledger.
+ *     협력업체가 아니거나 없는 업체, 본사 직원 · 본사 밖 사람은 403 not_member. ledgerList 에는 넣지 않는다 (목록은 그대로).
  */
-import { activeMemberships, callRpc, selectMany, platformCompanyId, hqCompanyId, ForbiddenError, MONEY_ROLES } from '../supabase.js';
+import { activeMemberships, callRpc, selectOne, selectMany, platformCompanyId, hqCompanyId, ForbiddenError, MONEY_ROLES } from '../supabase.js';
 import { isUuid } from './checks.js';
 
 export const LEDGER_LEVELS = Object.freeze(['full', 'read']);
@@ -34,16 +39,31 @@ async function viewableHq(env, m) {
 }
 
 /**
- * @param {{ company?: string }} [opts] — 보려는 업체 (비우면 자기 업체)
- * @returns {{ companyId, role, money, level, viewing }}
+ * 본사 대표 · 실장이 보는 협력업체 월 보고서 — 볼 수 있으면 그 업체 id, 아니면 null.
+ * 협력업체인데 장부 자격이 none 이면 403 no_ledger.
  */
-export async function ledgerAccess(env, user, { company } = {}) {
+async function reportablePartner(env, m, company) {
+  if (!m || !MONEY_ROLES.includes(m.role)) return null;
+  if (m.company_id !== (await platformCompanyId(env))) return null;
+  const target = await selectOne(env, 'companies', { id: `eq.${company}`, select: 'id,kind' });
+  if (!target || target.kind !== 'partner') return null;
+  if (!LEDGER_LEVELS.includes(await entitled(env, company))) throw new ForbiddenError('이 팩토리는 장부가 없습니다', 'no_ledger');
+  return company;
+}
+
+/**
+ * @param {{ company?: string, report?: boolean }} [opts] — 보려는 업체 (비우면 자기 업체) · report 협력업체 월 보고서 주소
+ * @returns {{ companyId, role, money, level, viewing, report? }}
+ */
+export async function ledgerAccess(env, user, { company, report } = {}) {
   const [m] = await activeMemberships(env, user);
   if (!m) throw new ForbiddenError('장부는 팩토리 구성원만 씁니다', 'not_member');
   if (company && company !== m.company_id) {
     const hq = isUuid(company) ? await viewableHq(env, m) : null;
-    if (!hq || company !== hq) throw new ForbiddenError('이 팩토리 장부는 열 수 없습니다', 'not_member');
-    return { companyId: hq, role: m.role, money: true, level: 'read', viewing: true };
+    if (hq && company === hq) return { companyId: hq, role: m.role, money: true, level: 'read', viewing: true };
+    const partner = report === true && isUuid(company) ? await reportablePartner(env, m, company) : null;
+    if (!partner) throw new ForbiddenError('이 팩토리 장부는 열 수 없습니다', 'not_member');
+    return { companyId: partner, role: m.role, money: true, level: 'read', viewing: true, report: true };
   }
   const level = await entitled(env, m.company_id, user.id);
   if (!LEDGER_LEVELS.includes(level)) throw new ForbiddenError('이 팩토리는 장부를 쓸 수 없습니다', 'not_entitled');

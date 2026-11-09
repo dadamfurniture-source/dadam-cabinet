@@ -90,7 +90,7 @@ export function openRows(env, table, companyId, cols, filters) {
 
 /** GET /ledger/receivables */
 export async function listReceivables(env, { user, company }) {
-  const access = await ledgerAccess(env, user, { company });
+  const access = await ledgerAccess(env, user, { company, report: true });
   assertMoney(access);
   const rows = await openRows(env, 'order_payments', access.companyId, 'id,order_id,stage,amount,due_on,paid_on', {
     paid_on: 'is.null',
@@ -100,7 +100,7 @@ export async function listReceivables(env, { user, company }) {
 
 /** GET /ledger/payables */
 export async function listPayables(env, { user, company }) {
-  const access = await ledgerAccess(env, user, { company });
+  const access = await ledgerAccess(env, user, { company, report: true });
   assertMoney(access);
   const rows =
     (await openRows(

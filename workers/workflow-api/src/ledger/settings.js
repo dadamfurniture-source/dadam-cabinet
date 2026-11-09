@@ -4,6 +4,8 @@
  *   GET /ledger/me         구성원 누구나 — 역할 · 자격 · 할 수 있는 것 (화면이 무엇을 보일지 정한다)
  *                          ai — 사진 AI 읽기(칸 채우기 · 바로 올리기)를 쓰는 업체인가 (Agent · 시험, DB 0038 ledger_ai)
  *                          대표 · 실장에게는 여는 장부 목록 ledgers (본사 대표 · 실장은 공장 장부도 — ?company= 로 연다, 보기만)
+ *                          본사 대표 · 실장이 협력업체 월 보고서를 ?company= 로 열면 report · company_name(그 업체 이름)도 —
+ *                          ledgers 는 자기 목록 그대로 (협력업체는 오르지 않는다, access.js)
  *   GET /ledger/settings   대표 · 실장 — company_settings.settings.tax { vat_type, business_kind }
  *   PUT /ledger/settings   대표 · 실장, 자격 full — tax 묶음만 바꾸고 다른 설정(원가 · 견적 …)은 그대로 둔다
  *     vat_type       general 일반과세 · simplified 간이과세 · exempt 면세 — 일반과세만 수금을 공급가 · 부가세로 나눈다
@@ -29,9 +31,9 @@ async function settingsRow(env, companyId) {
 export async function ledgerMe(env, { user, company }) {
   let access;
   try {
-    access = await ledgerAccess(env, user, { company });
+    access = await ledgerAccess(env, user, { company, report: Boolean(company) });
   } catch (e) {
-    // 자기 업체 장부 자격이 없어도 본사 대표 · 실장은 공장 장부를 본다
+    // 자기 업체 장부 자격이 없어도 본사 대표 · 실장은 공장 장부를 본다 (?company= 를 준 요청의 no_ledger 등은 그대로 던진다)
     const other = !company && e.code === 'not_entitled' ? (await ledgerList(env, user)).find((x) => !x.own) : null;
     if (!other) throw e;
     access = await ledgerAccess(env, user, { company: other.company_id });
@@ -46,6 +48,10 @@ export async function ledgerMe(env, { user, company }) {
     can_write: access.money && access.level === 'full',
     ai: await ledgerAi(env, access.companyId),
   };
+  if (access.report) {
+    out.report = true;
+    out.company_name = ((await selectOne(env, 'companies', { id: `eq.${access.companyId}`, select: 'name' })) || {}).name || null;
+  }
   if (access.money) {
     out.tax = taxOf((await settingsRow(env, access.companyId) || {}).settings);
     out.ledgers = await ledgerList(env, user);

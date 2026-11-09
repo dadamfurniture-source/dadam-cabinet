@@ -124,7 +124,7 @@ export function kstMonthBounds(month) {
 
 /** GET /ledger/close-memo */
 export async function getCloseMemo(env, { user, company, month, nowMs = Date.now() }) {
-  const access = await ledgerAccess(env, user, { company });
+  const access = await ledgerAccess(env, user, { company, report: true });
   assertMoney(access);
   const m = month || shiftMonth(kstMonth(nowMs), -1);
   if (!MONTH_RE.test(m)) throw new ValidationError('month 는 YYYY-MM 입니다');
