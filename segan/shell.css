@@ -776,6 +776,60 @@ a.sg-row.ad-row::after {
   display: none;
 }
 
+/* 본사 › 업체관리 › 등록 업체 (segan/hq-companies.js) — 목록 줄 · 「‹ 등록 업체」 · 탭 셋(프로젝트 · 회계 · 인력) */
+.me-hc-row {
+  gap: 12px;
+  cursor: pointer;
+}
+
+.me-hc-back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--v5-ink-60);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.me-hc-tabs {
+  display: flex;
+  margin: 8px 0 16px;
+  border-bottom: 1px solid var(--v5-line-18);
+}
+
+.me-hc-tabs button {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--v5-ink-60);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.me-hc-tabs button[aria-selected='true'] {
+  border-bottom-color: var(--v5-navy);
+  color: var(--v5-ink);
+  font-weight: 400;
+}
+
+.me-hc-stages {
+  margin: 0 0 16px;
+}
+
+.me-hc-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--v5-line);
+}
+
 /* 메뉴 줄의 값 (팩토리 이름 · 구독 상태) — 줄 글이 먼저, 값은 남는 폭에 */
 .me-hub .sg-row .me-val {
   min-width: 0;
