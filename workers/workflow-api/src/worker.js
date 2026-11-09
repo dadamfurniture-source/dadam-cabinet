@@ -231,6 +231,7 @@ import {
   myScore,
 } from './distribution/company.js';
 import { listCompanyProjects, listCompanyDesigns, createCompanyProject, linkDesignProject } from './company-projects.js';
+import { listHqCompanies, listHqCompanyProjects, listHqCompanyMembers } from './hq-companies.js';
 import { setProjectAssignee, assigneeCandidates } from './company-assignee.js';
 import {
   plannerAccess,
@@ -1239,6 +1240,23 @@ async function handleMyScore(request, env, { user }) {
 
 // ===== 업체 고객 · 프로젝트 (src/company-projects.js) — 고객 이름 · 전화가 담겨 캐시에 남기지 않는다 =====
 
+// ===== 다담 본사 › 업체관리 › 등록 업체 (src/hq-companies.js) — 본사 대표 · 실장, 보기만 =====
+
+async function handleHqCompanies(request, env, { user }) {
+  const data = await listHqCompanies(env, { user });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleHqCompanyProjects(request, env, { params, user }) {
+  const data = await listHqCompanyProjects(env, { user, companyId: params.id });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
+async function handleHqCompanyMembers(request, env, { params, user }) {
+  const data = await listHqCompanyMembers(env, { user, companyId: params.id });
+  return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
+}
+
 async function handleCompanyProjects(request, env, { user }) {
   const data = await listCompanyProjects(env, { user });
   return jsonResponse(request, env, { success: true, data }, 200, NO_STORE);
@@ -1434,6 +1452,9 @@ const router = createRouter([
   { method: 'PUT',  path: '/company/service-settings',            auth: 'jwt', handler: handlePutServiceSettings },
   { method: 'GET',  path: '/company/my-score',                    auth: 'jwt', handler: handleMyScore },
   // 업체 고객 · 프로젝트 — 목록은 구성원, 만들기는 대표 · 실장 (다담 공장 · Manager 이상 협력업체)
+  { method: 'GET',  path: '/hq/companies',                        auth: 'jwt', handler: handleHqCompanies },
+  { method: 'GET',  path: '/hq/companies/:id/projects',           auth: 'jwt', handler: handleHqCompanyProjects },
+  { method: 'GET',  path: '/hq/companies/:id/members',            auth: 'jwt', handler: handleHqCompanyMembers },
   { method: 'GET',  path: '/company/projects',                    auth: 'jwt', handler: handleCompanyProjects },
   { method: 'POST', path: '/company/projects',                    auth: 'jwt', handler: handleCreateCompanyProject },
   { method: 'PUT',  path: '/company/projects/:id/assignee',       auth: 'jwt', handler: handleSetProjectAssignee },
