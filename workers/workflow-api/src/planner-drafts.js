@@ -88,18 +88,26 @@ export function canUsePlanner(company) {
 
 /**
  * 부르는 사람의 플래너 업체 — { company, role, canManage }. 구성원인 업체가 없으면 관리자는 다담 공장.
+ * 다담 본사 구성원도 다담 공장 (본사는 플래너 업체가 아니다 — 관리자와 같은 자리, 직책은 그대로.
+ * 2026-11-09 대표님 계정을 공장 대표에서 본사 대표로 옮겼다 — 그동안 저장한 설계가 다담 공장 것이다).
  * 쓸 수 없는 업체면 403 not_planner_company, 구성원도 관리자도 아니면 403 not_member.
  */
 export async function plannerCompanyOf(env, user) {
   const m = (await activeMemberships(env, user))[0];
   let companyId = m ? m.company_id : null;
   let role = m ? m.role : null;
+  const select = 'id,kind,name,plan,status';
+  let company = companyId ? await selectOne(env, 'companies', { id: `eq.${companyId}`, select }) : null;
+  if (company && company.kind === 'platform') {
+    companyId = await hqCompanyId(env);
+    company = null;
+  }
   if (!companyId) {
     if (!(await isAdmin(env, user))) throw new ForbiddenError('팩토리 구성원만 설계를 씁니다', 'not_member');
     companyId = await hqCompanyId(env);
     role = 'admin';
   }
-  const company = await selectOne(env, 'companies', { id: `eq.${companyId}`, select: 'id,kind,name,plan,status' });
+  if (!company) company = await selectOne(env, 'companies', { id: `eq.${companyId}`, select });
   if (!canUsePlanner(company)) throw new ForbiddenError('설계를 쓸 수 있는 팩토리가 아닙니다', 'not_planner_company');
   return { company, role, canManage: role === 'admin' || MONEY_ROLES.includes(role) };
 }

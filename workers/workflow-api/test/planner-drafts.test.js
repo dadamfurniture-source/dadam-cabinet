@@ -44,6 +44,9 @@ const STD = 'a0000000-0000-4000-8000-000000000004';
 const MGR = 'a0000000-0000-4000-8000-000000000005';
 const NOBODY = 'a0000000-0000-4000-8000-000000000009';
 const ADMIN = 'a0000000-0000-4000-8000-0000000000ad';
+const PLATFORM = 'f0000000-0000-4000-8000-0000000000c1'; // 다담 본사
+const P_OWNER = 'a0000000-0000-4000-8000-000000000006'; // 다담 본사 대표
+const P_STAFF = 'a0000000-0000-4000-8000-000000000007'; // 다담 본사 직원
 const u = (id) => ({ id });
 
 const json = (rows, status = 200) => ({
@@ -62,6 +65,7 @@ function makeDb({ drafts = true } = {}) {
       { id: P1, kind: 'partner', name: '가나 팩토리', plan: 'expert', status: 'active' },
       { id: P2, kind: 'partner', name: '다라 팩토리', plan: 'standard', status: 'active' },
       { id: P3, kind: 'partner', name: '마바 팩토리', plan: 'manager', status: 'active' },
+      { id: PLATFORM, kind: 'platform', name: '다담 본사', plan: null, status: 'active' },
     ],
     company_members: [
       { user_id: OWNER, company_id: P1, role: 'owner', status: 'active' },
@@ -69,6 +73,8 @@ function makeDb({ drafts = true } = {}) {
       { user_id: STAFF2, company_id: P1, role: 'staff', status: 'active' },
       { user_id: STD, company_id: P2, role: 'owner', status: 'active' },
       { user_id: MGR, company_id: P3, role: 'staff', status: 'active' },
+      { user_id: P_OWNER, company_id: PLATFORM, role: 'owner', status: 'active' },
+      { user_id: P_STAFF, company_id: PLATFORM, role: 'staff', status: 'active' },
     ],
     admin_roles: [{ user_id: ADMIN, role: 'admin' }],
     planner_drafts: drafts ? [] : null,
@@ -193,7 +199,7 @@ async function rejects(p, status, code) {
   });
 }
 
-test('누가 쓰나 — 다담 공장 · Expert · Agent · MANAGER 팩토리 구성원, 관리자는 다담 공장으로', async () => {
+test('누가 쓰나 — 다담 공장 · Expert · Agent · MANAGER 팩토리 구성원, 관리자 · 다담 본사 구성원은 다담 공장으로', async () => {
   assert.deepEqual([...PLANNER_PLANS], ['expert', 'agent', 'manager']);
   const db = makeDb();
   await withDb(db, async () => {
@@ -203,6 +209,11 @@ test('누가 쓰나 — 다담 공장 · Expert · Agent · MANAGER 팩토리 �
     assert.equal((await plannerAccess(ENV, { user: u(MGR) })).company.plan, 'manager');
     const ad = await plannerAccess(ENV, { user: u(ADMIN) });
     assert.deepEqual([ad.company.id, ad.role, ad.can_manage], [HQ, 'admin', true]);
+    // 다담 본사 구성원 — 다담 공장 설계 (직책 그대로, 대표 · 실장만 관리)
+    const po = await plannerAccess(ENV, { user: u(P_OWNER) });
+    assert.deepEqual([po.company.id, po.company.kind, po.role, po.can_manage], [HQ, 'hq', 'owner', true]);
+    const ps = await plannerAccess(ENV, { user: u(P_STAFF) });
+    assert.deepEqual([ps.company.id, ps.role, ps.can_manage], [HQ, 'staff', false]);
     await rejects(plannerAccess(ENV, { user: u(STD) }), 403, 'not_planner_company');
     await rejects(plannerAccess(ENV, { user: u(NOBODY) }), 403, 'not_member');
   });
