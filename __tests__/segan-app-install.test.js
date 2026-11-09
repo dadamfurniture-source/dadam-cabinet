@@ -312,8 +312,17 @@ describe('서비스 워커 범위', () => {
   });
 });
 
-/** 기존 사이트에서 segan/ 을 가리켜도 되는 곳 — 사이트 셸 메뉴 · 첫 화면 넘기기 · 결제 성공 기본 링크 · 작업 관리 작업 주소 */
-const SITE_TO_APP = ['index.html', 'billing-success.html', 'js/site-shell.js', 'js/work-jobs-admin.js'];
+/**
+ * 기존 사이트에서 segan/ 을 가리켜도 되는 곳 — 사이트 셸 메뉴 · 첫 화면 넘기기 · 결제 성공 기본 링크 · 작업 관리 작업 주소 ·
+ * 팩토리 평가의 「장부 보고서」(협력 팩토리 월 회계 보고서 segan/ledger-report.html — 앱에만 있다)
+ */
+const SITE_TO_APP = [
+  'index.html',
+  'billing-success.html',
+  'js/site-shell.js',
+  'js/work-jobs-admin.js',
+  'admin/partner-eval.html',
+];
 
 /** _redirects — [옛 주소, 앱 주소, 상태] */
 const REDIRECTS = read('_redirects')
