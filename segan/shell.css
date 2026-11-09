@@ -880,7 +880,8 @@ a.sg-row.ad-row::after {
     margin-top: 24px;
   }
 
-  .me-back {
+  /* make.css .mk-back(inline-flex)이 뒤에 실려 같은 무게면 덮는다 — 두 클래스로 */
+  .mk-back.me-back {
     display: none;
   }
 
