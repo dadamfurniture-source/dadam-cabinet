@@ -300,6 +300,7 @@ async function activeMembership(env, userId) {
 
 const isHq = (m) => !!(m && m.company && m.company.kind === 'hq');
 const isPartner = (m) => !!(m && m.company && m.company.kind === 'partner');
+const isPlatform = (m) => !!(m && m.company && m.company.kind === 'platform');
 
 /** 협력업체 대표만. 아니면 403 not_owner */
 async function partnerOwner(env, userId) {
@@ -398,6 +399,10 @@ async function getMe(env, { user }) {
   };
   if (isHq(m)) {
     data.hq_member = true;
+    return { data };
+  }
+  if (isPlatform(m)) {
+    data.platform_member = true;
     return { data };
   }
   if (!isPartner(m)) return { data };
