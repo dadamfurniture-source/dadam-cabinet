@@ -89,7 +89,7 @@ async function projectCompanyOf(env, user, { manage = false } = {}) {
  * 단계는 고객 「내 프로젝트」(projects.js listMyProjects)와 같은 projectStage: 수주(취소 뺌) · 고객 확인서(거둔 것 뺌) · 설계 · 연출컷.
  * designs = 이 업체의 이 프로젝트들에 이어진 설계 [{ id, project_id }] (목록이 이미 읽은 것).
  */
-async function stagesOf(env, companyId, ids, designs) {
+export async function stagesOf(env, companyId, ids, designs) {
   const out = new Map();
   if (!ids.length) return out;
   const inIds = `in.(${ids.join(',')})`;
