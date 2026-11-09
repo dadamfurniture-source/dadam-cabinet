@@ -137,6 +137,9 @@ function tables() {
       { id: rid(42), design_id: D_A_ORDER, type: 'delivery', status: 'scheduled', scheduled_at: soon(CANDIDATE_DAYS + 3) },
       { id: rid(43), design_id: D_A_ORDER, type: 'installation', status: 'cancelled', scheduled_at: soon(1) },
     ],
+    // 단계 계산 (목록의 stage) — 시험마다 필요한 줄을 넣는다
+    design_documents: [],
+    generations: [],
   };
 }
 
@@ -211,6 +214,42 @@ test('목록 — 내 업체 프로젝트만 최신 순, 고객 이름 · 전화 
   );
   const b = await call(fake, '/company/projects', OWNER_B);
   assert.deepEqual(b.json.data.items[0].customer, { id: CUS_B1, name: '이고객', phone: null });
+});
+
+test('목록 — 프로젝트마다 단계(고객 「내 프로젝트」와 같은 계산) · 최신 수주 (취소 수주 · 거둔 확인서 · 다른 업체 수주는 빼고)', async () => {
+  const fake = fakeOf();
+  const D_B = rid(27);
+  fake.db.designs.push({ id: D_B, company_id: B, user_id: OWNER_B, project_id: PRJ_B1 });
+  fake.db.design_documents.push(
+    { id: rid(51), design_id: D_B, doc_type: 'customer_confirmation', status: 'issued' },
+    { id: rid(52), design_id: D_A_STAFF, doc_type: 'customer_confirmation', status: 'revoked' }
+  );
+  fake.db.generations.push({ id: rid(61), project_id: PRJ_F1 });
+  fake.db.orders.push(
+    { id: rid(32), company_id: A, project_id: PRJ_A2, status: 'cancelled', order_no: 'X-1' },
+    { id: rid(33), company_id: B, project_id: PRJ_A1, status: 'completed', order_no: 'X-2' }
+  );
+  const a = await call(fake, '/company/projects', OWNER_A);
+  assert.equal(a.status, 200, JSON.stringify(a.json));
+  assert.deepEqual(
+    a.json.data.items.map((p) => [p.id, p.stage, p.order]),
+    [
+      [PRJ_A2, 'design', null],
+      [PRJ_A1, 'order', { id: rid(31), order_no: null, status: 'confirmed' }],
+    ]
+  );
+  const b = await call(fake, '/company/projects', OWNER_B);
+  assert.deepEqual(b.json.data.items.map((p) => [p.stage, p.order]), [['quote', null]]);
+  const f = await call(fake, '/company/projects', FACTORY_OWNER);
+  assert.deepEqual(f.json.data.items.map((p) => [p.stage, p.order]), [['render', null]]);
+  // 설치가 끝난 수주
+  fake.db.orders.find((o) => o.id === rid(31)).status = 'completed';
+  const done = await call(fake, '/company/projects', OWNER_A);
+  assert.equal(done.json.data.items.find((p) => p.id === PRJ_A1).stage, 'installed');
+  // 수주는 내 업체 것만 묻는다
+  const q = fake.calls.filter((c) => c.method === 'GET' && c.table === 'orders').pop();
+  assert.equal(q.params.get('company_id'), `eq.${A}`);
+  assert.equal(q.params.get('status'), 'neq.cancelled');
 });
 
 test('Manager 업체도 프로젝트를 본다 · 만든다 (2026-11-08, DB 0047)', async () => {

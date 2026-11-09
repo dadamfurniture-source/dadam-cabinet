@@ -6,6 +6,8 @@
  *
  *   GET  /company/projects       내 업체 프로젝트 목록 (active 구성원) — 고객 이름 · 전화, 이어진 설계 수, 담당자, 최신 200개
  *                                + 지금 구성원 members [{ user_id, name, role }] (담당자 고르기 — src/company-assignee.js, DB 0042)
+ *                                + 프로젝트마다 단계 stage (projects.js projectStage — 고객 「내 프로젝트」와 같은 계산) ·
+ *                                최신 수주 order { id, order_no, status } (취소 수주 뺌) — 마이페이지 프로젝트 관리가 단계로 거른다
  *   POST /company/projects       새 프로젝트 (대표 · 실장) { title, customer_id } | { title, customer: { name, phone } }
  *                                → { project_id, customer_id }. 새 고객은 이름 · 전화로 늘 새 행 (이름 · 전화가 같다고
  *                                기존 고객에 잇지 않는다 — projects.js 상담 확정과 같다)
@@ -38,6 +40,7 @@ import { companyOf } from './distribution/company.js';
 import { idempotencyKeyOf } from './ledger/checks.js';
 import { membersOf } from './company-assignee.js';
 import { isMissingRelation } from './work-order-data.js';
+import { projectStage } from './projects.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
@@ -53,6 +56,8 @@ export const CUSTOMER_NAME_MAX = 50;
 export const PHONE_RE = /^[0-9][0-9-]{7,19}$/;
 /** 프로젝트를 가질 수 있는 협력업체 plan (Manager 이상) */
 export const PROJECT_PLANS = Object.freeze(['manager', 'expert', 'agent']);
+/** 단계 계산에 읽는 수주 · 확인서 · 연출컷 행 수 상한 (projects.js LINKED_ROW_LIMIT 와 같다) */
+const STAGE_ROW_LIMIT = '500';
 
 function conflict(message, code) {
   const err = new ConflictError(message);
@@ -77,6 +82,61 @@ async function projectCompanyOf(env, user, { manage = false } = {}) {
   if (!canHoldProjects(company))
     throw new ForbiddenError('프로젝트를 쓸 수 있는 팩토리가 아닙니다', 'not_project_company');
   return { company, canAct };
+}
+
+/**
+ * 프로젝트마다 단계 · 최신 수주 — Map(project_id → { stage, order }).
+ * 단계는 고객 「내 프로젝트」(projects.js listMyProjects)와 같은 projectStage: 수주(취소 뺌) · 고객 확인서(거둔 것 뺌) · 설계 · 연출컷.
+ * designs = 이 업체의 이 프로젝트들에 이어진 설계 [{ id, project_id }] (목록이 이미 읽은 것).
+ */
+async function stagesOf(env, companyId, ids, designs) {
+  const out = new Map();
+  if (!ids.length) return out;
+  const inIds = `in.(${ids.join(',')})`;
+  const designIds = designs.map((d) => d.id);
+  const [orders, quotes, renders] = await Promise.all([
+    selectMany(env, 'orders', {
+      project_id: inIds,
+      company_id: `eq.${companyId}`,
+      status: 'neq.cancelled',
+      select: 'id,project_id,order_no,status',
+      order: 'ordered_at.desc,created_at.desc',
+      limit: STAGE_ROW_LIMIT,
+    }),
+    designIds.length
+      ? selectMany(env, 'design_documents', {
+          design_id: `in.(${designIds.join(',')})`,
+          doc_type: 'eq.customer_confirmation',
+          status: 'neq.revoked',
+          select: 'design_id',
+          limit: STAGE_ROW_LIMIT,
+        })
+      : [],
+    selectMany(env, 'generations', { project_id: inIds, select: 'project_id', limit: STAGE_ROW_LIMIT }),
+  ]);
+  const projectOfDesign = new Map(designs.map((d) => [d.id, d.project_id]));
+  const ordersBy = new Map();
+  for (const o of orders || []) {
+    if (!ordersBy.has(o.project_id)) ordersBy.set(o.project_id, []);
+    ordersBy.get(o.project_id).push(o); // 최신 수주가 앞
+  }
+  const quoteSet = new Set((quotes || []).map((q) => projectOfDesign.get(q.design_id)));
+  const designSet = new Set(designs.map((d) => d.project_id));
+  const renderSet = new Set((renders || []).map((g) => g.project_id));
+  for (const id of ids) {
+    const projectOrders = ordersBy.get(id) || [];
+    const latest = projectOrders[0] || null;
+    out.set(id, {
+      stage: projectStage({
+        orders: projectOrders,
+        hasQuote: quoteSet.has(id),
+        hasDesign: designSet.has(id),
+        hasRender: renderSet.has(id),
+      }),
+      order: latest ? { id: latest.id, order_no: latest.order_no || null, status: latest.status } : null,
+    });
+  }
+  return out;
 }
 
 /** 글 칸 — 앞뒤 빈칸 지움, 1 ~ max 자 */
@@ -128,6 +188,7 @@ export async function listCompanyProjects(env, { user }) {
   const customerOf = new Map(customers.map((c) => [c.id, c]));
   const designCount = new Map();
   for (const d of designs) designCount.set(d.project_id, (designCount.get(d.project_id) || 0) + 1);
+  const stages = await stagesOf(env, company.id, ids, designs);
   return {
     company: { id: company.id, name: company.name, kind: company.kind, plan: company.plan || null },
     can_manage: canAct,
@@ -143,6 +204,8 @@ export async function listCompanyProjects(env, { user }) {
         closed_at: p.closed_at || null,
         customer: c ? { id: c.id, name: c.name || null, phone: c.phone || null } : null,
         design_count: designCount.get(p.id) || 0,
+        stage: stages.get(p.id).stage,
+        order: stages.get(p.id).order,
         // 나간 구성원이면 이름 없이 id 만 (removed — 바꾸는 것은 사람이 한다)
         assignee: p.assignee_id ? memberOf.get(p.assignee_id) || { user_id: p.assignee_id, name: null, role: null } : null,
       };
