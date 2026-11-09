@@ -773,6 +773,20 @@ describe('그 밖', () => {
     expect($('evTitle').textContent).toBe('한빛가구');
   });
 
+  test('협력 팩토리만 평가표 머리에 「장부 보고서 ↗」 — SEGAN 월 회계 보고서를 새 탭으로', async () => {
+    await start();
+    await open('p1');
+    const links = [...document.querySelectorAll('#evLinks a')];
+    expect(links).toHaveLength(1);
+    expect(links[0].textContent).toBe('장부 보고서 ↗');
+    expect(links[0].getAttribute('href')).toBe('../segan/ledger-report.html?company=p1');
+    expect(links[0].getAttribute('target')).toBe('_blank');
+    expect(links[0].getAttribute('rel')).toBe('noopener');
+    await open('f1');
+    expect($('evTitle').textContent).toBe('다담 공장');
+    expect(document.querySelectorAll('#evLinks a')).toHaveLength(0);
+  });
+
   test("라우터 404 'Not found' — 배포 안내", async () => {
     await start({
       handler: () => ({ status: 404, body: { success: false, message: 'Not found' } }),
@@ -821,6 +835,9 @@ describe('그 밖', () => {
       expect(document.querySelector('#pageContent i')).toBeNull();
       expect($('evTitle').textContent).toBe(evil);
       expect($('fNote').value).toBe(evil);
+      expect($('evLinks').querySelector('a').getAttribute('href')).toBe(
+        '../segan/ledger-report.html?company=' + encodeURIComponent('x"><i>')
+      );
     } finally {
       POOL.pop();
     }

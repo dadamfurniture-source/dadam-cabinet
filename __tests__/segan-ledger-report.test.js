@@ -326,3 +326,88 @@ describe('월 마감 메모 (2026-11-06 6-L3)', () => {
     expect(calls.some((c) => c.url === WORK + '/ledger/close-memo?month=2026-10&company=' + C)).toBe(true);
   });
 });
+
+describe('협력 팩토리 보고서 — 본사 대표 · 실장 (GET /ledger/me report)', () => {
+  const P = '22222222-2222-4222-8222-222222222222';
+  const HQ = '33333333-3333-4333-8333-333333333333';
+  const ME_REPORT = {
+    company_id: P,
+    role: 'owner',
+    money: true,
+    level: 'read',
+    viewing: true,
+    report: true,
+    company_name: '한빛가구',
+    can_upload: false,
+    can_write: false,
+    ai: false,
+    tax: null,
+    ledgers: [{ company_id: HQ, name: '다담 공장', kind: 'hq', own: false }],
+  };
+  const ledgerLinks = () =>
+    [...document.querySelectorAll('#main a[href]')].filter((a) =>
+      /(^|\/)ledger\.html/.test(a.getAttribute('href'))
+    );
+
+  test('이름은 me.company_name · 돌아가기는 팩토리 평가 · 보고서만 한 줄 · 보고서 경로만 부른다', async () => {
+    const calls = await load({ search: '?month=2026-10&company=' + P, me: ok(ME_REPORT) });
+    expect($('lrBody').hidden).toBe(false);
+    expect($('lrTitle').textContent).toBe('한빛가구 · 2026년 10월 회계 보고');
+    expect($('lrBack').getAttribute('href')).toBe('../admin/partner-eval.html#company=' + P);
+    expect($('lrBack').textContent).toBe('‹ 팩토리 평가');
+    expect($('lrView').hidden).toBe(false);
+    expect($('lrView').textContent).toBe(
+      '다담 본사 보기 — 월 보고서만 봅니다 (장부 줄 · 사진은 열지 않습니다).'
+    );
+    expect(ledgerLinks()).toEqual([]);
+    // 팩토리를 붙여 부르는 것은 보고서 경로뿐
+    const withP = calls
+      .filter((c) => c.url.startsWith(WORK + '/ledger/') && c.url.includes('company=' + P))
+      .map((c) => new URL(c.url).pathname);
+    expect([...new Set(withP)].sort()).toEqual([
+      '/ledger/close-memo',
+      '/ledger/dashboard',
+      '/ledger/me',
+      '/ledger/payables',
+      '/ledger/receivables',
+    ]);
+    expect(rows('lrSuppliers')).toEqual([['가나목재', '9,000,000원', '4']]);
+  });
+
+  test('장부가 없는 팩토리(no_ledger) — 이유 한 줄, 돌아가기는 팩토리 평가', async () => {
+    const calls = await load({
+      search: '?company=' + P,
+      me: fail(403, 'no_ledger', '이 팩토리는 장부가 없습니다'),
+    });
+    expect($('lrState').textContent).toBe('이 팩토리는 아직 장부가 없습니다.');
+    expect($('lrBody').hidden).toBe(true);
+    expect($('lrView').hidden).toBe(true);
+    expect($('lrBack').getAttribute('href')).toBe('../admin/partner-eval.html#company=' + P);
+    expect($('lrBack').textContent).toBe('‹ 팩토리 평가');
+    expect(calls.some((c) => c.url.startsWith(WORK + '/ledger/dashboard'))).toBe(false);
+  });
+
+  test('다담 공장 보기(viewing, report 없음)는 그대로 — 이름은 ledgers, 돌아가기는 회계', async () => {
+    const ME_HQ = {
+      ...ME,
+      company_id: HQ,
+      level: 'read',
+      viewing: true,
+      can_upload: false,
+      can_write: false,
+      ledgers: [{ company_id: HQ, name: '다담 공장', kind: 'hq', own: false }],
+    };
+    await load({ search: '?month=2026-10&company=' + HQ, me: ok(ME_HQ) });
+    expect($('lrTitle').textContent).toBe('다담 공장 · 2026년 10월 회계 보고');
+    expect($('lrBack').getAttribute('href')).toBe('ledger.html?company=' + HQ);
+    expect($('lrBack').textContent).toBe('‹ 회계');
+    expect($('lrView').hidden).toBe(true);
+  });
+
+  test('?company= 없이 report 가 와도 자기 장부 보기 그대로', async () => {
+    await load({ search: '?month=2026-10', me: ok({ ...ME, report: true, company_name: '다른 이름' }) });
+    expect($('lrTitle').textContent).toBe('한빛 인테리어 · 2026년 10월 회계 보고');
+    expect($('lrBack').getAttribute('href')).toBe('ledger.html');
+    expect($('lrView').hidden).toBe(true);
+  });
+});

@@ -9,6 +9,10 @@
              서버가 센 손볼 곳 그대로, 0 인 것은 뺀다). 숫자는 서버 값 그대로 — 이 화면이 더하는 것은 장부 손익과
              반기 부가세 참고뿐 (SeganLedgerBoard.vatHalf — 회계 한눈에와 같은 셈)
    인쇄      「인쇄 · PDF 저장」 = window.print. 앱 머리 · 아래 탭 · 단추는 인쇄에서 뺀다 (ledger-report.css)
+   협력 팩토리 (본사 보기 · report) — 관리 › 팩토리 평가의 「장부 보고서」가 ?company=<팩토리> 로 연다.
+             /ledger/me 가 report: true 면 이름은 me.company_name, 돌아가기는 팩토리 평가(그 팩토리를 연 채),
+             보고서만 본다는 한 줄. 장부 화면(ledger.html)으로 가는 길은 없다 (서버도 보고서 경로만 연다).
+             장부가 없는 팩토리는 /ledger/me 가 no_ledger 로 답한다 → 이유 한 줄
    글은 모두 textContent 로 넣는다.
    ============================================================ */
 /* global window, document, fetch, location, URLSearchParams */
@@ -19,7 +23,12 @@
     not_member: '회계 보고서는 팩토리 구성원만 봅니다.',
     not_entitled: '회계 보고서는 Agent 팩토리가 봅니다.',
     not_money: '회계 보고서는 팩토리 대표 · 실장만 봅니다.',
+    no_ledger: '이 팩토리는 아직 장부가 없습니다.',
   };
+  /** 협력 팩토리 보고서(report) — 돌아가기 · 한 줄 */
+  var EVAL_PAGE = '../admin/partner-eval.html'; // 관리 › 팩토리 평가 (#company= 로 그 팩토리를 연다)
+  var EVAL_BACK = '‹ 팩토리 평가';
+  var REPORT_NOTE = '다담 본사 보기 — 월 보고서만 봅니다 (장부 줄 · 사진은 열지 않습니다).';
   var FAIL_MSG = '회계 보고서를 불러오지 못했습니다.';
   var NOT_READY_MSG = '회계 보고서를 준비하는 중입니다. 잠시 뒤 다시 열어 주세요.';
   var MONTHS = 12; // 워커 src/ledger/dashboard.js DASH_MONTHS
@@ -32,6 +41,7 @@
     session: null,
     base: '',
     company: '', // 본사 보기 — 주소의 ?company=
+    report: false, // 협력 팩토리 보고서만 (GET /ledger/me report: true)
     month: '',
     me: null,
     data: null, // GET /ledger/dashboard data
@@ -245,6 +255,7 @@
 
   function companyName() {
     var me = R.me || {};
+    if (R.report) return me.company_name || ''; // 협력 팩토리는 me.ledgers 에 없다
     var list = me.ledgers || [];
     for (var i = 0; i < list.length; i++)
       if (list[i].company_id === me.company_id) return list[i].name || '';
@@ -408,6 +419,13 @@
     render();
   }
 
+  /** 협력 팩토리 — 돌아가기는 팩토리 평가 (장부 화면은 서버가 열지 않는다) */
+  function reportBack() {
+    var back = $('lrBack');
+    back.href = EVAL_PAGE + '#company=' + encodeURIComponent(R.company);
+    back.textContent = EVAL_BACK;
+  }
+
   async function start(auth) {
     if (!auth || !auth.session || !auth.sb || !$('lrBody') || !board()) return;
     R.sb = auth.sb;
@@ -420,9 +438,18 @@
     R.company = UUID_RE.test(company) ? company : '';
     if (R.company) $('lrBack').href = withCompany('ledger.html');
     var me = await api(withCompany('/ledger/me'));
-    if (!me.ok) return setState(DENY[me.code] || FAIL_MSG);
+    if (!me.ok) {
+      if (me.code === 'no_ledger' && R.company) reportBack();
+      return setState(DENY[me.code] || FAIL_MSG);
+    }
     if (!me.data || !me.data.money) return setState(DENY.not_money);
     R.me = me.data;
+    R.report = !!R.company && me.data.report === true;
+    if (R.report) {
+      reportBack();
+      $('lrView').textContent = REPORT_NOTE;
+      $('lrView').hidden = false;
+    }
     var acc = await api('/ledger/accounts');
     if (acc.ok)
       ((acc.data && acc.data.items) || []).forEach(function (a) {
