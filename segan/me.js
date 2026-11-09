@@ -24,7 +24,8 @@
          인력 관리     Agent 대표 · 실장 · 다담 공장 — 직원(#staff — 업체 칸 안 직원 · 초대, Agent 대표) ·
                         작업 분배(#assign — 진행 중 프로젝트 담당자, 대표 · 실장) · 일정(준비 중) · 작업자(공장은 PC 생산 계획)
        본사 (다담 본사 구성원은 맨 위) — 종합 대시보드 · 계정관리 · 업체관리 · DB관리 · 인력관리 줄은 관리자(is_admin) —
-         앱 관리(admin.html#…) 또는 PC 관리자 화면(새 탭). 회계관리 = 본사 장부(본사 대표 · 실장) · 공장 장부 보기
+         앱 관리(admin.html#…) 또는 PC 관리자 화면(새 탭). 업체관리 › 등록 업체(#companies)는 본사 대표 · 실장
+         (segan/hq-companies.js — 업체마다 프로젝트 · 회계 · 인력). 회계관리 = 본사 장부(본사 대표 · 실장) · 공장 장부 보기
        기본 정보 (누구나) — 내 연출컷 · 좋아요 #likes · 크레딧 · 구독(billing.html) · 내 팩토리 #partner(업체가 없으면
          「팩토리로 시작하기」, 신청 중이면 「팩토리 신청」, 다담 공장 · 본사 구성원은 없다) · 내 활동 · 알림 #notify · 설정
        맨 아래 로그아웃
@@ -528,6 +529,8 @@
       title: '작업자',
       soon: '작업자는 준비 중입니다. 설치 · A/S 외부 작업자를 모으고 배정하게 됩니다.',
     },
+    // 본사 › 업체관리 — 등록 업체 (segan/hq-companies.js)
+    companies: { title: '등록 업체', section: 'hqCompanies' },
     // 기본 정보
     partner: {
       title: '내 팩토리',
@@ -578,6 +581,7 @@
     'as-mine': 'p-as',
   };
   var SECTIONS = [
+    'hqCompanies',
     'meProjectSection',
     'meAsSection',
     'partner',
@@ -1058,6 +1062,9 @@
         return v.people && !v.hq;
       case 'workers-hq':
         return v.people && v.hq;
+      // 본사 › 업체관리 › 등록 업체 — 본사 대표 · 실장 (칸을 연 때만)
+      case 'companies':
+        return v.platform && available(key);
       // 기본 정보
       case 'partner':
       case 'likes':
@@ -1256,6 +1263,7 @@
     var As = window.SeganAs;
     var Production = window.SeganProduction;
     var Factory = window.SeganFactoryRequests;
+    var HqCo = window.SeganHqCompanies;
     await Promise.all([
       synced(loadProjects(auth.session)),
       // 내 A/S 접수 — 업체 칸과 상관없다 (segan/as-requests.js)
@@ -1278,6 +1286,8 @@
           // 제작 의뢰함 = 다담 공장 · Expert · Agent 구성원 (segan/factory-requests.js)
           synced(Production && Production.load ? Production.load(auth.sb, auth.session, me) : null),
           synced(Factory && Factory.load ? Factory.load(auth.sb, auth.session, me) : null),
+          // 등록 업체 = 다담 본사 구성원 (segan/hq-companies.js — 서버가 대표 · 실장만)
+          synced(HqCo && HqCo.load ? HqCo.load(auth.sb, auth.session, me) : null),
           // 작업자도 알림 칸 — 셸의 작업 탭 판정을 그대로 넘긴다
           synced(
             Push && Push.load
