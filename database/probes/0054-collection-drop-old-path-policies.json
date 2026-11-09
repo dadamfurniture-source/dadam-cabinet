@@ -1,0 +1,150 @@
+{
+  "title": "0054 시공사례 사진 옛 경로 정책 거둠 — collection 버킷 정책은 읽기 · 관리자 지우기 · 'p/' 넣기 · 주인 지우기 넷만, '<본인 id>/…' 넣기 · 고치기 · 지우기는 이제 막힌다 (scripts/rls-probe.mjs --migration database/migrations/0054_collection_drop_old_path_policies.sql)",
+  "ids": [
+    "obj_p",
+    "obj_ai",
+    "obj_old"
+  ],
+  "users": [
+    "cust_user",
+    "other_user",
+    "admin_user"
+  ],
+  "setup": [
+    "INSERT INTO public.admin_roles (user_id, role) VALUES ({{admin_user}}, 'admin')",
+    "INSERT INTO storage.objects (bucket_id, name, owner_id) VALUES ('collection', 'p/' || {{obj_p}}::text || '.jpg', {{cust_user}}::text), ('collection', 'ai/' || {{obj_ai}}::text || '.png', {{cust_user}}::text), ('collection', {{cust_user}}::text || '/probe-' || {{obj_old}}::text || '.jpg', {{cust_user}}::text)"
+  ],
+  "roles": {
+    "anon": {
+      "role": "anon"
+    },
+    "cust": {
+      "role": "authenticated",
+      "user": "cust_user"
+    },
+    "other": {
+      "role": "authenticated",
+      "user": "other_user"
+    },
+    "admin": {
+      "role": "authenticated",
+      "user": "admin_user"
+    },
+    "service_role": {
+      "role": "service_role"
+    }
+  },
+  "checks": [
+    {
+      "name": "collection 버킷 storage 정책 (이름:명령:역할) — 넷만 남는다 (옛 넣기 · 고치기 · 지우기 셋이 빠진다)",
+      "sql": "select string_agg(policyname || ':' || cmd || ':' || array_to_string(roles, ','), ' | ' order by policyname collate \"C\") from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'collection%'",
+      "roles": [
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "collection_delete_admin:DELETE:authenticated | collection_delete_owner:DELETE:authenticated | collection_insert_photo:INSERT:authenticated | collection_select_public:SELECT:public"
+      }
+    },
+    {
+      "name": "옛 경로 넣기 '<본인 id>/…' — 이제 본인 폴더도 못 넣는다 (회원 · 관리자 · 로그인 전 모두)",
+      "sql": "insert into storage.objects (bucket_id, name, owner_id) values ('collection', {{cust_user}}::text || '/' || gen_random_uuid()::text || '.jpg', auth.uid()::text)",
+      "roles": [
+        "anon",
+        "cust",
+        "other",
+        "admin"
+      ],
+      "expect": {
+        "*": "deny"
+      }
+    },
+    {
+      "name": "새 경로 넣기 'p/<uuid>.jpg' — 로그인한 회원이 owner_id 본인으로 (그대로), 로그인 전은 못 넣는다",
+      "sql": "insert into storage.objects (bucket_id, name, owner_id) values ('collection', 'p/' || gen_random_uuid()::text || '.jpg', auth.uid()::text)",
+      "expect": {
+        "anon": "deny",
+        "*": "ok"
+      }
+    },
+    {
+      "name": "새 경로 넣기 — 남의 owner_id 로는 못 넣는다 (그대로)",
+      "sql": "insert into storage.objects (bucket_id, name, owner_id) values ('collection', 'p/' || gen_random_uuid()::text || '.jpg', {{other_user}}::text)",
+      "roles": [
+        "cust"
+      ],
+      "expect": {
+        "cust": "deny"
+      }
+    },
+    {
+      "name": "'ai/' 에는 회원이 넣지 못한다 — 서버만 (그대로)",
+      "sql": "insert into storage.objects (bucket_id, name, owner_id) values ('collection', 'ai/' || gen_random_uuid()::text || '.png', auth.uid()::text)",
+      "expect": {
+        "service_role": "ok",
+        "*": "deny"
+      }
+    },
+    {
+      "name": "고치기 — 회원은 어느 경로도 못 고친다 (고치기 정책 없음, 옛 '<본인 id>/…' 도)",
+      "sql": "update storage.objects set updated_at = now() where bucket_id = 'collection' and name in ('p/' || {{obj_p}}::text || '.jpg', {{cust_user}}::text || '/probe-' || {{obj_old}}::text || '.jpg')",
+      "roles": [
+        "cust",
+        "other",
+        "admin",
+        "service_role"
+      ],
+      "expect": {
+        "service_role": "rows:2",
+        "*": "rows:0"
+      }
+    },
+    {
+      "name": "지우기 'p/…' — 주인(owner_id) · 관리자만 (그대로)",
+      "sql": "select set_config('storage.allow_delete_query', 'true', true); delete from storage.objects where bucket_id = 'collection' and name = 'p/' || {{obj_p}}::text || '.jpg'",
+      "roles": [
+        "cust",
+        "other",
+        "admin",
+        "service_role"
+      ],
+      "expect": {
+        "cust": "rows:1",
+        "other": "rows:0",
+        "admin": "rows:1",
+        "service_role": "rows:1"
+      }
+    },
+    {
+      "name": "지우기 'ai/…' — 주인(owner_id)만 (그대로)",
+      "sql": "select set_config('storage.allow_delete_query', 'true', true); delete from storage.objects where bucket_id = 'collection' and name = 'ai/' || {{obj_ai}}::text || '.png'",
+      "roles": [
+        "cust",
+        "other"
+      ],
+      "expect": {
+        "cust": "rows:1",
+        "other": "rows:0"
+      }
+    },
+    {
+      "name": "옛 경로 지우기 '<본인 id>/…' — 이제 회원 본인도 못 지운다, 관리자는 지운다",
+      "sql": "select set_config('storage.allow_delete_query', 'true', true); delete from storage.objects where bucket_id = 'collection' and name = {{cust_user}}::text || '/probe-' || {{obj_old}}::text || '.jpg'",
+      "roles": [
+        "cust",
+        "other",
+        "admin"
+      ],
+      "expect": {
+        "admin": "rows:1",
+        "*": "rows:0"
+      }
+    },
+    {
+      "name": "읽기 — 누구나 (공개 버킷 collection_select_public 그대로)",
+      "sql": "select count(*) from storage.objects where bucket_id = 'collection' and name in ('p/' || {{obj_p}}::text || '.jpg', 'ai/' || {{obj_ai}}::text || '.png', {{cust_user}}::text || '/probe-' || {{obj_old}}::text || '.jpg')",
+      "expect": {
+        "*": "3"
+      }
+    }
+  ]
+}
