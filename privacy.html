@@ -60,7 +60,8 @@
             <li>상담 신청 처리와 협력업체 연결</li>
             <li>유료 구독 결제와 정산</li>
             <li>시공 일정·작업 관리와 확인서 발행</li>
-            <li>Agent 업체의 AI 비서(업체 자료 요약, 알림, 초안·제안)</li>
+            <li>로그인한 회원의 AI 비서 안내 모드(서비스 쓰는 법 안내)</li>
+            <li>Agent 업체의 AI 비서 업무 모드(업체 자료 요약, 알림, 초안·제안)</li>
             <li>Agent 업체의 회계장부와 영수증·거래명세표 사진 읽기</li>
             <li>동의한 경우에 한해 사진의 AI 학습, 마케팅 안내</li>
           </ul>
@@ -114,12 +115,17 @@
                   <td>—</td>
                 </tr>
                 <tr>
-                  <th scope="row">업체(Expert·Agent)</th>
+                  <th scope="row">업체(Manager·Expert·Agent)</th>
                   <td>상호, 사업자등록번호</td>
                   <td>—</td>
                 </tr>
                 <tr>
-                  <th scope="row">AI 비서 (Agent 업체)</th>
+                  <th scope="row">AI 비서 안내 모드 (로그인한 회원)</th>
+                  <td>비서에게 묻는 내용, 그 화면의 앞선 대화(최근 몇 줄), 답에 쓰는 등급·크레딧, 하루 질문 수</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <th scope="row">AI 비서 업무 모드 (Agent 업체)</th>
                   <td>비서에게 묻는 내용과 답, 답에 필요한 업체 자료(상담·고객·수주·회계)</td>
                   <td>—</td>
                 </tr>
@@ -195,8 +201,15 @@
                   <td>마지막 작업이 끝난 뒤 3년</td>
                 </tr>
                 <tr>
-                  <th scope="row">AI 비서 대화</th>
+                  <th scope="row">AI 비서 업무 모드 대화</th>
                   <td>90일</td>
+                </tr>
+                <tr>
+                  <th scope="row">AI 비서 안내 모드 대화</th>
+                  <td>
+                    서버에 남기지 않습니다. 하루 질문 수와 사용량만 남깁니다.
+                    <span class="lg-blank">하루 질문 수·사용량 기록의 보관 기간: 검토 뒤 정합니다</span>
+                  </td>
                 </tr>
                 <tr>
                   <th scope="row">업체 회계장부와 증빙 사진(영수증·거래명세표)</th>
@@ -324,7 +337,13 @@
                 </tr>
                 <tr>
                   <th scope="row">Anthropic</th>
-                  <td>AI 비서 (Agent 업체)</td>
+                  <td>AI 비서 안내 모드 (로그인한 회원)</td>
+                  <td>비서에게 묻는 내용, 그 화면의 앞선 대화(최근 몇 줄), 등급·크레딧</td>
+                  <td>미국</td>
+                </tr>
+                <tr>
+                  <th scope="row">Anthropic</th>
+                  <td>AI 비서 업무 모드 (Agent 업체)</td>
                   <td>비서에게 묻는 내용, 답에 필요한 업체 자료(상담·고객·수주·회계)</td>
                   <td>미국</td>
                 </tr>
